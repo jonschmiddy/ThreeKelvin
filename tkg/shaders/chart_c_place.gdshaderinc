@@ -73,11 +73,11 @@ uniform vec4 u_echo = vec4(0.0);   // light echo: plane x, y, ring radius (gu), 
 // seed); none in the palette's probes
 uniform int u_nrem = 0;
 uniform vec4 u_rem[16];
-// GALAXY DEPTH (`ChartSky.depth`, SIMPLIFIED only until Jon picks one): on, the
-// lowest and the highest sheet's factor, and the places on the screen it keeps
-// clear of (chart px: YOU and the systems in range)
+// GALAXY DEPTH (`ChartSky.depth`, SIMPLIFIED only until Jon picks one): on, how
+// thick (x: 1 the medium), and the places on the screen it keeps clear of (chart
+// px: YOU and the systems in range)
 uniform bool u_depthOn = false;
-uniform vec2 u_depth = vec2(1.15, 1.45);
+uniform vec2 u_depth = vec2(1.0, 0.0);
 uniform int u_nclear = 0;
 uniform vec2 u_clear[24];
 
@@ -1071,61 +1071,79 @@ vec3 remnants(vec2 p) {
 }
 
 // ------------------------------------------------------------------ galaxy depth
-// GALAXY DEPTH (`ChartSky.depth`): the galaxy's thick disc and halo -- stars, wisps
-// of gas and clumps of it -- on DEPTH_N sheets at heights just above the disc,
-// seen in perspective from a camera over the middle of the view. A sheet is
-// magnified about the view's middle by its factor (u_depth, lowest to highest,
-// growing a touch more with the zoom the higher it is), so on a drag it slides
-// that much faster than the disc, and it stands up off the plane at the sector
-// map's tilt. Its gas is the galaxy's own (lit warm by the core, blue out in the
-// arms) but lifted off the disc: crisp edged, shading what lies behind it, and
-// casting a faint shadow on the disc right under it, so the gap between a clump
-// and its shadow shows its height. Kept clear of YOU and the systems in range.
-const int DEPTH_N = 4;
+// GALAXY DEPTH (`ChartSky.depth`): the galaxy as a volume that hugs its disc --
+// stars and small clumps of its own gas just above AND just below the plane, the
+// material thinning away from the plane (exponentially, its scale height
+// `depthZ`): thickest round the core, a puffy bulge with stars above and below
+// it, thinning along the arms, the edge staying thin. Seen in perspective from a
+// camera over the middle of the view, a thing at height h is magnified about the
+// view's middle by 1 + DEPTH_K h, so on a drag what is above the disc slides a
+// little faster than it and what is below a little slower -- the counter-motion
+// is the thickness -- and a height stands up off the plane at the sector map's
+// tilt. No sheets: the volume is cut into DEPTH_N thin slices, denser near the
+// plane, every star given its own height within its slice and every clump its
+// own slice. What is below sits behind the disc (its dust and light cover it);
+// what is above shades the disc behind it and casts a faint shadow on the disc
+// right under it. Kept clear of YOU and the systems in range. u_depth.x scales
+// the thickness (thin, medium, thick).
+const int DEPTH_N = 8;
+const float DEPTH_K = 2.0;
+// the scale height at plane radius r, gu
+float depthZ(float r) {
+	return u_depth.x * (0.045 * exp(-r / 0.10) + 0.012 * exp(-r / 0.45)) * (1.0 - 0.75 * smoothstep(0.65, 1.05, r));
+}
+// slice k's height, gu: three below the plane, five above, closer together near it
 float depthH(int k) {
-	return 0.025 + 0.085 * float(k) / float(DEPTH_N - 1);
+	if (k < 3) {
+		return -0.04 * u_depth.x * pow((float(3 - k) - 0.5) / 3.0, 1.5);
+	}
+	return 0.06 * u_depth.x * pow((float(k - 3) + 0.5) / 5.0, 1.5);
 }
-float depthF(int k) {
-	float u = float(k) / float(DEPTH_N - 1);
-	return mix(u_depth.x, u_depth.y, u) * pow(max(u_zoom / u_zopen, 1.0), 0.03 * u);
+float depthThick(int k) {
+	return k < 3 ? 0.04 * u_depth.x / 3.0 : 0.06 * u_depth.x / 5.0;
 }
-// the plane point seen through view point v on sheet k, and the view point a
-// plane point of sheet k is seen at
-vec2 depthP(vec2 v, int k) {
+float depthF(float h) {
+	return (1.0 + DEPTH_K * h) * pow(max(u_zoom / u_zopen, 1.0), 0.3 * h);
+}
+// the plane point seen through view point v at height h, and the view point a
+// plane point at height h is seen at
+vec2 depthP(vec2 v, float h) {
 	vec2 gp = gpan();
-	vec2 vh = (v - gp) / depthF(k) + gp;
-	vh.y += depthH(k) * KIT_TILT_COS * u_k;
+	vec2 vh = (v - gp) / depthF(h) + gp;
+	vh.y += h * KIT_TILT_COS * u_k;
 	return kitViewToPlane(vh, u_phi, u_k);
 }
-vec2 depthV(vec2 p, int k) {
+vec2 depthV(vec2 p, float h) {
 	vec2 q = kitRot(u_phi) * p * u_k;
 	q.y *= KIT_TILT;
-	q.y -= depthH(k) * KIT_TILT_COS * u_k;
+	q.y -= h * KIT_TILT_COS * u_k;
 	vec2 gp = gpan();
-	return gp + (q - gp) * depthF(k);
+	return gp + (q - gp) * depthF(h);
 }
-// how much of a sheet's gas stands at plane point p: clumps over the arms of the
-// inner and middle disc, crisp edged
+// how much of the volume's gas is in slice k at plane point p: small clumps over
+// the arms, as many as the height lets there be, crisp edged
 float depthGas(vec2 p, int k) {
 	float r = length(p);
-	if (r < 0.10 || r > 1.0) {
+	if (r < 0.04 || r > 1.0) {
 		return 0.0;
 	}
-	float env = smoothstep(0.10, 0.22, r) * (1.0 - smoothstep(0.6, 1.0, r));
+	float w = exp(-abs(depthH(k)) / max(depthZ(r), 1e-4));
+	if (w < 0.05) {
+		return 0.0;
+	}
 	float arm = textureLod(u_struct, bakeUV(p), 2.0).r;
-	// (broad clumps, a few tens of blocks across at the opening: read at the bake's
-	// fine scale they were a speckle of grain all over the inner disc)
-	vec2 q = kitRot(1.3 + 1.7 * float(k)) * p * 5.0 + vec2(5.1 * float(k), -3.7 * float(k));
-	float n = kitFbm2(q, 3) + 0.2 * arm;
-	// (a little texture inside, from the octave below: a flat clump quantised to one
-	// palette step and read as a paper cut-out)
-	float mt = 0.75 + 0.25 * kitSnoise2(q * 3.1 + 7.0);
-	return smoothstep(0.445, 0.515, n) * env * (0.5 + 0.5 * arm) * mt;
+	vec2 q = kitRot(1.3 + 1.7 * float(k)) * p * 9.0 + vec2(5.1 * float(k), -3.7 * float(k));
+	float n = kitFbm2(q, 3) + 0.25 * arm - 0.35 * (1.0 - w);
+	float mt = 0.75 + 0.25 * kitSnoise2(q * 2.7 + 7.0);
+	return smoothstep(0.28, 0.35, n) * (0.5 + 0.5 * arm) * mt * smoothstep(0.04, 0.10, r);
 }
-// the halo's stars on a sheet: one in a cell of 0.07 gu at most, rarer out from
-// the middle; a block each, the brighter with a plus round it
-vec3 depthStars(vec2 v, vec2 pk, int k) {
-	const float CELL = 0.07;
+// slice k's stars: a cell of 0.05 gu holds one at most, as likely as the height
+// lets it be, each at its own height within the slice; a block, the bright ones
+// with a plus
+vec3 depthStars(vec2 v, int k) {
+	const float CELL = 0.05;
+	float hk = depthH(k);
+	vec2 pk = depthP(v, hk);
 	ivec2 c0 = ivec2(floor(pk / CELL));
 	vec3 out_c = vec3(0.0);
 	for (int j = -1; j <= 1; j++) {
@@ -1134,12 +1152,16 @@ vec3 depthStars(vec2 v, vec2 pk, int k) {
 			vec3 h = kitHash3(c + ivec2(7001 + k * 131, 3307));
 			vec2 sp = (vec2(c) + 0.1 + 0.8 * h.xy) * CELL;
 			float rs = length(sp);
-			if (h.z > 0.10 * exp(-rs / 0.55) || rs < 0.12 || rs > 1.4) {
+			if (rs < 0.03 || rs > 1.0) {
 				continue;
 			}
-			vec2 dv = (v - depthV(sp, k)) * u_zoom;
-			vec2 db = floor(dv * 0.5 + 0.5);
 			vec3 g = kitHash3(c + ivec2(919, 41 + k));
+			float hs = hk + (g.z - 0.5) * depthThick(k);
+			if (h.z > 0.35 * exp(-abs(hs) / max(depthZ(rs), 1e-4)) * (0.3 + 0.7 * exp(-rs / 0.3))) {
+				continue;
+			}
+			vec2 dv = (v - depthV(sp, hs)) * u_zoom;
+			vec2 db = floor(dv * 0.5 + 0.5);
 			float b = 0.5 + 1.1 * g.x * g.x;
 			float w = 0.0;
 			if (db.x == 0.0 && db.y == 0.0) {
@@ -1148,7 +1170,7 @@ vec3 depthStars(vec2 v, vec2 pk, int k) {
 				w = 0.22;
 			}
 			if (w > 0.0) {
-				vec3 tint = mix(kitStarTint(0.35 + 0.3 * g.y), kitStarTint(0.6 + 0.4 * g.y), smoothstep(0.15, 0.5, rs));
+				vec3 tint = mix(kitStarTint(0.3 + 0.3 * g.y), kitStarTint(0.6 + 0.4 * g.y), smoothstep(0.12, 0.45, rs));
 				out_c += tint * b * w;
 			}
 		}
@@ -1166,36 +1188,52 @@ float depthClear(vec2 s) {
 	}
 	return m;
 }
-void depthLayer(vec2 v, vec2 p0, inout vec3 C) {
+// the gas of slice k as seen at v: its light, and how much it covers
+vec4 depthGasAt(vec2 v, int k) {
+	float hk = depthH(k);
+	vec2 pk = depthP(v, hk);
+	float a = u_form != 1 ? depthGas(pk, k) : 0.0;
+	if (a <= 0.0) {
+		return vec4(0.0);
+	}
+	float rk = length(pk);
+	float irr = 1.0 / (1.0 + pow(rk / 0.09, 2.0));
+	// (lit dimmer than the bulge behind it, so over the core it stands as dust in
+	// silhouette and out over the dark between the arms as lit gas)
+	vec3 col = mix(vec3(0.42, 0.56, 1.0) * 0.16 * exp(-rk / 0.45), LITDUST * 0.12, smoothstep(0.2, 1.0, irr));
+	// its crisp edge catches more light than its middle
+	col *= 1.0 + 0.5 * (1.0 - smoothstep(0.35, 0.9, a));
+	return vec4(col * a, 0.55 * a);
+}
+// below the plane: laid in before the disc, which covers it
+void depthBelow(vec2 v, inout vec3 C) {
 	float m = depthClear(scr(v));
 	if (m <= 0.001) {
 		return;
 	}
-	bool disc = u_form != 1;
-	// the shadows on the disc first, under everything that stands above it
-	if (disc) {
+	for (int k = 0; k < 3; k++) {
+		vec4 g = depthGasAt(v, k);
+		C = C * (1.0 - g.a * m) + g.rgb * m;
+		C += depthStars(v, k) * m;
+	}
+}
+// above it: the shadows on the disc right under, then the slices, lowest first
+void depthAbove(vec2 v, vec2 p0, inout vec3 C) {
+	float m = depthClear(scr(v));
+	if (m <= 0.001) {
+		return;
+	}
+	if (u_form != 1) {
 		float sh = 0.0;
-		for (int k = 0; k < DEPTH_N; k++) {
+		for (int k = 3; k < DEPTH_N; k++) {
 			sh += depthGas(p0, k);
 		}
-		C *= 1.0 - 0.35 * min(sh, 1.0) * m;
+		C *= 1.0 - 0.30 * min(sh, 1.0) * m;
 	}
-	// then the sheets, lowest first
-	for (int k = 0; k < DEPTH_N; k++) {
-		vec2 pk = depthP(v, k);
-		float rk = length(pk);
-		if (disc) {
-			float a = depthGas(pk, k);
-			if (a > 0.0) {
-				float irr = 1.0 / (1.0 + pow(rk / 0.09, 2.0));
-				vec3 col = mix(vec3(0.42, 0.56, 1.0) * 0.16 * exp(-rk / 0.45), LITDUST * 0.5, smoothstep(0.2, 1.0, irr));
-				// its crisp edge catches more light than its middle
-				float edge = 1.0 - smoothstep(0.35, 0.9, a);
-				col *= 1.0 + 0.5 * edge;
-				C = C * (1.0 - 0.4 * a * m) + col * a * m;
-			}
-		}
-		C += depthStars(v, pk, k) * m;
+	for (int k = 3; k < DEPTH_N; k++) {
+		vec4 g = depthGasAt(v, k);
+		C = C * (1.0 - g.a * m) + g.rgb * m;
+		C += depthStars(v, k) * m;
 	}
 }
 
@@ -1266,6 +1304,9 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 			float dd = 1.0 - kitLum(T);
 			Em += FLARE * u_echo.w * ring * (0.15 + 0.8 * gas + 2.6 * dd) * 0.5;
 		}
+		if (u_depthOn) {
+			depthBelow(v, C);
+		}
 		C = C * T + Em;
 		C = max(C + bStars * mix(T, vec3(1.0), front), vec3(0.0));
 	}
@@ -1278,7 +1319,7 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		wispLayer(v, la, C);
 	}
 	if (u_depthOn) {
-		depthLayer(v, p, C);
+		depthAbove(v, p, C);
 	}
 	vec3 frontL = max(C - VOIDC / u_exp, vec3(0.0));
 	C += farSky(v, la, bgNebSeen(frontL, u_exp)) * T * cloudT * bgSeen(frontL, u_exp);

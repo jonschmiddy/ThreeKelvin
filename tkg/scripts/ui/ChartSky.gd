@@ -117,22 +117,21 @@ static var diag := 0
 static var dith_gs := 0.006
 static var dith_coh := 0.5
 
-## GALAXY DEPTH (Oct 12; Jon's idea 21 from the "magnificent" list, reworked: the
-## first near layer sat "almost RIGHT at the camera ... the galaxy should have like
-## a z axis almost ... a depth, but that should be closer to the galaxy"). The
-## galaxy's own thick disc and halo -- stars, wisps of gas and clumps of it -- at
-## heights just above the disc, seen in perspective from a camera over the middle
-## of the view: the higher a thing sits, the more it is magnified about the view's
-## middle, so on a drag it slides a little faster than the disc (`DEPTHS`: the
-## lowest sheet's factor to the highest's), and it stands up off the plane at the
-## sector map's tilt. SIMPLIFIED only until Jon picks a depth; off unless asked
-## for: `chartwow=depth`, and `galaxydepth=shallow|middle|deep` (middle the
-## default).
-const DEPTHS := {"shallow": Vector2(1.1, 1.25), "middle": Vector2(1.15, 1.45), "deep": Vector2(1.2, 1.6)}
-static var _depth := Vector3(-1.0, 1.15, 1.45)
+## GALAXY DEPTH (Oct 12; Jon's idea 21 from the "magnificent" list, reworked
+## twice: the near layer sat "almost RIGHT at the camera"; the sheets of round
+## three were "still too high up ... and one dimensional ... like it's a single
+## plane"). The galaxy as a volume that hugs its disc: stars and small clumps of
+## its own gas just above and just below the plane, thinning away from it,
+## thickest round the core and thin at the edge, each at a height of its own, seen
+## in perspective so on a drag what is above slides a little faster than the disc
+## and what is below a little slower (`chart_c_place`'s depth section). SIMPLIFIED
+## only until Jon picks a thickness; off unless asked for: `chartwow=depth`, and
+## `galaxydepth=thin|medium|thick` (medium the default).
+const DEPTHS := {"thin": 0.6, "medium": 1.0, "thick": 1.5}
+static var _depth := Vector3(-1.0, 1.0, 0.0)
 
 
-## The galaxy's depth asked for: (on 1 or 0, the lowest sheet's factor, the highest's).
+## The galaxy's depth asked for: (on 1 or 0, how thick, 0).
 static func depth() -> Vector3:
 	if _depth.x < 0.0:
 		_depth.x = 0.0
@@ -141,9 +140,7 @@ static func depth() -> Vector3:
 			if arg.begins_with("chartwow=") and "depth" in arg.substr(9).split(","):
 				_depth.x = 1.0
 			elif arg.begins_with("galaxydepth="):
-				var r: Vector2 = DEPTHS.get(arg.substr(12), DEPTHS.middle)
-				_depth.y = r.x
-				_depth.z = r.y
+				_depth.y = float(DEPTHS.get(arg.substr(12), DEPTHS.medium))
 	return _depth
 
 
@@ -1956,11 +1953,11 @@ func next_supernova(t: float) -> Dictionary:
 	return {}
 
 
-## GALAXY DEPTH's per-frame inputs: the range of factors, and what it must keep
+## GALAXY DEPTH's per-frame inputs: how thick, and what it must keep
 ## clear of on the screen -- YOU and the systems you can jump to (their glyphs and
 ## labels are drawn over the sky, but a wisp behind them is still clutter).
 func _feed_depth(m: ShaderMaterial, dp: Vector3) -> void:
-	m.set_shader_parameter("u_depth", Vector2(dp.y, dp.z))
+	m.set_shader_parameter("u_depth", Vector2(dp.y, 0.0))
 	var keep := PackedVector2Array()
 	if _use_map and not Run.map.is_empty() and Run.node_at() != null:
 		keep.append(chart._screen_pos(Run.node_at()))

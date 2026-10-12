@@ -439,7 +439,8 @@ func _clip() -> void:
 ##   remhold   the inner disc at 1.4, 10 s at the game's speed (the last ten
 ##             minutes' remnants standing in the gas)
 ##   zoomin    the arms at 0.6, 6 s of wheel in about the middle (5x), 1 s still
-##   depthdrag the opening, 4 s of drag one way and 4 s back (the galaxy's depth)
+##   depthdrag the opening, 6 s of slow drag one way and 6 s back (the galaxy's
+##             depth: what is above the disc and below it sliding against it)
 ##   depthzoom the opening, 6 s of wheel in about the middle (3x), 1 s still
 func _tour(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
@@ -477,7 +478,7 @@ func _tour(dir: String) -> void:
 			segs = [["zoom", 180, 5.0, _chart.size * 0.5], ["hold", 30]]
 		"depthdrag":
 			_view(0.42, Vector2.ZERO)
-			segs = [["drag", 120, Vector2(160, 30)], ["drag", 120, Vector2(-160, -30)]]
+			segs = [["drag", 180, Vector2(220, 40)], ["drag", 180, Vector2(-220, -40)]]
 		"depthzoom":
 			_view(0.42, Vector2.ZERO)
 			segs = [["zoom", 180, 3.0, _chart.size * 0.5], ["hold", 30]]
