@@ -27,8 +27,10 @@ const PATH := "user://run.save"
 ## harness or test (anything after `--` that a player would not type), a scratch
 ## file beside it. Tests used to overwrite Jon's run.save on every gate run and
 ## every render (2026-10-05: a chart render replaced his run). Tests that need
-## the real path set this themselves.
-static var path: String = "user://harness_run.save" if TestRun.active() else PATH
+## the real path set this themselves. One scratch file PER PROCESS
+## (`TestRun.scratch`): a single shared one let harnesses running side by side
+## load each other's runs.
+static var path: String = TestRun.scratch("run", "save") if TestRun.active() else PATH
 ## Bumped whenever the shape below changes. An old file is discarded rather than
 ## guessed at — a half-understood save produces a run that is subtly wrong,
 ## which is worse than no save at all.
