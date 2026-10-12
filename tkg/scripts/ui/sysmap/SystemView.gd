@@ -195,16 +195,11 @@ const FABRIC := preload("res://shaders/map_fabric.gdshader")
 const SCENE := Vector2i(480, 270)
 const ZOOM_MAX := 4.0
 const SkyBakeS := preload("res://scripts/ui/sysmap/SkyBake.gd")
-const SectorWowS := preload("res://scripts/ui/sysmap/SectorWow.gd")
 const SystemPaletteS := preload("res://scripts/ui/sysmap/SystemPalette.gd")
 const SKY := preload("res://shaders/sky.gdshader")
 const PALETTE := preload("res://shaders/map_palette.gdshader")
 const SHADOWS := preload("res://shaders/map_shadows.gdshader")
 const BELT_DUST := preload("res://shaders/map_belt.gdshader")
-const FRONT_SHADER := preload("res://shaders/map_front.gdshader")
-## WOW `flarefront` (`SectorWow`): a flare's light running out through the plane's dust
-var _front: ColorRect
-var _front_mat: ShaderMaterial
 var _belt_dust: ColorRect
 var _belt_mat: ShaderMaterial
 const SunViewS := preload("res://scripts/ui/sysmap/SunView.gd")
@@ -526,17 +521,6 @@ func show_system(n: MapGen.MapNode) -> void:
 			var am := CanvasItemMaterial.new()
 			am.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 			_fields[fi].material = am
-	# WOW `flarefront`: a flare's light in the dust of the plane, under
-	# the belts and the worlds' shadows (which cut through it), under the palette
-	_front = ColorRect.new()
-	_front.size = Vector2(960, 540)
-	_front.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_front_mat = ShaderMaterial.new()
-	_front_mat.shader = FRONT_SHADER
-	_front_mat.set_shader_parameter("star_col", SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY))
-	_front.material = _front_mat
-	_front.visible = false
-	_scene.add_child(_front)
 	# THE BELTS' DUST (C): a faint lit band under the rocks, so a belt reads as
 	# a band from afar
 	_belt_dust = ColorRect.new()
@@ -843,6 +827,11 @@ func world_r(b: SystemLayout.Body) -> float:
 	return maxf(b.r, min_r)
 
 
+## THE BELTS' GLINTS AND THE ORBITS' NEAR HALF (Jon kept both from the Oct 11
+## ideas round; `_Belts._glint`, `_Lines`), in every style. Static vars only so a
+## harness (`WowClip`) can film the map without them beside it.
+static var belt_glints := true
+static var orbit_depth := true
 ## How big a pulsar's worlds are drawn against any other system's.
 const PULSAR_WORLD_K := 0.45
 ## the zoom the map opened at (the screen sets it): a pulsar's remnant shell is
@@ -1122,54 +1111,6 @@ static func prominence(time: float) -> Vector4:
 		if e > best.z:
 			best = Vector4(-PI * (0.15 + 0.7 * SkyBakeS.hash2(k, 12)), (0.75 + 0.6 * SkyBakeS.hash2(k, 13)) * e, e, 0.55 + 0.40 * SkyBakeS.hash2(k, 14))
 	return best
-
-
-## WOW `flarefront`: THE FLARE'S LIGHT TRAVELS. A prominence's eruption sends
-## its light out across the plane at a speed you can watch -- FRONT_C plane units
-## a second, the whole system in about six -- as a ring catching the dust in the
-## plane (`map_front.gdshader`), the belt's rubble flashing as it passes
-## (`_Belts`), and each world's flare (its lit side brighter, its auroras
-## flickering) starting only when the ring reaches it, with a short kick of light
-## as it arrives. Without the switch every world flares at once, as before.
-const FRONT_C := 60.0
-## how long the ring's light lasts after it leaves the star, s
-const FRONT_FADE := 9.0
-
-
-## Seconds since the latest prominence began to erupt, while its light can still
-## be on the way out (-1: none). The same slots and moments as `prominence`.
-static func eruption_age(time: float) -> float:
-	if DisplaySettings.reduced_motion:
-		return -1.0
-	var n := floori(time / 40.0)
-	for k in [n, n - 1]:
-		if k < 0:
-			continue
-		var u: float = time - (40.0 * k + 6.0 + SkyBakeS.hash2(k, 11) * 14.0)
-		if u >= 0.0 and u <= 26.0:
-			return u
-	return -1.0
-
-
-## The flare a world `d` plane units from the star sees at eruption age `u`: the
-## prominence's envelope delayed by the light's travel, and a kick as it arrives.
-static func flare_at(u: float, d: float) -> float:
-	var ui := u - d / FRONT_C
-	if ui <= 0.0 or u < 0.0:
-		return 0.0
-	var e := smoothstep(0.0, 4.0, ui) if ui < 4.0 else (1.0 if ui < 7.0 else 1.0 - smoothstep(7.0, 19.0, ui))
-	var kick := smoothstep(0.0, 0.35, ui) * exp(-maxf(ui - 0.35, 0.0) / 1.4)
-	return e + 3.0 * kick
-
-
-## The band's radius on the plane and its strength now (strength 0: none).
-func front_now() -> Vector2:
-	var u := eruption_age(pose(t, 6.0))
-	if u < 0.0 or layout == null or layout.star == SystemLayout.StarKind.PULSAR or layout.star == SystemLayout.StarKind.CORE:
-		return Vector2(-1.0, 0.0)
-	var r := u * FRONT_C
-	var k := smoothstep(0.0, 0.6, u) * (1.0 - smoothstep(FRONT_FADE * 0.5, FRONT_FADE, u)) / (1.0 + pow(r / 300.0, 2.0))
-	return Vector2(r, k)
 
 
 ## HOW MUCH OF A PULSAR'S BEAM falls on a thing at screen offset `d` from the
@@ -1619,15 +1560,6 @@ func step() -> void:
 	_step_depth(o)
 	_twinkle.queue_redraw()
 	_belts.queue_redraw()
-	if _front != null:
-		var front: Vector2 = front_now() if SectorWowS.has(&"flarefront", self) else Vector2(-1.0, 0.0)
-		_front.visible = front.y > 0.0
-		if _front.visible:
-			_front_mat.set_shader_parameter("origin", Vector2(CX, CY) + pan)
-			_front_mat.set_shader_parameter("zoom", zoom)
-			_front_mat.set_shader_parameter("tilt", TILT)
-			_front_mat.set_shader_parameter("edge", layout.edge)
-			_front_mat.set_shader_parameter("front", Vector2(front.x, front.y * 0.4))
 	if _belt_dust != null and _belt_dust.visible:
 		var bv := PackedVector4Array()
 		for bb in layout.bodies:
@@ -1735,10 +1667,7 @@ func step() -> void:
 			if not legacy:
 				vm.set_shader_parameter("star_tint", _tint)
 				vm.set_shader_parameter("night_fill", night_fill(p))
-			if SectorWowS.has(&"flarefront", self) and layout.star != SystemLayout.StarKind.PULSAR and layout.star != SystemLayout.StarKind.CORE:
-				vm.set_shader_parameter("flare", flare_at(eruption_age(pose(t, 6.0)), p.length()))
-			else:
-				vm.set_shader_parameter("flare", _flare)
+			vm.set_shader_parameter("flare", _flare)
 			vm.set_shader_parameter("lift", 0.0 if legacy else 1.0)
 			# ITS MOONS' SHADOWS ON ITS FACE (Jon: "shouldn't moons cast eclipses on
 			# their planets?"): each moon's place about the world (screen px, x
@@ -2083,11 +2012,13 @@ class _Belts extends Node2D:
 
 	func _rocks() -> void:
 		var L: SystemLayout = view.layout
-		var glints: bool = SectorWowS.has(&"glints", view)
-		var front: Vector2 = view.front_now() if SectorWowS.has(&"flarefront", view) else Vector2(-1.0, 0.0)
+		var glints: bool = view.belt_glints
 		for b in L.bodies:
 			if b.kind != &"belt":
 				continue
+			# (which of its first 300 rocks are glinting now, and how far in: worked
+			# out from a table made once a belt, so the rocks that are not cost nothing)
+			var gl := _glints_now(b.index, view.pose(view.t, 8.0) if view.painted else view.t) if glints else {}
 			var R := Worlds.XRng.new(floor(b.orbit * 13.0))
 			var spin: float = view.t / b.period * TAU
 			var pulsar: bool = L.star == SystemLayout.StarKind.PULSAR
@@ -2134,6 +2065,8 @@ class _Belts extends Node2D:
 						draw_rect(Rect2(s - Vector2(2, 2), Vector2(6, 4)), rk[maxi(ci - 1, 2)])
 						draw_rect(Rect2(s + Vector2(psx * 2, -2), Vector2(2, 2)), rk[mini(ci + 1, 7)])
 						draw_rect(Rect2(s + Vector2(-psx * 2, 0), Vector2(2, 2)), rk[1])
+					if gl.has(i) and not pulsar:
+						_glint(s, float(gl[i]), 0.62 + 0.38 * clampf(-sin(a) * 0.9 + 0.3, 0.0, 1.0), Vector3.ONE, rk)
 					continue
 				if view.legacy:
 					# LEGACY's grey rubble, as before -- lit as the pulsar's beam sweeps
@@ -2158,6 +2091,8 @@ class _Belts extends Node2D:
 						draw_rect(Rect2(s - Vector2(2, 2), Vector2(6, 4)), Color("#4a5058").lerp(lt, 0.3 * bk))
 						draw_rect(Rect2(s + Vector2(sxl * 2 * (1 - twl), -2), Vector2(2, 2)), Color("#b0b6be").lerp(Color.WHITE, 0.4 * bk))
 						draw_rect(Rect2(s + Vector2(-sxl * 2, 0), Vector2(2, 2)), Color("#2a2e34"))
+					if gl.has(i) and not pulsar:
+						_glint(s, float(gl[i]), 0.62 + 0.38 * clampf(-sin(a) * 0.9 + 0.3, 0.0, 1.0), SkyBakeS.STARCOL.get(view.kind, SkyBakeS.STARCOL.ORDINARY))
 					continue
 				# LIT RUBBLE (C), never a ring of dark specks: each rock's lit face in
 				# the star's colour, brightest where we see it full (the far side of
@@ -2178,12 +2113,6 @@ class _Belts extends Node2D:
 				if b.index == view.belt_lit and view.belt_t > 0.0:
 					lit = lit.lerp(Color.WHITE, 0.45 * view.belt_t)
 					dark = dark.lerp(lit, 0.6 * view.belt_t)
-				if front.y > 0.0:
-					# WOW `flarefront`: the flare's light catching the rubble as it passes
-					var fd := (rr - front.x) / 18.0
-					var fk := clampf(front.y * 1.6 * exp(-fd * fd), 0.0, 1.0)
-					lit = lit.lerp(Color(1.0, 0.97, 0.9), 0.75 * fk)
-					dark = dark.lerp(lit, 0.6 * fk)
 				lit.a = fade_in
 				dark.a = fade_in
 				var sx := -1 if x > 0.0 else 1
@@ -2198,44 +2127,94 @@ class _Belts extends Node2D:
 					draw_rect(Rect2(s - Vector2(2, 2), Vector2(6, 4)), dark)
 					draw_rect(Rect2(s + Vector2(sx * 2 * (1 - tw), -2), Vector2(2, 2)), lit.lightened(0.15))
 					draw_rect(Rect2(s + Vector2(-sx * 2, 0), Vector2(2, 2)), dark.darkened(0.3))
-				if glints and i < 300 and not pulsar:
-					_glint(s, i, b.index, phase, sc3)
+				if gl.has(i) and not pulsar:
+					_glint(s, float(gl[i]), phase, sc3)
 
-	## WOW `glints`: SUNLIGHT CATCHING A TUMBLING ROCK. Each of the belt's first
-	## 300 rocks (the ones always there, so a closer look only magnifies how many
-	## glint in a patch) flashes now and then as a flat face turns to the sun:
-	## up over a fifth of a second, gone over most of a second, a cross of light
-	## round it at its height -- gathered light in 2x2 blocks, eased, the palette
-	## pass setting its steps. Brighter where the belt is seen lit full (`phase`).
-	## About one rock in thirty is glinting at any moment.
+	## GLINTS (Jon kept them, Oct 11): SUNLIGHT CATCHING A TUMBLING ROCK. Each of a
+	## belt's first 300 rocks (the ones always there, so a closer look only
+	## magnifies how many glint in a patch) flashes now and then as a flat face
+	## turns to the sun: up over a fifth of a second, gone over most of a second, a
+	## short bar of light along the row at its height -- never a cross, which read
+	## as one more star. Brighter where the belt is seen lit full (`phase`). About
+	## one rock in thirty is glinting at any moment; none round a pulsar, whose
+	## beam already lights the rubble. In each style's own hand (`_glint`).
 	const GLINT_UP := 0.2
 	const GLINT_S := 1.0
 
-	func _glint(s: Vector2, i: int, belt: int, phase: float, sc3: Vector3) -> void:
-		var h1 := SkyBakeS.hash2(i, belt * 7 + 3)
-		var h2 := SkyBakeS.hash2(i, belt * 7 + 4)
-		# (each rock's own turn: 20 to 44 s between its glints)
-		var period := 20.0 + 24.0 * h1
-		var u := fposmod(view.t + h2 * period, period)
-		if u >= GLINT_S:
+	## each belt's first 300 rocks' glints: [period, offset] a rock, made once
+	var _gtab := {}
+
+	## The rocks of belt `belt` glinting at time `t`: rock -> how far into its
+	## glint, 0 to 1 (up over GLINT_UP, gone by GLINT_S), before the light's angle.
+	func _glints_now(belt: int, t: float) -> Dictionary:
+		if not _gtab.has(belt):
+			var tab := PackedFloat32Array()
+			for i in 300:
+				# (each rock's own turn: 20 to 44 s between its glints)
+				var period := 20.0 + 24.0 * SkyBakeS.hash2(i, belt * 7 + 3)
+				tab.append(period)
+				tab.append(SkyBakeS.hash2(i, belt * 7 + 4) * period)
+			_gtab[belt] = tab
+		var tb: PackedFloat32Array = _gtab[belt]
+		var out := {}
+		for i in 300:
+			var u := fposmod(t + tb[i * 2 + 1], tb[i * 2])
+			if u < GLINT_S:
+				out[i] = smoothstep(0.0, GLINT_UP, u) * (1.0 - smoothstep(GLINT_UP, GLINT_S, u))
+		return out
+
+	## The glint drawn over the rock at `s`, in 2x2 blocks:
+	##   SIMPLIFIED and LEGACY: gathered light, eased, the star's white (LEGACY's a
+	##     plainer white, its rubble being grey), the palette pass setting its steps;
+	##   RADIANT: the same light through A's own exposure (`_Moons._tone`), so its
+	##     core rolls off soft instead of clipping;
+	##   PAINTED: B's hand -- held poses (8 a second) in the rock's own ramp `rk`
+	##     (its core that ramp's top most of the way to white), three drawings from
+	##     a lit speck to a bar with its tips, never a fade.
+	func _glint(s: Vector2, e0: float, phase: float, sc3: Vector3, rk: Array = []) -> void:
+		# (brighter where the belt is seen lit full)
+		var k := 0.55 + 0.45 * clampf((phase - 0.62) / 0.38, 0.0, 1.0)
+		if view.painted:
+			var ep := e0 * k
+			if ep < 0.15:
+				return
+			# (the ramp's top warmed by the star is the brightest a lit rock gets, so
+			# the glint's core is that step taken most of the way to white)
+			var hot: Color = (rk[7] as Color).lerp(Color.WHITE, 0.6)
+			draw_rect(Rect2(s, Vector2(2, 2)), hot if ep >= 0.35 else rk[7])
+			if ep >= 0.35:
+				for d: Vector2 in [Vector2(2, 0), Vector2(-2, 0)]:
+					draw_rect(Rect2(s + d, Vector2(2, 2)), rk[7] if ep >= 0.65 else rk[6])
+			if ep >= 0.65:
+				for d: Vector2 in [Vector2(4, 0), Vector2(-4, 0)]:
+					draw_rect(Rect2(s + d, Vector2(2, 2)), rk[6])
 			return
-		var e := smoothstep(0.0, GLINT_UP, u) * (1.0 - smoothstep(GLINT_UP, GLINT_S, u))
-		e *= 0.55 + 0.45 * clampf((phase - 0.62) / 0.38, 0.0, 1.0)
+		var e := e0 * k
 		if e < 0.04:
 			return
-		var c := Vector3(1.0, 1.0, 1.0).lerp(sc3, 0.25)
-		var core := Color(c.x, c.y, c.z, minf(1.0, e * 1.35))
+		var c := Vector3(1.0, 1.0, 1.0).lerp(sc3, 0.12 if view.legacy else 0.25)
+		var core: Color
+		var arm: Color
+		var tip: Color
+		if view.radiant:
+			# (linear light, toned as A tones every light: the bar's core, arms, tips)
+			var cl := Vector3(pow(c.x, 2.2), pow(c.y, 2.2), pow(c.z, 2.2))
+			core = _Moons._tone(cl * 2.6 * e)
+			arm = _Moons._tone(cl * 1.1 * e)
+			tip = _Moons._tone(cl * 0.7 * maxf(e - 0.45, 0.0))
+			core.a = minf(1.0, e * 2.0)
+			arm.a = minf(1.0, e * 1.6)
+			tip.a = minf(1.0, (e - 0.45) * 2.4)
+		else:
+			core = Color(c.x, c.y, c.z, minf(1.0, e * 1.35))
+			arm = Color(c.x, c.y, c.z, minf(1.0, e * 0.7))
+			tip = Color(c.x, c.y, c.z, (e - 0.45) * 0.6)
 		draw_rect(Rect2(s, Vector2(2, 2)), core)
-		# (along the row only, never a cross: the sky's stars are crosses, and a
-		# glint drawn as one read as one more star)
-		var arm := Color(c.x, c.y, c.z, minf(1.0, e * 0.7))
 		for d: Vector2 in [Vector2(2, 0), Vector2(-2, 0)]:
 			draw_rect(Rect2(s + d, Vector2(2, 2)), arm)
 		if e > 0.45:
-			var tip := Color(c.x, c.y, c.z, (e - 0.45) * 0.6)
 			for d: Vector2 in [Vector2(4, 0), Vector2(-4, 0)]:
 				draw_rect(Rect2(s + d, Vector2(2, 2)), tip)
-
 
 # ---------------------------------------------------------------- the fabric and the orbits
 ## THE FABRIC OF SPACE, faint and grey (Jon: "more smooth looking, more simple,
@@ -2276,7 +2255,7 @@ class _Lines extends Node2D:
 		var win: Rect2 = view.window.grow(4.0)
 		var o: Vector2 = view.origin()
 		var hole := _star_hole()
-		var odepth: bool = SectorWowS.has(&"orbitdepth", view)
+		var odepth: bool = view.orbit_depth
 		for bi in L.bodies.size():
 			var b := L.bodies[bi]
 			if b.kind == &"belt":
@@ -2329,12 +2308,16 @@ class _Lines extends Node2D:
 				if pts.size() > 0 and pts[pts.size() - 1] == q:
 					continue
 				pts.append(q)
-				# WOW `orbitdepth`: the near half of the ring (toward you, below the
-				# star) a little bolder, the far half fainter, so the plane reads as
-				# a plane lying back -- by where on the ring, never by the zoom
+				# THE NEAR HALF BOLDER (Jon kept it, Oct 11): the half of the ring toward
+				# you (below the star) up to 1.45 times as strong, the far half down to
+				# 0.6, so the plane reads as a plane lying back -- by where on the ring,
+				# never by the zoom. PAINTED in three held bands, as B paints a ramp.
 				var dk := 1.0
 				if odepth:
-					dk = lerpf(0.6, 1.45, smoothstep(-1.0, 1.0, op.z / maxf(b.orbit, 1.0)))
+					var dz := smoothstep(-1.0, 1.0, op.z / maxf(b.orbit, 1.0))
+					if view.painted:
+						dz = 0.0 if dz < 0.33 else (0.5 if dz < 0.67 else 1.0)
+					dk = lerpf(0.6, 1.45, dz)
 				cols.append(Color(c.x, c.y, c.z, (0.14 + tr * 0.38) * dk))
 			if pts.size() > 1:
 				draw_polyline_colors(pts, cols, 1.0)

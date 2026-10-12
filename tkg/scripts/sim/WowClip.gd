@@ -1,48 +1,42 @@
 extends Node
 
-## THE SECTOR MAP'S WOW PROTOTYPES, filmed before and after at the same moment
-## (`SectorWow`):
+## THE SECTOR MAP'S KEPT POLISH, filmed before and after at the same moment:
 ##   godot --path . -- sheet=WowClip out=<dir> [kind=ordinary|red|blue|nebula|station|node:<i>]
-##     [seed=N] [zoom=Z] [aim=star|world|belt|town|<i>] [t0=S] [secs=8]
-##     [wow=a,b] [ab] [cost=N] [zoomto=Z2] [style=...]
+##     [seed=N] [zoom=Z|open] [aim=star|world|belt|<i>] [t0=S] [secs=8]
+##     [wow=glints,orbitdepth,sunfix] [ab] [cost=N] [zoomto=Z2|open] [style=...]
 ## Opens the system on the real map screen (as `SystemSheet`'s sweep does: Main's
 ## frame and theme, the weather and the far novae held off), aims the camera,
 ## and films `secs` seconds at 30 frames a second with the map's clock stepped a
 ## thirtieth a frame: `<out>/f_NNNN.png`, the map window in game pixels. With
-## `ab` it films the same seconds twice, every switch off (`<out>/before/`) and
-## then the ones asked for (`<out>/after/`), the clock put back between, so the
-## two differ only by the idea. `zoomto=Z2` eases the zoom from Z to Z2 over the
-## clip (zooming must only magnify). `cost=N` then times N frames with the
-## switches off and N on, three times over, alternating, the clock running: the
-## place picture's GPU time, the window's, and the CPU's process time, ms.
-## Needs a window.
+## `ab` it films them before and after, interleaved frame by frame at the same
+## clock (`<out>/before/`, `<out>/after/`): the things named in `wow=` taken out
+## for the before -- the belts' glints (`SystemView.belt_glints`), the orbits'
+## near half (`SystemView.orbit_depth`), the sun's zoom cap past 4
+## (`SunView.k_max` 4 before, 9 after) -- so the two differ only by them.
+## `zoomto=Z2` eases the zoom from Z to Z2 over the clip (zooming must only
+## magnify). `cost=N` then times N frames before and N after, four times over,
+## alternating, the clock running: the place picture's GPU time, the window's,
+## and the map's own CPU time (its profiler). `list` prints every system's
+## bodies, headless. Needs a window (but for `list`).
 
 const ScreenS := preload("res://scripts/ui/sysmap/SystemMapScreen.gd")
-const SectorWowS := preload("res://scripts/ui/sysmap/SectorWow.gd")
+const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
+const SunViewS := preload("res://scripts/ui/sysmap/SunView.gd")
 
 var _scr: Control
 var _aim_kind := "star"
 var _aim_i := -9
-## the palette as cut with every switch off, and with the asked ones on: [pal, n]
-var _pal_off: Array = []
-var _pal_on: Array = []
+var _want: PackedStringArray = []
 
 
-func _pal_now() -> Array:
-	var m: ShaderMaterial = _scr.view._palette_mat
-	return [m.get_shader_parameter("pal"), int(m.get_shader_parameter("pal_n"))]
-
-
-## The switches as asked (`want`) or all off, and the palette cut for them.
-func _switch(want: Dictionary, on: bool) -> void:
-	SectorWowS.on = want.duplicate() if on else {}
-	# (`wow=sunfix`: not a switch but the fix, the sun's zoom cap 4 before, 9 after)
-	if want.has(&"sunfix"):
-		load("res://scripts/ui/sysmap/SunView.gd").k_max = 9.0 if on else 4.0
-	var p: Array = _pal_on if on else _pal_off
-	if not p.is_empty():
-		_scr.view._palette_mat.set_shader_parameter("pal", p[0])
-		_scr.view._palette_mat.set_shader_parameter("pal_n", p[1])
+## The things asked for (`wow=`) out (the before) or in (the after).
+func _switch(on: bool) -> void:
+	if "glints" in _want:
+		SystemViewS.belt_glints = on
+	if "orbitdepth" in _want:
+		SystemViewS.orbit_depth = on
+	if "sunfix" in _want:
+		SunViewS.k_max = 9.0 if on else 4.0
 
 
 func _arg(name: String, fallback: String) -> String:
@@ -59,18 +53,10 @@ func _ready() -> void:
 	var z0 := float(_arg("zoom", "1.0"))
 	var z1 := float(_arg("zoomto", str(z0)))
 	var t0 := float(_arg("t0", "30"))
-	if _arg("t0", "") == "erupt":
-		# half a second before the first prominence after 30 s begins to erupt
-		var SV = load("res://scripts/ui/sysmap/SystemView.gd")
-		var tt := 30.0
-		while SV.eruption_age(tt) < 0.0 or SV.eruption_age(tt) > 0.05:
-			tt += 1.0 / 30.0
-		t0 = tt - 0.5 + float(_arg("after", "0"))
-		print("  wowclip: eruption at %.2f s" % (tt))
 	var secs := float(_arg("secs", "8"))
 	var ab := "ab" in OS.get_cmdline_user_args()
 	var ncost := int(_arg("cost", "0"))
-	var want: Dictionary = SectorWowS.on.duplicate()
+	_want = _arg("wow", "").split(",", false)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	if "list" in OS.get_cmdline_user_args():
 		# every system: its star, sky, and what its bodies are (belts, worlds)
@@ -102,9 +88,6 @@ func _ready() -> void:
 	Run.at = n.index
 	OptionTable.ensure(n)
 	_scr.view.hclock = t0
-	# (opened with every switch off, so the palette cut from the opening picture
-	# is the one the game cuts today; the switches' own is cut after)
-	SectorWowS.on = {}
 	await _scr.show_system(n, t0)
 	_scr.frozen = true
 	_scr._location_on = false
@@ -119,21 +102,6 @@ func _ready() -> void:
 		await get_tree().process_frame
 	for _i in 4:
 		await get_tree().process_frame
-	_pal_off = _pal_now()
-	# THE PALETTE WITH THE SWITCHES ON, cut again from the same opening picture
-	# as the game would cut it with them on
-	# (only with `recut`: an idea that adds nothing to the opening picture would
-	# get a palette cut from another moment of the sky, and every pixel of the
-	# after would differ by that)
-	SectorWowS.on = want.duplicate()
-	for _i in 3:
-		await get_tree().process_frame
-	if "recut" in OS.get_cmdline_user_args():
-		_scr.view._palette_built = false
-		for _i in 6:
-			await get_tree().process_frame
-	_pal_on = _pal_now()
-	print("  wowclip: palettes %d colours off, %d on" % [_pal_off[1], _pal_on[1]])
 	# (`zoom=open`, `zoomto=open`: the zoom the map opens at)
 	if _arg("zoom", "") == "open":
 		z0 = _scr.zoom_min
@@ -145,11 +113,11 @@ func _ready() -> void:
 	print("  wowclip: %s system %d, %d bodies, zoom %.2f..%.2f, aim %s (%d)" % [kind, n.index, _scr.view.layout.bodies.size(), z0, z1, _aim_kind, _aim_i])
 	var frames := int(secs * 30.0)
 	if ab:
-		await _film_ab(out, want, t0, z0, z1, frames)
+		await _film_ab(out, t0, z0, z1, frames)
 	else:
 		await _film(out, t0, z0, z1, frames)
 	if ncost > 0:
-		await _costs(want, t0, z0, ncost)
+		await _costs(t0, z0, ncost)
 	get_tree().quit()
 
 
@@ -261,7 +229,7 @@ func _film(dir: String, t0: float, z0: float, z1: float, frames: int) -> void:
 ## ship's own flight -- on the frame's clock, not the map's -- was somewhere else
 ## in each.) Run with `--fixed-fps 60`: the two frames of each step are one
 ## thirtieth of a second of the ship's flight between them, as a 30 fps film.
-func _film_ab(dir: String, want: Dictionary, t0: float, z0: float, z1: float, frames: int) -> void:
+func _film_ab(dir: String, t0: float, z0: float, z1: float, frames: int) -> void:
 	var db := dir.path_join("before")
 	var da := dir.path_join("after")
 	DirAccess.make_dir_recursive_absolute(db)
@@ -273,17 +241,17 @@ func _film_ab(dir: String, want: Dictionary, t0: float, z0: float, z1: float, fr
 	for k in frames:
 		var u := float(k) / float(maxi(frames - 1, 1))
 		for pass_i in 2:
-			_switch(want, pass_i == 1)
+			_switch(pass_i == 1)
 			_clock(t0 + float(k) / 30.0)
 			_aim(z0 * pow(z1 / z0, smoothstep(0.0, 1.0, u)))
 			(await _grab()).save_png((db if pass_i == 0 else da).path_join("f_%04d.png" % k))
 			if k == 0 and pass_i == 0:
 				print("  wowclip: drawn at zoom %.3f pan %s" % [_scr.view.zoom, _scr.view.pan])
-	_switch(want, true)
+	_switch(true)
 	print("  wowclip: %d frames before and after to %s" % [frames, dir])
 
 
-func _costs(want: Dictionary, t0: float, z0: float, n: int) -> void:
+func _costs(t0: float, z0: float, n: int) -> void:
 	var rid: RID = _scr.view._scene.get_viewport_rid()
 	var root := get_viewport().get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(rid, true)
@@ -296,7 +264,7 @@ func _costs(want: Dictionary, t0: float, z0: float, n: int) -> void:
 	var tk := t0
 	for rep in 4:
 		for which: String in ["off", "on"]:
-			_switch(want, which == "on")
+			_switch(which == "on")
 			for _w in 10:
 				tk += 1.0 / 30.0
 				_clock(tk)
