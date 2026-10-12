@@ -16,6 +16,11 @@ extends Node
 ## (`MapChart.clock_override`, default 600, the showcase's stills); `calm` turns
 ## reduced motion on in memory; `nebkind=F:T` makes the first cloud of kind F
 ## kind T for the shot; `style=` and `graphics=low` are read by DisplaySettings.
+## THE SOLID LOOK in any style (`ChartSky.SOLID_STYLES`): `solidstyle=<style>[,...]`
+## draws those styles through the camera before their line in the table is on (with
+## `style=` the same stills, tours and costbench film any style the same way);
+## `chartflat` draws every style flat, as before the solid look (a "before");
+## `solidpose=<pitch deg>,<x gu>,<y gu>` opens the chart already turned there.
 ##
 ## CLIPS, for measuring motion (sky only, chart rect at 1x, `f_NNNN.png`, for the
 ## showcase's `tools/frames.py`):

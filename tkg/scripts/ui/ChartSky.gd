@@ -174,23 +174,40 @@ static var _terr_on := true
 static var _neb_on := true
 
 
-## Whether the chart is SIMPLIFIED (not RADIANT, nor fallen back from it; not LEGACY;
-## not PAINTED). Worked out once a frame: the chart projects every mark through
+## WHICH STYLES DRAW THE SOLID LOOK. Each style's port turns its own line on in its
+## own branch (its place pass wired to `chart_solid.gdshaderinc`); everything that
+## follows from it -- the camera, the marks' projection, the composite's hold, the
+## stars pass, the uniforms pushed -- reads `solid()` and needs nothing else. A
+## harness's `solidstyle=<style>[,<style>...]` turns styles on for filming before
+## their line does.
+const SOLID_STYLES := {&"simplified": true, &"radiant": false, &"painted": false, &"legacy": false}
+static var _solid_forced: Array[StringName] = []
+
+
+## The chart's style now: RADIANT (unless its safety fell back), LEGACY, PAINTED or
+## SIMPLIFIED. Worked out once a frame: the chart projects every mark through
 ## `solid`, and the style can change mid-session (Settings, RADIANT's safety).
-static var _simp := true
-static var _simp_frame := -1
+static var _style_now := &"simplified"
+static var _style_frame := -1
 
 
-static func simplified() -> bool:
+static func style_now() -> StringName:
 	var f := Engine.get_process_frames()
-	if f != _simp_frame:
-		_simp_frame = f
-		_simp = not ChartRadiant.wanted() and not ChartLegacy.wanted() and not ChartPainted.wanted()
-	return _simp
+	if f != _style_frame:
+		_style_frame = f
+		if ChartRadiant.wanted():
+			_style_now = &"radiant"
+		elif ChartLegacy.wanted():
+			_style_now = &"legacy"
+		elif ChartPainted.wanted():
+			_style_now = &"painted"
+		else:
+			_style_now = &"simplified"
+	return _style_now
 
 
-## Whether the chart is seen through the camera: SIMPLIFIED, unless a harness asks
-## for it flat.
+## Whether the chart is seen through the camera: its style's line in `SOLID_STYLES`
+## (or a harness's `solidstyle`), unless a harness asks for it flat (`chartflat`).
 static func solid() -> bool:
 	if _solid < 0:
 		_solid = 1
@@ -198,6 +215,9 @@ static func solid() -> bool:
 			var arg := a as String
 			if arg == "chartflat":
 				_solid = 0
+			elif arg.begins_with("solidstyle="):
+				for st in arg.substr(11).split(","):
+					_solid_forced.append(StringName(st))
 			elif arg.begins_with("solidpose="):
 				# (the harness's stills of a turned view, `solidpose=<pitch deg>,<x gu>,
 				# <y gu>`: the chart opens already turned there, as a drag would leave it)
@@ -209,7 +229,10 @@ static func solid() -> bool:
 				solid_t = _pose_t
 				solid_pitch = _pose_p
 		_set_cam()
-	return _solid == 1 and simplified()
+	if _solid != 1:
+		return false
+	var st := style_now()
+	return bool(SOLID_STYLES.get(st, false)) or st in _solid_forced
 
 
 ## The gas's puffs (how strongly lit and how tall, how big), (0, 1) off.
@@ -239,7 +262,7 @@ static func nebulae() -> float:
 ## How much the camera magnifies the core (the shader's solidCoreK; 1 with it off): the
 ## hole is drawn about it at that one scale.
 func solid_core_k() -> float:
-	if not (solid() and _use_map and not _g_for().has("radiant")):
+	if not (solid() and _use_map):
 		return 1.0
 	return _cam.x / (_cam.x + solid_t.y * _cam.z)
 
@@ -1822,7 +1845,7 @@ func _feed_events(m: ShaderMaterial, g: Dictionary, t: float, phi: float, _z: fl
 
 ## A point of the flat view (view px at zoom 1) where the camera shows it.
 func _solid_view(v: Vector2) -> Vector2:
-	if not (solid() and _use_map and not _g_for().has("radiant")):
+	if not (solid() and _use_map):
 		return v
 	return solid_fwd(v / K0) * K0
 
@@ -2043,9 +2066,8 @@ func _push() -> void:
 	var rm: Array = remnants(g.sn_cand, t, DisplaySettings.reduced_motion)
 	m.set_shader_parameter("u_nrem", int(rm[0]))
 	m.set_shader_parameter("u_rem", rm[1])
-	# the solid galaxy (SIMPLIFIED; the run's chart, not the
-	# title's)
-	var sol := solid() and not g.has("radiant") and _use_map
+	# the solid galaxy (the styles in SOLID_STYLES; the run's chart, not the title's)
+	var sol := solid() and _use_map
 	if sol and not _was_sol:
 		solid_snap()
 		_sol_pan = Vector2(INF, INF)
@@ -2056,7 +2078,7 @@ func _push() -> void:
 	m.set_shader_parameter("u_solid", sol)
 	m.set_shader_parameter("u_solidW", cam)
 	m.set_shader_parameter("u_solidT", solid_t)
-	var fl := fluff() if (_use_map and not g.has("radiant")) else Vector2(0.0, 1.0)
+	var fl := fluff() if sol else Vector2(0.0, 1.0)
 	m.set_shader_parameter("u_fluff", fl.x)
 	m.set_shader_parameter("u_fluffS", fl.y)
 	m.set_shader_parameter("u_terr", terrain() if sol else 0.0)
@@ -2107,7 +2129,7 @@ func _push() -> void:
 	# galaxy and drew streaks across the halo the length of the drag
 	# (through the solid galaxy's camera a drag moves the camera, so it is no rigid
 	# move: the hold follows each piece through the camera instead, below)
-	var cam_hold := solid() and _use_map and not g.has("radiant")
+	var cam_hold := solid() and _use_map
 	var dragging := _frame_pan and not _frame_zoom and not cam_hold
 	var jump := _hold_ref_z > 0.0 and absf(log(z / _hold_ref_z)) > 0.03
 	_hold_z = z
