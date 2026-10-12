@@ -56,6 +56,31 @@ const float MOVE_MAX = 1.0;
 // slope (a block's worth of change): on a shallow gradient a fixed band let a
 // colour boundary trail many blocks behind the light that drew it
 const float LAG_MAX = 0.5;
+// THROUGH THE SOLID LOOK'S CAMERA (`ChartSky.solid`) the camera moves after a drag
+// (it eases to where the drag left it) with the view still: what is held follows it,
+// as SIMPLIFIED's composite's does (`chart_c_comp`'s cam_*): a block's piece of the
+// galaxy is found in the flat chart through this frame's camera, and then on last
+// frame's screen through last frame's. On; each camera's distance, elevation's sine
+// and cosine, and where it looks (gu); screen px a gu now and then.
+uniform bool cam_on = false;
+uniform vec4 cam_cur = vec4(2.2, 0.38, 0.92499, 0.0);
+uniform vec2 cam_cur_t = vec2(0.0);
+uniform vec4 cam_prev = vec4(2.2, 0.38, 0.92499, 0.0);
+uniform vec2 cam_prev_t = vec2(0.0);
+uniform float kgu_cur = 261.0;
+uniform float kgu_prev = 261.0;
+
+vec2 camFwd(vec2 o, vec4 w, vec2 t) {
+	vec2 d = vec2(o.x, o.y / TILT) - t;
+	float s = w.x / (w.x - d.y * w.z);
+	return vec2(t.x, t.y * TILT) + vec2(d.x * s, d.y * w.y * s);
+}
+vec2 camInv(vec2 p, vec4 w, vec2 t) {
+	vec2 r = p - vec2(t.x, t.y * TILT);
+	float dy = r.y * w.x / (w.x * w.y + r.y * w.z);
+	float dx = r.x * (w.x - dy * w.z) / w.x;
+	return vec2(t.x + dx, (t.y + dy) * TILT);
+}
 
 void fragment() {
 	vec4 s = texture(screen_tex, SCREEN_UV);
@@ -92,7 +117,12 @@ void fragment() {
 		// (and not in the dark, as the dither is not: the dark's faint steps lie close,
 		// and held there its grain set into smooth smears behind a zoom)
 		if (hyst > 0.0 && s.a > 0.6 && lc > 48.0) {
-			vec2 q = (prev_c + (cur_o + (floor(UV * vp_size) + 0.5) * 2.0 - cur_c) * prev_k - prev_o) * 0.5;
+			vec2 rcur = cur_o + (floor(UV * vp_size) + 0.5) * 2.0 - cur_c;
+			vec2 q = (prev_c + rcur * prev_k - prev_o) * 0.5;
+			if (cam_on) {
+				vec2 vprev = camFwd(camInv(rcur / kgu_cur, cam_cur, cam_cur_t), cam_prev, cam_prev_t) * kgu_prev;
+				q = (prev_c + vprev - prev_o) * 0.5;
+			}
 			ivec2 pb = ivec2(floor(q));
 			if (length(q - floor(UV * vp_size) - 0.5) < MOVE_MAX && pb.x >= 0 && pb.y >= 0 && pb.x < int(vp_size.x) && pb.y < int(vp_size.y)) {
 				vec3 was = texelFetch(prev_tex, pb, 0).rgb;
