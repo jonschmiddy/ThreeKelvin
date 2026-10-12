@@ -1790,7 +1790,7 @@ class Crosshair extends Control:
 		var line := Color(UITheme.ICE, CROSS_ALPHA)
 		var notch := Color(UITheme.ICE, NOTCH_ALPHA)
 		var tilt := ChartSky.TILT
-		var hc := chart.centre_px()
+		var hc := chart.centre_px() + chart._solid_px(Vector2.ZERO)
 		var hr := chart._hole_px() + 1.0
 		var hr2 := hr * hr if hr > 1.0 else -1.0
 		for slope: float in [tilt, -tilt]:
@@ -2745,6 +2745,9 @@ class MapChart extends Control:
 				MOUSE_BUTTON_LEFT:
 					if mb.pressed:
 						var hit := _node_at(mb.position)
+						if hit < 0 and mb.double_click and _solid_on():
+							# the solid galaxy's camera back to its resting view
+							ChartSky.solid_reset()
 						if hit >= 0:
 							node_picked.emit(hit)
 						else:
@@ -2982,7 +2985,8 @@ class MapChart extends Control:
 		if Run.map.is_empty():
 			return
 		var hr := _hole_px()
-		_hole_c = centre_px()
+		# (where the camera shows the core, with the solid galaxy on)
+		_hole_c = centre_px() + _solid_px(Vector2.ZERO)
 		_hole_rr = (hr + 1.0) * (hr + 1.0) if hr > 0.0 else 0.0
 
 		var here: MapGen.MapNode = Run.node_at()
@@ -3282,6 +3286,8 @@ class MapChart extends Control:
 	## same press out, and both take the same route so the second undoes the
 	## first rather than snapping to a different overview.
 	func frame_galaxy() -> void:
+		if _solid_on():
+			ChartSky.solid_reset()
 		glide_to(ZOOM_MIN, Vector2.ZERO)
 
 	## `animate` false SNAPS, which is what an ARRIVAL wants.

@@ -44,9 +44,10 @@ uniform float phi = 0.0;
 uniform float bulge_r = 0.128;
 // THE SOLID GALAXY (`ChartSky.solid`): the stars where the camera shows them
 // (`chart_c_place`'s solidFwdN): on, and the camera's distance, elevation's sine and
-// cosine, and sway
+// cosine, 0; and where it looks on the disc's plane
 uniform bool solid = false;
-uniform vec4 solidW = vec4(3.0, 0.38, 0.92499, 0.0);
+uniform vec4 solidW = vec4(1.9, 0.38, 0.92499, 0.0);
+uniform vec2 solidT = vec2(0.0);
 
 varying vec3 v_col;
 varying vec2 v_loc;
@@ -64,9 +65,9 @@ vec2 toScreen(vec2 p) {
 	float c = cos(phi), s = sin(phi);
 	vec2 v = vec2(p.x * c + p.y * s, (p.y * c - p.x * s) * 0.38) * k;
 	if (solid) {
-		vec2 q = vec2(v.x, v.y / 0.38) / k;
-		float sc = solidW.x / (solidW.x - q.y * solidW.z);
-		v = vec2((q.x - solidW.w) * sc + solidW.w, q.y * solidW.y * sc) * k;
+		vec2 d = vec2(v.x, v.y / 0.38) / k - solidT;
+		float sc = solidW.x / (solidW.x - d.y * solidW.z);
+		v = (vec2(solidT.x, solidT.y * 0.38) + vec2(d.x * sc, d.y * solidW.y * sc)) * k;
 	}
 	return cpix + v * zoom;
 }

@@ -125,27 +125,37 @@ static var dith_coh := 0.5
 ## seen through a real camera (`chart_c_place`'s solid section): the near half of the
 ## disc nearer and bigger, the far half smaller and squashed; the core bulging out
 ## of the disc above and below it, its top hiding the far disc and the near disc's
-## dust crossing in front of its bottom; the disc's rim with a thickness; and a drag
-## turning the view a few degrees, so the near and far sides change shape as a real
-## object's do. ONE projection for the sky and for every mark the chart draws over
-## it (`solid_fwd`, `solid_inv`; `StarchartScreen`'s `_proj` and `_to_plane` call
-## them), fixed on the galaxy's centre, so a zoom only magnifies. SIMPLIFIED only
-## until Jon approves; off unless asked for: `chartwow=solid`, and `solidend=back`
-## (the default: the angle eases back when a drag stops) or `solidend=stay` (it
-## stays where the drag left it).
-## How far the camera stands from the core, gu (the disc's radius is about 1): the
-## near rim is drawn 1.45 times, the far rim 0.76 times, what the middle is.
-const SOLID_D := 3.0
-## How far a drag may turn the view: the camera's sway sideways (gu: at the most the
-## near rim slides some 15 px against the core at the opening, the far rim 9 the
-## other way) and its pitch (degrees).
-const SOLID_SWAY_MAX := 0.15
-const SOLID_PITCH_MAX := 2.5
+## dust crossing in front of its bottom; the disc's rim with a thickness. ONE
+## projection for the sky and for every mark the chart draws over it (`solid_fwd`,
+## `solid_inv`; `StarchartScreen`'s `_proj` and `_to_plane` call them). SIMPLIFIED
+## only until Jon approves; off unless asked for: `chartwow=solid`.
+##
+## Then (Jon: "Solid: 1B 2B. I don't really see a difference when dragging"): the
+## camera much closer, and a drag carries it over the disc instead of sliding a
+## picture -- the camera looks down at the point of the disc under the middle of the
+## view (`solid_t`), which a drag moves, so the part under you is seen from above and
+## the parts ahead and behind foreshorten as they pass; and a drag up or down raises
+## or lowers it (`solid_pitch`), opening and flattening the disc. Both STAY where the
+## drag leaves them (Jon's 2B), within limits that never reach edge-on or face-on; a
+## double-click on empty sky, framing the whole galaxy, or opening the chart again
+## eases it back to the resting view (`solid_reset`). A zoom never moves the camera,
+## so it only magnifies. Three strengths to choose from: `solidk=moderate|strong|very`.
+## (camera distance gu, pitch either way degrees) a strength: at "strong" the near
+## rim is drawn 2 times the middle, the far rim 0.66 times.
+const SOLID_K := {"moderate": Vector2(2.2, 8.0), "strong": Vector2(1.9, 12.0), "very": Vector2(1.6, 15.0)}
+## The camera's elevation never leaves these, degrees, whatever the drag.
+const SOLID_EL_MIN := 8.0
+const SOLID_EL_MAX := 50.0
 static var _solid := -1
-static var solid_stay := false
-## The view's turn now, radians (eased: `_solid_step`).
-static var solid_sway := 0.0
+static var _solid_d := 1.9
+static var _solid_pmax := 12.0
+## Where the camera looks, on the disc's plane (gu, turned to the view), and how far
+## its elevation is from the resting view's, radians: now, and where the drags have
+## asked for (eased between: `_solid_step`).
+static var solid_t := Vector2.ZERO
 static var solid_pitch := 0.0
+static var _t_want := Vector2.ZERO
+static var _p_want := 0.0
 
 
 ## Whether the chart is seen through the camera.
@@ -156,14 +166,31 @@ static func solid() -> bool:
 			var arg := a as String
 			if arg.begins_with("chartwow=") and "solid" in arg.substr(9).split(","):
 				_solid = 1
-			elif arg == "solidend=stay":
-				solid_stay = true
+			elif arg.begins_with("solidk="):
+				var k: Vector2 = SOLID_K.get(arg.substr(7), SOLID_K.strong)
+				_solid_d = k.x
+				_solid_pmax = k.y
+		_set_cam()
 	return _solid == 1
 
 
-## The camera: (its distance, the sine and cosine of its elevation, its sway), worked
-## out once each time the view turns (the chart projects every mark through it).
-static var _cam := Vector4(SOLID_D, TILT, sqrt(1.0 - TILT * TILT), 0.0)
+## How much the camera magnifies the core (the shader's solidCoreK; 1 with it off): the
+## hole is drawn about it at that one scale.
+func solid_core_k() -> float:
+	if not (solid() and _use_map and not _g_for().has("radiant")):
+		return 1.0
+	return _cam.x / (_cam.x + solid_t.y * _cam.z)
+
+
+## Back to the resting view, eased.
+static func solid_reset() -> void:
+	_t_want = Vector2.ZERO
+	_p_want = 0.0
+
+
+## The camera: (its distance, the sine and cosine of its elevation, 0), and where it
+## looks; worked out once each time it moves (the chart projects every mark).
+static var _cam := Vector4(1.9, TILT, sqrt(1.0 - TILT * TILT), 0.0)
 
 
 static func solid_cam() -> Vector4:
@@ -172,23 +199,26 @@ static func solid_cam() -> Vector4:
 
 static func _set_cam() -> void:
 	var el := asin(TILT) + solid_pitch
-	_cam = Vector4(SOLID_D, sin(el), cos(el), solid_sway)
+	_cam = Vector4(_solid_d, sin(el), cos(el), 0.0)
 
 
 ## The flat view (gu, y already tilted) to the camera's (gu); the shader's solidFwdN.
+## The point it looks at stays where the flat view has it; round it the disc's plane
+## is seen in perspective from its elevation.
 static func solid_fwd(o: Vector2) -> Vector2:
-	var w := solid_cam()
-	var q := Vector2(o.x, o.y / TILT)
-	var sc := w.x / (w.x - q.y * w.z)
-	return Vector2((q.x - w.w) * sc + w.w, q.y * w.y * sc)
+	var w := _cam
+	var d := Vector2(o.x, o.y / TILT) - solid_t
+	var sc := w.x / (w.x - d.y * w.z)
+	return Vector2(solid_t.x, solid_t.y * TILT) + Vector2(d.x * sc, d.y * w.y * sc)
 
 
 ## The camera's view of the disc's plane back to the flat view; the shader's solidInvN.
 static func solid_inv(p: Vector2) -> Vector2:
-	var w := solid_cam()
-	var qy := p.y * w.x / (w.x * w.y + p.y * w.z)
-	var qx := (p.x - w.w) * (w.x - qy * w.z) / w.x + w.w
-	return Vector2(qx, qy * TILT)
+	var w := _cam
+	var r := p - Vector2(solid_t.x, solid_t.y * TILT)
+	var dy := r.y * w.x / (w.x * w.y + r.y * w.z)
+	var dx := r.x * (w.x - dy * w.z) / w.x
+	return Vector2(solid_t.x + dx, (solid_t.y + dy) * TILT)
 
 
 var chart: StarchartScreen.MapChart = null
@@ -395,7 +425,15 @@ func _g_for() -> Dictionary:
 
 ## Hand the chart over; bake its galaxy if nobody has.
 func setup(c: StarchartScreen.MapChart) -> void:
+	# (the solid galaxy's camera starts each opening of the chart at rest; this is
+	# called at every draw, so only for a chart it has not had)
+	var fresh := c != chart
 	chart = c
+	if fresh and solid() and c.run_galaxy:
+		solid_reset()
+		solid_t = Vector2.ZERO
+		solid_pitch = 0.0
+		_set_cam()
 	if ChartLegacy.wanted():
 		if _vp != null:
 			_vp.queue_free()
@@ -516,7 +554,7 @@ func hole_px() -> float:
 		return _legacy.hole_px()
 	if chart == null or _g_for().is_empty():
 		return 0.0
-	return float(_g_for().p.hole_r) * _k() * chart.zoom
+	return float(_g_for().p.hole_r) * _k() * chart.zoom * solid_core_k()
 
 
 ## Chart px a galaxy unit at zoom 1: the chart's own projection.
@@ -1934,8 +1972,10 @@ func _push() -> void:
 	var cam := solid_cam()
 	m.set_shader_parameter("u_solid", sol)
 	m.set_shader_parameter("u_solidW", cam)
+	m.set_shader_parameter("u_solidT", solid_t)
 	ms.set_shader_parameter("solid", sol)
 	ms.set_shader_parameter("solidW", cam)
+	ms.set_shader_parameter("solidT", solid_t)
 	var ex: Array = _cloud_stars(g, t, phi, ccon, z, _vp_origin)
 	var epos: PackedVector4Array = ex[0]
 	var ecol: PackedVector4Array = ex[1]
@@ -2013,16 +2053,14 @@ func next_supernova(t: float) -> Dictionary:
 	return {}
 
 
-## THE VIEW TURNS ON A DRAG (`solid`): the camera's sway and pitch follow the drag,
-## eased, a few degrees at most -- with `solidend=back` toward an angle set by how
-## fast the view is being dragged, so it eases back when the drag stops; with
-## `solidend=stay` toward an angle set by how far, so it stays where the drag left it.
-## Only a drag turns it: a zoom changes nothing of the camera. Timed on the chart's
-## clock, so a harness's film is the same every run.
+## THE CAMERA MOVES ON A DRAG (`solid`): where it looks follows the drag across the
+## disc (so it stays over the middle of the view), and a drag up or down lowers or
+## raises it, a degree for every 13 px, within the strength's limits; both STAY.
+## Only a drag moves it: a zoom changes nothing of the camera. Eased (a fifth of a
+## second), on the chart's clock, so a harness's film is the same every run.
 var _sol_pan := Vector2(INF, INF)
 var _sol_zoom := -1.0
 var _sol_t := -1.0
-var _sol_acc := Vector2.ZERO
 var _sol_moved := false
 
 
@@ -2034,23 +2072,23 @@ func _solid_step(t: float) -> void:
 		dp = chart.pan - _sol_pan
 	_sol_pan = chart.pan
 	_sol_zoom = chart.zoom
-	var ym := SOLID_SWAY_MAX
-	var pm := deg_to_rad(SOLID_PITCH_MAX)
-	var want := Vector2.ZERO
-	if solid_stay:
-		# the most sway for 200 px of drag, a degree of pitch for every 50 px
-		_sol_acc = Vector2(clampf(_sol_acc.x - dp.x * ym / 200.0, -ym, ym),
-			clampf(_sol_acc.y + dp.y * deg_to_rad(0.02), -pm, pm))
-		want = _sol_acc
-	elif dt > 0.0:
-		# most of the sway at 100 px a second (a slow drag); a quick one meets the most
-		var vel := dp / dt
-		want = Vector2(clampf(-vel.x * ym / 130.0, -ym, ym), clampf(vel.y * deg_to_rad(0.03), -pm, pm))
-	var k := 1.0 - exp(-dt / 0.35)
-	var was := Vector2(solid_sway, solid_pitch)
-	solid_sway += (want.x - solid_sway) * k
-	solid_pitch += (want.y - solid_pitch) * k
-	_sol_moved = (Vector2(solid_sway, solid_pitch) - was).length() > 1e-6
+	if dp != Vector2.ZERO:
+		# the point under the middle of the view, carried by the drag (px to gu
+		# at the camera's own scale there)
+		var spx := _k() * chart.zoom
+		_t_want -= Vector2(dp.x / spx, dp.y / (spx * _cam.y))
+		# (no further out than this: past it the camera's foot runs off the inner disc and
+		# the near side under it is drawn many times over)
+		_t_want = _t_want.limit_length(0.7)
+		var el0 := rad_to_deg(asin(TILT))
+		var lo := deg_to_rad(maxf(-_solid_pmax, SOLID_EL_MIN - el0))
+		var hi := deg_to_rad(minf(_solid_pmax, SOLID_EL_MAX - el0))
+		_p_want = clampf(_p_want + dp.y * deg_to_rad(1.0 / 13.0), lo, hi)
+	var k := 1.0 - exp(-dt / 0.2)
+	var was := Vector3(solid_t.x, solid_t.y, solid_pitch)
+	solid_t += (_t_want - solid_t) * k
+	solid_pitch += (_p_want - solid_pitch) * k
+	_sol_moved = (Vector3(solid_t.x, solid_t.y, solid_pitch) - was).length() > 1e-7
 	if _sol_moved:
 		_set_cam()
 		# the chart's marks follow the camera

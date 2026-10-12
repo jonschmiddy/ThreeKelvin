@@ -443,8 +443,9 @@ func _clip() -> void:
 ##   remhold   the inner disc at 1.4, 10 s at the game's speed (the last ten
 ##             minutes' remnants standing in the gas)
 ##   zoomin    the arms at 0.6, 6 s of wheel in about the middle (5x), 1 s still
-##   soliddrag the opening, 5 s of slow drag, 2 s still, 5 s back, 2 s still (the
-##             solid galaxy's view turning as it is dragged, and how it ends)
+##   soliddrag at `tourzoom` (the opening's 0.42 if not given), a slow drag: 4 s
+##             sideways, 4 s down, 5 s on a diagonal back up, each with a breath
+##             after it (the solid galaxy's camera carried and raised by a drag)
 ##   openzoom  the opening, 6 s of wheel in about the middle (3x), 1 s still
 func _tour(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
@@ -481,8 +482,9 @@ func _tour(dir: String) -> void:
 			_view(0.6, Vector2(60, 10))
 			segs = [["zoom", 180, 5.0, _chart.size * 0.5], ["hold", 30]]
 		"soliddrag":
-			_view(0.42, Vector2.ZERO)
-			segs = [["drag", 150, Vector2(220, 40)], ["hold", 60], ["drag", 150, Vector2(-220, -40)], ["hold", 60]]
+			_view(float(_arg("tourzoom", "0.42")), Vector2.ZERO)
+			segs = [["drag", 120, Vector2(180, 0)], ["hold", 15], ["drag", 120, Vector2(0, 110)], ["hold", 15],
+				["drag", 150, Vector2(-180, -110)], ["hold", 30]]
 		"openzoom":
 			_view(0.42, Vector2.ZERO)
 			segs = [["zoom", 180, 3.0, _chart.size * 0.5], ["hold", 30]]
@@ -653,8 +655,8 @@ func _solid_test() -> void:
 					break
 			if not crowded and _chart._node_at(sp) != nd.index:
 				bad_pick += 1
-		print("  solidtest stage %d (%s): sway %.3f gu pitch %.2f deg; worst %.2f px" % [stage,
-			["still", "after a drag", "after a zoom"][stage], ChartSky.solid_sway,
+		print("  solidtest stage %d (%s): looks at %s, pitch %.2f deg; worst %.2f px" % [stage,
+			["still", "after a drag", "after a zoom"][stage], ChartSky.solid_t,
 			rad_to_deg(ChartSky.solid_pitch), stage_worst])
 		worst = maxf(worst, stage_worst)
 	print("  solidtest: %d marks checked, worst %.2f px, %d clicks picked another system: %s" % [n_checked, worst,
