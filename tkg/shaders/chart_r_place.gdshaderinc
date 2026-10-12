@@ -864,7 +864,10 @@ void planeEvent(in Ray R, vec2 pP, ivec2 sb, vec3 bF, vec3 bB, vec3 ts, float si
 // ------------------------------------------------------------------ the volume
 // (`vb`: the point about the core the bulge is drawn at, in the core's own frame
 // through the camera (`place`); `tk`: how much of the middle's relief is drawn here)
-vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk) {
+// (`vsky`: where the sky behind is read, the block's place on the screen, never
+// through the camera: the sky is at infinity, and read through the turning camera its
+// grain was re-sampled every frame of a drag and shimmered)
+vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky) {
 	Ray R;
 	R.RG = kitRot(-u_phi);
 	R.CAM = vec3(R.RG * vec2(0.0, KIT_TILT_COS), KIT_TILT);
@@ -1242,7 +1245,7 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk) {
 	C += mix(vec3(0.42, 0.52, 0.9), vec3(0.95, 0.7, 0.48), u_halo.w) * u_halo.x * wisp / pow(1.0 + hr2, 1.7) * hE;
 	// the sky behind shows only where the galaxy in front is fainter than it
 	// (`bgSeen`), and through what the dust lets by
-	C += T * (sky(v, bgNebSeen(C, u_exp) * nebGap) * bgSeen(C, u_exp) + vec3(0.0021, 0.0030, 0.0062));
+	C += T * (sky(vsky, bgNebSeen(C, u_exp) * nebGap) * bgSeen(C, u_exp) + vec3(0.0021, 0.0030, 0.0062));
 	return C;
 }
 
@@ -1298,7 +1301,7 @@ vec3 place(vec2 v, vec2 vsc, ivec2 blk, ivec2 dq) {
 	float la = lens ? log2(max(lensSqueeze(S), 1.0)) : 0.0;
 	// (the middle's relief never over the hole's own disc or where its lens bends hard)
 	float tk = lens ? smoothstep(6.5, 9.5, length(S)) : 1.0;
-	vec3 C = radiance(vbg, vbh, sb, dq, la, tk) + supernova(lens ? vbs : vsc, blk);
+	vec3 C = radiance(vbg, vbh, sb, dq, la, tk, lens ? vbs : vsc) + supernova(lens ? vbs : vsc, blk);
 	// the near side's dust lane across the core, before the hole is laid over
 	if (u_solid && !u_isBall) {
 		C *= solidLane(v);
