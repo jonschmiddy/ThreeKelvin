@@ -117,6 +117,36 @@ static var diag := 0
 static var dith_gs := 0.006
 static var dith_coh := 0.5
 
+## GALAXY DEPTH (Oct 12; Jon's idea 21 from the "magnificent" list, reworked: the
+## first near layer sat "almost RIGHT at the camera ... the galaxy should have like
+## a z axis almost ... a depth, but that should be closer to the galaxy"). The
+## galaxy's own thick disc and halo -- stars, wisps of gas and clumps of it -- at
+## heights just above the disc, seen in perspective from a camera over the middle
+## of the view: the higher a thing sits, the more it is magnified about the view's
+## middle, so on a drag it slides a little faster than the disc (`DEPTHS`: the
+## lowest sheet's factor to the highest's), and it stands up off the plane at the
+## sector map's tilt. SIMPLIFIED only until Jon picks a depth; off unless asked
+## for: `chartwow=depth`, and `galaxydepth=shallow|middle|deep` (middle the
+## default).
+const DEPTHS := {"shallow": Vector2(1.1, 1.25), "middle": Vector2(1.15, 1.45), "deep": Vector2(1.2, 1.6)}
+static var _depth := Vector3(-1.0, 1.15, 1.45)
+
+
+## The galaxy's depth asked for: (on 1 or 0, the lowest sheet's factor, the highest's).
+static func depth() -> Vector3:
+	if _depth.x < 0.0:
+		_depth.x = 0.0
+		for a in OS.get_cmdline_user_args():
+			var arg := a as String
+			if arg.begins_with("chartwow=") and "depth" in arg.substr(9).split(","):
+				_depth.x = 1.0
+			elif arg.begins_with("galaxydepth="):
+				var r: Vector2 = DEPTHS.get(arg.substr(12), DEPTHS.middle)
+				_depth.y = r.x
+				_depth.z = r.y
+	return _depth
+
+
 var chart: StarchartScreen.MapChart = null
 ## THE LEGACY STYLE draws with a renderer of its own (`ChartLegacy`, the chart as
 ## it was before the port): this node hands it the chart and draws nothing.
@@ -1845,6 +1875,12 @@ func _push() -> void:
 	var rm: Array = remnants(g.sn_cand, t, DisplaySettings.reduced_motion)
 	m.set_shader_parameter("u_nrem", int(rm[0]))
 	m.set_shader_parameter("u_rem", rm[1])
+	# the galaxy's depth (SIMPLIFIED alone until Jon picks one)
+	var dp := depth()
+	var dep_on := dp.x > 0.5 and not g.has("radiant")
+	m.set_shader_parameter("u_depthOn", dep_on)
+	if dep_on:
+		_feed_depth(m, dp)
 	var ex: Array = _cloud_stars(g, t, phi, ccon, z, _vp_origin)
 	var epos: PackedVector4Array = ex[0]
 	var ecol: PackedVector4Array = ex[1]
@@ -1918,6 +1954,24 @@ func next_supernova(t: float) -> Dictionary:
 		if t0 >= t:
 			return {"t0": t0, "xy": cand[int(LegacyHole.hash01(n + k, 78) * cand.size()) % cand.size()]}
 	return {}
+
+
+## GALAXY DEPTH's per-frame inputs: the range of factors, and what it must keep
+## clear of on the screen -- YOU and the systems you can jump to (their glyphs and
+## labels are drawn over the sky, but a wisp behind them is still clutter).
+func _feed_depth(m: ShaderMaterial, dp: Vector3) -> void:
+	m.set_shader_parameter("u_depth", Vector2(dp.y, dp.z))
+	var keep := PackedVector2Array()
+	if _use_map and not Run.map.is_empty() and Run.node_at() != null:
+		keep.append(chart._screen_pos(Run.node_at()))
+		for raw in chart._in_range():
+			if keep.size() >= 24:
+				break
+			keep.append(chart._screen_pos(raw as MapGen.MapNode))
+	var nk := keep.size()
+	keep.resize(24)
+	m.set_shader_parameter("u_nclear", nk)
+	m.set_shader_parameter("u_clear", keep)
 
 
 ## RADIANT'S SAFETY: it is the heavy style ("for photos probably", Jon). Over its

@@ -439,6 +439,8 @@ func _clip() -> void:
 ##   remhold   the inner disc at 1.4, 10 s at the game's speed (the last ten
 ##             minutes' remnants standing in the gas)
 ##   zoomin    the arms at 0.6, 6 s of wheel in about the middle (5x), 1 s still
+##   depthdrag the opening, 4 s of drag one way and 4 s back (the galaxy's depth)
+##   depthzoom the opening, 6 s of wheel in about the middle (3x), 1 s still
 func _tour(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
 	var tour := _arg("tour", "dive")
@@ -473,6 +475,12 @@ func _tour(dir: String) -> void:
 		"zoomin":
 			_view(0.6, Vector2(60, 10))
 			segs = [["zoom", 180, 5.0, _chart.size * 0.5], ["hold", 30]]
+		"depthdrag":
+			_view(0.42, Vector2.ZERO)
+			segs = [["drag", 120, Vector2(160, 30)], ["drag", 120, Vector2(-160, -30)]]
+		"depthzoom":
+			_view(0.42, Vector2.ZERO)
+			segs = [["zoom", 180, 3.0, _chart.size * 0.5], ["hold", 30]]
 		"open":
 			_view(0.42, Vector2.ZERO)
 			segs = [["hold", 90], ["zoom", 150, 2.4 / 0.42, cur], ["drag", 60, Vector2(-120, -40)], ["hold", 30]]
@@ -510,7 +518,7 @@ func _tour(dir: String) -> void:
 	print("  chartlook: tour %s, %d frames in %s" % [tour, fi, ProjectSettings.globalize_path(dir)])
 
 
-## WHAT A PART OF THE SKY COSTS (`costbench=remnants|none`): one process,
+## WHAT A PART OF THE SKY COSTS (`costbench=remnants,depth|none`): one process,
 ## one galaxy, the part switched off and on in turns at each view (the opening, the
 ## arms at 1.2, the arms at 2.5, the hole at 6), eighty turns of eight frames,
 ## vsync off; every frame's own GPU time of the sky's viewports, and the whole
@@ -518,7 +526,7 @@ func _tour(dir: String) -> void:
 ## of the machine's load on it) and the median. Interleaved because this machine is
 ## shared: two separate runs of `chartbench` differed by half a millisecond with
 ## nothing changed. `none` switches nothing, to show the noise. Remnants are
-## switched by `ChartSky.diag` 2048.
+## switched by `ChartSky.diag` 2048; the depth by `ChartSky.depth`.
 func _cost_bench(names: String) -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
@@ -530,6 +538,7 @@ func _cost_bench(names: String) -> void:
 	var views := [["opening", 0.42, Vector2.ZERO], ["arms1.2", 1.2, Vector2(150, 20)],
 		["arms2.5", 2.5, Vector2(200, 30)], ["hole6", 6.0, Vector2.ZERO]]
 	var t := StarchartScreen.MapChart.clock_override
+	var dep0 := ChartSky.depth()
 	for nm in names.split(","):
 		for v: Array in views:
 			_view(v[1], v[2])
@@ -538,6 +547,7 @@ func _cost_bench(names: String) -> void:
 			for turn in 80:
 				var on := turn % 2
 				ChartSky.diag = 2048 if nm == "remnants" and on == 0 else 0
+				ChartSky._depth.x = 1.0 if nm == "depth" and on == 1 else (dep0.x if nm != "depth" else 0.0)
 				for _w in 3:
 					t += 1.0 / 60.0
 					StarchartScreen.MapChart.clock_override = t
@@ -563,6 +573,7 @@ func _cost_bench(names: String) -> void:
 				q.call(gpu[0], 0.5), q.call(gpu[1], 0.5), q.call(gpu[1], 0.5) - q.call(gpu[0], 0.5),
 				q.call(ft[0], 0.2), q.call(ft[1], 0.2), q.call(ft[1], 0.2) - q.call(ft[0], 0.2)])
 	ChartSky.diag = 0
+	ChartSky._depth = dep0
 
 
 static func _ease(u: float) -> float:
