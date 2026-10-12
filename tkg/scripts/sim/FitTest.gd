@@ -26,27 +26,61 @@ var _tree: SceneTree
 var _at: Vector2 = Vector2.ZERO
 
 
+## THE RUNS IT DRIVES, by seed, every one of them every time. Until Oct 11 this
+## called `Rng.reseed(7711)` and then `start_new_run`, which draws its own seed
+## (`Rng.roll_master`, from the global generator) and threw the reseed away, so
+## every gate run tested a fresh ship and hold and a seed-dependent fault came
+## and went between runs. The seed is forced now (`Rng.forced`), and the seeds
+## that once failed are kept here:
+##   1360870258  the stripping check found the hold too full for the part it
+##               meant to take off (a 2x2 part, no 2x2 hole) -- the test's own
+##               assumption, not the game's: a full hold refuses the drop and
+##               the part stays on the ship. `_stripping` makes room now, and
+##               first checks that refusal. (32213827 and 128620107 did the
+##               same: 3 seeds in 151 swept, all this one check.)
+## `-- fittest seed N` drives that one seed alone.
+const SEEDS: Array[int] = [7711, 1360870258]
+
+
 func run(tree: SceneTree) -> void:
 	_tree = tree
 	await tree.process_frame
+	var seeds: Array[int] = SEEDS.duplicate()
+	if Rng.forced != 0:
+		seeds = [Rng.forced]
+	for s in seeds:
+		var before := _fails
+		print("  fittest: seed %d" % s)
+		await _pass(s)
+		if _fails > before:
+			_fail("seed %d: %d checks failed (replay: -- fittest seed %d)" % [s, _fails - before, s])
+	Rng.forced = 0
+	verdict("fittest")
+	# AND IT ENDS ITSELF. Every other harness is dispatched with a
+	# `get_tree().quit()` on the line after it; this one runs ACROSS
+	# frames, so Main returns immediately and there is nobody left to
+	# end it. It has therefore always printed its verdict and then sat
+	# there until something killed it -- which read as "still running
+	# after 240s" the moment it went into the gate, on a run where
+	# every one of its checks had passed.
+	_tree.quit()
 
-	Rng.reseed(7711, 0)
+
+## Every check, on a new run of seed `s` and a new refit screen.
+func _pass(s: int) -> void:
+	Rng.forced = s
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Router.show_ship()
 	for i in 4:
-		await tree.process_frame
+		await _tree.process_frame
 
 	var screen := Router.current
 	if not _ok("the refit screen is up", screen is ShipScreen):
-		verdict("fittest")
-		_tree.quit()
 		return
 	var grid := first(screen, func(n: Node) -> bool: return n is HoldGrid) as HoldGrid
 	var mounts := first(screen, func(n: Node) -> bool: return n is MountPoints) as MountPoints
 	if not _ok("the hold and the hardpoints are both on it",
 			grid != null and mounts != null):
-		verdict("fittest")
-		_tree.quit()
 		return
 
 	await _to_hull(grid, mounts)
@@ -60,15 +94,6 @@ func run(tree: SceneTree) -> void:
 	_nudging(grid)
 	_hold_ladder()
 	_pinned(screen)
-	verdict("fittest")
-	# AND IT ENDS ITSELF. Every other harness is dispatched with a
-	# `get_tree().quit()` on the line after it; this one runs ACROSS
-	# frames, so Main returns immediately and there is nobody left to
-	# end it. It has therefore always printed its verdict and then sat
-	# there until something killed it -- which read as "still running
-	# after 240s" the moment it went into the gate, on a run where
-	# every one of its checks had passed.
-	_tree.quit()
 
 
 # ---------------------------------------------------------------- the crossings
@@ -178,6 +203,27 @@ func _stripping(grid: HoldGrid, mounts: MountPoints) -> void:
 		return
 	await _settle(grid)
 	var target := _room_for(grid, goes)
+	# A HOLD WITH NO ROOM FOR IT (seed 1360870258: a 2x2 part, no 2x2 hole left
+	# by the parts the checks above rolled into it). The game's rule is that the
+	# drop is refused and costs nothing, so check that here -- the part still on
+	# the ship, on its mount, not in the hold, nothing gone -- and then make room
+	# the way a player would have to (here: whatever is in the hold goes, last
+	# stowed first) so the stripping below still runs.
+	if target == Vector2.INF:
+		var parts := Run.installed.size() + Run.cargo.size()
+		var mount := goes.mount
+		await _carry(from, grid, Vector2(HoldGrid.CELL, HoldGrid.CELL) * 0.5)
+		await _settle(grid)
+		_ok("a part dragged off into a full hold stays on the ship",
+			Run.installed.has(goes) and goes.mount == mount and not Run.cargo.has(goes))
+		_ok("...and nothing is lost: %d parts before, %d after"
+			% [parts, Run.installed.size() + Run.cargo.size()],
+			Run.installed.size() + Run.cargo.size() == parts)
+		while target == Vector2.INF and not Run.cargo.is_empty():
+			Run.take_from_hold(Run.cargo[Run.cargo.size() - 1])
+			Sig.ship_changed.emit()
+			await _settle(grid)
+			target = _room_for(grid, goes)
 	if not _ok("the hold has room for the part being stripped", target != Vector2.INF):
 		return
 	await _carry(from, grid, target - grid.get_global_rect().position)
