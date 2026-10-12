@@ -1972,6 +1972,9 @@ func _push() -> void:
 ## in `FEED_SLOT` s, seven slots in ten)
 const FEED_S := 9.0
 const FEED_SLOT := 150.0
+## COMETS: how long one takes to cross, s; one slot in `COMET_SLOT` s, three in four
+const COMET_S := 30.0
+const COMET_SLOT := 200.0
 
 
 ## FEEDING: (start time, slot) of the star being eaten at t, or x -1.
@@ -1986,6 +1989,30 @@ static func feed_event(t: float) -> Vector2:
 		if t >= t0 and t < t0 + FEED_S:
 			return Vector2(t0, float(n))
 	return Vector2(-1.0, 0.0)
+
+
+## COMETS: (start time, slot) of the comet crossing at t, or x -1.
+static func comet_event(t: float) -> Vector2:
+	if force_comet >= 0.0:
+		return Vector2(force_comet, 5.0) if t >= force_comet and t < force_comet + COMET_S else Vector2(-1.0, 0.0)
+	var n0 := floori(t / COMET_SLOT)
+	for n: int in [n0, n0 - 1]:
+		if LegacyHole.hash01(n, 62) > 0.75:
+			continue
+		var t0 := COMET_SLOT * n + 120.0 * LegacyHole.hash01(n, 61)
+		if t >= t0 and t < t0 + COMET_S:
+			return Vector2(t0, float(n))
+	return Vector2(-1.0, 0.0)
+
+
+## A comet's path: where its head is at progress u (0..1) and its heading, in the
+## plane: a straight chord through the disc, `b` gu from the core.
+static func comet_path(n: int, u: float) -> Array:
+	var th := LegacyHole.hash01(n, 63) * TAU
+	var b := 0.28 + 0.4 * LegacyHole.hash01(n, 64)
+	var dir := Vector2(cos(th), sin(th))
+	var head := Vector2(-dir.y, dir.x) * b + dir * (-0.75 + 1.5 * u)
+	return [head, dir]
 
 
 ## REMNANTS: the next supernova from t (its start and where), for a harness.
@@ -2033,6 +2060,16 @@ func _feed_wow(m: ShaderMaterial, g: Dictionary, t: float, ccon: Vector2, z: flo
 			var hr := float(g.p.hole_r)
 			var r0 := maxf(hr * 5.0, 0.11) + 0.04 * LegacyHole.hash01(n, 93)
 			m.set_shader_parameter("u_feed", Vector4((t - fe.x) / FEED_S, LegacyHole.hash01(n, 94) * TAU, r0, 1.0))
+	if bits & WOW_COMETS:
+		var ce := Vector2(-1.0, 0.0) if calm else comet_event(t)
+		if ce.x < 0.0:
+			m.set_shader_parameter("u_cometT", Vector4(-1.0, 1.0, 0.0, 0.0))
+		else:
+			var cp: Array = comet_path(int(ce.y), (t - ce.x) / COMET_S)
+			var hd: Vector2 = cp[0]
+			var dr: Vector2 = cp[1]
+			m.set_shader_parameter("u_comet", Vector4(hd.x, hd.y, dr.x, dr.y))
+			m.set_shader_parameter("u_cometT", Vector4(t - ce.x, COMET_S, 0.0, 0.0))
 
 
 ## RADIANT'S SAFETY: it is the heavy style ("for photos probably", Jon). Over its

@@ -79,6 +79,10 @@ uniform vec4 u_rem[16];
 // FEEDING: the star being eaten (progress 0..1, start angle, start radius gu, spin
 // sense +-1); progress below 0 is none
 uniform vec4 u_feed = vec4(-1.0, 0.0, 0.1, 1.0);
+// COMETS: the comet's head (plane x, y) and its heading (unit x, y); and (age s,
+// life s, 0, 0), age below 0 is none
+uniform vec4 u_comet = vec4(0.0);
+uniform vec4 u_cometT = vec4(-1.0, 1.0, 0.0, 0.0);
 
 const vec3 HA = vec3(1.0, 0.2, 0.3);
 const vec3 OIII = vec3(0.2, 0.95, 0.85);
@@ -1108,6 +1112,37 @@ vec3 feeding(vec2 p) {
 	return c * fade * u_wowk.y;
 }
 
+// COMETS: a head with its coma, and a tail streaming away from the core and a
+// little behind its path, lit cream (dust) with a pale cyan core (ions), its
+// material sliding down the tail; fading in and out at the ends of its crossing
+vec3 comet(vec2 p) {
+	float age = u_cometT.x;
+	if (age < 0.0 || age > u_cometT.y) {
+		return vec3(0.0);
+	}
+	float px = 1.0 / (u_zoom * u_k);
+	vec2 h = u_comet.xy;
+	vec2 vel = u_comet.zw;
+	vec2 away = normalize(normalize(h) * 0.8 - vel * 0.6);
+	vec2 d = p - h;
+	float along = dot(d, away);
+	float perp = dot(d, vec2(-away.y, away.x));
+	float sg = max(0.0025, 1.3 * px);
+	float head = exp(-dot(d, d) / (sg * sg)) * 6.0 + exp(-dot(d, d) / (9.0 * sg * sg)) * 0.7;
+	float L = 0.075;
+	float tail = 0.0, ion = 0.0;
+	if (along > 0.0 && along < L * 3.0) {
+		float wd = sg + along * 0.22;
+		float wi = sg * 0.7 + along * 0.05;
+		float flow = 0.65 + 0.35 * kitVnoise2(vec2(along * 140.0 - u_time * 1.5, perp * 60.0));
+		tail = exp(-perp * perp / (wd * wd)) * exp(-along / L) * flow;
+		ion = exp(-perp * perp / (wi * wi)) * exp(-along / (L * 1.4));
+	}
+	float fade = smoothstep(0.0, 2.5, age) * (1.0 - smoothstep(u_cometT.y - 2.5, u_cometT.y, age));
+	// (one hue down the tail: cream dust over a cyan ion core quantised to a rainbow)
+	return (vec3(1.0, 0.96, 0.9) * head + vec3(1.0, 0.80, 0.55) * (tail * 1.1 + ion * 0.6)) * fade * u_wowk.z;
+}
+
 // ------------------------------------------------------------------ the galaxy
 // `la`: how many mip levels coarser to read the bakes, for a point seen through
 // the lens, where a wide patch of the disc is squeezed into a few blocks and the
@@ -1190,6 +1225,9 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 	}
 	if ((u_wow & 4) != 0) {
 		C += feeding(p);
+	}
+	if ((u_wow & 8) != 0) {
+		C += comet(p);
 	}
 	vec3 frontL = max(C - VOIDC / u_exp, vec3(0.0));
 	C += farSky(v, la, bgNebSeen(frontL, u_exp)) * T * cloudT * bgSeen(frontL, u_exp);
