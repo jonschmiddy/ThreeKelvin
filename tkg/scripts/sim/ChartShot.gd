@@ -11,7 +11,10 @@ func run(tree: SceneTree) -> void:
 	# that cannot be told which seed can only be run until it gets lucky.
 	for a0 in OS.get_cmdline_user_args():
 		if (a0 as String).begins_with("seed="):
-			Rng.reseed(int((a0 as String).substr(5)))
+			# (forced, not reseeded: `start_new_run` draws its own seed and a reseed
+			# before it was thrown away)
+			Rng.forced = int((a0 as String).substr(5))
+			print("  [seed] %d" % Rng.forced)
 	Run.start_new_run(&"korvan", 1)
 	# `kind=N` photographs a CHOSEN galaxy instead of a rolled one, which is the
 	# only way to look at a new shape without rerolling seeds until it turns up.

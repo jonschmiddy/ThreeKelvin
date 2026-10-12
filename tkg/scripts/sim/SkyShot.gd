@@ -42,7 +42,11 @@ const DEATH := "A survey frame let go at the wrong moment and took the forward h
 func run(tree: SceneTree) -> void:
 	await tree.process_frame
 
-	Rng.reseed(20260912, 0)
+	# (forced, not reseeded: `start_new_run` draws its own seed and a reseed
+	# before it was thrown away; `seed N` on the command line wins)
+	if Rng.forced == 0:
+		Rng.forced = 20260912
+	print("  [seed] %d" % Rng.forced)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	# A system with something in the sky to see. The backdrop rolls its subject
 	# off the node's own axes, so an empty rim system would photograph as stars

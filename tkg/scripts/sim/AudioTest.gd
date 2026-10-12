@@ -205,7 +205,7 @@ func run(tree: SceneTree) -> void:
 	# THE TOP OF THE LADDER RINGS AND THE REST DOES NOT. Read through the real
 	# view rather than off the wiring: a wreck with a common and a legendary in
 	# it, swept, and the tape says which of them was heard.
-	Rng.reseed(4242, 0)
+	seed_run(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var node: MapGen.MapNode = Run.node_at()
 	node.jetsam.clear()

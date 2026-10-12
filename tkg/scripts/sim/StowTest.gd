@@ -28,7 +28,7 @@ func run(tree: SceneTree) -> void:
 	_tree = tree
 	await tree.process_frame
 
-	Rng.reseed(8899, 0)
+	seed_run(8899)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	# TWO PARTS LOOSE IN THE SYSTEM, which is how loot arrives now. They used
 	# to be stowed straight into the hold and the rail opened because the hold
@@ -122,7 +122,7 @@ func run(tree: SceneTree) -> void:
 	# THE SAME RULE ON THE SYSTEM MAP, which is where arriving lands you now and
 	# so where a player meets the offer. Its panel is rebuilt on every visit,
 	# the way the sector screen was, which is the case this file exists for.
-	Rng.reseed(8899, 0)
+	seed_run(8899)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Run.found_hull = DB.hull_frames[0]
 	Router.show_sector()

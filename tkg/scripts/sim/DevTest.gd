@@ -80,7 +80,7 @@ func run(tree: SceneTree) -> void:
 	await _launcher(false)
 	_toggle_as_released()
 
-	Rng.reseed(4471, 0)
+	seed_run(4471)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 
 	print("a run, in the editor")

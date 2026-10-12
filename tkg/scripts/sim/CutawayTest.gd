@@ -23,7 +23,7 @@ var _node: MapGen.MapNode
 func run(tree: SceneTree) -> void:
 	_tree = tree
 	await tree.process_frame
-	Rng.reseed(4242, 0)
+	seed_run(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	_node = Run.node_at()
 	_node.jetsam.clear()
@@ -300,7 +300,7 @@ func _check_layouts() -> void:
 	var widths := {}
 	for pair in [["light", HullData.Weight.LIGHT], ["medium", HullData.Weight.MEDIUM], ["heavy", HullData.Weight.HEAVY]]:
 		var wname: String = pair[0]
-		Rng.reseed(4242, 0)
+		seed_run(4242)
 		Run.start_new_run(&"korvan", int(pair[1]))
 		var node := Run.node_at()
 		node.jetsam.clear()
@@ -634,7 +634,7 @@ func _tipless(g: Control) -> bool:
 ##    button makes (Jon: "the same thud sound when you try and click on a button
 ##    that doesn't work"), with no outline on it.
 func _check_local() -> void:
-	Rng.reseed(4242, 0)
+	seed_run(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var idx := -1
 	for n: MapGen.MapNode in Run.map:

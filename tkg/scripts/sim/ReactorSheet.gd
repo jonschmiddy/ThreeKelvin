@@ -33,7 +33,7 @@ func run() -> void:
 	var over: Array[String] = []
 	for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
 		for t in HullData.TIER_NAMES.size():
-			Rng.reseed(4242, 0)
+			seed_run(4242)
 			# start_new_run then fit_chassis, because the grade is a fitting
 			# concern and not a world one — the same split the chassis screen uses.
 			Run.start_new_run(&"korvan", int(w))

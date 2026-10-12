@@ -29,7 +29,7 @@ func run(tree: SceneTree) -> void:
 	_tree = tree
 	await tree.process_frame
 
-	Rng.reseed(4242, 0)
+	seed_run(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	_node = Run.node_at()
 	_node.jetsam.clear()

@@ -44,7 +44,7 @@ func run(tree: SceneTree) -> void:
 	_main = first(tree.root, func(n: Node) -> bool:
 		return n.has_method("toggle_menu") and n.has_method("_open_settings"))
 	if _ok("Main is up", _main != null):
-		Rng.reseed(4471, 0)
+		seed_run(4471)
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 		Router.show_ship()
 		if _ok("the ship screen is up", await _wait_for(func() -> bool:

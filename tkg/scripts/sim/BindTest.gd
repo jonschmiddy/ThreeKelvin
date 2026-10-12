@@ -46,7 +46,7 @@ func run(tree: SceneTree) -> void:
 		await _finish()
 		return
 
-	Rng.reseed(4471, 0)
+	seed_run(4471)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 
 	print("ship screen")

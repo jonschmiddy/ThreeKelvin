@@ -35,9 +35,44 @@ func _fail(why: String) -> void:
 
 
 ## The line the merge gate reads. `label` is the flag the harness runs under, so
-## a failure in a 400-line log says which command to re-run.
+## a failure in a 400-line log says which command to re-run -- and with which
+## seed, when it started runs (`seed_run`).
 func verdict(label: String) -> void:
+	if _fails > 0 and not seeds.is_empty():
+		var names := PackedStringArray()
+		for s in seeds:
+			names.append(str(s))
+		print("  on seed%s %s (replay: -- %s seed %d)" % ["s" if seeds.size() > 1 else "",
+			", ".join(names), label, seeds[0]])
 	print("%s: %s" % [label, "PASS" if _fails == 0 else "%d FAILURES" % _fails])
+
+
+## THE SEEDS THIS HARNESS'S RUNS STARTED FROM, in order, each once.
+var seeds: Array[int] = []
+
+
+## THE NEXT RUN STARTS FROM SEED `n`: call it right before `Run.start_new_run`.
+##
+## A `Rng.reseed(n)` there did nothing. `start_new_run` draws the run's own seed
+## first (`Rng.roll_master`: `Rng.forced`, or else the global generator) and
+## reseeds every stream from THAT, so each harness that reseeded drove a fresh
+## random galaxy, ship and hold every time it ran -- and a check that depended
+## on any of them came and went between gate runs (maptest, fittest and
+## subjecttest all did, Oct 11-12). This sets `Rng.forced`, which sticks.
+##
+## `-- <harness> seed N` on the command line wins over `n`, so a failure's seed
+## (printed here and by `verdict`) replays it.
+func seed_run(n: int) -> int:
+	var s := n
+	var args := OS.get_cmdline_user_args()
+	for i in args.size():
+		if args[i] == "seed" and i + 1 < args.size() and (args[i + 1] as String).is_valid_int():
+			s = int(args[i + 1])
+	Rng.forced = s
+	if not s in seeds:
+		seeds.append(s)
+		print("  [seed] %d" % s)
+	return s
 
 
 ## The first node under `root` that `matches` accepts, depth-first, or null.

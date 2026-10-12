@@ -25,7 +25,10 @@ const PATH := "user://settings.cfg"
 ## `keepwindow` rewrote the player's settings.cfg, and RADIANT's safety
 ## (`set_render_style`) could save SIMPLIFIED over the player's style. Audio and
 ## Keys keep their sections in the same file, so they follow this path too.
-const HARNESS_PATH := "user://harness_settings.cfg"
+## (one per harness PROCESS, `TestRun.scratch`, as the save and the history are:
+## a shared one carried one harness's settings into the next, and two running
+## at once wrote over each other)
+static var HARNESS_PATH: String = TestRun.scratch("settings", "cfg") if TestRun.active() else "user://harness_settings.cfg"
 static var path: String = HARNESS_PATH if TestRun.active() else PATH
 ## Room left for the title bar and taskbar when sizing a windowed window.
 const CHROME_ALLOWANCE := 96
