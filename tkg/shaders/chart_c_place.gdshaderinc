@@ -76,6 +76,9 @@ uniform vec4 u_wowk = vec4(1.0);
 // REMNANTS: the supernovae of the last minutes (plane x, y, age s, seed)
 uniform int u_nrem = 0;
 uniform vec4 u_rem[16];
+// FEEDING: the star being eaten (progress 0..1, start angle, start radius gu, spin
+// sense +-1); progress below 0 is none
+uniform vec4 u_feed = vec4(-1.0, 0.0, 0.1, 1.0);
 
 const vec3 HA = vec3(1.0, 0.2, 0.3);
 const vec3 OIII = vec3(0.2, 0.95, 0.85);
@@ -1069,6 +1072,42 @@ vec3 remnants(vec2 p) {
 	return c;
 }
 
+// FEEDING: a star near the core drawn into a streak that spirals in. The path:
+// its radius easing in from where it started to just outside the shadow, the
+// angle winding faster as it falls; the star stretched along the path behind its
+// head, longer the further in (the tide), hot and white at the head.
+vec2 feedAt(float u) {
+	float rin = u_holeR * 1.25;
+	float r = mix(u_feed.z, rin, pow(u, 1.6));
+	float a = u_feed.y + u_feed.w * KIT_TAU * 1.4 * pow(u, 1.8);
+	return vec2(cos(a), sin(a)) * r;
+}
+vec3 feeding(vec2 p) {
+	float u = u_feed.x;
+	if (u < 0.0 || u > 1.0) {
+		return vec3(0.0);
+	}
+	float px = 1.0 / (u_zoom * u_k);
+	vec3 c = vec3(0.0);
+	float span = 0.03 + 0.32 * u * u;
+	float sg = max(0.0035, 2.0 * px);
+	const int N = 40;
+	for (int j = 0; j < N; j++) {
+		float f = float(j) / float(N - 1);
+		float uj = u - span * f;
+		if (uj < 0.0) {
+			break;
+		}
+		vec2 q = feedAt(uj);
+		vec2 d = p - q;
+		float g = exp(-dot(d, d) / (sg * sg));
+		c += mix(vec3(0.85, 0.92, 1.0) * 9.0, vec3(1.0, 0.85, 0.7) * 3.0, f) * g * (1.0 - f * 0.7) * (8.0 / float(N));
+	}
+	// in at the end: gone into the disc
+	float fade = smoothstep(0.0, 0.05, u) * (1.0 - smoothstep(0.88, 1.0, u));
+	return c * fade * u_wowk.y;
+}
+
 // ------------------------------------------------------------------ the galaxy
 // `la`: how many mip levels coarser to read the bakes, for a point seen through
 // the lens, where a wide patch of the disc is squeezed into a few blocks and the
@@ -1148,6 +1187,9 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		C += B * front * mix(vec3(1.0), T, max(nuc * (1.0 - 0.25 * front), 0.62)) * exp(-5.5 * nest * vec3(0.80, 0.92, 1.0)) * mix(vec3(1.0), cloudT, 0.97);
 		billowLayer(v, dq, C);
 		wispLayer(v, la, C);
+	}
+	if ((u_wow & 4) != 0) {
+		C += feeding(p);
 	}
 	vec3 frontL = max(C - VOIDC / u_exp, vec3(0.0));
 	C += farSky(v, la, bgNebSeen(frontL, u_exp)) * T * cloudT * bgSeen(frontL, u_exp);

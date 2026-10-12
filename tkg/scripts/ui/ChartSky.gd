@@ -1968,6 +1968,26 @@ func _push() -> void:
 	queue_redraw()
 
 
+## FEEDING: how long a star takes to spiral in, s, and how often one may (one slot
+## in `FEED_SLOT` s, seven slots in ten)
+const FEED_S := 9.0
+const FEED_SLOT := 150.0
+
+
+## FEEDING: (start time, slot) of the star being eaten at t, or x -1.
+static func feed_event(t: float) -> Vector2:
+	if force_feed >= 0.0:
+		return Vector2(force_feed, 7.0) if t >= force_feed and t < force_feed + FEED_S else Vector2(-1.0, 0.0)
+	var n0 := floori(t / FEED_SLOT)
+	for n: int in [n0, n0 - 1]:
+		if LegacyHole.hash01(n, 92) > 0.7:
+			continue
+		var t0 := FEED_SLOT * n + 100.0 * LegacyHole.hash01(n, 91)
+		if t >= t0 and t < t0 + FEED_S:
+			return Vector2(t0, float(n))
+	return Vector2(-1.0, 0.0)
+
+
 ## REMNANTS: the next supernova from t (its start and where), for a harness.
 func next_supernova(t: float) -> Dictionary:
 	var g := _g_for()
@@ -2004,6 +2024,15 @@ func _feed_wow(m: ShaderMaterial, g: Dictionary, t: float, ccon: Vector2, z: flo
 		rem.resize(16)
 		m.set_shader_parameter("u_nrem", nr)
 		m.set_shader_parameter("u_rem", rem)
+	if bits & WOW_FEEDING:
+		var fe := Vector2(-1.0, 0.0) if calm else feed_event(t)
+		if fe.x < 0.0:
+			m.set_shader_parameter("u_feed", Vector4(-1.0, 0.0, 0.1, 1.0))
+		else:
+			var n := int(fe.y)
+			var hr := float(g.p.hole_r)
+			var r0 := maxf(hr * 5.0, 0.11) + 0.04 * LegacyHole.hash01(n, 93)
+			m.set_shader_parameter("u_feed", Vector4((t - fe.x) / FEED_S, LegacyHole.hash01(n, 94) * TAU, r0, 1.0))
 
 
 ## RADIANT'S SAFETY: it is the heavy style ("for photos probably", Jon). Over its
