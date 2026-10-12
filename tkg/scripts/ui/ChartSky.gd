@@ -166,7 +166,7 @@ static var _neb_on := true
 ## stars pass, the uniforms pushed -- reads `solid()` and needs nothing else. A
 ## harness's `solidstyle=<style>[,<style>...]` turns styles on for filming before
 ## their line does.
-const SOLID_STYLES := {&"simplified": true, &"radiant": false, &"painted": false, &"legacy": false}
+const SOLID_STYLES := {&"simplified": true, &"radiant": true, &"painted": false, &"legacy": false}
 static var _solid_forced: Array[StringName] = []
 
 
