@@ -14,7 +14,7 @@ extends Harness
 
 
 func run() -> void:
-	Rng.reseed(31337, 0)
+	seed_run(31337)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 
 	_boards()

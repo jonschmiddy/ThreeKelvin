@@ -53,7 +53,7 @@ var _skipped := false
 ## Where the seen flag lives: the player's settings, or a scratch file under a
 ## harness (a shot of the intro must never mark the player's as seen).
 static func store_path() -> String:
-	return "user://harness_settings.cfg" if TestRun.active() else DisplaySettings.path
+	return DisplaySettings.HARNESS_PATH if TestRun.active() else DisplaySettings.path
 
 
 static func seen() -> bool:

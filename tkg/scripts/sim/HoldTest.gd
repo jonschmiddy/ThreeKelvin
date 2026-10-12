@@ -140,7 +140,7 @@ func _lum(c: Color) -> float:
 
 ## Stuff a hull's hold until nothing more fits, then check what landed.
 func _fill(w: HullData.Weight) -> void:
-	Rng.reseed(4242 + int(w), 0)
+	seed_run(4242 + int(w))
 	Run.start_new_run(&"korvan", int(w))
 	var g := Run.hold_grid()
 	var name := HullData.weight_name(w)
@@ -207,7 +207,7 @@ func _shapes() -> void:
 ## Taking a part out frees exactly its own cells, and putting it back at a named
 ## cell puts it there.
 func _swaps() -> void:
-	Rng.reseed(99, 0)
+	seed_run(99)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	for i in 4:
 		Run.place_in_hold(LootGen.roll_module(3 + i, &"", true))
@@ -243,7 +243,7 @@ func _swaps() -> void:
 ## Run onto a LIGHT from a HEAVY on purpose: every mount count falls and the
 ## hold halves, which is the case where the old code deleted the most.
 func _moving_day() -> void:
-	Rng.reseed(1234, 0)
+	seed_run(1234)
 	Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
 	for i in 6:
 		Run.place_in_hold(LootGen.roll_module(3 + i, &"", true))
@@ -355,7 +355,7 @@ func _moving_day() -> void:
 ## `mount` overwritten with an index on a different hull, and that is precisely
 ## what the snapshot is for.
 func _changed_your_mind() -> void:
-	Rng.reseed(4321, 0)
+	seed_run(4321)
 	Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
 	for i in 4:
 		Run.place_in_hold(LootGen.roll_module(3 + i, &"", true))

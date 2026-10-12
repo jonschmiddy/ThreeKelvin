@@ -25,7 +25,7 @@ func run(tree: SceneTree) -> void:
 	_tree = tree
 	await tree.process_frame
 
-	Rng.reseed(4471, 0)
+	seed_run(4471)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Router.show_starchart()
 	# WAIT FOR THE CHART, DO NOT COUNT FRAMES AT IT. This was `for i in 3`, and
