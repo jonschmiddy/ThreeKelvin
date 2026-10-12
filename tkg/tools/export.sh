@@ -133,15 +133,14 @@ pack_check() {
 	missing="$(cd "$PROJ" && find . \( -path ./.godot -o -path ./tools \) -prune -o "${ignored[@]}" -type f -print \
 		| sed 's|^\./|res://|' \
 		| grep -vE '\.(uid|import|py|md|txt|html|cfg|b64|gdignore|gitignore|DS_Store)$|^res://project\.godot$' \
-		| while IFS= read -r f; do
-			case "$f" in
-				*.gd) want="$f.remap" ;;
-				*.png|*.jpg|*.webp|*.svg|*.wav|*.ogg|*.mp3|*.ttf|*.otf|*.glb) want="$f.import" ;;
-				*.tscn|*.tres|*.res) want="$f.remap" ;;
-				*) want="$f" ;;
-			esac
-			grep -qxF "$want" <<<"$stored" || grep -qxF "$f" <<<"$stored" || echo "$f"
-		done)"
+		| awk -v stored="$stored" '
+			BEGIN { n = split(stored, s, "\n"); for (i = 1; i <= n; i++) have[s[i]] = 1 }
+			{
+				f = $0; want = f
+				if (f ~ /\.gd$/ || f ~ /\.(tscn|tres|res)$/) want = f ".remap"
+				else if (f ~ /\.(png|jpg|webp|svg|wav|ogg|mp3|ttf|otf|glb)$/) want = f ".import"
+				if (!(want in have) && !(f in have)) print f
+			}')"
 	if [ -n "$missing" ]; then
 		fail "$what: files the game can load are NOT in the pack:"
 		echo "$missing" | sed 's/^/    /' | head -40
