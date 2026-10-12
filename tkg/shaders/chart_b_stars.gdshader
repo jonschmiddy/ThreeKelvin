@@ -30,6 +30,12 @@ uniform float phi = 0.0;
 uniform float t = 0.0;
 uniform float calm = 0.0;
 uniform float bulge_r = 0.128;
+// THE SOLID GALAXY (`ChartSky.solid`): the sparkles where the camera shows the disc
+// (`chart_solid`'s solidFwdN, as `chart_c_stars` puts its stars): on, and the camera's
+// distance, elevation's sine and cosine, 0; and where it looks on the disc's plane
+uniform bool solid = false;
+uniform vec4 solidW = vec4(1.9, 0.38, 0.92499, 0.0);
+uniform vec2 solidT = vec2(0.0);
 
 varying vec4 v_s;      // level, colour class / 4, tier / 3, sprite (0 dot 1 plus 2 four-point 3 four-point long)
 varying vec2 v_loc;
@@ -56,6 +62,11 @@ void vertex() {
 		float lz = log(zoom);
 		float cs = cos(phi), sn = sin(phi);
 		vec2 v = vec2((a.x * cs + a.y * sn), (a.y * cs - a.x * sn) * 0.38 - b.w * 0.92499) * k;
+		if (solid) {
+			vec2 d = vec2(v.x, v.y / 0.38) / k - solidT;
+			float sc = solidW.x / (solidW.x - d.y * solidW.z);
+			v = (vec2(solidT.x, solidT.y * 0.38) + vec2(d.x * sc, d.y * solidW.y * sc)) * k;
+		}
 		vec2 scr = cpix + v * zoom;
 		float lum = a.z;
 		float lv = 0.0;

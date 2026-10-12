@@ -65,6 +65,30 @@ uniform vec2 cpix0 = vec2(327.0, 214.0);
 uniform vec2 origin0 = vec2(-2.0);
 uniform vec2 block00 = vec2(0.0);
 const float TILT = 0.38;
+// AND IT FOLLOWS THE CAMERA (`ChartSky.solid`): a drag carries and pitches the solid
+// galaxy's camera, so every block shows another piece of the disc each frame -- not
+// a rigid move a pan's anchor can follow. Each block's piece is followed back through
+// this frame's camera to the flat view, turned back, and out through last frame's
+// camera to where it was drawn (`chart_c_comp`'s cam_* hold, the same arithmetic):
+// on; each camera's distance, elevation's sine and cosine, 0, and the point it looks
+// at (gu); px a gu at zoom 1. Off, the flat chart's mapping as it was.
+uniform bool cam_on = false;
+uniform vec4 cam_cur = vec4(2.2, 0.38, 0.92499, 0.0);
+uniform vec2 cam_cur_t = vec2(0.0);
+uniform vec4 cam_prev = vec4(2.2, 0.38, 0.92499, 0.0);
+uniform vec2 cam_prev_t = vec2(0.0);
+uniform float cam_k = 622.25;
+vec2 camFwd(vec2 o, vec4 W, vec2 T) {
+	vec2 d = vec2(o.x, o.y / TILT) - T;
+	float s = W.x / (W.x - d.y * W.z);
+	return vec2(T.x, T.y * TILT) + vec2(d.x * s, d.y * W.y * s);
+}
+vec2 camInv(vec2 p, vec4 W, vec2 T) {
+	vec2 r = p - vec2(T.x, T.y * TILT);
+	float dy = r.y * W.x / (W.x * W.y + r.y * W.z);
+	float dx = r.x * (W.x - dy * W.z) / W.x;
+	return vec2(T.x + dx, (T.y + dy) * TILT);
+}
 // the ordered offset of a band step, in bands (see BANDS AS A PAINTER DRAWS THEM)
 const float JIT = 0.16;
 
@@ -108,12 +132,20 @@ void fragment() {
 	// back), and that block's memory
 	ivec2 from = slot;
 	float ftag = tag;
-	if (phi_d != 0.0 || zoom0 != zoom || cpix0 != cpix || origin0 != origin || block00 != block0) {
+	bool camMoved = cam_on && (cam_cur != cam_prev || cam_cur_t != cam_prev_t);
+	if (phi_d != 0.0 || zoom0 != zoom || cpix0 != cpix || origin0 != origin || block00 != block0 || camMoved) {
 		vec2 v = (origin + (vec2(local) + 0.5) * 2.0 - cpix) / zoom;
+		if (cam_on) {
+			v = camInv(v / cam_k, cam_cur, cam_cur_t) * cam_k;
+		}
 		vec2 q = vec2(v.x, v.y / TILT);
 		float c = cos(phi_d), sn = sin(phi_d);
 		vec2 r = vec2(c * q.x + sn * q.y, -sn * q.x + c * q.y);
-		vec2 s2 = cpix0 + vec2(r.x, r.y * TILT) * zoom0;
+		vec2 vr = vec2(r.x, r.y * TILT);
+		if (cam_on) {
+			vr = camFwd(vr / cam_k, cam_prev, cam_prev_t) * cam_k;
+		}
+		vec2 s2 = cpix0 + vr * zoom0;
 		ivec2 abs2 = ivec2(floor((s2 - origin0) * 0.5)) + ivec2(block00);
 		from = pmod(abs2, size);
 		ivec2 w2 = ivec2(floor((vec2(abs2) + 0.5) / vp_size)) & ivec2(15);
