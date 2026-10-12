@@ -1968,11 +1968,42 @@ func _push() -> void:
 	queue_redraw()
 
 
+## REMNANTS: the next supernova from t (its start and where), for a harness.
+func next_supernova(t: float) -> Dictionary:
+	var g := _g_for()
+	var cand: PackedVector2Array = g.get("sn_cand", PackedVector2Array())
+	if cand.is_empty():
+		return {}
+	var n := floori(t / 60.0)
+	for k in 4:
+		var t0 := 60.0 * (n + k) + 30.0 * LegacyHole.hash01(n + k, 77)
+		if t0 >= t:
+			return {"t0": t0, "xy": cand[int(LegacyHole.hash01(n + k, 78) * cand.size()) % cand.size()]}
+	return {}
+
+
 ## The living sky's per-frame inputs.
 func _feed_wow(m: ShaderMaterial, g: Dictionary, t: float, ccon: Vector2, z: float) -> void:
 	var bits := wow_bits()
 	var calm := DisplaySettings.reduced_motion
 	m.set_shader_parameter("u_wowk", _wowk)
+	if bits & WOW_REMNANTS:
+		# the last ten minutes' supernovae (`_supernova`'s own schedule and stars)
+		var rem := PackedVector4Array()
+		var cand: PackedVector2Array = g.get("sn_cand", PackedVector2Array())
+		if not calm and not cand.is_empty():
+			var n0 := floori(t / 60.0)
+			for n in range(n0, n0 - 10, -1):
+				var t0: float = 60.0 * n + 30.0 * LegacyHole.hash01(n, 77)
+				var age := t - t0
+				if age < 0.0:
+					continue
+				var at := cand[int(LegacyHole.hash01(n, 78) * cand.size()) % cand.size()]
+				rem.append(Vector4(at.x, at.y, age, LegacyHole.hash01(n, 79) * 50.0))
+		var nr := rem.size()
+		rem.resize(16)
+		m.set_shader_parameter("u_nrem", nr)
+		m.set_shader_parameter("u_rem", rem)
 
 
 ## RADIANT'S SAFETY: it is the heavy style ("for photos probably", Jon). Over its

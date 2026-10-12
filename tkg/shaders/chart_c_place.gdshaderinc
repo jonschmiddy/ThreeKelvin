@@ -73,6 +73,9 @@ uniform vec4 u_echo = vec4(0.0);   // light echo: plane x, y, ring radius (gu), 
 // probes; and its tuning knobs (`wowk=a,b,c,d` on a harness's command line)
 uniform int u_wow = 0;
 uniform vec4 u_wowk = vec4(1.0);
+// REMNANTS: the supernovae of the last minutes (plane x, y, age s, seed)
+uniform int u_nrem = 0;
+uniform vec4 u_rem[16];
 
 const vec3 HA = vec3(1.0, 0.2, 0.3);
 const vec3 OIII = vec3(0.2, 0.95, 0.85);
@@ -1034,6 +1037,38 @@ vec3 starAt(ivec2 sb) {
 // zoom only magnifies it -- all but the near layer, which is in front of the galaxy
 // and has a frame of its own.
 
+// REMNANTS: what a supernova leaves. A ragged shell, red outside and teal inside
+// (the remnant clouds' colours), growing fast at first and slower after, and
+// fading over a quarter of an hour; a block wide at the least, so it reads at the
+// opening.
+vec3 remnants(vec2 p) {
+	vec3 c = vec3(0.0);
+	float px = 1.0 / (u_zoom * u_k);
+	for (int i = 0; i < 16; i++) {
+		if (i >= u_nrem) {
+			break;
+		}
+		vec4 rm = u_rem[i];
+		vec2 d = p - rm.xy;
+		float age = rm.z;
+		float R = 0.008 + 0.036 * (1.0 - exp(-age / 150.0));
+		float dl = length(d);
+		if (dl > R * 1.8 + 4.0 * px) {
+			continue;
+		}
+		float w = max(0.0035, 1.1 * px);
+		float an = atan(d.y, d.x);
+		// ragged and broken: the front wanders and the shell has gaps
+		float Rr = R * (1.0 + 0.10 * kitSnoise2(vec2(an * 1.6, rm.w)));
+		float x = (dl - Rr) / w;
+		float shell = exp(-x * x) * (0.45 + 0.55 * smoothstep(-0.4, 0.3, kitSnoise2(vec2(an * 2.3, rm.w + 5.0))));
+		float inside = (1.0 - smoothstep(Rr * 0.4, Rr, dl)) * 0.07;
+		float life = smoothstep(1.5, 8.0, age) * exp(-age / 260.0) * (1.0 - smoothstep(480.0, 600.0, age));
+		c += (mix(OIII, HA, smoothstep(-0.6, 0.6, x)) * shell * 1.4 + OIII * inside) * life * u_wowk.x;
+	}
+	return c;
+}
+
 // ------------------------------------------------------------------ the galaxy
 // `la`: how many mip levels coarser to read the bakes, for a point seen through
 // the lens, where a wide patch of the disc is squeezed into a few blocks and the
@@ -1093,6 +1128,9 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		B *= mix(1.0, max(0.62 + 0.76 * bm, 0.25), smoothstep(0.03, 0.10, sv));
 		C += B * (1.0 - front);
 		Em += knots(p);
+		if ((u_wow & 2) != 0) {
+			Em += remnants(p);
+		}
 		// the supernova's light echo: a ring sweeping out through the gas and dust
 		if (u_echo.w > 0.0) {
 			float de = length(p - u_echo.xy) - u_echo.z;
