@@ -162,8 +162,8 @@ static var _p_want := 0.0
 ## THE GAS WITH A BODY (`chart_c_place`'s fluff section; Jon: "the details still
 ## feel flat. I want the galaxy to almost be fluffy"): the gas heaped into round
 ## puffs, lit from the core, standing up toward the camera. `chartwow=fluff`, and how
-## fluffy: `fluff=subtle|medium|very` (medium the default) -- (how strongly lit and how
-## tall, how big the puffs). SIMPLIFIED only.
+## fluffy: `fluff=subtle|medium|very` (very the default: Jon's 1C) -- (how strongly lit
+## and how tall, how big the puffs). SIMPLIFIED only.
 const FLUFFS := {"subtle": Vector2(0.5, 0.85), "medium": Vector2(1.0, 1.0), "very": Vector2(1.6, 1.25)}
 static var _fluff := Vector2(-1.0, 1.0)
 
@@ -171,15 +171,36 @@ static var _fluff := Vector2(-1.0, 1.0)
 static func fluff() -> Vector2:
 	if _fluff.x < 0.0:
 		var on := false
-		var lv: Vector2 = FLUFFS.medium
+		var lv: Vector2 = FLUFFS.very
 		for a in OS.get_cmdline_user_args():
 			var arg := a as String
 			if arg.begins_with("chartwow=") and "fluff" in arg.substr(9).split(","):
 				on = true
 			elif arg.begins_with("fluff="):
-				lv = FLUFFS.get(arg.substr(6), FLUFFS.medium)
+				lv = FLUFFS.get(arg.substr(6), FLUFFS.very)
 		_fluff = lv if on else Vector2(0.0, 1.0)
 	return _fluff
+
+
+## THE DISC'S EDGE DISSOLVES (`chart_c_place`'s edge section; Jon: "it looks like the
+## edge of a plate"): with the solid galaxy, its thickness tapers like a lens to
+## nothing at the rim and its outline breaks up into ragged wisps. How soft:
+## `edge=soft|softer` (soft the default). (where the thickness comes to nothing gu, the
+## outline's mean radius gu, how ragged gu)
+const EDGES := {"soft": Vector3(1.25, 1.12, 0.08), "softer": Vector3(1.0, 1.0, 0.13)}
+static var _edge := Vector3(-1.0, 0.0, 0.0)
+## (off only for the cost bench: `ChartLook`'s costbench=edge)
+static var _edge_on := true
+
+
+static func edge() -> Vector3:
+	if _edge.x < 0.0:
+		_edge = EDGES.soft
+		for a in OS.get_cmdline_user_args():
+			var arg := a as String
+			if arg.begins_with("edge="):
+				_edge = EDGES.get(arg.substr(5), EDGES.soft)
+	return _edge
 
 
 ## Whether the chart is seen through the camera.
@@ -2005,6 +2026,8 @@ func _push() -> void:
 	var fl := fluff() if (_use_map and not g.has("radiant")) else Vector2(0.0, 1.0)
 	m.set_shader_parameter("u_fluff", fl.x)
 	m.set_shader_parameter("u_fluffS", fl.y)
+	var ed := edge()
+	m.set_shader_parameter("u_edge", Vector4(ed.x, ed.y, ed.z, 1.0 if (sol and _edge_on) else 0.0))
 	ms.set_shader_parameter("solid", sol)
 	ms.set_shader_parameter("solidW", cam)
 	ms.set_shader_parameter("solidT", solid_t)

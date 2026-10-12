@@ -83,6 +83,10 @@ uniform vec2 u_solidT = vec2(0.0);
 uniform float u_fluff = 0.0;
 // and how big its puffs are (1 the medium)
 uniform float u_fluffS = 1.0;
+// THE DISC'S EDGE DISSOLVES (`ChartSky.edge`, the edge section below): where its
+// thickness comes to nothing (gu), the outline's mean radius (gu), how ragged the
+// outline is (gu either way), on (1) or off
+uniform vec4 u_edge = vec4(0.0);
 
 const vec3 HA = vec3(1.0, 0.2, 0.3);
 const vec3 OIII = vec3(0.2, 0.95, 0.85);
@@ -1138,6 +1142,42 @@ float fluffDens(vec2 p) {
 	float env = smoothstep(0.05, 0.14, r) * (1.0 - smoothstep(0.75, 1.1, r));
 	return clamp(dens, 0.0, 1.0) * env;
 }
+// ------------------------------------------------------------------ the edge
+// THE DISC'S EDGE DISSOLVES (Jon, of the fluffy galaxy: "the edge of the galaxy is
+// kinda weird... it looks like the edge of a plate"). A real galaxy has no edge: its
+// thickness tapers like a lens, thick round the core and thinning out along the arms
+// to nothing at the outside (`edgeLens`: the puffs smaller, sparser and lower toward
+// the rim, so the billows thin out instead of stopping at a wall), and its outline is
+// no clean ellipse but breaks up into ragged wisps of gas that fade into the dark,
+// pulled in here and reaching out there, with its loose outer stars left standing
+// beyond it (`edgeMask`). (A first version gave the disc a slab's lit face below its
+// rim for "a visible edge", and thinned the haze past it: that face is what read as a
+// plate's rim, so it is gone.) All in the disc's own units at fixed scales, so a zoom
+// only magnifies it. u_edge: lens radius, outline radius, raggedness, on.
+// how thick the disc stands at plane radius r, 1 at the core to 0 at the lens's rim
+float edgeLens(float r) {
+	if (u_edge.w <= 0.0) {
+		return 1.0;
+	}
+	float t = clamp(1.0 - r / u_edge.x, 0.0, 1.0);
+	return t * (2.0 - t);
+}
+// how much of the disc's own light and dust is left at plane point p: 1 inside, 0
+// past its ragged outline
+float edgeMask(vec2 p) {
+	float r = length(p);
+	if (u_edge.w <= 0.0 || r < u_edge.y - u_edge.z * 1.6 - 0.25) {
+		return 1.0;
+	}
+	// the outline's radius here: broad bays and reaches, and finer tatters on them,
+	// the fine ones dragged round by the broad so they run as wisps, not as a grain
+	float big = kitFbm2(p * 2.1 + vec2(4.1, 7.3), 3);
+	vec2 w = p * 7.5 + vec2(big * 2.6, -big * 1.9) + vec2(1.7, 3.2);
+	float fine = kitFbm2(w, 3);
+	float re = u_edge.y + u_edge.z * (1.6 * big + 0.7 * fine);
+	return 1.0 - smoothstep(re - 0.25, re + 0.08, r);
+}
+
 // THE PUFFS: the gas heaped into round billows, as PAINTED heaps its own, but lit
 // as light: in cells of the plane, a puff where there is gas enough (more and bigger
 // where it is denser), each a squashed dome; at a point, the topmost dome over it.
@@ -1151,17 +1191,19 @@ vec4 fluffPuff(vec2 p, float cs, int seed) {
 			vec3 h = kitHash3(c + ivec2(seed * 7919, 4441));
 			vec2 ctr = (vec2(c) + 0.2 + 0.6 * h.xy) * cs;
 			float dn = fluffDens(ctr);
+			// (and the disc thins toward its rim: there they are fewer, smaller and lower)
+			float ln = edgeLens(length(ctr));
 			// (fewer in the thin gas between the arms: the puffs follow the arms)
-			if (h.z > pow(dn, 1.5) * 1.6) {
+			if (h.z > pow(dn, 1.5) * 1.6 * mix(0.1, 1.0, sqrt(ln))) {
 				continue;
 			}
-			float R = cs * (0.45 + 0.5 * dn) * (0.8 + 0.4 * fract(h.z * 17.3));
+			float R = cs * (0.45 + 0.5 * dn) * (0.8 + 0.4 * fract(h.z * 17.3)) * mix(0.35, 1.0, sqrt(ln));
 			vec2 d = p - ctr;
 			float dd = dot(d, d);
 			if (dd >= R * R) {
 				continue;
 			}
-			float ht = sqrt(R * R - dd) * 0.55 * (0.5 + dn);
+			float ht = sqrt(R * R - dd) * 0.55 * (0.5 + dn) * mix(0.2, 1.0, ln);
 			if (ht > best.x) {
 				best = vec4(ht, normalize(vec3(d * 0.55 * (0.5 + dn), ht)));
 			}
@@ -1261,39 +1303,6 @@ vec3 solidLane(vec2 o) {
 	float tau = 3.2 * band * (0.4 + 1.0 * n) * max(u_laneStr, 0.8);
 	return exp(-tau * vec3(0.62, 0.80, 1.0));
 }
-// THE DISC'S EDGE HAS A THICKNESS: a slab 2 SOLID_H thick out to SOLID_RE gu,
-// whose near face shows below the rim -- the rays that enter it through the side
-// (their point on the top face beyond the rim, on the bottom face inside it). Lit
-// as a slab's face is: brightest along its top, where it meets the lit disc, darker
-// down it, grained, with a faint line of its dust (a first, thin, dark version read
-// as a groove cut in the disc, not as its thickness). The disc's own faint haze past
-// the rim is dimmed (`solidFinish`), so the rim is an edge. (light, how much it
-// covers.)
-const float SOLID_H = 0.024;
-const float SOLID_RE = 0.95;
-vec4 solidEdge(vec2 o) {
-	float lift = SOLID_H * KIT_TILT_COS * u_k;
-	vec2 pt = kitViewToPlane(o + vec2(0.0, lift), u_phi, u_k);   // where the ray meets the top face
-	vec2 pb = kitViewToPlane(o - vec2(0.0, lift), u_phi, u_k);   // and the bottom
-	float rt = length(pt), rb = length(pb);
-	if (rt <= SOLID_RE || rb >= SOLID_RE) {
-		return vec4(0.0);
-	}
-	// only the near face shows: its outward side turned toward the camera
-	vec2 q = kitRot(u_phi) * (pt + pb) * 0.5;
-	if (q.y <= 0.0) {
-		return vec4(0.0);
-	}
-	// the height the ray meets the face at, -1 at the bottom to 1 at the top
-	float zf = 1.0 - 2.0 * (rt - SOLID_RE) / max(rt - rb, 1e-5);
-	float face = smoothstep(0.0, 0.15, q.y / SOLID_RE);
-	float lit = 0.35 + 0.65 * smoothstep(-1.0, 1.0, zf);
-	float lane = 1.0 - 0.35 * exp(-zf * zf / 0.04);
-	float n = 0.65 + 0.35 * kitVnoise2(pt * 60.0 + vec2(zf * 3.0, 0.0));
-	vec3 col = mix(vec3(0.62, 0.52, 0.42), vec3(0.28, 0.40, 1.0), u_young) * 0.07 * lit * lane * n;
-	return vec4(col, 0.9 * face);
-}
-
 // ------------------------------------------------------------------ the galaxy
 // `la`: how many mip levels coarser to read the bakes, for a point seen through
 // the lens, where a wide patch of the disc is squeezed into a few blocks and the
@@ -1337,6 +1346,12 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 			vec3 gc = mix(vec3(0.30, 0.46, 1.0) * 0.05 * exp(-rf / 0.5), LITDUST * 0.12, 1.0 / (1.0 + pow(rf / 0.12, 2.0)));
 			Em += gc * fs.z * u_fluff * 2.5;
 		}
+		// the outline dissolving into the dark (`edgeMask`): the disc's light and dust
+		// fade past it, its stars stay
+		float em = edgeMask(pf);
+		Em = Em * em + star * (1.0 - em);
+		T = mix(vec3(1.0), T, em);
+		gas *= em;
 		dustOut = dust;
 		float Ib;
 		B = bulgeLight(vb, front, Ib);
@@ -1394,17 +1409,6 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 	return grade(max(mix(vec3(kitLum(C)), C, SAT), 0.0)) + supernova(v, blk);
 }
 
-// what the camera adds over everything: the near face of the disc's edge
-vec3 solidFinish(vec3 C, vec2 v) {
-	if (!u_solid || u_form == 1) {
-		return C;
-	}
-	vec4 e = solidEdge(v);
-	// the disc's haze past its rim thinned, so the rim reads as its edge
-	float r0 = length(kitViewToPlane(v, u_phi, u_k));
-	C *= 1.0 - 0.5 * smoothstep(SOLID_RE, SOLID_RE + 0.08, r0) * (1.0 - e.a);
-	return C * (1.0 - e.a) + e.rgb;
-}
 vec3 place(vec2 v, vec2 vsc, ivec2 blk, ivec2 dq) {
 	float shadow = u_holeR * u_k;                        // the shadow's radius, view px
 	// THE CORE AS IT IS, through the solid galaxy's camera: about the core's place on
@@ -1441,7 +1445,7 @@ vec3 place(vec2 v, vec2 vsc, ivec2 blk, ivec2 dq) {
 		C *= solidLane(v);
 	}
 	if (!lens) {
-		return solidFinish(C, v);
+		return C;
 	}
 	C *= lh_cool_chart(S, smoothstep(3.0, 6.0, u_zoom) * ((u_diag & 128) != 0 ? 0.0 : 1.0), (u_diag & 1024) != 0 || !u_stars_on) * lh_squeeze(S);
 	// the disc lights the gas round it, hardest on the dense dust
@@ -1452,7 +1456,7 @@ vec3 place(vec2 v, vec2 vsc, ivec2 blk, ivec2 dq) {
 	if (d.a > 0.004) {
 		C = C * (1.0 - d.a) + lh_exact_hdr(d.rgb, u_exp) * d.a;
 	}
-	return solidFinish(C, v);
+	return C;
 }
 
 void fragment() {
