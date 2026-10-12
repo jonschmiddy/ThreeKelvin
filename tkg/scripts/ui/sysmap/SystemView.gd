@@ -827,6 +827,11 @@ func world_r(b: SystemLayout.Body) -> float:
 	return maxf(b.r, min_r)
 
 
+## THE BELTS' GLINTS AND THE ORBITS' NEAR HALF (Jon kept both from the Oct 11
+## ideas round; `_Belts._glint`, `_Lines`), in every style. Static vars only so a
+## harness (`WowClip`) can film the map without them beside it.
+static var belt_glints := true
+static var orbit_depth := true
 ## How big a pulsar's worlds are drawn against any other system's.
 const PULSAR_WORLD_K := 0.45
 ## the zoom the map opened at (the screen sets it): a pulsar's remnant shell is
@@ -2007,9 +2012,13 @@ class _Belts extends Node2D:
 
 	func _rocks() -> void:
 		var L: SystemLayout = view.layout
+		var glints: bool = view.belt_glints
 		for b in L.bodies:
 			if b.kind != &"belt":
 				continue
+			# (which of its first 300 rocks are glinting now, and how far in: worked
+			# out from a table made once a belt, so the rocks that are not cost nothing)
+			var gl := _glints_now(b.index, view.pose(view.t, 8.0) if view.painted else view.t) if glints else {}
 			var R := Worlds.XRng.new(floor(b.orbit * 13.0))
 			var spin: float = view.t / b.period * TAU
 			var pulsar: bool = L.star == SystemLayout.StarKind.PULSAR
@@ -2056,6 +2065,8 @@ class _Belts extends Node2D:
 						draw_rect(Rect2(s - Vector2(2, 2), Vector2(6, 4)), rk[maxi(ci - 1, 2)])
 						draw_rect(Rect2(s + Vector2(psx * 2, -2), Vector2(2, 2)), rk[mini(ci + 1, 7)])
 						draw_rect(Rect2(s + Vector2(-psx * 2, 0), Vector2(2, 2)), rk[1])
+					if gl.has(i) and not pulsar:
+						_glint(s, float(gl[i]), 0.62 + 0.38 * clampf(-sin(a) * 0.9 + 0.3, 0.0, 1.0), Vector3.ONE, rk)
 					continue
 				if view.legacy:
 					# LEGACY's grey rubble, as before -- lit as the pulsar's beam sweeps
@@ -2080,6 +2091,8 @@ class _Belts extends Node2D:
 						draw_rect(Rect2(s - Vector2(2, 2), Vector2(6, 4)), Color("#4a5058").lerp(lt, 0.3 * bk))
 						draw_rect(Rect2(s + Vector2(sxl * 2 * (1 - twl), -2), Vector2(2, 2)), Color("#b0b6be").lerp(Color.WHITE, 0.4 * bk))
 						draw_rect(Rect2(s + Vector2(-sxl * 2, 0), Vector2(2, 2)), Color("#2a2e34"))
+					if gl.has(i) and not pulsar:
+						_glint(s, float(gl[i]), 0.62 + 0.38 * clampf(-sin(a) * 0.9 + 0.3, 0.0, 1.0), SkyBakeS.STARCOL.get(view.kind, SkyBakeS.STARCOL.ORDINARY))
 					continue
 				# LIT RUBBLE (C), never a ring of dark specks: each rock's lit face in
 				# the star's colour, brightest where we see it full (the far side of
@@ -2114,7 +2127,94 @@ class _Belts extends Node2D:
 					draw_rect(Rect2(s - Vector2(2, 2), Vector2(6, 4)), dark)
 					draw_rect(Rect2(s + Vector2(sx * 2 * (1 - tw), -2), Vector2(2, 2)), lit.lightened(0.15))
 					draw_rect(Rect2(s + Vector2(-sx * 2, 0), Vector2(2, 2)), dark.darkened(0.3))
+				if gl.has(i) and not pulsar:
+					_glint(s, float(gl[i]), phase, sc3)
 
+	## GLINTS (Jon kept them, Oct 11): SUNLIGHT CATCHING A TUMBLING ROCK. Each of a
+	## belt's first 300 rocks (the ones always there, so a closer look only
+	## magnifies how many glint in a patch) flashes now and then as a flat face
+	## turns to the sun: up over a fifth of a second, gone over most of a second, a
+	## short bar of light along the row at its height -- never a cross, which read
+	## as one more star. Brighter where the belt is seen lit full (`phase`). About
+	## one rock in thirty is glinting at any moment; none round a pulsar, whose
+	## beam already lights the rubble. In each style's own hand (`_glint`).
+	const GLINT_UP := 0.2
+	const GLINT_S := 1.0
+
+	## each belt's first 300 rocks' glints: [period, offset] a rock, made once
+	var _gtab := {}
+
+	## The rocks of belt `belt` glinting at time `t`: rock -> how far into its
+	## glint, 0 to 1 (up over GLINT_UP, gone by GLINT_S), before the light's angle.
+	func _glints_now(belt: int, t: float) -> Dictionary:
+		if not _gtab.has(belt):
+			var tab := PackedFloat32Array()
+			for i in 300:
+				# (each rock's own turn: 20 to 44 s between its glints)
+				var period := 20.0 + 24.0 * SkyBakeS.hash2(i, belt * 7 + 3)
+				tab.append(period)
+				tab.append(SkyBakeS.hash2(i, belt * 7 + 4) * period)
+			_gtab[belt] = tab
+		var tb: PackedFloat32Array = _gtab[belt]
+		var out := {}
+		for i in 300:
+			var u := fposmod(t + tb[i * 2 + 1], tb[i * 2])
+			if u < GLINT_S:
+				out[i] = smoothstep(0.0, GLINT_UP, u) * (1.0 - smoothstep(GLINT_UP, GLINT_S, u))
+		return out
+
+	## The glint drawn over the rock at `s`, in 2x2 blocks:
+	##   SIMPLIFIED and LEGACY: gathered light, eased, the star's white (LEGACY's a
+	##     plainer white, its rubble being grey), the palette pass setting its steps;
+	##   RADIANT: the same light through A's own exposure (`_Moons._tone`), so its
+	##     core rolls off soft instead of clipping;
+	##   PAINTED: B's hand -- held poses (8 a second) in the rock's own ramp `rk`
+	##     (its core that ramp's top most of the way to white), three drawings from
+	##     a lit speck to a bar with its tips, never a fade.
+	func _glint(s: Vector2, e0: float, phase: float, sc3: Vector3, rk: Array = []) -> void:
+		# (brighter where the belt is seen lit full)
+		var k := 0.55 + 0.45 * clampf((phase - 0.62) / 0.38, 0.0, 1.0)
+		if view.painted:
+			var ep := e0 * k
+			if ep < 0.15:
+				return
+			# (the ramp's top warmed by the star is the brightest a lit rock gets, so
+			# the glint's core is that step taken most of the way to white)
+			var hot: Color = (rk[7] as Color).lerp(Color.WHITE, 0.6)
+			draw_rect(Rect2(s, Vector2(2, 2)), hot if ep >= 0.35 else rk[7])
+			if ep >= 0.35:
+				for d: Vector2 in [Vector2(2, 0), Vector2(-2, 0)]:
+					draw_rect(Rect2(s + d, Vector2(2, 2)), rk[7] if ep >= 0.65 else rk[6])
+			if ep >= 0.65:
+				for d: Vector2 in [Vector2(4, 0), Vector2(-4, 0)]:
+					draw_rect(Rect2(s + d, Vector2(2, 2)), rk[6])
+			return
+		var e := e0 * k
+		if e < 0.04:
+			return
+		var c := Vector3(1.0, 1.0, 1.0).lerp(sc3, 0.12 if view.legacy else 0.25)
+		var core: Color
+		var arm: Color
+		var tip: Color
+		if view.radiant:
+			# (linear light, toned as A tones every light: the bar's core, arms, tips)
+			var cl := Vector3(pow(c.x, 2.2), pow(c.y, 2.2), pow(c.z, 2.2))
+			core = _Moons._tone(cl * 2.6 * e)
+			arm = _Moons._tone(cl * 1.1 * e)
+			tip = _Moons._tone(cl * 0.7 * maxf(e - 0.45, 0.0))
+			core.a = minf(1.0, e * 2.0)
+			arm.a = minf(1.0, e * 1.6)
+			tip.a = minf(1.0, (e - 0.45) * 2.4)
+		else:
+			core = Color(c.x, c.y, c.z, minf(1.0, e * 1.35))
+			arm = Color(c.x, c.y, c.z, minf(1.0, e * 0.7))
+			tip = Color(c.x, c.y, c.z, (e - 0.45) * 0.6)
+		draw_rect(Rect2(s, Vector2(2, 2)), core)
+		for d: Vector2 in [Vector2(2, 0), Vector2(-2, 0)]:
+			draw_rect(Rect2(s + d, Vector2(2, 2)), arm)
+		if e > 0.45:
+			for d: Vector2 in [Vector2(4, 0), Vector2(-4, 0)]:
+				draw_rect(Rect2(s + d, Vector2(2, 2)), tip)
 
 # ---------------------------------------------------------------- the fabric and the orbits
 ## THE FABRIC OF SPACE, faint and grey (Jon: "more smooth looking, more simple,
@@ -2155,6 +2255,7 @@ class _Lines extends Node2D:
 		var win: Rect2 = view.window.grow(4.0)
 		var o: Vector2 = view.origin()
 		var hole := _star_hole()
+		var odepth: bool = view.orbit_depth
 		for bi in L.bodies.size():
 			var b := L.bodies[bi]
 			if b.kind == &"belt":
@@ -2207,7 +2308,17 @@ class _Lines extends Node2D:
 				if pts.size() > 0 and pts[pts.size() - 1] == q:
 					continue
 				pts.append(q)
-				cols.append(Color(c.x, c.y, c.z, 0.14 + tr * 0.38))
+				# THE NEAR HALF BOLDER (Jon kept it, Oct 11): the half of the ring toward
+				# you (below the star) up to 1.45 times as strong, the far half down to
+				# 0.6, so the plane reads as a plane lying back -- by where on the ring,
+				# never by the zoom. PAINTED in three held bands, as B paints a ramp.
+				var dk := 1.0
+				if odepth:
+					var dz := smoothstep(-1.0, 1.0, op.z / maxf(b.orbit, 1.0))
+					if view.painted:
+						dz = 0.0 if dz < 0.33 else (0.5 if dz < 0.67 else 1.0)
+					dk = lerpf(0.6, 1.45, dz)
+				cols.append(Color(c.x, c.y, c.z, (0.14 + tr * 0.38) * dk))
 			if pts.size() > 1:
 				draw_polyline_colors(pts, cols, 1.0)
 		view.tick("lines draw", t1)

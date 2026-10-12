@@ -128,7 +128,16 @@ func setup(kind: String, system_index: int, star_r: float) -> void:
 	m.set_shader_parameter("flick", 1.0)
 
 
-## THE MAP'S ZOOM, 0.1 to 4: the star drawn k times its size -- its radius, its
+## AS FAR AS THE MAP EVER ZOOMS: the wheel stops at 4, but the dive into LOCAL
+## (`SystemMapScreen.ladder_cam_begin`, seam 2C) carries the map on to 9 while
+## the world grows into LOCAL's. Held at 4, the sun stopped growing there and
+## shrank against everything round it for the rest of the dive (and stood at 4
+## while the map shrank back past it on the way out).
+## (a static var only so a harness can film the old cap, 4, beside it)
+static var k_max := 9.0
+
+
+## THE MAP'S ZOOM, 0.1 to `k_max`: the star drawn k times its size -- its radius, its
 ## cells, its plumes and flares, its glow and the box round it -- by its own
 ## shader, in single game pixels; the same rolled star, nothing re-rolled. Below
 ## 1 since the system grew three times wider and opens zoomed out to show it all
@@ -139,8 +148,8 @@ func setup(kind: String, system_index: int, star_r: float) -> void:
 ## whole blocks of radius, while `k` is the true zoom the corona, the glow and
 ## the prominences are drawn at (`sun.gdshader` `limb_k`). Left out, both are k.
 func set_zoom(k: float, k_disc: float = -1.0) -> void:
-	k = clampf(k, 0.1, 4.0)
-	var kd := k if k_disc <= 0.0 else clampf(k_disc, 0.1, 4.0)
+	k = clampf(k, 0.1, k_max)
+	var kd := k if k_disc <= 0.0 else clampf(k_disc, 0.1, k_max)
 	if k == _k and kd == _kd:
 		return
 	_k = k
