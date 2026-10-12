@@ -920,7 +920,7 @@ static func generate(canvas: Rect2) -> Array:
 	# far apart systems sit, and `fuel_cost_to` prices raw distance, so this
 	# is the dial that makes a galaxy expensive or cheap to cross -- the
 	# half of the old `squash` leak that was worth keeping, now authored.
-	var reach := float(Run.galaxy.get("reach", 1.0))
+	var reach := float(Run.galaxy.get("reach", 1.0)) * test_stretch
 	if placement == Placement.PULL:
 		for n in nodes:
 			(n as MapNode).gal = galaxy_pos(n) * reach
@@ -928,6 +928,7 @@ static func generate(canvas: Rect2) -> Array:
 		var at := spread_positions(nodes)
 		for i in nodes.size():
 			(nodes[i] as MapNode).gal = at[i] * reach
+	_ensure_flyable(nodes)
 	for n in nodes:
 		var nn: MapNode = n
 		var cloud := NebulaField.at(nn.gal)
@@ -948,6 +949,139 @@ static func generate(canvas: Rect2) -> Array:
 	# round trip. That is exactly the shape of bug savetest exists to catch.
 	nodes[0].taken.append(OPTION_WHOLE)
 	return nodes
+
+## THE CORE CAN ALWAYS BE FLOWN TO, by the slowest ship (Oct 11). Placement
+## decides where every system sits from the galaxy's brightness, and nothing in
+## it promised a route: seed 65867625, a Magellanic Irregular, put the start
+## alone in the dark at the rim, its nearest system 0.243 away against a jump
+## radius of 0.18 (0.234 with the starting engine), and the run could not leave
+## its first system. `-- maptest` caught it once in a gate run, because it was
+## rolling 120 fresh galaxies each time; the seed is pinned there now.
+##
+## So after placement, walk the galaxy the way a ship with no thrust bonus flies
+## it (`Run.JUMP_RADIUS`, a little under, and the last ring's free approach to
+## the core, `RunState.reachable_from`). If the core is out of reach:
+##   1. a start with no neighbour trades places with the rim system that has
+##      the most -- the start is just where the run begins, so this moves the
+##      ship and nothing else;
+##   2. any wall left is bridged where it is narrowest: the nearest system
+##      beyond it on a ring next to one already reached is moved round its own
+##      ring to beside that one, until the core is reached.
+## A galaxy that was already crossable is not touched (one walk, no moves).
+const FLY_MARGIN := 0.95
+## (off only for `-- maptest norepair`, to count what the repair saves)
+static var flyable_repair := true
+## (`-- maptest stretch=K` only: every galaxy laid out K times wider, so walls
+## the shipped galaxies almost never make are common, and the bridging is tested)
+static var test_stretch := 1.0
+
+static func _ensure_flyable(nodes: Array) -> void:
+	if not flyable_repair:
+		return
+	var r: float = Run.JUMP_RADIUS * FLY_MARGIN
+	var core := -1
+	for n in nodes:
+		if (n as MapNode).type == NodeType.CORE:
+			core = (n as MapNode).index
+	if core < 0 or _flown(nodes, r, core).has(core):
+		return
+	# 1. THE START, if it is stranded where it was put
+	if _near_count(nodes, 0, r) == 0:
+		var best := -1
+		var most := 0
+		for i in range(1, nodes.size()):
+			var n: MapNode = nodes[i]
+			if n.layer != 0 or n.type == NodeType.CORE:
+				continue
+			var c := _near_count(nodes, i, r)
+			if c > most:
+				most = c
+				best = i
+		if best > 0:
+			var g0: Vector2 = (nodes[0] as MapNode).gal
+			(nodes[0] as MapNode).gal = (nodes[best] as MapNode).gal
+			(nodes[best] as MapNode).gal = g0
+	# 2. ANY WALL LEFT, bridged at its narrowest
+	var sq := maxf(0.05, float(Run.galaxy.squash))
+	for _pass in 64:
+		var seen := _flown(nodes, r, core)
+		if seen.has(core):
+			return
+		var bd := INF
+		var pa := -1
+		var pb := -1
+		for i: int in seen:
+			var a: MapNode = nodes[i]
+			for j in nodes.size():
+				var b: MapNode = nodes[j]
+				if seen.has(j) or b.type == NodeType.CORE or absi(b.layer - a.layer) > 1:
+					continue
+				var d := hop_distance(a, b)
+				if d < bd:
+					bd = d
+					pa = i
+					pb = j
+		if pb < 0:
+			return
+		# round its own ring (in the plane, before the tilt) to just beside the
+		# reached one: its radius kept, its angle a's, nudged a little along so
+		# the two never sit on one spot
+		var A: MapNode = nodes[pa]
+		var B: MapNode = nodes[pb]
+		var qa := Vector2(A.gal.x, A.gal.y / sq)
+		var qb := Vector2(B.gal.x, B.gal.y / sq)
+		var rb := qb.length()
+		var th := qa.angle() + (RING_GAP * spread_gap * 0.5) / maxf(rb, 0.01) * (1.0 if wrapf(qb.angle() - qa.angle(), -PI, PI) >= 0.0 else -1.0)
+		var q := Vector2(cos(th), sin(th)) * rb
+		B.gal = Vector2(q.x, q.y * sq)
+
+
+## Every system a ship with jump radius `r` can get to from the start: index ->
+## true. Bucketed by `r`, so a walk costs about one look at each system.
+static func _flown(nodes: Array, r: float, core: int) -> Dictionary:
+	var sq := maxf(0.05, float(Run.galaxy.squash))
+	var grid := {}
+	var q := PackedVector2Array()
+	q.resize(nodes.size())
+	for i in nodes.size():
+		var n: MapNode = nodes[i]
+		q[i] = Vector2(n.gal.x, n.gal.y / sq)
+		var key := Vector2i(floori(q[i].x / r), floori(q[i].y / r))
+		if not grid.has(key):
+			grid[key] = []
+		(grid[key] as Array).append(i)
+	var seen := {0: true}
+	var frontier: Array[int] = [0]
+	while not frontier.is_empty():
+		var next: Array[int] = []
+		for i in frontier:
+			var a: MapNode = nodes[i]
+			# (the last ring's free approach, as `RunState.reachable_from` grants it)
+			if a.layer >= LAYERS - 2 and not seen.has(core):
+				seen[core] = true
+				next.append(core)
+			var key := Vector2i(floori(q[i].x / r), floori(q[i].y / r))
+			for dx in range(-1, 2):
+				for dy in range(-1, 2):
+					var cell: Variant = grid.get(key + Vector2i(dx, dy))
+					if cell == null:
+						continue
+					for j: int in cell:
+						if not seen.has(j) and q[i].distance_to(q[j]) <= r:
+							seen[j] = true
+							next.append(j)
+		frontier = next
+	return seen
+
+
+## How many systems sit within `r` of system i.
+static func _near_count(nodes: Array, i: int, r: float) -> int:
+	var c := 0
+	for j in nodes.size():
+		if j != i and hop_distance(nodes[i], nodes[j]) <= r:
+			c += 1
+	return c
+
 
 ## WHICH SYSTEMS HAVE A PULSAR FOR A NEIGHBOUR.
 ##
