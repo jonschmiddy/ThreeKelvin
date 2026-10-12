@@ -69,6 +69,10 @@ uniform int u_nkn = 0;
 uniform vec4 u_kn[64];      // knots: plane x, y (gu), size (gu), amplitude
 uniform vec4 u_sn = vec4(0.0);     // supernova: view x, y, flare gain (0 = none), age
 uniform vec4 u_echo = vec4(0.0);   // light echo: plane x, y, ring radius (gu), strength
+// what the last minutes' supernovae left (`ChartSky.remnants`: plane x, y, age s,
+// seed); none in the palette's probes
+uniform int u_nrem = 0;
+uniform vec4 u_rem[16];
 
 const vec3 HA = vec3(1.0, 0.2, 0.3);
 const vec3 OIII = vec3(0.2, 0.95, 0.85);
@@ -1025,6 +1029,40 @@ vec3 starAt(ivec2 sb) {
 	return texelFetch(u_stars, sb, 0).rgb;
 }
 
+// ------------------------------------------------------------------ remnants
+// WHAT A SUPERNOVA LEAVES (`ChartSky.remnants`): a ragged shell, red outside and
+// teal inside (the remnant clouds' colours), growing fast at first and slower
+// after, fading out over ten minutes; at the least a block and a half wide and as
+// bright as a remnant cloud's shell, so it reads at the opening, and in the
+// galaxy's own units, so a zoom only magnifies it.
+vec3 remnants(vec2 p) {
+	vec3 c = vec3(0.0);
+	float px = 1.0 / (u_zoom * u_k);
+	for (int i = 0; i < 16; i++) {
+		if (i >= u_nrem) {
+			break;
+		}
+		vec4 rm = u_rem[i];
+		vec2 d = p - rm.xy;
+		float age = rm.z;
+		float R = 0.008 + 0.036 * (1.0 - exp(-age / 150.0));
+		float dl = length(d);
+		if (dl > R * 1.8 + 4.0 * px) {
+			continue;
+		}
+		float w = max(0.0035, 1.6 * px);
+		float an = atan(d.y, d.x);
+		// ragged and broken: the front wanders and the shell has gaps
+		float Rr = R * (1.0 + 0.10 * kitSnoise2(vec2(an * 1.6, rm.w)));
+		float x = (dl - Rr) / w;
+		float shell = exp(-x * x) * (0.45 + 0.55 * smoothstep(-0.4, 0.3, kitSnoise2(vec2(an * 2.3, rm.w + 5.0))));
+		float inside = (1.0 - smoothstep(Rr * 0.4, Rr, dl)) * 0.07;
+		float life = smoothstep(1.5, 8.0, age) * exp(-age / 360.0) * (1.0 - smoothstep(480.0, 600.0, age));
+		c += (mix(OIII, HA, smoothstep(-0.6, 0.6, x)) * shell * 1.6 + OIII * inside) * life;
+	}
+	return c;
+}
+
 // ------------------------------------------------------------------ the galaxy
 // `la`: how many mip levels coarser to read the bakes, for a point seen through
 // the lens, where a wide patch of the disc is squeezed into a few blocks and the
@@ -1048,7 +1086,7 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		Bb *= mix(1.0, 0.3, glareOn() * smoothstep(2.4, 6.0, u_zoom) * mix(1.0 - smoothstep(0.05, 0.30, r), 1.0, zoomChanges()));
 		// (no blue halo under a ball: over its red outskirts it read mauve; the
 		// ball's own envelope is its halo)
-		C = C * exp(-kitLum(Bb) * 120.0) + Bb + star + tailLight(p) + knots(p);
+		C = C * exp(-kitLum(Bb) * 120.0) + Bb + star + tailLight(p) + knots(p) + remnants(p);
 	} else {
 		C += halo(v) + tailLight(p);
 		underSheet(v, la, C);
@@ -1084,6 +1122,7 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		B *= mix(1.0, max(0.62 + 0.76 * bm, 0.25), smoothstep(0.03, 0.10, sv));
 		C += B * (1.0 - front);
 		Em += knots(p);
+		Em += remnants(p);
 		// the supernova's light echo: a ring sweeping out through the gas and dust
 		if (u_echo.w > 0.0) {
 			float de = length(p - u_echo.xy) - u_echo.z;

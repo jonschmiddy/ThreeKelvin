@@ -111,7 +111,8 @@ static var quant := true
 ## LEGACY's dust sheets drawn nearer as you zoom as before, 128 the hole's own
 ## zoom terms (the squeezed ring's cooling, the disc's clumps), 256 the resolved
 ## stars adding their light on top as before, 512 no stars' light laid back
-## (`_star_debt`), 1024 the hole's cooling as far out as before.
+## (`_star_debt`), 1024 the hole's cooling as far out as before, 2048 no supernova
+## remnants (`remnants`; to measure what they cost).
 static var diag := 0
 static var dith_gs := 0.006
 static var dith_coh := 0.5
@@ -1492,6 +1493,32 @@ static func _supernova(cand: PackedVector2Array, t: float, calm: bool) -> Dictio
 	return {}
 
 
+## WHAT A SUPERNOVA LEAVES (Jon's idea 18 from the "magnificent" list, kept Oct
+## 12): the last ten minutes' supernovae, on `_supernova`'s own schedule and among
+## the same stars, each a remnant that every style draws as its own -- a ragged
+## shell that grows fast at first and slower after and fades out over the ten
+## minutes. (count, then (plane x, y, age s, seed) each, ten at most.) None under
+## reduced motion, which has no supernovae.
+const REMNANT_N := 10
+
+
+static func remnants(cand: PackedVector2Array, t: float, calm: bool) -> Array:
+	var rem := PackedVector4Array()
+	# (`diag` 2048: none, in every style, to measure them and film a before)
+	if not calm and not cand.is_empty() and not (diag & 2048):
+		var n0 := floori(t / 60.0)
+		for n in range(n0, n0 - REMNANT_N, -1):
+			var t0: float = 60.0 * n + 30.0 * LegacyHole.hash01(n, 77)
+			var age := t - t0
+			if age < 0.0:
+				continue
+			var at := cand[int(LegacyHole.hash01(n, 78) * cand.size()) % cand.size()]
+			rem.append(Vector4(at.x, at.y, age, LegacyHole.hash01(n, 79) * 50.0))
+	var nr := rem.size()
+	rem.resize(16)
+	return [nr, rem]
+
+
 ## Distant lightning in an emission or dark cloud: a flash every 6 to 14 s at a
 ## point inside it, two or three pulses (80 ms rise, 250 ms decay, 120 ms
 ## apart). (envelope, round-frame x, y, radius) or a zero envelope.
@@ -1819,6 +1846,10 @@ func _push() -> void:
 	ms.set_shader_parameter("diag", diag)
 	ms.set_shader_parameter("phi", phi)
 	ms.set_shader_parameter("kn_amp", g._amps)
+	# the supernovae's remnants (SIMPLIFIED's and RADIANT's place passes alike)
+	var rm: Array = remnants(g.sn_cand, t, DisplaySettings.reduced_motion)
+	m.set_shader_parameter("u_nrem", int(rm[0]))
+	m.set_shader_parameter("u_rem", rm[1])
 	var ex: Array = _cloud_stars(g, t, phi, ccon, z, _vp_origin)
 	var epos: PackedVector4Array = ex[0]
 	var ecol: PackedVector4Array = ex[1]
@@ -1878,6 +1909,20 @@ func _push() -> void:
 	mc.set_shader_parameter("coh_lo", minf(0.95, dith_coh * (0.75 if int(g.p.form) != 0 else 1.0) * (ChartRadiant.DITH_COH if g.has("radiant") else 1.0)))
 	_stars.queue_redraw()
 	queue_redraw()
+
+
+## REMNANTS: the next supernova from t (its start and where), for a harness.
+func next_supernova(t: float) -> Dictionary:
+	var g := _g_for()
+	var cand: PackedVector2Array = g.get("sn_cand", PackedVector2Array())
+	if cand.is_empty():
+		return {}
+	var n := floori(t / 60.0)
+	for k in 4:
+		var t0 := 60.0 * (n + k) + 30.0 * LegacyHole.hash01(n + k, 77)
+		if t0 >= t:
+			return {"t0": t0, "xy": cand[int(LegacyHole.hash01(n + k, 78) * cand.size()) % cand.size()]}
+	return {}
 
 
 ## RADIANT'S SAFETY: it is the heavy style ("for photos probably", Jon). Over its

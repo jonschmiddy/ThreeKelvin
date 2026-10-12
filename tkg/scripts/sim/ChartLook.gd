@@ -91,6 +91,33 @@ func _run() -> void:
 			Run.trail = PackedInt32Array([want_i])
 			Run._range_cache.clear()
 			Run.chart_from(Run.node_at())
+	# `visit=N`: a run's worth of history -- N hops from where YOU are, each to the
+	# nearest system not yet visited, all marked visited, YOU at the last
+	var nv := int(_arg("visit", "0"))
+	if nv > 0 and not Run.map.is_empty():
+		var cur: MapGen.MapNode = Run.node_at()
+		cur.visited = true
+		var trail := PackedInt32Array([cur.index])
+		for _h in nv:
+			var best: MapGen.MapNode = null
+			var bd := INF
+			for raw in Run.map:
+				var mn: MapGen.MapNode = raw
+				if mn.visited or mn.type == MapGen.NodeType.CORE:
+					continue
+				var dd := (mn.gal - cur.gal).length() + (mn.gal.length() - cur.gal.length()) * 0.6
+				if dd < bd and (mn.gal - cur.gal).length() > 0.03:
+					bd = dd
+					best = mn
+			if best == null:
+				break
+			best.visited = true
+			trail.append(best.index)
+			cur = best
+		Run.trail = trail
+		Run.at = cur.index
+		Run._range_cache.clear()
+		Run.chart_from(Run.node_at())
 	if "allsys" in OS.get_cmdline_user_args():
 		StarchartScreen._show_all = true
 	if "calm" in OS.get_cmdline_user_args():
@@ -166,6 +193,14 @@ func _run() -> void:
 		kinds.append(NebulaField.Kind.keys()[(raw as NebulaField.Cloud).kind])
 	print("  chartlook: clouds %s" % [kinds])
 
+	if _arg("tourclip") != "":
+		await _tour(_arg("tourclip"))
+		get_tree().quit()
+		return
+	if _arg("costbench") != "":
+		await _cost_bench(_arg("costbench"))
+		get_tree().quit()
+		return
 	if _arg("zoomclip") != "" or _arg("liveclip") != "" or _arg("panclip") != "" or _arg("wheelclip") != "" or _arg("glideclip") != "" or _arg("playclip") != "":
 		await _clip()
 		get_tree().quit()
@@ -385,6 +420,153 @@ func _clip() -> void:
 			_chart._repaint_sky()
 			await _frame_shot(dir, i)
 	print("  chartlook: clip in %s" % ProjectSettings.globalize_path(dir))
+
+
+## THE TOUR: a player's first look, the same every run, for a before and an
+## after at the same state (`tourclip=<dir> tour=dive|core|pan|open [icons]
+## [tourat=fx:fy|ship]`). 30 frames a second of the game's clock, one frame
+## drawn a step, the moves made through the chart's own wheel and drag code (so
+## the far sky's parallax is the game's):
+##   dive  1 s at the opening, 5 s of wheel in toward `tourat` (5.7x), 2 s of
+##         drag, 1 s still
+##   core  the core at 1.2, 5 s in to 3.6 about the middle, 2 s still
+##   pan   the arms at zoom 1, 8 s of drag across them, eased
+##   open  3 s still at the opening, then the dive
+##   sn        the next supernova at zoom 1.4 on its star, from 1.5 s before, 12 s
+##             (FORCED into the clip: the clock is set to it)
+##   remlapse  the opening as the clock runs 20 minutes at 120 times (a time-lapse:
+##             the supernovae's remnants coming and fading)
+##   remhold   the inner disc at 1.4, 10 s at the game's speed (the last ten
+##             minutes' remnants standing in the gas)
+##   zoomin    the arms at 0.6, 6 s of wheel in about the middle (5x), 1 s still
+func _tour(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	var tour := _arg("tour", "dive")
+	_chart.show_icons = "icons" in OS.get_cmdline_user_args()
+	var segs: Array = []
+	var cur := _chart.size * Vector2(0.62, 0.42)
+	var ta := _arg("tourat", "")
+	if ta == "ship":
+		cur = _chart._screen_pos(Run.node_at())
+	elif ta != "":
+		var tf := ta.split(":")
+		cur = _chart.size * Vector2(float(tf[0]), float(tf[1]))
+	match tour:
+		"core":
+			_view(1.2, Vector2.ZERO)
+			segs = [["hold", 30], ["zoom", 150, 3.0, _chart.size * 0.5], ["hold", 60]]
+		"pan":
+			_view(1.0, Vector2(-150, 10))
+			segs = [["drag", 240, Vector2(300, -40)]]
+		"sn":
+			var sky0 := _chart._sky as ChartSky
+			var sn: Dictionary = sky0.next_supernova(StarchartScreen.MapChart.clock_override)
+			StarchartScreen.MapChart.clock_override = float(sn.t0) - 1.5
+			_view(1.4, ChartSky._to_view(sn.xy, _chart.turn()))
+			segs = [["hold", 360]]
+		"remlapse":
+			_view(0.42, Vector2.ZERO)
+			segs = [["lapse", 300, 4.0]]
+		"remhold":
+			_view(1.4, Vector2(60, -10))
+			segs = [["hold", 300]]
+		"zoomin":
+			_view(0.6, Vector2(60, 10))
+			segs = [["zoom", 180, 5.0, _chart.size * 0.5], ["hold", 30]]
+		"open":
+			_view(0.42, Vector2.ZERO)
+			segs = [["hold", 90], ["zoom", 150, 2.4 / 0.42, cur], ["drag", 60, Vector2(-120, -40)], ["hold", 30]]
+		_:
+			_view(0.42, Vector2.ZERO)
+			segs = [["hold", 30], ["zoom", 150, 2.4 / 0.42, cur], ["drag", 60, Vector2(-120, -40)], ["hold", 30]]
+	for _i in 6:
+		await RenderingServer.frame_post_draw
+	var t := StarchartScreen.MapChart.clock_override
+	StarchartScreen.MapChart.clock_override = t
+	var fi := 0
+	for s: Array in segs:
+		var n: int = s[1]
+		var done := 0.0
+		for i in n:
+			var u := _ease(float(i + 1) / float(n))
+			match String(s[0]):
+				"zoom":
+					var want := pow(float(s[2]), u)
+					_chart._zoom_at(s[3], want / pow(float(s[2]), done))
+				"drag":
+					var d: Vector2 = s[2] * (u - done)
+					var before: Vector2 = _chart.pan
+					_chart.pan += d
+					_chart._clamp_pan()
+					_chart.sky_pan += _chart.pan - before
+					_chart._repaint_galaxy()
+			done = u
+			# (a time-lapse steps the clock s[2] seconds a frame)
+			t += float(s[2]) if String(s[0]) == "lapse" else 1.0 / 30.0
+			StarchartScreen.MapChart.clock_override = t
+			_chart._repaint_sky()
+			await _frame_shot(dir, fi)
+			fi += 1
+	print("  chartlook: tour %s, %d frames in %s" % [tour, fi, ProjectSettings.globalize_path(dir)])
+
+
+## WHAT A PART OF THE SKY COSTS (`costbench=remnants|none`): one process,
+## one galaxy, the part switched off and on in turns at each view (the opening, the
+## arms at 1.2, the arms at 2.5, the hole at 6), eighty turns of eight frames,
+## vsync off; every frame's own GPU time of the sky's viewports, and the whole
+## frame's, compared at the 20th percentile (the frame with the least of the rest
+## of the machine's load on it) and the median. Interleaved because this machine is
+## shared: two separate runs of `chartbench` differed by half a millisecond with
+## nothing changed. `none` switches nothing, to show the noise. Remnants are
+## switched by `ChartSky.diag` 2048.
+func _cost_bench(names: String) -> void:
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	Engine.max_fps = 0
+	var sky := _chart._sky as ChartSky
+	var rids: Array[RID] = []
+	for vp: SubViewport in [sky._svp, sky._pvp, sky._vp]:
+		RenderingServer.viewport_set_measure_render_time(vp.get_viewport_rid(), true)
+		rids.append(vp.get_viewport_rid())
+	var views := [["opening", 0.42, Vector2.ZERO], ["arms1.2", 1.2, Vector2(150, 20)],
+		["arms2.5", 2.5, Vector2(200, 30)], ["hole6", 6.0, Vector2.ZERO]]
+	var t := StarchartScreen.MapChart.clock_override
+	for nm in names.split(","):
+		for v: Array in views:
+			_view(v[1], v[2])
+			var gpu := [[], []]
+			var ft := [[], []]
+			for turn in 80:
+				var on := turn % 2
+				ChartSky.diag = 2048 if nm == "remnants" and on == 0 else 0
+				for _w in 3:
+					t += 1.0 / 60.0
+					StarchartScreen.MapChart.clock_override = t
+					_chart._repaint_sky()
+					await RenderingServer.frame_post_draw
+				for _f in 8:
+					t += 1.0 / 60.0
+					StarchartScreen.MapChart.clock_override = t
+					_chart._repaint_sky()
+					var t0 := Time.get_ticks_usec()
+					await RenderingServer.frame_post_draw
+					var g := 0.0
+					for r in rids:
+						g += RenderingServer.viewport_get_measured_render_time_gpu(r)
+					(gpu[on] as Array).append(g)
+					(ft[on] as Array).append(float(Time.get_ticks_usec() - t0) / 1000.0)
+			var q := func(a: Array, f: float) -> float:
+				var b := a.duplicate()
+				b.sort()
+				return float(b[int(f * (b.size() - 1))])
+			print("  costbench %-8s %-8s sky GPU p20 %.3f -> %.3f (%+.3f), median %.3f -> %.3f (%+.3f); frame p20 %.2f -> %.2f (%+.2f)" % [nm, v[0],
+				q.call(gpu[0], 0.2), q.call(gpu[1], 0.2), q.call(gpu[1], 0.2) - q.call(gpu[0], 0.2),
+				q.call(gpu[0], 0.5), q.call(gpu[1], 0.5), q.call(gpu[1], 0.5) - q.call(gpu[0], 0.5),
+				q.call(ft[0], 0.2), q.call(ft[1], 0.2), q.call(ft[1], 0.2) - q.call(ft[0], 0.2)])
+	ChartSky.diag = 0
+
+
+static func _ease(u: float) -> float:
+	return u * u * (3.0 - 2.0 * u)
 
 
 func _frame_shot(dir: String, i: int) -> void:

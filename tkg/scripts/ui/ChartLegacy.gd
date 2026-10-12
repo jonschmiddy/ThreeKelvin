@@ -1642,6 +1642,13 @@ func _feed_events(m: ShaderMaterial, g: Dictionary, t: float, phi: float, z: flo
 	m.set_shader_parameter("n_kn", knots.size())
 	kn.resize(ChartSky.MAX_KN)
 	m.set_shader_parameter("kn", kn)
+	# what the last minutes' supernovae left, in this chart's plane (bake px)
+	var rm: Array = ChartSky.remnants(g.sn_cand, t, calm)
+	var rl: PackedVector4Array = rm[1]
+	for i in int(rm[0]):
+		rl[i] = Vector4(rl[i].x * big_r, rl[i].y * big_r, rl[i].z, rl[i].w)
+	m.set_shader_parameter("n_rem", int(rm[0]))
+	m.set_shader_parameter("rem", rl)
 	# a supernova now and then, among the disc's own stars, and its light echo
 	var sv := ChartSky._supernova(g.sn_cand, t, calm)
 	if sv.is_empty():
