@@ -139,16 +139,17 @@ static var dith_coh := 0.5
 ## drag leaves them (Jon's 2B), within limits that never reach edge-on or face-on; a
 ## double-click on empty sky, framing the whole galaxy, or opening the chart again
 ## eases it back to the resting view (`solid_reset`). A zoom never moves the camera,
-## so it only magnifies. Three strengths to choose from: `solidk=moderate|strong|very`.
-## (camera distance gu, pitch either way degrees) a strength: at "strong" the near
-## rim is drawn 2 times the middle, the far rim 0.66 times.
+## so it only magnifies. Three strengths: `solidk=moderate|strong|very`, moderate
+## the default (Jon: "Moderate is nice"). (camera distance gu, pitch either way
+## degrees) a strength: at moderate the near rim is drawn 1.7 times the middle, the
+## far rim 0.7 times.
 const SOLID_K := {"moderate": Vector2(2.2, 8.0), "strong": Vector2(1.9, 12.0), "very": Vector2(1.6, 15.0)}
 ## The camera's elevation never leaves these, degrees, whatever the drag.
 const SOLID_EL_MIN := 8.0
 const SOLID_EL_MAX := 50.0
 static var _solid := -1
-static var _solid_d := 1.9
-static var _solid_pmax := 12.0
+static var _solid_d := 2.2
+static var _solid_pmax := 8.0
 ## Where the camera looks, on the disc's plane (gu, turned to the view), and how far
 ## its elevation is from the resting view's, radians: now, and where the drags have
 ## asked for (eased between: `_solid_step`).
@@ -156,6 +157,29 @@ static var solid_t := Vector2.ZERO
 static var solid_pitch := 0.0
 static var _t_want := Vector2.ZERO
 static var _p_want := 0.0
+
+
+## THE GAS WITH A BODY (`chart_c_place`'s fluff section; Jon: "the details still
+## feel flat. I want the galaxy to almost be fluffy"): the gas heaped into round
+## puffs, lit from the core, standing up toward the camera. `chartwow=fluff`, and how
+## fluffy: `fluff=subtle|medium|very` (medium the default) -- (how strongly lit and how
+## tall, how big the puffs). SIMPLIFIED only.
+const FLUFFS := {"subtle": Vector2(0.5, 0.85), "medium": Vector2(1.0, 1.0), "very": Vector2(1.6, 1.25)}
+static var _fluff := Vector2(-1.0, 1.0)
+
+
+static func fluff() -> Vector2:
+	if _fluff.x < 0.0:
+		var on := false
+		var lv: Vector2 = FLUFFS.medium
+		for a in OS.get_cmdline_user_args():
+			var arg := a as String
+			if arg.begins_with("chartwow=") and "fluff" in arg.substr(9).split(","):
+				on = true
+			elif arg.begins_with("fluff="):
+				lv = FLUFFS.get(arg.substr(6), FLUFFS.medium)
+		_fluff = lv if on else Vector2(0.0, 1.0)
+	return _fluff
 
 
 ## Whether the chart is seen through the camera.
@@ -167,7 +191,7 @@ static func solid() -> bool:
 			if arg.begins_with("chartwow=") and "solid" in arg.substr(9).split(","):
 				_solid = 1
 			elif arg.begins_with("solidk="):
-				var k: Vector2 = SOLID_K.get(arg.substr(7), SOLID_K.strong)
+				var k: Vector2 = SOLID_K.get(arg.substr(7), SOLID_K.moderate)
 				_solid_d = k.x
 				_solid_pmax = k.y
 		_set_cam()
@@ -280,6 +304,11 @@ var _hold_ref := Vector2(INF, INF)
 var _hold_ref_z := -1.0
 var _hold_ref_c := Vector2.ZERO
 var _hold_ref_o := Vector2.ZERO
+## the solid galaxy's camera as it stood at the last frame drawn, and now
+var _hold_ref_cam := Vector4.ZERO
+var _hold_ref_camt := Vector2.ZERO
+var _hold_cam_now := Vector4.ZERO
+var _hold_camt_now := Vector2.ZERO
 var _hold_c_now := Vector2.ZERO
 var _hold_o_now := Vector2.ZERO
 var _hold_bad := false
@@ -1973,6 +2002,9 @@ func _push() -> void:
 	m.set_shader_parameter("u_solid", sol)
 	m.set_shader_parameter("u_solidW", cam)
 	m.set_shader_parameter("u_solidT", solid_t)
+	var fl := fluff() if (_use_map and not g.has("radiant")) else Vector2(0.0, 1.0)
+	m.set_shader_parameter("u_fluff", fl.x)
+	m.set_shader_parameter("u_fluffS", fl.y)
 	ms.set_shader_parameter("solid", sol)
 	ms.set_shader_parameter("solidW", cam)
 	ms.set_shader_parameter("solidT", solid_t)
@@ -2003,6 +2035,8 @@ func _push() -> void:
 		_hold_ref_c = _hold_c_now
 		_hold_ref_o = _hold_o_now
 		_hold_ref_z = _hold_z
+		_hold_ref_cam = _hold_cam_now
+		_hold_ref_camt = _hold_camt_now
 		_hold_bad = false
 		_frame_pan = false
 		_frame_zoom = false
@@ -2013,14 +2047,17 @@ func _push() -> void:
 	# so there is no flicker to hold, and the far sky behind slides at its own
 	# depth -- held to the galaxy's shift its dim colours were dragged along with the
 	# galaxy and drew streaks across the halo the length of the drag
-	var dragging := _frame_pan and not _frame_zoom
+	# (through the solid galaxy's camera a drag moves the camera, so it is no rigid
+	# move: the hold follows each piece through the camera instead, below)
+	var cam_hold := solid() and _use_map and not g.has("radiant")
+	var dragging := _frame_pan and not _frame_zoom and not cam_hold
 	var jump := _hold_ref_z > 0.0 and absf(log(z / _hold_ref_z)) > 0.03
 	_hold_z = z
 	_hold_c_now = ccon
 	_hold_o_now = _vp_origin
-	# (nor while the camera turns: every block shows another piece of the galaxy, as on
-	# a zoom, but not by a zoom the hold could follow)
-	var valid := _hold_ref.x != INF and not _hold_bad and _lut_on and not jump and not dragging and not _sol_moved 		and (b0 - _hold_ref).length() < 8.0
+	_hold_cam_now = solid_cam()
+	_hold_camt_now = solid_t
+	var valid := _hold_ref.x != INF and not _hold_bad and _lut_on and not jump and not dragging 		and (b0 - _hold_ref).length() < 8.0
 	# last frame's view, to find where each block's piece of the galaxy was drawn
 	mc.set_shader_parameter("cur_c", ccon)
 	mc.set_shader_parameter("cur_o", _vp_origin)
@@ -2028,6 +2065,15 @@ func _push() -> void:
 	mc.set_shader_parameter("prev_o", _hold_ref_o)
 	mc.set_shader_parameter("prev_k", (_hold_ref_z / z) if valid else 1.0)
 	mc.set_shader_parameter("hyst", hyst if valid else 0.0)
+	mc.set_shader_parameter("cam_on", cam_hold and valid and _hold_ref_cam.x > 0.0)
+	mc.set_shader_parameter("cam_cur", _hold_cam_now)
+	mc.set_shader_parameter("cam_cur_t", _hold_camt_now)
+	mc.set_shader_parameter("cam_prev", _hold_ref_cam)
+	mc.set_shader_parameter("cam_prev_t", _hold_ref_camt)
+	mc.set_shader_parameter("cur_z", z)
+	mc.set_shader_parameter("prev_z", _hold_ref_z if valid else z)
+	mc.set_shader_parameter("cam_k", K0)
+	mc.set_shader_parameter("move_max", 64.0 if cam_hold else 1.0)
 	_hold_b0 = b0
 	mc.set_shader_parameter("dith", dith)
 	mc.set_shader_parameter("quant", quant and _lut_on)

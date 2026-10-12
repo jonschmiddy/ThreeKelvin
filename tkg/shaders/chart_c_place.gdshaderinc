@@ -79,6 +79,10 @@ uniform bool u_solid = false;
 uniform vec4 u_solidW = vec4(1.9, 0.38, 0.92499, 0.0);
 // where the camera looks, on the disc's plane (gu, turned to the view)
 uniform vec2 u_solidT = vec2(0.0);
+// THE GAS WITH A BODY (`ChartSky.fluff`, its section below): how tall it stands, 0 off
+uniform float u_fluff = 0.0;
+// and how big its puffs are (1 the medium)
+uniform float u_fluffS = 1.0;
 
 const vec3 HA = vec3(1.0, 0.2, 0.3);
 const vec3 OIII = vec3(0.2, 0.95, 0.85);
@@ -1104,6 +1108,123 @@ vec3 remnants(vec2 p) {
 	return c;
 }
 
+// ------------------------------------------------------------------ fluff
+// THE GAS WITH A BODY (`ChartSky.fluff`, SIMPLIFIED only until Jon approves; Jon:
+// "the details still feel flat. I want the galaxy to almost be fluffy"). The disc's
+// gas was a painted texture lying on the plane, so even tilted it read as a printed
+// plate. Now it is heaped into round puffs where it is dense (`fluffPuff`: the arms
+// ridges of billows, the thin parts low haze, the dust lanes the valleys between),
+// lit from the core -- the galaxy's own light -- and a little from above: each puff a
+// lit side toward the core and a shaded side away, the creases between puffs in shade,
+// a faint bright rim where a puff's edge catches the core's light (`fluffShade`); and
+// it stands up toward the camera (`fluffSeen`), so a puff slides against the haze
+// behind it as the view turns. All in the disc's own units at fixed sizes, so a zoom
+// only magnifies the same puffs and shading; the palette steps the shading into its
+// own few tones. (A first version stood the density itself up as a height field and
+// marched the view ray down through it: each step drew a streak where the field was
+// steep, and its broad slopes read as relief, not as cloud.) u_fluff: how strongly lit
+// and how tall, 0 off; u_fluffS: how big the puffs. (Declared with the uniforms at the
+// top.)
+// how much gas stands at plane point p, 0 to 1: the arms and the clumps on them, the
+// dust lanes cut out of it (fixed scales: a zoom only magnifies it)
+float fluffDens(vec2 p) {
+	float r = length(p);
+	if (r > 1.1 || r < 0.05) {
+		return 0.0;
+	}
+	vec4 S = textureLod(u_struct, bakeUV(p), 3.0);
+	float n = textureLod(u_noise, bakeUV(p), 2.5).r;
+	float dens = 0.8 * S.r + 0.55 * smoothstep(0.3, 0.8, n) - 1.1 * S.g * max(u_laneStr, 0.5);
+	float env = smoothstep(0.05, 0.14, r) * (1.0 - smoothstep(0.75, 1.1, r));
+	return clamp(dens, 0.0, 1.0) * env;
+}
+// THE PUFFS: the gas heaped into round billows, as PAINTED heaps its own, but lit
+// as light: in cells of the plane, a puff where there is gas enough (more and bigger
+// where it is denser), each a squashed dome; at a point, the topmost dome over it.
+// (its height gu, then its slope as the dome's normal x, y, z)
+vec4 fluffPuff(vec2 p, float cs, int seed) {
+	ivec2 c0 = ivec2(floor(p / cs));
+	vec4 best = vec4(0.0, 0.0, 0.0, 1.0);
+	for (int j = -1; j <= 1; j++) {
+		for (int i = -1; i <= 1; i++) {
+			ivec2 c = c0 + ivec2(i, j);
+			vec3 h = kitHash3(c + ivec2(seed * 7919, 4441));
+			vec2 ctr = (vec2(c) + 0.2 + 0.6 * h.xy) * cs;
+			float dn = fluffDens(ctr);
+			// (fewer in the thin gas between the arms: the puffs follow the arms)
+			if (h.z > pow(dn, 1.5) * 1.6) {
+				continue;
+			}
+			float R = cs * (0.45 + 0.5 * dn) * (0.8 + 0.4 * fract(h.z * 17.3));
+			vec2 d = p - ctr;
+			float dd = dot(d, d);
+			if (dd >= R * R) {
+				continue;
+			}
+			float ht = sqrt(R * R - dd) * 0.55 * (0.5 + dn);
+			if (ht > best.x) {
+				best = vec4(ht, normalize(vec3(d * 0.55 * (0.5 + dn), ht)));
+			}
+		}
+	}
+	return best;
+}
+// the topmost puff at p, of the two sizes (the small ones on top of the large)
+vec4 fluffTop(vec2 p) {
+	vec4 a = fluffPuff(p, 0.032 * u_fluffS, 1);
+	vec4 b = fluffPuff(p, 0.016 * u_fluffS, 2);
+	b.x *= 0.6;
+	return b.x > a.x ? b : a;
+}
+// where the camera is, for a point of the plane: the way to it along the plane per
+// unit of height (camera-turned plane, then into the plane's own frame). The flat view
+// is a camera far off at the sector map's tilt; the solid galaxy's is near.
+vec2 fluffToward(vec2 p) {
+	vec2 q = kitRot(u_phi) * p;
+	vec2 d;
+	if (u_solid) {
+		float D = u_solidW.x;
+		vec2 cxy = u_solidT + vec2(0.0, D * u_solidW.z);
+		d = (cxy - q) / (D * u_solidW.y);
+	} else {
+		d = vec2(0.0, KIT_TILT_COS / KIT_TILT);
+	}
+	return kitRot(-u_phi) * d;
+}
+// the point of the gas the eye meets looking down at plane point p: moved toward the
+// camera by the height of the puff it meets there (twice over), so a tall puff stands
+// in front of what is behind it and slides against the low haze as the view turns
+vec2 fluffSeen(vec2 p) {
+	if (u_fluff <= 0.0) {
+		return p;
+	}
+	vec2 d = fluffToward(p) * u_fluff;
+	vec2 q = p + d * fluffTop(p).x;
+	return p + d * fluffTop(q).x;
+}
+// how the gas at plane point p is lit: (what its own light is multiplied by, the rim,
+// the puff's own lit body)
+vec3 fluffShade(vec2 p) {
+	vec4 t = fluffTop(p);
+	float cover = smoothstep(0.08, 0.35, fluffDens(p));
+	float r = max(length(p), 1e-4);
+	vec2 toC = -p / r;
+	vec3 L = normalize(vec3(toC, 0.55));
+	if (t.x <= 0.0) {
+		// the creases between puffs, where there is gas: in their shadow
+		return vec3(mix(1.0, 0.5, cover * min(u_fluff, 1.0)), 0.0, 0.0);
+	}
+	vec3 N = t.yzw;
+	float lit = max(dot(N, L), 0.0);
+	float shade = 0.4 + 1.05 * lit + 0.15 * N.z;
+	// a puff's edge toward the core catching its light
+	float edge = 1.0 - N.z;
+	float rim = smoothstep(0.55, 0.9, edge) * max(dot(normalize(N.xy + 1e-6), toC), 0.0);
+	// the puff's body: gas lit where it faces the core, so a puff is a dome of light
+	float body = cover * (0.12 + 0.9 * lit) * smoothstep(0.0, 0.25, N.z);
+	return vec3(mix(1.0, shade, cover * min(u_fluff, 1.0)), rim * cover, body);
+}
+
 // ------------------------------------------------------------------ the solid galaxy
 // THE SOLID GALAXY (`ChartSky.solid`, SIMPLIFIED only until Jon approves): the chart
 // seen through a real camera instead of laid flat like a tilted poster. The galaxy
@@ -1202,7 +1323,20 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 		underSheet(v, la, C);
 		vec3 Em;
 		float A, dust;
-		discAt(p, v, hbOf(la), star, la, Em, T, gas, A, dust, nest);
+		// (the gas where the eye meets it, through its height: `fluffSeen`)
+		vec2 pf = fluffSeen(p);
+		discAt(pf, v, hbOf(la), star, la, Em, T, gas, A, dust, nest);
+		if (u_fluff > 0.0) {
+			// lit as a body of cloud: its lit side toward the core, its shade away, its
+			// creases, the rim of a puff catching the core's light
+			vec3 fs = fluffShade(pf);
+			Em *= fs.x;
+			Em += LITDUST * vec3(1.0, 0.9, 0.8) * fs.y * gas * (0.012 + 0.05 * irr);
+			// the puff's own lit gas, in the arm's colour (warm near the core)
+			float rf = length(pf);
+			vec3 gc = mix(vec3(0.30, 0.46, 1.0) * 0.05 * exp(-rf / 0.5), LITDUST * 0.12, 1.0 / (1.0 + pow(rf / 0.12, 2.0)));
+			Em += gc * fs.z * u_fluff * 2.5;
+		}
 		dustOut = dust;
 		float Ib;
 		B = bulgeLight(vb, front, Ib);
@@ -1232,7 +1366,7 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 		bm += u_stars_on ? 0.4 * ((u_diag & 4) != 0 ? 0.0 : crDetail(p, blockGu(la), 0.012, 13.0)) : 0.0;
 		B *= mix(1.0, max(0.62 + 0.76 * bm, 0.25), smoothstep(0.03, 0.10, sv));
 		C += B * (1.0 - front);
-		Em += knots(p);
+		Em += knots(pf);
 		Em += remnants(p);
 		// the supernova's light echo: a ring sweeping out through the gas and dust
 		if (u_echo.w > 0.0) {

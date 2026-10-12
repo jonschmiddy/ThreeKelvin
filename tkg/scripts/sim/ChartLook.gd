@@ -525,7 +525,7 @@ func _tour(dir: String) -> void:
 	print("  chartlook: tour %s, %d frames in %s" % [tour, fi, ProjectSettings.globalize_path(dir)])
 
 
-## WHAT A PART OF THE SKY COSTS (`costbench=remnants,solid|none`): one process,
+## WHAT A PART OF THE SKY COSTS (`costbench=remnants,solid,fluff|none`): one process,
 ## one galaxy, the part switched off and on in turns at each view (the opening, the
 ## arms at 1.2, the arms at 2.5, the hole at 6), eighty turns of eight frames,
 ## vsync off; every frame's own GPU time of the sky's viewports, and the whole
@@ -533,7 +533,8 @@ func _tour(dir: String) -> void:
 ## of the machine's load on it) and the median. Interleaved because this machine is
 ## shared: two separate runs of `chartbench` differed by half a millisecond with
 ## nothing changed. `none` switches nothing, to show the noise. Remnants are
-## switched by `ChartSky.diag` 2048; the solid galaxy by `ChartSky.solid`.
+## switched by `ChartSky.diag` 2048; the solid galaxy by `ChartSky.solid`; the gas's
+## puffs by `ChartSky.fluff` (as the command line asks for them, against none).
 func _cost_bench(names: String) -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
@@ -546,6 +547,7 @@ func _cost_bench(names: String) -> void:
 		["arms2.5", 2.5, Vector2(200, 30)], ["hole6", 6.0, Vector2.ZERO]]
 	var t := StarchartScreen.MapChart.clock_override
 	var sol0 := ChartSky._solid
+	var fl0 := ChartSky.fluff()
 	for nm in names.split(","):
 		for v: Array in views:
 			_view(v[1], v[2])
@@ -555,6 +557,7 @@ func _cost_bench(names: String) -> void:
 				var on := turn % 2
 				ChartSky.diag = 2048 if nm == "remnants" and on == 0 else 0
 				ChartSky._solid = (1 if on == 1 else 0) if nm == "solid" else sol0
+				ChartSky._fluff = (fl0 if on == 1 else Vector2(0.0, 1.0)) if nm == "fluff" else fl0
 				for _w in 3:
 					t += 1.0 / 60.0
 					StarchartScreen.MapChart.clock_override = t
@@ -581,6 +584,7 @@ func _cost_bench(names: String) -> void:
 				q.call(ft[0], 0.2), q.call(ft[1], 0.2), q.call(ft[1], 0.2) - q.call(ft[0], 0.2)])
 	ChartSky.diag = 0
 	ChartSky._solid = sol0
+	ChartSky._fluff = fl0
 
 
 ## THE SOLID GALAXY'S MARKS ARE WHERE ITS SKY IS (`solidtest`, with

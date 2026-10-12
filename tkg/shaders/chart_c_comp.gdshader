@@ -47,6 +47,13 @@ uniform float vib = 0.0;
 // zoom's centre (5.7% of the pixels a frame trailing on the 8 s zoom into the
 // arms, against a picture with nothing held). Two limits keep a hold from lagging
 // at all: `MOVE_MAX` and `LAG_MAX` below.
+// THROUGH THE SOLID GALAXY'S CAMERA (`ChartSky.solid`) a drag moves the camera and
+// every block shows another piece of the disc each frame -- the gas re-sampled and
+// flipping as it moved. So the piece is followed through the camera too: back
+// through this frame's camera to the flat view, out through last frame's to where it
+// was drawn (`cam_*`: on, then each camera's distance, elevation's sine and cosine,
+// 0, and the point it looks at; `cur_z` / `prev_z` the zooms), and a hold may follow
+// it as far as it moved (`move_max`), since this is where it really was.
 uniform sampler2D prev : hint_screen_texture, filter_nearest;
 uniform vec2 cur_c = vec2(0.0);
 uniform vec2 cur_o = vec2(0.0);
@@ -54,6 +61,27 @@ uniform vec2 prev_c = vec2(0.0);
 uniform vec2 prev_o = vec2(0.0);
 uniform float prev_k = 1.0;
 uniform float hyst = 0.0;
+uniform bool cam_on = false;
+uniform vec4 cam_cur = vec4(2.2, 0.38, 0.92499, 0.0);
+uniform vec2 cam_cur_t = vec2(0.0);
+uniform vec4 cam_prev = vec4(2.2, 0.38, 0.92499, 0.0);
+uniform vec2 cam_prev_t = vec2(0.0);
+uniform float cur_z = 1.0;
+uniform float prev_z = 1.0;
+uniform float move_max = 1.0;
+uniform float cam_k = 622.25;
+
+vec2 camFwd(vec2 o, vec4 W, vec2 T) {
+	vec2 d = vec2(o.x, o.y / 0.38) - T;
+	float s = W.x / (W.x - d.y * W.z);
+	return vec2(T.x, T.y * 0.38) + vec2(d.x * s, d.y * W.y * s);
+}
+vec2 camInv(vec2 p, vec4 W, vec2 T) {
+	vec2 r = p - vec2(T.x, T.y * 0.38);
+	float dy = r.y * W.x / (W.x * W.y + r.y * W.z);
+	float dx = r.x * (W.x - dy * W.z) / W.x;
+	return vec2(T.x + dx, (T.y + dy) * 0.38);
+}
 // how far (blocks) a piece of the galaxy may have moved since last frame and keep
 // its colour: faster than that the zoom is changing it anyway, and a held colour
 // only lags
@@ -110,8 +138,13 @@ void fragment() {
 	// and held they set the faint grain into smears behind a zoom)
 	if (hyst > 0.0 && quant && max(raw.r, max(raw.g, raw.b)) > 0.14) {
 		vec2 q = (prev_c + (cur_o + (vec2(b) + 0.5) * 2.0 - cur_c) * prev_k - prev_o) * 0.5;
+		if (cam_on) {
+			vec2 vc = (cur_o + (vec2(b) + 0.5) * 2.0 - cur_c) / cur_z / cam_k;
+			vec2 vp = camFwd(camInv(vc, cam_cur, cam_cur_t), cam_prev, cam_prev_t);
+			q = (prev_c + vp * cam_k * prev_z - prev_o) * 0.5;
+		}
 		ivec2 pb = ivec2(floor(q));
-		if (length(q - vec2(b) - 0.5) < MOVE_MAX && pb.x >= 0 && pb.y >= 0 && pb.x < int(vp_size.x) && pb.y < int(vp_size.y)) {
+		if (length(q - vec2(b) - 0.5) < max(MOVE_MAX, move_max) && pb.x >= 0 && pb.y >= 0 && pb.x < int(vp_size.x) && pb.y < int(vp_size.y)) {
 			vec3 was = texelFetch(prev, pb, 0).rgb;
 			// held only if it is a palette colour this light could take (its nearest
 			// or its partner): never the picture drawn before the palette came in
