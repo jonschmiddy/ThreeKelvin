@@ -5,9 +5,10 @@ render_mode unshaded, blend_add;
 // orbit carries its towns -- each a cluster of points of light, a few brighter
 // at a big town's heart, lone lights between. One instance a light (its place
 // on the sphere and its strength in INSTANCE_CUSTOM), turned with the world
-// here (`planet.gdshader`'s `to_body`, run backwards), on the world's own 2 px
-// blocks, shown only where the star's light has left the ground (eased over
-// the terminator in steps) and not under the front of a ring.
+// here (`planet.gdshader`'s `to_body`, run backwards) a block at a time, all
+// together, on the world's own 2 px blocks, shown only where the star's light
+// has left the ground (eased over the terminator in steps) and not under the
+// front of a ring.
 //
 // LIGHT AS LIGHT (draw-light-as-light): each light is its block, and a little
 // glow falling off into the blocks beside it; lights near each other add
@@ -39,7 +40,15 @@ varying float v_s;
 void vertex() {
 	vec4 cd = INSTANCE_CUSTOM;
 	vec3 b = cd.xyz;
-	float ang = w_seed + time * spin, ca = cos(ang), sa = sin(ang), ct = cos(tilt), st = sin(tilt);
+	// THE LIGHTS TURN TOGETHER, a block at the equator at a time (the ground
+	// under them glides, blended; a light is a point and can only hop): each
+	// on its own clock, lights side by side hopped on different frames, and a
+	// block one left as the next arrived went A, B, A -- 58 flip-backs a second
+	// on a capital's night side. On one clock a town keeps its shape and no
+	// block changes twice in a row.
+	float stp = 2.0 / max(r, 1.0);
+	float turn = floor(time * spin / stp) * stp;
+	float ang = w_seed + turn, ca = cos(ang), sa = sin(ang), ct = cos(tilt), st = sin(tilt);
 	// body -> the view: the spin undone, then the tilt
 	float tx = b.x * ca - b.z * sa, sz = b.x * sa + b.z * ca, ty = b.y;
 	vec3 sv = vec3(tx * ct + ty * st, -tx * st + ty * ct, sz);

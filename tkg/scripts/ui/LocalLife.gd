@@ -330,10 +330,17 @@ func _draw_moons() -> void:
 			var along := M3.dot(Lw)
 			if along < 0.0:
 				kl = lerpf(0.1, 1.0, smoothstep(R * 0.9, R * 1.08, (M3 - Lw * along).length()))
+			# (its shadow from where it is drawn, block by block: from its true place
+			# the shadow crept a fraction of a pixel a frame, and RADIANT's fine
+			# shading flickered round it)
 			if front and msh.size() < 4:
-				msh.append(Vector4(p.x, p.y, z, mr))
+				var pd := pos - Vector2.ONE * float(hs % 2) - wc
+				msh.append(Vector4(pd.x, pd.y, z, mr))
 		mv.position = pos
-		var d := (sky.origin() - pos) / zl
+		# (lit from the star as the world is: one light for the moon wherever it
+		# is on its orbit -- from its own place the light turned a little with
+		# every block it moved, and RADIANT's fine shading flickered with it)
+		var d := (sky.origin() - (pos if bool(pl[2]) else wc)) / zl
 		mv.step(sky.t, Vector3(d.x, d.y, 140.0).normalized(), kl)
 		if front and mv.get_index() < pv.get_index():
 			parent.move_child(mv, -1)
