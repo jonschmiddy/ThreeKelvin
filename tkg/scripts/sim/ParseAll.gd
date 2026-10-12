@@ -62,6 +62,12 @@ func _walk(dir: String) -> PackedStringArray:
 				out.append_array(_walk(path))
 		elif name.ends_with(".gd"):
 			out.append(path)
+		elif name.ends_with(".gd.remap"):
+			# AN EXPORT lists no .gd: each script is packed tokenised as .gdc
+			# with a .gd.remap pointing at it, and load() of the .gd path
+			# follows the remap. Without this the export's smoke test
+			# (`tools/export.sh`) touched 0 scripts and checked nothing.
+			out.append(path.trim_suffix(".remap"))
 		name = d.get_next()
 	d.list_dir_end()
 	return out
