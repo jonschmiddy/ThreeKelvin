@@ -22,9 +22,19 @@ extends Harness
 ## either end thinks the other is close, so thinning links may not thin the
 ## shortest path by as much as the link count suggests.
 
-## How many galaxies to roll. Every kind should appear several times, and the
-## rare failure is what this is for — one map proves nothing.
+## How many galaxies to roll, on pinned seeds (`-- maptest seeds=N from=S` rolls
+## others, `seedlist=a,b` exactly those, `noknown` leaves out KNOWN_BAD). Every
+## kind should appear several times, and the rare failure is what this is for —
+## one map proves nothing.
 const ROLLS := 120
+## SEEDS THAT ONCE BROKE A GALAXY, rolled every time on top of the 120, so the
+## gate cannot pass by not happening to roll them. The 120 are pinned too (from
+## 90210): until Oct 11 this gate rolled 120 FRESH galaxies a run, because
+## `start_new_run` draws its own seed and the reseed before it was thrown away,
+## and a failure came and went between runs.
+##   65867625  a Magellanic Irregular whose start sat alone in the dark at the
+##             rim, 0.243 from its nearest system (`MapGen._ensure_flyable`)
+const KNOWN_BAD: Array[int] = [65867625]
 
 
 func run() -> void:
@@ -42,12 +52,43 @@ func run() -> void:
 	var total_doors := 0
 	var total_rings := 0
 
-	for i in ROLLS:
-		Rng.reseed(90210 + i, 0)
+	# (`seeds=N from=S`: N galaxies from seed S instead, for hunting a rare
+	# failure; every failure names its seed, and `-- seed S` replays it)
+	var rolls := ROLLS
+	var first := 90210
+	var list: Array[int] = []
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("seeds="):
+			rolls = int((a as String).substr(6))
+		elif (a as String).begins_with("from="):
+			first = int((a as String).substr(5))
+		elif (a as String).begins_with("seedlist="):
+			for s in (a as String).substr(9).split(",", false):
+				list.append(int(s))
+	if list.is_empty() and not "noknown" in OS.get_cmdline_user_args():
+		for i in rolls:
+			list.append(first + i)
+		list.append_array(KNOWN_BAD)
+	if not list.is_empty():
+		rolls = list.size()
+	# (`pull=K`: the old PULL placement at arm pull cap K, which used to fail
+	# about one galaxy in 120 at 4.0 -- a stress test for `_ensure_flyable`'s
+	# bridging, which the shipped placement rarely needs)
+	MapGen.flyable_repair = not "norepair" in OS.get_cmdline_user_args()
+	MapGen.test_stretch = float(_arg_of("stretch", "1"))
+	var pull := float(_arg_of("pull", "0"))
+	if pull > 0.0:
+		MapGen.placement = MapGen.Placement.PULL
+		MapGen.arm_pull_cap = pull
+	for i in rolls:
+		# THE SEED IS FORCED, not reseeded: `start_new_run` rolls its own master
+		# seed (`Rng.roll_master`) from the global generator, so a reseed before
+		# it was thrown away and every run of this gate rolled 120 new galaxies
+		Rng.forced = list[i] if not list.is_empty() else first + i
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 		var map := Run.map
 		if map.is_empty():
-			unreachable.append("roll %d produced no map" % i)
+			unreachable.append("seed %d produced no map" % Rng.forced)
 			continue
 
 		# EVERY RING NEEDS AN EXIT. Counted on `links` rather than on
@@ -68,7 +109,7 @@ func run() -> void:
 						break
 			total_doors += doors
 			if doors == 0:
-				doorless.append("roll %d ring %d has no way inward" % [i, layer])
+				doorless.append("seed %d ring %d has no way inward" % [Rng.forced, layer])
 
 		# AND THE CORE HAS TO BE REACHABLE, which is the only check that
 		# actually matters to a player. Breadth-first over `links`, so it
@@ -77,11 +118,11 @@ func run() -> void:
 		var goal := _goal(map)
 		var start := _start(map)
 		if goal < 0 or start < 0:
-			unreachable.append("roll %d has no start or no core" % i)
+			unreachable.append("seed %d has no start or no core" % Rng.forced)
 			continue
 		var hops := _shortest(map, start, goal)
 		if hops < 0:
-			unreachable.append("roll %d cannot reach the core at all" % i)
+			unreachable.append("seed %d cannot reach the core at all" % Rng.forced)
 			continue
 		paths += 1
 		total_path += hops
@@ -99,8 +140,8 @@ func run() -> void:
 		# permits the route at all.
 		var flyable := _shortest_by_range(map, start, goal)
 		if flyable < 0:
-			unflyable.append("roll %d: the core cannot be FLOWN to (kind %s)"
-				% [i, String(Run.galaxy.get("name", "?"))])
+			unflyable.append("seed %d: the core cannot be FLOWN to (kind %s)%s"
+				% [Rng.forced, String(Run.galaxy.get("name", "?")), _why(map, start)])
 			continue
 		flown += 1
 		fly_total += flyable
@@ -108,7 +149,7 @@ func run() -> void:
 		fly_best = mini(fly_best, flyable)
 
 	print("\n=== MAP ===")
-	print("  %d galaxies rolled, %d rings" % [ROLLS, total_rings])
+	print("  %d galaxies rolled, %d rings" % [rolls, total_rings])
 	if paths > 0:
 		print("  forced path to the core: %d shortest · %.1f mean · %d longest"
 			% [best_path, float(total_path) / float(paths), worst_path])
@@ -127,6 +168,9 @@ func run() -> void:
 		_fail(u)
 	# THE ONE THAT MATTERS TO A PLAYER, now that links do not gate movement.
 	_ok("the core can be FLOWN to in every galaxy", unflyable.is_empty())
+	for u in unflyable:
+		_fail(u)
+	Rng.forced = 0
 	_labels()
 	verdict("maptest")
 
@@ -252,3 +296,45 @@ func _shortest_by_range(map: Array, start: int, goal: int) -> int:
 		if depth > map.size():
 			return -1
 	return -1
+
+
+func _arg_of(k: String, d: String) -> String:
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with(k + "="):
+			return (a as String).substr(k.length() + 1)
+	return d
+
+
+## Why a galaxy cannot be flown: everything the ship can get to from the start,
+## and the shortest hop from there to anywhere it cannot -- the wall's width
+## against the jump radius, and which rings it lies between.
+func _why(map: Array, start: int) -> String:
+	var seen: Dictionary = {start: true}
+	var frontier: Array[int] = [start]
+	while not frontier.is_empty():
+		var next: Array[int] = []
+		for idx in frontier:
+			var a: MapGen.MapNode = map[idx]
+			for n in map:
+				var b: MapGen.MapNode = n
+				if not seen.has(b.index) and Run.reachable_from(a, b):
+					seen[b.index] = true
+					next.append(b.index)
+		frontier = next
+	var best := INF
+	var pair := [-1, -1]
+	for i: int in seen:
+		for n in map:
+			var b: MapGen.MapNode = n
+			if seen.has(b.index):
+				continue
+			var d := MapGen.hop_distance(map[i], b)
+			if d < best:
+				best = d
+				pair = [i, b.index]
+	var deepest := 0
+	for i: int in seen:
+		deepest = maxi(deepest, (map[i] as MapGen.MapNode).layer)
+	var a2: MapGen.MapNode = map[pair[0]]
+	var b2: MapGen.MapNode = map[pair[1]]
+	return " -- %d of %d systems reachable, deepest ring %d; the narrowest gap out is %.3f (radius %.3f) from ring %d at %s to ring %d at %s" 		% [seen.size(), map.size(), deepest, best, Run.range_from(a2), a2.layer, a2.gal, b2.layer, b2.gal]
