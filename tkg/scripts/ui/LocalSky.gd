@@ -326,6 +326,12 @@ func setup(n: MapGen.MapNode) -> void:
 	var key := "%d|%s|%s" % [n.index, style_now(), DisplaySettings.graphics_low]
 	if key == _key:
 		return
+	# (RADIANT's safety gave up on it while this sky was up, `fall_back_style`:
+	# the same system's sky keeps its look -- a picture never changes under a
+	# still view -- and the next one built is SIMPLIFIED)
+	if node == n and radiant and ChartRadiant.fell_back and key == "%d|%s|%s" % [n.index, DisplaySettings.render_style, DisplaySettings.graphics_low] \
+			and _key == "%d|radiant|%s" % [n.index, DisplaySettings.graphics_low]:
+		return
 	_key = key
 	node = n
 	_build()
