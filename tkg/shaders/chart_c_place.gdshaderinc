@@ -324,9 +324,16 @@ vec3 halo(vec2 v) {
 	I *= 1.0 - smoothstep(0.9, 1.65, s);
 	vec2 p = kitViewToPlane(v, u_phi, u_k);
 	float m = mottle(p * 0.8);
-	// (more evenly with the solid galaxy's dissolving edge: past the faded disc it is
-	// most of what shows, and its full mottle read as blotches, not haze)
-	I *= mix(1.0, 0.35 + 1.3 * m * m, smoothstep(0.35, 0.9, s) * (u_edge.w > 0.0 ? 0.3 : 1.0));
+	I *= mix(1.0, 0.35 + 1.3 * m * m, smoothstep(0.35, 0.9, s));
+	// WITH THE SOLID GALAXY'S DISSOLVING EDGE (`edgeMask`) the halo ends with the
+	// disc's own fade: past it, it was a flat dark indigo wash over a big oval of its
+	// own, a second plate round the galaxy (Jon: "The solid (indigo?) haze around the
+	// whole galaxy sits weird with me"). So the galaxy fades into true black space,
+	// with only the stars past it.
+	if (u_edge.w > 0.0) {
+		float t = smoothstep(u_edge.x, u_edge.y + 0.04, length(p));
+		I *= (1.0 - t) * (1.0 - t);
+	}
 	// (it used to thin round the core from zoom 2.4; ZOOM ONLY MAGNIFIES, see `zoomChanges`)
 	I *= 1.0 - 0.88 * smoothstep(2.4, 6.0, u_zoom) * (1.0 - smoothstep(0.08, 0.3, s)) * zoomChanges();
 	return mix(vec3(1.0, 0.70, 0.42), vec3(0.30, 0.40, 1.0), smoothstep(0.08, 0.7, s)) * I;
@@ -1337,7 +1344,6 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 	bool ball = u_form == 1;
 	vec3 T = vec3(1.0), B = vec3(0.0);
 	float gas = 0.0, nest = 0.0, front = 0.0, bulgeI = 0.0;
-	vec3 haloJ = vec3(0.0);
 	// (each layer is called ONCE whatever the galaxy's shape: a call in each
 	// branch inlines it twice and the shader took seconds longer to compile)
 	if (ball) {
@@ -1349,14 +1355,7 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 		// ball's own envelope is its halo)
 		C = C * exp(-kitLum(Bb) * 120.0) + Bb + star + tailLight(p) + knots(p) + remnants(p);
 	} else {
-		// (with the dissolving edge the halo is most of what shows past the faded disc,
-		// and its faint edge met the palette's dark steps as one flat ellipse, a second
-		// plate: it is dithered there, on the palette's anchored Bayer, as the fade is;
-		// what the sky behind sees of it is the halo undithered, `haloJ` taken back out,
-		// or the far galaxies behind it were cut to the same checker)
-		vec3 hl = halo(v);
-		haloJ = u_edge.w > 0.0 ? hl * 0.5 * (kitBayer4(edgeDq(v)) - 0.5) : vec3(0.0);
-		C += hl + haloJ + tailLight(p);
+		C += halo(v) + tailLight(p);
 		underSheet(v, la, C);
 		vec3 Em;
 		float A, dust;
@@ -1435,7 +1434,7 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 		billowLayer(v, dq, C);
 		wispLayer(v, la, C);
 	}
-	vec3 frontL = max(C - VOIDC / u_exp - haloJ * T, vec3(0.0));
+	vec3 frontL = max(C - VOIDC / u_exp, vec3(0.0));
 	// (the far nebulae keep clear of the galaxy by its light, `bgNebSeen`; with the
 	// dissolving edge that light fades out over a long stretch, so they also keep
 	// clear of where the disc is, out past the fade's end)
