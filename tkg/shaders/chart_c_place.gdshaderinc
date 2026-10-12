@@ -83,6 +83,10 @@ uniform vec4 u_feed = vec4(-1.0, 0.0, 0.1, 1.0);
 // life s, 0, 0), age below 0 is none
 uniform vec4 u_comet = vec4(0.0);
 uniform vec4 u_cometT = vec4(-1.0, 1.0, 0.0, 0.0);
+// NEAR: the near layer's frame (screen px of its origin x, y, its scale), and
+// where YOU are on the screen (x, y) and the view's half size (x, y)
+uniform vec3 u_near = vec3(0.0, 0.0, 1.0);
+uniform vec4 u_nearYou = vec4(-999.0, -999.0, 330.0, 215.0);
 
 const vec3 HA = vec3(1.0, 0.2, 0.3);
 const vec3 OIII = vec3(0.2, 0.95, 0.85);
@@ -1143,6 +1147,89 @@ vec3 comet(vec2 p) {
 	return (vec3(1.0, 0.96, 0.9) * head + vec3(1.0, 0.80, 0.55) * (tail * 1.1 + ion * 0.6)) * fade * u_wowk.z;
 }
 
+// NEAR: a layer of big stars, dark dust and a little warm gas between you and the
+// galaxy, in a frame of its own (`ChartSky._feed_near`): it slides four times as
+// far as the galaxy on a drag, and on a zoom either holds still or swells past
+// you. Its own colours (copper gas, near-black dust, warm white stars), never the
+// galaxy's blues, and a coarse grain of its own; kept to the edges of the view and
+// clear of YOU. Octaves of it at doubling sizes, each fading in small and out
+// large, so a swell is flying through sheets of it rather than into one wall.
+// Returns the light added (rgb) and how much of what is behind is let through (a).
+vec4 nearOctave(vec2 w, int j) {
+	vec2 sd = vec2(float(j) * 17.31, float(j) * 9.13);
+	// dust: wisps of near-black, silhouetted on the bright arms
+	vec2 wq = w / 230.0 + sd;
+	float n = 0.5 + 0.5 * kitFbm2(wq + 0.35 * vec2(kitFbm2(wq * 0.7 + 3.1, 3), kitFbm2(wq * 0.7 + 8.4, 3)), 4);
+	float grain = kitHash1(ivec2(floor(w / 2.0)) + ivec2(j * 977, 31));
+	float dust = smoothstep(0.60, 0.80, n) * (0.8 + 0.2 * grain);
+	// warm gas: broad copper billows, rarer than the dust, grained
+	vec2 gq = w / 520.0 + sd * 1.7 + 11.0;
+	float gn = 0.5 + 0.5 * kitFbm2(gq, 4);
+	float gas = smoothstep(0.68, 0.92, gn) * (0.45 + 1.1 * grain * grain);
+	// (no faint haze anywhere else: a faint near light is a grey veil over the whole
+	// sky once the palette has it)
+	vec3 L = vec3(1.0, 0.50, 0.24) * gas * 0.08;
+	// the stars: a few, big, warm; one in three soft and out of focus (a disc with a
+	// brighter rim)
+	const float CELL = 210.0;
+	ivec2 c0 = ivec2(floor(w / CELL));
+	for (int jj = -1; jj <= 1; jj++) {
+		for (int ii = -1; ii <= 1; ii++) {
+			ivec2 c = c0 + ivec2(ii, jj);
+			vec3 h = kitHash3(c + ivec2(5113 + j * 71, 2207));
+			if (h.z > 0.5) {
+				continue;
+			}
+			vec2 ctr = (vec2(c) + 0.15 + 0.7 * h.xy) * CELL;
+			vec2 dd = w - ctr;
+			float dl = length(dd);
+			vec3 g = kitHash3(c + ivec2(83, 4111 + j));
+			vec3 tint = mix(vec3(1.0, 0.82, 0.62), vec3(1.0, 0.95, 0.86), g.y);
+			if (g.x < 0.33) {
+				float R = 9.0 + 9.0 * g.z;
+				float disc = 1.0 - smoothstep(R - 1.5, R, dl);
+				float ring = exp(-pow((dl - R + 1.5) / 1.6, 2.0));
+				L += tint * (disc * 0.06 + ring * 0.09);
+			} else {
+				// a core two blocks across, bigger than any star of the galaxy
+				float core = exp(-dl * dl / 9.0);
+				float halo = exp(-dl / 8.0) * 0.16;
+				// a cross a few blocks long on the brightest
+				float spike = (g.z > 0.6) ? (exp(-abs(dd.y) / 0.9) * exp(-abs(dd.x) / 12.0) + exp(-abs(dd.x) / 0.9) * exp(-abs(dd.y) / 12.0)) * 0.25 : 0.0;
+				L += tint * (core * 2.4 + halo + spike) * (0.6 + 0.6 * g.z);
+			}
+		}
+	}
+	return vec4(L, 1.0 - 0.85 * dust);
+}
+vec4 nearLayer(vec2 s) {
+	// where it may be: the edges of the view, never round YOU
+	vec2 e = (s - u_res * 0.5) / u_nearYou.zw;
+	float edge = smoothstep(0.25, 0.85, length(e * vec2(0.85, 1.0)));
+	float you = smoothstep(40.0, 120.0, length(s - u_nearYou.xy));
+	float m = edge * you * u_wowk.w;
+	if (m <= 0.001) {
+		return vec4(0.0, 0.0, 0.0, 1.0);
+	}
+	float Ls = log2(max(u_near.z, 1e-3));
+	float base = floor(Ls);
+	vec3 add = vec3(0.0);
+	float thru = 1.0;
+	for (int k = -1; k <= 1; k++) {
+		float j = base + float(k);
+		// this octave's magnification, 2^(Ls - j): seen from 0.5 to 4
+		float lm = Ls - j;
+		float wgt = sin(3.14159 * clamp((lm + 1.0) / 3.0, 0.0, 1.0));
+		if (wgt <= 0.001) {
+			continue;
+		}
+		vec4 o = nearOctave((s - u_near.xy) / exp2(lm), int(j));
+		add += o.rgb * wgt;
+		thru *= mix(1.0, o.a, wgt);
+	}
+	return vec4(add * m, mix(1.0, thru, m));
+}
+
 // ------------------------------------------------------------------ the galaxy
 // `la`: how many mip levels coarser to read the bakes, for a point seen through
 // the lens, where a wide patch of the disc is squeezed into a few blocks and the
@@ -1270,6 +1357,10 @@ vec3 placeGalaxy(vec2 v, ivec2 blk, ivec2 dq) {
 
 vec3 place(vec2 v, ivec2 blk, ivec2 dq) {
 	vec3 C = placeGalaxy(v, blk, dq);
+	if ((u_wow & 16) != 0) {
+		vec4 nl = nearLayer(scr(v));
+		C = C * nl.a + nl.rgb;
+	}
 	return C;
 }
 

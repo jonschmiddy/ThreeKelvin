@@ -1975,6 +1975,10 @@ const FEED_SLOT := 150.0
 ## COMETS: how long one takes to cross, s; one slot in `COMET_SLOT` s, three in four
 const COMET_S := 30.0
 const COMET_SLOT := 200.0
+## NEAR: how many times as far as the galaxy it slides on a drag, and how fast it
+## swells on a zoom (`near_swell`): the galaxy's magnification to this power
+const NEAR_PAN := 4.0
+const NEAR_SWELL_K := 1.8
 
 
 ## FEEDING: (start time, slot) of the star being eaten at t, or x -1.
@@ -2029,6 +2033,40 @@ func next_supernova(t: float) -> Dictionary:
 	return {}
 
 
+## NEAR: the near layer's frame (`chart_c_place`'s u_near): its origin on the
+## screen and its scale, carried along with the galaxy's own moves each frame. A
+## drag (the zoom unchanged) moves it NEAR_PAN times as far; a zoom (about
+## whatever point the galaxy turned about) leaves it where it is, or with
+## `near_swell` swells it about that same point by the galaxy's zoom to the power
+## NEAR_SWELL_K, so it flies out past you.
+var _near_a := Vector2.ZERO
+var _near_s := 1.0
+var _near_c := Vector2.ZERO
+var _near_z := -1.0
+
+
+func _feed_near(m: ShaderMaterial, ccon: Vector2, z: float) -> void:
+	if _near_z < 0.0:
+		_near_a = ccon
+		_near_s = 1.0
+	else:
+		var f := z / _near_z
+		if absf(f - 1.0) < 1e-6:
+			_near_a += (ccon - _near_c) * NEAR_PAN
+		elif near_swell == 1:
+			var piv := (ccon - _near_c * f) / (1.0 - f)
+			var k := pow(f, NEAR_SWELL_K)
+			_near_a = piv + (_near_a - piv) * k
+			_near_s *= k
+	_near_c = ccon
+	_near_z = z
+	m.set_shader_parameter("u_near", Vector3(_near_a.x, _near_a.y, _near_s))
+	var you := Vector2(-999.0, -999.0)
+	if _use_map and not Run.map.is_empty() and Run.node_at() != null:
+		you = chart._screen_pos(Run.node_at())
+	m.set_shader_parameter("u_nearYou", Vector4(you.x, you.y, chart.size.x * 0.5, chart.size.y * 0.5))
+
+
 ## The living sky's per-frame inputs.
 func _feed_wow(m: ShaderMaterial, g: Dictionary, t: float, ccon: Vector2, z: float) -> void:
 	var bits := wow_bits()
@@ -2070,6 +2108,8 @@ func _feed_wow(m: ShaderMaterial, g: Dictionary, t: float, ccon: Vector2, z: flo
 			var dr: Vector2 = cp[1]
 			m.set_shader_parameter("u_comet", Vector4(hd.x, hd.y, dr.x, dr.y))
 			m.set_shader_parameter("u_cometT", Vector4(t - ce.x, COMET_S, 0.0, 0.0))
+	if bits & WOW_NEAR:
+		_feed_near(m, ccon, z)
 
 
 ## RADIANT'S SAFETY: it is the heavy style ("for photos probably", Jon). Over its
