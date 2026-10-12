@@ -562,6 +562,10 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 ##   1.5 s, in three strengths; a cloud's lightning as a bolt held for 0.35 s and
 ##   its afterglow for 0.6 s; the glimmers and shafts stepping a notch every 2 s.
 static func feed_events(m: ShaderMaterial, g: Dictionary, t: float, phi: float, calm: bool) -> void:
+	# what the last minutes' supernovae left, among this style's own supernova stars
+	var rm: Array = ChartSky.remnants(g.b_sn, t, calm)
+	m.set_shader_parameter("u_nrem", int(rm[0]))
+	m.set_shader_parameter("u_rem", rm[1])
 	var sn: Dictionary = {} if calm else ChartSky._supernova(g.b_sn, t, false)
 	if sn.is_empty():
 		m.set_shader_parameter("u_sn", Vector4.ZERO)

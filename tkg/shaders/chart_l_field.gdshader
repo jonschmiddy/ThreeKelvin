@@ -198,6 +198,10 @@ uniform int n_kn = 0;
 uniform vec4 kn[64];
 uniform vec4 sn = vec4(0.0);
 uniform vec4 echo = vec4(0.0);
+// what the last minutes' supernovae left (`ChartSky.remnants`, in this chart's
+// plane, bake px: x, y, age s, seed)
+uniform int n_rem = 0;
+uniform vec4 rem[16];
 uniform vec4 neb_lt[32];
 uniform int n_puls = 0;
 uniform vec4 puls[4];
@@ -1431,6 +1435,30 @@ void fragment() {
 			// (in the gas's own pink, as the old look's knots are, its young
 			// stars a little paler at the middle)
 			light += kk.w * (mix(vec3(1.0, 0.24, 0.48), pal1, 0.5) * (core + fall) + vec3(0.8, 0.9, 1.0) * exp(-qd * qd * 6.0) * 0.25) * 1.3;
+		}
+		// WHAT A SUPERNOVA LEAVES (`ChartSky.remnants`), drawn here with the knots in
+		// the disc's plane: a ragged shell of the remnant clouds' red with their teal
+		// just inside, growing and fading out over ten minutes, a block and a half
+		// wide at the least
+		for (int i = 0; i < 16; i++) {
+			if (i >= n_rem) {
+				break;
+			}
+			vec4 rm = rem[i];
+			vec2 dr = pk - rm.xy;
+			float age = rm.z;
+			float R = (0.008 + 0.036 * (1.0 - exp(-age / 150.0))) * big_r;
+			float dl = length(dr);
+			float wr = max(0.0035 * big_r, 3.2 * pxk);
+			if (dl > R * 1.6 + 3.0 * wr) {
+				continue;
+			}
+			float an = atan(dr.y, dr.x);
+			float Rr = R * (1.0 + 0.10 * kitSnoise2(vec2(an * 1.6, rm.w)));
+			float x = (dl - Rr) / wr;
+			float shell = exp(-x * x) * (0.45 + 0.55 * g_sm(-0.4, 0.3, kitSnoise2(vec2(an * 2.3, rm.w + 5.0))));
+			float life = g_sm(1.5, 8.0, age) * exp(-age / 360.0) * (1.0 - g_sm(480.0, 600.0, age));
+			light += mix(vec3(0.2, 0.95, 0.85), vec3(1.0, 0.2, 0.3), g_sm(-0.6, 0.6, x)) * shell * life * 3.5;
 		}
 		// THE SUPERNOVA: a flare, a cross of light a few blocks long, a glow
 		if (sn.z > 0.0) {

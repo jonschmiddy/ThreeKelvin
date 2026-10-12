@@ -111,63 +111,11 @@ static var quant := true
 ## LEGACY's dust sheets drawn nearer as you zoom as before, 128 the hole's own
 ## zoom terms (the squeezed ring's cooling, the disc's clumps), 256 the resolved
 ## stars adding their light on top as before, 512 no stars' light laid back
-## (`_star_debt`), 1024 the hole's cooling as far out as before.
+## (`_star_debt`), 1024 the hole's cooling as far out as before, 2048 no supernova
+## remnants (`remnants`; to measure what they cost).
 static var diag := 0
 static var dith_gs := 0.006
 static var dith_coh := 0.5
-
-## THE STAR CHART'S LIVING SKY, ROUND TWO (Oct 12): Jon's picks from the
-## "magnificent" list that live in the sky shader, prototyped in SIMPLIFIED only,
-## each on a switch of its own so he can keep or cut it alone. Off unless asked
-## for: `chartwow=` on the command line, a comma list of the names below or `all`.
-## (Round one's light shows -- the reveal, glints, near stars at 1.45x, core
-## beams, knot glow -- were all cut: he kept life and legibility, not effects.)
-##   colours   every system's own star in the sky in its true colour, the colour
-##             the sector map's sun is when you open it (`SunView.L_*`)
-##   remnants  each supernova leaves a glowing ring that stays and fades
-##   feeding   now and then a star near the core is pulled into a streak and
-##             spirals into the hole (the hole itself as it is)
-##   comets    now and then a slow comet with a tail crosses the arms
-##   near      a near layer of big stars, gas and nebulae between you and the
-##             galaxy, sliding several times as fast on a drag; `nearzoom=a` it
-##             swells past you as you zoom in, `nearzoom=b` (the default) it holds
-##             its size and only the galaxy magnifies behind it
-const WOW_COLOURS := 1
-const WOW_REMNANTS := 2
-const WOW_FEEDING := 4
-const WOW_COMETS := 8
-const WOW_NEAR := 16
-const WOW_NAMES := {"colours": WOW_COLOURS, "remnants": WOW_REMNANTS, "feeding": WOW_FEEDING,
-	"comets": WOW_COMETS, "near": WOW_NEAR}
-static var wow := -1
-## tuning knobs (`wowk=a,b,c,d`), 1 as made
-static var _wowk := Vector4.ONE
-## the near layer on a zoom: 0 holds its size (b), 1 swells past you (a)
-static var near_swell := 0
-## A harness's forced event (ChartLook's `feed` and `comet` tours): it starts at this clock
-## time instead of when its own schedule says. -1: none.
-static var force_feed := -1.0
-static var force_comet := -1.0
-
-
-static func wow_bits() -> int:
-	if wow < 0:
-		wow = 0
-		for a in OS.get_cmdline_user_args():
-			var arg := a as String
-			if arg.begins_with("wowk="):
-				var f := arg.substr(5).split(",")
-				for i in mini(4, f.size()):
-					_wowk[i] = float(f[i])
-			elif arg == "nearzoom=a":
-				near_swell = 1
-			elif arg.begins_with("chartwow="):
-				for nm in arg.substr(9).split(","):
-					if nm == "all":
-						wow = WOW_COLOURS | WOW_REMNANTS | WOW_FEEDING | WOW_COMETS | WOW_NEAR
-					else:
-						wow |= int(WOW_NAMES.get(nm, 0))
-	return wow
 
 var chart: StarchartScreen.MapChart = null
 ## THE LEGACY STYLE draws with a renderer of its own (`ChartLegacy`, the chart as
@@ -427,26 +375,7 @@ static func _snapshot_stars(c: StarchartScreen.MapChart) -> Dictionary:
 		"pos": c._star_pos.duplicate(), "col": c._star_col.duplicate(), "big": c._star_big.duplicate(),
 		"cr": c._core_rad.duplicate(), "ca": c._core_ang.duplicate(), "cc": c._core_col.duplicate(),
 		"gc": c._glob_c.duplicate(), "gi": c._glob_i.duplicate(), "pulsar": c._pulsar.duplicate(),
-		"sys": _system_stars(c),
 	}
-
-
-## COLOURS (`WOW_COLOURS`): every system of the run as a star of the galaxy, at its
-## own place, with its class (0 a yellow dwarf, 1 a red hypergiant, 2 a blue
-## hypergiant, 3 a pulsar); the hole is not a star. Empty on the title's galaxy.
-static func _system_stars(c: StarchartScreen.MapChart) -> Array:
-	var out: Array = []
-	if not c.run_galaxy or Run.map.is_empty():
-		return out
-	var sq := float(Run.galaxy.get("squash", 0.62))
-	for raw in Run.map:
-		var n: MapGen.MapNode = raw
-		var k := SystemLayout.star_kind(n)
-		if k == SystemLayout.StarKind.CORE:
-			continue
-		var cls := 3 if k == SystemLayout.StarKind.PULSAR else (1 if k == SystemLayout.StarKind.RED else (2 if k == SystemLayout.StarKind.BLUE else 0))
-		out.append(Vector3(n.gal.x, n.gal.y / sq, float(cls)))
-	return out
 
 
 # ------------------------------------------------------------------ the galaxy's constants
@@ -921,16 +850,6 @@ func _build_star_data(g: Dictionary, p: Dictionary) -> void:
 				LegacyHole.hash01(k * 17 + j, 33), float(j)])
 			c.append_array([0.0, 0.0, 0.0, 0.0])
 			n += 1
-	# the systems' own stars (`WOW_COLOURS`), kind 5, drawn only with the switch on;
-	# their colours the sector map's suns' (`SunView`), the pulsar's its cyan
-	# (SunView's L_SUN, L_RED and L_BLU, the light its suns cast; it has no class_name)
-	var sun_c: Array = [Vector3(1.0, 0.62, 0.22), Vector3(0.85, 0.22, 0.1), Vector3(0.35, 0.6, 1.0), Vector3(0.28, 0.64, 0.75)]
-	for e: Vector3 in _src.get("sys", []):
-		var sc: Vector3 = sun_c[int(e.z)]
-		a.append_array([e.x, e.y, e.z, 5.0])
-		b.append_array([sc.x, sc.y, sc.z, LegacyHole.hash01(n, 7)])
-		c.append_array([0.0, 0.0, 0.0, 0.0])
-		n += 1
 	g["sn_cand"] = cand
 	g["n_data"] = n
 	g["st_a"] = a
@@ -1011,9 +930,6 @@ func _star_debt(g: Dictionary) -> ImageTexture:
 		var at := (ty * N + tx) * 3
 		var lum := a[i * 4 + 2]
 		var kind := int(a[i * 4 + 3] + 0.5)
-		# (a system's own star is drawn on a switch, not part of the field's light)
-		if kind == 5:
-			continue
 		if kind <= 2:
 			var lumk := pow(lum / 255.0, 2.0) * 0.9 * 2.2
 			var hs := b[i * 4 + 3]
@@ -1572,6 +1488,32 @@ static func _supernova(cand: PackedVector2Array, t: float, calm: bool) -> Dictio
 	return {}
 
 
+## WHAT A SUPERNOVA LEAVES (Jon's idea 18 from the "magnificent" list, kept Oct
+## 12): the last ten minutes' supernovae, on `_supernova`'s own schedule and among
+## the same stars, each a remnant that every style draws as its own -- a ragged
+## shell that grows fast at first and slower after and fades out over the ten
+## minutes. (count, then (plane x, y, age s, seed) each, ten at most.) None under
+## reduced motion, which has no supernovae.
+const REMNANT_N := 10
+
+
+static func remnants(cand: PackedVector2Array, t: float, calm: bool) -> Array:
+	var rem := PackedVector4Array()
+	# (`diag` 2048: none, in every style, to measure them and film a before)
+	if not calm and not cand.is_empty() and not (diag & 2048):
+		var n0 := floori(t / 60.0)
+		for n in range(n0, n0 - REMNANT_N, -1):
+			var t0: float = 60.0 * n + 30.0 * LegacyHole.hash01(n, 77)
+			var age := t - t0
+			if age < 0.0:
+				continue
+			var at := cand[int(LegacyHole.hash01(n, 78) * cand.size()) % cand.size()]
+			rem.append(Vector4(at.x, at.y, age, LegacyHole.hash01(n, 79) * 50.0))
+	var nr := rem.size()
+	rem.resize(16)
+	return [nr, rem]
+
+
 ## Distant lightning in an emission or dark cloud: a flash every 6 to 14 s at a
 ## point inside it, two or three pulses (80 ms rise, 250 ms decay, 120 ms
 ## apart). (envelope, round-frame x, y, radius) or a zero envelope.
@@ -1899,14 +1841,10 @@ func _push() -> void:
 	ms.set_shader_parameter("diag", diag)
 	ms.set_shader_parameter("phi", phi)
 	ms.set_shader_parameter("kn_amp", g._amps)
-	# the living sky (SIMPLIFIED alone in round two: never RADIANT's, which shares
-	# these passes)
-	var wb := 0 if g.has("radiant") else wow_bits()
-	ms.set_shader_parameter("time", t)
-	ms.set_shader_parameter("wow", wb)
-	m.set_shader_parameter("u_wow", wb)
-	if wb != 0:
-		_feed_wow(m, g, t, ccon, z)
+	# the supernovae's remnants (SIMPLIFIED's and RADIANT's place passes alike)
+	var rm: Array = remnants(g.sn_cand, t, DisplaySettings.reduced_motion)
+	m.set_shader_parameter("u_nrem", int(rm[0]))
+	m.set_shader_parameter("u_rem", rm[1])
 	var ex: Array = _cloud_stars(g, t, phi, ccon, z, _vp_origin)
 	var epos: PackedVector4Array = ex[0]
 	var ecol: PackedVector4Array = ex[1]
@@ -1968,57 +1906,6 @@ func _push() -> void:
 	queue_redraw()
 
 
-## FEEDING: how long a star takes to spiral in, s, and how often one may (one slot
-## in `FEED_SLOT` s, seven slots in ten)
-const FEED_S := 9.0
-const FEED_SLOT := 150.0
-## COMETS: how long one takes to cross, s; one slot in `COMET_SLOT` s, three in four
-const COMET_S := 30.0
-const COMET_SLOT := 200.0
-## NEAR: how many times as far as the galaxy it slides on a drag, and how fast it
-## swells on a zoom (`near_swell`): the galaxy's magnification to this power
-const NEAR_PAN := 4.0
-const NEAR_SWELL_K := 1.8
-
-
-## FEEDING: (start time, slot) of the star being eaten at t, or x -1.
-static func feed_event(t: float) -> Vector2:
-	if force_feed >= 0.0:
-		return Vector2(force_feed, 7.0) if t >= force_feed and t < force_feed + FEED_S else Vector2(-1.0, 0.0)
-	var n0 := floori(t / FEED_SLOT)
-	for n: int in [n0, n0 - 1]:
-		if LegacyHole.hash01(n, 92) > 0.7:
-			continue
-		var t0 := FEED_SLOT * n + 100.0 * LegacyHole.hash01(n, 91)
-		if t >= t0 and t < t0 + FEED_S:
-			return Vector2(t0, float(n))
-	return Vector2(-1.0, 0.0)
-
-
-## COMETS: (start time, slot) of the comet crossing at t, or x -1.
-static func comet_event(t: float) -> Vector2:
-	if force_comet >= 0.0:
-		return Vector2(force_comet, 5.0) if t >= force_comet and t < force_comet + COMET_S else Vector2(-1.0, 0.0)
-	var n0 := floori(t / COMET_SLOT)
-	for n: int in [n0, n0 - 1]:
-		if LegacyHole.hash01(n, 62) > 0.75:
-			continue
-		var t0 := COMET_SLOT * n + 120.0 * LegacyHole.hash01(n, 61)
-		if t >= t0 and t < t0 + COMET_S:
-			return Vector2(t0, float(n))
-	return Vector2(-1.0, 0.0)
-
-
-## A comet's path: where its head is at progress u (0..1) and its heading, in the
-## plane: a straight chord through the disc, `b` gu from the core.
-static func comet_path(n: int, u: float) -> Array:
-	var th := LegacyHole.hash01(n, 63) * TAU
-	var b := 0.28 + 0.4 * LegacyHole.hash01(n, 64)
-	var dir := Vector2(cos(th), sin(th))
-	var head := Vector2(-dir.y, dir.x) * b + dir * (-0.75 + 1.5 * u)
-	return [head, dir]
-
-
 ## REMNANTS: the next supernova from t (its start and where), for a harness.
 func next_supernova(t: float) -> Dictionary:
 	var g := _g_for()
@@ -2031,85 +1918,6 @@ func next_supernova(t: float) -> Dictionary:
 		if t0 >= t:
 			return {"t0": t0, "xy": cand[int(LegacyHole.hash01(n + k, 78) * cand.size()) % cand.size()]}
 	return {}
-
-
-## NEAR: the near layer's frame (`chart_c_place`'s u_near): its origin on the
-## screen and its scale, carried along with the galaxy's own moves each frame. A
-## drag (the zoom unchanged) moves it NEAR_PAN times as far; a zoom (about
-## whatever point the galaxy turned about) leaves it where it is, or with
-## `near_swell` swells it about that same point by the galaxy's zoom to the power
-## NEAR_SWELL_K, so it flies out past you.
-var _near_a := Vector2.ZERO
-var _near_s := 1.0
-var _near_c := Vector2.ZERO
-var _near_z := -1.0
-
-
-func _feed_near(m: ShaderMaterial, ccon: Vector2, z: float) -> void:
-	if _near_z < 0.0:
-		_near_a = ccon
-		_near_s = 1.0
-	else:
-		var f := z / _near_z
-		if absf(f - 1.0) < 1e-6:
-			_near_a += (ccon - _near_c) * NEAR_PAN
-		elif near_swell == 1:
-			var piv := (ccon - _near_c * f) / (1.0 - f)
-			var k := pow(f, NEAR_SWELL_K)
-			_near_a = piv + (_near_a - piv) * k
-			_near_s *= k
-	_near_c = ccon
-	_near_z = z
-	m.set_shader_parameter("u_near", Vector3(_near_a.x, _near_a.y, _near_s))
-	var you := Vector2(-999.0, -999.0)
-	if _use_map and not Run.map.is_empty() and Run.node_at() != null:
-		you = chart._screen_pos(Run.node_at())
-	m.set_shader_parameter("u_nearYou", Vector4(you.x, you.y, chart.size.x * 0.5, chart.size.y * 0.5))
-
-
-## The living sky's per-frame inputs.
-func _feed_wow(m: ShaderMaterial, g: Dictionary, t: float, ccon: Vector2, z: float) -> void:
-	var bits := wow_bits()
-	var calm := DisplaySettings.reduced_motion
-	m.set_shader_parameter("u_wowk", _wowk)
-	if bits & WOW_REMNANTS:
-		# the last ten minutes' supernovae (`_supernova`'s own schedule and stars)
-		var rem := PackedVector4Array()
-		var cand: PackedVector2Array = g.get("sn_cand", PackedVector2Array())
-		if not calm and not cand.is_empty():
-			var n0 := floori(t / 60.0)
-			for n in range(n0, n0 - 10, -1):
-				var t0: float = 60.0 * n + 30.0 * LegacyHole.hash01(n, 77)
-				var age := t - t0
-				if age < 0.0:
-					continue
-				var at := cand[int(LegacyHole.hash01(n, 78) * cand.size()) % cand.size()]
-				rem.append(Vector4(at.x, at.y, age, LegacyHole.hash01(n, 79) * 50.0))
-		var nr := rem.size()
-		rem.resize(16)
-		m.set_shader_parameter("u_nrem", nr)
-		m.set_shader_parameter("u_rem", rem)
-	if bits & WOW_FEEDING:
-		var fe := Vector2(-1.0, 0.0) if calm else feed_event(t)
-		if fe.x < 0.0:
-			m.set_shader_parameter("u_feed", Vector4(-1.0, 0.0, 0.1, 1.0))
-		else:
-			var n := int(fe.y)
-			var hr := float(g.p.hole_r)
-			var r0 := maxf(hr * 5.0, 0.11) + 0.04 * LegacyHole.hash01(n, 93)
-			m.set_shader_parameter("u_feed", Vector4((t - fe.x) / FEED_S, LegacyHole.hash01(n, 94) * TAU, r0, 1.0))
-	if bits & WOW_COMETS:
-		var ce := Vector2(-1.0, 0.0) if calm else comet_event(t)
-		if ce.x < 0.0:
-			m.set_shader_parameter("u_cometT", Vector4(-1.0, 1.0, 0.0, 0.0))
-		else:
-			var cp: Array = comet_path(int(ce.y), (t - ce.x) / COMET_S)
-			var hd: Vector2 = cp[0]
-			var dr: Vector2 = cp[1]
-			m.set_shader_parameter("u_comet", Vector4(hd.x, hd.y, dr.x, dr.y))
-			m.set_shader_parameter("u_cometT", Vector4(t - ce.x, COMET_S, 0.0, 0.0))
-	if bits & WOW_NEAR:
-		_feed_near(m, ccon, z)
 
 
 ## RADIANT'S SAFETY: it is the heavy style ("for photos probably", Jon). Over its

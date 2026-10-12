@@ -71,6 +71,10 @@ uniform float u_wxOn = 1.0;
 // events, as held poses (ChartSky._feed_b_events)
 uniform vec4 u_sn = vec4(0.0);     // supernova: view x, y, drawn frame (0 none, 1-4), 0
 uniform vec4 u_echo = vec4(0.0);   // light echo: plane x, y, ring radius (gu, stepped), strength step (0-3)
+// what the last minutes' supernovae left (`ChartSky.remnants` on this style's own
+// supernova stars: plane x, y, age s, seed)
+uniform int u_nrem = 0;
+uniform vec4 u_rem[16];
 uniform vec4 u_lt[12];             // lightning per cloud: pose (0 none, 1 bolt, 2 afterglow), round-frame x, y (gu), bolt seed
 uniform float u_glim = 0.0;        // the glimmers' stepped angle
 uniform float u_shaft = 0.0;       // the shafts' stepped angle
@@ -1150,6 +1154,33 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 		float de = abs(length(g - u_echo.xy) - u_echo.z);
 		if (de < blk * 0.9 && (sc.m == M_ARM || sc.m == M_DUST || sc.m == M_HALO || sc.m == M_BILLOW || sc.m == M_KNOT)) {
 			sc = cand(M_BILLOW, 0.5 + 0.16 * u_echo.w, 0, 0.0);
+		}
+	}
+	// what a supernova leaves, drawn by hand: a ragged shell a block wide, red
+	// outside and teal inside as the remnant clouds are painted, that grows in held
+	// steps (a new pose every 4 s, larger steps first) and fades in three bands of
+	// its ramp over ten minutes; broken where the noise says, never a full circle
+	if (galaxy && u_nrem > 0) {
+		for (int i = 0; i < 16; i++) {
+			if (i >= u_nrem) {
+				break;
+			}
+			vec4 rm = u_rem[i];
+			float age = floor(rm.z / 4.0) * 4.0;
+			if (age < 4.0 || age > 600.0) {
+				continue;
+			}
+			float R = 0.008 + 0.036 * (1.0 - exp(-age / 150.0));
+			vec2 dr = g - rm.xy;
+			float an = atan(dr.y, dr.x);
+			float Rr = R * (1.0 + 0.10 * kitSnoise2(vec2(an * 1.6, rm.w)));
+			float de = length(dr) - Rr;
+			float wr = max(blk * 1.05, 0.0035);
+			if (abs(de) < wr && kitSnoise2(vec2(an * 2.3, rm.w + 5.0)) > -0.55
+					&& (sc.m == M_ARM || sc.m == M_DUST || sc.m == M_HALO || sc.m == M_BILLOW || sc.m == M_KNOT || sc.m == M_BULGE)) {
+				float band = age < 150.0 ? 0.2 : (age < 360.0 ? 0.1 : 0.0);
+				sc = de > 0.0 ? cand(M_HA, 0.45 + band, 202, 0.0) : cand(M_O3, 0.40 + band, 202, 0.0);
+			}
 		}
 	}
 	// knots: pink star-forming clumps and blue young clusters along the arms'

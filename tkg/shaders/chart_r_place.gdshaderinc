@@ -117,6 +117,9 @@ uniform int u_nkn = 0;
 uniform vec4 u_kn[64];     // knots: plane x, y (gu), size (gu), amplitude (breathing)
 uniform vec4 u_sn = vec4(0.0);     // supernova: plane x, y, flare gain (0 = none), age
 uniform vec4 u_echo = vec4(0.0);   // light echo: plane x, y, ring radius (gu), strength
+// what the last minutes' supernovae left (`ChartSky.remnants`: plane x, y, age s, seed)
+uniform int u_nrem = 0;
+uniform vec4 u_rem[16];
 uniform vec4 u_lt[8];      // lightning per cloud: envelope, plane offset x, y from the cloud (gu), radius (gu)
 
 const vec3 HA = vec3(1.0, 0.2, 0.3);
@@ -636,6 +639,29 @@ void planeEvent(in Ray R, vec2 pP, ivec2 sb, vec3 bF, vec3 bB, inout vec3 C, ino
 		float de = (length(pP - u_echo.xy) - u_echo.z) / max(0.0025, 1.5 * px);
 		float ring = exp(-de * de);
 		C += T * FLARE * u_echo.w * ring * (0.04 + 1.6 * (1.0 - att.b) + 0.6 * dA.g);
+	}
+	// what a supernova leaves, as light in the gas: a ragged shell glowing red
+	// outside and teal inside, brightest where it has dust and gas to light, a soft
+	// glow round it; growing fast and then slowly, gone in ten minutes
+	for (int i = 0; i < 16; i++) {
+		if (i >= u_nrem) {
+			break;
+		}
+		vec4 rm = u_rem[i];
+		vec2 dr = pP - rm.xy;
+		float age = rm.z;
+		float R = 0.008 + 0.036 * (1.0 - exp(-age / 150.0));
+		float dl = length(dr);
+		if (dl > R * 2.0 + 5.0 * px) {
+			continue;
+		}
+		float an = atan(dr.y, dr.x);
+		float Rr = R * (1.0 + 0.10 * kitSnoise2(vec2(an * 1.6, rm.w)));
+		float x = (dl - Rr) / max(0.0035, 1.6 * px);
+		float shell = exp(-x * x) * (0.45 + 0.55 * smoothstep(-0.4, 0.3, kitSnoise2(vec2(an * 2.3, rm.w + 5.0))));
+		float halo = exp(-abs(dl - Rr) / max(0.008, 4.0 * px)) * 0.25;
+		float life = smoothstep(1.5, 8.0, age) * exp(-age / 360.0) * (1.0 - smoothstep(480.0, 600.0, age));
+		C += T * mix(OIII, HA, smoothstep(-0.6, 0.6, x)) * (shell * 2.6 + halo) * life * (0.6 + 0.9 * (1.0 - att.b) + 0.4 * dA.g);
 	}
 	// the core's own gas: thin spirals falling into the hole, lit orange by its disc
 	vec4 dBp = discB(pP);

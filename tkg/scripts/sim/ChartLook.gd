@@ -197,8 +197,8 @@ func _run() -> void:
 		await _tour(_arg("tourclip"))
 		get_tree().quit()
 		return
-	if _arg("wowbench") != "":
-		await _wow_bench(_arg("wowbench"))
+	if _arg("costbench") != "":
+		await _cost_bench(_arg("costbench"))
 		get_tree().quit()
 		return
 	if _arg("zoomclip") != "" or _arg("liveclip") != "" or _arg("panclip") != "" or _arg("wheelclip") != "" or _arg("glideclip") != "" or _arg("playclip") != "":
@@ -431,16 +431,13 @@ func _clip() -> void:
 ##         drag, 1 s still
 ##   core  the core at 1.2, 5 s in to 3.6 about the middle, 2 s still
 ##   pan   the arms at zoom 1, 8 s of drag across them, eased
-##   open  the chart as it opens (`ChartSky.wow_open` at frame 0): 3 s still at
-##         the opening, then the dive
-## and for the living sky's events, each FORCED to happen in the clip:
-##   feed      the core at 1.6, a star spiralling into the hole from 1 s in, 11 s
-##   feedwide  the same at the opening's zoom
-##   comet     a comet's crossing, the middle 10 s of it, at zoom 1 on its path
-##   cometwide the whole 30 s crossing at the opening
+##   open  3 s still at the opening, then the dive
 ##   sn        the next supernova at zoom 1.4 on its star, from 1.5 s before, 12 s
+##             (FORCED into the clip: the clock is set to it)
 ##   remlapse  the opening as the clock runs 20 minutes at 120 times (a time-lapse:
-##             the remnants coming and fading)
+##             the supernovae's remnants coming and fading)
+##   remhold   the inner disc at 1.4, 10 s at the game's speed (the last ten
+##             minutes' remnants standing in the gas)
 ##   zoomin    the arms at 0.6, 6 s of wheel in about the middle (5x), 1 s still
 func _tour(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
@@ -461,21 +458,6 @@ func _tour(dir: String) -> void:
 		"pan":
 			_view(1.0, Vector2(-150, 10))
 			segs = [["drag", 240, Vector2(300, -40)]]
-		"feed", "feedwide":
-			_view(1.6 if tour == "feed" else 0.42, Vector2.ZERO)
-			ChartSky.force_feed = StarchartScreen.MapChart.clock_override + 1.0
-			segs = [["hold", 330]]
-		"comet", "cometwide":
-			var mid: Array = ChartSky.comet_path(5, 0.5)
-			var mv := ChartSky._to_view(mid[0], _chart.turn())
-			if tour == "comet":
-				_view(1.0, mv)
-				ChartSky.force_comet = StarchartScreen.MapChart.clock_override - 10.0
-				segs = [["hold", 300]]
-			else:
-				_view(0.42, Vector2.ZERO)
-				ChartSky.force_comet = StarchartScreen.MapChart.clock_override + 0.5
-				segs = [["hold", 930]]
 		"sn":
 			var sky0 := _chart._sky as ChartSky
 			var sn: Dictionary = sky0.next_supernova(StarchartScreen.MapChart.clock_override)
@@ -485,6 +467,9 @@ func _tour(dir: String) -> void:
 		"remlapse":
 			_view(0.42, Vector2.ZERO)
 			segs = [["lapse", 300, 4.0]]
+		"remhold":
+			_view(1.4, Vector2(60, -10))
+			segs = [["hold", 300]]
 		"zoomin":
 			_view(0.6, Vector2(60, 10))
 			segs = [["zoom", 180, 5.0, _chart.size * 0.5], ["hold", 30]]
@@ -525,14 +510,16 @@ func _tour(dir: String) -> void:
 	print("  chartlook: tour %s, %d frames in %s" % [tour, fi, ProjectSettings.globalize_path(dir)])
 
 
-## WHAT AN IDEA COSTS (`wowbench=colours,near,...|all|none`): one process, one
-## galaxy, the idea switched off and on in turns at each view (the opening, the
-## arms at 1.2, the arms at 2.5, the hole at 6), 60 frames a turn, eight turns
-## each, vsync off; the sky's own viewports' GPU time and the whole frame's time,
-## the medians of the turns. Interleaved because this machine is shared: two
-## separate runs of `chartbench` differed by half a millisecond with nothing
-## changed.
-func _wow_bench(names: String) -> void:
+## WHAT A PART OF THE SKY COSTS (`costbench=remnants|none`): one process,
+## one galaxy, the part switched off and on in turns at each view (the opening, the
+## arms at 1.2, the arms at 2.5, the hole at 6), eighty turns of eight frames,
+## vsync off; every frame's own GPU time of the sky's viewports, and the whole
+## frame's, compared at the 20th percentile (the frame with the least of the rest
+## of the machine's load on it) and the median. Interleaved because this machine is
+## shared: two separate runs of `chartbench` differed by half a millisecond with
+## nothing changed. `none` switches nothing, to show the noise. Remnants are
+## switched by `ChartSky.diag` 2048.
+func _cost_bench(names: String) -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
 	var sky := _chart._sky as ChartSky
@@ -544,20 +531,13 @@ func _wow_bench(names: String) -> void:
 		["arms2.5", 2.5, Vector2(200, 30)], ["hole6", 6.0, Vector2.ZERO]]
 	var t := StarchartScreen.MapChart.clock_override
 	for nm in names.split(","):
-		var bit := int(ChartSky.WOW_NAMES.get(nm, 0)) if nm != "all" else 255
 		for v: Array in views:
 			_view(v[1], v[2])
-			# (turns of a few frames, many of them, and every frame's own GPU time:
-			# other programs' GPU load comes and goes over seconds, so it falls on
-			# both states alike; the low quantile is the frame with the least of it)
 			var gpu := [[], []]
 			var ft := [[], []]
 			for turn in 80:
 				var on := turn % 2
-				ChartSky.wow = bit if on == 1 else 0
-				# (the events cost only while they play: held mid-way through each)
-				ChartSky.force_feed = t - ChartSky.FEED_S * 0.5
-				ChartSky.force_comet = t - ChartSky.COMET_S * 0.5
+				ChartSky.diag = 2048 if nm == "remnants" and on == 0 else 0
 				for _w in 3:
 					t += 1.0 / 60.0
 					StarchartScreen.MapChart.clock_override = t
@@ -578,11 +558,11 @@ func _wow_bench(names: String) -> void:
 				var b := a.duplicate()
 				b.sort()
 				return float(b[int(f * (b.size() - 1))])
-			print("  wowbench %-7s %-8s sky GPU p20 %.3f -> %.3f (%+.3f), median %.3f -> %.3f (%+.3f); frame p20 %.2f -> %.2f (%+.2f)" % [nm, v[0],
+			print("  costbench %-8s %-8s sky GPU p20 %.3f -> %.3f (%+.3f), median %.3f -> %.3f (%+.3f); frame p20 %.2f -> %.2f (%+.2f)" % [nm, v[0],
 				q.call(gpu[0], 0.2), q.call(gpu[1], 0.2), q.call(gpu[1], 0.2) - q.call(gpu[0], 0.2),
 				q.call(gpu[0], 0.5), q.call(gpu[1], 0.5), q.call(gpu[1], 0.5) - q.call(gpu[0], 0.5),
 				q.call(ft[0], 0.2), q.call(ft[1], 0.2), q.call(ft[1], 0.2) - q.call(ft[0], 0.2)])
-	ChartSky.wow = -1
+	ChartSky.diag = 0
 
 
 static func _ease(u: float) -> float:

@@ -69,24 +69,10 @@ uniform int u_nkn = 0;
 uniform vec4 u_kn[64];      // knots: plane x, y (gu), size (gu), amplitude
 uniform vec4 u_sn = vec4(0.0);     // supernova: view x, y, flare gain (0 = none), age
 uniform vec4 u_echo = vec4(0.0);   // light echo: plane x, y, ring radius (gu), strength
-// the living sky's switches (`ChartSky.wow_bits`, round two), 0 in the palette's
-// probes; and its tuning knobs (`wowk=a,b,c,d` on a harness's command line)
-uniform int u_wow = 0;
-uniform vec4 u_wowk = vec4(1.0);
-// REMNANTS: the supernovae of the last minutes (plane x, y, age s, seed)
+// what the last minutes' supernovae left (`ChartSky.remnants`: plane x, y, age s,
+// seed); none in the palette's probes
 uniform int u_nrem = 0;
 uniform vec4 u_rem[16];
-// FEEDING: the star being eaten (progress 0..1, start angle, start radius gu, spin
-// sense +-1); progress below 0 is none
-uniform vec4 u_feed = vec4(-1.0, 0.0, 0.1, 1.0);
-// COMETS: the comet's head (plane x, y) and its heading (unit x, y); and (age s,
-// life s, 0, 0), age below 0 is none
-uniform vec4 u_comet = vec4(0.0);
-uniform vec4 u_cometT = vec4(-1.0, 1.0, 0.0, 0.0);
-// NEAR: the near layer's frame (screen px of its origin x, y, its scale), and
-// where YOU are on the screen (x, y) and the view's half size (x, y)
-uniform vec3 u_near = vec3(0.0, 0.0, 1.0);
-uniform vec4 u_nearYou = vec4(-999.0, -999.0, 330.0, 215.0);
 
 const vec3 HA = vec3(1.0, 0.2, 0.3);
 const vec3 OIII = vec3(0.2, 0.95, 0.85);
@@ -1043,15 +1029,12 @@ vec3 starAt(ivec2 sb) {
 	return texelFetch(u_stars, sb, 0).rgb;
 }
 
-// ------------------------------------------------------------------ the living sky (round two)
-// Each on its own switch (`ChartSky.wow_bits`), each in the galaxy's own units, so a
-// zoom only magnifies it -- all but the near layer, which is in front of the galaxy
-// and has a frame of its own.
-
-// REMNANTS: what a supernova leaves. A ragged shell, red outside and teal inside
-// (the remnant clouds' colours), growing fast at first and slower after, and
-// fading over a quarter of an hour; a block wide at the least, so it reads at the
-// opening.
+// ------------------------------------------------------------------ remnants
+// WHAT A SUPERNOVA LEAVES (`ChartSky.remnants`): a ragged shell, red outside and
+// teal inside (the remnant clouds' colours), growing fast at first and slower
+// after, fading out over ten minutes; at the least a block and a half wide and as
+// bright as a remnant cloud's shell, so it reads at the opening, and in the
+// galaxy's own units, so a zoom only magnifies it.
 vec3 remnants(vec2 p) {
 	vec3 c = vec3(0.0);
 	float px = 1.0 / (u_zoom * u_k);
@@ -1067,167 +1050,17 @@ vec3 remnants(vec2 p) {
 		if (dl > R * 1.8 + 4.0 * px) {
 			continue;
 		}
-		float w = max(0.0035, 1.1 * px);
+		float w = max(0.0035, 1.6 * px);
 		float an = atan(d.y, d.x);
 		// ragged and broken: the front wanders and the shell has gaps
 		float Rr = R * (1.0 + 0.10 * kitSnoise2(vec2(an * 1.6, rm.w)));
 		float x = (dl - Rr) / w;
 		float shell = exp(-x * x) * (0.45 + 0.55 * smoothstep(-0.4, 0.3, kitSnoise2(vec2(an * 2.3, rm.w + 5.0))));
 		float inside = (1.0 - smoothstep(Rr * 0.4, Rr, dl)) * 0.07;
-		float life = smoothstep(1.5, 8.0, age) * exp(-age / 260.0) * (1.0 - smoothstep(480.0, 600.0, age));
-		c += (mix(OIII, HA, smoothstep(-0.6, 0.6, x)) * shell * 1.4 + OIII * inside) * life * u_wowk.x;
+		float life = smoothstep(1.5, 8.0, age) * exp(-age / 360.0) * (1.0 - smoothstep(480.0, 600.0, age));
+		c += (mix(OIII, HA, smoothstep(-0.6, 0.6, x)) * shell * 1.6 + OIII * inside) * life;
 	}
 	return c;
-}
-
-// FEEDING: a star near the core drawn into a streak that spirals in. The path:
-// its radius easing in from where it started to just outside the shadow, the
-// angle winding faster as it falls; the star stretched along the path behind its
-// head, longer the further in (the tide), hot and white at the head.
-vec2 feedAt(float u) {
-	float rin = u_holeR * 1.25;
-	float r = mix(u_feed.z, rin, pow(u, 1.6));
-	float a = u_feed.y + u_feed.w * KIT_TAU * 1.4 * pow(u, 1.8);
-	return vec2(cos(a), sin(a)) * r;
-}
-vec3 feeding(vec2 p) {
-	float u = u_feed.x;
-	if (u < 0.0 || u > 1.0) {
-		return vec3(0.0);
-	}
-	float px = 1.0 / (u_zoom * u_k);
-	vec3 c = vec3(0.0);
-	float span = 0.03 + 0.32 * u * u;
-	float sg = max(0.0035, 2.0 * px);
-	const int N = 40;
-	for (int j = 0; j < N; j++) {
-		float f = float(j) / float(N - 1);
-		float uj = u - span * f;
-		if (uj < 0.0) {
-			break;
-		}
-		vec2 q = feedAt(uj);
-		vec2 d = p - q;
-		float g = exp(-dot(d, d) / (sg * sg));
-		c += mix(vec3(0.85, 0.92, 1.0) * 9.0, vec3(1.0, 0.85, 0.7) * 3.0, f) * g * (1.0 - f * 0.7) * (8.0 / float(N));
-	}
-	// in at the end: gone into the disc
-	float fade = smoothstep(0.0, 0.05, u) * (1.0 - smoothstep(0.88, 1.0, u));
-	return c * fade * u_wowk.y;
-}
-
-// COMETS: a head with its coma, and a tail streaming away from the core and a
-// little behind its path, lit cream (dust) with a pale cyan core (ions), its
-// material sliding down the tail; fading in and out at the ends of its crossing
-vec3 comet(vec2 p) {
-	float age = u_cometT.x;
-	if (age < 0.0 || age > u_cometT.y) {
-		return vec3(0.0);
-	}
-	float px = 1.0 / (u_zoom * u_k);
-	vec2 h = u_comet.xy;
-	vec2 vel = u_comet.zw;
-	vec2 away = normalize(normalize(h) * 0.8 - vel * 0.6);
-	vec2 d = p - h;
-	float along = dot(d, away);
-	float perp = dot(d, vec2(-away.y, away.x));
-	float sg = max(0.0025, 1.3 * px);
-	float head = exp(-dot(d, d) / (sg * sg)) * 6.0 + exp(-dot(d, d) / (9.0 * sg * sg)) * 0.7;
-	float L = 0.075;
-	float tail = 0.0, ion = 0.0;
-	if (along > 0.0 && along < L * 3.0) {
-		float wd = sg + along * 0.22;
-		float wi = sg * 0.7 + along * 0.05;
-		float flow = 0.65 + 0.35 * kitVnoise2(vec2(along * 140.0 - u_time * 1.5, perp * 60.0));
-		tail = exp(-perp * perp / (wd * wd)) * exp(-along / L) * flow;
-		ion = exp(-perp * perp / (wi * wi)) * exp(-along / (L * 1.4));
-	}
-	float fade = smoothstep(0.0, 2.5, age) * (1.0 - smoothstep(u_cometT.y - 2.5, u_cometT.y, age));
-	// (one hue down the tail: cream dust over a cyan ion core quantised to a rainbow)
-	return (vec3(1.0, 0.96, 0.9) * head + vec3(1.0, 0.80, 0.55) * (tail * 1.1 + ion * 0.6)) * fade * u_wowk.z;
-}
-
-// NEAR: a layer of big stars, dark dust and a little warm gas between you and the
-// galaxy, in a frame of its own (`ChartSky._feed_near`): it slides four times as
-// far as the galaxy on a drag, and on a zoom either holds still or swells past
-// you. Its own colours (copper gas, near-black dust, warm white stars), never the
-// galaxy's blues, and a coarse grain of its own; kept to the edges of the view and
-// clear of YOU. Octaves of it at doubling sizes, each fading in small and out
-// large, so a swell is flying through sheets of it rather than into one wall.
-// Returns the light added (rgb) and how much of what is behind is let through (a).
-vec4 nearOctave(vec2 w, int j) {
-	vec2 sd = vec2(float(j) * 17.31, float(j) * 9.13);
-	// dust: wisps of near-black, silhouetted on the bright arms
-	vec2 wq = w / 230.0 + sd;
-	float n = 0.5 + 0.5 * kitFbm2(wq + 0.35 * vec2(kitFbm2(wq * 0.7 + 3.1, 3), kitFbm2(wq * 0.7 + 8.4, 3)), 4);
-	float grain = kitHash1(ivec2(floor(w / 2.0)) + ivec2(j * 977, 31));
-	float dust = smoothstep(0.60, 0.80, n) * (0.8 + 0.2 * grain);
-	// warm gas: broad copper billows, rarer than the dust, grained
-	vec2 gq = w / 520.0 + sd * 1.7 + 11.0;
-	float gn = 0.5 + 0.5 * kitFbm2(gq, 4);
-	float gas = smoothstep(0.68, 0.92, gn) * (0.45 + 1.1 * grain * grain);
-	// (no faint haze anywhere else: a faint near light is a grey veil over the whole
-	// sky once the palette has it)
-	vec3 L = vec3(1.0, 0.50, 0.24) * gas * 0.08;
-	// the stars: a few, big, warm; one in three soft and out of focus (a disc with a
-	// brighter rim)
-	const float CELL = 210.0;
-	ivec2 c0 = ivec2(floor(w / CELL));
-	for (int jj = -1; jj <= 1; jj++) {
-		for (int ii = -1; ii <= 1; ii++) {
-			ivec2 c = c0 + ivec2(ii, jj);
-			vec3 h = kitHash3(c + ivec2(5113 + j * 71, 2207));
-			if (h.z > 0.5) {
-				continue;
-			}
-			vec2 ctr = (vec2(c) + 0.15 + 0.7 * h.xy) * CELL;
-			vec2 dd = w - ctr;
-			float dl = length(dd);
-			vec3 g = kitHash3(c + ivec2(83, 4111 + j));
-			vec3 tint = mix(vec3(1.0, 0.82, 0.62), vec3(1.0, 0.95, 0.86), g.y);
-			if (g.x < 0.33) {
-				float R = 9.0 + 9.0 * g.z;
-				float disc = 1.0 - smoothstep(R - 1.5, R, dl);
-				float ring = exp(-pow((dl - R + 1.5) / 1.6, 2.0));
-				L += tint * (disc * 0.06 + ring * 0.09);
-			} else {
-				// a core two blocks across, bigger than any star of the galaxy
-				float core = exp(-dl * dl / 9.0);
-				float halo = exp(-dl / 8.0) * 0.16;
-				// a cross a few blocks long on the brightest
-				float spike = (g.z > 0.6) ? (exp(-abs(dd.y) / 0.9) * exp(-abs(dd.x) / 12.0) + exp(-abs(dd.x) / 0.9) * exp(-abs(dd.y) / 12.0)) * 0.25 : 0.0;
-				L += tint * (core * 2.4 + halo + spike) * (0.6 + 0.6 * g.z);
-			}
-		}
-	}
-	return vec4(L, 1.0 - 0.85 * dust);
-}
-vec4 nearLayer(vec2 s) {
-	// where it may be: the edges of the view, never round YOU
-	vec2 e = (s - u_res * 0.5) / u_nearYou.zw;
-	float edge = smoothstep(0.25, 0.85, length(e * vec2(0.85, 1.0)));
-	float you = smoothstep(40.0, 120.0, length(s - u_nearYou.xy));
-	float m = edge * you * u_wowk.w;
-	if (m <= 0.001) {
-		return vec4(0.0, 0.0, 0.0, 1.0);
-	}
-	float Ls = log2(max(u_near.z, 1e-3));
-	float base = floor(Ls);
-	vec3 add = vec3(0.0);
-	float thru = 1.0;
-	for (int k = -1; k <= 1; k++) {
-		float j = base + float(k);
-		// this octave's magnification, 2^(Ls - j): seen from 0.5 to 4
-		float lm = Ls - j;
-		float wgt = sin(3.14159 * clamp((lm + 1.0) / 3.0, 0.0, 1.0));
-		if (wgt <= 0.001) {
-			continue;
-		}
-		vec4 o = nearOctave((s - u_near.xy) / exp2(lm), int(j));
-		add += o.rgb * wgt;
-		thru *= mix(1.0, o.a, wgt);
-	}
-	return vec4(add * m, mix(1.0, thru, m));
 }
 
 // ------------------------------------------------------------------ the galaxy
@@ -1253,7 +1086,7 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		Bb *= mix(1.0, 0.3, glareOn() * smoothstep(2.4, 6.0, u_zoom) * mix(1.0 - smoothstep(0.05, 0.30, r), 1.0, zoomChanges()));
 		// (no blue halo under a ball: over its red outskirts it read mauve; the
 		// ball's own envelope is its halo)
-		C = C * exp(-kitLum(Bb) * 120.0) + Bb + star + tailLight(p) + knots(p);
+		C = C * exp(-kitLum(Bb) * 120.0) + Bb + star + tailLight(p) + knots(p) + remnants(p);
 	} else {
 		C += halo(v) + tailLight(p);
 		underSheet(v, la, C);
@@ -1289,9 +1122,7 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		B *= mix(1.0, max(0.62 + 0.76 * bm, 0.25), smoothstep(0.03, 0.10, sv));
 		C += B * (1.0 - front);
 		Em += knots(p);
-		if ((u_wow & 2) != 0) {
-			Em += remnants(p);
-		}
+		Em += remnants(p);
 		// the supernova's light echo: a ring sweeping out through the gas and dust
 		if (u_echo.w > 0.0) {
 			float de = length(p - u_echo.xy) - u_echo.z;
@@ -1310,18 +1141,12 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		billowLayer(v, dq, C);
 		wispLayer(v, la, C);
 	}
-	if ((u_wow & 4) != 0) {
-		C += feeding(p);
-	}
-	if ((u_wow & 8) != 0) {
-		C += comet(p);
-	}
 	vec3 frontL = max(C - VOIDC / u_exp, vec3(0.0));
 	C += farSky(v, la, bgNebSeen(frontL, u_exp)) * T * cloudT * bgSeen(frontL, u_exp);
 	return grade(max(mix(vec3(kitLum(C)), C, SAT), 0.0)) + supernova(v, blk);
 }
 
-vec3 placeGalaxy(vec2 v, ivec2 blk, ivec2 dq) {
+vec3 place(vec2 v, ivec2 blk, ivec2 dq) {
 	float shadow = u_holeR * u_k;                        // the shadow's radius, view px
 	vec2 S = lh_to_s(v, vec2(0.0), shadow);
 	// ONE call of the galaxy, at the point seen through the lens or at v: two
@@ -1351,15 +1176,6 @@ vec3 placeGalaxy(vec2 v, ivec2 blk, ivec2 dq) {
 	C *= 1.0 - cap;                                      // the shadow: round, black, no rim line
 	if (d.a > 0.004) {
 		C = C * (1.0 - d.a) + lh_exact_hdr(d.rgb, u_exp) * d.a;
-	}
-	return C;
-}
-
-vec3 place(vec2 v, ivec2 blk, ivec2 dq) {
-	vec3 C = placeGalaxy(v, blk, dq);
-	if ((u_wow & 16) != 0) {
-		vec4 nl = nearLayer(scr(v));
-		C = C * nl.a + nl.rgb;
 	}
 	return C;
 }
