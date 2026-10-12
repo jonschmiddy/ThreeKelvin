@@ -83,9 +83,8 @@ uniform vec2 u_solidT = vec2(0.0);
 uniform float u_fluff = 0.0;
 // and how big its puffs are (1 the medium)
 uniform float u_fluffS = 1.0;
-// THE DISC'S EDGE DISSOLVES (`ChartSky.edge`, the edge section below): where its
-// thickness comes to nothing (gu), the outline's mean radius (gu), how ragged the
-// outline is (gu either way), on (1) or off
+// THE DISC'S EDGE DISSOLVES (`ChartSky.edge`, the edge section below): where the
+// fade starts (gu), where it ends (gu), how uneven it is (gu either way), on (1) or off
 uniform vec4 u_edge = vec4(0.0);
 
 const vec3 HA = vec3(1.0, 0.2, 0.3);
@@ -325,7 +324,9 @@ vec3 halo(vec2 v) {
 	I *= 1.0 - smoothstep(0.9, 1.65, s);
 	vec2 p = kitViewToPlane(v, u_phi, u_k);
 	float m = mottle(p * 0.8);
-	I *= mix(1.0, 0.35 + 1.3 * m * m, smoothstep(0.35, 0.9, s));
+	// (more evenly with the solid galaxy's dissolving edge: past the faded disc it is
+	// most of what shows, and its full mottle read as blotches, not haze)
+	I *= mix(1.0, 0.35 + 1.3 * m * m, smoothstep(0.35, 0.9, s) * (u_edge.w > 0.0 ? 0.3 : 1.0));
 	// (it used to thin round the core from zoom 2.4; ZOOM ONLY MAGNIFIES, see `zoomChanges`)
 	I *= 1.0 - 0.88 * smoothstep(2.4, 6.0, u_zoom) * (1.0 - smoothstep(0.08, 0.3, s)) * zoomChanges();
 	return mix(vec3(1.0, 0.70, 0.42), vec3(0.30, 0.40, 1.0), smoothstep(0.08, 0.7, s)) * I;
@@ -1001,6 +1002,12 @@ void underSheet(vec2 v, float la, inout vec3 C) {
 	}
 	float n = noiseRawLA(kitRot(2.7) * pu * 0.7, la).r;
 	float du = smoothstep(0.45, 0.8, n) * (1.0 - smoothstep(0.75, 1.2, ru)) * smoothstep(0.08, 0.25, ru);
+	// (it is the disc's own dust: with the solid galaxy's dissolving edge it fades out
+	// as the disc does, or it hung past the faded disc as dark blotches on the halo)
+	if (u_edge.w > 0.0) {
+		float t = smoothstep(u_edge.x, u_edge.y, ru);
+		du *= (1.0 - t) * (1.0 - t);
+	}
 	float Iu = 0.12 * exp(-ru / 0.25) + 0.05 * exp(-ru / 0.4);
 	C = C * exp(-du * 0.9) + du * Iu * LITDUST * 0.12 * (1.0 - 0.88 * nestZ() * (1.0 - smoothstep(0.06, 0.22, ru)));
 #endif
@@ -1144,38 +1151,50 @@ float fluffDens(vec2 p) {
 }
 // ------------------------------------------------------------------ the edge
 // THE DISC'S EDGE DISSOLVES (Jon, of the fluffy galaxy: "the edge of the galaxy is
-// kinda weird... it looks like the edge of a plate"). A real galaxy has no edge: its
-// thickness tapers like a lens, thick round the core and thinning out along the arms
-// to nothing at the outside (`edgeLens`: the puffs smaller, sparser and lower toward
-// the rim, so the billows thin out instead of stopping at a wall), and its outline is
-// no clean ellipse but breaks up into ragged wisps of gas that fade into the dark,
-// pulled in here and reaching out there, with its loose outer stars left standing
-// beyond it (`edgeMask`). (A first version gave the disc a slab's lit face below its
-// rim for "a visible edge", and thinned the haze past it: that face is what read as a
-// plate's rim, so it is gone.) All in the disc's own units at fixed scales, so a zoom
-// only magnifies it. u_edge: lens radius, outline radius, raggedness, on.
-// how thick the disc stands at plane radius r, 1 at the core to 0 at the lens's rim
+// kinda weird... it looks like the edge of a plate", then "it could be even softer
+// and more diffuse at the edge"). A real galaxy has no edge. Its outer part thins
+// gradually: the disc's light and dust fall off over a long stretch, from
+// `u_edge.x` gu out to nothing at `u_edge.y`, as a soft haze dissolving into the
+// dark (`edgeMask`). The fall-off is a little uneven, broad and low in contrast, so
+// the outline is never a perfect ellipse but has no crisp bays or wisps. The outer
+// stars are left standing past it. The disc's thickness tapers like a lens
+// (`edgeLens`): thick round the core, thinning out along the arms, so the puffs get
+// smaller, lower and fainter and are gone well before the rim, leaving only faint
+// gas and loose stars in the last stretch. (Two earlier versions: a slab's lit face
+// below the rim read as a plate's rim; then a ragged cut-out outline read as torn
+// paper rather than haze.) All in the disc's own units at fixed scales, so a zoom
+// only magnifies it. The fade is dithered on the palette's anchored Bayer, as the
+// billows' edges are, so the palette's dark steps break into a dither instead of
+// hard bands. u_edge: where the fade starts, where it ends, how uneven, on.
+// the fade's dither cell: the block a point of the flat view falls in, so through the
+// solid galaxy's camera the dither travels with the disc as a drag turns it, rather
+// than staying on the screen while the fade slides under it (that crawl doubled the
+// pixels flipping on a drag)
+ivec2 edgeDq(vec2 v) {
+	return ivec2(floor(v * u_zoom * 0.5));
+}
+// how thick the disc stands at plane radius r, 1 at the core to 0 a little past the
+// middle of the fade
 float edgeLens(float r) {
 	if (u_edge.w <= 0.0) {
 		return 1.0;
 	}
-	float t = clamp(1.0 - r / u_edge.x, 0.0, 1.0);
+	float t = clamp(1.0 - r / mix(u_edge.x, u_edge.y, 0.45), 0.0, 1.0);
 	return t * (2.0 - t);
 }
-// how much of the disc's own light and dust is left at plane point p: 1 inside, 0
-// past its ragged outline
+// how much of the disc's own light and dust is left at plane point p: 1 inside the
+// fade, 0 past it
 float edgeMask(vec2 p) {
 	float r = length(p);
-	if (u_edge.w <= 0.0 || r < u_edge.y - u_edge.z * 1.6 - 0.25) {
+	if (u_edge.w <= 0.0 || r < u_edge.x - u_edge.z * 2.0) {
 		return 1.0;
 	}
-	// the outline's radius here: broad bays and reaches, and finer tatters on them,
-	// the fine ones dragged round by the broad so they run as wisps, not as a grain
-	float big = kitFbm2(p * 2.1 + vec2(4.1, 7.3), 3);
-	vec2 w = p * 7.5 + vec2(big * 2.6, -big * 1.9) + vec2(1.7, 3.2);
-	float fine = kitFbm2(w, 3);
-	float re = u_edge.y + u_edge.z * (1.6 * big + 0.7 * fine);
-	return 1.0 - smoothstep(re - 0.25, re + 0.08, r);
+	// the fade's radius here pulled in and pushed out a little, broadly
+	float un = kitFbm2(p * 1.7 + vec2(4.1, 7.3), 2);
+	float rr = r + u_edge.z * un;
+	float t = smoothstep(u_edge.x, u_edge.y, rr);
+	// (falling off fastest early, then a long faint tail)
+	return (1.0 - t) * (1.0 - t);
 }
 
 // THE PUFFS: the gas heaped into round billows, as PAINTED heaps its own, but lit
@@ -1248,7 +1267,8 @@ vec2 fluffSeen(vec2 p) {
 // the puff's own lit body)
 vec3 fluffShade(vec2 p) {
 	vec4 t = fluffTop(p);
-	float cover = smoothstep(0.08, 0.35, fluffDens(p));
+	// (and fading as the disc thins toward its rim: `edgeLens`)
+	float cover = smoothstep(0.08, 0.35, fluffDens(p)) * smoothstep(0.0, 0.45, edgeLens(length(p)));
 	float r = max(length(p), 1e-4);
 	vec2 toC = -p / r;
 	vec3 L = normalize(vec3(toC, 0.55));
@@ -1317,6 +1337,7 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 	bool ball = u_form == 1;
 	vec3 T = vec3(1.0), B = vec3(0.0);
 	float gas = 0.0, nest = 0.0, front = 0.0, bulgeI = 0.0;
+	vec3 haloJ = vec3(0.0);
 	// (each layer is called ONCE whatever the galaxy's shape: a call in each
 	// branch inlines it twice and the shader took seconds longer to compile)
 	if (ball) {
@@ -1328,7 +1349,14 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 		// ball's own envelope is its halo)
 		C = C * exp(-kitLum(Bb) * 120.0) + Bb + star + tailLight(p) + knots(p) + remnants(p);
 	} else {
-		C += halo(v) + tailLight(p);
+		// (with the dissolving edge the halo is most of what shows past the faded disc,
+		// and its faint edge met the palette's dark steps as one flat ellipse, a second
+		// plate: it is dithered there, on the palette's anchored Bayer, as the fade is;
+		// what the sky behind sees of it is the halo undithered, `haloJ` taken back out,
+		// or the far galaxies behind it were cut to the same checker)
+		vec3 hl = halo(v);
+		haloJ = u_edge.w > 0.0 ? hl * 0.5 * (kitBayer4(edgeDq(v)) - 0.5) : vec3(0.0);
+		C += hl + haloJ + tailLight(p);
 		underSheet(v, la, C);
 		vec3 Em;
 		float A, dust;
@@ -1346,9 +1374,12 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 			vec3 gc = mix(vec3(0.30, 0.46, 1.0) * 0.05 * exp(-rf / 0.5), LITDUST * 0.12, 1.0 / (1.0 + pow(rf / 0.12, 2.0)));
 			Em += gc * fs.z * u_fluff * 2.5;
 		}
-		// the outline dissolving into the dark (`edgeMask`): the disc's light and dust
-		// fade past it, its stars stay
+		// the outer disc dissolving into the dark (`edgeMask`): the disc's light and
+		// dust fade, its stars stay; dithered (a step either way of the Bayer)
 		float em = edgeMask(pf);
+		if (em < 0.999) {
+			em = clamp(em * (1.0 + 0.5 * (kitBayer4(edgeDq(v)) - 0.5)), 0.0, 1.0);
+		}
 		Em = Em * em + star * (1.0 - em);
 		T = mix(vec3(1.0), T, em);
 		gas *= em;
@@ -1404,8 +1435,12 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 		billowLayer(v, dq, C);
 		wispLayer(v, la, C);
 	}
-	vec3 frontL = max(C - VOIDC / u_exp, vec3(0.0));
-	C += farSky(vsky, la, bgNebSeen(frontL, u_exp)) * T * cloudT * bgSeen(frontL, u_exp);
+	vec3 frontL = max(C - VOIDC / u_exp - haloJ * T, vec3(0.0));
+	// (the far nebulae keep clear of the galaxy by its light, `bgNebSeen`; with the
+	// dissolving edge that light fades out over a long stretch, so they also keep
+	// clear of where the disc is, out past the fade's end)
+	float nebGap = (u_edge.w > 0.0 && !ball) ? smoothstep(u_edge.y + 0.05, u_edge.y + 0.45, r) : 1.0;
+	C += farSky(vsky, la, bgNebSeen(frontL, u_exp) * nebGap) * T * cloudT * bgSeen(frontL, u_exp);
 	return grade(max(mix(vec3(kitLum(C)), C, SAT), 0.0)) + supernova(v, blk);
 }
 

@@ -183,11 +183,11 @@ static func fluff() -> Vector2:
 
 
 ## THE DISC'S EDGE DISSOLVES (`chart_c_place`'s edge section; Jon: "it looks like the
-## edge of a plate"): with the solid galaxy, its thickness tapers like a lens to
-## nothing at the rim and its outline breaks up into ragged wisps. How soft:
-## `edge=soft|softer` (soft the default). (where the thickness comes to nothing gu, the
-## outline's mean radius gu, how ragged gu)
-const EDGES := {"soft": Vector3(1.25, 1.12, 0.08), "softer": Vector3(1.0, 1.0, 0.13)}
+## edge of a plate", then "even softer and more diffuse"): with the solid galaxy,
+## the outer disc thins over a long stretch into a soft haze, the puffs gone well
+## before the rim. How diffuse: `edge=diffuse|more|most` (diffuse the default).
+## (where the fade starts gu, where it ends gu, how uneven gu)
+const EDGES := {"diffuse": Vector3(0.62, 1.2, 0.05), "more": Vector3(0.5, 1.15, 0.06), "most": Vector3(0.38, 1.1, 0.07)}
 static var _edge := Vector3(-1.0, 0.0, 0.0)
 ## (off only for the cost bench: `ChartLook`'s costbench=edge)
 static var _edge_on := true
@@ -195,11 +195,11 @@ static var _edge_on := true
 
 static func edge() -> Vector3:
 	if _edge.x < 0.0:
-		_edge = EDGES.soft
+		_edge = EDGES.diffuse
 		for a in OS.get_cmdline_user_args():
 			var arg := a as String
 			if arg.begins_with("edge="):
-				_edge = EDGES.get(arg.substr(5), EDGES.soft)
+				_edge = EDGES.get(arg.substr(5), EDGES.diffuse)
 	return _edge
 
 
