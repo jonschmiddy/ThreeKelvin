@@ -201,6 +201,10 @@ func _run() -> void:
 		await _cost_bench(_arg("costbench"))
 		get_tree().quit()
 		return
+	if "solidtest" in OS.get_cmdline_user_args():
+		await _solid_test()
+		get_tree().quit()
+		return
 	if _arg("zoomclip") != "" or _arg("liveclip") != "" or _arg("panclip") != "" or _arg("wheelclip") != "" or _arg("glideclip") != "" or _arg("playclip") != "":
 		await _clip()
 		get_tree().quit()
@@ -439,6 +443,10 @@ func _clip() -> void:
 ##   remhold   the inner disc at 1.4, 10 s at the game's speed (the last ten
 ##             minutes' remnants standing in the gas)
 ##   zoomin    the arms at 0.6, 6 s of wheel in about the middle (5x), 1 s still
+##   soliddrag at `tourzoom` (the opening's 0.42 if not given), a slow drag: 4 s
+##             sideways, 4 s down, 5 s on a diagonal back up, each with a breath
+##             after it (the solid galaxy's camera carried and raised by a drag)
+##   openzoom  the opening, 6 s of wheel in about the middle (3x), 1 s still
 func _tour(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
 	var tour := _arg("tour", "dive")
@@ -473,6 +481,13 @@ func _tour(dir: String) -> void:
 		"zoomin":
 			_view(0.6, Vector2(60, 10))
 			segs = [["zoom", 180, 5.0, _chart.size * 0.5], ["hold", 30]]
+		"soliddrag":
+			_view(float(_arg("tourzoom", "0.42")), Vector2.ZERO)
+			segs = [["drag", 120, Vector2(180, 0)], ["hold", 15], ["drag", 120, Vector2(0, 110)], ["hold", 15],
+				["drag", 150, Vector2(-180, -110)], ["hold", 30]]
+		"openzoom":
+			_view(0.42, Vector2.ZERO)
+			segs = [["zoom", 180, 3.0, _chart.size * 0.5], ["hold", 30]]
 		"open":
 			_view(0.42, Vector2.ZERO)
 			segs = [["hold", 90], ["zoom", 150, 2.4 / 0.42, cur], ["drag", 60, Vector2(-120, -40)], ["hold", 30]]
@@ -510,7 +525,7 @@ func _tour(dir: String) -> void:
 	print("  chartlook: tour %s, %d frames in %s" % [tour, fi, ProjectSettings.globalize_path(dir)])
 
 
-## WHAT A PART OF THE SKY COSTS (`costbench=remnants|none`): one process,
+## WHAT A PART OF THE SKY COSTS (`costbench=remnants,solid,fluff,edge,terrain,nebulae|none`): one process,
 ## one galaxy, the part switched off and on in turns at each view (the opening, the
 ## arms at 1.2, the arms at 2.5, the hole at 6), eighty turns of eight frames,
 ## vsync off; every frame's own GPU time of the sky's viewports, and the whole
@@ -518,7 +533,10 @@ func _tour(dir: String) -> void:
 ## of the machine's load on it) and the median. Interleaved because this machine is
 ## shared: two separate runs of `chartbench` differed by half a millisecond with
 ## nothing changed. `none` switches nothing, to show the noise. Remnants are
-## switched by `ChartSky.diag` 2048.
+## switched by `ChartSky.diag` 2048; the solid galaxy by `ChartSky.solid`; the gas's
+## puffs by `ChartSky.fluff` (as the command line asks for them, against none); the
+## dissolving edge by `ChartSky._edge_on`; the middle's relief by `ChartSky._terr_on`; the
+## nebulae's bodies by `ChartSky._neb_on`.
 func _cost_bench(names: String) -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
@@ -528,8 +546,10 @@ func _cost_bench(names: String) -> void:
 		RenderingServer.viewport_set_measure_render_time(vp.get_viewport_rid(), true)
 		rids.append(vp.get_viewport_rid())
 	var views := [["opening", 0.42, Vector2.ZERO], ["arms1.2", 1.2, Vector2(150, 20)],
-		["arms2.5", 2.5, Vector2(200, 30)], ["hole6", 6.0, Vector2.ZERO]]
+		["arms2.5", 2.5, Vector2(200, 30)], ["hole6", 6.0, Vector2.ZERO], ["middle1.5", 1.5, Vector2.ZERO],
+		["middle2.5", 2.5, Vector2.ZERO]]
 	var t := StarchartScreen.MapChart.clock_override
+	var sol0 := ChartSky._solid
 	for nm in names.split(","):
 		for v: Array in views:
 			_view(v[1], v[2])
@@ -538,6 +558,11 @@ func _cost_bench(names: String) -> void:
 			for turn in 80:
 				var on := turn % 2
 				ChartSky.diag = 2048 if nm == "remnants" and on == 0 else 0
+				ChartSky._solid = (1 if on == 1 else 0) if nm == "solid" else sol0
+				ChartSky._fluff_on = on == 1 if nm == "fluff" else true
+				ChartSky._edge_on = on == 1 if nm == "edge" else true
+				ChartSky._terr_on = on == 1 if nm == "terrain" else true
+				ChartSky._neb_on = on == 1 if nm == "nebulae" else true
 				for _w in 3:
 					t += 1.0 / 60.0
 					StarchartScreen.MapChart.clock_override = t
@@ -563,6 +588,91 @@ func _cost_bench(names: String) -> void:
 				q.call(gpu[0], 0.5), q.call(gpu[1], 0.5), q.call(gpu[1], 0.5) - q.call(gpu[0], 0.5),
 				q.call(ft[0], 0.2), q.call(ft[1], 0.2), q.call(ft[1], 0.2) - q.call(ft[0], 0.2)])
 	ChartSky.diag = 0
+	ChartSky._solid = sol0
+	ChartSky._fluff_on = true
+	ChartSky._edge_on = true
+	ChartSky._terr_on = true
+	ChartSky._neb_on = true
+
+
+## THE SOLID GALAXY'S MARKS ARE WHERE ITS SKY IS (`solidtest`, with
+## SIMPLIFIED): after a drag (the view turned) and a zoom, the place pass is
+## made to write, in each block, the point of the disc's plane it shows
+## (`ChartSky.diag` 4096) and read back; at every system the chart draws, that point
+## is put through the chart's own projection, and must land within 1.5 px of the
+## system's mark: within 2.25 px, which is the flat chart's own agreement -- a block
+## is 2 px (its middle at most 1.41 px from anything in it), the marks are redrawn
+## for the galaxy's turn only when it has moved half a pixel, and the read-back is
+## half floats (measured with the camera off: 2.09 px at worst over 638 marks). And
+## a click on each mark with no other within twice the chart's pick radius must
+## pick that system (`_node_at` takes the first within it). Prints the
+## worst and FAILs past it. The sky shader against the chart's GDScript: two codes,
+## one projection.
+func _solid_test() -> void:
+	_chart.show_icons = true
+	var sky := _chart._sky as ChartSky
+	_view(0.8, Vector2(40, 10))
+	var t := StarchartScreen.MapChart.clock_override
+	var worst := 0.0
+	var bad_pick := 0
+	var n_checked := 0
+	for stage in 3:
+		# 0: still; 1: after a slow drag (the view turned); 2: after a zoom
+		var steps := 0 if stage == 0 else 40
+		for i in steps:
+			if stage == 1:
+				var before: Vector2 = _chart.pan
+				_chart.pan += Vector2(5.0, 1.0)
+				_chart._clamp_pan()
+				_chart.sky_pan += _chart.pan - before
+				_chart._repaint_galaxy()
+			else:
+				_chart._zoom_at(_chart.size * Vector2(0.55, 0.45), 1.02)
+			t += 1.0 / 30.0
+			StarchartScreen.MapChart.clock_override = t
+			_chart._repaint_sky()
+			await RenderingServer.frame_post_draw
+		ChartSky.diag = 4096
+		for _i in 4:
+			_chart._repaint_sky()
+			await RenderingServer.frame_post_draw
+		var img := sky._pvp.get_texture().get_image()
+		ChartSky.diag = 0
+		var sq := float(Run.galaxy.get("squash", 0.62))
+		var here := Run.node_at()
+		var visible: Dictionary = _chart._visible_set(here, _chart._in_range())
+		var stage_worst := 0.0
+		for raw in Run.map:
+			var nd: MapGen.MapNode = raw
+			if not visible.has(nd.index) or nd.type == MapGen.NodeType.CORE:
+				continue
+			var sp: Vector2 = _chart._screen_pos(nd)
+			var b := ((sp - sky._vp_origin) * 0.5).floor()
+			if b.x < 0 or b.y < 0 or b.x >= img.get_width() or b.y >= img.get_height():
+				continue
+			var c := img.get_pixel(int(b.x), int(b.y))
+			# the plane point the sky shows there, through the chart's projection, from the
+			# sky's own centre (while a zoom's hold lasts the sky is drawn about the exact
+			# centre and the marks about its whole pixel: up to a pixel apart with or
+			# without the camera, so that is left out of what this measures)
+			var shown: Vector2 = sky._hold_c_now + _chart._proj(Vector2(c.r, c.g * sq), _chart._drawn_turn)
+			var err := shown.distance_to(sp - _chart.centre_px() + sky._hold_c_now)
+			stage_worst = maxf(stage_worst, err)
+			n_checked += 1
+			var crowded := false
+			for raw2 in Run.map:
+				var o: MapGen.MapNode = raw2
+				if o.index != nd.index and visible.has(o.index) and _chart._screen_pos(o).distance_to(sp) < 2.0 * maxf(5.0, 12.0 * _chart.zoom):
+					crowded = true
+					break
+			if not crowded and _chart._node_at(sp) != nd.index:
+				bad_pick += 1
+		print("  solidtest stage %d (%s): looks at %s, pitch %.2f deg; worst %.2f px" % [stage,
+			["still", "after a drag", "after a zoom"][stage], ChartSky.solid_t,
+			rad_to_deg(ChartSky.solid_pitch), stage_worst])
+		worst = maxf(worst, stage_worst)
+	print("  solidtest: %d marks checked, worst %.2f px, %d clicks picked another system: %s" % [n_checked, worst,
+		bad_pick, "PASS" if worst <= 2.25 and bad_pick == 0 and n_checked > 0 else "FAIL"])
 
 
 static func _ease(u: float) -> float:

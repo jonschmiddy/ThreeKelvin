@@ -73,6 +73,23 @@ uniform vec4 u_echo = vec4(0.0);   // light echo: plane x, y, ring radius (gu), 
 // seed); none in the palette's probes
 uniform int u_nrem = 0;
 uniform vec4 u_rem[16];
+// THE SOLID GALAXY (`ChartSky.solid`, its section below): on, and the camera --
+// its distance (gu), the sine and cosine of its elevation, 0
+uniform bool u_solid = false;
+uniform vec4 u_solidW = vec4(1.9, 0.38, 0.92499, 0.0);
+// where the camera looks, on the disc's plane (gu, turned to the view)
+uniform vec2 u_solidT = vec2(0.0);
+// THE GAS WITH A BODY (`ChartSky.fluff`, its section below): how tall it stands, 0 off
+uniform float u_fluff = 0.0;
+// and how big its puffs are (1 the medium)
+uniform float u_fluffS = 1.0;
+// THE DISC'S EDGE DISSOLVES (`ChartSky.edge`, the edge section below): where the
+// fade starts (gu), where it ends (gu), how uneven it is (gu either way), on (1) or off
+uniform vec4 u_edge = vec4(0.0);
+// THE MIDDLE HAS RELIEF (`ChartSky.terrain`, the terrain section below): how much, 0 off
+uniform float u_terr = 0.0;
+// THE NEBULAE HAVE BODIES (`ChartSky.nebulae`, `nebBody` with the clouds): how much, 0 off
+uniform float u_neb = 0.0;
 
 const vec3 HA = vec3(1.0, 0.2, 0.3);
 const vec3 OIII = vec3(0.2, 0.95, 0.85);
@@ -94,6 +111,37 @@ vec3 warmsoft(vec3 c) {
 vec2 gpan() { return (u_res * 0.5 - u_cpix) / u_zoom; }
 vec2 scr(vec2 v) { return u_cpix + v * u_zoom; }
 ivec2 blockOf(vec2 s) { return ivec2(floor((s - u_vp_origin) * 0.5)); }
+
+// THE SOLID GALAXY'S PROJECTION (its section, further down, says what it is for):
+// the flat view (gu, y already tilted) to the camera's (gu): the point it looks at
+// (u_solidT) stays where the flat view has it, and round it the disc's plane is seen
+// in perspective from the camera's elevation
+vec2 solidFwdN(vec2 o) {
+	vec2 d = vec2(o.x, o.y / KIT_TILT) - u_solidT;
+	float D = u_solidW.x;
+	float s = D / (D - d.y * u_solidW.z);
+	return vec2(u_solidT.x, u_solidT.y * KIT_TILT) + vec2(d.x * s, d.y * u_solidW.y * s);
+}
+// and back: the camera's view of the disc's plane to the flat view
+vec2 solidInvN(vec2 p) {
+	float D = u_solidW.x;
+	vec2 r = p - vec2(u_solidT.x, u_solidT.y * KIT_TILT);
+	float dy = r.y * D / (D * u_solidW.y + r.y * u_solidW.z);
+	float dx = r.x * (D - dy * u_solidW.z) / D;
+	return vec2(u_solidT.x + dx, (u_solidT.y + dy) * KIT_TILT);
+}
+// the same in view px at zoom 1 (u_k a gu), and nothing at all with it off
+vec2 solidV(vec2 o) {
+	return u_solid ? solidFwdN(o / u_k) * u_k : o;
+}
+// how much the camera magnifies the core (1 with it off): the hole and the bulge
+// are drawn about it at that one scale, never stretched by the perspective round them
+float solidCoreK() {
+	return u_solid ? u_solidW.x / (u_solidW.x + u_solidT.y * u_solidW.z) : 1.0;
+}
+vec2 solidO(vec2 v) {
+	return u_solid ? solidInvN(v / u_k) * u_k : v;
+}
 
 float octFor(float F) {
 #if LOW
@@ -281,6 +329,15 @@ vec3 halo(vec2 v) {
 	vec2 p = kitViewToPlane(v, u_phi, u_k);
 	float m = mottle(p * 0.8);
 	I *= mix(1.0, 0.35 + 1.3 * m * m, smoothstep(0.35, 0.9, s));
+	// WITH THE SOLID GALAXY'S DISSOLVING EDGE (`edgeMask`) the halo ends with the
+	// disc's own fade: past it, it was a flat dark indigo wash over a big oval of its
+	// own, a second plate round the galaxy (Jon: "The solid (indigo?) haze around the
+	// whole galaxy sits weird with me"). So the galaxy fades into true black space,
+	// with only the stars past it.
+	if (u_edge.w > 0.0) {
+		float t = smoothstep(u_edge.x, u_edge.y + 0.04, length(p));
+		I *= (1.0 - t) * (1.0 - t);
+	}
 	// (it used to thin round the core from zoom 2.4; ZOOM ONLY MAGNIFIES, see `zoomChanges`)
 	I *= 1.0 - 0.88 * smoothstep(2.4, 6.0, u_zoom) * (1.0 - smoothstep(0.08, 0.3, s)) * zoomChanges();
 	return mix(vec3(1.0, 0.70, 0.42), vec3(0.30, 0.40, 1.0), smoothstep(0.08, 0.7, s)) * I;
@@ -313,11 +370,23 @@ vec3 grade(vec3 lin) {
 // intensity, so the core is a warm gradient at every zoom, never a plate.
 vec3 bulgeLight(vec2 v, out float front, out float I) {
 	vec2 g = v / u_k;
-	float s = length(vec2(g.x, g.y / 0.86));
+	// (rounder still, through the camera: an egg pushed through a plate, rising
+	// above the disc and dropping below it)
+	// (and through the camera's pitch: held round however the disc opens or flattens)
+	float s = length(vec2(g.x, g.y * (u_solid ? KIT_TILT / u_solidW.y : 1.0) / (u_solid ? 1.08 : 0.86)));
 	float qy = v.y / (KIT_TILT * u_k);
 	front = 0.5 + 0.5 * tanh(-1.05 * qy / (s + 0.008));
-	float bs = u_bulgeR / 0.128;
+	// (a little bigger through the camera: more of a body to see turn)
+	float bs = u_bulgeR / 0.128 * (u_solid ? 1.15 : 1.0);
 	I = 0.95 * exp(-s / (0.022 * bs)) + 0.42 * exp(-s / (0.045 * bs)) + 0.018 * exp(-s / (0.10 * bs));
+	// THROUGH THE CAMERA THE SWELL IS COMPACT (Jon: "The haze on top of the galaxy is
+	// kinda crazy"): its long exponential tails, under the disc's light in the flat
+	// view, stood up past the far side of the disc as a big dark-blue dome of haze with
+	// the gold's top a flat cap in it. So the swell ends: a soft round top fading into
+	// black a little way above the disc, past which there are only stars.
+	if (u_solid) {
+		I *= 1.0 - smoothstep(0.12 * bs, 0.30 * bs, s);
+	}
 	float L = clamp((log(I) + 3.6) / 3.6, 0.0, 1.0);
 	vec3 col = mix(vec3(0.95, 0.50, 0.24), vec3(1.0, 0.60, 0.26), smoothstep(0.0, 0.45, L));
 	col = mix(col, vec3(1.0, 0.72, 0.38), smoothstep(0.45, 0.8, L));
@@ -548,7 +617,15 @@ vec3 knots(vec2 p) {
 		}
 		float q = sqrt(dd) / s;
 		float core = exp(-q * q * 1.6), fall = exp(-q * 1.2) * 0.30;
-		c += kn.w * (vec3(1.0, 0.24, 0.48) * (core + fall) + vec3(0.8, 0.9, 1.0) * exp(-q * q * 6.0) * 0.6) * 0.6;
+		// (with the nebulae's bodies, `u_neb`: a puff standing off the disc, its top
+		// toward the core lit, its underside away in shade)
+		float lk = 1.0;
+		if (u_neb > 0.0) {
+			vec3 Nk = normalize(vec3(d / s * 0.55, 1.0));
+			vec2 tc = -kn.xy / max(length(kn.xy), 1e-4);
+			lk = mix(1.0, 0.35 + 1.2 * max(dot(Nk, normalize(vec3(tc, 0.55))), 0.0), u_neb);
+		}
+		c += kn.w * lk * (vec3(1.0, 0.24, 0.48) * (core + fall) + vec3(0.8, 0.9, 1.0) * exp(-q * q * 6.0) * 0.6) * 0.6;
 	}
 	return c;
 }
@@ -675,7 +752,10 @@ void remnantCloud(int ci, vec2 u, float Rr, float seed, inout vec3 C) {
 	float res = smoothstep(1.6, 3.2, u_zoom * Rr / 0.087);
 	float n = kitSnoise3(vec3(dir * 1.9 + seed, x * 6.5)) + 0.45 * kitSnoise3(vec3(dir * 4.1 + seed * 2.0, x * 13.0 + 3.0));
 	float strand = exp(-pow(n / 0.11, 2.0));
-	float win = smoothstep(0.58, 0.88, x) * (1.0 - smoothstep(0.985, 1.05, x));
+	// (with the nebulae's bodies no green fill over the floor: Jon, of its green
+	// middle, "it looks weird"; the strands keep to the wall, and the oxygen glow is an
+	// even band hugging its inner side, added with the crater's light in `cloudLayer`)
+	float win = smoothstep(u_neb > 0.0 ? 0.80 : 0.58, u_neb > 0.0 ? 0.90 : 0.88, x) * (1.0 - smoothstep(0.985, 1.05, x));
 	float shell = exp(-pow((x - 0.95) / 0.07, 2.0));
 	float side = 0.55 + 0.45 * kitSnoise2(dir * 0.9 + seed * 1.3);
 	float gaps = smoothstep(-0.35, 0.25, kitSnoise2(dir * 2.3 + seed * 0.7));
@@ -688,7 +768,7 @@ void remnantCloud(int ci, vec2 u, float Rr, float seed, inout vec3 C) {
 	float I = (shell * mix(0.85, 0.40, res) + res * strand * win * (0.45 + 1.4 * smoothstep(0.8, 0.99, x))) * side * (0.3 + 0.7 * gaps) * (1.0 + 1.5 * glim);
 	vec3 col = mix(OIII, mix(HA, vec3(1.0, 0.55, 0.5), 0.25), smoothstep(0.78, 0.93, x));
 	vec3 Em = col * I * 1.9;
-	Em += OIII * 0.035 * (1.0 - smoothstep(0.2, 0.95, x));
+	Em += OIII * 0.035 * (1.0 - smoothstep(0.2, 0.95, x)) * (1.0 - u_neb);
 	Em += HA * 0.05 * exp(-pow((x - 1.03) / 0.06, 2.0)) * side;
 	C *= 1.0 - 0.1 * clamp(I, 0.0, 1.0);
 	// the blast has cleared its bubble: what lies behind it dims inside the shell,
@@ -757,6 +837,51 @@ void darkCloud(int ci, vec2 u, float R, float seed, vec2 toC, vec3 Cb, float irr
 		C += mix(LIGHTNING, LITDUST, 0.3) * lt.x * wxGate() * smoothstep(0.1, 0.6, rho) * exp(-dot(dl, dl)) * 0.8;
 	}
 }
+// THE NEBULAE HAVE BODIES (`ChartSky.nebulae`, solid view only; Jon: "the nebula
+// can also have some texture too. Like the supernova remnants would have height at
+// the edges and be more flat towards the emptier center"). Each kind in the same
+// height-field language as the middle's dust, lit from the galaxy's core:
+//   * the shells (remnants, the ring nebulae): a wall piled up at the rim like a
+//     crater's or a blown bubble's, its face toward the core lit and its back in
+//     shade, the floor inside low and emptier and in the wall's shadow on the
+//     core's side (`nebShell`);
+//   * emission nebulae and the pink knots: puffs standing off the disc, lit tops
+//     toward the core, shaded undersides (`nebPuff`);
+//   * dark nebulae: dense mounds, their rim toward the core lit brighter, each
+//     casting its own shadow outward.
+// Their colours and shapes are their own; the light only shades them. Fixed in
+// each cloud's own units, so a zoom only magnifies it. u_neb: how much, 0 off.
+// a shell's light at a point (its direction from the centre, its distance from the
+// wall in radii, the direction toward the core): (on the wall, on the floor inside)
+vec2 nebShell(vec2 dir, float xr, vec2 toC) {
+	if (u_neb <= 0.0) {
+		return vec2(1.0);
+	}
+	// the wall: a ridge round the rim, its slope outward outside, inward inside
+	float h = exp(-xr * xr / 0.02);
+	vec3 N = normalize(vec3(dir * (xr / 0.02) * h * 0.35, 1.0));
+	float lit = max(dot(N, normalize(vec3(toC, 0.5))), 0.0);
+	float wall = 0.3 + 1.3 * lit;
+	// the floor: emptier toward the middle, and shaded under the wall on the core's side
+	float sh = clamp(dot(dir, toC), 0.0, 1.0) * smoothstep(-0.7, -0.15, xr) * (1.0 - smoothstep(-0.12, -0.02, xr));
+	float flo = (1.0 - 0.7 * sh) * mix(0.45, 1.0, smoothstep(-0.8, -0.2, xr));
+	return mix(vec2(1.0), vec2(wall, flo), u_neb);
+}
+// a puff's light at cloud point u (cloud radius R, seed, toward the core): what the
+// cloud's light is multiplied by
+float nebPuff(vec2 u, float R, float seed, vec2 toC) {
+	if (u_neb <= 0.0) {
+		return 1.0;
+	}
+	vec2 q = u / R * 2.6 + seed * 1.7;
+	const float e = 0.08;
+	float h = kitFbm2(q, 3);
+	float hx = kitFbm2(q + vec2(e, 0.0), 3) - h;
+	float hy = kitFbm2(q + vec2(0.0, e), 3) - h;
+	vec3 N = normalize(vec3(-hx, -hy, e * 0.45));
+	float lit = max(dot(N, normalize(vec3(toC, 0.55))), 0.0);
+	return mix(1.0, 0.4 + 1.15 * lit, u_neb);
+}
 void cloudLayer(vec2 v, float irr, float gas, inout vec3 C, inout vec3 cloudT) {
 	vec3 Cb = C;
 	for (int i = 0; i < 12; i++) {
@@ -776,16 +901,57 @@ void cloudLayer(vec2 v, float irr, float gas, inout vec3 C, inout vec3 cloudT) {
 			float d = length(u) / cl.z;
 			C += (kind == 0 ? mix(HA, OIII, 0.15) : REFL) * gas * 0.10 * exp(-d * d * 0.9);
 		}
+		vec3 C0 = C;
+		vec2 toC = u_cdir[i].xy;
 		if (kind == 0) {
 			emissionCloud(i, u, cl.z, ck.w, C);
+			// (a puffy body: where the cloud is, its light lit and shaded as puffs)
+			if (u_neb > 0.0) {
+				float cov = smoothstep(0.02, 0.35, lobes(i, u));
+				C = mix(C, C0 + (C - C0) * nebPuff(u, cl.z, ck.w, toC), cov);
+			}
 		} else if (kind == 1) {
 			reflectionCloud(i, u, cl.z, ck.w, C);
 		} else if (kind == 2) {
 			remnantCloud(i, u, cl.w, ck.w, C);
+			// (a shell: its wall lit toward the core, its floor shaded under it)
+			if (u_neb > 0.0) {
+				// (the rim's own ragged shape, as `remnantCloud` draws it)
+				vec2 q = u / cl.w;
+				float rho = length(q);
+				vec2 dir = q / max(rho, 1e-4);
+				float x = rho / (1.0 + 0.14 * kitFbm2(dir * 1.1 + ck.w, 3) + 0.05 * dir.x);
+				vec2 sl = nebShell(dir, x - 0.95, toC);
+				C = C0 + (C - C0) * (x < 0.8 ? 1.0 : sl.x);
+				C *= x < 0.95 ? sl.y : 1.0;
+				// the oxygen's glow: an even teal band on the wall's inner side, all the
+				// way round, fading smoothly to the dark floor toward the middle (red
+				// outside, teal just inside, as real ring nebulae glow); dithered on the
+				// palette's anchored Bayer so its fade breaks into a dither, not bands
+				float band = pow(smoothstep(0.55, 0.90, x), 2.2) * (1.0 - smoothstep(0.90, 0.96, x));
+				float dj = kitBayer4(ivec2(floor(v * u_zoom * 0.5))) - 0.5;
+				C += OIII * 0.14 * band * max(1.0 + 1.1 * dj, 0.0);
+			}
 		} else if (kind == 3) {
 			planetaryCloud(i, u, cl.w, ck.z, ck.w, C);
+			if (u_neb > 0.0) {
+				float rho = length(u) / (cl.w * 0.8);
+				vec2 sl = nebShell(u / max(length(u), 1e-5), rho - 1.0, toC);
+				C = C0 + (C - C0) * (rho < 0.85 ? 1.0 : sl.x);
+				C *= rho < 1.0 ? sl.y : 1.0;
+			}
 		} else {
-			darkCloud(i, u, cl.z, ck.w, u_cdir[i].xy, Cb, irr, C, cloudT);
+			darkCloud(i, u, cl.z, ck.w, toC, Cb, irr, C, cloudT);
+			// (a mound: its own shadow cast outward, away from the core, and its rim
+			// toward the core lit more)
+			if (u_neb > 0.0) {
+				float d0 = lobes(i, u);
+				float dT = lobes(i, u + toC * 0.5 * cl.z);
+				float sh = smoothstep(0.02, 0.4, dT - d0) * (1.0 - smoothstep(0.3, 0.8, d0));
+				C *= 1.0 - 0.7 * sh * u_neb;
+				float rimL = smoothstep(0.02, 0.25, d0 - dT) * smoothstep(0.03, 0.2, d0) * (1.0 - smoothstep(0.35, 0.7, d0));
+				C += LITDUST * (irr * 1.2 + 0.010) * rimL * 0.5 * u_neb;
+			}
 		}
 	}
 }
@@ -952,6 +1118,12 @@ void underSheet(vec2 v, float la, inout vec3 C) {
 	}
 	float n = noiseRawLA(kitRot(2.7) * pu * 0.7, la).r;
 	float du = smoothstep(0.45, 0.8, n) * (1.0 - smoothstep(0.75, 1.2, ru)) * smoothstep(0.08, 0.25, ru);
+	// (it is the disc's own dust: with the solid galaxy's dissolving edge it fades out
+	// as the disc does, or it hung past the faded disc as dark blotches on the halo)
+	if (u_edge.w > 0.0) {
+		float t = smoothstep(u_edge.x, u_edge.y, ru);
+		du *= (1.0 - t) * (1.0 - t);
+	}
 	float Iu = 0.12 * exp(-ru / 0.25) + 0.05 * exp(-ru / 0.4);
 	C = C * exp(-du * 0.9) + du * Iu * LITDUST * 0.12 * (1.0 - 0.88 * nestZ() * (1.0 - smoothstep(0.06, 0.22, ru)));
 #endif
@@ -962,7 +1134,7 @@ vec3 supernova(vec2 v, ivec2 blk) {
 	if (u_sn.z <= 0.0) {
 		return vec3(0.0);
 	}
-	ivec2 b0 = blockOf(scr(u_sn.xy));
+	ivec2 b0 = blockOf(scr(solidV(u_sn.xy)));
 	ivec2 d = blk - b0;
 	float g = u_sn.z;
 	vec3 c = vec3(0.0);
@@ -1058,16 +1230,331 @@ vec3 remnants(vec2 p) {
 		float shell = exp(-x * x) * (0.45 + 0.55 * smoothstep(-0.4, 0.3, kitSnoise2(vec2(an * 2.3, rm.w + 5.0))));
 		float inside = (1.0 - smoothstep(Rr * 0.4, Rr, dl)) * 0.07;
 		float life = smoothstep(1.5, 8.0, age) * exp(-age / 360.0) * (1.0 - smoothstep(480.0, 600.0, age));
-		c += (mix(OIII, HA, smoothstep(-0.6, 0.6, x)) * shell * 1.6 + OIII * inside) * life;
+		// (with the nebulae's bodies: the shell a wall, lit on its face toward the core,
+		// the floor inside it shaded under the wall on that side, `nebShell`)
+		vec2 sl = nebShell(d / max(dl, 1e-5), x * w / max(Rr, 1e-5), -rm.xy / max(length(rm.xy), 1e-4));
+		// (with the nebulae's bodies the inside is a band hugging the wall, not a fill)
+		inside = mix(inside, smoothstep(Rr * 0.5, Rr * 0.88, dl) * (1.0 - smoothstep(Rr * 0.9, Rr, dl)) * 0.07, u_neb);
+		c += (mix(OIII, HA, smoothstep(-0.6, 0.6, x)) * shell * 1.6 * sl.x + OIII * inside) * life;
 	}
 	return c;
 }
 
+// ------------------------------------------------------------------ fluff
+// THE GAS WITH A BODY (`ChartSky.fluff`, SIMPLIFIED; Jon:
+// "the details still feel flat. I want the galaxy to almost be fluffy"). The disc's
+// gas was a painted texture lying on the plane, so even tilted it read as a printed
+// plate. Now it is heaped into round puffs where it is dense (`fluffPuff`: the arms
+// ridges of billows, the thin parts low haze, the dust lanes the valleys between),
+// lit from the core -- the galaxy's own light -- and a little from above: each puff a
+// lit side toward the core and a shaded side away, the creases between puffs in shade,
+// a faint bright rim where a puff's edge catches the core's light (`fluffShade`); and
+// it stands up toward the camera (`fluffSeen`), so a puff slides against the haze
+// behind it as the view turns. All in the disc's own units at fixed sizes, so a zoom
+// only magnifies the same puffs and shading; the palette steps the shading into its
+// own few tones. (A first version stood the density itself up as a height field and
+// marched the view ray down through it: each step drew a streak where the field was
+// steep, and its broad slopes read as relief, not as cloud.) u_fluff: how strongly lit
+// and how tall, 0 off; u_fluffS: how big the puffs. (Declared with the uniforms at the
+// top.)
+// how much gas stands at plane point p, 0 to 1: the arms and the clumps on them, the
+// dust lanes cut out of it (fixed scales: a zoom only magnifies it)
+float fluffDens(vec2 p) {
+	float r = length(p);
+	if (r > 1.1 || r < 0.05) {
+		return 0.0;
+	}
+	vec4 S = textureLod(u_struct, bakeUV(p), 3.0);
+	float n = textureLod(u_noise, bakeUV(p), 2.5).r;
+	float dens = 0.8 * S.r + 0.55 * smoothstep(0.3, 0.8, n) - 1.1 * S.g * max(u_laneStr, 0.5);
+	float env = smoothstep(0.05, 0.14, r) * (1.0 - smoothstep(0.75, 1.1, r));
+	return clamp(dens, 0.0, 1.0) * env;
+}
+// ------------------------------------------------------------------ the edge
+// THE DISC'S EDGE DISSOLVES (Jon, of the fluffy galaxy: "the edge of the galaxy is
+// kinda weird... it looks like the edge of a plate", then "it could be even softer
+// and more diffuse at the edge"). A real galaxy has no edge. Its outer part thins
+// gradually: the disc's light and dust fall off over a long stretch, from
+// `u_edge.x` gu out to nothing at `u_edge.y`, as a soft haze dissolving into the
+// dark (`edgeMask`). The fall-off is a little uneven, broad and low in contrast, so
+// the outline is never a perfect ellipse but has no crisp bays or wisps. The outer
+// stars are left standing past it. The disc's thickness tapers like a lens
+// (`edgeLens`): thick round the core, thinning out along the arms, so the puffs get
+// smaller, lower and fainter and are gone well before the rim, leaving only faint
+// gas and loose stars in the last stretch. (Two earlier versions: a slab's lit face
+// below the rim read as a plate's rim; then a ragged cut-out outline read as torn
+// paper rather than haze.) All in the disc's own units at fixed scales, so a zoom
+// only magnifies it. The fade is dithered on the palette's anchored Bayer, as the
+// billows' edges are, so the palette's dark steps break into a dither instead of
+// hard bands. u_edge: where the fade starts, where it ends, how uneven, on.
+// the fade's dither cell: the block a point of the flat view falls in, so through the
+// solid galaxy's camera the dither travels with the disc as a drag turns it, rather
+// than staying on the screen while the fade slides under it (that crawl doubled the
+// pixels flipping on a drag)
+ivec2 edgeDq(vec2 v) {
+	return ivec2(floor(v * u_zoom * 0.5));
+}
+// how thick the disc stands at plane radius r, 1 at the core to 0 a little past the
+// middle of the fade
+float edgeLens(float r) {
+	if (u_edge.w <= 0.0) {
+		return 1.0;
+	}
+	float t = clamp(1.0 - r / mix(u_edge.x, u_edge.y, 0.45), 0.0, 1.0);
+	return t * (2.0 - t);
+}
+// how much of the disc's own light and dust is left at plane point p: 1 inside the
+// fade, 0 past it
+float edgeMask(vec2 p) {
+	float r = length(p);
+	if (u_edge.w <= 0.0 || r < u_edge.x - u_edge.z * 2.0) {
+		return 1.0;
+	}
+	// the fade's radius here pulled in and pushed out a little, broadly
+	float un = kitFbm2(p * 1.7 + vec2(4.1, 7.3), 2);
+	float rr = r + u_edge.z * un;
+	float t = smoothstep(u_edge.x, u_edge.y, rr);
+	// (falling off fastest early, then a long faint tail)
+	return (1.0 - t) * (1.0 - t);
+}
+
+// THE PUFFS: the gas heaped into round billows, as PAINTED heaps its own, but lit
+// as light: in cells of the plane, a puff where there is gas enough (more and bigger
+// where it is denser), each a squashed dome; at a point, the topmost dome over it.
+// (its height gu, then its slope as the dome's normal x, y, z)
+vec4 fluffPuff(vec2 p, float cs, int seed) {
+	ivec2 c0 = ivec2(floor(p / cs));
+	vec4 best = vec4(0.0, 0.0, 0.0, 1.0);
+	for (int j = -1; j <= 1; j++) {
+		for (int i = -1; i <= 1; i++) {
+			ivec2 c = c0 + ivec2(i, j);
+			vec3 h = kitHash3(c + ivec2(seed * 7919, 4441));
+			vec2 ctr = (vec2(c) + 0.2 + 0.6 * h.xy) * cs;
+			float dn = fluffDens(ctr);
+			// (and the disc thins toward its rim: there they are fewer, smaller and lower)
+			float ln = edgeLens(length(ctr));
+			// (fewer in the thin gas between the arms: the puffs follow the arms)
+			if (h.z > pow(dn, 1.5) * 1.6 * mix(0.1, 1.0, sqrt(ln))) {
+				continue;
+			}
+			float R = cs * (0.45 + 0.5 * dn) * (0.8 + 0.4 * fract(h.z * 17.3)) * mix(0.35, 1.0, sqrt(ln));
+			vec2 d = p - ctr;
+			float dd = dot(d, d);
+			if (dd >= R * R) {
+				continue;
+			}
+			float ht = sqrt(R * R - dd) * 0.55 * (0.5 + dn) * mix(0.2, 1.0, ln);
+			if (ht > best.x) {
+				best = vec4(ht, normalize(vec3(d * 0.55 * (0.5 + dn), ht)));
+			}
+		}
+	}
+	return best;
+}
+// the topmost puff at p, of the two sizes (the small ones on top of the large)
+vec4 fluffTop(vec2 p) {
+	vec4 a = fluffPuff(p, 0.032 * u_fluffS, 1);
+	vec4 b = fluffPuff(p, 0.016 * u_fluffS, 2);
+	b.x *= 0.6;
+	return b.x > a.x ? b : a;
+}
+// where the camera is, for a point of the plane: the way to it along the plane per
+// unit of height (camera-turned plane, then into the plane's own frame). The flat view
+// is a camera far off at the sector map's tilt; the solid galaxy's is near.
+vec2 fluffToward(vec2 p) {
+	vec2 q = kitRot(u_phi) * p;
+	vec2 d;
+	if (u_solid) {
+		float D = u_solidW.x;
+		vec2 cxy = u_solidT + vec2(0.0, D * u_solidW.z);
+		d = (cxy - q) / (D * u_solidW.y);
+	} else {
+		d = vec2(0.0, KIT_TILT_COS / KIT_TILT);
+	}
+	return kitRot(-u_phi) * d;
+}
+// the point of the gas the eye meets looking down at plane point p: moved toward the
+// camera by the height of the puff it meets there (twice over), so a tall puff stands
+// in front of what is behind it and slides against the low haze as the view turns
+vec2 fluffSeen(vec2 p) {
+	if (u_fluff <= 0.0) {
+		return p;
+	}
+	vec2 d = fluffToward(p) * u_fluff;
+	vec2 q = p + d * fluffTop(p).x;
+	return p + d * fluffTop(q).x;
+}
+// how the gas at plane point p is lit: (what its own light is multiplied by, the rim,
+// the puff's own lit body)
+vec3 fluffShade(vec2 p) {
+	vec4 t = fluffTop(p);
+	// (and fading as the disc thins toward its rim: `edgeLens`)
+	float cover = smoothstep(0.08, 0.35, fluffDens(p)) * smoothstep(0.0, 0.45, edgeLens(length(p)));
+	float r = max(length(p), 1e-4);
+	vec2 toC = -p / r;
+	vec3 L = normalize(vec3(toC, 0.55));
+	if (t.x <= 0.0) {
+		// the creases between puffs, where there is gas: in their shadow
+		return vec3(mix(1.0, 0.5, cover * min(u_fluff, 1.0)), 0.0, 0.0);
+	}
+	vec3 N = t.yzw;
+	float lit = max(dot(N, L), 0.0);
+	float shade = 0.4 + 1.05 * lit + 0.15 * N.z;
+	// a puff's edge toward the core catching its light
+	float edge = 1.0 - N.z;
+	float rim = smoothstep(0.55, 0.9, edge) * max(dot(normalize(N.xy + 1e-6), toC), 0.0);
+	// the puff's body: gas lit where it faces the core, so a puff is a dome of light
+	float body = cover * (0.12 + 0.9 * lit) * smoothstep(0.0, 0.25, N.z);
+	return vec3(mix(1.0, shade, cover * min(u_fluff, 1.0)), rim * cover, body);
+}
+
+// ------------------------------------------------------------------ terrain
+// THE MIDDLE HAS RELIEF (`ChartSky.terrain`; Jon: "what about the clouds in the
+// middle of the galaxy? I want almost like hills and valleys of dust ... a body to
+// the galaxy both in the horizontal sense and vertically"). The arms' gas has its
+// puffs (`fluffPuff`); the inner disc round the bulge was still a flat painted plate.
+// Here its gas is a height field (`terrH`): broad hills of dust with smaller billows
+// on them, following the gas's own structure, so the arm ridges are ridges and the
+// dark lanes the valleys. It is lit like terrain, from the core and low: faces
+// toward the core lit warm, backs in shade, valley floors occluded, and each ridge
+// casting its shadow outward into the valley behind it (`terrShade`: a few steps
+// from each point toward the core over the field). It stands up toward the camera
+// (`terrSeen`), so hills slide against valleys as the view turns, and near the core
+// the ridges on the near side stand in silhouette against the gold bulge, dark dust
+// with a lit rim, hiding its lower edge (`terrSilh`). All in the disc's own units at
+// fixed scales and read at fixed mip levels, so a zoom only magnifies it, and the
+// light comes from the core, so the shadows turn with the disc and never crawl.
+// u_terr: how much relief (0 off). Never over the hole's own disc or through its
+// lens (`place` fades it out across the lens's patch).
+const float TERR_H = 0.010;           // the tallest hill at u_terr 1, gu
+const float TERR_R0 = 0.035;          // the relief starts this far out from the core
+const float TERR_R1 = 0.50;           // and is gone by here (the arms have their puffs)
+const float TERR_PX = 0.4;            // how far the view's slide goes, of the whole way
+// the height of the dust at plane point p, gu, its mip levels lifted by `lo` (a
+// blur, for the valley floors' occlusion)
+float terrH(vec2 p, float lo) {
+	float r = length(p);
+	if (r > TERR_R1 || r < TERR_R0 * 0.5) {
+		return 0.0;
+	}
+	vec4 S = textureLod(u_struct, bakeUV(p), 3.5 + lo);
+	// broad hills (the billow field read coarse at a place of its own), and smaller
+	// ridges on them (the same field finer, folded into crests)
+	float b1 = textureLod(u_noise, bakeUV(p * 0.7 + vec2(0.31, 0.12)), 1.5 + lo).b;
+	float b2 = textureLod(u_noise, bakeUV(p * 1.6 + vec2(-0.21, 0.37)), 1.75 + lo).b;
+	float hills = smoothstep(0.30, 0.70, b1);
+	float c2 = 2.0 * smoothstep(0.25, 0.75, b2) - 1.0;
+	float crest = 1.0 - c2 * c2;
+	float h = 0.65 * hills + 0.35 * crest * (0.4 + 0.6 * hills) + 0.30 * S.r
+		- 1.0 * S.g * max(u_laneStr, 0.6);
+	float env = smoothstep(TERR_R0, TERR_R0 * 2.2, r) * (1.0 - smoothstep(TERR_R1 * 0.55, TERR_R1, r));
+	return clamp(h, 0.0, 1.2) * env * TERR_H * u_terr;
+}
+// the point of the dust the eye meets looking down at plane point p: moved toward the
+// camera by the height it meets there (twice over), as `fluffSeen`
+vec2 terrSeen(vec2 p) {
+	if (u_terr <= 0.0 || length(p) > TERR_R1) {
+		return p;
+	}
+	// (read from the field blurred, and moved a share of the way: moved the whole way
+	// by the sharp field, neighbouring blocks folded onto scattered points and the
+	// dust broke into a grain)
+	vec2 d = fluffToward(p) * TERR_PX;
+	vec2 q = p + d * terrH(p, 1.5);
+	return p + d * terrH(q, 1.5);
+}
+// how the dust at plane point p is lit: (what its light is multiplied by, the warm
+// light on faces toward the core, how much it is a hill: 0 to 1)
+vec3 terrShade(vec2 p) {
+	float r = length(p);
+	if (u_terr <= 0.0 || r > TERR_R1 || r < TERR_R0 * 0.5) {
+		return vec3(1.0, 0.0, 0.0);
+	}
+	float Hm = TERR_H * u_terr;
+	float h0 = terrH(p, 0.0);
+	const float TE = 0.006;
+	float hx = terrH(p + vec2(TE, 0.0), 0.0) - h0;
+	float hy = terrH(p + vec2(0.0, TE), 0.0) - h0;
+	// (the slopes drawn out, so the hills read as hills at any relief)
+	vec3 N = normalize(vec3(-hx, -hy, TE * 0.5));
+	vec2 toC = -p / r;
+	// the core's light, low over the disc
+	const float TAN_L = 0.30;
+	vec3 L = normalize(vec3(toC, TAN_L));
+	float lit = max(dot(N, L), 0.0);
+	// the ridges between it and the core: a few steps toward the core over the field
+	// (over the field a little blurred: the finest crests cast only a grain)
+	float sh = 0.0;
+	float hs0 = terrH(p, 0.75);
+	for (int i = 1; i <= 6; i++) {
+		float t = float(i) * 0.010;
+		if (t > r - TERR_R0 * 0.5) {
+			break;
+		}
+		float hs = terrH(p + toC * t, 0.75);
+		sh = max(sh, (hs - hs0 - t * TAN_L * 0.35) / (Hm * 0.35));
+	}
+	sh = clamp(sh, 0.0, 1.0);
+	// the valley floors, lower than the land round them
+	float hb = terrH(p, 2.0);
+	float ao = clamp(1.0 - 1.6 * max(hb - h0, 0.0) / max(Hm * 0.5, 1e-6), 0.4, 1.0);
+	float relief = smoothstep(0.0, Hm * 0.25, max(h0, hb));
+	float shade = (0.5 + 0.8 * lit) * (1.0 - 0.55 * sh) * ao;
+	float warm = lit * (1.0 - sh) * smoothstep(0.0, 0.5, h0 / Hm);
+	return vec3(mix(1.0, shade, relief), warm * relief, relief);
+}
+// how much a near ridge at plane point p stands in front of the bulge behind it: 0 to
+// 1 (near side only, round the bulge)
+float terrSilh(vec2 p) {
+	if (u_terr <= 0.0) {
+		return 0.0;
+	}
+	float r = length(p);
+	vec2 q = kitRot(u_phi) * p;
+	float near = smoothstep(0.0, 0.03, q.y) * (1.0 - smoothstep(0.10, 0.22, r));
+	return near * smoothstep(0.30, 0.85, terrH(p, 0.0) / (TERR_H * u_terr));
+}
+
+// ------------------------------------------------------------------ the solid galaxy
+// THE SOLID GALAXY (`ChartSky.solid`, SIMPLIFIED): the chart seen through a real
+// camera instead of laid flat like a tilted poster. The galaxy is painted as before
+// in its flat ("orthographic") view, o, and each block of the screen looks it up
+// through the camera: a camera `u_solidW.x` gu away at the sector map's tilt plus a
+// little pitch, looking down at `u_solidT` on the disc's plane, so the near half of
+// the disc is nearer and bigger and the far half smaller and squashed. A drag
+// carries the point it looks at over the disc and raises or lowers it
+// (`ChartSky._solid_step`). One projection for the sky and for everything the chart
+// draws over it (`ChartSky.solid_fwd` / `solid_inv` and `StarchartScreen`'s `_proj` /
+// `_to_plane`); a zoom only magnifies the screen about its point and never moves the
+// camera. u_solidW: camera distance (gu), sin and cos of its elevation, 0 (the
+// uniforms are at the top: the bulge reads them).
+// (its projection, solidFwdN, solidInvN, solidV and solidO, is with the view's
+// functions at the top: the supernova and the stars read it)
+// THE NEAR SIDE'S DUST LANE ACROSS THE CORE: the disc passes in front of the bottom
+// of the bulge, so a dark lane of its dust cuts across the core below the hole --
+// a band of the disc's plane about 0.15 to 0.19 gu out on its near half, broken by the
+// gas, read where the lane itself is (never through the hole's lens, so it never
+// bends round the hole or crosses its disc). What it lets through.
+vec3 solidLane(vec2 o) {
+	vec2 p = kitViewToPlane(o, u_phi, u_k);
+	float r = length(p);
+	vec2 q = kitRot(u_phi) * p;
+	if (r < 0.11 || r > 0.26 || q.y <= 0.0) {
+		return vec3(1.0);
+	}
+	float band = exp(-pow((r - 0.17) / 0.03, 2.0)) * smoothstep(0.0, 0.06, q.y);
+	float n = 0.5 + 0.5 * kitFbm2(p * 38.0 + vec2(3.7, 1.1), 3);
+	// (at the least as dusty as a lane-rich spiral's: a galaxy without lanes of its
+	// own still has the near disc in front of its bulge)
+	float tau = 3.2 * band * (0.4 + 1.0 * n) * max(u_laneStr, 0.8);
+	return exp(-tau * vec3(0.62, 0.80, 1.0));
+}
 // ------------------------------------------------------------------ the galaxy
 // `la`: how many mip levels coarser to read the bakes, for a point seen through
 // the lens, where a wide patch of the disc is squeezed into a few blocks and the
 // bakes read at the screen's own scale alias into flicker as the zoom moves
-vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) {
+// `tk`: how much of the middle's relief (`terrH`) is drawn here, 0 through the hole's lens
+vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la, float tk, out float dustOut) {
 	vec3 C = VOIDC / u_exp;
 	dustOut = 0.0;
 	vec2 p = kitViewToPlane(v, u_phi, u_k);
@@ -1076,7 +1563,8 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 	float irr = 1.0 / (1.0 + pow(r / 0.10, 2.0));
 	bool ball = u_form == 1;
 	vec3 T = vec3(1.0), B = vec3(0.0);
-	float gas = 0.0, nest = 0.0, front = 0.0;
+	float gas = 0.0, nest = 0.0, front = 0.0, bulgeI = 0.0, silh = 0.0;
+	vec3 terrS = vec3(1.0, 0.0, 0.0);
 	// (each layer is called ONCE whatever the galaxy's shape: a call in each
 	// branch inlines it twice and the shader took seconds longer to compile)
 	if (ball) {
@@ -1092,13 +1580,46 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		underSheet(v, la, C);
 		vec3 Em;
 		float A, dust;
-		discAt(p, v, hbOf(la), star, la, Em, T, gas, A, dust, nest);
+		// (the gas where the eye meets it, through its height: `fluffSeen`)
+		// (and through the middle's relief first: `terrSeen`)
+		vec2 pt = tk > 0.0 ? mix(p, terrSeen(p), tk) : p;
+		vec2 pf = fluffSeen(pt);
+		discAt(pf, v, hbOf(la), star, la, Em, T, gas, A, dust, nest);
+		if (u_terr > 0.0 && tk > 0.0) {
+			// (lit as terrain from the core, below, once the disc and the bulge behind
+			// it are in: so the dust round the bulge, which is mostly the bulge's light
+			// through it, has its relief too)
+			terrS = terrShade(pt);
+			terrS.xy = mix(vec2(1.0, 0.0), terrS.xy, tk);
+			silh = terrSilh(pt) * tk;
+		}
+		if (u_fluff > 0.0) {
+			// lit as a body of cloud: its lit side toward the core, its shade away, its
+			// creases, the rim of a puff catching the core's light
+			vec3 fs = fluffShade(pf);
+			Em *= fs.x;
+			Em += LITDUST * vec3(1.0, 0.9, 0.8) * fs.y * gas * (0.012 + 0.05 * irr);
+			// the puff's own lit gas, in the arm's colour (warm near the core)
+			float rf = length(pf);
+			vec3 gc = mix(vec3(0.30, 0.46, 1.0) * 0.05 * exp(-rf / 0.5), LITDUST * 0.12, 1.0 / (1.0 + pow(rf / 0.12, 2.0)));
+			Em += gc * fs.z * u_fluff * 2.5;
+		}
+		// the outer disc dissolving into the dark (`edgeMask`): the disc's light and
+		// dust fade, its stars stay; dithered (a step either way of the Bayer)
+		float em = edgeMask(pf);
+		if (em < 0.999) {
+			em = clamp(em * (1.0 + 0.5 * (kitBayer4(edgeDq(v)) - 0.5)), 0.0, 1.0);
+		}
+		Em = Em * em + star * (1.0 - em);
+		T = mix(vec3(1.0), T, em);
+		gas *= em;
 		dustOut = dust;
 		float Ib;
-		B = bulgeLight(v, front, Ib);
+		B = bulgeLight(vb, front, Ib);
+		bulgeI = Ib;
 		// the nest is puffed up round the hole: seen from our angle it hides the
 		// bulge's middle, so the hole sits in a dark dusty pocket
-		float sv = length(vec2(v.x, v.y / 0.86)) / u_k;
+		float sv = length(vec2(vb.x, vb.y / 0.86)) / u_k;
 		float nv = (1.0 - smoothstep(0.010, 0.075, sv)) * nestZ() * clamp(u_laneStr, 0.0, 1.0);
 		B *= exp(-4.2 * nv * (0.5 + 0.5 * clamp(nest * 1.6, 0.0, 1.0)) * vec3(0.85, 0.95, 1.0));
 		// close in, the bulge resolves into its own stars, so its diffuse light thins
@@ -1121,7 +1642,7 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		bm += u_stars_on ? 0.4 * ((u_diag & 4) != 0 ? 0.0 : crDetail(p, blockGu(la), 0.012, 13.0)) : 0.0;
 		B *= mix(1.0, max(0.62 + 0.76 * bm, 0.25), smoothstep(0.03, 0.10, sv));
 		C += B * (1.0 - front);
-		Em += knots(p);
+		Em += knots(pf);
 		Em += remnants(p);
 		// the supernova's light echo: a ring sweeping out through the gas and dust
 		if (u_echo.w > 0.0) {
@@ -1137,34 +1658,69 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 	cloudLayer(v, irr, gas, C, cloudT);
 	if (!ball) {
 		float nuc = 1.0 - smoothstep(0.05, 0.11, r);
-		C += B * front * mix(vec3(1.0), T, max(nuc * (1.0 - 0.25 * front), 0.62)) * exp(-5.5 * nest * vec3(0.80, 0.92, 1.0)) * mix(vec3(1.0), cloudT, 0.97);
+		// (through the camera the top of the bulge stands in front of the far side
+		// of the disc and hides it, rather than only adding its light over it)
+		float occ = u_solid ? 0.8 * front * smoothstep(0.003, 0.05, bulgeI) : 0.0;
+		// the middle's relief lit as terrain from the core: faces toward it lit warm,
+		// backs and the valleys behind the ridges in shade (`terrShade`)
+		C *= terrS.x * vec3(1.0) + terrS.y * vec3(0.55, 0.38, 0.22);
+		// (a near ridge of the middle's relief stands in front of the bulge's lower edge:
+		// its gold hidden there, the ridge dark against it with a lit rim, `terrSilh`)
+		// (the bulge's light in front of the disc takes most of the relief's light and
+		// shade too: the brown dust round the bulge is mostly its light through the dust)
+		vec3 tsB = mix(vec3(1.0), terrS.x * vec3(1.0) + terrS.y * vec3(0.55, 0.38, 0.22), 0.7);
+		C = C * (1.0 - occ) + B * front * tsB * (1.0 - 0.85 * silh) * mix(vec3(1.0), T, max(nuc * (1.0 - 0.25 * front), 0.62)) * exp(-5.5 * nest * vec3(0.80, 0.92, 1.0)) * mix(vec3(1.0), cloudT, 0.97);
+		C += B * front * vec3(1.0, 0.8, 0.6) * 0.35 * silh * (1.0 - silh) * 4.0 * smoothstep(0.003, 0.05, bulgeI);
 		billowLayer(v, dq, C);
 		wispLayer(v, la, C);
 	}
 	vec3 frontL = max(C - VOIDC / u_exp, vec3(0.0));
-	C += farSky(v, la, bgNebSeen(frontL, u_exp)) * T * cloudT * bgSeen(frontL, u_exp);
+	// (the far nebulae keep clear of the galaxy by its light, `bgNebSeen`; with the
+	// dissolving edge that light fades out over a long stretch, so they also keep
+	// clear of where the disc is, out past the fade's end)
+	float nebGap = (u_edge.w > 0.0 && !ball) ? smoothstep(u_edge.y + 0.05, u_edge.y + 0.45, r) : 1.0;
+	C += farSky(vsky, la, bgNebSeen(frontL, u_exp) * nebGap) * T * cloudT * bgSeen(frontL, u_exp);
 	return grade(max(mix(vec3(kitLum(C)), C, SAT), 0.0)) + supernova(v, blk);
 }
 
-vec3 place(vec2 v, ivec2 blk, ivec2 dq) {
+vec3 place(vec2 v, vec2 vsc, ivec2 blk, ivec2 dq) {
 	float shadow = u_holeR * u_k;                        // the shadow's radius, view px
-	vec2 S = lh_to_s(v, vec2(0.0), shadow);
+	// THE CORE AS IT IS, through the solid galaxy's camera: about the core's place on
+	// the screen at the camera's one scale there (`solidCoreK`), so the hole, its lens
+	// and the bulge keep their shape however the perspective stretches the disc round
+	// them; what the lens shows behind is read back through the camera, and at the
+	// lens's edge, where it bends nothing, the two agree. (With the camera off this is
+	// the flat view itself.)
+	vec2 pc = solidV(vec2(0.0));
+	float kc = solidCoreK();
+	vec2 vh = u_solid ? (vsc - pc) / kc : v;
+	vec2 S = lh_to_s(vh, vec2(0.0), shadow);
 	// ONE call of the galaxy, at the point seen through the lens or at v: two
 	// calls (one per branch) inlined the whole galaxy twice and doubled the
 	// shader's compile time
 	bool lens = length(S) <= lh_dims.x * 0.97;
 	// what lies behind is lensed: the strong bend fades to nothing at the patch edge
-	vec2 vbg = lens ? v * lh_behind(S) : v;
+	vec2 vbh = lens ? vh * lh_behind(S) : vh;
+	vec2 vbs = u_solid ? pc + vbh * kc : vbh;            // where that lies on the screen (view px)
+	vec2 vbg = lens ? solidO(vbs) : v;
 	// (the stars behind are read where the lens shows them; holding them on a
 	// coarser grid while the zoom moves drew them as dashes, so they are not)
-	ivec2 sb = lens ? blockOf(scr(vbg)) : blk;
+	ivec2 sb = lens ? blockOf(scr(vbs)) : blk;
 	// (read twice as coarse through the lens as it squeezes: the gas round the hole now
 	// keeps its light and structure deep in, Oct 11, and squeezed into a few blocks
 	// it shimmered as the zoom moved; the palette's probes read it as before, and so
 	// does the opening view, which is left exactly as it was)
 	float la = lens ? log2(max(lensSqueeze(S), 1.0)) * (1.0 + resolveOn() * smoothstep(0.5, 1.5, u_zoom)) : 0.0;
 	float dust;
-	vec3 C = galaxy(vbg, sb, blk, dq, la, dust);
+	// (the middle's relief never over the hole's own disc or where its lens bends
+	// hard: faded out from 9.5 to 6.5 rs, the shadow 2.6)
+	float tk = lens ? smoothstep(6.5, 9.5, length(S)) : 1.0;
+	vec3 C = galaxy(vbg, lens ? vbs : vsc, vbh, sb, blk, dq, la, tk, dust);
+	// the near side's dust lane, before the hole's own disc and shadow are laid over
+	// (so it never darkens them), and read where the lane is, not through the lens
+	if (u_solid && u_form != 1) {
+		C *= solidLane(v);
+	}
 	if (!lens) {
 		return C;
 	}
@@ -1172,7 +1728,7 @@ vec3 place(vec2 v, ivec2 blk, ivec2 dq) {
 	// the disc lights the gas round it, hardest on the dense dust
 	C += u_bCore * vec3(1.0, 0.55, 0.32) * (0.05 + 0.12 * dust) * lh_glow(S);
 	float cap;
-	vec4 d = lh_disc(S, lh_px_rs(shadow * u_zoom), u_time, smoothstep(2.6, 4.0, u_zoom) * ((u_diag & 128) != 0 ? 0.0 : 1.0), lh_hot(u_time, u_wxOn), cap);
+	vec4 d = lh_disc(S, lh_px_rs(shadow * u_zoom * kc), u_time, smoothstep(2.6, 4.0, u_zoom) * ((u_diag & 128) != 0 ? 0.0 : 1.0), lh_hot(u_time, u_wxOn), cap);
 	C *= 1.0 - cap;                                      // the shadow: round, black, no rim line
 	if (d.a > 0.004) {
 		C = C * (1.0 - d.a) + lh_exact_hdr(d.rgb, u_exp) * d.a;
@@ -1186,8 +1742,13 @@ void fragment() {
 	vec2 v = (s - u_cpix) / u_zoom;
 	// the dither index, anchored to the galaxy's centre (as the composite's)
 	ivec2 dq = blk + ivec2(u_block0);
-	vec3 C = place(v, blk, dq);
-	if (u_tone_out) {
+	vec3 C = place(solidO(v), v, blk, dq);
+	// (`ChartSky.diag` 4096, a test's: the point of the disc's plane this block
+	// shows, in place of its light, so the chart's marks can be checked against it)
+	if ((u_diag & 4096) != 0) {
+		vec2 pp = kitViewToPlane(solidO(v), u_phi, u_k);
+		COLOR = vec4(pp, 0.0, 1.0);
+	} else if (u_tone_out) {
 		COLOR = vec4(kitToSrgb(kitTone(C * u_exp, u_burn)), 1.0);
 	} else {
 		COLOR = vec4(max(C, vec3(0.0)), 1.0);
