@@ -385,6 +385,7 @@ func _build() -> void:
 		_sky_look.shape = 0
 		_sky_look.hue = Vector3(0.3, 0.45, 0.95)
 	var neb_on := _sky_look.has("neb")
+	life = LocalLife.new(self)
 	if headless():
 		return
 	_box = SubViewportContainer.new()
@@ -820,6 +821,9 @@ static func _block_round(p: Vector2) -> Vector2:
 
 func _process(delta: float) -> void:
 	if _scene == null:
+		# (headless: no picture, but the moons' clock still runs, for `-- moontest`)
+		if life != null:
+			life.step(delta)
 		return
 	# GRAPHICS LOW: the cloud reads its field once (`sky_nebula`'s `low`), and
 	# the whole sky is drawn every other frame -- its gas steps a block every
@@ -921,7 +925,8 @@ func _step(delta: float) -> void:
 		_near_rect.position = Vector2.ZERO
 		_near_rect.scale = Vector2.ONE
 	_wx_step(delta)
-	_wow_step(delta)
+	if life != null:
+		life.step(delta)
 	if _ready_sky and not _palette_built and _frame > 8 and _palette_mat != null:
 		_build_palette()
 
@@ -1315,8 +1320,7 @@ func _build_near() -> void:
 	_near_vp.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
 	_near_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_scene.add_child(_near_vp)
-	var h := SkyBakeS.hash2(node.index, 811 + orbit_target)
-	# opposite the star, across the view from it
+	# opposite the star, across the view from it (the world's own place: `near_plan`)
 	var side := 1.0 if _sun.x < 480.0 else -1.0
 	# AN EVENT ON THIS WORLD (`site`, `OptionTable`: the giant fills the sky):
 	# drawn on the event's side, right of your ship, where its subject stands --
@@ -1326,14 +1330,10 @@ func _build_near() -> void:
 		side = 1.0
 	near_storm = wants.get("storm", {})
 	if tgt.world != &"":
-		var giant := tgt.kind == &"giant"
-		var R := roundf((NEAR_GIANT_R if giant else NEAR_WORLD_R) * clampf(tgt.r / (22.0 if giant else 12.0), 0.8, 1.25) / 2.0) * 2.0
-		var at := _block_round(Vector2(480.0 + side * (190.0 + 60.0 * h), 339.0 + 0.2 * R))
-		var over := {}
-		if bool(wants.get("ring", false)):
-			over.ring = true
-		var spec := Worlds.spec(tgt.world, tgt.seed, R)
-		spec.merge(over, true)
+		var plan := near_plan()
+		var R := float(plan.R)
+		var at: Vector2 = plan.at
+		var over: Dictionary = plan.over
 		var v: Node2D = Worlds.view_for(tgt.world)
 		v.call("set_world", tgt.world, tgt.seed, R, over)
 		_near_world = v
@@ -1341,19 +1341,14 @@ func _build_near() -> void:
 		_near_vp.add_child(v)
 		_dress(v)
 		_near.append([v, at, F_NEAR, R, tgt.world, tgt.seed, over])
-		# ITS MOONS, small above it
-		var nm := mini(int(spec.get("moons", 0)), 3)
-		for k in nm:
-			var hk := SkyBakeS.hash2(tgt.seed, 41 + k)
-			var a := -PI * (0.2 + 0.6 * (float(k) + hk) / float(maxi(nm, 1)))
-			var mr := roundf((5.0 + 6.0 * SkyBakeS.hash2(tgt.seed, 61 + k)) / 2.0) * 2.0
-			var mp := _block_round(at + Vector2(cos(a) * R * (1.3 + 0.3 * hk), sin(a) * R * (1.15 + 0.25 * hk)))
+		# ITS MOONS, small above it (`LocalLife` sends them round)
+		for m: Dictionary in plan.moons:
 			var mv := PlanetView.new()
-			mv.set_world(&"moon", tgt.seed + 17 * (k + 1), mr)
+			mv.set_world(&"moon", int(m.seed), float(m.r))
 			mv.set_cell(2)
 			_near_vp.add_child(mv)
 			_dress(mv)
-			_near.append([mv, mp, F_NEAR * 1.1, mr, &"moon", tgt.seed + 17 * (k + 1), {}])
+			_near.append([mv, m.at, F_NEAR * 1.1, float(m.r), &"moon", int(m.seed), {}])
 	elif tgt.kind == &"belt":
 		# A BELT'S ROCKS, close by: a drifting band of them behind the fight, the
 		# nearer bigger
@@ -1395,6 +1390,40 @@ func _build_near() -> void:
 		_near_mat.set_shader_parameter("keep_hi", RADIANT_KEEP)
 	rect.material = _near_mat
 	_scene.add_child(rect)
+
+
+## THE WORLD YOU ORBIT AND ITS MOONS, WORKED OUT WITHOUT DRAWING ANYTHING (so a
+## headless test sees where they are, `-- moontest`): {} for no world, else
+## {world, seed, R, at (its middle at rest, this sky's 960x540 px), over (what an
+## event gives it), moons: [{at, r, seed}]} -- where `_build_near` puts them.
+func near_plan() -> Dictionary:
+	if layout == null or orbit_target < 0 or orbit_target >= layout.bodies.size():
+		return {}
+	var tgt: SystemLayout.Body = layout.bodies[orbit_target]
+	if tgt.world == &"":
+		return {}
+	var h := SkyBakeS.hash2(node.index, 811 + orbit_target)
+	var side := 1.0 if _sun.x < 480.0 else -1.0
+	var wants := _near_wants()
+	if not wants.is_empty():
+		side = 1.0
+	var giant := tgt.kind == &"giant"
+	var R := roundf((NEAR_GIANT_R if giant else NEAR_WORLD_R) * clampf(tgt.r / (22.0 if giant else 12.0), 0.8, 1.25) / 2.0) * 2.0
+	var at := _block_round(Vector2(480.0 + side * (190.0 + 60.0 * h), 339.0 + 0.2 * R))
+	var over := {}
+	if bool(wants.get("ring", false)):
+		over.ring = true
+	var spec := Worlds.spec(tgt.world, tgt.seed, R)
+	spec.merge(over, true)
+	var moons: Array = []
+	var nm := mini(int(spec.get("moons", 0)), 3)
+	for k in nm:
+		var hk := SkyBakeS.hash2(tgt.seed, 41 + k)
+		var a := -PI * (0.2 + 0.6 * (float(k) + hk) / float(maxi(nm, 1)))
+		var mr := roundf((5.0 + 6.0 * SkyBakeS.hash2(tgt.seed, 61 + k)) / 2.0) * 2.0
+		var mp := _block_round(at + Vector2(cos(a) * R * (1.3 + 0.3 * hk), sin(a) * R * (1.15 + 0.25 * hk)))
+		moons.append({"at": mp, "r": mr, "seed": tgt.seed + 17 * (k + 1)})
+	return {"world": tgt.world, "seed": tgt.seed, "R": R, "at": at, "over": over, "moons": moons, "spec": spec}
 
 
 ## WHAT AN EVENT ON THE WORLD YOU ORBIT ASKS OF IT: only an event sited there by
@@ -1879,488 +1908,12 @@ class _Wreck extends Node2D:
 				yy += 2.0
 
 
-# ------------------------------------------------------------------ the wow prototypes
+# ------------------------------------------------------------------ its life
 
-## `LocalWow`'s ideas, worked out every frame they are asked for; `wow_sync`
-## draws them or not as `LocalWow.shown` says, without moving any clock (a
-## harness films the same frame both ways).
-const HULL_LIGHT := preload("res://shaders/local_hull_light.gdshader")
-var _hull_mat: ShaderMaterial = null
-
-
-func _wow_step(_delta: float) -> void:
-	var t0 := Time.get_ticks_usec()
-	wow_sync()
-	LocalWow.cpu_us += Time.get_ticks_usec() - t0
-
-
-func wow_sync() -> void:
-	_wow_hull()
-	_wow_night()
-	_wow_moons()
-	_wow_air()
-	_wow_traffic()
-
-
-## TRAFFIC (`LocalWow` "traffic"): in a settled system, far ships crossing along
-## its plane, behind the near world and in front of the band's -- a dark sliver
-## of hull lit along its top by the star, its drive a point of light with a
-## short fading wake -- the more developed the system, the busier (a capital's
-## lanes always have somebody on them; an outpost now and then; nobody where
-## nobody lives). Drawn a game pixel at a time over the sky (`_Traffic`), at the
-## band's depth for the camera; worked out from the sky's clock alone, so the
-## same moment always shows the same ships.
-## (a ship crosses in one to four minutes; these are spaced so a capital has
-## five or six in view, a city three or four, a settlement one or two, an
-## outpost one now and then)
-const _TRAFFIC_EVERY := {MapGen.Development.OUTPOST: 110.0, MapGen.Development.SETTLEMENT: 55.0,
-	MapGen.Development.CITY: 30.0, MapGen.Development.CAPITAL: 18.0}
-var _traffic: _Traffic = null
-
-
-func _wow_traffic() -> void:
-	if not LocalWow.asked(&"traffic") or node == null or _box == null:
-		if _traffic != null and is_instance_valid(_traffic):
-			_traffic.visible = false
-		return
-	var dev := node.development
-	if node.type == MapGen.NodeType.STATION:
-		dev = maxi(dev, MapGen.Development.CITY) as MapGen.Development
-	if not _TRAFFIC_EVERY.has(dev):
-		return
-	if _traffic == null or not is_instance_valid(_traffic):
-		_traffic = _Traffic.new()
-		_traffic.seed = node.index
-		_traffic.every = float(_TRAFFIC_EVERY[dev])
-		_traffic.hull = Color("#141a24")
-		var sc: Vector3 = SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY)
-		_traffic.lit = Color(sc.x, sc.y, sc.z).lerp(Color("#8a96a8"), 0.45)
-		add_child(_traffic)
-	_traffic.visible = LocalWow.on(&"traffic")
-	_traffic.position = _box.position
-	_traffic.t = t
-	_traffic.shift = -cam.x * F_BAND
-	_traffic.hide_c = Vector2(-9999, -9999)
-	_traffic.hide_r = 0.0
-	if _near_world is PlanetView:
-		_traffic.hide_c = _near_world.position
-		_traffic.hide_r = float((_near_world.get("_mat") as ShaderMaterial).get_shader_parameter("r")) + 4.0
-	_traffic.queue_redraw()
-
-
-class _Traffic extends Node2D:
-	var seed := 0
-	var every := 5.0
-	var t := 0.0
-	var shift := 0.0
-	var hull := Color.BLACK
-	var lit := Color.WHITE
-	var hide_c := Vector2(-9999, -9999)
-	var hide_r := 0.0
-	const DRIVES := [Color(1.0, 0.72, 0.36), Color(0.62, 0.82, 1.0), Color(1.0, 0.9, 0.7)]
-
-	func _h(j: int, k: int) -> float:
-		return SkyBakeS.hash2(seed * 131 + j, 900 + k)
-
-	func _px(x: float, y: float, c: Color) -> void:
-		if Vector2(x, y).distance_to(hide_c) < hide_r:
-			return
-		draw_rect(Rect2(x, y, 1, 1), c)
-
-	func _draw() -> void:
-		var j1 := floori(t / every)
-		var j0 := j1 - int(ceil(260.0 / every))
-		for j in range(j0, j1 + 1):
-			var far := _h(j, 1) < 0.55
-			var v := (4.0 + 3.0 * _h(j, 2)) if far else (8.0 + 6.0 * _h(j, 2))
-			var tj := (float(j) + 0.8 * _h(j, 3)) * every
-			var age := t - tj
-			if age < 0.0:
-				continue
-			var dir := 1.0 if _h(j, 4) < 0.5 else -1.0
-			var x := (-24.0 + v * age) if dir > 0.0 else (984.0 - v * age)
-			if x < -30.0 or x > 990.0:
-				continue
-			x = roundf(x + shift)
-			var y := roundf((58.0 + 30.0 * _h(j, 5)) if far else (92.0 + 34.0 * _h(j, 5)))
-			var n := (2 + int(2.0 * _h(j, 6))) if far else (7 + int(5.0 * _h(j, 6)))
-			var drive: Color = DRIVES[int(_h(j, 7) * 3.0) % 3]
-			var a := 0.7 if far else 1.0
-			# the wake: behind the drive, fading, every other pixel at its far end
-			var wl := (3 if far else 6) + int(4.0 * _h(j, 8))
-			for i in wl:
-				var f := 1.0 - float(i) / float(wl)
-				if f < 0.4 and i % 2 == 1:
-					continue
-				_px(x - dir * float(n + 1 + i), y, Color(drive, 0.45 * f * a))
-			# the hull, nose first; its top row lit by the star (a near one only)
-			for i in n:
-				_px(x - dir * float(i), y, Color(hull, a))
-				if not far and i > 0 and i < n - 1:
-					_px(x - dir * float(i), y - 1.0, Color(lit, 0.8 * a))
-				if not far and i > 1 and i < n - 2:
-					_px(x - dir * float(i), y + 1.0, Color(hull.darkened(0.3), a))
-			# the drive: a point of light and its glow
-			var dx := x - dir * float(n)
-			_px(dx, y, Color(drive, a))
-			for o: Vector2 in [Vector2(0, -1), Vector2(0, 1), Vector2(-dir, 0)]:
-				_px(dx + o.x, y + o.y, Color(drive, 0.3 * a))
-
-
-## THE AIR OF THE WORLD YOU ORBIT, LIT (`LocalWow` "air"): a thin bright shell
-## of atmosphere on its sunward limb, as a world seen from orbit has
-## (`local_air.gdshader`), in the air's own colour; for a world with air.
-const AIR := preload("res://shaders/local_air.gdshader")
-var _air: ColorRect = null
-var _air_mat: ShaderMaterial = null
-
-
-func _wow_air() -> void:
-	if not LocalWow.asked(&"air") or not (_near_world is PlanetView) or _near_rect == null:
-		if _air != null and is_instance_valid(_air):
-			_air.visible = false
-		return
-	var pv := _near_world as PlanetView
-	var wn := StringName(pv.spec.get("world", &""))
-	var atm: Variant = Worlds.WORLD.get(wn, {}).get("atm", null)
-	if atm == null:
-		return
-	if _air == null or not is_instance_valid(_air):
-		_air = _rect()
-		_air_mat = ShaderMaterial.new()
-		_air_mat.shader = AIR
-		_air.material = _air_mat
-		_scene.add_child(_air)
-	if _air.get_index() < _near_rect.get_index():
-		_scene.move_child(_air, -1)
-	_air.visible = LocalWow.on(&"air") and _hand.is_empty()
-	var m := pv.get("_mat") as ShaderMaterial
-	var r := float(m.get_shader_parameter("r"))
-	var c := Color(String(atm))
-	var thick := bool(Worlds.WORLD[wn].get("thick", false))
-	var giant := bool(Worlds.WORLD[wn].get("giant", false))
-	_air_mat.set_shader_parameter("ctr", pv.position)
-	_air_mat.set_shader_parameter("r", r)
-	_air_mat.set_shader_parameter("L", m.get_shader_parameter("light"))
-	_air_mat.set_shader_parameter("col", Vector3(c.r, c.g, c.b))
-	_air_mat.set_shader_parameter("k", 0.7 if giant else 0.85)
-	_air_mat.set_shader_parameter("w", (4.0 + 0.03 * r) * (1.6 if thick else 1.0))
-	var ring := Vector2.ZERO
-	if bool(pv.spec.get("ring", false)):
-		ring = Vector2(float(m.get_shader_parameter("ring_in")), float(m.get_shader_parameter("ring_out")))
-		if ring.y <= 0.0:
-			ring = Vector2(1.5, 2.2)
-	_air_mat.set_shader_parameter("ring", ring)
-
-
-## THE MOONS GO ROUND (`LocalWow` "moons"): the moons of the world you orbit,
-## which hung still above it, each on its own orbit round it -- seen from just
-## above their plane, so the near half of the orbit passes in front of the
-## world's face and the far half behind it -- the inner ones faster. In front,
-## a moon's shadow crosses the face with it (the painter's own `moon_sh`, the
-## map's eclipses); behind, a moon that slips into the world's shadow goes
-## dark. Each moon moved a whole 2 px block at a time, slowly (a block every
-## half second or so): sliding it between blocks by its surface's drift
-## restarted its surface memory at every block, a flicker each time.
-func _wow_moons() -> void:
-	if _near.size() < 2 or not (_near_world is PlanetView) or not _hand.is_empty() or not LocalWow.asked(&"moons"):
-		return
-	var pv := _near_world as PlanetView
-	var on := LocalWow.on(&"moons")
-	var parent := pv.get_parent()
-	var e0: Array = _near[0]
-	var zl := _zl(Z_NEAR)
-	var R := float(e0[3]) * zl
-	var wc := pv.position
-	var wm := pv.get("_mat") as ShaderMaterial
-	var Lw := wm.get_shader_parameter("light") as Vector3
-	var msh := PackedVector4Array()
-	var k := 0
-	for i in range(1, _near.size()):
-		var e: Array = _near[i]
-		if StringName(e[4]) != &"moon":
-			continue
-		var mv := e[0] as PlanetView
-		var hs := Worlds.half_size(&"moon", float(e[3]))
-		var mr := float(e[3]) * zl
-		var pos: Vector2
-		var drift := Vector2.ZERO
-		var front := true
-		var kl := 1.0
-		if not on:
-			# where it hangs still (`_step_near`'s own place for it)
-			pos = _zp(_block_round(Vector2(e[1]) - cam * float(e[2])), Z_NEAR) + Vector2.ONE * float(hs % 2)
-		else:
-			var hk := SkyBakeS.hash2(int(e[5]), 71)
-			var a := R * (1.45 + 0.42 * float(k) + 0.12 * hk)
-			var incl := 0.3 + 0.12 * hk
-			var roll := (hk - 0.5) * 0.22
-			# (inner faster, outer slower: a Kepler-ish period, compressed)
-			var period := 180.0 * pow(a / (R * 1.45), 1.5)
-			var th := (0.2 + 0.31 * float(k) + 0.17 * hk) * TAU + t * TAU / period
-			var ox := -cos(th) * a
-			var oz := sin(th) * a
-			var p := Vector2(ox, oz * sin(incl)).rotated(roll)
-			var z := oz * cos(incl)
-			front = z >= 0.0
-			var mp := wc + p
-			pos = _block_round(mp) + Vector2.ONE * float(hs % 2)
-			# (whole blocks, no drift between them: a drift re-centred on each
-			# new block started the moon's surface memory afresh, a flash a block)
-			# in the world's shadow: behind it from the star, inside its radius
-			var M3 := Vector3(p.x, p.y, z)
-			var along := M3.dot(Lw)
-			if along < 0.0:
-				var perp := (M3 - Lw * along).length()
-				kl = lerpf(0.1, 1.0, smoothstep(R * 0.9, R * 1.08, perp))
-			if front and msh.size() < 4:
-				msh.append(Vector4(p.x, p.y, z, mr))
-		mv.position = pos
-		mv.set_drift(drift)
-		var d := (origin() - pos) / zl
-		mv.step(t, Vector3(d.x, d.y, 140.0).normalized(), kl)
-		# in front of the world or behind it
-		if front and mv.get_index() < pv.get_index():
-			parent.move_child(mv, -1)
-		elif not front and mv.get_index() > pv.get_index():
-			parent.move_child(mv, 0)
-		k += 1
-	var n := msh.size()
-	msh.resize(4)
-	wm.set_shader_parameter("moon_sh", msh)
-	wm.set_shader_parameter("n_moon_sh", n)
-
-
-## THE NIGHT SIDE OF A SETTLED WORLD (`LocalWow` "night"): the world you orbit,
-## when it has dry ground and the system is settled, lit by its towns where the
-## star's light has left it -- each town a cluster of points of light, a bright
-## heart to the big ones, more towns the more the system is developed. Points,
-## not the painter's city wash: on a world this close its towns are places, and
-## the map's lights (made for a world a few blocks across) came out as flat
-## orange blots. Drawn over the world in its own picture (`_NightLights`),
-## turning with it.
-const _NIGHT_GROUND := [&"rock", &"desert", &"iron", &"ice", &"toxic", &"eyeball", &"cracked", &"crystal",
-	&"haze", &"volcanic", &"swamp", &"moon"]
-const _NIGHT_TOWNS := {MapGen.Development.SETTLEMENT: 22, MapGen.Development.CITY: 40, MapGen.Development.CAPITAL: 64}
-var _night: _NightLights = null
-
-
-func _wow_night() -> void:
-	if not LocalWow.asked(&"night") or not (_near_world is PlanetView) or node == null or _near_vp == null:
-		if _night != null and is_instance_valid(_night):
-			_night.visible = false
-		return
-	var pv := _near_world as PlanetView
-	var wn := StringName(pv.spec.get("world", &""))
-	if not wn in _NIGHT_GROUND or not _NIGHT_TOWNS.has(node.development):
-		return
-	if _night == null or not is_instance_valid(_night) or _night.pv != pv:
-		if _night != null and is_instance_valid(_night):
-			_night.queue_free()
-		_night = _NightLights.new()
-		_night.build(pv, int(_NIGHT_TOWNS[node.development]), node.development == MapGen.Development.CAPITAL)
-		# (over the near picture, not in it: the play tone presses the near things'
-		# light down to a mid-tone, and a town's lights pressed so came out as tan
-		# smudges on a grey ground -- a light is exempt, as the lab's glowing
-		# pixels are; the near picture is the same 960x540 frame, so the world's
-		# place there is its place here)
-		_scene.add_child(_night)
-	if _near_rect != null and _night.get_index() != _near_rect.get_index() + 1:
-		_scene.move_child(_night, _near_rect.get_index() + 1)
-	_night.visible = LocalWow.on(&"night")
-	var m := pv.get("_mat") as ShaderMaterial
-	_night.step(pv.position, float(m.get_shader_parameter("r")), float(m.get_shader_parameter("time")),
-		m.get_shader_parameter("light") as Vector3)
-
-
-## The towns' lights on the world you orbit: points on its sphere (body space),
-## turned with it each frame (`planet.gdshader`'s `to_body`, run backwards), on
-## its own 2 px blocks, where the light toward the star has left the ground.
-## Gathered light: a point adds to the block it lands on, crowded blocks
-## brighter, a big town's heart with a glow round it; stepped, and a point moves
-## to its next block only once it is most of a block past the one it shows (no
-## A, B, A as the world turns).
-class _NightLights extends Node2D:
-	var pv: PlanetView
-	## [body pos (unit), strength]
-	var pts: Array = []
-	## each point's block as last drawn, and its night level
-	var shown: PackedVector2Array = PackedVector2Array()
-	var lvl: PackedFloat32Array = PackedFloat32Array()
-	var _blocks := {}
-	const CORE := Color(1.0, 0.72, 0.34)
-	const HEART := Color(1.0, 0.93, 0.78)
-
-	func build(view: PlanetView, towns: int, capital: bool) -> void:
-		pv = view
-		var mat := CanvasItemMaterial.new()
-		mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-		material = mat
-		var R := Worlds.XRng.new(float(view.spec.get("seed", 1.0)) * 131.0 + 9.0)
-		for i in towns:
-			var c := Worlds.sphere_rand(R)
-			# (towns keep off the poles' ice)
-			if absf(c.y) > 0.8:
-				c.y *= 0.7
-				c = c.normalized()
-			var big := pow(R.next(), 2.2) * (1.25 if capital else 1.0)
-			var n := 4 + int(big * 30.0)
-			var spread := 0.03 + 0.08 * big
-			var e1 := c.cross(Vector3.UP if absf(c.y) < 0.9 else Vector3.RIGHT).normalized()
-			var e2 := c.cross(e1)
-			for k in n:
-				var a := R.next() * TAU
-				var rr := spread * sqrt(R.next())
-				var p := (c + e1 * cos(a) * rr + e2 * sin(a) * rr).normalized()
-				# the middle of a big town brighter
-				var s := 0.45 + 0.55 * R.next() + (0.8 * big if rr < spread * 0.35 else 0.0)
-				pts.append([p, s])
-		# and between the towns, lone lights: roads, farms, a mine
-		for i in towns * 2:
-			var p := Worlds.sphere_rand(R)
-			if absf(p.y) < 0.85:
-				pts.append([p, 0.3 + 0.3 * R.next()])
-		shown.resize(pts.size())
-		lvl.resize(pts.size())
-		for i in pts.size():
-			shown[i] = Vector2(INF, INF)
-
-	func step(ctr: Vector2, r: float, time: float, L: Vector3) -> void:
-		position = ctr
-		var sp := pv.spec
-		var ang := float(sp.get("seed", 0.0)) + time * float(sp.get("spin", 0.0))
-		var ca := cos(ang)
-		var sa := sin(ang)
-		var tl := float(sp.get("tilt", 0.0))
-		var ct := cos(tl)
-		var st := sin(tl)
-		var Ln := L.normalized()
-		_blocks.clear()
-		for i in pts.size():
-			var b: Vector3 = pts[i][0]
-			# body -> the view: the spin undone, then the tilt
-			var tx := b.x * ca - b.z * sa
-			var sz := b.x * sa + b.z * ca
-			var ty := b.y
-			var sv := Vector3(tx * ct + ty * st, -tx * st + ty * ct, sz)
-			if sv.z <= 0.05 or _behind_ring(sv):
-				shown[i] = Vector2(INF, INF)
-				continue
-			# night: the planet's own `night_of`, eased over the terminator, and the
-			# lights thin out toward the limb, where they are seen edge on
-			var d := sv.dot(Ln)
-			var kn := 0.0 if d > 0.12 else (1.0 if d < -0.12 else (0.12 - d) / 0.24)
-			kn *= clampf(sv.z * 2.5, 0.0, 1.0)
-			# a level held until it moves a step past (no flicker at the terminator)
-			var ks := kn * 3.0
-			if absf(ks - (lvl[i] * 3.0 + 0.5)) > 0.7:
-				lvl[i] = clampf(floorf(ks), 0.0, 3.0) / 3.0
-			if lvl[i] <= 0.0:
-				continue
-			var p := Vector2(sv.x, sv.y) * r
-			var s: Vector2 = shown[i]
-			if s.x == INF or p.distance_to(s + Vector2.ONE) > 1.6:
-				s = (p / 2.0).floor() * 2.0
-				shown[i] = s
-			var key := s
-			# (the brighter of two lights on one block, not their sum: two lights
-			# drifting through each other's block would brighten and dim it, A, B, A)
-			_blocks[key] = maxf(float(_blocks.get(key, 0.0)), float(pts[i][1]) * lvl[i])
-		queue_redraw()
-
-	## Under the front of the world's rings (seen through them toward you): the
-	## ring plane as the painter has it (`planet.gdshader`, RN), in its radii.
-	func _behind_ring(sv: Vector3) -> bool:
-		if not bool(pv.spec.get("ring", false)):
-			return false
-		var m := pv.get("_mat") as ShaderMaterial
-		var rin := float(m.get_shader_parameter("ring_in"))
-		var rout := float(m.get_shader_parameter("ring_out"))
-		if rout <= 0.0:
-			rin = 1.5
-			rout = 2.2
-		var RN := Vector3(0.0, 0.96, -0.28)
-		var s := sv.dot(RN) / 0.28
-		if s <= 0.0:
-			return false
-		var rho := (sv + Vector3(0.0, 0.0, s)).length()
-		return rho > rin and rho < rout
-
-	func _draw() -> void:
-		# glow first: a soft cross round the bright blocks, then the cores
-		for key: Vector2 in _blocks:
-			var v: float = _blocks[key]
-			if v > 1.15:
-				var g := Color(CORE.r, CORE.g * 0.8, CORE.b * 0.6, 1.0) * clampf(0.1 + (v - 0.9) * 0.1, 0.0, 0.26)
-				for o: Vector2 in [Vector2(2, 0), Vector2(-2, 0), Vector2(0, 2), Vector2(0, -2)]:
-					if not _blocks.has(key + o):
-						draw_rect(Rect2(key + o, Vector2(2, 2)), g)
-		for key: Vector2 in _blocks:
-			var v: float = _blocks[key]
-			# stepped: dim, lit, bright, a heart
-			var k := 0.5 if v < 0.6 else (0.72 if v < 1.1 else (0.9 if v < 1.8 else 1.0))
-			var c := CORE if k < 1.0 else HEART
-			draw_rect(Rect2(key, Vector2(2, 2)), Color(c.r * k, c.g * k, c.b * k, 1.0))
-
-
-## THE STAR'S LIGHT ON YOUR HULL (`LocalWow` "hull"): its sun-facing edge lit in
-## the star's colour, as strong as the star is near; orbiting a world, the edge
-## facing it lit a little in that world's colour.
-func _wow_hull() -> void:
-	var sv := cam_ship as ShipView
-	if sv == null or not is_instance_valid(sv):
-		return
-	if not LocalWow.asked(&"hull"):
-		if _hull_mat != null and sv.material == _hull_mat:
-			sv.material = null
-			for c in sv.get_children():
-				if c is MountPoints:
-					(c as CanvasItem).use_parent_material = false
-		return
-	if _hull_mat == null:
-		_hull_mat = ShaderMaterial.new()
-		_hull_mat.shader = HULL_LIGHT
-	# (the drive's interlace owns the material while it runs; the parts bolted on
-	# are lit with the hull, the hover outline is not)
-	if sv.material == null:
-		sv.material = _hull_mat
-		for c in sv.get_children():
-			if c is MountPoints:
-				(c as CanvasItem).use_parent_material = true
-	if sv.material != _hull_mat:
-		return
-	var on := LocalWow.on(&"hull")
-	var b := sv.hull_body()
-	var shipc := sv.get_global_transform() * (b.position + b.size * 0.5)
-	var to_star := star_global() - shipc
-	var L := to_star.normalized() if to_star.length() > 1.0 else Vector2(0.0, -1.0)
-	var col: Vector3 = SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY)
-	# as bright as the star is near: a small far point lights it faintly
-	var k := clampf(0.35 + 0.45 * pow(_dk, 0.6), 0.45, 1.25)
-	if layout.star == SystemLayout.StarKind.PULSAR:
-		k *= 0.7
-	elif layout.star == SystemLayout.StarKind.CORE:
-		k *= 0.8
-	_hull_mat.set_shader_parameter("l_dir", L)
-	_hull_mat.set_shader_parameter("l_col", col)
-	_hull_mat.set_shader_parameter("l_k", k if on else 0.0)
-	var ni := near_info()
-	var bk := 0.0
-	if not ni.is_empty() and _near_world is PlanetView:
-		var to_w: Vector2 = Vector2(ni.at) - shipc
-		_hull_mat.set_shader_parameter("b_dir", to_w.normalized())
-		var wn := StringName((_near_world as PlanetView).spec.get("world", &"rock"))
-		var rp: Array = Worlds.RAMP.get(wn, Worlds.RAMP.get(_WOW_RAMP_OF.get(wn, &"rock"), Worlds.RAMP[&"rock"]))
-		var wc := Color(String(rp[4]))
-		_hull_mat.set_shader_parameter("b_col", Vector3(wc.r, wc.g, wc.b))
-		bk = 0.75
-	_hull_mat.set_shader_parameter("b_k", bk if on else 0.0)
-
-
-## a world's main ground, where its name is not a ramp's
-const _WOW_RAMP_OF := {&"verdant": &"land", &"ocean": &"sea", &"hurricane": &"sea", &"aurora": &"sea",
-	&"hotjup": &"storm", &"eyeball": &"ice", &"cracked": &"lineae", &"volcanic": &"crust",
-	&"lightning": &"storm2", &"comet": &"ice", &"biolum": &"alien", &"megacity": &"city"}
+## The world you orbit's air and city lights, its moons going round, the far
+## traffic of a settled system (`LocalLife`), built with the sky and stepped with
+## it.
+var life: LocalLife = null
 
 
 # ------------------------------------------------------------------ harness
