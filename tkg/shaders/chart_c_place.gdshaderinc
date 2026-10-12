@@ -69,6 +69,10 @@ uniform int u_nkn = 0;
 uniform vec4 u_kn[64];      // knots: plane x, y (gu), size (gu), amplitude
 uniform vec4 u_sn = vec4(0.0);     // supernova: view x, y, flare gain (0 = none), age
 uniform vec4 u_echo = vec4(0.0);   // light echo: plane x, y, ring radius (gu), strength
+// the living sky's switches (`ChartSky.wow_bits`, round two), 0 in the palette's
+// probes; and its tuning knobs (`wowk=a,b,c,d` on a harness's command line)
+uniform int u_wow = 0;
+uniform vec4 u_wowk = vec4(1.0);
 
 const vec3 HA = vec3(1.0, 0.2, 0.3);
 const vec3 OIII = vec3(0.2, 0.95, 0.85);
@@ -1025,6 +1029,11 @@ vec3 starAt(ivec2 sb) {
 	return texelFetch(u_stars, sb, 0).rgb;
 }
 
+// ------------------------------------------------------------------ the living sky (round two)
+// Each on its own switch (`ChartSky.wow_bits`), each in the galaxy's own units, so a
+// zoom only magnifies it -- all but the near layer, which is in front of the galaxy
+// and has a frame of its own.
+
 // ------------------------------------------------------------------ the galaxy
 // `la`: how many mip levels coarser to read the bakes, for a point seen through
 // the lens, where a wide patch of the disc is squeezed into a few blocks and the
@@ -1107,7 +1116,7 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 	return grade(max(mix(vec3(kitLum(C)), C, SAT), 0.0)) + supernova(v, blk);
 }
 
-vec3 place(vec2 v, ivec2 blk, ivec2 dq) {
+vec3 placeGalaxy(vec2 v, ivec2 blk, ivec2 dq) {
 	float shadow = u_holeR * u_k;                        // the shadow's radius, view px
 	vec2 S = lh_to_s(v, vec2(0.0), shadow);
 	// ONE call of the galaxy, at the point seen through the lens or at v: two
@@ -1138,6 +1147,11 @@ vec3 place(vec2 v, ivec2 blk, ivec2 dq) {
 	if (d.a > 0.004) {
 		C = C * (1.0 - d.a) + lh_exact_hdr(d.rgb, u_exp) * d.a;
 	}
+	return C;
+}
+
+vec3 place(vec2 v, ivec2 blk, ivec2 dq) {
+	vec3 C = placeGalaxy(v, blk, dq);
 	return C;
 }
 

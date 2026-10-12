@@ -116,6 +116,59 @@ static var diag := 0
 static var dith_gs := 0.006
 static var dith_coh := 0.5
 
+## THE STAR CHART'S LIVING SKY, ROUND TWO (Oct 12): Jon's picks from the
+## "magnificent" list that live in the sky shader, prototyped in SIMPLIFIED only,
+## each on a switch of its own so he can keep or cut it alone. Off unless asked
+## for: `chartwow=` on the command line, a comma list of the names below or `all`.
+## (Round one's light shows -- the reveal, glints, near stars at 1.45x, core
+## beams, knot glow -- were all cut: he kept life and legibility, not effects.)
+##   colours   every system's own star in the sky in its true colour, the colour
+##             the sector map's sun is when you open it (`SunView.L_*`)
+##   remnants  each supernova leaves a glowing ring that stays and fades
+##   feeding   now and then a star near the core is pulled into a streak and
+##             spirals into the hole (the hole itself as it is)
+##   comets    now and then a slow comet with a tail crosses the arms
+##   near      a near layer of big stars, gas and nebulae between you and the
+##             galaxy, sliding several times as fast on a drag; `nearzoom=a` it
+##             swells past you as you zoom in, `nearzoom=b` (the default) it holds
+##             its size and only the galaxy magnifies behind it
+const WOW_COLOURS := 1
+const WOW_REMNANTS := 2
+const WOW_FEEDING := 4
+const WOW_COMETS := 8
+const WOW_NEAR := 16
+const WOW_NAMES := {"colours": WOW_COLOURS, "remnants": WOW_REMNANTS, "feeding": WOW_FEEDING,
+	"comets": WOW_COMETS, "near": WOW_NEAR}
+static var wow := -1
+## tuning knobs (`wowk=a,b,c,d`), 1 as made
+static var _wowk := Vector4.ONE
+## the near layer on a zoom: 0 holds its size (b), 1 swells past you (a)
+static var near_swell := 0
+## A harness's forced event (ChartLook's `feed` and `comet` tours): it starts at this clock
+## time instead of when its own schedule says. -1: none.
+static var force_feed := -1.0
+static var force_comet := -1.0
+
+
+static func wow_bits() -> int:
+	if wow < 0:
+		wow = 0
+		for a in OS.get_cmdline_user_args():
+			var arg := a as String
+			if arg.begins_with("wowk="):
+				var f := arg.substr(5).split(",")
+				for i in mini(4, f.size()):
+					_wowk[i] = float(f[i])
+			elif arg == "nearzoom=a":
+				near_swell = 1
+			elif arg.begins_with("chartwow="):
+				for nm in arg.substr(9).split(","):
+					if nm == "all":
+						wow = WOW_COLOURS | WOW_REMNANTS | WOW_FEEDING | WOW_COMETS | WOW_NEAR
+					else:
+						wow |= int(WOW_NAMES.get(nm, 0))
+	return wow
+
 var chart: StarchartScreen.MapChart = null
 ## THE LEGACY STYLE draws with a renderer of its own (`ChartLegacy`, the chart as
 ## it was before the port): this node hands it the chart and draws nothing.
@@ -1814,6 +1867,14 @@ func _push() -> void:
 	ms.set_shader_parameter("diag", diag)
 	ms.set_shader_parameter("phi", phi)
 	ms.set_shader_parameter("kn_amp", g._amps)
+	# the living sky (SIMPLIFIED alone in round two: never RADIANT's, which shares
+	# these passes)
+	var wb := 0 if g.has("radiant") else wow_bits()
+	ms.set_shader_parameter("time", t)
+	ms.set_shader_parameter("wow", wb)
+	m.set_shader_parameter("u_wow", wb)
+	if wb != 0:
+		_feed_wow(m, g, t, ccon, z)
 	var ex: Array = _cloud_stars(g, t, phi, ccon, z, _vp_origin)
 	var epos: PackedVector4Array = ex[0]
 	var ecol: PackedVector4Array = ex[1]
@@ -1873,6 +1934,11 @@ func _push() -> void:
 	mc.set_shader_parameter("coh_lo", minf(0.95, dith_coh * (0.75 if int(g.p.form) != 0 else 1.0) * (ChartRadiant.DITH_COH if g.has("radiant") else 1.0)))
 	_stars.queue_redraw()
 	queue_redraw()
+
+
+## The living sky's per-frame inputs.
+func _feed_wow(m: ShaderMaterial, g: Dictionary, t: float, ccon: Vector2, z: float) -> void:
+	m.set_shader_parameter("u_wowk", _wowk)
 
 
 ## RADIANT'S SAFETY: it is the heavy style ("for photos probably", Jon). Over its

@@ -42,6 +42,9 @@ uniform int diag = 0;          // (tuning: 2 or 16 draw no stars, `ChartSky.diag
 uniform float k = 622.25;
 uniform float phi = 0.0;
 uniform float bulge_r = 0.128;
+// the living sky's switches (`ChartSky.wow_bits`) and the sky's clock
+uniform int wow = 0;
+uniform float time = 0.0;
 
 varying vec3 v_col;
 varying vec2 v_loc;
