@@ -155,6 +155,26 @@ static func set_render_style(s: StringName) -> bool:
 	return true
 
 
+## RADIANT'S SAFETY GIVES UP ON IT (`ChartRadiant.fell_back`): the setting
+## becomes `s` and is kept, but NOTHING IS REBUILT NOW -- no
+## `render_style_changed` -- so the picture on screen keeps its look until the
+## next one is built (the next system, the chart's next build, LOCAL's next
+## setup), which draws `s`. Jon: the picture holds its brightness; a style
+## switched under a still view read as the whole frame dimming by itself
+## (RADIANT's light through gas gone at once, 16.9 to 13.2 in a frame).
+static func fall_back_style(s: StringName) -> void:
+	if not style_built(s) or s == render_style:
+		return
+	render_style = s
+	save()
+
+
+## The style was put there by a harness's `style=` (not the player's to keep,
+## and never overruled by RADIANT's safety unless it asks: `radiantprobe=MS`).
+static func harness_style() -> bool:
+	return _harness_style
+
+
 ## GRAPHICS LOW from Settings: kept, and applied at once -- the star chart, the
 ## sector map and LOCAL rebuild on `Sig.render_style_changed` and read this as
 ## they build (the chart also swaps its place pass live). Turning LOW ON lets

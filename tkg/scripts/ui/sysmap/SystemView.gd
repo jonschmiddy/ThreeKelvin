@@ -1004,8 +1004,9 @@ static func light_for(p: Vector2) -> Vector3:
 ## RADIANT'S SAFETY, the sector's half of the chart's (`ChartSky._radiant_safety`,
 ## the same budget, `ChartRadiant.budget_ms`, and the same fall-back): the place
 ## picture's GPU time over its first seconds of drawing is averaged, and if this
-## machine cannot hold it the map is drawn SIMPLIFIED from then on, with one line
-## in the log. A harness's `style=radiant` is never overruled (it is measuring)
+## machine cannot hold it every map drawn after this one is SIMPLIFIED (this one
+## keeps its look: a picture never changes under a still view), with one line in
+## the log. A harness's `style=radiant` is never overruled (it is measuring)
 ## unless it asks with `radiantprobe=MS`.
 var _rprobe := {}
 
@@ -1029,14 +1030,17 @@ func _radiant_safety() -> void:
 	var avg := float(_rprobe.gpu) / float(_rprobe.n)
 	_rprobe["avg_ms"] = avg
 	print_verbose("RADIANT the sector map's GPU time: %.2f ms a frame over %d frames" % [avg, int(_rprobe.n)])
-	if avg > ChartRadiant.budget_ms() and (DisplaySettings.render_style == STYLE_RADIANT or ChartRadiant.probe_forced()):
+	if avg > ChartRadiant.budget_ms() and ((DisplaySettings.render_style == STYLE_RADIANT and not DisplaySettings.harness_style()) 			or ChartRadiant.probe_forced()):
 		push_warning("RADIANT sector measured %.1f ms a frame on this machine; drawing SIMPLIFIED" % avg)
 		Run.log_line("RADIANT is too heavy for this machine, so the sector map is drawn SIMPLIFIED.", &"them")
+		# FROM THE NEXT PICTURE, NOT THIS ONE (Jon: the picture holds its
+		# brightness): it switched the style at once and the map, rebuilt under a
+		# still view, dropped from RADIANT's lit gas to SIMPLIFIED's -- the whole
+		# frame 16.9 -> 13.2 in a frame, settling at 14.6, three seconds in. The
+		# map up keeps its look; the next system drawn, the chart's next build and
+		# LOCAL's are SIMPLIFIED (`fell_back`, and the setting with it).
 		ChartRadiant.fell_back = true
-		if DisplaySettings.render_style == STYLE_RADIANT:
-			DisplaySettings.set_render_style(STYLE_SIMPLIFIED)
-		else:
-			Sig.render_style_changed.emit()
+		DisplaySettings.fall_back_style(STYLE_SIMPLIFIED)
 
 
 ## THE RENDERING STYLE (`DisplaySettings.render_style`): SIMPLIFIED is the

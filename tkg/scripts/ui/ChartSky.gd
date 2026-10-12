@@ -339,6 +339,11 @@ func setup(c: StarchartScreen.MapChart) -> void:
 	_use_map = c.run_galaxy
 	# the style is part of the key: a simplified bake and a painted one differ
 	var key := galaxy_key() + ("|map" if _use_map else "") + ("|painted" if ChartPainted.wanted() else "") 		+ ("|radiant" if ChartRadiant.wanted() and not ChartPainted.wanted() else "")
+	# (RADIANT's safety gave up on it while this chart was up: this chart keeps
+	# its look -- a picture never changes under a still view -- and the next
+	# chart built is SIMPLIFIED; this is asked every frame)
+	if ChartRadiant.fell_back and _key.ends_with("|radiant") and key == _key.trim_suffix("|radiant"):
+		key = _key
 	if key != _key:
 		_key = key
 		if _vp != null:
@@ -1878,8 +1883,9 @@ func _push() -> void:
 ## RADIANT'S SAFETY: it is the heavy style ("for photos probably", Jon). Over its
 ## first seconds of drawing the sky's own viewports' GPU time is averaged; if
 ## this machine cannot hold it (`ChartRadiant.FALLBACK_MS`), the chart falls
-## back to SIMPLIFIED, with one line in the log. A harness's `style=radiant` is
-## never overruled (it is measuring).
+## back to SIMPLIFIED from its next build (this one keeps its look), with one
+## line in the log. A harness's `style=radiant` is never overruled (it is
+## measuring) unless it asks with `radiantprobe=MS`.
 func _radiant_safety() -> void:
 	if _radiant_probe.is_empty() or _radiant_probe.has("done"):
 		return
@@ -1903,14 +1909,15 @@ func _radiant_safety() -> void:
 	var avg := float(_radiant_probe.gpu) / float(_radiant_probe.n)
 	_radiant_probe["avg_ms"] = avg
 	print_verbose("RADIANT the sky's own GPU time: %.2f ms a frame over %d frames" % [avg, int(_radiant_probe.n)])
-	if avg > ChartRadiant.budget_ms() and (DisplaySettings.render_style == &"radiant" or ChartRadiant.probe_forced()):
+	if avg > ChartRadiant.budget_ms() and ((DisplaySettings.render_style == &"radiant" and not DisplaySettings.harness_style()) 			or ChartRadiant.probe_forced()):
 		push_warning("RADIANT measured %.1f ms a frame on this machine; drawing SIMPLIFIED" % avg)
 		Run.log_line("RADIANT is too heavy for this machine, so the star chart is drawn SIMPLIFIED.", &"them")
+		# FROM THE NEXT PICTURE, NOT THIS ONE (Jon: the picture holds its
+		# brightness; the sector map's safety, `SystemView._radiant_safety`, has
+		# the measure): the chart up keeps its look, the next one built is
+		# SIMPLIFIED (`fell_back`, and the setting with it).
 		ChartRadiant.fell_back = true
-		if DisplaySettings.render_style == &"radiant":
-			DisplaySettings.set_render_style(&"simplified")
-		else:
-			Sig.render_style_changed.emit()
+		DisplaySettings.fall_back_style(&"simplified")
 
 
 func _draw() -> void:

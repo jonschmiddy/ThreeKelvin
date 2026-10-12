@@ -326,6 +326,12 @@ func setup(n: MapGen.MapNode) -> void:
 	var key := "%d|%s|%s" % [n.index, style_now(), DisplaySettings.graphics_low]
 	if key == _key:
 		return
+	# (RADIANT's safety gave up on it while this sky was up, `fall_back_style`:
+	# the same system's sky keeps its look -- a picture never changes under a
+	# still view -- and the next one built is SIMPLIFIED)
+	if node == n and radiant and ChartRadiant.fell_back and key == "%d|%s|%s" % [n.index, DisplaySettings.render_style, DisplaySettings.graphics_low] \
+			and _key == "%d|radiant|%s" % [n.index, DisplaySettings.graphics_low]:
+		return
 	_key = key
 	node = n
 	_build()
@@ -568,18 +574,21 @@ func _build() -> void:
 	# bake and the palette's cut through forced, unpresented draws, in this
 	# same frame, then shown. The palette is kept per system and style
 	# (`_pal_cache`), so a system already seen this session is cut once.
-	_box.modulate.a = 0.0 if _palette_mat != null else 1.0
+	_box.modulate.a = 0.0
 	var cached: Array = _pal_cache.get(_key, [])
 	if _palette_mat != null and not cached.is_empty():
 		_palette_mat.set_shader_parameter("pal", cached[0])
 		_palette_mat.set_shader_parameter("pal_n", cached[1])
 		_palette_built = true
-		_box.modulate.a = 1.0
+	_fade = -1.0
+	_live_frames = 0
+	_bake_on_real = false
 	if neb_on:
 		_bake_cloud(_gen)
 	else:
 		_ready_sky = true
 	_prime()
+	_reveal()
 
 
 ## Finish the sky before it is first shown: forced draws (never presented)
@@ -601,15 +610,21 @@ func _prime() -> void:
 	var draws := 0
 	_set_update(SubViewport.UPDATE_ALWAYS)
 	for i in PRIME_MAX:
-		if _ready_sky and (_palette_mat == null or _box.modulate.a > 0.0):
+		if _ready_sky and (_palette_mat == null or _palette_built):
+			break
+		# (the cloud's bake waits on real frames now, and the palette is cut from
+		# the cloud: forcing more draws only made the open hitch, 48 of them,
+		# ~200 ms, for nothing)
+		if _bake_on_real:
 			break
 		_step(0.0)
 		RenderingServer.force_draw(false, 0.0)
 		draws += 1
 		if gen != _gen or not is_inside_tree():
 			return
-	# (whatever happened, never leave the sky clear)
-	_box.modulate.a = 1.0
+	# (shown once it is whole: at once if that was here, unseen, or as soon as the
+	# cloud's bake lands on the next real frames -- `_reveal`)
+	_reveal()
 	print_verbose("LocalSky primed %s in %d draws, %.0f ms" % [_key, draws, (Time.get_ticks_usec() - t0) / 1000.0])
 	ZoomLadder.probe_add("sky_prime(%d draws)" % draws, Time.get_ticks_usec() - t0)
 
@@ -638,6 +653,8 @@ func _bake_cloud(gen: int) -> void:
 			if not _blank(bake.field_img0):
 				break
 			print_verbose("LocalSky: the cloud baked empty, again (%d)" % attempt)
+			# (nothing more the prime's forced draws can do: it stops forcing)
+			_bake_on_real = true
 			await get_tree().process_frame
 			await get_tree().process_frame
 			if gen != _gen or not is_inside_tree():
@@ -678,6 +695,35 @@ func _bake_cloud(gen: int) -> void:
 				f.append(ps)
 	_neb.visible = true
 	_ready_sky = true
+	_reveal()
+
+
+## THE SKY SHOWN ONLY WHOLE (Jon: a pop is a failure). LOCAL opened straight --
+## not through the map's zoom, which builds it ahead -- showed its first eight
+## or so frames with no cloud and then the cloud arrived (the whole frame 24 to
+## 47): the cloud's bake cannot finish inside `_prime`'s forced draws (they read
+## its pictures back empty; it bakes again on the next real frames), and the
+## prime ended by showing the sky whatever it held. Now the sky stays clear
+## until the cloud is in and the palette cut, then comes up whole: at once if
+## nobody has seen a frame of it yet, else eased in over FADE_IN seconds, so the
+## held frames end in a fade rather than a jump.
+const FADE_IN := 0.25
+var _fade := -1.0
+## real frames drawn since this sky was built
+var _live_frames := 0
+## the cloud's bake gave up on the forced draws and waits on real frames
+var _bake_on_real := false
+
+
+func _reveal() -> void:
+	if _box == null or _box.modulate.a > 0.0 or _fade >= 0.0:
+		return
+	if not _ready_sky or (_palette_mat != null and not _palette_built):
+		return
+	if _live_frames == 0:
+		_box.modulate.a = 1.0
+	else:
+		_fade = 0.0
 
 
 ## Nothing in a baked picture: no pixel of a grid across it has any channel lit.
@@ -839,6 +885,10 @@ func _process(delta: float) -> void:
 		_low_dt = 0.0
 	elif _scene.render_target_update_mode != SubViewport.UPDATE_ALWAYS:
 		_set_update(SubViewport.UPDATE_ALWAYS)
+	_live_frames += 1
+	if _fade >= 0.0 and _box != null:
+		_fade = minf(_fade + delta / FADE_IN, 1.0)
+		_box.modulate.a = _fade * _fade * (3.0 - 2.0 * _fade)
 	_step(delta)
 
 
@@ -1104,8 +1154,7 @@ func _build_palette() -> void:
 		_pal_cache.erase(_pal_cache.keys()[0])
 	# (and now it may be seen: the scene renders before the screen does, so the
 	# frame that shows it is already cut)
-	if _box != null:
-		_box.modulate.a = 1.0
+	_reveal()
 	# (a harness's `palprint`: the palette found, to compare two arrivals)
 	if "palprint" in OS.get_cmdline_user_args():
 		var hx: Array = []
