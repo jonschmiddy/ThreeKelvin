@@ -185,6 +185,46 @@ static func fluff() -> Vector2:
 	return _fluff
 
 
+## THE MIDDLE HAS RELIEF (`chart_c_place`'s terrain section; Jon: "hills and valleys
+## of dust ... a body to the galaxy both in the horizontal sense and vertically"): the
+## inner disc's gas a height field lit from the core, its ridges casting shadows into
+## the valleys and standing against the bulge. With the solid galaxy, `chartwow=terrain`,
+## and how much: `terrain=gentle|strong|dramatic` (strong the default). SIMPLIFIED only.
+const TERRAINS := {"gentle": 0.5, "strong": 1.0, "dramatic": 2.0}
+static var _terr := -1.0
+
+
+static func terrain() -> float:
+	if _terr < 0.0:
+		var on := false
+		var lv: float = TERRAINS.strong
+		for a in OS.get_cmdline_user_args():
+			var arg := a as String
+			if arg.begins_with("chartwow=") and "terrain" in arg.substr(9).split(","):
+				on = true
+			elif arg.begins_with("terrain="):
+				lv = TERRAINS.get(arg.substr(8), TERRAINS.strong)
+		_terr = lv if on else 0.0
+	return _terr
+
+
+## THE NEBULAE HAVE BODIES (`chart_c_place`'s `nebShell` / `nebPuff`; Jon: "the nebula
+## can also have some texture too"): the shells piled up at the rim and emptier in the
+## middle, the emission nebulae and knots puffy, the dark ones mounds that cast a
+## shadow, all lit from the core. With the solid galaxy, `chartwow=nebulae`.
+static var _neb := -1.0
+
+
+static func nebulae() -> float:
+	if _neb < 0.0:
+		_neb = 0.0
+		for a in OS.get_cmdline_user_args():
+			var arg := a as String
+			if arg.begins_with("chartwow=") and "nebulae" in arg.substr(9).split(","):
+				_neb = 1.0
+	return _neb
+
+
 ## THE DISC'S EDGE DISSOLVES (`chart_c_place`'s edge section; Jon: "it looks like the
 ## edge of a plate", then "even softer and more diffuse"): with the solid galaxy,
 ## the outer disc thins over a long stretch into a soft haze, the puffs gone well
@@ -2039,6 +2079,8 @@ func _push() -> void:
 	var fl := fluff() if (_use_map and not g.has("radiant")) else Vector2(0.0, 1.0)
 	m.set_shader_parameter("u_fluff", fl.x)
 	m.set_shader_parameter("u_fluffS", fl.y)
+	m.set_shader_parameter("u_terr", terrain() if sol else 0.0)
+	m.set_shader_parameter("u_neb", nebulae() if sol else 0.0)
 	var ed := edge()
 	m.set_shader_parameter("u_edge", Vector4(ed.x, ed.y, ed.z, 1.0 if (sol and _edge_on) else 0.0))
 	ms.set_shader_parameter("solid", sol)

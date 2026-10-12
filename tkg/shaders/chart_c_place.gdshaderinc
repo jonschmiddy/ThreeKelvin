@@ -86,6 +86,10 @@ uniform float u_fluffS = 1.0;
 // THE DISC'S EDGE DISSOLVES (`ChartSky.edge`, the edge section below): where the
 // fade starts (gu), where it ends (gu), how uneven it is (gu either way), on (1) or off
 uniform vec4 u_edge = vec4(0.0);
+// THE MIDDLE HAS RELIEF (`ChartSky.terrain`, the terrain section below): how much, 0 off
+uniform float u_terr = 0.0;
+// THE NEBULAE HAVE BODIES (`ChartSky.nebulae`, `nebBody` with the clouds): how much, 0 off
+uniform float u_neb = 0.0;
 
 const vec3 HA = vec3(1.0, 0.2, 0.3);
 const vec3 OIII = vec3(0.2, 0.95, 0.85);
@@ -613,7 +617,15 @@ vec3 knots(vec2 p) {
 		}
 		float q = sqrt(dd) / s;
 		float core = exp(-q * q * 1.6), fall = exp(-q * 1.2) * 0.30;
-		c += kn.w * (vec3(1.0, 0.24, 0.48) * (core + fall) + vec3(0.8, 0.9, 1.0) * exp(-q * q * 6.0) * 0.6) * 0.6;
+		// (with the nebulae's bodies, `u_neb`: a puff standing off the disc, its top
+		// toward the core lit, its underside away in shade)
+		float lk = 1.0;
+		if (u_neb > 0.0) {
+			vec3 Nk = normalize(vec3(d / s * 0.55, 1.0));
+			vec2 tc = -kn.xy / max(length(kn.xy), 1e-4);
+			lk = mix(1.0, 0.35 + 1.2 * max(dot(Nk, normalize(vec3(tc, 0.55))), 0.0), u_neb);
+		}
+		c += kn.w * lk * (vec3(1.0, 0.24, 0.48) * (core + fall) + vec3(0.8, 0.9, 1.0) * exp(-q * q * 6.0) * 0.6) * 0.6;
 	}
 	return c;
 }
@@ -822,6 +834,51 @@ void darkCloud(int ci, vec2 u, float R, float seed, vec2 toC, vec3 Cb, float irr
 		C += mix(LIGHTNING, LITDUST, 0.3) * lt.x * wxGate() * smoothstep(0.1, 0.6, rho) * exp(-dot(dl, dl)) * 0.8;
 	}
 }
+// THE NEBULAE HAVE BODIES (`ChartSky.nebulae`, solid view only; Jon: "the nebula
+// can also have some texture too. Like the supernova remnants would have height at
+// the edges and be more flat towards the emptier center"). Each kind in the same
+// height-field language as the middle's dust, lit from the galaxy's core:
+//   * the shells (remnants, the ring nebulae): a wall piled up at the rim like a
+//     crater's or a blown bubble's, its face toward the core lit and its back in
+//     shade, the floor inside low and emptier and in the wall's shadow on the
+//     core's side (`nebShell`);
+//   * emission nebulae and the pink knots: puffs standing off the disc, lit tops
+//     toward the core, shaded undersides (`nebPuff`);
+//   * dark nebulae: dense mounds, their rim toward the core lit brighter, each
+//     casting its own shadow outward.
+// Their colours and shapes are their own; the light only shades them. Fixed in
+// each cloud's own units, so a zoom only magnifies it. u_neb: how much, 0 off.
+// a shell's light at a point (its direction from the centre, its distance from the
+// wall in radii, the direction toward the core): (on the wall, on the floor inside)
+vec2 nebShell(vec2 dir, float xr, vec2 toC) {
+	if (u_neb <= 0.0) {
+		return vec2(1.0);
+	}
+	// the wall: a ridge round the rim, its slope outward outside, inward inside
+	float h = exp(-xr * xr / 0.02);
+	vec3 N = normalize(vec3(dir * (xr / 0.02) * h * 0.35, 1.0));
+	float lit = max(dot(N, normalize(vec3(toC, 0.5))), 0.0);
+	float wall = 0.3 + 1.3 * lit;
+	// the floor: emptier toward the middle, and shaded under the wall on the core's side
+	float sh = clamp(dot(dir, toC), 0.0, 1.0) * smoothstep(-0.7, -0.15, xr) * (1.0 - smoothstep(-0.12, -0.02, xr));
+	float flo = (1.0 - 0.7 * sh) * mix(0.45, 1.0, smoothstep(-0.8, -0.2, xr));
+	return mix(vec2(1.0), vec2(wall, flo), u_neb);
+}
+// a puff's light at cloud point u (cloud radius R, seed, toward the core): what the
+// cloud's light is multiplied by
+float nebPuff(vec2 u, float R, float seed, vec2 toC) {
+	if (u_neb <= 0.0) {
+		return 1.0;
+	}
+	vec2 q = u / R * 2.6 + seed * 1.7;
+	const float e = 0.08;
+	float h = kitFbm2(q, 3);
+	float hx = kitFbm2(q + vec2(e, 0.0), 3) - h;
+	float hy = kitFbm2(q + vec2(0.0, e), 3) - h;
+	vec3 N = normalize(vec3(-hx, -hy, e * 0.45));
+	float lit = max(dot(N, normalize(vec3(toC, 0.55))), 0.0);
+	return mix(1.0, 0.4 + 1.15 * lit, u_neb);
+}
 void cloudLayer(vec2 v, float irr, float gas, inout vec3 C, inout vec3 cloudT) {
 	vec3 Cb = C;
 	for (int i = 0; i < 12; i++) {
@@ -841,16 +898,46 @@ void cloudLayer(vec2 v, float irr, float gas, inout vec3 C, inout vec3 cloudT) {
 			float d = length(u) / cl.z;
 			C += (kind == 0 ? mix(HA, OIII, 0.15) : REFL) * gas * 0.10 * exp(-d * d * 0.9);
 		}
+		vec3 C0 = C;
+		vec2 toC = u_cdir[i].xy;
 		if (kind == 0) {
 			emissionCloud(i, u, cl.z, ck.w, C);
+			// (a puffy body: where the cloud is, its light lit and shaded as puffs)
+			if (u_neb > 0.0) {
+				float cov = smoothstep(0.02, 0.35, lobes(i, u));
+				C = mix(C, C0 + (C - C0) * nebPuff(u, cl.z, ck.w, toC), cov);
+			}
 		} else if (kind == 1) {
 			reflectionCloud(i, u, cl.z, ck.w, C);
 		} else if (kind == 2) {
 			remnantCloud(i, u, cl.w, ck.w, C);
+			// (a shell: its wall lit toward the core, its floor shaded under it)
+			if (u_neb > 0.0) {
+				float rho = length(u) / cl.w;
+				vec2 sl = nebShell(u / max(length(u), 1e-5), rho - 0.95, toC);
+				C = C0 + (C - C0) * (rho < 0.8 ? 1.0 : sl.x);
+				C *= rho < 0.95 ? sl.y : 1.0;
+			}
 		} else if (kind == 3) {
 			planetaryCloud(i, u, cl.w, ck.z, ck.w, C);
+			if (u_neb > 0.0) {
+				float rho = length(u) / (cl.w * 0.8);
+				vec2 sl = nebShell(u / max(length(u), 1e-5), rho - 1.0, toC);
+				C = C0 + (C - C0) * (rho < 0.85 ? 1.0 : sl.x);
+				C *= rho < 1.0 ? sl.y : 1.0;
+			}
 		} else {
-			darkCloud(i, u, cl.z, ck.w, u_cdir[i].xy, Cb, irr, C, cloudT);
+			darkCloud(i, u, cl.z, ck.w, toC, Cb, irr, C, cloudT);
+			// (a mound: its own shadow cast outward, away from the core, and its rim
+			// toward the core lit more)
+			if (u_neb > 0.0) {
+				float d0 = lobes(i, u);
+				float dT = lobes(i, u + toC * 0.5 * cl.z);
+				float sh = smoothstep(0.02, 0.4, dT - d0) * (1.0 - smoothstep(0.3, 0.8, d0));
+				C *= 1.0 - 0.7 * sh * u_neb;
+				float rimL = smoothstep(0.02, 0.25, d0 - dT) * smoothstep(0.03, 0.2, d0) * (1.0 - smoothstep(0.35, 0.7, d0));
+				C += LITDUST * (irr * 1.2 + 0.010) * rimL * 0.5 * u_neb;
+			}
 		}
 	}
 }
@@ -1129,7 +1216,10 @@ vec3 remnants(vec2 p) {
 		float shell = exp(-x * x) * (0.45 + 0.55 * smoothstep(-0.4, 0.3, kitSnoise2(vec2(an * 2.3, rm.w + 5.0))));
 		float inside = (1.0 - smoothstep(Rr * 0.4, Rr, dl)) * 0.07;
 		float life = smoothstep(1.5, 8.0, age) * exp(-age / 360.0) * (1.0 - smoothstep(480.0, 600.0, age));
-		c += (mix(OIII, HA, smoothstep(-0.6, 0.6, x)) * shell * 1.6 + OIII * inside) * life;
+		// (with the nebulae's bodies: the shell a wall, lit on its face toward the core,
+		// the floor inside it shaded under the wall on that side, `nebShell`)
+		vec2 sl = nebShell(d / max(dl, 1e-5), x * w / max(Rr, 1e-5), -rm.xy / max(length(rm.xy), 1e-4));
+		c += (mix(OIII, HA, smoothstep(-0.6, 0.6, x)) * shell * 1.6 * sl.x + OIII * inside * sl.y) * life;
 	}
 	return c;
 }
@@ -1302,6 +1392,113 @@ vec3 fluffShade(vec2 p) {
 	return vec3(mix(1.0, shade, cover * min(u_fluff, 1.0)), rim * cover, body);
 }
 
+// ------------------------------------------------------------------ terrain
+// THE MIDDLE HAS RELIEF (`ChartSky.terrain`; Jon: "what about the clouds in the
+// middle of the galaxy? I want almost like hills and valleys of dust ... a body to
+// the galaxy both in the horizontal sense and vertically"). The arms' gas has its
+// puffs (`fluffPuff`); the inner disc round the bulge was still a flat painted plate.
+// Here its gas is a height field (`terrH`): broad hills of dust with smaller billows
+// on them, following the gas's own structure, so the arm ridges are ridges and the
+// dark lanes the valleys. It is lit like terrain, from the core and low: faces
+// toward the core lit warm, backs in shade, valley floors occluded, and each ridge
+// casting its shadow outward into the valley behind it (`terrShade`: a few steps
+// from each point toward the core over the field). It stands up toward the camera
+// (`terrSeen`), so hills slide against valleys as the view turns, and near the core
+// the ridges on the near side stand in silhouette against the gold bulge, dark dust
+// with a lit rim, hiding its lower edge (`terrSilh`). All in the disc's own units at
+// fixed scales and read at fixed mip levels, so a zoom only magnifies it, and the
+// light comes from the core, so the shadows turn with the disc and never crawl.
+// u_terr: how much relief (0 off). Never over the hole's own disc or through its
+// lens (`place` fades it out across the lens's patch).
+const float TERR_H = 0.010;           // the tallest hill at u_terr 1, gu
+const float TERR_R0 = 0.035;          // the relief starts this far out from the core
+const float TERR_R1 = 0.50;           // and is gone by here (the arms have their puffs)
+const float TERR_PX = 0.4;            // how far the view's slide goes, of the whole way
+// the height of the dust at plane point p, gu, its mip levels lifted by `lo` (a
+// blur, for the valley floors' occlusion)
+float terrH(vec2 p, float lo) {
+	float r = length(p);
+	if (r > TERR_R1 || r < TERR_R0 * 0.5) {
+		return 0.0;
+	}
+	vec4 S = textureLod(u_struct, bakeUV(p), 3.5 + lo);
+	// broad hills (the billow field read coarse at a place of its own), and smaller
+	// ridges on them (the same field finer, folded into crests)
+	float b1 = textureLod(u_noise, bakeUV(p * 0.7 + vec2(0.31, 0.12)), 1.5 + lo).b;
+	float b2 = textureLod(u_noise, bakeUV(p * 1.6 + vec2(-0.21, 0.37)), 1.75 + lo).b;
+	float hills = smoothstep(0.30, 0.70, b1);
+	float c2 = 2.0 * smoothstep(0.25, 0.75, b2) - 1.0;
+	float crest = 1.0 - c2 * c2;
+	float h = 0.65 * hills + 0.35 * crest * (0.4 + 0.6 * hills) + 0.30 * S.r
+		- 1.0 * S.g * max(u_laneStr, 0.6);
+	float env = smoothstep(TERR_R0, TERR_R0 * 2.2, r) * (1.0 - smoothstep(TERR_R1 * 0.55, TERR_R1, r));
+	return clamp(h, 0.0, 1.2) * env * TERR_H * u_terr;
+}
+// the point of the dust the eye meets looking down at plane point p: moved toward the
+// camera by the height it meets there (twice over), as `fluffSeen`
+vec2 terrSeen(vec2 p) {
+	if (u_terr <= 0.0 || length(p) > TERR_R1) {
+		return p;
+	}
+	// (read from the field blurred, and moved a share of the way: moved the whole way
+	// by the sharp field, neighbouring blocks folded onto scattered points and the
+	// dust broke into a grain)
+	vec2 d = fluffToward(p) * TERR_PX;
+	vec2 q = p + d * terrH(p, 1.5);
+	return p + d * terrH(q, 1.5);
+}
+// how the dust at plane point p is lit: (what its light is multiplied by, the warm
+// light on faces toward the core, how much it is a hill: 0 to 1)
+vec3 terrShade(vec2 p) {
+	float r = length(p);
+	if (u_terr <= 0.0 || r > TERR_R1 || r < TERR_R0 * 0.5) {
+		return vec3(1.0, 0.0, 0.0);
+	}
+	float Hm = TERR_H * u_terr;
+	float h0 = terrH(p, 0.0);
+	const float TE = 0.006;
+	float hx = terrH(p + vec2(TE, 0.0), 0.0) - h0;
+	float hy = terrH(p + vec2(0.0, TE), 0.0) - h0;
+	// (the slopes drawn out, so the hills read as hills at any relief)
+	vec3 N = normalize(vec3(-hx, -hy, TE * 0.5));
+	vec2 toC = -p / r;
+	// the core's light, low over the disc
+	const float TAN_L = 0.30;
+	vec3 L = normalize(vec3(toC, TAN_L));
+	float lit = max(dot(N, L), 0.0);
+	// the ridges between it and the core: a few steps toward the core over the field
+	// (over the field a little blurred: the finest crests cast only a grain)
+	float sh = 0.0;
+	float hs0 = terrH(p, 0.75);
+	for (int i = 1; i <= 6; i++) {
+		float t = float(i) * 0.010;
+		if (t > r - TERR_R0 * 0.5) {
+			break;
+		}
+		float hs = terrH(p + toC * t, 0.75);
+		sh = max(sh, (hs - hs0 - t * TAN_L * 0.35) / (Hm * 0.35));
+	}
+	sh = clamp(sh, 0.0, 1.0);
+	// the valley floors, lower than the land round them
+	float hb = terrH(p, 2.0);
+	float ao = clamp(1.0 - 1.6 * max(hb - h0, 0.0) / max(Hm * 0.5, 1e-6), 0.4, 1.0);
+	float relief = smoothstep(0.0, Hm * 0.25, max(h0, hb));
+	float shade = (0.5 + 0.8 * lit) * (1.0 - 0.55 * sh) * ao;
+	float warm = lit * (1.0 - sh) * smoothstep(0.0, 0.5, h0 / Hm);
+	return vec3(mix(1.0, shade, relief), warm * relief, relief);
+}
+// how much a near ridge at plane point p stands in front of the bulge behind it: 0 to
+// 1 (near side only, round the bulge)
+float terrSilh(vec2 p) {
+	if (u_terr <= 0.0) {
+		return 0.0;
+	}
+	float r = length(p);
+	vec2 q = kitRot(u_phi) * p;
+	float near = smoothstep(0.0, 0.03, q.y) * (1.0 - smoothstep(0.10, 0.22, r));
+	return near * smoothstep(0.30, 0.85, terrH(p, 0.0) / (TERR_H * u_terr));
+}
+
 // ------------------------------------------------------------------ the solid galaxy
 // THE SOLID GALAXY (`ChartSky.solid`, SIMPLIFIED only until Jon approves): the chart
 // seen through a real camera instead of laid flat like a tilted poster. The galaxy
@@ -1342,7 +1539,8 @@ vec3 solidLane(vec2 o) {
 // `la`: how many mip levels coarser to read the bakes, for a point seen through
 // the lens, where a wide patch of the disc is squeezed into a few blocks and the
 // bakes read at the screen's own scale alias into flicker as the zoom moves
-vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) {
+// `tk`: how much of the middle's relief (`terrH`) is drawn here, 0 through the hole's lens
+vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la, float tk, out float dustOut) {
 	vec3 C = VOIDC / u_exp;
 	dustOut = 0.0;
 	vec2 p = kitViewToPlane(v, u_phi, u_k);
@@ -1351,7 +1549,8 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 	float irr = 1.0 / (1.0 + pow(r / 0.10, 2.0));
 	bool ball = u_form == 1;
 	vec3 T = vec3(1.0), B = vec3(0.0);
-	float gas = 0.0, nest = 0.0, front = 0.0, bulgeI = 0.0;
+	float gas = 0.0, nest = 0.0, front = 0.0, bulgeI = 0.0, silh = 0.0;
+	vec3 terrS = vec3(1.0, 0.0, 0.0);
 	// (each layer is called ONCE whatever the galaxy's shape: a call in each
 	// branch inlines it twice and the shader took seconds longer to compile)
 	if (ball) {
@@ -1368,8 +1567,18 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 		vec3 Em;
 		float A, dust;
 		// (the gas where the eye meets it, through its height: `fluffSeen`)
-		vec2 pf = fluffSeen(p);
+		// (and through the middle's relief first: `terrSeen`)
+		vec2 pt = tk > 0.0 ? mix(p, terrSeen(p), tk) : p;
+		vec2 pf = fluffSeen(pt);
 		discAt(pf, v, hbOf(la), star, la, Em, T, gas, A, dust, nest);
+		if (u_terr > 0.0 && tk > 0.0) {
+			// (lit as terrain from the core, below, once the disc and the bulge behind
+			// it are in: so the dust round the bulge, which is mostly the bulge's light
+			// through it, has its relief too)
+			terrS = terrShade(pt);
+			terrS.xy = mix(vec2(1.0, 0.0), terrS.xy, tk);
+			silh = terrSilh(pt) * tk;
+		}
 		if (u_fluff > 0.0) {
 			// lit as a body of cloud: its lit side toward the core, its shade away, its
 			// creases, the rim of a puff catching the core's light
@@ -1438,7 +1647,16 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 		// (through the camera the top of the bulge stands in front of the far side
 		// of the disc and hides it, rather than only adding its light over it)
 		float occ = u_solid ? 0.8 * front * smoothstep(0.003, 0.05, bulgeI) : 0.0;
-		C = C * (1.0 - occ) + B * front * mix(vec3(1.0), T, max(nuc * (1.0 - 0.25 * front), 0.62)) * exp(-5.5 * nest * vec3(0.80, 0.92, 1.0)) * mix(vec3(1.0), cloudT, 0.97);
+		// the middle's relief lit as terrain from the core: faces toward it lit warm,
+		// backs and the valleys behind the ridges in shade (`terrShade`)
+		C *= terrS.x * vec3(1.0) + terrS.y * vec3(0.55, 0.38, 0.22);
+		// (a near ridge of the middle's relief stands in front of the bulge's lower edge:
+		// its gold hidden there, the ridge dark against it with a lit rim, `terrSilh`)
+		// (the bulge's light in front of the disc takes most of the relief's light and
+		// shade too: the brown dust round the bulge is mostly its light through the dust)
+		vec3 tsB = mix(vec3(1.0), terrS.x * vec3(1.0) + terrS.y * vec3(0.55, 0.38, 0.22), 0.7);
+		C = C * (1.0 - occ) + B * front * tsB * (1.0 - 0.85 * silh) * mix(vec3(1.0), T, max(nuc * (1.0 - 0.25 * front), 0.62)) * exp(-5.5 * nest * vec3(0.80, 0.92, 1.0)) * mix(vec3(1.0), cloudT, 0.97);
+		C += B * front * vec3(1.0, 0.8, 0.6) * 0.35 * silh * (1.0 - silh) * 4.0 * smoothstep(0.003, 0.05, bulgeI);
 		billowLayer(v, dq, C);
 		wispLayer(v, la, C);
 	}
@@ -1480,7 +1698,10 @@ vec3 place(vec2 v, vec2 vsc, ivec2 blk, ivec2 dq) {
 	// does the opening view, which is left exactly as it was)
 	float la = lens ? log2(max(lensSqueeze(S), 1.0)) * (1.0 + resolveOn() * smoothstep(0.5, 1.5, u_zoom)) : 0.0;
 	float dust;
-	vec3 C = galaxy(vbg, lens ? vbs : vsc, vbh, sb, blk, dq, la, dust);
+	// (the middle's relief never over the hole's own disc or where its lens bends
+	// hard: faded out from 9.5 to 6.5 rs, the shadow 2.6)
+	float tk = lens ? smoothstep(6.5, 9.5, length(S)) : 1.0;
+	vec3 C = galaxy(vbg, lens ? vbs : vsc, vbh, sb, blk, dq, la, tk, dust);
 	// the near side's dust lane, before the hole's own disc and shadow are laid over
 	// (so it never darkens them), and read where the lane is, not through the lens
 	if (u_solid && u_form != 1) {
