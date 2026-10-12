@@ -372,9 +372,17 @@ vec3 bulgeLight(vec2 v, out float front, out float I) {
 	float s = length(vec2(g.x, g.y * (u_solid ? KIT_TILT / u_solidW.y : 1.0) / (u_solid ? 1.08 : 0.86)));
 	float qy = v.y / (KIT_TILT * u_k);
 	front = 0.5 + 0.5 * tanh(-1.05 * qy / (s + 0.008));
-	// (bigger through the camera: more of a body to see turn)
-	float bs = u_bulgeR / 0.128 * (u_solid ? 1.3 : 1.0);
+	// (a little bigger through the camera: more of a body to see turn)
+	float bs = u_bulgeR / 0.128 * (u_solid ? 1.15 : 1.0);
 	I = 0.95 * exp(-s / (0.022 * bs)) + 0.42 * exp(-s / (0.045 * bs)) + 0.018 * exp(-s / (0.10 * bs));
+	// THROUGH THE CAMERA THE SWELL IS COMPACT (Jon: "The haze on top of the galaxy is
+	// kinda crazy"): its long exponential tails, under the disc's light in the flat
+	// view, stood up past the far side of the disc as a big dark-blue dome of haze with
+	// the gold's top a flat cap in it. So the swell ends: a soft round top fading into
+	// black a little way above the disc, past which there are only stars.
+	if (u_solid) {
+		I *= 1.0 - smoothstep(0.12 * bs, 0.30 * bs, s);
+	}
 	float L = clamp((log(I) + 3.6) / 3.6, 0.0, 1.0);
 	vec3 col = mix(vec3(0.95, 0.50, 0.24), vec3(1.0, 0.60, 0.26), smoothstep(0.0, 0.45, L));
 	col = mix(col, vec3(1.0, 0.72, 0.38), smoothstep(0.45, 0.8, L));

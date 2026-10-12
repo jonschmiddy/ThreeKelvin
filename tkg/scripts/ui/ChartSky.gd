@@ -157,6 +157,9 @@ static var solid_t := Vector2.ZERO
 static var solid_pitch := 0.0
 static var _t_want := Vector2.ZERO
 static var _p_want := 0.0
+## the resting view: the flat-on one, or the harness's `solidpose`
+static var _pose_t := Vector2.ZERO
+static var _pose_p := 0.0
 
 
 ## THE GAS WITH A BODY (`chart_c_place`'s fluff section; Jon: "the details still
@@ -215,6 +218,16 @@ static func solid() -> bool:
 				var k: Vector2 = SOLID_K.get(arg.substr(7), SOLID_K.moderate)
 				_solid_d = k.x
 				_solid_pmax = k.y
+			elif arg.begins_with("solidpose="):
+				# (the harness's stills of a turned view, `solidpose=<pitch deg>,<x gu>,
+				# <y gu>`: the chart opens already turned there, as a drag would leave it)
+				var f := arg.substr(10).split(",")
+				_pose_p = deg_to_rad(float(f[0]))
+				_pose_t = Vector2(float(f[1]), float(f[2])) if f.size() >= 3 else Vector2.ZERO
+				_p_want = _pose_p
+				_t_want = _pose_t
+				solid_t = _pose_t
+				solid_pitch = _pose_p
 		_set_cam()
 	return _solid == 1
 
@@ -229,8 +242,8 @@ func solid_core_k() -> float:
 
 ## Back to the resting view, eased.
 static func solid_reset() -> void:
-	_t_want = Vector2.ZERO
-	_p_want = 0.0
+	_t_want = _pose_t
+	_p_want = _pose_p
 
 
 ## The camera: (its distance, the sine and cosine of its elevation, 0), and where it
