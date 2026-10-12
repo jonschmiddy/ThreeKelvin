@@ -752,7 +752,10 @@ void remnantCloud(int ci, vec2 u, float Rr, float seed, inout vec3 C) {
 	float res = smoothstep(1.6, 3.2, u_zoom * Rr / 0.087);
 	float n = kitSnoise3(vec3(dir * 1.9 + seed, x * 6.5)) + 0.45 * kitSnoise3(vec3(dir * 4.1 + seed * 2.0, x * 13.0 + 3.0));
 	float strand = exp(-pow(n / 0.11, 2.0));
-	float win = smoothstep(0.58, 0.88, x) * (1.0 - smoothstep(0.985, 1.05, x));
+	// (with the nebulae's bodies no green fill over the floor: Jon, of its green
+	// middle, "it looks weird"; the strands keep to the wall, and the oxygen glow is an
+	// even band hugging its inner side, added with the crater's light in `cloudLayer`)
+	float win = smoothstep(u_neb > 0.0 ? 0.80 : 0.58, u_neb > 0.0 ? 0.90 : 0.88, x) * (1.0 - smoothstep(0.985, 1.05, x));
 	float shell = exp(-pow((x - 0.95) / 0.07, 2.0));
 	float side = 0.55 + 0.45 * kitSnoise2(dir * 0.9 + seed * 1.3);
 	float gaps = smoothstep(-0.35, 0.25, kitSnoise2(dir * 2.3 + seed * 0.7));
@@ -765,7 +768,7 @@ void remnantCloud(int ci, vec2 u, float Rr, float seed, inout vec3 C) {
 	float I = (shell * mix(0.85, 0.40, res) + res * strand * win * (0.45 + 1.4 * smoothstep(0.8, 0.99, x))) * side * (0.3 + 0.7 * gaps) * (1.0 + 1.5 * glim);
 	vec3 col = mix(OIII, mix(HA, vec3(1.0, 0.55, 0.5), 0.25), smoothstep(0.78, 0.93, x));
 	vec3 Em = col * I * 1.9;
-	Em += OIII * 0.035 * (1.0 - smoothstep(0.2, 0.95, x));
+	Em += OIII * 0.035 * (1.0 - smoothstep(0.2, 0.95, x)) * (1.0 - u_neb);
 	Em += HA * 0.05 * exp(-pow((x - 1.03) / 0.06, 2.0)) * side;
 	C *= 1.0 - 0.1 * clamp(I, 0.0, 1.0);
 	// the blast has cleared its bubble: what lies behind it dims inside the shell,
@@ -913,10 +916,21 @@ void cloudLayer(vec2 v, float irr, float gas, inout vec3 C, inout vec3 cloudT) {
 			remnantCloud(i, u, cl.w, ck.w, C);
 			// (a shell: its wall lit toward the core, its floor shaded under it)
 			if (u_neb > 0.0) {
-				float rho = length(u) / cl.w;
-				vec2 sl = nebShell(u / max(length(u), 1e-5), rho - 0.95, toC);
-				C = C0 + (C - C0) * (rho < 0.8 ? 1.0 : sl.x);
-				C *= rho < 0.95 ? sl.y : 1.0;
+				// (the rim's own ragged shape, as `remnantCloud` draws it)
+				vec2 q = u / cl.w;
+				float rho = length(q);
+				vec2 dir = q / max(rho, 1e-4);
+				float x = rho / (1.0 + 0.14 * kitFbm2(dir * 1.1 + ck.w, 3) + 0.05 * dir.x);
+				vec2 sl = nebShell(dir, x - 0.95, toC);
+				C = C0 + (C - C0) * (x < 0.8 ? 1.0 : sl.x);
+				C *= x < 0.95 ? sl.y : 1.0;
+				// the oxygen's glow: an even teal band on the wall's inner side, all the
+				// way round, fading smoothly to the dark floor toward the middle (red
+				// outside, teal just inside, as real ring nebulae glow); dithered on the
+				// palette's anchored Bayer so its fade breaks into a dither, not bands
+				float band = pow(smoothstep(0.55, 0.90, x), 2.2) * (1.0 - smoothstep(0.90, 0.96, x));
+				float dj = kitBayer4(ivec2(floor(v * u_zoom * 0.5))) - 0.5;
+				C += OIII * 0.14 * band * max(1.0 + 1.1 * dj, 0.0);
 			}
 		} else if (kind == 3) {
 			planetaryCloud(i, u, cl.w, ck.z, ck.w, C);
@@ -1219,7 +1233,9 @@ vec3 remnants(vec2 p) {
 		// (with the nebulae's bodies: the shell a wall, lit on its face toward the core,
 		// the floor inside it shaded under the wall on that side, `nebShell`)
 		vec2 sl = nebShell(d / max(dl, 1e-5), x * w / max(Rr, 1e-5), -rm.xy / max(length(rm.xy), 1e-4));
-		c += (mix(OIII, HA, smoothstep(-0.6, 0.6, x)) * shell * 1.6 * sl.x + OIII * inside * sl.y) * life;
+		// (with the nebulae's bodies the inside is a band hugging the wall, not a fill)
+		inside = mix(inside, smoothstep(Rr * 0.5, Rr * 0.88, dl) * (1.0 - smoothstep(Rr * 0.9, Rr, dl)) * 0.07, u_neb);
+		c += (mix(OIII, HA, smoothstep(-0.6, 0.6, x)) * shell * 1.6 * sl.x + OIII * inside) * life;
 	}
 	return c;
 }

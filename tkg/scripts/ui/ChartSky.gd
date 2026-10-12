@@ -189,7 +189,7 @@ static func fluff() -> Vector2:
 ## of dust ... a body to the galaxy both in the horizontal sense and vertically"): the
 ## inner disc's gas a height field lit from the core, its ridges casting shadows into
 ## the valleys and standing against the bulge. With the solid galaxy, `chartwow=terrain`,
-## and how much: `terrain=gentle|strong|dramatic` (strong the default). SIMPLIFIED only.
+## and how much: `terrain=gentle|strong|dramatic` (dramatic the default: Jon's C). SIMPLIFIED only.
 const TERRAINS := {"gentle": 0.5, "strong": 1.0, "dramatic": 2.0}
 static var _terr := -1.0
 
@@ -197,13 +197,13 @@ static var _terr := -1.0
 static func terrain() -> float:
 	if _terr < 0.0:
 		var on := false
-		var lv: float = TERRAINS.strong
+		var lv: float = TERRAINS.dramatic
 		for a in OS.get_cmdline_user_args():
 			var arg := a as String
 			if arg.begins_with("chartwow=") and "terrain" in arg.substr(9).split(","):
 				on = true
 			elif arg.begins_with("terrain="):
-				lv = TERRAINS.get(arg.substr(8), TERRAINS.strong)
+				lv = TERRAINS.get(arg.substr(8), TERRAINS.dramatic)
 		_terr = lv if on else 0.0
 	return _terr
 
