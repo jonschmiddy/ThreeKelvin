@@ -551,7 +551,10 @@ func _cost_bench(names: String) -> void:
 	Engine.max_fps = 0
 	var sky := _chart._sky as ChartSky
 	var rids: Array[RID] = []
-	for vp: SubViewport in [sky._svp, sky._pvp, sky._vp]:
+	# (LEGACY draws in its own node, `ChartLegacy`: its picture and the copy its
+	# palette's hold reads)
+	var vps: Array = [sky._legacy._vp, sky._legacy._hvp] if sky._legacy != null else [sky._svp, sky._pvp, sky._vp]
+	for vp: SubViewport in vps:
 		RenderingServer.viewport_set_measure_render_time(vp.get_viewport_rid(), true)
 		rids.append(vp.get_viewport_rid())
 	var views := [["opening", 0.42, Vector2.ZERO], ["arms1.2", 1.2, Vector2(150, 20)],
@@ -645,7 +648,10 @@ func _solid_test() -> void:
 		for _i in 4:
 			_chart._repaint_sky()
 			await RenderingServer.frame_post_draw
-		var img := sky._pvp.get_texture().get_image()
+		# (LEGACY draws in its own node, `ChartLegacy`, with the same names for its
+		# picture's origin and its hold's centre)
+		var src: Object = sky._legacy if sky._legacy != null else sky
+		var img: Image = (sky._legacy._vp if sky._legacy != null else sky._pvp).get_texture().get_image()
 		ChartSky.diag = 0
 		var sq := float(Run.galaxy.get("squash", 0.62))
 		var here := Run.node_at()
@@ -656,7 +662,7 @@ func _solid_test() -> void:
 			if not visible.has(nd.index) or nd.type == MapGen.NodeType.CORE:
 				continue
 			var sp: Vector2 = _chart._screen_pos(nd)
-			var b := ((sp - sky._vp_origin) * 0.5).floor()
+			var b := ((sp - (src._vp_origin as Vector2)) * 0.5).floor()
 			if b.x < 0 or b.y < 0 or b.x >= img.get_width() or b.y >= img.get_height():
 				continue
 			var c := img.get_pixel(int(b.x), int(b.y))
@@ -664,8 +670,8 @@ func _solid_test() -> void:
 			# sky's own centre (while a zoom's hold lasts the sky is drawn about the exact
 			# centre and the marks about its whole pixel: up to a pixel apart with or
 			# without the camera, so that is left out of what this measures)
-			var shown: Vector2 = sky._hold_c_now + _chart._proj(Vector2(c.r, c.g * sq), _chart._drawn_turn)
-			var err := shown.distance_to(sp - _chart.centre_px() + sky._hold_c_now)
+			var shown: Vector2 = (src._hold_c_now as Vector2) + _chart._proj(Vector2(c.r, c.g * sq), _chart._drawn_turn)
+			var err := shown.distance_to(sp - _chart.centre_px() + (src._hold_c_now as Vector2))
 			stage_worst = maxf(stage_worst, err)
 			n_checked += 1
 			var crowded := false
