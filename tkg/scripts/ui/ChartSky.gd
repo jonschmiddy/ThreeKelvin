@@ -427,7 +427,26 @@ static func _snapshot_stars(c: StarchartScreen.MapChart) -> Dictionary:
 		"pos": c._star_pos.duplicate(), "col": c._star_col.duplicate(), "big": c._star_big.duplicate(),
 		"cr": c._core_rad.duplicate(), "ca": c._core_ang.duplicate(), "cc": c._core_col.duplicate(),
 		"gc": c._glob_c.duplicate(), "gi": c._glob_i.duplicate(), "pulsar": c._pulsar.duplicate(),
+		"sys": _system_stars(c),
 	}
+
+
+## COLOURS (`WOW_COLOURS`): every system of the run as a star of the galaxy, at its
+## own place, with its class (0 a yellow dwarf, 1 a red hypergiant, 2 a blue
+## hypergiant, 3 a pulsar); the hole is not a star. Empty on the title's galaxy.
+static func _system_stars(c: StarchartScreen.MapChart) -> Array:
+	var out: Array = []
+	if not c.run_galaxy or Run.map.is_empty():
+		return out
+	var sq := float(Run.galaxy.get("squash", 0.62))
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		var k := SystemLayout.star_kind(n)
+		if k == SystemLayout.StarKind.CORE:
+			continue
+		var cls := 3 if k == SystemLayout.StarKind.PULSAR else (1 if k == SystemLayout.StarKind.RED else (2 if k == SystemLayout.StarKind.BLUE else 0))
+		out.append(Vector3(n.gal.x, n.gal.y / sq, float(cls)))
+	return out
 
 
 # ------------------------------------------------------------------ the galaxy's constants
@@ -902,6 +921,16 @@ func _build_star_data(g: Dictionary, p: Dictionary) -> void:
 				LegacyHole.hash01(k * 17 + j, 33), float(j)])
 			c.append_array([0.0, 0.0, 0.0, 0.0])
 			n += 1
+	# the systems' own stars (`WOW_COLOURS`), kind 5, drawn only with the switch on;
+	# their colours the sector map's suns' (`SunView`), the pulsar's its cyan
+	# (SunView's L_SUN, L_RED and L_BLU, the light its suns cast; it has no class_name)
+	var sun_c: Array = [Vector3(1.0, 0.62, 0.22), Vector3(0.85, 0.22, 0.1), Vector3(0.35, 0.6, 1.0), Vector3(0.28, 0.64, 0.75)]
+	for e: Vector3 in _src.get("sys", []):
+		var sc: Vector3 = sun_c[int(e.z)]
+		a.append_array([e.x, e.y, e.z, 5.0])
+		b.append_array([sc.x, sc.y, sc.z, LegacyHole.hash01(n, 7)])
+		c.append_array([0.0, 0.0, 0.0, 0.0])
+		n += 1
 	g["sn_cand"] = cand
 	g["n_data"] = n
 	g["st_a"] = a
@@ -982,6 +1011,9 @@ func _star_debt(g: Dictionary) -> ImageTexture:
 		var at := (ty * N + tx) * 3
 		var lum := a[i * 4 + 2]
 		var kind := int(a[i * 4 + 3] + 0.5)
+		# (a system's own star is drawn on a switch, not part of the field's light)
+		if kind == 5:
+			continue
 		if kind <= 2:
 			var lumk := pow(lum / 255.0, 2.0) * 0.9 * 2.2
 			var hs := b[i * 4 + 3]
@@ -1938,6 +1970,8 @@ func _push() -> void:
 
 ## The living sky's per-frame inputs.
 func _feed_wow(m: ShaderMaterial, g: Dictionary, t: float, ccon: Vector2, z: float) -> void:
+	var bits := wow_bits()
+	var calm := DisplaySettings.reduced_motion
 	m.set_shader_parameter("u_wowk", _wowk)
 
 

@@ -49,6 +49,8 @@ uniform float time = 0.0;
 varying vec3 v_col;
 varying vec2 v_loc;
 varying float v_plus;
+// COLOURS: a system's star, drawn as a glow this many blocks round its block (0 none)
+varying float v_glow;
 
 const vec2 CORNER[6] = vec2[](vec2(0.0, 0.0), vec2(1.0, 0.0), vec2(1.0, 1.0),
 	vec2(0.0, 0.0), vec2(1.0, 1.0), vec2(0.0, 1.0));
@@ -77,6 +79,7 @@ void vertex() {
 	vec3 col = vec3(0.0);
 	vec2 blk = vec2(-100.0);
 	float plus = 0.0;
+	float glow = 0.0;
 	float lz = log(zoom);
 	if (id < n_star) {
 		ivec2 at = ivec2(id % tex_w, id / tex_w);
@@ -127,6 +130,19 @@ void vertex() {
 				col = vec3(0.8, 0.9, 1.15) * q;
 				blk = floor((s - vp_origin) * 0.5);
 			}
+		} else if (kind == 5) {
+			// COLOURS (`ChartSky.WOW_COLOURS`): a system's own star, in the colour of
+			// its sun on the sector map (`SunView.L_SUN`, `L_RED`, `L_BLU`; the
+			// pulsar's cyan), the hypergiants big and bright enough to find across
+			// the galaxy at the opening; a plain yellow dwarf a warm star of the
+			// field's brightest. Class in a.z: 0 ordinary, 1 red, 2 blue, 3 pulsar.
+			if ((wow & 1) != 0) {
+				int cls = int(a.z + 0.5);
+				col = b.rgb * (cls == 0 ? 0.75 : (cls == 3 ? 1.3 : 1.7));
+				glow = (cls == 1 || cls == 2) ? 2.0 : 0.0;
+				plus = cls == 2 || cls == 3 ? 1.0 : 0.0;
+				blk = floor((s - vp_origin) * 0.5);
+			}
 		} else {
 			// a globular below zoom 2: a hot middle, four members at fixed
 			// offsets on the screen, so they open out as you zoom
@@ -157,16 +173,29 @@ void vertex() {
 	col = (diag & 18) != 0 ? vec3(0.0) : soften(col);
 	v_col = col;
 	v_plus = plus;
+	v_glow = glow;
 	// a plus covers the 3x3 round its block; a plain star its own block
 	vec2 lo = plus > 0.5 ? blk - 1.0 : blk;
 	vec2 sz = plus > 0.5 ? vec2(3.0) : vec2(1.0);
+	if (glow > 0.0) {
+		lo = blk - glow;
+		sz = vec2(2.0 * glow + 1.0);
+	}
 	v_loc = corner * sz;
 	VERTEX = lo + corner * sz;
 }
 
 void fragment() {
 	float w = 1.0;
-	if (v_plus > 0.5) {
+	if (v_glow > 0.0) {
+		// the star's block, a soft glow round it, and a cross on the hot ones
+		vec2 c = floor(v_loc) - vec2(v_glow);
+		float d2 = dot(c, c);
+		w = d2 < 0.5 ? 1.0 : exp(-d2 / (v_glow * v_glow * 0.5)) * 0.26;
+		if (v_plus > 0.5 && (c.x == 0.0 || c.y == 0.0) && d2 < 1.5) {
+			w = max(w, 0.35);
+		}
+	} else if (v_plus > 0.5) {
 		ivec2 c = ivec2(floor(v_loc));
 		int dx = abs(c.x - 1), dy = abs(c.y - 1);
 		w = (dx == 0 && dy == 0) ? 1.0 : ((dx + dy == 1) ? 0.18 : 0.0);
