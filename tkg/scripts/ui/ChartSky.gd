@@ -2039,6 +2039,8 @@ func _push() -> void:
 		if not was_held:
 			_hold_d = b0 - bs
 		b0 = bs + _hold_d
+	# the solid galaxy's camera, this frame (every style that draws it: `solid_frame`)
+	var sol := solid_frame(t)
 	if painted:
 		ChartPainted.push(self, g, vs, _vp_origin, ccon, res, z, t, phi, b0, resized)
 		_feed_sky(_m_place)
@@ -2066,28 +2068,8 @@ func _push() -> void:
 	var rm: Array = remnants(g.sn_cand, t, DisplaySettings.reduced_motion)
 	m.set_shader_parameter("u_nrem", int(rm[0]))
 	m.set_shader_parameter("u_rem", rm[1])
-	# the solid galaxy (the styles in SOLID_STYLES; the run's chart, not the title's)
-	var sol := solid() and _use_map
-	if sol and not _was_sol:
-		solid_snap()
-		_sol_pan = Vector2(INF, INF)
-	_was_sol = sol
-	if sol:
-		_solid_step(t)
-	var cam := solid_cam()
-	m.set_shader_parameter("u_solid", sol)
-	m.set_shader_parameter("u_solidW", cam)
-	m.set_shader_parameter("u_solidT", solid_t)
-	var fl := fluff() if sol else Vector2(0.0, 1.0)
-	m.set_shader_parameter("u_fluff", fl.x)
-	m.set_shader_parameter("u_fluffS", fl.y)
-	m.set_shader_parameter("u_terr", terrain() if sol else 0.0)
-	m.set_shader_parameter("u_neb", nebulae() if sol else 0.0)
-	var ed := edge()
-	m.set_shader_parameter("u_edge", Vector4(ed.x, ed.y, ed.z, 1.0 if (sol and edge_on()) else 0.0))
-	ms.set_shader_parameter("solid", sol)
-	ms.set_shader_parameter("solidW", cam)
-	ms.set_shader_parameter("solidT", solid_t)
+	push_solid(m, sol)
+	push_solid_stars(ms, sol)
 	var ex: Array = _cloud_stars(g, t, phi, ccon, z, _vp_origin)
 	var epos: PackedVector4Array = ex[0]
 	var ecol: PackedVector4Array = ex[1]
@@ -2190,6 +2172,43 @@ var _sol_t := -1.0
 var _sol_moved := false
 ## whether the last frame drawn was seen through the camera (`solid_snap` as it comes on)
 var _was_sol := false
+
+
+## THE SOLID GALAXY, A FRAME OF IT, for every style that draws it (`SOLID_STYLES`;
+## the run's chart, not the title's): the camera snapped to rest as the solid view
+## comes on, then carried by this frame's drag. Whether the chart is solid this frame.
+## (A style with a push of its own calls this once a frame, then `push_solid` on its
+## place pass and `push_solid_stars` on its stars pass.)
+func solid_frame(t: float) -> bool:
+	var sol := solid() and _use_map
+	if sol and not _was_sol:
+		solid_snap()
+		_sol_pan = Vector2(INF, INF)
+	_was_sol = sol
+	if sol:
+		_solid_step(t)
+	return sol
+
+
+## The solid look's uniforms (`chart_solid.gdshaderinc`) on a place pass.
+func push_solid(m: ShaderMaterial, sol: bool) -> void:
+	m.set_shader_parameter("u_solid", sol)
+	m.set_shader_parameter("u_solidW", solid_cam())
+	m.set_shader_parameter("u_solidT", solid_t)
+	var fl := fluff() if sol else Vector2(0.0, 1.0)
+	m.set_shader_parameter("u_fluff", fl.x)
+	m.set_shader_parameter("u_fluffS", fl.y)
+	m.set_shader_parameter("u_terr", terrain() if sol else 0.0)
+	m.set_shader_parameter("u_neb", nebulae() if sol else 0.0)
+	var ed := edge()
+	m.set_shader_parameter("u_edge", Vector4(ed.x, ed.y, ed.z, 1.0 if (sol and edge_on()) else 0.0))
+
+
+## The camera on a stars pass (`chart_c_stars`' solid / solidW / solidT).
+func push_solid_stars(m: ShaderMaterial, sol: bool) -> void:
+	m.set_shader_parameter("solid", sol)
+	m.set_shader_parameter("solidW", solid_cam())
+	m.set_shader_parameter("solidT", solid_t)
 
 
 func _solid_step(t: float) -> void:
