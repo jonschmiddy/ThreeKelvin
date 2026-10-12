@@ -535,8 +535,8 @@ func _tour(dir: String) -> void:
 ## nothing changed. `none` switches nothing, to show the noise. Remnants are
 ## switched by `ChartSky.diag` 2048; the solid galaxy by `ChartSky.solid`; the gas's
 ## puffs by `ChartSky.fluff` (as the command line asks for them, against none); the
-## dissolving edge by `ChartSky._edge_on`; the middle's relief by `ChartSky._terr`; the
-## nebulae's bodies by `ChartSky._neb`.
+## dissolving edge by `ChartSky._edge_on`; the middle's relief by `ChartSky._terr_on`; the
+## nebulae's bodies by `ChartSky._neb_on`.
 func _cost_bench(names: String) -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
@@ -550,9 +550,6 @@ func _cost_bench(names: String) -> void:
 		["middle2.5", 2.5, Vector2.ZERO]]
 	var t := StarchartScreen.MapChart.clock_override
 	var sol0 := ChartSky._solid
-	var fl0 := ChartSky.fluff()
-	var tr0 := ChartSky.terrain()
-	var nb0 := ChartSky.nebulae()
 	for nm in names.split(","):
 		for v: Array in views:
 			_view(v[1], v[2])
@@ -562,10 +559,10 @@ func _cost_bench(names: String) -> void:
 				var on := turn % 2
 				ChartSky.diag = 2048 if nm == "remnants" and on == 0 else 0
 				ChartSky._solid = (1 if on == 1 else 0) if nm == "solid" else sol0
-				ChartSky._fluff = (fl0 if on == 1 else Vector2(0.0, 1.0)) if nm == "fluff" else fl0
+				ChartSky._fluff_on = on == 1 if nm == "fluff" else true
 				ChartSky._edge_on = on == 1 if nm == "edge" else true
-				ChartSky._terr = (tr0 if on == 1 else 0.0) if nm == "terrain" else tr0
-				ChartSky._neb = (nb0 if on == 1 else 0.0) if nm == "nebulae" else nb0
+				ChartSky._terr_on = on == 1 if nm == "terrain" else true
+				ChartSky._neb_on = on == 1 if nm == "nebulae" else true
 				for _w in 3:
 					t += 1.0 / 60.0
 					StarchartScreen.MapChart.clock_override = t
@@ -592,14 +589,14 @@ func _cost_bench(names: String) -> void:
 				q.call(ft[0], 0.2), q.call(ft[1], 0.2), q.call(ft[1], 0.2) - q.call(ft[0], 0.2)])
 	ChartSky.diag = 0
 	ChartSky._solid = sol0
-	ChartSky._fluff = fl0
+	ChartSky._fluff_on = true
 	ChartSky._edge_on = true
-	ChartSky._terr = tr0
-	ChartSky._neb = nb0
+	ChartSky._terr_on = true
+	ChartSky._neb_on = true
 
 
 ## THE SOLID GALAXY'S MARKS ARE WHERE ITS SKY IS (`solidtest`, with
-## `chartwow=solid`): after a drag (the view turned) and a zoom, the place pass is
+## SIMPLIFIED): after a drag (the view turned) and a zoom, the place pass is
 ## made to write, in each block, the point of the disc's plane it shows
 ## (`ChartSky.diag` 4096) and read back; at every system the chart draws, that point
 ## is put through the chart's own projection, and must land within 1.5 px of the

@@ -117,39 +117,28 @@ static var diag := 0
 static var dith_gs := 0.006
 static var dith_coh := 0.5
 
-## THE SOLID GALAXY (Oct 12; Jon's idea 21 from the "magnificent" list, a third
-## time: "Do you understand what I mean by I don't want the galaxies to look like
-## they are flat?"). The near layer, the sheets above the disc and the volume round
-## it all failed for one reason: the galaxy itself was a flat picture tilted like a
-## poster, so anything floating round it still read as a poster. So the chart is
-## seen through a real camera (`chart_c_place`'s solid section): the near half of the
-## disc nearer and bigger, the far half smaller and squashed; the core bulging out
-## of the disc above and below it, its top hiding the far disc and the near disc's
-## dust crossing in front of its bottom; the disc's rim with a thickness. ONE
-## projection for the sky and for every mark the chart draws over it (`solid_fwd`,
-## `solid_inv`; `StarchartScreen`'s `_proj` and `_to_plane` call them). SIMPLIFIED
-## only until Jon approves; off unless asked for: `chartwow=solid`.
-##
-## Then (Jon: "Solid: 1B 2B. I don't really see a difference when dragging"): the
-## camera much closer, and a drag carries it over the disc instead of sliding a
-## picture -- the camera looks down at the point of the disc under the middle of the
-## view (`solid_t`), which a drag moves, so the part under you is seen from above and
-## the parts ahead and behind foreshorten as they pass; and a drag up or down raises
-## or lowers it (`solid_pitch`), opening and flattening the disc. Both STAY where the
-## drag leaves them (Jon's 2B), within limits that never reach edge-on or face-on; a
-## double-click on empty sky, framing the whole galaxy, or opening the chart again
-## eases it back to the resting view (`solid_reset`). A zoom never moves the camera,
-## so it only magnifies. Three strengths: `solidk=moderate|strong|very`, moderate
-## the default (Jon: "Moderate is nice"). (camera distance gu, pitch either way
-## degrees) a strength: at moderate the near rim is drawn 1.7 times the middle, the
-## far rim 0.7 times.
-const SOLID_K := {"moderate": Vector2(2.2, 8.0), "strong": Vector2(1.9, 12.0), "very": Vector2(1.6, 15.0)}
+## THE SOLID GALAXY (Oct 12; Jon's idea 21 from the "magnificent" list: "I don't want
+## the galaxies to look like they are flat?"). The galaxy was a flat picture tilted
+## like a poster, so anything floating round it still read as a poster. So in
+## SIMPLIFIED the chart is seen through a real camera (`chart_c_place`'s solid
+## section): the near half of the disc nearer and bigger, the far half smaller and
+## squashed; the core bulging out of the disc. ONE projection for the sky and for
+## every mark the chart draws over it (`solid_fwd`, `solid_inv`; `StarchartScreen`'s
+## `_proj` and `_to_plane` call them). A drag carries the camera over the disc: it
+## looks down at the point under the middle of the view (`solid_t`), and a drag up
+## or down raises or lowers it (`solid_pitch`). Both STAY where the drag leaves them
+## (Jon's 2B), within limits that never reach edge-on or face-on; a double-click on
+## empty sky, framing the whole galaxy, or opening the chart again eases it back to
+## the resting view (`solid_reset`). A zoom never moves the camera, so it only
+## magnifies. Under reduced motion a drag does not turn the camera: the view stays
+## at rest and the drag slides the picture, as the flat chart's does.
+## The camera at Jon's "moderate": 2.2 gu away, its pitch up to 8 degrees either way
+## of the resting view's (the near rim drawn 1.7 times the middle, the far 0.7).
+const SOLID_D := 2.2
+const SOLID_PMAX := 8.0
 ## The camera's elevation never leaves these, degrees, whatever the drag.
 const SOLID_EL_MIN := 8.0
 const SOLID_EL_MAX := 50.0
-static var _solid := -1
-static var _solid_d := 2.2
-static var _solid_pmax := 8.0
 ## Where the camera looks, on the disc's plane (gu, turned to the view), and how far
 ## its elevation is from the resting view's, radians: now, and where the drags have
 ## asked for (eased between: `_solid_step`).
@@ -161,103 +150,54 @@ static var _p_want := 0.0
 static var _pose_t := Vector2.ZERO
 static var _pose_p := 0.0
 
-
-## THE GAS WITH A BODY (`chart_c_place`'s fluff section; Jon: "the details still
-## feel flat. I want the galaxy to almost be fluffy"): the gas heaped into round
-## puffs, lit from the core, standing up toward the camera. `chartwow=fluff`, and how
-## fluffy: `fluff=subtle|medium|very` (very the default: Jon's 1C) -- (how strongly lit
-## and how tall, how big the puffs). SIMPLIFIED only.
-const FLUFFS := {"subtle": Vector2(0.5, 0.85), "medium": Vector2(1.0, 1.0), "very": Vector2(1.6, 1.25)}
-static var _fluff := Vector2(-1.0, 1.0)
-
-
-static func fluff() -> Vector2:
-	if _fluff.x < 0.0:
-		var on := false
-		var lv: Vector2 = FLUFFS.very
-		for a in OS.get_cmdline_user_args():
-			var arg := a as String
-			if arg.begins_with("chartwow=") and "fluff" in arg.substr(9).split(","):
-				on = true
-			elif arg.begins_with("fluff="):
-				lv = FLUFFS.get(arg.substr(6), FLUFFS.very)
-		_fluff = lv if on else Vector2(0.0, 1.0)
-	return _fluff
-
-
-## THE MIDDLE HAS RELIEF (`chart_c_place`'s terrain section; Jon: "hills and valleys
-## of dust ... a body to the galaxy both in the horizontal sense and vertically"): the
-## inner disc's gas a height field lit from the core, its ridges casting shadows into
-## the valleys and standing against the bulge. With the solid galaxy, `chartwow=terrain`,
-## and how much: `terrain=gentle|strong|dramatic` (dramatic the default: Jon's C). SIMPLIFIED only.
-const TERRAINS := {"gentle": 0.5, "strong": 1.0, "dramatic": 2.0}
-static var _terr := -1.0
-
-
-static func terrain() -> float:
-	if _terr < 0.0:
-		var on := false
-		var lv: float = TERRAINS.dramatic
-		for a in OS.get_cmdline_user_args():
-			var arg := a as String
-			if arg.begins_with("chartwow=") and "terrain" in arg.substr(9).split(","):
-				on = true
-			elif arg.begins_with("terrain="):
-				lv = TERRAINS.get(arg.substr(8), TERRAINS.dramatic)
-		_terr = lv if on else 0.0
-	return _terr
-
-
-## THE NEBULAE HAVE BODIES (`chart_c_place`'s `nebShell` / `nebPuff`; Jon: "the nebula
-## can also have some texture too"): the shells piled up at the rim and emptier in the
-## middle, the emission nebulae and knots puffy, the dark ones mounds that cast a
-## shadow, all lit from the core. With the solid galaxy, `chartwow=nebulae`.
-static var _neb := -1.0
-
-
-static func nebulae() -> float:
-	if _neb < 0.0:
-		_neb = 0.0
-		for a in OS.get_cmdline_user_args():
-			var arg := a as String
-			if arg.begins_with("chartwow=") and "nebulae" in arg.substr(9).split(","):
-				_neb = 1.0
-	return _neb
-
-
-## THE DISC'S EDGE DISSOLVES (`chart_c_place`'s edge section; Jon: "it looks like the
-## edge of a plate", then "even softer and more diffuse"): with the solid galaxy,
-## the outer disc thins over a long stretch into a soft haze, the puffs gone well
-## before the rim. How diffuse: `edge=diffuse|more|most` (diffuse the default).
-## (where the fade starts gu, where it ends gu, how uneven gu)
-const EDGES := {"diffuse": Vector3(0.62, 1.2, 0.05), "more": Vector3(0.5, 1.15, 0.06), "most": Vector3(0.38, 1.1, 0.07)}
-static var _edge := Vector3(-1.0, 0.0, 0.0)
-## (off only for the cost bench: `ChartLook`'s costbench=edge)
+## THE SOLID LOOK'S PARTS, all on in SIMPLIFIED (Jon approved them Oct 12: "THIS IS
+## PERFECT"); the other styles draw the flat chart. Each one's own section in
+## `chart_c_place` says what it is:
+##   * the gas with a body (`fluff`): round puffs lit from the core, standing up
+##     toward the camera (how strongly lit and how tall, how big the puffs);
+##   * the edge dissolving (`edge`): the outer disc thins over a long stretch into
+##     black space (where the fade starts gu, where it ends gu, how uneven gu);
+##   * the middle's relief (`terrain`): hills and valleys of dust lit from the core,
+##     their shadows cast outward (how much);
+##   * the nebulae's bodies (`nebulae`): the shells piled up at the rim with the
+##     oxygen's glow hugging its inside, the emission puffy, the dark ones mounds.
+## Their statics switch each off only for the cost bench (`ChartLook`'s costbench).
+## A harness's `chartflat` draws SIMPLIFIED flat, as before all this (a "before" to
+## film against).
+const FLUFF := Vector2(1.6, 1.25)
+const EDGE := Vector3(0.62, 1.2, 0.05)
+const TERRAIN := 2.0
+static var _solid := -1
+static var _fluff_on := true
 static var _edge_on := true
+static var _terr_on := true
+static var _neb_on := true
 
 
-static func edge() -> Vector3:
-	if _edge.x < 0.0:
-		_edge = EDGES.diffuse
-		for a in OS.get_cmdline_user_args():
-			var arg := a as String
-			if arg.begins_with("edge="):
-				_edge = EDGES.get(arg.substr(5), EDGES.diffuse)
-	return _edge
+## Whether the chart is SIMPLIFIED (not RADIANT, nor fallen back from it; not LEGACY;
+## not PAINTED). Worked out once a frame: the chart projects every mark through
+## `solid`, and the style can change mid-session (Settings, RADIANT's safety).
+static var _simp := true
+static var _simp_frame := -1
 
 
-## Whether the chart is seen through the camera.
+static func simplified() -> bool:
+	var f := Engine.get_process_frames()
+	if f != _simp_frame:
+		_simp_frame = f
+		_simp = not ChartRadiant.wanted() and not ChartLegacy.wanted() and not ChartPainted.wanted()
+	return _simp
+
+
+## Whether the chart is seen through the camera: SIMPLIFIED, unless a harness asks
+## for it flat.
 static func solid() -> bool:
 	if _solid < 0:
-		_solid = 0
+		_solid = 1
 		for a in OS.get_cmdline_user_args():
 			var arg := a as String
-			if arg.begins_with("chartwow=") and "solid" in arg.substr(9).split(","):
-				_solid = 1
-			elif arg.begins_with("solidk="):
-				var k: Vector2 = SOLID_K.get(arg.substr(7), SOLID_K.moderate)
-				_solid_d = k.x
-				_solid_pmax = k.y
+			if arg == "chartflat":
+				_solid = 0
 			elif arg.begins_with("solidpose="):
 				# (the harness's stills of a turned view, `solidpose=<pitch deg>,<x gu>,
 				# <y gu>`: the chart opens already turned there, as a drag would leave it)
@@ -269,7 +209,31 @@ static func solid() -> bool:
 				solid_t = _pose_t
 				solid_pitch = _pose_p
 		_set_cam()
-	return _solid == 1
+	return _solid == 1 and simplified()
+
+
+## The gas's puffs (how strongly lit and how tall, how big), (0, 1) off.
+static func fluff() -> Vector2:
+	return FLUFF if (solid() and _fluff_on) else Vector2(0.0, 1.0)
+
+
+## The edge's fade (where it starts, where it ends, how uneven), and whether it is on.
+static func edge() -> Vector3:
+	return EDGE
+
+
+static func edge_on() -> bool:
+	return solid() and _edge_on
+
+
+## The middle's relief, 0 off.
+static func terrain() -> float:
+	return TERRAIN if (solid() and _terr_on) else 0.0
+
+
+## The nebulae's bodies, 0 off.
+static func nebulae() -> float:
+	return 1.0 if (solid() and _neb_on) else 0.0
 
 
 ## How much the camera magnifies the core (the shader's solidCoreK; 1 with it off): the
@@ -286,6 +250,16 @@ static func solid_reset() -> void:
 	_p_want = _pose_p
 
 
+## At the resting view now: a chart opened again, or one that has just come to be
+## seen through the camera (switched to SIMPLIFIED, or RADIANT's safety falling back
+## to it mid-session), never eased in from a view turned long ago.
+static func solid_snap() -> void:
+	solid_reset()
+	solid_t = _pose_t
+	solid_pitch = _pose_p
+	_set_cam()
+
+
 ## The camera: (its distance, the sine and cosine of its elevation, 0), and where it
 ## looks; worked out once each time it moves (the chart projects every mark).
 static var _cam := Vector4(1.9, TILT, sqrt(1.0 - TILT * TILT), 0.0)
@@ -297,7 +271,7 @@ static func solid_cam() -> Vector4:
 
 static func _set_cam() -> void:
 	var el := asin(TILT) + solid_pitch
-	_cam = Vector4(_solid_d, sin(el), cos(el), 0.0)
+	_cam = Vector4(SOLID_D, sin(el), cos(el), 0.0)
 
 
 ## The flat view (gu, y already tilted) to the camera's (gu); the shader's solidFwdN.
@@ -533,10 +507,7 @@ func setup(c: StarchartScreen.MapChart) -> void:
 	var fresh := c != chart
 	chart = c
 	if fresh and solid() and c.run_galaxy:
-		solid_reset()
-		solid_t = Vector2.ZERO
-		solid_pitch = 0.0
-		_set_cam()
+		solid_snap()
 	if ChartLegacy.wanted():
 		if _vp != null:
 			_vp.queue_free()
@@ -2067,9 +2038,13 @@ func _push() -> void:
 	var rm: Array = remnants(g.sn_cand, t, DisplaySettings.reduced_motion)
 	m.set_shader_parameter("u_nrem", int(rm[0]))
 	m.set_shader_parameter("u_rem", rm[1])
-	# the solid galaxy (SIMPLIFIED alone until Jon approves; the run's chart, not the
+	# the solid galaxy (SIMPLIFIED; the run's chart, not the
 	# title's)
 	var sol := solid() and not g.has("radiant") and _use_map
+	if sol and not _was_sol:
+		solid_snap()
+		_sol_pan = Vector2(INF, INF)
+	_was_sol = sol
 	if sol:
 		_solid_step(t)
 	var cam := solid_cam()
@@ -2082,7 +2057,7 @@ func _push() -> void:
 	m.set_shader_parameter("u_terr", terrain() if sol else 0.0)
 	m.set_shader_parameter("u_neb", nebulae() if sol else 0.0)
 	var ed := edge()
-	m.set_shader_parameter("u_edge", Vector4(ed.x, ed.y, ed.z, 1.0 if (sol and _edge_on) else 0.0))
+	m.set_shader_parameter("u_edge", Vector4(ed.x, ed.y, ed.z, 1.0 if (sol and edge_on()) else 0.0))
 	ms.set_shader_parameter("solid", sol)
 	ms.set_shader_parameter("solidW", cam)
 	ms.set_shader_parameter("solidT", solid_t)
@@ -2186,6 +2161,8 @@ var _sol_pan := Vector2(INF, INF)
 var _sol_zoom := -1.0
 var _sol_t := -1.0
 var _sol_moved := false
+## whether the last frame drawn was seen through the camera (`solid_snap` as it comes on)
+var _was_sol := false
 
 
 func _solid_step(t: float) -> void:
@@ -2196,6 +2173,12 @@ func _solid_step(t: float) -> void:
 		dp = chart.pan - _sol_pan
 	_sol_pan = chart.pan
 	_sol_zoom = chart.zoom
+	# (under reduced motion a drag does not turn the camera: it stays at rest, or eases
+	# back to it, and the drag slides the picture as the flat chart's does)
+	if DisplaySettings.reduced_motion:
+		dp = Vector2.ZERO
+		_t_want = _pose_t
+		_p_want = _pose_p
 	if dp != Vector2.ZERO:
 		# the point under the middle of the view, carried by the drag (px to gu
 		# at the camera's own scale there)
@@ -2205,8 +2188,8 @@ func _solid_step(t: float) -> void:
 		# the near side under it is drawn many times over)
 		_t_want = _t_want.limit_length(0.7)
 		var el0 := rad_to_deg(asin(TILT))
-		var lo := deg_to_rad(maxf(-_solid_pmax, SOLID_EL_MIN - el0))
-		var hi := deg_to_rad(minf(_solid_pmax, SOLID_EL_MAX - el0))
+		var lo := deg_to_rad(maxf(-SOLID_PMAX, SOLID_EL_MIN - el0))
+		var hi := deg_to_rad(minf(SOLID_PMAX, SOLID_EL_MAX - el0))
 		_p_want = clampf(_p_want + dp.y * deg_to_rad(1.0 / 13.0), lo, hi)
 	var k := 1.0 - exp(-dt / 0.2)
 	var was := Vector3(solid_t.x, solid_t.y, solid_pitch)

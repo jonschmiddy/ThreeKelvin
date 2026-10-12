@@ -1241,7 +1241,7 @@ vec3 remnants(vec2 p) {
 }
 
 // ------------------------------------------------------------------ fluff
-// THE GAS WITH A BODY (`ChartSky.fluff`, SIMPLIFIED only until Jon approves; Jon:
+// THE GAS WITH A BODY (`ChartSky.fluff`, SIMPLIFIED; Jon:
 // "the details still feel flat. I want the galaxy to almost be fluffy"). The disc's
 // gas was a painted texture lying on the plane, so even tilted it read as a printed
 // plate. Now it is heaped into round puffs where it is dense (`fluffPuff`: the arms
@@ -1516,20 +1516,18 @@ float terrSilh(vec2 p) {
 }
 
 // ------------------------------------------------------------------ the solid galaxy
-// THE SOLID GALAXY (`ChartSky.solid`, SIMPLIFIED only until Jon approves): the chart
-// seen through a real camera instead of laid flat like a tilted poster. The galaxy
-// is painted as before in its flat ("orthographic") view, o, and each block of the
-// screen looks it up through the camera: a camera `u_solidW.x` gu from the core, at
-// the sector map's tilt plus a little pitch and moved a little to the side, so the
-// near half of the disc is nearer and bigger and the far half smaller and squashed,
-// and a drag turns the view: up and down a few degrees of pitch, and sideways a sway
-// of the camera (looking the same way, its picture kept on the core), so the near rim
-// slides one way and the far rim the other, as a real disc's do. One projection for the sky and for everything the
-// chart draws over it (`ChartSky.solid_fwd` / `solid_inv` and `StarchartScreen`'s
-// `_proj` / `_to_plane`). It fixes the galaxy's centre, so a zoom (which only
-// magnifies the screen about its point) never changes it. u_solidW: camera distance
-// (gu), sin and cos of its elevation, sway (gu) (the uniforms, u_solid and u_solidW,
-// are at the top: the bulge reads them).
+// THE SOLID GALAXY (`ChartSky.solid`, SIMPLIFIED): the chart seen through a real
+// camera instead of laid flat like a tilted poster. The galaxy is painted as before
+// in its flat ("orthographic") view, o, and each block of the screen looks it up
+// through the camera: a camera `u_solidW.x` gu away at the sector map's tilt plus a
+// little pitch, looking down at `u_solidT` on the disc's plane, so the near half of
+// the disc is nearer and bigger and the far half smaller and squashed. A drag
+// carries the point it looks at over the disc and raises or lowers it
+// (`ChartSky._solid_step`). One projection for the sky and for everything the chart
+// draws over it (`ChartSky.solid_fwd` / `solid_inv` and `StarchartScreen`'s `_proj` /
+// `_to_plane`); a zoom only magnifies the screen about its point and never moves the
+// camera. u_solidW: camera distance (gu), sin and cos of its elevation, 0 (the
+// uniforms are at the top: the bulge reads them).
 // (its projection, solidFwdN, solidInvN, solidV and solidO, is with the view's
 // functions at the top: the supernova and the stars read it)
 // THE NEAR SIDE'S DUST LANE ACROSS THE CORE: the disc passes in front of the bottom
