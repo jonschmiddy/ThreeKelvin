@@ -2591,14 +2591,41 @@ class MapChart extends Control:
 	func _proj_sky(g: Vector2, ang: float) -> Vector2:
 		_proj_frame(ang)
 		var d := Vector2(g.x, g.y * _pk_isq) * _pk_scale
-		return Vector2(d.x * _pk_cos + d.y * _pk_sin, (d.y * _pk_cos - d.x * _pk_sin) * _sky_eff())
+		return _solid_px(Vector2(d.x * _pk_cos + d.y * _pk_sin, (d.y * _pk_cos - d.x * _pk_sin) * _sky_eff()), _pk_scale)
 
 	## A point of the galaxy, at the galaxy angle `ang`, as screen pixels from
 	## `centre_px()`.
 	func _proj(g: Vector2, ang: float) -> Vector2:
 		_proj_frame(ang)
 		var d := Vector2(g.x, g.y * _pk_isq) * _pk_scale
-		return Vector2(d.x * _pk_cos + d.y * _pk_sin, (d.y * _pk_cos - d.x * _pk_sin) * _pk_eff)
+		return _solid_px(Vector2(d.x * _pk_cos + d.y * _pk_sin, (d.y * _pk_cos - d.x * _pk_sin) * _pk_eff), _pk_scale)
+
+	## THE SOLID GALAXY (`ChartSky.solid`): the run's chart seen through the camera,
+	## its marks with it -- one projection, the sky's own (`ChartSky.solid_fwd` and
+	## `solid_inv`, the shader's solidFwdN and solidInvN), so every system, route,
+	## ring and label stays on its place on the disc and a click finds what is drawn.
+	func _solid_on() -> bool:
+		return run_galaxy and ChartSky.solid()
+
+	## A point of the flat view (screen px from `centre_px()`) where the camera
+	## shows it, and back.
+	## (`r`: px a gu now, when the caller has it.)
+	func _solid_px(o: Vector2, r: float = -1.0) -> Vector2:
+		if not _solid_on():
+			return o
+		if r < 0.0:
+			r = _radius() * DISC * zoom
+		if r <= 0.0:
+			return o
+		return ChartSky.solid_fwd(o / r) * r
+
+	func _solid_unpx(p: Vector2) -> Vector2:
+		if not _solid_on():
+			return p
+		var r := _radius() * DISC * zoom
+		if r <= 0.0:
+			return p
+		return ChartSky.solid_inv(p / r) * r
 
 	## What `_proj` needs, worked out once for each view and angle rather than
 	## for each of the hundreds of points a redraw projects.
@@ -2638,7 +2665,7 @@ class MapChart extends Control:
 		var r := _radius() * DISC * zoom
 		if r <= 0.0:
 			return Vector2.ZERO
-		var q := (p - centre_px()) / r
+		var q := _solid_unpx(p - centre_px()) / r
 		q.y /= _eff() if e < 0.0 else e
 		var c := cos(_drawn_turn)
 		var s := sin(_drawn_turn)
@@ -3482,11 +3509,15 @@ class MapChart extends Control:
 		# One step per pixel of circumference, near enough, so the dash rhythm
 		# stays the same length on screen at every zoom.
 		var steps := clampi(int(rx * 1.6), 60, 480)
+		# (through the solid galaxy's camera the ring is a circle on the disc seen in
+		# perspective: each dot placed on the flat view, then through the camera)
+		var co := _solid_unpx(c - centre_px())
+		var rpx := _radius() * DISC * zoom
 		for i in steps:
 			if i % period >= on:
 				continue
 			var a := TAU * float(i) / float(steps)
-			var q := (c + Vector2(cos(a) * rx, sin(a) * ry)).round()
+			var q := (centre_px() + _solid_px(co + Vector2(cos(a) * rx, sin(a) * ry), rpx)).round()
 			if _in_hole(q):
 				continue
 			_under_dot(q)

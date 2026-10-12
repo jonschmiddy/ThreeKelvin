@@ -117,31 +117,78 @@ static var diag := 0
 static var dith_gs := 0.006
 static var dith_coh := 0.5
 
-## GALAXY DEPTH (Oct 12; Jon's idea 21 from the "magnificent" list, reworked
-## twice: the near layer sat "almost RIGHT at the camera"; the sheets of round
-## three were "still too high up ... and one dimensional ... like it's a single
-## plane"). The galaxy as a volume that hugs its disc: stars and small clumps of
-## its own gas just above and just below the plane, thinning away from it,
-## thickest round the core and thin at the edge, each at a height of its own, seen
-## in perspective so on a drag what is above slides a little faster than the disc
-## and what is below a little slower (`chart_c_place`'s depth section). SIMPLIFIED
-## only until Jon picks a thickness; off unless asked for: `chartwow=depth`, and
-## `galaxydepth=thin|medium|thick` (medium the default).
-const DEPTHS := {"thin": 0.6, "medium": 1.0, "thick": 1.5}
-static var _depth := Vector3(-1.0, 1.0, 0.0)
+## THE SOLID GALAXY (Oct 12; Jon's idea 21 from the "magnificent" list, a third
+## time: "Do you understand what I mean by I don't want the galaxies to look like
+## they are flat?"). The near layer, the sheets above the disc and the volume round
+## it all failed for one reason: the galaxy itself was a flat picture tilted like a
+## poster, so anything floating round it still read as a poster. So the chart is
+## seen through a real camera (`chart_c_place`'s solid section): the near half of the
+## disc nearer and bigger, the far half smaller and squashed; the core bulging out
+## of the disc above and below it, its top hiding the far disc and the near disc's
+## dust crossing in front of its bottom; the disc's rim with a thickness; and a drag
+## turning the view a few degrees, so the near and far sides change shape as a real
+## object's do. ONE projection for the sky and for every mark the chart draws over
+## it (`solid_fwd`, `solid_inv`; `StarchartScreen`'s `_proj` and `_to_plane` call
+## them), fixed on the galaxy's centre, so a zoom only magnifies. SIMPLIFIED only
+## until Jon approves; off unless asked for: `chartwow=solid`, and `solidend=back`
+## (the default: the angle eases back when a drag stops) or `solidend=stay` (it
+## stays where the drag left it).
+## How far the camera stands from the core, gu (the disc's radius is about 1): the
+## near rim is drawn 1.45 times, the far rim 0.76 times, what the middle is.
+const SOLID_D := 3.0
+## How far a drag may turn the view: the camera's sway sideways (gu: at the most the
+## near rim slides some 15 px against the core at the opening, the far rim 9 the
+## other way) and its pitch (degrees).
+const SOLID_SWAY_MAX := 0.15
+const SOLID_PITCH_MAX := 2.5
+static var _solid := -1
+static var solid_stay := false
+## The view's turn now, radians (eased: `_solid_step`).
+static var solid_sway := 0.0
+static var solid_pitch := 0.0
 
 
-## The galaxy's depth asked for: (on 1 or 0, how thick, 0).
-static func depth() -> Vector3:
-	if _depth.x < 0.0:
-		_depth.x = 0.0
+## Whether the chart is seen through the camera.
+static func solid() -> bool:
+	if _solid < 0:
+		_solid = 0
 		for a in OS.get_cmdline_user_args():
 			var arg := a as String
-			if arg.begins_with("chartwow=") and "depth" in arg.substr(9).split(","):
-				_depth.x = 1.0
-			elif arg.begins_with("galaxydepth="):
-				_depth.y = float(DEPTHS.get(arg.substr(12), DEPTHS.medium))
-	return _depth
+			if arg.begins_with("chartwow=") and "solid" in arg.substr(9).split(","):
+				_solid = 1
+			elif arg == "solidend=stay":
+				solid_stay = true
+	return _solid == 1
+
+
+## The camera: (its distance, the sine and cosine of its elevation, its sway), worked
+## out once each time the view turns (the chart projects every mark through it).
+static var _cam := Vector4(SOLID_D, TILT, sqrt(1.0 - TILT * TILT), 0.0)
+
+
+static func solid_cam() -> Vector4:
+	return _cam
+
+
+static func _set_cam() -> void:
+	var el := asin(TILT) + solid_pitch
+	_cam = Vector4(SOLID_D, sin(el), cos(el), solid_sway)
+
+
+## The flat view (gu, y already tilted) to the camera's (gu); the shader's solidFwdN.
+static func solid_fwd(o: Vector2) -> Vector2:
+	var w := solid_cam()
+	var q := Vector2(o.x, o.y / TILT)
+	var sc := w.x / (w.x - q.y * w.z)
+	return Vector2((q.x - w.w) * sc + w.w, q.y * w.y * sc)
+
+
+## The camera's view of the disc's plane back to the flat view; the shader's solidInvN.
+static func solid_inv(p: Vector2) -> Vector2:
+	var w := solid_cam()
+	var qy := p.y * w.x / (w.x * w.y + p.y * w.z)
+	var qx := (p.x - w.w) * (w.x - qy * w.z) / w.x + w.w
+	return Vector2(qx, qy * TILT)
 
 
 var chart: StarchartScreen.MapChart = null
@@ -1656,6 +1703,13 @@ func _feed_events(m: ShaderMaterial, g: Dictionary, t: float, phi: float, _z: fl
 	g["_rls"] = rls
 
 
+## A point of the flat view (view px at zoom 1) where the camera shows it.
+func _solid_view(v: Vector2) -> Vector2:
+	if not (solid() and _use_map and not _g_for().has("radiant")):
+		return v
+	return solid_fwd(v / K0) * K0
+
+
 ## The clouds' own stars, this frame: an emission cloud's cluster, a reflection
 ## cloud's two lamps, a planetary's hot star and a pulsar's beat. (block x, y,
 ## plus) and linear colour pairs.
@@ -1688,7 +1742,7 @@ func _cloud_stars(g: Dictionary, t: float, phi: float, cpix: Vector2, z: float, 
 				var pp: Vector2 = c.pulsar
 				if pp.x != INF:
 					var beat := 0.45 + 1.1 * pow(0.5 + 0.5 * cos(TAU * t / 5.0), 8.0)
-					var pv := _to_view(pp, phi)
+					var pv := _solid_view(_to_view(pp, phi))
 					var s := cpix + pv * z
 					if pos.size() < MAX_EXTRA:
 						pos.append(Vector4(floorf((s.x - origin.x) * 0.5), floorf((s.y - origin.y) * 0.5), 0.0, 0.0))
@@ -1696,7 +1750,7 @@ func _cloud_stars(g: Dictionary, t: float, phi: float, cpix: Vector2, z: float, 
 		for q in range(0, puts.size(), 2):
 			if pos.size() >= MAX_EXTRA:
 				break
-			var s := cpix + (v + Vector2(puts[q].x * K0, puts[q].y * 0.46341 * K0)) * z
+			var s := cpix + _solid_view(v + Vector2(puts[q].x * K0, puts[q].y * 0.46341 * K0)) * z
 			pos.append(Vector4(floorf((s.x - origin.x) * 0.5), floorf((s.y - origin.y) * 0.5), 0.0, 0.0))
 			col.append(Vector4(puts[q + 1].x, puts[q + 1].y, puts[q + 1].z, 0.0))
 	return [pos, col]
@@ -1872,12 +1926,16 @@ func _push() -> void:
 	var rm: Array = remnants(g.sn_cand, t, DisplaySettings.reduced_motion)
 	m.set_shader_parameter("u_nrem", int(rm[0]))
 	m.set_shader_parameter("u_rem", rm[1])
-	# the galaxy's depth (SIMPLIFIED alone until Jon picks one)
-	var dp := depth()
-	var dep_on := dp.x > 0.5 and not g.has("radiant")
-	m.set_shader_parameter("u_depthOn", dep_on)
-	if dep_on:
-		_feed_depth(m, dp)
+	# the solid galaxy (SIMPLIFIED alone until Jon approves; the run's chart, not the
+	# title's)
+	var sol := solid() and not g.has("radiant") and _use_map
+	if sol:
+		_solid_step(t)
+	var cam := solid_cam()
+	m.set_shader_parameter("u_solid", sol)
+	m.set_shader_parameter("u_solidW", cam)
+	ms.set_shader_parameter("solid", sol)
+	ms.set_shader_parameter("solidW", cam)
 	var ex: Array = _cloud_stars(g, t, phi, ccon, z, _vp_origin)
 	var epos: PackedVector4Array = ex[0]
 	var ecol: PackedVector4Array = ex[1]
@@ -1920,7 +1978,9 @@ func _push() -> void:
 	_hold_z = z
 	_hold_c_now = ccon
 	_hold_o_now = _vp_origin
-	var valid := _hold_ref.x != INF and not _hold_bad and _lut_on and not jump and not dragging 		and (b0 - _hold_ref).length() < 8.0
+	# (nor while the camera turns: every block shows another piece of the galaxy, as on
+	# a zoom, but not by a zoom the hold could follow)
+	var valid := _hold_ref.x != INF and not _hold_bad and _lut_on and not jump and not dragging and not _sol_moved 		and (b0 - _hold_ref).length() < 8.0
 	# last frame's view, to find where each block's piece of the galaxy was drawn
 	mc.set_shader_parameter("cur_c", ccon)
 	mc.set_shader_parameter("cur_o", _vp_origin)
@@ -1953,22 +2013,48 @@ func next_supernova(t: float) -> Dictionary:
 	return {}
 
 
-## GALAXY DEPTH's per-frame inputs: how thick, and what it must keep
-## clear of on the screen -- YOU and the systems you can jump to (their glyphs and
-## labels are drawn over the sky, but a wisp behind them is still clutter).
-func _feed_depth(m: ShaderMaterial, dp: Vector3) -> void:
-	m.set_shader_parameter("u_depth", Vector2(dp.y, 0.0))
-	var keep := PackedVector2Array()
-	if _use_map and not Run.map.is_empty() and Run.node_at() != null:
-		keep.append(chart._screen_pos(Run.node_at()))
-		for raw in chart._in_range():
-			if keep.size() >= 24:
-				break
-			keep.append(chart._screen_pos(raw as MapGen.MapNode))
-	var nk := keep.size()
-	keep.resize(24)
-	m.set_shader_parameter("u_nclear", nk)
-	m.set_shader_parameter("u_clear", keep)
+## THE VIEW TURNS ON A DRAG (`solid`): the camera's sway and pitch follow the drag,
+## eased, a few degrees at most -- with `solidend=back` toward an angle set by how
+## fast the view is being dragged, so it eases back when the drag stops; with
+## `solidend=stay` toward an angle set by how far, so it stays where the drag left it.
+## Only a drag turns it: a zoom changes nothing of the camera. Timed on the chart's
+## clock, so a harness's film is the same every run.
+var _sol_pan := Vector2(INF, INF)
+var _sol_zoom := -1.0
+var _sol_t := -1.0
+var _sol_acc := Vector2.ZERO
+var _sol_moved := false
+
+
+func _solid_step(t: float) -> void:
+	var dt := clampf(t - _sol_t, 0.0, 0.1) if _sol_t >= 0.0 else 0.0
+	_sol_t = t
+	var dp := Vector2.ZERO
+	if _sol_pan.x != INF and absf(chart.zoom - _sol_zoom) < 1e-9:
+		dp = chart.pan - _sol_pan
+	_sol_pan = chart.pan
+	_sol_zoom = chart.zoom
+	var ym := SOLID_SWAY_MAX
+	var pm := deg_to_rad(SOLID_PITCH_MAX)
+	var want := Vector2.ZERO
+	if solid_stay:
+		# the most sway for 200 px of drag, a degree of pitch for every 50 px
+		_sol_acc = Vector2(clampf(_sol_acc.x - dp.x * ym / 200.0, -ym, ym),
+			clampf(_sol_acc.y + dp.y * deg_to_rad(0.02), -pm, pm))
+		want = _sol_acc
+	elif dt > 0.0:
+		# most of the sway at 100 px a second (a slow drag); a quick one meets the most
+		var vel := dp / dt
+		want = Vector2(clampf(-vel.x * ym / 130.0, -ym, ym), clampf(vel.y * deg_to_rad(0.03), -pm, pm))
+	var k := 1.0 - exp(-dt / 0.35)
+	var was := Vector2(solid_sway, solid_pitch)
+	solid_sway += (want.x - solid_sway) * k
+	solid_pitch += (want.y - solid_pitch) * k
+	_sol_moved = (Vector2(solid_sway, solid_pitch) - was).length() > 1e-6
+	if _sol_moved:
+		_set_cam()
+		# the chart's marks follow the camera
+		chart.queue_redraw()
 
 
 ## RADIANT'S SAFETY: it is the heavy style ("for photos probably", Jon). Over its

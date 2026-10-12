@@ -42,6 +42,11 @@ uniform int diag = 0;          // (tuning: 2 or 16 draw no stars, `ChartSky.diag
 uniform float k = 622.25;
 uniform float phi = 0.0;
 uniform float bulge_r = 0.128;
+// THE SOLID GALAXY (`ChartSky.solid`): the stars where the camera shows them
+// (`chart_c_place`'s solidFwdN): on, and the camera's distance, elevation's sine and
+// cosine, and sway
+uniform bool solid = false;
+uniform vec4 solidW = vec4(3.0, 0.38, 0.92499, 0.0);
 
 varying vec3 v_col;
 varying vec2 v_loc;
@@ -58,6 +63,11 @@ float sm(float a, float b, float x) {
 vec2 toScreen(vec2 p) {
 	float c = cos(phi), s = sin(phi);
 	vec2 v = vec2(p.x * c + p.y * s, (p.y * c - p.x * s) * 0.38) * k;
+	if (solid) {
+		vec2 q = vec2(v.x, v.y / 0.38) / k;
+		float sc = solidW.x / (solidW.x - q.y * solidW.z);
+		v = vec2((q.x - solidW.w) * sc + solidW.w, q.y * solidW.y * sc) * k;
+	}
 	return cpix + v * zoom;
 }
 

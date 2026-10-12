@@ -73,13 +73,10 @@ uniform vec4 u_echo = vec4(0.0);   // light echo: plane x, y, ring radius (gu), 
 // seed); none in the palette's probes
 uniform int u_nrem = 0;
 uniform vec4 u_rem[16];
-// GALAXY DEPTH (`ChartSky.depth`, SIMPLIFIED only until Jon picks one): on, how
-// thick (x: 1 the medium), and the places on the screen it keeps clear of (chart
-// px: YOU and the systems in range)
-uniform bool u_depthOn = false;
-uniform vec2 u_depth = vec2(1.0, 0.0);
-uniform int u_nclear = 0;
-uniform vec2 u_clear[24];
+// THE SOLID GALAXY (`ChartSky.solid`, its section below): on, and the camera --
+// its distance (gu), the sine and cosine of its elevation, its sway (gu)
+uniform bool u_solid = false;
+uniform vec4 u_solidW = vec4(3.0, 0.38, 0.92499, 0.0);
 
 const vec3 HA = vec3(1.0, 0.2, 0.3);
 const vec3 OIII = vec3(0.2, 0.95, 0.85);
@@ -101,6 +98,30 @@ vec3 warmsoft(vec3 c) {
 vec2 gpan() { return (u_res * 0.5 - u_cpix) / u_zoom; }
 vec2 scr(vec2 v) { return u_cpix + v * u_zoom; }
 ivec2 blockOf(vec2 s) { return ivec2(floor((s - u_vp_origin) * 0.5)); }
+
+// THE SOLID GALAXY'S PROJECTION (its section, further down, says what it is for):
+// the flat view (gu, y already tilted) to the camera's (gu)
+vec2 solidFwdN(vec2 o) {
+	vec2 q = vec2(o.x, o.y / KIT_TILT);
+	float D = u_solidW.x, c = u_solidW.w;
+	float s = D / (D - q.y * u_solidW.z);
+	return vec2((q.x - c) * s + c, q.y * u_solidW.y * s);
+}
+// and back: the camera's view of the disc's plane to the flat view
+vec2 solidInvN(vec2 p) {
+	float D = u_solidW.x;
+	float qy = p.y * D / (D * u_solidW.y + p.y * u_solidW.z);
+	float c = u_solidW.w;
+	float qx = (p.x - c) * (D - qy * u_solidW.z) / D + c;
+	return vec2(qx, qy * KIT_TILT);
+}
+// the same in view px at zoom 1 (u_k a gu), and nothing at all with it off
+vec2 solidV(vec2 o) {
+	return u_solid ? solidFwdN(o / u_k) * u_k : o;
+}
+vec2 solidO(vec2 v) {
+	return u_solid ? solidInvN(v / u_k) * u_k : v;
+}
 
 float octFor(float F) {
 #if LOW
@@ -320,7 +341,9 @@ vec3 grade(vec3 lin) {
 // intensity, so the core is a warm gradient at every zoom, never a plate.
 vec3 bulgeLight(vec2 v, out float front, out float I) {
 	vec2 g = v / u_k;
-	float s = length(vec2(g.x, g.y / 0.86));
+	// (rounder still, through the camera: an egg pushed through a plate, rising
+	// above the disc and dropping below it)
+	float s = length(vec2(g.x, g.y / (u_solid ? 1.08 : 0.86)));
 	float qy = v.y / (KIT_TILT * u_k);
 	front = 0.5 + 0.5 * tanh(-1.05 * qy / (s + 0.008));
 	float bs = u_bulgeR / 0.128;
@@ -969,7 +992,7 @@ vec3 supernova(vec2 v, ivec2 blk) {
 	if (u_sn.z <= 0.0) {
 		return vec3(0.0);
 	}
-	ivec2 b0 = blockOf(scr(u_sn.xy));
+	ivec2 b0 = blockOf(scr(solidV(u_sn.xy)));
 	ivec2 d = blk - b0;
 	float g = u_sn.z;
 	vec3 c = vec3(0.0);
@@ -1070,178 +1093,77 @@ vec3 remnants(vec2 p) {
 	return c;
 }
 
-// ------------------------------------------------------------------ galaxy depth
-// GALAXY DEPTH (`ChartSky.depth`): the galaxy as a volume that hugs its disc --
-// stars and small clumps of its own gas just above AND just below the plane, the
-// material thinning away from the plane (exponentially, its scale height
-// `depthZ`): thickest round the core, a puffy bulge with stars above and below
-// it, thinning along the arms, the edge staying thin. Seen in perspective from a
-// camera over the middle of the view, a thing at height h is magnified about the
-// view's middle by 1 + DEPTH_K h, so on a drag what is above the disc slides a
-// little faster than it and what is below a little slower -- the counter-motion
-// is the thickness -- and a height stands up off the plane at the sector map's
-// tilt. No sheets: the volume is cut into DEPTH_N thin slices, denser near the
-// plane, every star given its own height within its slice and every clump its
-// own slice. What is below sits behind the disc (its dust and light cover it);
-// what is above shades the disc behind it and casts a faint shadow on the disc
-// right under it. Kept clear of YOU and the systems in range. u_depth.x scales
-// the thickness (thin, medium, thick).
-const int DEPTH_N = 8;
-const float DEPTH_K = 2.0;
-// the scale height at plane radius r, gu
-float depthZ(float r) {
-	return u_depth.x * (0.045 * exp(-r / 0.10) + 0.012 * exp(-r / 0.45)) * (1.0 - 0.75 * smoothstep(0.65, 1.05, r));
-}
-// slice k's height, gu: three below the plane, five above, closer together near it
-float depthH(int k) {
-	if (k < 3) {
-		return -0.04 * u_depth.x * pow((float(3 - k) - 0.5) / 3.0, 1.5);
-	}
-	return 0.06 * u_depth.x * pow((float(k - 3) + 0.5) / 5.0, 1.5);
-}
-float depthThick(int k) {
-	return k < 3 ? 0.04 * u_depth.x / 3.0 : 0.06 * u_depth.x / 5.0;
-}
-float depthF(float h) {
-	return (1.0 + DEPTH_K * h) * pow(max(u_zoom / u_zopen, 1.0), 0.3 * h);
-}
-// the plane point seen through view point v at height h, and the view point a
-// plane point at height h is seen at
-vec2 depthP(vec2 v, float h) {
-	vec2 gp = gpan();
-	vec2 vh = (v - gp) / depthF(h) + gp;
-	vh.y += h * KIT_TILT_COS * u_k;
-	return kitViewToPlane(vh, u_phi, u_k);
-}
-vec2 depthV(vec2 p, float h) {
-	vec2 q = kitRot(u_phi) * p * u_k;
-	q.y *= KIT_TILT;
-	q.y -= h * KIT_TILT_COS * u_k;
-	vec2 gp = gpan();
-	return gp + (q - gp) * depthF(h);
-}
-// how much of the volume's gas is in slice k at plane point p: small clumps over
-// the arms, as many as the height lets there be, crisp edged
-float depthGas(vec2 p, int k) {
+// ------------------------------------------------------------------ the solid galaxy
+// THE SOLID GALAXY (`ChartSky.solid`, SIMPLIFIED only until Jon approves): the chart
+// seen through a real camera instead of laid flat like a tilted poster. The galaxy
+// is painted as before in its flat ("orthographic") view, o, and each block of the
+// screen looks it up through the camera: a camera `u_solidW.x` gu from the core, at
+// the sector map's tilt plus a little pitch and moved a little to the side, so the
+// near half of the disc is nearer and bigger and the far half smaller and squashed,
+// and a drag turns the view: up and down a few degrees of pitch, and sideways a sway
+// of the camera (looking the same way, its picture kept on the core), so the near rim
+// slides one way and the far rim the other, as a real disc's do. One projection for the sky and for everything the
+// chart draws over it (`ChartSky.solid_fwd` / `solid_inv` and `StarchartScreen`'s
+// `_proj` / `_to_plane`). It fixes the galaxy's centre, so a zoom (which only
+// magnifies the screen about its point) never changes it. u_solidW: camera distance
+// (gu), sin and cos of its elevation, sway (gu) (the uniforms, u_solid and u_solidW,
+// are at the top: the bulge reads them).
+// (its projection, solidFwdN, solidInvN, solidV and solidO, is with the view's
+// functions at the top: the supernova and the stars read it)
+// THE NEAR SIDE'S DUST LANE ACROSS THE CORE: the disc passes in front of the bottom
+// of the bulge, so a dark lane of its dust cuts across the core below the hole --
+// a band of the disc's plane about 0.15 to 0.19 gu out on its near half, broken by the
+// gas, read where the lane itself is (never through the hole's lens, so it never
+// bends round the hole or crosses its disc). What it lets through.
+vec3 solidLane(vec2 o) {
+	vec2 p = kitViewToPlane(o, u_phi, u_k);
 	float r = length(p);
-	if (r < 0.04 || r > 1.0) {
-		return 0.0;
+	vec2 q = kitRot(u_phi) * p;
+	if (r < 0.11 || r > 0.26 || q.y <= 0.0) {
+		return vec3(1.0);
 	}
-	float w = exp(-abs(depthH(k)) / max(depthZ(r), 1e-4));
-	if (w < 0.05) {
-		return 0.0;
-	}
-	float arm = textureLod(u_struct, bakeUV(p), 2.0).r;
-	vec2 q = kitRot(1.3 + 1.7 * float(k)) * p * 9.0 + vec2(5.1 * float(k), -3.7 * float(k));
-	float n = kitFbm2(q, 3) + 0.25 * arm - 0.35 * (1.0 - w);
-	float mt = 0.75 + 0.25 * kitSnoise2(q * 2.7 + 7.0);
-	return smoothstep(0.28, 0.35, n) * (0.5 + 0.5 * arm) * mt * smoothstep(0.04, 0.10, r);
+	float band = exp(-pow((r - 0.17) / 0.03, 2.0)) * smoothstep(0.0, 0.06, q.y);
+	float n = 0.5 + 0.5 * kitFbm2(p * 38.0 + vec2(3.7, 1.1), 3);
+	// (at the least as dusty as a lane-rich spiral's: a galaxy without lanes of its
+	// own still has the near disc in front of its bulge)
+	float tau = 3.2 * band * (0.4 + 1.0 * n) * max(u_laneStr, 0.8);
+	return exp(-tau * vec3(0.62, 0.80, 1.0));
 }
-// slice k's stars: a cell of 0.05 gu holds one at most, as likely as the height
-// lets it be, each at its own height within the slice; a block, the bright ones
-// with a plus
-vec3 depthStars(vec2 v, int k) {
-	const float CELL = 0.05;
-	float hk = depthH(k);
-	vec2 pk = depthP(v, hk);
-	ivec2 c0 = ivec2(floor(pk / CELL));
-	vec3 out_c = vec3(0.0);
-	for (int j = -1; j <= 1; j++) {
-		for (int i = -1; i <= 1; i++) {
-			ivec2 c = c0 + ivec2(i, j);
-			vec3 h = kitHash3(c + ivec2(7001 + k * 131, 3307));
-			vec2 sp = (vec2(c) + 0.1 + 0.8 * h.xy) * CELL;
-			float rs = length(sp);
-			if (rs < 0.03 || rs > 1.0) {
-				continue;
-			}
-			vec3 g = kitHash3(c + ivec2(919, 41 + k));
-			float hs = hk + (g.z - 0.5) * depthThick(k);
-			if (h.z > 0.35 * exp(-abs(hs) / max(depthZ(rs), 1e-4)) * (0.3 + 0.7 * exp(-rs / 0.3))) {
-				continue;
-			}
-			vec2 dv = (v - depthV(sp, hs)) * u_zoom;
-			vec2 db = floor(dv * 0.5 + 0.5);
-			float b = 0.5 + 1.1 * g.x * g.x;
-			float w = 0.0;
-			if (db.x == 0.0 && db.y == 0.0) {
-				w = 1.0;
-			} else if (b > 1.35 && abs(db.x) + abs(db.y) == 1.0) {
-				w = 0.22;
-			}
-			if (w > 0.0) {
-				vec3 tint = mix(kitStarTint(0.3 + 0.3 * g.y), kitStarTint(0.6 + 0.4 * g.y), smoothstep(0.12, 0.45, rs));
-				out_c += tint * b * w;
-			}
-		}
-	}
-	return out_c;
-}
-// how clear of YOU and the systems in range a point on the screen must stay
-float depthClear(vec2 s) {
-	float m = 1.0;
-	for (int i = 0; i < 24; i++) {
-		if (i >= u_nclear) {
-			break;
-		}
-		m *= smoothstep(10.0, 34.0, length(s - u_clear[i]));
-	}
-	return m;
-}
-// the gas of slice k as seen at v: its light, and how much it covers
-vec4 depthGasAt(vec2 v, int k) {
-	float hk = depthH(k);
-	vec2 pk = depthP(v, hk);
-	float a = u_form != 1 ? depthGas(pk, k) : 0.0;
-	if (a <= 0.0) {
+// THE DISC'S EDGE HAS A THICKNESS: a slab 2 SOLID_H thick out to SOLID_RE gu,
+// whose near face shows below the rim -- the rays that enter it through the side
+// (their point on the top face beyond the rim, on the bottom face inside it). Lit
+// as an edge-on disc is, brighter than the face for the length of disc it looks
+// through, with its dust in a dark line along the middle. (light, how much it
+// covers.)
+const float SOLID_H = 0.012;
+const float SOLID_RE = 0.95;
+vec4 solidEdge(vec2 o) {
+	float lift = SOLID_H * KIT_TILT_COS * u_k;
+	vec2 pt = kitViewToPlane(o + vec2(0.0, lift), u_phi, u_k);   // where the ray meets the top face
+	vec2 pb = kitViewToPlane(o - vec2(0.0, lift), u_phi, u_k);   // and the bottom
+	float rt = length(pt), rb = length(pb);
+	if (rt <= SOLID_RE || rb >= SOLID_RE) {
 		return vec4(0.0);
 	}
-	float rk = length(pk);
-	float irr = 1.0 / (1.0 + pow(rk / 0.09, 2.0));
-	// (lit dimmer than the bulge behind it, so over the core it stands as dust in
-	// silhouette and out over the dark between the arms as lit gas)
-	vec3 col = mix(vec3(0.42, 0.56, 1.0) * 0.16 * exp(-rk / 0.45), LITDUST * 0.12, smoothstep(0.2, 1.0, irr));
-	// its crisp edge catches more light than its middle
-	col *= 1.0 + 0.5 * (1.0 - smoothstep(0.35, 0.9, a));
-	return vec4(col * a, 0.55 * a);
-}
-// below the plane: laid in before the disc, which covers it
-void depthBelow(vec2 v, inout vec3 C) {
-	float m = depthClear(scr(v));
-	if (m <= 0.001) {
-		return;
+	// only the near face shows: its outward side turned toward the camera
+	vec2 q = kitRot(u_phi) * (pt + pb) * 0.5;
+	if (q.y <= 0.0) {
+		return vec4(0.0);
 	}
-	for (int k = 0; k < 3; k++) {
-		vec4 g = depthGasAt(v, k);
-		C = C * (1.0 - g.a * m) + g.rgb * m;
-		C += depthStars(v, k) * m;
-	}
-}
-// above it: the shadows on the disc right under, then the slices, lowest first
-void depthAbove(vec2 v, vec2 p0, inout vec3 C) {
-	float m = depthClear(scr(v));
-	if (m <= 0.001) {
-		return;
-	}
-	if (u_form != 1) {
-		float sh = 0.0;
-		for (int k = 3; k < DEPTH_N; k++) {
-			sh += depthGas(p0, k);
-		}
-		C *= 1.0 - 0.30 * min(sh, 1.0) * m;
-	}
-	for (int k = 3; k < DEPTH_N; k++) {
-		vec4 g = depthGasAt(v, k);
-		C = C * (1.0 - g.a * m) + g.rgb * m;
-		C += depthStars(v, k) * m;
-	}
+	// the height the ray meets the face at, -1 at the bottom to 1 at the top
+	float zf = 1.0 - 2.0 * (rt - SOLID_RE) / max(rt - rb, 1e-5);
+	float face = smoothstep(0.0, 0.15, q.y / SOLID_RE);
+	float lane = 1.0 - 0.75 * exp(-zf * zf / 0.12);
+	float n = 0.6 + 0.4 * kitVnoise2(pt * 40.0);
+	vec3 col = mix(vec3(0.62, 0.52, 0.42), vec3(0.20, 0.32, 1.0), u_young) * 0.03 * lane * n;
+	return vec4(col, 0.85 * face);
 }
 
 // ------------------------------------------------------------------ the galaxy
 // `la`: how many mip levels coarser to read the bakes, for a point seen through
 // the lens, where a wide patch of the disc is squeezed into a few blocks and the
 // bakes read at the screen's own scale alias into flicker as the zoom moves
-vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) {
+vec3 galaxy(vec2 v, vec2 vsky, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) {
 	vec3 C = VOIDC / u_exp;
 	dustOut = 0.0;
 	vec2 p = kitViewToPlane(v, u_phi, u_k);
@@ -1250,7 +1172,7 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 	float irr = 1.0 / (1.0 + pow(r / 0.10, 2.0));
 	bool ball = u_form == 1;
 	vec3 T = vec3(1.0), B = vec3(0.0);
-	float gas = 0.0, nest = 0.0, front = 0.0;
+	float gas = 0.0, nest = 0.0, front = 0.0, bulgeI = 0.0;
 	// (each layer is called ONCE whatever the galaxy's shape: a call in each
 	// branch inlines it twice and the shader took seconds longer to compile)
 	if (ball) {
@@ -1270,6 +1192,7 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		dustOut = dust;
 		float Ib;
 		B = bulgeLight(v, front, Ib);
+		bulgeI = Ib;
 		// the nest is puffed up round the hole: seen from our angle it hides the
 		// bulge's middle, so the hole sits in a dark dusty pocket
 		float sv = length(vec2(v.x, v.y / 0.86)) / u_k;
@@ -1304,9 +1227,6 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 			float dd = 1.0 - kitLum(T);
 			Em += FLARE * u_echo.w * ring * (0.15 + 0.8 * gas + 2.6 * dd) * 0.5;
 		}
-		if (u_depthOn) {
-			depthBelow(v, C);
-		}
 		C = C * T + Em;
 		C = max(C + bStars * mix(T, vec3(1.0), front), vec3(0.0));
 	}
@@ -1314,19 +1234,27 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 	cloudLayer(v, irr, gas, C, cloudT);
 	if (!ball) {
 		float nuc = 1.0 - smoothstep(0.05, 0.11, r);
-		C += B * front * mix(vec3(1.0), T, max(nuc * (1.0 - 0.25 * front), 0.62)) * exp(-5.5 * nest * vec3(0.80, 0.92, 1.0)) * mix(vec3(1.0), cloudT, 0.97);
+		// (through the camera the top of the bulge stands in front of the far side
+		// of the disc and hides it, rather than only adding its light over it)
+		float occ = u_solid ? 0.8 * front * smoothstep(0.003, 0.05, bulgeI) : 0.0;
+		C = C * (1.0 - occ) + B * front * mix(vec3(1.0), T, max(nuc * (1.0 - 0.25 * front), 0.62)) * exp(-5.5 * nest * vec3(0.80, 0.92, 1.0)) * mix(vec3(1.0), cloudT, 0.97);
 		billowLayer(v, dq, C);
 		wispLayer(v, la, C);
 	}
-	if (u_depthOn) {
-		depthAbove(v, p, C);
-	}
 	vec3 frontL = max(C - VOIDC / u_exp, vec3(0.0));
-	C += farSky(v, la, bgNebSeen(frontL, u_exp)) * T * cloudT * bgSeen(frontL, u_exp);
+	C += farSky(vsky, la, bgNebSeen(frontL, u_exp)) * T * cloudT * bgSeen(frontL, u_exp);
 	return grade(max(mix(vec3(kitLum(C)), C, SAT), 0.0)) + supernova(v, blk);
 }
 
-vec3 place(vec2 v, ivec2 blk, ivec2 dq) {
+// what the camera adds over everything: the near face of the disc's edge
+vec3 solidFinish(vec3 C, vec2 v) {
+	if (!u_solid || u_form == 1) {
+		return C;
+	}
+	vec4 e = solidEdge(v);
+	return C * (1.0 - e.a) + e.rgb;
+}
+vec3 place(vec2 v, vec2 vsc, ivec2 blk, ivec2 dq) {
 	float shadow = u_holeR * u_k;                        // the shadow's radius, view px
 	vec2 S = lh_to_s(v, vec2(0.0), shadow);
 	// ONE call of the galaxy, at the point seen through the lens or at v: two
@@ -1337,16 +1265,21 @@ vec3 place(vec2 v, ivec2 blk, ivec2 dq) {
 	vec2 vbg = lens ? v * lh_behind(S) : v;
 	// (the stars behind are read where the lens shows them; holding them on a
 	// coarser grid while the zoom moves drew them as dashes, so they are not)
-	ivec2 sb = lens ? blockOf(scr(vbg)) : blk;
+	ivec2 sb = lens ? blockOf(scr(solidV(vbg))) : blk;
 	// (read twice as coarse through the lens as it squeezes: the gas round the hole now
 	// keeps its light and structure deep in, Oct 11, and squeezed into a few blocks
 	// it shimmered as the zoom moved; the palette's probes read it as before, and so
 	// does the opening view, which is left exactly as it was)
 	float la = lens ? log2(max(lensSqueeze(S), 1.0)) * (1.0 + resolveOn() * smoothstep(0.5, 1.5, u_zoom)) : 0.0;
 	float dust;
-	vec3 C = galaxy(vbg, sb, blk, dq, la, dust);
+	vec3 C = galaxy(vbg, lens ? solidV(vbg) : vsc, sb, blk, dq, la, dust);
+	// the near side's dust lane, before the hole's own disc and shadow are laid over
+	// (so it never darkens them), and read where the lane is, not through the lens
+	if (u_solid && u_form != 1) {
+		C *= solidLane(v);
+	}
 	if (!lens) {
-		return C;
+		return solidFinish(C, v);
 	}
 	C *= lh_cool_chart(S, smoothstep(3.0, 6.0, u_zoom) * ((u_diag & 128) != 0 ? 0.0 : 1.0), (u_diag & 1024) != 0 || !u_stars_on) * lh_squeeze(S);
 	// the disc lights the gas round it, hardest on the dense dust
@@ -1357,7 +1290,7 @@ vec3 place(vec2 v, ivec2 blk, ivec2 dq) {
 	if (d.a > 0.004) {
 		C = C * (1.0 - d.a) + lh_exact_hdr(d.rgb, u_exp) * d.a;
 	}
-	return C;
+	return solidFinish(C, v);
 }
 
 void fragment() {
@@ -1366,8 +1299,13 @@ void fragment() {
 	vec2 v = (s - u_cpix) / u_zoom;
 	// the dither index, anchored to the galaxy's centre (as the composite's)
 	ivec2 dq = blk + ivec2(u_block0);
-	vec3 C = place(v, blk, dq);
-	if (u_tone_out) {
+	vec3 C = place(solidO(v), v, blk, dq);
+	// (`ChartSky.diag` 4096, a test's: the point of the disc's plane this block
+	// shows, in place of its light, so the chart's marks can be checked against it)
+	if ((u_diag & 4096) != 0) {
+		vec2 pp = kitViewToPlane(solidO(v), u_phi, u_k);
+		COLOR = vec4(pp, 0.0, 1.0);
+	} else if (u_tone_out) {
 		COLOR = vec4(kitToSrgb(kitTone(C * u_exp, u_burn)), 1.0);
 	} else {
 		COLOR = vec4(max(C, vec3(0.0)), 1.0);
