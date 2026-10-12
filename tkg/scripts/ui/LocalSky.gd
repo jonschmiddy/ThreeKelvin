@@ -385,6 +385,7 @@ func _build() -> void:
 		_sky_look.shape = 0
 		_sky_look.hue = Vector3(0.3, 0.45, 0.95)
 	var neb_on := _sky_look.has("neb")
+	life = LocalLife.new(self)
 	if headless():
 		return
 	_box = SubViewportContainer.new()
@@ -820,6 +821,9 @@ static func _block_round(p: Vector2) -> Vector2:
 
 func _process(delta: float) -> void:
 	if _scene == null:
+		# (headless: no picture, but the moons' clock still runs, for `-- moontest`)
+		if life != null:
+			life.step(delta)
 		return
 	# GRAPHICS LOW: the cloud reads its field once (`sky_nebula`'s `low`), and
 	# the whole sky is drawn every other frame -- its gas steps a block every
@@ -921,6 +925,8 @@ func _step(delta: float) -> void:
 		_near_rect.position = Vector2.ZERO
 		_near_rect.scale = Vector2.ONE
 	_wx_step(delta)
+	if life != null:
+		life.step(delta)
 	if _ready_sky and not _palette_built and _frame > 8 and _palette_mat != null:
 		_build_palette()
 
@@ -1314,8 +1320,7 @@ func _build_near() -> void:
 	_near_vp.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
 	_near_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_scene.add_child(_near_vp)
-	var h := SkyBakeS.hash2(node.index, 811 + orbit_target)
-	# opposite the star, across the view from it
+	# opposite the star, across the view from it (the world's own place: `near_plan`)
 	var side := 1.0 if _sun.x < 480.0 else -1.0
 	# AN EVENT ON THIS WORLD (`site`, `OptionTable`: the giant fills the sky):
 	# drawn on the event's side, right of your ship, where its subject stands --
@@ -1325,14 +1330,10 @@ func _build_near() -> void:
 		side = 1.0
 	near_storm = wants.get("storm", {})
 	if tgt.world != &"":
-		var giant := tgt.kind == &"giant"
-		var R := roundf((NEAR_GIANT_R if giant else NEAR_WORLD_R) * clampf(tgt.r / (22.0 if giant else 12.0), 0.8, 1.25) / 2.0) * 2.0
-		var at := _block_round(Vector2(480.0 + side * (190.0 + 60.0 * h), 339.0 + 0.2 * R))
-		var over := {}
-		if bool(wants.get("ring", false)):
-			over.ring = true
-		var spec := Worlds.spec(tgt.world, tgt.seed, R)
-		spec.merge(over, true)
+		var plan := near_plan()
+		var R := float(plan.R)
+		var at: Vector2 = plan.at
+		var over: Dictionary = plan.over
 		var v: Node2D = Worlds.view_for(tgt.world)
 		v.call("set_world", tgt.world, tgt.seed, R, over)
 		_near_world = v
@@ -1340,19 +1341,14 @@ func _build_near() -> void:
 		_near_vp.add_child(v)
 		_dress(v)
 		_near.append([v, at, F_NEAR, R, tgt.world, tgt.seed, over])
-		# ITS MOONS, small above it
-		var nm := mini(int(spec.get("moons", 0)), 3)
-		for k in nm:
-			var hk := SkyBakeS.hash2(tgt.seed, 41 + k)
-			var a := -PI * (0.2 + 0.6 * (float(k) + hk) / float(maxi(nm, 1)))
-			var mr := roundf((5.0 + 6.0 * SkyBakeS.hash2(tgt.seed, 61 + k)) / 2.0) * 2.0
-			var mp := _block_round(at + Vector2(cos(a) * R * (1.3 + 0.3 * hk), sin(a) * R * (1.15 + 0.25 * hk)))
+		# ITS MOONS, small above it (`LocalLife` sends them round)
+		for m: Dictionary in plan.moons:
 			var mv := PlanetView.new()
-			mv.set_world(&"moon", tgt.seed + 17 * (k + 1), mr)
+			mv.set_world(&"moon", int(m.seed), float(m.r))
 			mv.set_cell(2)
 			_near_vp.add_child(mv)
 			_dress(mv)
-			_near.append([mv, mp, F_NEAR * 1.1, mr, &"moon", tgt.seed + 17 * (k + 1), {}])
+			_near.append([mv, m.at, F_NEAR * 1.1, float(m.r), &"moon", int(m.seed), {}])
 	elif tgt.kind == &"belt":
 		# A BELT'S ROCKS, close by: a drifting band of them behind the fight, the
 		# nearer bigger
@@ -1394,6 +1390,40 @@ func _build_near() -> void:
 		_near_mat.set_shader_parameter("keep_hi", RADIANT_KEEP)
 	rect.material = _near_mat
 	_scene.add_child(rect)
+
+
+## THE WORLD YOU ORBIT AND ITS MOONS, WORKED OUT WITHOUT DRAWING ANYTHING (so a
+## headless test sees where they are, `-- moontest`): {} for no world, else
+## {world, seed, R, at (its middle at rest, this sky's 960x540 px), over (what an
+## event gives it), moons: [{at, r, seed}]} -- where `_build_near` puts them.
+func near_plan() -> Dictionary:
+	if layout == null or orbit_target < 0 or orbit_target >= layout.bodies.size():
+		return {}
+	var tgt: SystemLayout.Body = layout.bodies[orbit_target]
+	if tgt.world == &"":
+		return {}
+	var h := SkyBakeS.hash2(node.index, 811 + orbit_target)
+	var side := 1.0 if _sun.x < 480.0 else -1.0
+	var wants := _near_wants()
+	if not wants.is_empty():
+		side = 1.0
+	var giant := tgt.kind == &"giant"
+	var R := roundf((NEAR_GIANT_R if giant else NEAR_WORLD_R) * clampf(tgt.r / (22.0 if giant else 12.0), 0.8, 1.25) / 2.0) * 2.0
+	var at := _block_round(Vector2(480.0 + side * (190.0 + 60.0 * h), 339.0 + 0.2 * R))
+	var over := {}
+	if bool(wants.get("ring", false)):
+		over.ring = true
+	var spec := Worlds.spec(tgt.world, tgt.seed, R)
+	spec.merge(over, true)
+	var moons: Array = []
+	var nm := mini(int(spec.get("moons", 0)), 3)
+	for k in nm:
+		var hk := SkyBakeS.hash2(tgt.seed, 41 + k)
+		var a := -PI * (0.2 + 0.6 * (float(k) + hk) / float(maxi(nm, 1)))
+		var mr := roundf((5.0 + 6.0 * SkyBakeS.hash2(tgt.seed, 61 + k)) / 2.0) * 2.0
+		var mp := _block_round(at + Vector2(cos(a) * R * (1.3 + 0.3 * hk), sin(a) * R * (1.15 + 0.25 * hk)))
+		moons.append({"at": mp, "r": mr, "seed": tgt.seed + 17 * (k + 1)})
+	return {"world": tgt.world, "seed": tgt.seed, "R": R, "at": at, "over": over, "moons": moons, "spec": spec}
 
 
 ## WHAT AN EVENT ON THE WORLD YOU ORBIT ASKS OF IT: only an event sited there by
@@ -1876,6 +1906,14 @@ class _Wreck extends Node2D:
 						draw_rect(Rect2(((c + Vector2(xx, yy)) / 2.0).floor() * 2.0, Vector2(2, 2)), RAMP[3 if lit2 else 1])
 					xx += 2.0
 				yy += 2.0
+
+
+# ------------------------------------------------------------------ its life
+
+## The world you orbit's air and city lights, its moons going round, the far
+## traffic of a settled system (`LocalLife`), built with the sky and stepped with
+## it.
+var life: LocalLife = null
 
 
 # ------------------------------------------------------------------ harness

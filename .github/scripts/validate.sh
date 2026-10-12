@@ -316,6 +316,26 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 fi
 
+step "LOCAL's moons keep out of what is staged"
+# The moons of the world you orbit go round it (`LocalLife`). Jon: a moon must
+# never pass over an event's subject, a station or your ship during the dock.
+# On every world with moons in four galaxies (every station system's among
+# them) each chosen orbit, run for ten minutes, keeps clear of your ship, the
+# station's side and the dock's corridor; with a subject up, in a fight and
+# through the dock every moon holds still. Ends on the real LOCAL and the
+# station, so the same exit-time teardown reports as subjecttest are allowed.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot moontest 300 --headless --path "$PROJECT" -- sheet=MoonTest; then
+	if grep -qE '^moontest: PASS' "$LOG_DIR/moontest.log"; then
+		ok "the moons keep clear"
+	else
+		bad "a moon crosses a subject, a station or your ship, or moves while something is staged"
+		grep -E '^  FAIL|^moontest' "$LOG_DIR/moontest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "moontest did not finish"
+fi
+
 step "Every material is a thing the hold can actually hold"
 # `MaterialTable` authored 64 rows a day before anything could carry one, so its
 # shapes had never met the grid that has to accept them. A row whose `cells`
