@@ -16,7 +16,7 @@ extends RefCounted
 const PATH := "user://history.json"
 ## Where the record is read and written. A harness points this at a scratch
 ## file, so a test can stand in a fresh profile without touching the player's.
-static var path: String = "user://harness_history.json" if TestRun.active() else PATH
+static var path: String = TestRun.scratch("history", "json") if TestRun.active() else PATH
 ## 2: each record carries `build`. Version 1 records are still read: the change
 ## only adds a key, and losing the record would re-lock every manufacturer.
 const VERSION := 2

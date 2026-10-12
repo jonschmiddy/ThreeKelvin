@@ -46,13 +46,28 @@ const STAGES := [&"single", &"row", &"tether", &"field", &"herd", &"line", &"aro
 ## The effects `LocalFx` draws (`fx` stages).
 const FX := [&"beam", &"glare", &"wind", &"dust", &"front", &"stream", &"drift", &"gas", &"buoy", &"marks", &"moor"]
 var _tree: SceneTree
+## THE SEED EVERY RUN HERE STARTS FROM, forced (`Rng.forced`). Until Oct 12 each
+## run called `Rng.reseed(4242)` and then `start_new_run`, which draws its own
+## seed from the global generator and threw the reseed away, so every gate run
+## drove galaxies nobody could name again. `-- subjecttest seed N` drives N.
+var _seed := 4242
+## AND THE SEEDS THE SAVE-AND-CONTINUE CHECK ALSO RUNS ON (`_orbit_reload`):
+##   816829285  failed it in a gate run (Oct 12) -- not for the seed: every
+##              harness shared one save file, and another process's write landed
+##              between this one's save and its CONTINUE (`TestRun.scratch`)
+const RELOAD_SEEDS: Array[int] = [816829285]
+## How long a screen may take to come up before a check gives up on it, ms.
+const WAIT_MS := 20000
 
 
 func run(tree: SceneTree) -> void:
 	_tree = tree
+	if Rng.forced != 0:
+		_seed = Rng.forced
+	print("  subjecttest: seed %d (replay: -- subjecttest seed %d)" % [_seed, _seed])
 	await tree.process_frame
 	# LOCAL's own view, measured, and your ship on it
-	Rng.reseed(4242, 0)
+	Rng.forced = _seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var idx := _a_system()
 	Run.at = idx
@@ -188,8 +203,13 @@ func run(tree: SceneTree) -> void:
 	await _world_memory()
 	# LOCAL DRAWS WHAT THE SHIP ORBITS NOW, after a flight on the map
 	await _orbit_switch()
-	# AND WHERE IT WAS LEFT SURVIVES A SAVE AND A RELOAD
-	await _orbit_reload()
+	# AND WHERE IT WAS LEFT SURVIVES A SAVE AND A RELOAD, on this seed and on
+	# the ones it once failed on
+	# (the pinned ones first, so the run left for what follows is this seed's)
+	for rs in RELOAD_SEEDS:
+		if rs != _seed:
+			await _orbit_reload(rs)
+	await _orbit_reload(_seed)
 	# ONCE ON THE REAL LOCAL: the six tanks on their tether, opened there
 	await _live(&"the_fuel_cache")
 	# AND WITH A FIGHT'S WRECKS THERE: the subject makes room (a wreck is a door,
@@ -355,7 +375,7 @@ func _kept_round3(view_size: Vector2, box: Rect2, ship: Rect2, ship_mid: float) 
 	_ok("round three's keeps: every kept take (%d) drawn by its encounter, each staged clear, plates pinned, objects in their box (%s)" % [n_take,
 		", ".join(bad) if not bad.is_empty() else "all"], bad.is_empty() and n_take == 26)
 	# THE PER-SYSTEM PICK
-	Rng.reseed(4242, 0)
+	Rng.forced = _seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var unstable: Array[String] = []
 	var unseen: Array[String] = []
@@ -441,7 +461,7 @@ func _kept_round3(view_size: Vector2, box: Rect2, ship: Rect2, ship_mid: float) 
 			live_bad.append("%s: a clamp arm it should not have" % oid)
 	# THE PICK ON LOCAL: the glass ring at two systems that pick its two takes,
 	# then back at the first
-	Rng.reseed(4242, 0)
+	Rng.forced = _seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var by_take := {}
 	for node: MapGen.MapNode in Run.map:
@@ -605,7 +625,7 @@ func _near_metal(img: Image, q: Vector2, r: int) -> bool:
 func _open_at(oid: StringName, sys: int, fresh: bool = true) -> Dictionary:
 	var o := OptionTable.by_id(oid)
 	if fresh:
-		Rng.reseed(4242, 0)
+		Rng.forced = _seed
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var idx := _a_system() if sys < 0 else sys
 	var node: MapGen.MapNode = Run.map[idx]
@@ -639,7 +659,7 @@ const ON_STAR := [&"corona", &"flare_shelter", &"the_dust_cloud", &"the_century_
 ## other options; where it has none, it takes a place by its tags as before.
 ## And the map and LOCAL agree where it is (`LocalEventDrawer.body_of`).
 func _site_rule() -> void:
-	Rng.reseed(4242, 0)
+	Rng.forced = _seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var bad: Array[String] = []
 	var n_ok := 0
@@ -720,7 +740,7 @@ func _bare_events() -> void:
 		if (want[0] as Array).is_empty() and (want[1] as Array).is_empty() and not planned.is_empty():
 			bad.append("%s: should be bare, draws %d pieces" % [oid, planned.size()])
 		# on the real LOCAL
-		Rng.reseed(4242, 0)
+		Rng.forced = _seed
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 		var idx := _a_system()
 		var node: MapGen.MapNode = Run.map[idx]
@@ -1001,7 +1021,7 @@ func _cycle_checks() -> void:
 ## on the wreck opens the wreck's hold through it; the cutaway zooms it with the
 ## scene under the blur, and it comes back to its own size and place.
 func _live_structure(oid: StringName) -> void:
-	Rng.reseed(4242, 0)
+	Rng.forced = _seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var idx := _a_system()
 	Run.at = idx
@@ -1132,7 +1152,7 @@ func _mounts_of(sc: SectorScreen) -> MountPoints:
 
 
 func _live(oid: StringName) -> void:
-	Rng.reseed(4242, 0)
+	Rng.forced = _seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var idx := _a_system()
 	Run.at = idx
@@ -1244,7 +1264,7 @@ func _live_wrecks(oid: StringName) -> Array:
 ## scene is already gone, so there are never two ships for one (the pool ship
 ## and the fight's own), and the fight's ship is flying in from the right.
 func _handover(oid: StringName) -> void:
-	Rng.reseed(4242, 0)
+	Rng.forced = _seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var idx := _a_system()
 	for m: MapGen.MapNode in Run.map:
@@ -1307,7 +1327,7 @@ func _handover(oid: StringName) -> void:
 ## clock; LOCAL once, and it must draw B. Then the map again, which must put the
 ## ship back at B.
 func _orbit_switch() -> void:
-	Rng.reseed(4242, 0)
+	Rng.forced = _seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var idx := -1
 	var worlds: Array[int] = []
@@ -1381,7 +1401,7 @@ func _orbit_switch() -> void:
 func _world_memory() -> void:
 	_ok("worlds turn blended by default (%s)" % PixelTurn.Mode.keys()[PixelTurn.world_mode], PixelTurn.world_mode == PixelTurn.Mode.BLENDED)
 	# ON THE REAL SCREENS: LOCAL in orbit of a world, and the map
-	Rng.reseed(4242, 0)
+	Rng.forced = _seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	# (the system with the most worlds, orbiting one with moons if there is one)
 	var idx := -1
@@ -1642,8 +1662,8 @@ func _film_world(mem: bool, shards: bool = false) -> Dictionary:
 ## one is the save reaching in for it). Each time the run goes to the title,
 ## the memory of where the ship was is wiped as a fresh launch would have it,
 ## and CONTINUE must land on the map in orbit of that world, with LOCAL drawing it.
-func _orbit_reload() -> void:
-	Rng.reseed(4242, 0)
+func _orbit_reload(sd: int) -> void:
+	Rng.forced = sd
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var idx := -1
 	var worlds: Array[int] = []
@@ -1687,18 +1707,28 @@ func _orbit_reload() -> void:
 		# must not survive the load either
 		SystemMapScreen._parked = {idx: {"at": -9, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}}
 		Router.continue_run()
+		# (BY THE CLOCK, NOT A COUNT OF FRAMES: headless frames run as fast as
+		# they can, so beside other work 120 of them went by before the load had
+		# put the map up -- the "-99" that came and went in the gate)
 		var back: SystemMapScreen = null
-		for i in 120:
+		var t0 := Time.get_ticks_msec()
+		var n := 0
+		while Time.get_ticks_msec() - t0 < WAIT_MS:
 			await _tree.process_frame
+			n += 1
 			back = Router.current as SystemMapScreen
 			if back != null and back.flight != null:
 				break
 		var got: int = back.flight.reached() if back != null and back.flight != null else -99
-		_ok("saved from %s in orbit of world %d, CONTINUE lands on the map in orbit of it (%d)" % [from, w, got], got == w)
+		_ok("seed %d: saved from %s in orbit of world %d, CONTINUE lands on the map in orbit of it (%d, after %d frames, %d ms)"
+			% [sd, from, w, got, n, Time.get_ticks_msec() - t0], got == w)
 		if back != null:
 			back.frozen = true
 		Router.show_local()
 		await _frames(10)
+		var t1 := Time.get_ticks_msec()
+		while _local_sky() == null and Time.get_ticks_msec() - t1 < WAIT_MS:
+			await _tree.process_frame
 		var sky := _local_sky()
 		_ok("  and LOCAL draws that world (%s)" % _orbit_name(sky), sky != null and sky.orbit_target == w)
 	Router.show_local()
@@ -1709,7 +1739,8 @@ func _orbit_reload() -> void:
 ## The map through the Router, its ship set up (`show_system` awaits its view).
 func _map_up() -> SystemMapScreen:
 	Router.show_system()
-	for i in 120:
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < WAIT_MS:
 		await _tree.process_frame
 		var m := Router.current as SystemMapScreen
 		if m != null and m.flight != null:
