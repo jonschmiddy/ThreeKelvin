@@ -89,6 +89,8 @@ var _art_base: Vector2 = Vector2.ZERO
 ## The entrance in flight, and when it lands: a holder that resizes mid-flight
 ## (the ship's picture arriving after `enter`) sends it to the new resting place.
 var _enter_tw: Tween
+## The slot's own fade up with the entrance.
+var _fade_tw: Tween
 var _enter_end: int = 0
 ## How far this slot's column sits off the row's middle, down positive: a pack
 ## too wide for the arena overlaps and staggers (`EncounterView._pack_slots`).
@@ -177,7 +179,12 @@ func enter(delay: float = 0.0) -> void:
 	# full for a ship that is still off-screen reads as a rendering fault. Fading
 	# the whole slot up over the same window keeps the two halves one event.
 	modulate.a = 0.0
-	create_tween().tween_property(self, "modulate:a", 1.0, ENTER_SECS * 0.7) 		.set_delay(delay)
+	if _fade_tw != null and _fade_tw.is_valid():
+		_fade_tw.kill()
+	_fade_tw = create_tween()
+	_fade_tw.tween_property(self, "modulate:a", 1.0, ENTER_SECS * 0.7).set_delay(delay)
+	if _enter_tw != null and _enter_tw.is_valid():
+		_enter_tw.kill()
 	var tw := create_tween()
 	tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	if delay > 0.0:
@@ -185,6 +192,19 @@ func enter(delay: float = 0.0) -> void:
 	tw.tween_property(art, "position:x", _art_base.x, ENTER_SECS)
 	_enter_tw = tw
 	_enter_end = GameClock.now_ms() + int((delay + ENTER_SECS) * 1000.0)
+
+
+## Off screen and unseen, waiting to `enter` (`EncounterView.hold_entrances`).
+func hold_entrance() -> void:
+	if _art_holder == null:
+		return
+	for tw in [_enter_tw, _fade_tw]:
+		if tw != null and (tw as Tween).is_valid():
+			(tw as Tween).kill()
+	_enter_tw = null
+	_fade_tw = null
+	modulate.a = 0.0
+	art.position.x = _art_base.x + ENTER_FROM
 
 
 func _init() -> void:

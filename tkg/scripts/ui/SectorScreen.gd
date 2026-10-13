@@ -224,6 +224,10 @@ func setup(c: Combat = null) -> void:
 	combat = c
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
+	# A FIGHT ABOUT TO OPEN (built, not begun: `Router.start_combat`) is drawn
+	# as LOCAL first, row and all, and opened by `_raise_band`.
+	if c != null and not fighting() and Router.animating():
+		_view.hold_row = true
 
 	Sig.resources_changed.connect(_refresh)
 	Sig.ship_changed.connect(_refresh)
@@ -339,6 +343,12 @@ func setup(c: Combat = null) -> void:
 
 func fighting() -> bool:
 	return combat != null and combat.enemy != null
+
+
+## LOCAL at rest: no fight, no jump playing. A fight started from here is
+## swapped in looking exactly like this (`Router.start_combat`).
+func settled_local() -> bool:
+	return not fighting() and _phase == Phase.NONE and is_visible_in_tree()
 
 # ------------------------------------------------------- the jump, as a journey
 
@@ -509,7 +519,7 @@ func _begin_arrive() -> void:
 		Audio.play(clip, 0.0)
 		_drop_card())
 	_cine.tween_interval(ShipView.ARRIVE_LEAD_S + ShipView.ARRIVE_MS / 1000.0 * DRAWER_AT)
-	_cine.tween_callback(func() -> void: _open_drawer(false))
+	_cine.tween_callback(_arrival_drawer)
 	_cine.tween_interval(ShipView.ARRIVE_MS / 1000.0 * (1.0 - DRAWER_AT))
 	_cine.tween_callback(func() -> void: _phase = Phase.NONE)
 
@@ -594,6 +604,20 @@ func _skip() -> void:
 		art.refresh()
 	_open_drawer(true)
 	_refresh()
+	# a fight that met you here comes up now, not after the approach
+	if _ambushed and _opening:
+		_arrival_drawer()
+
+
+## The approach's last second: LOCAL's drawer rises, or, when something was
+## waiting here, the contacts fly in and the hand comes up (`_hold_for_arrival`).
+func _arrival_drawer() -> void:
+	if _ambushed and _opening:
+		_ambushed = false
+		_view.release_entrances()
+		_raise_band()
+		return
+	_open_drawer(false)
 
 # ---------------------------------------------------------------------- build
 
@@ -1771,15 +1795,17 @@ func _refresh() -> void:
 	# it (`LocalSubject`, the option's `subject`)
 	LocalSubject.sync(_view, n, at_war)
 
-	_hand_holder.visible = at_war and not _lowered
-	# THE HOLDER, not the panel. The panel stays visible and keeps driving the
-	# band's height; the holder is what collapses it during a fight.
-	_quiet_holder.visible = not at_war
-	# A HULL BAR IS A COMBAT READOUT. Out of a fight the top bar already carries
-	# the number and nothing is taking it off you, so a second copy floating
-	# under the ship is a gauge for a thing that is not happening.
-	if _self_plate != null:
-		_self_plate.visible = at_war
+	# (while the hand comes up, the bands and the plate are `_raise_band`'s)
+	if not _raising:
+		_hand_holder.visible = at_war and not _lowered
+		# THE HOLDER, not the panel. The panel stays visible and keeps driving
+		# the band's height; the holder is what collapses it during a fight.
+		_quiet_holder.visible = not at_war
+		# A HULL BAR IS A COMBAT READOUT. Out of a fight the top bar already
+		# carries the number and nothing is taking it off you, so a second copy
+		# floating under the ship is a gauge for a thing that is not happening.
+		if _self_plate != null:
+			_self_plate.visible = at_war
 	_refresh_hail()
 	_refresh_flee()
 	_refresh_self_plate()
@@ -2052,7 +2078,7 @@ func _refresh_gate(b: Button, label: String, why: String, cause: StringName,
 	# reason to give once the fight is finished, so the button read as open --
 	# and FLEE said NO ESCAPE, which is a reason for something else (audit item
 	# 12). Greyed under its own name, no reason: there is nothing to explain.
-	if combat.finished or _hold:
+	if combat.finished or _hold or _opening:
 		b.disabled = true
 		b.text = label
 		b.add_theme_color_override("font_color", UITheme.COLD)
@@ -3714,7 +3740,7 @@ func _centre_exit_ask() -> void:
 
 ## Fleeing: it ends the fight, forfeits every scrap of salvage and burns fuel.
 func _on_flee() -> void:
-	if not fighting() or _exit_ask != null or not combat.can_flee():
+	if not fighting() or _exit_ask != null or _opening or not combat.can_flee():
 		return
 	# The exact cost, from the same constant the code charges.
 	_ask_exit("BREAK CONTACT?", Color("#d4614f"), Color("#8f4034"),
@@ -3735,7 +3761,7 @@ func _on_flee() -> void:
 ## outcome the panel exists to warn about. A partial costs six and they still
 ## leave; nobody presses a button because of what a partial costs.
 func _on_hail() -> void:
-	if not fighting() or _exit_ask != null or not combat.can_hail():
+	if not fighting() or _exit_ask != null or _opening or not combat.can_hail():
 		return
 	_ask_exit("OPEN A CHANNEL?", UITheme.HOT, Color("#8a6420"),
 		"%s. They break off and there is no salvage. Fail and you give away your position: %d heat, and they take the turn."
@@ -3848,8 +3874,17 @@ var _dirty := false
 ## The replay is running. Separate from `_hold`: the exit panels hold first and
 ## play when CONTINUE is pressed.
 var _playing := false
-## The first hand of a fight waits for the contacts to fly in.
+## The first hand of a fight waits for the band to come up (`_raise_band`).
 var _opening := false
+## The band is coming up: `_refresh` leaves the two bands and your plate to it.
+var _raising := false
+var _raise_tw: Tween = null
+var _band_shield: Control = null
+## The fight met you on arrival and waits for the approach (`_hold_for_arrival`).
+var _ambushed := false
+## LOCAL's line fading out before the hand comes up, and back in after it has
+## gone down (`_lower_band`).
+const BAND_FADE_S := 0.18
 ## The hand has been lowered for the end of the fight; it does not come back.
 var _lowered := false
 ## What END TURN caught, in the order it happened.
@@ -3888,14 +3923,224 @@ func _on_fight_opened(_name: String) -> void:
 		for i0 in combat.enemies.size():
 			EnemyArt.warm_wreck(combat.enemies[i0], _death_style(i0))
 	if not Router.animating():
+		_view.open_row()
+		return
+	if _phase == Phase.ARRIVE:
+		_hold_for_arrival()
+		return
+	_raise_band()
+
+
+## AN AMBUSH ON ARRIVAL WAITS FOR YOU TO ARRIVE. The fight is begun as the jump
+## lands, and its screen plays the arrival (the system's name, your ship coming
+## in under power); the contacts used to fly in under the name and the hand was
+## up before your ship was there, which then flew in to a fight already laid
+## out. Now it is an arrival like any other until the approach's last second,
+## where LOCAL's drawer would have come up: there the contacts fly in and the
+## hand comes up instead (`_arrival_drawer`). The band and its buttons are held
+## as `_raise_band` holds them.
+func _hold_for_arrival() -> void:
+	_ambushed = true
+	_opening = true
+	_raising = true
+	_shield(true)
+	_quiet_holder.visible = true
+	_hand_holder.visible = false
+	_hand_wrap.modulate.a = 0.0
+	if _self_plate != null:
+		_self_plate.visible = true
+		_self_plate.modulate.a = 0.0
+	_end_button.disabled = true
+	_refresh_flee()
+	_refresh_hail()
+	# your ship is off screen until the approach brings it to the fight's place
+	_view.open_row()
+	_view.hold_entrances()
+
+
+## THE HAND COMES UP (Jon, Oct 13): "When the enemy ship enters.... the ships
+## pop up and the drawer pops into view.... can we have the opposite of the
+## fight ending screen where the drawer and ships would move up gently instead
+## of a pop?"
+##
+## `_lower_band` played backwards, on the same clock and the same curve. The
+## fight's screen is built looking exactly like the LOCAL it replaces (it is
+## swapped in without a fade: `Router.start_combat`), so its first frame is
+## LOCAL's band, one line tall. Then LOCAL's line fades out (`BAND_FADE_S`, the
+## ending's fade in), the hand's band grows from that height to the hand's over
+## `LOWER_S` on the same sine, two pixels a step, while the arena shrinks with
+## it so your ship and the contacts ease up to their places; the hand's panel
+## fades up as it starts to rise and your plate fades in over the second half
+## (the ending fades it out over the first). The contacts fly in through it
+## (`EnemySlot.enter`, started as the fight opened).
+##
+## NOTHING ON THE BAND TAKES A CLICK WHILE IT MOVES: LOCAL's buttons are behind
+## a shield from the first frame, END TURN, FLEE and HAIL are greyed as they are
+## while the hand lowers, and the first hand is dealt once the band is up.
+## Picture only: the fight it opens was begun before any of this, and nothing
+## here is sent to, or waited on by, anybody else's game.
+func _raise_band() -> void:
+	if _hand_holder == null or _quiet_holder == null:
 		return
 	_opening = true
+	_raising = true
+	_shield(true)
+	# LOCAL's picture, as the frame it is swapped in on
+	_quiet_holder.visible = true
+	_quiet_wrap.modulate.a = 1.0
+	_hand_holder.visible = false
+	_hand_wrap.modulate.a = 0.0
+	if _self_plate != null:
+		_self_plate.visible = true
+		_self_plate.modulate.a = 0.0
+	_end_button.disabled = true
+	_refresh_flee()
+	_refresh_hail()
+	# One frame laid out as LOCAL, so the band's height is measured rather than
+	# guessed (a wrapping line has no width to wrap to before then).
+	await get_tree().process_frame
+	if not is_inside_tree() or not _raising:
+		return
+	var from := minf(_quiet_holder.size.y, float(DRAWER_H))
+	if from <= 0.0:
+		from = minf(_one_line_height(), float(DRAWER_H))
+	from = roundf(from * 0.5) * 2.0
+	_open_row_eased()
+	# WHAT LOCAL SHOWED GOES BEFORE THEY COME: an event's subject or the
+	# place's picture fades with LOCAL's line, and the contacts fly in once it
+	# has gone, not across it (they overlapped it on the way in).
+	var clear_first := _view.leaving()
+	if clear_first:
+		_view.hold_entrances()
+	_raise_tw = create_tween()
+	_raise_tw.tween_property(_quiet_wrap, "modulate:a", 0.0, BAND_FADE_S)
+	_raise_tw.tween_callback(func() -> void:
+		if clear_first:
+			_view.release_entrances()
+		_quiet_holder.visible = false
+		_hand_holder.custom_minimum_size = Vector2(0, from)
+		_hand_holder.visible = true)
+	_raise_tw.tween_method(func(h: float) -> void:
+		_hand_holder.custom_minimum_size = Vector2(0, roundf(h * 0.5) * 2.0),
+		from, float(DRAWER_H), LOWER_S).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_raise_tw.parallel().tween_property(_hand_wrap, "modulate:a", 1.0, BAND_FADE_S)
+	if _self_plate != null:
+		_raise_tw.parallel().tween_property(_self_plate, "modulate:a", 1.0, LOWER_S * 0.5) \
+			.set_delay(LOWER_S * 0.5)
+	_raise_tw.tween_callback(_band_up)
+
+
+## The contacts take their half of the row. Where LOCAL gave your ship more of
+## it (an event's subject stood in the place's stead; a pack wider than the
+## place), your ship is carried across to the fight's place over the band's
+## rise, on its curve, in whole pixels, its plate with it, rather than standing
+## there on the next frame.
+##
+## PINNED, NOT MEASURED ONCE: the row settles over a frame or two (the slots
+## learn their ships' widths, a pack closes up), so the ship is held where LOCAL
+## had it through every layout pass (`_pin_ship`, on its own rect changing) and
+## eased from there to wherever the row has put it by then.
+func _open_row_eased() -> void:
+	var sv := _view.ship_view()
+	if not _view.hold_row or sv == null:
+		_view.open_row()
+		return
+	_ship_from = sv.global_position.x + sv.size.x * 0.5
+	_ship_k = 0.0
+	_ship_off = 0.0
+	sv.item_rect_changed.connect(_pin_ship)
+	_view.open_row()
+	_pin_ship()
 	var tw := create_tween()
-	tw.tween_interval(EnemySlot.ENTER_SECS + 0.1)
+	tw.tween_interval(BAND_FADE_S)
+	tw.tween_method(func(k: float) -> void:
+		_ship_k = k
+		_pin_ship(),
+		0.0, 1.0, LOWER_S).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_callback(func() -> void:
-		_opening = false
-		_refresh_hand()
-		Audio.play(&"card_draw", 0.10, 70))
+		_ship_k = 1.0
+		_pin_ship()
+		if is_instance_valid(sv) and sv.item_rect_changed.is_connected(_pin_ship):
+			sv.item_rect_changed.disconnect(_pin_ship))
+
+
+## Where LOCAL had your ship (the middle of its canvas), how far to the fight's
+## place it has come, and the offset that puts it there now.
+var _ship_from := 0.0
+var _ship_k := 1.0
+var _ship_off := 0.0
+var _pinning := false
+
+func _pin_ship() -> void:
+	var sv := _view.ship_view() if _view != null else null
+	if _pinning or sv == null:
+		return
+	var rest := sv.global_position.x + sv.size.x * 0.5 - _ship_off
+	var off := roundf(lerpf(_ship_from, rest, _ship_k) - rest)
+	if off != _ship_off:
+		_pinning = true
+		sv.position.x += off - _ship_off
+		_ship_off = off
+		_pinning = false
+	_place_self_plate()
+
+
+## The band is up: the cards are dealt and the hand is yours.
+func _band_up() -> void:
+	_raise_tw = null
+	_raising = false
+	_opening = false
+	_shield(false)
+	_hand_holder.custom_minimum_size = Vector2(0, DRAWER_H)
+	_hand_wrap.modulate.a = 1.0
+	_quiet_wrap.modulate.a = 1.0
+	if _self_plate != null:
+		_self_plate.modulate.a = 1.0
+	_refresh()
+	if fighting() and not combat.finished:
+		Audio.play(&"card_draw", 0.10, 70)
+
+
+## The rise cut short (the fight ended under it, `_lower_band`): the hand's
+## band stays at the height it had reached, for the lowering to take down from.
+func _stop_raise() -> void:
+	if not _raising and _raise_tw == null:
+		return
+	if _raise_tw != null and _raise_tw.is_valid():
+		_raise_tw.kill()
+	_raise_tw = null
+	_raising = false
+	_opening = false
+	_shield(false)
+	if not _hand_holder.visible:
+		# still on LOCAL's line: the band is that tall
+		_hand_holder.custom_minimum_size = Vector2(0, _quiet_holder.size.y)
+	_quiet_holder.visible = false
+	_quiet_wrap.modulate.a = 1.0
+	_hand_holder.visible = true
+	_hand_wrap.modulate.a = 1.0
+	if _self_plate != null:
+		_self_plate.modulate.a = 1.0
+
+
+## A pane over the bottom band that takes every click while it moves, so a
+## press meant for LOCAL's button lands on nothing rather than on whatever the
+## band has slid under the pointer.
+func _shield(on: bool) -> void:
+	if not on:
+		if _band_shield != null and is_instance_valid(_band_shield):
+			_band_shield.queue_free()
+		_band_shield = null
+		return
+	if _band_shield != null:
+		return
+	_band_shield = Control.new()
+	_band_shield.name = "BandShield"
+	_band_shield.mouse_filter = Control.MOUSE_FILTER_STOP
+	_band_shield.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_band_shield.offset_top = -float(DRAWER_H) - 8.0
+	_band_shield.offset_bottom = 0.0
+	add_child(_band_shield)
 
 
 func _begin_hold() -> void:
@@ -4741,6 +4986,8 @@ func _lower_band(then: Callable) -> void:
 		then.call()
 		return
 	_lowered = true
+	# a fight over before its hand was up: down from wherever it had got to
+	_stop_raise()
 	_clear_readout()
 	_end_aim(false)
 	var n: MapGen.MapNode = Run.node_at()
@@ -4767,7 +5014,7 @@ func _lower_band(then: Callable) -> void:
 		_finish_lower()
 		_quiet_wrap.modulate.a = 0.0)
 	# (a lost run's band stays away: SCAN SECTOR is nothing to offer a wreck)
-	tw.tween_property(_quiet_wrap, "modulate:a", 0.0 if Run.dead else 1.0, 0.18)
+	tw.tween_property(_quiet_wrap, "modulate:a", 0.0 if Run.dead else 1.0, BAND_FADE_S)
 	tw.tween_callback(then)
 
 
