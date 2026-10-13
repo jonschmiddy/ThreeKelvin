@@ -46,16 +46,16 @@ func _run() -> void:
 	var w := _welcome()
 	if not _ok("the title opens the welcome note", w != null and w.is_visible_in_tree()):
 		return _finish()
-	var note := _find(w, func(n: Node) -> bool: return n.name == &"AlphaWelcome") as Label
-	_ok("Jon's note, word for word", note != null and note.text == AlphaNotes.ALPHA_WELCOME)
-	var screen := (Router.current as Control).get_global_rect()
-	print("    screen %s, panel %s, note scrolls: %s" % [screen, w.panel_rect(), w.note_scrolls()])
-	_ok("the panel is inside the screen", screen.grow(0.5).encloses(w.panel_rect()))
-	_ok("the note shows whole at the game's size (no scroll)", not w.note_scrolls())
-	var close := _button(w, "CLOSE")
-	_ok("with one button, CLOSE", close != null and _count_buttons(w) == 1)
-	if close != null and note != null:
-		_ok("clear of the note", not note.get_parent_control().get_global_rect().intersects(close.get_global_rect()))
+	_check_letter(w)
+	var start := _button(w, WelcomePopup.FIRST_BUTTON)
+	_ok("its one button reads START YOUR JOURNEY on a first launch",
+		start != null and _count_buttons(w) == 1)
+	if start != null:
+		_ok("and is the primary: heading-size type on the amber plate",
+			start.get_theme_font_size("font_size") == UITheme.FS_HEAD
+			and start.get_theme_stylebox("normal") is StyleBoxTexture)
+		var letter := w.card.body.get_parent_control()
+		_ok("clear of the note", not letter.get_global_rect().intersects(start.get_global_rect()))
 	_ok("showing it does not mark it seen", not WelcomePopup.seen())
 
 	# quit with it still up: the next title shows it again
@@ -65,9 +65,9 @@ func _run() -> void:
 	_ok("a title opened again before it was closed shows it again", w != null)
 	if w == null:
 		return _finish()
-	_button(w, "CLOSE").pressed.emit()
+	_button(w, WelcomePopup.FIRST_BUTTON).pressed.emit()
 	await _frames(3)
-	_ok("CLOSE shuts it", _welcome() == null)
+	_ok("START YOUR JOURNEY shuts it", _welcome() == null)
 	_ok("and marks it seen", WelcomePopup.seen())
 	_ok("and leaves the intro's flag alone", not FirstRunIntro.seen())
 
@@ -95,9 +95,21 @@ func _run() -> void:
 		await _frames(3)
 		w = _welcome()
 		_ok("pressing it opens the note again", w != null and w.is_visible_in_tree())
+		if w != null:
+			_check_letter(w)
+			_ok("its button reads CLOSE from the menu", _button(w, WelcomePopup.AGAIN_BUTTON) != null
+				and _button(w, WelcomePopup.FIRST_BUTTON) == null and _count_buttons(w) == 1)
 		await _press(KEY_ESCAPE)
 		await _frames(3)
 		_ok("Escape shuts it", _welcome() == null)
+		ls.open_welcome()
+		await _frames(3)
+		w = _welcome()
+		var reopened := w != null
+		if reopened:
+			_button(w, WelcomePopup.AGAIN_BUTTON).pressed.emit()
+			await _frames(3)
+		_ok("and so does CLOSE", reopened and _welcome() == null)
 		_ok("and the title is still up", Router.current is LauncherScreen)
 
 	# the intro is not in its way
@@ -111,6 +123,26 @@ func _run() -> void:
 	_ok("with no note over it, even unseen", _find(_tree.root, func(n: Node) -> bool:
 		return n is WelcomePopup) == null)
 	_finish()
+
+
+## The note as a letter: word for word (its body and its sign-off together),
+## the "<3" a pixel heart before JON, the heading, and all of it on screen.
+func _check_letter(w: WelcomePopup) -> void:
+	var card := w.card
+	var title := _find(w, func(n: Node) -> bool: return n.name == &"NoteTitle") as Label
+	_ok("  headed %s" % WelcomePopup.TITLE, title != null and title.text == WelcomePopup.TITLE)
+	_ok("  Jon's note, word for word", card.full_text == AlphaNotes.ALPHA_WELCOME
+		and card.body.text + "\n\n<3\n\nJon" == AlphaNotes.ALPHA_WELCOME)
+	var heart := _find(w, func(n: Node) -> bool: return n.name == &"Heart") as TextureRect
+	var sig := _find(w, func(n: Node) -> bool: return n.name == &"Signature") as Label
+	_ok("  signed with a pixel heart, then JON, right-aligned", heart != null and sig != null
+		and sig.text == "JON" and heart.get_global_rect().end.x <= sig.get_global_rect().position.x
+		and sig.get_global_rect().end.x >= card.body.get_global_rect().end.x - 2.0)
+	var screen := (Router.current as Control).get_global_rect()
+	print("    screen %s, panel %s, note scrolls: %s" % [screen,
+		w.panel_rect(), w.note_scrolls()])
+	_ok("  the panel is inside the screen", screen.grow(0.5).encloses(w.panel_rect()))
+	_ok("  the note shows whole at the game's size (no scroll)", not w.note_scrolls())
 
 
 func _welcome() -> WelcomePopup:

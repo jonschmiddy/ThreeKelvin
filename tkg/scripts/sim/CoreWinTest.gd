@@ -154,7 +154,7 @@ func _run() -> void:
 	_ok("the death screen asks for &\"gameover\" too", Audio.music_asked == &"gameover")
 	var go := Router.current as GameOverScreen
 	_ok("and has no note and no TITLE button", go != null
-		and _find(go, func(n: Node) -> bool: return n.name == &"AlphaThanks") == null
+		and go.card == null and _find(go, func(n: Node) -> bool: return n is NoteCard) == null
 		and _button(go, "TITLE") == null)
 	_ok("the cue both screens ask for is Lights Out, played once",
 		Audio.DEATH_CUE == &"lightsout" and Audio.DEATH_CUE in Audio.ONE_SHOT)
@@ -270,14 +270,25 @@ func _check_win_screen(when: String) -> void:
 	_ok("  it asks for the death screen's music (&\"gameover\")", Audio.music_asked == &"gameover")
 	_ok("  it says YOU WON", _find(go, func(n: Node) -> bool:
 		return n is Label and (n as Label).text == "YOU WON") != null)
-	var note := _find(go, func(n: Node) -> bool: return n.name == &"AlphaThanks") as Label
-	_ok("  Jon's note is on it, word for word", note != null and note.text == GameOverScreen.ALPHA_THANKS
-		and note.text == AlphaNotes.ALPHA_THANKS
-		and note.text.ends_with("the game of my dreams.\n\n<3\n\nJon"))
+	var card := go.card
+	var tail := "\n\n<3\n\nJon"
+	_ok("  Jon's note is on it, word for word", card != null
+		and card.full_text == GameOverScreen.ALPHA_THANKS and card.full_text == AlphaNotes.ALPHA_THANKS
+		and card.full_text.ends_with("the game of my dreams." + tail)
+		and card.body.text + tail == AlphaNotes.ALPHA_THANKS)
+	var heart := _find(go, func(n: Node) -> bool: return n.name == &"Heart")
+	var sig := _find(go, func(n: Node) -> bool: return n.name == &"Signature") as Label
+	_ok("  signed with the pixel heart, then JON", heart != null and sig != null and sig.text == "JON")
+	var note: Control = card.body.get_parent_control() if card != null else null
 	_ok("  the stats are on it", _find(go, func(n: Node) -> bool:
 		return n is Label and (n as Label).text.contains("jumps ·")) != null)
 	_ok("  with TITLE, NEW RUN and SAVE MY LOGS", _button(go, "TITLE") != null
 		and _button(go, "NEW RUN") != null and _button(go, "SAVE MY LOGS") != null)
+	var title_b := _button(go, "TITLE")
+	_ok("  TITLE is the primary, on the amber plate", title_b != null
+		and title_b.get_theme_font_size("font_size") == UITheme.FS_HEAD
+		and title_b.get_theme_stylebox("normal") is StyleBoxTexture)
+	_ok("  the note shows whole at the game's size (no scroll)", not go.note_scrolls())
 	var screen := go.get_global_rect()
 	var panel := go.panel_rect()
 	print("    screen %s, panel %s, note scrolls: %s" % [screen, panel, go.note_scrolls()])
@@ -285,7 +296,6 @@ func _check_win_screen(when: String) -> void:
 	if note != null:
 		var stats := _find(go, func(n: Node) -> bool:
 			return n is Label and (n as Label).text.contains("jumps ·")) as Control
-		var title_b := _button(go, "TITLE")
 		var nr := note.get_parent_control().get_global_rect()
 		_ok("  the note clears the stats and the buttons",
 			stats != null and title_b != null

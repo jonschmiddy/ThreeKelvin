@@ -181,15 +181,17 @@ func setup() -> void:
 
 	# THE FIRST TIME, the welcome note over the title (once per profile).
 	if WelcomePopup.due():
-		open_welcome()
+		open_welcome(true)
 
 
 ## Jon's welcome note over the title, in the popup slot so nothing else opens
-## over it; CLOSE or Escape shuts it (`WelcomePopup`).
-func open_welcome() -> void:
+## over it; its button or Escape shuts it (`WelcomePopup`). `first` when it
+## opened by itself: its button then says START YOUR JOURNEY, not CLOSE.
+func open_welcome(first: bool = false) -> void:
 	if _popup != null or _settings != null:
 		return
 	var w := WelcomePopup.new()
+	w.setup(first)
 	add_child(w)
 	_popup = w
 	w.closed.connect(func() -> void:
