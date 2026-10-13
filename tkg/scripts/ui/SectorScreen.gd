@@ -625,6 +625,7 @@ func _build() -> void:
 	_view.fx.landed.connect(_on_shot_landed)
 	_view.fx.volley_landed.connect(_on_volley_landed)
 	_view.death_style = _death_style
+	_view.wreck_id = _wreck_id_of
 	# THE CUTAWAY: point at your own ship, out of a fight, and it is outlined in
 	# its own pixels; click it and it opens up (`CutawayView`)
 	_hook_cutaway()
@@ -1801,6 +1802,8 @@ func _refresh() -> void:
 			_facts.text += "  -  INSIDE %s" % cloud.name.to_upper()
 	_blurb.text = MapGen.place_blurb(n)
 
+	if not at_war:
+		_fx_drop_player()
 	if at_war:
 		_view.show_enemies(combat.enemies, _on_card_dropped, _on_slot_hovered)
 		_state.text = "ENGAGED - %d HOSTILE%s" % [
@@ -1964,6 +1967,7 @@ func _refresh_player() -> void:
 		return
 	_energy.setup(BoxGauge.Mode.ENERGY, Run.reactor(), combat.energy)
 	_energy_text.text = "%d/%d" % [combat.energy, Run.reactor()]
+	_fx_sync_player()
 
 	# EVERY EFFECT ON YOUR HULL, AS A PICTURE. See `StatusChip` for why these
 	# stopped being words: five words under a sprite is a paragraph, five icons
@@ -2137,6 +2141,8 @@ func _refresh_enemy() -> void:
 	for i2 in range(_foes_seen, combat.enemies.size()):
 		EnemyArt.warm_wreck(combat.enemies[i2], _death_style(i2))
 	_foes_seen = combat.enemies.size()
+	for i3 in combat.enemies.size():
+		_fx_sync_enemy(i3)
 
 ## How many contacts this screen has drawn, so a newcomer can be announced.
 var _foes_seen := 0
@@ -3947,9 +3953,17 @@ func _play_turn() -> void:
 	_playing = true
 	var steps := _turn_steps()
 	_queue.clear()
+	var opened := {}
 	for st in steps:
 		if not is_inside_tree() or combat == null:
 			return
+		# LAST TURN'S BLOCK GOES AS EACH ENEMY ACTS (`Combat._act_one`), so its
+		# bubble fizzles on the first thing it does this turn
+		if (st.k == &"act" or (st.k == &"hit" and st.to_player)) and not opened.has(int(st.who)):
+			opened[int(st.who)] = true
+			var L0 := _enemy_fx(int(st.who))
+			if L0 != null:
+				L0.expire_block()
 		match st.k:
 			&"burn":
 				_show_burn(int(st.amount), st.cause)
@@ -4014,6 +4028,9 @@ func _show_act(who: int, it: IntentData) -> void:
 	if it.block > 0:
 		_view.fx.pop(at + Vector2(0, y), "+%d BLOCK" % it.block, EnemySlot.ARMOR_COL, false)
 		y -= 10.0
+		var L1 := _enemy_fx(who)
+		if L1 != null:
+			L1.shield.gain(it.block)
 	if it.heal > 0:
 		_view.fx.pop(at + Vector2(0, y), "+%d HULL" % it.heal, UITheme.GOOD, false)
 		y -= 10.0
@@ -4118,6 +4135,8 @@ func _on_volley_landed(id: int) -> void:
 		if shown_hull >= 0:
 			shown_hull = maxi(0, shown_hull - int(q.dealt))
 			_sync_hull()
+		if _ship_fx != null:
+			_ship_fx.land(int(q.dealt), int(q.absorbed), shown_hull if shown_hull >= 0 else Run.hp)
 		if int(q.dealt) > 0:
 			_flash_hit(_view.ship_view())
 	elif who >= 0:
@@ -4129,6 +4148,10 @@ func _on_volley_landed(id: int) -> void:
 			_slot_volleys[who] = n
 			_slot_shown[who] = maxi(0, int(_slot_shown[who]) - int(q.dealt))
 		_pop_hit(_pop_at(false, who), q, false)
+		var L2 := _enemy_fx(who)
+		if L2 != null:
+			var hp_after: int = int(_slot_shown[who]) if _slot_shown.has(who) else combat.enemies[who].hp
+			L2.land(int(q.dealt), int(q.absorbed), hp_after)
 		if int(q.dealt) > 0:
 			_flash_hit(_view.enemy_view(who))
 		# Cut up the ship as it WAS, before the slot redraws it as a wreck.
@@ -4226,6 +4249,82 @@ func _count_wrecks() -> int:
 			n += 1
 	return n
 
+# ------------------------------------------------------------- hits, block, brace
+#
+# Jon's picks (Oct 13): hits B, block as the bubble, brace as the plated overlay,
+# on every ship in a fight (`HitLayers`). Each lands on the frame its pop and
+# sound do: `_on_volley_landed` hands it the volley; the refreshes catch block
+# and brace up when the screen does (a card's, a turn's start); the enemy's turn
+# fizzles each one's block as it acts and shimmers up the block it gains.
+
+## Where enemy `who`'s wreck will lie, by the same count `_death_style` uses.
+func _wreck_id_of(who: int) -> int:
+	if _wrecks_before < 0:
+		_wrecks_before = _count_wrecks()
+	return Run.node_at().index * 64 + _wrecks_before + who
+
+## Your ship's.
+var _ship_fx: HitLayers = null
+
+func _enemy_fx(who: int) -> HitLayers:
+	var sl := _view.slot(who) if _view != null else null
+	return sl.layers if sl != null else null
+
+func _enemy_marks(who: int) -> ShipHitFx:
+	var L := _enemy_fx(who)
+	return L.hits if L != null else null
+
+func _fx_sync_enemy(who: int) -> void:
+	var L := _enemy_fx(who)
+	if L == null or who >= combat.enemies.size():
+		return
+	var e: Combat.EnemyState = combat.enemies[who]
+	if e.hp <= 0 and not _slot_volleys.has(who):
+		return
+	if not L.moment.is_connected(_on_fx_moment):
+		L.moment.connect(_on_fx_moment.bind(false))
+	# a shot still in the air at it has already spent block in the maths
+	L.sync(e.block, e.brace, int(_slot_shown.get(who, e.hp)), not _slot_volleys.has(who))
+
+func _fx_sync_player() -> void:
+	var sv := _view.ship_view() if _view != null else null
+	if sv == null:
+		return
+	if _ship_fx == null or not is_instance_valid(_ship_fx):
+		var seed := int(Rng.derive(&"hitfx_you", Run.node_at().index * 64 + posmod(Net.local_id(), 64)).randi() & 0x7fffffff)
+		_ship_fx = HitLayers.for_ship(sv, seed, Run.max_hp())
+		if _ship_fx == null:
+			return
+		sv.get_parent().add_child(_ship_fx)
+		sv.get_parent().move_child(_ship_fx, sv.get_index() + 1)
+		_ship_fx.moment.connect(_on_fx_moment.bind(true))
+	var pending := false
+	for q in _volleys.values():
+		if q.to_player:
+			pending = true
+	_ship_fx.sync(combat.block, combat.brace, Run.hp, not pending)
+
+## Out of a fight, your ship's layers go (the marks with them: the hull is
+## repaired by number, not by picture).
+func _fx_drop_player() -> void:
+	if _ship_fx != null and is_instance_valid(_ship_fx):
+		_ship_fx.queue_free()
+	_ship_fx = null
+
+## The effects' own sounds are not made yet; the ones with an obvious sound
+## today play it, the rest are named for later and left quiet. (The impact and
+## the plate's ring on a landing are already `Audio._on_hit_landed`'s.)
+func _on_fx_moment(kind: StringName, s: float, _len: float, mine: bool) -> void:
+	match kind:
+		&"shield_up":
+			# an enemy's block arriving (yours plays with the card)
+			if not mine:
+				Audio.play(&"shield_block", 0.06, 90, -6.0)
+		&"clamp":
+			if not mine:
+				Audio.play(&"shield_block", 0.06, 90, -8.0)
+
+
 ## THE STYLE ENEMY `who` DIES IN: rolled from where its wreck will lie, the
 ## same roll LOCAL makes for that wreck later (`EnemyArt.death_style`).
 func _death_style(who: int) -> int:
@@ -4255,18 +4354,22 @@ func _prebuild_death(who: int) -> void:
 		return
 	var e: Combat.EnemyState = combat.enemies[who]
 	# Cut from the ship drawn dead, so the breakup's last frame IS the wreck the
-	# slot and LOCAL draw afterwards (see EnemyArt.dead_canvas).
-	var dc := EnemyArt.dead_canvas(e)
+	# slot and LOCAL draw afterwards (see EnemyArt.dead_canvas) -- with the marks
+	# its fight left on it, and its wreck cut from the same picture.
+	var dc := EnemyArt.dead_canvas(e, _enemy_marks(who))
 	var img: Image = dc[0]
 	var used: Rect2i = dc[1]
 	var seed := EnemyArt.wreck_seed(e.template)
 	var boss: bool = e.template.boss
 	var style := _death_style(who)
-	var held := {b = null}
+	var marked := _enemy_marks(who) != null
+	var held := {b = null, w = null}
 	var task := WorkerThreadPool.add_task(func() -> void:
 		var b := ShipBreakup.new()
 		b.setup(img, used, Vector2.ZERO, style, seed, boss)
-		held.b = b)
+		held.b = b
+		if marked:
+			held.w = ShipBreakup.wreck_image(img, used, seed, boss, style))
 	_prebuilt[who] = {task = task, held = held}
 
 
@@ -4278,9 +4381,16 @@ func _start_death(who: int) -> void:
 		return
 	var art := sl.art
 	var e: Combat.EnemyState = combat.enemies[who]
-	# WITHOUT MOTION a death is the wreck, at once (reduced motion, headless).
+	var mk := _enemy_marks(who)
+	# WITHOUT MOTION a death is the wreck, at once (reduced motion, headless) --
+	# still the wreck with its marks.
 	if not Router.animating():
+		if mk != null:
+			var dc0 := EnemyArt.dead_canvas(e, mk)
+			EnemyArt.set_marked_wreck(_wreck_id_of(who), _death_style(who), ShipBreakup.wreck_image(dc0[0], dc0[1],
+				EnemyArt.wreck_seed(e.template), e.template.boss, _death_style(who)))
 		sl.hide_art(false)
+		_show_slot(who)
 		_check_ending()
 		return
 	var b: ShipBreakup = null
@@ -4289,11 +4399,16 @@ func _start_death(who: int) -> void:
 		_prebuilt.erase(who)
 		WorkerThreadPool.wait_for_task_completion(pre.task)
 		b = pre.held.b
+		if pre.held.w != null:
+			EnemyArt.set_marked_wreck(_wreck_id_of(who), _death_style(who), pre.held.w)
 	if b == null:
 		b = ShipBreakup.new()
-		var dc := EnemyArt.dead_canvas(e)
+		var dc := EnemyArt.dead_canvas(e, mk)
 		b.setup(dc[0], dc[1], Vector2.ZERO, _death_style(who),
 			EnemyArt.wreck_seed(e.template), e.template.boss)
+		if mk != null:
+			EnemyArt.set_marked_wreck(_wreck_id_of(who), _death_style(who), ShipBreakup.wreck_image(dc[0], dc[1],
+				EnemyArt.wreck_seed(e.template), e.template.boss, _death_style(who)))
 	# Cut at the origin; placed by moving the whole thing.
 	b.size = _view.size
 	_view.add_child(b)
@@ -4357,6 +4472,11 @@ func _prebuild_loss() -> void:
 	var pic := ShipLoss.picture(_view.ship_view())
 	if pic.is_empty():
 		return
+	# with the marks the fight left on your hull, where the hull is now
+	if _ship_fx != null:
+		var mi := _ship_fx.hits.marks()
+		var dy := _view.ship_view().bob_offset() - _ship_fx.bob0
+		(pic.img as Image).blend_rect(mi, Rect2i(Vector2i.ZERO, mi.get_size()), _ship_fx.hits.marks_at() + Vector2i(0, dy))
 	var n := Run.node_at().index
 	var me := Net.local_id()
 	_loss_pre = ShipLoss.prebuild(pic, ShipLoss.style_for(n, me), ShipLoss.seed_for(n, me))
