@@ -271,8 +271,39 @@ static func for_sprite(img: Image, used: Rect2i, the_look: int, seed: int) -> Th
 		run.append(y2)
 	fx._add_run(run, by_row, cap)
 	fx.ink_w = used.size.x
+	fx._keep_sternmost(used)
 	fx._plan(seed)
 	return fx
+
+
+## A STEADY FLAME COMES OUT OF THE STERN. The gallery of every ship (Oct 13)
+## showed the death's detection lighting towers, hull bumps and spires half way
+## along the body (the Honeycomb's pods, the Spires' masts, the Barnacle's
+## turret): fine for a breakup, wrong for an engine. Keep only engines within
+## 8% of the hull's length (at least 6 px) of its rearmost pixel, and drop a
+## one-row sliver when there is anything else.
+func _keep_sternmost(used: Rect2i) -> void:
+	if nozzles.is_empty():
+		return
+	var stern := -(1 << 20)
+	for nz in nozzles:
+		for p in (nz.pts as PackedVector2Array):
+			stern = maxi(stern, int(p.x))
+	var reach := maxf(6.0, float(used.size.x) * 0.08)
+	var kept: Array = []
+	for nz2 in nozzles:
+		var pts: PackedVector2Array = nz2.pts
+		var x := 0.0
+		for p2 in pts:
+			x += p2.x
+		x /= float(pts.size())
+		if float(stern) - x <= reach:
+			kept.append(nz2)
+	var thick: Array = []
+	for nz3 in kept:
+		if (nz3.pts as PackedVector2Array).size() > 1:
+			thick.append(nz3)
+	nozzles = thick if not thick.is_empty() else kept
 
 
 ## One engine from a run of stern rows. A tall flat stern is not one tall engine:
