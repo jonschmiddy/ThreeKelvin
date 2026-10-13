@@ -71,6 +71,8 @@ const SOLID_BAKE_SH := preload("res://shaders/chart_l_bake_solid.gdshader")
 ## the plane (gu either way), as SIMPLIFIED's noise bake is.
 const SOLID_BAKE := 1024
 const SOLID_EXT := 1.2
+## How much further out than the shared radii LEGACY's edge fades (`_push`).
+const EDGE_K := 1.2
 const SystemPaletteS := preload("res://scripts/ui/sysmap/SystemPalette.gd")
 
 ## The extra stars' colours, and the star sets every palette carries.
@@ -1581,6 +1583,13 @@ func _push() -> void:
 	var kgu := z * float(p.big_r)
 	if sky != null:
 		sky.push_solid(m, sol)
+	# LEGACY'S GALAXY KEEPS ITS OWN SIZE (Jon, "2B"): its disc carries its light further
+	# out than SIMPLIFIED's, so its edge fades over radii 1.2 times the shared ones
+	# (`EDGE_K`); the far nebulae's gap and the puffs' taper, which read the same
+	# uniform, move out with it
+	if sol and ChartSky.edge_on():
+		var ed := ChartSky.edge()
+		m.set_shader_parameter("u_edge", Vector4(ed.x * EDGE_K, ed.y * EDGE_K, ed.z, 1.0))
 	# (tuning, `diag`: the solid look's parts off one at a time -- 65536 the puffs,
 	# 131072 the relief, 262144 the edge, 524288 the nebulae's bodies)
 	if diag & 65536:
