@@ -260,7 +260,7 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	art.modulate = Color(0.4, 0.4, 0.45) if _dead else Color.WHITE
 	_intent.text = "" if _dead or e.intent == null else e.intent.name.to_upper()
 	_intent.visible = _intent.text != ""
-	_intent_text.text = "" if _dead or e.intent == null else e.intent.text
+	_intent_text.text = "" if _dead or e.intent == null else e.intent.describe()
 	_intent_text.visible = _intent_text.text != ""
 	_name.text = e.template.name.to_upper()
 	_name.add_theme_color_override("font_color",

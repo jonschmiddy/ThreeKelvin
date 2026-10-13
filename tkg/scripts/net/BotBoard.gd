@@ -157,7 +157,7 @@ static func _intent(e: Combat.EnemyState) -> Dictionary:
 		return {}
 	return {
 		"name": e.intent.name,
-		"text": e.intent.text,
+		"text": e.intent.describe(),
 		"damage": e.intent.damage,
 		"hits": maxi(1, e.intent.hits),
 		"block": e.intent.block,
