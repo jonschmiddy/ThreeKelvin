@@ -479,13 +479,13 @@ func _primer_cost() -> Array[String]:
 	# the blurb directly over it, and clipping it to "Tight." lost the half that
 	# was worth reading.
 	if reach >= 1.08:
-		out.append("A wide disc. Systems are far apart, so jumps cost a lot of fuel.")
+		out.append("A wide disc. The crossings are long and every one of them is fuel.")
 	elif reach <= 0.85:
-		out.append("A tight disc. Systems are close together, so a tank of fuel goes far.")
+		out.append("A tight disc. Everything is close, and a tank goes further here than it looks.")
 	if dens >= 1.15:
 		out.append("It has many systems. There are more places to stop than you can afford.")
 	elif dens <= 0.80:
-		out.append("It has few systems, with long empty stretches between them.")
+		out.append("It is thin of systems. Expect stretches with nothing in them.")
 	# THE ANISOTROPY, AND IT RUNS THE OTHER WAY FROM THE BRIEF.
 	#
 	# GALAXY_SCALE.md section 4 describes north-south jumps as costing 1.5x to
@@ -501,7 +501,7 @@ func _primer_cost() -> Array[String]:
 	# look equally far apart are not -- and this is the line that says so.
 	var sq: float = float(Run.galaxy.get("squash", 1.0))
 	if sq < 0.5:
-		out.append("It is steeply tilted. On the chart, a gap up or down costs far more fuel than the same gap sideways.")
+		out.append("It is steeply tilted, and the drawing lies about distance: a gap up or down costs far more than the same gap sideways.")
 	if out.is_empty():
 		out.append("It is ordinary to cross, with no unusual distances or gaps.")
 	return out
