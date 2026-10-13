@@ -1525,6 +1525,16 @@ func _push() -> void:
 	if zw > 0.0 and not was_held:
 		_hold_c = cpix
 	var anchor := _hold_c if zw > 0.0 else cpix
+	# THE GALAXY ON AN EVEN PIXEL, as PAINTED's (`ChartSky._push`; Oct 13, Jon: the
+	# background stars "almost bouncing around as you pan"): the far stars are drawn
+	# on the 2x2 grid, and a grid that followed the galaxy's centre pixel by pixel
+	# hopped each of them a pixel back every other pixel of a slow pan (0.32 back-steps
+	# a star a second on `tour=skypan`). The galaxy moves a block at a time instead.
+	if zw <= 0.0:
+		var even := (cpix / 2.0).floor() * 2.0
+		ccon += even - cpix
+		cpix = even
+		anchor = even
 	# only the part of the chart that can be seen (the title's chart is a square
 	# bigger than the screen), a block's margin round it
 	var vis := _visible_rect()

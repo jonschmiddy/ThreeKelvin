@@ -452,6 +452,8 @@ func _clip() -> void:
 ##             after it
 ##   soliddraglong  the same, then four seconds' hold (the second after release)
 ##   openzoom  the opening, 6 s of wheel in about the middle (3x), 1 s still
+##   skypan    Jon's void framing (1.2 at -220,-200), a slow steady drag: 90 px
+##             sideways over 6 s, no easing (the far stars' slide, frame by frame)
 func _tour(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
 	var tour := _arg("tour", "dive")
@@ -494,6 +496,9 @@ func _tour(dir: String) -> void:
 			_view(float(_arg("tourzoom", "0.42")), Vector2.ZERO)
 			segs = [["drag", 120, Vector2(180, 0)], ["hold", 15], ["drag", 120, Vector2(0, 110)], ["hold", 15],
 				["drag", 150, Vector2(-180, -110)], ["hold", 120]]
+		"skypan":
+			_view(1.2, Vector2(-220, -200))
+			segs = [["hold", 6], ["ldrag", 180, Vector2(90, 0)], ["hold", 6]]
 		"openzoom":
 			_view(0.42, Vector2.ZERO)
 			segs = [["zoom", 180, 3.0, _chart.size * 0.5], ["hold", 30]]
@@ -512,12 +517,12 @@ func _tour(dir: String) -> void:
 		var n: int = s[1]
 		var done := 0.0
 		for i in n:
-			var u := _ease(float(i + 1) / float(n))
+			var u := float(i + 1) / float(n) if String(s[0]) == "ldrag" else _ease(float(i + 1) / float(n))
 			match String(s[0]):
 				"zoom":
 					var want := pow(float(s[2]), u)
 					_chart._zoom_at(s[3], want / pow(float(s[2]), done))
-				"drag":
+				"drag", "ldrag":
 					var d: Vector2 = s[2] * (u - done)
 					var before: Vector2 = _chart.pan
 					_chart.pan += d

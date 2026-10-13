@@ -1887,12 +1887,10 @@ void fragment() {
 			vec2 spb = vp_origin + vp * 2.0 + 1.0 - view_c;
 			// (the far nebulae thin away well before the galaxy's faintest light: its
 			// rim meets dark sky, never a far cloud -- `bgNebSeen`)
-			// (with the dissolving edge the disc's light fades out over a long stretch, so
-			// they also keep clear of where the disc is, out past the fade's end: SIMPLIFIED's
-			// `nebGap`)
-			float rpl = length(vec2(lxs, lys / eff)) / (z * big_r);
-			float nebGap = u_edge.w > 0.0 ? smoothstep(u_edge.y + 0.05, u_edge.y + 0.45, rpl) : 1.0;
-			vec3 bl = bgLightChart(spb, 1.0, (1.0 - smoothstep(13.0, 21.0, g_lum(d255))) * nebGap, 20.0);
+			// (and no more than that: a gap kept out past the dissolving edge's end as
+			// well cut a black band round the disc where nothing stands -- Jon, Oct 13:
+			// "it doesn't make sense")
+			vec3 bl = bgLightChart(spb, 1.0, 1.0 - smoothstep(13.0, 21.0, g_lum(d255)), 20.0);
 			vec3 bs = g_tone(bl * 1.2) * 255.0;
 			if (g_lum(bs) > g_lum(d255) + 2.0) {
 				d255 = bs;
