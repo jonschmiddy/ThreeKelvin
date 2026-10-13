@@ -233,6 +233,8 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 		# space (at most 6 px), as an override's rows do.
 		var spans: Array = []
 		var max_h := 0
+		var ysum := 0.0
+		var ycnt := 0
 		for i5 in n:
 			var r0 := 1 << 20
 			var r1 := -1
@@ -249,6 +251,8 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 						continue
 					a0 = mini(a0, y5)
 					a1 = maxi(a1, y5)
+					ysum += float(y5)
+					ycnt += 1
 					var out := xr - x5
 					if out >= 2 and out <= 6:
 						r0 = mini(r0, y5)
@@ -260,7 +264,15 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 		spans.sort()
 		var near_h: int = spans[spans.size() / 2] if not spans.is_empty() else rows.size()
 		var target := maxi(near_h, rows.size())
+		# THE AXIS is where the strip's flame centres -- every visible pixel, every
+		# frame -- not the middle of its start rows. A back strip shows first at
+		# the TOP of a slanted or rounded stern, so its start rows sat 4-5 px
+		# above the flame (light A 47 against 51.8, medium B 65.5 against 70.6,
+		# heavy C 95 against 99.6); heavy A's front strips start 2 px high. Jon:
+		# "flame slightly too high".
 		var centre := float(rows[0] + rows[-1]) * 0.5
+		if ycnt > 0:
+			centre = ysum / float(ycnt)
 		var lo_r := mini(rows[0], int(floor(centre - float(target - 1) * 0.5)))
 		var hi_r := maxi(rows[-1], lo_r + target - 1)
 		var pts := PackedVector2Array()
@@ -403,9 +415,10 @@ static func engine_override(id: String):
 	return _overrides.get(key, null)
 
 
-## Engines from the table: each row of each entry walks back from its column to
-## the first open pixel (at most 6 px), and the flame starts there; a row that
-## never reaches open space (a tow cable running on) is left out.
+## Engines from the table: each row of each entry finds the hull's back edge
+## from its column -- forward through plating to the first open pixel, or back
+## through open space to the plating, at most 12 px -- and the flame starts
+## there; a row that never finds one (a tow cable running on) is left out.
 func _override(list: Array, at: Vector2i, scale: float) -> void:
 	for e in list:
 		var d: Dictionary = e
@@ -416,10 +429,18 @@ func _override(list: Array, at: Vector2i, scale: float) -> void:
 			var x := at.x + int(floor(float(d.x) * scale))
 			var cy := at.y + y
 			var k := 0
-			while k <= 6 and _is_solid(x, cy):
-				x += 1
-				k += 1
-			if k <= 6:
+			if _is_solid(x, cy):
+				# through the plating to the first open pixel
+				while k <= 12 and _is_solid(x, cy):
+					x += 1
+					k += 1
+			else:
+				# back through open space to the plating, so the flame starts on
+				# the hull and not in the air beside it
+				while k <= 12 and not _is_solid(x - 1, cy):
+					x -= 1
+					k += 1
+			if k <= 12:
 				pts.append(Vector2(x, cy))
 		if not pts.is_empty():
 			nozzles.append({pts = pts, dir = 1})
@@ -1001,13 +1022,30 @@ func _tail(n: int, thrust: int) -> Dictionary:
 	if _tails.has(key):
 		return _tails[key]
 	var nz: Dictionary = nozzles[n]
-	var L := nozzle_length(n, thrust)
+	var L := mini(nozzle_length(n, thrust), _clear_run(nz.pts, nz.dir))
 	var out := {pts = nz.pts, L = L, dir = nz.dir}
 	if nz.has("bell"):
 		var idle := thrust == Thrust.IDLE
 		out = {pts = nz.bell.mouth, L = L if idle else int(round(float(L) * 0.7)), dir = nz.dir}
 	_tails[key] = out
 	return out
+
+
+## How far the middle row of an engine runs through open space before it hits
+## hull again (the flame stops there, and so do its sparks), up to 400 px.
+func _clear_run(pts: PackedVector2Array, dir: int) -> int:
+	if pts.is_empty():
+		return 0
+	var e := pts[pts.size() / 2]
+	var seen := false
+	for d in 400:
+		var x := int(e.x) + d * dir
+		if _is_solid(x, int(e.y)):
+			if seen:
+				return d
+		else:
+			seen = true
+	return 400
 
 
 ## THE BELL'S LIGHT (heavy S). The cavity is always FILLED, every cell the
@@ -1110,7 +1148,18 @@ func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedV
 		var u := (float(ey) - mid_y) / (half + 0.5)
 		var Lr := maxi(1, int(round(float(L) * (1.0 - 0.5 * u * u) * tongue[idx])))
 		var dim := 1.0 - 0.25 * u * u
+		# A FLAME STOPS AT WHAT IT HITS: once its row has been in open space, the
+		# next hull pixel on it ends the row. Masking alone let a stream pass
+		# behind an obstacle and come out the far side -- the orbit-arm ship's
+		# drive "burned" out of the sphere behind it.
+		var seen_air := false
 		for d in Lr + 1:
+			var ax := ex + d * dir
+			if _is_solid(ax, ey):
+				if seen_air:
+					break
+			else:
+				seen_air = true
 			# The band edges move a pixel along the flame with `shift`; the
 			# nozzle's own pixel (d = 0) is never moved off its band.
 			var de := clampi(d + shift, 0, Lr) if d > 0 else 0

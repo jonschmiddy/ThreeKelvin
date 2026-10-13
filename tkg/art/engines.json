@@ -1,9 +1,21 @@
 {
- "_about": "Where a ship picture's engines are, when ThrusterFx's finder (the rearmost pixels, ThrusterFx.for_sprite) gets it wrong. Keyed by the picture's file name without .png; coordinates in that picture's own pixels (the full-size file; a _half picture halves them). Each engine is a column x and rows y0..y1: every row walks back from x to the first open pixel behind the hull and the flame starts there. An empty list is a ship with no flame at all. Hand-placed Oct 13 off Jon's gallery of every ship; read each picture before adding one.",
+ "_about": "Where a ship picture's engines are, when ThrusterFx's finder (the rearmost pixels, ThrusterFx.for_sprite) gets it wrong. Keyed by the picture's file name without .png; coordinates in that picture's own pixels (the full-size file; a _half picture halves them). Each engine is a column x and rows y0..y1: every row finds the hull's back edge from x (forward through plating to the first open pixel, or back through open space to the plating) and the flame starts on that edge. An empty list is a ship with no flame at all. Hand-placed Oct 13 off Jon's gallery verdicts; read each picture before adding one.",
  "ship_asteroidtow": [{"x": 55, "y0": 46, "y1": 53, "why": "the tug's own engine; the rock it tows is the rearmost thing in the picture"}],
  "ship_bigdish": [{"x": 186, "y0": 72, "y1": 74, "why": "the lit tail engine only; the dish's rim reaches further back"}],
  "ship_scoop": [{"x": 148, "y0": 54, "y1": 56, "why": "the drive pod under the hull; the scoop's prong tips reach further back"}],
- "hulk_honeycomb": [{"x": 209, "y0": 33, "y1": 36, "why": "the centre engine only; the tail fins reach as far"}],
+ "hulk_honeycomb": [{"x": 205, "y0": 29, "y1": 40, "why": "the centre tail engine, its whole face: Jon found the 4-row flame too small; the fins either side are fins"}],
  "hulk_rs_net": [{"x": 204, "y0": 40, "y1": 50, "why": "the hull's own stern between the net's fins"}],
- "lancer_solarsail": [{"x": 85, "y0": 37, "y1": 41, "why": "the hull's rounded stern between the sails, not the sail tips"}]
+ "lancer_solarsail": [{"x": 85, "y0": 37, "y1": 41, "why": "the hull's rounded stern between the sails, not the sail tips"}],
+ "cutter_swarm": [{"x": 174, "y0": 13, "y1": 38, "why": "the whole flat stern plate; the finder took the antenna rod's tip"}],
+ "ship_cl_drums": [{"x": 215, "y0": 19, "y1": 24, "why": "top nozzle"}, {"x": 215, "y0": 30, "y1": 35, "why": "middle nozzle"}, {"x": 215, "y0": 42, "y1": 46, "why": "bottom nozzle"}],
+ "ship_cl_stack": [{"x": 188, "y0": 7, "y1": 11, "why": "top thruster pod"}, {"x": 188, "y0": 78, "y1": 82, "why": "bottom thruster pod; the pipe loop behind is not an engine"}],
+ "ship_cl_tree": [{"x": 188, "y0": 8, "y1": 14, "why": "top-right pod"}, {"x": 178, "y0": 30, "y1": 38, "why": "middle-right pod"}, {"x": 122, "y0": 25, "y1": 31, "why": "left pod"}, {"x": 133, "y0": 50, "y1": 58, "why": "bottom pod"}],
+ "ship_courier2": [{"x": 165, "y0": 20, "y1": 28, "why": "the lower thruster block, not the tail wing"}],
+ "ship_fm_domes": [{"x": 98, "y0": 5, "y1": 13, "why": "the thruster cylinder on top, not the back of the last dome"}],
+ "ship_lightfreighter": [{"x": 192, "y0": 36, "y1": 48, "why": "the stern (as found)"}, {"x": 173, "y0": 7, "y1": 14, "why": "top thruster"}, {"x": 143, "y0": 66, "y1": 75, "why": "bottom thruster"}],
+ "ship_mkt_dome": [{"x": 176, "y0": 39, "y1": 42, "why": "stern, upper (as found)"}, {"x": 172, "y0": 44, "y1": 50, "why": "stern, centre (as found)"}, {"x": 176, "y0": 52, "y1": 55, "why": "stern, lower (as found)"}, {"x": 134, "y0": 18, "y1": 26, "why": "the top thruster amidships"}, {"x": 129, "y0": 65, "y1": 70, "why": "the bottom thruster amidships"}],
+ "ship_mkt_slung": [{"x": 202, "y0": 27, "y1": 32, "why": "stern (as found)"}, {"x": 176, "y0": 3, "y1": 7, "why": "top thruster pod at the back"}, {"x": 178, "y0": 51, "y1": 56, "why": "bottom thruster pod at the back"}],
+ "ship_orbitarms": [{"x": 141, "y0": 20, "y1": 22, "why": "the drive collar at the end of the spine, above the arm's rod"}, {"x": 141, "y0": 27, "y1": 29, "why": "the drive collar, below the rod; the spheres behind are the orbit arms' weights, not engines"}],
+ "ship_rf_pipes": [{"x": 199, "y0": 40, "y1": 42, "why": "stern (as found)"}, {"x": 152, "y0": 14, "y1": 19, "why": "the top thruster tank"}],
+ "ship_ringspine": [{"x": 220, "y0": 36, "y1": 45, "why": "stern (as found)"}, {"x": 210, "y0": 10, "y1": 17, "why": "top thruster at the back"}, {"x": 210, "y0": 64, "y1": 71, "why": "bottom thruster at the back"}]
 }
