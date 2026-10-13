@@ -84,6 +84,20 @@ vec2 bakeUV(vec2 p) { return (p + SOLID_EXT) / (2.0 * SOLID_EXT); }
 // (`ChartSky.diag` 4096, the harness's solidtest: each block writes the point of the
 // disc's plane it shows, gu, in place of its light)
 uniform bool diag_plane = false;
+// THE RELIEF IN LEGACY'S OWN COLOURS (Jon: "I want them to have the original rich colors
+// for each style"; and of LEGACY's middle, "it's like muddy"): `terrShade` lights flat
+// ground at the core's low angle at 0.73 of its own light (`TERR_FLAT`), so the relief
+// darkened the whole middle, and its warm term tinted the shade toward SIMPLIFIED's brown
+// lit dust. Here the relief's light goes up and down about LEGACY's own level (flat ground
+// keeps its light), lifted a little where there is relief (`TERR_LIFT`: the shadows and
+// the valleys' occlusion still left it under), and as one number, so shaded faces are
+// darker versions of LEGACY's own colours. (`ts` is `terrShade`'s light, warm, relief.)
+const float TERR_FLAT = 0.729;
+const float TERR_LIFT = 0.2;
+float terrLevelL(vec3 ts) {
+	float lvl = 1.0 + ts.z * ((ts.x - 1.0 + ts.z) / max(ts.z, 1e-4) / TERR_FLAT - 1.0);
+	return lvl * (1.0 + TERR_LIFT * ts.z);
+}
 
 uniform vec2 vp_size = vec2(330.0, 220.0);
 uniform vec2 vp_origin = vec2(-2.0, -2.0);
@@ -673,6 +687,11 @@ float rim_fade(vec2 pl) {
 // as puffs lit from the core, the puffs' rims, their lit bodies, and how much of the
 // disc is left at its dissolving edge (1, 0, 0, 1: none of it)
 void gal_fields(vec2 p, vec2 down_p, float nearf, float youk, float smth, out vec3 o_dd, out vec3 o_bs, out float o_kd, out vec3 o_gg, float lsq, vec4 sh) {
+	// (where the solid look's camera magnifies the disc, `lsq` under 1, `fragment`: the
+	// octaves and the grain a zoom that much closer would bring, so the near side is
+	// drawn at its own nearness rather than the far detail stretched)
+	float ox = max(0.0, -log2(max(lsq, 1e-3)));
+	float dkk = clamp(det_k + 0.5 * ox, 0.0, 1.0);
 	vec4 slv = sb4(sl_tex, p);
 	vec4 aux = sb4(aux_tex, p);
 	vec3 gcl_c = sbb(p);
@@ -725,13 +744,13 @@ void gal_fields(vec2 p, vec2 down_p, float nearf, float youk, float smth, out ve
 			fb = vec2(lx * cos(ab) - ly * sin(ab), lx * sin(ab) + ly * cos(ab));
 		}
 		float nrm = inversesqrt((1.0 - fw) * (1.0 - fw) + fw * fw);
-		float q = fbmB(vec2(fa.x * 0.016 + sd, fa.y * 0.016 - sd), o4(), 0.016 * lsq);
-		float w = fbmB(vec2(fa.x * 0.016 + 5.2 + q * 1.9, fa.y * 0.016 + 1.3 + q * 1.9), o5(), 0.016 * lsq);
-		float fl = fbmB(vec2(fa.x * 0.045 + sd, fa.y * 0.045), o4(), 0.045 * lsq);
+		float q = fbmB(vec2(fa.x * 0.016 + sd, fa.y * 0.016 - sd), (o4() + ox), 0.016 * lsq);
+		float w = fbmB(vec2(fa.x * 0.016 + 5.2 + q * 1.9, fa.y * 0.016 + 1.3 + q * 1.9), (o5() + ox), 0.016 * lsq);
+		float fl = fbmB(vec2(fa.x * 0.045 + sd, fa.y * 0.045), (o4() + ox), 0.045 * lsq);
 		if (fw > 0.001) {
-			float q2 = fbmB(vec2(fb.x * 0.016 + sd, fb.y * 0.016 - sd), o4(), 0.016 * lsq);
-			float w2 = fbmB(vec2(fb.x * 0.016 + 5.2 + q2 * 1.9, fb.y * 0.016 + 1.3 + q2 * 1.9), o5(), 0.016 * lsq);
-			float fl2 = fbmB(vec2(fb.x * 0.045 + sd, fb.y * 0.045), o4(), 0.045 * lsq);
+			float q2 = fbmB(vec2(fb.x * 0.016 + sd, fb.y * 0.016 - sd), (o4() + ox), 0.016 * lsq);
+			float w2 = fbmB(vec2(fb.x * 0.016 + 5.2 + q2 * 1.9, fb.y * 0.016 + 1.3 + q2 * 1.9), (o5() + ox), 0.016 * lsq);
+			float fl2 = fbmB(vec2(fb.x * 0.045 + sd, fb.y * 0.045), (o4() + ox), 0.045 * lsq);
 			w = clamp(0.5 + ((w - 0.5) * (1.0 - fw) + (w2 - 0.5) * fw) * nrm, 0.0, 1.0);
 			fl = clamp(0.5 + ((fl - 0.5) * (1.0 - fw) + (fl2 - 0.5) * fw) * nrm, 0.0, 1.0);
 		}
@@ -741,11 +760,11 @@ void gal_fields(vec2 p, vec2 down_p, float nearf, float youk, float smth, out ve
 		float on_arm = (1.0 - arm_k) + arm_k * g_sm(0.95, 1.55, rg);
 		float gas_amt = min(1.5, gas);
 		float i = (pow(g, 1.5) * 0.7 + g * fil * 0.9) * (0.25 + a) * a * gas_amt * (0.6 + 1.4 * near) * on_arm;
-		float knot = g_sm(0.66, 0.86, fbmB(vec2(lx * 0.085 + 13.0 + sd, ly * 0.085), o3(), 0.085 * lsq))
+		float knot = g_sm(0.66, 0.86, fbmB(vec2(lx * 0.085 + 13.0 + sd, ly * 0.085), (o3() + ox), 0.085 * lsq))
 			* g_sm(0.25, 0.6, a) * min(1.3, gas_amt) * (1.0 - 0.5 * near)
 			* ((1.0 - arm_k) + arm_k * g_sm(1.15, 1.7, rg));
 		float m2 = max(g_sm(0.25, 0.75, mixv), knot);
-		float tex = 0.55 + 0.9 * fbmB(vec2(lx * 0.07 + 3.3, ly * 0.07), o4(), 0.07 * lsq);
+		float tex = 0.55 + 0.9 * fbmB(vec2(lx * 0.07 + 3.3, ly * 0.07), (o4() + ox), 0.07 * lsq);
 		i *= res2 * fluff;
 		vec3 col = pal0 * (1.0 - m2) + pal1 * m2;
 		col = col * (1.0 - near * 0.7) + CORE_C * near * 0.7;
@@ -780,7 +799,7 @@ void gal_fields(vec2 p, vec2 down_p, float nearf, float youk, float smth, out ve
 	// (`smth`: the gas's colour, read where the gas is, carries none of the
 	// plane's fine grain -- copied up a cloud's face it was stretch marks; the
 	// gas's own texture is its glow, which varies with height)
-	float grit = mix(1.0, 0.6 + 0.8 * fbmB(vec2(p.x * 0.3 + 11.0, ly * 0.3), 3.0, 0.3 * lsq), det_k * (1.0 - smth));
+	float grit = mix(1.0, 0.6 + 0.8 * fbmB(vec2(p.x * 0.3 + 11.0, ly * 0.3), 3.0, 0.3 * lsq), dkk * (1.0 - smth));
 	float bill = 0.4 + 1.25 * fbmB(vec2(p.x * 0.07 + 31.0, ly * 0.07 - sd), 3.0, 0.07 * lsq);
 	// LESS MATERIAL, AND LANES OVER HAZE ("I think the dust might be too
 	// thick here", Jon, of a broad dark murk between an arm and the bulge):
@@ -791,8 +810,8 @@ void gal_fields(vec2 p, vec2 down_p, float nearf, float youk, float smth, out ve
 	const float DR = 5.0;
 	float cdk = 0.0;
 	if (cd > 0.0) {
-		float e = fbmB(vec2(p.x * 0.06 + sd, ly * 0.06), o4(), 0.06 * lsq);
-		float fine = mix(1.0, 0.65 + 0.7 * fbmB(vec2(p.x * 0.3 + 5.0, ly * 0.3), o3(), 0.3 * lsq), g_sm(0.0, 0.25, det_k));
+		float e = fbmB(vec2(p.x * 0.06 + sd, ly * 0.06), (o4() + ox), 0.06 * lsq);
+		float fine = mix(1.0, 0.65 + 0.7 * fbmB(vec2(p.x * 0.3 + 5.0, ly * 0.3), (o3() + ox), 0.3 * lsq), g_sm(0.0, 0.25, dkk));
 		float cm = (sb4(aux_tex, p + vec2(DR, 0.0)).b + sb4(aux_tex, p - vec2(DR, 0.0)).b
 			+ sb4(aux_tex, p + vec2(0.0, DR)).b + sb4(aux_tex, p - vec2(0.0, DR)).b) * 0.25;
 		float rc = clamp((cd - cm) / max(cd, 1e-3) * 4.0, 0.0, 1.0);
@@ -867,11 +886,11 @@ void gal_fields(vec2 p, vec2 down_p, float nearf, float youk, float smth, out ve
 	}
 	float bf = slv.a;
 	float det = resolved, gcl = 1.0;
-	if (det_k > 0.0 && s.r + s.g + s.b > 0.01) {
-		float f1 = fbmB(vec2(p.x * 0.25 + sd, ly * 0.25), o3(), 0.25 * lsq);
-		gcl = g_sm(0.3, 0.7, 0.6 * fbmB(vec2(p.x * 0.9 - sd, p.y / bsq * 0.9 + 7.0), o3(), 0.9 * lsq)
+	if (dkk > 0.0 && s.r + s.g + s.b > 0.01) {
+		float f1 = fbmB(vec2(p.x * 0.25 + sd, ly * 0.25), (o3() + ox), 0.25 * lsq);
+		gcl = g_sm(0.3, 0.7, 0.6 * fbmB(vec2(p.x * 0.9 - sd, p.y / bsq * 0.9 + 7.0), (o3() + ox), 0.9 * lsq)
 			+ 0.4 * fbmB(vec2(p.x * 2.1 + 3.0, p.y / bsq * 2.1), 3.0, 2.1 * lsq));
-		det = resolved * (1.0 + det_k * 0.5 * (f1 - 0.5) * (1.0 - smth)) * ((1.0 - dz) + dz * mix(0.55 + 0.75 * gcl, 0.92, smth));
+		det = resolved * (1.0 + dkk * 0.5 * (f1 - 0.5) * (1.0 - smth)) * ((1.0 - dz) + dz * mix(0.55 + 0.75 * gcl, 0.92, smth));
 	}
 	vec3 kk = 1.0 - dkv * vec3(0.72, 0.8, 0.88);
 	vec3 tt = vec3(1.0);
@@ -1174,6 +1193,21 @@ void fragment() {
 		// (what the lens shows, read back through the camera; at the lens's edge, where
 		// it bends nothing, the two agree)
 		rel = u_solid ? (lensd ? solidO(pc + rel * kc) : rf0) : rel;
+		// THE NEAR SIDE AT ITS OWN NEARNESS (Jon, of LEGACY under the solid camera: "almost
+		// looks like deformed and stretched out ... it's like muddy"): the camera magnifies
+		// the near half of the disc, up the screen most (`sc` across, `sc` squared x the
+		// pitch's share up), and the flat chart's noises and grain, band-limited for the
+		// flat view's zoom, were drawn that much bigger -- soft, and stretched toward the
+		// viewer. Read as a zoom that much closer would read them (`lsq` under 1: more
+		// octaves, finer grain); the far side, which the camera shrinks, keeps its own.
+		if (u_solid) {
+			vec2 dd = vec2(rf0.x, rf0.y / KIT_TILT) / u_k - u_solidT;
+			float sc = u_solidW.x / max(u_solidW.x - dd.y * u_solidW.z, 1e-3);
+			// (the two ways' geometric mean: by the larger, up the screen, the grain came
+			// out a block wide across and read as ticks; by the smaller it stayed soft)
+			float cmag = sc * sqrt(sc * u_solidW.y / KIT_TILT);
+			lsq /= max(cmag, 1.0);
+		}
 	}
 	float lxs = rel.x, lys = rel.y;
 	float ph = probe ? 0.0 : phi;
@@ -1433,7 +1467,7 @@ void fragment() {
 	// ridge dark against it with a lit rim (`terrSilh`)
 	float rimS = 0.0;
 	if (u_terr > 0.0) {
-		vec3 terrM = sterr.x + sterr.y * vec3(0.55, 0.38, 0.22);
+		vec3 terrM = vec3(terrLevelL(sterr));
 		f_dd *= terrM;
 		f_gg *= terrM;
 		f_bs *= terrM;
@@ -1690,7 +1724,10 @@ void fragment() {
 	// disc passes in front of the bottom of the bulge, so a dark lane of its dust cuts
 	// across the core below the hole, read where the lane is (never through the lens)
 	if (!probe && u_solid && dk_g > 0.5) {
-		light *= solidLane(rf0);
+		// (as a darker version of LEGACY's own colours: the lane's own reddening is
+		// SIMPLIFIED's dust colour)
+		vec3 ln = solidLane(rf0);
+		light *= dot(ln, vec3(0.3, 0.59, 0.11));
 	}
 	vec3 disp = g_tone(light);
 	float flag = (keep ? 0.75 : 1.0);
