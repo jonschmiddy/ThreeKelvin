@@ -55,7 +55,8 @@ signal moment(kind: StringName, strength: float, length: float)
 signal finished
 
 enum Style { SNAP, BURN, IMPLODE, BREACH, CHAIN, OVERLOAD, VENT, SLICE, DISSOLVE, COLLAPSE,
-	SHIELD, MELT, CRUMPLE, GLOWOUT, BLOOM, PART }
+	SHIELD, MELT, CRUMPLE, GLOWOUT, BLOOM, PART,
+	CUST_CASCADE, CUST_UNMAKING, CUST_SUPERNOVA, HELL_CHAIN, HELL_BURNOUT, HELL_UNCOIL }
 
 ## How long each style runs to its resting wreck, seconds. A normal kill is held
 ## for this before the fight is allowed to end (audit item 2 as Jon ruled it).
@@ -63,14 +64,18 @@ const LIFE := {Style.SNAP: 1.15, Style.BURN: 1.6, Style.IMPLODE: 1.45,
 	Style.BREACH: 1.6, Style.CHAIN: 1.75, Style.OVERLOAD: 1.5, Style.VENT: 1.7,
 	Style.SLICE: 1.4, Style.DISSOLVE: 1.8, Style.COLLAPSE: 1.6, Style.SHIELD: 1.65,
 	Style.MELT: 2.0, Style.CRUMPLE: 1.5,
-	Style.GLOWOUT: 2.2, Style.BLOOM: 2.0, Style.PART: 2.0}
+	Style.GLOWOUT: 2.2, Style.BLOOM: 2.0, Style.PART: 2.0,
+	Style.CUST_CASCADE: 7.5, Style.CUST_UNMAKING: 8.0, Style.CUST_SUPERNOVA: 7.0,
+	Style.HELL_CHAIN: 7.5, Style.HELL_BURNOUT: 8.0, Style.HELL_UNCOIL: 7.0}
 ## Letter and name, as the pick page shows them.
 const NAMES := {Style.SNAP: "A  SNAP", Style.BURN: "B  BURN", Style.IMPLODE: "C  IMPLODE",
 	Style.BREACH: "D  BREACH", Style.CHAIN: "E  CHAIN", Style.OVERLOAD: "F  OVERLOAD",
 	Style.VENT: "G  VENT", Style.SLICE: "H  SLICE", Style.DISSOLVE: "I  DISSOLVE",
 	Style.COLLAPSE: "J  COLLAPSE", Style.SHIELD: "K  SHIELD", Style.MELT: "L  MELT",
 	Style.CRUMPLE: "M  CRUMPLE", Style.GLOWOUT: "N  GLOW OUT", Style.BLOOM: "O  BLOOM",
-	Style.PART: "P  PART"}
+	Style.PART: "P  PART", Style.CUST_CASCADE: "C1  CASCADE", Style.CUST_UNMAKING: "C2  UNMAKING",
+	Style.CUST_SUPERNOVA: "C3  SUPERNOVA", Style.HELL_CHAIN: "H1  CHAIN REACTION", Style.HELL_BURNOUT: "H2  BURN-OUT",
+	Style.HELL_UNCOIL: "H3  UNCOIL"}
 const BLURB := {
 	Style.SNAP: "One flash, the hull cracks white and snaps apart, shards fly fast.",
 	Style.BURN: "The cracks heat up and shed fire first, then the hull splits and peels away slowly.",
@@ -87,7 +92,13 @@ const BLURB := {
 	Style.CRUMPLE: "The hull folds up like crushed metal in four crunches, then rips apart at the folds.",
 	Style.GLOWOUT: "Creatures. Its lights flare once and go out from head to tail while the body slowly curls and drifts, dimming.",
 	Style.BLOOM: "Creatures. It flares, then a cloud of glowing spores blooms out of it and thins away as it goes still and dark.",
-	Style.PART: "Creatures. It parts softly along its segments, glowing fluid drifting from the seams as its lights fade."}
+	Style.PART: "Creatures. It parts softly along its segments, glowing fluid drifting from the seams as its lights fade.",
+	Style.CUST_CASCADE: "The Custodian. Its facets crack one by one along the spine, each shooting a beam of white light; the core swells, pulls everything in, and blows out in a white blast and shock ring; glass rains out and cools.",
+	Style.CUST_UNMAKING: "The Custodian. It loses cohesion: the facets drift apart on the spine, its lights go out one by one, then each facet shatters in turn, in slow motion, the glass glinting.",
+	Style.CUST_SUPERNOVA: "The Custodian. A rising whine, the core white-hot through the glass until the whole body glows; a flash fills the enemy's half, a dark ring follows, and the body is left charred and smoking.",
+	Style.HELL_CHAIN: "The Hellbender. Reactor alarms strobe, blasts march through the hull from the stern, the holds burst and spill glowing stolen cargo, then the main reactor goes and the hull splits in two.",
+	Style.HELL_BURNOUT: "The Hellbender. Fire spreads from the salamander device, which glows red-hot; blasts walk through it; it lists nose-down and breaks apart, the pieces trailing fire.",
+	Style.HELL_UNCOIL: "The Hellbender. The stolen light breaks out ring by ring: its ribs light gold from the hold outward, the hull stretches apart rib from rib, and the light bursts out, leaving a dark husk."}
 ## What a sound designer follows, per style: each `moment` kind, when (seconds
 ## from the death), and whether it lasts. Read off the code that draws it, and
 ## checked against what the harness records (DeathStyles writes them out).
@@ -107,7 +118,13 @@ const SOUND := {
 	Style.CRUMPLE: "0.00 / 0.20 / 0.38 / 0.54 crunch (four, heavier each); 0.72 rip; 0.76 debris, 0.7 long",
 	Style.GLOWOUT: "0.00 flare (a last pulse); 0.00 groan, 1.8 long; 0.30 curl, 1.3 long (stretch, creak); 0.35 / 0.65 / 0.95 / 1.25 dim (each part of it going dark); 1.70 still",
 	Style.BLOOM: "0.00 flare; 0.25 bloom (a soft whump); 0.25 spores, 1.0 long (a breathy hiss, thinning); 0.70 / 0.90 / 1.10 dim; 1.30 still",
-	Style.PART: "0.00 pulse; 0.15 / 0.35 / 0.55 tear (soft, wet, each a little bigger); 0.15 fluid, 1.4 long (drips, bubbles); 0.70 on, one dim a segment; 1.60 still"}
+	Style.PART: "0.00 pulse; 0.15 / 0.35 / 0.55 tear (soft, wet, each a little bigger); 0.15 fluid, 1.4 long (drips, bubbles); 0.70 on, one dim a segment; 1.60 still",
+	Style.CUST_CASCADE: "0.25 on, every 0.32 s, eight times: crack (each with a shake 1 and a beam, a hum that holds to 4.4); 3.00 swell, 1.4 long + duck 3.5; 4.40 implode 0.5 + slowmo 0.35 for 0.7 s; 4.90 blast + flash 1.0 + shake 6 + stinger; 5.00 debris, 2.0 long; 5.60 cool, 1.8 long",
+	Style.CUST_UNMAKING: "0.00 groan, 2.8 long + duck 7.5; 0.8-3.2 light_out (one per light, a falling ping); 3.20 on, every 0.42 s, eight times: shatter (glass, slowed) + shake 1; slowmo 0.6 from 3.2 for 3.6 s; stinger at the last shatter; 6.60 settle, 1.2 long",
+	Style.CUST_SUPERNOVA: "0.00 whine, 2.6 long (rising); 1.00 duck 4.0; 1.60 shake 1, 2.20 shake 2; 2.60 nova + flash 1.0 (0.45) + slowmo 0.3 + shake 9 + stinger; 2.90 ring, 1.2 long (a deep rush); 3.00 smoulder, 4.0 long; 3.4 / 4.1 / 4.9 / 5.8 crackle",
+	Style.HELL_CHAIN: "0.00 alarm, 2.8 long (klaxon, faster from 1.6) + duck 6.5; 1.20 / 1.55 / 1.85 / 2.15 / 2.40 / 2.62 blast (marching, louder) + shake 2; 3.00 and 3.20 rupture; 3.00 spill, 1.6 long (a rush of loose cargo); 4.60 reactor + flash 0.7 + slowmo 0.4 + shake 7 + stinger; 4.70 debris, 2.0 long; 5.50 cool, 1.8 long",
+	Style.HELL_BURNOUT: "0.00 ignite; 0.00 roar, 5.4 long (fire) + duck 7.5; 2.60 / 3.00 / 3.35 / 3.90 / 4.30 blast + shake 2.5; 3.00 list, 2.0 long (groaning metal); 5.20 break + shake 4 + stinger; 5.30 debris, 2.0 long",
+	Style.HELL_UNCOIL: "0.00 hum, 2.6 long + duck 6.0; 0.3-2.1 charge (one per rib, from the middle out, rising); 2.40 stretch, 1.2 long (metal pulling); 3.60 burst + flash 0.5 + shake 5 + slowmo 0.5 + stinger; 3.70 fade, 2.6 long"}
 ## The core's guard: a chain of bursts first, then the break, then a long cool.
 const BOSS_PRELUDE := 1.5
 const BOSS_EXTRA := 0.9
@@ -207,6 +224,8 @@ func _add_layers() -> void:
 ## D-M cut their own way (`_cut_new`); A-C's cut is untouched.
 static func cut(img: Image, used: Rect2i, seed: int, is_boss: bool = false,
 		the_style: int = Style.SNAP) -> Dictionary:
+	if the_style >= Style.CUST_CASCADE:
+		return _cut_boss(img, used, seed, the_style)
 	if the_style >= Style.GLOWOUT:
 		return _cut_creature(img, used, seed, the_style)
 	if the_style >= Style.BREACH:
@@ -1953,6 +1972,9 @@ static func _lv(c: Color, lvl: float) -> Color:
 
 
 func _setup_new(img: Image, used: Rect2i, seed: int) -> void:
+	if _is_boss(style):
+		_setup_boss(img, used, seed)
+		return
 	if style >= Style.GLOWOUT:
 		_setup_creature(img, used, seed)
 		return
@@ -2265,6 +2287,11 @@ func _fire(e: Dictionary) -> void:
 	var kind: StringName = e.kind
 	var s: float = e.s
 	moment.emit(kind, s, float(e.len))
+	if _is_boss(style):
+		if kind in [&"blast", &"reactor", &"nova", &"break", &"burst", &"shatter", &"crack"]:
+			broke.emit(s)
+		_fire_boss(e)
+		return
 	if style >= Style.GLOWOUT:
 		# A creature dies without an explosion: no `broke`, only moments.
 		_fire_creature(e)
@@ -2385,6 +2412,9 @@ func _rate_limited(kind: StringName, gap: float) -> bool:
 func _style_tick(delta: float) -> void:
 	var tt := t - _lead
 	if tt < 0.0:
+		return
+	if _is_boss(style):
+		_tick_boss(delta)
 		return
 	if style >= Style.GLOWOUT:
 		_tick_creature(delta, tt)
@@ -2585,6 +2615,8 @@ func _hull_shift() -> Vector2:
 
 
 func _major_pos_new(m: Dictionary) -> Vector2:
+	if _is_boss(style):
+		return _boss_pos(m)
 	var tt := t - _lead
 	var base := _origin + Vector2(m.at) + _hull_shift()
 	var k := 0.0
@@ -2612,6 +2644,8 @@ func _major_pos_new(m: Dictionary) -> Vector2:
 
 
 func _stage_of(m: Dictionary) -> int:
+	if _is_boss(style):
+		return _boss_stage(m)
 	var n: int = (m.stages as Array).size()
 	if n <= 1:
 		return 0
@@ -2922,6 +2956,9 @@ func _plume_tex(L: int) -> Dictionary:
 # ---------------------------------------------------------------- drawing
 
 func _paint_body_new(ci: CanvasItem) -> void:
+	if _is_boss(style):
+		_paint_boss_body(ci)
+		return
 	if style >= Style.GLOWOUT:
 		_paint_creature_body(ci)
 		return
@@ -3058,7 +3095,10 @@ func _paint_light_new(ci: CanvasItem) -> void:
 	var tt := t - _lead
 	var hv := _heat_new(tt)
 	var morphing := (style == Style.MELT or style == Style.CRUMPLE) and t < _split_at
-	if style >= Style.GLOWOUT:
+	if _is_boss(style):
+		_paint_boss_light(ci)
+		morphing = true
+	elif style >= Style.GLOWOUT:
 		_paint_creature_light(ci, tt)
 		morphing = true
 	if hv.x > 0.0 and not morphing:
@@ -3167,6 +3207,15 @@ func _paint_light_new(ci: CanvasItem) -> void:
 				var c4 := HEAT_RAMP[1] if f2 < 0.2 else (HEAT_RAMP[2] if f2 < 0.45 else (HEAT_RAMP[3] if f2 < 0.7 else (HEAT_RAMP[4] if f2 < 0.88 else HEAT_RAMP[5])))
 				var sz4 := Vector2(2, 2) if mo.big and f2 < 0.6 else Vector2.ONE
 				ci.draw_rect(Rect2(p, sz4), c4)
+			8:
+				# stolen cargo, glowing: gold-white, cooling to amber, a plus while young
+				var gi8 := 0 if f2 < 0.25 else (1 if f2 < 0.5 else (2 if f2 < 0.8 else 3))
+				var l8: float = [1.0, 0.85, 0.6, 0.35][gi8]
+				var g8 := _lv(GOLD[gi8], l8)
+				ci.draw_rect(Rect2(p, Vector2(2, 2) if mo.big and f2 < 0.4 else Vector2.ONE), g8)
+				if mo.big and f2 < 0.6:
+					for o8 in [Vector2(2, 0), Vector2(-1, 0), Vector2(0, 2), Vector2(0, -1)]:
+						ci.draw_rect(Rect2(p + o8, Vector2.ONE), _lv(GOLD[gi8], l8 * 0.4))
 			5, 6, 7:
 				# Soft light (a creature's last light, its fluid, its spores):
 				# held steps down, the big ones a gathered plus while young.
@@ -3797,3 +3846,1085 @@ func _paint_creature_light(ci: CanvasItem, tt: float) -> void:
 			for m2 in _majors:
 				ci.draw_texture(m2.glow, _major_pos_new(m2) - Vector2(GLOW_PAD, GLOW_PAD),
 					Color(0.5 * on, 0.22 * on, 0.18 * on, 1.0))
+
+
+# ================================================================== BOSS SET PIECES
+#
+# Jon (Oct 13): "The custodian (and hellbender) these need ACTUAL epic death
+# sequences." A boss's death is its own set piece, 7-8 s in phases, not the
+# ship styles' burst run. Three for each:
+#   THE CUSTODIAN (glass octahedra on a spine, orange pinpoint lights, a core)
+#     C1 CASCADE    the facets crack one by one along the spine, each spilling a
+#                   beam of white light; the core swells; everything is pulled
+#                   in; a white blast and a shock ring; glass shards rain out
+#                   and cool.
+#     C2 UNMAKING   it loses cohesion: the facets drift apart on the spine, the
+#                   lights go out one by one, then each facet shatters in turn,
+#                   in slow motion, glass glinting as it turns.
+#     C3 SUPERNOVA  a rising whine, the core white-hot through the glass until
+#                   the whole body glows, a flash that fills the enemy's half,
+#                   a dark ring, and the body left charred and smoking.
+#   THE HELLBENDER (a rival harvester, its holds glowing with what it took)
+#     H1 CHAIN      reactor alarms strobing, blasts marching through the hull,
+#                   the holds rupturing and spilling glowing stolen cargo, then
+#                   the main reactor: the hull splits in two.
+#     H2 BURN-OUT   fire spreads from the salamander device, which glows
+#                   red-hot; blasts walk through it; it lists (nose down, in
+#                   whole-pixel slices) and breaks apart trailing fire.
+#     H3 UNCOIL     (ours) the stolen light breaks out ring by ring: its ribs
+#                   light gold from the hold outward, the hull stretches apart
+#                   rib from rib, and the light bursts out, leaving a husk.
+#
+# The same rules as every death: pieces move in whole pixels (cut, never
+# turned), light is drawn as light, nothing rises or falls, and the last frame
+# is `wreck_image` exactly. Each piece's way to its rest is keyframed
+# (`keys`), its picture changes at set times (`stage_t`), and the lights,
+# beams, spheres, rings and emitters are data the clock plays.
+#
+# SCREEN HOOKS, AS MOMENTS (nothing here moves the screen): `shake` (s = px,
+# length), `slowmo` (s = clock scale, length in screen time), `flash` (s =
+# white's peak over the whole screen, length), `duck` (s = how far the music
+# drops, length), `stinger` (a music hit). The harness applies them so the film
+# shows the whole effect; SectorScreen can do the same later.
+
+const BOSS_HOOKS := [&"shake", &"slowmo", &"flash", &"duck", &"stinger"]
+const GOLD: Array[Color] = [Color("#fff6d8"), Color("#ffd97a"), Color("#e8a23a"), Color("#8a5418")]
+const GLASS := Color("#cfeaff")
+const ALARM := Color("#ff3a2a")
+
+var _bp: Dictionary = {}          ## the boss plan (static cut's plan)
+var _blights: Array = []          ## {p (canvas), m (piece idx or -1), keys [[t, lvl, r]], col}
+var _bbeams: Array = []           ## {p, dir, m, keys [[t, len, lvl]]}
+var _bspheres: Array = []         ## {p (screen), t0, grow, hold, fade, r1}
+var _bdark: Array = []            ## {p (screen), t0, dur, r0, r1}
+var _bemit: Array = []            ## {t0, t1, rate, kind, pts, m, mode, dir, spread, v0, v1, l0, l1, col, big}
+var _bmaps: Array = []            ## {stages [ImageTexture], keys [[t, stage, lvl]], col}
+var _smoke: Array = []            ## body-layer motes: {p, v, age, life}
+
+
+static func _is_boss(st: int) -> bool:
+	return st >= Style.CUST_CASCADE
+
+
+## The bright warm pixels (the Custodian's pinpoints, the Hellbender's specks),
+## gathered into lights: {p (canvas), n}. Largest first.
+static func _boss_lights(H: Dictionary) -> Array:
+	var w: int = H.w
+	var h: int = H.h
+	var r: Rect2i = H.r
+	var raw: PackedColorArray = H.raw
+	var mask: PackedByteArray = H.mask
+	var hot := PackedByteArray()
+	hot.resize(w * h)
+	for i in w * h:
+		if mask[i] == 1:
+			var c := raw[i]
+			if c.r > 0.7 and c.r >= c.b + 0.22 and c.get_luminance() > 0.5:
+				hot[i] = 1
+	var seen := PackedByteArray()
+	seen.resize(w * h)
+	var out: Array = []
+	for i2 in w * h:
+		if hot[i2] == 0 or seen[i2] == 1:
+			continue
+		var q: Array[int] = [i2]
+		seen[i2] = 1
+		var head := 0
+		var sum := Vector2.ZERO
+		while head < q.size():
+			var cur := q[head]
+			head += 1
+			var cx := cur % w
+			var cy := cur / w
+			sum += Vector2(cx, cy)
+			for dy in range(-2, 3):
+				for dx in range(-2, 3):
+					var nx: int = cx + dx
+					var ny: int = cy + dy
+					if nx < 0 or ny < 0 or nx >= w or ny >= h:
+						continue
+					var j := ny * w + nx
+					if hot[j] == 1 and seen[j] == 0:
+						seen[j] = 1
+						q.append(j)
+		out.append({p = Vector2(r.position) + sum / float(q.size()), n = q.size()})
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.n) > int(b.n))
+	return out
+
+
+## Vertical slices with jagged seams, for a long hull (the Hellbender's ribs).
+static func _lab_slices(H: Dictionary, mask: PackedByteArray, k: int, rng: RandomNumberGenerator) -> PackedInt32Array:
+	var w: int = H.w
+	var h: int = H.h
+	var bw := float(int(H.x1) - int(H.x0) + 1)
+	var cy: float = H.cy
+	var jag := _field(rng, w, h, 4)
+	var xs: Array[float] = []
+	var tilts: Array[float] = []
+	for i in k - 1:
+		xs.append(float(H.x0) + bw * ((float(i) + 1.0) / float(k) + rng.randf_range(-0.03, 0.03)))
+		tilts.append(rng.randf_range(-0.2, 0.2))
+	var lab := PackedInt32Array()
+	lab.resize(w * h)
+	for y in h:
+		for x in w:
+			var i2 := y * w + x
+			if mask[i2] == 0:
+				lab[i2] = -1
+				continue
+			var j := 0
+			for f in k - 1:
+				if float(x) > _fold_x(xs[f], tilts[f], jag, f, y, cy):
+					j = f + 1
+			lab[i2] = j
+	return lab
+
+
+## UNMAKING's glass to shatter: each piece's rim, three pixels deep, tagged
+## 10 + the piece, so each piece's shatter is its own.
+static func _mark_rims(H: Dictionary, lab: PackedInt32Array, sm: PackedByteArray, depth: int) -> void:
+	var w: int = H.w
+	var h: int = H.h
+	var dist := PackedInt32Array()
+	dist.resize(w * h)
+	dist.fill(99)
+	var q: Array[int] = []
+	for y in h:
+		for x in w:
+			var i := y * w + x
+			if lab[i] < 0:
+				continue
+			for o in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var nx: int = x + o.x
+				var ny: int = y + o.y
+				if nx < 0 or ny < 0 or nx >= w or ny >= h or lab[ny * w + nx] != lab[i]:
+					dist[i] = 0
+					q.append(i)
+					break
+	var head := 0
+	while head < q.size():
+		var cur := q[head]
+		head += 1
+		var d := dist[cur]
+		if d >= depth - 1:
+			continue
+		var cx := cur % w
+		var cy := cur / w
+		for o2 in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var nx2: int = cx + o2.x
+			var ny2: int = cy + o2.y
+			if nx2 < 0 or ny2 < 0 or nx2 >= w or ny2 >= h:
+				continue
+			var j := ny2 * w + nx2
+			if lab[j] == lab[cur] and dist[j] > d + 1:
+				dist[j] = d + 1
+				q.append(j)
+	for i2 in w * h:
+		if lab[i2] >= 0 and dist[i2] < depth and sm[i2] == 0:
+			sm[i2] = 10 + lab[i2]
+
+
+## Charred: darker in held steps, warm soot, the edges darkest. Still the ship.
+static func _charred_all(im: Image, amt: float) -> Image:
+	var out: Image = im.duplicate()
+	var w := im.get_width()
+	var h := im.get_height()
+	for y in h:
+		for x in w:
+			var p := im.get_pixel(x, y)
+			if p.a <= 0.0:
+				continue
+			var edge := false
+			for o in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var ex: int = x + o.x
+				var ey: int = y + o.y
+				if ex < 0 or ey < 0 or ex >= w or ey >= h or im.get_pixel(ex, ey).a <= 0.0:
+					edge = true
+			var k := 1.0 - amt * (0.55 if not edge else 0.7)
+			if ((x + y) & 1) == 0:
+				k -= amt * 0.06
+			var q := Color(p.r * k, p.g * k, p.b * k).lerp(SOOT, amt * 0.3)
+			out.set_pixel(x, y, Color(q.r, q.g, q.b, p.a))
+	return out
+
+
+static func _cut_boss(img: Image, used: Rect2i, seed: int, st: int) -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed * 4441 + st * 37
+	var H := _hull_pic(img, used, 0)
+	var r: Rect2i = H.r
+	if int(H.n) == 0:
+		return {majors = [], shards = [], centre = r.get_center(), plan = {r = r, glob = Vector2i.ZERO, box = r}}
+	var w: int = H.w
+	var h: int = H.h
+	var n := w * h
+	var cx: float = H.cx
+	var cy: float = H.cy
+	var bw := float(int(H.x1) - int(H.x0) + 1)
+	var bh := float(int(H.y1) - int(H.y0) + 1)
+	var raw: PackedColorArray = H.raw
+	var col: PackedColorArray = H.col
+	var mask: PackedByteArray = H.mask
+	var rp := Vector2(r.position)
+	var lights := _boss_lights(H)
+	var core := rp + Vector2(cx, cy)
+	if not lights.is_empty():
+		core = lights[0].p
+	var plan := {r = r, glob = Vector2i.ZERO, lights = lights, core = core, cx = cx, cy = cy, bw = bw, bh = bh,
+		box = Rect2i(r.position + Vector2i(int(H.x0), int(H.y0)), Vector2i(int(bw), int(bh)))}
+	var sm := PackedByteArray()
+	sm.resize(n)
+	var lab := PackedInt32Array()
+	var k := 1
+	match st:
+		Style.CUST_CASCADE:
+			k = 8
+			lab = _lab_voronoi(H, mask, k, rng)
+			_mark_band(H, lab, sm, 2, rng)
+		Style.CUST_UNMAKING:
+			k = 8
+			lab = _lab_voronoi(H, mask, k, rng)
+			_mark_band(H, lab, sm, 1, rng)
+			_mark_rims(H, lab, sm, 3)
+		Style.CUST_SUPERNOVA:
+			k = 1
+			lab.resize(n)
+			for i in n:
+				lab[i] = 0 if mask[i] == 1 else -1
+		Style.HELL_CHAIN:
+			k = 2
+			var split := float(int(H.x0)) + 0.42 * bw
+			var jag := _field(rng, w, h, 4)
+			lab.resize(n)
+			for y in h:
+				for x in w:
+					var i2 := y * w + x
+					if mask[i2] == 0:
+						lab[i2] = -1
+						continue
+					lab[i2] = 0 if float(x) < split + 2.5 * _nz(jag, x, y) + 0.15 * (float(y) - cy) else 1
+			_mark_band(H, lab, sm, 2, rng)
+			var blasts: Array = []
+			var bf := _field(rng, w, h, 3)
+			var fr := [0.9, 0.78, 0.66, 0.55, 0.3, 0.16]
+			for i3 in fr.size():
+				var alt := (0.25 if i3 % 2 == 0 else -0.22) * bh
+				var p := _nearest_hull(H, mask, Vector2(float(H.x0) + float(fr[i3]) * bw, cy + alt))
+				_mark_disc(H, lab, sm, Vector2(p), 3.5, bf, 2 + i3)
+				blasts.append(rp + Vector2(p))
+			plan.blasts = blasts
+			plan.reactor = rp + Vector2(split, cy)
+			plan.holds = [rp + Vector2(_nearest_hull(H, mask, Vector2(float(H.x0) + 0.58 * bw, cy - 0.5 * bh))),
+				rp + Vector2(_nearest_hull(H, mask, Vector2(float(H.x0) + 0.72 * bw, cy + 0.5 * bh)))]
+		Style.HELL_BURNOUT:
+			k = 5
+			lab = _lab_slices(H, mask, k, rng)
+			_mark_band(H, lab, sm, 1, rng)
+		Style.HELL_UNCOIL:
+			k = 9
+			lab = _lab_slices(H, mask, k, rng)
+			_mark_band(H, lab, sm, 1, rng)
+	var lit := _majors_of(H, raw, lab, sm, k)
+	var mj := _majors_of(H, col, lab, sm, k)
+	for i4 in mj.size():
+		var m: Dictionary = mj[i4]
+		var away: Vector2 = (m.mid as Vector2) - core
+		var dir := away.normalized() if away.length() > 1.0 else Vector2(0, -1)
+		var own := Vector2i.ZERO
+		var dead: Image = m.image
+		var stages: Array = [lit[i4].image]
+		var j: int = m.lab
+		match st:
+			Style.CUST_CASCADE:
+				own = Vector2i((dir * rng.randf_range(7.0, 12.0)).round())
+				stages.append(_scorched(dead, m.at, core, 0.45 * bw))
+			Style.CUST_UNMAKING:
+				own = Vector2i(roundi(((m.mid as Vector2).x - (rp.x + cx)) / (bw * 0.5) * 13.0), rng.randi_range(-2, 2))
+				stages.append(dead)
+			Style.CUST_SUPERNOVA:
+				stages.append(_charred_all(dead, 0.75))
+			Style.HELL_CHAIN:
+				own = Vector2i(-10, -3) if j == 0 else Vector2i(11, 4)
+				var cum: Image = dead
+				for b in plan.blasts:
+					cum = _scorched(cum, m.at, b, 8.0)
+					stages.append(cum)
+				stages.append(_scorched(cum, m.at, plan.reactor, 22.0))
+			Style.HELL_BURNOUT:
+				own = Vector2i((j - 2) * 4, (2 - j) * 4)
+				stages.append(_charred_all(dead, 0.45))
+				stages.append(_charred_all(dead, 0.8))
+			Style.HELL_UNCOIL:
+				own = Vector2i((j - 4) * 3, 1 if j % 2 == 0 else -1)
+				stages.append(_charred_all(dead, 0.55))
+		m.own = own
+		m.glob = Vector2i.ZERO
+		m.off = own
+		m.dir = dir
+		m.stages = stages
+		m.image = stages.back()
+	var sh := _shards_of(H, raw, lab, sm, rng)
+	return {majors = mj, shards = sh, centre = r.position + Vector2i(int(cx), int(cy)), plan = plan}
+
+
+# ---------------------------------------------------------------- the boss's clock
+
+func _setup_boss(img: Image, used: Rect2i, seed: int) -> void:
+	_lead = 0.0
+	duration = float(LIFE[style])
+	_cut = cut(img, used, seed, false, style)
+	_plan = _cut.get("plan", {})
+	_bp = _plan
+	_centre = _origin + Vector2(_cut.centre)
+	_flash_tex = ImageTexture.create_from_image(_radial_light(22))
+	for m in _cut.majors:
+		var stex: Array = []
+		for im in m.stages:
+			stex.append(ImageTexture.create_from_image(im))
+		var mi: Image = m.image
+		_majors.append({tex = stex.back(), stages = stex, images = m.stages, at = m.at, off = m.off, own = m.own,
+			glob = m.glob, crack = m.crack, dir = m.dir, lab = m.lab, mid = m.mid, keys = [], stage_t = [],
+			glow = ImageTexture.create_from_image(_glow_image(m.crack, mi.get_size())), glow_keys = [], glow_col = 0})
+	for s in _cut.shards:
+		var im2: Image = s.image
+		var sz := im2.get_size()
+		var mid := Vector2(s.at) + Vector2(sz) * 0.5
+		var away := mid - Vector2(_bp.core)
+		_shards.append({tex = ImageTexture.create_from_image(im2), at = s.at, size = sz, mark = int(s.mark),
+			dir = away.normalized() if away.length() > 0.5 else Vector2.RIGHT.rotated(_rng.randf() * TAU),
+			speed = _rng.randf_range(0.6, 1.4), spin = _rng.randf_range(1.5, 5.0) * (1.0 if _rng.randf() < 0.5 else -1.0),
+			rot0 = _rng.randi() % 4, release = 99.0, life = 1.0, piece = _piece_of_point(mid), glass = false,
+			glint = _rng.randf_range(0.2, 1.0)})
+	_shard_speed = 1.0
+	_plan_boss()
+	_events.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a.t) < float(b.t))
+	_split_at = duration
+
+
+func _piece_of_point(p: Vector2) -> int:
+	var best := 1e9
+	var bi := -1
+	for i in _majors.size():
+		var d := (_majors[i].mid as Vector2).distance_to(p)
+		if d < best:
+			best = d
+			bi = i
+	return bi
+
+
+## Keyframes: [t, value]; positions ease between keys, then round.
+static func _keyed(keys: Array, t: float) -> Vector2:
+	if keys.is_empty():
+		return Vector2.ZERO
+	if t <= float(keys[0][0]):
+		return keys[0][1]
+	for i in keys.size() - 1:
+		var a: Array = keys[i]
+		var b: Array = keys[i + 1]
+		if t < float(b[0]):
+			var f := clampf((t - float(a[0])) / maxf(0.001, float(b[0]) - float(a[0])), 0.0, 1.0)
+			f = f * f * (3.0 - 2.0 * f)
+			return (a[1] as Vector2).lerp(b[1] as Vector2, f)
+	return keys.back()[1]
+
+
+## Held keys: the latest key at or before t.
+static func _held(keys: Array, t: float) -> Array:
+	var cur: Array = []
+	for k in keys:
+		if float(k[0]) <= t:
+			cur = k
+		else:
+			break
+	return cur
+
+
+func _boss_pos(m: Dictionary) -> Vector2:
+	return (_origin + Vector2(m.at) + _keyed(m.keys, t)).round()
+
+
+func _boss_stage(m: Dictionary) -> int:
+	var n: int = (m.stages as Array).size()
+	if done:
+		return n - 1
+	var i := 0
+	for st in m.stage_t:
+		if t >= float(st):
+			i += 1
+	return mini(i, n - 1)
+
+
+## The piece a canvas point rides with, as an offset now.
+func _ride(mi: int) -> Vector2:
+	if mi < 0 or mi >= _majors.size():
+		return Vector2.ZERO
+	return _keyed(_majors[mi].keys, t).round()
+
+
+func _blight(p: Vector2, keys: Array, col: Color) -> void:
+	_blights.append({p = p, m = _piece_of_point(p), keys = keys, col = col})
+
+
+func _beam(p: Vector2, dir: Vector2, keys: Array) -> void:
+	_bbeams.append({p = p, m = _piece_of_point(p), dir = dir.normalized(), keys = keys})
+
+
+func _hook(at: float, kind: StringName, s: float, len: float) -> void:
+	_ev(at, kind, s, len)
+
+
+func _emit(t0: float, t1: float, rate: float, kind: int, pts: PackedVector2Array, opts: Dictionary) -> void:
+	var e := {t0 = t0, t1 = t1, rate = rate, kind = kind, pts = pts, mode = &"out", dir = Vector2.ZERO,
+		spread = 0.6, v0 = 10.0, v1 = 40.0, l0 = 0.5, l1 = 1.0, col = Color.WHITE, big = 0.3, decay = true}
+	e.merge(opts, true)
+	_bemit.append(e)
+
+
+func _hull_edge_points(step: int) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for m in _majors:
+		var im: Image = (m.images as Array)[0]
+		for y in range(0, im.get_height(), step):
+			for x in range(0, im.get_width(), step):
+				if im.get_pixel(x, y).a > 0.0 and (x == 0 or y == 0 or x == im.get_width() - 1 or y == im.get_height() - 1
+						or im.get_pixel(x - 1, y).a <= 0.0 or im.get_pixel(x + 1, y).a <= 0.0
+						or im.get_pixel(x, y - 1).a <= 0.0 or im.get_pixel(x, y + 1).a <= 0.0):
+					out.append(Vector2(m.at) + Vector2(x, y))
+	return out
+
+
+func _crack_points(m: Dictionary) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for p in (m.crack as PackedVector2Array):
+		out.append(Vector2(m.at) + p)
+	return out
+
+
+# ---------------------------------------------------------------- the six scripts
+
+func _plan_boss() -> void:
+	var core: Vector2 = _bp.core
+	var cs := _origin + core
+	var order: Array = range(_majors.size())
+	order.sort_custom(func(a: int, b: int) -> bool: return (_majors[a].mid as Vector2).x > (_majors[b].mid as Vector2).x)
+	match style:
+		Style.CUST_CASCADE:
+			# 1 the cascade: crack by crack from the small end to the core's end
+			for oi in order.size():
+				var m: Dictionary = _majors[order[oi]]
+				var tc := 0.25 + 0.32 * oi
+				m.glow_keys = [[tc, 0.5, 1.0], [tc + 0.1, 0.75, 1.0], [4.4, 1.0, 1.0], [4.9, 1.0, 1.0], [5.4, 1.0, 0.75],
+					[5.9, 0.75, 0.5], [6.4, 0.5, 0.25], [6.9, 0.25, 0.0], [7.25, 0.0, 0.0]]
+				_ev(tc, &"crack", 0.35 + 0.05 * oi)
+				_hook(tc, &"shake", 1.0, 0.15)
+				var cr := _crack_points(m)
+				if not cr.is_empty():
+					var cm := Vector2.ZERO
+					for p in cr:
+						cm += p
+					cm /= float(cr.size())
+					var up := -1.0 if oi % 2 == 0 else 1.0
+					var dirv := Vector2(_rng.randf_range(-0.35, 0.35), up)
+					var L := _rng.randf_range(80.0, 140.0)
+					_beam(cm, dirv, [[tc, 0.0, 1.0], [tc + 0.12, L, 1.0], [4.4, L, 1.0], [4.6, L * 0.4, 0.7], [4.75, 0.0, 0.0]])
+					_flash(_origin + cm, 10, 0.7, GLASS, 0.2)
+					_ev(tc + 0.02, &"beam", 0.3, 4.4 - tc)
+				m.keys = [[0.0, Vector2.ZERO], [4.4, Vector2.ZERO], [4.85, -(m.dir as Vector2) * 5.0],
+					[4.9, -(m.dir as Vector2) * 5.0], [5.6, Vector2(m.own)], [LIFE[style], Vector2(m.own)]]
+				m.stage_t = [4.92]
+			for L2 in _bp.lights:
+				var lp: Vector2 = L2.p
+				if lp == core:
+					continue
+				_blight(lp, [[0.0, 0.5, 3], [1.0 + _rng.randf() * 1.5, 0.9, 4], [4.9, 0.0, 0]], HEAT_RAMP[1])
+			# 2 the core swells
+			_blight(core, [[0.0, 0.55, 4], [3.0, 0.8, 8], [4.9, 0.0, 0]], HEAT_RAMP[0])
+			# the core as a ball of light: swelling, then pulled small, then the blast
+			_bspheres.append({p = cs, keys = [[3.0, 2.0, 0.6], [3.4, 6.0, 0.75], [3.8, 11.0, 0.9], [4.4, 18.0, 1.0],
+				[4.85, 3.0, 1.0], [4.9, 0.0, 0.0]]})
+			_ev(3.0, &"swell", 0.6, 1.4)
+			_hook(3.0, &"duck", 0.7, 3.5)
+			# 3 everything pulled in
+			_ev(4.4, &"implode", 0.8, 0.5)
+			_hook(4.4, &"slowmo", 0.35, 0.7)
+			# 4 the blast
+			_ev(4.9, &"blast", 1.0, 0.0, cs, {fx = &"blast"})
+			_hook(4.9, &"flash", 1.0, 0.3)
+			_hook(4.9, &"shake", 6.0, 0.9)
+			_hook(4.9, &"stinger", 1.0, 0.0)
+			for s in _shards:
+				s.release = 4.9 + _rng.randf_range(0.0, 0.06)
+				s.life = _rng.randf_range(1.5, 2.3)
+				s.speed = _rng.randf_range(80.0, 190.0)
+				s.glass = true
+			_emit(4.9, 6.8, 70.0, 1, PackedVector2Array(), {mode = &"crack"})
+			_ev(5.0, &"debris", 0.5, 2.0)
+			_ev(5.6, &"cool", 0.2, 1.8)
+		Style.CUST_UNMAKING:
+			_ev(0.0, &"groan", 0.5, 2.8)
+			_hook(0.0, &"duck", 0.5, 7.5)
+			for oi2 in order.size():
+				var m2: Dictionary = _majors[order[oi2]]
+				m2.glow_col = 1
+				m2.glow_keys = [[0.3, 0.25, 0.0], [0.6, 0.5, 0.0], [3.0, 0.25, 0.0], [3.4, 0.0, 0.0]]
+				m2.keys = [[0.0, Vector2.ZERO], [0.6, Vector2.ZERO], [3.0, Vector2(m2.own)], [LIFE[style], Vector2(m2.own)]]
+			# the lights go out one by one; a piece goes dark with its last light
+			var lt := 0.8
+			var last_off := {}
+			for L3 in _bp.lights:
+				var lp2: Vector2 = L3.p
+				var to := lt + _rng.randf_range(0.0, 0.1)
+				_blight(lp2, [[0.0, 0.7, 3], [to, 1.0, 5], [to + 0.07, 0.45, 3], [to + 0.14, 0.0, 0]], HEAT_RAMP[1])
+				var pi := _piece_of_point(lp2)
+				last_off[pi] = maxf(float(last_off.get(pi, 0.0)), to + 0.07)
+				_ev(to, &"light_out", 0.2)
+				lt += 2.4 / float(maxi(1, _bp.lights.size()))
+			for pi2 in _majors.size():
+				_majors[pi2].stage_t = [float(last_off.get(pi2, 3.2))]
+			# each facet shatters in turn, slowly, glass glinting
+			for oi3 in order.size():
+				var mi: int = order[oi3]
+				var ts := 3.2 + 0.42 * oi3
+				_ev(ts, &"shatter", 0.45 + 0.05 * oi3)
+				_hook(ts, &"shake", 1.0, 0.15)
+				for s2 in _shards:
+					var lab_of: int = int(s2.mark) - 10 if int(s2.mark) >= 10 else -1
+					if lab_of == int(_majors[mi].lab) or (int(s2.mark) < 10 and int(s2.piece) == mi):
+						s2.release = ts + _rng.randf_range(0.0, 0.12)
+						s2.speed = _rng.randf_range(12.0, 30.0)
+						s2.life = minf(_rng.randf_range(1.3, 1.9), LIFE[style] - 0.15 - float(s2.release))
+						s2.glass = true
+						s2.spin = _rng.randf_range(1.2, 2.5) * (1.0 if _rng.randf() < 0.5 else -1.0)
+			_hook(3.2, &"slowmo", 0.6, 3.6)
+			_hook(3.2 + 0.42 * (order.size() - 1), &"stinger", 0.7, 0.0)
+			_ev(6.6, &"settle", 0.2, 1.2)
+		Style.CUST_SUPERNOVA:
+			_ev(0.0, &"whine", 0.4, 2.6)
+			_hook(1.0, &"duck", 0.8, 4.0)
+			_hook(1.6, &"shake", 1.0, 0.6)
+			_hook(2.2, &"shake", 2.0, 0.5)
+			_bmaps.append({stages = _nova_maps(), keys = [[0.0, 0, 0.6], [0.35, 1, 0.7], [0.7, 2, 0.75], [1.05, 3, 0.8],
+				[1.4, 4, 0.85], [1.75, 5, 0.9], [2.1, 6, 1.0], [2.65, -1, 0.0]], col = Color.WHITE, add = true})
+			_blight(core, [[0.0, 0.6, 4], [0.7, 0.8, 7], [1.4, 1.0, 12], [2.1, 1.0, 20], [2.65, 0.0, 0]], HEAT_RAMP[0])
+			for m3 in _majors:
+				m3.stage_t = [2.66]
+			_ev(2.6, &"nova", 1.0, 0.0, cs, {fx = &"nova"})
+			_hook(2.6, &"flash", 1.0, 0.45)
+			_hook(2.6, &"slowmo", 0.3, 0.6)
+			_hook(2.6, &"shake", 9.0, 1.4)
+			_hook(2.6, &"stinger", 1.0, 0.0)
+			_ev(2.9, &"ring", 0.5, 1.2, cs, {fx = &"dark"})
+			_bmaps.append({stages = [_ember_map()], keys = [[2.65, 0, 1.0], [3.5, 0, 0.75], [4.5, 0, 0.5], [5.5, 0, 0.25], [6.5, -1, 0.0]],
+				col = HEAT_RAMP[2], add = true})
+			_emit(3.0, 6.6, 40.0, 9, _hull_edge_points(3), {v0 = 5.0, v1 = 14.0, l0 = 1.0, l1 = 1.8})
+			_ev(3.0, &"smoulder", 0.3, 4.0)
+			for tc2 in [3.4, 4.1, 4.9, 5.8]:
+				_ev(tc2, &"crackle", 0.15)
+		Style.HELL_CHAIN:
+			var alarm_pts: Array = []
+			for L4 in _bp.lights:
+				alarm_pts.append(L4.p)
+				if alarm_pts.size() >= 6:
+					break
+			if alarm_pts.size() < 4:
+				for f in [0.2, 0.45, 0.7]:
+					alarm_pts.append(Vector2(_bp.box.position) + Vector2(float(_bp.bw) * f, 2.0))
+			for ap in alarm_pts:
+				var keys: Array = [[0.0, 0.0, 0]]
+				var tt := 0.0
+				while tt < 2.8:
+					var period := 0.33 if tt < 1.6 else 0.2
+					keys.append([tt, 1.0, 4])
+					keys.append([tt + period * 0.4, 0.0, 0])
+					tt += period
+				keys.append([2.8, 0.0, 0])
+				_blight(ap, keys, ALARM)
+			_ev(0.0, &"alarm", 0.6, 2.8)
+			_hook(0.0, &"duck", 0.5, 6.5)
+			var bt := [1.2, 1.55, 1.85, 2.15, 2.4, 2.62]
+			for i in bt.size():
+				var bp: Vector2 = _bp.blasts[i]
+				_ev(bt[i], &"blast", 0.4 + 0.08 * i, 0.0, _origin + bp, {fx = &"pop", mark = 2 + i})
+				_hook(bt[i], &"shake", 2.0, 0.2)
+				for s3 in _shards:
+					if int(s3.mark) == 2 + i:
+						s3.release = bt[i] + 0.02
+						s3.life = _rng.randf_range(0.7, 1.0)
+						s3.speed = _rng.randf_range(80.0, 160.0)
+						var d3 := (Vector2(s3.at) + Vector2(s3.size) * 0.5 - bp)
+						s3.dir = d3.normalized() if d3.length() > 0.3 else s3.dir
+			for m4 in _majors:
+				var st4: Array = []
+				for i2 in bt.size():
+					st4.append(bt[i2] + 0.03)
+				st4.append(4.62)
+				m4.stage_t = st4
+				m4.keys = [[0.0, Vector2.ZERO], [4.6, Vector2.ZERO], [5.4, Vector2(m4.own)], [LIFE[style], Vector2(m4.own)]]
+				m4.glow_keys = [[4.6, 1.0, 1.0], [5.2, 1.0, 0.7], [6.0, 0.6, 0.4], [6.8, 0.25, 0.1], [7.2, 0.0, 0.0]]
+			# the holds burst and the stolen cargo spills, glowing
+			_ev(3.0, &"rupture", 0.7, 0.0, _origin + (_bp.holds[0] as Vector2), {fx = &"hold"})
+			_ev(3.2, &"rupture", 0.6, 0.0, _origin + (_bp.holds[1] as Vector2), {fx = &"hold"})
+			_ev(3.0, &"spill", 0.5, 1.6)
+			for hi in 2:
+				var hp: Vector2 = _bp.holds[hi]
+				var out := (hp - Vector2(_bp.r.position) - Vector2(float(_bp.cx), float(_bp.cy))).normalized()
+				_emit(3.0 + 0.2 * hi, 4.6, 150.0, 8, PackedVector2Array([hp]), {mode = &"dir", dir = out, spread = 0.7,
+					v0 = 20.0, v1 = 70.0, l0 = 0.9, l1 = 1.7, big = 0.45})
+			# the main reactor
+			_ev(4.6, &"reactor", 1.0, 0.0, _origin + (_bp.reactor as Vector2), {fx = &"reactor"})
+			_hook(4.6, &"flash", 0.7, 0.3)
+			_hook(4.6, &"slowmo", 0.4, 0.5)
+			_hook(4.6, &"shake", 7.0, 1.0)
+			_hook(4.6, &"stinger", 1.0, 0.0)
+			for s4 in _shards:
+				if int(s4.mark) == 1:
+					s4.release = 4.6 + _rng.randf_range(0.0, 0.05)
+					s4.life = _rng.randf_range(1.0, 1.6)
+					s4.speed = _rng.randf_range(90.0, 200.0)
+			_emit(4.6, 6.6, 60.0, 1, PackedVector2Array(), {mode = &"crack"})
+			_ev(4.7, &"debris", 0.5, 2.0)
+			_ev(5.5, &"cool", 0.2, 1.8)
+		Style.HELL_BURNOUT:
+			var emb: Vector2 = _bp.core
+			var bowmost := 1e9
+			for L5 in _bp.lights:
+				if (L5.p as Vector2).x < bowmost:
+					bowmost = (L5.p as Vector2).x
+					emb = L5.p
+			_bp.emblem = emb
+			_ev(0.0, &"ignite", 0.5, 0.0, _origin + emb, {fx = &"ember_pop"})
+			_ev(0.0, &"roar", 0.5, 5.4)
+			_hook(0.0, &"duck", 0.5, 7.5)
+			_blight(emb, [[0.0, 0.5, 4], [0.6, 0.7, 6], [1.2, 0.85, 8], [1.8, 1.0, 11], [5.0, 1.0, 11], [5.2, 0.0, 0]], Color("#ff4a1e"))
+			_bmaps.append({stages = _fire_maps(emb), keys = [[0.0, 0, 0.7], [0.4, 1, 0.8], [0.8, 2, 0.85], [1.2, 3, 0.9],
+				[1.6, 4, 0.95], [2.0, 5, 1.0], [2.4, 6, 1.0], [5.0, 6, 0.6], [5.2, -1, 0.0]], col = HEAT_RAMP[2], add = true})
+			_emit(0.2, 5.2, 90.0, 1, PackedVector2Array(), {mode = &"fire"})
+			var wt := [2.6, 3.0, 3.35, 3.9, 4.3]
+			for i3 in wt.size():
+				var xp: float = float(_bp.box.position.x) + float(_bp.bw) * _rng.randf_range(0.2, 0.9)
+				var yp: float = float(_bp.box.position.y) + float(_bp.bh) * _rng.randf_range(0.3, 0.7)
+				_ev(wt[i3], &"blast", 0.5, 0.0, _origin + Vector2(xp, yp), {fx = &"pop"})
+				_hook(wt[i3], &"shake", 2.5, 0.25)
+			for m5 in _majors:
+				var j5: int = m5.lab
+				var lst := Vector2(0, (2 - j5) * 2)
+				m5.keys = [[0.0, Vector2.ZERO], [3.0, Vector2.ZERO], [5.0, lst], [5.2, lst], [7.0, Vector2(m5.own)], [LIFE[style], Vector2(m5.own)]]
+				m5.stage_t = [2.0, 4.5]
+				m5.glow_keys = [[5.2, 1.0, 0.9], [5.8, 0.9, 0.6], [6.5, 0.6, 0.35], [7.2, 0.3, 0.1], [7.6, 0.0, 0.0]]
+				# trailing fire from each piece's broken edges, against its drift
+				_emit(5.2, 7.4, 45.0, 1, PackedVector2Array(), {mode = &"trail", piece = _majors.find(m5)})
+			_ev(3.0, &"list", 0.4, 2.0)
+			_ev(5.2, &"break", 0.8, 0.0, _centre, {fx = &"break"})
+			_hook(5.2, &"shake", 4.0, 0.6)
+			_hook(5.2, &"stinger", 0.8, 0.0)
+			for s5 in _shards:
+				s5.release = 5.2 + _rng.randf_range(0.0, 0.06)
+				s5.life = _rng.randf_range(0.9, 1.4)
+				s5.speed = _rng.randf_range(50.0, 120.0)
+			_ev(5.3, &"debris", 0.4, 2.0)
+		Style.HELL_UNCOIL:
+			var mid_i := (_majors.size() - 1) / 2
+			for m6 in _majors:
+				var j6: int = m6.lab
+				var ton := 0.3 + absf(float(j6 - mid_i)) * 0.45
+				m6.glow_col = 2
+				m6.glow_keys = [[ton, 0.5, 0.0], [ton + 0.1, 0.75, 0.0], [2.4, 1.0, 0.0], [3.6, 1.0, 0.0], [4.2, 0.75, 0.0],
+					[5.0, 0.5, 0.0], [5.8, 0.25, 0.0], [6.5, 0.0, 0.0]]
+				m6.keys = [[0.0, Vector2.ZERO], [2.4, Vector2.ZERO], [3.6, Vector2(m6.own)], [LIFE[style], Vector2(m6.own)]]
+				m6.stage_t = [3.65]
+				_ev(ton, &"charge", 0.2 + 0.06 * absf(float(j6 - mid_i)))
+			_ev(0.0, &"hum", 0.3, 2.6)
+			_hook(0.0, &"duck", 0.5, 6.0)
+			_ev(2.4, &"stretch", 0.5, 1.2)
+			_ev(3.6, &"burst", 1.0, 0.0, _centre, {fx = &"gold"})
+			_hook(3.6, &"flash", 0.5, 0.25)
+			_hook(3.6, &"shake", 5.0, 0.8)
+			_hook(3.6, &"slowmo", 0.5, 0.4)
+			_hook(3.6, &"stinger", 1.0, 0.0)
+			for s6 in _shards:
+				s6.release = 3.6 + _rng.randf_range(0.0, 0.05)
+				s6.life = _rng.randf_range(0.8, 1.3)
+				s6.speed = _rng.randf_range(40.0, 110.0)
+			_emit(3.6, 5.4, 60.0, 8, PackedVector2Array(), {mode = &"crack", v0 = 15.0, v1 = 50.0, l0 = 0.7, l1 = 1.3})
+			_ev(3.7, &"fade", 0.3, 2.6)
+	# every shard released lives out before the end
+	for s7 in _shards:
+		if float(s7.release) < 90.0:
+			s7.life = minf(float(s7.life), LIFE[style] - 0.1 - float(s7.release))
+
+
+## SUPERNOVA: the core's light through the glass, a step further each map.
+func _nova_maps() -> Array:
+	var out: Array = []
+	var r: Rect2i = _bp.r
+	var H := {}
+	var core: Vector2 = _bp.core
+	var maxd := 1.0
+	var pts: Array = []
+	for m in _majors:
+		var im: Image = (m.images as Array)[0]
+		for y in im.get_height():
+			for x in im.get_width():
+				if im.get_pixel(x, y).a > 0.0:
+					var p := Vector2(m.at) + Vector2(x, y)
+					pts.append(p)
+					maxd = maxf(maxd, p.distance_to(core))
+	for st in 7:
+		var reach := maxd * (0.15 + 0.85 * float(st) / 6.0)
+		var im2 := Image.create(r.size.x, r.size.y, false, Image.FORMAT_RGBA8)
+		for p2 in pts:
+			var d := (p2 as Vector2).distance_to(core)
+			var lp := Vector2i(p2) - r.position
+			var odd := ((lp.x + lp.y) & 1) == 0
+			var lv := 0.0
+			if d < reach * 0.4:
+				lv = 1.0
+			elif d < reach * 0.7:
+				lv = 0.7
+			elif d < reach:
+				lv = 0.45 if odd or st == 6 else 0.3
+			elif d < reach * 1.15 and odd:
+				lv = 0.2
+			if st == 6:
+				lv = maxf(lv, 0.55)
+			if lv > 0.0:
+				var c: Color = HEAT_RAMP[0].lerp(HEAT_RAMP[2], clampf(d / maxd, 0.0, 1.0) * (1.0 - float(st) / 7.0))
+				im2.set_pixel(lp.x, lp.y, Color(c.r * lv, c.g * lv, c.b * lv, 1.0))
+		out.append(ImageTexture.create_from_image(im2))
+	return out
+
+
+## SUPERNOVA's embers: a scatter of hull pixels still glowing in the char.
+func _ember_map() -> ImageTexture:
+	var r: Rect2i = _bp.r
+	var im2 := Image.create(r.size.x, r.size.y, false, Image.FORMAT_RGBA8)
+	for m in _majors:
+		var im: Image = (m.images as Array)[0]
+		for y in im.get_height():
+			for x in im.get_width():
+				if im.get_pixel(x, y).a > 0.0 and _rng.randf() < 0.07:
+					var lp := Vector2i(m.at) - r.position + Vector2i(x, y)
+					var lv := 0.9 if _rng.randf() < 0.3 else 0.5
+					im2.set_pixel(lp.x, lp.y, Color(lv, lv, lv, 1.0))
+	return ImageTexture.create_from_image(im2)
+
+
+## BURN-OUT: fire across the hull from the emblem, edges brightest.
+func _fire_maps(from: Vector2) -> Array:
+	var out: Array = []
+	var r: Rect2i = _bp.r
+	var maxd := 1.0
+	var pts: Array = []
+	var edges := {}
+	for m in _majors:
+		var im: Image = (m.images as Array)[0]
+		for y in im.get_height():
+			for x in im.get_width():
+				if im.get_pixel(x, y).a <= 0.0:
+					continue
+				var p := Vector2(m.at) + Vector2(x, y)
+				pts.append(p)
+				maxd = maxf(maxd, p.distance_to(from))
+				if x == 0 or y == 0 or x == im.get_width() - 1 or y == im.get_height() - 1 or im.get_pixel(x - 1, y).a <= 0.0 \
+						or im.get_pixel(x + 1, y).a <= 0.0 or im.get_pixel(x, y - 1).a <= 0.0 or im.get_pixel(x, y + 1).a <= 0.0:
+					edges[Vector2i(p)] = true
+	for st in 7:
+		var reach := maxd * (0.12 + 0.88 * float(st) / 6.0)
+		var im2 := Image.create(r.size.x, r.size.y, false, Image.FORMAT_RGBA8)
+		for p2 in pts:
+			var d := (p2 as Vector2).distance_to(from)
+			if d > reach:
+				continue
+			var lp := Vector2i(p2) - r.position
+			var odd := ((lp.x + lp.y) & 1) == 0
+			var lv := 0.0
+			if edges.has(Vector2i(p2)):
+				lv = 1.0
+			elif d > reach - 6.0:
+				lv = 0.6 if odd else 0.4
+			else:
+				lv = 0.35 if odd else 0.2
+			im2.set_pixel(lp.x, lp.y, Color(lv, lv * 0.8, lv * 0.6, 1.0))
+		out.append(ImageTexture.create_from_image(im2))
+	return out
+
+
+func _fire_boss(e: Dictionary) -> void:
+	var p: Vector2 = e.p
+	match e.get("fx", &""):
+		&"blast":
+			_bspheres.append({p = p, t0 = t, grow = 0.22, hold = 0.12, fade = 0.3, r1 = 62})
+			_ring(p, 10.0, 260.0, 1.0, 0.45, 1.0, HEAT_RAMP[1])
+			_spray(p, 60, 300.0)
+		&"nova":
+			_bspheres.append({p = p, t0 = t, grow = 0.35, hold = 0.15, fade = 0.4, r1 = 230})
+			_spray(p, 50, 320.0)
+		&"dark":
+			_bdark.append({p = p, t0 = t, dur = 1.2, r0 = 20.0, r1 = 420.0})
+		&"pop":
+			_flash(p, 14, 0.9, Color(), 0.22)
+			_ring(p, 3.0, 18.0, 0.2, 1.0, 0.6, HEAT_RAMP[1])
+			_spray(p, 16, 180.0)
+		&"hold":
+			_flash(p, 12, 0.7, GOLD[1], 0.25)
+			_spray(p, 10, 120.0)
+		&"reactor":
+			_bspheres.append({p = p, t0 = t, grow = 0.18, hold = 0.1, fade = 0.3, r1 = 46})
+			_ring(p, 8.0, 200.0, 0.8, 0.45, 1.0, HEAT_RAMP[1])
+			_spray(p, 50, 280.0)
+		&"break":
+			_flash(p, 22, 0.8)
+			_spray(p, 30, 200.0)
+		&"gold":
+			_flash(p, 26, 1.0, GOLD[0], 0.32)
+			_ring(p, 6.0, 140.0, 0.6, 0.5, 0.9, GOLD[1])
+			for m in _majors:
+				for i in 18:
+					var cr: PackedVector2Array = m.crack
+					if cr.is_empty():
+						break
+					var q := _boss_pos(m) + cr[_rng.randi() % cr.size()]
+					var dv := (q - _centre).normalized().rotated(_rng.randf_range(-0.5, 0.5))
+					_mote(q, dv * _rng.randf_range(30.0, 110.0), _rng.randf_range(0.6, 1.2), 8, _rng.randf() < 0.5, GOLD[0], 0.6)
+		&"ember_pop":
+			_flash(p, 8, 0.6, Color(), 0.2)
+
+
+func _tick_boss(delta: float) -> void:
+	var tt := t
+	for em in _bemit:
+		if tt < float(em.t0) or tt >= float(em.t1):
+			continue
+		var f := (tt - float(em.t0)) / maxf(0.01, float(em.t1) - float(em.t0))
+		var rate := float(em.rate) * (snappedf(1.0 - f, 0.25) if em.decay else 1.0)
+		var n := int(rate * delta + _rng.randf())
+		for i in n:
+			var src := Vector2.ZERO
+			var v := Vector2.ZERO
+			match em.mode:
+				&"crack", &"trail":
+					var mi := _rng.randi() % _majors.size() if em.mode == &"crack" else int(em.piece)
+					var m: Dictionary = _majors[mi]
+					var cr: PackedVector2Array = m.crack
+					if cr.is_empty():
+						continue
+					src = _boss_pos(m) + cr[_rng.randi() % cr.size()]
+					if em.mode == &"trail":
+						var drift := Vector2(m.own).normalized() if Vector2(m.own).length() > 0.1 else Vector2.RIGHT
+						v = (-drift).rotated(_rng.randf_range(-0.6, 0.6)) * _rng.randf_range(float(em.v0), float(em.v1))
+					else:
+						v = (src - _centre).normalized().rotated(_rng.randf_range(-0.6, 0.6)) * _rng.randf_range(float(em.v0), float(em.v1))
+				&"fire":
+					# from the burning edge: where the fire front has got to
+					var reach := float(_bp.bw) * (0.12 + 0.88 * clampf(tt / 2.4, 0.0, 1.0)) * 1.1
+					var pts: PackedVector2Array = _bp.get("edge_pts", PackedVector2Array())
+					if pts.is_empty():
+						pts = _hull_edge_points(2)
+						_bp.edge_pts = pts
+					var tries := 0
+					while tries < 6:
+						var p := pts[_rng.randi() % pts.size()]
+						if p.distance_to(_bp.emblem) <= reach:
+							src = _origin + p + _ride(_piece_of_point(p))
+							break
+						tries += 1
+					if src == Vector2.ZERO:
+						continue
+					v = (src - _centre).normalized().rotated(_rng.randf_range(-0.4, 0.4)) * _rng.randf_range(10.0, 35.0)
+				&"dir":
+					var pts2: PackedVector2Array = em.pts
+					src = _origin + pts2[_rng.randi() % pts2.size()]
+					v = (em.dir as Vector2).rotated(_rng.randf_range(-float(em.spread), float(em.spread))) * _rng.randf_range(float(em.v0), float(em.v1))
+				_:
+					var pts3: PackedVector2Array = em.pts
+					if pts3.is_empty():
+						continue
+					var pp := pts3[_rng.randi() % pts3.size()]
+					src = _origin + pp + _ride(_piece_of_point(pp))
+					v = (src - _centre).normalized().rotated(_rng.randf_range(-0.6, 0.6)) * _rng.randf_range(float(em.v0), float(em.v1))
+			var life := _rng.randf_range(float(em.l0), float(em.l1))
+			if int(em.kind) == 9:
+				var room := duration - t - 0.1
+				if room > 0.2:
+					_smoke.append({p = src, v = v, age = 0.0, life = minf(life, room)})
+			else:
+				var kind: int = em.kind
+				if em.mode == &"fire" or em.mode == &"trail":
+					life = _rng.randf_range(0.3, 0.6)
+				_mote(src, v, life, kind, _rng.randf() < float(em.big), em.col, 0.5)
+	var kept: Array = []
+	for sm in _smoke:
+		sm.age += delta
+		if sm.age < sm.life:
+			sm.p += sm.v * delta
+			kept.append(sm)
+	_smoke = kept
+
+
+func _boss_glow_col(m: Dictionary, on: float, heat: float) -> Color:
+	match int(m.glow_col):
+		1:
+			return Color(0.3 * on, 0.42 * on, 0.6 * on, 1.0)
+		2:
+			return _lv(GOLD[1], on)
+	return Color(on, on * (0.45 + 0.55 * heat), on * (0.15 + 0.85 * heat * heat), 1.0)
+
+
+func _paint_boss_body(ci: CanvasItem) -> void:
+	var tint := Color.WHITE
+	if done:
+		tint = WRECK_TINT
+	else:
+		var k := clampf((t - (duration - 1.2)) / 1.0, 0.0, 1.0)
+		tint = Color.WHITE.lerp(WRECK_TINT, snappedf(k, 0.34))
+	for m in _majors:
+		ci.draw_texture(m.stages[_boss_stage(m)], _boss_pos(m), tint)
+	for s in _shards:
+		if t < float(s.release):
+			var home := _origin + Vector2(s.at) + _ride(int(s.piece))
+			ci.draw_texture(s.tex, home.round(), tint)
+			continue
+		var age := t - float(s.release)
+		var life: float = s.life
+		if age >= life:
+			continue
+		var dist := float(s.speed) * (1.0 - exp(-1.2 * age)) / 1.2
+		var p := (_origin + Vector2(s.at) + _ride(int(s.piece)) + (s.dir as Vector2) * dist).round()
+		var al := 1.0
+		if age > life * 0.6:
+			var f := (age - life * 0.6) / (life * 0.4)
+			al = 0.66 if f < 0.34 else (0.33 if f < 0.67 else 0.15)
+		var rot := posmod(int(s.rot0) + int(floor(age * float(s.spin))), 4)
+		var sz := Vector2(s.size)
+		var c := tint
+		c.a = al
+		ci.draw_set_transform(p + sz * 0.5, float(rot) * PI * 0.5, Vector2.ONE)
+		ci.draw_texture(s.tex, -sz * 0.5, c)
+		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if not done:
+		for sm in _smoke:
+			var f2: float = sm.age / sm.life
+			var a := 0.5 if f2 < 0.3 else (0.35 if f2 < 0.6 else (0.2 if f2 < 0.85 else 0.1))
+			var p2: Vector2 = (sm.p as Vector2).round()
+			ci.draw_rect(Rect2(p2, Vector2(2, 2) if f2 < 0.5 else Vector2.ONE), Color(0.16, 0.15, 0.15, a))
+		for dk in _bdark:
+			var age2 := t - float(dk.t0)
+			if age2 < 0.0 or age2 > float(dk.dur):
+				continue
+			var x := age2 / float(dk.dur)
+			var rr := float(dk.r0) + (float(dk.r1) - float(dk.r0)) * (1.0 - pow(1.0 - x, 2.0))
+			var al2 := 0.7 if x < 0.4 else (0.45 if x < 0.7 else 0.2)
+			for band in 8:
+				var rb := int(rr) - band
+				if rb < 2:
+					continue
+				var pts := {}
+				var n := int(ceil(TAU * rb)) + 8
+				for i in n:
+					var a2 := TAU * float(i) / float(n)
+					pts[Vector2i(roundi(cos(a2) * rb), roundi(sin(a2) * rb * 0.55))] = true
+				var ab := al2 * (1.0 - float(band) / 9.0)
+				for q in pts:
+					if band >= 5 and (((q as Vector2i).x + (q as Vector2i).y) & 1) == 1:
+						continue
+					ci.draw_rect(Rect2((dk.p as Vector2).round() + Vector2(q as Vector2i), Vector2.ONE), Color(0.0, 0.0, 0.02, ab))
+
+
+func _paint_boss_light(ci: CanvasItem) -> void:
+	for m in _majors:
+		var h := _held(m.glow_keys, t)
+		if h.is_empty() or float(h[1]) <= 0.0:
+			continue
+		ci.draw_texture(m.glow, _boss_pos(m) - Vector2(GLOW_PAD, GLOW_PAD), _boss_glow_col(m, float(h[1]), float(h[2])))
+	for mp in _bmaps:
+		var hk := _held(mp.keys, t)
+		if hk.is_empty() or int(hk[1]) < 0 or float(hk[2]) <= 0.0:
+			continue
+		var tex: ImageTexture = mp.stages[int(hk[1])]
+		var c: Color = mp.col
+		var lv := float(hk[2])
+		ci.draw_texture(tex, _origin + Vector2((_bp.r as Rect2i).position), Color(c.r * lv, c.g * lv, c.b * lv, 1))
+	for L in _blights:
+		var hk2 := _held(L.keys, t)
+		if hk2.is_empty() or float(hk2[1]) <= 0.0 or int(hk2[2]) <= 0:
+			continue
+		var tex2 := _white(int(hk2[2]))
+		var p := _origin + (L.p as Vector2) + _ride(int(L.m))
+		ci.draw_texture(tex2, (p - Vector2(tex2.get_size()) * 0.5).round(), _lv(L.col, float(hk2[1])))
+	for b in _bbeams:
+		var keys: Array = b.keys
+		if keys.is_empty() or t < float(keys[0][0]):
+			continue
+		var len := 0.0
+		var lvl := 0.0
+		for i in keys.size():
+			if float(keys[i][0]) <= t:
+				lvl = float(keys[i][2])
+				if i + 1 < keys.size() and t < float(keys[i + 1][0]):
+					var f := (t - float(keys[i][0])) / maxf(0.001, float(keys[i + 1][0]) - float(keys[i][0]))
+					len = lerpf(float(keys[i][1]), float(keys[i + 1][1]), f)
+				else:
+					len = float(keys[i][1])
+		if len < 1.0 or lvl <= 0.0:
+			continue
+		var p0 := _origin + (b.p as Vector2) + _ride(int(b.m))
+		var d: Vector2 = b.dir
+		var side := Vector2(roundf(d.y), -roundf(d.x))
+		var last := Vector2.INF
+		var s := 0.0
+		while s <= len:
+			var q := (p0 + d * s).round()
+			if q != last:
+				# a three-pixel shaft, white at the core, glass-blue at its sides,
+				# a dithered glow beyond, fading in steps along its length
+				var fall := 1.0 - 0.65 * s / len
+				var l2 := lvl * (1.0 if fall > 0.8 else (0.75 if fall > 0.6 else (0.55 if fall > 0.45 else 0.4)))
+				ci.draw_rect(Rect2(q, Vector2.ONE), _lv(Color(1.0, 0.98, 0.94), l2))
+				ci.draw_rect(Rect2(q + side, Vector2.ONE), _lv(GLASS, l2 * 0.75))
+				ci.draw_rect(Rect2(q - side, Vector2.ONE), _lv(GLASS, l2 * 0.75))
+				if ((int(q.x) + int(q.y)) & 1) == 0:
+					ci.draw_rect(Rect2(q + side * 2.0, Vector2.ONE), _lv(GLASS, l2 * 0.35))
+					ci.draw_rect(Rect2(q - side * 2.0, Vector2.ONE), _lv(GLASS, l2 * 0.35))
+				last = q
+			s += 1.0
+	for sp in _bspheres:
+		if sp.has("keys"):
+			var ks: Array = sp.keys
+			if t < float(ks[0][0]) or t >= float(ks.back()[0]):
+				continue
+			var R2 := 0.0
+			var l4 := 0.0
+			for i4 in ks.size() - 1:
+				if t >= float(ks[i4][0]) and t < float(ks[i4 + 1][0]):
+					var f4 := (t - float(ks[i4][0])) / maxf(0.001, float(ks[i4 + 1][0]) - float(ks[i4][0]))
+					R2 = lerpf(float(ks[i4][1]), float(ks[i4 + 1][1]), f4)
+					l4 = float(ks[i4][2])
+			if R2 >= 1.0:
+				_draw_sphere(ci, sp.p, int(R2), l4)
+			continue
+		var a := t - float(sp.t0)
+		var g: float = sp.grow
+		var hold: float = sp.hold
+		var fd: float = sp.fade
+		if a < 0.0 or a > g + hold + fd:
+			continue
+		var R := float(sp.r1) * _ease_out(a / g) if a < g else float(sp.r1) + 4.0 * (a - g) / maxf(0.01, hold + fd)
+		var lvl2 := 1.0 if a < g + hold else (0.6 if a < g + hold + fd * 0.33 else (0.35 if a < g + hold + fd * 0.66 else 0.15))
+		_draw_sphere(ci, sp.p, int(R), lvl2)
+	for dk in _bdark:
+		var age2 := t - float(dk.t0)
+		if age2 < 0.0 or age2 > float(dk.dur):
+			continue
+		var x := age2 / float(dk.dur)
+		var rr := float(dk.r0) + (float(dk.r1) - float(dk.r0)) * (1.0 - pow(1.0 - x, 2.0))
+		_draw_ring(ci, dk.p, int(rr) + 1, 0.55, 0.5 if x < 0.5 else 0.25, Color(0.85, 0.9, 1.0))
+	# glass catching the light as it turns
+	for sh in _shards:
+		if not sh.glass or t < float(sh.release):
+			continue
+		var age3 := t - float(sh.release)
+		var gl: float = sh.glint
+		if age3 >= gl and age3 < gl + 0.067 and age3 < float(sh.life) * 0.8:
+			var dist2 := float(sh.speed) * (1.0 - exp(-1.2 * age3)) / 1.2
+			var p3 := _origin + Vector2(sh.at) + _ride(int(sh.piece)) + (sh.dir as Vector2) * dist2 + Vector2(sh.size) * 0.5
+			ci.draw_texture(sh.tex, (p3 - Vector2(sh.size) * 0.5).round(), Color(0.6, 0.7, 0.8, 1))
