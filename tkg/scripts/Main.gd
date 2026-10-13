@@ -343,8 +343,11 @@ func _ready() -> void:
 	# THE VIEW KICKS WHEN YOUR HULL IS HIT. Connected here rather than in Audio
 	# because it is a picture, not a sound, and because it moves the whole
 	# viewport -- see `_kick`.
-	Sig.damage_dealt.connect(func(amount: int, to_player: bool, _who: int) -> void:
-		if to_player:
+	# ON THE LANDING, not the resolution: kicked when the maths ran, the view
+	# had stopped shaking ten frames before the shot it belonged to arrived
+	# (combat polish audit F2).
+	Sig.hit_landed.connect(func(amount: int, to_player: bool, _who: int, _ab: int) -> void:
+		if to_player and amount > 0:
 			_kick(amount))
 
 	# Real galaxy data for the sensor-ladder study:

@@ -94,6 +94,13 @@ var drones: Array[Drone] = []
 var drone_brace: int = 0
 var charging: Array[ChargingCard] = []
 
+## The card resolving right now, or null (a drone, feedback, a partner's shot).
+## Presentation only: the screen reads it on `combat_hit` to draw the shot as
+## the weapon that fired it. It used to read the last `card_played`, which is
+## emitted AFTER the card resolves, so every shot was drawn as the card before
+## it (audit item 7).
+var resolving: CardData = null
+
 ## Which enemy the card being played is aimed at. Set by play(); damage_enemy
 ## falls back to it so the resolver never has to know about targeting.
 var current_target: EnemyState = null
@@ -336,7 +343,9 @@ func begin_turn() -> void:
 	for c in fired:
 		_log("▸ %s detonates." % c.name, &"big")
 		Sig.charge_fired.emit(c.name)
+		resolving = c
 		CardResolver.resolve(c, self, true)
+		resolving = null
 		# A charge firing can end the fight. Nothing after this point should run.
 		if finished:
 			return
@@ -369,6 +378,7 @@ func end_turn() -> void:
 		_log("+%d heat from what you could not shift." % stuck_heat, &"heat")
 	if stuck > 0:
 		_log("%d hull from junk left in hand." % stuck, &"them")
+		Sig.hull_burned.emit(stuck, &"junk")
 		Run.take_hull_damage(stuck, "Malfunctioning systems, left too long.")
 
 	# FUSED CARDS DO NOT GO. Everything else in the hand is swept into the
@@ -419,6 +429,7 @@ func end_turn() -> void:
 			burn = int(ceil(burn / 2.0))
 		_log("⚠ OVERHEAT: %d hull burned (%d/%d)." % [burn, Run.heat, Run.heat_cap()], &"heat")
 		Sig.overheated.emit(burn)
+		Sig.hull_burned.emit(burn, &"overheat")
 		Run.take_hull_damage(burn, "Your reactor cooked the hull from the inside.")
 		if Run.dead:
 			_finish(&"dead", Run.death_reason)
@@ -518,8 +529,11 @@ func _act_one(e: EnemyState) -> void:
 		if negate_next:
 			negate_next = false
 			_log("  slipped entirely.", &"good")
+			Sig.combat_hit.emit(true, enemies.find(e), 0, 0, maxi(1, I.hits), maxi(1, I.hits))
 		else:
 			var total := 0
+			var absorbed := 0
+			var missed := 0
 			for i in maxi(1, I.hits):
 				var d := I.damage
 				# Light hulls dodge; the player never misses, only the enemy does.
@@ -527,16 +541,20 @@ func _act_one(e: EnemyState) -> void:
 				# in the fight, not only on the ship tab's Maneuverability row.
 				if Rng.fight.randf() < Run.dodge():
 					_log("  missed.", &"good")
+					missed += 1
 					continue
 				if block > 0:
 					var a := mini(block, d)
 					block -= a
 					d -= a
+					absorbed += a
 				if d > 0 and brace > 0:
 					var a2 := mini(brace, d)
 					brace -= a2
 					d -= a2
+					absorbed += a2
 				total += d
+			Sig.combat_hit.emit(true, enemies.find(e), total, absorbed, missed, maxi(1, I.hits))
 			if total > 0:
 				_log("  %d hull damage." % total, &"them")
 				Sig.damage_dealt.emit(total, true, enemies.find(e))
@@ -652,7 +670,9 @@ func play(index: int, target_index: int = -1) -> void:
 		charging.append(cc)
 		_log("%s charging (%d turn)." % [c.name, cc.turns_left], &"you")
 	else:
+		resolving = c
 		CardResolver.resolve(c, self, false)
+		resolving = null
 	Sig.card_played.emit(c)
 	Sig.hand_changed.emit()
 	Sig.player_combat_state_changed.emit()
@@ -764,19 +784,23 @@ func damage_enemy(amount: int, hits: int, label: String,
 	struck = true
 
 	var total := 0
+	var absorbed := 0
 	for i in maxi(1, hits):
 		var d := amount
 		if e.block > 0:
 			var a := mini(e.block, d)
 			e.block -= a
 			d -= a
+			absorbed += a
 		if d > 0 and e.brace > 0:
 			var a2 := mini(e.brace, d)
 			e.brace -= a2
 			d -= a2
+			absorbed += a2
 		e.hp -= d
 		total += d
 	var which := enemies.find(e)
+	Sig.combat_hit.emit(false, which, total, absorbed, 0, maxi(1, hits))
 	var who := "" if enemies.size() < 2 else " → %s" % e.template.name
 	_log("%s%s → %d%s" % [label, who, total, "" if hits <= 1 else " (%d hits)" % hits], &"you")
 	Sig.damage_dealt.emit(total, false, which)
@@ -1304,6 +1328,7 @@ func _adopt(f: SharedFight) -> void:
 			_log("%s → %d" % [who.to_upper() if who != "" else "PARTNER",
 				f.last_hit[2]], &"good")
 			Sig.damage_dealt.emit(f.last_hit[2], false, f.last_hit[1])
+			Sig.combat_hit.emit(false, f.last_hit[1], f.last_hit[2], 0, 0, 1)
 	Sig.enemy_changed.emit()
 
 

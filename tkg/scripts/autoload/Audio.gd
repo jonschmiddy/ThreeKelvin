@@ -284,13 +284,19 @@ func _ready() -> void:
 ## whole game's sound wiring lives — one place to read, one place to retune.
 func _connect_signals() -> void:
 	Sig.card_played.connect(_on_card_played)
-	Sig.damage_dealt.connect(_on_damage)
+	# ON THE FRAME THE SHOT ARRIVES, not when the maths ran. `damage_dealt`
+	# fires as the card resolves, which is before the tracer has crossed the
+	# gap -- so every impact played 8 to 17 frames ahead of the hit it belonged
+	# to, and a kill stacked five sounds on the release frame (combat polish
+	# audit F1). The screen says when a shot is seen landing.
+	Sig.hit_landed.connect(_on_hit_landed)
 	# THE RELEASE of a charged card is a heavy shot, because that is what it is.
 	# It used to play `charge_fire` here and the heavy shot on PLAY -- a gunshot
 	# at the one moment nothing fires. Jon: "there should be a charging sound
 	# and a release sound. separate." The charging half is in _on_card_played.
 	Sig.charge_fired.connect(func(_n: String) -> void: play(&"shot_heavy", 0.05))
-	Sig.overheated.connect(func(_b: int) -> void: play(&"overheat"))
+	# (overheat: played by the fight's screen when the burn is shown, on the
+	# same frame as the hull it costs -- see SectorScreen._show_burn)
 	# NO STING WHEN A FIGHT STARTS. The music already tells you: combat moves the
 	# cue to Hard Burn, which is 160 BPM of sixteenths against everything else in
 	# the soundtrack. A sting on top of that is the score saying the same thing
@@ -300,7 +306,9 @@ func _connect_signals() -> void:
 	# player's own departure had to suppress it under the drive and the flare
 	# -- which play their own. Jon cut `jump` in the sound pass: "Just use the
 	# jump out sound." The convoy plays `hyperjump` itself (EncounterView).
-	Sig.enemy_destroyed.connect(_on_enemy_destroyed)
+	# (a kill: played by the fight's screen on each visible break of the hull,
+	# `ShipBreakup.broke`, rather than when the last hit was resolved -- see
+	# `play_kill`)
 	# Paperwork: the ledger stamps with the institutions' bare fifth, same
 	# figure the score's stamp lanes carry.
 	Sig.contracts_changed.connect(func() -> void:
@@ -322,7 +330,8 @@ func _connect_signals() -> void:
 	Sig.run_ended.connect(_on_run_ended)
 	# Draw on turn start, not on hand_changed — the hand also changes when a
 	# card leaves it, which put a draw sound on top of every card played.
-	Sig.turn_started.connect(func(_t: int) -> void: play(&"card_draw", 0.10, 70))
+	# (the draw: played by the fight's screen when the new hand is dealt, which
+	# is after the enemy's turn has played out on screen, not when it resolved)
 	Sig.player_combat_state_changed.connect(_on_combat_state)
 	Sig.resources_changed.connect(_poll_resources)
 	Sig.screen_changed.connect(_poll_resources)
@@ -1036,21 +1045,26 @@ func _poll_resources() -> void:
 ## fauna do not explode at all, because one of the warm things going out is
 ## a loss even when it was trying to eat you. limit_ms: a card that clears
 ## a board is one explosion, not a drum roll.
-func _on_enemy_destroyed(who: int) -> void:
+func play_kill(who: int, db: float = 0.0) -> void:
 	var t: EnemyTemplate = null
 	if Router.combat != null and who >= 0 and who < Router.combat.enemies.size():
 		t = Router.combat.enemies[who].template
 	if t != null and t.fauna:
-		play(&"fauna_falls", 0.04, 400)
+		play(&"fauna_falls", 0.04, 400, db)
 	else:
 		# ONE POOL FOR EVERY KILL. Jon: "kill and boss kill can be
 		# consolidated." The three boss takes joined the two ordinary ones as
 		# round robins of explosion_small, so a boss is not louder or longer
 		# than anything else it dies alongside -- and there are five takes
 		# rotating instead of two.
-		play(&"explosion_small", 0.09, 160)
+		play(&"explosion_small", 0.09, 160, db)
 
-func _on_damage(_amount: int, to_player: bool, _who: int) -> void:
+func _on_hit_landed(amount: int, to_player: bool, _who: int, absorbed: int) -> void:
+	if amount <= 0:
+		# Taken whole by block or brace: the plate ringing, not the hull.
+		if absorbed > 0:
+			play(&"shield_block", 0.06, 90, -4.0)
+		return
 	if to_player:
 		play(&"impact_hull", 0.05)
 	else:

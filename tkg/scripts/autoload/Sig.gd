@@ -51,6 +51,20 @@ signal card_played(card: CardData)
 signal damage_dealt(amount: int, to_player: bool, who: int)
 signal charge_fired(card_name: String)
 signal overheated(burn: int)
+## EVERY ATTACK, including the ones that did nothing. `damage_dealt` fires only
+## when hull is lost, so a swing fully taken by block or brace, or dodged, left
+## no trace on screen (combat polish audit, item 6). `dealt` reached the hull,
+## `absorbed` was taken by block and brace, `missed` is how many of `hits`
+## never connected. Emitted at resolution; the screen draws it over time.
+signal combat_hit(to_player: bool, who: int, dealt: int, absorbed: int, missed: int, hits: int)
+## Hull you burned yourself at the end of a turn: `cause` is &"overheat" or
+## &"junk". There was no signal for it, so the hull just dropped (item 9).
+signal hull_burned(amount: int, cause: StringName)
+## A shot SEEN landing, emitted by the screen when the tracer arrives, not when
+## the maths ran. The impact sound and the view's kick hang off this, so they
+## happen on the frame the hit does (audit F1, F2; memory sound-follows-what-
+## you-see). Headless, nothing draws, so nothing emits it.
+signal hit_landed(amount: int, to_player: bool, who: int, absorbed: int)
 
 # Party. Emitted by NetSession only. The session layer is a system like any
 # other here — it never touches a screen, it says what happened and the lobby
