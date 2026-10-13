@@ -364,19 +364,19 @@ func keywords() -> Array:
 	if lock_on > 0:
 		out.append(["Lock on", "Your next attack this turn deals this much more."])
 	if vent > 0 or vent_all:
-		out.append(["Vent", "Sheds heat. The one corner on a card that runs backwards."])
+		out.append(["Vent", "Sheds heat. Its heat corner shows a minus number."])
 	if drone_damage > 0 or drone_brace > 0:
 		out.append(["Drone", "Keeps fighting after the card is gone. It stays out until the fight ends."])
 	if fused:
-		out.append(["Fused", "It is not discarded at the end of your turn. Discarding it works; it just costs you a card."])
+		out.append(["Fused", "It is not discarded at the end of your turn. Discarding it costs you the card that does it."])
 	if hand_damage > 0:
 		out.append(["Corrode", "Damage at the end of your turn, for as long as it is still in your hand."])
 	if hand_heat > 0:
 		out.append(["Smoulder", "Heat at the end of your turn, for as long as it is still in your hand."])
 	if decommission > 0 or self_decommission:
-		out.append(["Decommission", "Off the books for the rest of this fight. It does not come back when the deck reshuffles."])
+		out.append(["Decommission", "Removed for the rest of this fight. It does not return when the deck reshuffles."])
 	if discard > 0 or discard_hand:
-		out.append(["Discard", "Straight to the discard pile, and back in the deck when that pile reshuffles."])
+		out.append(["Discard", "Goes to the discard pile, and back into the deck when that pile reshuffles."])
 	if evoke > 0:
 		out.append(["Evoke", "Adds this much for each drone you have out."])
 	if credit_cost > 0:
@@ -386,7 +386,7 @@ func keywords() -> Array:
 		# this, it simply does nothing except leave — and with the card printing
 		# nothing but PURGE, that it does nothing else is the obvious reading
 		# rather than a second thing to be told.
-		out.append(["Purge", "Removes this card from combat. Returns next combat."])
+		out.append(["Purge", "Removes this card from combat. It returns next combat."])
 	return out
 
 ## The same line, with every explainable word marked up.
