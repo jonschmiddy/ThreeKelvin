@@ -247,6 +247,13 @@ func arrive(bob_amp: int = 2, delay: float = 0.0) -> StringName:
 	_bob_amp = 0
 	_bob_off = 0
 	_burning = true
+	# UNSEEN UNTIL IT IS OFF SCREEN. The span is taken on the first tick with a
+	# layout (`_tick_arrival`), and a screen built this frame has none, so the
+	# ship stood at its mooring for one frame and then vanished to fly in (the
+	# arrival into an ambush, filmed: `-- sheet=FightOpenFilm entry=ambush`).
+	if _arrive_span <= 0 and visible:
+		_arrive_hid = true
+		visible = false
 	set_process(true)
 	refresh()
 	# THE WEIGHT IS THE HULL'S, NOT THE SCREEN'S. A convoy is four ships of
@@ -783,6 +790,7 @@ func _tick_arrival() -> bool:
 			return false
 		_arrive_span = int(ceil(global_position.x + size.x)) + 16
 		position.x = -float(_arrive_span)
+		_unhide_arrival()
 
 	# Still waiting its turn. Held off screen rather than parked at rest, so a
 	# staggered convoy does not show three ships standing still while the first
@@ -1112,6 +1120,15 @@ func _body_middle(img: Image) -> float:
 		return float(img.get_height()) * 0.5
 	return (float(top) + float(bot)) * 0.5
 
+## Hidden by `arrive` until its first real tick; shown again by that, or by a park.
+var _arrive_hid := false
+
+func _unhide_arrival() -> void:
+	if _arrive_hid:
+		_arrive_hid = false
+		visible = true
+
+
 ## At rest, wherever that was decided.
 ##
 ## ONE END STATE, THREE CALLERS: the approach finishing, a departure beginning,
@@ -1122,6 +1139,7 @@ func _body_middle(img: Image) -> float:
 ## Safe on a view that never left. `_arrive_bob` is 2 unless somebody asked for
 ## less, and everything else here is already where this puts it.
 func park() -> void:
+	_unhide_arrival()
 	_arrive_at = -1
 	_arrive_dx = 0
 	_arrive_span = 0

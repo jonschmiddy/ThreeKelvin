@@ -1672,7 +1672,7 @@ func _wrecks() -> Array[Rect2]:
 static func sync(view: Control, n: MapGen.MapNode, fighting: bool) -> LocalSubject:
 	var cur: LocalSubject = null
 	for c in view.get_children():
-		if c is LocalSubject:
+		if c is LocalSubject and not (c as Node).has_meta(&"leaving"):
 			cur = c
 	var opt := -1
 	if n != null and not fighting:
@@ -1687,7 +1687,13 @@ static func sync(view: Control, n: MapGen.MapNode, fighting: bool) -> LocalSubje
 	if cur != null and cur.key == want:
 		return cur
 	if cur != null:
-		cur.queue_free()
+		# A FIGHT TAKES THE SCENE, AND THE SUBJECT GOES BY FADING: it used to be
+		# gone on the frame the fight opened, over the hand coming up
+		# (`SectorScreen._raise_band`).
+		if fighting and want == "" and Router.animating() and cur.is_visible_in_tree():
+			fade_out(cur)
+		else:
+			cur.queue_free()
 		cur = null
 	if want == "":
 		return null
@@ -1700,6 +1706,9 @@ static func sync(view: Control, n: MapGen.MapNode, fighting: bool) -> LocalSubje
 	cur.sky = view.get("backdrop") as LocalSky
 	var area: Variant = view.get("_area")
 	cur._area = area as Control if area is Control else null
+	# the stand-in goes as the subject comes, not a frame later (`_process`)
+	if cur._area != null:
+		cur._area.visible = false
 	view.add_child(cur)
 	# in the scene's depth: in front of the sky and its weather, behind the hulls
 	var w: Variant = view.get("weather")
@@ -1709,12 +1718,27 @@ static func sync(view: Control, n: MapGen.MapNode, fighting: bool) -> LocalSubje
 	return cur
 
 
-## The subject on a view, if one is drawn there.
+## The subject on a view, if one is drawn there (one fading out is not).
 static func of(view: Control) -> LocalSubject:
 	for c in view.get_children():
-		if c is LocalSubject and not (c as Node).is_queued_for_deletion():
+		if c is LocalSubject and not (c as Node).is_queued_for_deletion() \
+				and not (c as Node).has_meta(&"leaving"):
 			return c
 	return null
+
+
+## How long a subject takes to go when a fight takes the scene: LOCAL's line
+## fading off the band (`SectorScreen.BAND_FADE_S`). The contacts wait for it
+## (`SectorScreen._raise_band`), so they never fly in across what it showed.
+const FADE_OUT_S := 0.18
+
+
+## Gone over `FADE_OUT_S`, then freed; no longer the view's subject meanwhile.
+static func fade_out(s: LocalSubject) -> void:
+	s.set_meta(&"leaving", true)
+	var tw := s.create_tween()
+	tw.tween_property(s, "modulate:a", 0.0, FADE_OUT_S)
+	tw.tween_callback(s.queue_free)
 
 
 func _build() -> void:

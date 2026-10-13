@@ -523,6 +523,28 @@ else
 	bad "gameclocktest did not finish"
 fi
 
+step "A fight opens by easing up out of LOCAL, not with a pop"
+# Jon, Oct 13: "When the enemy ship enters.... the ships pop up and the drawer
+# pops into view.... can we have the opposite of the fight ending screen".
+# Animated headless at 60 fps, through the real screens: the core's ENGAGE, an
+# event's THEY ARE FIRING, a pack of three started on LOCAL, and an ambush met
+# on arrival. Every frame: nothing (your ship, plate, bands, rails, each
+# contact's box, readout and intent) jumps over 10 px or pops in or out, no
+# frame is faded dark, nothing overlaps the rising band, no card / END TURN /
+# FLEE / HAIL / pile takes a click before the band settles (and they do after);
+# an ambush keeps its contacts and hand until your ship has arrived.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot fightopentest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=FightOpenTest; then
+	if grep -qE '^fightopentest: PASS' "$LOG_DIR/fightopentest.log"; then
+		ok "the fight's hand comes up out of LOCAL, eased, and takes no early click"
+	else
+		bad "a fight's opening jumped, popped, went dark or took an early click"
+		grep -E 'FAIL|^fightopentest' "$LOG_DIR/fightopentest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "fightopentest did not finish"
+fi
+
 step "Dying: your ship breaks up, a beat on the wreck, then the run's screen"
 # Jon, Oct 13: "When you die... let's have your ship crack and explode... pause
 # for a beat... then the run ended popup shows up." The same fight twice from
