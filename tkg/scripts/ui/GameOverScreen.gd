@@ -10,11 +10,26 @@ const WIN_TITLE := "YOU WON"
 ## buttons. Null on the death screen.
 var card: NoteCard = null
 
-func setup() -> void:
+## `still`: the picture the run ended on (`DeathHandoff`), drawn under the
+## panel in place of the sky; `look`: how the panel arrives over it, &"rise"
+## (fades and rises in) or &"type" (RUN ENDED typed in, then the rest).
+func setup(still: Texture2D = null, look: StringName = &"") -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	if Run.won:
 		_win()
 		return
+	if still != null:
+		# The whole game picture, wherever this screen sits in it.
+		# (not top_level: that draws it over everything, the panel included)
+		var pic := TextureRect.new()
+		pic.texture = still
+		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		pic.stretch_mode = TextureRect.STRETCH_SCALE
+		pic.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(pic)
+		_still = pic
+		_place_still()
 	var centre := CenterContainer.new()
 	centre.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(centre)
@@ -32,7 +47,8 @@ func setup() -> void:
 	var title := UITheme.body("RUN ENDED", UITheme.BAD, UITheme.FS_HEAD)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
-	box.add_child(_stats())
+	_stats_label = _stats()
+	box.add_child(_stats_label)
 
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -48,6 +64,67 @@ func setup() -> void:
 		UITheme.flat(Color(UITheme.PANEL, UITheme.PANEL_A), UITheme.LINE, 0, 14, 18))
 	panel.add_child(box)
 	centre.add_child(panel)
+	if still != null and look != &"":
+		_arrive(centre, panel, title, [_stats_label, row, said], look)
+
+
+var _stats_label: Control = null
+var _still: TextureRect = null
+
+
+## The kept picture over the whole game picture, wherever this screen has been
+## laid out: the HUD going away moves this screen up a frame after it arrives.
+func _place_still() -> void:
+	if _still == null or not is_inside_tree():
+		return
+	_still.position = -get_global_transform().origin
+	_still.size = get_viewport_rect().size
+
+
+func _process(_d: float) -> void:
+	if _still != null:
+		_place_still()
+
+## THE PANEL ARRIVES over the picture the run ended on, and nothing can be
+## pressed until its buttons are up.
+func _arrive(centre: Control, panel: Control, title: Label, rest: Array, look: StringName) -> void:
+	var buttons: Array[Button] = []
+	for b in find_children("*", "Button", true, false):
+		(b as Button).disabled = true
+		buttons.append(b)
+	var block := Control.new()
+	block.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	block.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(block)
+	var tw := create_tween()
+	if look == &"type":
+		# On the dark screen: the panel's ground, then RUN ENDED a letter at a
+		# time, then what it says under it.
+		panel.self_modulate.a = 0.0
+		title.visible_characters = 0
+		for r in rest:
+			(r as CanvasItem).modulate.a = 0.0
+		tw.tween_property(panel, "self_modulate:a", 1.0, 0.15)
+		tw.tween_property(title, "visible_characters", title.text.length(), 0.05 * title.text.length())
+		var first := true
+		for r in rest:
+			if first:
+				tw.tween_property(r, "modulate:a", 1.0, 0.25)
+				first = false
+			else:
+				tw.parallel().tween_property(r, "modulate:a", 1.0, 0.25)
+	else:
+		# Fades and rises in, 10 px.
+		centre.modulate.a = 0.0
+		centre.position.y += 10.0
+		var y0 := centre.position.y - 10.0
+		tw.tween_property(centre, "modulate:a", 1.0, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(centre, "position:y", y0, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_callback(func() -> void:
+		for b in buttons:
+			if is_instance_valid(b):
+				b.disabled = false
+		block.queue_free())
 
 
 ## THE WIN: Jon's note as a letter, the same look as his welcome note

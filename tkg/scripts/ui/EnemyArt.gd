@@ -388,6 +388,24 @@ func snapshot() -> Image:
 ## static var crashed the engine on its way out (moontest and laddertest passed
 ## and then exited 139).
 static var _wrecks: Dictionary = {}
+## Wrecks that carry their fight's hit marks (Jon's picks, Oct 13): by where
+## they lie (`node index * 64 + nth wreck there`, the same place the death style
+## is rolled from), each {style, img}. Cut from the damaged picture when the
+## ship died, so the slot's wreck and LOCAL's afterwards are the breakup's last
+## frame, marks and all. This session only: a saved run comes back to clean
+## wrecks.
+static var _marked: Dictionary = {}
+
+## THE HIT MARKS this ship carries, when a fight has given it some
+## (`HitLayers.hits`): baked into the picture as it is drawn, under the dark
+## blend, so the wreck cut from the picture keeps them too.
+var marks: ShipHitFx = null
+## Where this ship's wreck will lie (`node * 64 + nth`), or -1.
+var wreck_id: int = -1
+
+static func set_marked_wreck(id: int, style: int, img: Image) -> void:
+	if id >= 0 and img != null:
+		_marked[id] = {style = style, img = img}
 static var _wreck_tasks: Dictionary = {}
 
 static func _wreck_key(t: EnemyTemplate, max_hp: int, style: int, look: int, scale: float = 1.0) -> String:
@@ -402,7 +420,7 @@ static func warm_wreck(e: Combat.EnemyState, style: int, scale: float = 1.0) -> 
 	var key := _wreck_key(e.template, e.max_hp, style, e.look, scale)
 	if _wrecks.has(key) or _wreck_tasks.has(key):
 		return
-	var dc := dead_canvas(e, scale)
+	var dc := dead_canvas(e, null, scale)
 	var img: Image = dc[0]
 	var used: Rect2i = dc[1]
 	var seed := wreck_seed(e.template)
@@ -428,8 +446,10 @@ static func _take_wreck(key: String) -> Image:
 ## dead draw -- the slot, LOCAL's wreck -- are one image to the pixel; the live
 ## picture's wound depends on the hull it had, which nothing after the kill
 ## knows. The difference is hidden under the hit's flash.
-static func dead_canvas(e: Combat.EnemyState, scale: float = 1.0) -> Array:
+static func dead_canvas(e: Combat.EnemyState, with_marks: ShipHitFx = null, scale: float = 1.0) -> Array:
 	var art := EnemyArt.new()
+	art.marks = with_marks
+	# at the size the pack draws it (`draw_scale`: 0.5 from its half sheet)
 	art.draw_scale = scale
 	var ghost := Combat.EnemyState.new()
 	ghost.template = e.template
@@ -473,6 +493,10 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	var sig := "%s|%s|%d|%d|%d|%d|%d" % [e.template.id, e.template.art, int(telegraphing),
 		int(wounded * 20.0), int(e.max_hp > 60), int(dead), int(cut_wreck) * (style + 2)]
 	sig += "|look %d|scale %.3f" % [e.look, draw_scale]
+	if marks != null:
+		sig += "|marks %d" % marks.version
+	if dead and _marked.has(wreck_id):
+		sig += "|marked"
 	if sig == _sig:
 		return
 	_sig = sig
@@ -500,6 +524,10 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	if not _draw_sprite(e, wounded, telegraphing):
 		_draw_coded(e, wounded, telegraphing)
 	_track = false
+	if marks != null:
+		var mi := marks.marks()
+		if mi != null:
+			_img.blend_rect(mi, Rect2i(Vector2i.ZERO, mi.get_size()), marks.marks_at())
 	_used = _bounds if _bounds.size != Vector2i.ZERO else Rect2i(0, 0, W, H)
 
 	# And the Control shrinks to fit it. The canvas is a fixed 240x120 while a
@@ -530,6 +558,9 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 		var st := style if style >= 0 else _default_style(e.template)
 		var key := _wreck_key(e.template, e.max_hp, st, e.look, draw_scale)
 		var w := _take_wreck(key)
+		var mk: Dictionary = _marked.get(wreck_id, {})
+		if not mk.is_empty() and int(mk.style) == st:
+			w = mk.img
 		if w == null:
 			w = ShipBreakup.wreck_image(_img, _used, wreck_seed(e.template),
 				e.template.boss, st)
@@ -554,10 +585,11 @@ func _draw_sprite(e: Combat.EnemyState, wounded: float, telegraphing: bool) -> b
 	var ink := _bounds
 	# Damage, on the hull and sized to it. `_wound` is the one the coded ships
 	# use, so a sprite is hurt the way a drawing is.
-	if wounded < 0.5:
+	# A fight's hit marks stand in for the two stock wounds (`marks`).
+	if wounded < 0.5 and marks == null:
 		var p := _on_hull(ink, Vector2(0.42, 0.55))
 		_wound(p.x, p.y, clampi(ink.size.x / 9, 10, 22), clampi(ink.size.y / 6, 7, 14))
-	if wounded < 0.25:
+	if wounded < 0.25 and marks == null:
 		var q := _on_hull(ink, Vector2(0.7, 0.42))
 		_wound(q.x, q.y, clampi(ink.size.x / 13, 8, 16), clampi(ink.size.y / 8, 6, 10))
 	if telegraphing:

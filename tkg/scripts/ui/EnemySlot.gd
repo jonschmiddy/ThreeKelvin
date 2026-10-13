@@ -74,6 +74,14 @@ var shown_hp: int = -1
 ## Which `ShipBreakup` style this ship dies in (or died in), so a dead slot
 ## draws the wreck that death left. -1: its pool's first.
 var death_style: int = -1
+## Where this ship's wreck will lie (`node * 64 + nth`), or -1: keys its
+## marked wreck and seeds its hit effects, so they are the same on every screen.
+var wreck_id: int = -1
+## This ship's hits, block and brace, drawn (`HitLayers`), once a fight arms it.
+var layers: HitLayers = null
+var _bound_e = null
+var _bound_tel := false
+var _baked := -1
 ## Where the art sits at rest inside its holder. The holder is the ship's own
 ## box (`_fit_holder`), not the canvas, so the canvas, drawn centred, sits at a
 ## negative offset inside it.
@@ -131,9 +139,29 @@ func holder_rect() -> Rect2:
 	return Rect2(_art_holder.global_position, _art_holder.size)
 
 
+## Lay this ship's `HitLayers` over its picture, from the picture as drawn now.
+func _arm(e) -> void:
+	art.set_enemy(e, false, shown_hp, true, death_style)
+	layers = HitLayers.new()
+	layers.size = art.size
+	var seed := int(Rng.derive(&"hitfx", wreck_id).randi() & 0x7fffffff)
+	# shots come from your side, the left
+	# marks at the picture's own scale: 0.5 on a half sheet (`EnemyArt.draw_scale`)
+	layers.setup(art.snapshot(), art.used_rect(), seed, -1, e.max_hp, art.draw_scale, true)
+	art.marks = layers.hits
+	_art_holder.add_child(layers)
+
+
 func _process(_dt: float) -> void:
 	if _art_holder == null:
 		return
+	if layers != null:
+		layers.position = art.position
+		# a crack runs over several frames after the shot that made it: the
+		# picture the marks are baked into catches up as it does
+		if layers.hits.version != _baked and _bound_e != null and not _dead:
+			_baked = layers.hits.version
+			art.set_enemy(_bound_e, _bound_tel, shown_hp, true, death_style)
 	# ROUNDED. A sub-pixel offset resamples the sprite and undoes the
 	# nearest-neighbour crispness the whole art direction rests on.
 	var t := float(Time.get_ticks_msec()) / 1000.0
@@ -297,9 +325,20 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	index = i
 	var hull: int = e.hp if shown_hp < 0 else shown_hp
 	_dead = hull <= 0
+	# A LIVE SHIP IN A FIGHT carries its damage, block and brace on its picture
+	# (`HitLayers`); armed the first time it is bound alive with a place to lie.
+	if layers == null and not _dead and wreck_id >= 0:
+		_arm(e)
+	art.wreck_id = wreck_id
+	_bound_e = e
+	_bound_tel = telegraphed
+	if layers != null:
+		_baked = layers.hits.version
 	_last_e = e
 	_last_tele = telegraphed
 	art.set_enemy(e, telegraphed, shown_hp, true, death_style)
+	if layers != null and _dead:
+		layers.visible = false
 	_fit_holder()
 	art.modulate = Color(0.4, 0.4, 0.45) if _dead else Color.WHITE
 	_reserve_for(e.template)
@@ -452,6 +491,14 @@ func apply_scale(s: float) -> void:
 	if art == null or is_equal_approx(art.draw_scale, s):
 		return
 	art.set_draw_scale(s)
+	# the hit layers were fitted to the picture at its old size: fitted again to
+	# this one (a pack's size is set once, as its fight opens, before any hit)
+	if layers != null and _last_e != null and not _dead:
+		var old := layers
+		layers = null
+		art.marks = null
+		old.queue_free()
+		_arm(_last_e)
 	if _last_e != null:
 		art.set_enemy(_last_e, _last_tele, shown_hp, true, death_style)
 	_fit_holder()
@@ -732,6 +779,9 @@ func hide_art(on: bool) -> void:
 		# The whole colour, not just the alpha: a hit's white flash may still be
 		# on it, and bringing the wreck back at 2.4x white was a bright ghost.
 		art.self_modulate = Color(1, 1, 1, 0.0 if on else 1.0)
+	# the bubble, the armour and the light go with the ship, and a wreck has none
+	if layers != null:
+		layers.visible = not on and not _dead
 
 
 ## AND SO DOES THE CURSOR. `mouse_default_cursor_shape` is a property of the

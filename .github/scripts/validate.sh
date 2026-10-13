@@ -472,6 +472,41 @@ else
 	bad "deathpooltest did not finish"
 fi
 
+step "Hits, block and brace drawn on every ship in a fight"
+# Through the real screen, a pack of three: each ship carries its hit marks, the
+# bubble for block and the plated overlay for brace; every kind of landing
+# makes its visual (soak, fizzle, armour taking it and shedding, a mark); a
+# kill's wreck keeps its marks, in the slot and on LOCAL.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot hitfxlivetest 120 --headless --path "$PROJECT" -- sheet=HitFxLiveTest; then
+	if grep -qE '^hitfxlivetest: PASS' "$LOG_DIR/hitfxlivetest.log"; then
+		ok "every landing draws, and the wreck keeps its marks"
+	else
+		bad "a hit, the bubble or the armour did not draw"
+		grep -E 'FAIL|^hitfxlivetest' "$LOG_DIR/hitfxlivetest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "hitfxlivetest did not finish"
+fi
+
+step "Dying: your ship breaks up, a beat on the wreck, then the run's screen"
+# Jon, Oct 13: "When you die... let's have your ship crack and explode... pause
+# for a beat... then the run ended popup shows up." The same fight twice from
+# one seed, 5 hull into Strafe 5 through END TURN: animated, the hull comes
+# apart (a ship style, boss length, mirrored for a right-facing ship, over the
+# hull, the explosion after the break) and RUN ENDED waits for it and the hold;
+# without motion, RUN ENDED at once; the run left behind identical both ways.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot playerdeathtest 180 --headless --path "$PROJECT" -- sheet=PlayerDeathTest; then
+	if grep -qE '^playerdeathtest: PASS' "$LOG_DIR/playerdeathtest.log"; then
+		ok "your ship breaks up before the run ends, and the run is the same"
+	else
+		bad "the death's breakup or its timing failed"
+		grep -E 'FAIL|^playerdeathtest' "$LOG_DIR/playerdeathtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "playerdeathtest did not finish"
+fi
+
 step "Beating the core's boss: its body looted, then the win screen"
 # Jon, Oct 12: the custodian's body lootable, then a win popup with the death
 # screen's music. ENGAGE at the core, the custodian killed through the real

@@ -84,6 +84,25 @@ vec2 bakeUV(vec2 p) { return (p + SOLID_EXT) / (2.0 * SOLID_EXT); }
 // (`ChartSky.diag` 4096, the harness's solidtest: each block writes the point of the
 // disc's plane it shows, gu, in place of its light)
 uniform bool diag_plane = false;
+// THE NEAR LANE, LIGHT (Jon, of LEGACY solid: "brighter and crisper, closer to flat LEGACY
+// up close"): the shared lane across the core (`solidLane`) is SIMPLIFIED's dust, thick
+// enough to shade the whole near disc below the core in LEGACY's lighter gas -- at Jon's
+// framing it alone took the picture from 96% of the flat chart's light to 89%. LEGACY
+// keeps a trace of it, its optical depth this share, as a darker version of its own colours.
+const float LANE_K = 0.12;
+// how much nearer the solid look's camera brings the disc's stars at a point of the flat
+// chart (px from the galaxy's centre), 1 at the least: the square root of its
+// magnification there (across x up, the geometric mean, as `fragment`'s near side). The
+// whole magnification put a fifth more stars on the near arms and its stars' own steps
+// as the picture slid lifted the drag's shimmer 0.195 -> 0.203; half of it keeps 0.195.
+float camMag(vec2 f) {
+	if (!u_solid) {
+		return 1.0;
+	}
+	vec2 dd = vec2(f.x, f.y / KIT_TILT) / u_k - u_solidT;
+	float sc = u_solidW.x / max(u_solidW.x - dd.y * u_solidW.z, 1e-3);
+	return sqrt(max(sc * sqrt(sc * u_solidW.y / KIT_TILT), 1.0));
+}
 // THE RELIEF IN LEGACY'S OWN COLOURS (Jon: "I want them to have the original rich colors
 // for each style"; and of LEGACY's middle, "it's like muddy"): `terrShade` lights flat
 // ground at the core's low angle at 0.73 of its own light (`TERR_FLAT`), so the relief
@@ -1727,7 +1746,7 @@ void fragment() {
 		// (as a darker version of LEGACY's own colours: the lane's own reddening is
 		// SIMPLIFIED's dust colour)
 		vec3 ln = solidLane(rf0);
-		light *= dot(ln, vec3(0.3, 0.59, 0.11));
+		light *= pow(dot(ln, vec3(0.3, 0.59, 0.11)), LANE_K);
 	}
 	vec3 disp = g_tone(light);
 	float flag = (keep ? 0.75 : 1.0);
@@ -1753,7 +1772,12 @@ void fragment() {
 			float yd0 = lys / eff;
 			float r0 = length(vec2(lxs, yd0)) / z;
 			float a0 = atan(yd0, lxs) + phi + wk(r0) * t;
-			float u = 2.0 * log2(max(z, 1e-3));
+			// (and on the near side, where the camera magnifies the disc, the levels a zoom
+			// that much closer would show, so its arms keep the flat chart's sprinkle of
+			// stars rather than the far side's spread thin: `camMag`, taken at each star's
+			// own place, so a star comes or goes with the galaxy, never with the block it
+			// happens to fall in as the picture slides)
+			float u = 2.0 * log2(max(z * camMag(rel), 1e-3));
 			int lb = int(floor(u)) - 2;
 			bool found = false;
 			for (int kl = 0; kl < 4; kl++) {
@@ -1766,8 +1790,8 @@ void fragment() {
 				// the share of its cells the level lights: the density wanted
 				// at its own zoom (the levels before it, spread apart, make up
 				// the other half)
-				float fkl = filler_k * (0.16 * (pow(zbl, -0.45) - pow(zbl, -2.0)) * (1.0 + 0.35 * g_sm(1.8, 8.0, zbl))) * wl * 0.5;
-				if (fkl <= 0.0) {
+				float fkb = filler_k * (0.16 * (pow(zbl, -0.45) - pow(zbl, -2.0)) * (1.0 + 0.35 * g_sm(1.8, 8.0, zbl))) * 0.5;
+				if (fkb <= 0.0 || wl <= 0.0) {
 					continue;
 				}
 				vec2 gc = vec2(cos(a0), sin(a0)) * r0 * zbl;
@@ -1784,13 +1808,18 @@ void fragment() {
 						}
 						ivec2 cell = c0 + ivec2(jx, jy);
 						float h = g_hash(cell.x * 3 + 17, cell.y * 5 + L * 7919);
-						if (h > fkl * 1.7) {
+						if (h > fkb * 1.7) {
 							continue;
 						}
 						vec2 gp = vec2(cell);
 						float rr = length(gp);
 						float sa = atan(gp.y, gp.x) - (phi + wk(rr / zbl) * t);
 						vec2 sp = vec2(cos(sa) * rr, sin(sa) * rr * eff) * (z / zbl);
+						float us = 2.0 * log2(max(z * camMag(sp), 1e-3));
+						float fkl = fkb * clamp(us - float(L) + 1.0, 0.0, 1.0) * clamp(float(L) + 3.0 - us, 0.0, 1.0);
+						if (h > fkl * 1.7) {
+							continue;
+						}
 						// (where the camera shows it)
 						vec2 spx = floor(cpix + solidV(sp) + 0.5);
 						if (floor((spx - vp_origin) * 0.5) != vp) {
@@ -1924,12 +1953,10 @@ void fragment() {
 			vec2 spb = vp_origin + vp * 2.0 + 1.0 - view_c;
 			// (the far nebulae thin away well before the galaxy's faintest light: its
 			// rim meets dark sky, never a far cloud -- `bgNebSeen`)
-			// (with the dissolving edge the disc's light fades out over a long stretch, so
-			// they also keep clear of where the disc is, out past the fade's end: SIMPLIFIED's
-			// `nebGap`)
-			float rpl = length(vec2(lxs, lys / eff)) / (z * big_r);
-			float nebGap = u_edge.w > 0.0 ? smoothstep(u_edge.y + 0.05, u_edge.y + 0.45, rpl) : 1.0;
-			vec3 bl = bgLightChart(spb, 1.0, (1.0 - smoothstep(13.0, 21.0, g_lum(d255))) * nebGap, 20.0);
+			// (and no more than that: a gap kept out past the dissolving edge's end as
+			// well cut a black band round the disc where nothing stands -- Jon, Oct 13:
+			// "it doesn't make sense")
+			vec3 bl = bgLightChart(spb, 1.0, 1.0 - smoothstep(13.0, 21.0, g_lum(d255)), 20.0);
 			vec3 bs = g_tone(bl * 1.2) * 255.0;
 			if (g_lum(bs) > g_lum(d255) + 2.0) {
 				d255 = bs;

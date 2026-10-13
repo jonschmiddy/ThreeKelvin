@@ -447,6 +447,8 @@ func show_wrecks(wrecks: Array, on_open: Callable) -> void:
 		_made[i].opened = on_open.bind(h)
 		# The style it died in, from where it lies -- the same roll the kill made.
 		_made[i].death_style = EnemyArt.death_style(t, Run.node_at().index, i)
+		# and where it lies, so the marks its fight left are on it
+		_made[i].wreck_id = Run.node_at().index * 64 + i
 		_made[i].bind(i, ghost, false)
 		# What is still in it, on the label. `ship_changed` re-runs the screen's
 		# refresh on every take, so the number follows the hand emptying it.
@@ -549,6 +551,8 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 		var e = list[i]
 		if death_style.is_valid():
 			_made[i].death_style = int(death_style.call(i))
+		if wreck_id.is_valid():
+			_made[i].wreck_id = int(wreck_id.call(i))
 		_made[i].bind(i, e, e.intent != null and e.intent.telegraph)
 	# A NEW SLOT IS AN ARRIVAL: a fight opening. Flown in
 	# AFTER the bind, because the bind sizes the slot to its ship and the
@@ -922,6 +926,9 @@ func chips_for(i: int) -> HBoxContainer:
 ## Which style enemy `i` of this fight dies in, asked by the slots before they
 ## draw (the fight's screen knows where the wrecks will lie).
 var death_style: Callable
+## Where each fight slot's wreck will lie (`node * 64 + nth`), by index: keys the
+## slot's marked wreck and seeds its hit effects (`EnemySlot.wreck_id`).
+var wreck_id: Callable
 
 ## Forwarded to every slot: what a held card would do to that target.
 var preview: Callable:
@@ -1996,6 +2003,8 @@ class ConvoySlot extends Control:
 	func bind(slot: Dictionary) -> void:
 		var b: ShipBuild = Net.build_of(peer)
 		var who := String(slot.get("name", "")).to_upper()
+		var was_lost := _lost
+		var was_engaged := _engaged
 		if b == null:
 			# In the party, not yet in a ship. A name with no readouts under it
 			# says that better than a full hull bar on a ship nobody is flying.
@@ -2011,8 +2020,45 @@ class ConvoySlot extends Control:
 			_lost = b.dead
 		var f := Net.fight_at(Run.at) if not Run.map.is_empty() else null
 		_engaged = f != null and not f.over and f.crew.has(peer)
+		# A PARTNER LOST IN YOUR FIGHT COMES APART where you can see it, as
+		# your own ship does (`ShipLoss`). Only a ship this slot has shown
+		# alive: a slot built for somebody already lost shows the grey hull.
+		if b != null and not _lost:
+			_seen_alive = true
+		elif _lost and not was_lost and _seen_alive and (was_engaged or _engaged) \
+				and Router.animating() and _wreck == null:
+			_break_up()
 		art.modulate = Color(0.45, 0.45, 0.52) if _lost else Color.WHITE
 		queue_redraw()
+
+	var _seen_alive := false
+	var _wreck: ShipBreakup = null
+
+	func _break_up() -> void:
+		var pic := ShipLoss.picture(art)
+		if pic.is_empty():
+			return
+		var n := Run.node_at().index
+		var pre := ShipLoss.prebuild(pic, ShipLoss.style_for(n, peer), ShipLoss.seed_for(n, peer))
+		# Cut off the main thread; the hull stays up until the cut is ready.
+		while not ShipLoss.is_cut(pre):
+			await get_tree().process_frame
+		if not is_inside_tree() or _leaving:
+			WorkerThreadPool.wait_for_task_completion(pre.task)
+			if pre.held.b != null:
+				(pre.held.b as Node).free()
+			return
+		var b := ShipLoss.play(pre, self, art)
+		if b == null:
+			return
+		_wreck = b
+		# The hull goes; the slot's own name and LOST stay over it.
+		art.self_modulate.a = 0.0
+		b.broke.connect(func(s: float) -> void:
+			Audio.play_kill(-1, -4.0 if s >= 0.6 else -10.0))
+		# The wreck in the same grey a lost ship is drawn in.
+		b.finished.connect(func() -> void:
+			b.modulate = Color(0.45, 0.45, 0.52))
 
 	func _draw() -> void:
 		# Nothing without a hull under it. The label and the gauges are painted
