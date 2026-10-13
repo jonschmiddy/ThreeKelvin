@@ -226,25 +226,40 @@ func _check_loot(body: MapGen.Jetsam) -> void:
 		_fail("no body to look in")
 		return
 	var parts := 0
-	var legendary := 0
-	var epic_up := 0
+	var precursor := 0
+	var branded_legendary := 0
+	var ids := {}
 	var shadow := false
 	for it in body.items:
 		if it is ModuleData:
+			var m := it as ModuleData
 			parts += 1
-			var r := int((it as ModuleData).rarity)
-			if r >= ModuleData.Rarity.LEGENDARY:
-				legendary += 1
-			if r >= ModuleData.Rarity.EPIC:
-				epic_up += 1
+			ids[m.id] = true
+			if m.rarity == ModuleData.Rarity.ARTIFACT:
+				precursor += 1
+			elif m.rarity == ModuleData.Rarity.LEGENDARY and m.manufacturer != &"":
+				branded_legendary += 1
 		elif it is MaterialData and (it as MaterialData).id == &"custodian_shadow":
 			shadow = true
 	print("    body: %s" % ", ".join(body.items.map(func(m: HoldItem) -> String:
-		return "%s (%s)" % [m.name, ModuleData.Rarity.keys()[int(m.rarity)] if m is ModuleData else "material"])))
+		return "%s (%s%s)" % [m.name, ModuleData.Rarity.keys()[int(m.rarity)] if m is ModuleData else "material",
+			(" " + String((m as ModuleData).manufacturer)) if m is ModuleData and (m as ModuleData).manufacturer != &"" else ""])))
 	_ok("the body holds %d parts (want %d)" % [parts, Combat.CORE_PARTS], parts == Combat.CORE_PARTS)
-	_ok("at least one legendary or better (%d)" % legendary, legendary >= 1)
-	_ok("every part epic or better (%d of %d)" % [epic_up, parts], epic_up == parts)
+	_ok("two precursor parts (%d)" % precursor, precursor == Combat.CORE_PRECURSOR)
+	_ok("two branded legendary parts (%d)" % branded_legendary, branded_legendary == Combat.CORE_LEGENDARY)
+	_ok("no part twice", ids.size() == parts)
 	_ok("and the instrument shadow", shadow)
+	# THE SAME BODY ON EVERY MACHINE: rolled by where it is, so a second roll at
+	# the same place and wreck count holds the same parts in the same order.
+	var again := MapGen.MapNode.new()
+	again.index = Run.node_at().index
+	var twin := Combat.core_body(again, DB.enemies[&"custodian"])
+	var same := twin.items.size() == body.items.size()
+	if same:
+		for i in body.items.size():
+			if body.items[i] is ModuleData and (twin.items[i] as ModuleData).id != (body.items[i] as ModuleData).id:
+				same = false
+	_ok("and it is rolled by place: the same body again at the same spot", same)
 
 
 func _check_win_screen(when: String) -> void:
@@ -256,7 +271,9 @@ func _check_win_screen(when: String) -> void:
 	_ok("  it says YOU WON", _find(go, func(n: Node) -> bool:
 		return n is Label and (n as Label).text == "YOU WON") != null)
 	var note := _find(go, func(n: Node) -> bool: return n.name == &"AlphaThanks") as Label
-	_ok("  Jon's note is on it, word for word", note != null and note.text == GameOverScreen.ALPHA_THANKS)
+	_ok("  Jon's note is on it, word for word", note != null and note.text == GameOverScreen.ALPHA_THANKS
+		and note.text == AlphaNotes.ALPHA_THANKS
+		and note.text.ends_with("the game of my dreams.\n\n<3\n\nJon"))
 	_ok("  the stats are on it", _find(go, func(n: Node) -> bool:
 		return n is Label and (n as Label).text.contains("jumps ·")) != null)
 	_ok("  with TITLE, NEW RUN and SAVE MY LOGS", _button(go, "TITLE") != null

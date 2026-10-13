@@ -29,4 +29,6 @@ As I mentioned in the welcome message, please reach out to me with bugs, ideas a
 
 Thanks again for helping me build the game of my dreams.
 
+<3
+
 Jon"""

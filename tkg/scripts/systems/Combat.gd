@@ -1069,14 +1069,19 @@ func flee() -> void:
 	_finish(&"fled", "You burned %d fuel breaking contact. No salvage."
 		% (FLEE_FUEL + (FLEE_FUEL_PARTIAL if band == SkillCheck.Band.PARTIAL else 0)))
 
-## WHAT THE CUSTODIAN'S BODY HOLDS: four parts and the instrument shadow.
+## WHAT THE CUSTODIAN'S BODY HOLDS: two precursor parts, two branded
+## legendaries, and the instrument shadow (Jon, Oct 13, option C of three: the
+## first version took the best of any rarity and came back nearly all
+## precursor).
 ##
 ## Generous because it is the last thing a run pays, and nothing after it
-## competes for the hold: the first part is the best of up to forty rolls aimed
-## at LEGENDARY, the other three at EPIC or better, and precursor and exotic
-## parts are allowed (`allow_unbranded`) because the core is where they belong.
-## Rolled as the deepest danger whatever the node says, so the gates in
-## `LootGen` that hold legendaries back never apply to the galaxy's boss.
+## competes for the hold. Each part is the first roll of `LootGen.roll_module`
+## that is what its slot asks for -- ARTIFACT with precursor parts allowed, or
+## LEGENDARY from a manufacturer -- so affixes and scrap value come out exactly
+## as any drop's, and never the same part twice. Rolled as the deepest danger
+## whatever the node says, so the gates that hold legendaries back never apply
+## to the galaxy's boss. If a slot finds nothing in `CORE_TRIES` rolls, the
+## best it saw stands, so the body is never short.
 ##
 ## The INSTRUMENT SHADOW is the material table's own core piece -- "a sensor
 ## plate burned in the shape of something that passed between it and the
@@ -1085,8 +1090,10 @@ func flee() -> void:
 ##
 ## POSITIONAL, as every wreck is (see `_victory`): keyed by the node and how
 ## many wrecks it already holds, so a party's machines open the same body.
-const CORE_PARTS := 4
-const CORE_TRIES := 40
+const CORE_PRECURSOR := 2
+const CORE_LEGENDARY := 2
+const CORE_PARTS := CORE_PRECURSOR + CORE_LEGENDARY
+const CORE_TRIES := 300
 
 static func core_body(node: MapGen.MapNode, t: EnemyTemplate) -> MapGen.Jetsam:
 	var wrecks_before := 0
@@ -1095,15 +1102,24 @@ static func core_body(node: MapGen.MapNode, t: EnemyTemplate) -> MapGen.Jetsam:
 			wrecks_before += 1
 	var r := Rng.derive(&"wreck", node.index * 64 + wrecks_before)
 	var h := Run.new_wreck(node, t)
+	var have: Array[StringName] = []
 	for i in CORE_PARTS:
-		var floor_r := ModuleData.Rarity.LEGENDARY if i == 0 else ModuleData.Rarity.EPIC
+		var precursor := i < CORE_PRECURSOR
 		var best: ModuleData = null
 		for k in CORE_TRIES:
-			var m := LootGen.roll_module(MapGen.DANGER_MAX, &"", true, r)
+			var m := LootGen.roll_module(MapGen.DANGER_MAX, &"", precursor, r)
+			if m.id in have:
+				continue
+			var fits := m.rarity == ModuleData.Rarity.ARTIFACT if precursor \
+				else (m.rarity == ModuleData.Rarity.LEGENDARY and m.manufacturer != &"")
+			if fits:
+				best = m
+				break
 			if best == null or m.rarity > best.rarity:
 				best = m
-			if best.rarity >= floor_r:
-				break
+		if best == null:
+			best = LootGen.roll_module(MapGen.DANGER_MAX, &"", precursor, r)
+		have.append(best.id)
 		h.items.append(best)
 	var row := MaterialTable.by_id(&"custodian_shadow")
 	if not row.is_empty():
