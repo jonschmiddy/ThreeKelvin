@@ -793,7 +793,7 @@ func _solid_on() -> bool:
 ## How much the camera magnifies the core (the shader's solidCoreK).
 static func _core_k() -> float:
 	var w := ChartSky.solid_cam()
-	return w.x / (w.x + ChartSky.solid_t.y * w.z)
+	return w.x / (w.x + ChartSky.SOLID_T.y * w.z)
 
 
 func _process(delta: float) -> void:
@@ -1693,7 +1693,7 @@ func _push() -> void:
 	mp.set_shader_parameter("prev_k", (_hold_ref_z / z) if valid else 1.0)
 	mp.set_shader_parameter("hyst", ChartSky.hyst if valid else 0.0)
 	_cam_now = ChartSky.solid_cam()
-	_cam_now_t = ChartSky.solid_t
+	_cam_now_t = ChartSky.SOLID_T
 	_kgu_now = kgu
 	_sol_now = sol
 	mp.set_shader_parameter("cam_on", sol and _sol_ref)
