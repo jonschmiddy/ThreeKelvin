@@ -435,18 +435,22 @@ func refresh() -> void:
 	# standing — and a figure that silently changes meaning is worse than no
 	# figure. The station screen quotes it where it applies.
 	var hull_note := "Your hull is the ship itself. This is your health.\nAt zero the run ends. Stations weld it back on, for credits."
-	_hull.set_hull(Run.hp, Run.max_hp())
+	# WHAT THE FIGHT HAS SHOWN SO FAR, while a turn plays out on screen: the
+	# hull drops as each shot lands rather than on the click (combat polish).
+	var hp := Run.hp if SectorScreen.shown_hull < 0 else SectorScreen.shown_hull
+	var heat := Run.heat if SectorScreen.shown_heat < 0 else SectorScreen.shown_heat
+	_hull.set_hull(hp, Run.max_hp())
 	_hint(_hull_label, hull_note)
 	_hull.tooltip_text = Widgets.tip(hull_note)
 	# Colour carries it, without the word. The cells already go green to ember to
 	# red and the figure turns with them at the same third, so the label was a
 	# third copy of a signal that was reading fine twice.
-	_hull_text.text = "%d/%d" % [Run.hp, Run.max_hp()]
+	_hull_text.text = "%d/%d" % [hp, Run.max_hp()]
 	_hull_text.add_theme_color_override("font_color",
-		Color("#d4614f") if Run.hp < Run.max_hp() * 0.35 else UITheme.COLD)
+		Color("#d4614f") if hp < Run.max_hp() * 0.35 else UITheme.COLD)
 	_hint(_hull_text, hull_note)
 
-	var over := Run.heat - Run.heat_cap()
+	var over := heat - Run.heat_cap()
 	# Same shape as hull: what heat IS, then what going past the cap costs you.
 	# The second line changes when you are over because at that point the rule
 	# has stopped being hypothetical and become a bill.
@@ -460,11 +464,11 @@ func refresh() -> void:
 	if over > 0:
 		heat_note = "Weapons and systems run hot. Heat is what they leave behind.\n%d over the cap: %d hull at end of turn. Your vent cards shed %d more than they print." % [
 			over, over, shed]
-	_heat.setup(BoxGauge.Mode.HEAT, Run.heat_cap(), Run.heat)
+	_heat.setup(BoxGauge.Mode.HEAT, Run.heat_cap(), heat)
 	_heat.tooltip_text = Widgets.tip(heat_note)
 	_hint(_heat_label, heat_note)
-	_heat_text.text = ("%d — %d HULL" % [Run.heat, over]) if over > 0 \
-		else "%d/%d" % [Run.heat, Run.heat_cap()]
+	_heat_text.text = ("%d — %d HULL" % [heat, over]) if over > 0 \
+		else "%d/%d" % [heat, Run.heat_cap()]
 	_heat_text.add_theme_color_override("font_color",
 		UITheme.FLARE if over > 0 else UITheme.COLD)
 	_hint(_heat_text, heat_note)

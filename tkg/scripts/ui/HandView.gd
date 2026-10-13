@@ -25,6 +25,8 @@ signal card_grabbed(view: CardView, at: Vector2)
 
 const GAP := 5
 const SLIDE := 0.14
+## Between one dealt card and the next.
+const DEAL_GAP := 0.055
 
 var _views: Array[CardView] = []
 ## Where the dragged card would land. -1 when nothing is being dragged over us.
@@ -109,6 +111,7 @@ func sync(cards: Array, playable: Callable, choosing: bool = false,
 			found.size = Vector2(CardView.CARD_W, CardView.CARD_H)
 			# Dealt from the deck side, so a draw reads as coming from somewhere.
 			found.position = Vector2(-CardView.CARD_W, _baseline() + 12.0)
+			found.set_meta(&"fresh", true)
 			found.hovered.connect(func(v: CardView, e: bool) -> void:
 				# Out of the stack while you are pointing at it. In an
 				# overlapping fan the card under the cursor is half-buried by
@@ -169,9 +172,14 @@ func _layout() -> void:
 	var step := _step(n)
 	var span := (n - 1) * step + CardView.CARD_W
 	var x := (size.x - span) * 0.5
+	var fresh := 0
 	for i in n:
 		var v: CardView = order[i]
 		var target := Vector2(x + i * step, _baseline())
+		# A card held back for its deal and then laid out again before its turn
+		# came is shown now; nothing else would ever show it.
+		if not v.has_meta(&"fresh"):
+			v.visible = true
 		# The card's hover lift springs back to this, and it is the only thing
 		# that knows it. Set on every layout, not just on deal, because the
 		# baseline moves whenever the band does.
@@ -192,7 +200,21 @@ func _layout() -> void:
 			_tweens[v].kill()
 		var tw := create_tween()
 		tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		tw.tween_property(v, "position", target, SLIDE)
+		# A NEW HAND IS DEALT, not placed: each fresh card leaves the deck a
+		# beat after the one before it (combat polish F6), so five cards read
+		# as five rather than as one row appearing.
+		var wait := 0.0
+		if v.has_meta(&"fresh"):
+			v.remove_meta(&"fresh")
+			wait = DEAL_GAP * fresh
+			fresh += 1
+		if wait > 0.0:
+			# Out of sight until its turn, or the cards still waiting sit in a
+			# stack over the energy box and the draw pile.
+			v.visible = false
+			tw.tween_interval(wait)
+			tw.tween_callback(func() -> void: v.visible = true)
+		tw.tween_property(v, "position", target, SLIDE + (0.08 if wait > 0.0 else 0.0))
 		_tweens[v] = tw
 	_restack(order)
 

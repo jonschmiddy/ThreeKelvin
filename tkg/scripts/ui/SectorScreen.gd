@@ -63,6 +63,8 @@ var _taking: bool = false
 
 # --- combat only
 var _hand_wrap: PanelContainer
+## The band the hand sits in; lowered when a fight ends. See `_build_hand`.
+var _hand_holder: Control
 var _preview: Label
 var _energy: BoxGauge
 var _energy_text: Label
@@ -247,11 +249,13 @@ func setup(c: Combat = null) -> void:
 			_refresh_enemy())
 	Sig.turn_started.connect(func(_t): _refresh())
 	Sig.combat_ended.connect(_on_combat_ended)
-	Sig.damage_dealt.connect(_on_damage)
+	# EVERY ATTACK, drawn over time: `combat_hit` carries what reached the hull,
+	# what block and brace took and what missed, for both sides. See "the fight,
+	# played out" at the end of this file.
+	Sig.combat_hit.connect(_on_hit)
+	Sig.combat_started.connect(_on_fight_opened)
+	Sig.hull_burned.connect(_on_burn)
 	Sig.enemy_destroyed.connect(_on_enemy_destroyed)
-	# Damage says how much and to whom, never with what — so the card is caught
-	# on its way past and read for its material.
-	Sig.card_played.connect(func(c: CardData) -> void: _last_played = c)
 
 	# THE EVENT THE MAP SENT YOU TO, lifting from the bottom of the view (before
 	# the first refresh, so the bar can offer OPEN IT)
@@ -619,6 +623,7 @@ func _build() -> void:
 	_view.resized.connect(_sync_bleed)
 	_build_self_plate()
 	_view.fx.landed.connect(_on_shot_landed)
+	_view.fx.volley_landed.connect(_on_volley_landed)
 	# THE CUTAWAY: point at your own ship, out of a fight, and it is outlined in
 	# its own pixels; click it and it opens up (`CutawayView`)
 	_hook_cutaway()
@@ -1376,7 +1381,7 @@ func _rail_drop() -> Control:
 	return c
 
 
-func _build_hand() -> PanelContainer:
+func _build_hand() -> Control:
 	var hand_row := HBoxContainer.new()
 	hand_row.add_theme_constant_override("separation", 6)
 	# Everything you spend on the left, everything you end with on the right,
@@ -1584,7 +1589,23 @@ func _build_hand() -> PanelContainer:
 		UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 3, 12))
 	_hand_wrap.custom_minimum_size = Vector2(0, DRAWER_H)
 	_hand_wrap.size_flags_vertical = Control.SIZE_SHRINK_END
-	return _hand_wrap
+	# IN A HOLDER, SO IT CAN BE LOWERED. Jon: "the card drawer should slowly
+	# lower after a fight is won... instead of totally disappearing and the ships
+	# jerking down to the center of the screen." The holder is what the root
+	# column measures; shrinking it slides the panel down behind the bottom edge
+	# while the arena grows in step, so the ships ease to where LOCAL will have
+	# them instead of snapping there. Same shape as the quiet strip's holder.
+	_hand_holder = Control.new()
+	_hand_holder.clip_contents = true
+	_hand_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hand_holder.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_hand_holder.size_flags_vertical = Control.SIZE_SHRINK_END
+	_hand_holder.custom_minimum_size = Vector2(0, DRAWER_H)
+	_hand_holder.add_child(_hand_wrap)
+	_hand_holder.resized.connect(func() -> void:
+		_hand_wrap.size = Vector2(_hand_holder.size.x, maxf(DRAWER_H,
+			_hand_wrap.get_combined_minimum_size().y)))
+	return _hand_holder
 
 ## How many cards fit across the panel before it wraps.
 ##
@@ -1728,6 +1749,12 @@ func _build_overlay() -> void:
 func _refresh() -> void:
 	if Run.hull == null:
 		return
+	# WHILE A TURN IS PLAYING OUT, the screen shows what the eye has been shown
+	# so far, not what the maths already knows. Everything is caught up in one
+	# refresh when it has finished. See `_hold`.
+	if _hold:
+		_dirty = true
+		return
 	# `Run.jump_to` emits `resources_changed` BEFORE `jumped`, so there is one
 	# synchronous refresh on the DEPARTING screen already holding the new
 	# `Run.at` -- it would repaint the backdrop to the system it is leaving for,
@@ -1742,7 +1769,7 @@ func _refresh() -> void:
 	# it (`LocalSubject`, the option's `subject`)
 	LocalSubject.sync(_view, n, at_war)
 
-	_hand_wrap.visible = at_war
+	_hand_holder.visible = at_war and not _lowered
 	# THE HOLDER, not the panel. The panel stays visible and keeps driving the
 	# band's height; the holder is what collapses it during a fight.
 	_quiet_holder.visible = not at_war
@@ -1884,9 +1911,10 @@ func _refresh_self_plate() -> void:
 	if _self_bar == null:
 		return
 	var cap := maxi(1, Run.max_hp())
+	var hp := Run.hp if shown_hull < 0 else shown_hull
 	_self_bar.max_value = cap
-	_self_bar.value = Run.hp
-	_self_hp.text = "%d / %d" % [Run.hp, cap]
+	_self_bar.value = hp
+	_self_hp.text = "%d / %d" % [hp, cap]
 	# THE NAME YOU GAVE IT, not the frame it came on. This plate is the one you
 	# read while something is shooting at you, and it used to be the one place
 	# in the run that still called your ship by its chassis.
@@ -1894,7 +1922,7 @@ func _refresh_self_plate() -> void:
 		_self_name.text = Run.display_name().to_upper()
 	# The same three bands the top bar uses, so a hull in trouble reads the same
 	# wherever you happen to be looking.
-	var frac := float(Run.hp) / float(cap)
+	var frac := float(hp) / float(cap)
 	_self_hp.add_theme_color_override("font_color",
 		UITheme.LEAVE if frac < 0.34 else (UITheme.EMBER if frac < 0.67
 			else UITheme.HULL_GREEN))
@@ -1929,6 +1957,9 @@ func _place_self_plate() -> void:
 
 func _refresh_player() -> void:
 	if not fighting():
+		return
+	if _hold:
+		_dirty = true
 		return
 	_energy.setup(BoxGauge.Mode.ENERGY, Run.reactor(), combat.energy)
 	_energy_text.text = "%d/%d" % [combat.energy, Run.reactor()]
@@ -2011,6 +2042,16 @@ func _refresh_gate(b: Button, label: String, why: String, cause: StringName,
 	if not fighting():
 		b.disabled = true
 		return
+	# A FIGHT THAT IS OVER, OR PLAYING OUT, OFFERS NO WAY OUT OF IT. After a
+	# successful flee HAIL stayed bright and pressable -- `hail_cause` has no
+	# reason to give once the fight is finished, so the button read as open --
+	# and FLEE said NO ESCAPE, which is a reason for something else (audit item
+	# 12). Greyed under its own name, no reason: there is nothing to explain.
+	if combat.finished or _hold:
+		b.disabled = true
+		b.text = label
+		b.add_theme_color_override("font_color", UITheme.COLD)
+		return
 	b.disabled = why != ""
 	b.text = why if why != "" else label
 	b.add_theme_color_override("font_color", UITheme.COLD if why != "" else lit)
@@ -2049,6 +2090,9 @@ func _refresh_hail() -> void:
 func _refresh_enemy() -> void:
 	if not fighting():
 		return
+	if _hold:
+		_dirty = true
+		return
 	var live := combat.alive()
 	_enemy_name.text = "%d HOSTILE%s" % [live.size(), "" if live.size() == 1 else "S"] 		if live.size() > 1 else combat.enemy.template.name.to_upper()
 
@@ -2078,9 +2122,27 @@ func _refresh_enemy() -> void:
 			row.add_child(Widgets.chip("block %d" % e.block, Color("#3a4a6e")))
 
 	_view.show_enemies(combat.enemies, _on_card_dropped, _on_slot_hovered)
+	# SOMETHING JOINED. "answers the call" went only to the log, which a fight
+	# does not show; the newcomer's name is said over it as it arrives.
+	if _foes_seen > 0 and combat.enemies.size() > _foes_seen and _view.fx != null:
+		for i in range(_foes_seen, combat.enemies.size()):
+			var who := i
+			var tw := create_tween()
+			tw.tween_interval(EnemySlot.ENTER_SECS)
+			tw.tween_callback(func() -> void:
+				if _view != null and _view.fx != null and who < combat.enemies.size():
+					_view.fx.pop(_pop_at(false, who) + Vector2(0, -6),
+						"%s JOINS" % combat.enemies[who].template.name.to_upper(), UITheme.THEM, false))
+	_foes_seen = combat.enemies.size()
+
+## How many contacts this screen has drawn, so a newcomer can be announced.
+var _foes_seen := 0
 
 func _refresh_hand() -> void:
 	if not fighting():
+		return
+	if _hold or _opening:
+		_dirty = true
 		return
 	# The hand reconciles rather than rebuilds, so cards slide into the gap a
 	# played card leaves instead of the whole row snapping to new positions.
@@ -2886,7 +2948,7 @@ func _light_source(c: CardData) -> void:
 ## apart by DIRECTION, and both are worth having: the fan is the only place hand
 ## order can be arranged, and order is the whole of what a hand is.
 func _on_card_grabbed(view: CardView, at: Vector2) -> void:
-	if not fighting() or combat.finished or view == null:
+	if not fighting() or combat.finished or view == null or _hold or _opening:
 		return
 	_end_aim(false)
 	_end_reorder(false)
@@ -3013,6 +3075,10 @@ func _hide_cursor(on: bool) -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_EXIT_TREE:
 		_hide_cursor(false)
+		# Nothing this screen was holding back outlives it.
+		shown_hull = -1
+		shown_heat = -1
+		Engine.time_scale = 1.0
 
 func _end_aim(played: bool) -> void:
 	_hide_cursor(false)
@@ -3422,8 +3488,21 @@ func _on_hand_reorder(cards: Array) -> void:
 	_refresh_hand()
 
 func _on_end_turn() -> void:
-	if fighting() and not combat.waiting:
+	if not fighting() or combat.waiting or combat.finished or _hold or _opening:
+		return
+	# THE TURN PLAYS OUT ON SCREEN (audit item 1). `end_turn` resolves the whole
+	# enemy turn and deals the next hand in one call, and the screen used to
+	# show all of it on the frame of the click. Held, it is caught as it
+	# happens and then shown in order: what you burned, each enemy's move one
+	# after another, the hull dropping as each shot lands, and only then the
+	# new hand. In a shared fight the enemy's turn arrives later, over the
+	# wire, and is drawn as it comes.
+	if combat.is_shared():
 		combat.end_turn()
+		return
+	_begin_hold()
+	combat.end_turn()
+	_play_turn()
 
 ## Talk instead of shoot. `Combat.hail` owns the ruling and the roll.
 ##
@@ -3472,10 +3551,20 @@ func _ask_exit(title: String, ink: Color, edge: Color, said: String,
 	# exit works; the branch below rewrites it when the exit fails and the fight
 	# simply goes on, which nothing was telling you at all.
 	var go := Widgets.button(go_label, func() -> void:
-		if not fighting():
+		if not fighting() or combat.finished or _hold:
 			return
 		combat.exit_note = ""
+		_exit_heat0 = Run.heat
+		_exit_fuel0 = Run.fuel
+		_exit_cost = ""
+		_begin_hold()
 		on_go.call()
+		if not combat.finished:
+			_exit_cost = _cost_line(_exit_heat0, _exit_fuel0)
+		if combat.finished:
+			# It worked: nothing swings, so nothing waits. A partial hail still
+			# costs heat, and the panel says so (audit item 11).
+			_end_hold()
 		# AND THE SCREEN CATCHES UP, for both of them. Hailing did this in its
 		# own closure and fleeing did not, so a successful hail left the hand
 		# greyed behind the panel and a successful burn left five playable cards
@@ -3490,8 +3579,14 @@ func _ask_exit(title: String, ink: Color, edge: Color, said: String,
 		# only way to see it was the empty body: a success carries its summary
 		# on the signal, so `exit_note` was still the empty string.
 		if _exit_ask != null and not combat.finished:
-			_exit_ask_result(_exit_fail, _exit_ink, combat.exit_note,
-				_close_exit_ask))
+			# THE ANSWER SAYS WHAT IT COST, and the enemy's turn it handed them
+			# waits until you have read it: it plays out when you press CONTINUE,
+			# not behind the panel (audit item 11).
+			_exit_ask_result(_exit_fail, _exit_ink,
+				combat.exit_note + ("\n" + _exit_cost if _exit_cost != "" else ""),
+				func() -> void:
+					_close_exit_ask()
+					_play_turn()))
 	go.add_theme_color_override("font_color", ink)
 	row.add_child(go)
 	box.add_child(row)
@@ -3501,9 +3596,37 @@ func _ask_exit(title: String, ink: Color, edge: Color, said: String,
 	_exit_ask.add_theme_stylebox_override("panel",
 		UITheme.flat(UITheme.PANEL, edge, 0, 10, 12))
 	_exit_ask.add_child(box)
+	# UNSEEN UNTIL IT IS WHERE IT GOES. Centring waits two layout frames, and a
+	# panel opened by nothing the player pressed (an ending) sat in the top-left
+	# corner for those frames and then jumped. See `_centre_exit_ask`.
+	_exit_ask.modulate.a = 0.0
 	add_child(_exit_ask)
 	_exit_ask.set_anchors_preset(Control.PRESET_CENTER)
 	_centre_exit_ask()
+
+
+## What an exit cost, in numbers, and what the turn it gave away does.
+var _exit_cost := ""
+var _exit_heat0 := 0
+var _exit_fuel0 := 0
+
+func _cost_line(heat0: int, fuel0: int) -> String:
+	var bits := PackedStringArray()
+	if Run.fuel < fuel0:
+		bits.append("-%d FUEL." % (fuel0 - Run.fuel))
+	if Run.heat > heat0:
+		bits.append("+%d HEAT." % (Run.heat - heat0))
+	var dealt := 0
+	var swings := 0
+	for q in _queue:
+		if q.k == &"hit" and q.to_player:
+			dealt += int(q.dealt)
+			swings += 1
+	if dealt > 0:
+		bits.append("THEY HIT YOU FOR %d." % dealt)
+	elif swings > 0:
+		bits.append("THEY OPEN FIRE.")
+	return " ".join(bits)
 
 
 ## The same panel, holding what happened instead of what it would cost.
@@ -3548,6 +3671,8 @@ func _centre_exit_ask() -> void:
 	await get_tree().process_frame
 	if is_instance_valid(_exit_ask):
 		_exit_ask.position = (size - _exit_ask.size) * 0.5
+		if _exit_ask.modulate.a < 1.0:
+			_exit_ask.create_tween().tween_property(_exit_ask, "modulate:a", 1.0, 0.1)
 
 
 ## Fleeing: it ends the fight, forfeits every scrap of salvage and burns fuel.
@@ -3590,41 +3715,18 @@ func _close_exit_ask() -> void:
 
 
 
-## An attack landed. Draw the shot rather than the result: something crosses the
-## gap, and the hull it reaches flinches when it arrives.
-##
-## The flinch is deliberately NOT here — it waits for the effects layer to
-## report the hit. Combat resolves instantly, so shaking at this moment would
-## put the recoil before the round had gone anywhere.
-func _on_damage(amount: int, to_player: bool, who: int) -> void:
-	if amount <= 0 or not fighting() or _view.fx == null:
-		return
-	var here := _view.enemy_anchor(who)
-	var mine := _view.ship_muzzle()
-	if to_player:
-		# Theirs is always warm and always comes from the enemy that threw it,
-		# so several attackers read as several attackers.
-		_view.fx.fire(here, mine, CombatFx.Kind.HOSTILE, 1, who, true)
-	else:
-		# Ballistics run cold and energy weapons run hot — the game says so
-		# everywhere else, so the shot should look like the weapon that fired
-		# it. A card that generates heat is an energy weapon.
-		var kind := CombatFx.Kind.BALLISTIC
-		var hits := 1
-		if _last_played != null:
-			if _last_played.heat > 0:
-				kind = CombatFx.Kind.ENERGY
-			hits = clampi(_last_played.hits, 1, 6)
-		_view.fx.fire(mine, here, kind, hits, who, false)
-
-## A hull coming apart. Spawned before the refresh dims the slot, so the debris
-## leaves from where the ship actually was rather than from a grey placeholder.
+## A hull coming apart. Not drawn here any more: the kill is shown when the
+## killing shot LANDS, as a breakup of the ship's own picture (`_start_death`).
+## Spawning debris on this signal put the explosion on screen eight frames
+## before the shot that caused it arrived (audit F4).
 func _on_enemy_destroyed(who: int) -> void:
-	if not fighting() or _view.fx == null:
+	if not fighting() or _view == null or _view.fx == null:
 		return
-	var art := _view.enemy_view(who)
-	var tint: Color = UITheme.COLD if art == null else Color("#6f8093")
-	_view.fx.wreck(_view.enemy_anchor(who), tint)
+	_dying[who] = true
+	# Killed with nothing in the air (a partner's push): start now. Otherwise
+	# the shot that did it is drawn first and the death starts as it lands.
+	if int(_slot_volleys.get(who, 0)) == 0 and not _hold:
+		_start_death(who)
 
 ## The shot arrived. Now the target moves.
 func _on_shot_landed(who: int, to_player: bool, _kind: int) -> void:
@@ -3635,52 +3737,33 @@ func _on_shot_landed(who: int, to_player: bool, _kind: int) -> void:
 	var tw := create_tween()
 	for i in 3:
 		tw.tween_property(target, "position",
-			origin + Vector2(randf_range(-3, 3), randf_range(-2, 2)), 0.03)
+			origin + Vector2(randf_range(-3, 3), randf_range(-2, 2)).round(), 0.03)
 	tw.tween_property(target, "position", origin, 0.05)
 
 func _on_combat_ended(result: StringName, text: String) -> void:
-	# A run ending already has its own screen, with the death reason and the run
-	# summary on it. Showing a "RUN ENDED" overlay first and the summary second
-	# says the same thing twice, and puts a CONTINUE button between the player
-	# and the only information that matters.
-	if result == &"dead" or result == &"won":
-		call_deferred("_leave_combat")
-		return
-	# A KILL DOES NOT INTERRUPT THE SECTOR TO TELL YOU ABOUT ITSELF.
-	#
-	# "TARGET DESTROYED" across the whole screen, with a CONTINUE button, said
-	# something the scene was already showing: the thing stopped shooting and is
-	# now a wreck hanging where you left it. The overlay stays for the endings
-	# that are NOT visible -- a creature calmed, a contact broken off, a hail
-	# accepted -- because those need saying.
-	if result == &"victory":
-		call_deferred("_leave_combat")
-		return
-
-	var titles := {
-		&"victory": "TARGET DESTROYED",
-		&"pacified": "CALF PACIFIED",
-		&"fled": "DISENGAGED",
-		&"hailed": "STOOD DOWN",
-	}
-	var said := String(titles.get(result, "COMBAT ENDED"))
-	# IN THE PANEL YOU PRESSED, if you got here by pressing one. Fleeing and
-	# hailing are the only two endings a player ASKS for, and both were asked
-	# for in a small panel that then closed and handed the answer to a
-	# full-screen overlay -- which is the game losing the thread of your own
-	# gesture. Everything else that ends a fight ends it TO you and the overlay
-	# is right for those.
-	if _exit_ask != null:
-		_end_button.disabled = true
-		_exit_ask_result(said, _exit_ink, text, func() -> void:
-			_close_exit_ask()
-			_on_continue())
-		return
-	_overlay_title.text = said
-	_overlay_body.text = text
-	_overlay.visible = true
-	_overlay.move_to_front()
+	# NOTHING ENDS ON THE FRAME IT RESOLVED. The kill, the death, the escape:
+	# each waits for what the eye is still being shown -- the shots in the air,
+	# the turn playing out, a hull coming apart -- and then ends, by
+	# `_check_ending`. A won fight then lowers the hand (Jon) before LOCAL.
+	# The endings a player ASKED for (flee, hail) still answer in the panel
+	# they pressed.
+	_ending = {result = result, text = text}
 	_end_button.disabled = true
+	_refresh_flee()
+	_refresh_hail()
+	if (result == &"fled" or result == &"hailed") and _exit_ask != null:
+		var titles := {&"fled": "DISENGAGED", &"hailed": "STOOD DOWN"}
+		var said := text
+		# The fuel is already in the summary's own words; the heat is not.
+		var cost := _cost_line(_exit_heat0, Run.fuel)
+		if cost != "":
+			said += "\n" + cost
+		_exit_ask_result(String(titles[result]), _exit_ink, said, func() -> void:
+			_close_exit_ask()
+			_lower_band(_on_continue))
+		_ending = {}
+		return
+	_check_ending()
 
 func _on_continue() -> void:
 	_overlay.visible = false
@@ -3690,3 +3773,543 @@ func _on_continue() -> void:
 ## from under a running signal frees the object still walking its connections.
 func _leave_combat() -> void:
 	Router.after_combat(combat)
+
+
+# ------------------------------------------------------- the fight, played out
+#
+# COMBAT RESOLVES INSTANTLY AND ALWAYS WILL; THE SCREEN TAKES ITS TIME (combat
+# polish, Oct 13). The audit filmed END TURN doing everything on one frame --
+# the hand gone, every enemy acting, the hull down, new intents, a new hand --
+# with the shots landing half a second after the numbers had moved, and a kill
+# swapping the screen on the frame the card was let go. Nothing here changes a
+# number. It holds what the SCREEN shows back until the eye has been shown why:
+#
+#   * a shot's numbers move when it LANDS (`_on_volley_landed`), with the
+#     damage, BLOCKED or MISS popped where it hit, and the impact sound and the
+#     view's kick on that frame (`Sig.hit_landed`);
+#   * END TURN is held (`_hold`): what it caught is replayed in order -- what you
+#     burned, then each enemy's move one after another -- and the new hand is
+#     dealt when the last shot is in (`_play_turn`);
+#   * a kill is a breakup of the ship's own picture when the killing shot lands
+#     (`_start_death`, `ShipBreakup`), and the fight ends when every death has
+#     finished (`_check_ending`), lowering the hand into LOCAL's band.
+
+## Every hull number on screen while the turn plays out: the HUD and your plate
+## read these instead of `Run` while they are not -1. Static because the HUD is
+## not this screen's; reset whenever this screen goes.
+static var shown_hull: int = -1
+static var shown_heat: int = -1
+
+## END TURN is playing out; refreshes wait (see `_refresh`).
+var _hold := false
+var _dirty := false
+## The replay is running. Separate from `_hold`: the exit panels hold first and
+## play when CONTINUE is pressed.
+var _playing := false
+## The first hand of a fight waits for the contacts to fly in.
+var _opening := false
+## The hand has been lowered for the end of the fight; it does not come back.
+var _lowered := false
+## What END TURN caught, in the order it happened.
+var _queue: Array = []
+## Each living enemy and the move it was about to make, as END TURN was pressed.
+var _pre: Array = []
+## Volleys in the air, by id: what they will say when they land.
+var _volleys: Dictionary = {}
+var _volley_seq := 0
+## Per enemy: the hull its slot shows while shots at it are in the air, and how
+## many volleys are still coming.
+var _slot_shown: Dictionary = {}
+var _slot_volleys: Dictionary = {}
+## Enemies dead in the maths whose killing shot has not landed yet.
+var _dying: Dictionary = {}
+## Breakups still playing, and each one's art (it follows the slot's bob).
+var _breakups: Array = []
+## How the fight ended, waiting for the screen to catch up. See `_check_ending`.
+var _ending: Dictionary = {}
+var _ending_started := false
+
+## How long the hand takes to lower when a fight is over. Jon asked for about
+## half a second to 0.8 s: slow enough to read as the drawer going down, short
+## enough that nobody is waiting for it.
+const LOWER_S := 0.65
+
+
+func _on_fight_opened(_name: String) -> void:
+	# THE FIRST HAND IS DEALT ONCE THE CONTACTS ARE IN (audit F6). It used to be
+	# on screen whole on the first frame of the fight, the drawer and the cards
+	# popping in together while the enemy was still flying in.
+	if not Router.animating():
+		return
+	_opening = true
+	var tw := create_tween()
+	tw.tween_interval(EnemySlot.ENTER_SECS + 0.1)
+	tw.tween_callback(func() -> void:
+		_opening = false
+		_refresh_hand()
+		Audio.play(&"card_draw", 0.10, 70))
+
+
+func _begin_hold() -> void:
+	_hold = true
+	_dirty = false
+	_queue.clear()
+	_pre.clear()
+	shown_hull = Run.hp
+	shown_heat = Run.heat
+	for i in combat.enemies.size():
+		var e: Combat.EnemyState = combat.enemies[i]
+		if e.hp > 0:
+			_pre.append([i, e.intent])
+	_end_aim(false)
+	_clear_readout()
+	# The hand goes to the pile now; the next one is dealt when the turn has
+	# been shown.
+	_hand.sync([], func(_c): return false)
+	_end_button.disabled = true
+	_refresh_flee()
+	_refresh_hail()
+
+
+func _end_hold() -> void:
+	_hold = false
+	shown_hull = -1
+	shown_heat = -1
+	_sync_hull()
+	_refresh()
+	if fighting() and not combat.finished:
+		Audio.play(&"card_draw", 0.10, 70)
+	_check_ending()
+
+
+## The HUD and your plate, from the shown numbers.
+func _sync_hull() -> void:
+	_refresh_self_plate()
+	if Router.hud != null:
+		Router.hud.refresh()
+
+
+func _wait_s(t: float) -> void:
+	await get_tree().create_timer(t).timeout
+
+
+## Replay what END TURN caught: burns, then each enemy in turn, then anything of
+## yours that went off as the next turn started (drones, a charge).
+func _play_turn() -> void:
+	if _playing or not _hold:
+		return
+	_playing = true
+	var steps := _turn_steps()
+	_queue.clear()
+	for st in steps:
+		if not is_inside_tree() or combat == null:
+			return
+		match st.k:
+			&"burn":
+				_show_burn(int(st.amount), st.cause)
+				await _wait_s(0.45)
+			&"hit":
+				_fire_q(st)
+				await _wait_s(0.36 if st.to_player else 0.22)
+			&"act":
+				_show_act(int(st.who), st.intent)
+				await _wait_s(0.34)
+	while not _volleys.is_empty() or _view.fx.in_flight():
+		await get_tree().process_frame
+		if not is_inside_tree():
+			return
+	await _wait_s(0.18)
+	if not is_inside_tree():
+		return
+	_playing = false
+	_end_hold()
+
+
+func _turn_steps() -> Array:
+	var steps: Array = []
+	var hits: Array = []
+	var rest: Array = []
+	for q in _queue:
+		if q.k == &"burn":
+			steps.append(q)
+		elif q.k == &"hit" and q.to_player:
+			hits.append(q)
+		else:
+			rest.append(q)
+	for pr in _pre:
+		var who: int = pr[0]
+		var it: IntentData = pr[1]
+		var took := false
+		for h in hits:
+			if int(h.who) == who and not h.get("used", false):
+				h.used = true
+				steps.append(h)
+				took = true
+				break
+		if it != null and not it.escape and (it.block > 0 or it.heal > 0 or it.dross > 0
+				or it.telegraph or (not took and it.damage <= 0)):
+			steps.append({k = &"act", who = who, intent = it})
+	for h2 in hits:
+		if not h2.get("used", false):
+			steps.append(h2)
+	steps.append_array(rest)
+	return steps
+
+
+## Something an enemy did that is not a shot, said over it.
+func _show_act(who: int, it: IntentData) -> void:
+	if it == null or _view == null or _view.fx == null:
+		return
+	var at := _pop_at(false, who) + Vector2(0, -4)
+	var y := 0.0
+	if it.telegraph:
+		_view.fx.pop(at, "WINDING UP", UITheme.EMBER, false)
+		y -= 10.0
+	if it.block > 0:
+		_view.fx.pop(at + Vector2(0, y), "+%d BLOCK" % it.block, EnemySlot.ARMOR_COL, false)
+		y -= 10.0
+	if it.heal > 0:
+		_view.fx.pop(at + Vector2(0, y), "+%d HULL" % it.heal, UITheme.GOOD, false)
+		y -= 10.0
+	if it.dross > 0:
+		# Lodged in YOU, so said over your ship.
+		_view.fx.pop(_pop_at(true, -1) + Vector2(0, -4), "+%d DROSS" % it.dross, UITheme.THEM, false, 0.25)
+
+
+## Hull you burned yourself, on your own ship, as the hull goes (audit item 9).
+func _show_burn(amount: int, cause: StringName) -> void:
+	if _view == null or _view.fx == null:
+		return
+	var at := _ship_pt()
+	_view.fx.pop(_pop_at(true, -1) + Vector2(0, -4), "-%d %s" % [amount,
+		"OVERHEAT" if cause == &"overheat" else "JUNK"], UITheme.LEAVE, true)
+	_view.fx.flash(at, true, true)
+	_flash_hit(_view.ship_view())
+	if shown_hull >= 0:
+		shown_hull = maxi(0, shown_hull - amount)
+		_sync_hull()
+	Audio.play(&"overheat" if cause == &"overheat" else &"impact_hull", 0.03)
+
+
+func _on_burn(amount: int, cause: StringName) -> void:
+	if not fighting():
+		return
+	if _hold:
+		_queue.append({k = &"burn", amount = amount, cause = cause})
+		return
+	_show_burn(amount, cause)
+
+
+func _on_hit(to_player: bool, who: int, dealt: int, absorbed: int, missed: int, hits: int) -> void:
+	if not fighting() or _view == null or _view.fx == null:
+		return
+	var kind := CombatFx.Kind.HOSTILE
+	var pre := -1
+	if not to_player:
+		# THE WEAPON THAT FIRED IT, read as it resolves (audit item 7). Ballistics
+		# run cold and energy weapons run hot -- a card that makes heat is an
+		# energy weapon.
+		kind = CombatFx.Kind.BALLISTIC
+		var c: CardData = combat.resolving
+		if c != null and (c.heat > 0 or c.damage_equals_heat or c.heat_scale > 0):
+			kind = CombatFx.Kind.ENERGY
+		if who >= 0 and who < combat.enemies.size():
+			pre = combat.enemies[who].hp + dealt
+	var q := {k = &"hit", to_player = to_player, who = who, dealt = dealt,
+		absorbed = absorbed, missed = missed, hits = maxi(1, hits), pre = pre, kind = kind}
+	if _hold:
+		_queue.append(q)
+		return
+	_fire_q(q)
+
+
+func _fire_q(q: Dictionary) -> void:
+	var id := _volley_seq
+	_volley_seq += 1
+	_volleys[id] = q
+	var who: int = q.who
+	if not q.to_player and who >= 0 and who < combat.enemies.size():
+		# THE BAR WAITS FOR THE SHOT. The slot shows the hull from before this
+		# volley until it lands.
+		var e: Combat.EnemyState = combat.enemies[who]
+		if not _slot_shown.has(who):
+			_slot_shown[who] = clampi(int(q.pre), 0, e.max_hp)
+		_slot_volleys[who] = int(_slot_volleys.get(who, 0)) + 1
+		_show_slot(who)
+	var here := _view.enemy_anchor(who)
+	var mine := _view.ship_muzzle()
+	if q.to_player:
+		_view.fx.fire(here, mine, q.kind, q.hits, who, true, id, q.missed)
+	else:
+		_view.fx.fire(mine, here, q.kind, q.hits, who, false, id, q.missed)
+
+
+## One enemy's slot, drawn with whatever it is allowed to show right now.
+func _show_slot(who: int) -> void:
+	var sl := _view.slot(who)
+	if sl == null or who >= combat.enemies.size():
+		return
+	var e: Combat.EnemyState = combat.enemies[who]
+	sl.shown_hp = int(_slot_shown.get(who, -1))
+	sl.bind(who, e, e.intent != null and e.intent.telegraph)
+
+
+func _on_volley_landed(id: int) -> void:
+	if not _volleys.has(id) or combat == null:
+		return
+	var q: Dictionary = _volleys[id]
+	_volleys.erase(id)
+	var who: int = q.who
+	if q.to_player:
+		_pop_hit(_pop_at(true, who), q, true)
+		if shown_hull >= 0:
+			shown_hull = maxi(0, shown_hull - int(q.dealt))
+			_sync_hull()
+		if int(q.dealt) > 0:
+			_flash_hit(_view.ship_view())
+	elif who >= 0:
+		var n := int(_slot_volleys.get(who, 1)) - 1
+		if n <= 0:
+			_slot_volleys.erase(who)
+			_slot_shown.erase(who)
+		else:
+			_slot_volleys[who] = n
+			_slot_shown[who] = maxi(0, int(_slot_shown[who]) - int(q.dealt))
+		_pop_hit(_pop_at(false, who), q, false)
+		if int(q.dealt) > 0:
+			_flash_hit(_view.enemy_view(who))
+		# Cut up the ship as it WAS, before the slot redraws it as a wreck.
+		if n <= 0 and _dying.has(who):
+			_start_death(who)
+		_show_slot(who)
+	Sig.hit_landed.emit(int(q.dealt), q.to_player, who, int(q.absorbed))
+	if int(q.dealt) >= 10:
+		_hitstop()
+	_check_ending()
+
+
+## Where a number about a hull goes, in the fx layer's space: just above your
+## ship, and on an enemy's hull (above it is its intent).
+func _pop_at(to_player: bool, who: int) -> Vector2:
+	var inv := _view.fx.get_global_transform().affine_inverse()
+	if to_player:
+		var h := ladder_hull()
+		if h.size == Vector2.ZERO:
+			return _ship_pt()
+		return inv * Vector2(h.get_center().x, h.position.y + h.size.y * 0.3)
+	var art := _view.enemy_view(who)
+	if art == null:
+		return _view.enemy_anchor(who)
+	var u := art.used_rect()
+	var tl := art.get_global_rect().position + (art.size - _canvas_size(art)) * 0.5
+	# ON THE HULL'S MIDDLE, not above it: above an enemy is where its intent is
+	# written, and a number there landed on top of the words.
+	return inv * (tl + Vector2(u.get_center().x, u.get_center().y + 6.0))
+
+
+## What a volley did, where it did it (audit item 8): the damage, then what
+## block and brace took, or that it missed.
+func _pop_hit(at: Vector2, q: Dictionary, to_player: bool) -> void:
+	var fx := _view.fx
+	var y := -4.0
+	if int(q.dealt) > 0:
+		fx.pop(at + Vector2(0, y), "-%d" % int(q.dealt),
+			UITheme.LEAVE if to_player else UITheme.ICE, true)
+		y -= 12.0
+	if int(q.absorbed) > 0:
+		fx.pop(at + Vector2(0, y), "BLOCKED %d" % int(q.absorbed), EnemySlot.ARMOR_COL, false, 0.05)
+		y -= 10.0
+	if int(q.missed) > 0:
+		fx.pop(at + Vector2(0, y), "MISS" if int(q.missed) >= int(q.hits) else "%d MISSED" % int(q.missed),
+			UITheme.COLD, false, 0.08)
+
+
+## Two frames of white on whatever was hit (audit F3).
+func _flash_hit(ci: CanvasItem) -> void:
+	if ci == null or not is_instance_valid(ci) or ci.self_modulate.a <= 0.0:
+		return
+	ci.self_modulate = Color(2.4, 2.4, 2.4, ci.self_modulate.a)
+	var tw := create_tween()
+	tw.tween_interval(0.07)
+	tw.tween_callback(func() -> void:
+		if is_instance_valid(ci) and ci.self_modulate.a > 0.0:
+			ci.self_modulate = Color(1, 1, 1, ci.self_modulate.a))
+
+
+## A heavy hit holds the world still for a beat (audit F3): 50 ms at a twentieth
+## speed. Off with reduced motion, like every other shake.
+func _hitstop() -> void:
+	if not Router.animating() or not DisplaySettings.screen_shake or Engine.time_scale < 1.0:
+		return
+	Engine.time_scale = 0.05
+	await get_tree().create_timer(0.05, true, false, true).timeout
+	Engine.time_scale = 1.0
+
+
+## The size of the picture an enemy's art draws, centred and unscaled in its
+## control. Asked of the texture rather than assumed, because the enemy art is
+## being re-cut round PixelLab sprites as this is written.
+func _canvas_size(art: EnemyArt) -> Vector2:
+	if art.texture != null:
+		return art.texture.get_size()
+	return Vector2(EnemyArt.W, EnemyArt.H)
+
+
+func _ship_pt() -> Vector2:
+	var sv := _view.ship_view()
+	if sv == null:
+		return _view.ship_muzzle()
+	return _view.fx.get_global_transform().affine_inverse() * sv.get_global_rect().get_center()
+
+
+## The ship comes apart where it stood, cut out of its own picture.
+func _start_death(who: int) -> void:
+	_dying.erase(who)
+	var sl := _view.slot(who)
+	if sl == null or sl.art == null or who >= combat.enemies.size():
+		return
+	var art := sl.art
+	var e: Combat.EnemyState = combat.enemies[who]
+	var b := ShipBreakup.new()
+	b.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_view.add_child(b)
+	# Under the shots and the numbers, over everything else.
+	_view.move_child(b, _view.fx.get_index())
+	var canvas := art.get_global_rect().position \
+		+ (art.size - _canvas_size(art)) * 0.5
+	var origin := b.get_global_transform().affine_inverse() * canvas
+	b.setup(art.snapshot(), art.used_rect(), origin, EnemyArt.DEATH_STYLE,
+		EnemyArt.wreck_seed(e.template), e.template.boss)
+	sl.hide_art(true)
+	var entry := {b = b, art = art, y0 = art.position.y}
+	_breakups.append(entry)
+	# SOUND ON EACH VISIBLE BREAK, never on the resolution (Jon's rule).
+	b.broke.connect(func(s: float) -> void:
+		Audio.play_kill(who, 0.0 if s >= 0.6 else -6.0))
+	b.finished.connect(func() -> void:
+		sl.hide_art(false)
+		_breakups.erase(entry)
+		b.queue_free()
+		_check_ending())
+
+
+func _process(_delta: float) -> void:
+	# A breakup draws where the hull was; the hull's slot keeps its slow bob, so
+	# the breakup rides it, and the wreck it hands back to is where it ended.
+	for en in _breakups:
+		var b: ShipBreakup = en.b
+		var art: EnemyArt = en.art
+		if is_instance_valid(b) and is_instance_valid(art):
+			b.position.y = roundf(art.position.y - float(en.y0))
+
+
+## THE END OF A FIGHT, once the screen has caught up with it: nothing in the
+## air, no turn playing out, no hull still coming apart.
+##
+## THE HAND-OFF for the core's guard is the `won` branch: The Custodian's
+## breakup has finished and its body is on screen as the wreck it left
+## (`EnemyArt` draws a dead ship as its breakup's wreck). From there the band is
+## lowered and `_leave_combat` hands over to `Router.after_combat`.
+func _check_ending() -> void:
+	if _ending.is_empty() or _ending_started or _hold or _playing:
+		return
+	if not _volleys.is_empty() or not _breakups.is_empty() or not _dying.is_empty():
+		return
+	_ending_started = true
+	var r: StringName = _ending.result
+	match r:
+		&"victory", &"won":
+			_lower_band(func() -> void:
+				# LOCAL arrives with this very layout, so it is not faded in over
+				# it; the wrecks stay exactly where the fight left them.
+				if r == &"victory":
+					Router.seamless_next = true
+				_leave_combat())
+		&"dead":
+			# A beat on the shot that did it, then the run's own screen.
+			await _wait_s(0.7)
+			if is_inside_tree():
+				_leave_combat()
+		&"broke_off":
+			await _escape(0)
+			if is_inside_tree():
+				_end_panel("IT GOT AWAY", UITheme.HOT, Color("#8a6420"), String(_ending.text))
+		&"pacified":
+			_end_panel("LEFT IN PEACE", UITheme.GOOD, Color("#3f6a52"), String(_ending.text))
+		_:
+			_end_panel("COMBAT ENDED", UITheme.ICE, UITheme.LINE, String(_ending.text))
+
+
+## A contact leaving under its own power: a furnace flash and gone, off to
+## starboard. The Hellbender's escape used to be a black screen with COMBAT
+## ENDED on it (audit item 13).
+func _escape(who: int) -> void:
+	var sl := _view.slot(who)
+	if sl == null or not Router.animating():
+		return
+	var art := sl.art
+	_view.fx.flash(_view.enemy_anchor(who), true, true)
+	Audio.play(&"hyperjump", 0.0)
+	var tw := create_tween().set_parallel(true)
+	tw.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(art, "position:x", art.position.x + 700.0, 0.5)
+	tw.tween_property(sl, "modulate:a", 0.0, 0.45)
+	await tw.finished
+
+
+## An ending nobody pressed a button for, said in the same panel the exits use,
+## over the scene rather than instead of it.
+func _end_panel(title: String, ink: Color, edge: Color, text: String) -> void:
+	_ask_exit(title, ink, edge, text, "", "", Callable())
+	_exit_ask_result(title, ink, text, func() -> void:
+		_close_exit_ask()
+		_lower_band(_on_continue))
+
+
+## THE HAND GOES DOWN (Jon, Oct 13): "the card drawer should slowly lower after
+## a fight is won... instead of totally disappearing and the ships jerking down
+## to the center of the screen."
+##
+## LOCAL's band is one line tall and the fight's is a hand of cards, so the
+## arena grew by the difference on the frame the screen was swapped and every
+## ship dropped to its new centre at once. Now the band shrinks to exactly the
+## height LOCAL will give it -- measured off this screen's own quiet drawer,
+## filled the way LOCAL fills it -- over `LOWER_S`, two pixels a step, and the
+## ships ease down with the arena. Then the quiet strip fades in where the hand
+## was, and `then` runs on a layout identical to the one coming.
+func _lower_band(then: Callable) -> void:
+	if _lowered:
+		then.call()
+		return
+	_lowered = true
+	_clear_readout()
+	_end_aim(false)
+	var n: MapGen.MapNode = Run.node_at()
+	if n != null and not Run.dead:
+		_rebuild_drawer(n)
+	_sync_drawer_box()
+	var target := _quiet_wrap.get_combined_minimum_size().y
+	var from := _hand_holder.size.y
+	if not Router.animating() or _hand_holder == null or not _hand_holder.visible:
+		_finish_lower()
+		then.call()
+		return
+	var tw := create_tween()
+	tw.tween_method(func(h: float) -> void:
+		_hand_holder.custom_minimum_size = Vector2(0, roundf(h * 0.5) * 2.0),
+		from, target, LOWER_S).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	if _self_plate != null:
+		tw.parallel().tween_property(_self_plate, "modulate:a", 0.0, LOWER_S * 0.5)
+	tw.tween_callback(func() -> void:
+		_finish_lower()
+		_quiet_wrap.modulate.a = 0.0)
+	tw.tween_property(_quiet_wrap, "modulate:a", 1.0, 0.18)
+	tw.tween_callback(then)
+
+
+func _finish_lower() -> void:
+	if _hand_holder != null:
+		_hand_holder.visible = false
+	if _quiet_holder != null:
+		_quiet_holder.visible = true
+	_open_drawer(true)

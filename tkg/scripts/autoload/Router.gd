@@ -119,7 +119,16 @@ const FADE_S := 0.13
 ## Modulate rather than a colour rect over the top: a rect would need to be
 ## above the HUD to cover it and below the cursor to not, and the ordering
 ## problem is not worth a fade.
+## The next screen arrives without the fade, once: set when the screen leaving
+## has already made itself look exactly like the one coming (a won fight lowers
+## its hand into LOCAL's band first), so fading the new one in over the sky
+## would blink every ship for a few frames to show nothing new.
+var seamless_next := false
+
 func _fade_in(screen: Control) -> void:
+	if seamless_next:
+		seamless_next = false
+		return
 	if screen == null or not animating() or ZoomLadder.takes(screen):
 		return
 	screen.modulate.a = 0.0
