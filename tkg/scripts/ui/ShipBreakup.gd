@@ -4266,6 +4266,14 @@ static func _cut_boss(img: Image, used: Rect2i, seed: int, st: int) -> Dictionar
 				stages.append(_charred_all(dead, 0.55))
 				m.rot_final = 2 if rng.randf() < 0.4 else 0
 				m.rot_total = 4 * rng.randi_range(1, 2) + int(m.rot_final)
+		# THE REST STAYS ON THE CANVAS. A fight draws a ship on a fixed canvas
+		# (EnemyArt's 240x120), and a wreck is that canvas: a piece settling
+		# past its edge would be cut off the wreck at the hand-off. So where a
+		# piece comes to rest is kept inside it (H3's sections fly out up to 28 px
+		# and land back within the margin there is).
+		var isz: Vector2i = (m.image as Image).get_size()
+		own.x = clampi(own.x, -int(m.at.x), img.get_width() - isz.x - int(m.at.x))
+		own.y = clampi(own.y, -int(m.at.y), img.get_height() - isz.y - int(m.at.y))
 		m.own = own
 		m.glob = Vector2i.ZERO
 		m.off = own

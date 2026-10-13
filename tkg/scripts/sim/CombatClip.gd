@@ -12,7 +12,7 @@ extends Node
 ##       out=<dir> fight=<id>[,<id>...] [end=win|lose|flee|hail] [seed=N]
 ##       [manufacturer=korvan] [weight=light|medium|heavy] [danger=N] [hp=N] [heat=N]
 ##       [after=150] [maxframes=N] [nofilm] [timing] [hints] [rest]
-##       [prefer=defence] [youblock=N]
+##       [prefer=defence] [youblock=N] [at=core]
 ##
 ## `out=<dir>` gets `f_####.png` (the window as seen: 1920x1080, the game at
 ## 2x), `events.json` (every signal that matters, by frame: card released, shot
@@ -128,8 +128,11 @@ func _run() -> void:
 		"heavy": HullData.Weight.HEAVY}.get(_arg("weight", "medium"), HullData.Weight.MEDIUM) as int
 	Run.start_new_run(StringName(_arg("manufacturer", "korvan")), weight)
 	var idx := -1
+	# `at=core`: the galaxy's core, where ENGAGE meets the Custodian and the
+	# win follows the kill
+	var at_core := _arg("at") == "core"
 	for n: MapGen.MapNode in Run.map:
-		if n.type == MapGen.NodeType.SYSTEM and not n.cleared:
+		if (n.type == MapGen.NodeType.CORE) if at_core else (n.type == MapGen.NodeType.SYSTEM and not n.cleared):
 			idx = n.index
 			break
 	if idx < 0:
@@ -158,7 +161,14 @@ func _run() -> void:
 	_log("start_combat", {foes = ids, danger = Run.node_at().danger, hp = Run.hp,
 		max_hp = Run.max_hp(), heat = Run.heat, cap = Run.heat_cap(), reactor = Run.reactor(),
 		hand = Run.hand_size()})
-	Router.start_combat(DB.enemies[StringName(ids[0])], extras, false, false)
+	if at_core:
+		Router.engage_here()
+		for i0 in 30:
+			if Router.combat != null and not Router.combat.enemies.is_empty():
+				break
+			await tree.process_frame
+	else:
+		Router.start_combat(DB.enemies[StringName(ids[0])], extras, false, false)
 	await tree.process_frame
 	_cb = Router.combat
 	_sc = Router.current as SectorScreen
@@ -244,6 +254,24 @@ func _run() -> void:
 			await _click(cont)
 			for i in 90:
 				await _tick()
+	# THE CORE'S BODY: open for loot after the kill. TAKE ALL (or one part),
+	# then DONE, as a player would; the win screen follows.
+	var sc2 := Router.current as SectorScreen
+	if Router.final_loot and sc2 != null and sc2._transfer != null:
+		var tv: Control = sc2._transfer
+		for i2 in 45:
+			await _tick()
+		var take := _find_button(tv, "TAKE ALL")
+		if take != null and take.is_visible_in_tree() and not take.disabled:
+			await _click(take)
+		for i3 in 60:
+			await _tick()
+		var done_b := _find_button(tv, "DONE")
+		if done_b != null:
+			await _click(done_b)
+		_log("core_loot_done", {won = Run.won})
+		for i4 in 240:
+			await _tick()
 	var cur := Router.current
 	_log("final_screen", {screen = cur.get_script().get_global_name() if cur != null else "none",
 		hp = Run.hp, heat = Run.heat, fuel = Run.fuel, credits = Run.credits})

@@ -4420,10 +4420,20 @@ func _start_death(who: int) -> void:
 	if not e.template.fauna:
 		b.broke.connect(func(s: float) -> void:
 			Audio.play_kill(who, 0.0 if s >= 0.6 else -6.0))
+	# A BOSS'S SET PIECE HOLDS THE SCREEN (`ScreenHooks`): the shake, the slow
+	# motion, the flash and the music's duck and hit it names as moments.
+	var hooks: ScreenHooks = null
+	if ShipBreakup._is_boss(b.style):
+		hooks = ScreenHooks.new()
+		hooks.target = _view
+		add_child(hooks)
+		b.moment.connect(hooks.on_moment)
 	b.finished.connect(func() -> void:
 		sl.hide_art(false)
 		_breakups.erase(entry)
 		b.queue_free()
+		if hooks != null and is_instance_valid(hooks):
+			hooks.queue_free()
 		_check_ending())
 
 
