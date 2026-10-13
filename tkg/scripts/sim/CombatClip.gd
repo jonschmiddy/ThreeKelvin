@@ -165,6 +165,13 @@ func _run() -> void:
 		tree.quit(1)
 		return
 	_hook_fight()
+	# `foehp=N`: every contact opens at no more than N hull, so a long fight
+	# (the core's guard) can be filmed to its end without the model losing it.
+	if _arg("foehp") != "":
+		for e0 in _cb.enemies:
+			(e0 as Combat.EnemyState).hp = mini((e0 as Combat.EnemyState).hp, int(_arg("foehp")))
+		_cb.enemies[0].pick_intent()
+		Sig.enemy_changed.emit()
 	for e in _cb.enemies:
 		var es: Combat.EnemyState = e
 		_log("foe", {name = es.template.name, hp = es.hp, brace = es.brace,
@@ -188,6 +195,9 @@ func _run() -> void:
 			await _click(_sc._end_button)
 			await _wait(40)
 			continue
+		await _settle()
+		if _cb.finished:
+			break
 		var pick := pol.best_card(_cb)
 		if pick < 0:
 			await _wait(10)
@@ -287,6 +297,14 @@ func _watch() -> void:
 	Sig.combat_ended.connect(func(r: StringName, text: String) -> void:
 		_log("combat_ended", {result = String(r), text = text}))
 	Sig.overheated.connect(func(b: int) -> void: _log("overheated", {burn = b}))
+	# The screen's own clock (combat polish): every attack as resolved, every
+	# volley as SEEN landing, every self-inflicted burn.
+	Sig.combat_hit.connect(func(tp: bool, who: int, dealt: int, ab: int, mi: int, hits: int) -> void:
+		_log("combat_hit", {to_player = tp, who = who, dealt = dealt, absorbed = ab, missed = mi, hits = hits}))
+	Sig.hit_landed.connect(func(amount: int, tp: bool, who: int, ab: int) -> void:
+		_log("hit_landed", {amount = amount, to_player = tp, who = who, absorbed = ab}))
+	Sig.hull_burned.connect(func(amount: int, cause: StringName) -> void:
+		_log("hull_burned", {amount = amount, cause = String(cause)}))
 	Sig.screen_changed.connect(func() -> void:
 		var cur := Router.current
 		_log("screen_changed", {screen = cur.get_script().get_global_name() if cur != null else "none"}))
@@ -314,6 +332,19 @@ func _tick() -> void:
 		await get_tree().process_frame
 	else:
 		await RenderingServer.frame_post_draw
+
+
+## Wait, as a player would, while the screen is still playing something out
+## (a turn being shown, the opening deal). Logs how long it took.
+func _settle() -> void:
+	if _sc == null or not is_instance_valid(_sc):
+		return
+	var n := 0
+	while is_instance_valid(_sc) and _sc.is_inside_tree() and ("_hold" in _sc) 			and (_sc._hold or _sc._opening) and n < 600:
+		await get_tree().process_frame
+		n += 1
+	if n > 0:
+		_log("settled", {frames = n})
 
 
 func _wait(n: int) -> void:
@@ -426,6 +457,14 @@ func _play(pick: int, rest: bool) -> void:
 	# starts the keyword panel's clock.
 	v.notification(Control.NOTIFICATION_MOUSE_ENTER)
 	await _wait(42 if rest else 12)
+	# A card still being dealt has moved since the pointer set off for it.
+	if not is_instance_valid(v):
+		return
+	r = v.get_global_rect()
+	var now := Vector2(r.get_center().x, r.position.y + r.size.y * 0.55).round()
+	if now.distance_to(on) > 2.0:
+		on = now
+		await _glide(on, 4)
 	_log("press", {card = card.name, target = tgt_i})
 	_push(on, true, true)
 	await _wait(3)
