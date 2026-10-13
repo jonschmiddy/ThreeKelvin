@@ -46,7 +46,7 @@ func _frames(n: int) -> void:
 
 func _idle() -> void:
 	for i in 900:
-		if not ZoomLadder.busy() and ZoomLadder.chain == &"":
+		if not ZoomLadder.busy() and ZoomLadder.chain == &"" and _swap_now() == null and _tabs_now() == null:
 			await _tree.process_frame
 			return
 		await _tree.process_frame
@@ -78,13 +78,26 @@ func _eff(c: CanvasItem) -> float:
 	return a
 
 
-func _swap_now() -> Object:
-	if not ZoomLadder.busy():
+## (by name, so this still runs on main, where there is no swap)
+var _ss: Script = load("res://scripts/ui/SideSwap.gd") if ResourceLoader.exists("res://scripts/ui/SideSwap.gd") else null
+
+
+func _live(which: StringName) -> Object:
+	if _ss == null:
 		return null
-	var sw: Variant = ZoomLadder.active.get("side_swap")
+	var sw: Variant = _ss.call(which)
 	if sw == null or not is_instance_valid(sw) or not (sw as Node).is_inside_tree():
 		return null
 	return sw
+
+
+## The side bar's swap drawing now -- the ladder's, or one it handed on.
+func _swap_now() -> Object:
+	return _live(&"side_now")
+
+
+func _tabs_now() -> Object:
+	return _live(&"tabs_now")
 
 
 ## This frame: [coverage 0..1, both-at-once 0..1, clicks let through onto
@@ -140,6 +153,12 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 	var swap_frames := 0
 	var low := 1.0
 	var frames := 0
+	# THE TABS: the decode seen, over the tab lit before and the one lit after
+	var was_tab: Control = Router.hud.tab_for_rank(ZoomLadder.rank_of(Router.current)) if Router.hud.has_method(&"tab_for_rank") else null
+	var tab_rect := Rect2()
+	var tab_frames := 0
+	var landed_at := -1
+	var decode_end := -1
 	for i in 900:
 		var m := _measure()
 		if not m.is_empty():
@@ -152,8 +171,16 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 				leaked += 1
 		if _swap_now() != null:
 			swap_frames += 1
+			decode_end = frames
+		var tw := _tabs_now()
+		if tw != null and (tw as CanvasItem).visible:
+			tab_frames += 1
+			var tr: Rect2 = tw.call(&"rect")
+			tab_rect = tr if tab_rect.size.x <= 0.0 else tab_rect.merge(tr)
+		if landed_at < 0 and (not ZoomLadder.busy() or ZoomLadder.active.phase == ZoomLadder.Phase.UI_IN):
+			landed_at = frames
 		frames += 1
-		if not ZoomLadder.busy() and ZoomLadder.chain == &"":
+		if not ZoomLadder.busy() and ZoomLadder.chain == &"" and _swap_now() == null and _tabs_now() == null:
 			break
 		await _tree.process_frame
 	await _frames(2)
@@ -165,6 +192,23 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 	_ok("%s: no click let through onto unresolved content (%d frames)" % [label, leaked], leaked == 0)
 	var side := _side_of(Router.current)
 	_ok("%s: the side bar whole at rest" % label, side == null or _eff(side) > 0.99)
+	if _ss != null:
+		# THE TABS DECODE ON EVERY HOP, over the tab that was lit and the one
+		# that is, and the highlight is the new one's once it is over
+		var now_tab: Control = Router.hud.tab_for_rank(ZoomLadder.rank_of(Router.current))
+		var over := was_tab != null and now_tab != null and tab_rect.has_point(was_tab.get_global_rect().get_center()) 			and tab_rect.has_point(now_tab.get_global_rect().get_center())
+		_ok("%s: the top tabs decode (%d frames) over the tab lit before and the one lit after" % [label, tab_frames],
+			tab_frames > 0 and over)
+		_ok("%s: and the new tab is lit after, the old one not" % label, now_tab != null and now_tab.has_theme_stylebox_override("normal")
+			and (was_tab == null or was_tab == now_tab or not was_tab.has_theme_stylebox_override("normal")))
+	if _cur_look == "E":
+		# E, SLOW (Jon: "happen slowly and not so fast"): the side bar decodes for
+		# a second or more, and is done within 0.35 s of the camera landing --
+		# or, on a hop shorter than that, runs on past it no longer than it needs
+		var secs := swap_frames / 60.0
+		var past := (decode_end - landed_at) / 60.0
+		_ok("%s: E decodes slowly (%.2f s) and is done %.2f s after the landing" % [label, secs, past],
+			secs >= 0.9 and (past <= 0.35 or secs <= 1.45))
 	print("  [sidebar] %s %s: blank %d, swap %d frames, mixed %d" % [_cur_look, label, blank, swap_frames, mixed])
 	return blank
 
@@ -233,6 +277,43 @@ func _click_mid_swap() -> void:
 	await _frames(4)
 
 
+## A click on a tab that has not resolved: map -> chart, on SECTOR (lit
+## before, a live door back once it is not) while the tabs decode -- eaten, and
+## the chart stays up.
+func _click_tab_mid_decode() -> void:
+	Router.show_starchart()
+	var tw: Object = null
+	for i in 300:
+		await _tree.process_frame
+		tw = _tabs_now()
+		if tw != null and (tw as CanvasItem).visible:
+			break
+	if not _ok("%s: the tabs decode on map -> chart" % _cur_look, tw != null):
+		await _idle()
+		return
+	var b: Button = Router.hud.tab_for_rank(ZoomLadder.MAP)
+	var p := b.get_global_rect().get_center()
+	var blocked := bool(tw.call(&"blocks", p))
+	var heard := [0]
+	var probe := func(ev: InputEvent) -> void:
+		if ev is InputEventMouseButton:
+			heard[0] += 1
+	b.gui_input.connect(probe)
+	for pressed in [true, false]:
+		var ev := InputEventMouseButton.new()
+		ev.button_index = MOUSE_BUTTON_LEFT
+		ev.pressed = pressed
+		ev.position = p
+		ev.global_position = p
+		b.get_viewport().push_input(ev)
+		await _tree.process_frame
+	b.gui_input.disconnect(probe)
+	await _idle()
+	await _frames(4)
+	_ok("%s: a click on SECTOR before it resolved was eaten (blocked %s, heard %d), the chart still up" % [_cur_look, blocked, heard[0]],
+		blocked and heard[0] == 0 and Router.current is StarchartScreen)
+
+
 func _buttons(n: Node) -> Array[BaseButton]:
 	var out: Array[BaseButton] = []
 	if n == null:
@@ -290,6 +371,10 @@ func _run() -> void:
 			await _idle()
 			await _frames(4)
 			await _click_mid_swap()
+			Router.show_system()
+			await _idle()
+			await _frames(4)
+			await _click_tab_mid_decode()
 		Router.show_system()
 		await _idle()
 		Router.show_local()

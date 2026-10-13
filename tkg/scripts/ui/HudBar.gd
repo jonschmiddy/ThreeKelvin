@@ -479,6 +479,40 @@ func refresh() -> void:
 	_value(_fuel, str(Run.fuel))
 	_hint(_fuel, "Every jump burns fuel. Longer jumps burn more.\nIf you run dry between stations, the run ends.")
 
+## WHAT THE BAR SAYS, for the tabs' decode on a move (`ZoomLadder._tabs_begin`):
+## every word on it and every tab's state, by the control that shows it. What
+## differs after the move is what decodes; a number that has not changed is the
+## same entry, and does not.
+func face() -> Dictionary:
+	var out := {}
+	if _row == null:
+		return out
+	var stack: Array[Node] = [_row]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		stack.append_array(n.get_children())
+		if not (n is Control) or not (n as Control).is_visible_in_tree():
+			continue
+		if n is Button:
+			var b := n as Button
+			out[b] = "%s|%s|%s" % [b.text, b.disabled, b.has_theme_stylebox_override("normal")]
+		elif n is Label:
+			out[n] = (n as Label).text
+	return out
+
+
+## The tab that lights for distance `rank` (`ZoomLadder.CHART`..`STATION`).
+func tab_for_rank(rank: int) -> Button:
+	match rank:
+		ZoomLadder.CHART:
+			return _tab_chart
+		ZoomLadder.MAP:
+			return _tab_system
+		ZoomLadder.LOCAL, ZoomLadder.STATION:
+			return _tab_sector
+	return null
+
+
 ## Where the second nav tab goes: the station if you are tied up at one, the
 ## sector if you are flying it. Read at click time so the label and the
 ## destination cannot disagree.

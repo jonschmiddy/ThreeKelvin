@@ -57,6 +57,14 @@ uniform vec3 ground = vec3(0.039, 0.055, 0.082);
 // and how much of the held picture's standing copy is still drawn (it fades as
 // the rest of it does, `ZoomLadder.held_alpha`)
 uniform float held_a = 0.0;
+// E: how many times a second a scrambled glyph turns over (Jon: "happen slowly
+// and not so fast" -- at 30 it was a blur, at 13 each character can be seen
+// turning over)
+uniform float glyph_hz = 13.0;
+// E on the HUD's tabs: what is not yet resolved is the OLD picture -- its
+// highlight -- with its letters scrambled, so the highlight hands over to the
+// new one as the line resolves (`SideSwap.setup_tabs`)
+uniform int hand = 0;
 
 bool inr(vec2 q, vec4 r) {
 	return r.z > 0.0 && q.x >= r.x && q.y >= r.y && q.x < r.x + r.z && q.y < r.y + r.w;
@@ -83,11 +91,11 @@ vec3 bg_old(float y) {
 	return oldc(vec2(old_r.x + 3.0, y));
 }
 
-// whether a glyph cell holds any ink (differs from the ground beside it)
-bool ink(vec2 c0, bool from_new, vec3 g) {
-	for (int j = 0; j < 3; j++) {
+// whether a glyph cell `h` tall holds any ink (differs from the ground beside it)
+bool ink(vec2 c0, float h, bool from_new, vec3 g) {
+	for (int j = 0; j < 4; j++) {
 		for (int i = 0; i < 3; i++) {
-			vec2 q = c0 + vec2((float(i) + 0.5) * cell.x / 3.0, (float(j) + 0.5) * cell.y / 3.0);
+			vec2 q = c0 + vec2((float(i) + 0.5) * cell.x / 3.0, (float(j) + 0.5) * h / 4.0);
 			vec3 c = from_new ? newc(q) : oldc(q);
 			if (distance(c, g) > 0.08) {
 				return true;
@@ -98,11 +106,11 @@ bool ink(vec2 c0, bool from_new, vec3 g) {
 }
 
 // a scrambled glyph: the cell at p shows another cell of the same row, a new
-// one every 30th of a second
+// one `glyph_hz` times a second
 vec3 scramble(vec2 p, vec4 r, int i, bool from_new) {
 	float n = max(floor(r.z / cell.x), 1.0);
 	float ci = floor((p.x - r.x) / cell.x);
-	float step = floor(secs * 30.0);
+	float step = floor(secs * glyph_hz);
 	float pick = floor(hash(vec2(ci + float(i) * 17.0, step)) * n);
 	vec2 q = vec2(r.x + pick * cell.x + mod(p.x - r.x, cell.x), p.y);
 	return from_new ? newc(q) : oldc(q);
@@ -185,7 +193,20 @@ void fragment() {
 				continue;
 			}
 			vec4 tt = rowt[i];
-			if (tt.z > 0.5 && from_new) {
+			if (hand == 1) {
+				float fh = r.x + floor(clamp((secs - tt.x) / max(tt.y - tt.x, 0.001), 0.0, 1.0) * r.z / cell.x) * cell.x;
+				if (p.x >= fh) {
+					col = O;
+					float in0 = r.x + 4.0;
+					float w = max(r.z - 8.0, cell.x);
+					if (p.x >= in0 && p.x < in0 + w) {
+						vec2 c0 = vec2(in0 + floor((p.x - in0) / cell.x) * cell.x, r.y);
+						if (ink(c0, r.w, false, oldc(vec2(in0, p.y)))) {
+							col = scramble(p, vec4(in0, r.y, w, r.w), i, false);
+						}
+					}
+				}
+			} else if (tt.z > 0.5 && from_new) {
 				// an icon: hidden, then on, off, on a frame each
 				float a = secs - tt.x;
 				vec3 g = bg_new(p.y);
@@ -195,7 +216,7 @@ void fragment() {
 				if (p.x >= fr) {
 					vec2 c0 = vec2(r.x + floor((p.x - r.x) / cell.x) * cell.x, r.y);
 					vec3 g = from_new ? bg_new(p.y) : bg_old(p.y);
-					if (ink(c0, from_new, g)) {
+					if (ink(c0, r.w, from_new, g)) {
 						col = scramble(p, r, i, from_new);
 					} else {
 						col = N;

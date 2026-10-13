@@ -41,8 +41,20 @@ const CELL := Vector2(6.0, 8.0)
 const C_STAGGER := 0.04
 const C_EACH := 0.12
 const D_S := 0.5
-const E_SPREAD := 0.16
-const E_ROW := 0.24
+## E, SLOW (Jon: "can we have the decode animation happen slowly and not so
+## fast?"): each line resolves left to right over `E_ROW`, the lines starting
+## one after another down the panel 60-80 ms apart, the whole about 1.1 s, or
+## to 0.3 s past the camera landing on a longer move; a hop shorter than that
+## (LOCAL -> map) lets the decode run on past the zoom rather than hurrying it
+## (`ZoomLadder._end` hands it on). The glyphs turn over `GLYPH_HZ` a second.
+const E_ROW := 0.45
+const E_STAGGER := Vector2(0.06, 0.08)
+const E_TARGET := 1.1
+const GLYPH_HZ := 13.0
+## THE TOP TABS' DECODE (`setup_tabs`): each changed tab over `TAB_ROW`, left
+## to right `TAB_STAGGER` apart
+const TAB_ROW := 0.8
+const TAB_STAGGER := 0.08
 const F_LOST := 0.05
 const F_PRINT := 0.42
 
@@ -55,6 +67,50 @@ var _li := 0
 ## drawn over this: `ZoomLadder.held_alpha`
 var held: Callable
 var dur := 1.0
+## the rest of the move when it began, s
+var _rem := 1.0
+## the HUD's tabs, not a side bar (`setup_tabs`)
+var tabs := false
+
+## EVERY SWAP STILL DRAWING, the ladder's and any it handed on when it ended
+## before the decode did (`ZoomLadder._end`): finished at once by the next
+## screen change or move (`finish_all`).
+static var live: Array = []
+
+
+static func finish_all() -> void:
+	for s: Variant in live.duplicate():
+		if is_instance_valid(s):
+			(s as SideSwap).finish()
+	live.clear()
+
+
+## The swap drawing over the side bar now (not the tabs), or null.
+static func side_now() -> SideSwap:
+	for s: Variant in live:
+		if is_instance_valid(s) and not (s as SideSwap).done and not (s as SideSwap).tabs:
+			return s as SideSwap
+	return null
+
+
+static func tabs_now() -> SideSwap:
+	for s: Variant in live:
+		if is_instance_valid(s) and not (s as SideSwap).done and (s as SideSwap).tabs:
+			return s as SideSwap
+	return null
+
+
+## (freed with its ladder, not finished: out of the list all the same)
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		live.erase(self)
+
+
+## A click here lands on nothing while what is under it has not resolved: the
+## ladder eats it while the move is on (`ZoomLadder._side_eats`); once a decode
+## runs on past the move, this does.
+func _has_point(point: Vector2) -> bool:
+	return blocks(get_global_transform() * point)
 ## +1 zooming in (the content goes up), -1 out
 var dir := 1.0
 var old_rect := Rect2()
@@ -84,16 +140,12 @@ func setup(old_side: Control, new_side_: Control, tex: Texture2D, look_: String,
 	look = look_
 	_li = look_index(look)
 	dir = dir_
+	_rem = dur_
 	dur = clampf(dur_, 0.35, 1.4)
 	if old_side == null:
 		# (arriving where there was none: up while the held picture over it goes)
 		dur = minf(dur, 0.4)
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	color = Color.WHITE
-	_mat = ShaderMaterial.new()
-	_mat.shader = SHADER
-	material = _mat
-	_mat.set_shader_parameter(&"old_tex", tex)
+	_material(tex)
 	if old_side != null and is_instance_valid(old_side) and old_side.is_visible_in_tree():
 		old_rect = old_side.get_global_rect()
 		_old_rows = rows_of(old_side, old_rect)
@@ -101,6 +153,71 @@ func setup(old_side: Control, new_side_: Control, tex: Texture2D, look_: String,
 	new_side = new_side_
 	# (the arriving screen is put in its place later this frame)
 	_lay.call_deferred()
+
+
+func _material(tex: Texture2D) -> void:
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	color = Color.WHITE
+	_mat = ShaderMaterial.new()
+	_mat.shader = SHADER
+	material = _mat
+	_mat.set_shader_parameter(&"old_tex", tex)
+	_mat.set_shader_parameter(&"glyph_hz", GLYPH_HZ)
+	live.append(self)
+
+
+## THE TOP TABS DECODE WITH THE SIDE BAR (Jon: "let's have the sector and
+## starchart buttons at the top also decode during the transition"): over each
+## of `rects` (viewport px, the HUD's tabs and words that changed on this
+## move), the old picture -- `tex`, the frame held as the move handed over,
+## the old tab lit -- with its letters scrambling, resolving left to right into
+## the live new one; the highlight goes over with the line.
+func setup_tabs(rects: Array, tex: Texture2D) -> void:
+	tabs = true
+	look = "E"
+	_li = 4
+	_material(tex)
+	var u := Rect2()
+	var order := rects.duplicate()
+	order.sort_custom(func(a: Rect2, b: Rect2) -> bool: return a.position.x < b.position.x)
+	_rows = []
+	for i in order.size():
+		var r: Rect2 = Rect2((order[i] as Rect2).position.floor(), (order[i] as Rect2).size.ceil())
+		u = r if u.size.x <= 0.0 else u.merge(r)
+		_rows.append([r, 0, TAB_STAGGER * i, TAB_STAGGER * i + TAB_ROW])
+	old_rect = u
+	_new_rect = u
+	_rect = u
+	_total = TAB_STAGGER * maxi(order.size() - 1, 0) + TAB_ROW
+	_rows_now = _rows
+	_laid = true
+	_place.call_deferred()
+
+
+func _place() -> void:
+	if done or not is_inside_tree():
+		return
+	var p := get_parent() as Control
+	position = _rect.position - (p.global_position if p != null else Vector2.ZERO)
+	size = _rect.size
+	var rv := PackedVector4Array()
+	var rt := PackedVector4Array()
+	for r: Array in _rows_now:
+		rv.append(_v4(r[0] as Rect2))
+		rt.append(Vector4(float(r[2]), float(r[3]), 0.0, 0.0))
+	rv.resize(MAXR)
+	rt.resize(MAXR)
+	_mat.set_shader_parameter(&"rows", rv)
+	_mat.set_shader_parameter(&"rowt", rt)
+	_mat.set_shader_parameter(&"nrows", mini(_rows_now.size(), MAXR))
+	_mat.set_shader_parameter(&"rect", _v4(_rect))
+	_mat.set_shader_parameter(&"old_r", _v4(_rect))
+	_mat.set_shader_parameter(&"new_r", _v4(_rect))
+	_mat.set_shader_parameter(&"look", 4)
+	_mat.set_shader_parameter(&"hand", 1)
+	_mat.set_shader_parameter(&"cell", CELL)
+	_push()
+	visible = true
 
 
 ## The rect drawn over (viewport px).
@@ -165,12 +282,27 @@ func _content() -> void:
 		3:
 			_total = D_S
 		4:
-			# (staggered down the panel by where each row is)
+			# (line by line down the panel: the rows that share a line start
+			# together, each line 60-80 ms after the one above)
+			var tops: Array[float] = []
+			for r: Array in rows:
+				var y := (r[0] as Rect2).position.y
+				if tops.filter(func(v: float) -> bool: return absf(v - y) <= 3.0).is_empty():
+					tops.append(y)
+			tops.sort()
+			var target := maxf(E_TARGET, _rem + 0.3)
+			var st := clampf((target - E_ROW) / float(maxi(tops.size() - 1, 1)), E_STAGGER.x, E_STAGGER.y)
+			_total = E_ROW
 			for i in rows.size():
-				var y := ((rows[i][0] as Rect2).position.y - _rect.position.y) / maxf(_rect.size.y, 1.0)
-				var t0 := E_SPREAD * clampf(y, 0.0, 1.0)
+				var y := (rows[i][0] as Rect2).position.y
+				var k := 0
+				for j in tops.size():
+					if absf(tops[j] - y) <= 3.0:
+						k = j
+						break
+				var t0 := st * k
 				rows[i] = [rows[i][0], rows[i][1], t0, t0 + E_ROW]
-			_total = E_SPREAD + E_ROW
+				_total = maxf(_total, t0 + E_ROW)
 		5:
 			# (each line of text as long as it is wide, one after another in
 			# reading order; pictures up with the frame)
@@ -244,6 +376,7 @@ func _process(delta: float) -> void:
 func finish() -> void:
 	done = true
 	visible = false
+	live.erase(self)
 	queue_free()
 
 
