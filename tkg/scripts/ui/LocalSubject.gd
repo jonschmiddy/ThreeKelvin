@@ -2911,6 +2911,39 @@ func _at(rec: Dictionary, a: Variant) -> Vector2:
 	return node.position + (rec.vshift as Vector2) + v.rotated(node.rotation + float(rec.vrot)) * float(rec.scale) * _scale
 
 
+## A ship piece's flame, for the picture size it is drawn at (its own _half or
+## _quarter file when it has one; else the full one, scaled with the piece).
+func _flame_of(rec: Dictionary) -> ThrusterFx:
+	var k := float(rec.tex_k)
+	var orig: Dictionary = rec.orig
+	var tex: Texture2D = orig.get(k, null)
+	if tex == null:
+		tex = orig.get(1.0, null)
+		k = 1.0
+	if tex == null:
+		return null
+	if rec.get("flame_tex") != tex:
+		rec.flame_tex = tex
+		rec.flame_k = k
+		rec.flame = ThrusterFx.for_picture(tex, k)
+	return rec.flame
+
+
+## From the drawn picture's pixels (unturned, at its own size) to the overlay:
+## the same frame `_at` maps a point through -- the piece's place and rotation,
+## its size, its mirror, its own turn.
+func _pic_xf(rec: Dictionary) -> Transform2D:
+	var p: Dictionary = rec.info
+	var node: Node2D = rec.node
+	var k := float(rec.get("flame_k", 1.0))
+	var sc := float(rec.scale) * _scale
+	var xf := Transform2D(node.rotation + float(rec.vrot), node.position + (rec.vshift as Vector2))
+	xf = xf * Transform2D(0.0, Vector2(-sc if bool(rec.flip) else sc, sc), 0.0, Vector2.ZERO)
+	xf = xf * Transform2D(float(rec.turn), Vector2.ZERO)
+	xf = xf * Transform2D(0.0, -Vector2(float(p.w), float(p.h)) * 0.5)
+	return xf * Transform2D(0.0, Vector2(1.0 / k, 1.0 / k), 0.0, Vector2.ZERO)
+
+
 ## How big a light is drawn on this piece: smaller on far ones.
 func _lk(rec: Dictionary) -> float:
 	return float(rec.scale) * _scale
@@ -2930,7 +2963,23 @@ func _draw_over() -> void:
 			continue
 		var k := _lk(rec)
 		var dim := 1.0 - 0.6 * float(rec.far)
+		# THE ENGINE FLAME (look A, Oct 13): a ship under way (`drive`) burns at
+		# CRUISE, a lit one sitting here idles (Jon: "a gentle idle burn ...
+		# anywhere a ship sits"), a dark one is dead. Its engines are the
+		# picture's own or art/engines.json's, drawn in the piece's own frame
+		# (its turn, its mirror, its size) so it leaves the stern wherever the
+		# piece is pointing.
+		var burn := -1
 		if bool(rec.drive):
+			burn = ThrusterFx.Thrust.CRUISE
+		elif StringName(rec.lights) != &"" and float(rec.dark) < 0.5:
+			burn = ThrusterFx.Thrust.IDLE
+		var ffx: ThrusterFx = _flame_of(rec) if burn >= 0 else null
+		if ffx != null:
+			_over.draw_set_transform_matrix(_pic_xf(rec))
+			ffx.draw(_over, Vector2.ZERO, burn, t, false, Color(dim, dim, dim, 1.0))
+			_over.draw_set_transform_matrix(Transform2D.IDENTITY)
+		elif bool(rec.drive):
 			# a drive at the stern, breathing a little
 			var fl := 0.85 + 0.1 * sin(t * 5.1 + float(rec.phase)) + 0.05 * sin(t * 13.7 + float(rec.phase) * 2.0)
 			var at := _at(rec, p.stern) + Vector2(-2.0 * k if bool(rec.flip) else 2.0 * k, 0.0)

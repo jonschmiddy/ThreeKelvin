@@ -40,6 +40,40 @@ const CODED := Vector2i(240, 120)
 var _img: Image
 var _tex: ImageTexture
 
+## THE ENGINE FLAME (look A, Jon's pick, Oct 13): a live enemy with a picture
+## idles its engines, found on the picture or placed by hand in art/engines.json
+## (`ThrusterFx.for_picture`). Not on a coded drawing (it has its own stern
+## wash), not on a dead ship, and not on the three that get their own movement
+## instead of thrusters (NO_FLAME).
+##
+## Drawn by `_flame_layer`, TOP LEVEL: this control is clipped to the ship's
+## own box (`clip_contents`, the slot fits itself to the hull), and the flame
+## burns out past it. It reads this control's transform every frame and draws
+## in it, so it moves, scales and fades with the ship.
+const NO_FLAME := ["custodian_tetra", "whale_fan", "leviathan_lev_spine"]
+var _flame_fx: ThrusterFx = null
+var _flame_at := Vector2.ZERO        ## where the picture's (0, 0) sits on the canvas
+var _pic_at := Vector2i.ZERO
+var _flame_layer: Control
+
+class EnemyFlame extends Control:
+	var art: EnemyArt
+	func _process(_d: float) -> void:
+		if art != null and art._flame_fx != null and art.is_visible_in_tree():
+			queue_redraw()
+	func _draw() -> void:
+		if art == null or art._flame_fx == null or not art.is_visible_in_tree():
+			return
+		var origin := ((art.size - Vector2(EnemyArt.W, EnemyArt.H)) * 0.5).floor() + art._flame_at
+		draw_set_transform_matrix(art.get_global_transform() * Transform2D(0.0, origin))
+		var mod := Color.WHITE
+		var n: CanvasItem = art
+		while n != null:
+			mod *= n.modulate * (n.self_modulate if n == art else Color.WHITE)
+			n = n.get_parent() as CanvasItem
+		var t := ShipView.shot_clock if ShipView.shot_clock >= 0.0 else float(Time.get_ticks_msec()) / 1000.0
+		art._flame_fx.draw(self, Vector2.ZERO, ThrusterFx.Thrust.IDLE, t, false, mod)
+
 ## What the current image was drawn from. See set_enemy.
 var _sig: String = ""
 
@@ -79,6 +113,14 @@ func _init() -> void:
 	_img = Image.create(W, H, false, Image.FORMAT_RGBA8)
 	_tex = ImageTexture.create_from_image(_img)
 	texture = _tex
+	var fl := EnemyFlame.new()
+	fl.art = self
+	fl.top_level = true
+	fl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fl.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	fl.material = ThrusterFx.add_material()
+	_flame_layer = fl
+	add_child(fl, false, Node.INTERNAL_MODE_FRONT)
 
 func px(x: int, y: int, w: int, h: int, c: Color) -> void:
 	# While _track is on, every stroke widens the hull's bounding box. It has to
@@ -137,6 +179,7 @@ func _blit_sprite(tex: Texture2D) -> bool:
 		return false
 	var at := Vector2i((W - ink.size.x) / 2, (H - ink.size.y) / 2)
 	_img.blend_rect(src, ink, at)
+	_pic_at = at - ink.position
 	if _track:
 		var r := Rect2i(at, ink.size)
 		_bounds = r if _bounds.size == Vector2i.ZERO else _bounds.merge(r)
@@ -494,8 +537,14 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	# blend and the two telegraph glows are painted OVER the hull, so a sprite
 	# inherits all of them for nothing. That is what keeps the asset set at nine
 	# files rather than nine times four wound bands times two telegraphs.
+	_flame_fx = null
 	if not _draw_sprite(e, wounded, telegraphing):
 		_draw_coded(e, wounded, telegraphing)
+	elif not dead:
+		var stex := DB.enemy_sprite(e.template.id, e.look)
+		if stex != null and not (stex.resource_path.get_file().get_basename() in NO_FLAME):
+			_flame_fx = ThrusterFx.for_picture(stex)
+			_flame_at = Vector2(_pic_at)
 	_track = false
 	if marks != null:
 		var mi := marks.marks()

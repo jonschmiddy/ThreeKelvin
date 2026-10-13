@@ -671,7 +671,8 @@ func warm_up(thrust: int) -> void:
 ## Draw every engine at time `t`, the canvas's (0, 0) at `origin`, onto a canvas
 ## item that blends ADD (`add_material`). This is the whole per-frame cost: a
 ## frame lookup and one cached texture per engine.
-func draw(ci: CanvasItem, origin: Vector2, thrust: int, t: float, wait: bool = true) -> void:
+func draw(ci: CanvasItem, origin: Vector2, thrust: int, t: float, wait: bool = true,
+		mod: Color = Color.WHITE) -> void:
 	if not wait and not is_ready():
 		return
 	if look == Look.SPILL:
@@ -681,7 +682,7 @@ func draw(ci: CanvasItem, origin: Vector2, thrust: int, t: float, wait: bool = t
 	for n in nozzles.size():
 		var p := plume(n, length_at(n, thrust, t), frame_at(n, t))
 		if p.tex != null:
-			ci.draw_texture(p.tex, origin + (p.at as Vector2))
+			ci.draw_texture(p.tex, origin + (p.at as Vector2), mod)
 	if particles:
 		var t0 := Time.get_ticks_usec()
 		var s: Dictionary = SHAPE[look]
@@ -689,7 +690,7 @@ func draw(ci: CanvasItem, origin: Vector2, thrust: int, t: float, wait: bool = t
 		for n2 in nozzles.size():
 			for q in particles_at(n2, thrust, t):
 				var band: int = q.band
-				ci.draw_rect(Rect2(origin + Vector2(q.x, q.y), Vector2.ONE), _lv(ramp[band], float(s.lv[band]) * float(q.k)))
+				ci.draw_rect(Rect2(origin + Vector2(q.x, q.y), Vector2.ONE), _lv(ramp[band], float(s.lv[band]) * float(q.k)) * mod)
 				particle_px += 1
 		particle_us += Time.get_ticks_usec() - t0
 
@@ -725,6 +726,35 @@ static func for_view(h: HullData, half: bool) -> ThrusterFx:
 			small.decompress()
 		small.convert(Image.FORMAT_RGBA8)
 		fx._halve(small)
+	_shared[key] = fx
+	fx.build_async()
+	return fx
+
+
+## A SHIP PICTURE'S FLAME (enemies, LOCAL's pool ships): one per picture file,
+## shared, built off the main thread like a hull's. Its engines are the
+## finder's, or the hand-placed ones in art/engines.json; `k` is how big the
+## picture is against the file the table was read off (a pool ship's _half
+## picture is 0.5). Enemies face left, so it burns to the right.
+static func for_picture(tex: Texture2D, k: float = 1.0) -> ThrusterFx:
+	if tex == null:
+		return null
+	var key := [tex.resource_path, k]
+	if _shared.has(key):
+		return _shared[key]
+	var img := tex.get_image()
+	if img == null:
+		return null
+	if img.is_compressed():
+		img = img.duplicate()
+		img.decompress()
+	img.convert(Image.FORMAT_RGBA8)
+	var id := tex.resource_path.get_file().get_basename()
+	var fx := for_sprite(img, img.get_used_rect(), Look.OVERLOAD, absi(hash(tex.resource_path)) % 100000, id, k)
+	fx.dynamic = true
+	fx.particles = true
+	fx.loop_n = 12
+	fx.fps = 8.0
 	_shared[key] = fx
 	fx.build_async()
 	return fx
