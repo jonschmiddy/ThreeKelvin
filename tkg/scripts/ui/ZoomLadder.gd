@@ -414,42 +414,167 @@ const SIDE_LOOKS := ["A", "B", "C", "D", "E", "F"]
 ## ("I meant these buttons, not the top left buttons"): `ladder_bar`.
 const SIDE_LOOK := "E"
 static var _side_force := ""
-## BETWEEN LOCAL AND A SCREEN WITH A TOOLBAR (Jon: "the window drops abruptly"
-## -- the scene's top edge moved 21 px at the swap -- and the toolbar's letters
-## hung over LOCAL's open space): A, the band the toolbar sits on eases open
-## over LOCAL before the swap and closes after the toolbar has decoded away on
-## it (`SideBand`); B, LOCAL keeps a band of its own, so nothing moves
-## (`SectorScreen._build_band`). `-- band=A|B` or `force_band_look`.
-const BAND_LOOKS := ["A", "B"]
-const BAND_LOOK := "A"
-static var _band_force := ""
-## the band of this move (A), if any
+## BETWEEN LOCAL AND A SCREEN WITH CHROME -- the map's and the chart's band
+## along the top and side bar down the right; LOCAL has neither -- THE CHROME
+## MOVES (Jon picked the band easing, then: "the tooltip bar moves up and the
+## side bar slides to the right as the local image expands. the opposite
+## happens when you move from local to sector or local to starchart"). Out of
+## LOCAL the band slides down and the side bar's column in from the right,
+## empty, as LOCAL's camera leaves, landing as the screens change hands (or in
+## a dive's dip to black), and their contents decode in after; into LOCAL the
+## chrome being left slides off, up and right, as LOCAL's camera lands. LOCAL
+## is drawn whole beneath and uncovered, never scaled (`ChromeSlide`).
+## the band of this move, if any (out of LOCAL: it opens as the camera leaves)
 var band: SideBand = null
+## the chrome sliding, and which way: &"on" out of LOCAL, &"off" into it
+var slides: Array = []
+var _slide_way: StringName = &""
 
 
-static func force_band_look(l: String) -> void:
-	_band_off = l == "OFF"
-	_band_force = l if l in BAND_LOOKS else ""
-static var _band_off := false
-
-
-static func band_look() -> String:
-	# (OFF: neither, the build before them -- for a harness to watch its checks
-	# fail)
-	if _band_force != "" or _band_off:
-		return "OFF" if _band_off else _band_force
-	var a := _arg("band").to_upper()
-	return a if a in BAND_LOOKS else BAND_LOOK
-
-
-## The band (A) over the top of the screens' area, opening or (`closing`)
-## standing whole: the toolbar's height and the gap under it.
-func _make_band(closing: bool) -> SideBand:
+## The band over the top of the screens' area, opening as the ladder drives it.
+func _make_band() -> SideBand:
 	var b := SideBand.new()
 	add_child(b)
-	var c := Router.content.get_global_rect() if Router.content != null else Rect2(8, 42, 944, 491)
-	b.setup(Rect2(c.position.x, c.position.y, c.size.x, StarchartScreen.BAR_H + 4), closing)
+	var c := _content_rect()
+	b.setup(Rect2(c.position.x, c.position.y, c.size.x, StarchartScreen.BAR_H + 4), false)
+	b.driven = true
+	b.drive(0.0)
 	return b
+
+
+static func _content_rect() -> Rect2:
+	return Router.content.get_global_rect() if Router.content != null else Rect2(8, 42, 944, 491)
+
+
+## Where a side bar stands on the map and the chart: down the right, under
+## their band, the key's row below it (viewport px).
+static func _side_rest() -> Rect2:
+	var c := _content_rect()
+	var top := c.position.y + StarchartScreen.BAR_H + 4
+	return Rect2(c.end.x - 260, top, 260, c.end.y - top - 16)
+
+
+## OUT OF LOCAL: the band (opening) and the side bar's column, empty -- the
+## gap beside the picture's frame, the panel's plate -- coming on from the
+## right, both driven by the move (`_drive_chrome`).
+func _chrome_on() -> void:
+	_slide_way = &"on"
+	band = _make_band()
+	var c := _content_rect()
+	var pr := _side_rest()
+	var rest := Rect2(pr.position.x - 5, pr.position.y, c.end.x - (pr.position.x - 5), c.end.y - pr.position.y)
+	var p := ChromeSlide.new()
+	add_child(p)
+	p.plate = UITheme.flat(Color(UITheme.PANEL, UITheme.PANEL_A), UITheme.LINE, 0, 12, 12)
+	p.plate_rect = pr
+	p.setup(&"side", rest, Vector2(c.end.x - rest.position.x, 0), c, 0.0)
+	slides.append(p)
+
+
+## INTO LOCAL: the chrome of `from`, as the picture `tex` has it, carried off
+## -- the band up, the side bar's column right -- driven by the move.
+func _chrome_off(tex: Texture2D, from: Control) -> void:
+	_slide_way = &"off"
+	var c := _content_rect()
+	var sd := side_of(from)
+	var pr := sd.get_global_rect() if sd != null and sd.size.x > 2.0 else _side_rest()
+	# (the band to the frame's top edge, its border row too)
+	var bh := pr.position.y - c.position.y + 1.0
+	var bp := ChromeSlide.new()
+	add_child(bp)
+	bp.tex = tex
+	bp.setup(&"band", Rect2(c.position.x, c.position.y, c.size.x, bh), Vector2(0, -bh), c, 1.0)
+	var rest := Rect2(pr.position.x - 5, pr.position.y, c.end.x - (pr.position.x - 5), c.end.y - pr.position.y)
+	var sp := ChromeSlide.new()
+	add_child(sp)
+	sp.tex = tex
+	sp.setup(&"side", rest, Vector2(c.end.x - rest.position.x, 0), c, 1.0)
+	slides.append(bp)
+	slides.append(sp)
+	# (the held picture leaves both to them)
+	_mat.set_shader_parameter(&"side", Vector4(rest.position.x, rest.position.y, rest.size.x, rest.size.y))
+	_mat.set_shader_parameter(&"side2", Vector4(c.position.x, c.position.y, c.size.x, bh))
+
+
+## How far through a dive's whole dip the chrome is (0 to 1): down to black and
+## up from it, as one stretch, so the side bar's column crosses at a walk.
+func _dive_q() -> float:
+	var whole := maxf(FADE_OUT_S + FADE_IN_S, 0.001)
+	match phase:
+		Phase.FADE_OUT:
+			return clampf(_ui_u / whole, 0.0, 1.0)
+		Phase.FADE_HOLD:
+			return clampf(FADE_OUT_S / whole, 0.0, 1.0)
+		Phase.FADE_IN:
+			return clampf((FADE_OUT_S + _ui_u) / whole, 0.0, 1.0)
+	return 1.0
+
+
+## A screen's own chrome hidden while a piece of it is drawn on the move in a
+## dive (it would show through the dip beside the piece), and put back.
+var _hid: Array = []
+
+
+func _hide_chrome(s: Control) -> void:
+	for c: Variant in [side_of(s), bar_of(s)]:
+		if c != null and is_instance_valid(c):
+			(c as CanvasItem).modulate.a = 0.0
+			_hid.append(c)
+
+
+func _show_chrome() -> void:
+	for c: Variant in _hid:
+		if is_instance_valid(c):
+			(c as CanvasItem).modulate.a = 1.0
+	_hid.clear()
+
+
+static func _ease_in(u: float) -> float:
+	u = clampf(u, 0.0, 1.0)
+	return u * u * u
+
+
+## THE CHROME WITH THE MOVE: on, eased out over the camera's leaving LOCAL (or
+## the dip to black), so it lands as the screens change hands; off, eased in
+## over the camera's landing on LOCAL (or the rise from black).
+func _drive_chrome() -> void:
+	if _slide_way != &"on" and _slide_way != &"off":
+		return
+	var curve := bool(_style.get("curve", false))
+	# (how far through its half of the move: the camera's own progress, or the
+	# dip's; 1 is landed, chrome on or chrome off)
+	var q := -1.0
+	if _slide_way == &"on":
+		match phase:
+			Phase.UI_OUT:
+				q = 0.0
+			Phase.PRE:
+				q = clampf(_ease_cam(_tau / maxf(_T, 0.001)) / maxf(_F, 0.001), 0.0, 1.0) if curve else clampf(_u, 0.0, 1.0)
+			Phase.FADE_OUT, Phase.FADE_HOLD, Phase.FADE_IN:
+				q = _dive_q()
+			_:
+				q = 1.0
+	else:
+		match phase:
+			Phase.MOVE:
+				q = _curve_e() if curve else clampf(_u, 0.0, 1.0)
+			Phase.FADE_OUT, Phase.FADE_HOLD, Phase.FADE_IN:
+				q = _dive_q()
+			Phase.UI_IN, Phase.PRE_DONE:
+				q = 1.0
+			_:
+				q = 0.0
+	# ON eases out, OFF eases in (the band's cubic; the side bar's column, 265
+	# px to the band's 21, on a sine, so at its fastest it moves 8 px a frame,
+	# not 15)
+	var on := _slide_way == &"on"
+	var k := _ease_out(q) if on else 1.0 - _ease_in(q)
+	var ks := sin(q * PI * 0.5) if on else cos(q * PI * 0.5)
+	for p: Variant in slides:
+		if is_instance_valid(p):
+			(p as ChromeSlide).set_k(ks if (p as ChromeSlide).kind == &"side" else k)
+	if band != null and is_instance_valid(band) and band.driven:
+		band.drive(k)
 
 
 static func force_side_look(l: String) -> void:
@@ -652,6 +777,7 @@ static func preroll(target: int, then: Callable) -> bool:
 	# (a decode a move before handed on is finished: this move is its own)
 	SideSwap.finish_all()
 	SideBand.finish_all()
+	ChromeSlide.finish_all()
 	# (the jump's own flare is the cut on its far side)
 	if Router._post_arrive:
 		return false
@@ -674,6 +800,21 @@ static func preroll(target: int, then: Callable) -> bool:
 		lad._fade = true
 		lad.phase = Phase.FADE_OUT
 		_hud_refresh()
+		# THE CHROME MOVES IN A DIVE TOO, over the picture's dip to black: out of
+		# LOCAL on as it goes down, into it off as it comes up
+		if r == LOCAL and target == CHART:
+			lad._fit()
+			lad._chrome_on()
+		elif r == CHART and target == LOCAL and side_of(cur) != null:
+			lad._fit()
+			var vp := lad.get_viewport()
+			var im: Image = null
+			if vp != null and vp.get_texture() != null and DisplayServer.get_name() != "headless":
+				im = vp.get_texture().get_image()
+			if im == null or im.is_empty():
+				im = Image.create(960, 540, false, Image.FORMAT_RGBA8)
+			lad._chrome_off(ImageTexture.create_from_image(im), cur)
+			lad._hide_chrome(cur)
 		return true
 	lad._pre_k = float(cur.call(&"ladder_pre", target, lad.seam, lad.design))
 	# THE UI LEAVES FIRST, the camera still, on every move -- even one whose
@@ -722,10 +863,10 @@ static func preroll(target: int, then: Callable) -> bool:
 		else:
 			(pm as StarchartScreen).setup()
 		prebuilt = pm
-		# (A: from a screen with no toolbar, its band opens now, while this
+		# (out of LOCAL: the arriving screen's chrome comes on now, as this
 		# screen's camera moves, so the swap finds it where the next one has it)
-		if band_look() == "A" and bar_of(cur) == null and bar_of(pm) != null:
-			lad.band = lad._make_band(false)
+		if side_of(cur) == null and bar_of(cur) == null and (side_of(pm) != null or bar_of(pm) != null):
+			lad._chrome_on()
 		ZoomLadder.probe_add("prebuild", Time.get_ticks_usec() - _pt_pre)
 	# LOCAL TOO, ON 2C (Jon: "2C still has a small delay/hitch"): built here, at
 	# the click, before anything has moved, instead of at the swap in the middle
@@ -803,6 +944,7 @@ static func capture(o: Control, n: Control) -> void:
 	if not (busy() and active.old == o):
 		SideSwap.finish_all()
 		SideBand.finish_all()
+		ChromeSlide.finish_all()
 	if not enabled():
 		if busy():
 			active.finish_now()
@@ -820,6 +962,10 @@ static func capture(o: Control, n: Control) -> void:
 			lad.phase = Phase.FADE_HOLD
 			lad._held_frames = 0
 			lad._waited = 0.0
+			# (out of LOCAL its chrome comes on over the dip: the arriving
+			# screen's own stays hidden under it until it lands)
+			if lad._slide_way == &"on":
+				lad._hide_chrome.call_deferred(n)
 			return
 	elif busy():
 		active.finish_now()
@@ -936,6 +1082,12 @@ static func _ease_out(u: float) -> float:
 
 
 func _process(delta: float) -> void:
+	_process_move(delta)
+	if not is_queued_for_deletion():
+		_drive_chrome()
+
+
+func _process_move(delta: float) -> void:
 	var dt := _dt(delta)
 	var curve := bool(_style.get("curve", false))
 	# (the arriving screen's UI stays away until the camera has landed, whatever
@@ -977,6 +1129,8 @@ func _process(delta: float) -> void:
 			_ui_u += dt
 			_black_at(1.0 - _ease(_ui_u / maxf(FADE_IN_S, 0.001)))
 			if _ui_u >= FADE_IN_S:
+				if _slide_way == &"on":
+					_decode_after_dive()
 				_end()
 			return
 		Phase.UI_OUT:
@@ -1294,30 +1448,77 @@ func _side_begin() -> void:
 	var bo := bar_of(old)
 	if bo != null and bo.is_visible_in_tree():
 		_bar_old = bo.get_global_rect()
+	# INTO LOCAL: no decode; the chrome being left slides off as the camera
+	# lands (`_chrome_off`)
+	if (so != null or bo != null) and side_of(new) == null and bar_of(new) == null:
+		_chrome_off(_tex, old)
+		return
 	side_swap = _region_swap(so, side_of(new), &"side", rem, false)
 	# THE TOOLBAR TOO, the same way (Jon: "these buttons"): the row along the
 	# top of the picture, decoded left to right
-	bar_swap = _region_swap(bar_of(old), bar_of(new), &"side2", rem, true)
-	# A: BETWEEN LOCAL AND A SCREEN WITH A TOOLBAR, it decodes on its band
-	var bn := bar_of(new)
-	if bar_swap != null and band_look() == "A" and (bo == null) != (bn == null):
+	bar_swap = _region_swap(bo, bar_of(new), &"side2", rem, true)
+	# OUT OF LOCAL: the chrome has landed; its contents decode in on it, the
+	# band holding until nothing of LOCAL's held picture is left under it
+	if _slide_way == &"on":
+		if bar_swap != null:
+			bar_swap.banded = true
+			bar_swap.held = Callable()
+		if side_swap != null:
+			# (what it crosses from is the empty column that has just landed,
+			# whole in the held frame)
+			side_swap.held = func() -> float: return 1.0
+		_land_chrome_on()
+
+
+## A DIVE OUT OF LOCAL has come up from black under its chrome, landed: the
+## contents decode in on it now.
+func _decode_after_dive() -> void:
+	_show_chrome()
+	side_swap = _region_swap(null, side_of(new), &"side", 0.0, false)
+	bar_swap = _region_swap(null, bar_of(new), &"side2", 0.0, true)
+	if bar_swap != null:
 		bar_swap.banded = true
 		bar_swap.held = Callable()
-		if bo == null:
-			if band == null or not is_instance_valid(band) or band.done:
-				band = _make_band(false)
-				band._u = 1.0
-			band.wait = func() -> bool: return held_alpha() > 0.01
-		else:
-			if band != null and is_instance_valid(band):
-				band.finish()
-			band = _make_band(true)
-			# (held weakly: it may be freed before the band asks)
-			var wr: WeakRef = weakref(bar_swap)
-			band.wait = func() -> bool:
-				var o: Variant = wr.get_ref()
-				return o != null and not (o as SideSwap).done
-		move_child(band, bar_swap.get_index() - 1)
+	if side_swap != null:
+		side_swap.held = Callable()
+	# (the chrome stands until each decode is drawing: then it is the same)
+	for p: Variant in slides:
+		if is_instance_valid(p) and side_swap != null:
+			var wp: WeakRef = weakref(p)
+			side_swap.laid.connect(func(_r: Rect2) -> void:
+				var o: Variant = wp.get_ref()
+				if o != null:
+					(o as ChromeSlide).finish())
+	if band != null and is_instance_valid(band):
+		var wb: WeakRef = weakref(band)
+		band.driven = false
+		band._u = 1.0
+		if bar_swap != null:
+			bar_swap.laid.connect(func(_r: Rect2) -> void:
+				var o: Variant = wb.get_ref()
+				if o != null:
+					(o as SideBand).finish())
+			move_child(band, bar_swap.get_index() - 1)
+	_slide_way = &"done"
+
+
+## Out of LOCAL, landed: the empty column gives way to the panel decoding in
+## (the held frame, which has it, stands over the rect until the decode is up);
+## the band stays till nothing of LOCAL is left under it, then goes -- the
+## arriving screen's own band is the same pixels.
+func _land_chrome_on() -> void:
+	for p: Variant in slides:
+		if is_instance_valid(p):
+			(p as ChromeSlide).finish()
+	slides.clear()
+	if band != null and is_instance_valid(band):
+		band.driven = false
+		band._u = 1.0
+		band.drive(1.0)
+		band.wait = func() -> bool: return held_alpha() > 0.01
+		if bar_swap != null and is_instance_valid(bar_swap):
+			move_child(band, bar_swap.get_index() - 1)
+	_slide_way = &""
 
 
 ## One region's swap, from `so` (the old screen's, or null) to `sn` (the new
@@ -1391,6 +1592,10 @@ func _side_eats(e: InputEvent) -> bool:
 	if not (e is InputEventMouseButton):
 		return false
 	var p := (e as InputEventMouseButton).position
+	# (a piece of chrome on the move takes no click until it has landed)
+	for pc: Variant in ChromeSlide.live:
+		if is_instance_valid(pc) and (pc as ChromeSlide).at().intersection((pc as ChromeSlide).clip).has_point(p):
+			return true
 	var pre := phase == Phase.UI_OUT or phase == Phase.PRE or phase == Phase.PRE_DONE or phase == Phase.WAIT
 	for pair in [[side_swap, _side_old], [bar_swap, _bar_old]]:
 		var sw: Variant = pair[0]
@@ -2094,9 +2299,19 @@ func _end() -> void:
 	# the viewport, where it finishes on its own and takes the clicks on what
 	# has not resolved (`SideSwap._has_point`). A press or a key ends it here.
 	var going: Array = []
-	# (the band first, so it stays under what decodes on it)
+	# (the band first, so it stays under what decodes on it; and the chrome
+	# that waits for a decode to be drawing)
+	for p: Variant in slides:
+		if is_instance_valid(p) and not (p as ChromeSlide).done:
+			if _cut or get_parent() == null or _slide_way != &"done":
+				(p as ChromeSlide).finish()
+			else:
+				var pgp := (p as ChromeSlide).global_position
+				remove_child(p)
+				get_parent().add_child(p)
+				(p as ChromeSlide).global_position = pgp
 	if is_instance_valid(band) and not band.done:
-		if _cut or get_parent() == null or not band.closing:
+		if _cut or get_parent() == null or not (band.closing or _slide_way == &"done"):
 			band.finish()
 		else:
 			var bgp := band.global_position

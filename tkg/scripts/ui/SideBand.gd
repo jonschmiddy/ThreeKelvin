@@ -19,7 +19,8 @@ extends ColorRect
 ##     back up the same way, LOCAL's scene coming up under it.
 ## The scene's top edge moves with it, a pixel or two a frame, never at once.
 ## It takes the clicks on it: under it is either nothing yet or a scene it
-## hides. `ZoomLadder.BAND_LOOK` "A"; "B" gives LOCAL a band of its own instead.
+## hides. Out of LOCAL the ladder drives it with the move (`driven`); into
+## LOCAL the band leaves as a picture instead (`ChromeSlide`).
 
 const OPEN_S := 0.3
 
@@ -35,6 +36,14 @@ var wait: Callable
 var _u := 0.0
 var _k := 0.0
 var done := false
+## THE LADDER DRIVES IT (`ZoomLadder._drive_chrome`): out of LOCAL it opens
+## with the camera leaving LOCAL, not on its own clock
+var driven := false
+
+
+func drive(k: float) -> void:
+	_k = clampf(k, 0.0, 1.0)
+	size.y = roundf(full * _k)
 
 
 static func finish_all() -> void:
@@ -74,6 +83,8 @@ func _process(delta: float) -> void:
 	if done:
 		return
 	var dt := ZoomLadder.fixed_dt if ZoomLadder.fixed_dt > 0.0 else minf(delta, 1.0 / 30.0)
+	if driven:
+		return
 	var holding := wait.is_valid() and bool(wait.call())
 	if not closing:
 		_u = minf(1.0, _u + dt / OPEN_S)

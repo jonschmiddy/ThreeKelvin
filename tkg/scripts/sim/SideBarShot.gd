@@ -3,7 +3,8 @@ extends Node
 ## THE SIDE BAR'S SWAP, filmed (`SideSwap`):
 ##   godot --path . --windowed --position 3840,0 --fixed-fps 60 --quit-after 20000
 ##       -- sheet=SideBarShot out=<dir> [looks=A,B,C,D,E,F] [seed=N]
-## For each look, one film of LOCAL -> map -> chart -> map -> LOCAL through the
+## For each look, one film of LOCAL -> map -> chart -> map -> LOCAL, then the
+## dives LOCAL -> chart -> LOCAL (Tab, through black), through the
 ## Router's own doors on the default seams (1A, 2C), every frame of the game's
 ## 960x540 picture as <dir>/<look>/f_####.png. The ladder's clock and the
 ## swap's step 1/60 s a frame, and with `--fixed-fps 60` so does the game's,
@@ -95,7 +96,8 @@ func _run() -> void:
 			_img().save_png("%s/f_%04d.png" % [d, k])
 			k += 1
 		for h in [["LOCAL>map", Router.show_system], ["map>chart", Router.show_starchart],
-				["chart>map", Router.show_system], ["map>LOCAL", Router.show_local]]:
+				["chart>map", Router.show_system], ["map>LOCAL", Router.show_local],
+				["LOCAL>chart", Router.show_starchart], ["chart>LOCAL", Router.show_local]]:
 			hops.append([h[0], k])
 			(h[1] as Callable).call()
 			var still := 0

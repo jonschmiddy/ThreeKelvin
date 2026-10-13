@@ -103,14 +103,50 @@ func _swap_now() -> Object:
 ## band if it has one, under a band laid over it (`SideBand`), or the top of
 ## the screens' area.
 var _sb: Script = load("res://scripts/ui/SideBand.gd") if ResourceLoader.exists("res://scripts/ui/SideBand.gd") else null
+var _cs: Script = load("res://scripts/ui/ChromeSlide.gd") if ResourceLoader.exists("res://scripts/ui/ChromeSlide.gd") else null
+## (the toolbar's height, where the build has one)
+var _bar_h: float = float((load("res://scripts/ui/StarchartScreen.gd") as Script).get_script_constant_map().get("BAR_H", 17))
+
+
+## The chrome on the move this frame (`ChromeSlide`): [kind, its rect now].
+func _slides() -> Array:
+	var out: Array = []
+	if _cs != null:
+		for pc: Variant in _cs.get("live"):
+			if is_instance_valid(pc) and (pc as CanvasItem).is_visible_in_tree():
+				var r: Rect2 = pc.call(&"at")
+				out.append([StringName(pc.get("kind")), r.intersection(Router.content.get_global_rect())])
+	return out
+
+
+## Where the scene's picture ends on the right this frame, viewport x: where
+## the side bar's column begins -- a piece of it on the move, the screen's own
+## side bar or a swap drawing over where it was (less the 5 px gap beside the
+## picture's frame) -- or the screens' own right edge.
+func _side_edge() -> float:
+	var c := Router.content.get_global_rect()
+	var e := c.end.x
+	for sl: Array in _slides():
+		if sl[0] == &"side" and (sl[1] as Rect2).has_area():
+			e = minf(e, (sl[1] as Rect2).position.x)
+	var sd := _side_of(Router.current)
+	if sd != null and _eff(sd) > 0.5:
+		e = minf(e, sd.get_global_rect().position.x - 5.0)
+	var sw := _swap_now()
+	if sw != null:
+		e = minf(e, (sw.call(&"rect") as Rect2).position.x - 5.0)
+	return e
 
 
 func _bands() -> Array:
 	var out: Array = []
 	var c := Router.content.get_global_rect()
 	var b := _bar_of(Router.current)
-	if b != null and b.is_visible_in_tree():
-		out.append(Rect2(c.position.x, b.get_global_rect().position.y, c.size.x, StarchartScreen.BAR_H + 4))
+	if b != null and _eff(b) > 0.5:
+		out.append(Rect2(c.position.x, b.get_global_rect().position.y, c.size.x, _bar_h + 4))
+	for sl: Array in _slides():
+		if sl[0] == &"band" and (sl[1] as Rect2).has_area():
+			out.append(sl[1])
 	if _sb != null:
 		for sb: Variant in _sb.get("live"):
 			if is_instance_valid(sb) and (sb as CanvasItem).is_visible_in_tree():
@@ -154,14 +190,24 @@ func _bar_of(s: Variant) -> Control:
 ## unresolved content (count of grid points)], or [] when the screen up has no
 ## side bar.
 func _measure() -> Array:
-	return _measure_region(_side_of(Router.current), _swap_now())
+	return _measure_region(_side_of(Router.current), _swap_now(), &"side")
 
 
-func _measure_region(side: Control, sw: Object) -> Array:
+## (a piece of it on the move, `ChromeSlide`, is it, drawn whole)
+func _measure_region(side: Control, sw: Object, kind: StringName = &"") -> Array:
 	if side == null and sw == null:
 		return []
 	if sw == null:
-		return [_eff(side), 0.0, 0]
+		var whole := _eff(side)
+		for sl: Array in _slides():
+			if sl[0] == kind and (sl[1] as Rect2).has_area():
+				whole = 1.0
+		# (and the band coming on, empty, its row to decode in once it lands)
+		if kind == &"band" and _sb != null:
+			for sb: Variant in _sb.get("live"):
+				if is_instance_valid(sb) and (sb as CanvasItem).is_visible_in_tree():
+					whole = 1.0
+		return [whole, 0.0, 0]
 	# THE SWAP DRAWN OVER IT: its own account of each point (old, new, how
 	# settled the new is there), checked to be drawn at all first
 	var ov := sw as CanvasItem
@@ -214,6 +260,8 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 	# THE SCENE'S TOP EDGE (Jon: "the window drops abruptly"), and the letters
 	# of a decode held to a band (Jon on the toolbar's over LOCAL: "weird")
 	var edge0 := _scene_top()
+	var side0 := _side_edge()
+	var side_jump := 0.0
 	var band_frames := 0
 	var edge_jump := 0.0
 	var loose := 0
@@ -237,12 +285,12 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 			if not sn.has_method(&"scrambling") or not (sn.call(&"scrambling") as Array).is_empty():
 				letter_frames += 1
 				decode_end = frames
-		var mb := _measure_region(_bar_of(Router.current), _bar_now())
+		var mb := _measure_region(_bar_of(Router.current), _bar_now(), &"band")
 		if not mb.is_empty():
 			if float(mb[0]) < 0.5:
 				bar_blank += 1
 			bar_low = minf(bar_low, float(mb[0]))
-		if _sb != null and not (_sb.get("live") as Array).is_empty():
+		if (_sb != null and not (_sb.get("live") as Array).is_empty()) or not _slides().is_empty():
 			band_frames += 1
 		var bw := _bar_now()
 		if bw != null and (bw as CanvasItem).visible:
@@ -254,6 +302,9 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 		var e := _scene_top()
 		edge_jump = maxf(edge_jump, absf(e - edge0))
 		edge0 = e
+		var se := _side_edge()
+		side_jump = maxf(side_jump, absf(se - side0))
+		side0 = se
 		if landed_at < 0 and (not ZoomLadder.busy() or ZoomLadder.active.phase == ZoomLadder.Phase.UI_IN):
 			landed_at = frames
 		frames += 1
@@ -278,8 +329,11 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 		var bar := _bar_of(Router.current)
 		_ok("%s: the toolbar whole at rest" % label, bar == null or _eff(bar) > 0.99)
 		_ok("%s: the scene's top edge never moves more than 3 px in a frame (most %.0f)" % [label, edge_jump], edge_jump <= 3.0)
+		# (the side bar's column crosses 265 px in the camera's half of the move:
+		# at most 8 px a frame at its fastest, never at once)
+		_ok("%s: the side bar's left edge, the picture's right, never more than 10 px in a frame (most %.0f)" % [label, side_jump], side_jump <= 10.0)
 		_ok("%s: no decoded letter off a band (%d rows)" % [label, loose], loose == 0)
-	if _cur_look == "E":
+	if _cur_look == "E" and letter_frames > 0:
 		# E, SLOW (Jon: "happen slowly and not so fast"): the side bar decodes for
 		# a second or more, and is done within 0.35 s of the camera landing --
 		# or, on a hop shorter than that, runs on past it no longer than it needs
@@ -446,6 +500,49 @@ func _toolbar_rows() -> void:
 	ZoomLadder.force = 1
 
 
+## A click on the side bar's column while it slides off LOCAL (map -> LOCAL):
+## the move ends and the click reaches nothing under it -- LOCAL's scene, which
+## it was about to uncover, never hears it.
+func _click_moving_chrome() -> void:
+	if _cs == null:
+		return
+	Router.show_system()
+	await _idle()
+	await _frames(4)
+	Router.show_local()
+	var pc: Object = null
+	for i in 400:
+		await _tree.process_frame
+		for p: Variant in _cs.get("live"):
+			if is_instance_valid(p) and StringName(p.get("kind")) == &"side" and float(p.get("k")) < 0.8 and float(p.get("k")) > 0.2:
+				pc = p
+		if pc != null:
+			break
+	if not _ok("the side bar's column is seen sliding off LOCAL", pc != null):
+		await _idle()
+		return
+	var r: Rect2 = (pc.call(&"at") as Rect2).intersection(Router.content.get_global_rect())
+	var at := r.get_center()
+	var loc := Router.current as SectorScreen
+	var heard := [0]
+	var probe := func(ev: InputEvent) -> void:
+		if ev is InputEventMouseButton:
+			heard[0] += 1
+	loc._view.gui_input.connect(probe)
+	for pressed in [true, false]:
+		var ev := InputEventMouseButton.new()
+		ev.button_index = MOUSE_BUTTON_LEFT
+		ev.pressed = pressed
+		ev.position = at
+		ev.global_position = at
+		loc.get_viewport().push_input(ev)
+		await _tree.process_frame
+	loc._view.gui_input.disconnect(probe)
+	_ok("a click on it mid-slide ends the move and lands on nothing (heard %d)" % heard[0], heard[0] == 0 and not ZoomLadder.busy())
+	await _idle()
+	await _frames(4)
+
+
 func _buttons(n: Node) -> Array[BaseButton]:
 	var out: Array[BaseButton] = []
 	if n == null:
@@ -513,37 +610,15 @@ func _run() -> void:
 		await _idle()
 	_set_look("")
 	print("  [sidebar] blank frames over every hop: %d" % total)
-	# THE TWO BANDS (`ZoomLadder.BAND_LOOKS`), each on E, LOCAL built anew under
-	# it; `bands=OFF` runs the build before them, to watch these checks fail
-	var bls := ["A", "B"]
-	for a in OS.get_cmdline_user_args():
-		if (a as String).begins_with("bands="):
-			bls = Array((a as String).substr(6).split(","))
-	if _zl.get_script_constant_map().has("BAND_LOOKS"):
-		for bl: String in bls:
-			_zl.call(&"force_band_look", bl)
-			_cur_look = "E"
-			_set_look("E")
-			ZoomLadder.force = 0
-			Router.show_system()
-			await _frames(4)
-			Router.show_local()
-			await _frames(30)
-			ZoomLadder.force = 1
-			print("  [sidebar] band %s" % bl)
-			total += await _hop("band %s LOCAL -> map" % bl, Router.show_system, SystemMapScreen)
-			total += await _hop("band %s map -> chart" % bl, Router.show_starchart, StarchartScreen)
-			total += await _hop("band %s chart -> map" % bl, Router.show_system, SystemMapScreen)
-			total += await _hop("band %s map -> LOCAL" % bl, Router.show_local, SectorScreen)
-		_zl.call(&"force_band_look", "")
-		ZoomLadder.force = 0
-		Router.show_system()
-		await _frames(4)
-		Router.show_local()
-		await _frames(30)
-		ZoomLadder.force = 1
+	# THE DIVES TOO (Tab: LOCAL to the chart and back, through black), the
+	# chrome sliding in them as in the moves
+	_cur_look = "E"
+	_set_look("E")
+	total += await _hop("LOCAL -> chart (dive)", Router.show_starchart, StarchartScreen)
+	total += await _hop("chart -> LOCAL (dive)", Router.show_local, SectorScreen)
 	if _ss != null:
 		await _toolbar_rows()
+	await _click_moving_chrome()
 
 	# THE ANIMATION OFF: headless as the game runs it, and reduced motion
 	Router.animate_in_harness = false

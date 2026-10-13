@@ -682,50 +682,6 @@ func _build() -> void:
 	_build_orphans()
 	root.add_child(_build_hand())
 	_build_overlay()
-	if ZoomLadder.band_look() == "B":
-		_build_band()
-
-
-## B: LOCAL KEEPS A BAND (Jon: "the window drops abruptly" between LOCAL and the
-## map or the chart -- their picture starts under their toolbar, 21 px below
-## LOCAL's top): the same band along LOCAL's top, laid over the scene, so the
-## edge never moves and the toolbar decodes from screen to screen. What is on
-## it LOCAL already knew: this system's danger, as the map's row has it -- the
-## readout the decode keeps -- and the system's name on the right, as words,
-## since nothing on it is a thing to press.
-var _band: ColorRect = null
-var _band_row: HBoxContainer = null
-
-
-func _build_band() -> void:
-	_band = ColorRect.new()
-	_band.color = UITheme.VOID
-	_band.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(_band)
-	_band.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	_band.offset_bottom = StarchartScreen.BAR_H + 4
-	_band_row = StarchartScreen.toolbar_row()
-	_band.add_child(_band_row)
-	_band_row.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	_band_row.offset_bottom = StarchartScreen.BAR_H
-	var n := Run.node_at()
-	var text := UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-	var cells := HBoxContainer.new()
-	cells.add_theme_constant_override("separation", 2)
-	var tier := UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-	_band_row.add_child(text)
-	_band_row.add_child(cells)
-	_band_row.add_child(tier)
-	var gap := Control.new()
-	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_band_row.add_child(gap)
-	_band_row.add_child(UITheme.body(MapGen.star_name(n), UITheme.ICE, UITheme.FS_SMALL))
-	SystemMapScreen.fill_danger(text, cells, tier, n)
-
-
-## B: the band's toolbar, for the ladder to decode into the next screen's.
-func ladder_bar() -> Control:
-	return _band_row if _band != null and is_instance_valid(_band) and _band.visible else null
 
 ## The side rail is gone. Its contents, in order of what happened to them:
 ##

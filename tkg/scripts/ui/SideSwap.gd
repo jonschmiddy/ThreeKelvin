@@ -436,6 +436,10 @@ func state_at(p: Vector2) -> Vector3:
 		# held picture's standing copy goes, then the screen's bare ground,
 		# which is no content)
 		var h := clampf(float(held.call()), 0.0, 1.0) if held.is_valid() else 0.0
+		# (crossing from a picture that stays whole -- chrome that has just
+		# landed -- the old is that picture, as with a side bar)
+		if h >= 0.999:
+			return st
 		# (F's lost signal is drawn, never the bare ground: content)
 		if _li == 5 and t < F_LOST:
 			h = 1.0
