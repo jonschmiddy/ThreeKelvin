@@ -442,13 +442,13 @@ func _seed_modules() -> void:
 		[{name = "Suppressing Fire", energy = 1, heat = 0, damage = 3, hits = 2, salvo = 2},
 			&"slug"])
 	_module(&"km4", "KM-4 Mass Driver", &"korvan", W, C0,
-		"Slow ordnance. Bank the shot, land the hammer.",
+		"Charges for a turn, then hits hard.",
 		[{name = "Charged Slug", energy = 2, heat = 3, damage = 16, charge_turns = 1, copies = 1}])
 	# ONE AND ONE. It granted two copies of a card called "Brace", which is the
 	# keyword wearing its own name twice — it is the shared Bolt On plus a card
 	# that is actually this welder's.
 	_module(&"plate", "Ablative Plate Welder", &"korvan", S, C0,
-		"Armor that persists, heat that lingers.",
+		"Lasting armor that costs heat to hold.",
 		[&"brace", {name = "Weld On", energy = 1, brace = 3, vent = 2}])
 	_module(&"coolant", "Coolant Flush Assembly", &"korvan", S, C0,
 		"Dumps heat into the dark.",
@@ -461,13 +461,13 @@ func _seed_modules() -> void:
 		## Bore sighting is what you do to a gun this size before you fire it.
 		[{name = "Bore Sight", energy = 1, lock_on = 4, copies = 1}])
 	_module(&"kh88", "KH-88 Jackhammer", &"korvan", W, C2,
-		"Rotary cannon. It aims by volume.",
+		"Rotary cannon. It fires many small rounds.",
 		[{name = "Full Auto", energy = 2, damage = 2, hits = 5, salvo = 1}, &"feed"])
 	_module(&"widow", "Widowmaker Siege Driver", &"korvan", W, C3,
-		"Two turns of silence, then nothing left.",
+		"Charges for two turns, then hits very hard.",
 		[{name = "Siege Round", energy = 3, heat = 6, damage = 40, charge_turns = 2, copies = 1}])
 	_module(&"reactive", "Reactive Plating Array", &"korvan", S, C4,
-		"Armor that answers back.",
+		"Armor that hits back at attackers.",
 		[{name = "Bulwark", energy = 2, heat = 1, brace = 8, feedback = 4},
 			{name = "Overwatch", energy = 2, brace = 4, feedback = 6, draw = 1}])
 
@@ -496,7 +496,7 @@ func _seed_modules() -> void:
 	# Ballistics, the middle rung. Between the Chatterbox's 6/10 and the
 	# Jackhammer's 10/15, and cheaper than either to fire twice in a turn.
 	_module(&"kh40", "KH-40 Ripsaw", &"korvan", W, C1,
-		"Three barrels on one trigger, and no subtlety.",
+		"Three barrels on one trigger.",
 		[{name = "Ripple Fire", energy = 1, damage = 3, hits = 3, salvo = 2}, &"feed"])
 	# The top of the KH line, and the payoff for the whole salvo spine: 20 cold,
 	# 40 once anything has already fired. Three energy and one copy, so it is a
@@ -504,7 +504,7 @@ func _seed_modules() -> void:
 	# a reactor of three does not. That is the Korvan hull signature (slow, tough,
 	# patient) written as a weapon, and at five set pieces the enabler is free.
 	_module(&"kh500", "KH-500 Drumfire", &"korvan", W, C4,
-		"The last argument of a slow ship.",
+		"A heavy drum-fed gun. Best fired after the others.",
 		[{name = "Drumfire", energy = 3, damage = 4, hits = 5, salvo = 4},
 			{name = "Walking Fire", energy = 2, damage = 3, hits = 6, salvo = 2}])
 
@@ -512,7 +512,7 @@ func _seed_modules() -> void:
 	# way: C1 marries the two Commons, C2 buys a different defence entirely, C3
 	# buys scale, and the Legendary above is where armour starts hitting back.
 	_module(&"sinkplate", "Heat Sink Plating", &"korvan", S, C1,
-		"Plate that drinks the heat it stops.",
+		"Plate that also sheds heat.",
 		[{name = "Sink Plate", energy = 1, brace = 6, vent = 3}, &"brace"])
 	# BLOCK, which Korvan has never had. Armour persists and costs heat to hold;
 	# block decays and costs nothing. So this is the card for the turn a Mass
@@ -523,7 +523,7 @@ func _seed_modules() -> void:
 		[{name = "Dig In", energy = 1, block = 8, brace = 2},
 			{name = "Set Feet", energy = 1, block = 12, feedback = 3}])
 	_module(&"bulkhead", "Bulkhead Array", &"korvan", S, C3,
-		"Korvan's answer to most questions.",
+		"Heavy plate, which is Korvan's fix for most problems.",
 		[{name = "Bulkhead", energy = 1, heat = 1, brace = 7},
 			{name = "Compartment", energy = 2, brace = 9, block = 6}])
 
@@ -532,80 +532,80 @@ func _seed_modules() -> void:
 	# Common-adjacent price and pays 2 heat for it, and Korvan undercutting that on
 	# heat instead of beating it on size is the difference between the two manufacturers.
 	_module(&"optics", "Ranging Optics", &"korvan", U, C1,
-		"Cheap glass. Correct answers.",
+		"Cheap lenses that still give a correct range.",
 		[{name = "Cold Read", energy = 0, lock_on = 4, vent = 1}, &"range"])
 	_module(&"coldsights", "Cold Sights", &"korvan", U, C2,
-		"Cools the barrel and the arithmetic.",
+		"Cools the barrel and steadies the aim.",
 		[{name = "Cold Sights", energy = 1, vent = 3, lock_on = 4}, &"vent"])
 	# The other half of the charged-weapon problem: a free card for the turn you
 	# cannot attack, which vents the ordnance heat you are still carrying from the
 	# last one. Pairs with Brace Frame by design — one blocks, one cools.
 	_module(&"standfast", "Standfast Rig", &"korvan", U, C3,
-		"Sit still. Take it. Wait for the tone.",
+		"Holds and cools the ship while a gun charges.",
 		[{name = "Standfast", energy = 0, brace = 6, vent = 4}, &"block"])
 	# The capstone, and it is an ENGINE rather than a hammer — the hammer is the
 	# Drumfire. Free to play, returns the energy, marks the target: the card that
 	# turns a hand of Korvan guns into one enormous turn. Three heat a play is the
 	# brake, and the only reason it is not degenerate.
 	_module(&"director", "KX-9 Fire Director", &"korvan", U, C4,
-		"It decides. You pull.",
+		"It aims for you. You only pull the trigger.",
 		[{name = "Fire Director", energy = 0, heat = 3, lock_on = 5, energy_gain = 1}, &"range"])
 
 	# --- Solari: heat as ammunition
 	_module(&"plasma", "Solari Plasma Lance", &"solari", W, C1,
-		"Hotter you run, harder it bites.",
+		"Hits harder the hotter you run.",
 		[{name = "Plasma Lance", energy = 1, heat = 3, damage = 4, heat_scale = 3, copies = 2}])
 	_module(&"ventcan", "Thermal Purge Cannon", &"solari", W, C2,
-		"Fires your own fever at them.",
+		"Fires all your heat at the enemy.",
 		[{name = "Thermal Purge", energy = 1, damage_equals_heat = true, vent_all = true, copies = 1}])
 	_module(&"overdrive", "Overdrive Coils", &"solari", S, C1,
-		"Energy now, consequences shortly.",
+		"Extra energy now, paid for in heat.",
 		[{name = "Overdrive", energy = 0, heat = 4, energy_gain = 2, copies = 2}])
 	_module(&"shroud", "Solari Heat Shroud", &"solari", S, C2,
-		"Converts fever into shielding.",
+		"Turns your heat into armor.",
 		[{name = "Shroud", energy = 1, brace_from_heat = true, copies = 2}])
 	## Solari was the one manufacturer with no utility at all, which made a Solari
 	## starting kit impossible. Deliberately Korvan's Targeting Servo read hot:
 	## a better mark, paid for in heat — the whole manufacturer in one card.
 	_module(&"flare", "Solari Flare Rack", &"solari", U, C1,
-		"Burns bright enough that everyone can see what you meant.",
+		"A flare that lights the target for your guns.",
 		[{name = "Flare", energy = 1, heat = 2, lock_on = 6, copies = 2}])
 
 	# --- Probate: scrap and sustain
 	_module(&"claw", "Salvage Claw", &"probate", U, C0,
-		"Strips value off things still moving.",
+		"Tears salvage off live targets.",
 		[{name = "Strip Mine", energy = 1, damage = 5, credit_gain = 3, copies = 2}])
 	_module(&"slag", "Slag Armor Kit", &"probate", S, C1,
-		"Ugly, heavy, pays for itself.",
+		"Ugly, heavy plate that pays for itself.",
 		[{name = "Slag Plate", energy = 1, brace = 6, credit_gain = 2, copies = 2}])
 	_module(&"refinery", "Field Refinery", &"probate", U, C2,
 		"Feeds salvage into the armor press.",
 		[{name = "Smelt", energy = 1, credit_cost = 5, brace = 10, copies = 1}])
 	_module(&"ripper", "Probate Tear-Down Rig", &"probate", W, C2,
-		"Disassembles hulls that object.",
+		"Takes apart hulls that are still fighting.",
 		[{name = "Tear Down", energy = 2, heat = 1, damage = 7, hits = 2, credit_gain = 4, copies = 2}])
 	## Issued weapon. See STARTER_WEAPON for why these three exist.
 	_module(&"breaker", "Breaker Cannon", &"probate", W, C0,
-		"Point it at something and it becomes stock.",
+		"Breaks what it hits into stock you can sell.",
 		[{name = "Break Down", energy = 1, damage = 5, credit_gain = 2, copies = 2}])
 
 	# --- Redline: evasion, refit, contraband
 	_module(&"chaff", "Chaff Launcher", &"redline", U, C0,
-		"Cheap, temporary, better than nothing.",
+		"Cheap cover that lasts one turn.",
 		[{name = "Chaff", energy = 1, block = 6, copies = 2}])
 	_module(&"juryrig", "Jury-Rig Kit", &"redline", S, C1,
-		"Finds you options you did not have.",
+		"Improvised fixes that give you more options.",
 		[{name = "Jury-Rig", energy = 0, draw = 2, copies = 2}])
 	_module(&"ghost", "Ghost Drive", &"redline", U, C2,
-		"You were never there.",
+		"Hides you from the next attack.",
 		[{name = "Slip", energy = 1, negate_next = true, copies = 1}])
 	_module(&"needle", "Redline Needle Gun", &"redline", W, C1,
-		"Stolen barrel, filed serial.",
+		"A stolen gun with the serial filed off.",
 		[{name = "Needle", energy = 1, damage = 6, draw = 1, copies = 2}])
 
 	# --- Cygnet: drones
 	_module(&"dronebay", "Cygnet Drone Bay", &"cygnet", W, C1,
-		"Launches something that fights for you.",
+		"Launches a drone that fights for you.",
 		[{name = "Sortie", energy = 1, drone_damage = 3, copies = 2}])
 	_module(&"wasp", "Shield Wasp Cradle", &"cygnet", S, C1,
 		"A drone that flies between you and it.",
@@ -620,13 +620,13 @@ func _seed_modules() -> void:
 	## copy of it in the deck and a merely-average Common would have left the
 	## manufacturer opening a fight with a single mediocre attack.
 	_module(&"markone", "Verity Mark I", &"verity", W, C0,
-		"Numbered, signed, and the cheapest thing they will sell you.",
+		"Verity's cheapest gun, still numbered and signed.",
 		[{name = "Sidearm", energy = 1, damage = 7, copies = 2}])
 	_module(&"rail", "Aurelian Rail", &"verity", W, C2,
-		"Nothing wasted. Nothing missed.",
+		"A precise rail gun that wastes nothing.",
 		[{name = "Precise Shot", energy = 1, heat = 1, damage = 9, draw = 1, copies = 2}])
 	_module(&"auspex", "Auspex Array", &"verity", U, C1,
-		"You always have the card you need.",
+		"Draws deep so you find the card you need.",
 		## DRAW THREE AND THROW ONE, not draw two — which is what this said until
 		## the twin check put it next to Redline's Jury-Rig and they were the same
 		## card. Both manufacturers want cards; only one of them wants THE RIGHT card,
@@ -634,12 +634,12 @@ func _seed_modules() -> void:
 		## everyone else grants two, so the one is allowed to be the better one.
 		[{name = "Foresight", energy = 0, draw = 3, discard = 1, copies = 2}])
 	_module(&"verity", "Verity Deflector", &"verity", S, C3,
-		"Elegance, quantified.",
+		"A fine deflector. It blocks well.",
 		[{name = "Deflect", energy = 1, block = 12, copies = 2}])
 
 	# --- Calyx: regrowth and adaptation
 	_module(&"weave", "Vital Weave", &"calyx", S, C1,
-		"The hull knits itself. Slowly.",
+		"The hull slowly knits itself back.",
 		[{name = "Knit", energy = 1, heal = 5, copies = 2}])
 	## Issued weapon. Bites and knits at once, which is the manufacturer in miniature.
 	##
@@ -659,13 +659,13 @@ func _seed_modules() -> void:
 	## anybody reaching for "sustain decides the game" as a reason to refuse
 	## something should reach for the current number instead.
 	_module(&"barb", "Calyx Barb", &"calyx", W, C0,
-		"Grown to a point. Feeds on what it opens.",
+		"A grown spike that heals you as it cuts.",
 		[{name = "Barb", energy = 1, damage = 4, heal = 1, copies = 2}])
 	_module(&"nodule", "Adaptive Nodule", &"calyx", W, C2,
-		"Learns the shape of this fight.",
+		"Gets stronger the more you use it in a fight.",
 		[{name = "Adapt", energy = 1, damage = 5, adapt = 2, copies = 2}])
 	_module(&"sporevent", "Calyx Spore Vent", &"calyx", U, C2,
-		"Grown coolant. Unsettlingly warm.",
+		"Grown coolant. It is oddly warm to the touch.",
 		[{name = "Bloom", energy = 0, vent = 6, heal = 3, copies = 1}])
 
 	# --- Repair, one way per manufacturer
@@ -708,40 +708,40 @@ func _seed_modules() -> void:
 	# Widening the thing that made it strongest is not how the other six catch up.
 	# Every rate below is deliberately worse than Knit's 10 hull for 2 energy.
 	_module(&"weldkit", "Field Weld Kit", &"korvan", U, C1,
-		"Surplus. One kit, one weld, and it holds.",
+		"A surplus kit for one weld, and the weld holds.",
 		[{name = "Field Weld", energy = 1, heal = 3, heal_scale = 3}, &"patch"])
 	## Heat as the welding torch, which is the manufacturer's whole argument. Costs four
 	## heat to buy seven hull, so it is a good trade on a cold turn and a way to
 	## kill yourself on a hot one — and Ignition (5-set, overheat halved) is what
 	## turns the second case back into the first.
 	_module(&"cautery", "Cauterising Torch", &"solari", S, C2,
-		"Aim it at the hole. Heat is only waste if you fail to aim it.",
+		"Seals hull breaches with heat, and runs hot doing it.",
 		[{name = "Cauterise", energy = 1, heat = 4, heal = 2, heal_scale = 3, copies = 1}])
 	## Repairs out of the hold, at Combine rates. The credit cost is the point:
 	## it is the only card in the game that spends the run's currency to buy hull
 	## back mid-fight, and Company Rates (3-set, +50% from wrecks) is what pays
 	## for it. A fight you cannot afford is a fight you have to win cheaply.
 	_module(&"reclaim", "Hull Reclamation Rig", &"probate", S, C1,
-		"Feeds the frame on whatever the frame used to be.",
+		"Rebuilds the frame from salvage, for a price.",
 		[{name = "Reclaim", energy = 1, heal = 2, heal_scale = 3, credit_cost = 8, copies = 1}])
 	## Cheap, fast, and not very good — which is Redline. Free to play and it
 	## replaces itself, so it costs a card slot rather than a turn, and Chop Shop
 	## (3-set, draw 1 extra) is a manufacturer that can afford to run thin cards.
 	_module(&"bodge", "Bodge Kit", &"redline", U, C0,
-		"Foam, tape, and no paperwork. Still flying? Then we did our job.",
+		"Foam and tape, with no paperwork. It keeps you flying.",
 		[{name = "Bodge", energy = 0, heal = 1, heal_scale = 5, draw = 1, copies = 2}])
 	## The warranty, as a card. Twenty hull in one go for three energy — two
 	## under Bespoke (3-set, Verity cards cost 1 less), which is the difference
 	## between unplayable and a turn you plan a fight around. See `docs/lore.md`
 	## §3: the word in the rider is perpetuity, and the Company does not define it.
 	_module(&"perpetuity", "Perpetuity Clause", &"verity", S, C3,
-		"The Company will maintain this hull. The Company does not say for how long.",
+		"The Company will maintain this hull, but does not say for how long.",
 		[{name = "Perpetuity", energy = 2, heal = 4, heal_scale = 3, copies = 1}])
 	## Two small welds rather than one big one, which is how a swarm does
 	## anything. Worse per card than Knit and worse per energy, and it arrives
 	## twice — Cygnet repairs the way Cygnet fights.
 	_module(&"menders", "Mender Swarm", &"cygnet", S, C2,
-		"They find the hole before you do. Nobody has asked how.",
+		"Repair drones that find a breach before you do.",
 		## A SWARM THAT STAYS. This was the yard's Patch to the decimal — same
 		## energy, same 1, same scale of 5 — on a rare part of a manufacturer that does
 		## not repair by hand. Cygnet sends things, so the repair leaves the things
@@ -755,11 +755,11 @@ func _seed_modules() -> void:
 		[{name = "Whale Song", energy = 1, heal = 8, vent = 3},
 			{name = "Deep Song", energy = 1, heal = 6, vent = 6, draw = 1}])
 	_module(&"lattice", "Precursor Lattice", &"", S, C6,
-		"Nobody built this. It simply persists.",
+		"No one knows who made it, and it does not wear out.",
 		[{name = "Lattice", energy = 0, brace = 6, draw = 1},
 			{name = "Persist", energy = 1, brace = 8, block = 8}])
 	_module(&"singing", "Singing Core", &"", W, C6,
-		"It hums. Things nearby come apart.",
+		"It hums, and things near it shake apart.",
 		[{name = "Resonance", energy = 2, heat = 2, damage = 11, hits = 2},
 			{name = "Sympathetic Burst", energy = 2, heat = 4, damage = 7, hits = 3}])
 
@@ -791,13 +791,13 @@ func _seed_modules() -> void:
 	# which is the definition of yard stock — and the rarity law is what caught
 	# it: an uncommon part has to bring one uncommon card and this brings none.
 	_module(&"scuttle", "Scuttle Chute", &"", U, C0,
-		"A hatch that only opens outward. Whatever went down it is not coming back.",
+		"A hatch that only opens outward. What goes down it is gone for this fight.",
 		[&"scuttle", &"sort"])
 	_module(&"sortrig", "Sorting Rig", &"redline", U, C2,
-		"Sorts the useful from the fused. Quickly, and without asking.",
+		"Sorts the useful from the fused, quickly.",
 		[{name = "Cull", energy = 1, rarity = 2, discard = 2, draw = 2}, &"sort"])
 	_module(&"blowout", "Blowout Panel", &"korvan", S, C2,
-		"Better the rack than the ship.",
+		"Blows out the rack to save the ship.",
 		[{name = "Blow Out", energy = 1, discard_hand = true, draw = 3}, &"sort"])
 
 	# --- yard stock: what every ship leaves the dock with, whoever built it.
@@ -816,10 +816,10 @@ func _seed_modules() -> void:
 	# mount, three add a utility — so without a spread here the top-up ran out
 	# of things that fit and fell back on bolting on a second identical plate.
 	_module(&"beam", "Mining Laser", &"", W, C0,
-		"Cuts rock. Cuts other things.",
+		"Cuts rock, and ships too.",
 		[&"cut", &"slug"])
 	_module(&"slug", "Slug Thrower", &"", W, C0,
-		"Chemical propellant and a tube. Older than spaceflight.",
+		"Chemical propellant in a tube, older than spaceflight.",
 		[&"slug"])
 	_module(&"torch", "Cutting Torch", &"", W, C0,
 		"Meant for hulls that are already dead.",
@@ -829,10 +829,10 @@ func _seed_modules() -> void:
 	# its own, which is the point of it: the branded plate in the next wreck has
 	# to be visibly better than something.
 	_module(&"plating", "Hull Plating", &"", S, C0,
-		"Steel, bolted on. It does not have to be clever.",
+		"Plain steel plate, bolted on.",
 		[&"brace"])
 	_module(&"board", "Signal Board", &"", S, C0,
-		"Sorts what the sensors are shouting about into an order.",
+		"Ranks what the sensors pick up, most urgent first.",
 		[&"reroute", &"range"])
 	_module(&"bracing", "Impact Bracing", &"", S, C0,
 		"Struts that take one hit and are then scrap.",
@@ -842,7 +842,7 @@ func _seed_modules() -> void:
 		"A hose and a pump. Standard on everything that burns.",
 		[&"vent", &"patch"])
 	_module(&"scope", "Ranging Scope", &"", U, C0,
-		"Tells the guns where the thing is. That is all it does.",
+		"Tells the guns where the target is, and nothing more.",
 		[&"range"])
 	## YARD STOCK, AND THE FIRST LIFELINE ANYBODY HOLDS. Scaled like the branded
 	## repairs below it rather than left flat, because the turn this card exists
@@ -856,7 +856,7 @@ func _seed_modules() -> void:
 	## cards", and the only thing that actually differed between them was the
 	## `shared` flag.
 	_module(&"patchkit", "Patch Kit", &"", U, C0,
-		"Foam, tape, and a prayer to whoever welded the frame.",
+		"Foam and tape for small holes in the hull.",
 		[&"patch"])
 
 
@@ -867,11 +867,11 @@ func _seed_modules() -> void:
 	# A rung nobody can buy is a rung that does not exist, and a player building
 	# for an attribute finds that out by not finding the part.
 	_module(&"cryobat", "Cryogenic Battery", &"korvan", S, C4,
-		"Korvan does not cool the gun. Korvan starts it cold.",
+		"A cold store that keeps the guns cool from the start.",
 		[{name = "Cold Store", energy = 1, vent = 6, brace = 8},
 			{name = "Dead Cold", energy = 2, vent_all = true, brace = 12}])
 	_module(&"gunnery", "Gunnery Table", &"korvan", U, C3,
-		"Somebody worked the problem before the shooting started.",
+		"Firing solutions worked out before the fight.",
 		[{name = "Fire Solution", energy = 0, lock_on = 8, draw = 1},
 			{name = "Range Card", energy = 1, damage = 7, lock_on = 3}])
 	# DISCARD, and three parts of it, because the verb had four cards in the whole
@@ -881,12 +881,12 @@ func _seed_modules() -> void:
 		"Spent casings go in the bin. The bin is on the manifest.",
 		[{name = "Clear the Breech", energy = 0, discard = 2, damage = 6}, &"sort"])
 	_module(&"hoist", "Ammunition Hoist", &"korvan", S, C2,
-		"Feeds the guns from below. Whatever is nearest.",
+		"Feeds the guns from below with whatever is nearest.",
 		[{name = "Rack and Load", energy = 1, discard = 1, damage = 4, hits = 2,
 			salvo = 2},
 			{name = "Spent Brass", energy = 0, discard = 1, energy_gain = 1}])
 	_module(&"gantry", "Loading Gantry", &"korvan", S, C1,
-		"A chain and a rail. It never stops.",
+		"A chain and a rail that keep the guns fed.",
 		[{name = "Chain Feed", energy = 1, salvo = 3, draw = 1}, &"feed"])
 
 	# --- Unbranded: the artifact rungs, which are the only place a +4 can live
@@ -895,15 +895,15 @@ func _seed_modules() -> void:
 	# is the yard's problem and nobody else's. Three of the five gauges had no +4
 	# at all.
 	_module(&"keel", "Precursor Keel", &"", S, C6,
-		"It is not attached to the hull. The hull is attached to it.",
+		"The hull hangs from this keel.",
 		[{name = "Keelbound", energy = 1, brace = 14},
 			{name = "Unmade", energy = 2, brace = 10, block = 10, draw = 1}])
 	_module(&"sepulchre", "Cold Sepulchre", &"", S, C6,
-		"Whatever it was built to keep cold is still in there, and still cold.",
+		"A sealed cold store. Its contents are still inside and still cold.",
 		[{name = "Absolute", energy = 1, vent = 12, draw = 2},
 			{name = "Long Cold", energy = 0, vent = 6, brace = 8}])
 	_module(&"oracle", "Oracle Shard", &"", U, C6,
-		"It tells you where the shot goes. It does not say how it knows.",
+		"It shows where the shot will land, but not how it knows.",
 		[{name = "Foreknowledge", energy = 0, lock_on = 10, draw = 2},
 			{name = "Auspice", energy = 1, damage = 8, lock_on = 6}])
 	_module(&"ejector", "Ejector Rail", &"", U, C0,
@@ -946,20 +946,20 @@ func _seed_modules() -> void:
 	# pulls one out of something else, Redline adds cable, and Korvan overbuilds
 	# the armature. Cygnet, Verity and Calyx have nothing to say about it.
 	_module(&"buscoupling", "Bus Coupling", &"", S, C0,
-		"A second line to the same reactor. On every ship that ever left a yard.",
+		"A second line to the same reactor. Every ship from a yard has one.",
 		[{name = "Shunt", energy = 1, vent = 2, draw = 1}, &"reroute"])
 	_module(&"foundrybus", "Foundry Bus", &"solari", S, C2,
-		"Hot, and with the covers off so you can watch.",
+		"A power bus that runs hot, with its covers off.",
 		[{name = "Cold Start", energy = 0, vent = 4, energy_gain = 1}, &"vent"])
 	_module(&"trunkline", "Salvaged Trunk Line", &"probate", S, C1,
-		"Pulled from something that stopped needing it.",
+		"Pulled from a ship that no longer needs it.",
 		[{name = "Cannibalise", energy = 1, decommission = 1, brace = 6},
 			{name = "Scrap Line", energy = 0, credit_gain = 3, discard = 1}])
 	_module(&"jumper", "Jumper Cable", &"redline", U, C1,
-		"More cable. It has worked every time so far.",
+		"Extra cable that crossfeeds power between systems.",
 		[{name = "Crossfeed", energy = 1, heat = 2, damage = 4, draw = 2}, &"reroute"])
 	_module(&"mainbus", "Main Bus Armature", &"korvan", S, C2,
-		"Heavier than it needs to be. Still bolted on when the ship is gone.",
+		"Built heavier than it needs to be. It often outlasts the ship.",
 		[{name = "Hard Line", energy = 0, brace = 5, block = 4},
 			{name = "Standing Load", energy = 2, brace = 12}])
 
@@ -2330,7 +2330,7 @@ func _seed_enemies() -> void:
 	_enemy(&"custodian", "The Custodian", "guardian of the light", 120, 8, 120, &"hulk", [
 		{name = "Plated Up", text = "Gain 12 block", block = 12},
 		{name = "Volley", text = "Deal 6 × 3", damage = 6, hits = 3},
-		{name = "Charging…", text = "Something is spooling up", telegraph = true},
+		{name = "Charging…", text = "Charging a heavy attack", telegraph = true},
 		{name = "Annihilate", text = "Deal 22", damage = 22},
 	], [], false, true)
 
