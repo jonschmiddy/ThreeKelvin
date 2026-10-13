@@ -134,7 +134,10 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 		var fw := strip.get_width() / n
 		var sh := strip.get_height()
 		var at: Vector2i = e.at
-		# The channel: hull pixels a front strip paints over in EVERY frame.
+		# The channel: hull pixels a front strip paints over in EVERY frame. Kept
+		# per engine too: a channel deep enough is a BELL (heavy S's stern cavity)
+		# that the flame has to fill, not just pass down the middle of.
+		var cells := PackedVector2Array()
 		if not bool(e.get("back", false)):
 			for y in sh:
 				for x in fw:
@@ -146,6 +149,8 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 					var cx := at.x + x
 					var cy := at.y + y
 					if all and cx >= 0 and cy >= 0 and cx < fx._w and cy < fx._h:
+						if fx._solid[cy * fx._w + cx] == 1:
+							cells.append(Vector2(cx, cy))
 						fx._solid[cy * fx._w + cx] = 0
 		# The start: each frame's last column holding a strip pixel that SHOWS
 		# (a `back` strip's pixels under the plating do not), the most common one
@@ -186,7 +191,11 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 		# A point of a nozzle widens faster, so at full burn it is a flame and
 		# not a needle; its start stays where it is.
 		var widen := clampf(10.0 / float(rows.size()), 1.0, 3.0)
-		fx.nozzles.append({pts = pts, dir = -1, thruster = ti, widen = widen})
+		var nz := {pts = pts, dir = -1, thruster = ti, widen = widen}
+		var bell := _bell(cells, int(pts[0].x))
+		if not bell.is_empty():
+			nz.bell = bell
+		fx.nozzles.append(nz)
 	fx._plan(seed)
 	return fx
 
@@ -258,6 +267,36 @@ func _add_run(run: Array, by_row: Dictionary, cap: int) -> void:
 
 static func _px_solid(img: Image, x: int, y: int) -> bool:
 	return x >= 0 and y >= 0 and x < img.get_width() and y < img.get_height() and img.get_pixel(x, y).a > 0.5
+
+
+## A BELL: the hull pixels a front strip always covers, when they run at least
+## four columns back from the apex (heavy S's stern cavity; a strip that only
+## laps the hull's edge by a pixel has none). Today's PixelLab flame FILLS it,
+## wall to wall, and leaves past the rim at the full mouth width. Returns
+## {cells, depth (columns from the apex to the furthest-out cell), mouth (one
+## start per row: the first open pixel past that row's last cell)}, or {}.
+static func _bell(cells: PackedVector2Array, apex_x: int) -> Dictionary:
+	if cells.size() < 12:
+		return {}
+	var rim := 1 << 20
+	for c in cells:
+		rim = mini(rim, int(c.x))
+	var depth := apex_x - rim
+	if depth < 4:
+		return {}
+	var first := {}
+	for c2 in cells:
+		var y := int(c2.y)
+		first[y] = mini(int(first.get(y, 1 << 20)), int(c2.x))
+	var mouth := PackedVector2Array()
+	var ys: Array = first.keys()
+	ys.sort()
+	# Every row's own last cell: the rim is curved (heavy S's is the dome's
+	# edge), so a "within a pixel of the furthest-out cell" rule kept three
+	# rows and the flame left the full bell as a thread.
+	for y2 in ys:
+		mouth.append(Vector2(int(first[y2]) - 1, int(y2)))
+	return {cells = cells, depth = depth, mouth = mouth, apex = apex_x}
 
 
 func _take_canvas(img: Image) -> void:
@@ -386,27 +425,89 @@ func plume(n: int, L: int) -> Dictionary:
 		return _cache[key]
 	var s: Dictionary = SHAPE[look]
 	var nz: Dictionary = nozzles[n]
-	var em: PackedVector2Array = nz.pts
 	var dir: int = nz.dir
+	var expo: float = s.expo
+	# What lights: streams {pts, L, spread} and fixed cells {x, y, v}.
+	var streams: Array = []
+	var fills: Array = []
+	if nz.has("bell"):
+		_bell_light(nz.bell, L, expo, float(s.spread), streams, fills)
+	else:
+		streams.append({pts = nz.pts, L = L, spk = float(s.spread) * float(nz.get("widen", 1.0))})
 	var lo := Vector2i(1 << 20, 1 << 20)
 	var hi := Vector2i(-(1 << 20), -(1 << 20))
-	for e in em:
-		lo = Vector2i(mini(lo.x, int(e.x)), mini(lo.y, int(e.y)))
-		hi = Vector2i(maxi(hi.x, int(e.x)), maxi(hi.y, int(e.y)))
-	var spk: float = float(s.spread) * float(nz.get("widen", 1.0))
-	var sp_max := 1 + int(float(L) * spk)
-	var at := Vector2i(lo.x if dir > 0 else lo.x - L, lo.y - sp_max - 1)
-	var W := hi.x - lo.x + L + 2
-	var Hh := hi.y - lo.y + 2 * sp_max + 3
+	for st in streams:
+		var sl: int = st.L
+		var sp := 2 + int(float(sl) * float(st.spk))
+		for e in (st.pts as PackedVector2Array):
+			var x2 := int(e.x) + sl * dir
+			lo = Vector2i(mini(lo.x, mini(int(e.x), x2)), mini(lo.y, int(e.y) - sp))
+			hi = Vector2i(maxi(hi.x, maxi(int(e.x), x2)), maxi(hi.y, int(e.y) + sp))
+	for f in fills:
+		lo = Vector2i(mini(lo.x, int(f.x)), mini(lo.y, int(f.y)))
+		hi = Vector2i(maxi(hi.x, int(f.x)), maxi(hi.y, int(f.y)))
+	if hi.x < lo.x:
+		_cache[key] = {tex = null, at = Vector2i.ZERO}
+		return _cache[key]
+	var at := lo
+	var W := hi.x - lo.x + 1
+	var Hh := hi.y - lo.y + 1
 	var buf := PackedFloat32Array()
 	buf.resize(W * Hh)
-	var expo: float = s.expo
+	for f2 in fills:
+		var i := (int(f2.y) - at.y) * W + (int(f2.x) - at.x)
+		buf[i] = maxf(buf[i], float(f2.v))
+	for st2 in streams:
+		_stream(buf, W, Hh, at, st2.pts, int(st2.L), float(st2.spk), expo, dir)
+	var out := _quantize(buf, W, Hh, at, s)
+	_cache[key] = out
+	return out
+
+
+## THE BELL'S LIGHT (heavy S). Above idle the cavity is FILLED: every cell the
+## strip always covers, brightest toward the rim as today's flame is (0.55 at
+## the apex to 0.95 at the rim), and past the rim the flame leaves at the
+## mouth's full width with the look's own spread and falloff, 0.7 of the
+## length. At idle there is only a glow deep in the bell, filling its inner 60%.
+## Nothing here touches a hull pixel the strip leaves visible: cells are the
+## strip's own, and the streams are cut out by the hull like any other.
+func _bell_light(bell: Dictionary, L: int, expo: float, spread: float, streams: Array, fills: Array) -> void:
+	var depth: int = bell.depth
+	var apex: int = bell.apex
+	var idle_top := base_length(Thrust.IDLE) + FLICK[Thrust.IDLE]
+	if L <= idle_top:
+		var reach := minf(float(L), float(depth) * 0.6)
+		for c in (bell.cells as PackedVector2Array):
+			var d := float(apex - int(c.x))
+			if d <= reach:
+				fills.append({x = int(c.x), y = int(c.y), v = 0.68 * pow(1.0 - d / (reach + 1.0), expo)})
+		return
+	for c2 in (bell.cells as PackedVector2Array):
+		var d2 := float(apex - int(c2.x))
+		fills.append({x = int(c2.x), y = int(c2.y), v = 0.55 + 0.4 * clampf(d2 / float(depth), 0.0, 1.0)})
+	var lout := int(round(float(L) * 0.7))
+	if lout > 0:
+		streams.append({pts = bell.mouth, L = lout, spk = spread})
+
+
+## One nozzle's light streaming back over `L` px into `buf` (canvas box `at`,
+## W x Hh): every point of the nozzle streams, falling off as
+## pow(1 - d/(L+1), expo), widening 1 px every 1/spk, overlaps taking the max.
+func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedVector2Array, L: int,
+		spk: float, expo: float, dir: int) -> void:
+	if em.is_empty():
+		return
+	var lo_y := 1 << 20
+	var hi_y := -(1 << 20)
+	for e in em:
+		lo_y = mini(lo_y, int(e.y))
+		hi_y = maxi(hi_y, int(e.y))
 	# THE TAPER. The death's stern rows each streamed the full length, which on
 	# a ragged stern staggers into a point; on a rigged nozzle eight rows tall
 	# it is a flat-ended slab. Rows off the nozzle's middle run shorter and a
 	# little dimmer, so the flame comes to a rounded tip like the overload's did.
-	var mid_y := float(lo.y + hi.y) * 0.5
-	var half := float(hi.y - lo.y) * 0.5 + 0.5
+	var mid_y := float(lo_y + hi_y) * 0.5
+	var half := float(hi_y - lo_y) * 0.5 + 0.5
 	for e2 in em:
 		var ex := int(e2.x)
 		var ey := int(e2.y)
@@ -434,6 +535,11 @@ func plume(n: int, L: int) -> Dictionary:
 				var yy := cy - at.y
 				if xx >= 0 and yy >= 0 and xx < W and yy < Hh:
 					buf[yy * W + xx] = maxf(buf[yy * W + xx], v)
+
+
+## Light into the look's four held bands, the outer ones Bayer-thinned in
+## CANVAS coordinates.
+func _quantize(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, s: Dictionary) -> Dictionary:
 	var im := Image.create(W, Hh, false, Image.FORMAT_RGBA8)
 	var ramp := _ramp()
 	var thr: Array = s.thr
@@ -456,9 +562,7 @@ func plume(n: int, L: int) -> Dictionary:
 				continue
 			im.set_pixel(x, y, _lv(ramp[band], float(lvs[band])))
 			any = true
-	var out := {tex = ImageTexture.create_from_image(im) if any else null, at = at}
-	_cache[key] = out
-	return out
+	return {tex = ImageTexture.create_from_image(im) if any else null, at = at}
 
 
 ## C's light on the hull: every hull pixel near a nozzle, on the ship's side of
