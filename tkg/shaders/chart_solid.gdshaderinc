@@ -140,10 +140,9 @@ float fluffDens(vec2 p) {
 // only magnifies it. The fade is dithered on the palette's anchored Bayer, as the
 // billows' edges are, so the palette's dark steps break into a dither instead of
 // hard bands. u_edge: where the fade starts, where it ends, how uneven, on.
-// the fade's dither cell: the block a point of the flat view falls in, so through the
-// solid galaxy's camera the dither travels with the disc as a drag turns it, rather
-// than staying on the screen while the fade slides under it (that crawl doubled the
-// pixels flipping on a drag)
+// the fade's dither cell: the block a point of the flat view falls in, so the dither
+// travels with the disc as a drag slides it, rather than staying on the screen while
+// the fade slides under it
 ivec2 edgeDq(vec2 v) {
 	return ivec2(floor(v * u_zoom * 0.5));
 }
@@ -418,14 +417,12 @@ float nebPuff(vec2 u, float R, float seed, vec2 toC) {
 // THE SOLID GALAXY (`ChartSky.solid`, SIMPLIFIED): the chart seen through a real
 // camera instead of laid flat like a tilted poster. The galaxy is painted as before
 // in its flat ("orthographic") view, o, and each block of the screen looks it up
-// through the camera: a camera `u_solidW.x` gu away at the sector map's tilt plus a
-// little pitch, looking down at `u_solidT` on the disc's plane, so the near half of
-// the disc is nearer and bigger and the far half smaller and squashed. A drag
-// carries the point it looks at over the disc and raises or lowers it
-// (`ChartSky._solid_step`). One projection for the sky and for everything the chart
-// draws over it (`ChartSky.solid_fwd` / `solid_inv` and `StarchartScreen`'s `_proj` /
-// `_to_plane`); a zoom only magnifies the screen about its point and never moves the
-// camera. u_solidW: camera distance (gu), sin and cos of its elevation, 0 (the
+// through the camera: a camera `u_solidW.x` gu away at the sector map's tilt,
+// looking down at `u_solidT` (the core) on the disc's plane, so the near half of the
+// disc is nearer and bigger and the far half smaller and squashed. The camera never
+// moves: a drag slides the picture and a zoom only magnifies it. One projection for
+// the sky and for everything the chart draws over it (`ChartSky.solid_fwd` /
+// `solid_inv` and `StarchartScreen`'s `_proj` / `_to_plane`). u_solidW: camera distance (gu), sin and cos of its elevation, 0 (the
 // uniforms are at the top: the bulge reads them).
 // (its projection, solidFwdN, solidInvN, solidV and solidO, is with the view's
 // functions at the top: the supernova and the stars read it)
