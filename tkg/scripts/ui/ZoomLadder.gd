@@ -414,6 +414,42 @@ const SIDE_LOOKS := ["A", "B", "C", "D", "E", "F"]
 ## ("I meant these buttons, not the top left buttons"): `ladder_bar`.
 const SIDE_LOOK := "E"
 static var _side_force := ""
+## BETWEEN LOCAL AND A SCREEN WITH A TOOLBAR (Jon: "the window drops abruptly"
+## -- the scene's top edge moved 21 px at the swap -- and the toolbar's letters
+## hung over LOCAL's open space): A, the band the toolbar sits on eases open
+## over LOCAL before the swap and closes after the toolbar has decoded away on
+## it (`SideBand`); B, LOCAL keeps a band of its own, so nothing moves
+## (`SectorScreen._build_band`). `-- band=A|B` or `force_band_look`.
+const BAND_LOOKS := ["A", "B"]
+const BAND_LOOK := "A"
+static var _band_force := ""
+## the band of this move (A), if any
+var band: SideBand = null
+
+
+static func force_band_look(l: String) -> void:
+	_band_off = l == "OFF"
+	_band_force = l if l in BAND_LOOKS else ""
+static var _band_off := false
+
+
+static func band_look() -> String:
+	# (OFF: neither, the build before them -- for a harness to watch its checks
+	# fail)
+	if _band_force != "" or _band_off:
+		return "OFF" if _band_off else _band_force
+	var a := _arg("band").to_upper()
+	return a if a in BAND_LOOKS else BAND_LOOK
+
+
+## The band (A) over the top of the screens' area, opening or (`closing`)
+## standing whole: the toolbar's height and the gap under it.
+func _make_band(closing: bool) -> SideBand:
+	var b := SideBand.new()
+	add_child(b)
+	var c := Router.content.get_global_rect() if Router.content != null else Rect2(8, 42, 944, 491)
+	b.setup(Rect2(c.position.x, c.position.y, c.size.x, StarchartScreen.BAR_H + 4), closing)
+	return b
 
 
 static func force_side_look(l: String) -> void:
@@ -615,6 +651,7 @@ static func preroll(target: int, then: Callable) -> bool:
 		return false
 	# (a decode a move before handed on is finished: this move is its own)
 	SideSwap.finish_all()
+	SideBand.finish_all()
 	# (the jump's own flare is the cut on its far side)
 	if Router._post_arrive:
 		return false
@@ -685,6 +722,10 @@ static func preroll(target: int, then: Callable) -> bool:
 		else:
 			(pm as StarchartScreen).setup()
 		prebuilt = pm
+		# (A: from a screen with no toolbar, its band opens now, while this
+		# screen's camera moves, so the swap finds it where the next one has it)
+		if band_look() == "A" and bar_of(cur) == null and bar_of(pm) != null:
+			lad.band = lad._make_band(false)
 		ZoomLadder.probe_add("prebuild", Time.get_ticks_usec() - _pt_pre)
 	# LOCAL TOO, ON 2C (Jon: "2C still has a small delay/hitch"): built here, at
 	# the click, before anything has moved, instead of at the swap in the middle
@@ -761,6 +802,7 @@ static func capture(o: Control, n: Control) -> void:
 	# (a decode handed on by a move already over stops as anything else comes)
 	if not (busy() and active.old == o):
 		SideSwap.finish_all()
+		SideBand.finish_all()
 	if not enabled():
 		if busy():
 			active.finish_now()
@@ -1256,6 +1298,26 @@ func _side_begin() -> void:
 	# THE TOOLBAR TOO, the same way (Jon: "these buttons"): the row along the
 	# top of the picture, decoded left to right
 	bar_swap = _region_swap(bar_of(old), bar_of(new), &"side2", rem, true)
+	# A: BETWEEN LOCAL AND A SCREEN WITH A TOOLBAR, it decodes on its band
+	var bn := bar_of(new)
+	if bar_swap != null and band_look() == "A" and (bo == null) != (bn == null):
+		bar_swap.banded = true
+		bar_swap.held = Callable()
+		if bo == null:
+			if band == null or not is_instance_valid(band) or band.done:
+				band = _make_band(false)
+				band._u = 1.0
+			band.wait = func() -> bool: return held_alpha() > 0.01
+		else:
+			if band != null and is_instance_valid(band):
+				band.finish()
+			band = _make_band(true)
+			# (held weakly: it may be freed before the band asks)
+			var wr: WeakRef = weakref(bar_swap)
+			band.wait = func() -> bool:
+				var o: Variant = wr.get_ref()
+				return o != null and not (o as SideSwap).done
+		move_child(band, bar_swap.get_index() - 1)
 
 
 ## One region's swap, from `so` (the old screen's, or null) to `sn` (the new
@@ -2032,6 +2094,15 @@ func _end() -> void:
 	# the viewport, where it finishes on its own and takes the clicks on what
 	# has not resolved (`SideSwap._has_point`). A press or a key ends it here.
 	var going: Array = []
+	# (the band first, so it stays under what decodes on it)
+	if is_instance_valid(band) and not band.done:
+		if _cut or get_parent() == null or not band.closing:
+			band.finish()
+		else:
+			var bgp := band.global_position
+			remove_child(band)
+			get_parent().add_child(band)
+			band.global_position = bgp
 	if is_instance_valid(side_swap):
 		going.append(side_swap)
 	if is_instance_valid(bar_swap):

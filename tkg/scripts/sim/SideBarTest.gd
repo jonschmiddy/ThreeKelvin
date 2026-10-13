@@ -99,6 +99,40 @@ func _swap_now() -> Object:
 	return _live(&"side_now")
 
 
+## Where the scene starts this frame, viewport y: under the screen's toolbar
+## band if it has one, under a band laid over it (`SideBand`), or the top of
+## the screens' area.
+var _sb: Script = load("res://scripts/ui/SideBand.gd") if ResourceLoader.exists("res://scripts/ui/SideBand.gd") else null
+
+
+func _bands() -> Array:
+	var out: Array = []
+	var c := Router.content.get_global_rect()
+	var b := _bar_of(Router.current)
+	if b != null and b.is_visible_in_tree():
+		out.append(Rect2(c.position.x, b.get_global_rect().position.y, c.size.x, StarchartScreen.BAR_H + 4))
+	if _sb != null:
+		for sb: Variant in _sb.get("live"):
+			if is_instance_valid(sb) and (sb as CanvasItem).is_visible_in_tree():
+				var top: float = sb.get("top")
+				out.append(Rect2(c.position.x, top, c.size.x, float(sb.call(&"edge")) - top))
+	return out
+
+
+func _scene_top() -> float:
+	var e := Router.content.get_global_rect().position.y
+	for r: Rect2 in _bands():
+		e = maxf(e, r.end.y)
+	return e
+
+
+func _in_band(r: Rect2) -> bool:
+	for b: Rect2 in _bands():
+		if b.encloses(r.grow(-1.0)):
+			return true
+	return false
+
+
 func _bar_now() -> Object:
 	return _live(&"bar_now")
 
@@ -131,6 +165,9 @@ func _measure_region(side: Control, sw: Object) -> Array:
 	# THE SWAP DRAWN OVER IT: its own account of each point (old, new, how
 	# settled the new is there), checked to be drawn at all first
 	var ov := sw as CanvasItem
+	if not ov.visible and ZoomLadder.busy() and ZoomLadder.active._rect.visible:
+		# (not laid out yet: the held picture still stands over the rect)
+		return [1.0, 0.0, 0]
 	if _eff(ov) < 0.99 or (ov as CanvasItem).material == null:
 		return [0.0, 0.0, 0]
 	var r: Rect2 = sw.call(&"rect")
@@ -174,7 +211,14 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 	var bar_blank := 0
 	var bar_low := 1.0
 	var bar_frames := 0
+	# THE SCENE'S TOP EDGE (Jon: "the window drops abruptly"), and the letters
+	# of a decode held to a band (Jon on the toolbar's over LOCAL: "weird")
+	var edge0 := _scene_top()
+	var band_frames := 0
+	var edge_jump := 0.0
+	var loose := 0
 	var landed_at := -1
+	var letter_frames := 0
 	var decode_end := -1
 	for i in 900:
 		var m := _measure()
@@ -186,17 +230,30 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 				mixed += 1
 			if int(m[2]) > 0:
 				leaked += 1
-		if _swap_now() != null:
+		var sn := _swap_now()
+		if sn != null:
 			swap_frames += 1
-			decode_end = frames
+			# (E's letters: until the last of them has resolved)
+			if not sn.has_method(&"scrambling") or not (sn.call(&"scrambling") as Array).is_empty():
+				letter_frames += 1
+				decode_end = frames
 		var mb := _measure_region(_bar_of(Router.current), _bar_now())
 		if not mb.is_empty():
 			if float(mb[0]) < 0.5:
 				bar_blank += 1
 			bar_low = minf(bar_low, float(mb[0]))
+		if _sb != null and not (_sb.get("live") as Array).is_empty():
+			band_frames += 1
 		var bw := _bar_now()
 		if bw != null and (bw as CanvasItem).visible:
 			bar_frames += 1
+			if bw.has_method(&"scrambling"):
+				for lr: Rect2 in bw.call(&"scrambling"):
+					if not _in_band(lr):
+						loose += 1
+		var e := _scene_top()
+		edge_jump = maxf(edge_jump, absf(e - edge0))
+		edge0 = e
 		if landed_at < 0 and (not ZoomLadder.busy() or ZoomLadder.active.phase == ZoomLadder.Phase.UI_IN):
 			landed_at = frames
 		frames += 1
@@ -207,7 +264,8 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 	_ok("%s lands on %s" % [label, want.get_global_name()], Router.current != null and Router.current.get_script() == want)
 	_ok("%s: no blank side bar (%d of %d frames blank, least %.2f)" % [label, blank, frames, low], blank == 0)
 	# (A's crossfade is allowed its middle: under 40% of its frames half and half)
-	var allow := int(ceil(swap_frames * 0.4)) if (_looks.size() == 0 or _cur_look == "A") else 2
+	# (and E leaving for LOCAL, its empty panel fading out over `OUT_FADE`)
+	var allow := int(ceil(swap_frames * 0.4)) if (_looks.size() == 0 or _cur_look == "A") 		else (9 if _cur_look == "E" and want == SectorScreen else 2)
 	_ok("%s: both contents half and half for %d frames (allowed %d)" % [label, mixed, allow], mixed <= allow)
 	_ok("%s: no click let through onto unresolved content (%d frames)" % [label, leaked], leaked == 0)
 	var side := _side_of(Router.current)
@@ -215,14 +273,17 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 	if _ss != null:
 		# THE TOOLBAR: never blank, swapped in place on every hop, whole at rest
 		_ok("%s: no blank toolbar (%d frames blank, least %.2f)" % [label, bar_blank, bar_low], bar_blank == 0)
-		_ok("%s: the toolbar swaps in place (%d frames)" % [label, bar_frames], bar_frames > 0)
+		# (or, from LOCAL on band A, comes up with its band: the band is the move)
+		_ok("%s: the toolbar swaps in place (%d frames, band %d)" % [label, bar_frames, band_frames], bar_frames > 0 or band_frames > 0)
 		var bar := _bar_of(Router.current)
 		_ok("%s: the toolbar whole at rest" % label, bar == null or _eff(bar) > 0.99)
+		_ok("%s: the scene's top edge never moves more than 3 px in a frame (most %.0f)" % [label, edge_jump], edge_jump <= 3.0)
+		_ok("%s: no decoded letter off a band (%d rows)" % [label, loose], loose == 0)
 	if _cur_look == "E":
 		# E, SLOW (Jon: "happen slowly and not so fast"): the side bar decodes for
 		# a second or more, and is done within 0.35 s of the camera landing --
 		# or, on a hop shorter than that, runs on past it no longer than it needs
-		var secs := swap_frames / 60.0
+		var secs := letter_frames / 60.0
 		var past := (decode_end - landed_at) / 60.0
 		_ok("%s: E decodes slowly (%.2f s) and is done %.2f s after the landing" % [label, secs, past],
 			secs >= 0.9 and (past <= 0.35 or secs <= 1.45))
@@ -452,6 +513,35 @@ func _run() -> void:
 		await _idle()
 	_set_look("")
 	print("  [sidebar] blank frames over every hop: %d" % total)
+	# THE TWO BANDS (`ZoomLadder.BAND_LOOKS`), each on E, LOCAL built anew under
+	# it; `bands=OFF` runs the build before them, to watch these checks fail
+	var bls := ["A", "B"]
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("bands="):
+			bls = Array((a as String).substr(6).split(","))
+	if _zl.get_script_constant_map().has("BAND_LOOKS"):
+		for bl: String in bls:
+			_zl.call(&"force_band_look", bl)
+			_cur_look = "E"
+			_set_look("E")
+			ZoomLadder.force = 0
+			Router.show_system()
+			await _frames(4)
+			Router.show_local()
+			await _frames(30)
+			ZoomLadder.force = 1
+			print("  [sidebar] band %s" % bl)
+			total += await _hop("band %s LOCAL -> map" % bl, Router.show_system, SystemMapScreen)
+			total += await _hop("band %s map -> chart" % bl, Router.show_starchart, StarchartScreen)
+			total += await _hop("band %s chart -> map" % bl, Router.show_system, SystemMapScreen)
+			total += await _hop("band %s map -> LOCAL" % bl, Router.show_local, SectorScreen)
+		_zl.call(&"force_band_look", "")
+		ZoomLadder.force = 0
+		Router.show_system()
+		await _frames(4)
+		Router.show_local()
+		await _frames(30)
+		ZoomLadder.force = 1
 	if _ss != null:
 		await _toolbar_rows()
 

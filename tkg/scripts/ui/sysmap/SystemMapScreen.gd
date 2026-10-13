@@ -400,18 +400,24 @@ func _on_style() -> void:
 ## The chart's strip, for this sector: how dangerous it is. What it is goes in
 ## the panel.
 func _fill_strip(n: MapGen.MapNode) -> void:
-	_danger_text.text = "DANGER %d/%d" % [n.danger, MapGen.DANGER_MAX]
+	fill_danger(_danger_text, _danger_cells, _tier_text, n)
+	_paint_toggles()
+
+
+## A system's danger on a toolbar: DANGER n/10, its pips, its tier (the map's
+## row, and LOCAL's when it keeps a band, `SectorScreen._build_band`).
+static func fill_danger(text: Label, cells: HBoxContainer, tier: Label, n: MapGen.MapNode) -> void:
+	text.text = "DANGER %d/%d" % [n.danger, MapGen.DANGER_MAX]
 	# (lit in the danger ramp the jump gauges use: blue, amber, red as it runs
 	# deeper; dark past it, as the chart's layers to come)
-	StarchartScreen.fill_pips(_danger_cells, MapGen.DANGER_MAX, func(i: int) -> Color:
+	StarchartScreen.fill_pips(cells, MapGen.DANGER_MAX, func(i: int) -> Color:
 		if i >= n.danger:
 			return UITheme.LINE
 		if i < 3:
 			return Color("#5d7a93")
 		return UITheme.WARN if i < 6 else UITheme.BAD)
-	_tier_text.text = MapGen.tier_name(n.danger)
-	_tier_text.add_theme_color_override("font_color", UITheme.WARN if n.danger >= 7 else UITheme.COLD)
-	_paint_toggles()
+	tier.text = MapGen.tier_name(n.danger)
+	tier.add_theme_color_override("font_color", UITheme.WARN if n.danger >= 7 else UITheme.COLD)
 
 
 ## The toolbar's two toggles, saying what a press does now, and what they

@@ -64,6 +64,13 @@ uniform float glyph_hz = 13.0;
 // where a panel's own ground is read, px in from its left edge (a toolbar has
 // no ground of its own: just left of it)
 uniform float bg_dx = 3.0;
+// ON A BAND (`SideBand`, the toolbar between LOCAL and a screen with one): the
+// side with no toolbar is the band's own ground, never the scene under it
+uniform int banded = 0;
+// E LEAVING FOR A SCREEN WITH NONE (map -> LOCAL): the letters decode away on
+// the old panel's own ground, never over the scene; then the empty panel goes
+// (0 to 1)
+uniform float out_fade = 0.0;
 
 
 bool inr(vec2 q, vec4 r) {
@@ -149,8 +156,8 @@ void fragment() {
 	vec2 p = rect.xy + floor(UV * rect.zw);
 	bool hn = new_r.z > 0.0;
 	bool ho = old_r.z > 0.0;
-	vec3 O = ho ? oldc(p) : mix(ground, oldc(p), held_a);
-	vec3 N = newc(p);
+	vec3 O = ho ? oldc(p) : (banded == 1 ? ground : mix(ground, oldc(p), held_a));
+	vec3 N = (hn || banded == 0) ? newc(p) : ground;
 	vec3 col = N;
 	if (look == 0) {
 		float e = smoothstep(0.0, 1.0, u);
@@ -193,7 +200,7 @@ void fragment() {
 		}
 	} else if (look == 4) {
 		bool from_new = hn;
-		col = N;
+		col = from_new ? N : O;
 		for (int i = 0; i < 64; i++) {
 			if (i >= nrows) {
 				break;
@@ -208,19 +215,29 @@ void fragment() {
 				float a = secs - tt.x;
 				vec3 g = ground_of(r, tt.w, p.y, true);
 				col = (a < 0.0 || (a >= 1.0 / 60.0 && a < 2.0 / 60.0)) ? g : N;
+			} else if (tt.z > 0.5) {
+				// and going: on, off, on a frame each, then gone
+				float a = secs - tt.x;
+				col = (a < 0.0 || (a >= 1.0 / 60.0 && a < 2.0 / 60.0)) ? O : ground_of(r, -1.0, p.y, false);
 			} else {
 				float fr = r.x + floor(clamp((secs - tt.x) / max(tt.y - tt.x, 0.001), 0.0, 1.0) * r.z / cell.x) * cell.x;
+				vec3 g = ground_of(r, tt.w, p.y, from_new);
 				if (p.x >= fr) {
 					vec2 c0 = vec2(r.x + floor((p.x - r.x) / cell.x) * cell.x, r.y);
-					vec3 g = ground_of(r, tt.w, p.y, from_new);
 					if (ink(c0, r.w, from_new, g)) {
 						col = scramble(p, r, i, from_new);
 					} else {
-						col = N;
+						col = from_new ? N : g;
 					}
+				} else if (!from_new) {
+					// (decoded away: the old panel's ground, empty)
+					col = g;
 				}
 			}
 			break;
+		}
+		if (!from_new) {
+			col = mix(col, N, out_fade);
 		}
 	} else {
 		if (secs < lost_s) {

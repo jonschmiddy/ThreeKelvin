@@ -48,6 +48,10 @@ const D_S := 0.5
 ## (LOCAL -> map) lets the decode run on past the zoom rather than hurrying it
 ## (`ZoomLadder._end` hands it on). The glyphs turn over `GLYPH_HZ` a second.
 const E_ROW := 0.45
+## E leaving for a screen with no side bar (map -> LOCAL): once the letters have
+## decoded away on the old panel's ground, the empty panel fades over this
+## (a toolbar on its band goes with the band instead, `SideBand`)
+const OUT_FADE := 0.3
 const E_STAGGER := Vector2(0.06, 0.08)
 const E_TARGET := 1.1
 const GLYPH_HZ := 13.0
@@ -69,6 +73,10 @@ var _rem := 1.0
 ## starts each one after the one to its left rather than each line after the
 ## one above
 var across := false
+## (a toolbar between LOCAL and a screen with one) its missing side is the
+## band's ground, never the scene under it (`SideBand`)
+var banded := false
+var _decode_end := 0.0
 
 ## EVERY SWAP STILL DRAWING, the ladder's and any it handed on when it ended
 ## before the decode did (`ZoomLadder._end`): finished at once by the next
@@ -150,8 +158,10 @@ func setup(old_side: Control, new_side_: Control, tex: Texture2D, look_: String,
 		_old_rows = rows_of(old_side, old_rect)
 		_old_secs = sections_of(old_side)
 	new_side = new_side_
-	# (the arriving screen is put in its place later this frame)
-	_lay.call_deferred()
+	# (the arriving screen is put in its place later this frame, and laid out
+	# again under the game's theme once it is: a screen built ahead stood
+	# outside it, its buttons in Godot's own, taller -- so after that)
+	(func() -> void: _lay.call_deferred()).call_deferred()
 
 
 func _material(tex: Texture2D) -> void:
@@ -163,6 +173,18 @@ func _material(tex: Texture2D) -> void:
 	_mat.set_shader_parameter(&"old_tex", tex)
 	_mat.set_shader_parameter(&"glyph_hz", GLYPH_HZ)
 	live.append(self)
+
+
+## Where letters are being decoded this frame (E's and F's rows not yet
+## resolved), viewport px: for the harness, which holds them to a band.
+func scrambling() -> Array:
+	var out: Array = []
+	if done or not _laid or not (_li in [4, 5]):
+		return out
+	for r: Array in _rows_now:
+		if int(r[1]) == 0 and t < float(r[3]):
+			out.append(r[0])
+	return out
 
 
 ## The rect drawn over (viewport px).
@@ -193,6 +215,7 @@ func _lay() -> void:
 	_mat.set_shader_parameter(&"cell", CELL)
 	_mat.set_shader_parameter(&"lost_s", F_LOST)
 	_mat.set_shader_parameter(&"bg_dx", -2.0 if across else 3.0)
+	_mat.set_shader_parameter(&"banded", 1 if banded else 0)
 	_mat.set_shader_parameter(&"ground", Vector3(UITheme.VOID.r, UITheme.VOID.g, UITheme.VOID.b))
 	_mat.set_shader_parameter(&"ice", Vector3(UITheme.ICE.r, UITheme.ICE.g, UITheme.ICE.b))
 	_mat.set_shader_parameter(&"line_col", Vector3(UITheme.LINE.r, UITheme.LINE.g, UITheme.LINE.b))
@@ -201,6 +224,10 @@ func _lay() -> void:
 	_push()
 	visible = true
 	laid.emit(_rect)
+	# (on a band already open (`SideBand`) there is nothing to cross from: the
+	# looks without letters put the toolbar straight up on it, this frame)
+	if old_rect.size.x <= 0.0 and banded and _li in [0, 1, 2, 3]:
+		finish()
 
 
 ## The arriving panel's rows and sections, and the look's times from them;
@@ -217,6 +244,13 @@ func _content() -> void:
 	# THE TIMES, from the content they act on: the arriving panel's rows, or
 	# (E leaving for a screen with none) the old one's
 	var rows: Array = _rows if _new_rect.size.x > 0.0 else _old_rows
+	# (leaving for a screen with none: a button goes whole with its word -- its
+	# plate breaks up with the letters, on the ground round it)
+	if _new_rect.size.x <= 0.0:
+		for i in rows.size():
+			var hit: Rect2 = rows[i][5]
+			if hit.has_area():
+				rows[i] = [Rect2(hit.position.floor(), hit.size.ceil()), rows[i][1], rows[i][2], rows[i][3], -1.0, hit, rows[i][6]]
 	var secs: Array = _secs if _new_rect.size.x > 0.0 else _old_secs
 	match _li:
 		0, 1:
@@ -251,8 +285,43 @@ func _content() -> void:
 			_total = E_ROW
 			for i in rows.size():
 				var t0 := st * int(group[i])
-				rows[i] = [rows[i][0], rows[i][1], t0, t0 + E_ROW, rows[i][4], rows[i][5]]
+				rows[i] = [rows[i][0], rows[i][1], t0, t0 + E_ROW, rows[i][4], rows[i][5], rows[i][6]]
 				_total = maxf(_total, t0 + E_ROW)
+			# WHAT DOES NOT CHANGE DOES NOT DECODE (LOCAL's band and the map's
+			# both read DANGER 1/10): a word the old side had, the same, in the
+			# same place, is resolved from the start; and the pips after a
+			# readout that did not change, where the old side had them too
+			if _new_rect.size.x > 0.0 and old_rect.size.x > 0.0:
+				var same_word := func(r: Array) -> bool:
+					if String(r[6]) == "":
+						return false
+					for o: Array in _old_rows:
+						if String(o[6]) == String(r[6]) and absf((o[0] as Rect2).position.x - (r[0] as Rect2).position.x) <= 1.0 								and absf((o[0] as Rect2).position.y - (r[0] as Rect2).position.y) <= 1.0:
+							return true
+					return false
+				var kept := {}
+				for i in rows.size():
+					if same_word.call(rows[i]):
+						kept[i] = true
+				for i in rows.size():
+					var rr := rows[i][0] as Rect2
+					var keep: bool = kept.has(i)
+					if not keep and int(rows[i][1]) == 1:
+						# (an icon: kept if the old side had one here, and the word
+						# nearest it on its left was kept)
+						var had := _old_rows.any(func(o: Array) -> bool: return int(o[1]) == 1 and (o[0] as Rect2).is_equal_approx(rr))
+						var left := -1
+						for j in rows.size():
+							var rj := rows[j][0] as Rect2
+							if int(rows[j][1]) == 0 and absf(rj.get_center().y - rr.get_center().y) < 6.0 and rj.end.x <= rr.position.x 									and (left < 0 or rj.end.x > (rows[left][0] as Rect2).end.x):
+								left = j
+						keep = had and left >= 0 and kept.has(left)
+					if keep:
+						rows[i][2] = -1.0
+						rows[i][3] = -1.0
+			_decode_end = _total
+			if _new_rect.size.x <= 0.0 and not banded:
+				_total += OUT_FADE
 		5:
 			# (each line of text as long as it is wide, one after another in
 			# reading order; pictures up with the frame)
@@ -268,7 +337,7 @@ func _content() -> void:
 			var at := F_LOST
 			for i: int in order:
 				var d := 0.0 if int(rows[i][1]) == 1 else F_PRINT * maxf((rows[i][0] as Rect2).size.x, 12.0) / maxf(wsum, 1.0)
-				rows[i] = [rows[i][0], rows[i][1], at, at + d, rows[i][4], rows[i][5]]
+				rows[i] = [rows[i][0], rows[i][1], at, at + d, rows[i][4], rows[i][5], rows[i][6]]
 				at += d
 			_total = (F_LOST + F_PRINT) if _new_rect.size.x > 0.0 else F_LOST
 	var rv := PackedVector4Array()
@@ -343,6 +412,13 @@ func _push() -> void:
 	_mat.set_shader_parameter(&"secs", t)
 	_mat.set_shader_parameter(&"u", _u())
 	_mat.set_shader_parameter(&"line_y", _line_y())
+	_mat.set_shader_parameter(&"out_fade", _out_fade())
+
+
+func _out_fade() -> float:
+	if _li != 4 or _new_rect.size.x > 0.0 or banded:
+		return 0.0
+	return clampf((t - _decode_end) / OUT_FADE, 0.0, 1.0)
 
 
 # ------------------------------------------------------------ what it shows
@@ -360,6 +436,9 @@ func state_at(p: Vector2) -> Vector3:
 		# held picture's standing copy goes, then the screen's bare ground,
 		# which is no content)
 		var h := clampf(float(held.call()), 0.0, 1.0) if held.is_valid() else 0.0
+		# (F's lost signal is drawn, never the bare ground: content)
+		if _li == 5 and t < F_LOST:
+			h = 1.0
 		return Vector3(h, (1.0 - h) * st.y, st.z)
 	return st
 
@@ -396,6 +475,12 @@ func _state_at(p: Vector2) -> Vector3:
 				return Vector3(0.0, 1.0, 0.0)
 			return Vector3(1.0, 0.0, 0.0)
 		4:
+			if not hn:
+				# (leaving for a screen with none: the old panel -- its letters
+				# decoding away on its own ground -- holds the rect, and takes no
+				# click, until it has gone)
+				var of := _out_fade()
+				return Vector3(1.0 - of, of, 1.0 if of >= 1.0 else 0.0)
 			for r: Array in _rows_now:
 				var rr := r[0] as Rect2
 				if not rr.has_point(p):
@@ -478,7 +563,7 @@ static func rows_of(root: Control, clip: Rect2) -> Array:
 			if d < bd:
 				bd = d
 				best = i
-		out[best] = [(out[best][0] as Rect2).merge(out[best + 1][0] as Rect2), 0, 0.0, 0.0, -1.0, Rect2()]
+		out[best] = [(out[best][0] as Rect2).merge(out[best + 1][0] as Rect2), 0, 0.0, 0.0, -1.0, Rect2(), ""]
 		out.remove_at(best + 1)
 	# (text before pictures, each in reading order: where a line of text lies on
 	# a picture -- a card's ground, a stripe -- the line is what a point is in)
@@ -526,7 +611,7 @@ static func _collect(c: Control, clip: Rect2, out: Array) -> void:
 				top = minf(top, r.position.y)
 			if i == lines - 1:
 				bot = maxf(bot, r.end.y)
-			_add(out, Rect2(r.position.x, top, r.size.x, bot - top), 0, clip, gx)
+			_add(out, Rect2(r.position.x, top, r.size.x, bot - top), 0, clip, gx, Rect2(), l.text if lines == 1 else "")
 		return
 	if c is RichTextLabel:
 		var rt := c as RichTextLabel
@@ -554,24 +639,25 @@ static func _collect(c: Control, clip: Rect2, out: Array) -> void:
 				var pad := bt.get_theme_stylebox(&"normal").get_margin(SIDE_LEFT) if k == 0.0 else 0.0
 				r = Rect2(r.position.x + pad + floorf((r.size.x - pad - w) * k) - 1.0, r.position.y + 2.0, ceilf(w) + 2.0, r.size.y - 4.0)
 				gb = 0.0
-		_add(out, r, 0, clip, gb, c.get_global_rect())
+		_add(out, r, 0, clip, gb, c.get_global_rect(), (c as Button).text if c is Button else "")
 		return
 	var kids := 0
 	for k in c.get_children():
 		if k is Control:
 			kids += 1
 			_collect(k as Control, clip, out)
-	if kids == 0 and not (c is Container):
+	# (a bare Control -- a spacer -- draws nothing: not a picture)
+	if kids == 0 and not (c is Container) and not (c.get_class() == "Control" and c.get_script() == null):
 		_add(out, r, 1, clip)
 
 
 ## A row: [rect, kind, t0, t1, where its ground is read -- px in from its left
 ## edge, or -1 for the panel's own ground, and for a button the whole of it,
 ## which takes no click until its word has resolved]
-static func _add(out: Array, r: Rect2, kind: int, clip: Rect2, gx: float = -1.0, hit: Rect2 = Rect2()) -> void:
+static func _add(out: Array, r: Rect2, kind: int, clip: Rect2, gx: float = -1.0, hit: Rect2 = Rect2(), text: String = "") -> void:
 	var cr := r.intersection(clip)
 	if cr.size.x >= 1.0 and cr.size.y >= 1.0:
-		out.append([Rect2(cr.position.floor(), cr.size.ceil()), kind, 0.0, 0.0, gx, hit])
+		out.append([Rect2(cr.position.floor(), cr.size.ceil()), kind, 0.0, 0.0, gx, hit, text])
 
 
 ## A panel's sections, top to bottom (viewport y): its rows gathered into
