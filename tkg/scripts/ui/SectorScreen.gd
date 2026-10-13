@@ -2160,6 +2160,21 @@ func _open_jetsam(h: MapGen.Jetsam, title: String = "") -> void:
 	_transfer.setup(h, n, _close_transfer, true, title)
 
 
+## A container opened from outside the screen, with something to do once it is
+## shut: the custodian's body, which the win screen follows
+## (`Router._open_core_body`). The same popup a wreck click opens.
+func open_jetsam(h: MapGen.Jetsam, title: String, after: Callable) -> void:
+	_open_jetsam(h, title)
+	if _transfer != null and after.is_valid():
+		_transfer._on_close = func() -> void:
+			_close_transfer()
+			after.call()
+
+
+func has_open_container() -> bool:
+	return _transfer != null
+
+
 ## The system's own pile, from the button beside PLOT NEXT JUMP.
 ##
 ## `false` so it is not created by being asked about: the floor exists once

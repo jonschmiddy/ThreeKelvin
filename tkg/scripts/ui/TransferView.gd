@@ -709,7 +709,12 @@ func refresh() -> void:
 	# windfall scrolls rather than growing off the screen.
 	if _loose_scroll != null and not _sized:
 		_sized = true
-		var deep := ceili(showing.size() / float(SalvageGrid.COLS))
+		# BY THE ROWS THE PARTS TAKE, not by how many there are. Counted, five
+		# things read as one row of five, and the custodian's body -- two 2x2
+		# parts and three more -- showed its first row and hid the rest under a
+		# view with no scrollbar.
+		var deep := maxi(ceili(showing.size() / float(SalvageGrid.COLS)),
+			_loose.content_rows())
 		var need := clampi(deep, 2, FIT_ROWS)
 		_loose_scroll.custom_minimum_size.y = need * HoldGrid.CELL
 		# AND THE BAR IS ONLY THERE WHEN IT IS DOING SOMETHING. Godot takes a

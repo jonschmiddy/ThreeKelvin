@@ -1069,6 +1069,47 @@ func flee() -> void:
 	_finish(&"fled", "You burned %d fuel breaking contact. No salvage."
 		% (FLEE_FUEL + (FLEE_FUEL_PARTIAL if band == SkillCheck.Band.PARTIAL else 0)))
 
+## WHAT THE CUSTODIAN'S BODY HOLDS: four parts and the instrument shadow.
+##
+## Generous because it is the last thing a run pays, and nothing after it
+## competes for the hold: the first part is the best of up to forty rolls aimed
+## at LEGENDARY, the other three at EPIC or better, and precursor and exotic
+## parts are allowed (`allow_unbranded`) because the core is where they belong.
+## Rolled as the deepest danger whatever the node says, so the gates in
+## `LootGen` that hold legendaries back never apply to the galaxy's boss.
+##
+## The INSTRUMENT SHADOW is the material table's own core piece -- "a sensor
+## plate burned in the shape of something that passed between it and the
+## core" -- and taking it off the thing that guards the core is the fitting
+## place for it.
+##
+## POSITIONAL, as every wreck is (see `_victory`): keyed by the node and how
+## many wrecks it already holds, so a party's machines open the same body.
+const CORE_PARTS := 4
+const CORE_TRIES := 40
+
+static func core_body(node: MapGen.MapNode, t: EnemyTemplate) -> MapGen.Jetsam:
+	var wrecks_before := 0
+	for raw in node.jetsam:
+		if (raw as MapGen.Jetsam).is_wreck():
+			wrecks_before += 1
+	var r := Rng.derive(&"wreck", node.index * 64 + wrecks_before)
+	var h := Run.new_wreck(node, t)
+	for i in CORE_PARTS:
+		var floor_r := ModuleData.Rarity.LEGENDARY if i == 0 else ModuleData.Rarity.EPIC
+		var best: ModuleData = null
+		for k in CORE_TRIES:
+			var m := LootGen.roll_module(MapGen.DANGER_MAX, &"", true, r)
+			if best == null or m.rarity > best.rarity:
+				best = m
+			if best.rarity >= floor_r:
+				break
+		h.items.append(best)
+	var row := MaterialTable.by_id(&"custodian_shadow")
+	if not row.is_empty():
+		h.items.append(MaterialData.of(row))
+	return h
+
 func _victory() -> void:
 	Run.kills += 1
 	var node: MapGen.MapNode = Run.node_at()
@@ -1097,12 +1138,23 @@ func _victory() -> void:
 	Run.clear_contract_target(node.index)
 
 	if enemy.template.boss:
-		# STRAIGHT TO THE LEDGER, not into a wreck. The run ends on this kill,
-		# so there is no sector to reach into and no later screen to collect
-		# from -- packaged as salvage, the core boss's authored credit_reward
-		# simply evaporated. A chit takes no room, and the flight record logs
-		# the credits you finish with.
+		# THE CREDITS STRAIGHT TO THE LEDGER. A chit takes no room, and the
+		# flight record and the win screen both read the credits you finish
+		# with -- a chit left in the body would be money the summary never saw.
 		Run.add_credits(purse)
+		# AND THE BODY IS LOOTED BEFORE THE RUN ENDS (Jon, Oct 12: "when
+		# defeating the final boss at the core, let's have the body of the boss
+		# lootable, but let it end the alpha with a winning game popup"). It
+		# used to end on this line with nothing to open. Now the custodian
+		# leaves a wreck like any other kill, `Router.after_combat` opens it
+		# over LOCAL, and DONE brings up the win screen.
+		#
+		# THE WIN IS RECORDED HERE, AT THE KILL, not when the popup opens. The
+		# same rule as dying: a player who quits while looting has still won,
+		# the suspend save goes now, and `Run.won` keeps the autosave from
+		# writing a cleared core back to disk -- so no way out of the loot step
+		# leaves a run that can no longer be won.
+		Combat.core_body(node, enemy.template)
 		Run.win()
 		_finish(&"won", "The core opens.")
 		return

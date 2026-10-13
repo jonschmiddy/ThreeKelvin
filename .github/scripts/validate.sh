@@ -456,6 +456,24 @@ else
 	bad "laddertest did not finish"
 fi
 
+step "Beating the core's boss: its body looted, then the win screen"
+# Jon, Oct 12: the custodian's body lootable, then a win popup with the death
+# screen's music. ENGAGE at the core, the custodian killed through the real
+# fight: the body open with its loot and no win screen yet, the run recorded as
+# won, DONE / Escape / any other door ending on the win screen (Jon's note whole,
+# the stats, TITLE, &"gameover"); an ordinary fight won never comes near it.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot corewintest 180 --headless --path "$PROJECT" -- sheet=CoreWinTest; then
+	if grep -qE '^corewintest: PASS' "$LOG_DIR/corewintest.log"; then
+		ok "the core's win loots the body, then ends the run"
+	else
+		bad "the core's win flow failed"
+		grep -E 'FAIL|^corewintest' "$LOG_DIR/corewintest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "corewintest did not finish"
+fi
+
 step "Every hull sits on its yard stands, centred"
 # Jon: "The ship needs to sit lower. Like actually be on the stands and centered
 # on them." Every hull frame at every grade on every level's stands, measured

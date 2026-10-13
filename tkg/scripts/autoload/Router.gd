@@ -84,6 +84,14 @@ func _swap(screen: Control, chrome: bool = true) -> void:
 	_refresh_sky()
 	_fade_in(screen)
 	Sig.screen_changed.emit()
+	# LEAVING THE CORE'S BODY BY ANY OTHER DOOR STILL ENDS ON THE WIN SCREEN.
+	# Every door off it is shut (see `final_loot`); this is the backstop for one
+	# nobody thought of, deferred so the screen that came in finishes its setup.
+	# The title or the lobby is the run left behind, so the step is over.
+	if final_loot and (screen is GameOverScreen or is_front_door(screen)):
+		final_loot = false
+	elif final_loot:
+		finish_core_loot.call_deferred()
 	# (in the middle of a move, written when it lands: `ZoomLadder.save_after`)
 	if ZoomLadder.busy():
 		ZoomLadder.save_after = true
@@ -313,6 +321,7 @@ func _on_run_started() -> void:
 	if combat != null:
 		combat.release()
 	combat = null
+	final_loot = false
 	# WHERE THE SHIP WAS LEFT is this run's: kept by system index, so a new run
 	# (or a load) would otherwise open LOCAL in orbit of whatever world the last
 	# run parked at in the system of the same number
@@ -1297,6 +1306,14 @@ func after_combat(_c: Combat) -> void:
 	# off. Left on the node it would fire again the next time you flew in here,
 	# and the heat that attracted it is not the heat you are carrying now.
 	Run.node_at().ambush_pending = false
+	# THE CORE'S BOSS: its body first, then the win screen. Only the fight that
+	# won the run ends `won` (`Combat._victory`'s boss branch), so no other
+	# fight can come through here.
+	if Run.won and not Run.dead and _c != null and _c.result == &"won":
+		var body := core_body_here()
+		if body != null and Run.jetsam_left(Run.node_at(), body) > 0:
+			_open_core_body(body)
+			return
 	if Run.dead or Run.won:
 		show_game_over()
 		return
@@ -1304,6 +1321,51 @@ func after_combat(_c: Combat) -> void:
 		show_local()
 		return
 	show_loot_or_map()
+
+
+## THE LAST LOOT OF THE RUN IS OPEN: the custodian's body, over LOCAL, with the
+## win screen behind its DONE. While this is true the only way on is the win
+## screen -- the HUD is hidden, Tab does nothing (`Main._input`), Escape is DONE
+## (`Main._unhandled_key_input`) and any screen swapped in anyway is followed by
+## the win screen (`_swap`). The run is already recorded as won by then, so
+## this guards the moment, not the record.
+var final_loot: bool = false
+
+
+## The custodian's wreck at this system, or null.
+func core_body_here() -> MapGen.Jetsam:
+	var n: MapGen.MapNode = Run.node_at()
+	if n == null:
+		return null
+	for raw in n.jetsam:
+		var h := raw as MapGen.Jetsam
+		if h != null and h.art == &"custodian":
+			return h
+	return null
+
+
+func _open_core_body(body: MapGen.Jetsam) -> void:
+	final_loot = false
+	show_local()
+	var s := current as SectorScreen
+	if s == null:
+		show_game_over()
+		return
+	final_loot = true
+	if hud != null:
+		hud.visible = false
+	s.open_jetsam(body, "", finish_core_loot)
+	if not s.has_open_container():
+		final_loot = false
+		show_game_over()
+
+
+## DONE on the custodian's body, or Escape: the win screen.
+func finish_core_loot() -> void:
+	if not final_loot:
+		return
+	final_loot = false
+	show_game_over()
 
 func after_event() -> void:
 	if Run.dead:
