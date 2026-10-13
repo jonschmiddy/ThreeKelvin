@@ -211,8 +211,14 @@ func _run() -> void:
 	_log("loop_done", {finished = _cb.finished, result = _cb.result})
 	# The ending as it plays out: the panel, the router's swap, the next screen.
 	var after := int(_arg("after", "150"))
+	var lost_logged := false
 	for i in after:
 		await _tick()
+		# Your own ship's breakup, when the fight killed you (`ShipLoss`).
+		if not lost_logged and is_instance_valid(_sc) and _sc.loss != null:
+			lost_logged = true
+			_log("ship_lost", {style = String(ShipBreakup.NAMES.get(_sc.loss.style, "?")),
+				secs = _sc.loss.duration, boss = _sc.loss.boss})
 	# A panel left waiting for CONTINUE is part of what the player has to do.
 	if is_instance_valid(_sc) and _sc.is_inside_tree():
 		var cont := _find_button(_sc, "CONTINUE")

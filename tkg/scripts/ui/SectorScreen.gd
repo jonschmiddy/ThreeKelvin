@@ -3105,6 +3105,11 @@ func _notification(what: int) -> void:
 			if pre.held.b != null:
 				(pre.held.b as Node).free()
 		_prebuilt.clear()
+		if not _loss_pre.is_empty():
+			WorkerThreadPool.wait_for_task_completion(_loss_pre.task)
+			if _loss_pre.held.b != null and not (_loss_pre.held.b as Node).is_inside_tree():
+				(_loss_pre.held.b as Node).free()
+			_loss_pre = {}
 
 func _end_aim(played: bool) -> void:
 	_hide_cursor(false)
@@ -3775,6 +3780,10 @@ func _on_combat_ended(result: StringName, text: String) -> void:
 	# The endings a player ASKED for (flee, hail) still answer in the panel
 	# they pressed.
 	_ending = {result = result, text = text}
+	# Your ship's breakup is cut now, off the main thread, while the shot that
+	# did it is still in the air (see `_lose_ship`).
+	if result == &"dead":
+		_prebuild_loss()
 	_end_button.disabled = true
 	_refresh_flee()
 	_refresh_hail()
@@ -4303,6 +4312,56 @@ func _start_death(who: int) -> void:
 		_check_ending())
 
 
+# ------------------------------------------------------------- your ship, lost
+#
+# Jon, Oct 13: "When you die... let's have your ship crack and explode... pause
+# for a beat... then the run ended popup shows up." The killing volley lands as
+# it always did; then your hull comes apart (`ShipLoss`, the boss-length cut of
+# a ship style), the wreck holds for WRECK_HOLD_S, and RUN ENDED follows by the
+# same door as before (`_leave_combat`). Nothing about the run changes: it was
+# over in the maths on the frame the fight resolved.
+
+## How long the wreck is held before the run's screen.
+const WRECK_HOLD_S := 1.0
+
+## The cut, started when the fight resolved (`_prebuild_loss`).
+var _loss_pre: Dictionary = {}
+## Your ship's breakup, once it is playing; its last frame is the wreck held on.
+var loss: ShipBreakup = null
+
+func _prebuild_loss() -> void:
+	if not Router.animating() or not _loss_pre.is_empty() or _view == null:
+		return
+	var pic := ShipLoss.picture(_view.ship_view())
+	if pic.is_empty():
+		return
+	var n := Run.node_at().index
+	var me := Net.local_id()
+	_loss_pre = ShipLoss.prebuild(pic, ShipLoss.style_for(n, me), ShipLoss.seed_for(n, me))
+
+
+## Your hull breaks up; returns once it has, true if it did.
+func _lose_ship() -> bool:
+	if _loss_pre.is_empty() or not Router.animating():
+		return false
+	var pre := _loss_pre
+	_loss_pre = {}
+	var v := _view.ship_view()
+	# Under the shots and the numbers, over everything else, as a kill is. At
+	# the hull's place AT REST: the hit's kick may still be shaking the view.
+	var b := ShipLoss.play(pre, _view, v, _view.fx.get_index())
+	if b == null:
+		return false
+	v.visible = false
+	loss = b
+	# The explosion on each visible break, the enemies' pool (Jon's rule:
+	# sound follows what you see, never the resolution).
+	b.broke.connect(func(s: float) -> void:
+		Audio.play_kill(-1, 0.0 if s >= 0.6 else -6.0))
+	await b.finished
+	return is_inside_tree()
+
+
 func _process(_delta: float) -> void:
 	# A breakup draws where the hull was; the hull's slot keeps its slow bob, so
 	# the breakup rides it, and the wreck it hands back to is where it ended.
@@ -4339,8 +4398,13 @@ func _check_ending() -> void:
 				Audio.suppress(&"ui_tab", 300)
 				_leave_combat())
 		&"dead":
-			# A beat on the shot that did it, then the run's own screen.
-			await _wait_s(0.7)
+			# YOUR SHIP COMES APART where the shot that did it landed, then a
+			# beat on the wreck, then the run's own screen (Jon, Oct 13). With
+			# nothing animating it is the beat alone, as it always was.
+			if await _lose_ship():
+				await _wait_s(WRECK_HOLD_S)
+			else:
+				await _wait_s(0.7)
 			if is_inside_tree():
 				_leave_combat()
 		&"broke_off":

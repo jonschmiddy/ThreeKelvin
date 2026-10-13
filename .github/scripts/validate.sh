@@ -472,6 +472,25 @@ else
 	bad "deathpooltest did not finish"
 fi
 
+step "Dying: your ship breaks up, a beat on the wreck, then the run's screen"
+# Jon, Oct 13: "When you die... let's have your ship crack and explode... pause
+# for a beat... then the run ended popup shows up." The same fight twice from
+# one seed, 5 hull into Strafe 5 through END TURN: animated, the hull comes
+# apart (a ship style, boss length, mirrored for a right-facing ship, over the
+# hull, the explosion after the break) and RUN ENDED waits for it and the hold;
+# without motion, RUN ENDED at once; the run left behind identical both ways.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot playerdeathtest 180 --headless --path "$PROJECT" -- sheet=PlayerDeathTest; then
+	if grep -qE '^playerdeathtest: PASS' "$LOG_DIR/playerdeathtest.log"; then
+		ok "your ship breaks up before the run ends, and the run is the same"
+	else
+		bad "the death's breakup or its timing failed"
+		grep -E 'FAIL|^playerdeathtest' "$LOG_DIR/playerdeathtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "playerdeathtest did not finish"
+fi
+
 step "Beating the core's boss: its body looted, then the win screen"
 # Jon, Oct 12: the custodian's body lootable, then a win popup with the death
 # screen's music. ENGAGE at the core, the custodian killed through the real
