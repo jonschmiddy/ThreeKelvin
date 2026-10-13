@@ -117,6 +117,22 @@ var arrived_stripped := 0
 var food_systems := 0
 var all_systems := 0
 
+## WHAT A WON FIGHT PAYS, read out of the wrecks it left (Jon, Oct 13: "each ship
+## you kill has a chance to get credits and modules and other parts"). Split by
+## how many hulls the fight ended with: one, or two once a reinforcement arrived
+## (the sim's option fights and ambushes field one ship, so only `reinforce`
+## makes a pack here). The set pieces are counted in the totals and left out of
+## the split, since they pay by their own rules. `fight_credits` is what fights
+## put into wrecks (and, for the custodian, the ledger); `credits_taken` is what
+## the pilot banked from them after looting.
+var won_by_pack: Dictionary = {}
+var credits_by_pack: Dictionary = {}
+var modules_by_pack: Dictionary = {}
+var fight_credits := 0
+var fight_modules := 0
+var credits_taken := 0
+var modules_taken := 0
+
 ## Per galaxy kind: name -> {runs, wins, jumps, kills, systems}.
 ##
 ## NOT cleared by `_reset()`. That is called once per batch in the by-chassis
@@ -262,6 +278,13 @@ func _reset() -> void:
 	arrived_stripped = 0
 	food_systems = 0
 	all_systems = 0
+	won_by_pack = {}
+	credits_by_pack = {}
+	modules_by_pack = {}
+	fight_credits = 0
+	fight_modules = 0
+	credits_taken = 0
+	modules_taken = 0
 
 ## `index` exists so that `-- sim seed=N` gives every run its own reproducible
 ## seed rather than playing one run a thousand times. A sim that reports "40% of
@@ -473,6 +496,8 @@ func _option_fight(n: MapGen.MapNode) -> bool:
 func _fight(template: EnemyTemplate, clears_node: bool = true) -> bool:
 	var cb := Combat.new()
 	cb.clears_node = clears_node
+	var wrecks0 := _wrecks_at(Run.node_at())
+	var cr0 := Run.credits
 	cb.start(template, Run.node_at().danger)
 	var hp_in := Run.hp
 	var turns := 0
@@ -501,13 +526,79 @@ func _fight(template: EnemyTemplate, clears_node: bool = true) -> bool:
 	# AND THEN YOU GO AND LOOK IN IT. A kill fills a container at the node now
 	# rather than putting parts in your hold, so a sim that does not reach into
 	# one is a sim whose pilot never picks anything up. See `Policy.loot`.
+	_tally(cb, wrecks0, cr0)
 	if not Run.dead:
-		looted += Policy.loot(Run.node_at())
+		_loot()
 	postfight_samples += 1
 	postfight_total += Run.signature()
 	if Run.signature() > Run.SIGNATURE_FLOOR:
 		postfight_hot += 1
 	return not Run.dead
+
+
+## The pilot reaches into the system's containers, and what it took is counted.
+func _loot() -> void:
+	var mods0 := _modules_left(Run.node_at())
+	var cr1 := Run.credits
+	looted += Policy.loot(Run.node_at())
+	modules_taken += mods0 - _modules_left(Run.node_at())
+	credits_taken += Run.credits - cr1
+
+
+## How many wrecks a system holds, so a fight's own can be told from older ones.
+static func _wrecks_at(n: MapGen.MapNode) -> int:
+	var k := 0
+	if n != null:
+		for raw in n.jetsam:
+			if (raw as MapGen.Jetsam).is_wreck():
+				k += 1
+	return k
+
+
+## Modules still unclaimed anywhere in the system.
+static func _modules_left(n: MapGen.MapNode) -> int:
+	var k := 0
+	if n == null:
+		return 0
+	for raw in n.jetsam:
+		var h: MapGen.Jetsam = raw
+		for i in h.items.size():
+			if h.items[i] is ModuleData and not n.taken.has(h.option(i)):
+				k += 1
+	return k
+
+
+## What one won fight put into the wrecks it made (and, for the custodian, the
+## ledger). Read-only: it draws nothing from any stream, so the runs it watches
+## are the runs the sim always played.
+func _tally(cb: Combat, wrecks0: int, cr0: int) -> void:
+	if cb.result != &"victory" and cb.result != &"won":
+		return
+	var n: MapGen.MapNode = Run.node_at()
+	var cr := Run.credits - cr0
+	var mods := 0
+	var seen := 0
+	for raw in n.jetsam:
+		var h: MapGen.Jetsam = raw
+		if not h.is_wreck():
+			continue
+		seen += 1
+		if seen <= wrecks0:
+			continue
+		for m in h.items:
+			if m is CreditChit:
+				cr += (m as CreditChit).amount
+			elif m is ModuleData:
+				mods += 1
+	fight_credits += cr
+	fight_modules += mods
+	var lead := cb.enemies[0].template
+	if lead.boss or lead.miniboss:
+		return
+	var size := cb.enemies.size()
+	won_by_pack[size] = int(won_by_pack.get(size, 0)) + 1
+	credits_by_pack[size] = int(credits_by_pack.get(size, 0)) + cr
+	modules_by_pack[size] = int(modules_by_pack.get(size, 0)) + mods
 
 
 ## The set piece, carried damage and all. Differs from _fight() in exactly the
@@ -517,6 +608,8 @@ func _fight(template: EnemyTemplate, clears_node: bool = true) -> bool:
 func _fight_hellbender() -> bool:
 	var cb := Combat.new()
 	cb.clears_node = false
+	var wrecks0 := _wrecks_at(Run.node_at())
+	var cr0 := Run.credits
 	cb.plan(DB.enemies[&"hellbender"], Run.node_at().danger)
 	cb.enemies[0].hp = clampi(Run.hellbender_hp, 1, cb.enemies[0].max_hp)
 	cb.enemies[0].pick_intent()
@@ -533,8 +626,9 @@ func _fight_hellbender() -> bool:
 				acted = true
 		if not cb.finished:
 			cb.end_turn()
+	_tally(cb, wrecks0, cr0)
 	if not Run.dead:
-		looted += Policy.loot(Run.node_at())
+		_loot()
 	if cb.result == &"victory":
 		hellbender_kills += 1
 	elif cb.result == &"broke_off":
@@ -694,3 +788,12 @@ func _report_economy() -> void:
 			float(fuel_from_stations + fuel_from_elsewhere) / j,
 			float(fuel_from_stations + fuel_from_elsewhere - fuel_spent_jumping) / j])
 	print("  credits: %+.0f net at stations per run" % [float(credits_at_stations) / r])
+	print("  fights paid %.0f credits a run (%.0f banked after looting) · %.2f modules a run in the wrecks, %.2f looted"
+		% [float(fight_credits) / r, float(credits_taken) / r,
+			float(fight_modules) / r, float(modules_taken) / r])
+	var sizes := won_by_pack.keys()
+	sizes.sort()
+	for k in sizes:
+		var w := float(maxi(1, int(won_by_pack[k])))
+		print("  won %d-ship fights: %d · %.1f credits a fight · %.2f modules a fight"
+			% [k, int(won_by_pack[k]), float(credits_by_pack[k]) / w, float(modules_by_pack[k]) / w])
