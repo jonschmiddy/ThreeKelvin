@@ -906,7 +906,7 @@ static func _authored() -> Array[Dictionary]:
 			id = &"paid_in_full",
 			title = "Paid in full",
 			subject = {stage = &"structure", pick = true, pieces = [&"st_dock_face_1", &"st_dock_face_2", &"st_dock_face_3", &"st_dock_face_4"], add_lights = [{at = "collar", off = [-2, 0], r = 12, col = "#ffcf7a", kind = "breathe", period = 6.0, k = 1.8, cone = 90, cone_k = 0.8}]},
-			body = "The man waiting for the parcel is old, and not who you expected. He has been at this dock for eleven days. It is one small sealed package, and he does not open it where you can see. He pays what she said he would pay, which is far more than she could have promised. Then he asks carefully whether she looked well.",
+			body = "The one waiting for the parcel is old, and not who you expected. He has been at this dock for eleven days. It is one small sealed package, and he does not open it where you can see. He pays what she said he would pay, which is far more than she could have promised. Then he asks carefully whether she looked well.",
 			tags = [&"quest"],
 			group = &"",
 			placed = true,
