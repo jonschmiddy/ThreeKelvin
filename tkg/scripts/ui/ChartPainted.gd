@@ -561,7 +561,7 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	# (last frame's turn, kept per frame like the view below: pushed twice in a
 	# frame, the second push read the first's turn as last frame's and undid none)
 	var fr := Engine.get_process_frames()
-	var cam_now := [ChartSky.solid_cam(), ChartSky.solid_t, sol]
+	var cam_now := [ChartSky.solid_cam(), ChartSky.SOLID_T, sol]
 	if int(g.get("_view_fr", -1)) != fr:
 		g["_view_fr"] = fr
 		g["_phi_prev"] = g.get("_phi_cur", phi)
