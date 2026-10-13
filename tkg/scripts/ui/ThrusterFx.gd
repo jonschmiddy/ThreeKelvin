@@ -23,9 +23,9 @@ extends RefCounted
 ##     drawn as ONE additive layer over the finished ship and still never paints
 ##     over plating. Today's strips need a `back` flag and a draw order for that
 ##     (HullData.thrusters, "kept off the hull plate"); this needs neither;
-##   - each stream starts at the first AIR pixel of its row, walking out of the
-##     hull from the rigged attach point, so a nozzle buried behind a fin still
-##     spends its whole length where it can be seen;
+##   - on a rigged hull each stream starts at the strip's own attach pixels and
+##     the hull blocks it except where the strip itself burns through (see
+##     `for_hull`);
 ##   - `_engines` keeps only points on the hull's back EDGE for a steady flame:
 ##     the death's lit-pixel test also catches warm windows and stripes, and a
 ##     flame streaming out of a window is fine in an explosion and absurd at rest.
@@ -95,16 +95,35 @@ var _loop := 1.0
 
 # ------------------------------------------------------------------ making one
 
-## A player hull: the nozzles are its RIGGED thrusters (HullData.thrusters), the
-## strip's attach end read off every frame so a flame that swells is caught at
-## its widest. `img` is the hull picture drawn at canvas (0, 0).
+## A player hull: the nozzles are its RIGGED thrusters (HullData.thrusters).
+## `img` is the hull picture drawn at canvas (0, 0).
+##
+## THE FLAME LEAVES WHERE THE PIXELLAB FLAME LEAVES (Jon, Oct 13: "the coded
+## thrusters should emanate from the same place the pixellab thrusters
+## emanate from"). Each nozzle is the strip's own attach end: the column its
+## frames end on (the most common last column, frame by frame) and the rows lit
+## there in at least half the frames, at exactly those canvas pixels; for a
+## `back` strip, the column and rows where it first shows past the plating
+## (behind the hull it is hidden, so that is where it is seen to leave). If that
+## is a point, the flame starts as a point and gets its body by widening: a
+## nozzle under ten rows widens up to 3x faster (`widen`), so heavy S's 4-row
+## apex is not a needle at full burn.
+## A first try walked heavy S's start out to its cavity's mouth at the dome's
+## base, and every look then engulfed the dome and read as pasted on.
+##
+## Nor does it draw over any hull pixel the strip leaves visible: the hull
+## blocks the flame everywhere except where a FRONT strip covers it in every
+## frame (the channel the PixelLab flame itself burns through). A `back` strip
+## covers nothing, so its flame shows only where the hull ends, as today.
+## `ThrusterSheet` checks both against the strips (`starts`).
 static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> ThrusterFx:
 	var fx := ThrusterFx.new()
 	fx._take_canvas(img)
 	fx.look = the_look
 	fx.warm = the_look != Look.DRIVE
-	for t in h.thrusters:
-		var e: Dictionary = t
+	var n := maxi(1, h.exhaust_frames)
+	for ti in h.thrusters.size():
+		var e: Dictionary = h.thrusters[ti]
 		var tex: Texture2D = e.get("tex")
 		if tex == null:
 			continue
@@ -112,53 +131,62 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 		if strip.is_compressed():
 			strip.decompress()
 		strip.convert(Image.FORMAT_RGBA8)
-		var n := maxi(1, h.exhaust_frames)
 		var fw := strip.get_width() / n
-		var xr := -1
-		for i in n:
-			var r := strip.get_region(Rect2i(i * fw, 0, fw, strip.get_height())).get_used_rect()
-			xr = maxi(xr, r.end.x - 1)
-		if xr < 0:
-			continue
+		var sh := strip.get_height()
 		var at: Vector2i = e.at
-		# WHERE THE FLAME LEAVES THE HULL: walk the strip's middle row out of
-		# the plating. A front strip already ends at the hull's edge; heavy S's
-		# is masked into its stern cavity (exhaust_24) and its attach end is the
-		# apex, a couple of rows tall, which made a needle -- the cavity's mouth
-		# on the hull's outline is the nozzle the rig means.
-		var ex_col := xr
-		var mid_row := at.y + strip.get_height() / 2
-		while ex_col > 0 and fx._is_solid(at.x + ex_col, mid_row):
-			ex_col -= 1
-		# The nozzle's rows: lit at that column in at least half the frames.
-		# Every frame's union is the flame at its most swollen, which is wider
-		# than the mouth it comes out of.
+		# The channel: hull pixels a front strip paints over in EVERY frame.
+		if not bool(e.get("back", false)):
+			for y in sh:
+				for x in fw:
+					var all := true
+					for i in n:
+						if strip.get_pixel(i * fw + x, y).a <= 0.5:
+							all = false
+							break
+					var cx := at.x + x
+					var cy := at.y + y
+					if all and cx >= 0 and cy >= 0 and cx < fx._w and cy < fx._h:
+						fx._solid[cy * fx._w + cx] = 0
+		# The start: each frame's last column holding a strip pixel that SHOWS
+		# (a `back` strip's pixels under the plating do not), the most common one
+		# over the frames, and the rows showing there in at least half of them.
+		# For a front strip that is its attach end; for a back strip it is where
+		# the flame comes out from behind the hull, already as wide as it is there.
+		var back := bool(e.get("back", false))
+		var votes := {}
+		for i2 in n:
+			var last := -1
+			for x2 in fw:
+				for y2 in sh:
+					if strip.get_pixel(i2 * fw + x2, y2).a > 0.5 and not (back and _px_solid(img, at.x + x2, at.y + y2)):
+						last = x2
+			if last >= 0:
+				votes[last] = int(votes.get(last, 0)) + 1
+		if votes.is_empty():
+			continue
+		var xr := -1
+		for k in votes:
+			if xr < 0 or int(votes[k]) > int(votes[xr]) or (int(votes[k]) == int(votes[xr]) and int(k) > xr):
+				xr = int(k)
 		var rows := PackedInt32Array()
-		for y in strip.get_height():
+		for y3 in sh:
+			if back and _px_solid(img, at.x + xr, at.y + y3):
+				continue
 			var lit := 0
-			for i2 in n:
-				for dx in 2:
-					var x := i2 * fw + ex_col - dx
-					if x >= i2 * fw and strip.get_pixel(x, y).a > 0.5:
-						lit += 1
-						break
+			for i3 in n:
+				if strip.get_pixel(i3 * fw + xr, y3).a > 0.5:
+					lit += 1
 			if lit * 2 >= n:
-				rows.append(y)
+				rows.append(y3)
 		if rows.is_empty():
-			rows.append(strip.get_height() / 2)
+			continue
 		var pts := PackedVector2Array()
-		for y2 in rows:
-			var cy: int = at.y + y2
-			var cx: int = at.x + xr
-			# Out of the hull: walk toward the stern until the row is open space.
-			var k := 0
-			while k < 48 and fx._is_solid(cx, cy):
-				cx -= 1
-				k += 1
-			if k < 48 and cx >= 0:
-				pts.append(Vector2(cx, cy))
-		if not pts.is_empty():
-			fx.nozzles.append({pts = pts, dir = -1})
+		for y4 in rows:
+			pts.append(Vector2(at.x + xr, at.y + y4))
+		# A point of a nozzle widens faster, so at full burn it is a flame and
+		# not a needle; its start stays where it is.
+		var widen := clampf(10.0 / float(rows.size()), 1.0, 3.0)
+		fx.nozzles.append({pts = pts, dir = -1, thruster = ti, widen = widen})
 	fx._plan(seed)
 	return fx
 
@@ -226,6 +254,10 @@ func _add_run(run: Array, by_row: Dictionary, cap: int) -> void:
 	for y3 in keep:
 		pts.append(Vector2(int(by_row[y3]), int(y3)))
 	nozzles.append({pts = pts, dir = 1})
+
+
+static func _px_solid(img: Image, x: int, y: int) -> bool:
+	return x >= 0 and y >= 0 and x < img.get_width() and y < img.get_height() and img.get_pixel(x, y).a > 0.5
 
 
 func _take_canvas(img: Image) -> void:
@@ -361,7 +393,7 @@ func plume(n: int, L: int) -> Dictionary:
 	for e in em:
 		lo = Vector2i(mini(lo.x, int(e.x)), mini(lo.y, int(e.y)))
 		hi = Vector2i(maxi(hi.x, int(e.x)), maxi(hi.y, int(e.y)))
-	var spk: float = s.spread
+	var spk: float = float(s.spread) * float(nz.get("widen", 1.0))
 	var sp_max := 1 + int(float(L) * spk)
 	var at := Vector2i(lo.x if dir > 0 else lo.x - L, lo.y - sp_max - 1)
 	var W := hi.x - lo.x + L + 2

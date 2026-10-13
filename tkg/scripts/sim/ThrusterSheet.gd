@@ -197,6 +197,7 @@ func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 		looks[look] = {fx = fx, info = {look = ThrusterFx.LOOK_NAMES[look], blurb = ThrusterFx.LOOK_BLURB[look],
 			nozzles = nz, lengths = lens, find_ms = snappedf(find_ms, 0.01), build_ms = snappedf(build_ms, 0.01),
 			pictures = fx._cache.size() + fx._spill.size()}}
+	var starts: Array = _check_starts(h, hull_img, looks) if player else []
 	for r2 in 3:
 		for c2 in cols:
 			var at := Vector2(ROW_LABEL_W + c2 * tw + 8, LABEL_H + r2 * th + 8)
@@ -254,7 +255,7 @@ func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 	var meta := {ship = ship, player = player, frames = frames, fps = 30, tile = [tw, th],
 		canvas = [cw, chh], hull_at_in_tile = [8, 8], ink_w = looks[0].fx.ink_w, tiles = tiles,
 		columns = heads, rows = ThrusterFx.THRUST_NAMES, looks = per_look,
-		worst_frame_us_all_tiles = worst,
+		worst_frame_us_all_tiles = worst, starts = starts,
 		today = {strips = h.thrusters.size() if player else 0, frames = today.size(), hz = ShipView.FLAME_HZ}}
 	var fa := FileAccess.open(dir.path_join("layout.json"), FileAccess.WRITE)
 	fa.store_string(JSON.stringify(meta, "  "))
@@ -265,3 +266,138 @@ func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 		per_look[0].build_ms, per_look[1].build_ms, per_look[2].build_ms])
 	sub.queue_free()
 	await tree.process_frame
+
+
+## THE NOZZLE CHECK (Jon, Oct 13: the coded flame must leave from where the
+## PixelLab flame leaves). Measured on what each draws, not on the rig:
+##   today  each strip's VISIBLE start -- per frame, the last column holding a
+##          strip pixel that shows (a `back` strip's pixels under the hull do
+##          not); the most common one over the frames; the rows showing there in
+##          at least half of them.
+##   coded  each look's flame picture at every thrust: its last lit column and
+##          the rows lit there.
+## FAIL when the column or either end of the row span is more than 1 px off.
+## Also counts flame pixels on a hull pixel the strip leaves visible (one it
+## does not cover in every frame); that must be 0 (heavy S's dome).
+func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
+	var n := maxi(1, h.exhaust_frames)
+	var out: Array = []
+	var bad := 0
+	var cw := hull_img.get_width()
+	var chh := hull_img.get_height()
+	# Hull pixels some strip leaves visible: opaque hull not covered by a front strip in every frame.
+	var shown := PackedByteArray()
+	shown.resize(cw * chh)
+	for y in chh:
+		for x in cw:
+			if hull_img.get_pixel(x, y).a > 0.5:
+				shown[y * cw + x] = 1
+	var strips: Array = []
+	for e in h.thrusters:
+		var im := _image(e.tex) if e.get("tex") != null else null
+		strips.append(im)
+		if im == null or bool(e.get("back", false)):
+			continue
+		var fw0 := im.get_width() / n
+		var at0: Vector2i = e.at
+		for y2 in im.get_height():
+			for x2 in fw0:
+				var all := true
+				for i in n:
+					if im.get_pixel(i * fw0 + x2, y2).a <= 0.5:
+						all = false
+						break
+				var cx := at0.x + x2
+				var cy := at0.y + y2
+				if all and cx >= 0 and cy >= 0 and cx < cw and cy < chh:
+					shown[cy * cw + cx] = 0
+	print("thrustersheet starts: %s" % DB.hull_art_name(h.weight, h.tier))
+	print("  %-3s %-5s %-12s %-12s | %-10s %-6s %-12s %-5s %s" % ["eng", "strip", "today col", "today rows", "look", "thrust", "coded col/rows", "over", ""])
+	for ti in h.thrusters.size():
+		var e2: Dictionary = h.thrusters[ti]
+		var im2: Image = strips[ti]
+		if im2 == null:
+			continue
+		var fw := im2.get_width() / n
+		var at: Vector2i = e2.at
+		var back := bool(e2.get("back", false))
+		var votes := {}
+		var per_frame: Array = []
+		for f in n:
+			var last := -1
+			for x3 in fw:
+				for y3 in im2.get_height():
+					if im2.get_pixel(f * fw + x3, y3).a <= 0.5:
+						continue
+					var cx2 := at.x + x3
+					var cy2 := at.y + y3
+					var hid := back and cx2 >= 0 and cy2 >= 0 and cx2 < cw and cy2 < chh and hull_img.get_pixel(cx2, cy2).a > 0.5
+					if not hid:
+						last = x3
+			per_frame.append(last)
+			if last >= 0:
+				votes[last] = int(votes.get(last, 0)) + 1
+		var col := -1
+		for k in votes:
+			if col < 0 or int(votes[k]) > int(votes[col]) or (int(votes[k]) == int(votes[col]) and int(k) > col):
+				col = int(k)
+		var r0 := 1 << 20
+		var r1 := -1
+		for y4 in im2.get_height():
+			var cnt := 0
+			for f2 in n:
+				if im2.get_pixel(f2 * fw + col, y4).a > 0.5:
+					var hid2 := back and hull_img.get_pixel(at.x + col, at.y + y4).a > 0.5
+					if not hid2:
+						cnt += 1
+			if cnt * 2 >= n:
+				r0 = mini(r0, at.y + y4)
+				r1 = maxi(r1, at.y + y4)
+		var today_col := at.x + col
+		for look in 3:
+			var fx: ThrusterFx = looks[look].fx
+			var ni := -1
+			for k2 in fx.nozzles.size():
+				if int(fx.nozzles[k2].get("thruster", -1)) == ti:
+					ni = k2
+			for thrust in 3:
+				var row := {engine = ti, strip = int(e2.id), back = back, today_col = today_col, today_rows = [r0, r1],
+					look = ThrusterFx.LOOK_NAMES[look], thrust = ThrusterFx.THRUST_NAMES[thrust]}
+				var c_col := -1
+				var c0 := 1 << 20
+				var c1 := -1
+				var over := 0
+				if ni >= 0:
+					var p := fx.plume(ni, fx.base_length(thrust))
+					if p.tex != null:
+						var pim: Image = (p.tex as ImageTexture).get_image()
+						var pat: Vector2i = p.at
+						for x5 in pim.get_width():
+							for y5 in pim.get_height():
+								if pim.get_pixel(x5, y5).a <= 0.0:
+									continue
+								var gx := pat.x + x5
+								var gy := pat.y + y5
+								if gx > c_col:
+									c_col = gx
+								if gx >= 0 and gy >= 0 and gx < cw and gy < chh and shown[gy * cw + gx] == 1:
+									over += 1
+						for y6 in pim.get_height():
+							if c_col - pat.x < pim.get_width() and pim.get_pixel(c_col - pat.x, y6).a > 0.0:
+								c0 = mini(c0, pat.y + y6)
+								c1 = maxi(c1, pat.y + y6)
+				var ok := c_col >= 0 and absi(c_col - today_col) <= 1 and absi(c0 - r0) <= 1 and absi(c1 - r1) <= 1 and over == 0
+				row.coded_col = c_col
+				row.coded_rows = [c0, c1]
+				row.over_hull = over
+				row.ok = ok
+				if not ok:
+					bad += 1
+				out.append(row)
+				if thrust == 2 or not ok:
+					print("  %-3d %-5d %-12s %-12s | %-10s %-6s %-12s %-5d %s" % [ti, int(e2.id), "%d%s" % [today_col, " back" if back else ""],
+						"%d-%d" % [r0, r1], (ThrusterFx.LOOK_NAMES[look] as String).substr(0, 10), ThrusterFx.THRUST_NAMES[thrust],
+						"%d / %d-%d" % [c_col, c0, c1], over, "ok" if ok else "FAIL"])
+	print("thrustersheet starts %s: %s (%d rows, %d off)" % [DB.hull_art_name(h.weight, h.tier),
+		"PASS" if bad == 0 else "FAIL", out.size(), bad])
+	return out
