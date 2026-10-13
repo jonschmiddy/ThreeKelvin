@@ -139,6 +139,11 @@ func _film(layer: CanvasLayer, st: int, boss: Array, player: Array) -> void:
 	b.setup(bimg, boss[1], origin, st, 4242, false)
 	var setup_ms := (Time.get_ticks_usec() - t0) / 1000.0
 	stage.add_child(b)
+	# `bodyonly`: the hull and its pieces alone -- no light, no hooks -- for the
+	# check that the ship itself never blinks
+	var body_only := "bodyonly" in _args
+	if body_only:
+		(b.get_child(1) as CanvasItem).visible = false
 	var title := UITheme.body("%s   (%.1f s)" % [ShipBreakup.NAMES[st], b.duration], UITheme.CHILL, UITheme.FS_SMALL)
 	title.position = Vector2(24, 14)
 	root.add_child(title)
@@ -157,6 +162,8 @@ func _film(layer: CanvasLayer, st: int, boss: Array, player: Array) -> void:
 	var on_moment := func(kind: StringName, s: float, len: float) -> void:
 		moments.append({t = snappedf(b.t, 0.001), film = snappedf(float(frame[0]) / 30.0, 0.001), kind = String(kind),
 			s = snappedf(s, 0.01), len = snappedf(len, 0.01)})
+		if body_only:
+			return
 		match kind:
 			&"shake":
 				hooks.shake.append({f0 = frame[0], frames = int(ceil(len * 30.0)), amp = s})
@@ -171,6 +178,9 @@ func _film(layer: CanvasLayer, st: int, boss: Array, player: Array) -> void:
 	b.moment.connect(on_moment)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 99
+	var shake_at := Vector2.ZERO
+	var shake_to := Vector2.ZERO
+	var offsets: Array = []
 	var tick_us := 0
 	var worst_us := 0
 	var done_at := -1
@@ -189,24 +199,35 @@ func _film(layer: CanvasLayer, st: int, boss: Array, player: Array) -> void:
 			worst_us = maxi(worst_us, us)
 		if b.done and done_at < 0:
 			done_at = f
-		# shake: the whole view, whole pixels, a new offset every two frames
+		# SHAKE: a jolt that decays, not a random jump every frame (Jon: "Why
+		# does the ship flicker in and out when the explosion happen?"). A new
+		# direction at most every three frames, eased toward, in whole pixels,
+		# its size falling off as (1 - x)^2.
 		var amp := 0.0
 		for sh in hooks.shake:
 			var a := f - int(sh.f0)
 			if a >= 0 and a < int(sh.frames):
-				amp = maxf(amp, float(sh.amp) * (1.0 - float(a) / float(sh.frames)))
+				var x0 := float(a) / float(sh.frames)
+				amp = maxf(amp, float(sh.amp) * (1.0 - x0) * (1.0 - x0))
 		if amp >= 0.5:
-			if f % 2 == 0:
-				stage.position = Vector2(rng.randf_range(-1, 1), rng.randf_range(-1, 1)).normalized() * roundf(amp)
-				stage.position = stage.position.round()
+			if f % 3 == 0:
+				var dirv := Vector2.RIGHT.rotated(rng.randf_range(0.0, TAU))
+				if shake_to.length() > 0.1 and dirv.dot(shake_to.normalized()) > 0.0:
+					dirv = -dirv   # swing back across, so it reads as a jolt
+				shake_to = dirv * amp
+			shake_at = shake_at.lerp(shake_to, 0.6)
 		else:
-			stage.position = Vector2.ZERO
+			shake_to = Vector2.ZERO
+			shake_at = shake_at.lerp(Vector2.ZERO, 0.6)
+		stage.position = shake_at.round()
+		offsets.append([int(stage.position.x), int(stage.position.y)])
 		var fa := 0.0
 		for fl in hooks.flash:
 			var a2 := f - int(fl.f0)
 			if a2 >= 0 and a2 < int(fl.frames):
 				var x := float(a2) / float(fl.frames)
-				fa = maxf(fa, float(fl.s) * (0.85 if x < 0.25 else (0.5 if x < 0.5 else (0.25 if x < 0.75 else 0.1))))
+				# eased out, a new level every frame: no held grey steps
+				fa = maxf(fa, float(fl.s) * 0.85 * (1.0 - x) * (1.0 - x))
 		flash.color = Color(1, 1, 1, fa)
 		var ctext := ""
 		for c in hooks.cue:
@@ -222,7 +243,8 @@ func _film(layer: CanvasLayer, st: int, boss: Array, player: Array) -> void:
 	var meta := {id = id, name = ShipBreakup.NAMES[st], blurb = ShipBreakup.BLURB[st], sound = ShipBreakup.SOUND[st],
 		boss = "custodian" if _custodian(st) else "hellbender",
 		duration = b.duration, film_seconds = snappedf(float(f) / 30.0, 0.01), start_frame = 15, done_frame = done_at,
-		frames = f, moments = moments, wreck_ok = ok, setup_ms = snappedf(setup_ms, 0.1),
+		frames = f, moments = moments, wreck_ok = ok, offsets = offsets, origin = [origin.x, origin.y],
+		canvas = [bimg.get_width(), bimg.get_height()], setup_ms = snappedf(setup_ms, 0.1),
 		tick_ms = snappedf(tick_us / 1000.0 / maxf(1.0, float(done_at - 15)), 0.01), worst_ms = snappedf(worst_us / 1000.0, 0.01)}
 	var fo := FileAccess.open(dir.path_join("meta.json"), FileAccess.WRITE)
 	fo.store_string(JSON.stringify(meta, "  "))

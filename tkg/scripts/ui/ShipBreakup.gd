@@ -4807,7 +4807,9 @@ func _fire_boss(e: Dictionary) -> void:
 			_spray(p, 12, 140.0)
 			_spill(p, out, 15)
 		&"big_burst":
-			_bspheres.append({p = p, t0 = t, grow = 0.3, hold = 0.15, fade = 0.45, r1 = 170})
+			# light, not a disc: brightest at the core, falling off in nested
+			# additive steps, the outer ones faint, so the hull stays seen
+			_bspheres.append({p = p, t0 = t, grow = 0.3, hold = 0.15, fade = 0.45, r1 = 170, soft = true})
 			_ring(p, 10.0, 360.0, 1.2, 0.45, 1.0, HEAT_RAMP[1])
 			_ring(p, 6.0, 200.0, 0.8, 0.8, 0.8, GOLD[1])
 			_spray(p, 70, 320.0)
@@ -5100,7 +5102,10 @@ func _paint_boss_light(ci: CanvasItem) -> void:
 			continue
 		var R := float(sp.r1) * _ease_out(a / g) if a < g else float(sp.r1) + 4.0 * (a - g) / maxf(0.01, hold + fd)
 		var lvl2 := 1.0 if a < g + hold else (0.6 if a < g + hold + fd * 0.33 else (0.35 if a < g + hold + fd * 0.66 else 0.15))
-		_draw_sphere(ci, sp.p, int(R), lvl2)
+		if sp.get("soft", false):
+			_draw_soft_light(ci, sp.p, int(R), lvl2)
+		else:
+			_draw_sphere(ci, sp.p, int(R), lvl2)
 	for dk in _bdark:
 		var age2 := t - float(dk.t0)
 		if age2 < 0.0 or age2 > float(dk.dur):
@@ -5546,3 +5551,28 @@ func _plan_h3() -> void:
 		s6.life = _rng.randf_range(1.0, 1.6)
 		s6.speed = _rng.randf_range(60.0, 160.0)
 	_ev(8.6, &"cool", 0.2, 0.9)
+
+
+
+## A big light that does not hide what is under it: nested discs added together,
+## the core small and white, the outer rings faint, the outermost dithered.
+func _draw_soft_light(ci: CanvasItem, c: Vector2, R: int, lvl: float) -> void:
+	var cp := c.round()
+	var rings := [[1.0, 0.07, true], [0.75, 0.09, false], [0.5, 0.14, false], [0.3, 0.22, false], [0.14, 0.45, false]]
+	for rg in rings:
+		var rr := int(float(R) * float(rg[0]))
+		if rr < 1:
+			continue
+		var col := _lv(HEAT_RAMP[1].lerp(Color.WHITE, 1.0 - float(rg[0])), lvl * float(rg[1]))
+		for dy in range(-rr, rr + 1):
+			var half := int(floor(sqrt(float(rr * rr - dy * dy))))
+			if rg[2]:
+				# the outermost: whole rows inside 0.85, dithered pixels beyond
+				var inner := int(floor(sqrt(maxf(0.0, float(rr * rr) * 0.72 - float(dy * dy)))))
+				ci.draw_rect(Rect2(cp + Vector2(-inner, dy), Vector2(inner * 2 + 1, 1)), col)
+				for x in range(inner + 1, half + 1):
+					if ((x + dy) & 1) == 0:
+						ci.draw_rect(Rect2(cp + Vector2(x, dy), Vector2.ONE), col)
+						ci.draw_rect(Rect2(cp + Vector2(-x, dy), Vector2.ONE), col)
+			else:
+				ci.draw_rect(Rect2(cp + Vector2(-half, dy), Vector2(half * 2 + 1, 1)), col)
