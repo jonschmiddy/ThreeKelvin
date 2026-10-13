@@ -946,8 +946,11 @@ fi
 step "The prose reads plainly, and does not explain itself"
 
 # Two tools, one question each. `prose_grade.py` holds the encounters to the
-# reading level ruled 2026-09-12 (grade 5, no sentence over 22 words); every
-# encounter met it when this step was added, so it needs no baseline.
+# reading level: grade 7 or under, 17 words a sentence on average, no sentence
+# over 22 words (re-ruled 2026-10-13 for all player-facing text; it was grade 5
+# from 2026-09-12). Every encounter meets it, so it needs no baseline. The rest
+# of the text is reported by `prose_grade.py --all`, not gated. The grade is a
+# ceiling, not a goal: prose_tells' "fragments" flag is the floor.
 # `prose_tells.py` reads EVERY player-facing string for the tells the
 # encounter-prose skill lists -- "It is not X. It is Y." past one an encounter,
 # "which is the point", a summing-up closer, a dash, "round", hands in an

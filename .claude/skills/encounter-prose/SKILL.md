@@ -164,7 +164,7 @@ Check attributes are `hull`, `thrust`, `maneuver`, `thermal`, `sensors`, `stealt
 (`SkillCheck.value_of`). The commission's §4 list is wrong: `salvage` does not exist
 and silently scores 0.
 
-## 3c. Plain language (ruled 2026-09-12)
+## 3c. Plain language (ruled 2026-09-12, target raised to grade 7 on 2026-10-13)
 
 Jon read the batch that had just landed and said: "The language of these is kind
 of dense, hard to read. Almost verbose in a way that no real human would write,"
@@ -183,8 +183,15 @@ per encounter, worst first:
 
 The target for anything written or revised from now on:
 
-- **Grade 5.0 or under**, about ten words a sentence, and no sentence over 22
-  words. The tool exits non-zero on anything over.
+- **Grade 7.0 or under**, at most 17 words a sentence on average, and no
+  sentence over 22 words. RE-RULED 2026-10-13 by Jon: the target was grade 5.0
+  and covered encounters; it is now grade 7 and covers ALL player-facing text,
+  encounters included. The tool exits non-zero on any encounter over;
+  `python tools/prose_grade.py --all` reports every other string over it.
+- **The grade is a ceiling, not a goal.** Never chop a line into fragments to
+  get under it. `prose_tells.py` flags a string whose sentences are mostly
+  verbless ("fragments" on its REVIEW list). That is the floor: a rewrite that
+  trips it has been cut too far, whatever it grades.
 - **Break the clause chains.** The 42 got to grade 7 with 0.75 "and" per
   sentence and fewer commas than either older cohort: long unpunctuated chains.
   The brief that produced them said "long chains of and clauses are fine" with
