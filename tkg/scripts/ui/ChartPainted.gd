@@ -365,19 +365,42 @@ static func begin_bake(sky: ChartSky, g: Dictionary, holder: Node) -> Array[SubV
 		m.set_shader_parameter("u_part", part)
 		m.set_shader_parameter("u_puffP", g.puffP)
 		out.append(sky._pass_vp(holder, Vector2i(PN, PN), ChartSky._rect(m), true))
+	# THE SOLID LOOK'S FIELDS (`chart_solid.gdshaderinc`): its puffs, its terrain and its
+	# edge read SIMPLIFIED's own bakes -- the noise (B the billows) and the structure (R
+	# the arm ridge, G the lane) -- at fixed scales in the disc's plane, so this style's
+	# relief and puffs stand where SIMPLIFIED's do; baked here as `ChartSky` bakes them
+	for mode in 2:
+		var n := ChartSky.NOISE_N if mode == 0 else (ChartSky.STRUCT_N if (int(p.arms) > 0 or float(p.bar) > 0.0) else 16)
+		var mb := ShaderMaterial.new()
+		mb.shader = ChartSky.BAKE_SH
+		mb.set_shader_parameter("mode", mode)
+		mb.set_shader_parameter("ext", ChartSky.EXT)
+		mb.set_shader_parameter("arms", float(p.arms))
+		mb.set_shader_parameter("twist", float(p.twist))
+		mb.set_shader_parameter("bar", float(p.bar))
+		mb.set_shader_parameter("spin", float(p.spin))
+		mb.set_shader_parameter("spread", float(p.spread))
+		mb.set_shader_parameter("chaos", float(p.chaos))
+		out.append(sky._pass_vp(holder, Vector2i(n, n), ChartSky._rect(mb), false))
 	return out
 
 
-## The puff table read back: the galaxy is ready (its palette needs no cut).
+## The puff table read back, and the solid look's two bakes mip-mapped: the galaxy
+## is ready (its palette needs no cut).
 static func finish_bake(g: Dictionary, vps: Array) -> bool:
 	var texs: Array[ImageTexture] = []
-	for vp: SubViewport in vps:
-		var img := vp.get_texture().get_image()
+	for i in vps.size():
+		var img := (vps[i] as SubViewport).get_texture().get_image()
 		if img == null:
 			return false
+		if i >= 2:
+			img.convert(Image.FORMAT_RGBA8)
+			img.generate_mipmaps()
 		texs.append(ImageTexture.create_from_image(img))
 	g["puffA"] = texs[0]
 	g["puffB"] = texs[1]
+	g["noise"] = texs[2]
+	g["struct"] = texs[3]
 	g["ready"] = true
 	return true
 
@@ -436,6 +459,11 @@ static func runtime(sky: ChartSky, g: Dictionary) -> void:
 	mp.set_shader_parameter("u_puffA", g.puffA)
 	mp.set_shader_parameter("u_puffB", g.puffB)
 	mp.set_shader_parameter("u_puffP", g.puffP)
+	# (the solid look's fields: SIMPLIFIED's bakes, and the lanes' strength they cut)
+	mp.set_shader_parameter("u_noise", g.noise)
+	mp.set_shader_parameter("u_struct", g.struct)
+	mp.set_shader_parameter("u_ext", ChartSky.EXT)
+	mp.set_shader_parameter("u_laneStr", float(g.p.lane))
 	mp.set_shader_parameter("u_Y", T.Y)
 	mp.set_shader_parameter("u_mstart", T.mstart)
 	mp.set_shader_parameter("u_mlen", T.mlen)
@@ -500,6 +528,22 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	gu4.z = 1.0 if calm else 0.0
 	mp.set_shader_parameter("u_g4", gu4)
 	feed_events(mp, g, t, phi, calm)
+	# THE SOLID LOOK (`ChartSky.solid`; `ChartSky._push` has already moved the camera
+	# for this frame, `solid_frame`): its uniforms on the place pass, the camera on the
+	# sparkles, so they stand where the camera shows the disc they belong to
+	var sol := ChartSky.solid() and sky._use_map
+	sky.push_solid(mp, sol)
+	sky.push_solid_stars(sky._m_stars, sol)
+	# (`solidtest` reads back the plane point each block shows, `ChartSky.diag` 4096:
+	# no 8-bit G-buffer can hold it, so for those frames the place pass draws in half
+	# floats; the paint pass then shows nothing meaningful, and nobody looks)
+	var probe := (ChartSky.diag & 4096) != 0
+	if sky._pvp.use_hdr_2d != probe:
+		sky._pvp.use_hdr_2d = probe
+	# (the centre this sky is drawn about this frame -- the galaxy's even pixel, or the
+	# exact centre while a zoom's hold lasts -- where `solidtest` measures the marks from,
+	# as it does SIMPLIFIED's)
+	sky._hold_c_now = ccon
 	var ms := sky._m_stars
 	ms.set_shader_parameter("vp_origin", origin)
 	ms.set_shader_parameter("cpix", ccon)
@@ -517,11 +561,26 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	# (last frame's turn, kept per frame like the view below: pushed twice in a
 	# frame, the second push read the first's turn as last frame's and undid none)
 	var fr := Engine.get_process_frames()
+	var cam_now := [ChartSky.solid_cam(), ChartSky.SOLID_T, sol]
 	if int(g.get("_view_fr", -1)) != fr:
 		g["_view_fr"] = fr
 		g["_phi_prev"] = g.get("_phi_cur", phi)
 		g["_view_prev"] = g.get("_view_cur", [z, ccon, origin, b0])
+		g["_cam_prev"] = g.get("_cam_cur", cam_now)
 	g["_phi_cur"] = phi
+	g["_cam_cur"] = cam_now
+	# AND IT FOLLOWS THE CAMERA (`ChartSky.solid`): a drag carries and pitches the
+	# camera, so each block shows another piece of the disc every frame; the memory is
+	# read from where that piece was drawn last frame -- back through this frame's
+	# camera, out through last frame's (as `chart_c_comp`'s `cam_*` hold) -- or a held
+	# band would stay on the screen while the gas it belongs to moved on
+	var cp: Array = g["_cam_prev"]
+	mt.set_shader_parameter("cam_on", sol and bool(cp[2]))
+	mt.set_shader_parameter("cam_cur", cam_now[0])
+	mt.set_shader_parameter("cam_cur_t", cam_now[1])
+	mt.set_shader_parameter("cam_prev", cp[0])
+	mt.set_shader_parameter("cam_prev_t", cp[1])
+	mt.set_shader_parameter("cam_k", ChartSky.K0)
 	var pd := wrapf(phi - float(g.get("_phi_prev", phi)), -PI, PI)
 	mt.set_shader_parameter("phi_d", pd if absf(pd) < 0.2 else 0.0)
 	mt.set_shader_parameter("origin", origin)

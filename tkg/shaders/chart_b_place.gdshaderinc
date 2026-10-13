@@ -34,7 +34,9 @@ uniform vec2 u_cpix = vec2(327.0, 214.0);
 uniform vec2 u_res = vec2(655.0, 429.0);
 uniform vec2 u_block0 = vec2(0.0);
 uniform float u_zoom = 0.42;
-// (tuning, `ChartSky.diag`: 1 no glare control, 2 no stars, 4 no added detail)
+// (tuning, `ChartSky.diag`: 1 no glare control, 2 no stars, 4 no added detail; this
+// style's own, for stills of one part of the solid look against none: 8192 no relief
+// light, 16384 no puff light)
 uniform int u_diag = 0;
 float zDet() { return (u_diag & 4) != 0 ? min(u_zoom, 1.0) : u_zoom; }
 // THE SPARKLES' LIGHT KEPT AS YOU ZOOM (`ChartPainted._star_debt`): a sparkle is a
@@ -79,6 +81,92 @@ uniform vec4 u_lt[12];             // lightning per cloud: pose (0 none, 1 bolt,
 uniform float u_glim = 0.0;        // the glimmers' stepped angle
 uniform float u_shaft = 0.0;       // the shafts' stepped angle
 uniform float u_flow = 0.0;        // the currents' clock (halved under reduced motion)
+
+// THE SOLID LOOK (`chart_solid.gdshaderinc`, approved in SIMPLIFIED Oct 12: "THIS IS
+// PERFECT"), painted. Its camera, its puffs, its edge, its relief and its nebulae's
+// bodies are the shared fields, read off SIMPLIFIED's own bakes (`ChartPainted` bakes
+// them beside the puff table) at fixed scales in the disc's plane, so they stand
+// where SIMPLIFIED's do. What they light is this style's: every field only moves a
+// block's LIGHT -- the level the paint pass bands into a material's few steps -- or
+// picks a material, so a puff's lit side is a band up on its own ramp, its shade a
+// band down, a lit face of the middle's relief the warm material and its back the
+// cool one, the edge the gas's bands stepping down to the sky's patterns; nothing is
+// blended as colour. `scene` shows each one.
+uniform sampler2D u_noise : filter_linear_mipmap, repeat_disable;
+uniform sampler2D u_struct : filter_linear_mipmap, repeat_disable;
+uniform float u_ext = 1.2;
+uniform float u_laneStr = 1.0;
+vec2 bakeUV(vec2 p) { return (p + u_ext) / (2.0 * u_ext); }
+#include "res://shaders/chart_solid.gdshaderinc"
+
+// how much the camera magnifies the flat view at v (1 with it off): a block of the
+// screen covers 1 / this of a block of the flat view, so whatever this style sizes
+// in blocks (the noise's octaves, a shell's least width, a puff's outline) is sized
+// where the camera shows it
+float solidMag(vec2 v) {
+	if (!u_solid) {
+		return 1.0;
+	}
+	vec2 a = solidV(v);
+	vec2 jx = solidV(v + vec2(4.0, 0.0)) - a, jy = solidV(v + vec2(0.0, 4.0)) - a;
+	return sqrt(abs(jx.x * jy.y - jx.y * jy.x)) * 0.25;
+}
+// THE MIDDLE'S RELIEF IN THIS STYLE'S BRUSH: `terrShade` exactly, its height field
+// read `lo` mip levels coarser -- this style's way with all its noise (`fbmL`): a
+// detail comes in only once it spans a few blocks, so a crest finer than that is
+// not drawn as a speckle of bands but waits for the zoom that resolves it, and the
+// hills' shapes and light stay where they are at every zoom
+vec3 terrShadeB(vec2 p, float lo) {
+	float r = length(p);
+	if (u_terr <= 0.0 || r > TERR_R1 || r < TERR_R0 * 0.5) {
+		return vec3(1.0, 0.0, 0.0);
+	}
+	float Hm = TERR_H * u_terr;
+	float h0 = terrH(p, lo);
+	const float TE = 0.006;
+	float hx = terrH(p + vec2(TE, 0.0), lo) - h0;
+	float hy = terrH(p + vec2(0.0, TE), lo) - h0;
+	vec3 N = normalize(vec3(-hx, -hy, TE * 0.5));
+	vec2 toC = -p / r;
+	const float TAN_L = 0.30;
+	vec3 L = normalize(vec3(toC, TAN_L));
+	float lit = max(dot(N, L), 0.0);
+	float sh = 0.0;
+	float hs0 = terrH(p, 0.75 + lo);
+	for (int i = 1; i <= 6; i++) {
+		float t = float(i) * 0.010;
+		if (t > r - TERR_R0 * 0.5) {
+			break;
+		}
+		float hs = terrH(p + toC * t, 0.75 + lo);
+		sh = max(sh, (hs - hs0 - t * TAN_L * 0.35) / (Hm * 0.35));
+	}
+	sh = clamp(sh, 0.0, 1.0);
+	float hb = terrH(p, 2.0 + lo);
+	float ao = clamp(1.0 - 1.6 * max(hb - h0, 0.0) / max(Hm * 0.5, 1e-6), 0.4, 1.0);
+	float relief = smoothstep(0.0, Hm * 0.25, max(h0, hb));
+	float shade = (0.5 + 0.8 * lit) * (1.0 - 0.55 * sh) * ao;
+	float warm = lit * (1.0 - sh) * smoothstep(0.0, 0.5, h0 / Hm);
+	return vec3(mix(1.0, shade, relief), warm * relief, relief);
+}
+const float TERR_SPAN = 8.0;
+// how many mip levels coarser this style reads the relief at a block of `blk` gu: a
+// crest of the field's finest (about 0.005 gu) is drawn once it spans TERR_SPAN blocks
+float terrLo(float blk) {
+	return clamp(log2(blk * TERR_SPAN / 0.005), 0.0, 3.0);
+}
+// the puff's own lit body, as a share of the gas's light (`fluffShade`'s third)
+const float FLUFF_BODY = 0.35;
+// how much of the cool gas's light a face of the middle's relief lit full on by the
+// core hands to the warm side (`terrShade`'s warm light)
+const float WARM_T = 0.3;
+// how much the core's warm light on a face of the middle's relief lifts its light
+const float TERR_LIFT = 0.8;
+// and how much harder this style takes the relief's light and shade than SIMPLIFIED (a
+// power): its bands step once a doubling of the light, where SIMPLIFIED's toned colour
+// darkens far more for the same shade, so taken as it is the hills all but vanished
+// into one or two bands of gold
+const float TERR_GAMMA = 1.5;
 
 #define M_SKY 0
 #define M_ARM 1
@@ -152,6 +240,8 @@ vec4 planeStar(vec2 g, vec2 v, float cell, float prob, int seed) {
 	if ((u_diag & 34) != 0) {
 		return r;
 	}
+	// (where the camera shows the block and the star: each star still lands in one block)
+	vec2 vs = solidV(v);
 	ivec2 c0 = ivec2(floor(g / cell));
 	for (int j = -1; j <= 1; j++) {
 		for (int i = -1; i <= 1; i++) {
@@ -160,7 +250,7 @@ vec4 planeStar(vec2 g, vec2 v, float cell, float prob, int seed) {
 			if (h.z > prob) {
 				continue;
 			}
-			vec2 d = (toView((vec2(c) + h.xy) * cell, 0.0) - v) / bv;
+			vec2 d = (solidV(toView((vec2(c) + h.xy) * cell, 0.0)) - vs) / bv;
 			if (d.x >= -0.5 && d.x < 0.5 && d.y >= -0.5 && d.y < 0.5) {
 				r = vec4(1.0, kitHash3(c + ivec2(seed * 131 + 17, seed * 977 + 5)));
 			}
@@ -170,7 +260,7 @@ vec4 planeStar(vec2 g, vec2 v, float cell, float prob, int seed) {
 }
 // a sparkle sprite centred on view point c: 0 none, else a level for the star ramp
 float spriteAt(Px P, vec2 c, int tier) {
-	ivec2 d = P.blk - blockOf(scr(c));
+	ivec2 d = P.blk - blockOf(scr(solidV(c)));
 	int ax = abs(d.x), ay = abs(d.y);
 	if (ax == 0 && ay == 0) {
 		return 0.95;
@@ -189,7 +279,10 @@ float spriteAt(Px P, vec2 c, int tier) {
 
 // ------------------------------------------------------------------ the hole (C's)
 // 0: not the hole; 1: its disc (hc, cov set); 2: the shadow, round, in front of everything
-int holeAt(vec2 v, out Cand hc, out float cov, out bool shad) {
+// (v about the core in the core's own frame, and kc the camera's one scale there,
+// `solidCoreK`: through the solid galaxy's camera the hole keeps its shape and its
+// size is the camera's at the core, as SIMPLIFIED draws it)
+int holeAt(vec2 v, float kc, out Cand hc, out float cov, out bool shad) {
 	hc = cand(M_SKY, 0.0, 0, 0.0);
 	cov = 0.0;
 	shad = false;
@@ -198,7 +291,7 @@ int holeAt(vec2 v, out Cand hc, out float cov, out bool shad) {
 	if (length(S) > lh_dims.x * 0.97) {
 		return 0;
 	}
-	float pxr = lh_px_rs(shadow * u_zoom);
+	float pxr = lh_px_rs(shadow * u_zoom * kc);
 	float clumps = smoothstep(2.6, 4.0, u_zoom) * ((u_diag & 128) != 0 ? 0.0 : 1.0);
 	vec3 hot = lh_hot(u_time, u_wxOn);
 	vec3 acc = vec3(0.0);
@@ -305,7 +398,7 @@ float massTab(vec2 g) {
 	return mix(mix(massCell(c, N), massCell(c + ivec2(1, 0), N), t.x),
 		mix(massCell(c + ivec2(0, 1), N), massCell(c + ivec2(1, 1), N), t.x), t.y);
 }
-Cand shadePuff(Puff p, vec2 dg, out float alpha) {
+Cand shadePuff(Puff p, vec2 dg, float mag, out float alpha) {
 	vec2 toCore = -normalize(p.P.xy);
 	float rr = length(p.P.xy);
 	float Ic = min(1.0, 2.2 / (1.0 + sq(rr / 0.2)));
@@ -320,7 +413,7 @@ Cand shadePuff(Puff p, vec2 dg, out float alpha) {
 	vec2 Ls = normalize(vec2(lv2.x, lv2.y * KIT_TILT - L.z * KIT_TILT_COS));
 	vec3 V = normalize(vec3(dg, 1.0));
 	bool edge = abs(dot(p.n, V)) < 0.45;
-	float big = p.R * u_k * zDet() / 2.0;
+	float big = p.R * u_k * zDet() / 2.0 * mag;
 	int sid = big >= 3.5 ? int(p.id * 255.0 + 0.5) : 0;
 	Cand c = cand(warm ? M_BILLOW : M_ARM, lv, sid, auxOf(Ls, edge));
 	float a = mix(0.25, 1.0, smoothstep(0.12, 0.5, p.h / max(p.top, 1e-3)));
@@ -338,8 +431,18 @@ float seedOf(int i) { return float(i) * 13.17 + u_g3.w; }
 vec2 warpOf(vec2 q, float bq, float seed) { return vec2(fbmL(q + seed, bq, 2), fbmL(q + seed + 5.3, bq, 2)); }
 float wxGate() { return u_wxOn * smoothstep(2.4, 3.2, u_zoom); }
 
-float bubbleAt(vec2 v) {
+// the way to the galaxy's core from cloud i, in its own round frame
+vec2 cloudToCore(int i) {
+	vec2 vc = (toView(vec2(0.0), 0.0) - toView(u_cl[i].xy, 0.0)) / u_k;
+	vc.y /= 0.46341;
+	return normalize(kitRot(-u_phi) * vc);
+}
+// (and the crater's floor, the solid look's nebulae, `nebShell`: what the light inside a
+// remnant's shell is multiplied by, emptier toward its middle and shaded under the
+// wall on the core's side; 1 elsewhere)
+float bubbleAt(vec2 v, out float flo) {
 	float bb = 0.0;
+	flo = 1.0;
 	for (int i = 0; i < 12; i++) {
 		if (i >= u_ncl) {
 			break;
@@ -347,8 +450,12 @@ float bubbleAt(vec2 v) {
 		if (int(u_ck[i].x + 0.5) != 3) {
 			continue;
 		}
-		float rr = length(cloudFrame(v, i)) / u_cl[i].w;
+		vec2 d = cloudFrame(v, i);
+		float rr = length(d) / u_cl[i].w;
 		bb = max(bb, smoothstep(0.93, 0.86, rr));
+		if (u_neb > 0.0 && rr < 1.0) {
+			flo = min(flo, nebShell(d / max(length(d), 1e-6), rr - 0.95, cloudToCore(i)).y);
+		}
 	}
 	return bb;
 }
@@ -367,7 +474,7 @@ float cloudLight(vec2 v, int i) {
 float boltBlocks(ivec2 b, int i) {
 	vec4 lt = u_lt[i];
 	float rb = u_cl[i].z * u_k * u_zoom * 0.5;     // the cloud's radius in blocks
-	ivec2 a = blockOf(scr(cloudToView(i, lt.yz)));
+	ivec2 a = blockOf(scr(solidV(cloudToView(i, lt.yz))));
 	int row = b.y - a.y, dx = b.x - a.x;
 	int sgn = kitHash3(ivec2(int(lt.w), i + 31)).x < 0.5 ? -1 : 1;
 	int x = 0, y = 0;
@@ -431,7 +538,7 @@ bool emissionAt(Px P, vec2 v, int i, float blk, float bubble, out Cand c) {
 		bb = boltBlocks(P.blk, i);
 	}
 	if (lt.x > 0.5 && gate > 0.5 && lt.x < 1.5 && bb < 0.5) {
-		c = cand(M_BOLT, P.blk.y - blockOf(scr(cloudToView(i, lt.yz))).y < 3 ? 0.9 : 0.5, 0, 0.0);
+		c = cand(M_BOLT, P.blk.y - blockOf(scr(solidV(cloudToView(i, lt.yz)))).y < 3 ? 0.9 : 0.5, 0, 0.0);
 		return true;
 	}
 	if (F < 0.12) {
@@ -456,6 +563,11 @@ bool emissionAt(Px P, vec2 v, int i, float blk, float bubble, out Cand c) {
 	ha += 0.3 * smoothstep(0.8, 0.96, fil) * min(dens, 1.0) * (0.5 + 0.5 * ill) * (1.0 - inCav);
 	float vein = 1.0 - abs(fbmL(q * 4.6 - seed * 1.3, bR * 4.6, OCT));
 	ha -= 0.28 * smoothstep(0.88, 0.98, vein) * (1.0 - inCav) * smoothstep(0.3, 0.6, dens);
+	// (a puffy body, the solid look's nebulae: its gas lit and shaded as puffs toward the
+	// core, `nebPuff`, so the bands climb its lit sides and fall away on its shaded ones)
+	if (u_neb > 0.0) {
+		ha *= nebPuff(d, R, seed, cloudToCore(i));
+	}
 	// the bolt's afterglow: the gas round it a band brighter, held, then gone
 	if (lt.x > 0.5 && gate > 0.5) {
 		float bg = bb / max(u_cl[i].z * u_k * u_zoom * 0.5, 1.0);
@@ -576,24 +688,33 @@ bool reflectionAt(Px P, vec2 v, int i, float blk, float bubble, Cand under, out 
 // (Out from zoom 1 to the opening a shell is a few pixels across, its bands the
 // least that can be drawn, as before.)
 float kzO() { return max(1.0, u_zoom); }
-float shellPx(float reach, vec2 cs2) {
+// (and where the solid galaxy's camera shows the cloud, as big as it shows it there)
+float shellPx(float reach, vec2 cs2, int i) {
 	vec2 e = kitRot(u_phi) * cs2;
-	return reach * u_k * u_zoom * length(vec2(e.x, 0.46341 * e.y));
+	return reach * u_k * u_zoom * length(vec2(e.x, 0.46341 * e.y)) * solidMag(toView(u_cl[i].xy, 0.0));
 }
-
-bool remnantAt(vec2 v, int i, float blk, Cand under, out Cand c) {
+// THE SHELL AS A CRATER (the solid look's nebulae, `nebShell`; Jon's B: "a teal band
+// inside the red rim and a dark crater floor", no green fill): its strands are its
+// wall, a band brighter on the face toward the core and a band or so darker on its
+// back; inside it the oxygen's glow is an even band hugging the wall all the way
+// round -- the ramp's second teal, then its darkest, then that darkest thinning in
+// the style's own 50% and 25% patterns -- down to the floor, which `scene` darkens
+// under the wall on the core's side (`bubbleAt`). Nothing else fills it.
+bool remnantAt(Px P, vec2 v, int i, float blk, Cand under, out Cand c) {
 	c = under;
 	float reach = u_cl[i].w;
 	vec2 d = cloudFrame(v, i);
 	float rr = length(d) / reach;
-	if (rr < 0.7 || rr > 1.3) {
+	if (rr < (u_neb > 0.0 ? 0.5 : 0.7) || rr > 1.3) {
 		return false;
 	}
 	float seed = seedOf(i);
 	float an = atan(d.y, d.x);
 	vec2 cs2 = vec2(cos(an), sin(an));
-	float pxs = shellPx(reach, cs2);
+	float pxs = shellPx(reach, cs2, i);
 	float Rth = 1.0 + 0.09 * kitSnoise2(cs2 * 1.3 + seed) + 0.035 * kitSnoise2(cs2 * 3.4 + seed * 1.7);
+	// (the wall's light: 1 off, `nebShell`; in levels, a light's doubling about a band)
+	float wallL = u_neb > 0.0 ? 0.18 * log2(max(nebShell(cs2, rr / Rth - 1.0, cloudToCore(i)).x, 0.25)) : 0.0;
 	float best = 1e9;
 	int bj = -1;
 	float kn = 0.0;
@@ -624,7 +745,7 @@ bool remnantAt(vec2 v, int i, float blk, Cand under, out Cand c) {
 			gl = max(gl, step(abs(mod(an - th0 + PI_B, TAU_B) - PI_B), 0.22));
 		}
 		lv += 0.2 * gl * wxGate();
-		c = cand(outer ? M_HA : M_O3, lv, 202, 0.0);
+		c = cand(outer ? M_HA : M_O3, lv + wallL, 202, 0.0);
 		return true;
 	}
 	float dg = (rr - Rth) * pxs;
@@ -634,11 +755,25 @@ bool remnantAt(vec2 v, int i, float blk, Cand under, out Cand c) {
 	float gl2 = kitSnoise2(cs2 * 5.0 + vec2(rr * 6.0, seed * 0.7));
 	if (gw > 0.5 && dg < gw * 0.7 && dg > -gw * 2.2) {
 		if (dg > -gw * 0.45) {
-			c = cand(M_HA, 0.4 + 0.14 * gl2, 0, 0.0);
+			c = cand(M_HA, 0.4 + 0.14 * gl2 + wallL, 0, 0.0);
 			return true;
 		}
-		c = cand(M_O3, 0.34 + 0.16 * gl2, 0, 0.0);
+		c = cand(M_O3, 0.34 + 0.16 * gl2 + wallL, 0, 0.0);
 		return true;
+	}
+	if (u_neb > 0.0) {
+		// the oxygen's band hugging the wall's inner side (SIMPLIFIED's, in the shell's
+		// own measure: its wall at 0.95), stepped down the teal ramp to the floor
+		float x = rr / Rth * 0.95;
+		float band = pow(smoothstep(0.55, 0.90, x), 2.2) * (1.0 - smoothstep(0.90, 0.96, x)) * u_neb;
+		if (band > 0.45) {
+			c = cand(M_O3, 0.3, 0, 0.0);
+			return true;
+		}
+		if (band > 0.2 || (band > 0.04 && pat(P, (band - 0.04) / 0.16))) {
+			c = cand(M_O3, 0.05, 0, 0.0);
+			return true;
+		}
 	}
 	return false;
 }
@@ -659,7 +794,11 @@ bool planetaryAt(Px P, vec2 v, int i, float blk, out Cand c) {
 	float rr = length(e) / rPN;
 	float an = atan(e.y, e.x);
 	vec2 cs2 = vec2(cos(an), sin(an));
-	float pxs = shellPx(rPN, cs2);
+	float pxs = shellPx(rPN, cs2, i);
+	// (its wall lit toward the core, a band either way, and its glow inside shaded under
+	// the wall on the core's side: the solid look's nebulae, `nebShell`; the teal fill stays)
+	vec2 sl = u_neb > 0.0 ? nebShell(cs2, rr - 1.0, cloudToCore(i)) : vec2(1.0);
+	float wallL = 0.18 * log2(max(sl.x, 0.25)), floorL = 0.25 * log2(max(sl.y, 0.25));
 	float dpx = (rr - 1.0) * pxs;
 	float s = spriteAt(P, cloudToView(i, vec2(0.0)), 3);
 	if (s > 0.0) {
@@ -670,11 +809,11 @@ bool planetaryAt(Px P, vec2 v, int i, float blk, out Cand c) {
 	// near one (zoomed in, a 4-px ring round an empty middle reads as a wire)
 	float wb = max(2.0 * kzO(), 0.035 * pxs);
 	if (dpx > 1.0 && dpx <= 1.0 + wb) {
-		c = cand(M_HA, 0.72, 203, 0.0);
+		c = cand(M_HA, 0.72 + wallL, 203, 0.0);
 		return true;
 	}
 	if (dpx > 1.0 - 2.0 * wb && dpx <= 1.0) {
-		c = cand(M_O3, dpx > 1.0 - wb ? 0.92 : 0.66, 203, 0.0);
+		c = cand(M_O3, (dpx > 1.0 - wb ? 0.92 : 0.66) + wallL, 203, 0.0);
 		return true;
 	}
 	float wf = max(2.0 * kzO(), 0.06 * pxs) + max(0.0, 0.22 * pxs - 20.0 * kzO());
@@ -682,7 +821,7 @@ bool planetaryAt(Px P, vec2 v, int i, float blk, out Cand c) {
 		// the shell's inner glow, dithered thinner toward the middle
 		float u = (1.0 - 2.0 * wb - dpx) / wf;
 		if (u < 0.5 || pat(P, 1.0 - u)) {
-			c = cand(M_O3, u < 0.5 ? 0.3 : 0.18, 0, 0.0);
+			c = cand(M_O3, (u < 0.5 ? 0.3 : 0.18) + floorL, 0, 0.0);
 			return true;
 		}
 	}
@@ -718,12 +857,19 @@ bool darkAt(vec2 v, int i, float blk, Cand under, out Cand c) {
 	float rg = length(vec2(v.x, v.y / KIT_TILT)) / u_k;
 	fade *= smoothstep(0.03, 0.075, rg);
 	float dens = darkDens(d, i, bR) * fade;
+	vec2 dc = cloudToCore(i);
 	if (dens < 0.55) {
+		// A MOUND CASTS ITS SHADOW (the solid look's nebulae: dark nebulae stand up off
+		// the disc and their shadow falls outward, away from the core): the gas just
+		// past the cloud on its far side from the core is a band and a bit darker,
+		// where the body stands between it and the core
+		if (u_neb > 0.0 && (under.m == M_ARM || under.m == M_BILLOW || under.m == M_BULGE || under.m == M_KNOT)
+				&& darkDens(d + dc * 0.3 * R, i, bR) * fade > 0.55) {
+			c = cand(under.m, under.lv - 1.3 / float(u_mlen[under.m]) * u_neb, under.sid, under.aux);
+			return true;
+		}
 		return false;
 	}
-	vec2 vc = (toView(vec2(0.0), 0.0) - toView(u_cl[i].xy, 0.0)) / u_k;
-	vc.y /= 0.46341;
-	vec2 dc = normalize(kitRot(-u_phi) * vc);
 	bool rim = darkDens(d + dc * blk * 1.4, i, bR) * fade < 0.55;
 	bool warmBack = under.m == M_BULGE || under.m == M_BILLOW || under.m == M_BALL || under.m == M_HOLE;
 	// distant lightning inside it: its body lit a band from within, held
@@ -859,10 +1005,25 @@ bool brightStar(vec2 sp, float above) {
 	return s.x > 0.5 && s.y > above;
 }
 
-Cand skyAt(Px P, float Ehalo) {
+// (gp: the plane point, for the edge's wander)
+Cand skyAt(Px P, float Ehalo, vec2 gp) {
 	vec2 sp = u_vp_origin + (vec2(P.blk) + 0.5) * 2.0 - 0.5 * u_res;
 	float hl = Ehalo;
 	Cand c = cand(M_SKY, hl < 0.0019 ? 0.0 : (hl < 0.0042 ? 0.45 : 0.8), 0, 0.0);
+	// THE EDGE DISSOLVES (the solid look's edge, `edgeMask`): the faint gas's two tints
+	// over the sky stood as smooth rings round the disc, the outer one a plate's rim on
+	// the black. Now where each step falls wanders broadly in and out, in the disc's own
+	// units (so the last light thins into the dark in ragged tongues and bays, never
+	// an oval), with a sparse quarter pattern on its last fifth, as the paint pass eases
+	// a band toward the next. (A pattern over the whole fade was tried first: through
+	// the camera a drag slides it a block a frame, and a wide field of 50% checker
+	// moving so is a field of flicker.)
+	if (u_edge.w > 0.0) {
+		float s = hl < 0.0019 ? max(hl - 0.0005, 0.0) / 0.0014 : min(1.0 + (hl - 0.0019) / 0.0023, 2.0);
+		s += 0.45 * kitFbm2(gp * 5.0 + vec2(1.3, 8.1), 2);
+		int st = int(floor(s)) + ((fract(s) > 0.8 && pat(P, 0.25)) ? 1 : 0);
+		c = cand(M_SKY, st <= 0 ? 0.0 : (st == 1 ? 0.45 : 0.8), 0, 0.0);
+	}
 	// the little galaxies, near over far
 	Cand gn = farGalaxy(sp, 0.07, 150.0, 0.55, vec2(6.0, 15.0), 3);
 	if (gn.m != M_SKY) {
@@ -936,14 +1097,40 @@ float ballForm(vec2 v, float k, float bs, float blk) {
 }
 
 // ------------------------------------------------------------------ the scene behind the hole
-Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
+// v: the point of the flat view this block shows (through the solid galaxy's camera,
+// `solidO`); vb: the same about the core in the core's own frame (`solidCoreK`: the
+// bulge is drawn there, round, at the camera's one scale at the core, never
+// stretched by the perspective round it; v itself with the camera off); tk: how much
+// of the middle's relief is drawn here (0 through the hole's lens)
+Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	float k = u_k;
-	float blk = blockView() / k;
+	// (THE PATTERNS STAY ON THE SCREEN'S BLOCKS, anchored to the galaxy's centre as the
+	// flat chart's are. Indexed instead by the flat view's blocks, as SIMPLIFIED's edge
+	// dither is, the camera's perspective scaled each 4x4 cell against the blocks and
+	// every pattern broke into an irregular moire -- none of this style's crisp ordered
+	// patterns -- and a drag flipped as many blocks either way, 0.0137 against 0.0141
+	// of the pixels a frame on the slow drag.)
+	// (a block of the screen covers 1 / mag of a block of the flat view: whatever is
+	// sized in blocks -- the noise's octaves, the least widths -- is sized as shown)
+	float mag = solidMag(v);
+	float blk = blockView() / k / mag;
 	vec2 q0 = vec2(v.x, v.y / KIT_TILT) / k;
 	vec2 g = kitRot(-u_phi) * q0;
-	vec2 dg = kitRot(-u_phi) * vec2(0.0, 2.43418);
+	// (the view ray's way across the plane per unit of height: toward the camera,
+	// `fluffToward`; with the camera off the flat view's own tilt, as it always was)
+	vec2 dg = u_solid ? fluffToward(g) : kitRot(-u_phi) * vec2(0.0, 2.43418);
 	float r = length(g);
 	bool ellip = u_g3.x > 0.5;
+	// THE SOLID LOOK'S GAS, where the eye meets it: through the middle's relief
+	// (`terrSeen`), then through the puffs' height (`fluffSeen`), so hills and puffs
+	// slide against what lies behind as the camera turns. The disc's own light and its
+	// lighting are read there (gd); its stars, knots and events stay at g.
+	vec2 pt = g, gd = g;
+	if (!ellip) {
+		pt = tk > 0.0 ? mix(g, terrSeen(g), tk) : g;
+		gd = fluffSeen(pt);
+	}
+	float rd = length(gd);
 #if LOW
 	bool low = true;
 #else
@@ -953,7 +1140,7 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 
 	float ar = 0.0, dp = 0.0, wp = 1.0, al = 0.0, prof = 0.0;
 	if (!ellip && u_g1.y > 0.0) {
-		armGeom(g, ar, dp, wp, al);
+		armGeom(gd, ar, dp, wp, al);
 		prof = armProfile(dp, wp) * u_g1.y;
 		if (floor((al - ar * 11.0) / 23.7 + 0.5) > 0.5) {
 			prof *= u_g6.w;
@@ -962,7 +1149,7 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 	float seg = ellip ? 1.0 : 0.6 + 0.4 * kitSnoise2(vec2(al * 0.42, 3.1));
 	if (u_g8.z > 0.0) {
 		// chaos: whole stretches of arm missing, others bright
-		seg *= mix(1.0, 0.25 + 0.95 * smoothstep(-0.35, 0.45, kitSnoise2(g * 3.4 + 1.9)), clamp(u_g8.z * 2.2, 0.0, 1.0));
+		seg *= mix(1.0, 0.25 + 0.95 * smoothstep(-0.35, 0.45, kitSnoise2(gd * 3.4 + 1.9)), clamp(u_g8.z * 2.2, 0.0, 1.0));
 	}
 	if (!ellip && u_g7.w > 0.0 && u_g1.y > 0.0) {
 		bool armB = floor((al - ar * 11.0) / 23.7 + 0.5) > 0.5;
@@ -978,50 +1165,89 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 	float lane = 0.0, laneS = 0.0, lip = 0.0;
 	float Ed, EdS, warmD;
 	if (!ellip) {
-		float env = 0.42 * exp(-r / 0.28) + 0.022 * exp(-r / 0.75);
-		float taper = smoothstep(1.2, 0.78, r + 0.10 * fbmL(g * 4.0, blk * 4.0, low ? 2 : 5) - 0.12 * prof);
-		float clump = flowFbm(g, 11.0, vec2(5.0), blk, low ? 2 : 6);
-		float fine = low ? 0.0 : flowFbm(g, 46.0, vec2(9.0), blk, 5);
-		float inner = 0.25 + 0.75 * smoothstep(0.04, 0.24, r);
-		float Sx = prof * smoothstep(0.26, 0.07, r) * smoothstep(0.0, 0.025, r);
-		float clumpS = fbmL(g * 11.0 + 5.0, blk * 11.0, 2);
+		float env = 0.42 * exp(-rd / 0.28) + 0.022 * exp(-rd / 0.75);
+		float taper = smoothstep(1.2, 0.78, rd + 0.10 * fbmL(gd * 4.0, blk * 4.0, low ? 2 : 5) - 0.12 * prof);
+		float clump = flowFbm(gd, 11.0, vec2(5.0), blk, low ? 2 : 6);
+		float fine = low ? 0.0 : flowFbm(gd, 46.0, vec2(9.0), blk, 5);
+		float inner = 0.25 + 0.75 * smoothstep(0.04, 0.24, rd);
+		float Sx = prof * smoothstep(0.26, 0.07, rd) * smoothstep(0.0, 0.025, rd);
+		float clumpS = fbmL(gd * 11.0 + 5.0, blk * 11.0, 2);
 		Ed = env * (0.28 + 1.9 * prof * seg) * (1.0 + 0.3 * clump + 0.22 * fine) * taper * inner;
 		Ed += u_g5.x * Sx * (1.0 + 0.15 * clumpS);
 		EdS = env * (0.28 + 1.9 * prof * seg) * (1.0 + 0.3 * clumpS) * taper * inner + u_g5.x * Sx * (1.0 + 0.15 * clumpS);
 		if (u_g0.z > 0.0) {
-			float dperp = abs(dot(g, vec2(-sin(u_g1.x), cos(u_g1.x))));
+			float dperp = abs(dot(gd, vec2(-sin(u_g1.x), cos(u_g1.x))));
 			// a ridge of old light, widening and fading toward its ends (C's bar), never a beam
-			float dpar = abs(dot(g, vec2(cos(u_g1.x), sin(u_g1.x)))) / max(u_g0.z, 0.05);
+			float dpar = abs(dot(gd, vec2(cos(u_g1.x), sin(u_g1.x)))) / max(u_g0.z, 0.05);
 			float barL = 0.4 * exp(-sq(dperp / (0.028 + 0.03 * dpar))) * smoothstep(1.05, 0.3, dpar) * (1.0 + 0.3 * clumpS);
 			Ed += barL;
 			EdS += barL;
 		}
 		// a tidal stream flung off one side (the game's own: -0.9 to 0.8 rad as it
 		// runs from 0.55 to 2.05 gu out)
-		if (u_g8.w > 0.5 && r > 0.45 && r < 2.2) {
-			float t = clamp((r - 0.55) / 1.5, 0.0, 1.0);
-			float dth = (mod(atan(g.y, g.x) - (-0.9 + t * 1.7) + PI_B, TAU_B) - PI_B) / (0.5 * (0.10 + t * 0.30));
-			float tl = 0.012 * exp(-dth * dth * 1.6) * (1.0 - 0.7 * t) * (1.0 + 0.4 * fbmL(g * 6.0, blk * 6.0, 2));
+		if (u_g8.w > 0.5 && rd > 0.45 && rd < 2.2) {
+			float t = clamp((rd - 0.55) / 1.5, 0.0, 1.0);
+			float dth = (mod(atan(gd.y, gd.x) - (-0.9 + t * 1.7) + PI_B, TAU_B) - PI_B) / (0.5 * (0.10 + t * 0.30));
+			float tl = 0.012 * exp(-dth * dth * 1.6) * (1.0 - 0.7 * t) * (1.0 + 0.4 * fbmL(gd * 6.0, blk * 6.0, 2));
 			Ed += tl;
 			EdS += tl;
 		}
-		warmD = smoothstep(max(u_g4.w, u_g0.z * 0.7), 0.04, r);
+		warmD = smoothstep(max(u_g4.w, u_g0.z * 0.7), 0.04, rd);
 	} else {
 		Ed = 0.0;
 		EdS = 0.0;
 		warmD = 1.0;
 	}
+	// THE SOLID LOOK'S LIGHT ON THE GAS, as this style lights: what the disc's light is
+	// multiplied by before it is banded, so each field moves a block up or down its
+	// material's steps and never mixes a colour in.
+	//   * the puffs (`fluffShade`): the lit side toward the core a band up, the shade
+	//     away and the creases between a band down, the rim where a puff's edge catches
+	//     the core's light, the puff's own lit body;
+	//   * the middle's relief (`terrShade`): the slopes facing the core lit, the backs
+	//     and the valleys behind the ridges in shade; its warm light (`warmT`, below)
+	//     hands the lit faces to the warm ramp;
+	//   * the edge (`edgeMask`): the disc's light thinning to nothing over a long
+	//     stretch, so its bands step down to the sky's own patterns and then the sky.
+	vec3 terrS = vec3(1.0, 0.0, 0.0);
+	float silh = 0.0;
+	if (!ellip) {
+		if (u_terr > 0.0 && tk > 0.0 && (u_diag & 8192) == 0) {
+			terrS = terrShadeB(pt, terrLo(blk));
+			terrS.xy = mix(vec2(1.0, 0.0), terrS.xy, tk);
+			silh = terrSilh(pt) * tk;
+		}
+		// (the relief's light: its shade, and its faces toward the core lit up by the core's
+		// warm light, as SIMPLIFIED's `terrS.x + terrS.y * warm` -- a band or more up)
+		float lit = pow(terrS.x + TERR_LIFT * terrS.y, TERR_GAMMA) * edgeMask(gd);
+		if (u_fluff > 0.0 && (u_diag & 16384) == 0) {
+			vec3 fs = fluffShade(gd);
+			lit *= fs.x * (1.0 + 0.9 * fs.y) + FLUFF_BODY * fs.z * u_fluff;
+		}
+		Ed *= lit;
+		EdS *= lit;
+	}
 
 	float R = u_g2.y;
-	float rho = length(vec2(v.x, v.y / u_g2.z)) / k;
+	// THE BULGE THROUGH THE CAMERA (as SIMPLIFIED's `bulgeLight`): about the core in its
+	// own frame (vb), rounder (an egg pushed through a plate, held round however the
+	// camera pitches), a little bigger, and COMPACT: its swell ends in a soft round top
+	// fading into the dark a little above the disc (`solidBulgeEnd`), never a dome of
+	// haze over the far side. A ball keeps its own shape, seen through the camera.
+	bool solidB = u_solid && !ellip;
+	float Rb = solidB ? R * 1.15 : R;
+	float rho = solidB ? length(vec2(vb.x, vb.y * (KIT_TILT / u_solidW.y) / 1.08)) / k : length(vec2(v.x, v.y / u_g2.z)) / k;
 	rho *= 1.0 + 0.07 * fbmL(g * 9.0 + 2.0, blk * 9.0, 2);
 	// the ball: a broad warm glow and a small cusp, its size and brightness the kind's
 	float bs = u_g8.x / 0.30;
 	float rb = rho / bs;
 	float Ib = ellip ? u_g8.y * (0.6 * pow(1.0 + sq(rb / 0.13), -1.2) * smoothstep(1.3, 0.75, rb) + 0.45 * exp(-sq(rb / 0.012))) * (1.0 + 0.16 * fbmL(g * 26.0 + 3.0, blk * 26.0, 4))
-		: u_g5.y * pow(1.0 + sq(rho / (u_g5.z * R)), -1.05) * exp(-sq(rho / (u_g5.w * R)));
+		: u_g5.y * pow(1.0 + sq(rho / (u_g5.z * Rb)), -1.05) * exp(-sq(rho / (u_g5.w * Rb)));
+	if (solidB) {
+		Ib *= solidBulgeEnd(rho, Rb / 0.128);
+	}
 	float hR = u_g3.z;
-	float rp = length(vec2(v.x, v.y / 0.5)) / k;
+	float rp = length(vec2(vb.x, vb.y / 0.5)) / k;
 	float clearZ = smoothstep(1.5, 5.0, u_zoom);
 	// ZOOMING ONLY MAGNIFIES (Jon, Oct 11: "why do the clouds change at all when you
 	// zoom in?"). From zoom 1.5 an exposure for the bulge (`adapt`, up to 120) used
@@ -1042,16 +1268,47 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 	float clearK = clearZ * exp(-sq(rho / (1.6 * u_g4.x)));
 	float holeL = 1.0 / (1.0 + sq(rp / (0.9 * hR)));
 	float sw = 0.5 + 0.5 * sin(2.0 * atan(g.y, g.x) + 6.0 * log(max(r, 1e-3)) + tt * TAU_B / 120.0 + 0.55 * fbmL(g * 40.0, blk * 40.0, 2));
-	float ff = 0.5 - 0.5 * clamp(q0.y / (0.9 * R), -1.0, 1.0);
+	float ff = 0.5 - 0.5 * clamp(vb.y / KIT_TILT / k / (0.9 * Rb), -1.0, 1.0);
 	float T = 1.0 - 0.8 * lane;
-	float Ew = Ib * (ff + (1.0 - ff) * T) + Ed * warmD * T;
+	// (the bulge's light behind the disc comes through the middle's dust, so it takes its
+	// relief; the share in front takes most of it too, and a near ridge stands dark in
+	// front of its lower edge with a lit crest, `terrSilh`)
+	float tL = pow(terrS.x + TERR_LIFT * terrS.y, TERR_GAMMA);
+	float bBack = (1.0 - ff) * tL;
+	float bFront = ff * (mix(1.0, tL, 0.7) * (1.0 - 0.85 * silh) + 0.6 * silh * (1.0 - silh));
+	float Ew = Ib * (bFront + bBack * T) + Ed * warmD * T;
 	float streams = clearK * holeL * 0.075 * (sw * sw * sw - 0.3125);   // (mean 0: sw^3 averages 5/16)
 	float Ec = Ed * (1.0 - warmD) * T;
 	float TS = 1.0 - 0.8 * laneS;
-	float EwS = Ib * (ff + (1.0 - ff) * TS) + EdS * warmD * TS, EcS = EdS * (1.0 - warmD) * TS;
+	float EwS = Ib * (bFront + bBack * TS) + EdS * warmD * TS, EcS = EdS * (1.0 - warmD) * TS;
+	// (the relief's faces toward the core are lit warm, `terrShade`'s warm light: round
+	// the bulge, where the gas is already the core's, the cool gas there hands that share
+	// to the warm side, so a lit face goes over to the warm ramp and its back stays on
+	// the cool one; further out a lit face is the cool ramp's band up -- handed over out
+	// there, each lit crest was a fleck of gold on the blue)
+	float warmT = terrS.y * WARM_T * smoothstep(0.0, 0.5, warmD);
+	Ew += Ec * warmT;
+	EwS += EcS * warmT;
+	Ec *= (1.0 - 0.5 * warmT) * (1.0 + 0.6 * terrS.y * (1.0 - smoothstep(0.0, 0.5, warmD)));
+	EcS *= 1.0 - 0.5 * warmT;
+	// (the near side's dust lane across the core, `solidLane`: the disc passing in front
+	// of the bulge's lower half, broken by the gas)
+	if (u_solid && !ellip) {
+		float ln = kitLum(solidLane(v));
+		Ew *= ln;
+		EwS *= ln;
+		Ec *= ln;
+		EcS *= ln;
+	}
 
 	float Ep = 0.0;
-	float bub = u_ncl > 0 ? bubbleAt(v) : 0.0;
+	// (inside a remnant's shell its floor, emptier and shaded under its wall, `bubbleAt`)
+	float flo = 1.0;
+	float bub = u_ncl > 0 ? bubbleAt(v, flo) : 0.0;
+	Ew *= flo;
+	Ec *= flo;
+	EwS *= flo;
+	EcS *= flo;
 	for (int i = 0; i < 12; i++) {
 		if (i >= u_ncl) {
 			break;
@@ -1069,13 +1326,19 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 		}
 	}
 	float shade = 0.0;
-	if (!ellip && !low && r > 0.06) {
-		float Mh = massTab(g), Mi = massTab(g - normalize(g) * 0.024);
+	if (!ellip && !low && rd > 0.06) {
+		float Mh = massTab(gd), Mi = massTab(gd - normalize(gd) * 0.024);
 		shade = smoothstep(0.12, 0.4, Mi - 0.7 * Mh);
 	}
 
 	Cand sc;
 	float Ehalo = (ellip ? 0.0085 * u_g8.y * bs : 0.0068) * exp(-max(r - (ellip ? 0.55 * bs : 0.74), 0.0) / 0.26) * (1.0 + 0.4 * fbmL(g * 3.0, blk * 3.0, low ? 2 : 5));
+	// THE HALO ENDS WITH THE DISC (the solid look's edge, `solidHaloEnd`): its tints
+	// stepped out round the galaxy as rings of navy -- a plate's rim, then a halo oval
+	// -- so past the disc's fade the sky is the sky, the same as far away
+	if (u_edge.w > 0.0 && !ellip) {
+		Ehalo *= solidHaloEnd(r);
+	}
 	Ew += streams;
 	float Et = Ew + Ec + Ep;
 	bool galaxy = Et > 0.0062;
@@ -1084,7 +1347,7 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 	float dbt = galaxy ? starDebtB(g) : 0.0;
 	bool warmSide = false;
 	if (!galaxy) {
-		sc = skyAt(P, Ehalo + Et * 0.5);
+		sc = skyAt(P, Ehalo + Et * 0.5, g);
 		// AN ELLIPTICAL'S SOFT HALO, as a pixel artist paints one: the ball's
 		// outermost violet stepped out into the sky in an ordered dither, thick
 		// at its edge and thinning to nothing, never a hard rim
@@ -1110,6 +1373,16 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 				lvb = clamp(lvb + ballForm(v, k, bs, blk), 0.0, m == M_BALL ? 0.83 : 0.999);
 			}
 			sc = cand(m, lvb - 0.1 * shade, 0, 0.0);
+			// THE BULGE'S TOP FADES INTO THE DARK (the solid look's compact bulge: "a soft
+			// round top fading to black"): through the camera it rises above the far disc,
+			// where no cool light is left to take its dim fringe, and its two darkest
+			// bands lay there as a maroon cap with a hard rim; they thin out in the style's
+			// patterns over what lies behind instead -- the gas there, or the sky
+			if (solidB && lvb < 0.29 && !pat(P, smoothstep(0.04, 0.29, lvb))) {
+				float ELc2 = Ec + Ep + dbt;
+				float la2 = 1.08 + log2(max(ELc2, 1e-6)) / 6.2 - 0.12 * shade - 0.34 * bub;
+				sc = la2 >= 1.0 / 6.0 ? cand(M_ARM, la2, 0, 0.0) : skyAt(P, Ehalo + Et * 0.5, g);
+			}
 		} else {
 			float ELc = Ec + Ep + 0.35 * Ew + dbt;
 			float la = 1.08 + log2(ELc) / 6.2 - 0.12 * shade - 0.34 * bub;
@@ -1132,7 +1405,7 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 		if (!ellip && Et < 0.012 && !warmSide) {
 			float a = smoothstep(0.0062, 0.012, Et);
 			if (!pat(P, a * 0.9 + 0.1)) {
-				sc = skyAt(P, Ehalo + Et * 0.5);
+				sc = skyAt(P, Ehalo + Et * 0.5, g);
 			}
 		}
 	}
@@ -1179,7 +1452,16 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 			if (abs(de) < wr && kitSnoise2(vec2(an * 2.3, rm.w + 5.0)) > -0.55
 					&& (sc.m == M_ARM || sc.m == M_DUST || sc.m == M_HALO || sc.m == M_BILLOW || sc.m == M_KNOT || sc.m == M_BULGE)) {
 				float band = age < 150.0 ? 0.2 : (age < 360.0 ? 0.1 : 0.0);
+				// (with the nebulae's bodies a wall, a band lit on its face toward the core
+				// and shaded on its back, `nebShell`)
+				band += u_neb > 0.0 ? 0.15 * log2(max(nebShell(dr / max(length(dr), 1e-6), de / max(Rr, 1e-5), -rm.xy / max(length(rm.xy), 1e-4)).x, 0.25)) : 0.0;
 				sc = de > 0.0 ? cand(M_HA, 0.45 + band, 202, 0.0) : cand(M_O3, 0.40 + band, 202, 0.0);
+			} else if (u_neb > 0.0 && de < -wr && de > -0.45 * Rr && kitSnoise2(vec2(an * 2.3, rm.w + 5.0)) > -0.55
+					&& (sc.m == M_ARM || sc.m == M_DUST || sc.m == M_HALO || sc.m == M_BILLOW || sc.m == M_KNOT || sc.m == M_BULGE)
+					&& pat(P, 0.5 * smoothstep(-0.45 * Rr, -wr, de))) {
+				// (and inside it the oxygen's glow hugging the wall, thinning to the floor
+				// in the style's patterns, never a fill)
+				sc = cand(M_O3, age < 360.0 ? 0.2 : 0.05, 202, 0.0);
 			}
 		}
 	}
@@ -1229,10 +1511,11 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 					}
 				}
 				float rk0 = (0.0018 + 0.0048 * sz * sz) * k * u_zoom * (1.0 + 0.12 * pose + 0.3 * bloom);
-				float rk = clamp(rk0, 1.0, 7.0);
+				// (its least and greatest size where the camera shows it: `mag`)
+				float rk = clamp(rk0 * mag, 1.0, 7.0) / mag;
 				vec2 dv = (v - kv) * u_zoom;
 				float dd = length(dv) / rk;
-				float open = smoothstep(3.0, 6.0, rk0);
+				float open = smoothstep(3.0, 6.0, rk0 * mag);
 				dd += open * 0.3 * kitSnoise2(dv / rk * 1.6 + h.xy * 50.0);
 				if (dd < 1.0) {
 					float core = 1.0 - dd;
@@ -1240,6 +1523,14 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 						continue;
 					}
 					float lift = 0.08 * pose + 0.12 * bloom;
+					if (u_neb > 0.0) {
+						// (a puff standing off the disc, the solid look's nebulae: its top toward the
+						// core a band lit, its underside away a band shaded)
+						vec3 Nk = normalize(vec3(dv / rk * 0.55, 1.0));
+						vec2 tc = normalize(-kv);
+						float lk = 0.35 + 1.2 * max(dot(Nk, normalize(vec3(tc.x, tc.y, 0.55))), 0.0);
+						lift += 0.12 * log2(lk) * u_neb;
+					}
 					Cand kn = cand(blue ? M_STAR : M_KNOT, (blue ? 0.2 + 0.55 * core * (1.0 - 0.5 * open) : 0.3 + 0.75 * pow(core, 0.8) * (1.0 - 0.35 * open)) + lift, 0, 0.0);
 					if (open > 0.5) {
 						vec4 ms = planeStar(g, v, 0.0016, 0.45 * KIT_TILT, 41);
@@ -1315,7 +1606,7 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 			}
 			int kd = int(u_ck[i].x + 0.5);
 			Cand cc;
-			if (kd == 3 && remnantAt(v, i, blk, sc, cc)) {
+			if (kd == 3 && remnantAt(P, v, i, blk, sc, cc)) {
 				sc = cc;
 			}
 			if (kd == 2 && planetaryAt(P, v, i, blk, cc)) {
@@ -1335,7 +1626,12 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 		billows(g, dg, tt, p);
 		if (p.id > 0.0 && p.h > -1e8) {
 			float a;
-			Cand pc = shadePuff(p, dg, a);
+			Cand pc = shadePuff(p, dg, mag, a);
+			// (with the solid look's edge the heaps thin out with the disc, as its puffs
+			// do, `edgeLens`: fewer and gone well before the rim, in the style's patterns)
+			if (u_edge.w > 0.0) {
+				a *= smoothstep(0.0, 0.45, edgeLens(length(p.P.xy)));
+			}
 			if (pat(P, a)) {
 				sc = pc;
 				billowFront = true;
@@ -1367,7 +1663,7 @@ Cand supernovaSprite(Px P, Cand sc) {
 	if (f <= 0) {
 		return sc;
 	}
-	ivec2 d = P.blk - blockOf(scr(u_sn.xy));
+	ivec2 d = P.blk - blockOf(scr(solidV(u_sn.xy)));
 	int ax = abs(d.x), ay = abs(d.y);
 	int arm = f == 1 ? 1 : (f == 2 ? 4 : (f == 3 ? 3 : 1));
 	float lv = -1.0;
@@ -1391,20 +1687,34 @@ void fragment() {
 	vec2 s = u_vp_origin + (vec2(blk) + 0.5) * 2.0;
 	vec2 v = (s - u_cpix) / u_zoom;
 	Px P = Px(blk, blk + ivec2(u_block0));
+	// THE CORE AS IT IS, through the solid galaxy's camera (SIMPLIFIED's `place`): the
+	// hole, its lens and the bulge about the core's place on the screen at the camera's
+	// one scale there (`solidCoreK`), so they keep their shape however the perspective
+	// stretches the disc round them; what the lens shows behind is read back through
+	// the camera. With the camera off all of this is the flat view itself.
+	vec2 pc = solidV(vec2(0.0));
+	float kc = solidCoreK();
+	vec2 vh = u_solid ? (v - pc) / kc : v;
 	Cand hc;
 	float cov;
 	bool shad;
-	int hs = holeAt(v, hc, cov, shad);
+	int hs = holeAt(vh, kc, hc, cov, shad);
 	Cand sc;
 	if (hs == 2 || (shad && pat(P, cov))) {
 		sc = hs == 2 ? cand(M_SKY, 0.0, 0, 0.0) : hc;
 	} else {
 		float shadow = u_g2.w * u_k;
-		vec2 S = lh_to_s(v, vec2(0.0), shadow);
+		vec2 S = lh_to_s(vh, vec2(0.0), shadow);
 		bool lensed = length(S) <= lh_dims.x * 0.97;
 		// what lies behind the hole is lensed (C's bend), and squeezed dark near the shadow
-		vec2 vbg = lensed ? v * lh_behind(S) : v;
-		sc = scene(P, vbg, lensed ? blockOf(scr(vbg)) : blk, lensed);
+		vec2 vbh = lensed ? vh * lh_behind(S) : vh;
+		// (where that lies on the screen, and the flat view the camera shows there)
+		vec2 vbs = u_solid ? pc + vbh * kc : vbh;
+		vec2 vbg = solidO(vbs);
+		// (the middle's relief never over the hole's own disc or where its lens bends
+		// hard: faded out from 9.5 to 6.5 rs, as SIMPLIFIED's)
+		float tk = lensed ? smoothstep(6.5, 9.5, length(S)) : 1.0;
+		sc = scene(P, vbg, vbh, lensed ? blockOf(scr(vbs)) : blk, lensed, tk);
 		if (lensed) {
 			// near the shadow the sky behind is squeezed into a thin ring: C darkens
 			// it; here the squeeze would draw the banded bulge as a stack of
@@ -1427,5 +1737,12 @@ void fragment() {
 		}
 		sc = supernovaSprite(P, sc);
 	}
-	COLOR = outC(sc);
+	// (`ChartSky.diag` 4096, a test's: the point of the disc's plane this block shows, in
+	// place of its G-buffer, so the chart's marks can be checked against it; `ChartPainted`
+	// draws this pass in half floats for it)
+	if ((u_diag & 4096) != 0) {
+		COLOR = vec4(kitViewToPlane(solidO(v), u_phi, u_k), 0.0, 1.0);
+	} else {
+		COLOR = outC(sc);
+	}
 }
