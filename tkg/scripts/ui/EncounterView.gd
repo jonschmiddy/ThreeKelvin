@@ -1486,16 +1486,10 @@ class ShipSlot extends Control:
 		# What this card would give you, over your own hull. Same idea as the
 		# enemy's number and the opposite colour: one is what you take off them,
 		# the other is what you put on yourself.
+		# Over the hull too, for the same reason the brackets are, in the same
+		# letters a landing pops (`HitText`).
 		if _drag_text != "":
-			var f := UITheme.pixel_font()
-			var fs := UITheme.FS_HEAD
-			var tw := f.get_string_size(_drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-			# Over the hull too, for the same reason the brackets are.
-			var at := Vector2(box.position.x + (box.size.x - tw) * 0.5,
-				box.position.y + box.size.y * 0.5 + fs * 0.4)
-			draw_string(f, at + Vector2(1, 1), _drag_text,
-				HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.75))
-			draw_string(f, at, _drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UITheme.GOOD)
+			HitText.draw_centred(self, box.get_center(), _drag_text, HitText.colour(&"gain"))
 
 
 ## One ship flying with you: their hull, their name, and how they are doing.

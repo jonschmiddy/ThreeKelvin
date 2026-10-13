@@ -563,11 +563,8 @@ func _draw() -> void:
 	# of the enemy's own readout — a permanent stat that happened to change.
 	# Painted across the target only while you are holding a card over it, it is
 	# obviously a QUESTION being answered: this card, this enemy, this much.
+	# The same letters the shot will pop when it lands (`HitText`).
 	if _hot and _drag_text != "":
-		var f := UITheme.pixel_font()
-		var fs := UITheme.FS_HEAD
-		var tw := f.get_string_size(_drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		var at := Vector2((size.x - tw) * 0.5, size.y * 0.5 + fs * 0.4)
-		draw_string(f, at + Vector2(1, 1), _drag_text,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.75))
-		draw_string(f, at, _drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UITheme.FLARE)
+		# On the hull's middle, where the landing pops, not the slot's: in a
+		# pack the slot runs down past the hull and the number sat on the name.
+		HitText.draw_centred(self, r.get_center(), _drag_text, HitText.colour(&"damage"))

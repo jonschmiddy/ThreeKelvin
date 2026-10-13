@@ -4000,17 +4000,17 @@ func _show_act(who: int, it: IntentData) -> void:
 	var at := _pop_at(false, who) + Vector2(0, -4)
 	var y := 0.0
 	if it.telegraph:
-		_view.fx.pop(at, "WINDING UP", UITheme.EMBER, false)
+		_view.fx.pop(at, "WINDING UP", HitText.colour(&"act"), true)
 		y -= 10.0
 	if it.block > 0:
-		_view.fx.pop(at + Vector2(0, y), "+%d BLOCK" % it.block, EnemySlot.ARMOR_COL, false)
+		_view.fx.pop(at + Vector2(0, y), "+%d BLOCK" % it.block, HitText.colour(&"block"), true)
 		y -= 10.0
 	if it.heal > 0:
-		_view.fx.pop(at + Vector2(0, y), "+%d HULL" % it.heal, UITheme.GOOD, false)
+		_view.fx.pop(at + Vector2(0, y), "+%d HULL" % it.heal, HitText.colour(&"act"), true)
 		y -= 10.0
 	if it.dross > 0:
 		# Lodged in YOU, so said over your ship.
-		_view.fx.pop(_pop_at(true, -1) + Vector2(0, -4), "+%d DROSS" % it.dross, UITheme.THEM, false, 0.25)
+		_view.fx.pop(_pop_at(true, -1) + Vector2(0, -4), "+%d DROSS" % it.dross, HitText.colour(&"hurt"), true, 0.25)
 
 
 ## Hull you burned yourself, on your own ship, as the hull goes (audit item 9).
@@ -4019,7 +4019,7 @@ func _show_burn(amount: int, cause: StringName) -> void:
 		return
 	var at := _ship_pt()
 	_view.fx.pop(_pop_at(true, -1) + Vector2(0, -4), "-%d %s" % [amount,
-		"OVERHEAT" if cause == &"overheat" else "JUNK"], UITheme.LEAVE, true)
+		"OVERHEAT" if cause == &"overheat" else "JUNK"], HitText.colour(&"hurt"), true)
 	_view.fx.flash(at, true, true)
 	_flash_hit(_view.ship_view())
 	if shown_hull >= 0:
@@ -4116,7 +4116,7 @@ func _on_volley_landed(id: int) -> void:
 		else:
 			_slot_volleys[who] = n
 			_slot_shown[who] = maxi(0, int(_slot_shown[who]) - int(q.dealt))
-		_pop_hit(_pop_at(false, who), q, false)
+		_pop_hit(_pop_at(false, who), q, false, n <= 0 and _dying.has(who))
 		if int(q.dealt) > 0:
 			_flash_hit(_view.enemy_view(who))
 		# Cut up the ship as it WAS, before the slot redraws it as a wreck.
@@ -4150,19 +4150,21 @@ func _pop_at(to_player: bool, who: int) -> Vector2:
 
 ## What a volley did, where it did it (audit item 8): the damage, then what
 ## block and brace took, or that it missed.
-func _pop_hit(at: Vector2, q: Dictionary, to_player: bool) -> void:
+func _pop_hit(at: Vector2, q: Dictionary, to_player: bool, killed: bool = false) -> void:
+	# The held card's preview said "-6" or "-6 KILL" over this hull; the landing
+	# says the same, in the same letters (`HitText`).
 	var fx := _view.fx
 	var y := -4.0
 	if int(q.dealt) > 0:
-		fx.pop(at + Vector2(0, y), "-%d" % int(q.dealt),
-			UITheme.LEAVE if to_player else UITheme.ICE, true)
-		y -= 12.0
+		fx.pop(at + Vector2(0, y), ("-%d KILL" if killed else "-%d") % int(q.dealt),
+			HitText.colour(&"hurt" if to_player else (&"kill" if killed else &"damage")), true)
+		y -= HitText.LINE
 	if int(q.absorbed) > 0:
-		fx.pop(at + Vector2(0, y), "BLOCKED %d" % int(q.absorbed), EnemySlot.ARMOR_COL, false, 0.05)
-		y -= 10.0
+		fx.pop(at + Vector2(0, y), "BLOCKED %d" % int(q.absorbed), HitText.colour(&"block"), true, 0.05)
+		y -= HitText.LINE
 	if int(q.missed) > 0:
 		fx.pop(at + Vector2(0, y), "MISS" if int(q.missed) >= int(q.hits) else "%d MISSED" % int(q.missed),
-			UITheme.COLD, false, 0.08)
+			HitText.colour(&"miss"), true, 0.08)
 
 
 ## Two frames of white on whatever was hit (audit F3).
