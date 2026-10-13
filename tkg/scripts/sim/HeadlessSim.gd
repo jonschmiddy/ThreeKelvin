@@ -95,6 +95,14 @@ var postfight_hot := 0
 ## The hellbender. `met` is landings on its system, because the first question
 ## about a roamer is whether a run even crosses its path; the rest is what the
 ## model did about it and what avoiding it cost in salvage.
+## How long an ordinary fight lasts and what it costs: turns and hull lost per
+## fight, and how many the model lost outright. Added for the enemy-block fix
+## (combat polish, Oct 13): a block intent that finally works should make
+## fights longer, and this is the number that says by how much.
+var fights_n := 0
+var fights_turns := 0
+var fights_hull := 0
+var fights_lost := 0
 var hellbender_met := 0
 var hellbender_fights := 0
 var hellbender_kills := 0
@@ -241,6 +249,10 @@ func _reset() -> void:
 	postfight_samples = 0
 	postfight_total = 0.0
 	postfight_hot = 0
+	fights_n = 0
+	fights_turns = 0
+	fights_hull = 0
+	fights_lost = 0
 	hellbender_met = 0
 	hellbender_fights = 0
 	hellbender_kills = 0
@@ -462,6 +474,7 @@ func _fight(template: EnemyTemplate, clears_node: bool = true) -> bool:
 	var cb := Combat.new()
 	cb.clears_node = clears_node
 	cb.start(template, Run.node_at().danger)
+	var hp_in := Run.hp
 	var turns := 0
 	while not cb.finished and turns < 60:
 		turns += 1
@@ -480,6 +493,11 @@ func _fight(template: EnemyTemplate, clears_node: bool = true) -> bool:
 				acted = true
 		if not cb.finished:
 			cb.end_turn()
+	fights_n += 1
+	fights_turns += turns
+	fights_hull += maxi(0, hp_in - Run.hp)
+	if Run.dead:
+		fights_lost += 1
 	# AND THEN YOU GO AND LOOK IN IT. A kill fills a container at the node now
 	# rather than putting parts in your hold, so a sim that does not reach into
 	# one is a sim whose pilot never picks anything up. See `Policy.loot`.
@@ -579,6 +597,9 @@ func _report() -> void:
 	print("post-fight signature %.2f · left a fight hot %d of %d (%.1f%%)" % [
 		postfight_total / maxf(1.0, float(postfight_samples)), postfight_hot,
 		postfight_samples, 100.0 * postfight_hot / maxi(1, postfight_samples)])
+	print("fights: %d · %.2f turns a fight · %.2f hull lost a fight · %d lost" % [
+		fights_n, float(fights_turns) / maxi(1, fights_n),
+		float(fights_hull) / maxi(1, fights_n), fights_lost])
 	print("hellbender: met %d · engaged %d · killed %d · watched it escape %d · derelicts eaten %.2f/run" % [
 		hellbender_met, hellbender_fights, hellbender_kills, hellbender_escapes,
 		float(derelicts_eaten) / maxi(1, runs)])
