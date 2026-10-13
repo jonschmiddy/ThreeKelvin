@@ -768,6 +768,7 @@ func _pack_row(live: Array[EnemySlot], s: float, area: Rect2, mid: float, force:
 ## is centred on the enemy half while it fits there, and in the band's height.
 const PACK_GAP_MIN := 12.0
 const PACK_GAP_MAX := 48.0
+const PACK_GAP_WRECKS := 12.0
 ## The blocks the last formation was spaced with, and how many passes in a row
 ## have re-measured them: a pass that finds the drawn blocks differ from what it
 ## spaced lays out once more (at most PACK_PASSES), so the gaps are between what
@@ -795,7 +796,11 @@ func _pack_ranks(live: Array[EnemySlot], s: float, area: Rect2, mid: float) -> D
 			if i % int(per) == 0:
 				ranks.append([])
 			(ranks[ranks.size() - 1] as Array).append(live[i])
-		var g := PACK_GAP_MAX
+		# LOCAL's wrecks share the view with the system's own subject, which
+		# keeps clear of them (`LocalSubject.fit`): a wreck pile spaces evenly
+		# at the least gap, leaving it room (at 24 px between blocks the fuel
+		# cache's pieces had nowhere left beside three wrecks; subjecttest)
+		var g := PACK_GAP_WRECKS if _slots_mode == &"wrecks" else PACK_GAP_MAX
 		var heights: Array[float] = []
 		var total_h := 0.0
 		var fits := true
