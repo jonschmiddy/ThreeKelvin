@@ -105,8 +105,8 @@ const HOLE_K := 0.30
 ## the shared hole (`CoreLegacy`, its photon table traced once a process) --
 ## is drawn big behind everything, in the scene with the cloud so its lens
 ## bends it, on the far star's depth (all but still as the camera moves). Where
-## and how big is `core_look`, for Jon to pick from (`CORE_LOOKS`: its centre
-## in the game frame and its disc's outer edge in px):
+## and how big is `core_look`, Jon's pick "a" (Oct 13; `CORE_LOOKS`: its
+## centre in the game frame and its disc's outer edge in px):
 ##   a  centred, large: the middle of the play, the edge 250 px out;
 ##   b  centred, huge: the edge 330 px out, its glow off the play's top and
 ##      bottom, the shadow whole;
