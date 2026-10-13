@@ -322,7 +322,7 @@ func _draw() -> void:
 		# Up 10 pixels over the first third of a second, one whole pixel at a
 		# time, then held.
 		var rise := roundf(10.0 * (1.0 - pow(1.0 - clampf(p.age / 0.35, 0.0, 1.0), 3.0)))
-		var at := (p.at + Vector2(-HitText.width(p.text) * 0.5, -rise)).round()
+		var at := (p.at + Vector2(-HitText.ink_width(p.text) * 0.5, -rise)).round()
 		var k := p.age / p.life
 		# Out in three steps rather than a smooth fade.
 		var fade := 1.0

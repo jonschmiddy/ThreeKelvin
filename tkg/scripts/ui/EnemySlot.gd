@@ -565,6 +565,19 @@ func _draw() -> void:
 	# obviously a QUESTION being answered: this card, this enemy, this much.
 	# The same letters the shot will pop when it lands (`HitText`).
 	if _hot and _drag_text != "":
-		# On the hull's middle, where the landing pops, not the slot's: in a
-		# pack the slot runs down past the hull and the number sat on the name.
-		HitText.draw_centred(self, r.get_center(), _drag_text, HitText.colour(&"damage"))
+		# On the hull's ink, both ways, not the slot's middle: in a pack the
+		# slot runs down past the hull and the number sat on the name.
+		HitText.draw_centred(self, ink_rect().get_center(), _drag_text, HitText.colour(&"damage"))
+
+
+## THE HULL'S INK in this slot's coordinates: the art's painted bounds, placed
+## where the holder puts them (the brackets above are this, padded).
+func ink_rect() -> Rect2:
+	var u: Rect2i = art.used_rect() if art != null else Rect2i(0, 0, EnemyArt.W, EnemyArt.H)
+	return Rect2(_art_holder.position + _art_base + Vector2(u.position), Vector2(u.size))
+
+
+## Where the held card's number is drawn, its letters' own box, in this slot's
+## coordinates (`HitText.ink_rect`). For the test that holds it to the ink.
+func preview_rect(text: String) -> Rect2:
+	return HitText.ink_rect(HitText.centred_at(ink_rect().get_center(), text), text)

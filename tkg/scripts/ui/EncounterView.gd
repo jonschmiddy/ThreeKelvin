@@ -1486,10 +1486,24 @@ class ShipSlot extends Control:
 		# What this card would give you, over your own hull. Same idea as the
 		# enemy's number and the opposite colour: one is what you take off them,
 		# the other is what you put on yourself.
-		# Over the hull too, for the same reason the brackets are, in the same
-		# letters a landing pops (`HitText`).
+		# On the hull too, for the same reason the brackets are, in the same
+		# letters a landing pops (`HitText`): centred on the hull's INK, not
+		# the bracket box (clipped to the view) nor the canvas (which carries
+		# the exhaust's clearance on one side).
 		if _drag_text != "":
-			HitText.draw_centred(self, box.get_center(), _drag_text, HitText.colour(&"gain"))
+			HitText.draw_centred(self, ink_rect().get_center(), _drag_text, HitText.colour(&"gain"))
+
+	## Your hull's ink in this slot's coordinates, the bob taken out.
+	func ink_rect() -> Rect2:
+		if art == null:
+			return Rect2(Vector2.ZERO, size)
+		var r := art.ship_rect()
+		r.position += art.position
+		return r
+
+	## Where the held card's number is drawn, its letters' own box.
+	func preview_rect(text: String) -> Rect2:
+		return HitText.ink_rect(HitText.centred_at(ink_rect().get_center(), text), text)
 
 
 ## One ship flying with you: their hull, their name, and how they are doing.

@@ -2132,7 +2132,7 @@ func _refresh_enemy() -> void:
 			tw.tween_interval(EnemySlot.ENTER_SECS)
 			tw.tween_callback(func() -> void:
 				if _view != null and _view.fx != null and who < combat.enemies.size():
-					_view.fx.pop(_pop_at(false, who) + Vector2(0, -6),
+					_view.fx.pop(_pop_at(false, who),
 						"%s JOINS" % combat.enemies[who].template.name.to_upper(), UITheme.THEM, false))
 	for i2 in range(_foes_seen, combat.enemies.size()):
 		EnemyArt.warm_wreck(combat.enemies[i2], _death_style(i2))
@@ -3997,20 +3997,20 @@ func _turn_steps() -> Array:
 func _show_act(who: int, it: IntentData) -> void:
 	if it == null or _view == null or _view.fx == null:
 		return
-	var at := _pop_at(false, who) + Vector2(0, -4)
+	var at := _pop_at(false, who)
 	var y := 0.0
 	if it.telegraph:
 		_view.fx.pop(at, "WINDING UP", HitText.colour(&"act"), true)
-		y -= 10.0
+		y -= HitText.LINE
 	if it.block > 0:
 		_view.fx.pop(at + Vector2(0, y), "+%d BLOCK" % it.block, HitText.colour(&"block"), true)
-		y -= 10.0
+		y -= HitText.LINE
 	if it.heal > 0:
 		_view.fx.pop(at + Vector2(0, y), "+%d HULL" % it.heal, HitText.colour(&"act"), true)
-		y -= 10.0
+		y -= HitText.LINE
 	if it.dross > 0:
 		# Lodged in YOU, so said over your ship.
-		_view.fx.pop(_pop_at(true, -1) + Vector2(0, -4), "+%d DROSS" % it.dross, HitText.colour(&"hurt"), true, 0.25)
+		_view.fx.pop(_pop_at(true, -1), "+%d DROSS" % it.dross, HitText.colour(&"hurt"), true, 0.25)
 
 
 ## Hull you burned yourself, on your own ship, as the hull goes (audit item 9).
@@ -4018,7 +4018,7 @@ func _show_burn(amount: int, cause: StringName) -> void:
 	if _view == null or _view.fx == null:
 		return
 	var at := _ship_pt()
-	_view.fx.pop(_pop_at(true, -1) + Vector2(0, -4), "-%d %s" % [amount,
+	_view.fx.pop(_pop_at(true, -1), "-%d %s" % [amount,
 		"OVERHEAT" if cause == &"overheat" else "JUNK"], HitText.colour(&"hurt"), true)
 	_view.fx.flash(at, true, true)
 	_flash_hit(_view.ship_view())
@@ -4132,20 +4132,28 @@ func _on_volley_landed(id: int) -> void:
 ## Where a number about a hull goes, in the fx layer's space: just above your
 ## ship, and on an enemy's hull (above it is its intent).
 func _pop_at(to_player: bool, who: int) -> Vector2:
+	return HitText.above(_hull_ink(to_player, who))
+
+
+## A hull's INK in the fight layer's coordinates (`_view.fx`): the painted
+## pixels, not the canvas or the slot. Your canvas carries the exhaust's
+## clearance on one side, and centring on it put BLOCKED 5 right of the hull's
+## middle (Jon's still).
+func _hull_ink(to_player: bool, who: int) -> Rect2:
 	var inv := _view.fx.get_global_transform().affine_inverse()
 	if to_player:
-		var h := ladder_hull()
-		if h.size == Vector2.ZERO:
-			return _ship_pt()
-		return inv * Vector2(h.get_center().x, h.position.y + h.size.y * 0.3)
+		var v := _view.ship_view()
+		if v == null:
+			return Rect2(_ship_pt(), Vector2.ZERO)
+		var r := v.ship_rect()
+		var g := v.get_global_transform()
+		return Rect2(inv * (g * r.position), Vector2.ZERO).expand(inv * (g * r.end))
 	var art := _view.enemy_view(who)
 	if art == null:
-		return _view.enemy_anchor(who)
+		return Rect2(_view.enemy_anchor(who), Vector2.ZERO)
 	var u := art.used_rect()
 	var tl := art.get_global_rect().position + (art.size - _canvas_size(art)) * 0.5
-	# ON THE HULL'S MIDDLE, not above it: above an enemy is where its intent is
-	# written, and a number there landed on top of the words.
-	return inv * (tl + Vector2(u.get_center().x, u.get_center().y + 6.0))
+	return Rect2(inv * (tl + Vector2(u.position)), Vector2(u.size))
 
 
 ## What a volley did, where it did it (audit item 8): the damage, then what
@@ -4154,7 +4162,7 @@ func _pop_hit(at: Vector2, q: Dictionary, to_player: bool, killed: bool = false)
 	# The held card's preview said "-6" or "-6 KILL" over this hull; the landing
 	# says the same, in the same letters (`HitText`).
 	var fx := _view.fx
-	var y := -4.0
+	var y := 0.0
 	if int(q.dealt) > 0:
 		fx.pop(at + Vector2(0, y), ("-%d KILL" if killed else "-%d") % int(q.dealt),
 			HitText.colour(&"hurt" if to_player else (&"kill" if killed else &"damage")), true)
