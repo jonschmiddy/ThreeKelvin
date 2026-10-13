@@ -326,7 +326,7 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 			else:
 				var refused := _btn("WILL NOT BUY", on_action.bind("noop", m))
 				refused.disabled = true
-				refused.tooltip_text = tip("Illegal here. Dealers in lawless space pay extra for it.")
+				refused.tooltip_text = tip("It is illegal here. Dealers in lawless space pay extra for it.")
 				buttons.add_child(refused)
 			buttons.add_child(_scrap_button(m, on_action))
 		ModuleContext.INSTALLED:
@@ -946,7 +946,7 @@ static func perk_tip(h: HullData) -> String:
 			out.append(line)
 			any = true
 	if not any:
-		out.append("No perks. B, A and S each add one.")
+		out.append("No perks. Each tier from B up has one more.")
 	return "\n".join(out)
 
 
@@ -1078,7 +1078,7 @@ static func perk_readout(h: HullData) -> VBoxContainer:
 	# a heading and nothing under it reads as a failure to load, where the same
 	# blank with a sentence in it is the ladder explaining itself.
 	if not any:
-		box.add_child(UITheme.body(tip("No perks yet. B, A and S each add one."),
+		box.add_child(UITheme.body(tip("No perks yet. Each tier from B up has one more."),
 			UITheme.QUOTE, UITheme.FS_SMALL))
 	return box
 
