@@ -866,9 +866,9 @@ static func first_sentence(body: String) -> String:
 
 static func quiet_lines(n: MapGen.MapNode) -> Array:
 	if Run.dead:
-		return ["Nothing on this hull answers any more.", "SUMMARY"]
+		return ["The ship is lost. The run is over.", "SUMMARY"]
 	if Run.hellbender_alive() and Run.hellbender_at == n.index:
-		return ["The Hellbender rides at anchor here, holds glowing with everything it has taken. Nothing else in this system is reachable past it.",
+		return ["The Hellbender is anchored here, its holds hot with everything it has taken. It blocks the rest of this system.",
 			"ENGAGE THE HELLBENDER"]
 	match n.type:
 		MapGen.NodeType.STATION:
