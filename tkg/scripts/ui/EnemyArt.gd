@@ -328,18 +328,19 @@ static func wreck_seed(t: EnemyTemplate) -> int:
 func snapshot() -> Image:
 	return _img.duplicate()
 
-## `hp` stands in for the enemy's hull when the screen is holding a number back
-## until the shot that changed it has landed (combat polish, Oct 13). -1 reads
-## the enemy's own.
 ## WRECKS ARE CUT AHEAD OF THE KILL. Cutting a hull into its wreck takes 40 to
 ## 90 ms of GDScript, and doing it on the frame the killing shot landed froze
 ## the picture for three to six frames at exactly the moment it should move. So
 ## each kind's wreck is cut once, on a worker thread, when the fight opens
 ## (`warm_wreck`), and every later dead draw -- the slot at the kill, the wrecks
 ## on LOCAL -- takes it from here.
+##
+## NO LOCK, AND NO OBJECT IN A STATIC. Each task writes only into its own
+## holder, read by the main thread after waiting on that task; a Mutex held in a
+## static var crashed the engine on its way out (moontest and laddertest passed
+## and then exited 139).
 static var _wrecks: Dictionary = {}
 static var _wreck_tasks: Dictionary = {}
-static var _wreck_lock := Mutex.new()
 
 static func _wreck_key(t: EnemyTemplate, max_hp: int) -> String:
 	# Size only changes the drawing for fauna; see `_draw_fauna`.
@@ -349,10 +350,7 @@ static func _wreck_key(t: EnemyTemplate, max_hp: int) -> String:
 ## canvas to cut is the only part done here (a few ms).
 static func warm_wreck(e: Combat.EnemyState) -> void:
 	var key := _wreck_key(e.template, e.max_hp)
-	_wreck_lock.lock()
-	var known := _wrecks.has(key) or _wreck_tasks.has(key)
-	_wreck_lock.unlock()
-	if known:
+	if _wrecks.has(key) or _wreck_tasks.has(key):
 		return
 	var art := EnemyArt.new()
 	var ghost := Combat.EnemyState.new()
@@ -365,21 +363,31 @@ static func warm_wreck(e: Combat.EnemyState) -> void:
 	art.free()
 	var seed := wreck_seed(e.template)
 	var boss: bool = e.template.boss
-	_wreck_tasks[key] = WorkerThreadPool.add_task(func() -> void:
-		var w := ShipBreakup.wreck_image(img, used, seed, boss, DEATH_STYLE)
-		_wreck_lock.lock()
-		_wrecks[key] = w
-		_wreck_lock.unlock())
+	var held := {}
+	var task := WorkerThreadPool.add_task(func() -> void:
+		held[&"w"] = ShipBreakup.wreck_image(img, used, seed, boss, DEATH_STYLE))
+	_wreck_tasks[key] = [task, held]
 
 static func _take_wreck(key: String) -> Image:
 	if _wreck_tasks.has(key):
-		WorkerThreadPool.wait_for_task_completion(_wreck_tasks[key])
+		var t: Array = _wreck_tasks[key]
 		_wreck_tasks.erase(key)
-	_wreck_lock.lock()
-	var w: Image = _wrecks.get(key)
-	_wreck_lock.unlock()
-	return w
+		WorkerThreadPool.wait_for_task_completion(int(t[0]))
+		var held: Dictionary = t[1]
+		if held.has(&"w"):
+			_wrecks[key] = held[&"w"]
+	return _wrecks.get(key)
 
+## Wait out every cut still running and keep what they made. Called when a
+## fight's screen goes, so no task outlives the scene that asked for it.
+static func reap_wrecks() -> void:
+	for key in _wreck_tasks.keys():
+		_take_wreck(key)
+
+## `hp` stands in for the enemy's hull when the screen is holding a number back
+## until the shot that changed it has landed (combat polish, Oct 13). -1 reads
+## the enemy's own. `cut_wreck` false draws a dead ship whole (what a wreck is
+## cut from).
 func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 		cut_wreck: bool = true) -> void:
 	var hull := e.hp if hp < 0 else hp
@@ -466,9 +474,7 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 		if w == null:
 			w = ShipBreakup.wreck_image(_img, _used, wreck_seed(e.template),
 				e.template.boss, DEATH_STYLE)
-			_wreck_lock.lock()
 			_wrecks[key] = w
-			_wreck_lock.unlock()
 		_img = w.duplicate()
 	_tex.update(_img)
 

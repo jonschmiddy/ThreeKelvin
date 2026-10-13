@@ -10,7 +10,7 @@ extends Node
 ##
 ##   godot --path . --fixed-fps 30 --windowed --position 3840,0 -- sheet=CombatClip
 ##       out=<dir> fight=<id>[,<id>...] [end=win|lose|flee|hail] [seed=N]
-##       [maker=korvan] [weight=light|medium|heavy] [danger=N] [hp=N] [heat=N]
+##       [manufacturer=korvan] [weight=light|medium|heavy] [danger=N] [hp=N] [heat=N]
 ##       [after=150] [maxframes=N] [nofilm] [timing] [hints] [rest]
 ##
 ## `out=<dir>` gets `f_####.png` (the window as seen: 1920x1080, the game at
@@ -123,7 +123,7 @@ func _run() -> void:
 	Rng.forced = int(_arg("seed", "4242"))
 	var weight := {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM,
 		"heavy": HullData.Weight.HEAVY}.get(_arg("weight", "medium"), HullData.Weight.MEDIUM) as int
-	Run.start_new_run(StringName(_arg("maker", "korvan")), weight)
+	Run.start_new_run(StringName(_arg("manufacturer", "korvan")), weight)
 	var idx := -1
 	for n: MapGen.MapNode in Run.map:
 		if n.type == MapGen.NodeType.SYSTEM and not n.cleared:

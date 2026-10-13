@@ -3081,6 +3081,14 @@ func _notification(what: int) -> void:
 		shown_hull = -1
 		shown_heat = -1
 		Engine.time_scale = 1.0
+		# No cut outlives the screen that asked for it.
+		EnemyArt.reap_wrecks()
+		for who in _prebuilt.keys():
+			var pre: Dictionary = _prebuilt[who]
+			WorkerThreadPool.wait_for_task_completion(pre.task)
+			if pre.held.b != null:
+				(pre.held.b as Node).free()
+		_prebuilt.clear()
 
 func _end_aim(played: bool) -> void:
 	_hide_cursor(false)
