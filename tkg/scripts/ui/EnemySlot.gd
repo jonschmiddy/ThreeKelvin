@@ -458,7 +458,9 @@ func apply_scale(s: float) -> void:
 ## `s` (its own picture's size, plus the holder's 6), the readout in its lines,
 ## under the ship or (`beside`) to its near side.
 func unit(s: float, beside: bool) -> Vector2:
+	# drawn at `s` already: the holder it really has; else what it will have
 	var ship := art.custom_minimum_size if art.full_ink == Vector2i.ZERO \
+		or is_equal_approx(art.draw_scale, s) \
 		else Vector2(art.half_ink if s < 1.0 else art.full_ink) + Vector2(6, 6)
 	var lh := _name.get_minimum_size().y
 	var parts := 0
@@ -491,6 +493,45 @@ func unit(s: float, beside: bool) -> Vector2:
 		w = maxf(w, minf(w_it, maxf(w, WRAP_W)))
 		lab_h += lh * ceilf(w_it / w)
 	return Vector2(ceilf(w), ship.y + lab_h + float(parts))
+
+
+## THE BLOCK YOU SEE inside the slot at `s` (readout under the ship): the
+## ship's own ink and every line of its readout, without the holder's 3 px of
+## margin round the ink. What the formation spaces evenly (Jon: "evenly spaced
+## around each other"), so a gap is a gap between things drawn, not between
+## boxes.
+func block(s: float) -> Rect2:
+	var u := unit(s, false)
+	var ink := art.custom_minimum_size - Vector2(6, 6) if art.full_ink == Vector2i.ZERO 		else Vector2(art.half_ink if s < 1.0 else art.full_ink)
+	var labels := float(BAR_W)
+	for l: Label in [_intent, _name, _hp]:
+		if l.visible and l.text != "":
+			labels = maxf(labels, _text_w(l))
+	if _intent_text.visible and _intent_text.text != "":
+		labels = maxf(labels, minf(_text_w(_intent_text), u.x))
+	if chips.visible and chips.get_child_count() > 0:
+		labels = maxf(labels, chips.get_combined_minimum_size().x)
+	var w := minf(u.x, maxf(ink.x, labels))
+	var said := (_intent.visible and _intent.text != "") or (_intent_text.visible and _intent_text.text != "")
+	var top := 0.0 if said else 3.0
+	return Rect2(round((u.x - w) * 0.5), top, w, u.y - top)
+
+
+## The block as it is actually drawn now, in the slot's own coordinates: the
+## union of `boxes()`. Zero until the slot has been laid out at `s` with its
+## readout under the ship; the formation prefers it to `block`'s prediction
+## once it exists, since a wreck's scattered chunks or a label's own width can
+## differ from the prediction by a few pixels.
+func drawn_block(s: float) -> Rect2:
+	if side or not is_inside_tree() or not is_equal_approx(art.draw_scale, s):
+		return Rect2()
+	var u := Rect2()
+	for b in boxes():
+		var r: Rect2 = b[1]
+		u = r if u.size == Vector2.ZERO else u.merge(r)
+	if u.size == Vector2.ZERO:
+		return Rect2()
+	return Rect2(u.position - get_global_rect().position, u.size)
 
 
 ## THE READOUT BESIDE THE SHIP, or under it (the default). Layout C stacks a
@@ -582,7 +623,7 @@ static func _text_w(l: Label) -> float:
 func boxes() -> Array:
 	var out: Array = []
 	if art != null:
-		var u := Rect2(art.used_rect())
+		var u := Rect2(art.ink_rect())
 		var at := _art_holder.get_global_rect().position + _art_base
 		out.append(["art", Rect2(at + u.position, u.size)])
 	for l: Label in [_intent, _intent_text, _name, _hp]:

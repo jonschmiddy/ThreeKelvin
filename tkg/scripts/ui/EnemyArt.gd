@@ -27,6 +27,13 @@ var _track: bool = false
 func used_rect() -> Rect2i:
 	return _used
 
+## The picture's own box on the canvas -- the sprite, without the light a
+## wind-up throws past it; the whole drawing for a coded ship.
+var _ink_box: Rect2i = Rect2i()
+
+func ink_rect() -> Rect2i:
+	return _ink_box if _ink_box.size != Vector2i.ZERO else _used
+
 ## THE CANVAS, 340x160 since the Custodian grew past 240x120 (Oct 13). Every
 ## other picture still fits the old box; the slot fits itself to the ship
 ## (`EnemySlot._fit_holder`), so the bigger canvas costs no room on screen. The
@@ -140,6 +147,7 @@ func _blit_sprite(tex: Texture2D) -> bool:
 	if _track:
 		var r := Rect2i(at, ink.size)
 		_bounds = r if _bounds.size == Vector2i.ZERO else _bounds.merge(r)
+		_ink_box = r
 	return true
 
 ## HOW BIG THE PICTURE IS DRAWN: 1, or 0.5 from the picture's half sheet.
@@ -478,6 +486,7 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	# a lot of empty pixels, which costs real estate as soon as two enemies
 	# share the arena.
 	_bounds = Rect2i()
+	_ink_box = Rect2i()
 	_track = true
 	# ONE DOOR: the ship's own sprite if it has one, the drawing if it does not.
 	# The same shape `ModuleIcon.draw_body` uses, and for the same reason -- there
@@ -504,8 +513,12 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	# without ever moving the hull inside the frame.
 	var cx := W * 0.5
 	var cy := H * 0.5
-	var half_w: float = maxf(absf(float(_used.position.x) - cx), absf(float(_used.end.x) - cx))
-	var half_h: float = maxf(absf(float(_used.position.y) - cy), absf(float(_used.end.y) - cy))
+	# THE PICTURE'S OWN BOX, not the light it throws: a wind-up's flare or burn
+	# spills past the hull into the space round it, and a box that grew with it
+	# would move the ship's neighbours every time an intent changed.
+	var box := _ink_box if _ink_box.size != Vector2i.ZERO else _used
+	var half_w: float = maxf(absf(float(box.position.x) - cx), absf(float(box.end.x) - cx))
+	var half_h: float = maxf(absf(float(box.position.y) - cy), absf(float(box.end.y) - cy))
 	clip_contents = true
 	custom_minimum_size = Vector2(half_w, half_h) * 2.0 + Vector2(6, 6)
 	if wounded < 0.3:

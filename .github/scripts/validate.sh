@@ -564,7 +564,8 @@ step "Nothing in a fight sits on anything else"
 # of the pictures a fight can bring, every triple with a wreck in it, piles of
 # four to eight and LOCAL's rows of up to twelve wrecks, in the formation (B, the
 # game's) and the column (C): three or more blocks drawn from their half sheets,
-# every box apart, inside the view, your ship where it stood.
+# every box apart, inside the view, your ship where it stood; in B the gaps
+# between neighbouring blocks even (within 4 px at 1080p) and at least 24 px.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
 	run_godot packlayouttest 420 --headless --path "$PROJECT" -- sheet=PackLayoutTest; then
 	if grep -qE '^packlayouttest: PASS' "$LOG_DIR/packlayouttest.log"; then

@@ -150,32 +150,33 @@ func _check(tree: SceneTree, tag: String, pack: Array, home: Vector2, wreck: boo
 		e.hp = 0 if ((wreck and i == 0) or (every_other and i % 2 == 0)) else e.max_hp
 		e.pick_intent()
 	Sig.enemy_changed.emit()
-	await tree.process_frame
-	await tree.process_frame
-	await tree.process_frame
-	# (headless, nothing eases: a move lands on the frame it is laid out)
+	# (headless, nothing eases: a move lands on the frame it is laid out; the
+	# formation re-measures what it drew and may lay out again, up to 3 times)
+	for f in 10:
+		await tree.process_frame
 	_measure(_view(), tag, home)
 
 
 ## LOCAL's row of wrecks: the same view shows a system's wrecks after a fight.
-func _wrecks(tree: SceneTree, tag: String, pile: Array, home: Vector2) -> void:
+func _wrecks(tree: SceneTree, tag: String, pile: Array, _home: Vector2) -> void:
+	# the real LOCAL: the wrecks left at a system, the screen opened on them
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	for m: MapGen.MapNode in Run.map:
+		if m.type == MapGen.NodeType.SYSTEM and not Router.no_fights_at(m):
+			Run.at = m.index
+			break
+	SectorScreen._approached_at = Run.at
+	for i in pile.size():
+		Run.new_wreck(Run.node_at(), DB.enemies[pile[i][0]], int(pile[i][1]))
+	Router.show_local()
+	for i in 12:
+		await tree.process_frame
 	var view := _view()
 	if view == null:
-		_ok("%s: a view" % tag, false)
+		_ok("%s: LOCAL has a view" % tag, false)
 		return
-	var hs: Array = []
-	for i in pile.size():
-		var h := MapGen.Jetsam.new()
-		h.slot = i
-		h.art = pile[i][0]
-		h.look = int(pile[i][1])
-		h.label = String(DB.enemies[h.art].name).to_upper()
-		hs.append(h)
-	view.show_wrecks(hs, func(_h) -> void: pass)
-	await tree.process_frame
-	await tree.process_frame
-	await tree.process_frame
-	_measure(view, tag, home)
+	_measure(view, tag, Vector2.INF)
 
 
 func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
@@ -199,7 +200,31 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 			boxes.append([i, b[0], b[1]])
 		i += 1
 	var you := _you(view)
-	_ok("%s: your ship stays where it stood (%s, was %s)" % [tag, you[0].position, home], you[0].position.distance_to(home) <= 1.0)
+	if home != Vector2.INF:
+		_ok("%s: your ship stays where it stood (%s, was %s)" % [tag, you[0].position, home], you[0].position.distance_to(home) <= 1.0)
+	# EVENLY SPACED, with room (Jon: "we need more space and they can be evenly
+	# spaced around each other"): in the formation, each block's gap to its
+	# nearest neighbour is at least GAP_MIN (24 px at 1080p) and every block's
+	# is the same, to within GAP_SPREAD (4 px at 1080p)
+	var scr: Script = load("res://scripts/ui/EncounterView.gd")
+	if scr.get("pack_layout") == &"B" and n >= 2:
+		var blocks: Array[Rect2] = []
+		for k in n:
+			var u := Rect2()
+			for b in _slot_boxes(view.slot(k)):
+				u = b[1] if u.size == Vector2.ZERO else u.merge(b[1])
+			blocks.append(u)
+		var near: Array[float] = []
+		for a in n:
+			var m := INF
+			for b in n:
+				if a != b:
+					m = minf(m, _sep(blocks[a], blocks[b]))
+			near.append(m)
+		var lo: float = near.min()
+		var hi: float = near.max()
+		_ok("%s: every block at least %d px from its nearest (closest %.0f)" % [tag, int(GAP_MIN), lo], lo >= GAP_MIN)
+		_ok("%s: the gaps even (%.0f to %.0f)" % [tag, lo, hi], hi - lo <= GAP_SPREAD)
 	for r: Rect2 in you:
 		boxes.append([-1, "your readout", r])
 	var vr := view.get_global_rect()
@@ -221,6 +246,18 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 					int(inter.size.x), int(inter.size.y)], false)
 
 
+## In game pixels (the screen doubles them): 24 and 4 px at 1080p.
+const GAP_MIN := 12.0
+const GAP_SPREAD := 2.0
+
+## How far apart two boxes are: across where they share rows, down where they
+## share columns, the larger of the two where they share neither.
+static func _sep(a: Rect2, b: Rect2) -> float:
+	var dx := maxf(0.0, maxf(b.position.x - a.end.x, a.position.x - b.end.x))
+	var dy := maxf(0.0, maxf(b.position.y - a.end.y, a.position.y - b.end.y))
+	return maxf(dx, dy)
+
+
 func _who(i: int) -> String:
 	return "yours" if i < 0 else "ship %d" % i
 
@@ -232,7 +269,9 @@ func _slot_boxes(s: EnemySlot) -> Array:
 	var art: EnemyArt = s.art
 	var holder: Control = s.get("_art_holder")
 	var base: Vector2 = s.get("_art_base") if s.get("_art_base") != null else Vector2.ZERO
-	var u := Rect2(art.used_rect())
+	# the picture's own box (a build that tells the light a wind-up throws past
+	# the hull apart from the hull says so with `ink_rect`)
+	var u := Rect2(art.call("ink_rect") if art.has_method("ink_rect") else art.used_rect())
 	var at := holder.get_global_rect().position + base
 	out.append(["ship", Rect2(at + u.position, u.size)])
 	for key in ["_intent", "_intent_text", "_name", "_hp"]:
