@@ -331,7 +331,57 @@ func snapshot() -> Image:
 ## `hp` stands in for the enemy's hull when the screen is holding a number back
 ## until the shot that changed it has landed (combat polish, Oct 13). -1 reads
 ## the enemy's own.
-func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1) -> void:
+## WRECKS ARE CUT AHEAD OF THE KILL. Cutting a hull into its wreck takes 40 to
+## 90 ms of GDScript, and doing it on the frame the killing shot landed froze
+## the picture for three to six frames at exactly the moment it should move. So
+## each kind's wreck is cut once, on a worker thread, when the fight opens
+## (`warm_wreck`), and every later dead draw -- the slot at the kill, the wrecks
+## on LOCAL -- takes it from here.
+static var _wrecks: Dictionary = {}
+static var _wreck_tasks: Dictionary = {}
+static var _wreck_lock := Mutex.new()
+
+static func _wreck_key(t: EnemyTemplate, max_hp: int) -> String:
+	# Size only changes the drawing for fauna; see `_draw_fauna`.
+	return "%s|%d|%d" % [t.id, int(t.fauna and max_hp > 60), DEATH_STYLE]
+
+## Start cutting this enemy's wreck now, off the main thread. Drawing the dead
+## canvas to cut is the only part done here (a few ms).
+static func warm_wreck(e: Combat.EnemyState) -> void:
+	var key := _wreck_key(e.template, e.max_hp)
+	_wreck_lock.lock()
+	var known := _wrecks.has(key) or _wreck_tasks.has(key)
+	_wreck_lock.unlock()
+	if known:
+		return
+	var art := EnemyArt.new()
+	var ghost := Combat.EnemyState.new()
+	ghost.template = e.template
+	ghost.max_hp = e.max_hp
+	ghost.hp = 0
+	art.set_enemy(ghost, false, -1, false)
+	var img := art._img.duplicate()
+	var used := art._used
+	art.free()
+	var seed := wreck_seed(e.template)
+	var boss: bool = e.template.boss
+	_wreck_tasks[key] = WorkerThreadPool.add_task(func() -> void:
+		var w := ShipBreakup.wreck_image(img, used, seed, boss, DEATH_STYLE)
+		_wreck_lock.lock()
+		_wrecks[key] = w
+		_wreck_lock.unlock())
+
+static func _take_wreck(key: String) -> Image:
+	if _wreck_tasks.has(key):
+		WorkerThreadPool.wait_for_task_completion(_wreck_tasks[key])
+		_wreck_tasks.erase(key)
+	_wreck_lock.lock()
+	var w: Image = _wrecks.get(key)
+	_wreck_lock.unlock()
+	return w
+
+func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
+		cut_wreck: bool = true) -> void:
 	var hull := e.hp if hp < 0 else hp
 	var wounded := float(hull) / float(maxi(1, e.max_hp))
 	var dead := hull <= 0
@@ -347,8 +397,8 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1) -> void:
 	# different ships in the same fight could hold each other's picture. It never
 	# showed while they were literally the same pixels; the moment one of them
 	# has a sprite and the other does not, it would.
-	var sig := "%s|%s|%d|%d|%d|%d" % [e.template.id, e.template.art, int(telegraphing),
-		int(wounded * 20.0), int(e.max_hp > 60), int(dead)]
+	var sig := "%s|%s|%d|%d|%d|%d|%d" % [e.template.id, e.template.art, int(telegraphing),
+		int(wounded * 20.0), int(e.max_hp > 60), int(dead), int(cut_wreck)]
 	if sig == _sig:
 		return
 	_sig = sig
@@ -410,9 +460,16 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1) -> void:
 	# A DEAD SHIP IS THE WRECK ITS DEATH LEFT: the chunks where the breakup
 	# settled them, engines out. Drawn here so LOCAL's wrecks, long after the
 	# fight, are the same broken hull the animation ended on.
-	if dead:
-		_img = ShipBreakup.wreck_image(_img, _used, wreck_seed(e.template),
-			e.template.boss, DEATH_STYLE)
+	if dead and cut_wreck:
+		var key := _wreck_key(e.template, e.max_hp)
+		var w := _take_wreck(key)
+		if w == null:
+			w = ShipBreakup.wreck_image(_img, _used, wreck_seed(e.template),
+				e.template.boss, DEATH_STYLE)
+			_wreck_lock.lock()
+			_wrecks[key] = w
+			_wreck_lock.unlock()
+		_img = w.duplicate()
 	_tex.update(_img)
 
 ## Rustjaw Cutter: a blade with an engine bolted to the back of it, nosing left.

@@ -2133,6 +2133,8 @@ func _refresh_enemy() -> void:
 				if _view != null and _view.fx != null and who < combat.enemies.size():
 					_view.fx.pop(_pop_at(false, who) + Vector2(0, -6),
 						"%s JOINS" % combat.enemies[who].template.name.to_upper(), UITheme.THEM, false))
+	for i2 in range(_foes_seen, combat.enemies.size()):
+		EnemyArt.warm_wreck(combat.enemies[i2])
 	_foes_seen = combat.enemies.size()
 
 ## How many contacts this screen has drawn, so a newcomer can be announced.
@@ -3723,6 +3725,7 @@ func _on_enemy_destroyed(who: int) -> void:
 	if not fighting() or _view == null or _view.fx == null:
 		return
 	_dying[who] = true
+	_prebuild_death(who)
 	# Killed with nothing in the air (a partner's push): start now. Otherwise
 	# the shot that did it is drawn first and the death starts as it lands.
 	if int(_slot_volleys.get(who, 0)) == 0 and not _hold:
@@ -3839,6 +3842,11 @@ func _on_fight_opened(_name: String) -> void:
 	# THE FIRST HAND IS DEALT ONCE THE CONTACTS ARE IN (audit F6). It used to be
 	# on screen whole on the first frame of the fight, the drawer and the cards
 	# popping in together while the enemy was still flying in.
+	# Every contact's wreck is cut now, off the main thread, so a kill costs its
+	# frame nothing (see EnemyArt.warm_wreck).
+	if combat != null:
+		for e0 in combat.enemies:
+			EnemyArt.warm_wreck(e0)
 	if not Router.animating():
 		return
 	_opening = true
@@ -4162,6 +4170,29 @@ func _ship_pt() -> Vector2:
 	return _view.fx.get_global_transform().affine_inverse() * sv.get_global_rect().get_center()
 
 
+## Breakups being cut on a worker thread, by enemy: started on the frame the
+## kill resolved, picked up when its shot lands ten-odd frames later. Cutting a
+## hull is 40 to 90 ms of GDScript; on the landing frame it was a visible
+## freeze at the moment of impact (measured 105-128 ms frames).
+var _prebuilt: Dictionary = {}
+
+func _prebuild_death(who: int) -> void:
+	var sl := _view.slot(who)
+	if sl == null or sl.art == null or who >= combat.enemies.size() or _prebuilt.has(who):
+		return
+	var e: Combat.EnemyState = combat.enemies[who]
+	var img := sl.art.snapshot()
+	var used := sl.art.used_rect()
+	var seed := EnemyArt.wreck_seed(e.template)
+	var boss: bool = e.template.boss
+	var held := {b = null}
+	var task := WorkerThreadPool.add_task(func() -> void:
+		var b := ShipBreakup.new()
+		b.setup(img, used, Vector2.ZERO, EnemyArt.DEATH_STYLE, seed, boss)
+		held.b = b)
+	_prebuilt[who] = {task = task, held = held}
+
+
 ## The ship comes apart where it stood, cut out of its own picture.
 func _start_death(who: int) -> void:
 	_dying.erase(who)
@@ -4170,18 +4201,27 @@ func _start_death(who: int) -> void:
 		return
 	var art := sl.art
 	var e: Combat.EnemyState = combat.enemies[who]
-	var b := ShipBreakup.new()
-	b.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var b: ShipBreakup = null
+	if _prebuilt.has(who):
+		var pre: Dictionary = _prebuilt[who]
+		_prebuilt.erase(who)
+		WorkerThreadPool.wait_for_task_completion(pre.task)
+		b = pre.held.b
+	if b == null:
+		b = ShipBreakup.new()
+		b.setup(art.snapshot(), art.used_rect(), Vector2.ZERO, EnemyArt.DEATH_STYLE,
+			EnemyArt.wreck_seed(e.template), e.template.boss)
+	# Cut at the origin; placed by moving the whole thing.
+	b.size = _view.size
 	_view.add_child(b)
 	# Under the shots and the numbers, over everything else.
 	_view.move_child(b, _view.fx.get_index())
 	var canvas := art.get_global_rect().position \
 		+ (art.size - _canvas_size(art)) * 0.5
-	var origin := b.get_global_transform().affine_inverse() * canvas
-	b.setup(art.snapshot(), art.used_rect(), origin, EnemyArt.DEATH_STYLE,
-		EnemyArt.wreck_seed(e.template), e.template.boss)
+	var base := (_view.get_global_transform().affine_inverse() * canvas).round()
+	b.position = base
 	sl.hide_art(true)
-	var entry := {b = b, art = art, y0 = art.position.y}
+	var entry := {b = b, art = art, y0 = art.position.y, base = base}
 	_breakups.append(entry)
 	# SOUND ON EACH VISIBLE BREAK, never on the resolution (Jon's rule).
 	b.broke.connect(func(s: float) -> void:
@@ -4200,7 +4240,7 @@ func _process(_delta: float) -> void:
 		var b: ShipBreakup = en.b
 		var art: EnemyArt = en.art
 		if is_instance_valid(b) and is_instance_valid(art):
-			b.position.y = roundf(art.position.y - float(en.y0))
+			b.position = Vector2(en.base) + Vector2(0, roundf(art.position.y - float(en.y0)))
 
 
 ## THE END OF A FIGHT, once the screen has caught up with it: nothing in the
@@ -4224,6 +4264,8 @@ func _check_ending() -> void:
 				# it; the wrecks stay exactly where the fight left them.
 				if r == &"victory":
 					Router.seamless_next = true
+					# Nor the page's door sound: nothing on screen changes page.
+					Audio.suppress(&"ui_tab", 300)
 				_leave_combat())
 		&"dead":
 			# A beat on the shot that did it, then the run's own screen.
