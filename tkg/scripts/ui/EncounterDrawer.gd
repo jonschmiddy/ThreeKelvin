@@ -267,7 +267,7 @@ static func head(text: String, on_jump: Callable, loose: int = 0,
 		var loot := Widgets.button("SECTOR LOOT", on_loot)
 		loot.custom_minimum_size = BTN
 		loot.disabled = loose <= 0
-		loot.tooltip_text = Widgets.tip("What is loose in this system that no hull is holding: what an event paid out, and anything you have put down here. It stays for the rest of the run."
+		loot.tooltip_text = Widgets.tip("Things loose in this system: event rewards and anything you put down here. They stay for the rest of the run."
 			if loose > 0 else "Nothing is loose in this system.")
 		row.add_child(loot)
 	# NO CLICK: the page turn is this button's sound. See
@@ -872,10 +872,10 @@ static func quiet_lines(n: MapGen.MapNode) -> Array:
 			"ENGAGE THE HELLBENDER"]
 	match n.type:
 		MapGen.NodeType.STATION:
-			return ["A hab ring turns slowly, lights on. They will trade, repair and refuel, all of it out of the same pocket.", "DOCK"]
+			return ["A station with its lights on. It will trade, repair and refuel you for credits.", "DOCK"]
 		MapGen.NodeType.SYSTEM:
 			if n.eaten:
-				return ["Cut open along the spine, and the cuts are fresh. The Hellbender fed here first.", TO_SECTOR]
+				return ["The Hellbender stripped this system first. The cuts are still fresh.", TO_SECTOR]
 			# THE LIST SAYS WHAT IS HERE; this line only says where you are. It
 			# used to name a button -- LOOK -- because a system opened one thing
 			# at a time, and the button is now every row below.
@@ -888,24 +888,24 @@ static func quiet_lines(n: MapGen.MapNode) -> Array:
 				# only ever means you took it all -- and in a setting whose premise
 				# is extraction from a universe running down, that is not a
 				# completion tick. A small subtraction, which is also simply true.
-				return ["Nothing else here wants anything from you.", TO_SECTOR]
-			return ["The lane is quiet and the board is not.", TO_SECTOR]
+				return ["There is nothing left here for you.", TO_SECTOR]
+			return ["This system still has events open.", TO_SECTOR]
 		MapGen.NodeType.PULSAR:
 			if n.cleared:
-				return ["The beam still sweeps. Nothing left aboard can hold any more of it.",
+				return ["You have already harvested the beam here.",
 					TO_SECTOR]
-			return ["A neutron star, turning eleven times a second. Its wind is the densest fuel in the galaxy, and anywhere close enough to scoop it, the beam will cook you through the hull.",
+			return ["A neutron star, turning eleven times a second. Its wind is the densest fuel in the galaxy. Scooping it takes you close, and the beam burns through the hull.",
 				"FLY THE BEAM"]
 		MapGen.NodeType.START:
-			return ["Open space, and the reactor holding. The core is a long way in from here.", TO_SECTOR]
+			return ["Open space, with the reactor running. The core is far in from here.", TO_SECTOR]
 		# The core, waiting. Arriving here no longer opens the fight, so this is
 		# what the screen says while the party gathers and somebody decides to
 		# commit — the line above the button has to name what pressing it does.
 		MapGen.NodeType.CORE:
 			if n.cleared:
-				return ["The light is behind you.", TO_SECTOR]
+				return ["The core is open. Its guard is gone.", TO_SECTOR]
 			if n.fled:
-				return ["You broke off. It is still between you and the light.", TO_SECTOR]
+				return ["You broke off. It still guards the core.", TO_SECTOR]
 			return ["The core fills the viewport. Something is still guarding it.", "ENGAGE"]
 		_:
 			return ["", TO_SECTOR]
