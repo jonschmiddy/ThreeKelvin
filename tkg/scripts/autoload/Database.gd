@@ -143,19 +143,19 @@ func _seed_manufacturers() -> void:
 			"Standard Issue", "Charge cards charge 1 turn faster.",
 			"Full Broadside", "Salvo applies to your first attack too."],
 		[&"solari", "Solari Foundry", "The line between reactor and weapon is philosophy.", "#ef9f27", "#3a2408",
-			"Weaponised heat. Damage scales with your own fever.",
+			"Weapons that hit harder the hotter you run.",
 			"Sunward", "Plasma weapons gain +2 damage.",
 			"Ignition", "Overheat damage halved."],
 		[&"probate", "The Probate Combine", "Everything is salvage. Even you.", "#b3924e", "#6e5a2e",
-			"Scrap economy and plate sustain. Wins slowly, wins rich.",
+			"Scrap pays and plate holds. It wins slowly and pays well.",
 			"Company Rates", "+50% credits from wrecks.",
 			"Foundry Line", "Brace cards give +2."],
 		[&"redline", "Redline Shipyards", "Still flying? Then we did our job.", "#e24b4a", "#1c2127",
-			"Salvage tech, stealth and refits. Innate contraband affinity.",
+			"Salvaged tech, stealth and refits. Deals in contraband.",
 			"Chop Shop", "Draw 1 extra card each turn.",
 			"Ghost Protocol", "First enemy attack each combat is negated."],
 		[&"verity", "Verity Ateliers", "Made once, made properly.", "#8a7340", "#e8e0cc",
-			"Few hulls, each one signed. Sparse, exact, and priced accordingly.",
+			"Few hulls, each one signed. The parts are rare, exact and costly.",
 			"Bespoke", "Verity cards cost 1 less energy.",
 			"Provenance", "Start each combat with 1 extra energy."],
 		[&"cygnet", "Cygnet Dynamics", "You are never alone.", "#58c8d8", "#16202e",
@@ -163,7 +163,7 @@ func _seed_manufacturers() -> void:
 			"Swarm Logic", "Drones act twice on the turn they launch.",
 			"Hive Mind", "Drones persist between encounters."],
 		[&"calyx", "Calyx Biosystems", "Grown, not built.", "#3f8f6b", "#e2ece6",
-			"Clean corporate biotech. Regeneration and cards that mutate through use.",
+			"Biotech hulls that regenerate, with cards that change as you use them.",
 			"Cultivar", "Heal 3 after each combat.",
 			"Symbiosis", "Gain 1 exotic material after each fauna encounter."],
 	]
@@ -194,13 +194,13 @@ func _seed_manufacturers() -> void:
 ## an allegiance before they can evaluate a single number, and this is what they
 ## are actually choosing between.
 const BACKSTORY := {
-	&"korvan": "Tooled to a navy specification that outlived the navy. Korvan never designed a weapon. They inherited the jigs and kept stamping parts for a war that ended two centuries ago. Nothing they build is clever. Everything they build still works.",
-	&"solari": "A guild of thermal engineers who lost an argument about safety margins and left to prove they were right. Solari hulls are rated for temperatures their crews are not. The company line is that heat is only waste if you fail to aim it.",
-	&"probate": "Nine breaker yards that stopped competing and started invoicing. The Combine does not prospect, explore, or build from raw stock; it follows other people's disasters and files the paperwork first. Their hulls are made of ships that had names.",
-	&"redline": "Chop shops with a trademark. Redline registers no serials, honours no warranty, and has never once been found at the address on its invoices. What they sell is speed and the absence of a record, and both are exactly as legal as your inspector is thorough.",
-	&"verity": "Fewer than four hundred hulls in two centuries, each one commissioned, each one signed. Verity does not scale, does not discount, and does not replace what it sold you. It repairs it, at a price, forever.",
-	&"cygnet": "Drone architects who solved autonomy and then spent forty years not discussing it. A Cygnet ship is a hangar with an engine, somewhere for the swarm to return to. Pilots report the drones anticipate them. The literature does not address this.",
-	&"calyx": "Clinical, corporate and entirely organic: Calyx hulls are cultured to a specification and then trimmed. They heal and adapt. Every contract has a clause about feeding one something it was not rated for, and no customer has seen the results.",
+	&"korvan": "Korvan stamps parts to an old navy specification. The navy is gone, and its war ended two hundred years ago, but Korvan kept the jigs. It never designed a weapon of its own. The parts are not clever, and they still work.",
+	&"solari": "Solari is a guild of thermal engineers. They lost an argument about safety margins and left to prove they were right. Their hulls take more heat than their crews can. The company line is that heat is only waste if you fail to aim it.",
+	&"probate": "The Combine is nine breaker yards that stopped competing and joined up. It does not prospect, explore or build from raw stock. It follows other people's wrecks and files the claim first. Its hulls are made from ships that once had names.",
+	&"redline": "Redline runs chop shops under a trademark. It registers no serials, honours no warranty, and has never been found at the address on its invoices. It sells speed and parts with no record. How legal that is depends on how closely your inspector looks.",
+	&"verity": "Verity has built fewer than four hundred hulls in two centuries, each made to order and signed. It does not mass produce, discount, or replace what it sold you. It will always repair it, at a price.",
+	&"cygnet": "Cygnet's drone designers solved autonomy forty years ago and have not discussed it since. A Cygnet ship is a hangar with an engine for the swarm to come back to. Pilots say the drones act before they are told. Cygnet has never explained it.",
+	&"calyx": "Calyx is a clinical, corporate biotech firm. Its hulls are grown to a specification, then trimmed, and they heal and adapt. Every contract has a clause about feeding a hull something it was not rated for. No customer has seen what happens.",
 }
 
 ## SIXTEEN MALFUNCTIONS, out of three keywords.
