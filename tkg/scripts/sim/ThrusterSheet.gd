@@ -303,9 +303,10 @@ func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 ##          at least half of them.
 ##   coded  each look's flame picture at every thrust: its last lit column and
 ##          the rows lit there.
-## FAIL when the column is more than 1 px off, or the flame's HEIGHT 2-6 px
-## out from its start is under 90% of the strip's there (the strip's middle
-## frame; the coded flame's lowest frame). The row span used to have to match
+## FAIL when the column is more than 1 px off, or the flame's START HEIGHT is
+## more than 1 px off its nozzle's mouth read off the hull (or the strip's
+## height 2-6 px out, on a flat stern): "a bit bigger than the nozzle" (Jon on
+## light A and heavy A) is what the strip-height rule did to real nozzles. The row span used to have to match
 ## the strip's start rows, which are its narrowest, and every blunt stern got
 ## a thin stream out of a big engine (Jon, Oct 13: "too small on the main body").
 ## Also counts flame pixels on a hull pixel the strip leaves visible (one it
@@ -430,6 +431,7 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 				var over := 0
 				var ok := ni >= 0
 				var h_lo := 1 << 20
+				var s_lo := 1 << 20
 				if ni >= 0:
 					for fr in fx.frames():
 						var c_col := -1
@@ -465,6 +467,19 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 										g0 = mini(g0, y8)
 										g1 = maxi(g1, y8)
 							h_lo = mini(h_lo, g1 - g0 + 1 if g1 >= g0 else 0)
+							# the START: how many of the nozzle's rows are lit right where
+							# each starts (its own point, or a pixel either side)
+							var sh := 0
+							for q in (fx.nozzles[ni].pts as PackedVector2Array):
+								var hit := false
+								for dx: int in [-1, 0, 1]:
+									var qx := int(q.x) + dx - pat.x
+									var qy := int(q.y) - pat.y
+									if qx >= 0 and qy >= 0 and qx < pim.get_width() and qy < pim.get_height() and pim.get_pixel(qx, qy).a > 0.0:
+										hit = true
+								if hit:
+									sh += 1
+							s_lo = mini(s_lo, sh)
 						c_lo = mini(c_lo, c_col)
 						c_hi = maxi(c_hi, c_col)
 						r0_lo = mini(r0_lo, c0)
@@ -473,8 +488,19 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 						r1_hi = maxi(r1_hi, c1)
 						if c_col < 0 or absi(c_col - today_col) > 1:
 							ok = false
-				if h_lo < int(ceil(0.9 * float(today_h))):
+				# THE START IS THE MOUTH (Oct 13): within 1 px of the nozzle's opening
+				# read off the hull (`ThrusterFx.for_hull`), or of the strip's height
+				# where the stern is flat. A bell has its own checks below.
+				var start_ref := today_h
+				var is_bell := false
+				if ni >= 0:
+					start_ref = int(fx.nozzles[ni].get("start_ref", today_h))
+					is_bell = (fx.nozzles[ni] as Dictionary).has("bell")
+				if not is_bell and absi(s_lo - start_ref) > 1:
 					ok = false
+				row.start_h = s_lo
+				row.start_ref = start_ref
+				row.nozzle = bool(fx.nozzles[ni].get("nozzle", false)) if ni >= 0 else false
 				if over > 0:
 					ok = false
 				row.coded_col = [c_lo, c_hi]
@@ -492,7 +518,7 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 					var a1 := "%d" % r1_lo if r1_lo == r1_hi else "%d..%d" % [r1_lo, r1_hi]
 					print("  %-3d %-5d %-12s %-12s | %-10s %-6s %-18s %-5d %s" % [ti, int(e2.id), "%d%s" % [today_col, " back" if back else ""],
 						"%d-%d" % [r0, r1], (looks[look].info.look as String).substr(0, 10), ThrusterFx.THRUST_NAMES[thrust],
-						"%s / h%d (strip h%d)" % [cc, h_lo, today_h], over, "ok" if ok else "FAIL"])
+						"%s / start %d (%s %d)" % [cc, s_lo, "mouth" if bool(row.get("nozzle", false)) else "strip", int(row.get("start_ref", 0))], over, "ok" if ok else "FAIL"])
 	# THE BELL IS FULL: at full burn the hull pixels a strip always covers (heavy
 	# S's stern cavity) are at least 90% lit by the coded flame, every look.
 	var channel := 0

@@ -126,6 +126,16 @@ func _run() -> void:
 				ships = _pictures("res://art/subjects/ships", "ship_", [])
 			"enemy":
 				ships = _pictures(_arg("enemydir", "res://art/sprites/enemies"), "", ENEMY_SKIP)
+		# `only=<id>,...`: just those ships (a re-film of the ones that changed)
+		var only := _arg("only", "")
+		if only != "":
+			var keep: Array = []
+			for sh in ships:
+				if String(sh.id) in only.split(","):
+					keep.append(sh)
+			ships = keep
+			if ships.is_empty():
+				continue
 		await _film(g, ships, out.path_join(g), frames, layer)
 	tree.quit()
 
@@ -361,7 +371,7 @@ func _diagnose(fx: ThrusterFx, img: Image, used: Rect2i, player: bool) -> Dictio
 			forward_px = snappedf(fwd, 0.1), blocked = snappedf(bfrac, 0.01), bell = nz.has("bell")})
 		if not player and fwd > float(used.size.x) * 0.15:
 			flags.append("engine %d sits %d px forward of the stern (window or tower?)" % [engines.size() - 1, int(fwd)])
-		if bfrac > 0.5 and not nz.has("bell"):
+		if bfrac > 0.5 and not nz.has("bell") and not bool(nz.get("over", false)):
 			flags.append("engine %d streams into the hull (%d%% blocked)" % [engines.size() - 1, int(bfrac * 100.0)])
 	var on_hull := 0
 	var solid := func(px: int, py: int) -> bool:
@@ -374,6 +384,9 @@ func _diagnose(fx: ThrusterFx, img: Image, used: Rect2i, player: bool) -> Dictio
 				if img.get_pixel(x2, y).a > 0.5 and not fx._is_solid(x2, y):
 					chan[Vector2i(x2, y)] = true
 	for n in fx.nozzles.size():
+		# an `over` engine draws over the hull past it on purpose (engines.json)
+		if bool(fx.nozzles[n].get("over", false)):
+			continue
 		for thrust in [ThrusterFx.Thrust.IDLE, ThrusterFx.Thrust.FULL]:
 			for fr in fx.frames():
 				var p3 := fx.plume(n, fx.nozzle_length(n, thrust), fr)

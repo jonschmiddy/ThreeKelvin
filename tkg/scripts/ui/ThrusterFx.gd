@@ -268,8 +268,66 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 		var centre := float(rows[0] + rows[-1]) * 0.5
 		if ycnt > 0:
 			centre = ysum / float(ycnt)
+		# THE MOUTH (Jon on light A's top engine and heavy A: "a bit bigger than
+		# the nozzle"). Growing every flame to its strip's height went too far
+		# where the hull has a real nozzle: the strip flares straight out of it.
+		# So read the nozzle off the hull's own pixels: round the flame's axis, the
+		# rows whose stern edge is within 1 px of the deepest. A mouth smaller
+		# than the strip's flame is a NOZZLE: the flame starts exactly that tall,
+		# centred on it, and widens after it leaves. A mouth as tall as the strip
+		# or taller is a FLAT STERN (heavy C, light A's main): the strip's height
+		# sets the start, as before.
+		var start_col: int = at.x + xr
+		var axis_y := int(round(float(at.y) + centre))
+		var edge := {}
+		for yy in range(axis_y - 16, axis_y + 17):
+			for xx in range(start_col - 3, start_col + 26):
+				if _px_solid(img, xx, yy):
+					edge[yy] = xx
+					break
+		var seed_y := -1
+		var deepest := 1 << 20
+		for dy in [0, -1, 1, -2, 2]:
+			var yy2: int = axis_y + int(dy)
+			if edge.has(yy2) and int(edge[yy2]) < deepest:
+				deepest = int(edge[yy2])
+				seed_y = yy2
+		var ma := seed_y
+		var mb := seed_y
+		if seed_y >= 0:
+			while edge.has(ma - 1) and int(edge[ma - 1]) <= deepest + 1:
+				ma -= 1
+			while edge.has(mb + 1) and int(edge[mb + 1]) <= deepest + 1:
+				mb += 1
+		var mouth_h := mb - ma + 1 if seed_y >= 0 else 0
+		# Flat or not is read across small bumps: a run of up to 3 rows standing
+		# out up to 4 px (a seam, a rivet strip -- light A's main stern has one)
+		# does not end a flat stern if it carries on past them.
+		var fa := ma
+		var fb := mb
+		if seed_y >= 0:
+			for step: int in [-1, 1]:
+				var y5 := (ma if step < 0 else mb) + step
+				var gap := 0
+				while edge.has(y5) and gap <= 3:
+					if int(edge[y5]) <= deepest + 1:
+						if step < 0:
+							fa = y5
+						else:
+							fb = y5
+						gap = 0
+					elif int(edge[y5]) <= deepest + 4:
+						gap += 1
+					else:
+						break
+					y5 += step
+		var nozzle := mouth_h > 0 and (fb - fa + 1) < near_h
 		var lo_r := mini(rows[0], int(floor(centre - float(target - 1) * 0.5)))
 		var hi_r := maxi(rows[-1], lo_r + target - 1)
+		if nozzle:
+			target = mouth_h
+			lo_r = ma - at.y
+			hi_r = mb - at.y
 		var pts := PackedVector2Array()
 		for y4 in range(lo_r, hi_r + 1):
 			var cy4: int = at.y + y4
@@ -289,16 +347,20 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 		# PixelLab plume flares straight out of the engine: the widening is set
 		# to get there (half the length read thin on heavy C).
 		var widen := clampf(10.0 / float(pts.size()), 1.0, 3.0)
-		var l_full := float(fx.ink_w) * THRUST_K[Thrust.FULL] * clampf(sqrt(float(target) / 8.0), 0.85, 1.8)
-		var need := float(maxi(0, max_h - target)) * 0.5 / maxf(1.0, l_full * 0.25)
+		var l_full := float(fx.ink_w) * THRUST_K[Thrust.FULL] * clampf(sqrt(float(maxi(target, near_h)) / 8.0), 0.85, 1.8)
+		# out of a nozzle it may reach the strip's body further out (half its
+		# length); off a flat stern, within a quarter
+		var need := float(maxi(0, max_h - target)) * 0.5 / maxf(1.0, l_full * (0.5 if nozzle else 0.25))
 		widen = clampf(maxf(widen, need / float(SHAPE[the_look].spread)), 1.0, 3.0)
 		var nz := {pts = pts, dir = -1, thruster = ti, widen = widen, strip_near_h = near_h,
-			strip_max_h = max_h}
+			strip_max_h = max_h, nozzle = nozzle, mouth = [ma, mb], mouth_col = deepest, start_ref = target}
 		var bell := _bell(cells, at.x + xr)
 		if not bell.is_empty():
 			nz.bell = bell
 			fx._grow_mouth(bell, target)
-		_size_nozzle(nz, target)
+		# a big engine throws a bigger flame: its LENGTH goes with the strip's size
+		# even where its start is the nozzle's
+		_size_nozzle(nz, maxi(target, near_h) if nozzle else target)
 		fx.nozzles.append(nz)
 	fx._plan(seed)
 	return fx
@@ -448,7 +510,14 @@ func _override(list: Array, at: Vector2i, scale: float, img: Image = null) -> vo
 					_solid[cy * _w + x] = 0
 			pts.append(Vector2(x, cy))
 		if not pts.is_empty():
-			nozzles.append({pts = pts, dir = 1})
+			var nzo := {pts = pts, dir = 1, over = bool(d.get("over", false))}
+			# An `over` flame's length is measured from the far side of what it
+			# passes over, so it shows as long past the weight as any engine of
+			# its size does in the open (Jon on the orbit-arm ship: "make the
+			# flame here longer").
+			if nzo.over:
+				nzo.over_span = _blocked_span(pts[pts.size() / 2], 1)
+			nozzles.append(nzo)
 
 
 ## A bell's mouth at least as tall as its engine (`target` rows, centred): a
@@ -611,7 +680,24 @@ static func _size_nozzle(nz: Dictionary, h: int) -> void:
 ## engine's size (`_size_nozzle`).
 func nozzle_length(n: int, thrust: int) -> int:
 	var nz: Dictionary = nozzles[n]
-	return maxi(3, int(round(float(base_length(thrust)) * float(nz.get("lscale", 1.0)))))
+	return maxi(3, int(round(float(base_length(thrust)) * float(nz.get("lscale", 1.0))))) + int(nz.get("over_span", 0))
+
+
+## How much hull an engine's middle row crosses after it first leaves the
+## hull: the first solid run past open space, in px (0 if none within 400).
+func _blocked_span(e: Vector2, dir: int) -> int:
+	var seen := false
+	var run := 0
+	for d in 400:
+		var x := int(e.x) + d * dir
+		if _is_solid(x, int(e.y)):
+			if seen:
+				run += 1
+		else:
+			if run > 0:
+				return run
+			seen = true
+	return run
 
 
 func base_length(thrust: int) -> int:
@@ -772,7 +858,8 @@ func plume(n: int, L: int, fr: int = 0) -> Dictionary:
 	if nz.has("bell"):
 		_bell_light(nz.bell, L, Lf, float(s.spread), streams, fills, fp)
 	else:
-		streams.append({pts = nz.pts, L = Lf, spk = float(s.spread) * float(nz.get("widen", 1.0))})
+		streams.append({pts = nz.pts, L = Lf, spk = float(s.spread) * float(nz.get("widen", 1.0)),
+			over = bool(nz.get("over", false))})
 	# Embers: one spawned this frame or either of the two before, carried a
 	# further 2 px a frame and dimmer each time.
 	if not streams.is_empty():
@@ -814,7 +901,7 @@ func plume(n: int, L: int, fr: int = 0) -> Dictionary:
 		buf[i] = maxf(buf[i], float(f2.v))
 	for st2 in streams:
 		_stream(buf, W, Hh, at, st2.pts, int(st2.L), float(st2.spk), expo, dir,
-			float(st2.get("gain", 1.0)), fp)
+			float(st2.get("gain", 1.0)), fp, bool(st2.get("over", false)))
 	var out := _quantize(buf, W, Hh, at, s)
 	_cache[key] = out
 	return out
@@ -876,10 +963,11 @@ func particles_at(n: int, thrust: int, t: float) -> Array:
 			if kind == 1:
 				var sz := clampi(int(ceil(float(size0) * (1.0 - heat))), 1, 4)
 				cells = CLUMPS[sz - 1]
+			var over := bool((nozzles[n] as Dictionary).get("over", false))
 			for c in cells:
 				var px := x + (c as Vector2i).x * dir
 				var py := y + (c as Vector2i).y
-				if _is_solid(px, py):
+				if _is_solid(px, py) and not over:
 					continue
 				# A spark is one moving pixel: thinned by the pattern it would
 				# blink on and off as it crosses it, so only its last, reddest
@@ -899,7 +987,9 @@ func _tail(n: int, thrust: int) -> Dictionary:
 	if _tails.has(key):
 		return _tails[key]
 	var nz: Dictionary = nozzles[n]
-	var L := mini(nozzle_length(n, thrust), _clear_run(nz.pts, nz.dir))
+	var L := nozzle_length(n, thrust)
+	if not bool(nz.get("over", false)):
+		L = mini(L, _clear_run(nz.pts, nz.dir))
 	var out := {pts = nz.pts, L = L, dir = nz.dir}
 	if nz.has("bell"):
 		var idle := thrust == Thrust.IDLE
@@ -957,7 +1047,7 @@ func _bell_light(bell: Dictionary, L: int, Lf: int, spread: float, streams: Arra
 ## pow(1 - d/(L+1), expo), widening 1 px every 1/spk, overlaps taking the max.
 ## `fp` is the loop frame's shape (`_frame`): each row's tongue, the band shift.
 func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedVector2Array, L: int,
-		spk: float, expo: float, dir: int, gain: float = 1.0, fp: Dictionary = {}) -> void:
+		spk: float, expo: float, dir: int, gain: float = 1.0, fp: Dictionary = {}, over: bool = false) -> void:
 	if em.is_empty():
 		return
 	var lo_y := 1 << 20
@@ -1032,7 +1122,9 @@ func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedV
 		var seen_air := false
 		for d in Lr + 1:
 			var ax := ex + d * dir
-			if _is_solid(ax, ey):
+			if over and d > 0:
+				pass        # drawn over what it passes (art/engines.json `over`)
+			elif _is_solid(ax, ey):
 				if seen_air:
 					break
 			else:
@@ -1058,7 +1150,7 @@ func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedV
 				# flame. Never in the first three pixels: the start stays put.
 				if wob_ph >= 0.0 and d > 4:
 					cy += int(round(sin(float(d) * 0.22 + wob_ph)))
-				if _is_solid(cx, cy):
+				if _is_solid(cx, cy) and not (over and d > 0):
 					continue
 				var xx := cx - at.x
 				var yy := cy - at.y

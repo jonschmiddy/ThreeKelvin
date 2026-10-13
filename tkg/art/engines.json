@@ -1,5 +1,5 @@
 {
- "_about": "Where a ship picture's engines are, when ThrusterFx's finder (the rearmost pixels, ThrusterFx.for_sprite) gets it wrong. Keyed by the picture's file name without .png; coordinates in that picture's own pixels (the full-size file; a _half picture halves them). Each engine is a column x and rows y0..y1: every row finds the hull's back edge from x (forward through plating to the first open pixel, or back through open space to the plating) and the flame starts on that edge -- ON the hull's 1 px dark outline where it has one, so it leaves the nozzle flush. Rows cover the whole opening (the contiguous rows whose edge is within 2 px of the deepest); ThrusterGallery checks the flame's start height against it. An empty list is a ship with no flame at all. Hand-placed Oct 13 off Jon's gallery verdicts; read each picture before adding one.",
+ "_about": "Where a ship picture's engines are, when ThrusterFx's finder (the rearmost pixels, ThrusterFx.for_sprite) gets it wrong. Keyed by the picture's file name without .png; coordinates in that picture's own pixels (the full-size file; a _half picture halves them). Each engine is a column x and rows y0..y1: every row finds the hull's back edge from x (forward through plating to the first open pixel, or back through open space to the plating) and the flame starts on that edge -- ON the hull's 1 px dark outline where it has one, so it leaves the nozzle flush. Rows cover the whole opening (the contiguous rows whose edge is within 2 px of the deepest); ThrusterGallery checks the flame's start height against it. An empty list is a ship with no flame at all. Hand-placed Oct 13 off Jon's gallery verdicts; read each picture before adding one. An entry with \"over\": true draws its flame over whatever hull it passes after it leaves the nozzle, instead of stopping there (the orbit-arm ship, Jon: \"make the flame here longer\").",
  "ship_asteroidtow": [
   {
    "x": 55,
@@ -209,10 +209,18 @@
  ],
  "ship_orbitarms": [
   {
-   "x": 150,
-   "y0": 3,
-   "y1": 14,
-   "why": "Jon: \"can we have the flame on the part that's off the top of the ship?\" -- the upper arm's pod, from its rear face. The lower arm mirrors it exactly; left without a flame until he says"
+   "x": 141,
+   "y0": 20,
+   "y1": 22,
+   "over": true,
+   "why": "the drive collar at the end of the spine, above the arm rod. Jon: \"make the flame here longer\" -- over: drawn in front of the end sphere (a weight) instead of stopping at it"
+  },
+  {
+   "x": 141,
+   "y0": 27,
+   "y1": 29,
+   "over": true,
+   "why": "the drive collar, below the rod; over, as above"
   }
  ],
  "ship_rf_pipes": [
