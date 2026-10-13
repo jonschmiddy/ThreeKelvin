@@ -12,6 +12,7 @@ extends Node
 ##       out=<dir> fight=<id>[,<id>...] [end=win|lose|flee|hail] [seed=N]
 ##       [manufacturer=korvan] [weight=light|medium|heavy] [danger=N] [hp=N] [heat=N]
 ##       [after=150] [maxframes=N] [nofilm] [timing] [hints] [rest]
+##       [prefer=defence] [youblock=N]
 ##
 ## `out=<dir>` gets `f_####.png` (the window as seen: 1920x1080, the game at
 ## 2x), `events.json` (every signal that matters, by frame: card released, shot
@@ -116,6 +117,8 @@ func _run() -> void:
 		DirAccess.make_dir_recursive_absolute(_dir)
 	Router.animate_in_harness = true
 	Audio.taping = true
+	# `handoff=A|B|C`: which way a death goes into RUN ENDED (`DeathHandoff`)
+	SectorScreen.handoff_override = _arg("handoff", "")
 	if _has("hints"):
 		Hints.forced = true
 		Hints.reset()
@@ -182,6 +185,13 @@ func _run() -> void:
 			block = es.intent.block if es.intent != null else 0})
 	# The fight's opening: let the contacts fly in and the hand deal.
 	await _wait(45)
+	# `youblock=N`: N block on your ship now, as a card would give it (a deck
+	# may hold no block card), so a film shows your bubble come up and take hits
+	if _arg("youblock") != "":
+		_cb.block += int(_arg("youblock"))
+		_log("you_block", {block = _cb.block})
+		Sig.player_combat_state_changed.emit()
+		await _wait(30)
 
 	var end := _arg("end", "win")
 	var cap := int(_arg("maxframes", "2400"))
@@ -199,6 +209,14 @@ func _run() -> void:
 		if _cb.finished:
 			break
 		var pick := pol.best_card(_cb)
+		# `prefer=defence`: a playable block or brace card first, so a film
+		# shows your bubble and your armour (HitLayers)
+		if _arg("prefer") == "defence":
+			for k in _cb.hand.size():
+				var hc: CardData = _cb.hand[k]
+				if (hc.block > 0 or hc.brace > 0) and _cb.can_play(hc):
+					pick = k
+					break
 		if pick < 0:
 			await _wait(10)
 			await _click(_sc._end_button)
@@ -211,8 +229,14 @@ func _run() -> void:
 	_log("loop_done", {finished = _cb.finished, result = _cb.result})
 	# The ending as it plays out: the panel, the router's swap, the next screen.
 	var after := int(_arg("after", "150"))
+	var lost_logged := false
 	for i in after:
 		await _tick()
+		# Your own ship's breakup, when the fight killed you (`ShipLoss`).
+		if not lost_logged and is_instance_valid(_sc) and _sc.loss != null:
+			lost_logged = true
+			_log("ship_lost", {style = String(ShipBreakup.NAMES.get(_sc.loss.style, "?")),
+				secs = _sc.loss.duration, boss = _sc.loss.boss})
 	# A panel left waiting for CONTINUE is part of what the player has to do.
 	if is_instance_valid(_sc) and _sc.is_inside_tree():
 		var cont := _find_button(_sc, "CONTINUE")

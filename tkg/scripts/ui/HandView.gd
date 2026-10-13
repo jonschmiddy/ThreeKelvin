@@ -213,7 +213,12 @@ func _layout() -> void:
 			# stack over the energy box and the draw pile.
 			v.visible = false
 			tw.tween_interval(wait)
-			tw.tween_callback(func() -> void: v.visible = true)
+			# (by its weak reference: a card can be freed while it waits)
+			var wv: WeakRef = weakref(v)
+			tw.tween_callback(func() -> void:
+				var c := wv.get_ref() as Control
+				if c != null:
+					c.visible = true)
 		tw.tween_property(v, "position", target, SLIDE + (0.08 if wait > 0.0 else 0.0))
 		_tweens[v] = tw
 	_restack(order)
