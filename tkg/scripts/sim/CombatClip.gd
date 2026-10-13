@@ -257,6 +257,21 @@ func _run() -> void:
 	# THE CORE'S BODY: open for loot after the kill. TAKE ALL (or one part),
 	# then DONE, as a player would; the win screen follows.
 	var sc2 := Router.current as SectorScreen
+	# The body waits to be clicked (it no longer opens by itself): point at it
+	# and click, as a player does.
+	if Router.final_loot and sc2 != null and sc2._transfer == null:
+		for i5 in 60:
+			await _tick()
+		var body_slot: EnemySlot = null
+		for n in sc2.find_children("*", "EnemySlot", true, false):
+			var es := n as EnemySlot
+			if es._dead and es.opened.is_valid():
+				body_slot = es
+		if body_slot != null:
+			_log("core_body_click", {})
+			await _click(body_slot.art)
+			for i6 in 20:
+				await _tick()
 	if Router.final_loot and sc2 != null and sc2._transfer != null:
 		var tv: Control = sc2._transfer
 		for i2 in 45:

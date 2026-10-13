@@ -241,7 +241,12 @@ static var path: String = TestRun.scratch("run", "save") if TestRun.active() els
 ## 30 save has no `look`, and missing it means the kind's first picture -- a 30
 ## build drew none of these pictures at all, so there is nothing to disagree
 ## with. OLDEST_READ stays at 29.
-const VERSION := 31
+## 32: THE CORE WON, ITS BODY NOT YET SALVAGED (`core_won`). The one save a won
+## run may have: written at the custodian's kill so a game quit before the body
+## is clicked comes back to the body (`SaveGame.save_core_won`). Read the way 31
+## reads 30: a 31 save has no `core_won`, and missing means not won -- the only
+## state a 31 build ever wrote. OLDEST_READ stays at 29.
+const VERSION := 32
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
 const OLDEST_READ := 29
@@ -286,6 +291,22 @@ static func summary() -> Dictionary:
 static func save() -> void:
 	if Run.hull == null or Run.map.is_empty() or Run.dead or Run.won:
 		return
+	_write(false)
+
+
+## THE CORE WON, ITS BODY NOT YET SALVAGED (Jon: "I would want to have to click
+## the dead custodian"). The run is recorded as won at the kill and the ordinary
+## save goes then, as ever; this writes the one save a won run may have: the
+## core, cleared, with the body on it, marked `core_won`, so a game quit before
+## the body is opened comes back to the body -- and to nothing else (the doors
+## stay shut, `Router.final_loot`). DONE on the body clears it.
+static func save_core_won() -> void:
+	if Run.hull == null or Run.map.is_empty() or Run.dead or not Run.won:
+		return
+	_write(true)
+
+
+static func _write(core_won: bool) -> void:
 	# THE MAP STILL UP writes where its ship is first. It records that only as
 	# it is put away (`_keep_ship`), and SAVE & EXIT from the map saves while
 	# it is still showing -- so without this the file would carry wherever the
@@ -349,6 +370,7 @@ static func _snapshot() -> Dictionary:
 	var here: MapGen.MapNode = Run.node_at()
 	return {
 		version = VERSION,
+		core_won = Run.won,
 		# Denormalised for summary(). The launcher should not have to rebuild a
 		# hundred and fifty map nodes to print one line of button text.
 		system = MapGen.star_name(here),
@@ -582,7 +604,9 @@ static func load_into_run() -> bool:
 	Run.hellbender_moves = maxi(0, int(d.get("hellbender_moves", 0)))
 	Run.hellbender_ticks = maxi(0, int(d.get("hellbender_ticks", 0)))
 
-	Run.won = false
+	# A run comes back unwon, except the one written at the core between the
+	# kill and its body (`save_core_won`): won already, recorded already.
+	Run.won = bool(d.get("core_won", false))
 	Run.dead = false
 	Run.death_reason = ""
 	# Jump range is a pure function of a system and the galaxy, and both just
