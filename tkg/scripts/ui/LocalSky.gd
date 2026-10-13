@@ -98,17 +98,31 @@ const TILT := 0.07
 const SUN_K := {"ORDINARY": 0.62, "RED": 0.44, "BLUE": 0.52}
 const PULSAR_K := 0.42
 const HOLE_K := 0.30
-## THE CORE IS THE WORLD YOU ORBIT (Jon, Oct 13: "shouldn't the black hole be
-## bigger in the background though? it's like a planet you are orbiting"). At
-## the core the hole is laid out by the orbited world's own rules (`near_plan`,
-## `_core_near`): right of your ship, low in the view, NEAR_WORLD_R x 1.25 its
-## disc's outer edge, and sliding with the camera as that world does (F_NEAR,
-## Z_NEAR) -- but drawn where the star is drawn, in the scene with the cloud, so
-## its lens bends the cloud behind it (the near world's own picture is a layer
-## of its own and has nothing behind it to bend). The same shared hole
-## (`CoreLegacy`, its photon table traced once a process), at that size in its
-## own 2x2 blocks. There is no hole on the band: this is the system's star.
-const CORE_NEAR_K := 1.25
+## THE CORE'S HOLE IS THE BACKDROP (Jon, Oct 13: "shouldn't the black hole be
+## bigger in the background though?", then "can this be more large and
+## centered in the middle back? i'm just worried that the custodian is going to
+## sit right on the black hole and be weird"). At the core the system's star --
+## the shared hole (`CoreLegacy`, its photon table traced once a process) --
+## is drawn big behind everything, in the scene with the cloud so its lens
+## bends it, on the far star's depth (all but still as the camera moves). Where
+## and how big is `core_look`, for Jon to pick from (`CORE_LOOKS`: its centre
+## in the game frame and its disc's outer edge in px):
+##   a  centred, large: the middle of the play, the edge 250 px out;
+##   b  centred, huge: the edge 330 px out, its glow off the play's top and
+##      bottom, the shadow whole;
+##   c  centred, set back high: as a, raised so the shadow is in the upper
+##      middle and the ships stand on its lower glow.
+## Measured in the Custodian's fight (`-- sheet=CoreFightFilm`): its picture
+## stands on the black in none of them (tetra 0 px in each; take 1, laid on
+## the same place, 0 / 698 / 52 px, 0 / 3.4 / 0.3 %) -- the shadow is between
+## the two ships, the Custodian on the disc's right glow.
+## There is no hole on the band and no world drawn near at the core.
+static var core_look := &"a"
+const CORE_LOOKS := {
+	&"a": [Vector2(480.0, 272.0), 250.0],
+	&"b": [Vector2(480.0, 272.0), 330.0],
+	&"c": [Vector2(480.0, 176.0), 250.0],
+}
 const MIN_WORLD_R := 3.0
 ## HOW FAR OUT THE SHIP IS: at REF_K of the way to the system's edge the star is
 ## drawn at SUN_K; nearer bigger, further smaller, as (that distance over the
@@ -829,7 +843,7 @@ func star_k() -> float:
 	if layout.star == SystemLayout.StarKind.PULSAR:
 		return PULSAR_K * f
 	if layout.star == SystemLayout.StarKind.CORE:
-		return _core_near().R / 116.0
+		return float(_core_place().R) / 116.0
 	return float(SUN_K.get(kind, 0.6)) * f
 
 
@@ -848,12 +862,12 @@ func star_light() -> Vector3:
 ## sat inside the band's layer and took its zoom on top of its own, while the
 ## glow held still, so the two came apart.
 func origin() -> Vector2:
-	return _zp(rest_origin(), _star_z())
+	return _zp(rest_origin(), Z_STAR)
 
 
 ## The star with no zoom: what the layout and the palette are laid out from.
 func rest_origin() -> Vector2:
-	return _block_round(_sun - cam * _star_f())
+	return _block_round(_sun - cam * F_STAR)
 
 
 ## the band's centre this frame: where the worlds' orbits are laid out from
@@ -861,26 +875,17 @@ func band_origin() -> Vector2:
 	return _block_round(_sun - cam * F_BAND)
 
 
-## THE CORE'S HOLE AS THE WORLD YOU ORBIT: where `near_plan` puts an orbited
-## world and how big, by its rules -- on the right (the event's side, where an
-## orbited world with an event on it goes), the world's radius NEAR_WORLD_R at
-## the top of its range (CORE_NEAR_K) as the disc's outer edge, centred where
-## that world is centred. {at, R}.
-func _core_near() -> Dictionary:
-	var h := SkyBakeS.hash2(node.index if node != null else 0, 811)
-	var R := roundf(NEAR_WORLD_R * CORE_NEAR_K / 2.0) * 2.0
-	var at := _block_round(Vector2(480.0 + 1.0 * (190.0 + 60.0 * h), 339.0 + 0.2 * R))
-	return {at = at, R = R}
+## THE CORE'S HOLE, by `core_look`: {at (game frame px), R (its disc's outer
+## edge, px)}.
+func _core_place() -> Dictionary:
+	var v: Array = CORE_LOOKS.get(core_look, CORE_LOOKS[&"a"])
+	return {at = v[0], R = float(v[1])}
 
 
-## How far the star slides with the camera, and its depth under the cutaway's
-## zoom: the core's hole as the world you orbit, every other star far off.
-func _star_f() -> float:
-	return F_NEAR if layout != null and layout.star == SystemLayout.StarKind.CORE else F_STAR
-
-
-func _star_z() -> float:
-	return Z_NEAR if layout != null and layout.star == SystemLayout.StarKind.CORE else Z_STAR
+## How big the core's black shadow is drawn, px (`CoreLegacy`: the shadow is a
+## third of the disc's outer edge).
+func core_shadow_r() -> float:
+	return 116.0 * star_k() / 3.0
 
 
 ## WHERE THE CORE'S HOLE IS DRAWN, in the game frame's pixels (the sky's
@@ -987,7 +992,7 @@ func _step(delta: float) -> void:
 	# travel on screen, against the camera's)
 	_far_mat.set_shader_parameter("u_skyPan", -cam * SKY_K)
 	_far_mat.set_shader_parameter("star_at", so)
-	_far_mat.set_shader_parameter("glow_r", _glow_r * _zl(_star_z()))
+	_far_mat.set_shader_parameter("glow_r", _glow_r * _zl(Z_STAR))
 	_far_mat.set_shader_parameter("breath", SystemViewS.breath(pose(t, 4.0)))
 	if _neb_mat != null:
 		_neb_mat.set_shader_parameter("off", neb_off())
@@ -1003,7 +1008,7 @@ func _step(delta: float) -> void:
 			_neb_mat.set_shader_parameter("home_zoom", 1.0)
 			_neb_mat.set_shader_parameter("lscale", 1.35)
 			_neb_mat.set_shader_parameter("breath", SystemViewS.breath(pose(t, 4.0)))
-			_neb_mat.set_shader_parameter("hole_r", 116.0 * star_k() * _zl(_star_z()))
+			_neb_mat.set_shader_parameter("hole_r", 116.0 * star_k() * _zl(Z_STAR))
 	if painted:
 		SectorPaintedS.push(self)
 	_step_star(o)
@@ -1035,8 +1040,8 @@ func _step_star(o: Vector2) -> void:
 	# placed where the zoom puts it and drawn at the size it gives it by its own
 	# painter's zoom, never scaled as a picture (a 1.04 scale of the disc drew a
 	# row of its blocks twice)
-	var k := _zl(_star_z())
-	star.position = _zp(o, _star_z())
+	var k := _zl(Z_STAR)
+	star.position = _zp(o, Z_STAR)
 	star.scale = Vector2.ONE
 	if layout.star == SystemLayout.StarKind.CORE:
 		star.set("hole_k", star_k() * k)
@@ -1092,7 +1097,7 @@ func _step_worlds(o: Vector2) -> void:
 			kl = 0.75
 		# (the star's disc as this layer sees it: where `_step_star` put it, at
 		# its own depth, in the band's coordinates)
-		var sr := float(layout.star_r) * star_k() * _zl(_star_z())
+		var sr := float(layout.star_r) * star_k() * _zl(Z_STAR)
 		var so: Vector2 = star.position if star != null else o
 		v.call("step", t, light, kl, so if behind else Vector2(-9999, -9999), sr if behind else 0.0)
 		var vm: ShaderMaterial = v.get("_mat")
@@ -1401,7 +1406,7 @@ func _situate() -> void:
 	# slid down with the hole its edge came into the view
 	_cloud_sun = _sun
 	if layout.star == SystemLayout.StarKind.CORE:
-		_sun = _core_near().at
+		_sun = _core_place().at
 
 
 ## The near things' own picture and what is in it.
@@ -1412,8 +1417,8 @@ func _build_near() -> void:
 	near_storm = {}
 	if orbit_target < 0:
 		return
-	# AT THE CORE THE HOLE IS THE WORLD YOU ORBIT (`_core_near`): a rock of the
-	# core's drawn near as well would be a second world there, on your ship's side
+	# AT THE CORE THE HOLE IS THE BACKDROP (`_core_place`): a rock of the core's
+	# drawn near as well would stand in front of it, on your ship's side
 	if layout.star == SystemLayout.StarKind.CORE:
 		return
 	var tgt: SystemLayout.Body = layout.bodies[orbit_target]
@@ -1592,7 +1597,7 @@ func scene_to_global(p: Vector2) -> Vector2:
 func star_px() -> float:
 	if layout == null:
 		return 0.0
-	return float(layout.star_r) * star_k() * _zl(_star_z())
+	return float(layout.star_r) * star_k() * _zl(Z_STAR)
 
 
 ## THE GAS CLOSED IN (`no_stars`: "The gas has closed in. ... No stars"): the
