@@ -412,113 +412,118 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 		var today_h: int = hs[hs.size() / 2] if not hs.is_empty() else 0
 		for look in looks.size():
 			var fx: ThrusterFx = looks[look].fx
-			var ni := -1
+			# EVERY NOZZLE OF THIS STRIP (three stacked mouths are three engines)
+			var nis: Array = []
 			for k2 in fx.nozzles.size():
 				if int(fx.nozzles[k2].get("thruster", -1)) == ti:
-					ni = k2
-			for thrust in 3:
-				var row := {engine = ti, strip = int(e2.id), back = back, today_col = today_col, today_rows = [r0, r1],
-					today_h = today_h,
-					look = looks[look].info.look, thrust = ThrusterFx.THRUST_NAMES[thrust]}
-				# Every loop frame of a living flame: the start must hold on all of
-				# them. The worst frame's numbers are kept.
-				var c_lo := 1 << 20
-				var c_hi := -1
-				var r0_lo := 1 << 20
-				var r0_hi := -(1 << 20)
-				var r1_lo := 1 << 20
-				var r1_hi := -(1 << 20)
-				var over := 0
-				var ok := ni >= 0
-				var h_lo := 1 << 20
-				var s_lo := 1 << 20
-				if ni >= 0:
-					for fr in fx.frames():
-						var c_col := -1
-						var c0 := 1 << 20
-						var c1 := -1
-						var p := fx.plume(ni, fx.nozzle_length(ni, thrust), fr)
-						if p.tex != null:
-							var pim: Image = (p.tex as ImageTexture).get_image()
-							var pat: Vector2i = p.at
-							for x5 in pim.get_width():
-								for y5 in pim.get_height():
-									if pim.get_pixel(x5, y5).a <= 0.0:
+					nis.append(k2)
+			if nis.is_empty():
+				nis.append(-1)
+			for ni: int in nis:
+				var is_nozzle := ni >= 0 and bool(fx.nozzles[ni].get("nozzle", false))
+				for thrust in 3:
+					var row := {engine = ti, strip = int(e2.id), back = back, today_col = today_col, today_rows = [r0, r1],
+						today_h = today_h,
+						look = looks[look].info.look, thrust = ThrusterFx.THRUST_NAMES[thrust]}
+					# Every loop frame of a living flame: the start must hold on all of
+					# them. The worst frame's numbers are kept.
+					var c_lo := 1 << 20
+					var c_hi := -1
+					var r0_lo := 1 << 20
+					var r0_hi := -(1 << 20)
+					var r1_lo := 1 << 20
+					var r1_hi := -(1 << 20)
+					var over := 0
+					var ok := ni >= 0
+					var h_lo := 1 << 20
+					var s_lo := 1 << 20
+					if ni >= 0:
+						for fr in fx.frames():
+							var c_col := -1
+							var c0 := 1 << 20
+							var c1 := -1
+							var p := fx.plume(ni, fx.nozzle_length(ni, thrust), fr)
+							if p.tex != null:
+								var pim: Image = (p.tex as ImageTexture).get_image()
+								var pat: Vector2i = p.at
+								for x5 in pim.get_width():
+									for y5 in pim.get_height():
+										if pim.get_pixel(x5, y5).a <= 0.0:
+											continue
+										var gx := pat.x + x5
+										var gy := pat.y + y5
+										if gx > c_col:
+											c_col = gx
+										if gx >= 0 and gy >= 0 and gx < cw and gy < chh and shown[gy * cw + gx] == 1:
+											over += 1
+								for y6 in pim.get_height():
+									if c_col - pat.x < pim.get_width() and pim.get_pixel(c_col - pat.x, y6).a > 0.0:
+										c0 = mini(c0, pat.y + y6)
+										c1 = maxi(c1, pat.y + y6)
+								# its height 2-6 px out, the strip's own measure
+								var g0 := 1 << 20
+								var g1 := -1
+								for x8 in pim.get_width():
+									var out8 := c_col - (pat.x + x8)
+									if out8 < 2 or out8 > 6:
 										continue
-									var gx := pat.x + x5
-									var gy := pat.y + y5
-									if gx > c_col:
-										c_col = gx
-									if gx >= 0 and gy >= 0 and gx < cw and gy < chh and shown[gy * cw + gx] == 1:
-										over += 1
-							for y6 in pim.get_height():
-								if c_col - pat.x < pim.get_width() and pim.get_pixel(c_col - pat.x, y6).a > 0.0:
-									c0 = mini(c0, pat.y + y6)
-									c1 = maxi(c1, pat.y + y6)
-							# its height 2-6 px out, the strip's own measure
-							var g0 := 1 << 20
-							var g1 := -1
-							for x8 in pim.get_width():
-								var out8 := c_col - (pat.x + x8)
-								if out8 < 2 or out8 > 6:
-									continue
-								for y8 in pim.get_height():
-									if pim.get_pixel(x8, y8).a > 0.0:
-										g0 = mini(g0, y8)
-										g1 = maxi(g1, y8)
-							h_lo = mini(h_lo, g1 - g0 + 1 if g1 >= g0 else 0)
-							# the START: how many of the nozzle's rows are lit right where
-							# each starts (its own point, or a pixel either side)
-							var sh := 0
-							for q in (fx.nozzles[ni].pts as PackedVector2Array):
-								var hit := false
-								for dx: int in [-1, 0, 1]:
-									var qx := int(q.x) + dx - pat.x
-									var qy := int(q.y) - pat.y
-									if qx >= 0 and qy >= 0 and qx < pim.get_width() and qy < pim.get_height() and pim.get_pixel(qx, qy).a > 0.0:
-										hit = true
-								if hit:
-									sh += 1
-							s_lo = mini(s_lo, sh)
-						c_lo = mini(c_lo, c_col)
-						c_hi = maxi(c_hi, c_col)
-						r0_lo = mini(r0_lo, c0)
-						r0_hi = maxi(r0_hi, c0)
-						r1_lo = mini(r1_lo, c1)
-						r1_hi = maxi(r1_hi, c1)
-						if c_col < 0 or absi(c_col - today_col) > 1:
-							ok = false
-				# THE START IS THE MOUTH (Oct 13): within 1 px of the nozzle's opening
-				# read off the hull (`ThrusterFx.for_hull`), or of the strip's height
-				# where the stern is flat. A bell has its own checks below.
-				var start_ref := today_h
-				var is_bell := false
-				if ni >= 0:
-					start_ref = int(fx.nozzles[ni].get("start_ref", today_h))
-					is_bell = (fx.nozzles[ni] as Dictionary).has("bell")
-				if not is_bell and absi(s_lo - start_ref) > 1:
-					ok = false
-				row.start_h = s_lo
-				row.start_ref = start_ref
-				row.nozzle = bool(fx.nozzles[ni].get("nozzle", false)) if ni >= 0 else false
-				if over > 0:
-					ok = false
-				row.coded_col = [c_lo, c_hi]
-				row.coded_rows = [[r0_lo, r0_hi], [r1_lo, r1_hi]]
-				row.over_hull = over
-				row.coded_h_min = h_lo
-				row.frames = fx.frames()
-				row.ok = ok
-				if not ok:
-					bad += 1
-				out.append(row)
-				if thrust == 2 or not ok:
-					var cc := "%d" % c_lo if c_lo == c_hi else "%d..%d" % [c_lo, c_hi]
-					var a0 := "%d" % r0_lo if r0_lo == r0_hi else "%d..%d" % [r0_lo, r0_hi]
-					var a1 := "%d" % r1_lo if r1_lo == r1_hi else "%d..%d" % [r1_lo, r1_hi]
-					print("  %-3d %-5d %-12s %-12s | %-10s %-6s %-18s %-5d %s" % [ti, int(e2.id), "%d%s" % [today_col, " back" if back else ""],
-						"%d-%d" % [r0, r1], (looks[look].info.look as String).substr(0, 10), ThrusterFx.THRUST_NAMES[thrust],
-						"%s / start %d (%s %d)" % [cc, s_lo, "mouth" if bool(row.get("nozzle", false)) else "strip", int(row.get("start_ref", 0))], over, "ok" if ok else "FAIL"])
+									for y8 in pim.get_height():
+										if pim.get_pixel(x8, y8).a > 0.0:
+											g0 = mini(g0, y8)
+											g1 = maxi(g1, y8)
+								h_lo = mini(h_lo, g1 - g0 + 1 if g1 >= g0 else 0)
+								# the START: how many of the nozzle's rows are lit right where
+								# each starts (its own point, or a pixel either side)
+								var sh := 0
+								for q in (fx.nozzles[ni].pts as PackedVector2Array):
+									var hit := false
+									for dx: int in [-1, 0, 1]:
+										var qx := int(q.x) + dx - pat.x
+										var qy := int(q.y) - pat.y
+										if qx >= 0 and qy >= 0 and qx < pim.get_width() and qy < pim.get_height() and pim.get_pixel(qx, qy).a > 0.0:
+											hit = true
+									if hit:
+										sh += 1
+								s_lo = mini(s_lo, sh)
+							c_lo = mini(c_lo, c_col)
+							c_hi = maxi(c_hi, c_col)
+							r0_lo = mini(r0_lo, c0)
+							r0_hi = maxi(r0_hi, c0)
+							r1_lo = mini(r1_lo, c1)
+							r1_hi = maxi(r1_hi, c1)
+							if c_col < 0 or (absi(c_col - today_col) > 1 and not is_nozzle):
+								ok = false
+					# THE START IS THE MOUTH (Oct 13): within 1 px of the nozzle's opening
+					# read off the hull (`ThrusterFx.for_hull`), or of the strip's height
+					# where the stern is flat. A bell has its own checks below.
+					var start_ref := today_h
+					var is_bell := false
+					if ni >= 0:
+						start_ref = int(fx.nozzles[ni].get("start_ref", today_h))
+						is_bell = (fx.nozzles[ni] as Dictionary).has("bell")
+					if not is_bell and absi(s_lo - start_ref) > 1:
+						ok = false
+					row.start_h = s_lo
+					row.start_ref = start_ref
+					row.nozzle = bool(fx.nozzles[ni].get("nozzle", false)) if ni >= 0 else false
+					if over > 0:
+						ok = false
+					row.coded_col = [c_lo, c_hi]
+					row.coded_rows = [[r0_lo, r0_hi], [r1_lo, r1_hi]]
+					row.over_hull = over
+					row.coded_h_min = h_lo
+					row.frames = fx.frames()
+					row.ok = ok
+					if not ok:
+						bad += 1
+					out.append(row)
+					if thrust == 2 or not ok:
+						var cc := "%d" % c_lo if c_lo == c_hi else "%d..%d" % [c_lo, c_hi]
+						var a0 := "%d" % r0_lo if r0_lo == r0_hi else "%d..%d" % [r0_lo, r0_hi]
+						var a1 := "%d" % r1_lo if r1_lo == r1_hi else "%d..%d" % [r1_lo, r1_hi]
+						print("  %-3d %-5d %-12s %-12s | %-10s %-6s %-18s %-5d %s" % [ti, int(e2.id), "%d%s" % [today_col, " back" if back else ""],
+							"%d-%d" % [r0, r1], (looks[look].info.look as String).substr(0, 10), ThrusterFx.THRUST_NAMES[thrust],
+							"%s / start %d (%s %d)" % [cc, s_lo, "mouth" if bool(row.get("nozzle", false)) else "strip", int(row.get("start_ref", 0))], over, "ok" if ok else "FAIL"])
 	# THE BELL IS FULL: at full burn the hull pixels a strip always covers (heavy
 	# S's stern cavity) are at least 90% lit by the coded flame, every look.
 	var channel := 0
@@ -612,6 +617,42 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 				particle_px = drawn, on_hull_px = on_hull, ok = ok3})
 			print("  particles %-6s %-20s %d px over 150 frames, %d on visible hull %s" % [ThrusterFx.THRUST_NAMES[thrust3],
 				looks[look3].info.look, drawn, on_hull, "ok" if ok3 else "FAIL"])
+	# THE MAIN DRIVE IS NOT OUTBURNED (Jon on light B: the main flame read
+	# "short and stubby" beside the top pipe's): the hull's main drive (its
+	# biggest strip) is never shorter at full burn than a secondary engine, and
+	# of two engines in the same role the bigger mouth is never the shorter.
+	var fx9: ThrusterFx = looks[0].fx
+	for i9 in fx9.nozzles.size():
+		for j9 in fx9.nozzles.size():
+			if i9 == j9:
+				continue
+			var a9: Dictionary = fx9.nozzles[i9]
+			var b9: Dictionary = fx9.nozzles[j9]
+			if a9.has("bell") or b9.has("bell"):
+				continue
+			var la := fx9.nozzle_length(i9, ThrusterFx.Thrust.FULL)
+			var lb := fx9.nozzle_length(j9, ThrusterFx.Thrust.FULL)
+			var ma := (a9.pts as PackedVector2Array).size()
+			var mb := (b9.pts as PackedVector2Array).size()
+			var why := ""
+			# mouths are compared within a role: the rig names the main drive (its
+			# biggest strip), and light B's main nozzle reads 6 rows against its
+			# top pipe's 9 (the pipe's two outline rows count as mouth) while Jon
+			# wants the main drive the longer flame
+			var same_role := bool(a9.get("main", false)) == bool(b9.get("main", false))
+			if same_role and ma > mb + 1 and la < lb:
+				why = "a bigger mouth (%d rows) burns shorter (%d px) than a smaller one (%d rows, %d px)" % [ma, la, mb, lb]
+			elif bool(a9.get("main", false)) and not bool(b9.get("main", false)) and la < lb:
+				why = "the main drive (%d px) burns shorter than a secondary engine (%d px)" % [la, lb]
+			if why != "":
+				bad += 1
+				out.append({main_check = why, ok = false})
+				print("  FAIL engines %d / %d: %s" % [i9, j9, why])
+	var lens := []
+	for i8 in fx9.nozzles.size():
+		lens.append("%s%d:%d rows,%d px" % ["main " if bool(fx9.nozzles[i8].get("main", false)) else "", i8,
+			(fx9.nozzles[i8].pts as PackedVector2Array).size(), fx9.nozzle_length(i8, ThrusterFx.Thrust.FULL)])
+	print("  engines at FULL: %s" % ", ".join(lens))
 	print("thrustersheet starts %s: %s (%d rows, %d off)" % [DB.hull_art_name(h.weight, h.tier),
 		"PASS" if bad == 0 else "FAIL", out.size(), bad])
 	return out

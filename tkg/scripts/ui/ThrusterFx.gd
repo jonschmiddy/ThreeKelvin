@@ -155,6 +155,34 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 	fx.look = the_look
 	fx.warm = the_look != Look.DRIVE
 	var n := maxi(1, h.exhaust_frames)
+	# Every strip's flame axis (open space only) and size, first: a mouth goes
+	# to the strip nearest it, and the hull's biggest strip is its MAIN drive.
+	var axes: Array = []
+	var strip_h := {}
+	var main_h := 0
+	for tj in h.thrusters.size():
+		var e0: Dictionary = h.thrusters[tj]
+		var t0: Texture2D = e0.get("tex")
+		if t0 == null:
+			continue
+		var im0 := t0.get_image()
+		if im0.is_compressed():
+			im0.decompress()
+		im0.convert(Image.FORMAT_RGBA8)
+		var fw0 := im0.get_width() / n
+		var at0: Vector2i = e0.at
+		var ys := 0.0
+		var cnt := 0
+		for f0 in n:
+			for x0 in fw0:
+				for y0 in im0.get_height():
+					if im0.get_pixel(f0 * fw0 + x0, y0).a > 0.5 and not _px_solid(img, at0.x + x0, at0.y + y0):
+						ys += float(y0)
+						cnt += 1
+		if cnt > 0:
+			axes.append([tj, float(at0.y) + ys / float(cnt)])
+		strip_h[tj] = im0.get_height()
+		main_h = maxi(main_h, im0.get_height())
 	for ti in h.thrusters.size():
 		var e: Dictionary = h.thrusters[ti]
 		var tex: Texture2D = e.get("tex")
@@ -228,6 +256,8 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 		# space (at most 6 px), as an override's rows do.
 		var spans: Array = []
 		var max_h := 0
+		var n_lo := 1 << 20
+		var n_hi := -1
 		var ysum := 0.0
 		var ycnt := 0
 		for i5 in n:
@@ -252,6 +282,8 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 					if out >= 2 and out <= 6:
 						r0 = mini(r0, y5)
 						r1 = maxi(r1, y5)
+						n_lo = mini(n_lo, y5)
+						n_hi = maxi(n_hi, y5)
 			if r1 >= r0:
 				spans.append(r1 - r0 + 1)
 			if a1 >= a0:
@@ -268,100 +300,148 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 		var centre := float(rows[0] + rows[-1]) * 0.5
 		if ycnt > 0:
 			centre = ysum / float(ycnt)
-		# THE MOUTH (Jon on light A's top engine and heavy A: "a bit bigger than
-		# the nozzle"). Growing every flame to its strip's height went too far
-		# where the hull has a real nozzle: the strip flares straight out of it.
-		# So read the nozzle off the hull's own pixels: round the flame's axis, the
-		# rows whose stern edge is within 1 px of the deepest. A mouth smaller
-		# than the strip's flame is a NOZZLE: the flame starts exactly that tall,
-		# centred on it, and widens after it leaves. A mouth as tall as the strip
-		# or taller is a FLAT STERN (heavy C, light A's main): the strip's height
-		# sets the start, as before.
+		# THE MOUTHS, read off the hull's own pixels (Oct 13). The stern edge is
+		# found row by row from well behind the strip's start (the first try began
+		# 3 px in front of it, and every nozzle sticking further out than that read
+		# as one flat face: light A's three stacked nozzles became one big flame).
+		# A MOUTH is a local minimum of that edge -- rows standing furthest out,
+		# with the edge receding above and below -- grown to the rows within 1 px
+		# of it. Every mouth in the strip's own flame band that this strip is the
+		# nearest to, and that stands within 6 px of the furthest one, is an
+		# engine: three stacked nozzles are three flames, which merge after they
+		# leave. One mouth at least as tall as the strip's flame (read across small
+		# bumps) is a FLAT STERN, and the strip's height sets the start (heavy C,
+		# heavy B). A shallow bell (a front strip lapping its nozzle by a few px)
+		# is a nozzle like any other; only a deep one (heavy S's cavity) keeps the
+		# bell's own shape.
 		var start_col: int = at.x + xr
 		var axis_y := int(round(float(at.y) + centre))
+		var band_lo := at.y + (n_lo if n_lo <= n_hi else rows[0]) - 2
+		var band_hi := at.y + (n_hi if n_lo <= n_hi else rows[-1]) + 2
 		var edge := {}
-		for yy in range(axis_y - 16, axis_y + 17):
-			for xx in range(start_col - 3, start_col + 26):
+		for yy in range(mini(band_lo, axis_y - 16) - 4, maxi(band_hi, axis_y + 16) + 5):
+			for xx in range(start_col - 24, start_col + 31):
 				if _px_solid(img, xx, yy):
 					edge[yy] = xx
 					break
-		var seed_y := -1
-		var deepest := 1 << 20
-		for dy in [0, -1, 1, -2, 2]:
-			var yy2: int = axis_y + int(dy)
-			if edge.has(yy2) and int(edge[yy2]) < deepest:
-				deepest = int(edge[yy2])
-				seed_y = yy2
-		var ma := seed_y
-		var mb := seed_y
-		if seed_y >= 0:
-			while edge.has(ma - 1) and int(edge[ma - 1]) <= deepest + 1:
-				ma -= 1
-			while edge.has(mb + 1) and int(edge[mb + 1]) <= deepest + 1:
-				mb += 1
-		var mouth_h := mb - ma + 1 if seed_y >= 0 else 0
-		# Flat or not is read across small bumps: a run of up to 3 rows standing
-		# out up to 4 px (a seam, a rivet strip -- light A's main stern has one)
-		# does not end a flat stern if it carries on past them.
-		var fa := ma
-		var fb := mb
-		if seed_y >= 0:
+		var mouths: Array = []       # [lo, hi, min edge]
+		var y6 := band_lo
+		while y6 <= band_hi:
+			if not edge.has(y6):
+				y6 += 1
+				continue
+			var v := int(edge[y6])
+			var y7 := y6
+			while edge.has(y7 + 1) and int(edge[y7 + 1]) == v:
+				y7 += 1
+			var up_ok := (not edge.has(y6 - 1)) or int(edge[y6 - 1]) > v
+			var dn_ok := (not edge.has(y7 + 1)) or int(edge[y7 + 1]) > v
+			if up_ok and dn_ok:
+				var a6 := y6
+				var b6 := y7
+				while edge.has(a6 - 1) and int(edge[a6 - 1]) <= v + 1:
+					a6 -= 1
+				while edge.has(b6 + 1) and int(edge[b6 + 1]) <= v + 1:
+					b6 += 1
+				mouths.append([a6, b6, v])
+			y6 = y7 + 1
+		var front := 1 << 20
+		for m in mouths:
+			front = mini(front, int(m[2]))
+		var kept: Array = []
+		for m2 in mouths:
+			if int(m2[2]) > front + 6:
+				continue
+			var mc := float(int(m2[0]) + int(m2[1])) * 0.5
+			var mine := true
+			for ax2 in axes:
+				if int(ax2[0]) != ti and absf(float(ax2[1]) - mc) < absf(float(at.y) + centre - mc):
+					mine = false
+			if mine:
+				kept.append(m2)
+		var deep_bell := false
+		var bell := _bell(cells, at.x + xr)
+		if not bell.is_empty() and int(bell.depth) >= 10:
+			deep_bell = true
+		# flat or not, for one mouth: read across small bumps (a seam a row or
+		# three standing out up to 4 px does not end a flat stern)
+		var flat := kept.is_empty() or deep_bell
+		if kept.size() == 1:
+			var m3: Array = kept[0]
+			var fa := int(m3[0])
+			var fb := int(m3[1])
+			var vv := int(m3[2])
 			for step: int in [-1, 1]:
-				var y5 := (ma if step < 0 else mb) + step
+				var y5 := (fa if step < 0 else fb) + step
 				var gap := 0
 				while edge.has(y5) and gap <= 3:
-					if int(edge[y5]) <= deepest + 1:
+					if int(edge[y5]) <= vv + 1:
 						if step < 0:
 							fa = y5
 						else:
 							fb = y5
 						gap = 0
-					elif int(edge[y5]) <= deepest + 4:
+					elif int(edge[y5]) <= vv + 4:
 						gap += 1
 					else:
 						break
 					y5 += step
-		var nozzle := mouth_h > 0 and (fb - fa + 1) < near_h
-		var lo_r := mini(rows[0], int(floor(centre - float(target - 1) * 0.5)))
-		var hi_r := maxi(rows[-1], lo_r + target - 1)
-		if nozzle:
-			target = mouth_h
-			lo_r = ma - at.y
-			hi_r = mb - at.y
-		var pts := PackedVector2Array()
-		for y4 in range(lo_r, hi_r + 1):
-			var cy4: int = at.y + y4
-			var cx4: int = at.x + xr
-			if y4 in rows:
+			flat = (fb - fa + 1) >= near_h
+		var groups: Array = []       # each: {lo, hi (canvas rows), mouth}
+		if flat:
+			var lo_f := mini(at.y + rows[0], int(floor(float(at.y) + centre - float(target - 1) * 0.5)))
+			groups.append({lo = lo_f, hi = maxi(at.y + rows[-1], lo_f + target - 1), mouth = 0})
+		else:
+			for m4 in kept:
+				groups.append({lo = int(m4[0]), hi = int(m4[1]), mouth = int(m4[1]) - int(m4[0]) + 1})
+		var is_main: bool = int(strip_h.get(ti, 0)) >= main_h
+		for g in groups:
+			var pts := PackedVector2Array()
+			for cy4 in range(int(g.lo), int(g.hi) + 1):
+				var cx4 := start_col
+				var k4 := 0
+				if fx._is_solid(cx4, cy4):
+					# out of the plating (a nozzle standing proud of the start)
+					while k4 <= 40 and fx._is_solid(cx4, cy4):
+						cx4 -= 1
+						k4 += 1
+					if k4 > 40:
+						continue
+				elif not flat:
+					# up to the nozzle (the start column is in air in front of it)
+					while k4 < 10 and not fx._is_solid(cx4 + 1, cy4):
+						cx4 += 1
+						k4 += 1
 				pts.append(Vector2(cx4, cy4))
+			if pts.is_empty():
 				continue
-			var k4 := 0
-			while k4 <= 10 and fx._is_solid(cx4, cy4):
-				cx4 -= 1
-				k4 += 1
-			if k4 <= 10:
-				pts.append(Vector2(cx4, cy4))
-		# A point of a nozzle widens faster, so at full burn it is a flame and
-		# not a needle; its start stays where it is. And the BODY grows to the
-		# strip's tallest within a quarter of the full-burn length, as the
-		# PixelLab plume flares straight out of the engine: the widening is set
-		# to get there (half the length read thin on heavy C).
-		var widen := clampf(10.0 / float(pts.size()), 1.0, 3.0)
-		var l_full := float(fx.ink_w) * THRUST_K[Thrust.FULL] * clampf(sqrt(float(maxi(target, near_h)) / 8.0), 0.85, 1.8)
-		# out of a nozzle it may reach the strip's body further out (half its
-		# length); off a flat stern, within a quarter
-		var need := float(maxi(0, max_h - target)) * 0.5 / maxf(1.0, l_full * (0.5 if nozzle else 0.25))
-		widen = clampf(maxf(widen, need / float(SHAPE[the_look].spread)), 1.0, 3.0)
-		var nz := {pts = pts, dir = -1, thruster = ti, widen = widen, strip_near_h = near_h,
-			strip_max_h = max_h, nozzle = nozzle, mouth = [ma, mb], mouth_col = deepest, start_ref = target}
-		var bell := _bell(cells, at.x + xr)
-		if not bell.is_empty():
-			nz.bell = bell
-			fx._grow_mouth(bell, target)
-		# a big engine throws a bigger flame: its LENGTH goes with the strip's size
-		# even where its start is the nozzle's
-		_size_nozzle(nz, maxi(target, near_h) if nozzle else target)
-		fx.nozzles.append(nz)
+			var start_h := pts.size()
+			var mouth_h := int(g.mouth)
+			# A point of a nozzle widens faster, so it is not a needle; its start
+			# stays where it is. The MAIN drive (the hull's biggest strip) grows to
+			# the strip's body, shared between its nozzles, by a quarter of its
+			# length off a flat stern and by half out of nozzles; a secondary
+			# engine just spreads (Jon on light B's top pipe: "too big").
+			var widen := clampf(10.0 / float(start_h), 1.0, 3.0)
+			var size: int = near_h if (flat or is_main) else mini(near_h, mouth_h)
+			var l_full := float(fx.ink_w) * THRUST_K[Thrust.FULL] * clampf(sqrt(float(size) / 8.0), 0.85, 1.8)
+			if flat or is_main:
+				var body := float(max_h) / float(maxi(1, groups.size()))
+				var need := maxf(0.0, body - float(start_h)) * 0.5 / maxf(1.0, l_full * (0.25 if flat else 0.5))
+				widen = clampf(maxf(widen, need / float(SHAPE[the_look].spread)), 1.0, 3.0)
+			var nz := {pts = pts, dir = -1, thruster = ti, widen = widen, strip_near_h = near_h,
+				strip_max_h = max_h, nozzle = not flat, mouth = [int(g.lo), int(g.hi)], start_ref = start_h if not flat else target,
+				main = is_main}
+			if deep_bell:
+				nz.bell = bell
+				fx._grow_mouth(bell, target)
+			# LENGTH: the main drive's goes with its strip's size; a secondary
+			# engine's with its own mouth (Jon: the top pipe's flame was "taller and
+			# longer than that thin pipe nozzle can carry"). Sparks with the mouth.
+			_size_nozzle(nz, size)
+			if not flat:
+				nz.pscale = clampf(float(start_h) / 8.0, 0.75, 2.5)
+			fx.nozzles.append(nz)
 	fx._plan(seed)
 	return fx
 
@@ -559,6 +639,55 @@ func _grow_mouth(bell: Dictionary, target: int) -> void:
 ## keep the rows that stand furthest back (the bells), then the middle `cap`.
 func _add_run(run: Array, by_row: Dictionary, cap: int) -> void:
 	if run.is_empty():
+		return
+	# SEPARATE MOUTHS ARE SEPARATE ENGINES (Oct 13, light A's three stacked
+	# nozzles): the rows standing furthest back, each a local maximum of the
+	# stern edge with the edge receding on both sides, within 6 px of the
+	# furthest, each grown to the rows within 1 px of it. Two or more is that
+	# many engines; one falls through to the rule below.
+	var mouths: Array = []
+	var i := 0
+	while i < run.size():
+		var v := int(by_row[run[i]])
+		var j := i
+		while j + 1 < run.size() and int(by_row[run[j + 1]]) == v and int(run[j + 1]) == int(run[j]) + 1:
+			j += 1
+		var up_ok := i == 0 or int(by_row[run[i - 1]]) < v
+		var dn_ok := j == run.size() - 1 or int(by_row[run[j + 1]]) < v
+		if up_ok and dn_ok:
+			var a := i
+			var b := j
+			while a - 1 >= 0 and int(by_row[run[a - 1]]) >= v - 1:
+				a -= 1
+			while b + 1 < run.size() and int(by_row[run[b + 1]]) >= v - 1:
+				b += 1
+			mouths.append([a, b, v])
+		i = j + 1
+	var far := -(1 << 20)
+	for m in mouths:
+		far = maxi(far, int(m[2]))
+	# at least 3 rows (a 2-row step is a seam, not a nozzle), and never two
+	# mouths over the same rows
+	var real: Array = []
+	var taken := {}
+	for m2 in mouths:
+		if int(m2[2]) < far - 6 or int(m2[1]) - int(m2[0]) + 1 < 3:
+			continue
+		var clash := false
+		for k0 in range(int(m2[0]), int(m2[1]) + 1):
+			if taken.has(k0):
+				clash = true
+		if clash:
+			continue
+		for k1 in range(int(m2[0]), int(m2[1]) + 1):
+			taken[k1] = true
+		real.append(m2)
+	if real.size() >= 2:
+		for m3 in real:
+			var pts0 := PackedVector2Array()
+			for k in range(int(m3[0]), int(m3[1]) + 1):
+				pts0.append(Vector2(int(by_row[run[k]]), int(run[k])))
+			nozzles.append({pts = pts0, dir = 1})
 		return
 	var keep: Array = run
 	if run.size() > cap:
@@ -1037,7 +1166,9 @@ func _bell_light(bell: Dictionary, L: int, Lf: int, spread: float, streams: Arra
 	for c in (bell.cells as PackedVector2Array):
 		var d := float(apex - int(c.x))
 		fills.append({x = int(c.x), y = int(c.y), v = lerpf(v0, v1, clampf(d / float(depth), 0.0, 1.0)) + lift})
-	var lout := Lf if idle else int(round(float(Lf) * 0.7))
+	# past the rim: 0.7 of the length out of a deep bell, but never less than
+	# what is left of it once the bell is crossed
+	var lout := Lf if idle else maxi(int(round(float(Lf) * 0.7)), Lf - depth)
 	if lout > 0:
 		streams.append({pts = bell.mouth, L = lout, spk = spread, gain = 0.75 if idle else 1.0})
 

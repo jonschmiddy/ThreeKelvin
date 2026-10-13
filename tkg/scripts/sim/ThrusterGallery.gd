@@ -405,4 +405,15 @@ func _diagnose(fx: ThrusterFx, img: Image, used: Rect2i, player: bool) -> Dictio
 						on_hull += 1
 	if on_hull > 0:
 		flags.append("%d flame/particle px on the hull" % on_hull)
+	# no engine burns shorter at full than one with a smaller mouth, in the same
+	# role (a player hull's main drive is its biggest strip; ThrusterSheet)
+	for i9 in fx.nozzles.size():
+		for j9 in fx.nozzles.size():
+			if i9 == j9 or (fx.nozzles[i9] as Dictionary).has("bell") or (fx.nozzles[j9] as Dictionary).has("bell"):
+				continue
+			var ma := (fx.nozzles[i9].pts as PackedVector2Array).size()
+			var mb := (fx.nozzles[j9].pts as PackedVector2Array).size()
+			var same_role := bool(fx.nozzles[i9].get("main", false)) == bool(fx.nozzles[j9].get("main", false))
+			if same_role and ma > mb + 1 and fx.nozzle_length(i9, ThrusterFx.Thrust.FULL) < fx.nozzle_length(j9, ThrusterFx.Thrust.FULL):
+				flags.append("engine %d (%d rows) burns shorter than engine %d (%d rows)" % [i9, ma, j9, mb])
 	return {engines = engines, on_hull_px = on_hull, flags = flags}
