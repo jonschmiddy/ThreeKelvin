@@ -98,6 +98,17 @@ const TILT := 0.07
 const SUN_K := {"ORDINARY": 0.62, "RED": 0.44, "BLUE": 0.52}
 const PULSAR_K := 0.42
 const HOLE_K := 0.30
+## THE CORE, BIG (Oct 13, look B, beside A for Jon to pick): at the core the
+## hole you are at stands where the encounter's old flat disc stood, right of
+## your ship in the middle of the view and bigger than it was ("The core fills
+## the viewport"), instead of up on the band. The same shared hole
+## (`CoreLegacy`, its photon table traced once a process), only drawn at
+## CORE_B_K (its disc's outer edge 116 x CORE_B_K px out) round CORE_B_AT.
+## Off (look A, the default until Jon picks): the hole on the band, as every
+## other system's star.
+static var core_big := false
+const CORE_B_AT := Vector2(730.0, 262.0)
+const CORE_B_K := 0.9
 const MIN_WORLD_R := 3.0
 ## HOW FAR OUT THE SHIP IS: at REF_K of the way to the system's edge the star is
 ## drawn at SUN_K; nearer bigger, further smaller, as (that distance over the
@@ -195,6 +206,8 @@ var _ready_sky := false
 var _palette_built := false
 var _frame := 0
 var _sun := Vector2(480.0, HORIZON)
+## where the cloud is laid round: the star, but for the core's big hole (look B)
+var _cloud_sun := Vector2(480.0, HORIZON)
 var _s := 0.5
 var _sd := 0.0
 var _tint := Vector3.ONE
@@ -814,7 +827,7 @@ func star_k() -> float:
 	if layout.star == SystemLayout.StarKind.PULSAR:
 		return PULSAR_K * f
 	if layout.star == SystemLayout.StarKind.CORE:
-		return HOLE_K * f
+		return CORE_B_K if core_big else HOLE_K * f
 	return float(SUN_K.get(kind, 0.6)) * f
 
 
@@ -846,9 +859,18 @@ func band_origin() -> Vector2:
 	return _block_round(_sun - cam * F_BAND)
 
 
+## WHERE THE CORE'S HOLE IS DRAWN, in the game frame's pixels (the sky's
+## picture is laid in the frame, `_place_box`), generously: its
+## disc's outer edge (116 px a unit of `star_k`) across, the lensed arcs above
+## and below it. For the box checks (`-- sheet=OneHoleTest`).
+func hole_box() -> Rect2:
+	var R := 116.0 * star_k()
+	return Rect2(origin() - Vector2(R, R * 0.75), Vector2(R * 2.0, R * 1.5))
+
+
 ## the cloud's slide: its sky pixel CC at the star, and its own depth
 func neb_off() -> Vector2:
-	return _block_round(_sun - CC - cam * F_CLOUD)
+	return _block_round(_cloud_sun - CC - cam * F_CLOUD)
 
 
 func pose(x: float, fps: float = 8.0) -> float:
@@ -1347,8 +1369,15 @@ func _situate() -> void:
 	_dk = REF_K * (layout.edge + 20.0) / orbit_d
 	# A BIG STAR rides up into the top of the view, cut by it, blazing
 	if layout.star != SystemLayout.StarKind.PULSAR:
-		var R := float(layout.star_r) * star_k() * (0.3 if layout.star == SystemLayout.StarKind.CORE else 1.0)
+		# (look A's size for the core even under look B: the cloud's anchor)
+		var sk := HOLE_K * clampf(pow(_dk, SIZE_POW), SIZE_LO, SIZE_HI) 			if layout.star == SystemLayout.StarKind.CORE else star_k()
+		var R := float(layout.star_r) * sk * (0.3 if layout.star == SystemLayout.StarKind.CORE else 1.0)
 		_sun.y = HORIZON - roundf(clampf(R - 20.0, 0.0, 36.0) / 2.0) * 2.0
+	# the cloud stays where look A has it: it is baked round that point, and
+	# slid down with the hole its edge came into the view
+	_cloud_sun = _sun
+	if layout.star == SystemLayout.StarKind.CORE and core_big:
+		_sun = CORE_B_AT
 
 
 ## The near things' own picture and what is in it.

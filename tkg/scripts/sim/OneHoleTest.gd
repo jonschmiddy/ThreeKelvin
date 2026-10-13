@@ -53,6 +53,12 @@ func _run() -> void:
 					if what == &"":
 						_ok("seed %d node %d (type %d) keeps its place picture" % [seed, n.index, n.type], false)
 		area.free()
+	# THE REAL LOCAL AT THE CORE, in both looks: no place picture; look A's hole
+	# up on the band, look B's big one clear of your ship and of the strip
+	# along the bottom, inside the view
+	for big in [false, true]:
+		await _local_core(big)
+	LocalSky.core_big = false
 	print("  places seen: %s" % str(seen))
 	_ok("the core was seen", int(seen.get(&"core", 0)) > 0)
 	_ok("a pulsar was seen", int(seen.get(&"pulsar", 0)) > 0)
@@ -60,3 +66,39 @@ func _run() -> void:
 		int(seen.get(&"station", 0)) > 0 and int(seen.get(&"beacon", 0)) + int(seen.get(&"battlefield", 0)) > 0)
 	print("oneholetest: %s (%d failed)" % ["PASS" if _fails == 0 else "FAIL", _fails])
 	get_tree().quit(1 if _fails > 0 else 0)
+
+
+func _local_core(big: bool) -> void:
+	LocalSky.core_big = big
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var core := -1
+	for n: MapGen.MapNode in Run.map:
+		if n.type == MapGen.NodeType.CORE:
+			core = n.index
+	Run.at = core
+	SectorScreen._approached_at = core
+	Router.show_local()
+	for i in 6:
+		await get_tree().process_frame
+	var sc := Router.current as SectorScreen
+	var look := "B" if big else "A"
+	if not _ok("look %s: LOCAL opens at the core" % look, sc != null and sc._view != null):
+		return
+	var view: EncounterView = sc._view
+	_ok("look %s: no place picture at the core" % look, view._area._place_name() == &"")
+	var sky: LocalSky = view.backdrop
+	var hole := sky.hole_box()
+	if not big:
+		_ok("look A: the hole is the band's star, up top (%s)" % str(hole), hole.get_center().y < 140.0)
+		return
+	var sv := view.ship_view()
+	var sr: Rect2 = sv.ship_rect()
+	var ship := Rect2(sv.get_global_rect().position + sr.position, sr.size)
+	_ok("look B: the hole (%s) is clear of your ship (%s)" % [str(hole), str(ship)], not hole.intersects(ship))
+	var vr := view.get_global_rect()
+	_ok("look B: the hole is inside the view (%s)" % str(vr), vr.encloses(hole))
+	for c: Control in [sc._quiet_wrap, sc._events]:
+		if c != null and c.is_visible_in_tree():
+			_ok("look B: the hole is clear of the strip along the bottom (%s)" % str(c.get_global_rect()),
+				not hole.intersects(c.get_global_rect()))
