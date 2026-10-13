@@ -606,14 +606,80 @@ func _draw() -> void:
 	# of the enemy's own readout — a permanent stat that happened to change.
 	# Painted across the target only while you are holding a card over it, it is
 	# obviously a QUESTION being answered: this card, this enemy, this much.
+	# The same letters the shot will pop when it lands (`HitText`).
 	if _hot and _drag_text != "":
-		var f := UITheme.pixel_font()
-		var fs := UITheme.FS_HEAD
-		var tw := f.get_string_size(_drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		var at := Vector2((size.x - tw) * 0.5, size.y * 0.5 + fs * 0.4)
-		draw_string(f, at + Vector2(1, 1), _drag_text,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.75))
-		draw_string(f, at, _drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UITheme.FLARE)
+		# On the hull's ink, both ways, not the slot's middle: in a pack the
+		# slot runs down past the hull and the number sat on the name.
+		HitText.draw_centred(self, ink_rect().get_center(), _drag_text, HitText.colour(&"damage"))
+
+
+## THE HULL'S INK in this slot's coordinates: the art's painted bounds, placed
+## where the holder puts them (the brackets above are this, padded).
+func ink_rect() -> Rect2:
+	var u: Rect2i = art.used_rect() if art != null else Rect2i(0, 0, EnemyArt.W, EnemyArt.H)
+	return Rect2(_art_holder.position + _art_base + Vector2(u.position), Vector2(u.size))
+
+
+## Where the held card's number is drawn, its letters' own box, in this slot's
+## coordinates (`HitText.ink_rect`). For the test that holds it to the ink.
+func preview_rect(text: String) -> Rect2:
+	return HitText.ink_rect(HitText.centred_at(ink_rect().get_center(), text), text)
+
+
+## THE WORDS OVER THIS SHIP (its intent: STRAFE / DEAL 5), in global px: the
+## lines' own text, centred as they are drawn, not their full-width labels.
+## Empty when nothing is written there. A landed number goes above these
+## (Jon, Oct 13, "C": it sat on them and read "ST-8E").
+func intent_rect_global() -> Rect2:
+	return _text_rect([_intent, _intent_text])
+
+
+## The ship's readout under it (name, bars, hull, chips), in global px.
+func readout_rect_global() -> Rect2:
+	var r := _text_rect([_name, _hp])
+	for c: Control in [_brace_bar, _bar, chips]:
+		if c != null and c.is_visible_in_tree() and c.size.x > 0.0:
+			var g := c.get_global_rect()
+			if c == chips and c.get_child_count() == 0:
+				continue
+			r = g if r.size == Vector2.ZERO else r.merge(g)
+	return r
+
+
+## The intent words step back for `secs` (a landed number written on the hull
+## because there was no room above them: `SectorScreen._pop_at`).
+var _hush_until := 0
+var _hush_tw: Tween = null
+
+func hush_intent(secs: float) -> void:
+	_hush_until = Time.get_ticks_msec() + int(secs * 1000.0)
+	if _hush_tw != null and _hush_tw.is_valid():
+		_hush_tw.kill()
+	_hush_tw = create_tween()
+	for l: Label in [_intent, _intent_text]:
+		_hush_tw.parallel().tween_property(l, "modulate:a", 0.12, 0.08)
+	_hush_tw.tween_interval(secs)
+	for l2: Label in [_intent, _intent_text]:
+		_hush_tw.parallel().tween_property(l2, "modulate:a", 1.0, 0.2)
+
+
+func intent_hushed() -> bool:
+	return Time.get_ticks_msec() < _hush_until
+
+
+func _text_rect(labels: Array) -> Rect2:
+	var r := Rect2()
+	for l: Label in labels:
+		if l == null or not l.is_visible_in_tree() or l.text == "":
+			continue
+		var g := l.get_global_rect()
+		var f := l.get_theme_font(&"font")
+		var fs := l.get_theme_font_size(&"font_size")
+		var w := minf(g.size.x, f.get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x) \
+			if f != null else g.size.x
+		var t := Rect2(g.position.x + (g.size.x - w) * 0.5, g.position.y, w, g.size.y)
+		r = t if r.size == Vector2.ZERO else r.merge(t)
+	return r
 
 
 # --- Its own movement --------------------------------------------------------

@@ -472,6 +472,22 @@ else
 	bad "deathpooltest did not finish"
 fi
 
+step "Fight numbers sit on the hull's ink, and land above it"
+# Jon, Oct 13 ("Pops: B"): a held card's number centred on the ship's ink both
+# ways; a landing's pops centred across on the ink and wholly above its top.
+# Every enemy picture and every player hull (manufacturer x weight), in a fight.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot popplacetest 240 --headless --path "$PROJECT" -- sheet=PopPlaceTest; then
+	if grep -qE '^popplacetest: PASS' "$LOG_DIR/popplacetest.log"; then
+		ok "previews on the ink, pops above it, on every hull"
+	else
+		bad "a fight number is off its hull"
+		grep -E 'FAIL|^popplacetest' "$LOG_DIR/popplacetest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "popplacetest did not finish"
+fi
+
 step "Hits, block and brace drawn on every ship in a fight"
 # Through the real screen, a pack of three: each ship carries its hit marks, the
 # bubble for block and the plated overlay for brace; every kind of landing
