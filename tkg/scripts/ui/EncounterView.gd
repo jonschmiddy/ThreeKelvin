@@ -512,11 +512,25 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 	_slots.visible = true
 	_ship.modulate = Color.WHITE
 
-	if _made.size() != list.size() or _slots_mode != &"fight":
+	var arrived: Array[EnemySlot] = []
+	# REINFORCEMENTS JOIN THE ROW; they do not rebuild it. Any change in the
+	# count used to clear every slot and build them all again, so when a ship
+	# answered the call the ones already fighting flew in from off screen a
+	# second time (combat polish audit, item 14). A row that only GREW keeps
+	# its slots and adds the newcomers, and only the newcomers fly in.
+	var grew := _slots_mode == &"fight" and not _made.is_empty() and list.size() > _made.size()
+	# Where the ships already here are, so they can ease to their new places
+	# when the row makes room, rather than jumping there in a frame.
+	var was: Array = []
+	if grew:
+		for sl0 in _made:
+			was.append((sl0 as EnemySlot).art.global_position.x)
+	if (_made.size() != list.size() or _slots_mode != &"fight") and not grew:
 		_slots_mode = &"fight"
 		Widgets.clear(_slots)
 		_made.clear()
-		for i in list.size():
+	if _made.size() < list.size():
+		for i in range(_made.size(), list.size()):
 			var slot := EnemySlot.new()
 			slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -528,21 +542,35 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 			slot.card_dropped.connect(on_drop)
 			slot.hovered.connect(on_hover)
 			_slots.add_child(slot)
-			# A NEW SLOT IS AN ARRIVAL. This branch runs when the count
-			# changes, which is when a fight opens and when reinforcements
-			# turn up -- both of which are ships that were not here a moment
-			# ago, so both should fly in. Nothing else needs a flag to say
-			# "the first time": the rebuild already means it.
-			#
-			# The dead keep their slots, so a kill does not change the count
-			# and the survivors are never re-flown.
-			slot.enter(float(i) * 0.09)
 			_made.append(slot)
+			arrived.append(slot)
 
 	for i in list.size():
 		var e = list[i]
 		_made[i].bind(i, e, e.intent != null and e.intent.telegraph)
+	# A NEW SLOT IS AN ARRIVAL: a fight opening, or reinforcements. Flown in
+	# AFTER the bind, because the bind sizes the slot to its ship and the
+	# entrance flies to that resting place. The dead keep their slots, so a
+	# kill does not change the count and the survivors are never re-flown.
+	for k in arrived.size():
+		arrived[k].enter(float(k) * 0.09)
+	if grew:
+		_ease_over.call_deferred(was)
 	queue_redraw()
+
+
+## The ships already in the row slide to the places a newcomer's arrival gave
+## them, measured after the row has been laid out again.
+func _ease_over(was: Array) -> void:
+	await get_tree().process_frame
+	for i in mini(was.size(), _made.size()):
+		var art := (_made[i] as EnemySlot).art
+		var d: float = float(was[i]) - art.global_position.x
+		if absf(d) < 1.0:
+			continue
+		art.position.x += d
+		var tw := art.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(art, "position:x", art.position.x - d, 0.45)
 
 ## Exactly one target highlights at a time. Each slot reports when it takes the
 ## cursor and the rest are cleared, because a slot never hears that the cursor
