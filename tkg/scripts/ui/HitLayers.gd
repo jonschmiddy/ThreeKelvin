@@ -24,6 +24,18 @@ var brace: BraceFx
 var max_hp := 1
 var _img: Image
 var _used: Rect2i
+## A LIVING CREATURE (`FaunaGuard.wants`, the kind from `FaunaMotion.kind_of`,
+## set before `setup`) takes the creature looks instead: `FaunaShield`,
+## `FaunaBrace`, `FaunaHitFx`, which draw with its motion (`motion`, handed in
+## by its slot as each cut attaches) and keep off its words (`keep`, this
+## layer's own px: its intent words and its readout). -1: a ship.
+var kind := -1
+var body: FaunaGuard.Body = null
+var motion: FaunaMotion = null
+var keep: Array = []
+## The art's own modulate (a hit's white flash), for a look that covers the
+## hide (the hardened hide), so the flash still shows on it.
+var skin_mod := Color.WHITE
 
 
 ## `img` the ship's picture as drawn now (its canvas), `used` its ink, `facing`
@@ -38,13 +50,25 @@ func setup(img: Image, used: Rect2i, seed: int, facing: int, hull_max: int, scal
 	_used = used
 	max_hp = maxi(1, hull_max)
 	# Drawn in this order: the marks, the armour over them, the bubble over both.
-	brace = BraceFx.new()
+	if FaunaGuard.wants(kind):
+		body = FaunaGuard.body(img, kind, scale)
+		var fb := FaunaBrace.new()
+		fb.body = body
+		brace = fb
+		var fh := FaunaHitFx.new()
+		fh.body = body
+		hits = fh
+		var fs := FaunaShield.new()
+		fs.body = body
+		shield = fs
+	else:
+		brace = BraceFx.new()
+		hits = ShipHitFx.new()
+		shield = ShieldFx.new()
 	brace.setup(img, used, Vector2.ZERO, seed + 3, facing)
-	hits = ShipHitFx.new()
 	hits.mark_scale = scale
 	hits.draw_marks = not bake
 	hits.setup(img, used, Vector2.ZERO, seed + 1, facing)
-	shield = ShieldFx.new()
 	shield.setup(img, used, Vector2.ZERO, seed + 2, facing)
 	for n in [hits, brace, shield]:   # marks under the armour, the bubble over both
 		var c: Control = n

@@ -281,6 +281,13 @@ func advance(dt: float) -> void:
 	var t0 := Time.get_ticks_usec()
 	t += dt
 	_strike_left = maxf(0.0, _strike_left - dt)
+	_flinch_left = maxf(0.0, _flinch_left - dt)
+	_exhale_left = maxf(0.0, _exhale_left - dt)
+	if pose > 0.0:
+		_posed = true
+	elif _posed:
+		_posed = false
+		_exhale_left = 1.1
 	if rested or not ready_to_draw:
 		cost_us = Time.get_ticks_usec() - t0
 		return
@@ -459,6 +466,21 @@ var _mat: ShaderMaterial
 var _body_tex: ImageTexture
 var _shader_tex := {}
 var _nglow := 0
+## The cut's masks, canvas-sized (`FaunaGuard.Body` reads them): the ink, its
+## lights, its spines (the calf's thin lines, the Leviathan's crystals) and the
+## Leviathan's flippers (1 the front, 2 the rear).
+var m_ink := PackedByteArray()
+var m_glow := PackedByteArray()
+var m_spine := PackedByteArray()
+var m_fin := PackedByteArray()
+## BRACED, AS A POSE (`FaunaBrace`, look B): 0 at ease, up to 1 braced. The
+## creature holds its breath, its spines stand up (two pixels, one under half)
+## with a tremor running through them, its flippers draw in. Set by its brace
+## every frame; a hit makes it flinch (`flinch`); letting go breathes out.
+var pose := 0.0
+var _flinch_left := 0.0
+var _exhale_left := 0.0
+var _posed := false
 
 
 func _cut_creature() -> void:
@@ -566,6 +588,10 @@ func _cut_creature() -> void:
 		_curl[x * 2] = 1.0
 		_curl[x * 2 + 1] = 0.0
 	_fin_cur = Vector2i.ZERO
+	m_ink = ink
+	m_glow = glow
+	m_spine = spine
+	m_fin = fin
 	_upload()
 
 
@@ -774,7 +800,7 @@ func _tick_creature(ts: float) -> void:
 			if sx != last:
 				last = sx
 				var u := clampf(float(sx - _x0) / span, 0.0, 1.0)
-				var d := _idle(u, ts)
+				var d := _posed_at(_idle(u, ts), u, sx, ts)
 				var dw: Array = d if w == 0.0 else _windup_at(u, ts)
 				for c in 6:
 					sv[c] = lerpf(d[c], dw[c], w)
@@ -862,6 +888,72 @@ func _idle(u: float, ts: float) -> Array:
 		l = 0.4 + 1.1 * p
 	var halo := maxf(0.0, l - 1.0) * 1.7 if kind == Kind.CALF else maxf(0.0, b - 0.55) * 1.8
 	return [0.0, sdy - su, su, sd, l, halo]
+
+
+## Braced (`pose`): curled (head and tail drawn up, the belly in), the breath
+## held, the spines up with a tremor through them (a strip drops a pixel now and
+## then, seeded by the step), and a hit's flinch shoves the body down a pixel
+## and the spines with it. Letting go breathes out: a deep swell, easing off.
+func _posed_at(d: Array, u: float, sx: int, ts: float) -> Array:
+	var body := 1.0 if u > 0.12 and u < 0.9 else 0.0
+	if pose <= 0.0:
+		if _exhale_left > 0.0:
+			var e := _exhale_left / 1.1
+			d[3] = maxf(float(d[3]), roundf(_px(2.0) * e) * body)
+			d[2] = maxf(float(d[2]), (1.0 if e > 0.5 else 0.0) * body)
+			d[1] = float(d[1]) - float(d[2])
+		return d
+	var step := int(floor(ts * fps() + 0.5))
+	var raise := _px(2.0) if pose > 0.25 else 1.0
+	var trem := 1.0 if posmod(sx * 7 + step * 13, 5) == 0 else 0.0
+	var fl := 1.0 if _flinch_left > 0.0 else 0.0
+	# curled: head and tail drawn up into a C, four pixels at the ends (two
+	# under half), the belly drawn in a pixel
+	var uu := (u - 0.5) * 2.0
+	var curl := -roundf(_px(5.0 if pose > 0.25 else 3.0) * uu * uu)
+	d[0] = curl + fl
+	d[1] = curl - raise + trem + fl
+	d[2] = 0.0
+	d[3] = -1.0 * body
+	return d
+
+
+## A hit while braced: a flinch for two steps.
+func flinch() -> void:
+	_flinch_left = 2.0 / fps()
+
+
+## The rest-space pixel (x, y) of the picture is shown this many pixels lower
+## (the body's swell and dip; `FaunaGuard` carries what it draws on the body).
+func off_at(x: int, y: int) -> int:
+	if not ready_to_draw or rested or kind == Kind.CUSTODIAN or x < 0 or x >= _W:
+		return 0
+	var i := x * 4
+	return _cur[i] + (_cur[i + 3] if y > _mid[x] else -_cur[i + 2])
+
+
+## The same for a spine pixel in column x.
+func spine_off_at(x: int) -> int:
+	if not ready_to_draw or rested or kind == Kind.CUSTODIAN or x < 0 or x >= _W:
+		return 0
+	return _cur[x * 4 + 1]
+
+
+## The held step's time: what is drawn now was worked out for this moment.
+func step_t() -> float:
+	return floorf(t * fps() + 1e-3) / fps()
+
+
+## What a shader needs to show a rest-space picture where this motion shows the
+## body (`FaunaGuard.PRELUDE`), or {} when it is not moving the picture.
+func shader_inputs() -> Dictionary:
+	if not ready_to_draw or rested or kind == Kind.CUSTODIAN or _mat == null:
+		return {}
+	var d := _shader_tex.duplicate()
+	d.fin_piv = _fin_piv
+	d.fin_k = Vector2(_fin_cur)
+	d.csize = Vector2(_W, _H)
+	return d
 
 
 ## The strike at u: the deep in-breath (the swell to three pixels, the spines

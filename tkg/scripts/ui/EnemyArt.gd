@@ -501,6 +501,8 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 		var mi := marks.marks()
 		if mi != null:
 			_img.blend_rect(mi, Rect2i(Vector2i.ZERO, mi.get_size()), marks.marks_at())
+		for q in marks.cut_px():
+			_img.set_pixel(int(q.x), int(q.y), Color(0, 0, 0, 0))
 	_used = _bounds if _bounds.size != Vector2i.ZERO else Rect2i(0, 0, W, H)
 
 	# And the Control shrinks to fit it. The canvas is a fixed 240x120 while a
