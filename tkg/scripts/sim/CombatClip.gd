@@ -116,6 +116,8 @@ func _run() -> void:
 		DirAccess.make_dir_recursive_absolute(_dir)
 	Router.animate_in_harness = true
 	Audio.taping = true
+	# `handoff=A|B|C`: which way a death goes into RUN ENDED (`DeathHandoff`)
+	SectorScreen.handoff_override = _arg("handoff", "")
 	if _has("hints"):
 		Hints.forced = true
 		Hints.reset()

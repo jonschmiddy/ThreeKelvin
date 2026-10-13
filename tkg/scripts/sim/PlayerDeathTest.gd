@@ -65,10 +65,13 @@ func _run() -> void:
 	_ok("animated: the explosion is played on the breakup's breaks (%d breaks)" % int(a.get("breaks", 0)),
 		a.get("listened", false) and int(a.get("breaks", 0)) > 0)
 	_ok("animated: the run's screen not up while the hull breaks", not a.get("screen_early", true))
-	var need := float(a.get("duration", 0.0)) + SectorScreen.WRECK_HOLD_S
+	# the handoff into RUN ENDED (`DeathHandoff`), as picked
+	var hand := {"A": SectorScreen.LINGER_S, "B": SectorScreen.LOWER_S + 0.18 + SectorScreen.PULL_S,
+		"C": SectorScreen.SIGNAL_S}.get(SectorScreen.DEATH_HANDOFF, 0.0) as float
+	var need := float(a.get("duration", 0.0)) + SectorScreen.WRECK_HOLD_S + hand
 	var took := float(a.get("break_to_screen", 0.0))
-	_ok("animated: the run's screen %.2f s after the break began (breakup %.2f + hold %.1f)"
-		% [took, float(a.get("duration", 0.0)), SectorScreen.WRECK_HOLD_S],
+	_ok("animated: the run's screen %.2f s after the break began (breakup %.2f + hold %.1f + handoff %.2f)"
+		% [took, float(a.get("duration", 0.0)), SectorScreen.WRECK_HOLD_S, hand],
 		took >= need - 0.1 and took <= need + 1.0)
 	_ok("animated: the wreck held on screen until then", a.get("wreck_held", false))
 
@@ -129,7 +132,7 @@ func _die(animated: bool) -> Dictionary:
 	var frames := 0
 	var break_at := -1
 	var done_at := -1
-	while frames < 900:
+	while frames < 4000 and Time.get_ticks_msec() - t0 < 15000:
 		await _tree.process_frame
 		frames += 1
 		var on_over := Router.current is GameOverScreen

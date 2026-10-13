@@ -695,8 +695,21 @@ func _close_dock() -> void:
 func show_game_over() -> void:
 	Audio.music_state(&"gameover")
 	var s := GameOverScreen.new()
-	_swap(s)
-	s.setup()
+	# THE PICTURE THE RUN ENDED ON (`DeathHandoff`): RUN ENDED is drawn over it,
+	# not over a fresh sky, with no fade of its own and no HUD (it is in the
+	# picture, dimmed with everything else). Read once.
+	var still := death_still
+	var look := death_look
+	death_still = null
+	death_look = &""
+	if still != null:
+		seamless_next = true
+	_swap(s, still == null)
+	s.setup(still, look)
+
+## Set by the fight as your ship is lost, read once by `show_game_over`.
+var death_still: Texture2D = null
+var death_look: StringName = &""
 
 func jump_to(index: int) -> void:
 	Run.jump_to(index)

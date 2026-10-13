@@ -4324,6 +4324,20 @@ func _start_death(who: int) -> void:
 ## How long the wreck is held before the run's screen.
 const WRECK_HOLD_S := 1.0
 
+## FROM THE WRECK INTO RUN ENDED (Jon: "the transition from this to this is
+## really abrupt"). Which of the three filmed ideas plays (`DeathHandoff`):
+## "A" linger and fade, "B" pull back, "C" signal lost.
+const DEATH_HANDOFF := "A"
+## A harness's pick of the three, for filming them side by side; empty in play.
+static var handoff_override := ""
+## A: how long the picture takes to darken and drain.
+const LINGER_S := 1.2
+## B: how long the camera takes to pull back.
+const PULL_S := 1.0
+## C: how long the feed takes to die.
+const SIGNAL_S := 1.3
+var _loss_carried := false
+
 ## The cut, started when the fight resolved (`_prebuild_loss`).
 var _loss_pre: Dictionary = {}
 ## Your ship's breakup, once it is playing; its last frame is the wreck held on.
@@ -4338,6 +4352,59 @@ func _prebuild_loss() -> void:
 	var n := Run.node_at().index
 	var me := Net.local_id()
 	_loss_pre = ShipLoss.prebuild(pic, ShipLoss.style_for(n, me), ShipLoss.seed_for(n, me))
+
+
+## THE WRECK INTO RUN ENDED, one of three ways (see DEATH_HANDOFF). Leaves the
+## picture it ended on with the Router, which RUN ENDED is drawn over.
+func _death_handoff() -> void:
+	if not Router.animating():
+		return
+	var look := handoff_override if handoff_override != "" else DEATH_HANDOFF
+	var fade := DeathHandoff.new()
+	add_child(fade)
+	match look:
+		"B":
+			# the hand down first: the camera holds every scene where it stands
+			var lowered := [false]
+			_lower_band(func() -> void: lowered[0] = true)
+			while not lowered[0] and is_inside_tree():
+				await get_tree().process_frame
+			if not is_inside_tree():
+				return
+			var lad_ok := ladder_ready()
+			if lad_ok:
+				ladder_cam_begin(ZoomLadder.MAP, 2, "A")
+				# your wreck rides the camera with the rest of the scene
+				if not _lad.is_empty() and loss != null and is_instance_valid(loss):
+					_loss_carried = true
+					var fixed: Vector2 = _lad.fixed
+					(_lad.scenes as Array).append([loss, loss.scale, loss.offset_left, loss.offset_top,
+						loss.offset_right, loss.offset_bottom, loss.size,
+						loss.get_global_transform().affine_inverse() * fixed,
+						loss.get_global_transform().affine_inverse()])
+			var tw := create_tween()
+			tw.tween_method(func(k: float) -> void:
+				var e := k * k * (3.0 - 2.0 * k)
+				if lad_ok:
+					ladder_cam(e)
+					ladder_chrome(clampf(k * 3.0, 0.0, 1.0))
+				fade.set_dim(clampf((k - 0.35) / 0.65, 0.0, 1.0) * 0.6),
+				0.0, 1.0, PULL_S)
+			await tw.finished
+		"C":
+			var tw2 := create_tween()
+			tw2.tween_method(fade.set_signal, 0.0, 1.0, SIGNAL_S)
+			await tw2.finished
+		_:
+			_lower_band(func() -> void: pass)
+			var tw3 := create_tween()
+			tw3.tween_method(fade.set_dim, 0.0, 1.0, LINGER_S) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+			await tw3.finished
+	if not is_inside_tree():
+		return
+	Router.death_still = await fade.still()
+	Router.death_look = &"type" if look == "C" else &"rise"
 
 
 ## Your hull breaks up; returns once it has, true if it did.
@@ -4370,6 +4437,10 @@ func _process(_delta: float) -> void:
 		var art: EnemyArt = en.art
 		if is_instance_valid(b) and is_instance_valid(art):
 			b.position = Vector2(en.base) + Vector2(0, roundf(art.position.y - float(en.y0)))
+	# Your wreck stays on your hull's place while the layout moves under it (the
+	# hand lowering), until a camera move carries it (`_death_handoff` B).
+	if loss != null and is_instance_valid(loss) and not _loss_carried and _view != null:
+		ShipLoss.place(loss, _view, _view.ship_view())
 
 
 ## THE END OF A FIGHT, once the screen has caught up with it: nothing in the
@@ -4403,6 +4474,9 @@ func _check_ending() -> void:
 			# nothing animating it is the beat alone, as it always was.
 			if await _lose_ship():
 				await _wait_s(WRECK_HOLD_S)
+				# and from the wreck into RUN ENDED, not a cut (`DeathHandoff`)
+				if is_inside_tree():
+					await _death_handoff()
 			else:
 				await _wait_s(0.7)
 			if is_inside_tree():
@@ -4484,7 +4558,8 @@ func _lower_band(then: Callable) -> void:
 	tw.tween_callback(func() -> void:
 		_finish_lower()
 		_quiet_wrap.modulate.a = 0.0)
-	tw.tween_property(_quiet_wrap, "modulate:a", 1.0, 0.18)
+	# (a lost run's band stays away: SCAN SECTOR is nothing to offer a wreck)
+	tw.tween_property(_quiet_wrap, "modulate:a", 0.0 if Run.dead else 1.0, 0.18)
 	tw.tween_callback(then)
 
 

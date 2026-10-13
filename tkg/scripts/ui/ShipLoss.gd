@@ -168,18 +168,28 @@ static func play(pre: Dictionary, host: Control, v: ShipView, at_index: int = -1
 	if b == null:
 		return null
 	var pic: Dictionary = pre.pic
-	var k := float(pic.k)
-	var lo := canvas_origin(v)
 	# The bob has moved on since the picture was taken; the hull in it is where
-	# it was then.
-	lo.y += float(v.bob_offset() - int(pic.bob)) * k
-	var parent := v.get_parent() as Control
-	var g := (parent.get_global_transform() if parent != null else Transform2D.IDENTITY) * (rest + lo)
-	var p := (host.get_global_transform().affine_inverse() * g).round()
+	# it was then. Kept from here on: the wreck does not bob.
+	pic.dy = float(v.bob_offset() - int(pic.bob)) * float(pic.k)
 	b.size = host.size
-	b.scale = Vector2(-k, k)
-	b.position = p + Vector2(float((pic.img as Image).get_width()) * k, 0.0)
+	b.scale = Vector2(-float(pic.k), float(pic.k))
+	b.set_meta(&"pic", pic)
+	place(b, host, v, rest)
 	host.add_child(b)
 	if at_index >= 0:
 		host.move_child(b, at_index)
 	return b
+
+
+## Put a playing breakup over the hull's place again: the view's layout can
+## move under it (the hand lowering once a fight is over moves every ship).
+static func place(b: ShipBreakup, host: Control, v: ShipView, rest: Vector2 = Vector2.ZERO) -> void:
+	if b == null or v == null or not b.has_meta(&"pic"):
+		return
+	var pic: Dictionary = b.get_meta(&"pic")
+	var k := float(pic.k)
+	var lo := canvas_origin(v) + Vector2(0.0, float(pic.get("dy", 0.0)))
+	var parent := v.get_parent() as Control
+	var g := (parent.get_global_transform() if parent != null else Transform2D.IDENTITY) * (rest + lo)
+	var p := (host.get_global_transform().affine_inverse() * g).round()
+	b.position = p + Vector2(float((pic.img as Image).get_width()) * k, 0.0)
