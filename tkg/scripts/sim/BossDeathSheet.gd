@@ -126,6 +126,11 @@ func _film(layer: CanvasLayer, st: int, boss: Array, player: Array) -> void:
 	stage.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	root.add_child(stage)
 	var pp := Pic.new()
+	# SIZED. A zero-size Control is dropped from the drawing the moment the
+	# shake moves its rect off the origin -- your ship blinked out on every
+	# shaken frame (Jon: "the ship disappears still").
+	pp.size = Vector2(960, 540)
+	pp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pp.tex = ImageTexture.create_from_image(player[0])
 	pp.at = (Vector2(220, 300) - Vector2((player[0] as Image).get_size()) * 0.5).round()
 	pp.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
