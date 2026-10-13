@@ -3962,6 +3962,14 @@ func _play_turn() -> void:
 				_show_burn(int(st.amount), st.cause)
 				await _wait_s(0.45)
 			&"hit":
+				# A CREATURE WINDS UP BEFORE IT FIRES (Jon, Oct 13: "windup:B"):
+				# the deep in-breath, spines up, lights flaring or running to
+				# its head, THEN the shot. Ships keep their pacing; without
+				# motion `_wait_s` waits for nothing.
+				if st.to_player and _fauna_winds_up(int(st.who)):
+					await _wait_s(FAUNA_ANTICIPATION)
+					if not is_inside_tree() or combat == null:
+						return
 				_fire_q(st)
 				await _wait_s(0.36 if st.to_player else 0.22)
 			&"act":
@@ -4195,9 +4203,11 @@ func _pop_reach(lines: int) -> float:
 
 ## The top of the fight in the fx layer: under the HUD.
 ## How high a number may rise: under the HUD, and -- for a ship in a pack's
-## front rank -- under whatever ship stands above it in the formation (its
-## block, readout and all), so a landed number never runs into the rank
-## behind. `ink` is the hull's ink in the fight layer's coordinates.
+## front rank -- under whatever ship stands behind and above it in the
+## formation (its words, hull and plate, wherever they come over the
+## numbers' width: the ship behind is set into the front ships' shoulders,
+## `EncounterView._pack_shoulders`), so a landed number never runs into the
+## rank behind. `ink` is the hull's ink in the fight layer's coordinates.
 func _pop_limit(who: int = -1, ink: Rect2 = Rect2()) -> float:
 	var inv := _view.fx.get_global_transform().affine_inverse()
 	var top_g := _view.get_global_rect().position.y
@@ -4212,11 +4222,18 @@ func _pop_limit(who: int = -1, ink: Rect2 = Rect2()) -> float:
 		var k := 0
 		while _view.slot(k) != null:
 			var other := _view.slot(k)
-			if other != mine and other.visible:
-				var g := other.get_global_rect()
-				var overlap := g.position.x < span.end.x and g.end.x > span.position.x
-				if overlap and mine != null and g.end.y <= mine.get_global_rect().position.y + 0.5:
-					top_g = maxf(top_g, g.end.y)
+			if other != mine and other.visible and mine != null \
+					and other.get_global_rect().position.y < mine.get_global_rect().position.y - 0.5:
+				var oi := other.ink_rect()
+				var parts: Array[Rect2] = [other.intent_rect_global(), other.readout_rect_global(),
+					Rect2(other.get_global_rect().position + oi.position, oi.size)]
+				# and its shield's oval, up or not
+				for p in other.rooms(other.art.draw_scale):
+					if p[0] == &"oval":
+						parts.append(Rect2(other.get_global_rect().position + (p[1] as Rect2).position, (p[1] as Rect2).size))
+				for g in parts:
+					if g.size.x > 0.0 and g.position.x < span.end.x and g.end.x > span.position.x:
+						top_g = maxf(top_g, g.end.y)
 			k += 1
 	return (inv * Vector2(0.0, top_g)).y + 2.0
 
@@ -4429,6 +4446,11 @@ func _death_style(who: int) -> int:
 var _prebuilt: Dictionary = {}
 
 func _prebuild_death(who: int) -> void:
+	# A creature's or the Custodian's own movement comes back to its still
+	# picture first (`FaunaMotion.settle`, four frames at most), so the cut
+	# below, ten-odd frames away, is cut from what is on screen.
+	if _view.slot(who) != null:
+		_view.slot(who).fauna_settle()
 	if not Router.animating():
 		return
 	var sl := _view.slot(who)
@@ -4454,6 +4476,18 @@ func _prebuild_death(who: int) -> void:
 		if marked:
 			held.w = ShipBreakup.wreck_image(img, used, seed, boss, style))
 	_prebuilt[who] = {task = task, held = held, scale = sl.art.draw_scale}
+
+
+## How long a creature winds up before its shot leaves.
+const FAUNA_ANTICIPATION := 0.35
+
+## A creature about to fire, with its own movement on screen: start its
+## wind-up (`FaunaMotion.strike`, held through the shot) and say so.
+func _fauna_winds_up(who: int) -> bool:
+	var fslot := _view.slot(who) if _view != null else null
+	if fslot == null or fslot.fauna_motion() == null or not Router.animating():
+		return false
+	return fslot.fauna_strike()
 
 
 ## The ship comes apart where it stood, cut out of its own picture.

@@ -1425,10 +1425,14 @@ class AreaView extends Control:
 				if OptionTable.system_has_tag(node, &"salvage"):
 					return &"derelict"
 				return &"beacon"
-			MapGen.NodeType.CORE:
-				return &"core"
-			MapGen.NodeType.PULSAR:
-				return &"pulsar"
+			# THE CORE AND A PULSAR ARE THE SYSTEM'S OWN STAR, and LOCAL's sky
+			# already draws that star (`LocalSky`: the core's hole is the black
+			# hole every style shares, `CoreLegacy`; the pulsar and its beams).
+			# A place picture here drew it a second time, beside your ship --
+			# Jon, Oct 13, at the core: "why are there two black holes lololool".
+			# `_core` and `_pulsar` stay, for `-- sheet=PlaceSheet`.
+			MapGen.NodeType.CORE, MapGen.NodeType.PULSAR:
+				return &""
 			# Where you start is empty space. Drawing a marker here would put an
 			# object in the one sector that is meant to have nothing in it.
 			MapGen.NodeType.START:

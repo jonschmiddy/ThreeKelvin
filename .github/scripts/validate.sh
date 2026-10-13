@@ -648,6 +648,39 @@ else
 	bad "packlayouttest did not finish"
 fi
 
+step "One black hole at the core, one pulsar at a pulsar"
+# LOCAL's sky draws the system's own star; the encounter's place picture must
+# not draw the core's hole or a pulsar a second time (Jon, Oct 13: "why are
+# there two black holes"). Every other system keeps its place picture.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot oneholetest 120 --headless --path "$PROJECT" -- sheet=OneHoleTest; then
+	if grep -qE '^oneholetest: PASS' "$LOG_DIR/oneholetest.log"; then
+		ok "the core and the pulsars are drawn once, every other place keeps its picture"
+	else
+		bad "a star is drawn twice on LOCAL, or a place lost its picture"
+		grep -E 'FAIL|^oneholetest' "$LOG_DIR/oneholetest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "oneholetest did not finish"
+fi
+
+step "The Custodian and the megafauna move, and are still for their deaths"
+# FaunaMotion, headless: the cut at full size and from a half sheet, idle,
+# the wind-up, and settle() at rest in four frames on the picture it was cut
+# from; then the real fight, animated, on each of the three: the art hands its
+# picture to the motion, the bob is the motion's, Charging and a creature's
+# strike wind it up, a kill is at rest when the breakup is cut, and the dead
+# slot is the art's wreck again. Reduced motion has none of it.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot faunatest 300 --headless --path "$PROJECT" -- sheet=FaunaTest; then
+	if grep -qE '^faunatest: PASS' "$LOG_DIR/faunatest.log"; then
+		ok "the three move, wind up and come to rest for their deaths"
+	else
+		bad "a creature's or the Custodian's motion is wrong"
+		grep -E 'FAIL|^faunatest' "$LOG_DIR/faunatest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "faunatest did not finish"
+fi
+
 step "Every event opens and resolves on LOCAL"
 # The one place a choice is taken now: LOCAL's event band. Every authored
 # option is opened and every choice resolved through it, in all three layouts.

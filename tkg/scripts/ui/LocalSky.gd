@@ -98,6 +98,31 @@ const TILT := 0.07
 const SUN_K := {"ORDINARY": 0.62, "RED": 0.44, "BLUE": 0.52}
 const PULSAR_K := 0.42
 const HOLE_K := 0.30
+## THE CORE'S HOLE IS THE BACKDROP (Jon, Oct 13: "shouldn't the black hole be
+## bigger in the background though?", then "can this be more large and
+## centered in the middle back? i'm just worried that the custodian is going to
+## sit right on the black hole and be weird"). At the core the system's star --
+## the shared hole (`CoreLegacy`, its photon table traced once a process) --
+## is drawn big behind everything, in the scene with the cloud so its lens
+## bends it, on the far star's depth (all but still as the camera moves). Where
+## and how big is `core_look`, Jon's pick "a" (Oct 13; `CORE_LOOKS`: its
+## centre in the game frame and its disc's outer edge in px):
+##   a  centred, large: the middle of the play, the edge 250 px out;
+##   b  centred, huge: the edge 330 px out, its glow off the play's top and
+##      bottom, the shadow whole;
+##   c  centred, set back high: as a, raised so the shadow is in the upper
+##      middle and the ships stand on its lower glow.
+## Measured in the Custodian's fight (`-- sheet=CoreFightFilm`): its picture
+## stands on the black in none of them (tetra 0 px in each; take 1, laid on
+## the same place, 0 / 698 / 52 px, 0 / 3.4 / 0.3 %) -- the shadow is between
+## the two ships, the Custodian on the disc's right glow.
+## There is no hole on the band and no world drawn near at the core.
+static var core_look := &"a"
+const CORE_LOOKS := {
+	&"a": [Vector2(480.0, 272.0), 250.0],
+	&"b": [Vector2(480.0, 272.0), 330.0],
+	&"c": [Vector2(480.0, 176.0), 250.0],
+}
 const MIN_WORLD_R := 3.0
 ## HOW FAR OUT THE SHIP IS: at REF_K of the way to the system's edge the star is
 ## drawn at SUN_K; nearer bigger, further smaller, as (that distance over the
@@ -195,6 +220,10 @@ var _ready_sky := false
 var _palette_built := false
 var _frame := 0
 var _sun := Vector2(480.0, HORIZON)
+## where the cloud is laid round: the star, but at the core where the band's
+## star would be (it is baked round that point; slid down with the hole its
+## edge came into view)
+var _cloud_sun := Vector2(480.0, HORIZON)
 var _s := 0.5
 var _sd := 0.0
 var _tint := Vector3.ONE
@@ -814,7 +843,7 @@ func star_k() -> float:
 	if layout.star == SystemLayout.StarKind.PULSAR:
 		return PULSAR_K * f
 	if layout.star == SystemLayout.StarKind.CORE:
-		return HOLE_K * f
+		return float(_core_place().R) / 116.0
 	return float(SUN_K.get(kind, 0.6)) * f
 
 
@@ -846,9 +875,31 @@ func band_origin() -> Vector2:
 	return _block_round(_sun - cam * F_BAND)
 
 
+## THE CORE'S HOLE, by `core_look`: {at (game frame px), R (its disc's outer
+## edge, px)}.
+func _core_place() -> Dictionary:
+	var v: Array = CORE_LOOKS.get(core_look, CORE_LOOKS[&"a"])
+	return {at = v[0], R = float(v[1])}
+
+
+## How big the core's black shadow is drawn, px (`CoreLegacy`: the shadow is a
+## third of the disc's outer edge).
+func core_shadow_r() -> float:
+	return 116.0 * star_k() / 3.0
+
+
+## WHERE THE CORE'S HOLE IS DRAWN, in the game frame's pixels (the sky's
+## picture is laid in the frame, `_place_box`), generously: its
+## disc's outer edge (116 px a unit of `star_k`) across, the lensed arcs above
+## and below it. For the box checks (`-- sheet=OneHoleTest`).
+func hole_box() -> Rect2:
+	var R := 116.0 * star_k()
+	return Rect2(origin() - Vector2(R, R * 0.75), Vector2(R * 2.0, R * 1.5))
+
+
 ## the cloud's slide: its sky pixel CC at the star, and its own depth
 func neb_off() -> Vector2:
-	return _block_round(_sun - CC - cam * F_CLOUD)
+	return _block_round(_cloud_sun - CC - cam * F_CLOUD)
 
 
 func pose(x: float, fps: float = 8.0) -> float:
@@ -1347,8 +1398,15 @@ func _situate() -> void:
 	_dk = REF_K * (layout.edge + 20.0) / orbit_d
 	# A BIG STAR rides up into the top of the view, cut by it, blazing
 	if layout.star != SystemLayout.StarKind.PULSAR:
-		var R := float(layout.star_r) * star_k() * (0.3 if layout.star == SystemLayout.StarKind.CORE else 1.0)
+		# (the core's: the size it had on the band, for the cloud's anchor)
+		var sk := HOLE_K * clampf(pow(_dk, SIZE_POW), SIZE_LO, SIZE_HI) 			if layout.star == SystemLayout.StarKind.CORE else star_k()
+		var R := float(layout.star_r) * sk * (0.3 if layout.star == SystemLayout.StarKind.CORE else 1.0)
 		_sun.y = HORIZON - roundf(clampf(R - 20.0, 0.0, 36.0) / 2.0) * 2.0
+	# the cloud stays where look A has it: it is baked round that point, and
+	# slid down with the hole its edge came into the view
+	_cloud_sun = _sun
+	if layout.star == SystemLayout.StarKind.CORE:
+		_sun = _core_place().at
 
 
 ## The near things' own picture and what is in it.
@@ -1358,6 +1416,10 @@ func _build_near() -> void:
 	_near_world = null
 	near_storm = {}
 	if orbit_target < 0:
+		return
+	# AT THE CORE THE HOLE IS THE BACKDROP (`_core_place`): a rock of the core's
+	# drawn near as well would stand in front of it, on your ship's side
+	if layout.star == SystemLayout.StarKind.CORE:
 		return
 	var tgt: SystemLayout.Body = layout.bodies[orbit_target]
 	_near_vp = SubViewport.new()
