@@ -558,6 +558,23 @@ else
 	bad "fightcounttest did not finish"
 fi
 
+step "A kill moves nothing"
+# Jon: "The enemy dips down and then pops up after the death animation?" A
+# seeded pack of three (half) and a pair (full size), the first ship killed
+# with the animations on: no slot or resting place moves from the kill to a
+# second after the breakup, the breakup stands where the ship rests, and its
+# last frame is the wreck the slot draws, pixel for pixel.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot killholdtest 180 --headless --path "$PROJECT" -- sheet=KillHoldTest; then
+	if grep -qE '^killholdtest: PASS' "$LOG_DIR/killholdtest.log"; then
+		ok "a kill leaves the pack where it stood"
+	else
+		bad "a kill moved the pack, or the breakup and its wreck disagree"
+		grep -E 'FAIL|^killholdtest' "$LOG_DIR/killholdtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "killholdtest did not finish"
+fi
+
 step "Nothing in a fight sits on anything else"
 # Jon, on three enemies piled on each other: no ship, wreck, name, hull bar,
 # chips or intent may overlap another enemy's, or yours. Every pair and triple

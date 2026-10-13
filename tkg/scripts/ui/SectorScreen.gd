@@ -4278,12 +4278,16 @@ func _start_death(who: int) -> void:
 	_view.add_child(b)
 	# Under the shots and the numbers, over everything else.
 	_view.move_child(b, _view.fx.get_index())
-	var canvas := art.get_global_rect().position \
-		+ (art.size - _canvas_size(art)) * 0.5
+	# WHERE THE SHIP STANDS AT REST, not where a hit's shake or the bob has it
+	# this frame: the canvas's corner at the art's resting place in its holder.
+	# The breakup then rides the bob from that rest, and hands back to the
+	# wreck drawn at that same rest, pixel for pixel.
+	var rest := sl.holder_rect().position + sl._art_base
+	var canvas := rest + (art.size - _canvas_size(art)) * 0.5
 	var base := (_view.get_global_transform().affine_inverse() * canvas).round()
-	b.position = base
+	b.position = base + Vector2(0, roundf(art.position.y - sl._art_base.y))
 	sl.hide_art(true)
-	var entry := {b = b, art = art, y0 = art.position.y, base = base}
+	var entry := {b = b, art = art, y0 = sl._art_base.y, base = base}
 	_breakups.append(entry)
 	# SOUND ON EACH VISIBLE BREAK, never on the resolution (Jon's rule). The
 	# death styles' own sounds are not made yet: `moment` names every event a

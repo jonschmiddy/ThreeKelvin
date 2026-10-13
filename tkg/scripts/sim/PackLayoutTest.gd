@@ -210,9 +210,17 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 	if scr.get("pack_layout") == &"B" and n >= 2:
 		var blocks: Array[Rect2] = []
 		for k in n:
+			var sl: EnemySlot = view.slot(k)
 			var u := Rect2()
-			for b in _slot_boxes(view.slot(k)):
+			for b in _slot_boxes(sl):
 				u = b[1] if u.size == Vector2.ZERO else u.merge(b[1])
+			# the block the slot keeps for the whole fight (its readout's room
+			# reserved), where the build has one; every box drawn lies inside it
+			if sl.has_method("block"):
+				var r: Rect2 = sl.call("block", sl.art.draw_scale)
+				var kept := Rect2(sl.get_global_rect().position + r.position, r.size)
+				_ok("%s: ship %d's drawn readout inside its kept block" % [tag, k], kept.grow(1.0).encloses(u))
+				u = kept
 			blocks.append(u)
 		var near: Array[float] = []
 		for a in n:

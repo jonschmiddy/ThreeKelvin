@@ -427,6 +427,8 @@ func show_wrecks(wrecks: Array, on_open: Callable) -> void:
 			slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
 			slot.claim = _claim_hot
+			# a wreck says no intent: its readout keeps no room for one
+			slot.reserve_intent = false
 			_slots.add_child(slot)
 			_made.append(slot)
 	for i in wrecks.size():
@@ -667,7 +669,6 @@ func _layout_pack() -> void:
 	var area := _pack_area()
 	var mid := _slots.size.x * 0.5
 	var s := 0.5 if live.size() >= PACK_HALF_AT else 1.0
-	_pack_blocks = {}
 	var plan := {}
 	if pack_layout == &"C":
 		if s == 1.0:
@@ -686,6 +687,7 @@ func _layout_pack() -> void:
 		# the size steps at once, at the start of the move
 		sl.apply_scale(float(u.scale))
 		sl.set_side(bool(u.side))
+		sl.reserve_readout(u.rect.size)
 		var r: Rect2 = u.rect
 		sl.size = r.size
 		var at := r.position.round()
@@ -710,27 +712,6 @@ func _layout_pack() -> void:
 	# the ranks behind are drawn first, farthest first, under the ones in front
 	for k in back.size():
 		_slots.move_child(back[k], k)
-	# measured again next frame: once laid out, the drawn blocks may differ
-	# from the ones spaced (a scale or a readout changed), and if they do the
-	# formation is spaced once more on what is drawn
-	if not _pack_blocks.is_empty():
-		_recheck_pack.call_deferred(s)
-
-
-func _recheck_pack(s: float) -> void:
-	await get_tree().process_frame
-	var off := false
-	for sl in _pack_blocks.keys():
-		if not is_instance_valid(sl):
-			continue
-		var d: Rect2 = (sl as EnemySlot).drawn_block(s)
-		if d.size != Vector2.ZERO and not d.is_equal_approx(_pack_blocks[sl]):
-			off = true
-	if off and _pack_pass < PACK_PASSES:
-		_pack_pass += 1
-		_queue_pack()
-	else:
-		_pack_pass = 0
 
 
 ## One row, every ship at `s`. Empty if it does not fit (unless `force`).
@@ -769,23 +750,13 @@ func _pack_row(live: Array[EnemySlot], s: float, area: Rect2, mid: float, force:
 const PACK_GAP_MIN := 12.0
 const PACK_GAP_MAX := 48.0
 const PACK_GAP_WRECKS := 12.0
-## The blocks the last formation was spaced with, and how many passes in a row
-## have re-measured them: a pass that finds the drawn blocks differ from what it
-## spaced lays out once more (at most PACK_PASSES), so the gaps are between what
-## is drawn.
-var _pack_blocks: Dictionary = {}
-var _pack_pass := 0
-const PACK_PASSES := 3
 
 func _pack_ranks(live: Array[EnemySlot], s: float, area: Rect2, mid: float) -> Dictionary:
 	var units := {}
 	var blocks := {}
 	for sl in live:
 		units[sl] = sl.unit(s, false)
-		# as drawn, once it has been, else as predicted
-		var drawn := sl.drawn_block(s)
-		blocks[sl] = drawn if drawn.size != Vector2.ZERO and (sl.size - units[sl]).length() < 0.5 else sl.block(s)
-	_pack_blocks = blocks
+		blocks[sl] = sl.block(s)
 	var n := live.size()
 	var pers: Array = [n, 1] if n <= 2 else range(2, n + 1)
 	var best := {}

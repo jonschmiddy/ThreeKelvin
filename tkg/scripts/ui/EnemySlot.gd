@@ -204,7 +204,10 @@ func _init() -> void:
 	# sit directly under the ship instead of being shoved to the floor of a slot
 	# that happens to be tall. A health bar half a screen below its ship is a
 	# health bar you have to go looking for.
-	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	# TOP-ALIGNED, with the intent's lines reserved (`reserve_readout`), so the
+	# ship stands at the same height whatever its readout says -- a kill or a
+	# new intent changes the words, never where the hull is.
+	col.alignment = BoxContainer.ALIGNMENT_BEGIN
 	art = EnemyArt.new()
 	# No custom_minimum_size here. EnemyArt already declares its own native
 	# W x H and draws the ship at 1:1 inside it — overriding that with a width
@@ -299,10 +302,11 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	art.set_enemy(e, telegraphed, shown_hp, true, death_style)
 	_fit_holder()
 	art.modulate = Color(0.4, 0.4, 0.45) if _dead else Color.WHITE
+	_reserve_for(e.template)
 	_intent.text = "" if _dead or e.intent == null else e.intent.name.to_upper()
-	_intent.visible = _intent.text != ""
+	_intent.visible = reserve_intent or _intent.text != ""
 	_intent_text.text = "" if _dead or e.intent == null else e.intent.describe()
-	_intent_text.visible = _intent_text.text != ""
+	_intent_text.visible = reserve_intent or _intent_text.text != ""
 	_name.text = e.template.name.to_upper()
 	_name.add_theme_color_override("font_color",
 		Color("#4a5c72") if _dead else UITheme.THEM)
@@ -453,85 +457,131 @@ func apply_scale(s: float) -> void:
 	_fit_holder()
 
 
+## THE READOUT'S ROOM IS RESERVED FOR THE FIGHT. Whatever this kind can say --
+## every move in its loop and its pool, and a set piece's escape -- has its
+## lines kept above the hull, and the rows under it (name, brace and hull bars,
+## number, one row of chips) are counted whether showing or not. So the slot is
+## one size from the opening to the wreck: a kill or an intent changes words,
+## never the formation (Jon: "the enemy dips down and then pops up"). LOCAL's
+## wreck rows say no intent and reserve none (`reserve_intent` false).
+var reserve_intent := true
+var _res_names: PackedStringArray = PackedStringArray()
+var _res_texts: PackedStringArray = PackedStringArray()
+
+func _reserve_for(t: EnemyTemplate) -> void:
+	_res_names = PackedStringArray()
+	_res_texts = PackedStringArray()
+	var moves: Array = []
+	moves.append_array(t.loop)
+	moves.append_array(t.pool)
+	if t.miniboss:
+		moves.append(Combat.escape_intent())
+	for it in moves:
+		_res_names.append((it as IntentData).name.to_upper())
+		_res_texts.append((it as IntentData).describe())
+
+func _str_w(l: Label, text: String) -> float:
+	var f := l.get_theme_font("font")
+	if f == null:
+		return float(text.length()) * 6.0
+	return f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, l.get_theme_font_size("font_size")).x
+
+static var _chip_h := -1.0
+
+static func _chip_row_h() -> float:
+	if _chip_h < 0.0:
+		var c := Widgets.chip("block 99", Color("#3a4a6e"))
+		_chip_h = c.get_combined_minimum_size().y
+		c.free()
+	return _chip_h
+
+## The readout's widths and lines at slot width `w`: the widest line, the
+## intent's own width, and the lines the longest intent text takes.
+func _reserved(w: float) -> Dictionary:
+	var widest := float(BAR_W)
+	widest = maxf(widest, _text_w(_name))
+	for t in ["SALVAGE", "WRECKED", "STRIPPED", _hp.text]:
+		widest = maxf(widest, _str_w(_hp, t))
+	var names := 0.0
+	var texts := 0.0
+	if reserve_intent:
+		for t in _res_names:
+			names = maxf(names, _str_w(_intent, t))
+		for t in _res_texts:
+			texts = maxf(texts, _str_w(_intent_text, t))
+	widest = maxf(widest, names)
+	if chips.visible and chips.get_child_count() > 0:
+		widest = maxf(widest, chips.get_combined_minimum_size().x)
+	return {widest = widest, text = texts}
+
 ## THE SLOT'S SIZE AT A SCALE AND A MODE, worked out rather than read off the
 ## column, so the layout can try a size before drawing at it: the ship's box at
-## `s` (its own picture's size, plus the holder's 6), the readout in its lines,
-## under the ship or (`beside`) to its near side.
+## `s` (its own picture's size, plus the holder's 6), and the readout's reserved
+## room, under the ship or (`beside`) to its near side.
 func unit(s: float, beside: bool) -> Vector2:
 	# drawn at `s` already: the holder it really has; else what it will have
 	var ship := art.custom_minimum_size if art.full_ink == Vector2i.ZERO \
 		or is_equal_approx(art.draw_scale, s) \
 		else Vector2(art.half_ink if s < 1.0 else art.full_ink) + Vector2(6, 6)
 	var lh := _name.get_minimum_size().y
-	var parts := 0
-	var lab_h := 0.0
-	var w_it := 0.0
-	var widest := float(BAR_W)
-	for l: Label in [_intent, _name, _hp]:
-		if l.visible and l.text != "":
-			widest = maxf(widest, _text_w(l))
-			lab_h += lh
-			parts += 1
-	if _intent_text.visible and _intent_text.text != "":
-		w_it = _text_w(_intent_text)
-		parts += 1
-	var bars_h := _bars.get_combined_minimum_size().y
-	lab_h += bars_h
-	parts += 1
-	if chips.visible and chips.get_child_count() > 0:
-		widest = maxf(widest, chips.get_combined_minimum_size().x)
-		lab_h += chips.get_combined_minimum_size().y
-		parts += 1
+	var r := _reserved(0.0)
+	var widest: float = r.widest
+	var it_w: float = r.text
+	# under the hull: name, brace and hull bars, number, a row of chips
+	# (a wreck on LOCAL has no brace and carries nothing: just its name, its
+	# empty bar and its word)
+	var below := lh + 1.0 + float(EnemySlot.BracePips.CELL.y) + 1.0 + 6.0 + 1.0 + lh + 1.0 + _chip_row_h() \
+		if reserve_intent else lh + 1.0 + 6.0 + 1.0 + lh
 	if beside:
-		var lw := maxf(widest, w_it)
-		if w_it > 0.0:
-			lab_h += lh
-		lab_h += float(maxi(0, parts - 1))
+		var lw := maxf(widest, it_w)
+		var lab_h := below + ((lh + 1.0) * 2.0 if reserve_intent else 0.0)
 		return Vector2(lw + 8.0 + ship.x, maxf(ship.y, lab_h))
 	var w := maxf(ship.x, widest)
-	if w_it > 0.0:
-		w = maxf(w, minf(w_it, maxf(w, WRAP_W)))
-		lab_h += lh * ceilf(w_it / w)
-	return Vector2(ceilf(w), ship.y + lab_h + float(parts))
+	var above := 0.0
+	if reserve_intent:
+		if it_w > 0.0:
+			w = maxf(w, minf(it_w, maxf(w, WRAP_W)))
+		w = ceilf(w)
+		above = lh + 1.0 + lh * float(_lines(it_w, w)) + 1.0
+	return Vector2(ceilf(w), above + ship.y + 1.0 + below)
+
+## How many lines an intent text of width `tw` takes in a slot `w` wide, with
+## room for where its words break.
+static func _lines(tw: float, w: float) -> int:
+	return maxi(1, int(ceil(tw * 1.15 / maxf(1.0, w))))
+
+## Hold the readout to the room `unit` reserved, for a slot `u`: the intent's
+## lines take their full height whatever they say, so the hull below them
+## never moves.
+func reserve_readout(u: Vector2) -> void:
+	var lh := _name.get_minimum_size().y
+	if reserve_intent:
+		var r := _reserved(u.x)
+		_intent.custom_minimum_size = Vector2(0, lh)
+		_intent_text.custom_minimum_size = Vector2(0, lh * float(_lines(float(r.text), u.x)))
+		_intent.visible = true
+		_intent_text.visible = true
+	else:
+		_intent.custom_minimum_size = Vector2.ZERO
+		_intent_text.custom_minimum_size = Vector2.ZERO
+		_intent.visible = _intent.text != ""
+		_intent_text.visible = _intent_text.text != ""
 
 
-## THE BLOCK YOU SEE inside the slot at `s` (readout under the ship): the
-## ship's own ink and every line of its readout, without the holder's 3 px of
-## margin round the ink. What the formation spaces evenly (Jon: "evenly spaced
-## around each other"), so a gap is a gap between things drawn, not between
-## boxes.
+## THE BLOCK inside the slot at `s` (readout under the ship): the ship's own ink
+## and the readout's reserved room, without the holder's 3 px of margin round
+## the ink. What the formation spaces evenly (Jon: "evenly spaced around each
+## other"); every line it can show lies inside it.
 func block(s: float) -> Rect2:
 	var u := unit(s, false)
-	var ink := art.custom_minimum_size - Vector2(6, 6) if art.full_ink == Vector2i.ZERO 		else Vector2(art.half_ink if s < 1.0 else art.full_ink)
-	var labels := float(BAR_W)
-	for l: Label in [_intent, _name, _hp]:
-		if l.visible and l.text != "":
-			labels = maxf(labels, _text_w(l))
-	if _intent_text.visible and _intent_text.text != "":
-		labels = maxf(labels, minf(_text_w(_intent_text), u.x))
-	if chips.visible and chips.get_child_count() > 0:
-		labels = maxf(labels, chips.get_combined_minimum_size().x)
+	var ink := art.custom_minimum_size - Vector2(6, 6) if art.full_ink == Vector2i.ZERO \
+		else Vector2(art.half_ink if s < 1.0 else art.full_ink)
+	var r := _reserved(u.x)
+	var labels: float = maxf(float(r.widest), minf(float(r.text), u.x))
 	var w := minf(u.x, maxf(ink.x, labels))
-	var said := (_intent.visible and _intent.text != "") or (_intent_text.visible and _intent_text.text != "")
-	var top := 0.0 if said else 3.0
-	return Rect2(round((u.x - w) * 0.5), top, w, u.y - top)
-
-
-## The block as it is actually drawn now, in the slot's own coordinates: the
-## union of `boxes()`. Zero until the slot has been laid out at `s` with its
-## readout under the ship; the formation prefers it to `block`'s prediction
-## once it exists, since a wreck's scattered chunks or a label's own width can
-## differ from the prediction by a few pixels.
-func drawn_block(s: float) -> Rect2:
-	if side or not is_inside_tree() or not is_equal_approx(art.draw_scale, s):
-		return Rect2()
-	var u := Rect2()
-	for b in boxes():
-		var r: Rect2 = b[1]
-		u = r if u.size == Vector2.ZERO else u.merge(r)
-	if u.size == Vector2.ZERO:
-		return Rect2()
-	return Rect2(u.position - get_global_rect().position, u.size)
+	var top := 0.0 if reserve_intent else 3.0
+	# (the column centres the holder by floor, as a container does)
+	return Rect2(floorf((u.x - w) * 0.5), top, w, u.y - top)
 
 
 ## THE READOUT BESIDE THE SHIP, or under it (the default). Layout C stacks a

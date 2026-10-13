@@ -157,6 +157,27 @@ func _shoot(tree: SceneTree, ids: Array, out: String) -> Dictionary:
 						break
 			await RenderingServer.frame_post_draw
 			gv.get_texture().get_image().save_png("%s/f_%04d.png" % [dir, f])
+			# where every slot and its art stand this frame (`track.jsonl`)
+			var sc2 = Router.current
+			var v2: EncounterView = sc2.get("_view") if sc2 != null else null
+			if v2 != null:
+				var row := {"f": f, "slots": []}
+				var k := 0
+				while v2.slot(k) != null:
+					var sl: EnemySlot = v2.slot(k)
+					var ag := sl.art.get_global_transform() * Vector2.ZERO
+					row.slots.append([k, sl.get_global_rect().position.x, sl.get_global_rect().position.y,
+						ag.x, ag.y, sl.size.x, sl.size.y, sl.art.self_modulate.a, str(sl.get("_art_holder").size), str(sl._art_base), str(sl.art.custom_minimum_size), str(sl.art.ink_rect()), str(sl.art.used_rect())])
+					k += 1
+				var bk: Array = []
+				for c in v2.get_children():
+					if c is ShipBreakup:
+						bk.append([(c as Control).global_position.x, (c as Control).global_position.y])
+				row["breakups"] = bk
+				var tf := FileAccess.open("%s/track.jsonl" % dir, FileAccess.READ_WRITE if FileAccess.file_exists("%s/track.jsonl" % dir) else FileAccess.WRITE)
+				tf.seek_end()
+				tf.store_line(JSON.stringify(row))
+				tf.close()
 		return {"name": name, "ids": ids, "film": film}
 	for i in int(_arg("wait", "150")):
 		await RenderingServer.frame_post_draw
