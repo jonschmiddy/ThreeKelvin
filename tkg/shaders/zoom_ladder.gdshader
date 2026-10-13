@@ -67,6 +67,8 @@ uniform vec3 hole = vec3(0.0);
 // THE SIDE BAR'S RECT (screen px; z 0 for none), drawn by `SideSwap` from the
 // swap on: the held picture leaves it alone
 uniform vec4 side = vec4(0.0);
+// and the screens' toolbar row along the top (`SideSwap` again)
+uniform vec4 side2 = vec4(0.0);
 
 float bayer4(vec2 q) {
 	ivec2 i = ivec2(mod(q, 4.0));
@@ -230,6 +232,9 @@ void fragment() {
 		}
 	}
 	if (side.z > 0.0 && in_rect(rect_pos + UV * rect_size, side)) {
+		COLOR = vec4(0.0);
+	}
+	if (side2.z > 0.0 && in_rect(rect_pos + UV * rect_size, side2)) {
 		COLOR = vec4(0.0);
 	}
 }

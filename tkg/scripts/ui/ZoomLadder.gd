@@ -399,8 +399,9 @@ var _ui_u := 0.0
 ## THE SIDE BAR'S SWAP (`_side_begin`), and the old side bar's rect (viewport px)
 var side_swap: SideSwap = null
 var _side_old := Rect2()
-## and the HUD's tabs' decode (`_tabs_begin`)
-var tab_swap: SideSwap = null
+## and the screen's own toolbar along its top (`ladder_bar`), the same way
+var bar_swap: SideSwap = null
+var _bar_old := Rect2()
 ## ended by a press or a key: anything still decoding ends with it
 var _cut := false
 ## THE SIDE BAR'S LOOK, one of `SIDE_LOOKS` (Jon picks; `SideSwap` draws each):
@@ -408,7 +409,9 @@ var _cut := false
 ## `-- side=<letter>` or `force_side_look` for a harness.
 const SIDE_LOOKS := ["A", "B", "C", "D", "E", "F"]
 ## Jon picked E (Oct 13), "and let's have the sector and starchart buttons at
-## the top also decode during the transition" (`_tabs_begin`).
+## the top also decode during the transition" -- the chart's toolbar (LAYER,
+## its pips, CORE, the view toggles) and the map's (DANGER), not the HUD's tabs
+## ("I meant these buttons, not the top left buttons"): `ladder_bar`.
 const SIDE_LOOK := "E"
 static var _side_force := ""
 
@@ -544,12 +547,11 @@ static func busy() -> bool:
 	return active != null and is_instance_valid(active)
 
 
-## The distance the HUD's tabs light: the screen up (-1 for one that is none of
-## the four). It lit where a move was going at the click; now the tabs decode
-## with the side bar (Jon, Oct 13), so the old tab stays lit until the swap and
-## the decode hands its highlight over to the new one as it resolves
-## (`_tabs_begin`).
+## The distance the HUD's tabs light: where a move under way is going, or the
+## screen up (-1 for one that is none of the four).
 static func lit_rank() -> int:
+	if busy() and active.r_new >= 0:
+		return active.r_new
 	return rank_of(Router.current)
 
 
@@ -643,6 +645,9 @@ static func preroll(target: int, then: Callable) -> bool:
 	var sd := side_of(cur)
 	if sd != null and sd.is_visible_in_tree():
 		lad._side_old = sd.get_global_rect()
+	var br := bar_of(cur)
+	if br != null and br.is_visible_in_tree():
+		lad._bar_old = br.get_global_rect()
 	if lad._pre_k <= 0.0 and not chrome:
 		active = null
 		lad.queue_free()
@@ -773,15 +778,6 @@ static func capture(o: Control, n: Control) -> void:
 			lad.phase = Phase.FADE_HOLD
 			lad._held_frames = 0
 			lad._waited = 0.0
-			# (the tabs decode here too: the frame as it was, read once)
-			var vp := lad.get_viewport()
-			var im: Image = null
-			if vp != null and vp.get_texture() != null and DisplayServer.get_name() != "headless":
-				im = vp.get_texture().get_image()
-			if im == null or im.is_empty():
-				im = Image.create(960, 540, false, Image.FORMAT_RGBA8)
-			lad._tex = ImageTexture.create_from_image(im)
-			lad._tabs_begin_at_swap()
 			return
 	elif busy():
 		active.finish_now()
@@ -1245,40 +1241,52 @@ func _hold() -> void:
 ## move (A, B) or its own short length (C to F). The held picture leaves that
 ## rect alone once it is drawing (`side` in the shader).
 func _side_begin() -> void:
-	_tabs_begin_at_swap()
-	var so := side_of(old)
-	var sn := side_of(new)
-	if so == null and sn == null:
-		return
-	if so != null and so.is_visible_in_tree():
-		_side_old = so.get_global_rect()
 	# (the rest of the move from here: the one curve's remaining time, or the
 	# move's own length)
 	var rem := _move_s
 	if bool(_style.get("curve", false)) and _had_pre:
 		rem = maxf(_T - _tau, 0.0)
-	side_swap = SideSwap.new()
-	side_swap.visible = false
-	# (a fresh copy of the screen for it to read the arriving panel from: a
+	var so := side_of(old)
+	if so != null and so.is_visible_in_tree():
+		_side_old = so.get_global_rect()
+	var bo := bar_of(old)
+	if bo != null and bo.is_visible_in_tree():
+		_bar_old = bo.get_global_rect()
+	side_swap = _region_swap(so, side_of(new), &"side", rem, false)
+	# THE TOOLBAR TOO, the same way (Jon: "these buttons"): the row along the
+	# top of the picture, decoded left to right
+	bar_swap = _region_swap(bar_of(old), bar_of(new), &"side2", rem, true)
+
+
+## One region's swap, from `so` (the old screen's, or null) to `sn` (the new
+## one's, or null), the held picture leaving its rect alone through `uniform`.
+func _region_swap(so: Control, sn: Control, uniform: StringName, rem: float, across: bool) -> SideSwap:
+	if so == null and sn == null:
+		return null
+	var sw := SideSwap.new()
+	sw.visible = false
+	sw.across = across
+	# (a fresh copy of the screen for it to read the arriving one from: a
 	# frame's copy is otherwise taken at the first thing that reads the screen,
 	# and a sky behind the screens can read it before any panel is drawn)
 	var bb := BackBufferCopy.new()
 	bb.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
 	add_child(bb)
-	add_child(side_swap)
+	add_child(sw)
 	# OVER THE HELD PICTURE, which leaves the rect to it: what was there is in
 	# the swap's own hands from here
 	move_child(bb, _rect.get_index() + 1)
-	move_child(side_swap, bb.get_index() + 1)
-	side_swap.laid.connect(func(r: Rect2) -> void:
-		_mat.set_shader_parameter(&"side", Vector4(r.position.x, r.position.y, r.size.x, r.size.y)))
+	move_child(sw, bb.get_index() + 1)
+	sw.laid.connect(func(r: Rect2) -> void:
+		_mat.set_shader_parameter(uniform, Vector4(r.position.x, r.position.y, r.size.x, r.size.y)))
 	if so == null:
-		# (where there was no side bar -- LOCAL -- the picture that was there
-		# goes as the rest of the held picture's standing copy goes, on its
-		# curve: never a still of LOCAL's sky, and its world, held in the
-		# panel's place while the rest moves)
-		side_swap.held = held_alpha
-	side_swap.setup(so, sn, _tex, side_look(), 1.0 if r_new > r_old else -1.0, rem)
+		# (where there was none -- LOCAL -- the picture that was there goes as
+		# the rest of the held picture's standing copy goes, on its curve: never
+		# a still of LOCAL's sky, and its world, held in its place while the
+		# rest moves)
+		sw.held = held_alpha
+	sw.setup(so, sn, _tex, side_look(), 1.0 if r_new > r_old else -1.0, rem)
+	return sw
 
 
 ## How much of the held picture's standing copy is drawn this frame (the
@@ -1298,42 +1306,19 @@ func held_alpha() -> float:
 	return 1.0 - (float(cv) if cv != null else 0.0)
 
 
-## THE TOP TABS DECODE AT THE SWAP: what the HUD says now (the old tab lit),
-## taken before the Router puts the new screen up and the HUD refreshes; at the
-## end of the frame, whatever it says differently -- the tab lit, LOCAL become
-## STATION; never a number that has not changed -- decodes from the held frame
-## into the live bar (`SideSwap.setup_tabs`).
-func _tabs_begin_at_swap() -> void:
-	if Router.hud == null or not is_instance_valid(Router.hud) or not Router.hud.visible:
-		return
-	_tabs_begin.call_deferred(Router.hud.face())
-
-
-func _tabs_begin(before: Dictionary) -> void:
-	if not is_inside_tree() or Router.hud == null or not is_instance_valid(Router.hud) or _tex == null:
-		return
-	Router.hud.refresh()
-	var after: Dictionary = Router.hud.face()
-	var rects: Array = []
-	for c: Control in after:
-		if is_instance_valid(c) and before.get(c, "") != after[c]:
-			rects.append(c.get_global_rect())
-	if rects.is_empty():
-		return
-	var bb := BackBufferCopy.new()
-	bb.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
-	add_child(bb)
-	tab_swap = SideSwap.new()
-	tab_swap.visible = false
-	add_child(tab_swap)
-	tab_swap.setup_tabs(rects, _tex)
-
-
 ## A screen's side bar, the panel down its right edge (`ladder_side`), or null.
 static func side_of(s: Control) -> Control:
 	if s == null or not is_instance_valid(s) or not s.has_method(&"ladder_side"):
 		return null
 	return s.call(&"ladder_side") as Control
+
+
+## A screen's toolbar, the row along the top of its picture (`ladder_bar`), or
+## null.
+static func bar_of(s: Control) -> Control:
+	if s == null or not is_instance_valid(s) or not s.has_method(&"ladder_bar"):
+		return null
+	return s.call(&"ladder_bar") as Control
 
 
 ## Whether a press at `p` lands on the side bar while its content is changing:
@@ -1344,20 +1329,15 @@ func _side_eats(e: InputEvent) -> bool:
 	if not (e is InputEventMouseButton):
 		return false
 	var p := (e as InputEventMouseButton).position
-	# THE TABS: unresolved while they decode, and the two that will change
-	# (the one lit, the one going to be) from the click until they do
-	if tab_swap != null and is_instance_valid(tab_swap) and not tab_swap.done:
-		if tab_swap.blocks(p):
-			return true
-	elif phase in [Phase.UI_OUT, Phase.PRE, Phase.PRE_DONE, Phase.WAIT, Phase.FADE_OUT, Phase.FADE_HOLD] 			and Router.hud != null and is_instance_valid(Router.hud):
-		for rk in [r_old, r_new]:
-			var b: Control = Router.hud.tab_for_rank(rk)
-			if b != null and b.is_visible_in_tree() and b.get_global_rect().has_point(p):
+	var pre := phase == Phase.UI_OUT or phase == Phase.PRE or phase == Phase.PRE_DONE or phase == Phase.WAIT
+	for pair in [[side_swap, _side_old], [bar_swap, _bar_old]]:
+		var sw: Variant = pair[0]
+		var was: Rect2 = pair[1]
+		if sw != null and is_instance_valid(sw) and not (sw as SideSwap).done:
+			if (sw as SideSwap).blocks(p) or (not (sw as SideSwap).rect().has_area() and was.has_point(p)):
 				return true
-	if side_swap != null and is_instance_valid(side_swap) and not side_swap.done:
-		return side_swap.blocks(p) or (not side_swap.rect().has_area() and _side_old.has_point(p))
-	if phase == Phase.UI_OUT or phase == Phase.PRE or phase == Phase.PRE_DONE or phase == Phase.WAIT:
-		return _side_old.has_point(p) and side_of(old) != null
+		elif pre and was.has_point(p):
+			return true
 	return false
 
 
@@ -2054,8 +2034,8 @@ func _end() -> void:
 	var going: Array = []
 	if is_instance_valid(side_swap):
 		going.append(side_swap)
-	if is_instance_valid(tab_swap):
-		going.append(tab_swap)
+	if is_instance_valid(bar_swap):
+		going.append(bar_swap)
 	for sw: SideSwap in going:
 		if sw.done:
 			continue

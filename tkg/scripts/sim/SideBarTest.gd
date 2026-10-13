@@ -17,6 +17,9 @@ extends Node
 ## resolved (A: from the crossfade's middle on); and with the animation off
 ## (headless, reduced motion) the new side bar is whole the very frame it is
 ## asked for. Prints the blank frames per hop, which is the number on main.
+## THE TOOLBAR the same (Jon: "these buttons" -- the chart's LAYER row, the
+## map's DANGER strip, `ladder_bar`): never blank, decoded on every hop, and a
+## click on a button in it before it has resolved eaten.
 ## Written to run on main too (it reaches the swap only by name), so it can be
 ## watched failing there.
 
@@ -46,7 +49,7 @@ func _frames(n: int) -> void:
 
 func _idle() -> void:
 	for i in 900:
-		if not ZoomLadder.busy() and ZoomLadder.chain == &"" and _swap_now() == null and _tabs_now() == null:
+		if not ZoomLadder.busy() and ZoomLadder.chain == &"" and _swap_now() == null and _bar_now() == null:
 			await _tree.process_frame
 			return
 		await _tree.process_frame
@@ -96,17 +99,31 @@ func _swap_now() -> Object:
 	return _live(&"side_now")
 
 
-func _tabs_now() -> Object:
-	return _live(&"tabs_now")
+func _bar_now() -> Object:
+	return _live(&"bar_now")
+
+
+## A screen's toolbar along the top (none on LOCAL).
+func _bar_of(s: Variant) -> Control:
+	if s == null or not is_instance_valid(s):
+		return null
+	if (s as Object).has_method(&"ladder_bar"):
+		return (s as Object).call(&"ladder_bar") as Control
+	if s is StarchartScreen:
+		return (s as StarchartScreen)._strip_row
+	if s is SystemMapScreen:
+		return (s as SystemMapScreen)._strip
+	return null
 
 
 ## This frame: [coverage 0..1, both-at-once 0..1, clicks let through onto
 ## unresolved content (count of grid points)], or [] when the screen up has no
 ## side bar.
 func _measure() -> Array:
-	var cur := Router.current
-	var side := _side_of(cur)
-	var sw := _swap_now()
+	return _measure_region(_side_of(Router.current), _swap_now())
+
+
+func _measure_region(side: Control, sw: Object) -> Array:
 	if side == null and sw == null:
 		return []
 	if sw == null:
@@ -153,10 +170,10 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 	var swap_frames := 0
 	var low := 1.0
 	var frames := 0
-	# THE TABS: the decode seen, over the tab lit before and the one lit after
-	var was_tab: Control = Router.hud.tab_for_rank(ZoomLadder.rank_of(Router.current)) if Router.hud.has_method(&"tab_for_rank") else null
-	var tab_rect := Rect2()
-	var tab_frames := 0
+	# THE TOOLBAR: never blank, and its decode seen
+	var bar_blank := 0
+	var bar_low := 1.0
+	var bar_frames := 0
 	var landed_at := -1
 	var decode_end := -1
 	for i in 900:
@@ -172,15 +189,18 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 		if _swap_now() != null:
 			swap_frames += 1
 			decode_end = frames
-		var tw := _tabs_now()
-		if tw != null and (tw as CanvasItem).visible:
-			tab_frames += 1
-			var tr: Rect2 = tw.call(&"rect")
-			tab_rect = tr if tab_rect.size.x <= 0.0 else tab_rect.merge(tr)
+		var mb := _measure_region(_bar_of(Router.current), _bar_now())
+		if not mb.is_empty():
+			if float(mb[0]) < 0.5:
+				bar_blank += 1
+			bar_low = minf(bar_low, float(mb[0]))
+		var bw := _bar_now()
+		if bw != null and (bw as CanvasItem).visible:
+			bar_frames += 1
 		if landed_at < 0 and (not ZoomLadder.busy() or ZoomLadder.active.phase == ZoomLadder.Phase.UI_IN):
 			landed_at = frames
 		frames += 1
-		if not ZoomLadder.busy() and ZoomLadder.chain == &"" and _swap_now() == null and _tabs_now() == null:
+		if not ZoomLadder.busy() and ZoomLadder.chain == &"" and _swap_now() == null and _bar_now() == null:
 			break
 		await _tree.process_frame
 	await _frames(2)
@@ -193,14 +213,11 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 	var side := _side_of(Router.current)
 	_ok("%s: the side bar whole at rest" % label, side == null or _eff(side) > 0.99)
 	if _ss != null:
-		# THE TABS DECODE ON EVERY HOP, over the tab that was lit and the one
-		# that is, and the highlight is the new one's once it is over
-		var now_tab: Control = Router.hud.tab_for_rank(ZoomLadder.rank_of(Router.current))
-		var over := was_tab != null and now_tab != null and tab_rect.has_point(was_tab.get_global_rect().get_center()) 			and tab_rect.has_point(now_tab.get_global_rect().get_center())
-		_ok("%s: the top tabs decode (%d frames) over the tab lit before and the one lit after" % [label, tab_frames],
-			tab_frames > 0 and over)
-		_ok("%s: and the new tab is lit after, the old one not" % label, now_tab != null and now_tab.has_theme_stylebox_override("normal")
-			and (was_tab == null or was_tab == now_tab or not was_tab.has_theme_stylebox_override("normal")))
+		# THE TOOLBAR: never blank, swapped in place on every hop, whole at rest
+		_ok("%s: no blank toolbar (%d frames blank, least %.2f)" % [label, bar_blank, bar_low], bar_blank == 0)
+		_ok("%s: the toolbar swaps in place (%d frames)" % [label, bar_frames], bar_frames > 0)
+		var bar := _bar_of(Router.current)
+		_ok("%s: the toolbar whole at rest" % label, bar == null or _eff(bar) > 0.99)
 	if _cur_look == "E":
 		# E, SLOW (Jon: "happen slowly and not so fast"): the side bar decodes for
 		# a second or more, and is done within 0.35 s of the camera landing --
@@ -277,41 +294,46 @@ func _click_mid_swap() -> void:
 	await _frames(4)
 
 
-## A click on a tab that has not resolved: map -> chart, on SECTOR (lit
-## before, a live door back once it is not) while the tabs decode -- eaten, and
-## the chart stays up.
-func _click_tab_mid_decode() -> void:
+## A click on the toolbar before it has resolved: map -> chart, on the
+## chart's first button along its top (HIDE SYSTEMS in dev mode) while the
+## toolbar decodes -- eaten, the button never hears it.
+func _click_bar_mid_decode() -> void:
 	Router.show_starchart()
-	var tw: Object = null
+	var bw: Object = null
 	for i in 300:
 		await _tree.process_frame
-		tw = _tabs_now()
-		if tw != null and (tw as CanvasItem).visible:
+		bw = _bar_now()
+		if bw != null and (bw as CanvasItem).visible:
 			break
-	if not _ok("%s: the tabs decode on map -> chart" % _cur_look, tw != null):
+	if not _ok("%s: the toolbar decodes on map -> chart" % _cur_look, bw != null):
 		await _idle()
 		return
-	var b: Button = Router.hud.tab_for_rank(ZoomLadder.MAP)
-	var p := b.get_global_rect().get_center()
-	var blocked := bool(tw.call(&"blocks", p))
+	var ch := Router.current as StarchartScreen
+	var bs := _buttons(_bar_of(ch))
+	var target: Control = bs[0] if not bs.is_empty() else _bar_of(ch)
+	var p := target.get_global_rect().get_center()
+	var blocked := bool(bw.call(&"blocks", p))
 	var heard := [0]
 	var probe := func(ev: InputEvent) -> void:
 		if ev is InputEventMouseButton:
 			heard[0] += 1
-	b.gui_input.connect(probe)
+	for b in bs:
+		b.gui_input.connect(probe)
 	for pressed in [true, false]:
 		var ev := InputEventMouseButton.new()
 		ev.button_index = MOUSE_BUTTON_LEFT
 		ev.pressed = pressed
 		ev.position = p
 		ev.global_position = p
-		b.get_viewport().push_input(ev)
+		target.get_viewport().push_input(ev)
 		await _tree.process_frame
-	b.gui_input.disconnect(probe)
+	for b in bs:
+		if b.gui_input.is_connected(probe):
+			b.gui_input.disconnect(probe)
 	await _idle()
 	await _frames(4)
-	_ok("%s: a click on SECTOR before it resolved was eaten (blocked %s, heard %d), the chart still up" % [_cur_look, blocked, heard[0]],
-		blocked and heard[0] == 0 and Router.current is StarchartScreen)
+	_ok("%s: a click on the toolbar (%s) before it resolved was eaten (blocked %s, heard %d)" % [_cur_look,
+		(target as Button).text if target is Button else "its row", blocked, heard[0]], blocked and heard[0] == 0)
 
 
 func _buttons(n: Node) -> Array[BaseButton]:
@@ -374,7 +396,7 @@ func _run() -> void:
 			Router.show_system()
 			await _idle()
 			await _frames(4)
-			await _click_tab_mid_decode()
+			await _click_bar_mid_decode()
 		Router.show_system()
 		await _idle()
 		Router.show_local()

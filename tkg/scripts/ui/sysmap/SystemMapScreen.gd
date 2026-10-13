@@ -1268,13 +1268,19 @@ func ladder_cam_end() -> void:
 
 
 ## THE MAP'S UI, k of the way gone (`ZoomLadder`: it leaves before the camera
-## moves and comes back after it lands, never during): the danger strip, the
-## key, the scale bar and LOCATION, and the words over the worlds (a label
-## magnified with the picture is a smear of letter-sized blocks). NOT the
-## panel: the side bar stays through the move and swaps in place for the next
-## screen's (`ladder_side`, `SideSwap`; Jon, Oct 13).
+## moves and comes back after it lands, never during): the key, the scale bar
+## and LOCATION, and the words over the worlds (a label magnified with the
+## picture is a smear of letter-sized blocks). NOT the panel nor the danger
+## strip: they stay through the move and swap in place for the next screen's
+## (`ladder_side`, `ladder_bar`, `SideSwap`; Jon, Oct 13).
 var _key_row: Control = null
 var _scale_bar: Control = null
+
+
+## The toolbar along the top (DANGER), which decodes into the next screen's
+## the way the side bar does (`SideSwap`).
+func ladder_bar() -> Control:
+	return _strip
 
 
 ## The side bar, for the ladder to swap in place (`SideSwap`).
@@ -1283,7 +1289,7 @@ func ladder_side() -> Control:
 
 
 func ladder_chrome(k: float) -> void:
-	for c: CanvasItem in [_strip, _key_row, _scale_bar, _loc_btn]:
+	for c: CanvasItem in [_key_row, _scale_bar, _loc_btn]:
 		ZoomLadder.fade_chrome(c, k)
 	if overlay != null:
 		overlay.label_a = 1.0 - k

@@ -61,10 +61,10 @@ uniform float held_a = 0.0;
 // and not so fast" -- at 30 it was a blur, at 13 each character can be seen
 // turning over)
 uniform float glyph_hz = 13.0;
-// E on the HUD's tabs: what is not yet resolved is the OLD picture -- its
-// highlight -- with its letters scrambled, so the highlight hands over to the
-// new one as the line resolves (`SideSwap.setup_tabs`)
-uniform int hand = 0;
+// where a panel's own ground is read, px in from its left edge (a toolbar has
+// no ground of its own: just left of it)
+uniform float bg_dx = 3.0;
+
 
 bool inr(vec2 q, vec4 r) {
 	return r.z > 0.0 && q.x >= r.x && q.y >= r.y && q.x < r.x + r.z && q.y < r.y + r.w;
@@ -84,11 +84,11 @@ vec3 oldc(vec2 q) {
 
 // a panel's own ground at row y: its left padding (3 px in from its edge)
 vec3 bg_new(float y) {
-	return newc(vec2(new_r.x + 3.0, y));
+	return newc(vec2(new_r.x + bg_dx, y));
 }
 
 vec3 bg_old(float y) {
-	return oldc(vec2(old_r.x + 3.0, y));
+	return oldc(vec2(old_r.x + bg_dx, y));
 }
 
 // whether a glyph cell `h` tall holds any ink (differs from the ground beside it)
@@ -193,20 +193,7 @@ void fragment() {
 				continue;
 			}
 			vec4 tt = rowt[i];
-			if (hand == 1) {
-				float fh = r.x + floor(clamp((secs - tt.x) / max(tt.y - tt.x, 0.001), 0.0, 1.0) * r.z / cell.x) * cell.x;
-				if (p.x >= fh) {
-					col = O;
-					float in0 = r.x + 4.0;
-					float w = max(r.z - 8.0, cell.x);
-					if (p.x >= in0 && p.x < in0 + w) {
-						vec2 c0 = vec2(in0 + floor((p.x - in0) / cell.x) * cell.x, r.y);
-						if (ink(c0, r.w, false, oldc(vec2(in0, p.y)))) {
-							col = scramble(p, vec4(in0, r.y, w, r.w), i, false);
-						}
-					}
-				}
-			} else if (tt.z > 0.5 && from_new) {
+			if (tt.z > 0.5 && from_new) {
 				// an icon: hidden, then on, off, on a frame each
 				float a = secs - tt.x;
 				vec3 g = bg_new(p.y);

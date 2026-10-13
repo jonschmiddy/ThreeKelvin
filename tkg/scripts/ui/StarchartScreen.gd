@@ -1312,17 +1312,17 @@ func ladder_cam(k: float) -> void:
 
 
 ## THE CHART'S UI, k of the way gone (`ZoomLadder`: it leaves before the camera
-## moves and comes back after it lands): the depth strip, the key, the corner
-## toggles, and YOU and the scale bar drawn over the galaxy. NOT the
-## destination panel: the side bar stays through the move and swaps in place
-## for the next screen's (`ladder_side`, `SideSwap`; Jon, Oct 13, "the side bar
-## goes blank and then draws the new side bar").
+## moves and comes back after it lands): the key, the corner toggles, and YOU
+## and the scale bar drawn over the galaxy. NOT the destination panel nor the
+## depth strip: the side bar and the toolbar stay through the move and swap in
+## place for the next screen's (`ladder_side`, `ladder_bar`, `SideSwap`; Jon,
+## Oct 13, "the side bar goes blank and then draws the new side bar").
 var _strip_row: Control = null
 var _key_row: Control = null
 
 
 func ladder_chrome(k: float) -> void:
-	for c: CanvasItem in [_strip_row, _key_row, _region_btn, _reach_btn, _sight_btn]:
+	for c: CanvasItem in [_key_row, _region_btn, _reach_btn, _sight_btn]:
 		ZoomLadder.fade_chrome(c, k)
 	if _chart != null:
 		_chart.ui_a = 1.0 - k
@@ -1332,6 +1332,12 @@ func ladder_chrome(k: float) -> void:
 ## The side bar, for the ladder to swap in place (`SideSwap`).
 func ladder_side() -> Control:
 	return _ladder_side
+
+
+## And the toolbar along the top -- LAYER, its pips, CORE, the view toggles --
+## which decodes into the next screen's the same way (Jon: "these buttons").
+func ladder_bar() -> Control:
+	return _strip_row
 
 
 func ladder_spans() -> Vector2:
