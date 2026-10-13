@@ -804,6 +804,19 @@ func _pack_ranks(live: Array[EnemySlot], s: float, area: Rect2, mid: float) -> D
 				multi = true
 			heights.append(h)
 			total_h += h
+		# THE TRIANGLE, ITS SHIELDS' ROOM KEPT. Stacked whole, the ranks of a
+		# pack of three mostly no longer fit the band with every ship's shield
+		# room; the ship behind is set into the shoulders of the two in front
+		# instead, its plate between their words, every part of each ship's
+		# room (`EnemySlot.rooms`) the gap between ranks from the other's
+		# (Jon: "you can decrease the vertical space height between the top and
+		# bottom ships to make room for the text"). Always, so the gap between
+		# ranks is measured one way in every triangle.
+		if fits and _slots_mode != &"wrecks" and ranks.size() == 2 \
+				and (ranks[1] as Array).size() == (ranks[0] as Array).size() - 1:
+			var sh := _pack_shoulders(ranks, blocks, units, g, s, area, mid)
+			if not sh.is_empty():
+				return sh
 		if not fits or total_h > area.size.y:
 			continue
 		# ACROSS a rank one gap, as wide as the band allows; BETWEEN ranks the
@@ -895,6 +908,204 @@ func _place_ranks(ranks: Array, heights: Array[float], blocks: Dictionary, units
 		for sl in ranks[k]:
 			rank_of[sl] = k
 	out["ranks"] = rank_of
+	return out
+
+
+## THE RANK BEHIND, SET INTO THE SHOULDERS OF THE RANK IN FRONT. The front
+## rank stands on one baseline at the gap `g0` across (or wider, if it must,
+## up to what the band allows); each ship behind sits over its gap, nudged at
+## most SHOULDER_DX across so its gaps to the two either side of it come out
+## equal, and as low as its room (`EnemySlot.rooms`: words, shield oval, plate)
+## stays the gap between ranks from theirs -- that gap as wide as the band
+## allows up to the gap across, never under PACK_GAP_MIN. The ship behind
+## stays behind: its oval above theirs. Empty if no such formation fits.
+const SHOULDER_DX := 40
+const SHOULDER_EVEN := 0.75
+
+func _pack_shoulders(ranks: Array, blocks: Dictionary, units: Dictionary, g0: float,
+		s: float, area: Rect2, mid: float) -> Dictionary:
+	var rooms := {}
+	for rank: Array in ranks:
+		for sl: EnemySlot in rank:
+			sl.apply_scale(s)
+			var r := sl.rooms(s)
+			if r.is_empty():
+				return {}
+			rooms[sl] = r
+	var front: Array = ranks[0]
+	var wsum := 0.0
+	for sl: EnemySlot in front:
+		wsum += (blocks[sl] as Rect2).size.x
+	var gmax := floorf((area.size.x - wsum) / float(maxi(1, front.size() - 1)))
+	var g := floorf(minf(g0, gmax))
+	while g <= gmax:
+		var plan := _shoulders_at(ranks, rooms, blocks, units, g, PACK_GAP_MIN, s, area, mid)
+		if not plan.is_empty():
+			# the gap between ranks as wide as still fits, up to the gap across
+			var lo := PACK_GAP_MIN
+			var hi := g + 1.0
+			while hi - lo > 1.0:
+				var m := floorf((lo + hi) * 0.5)
+				var p2 := _shoulders_at(ranks, rooms, blocks, units, g, m, s, area, mid)
+				if p2.is_empty():
+					hi = m
+				else:
+					lo = m
+					plan = p2
+			return plan
+		g += 4.0
+	return {}
+
+
+func _shoulders_at(ranks: Array, rooms: Dictionary, blocks: Dictionary, units: Dictionary,
+		g: float, gv: float, s: float, area: Rect2, mid: float) -> Dictionary:
+	var front: Array = ranks[0]
+	var back: Array = ranks[1]
+	var wsum := g * float(front.size() - 1)
+	for sl: EnemySlot in front:
+		wsum += (blocks[sl] as Rect2).size.x
+	var x := _place_span(wsum, area, mid)
+	var fr: Array = []
+	var hmax := 0.0
+	for sl: EnemySlot in front:
+		var b: Rect2 = blocks[sl]
+		fr.append(Rect2(x, -b.size.y, b.size.x, b.size.y))
+		x += b.size.x + g
+		hmax = maxf(hmax, b.size.y)
+	var br: Array = []
+	var top := -hmax
+	for j in back.size():
+		var sl: EnemySlot = back[j]
+		var b: Rect2 = blocks[sl]
+		var left: Rect2 = fr[j]
+		var right: Rect2 = fr[j + 1]
+		var centre := roundf((left.end.x + right.position.x) * 0.5 - b.size.x * 0.5)
+		var x_lo := int(floorf(centre)) - SHOULDER_DX - int(gv) - 2
+		var x_hi := int(ceilf(centre + b.size.x)) + SHOULDER_DX + int(gv) + 2
+		# (a pixel's slack over the gap: the profile is taken down column middles)
+		var t1 := _room_tops(rooms[front[j]], left.position - (blocks[front[j]] as Rect2).position, x_lo, x_hi, gv + 0.75)
+		var t2 := _room_tops(rooms[front[j + 1]], right.position - (blocks[front[j + 1]] as Rect2).position, x_lo, x_hi, gv + 0.75)
+		var bp := _room_bottoms(rooms[sl], b)
+		var oval_top := minf(_oval_of(rooms[front[j]]).position.y + left.position.y - (blocks[front[j]] as Rect2).position.y,
+			_oval_of(rooms[front[j + 1]]).position.y + right.position.y - (blocks[front[j + 1]] as Rect2).position.y)
+		var back_oval_bottom := _oval_of(rooms[sl]).end.y - b.position.y
+		var best_y := -INF
+		var best_x := 0.0
+		var best_dx := 0
+		for dx in range(-SHOULDER_DX, SHOULDER_DX + 1):
+			var bx := centre + float(dx)
+			if bx < area.position.x or bx + b.size.x > area.end.x:
+				continue
+			var y1 := INF
+			var y2 := INF
+			for c in bp.size():
+				if bp[c] == -INF:
+					continue
+				var col := int(bx) + c - x_lo
+				if col < 0 or col >= t1.size():
+					continue
+				y1 = minf(y1, t1[col] - bp[c])
+				y2 = minf(y2, t2[col] - bp[c])
+			if y1 == INF or y2 == INF or absf(y1 - y2) > SHOULDER_EVEN:
+				continue
+			var y := floorf(minf(y1, y2))
+			# behind and above: its shield clear above theirs
+			if y + back_oval_bottom > oval_top:
+				continue
+			if y > best_y + 0.5 or (absf(y - best_y) <= 0.5 and absi(dx) < absi(best_dx)):
+				best_y = y
+				best_x = bx
+				best_dx = dx
+		if best_y == -INF:
+			return {}
+		br.append(Rect2(best_x, best_y, b.size.x, b.size.y))
+		top = minf(top, best_y)
+	var h := -top
+	if h > area.size.y:
+		return {}
+	var y0 := _low_enough(area.position.y + floorf((area.size.y - h) * 0.5), h, area)
+	var base := y0 + h
+	var out := {}
+	var placed: Array = [fr, br]
+	var rank_of := {}
+	for k in 2:
+		var rank: Array = ranks[k]
+		for j in rank.size():
+			var sl: EnemySlot = rank[j]
+			var r: Rect2 = placed[k][j]
+			var b: Rect2 = blocks[sl]
+			out[sl] = {scale = s, side = false,
+				rect = Rect2(Vector2(r.position.x, r.position.y + base) - b.position, units[sl])}
+			rank_of[sl] = k
+	out["back"] = back.duplicate()
+	out["ranks"] = rank_of
+	out["low"] = minf(g, gv)
+	return out
+
+
+static func _oval_of(rooms: Array) -> Rect2:
+	for p in rooms:
+		if p[0] == &"oval":
+			return p[1]
+	return Rect2()
+
+
+## The top of a ship's room down each column x_lo..x_hi (its slot at `at`),
+## pulled up by `gv` round every part's edge: where the bottom of another
+## ship's room may come to and stay `gv` clear of it.
+static func _room_tops(rooms: Array, at: Vector2, x_lo: int, x_hi: int, gv: float) -> PackedFloat32Array:
+	var n := x_hi - x_lo + 1
+	var raw := PackedFloat32Array()
+	raw.resize(n)
+	raw.fill(INF)
+	for p in rooms:
+		var r: Rect2 = p[1]
+		r.position += at
+		for i in n:
+			var cx := float(x_lo + i) + 0.5
+			if cx < r.position.x or cx > r.end.x:
+				continue
+			var t := r.position.y
+			if p[0] == &"oval":
+				var u := (cx - r.get_center().x) / (r.size.x * 0.5)
+				if absf(u) >= 1.0:
+					continue
+				t = r.get_center().y - r.size.y * 0.5 * sqrt(1.0 - u * u)
+			raw[i] = minf(raw[i], t)
+	var out := PackedFloat32Array()
+	out.resize(n)
+	var k := int(ceilf(gv))
+	for i in n:
+		var m := INF
+		for d in range(-k, k + 1):
+			var j := i + d
+			if j < 0 or j >= n or raw[j] == INF:
+				continue
+			m = minf(m, raw[j] - sqrt(maxf(0.0, gv * gv - float(d * d))))
+		out[i] = m
+	return out
+
+
+## The bottom of a ship's room down each column of its block (block-relative,
+## the block's top at 0); -INF where it has none.
+static func _room_bottoms(rooms: Array, b: Rect2) -> PackedFloat32Array:
+	var n := int(ceilf(b.size.x))
+	var out := PackedFloat32Array()
+	out.resize(n)
+	out.fill(-INF)
+	for p in rooms:
+		var r: Rect2 = p[1]
+		for i in n:
+			var cx := b.position.x + float(i) + 0.5
+			if cx < r.position.x or cx > r.end.x:
+				continue
+			var bt := r.end.y
+			if p[0] == &"oval":
+				var u := (cx - r.get_center().x) / (r.size.x * 0.5)
+				if absf(u) >= 1.0:
+					continue
+				bt = r.get_center().y + r.size.y * 0.5 * sqrt(1.0 - u * u)
+			out[i] = maxf(out[i], bt - b.position.y)
 	return out
 
 

@@ -319,7 +319,17 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 			ks.sort_custom(func(a: int, b: int) -> bool: return blocks[a].position.x < blocks[b].position.x)
 			for j in range(1, ks.size()):
 				across.append(blocks[ks[j]].position.x - blocks[ks[j - 1]].end.x)
-			if ranks.has(int(rk) + 1):
+			if ranks.has(int(rk) + 1) and _has_rooms(view, n):
+				# THE TRIANGLE IN THE SHOULDERS: each ship behind measured by
+				# its room's parts (`EnemySlot.rooms`: words, oval, plate)
+				# to the two in front it sits between
+				for a in ranks[int(rk) + 1]:
+					var ds: Array[float] = []
+					for f in ks:
+						ds.append(_rooms_gap(_rooms_of(view.slot(a)), _rooms_of(view.slot(f))))
+					ds.sort()
+					between.append_array(ds.slice(0, 2))
+			elif ranks.has(int(rk) + 1):
 				var low_top := INF
 				for a in ks:
 					low_top = minf(low_top, blocks[a].position.y)
@@ -338,6 +348,25 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 		if not across.is_empty() and not between.is_empty():
 			_ok("%s: no wider between ranks than across them (%.0f, %.0f)" % [tag, between.max(), across.min()],
 				between.max() <= across.min() + GAP_SPREAD)
+	# every ship's drawn boxes inside its own room, and clear of every
+	# other ship's: the room is what the formation keeps apart
+	if _has_rooms(view, n):
+		for k in n:
+			var mine := _rooms_of(view.slot(k))
+			for bx in _slot_boxes(view.slot(k)):
+				var inside := false
+				for p in mine:
+					inside = inside or (p[1] as Rect2).grow(1.0).encloses(bx[1])
+				_ok("%s: ship %d's %s inside its room" % [tag, k, bx[0]], inside)
+			for k2 in n:
+				if k2 == k:
+					continue
+				for bx in _slot_boxes(view.slot(k2)):
+					var hit := false
+					for p in mine:
+						hit = hit or _part_dist(p, [&"box", bx[1]]) <= 0.0
+					if hit:
+						_ok("%s: ship %d's %s in ship %d's room" % [tag, k2, bx[0], k], false)
 	for o in ovals:
 		var ro: Rect2 = o[1]
 		for a in boxes:
@@ -452,3 +481,75 @@ static func _text_rect(l: Label) -> Rect2:
 		HORIZONTAL_ALIGNMENT_RIGHT:
 			x += r.size.x - w
 	return Rect2(x, r.position.y, w, r.size.y)
+
+
+## Each ship's room in parts (`EnemySlot.rooms`), in global coordinates, where
+## the build has them and every ship in the view has one (a fight's ships).
+func _has_rooms(view: EncounterView, n: int) -> bool:
+	for k in n:
+		var sl := view.slot(k)
+		if not sl.has_method("rooms") or _rooms_of(sl).is_empty():
+			return false
+	return true
+
+func _rooms_of(sl: EnemySlot) -> Array:
+	var out: Array = []
+	if sl.get("side") == true:
+		return out
+	for p in sl.call("rooms", sl.art.draw_scale):
+		var r: Rect2 = p[1]
+		out.append([p[0], Rect2(sl.get_global_rect().position + r.position, r.size)])
+	return out
+
+## The least distance between two rooms, part to part.
+func _rooms_gap(a: Array, b: Array) -> float:
+	var d := INF
+	for p in a:
+		for q in b:
+			d = minf(d, _part_dist(p, q))
+	return d
+
+## Points round a part's edge: a box's corners and sides, an oval's rim.
+func _edge(p: Array) -> PackedVector2Array:
+	var r: Rect2 = p[1]
+	var out := PackedVector2Array()
+	if p[0] == &"oval":
+		for i in 128:
+			var t := TAU * float(i) / 128.0
+			out.append(r.get_center() + Vector2(cos(t) * r.size.x * 0.5, sin(t) * r.size.y * 0.5))
+	else:
+		for i in 33:
+			var f := float(i) / 32.0
+			out.append(r.position + Vector2(r.size.x * f, 0.0))
+			out.append(r.position + Vector2(r.size.x * f, r.size.y))
+			out.append(r.position + Vector2(0.0, r.size.y * f))
+			out.append(r.position + Vector2(r.size.x, r.size.y * f))
+	return out
+
+func _inside(p: Array, v: Vector2) -> bool:
+	var r: Rect2 = p[1]
+	if p[0] == &"oval":
+		var u := (v - r.get_center()) / (r.size * 0.5)
+		return u.length_squared() < 1.0
+	return r.has_point(v) and v.x > r.position.x and v.y > r.position.y
+
+## Distance between two parts (0 where they meet or overlap).
+func _part_dist(p: Array, q: Array) -> float:
+	var ep := _edge(p)
+	var eq := _edge(q)
+	for v in ep:
+		if _inside(q, v):
+			return 0.0
+	for v in eq:
+		if _inside(p, v):
+			return 0.0
+	var d := INF
+	for v in ep:
+		if q[0] == &"oval":
+			for w in eq:
+				d = minf(d, v.distance_to(w))
+		else:
+			var rq: Rect2 = q[1]
+			var c := Vector2(clampf(v.x, rq.position.x, rq.end.x), clampf(v.y, rq.position.y, rq.end.y))
+			d = minf(d, v.distance_to(c))
+	return d

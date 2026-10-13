@@ -572,6 +572,48 @@ func _reach(s: float) -> Vector4:
 	return shield_reach(DB.enemy_sprite(_last_e.template.id, _last_e.look, s < 1.0))
 
 
+## THE ROOM THE SHIP KEEPS, IN ITS PARTS, for packing a rank behind into the
+## shoulders of the rank in front (Jon's formation, "shield:A"): its words'
+## lines (as wide as the widest it can say), its shield's oval (`ShieldFx.fit`,
+## the shield's own), and its plate (name, brace and hull bars, number, one row
+## of chips). In the slot's own coordinates, the slot `unit(s)` in size; drawn
+## at `s` already (the layout sets the size first). Each is [kind, Rect2]:
+## &"box", or &"oval" for the ellipse inside the rect. Empty for a wreck row,
+## a side readout, or a slot not drawn at `s`.
+static var _fit_cache: Dictionary = {}
+
+func rooms(s: float) -> Array:
+	var out: Array = []
+	if art == null or _last_e == null or not reserve_intent or side \
+			or not is_equal_approx(art.draw_scale, s):
+		return out
+	var u := unit(s, false)
+	var lh := _name.get_minimum_size().y
+	var r := _reserved(u.x)
+	var names := 0.0
+	for t in _res_names:
+		names = maxf(names, _str_w(_intent, t))
+	var it_w: float = r.text
+	var words_h := lh + 1.0 + lh * float(_lines(it_w, u.x))
+	var ww := ceilf(minf(u.x, maxf(names, it_w)))
+	out.append([&"box", Rect2(floorf((u.x - ww) * 0.5), 0.0, ww, words_h)])
+	var sp := _spacers(s)
+	var hold := _art_holder.custom_minimum_size
+	var hold_at := Vector2(floorf((u.x - hold.x) * 0.5), words_h + 1.0 + sp.x + 1.0)
+	var ink := art.ink_rect()
+	var key := "%s/%d/%.2f/%s" % [_last_e.template.id, _last_e.look, s, ink]
+	if not _fit_cache.has(key):
+		_fit_cache[key] = ShieldFx.fit(art.snapshot(), ink)
+	var f: Dictionary = _fit_cache[key]
+	var cc: Vector2 = hold_at + _art_base + (f.cc as Vector2)
+	var rad := Vector2(float(f.rx), float(f.ry))
+	out.append([&"oval", Rect2(cc - rad, rad * 2.0)])
+	var name_top := hold_at.y + hold.y + 1.0 + sp.y + 1.0
+	var pw := ceilf(minf(u.x, float(r.widest)))
+	out.append([&"box", Rect2(floorf((u.x - pw) * 0.5), name_top, pw, u.y - name_top)])
+	return out
+
+
 ## What the last bind drew, so the pack layout can redraw it at another size.
 var _last_e = null
 var _last_tele: bool = false
