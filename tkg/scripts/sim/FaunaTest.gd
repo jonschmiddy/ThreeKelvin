@@ -13,7 +13,8 @@ extends Node
 ## three: the slot's art hands its picture to the motion (its texture off, the
 ## motion a child of it) and takes its bob from the motion's steps; the
 ## Custodian's Charging intent winds it up and another intent lets go; a
-## creature's attack, played through END TURN, strikes; a kill settles it
+## creature's attack, played through END TURN, winds it up a third of a second
+## before the shot leaves (wound up when it does); a kill settles it
 ## before the breakup is cut (at rest on the frame the art is hidden), and the
 ## dead slot is the art's own wreck again, no motion left. With reduced motion
 ## there is no motion at all.
@@ -51,6 +52,8 @@ func _run() -> void:
 		await _fight(id)
 	DisplaySettings.reduced_motion = true
 	await _reduced()
+	_ok("reduced motion: a creature's shot waits for nothing",
+		Router.current is SectorScreen and not (Router.current as SectorScreen)._fauna_winds_up(0))
 	DisplaySettings.reduced_motion = false
 	Router.animate_in_harness = false
 	print("faunatest: %s (%d failed)" % ["PASS" if _fails == 0 else "FAIL", _fails])
@@ -171,7 +174,7 @@ func _fight(id: String) -> void:
 	var e0: Combat.EnemyState = Router.combat.enemies[0]
 	_ok("%s: what it settles to is the art's own picture" % id,
 		e0.intent == null or e0.intent.telegraph or
-		FaunaMotion.still_canvas(e0, e0.hp, 1.0).get_data() == slot.art.snapshot().get_data())
+		FaunaMotion.still_canvas(e0, e0.hp, 1.0, slot.art.marks).get_data() == slot.art.snapshot().get_data())
 	await _wait_s(0.6)
 	_ok("%s: the bob is the motion's (%.0f px)" % [id, slot.art.position.y - slot._art_base.y],
 		is_equal_approx(slot.art.position.y - slot._art_base.y, fm.bob_px()))
@@ -196,21 +199,46 @@ func _fight(id: String) -> void:
 		_ok("custodian: another intent lets go (charge %.2f)" % float(fm.state().pool),
 			not fm._wind_on and float(fm.state().pool) == 0.0)
 	else:
-		# its turn, through END TURN, until it has attacked
+		# its turn, through END TURN, until it has attacked: the wind-up starts,
+		# and the shot leaves after it, wound up
 		var struck := false
+		var t_strike := -1
+		var t_fire := -1
+		var wind_at_fire := 0.0
 		for turn in 4:
-			if struck:
+			if t_fire >= 0:
 				break
 			Run.hp = Run.max_hp()
 			sc._on_end_turn()
 			var t_end := Time.get_ticks_msec() + 4000
 			while Time.get_ticks_msec() < t_end:
-				if fm._strike_left > 0.0:
+				if fm._strike_left > 0.0 and t_strike < 0:
 					struck = true
+					t_strike = Time.get_ticks_msec()
+				if t_fire < 0:
+					for q in sc._volleys.values():
+						if q.to_player:
+							t_fire = Time.get_ticks_msec()
+							wind_at_fire = fm._wind
 				if not sc._playing and not sc._hold and Time.get_ticks_msec() > t_end - 3000:
 					break
 				await _tree.process_frame
-		_ok("%s: its attack, fired, strikes" % id, struck)
+		_ok("%s: before it fires it winds up (%d ms before the shot, wound %.2f)" % [id, t_fire - t_strike, wind_at_fire],
+			struck and t_fire >= 0 and t_fire - t_strike >= 300 and wind_at_fire >= 0.9)
+	# a hit that leaves it alive: its mark is in the motion's picture
+	await _settle_turn(sc)
+	if slot.art.marks != null:
+		e.hp = e.max_hp
+		e.block = 0
+		var v0: int = slot.art.marks.version
+		for i in cb.hand.size():
+			if cb.can_play(cb.hand[i]) and cb.hand[i].damage > 0:
+				cb.play(i, 0)
+				break
+		await _wait_s(2.0)
+		var v1: int = slot.art.marks.version
+		_ok("%s: its hit marks are in the motion's picture (marks %d -> %d)" % [id, v0, v1],
+			v1 == v0 or slot._fauna_key.ends_with("|marks %d" % v1))
 	# the kill
 	await _settle_turn(sc)
 	var rested_at_cut := false

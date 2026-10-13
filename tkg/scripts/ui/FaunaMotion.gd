@@ -18,9 +18,10 @@ extends Control
 ##     back crystals one after another.
 ##   - THE CALF, BREATHE'S BODY AND GLOW'S LIGHTS: the same swell and spine
 ##     ripple, and two packets of light chasing down the belly head to tail.
-##   - A creature's strike (`strike`, when its attack is fired): a deep
-##     in-breath, the spines bristling; the Leviathan's belly lights flare, the
-##     calf's light runs back up to its head and blazes.
+##   - A creature's strike (`strike`, 0.35 s before its attack is fired, Jon's
+##     "windup:B"): a deep in-breath, the spines bristling; the Leviathan's
+##     belly lights flare, the calf's light runs back up to its head and
+##     blazes; then the shot.
 ##
 ## THE PICTURE IS NEVER REDRAWN OR TURNED. Rotating pixel art shimmers, and an
 ## AI animation of a whole picture boils (memory turn-pixel-art-in-whole-pixel-
@@ -71,7 +72,8 @@ const FPS := {Kind.CUSTODIAN: 8.0, Kind.CALF: 12.0, Kind.LEVIATHAN: 8.0}
 const BOB_AMP := 2.0
 const BOB_HZ := 0.21
 const STRIP := 3
-## How long a strike's wind-up holds before it lets go.
+## How long a strike's wind-up holds before it lets go: the 0.35 s before the
+## shot and a beat after it.
 const STRIKE_S := 0.6
 const COLD := Color("#cfe8f5")
 const HEART: Array[Color] = [Color("#eaf6fc"), Color("#ffffff")]
@@ -136,12 +138,15 @@ static func picture_name(e) -> String:
 
 
 ## The canvas the slot's art draws for `e` at `hull`, without a wind-up, at
-## size `s`: what the motion is cut from. Drawn the art's own way, by a second
+## size `s`, with the fight's hit marks (`marks`, a `ShipHitFx`): what the
+## motion is cut from. Drawn the art's own way, by a second
 ## `EnemyArt` (a few ms, on the main thread), so the rest it settles to is the
 ## art's picture to the pixel.
-static func still_canvas(e, hull: int, s: float) -> Image:
+static func still_canvas(e, hull: int, s: float, marks = null) -> Image:
 	var art := EnemyArt.new()
 	art.set("draw_scale", s)
+	if marks != null:
+		art.set("marks", marks)
 	var ghost := Combat.EnemyState.new()
 	ghost.template = e.template
 	ghost.max_hp = e.max_hp
@@ -242,7 +247,9 @@ func windup(on: bool) -> void:
 	_wind_on = on
 
 
-## A creature's attack is fired: the wind-up, held a moment, then let go.
+## A creature is about to fire (`SectorScreen._play_turn` waits
+## `FAUNA_ANTICIPATION`, 0.35 s, before its shot): the wind-up, in fast, held
+## through the shot, then let go.
 func strike() -> void:
 	_strike_left = STRIKE_S
 
@@ -290,7 +297,8 @@ func _tick() -> void:
 	var ts := floorf(t * fps() + 1e-3) / fps()
 	if not _settling:
 		var want := 1.0 if (_wind_on or _strike_left > 0.0) else 0.0
-		_wind = move_toward(_wind, want, 2.0 / fps())
+		# a strike is in by the time the shot leaves; a charge builds
+		_wind = move_toward(_wind, want, (4.0 if _strike_left > 0.0 else 2.0) / fps())
 	if kind == Kind.CUSTODIAN:
 		_tick_custodian(ts)
 	else:

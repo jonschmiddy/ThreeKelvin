@@ -625,38 +625,55 @@ func _draw() -> void:
 ## picture as it always has, only its texture is off while the motion shows.
 ##
 ## The motion is cut from the picture the art would show WITHOUT a wind-up (its
-## own charge is the motion's to light), drawn here and cut on a worker thread,
-## once per picture: a new wound band or the pack's half sheet cuts again, and
-## the old cut moves on until the new one is in. Without motion (reduced
-## motion, headless, `FaunaMotion.enabled` off) none of this exists.
+## own charge is the motion's to light) and WITH the fight's hit marks
+## (`art.marks`, `HitLayers`), drawn here and cut on a worker thread, once per
+## picture: a new mark, a new wound band or the pack's half sheet cuts again
+## (one cut at a time; the newest picture is cut next), and the old cut moves
+## on until the new one is in. Without motion (reduced motion, headless,
+## `FaunaMotion.enabled` off) none of this exists.
 var _fauna: FaunaMotion
 var _fauna_key := ""
 var _fauna_job := -1
 var _fauna_held := {}
 var _fauna_tex: Texture2D
 var _fauna_tele := false
+var _fauna_e = null
+## Not before (ms): a crack grows over many frames, each a new version of the
+## marks, and a cut a frame would cost a picture drawn on the main thread each.
+var _fauna_next := 0
 ## Settling for the death: nothing more is cut.
 var _fauna_done := false
 
 
 ## Wired from `bind`.
 func _fauna_bind(e, telegraphed: bool) -> void:
-	var k := FaunaMotion.kind_of(e.template.id)
-	if k < 0 or _dead or not FaunaMotion.enabled or not Router.animating():
+	if FaunaMotion.kind_of(e.template.id) < 0 or _dead or not FaunaMotion.enabled 			or not Router.animating():
 		_fauna_off()
 		return
 	if _fauna_done:
 		return
+	_fauna_e = e
 	_fauna_tele = telegraphed
 	if _fauna != null:
 		_fauna.windup(telegraphed)
+	_fauna_recut()
+
+
+## Cut the picture shown now, if it is not the one cut (and nothing is being
+## cut: the next frame asks again).
+func _fauna_recut() -> void:
+	if _fauna_e == null or _fauna_done or _fauna_job >= 0 or Time.get_ticks_msec() < _fauna_next:
+		return
+	var e = _fauna_e
 	var hull: int = e.hp if shown_hp < 0 else shown_hp
 	var sc := _fauna_scale()
-	var key := FaunaMotion.picture_key(e, hull, sc)
+	var key := FaunaMotion.picture_key(e, hull, sc) + "|marks %d" % (art.marks.version if art.marks != null else -1)
 	if key == _fauna_key:
 		return
 	_fauna_key = key
-	var img := FaunaMotion.still_canvas(e, hull, sc)
+	_fauna_next = Time.get_ticks_msec() + 120
+	var k := FaunaMotion.kind_of(e.template.id)
+	var img := FaunaMotion.still_canvas(e, hull, sc, art.marks)
 	var pic := FaunaMotion.picture_name(e)
 	var held := {key = key}
 	_fauna_held = held
@@ -664,8 +681,6 @@ func _fauna_bind(e, telegraphed: bool) -> void:
 		var fm := FaunaMotion.new()
 		fm.cut(img, k, sc, pic)
 		held.fm = fm)
-	# what to cut again from, if the pack's size changes under it
-	held.e = e
 
 
 ## How big the art draws the picture: its half sheet in a pack of three or more
@@ -703,11 +718,9 @@ func _fauna_step(dt: float) -> void:
 			art.texture = null
 		elif fm != null:
 			fm.free()
+	_fauna_recut()
 	if _fauna == null:
 		return
-	if _fauna_held.has("e") and not is_equal_approx(_fauna.pic_scale, _fauna_scale()) and _fauna_job < 0:
-		var e = _fauna_held.e
-		_fauna_bind(e, _fauna_tele)
 	_fauna.advance(dt)
 	# where the art draws its canvas (`STRETCH_KEEP_CENTERED`): a half pixel
 	# there lands on the next whole one, so this rounds the same way
@@ -723,10 +736,13 @@ func fauna_settle() -> void:
 		_fauna.settle()
 
 
-## The attack is fired: a creature's strike.
-func fauna_strike() -> void:
-	if _fauna != null and _fauna.kind != FaunaMotion.Kind.CUSTODIAN:
+## A creature is about to fire: its strike (`SectorScreen._play_turn` waits
+## for it). False when there is no creature's motion to wind up.
+func fauna_strike() -> bool:
+	if _fauna != null and _fauna.kind != FaunaMotion.Kind.CUSTODIAN and not _fauna_done:
 		_fauna.strike()
+		return true
+	return false
 
 
 func fauna_motion() -> FaunaMotion:
@@ -745,6 +761,7 @@ func _exit_tree() -> void:
 
 func _fauna_off() -> void:
 	_fauna_key = ""
+	_fauna_e = null
 	if _fauna != null:
 		_fauna.queue_free()
 		_fauna = null
