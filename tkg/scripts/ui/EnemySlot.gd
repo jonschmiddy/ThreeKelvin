@@ -68,6 +68,9 @@ var _hot: bool = false
 ## Told by the view when another slot takes the cursor.
 var claim: Callable
 var _dead: bool = false
+## The hull this slot SHOWS, when the screen is holding a number back until the
+## shot that changed it lands (combat polish, Oct 13). -1 shows the real one.
+var shown_hp: int = -1
 
 ## The idle drift: whole pixels, up and down, so a contact reads as floating
 ## rather than pinned to the panel.
@@ -255,8 +258,9 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	# A third of a cycle apart, so three contacts never reach the top together.
 	_bob_phase = float(i) * (1.0 / BOB_HZ) / 3.0
 	index = i
-	_dead = e.hp <= 0
-	art.set_enemy(e, telegraphed)
+	var hull: int = e.hp if shown_hp < 0 else shown_hp
+	_dead = hull <= 0
+	art.set_enemy(e, telegraphed, shown_hp)
 	art.modulate = Color(0.4, 0.4, 0.45) if _dead else Color.WHITE
 	_intent.text = "" if _dead or e.intent == null else e.intent.name.to_upper()
 	_intent.visible = _intent.text != ""
@@ -266,7 +270,7 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	_name.add_theme_color_override("font_color",
 		Color("#4a5c72") if _dead else UITheme.THEM)
 	_bar.max_value = e.max_hp
-	_bar.value = e.hp
+	_bar.value = hull
 	_brace_bar.visible = not _dead and e.brace > 0
 	_brace_bar.set_value(e.brace)
 	# SALVAGE, not WRECKED, once there is a reason to touch it.
@@ -276,7 +280,7 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	# carrying. The word only changes when the slot can actually be opened, so
 	# a hull with nothing left in it goes back to being a fact.
 	_hp.text = ("SALVAGE" if opened.is_valid() else "WRECKED") if _dead \
-		else "%d / %d" % [e.hp, e.max_hp]
+		else "%d / %d" % [hull, e.max_hp]
 	if _dead and opened.is_valid():
 		_hp.add_theme_color_override("font_color", UITheme.TRACTOR)
 		tooltip_text = Widgets.tip(
@@ -367,6 +371,15 @@ func _gui_input(e: InputEvent) -> void:
 ## whole control, and the control is most of the arena -- so a pointing hand
 ## appeared halfway across the screen from the only thing it could point at.
 ## Godot asks this per position, which is the shape the question actually has.
+## Hidden while a breakup draws the ship coming apart in its place, and back,
+## as the wreck, when it is done. The slot keeps its place, its name and its bar.
+func hide_art(on: bool) -> void:
+	if art != null:
+		# The whole colour, not just the alpha: a hit's white flash may still be
+		# on it, and bringing the wreck back at 2.4x white was a bright ghost.
+		art.self_modulate = Color(1, 1, 1, 0.0 if on else 1.0)
+
+
 func _get_cursor_shape(at: Vector2) -> CursorShape:
 	if _dead and opened.is_valid() and _on_hull(at):
 		return Control.CURSOR_POINTING_HAND

@@ -263,27 +263,78 @@ func _vent(x: int, y: int, w: int, h: int) -> void:
 ## single box reads as a sticker someone put on the ship; then whatever is still
 ## burning at the bottom of it.
 func _wound(cx: int, cy: int, w: int, h: int, ember: bool = true) -> void:
-	var rings := [
-		[-7, -5, 14, 10, 0.25], [-4, -2, 9, 5, 0.5], [-2, -1, 5, 3, 0.85]]
-	for i in rings.size():
-		var g: Array = rings[i]
-		dither(cx - w / 2 + int(g[0]), cy - h / 2 + int(g[1]),
-			w + int(g[2]), h + int(g[3]),
-			Color("#1c1409") if i == 0 else Color("#120c06"), float(g[4]))
-	for raw in [[0, 0, w, h], [-3, 2, w - 4, h - 4], [4, -2, w - 6, h - 3]]:
-		var q: Array = raw
-		px(cx - int(q[2]) / 2 + int(q[0]), cy - int(q[3]) / 2 + int(q[1]),
-			int(q[2]), int(q[3]), Color("#0a0805"))
-	if ember:
-		px(cx - 2, cy + h / 2 - 3, 6, 3, _heat[0])
-		px(cx - 1, cy + h / 2 - 3, 3, 2, _heat[1])
-		px(cx + 5, cy - h / 2 + 1, 3, 2, _heat[0])
+	# SCORCHED INTO THE HULL'S OWN PIXELS, never painted over it. The wound used
+	# to be three flat near-black rectangles stamped on, which read as a hole cut
+	# in the sprite (combat polish audit F5) and spilled past the silhouette.
+	# Now the plating under it darkens in a dithered oval -- deepest in the
+	# middle, broken up at the edge -- and only where there is plating.
+	var bayer := [0.0, 0.5, 0.75, 0.25]
+	var rx := maxi(2, w / 2 + 3)
+	var ry := maxi(2, h / 2 + 2)
+	for y in range(cy - ry, cy + ry + 1):
+		for x in range(cx - rx, cx + rx + 1):
+			if x < 0 or y < 0 or x >= W or y >= H:
+				continue
+			var c := _img.get_pixel(x, y)
+			if c.a < 0.5:
+				continue
+			var d := Vector2(float(x - cx) / rx, float(y - cy) / ry).length()
+			if d > 1.0:
+				continue
+			var thr: float = bayer[(y % 2) * 2 + (x % 2)]
+			var k := 0.3
+			if d >= 0.45 and d < 0.75:
+				k = 0.5 if thr < 0.75 else 0.72
+			elif d >= 0.75:
+				if thr >= 0.5:
+					continue
+				k = 0.72
+			_img.set_pixel(x, y, Color(c.r * k, c.g * k * 0.94, c.b * k * 0.88, c.a))
+	if not ember:
+		return
+	# AND A CRACK THAT IS STILL HOT, as light: a jagged line of the heat ramp
+	# across the middle, brightest at its centre, with a dim dithered spill
+	# beside it, on plating only.
+	var half := maxi(2, w / 2)
+	for i in range(-half, half + 1):
+		var x2 := cx + i
+		var y2 := cy + ((i * 7 + 3) % 3) - 1
+		if x2 < 0 or y2 < 1 or x2 >= W or y2 >= H - 1:
+			continue
+		if _img.get_pixel(x2, y2).a < 0.5:
+			continue
+		var f := absf(float(i)) / float(half)
+		_img.set_pixel(x2, y2, _heat[3] if f < 0.3 else (_heat[2] if f < 0.7 else _heat[1]))
+		for dy in [-1, 1]:
+			var y3: int = y2 + dy
+			if (x2 + y3) % 2 == 0 and _img.get_pixel(x2, y3).a >= 0.5 and f < 0.7:
+				_img.set_pixel(x2, y3, _heat[0])
 
 
 # --- The enemies -------------------------------------------------------------
 
-func set_enemy(e: Combat.EnemyState, telegraphing: bool) -> void:
-	var wounded := float(e.hp) / float(maxi(1, e.max_hp))
+## HOW A SHIP OF THIS KIND DIES, for every kind: one of `ShipBreakup.Style`.
+## Jon is choosing between the styles (Oct 13); this is the one line that
+## changes when he does. The breakup and the wreck it leaves both read it, so
+## the last frame of a death is always the wreck drawn here afterwards.
+const DEATH_STYLE := 0
+
+## The same cut every time a ship of this kind dies, so the wreck on LOCAL is the
+## wreck the fight left.
+static func wreck_seed(t: EnemyTemplate) -> int:
+	return hash(String(t.id)) & 0x7fffffff
+
+## A copy of what is on the canvas now: what a breakup cuts up.
+func snapshot() -> Image:
+	return _img.duplicate()
+
+## `hp` stands in for the enemy's hull when the screen is holding a number back
+## until the shot that changed it has landed (combat polish, Oct 13). -1 reads
+## the enemy's own.
+func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1) -> void:
+	var hull := e.hp if hp < 0 else hp
+	var wounded := float(hull) / float(maxi(1, e.max_hp))
+	var dead := hull <= 0
 	# Rebuilding a 240x120 image column by column is not free, and bind() runs
 	# on every combat refresh — every card played, every intent that changes.
 	# Nothing below reads anything except which art, whether it is winding up,
@@ -296,8 +347,8 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool) -> void:
 	# different ships in the same fight could hold each other's picture. It never
 	# showed while they were literally the same pixels; the moment one of them
 	# has a sprite and the other does not, it would.
-	var sig := "%s|%s|%d|%d|%d" % [e.template.id, e.template.art, int(telegraphing),
-		int(wounded * 20.0), int(e.max_hp > 60)]
+	var sig := "%s|%s|%d|%d|%d|%d" % [e.template.id, e.template.art, int(telegraphing),
+		int(wounded * 20.0), int(e.max_hp > 60), int(dead)]
 	if sig == _sig:
 		return
 	_sig = sig
@@ -356,6 +407,12 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool) -> void:
 	custom_minimum_size = Vector2(half_w, half_h) * 2.0 + Vector2(6, 6)
 	if wounded < 0.3:
 		_blend_rect(0, 0, W, H, Color(0.031, 0.043, 0.067, 0.35))
+	# A DEAD SHIP IS THE WRECK ITS DEATH LEFT: the chunks where the breakup
+	# settled them, engines out. Drawn here so LOCAL's wrecks, long after the
+	# fight, are the same broken hull the animation ended on.
+	if dead:
+		_img = ShipBreakup.wreck_image(_img, _used, wreck_seed(e.template),
+			e.template.boss, DEATH_STYLE)
 	_tex.update(_img)
 
 ## Rustjaw Cutter: a blade with an engine bolted to the back of it, nosing left.
@@ -727,4 +784,12 @@ func _blend_rect(x: int, y: int, w: int, h: int, c: Color) -> void:
 			var xx := x + i
 			var yy := y + j
 			if xx >= 0 and xx < W and yy >= 0 and yy < H:
-				_img.set_pixel(xx, yy, _img.get_pixel(xx, yy).lerp(c, c.a))
+				# ON THE HULL ONLY. Lerping transparent pixels toward a dark
+				# colour at 0.35 left a faint box the size of the whole canvas
+				# round every ship below 30% hull.
+				var was := _img.get_pixel(xx, yy)
+				if was.a <= 0.0:
+					continue
+				var mix := was.lerp(c, c.a)
+				mix.a = was.a
+				_img.set_pixel(xx, yy, mix)
