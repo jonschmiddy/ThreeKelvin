@@ -27,8 +27,15 @@ var _track: bool = false
 func used_rect() -> Rect2i:
 	return _used
 
-const W := 240
-const H := 120
+## THE CANVAS, 340x160 since the Custodian grew past 240x120 (Oct 13). Every
+## other picture still fits the old box; the slot fits itself to the ship
+## (`EnemySlot._fit_holder`), so the bigger canvas costs no room on screen. The
+## coded drawings are authored in a 240x120 box and drawn centred in this one
+## (`_draw_coded`).
+const W := 340
+const H := 160
+## The box the coded drawings were authored in.
+const CODED := Vector2i(240, 120)
 
 var _img: Image
 var _tex: ImageTexture
@@ -85,7 +92,7 @@ func px(x: int, y: int, w: int, h: int, c: Color) -> void:
 		for i in w:
 			var xx := x + i
 			var yy := y + j
-			if xx >= 0 and xx < W and yy >= 0 and yy < H:
+			if xx >= 0 and xx < _img.get_width() and yy >= 0 and yy < _img.get_height():
 				_img.set_pixel(xx, yy, c)
 
 ## Put a generated ship on the canvas. False if there is no sprite, which is the
@@ -360,14 +367,15 @@ func snapshot() -> Image:
 static var _wrecks: Dictionary = {}
 static var _wreck_tasks: Dictionary = {}
 
-static func _wreck_key(t: EnemyTemplate, max_hp: int, style: int) -> String:
-	# Size only changes the drawing for fauna; see `_draw_fauna`.
-	return "%s|%d|%d" % [t.id, int(t.fauna and max_hp > 60), style]
+static func _wreck_key(t: EnemyTemplate, max_hp: int, style: int, look: int) -> String:
+	# Size only changes the drawing for fauna; see `_draw_fauna`. `look` is which
+	# of the kind's pictures this ship wears (`Combat.look_for`).
+	return "%s|%d|%d|%d" % [t.id, int(t.fauna and max_hp > 60), style, look]
 
 ## Start cutting this enemy's wreck now, off the main thread. Drawing the dead
 ## canvas to cut is the only part done here (a few ms).
 static func warm_wreck(e: Combat.EnemyState, style: int) -> void:
-	var key := _wreck_key(e.template, e.max_hp, style)
+	var key := _wreck_key(e.template, e.max_hp, style, e.look)
 	if _wrecks.has(key) or _wreck_tasks.has(key):
 		return
 	var dc := dead_canvas(e)
@@ -402,6 +410,9 @@ static func dead_canvas(e: Combat.EnemyState) -> Array:
 	ghost.template = e.template
 	ghost.max_hp = e.max_hp
 	ghost.hp = 0
+	# THE SAME PICTURE the ship wears: a kind has three, and a wreck cut from
+	# another would not be this ship's.
+	ghost.look = e.look
 	art.set_enemy(ghost, false, -1, false)
 	var out := [art._img.duplicate(), art._used]
 	art.free()
@@ -436,6 +447,7 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	# has a sprite and the other does not, it would.
 	var sig := "%s|%s|%d|%d|%d|%d|%d" % [e.template.id, e.template.art, int(telegraphing),
 		int(wounded * 20.0), int(e.max_hp > 60), int(dead), int(cut_wreck) * (style + 2)]
+	sig += "|look %d" % e.look
 	if sig == _sig:
 		return
 	_sig = sig
@@ -443,7 +455,6 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	# Transparent: the encounter draws one starfield behind everything, and an
 	# opaque fill turns the sprite into a box sitting on top of it.
 	_img.fill(Color(0, 0, 0, 0))
-	_starfield(77, 26)
 	# Bounds tracking starts AFTER the starfield and stops before the wound
 	# tint, so what it measures is the ship and nothing else. A 240x120 canvas
 	# carries a hull about 150 wide; anything aiming at the canvas is aiming at
@@ -460,20 +471,8 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	# blend and the two telegraph glows are painted OVER the hull, so a sprite
 	# inherits all of them for nothing. That is what keeps the asset set at nine
 	# files rather than nine times four wound bands times two telegraphs.
-	if not _blit_sprite(DB.enemy_sprite(e.template.id)):
-		match e.template.art:
-			&"cutter": _draw_cutter(wounded)
-			&"hulk": _draw_hulk(wounded, telegraphing)
-			&"hellbender": _draw_hellbender(wounded, telegraphing)
-			# EXPLICIT, THOUGH IT IS ALSO WHAT THE FALLBACK DID. The `_:` case
-			# silently turned any unmatched key into a fauna, which is how the
-			# Custodian came to be a salvage barge without anyone noticing. Named
-			# here, a typo'd or new key lands in the fallback below and says so.
-			&"whale": _draw_fauna(wounded, e.max_hp > 60)
-			_:
-				push_warning("EnemyArt: no drawing for art key '%s' (%s); drew fauna"
-					% [e.template.art, e.template.id])
-				_draw_fauna(wounded, e.max_hp > 60)
+	if not _draw_sprite(e, wounded, telegraphing):
+		_draw_coded(e, wounded, telegraphing)
 	_track = false
 	_used = _bounds if _bounds.size != Vector2i.ZERO else Rect2i(0, 0, W, H)
 
@@ -499,7 +498,7 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	# fight, are the same broken hull the animation ended on.
 	if dead and cut_wreck:
 		var st := style if style >= 0 else _default_style(e.template)
-		var key := _wreck_key(e.template, e.max_hp, st)
+		var key := _wreck_key(e.template, e.max_hp, st, e.look)
 		var w := _take_wreck(key)
 		if w == null:
 			w = ShipBreakup.wreck_image(_img, _used, wreck_seed(e.template),
@@ -507,6 +506,189 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 			_wrecks[key] = w
 		_img = w.duplicate()
 	_tex.update(_img)
+
+## THE PICTURE, when the kind has one: Jon's kept ship, centred and never
+## scaled, then what the fight has done to it drawn over it.
+##
+## NO STARS ON THIS CANVAS. The coded drawings put a starfield behind the hull;
+## a sprite does not, so the canvas holds the ship and nothing else, and what a
+## breakup cuts out of it is the ship's own alpha -- a star showing through a
+## gap in a ring would otherwise break off as hull.
+func _draw_sprite(e: Combat.EnemyState, wounded: float, telegraphing: bool) -> bool:
+	if not _blit_sprite(DB.enemy_sprite(e.template.id, e.look)):
+		return false
+	var ink := _bounds
+	# Damage, on the hull and sized to it. `_wound` is the one the coded ships
+	# use, so a sprite is hurt the way a drawing is.
+	if wounded < 0.5:
+		var p := _on_hull(ink, Vector2(0.42, 0.55))
+		_wound(p.x, p.y, clampi(ink.size.x / 9, 10, 22), clampi(ink.size.y / 6, 7, 14))
+	if wounded < 0.25:
+		var q := _on_hull(ink, Vector2(0.7, 0.42))
+		_wound(q.x, q.y, clampi(ink.size.x / 13, 8, 16), clampi(ink.size.y / 8, 6, 10))
+	if telegraphing:
+		_windup(e.template, ink)
+	return true
+
+## THE DRAWINGS, for a kind with no picture. Authored in a 240x120 box, so drawn
+## into one and laid in the middle of the canvas; the stars go behind them as
+## they always did.
+func _draw_coded(e: Combat.EnemyState, wounded: float, telegraphing: bool) -> void:
+	var full := _img
+	_img = Image.create(CODED.x, CODED.y, false, Image.FORMAT_RGBA8)
+	var before := _bounds
+	_bounds = Rect2i()
+	match e.template.art:
+		&"cutter": _draw_cutter(wounded)
+		&"hulk": _draw_hulk(wounded, telegraphing)
+		&"hellbender": _draw_hellbender(wounded, telegraphing)
+		# EXPLICIT, THOUGH IT IS ALSO WHAT THE FALLBACK DID. The `_:` case
+		# silently turned any unmatched key into a fauna, which is how the
+		# Custodian came to be a salvage barge without anyone noticing. Named
+		# here, a typo'd or new key lands in the fallback below and says so.
+		&"whale": _draw_fauna(wounded, e.max_hp > 60)
+		_:
+			push_warning("EnemyArt: no drawing for art key '%s' (%s); drew fauna"
+				% [e.template.art, e.template.id])
+			_draw_fauna(wounded, e.max_hp > 60)
+	var drawn := _img
+	_img = full
+	var o := (Vector2i(W, H) - CODED) / 2
+	var was_tracking := _track
+	_track = false
+	_starfield(77, 26)
+	_track = was_tracking
+	_img.blend_rect(drawn, Rect2i(Vector2i.ZERO, CODED), o)
+	if _bounds.size != Vector2i.ZERO:
+		_bounds = Rect2i(_bounds.position + o, _bounds.size)
+	if before.size != Vector2i.ZERO:
+		_bounds = before.merge(_bounds) if _bounds.size != Vector2i.ZERO else before
+
+
+## A pixel inside the hull near a point of its box (`at`, 0..1 across and down),
+## with hull all round it, so a wound lands on plating rather than in a gap.
+func _on_hull(ink: Rect2i, at: Vector2) -> Vector2i:
+	var want := ink.position + Vector2i(int(ink.size.x * at.x), int(ink.size.y * at.y))
+	for r in range(0, 40):
+		for dy in range(-r, r + 1):
+			for dx in range(-r, r + 1):
+				if maxi(absi(dx), absi(dy)) != r:
+					continue
+				var p := want + Vector2i(dx, dy)
+				if _solid(p, 3):
+					return p
+	return want
+
+## Hull all the way round `p`, `r` pixels out.
+func _solid(p: Vector2i, r: int) -> bool:
+	for dy in range(-r, r + 1):
+		for dx in range(-r, r + 1):
+			var x := p.x + dx
+			var y := p.y + dy
+			if x < 0 or y < 0 or x >= W or y >= H or _img.get_pixel(x, y).a < 0.5:
+				return false
+	return true
+
+
+## THE WIND-UP, as light over the picture: the Hulk's ram at its nose, the
+## Hellbender's escape burn at its drive, anything else (the Custodian's
+## charge) at its heart. The coded drawings paint these into the hull; a sprite
+## is lit instead -- the plating near the source brightens with distance, in
+## whole steps with a dithered edge (memory draw-light-as-light), and only a
+## real emitter (a ram's hot point, a drive) puts light past the silhouette.
+## Still while the intent holds: the picture is only redrawn when it changes.
+const WINDUP := {&"hulk": &"nose", &"hellbender": &"stern"}
+const COLD: Array[Color] = [Color("#3a6b8c"), Color("#5c9cc4"), Color("#8ec8e6"),
+	Color("#cfe8f5"), Color("#eaf6fc"), Color("#ffffff")]
+
+func _windup(t: EnemyTemplate, ink: Rect2i) -> void:
+	var where: StringName = WINDUP.get(t.id, &"core")
+	match where:
+		&"nose":
+			var p := _end_point(ink, ink.position.x)
+			_light(p, clampf(ink.size.y * 0.7, 16.0, 34.0), _heat[3], 1.0)
+			_flare(p, 7)
+		&"stern":
+			var p := _end_point(ink, ink.end.x - 1)
+			_light(p, clampf(ink.size.y * 0.8, 18.0, 40.0), _heat[3], 1.0)
+			_glow(p.x + 1, p.y, maxi(4, ink.size.y / 7), 30)
+		_:
+			var p := _on_hull(ink, _mass(ink))
+			_light(p, clampf(minf(ink.size.x, ink.size.y) * 0.6, 18.0, 46.0), COLD[3], 1.1)
+			# the heart itself, white, on the hull only
+			for dy in range(-2, 3):
+				for dx in range(-2, 3):
+					var q := p + Vector2i(dx, dy)
+					if absi(dx) + absi(dy) <= 2 and _img.get_pixel(q.x, q.y).a > 0.5:
+						_img.set_pixel(q.x, q.y, COLD[5] if absi(dx) + absi(dy) <= 1 else COLD[4])
+
+## Where the hull's mass sits in its box, 0..1.
+func _mass(ink: Rect2i) -> Vector2:
+	var sx := 0.0
+	var sy := 0.0
+	var n := 0
+	for y in range(ink.position.y, ink.end.y, 2):
+		for x in range(ink.position.x, ink.end.x, 2):
+			if _img.get_pixel(x, y).a > 0.5:
+				sx += x
+				sy += y
+				n += 1
+	if n == 0:
+		return Vector2(0.5, 0.5)
+	return Vector2((sx / n - ink.position.x) / maxf(1.0, ink.size.x),
+		(sy / n - ink.position.y) / maxf(1.0, ink.size.y))
+
+## The middle of the hull's run down the column nearest `x` that has some: a
+## nose, or a drive.
+func _end_point(ink: Rect2i, x: int) -> Vector2i:
+	var step := 1 if x <= ink.get_center().x else -1
+	for k in range(0, 16):
+		var cx := x + k * step
+		var ys: Array[int] = []
+		for y in range(ink.position.y, ink.end.y):
+			if _img.get_pixel(cx, y).a > 0.5:
+				ys.append(y)
+		if ys.size() >= 2:
+			return Vector2i(cx, ys[ys.size() / 2])
+	return Vector2i(x, ink.get_center().y)
+
+## Light falling on the plating round `p`: added, with falloff, in quarter
+## steps, the outer band dithered so the pool has no ring.
+func _light(p: Vector2i, r: float, col: Color, strength: float) -> void:
+	var bayer := [0.0, 0.5, 0.75, 0.25]
+	var ri := int(ceil(r))
+	for y in range(p.y - ri, p.y + ri + 1):
+		for x in range(p.x - ri, p.x + ri + 1):
+			if x < 0 or y < 0 or x >= W or y >= H:
+				continue
+			var c := _img.get_pixel(x, y)
+			if c.a < 0.5:
+				continue
+			var d := Vector2(x - p.x, y - p.y).length() / r
+			if d >= 1.0:
+				continue
+			var k := floorf((1.0 - d) * (1.0 - d) * strength * 4.0 + 0.5) / 4.0
+			if d > 0.7:
+				k = 0.12 if float(bayer[(y % 2) * 2 + (x % 2)]) < 0.5 else 0.0
+			if k <= 0.0:
+				continue
+			_img.set_pixel(x, y, Color(minf(1.0, c.r + col.r * k), minf(1.0, c.g + col.g * k),
+				minf(1.0, c.b + col.b * k), c.a))
+
+## A hot point standing off the nose: the one place a ram's wind-up lights
+## empty space. Solid at the point, dithered out, the heat ramp.
+func _flare(p: Vector2i, r: int) -> void:
+	for y in range(p.y - r, p.y + r + 1):
+		for x in range(p.x - r - 4, p.x + 2):
+			if x < 0 or y < 0 or x >= W or y >= H:
+				continue
+			var d := Vector2(float(x - p.x) * 0.7, float(y - p.y)).length() / float(r)
+			if d >= 1.0 or (_img.get_pixel(x, y).a > 0.5 and x > p.x):
+				continue
+			if d >= 0.7 and (x + y) % 2 == 0:
+				continue
+			px(x, y, 1, 1, _heat[5] if d < 0.25 else (_heat[4] if d < 0.45 else (_heat[3] if d < 0.7 else _heat[2])))
+
 
 ## Rustjaw Cutter: a blade with an engine bolted to the back of it, nosing left.
 func _draw_cutter(wounded: float) -> void:

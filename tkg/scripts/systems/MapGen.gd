@@ -189,6 +189,8 @@ class Jetsam extends RefCounted:
 	## The enemy template whose hull this is, or empty for the system's own pile.
 	## Empty is what makes it the floor rather than a wreck.
 	var art: StringName = &""
+	## Which of that kind's pictures the hull was (`EnemyState.look`).
+	var look: int = 0
 	var label: String = "SECTOR LOOT"
 	## MUST NOT SHRINK. A taken thing stays in it and is marked in `MapNode.taken`,
 	## exactly as `shop` and `bag` learned to.

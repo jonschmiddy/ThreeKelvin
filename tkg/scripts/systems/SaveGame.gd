@@ -235,7 +235,13 @@ static var path: String = TestRun.scratch("run", "save") if TestRun.active() els
 ## there is nothing to half-understand, and refusing it would cost a player a
 ## run for a field whose absence is a correct answer. A 29 build handed a 30
 ## save still refuses it, which is the direction the number exists for.
-const VERSION := 30
+## 31: WHICH PICTURE A WRECK IS (`Jetsam.look`). The enemies wear Jon's kept
+## ships now, three to an ordinary kind and one per fight (`Combat.look_for`),
+## and a wreck has to be the hull the fight showed. Read the way 30 reads 29: a
+## 30 save has no `look`, and missing it means the kind's first picture -- a 30
+## build drew none of these pictures at all, so there is nothing to disagree
+## with. OLDEST_READ stays at 29.
+const VERSION := 31
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
 const OLDEST_READ := 29
@@ -917,7 +923,7 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		var items: Array = []
 		for m2 in h.items:
 			items.append(_item_to(m2))
-		jetsam.append({slot = h.slot, art = String(h.art), label = h.label,
+		jetsam.append({slot = h.slot, art = String(h.art), look = h.look, label = h.label,
 			scanned = h.scanned, items = items})
 	return {
 		index = n.index, layer = n.layer, row = n.row,
@@ -1052,6 +1058,8 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 		var h := MapGen.Jetsam.new()
 		h.slot = int(row.get("slot", 0))
 		h.art = StringName(row.get("art", ""))
+		# (absent before the enemies had several pictures: the first one)
+		h.look = int(row.get("look", 0))
 		h.label = String(row.get("label", "SECTOR LOOT"))
 		h.scanned = bool(row.get("scanned", false))
 		for e2 in row.get("items", []):

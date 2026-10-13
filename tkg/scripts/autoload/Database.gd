@@ -1572,13 +1572,40 @@ func card_art(key: StringName) -> Texture2D:
 ## and its `_:` fallback would have quietly turned the boss into a fauna before
 ## a single sprite existed. The fallback has to keep drawing exactly what it
 ## draws now, or the seam is a regression wearing a plan's clothes.
-func enemy_sprite(id: StringName) -> Texture2D:
+##
+## SEVERAL PICTURES PER KIND, ONE PER FIGHT (Jon, 2026-10-13). An enemy id can
+## own a list of kept pool ships (`art/sprites/enemies/index.json`, written by
+## `tools/enemy_sprites.py`) and `look` picks one, wrapping: the fight stores it
+## on the `EnemyState` (`Combat.look_for`, positional, so every machine and the
+## wreck it leaves agree). An id with no list falls back to `<id>.png`.
+func enemy_sprite(id: StringName, look: int = 0) -> Texture2D:
 	if id == &"":
 		return null
+	var files: Array = enemy_sprite_files(id)
 	var path := "res://art/sprites/enemies/%s.png" % id
+	if not files.is_empty():
+		path = "res://art/sprites/enemies/%s" % String(files[posmod(look, files.size())])
 	if not ResourceLoader.exists(path):
 		return null
 	return load(path) as Texture2D
+
+## How many pictures a kind has to choose from (0 while it is drawn in code).
+func enemy_looks(id: StringName) -> int:
+	return enemy_sprite_files(id).size()
+
+## The kind's picture files, in the order `look` indexes them.
+func enemy_sprite_files(id: StringName) -> Array:
+	if _enemy_art_index.is_empty():
+		_enemy_art_index = {"_": true}
+		var f := FileAccess.open("res://art/sprites/enemies/index.json", FileAccess.READ)
+		if f != null:
+			var d = JSON.parse_string(f.get_as_text())
+			if d is Dictionary and d.get("enemies") is Dictionary:
+				_enemy_art_index.merge(d["enemies"])
+	var got = _enemy_art_index.get(String(id), [])
+	return got if got is Array else []
+
+var _enemy_art_index: Dictionary = {}
 
 ## A SECTOR PLACE'S PICTURE, or null while it has none.
 ##
