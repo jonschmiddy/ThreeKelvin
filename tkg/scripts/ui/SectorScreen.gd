@@ -958,7 +958,7 @@ func _rebuild_drawer(n: MapGen.MapNode) -> void:
 		_drawer_simple("Nothing on this hull answers any more.", "SUMMARY")
 		return
 	if Run.hellbender_alive() and Run.hellbender_at == n.index:
-		_drawer_simple("The Hellbender rides at anchor here, holds glowing with everything it has taken. Nothing else in this system is reachable past it.",
+		_drawer_simple("The Hellbender is anchored here, its holds glowing with what it has taken. It blocks the rest of this system.",
 			"ENGAGE THE HELLBENDER")
 		return
 	# A SYSTEM OR A STATION: ONE LINE, AND THE WAY TO THE MAP. What is here, its

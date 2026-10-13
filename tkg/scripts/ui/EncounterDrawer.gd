@@ -868,11 +868,11 @@ static func quiet_lines(n: MapGen.MapNode) -> Array:
 	if Run.dead:
 		return ["Nothing on this hull answers any more.", "SUMMARY"]
 	if Run.hellbender_alive() and Run.hellbender_at == n.index:
-		return ["The Hellbender rides at anchor here, holds glowing with everything it has taken. Nothing else in this system is reachable past it.",
+		return ["The Hellbender is anchored here, its holds glowing with what it has taken. It blocks the rest of this system.",
 			"ENGAGE THE HELLBENDER"]
 	match n.type:
 		MapGen.NodeType.STATION:
-			return ["A hab ring turns slowly, lights on. They will trade, repair and refuel, all of it out of the same pocket.", "DOCK"]
+			return ["A hab ring turns slowly, lights on. It trades, repairs and refuels, all paid from your one balance.", "DOCK"]
 		MapGen.NodeType.SYSTEM:
 			if n.eaten:
 				return ["Cut open along the spine, and the cuts are fresh. The Hellbender fed here first.", TO_SECTOR]
@@ -889,12 +889,12 @@ static func quiet_lines(n: MapGen.MapNode) -> Array:
 				# is extraction from a universe running down, that is not a
 				# completion tick. A small subtraction, which is also simply true.
 				return ["Nothing else here wants anything from you.", TO_SECTOR]
-			return ["The lane is quiet and the board is not.", TO_SECTOR]
+			return ["The lane is quiet. What is here is listed below.", TO_SECTOR]
 		MapGen.NodeType.PULSAR:
 			if n.cleared:
-				return ["The beam still sweeps. Nothing left aboard can hold any more of it.",
+				return ["The beam still sweeps. You have already taken all you can carry from it.",
 					TO_SECTOR]
-			return ["A neutron star, turning eleven times a second. Its wind is the densest fuel in the galaxy, and anywhere close enough to scoop it, the beam will cook you through the hull.",
+			return ["A neutron star turns here eleven times a second. Its wind is the densest fuel in the galaxy. To scoop it you must fly close, where the beam cooks you through the hull.",
 				"FLY THE BEAM"]
 		MapGen.NodeType.START:
 			return ["Open space, and the reactor holding. The core is a long way in from here.", TO_SECTOR]
@@ -906,7 +906,7 @@ static func quiet_lines(n: MapGen.MapNode) -> Array:
 				return ["The light is behind you.", TO_SECTOR]
 			if n.fled:
 				return ["You broke off. It is still between you and the light.", TO_SECTOR]
-			return ["The core fills the viewport. Something is still guarding it.", "ENGAGE"]
+			return ["The core fills the viewport. The Custodian still guards it.", "ENGAGE"]
 		_:
 			return ["", TO_SECTOR]
 
