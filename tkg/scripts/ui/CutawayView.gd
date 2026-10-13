@@ -485,7 +485,7 @@ func _process(delta: float) -> void:
 		if t <= 0.0 and _goal <= 0.0:
 			_finish_close()
 			return
-	if _say != null and _say.visible and Time.get_ticks_msec() > _say_until:
+	if _say != null and _say.visible and GameClock.now_ms() > _say_until:
 		_say.visible = false
 		_keys.visible = true
 
@@ -1058,7 +1058,7 @@ func _toast(s: String, bad: bool = false) -> void:
 	_say.add_theme_color_override("font_color", UITheme.BAD if bad else UITheme.TRACTOR)
 	_say.visible = true
 	_keys.visible = false
-	_say_until = Time.get_ticks_msec() + 1800
+	_say_until = GameClock.now_ms() + 1800
 
 
 # --------------------------------------------------------------- moving parts

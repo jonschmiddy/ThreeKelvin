@@ -241,7 +241,7 @@ var _arrive_span: int = 0
 func arrive(bob_amp: int = 2, delay: float = 0.0) -> StringName:
 	_flameout = randi() % FLAMEOUTS.size()
 	_arrive_bob = maxi(0, bob_amp)
-	_arrive_at = Time.get_ticks_msec() + int(maxf(0.0, delay) * 1000.0)
+	_arrive_at = GameClock.now_ms() + int(maxf(0.0, delay) * 1000.0)
 	_arrive_dx = 0
 	_arrive_span = 0
 	_bob_amp = 0
@@ -271,7 +271,9 @@ static var _flame_cache: Dictionary = {}
 ## FOR THE HARNESSES' FILMS: when set (>= 0), the clock every hull's bob, flame
 ## and shudder run on, in seconds, advanced by the film one step a saved frame
 ## -- so a window that drew at 8 a second still films a bob at its real rate.
-## -1 is the real clock, which is all play ever uses.
+## -1 is the game's clock (`GameClock`), which is all play ever uses: game
+## time, not the wall's, so the movie writer's films and the hit-stop's slow
+## motion reach it too.
 static var shot_clock := -1.0
 
 ## Opt in. `amp` is in source pixels, so it is multiplied by the magnification
@@ -288,7 +290,7 @@ func _ready_anim() -> void:
 func _process(_delta: float) -> void:
 	if _hull() == null:
 		return
-	var t := shot_clock if shot_clock >= 0.0 else float(Time.get_ticks_msec()) / 1000.0
+	var t := shot_clock if shot_clock >= 0.0 else GameClock.now()
 	var dirty := false
 	if _arrive_at >= 0 and _tick_arrival():
 		dirty = true
@@ -785,10 +787,10 @@ func _tick_arrival() -> bool:
 	# Still waiting its turn. Held off screen rather than parked at rest, so a
 	# staggered convoy does not show three ships standing still while the first
 	# one flies in.
-	if Time.get_ticks_msec() < _arrive_at:
+	if GameClock.now_ms() < _arrive_at:
 		return false
 
-	var e := float(Time.get_ticks_msec() - _arrive_at) / ARRIVE_MS
+	var e := float(GameClock.now_ms() - _arrive_at) / ARRIVE_MS
 	if e >= 1.0:
 		park()
 		return true
@@ -821,7 +823,7 @@ func depart(hyper: bool = false) -> StringName:
 	_melt = -1.0
 	# A hyperdrive does not move the hull, so there is nothing to tick: its melt
 	# and shudder are pushed in from `JumpFx`, on that clock. See set_melt.
-	_depart_at = -1 if hyper else Time.get_ticks_msec()
+	_depart_at = -1 if hyper else GameClock.now_ms()
 	_depart_span = -1.0
 	set_process(true)
 	refresh()
@@ -849,7 +851,7 @@ func _tick_departure() -> bool:
 		var clear := maxf(room - hull_rect().end.x - DEPART_EDGE, 0.0)
 		_depart_span = clear + DEPART_OVER
 	var span := _depart_span
-	var e := float(Time.get_ticks_msec() - _depart_at) / DEPART_MS
+	var e := float(GameClock.now_ms() - _depart_at) / DEPART_MS
 	if e >= 1.0:
 		_depart_at = -1
 		return false

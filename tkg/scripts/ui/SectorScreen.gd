@@ -3326,7 +3326,7 @@ class AimLine extends Control:
 			return
 		var a: Vector2 = owner_screen._aim_anchor()
 		var b: Vector2 = owner_screen._aim_tip
-		var t := float(Time.get_ticks_msec()) / 1000.0
+		var t := GameClock.now()
 		_draw_shaft(a, b, t)
 		_draw_lock(b, t)
 

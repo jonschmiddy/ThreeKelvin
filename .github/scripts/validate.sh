@@ -504,6 +504,25 @@ else
 	bad "hitfxlivetest did not finish"
 fi
 
+step "The bobs run on game time, not the wall's"
+# Jon, Oct 13, of the full fight films: "the hovering animation is REALLY fast".
+# The movie writer steps 1/60 s a frame however long a frame takes to write, so
+# the wall's clock raced (the cutter's bob at 0.375 s a cycle, not 4.76). In a
+# real fight of three: time stopped with the wall running, no bob moves; time
+# at 20x, every bob goes top to bottom; a slot made later bobs in step with the
+# first; `ShipView.shot_clock` still drives your ship.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot gameclocktest 120 --headless --path "$PROJECT" -- sheet=GameClockTest; then
+	if grep -qE '^gameclocktest: PASS' "$LOG_DIR/gameclocktest.log"; then
+		ok "the bobs keep game time, in step"
+	else
+		bad "a bob ran on the wall's clock, or out of step"
+		grep -E 'FAIL|^gameclocktest' "$LOG_DIR/gameclocktest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "gameclocktest did not finish"
+fi
+
 step "Dying: your ship breaks up, a beat on the wreck, then the run's screen"
 # Jon, Oct 13: "When you die... let's have your ship crack and explode... pause
 # for a beat... then the run ended popup shows up." The same fight twice from
