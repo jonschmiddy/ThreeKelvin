@@ -124,6 +124,9 @@ const CLUMPS := [
 var particle_us := 0
 var particle_px := 0
 var _tails := {}
+## Hull pixels a front strip always covers (cleared from `_solid`), so the half
+## sheet can clear the same pixels at half size.
+var _unblocked := PackedVector2Array()
 ## The picture a found engine's rim rows are read off (for_sprite).
 var _pic: Image = null
 
@@ -214,6 +217,8 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 					if all and cx >= 0 and cy >= 0 and cx < fx._w and cy < fx._h:
 						if fx._solid[cy * fx._w + cx] == 1:
 							cells.append(Vector2(cx, cy))
+						if fx._solid[cy * fx._w + cx] == 1:
+							fx._unblocked.append(Vector2(cx, cy))
 						fx._solid[cy * fx._w + cx] = 0
 		# The start: each frame's last column holding a strip pixel that SHOWS
 		# (a `back` strip's pixels under the plating do not), the most common one
@@ -943,7 +948,10 @@ func warm_up(thrust: int) -> void:
 ## Draw every engine at time `t`, the canvas's (0, 0) at `origin`, onto a canvas
 ## item that blends ADD (`add_material`). This is the whole per-frame cost: a
 ## frame lookup and one cached texture per engine.
-func draw(ci: CanvasItem, origin: Vector2, thrust: int, t: float) -> void:
+func draw(ci: CanvasItem, origin: Vector2, thrust: int, t: float, wait: bool = true,
+		mod: Color = Color.WHITE) -> void:
+	if not wait and not is_ready():
+		return
 	if look == Look.SPILL:
 		var sp := spill(thrust)
 		if sp.tex != null:
@@ -951,7 +959,7 @@ func draw(ci: CanvasItem, origin: Vector2, thrust: int, t: float) -> void:
 	for n in nozzles.size():
 		var p := plume(n, length_at(n, thrust, t), frame_at(n, t))
 		if p.tex != null:
-			ci.draw_texture(p.tex, origin + (p.at as Vector2))
+			ci.draw_texture(p.tex, origin + (p.at as Vector2), mod)
 	if particles:
 		var t0 := Time.get_ticks_usec()
 		var s: Dictionary = SHAPE[look]
@@ -959,9 +967,157 @@ func draw(ci: CanvasItem, origin: Vector2, thrust: int, t: float) -> void:
 		for n2 in nozzles.size():
 			for q in particles_at(n2, thrust, t):
 				var band: int = q.band
-				ci.draw_rect(Rect2(origin + Vector2(q.x, q.y), Vector2.ONE), _lv(ramp[band], float(s.lv[band]) * float(q.k)))
+				ci.draw_rect(Rect2(origin + Vector2(q.x, q.y), Vector2.ONE), _lv(ramp[band], float(s.lv[band]) * float(q.k)) * mod)
 				particle_px += 1
 		particle_us += Time.get_ticks_usec() - t0
+
+
+# ------------------------------------------------------------------ live
+
+## IN THE GAME (Jon picked A, dynamic with sparks, Oct 13). One flame per hull
+## picture and sheet, shared by every view that draws it -- the chassis select's
+## twelve cards, a convoy's four ships -- and built OFF the main thread the first
+## time a view asks (`build_async`); until it lands that view draws no flame,
+## rather than stalling a frame for the 100-300 ms all its pictures take.
+static var _shared := {}
+
+static func for_view(h: HullData, half: bool) -> ThrusterFx:
+	if h == null or h.sprite == null or h.thrusters.is_empty():
+		return null
+	var src: Texture2D = h.sprite_half if half and h.sprite_half != null else h.sprite
+	var key := [h.sprite.resource_path, src.resource_path, h.thrusters.size(), int(h.thrusters[0].get("id", 0))]
+	if _shared.has(key):
+		return _shared[key]
+	var full := h.sprite.get_image()
+	if full.is_compressed():
+		full.decompress()
+	full.convert(Image.FORMAT_RGBA8)
+	var fx := for_hull(h, full, Look.OVERLOAD, absi(hash(h.sprite.resource_path)) % 100000)
+	fx.dynamic = true
+	fx.particles = true
+	fx.loop_n = 12
+	fx.fps = 8.0
+	if src != h.sprite:
+		var small := src.get_image()
+		if small.is_compressed():
+			small.decompress()
+		small.convert(Image.FORMAT_RGBA8)
+		fx._halve(small)
+	_shared[key] = fx
+	fx.build_async()
+	return fx
+
+
+## A SHIP PICTURE'S FLAME (enemies, LOCAL's pool ships): one per picture file,
+## shared, built off the main thread like a hull's. Its engines are the
+## finder's, or the hand-placed ones in art/engines.json; `k` is how big the
+## picture is against the file the table was read off (a pool ship's _half
+## picture is 0.5). Enemies face left, so it burns to the right.
+static func for_picture(tex: Texture2D, k: float = 1.0) -> ThrusterFx:
+	if tex == null:
+		return null
+	var key := [tex.resource_path, k]
+	if _shared.has(key):
+		return _shared[key]
+	var img := tex.get_image()
+	if img == null:
+		return null
+	if img.is_compressed():
+		img = img.duplicate()
+		img.decompress()
+	img.convert(Image.FORMAT_RGBA8)
+	var id := tex.resource_path.get_file().get_basename()
+	var fx := for_sprite(img, img.get_used_rect(), Look.OVERLOAD, absi(hash(tex.resource_path)) % 100000, id, k)
+	fx.dynamic = true
+	fx.particles = true
+	fx.loop_n = 12
+	fx.fps = 8.0
+	_shared[key] = fx
+	fx.build_async()
+	return fx
+
+
+## THE HALF SHEET (the convoy column): the rig is measured on the full sprite,
+## so every nozzle, bell cell and unblocked pixel comes down to half -- the
+## same nearest halving `sprite_half` was made with -- over the half picture's
+## own mask. Lengths follow its ink width, so they halve too.
+func _halve(small: Image) -> void:
+	var cleared := _unblocked
+	_take_canvas(small)
+	_unblocked = PackedVector2Array()
+	for c in cleared:
+		var x := int(c.x) / 2
+		var y := int(c.y) / 2
+		if x < _w and y < _h:
+			_solid[y * _w + x] = 0
+	for nz in nozzles:
+		nz.pts = _half_pts(nz.pts)
+		if nz.has("bell"):
+			var b: Dictionary = nz.bell
+			b.cells = _half_pts(b.cells)
+			b.mouth = _half_pts(b.mouth)
+			b.depth = maxi(1, int(b.depth) / 2)
+			b.apex = int(b.apex) / 2
+			for c2 in (b.cells as PackedVector2Array):
+				_solid[int(c2.y) * _w + int(c2.x)] = 0
+	_cache.clear()
+	_tails.clear()
+
+
+static func _half_pts(pts: PackedVector2Array) -> PackedVector2Array:
+	var seen := {}
+	var out := PackedVector2Array()
+	for p in pts:
+		var q := Vector2(int(p.x) / 2, int(p.y) / 2)
+		if not seen.has(q):
+			seen[q] = true
+			out.append(q)
+	return out
+
+
+var _task := -1
+## Every build still running, so nothing quits under one: a task the pool is
+## torn down around takes the process with it (exit 139 in the gate, Oct 13).
+static var _pending: Array[int] = []
+
+## Block until every build has finished. ShipView calls it as a view is freed,
+## which is also what happens to all of them when the game quits.
+static func wait_all() -> void:
+	for id in _pending:
+		WorkerThreadPool.wait_for_task_completion(id)
+	_pending.clear()
+
+## Every picture all three thrusts can ask for, built on a worker thread and
+## handed to the main thread whole.
+func build_async() -> void:
+	if _task >= 0:
+		return
+	var keys: Array = []
+	for thrust in 3:
+		for n in nozzles.size():
+			for f in frames():
+				keys.append(Vector3i(n, nozzle_length(n, thrust), f))
+	_task = WorkerThreadPool.add_task(func() -> void:
+		var built := {}
+		for k in keys:
+			built[k] = _build(k.x, k.y, k.z)
+		_adopt.call_deferred(built))
+	_pending.append(_task)
+
+
+func _adopt(built: Dictionary) -> void:
+	if _task in _pending:
+		WorkerThreadPool.wait_for_task_completion(_task)
+		_pending.erase(_task)
+	for k in built:
+		if not _cache.has(k):
+			var b: Dictionary = built[k]
+			_cache[k] = {tex = ImageTexture.create_from_image(b.img) if b.img != null else null, at = b.at}
+
+
+## Whether `build_async` has landed (or everything was built by hand).
+func is_ready() -> bool:
+	return _cache.size() >= nozzles.size() * frames() * 3 or nozzles.is_empty()
 
 
 static func add_material() -> CanvasItemMaterial:
@@ -1027,6 +1183,16 @@ func plume(n: int, L: int, fr: int = 0) -> Dictionary:
 	var key := Vector3i(n, L, fr)
 	if _cache.has(key):
 		return _cache[key]
+	var b := _build(n, L, fr)
+	var out := {tex = ImageTexture.create_from_image(b.img) if b.img != null else null, at = b.at}
+	_cache[key] = out
+	return out
+
+
+## The picture itself, as an Image: PURE (reads the nozzles, the hull mask and
+## the dials, writes nothing shared), so `build_async` can run it off the main
+## thread. Textures are made on the main thread, in `plume` or `_adopt`.
+func _build(n: int, L: int, fr: int) -> Dictionary:
 	var s: Dictionary = SHAPE[look]
 	var nz: Dictionary = nozzles[n]
 	var dir: int = nz.dir
@@ -1068,8 +1234,7 @@ func plume(n: int, L: int, fr: int = 0) -> Dictionary:
 		lo = Vector2i(mini(lo.x, int(f.x)), mini(lo.y, int(f.y)))
 		hi = Vector2i(maxi(hi.x, int(f.x)), maxi(hi.y, int(f.y)))
 	if hi.x < lo.x:
-		_cache[key] = {tex = null, at = Vector2i.ZERO}
-		return _cache[key]
+		return {img = null, at = Vector2i.ZERO}
 	var at := lo
 	var W := hi.x - lo.x + 1
 	var Hh := hi.y - lo.y + 1
@@ -1083,9 +1248,7 @@ func plume(n: int, L: int, fr: int = 0) -> Dictionary:
 	for st2 in streams:
 		_stream(buf, W, Hh, at, st2.pts, int(st2.L), float(st2.spk), expo, dir,
 			float(st2.get("gain", 1.0)), fp, bool(st2.get("behind", false)), int(st2.get("skip", 0)))
-	var out := _quantize(buf, W, Hh, at, s)
-	_cache[key] = out
-	return out
+	return _quantize(buf, W, Hh, at, s)
 
 
 ## SPARKS AND FIRE OFF THE BACK (Jon: "more sparks and fire coming off the
@@ -1379,7 +1542,7 @@ func _quantize(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, s: Dictio
 				continue
 			im.set_pixel(x, y, _lv(ramp[band], float(lvs[band])))
 			any = true
-	return {tex = ImageTexture.create_from_image(im) if any else null, at = at}
+	return {img = im if any else null, at = at}
 
 
 ## C's light on the hull: every hull pixel near a nozzle, on the ship's side of

@@ -82,10 +82,33 @@ var _flame_step: int = 0
 ##
 ## REVERSED BY JON, Oct 13, on the coded-thruster mockup (ThrusterFx): "Yes, a
 ## gentle idle burn, in fights and anywhere a ship sits." The paragraph above
-## is kept as the reasoning that held until then. NOT WIRED YET: this flag
-## still means what it did, and the idle burn waits for Jon's pick of the
-## coded look (A, B or C) before anything here changes.
+## is kept as the reasoning that held until then. So this flag now means the
+## engines are UP -- the chassis select's showroom burn (CRUISE), the arrival
+## and the departure (FULL) -- and a ship with it off idles (`_thrust_now`).
 var _burning: bool = false
+
+## THE ENGINE FLAME IS CODE NOW (Jon picked look A, dynamic with sparks, Oct
+## 13): `ThrusterFx`, drawn by `_flame_layer`, an INTERNAL child in front of the
+## others, so it is drawn after the hull and BEFORE every child -- the mount
+## points and their parts are painted over it, never under it. It reads the
+## same canvas transform the hull does (`canvas_to_local`: centring, bob, zoom,
+## the half sheet), so it moves, scales and crops with the ship and nothing
+## repaints the hull for it. The PixelLab strips are no longer drawn: the rig
+## (`HullData.thrusters`) is where each flame starts, and `-- exhaust` still
+## checks it.
+var _flame_layer: Control
+## What the engines are doing when they are up: CRUISE for the showroom burn,
+## FULL for the arrival and the departure.
+var _burn_thrust: int = ThrusterFx.Thrust.CRUISE
+## Off altogether: a hyperdrive is not a thruster (see `depart`).
+var _engines_off: bool = false
+## Which of the flameout's lit windows the approach is in (0 the clean burn).
+var _arrive_window: int = -1
+
+class FlameLayer extends Control:
+	var view: ShipView
+	func _draw() -> void:
+		view._draw_flame(self)
 
 ## ARRIVAL. The ship flies in from the left, cuts its engines, and drifts to a
 ## halt at its resting position, then settles into the idle bob.
@@ -260,6 +283,9 @@ func arrive(bob_amp: int = 2, delay: float = 0.0) -> StringName:
 	if _arrive_span <= 0 and visible:
 		_arrive_hid = true
 		visible = false
+	_burn_thrust = ThrusterFx.Thrust.FULL
+	_engines_off = false
+	_arrive_window = 0
 	set_process(true)
 	refresh()
 	# THE WEIGHT IS THE HULL'S, NOT THE SCREEN'S. A convoy is four ships of
@@ -273,6 +299,7 @@ func arrive(bob_amp: int = 2, delay: float = 0.0) -> StringName:
 ## Light the engines. Chassis select only; see _burning.
 func burn(on: bool = true) -> void:
 	_burning = on
+	_burn_thrust = ThrusterFx.Thrust.CRUISE
 	if on:
 		set_process(true)
 	refresh()
@@ -297,7 +324,8 @@ func bob(amp: int, hz: float = 0.3) -> void:
 	set_process(true)
 
 func _ready_anim() -> void:
-	if _burning and _hull() != null and _hull().has_exhaust():
+	# Every ship with engines burns, idle or more, so every one ticks.
+	if _hull() != null and _hull().has_exhaust():
 		set_process(true)
 
 func _process(_delta: float) -> void:
@@ -326,11 +354,10 @@ func _process(_delta: float) -> void:
 		if off != _bob_off:
 			_bob_off = off
 			dirty = true
-	if _burning and _hull().has_exhaust():
-		var step := int(t * FLAME_HZ) % maxi(1, _hull().exhaust_frames)
-		if step != _flame_step:
-			_flame_step = step
-			dirty = true
+	# THE FLAME: its own layer, redrawn every frame (the loop holds its shapes
+	# at 8 a second; the sparks move every frame), never a repaint of the hull.
+	if _hull().has_exhaust():
+		_flame_layer.queue_redraw()
 	# One repaint per CHANGE, not per frame. Between them the texture is simply
 	# left alone, which is why an animated ship costs about twenty redraws a
 	# second rather than sixty.
@@ -359,6 +386,13 @@ func _init() -> void:
 	# Snapping took that to six pixels. Do not turn the snap settings off.
 	stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
 	custom_minimum_size = Vector2(_w, _h)
+	_flame_layer = FlameLayer.new()
+	(_flame_layer as FlameLayer).view = self
+	_flame_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_flame_layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_flame_layer.material = ThrusterFx.add_material()
+	_flame_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_flame_layer, false, Node.INTERNAL_MODE_FRONT)
 	_img = Image.create(_w, _h, false, Image.FORMAT_RGBA8)
 	_tex = ImageTexture.create_from_image(_img)
 	texture = _tex
@@ -816,7 +850,9 @@ func _tick_arrival() -> bool:
 	if dx != _arrive_dx:
 		_arrive_dx = dx
 		position.x = float(dx)
-	var lit := _flame_lit(e)
+	var win := _flame_window(e)
+	_arrive_window = win
+	var lit := win >= 0
 	if lit != _burning:
 		_burning = lit
 		dirty = true
@@ -834,6 +870,8 @@ func depart(hyper: bool = false) -> StringName:
 	# holding station with its engines lit reads as idling rather than charging.
 	# The ordinary departures still burn: they are thrusters, and they move.
 	_burning = not hyper
+	_burn_thrust = ThrusterFx.Thrust.FULL
+	_engines_off = hyper
 	_melt = -1.0
 	# A hyperdrive does not move the hull, so there is nothing to tick: its melt
 	# and shudder are pushed in from `JumpFx`, on that clock. See set_melt.
@@ -1158,6 +1196,8 @@ func park() -> void:
 	_spool = 0.0
 	_lace_off()
 	_burning = false
+	_arrive_window = -1
+	_engines_off = false
 	_bob_amp = _arrive_bob
 
 ## Engines guttering out rather than switching off. The whole answer is in the
@@ -1165,10 +1205,18 @@ func park() -> void:
 ## first span is the clean burn. No formula, because the sound was cut from
 ## these spans and a formula is a second place for the answer to live.
 func _flame_lit(e: float) -> bool:
-	for span: Vector2 in FLAMEOUTS[_flameout]:
+	return _flame_window(e) >= 0
+
+## Which lit window of this approach's row `e` is in, or -1. The coded flame
+## steps DOWN through them: the clean burn at FULL, the first two stutters at
+## CRUISE, the rest at IDLE -- shrinking flashes, as the drive starves.
+func _flame_window(e: float) -> int:
+	var spans: Array = FLAMEOUTS[_flameout]
+	for i in spans.size():
+		var span: Vector2 = spans[i]
 		if e >= span.x and e < span.y:
-			return true
-	return false
+			return i
+	return -1
 
 ## The hull, or what is left of it.
 ##
@@ -1333,6 +1381,11 @@ func _resize_canvas(w: int, h: int) -> void:
 ## order. Returns the count so the caller knows whether anything is underneath
 ## the hull, which decides how the hull itself is pasted.
 func _blit_exhaust(dy: int, back: bool) -> int:
+	# THE STRIPS ARE NOT DRAWN (Oct 13): the coded flame (`_draw_flame`) burns
+	# where they did. Kept, unreached, so the rig and its draw order stay
+	# readable beside the code that replaced them.
+	if not draw_strips:
+		return 0
 	var hull := _hull()
 	if not _burning:
 		return 0
@@ -1623,3 +1676,49 @@ func _blend_rect(x: int, y: int, w: int, h: int, c: Color) -> void:
 			if xx >= 0 and xx < _w and yy >= 0 and yy < _h:
 				var base := _img.get_pixel(xx, yy)
 				_img.set_pixel(xx, yy, base.lerp(c, c.a))
+
+
+func _notification(what: int) -> void:
+	# A flame still being built off the main thread must finish before views
+	# (and, at quit, the engine) go: see ThrusterFx.wait_all.
+	if what == NOTIFICATION_PREDELETE:
+		ThrusterFx.wait_all()
+
+
+## The PixelLab strips instead of the coded flame. Off: nothing sets it in the
+## game; it is there for a before/after film.
+var draw_strips: bool = false
+
+## How hard the engines are burning right now, or -1 for no flame.
+func _thrust_now() -> int:
+	if draw_strips or _engines_off or _melt > 0.45:
+		return -1
+	var h := _hull()
+	if h == null or not h.has_exhaust() or h.sprite == null:
+		return -1
+	if _arrive_at >= 0:
+		if not _burning:
+			return -1                       # coasting dark between the stutters
+		if _arrive_window <= 0:
+			return ThrusterFx.Thrust.FULL
+		return ThrusterFx.Thrust.CRUISE if _arrive_window <= 2 else ThrusterFx.Thrust.IDLE
+	if _burning:
+		return _burn_thrust
+	return ThrusterFx.Thrust.IDLE
+
+
+## The coded flame, onto `_flame_layer` (ADD), in canvas pixels: the same
+## transform the hull is drawn with, so it follows the centring, the bob, the
+## zoom and the half sheet exactly. Nothing until the flame's pictures have
+## been built (`ThrusterFx.for_view` builds them off the main thread).
+func _draw_flame(ci: CanvasItem) -> void:
+	var th := _thrust_now()
+	if th < 0:
+		return
+	var fx := ThrusterFx.for_view(_hull(), _half and _hull().sprite_half != null)
+	if fx == null:
+		return
+	var t := shot_clock if shot_clock >= 0.0 else GameClock.now()
+	ci.draw_set_transform(canvas_to_local(Vector2.ZERO), 0.0, Vector2(float(_k), float(_k)))
+	fx.draw(ci, Vector2.ZERO, th, t, false)
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
