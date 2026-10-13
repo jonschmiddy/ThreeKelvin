@@ -79,6 +79,12 @@ var _flame_step: int = 0
 ## workbench, the sector is a place you have arrived at, the dock is a dock — and
 ## a permanently firing engine on a stationary ship reads as a loop nobody
 ## switched off rather than as motion.
+##
+## REVERSED BY JON, Oct 13, on the coded-thruster mockup (ThrusterFx): "Yes, a
+## gentle idle burn, in fights and anywhere a ship sits." The paragraph above
+## is kept as the reasoning that held until then. NOT WIRED YET: this flag
+## still means what it did, and the idle burn waits for Jon's pick of the
+## coded look (A, B or C) before anything here changes.
 var _burning: bool = false
 
 ## ARRIVAL. The ship flies in from the left, cuts its engines, and drifts to a
