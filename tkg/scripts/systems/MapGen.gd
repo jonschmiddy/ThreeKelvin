@@ -861,24 +861,24 @@ static func place_line(n: MapNode) -> String:
 ## One sentence on what being here means for you.
 static func place_blurb(n: MapNode) -> String:
 	if n.type == NodeType.CORE:
-		return "Four million suns in a point, and the ruins of whatever came first still orbiting it. Nothing here was manufactured."
+		return "Four million suns in one point. Ruins from whoever came first still orbit it. No manufacturer made any of it."
 	if n.fauna:
-		return "Megafauna. Exotic materials, no module salvage."
+		return "Megafauna live here. They give exotic materials, but there are no modules to find."
 	if n.in_nebula:
 		# Said in the sector blurb as well as drawn, because a player who has not
 		# opened the chart lately should still know why the sky is moving.
-		var gas := "Lit gas. Something inside this cloud is still burning." 			if n.nebula_emission else "Cold gas, thick enough to hide in."
-		return gas + " Nothing else out here to see by."
+		var gas := "The gas glows from a star still burning inside the cloud." 			if n.nebula_emission else "Cold gas, thick enough to hide in."
+		return gas + " There is nothing else out here to see by."
 	var who := ""
 	match n.berths.size():
-		0: who = "Nobody's space. Thin, random salvage."
+		0: who = "No manufacturer holds this space. Salvage is thin and random."
 		1: who = "One manufacturer dominates local salvage."
-		_: who = "Contested. Broad stock, and nobody agrees on a price."
+		_: who = "Contested. The stock is broad, and each manufacturer sets its own prices."
 	var law := ""
 	if n.security <= 2:
 		law = " Contraband moves openly; fences carry good stock."
 	elif n.security >= 4:
-		law = " Inspections are thorough. Do not be carrying anything."
+		law = " Inspections are thorough. Do not carry contraband here."
 	return who + law
 
 static func generate(canvas: Rect2) -> Array:

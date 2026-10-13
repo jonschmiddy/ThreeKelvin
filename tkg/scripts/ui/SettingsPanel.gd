@@ -224,7 +224,7 @@ func _page_screen() -> void:
 				DisplaySettings.set_fps_meter(on)
 				_refresh())
 		fb.tooltip_text = Widgets.tip(
-			"Frames per second, bottom right. Costs nothing and decides nothing. It is for saying \"the chart felt slow\" with a number attached.")
+			"Shows frames per second in the bottom right. It does not slow the game. Use it to put a number on \"the chart felt slow\".")
 		fchips.add_child(fb)
 	fps.add_child(fchips)
 	_body.add_child(fps)
@@ -247,9 +247,9 @@ func _page_look() -> void:
 					_refresh())
 			sb.tooltip_text = Widgets.tip({
 				&"legacy": "The look from before: the star chart and sector map as they were, with the new black hole and animations.",
-				&"simplified": "The star chart and the sector map, clean and alive: gas streaming along the arms, knots breathing, weather in the nebulae.",
-				&"painted": "Every pixel placed by hand: banded light, hue-shifted shadows, dithered gas.",
-				&"radiant": "Light through gas: the galaxy and its nebulae as lit volumes. Heavy on the graphics card: made for screenshots. Falls back to SIMPLIFIED if the machine can't keep up.",
+				&"simplified": "A clean star chart and sector map, with gas streaming along the arms, pulsing knots and weather in the nebulae.",
+				&"painted": "A hand-painted look, with banded light, hue-shifted shadows and dithered gas.",
+				&"radiant": "The galaxy and its nebulae drawn as lit gas. It is heavy on the graphics card and made for screenshots. It falls back to SIMPLIFIED if the machine can't keep up.",
 			}.get(st, ""))
 			strow.add_child(sb)
 		_body.add_child(strow)
@@ -271,7 +271,7 @@ func _page_look() -> void:
 				DisplaySettings.set_graphics_low(low)
 				_refresh())
 		gb.tooltip_text = Widgets.tip(
-			"A lighter sky in every style, for laptops and integrated graphics. The look stays; the gas moves a little less." if low
+			"A lighter sky in every style, for laptops and integrated graphics. It looks the same, but the gas moves a little less." if low
 			else "The full sky. RADIANT drops to SIMPLIFIED by itself if the machine can't keep up; try LOW first.")
 		gchips.add_child(gb)
 	gfx.add_child(gchips)
@@ -288,7 +288,7 @@ func _page_look() -> void:
 				_refresh())
 		cb.tooltip_text = Widgets.tip([
 			"No change.",
-			"Red-green (deuteranopia), the commonest kind. The difference a red-green eye cannot see is pushed into brightness and blue, which it can.",
+			"Red-green (deuteranopia), the most common kind. Colours a red-green eye cannot tell apart are shifted into brightness and blue.",
 			"Red-green (protanopia), where reds also go dark.",
 			"Blue-yellow (tritanopia), the rarest kind."][i])
 		crow.add_child(cb)
@@ -308,9 +308,9 @@ func _page_look() -> void:
 		lb.tooltip_text = Widgets.tip({
 			DisplaySettings.Look.FLAT: "The game as it is drawn.",
 			DisplaySettings.Look.SCANLINES: "One soft line per pixel row.",
-			DisplaySettings.Look.CRT_GENTLE: "A slight curve, soft lines, a vignette. Meant to be played in.",
-			DisplaySettings.Look.CRT: "More of everything, and a glow on bright pixels.",
-			DisplaySettings.Look.CRT_ARCADE: "The cabinet: heavy curve and a shadow mask. Hard to read a card through.",
+			DisplaySettings.Look.CRT_GENTLE: "A slight curve, soft lines and a vignette, light enough to play in.",
+			DisplaySettings.Look.CRT: "A stronger curve and lines, and a glow on bright pixels.",
+			DisplaySettings.Look.CRT_ARCADE: "An arcade cabinet's heavy curve and shadow mask. Cards are hard to read through it.",
 		}[l])
 		lrow.add_child(lb)
 	_body.add_child(lrow)

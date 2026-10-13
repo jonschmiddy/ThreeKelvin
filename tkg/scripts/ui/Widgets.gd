@@ -321,12 +321,12 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 			# whether the part is broken.
 			if price > 0:
 				var sell := _btn("SELL +%d" % price, on_action.bind("sell", m))
-				sell.tooltip_text = tip("What this market pays. A manufacturer's own yard is thick with its own parts; a rival's yard is short of them.")
+				sell.tooltip_text = tip("What this market pays. A manufacturer's own yard has plenty of its own parts, and a rival's yard is short of them.")
 				buttons.add_child(sell)
 			else:
 				var refused := _btn("WILL NOT BUY", on_action.bind("noop", m))
 				refused.disabled = true
-				refused.tooltip_text = tip("Illegal here. Fences in lawless space pay over the odds for it.")
+				refused.tooltip_text = tip("It is illegal here. Dealers in lawless space pay extra for it.")
 				buttons.add_child(refused)
 			buttons.add_child(_scrap_button(m, on_action))
 		ModuleContext.INSTALLED:
@@ -339,13 +339,13 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 			if note != "":
 				var gone := _btn(note, on_action.bind("noop", m))
 				gone.disabled = true
-				gone.tooltip_text = tip("One bag, and somebody else got here first.")
+				gone.tooltip_text = tip("Someone else got to this bag first.")
 				buttons.add_child(gone)
 			else:
 				var take := _btn("TAKE", on_action.bind("take", m))
 				# Said out loud, because the cost of pressing it is that nobody
 				# else can. A race is only fair if both players know it is one.
-				take.tooltip_text = tip("Into your hold, and out of everybody else's reach. One bag, first hand in.")
+				take.tooltip_text = tip("Puts it in your hold. The first pilot to take it keeps it.")
 				buttons.add_child(take)
 	return panel
 
@@ -354,7 +354,7 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 ## made a part into a second currency.
 static func _scrap_button(m: ModuleData, on_action: Callable) -> Button:
 	var b := _btn("SCRAP +%d" % Run.scrap_value_of(m), on_action.bind("scrap", m))
-	b.tooltip_text = tip("Break it down where you stand. The floor under every part: no station and no route needed.")
+	b.tooltip_text = tip("Breaks it down for credits, right here. It pays the least, but needs no station.")
 	return b
 
 static func hull_row(h: HullData, label: String, price: int,
@@ -946,7 +946,7 @@ static func perk_tip(h: HullData) -> String:
 			out.append(line)
 			any = true
 	if not any:
-		out.append("None. B, A and S each add one more.")
+		out.append("No perks. Each tier from B up has one more.")
 	return "\n".join(out)
 
 
@@ -1078,7 +1078,7 @@ static func perk_readout(h: HullData) -> VBoxContainer:
 	# a heading and nothing under it reads as a failure to load, where the same
 	# blank with a sentence in it is the ladder explaining itself.
 	if not any:
-		box.add_child(UITheme.body(tip("None yet. B, A and S each add one more."),
+		box.add_child(UITheme.body(tip("No perks yet. Each tier from B up has one more."),
 			UITheme.QUOTE, UITheme.FS_SMALL))
 	return box
 

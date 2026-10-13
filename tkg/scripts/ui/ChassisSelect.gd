@@ -34,16 +34,16 @@ const WEIGHTS := [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight
 ## up a hull is now lives on its hull points and is drawn by HullWear, which
 ## leaves these letters free to mean the thing they actually change.
 const TIER_BLURB: Array[String] = [
-	"Base specification. What every run starts on.",
-	"Uprated frame. More hull and more heat capacity, same hardpoints.",
-	"Line specification. Carries an extra weapon hardpoint.",
-	"Top of the line. An extra weapon and system mount, and the reactor to run them.",
+	"The base specification that every run starts on.",
+	"An uprated frame with more hull and heat capacity, on the same hardpoints.",
+	"The line specification, with an extra weapon hardpoint.",
+	"The top model, with an extra weapon and system mount and the reactor to run them.",
 ]
 
 const WEIGHT_BLURB: Array[String] = [
 	"Thin plate and the smallest hold, but it draws the biggest hand and can dodge.",
-	"The middle of every axis, with no standout strength and no glaring weakness.",
-	"The most plate and the biggest hold, and it cannot dodge or turn to save itself.",
+	"In the middle on every stat, with no big strength and no big weakness.",
+	"The most plate and the biggest hold, but it cannot dodge at all.",
 ]
 ## The one ship on the screen, and the only one drawn at all.
 ##

@@ -443,12 +443,12 @@ func _refresh() -> void:
 	_done.disabled = left > 0
 	if _back != null:
 		_back.disabled = not Run.can_abandon_move()
-		_back.tooltip_text = Widgets.tip("Put the %s back on the blocks and fly the %s out of here. Your credits come back. Anything you have already sold or dumped stays sold or dumped." % [
+		_back.tooltip_text = Widgets.tip("Put the %s back on the blocks and keep flying the %s. You get your credits back. Anything you already sold or dumped stays gone." % [
 			Run.hull.name, Run.old_hull.name]) if Run.can_abandon_move() else ""
 	if left == 0:
 		_money.text = "Everything is aboard."
 	elif refused > 0:
-		_money.text = "%d left · worth %d cr here · %d nobody will bid on, so the hatch is the only way out of those." % [
+		_money.text = "%d left · worth %d cr here · %d no one will buy, so you can only dump those." % [
 			left, worth, refused]
 	else:
 		_money.text = "%d left · worth %d cr here." % [left, worth]

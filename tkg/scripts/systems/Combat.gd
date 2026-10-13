@@ -369,7 +369,7 @@ func end_turn() -> void:
 		_log("+%d heat from what you could not shift." % stuck_heat, &"heat")
 	if stuck > 0:
 		_log("%d hull from junk left in hand." % stuck, &"them")
-		Run.take_hull_damage(stuck, "Malfunctioning systems, left too long.")
+		Run.take_hull_damage(stuck, "Malfunctions left too long broke the hull.")
 
 	# FUSED CARDS DO NOT GO. Everything else in the hand is swept into the
 	# discard; a fused card stays, which is what makes it charge you again next
@@ -419,7 +419,7 @@ func end_turn() -> void:
 			burn = int(ceil(burn / 2.0))
 		_log("⚠ OVERHEAT: %d hull burned (%d/%d)." % [burn, Run.heat, Run.heat_cap()], &"heat")
 		Sig.overheated.emit(burn)
-		Run.take_hull_damage(burn, "Your reactor cooked the hull from the inside.")
+		Run.take_hull_damage(burn, "The ship overheated and burned through its own hull.")
 		if Run.dead:
 			_finish(&"dead", Run.death_reason)
 			return
@@ -490,7 +490,7 @@ func _act_one(e: EnemyState) -> void:
 		_log("◂ %s: %s" % [e.template.name, I.name], &"them")
 		Run.hellbender_breaks_off(e.hp)
 		_finish(&"broke_off",
-			"A blind jump, furnace-bright. It is gone: hurt, hot, and mending. No salvage.")
+			"It makes a blind jump and gets away hurt. It mends as it feeds. No salvage.")
 		return
 	_log("◂ %s: %s" % [e.template.name, I.name], &"them")
 	if I.block > 0:
@@ -529,7 +529,7 @@ func _act_one(e: EnemyState) -> void:
 			if total > 0:
 				_log("  %d hull damage." % total, &"them")
 				Sig.damage_dealt.emit(total, true, enemies.find(e))
-				Run.take_hull_damage(total, "Hull integrity lost. The cold gets in fast.")
+				Run.take_hull_damage(total, "Enemy fire broke the hull open.")
 			if feedback > 0:
 				damage_enemy(feedback, 1, "Feedback")
 			if Run.dead:
@@ -948,18 +948,18 @@ func hail() -> void:
 			Run.node_at().fled = true
 			Sig.resources_changed.emit()
 			_finish(&"hailed",
-				"They listen, decide you are not worth the paperwork, and go.")
+				"They listen, decide you are not worth a fight, and leave.")
 		SkillCheck.Band.PARTIAL:
 			Run.heat += HAIL_HEAT_PARTIAL
 			Run.node_at().fled = true
 			Sig.resources_changed.emit()
 			_finish(&"hailed",
-				"They break off, slowly, and take a long look at you on the way past.")
+				"They break off slowly and scan you as they pass.")
 		_:
 			Run.heat += HAIL_HEAT_BOTCHED
 			Sig.resources_changed.emit()
 			hail_failed = true
-			exit_note = "You hail on an open channel. It tells them exactly where you are, and the turn is theirs. They will not take another."
+			exit_note = "Your hail on an open channel gives away your position, and they take the turn. They will not answer another hail."
 			Run.log_line(exit_note, &"heat")
 			end_turn()
 
@@ -1253,7 +1253,7 @@ func _pacify() -> void:
 	# says where you were. Fifth door, same hinge; see Archive.recover_at.
 	Archive.recover_at(node, "left alongside")
 	_finish(&"pacified",
-		"It stops circling and drifts off singing. 1 exotic material. The pod remembers.")
+		"It stops circling and drifts off, singing. You get 1 exotic material.")
 
 func _finish(res: StringName, text: String) -> void:
 	finished = true
@@ -1363,7 +1363,7 @@ func _on_fight_changed(at: int) -> void:
 		# it and written its hull back; this machine only has to stop fighting.
 		if f.broke:
 			_finish(&"broke_off",
-				"A blind jump, furnace-bright. It is gone: hurt, hot, and mending. No salvage.")
+				"It makes a blind jump and gets away hurt. It mends as it feeds. No salvage.")
 			return
 		# The host decides the fight is won, not this machine. Everyone still in
 		# it when the last hull came apart is paid, which is the ruling: winning

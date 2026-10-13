@@ -59,8 +59,8 @@ var _gone_t := 0.0
 var _quiet := 0.0
 
 
-## The two lines of each hint. Graded with `tools/prose_grade.py` (grade 5.0 or
-## under; all are 2.3 or under). The cutaway's names the keys as bound.
+## The two lines of each hint. Graded with `tools/prose_grade.py` (grade 7.0 or
+## under, ruled 2026-10-13; all are 2.3 or under). The cutaway's names the keys as bound.
 func lines(id: StringName) -> Array:
 	match id:
 		&"go":

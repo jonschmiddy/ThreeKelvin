@@ -439,7 +439,7 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	chart_from(node_at())
 	Sig.resources_changed.emit()
 	Sig.ship_changed.emit()
-	log_line("Reactor cold-started. The core is twenty jumps coreward, at least.", &"big")
+	log_line("Reactor cold-started. The core is at least twenty jumps away.", &"big")
 
 ## DEVELOPER MODE ONLY: a new galaxy under the same ship, right now ("can I get
 ## a button up here to regenerate the galaxy right there?", Jon) -- for looking
@@ -830,7 +830,7 @@ func put_in(n: MapGen.MapNode, h: MapGen.Jetsam, m: HoldItem) -> bool:
 			n.taken.remove_at(slot)
 	else:
 		h.items.append(m)
-	log_line("%s goes overboard. It is still out there." % m.name, &"sys")
+	log_line("%s goes overboard. It stays in this system." % m.name, &"sys")
 	Sig.ship_changed.emit()
 	Sig.map_changed.emit()
 	return true
@@ -918,7 +918,7 @@ func repack_hold() -> void:
 	for m in lost:
 		pad.append(m)
 	if not lost.is_empty():
-		log_line("%d thing%s would not fit the hold. On the pad." % [lost.size(),
+		log_line("%d thing%s left on the pad. The hold is full." % [lost.size(),
 			"" if lost.size() == 1 else "s"], &"them")
 
 ## First cell the part fits in, scanning rows then columns, or (-1,-1).
@@ -1878,7 +1878,7 @@ func attributes() -> Array[Dictionary]:
 	out.assign([
 		{key = &"hull", label = ATTR_LABEL[&"hull"], short = ATTR_SHORT[&"hull"],
 			value = attr_hull(), base = attr_hull(true),
-			text = "Ramming, boarding, holding together under structural stress.",
+			text = "Used for ramming, boarding and holding together under stress.",
 			# READS CURRENT HULL, not maximum, which is worth saying out loud:
 			# it is the one gauge that falls as you take damage, so a holed ship
 			# really does fail a check it would have passed intact.
@@ -1890,7 +1890,7 @@ func attributes() -> Array[Dictionary]:
 			effect = "A pip is %d more cells of hardware. Energy rises every second pip." % CELLS_PER_LEVEL},
 		{key = &"thrust", label = ATTR_LABEL[&"thrust"], short = ATTR_SHORT[&"thrust"],
 			value = attr_thrust(), base = attr_thrust(true),
-			text = "Outrunning, breaking orbit, pulling free of a gravity well.",
+			text = "Used for outrunning, breaking orbit and escaping a gravity well.",
 			# The jump range is a FIXED distance now, so this is a plain
 			# percentage of a known number rather than of a local accident.
 			effect = "A pip is %d%% further travel on the starchart, to a maximum of %d%%, and costs no extra fuel."
@@ -1898,7 +1898,7 @@ func attributes() -> Array[Dictionary]:
 					int(round((THRUST_REACH_MAX - 1.0) * 100.0))]},
 		{key = &"maneuver", label = ATTR_LABEL[&"maneuver"], short = ATTR_SHORT[&"maneuver"],
 			value = attr_maneuver(), base = attr_maneuver(true),
-			text = "Threading debris, evading a lock, breaking contact.",
+			text = "Used for threading debris, evading a lock and breaking contact.",
 			# HALF A PIP IS DODGE and half is initiative, and only the dodge half
 			# does anything: Combat rolls `randf() < Run.dodge()` for the enemy
 			# to miss, and NOTHING reads initiative. So the honest number is the
@@ -1906,11 +1906,11 @@ func attributes() -> Array[Dictionary]:
 			effect = "A pip is about 4% of enemy attacks missing outright."},
 		{key = &"thermal", label = ATTR_LABEL[&"thermal"], short = ATTR_SHORT[&"thermal"],
 			value = attr_thermal(), base = attr_thermal(true),
-			text = "Sitting in heat: coronas, reactors, anything that cooks you.",
+			text = "Used for sitting in heat, such as coronas and hot reactors.",
 			effect = "A pip is 1 more heat capacity, and 1 more heat off every vent card you play."},
 		{key = &"sensors", label = ATTR_LABEL[&"sensors"], short = ATTR_SHORT[&"sensors"],
 			value = attr_sensors(), base = attr_sensors(true),
-			text = "Reading a wreck, finding the lane, seeing it before it sees you.",
+			text = "Used for reading wrecks, finding lanes and spotting threats first.",
 			# SAYS WHAT IT DOES NOW. It used to read "further out than you can
 			# fly to", which described sight as a margin over the drive. Sight
 			# is live and it is the gate -- you may only jump to what you can
@@ -1920,7 +1920,7 @@ func attributes() -> Array[Dictionary]:
 				% int(round(SENSE_REACH * 100.0))},
 		{key = &"stealth", label = ATTR_LABEL[&"stealth"], short = ATTR_SHORT[&"stealth"],
 			value = attr_stealth(), base = attr_stealth(true),
-			text = "Going dark, slipping a patrol, arriving unannounced.",
+			text = "Used for going dark, slipping past patrols and arriving unseen.",
 			effect = "A pip is %d%% fewer ambushes, to a maximum of %d%% at %d."
 				% [int(round(AMBUSH_RELIEF * 100.0)) / ATTR_MAX,
 					int(round(AMBUSH_RELIEF * 100.0)), ATTR_MAX]},
@@ -2094,7 +2094,7 @@ func harvest_pulsar() -> void:
 	Sig.resources_changed.emit()
 	# Last: it can end the run, and everything above has to have happened first.
 	# Dying with the fuel aboard is the point of the trade.
-	take_hull_damage(burn, "Cooked by a neutron star. The hull held; nothing inside it did.")
+	take_hull_damage(burn, "A neutron star's beam killed the crew. The hull held.")
 
 func take_hull_damage(amount: int, reason: String) -> void:
 	hp -= amount
@@ -2158,7 +2158,7 @@ func die(reason: String) -> void:
 
 func win() -> void:
 	won = true
-	Sig.run_ended.emit(true, "You cross into the light.")
+	Sig.run_ended.emit(true, "You reach the core.")
 
 ## THE REFIT RULE: the one place a hand moves a part between the hold, the dock
 ## and the hardpoints. Every screen a part can be dragged on calls these --
@@ -3233,9 +3233,9 @@ func hellbender_land(to: int, feeding: bool) -> void:
 		n.cleared = true
 		n.eaten = true
 		_mark_taken(n, MapGen.OPTION_WHOLE)
-		log_line("The wreck at %s goes dark on the scope. The Hellbender is feeding." % MapGen.star_name(n), &"them")
+		log_line("The wreck at %s goes dark on the scope. The Hellbender stripped it." % MapGen.star_name(n), &"them")
 	if to == at:
-		log_line("A furnace-hot signature fills the sky. THE HELLBENDER IS HERE.", &"big")
+		log_line("A very hot signature fills the scope. THE HELLBENDER IS HERE.", &"big")
 	Sig.map_changed.emit()
 
 ## A fight ended without a kill — somebody fled, died, or the whole crew walked
@@ -3266,7 +3266,7 @@ func hellbender_defeated() -> void:
 		return
 	hellbender_at = -1
 	hellbender_hp = 0
-	log_line("The Hellbender comes apart, and a run's worth of stolen heat bleeds into the dark.", &"good")
+	log_line("The Hellbender breaks apart. All the heat it stole this run leaks into space.", &"good")
 	Sig.map_changed.emit()
 	Net.push_hellbender(false)
 
@@ -3304,7 +3304,7 @@ func take_contract(c: ContractData) -> ContractData:
 	next_contract_id += 1
 	mine.state = ContractData.State.TAKEN
 	contracts.append(mine)
-	log_line("Signed: %s. %d credits on delivery." % [
+	log_line("Signed: %s. It pays %d credits on delivery." % [
 		_contract_short(mine), mine.pay], &"sys")
 	Sig.contracts_changed.emit()
 	return mine
@@ -3361,7 +3361,7 @@ func deliver_contract(job: ContractData) -> void:
 		if heat < job.amount:
 			return
 		heat -= job.amount
-		log_line("Offloaded %d heat. Weighed, receipted, gone." % job.amount, &"heat")
+		log_line("Offloaded %d heat." % job.amount, &"heat")
 	job.state = ContractData.State.CLOSED
 	add_credits(job.pay)
 	standing[job.manufacturer] = int(standing.get(job.manufacturer, 0)) + job.standing
@@ -3387,7 +3387,7 @@ func reach_contract_target(index: int) -> void:
 			continue
 		job.state = ContractData.State.READY
 		moved = true
-		log_line("Recovered: %s. Lashed to the frame and not yours yet." % job.item,
+		log_line("Recovered: %s. Strapped to the frame until you deliver it." % job.item,
 			&"good")
 	if moved:
 		# The paperwork rides with the thing the manufacturer wanted back, and the

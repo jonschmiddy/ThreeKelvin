@@ -58,7 +58,7 @@ func setup() -> void:
 
 	var lines: PackedStringArray = []
 	if Run.won:
-		lines.append("You cross into the light with %d hull left." % Run.hp)
+		lines.append("You reach the core with %d hull left." % Run.hp)
 	else:
 		lines.append(Run.death_reason)
 	lines.append("%d jumps · %d kills · danger %d when it ended" % [

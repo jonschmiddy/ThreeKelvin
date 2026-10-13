@@ -280,7 +280,7 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	if _dead and opened.is_valid():
 		_hp.add_theme_color_override("font_color", UITheme.TRACTOR)
 		tooltip_text = Widgets.tip(
-			"%s\n\nDead in the water and still loaded. Open it." % e.template.name.to_upper())
+			"%s\n\nDisabled, with cargo still aboard. Open it." % e.template.name.to_upper())
 	else:
 		# ONLY HERE. This override used to run unconditionally after the branch
 		# above, which repainted the SALVAGE word in corpse-grey the instant it
@@ -315,13 +315,13 @@ func set_salvage(left: int) -> void:
 		_hp.text = "SALVAGE"
 		_hp.add_theme_color_override("font_color", UITheme.TRACTOR)
 		tooltip_text = Widgets.tip(
-			"%s\n\nDead in the water and still loaded: %d aboard. Open it."
+			"%s\n\nDisabled, with %d still aboard. Open it."
 			% [_name.text, left])
 	elif opened.is_valid():
 		_hp.text = "STRIPPED"
 		_hp.add_theme_color_override("font_color", Color("#4a5c72"))
 		tooltip_text = Widgets.tip(
-			"%s\n\nPicked clean. The hull stays; what it carried is yours or gone." % _name.text)
+			"%s\n\nPicked clean. The hull stays, but its cargo is gone." % _name.text)
 	queue_redraw()
 
 ## What this card would do here, asked at drop-test time.

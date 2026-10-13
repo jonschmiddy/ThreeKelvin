@@ -311,7 +311,7 @@ func _build() -> void:
 	_zoombtn.text = "ZOOM"
 	_zoombtn.focus_mode = Control.FOCUS_NONE
 	_zoombtn.tooltip_text = Widgets.tip(
-		"Double the ship, then drag it about. Z does the same.")
+		"Shows the ship at double size, so you can drag it around. Z does the same.")
 	_zoombtn.pressed.connect(func(): _set_zoom(not _zoomed))
 	clsrow.add_child(_zoombtn)
 	names.add_child(clsrow)
@@ -1441,7 +1441,7 @@ func _refresh_loadout() -> void:
 			_fitted.add_child(row)
 
 	if fitted == 0:
-		_fitted.add_child(UITheme.body("Nothing bolted on yet.",
+		_fitted.add_child(UITheme.body("Nothing installed yet.",
 			UITheme.COLD, UITheme.FS_SMALL))
 
 	_fithead.text = "INSTALLED — %d of %d mounts · %d card%s%s" % [
