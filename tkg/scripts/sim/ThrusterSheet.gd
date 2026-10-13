@@ -311,6 +311,45 @@ func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 ## a thin stream out of a big engine (Jon, Oct 13: "too small on the main body").
 ## Also counts flame pixels on a hull pixel the strip leaves visible (one it
 ## does not cover in every frame); that must be 0 (heavy S's dome).
+## A NOZZLE'S OPENING, read off the hull alone: the rows round the nozzle's
+## middle whose stern edge (the first hull pixel, from well behind it) is within
+## 1 px of that row's, less the outline rows at either end -- a row whose 4 px
+## from the edge into the hull are all dark (lightness under 0.15) is the
+## nozzle's rim drawn as a line, not its opening.
+func _opening(img: Image, pts: PackedVector2Array) -> int:
+	if pts.is_empty():
+		return 0
+	var mid := int(pts[pts.size() / 2].y)
+	var sx := int(pts[pts.size() / 2].x)
+	var edge := {}
+	for y in range(mid - 24, mid + 25):
+		for x in range(sx - 24, sx + 31):
+			if x >= 0 and y >= 0 and x < img.get_width() and y < img.get_height() and img.get_pixel(x, y).a > 0.5:
+				edge[y] = x
+				break
+	if not edge.has(mid):
+		return pts.size()
+	var v := int(edge[mid])
+	var a := mid
+	var b := mid
+	while edge.has(a - 1) and absi(int(edge[a - 1]) - v) <= 1:
+		a -= 1
+	while edge.has(b + 1) and absi(int(edge[b + 1]) - v) <= 1:
+		b += 1
+	var dark := func(y: int) -> bool:
+		var ex := int(edge[y])
+		for k in 4:
+			var c := img.get_pixel(mini(ex + k, img.get_width() - 1), y)
+			if c.a > 0.5 and c.get_luminance() >= 0.15:
+				return false
+		return true
+	while b - a >= 2 and dark.call(a) and not dark.call(a + 1):
+		a += 1
+	while b - a >= 2 and dark.call(b) and not dark.call(b - 1):
+		b -= 1
+	return b - a + 1
+
+
 func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 	var n := maxi(1, h.exhaust_frames)
 	var out: Array = []
@@ -437,6 +476,7 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 					var ok := ni >= 0
 					var h_lo := 1 << 20
 					var s_lo := 1 << 20
+					var fc_hi := 0
 					if ni >= 0:
 						for fr in fx.frames():
 							var c_col := -1
@@ -485,6 +525,24 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 									if hit:
 										sh += 1
 								s_lo = mini(s_lo, sh)
+								# THE FIRST COLUMN against the opening: how many rows are lit
+								# in the flame's own first two columns (its start column and
+								# the next), which must not be more than the nozzle's opening
+								# inside its outline (Jon on light B's top pipe: "still
+								# slightly bigger than nozzle")
+								var sx := -(1 << 20)
+								for q2 in (fx.nozzles[ni].pts as PackedVector2Array):
+									sx = maxi(sx, int(q2.x))
+								var fc := 0
+								for yq in pim.get_height():
+									var lit2 := false
+									for xq: int in [sx, sx - 1]:
+										var px2 := xq - pat.x
+										if px2 >= 0 and px2 < pim.get_width() and pim.get_pixel(px2, yq).a > 0.0:
+											lit2 = true
+									if lit2:
+										fc += 1
+								fc_hi = maxi(fc_hi, fc)
 							c_lo = mini(c_lo, c_col)
 							c_hi = maxi(c_hi, c_col)
 							r0_lo = mini(r0_lo, c0)
@@ -503,6 +561,14 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 						is_bell = (fx.nozzles[ni] as Dictionary).has("bell")
 					if not is_bell and absi(s_lo - start_ref) > 1:
 						ok = false
+					var opening := -1
+					if ni >= 0 and is_nozzle and not is_bell:
+						opening = _opening(hull_img, fx.nozzles[ni].pts as PackedVector2Array)
+						if fc_hi > opening:
+							ok = false
+							print("    engine %d: its first columns light %d rows; the nozzle's opening inside its outline is %d" % [ti, fc_hi, opening])
+					row.first_col_h = fc_hi
+					row.opening = opening
 					row.start_h = s_lo
 					row.start_ref = start_ref
 					row.nozzle = bool(fx.nozzles[ni].get("nozzle", false)) if ni >= 0 else false

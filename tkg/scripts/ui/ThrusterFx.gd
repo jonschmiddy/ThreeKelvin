@@ -124,6 +124,8 @@ const CLUMPS := [
 var particle_us := 0
 var particle_px := 0
 var _tails := {}
+## The picture a found engine's rim rows are read off (for_sprite).
+var _pic: Image = null
 
 
 # ------------------------------------------------------------------ making one
@@ -343,6 +345,16 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 					a6 -= 1
 				while edge.has(b6 + 1) and int(edge[b6 + 1]) <= v + 1:
 					b6 += 1
+				# INSIDE THE OUTLINE: a row at either end whose 4 px from the edge
+				# into the hull are all dark is the nozzle's rim drawn as a line,
+				# not its opening (light B's top pipe: 9 rows with its two rim
+				# rows, 7 inside them)
+				# (a rim is a dark line against a lighter inside: on a hull dark all
+				# through, no row is a rim)
+				while b6 - a6 >= 2 and _rim_row(img, int(edge[a6]), a6, 1) and not _rim_row(img, int(edge[a6 + 1]), a6 + 1, 1):
+					a6 += 1
+				while b6 - a6 >= 2 and _rim_row(img, int(edge[b6]), b6, 1) and not _rim_row(img, int(edge[b6 - 1]), b6 - 1, 1):
+					b6 -= 1
 				mouths.append([a6, b6, v])
 			y6 = y7 + 1
 		var front := 1 << 20
@@ -453,6 +465,7 @@ static func for_sprite(img: Image, used: Rect2i, the_look: int, seed: int, id: S
 		scale: float = 1.0, pic_at: Vector2i = Vector2i.ZERO) -> ThrusterFx:
 	var fx := ThrusterFx.new()
 	fx._take_canvas(img)
+	fx._pic = img
 	fx.look = the_look
 	fx.warm = true
 	# HAND-PLACED ENGINES first (art/engines.json): the six pictures whose
@@ -583,19 +596,26 @@ func _override(list: Array, at: Vector2i, scale: float, img: Image = null) -> vo
 			# nozzle"): most of these pictures end in a 1 px dark outline, and a
 			# flame starting past it reads as starting a pixel off the engine.
 			# Where the last hull pixel is that outline, the flame starts on it.
-			if img != null and _is_solid(x - 1, cy):
-				var c := img.get_pixel(x - 1, cy)
-				if c.get_luminance() < 0.2:
-					x -= 1
-					_solid[cy * _w + x] = 0
 			pts.append(Vector2(x, cy))
+		# INSIDE THE OUTLINE first, then onto it: the rim rows at either end
+		# go (they are not the opening), and each remaining row may start ON
+		# the outline's dark column, flush with the nozzle (the domes ship)
+		pts = _trim_rim(img, pts)
+		for k5 in pts.size():
+			var p5 := pts[k5]
+			var x5 := int(p5.x)
+			var y5 := int(p5.y)
+			if img != null and _is_solid(x5 - 1, y5) and img.get_pixel(x5 - 1, y5).get_luminance() < 0.2:
+				_solid[y5 * _w + x5 - 1] = 0
+				pts[k5] = Vector2(x5 - 1, y5)
 		if not pts.is_empty():
-			var nzo := {pts = pts, dir = 1, over = bool(d.get("over", false))}
-			# An `over` flame's length is measured from the far side of what it
-			# passes over, so it shows as long past the weight as any engine of
-			# its size does in the open (Jon on the orbit-arm ship: "make the
-			# flame here longer").
-			if nzo.over:
+			var nzo := {pts = pts, dir = 1, behind = bool(d.get("behind", false)),
+				widen = float(d.get("widen", 1.0))}
+			# A `behind` flame passes behind what is in its way instead of
+			# stopping (the orbit-arm ship's drive, behind its end weight -- Jon:
+			# "go BEHIND the middle pod"), and its length is measured from the far
+			# side of it, so it reads as the main drive past the weight.
+			if nzo.behind:
 				nzo.over_span = _blocked_span(pts[pts.size() / 2], 1)
 			nozzles.append(nzo)
 
@@ -633,6 +653,22 @@ func _grow_mouth(bell: Dictionary, target: int) -> void:
 		if k <= 10:
 			out.append(Vector2(x, y))
 	bell.mouth = out
+
+
+## The rim rows off either end of a left-facing engine's rows (`_rim_row`, the
+## hull to the left of each row's first open pixel), keeping at least 2.
+func _trim_rim(img: Image, pts: PackedVector2Array) -> PackedVector2Array:
+	if img == null or pts.size() <= 2:
+		return pts
+	var a := 0
+	var b := pts.size() - 1
+	# a rim is a dark line against a lighter inside: on a hull dark all through
+	# (the dome market's stern), no row is a rim
+	while b - a >= 2 and _rim_row(img, int(pts[a].x) - 1, int(pts[a].y), -1) 			and not _rim_row(img, int(pts[a + 1].x) - 1, int(pts[a + 1].y), -1):
+		a += 1
+	while b - a >= 2 and _rim_row(img, int(pts[b].x) - 1, int(pts[b].y), -1) 			and not _rim_row(img, int(pts[b - 1].x) - 1, int(pts[b - 1].y), -1):
+		b -= 1
+	return pts.slice(a, b + 1)
 
 
 ## One engine from a run of stern rows. A tall flat stern is not one tall engine:
@@ -687,7 +723,7 @@ func _add_run(run: Array, by_row: Dictionary, cap: int) -> void:
 			var pts0 := PackedVector2Array()
 			for k in range(int(m3[0]), int(m3[1]) + 1):
 				pts0.append(Vector2(int(by_row[run[k]]), int(run[k])))
-			nozzles.append({pts = pts0, dir = 1})
+			nozzles.append({pts = _trim_rim(_pic, pts0), dir = 1})
 		return
 	var keep: Array = run
 	if run.size() > cap:
@@ -704,7 +740,23 @@ func _add_run(run: Array, by_row: Dictionary, cap: int) -> void:
 	var pts := PackedVector2Array()
 	for y3 in keep:
 		pts.append(Vector2(int(by_row[y3]), int(y3)))
-	nozzles.append({pts = pts, dir = 1})
+	nozzles.append({pts = _trim_rim(_pic, pts), dir = 1})
+
+
+## A nozzle's rim drawn as a dark line: the 4 px from the hull's edge `x` into
+## the hull (`into` +1: rightwards, a player hull; -1: leftwards, a ship facing
+## left) all darker than 0.15.
+static func _rim_row(img: Image, x: int, y: int, into: int) -> bool:
+	if img == null:
+		return false
+	for k in 4:
+		var xx := x + k * into
+		if xx < 0 or y < 0 or xx >= img.get_width() or y >= img.get_height():
+			return false
+		var c := img.get_pixel(xx, y)
+		if c.a > 0.5 and c.get_luminance() >= 0.15:
+			return false
+	return true
 
 
 static func _px_solid(img: Image, x: int, y: int) -> bool:
@@ -988,7 +1040,7 @@ func plume(n: int, L: int, fr: int = 0) -> Dictionary:
 		_bell_light(nz.bell, L, Lf, float(s.spread), streams, fills, fp)
 	else:
 		streams.append({pts = nz.pts, L = Lf, spk = float(s.spread) * float(nz.get("widen", 1.0)),
-			over = bool(nz.get("over", false))})
+			behind = bool(nz.get("behind", false)), skip = int(nz.get("over_span", 0))})
 	# Embers: one spawned this frame or either of the two before, carried a
 	# further 2 px a frame and dimmer each time.
 	if not streams.is_empty():
@@ -1030,7 +1082,7 @@ func plume(n: int, L: int, fr: int = 0) -> Dictionary:
 		buf[i] = maxf(buf[i], float(f2.v))
 	for st2 in streams:
 		_stream(buf, W, Hh, at, st2.pts, int(st2.L), float(st2.spk), expo, dir,
-			float(st2.get("gain", 1.0)), fp, bool(st2.get("over", false)))
+			float(st2.get("gain", 1.0)), fp, bool(st2.get("behind", false)), int(st2.get("skip", 0)))
 	var out := _quantize(buf, W, Hh, at, s)
 	_cache[key] = out
 	return out
@@ -1092,11 +1144,10 @@ func particles_at(n: int, thrust: int, t: float) -> Array:
 			if kind == 1:
 				var sz := clampi(int(ceil(float(size0) * (1.0 - heat))), 1, 4)
 				cells = CLUMPS[sz - 1]
-			var over := bool((nozzles[n] as Dictionary).get("over", false))
 			for c in cells:
 				var px := x + (c as Vector2i).x * dir
 				var py := y + (c as Vector2i).y
-				if _is_solid(px, py) and not over:
+				if _is_solid(px, py):
 					continue
 				# A spark is one moving pixel: thinned by the pattern it would
 				# blink on and off as it crosses it, so only its last, reddest
@@ -1117,7 +1168,7 @@ func _tail(n: int, thrust: int) -> Dictionary:
 		return _tails[key]
 	var nz: Dictionary = nozzles[n]
 	var L := nozzle_length(n, thrust)
-	if not bool(nz.get("over", false)):
+	if not bool(nz.get("behind", false)):
 		L = mini(L, _clear_run(nz.pts, nz.dir))
 	var out := {pts = nz.pts, L = L, dir = nz.dir}
 	if nz.has("bell"):
@@ -1178,7 +1229,8 @@ func _bell_light(bell: Dictionary, L: int, Lf: int, spread: float, streams: Arra
 ## pow(1 - d/(L+1), expo), widening 1 px every 1/spk, overlaps taking the max.
 ## `fp` is the loop frame's shape (`_frame`): each row's tongue, the band shift.
 func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedVector2Array, L: int,
-		spk: float, expo: float, dir: int, gain: float = 1.0, fp: Dictionary = {}, over: bool = false) -> void:
+		spk: float, expo: float, dir: int, gain: float = 1.0, fp: Dictionary = {}, behind: bool = false,
+		skip: int = 0) -> void:
 	if em.is_empty():
 		return
 	var lo_y := 1 << 20
@@ -1253,8 +1305,8 @@ func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedV
 		var seen_air := false
 		for d in Lr + 1:
 			var ax := ex + d * dir
-			if over and d > 0:
-				pass        # drawn over what it passes (art/engines.json `over`)
+			if behind and d > 0:
+				pass        # passes behind what is in its way (art/engines.json `behind`)
 			elif _is_solid(ax, ey):
 				if seen_air:
 					break
@@ -1264,7 +1316,16 @@ func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedV
 			# nozzle's own pixel (d = 0) is never moved off its band.
 			var de := clampi(d + shift, 0, Lr) if d > 0 else 0
 			var fall := gain * dim * pow(1.0 - float(de) / float(Lr + 1), expo)
-			var spread := 1 + int(float(d) * spk)
+			# behind a weight it burns hot until it is past it, then falls off over
+			# the length left -- so it comes out the far side as a drive, not embers
+			if skip > 0 and Lr > skip:
+				var de2 := maxi(0, de - skip)
+				fall = gain * dim * pow(1.0 - float(de2) / float(Lr - skip + 1), expo)
+			# NOT WIDER THAN THE NOZZLE AT ITS MOUTH: the first two columns are the
+			# nozzle's own rows; the flame spreads from the third. (A spread of 1 at
+			# the start made every flame 2 rows taller than its opening -- Jon:
+			# "still slightly bigger than nozzle".)
+			var spread := int(float(d) * spk) + (1 if d >= 2 else 0)
 			# B's knots: every fifth pixel along the AXIS (the nozzle's middle
 			# rows only), held where they are, lifted a band while the jet is
 			# still hot enough to carry them.
@@ -1281,7 +1342,7 @@ func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedV
 				# flame. Never in the first three pixels: the start stays put.
 				if wob_ph >= 0.0 and d > 4:
 					cy += int(round(sin(float(d) * 0.22 + wob_ph)))
-				if _is_solid(cx, cy) and not (over and d > 0):
+				if _is_solid(cx, cy):
 					continue
 				var xx := cx - at.x
 				var yy := cy - at.y
