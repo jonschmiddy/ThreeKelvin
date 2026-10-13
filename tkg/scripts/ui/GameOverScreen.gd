@@ -2,17 +2,8 @@ class_name GameOverScreen
 extends Control
 
 ## JON'S THANK-YOU NOTE, shown on the win screen when the core's boss is beaten.
-## His own words: exempt from the plain-voice rewrite, so leave them as written.
-## A blank line is a paragraph break; the signature is its own line.
-const ALPHA_THANKS := """You have reached the end of the Three Kelvin Alpha! If you are reading this, you made it all the way to the core and defeated the final boss.
-
-From the bottom of my heart, thank you so much for playing my silly little game, and for putting up with the bugs and weird things that come with an unfinished game.
-
-As I mentioned in the welcome message, please reach out to me with bugs, ideas and feature requests. Tell me what you liked and what you didn't like.
-
-Thanks again for helping me build the game of my dreams.
-
-Jon"""
+## The text lives in `AlphaNotes.ALPHA_THANKS`, beside his welcome note.
+const ALPHA_THANKS := AlphaNotes.ALPHA_THANKS
 
 ## How wide the win screen is. Wider than the death screen's 250, which was
 ## sized to three short lines, because the note is a letter: about sixty

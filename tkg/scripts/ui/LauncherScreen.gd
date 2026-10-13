@@ -167,6 +167,9 @@ func setup() -> void:
 		_open_popup(arc)
 		arc.setup(_close_popup)))
 	menu.add_child(_option("SETTINGS", _open_settings))
+	# JON'S WELCOME NOTE, again, whenever it is wanted (Jon, Oct 13): the line
+	# above QUIT. It opens by itself the first time this screen does (`WelcomePopup`).
+	menu.add_child(_option("MESSAGE FROM JON", open_welcome))
 
 	# Red on hover, alone among the five. Everything else on this screen leads
 	# somewhere you can come back from.
@@ -175,6 +178,23 @@ func setup() -> void:
 	quit.add_theme_color_override("font_hover_color", UITheme.LEAVE)
 	quit.add_theme_color_override("font_pressed_color", Color("#f08872"))
 	menu.add_child(quit)
+
+	# THE FIRST TIME, the welcome note over the title (once per profile).
+	if WelcomePopup.due():
+		open_welcome()
+
+
+## Jon's welcome note over the title, in the popup slot so nothing else opens
+## over it; CLOSE or Escape shuts it (`WelcomePopup`).
+func open_welcome() -> void:
+	if _popup != null or _settings != null:
+		return
+	var w := WelcomePopup.new()
+	add_child(w)
+	_popup = w
+	w.closed.connect(func() -> void:
+		if _popup == w:
+			_popup = null)
 
 ## The developer switch, small, in the corner where a build stamp goes.
 ##

@@ -474,6 +474,23 @@ else
 	bad "corewintest did not finish"
 fi
 
+step "Jon's welcome note: once per profile, and on the title menu"
+# Opens by itself on a fresh profile's title, word for word and inside the
+# screen; marked seen only when CLOSED; never again after; MESSAGE FROM JON
+# above QUIT opens it again; the first-run intro is never in its way. `welcome`
+# and `intro` let both run under the harness, in its own scratch settings.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot welcometest 120 --headless --path "$PROJECT" -- sheet=WelcomeTest welcome intro; then
+	if grep -qE '^welcometest: PASS' "$LOG_DIR/welcometest.log"; then
+		ok "the welcome note shows once and comes back from the menu"
+	else
+		bad "the welcome note failed"
+		grep -E 'FAIL|^welcometest' "$LOG_DIR/welcometest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "welcometest did not finish"
+fi
+
 step "Every hull sits on its yard stands, centred"
 # Jon: "The ship needs to sit lower. Like actually be on the stands and centered
 # on them." Every hull frame at every grade on every level's stands, measured
