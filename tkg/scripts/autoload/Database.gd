@@ -2270,25 +2270,25 @@ func _seed_enemies() -> void:
 	_enemy(&"cutter", "Rustjaw Cutter", "pirate skirmisher", 26, 0, 15, &"cutter", [
 		{name = "Strafe", text = "Deal 5", damage = 5},
 		{name = "Twin Guns", text = "Deal 3 × 2", damage = 3, hits = 2},
-		{name = "Juke", text = "Gain 7 block", block = 7},
+		{name = "Juke", text = "Gain 4 block", block = 4},
 	], [])
 	_enemy(&"lancer", "Corsair Lancer", "raider · fast", 34, 2, 22, &"cutter", [
 		{name = "Lance", text = "Deal 9", damage = 9},
 		{name = "Sear", text = "Deal 4 × 2", damage = 4, hits = 2},
-		{name = "Vent Bloom", text = "Gain 5 block", block = 5},
+		{name = "Vent Bloom", text = "Gain 3 block", block = 3},
 	], [])
 	_enemy(&"hulk", "Dreg Hulk", "salvage barge", 52, 6, 30, &"hulk", [
-		{name = "Reinforce", text = "Gain 8 block", block = 8},
+		{name = "Reinforce", text = "Gain 4 block", block = 4},
 		{name = "Winding up…", text = "Charging a ram", telegraph = true},
 		{name = "RAM", text = "Deal 14", damage = 14},
 	], [])
 	_enemy(&"marauder", "Vex Marauder", "raider · heavy weapons", 46, 4, 34, &"cutter", [
 		{name = "Rake", text = "Deal 8", damage = 8},
 		{name = "Barrage", text = "Deal 5 × 3", damage = 5, hits = 3},
-		{name = "Harden", text = "Gain 8 block", block = 8},
+		{name = "Harden", text = "Gain 4 block", block = 4},
 	], [])
 	_enemy(&"sentinel", "Combine Sentinel", "corporate security", 58, 8, 42, &"hulk", [
-		{name = "Lock Plates", text = "Gain 9 block", block = 9},
+		{name = "Lock Plates", text = "Gain 5 block", block = 5},
 		{name = "Pulse", text = "Deal 11", damage = 11},
 		{name = "Sweep", text = "Deal 4 × 3", damage = 4, hits = 3},
 	], [])
@@ -2323,12 +2323,12 @@ func _seed_enemies() -> void:
 	_enemy(&"hellbender", "The Hellbender", "rival harvester · a salamander device on the hull", 90, 6, 90, &"hellbender", [
 		{name = "Heat Lance", text = "Deal 11", damage = 11},
 		{name = "Slag Guns", text = "Deal 4 × 3", damage = 4, hits = 3},
-		{name = "Ashplate", text = "Gain 10 block", block = 10},
+		{name = "Ashplate", text = "Gain 5 block", block = 5},
 		{name = "Furnace Bleed", text = "Deal 7, +1 Dross", damage = 7, dross = 1},
 	], [], false, false, true)
 	# Boss: unscaled, tuned by hand.
 	_enemy(&"custodian", "The Custodian", "guardian of the light", 120, 8, 120, &"hulk", [
-		{name = "Plated Up", text = "Gain 12 block", block = 12},
+		{name = "Plated Up", text = "Gain 6 block", block = 6},
 		{name = "Volley", text = "Deal 6 × 3", damage = 6, hits = 3},
 		{name = "Charging…", text = "Something is spooling up", telegraph = true},
 		{name = "Annihilate", text = "Deal 22", damage = 22},

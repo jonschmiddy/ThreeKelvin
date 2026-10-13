@@ -483,6 +483,17 @@ func _act_one(e: EnemyState) -> void:
 	var I := e.intent
 	if I == null:
 		return
+	# LAST TURN'S BLOCK EXPIRES AS IT ACTS AGAIN, and not a moment sooner.
+	#
+	# This line used to sit at the END of this function, after `e.block +=
+	# I.block` -- so every "Gain N block" turn granted block and took it away
+	# in the same call, and the player's next turn met a hull with none. The
+	# intent lied and the chip never appeared (combat polish audit, item 3).
+	# It is the player-Block bug from August mirrored onto the enemy: block
+	# exists to be spent during the OTHER side's turn, so it has to survive
+	# into it. Solo only, as before: in a shared fight the host owns block.
+	if not is_shared():
+		e.block = 0
 	# Acting on the escape burn IS the escape. Solo only: in a shared fight the
 	# host converts this intent into the fight ending before any swing message
 	# goes out, so no client ever reaches here with it. See NetSession._swing().
@@ -541,7 +552,6 @@ func _act_one(e: EnemyState) -> void:
 		# stream, not a positional derivation, so four machines rolling it
 		# independently would agree about nothing. See NetSession._pick_intent().
 		return
-	e.block = 0
 	e.pick_intent()
 
 # ------------------------------------------------------------------------- cards
