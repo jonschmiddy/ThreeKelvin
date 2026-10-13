@@ -86,11 +86,18 @@ var ink_w: int = 0
 var _w := 0
 var _h := 0
 var _solid := PackedByteArray()   ## 1 where the hull is opaque, over the whole canvas
-var _cache := {}                  ## Vector3i(nozzle, L, 0) -> {tex, at}
+var _cache := {}                  ## Vector3i(nozzle, L, loop frame) -> {tex, at}
 var _spill := {}                  ## thrust -> {tex, at}
 var _hold := PackedFloat32Array() ## step start times, STEPS of them, then the loop length
 var _offs: Array = []             ## [step] -> PackedInt32Array, one -1..1 per nozzle
 var _loop := 1.0
+var _seed := 0
+## THE DIALS of the living flame: loop frames a second (0 is the calm flame of
+## the first round, length steps only) and raggedness (tongue size, ember
+## rate, breathing). "lively" is 8 fps / 1.0, "wild" 12 fps / 1.8.
+var fps := 8.0
+var rag := 1.0
+const LOOP := 8
 
 
 # ------------------------------------------------------------------ making one
@@ -322,6 +329,7 @@ func _is_solid(x: int, y: int) -> bool:
 ## in -1..1 per step (times FLICK[thrust] when drawn). About half the engines
 ## move on a step; one that moves never lands where it was.
 func _plan(seed: int) -> void:
+	_seed = seed
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed * 6271 + 3
 	_hold.resize(STEPS)
@@ -366,7 +374,12 @@ func step_at(t: float) -> int:
 	return lo
 
 
+## The length drawn. A LIVING flame (`fps` > 0) keeps its base length: its
+## frames already breathe and lick. The CALM one (`fps` 0, the first round)
+## wanders 1-2 px in held steps a few times a second.
 func length_at(n: int, thrust: int, t: float) -> int:
+	if fps > 0.0:
+		return base_length(thrust)
 	var o: PackedInt32Array = _offs[step_at(t)]
 	var amp := FLICK[thrust]
 	if look == Look.SPILL:
@@ -374,27 +387,44 @@ func length_at(n: int, thrust: int, t: float) -> int:
 	return maxi(2, base_length(thrust) + o[n] * amp)
 
 
+## Which of the LOOP shapes engine `n` shows at `t`: held frames at `fps`, each
+## engine's loop offset by three frames from the last so a multi-engine ship
+## never pulses in unison.
+func frame_at(n: int, t: float) -> int:
+	if fps <= 0.0:
+		return 0
+	return posmod(int(floor(t * fps)) + n * 3 + _seed, LOOP)
+
+
+func frames() -> int:
+	return LOOP if fps > 0.0 else 1
+
+
 ## Every picture this thrust can ask for, built now rather than on first sight.
 func warm_up(thrust: int) -> void:
 	var b := base_length(thrust)
-	var amp := FLICK[thrust]
 	for n in nozzles.size():
-		for d in range(-amp, amp + 1):
-			plume(n, maxi(2, b + d))
+		if fps > 0.0:
+			for f in LOOP:
+				plume(n, b, f)
+		else:
+			var amp := FLICK[thrust]
+			for d in range(-amp, amp + 1):
+				plume(n, maxi(2, b + d))
 	if look == Look.SPILL:
 		spill(thrust)
 
 
 ## Draw every engine at time `t`, the canvas's (0, 0) at `origin`, onto a canvas
 ## item that blends ADD (`add_material`). This is the whole per-frame cost: a
-## step lookup and one cached texture per engine.
+## frame lookup and one cached texture per engine.
 func draw(ci: CanvasItem, origin: Vector2, thrust: int, t: float) -> void:
 	if look == Look.SPILL:
 		var sp := spill(thrust)
 		if sp.tex != null:
 			ci.draw_texture(sp.tex, origin + (sp.at as Vector2))
 	for n in nozzles.size():
-		var p := plume(n, length_at(n, thrust, t))
+		var p := plume(n, length_at(n, thrust, t), frame_at(n, t))
 		if p.tex != null:
 			ci.draw_texture(p.tex, origin + (p.at as Vector2))
 
@@ -415,29 +445,74 @@ static func _lv(c: Color, lvl: float) -> Color:
 
 # ------------------------------------------------------------------ the plume
 
-## One engine's light at length `L`, cached. The overload's `_plume_tex` with
-## the changes listed at the top: light streams back from every point of the
-## nozzle, falls off as pow(1 - d/(L+1), expo), widens by 1 px every 1/spread,
-## overlaps take the max; then four held bands, the outer ones Bayer-thinned.
-func plume(n: int, L: int) -> Dictionary:
-	var key := Vector2i(n, L)
+## THE LIVING FLAME (Jon, Oct 13: "They still read as too still... they should
+## be an active flame"; today's strips change ten times a second and that is
+## the bar). Each engine cycles LOOP distinct shapes at `fps`, as held frames:
+##   - the tail is ragged and different every frame: each row's tongue is its
+##     own length, and one or two rows lick further out (`rag` scales both);
+##   - the band edges shift a pixel along the flame (`shift`);
+##   - the length breathes by up to 3 px, so the core with it (`dL`);
+##   - now and then an ember breaks off the tail and fades over three frames.
+## What never moves: the nozzle's start (d = 0 is always lit, whatever the
+## frame), and inside heavy S's bell only the bands shift, gently.
+## Pure in (engine, frame): the same frame is the same picture every loop.
+func _frame(n: int, fr: int) -> Dictionary:
+	if fps <= 0.0 or rag <= 0.0:
+		return {dL = 0, shift = 0, bshift = 0, rows = 0, ember = {}}
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([_seed, look, n, fr])
+	var out := {}
+	var big := rag >= 1.5
+	out.dL = rng.randi_range(-1, 1) * (2 if big else 1) + (rng.randi_range(0, 1) if big else 0)
+	out.shift = rng.randi_range(-1, 1)
+	out.bshift = rng.randi_range(0, 2)
+	out.rows = rng.randi() | 1
+	out.ember = {}
+	if rng.randf() < clampf(0.35 * rag, 0.0, 0.8):
+		out.ember = {row = rng.randf(), past = rng.randi_range(1, 3)}
+	return out
+
+
+## One engine's light at length `L` and loop frame `fr`, cached. The overload's
+## `_plume_tex` with the changes listed at the top: light streams back from
+## every point of the nozzle, falls off as pow(1 - d/(L+1), expo), widens by
+## 1 px every 1/spread, overlaps take the max; then four held bands, the outer
+## ones Bayer-thinned.
+func plume(n: int, L: int, fr: int = 0) -> Dictionary:
+	var key := Vector3i(n, L, fr)
 	if _cache.has(key):
 		return _cache[key]
 	var s: Dictionary = SHAPE[look]
 	var nz: Dictionary = nozzles[n]
 	var dir: int = nz.dir
 	var expo: float = s.expo
-	# What lights: streams {pts, L, spread} and fixed cells {x, y, v}.
+	var fp := _frame(n, fr)
+	var Lf := maxi(2, L + int(fp.dL))
+	# What lights: streams {pts, L, spk, gain} and fixed cells {x, y, v}.
 	var streams: Array = []
 	var fills: Array = []
 	if nz.has("bell"):
-		_bell_light(nz.bell, L, expo, float(s.spread), streams, fills)
+		_bell_light(nz.bell, L, Lf, float(s.spread), streams, fills, fp)
 	else:
-		streams.append({pts = nz.pts, L = L, spk = float(s.spread) * float(nz.get("widen", 1.0))})
+		streams.append({pts = nz.pts, L = Lf, spk = float(s.spread) * float(nz.get("widen", 1.0))})
+	# Embers: one spawned this frame or either of the two before, carried a
+	# further 2 px a frame and dimmer each time.
+	if not streams.is_empty():
+		var st0: Dictionary = streams[-1]
+		var src: PackedVector2Array = st0.pts
+		for j in 3:
+			var ep: Dictionary = _frame(n, posmod(fr - j, LOOP)).ember
+			if ep.is_empty() or src.is_empty():
+				continue
+			var row := clampi(int(float(ep.row) * float(src.size())), 0, src.size() - 1)
+			var e0 := src[row]
+			var reach := int(st0.L) + int(ep.past) + 2 * j
+			var ev: float = [0.6, 0.4, 0.2][j]
+			fills.append({x = int(e0.x) + reach * dir, y = int(e0.y), v = ev, air = true})
 	var lo := Vector2i(1 << 20, 1 << 20)
 	var hi := Vector2i(-(1 << 20), -(1 << 20))
 	for st in streams:
-		var sl: int = st.L
+		var sl: int = int(round(float(st.L) * (1.0 + 0.5 * rag))) + 2
 		var sp := 2 + int(float(sl) * float(st.spk))
 		for e in (st.pts as PackedVector2Array):
 			var x2 := int(e.x) + sl * dir
@@ -455,10 +530,13 @@ func plume(n: int, L: int) -> Dictionary:
 	var buf := PackedFloat32Array()
 	buf.resize(W * Hh)
 	for f2 in fills:
+		if f2.get("air", false) and _is_solid(int(f2.x), int(f2.y)):
+			continue
 		var i := (int(f2.y) - at.y) * W + (int(f2.x) - at.x)
 		buf[i] = maxf(buf[i], float(f2.v))
 	for st2 in streams:
-		_stream(buf, W, Hh, at, st2.pts, int(st2.L), float(st2.spk), expo, dir, float(st2.get("gain", 1.0)))
+		_stream(buf, W, Hh, at, st2.pts, int(st2.L), float(st2.spk), expo, dir,
+			float(st2.get("gain", 1.0)), fp)
 	var out := _quantize(buf, W, Hh, at, s)
 	_cache[key] = out
 	return out
@@ -470,21 +548,23 @@ func plume(n: int, L: int) -> Dictionary:
 ## spread and falloff. Jon, on idle: "The flame should extend slightly out of
 ## the ship ... that little depression is the entire exhaust" -- so idle is the
 ## same shape, dimmer: the bell held in the second band (0.52 to 0.70, no white
-## core) and the full idle length past the rim, at 0.75 of the light. The bell
-## does not depend on L, so the flicker moves only the part past the rim.
+## core) and the full idle length past the rim, at 0.75 of the light.
 ## Cruise and full: the bell 0.55 to 0.95 and 0.7 of the length past it.
-## Nothing here touches a hull pixel the strip leaves visible: cells are the
-## strip's own, and the streams are cut out by the hull like any other.
-func _bell_light(bell: Dictionary, L: int, expo: float, spread: float, streams: Array, fills: Array) -> void:
+## Living: the bell only shifts its bands (0 to +0.08); the part past the rim
+## gets the whole loop. Nothing here touches a hull pixel the strip leaves
+## visible: cells are the strip's own, and the streams are cut out by the hull.
+func _bell_light(bell: Dictionary, L: int, Lf: int, spread: float, streams: Array,
+		fills: Array, fp: Dictionary) -> void:
 	var depth: int = bell.depth
 	var apex: int = bell.apex
 	var idle := L <= base_length(Thrust.IDLE) + FLICK[Thrust.IDLE]
 	var v0 := 0.52 if idle else 0.55
 	var v1 := 0.70 if idle else 0.95
+	var lift := 0.04 * float(fp.bshift)
 	for c in (bell.cells as PackedVector2Array):
 		var d := float(apex - int(c.x))
-		fills.append({x = int(c.x), y = int(c.y), v = lerpf(v0, v1, clampf(d / float(depth), 0.0, 1.0))})
-	var lout := L if idle else int(round(float(L) * 0.7))
+		fills.append({x = int(c.x), y = int(c.y), v = lerpf(v0, v1, clampf(d / float(depth), 0.0, 1.0)) + lift})
+	var lout := Lf if idle else int(round(float(Lf) * 0.7))
 	if lout > 0:
 		streams.append({pts = bell.mouth, L = lout, spk = spread, gain = 0.75 if idle else 1.0})
 
@@ -492,8 +572,9 @@ func _bell_light(bell: Dictionary, L: int, expo: float, spread: float, streams: 
 ## One nozzle's light streaming back over `L` px into `buf` (canvas box `at`,
 ## W x Hh): every point of the nozzle streams, falling off as
 ## pow(1 - d/(L+1), expo), widening 1 px every 1/spk, overlaps taking the max.
+## `fp` is the loop frame's shape (`_frame`): each row's tongue, the band shift.
 func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedVector2Array, L: int,
-		spk: float, expo: float, dir: int, gain: float = 1.0) -> void:
+		spk: float, expo: float, dir: int, gain: float = 1.0, fp: Dictionary = {}) -> void:
 	if em.is_empty():
 		return
 	var lo_y := 1 << 20
@@ -507,14 +588,46 @@ func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedV
 	# little dimmer, so the flame comes to a rounded tip like the overload's did.
 	var mid_y := float(lo_y + hi_y) * 0.5
 	var half := float(hi_y - lo_y) * 0.5 + 0.5
-	for e2 in em:
+	# THE TONGUES: each row's own length this frame, smoothed over its
+	# neighbours so the edge is ragged and not noise, and one or two rows
+	# licking further out.
+	var cnt := em.size()
+	var tongue := PackedFloat32Array()
+	tongue.resize(cnt)
+	tongue.fill(1.0)
+	var shift := int(fp.get("shift", 0))
+	if int(fp.get("rows", 0)) != 0 and rag > 0.0:
+		var rr := RandomNumberGenerator.new()
+		rr.seed = int(fp.rows)
+		var raw := PackedFloat32Array()
+		raw.resize(cnt)
+		for i in cnt:
+			raw[i] = rr.randf_range(-0.24, 0.06) * rag
+		for i2 in cnt:
+			var a := raw[maxi(0, i2 - 1)]
+			var c := raw[mini(cnt - 1, i2 + 1)]
+			tongue[i2] = maxf(0.45, 1.0 + (a + 2.0 * raw[i2] + c) * 0.25)
+		var licks := 1 + (1 if rr.randf() < 0.5 * rag else 0)
+		for k in licks:
+			var at_row := rr.randi_range(0, cnt - 1)
+			var extra := rr.randf_range(0.18, 0.38) * rag
+			tongue[at_row] += extra
+			if at_row > 0:
+				tongue[at_row - 1] += extra * 0.5
+			if at_row < cnt - 1:
+				tongue[at_row + 1] += extra * 0.5
+	for idx in cnt:
+		var e2 := em[idx]
 		var ex := int(e2.x)
 		var ey := int(e2.y)
 		var u := (float(ey) - mid_y) / (half + 0.5)
-		var Lr := maxi(1, int(round(float(L) * (1.0 - 0.5 * u * u))))
+		var Lr := maxi(1, int(round(float(L) * (1.0 - 0.5 * u * u) * tongue[idx])))
 		var dim := 1.0 - 0.25 * u * u
 		for d in Lr + 1:
-			var fall := gain * dim * pow(1.0 - float(d) / float(Lr + 1), expo)
+			# The band edges move a pixel along the flame with `shift`; the
+			# nozzle's own pixel (d = 0) is never moved off its band.
+			var de := clampi(d + shift, 0, Lr) if d > 0 else 0
+			var fall := gain * dim * pow(1.0 - float(de) / float(Lr + 1), expo)
 			var spread := 1 + int(float(d) * spk)
 			# B's knots: every fifth pixel along the AXIS (the nozzle's middle
 			# rows only), held where they are, lifted a band while the jet is
