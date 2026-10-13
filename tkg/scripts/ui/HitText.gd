@@ -37,6 +37,8 @@ const TRAIL := 2.0
 ## A landed number's baseline above the ink's top: the outline's row and three
 ## pixels of air.
 const GAP := 4.0
+## How far a landed number rises (`CombatFx`'s pop).
+const RISE := 10.0
 
 ## The colour for a kind of number:
 ##   damage, kill  what a card does to a contact (FLARE, as the preview always was)

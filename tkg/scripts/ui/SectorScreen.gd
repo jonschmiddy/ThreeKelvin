@@ -4020,7 +4020,7 @@ func _turn_steps() -> Array:
 func _show_act(who: int, it: IntentData) -> void:
 	if it == null or _view == null or _view.fx == null:
 		return
-	var at := _pop_at(false, who)
+	var at := _pop_at(false, who, int(it.telegraph) + int(it.block > 0) + int(it.heal > 0))
 	var y := 0.0
 	if it.telegraph:
 		_view.fx.pop(at, "WINDING UP", HitText.colour(&"act"), true)
@@ -4128,7 +4128,7 @@ func _on_volley_landed(id: int) -> void:
 	_volleys.erase(id)
 	var who: int = q.who
 	if q.to_player:
-		_pop_hit(_pop_at(true, who), q, true)
+		_pop_hit(_pop_at(true, who, _pop_lines(q)), q, true)
 		if shown_hull >= 0:
 			shown_hull = maxi(0, shown_hull - int(q.dealt))
 			_sync_hull()
@@ -4144,7 +4144,7 @@ func _on_volley_landed(id: int) -> void:
 		else:
 			_slot_volleys[who] = n
 			_slot_shown[who] = maxi(0, int(_slot_shown[who]) - int(q.dealt))
-		_pop_hit(_pop_at(false, who), q, false, n <= 0 and _dying.has(who))
+		_pop_hit(_pop_at(false, who, _pop_lines(q)), q, false, n <= 0 and _dying.has(who))
 		var L2 := _enemy_fx(who)
 		if L2 != null:
 			var hp_after: int = int(_slot_shown[who]) if _slot_shown.has(who) else combat.enemies[who].hp
@@ -4161,10 +4161,58 @@ func _on_volley_landed(id: int) -> void:
 	_check_ending()
 
 
-## Where a number about a hull goes, in the fx layer's space: just above your
-## ship, and on an enemy's hull (above it is its intent).
-func _pop_at(to_player: bool, who: int) -> Vector2:
-	return HitText.above(_hull_ink(to_player, who))
+## Where a number about a hull goes, in the fx layer's space: centred across on
+## the hull's ink, just above your ship; above an enemy's INTENT WORDS, clear of
+## them (Jon, Oct 13, "C": just above the hull it sat on STRAFE and read
+## "ST-8E"). `lines` is how many will stack upward from here: the whole stack,
+## and the rise, is kept on screen under the top of the fight (`_pop_room`).
+func _pop_at(to_player: bool, who: int, lines: int = 1) -> Vector2:
+	var ink := _hull_ink(to_player, who)
+	var top := ink
+	if not to_player:
+		var sl := _view.slot(who)
+		var words := sl.intent_rect_global() if sl != null else Rect2()
+		if words.size.y > 0.0:
+			var inv := _view.fx.get_global_transform().affine_inverse()
+			var w := Rect2(inv * words.position, words.size)
+			top = Rect2(ink.position.x, minf(ink.position.y, w.position.y), ink.size.x, ink.size.y)
+	var at := HitText.above(Rect2(ink.position.x, top.position.y, ink.size.x, 1.0))
+	# NO ROOM ABOVE (a ship high in a pack, its words close under the HUD): the
+	# stack goes on the hull instead, centred on its ink, and the ship's words
+	# step back while the numbers are up rather than be written over.
+	if not to_player and at.y - _pop_reach(lines) < _pop_limit():
+		var mid := ink.get_center()
+		at = Vector2(mid.x, mid.y + HitText.CAP * 0.5 + float(maxi(lines, 1) - 1) * HitText.LINE * 0.5).round()
+		var sl2 := _view.slot(who)
+		if sl2 != null:
+			sl2.hush_intent(1.15)
+	return _pop_room(at, lines)
+
+
+## How far above its baseline a stack of `lines` pops reaches, risen.
+func _pop_reach(lines: int) -> float:
+	return float(maxi(lines, 1) - 1) * HitText.LINE + HitText.CAP + 1.0 + HitText.RISE
+
+
+## The top of the fight in the fx layer: under the HUD.
+func _pop_limit() -> float:
+	var inv := _view.fx.get_global_transform().affine_inverse()
+	var top_g := _view.get_global_rect().position.y
+	if Router.hud != null and Router.hud.is_visible_in_tree():
+		top_g = maxf(top_g, Router.hud.get_global_rect().end.y)
+	return (inv * Vector2(0.0, top_g)).y + 2.0
+
+
+## ON SCREEN: a stack of `lines` pops from `at`, risen, stays under the top of
+## the fight (a ship sitting high in a pack would put its numbers under the HUD).
+## Moved down only as far as it has to be.
+func _pop_room(at: Vector2, lines: int) -> Vector2:
+	var limit := _pop_limit()
+	_view.fx.pop_top = limit
+	var reach := _pop_reach(lines)
+	if at.y - reach < limit:
+		at.y = limit + reach
+	return at
 
 
 ## A hull's INK in the fight layer's coordinates (`_view.fx`): the painted
@@ -4190,6 +4238,11 @@ func _hull_ink(to_player: bool, who: int) -> Rect2:
 
 ## What a volley did, where it did it (audit item 8): the damage, then what
 ## block and brace took, or that it missed.
+## How many lines a landing pops (`_pop_hit`): damage, what was taken, a miss.
+func _pop_lines(q: Dictionary) -> int:
+	return int(int(q.dealt) > 0) + int(int(q.absorbed) > 0) + int(int(q.missed) > 0)
+
+
 func _pop_hit(at: Vector2, q: Dictionary, to_player: bool, killed: bool = false) -> void:
 	# The held card's preview said "-6" or "-6 KILL" over this hull; the landing
 	# says the same, in the same letters (`HitText`).
