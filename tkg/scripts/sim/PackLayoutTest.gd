@@ -20,6 +20,7 @@ extends Node
 
 var _fails := 0
 var _shown := 0
+var _fits: Dictionary = {}
 
 
 func _ok(what: String, c: bool) -> bool:
@@ -249,7 +250,18 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 			continue
 		var holder: Control = sl.get("_art_holder")
 		var rest: Vector2 = holder.get_global_rect().position + sl.get("_art_base")
-		var f := ShieldFx.fit(sl.art.snapshot(), sl.art.ink_rect())
+		# the shield's own fit of the picture as drawn; one per picture and
+		# size (a per-pixel pass, and the sheet lays out thousands of packs)
+		var e: Combat.EnemyState = sl.get("_last_e")
+		var key := "%s/%d/%.2f/%s" % [e.template.id, e.look, sl.art.draw_scale, sl.art.ink_rect()] if e != null else ""
+		if key == "" or not _fits.has(key):
+			var fit0 := ShieldFx.fit(sl.art.snapshot(), sl.art.ink_rect())
+			if key == "":
+				_fits["_"] = fit0
+				key = "_"
+			else:
+				_fits[key] = fit0
+		var f: Dictionary = _fits[key]
 		var cc: Vector2 = f.cc
 		var rad := Vector2(float(f.rx), float(f.ry))
 		var oval := Rect2(rest + cc - rad, rad * 2.0)
