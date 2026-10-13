@@ -1265,7 +1265,6 @@ func _on_chart_cleared() -> void:
 ## THE CHART AS THE FARTHEST OF FOUR DISTANCES (`ZoomLadder`): k 0 is the view at
 ## rest, 1 is your star at the closest zoom, where the sector map takes over.
 var _ladder_side: Control = null
-var _side_x := NAN
 
 
 func ladder_ready() -> bool:
@@ -1305,7 +1304,6 @@ func ladder_cam_begin(_other: int, seam: int, design: String) -> void:
 		var reach := 2.2 if seam == 1 and design == "A" else (3.0 if seam == 0 else 0.0)
 		_chart.ladder_begin(Vector2.ZERO if _lad_meet == Vector2.INF else _lad_meet - _chart.get_global_rect().get_center(), reach)
 		_lad_meet = Vector2.INF
-		_side_x = _ladder_side.position.x if _ladder_side != null else NAN
 
 
 func ladder_cam(k: float) -> void:
@@ -1314,9 +1312,11 @@ func ladder_cam(k: float) -> void:
 
 
 ## THE CHART'S UI, k of the way gone (`ZoomLadder`: it leaves before the camera
-## moves and comes back after it lands): the depth strip, the destination panel
-## (drifting a few pixels toward its edge), the key, the corner toggles, and
-## YOU and the scale bar drawn over the galaxy.
+## moves and comes back after it lands): the depth strip, the key, the corner
+## toggles, and YOU and the scale bar drawn over the galaxy. NOT the
+## destination panel: the side bar stays through the move and swaps in place
+## for the next screen's (`ladder_side`, `SideSwap`; Jon, Oct 13, "the side bar
+## goes blank and then draws the new side bar").
 var _strip_row: Control = null
 var _key_row: Control = null
 
@@ -1324,10 +1324,14 @@ var _key_row: Control = null
 func ladder_chrome(k: float) -> void:
 	for c: CanvasItem in [_strip_row, _key_row, _region_btn, _reach_btn, _sight_btn]:
 		ZoomLadder.fade_chrome(c, k)
-	ZoomLadder.fade_chrome(_ladder_side, k, 24.0)
 	if _chart != null:
 		_chart.ui_a = 1.0 - k
 		_chart.queue_redraw()
+
+
+## The side bar, for the ladder to swap in place (`SideSwap`).
+func ladder_side() -> Control:
+	return _ladder_side
 
 
 func ladder_spans() -> Vector2:
@@ -1344,7 +1348,6 @@ func ladder_split(f: float) -> void:
 func ladder_cam_end() -> void:
 	if _chart != null:
 		_chart.ladder_end()
-	_side_x = NAN
 
 
 func _on_jump() -> void:

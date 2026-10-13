@@ -64,6 +64,9 @@ uniform vec3 cover = vec3(0.0);
 // a hole in the held picture (its own px: centre, radius; 0 for none) where
 // the live screen draws the same thing -- the world handed over in 2C
 uniform vec3 hole = vec3(0.0);
+// THE SIDE BAR'S RECT (screen px; z 0 for none), drawn by `SideSwap` from the
+// swap on: the held picture leaves it alone
+uniform vec4 side = vec4(0.0);
 
 float bayer4(vec2 q) {
 	ivec2 i = ivec2(mod(q, 4.0));
@@ -225,5 +228,8 @@ void fragment() {
 		} else {
 			COLOR = vec4(0.0);
 		}
+	}
+	if (side.z > 0.0 && in_rect(rect_pos + UV * rect_size, side)) {
+		COLOR = vec4(0.0);
 	}
 }

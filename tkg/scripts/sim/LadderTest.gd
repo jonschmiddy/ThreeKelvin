@@ -919,9 +919,11 @@ func _run() -> void:
 				saw_out = true
 				if is_instance_valid(mm) and absf(mm.view.zoom - z0) > 0.0001:
 					cam_in_ui += 1
+			# (the side bar is not this UI: it stays through the move and swaps in
+			# place, Jon Oct 13 -- `-- sheet=SideBarTest`)
 			if L.phase == ZoomLadder.Phase.MOVE and L.new is StarchartScreen:
 				var c2 := L.new as StarchartScreen
-				if (c2._ladder_side != null and c2._ladder_side.modulate.a > 0.01) or c2._chart.ui_a > 0.01:
+				if c2._key_row.modulate.a > 0.01 or c2._chart.ui_a > 0.01:
 					ui_in_move += 1
 			if L.phase == ZoomLadder.Phase.UI_IN:
 				saw_in = true

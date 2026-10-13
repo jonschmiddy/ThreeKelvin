@@ -396,6 +396,26 @@ var _held_frames := 0
 var _had_pre := false
 ## the UI's own clock (UI_OUT, UI_IN), s
 var _ui_u := 0.0
+## THE SIDE BAR'S SWAP (`_side_begin`), and the old side bar's rect (viewport px)
+var side_swap: SideSwap = null
+var _side_old := Rect2()
+## THE SIDE BAR'S LOOK, one of `SIDE_LOOKS` (Jon picks; `SideSwap` draws each):
+## A crossfade, B slide, C cascade, D scan redraw, E decode, F reboot.
+## `-- side=<letter>` or `force_side_look` for a harness.
+const SIDE_LOOKS := ["A", "B", "C", "D", "E", "F"]
+const SIDE_LOOK := "A"
+static var _side_force := ""
+
+
+static func force_side_look(l: String) -> void:
+	_side_force = l if l in SIDE_LOOKS else ""
+
+
+static func side_look() -> String:
+	if _side_force != "":
+		return _side_force
+	var a := _arg("side").to_upper()
+	return a if a in SIDE_LOOKS else SIDE_LOOK
 ## what runs when the camera lands (`when_landed`): the event's band lifting on
 ## LOCAL, say -- the UI arriving after the move, never during it
 var _landed: Array[Callable] = []
@@ -611,6 +631,9 @@ static func preroll(target: int, then: Callable) -> bool:
 	# THE UI LEAVES FIRST, the camera still, on every move -- even one whose
 	# screen has no camera of its own to move first (the station's berth)
 	var chrome := cur.has_method(&"ladder_chrome") and UI_OUT_S > 0.001 and chrome_hidden != cur
+	var sd := side_of(cur)
+	if sd != null and sd.is_visible_in_tree():
+		lad._side_old = sd.get_global_rect()
 	if lad._pre_k <= 0.0 and not chrome:
 		active = null
 		lad.queue_free()
@@ -1033,8 +1056,13 @@ func _input(e: InputEvent) -> void:
 			and (e as InputEventMouseButton).button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE])
 	if not press:
 		return
+	# (but a click on the side bar while what it shows is changing lands on
+	# nothing: what was under the pointer is not what is there once it ends)
+	var eat := _side_eats(e)
 	# NOT EATEN: the move ends where it was going and the press does what it does
 	finish_now()
+	if eat and get_viewport() != null:
+		get_viewport().set_input_as_handled()
 
 
 ## A screen's UI, `k` of the way gone (0 all there, 1 all away).
@@ -1176,6 +1204,7 @@ func _hold() -> void:
 	_waited = 0.0
 	phase = Phase.WAIT
 	_style = _style_for()
+	_side_begin()
 	# ON THE ONE CURVE THE SWAP'S OWN FRAME MOVES TOO: the clock has already run
 	# on this frame (the pre-roll's last step was this frame's), so the held
 	# picture is drawn where the curve has it, not stopped for a frame
@@ -1184,6 +1213,88 @@ func _hold() -> void:
 		_mat.set_shader_parameter(&"scl", Vector2.ONE * exp(_l_move * ew))
 		if _rest_est != Vector2.INF:
 			_mat.set_shader_parameter(&"to_pt", _a_old.lerp(_rest_est, ew))
+
+
+## THE SIDE BAR SWAPS IN PLACE (Jon, Oct 13: "the side bar goes blank and then
+## draws the new side bar. Can we not have it go blank and just have it
+## transition to the new side bar?"). From the swap, the side bar's rect is the
+## `SideSwap`'s: the held frame's copy of the panel left, to the arriving
+## screen's panel, live underneath, in the look picked, over the rest of the
+## move (A, B) or its own short length (C to F). The held picture leaves that
+## rect alone once it is drawing (`side` in the shader).
+func _side_begin() -> void:
+	var so := side_of(old)
+	var sn := side_of(new)
+	if so == null and sn == null:
+		return
+	if so != null and so.is_visible_in_tree():
+		_side_old = so.get_global_rect()
+	# (the rest of the move from here: the one curve's remaining time, or the
+	# move's own length)
+	var rem := _move_s
+	if bool(_style.get("curve", false)) and _had_pre:
+		rem = maxf(_T - _tau, 0.0)
+	side_swap = SideSwap.new()
+	side_swap.visible = false
+	# (a fresh copy of the screen for it to read the arriving panel from: a
+	# frame's copy is otherwise taken at the first thing that reads the screen,
+	# and a sky behind the screens can read it before any panel is drawn)
+	var bb := BackBufferCopy.new()
+	bb.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+	add_child(bb)
+	add_child(side_swap)
+	# OVER THE HELD PICTURE, which leaves the rect to it: what was there is in
+	# the swap's own hands from here
+	move_child(bb, _rect.get_index() + 1)
+	move_child(side_swap, bb.get_index() + 1)
+	side_swap.laid.connect(func(r: Rect2) -> void:
+		_mat.set_shader_parameter(&"side", Vector4(r.position.x, r.position.y, r.size.x, r.size.y)))
+	if so == null:
+		# (where there was no side bar -- LOCAL -- the picture that was there
+		# goes as the rest of the held picture's standing copy goes, on its
+		# curve: never a still of LOCAL's sky, and its world, held in the
+		# panel's place while the rest moves)
+		side_swap.held = held_alpha
+	side_swap.setup(so, sn, _tex, side_look(), 1.0 if r_new > r_old else -1.0, rem)
+
+
+## How much of the held picture's standing copy is drawn this frame (the
+## picture as it was, where it was): its shader's own sum, soft or dithered.
+func held_alpha() -> float:
+	if not _rect.visible:
+		return 0.0
+	var tv: Variant = _mat.get_shader_parameter(&"t")
+	var t := float(tv) if tv != null else 0.0
+	var sv: Variant = _mat.get_shader_parameter(&"soft")
+	if sv != null and float(sv) > 0.5:
+		return 1.0 - smoothstep(0.0, 0.2, t)
+	var mv: Variant = _mat.get_shader_parameter(&"mode")
+	if mv != null and int(mv) == 3:
+		return 1.0 if t < 0.5 else 0.0
+	var cv: Variant = _mat.get_shader_parameter(&"chrome_t")
+	return 1.0 - (float(cv) if cv != null else 0.0)
+
+
+## A screen's side bar, the panel down its right edge (`ladder_side`), or null.
+static func side_of(s: Control) -> Control:
+	if s == null or not is_instance_valid(s) or not s.has_method(&"ladder_side"):
+		return null
+	return s.call(&"ladder_side") as Control
+
+
+## Whether a press at `p` lands on the side bar while its content is changing:
+## the old panel's, about to go (before the swap), or where the swap has not
+## resolved the new one (`SideSwap.blocks`). The move still ends; the press
+## lands on nothing.
+func _side_eats(e: InputEvent) -> bool:
+	if not (e is InputEventMouseButton):
+		return false
+	var p := (e as InputEventMouseButton).position
+	if side_swap != null and is_instance_valid(side_swap) and not side_swap.done:
+		return side_swap.blocks(p) or (not side_swap.rect().has_area() and _side_old.has_point(p))
+	if phase == Phase.UI_OUT or phase == Phase.PRE or phase == Phase.PRE_DONE or phase == Phase.WAIT:
+		return _side_old.has_point(p) and side_of(old) != null
+	return false
 
 
 ## What the move looks like: the dither's mode and how the held picture travels.

@@ -456,6 +456,22 @@ else
 	bad "laddertest did not finish"
 fi
 
+step "The side bar never goes blank between distances"
+# Every hop with a side bar at one end (LOCAL, map, chart), frame by frame at
+# 60 fps for every look of the swap: no frame with the side bar empty, a click
+# on content not yet resolved eaten, and an instant swap headless and under
+# reduced motion (Jon, Oct 13).
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot sidebartest 300 --headless --path "$PROJECT" -- sheet=SideBarTest; then
+	if grep -qE '^sidebartest: PASS' "$LOG_DIR/sidebartest.log"; then
+		ok "the side bar swaps in place, never blank"
+	else
+		bad "the side bar went blank or took a click it should not"
+		grep -E 'FAIL|^sidebartest' "$LOG_DIR/sidebartest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "sidebartest did not finish"
+fi
+
 step "Ships and creatures die the ways Jon kept"
 # Every kept death style reachable, the cut ones (E CHAIN, H SLICE) never
 # played, ships and creatures never crossing, and a won fight's wrecks dying

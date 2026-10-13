@@ -1269,24 +1269,22 @@ func ladder_cam_end() -> void:
 
 ## THE MAP'S UI, k of the way gone (`ZoomLadder`: it leaves before the camera
 ## moves and comes back after it lands, never during): the danger strip, the
-## panel (a few pixels out to the right as it goes), the key, the scale bar and
-## LOCATION, and the words over the worlds (a label magnified with the picture
-## is a smear of letter-sized blocks).
+## key, the scale bar and LOCATION, and the words over the worlds (a label
+## magnified with the picture is a smear of letter-sized blocks). NOT the
+## panel: the side bar stays through the move and swaps in place for the next
+## screen's (`ladder_side`, `SideSwap`; Jon, Oct 13).
 var _key_row: Control = null
 var _scale_bar: Control = null
+
+
+## The side bar, for the ladder to swap in place (`SideSwap`).
+func ladder_side() -> Control:
+	return panel.get_parent() as Control if panel != null and is_instance_valid(panel) else null
 
 
 func ladder_chrome(k: float) -> void:
 	for c: CanvasItem in [_strip, _key_row, _scale_bar, _loc_btn]:
 		ZoomLadder.fade_chrome(c, k)
-	if panel != null and is_instance_valid(panel):
-		ZoomLadder.fade_chrome(panel.get_parent(), k, 24.0)
-		# (the panel's portrait of a star or world is drawn by a shader that
-		# writes its own alpha, so the panel's fade never reached it: it popped up
-		# whole over the empty panel. It goes and comes with the panel's middle.)
-		var pt: Variant = panel.get("_portrait")
-		if pt is CanvasItem and is_instance_valid(pt):
-			(pt as CanvasItem).visible = k < 0.4
 	if overlay != null:
 		overlay.label_a = 1.0 - k
 		overlay.hush_labels = k >= 0.999
