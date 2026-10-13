@@ -27,6 +27,9 @@ class EnemyState extends RefCounted:
 	var block: int = 0
 	var step: int = 0
 	var intent: IntentData
+	## Which of its kind's pictures this one is (`DB.enemy_sprite`). Set once,
+	## from where the fight is (`Combat.look_for`), and handed to its wreck.
+	var look: int = 0
 
 	func pick_intent() -> void:
 		# A miniboss on the ropes stops fighting and starts leaving. One full
@@ -181,6 +184,8 @@ func plan(template: EnemyTemplate, danger: int, extras: Array = []) -> void:
 	enemies.append(_spawn(template, danger, share))
 	for t in extras:
 		enemies.append(_spawn(t as EnemyTemplate, danger, share))
+	for i in enemies.size():
+		enemies[i].look = look_for(i)
 	_ids = PackedStringArray([String(template.id)])
 	for t in extras:
 		_ids.append(String((t as EnemyTemplate).id))
@@ -232,6 +237,24 @@ func foe_brace() -> PackedInt32Array:
 func is_shared() -> bool:
 	return shared != null and shared_at >= 0
 
+## WHICH PICTURE the `i`th ship of this fight wears, out of its kind's few.
+##
+## POSITIONAL, never a fresh roll, for the same reason wreck loot is
+## (`Rng.derive`, keyed by the system and by how many wrecks it already holds):
+## every machine in a party draws the same ship without a byte on the wire, a
+## second fight at the same system can bring a different one, and the number
+## goes into the wreck so LOCAL shows the hull the fight did. A raw draw;
+## `DB.enemy_sprite` wraps it to however many pictures the kind has.
+func look_for(i: int) -> int:
+	var n: MapGen.MapNode = Run.node_at()
+	if n == null:
+		return i
+	var wrecks := 0
+	for raw in n.jetsam:
+		if (raw as MapGen.Jetsam).is_wreck():
+			wrecks += 1
+	return Rng.derive(&"look", (n.index * 64 + wrecks) * 8 + i).randi() & 0xffff
+
 ## Builds one enemy at this danger. Bosses are hand-tuned, never scaled. HP
 ## scales faster than damage so deeper fights are longer rather than lethal.
 func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0) -> EnemyState:
@@ -273,6 +296,7 @@ func reinforce(template: EnemyTemplate, danger: int) -> void:
 		return
 	var e := _spawn(template, danger, 0.75)
 	enemies.append(e)
+	e.look = look_for(enemies.size() - 1)
 	reinforced = true
 	_log("◂ %s answers the call." % e.template.name, &"them")
 	Sig.enemy_changed.emit()
@@ -1163,7 +1187,7 @@ func _victory() -> void:
 	var r := Rng.derive(&"wreck", node.index * 64 + wrecks_before)
 	var made: Array = []
 	for e in enemies:
-		made.append(Run.new_wreck(node, (e as EnemyState).template))
+		made.append(Run.new_wreck(node, (e as EnemyState).template, (e as EnemyState).look))
 	if made.is_empty():
 		made.append(Run.sector_jetsam(node))
 	var force := node.manufacturer if node.region == MapGen.Region.TERRITORY else &""

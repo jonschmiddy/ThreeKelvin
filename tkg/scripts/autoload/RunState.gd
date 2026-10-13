@@ -682,10 +682,11 @@ func take_from_hold(m: HoldItem) -> void:
 ## One per ship, in the order you killed them, and they are never reused: the
 ## slot is what the claims are numbered from, so handing a new wreck an old slot
 ## would have it inherit the claims on the last one.
-func new_wreck(n: MapGen.MapNode, t: EnemyTemplate) -> MapGen.Jetsam:
+func new_wreck(n: MapGen.MapNode, t: EnemyTemplate, look: int = 0) -> MapGen.Jetsam:
 	var h := MapGen.Jetsam.new()
 	h.slot = n.jetsam.size()
 	h.art = t.id
+	h.look = look
 	h.label = String(t.name).to_upper()
 	n.jetsam.append(h)
 	Sig.map_changed.emit()

@@ -68,6 +68,18 @@ var _hot: bool = false
 ## Told by the view when another slot takes the cursor.
 var claim: Callable
 var _dead: bool = false
+## Where the art sits at rest inside its holder. The holder is the ship's own
+## box (`_fit_holder`), not the canvas, so the canvas, drawn centred, sits at a
+## negative offset inside it.
+var _art_base: Vector2 = Vector2.ZERO
+## The entrance in flight, and when it lands: a holder that resizes mid-flight
+## (the ship's picture arriving after `enter`) sends it to the new resting place.
+var _enter_tw: Tween
+var _enter_end: int = 0
+## How far this slot's column sits off the row's middle, down positive: a pack
+## too wide for the arena overlaps and staggers (`EncounterView._pack_slots`).
+var _lift_top: Control
+var _lift_bot: Control
 
 ## The idle drift: whole pixels, up and down, so a contact reads as floating
 ## rather than pinned to the panel.
@@ -112,13 +124,13 @@ func _process(_dt: float) -> void:
 	# ROUNDED. A sub-pixel offset resamples the sprite and undoes the
 	# nearest-neighbour crispness the whole art direction rests on.
 	var t := float(Time.get_ticks_msec()) / 1000.0
-	art.position.y = roundf(sin((t + _bob_phase) * TAU * BOB_HZ) * BOB_AMP)
+	art.position.y = _art_base.y + roundf(sin((t + _bob_phase) * TAU * BOB_HZ) * BOB_AMP)
 
 
 func enter(delay: float = 0.0) -> void:
 	if _art_holder == null:
 		return
-	art.position.x = ENTER_FROM
+	art.position.x = _art_base.x + ENTER_FROM
 	# THE READOUT ARRIVES WITH THE SHIP. The name and the hull bar belong to the
 	# slot rather than to the art, so they do not move -- and a bar sitting at
 	# full for a ship that is still off-screen reads as a rendering fault. Fading
@@ -129,7 +141,9 @@ func enter(delay: float = 0.0) -> void:
 	tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	if delay > 0.0:
 		tw.tween_interval(delay)
-	tw.tween_property(art, "position:x", 0.0, ENTER_SECS)
+	tw.tween_property(art, "position:x", _art_base.x, ENTER_SECS)
+	_enter_tw = tw
+	_enter_end = Time.get_ticks_msec() + int((delay + ENTER_SECS) * 1000.0)
 
 
 func _init() -> void:
@@ -147,6 +161,9 @@ func _init() -> void:
 	# the ship, the name and the health bar it was meant to sit over.
 	col.show_behind_parent = true
 	add_child(col)
+	_lift_top = Control.new()
+	_lift_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(_lift_top)
 
 	# What THIS one is about to do, over its own hull. One strip at the bottom
 	# of the screen could only ever name a turn's worth of intent for the whole
@@ -247,6 +264,9 @@ func _init() -> void:
 	chips.alignment = BoxContainer.ALIGNMENT_CENTER
 	chips.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(chips)
+	_lift_bot = Control.new()
+	_lift_bot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(_lift_bot)
 
 	mouse_entered.connect(func() -> void: hovered.emit(index, true))
 	mouse_exited.connect(func() -> void: hovered.emit(index, false))
@@ -257,6 +277,7 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	index = i
 	_dead = e.hp <= 0
 	art.set_enemy(e, telegraphed)
+	_fit_holder()
 	art.modulate = Color(0.4, 0.4, 0.45) if _dead else Color.WHITE
 	_intent.text = "" if _dead or e.intent == null else e.intent.name.to_upper()
 	_intent.visible = _intent.text != ""
@@ -367,6 +388,60 @@ func _gui_input(e: InputEvent) -> void:
 ## whole control, and the control is most of the arena -- so a pointing hand
 ## appeared halfway across the screen from the only thing it could point at.
 ## Godot asks this per position, which is the shape the question actually has.
+## THE HOLDER IS THE SHIP'S BOX, NOT THE CANVAS (pack clipping, Oct 13).
+##
+## Every slot reserved the whole canvas whatever was painted in it, so two
+## contacts asked for more than the arena's half and the second was cut off at
+## the screen's edge. The art measures its own ship (`custom_minimum_size`,
+## symmetric about the canvas middle); the holder takes that, and the canvas
+## sits centred inside it at a negative offset, which is `_art_base`.
+func _fit_holder() -> void:
+	if _art_holder == null or art == null:
+		return
+	var want := art.custom_minimum_size.ceil()
+	want.x = minf(want.x, float(EnemyArt.W))
+	want.y = minf(want.y, float(EnemyArt.H))
+	if not _art_holder.custom_minimum_size.is_equal_approx(want):
+		_art_holder.custom_minimum_size = want
+	# And the slot asks the row for that width. It is a plain Control, so its
+	# column's size never reached the row: two slots were laid out narrower than
+	# their ships and the column spilled off the right edge.
+	if custom_minimum_size.x != want.x:
+		custom_minimum_size.x = want.x
+	var base := ((want - Vector2(EnemyArt.W, EnemyArt.H)) * 0.5).round()
+	if not base.is_equal_approx(_art_base):
+		# Moved by the difference, and an entrance still in flight sent on to the
+		# new resting place in the time it had left -- its tween was flying to
+		# the old one, and would have parked the ship off its holder.
+		art.position += base - _art_base
+		_art_base = base
+		if _enter_tw != null and _enter_tw.is_valid() and _enter_tw.is_running():
+			_enter_tw.kill()
+			_enter_tw = create_tween()
+			_enter_tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+			var left := maxf(0.05, float(_enter_end - Time.get_ticks_msec()) / 1000.0)
+			_enter_tw.tween_property(art, "position:x", base.x, left)
+
+
+## The ship's width on screen, for the row's packing.
+func ship_width() -> float:
+	return _art_holder.custom_minimum_size.x if _art_holder != null else float(EnemyArt.W)
+
+
+## Off the row's middle by `dy`, down positive: the column grows a spacer on
+## the far side and stays centred, so the ship, its intent and its bars all move
+## together.
+func set_lift(dy: float) -> void:
+	if _lift_top == null:
+		return
+	var top := maxf(0.0, dy) * 2.0
+	var bot := maxf(0.0, -dy) * 2.0
+	if _lift_top.custom_minimum_size.y != top:
+		_lift_top.custom_minimum_size.y = top
+	if _lift_bot.custom_minimum_size.y != bot:
+		_lift_bot.custom_minimum_size.y = bot
+
+
 func _get_cursor_shape(at: Vector2) -> CursorShape:
 	if _dead and opened.is_valid() and _on_hull(at):
 		return Control.CURSOR_POINTING_HAND
@@ -450,7 +525,7 @@ func _draw() -> void:
 	# it in from off-screen.
 	var pad := 3.0
 	var u: Rect2i = art.used_rect() if art != null else Rect2i(0, 0, EnemyArt.W, EnemyArt.H)
-	var r := Rect2(_art_holder.position + Vector2(u.position) - Vector2(pad, pad),
+	var r := Rect2(_art_holder.position + _art_base + Vector2(u.position) - Vector2(pad, pad),
 		Vector2(u.size) + Vector2(pad, pad) * 2.0)
 	var x0 := r.position.x
 	var y0 := r.position.y

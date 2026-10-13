@@ -310,9 +310,9 @@ func _room_faults(r: Dictionary, ls: Array) -> int:
 ## always took. That is what the counts below are for.
 
 ## The enemy canvas, from `EnemyArt`. A sprite has to fit inside it; it does not
-## have to fill it, and it never will -- a hull is about 150x40 in a 240x120
-## frame, and the Control crops to the ink afterwards.
-const ENEMY_CANVAS := Vector2i(240, 120)
+## have to fill it -- the kept ships are about 200x70 in a 340x160 frame, which
+## is that size for the Custodian -- and the Control crops to the ink afterwards.
+const ENEMY_CANVAS := Vector2i(EnemyArt.W, EnemyArt.H)
 
 ## The sector arena, in game pixels, at its narrowest. The row splits its width
 ## between the ship slot and the place, and `EncounterView` records the arena as

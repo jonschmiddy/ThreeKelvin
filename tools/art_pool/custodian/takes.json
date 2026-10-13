@@ -1,0 +1,126 @@
+{
+ "about": "The Custodian at boss size (Oct 13): 8 pixflux takes grown from tetra, Jon approved a cap of 8. Not judged yet; tetra stays in the game until one is picked. To use one: add it to VARIANTS[\"custodian\"] in tools/enemy_sprites.py (and its source path to sources()).",
+ "generations_spent": 8.0,
+ "takes": [
+  {
+   "file": "t0_grown.png",
+   "idea": "grown",
+   "init": "init_scaled.png",
+   "strength": 150,
+   "seed": 11,
+   "size": [
+    284,
+    142
+   ],
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   }
+  },
+  {
+   "file": "t1_grown.png",
+   "idea": "grown",
+   "init": "init_scaled.png",
+   "strength": 210,
+   "seed": 12,
+   "size": [
+    280,
+    141
+   ],
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   }
+  },
+  {
+   "file": "t2_chain.png",
+   "idea": "chain",
+   "init": "init_pair.png",
+   "strength": 130,
+   "seed": 21,
+   "size": [
+    303,
+    118
+   ],
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   }
+  },
+  {
+   "file": "t3_chain.png",
+   "idea": "chain",
+   "init": "init_pair.png",
+   "strength": 190,
+   "seed": 22,
+   "size": [
+    302,
+    117
+   ],
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   }
+  },
+  {
+   "file": "t4_core.png",
+   "idea": "core",
+   "init": null,
+   "strength": null,
+   "seed": 31,
+   "size": [
+    307,
+    140
+   ],
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   }
+  },
+  {
+   "file": "t5_core.png",
+   "idea": "core",
+   "init": null,
+   "strength": null,
+   "seed": 32,
+   "size": [
+    250,
+    135
+   ],
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   }
+  },
+  {
+   "file": "t6_tiers.png",
+   "idea": "tiers",
+   "init": null,
+   "strength": null,
+   "seed": 41,
+   "size": [
+    284,
+    124
+   ],
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   }
+  },
+  {
+   "file": "t7_tiers.png",
+   "idea": "tiers",
+   "init": null,
+   "strength": null,
+   "seed": 42,
+   "size": [
+    320,
+    130
+   ],
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   }
+  }
+ ]
+}

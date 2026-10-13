@@ -472,6 +472,26 @@ else
 	bad "yardseattest did not finish"
 fi
 
+step "Every enemy wears Jon's kept ships, and every pack fits"
+# The enemies are kept PixelLab ships (`art/sprites/enemies`, from
+# `tools/enemy_sprites.py`): every kind names one, every picture loads, fits the
+# canvas, is hard-edged and is what EnemyArt draws with nothing else on the
+# canvas; a fight's pictures are positional (the same fight, the same galaxy,
+# the same ships; all three of a kind turn up), go into its wrecks and survive
+# the save; and every pair a fight can roll, in every combination of pictures,
+# stays on screen without moving your ship or sitting on it.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot enemyarttest 300 --headless --path "$PROJECT" -- sheet=EnemyArtTest; then
+	if grep -qE '^enemyarttest: PASS' "$LOG_DIR/enemyarttest.log"; then
+		ok "$(grep -E '^enemyarttest: [0-9]+ kinds' "$LOG_DIR/enemyarttest.log" | head -n 1 | sed 's/^enemyarttest: //'), every pack on screen"
+	else
+		bad "an enemy is missing its picture, changes picture, or a pack runs off screen"
+		grep -E 'FAIL|^enemyarttest' "$LOG_DIR/enemyarttest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "enemyarttest did not finish"
+fi
+
 step "Every event opens and resolves on LOCAL"
 # The one place a choice is taken now: LOCAL's event band. Every authored
 # option is opened and every choice resolved through it, in all three layouts.
@@ -673,6 +693,23 @@ if [ -n "$RIPY" ]; then
 	else
 		bad "the game's yard is not the yard stage's"
 		sed 's/^/        /' "$LOG_DIR/yard.log" | head -n 6
+	fi
+else
+	ok "python absent, skipped"
+fi
+
+step "The enemies' pictures are the ones Jon picked"
+# `tools/enemy_sprites.py` turns Jon's kept pool ships (`tools/art_pool`) into
+# the enemies' pictures: turned to how he judged them, specks and gyro's stand
+# taken off, the calf shrunk as pixel art. `--check` compares the installer,
+# the table and every source picture with what the install recorded, and every
+# picture written. Plain python.
+if [ -n "$RIPY" ]; then
+	if "$RIPY" tools/enemy_sprites.py --check >"$LOG_DIR/enemies.log" 2>&1; then
+		ok "$(tail -n 1 "$LOG_DIR/enemies.log")"
+	else
+		bad "the game's enemy pictures are not the installer's"
+		sed 's/^/        /' "$LOG_DIR/enemies.log" | head -n 6
 	fi
 else
 	ok "python absent, skipped"

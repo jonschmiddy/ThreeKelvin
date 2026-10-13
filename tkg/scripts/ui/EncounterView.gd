@@ -122,6 +122,9 @@ func _ready() -> void:
 	_slots.alignment = BoxContainer.ALIGNMENT_CENTER
 	_slots.visible = false
 	_row.add_child(_slots)
+	# Packed whenever the row lays them out: a fight opening, a reinforcement,
+	# a ship's picture changing size.
+	_slots.sort_children.connect(func() -> void: _pack_slots.call_deferred())
 
 	# Depth order, and the reason it is expressed as child order. NOT
 	# show_behind_parent: this view paints the wash in _draw, and a child behind
@@ -436,6 +439,7 @@ func show_wrecks(wrecks: Array, on_open: Callable) -> void:
 		ghost.template = t
 		ghost.max_hp = t.max_hull
 		ghost.hp = 0
+		ghost.look = h.look
 		_made[i].opened = on_open.bind(h)
 		_made[i].bind(i, ghost, false)
 		# What is still in it, on the label. `ship_changed` re-runs the screen's
@@ -543,6 +547,58 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 		var e = list[i]
 		_made[i].bind(i, e, e.intent != null and e.intent.telegraph)
 	queue_redraw()
+
+## EVERY SHIP IN A PACK ON SCREEN (Oct 13). The kept ships are 170 to 230
+## wide, and two of them plus the gap are more than the arena's half: the
+## second ran past the edge. Each slot is already its ship's own width
+## (`EnemySlot._fit_holder`); when the row is still too wide for the room the
+## enemy side has, the ships close up and overlap, and once they overlap by
+## more than a sliver they stagger up and down, so the nearer reads as in
+## front (later slots draw over earlier ones) and their intents and bars do not
+## sit on each other. One ship, or a pack that fits, is left exactly as it was.
+const PACK_GAP := 10
+const PACK_STAGGER := 40.0
+
+func _pack_slots() -> void:
+	if _slots == null or not _slots.visible:
+		return
+	var live: Array[EnemySlot] = []
+	for c in _slots.get_children():
+		if c is EnemySlot and (c as EnemySlot).visible:
+			live.append(c)
+	if live.is_empty():
+		return
+	var room := _pack_room()
+	var widths := 0.0
+	for s in live:
+		widths += s.get_combined_minimum_size().x
+	var gap := PACK_GAP
+	if live.size() > 1 and widths + PACK_GAP * (live.size() - 1) > room:
+		gap = int(floor((room - widths) / float(live.size() - 1)))
+	if _slots.get_theme_constant("separation") != gap:
+		_slots.add_theme_constant_override("separation", gap)
+	var stagger := live.size() > 1 and gap < -12
+	for i in live.size():
+		live[i].set_lift((PACK_STAGGER * (1.0 if i % 2 == 1 else -1.0) * 0.5) if stagger else 0.0)
+
+## The width the enemy side of the row has: the row less its gaps and anything
+## fixed in it, shared with your ship's slot (both expand alike).
+func _pack_room() -> float:
+	var total := _row.size.x
+	var fixed := 0.0
+	var shares := 0
+	var seen := 0
+	for c in _row.get_children():
+		if not (c is Control) or not (c as Control).visible:
+			continue
+		seen += 1
+		if (c as Control).size_flags_horizontal & Control.SIZE_EXPAND:
+			shares += 1
+		else:
+			fixed += (c as Control).size.x
+	total -= fixed + float(_row.get_theme_constant("separation")) * maxf(0.0, seen - 1)
+	return total / maxf(1.0, shares)
+
 
 ## Exactly one target highlights at a time. Each slot reports when it takes the
 ## cursor and the rest are cleared, because a slot never hears that the cursor
