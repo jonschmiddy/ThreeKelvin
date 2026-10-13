@@ -2405,7 +2405,7 @@ func _layout() -> void:
 func _clock() -> float:
 	if ShipView.shot_clock >= 0.0:
 		return ShipView.shot_clock
-	return float(Time.get_ticks_msec()) / 1000.0
+	return GameClock.now()
 
 
 func _process(_d: float) -> void:
