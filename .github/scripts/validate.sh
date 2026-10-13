@@ -456,6 +456,22 @@ else
 	bad "laddertest did not finish"
 fi
 
+step "Ships and creatures die the ways Jon kept"
+# Every kept death style reachable, the cut ones (E CHAIN, H SLICE) never
+# played, ships and creatures never crossing, and a won fight's wrecks dying
+# the way the fight chose, so LOCAL's wreck is the one the animation left.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot deathpooltest 120 --headless --path "$PROJECT" -- sheet=DeathPoolTest; then
+	if grep -qE '^deathpooltest: PASS' "$LOG_DIR/deathpooltest.log"; then
+		ok "every kept style is reachable and nothing crosses"
+	else
+		bad "a death style rolled where it should not"
+		grep -E 'FAIL|^deathpooltest' "$LOG_DIR/deathpooltest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "deathpooltest did not finish"
+fi
+
 step "Every hull sits on its yard stands, centred"
 # Jon: "The ship needs to sit lower. Like actually be on the stands and centered
 # on them." Every hull frame at every grade on every level's stands, measured

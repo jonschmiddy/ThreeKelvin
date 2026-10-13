@@ -624,6 +624,7 @@ func _build() -> void:
 	_build_self_plate()
 	_view.fx.landed.connect(_on_shot_landed)
 	_view.fx.volley_landed.connect(_on_volley_landed)
+	_view.death_style = _death_style
 	# THE CUTAWAY: point at your own ship, out of a fight, and it is outlined in
 	# its own pixels; click it and it opens up (`CutawayView`)
 	_hook_cutaway()
@@ -2134,7 +2135,7 @@ func _refresh_enemy() -> void:
 					_view.fx.pop(_pop_at(false, who) + Vector2(0, -6),
 						"%s JOINS" % combat.enemies[who].template.name.to_upper(), UITheme.THEM, false))
 	for i2 in range(_foes_seen, combat.enemies.size()):
-		EnemyArt.warm_wreck(combat.enemies[i2])
+		EnemyArt.warm_wreck(combat.enemies[i2], _death_style(i2))
 	_foes_seen = combat.enemies.size()
 
 ## How many contacts this screen has drawn, so a newcomer can be announced.
@@ -3853,8 +3854,9 @@ func _on_fight_opened(_name: String) -> void:
 	# Every contact's wreck is cut now, off the main thread, so a kill costs its
 	# frame nothing (see EnemyArt.warm_wreck).
 	if combat != null:
-		for e0 in combat.enemies:
-			EnemyArt.warm_wreck(e0)
+		_wrecks_before = _count_wrecks()
+		for i0 in combat.enemies.size():
+			EnemyArt.warm_wreck(combat.enemies[i0], _death_style(i0))
 	if not Router.animating():
 		return
 	_opening = true
@@ -4178,6 +4180,27 @@ func _ship_pt() -> Vector2:
 	return _view.fx.get_global_transform().affine_inverse() * sv.get_global_rect().get_center()
 
 
+## How many wrecks lay in this system before the fight: enemy `i`'s will be
+## wreck number `_wrecks_before + i` there when the fight is won.
+var _wrecks_before := -1
+
+func _count_wrecks() -> int:
+	var n := 0
+	for raw in Run.node_at().jetsam:
+		if (raw as MapGen.Jetsam).is_wreck():
+			n += 1
+	return n
+
+## THE STYLE ENEMY `who` DIES IN: rolled from where its wreck will lie, the
+## same roll LOCAL makes for that wreck later (`EnemyArt.death_style`).
+func _death_style(who: int) -> int:
+	if combat == null or who < 0 or who >= combat.enemies.size():
+		return EnemyArt.SHIP_STYLES[0]
+	if _wrecks_before < 0:
+		_wrecks_before = _count_wrecks()
+	return EnemyArt.death_style(combat.enemies[who].template, Run.node_at().index,
+		_wrecks_before + who)
+
 ## Breakups being cut on a worker thread, by enemy: started on the frame the
 ## kill resolved, picked up when its shot lands ten-odd frames later. Cutting a
 ## hull is 40 to 90 ms of GDScript; on the landing frame it was a visible
@@ -4189,14 +4212,18 @@ func _prebuild_death(who: int) -> void:
 	if sl == null or sl.art == null or who >= combat.enemies.size() or _prebuilt.has(who):
 		return
 	var e: Combat.EnemyState = combat.enemies[who]
-	var img := sl.art.snapshot()
-	var used := sl.art.used_rect()
+	# Cut from the ship drawn dead, so the breakup's last frame IS the wreck the
+	# slot and LOCAL draw afterwards (see EnemyArt.dead_canvas).
+	var dc := EnemyArt.dead_canvas(e)
+	var img: Image = dc[0]
+	var used: Rect2i = dc[1]
 	var seed := EnemyArt.wreck_seed(e.template)
 	var boss: bool = e.template.boss
+	var style := _death_style(who)
 	var held := {b = null}
 	var task := WorkerThreadPool.add_task(func() -> void:
 		var b := ShipBreakup.new()
-		b.setup(img, used, Vector2.ZERO, EnemyArt.DEATH_STYLE, seed, boss)
+		b.setup(img, used, Vector2.ZERO, style, seed, boss)
 		held.b = b)
 	_prebuilt[who] = {task = task, held = held}
 
@@ -4217,7 +4244,8 @@ func _start_death(who: int) -> void:
 		b = pre.held.b
 	if b == null:
 		b = ShipBreakup.new()
-		b.setup(art.snapshot(), art.used_rect(), Vector2.ZERO, EnemyArt.DEATH_STYLE,
+		var dc := EnemyArt.dead_canvas(e)
+		b.setup(dc[0], dc[1], Vector2.ZERO, _death_style(who),
 			EnemyArt.wreck_seed(e.template), e.template.boss)
 	# Cut at the origin; placed by moving the whole thing.
 	b.size = _view.size
@@ -4231,9 +4259,13 @@ func _start_death(who: int) -> void:
 	sl.hide_art(true)
 	var entry := {b = b, art = art, y0 = art.position.y, base = base}
 	_breakups.append(entry)
-	# SOUND ON EACH VISIBLE BREAK, never on the resolution (Jon's rule).
-	b.broke.connect(func(s: float) -> void:
-		Audio.play_kill(who, 0.0 if s >= 0.6 else -6.0))
+	# SOUND ON EACH VISIBLE BREAK, never on the resolution (Jon's rule). The
+	# death styles' own sounds are not made yet: `moment` names every event a
+	# sound will follow and is left unheard for now; a ship's explosive breaks
+	# play today's explosion, and a creature's death plays nothing.
+	if not e.template.fauna:
+		b.broke.connect(func(s: float) -> void:
+			Audio.play_kill(who, 0.0 if s >= 0.6 else -6.0))
 	b.finished.connect(func() -> void:
 		sl.hide_art(false)
 		_breakups.erase(entry)

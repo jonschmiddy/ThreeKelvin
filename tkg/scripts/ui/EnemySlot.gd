@@ -71,6 +71,9 @@ var _dead: bool = false
 ## The hull this slot SHOWS, when the screen is holding a number back until the
 ## shot that changed it lands (combat polish, Oct 13). -1 shows the real one.
 var shown_hp: int = -1
+## Which `ShipBreakup` style this ship dies in (or died in), so a dead slot
+## draws the wreck that death left. -1: its pool's first.
+var death_style: int = -1
 
 ## The idle drift: whole pixels, up and down, so a contact reads as floating
 ## rather than pinned to the panel.
@@ -260,7 +263,7 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	index = i
 	var hull: int = e.hp if shown_hp < 0 else shown_hp
 	_dead = hull <= 0
-	art.set_enemy(e, telegraphed, shown_hp)
+	art.set_enemy(e, telegraphed, shown_hp, true, death_style)
 	art.modulate = Color(0.4, 0.4, 0.45) if _dead else Color.WHITE
 	_intent.text = "" if _dead or e.intent == null else e.intent.name.to_upper()
 	_intent.visible = _intent.text != ""

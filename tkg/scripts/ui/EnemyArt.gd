@@ -313,11 +313,29 @@ func _wound(cx: int, cy: int, w: int, h: int, ember: bool = true) -> void:
 
 # --- The enemies -------------------------------------------------------------
 
-## HOW A SHIP OF THIS KIND DIES, for every kind: one of `ShipBreakup.Style`.
-## Jon is choosing between the styles (Oct 13); this is the one line that
-## changes when he does. The breakup and the wreck it leaves both read it, so
-## the last frame of a death is always the wreck drawn here afterwards.
-const DEATH_STYLE := 0
+## HOW A SHIP DIES: one of these, rolled per kill (Jon's picks, Oct 13). Ships
+## roll from the kept ship styles -- A B C D F G I J K L M; E CHAIN and H SLICE
+## were cut and stay in `ShipBreakup` unplayed -- and creatures from their own
+## three, N O P. The two pools never cross: a whale does not snap like a
+## cutter, and a cutter does not bloom spores. The Custodian rolls from the
+## ships' pool and plays its boss version.
+const SHIP_STYLES: Array[int] = [0, 1, 2, 3, 5, 6, 8, 9, 10, 11, 12]
+const CREATURE_STYLES: Array[int] = [13, 14, 15]
+
+## WHICH STYLE THIS WRECK DIED IN, as a fact about where it lies rather than a
+## roll made at the time: the system, and which wreck of that system's it is
+## (the n-th wreck there, in the order `Combat._victory` makes them -- other
+## things in the jetsam, a pile of loose material, do not count). So the kill
+## and LOCAL's wreck, long after, agree without anything saved, and a seeded
+## run replays the same deaths. `Rng.derive`, as every positional thing is.
+static func death_style(t: EnemyTemplate, node_index: int, nth_wreck: int) -> int:
+	var pool := CREATURE_STYLES if t.fauna else SHIP_STYLES
+	var r := Rng.derive(&"death", node_index * 64 + nth_wreck)
+	return pool[r.randi() % pool.size()]
+
+## A style for a dead ship nothing has told us about: the first of its pool.
+static func _default_style(t: EnemyTemplate) -> int:
+	return CREATURE_STYLES[0] if t.fauna else SHIP_STYLES[0]
 
 ## The same cut every time a ship of this kind dies, so the wreck on LOCAL is the
 ## wreck the fight left.
@@ -342,30 +360,24 @@ func snapshot() -> Image:
 static var _wrecks: Dictionary = {}
 static var _wreck_tasks: Dictionary = {}
 
-static func _wreck_key(t: EnemyTemplate, max_hp: int) -> String:
+static func _wreck_key(t: EnemyTemplate, max_hp: int, style: int) -> String:
 	# Size only changes the drawing for fauna; see `_draw_fauna`.
-	return "%s|%d|%d" % [t.id, int(t.fauna and max_hp > 60), DEATH_STYLE]
+	return "%s|%d|%d" % [t.id, int(t.fauna and max_hp > 60), style]
 
 ## Start cutting this enemy's wreck now, off the main thread. Drawing the dead
 ## canvas to cut is the only part done here (a few ms).
-static func warm_wreck(e: Combat.EnemyState) -> void:
-	var key := _wreck_key(e.template, e.max_hp)
+static func warm_wreck(e: Combat.EnemyState, style: int) -> void:
+	var key := _wreck_key(e.template, e.max_hp, style)
 	if _wrecks.has(key) or _wreck_tasks.has(key):
 		return
-	var art := EnemyArt.new()
-	var ghost := Combat.EnemyState.new()
-	ghost.template = e.template
-	ghost.max_hp = e.max_hp
-	ghost.hp = 0
-	art.set_enemy(ghost, false, -1, false)
-	var img := art._img.duplicate()
-	var used := art._used
-	art.free()
+	var dc := dead_canvas(e)
+	var img: Image = dc[0]
+	var used: Rect2i = dc[1]
 	var seed := wreck_seed(e.template)
 	var boss: bool = e.template.boss
 	var held := {}
 	var task := WorkerThreadPool.add_task(func() -> void:
-		held[&"w"] = ShipBreakup.wreck_image(img, used, seed, boss, DEATH_STYLE))
+		held[&"w"] = ShipBreakup.wreck_image(img, used, seed, boss, style))
 	_wreck_tasks[key] = [task, held]
 
 static func _take_wreck(key: String) -> Image:
@@ -378,6 +390,23 @@ static func _take_wreck(key: String) -> Image:
 			_wrecks[key] = held[&"w"]
 	return _wrecks.get(key)
 
+## THE PICTURE A DEATH IS CUT FROM: the ship drawn dead, whole (scorched,
+## darkened, engines still on until the cut puts them out), and its box. The
+## breakup cuts this, not the live picture, so its last frame and every later
+## dead draw -- the slot, LOCAL's wreck -- are one image to the pixel; the live
+## picture's wound depends on the hull it had, which nothing after the kill
+## knows. The difference is hidden under the hit's flash.
+static func dead_canvas(e: Combat.EnemyState) -> Array:
+	var art := EnemyArt.new()
+	var ghost := Combat.EnemyState.new()
+	ghost.template = e.template
+	ghost.max_hp = e.max_hp
+	ghost.hp = 0
+	art.set_enemy(ghost, false, -1, false)
+	var out := [art._img.duplicate(), art._used]
+	art.free()
+	return out
+
 ## Wait out every cut still running and keep what they made. Called when a
 ## fight's screen goes, so no task outlives the scene that asked for it.
 static func reap_wrecks() -> void:
@@ -389,7 +418,7 @@ static func reap_wrecks() -> void:
 ## the enemy's own. `cut_wreck` false draws a dead ship whole (what a wreck is
 ## cut from).
 func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
-		cut_wreck: bool = true) -> void:
+		cut_wreck: bool = true, style: int = -1) -> void:
 	var hull := e.hp if hp < 0 else hp
 	var wounded := float(hull) / float(maxi(1, e.max_hp))
 	var dead := hull <= 0
@@ -406,7 +435,7 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	# showed while they were literally the same pixels; the moment one of them
 	# has a sprite and the other does not, it would.
 	var sig := "%s|%s|%d|%d|%d|%d|%d" % [e.template.id, e.template.art, int(telegraphing),
-		int(wounded * 20.0), int(e.max_hp > 60), int(dead), int(cut_wreck)]
+		int(wounded * 20.0), int(e.max_hp > 60), int(dead), int(cut_wreck) * (style + 2)]
 	if sig == _sig:
 		return
 	_sig = sig
@@ -469,11 +498,12 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	# settled them, engines out. Drawn here so LOCAL's wrecks, long after the
 	# fight, are the same broken hull the animation ended on.
 	if dead and cut_wreck:
-		var key := _wreck_key(e.template, e.max_hp)
+		var st := style if style >= 0 else _default_style(e.template)
+		var key := _wreck_key(e.template, e.max_hp, st)
 		var w := _take_wreck(key)
 		if w == null:
 			w = ShipBreakup.wreck_image(_img, _used, wreck_seed(e.template),
-				e.template.boss, DEATH_STYLE)
+				e.template.boss, st)
 			_wrecks[key] = w
 		_img = w.duplicate()
 	_tex.update(_img)

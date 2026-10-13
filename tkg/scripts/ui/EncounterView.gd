@@ -437,6 +437,8 @@ func show_wrecks(wrecks: Array, on_open: Callable) -> void:
 		ghost.max_hp = t.max_hull
 		ghost.hp = 0
 		_made[i].opened = on_open.bind(h)
+		# The style it died in, from where it lies -- the same roll the kill made.
+		_made[i].death_style = EnemyArt.death_style(t, Run.node_at().index, i)
 		_made[i].bind(i, ghost, false)
 		# What is still in it, on the label. `ship_changed` re-runs the screen's
 		# refresh on every take, so the number follows the hand emptying it.
@@ -547,6 +549,8 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 
 	for i in list.size():
 		var e = list[i]
+		if death_style.is_valid():
+			_made[i].death_style = int(death_style.call(i))
 		_made[i].bind(i, e, e.intent != null and e.intent.telegraph)
 	# A NEW SLOT IS AN ARRIVAL: a fight opening, or reinforcements. Flown in
 	# AFTER the bind, because the bind sizes the slot to its ship and the
@@ -590,6 +594,10 @@ func chips_for(i: int) -> HBoxContainer:
 	if i < 0 or i >= _made.size():
 		return null
 	return (_made[i] as EnemySlot).chips
+
+## Which style enemy `i` of this fight dies in, asked by the slots before they
+## draw (the fight's screen knows where the wrecks will lie).
+var death_style: Callable
 
 ## Forwarded to every slot: what a held card would do to that target.
 var preview: Callable:
