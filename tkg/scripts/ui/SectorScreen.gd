@@ -3969,6 +3969,14 @@ func _play_turn() -> void:
 				_show_burn(int(st.amount), st.cause)
 				await _wait_s(0.45)
 			&"hit":
+				# A CREATURE WINDS UP BEFORE IT FIRES (Jon, Oct 13: "windup:B"):
+				# the deep in-breath, spines up, lights flaring or running to
+				# its head, THEN the shot. Ships keep their pacing; without
+				# motion `_wait_s` waits for nothing.
+				if st.to_player and _fauna_winds_up(int(st.who)):
+					await _wait_s(FAUNA_ANTICIPATION)
+					if not is_inside_tree() or combat == null:
+						return
 				_fire_q(st)
 				await _wait_s(0.36 if st.to_player else 0.22)
 			&"act":
@@ -4402,6 +4410,11 @@ func _death_style(who: int) -> int:
 var _prebuilt: Dictionary = {}
 
 func _prebuild_death(who: int) -> void:
+	# A creature's or the Custodian's own movement comes back to its still
+	# picture first (`FaunaMotion.settle`, four frames at most), so the cut
+	# below, ten-odd frames away, is cut from what is on screen.
+	if _view.slot(who) != null:
+		_view.slot(who).fauna_settle()
 	if not Router.animating():
 		return
 	var sl := _view.slot(who)
@@ -4426,6 +4439,18 @@ func _prebuild_death(who: int) -> void:
 		if marked:
 			held.w = ShipBreakup.wreck_image(img, used, seed, boss, style))
 	_prebuilt[who] = {task = task, held = held}
+
+
+## How long a creature winds up before its shot leaves.
+const FAUNA_ANTICIPATION := 0.35
+
+## A creature about to fire, with its own movement on screen: start its
+## wind-up (`FaunaMotion.strike`, held through the shot) and say so.
+func _fauna_winds_up(who: int) -> bool:
+	var fslot := _view.slot(who) if _view != null else null
+	if fslot == null or fslot.fauna_motion() == null or not Router.animating():
+		return false
+	return fslot.fauna_strike()
 
 
 ## The ship comes apart where it stood, cut out of its own picture.
