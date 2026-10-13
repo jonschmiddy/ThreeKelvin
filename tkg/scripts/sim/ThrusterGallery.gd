@@ -176,7 +176,7 @@ func _film(group: String, ships: Array, dir: String, frames: int, layer: CanvasL
 		tr.size = Vector2(img.get_size())
 		sub.add_child(tr)
 		var fx := ThrusterFx.for_hull(s2.hull, img, ThrusterFx.Look.OVERLOAD, 7 + i) if player \
-			else ThrusterFx.for_sprite(img, used, ThrusterFx.Look.OVERLOAD, 7 + i)
+			else ThrusterFx.for_sprite(img, used, ThrusterFx.Look.OVERLOAD, 7 + i, s2.id)
 		fx.dynamic = true
 		fx.particles = true
 		fx.loop_n = 12
@@ -195,7 +195,8 @@ func _film(group: String, ships: Array, dir: String, frames: int, layer: CanvasL
 		flames.append(fl)
 		var e := {id = s2.id, tile = [tx, ty, tw, th], hull_at = [at.x, at.y], size = [img.get_width(), img.get_height()],
 			engines = [], build_ms = snappedf(build_ms, 0.1)}
-		e.merge(_diagnose(fx, img, used, player), true)
+		e.merge(_diagnose(fx, img, used, player or ThrusterFx.engine_override(s2.id) != null), true)
+		e.override = ThrusterFx.engine_override(s2.id) != null
 		if player:
 			var looks := {0: {fx = fx, info = {look = "A  DYNAMIC"}}}
 			var st: Array = checker._check_starts(s2.hull, img, looks)

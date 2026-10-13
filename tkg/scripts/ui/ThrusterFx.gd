@@ -236,11 +236,22 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 ## A ship picture with no rig (an enemy, a PixelLab pool ship): the nozzles are
 ## found the overload's way, `_engines`, then kept to the hull's back edge and
 ## split into engines. Enemies face left, so they burn to the right.
-static func for_sprite(img: Image, used: Rect2i, the_look: int, seed: int) -> ThrusterFx:
+static func for_sprite(img: Image, used: Rect2i, the_look: int, seed: int, id: String = "",
+		scale: float = 1.0, pic_at: Vector2i = Vector2i.ZERO) -> ThrusterFx:
 	var fx := ThrusterFx.new()
 	fx._take_canvas(img)
 	fx.look = the_look
 	fx.warm = true
+	# HAND-PLACED ENGINES first (art/engines.json): the six pictures whose
+	# rearmost pixels are not an engine -- a towed rock, a dish rim, a scoop's
+	# prong, fin and sail tips. `pic_at` is where the picture's (0, 0) sits on
+	# `img`; `scale` is its size against the file the table was read off.
+	var ov = engine_override(id)
+	if ov != null:
+		fx._override(ov as Array, pic_at, scale)
+		fx.ink_w = used.size.x
+		fx._plan(seed)
+		return fx
 	var H := _hull_pic(img, used, 2)
 	if int(H.n) == 0:
 		return fx
@@ -304,6 +315,46 @@ func _keep_sternmost(used: Rect2i) -> void:
 		if (nz3.pts as PackedVector2Array).size() > 1:
 			thick.append(nz3)
 	nozzles = thick if not thick.is_empty() else kept
+
+
+## art/engines.json, read once: picture id -> [{x, y0, y1}], or null when the
+## finder is trusted for that picture. An empty list means no flame at all.
+static var _overrides = null
+const OVERRIDES_PATH := "res://art/engines.json"
+
+static func engine_override(id: String):
+	if id == "":
+		return null
+	if _overrides == null:
+		_overrides = {}
+		if FileAccess.file_exists(OVERRIDES_PATH):
+			var d = JSON.parse_string(FileAccess.get_file_as_string(OVERRIDES_PATH))
+			if d is Dictionary:
+				_overrides = d
+	var key := id.trim_suffix("_half").trim_suffix("_quarter")
+	return _overrides.get(key, null)
+
+
+## Engines from the table: each row of each entry walks back from its column to
+## the first open pixel (at most 6 px), and the flame starts there; a row that
+## never reaches open space (a tow cable running on) is left out.
+func _override(list: Array, at: Vector2i, scale: float) -> void:
+	for e in list:
+		var d: Dictionary = e
+		var pts := PackedVector2Array()
+		var y0 := int(floor(float(d.y0) * scale))
+		var y1 := int(floor(float(d.y1) * scale))
+		for y in range(y0, y1 + 1):
+			var x := at.x + int(floor(float(d.x) * scale))
+			var cy := at.y + y
+			var k := 0
+			while k <= 6 and _is_solid(x, cy):
+				x += 1
+				k += 1
+			if k <= 6:
+				pts.append(Vector2(x, cy))
+		if not pts.is_empty():
+			nozzles.append({pts = pts, dir = 1})
 
 
 ## One engine from a run of stern rows. A tall flat stern is not one tall engine:

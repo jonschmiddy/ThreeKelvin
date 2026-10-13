@@ -1,0 +1,9 @@
+{
+ "_about": "Where a ship picture's engines are, when ThrusterFx's finder (the rearmost pixels, ThrusterFx.for_sprite) gets it wrong. Keyed by the picture's file name without .png; coordinates in that picture's own pixels (the full-size file; a _half picture halves them). Each engine is a column x and rows y0..y1: every row walks back from x to the first open pixel behind the hull and the flame starts there. An empty list is a ship with no flame at all. Hand-placed Oct 13 off Jon's gallery of every ship; read each picture before adding one.",
+ "ship_asteroidtow": [{"x": 55, "y0": 46, "y1": 53, "why": "the tug's own engine; the rock it tows is the rearmost thing in the picture"}],
+ "ship_bigdish": [{"x": 186, "y0": 72, "y1": 74, "why": "the lit tail engine only; the dish's rim reaches further back"}],
+ "ship_scoop": [{"x": 148, "y0": 54, "y1": 56, "why": "the drive pod under the hull; the scoop's prong tips reach further back"}],
+ "hulk_honeycomb": [{"x": 209, "y0": 33, "y1": 36, "why": "the centre engine only; the tail fins reach as far"}],
+ "hulk_rs_net": [{"x": 204, "y0": 40, "y1": 50, "why": "the hull's own stern between the net's fins"}],
+ "lancer_solarsail": [{"x": 85, "y0": 37, "y1": 41, "why": "the hull's rounded stern between the sails, not the sail tips"}]
+}
