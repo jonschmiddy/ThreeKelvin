@@ -89,6 +89,19 @@ than a bug fix:
 
 Built. See `netcode.md`, "One kill, one bag", and `tools/cofight.sh`.
 
+**Since then: one wreck per hull, and each wreck holds its own ship's loot**
+(Jon, Oct 13: "Each ship you kill has a chance to get credits and modules and
+other parts"). The bag became a wreck per hull you killed, and then each wreck
+stopped being a share of one pool: it rolls its own contents from its own
+template, positionally, by its place among the system's wrecks
+(`Combat.roll_wreck`). Credits sit in the wrecks as chits, claimed like any part
+(they moved there with the wrecks; now it is a chance per hull, about 75%, of
+that hull's own reward), so the third bullet above no longer holds for credits:
+a chit somebody took is gone for everybody.
+What keeps the loop closed is unchanged: parts scale with the crew (each hand
+rolls the wreck's parts again), the money does not (one hull, one purse), and
+every machine rolls every wreck the same.
+
 ### RULING: heat does not gate loot
 
 **Winning a fight pays the loot. Fleeing pays nothing. Heat has nothing to do with what a fight drops.**

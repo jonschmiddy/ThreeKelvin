@@ -364,9 +364,20 @@ func _bag() -> void:
 				if at < 0:
 					h0 = h
 					at = i
-	# One part per ship per drop. Both machines have to agree on that number or
-	# they are not looking at the same pile -- see SharedFight.paid.
-	_ok("sized for the crew, not for one ship (%d parts)" % parts, parts >= 2)
+	# Each wreck rolls its parts once per ship the party paid (Jon, Oct 13: each
+	# kill is its own chance -- see `Combat.roll_wreck`), so the count is a roll
+	# and not a floor. What it must be is exactly the roll for this crew: both
+	# machines have to agree on that number or they are not looking at the same
+	# pile -- see SharedFight.paid.
+	var hands := Router.combat.wreck_hands
+	var expect := 0
+	for i in wrecks.size():
+		var w: MapGen.Jetsam = wrecks[i]
+		for m in Combat.roll_wreck(n, DB.enemies[w.art], i, hands):
+			if m is ModuleData:
+				expect += 1
+	_ok("sized for the crew, not for one ship (%d parts for %d hands, the roll says %d)"
+		% [parts, hands, expect], hands >= 2 and parts == expect)
 	if not _ok("and there is a part to reach for", at >= 0):
 		return
 

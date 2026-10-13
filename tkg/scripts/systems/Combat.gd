@@ -1146,7 +1146,7 @@ func flee() -> void:
 ## core" -- and taking it off the thing that guards the core is the fitting
 ## place for it.
 ##
-## POSITIONAL, as every wreck is (see `_victory`): keyed by the node and how
+## POSITIONAL, as every wreck is (see `roll_wreck`): keyed by the node and how
 ## many wrecks it already holds, so a party's machines open the same body.
 const CORE_PRECURSOR := 2
 const CORE_LEGENDARY := 2
@@ -1184,26 +1184,130 @@ static func core_body(node: MapGen.MapNode, t: EnemyTemplate) -> MapGen.Jetsam:
 		h.items.append(MaterialData.of(row))
 	return h
 
+## WHAT ONE WRECK HOLDS. Jon, Oct 13: "Each ship you kill has a chance to get
+## credits and modules and other parts." Every hull a fight leaves is rolled on
+## its own, from its own template, and you collect it wreck by wreck.
+##
+## It used to be one payout for the whole fight: the LAST ship's
+## `credit_reward`, once, as a chit in the FIRST wreck, and the fight's parts
+## dealt round-robin across the hulls. So a Cutter (15) and a Marauder (34) paid
+## 15 or 34, never 49, and every wreck after the first held no money. Now a
+## fight pays about what its ships would have paid one at a time.
+##
+## CREDITS: a `WRECK_CREDIT_CHANCE` chance of a chit for the ship's own
+## `credit_reward`, scaled as the single payout always was (+20% a danger level
+## above 1, half as much again with the probate set), give or take
+## `WRECK_CREDIT_SPREAD`. The Hellbender always pays, and pays its number
+## exactly: a set piece is tuned by hand. Fauna have no money aboard
+## (`credit_reward` 0) and pay exotic instead. The custodian is not rolled
+## here at all; see `core_body` and the boss branch of `_victory`.
+##
+## PARTS: `WRECK_PARTS` is how many parts one hand can expect from a hull of
+## that kind, so a bigger, tougher hull leans toward more. The whole number is
+## certain and the fraction is a chance: 1.2 is one part and a one-in-five
+## chance of a second. Lawless space multiplies it by `WRECK_LAWLESS`, fauna
+## carry none, and the Hellbender holds `HELLBENDER_PARTS` a hand, as its drop
+## always did. Set so a one-ship fight pays about what it did before (one part
+## a hand, two in lawless space) over the ships a run actually meets.
+##
+## OTHER PARTS: an animal's exotic goes into its own body (`FAUNA_EXOTIC`, one
+## more with the calyx set). It used to go on the system's floor through
+## `Run.add_material`, under a comment that said "into the hull you just
+## killed"; now it is.
+##
+## HANDS: `hands` is how many ships the party paid for this kill
+## (`SharedFight.paid`), 1 alone. Each hand rolls the wreck's parts again, so a
+## kill shared four ways holds about four times the parts and the party takes
+## them first come, first served. The money does not multiply: one hull carries
+## one purse however many ships shot at it, which is what keeps
+## `docs/coop-design.md` 3's dive economy a closed loop.
+##
+## POSITIONAL, as every wreck has been: `Rng.derive(&"wreck", node.index * 64 +
+## index)`, where `index` is this wreck's place among the system's wrecks. So
+## every machine in a party rolls the same wreck the same way without a byte on
+## the wire, and one wreck's roll never moves another's. `core_body` is keyed
+## the same way. `probate` and `calyx` are this machine's set bonuses and are
+## the one input that is not the place's: a party member with the set sees a
+## bigger chit or one more exotic, as the old single payout did.
+const WRECK_CREDIT_CHANCE := 0.75
+const WRECK_CREDIT_SPREAD := 0.20
+## Parts one hand can expect from a hull of each kind. The tuning table: an
+## enemy missing from it gets `WRECK_PARTS_DEFAULT`.
+const WRECK_PARTS := {
+	&"cutter": 0.95,
+	&"lancer": 1.0,
+	&"hulk": 1.15,
+	&"marauder": 1.15,
+	&"sentinel": 1.3,
+}
+const WRECK_PARTS_DEFAULT := 1.0
+const WRECK_LAWLESS := 2.0
+const HELLBENDER_PARTS := 3
+const FAUNA_EXOTIC := 2
+
+## A ship's purse before the chance and the spread: its reward at this danger.
+static func wreck_purse(t: EnemyTemplate, danger: int, probate: bool = false) -> float:
+	var base := t.credit_reward * (1.0 + (danger - 1) * 0.2)
+	return base * 1.5 if probate else base
+
+## The chance a wreck of this kind holds money at all.
+static func wreck_credit_chance(t: EnemyTemplate) -> float:
+	if t.credit_reward <= 0:
+		return 0.0
+	return 1.0 if (t.boss or t.miniboss) else WRECK_CREDIT_CHANCE
+
+## The parts one hand can expect from a wreck of this kind, here.
+static func wreck_parts(t: EnemyTemplate, region: MapGen.Region) -> float:
+	if t.fauna or region == MapGen.Region.FAUNA:
+		return 0.0
+	if t.miniboss:
+		return float(HELLBENDER_PARTS)
+	var per: float = WRECK_PARTS.get(t.id, WRECK_PARTS_DEFAULT)
+	return per * WRECK_LAWLESS if region == MapGen.Region.LAWLESS else per
+
+## What the wreck at place `index` among `node`'s wrecks holds, for a hull of
+## kind `t`. Pure: the same node, kind, index and hands give the same items on
+## any machine, at any time. See the note above `WRECK_CREDIT_CHANCE`.
+static func roll_wreck(node: MapGen.MapNode, t: EnemyTemplate, index: int,
+		hands: int = 1, probate: bool = false, calyx: bool = false) -> Array[HoldItem]:
+	var r := Rng.derive(&"wreck", node.index * 64 + index)
+	var out: Array[HoldItem] = []
+	# Both drawn every time, so the parts below sit at the same place in the
+	# stream whether or not there was money.
+	var pays := r.randf() < wreck_credit_chance(t)
+	var swing := r.randf_range(-WRECK_CREDIT_SPREAD, WRECK_CREDIT_SPREAD)
+	if pays:
+		var purse := wreck_purse(t, node.danger, probate)
+		if not (t.boss or t.miniboss):
+			purse *= 1.0 + swing
+		out.append(CreditChit.of(maxi(1, int(round(purse)))))
+	var per := wreck_parts(t, node.region)
+	var force := node.manufacturer if node.region == MapGen.Region.TERRITORY else &""
+	var deep := node.region == MapGen.Region.DEEP
+	for hand in maxi(1, hands):
+		var n := int(per)
+		if r.randf() < per - n:
+			n += 1
+		for i in n:
+			out.append(LootGen.roll_module(node.danger, force, deep, r))
+	if t.fauna:
+		var row := MaterialTable.by_id(&"exotic")
+		if not row.is_empty():
+			for i in FAUNA_EXOTIC + (1 if calyx else 0):
+				out.append(MaterialData.of(row))
+	return out
+
+## How many ships the last won fight paid its wrecks for. Read by the co-op
+## harness, which cannot see `shared` once the fight has let go of it.
+var wreck_hands: int = 1
+
 func _victory() -> void:
 	Run.kills += 1
 	var node: MapGen.MapNode = Run.node_at()
-	var gained := int(round(enemy.template.credit_reward * (1.0 + (node.danger - 1) * 0.2)))
-	if Run.has_set(&"probate", 3):
-		gained = int(round(gained * 1.5))
-	# Held until the wrecks exist, because the money goes INTO one -- see below.
-	var purse := gained
+	var probate := Run.has_set(&"probate", 3)
 	for i in new_dross:
 		var which: StringName = named_dross[i] if i < named_dross.size() else &""
 		Run.add_dross(danger, which)
-	var bits: PackedStringArray = ["%d credits" % gained]
-	if enemy.template.fauna:
-		# INTO THE HULL YOU JUST KILLED. It was `Run.exotic += 2`, which put two
-		# points of a ledger straight into your pocket past a hold that might
-		# have had no room for them -- and megafauna are the one enemy whose
-		# whole drop IS material. See `RunState.add_material`.
-		var got := 2 + (1 if Run.has_set(&"calyx", 5) else 0)
-		Run.add_material(&"exotic", got)
-		bits.append("%d exotic" % got)
 	if Run.has_set(&"calyx", 3):
 		Run.heal(3)
 	if clears_node:
@@ -1211,11 +1315,22 @@ func _victory() -> void:
 	# And anybody who paid to have this stop moving.
 	Run.clear_contract_target(node.index)
 
-	if enemy.template.boss:
+	# Asked of EVERY hull, not of `enemy`. With every ship dead `enemy` is the
+	# last one in the list, and a reinforcement arrives last: the custodian or
+	# the Hellbender killed beside one was being paid as whatever turned up.
+	var boss: EnemyState = null
+	var set_piece := false
+	for e in enemies:
+		if e.template.boss:
+			boss = e
+		if e.template.miniboss:
+			set_piece = true
+
+	if boss != null:
 		# THE CREDITS STRAIGHT TO THE LEDGER. A chit takes no room, and the
 		# flight record and the win screen both read the credits you finish
 		# with -- a chit left in the body would be money the summary never saw.
-		Run.add_credits(purse)
+		Run.add_credits(int(round(wreck_purse(boss.template, node.danger, probate))))
 		# AND THE BODY IS LOOTED BEFORE THE RUN ENDS (Jon, Oct 12: "when
 		# defeating the final boss at the core, let's have the body of the boss
 		# lootable, but let it end the alpha with a winning game popup"). It
@@ -1228,22 +1343,17 @@ func _victory() -> void:
 		# the suspend save goes now, and `Run.won` keeps the autosave from
 		# writing a cleared core back to disk -- so no way out of the loot step
 		# leaves a run that can no longer be won.
-		Combat.core_body(node, enemy.template)
+		Combat.core_body(node, boss.template)
 		Run.win()
 		_finish(&"won", "The core opens.")
 		return
 
-	var drops := 2 if node.region == MapGen.Region.LAWLESS else 1
-	if node.region == MapGen.Region.FAUNA:
-		drops = 0
-	# A set piece pays like one. Three parts a hand rather than one, and the
-	# roamer stops roaming — idempotent, because in a party every crew machine
-	# runs this and the host may have run it already in _apply_hurt().
-	if enemy.template.miniboss:
-		drops = 3
+	# The roamer stops roaming -- idempotent, because in a party every crew
+	# machine runs this and the host may have run it already in _apply_hurt().
+	if set_piece:
 		Run.hellbender_defeated()
 
-	# ONE WAY TO BE PAID, and it is the wreck you just made.
+	# ONE WAY TO BE PAID, and it is the wrecks you just made.
 	#
 	# This used to branch. Alone the parts went straight into your hold, on the
 	# reasoning that "a bag with one hand reaching into it is a menu between you
@@ -1259,50 +1369,50 @@ func _victory() -> void:
 	# frigate paying the party twice over. `docs/coop-design.md` 3 runs the dive
 	# economy as a closed loop, and a kill that pays per-head is not closed. The
 	# parts sit where the fight happened until somebody reaches for one, and the
-	# reach is first come, first served.
+	# reach is first come, first served. So the party rule became the only rule,
+	# and solo is a party of one.
 	#
-	# So the party rule became the only rule, and solo is a party of one.
-	# ONE CONTAINER PER HULL, and the totals do not move.
+	# ONE CONTAINER PER HULL, and now each container is that hull's own (Jon,
+	# Oct 13; see `roll_wreck`). A wreck you can point at is a wreck you can go
+	# and open, and three of them is three decisions instead of one list. The
+	# money used to sit in the first hull only, on the reasoning that "a chit
+	# in each turns one payout into a chore" -- and that was the price of one
+	# payout. Jon's ruling makes each kill its own payout, so each wreck carries
+	# its own, and some carry none: a hull you have to open to find out is the
+	# point of a chance.
 	#
-	# What the fight is worth is unchanged -- `drops` scaled by the crew, the same
-	# roll, the same credits. What changes is the PACKAGING: it used to be one
-	# pool for the whole fight, and a pool is the right answer to "how much" and
-	# the wrong answer to "where is it". A wreck you can point at is a wreck you
-	# can go and open, and three of them is three decisions instead of one list.
-	#
-	# Dealt round-robin so a two-ship fight does not put everything in the first
-	# hull and leave the second as an empty box you still have to check.
+	# Off `Rng.loot` -- salted by seat -- the two ships' copies of one wreck held
+	# different parts under the same claim numbers, so a claim on slot 0 took a
+	# different part on each machine (`tools/cofight.sh` caught it). Which is
+	# why each wreck is rolled positionally, by its place among the system's
+	# wrecks: a second fight at the same system is a second roll, and every
+	# machine in the party rolls each wreck identically.
 	var hands := maxi(1, shared.paid if (is_shared() and shared != null) else 1)
-	var pool := drops * hands
-	# POSITIONAL, as the bag was (`RunState.open_bag`): what is in a wreck
-	# belongs to the place, so every machine in the party rolls the identical
-	# contents without a byte crossing the wire, and only which parts are GONE
-	# travels. Off `Rng.loot` -- salted by seat -- the two ships' copies of one
-	# wreck held different parts under the same claim numbers, so a claim on
-	# slot 0 took a different part on each machine (`tools/cofight.sh` caught
-	# it). Keyed by the node and by how many wrecks it already holds, so a
-	# second fight at the same system is a second roll.
+	wreck_hands = hands
+	var calyx := Run.has_set(&"calyx", 5)
 	var wrecks_before := 0
 	for raw in node.jetsam:
 		if (raw as MapGen.Jetsam).is_wreck():
 			wrecks_before += 1
-	var r := Rng.derive(&"wreck", node.index * 64 + wrecks_before)
-	var made: Array = []
-	for e in enemies:
-		made.append(Run.new_wreck(node, (e as EnemyState).template, (e as EnemyState).look))
-	if made.is_empty():
-		made.append(Run.sector_jetsam(node))
-	var force := node.manufacturer if node.region == MapGen.Region.TERRITORY else &""
-	for i in pool:
-		var h: MapGen.Jetsam = made[i % made.size()]
-		h.items.append(LootGen.roll_module(node.danger, force,
-			node.region == MapGen.Region.DEEP, r))
-	# THE MONEY IS IN THE FIRST HULL. It has to be somewhere you reach, and the
-	# alternative -- a chit in each -- turns one payout into a chore.
-	if purse > 0:
-		(made[0] as MapGen.Jetsam).items.append(CreditChit.of(purse))
-	if pool > 0:
-		bits.append("%d in the wreck%s" % [pool, "" if made.size() == 1 else "s"])
+	var credits := 0
+	var parts := 0
+	var exotic := 0
+	var empty := 0
+	for i in enemies.size():
+		var e: EnemyState = enemies[i]
+		var h := Run.new_wreck(node, e.template, e.look)
+		var got := roll_wreck(node, e.template, wrecks_before + i, hands, probate, calyx)
+		h.items.append_array(got)
+		if got.is_empty():
+			empty += 1
+		for m in got:
+			if m is CreditChit:
+				credits += (m as CreditChit).amount
+			elif m is ModuleData:
+				parts += 1
+			elif m is MaterialData:
+				exotic += 1
+	var bits: PackedStringArray = [wreck_line(credits, parts, exotic, enemies.size(), empty)]
 	if new_dross > 0:
 		bits.append("%d Dross" % new_dross)
 	# What was aboard the thing you just killed. Not part of the bag and not
@@ -1310,6 +1420,29 @@ func _victory() -> void:
 	# party every ship in the fight reads the same page. See Archive.
 	Archive.recover_at(node, "cut out of a wreck you made")
 	_finish(&"victory", " · ".join(bits))
+
+## The victory line: what the wrecks hold, said plainly. The money is in them,
+## not in your account yet, so the line says where it is.
+##   "49 credits and 3 parts in the wrecks · 1 wreck is empty"
+static func wreck_line(credits: int, parts: int, exotic: int, wrecks: int, empty: int) -> String:
+	var held := PackedStringArray()
+	if credits > 0:
+		held.append("%d credits" % credits)
+	if parts > 0:
+		held.append("%d part%s" % [parts, "" if parts == 1 else "s"])
+	if exotic > 0:
+		held.append("%d exotic" % exotic)
+	if held.is_empty():
+		return "The wreck is empty" if wrecks <= 1 else "The wrecks are empty"
+	var listed := held[0]
+	if held.size() == 2:
+		listed = "%s and %s" % [held[0], held[1]]
+	elif held.size() > 2:
+		listed = "%s, %s and %s" % [held[0], held[1], held[2]]
+	var line := "%s in the wreck%s" % [listed, "" if wrecks <= 1 else "s"]
+	if wrecks > 1 and empty > 0:
+		line += " · %d wreck%s empty" % [empty, " is" if empty == 1 else "s are"]
+	return line
 
 func _pacify() -> void:
 	var node: MapGen.MapNode = Run.node_at()

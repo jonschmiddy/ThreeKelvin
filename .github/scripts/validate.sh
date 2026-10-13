@@ -525,6 +525,24 @@ else
 	bad "corewintest did not finish"
 fi
 
+step "Each wreck holds its own ship's loot"
+# Jon, Oct 13: "Each ship you kill has a chance to get credits and modules and
+# other parts." Every wreck holds its own template's roll at its own place; the
+# credit chance and amount stay in bounds over thousands of wrecks; a two-ship
+# fight pays about the sum of its ships; three seats with their streams apart
+# roll identical wrecks, sized for the crew; a save keeps every wreck.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot wreckloottest 240 --headless --path "$PROJECT" -- sheet=WreckLootTest; then
+	if grep -qE '^wreckloottest: PASS' "$LOG_DIR/wreckloottest.log"; then
+		ok "every wreck pays its own ship, the same on every machine"
+	else
+		bad "a wreck's loot is not its own ship's, or not the same everywhere"
+		grep -E 'FAIL|^wreckloottest' "$LOG_DIR/wreckloottest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "wreckloottest did not finish"
+fi
+
 step "Jon's welcome note: once per profile, and on the title menu"
 # Opens by itself on a fresh profile's title, word for word and inside the
 # screen; marked seen only when CLOSED; never again after; MESSAGE FROM JON
