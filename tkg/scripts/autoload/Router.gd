@@ -795,7 +795,7 @@ func resolve_current_node() -> void:
 	if n.ambush_pending and no_fights_at(n):
 		n.ambush_pending = false
 	if n.ambush_pending:
-		Run.log_line("Contact. Your heat bloom lit you up on the approach.", &"heat")
+		Run.log_line("Contact. They saw your heat on the approach.", &"heat")
 		# Asked for HERE rather than stored at arrival. Positional, so it is the
 		# same pack however often it is asked and on whichever machine -- which
 		# is what lets the flag be a boolean instead of a list.
@@ -816,7 +816,7 @@ func resolve_current_node() -> void:
 	# the same second, and a set piece a party cannot gather at is fought alone
 	# by design. See the CORE note below.
 	if Run.hellbender_alive() and Run.hellbender_at == n.index:
-		Run.log_line("The Hellbender rides at anchor here, holds glowing with everything it has taken. It is between you and the rest of the system.", &"big")
+		Run.log_line("The Hellbender is anchored here, its holds hot with everything it has taken. It blocks the rest of this system.", &"big")
 		show_local()
 		return
 
@@ -842,7 +842,7 @@ func resolve_current_node() -> void:
 		# case, and this makes it the ordinary path instead of the restored one.
 		MapGen.NodeType.CORE:
 			if n.cleared:
-				Run.log_line("The core is open. The light is behind you.", &"good")
+				Run.log_line("The core is open. Its guard is gone.", &"good")
 			else:
 				Run.log_line("The core fills the viewport. Something is guarding it. Engage when you are ready.", &"big")
 			show_sector()
@@ -1113,11 +1113,11 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 	# grind toward at the rim.
 	if MapGen.tier(n.danger) >= 4 and r.randf() < 0.30:
 		Run.add_material(&"relic", 1)
-		Run.log_line("Something in the wreck predates the wreck. Precursor fragment recovered.", &"good")
+		Run.log_line("Part of the wreck is older than the ship. Precursor fragment recovered.", &"good")
 	if r.randf() < 0.35:
 		Run.find_hull(LootGen.roll_hull(n.danger, r))
 		Run.log_line("A flyable hull is still attached: %s" % Run.found_hull.display_name(), &"good")
-	Run.log_line("Derelict stripped. %d module%s recovered." % [
+	Run.log_line("You strip %d module%s from the derelict." % [
 		count, "" if count == 1 else "s"], &"good")
 	Archive.recover_at(n, "stripped out of a derelict")
 	show_sector()

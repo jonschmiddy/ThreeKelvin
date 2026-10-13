@@ -170,6 +170,6 @@ static func recover_at(n: MapGen.MapNode, from: String) -> StringName:
 	# Named but not quoted. The log says a thing was found; the archive is where
 	# it is read. A log line that printed the document would put a hundred and
 	# fifty words in the middle of a fight's aftermath.
-	Run.log_line("Something aboard was still readable. %s recovered." % d.title, &"good")
+	Run.log_line("Something aboard was still readable. %s is in the archive." % d.title, &"good")
 	Sig.archive_changed.emit()
 	return id
