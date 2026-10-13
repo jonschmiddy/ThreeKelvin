@@ -1275,11 +1275,23 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 		wispLayer(v, la, C);
 	}
 	vec3 frontL = max(C - VOIDC / u_exp, vec3(0.0));
-	// (the far nebulae keep clear of the galaxy by its light, `bgNebSeen`; with the
-	// dissolving edge that light fades out over a long stretch, so they also keep
-	// clear of where the disc is, out past the fade's end)
-	float nebGap = (u_edge.w > 0.0 && !ball) ? smoothstep(u_edge.y + 0.05, u_edge.y + 0.45, r) : 1.0;
-	C += farSky(vsky, la, bgNebSeen(frontL, u_exp) * nebGap) * T * cloudT * bgSeen(frontL, u_exp);
+	// (THE SKY BEHIND SHOWS UP TO WHERE THE GALAXY IS (Jon, Oct 13: "there is a black
+	// ... space? around the galaxy that blocks out the distant galaxies... it doesn't
+	// make sense"). With the solid look's dissolving edge the galaxy's faint light runs
+	// out over a long stretch, and the far nebulae's own gates -- thinned away well
+	// before that light (`bgNebSeen`), and a gap kept out past the fade's end as well --
+	// cut a black band round the disc where nothing stands. So through the camera the
+	// far nebulae go behind the galaxy as the rest of the far sky does: where its light
+	// is brighter than theirs (`bgSeen`) and by what its dust stops (T). The far dust
+	// stays apart from the galaxy's by its own colours and grain, never by a black mask.
+	// No further: shown through the galaxy's brighter light too, it moved the gas's
+	// colour steps as it slid, half again the shimmer on a drag.)
+	if (u_solid && !ball) {
+		float seen = bgSeen(frontL, u_exp);
+		C += farSky(vsky, la, seen) * T * cloudT * seen;
+	} else {
+		C += farSky(vsky, la, bgNebSeen(frontL, u_exp)) * T * cloudT * bgSeen(frontL, u_exp);
+	}
 	return grade(max(mix(vec3(kitLum(C)), C, SAT), 0.0)) + supernova(v, blk);
 }
 

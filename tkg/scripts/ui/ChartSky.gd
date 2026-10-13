@@ -1937,7 +1937,15 @@ func _push() -> void:
 	# slow pan at zoom 4). The galaxy is set on the even pixel nearest its centre
 	# instead, so a pan moves it a block at a time and the far sky only ever
 	# steps one way.
-	if painted and zw <= 0.0:
+	# EVERY STYLE, NOT ONLY PAINTED (Oct 13; Jon, on SIMPLIFIED's and RADIANT's
+	# chart: "jitter in the background stars ... like they're almost bouncing around
+	# as you pan"). Their far stars are drawn on the same 2x2 grid, and with the grid
+	# following the galaxy's centre pixel by pixel a far star could not slide at a
+	# fraction of the pan without hopping a pixel back every other pixel: measured on
+	# a slow steady drag at Jon's framing (`tour=skypan`), 0.82 back-steps a star a
+	# second in SIMPLIFIED and 0.34 in RADIANT, against PAINTED's 0.05. The galaxy
+	# moves a whole block of its own art at a time instead.
+	if zw <= 0.0:
 		var even := (cpix / 2.0).floor() * 2.0
 		ccon += even - cpix
 		cpix = even

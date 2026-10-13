@@ -1034,9 +1034,12 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 		bF *= R.KB;
 		bB *= R.KB;
 		// (the solid look: the swell ends, a soft round top fading into black, never a
-		// dome of haze over the far side of the disc)
+		// dome of haze over the far side of the disc -- ended at about half SIMPLIFIED's
+		// reach: RADIANT's bulge carries a broad outer glow, and ended further out it stood
+		// over the far side of the disc as stacked coloured arcs, Jon, Oct 13: "get rid of
+		// the halo above the galaxies")
 		if (u_solid) {
-			float eb = solidBulgeEnd(length(qb * vec2(1.0, KIT_TILT / 1.08)), 1.15 * u_bulge.y / 0.13);
+			float eb = solidBulgeEnd(length(qb * vec2(1.0, KIT_TILT / 1.08)), 0.6 * u_bulge.y / 0.13);
 			bF *= eb;
 			bB *= eb;
 		}
@@ -1239,13 +1242,17 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 	vec4 hw = nz(vec3(hv * 0.32, 0.53));
 	float wisp = max(0.25 + 0.8 * hw.r + 0.45 * nz(vec3(hv * 1.3 + hw.ag * 0.3, 0.21)).r, 0.0);
 	// (the solid look: the halo ends with the disc's own fade, so the galaxy fades
-	// into true black space; and the far nebulae keep clear of the whole fade)
+	// into true black space)
 	float hE = u_edge.w > 0.0 ? solidHaloEnd(length(q0)) : 1.0;
-	float nebGap = u_edge.w > 0.0 ? smoothstep(u_edge.y + 0.05, u_edge.y + 0.45, length(q0)) : 1.0;
 	C += mix(vec3(0.42, 0.52, 0.9), vec3(0.95, 0.7, 0.48), u_halo.w) * u_halo.x * wisp / pow(1.0 + hr2, 1.7) * hE;
 	// the sky behind shows only where the galaxy in front is fainter than it
-	// (`bgSeen`), and through what the dust lets by
-	C += T * (sky(vsky, bgNebSeen(C, u_exp) * nebGap) * bgSeen(C, u_exp) + vec3(0.0021, 0.0030, 0.0062));
+	// (`bgSeen`), and through what the dust lets by. (THROUGH THE SOLID LOOK'S CAMERA
+	// the far nebulae go behind it the same way, not by their own tighter gate,
+	// `bgNebSeen`, nor a gap out past the fade: with the disc's long faint fade those cut
+	// a black band round it where nothing stands -- Jon, Oct 13: "it doesn't make sense".
+	// The far dust stays apart from the galaxy's by its own colours and grain.)
+	float seen = bgSeen(C, u_exp);
+	C += T * (sky(vsky, u_solid ? seen : bgNebSeen(C, u_exp)) * seen + vec3(0.0021, 0.0030, 0.0062));
 	return C;
 }
 
