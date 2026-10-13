@@ -4088,6 +4088,9 @@ func _fire_q(q: Dictionary) -> void:
 		return
 	var here := _view.enemy_anchor(who)
 	var mine := _view.ship_muzzle()
+	# a creature strikes as it fires (`FaunaMotion.strike`)
+	if q.to_player and _view.slot(who) != null:
+		_view.slot(who).fauna_strike()
 	if q.to_player:
 		_view.fx.fire(here, mine, q.kind, q.hits, who, true, id, q.missed)
 	else:
@@ -4240,6 +4243,11 @@ func _death_style(who: int) -> int:
 var _prebuilt: Dictionary = {}
 
 func _prebuild_death(who: int) -> void:
+	# A creature's or the Custodian's own movement comes back to its still
+	# picture first (`FaunaMotion.settle`, four frames at most), so the cut
+	# below, ten-odd frames away, is cut from what is on screen.
+	if _view.slot(who) != null:
+		_view.slot(who).fauna_settle()
 	if not Router.animating():
 		return
 	var sl := _view.slot(who)

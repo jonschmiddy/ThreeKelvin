@@ -131,6 +131,7 @@ func _process(_dt: float) -> void:
 	# nearest-neighbour crispness the whole art direction rests on.
 	var t := float(Time.get_ticks_msec()) / 1000.0
 	art.position.y = _art_base.y + roundf(sin((t + _bob_phase) * TAU * BOB_HZ) * BOB_AMP)
+	_fauna_step(_dt)
 
 
 func enter(delay: float = 0.0) -> void:
@@ -285,6 +286,7 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	_dead = hull <= 0
 	art.set_enemy(e, telegraphed, shown_hp, true, death_style)
 	_fit_holder()
+	_fauna_bind(e, telegraphed)
 	art.modulate = Color(0.4, 0.4, 0.45) if _dead else Color.WHITE
 	_intent.text = "" if _dead or e.intent == null else e.intent.name.to_upper()
 	_intent.visible = _intent.text != ""
@@ -571,3 +573,140 @@ func _draw() -> void:
 		draw_string(f, at + Vector2(1, 1), _drag_text,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.75))
 		draw_string(f, at, _drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UITheme.FLARE)
+
+
+# --- Its own movement --------------------------------------------------------
+
+## THE CUSTODIAN AND THE MEGAFAUNA MOVE ON THEIR OWN (`FaunaMotion`, Jon's
+## picks of Oct 13). The motion draws in the art's place, as a child of it, so
+## the fly-in, the bob and the hit's flash (said to the art's `self_modulate`,
+## which the motion copies) all still reach it; the art keeps drawing every
+## picture as it always has, only its texture is off while the motion shows.
+##
+## The motion is cut from the picture the art would show WITHOUT a wind-up (its
+## own charge is the motion's to light), drawn here and cut on a worker thread,
+## once per picture: a new wound band or the pack's half sheet cuts again, and
+## the old cut moves on until the new one is in. Without motion (reduced
+## motion, headless, `FaunaMotion.enabled` off) none of this exists.
+var _fauna: FaunaMotion
+var _fauna_key := ""
+var _fauna_job := -1
+var _fauna_held := {}
+var _fauna_tex: Texture2D
+var _fauna_tele := false
+## Settling for the death: nothing more is cut.
+var _fauna_done := false
+
+
+## Wired from `bind`.
+func _fauna_bind(e, telegraphed: bool) -> void:
+	var k := FaunaMotion.kind_of(e.template.id)
+	if k < 0 or _dead or not FaunaMotion.enabled or not Router.animating():
+		_fauna_off()
+		return
+	if _fauna_done:
+		return
+	_fauna_tele = telegraphed
+	if _fauna != null:
+		_fauna.windup(telegraphed)
+	var hull: int = e.hp if shown_hp < 0 else shown_hp
+	var sc := _fauna_scale()
+	var key := FaunaMotion.picture_key(e, hull, sc)
+	if key == _fauna_key:
+		return
+	_fauna_key = key
+	var img := FaunaMotion.still_canvas(e, hull, sc)
+	var pic := FaunaMotion.picture_name(e)
+	var held := {key = key}
+	_fauna_held = held
+	_fauna_job = WorkerThreadPool.add_task(func() -> void:
+		var fm := FaunaMotion.new()
+		fm.cut(img, k, sc, pic)
+		held.fm = fm)
+	# what to cut again from, if the pack's size changes under it
+	held.e = e
+
+
+## How big the art draws the picture: its half sheet in a pack of three or more
+## (`EnemyArt.draw_scale`, where it exists).
+func _fauna_scale() -> float:
+	var s = art.get("draw_scale")
+	return float(s) if s != null else 1.0
+
+
+## Wired from `_process`: the cut taken in when it is done, the motion kept
+## over the art and stepped HERE, then the bob taken from that same step -- a
+## motion stepped in its own `_process` could land a frame apart from the bob
+## read here, and a part's step and the bob's on neighbouring frames put
+## pixels back where they were (flip-backs 0.1-0.4 x1e-4 a frame, 0.011 still).
+func _fauna_step(dt: float) -> void:
+	if _fauna_job >= 0 and WorkerThreadPool.is_task_completed(_fauna_job):
+		WorkerThreadPool.wait_for_task_completion(_fauna_job)
+		_fauna_job = -1
+		var fm: FaunaMotion = _fauna_held.get("fm")
+		# a cut that comes in once the death has started is too late to show
+		if fm != null and String(_fauna_held.get("key", "")) == _fauna_key and _fauna_key != "" 				and not _fauna_done:
+			var t0 := float(Time.get_ticks_msec()) / 1000.0
+			if _fauna != null:
+				t0 = _fauna.t
+				_fauna.queue_free()
+			_fauna = fm
+			art.add_child(fm)
+			fm.auto = false
+			fm.attach()
+			fm.t = t0
+			fm.bob_phase = _bob_phase
+			fm.windup(_fauna_tele)
+			if _fauna_tex == null:
+				_fauna_tex = art.texture
+			art.texture = null
+		elif fm != null:
+			fm.free()
+	if _fauna == null:
+		return
+	if _fauna_held.has("e") and not is_equal_approx(_fauna.pic_scale, _fauna_scale()) and _fauna_job < 0:
+		var e = _fauna_held.e
+		_fauna_bind(e, _fauna_tele)
+	_fauna.advance(dt)
+	# where the art draws its canvas (`STRETCH_KEEP_CENTERED`): a half pixel
+	# there lands on the next whole one, so this rounds the same way
+	_fauna.position = ((art.size - _fauna.size) * 0.5).round()
+	art.position.y = _art_base.y + _fauna.bob_px()
+
+
+## The death is coming (`SectorScreen._prebuild_death`): back to the still
+## picture before the breakup is cut from it.
+func fauna_settle() -> void:
+	_fauna_done = true
+	if _fauna != null:
+		_fauna.settle()
+
+
+## The attack is fired: a creature's strike.
+func fauna_strike() -> void:
+	if _fauna != null and _fauna.kind != FaunaMotion.Kind.CUSTODIAN:
+		_fauna.strike()
+
+
+func fauna_motion() -> FaunaMotion:
+	return _fauna
+
+
+## No cut outlives the slot that asked for it.
+func _exit_tree() -> void:
+	if _fauna_job >= 0:
+		WorkerThreadPool.wait_for_task_completion(_fauna_job)
+		_fauna_job = -1
+		var fm: FaunaMotion = _fauna_held.get("fm")
+		if fm != null:
+			fm.free()
+
+
+func _fauna_off() -> void:
+	_fauna_key = ""
+	if _fauna != null:
+		_fauna.queue_free()
+		_fauna = null
+	if _fauna_tex != null:
+		art.texture = _fauna_tex
+		_fauna_tex = null
