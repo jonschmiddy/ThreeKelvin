@@ -1,0 +1,267 @@
+extends Node
+
+## THE CODED ENGINE FLAME BESIDE TODAY'S, for Jon to pick a look (Oct 13).
+##   godot --path . --windowed --position 3840,0 -- sheet=ThrusterSheet out=<dir>
+##       [ships=hull_light_s,...,ship_armedtrader,...] [frames=150]
+## One film per ship, at the game's own pixel size (1x), each frame a grid:
+## columns TODAY | A OVERLOAD | B DRIVE | C SPILL (ThrusterFx.Look), rows IDLE,
+## CRUISE, FULL (ThrusterFx.Thrust). TODAY on a player hull is what the game
+## shows: no flame at idle (the engines are off in a fight -- ShipView `_burning`)
+## and the rigged PixelLab strips at cruise and full (the chassis select, the
+## arrival and departure), composited the way ShipView does it: `back` strips,
+## then the hull, then the rest, the strip frame at FLAME_HZ. TODAY on a pool
+## ship is no flame at all; they have none.
+##
+## Drawn into a SubViewport as big as the grid, so a heavy's four columns fit
+## at 1x. Every clock is the film's, stepped 1/30 s a frame: f_####.png at 30
+## fps is true speed. No bob, so the flicker measures the flame alone.
+## Each folder gets layout.json: every tile's rect, and per coded look its
+## nozzles, its lengths, the ms to build its pictures, and the CPU a frame its
+## `draw` costs (measured round the calls, per ship).
+
+const PLAYER := ["hull_light_s", "hull_medium_c", "hull_medium_s", "hull_heavy_s"]
+const POOL := ["ship_armedtrader", "ship_ringdrive", "ship_pr_drum"]
+const LABEL_H := 14
+const ROW_LABEL_W := 44
+
+var _args: PackedStringArray
+var _t := 0.0
+
+
+func _ready() -> void:
+	_args = OS.get_cmdline_user_args()
+	_run.call_deferred()
+
+
+func _arg(k: String, d: String = "") -> String:
+	for a in _args:
+		if a.begins_with(k + "="):
+			return a.substr(k.length() + 1)
+	return d
+
+
+class Stars extends Control:
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, size), Color("#070a10"))
+		var r := RandomNumberGenerator.new()
+		r.seed = 11
+		for i in int(size.x * size.y / 2400.0):
+			var b := r.randf()
+			draw_rect(Rect2(Vector2(r.randi_range(0, int(size.x) - 1), r.randi_range(0, int(size.y) - 1)), Vector2.ONE),
+				Color("#2a3446") if b < 0.8 else Color("#5d6f88"))
+
+
+## The coded flame's layer: one additive canvas item over the finished ship.
+class FlameLayer extends Control:
+	var fx: ThrusterFx
+	var thrust := 0
+	var origin := Vector2.ZERO
+	var clock: Callable
+	var cost_us := 0
+	func _draw() -> void:
+		var t0 := Time.get_ticks_usec()
+		fx.draw(self, origin, thrust, clock.call())
+		cost_us += Time.get_ticks_usec() - t0
+
+
+func _image(tex: Texture2D) -> Image:
+	var im := tex.get_image()
+	if im.is_compressed():
+		im.decompress()
+	im.convert(Image.FORMAT_RGBA8)
+	return im
+
+
+func _hull(name: String) -> HullData:
+	for h in DB.hull_frames:
+		if h.sprite != null and DB.hull_art_name(h.weight, h.tier) == name:
+			return h
+	# Not every frame is in the table (no Korvan heavy S): rig one the way the
+	# table would, from its art and DB.HULL_EXHAUST.
+	var parts := name.split("_")
+	var hd := HullData.new()
+	hd.weight = {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM,
+		"heavy": HullData.Weight.HEAVY}[parts[1]]
+	hd.tier = HullData.TIER_NAMES.find(parts[2].to_upper())
+	hd.sprite = DB.hull_sprite(hd.weight, hd.tier)
+	DB.set_exhaust(hd, DB.DEFAULT_EXHAUST, hd.tier)
+	return hd
+
+
+## Today's frames for a rigged hull, the ShipView way (`_refresh` -> `_blit_exhaust`).
+func _today_frames(h: HullData, hull_img: Image) -> Array:
+	var out: Array = []
+	var n := maxi(1, h.exhaust_frames)
+	for f in n:
+		var c := Image.create(hull_img.get_width(), hull_img.get_height(), false, Image.FORMAT_RGBA8)
+		for back in [true, false]:
+			if not back:
+				c.blend_rect(hull_img, Rect2i(Vector2i.ZERO, hull_img.get_size()), Vector2i.ZERO)
+			for e in h.thrusters:
+				if bool(e.get("back", false)) != back or e.get("tex") == null:
+					continue
+				var strip := _image(e.tex)
+				var fw := strip.get_width() / n
+				var fr := strip.get_region(Rect2i(f * fw, 0, fw, strip.get_height()))
+				c.blend_rect(fr, Rect2i(Vector2i.ZERO, fr.get_size()), e.at as Vector2i)
+		out.append(ImageTexture.create_from_image(c))
+	return out
+
+
+func _label(parent: Node, text: String, at: Vector2) -> void:
+	var l := UITheme.body(text, UITheme.CHILL, UITheme.FS_SMALL)
+	l.position = at
+	parent.add_child(l)
+
+
+func _run() -> void:
+	var tree := get_tree()
+	await tree.process_frame
+	var dir := _arg("out")
+	DirAccess.make_dir_recursive_absolute(dir)
+	var frames := int(_arg("frames", "150"))
+	var list: Array = []
+	var arg := _arg("ships", "")
+	if arg == "":
+		list = PLAYER + POOL
+	else:
+		list = Array(arg.split(","))
+	var layer := CanvasLayer.new()
+	layer.layer = 120
+	GameShell.input_target(tree).add_child(layer)
+	for ship in list:
+		await _film(ship, dir.path_join(ship), frames, layer)
+	tree.quit()
+
+
+func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
+	var tree := get_tree()
+	DirAccess.make_dir_recursive_absolute(dir)
+	var player := ship.begins_with("hull_")
+	var hull_img: Image
+	var used: Rect2i
+	var h: HullData = null
+	if player:
+		h = _hull(ship)
+		hull_img = _image(h.sprite)
+		used = hull_img.get_used_rect()
+	else:
+		var src := _image(load("res://art/subjects/ships/%s.png" % ship))
+		hull_img = src
+		used = src.get_used_rect()
+	var cw := hull_img.get_width()
+	var chh := hull_img.get_height()
+	# Room for the flame: player canvases carry their own clearance at the
+	# stern; a pool ship is cropped to itself, so its burn needs space behind.
+	var pad_r := 8 if player else 66
+	var tw := cw + 16 + pad_r
+	var th := chh + 16
+	var cols := 4
+	var vw := ROW_LABEL_W + cols * tw
+	var vh := LABEL_H + 3 * th
+	var sub := SubViewport.new()
+	sub.size = Vector2i(vw, vh)
+	sub.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	sub.transparent_bg = false
+	sub.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
+	layer.add_child(sub)
+	var bg := Stars.new()
+	bg.size = Vector2(vw, vh)
+	sub.add_child(bg)
+	var heads := ["TODAY", ThrusterFx.LOOK_NAMES[0], ThrusterFx.LOOK_NAMES[1], ThrusterFx.LOOK_NAMES[2]]
+	for c in cols:
+		_label(sub, heads[c], Vector2(ROW_LABEL_W + c * tw + 8, 1))
+	for r in 3:
+		_label(sub, ThrusterFx.THRUST_NAMES[r], Vector2(4, LABEL_H + r * th + th / 2 - 6))
+	var hull_tex := ImageTexture.create_from_image(hull_img)
+	var today: Array = _today_frames(h, hull_img) if player else []
+	var today_rects: Array[TextureRect] = []
+	var flames: Array[FlameLayer] = []
+	var tiles: Array = []
+	var looks: Dictionary = {}
+	var clock := func() -> float: return _t
+	for look in 3:
+		var t0 := Time.get_ticks_usec()
+		var fx := ThrusterFx.for_hull(h, hull_img, look, 7) if player else ThrusterFx.for_sprite(hull_img, used, look, 7)
+		var find_ms := (Time.get_ticks_usec() - t0) / 1000.0
+		var t1 := Time.get_ticks_usec()
+		var lens := []
+		for thrust in 3:
+			fx.warm_up(thrust)
+			lens.append(fx.base_length(thrust))
+		var build_ms := (Time.get_ticks_usec() - t1) / 1000.0
+		var nz := []
+		for n in fx.nozzles:
+			var pts: PackedVector2Array = n.pts
+			nz.append({rows = pts.size(), first = [pts[0].x, pts[0].y], last = [pts[-1].x, pts[-1].y]})
+		looks[look] = {fx = fx, info = {look = ThrusterFx.LOOK_NAMES[look], blurb = ThrusterFx.LOOK_BLURB[look],
+			nozzles = nz, lengths = lens, find_ms = snappedf(find_ms, 0.01), build_ms = snappedf(build_ms, 0.01),
+			pictures = fx._cache.size() + fx._spill.size()}}
+	for r2 in 3:
+		for c2 in cols:
+			var at := Vector2(ROW_LABEL_W + c2 * tw + 8, LABEL_H + r2 * th + 8)
+			tiles.append({col = c2, row = r2, rect = [ROW_LABEL_W + c2 * tw, LABEL_H + r2 * th, tw, th]})
+			var tr := TextureRect.new()
+			tr.texture = hull_tex
+			tr.position = at
+			tr.size = Vector2(cw, chh)
+			tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			sub.add_child(tr)
+			if c2 == 0:
+				if player and r2 > 0:
+					today_rects.append(tr)
+				continue
+			var fl := FlameLayer.new()
+			fl.fx = looks[c2 - 1].fx
+			fl.thrust = r2
+			fl.origin = at
+			fl.clock = clock
+			fl.size = Vector2(vw, vh)
+			fl.material = ThrusterFx.add_material()
+			fl.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			sub.add_child(fl)
+			flames.append(fl)
+	await RenderingServer.frame_post_draw
+	for fl2 in flames:
+		fl2.cost_us = 0
+	var draws := 0
+	var worst := 0
+	for f in frames:
+		_t = float(f) / 30.0
+		var step := int(_t * ShipView.FLAME_HZ) % maxi(1, today.size())
+		for trr in today_rects:
+			trr.texture = today[step]
+		var before := 0
+		for fl3 in flames:
+			before += fl3.cost_us
+			fl3.queue_redraw()
+		await RenderingServer.frame_post_draw
+		var after := 0
+		for fl4 in flames:
+			after += fl4.cost_us
+		worst = maxi(worst, after - before)
+		draws += 1
+		sub.get_texture().get_image().save_png("%s/f_%04d.png" % [dir, f])
+	var per_look := {}
+	for look2 in 3:
+		var tot := 0
+		for fl5 in flames:
+			if fl5.fx == looks[look2].fx:
+				tot += fl5.cost_us
+		# three tiles (idle, cruise, full) per look: the cost of ONE ship a frame
+		looks[look2].info.draw_us_per_ship_frame = snappedf(float(tot) / float(draws) / 3.0, 0.01)
+		per_look[look2] = looks[look2].info
+	var meta := {ship = ship, player = player, frames = frames, fps = 30, tile = [tw, th],
+		canvas = [cw, chh], hull_at_in_tile = [8, 8], ink_w = looks[0].fx.ink_w, tiles = tiles,
+		columns = heads, rows = ThrusterFx.THRUST_NAMES, looks = per_look,
+		worst_frame_us_all_tiles = worst,
+		today = {strips = h.thrusters.size() if player else 0, frames = today.size(), hz = ShipView.FLAME_HZ}}
+	var fa := FileAccess.open(dir.path_join("layout.json"), FileAccess.WRITE)
+	fa.store_string(JSON.stringify(meta, "  "))
+	fa.close()
+	print("thrustersheet: %s %dx%d frames=%d nozzles=%d lengths=%s draw_us=%s/%s/%s build_ms=%s/%s/%s" % [
+		ship, vw, vh, frames, looks[0].fx.nozzles.size(), str(looks[0].info.lengths),
+		per_look[0].draw_us_per_ship_frame, per_look[1].draw_us_per_ship_frame, per_look[2].draw_us_per_ship_frame,
+		per_look[0].build_ms, per_look[1].build_ms, per_look[2].build_ms])
+	sub.queue_free()
+	await tree.process_frame
