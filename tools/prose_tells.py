@@ -45,7 +45,13 @@ BASELINE = os.path.join(ROOT, "tools", "prose_tells_baseline.txt")
 ENCOUNTERS = "systems/OptionTable.gd"
 SKIP_DIRS = ("sim",)
 
-STRING = re.compile(r'"((?:[^"\\]|\\.){20,})"')
+# Every string on the line, each one whole, and only then the long ones. The
+# first version asked the regex for 20 characters or more directly, so after a
+# short string it could start at that string's CLOSING quote and read the code
+# up to the next opening one: about 205 of the 2,018 "strings" it counted were
+# `]) >= 0.0 and t >= float(d[` and the like.
+STRING = re.compile(r'"((?:[^"\\]|\\.)*)"')
+MIN_CHARS = 20
 NOT_PLAYER_TEXT = re.compile(
 	r"\b(push_error|push_warning|print|printerr|prints|print_rich|assert|_fail|fail)\s*\(")
 
@@ -160,6 +166,8 @@ def player_strings():
 				if stripped.startswith("#") or NOT_PLAYER_TEXT.search(line):
 					continue
 				for m in STRING.finditer(line):
+					if len(m.group(1)) < MIN_CHARS:
+						continue
 					text = m.group(1).replace("\\n", " ").replace('\\"', '"')
 					# prose has spaces between lowercase words; keys and paths do not
 					if len(text.split()) < 5 or not re.search(r"[a-z] [a-z]", text):
