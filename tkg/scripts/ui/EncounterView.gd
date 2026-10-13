@@ -45,7 +45,7 @@ var _overflow: Button = null
 var _ship_slot: ShipSlot
 var _ship: ShipView
 var _area: AreaView
-var _slots: HBoxContainer
+var _slots: Control
 var _made: Array[EnemySlot] = []
 ## WHAT THE SLOTS ARE CURRENTLY SHOWING: a fight, or the wrecks it left.
 ##
@@ -115,16 +115,18 @@ func _ready() -> void:
 	_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_row.add_child(_area)
 
-	_slots = HBoxContainer.new()
-	_slots.add_theme_constant_override("separation", 10)
+	# NOT A CONTAINER. The enemies are placed by hand (`_layout_pack`), because
+	# a row of boxes could not keep a pack of wide ships apart: the enemy half
+	# is where they are centred, not a fence they must stay inside.
+	_slots = Control.new()
 	_slots.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_slots.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_slots.alignment = BoxContainer.ALIGNMENT_CENTER
+	_slots.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_slots.visible = false
 	_row.add_child(_slots)
 	# Packed whenever the row lays them out: a fight opening, a reinforcement,
 	# a ship's picture changing size.
-	_slots.sort_children.connect(func() -> void: _pack_slots.call_deferred())
+	_slots.resized.connect(_queue_pack)
 
 	# Depth order, and the reason it is expressed as child order. NOT
 	# show_behind_parent: this view paints the wash in _draw, and a child behind
@@ -447,6 +449,7 @@ func show_wrecks(wrecks: Array, on_open: Callable) -> void:
 		# What is still in it, on the label. `ship_changed` re-runs the screen's
 		# refresh on every take, so the number follows the hand emptying it.
 		_made[i].set_salvage(Run.jetsam_left(Run.node_at(), h))
+	_queue_pack()
 	queue_redraw()
 
 
@@ -560,76 +563,258 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 	# AFTER the bind, because the bind sizes the slot to its ship and the
 	# entrance flies to that resting place. The dead keep their slots, so a
 	# kill does not change the count and the survivors are never re-flown.
+	# Placed BEFORE they fly, so each flies to its own place; the ships already
+	# here ease to theirs (`_layout_pack` moves a placed slot, never jumps it).
+	_layout_pack()
 	for k in arrived.size():
 		arrived[k].enter(float(k) * 0.09)
-	if grew:
-		_ease_over.call_deferred(was)
+	_queue_pack()
 	queue_redraw()
 
 
 ## The ships already in the row slide to the places a newcomer's arrival gave
 ## them, measured after the row has been laid out again.
-func _ease_over(was: Array) -> void:
-	await get_tree().process_frame
-	for i in mini(was.size(), _made.size()):
-		var art := (_made[i] as EnemySlot).art
-		var d: float = float(was[i]) - art.global_position.x
-		if absf(d) < 1.0:
+## NOTHING IN A PACK SITS ON ANYTHING ELSE (Jon, Oct 13: three ships "don't fit
+## on screen"; then, of the overlapped row: no ship, wreck, name, hull bar,
+## chips or intent may overlap another, or yours). The kept ships are 170 to 310
+## wide; three of them are wider than the enemy half.
+##
+## Every slot is placed by hand, as a unit -- its ship and its whole readout --
+## and no two units share a pixel. The room they have is the band of the row
+## from just past YOUR ship (its hull and its plate) to the view's edge; a pack
+## is centred on the enemy half while it fits there and slides toward you only
+## as far as it must. Your ship never moves.
+##
+## A pack that fits in one row at full size is drawn that way in every layout.
+## When it does not, `pack_layout` decides (Jon is choosing):
+##   A  SHRINK -- one row, every ship drawn smaller by the same step, only as
+##      far down as the row needs (`EnemyArt.draw_scale`, shrunk as pixel art).
+##   B  FORMATION -- two ranks at full size: the first two ships in front, the
+##      rest behind them and above, each with its readout under it.
+##   C  COLUMN -- ships stacked top to bottom at full size, each readout beside
+##      its ship on your side of it.
+## B and C fall back to A's steps only when even they do not fit (a field of
+## four or five wrecks on LOCAL).
+static var pack_layout: StringName = &"A"
+const PACK_GAP := 10.0
+const PACK_VGAP := 6.0
+const PACK_MARGIN := 12.0
+const PACK_SCALES: Array[float] = [1.0, 0.85, 0.75, 0.65, 0.55, 0.5]
+const PACK_EASE := 0.4
+
+var _pack_queued := false
+## Where each slot was last put, so a move eases rather than jumps.
+var _placed: Dictionary = {}
+var _pack_tw: Dictionary = {}
+
+func _queue_pack() -> void:
+	if _pack_queued:
+		return
+	_pack_queued = true
+	_layout_pack.call_deferred()
+
+
+## Your ship's boxes, in global coordinates: the hull's own rect and every
+## readout on its plate (name, bar, number, chips).
+func player_boxes() -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	if _ship == null:
+		return out
+	var sr := _ship.ship_rect()
+	out.append(Rect2(_ship.get_global_rect().position + sr.position, sr.size))
+	_collect_boxes(_ship, out)
+	return out
+
+func _collect_boxes(n: Node, out: Array[Rect2]) -> void:
+	for c in n.get_children():
+		if not (c is Control) or not (c as Control).is_visible_in_tree():
 			continue
-		art.position.x += d
-		var tw := art.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		tw.tween_property(art, "position:x", art.position.x - d, 0.45)
+		if c is Label:
+			if (c as Label).text.strip_edges() != "":
+				out.append(EnemySlot.text_rect(c as Label))
+		elif c is ProgressBar or c is EnemySlot.BracePips:
+			out.append((c as Control).get_global_rect())
+		elif c is HBoxContainer and (c as Control).get_parent() is VBoxContainer:
+			for k in c.get_children():
+				if k is Control and (k as Control).visible:
+					out.append((k as Control).get_global_rect())
+		_collect_boxes(c, out)
 
-## EVERY SHIP IN A PACK ON SCREEN (Oct 13). The kept ships are 170 to 230
-## wide, and two of them plus the gap are more than the arena's half: the
-## second ran past the edge. Each slot is already its ship's own width
-## (`EnemySlot._fit_holder`); when the row is still too wide for the room the
-## enemy side has, the ships close up and overlap, and once they overlap by
-## more than a sliver they stagger up and down, so the nearer reads as in
-## front (later slots draw over earlier ones) and their intents and bars do not
-## sit on each other. One ship, or a pack that fits, is left exactly as it was.
-const PACK_GAP := 10
-const PACK_STAGGER := 40.0
 
-func _pack_slots() -> void:
+## The room a pack has, in `_slots`' own coordinates.
+func _pack_area() -> Rect2:
+	var inv := _slots.get_global_transform().affine_inverse()
+	var right := 0.0
+	for r in player_boxes():
+		right = maxf(right, r.end.x)
+	var view := get_global_rect()
+	var g := _slots.get_global_rect()
+	var left_g := maxf(right + PACK_MARGIN, view.position.x + PACK_MARGIN)
+	var right_g := view.end.x - PACK_MARGIN
+	var p0 := inv * Vector2(left_g, g.position.y)
+	var p1 := inv * Vector2(right_g, g.end.y)
+	return Rect2(p0, p1 - p0)
+
+
+func _layout_pack() -> void:
+	_pack_queued = false
 	if _slots == null or not _slots.visible:
 		return
 	var live: Array[EnemySlot] = []
 	for c in _slots.get_children():
-		if c is EnemySlot and (c as EnemySlot).visible:
+		if c is EnemySlot and (c as EnemySlot).visible and not (c as EnemySlot).is_queued_for_deletion():
 			live.append(c)
 	if live.is_empty():
 		return
-	var room := _pack_room()
-	var widths := 0.0
-	for s in live:
-		widths += s.get_combined_minimum_size().x
-	var gap := PACK_GAP
-	if live.size() > 1 and widths + PACK_GAP * (live.size() - 1) > room:
-		gap = int(floor((room - widths) / float(live.size() - 1)))
-	if _slots.get_theme_constant("separation") != gap:
-		_slots.add_theme_constant_override("separation", gap)
-	var stagger := live.size() > 1 and gap < -12
-	for i in live.size():
-		live[i].set_lift((PACK_STAGGER * (1.0 if i % 2 == 1 else -1.0) * 0.5) if stagger else 0.0)
-
-## The width the enemy side of the row has: the row less its gaps and anything
-## fixed in it, shared with your ship's slot (both expand alike).
-func _pack_room() -> float:
-	var total := _row.size.x
-	var fixed := 0.0
-	var shares := 0
-	var seen := 0
-	for c in _row.get_children():
-		if not (c is Control) or not (c as Control).visible:
-			continue
-		seen += 1
-		if (c as Control).size_flags_horizontal & Control.SIZE_EXPAND:
-			shares += 1
+	# in fight order, not child order: the rank behind is moved first among the
+	# children so it draws underneath, and must not then be taken for the front
+	live.sort_custom(func(a: EnemySlot, b: EnemySlot) -> bool: return a.index < b.index)
+	var area := _pack_area()
+	var mid := _slots.size.x * 0.5
+	# full size in one row if it fits; else the layout's own arrangement; else
+	# the same steps down, its own arrangement first at each
+	var plan := _pack_row(live, 1.0, area, mid)
+	for s in PACK_SCALES:
+		if not plan.is_empty():
+			break
+		if pack_layout == &"B":
+			plan = _pack_ranks(live, s, area, mid)
+		elif pack_layout == &"C":
+			plan = _pack_column(live, s, area, mid)
+		if plan.is_empty() and s < 1.0:
+			plan = _pack_row(live, s, area, mid)
+	if plan.is_empty():
+		# nothing fits even at the smallest step: the smallest row, overflowing
+		plan = _pack_row(live, PACK_SCALES[PACK_SCALES.size() - 1], area, mid, true)
+	var back: Array = plan.get("back", [])
+	var placed := {}
+	for sl in live:
+		var u: Dictionary = plan[sl]
+		sl.apply_scale(float(u.scale))
+		sl.set_side(bool(u.side))
+		var r: Rect2 = u.rect
+		sl.size = r.size
+		var at := r.position.round()
+		var was: Variant = _placed.get(sl)
+		if _pack_tw.has(sl) and (_pack_tw[sl] as Tween).is_valid():
+			if was == at:
+				placed[sl] = at
+				continue
+			(_pack_tw[sl] as Tween).kill()
+		# eased where things move (never under reduced motion or headless)
+		if was != null and was != at and is_inside_tree() and Router.animating():
+			var tw := sl.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+			tw.tween_property(sl, "position", at, PACK_EASE)
+			_pack_tw[sl] = tw
 		else:
-			fixed += (c as Control).size.x
-	total -= fixed + float(_row.get_theme_constant("separation")) * maxf(0.0, seen - 1)
-	return total / maxf(1.0, shares)
+			sl.position = at
+		placed[sl] = at
+	_placed = placed
+	for k in _pack_tw.keys():
+		if not placed.has(k):
+			_pack_tw.erase(k)
+	# the rank behind is drawn first, under the one in front
+	for k in back.size():
+		_slots.move_child(back[k], k)
+
+
+## One row, every ship at `s`. Empty if it does not fit (unless `force`).
+func _pack_row(live: Array[EnemySlot], s: float, area: Rect2, mid: float, force: bool = false) -> Dictionary:
+	var units: Array[Vector2] = []
+	var total := 0.0
+	var tall := 0.0
+	for sl in live:
+		var u := sl.unit(s, false)
+		units.append(u)
+		total += u.x
+		tall = maxf(tall, u.y)
+	total += PACK_GAP * float(live.size() - 1)
+	if not force and (total > area.size.x or tall > area.size.y):
+		return {}
+	var x := _place_span(total, area, mid)
+	var out := {}
+	for i in live.size():
+		var u := units[i]
+		out[live[i]] = {scale = s, side = false,
+			rect = Rect2(x, area.position.y + (area.size.y - u.y) * 0.5, u.x, u.y)}
+		x += u.x + PACK_GAP
+	return out
+
+
+## B: the first two in front, the rest a rank behind and above.
+func _pack_ranks(live: Array[EnemySlot], s: float, area: Rect2, mid: float) -> Dictionary:
+	var front: Array[EnemySlot] = []
+	var back: Array[EnemySlot] = []
+	for i in live.size():
+		(front if i < 2 else back).append(live[i])
+	var ranks := [back, front]
+	var widths: Array[float] = []
+	var heights: Array[float] = []
+	var units := {}
+	for rank: Array in ranks:
+		var w := 0.0
+		var h := 0.0
+		for sl: EnemySlot in rank:
+			var u := sl.unit(s, false)
+			units[sl] = u
+			w += u.x
+			h = maxf(h, u.y)
+		w += PACK_GAP * float(maxi(0, rank.size() - 1))
+		widths.append(w)
+		heights.append(h)
+	var block_h := heights[0] + PACK_VGAP + heights[1]
+	if widths[0] > area.size.x or widths[1] > area.size.x or block_h > area.size.y:
+		return {}
+	var out := {back = back}
+	var y := area.position.y + (area.size.y - block_h) * 0.5
+	# the rank behind sits over the gap between the two in front, nudged away
+	# from you, the way a second line stands off a first
+	var fx := _place_span(widths[1], area, mid)
+	var bmid := fx + widths[1] * 0.5 + 0.15 * widths[1]
+	var bx := clampf(bmid - widths[0] * 0.5, area.position.x, area.end.x - widths[0])
+	for k in 2:
+		var rank: Array = ranks[k]
+		var x := bx if k == 0 else fx
+		var ry := y if k == 0 else y + heights[0] + PACK_VGAP
+		for sl: EnemySlot in rank:
+			var u: Vector2 = units[sl]
+			out[sl] = {scale = s, side = false,
+				rect = Rect2(x, ry + (heights[k] - u.y) * (1.0 if k == 0 else 0.0), u.x, u.y)}
+			x += u.x + PACK_GAP
+	return out
+
+
+## C: one above another, each readout beside its ship.
+func _pack_column(live: Array[EnemySlot], s: float, area: Rect2, mid: float) -> Dictionary:
+	var units: Array[Vector2] = []
+	var total := 0.0
+	var wide := 0.0
+	for sl in live:
+		var u := sl.unit(s, true)
+		units.append(u)
+		total += u.y
+		wide = maxf(wide, u.x)
+	total += PACK_VGAP * float(live.size() - 1)
+	if total > area.size.y or wide > area.size.x:
+		return {}
+	var x := _place_span(wide, area, mid)
+	var y := area.position.y + (area.size.y - total) * 0.5
+	var out := {}
+	for i in live.size():
+		var u := units[i]
+		# right-aligned, so the ships stand in a line and the readouts face you
+		out[live[i]] = {scale = s, side = true, rect = Rect2(x + wide - u.x, y, u.x, u.y)}
+		y += u.y + PACK_VGAP
+	return out
+
+
+## Where a span of `w` starts: centred on the enemy half while it fits there,
+## slid toward you only as far as the view's edge makes it.
+func _place_span(w: float, area: Rect2, mid: float) -> float:
+	var x := mid - w * 0.5
+	if x + w > area.end.x:
+		x = area.end.x - w
+	return maxf(area.position.x, x)
 
 
 ## Exactly one target highlights at a time. Each slot reports when it takes the

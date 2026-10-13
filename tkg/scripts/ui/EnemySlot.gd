@@ -83,9 +83,16 @@ var _art_base: Vector2 = Vector2.ZERO
 var _enter_tw: Tween
 var _enter_end: int = 0
 ## How far this slot's column sits off the row's middle, down positive: a pack
-## too wide for the arena overlaps and staggers (`EncounterView._pack_slots`).
+## no longer used: packs are placed by `EncounterView._layout_pack`.
 var _lift_top: Control
 var _lift_bot: Control
+## The column everything hangs in, the bars' box, and -- in a column pack (layout
+## C) -- the row that puts the readout beside the ship instead of under it.
+var _col: VBoxContainer
+var _bars: VBoxContainer
+var _side_row: HBoxContainer
+var _side_box: VBoxContainer
+var side: bool = false
 
 ## The idle drift: whole pixels, up and down, so a contact reads as floating
 ## rather than pinned to the panel.
@@ -167,8 +174,10 @@ func _init() -> void:
 	# the ship, the name and the health bar it was meant to sit over.
 	col.show_behind_parent = true
 	add_child(col)
+	_col = col
 	_lift_top = Control.new()
 	_lift_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_lift_top.visible = false
 	col.add_child(_lift_top)
 
 	# What THIS one is about to do, over its own hull. One strip at the bottom
@@ -242,6 +251,7 @@ func _init() -> void:
 	bars.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	bars.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(bars)
+	_bars = bars
 
 	# Brace ON TOP, hull beneath — the order damage goes through them. Brace is
 	# a second pool that has to be chewed away before the first one moves, so it
@@ -272,6 +282,7 @@ func _init() -> void:
 	col.add_child(chips)
 	_lift_bot = Control.new()
 	_lift_bot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_lift_bot.visible = false
 	col.add_child(_lift_bot)
 
 	mouse_entered.connect(func() -> void: hovered.emit(index, true))
@@ -283,6 +294,8 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	index = i
 	var hull: int = e.hp if shown_hp < 0 else shown_hp
 	_dead = hull <= 0
+	_last_e = e
+	_last_tele = telegraphed
 	art.set_enemy(e, telegraphed, shown_hp, true, death_style)
 	_fit_holder()
 	art.modulate = Color(0.4, 0.4, 0.45) if _dead else Color.WHITE
@@ -424,6 +437,182 @@ func _fit_holder() -> void:
 			_enter_tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 			var left := maxf(0.05, float(_enter_end - Time.get_ticks_msec()) / 1000.0)
 			_enter_tw.tween_property(art, "position:x", base.x, left)
+
+
+## What the last bind drew, so the pack layout can redraw it at another size.
+var _last_e = null
+var _last_tele: bool = false
+
+## Draw the ship at `s` of its size (the pack layout's shrink, `EnemyArt.draw_scale`).
+func apply_scale(s: float) -> void:
+	if art == null or is_equal_approx(art.draw_scale, s):
+		return
+	art.set_draw_scale(s)
+	if _last_e != null:
+		art.set_enemy(_last_e, _last_tele, shown_hp, true, death_style)
+	_fit_holder()
+
+
+## THE SLOT'S SIZE AT A SCALE AND A MODE, worked out rather than read off the
+## column, so the layout can try a size before drawing at it: the ship's box at
+## `s` (its own picture's size, plus the holder's 6), the readout in its lines,
+## under the ship or (`beside`) to its near side.
+func unit(s: float, beside: bool) -> Vector2:
+	var ship := art.custom_minimum_size if art.full_ink == Vector2i.ZERO \
+		else (Vector2(art.full_ink) * s).round() + Vector2(6, 6)
+	var lh := _name.get_minimum_size().y
+	var parts := 0
+	var lab_h := 0.0
+	var w_it := 0.0
+	var widest := float(BAR_W)
+	for l: Label in [_intent, _name, _hp]:
+		if l.visible and l.text != "":
+			widest = maxf(widest, _text_w(l))
+			lab_h += lh
+			parts += 1
+	if _intent_text.visible and _intent_text.text != "":
+		w_it = _text_w(_intent_text)
+		parts += 1
+	var bars_h := _bars.get_combined_minimum_size().y
+	lab_h += bars_h
+	parts += 1
+	if chips.visible and chips.get_child_count() > 0:
+		widest = maxf(widest, chips.get_combined_minimum_size().x)
+		lab_h += chips.get_combined_minimum_size().y
+		parts += 1
+	if beside:
+		var lw := maxf(widest, w_it)
+		if w_it > 0.0:
+			lab_h += lh
+		lab_h += float(maxi(0, parts - 1))
+		return Vector2(lw + 8.0 + ship.x, maxf(ship.y, lab_h))
+	var w := maxf(ship.x, widest)
+	if w_it > 0.0:
+		w = maxf(w, minf(w_it, maxf(w, WRAP_W)))
+		lab_h += lh * ceilf(w_it / w)
+	return Vector2(ceilf(w), ship.y + lab_h + float(parts))
+
+
+## THE READOUT BESIDE THE SHIP, or under it (the default). Layout C stacks a
+## pack top to bottom, and a readout under each ship would stack three readouts
+## between them; beside, each ship's row is only as tall as the taller of the
+## two. The readout sits on the ship's near side (toward you), right-aligned to
+## it, intent first, the way it reads under the ship.
+func set_side(on: bool) -> void:
+	if on == side or _col == null:
+		return
+	side = on
+	var parts: Array[Control] = [_intent, _intent_text, _name, _bars, _hp, chips]
+	if on:
+		if _side_row == null:
+			_side_row = HBoxContainer.new()
+			_side_row.add_theme_constant_override("separation", 8)
+			_side_row.alignment = BoxContainer.ALIGNMENT_END
+			_side_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_side_box = VBoxContainer.new()
+			_side_box.add_theme_constant_override("separation", 1)
+			_side_box.alignment = BoxContainer.ALIGNMENT_CENTER
+			_side_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			_side_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_side_row.add_child(_side_box)
+		_col.add_child(_side_row)
+		_col.move_child(_side_row, _art_holder.get_index())
+		_art_holder.reparent(_side_row, false)
+		for p in parts:
+			p.reparent(_side_box, false)
+			if p is Label:
+				(p as Label).horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+				(p as Label).autowrap_mode = TextServer.AUTOWRAP_OFF
+		_bars.size_flags_horizontal = Control.SIZE_SHRINK_END
+		chips.alignment = BoxContainer.ALIGNMENT_END
+	else:
+		var at := _side_row.get_index()
+		_art_holder.reparent(_col, false)
+		_col.move_child(_art_holder, at)
+		_col.remove_child(_side_row)
+		# back in the order the column reads: intent, what it does, ship, name,
+		# bars, number, chips
+		var order: Array[Control] = [_intent, _intent_text]
+		for k in order.size():
+			order[k].reparent(_col, false)
+			_col.move_child(order[k], 1 + k)
+		var after: Array[Control] = [_name, _bars, _hp, chips]
+		for k in after.size():
+			after[k].reparent(_col, false)
+			_col.move_child(after[k], _art_holder.get_index() + 1 + k)
+		for p in parts:
+			if p is Label:
+				(p as Label).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				(p as Label).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if (p == _intent or p == _intent_text) \
+					else TextServer.AUTOWRAP_OFF
+		_bars.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		chips.alignment = BoxContainer.ALIGNMENT_CENTER
+
+
+## WHAT THIS SLOT NEEDS, for the pack layout: the width its widest part asks
+## for (the ship, the bars, a name, an intent up to WRAP_W before it wraps)
+## and, at that width, the height of the whole column. Read off the column
+## itself once it has been laid out at that width, so a wrapped intent counts.
+const WRAP_W := 170.0
+
+func need() -> Vector2:
+	var ship := _art_holder.custom_minimum_size if _art_holder != null else Vector2(EnemyArt.W, EnemyArt.H)
+	var text := 0.0
+	for l: Label in [_intent, _intent_text, _name, _hp]:
+		if l.visible and l.text != "":
+			text = maxf(text, minf(_text_w(l), WRAP_W if l == _intent_text and not side else 9999.0))
+	var labels := maxf(float(BAR_W), text)
+	if chips.visible and chips.get_child_count() > 0:
+		labels = maxf(labels, chips.get_combined_minimum_size().x)
+	if side:
+		return Vector2(labels + 8.0 + ship.x, _col.get_combined_minimum_size().y)
+	return Vector2(maxf(ship.x, labels), _col.get_combined_minimum_size().y)
+
+static func _text_w(l: Label) -> float:
+	var f := l.get_theme_font("font")
+	if f == null:
+		return l.get_minimum_size().x
+	return f.get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, l.get_theme_font_size("font_size")).x
+
+
+## Every box this slot draws, in global coordinates, with what it is: the ship
+## (its own ink, at rest), and each readout's own text or bar -- not the
+## label's full width. What the pack layout keeps apart, and what the test
+## checks.
+func boxes() -> Array:
+	var out: Array = []
+	if art != null:
+		var u := Rect2(art.used_rect())
+		var at := _art_holder.get_global_rect().position + _art_base
+		out.append(["art", Rect2(at + u.position, u.size)])
+	for l: Label in [_intent, _intent_text, _name, _hp]:
+		if l.is_visible_in_tree() and l.text.strip_edges() != "":
+			out.append(["text:" + l.text, text_rect(l)])
+	if _brace_bar.is_visible_in_tree():
+		out.append(["brace", _brace_bar.get_global_rect()])
+	if _bar.is_visible_in_tree():
+		out.append(["bar", _bar.get_global_rect()])
+	if chips.is_visible_in_tree() and chips.get_child_count() > 0:
+		var r := Rect2()
+		for c in chips.get_children():
+			if c is Control and (c as Control).visible:
+				r = (c as Control).get_global_rect() if r.size == Vector2.ZERO else r.merge((c as Control).get_global_rect())
+		if r.size != Vector2.ZERO:
+			out.append(["chips", r])
+	return out
+
+## A label's ink: its text's own width where it fits on one line, the label's
+## width where it wraps, aligned as the label aligns it; the label's height.
+static func text_rect(l: Label) -> Rect2:
+	var r := l.get_global_rect()
+	var w := minf(_text_w(l), r.size.x)
+	var x := r.position.x
+	match l.horizontal_alignment:
+		HORIZONTAL_ALIGNMENT_CENTER:
+			x += (r.size.x - w) * 0.5
+		HORIZONTAL_ALIGNMENT_RIGHT:
+			x += r.size.x - w
+	return Rect2(x, r.position.y, w, r.size.y)
 
 
 ## The ship's width on screen, for the row's packing.

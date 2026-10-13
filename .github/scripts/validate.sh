@@ -543,6 +543,24 @@ else
 	bad "enemyarttest did not finish"
 fi
 
+step "Nothing in a fight sits on anything else"
+# Jon, on three enemies piled on each other: no ship, wreck, name, hull bar,
+# chips or intent may overlap another enemy's, or yours. Every pair and triple
+# of the pictures a fight can bring (and every triple with a wreck in it), in
+# each pack layout (A shrink, B formation, C column), the real fight laid out:
+# every box apart, inside the view, your ship where it stood.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot packlayouttest 420 --headless --path "$PROJECT" -- sheet=PackLayoutTest; then
+	if grep -qE '^packlayouttest: PASS' "$LOG_DIR/packlayouttest.log"; then
+		ok "$(grep -cE '^packlayouttest: layout' "$LOG_DIR/packlayouttest.log") layouts, every pack apart"
+	else
+		bad "something in a fight sits on something else"
+		grep -E 'FAIL|^packlayouttest' "$LOG_DIR/packlayouttest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "packlayouttest did not finish"
+fi
+
 step "Every event opens and resolves on LOCAL"
 # The one place a choice is taken now: LOCAL's event band. Every authored
 # option is opened and every choice resolved through it, in all three layouts.

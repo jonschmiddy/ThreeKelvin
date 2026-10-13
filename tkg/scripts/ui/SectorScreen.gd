@@ -4239,7 +4239,7 @@ func _prebuild_death(who: int) -> void:
 	var e: Combat.EnemyState = combat.enemies[who]
 	# Cut from the ship drawn dead, so the breakup's last frame IS the wreck the
 	# slot and LOCAL draw afterwards (see EnemyArt.dead_canvas).
-	var dc := EnemyArt.dead_canvas(e)
+	var dc := EnemyArt.dead_canvas(e, sl.art.draw_scale)
 	var img: Image = dc[0]
 	var used: Rect2i = dc[1]
 	var seed := EnemyArt.wreck_seed(e.template)
@@ -4250,7 +4250,7 @@ func _prebuild_death(who: int) -> void:
 		var b := ShipBreakup.new()
 		b.setup(img, used, Vector2.ZERO, style, seed, boss)
 		held.b = b)
-	_prebuilt[who] = {task = task, held = held}
+	_prebuilt[who] = {task = task, held = held, scale = sl.art.draw_scale}
 
 
 ## The ship comes apart where it stood, cut out of its own picture.
@@ -4271,10 +4271,13 @@ func _start_death(who: int) -> void:
 		var pre: Dictionary = _prebuilt[who]
 		_prebuilt.erase(who)
 		WorkerThreadPool.wait_for_task_completion(pre.task)
-		b = pre.held.b
+		# cut at the size the ship is drawn now: a pack that grew since may
+		# have shrunk it (`EnemyArt.draw_scale`)
+		if is_equal_approx(float(pre.get("scale", 1.0)), art.draw_scale):
+			b = pre.held.b
 	if b == null:
 		b = ShipBreakup.new()
-		var dc := EnemyArt.dead_canvas(e)
+		var dc := EnemyArt.dead_canvas(e, art.draw_scale)
 		b.setup(dc[0], dc[1], Vector2.ZERO, _death_style(who),
 			EnemyArt.wreck_seed(e.template), e.template.boss)
 	# Cut at the origin; placed by moving the whole thing.

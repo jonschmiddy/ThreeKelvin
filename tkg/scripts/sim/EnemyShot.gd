@@ -42,6 +42,8 @@ func _arg(k: String, d: String = "") -> String:
 
 func _ready() -> void:
 	_args = OS.get_cmdline_user_args()
+	if _arg("packlayout") != "":
+		EncounterView.pack_layout = StringName(_arg("packlayout"))
 	_run.call_deferred()
 
 
@@ -112,6 +114,9 @@ func _shoot(tree: SceneTree, ids: Array, out: String) -> Dictionary:
 				e.look = int(looks[k])
 			if hp < 1.0:
 				e.hp = clampi(int(round(float(e.max_hp) * hp)), 1, e.max_hp)
+			# `dead=0,2`: those ships are already wrecks when the picture is taken
+			if str(k) in _arg("dead").split(","):
+				e.hp = 0
 			if "tele" in _args:
 				var t: IntentData = null
 				for it in e.template.loop:
@@ -125,8 +130,23 @@ func _shoot(tree: SceneTree, ids: Array, out: String) -> Dictionary:
 		var dir := "%s/%s_clip" % [out, name]
 		DirAccess.make_dir_recursive_absolute(dir)
 		var cb = Router.combat
+		var kill_at := int(_arg("killat", "-1"))
+		var rein := _arg("reinforceat").split(":")
 		for f in film:
-			if f > 0 and f % 45 == 0 and cb != null and not cb.finished:
+			# `killat=F`: the first ship still flying is killed outright on frame F
+			# (its breakup plays); `reinforceat=F:id[:look]`: that ship answers the
+			# call on frame F and flies in
+			if f == kill_at and cb != null:
+				for e2 in cb.enemies:
+					if e2.hp > 0:
+						cb.damage_enemy(9999, 1, "film", e2)
+						break
+			if rein.size() >= 2 and f == int(rein[0]) and cb != null:
+				cb.reinforce(DB.enemies[StringName(rein[1])], Run.node_at().danger)
+				if rein.size() >= 3:
+					cb.enemies[cb.enemies.size() - 1].look = int(rein[2])
+				Sig.enemy_changed.emit()
+			if f > 0 and f % 45 == 0 and kill_at < 0 and cb != null and not cb.finished:
 				for i in (cb.hand as Array).size():
 					if cb.can_play(cb.hand[i]):
 						cb.play(i, 0)
@@ -169,10 +189,20 @@ func _shoot(tree: SceneTree, ids: Array, out: String) -> Dictionary:
 		var sg := sv.get_global_rect()
 		rec["you"] = [sg.position.x + sr.position.x, sg.position.y + sr.position.y, sr.size.x, sr.size.y]
 		var vr := view.get_global_rect()
-		var sl: HBoxContainer = view.get("_slots")
+		var sl: Control = view.get("_slots")
 		var gr := sl.get_global_rect()
-		rec["slots"] = [gr.position.x, gr.size.x, sl.get_theme_constant("separation"), view._pack_room(),
-			(view.get("_row") as Control).size.x]
+		var ar: Rect2 = view._pack_area()
+		rec["slots"] = [gr.position.x, gr.size.x, String(EncounterView.pack_layout), gr.position.x + ar.position.x, ar.size.x]
+		var boxes: Array = []
+		var k := 0
+		while view.slot(k) != null:
+			for b in view.slot(k).boxes():
+				var r: Rect2 = b[1]
+				boxes.append([k, String(b[0]), r.position.x, r.position.y, r.size.x, r.size.y])
+			k += 1
+		for r: Rect2 in view.player_boxes():
+			boxes.append([-1, "you", r.position.x, r.position.y, r.size.x, r.size.y])
+		rec["boxes"] = boxes
 		rec["view"] = [vr.position.x, vr.position.y, vr.size.x, vr.size.y]
 		gv.get_texture().get_image().save_png("%s/%s_1x.png" % [out, name])
 	tree.root.get_texture().get_image().save_png("%s/%s.png" % [out, name])

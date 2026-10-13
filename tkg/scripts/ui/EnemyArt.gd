@@ -125,6 +125,9 @@ func _blit_sprite(tex: Texture2D) -> bool:
 	if src.get_format() != Image.FORMAT_RGBA8:
 		src = src.duplicate()
 		src.convert(Image.FORMAT_RGBA8)
+	full_ink = src.get_used_rect().size
+	if draw_scale < 1.0:
+		src = shrunk(src, draw_scale, tex.resource_path)
 	var ink := src.get_used_rect()
 	if ink.size == Vector2i.ZERO:
 		return false
@@ -141,6 +144,93 @@ func _blit_sprite(tex: Texture2D) -> bool:
 		var r := Rect2i(at, ink.size)
 		_bounds = r if _bounds.size == Vector2i.ZERO else _bounds.merge(r)
 	return true
+
+## HOW BIG THE PICTURE IS DRAWN, 1 at its own size. Set by the fight's row
+## (`EncounterView`'s pack layout A, "shrink to fit") when a pack is too wide
+## for the enemy half at full size; every ship in the pack takes the same step.
+var draw_scale: float = 1.0
+## The picture's own size, before any shrinking: what the pack layout plans
+## with (zero while a coded drawing is drawn).
+var full_ink: Vector2i = Vector2i.ZERO
+
+func set_draw_scale(s: float) -> void:
+	if not is_equal_approx(s, draw_scale):
+		draw_scale = s
+		_sig = ""
+
+## SMALLER AS PIXEL ART, never resampled on screen: each new pixel takes the
+## area it covers of the old (light weighted by how much of it is hull), is
+## kept where at least COVER of it is hull, and snaps back to a colour the
+## picture already has -- the way `tools/enemy_sprites.py` shrank the calf. Cut
+## once per picture and scale.
+const COVER := 0.34
+static var _shrunk: Dictionary = {}
+
+static func shrunk(src: Image, s: float, key: String = "") -> Image:
+	var k := "%s@%.3f" % [key, s]
+	if key != "" and _shrunk.has(k):
+		return _shrunk[k]
+	var ink := src.get_used_rect()
+	var w := ink.size.x
+	var h := ink.size.y
+	var ow := maxi(1, int(round(w * s)))
+	var oh := maxi(1, int(round(h * s)))
+	var out := Image.create(ow, oh, false, Image.FORMAT_RGBA8)
+	var pal := {}
+	for y in h:
+		for x in w:
+			var c := src.get_pixel(ink.position.x + x, ink.position.y + y)
+			if c.a > 0.5:
+				pal[c.to_rgba32()] = c
+	var cols: Array = pal.values()
+	var memo := {}
+	var fx := float(w) / float(ow)
+	var fy := float(h) / float(oh)
+	for j in oh:
+		var y0 := j * fy
+		var y1 := (j + 1) * fy
+		for i in ow:
+			var x0 := i * fx
+			var x1 := (i + 1) * fx
+			var cover := 0.0
+			var acc := Vector3.ZERO
+			var only := -1
+			var mixed := false
+			for sy in range(int(floor(y0)), mini(h, int(ceil(y1)))):
+				var wy := minf(y1, sy + 1.0) - maxf(y0, float(sy))
+				for sx in range(int(floor(x0)), mini(w, int(ceil(x1)))):
+					var wx := minf(x1, sx + 1.0) - maxf(x0, float(sx))
+					var c := src.get_pixel(ink.position.x + sx, ink.position.y + sy)
+					if c.a <= 0.5:
+						continue
+					var a := wx * wy
+					cover += a
+					acc += Vector3(c.r, c.g, c.b) * a
+					var id := c.to_rgba32()
+					if only == -1:
+						only = id
+					elif only != id:
+						mixed = true
+			if cover / (fx * fy) < COVER:
+				continue
+			if not mixed:
+				out.set_pixel(i, j, pal[only])
+				continue
+			var m := acc / cover
+			var q := Vector3i(int(m.x * 31.0), int(m.y * 31.0), int(m.z * 31.0))
+			if not memo.has(q):
+				var best: Color = cols[0]
+				var bd := 99.0
+				for c2 in cols:
+					var d := Vector3(c2.r, c2.g, c2.b).distance_squared_to(m)
+					if d < bd:
+						bd = d
+						best = c2
+				memo[q] = best
+			out.set_pixel(i, j, memo[q])
+	if key != "":
+		_shrunk[k] = out
+	return out
 
 func dither(x: int, y: int, w: int, h: int, c: Color, density: float) -> void:
 	var thresholds := [0.0, 0.5, 0.75, 0.25]
@@ -367,18 +457,19 @@ func snapshot() -> Image:
 static var _wrecks: Dictionary = {}
 static var _wreck_tasks: Dictionary = {}
 
-static func _wreck_key(t: EnemyTemplate, max_hp: int, style: int, look: int) -> String:
+static func _wreck_key(t: EnemyTemplate, max_hp: int, style: int, look: int, scale: float = 1.0) -> String:
 	# Size only changes the drawing for fauna; see `_draw_fauna`. `look` is which
-	# of the kind's pictures this ship wears (`Combat.look_for`).
-	return "%s|%d|%d|%d" % [t.id, int(t.fauna and max_hp > 60), style, look]
+	# of the kind's pictures this ship wears (`Combat.look_for`); `scale` how big
+	# the pack drew it (`draw_scale`).
+	return "%s|%d|%d|%d|%.3f" % [t.id, int(t.fauna and max_hp > 60), style, look, scale]
 
 ## Start cutting this enemy's wreck now, off the main thread. Drawing the dead
 ## canvas to cut is the only part done here (a few ms).
-static func warm_wreck(e: Combat.EnemyState, style: int) -> void:
-	var key := _wreck_key(e.template, e.max_hp, style, e.look)
+static func warm_wreck(e: Combat.EnemyState, style: int, scale: float = 1.0) -> void:
+	var key := _wreck_key(e.template, e.max_hp, style, e.look, scale)
 	if _wrecks.has(key) or _wreck_tasks.has(key):
 		return
-	var dc := dead_canvas(e)
+	var dc := dead_canvas(e, scale)
 	var img: Image = dc[0]
 	var used: Rect2i = dc[1]
 	var seed := wreck_seed(e.template)
@@ -404,8 +495,9 @@ static func _take_wreck(key: String) -> Image:
 ## dead draw -- the slot, LOCAL's wreck -- are one image to the pixel; the live
 ## picture's wound depends on the hull it had, which nothing after the kill
 ## knows. The difference is hidden under the hit's flash.
-static func dead_canvas(e: Combat.EnemyState) -> Array:
+static func dead_canvas(e: Combat.EnemyState, scale: float = 1.0) -> Array:
 	var art := EnemyArt.new()
+	art.draw_scale = scale
 	var ghost := Combat.EnemyState.new()
 	ghost.template = e.template
 	ghost.max_hp = e.max_hp
@@ -447,7 +539,7 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	# has a sprite and the other does not, it would.
 	var sig := "%s|%s|%d|%d|%d|%d|%d" % [e.template.id, e.template.art, int(telegraphing),
 		int(wounded * 20.0), int(e.max_hp > 60), int(dead), int(cut_wreck) * (style + 2)]
-	sig += "|look %d" % e.look
+	sig += "|look %d|scale %.3f" % [e.look, draw_scale]
 	if sig == _sig:
 		return
 	_sig = sig
@@ -498,7 +590,7 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	# fight, are the same broken hull the animation ended on.
 	if dead and cut_wreck:
 		var st := style if style >= 0 else _default_style(e.template)
-		var key := _wreck_key(e.template, e.max_hp, st, e.look)
+		var key := _wreck_key(e.template, e.max_hp, st, e.look, draw_scale)
 		var w := _take_wreck(key)
 		if w == null:
 			w = ShipBreakup.wreck_image(_img, _used, wreck_seed(e.template),
