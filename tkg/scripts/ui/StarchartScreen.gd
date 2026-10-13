@@ -2745,9 +2745,6 @@ class MapChart extends Control:
 				MOUSE_BUTTON_LEFT:
 					if mb.pressed:
 						var hit := _node_at(mb.position)
-						if hit < 0 and mb.double_click and _solid_on():
-							# the solid galaxy's camera back to its resting view
-							ChartSky.solid_reset()
 						if hit >= 0:
 							node_picked.emit(hit)
 						else:
@@ -3286,8 +3283,6 @@ class MapChart extends Control:
 	## same press out, and both take the same route so the second undoes the
 	## first rather than snapping to a different overview.
 	func frame_galaxy() -> void:
-		if _solid_on():
-			ChartSky.solid_reset()
 		glide_to(ZOOM_MIN, Vector2.ZERO)
 
 	## `animate` false SNAPS, which is what an ARRIVAL wants.

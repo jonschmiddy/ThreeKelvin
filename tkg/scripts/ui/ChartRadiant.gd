@@ -238,6 +238,23 @@ static func begin_bake(sky: ChartSky, g: Dictionary, holder: Node) -> Array[SubV
 		var mn := ShaderMaterial.new()
 		mn.shader = NOISE_SH
 		out.append(sky._pass_vp(holder, Vector2i(528, 528), ChartSky._rect(mn), true))
+	# THE SOLID LOOK's height fields read SIMPLIFIED's two bakes (`chart_solid`'s
+	# contract: the noise's billows, the structure's ridges and lanes), so RADIANT's
+	# puffs, terrain and edge stand where SIMPLIFIED's do; baked beside its own
+	g["_s_at"] = out.size()
+	for mode in 2:
+		var n := ChartSky.NOISE_N if mode == 0 else (ChartSky.STRUCT_N if (int(p.arms) > 0 or float(p.bar) > 0.0) else 16)
+		var ms := ShaderMaterial.new()
+		ms.shader = ChartSky.BAKE_SH
+		ms.set_shader_parameter("mode", mode)
+		ms.set_shader_parameter("ext", ChartSky.EXT)
+		ms.set_shader_parameter("arms", float(p.arms))
+		ms.set_shader_parameter("twist", float(p.twist))
+		ms.set_shader_parameter("bar", float(p.bar))
+		ms.set_shader_parameter("spin", float(p.spin))
+		ms.set_shader_parameter("spread", float(p.spread))
+		ms.set_shader_parameter("chaos", float(p.chaos))
+		out.append(sky._pass_vp(holder, Vector2i(n, n), ChartSky._rect(ms), false))
 	return out
 
 
@@ -254,9 +271,17 @@ static func mid_bake(sky: ChartSky, g: Dictionary, vps: Array, holder: Node) -> 
 	g["discA"] = ImageTexture.create_from_image(imgs[0])
 	g["discB"] = ImageTexture.create_from_image(imgs[1])
 	g["knotMap"] = ImageTexture.create_from_image(imgs[2])
-	if imgs.size() > 3:
+	var s_at := int(g.get("_s_at", imgs.size()))
+	if s_at > 3:
 		_noise = ImageTexture.create_from_image(imgs[3])
 	g["noise_r"] = _noise
+	# (SIMPLIFIED's bakes for the solid look, as `ChartSky._stage_bakes` keeps them)
+	if imgs.size() >= s_at + 2:
+		for i in 2:
+			imgs[s_at + i].convert(Image.FORMAT_RGBA8)
+			imgs[s_at + i].generate_mipmaps()
+		g["noise"] = ImageTexture.create_from_image(imgs[s_at])
+		g["struct"] = ImageTexture.create_from_image(imgs[s_at + 1])
 	for vp: SubViewport in vps:
 		vp.queue_free()
 	var m := ShaderMaterial.new()
@@ -287,6 +312,11 @@ static func feed_static(m: ShaderMaterial, g: Dictionary) -> void:
 	LegacyHole.apply(m, ChartSky.TILT)
 	feed_common(m, p, L)
 	m.set_shader_parameter("u_noise", g.noise_r)
+	# the solid look's height fields read SIMPLIFIED's bakes (`chart_solid`)
+	m.set_shader_parameter("u_sNoise", g.get("noise"))
+	m.set_shader_parameter("u_sStruct", g.get("struct"))
+	m.set_shader_parameter("u_sExt", ChartSky.EXT)
+	m.set_shader_parameter("u_isBall", bool(L.ell))
 	m.set_shader_parameter("u_discA", g.discA)
 	m.set_shader_parameter("u_discB", g.discB)
 	m.set_shader_parameter("u_hor", g.hor)
