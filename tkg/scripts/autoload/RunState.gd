@@ -2094,7 +2094,7 @@ func harvest_pulsar() -> void:
 	Sig.resources_changed.emit()
 	# Last: it can end the run, and everything above has to have happened first.
 	# Dying with the fuel aboard is the point of the trade.
-	take_hull_damage(burn, "Cooked by a neutron star. The hull held; nothing inside it did.")
+	take_hull_damage(burn, "A neutron star's beam killed the crew. The hull held.")
 
 func take_hull_damage(amount: int, reason: String) -> void:
 	hp -= amount
