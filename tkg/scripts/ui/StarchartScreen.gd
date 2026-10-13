@@ -451,8 +451,8 @@ const PRIMER_W := 460
 const PRIMER_LEGEND: Array[String] = [
 	"A system's colour is its star: pale is ordinary, red and blue are rarer.",
 	"You fly as far as THRUSTER REACH and see as far as SENSOR RANGE. Past your sight a jump is priced and then refused: NOT SCANNED.",
-	"Each row shows danger, then fuel. Full danger beside empty fuel is a cheap trip somewhere awful.",
-	"Danger climbs in five named steps (EASY, ROUGH, HARD, BRUTAL, LETHAL), and what a system is willing to offer you climbs with it.",
+	"Each row shows danger, then fuel. Full danger beside empty fuel is a cheap, deadly jump.",
+	"Danger has five steps: EASY, ROUGH, HARD, BRUTAL and LETHAL. A more dangerous system offers more.",
 ]
 
 
@@ -483,7 +483,7 @@ func _primer_cost() -> Array[String]:
 	elif reach <= 0.85:
 		out.append("A tight disc. Systems sit close together, so a tank goes further here.")
 	if dens >= 1.15:
-		out.append("It is thick with systems. There will be more places to stop than you can afford to.")
+		out.append("It has many systems. There are more places to stop than you can afford.")
 	elif dens <= 0.80:
 		out.append("It has few systems. Some stretches have nothing in them.")
 	# THE ANISOTROPY, AND IT RUNS THE OTHER WAY FROM THE BRIEF.
@@ -503,7 +503,7 @@ func _primer_cost() -> Array[String]:
 	if sq < 0.5:
 		out.append("It is steeply tilted, so the chart misleads on distance. A gap up or down costs far more than the same gap sideways.")
 	if out.is_empty():
-		out.append("Ordinary to cross: no unusual distances, and no unusual gaps.")
+		out.append("It is ordinary to cross, with no unusual distances or gaps.")
 	return out
 
 

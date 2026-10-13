@@ -69,7 +69,7 @@ func _rebuild() -> void:
 		add_child(yn)
 	else:
 		var all := DrawerPlate.chip_for("RESET ALL KEYS", false, ask_reset_all)
-		all.tooltip_text = Widgets.tip("Every key back to how the game came. Asks first.")
+		all.tooltip_text = Widgets.tip("Resets every key to its default, after asking.")
 		all.disabled = _all_default()
 		add_child(all)
 

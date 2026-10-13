@@ -423,7 +423,7 @@ func _confirm_new_run() -> void:
 	col.add_child(UITheme.body("LAUNCH A RUN", UITheme.ICE, UITheme.FS_HEAD))
 	if save.is_empty():
 		col.add_child(UITheme.body(
-			"Leave the seed empty for a galaxy nobody has flown.",
+			"Leave the seed empty for a new, random galaxy.",
 			UITheme.COLD, UITheme.FS_SMALL))
 	else:
 		# The abandoned run still goes on the flight record, so this is a cost

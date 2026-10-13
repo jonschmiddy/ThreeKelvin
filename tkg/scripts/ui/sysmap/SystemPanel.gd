@@ -665,9 +665,9 @@ func _card(body: int, bc) -> Control:
 		# of their own holding one sentence and that button.
 		var words: Array
 		if bc == null:
-			words = ["HARVEST THE BEAM", "NEUTRON STAR", "The pulsar's beam sweeps the system once a second. Hold the ship in it and the hull heats up.", "HARVESTED" if n.cleared else "HARVEST", UITheme.TRACTOR, n.cleared]
+			words = ["HARVEST THE BEAM", "NEUTRON STAR", "The pulsar's beam sweeps by once a second. Sitting in it gives fuel but costs hull and heat.", "HARVESTED" if n.cleared else "HARVEST", UITheme.TRACTOR, n.cleared]
 		elif bc.dock:
-			words = ["DOCK", "STATION", "A station rides this orbit. Its berths are open and its decks are lit.", "DOCK", UITheme.ICE, false]
+			words = ["DOCK", "STATION", "A station is in this orbit. Its berths are open.", "DOCK", UITheme.ICE, false]
 		else:
 			words = ["THE CUSTODIAN", "CONTACT", "The Custodian holds station at the edge of the disc. It has guarded the core for a long time.", "ENGAGE", UITheme.BAD, n.cleared or n.fled]
 		var btn := _small(words[3], func() -> void: screen.take_action(bc), words[5])

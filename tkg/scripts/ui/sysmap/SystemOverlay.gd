@@ -1207,7 +1207,7 @@ func _draw_tip() -> void:
 		elif bc.core:
 			chip = UITheme.BAD
 			lines.append(["THE CUSTODIAN", UITheme.HOT])
-			lines.append(["IT HAS BEEN WAITING", UITheme.BAD])
+			lines.append(["GUARDS THE CORE", UITheme.BAD])
 		lines.append(_click_line(int(h.body)))
 	var f := _font()
 	var w := 0.0
