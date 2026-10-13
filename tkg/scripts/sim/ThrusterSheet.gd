@@ -156,7 +156,18 @@ func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 	var pad_r := 8 if player else 66
 	var tw := cw + 16 + pad_r
 	var th := chh + 16
-	var cols := 4
+	# THE COLUMNS: today, then one per flame setting. By default the three
+	# looks at `fps=`/`rag=`; `set=a_dyn` is Jon's pick, A at the lively speed,
+	# before and after "more visually dynamic" and "more sparks and fire".
+	var configs: Array = []
+	if _arg("set", "") == "a_dyn":
+		configs = [{look = 0, name = "A  LIVELY (before)", fps = 8.0, rag = 1.0, dyn = false},
+			{look = 0, name = "A  DYNAMIC + SPARKS", fps = 8.0, rag = 1.0, dyn = true}]
+	else:
+		for lk in 3:
+			configs.append({look = lk, name = ThrusterFx.LOOK_NAMES[lk], fps = float(_arg("fps", "8")),
+				rag = float(_arg("rag", "1.0")), dyn = false})
+	var cols := 1 + configs.size()
 	var vw := ROW_LABEL_W + cols * tw
 	var vh := LABEL_H + 3 * th
 	var sub := SubViewport.new()
@@ -168,7 +179,9 @@ func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 	var bg := Stars.new()
 	bg.size = Vector2(vw, vh)
 	sub.add_child(bg)
-	var heads := ["TODAY", ThrusterFx.LOOK_NAMES[0], ThrusterFx.LOOK_NAMES[1], ThrusterFx.LOOK_NAMES[2]]
+	var heads := ["TODAY"]
+	for cf in configs:
+		heads.append(cf.name)
 	for c in cols:
 		_label(sub, heads[c], Vector2(ROW_LABEL_W + c * tw + 8, 1))
 	for r in 3:
@@ -180,11 +193,16 @@ func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 	var tiles: Array = []
 	var looks: Dictionary = {}
 	var clock := func() -> float: return _t
-	for look in 3:
+	for ci in configs.size():
+		var cfg: Dictionary = configs[ci]
+		var look: int = cfg.look
 		var t0 := Time.get_ticks_usec()
 		var fx := ThrusterFx.for_hull(h, hull_img, look, 7) if player else ThrusterFx.for_sprite(hull_img, used, look, 7)
-		fx.fps = float(_arg("fps", "8"))
-		fx.rag = float(_arg("rag", "1.0"))
+		fx.fps = float(cfg.fps)
+		fx.rag = float(cfg.rag)
+		fx.dynamic = bool(cfg.dyn)
+		fx.particles = bool(cfg.dyn)
+		fx.loop_n = 12 if bool(cfg.dyn) else ThrusterFx.LOOP
 		var find_ms := (Time.get_ticks_usec() - t0) / 1000.0
 		var t1 := Time.get_ticks_usec()
 		var lens := []
@@ -196,7 +214,8 @@ func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 		for n in fx.nozzles:
 			var pts: PackedVector2Array = n.pts
 			nz.append({rows = pts.size(), first = [pts[0].x, pts[0].y], last = [pts[-1].x, pts[-1].y]})
-		looks[look] = {fx = fx, info = {look = ThrusterFx.LOOK_NAMES[look], blurb = ThrusterFx.LOOK_BLURB[look],
+		looks[ci] = {fx = fx, info = {look = cfg.name, blurb = ThrusterFx.LOOK_BLURB[look], dynamic = bool(cfg.dyn),
+			loop_frames = fx.frames(), flame_fps = fx.fps,
 			nozzles = nz, lengths = lens, find_ms = snappedf(find_ms, 0.01), build_ms = snappedf(build_ms, 0.01),
 			pictures = fx._cache.size() + fx._spill.size()}}
 	var starts: Array = _check_starts(h, hull_img, looks) if player else []
@@ -246,15 +265,18 @@ func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 		draws += 1
 		sub.get_texture().get_image().save_png("%s/f_%04d.png" % [dir, f])
 	var per_look := {}
-	for look2 in 3:
+	for look2 in looks.size():
 		var tot := 0
 		for fl5 in flames:
 			if fl5.fx == looks[look2].fx:
 				tot += fl5.cost_us
 		# three tiles (idle, cruise, full) per look: the cost of ONE ship a frame
+		var fx5: ThrusterFx = looks[look2].fx
 		looks[look2].info.draw_us_per_ship_frame = snappedf(float(tot) / float(draws) / 3.0, 0.01)
+		looks[look2].info.particle_us_per_ship_frame = snappedf(float(fx5.particle_us) / float(draws) / 3.0, 0.01)
+		looks[look2].info.particle_px_per_ship_frame = snappedf(float(fx5.particle_px) / float(draws) / 3.0, 0.1)
 		per_look[look2] = looks[look2].info
-	var meta := {ship = ship, player = player, frames = frames, fps = 30, flame_fps = float(_arg("fps", "8")), flame_rag = float(_arg("rag", "1.0")), tile = [tw, th],
+	var meta := {ship = ship, player = player, frames = frames, fps = 30, flame_fps = float(_arg("fps", "8")), flame_rag = float(_arg("rag", "1.0")), set = _arg("set", ""), tile = [tw, th],
 		canvas = [cw, chh], hull_at_in_tile = [8, 8], ink_w = looks[0].fx.ink_w, tiles = tiles,
 		columns = heads, rows = ThrusterFx.THRUST_NAMES, looks = per_look,
 		worst_frame_us_all_tiles = worst, starts = starts,
@@ -262,10 +284,13 @@ func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 	var fa := FileAccess.open(dir.path_join("layout.json"), FileAccess.WRITE)
 	fa.store_string(JSON.stringify(meta, "  "))
 	fa.close()
-	print("thrustersheet: %s %dx%d frames=%d nozzles=%d lengths=%s draw_us=%s/%s/%s build_ms=%s/%s/%s" % [
-		ship, vw, vh, frames, looks[0].fx.nozzles.size(), str(looks[0].info.lengths),
-		per_look[0].draw_us_per_ship_frame, per_look[1].draw_us_per_ship_frame, per_look[2].draw_us_per_ship_frame,
-		per_look[0].build_ms, per_look[1].build_ms, per_look[2].build_ms])
+	var cost := []
+	for k9 in per_look:
+		cost.append("%s draw %.2f us (particles %.2f us, %.1f px) build %.1f ms" % [per_look[k9].look,
+			per_look[k9].draw_us_per_ship_frame, per_look[k9].particle_us_per_ship_frame,
+			per_look[k9].particle_px_per_ship_frame, per_look[k9].build_ms])
+	print("thrustersheet: %s %dx%d frames=%d nozzles=%d lengths=%s | %s" % [
+		ship, vw, vh, frames, looks[0].fx.nozzles.size(), str(looks[0].info.lengths), " | ".join(cost)])
 	sub.queue_free()
 	await tree.process_frame
 
@@ -356,7 +381,7 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 				r0 = mini(r0, at.y + y4)
 				r1 = maxi(r1, at.y + y4)
 		var today_col := at.x + col
-		for look in 3:
+		for look in looks.size():
 			var fx: ThrusterFx = looks[look].fx
 			var ni := -1
 			for k2 in fx.nozzles.size():
@@ -364,7 +389,7 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 					ni = k2
 			for thrust in 3:
 				var row := {engine = ti, strip = int(e2.id), back = back, today_col = today_col, today_rows = [r0, r1],
-					look = ThrusterFx.LOOK_NAMES[look], thrust = ThrusterFx.THRUST_NAMES[thrust]}
+					look = looks[look].info.look, thrust = ThrusterFx.THRUST_NAMES[thrust]}
 				# Every loop frame of a living flame: the start must hold on all of
 				# them. The worst frame's numbers are kept.
 				var c_lo := 1 << 20
@@ -421,7 +446,7 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 					var a0 := "%d" % r0_lo if r0_lo == r0_hi else "%d..%d" % [r0_lo, r0_hi]
 					var a1 := "%d" % r1_lo if r1_lo == r1_hi else "%d..%d" % [r1_lo, r1_hi]
 					print("  %-3d %-5d %-12s %-12s | %-10s %-6s %-18s %-5d %s" % [ti, int(e2.id), "%d%s" % [today_col, " back" if back else ""],
-						"%d-%d" % [r0, r1], (ThrusterFx.LOOK_NAMES[look] as String).substr(0, 10), ThrusterFx.THRUST_NAMES[thrust],
+						"%d-%d" % [r0, r1], (looks[look].info.look as String).substr(0, 10), ThrusterFx.THRUST_NAMES[thrust],
 						"%s / %s-%s" % [cc, a0, a1], over, "ok" if ok else "FAIL"])
 	# THE BELL IS FULL: at full burn the hull pixels a strip always covers (heavy
 	# S's stern cavity) are at least 90% lit by the coded flame, every look.
@@ -446,7 +471,7 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 			if hull_img.get_pixel(x10, y10).a > 0.5 and shown[y10 * cw + x10] == 0:
 				rim_x = mini(rim_x, x10)
 	if channel > 0 and has_bell:
-		for look2 in 3:
+		for look2 in looks.size():
 			var fx2: ThrusterFx = looks[look2].fx
 			var cases := [["FULL", fx2.base_length(ThrusterFx.Thrust.FULL)],
 				["IDLE", fx2.base_length(ThrusterFx.Thrust.IDLE)],
@@ -483,12 +508,36 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 				var ok2 := worst_frac >= 0.9 and (worst_past >= 8 or not idle_case)
 				if not ok2:
 					bad += 1
-				out.append({fill_check = ThrusterFx.LOOK_NAMES[look2], thrust = cs[0], length = cs[1], channel_px = channel,
+				out.append({fill_check = looks[look2].info.look, thrust = cs[0], length = cs[1], channel_px = channel,
 					covered_px = worst_cov, fraction = snappedf(worst_frac, 0.001), past_rim_px = worst_past,
 					frames = fx2.frames(), ok = ok2})
 				print("  bell at %-6s L=%-3d %-11s worst of %d frames: %d of %d always-covered hull px lit (%.1f%%), %d px past the rim (x %d) %s" % [
-					cs[0], cs[1], ThrusterFx.LOOK_NAMES[look2], fx2.frames(), worst_cov, channel, worst_frac * 100.0, worst_past, rim_x,
+					cs[0], cs[1], (looks[look2].info.look as String).substr(0, 11), fx2.frames(), worst_cov, channel, worst_frac * 100.0, worst_past, rim_x,
 					"ok" if ok2 else "FAIL"])
+	# SPARKS AND FIRE never on the hull: every particle pixel over five seconds
+	# at every thrust, against the hull pixels the strip leaves visible.
+	for look3 in looks.size():
+		var fx3: ThrusterFx = looks[look3].fx
+		if not fx3.particles:
+			continue
+		for thrust3 in 3:
+			var on_hull := 0
+			var drawn := 0
+			for f3 in 150:
+				for k4 in fx3.nozzles.size():
+					for q in fx3.particles_at(k4, thrust3, float(f3) / 30.0):
+						drawn += 1
+						var qx: int = q.x
+						var qy: int = q.y
+						if qx >= 0 and qy >= 0 and qx < cw and qy < chh and shown[qy * cw + qx] == 1:
+							on_hull += 1
+			var ok3 := on_hull == 0
+			if not ok3:
+				bad += 1
+			out.append({particle_check = looks[look3].info.look, thrust = ThrusterFx.THRUST_NAMES[thrust3],
+				particle_px = drawn, on_hull_px = on_hull, ok = ok3})
+			print("  particles %-6s %-20s %d px over 150 frames, %d on visible hull %s" % [ThrusterFx.THRUST_NAMES[thrust3],
+				looks[look3].info.look, drawn, on_hull, "ok" if ok3 else "FAIL"])
 	print("thrustersheet starts %s: %s (%d rows, %d off)" % [DB.hull_art_name(h.weight, h.tier),
 		"PASS" if bad == 0 else "FAIL", out.size(), bad])
 	return out

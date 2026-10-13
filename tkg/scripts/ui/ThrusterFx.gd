@@ -98,6 +98,32 @@ var _seed := 0
 var fps := 8.0
 var rag := 1.0
 const LOOP := 8
+## THE DYNAMIC FLAME (Jon picked A at the lively speed, Oct 13, then: "I want
+## it to be more visually dynamic" and "more sparks and fire coming off the
+## back"). `dynamic` swaps in the bigger frame loop (`_frame`, `_stream`):
+## 2-4 licks a frame and longer, sometimes a forked tip, band edges moving 1-2
+## px, the length breathing 2-3 px with the odd surge, the outline wobbling a
+## pixel side to side along its length, over `loop_n` (12) frames so the loop
+## does not read as repeating. `particles` adds sparks and torn-off fire
+## (`particles_at`). Both off is the lively flame as filmed before.
+var dynamic := false
+var particles := false
+var loop_n := LOOP
+## Particles a second per engine, per thrust.
+const SPARK_RATE: Array[float] = [6.0, 16.0, 24.0]
+const BLOB_RATE: Array[float] = [1.5, 4.0, 6.0]
+## The ragged clumps a fire blob is drawn as, by size (1-4 px across).
+const CLUMPS := [
+	[Vector2i(0, 0)],
+	[Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1)],
+	[Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1), Vector2i(2, 0), Vector2i(1, -1)],
+	[Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0), Vector2i(0, 1), Vector2i(1, 1), Vector2i(2, 1), Vector2i(1, -1),
+		Vector2i(3, 0), Vector2i(1, 2), Vector2i(-1, 0)],
+]
+## What the particles cost, summed over every `draw`, for the harness.
+var particle_us := 0
+var particle_px := 0
+var _tails := {}
 
 
 # ------------------------------------------------------------------ making one
@@ -393,11 +419,11 @@ func length_at(n: int, thrust: int, t: float) -> int:
 func frame_at(n: int, t: float) -> int:
 	if fps <= 0.0:
 		return 0
-	return posmod(int(floor(t * fps)) + n * 3 + _seed, LOOP)
+	return posmod(int(floor(t * fps)) + n * 3 + _seed, loop_n)
 
 
 func frames() -> int:
-	return LOOP if fps > 0.0 else 1
+	return loop_n if fps > 0.0 else 1
 
 
 ## Every picture this thrust can ask for, built now rather than on first sight.
@@ -405,7 +431,7 @@ func warm_up(thrust: int) -> void:
 	var b := base_length(thrust)
 	for n in nozzles.size():
 		if fps > 0.0:
-			for f in LOOP:
+			for f in loop_n:
 				plume(n, b, f)
 		else:
 			var amp := FLICK[thrust]
@@ -427,6 +453,16 @@ func draw(ci: CanvasItem, origin: Vector2, thrust: int, t: float) -> void:
 		var p := plume(n, length_at(n, thrust, t), frame_at(n, t))
 		if p.tex != null:
 			ci.draw_texture(p.tex, origin + (p.at as Vector2))
+	if particles:
+		var t0 := Time.get_ticks_usec()
+		var s: Dictionary = SHAPE[look]
+		var ramp := _ramp()
+		for n2 in nozzles.size():
+			for q in particles_at(n2, thrust, t):
+				var band: int = q.band
+				ci.draw_rect(Rect2(origin + Vector2(q.x, q.y), Vector2.ONE), _lv(ramp[band], float(s.lv[band]) * float(q.k)))
+				particle_px += 1
+		particle_us += Time.get_ticks_usec() - t0
 
 
 static func add_material() -> CanvasItemMaterial:
@@ -462,6 +498,16 @@ func _frame(n: int, fr: int) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([_seed, look, n, fr])
 	var out := {}
+	if dynamic:
+		out.dL = rng.randi_range(-2, 3)
+		if rng.randf() < 0.15:
+			out.dL = rng.randi_range(4, 6)   # the surge frame
+		out.shift = rng.randi_range(-2, 2)
+		out.bshift = rng.randi_range(0, 2)
+		out.rows = rng.randi() | 1
+		out.wob = rng.randf() * TAU
+		out.ember = {}
+		return out
 	var big := rag >= 1.5
 	out.dL = rng.randi_range(-1, 1) * (2 if big else 1) + (rng.randi_range(0, 1) if big else 0)
 	out.shift = rng.randi_range(-1, 1)
@@ -501,7 +547,7 @@ func plume(n: int, L: int, fr: int = 0) -> Dictionary:
 		var st0: Dictionary = streams[-1]
 		var src: PackedVector2Array = st0.pts
 		for j in 3:
-			var ep: Dictionary = _frame(n, posmod(fr - j, LOOP)).ember
+			var ep: Dictionary = _frame(n, posmod(fr - j, loop_n)).ember
 			if ep.is_empty() or src.is_empty():
 				continue
 			var row := clampi(int(float(ep.row) * float(src.size())), 0, src.size() - 1)
@@ -512,8 +558,8 @@ func plume(n: int, L: int, fr: int = 0) -> Dictionary:
 	var lo := Vector2i(1 << 20, 1 << 20)
 	var hi := Vector2i(-(1 << 20), -(1 << 20))
 	for st in streams:
-		var sl: int = int(round(float(st.L) * (1.0 + 0.5 * rag))) + 2
-		var sp := 2 + int(float(sl) * float(st.spk))
+		var sl: int = int(round(float(st.L) * (1.0 + (1.0 if dynamic else 0.5) * rag))) + 2
+		var sp := 3 + int(float(sl) * float(st.spk))
 		for e in (st.pts as PackedVector2Array):
 			var x2 := int(e.x) + sl * dir
 			lo = Vector2i(mini(lo.x, mini(int(e.x), x2)), mini(lo.y, int(e.y) - sp))
@@ -539,6 +585,93 @@ func plume(n: int, L: int, fr: int = 0) -> Dictionary:
 			float(st2.get("gain", 1.0)), fp)
 	var out := _quantize(buf, W, Hh, at, s)
 	_cache[key] = out
+	return out
+
+
+## SPARKS AND FIRE OFF THE BACK (Jon: "more sparks and fire coming off the
+## back"). Particles, not frames, so they never repeat with the loop, and
+## STATELESS: particle i of engine n is born at a time, place and speed drawn
+## from (ship seed, engine, kind, i), so any `t` can be drawn on its own and a
+## film is the same every run.
+##   sparks  bright single pixels shed along the TAIL (55-100% of its length,
+##           never at the nozzle), flying back 1-2 px a frame (at 30 a second)
+##           with a little drift, cooling white, yellow, orange, red over 4-8
+##           frames;
+##   fire    ragged 2-4 px clumps torn off the tail tip, drifting back slower,
+##           cooling and shrinking over 6-10 frames.
+## The heat ramp and the look's own levels and dither (the canvas's Bayer, so
+## the pattern is the ship's). A pixel on the hull is never drawn: they fly
+## into the open space behind the ship. On heavy S they leave past the rim.
+## Returns [{x, y, band, k}] in canvas pixels.
+func particles_at(n: int, thrust: int, t: float) -> Array:
+	var out: Array = []
+	var tail := _tail(n, thrust)
+	var pts: PackedVector2Array = tail.pts
+	if pts.is_empty():
+		return out
+	var L: int = tail.L
+	var dir: int = tail.dir
+	var s: Dictionary = SHAPE[look]
+	var dith: Array = s.dith
+	var rng := RandomNumberGenerator.new()
+	for kind in 2:
+		var rate: float = SPARK_RATE[thrust] if kind == 0 else BLOB_RATE[thrust]
+		var period := 1.0 / rate
+		var max_life := (8.0 if kind == 0 else 10.0) / 30.0
+		var i0 := int(floor((t - max_life) / period)) - 1
+		var i1 := int(floor(t / period))
+		for i in range(i0, i1 + 1):
+			rng.seed = hash([_seed, look, n, kind, i])
+			var born := (float(i) + rng.randf()) * period
+			if born > t:
+				continue
+			var age := int(floor((t - born) * 30.0))
+			var life := rng.randi_range(4, 8) if kind == 0 else rng.randi_range(6, 10)
+			if age >= life:
+				continue
+			var e := pts[rng.randi() % pts.size()]
+			var d0 := rng.randf_range(0.55, 1.0) * float(L) if kind == 0 else rng.randf_range(0.85, 1.05) * float(L)
+			var vx := rng.randf_range(1.0, 2.0) if kind == 0 else rng.randf_range(0.6, 1.2)
+			var vy := rng.randf_range(-0.35, 0.35) if kind == 0 else rng.randf_range(-0.2, 0.2)
+			var yo := rng.randi_range(-2, 2) if kind == 0 else rng.randi_range(-1, 1)
+			var size0 := rng.randi_range(2, 4)
+			var x := int(e.x) + int(round((d0 + vx * float(age)) * float(dir)))
+			var y := int(e.y) + yo + int(round(vy * float(age)))
+			var heat := float(age) / float(life)
+			var band := clampi(int(heat * 4.0), 0, 3) if kind == 0 else clampi(1 + int(heat * 3.0), 1, 3)
+			var cells: Array = [Vector2i.ZERO]
+			if kind == 1:
+				var sz := clampi(int(ceil(float(size0) * (1.0 - heat))), 1, 4)
+				cells = CLUMPS[sz - 1]
+			for c in cells:
+				var px := x + (c as Vector2i).x * dir
+				var py := y + (c as Vector2i).y
+				if _is_solid(px, py):
+					continue
+				# A spark is one moving pixel: thinned by the pattern it would
+				# blink on and off as it crosses it, so only its last, reddest
+				# step is dithered. Fire clumps take the look's own dither.
+				var bz: float = BAYER[posmod(py, 2) * 2 + posmod(px, 2)]
+				var cut: float = dith[band] if kind == 1 or band == 3 else 1.0
+				if bz >= cut:
+					continue
+				out.append({x = px, y = py, band = band, k = 1.0 if kind == 0 else 0.9})
+	return out
+
+
+## Where the particles leave from, per engine and thrust: the stream that
+## reaches open space (for a bell, the mouth past the rim) and its length.
+func _tail(n: int, thrust: int) -> Dictionary:
+	var key := Vector2i(n, thrust)
+	if _tails.has(key):
+		return _tails[key]
+	var nz: Dictionary = nozzles[n]
+	var L := base_length(thrust)
+	var out := {pts = nz.pts, L = L, dir = nz.dir}
+	if nz.has("bell"):
+		var idle := thrust == Thrust.IDLE
+		out = {pts = nz.bell.mouth, L = L if idle else int(round(float(L) * 0.7)), dir = nz.dir}
+	_tails[key] = out
 	return out
 
 
@@ -607,15 +740,34 @@ func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedV
 			var a := raw[maxi(0, i2 - 1)]
 			var c := raw[mini(cnt - 1, i2 + 1)]
 			tongue[i2] = maxf(0.45, 1.0 + (a + 2.0 * raw[i2] + c) * 0.25)
+		if dynamic:
+			for i3 in cnt:
+				raw[i3] = rr.randf_range(-0.32, 0.1) * rag
+			for i4 in cnt:
+				var a2 := raw[maxi(0, i4 - 1)]
+				var c2 := raw[mini(cnt - 1, i4 + 1)]
+				tongue[i4] = maxf(0.4, 1.0 + (a2 + 2.0 * raw[i4] + c2) * 0.25)
 		var licks := 1 + (1 if rr.randf() < 0.5 * rag else 0)
+		if dynamic:
+			licks = rr.randi_range(2, 4)
+			# A FORKED TIP: two rows licking out with a short one between.
+			if cnt >= 3 and rr.randf() < 0.35:
+				var fk := rr.randi_range(0, cnt - 3)
+				var fx2 := rr.randf_range(0.3, 0.55) * rag
+				tongue[fk] += fx2
+				tongue[fk + 2] += fx2 * 0.9
+				tongue[fk + 1] = maxf(0.4, tongue[fk + 1] - 0.25)
 		for k in licks:
 			var at_row := rr.randi_range(0, cnt - 1)
 			var extra := rr.randf_range(0.18, 0.38) * rag
+			if dynamic:
+				extra = rr.randf_range(0.3, 0.65) * rag
 			tongue[at_row] += extra
 			if at_row > 0:
 				tongue[at_row - 1] += extra * 0.5
 			if at_row < cnt - 1:
 				tongue[at_row + 1] += extra * 0.5
+	var wob_ph := float(fp.get("wob", -1.0))
 	for idx in cnt:
 		var e2 := em[idx]
 		var ex := int(e2.x)
@@ -641,6 +793,10 @@ func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedV
 					v = minf(1.0, v + knot * (1.0 if dyy == 0 else 0.5))
 				var cx := ex + d * dir
 				var cy := ey + dyy
+				# THE WOBBLE: the outline sways a pixel side to side along the
+				# flame. Never in the first three pixels: the start stays put.
+				if wob_ph >= 0.0 and d > 4:
+					cy += int(round(sin(float(d) * 0.22 + wob_ph)))
 				if _is_solid(cx, cy):
 					continue
 				var xx := cx - at.x
