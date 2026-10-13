@@ -614,7 +614,7 @@ func _windup(t: EnemyTemplate, ink: Rect2i) -> void:
 			_glow(p.x + 1, p.y, maxi(4, ink.size.y / 7), 30)
 		_:
 			var p := _on_hull(ink, _mass(ink))
-			_light(p, clampf(minf(ink.size.x, ink.size.y) * 0.6, 18.0, 46.0), COLD[3], 1.1)
+			_pool(p, clampf(minf(ink.size.x, ink.size.y) * 0.7, 20.0, 52.0), COLD[3], 1.6)
 			# the heart itself, white, on the hull only
 			for dy in range(-2, 3):
 				for dx in range(-2, 3):
@@ -670,6 +670,34 @@ func _light(p: Vector2i, r: float, col: Color, strength: float) -> void:
 			var k := floorf((1.0 - d) * (1.0 - d) * strength * 4.0 + 0.5) / 4.0
 			if d > 0.7:
 				k = 0.12 if float(bayer[(y % 2) * 2 + (x % 2)]) < 0.5 else 0.0
+			if k <= 0.0:
+				continue
+			_img.set_pixel(x, y, Color(minf(1.0, c.r + col.r * k), minf(1.0, c.g + col.g * k),
+				minf(1.0, c.b + col.b * k), c.a))
+
+## THE SAME LIGHT AS A SMOOTH POOL, for a charge building in the body (the
+## Custodian's). `_light`'s quarter steps read as rings on a big pool -- Jon saw
+## them on the core's guard -- so this one falls off continuously and is put
+## into pixels by a 4x4 ordered dither between eighths: no step ever lines up
+## into a band, and it still only lands on plating, never as a haze off it.
+const BAYER4: Array[float] = [0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0,
+	3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0]
+
+func _pool(p: Vector2i, r: float, col: Color, strength: float) -> void:
+	var ri := int(ceil(r))
+	for y in range(p.y - ri, p.y + ri + 1):
+		for x in range(p.x - ri, p.x + ri + 1):
+			if x < 0 or y < 0 or x >= W or y >= H:
+				continue
+			var c := _img.get_pixel(x, y)
+			if c.a < 0.5:
+				continue
+			var d := Vector2(x - p.x, y - p.y).length() / r
+			if d >= 1.0:
+				continue
+			var e := (1.0 - d) * (1.0 - d) * (1.0 + 0.5 * (1.0 - d)) / 1.5 * strength
+			var thr: float = (BAYER4[(y % 4) * 4 + (x % 4)] + 0.5) / 16.0
+			var k := floorf(e * 8.0 + thr) / 8.0
 			if k <= 0.0:
 				continue
 			_img.set_pixel(x, y, Color(minf(1.0, c.r + col.r * k), minf(1.0, c.g + col.g * k),
