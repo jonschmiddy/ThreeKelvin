@@ -1516,7 +1516,7 @@ func _inspect() -> void:
 		var c := Run.contraband_count()
 		var fine := 20 * c
 		Run.add_credits(-fine)
-		Run.log_line("Inspection: %d illegal part%s found. Fined %d credits." % [
+		Run.log_line("Customs found %d illegal part%s and fined you %d credits." % [
 			c, "" if c == 1 else "s", fine], &"heat")
 
 ## Everything on screen. One function per tab body, mirroring `_refresh_work`,
@@ -1583,7 +1583,7 @@ func _refresh_header(n: MapGen.MapNode) -> void:
 	var note := ""
 	match n.region:
 		MapGen.Region.COSMOPOLITAN: note = "stock from many manufacturers, strict inspections"
-		MapGen.Region.LAWLESS: note = "fenced goods, no questions"
+		MapGen.Region.LAWLESS: note = "stolen goods, no customs"
 	_header.clear()
 	_header.append_text("[font_size=%d][color=#%s]%s STATION[/color][/font_size]\n" % [
 		UITheme.FS_HEAD, UITheme.ICE.to_html(false),
@@ -1654,11 +1654,11 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 	var purge_cost := Market.purge_price(n)
 	var offers: Array = [
 		{"label": "PATCH +%d" % eight, "cost": eight_cost, "done": "" if missing > 0 else "HULL FULL",
-			"tip": "%.1f credits a point here. Work is dear on the frontier and cheap in a capital." % Market.repair_rate(n)},
+			"tip": "%.1f credits a point here. Repairs cost more on the frontier than in a capital." % Market.repair_rate(n)},
 		{"label": "REPAIR +%d" % missing, "cost": full_cost, "done": "" if missing > 0 else "HULL FULL",
-			"tip": "Every point of it, in one go."},
+			"tip": "Repairs the whole hull at once."},
 		{"label": "REFUEL +%d" % Market.REFUEL_UNITS, "cost": refuel_cost, "done": "",
-			"tip": "A tankful. Fuel is what a jump costs (see the starchart's reach ring)."},
+			"tip": "Fills the tank. Each jump costs fuel (see the starchart's reach ring)."},
 		{"label": "FAULTS %d" % dross_n, "cost": purge_cost, "done": "" if dross_n > 0 else "NO FAULTS",
 			"tip": "Choose which one comes out. Each costs the same and clears exactly one."},
 	]
@@ -1911,7 +1911,7 @@ func _refresh_stock(n: MapGen.MapNode) -> void:
 	# also carries the one fact a price cannot: a part bought here goes into the
 	# HOLD, not onto the ship, so a full hold is a reason you cannot shop.
 	if _till_note != null:
-		_till_note.text = ("Shelves bare." if on_offer.is_empty()
+		_till_note.text = ("The shelves are empty." if on_offer.is_empty()
 			else "Carry a part down to the till to buy it. It goes into your hold%s"
 				% (", and your hold is full." if Run.hold_full() else "."))
 	# THE ROOM KNOWS WHERE IT IS: how built-up the station is picks which of
@@ -2025,8 +2025,8 @@ func _refresh_hold(n: MapGen.MapNode) -> void:
 	# belongs here and not repeated beside each thing standing near it.
 	_sell_note.text = "Hold %d/%d%s. Carry something to the counter to be paid for it. %s" % [
 		Run.cargo_used(), Run.cargo_slots(), "" if stray == 0 else ", %d on the pad" % stray,
-		"This market has taken a lot today; it is paying less than it was."
-		if n.trades >= 3 else "Prices are what this place will bear."]
+		"This market has bought a lot today, so it pays less than it did."
+		if n.trades >= 3 else "These are this market's usual prices."]
 ## The recipes this place can support, and the tab that hides when it cannot.
 
 
@@ -2482,7 +2482,7 @@ func _sign_button(c: ContractData) -> Button:
 	var take := Widgets.button("SIGN", func() -> void:
 		Run.take_contract(c)
 		_refresh())
-	take.tooltip_text = Widgets.tip("Nothing here expires. Sign it and forget it, or never sign it at all.")
+	take.tooltip_text = Widgets.tip("Nothing here expires. You can sign it now, later or never.")
 	take.add_theme_font_size_override("font_size", UITheme.FS_HEAD)
 	take.custom_minimum_size = Vector2(72, 26)
 	take.size_flags_horizontal = Control.SIZE_SHRINK_END

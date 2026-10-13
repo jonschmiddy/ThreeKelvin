@@ -1552,6 +1552,11 @@ func _input(event: InputEvent) -> void:
 	# the escape menu either: the page behind it would change while you read it.
 	if Run.hull == null or Router.is_front_door(Router.current) or _menu != null:
 		return
+	# Nor off the end of a run: the custodian's body, whose only way on is the
+	# win screen (`Router.final_loot`), and the run-end screen itself, which
+	# Tab would leave for LOCAL in a run that is already over.
+	if Router.final_loot or Router.current is GameOverScreen:
+		return
 	# LOCAL, SECTOR, STARCHART, round. The screens a run is actually played on,
 	# in the order you move between them: where you are side on, the sector
 	# round you, where you are going. LOCAL is the station while docked, as its
@@ -1578,6 +1583,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if k.keycode == KEY_ESCAPE:
 		if _menu != null and _menu.in_settings():
 			_menu.hide_settings()
+		elif Router.final_loot and _menu == null:
+			# THE CUSTODIAN'S BODY: Escape is DONE, as it is the way out of any
+			# popup. The escape menu here would offer ABANDON on a run already
+			# recorded as won.
+			Router.finish_core_loot()
 		elif Router.current is LauncherScreen:
 			# Nothing to pause: the launcher IS the menu. Its Settings drawer is
 			# the one thing Esc can close there.
@@ -1649,7 +1659,11 @@ func toggle_menu(animate: bool = true) -> void:
 	# have it vanish from the flight record entirely.
 	_menu.quit_requested.connect(func() -> void:
 		toggle_menu(false)
-		RunHistory.record(RunHistory.Outcome.ABANDONED, "Abandoned mid-run.")
+		# Not a run that has already ended: from the win or death screen the
+		# record already says WON or DIED, and this would add an ABANDONED after
+		# it (the guard `Router.new_run` has always had).
+		if not Run.dead and not Run.won:
+			RunHistory.record(RunHistory.Outcome.ABANDONED, "Abandoned mid-run.")
 		SaveGame.clear()
 		# No ship any more, which is the state the game boots in and the state
 		# the title screen expects. It also stops new_run() recording this same

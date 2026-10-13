@@ -408,7 +408,7 @@ func refresh() -> void:
 		lit == ZoomLadder.LOCAL or lit == ZoomLadder.STATION or fighting,
 		choose_lock, here_hint)
 	_state(_tab_system, lit == ZoomLadder.MAP, lock,
-		"The star, what goes round it, and everything out here that wants you.")
+		"This system's star, what orbits it, and any threats nearby.")
 	_state(_tab_chart, lit == ZoomLadder.CHART, lock, "Where to go next.")
 	_state(_tab_parts, Router.current is ModuleGalleryScreen, choose_lock,
 		"Every part in the game. Dev only.")
@@ -434,7 +434,7 @@ func refresh() -> void:
 	# bar that follows you everywhere is only true where you happen to be
 	# standing — and a figure that silently changes meaning is worse than no
 	# figure. The station screen quotes it where it applies.
-	var hull_note := "Your hull is the ship itself. This is your health.\nAt zero the run ends. Stations weld it back on, for credits."
+	var hull_note := "Hull is your ship's health.\nAt zero the run ends. Stations repair it for credits."
 	# WHAT THE FIGHT HAS SHOWN SO FAR, while a turn plays out on screen: the
 	# hull drops as each shot lands rather than on the click (combat polish).
 	var hp := Run.hp if SectorScreen.shown_hull < 0 else SectorScreen.shown_hull
@@ -459,10 +459,10 @@ func refresh() -> void:
 	# its own", which stopped being true the moment the end-of-turn shed was
 	# deleted. Learned once from the gauge and true of every vent card you
 	# own -- which is why the card face does not reprint it.
-	var heat_note := "Weapons and systems run hot. Heat is what they leave behind.\nPast %d it burns 1 hull a point at end of turn. Your vent cards shed %d more than they print." % [
+	var heat_note := "Weapons and systems make heat.\nPast %d, each point over burns 1 hull at end of turn. Your vent cards shed %d more than they print." % [
 		Run.heat_cap(), shed]
 	if over > 0:
-		heat_note = "Weapons and systems run hot. Heat is what they leave behind.\n%d over the cap: %d hull at end of turn. Your vent cards shed %d more than they print." % [
+		heat_note = "Weapons and systems make heat.\nYou are %d over the cap: %d hull burns at end of turn. Your vent cards shed %d more than they print." % [
 			over, over, shed]
 	_heat.setup(BoxGauge.Mode.HEAT, Run.heat_cap(), heat)
 	_heat.tooltip_text = Widgets.tip(heat_note)
@@ -477,7 +477,7 @@ func refresh() -> void:
 	# One sentence, in one place. See `CreditChit.WHAT_MONEY_IS`.
 	_hint(_scrap, CreditChit.WHAT_MONEY_IS)
 	_value(_fuel, str(Run.fuel))
-	_hint(_fuel, "Fuel burns on every jump, priced by how far it is.\nRun dry between stations and the run ends adrift.")
+	_hint(_fuel, "Every jump burns fuel. Longer jumps burn more.\nIf you run dry between stations, the run ends.")
 
 ## Where the second nav tab goes: the station if you are tied up at one, the
 ## sector if you are flying it. Read at click time so the label and the

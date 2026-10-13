@@ -105,7 +105,7 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 
 	if c.negate_next:
 		cb.negate_next = true
-		cb._log("Next attack will be slipped.", &"good")
+		cb._log("Next attack on you will be negated.", &"good")
 
 	if c.vent > 0:
 		# PLUS THE SHIP'S DISSIPATION, which no longer sheds on its own. The

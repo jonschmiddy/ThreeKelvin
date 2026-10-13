@@ -89,10 +89,10 @@ static func _apply(n: MapGen.MapNode, r: Dictionary) -> String:
 	match StringName(r.kind):
 		&"repair":
 			var healed := Run.heal(int(r.amount))
-			return "Fabricated plate. Repaired %d hull." % healed
+			return "You fabricate plate and repair %d hull." % healed
 		&"fuel":
 			Run.fuel += int(r.amount)
-			return "Cracked feedstock for volatiles. +%d fuel." % int(r.amount)
+			return "Cracked feedstock into %d fuel." % int(r.amount)
 		&"artifact":
 			# Precursor tech is unbranded by definition, so it is rolled the way
 			# a fauna or core drop is rather than being pulled from a manufacturer's

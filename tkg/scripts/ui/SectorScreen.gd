@@ -961,10 +961,10 @@ func _rebuild_drawer(n: MapGen.MapNode) -> void:
 	Widgets.clear(_drawer)
 	_size_drawer(n)
 	if Run.dead:
-		_drawer_simple("Nothing on this hull answers any more.", "SUMMARY")
+		_drawer_simple("The ship is lost. The run is over.", "SUMMARY")
 		return
 	if Run.hellbender_alive() and Run.hellbender_at == n.index:
-		_drawer_simple("The Hellbender rides at anchor here, holds glowing with everything it has taken. Nothing else in this system is reachable past it.",
+		_drawer_simple("The Hellbender is anchored here, its holds glowing with what it has taken. It blocks the rest of this system.",
 			"ENGAGE THE HELLBENDER")
 		return
 	# A SYSTEM OR A STATION: ONE LINE, AND THE WAY TO THE MAP. What is here, its
@@ -1523,7 +1523,7 @@ func _build_hand() -> Control:
 	var flee := Widgets.button("FLEE", _on_flee)
 	_flee_button = flee
 	flee.custom_minimum_size = Vector2(PileView.W, 16)
-	flee.tooltip_text = Widgets.tip("FLEE\n\nRun for it. Maneuver check.")
+	flee.tooltip_text = Widgets.tip("FLEE\n\nGet away on a Maneuver check.")
 	flee.add_theme_color_override("font_color", Color("#d4614f"))
 	flee.add_theme_color_override("font_hover_color", Color("#f08872"))
 	flee.add_theme_stylebox_override("normal",
@@ -1824,7 +1824,7 @@ func _refresh() -> void:
 		# The readout survives death on purpose. Hiding it at the moment the run
 		# ends is how a game stops explaining what just happened to you.
 		if Run.dead:
-			_state.text = "ADRIFT. NOTHING ON THIS HULL ANSWERS ANY MORE."
+			_state.text = "THE SHIP IS LOST. THE RUN IS OVER."
 		elif n.cleared:
 			_state.text = "PICKED CLEAN."
 		else:
@@ -2069,8 +2069,8 @@ func _refresh_flee() -> void:
 	_refresh_gate(_flee_button, "FLEE", combat.flee_reason(),
 		combat.flee_cause(), {
 			&"failed": "You tried. They are still here.",
-			&"boss": "There is nothing past this.",
-			&"": "Run for it. Maneuver check.",
+			&"boss": "You cannot flee this fight.",
+			&"": "Get away on a Maneuver check.",
 		}, UITheme.LEAVE)
 
 
@@ -2084,7 +2084,7 @@ func _refresh_hail() -> void:
 			&"struck": "Too late. You shot first.",
 			&"fauna": "It does not have a radio.",
 			&"boss": "This one is not here to deal.",
-			&"": "Talk them down. Stealth check.",
+			&"": "Talk them down on a Stealth check.",
 		}, UITheme.CHILL)
 
 
@@ -2223,6 +2223,21 @@ func _open_jetsam(h: MapGen.Jetsam, title: String = "") -> void:
 	# before the scan sweep starts and the rarity ladder begins ringing.
 	Audio.play(&"wreck_open")
 	_transfer.setup(h, n, _close_transfer, true, title)
+
+
+## A container opened from outside the screen, with something to do once it is
+## shut: the custodian's body, which the win screen follows
+## (`Router._open_core_body`). The same popup a wreck click opens.
+func open_jetsam(h: MapGen.Jetsam, title: String, after: Callable) -> void:
+	_open_jetsam(h, title)
+	if _transfer != null and after.is_valid():
+		_transfer._on_close = func() -> void:
+			_close_transfer()
+			after.call()
+
+
+func has_open_container() -> bool:
+	return _transfer != null
 
 
 ## The system's own pile, from the button beside PLOT NEXT JUMP.
@@ -3712,7 +3727,7 @@ func _on_hail() -> void:
 	if not fighting() or _exit_ask != null or not combat.can_hail():
 		return
 	_ask_exit("OPEN A CHANNEL?", UITheme.HOT, Color("#8a6420"),
-		"%s. They break off and there is no salvage. Fail and you have told them exactly where you are: %d heat, and the turn is theirs."
+		"%s. They break off and there is no salvage. Fail and you give away your position: %d heat, and they take the turn."
 			% [SkillCheck.badge(combat.hail_check()), Combat.HAIL_HEAT_BOTCHED],
 		"HAIL THEM", "NO ANSWER", func() -> void:
 			combat.hail())
@@ -4301,11 +4316,12 @@ func _check_ending() -> void:
 		&"victory", &"won":
 			_lower_band(func() -> void:
 				# LOCAL arrives with this very layout, so it is not faded in over
-				# it; the wrecks stay exactly where the fight left them.
-				if r == &"victory":
-					Router.seamless_next = true
-					# Nor the page's door sound: nothing on screen changes page.
-					Audio.suppress(&"ui_tab", 300)
+				# it; the wrecks stay exactly where the fight left them. The
+				# core's win comes to LOCAL too, with the Custodian's body opened
+				# over it (`Router.after_combat` -> `_open_core_body`).
+				Router.seamless_next = true
+				# Nor the page's door sound: nothing on screen changes page.
+				Audio.suppress(&"ui_tab", 300)
 				_leave_combat())
 		&"dead":
 			# A beat on the shot that did it, then the run's own screen.

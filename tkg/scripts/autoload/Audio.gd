@@ -416,7 +416,13 @@ const MUSIC_DB := -14.0
 ## stays what the mix wants. A slider that has to sit at 0.2 to sound right is a
 ## slider with four fifths of its travel wasted.
 
+## The last state the game asked the music for, kept even with audio off, so a
+## headless harness can say which cue a screen wired (`-- sheet=CoreWinTest`:
+## the win screen asks for &"gameover", the death screen's Lights Out).
+var music_asked: StringName = &""
+
 func music_state(state: StringName) -> void:
+	music_asked = state
 	if not _enabled:
 		return
 	# A PANEL ASKS FOR NOTHING, and that ruling outlived the system it was written

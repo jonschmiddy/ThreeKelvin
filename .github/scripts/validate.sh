@@ -472,6 +472,41 @@ else
 	bad "deathpooltest did not finish"
 fi
 
+step "Beating the core's boss: its body looted, then the win screen"
+# Jon, Oct 12: the custodian's body lootable, then a win popup with the death
+# screen's music. ENGAGE at the core, the custodian killed through the real
+# fight: the body open with its loot and no win screen yet, the run recorded as
+# won, DONE / Escape / any other door ending on the win screen (Jon's note whole,
+# the stats, TITLE, &"gameover"); an ordinary fight won never comes near it.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot corewintest 180 --headless --path "$PROJECT" -- sheet=CoreWinTest; then
+	if grep -qE '^corewintest: PASS' "$LOG_DIR/corewintest.log"; then
+		ok "the core's win loots the body, then ends the run"
+	else
+		bad "the core's win flow failed"
+		grep -E 'FAIL|^corewintest' "$LOG_DIR/corewintest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "corewintest did not finish"
+fi
+
+step "Jon's welcome note: once per profile, and on the title menu"
+# Opens by itself on a fresh profile's title, word for word and inside the
+# screen; marked seen only when CLOSED; never again after; MESSAGE FROM JON
+# above QUIT opens it again; the first-run intro is never in its way. `welcome`
+# and `intro` let both run under the harness, in its own scratch settings.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot welcometest 120 --headless --path "$PROJECT" -- sheet=WelcomeTest welcome intro; then
+	if grep -qE '^welcometest: PASS' "$LOG_DIR/welcometest.log"; then
+		ok "the welcome note shows once and comes back from the menu"
+	else
+		bad "the welcome note failed"
+		grep -E 'FAIL|^welcometest' "$LOG_DIR/welcometest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "welcometest did not finish"
+fi
+
 step "Every hull sits on its yard stands, centred"
 # Jon: "The ship needs to sit lower. Like actually be on the stands and centered
 # on them." Every hull frame at every grade on every level's stands, measured
@@ -957,6 +992,37 @@ if [ -n "$PY" ]; then
 	rm -f /tmp/enclint.$$
 else
 	warn "no python for the encounter linter"
+fi
+
+step "The prose reads plainly, and does not explain itself"
+
+# Two tools, one question each. `prose_grade.py` holds the encounters to the
+# reading level: grade 7 or under, 17 words a sentence on average, no sentence
+# over 22 words (re-ruled 2026-10-13 for all player-facing text; it was grade 5
+# from 2026-09-12). Every encounter meets it, so it needs no baseline. The rest
+# of the text is reported by `prose_grade.py --all`, not gated. The grade is a
+# ceiling, not a goal: prose_tells' "fragments" flag is the floor.
+# `prose_tells.py` reads EVERY player-facing string for the tells the
+# encounter-prose skill lists -- "It is not X. It is Y." past one an encounter,
+# "which is the point", a summing-up closer, a dash, "round", hands in an
+# encounter -- and is BASELINED like the linter above: what predates it is a
+# ruling for Jon, not a lint failure. Its REVIEW list never fails the gate.
+if [ -n "$PY" ]; then
+	if "$PY" tools/prose_grade.py >/tmp/prosegrade.$$ 2>&1; then
+		ok "prose grade: $(tail -n 1 /tmp/prosegrade.$$)"
+	else
+		tail -n 1 /tmp/prosegrade.$$ | sed 's/^/        /'
+		bad "prose grade: encounters over the reading-level target (python tools/prose_grade.py)"
+	fi
+	if "$PY" tools/prose_tells.py --strict --quiet >/tmp/prosetells.$$ 2>&1; then
+		ok "prose tells: no new findings"
+	else
+		grep -A1 "NEW " /tmp/prosetells.$$ | head -20 | sed 's/^/      /'
+		bad "prose tells: new findings (see above; python tools/prose_tells.py)"
+	fi
+	rm -f /tmp/prosegrade.$$ /tmp/prosetells.$$
+else
+	warn "no python for the prose checks"
 fi
 
 step "One word for the thing: manufacturer"

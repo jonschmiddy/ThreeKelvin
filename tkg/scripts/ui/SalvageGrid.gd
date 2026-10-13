@@ -333,6 +333,16 @@ func _layout() -> void:
 	custom_minimum_size = Vector2(_cols * CELL, _rows * CELL)
 
 
+## How many rows the things in it take, without the spare row. What a popup
+## sizes its view of this grid by (`TransferView.refresh`): a count of items
+## cannot say it, since two 2x2 parts fill two rows of five columns.
+func content_rows() -> int:
+	var r := 0
+	for m in _items:
+		r = maxi(r, (_at[m] as Vector2i).y + (m as HoldItem).footprint().y)
+	return r
+
+
 ## Scans down as far as it needs to. The container has no floor -- unlike a hold,
 ## which is a fixed box, a pile is however big the pile is, and refusing to show
 ## the last item because a number ran out would be inventing a rule.

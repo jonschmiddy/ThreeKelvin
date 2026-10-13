@@ -379,7 +379,7 @@ func end_turn() -> void:
 	if stuck > 0:
 		_log("%d hull from junk left in hand." % stuck, &"them")
 		Sig.hull_burned.emit(stuck, &"junk")
-		Run.take_hull_damage(stuck, "Malfunctioning systems, left too long.")
+		Run.take_hull_damage(stuck, "Malfunctions left too long broke the hull.")
 
 	# FUSED CARDS DO NOT GO. Everything else in the hand is swept into the
 	# discard; a fused card stays, which is what makes it charge you again next
@@ -430,7 +430,7 @@ func end_turn() -> void:
 		_log("⚠ OVERHEAT: %d hull burned (%d/%d)." % [burn, Run.heat, Run.heat_cap()], &"heat")
 		Sig.overheated.emit(burn)
 		Sig.hull_burned.emit(burn, &"overheat")
-		Run.take_hull_damage(burn, "Your reactor cooked the hull from the inside.")
+		Run.take_hull_damage(burn, "The ship overheated and burned through its own hull.")
 		if Run.dead:
 			_finish(&"dead", Run.death_reason)
 			return
@@ -512,7 +512,7 @@ func _act_one(e: EnemyState) -> void:
 		_log("◂ %s: %s" % [e.template.name, I.name], &"them")
 		Run.hellbender_breaks_off(e.hp)
 		_finish(&"broke_off",
-			"A blind jump, furnace-bright. It is gone: hurt, hot, and mending. No salvage.")
+			"It makes a blind jump and gets away hurt. It mends as it feeds. No salvage.")
 		return
 	_log("◂ %s: %s" % [e.template.name, I.name], &"them")
 	if I.block > 0:
@@ -558,7 +558,7 @@ func _act_one(e: EnemyState) -> void:
 			if total > 0:
 				_log("  %d hull damage." % total, &"them")
 				Sig.damage_dealt.emit(total, true, enemies.find(e))
-				Run.take_hull_damage(total, "Hull integrity lost. The cold gets in fast.")
+				Run.take_hull_damage(total, "Enemy fire broke the hull open.")
 			if feedback > 0:
 				damage_enemy(feedback, 1, "Feedback")
 			if Run.dead:
@@ -982,18 +982,18 @@ func hail() -> void:
 			Run.node_at().fled = true
 			Sig.resources_changed.emit()
 			_finish(&"hailed",
-				"They listen, decide you are not worth the paperwork, and go.")
+				"They listen, decide you are not worth a fight, and leave.")
 		SkillCheck.Band.PARTIAL:
 			Run.heat += HAIL_HEAT_PARTIAL
 			Run.node_at().fled = true
 			Sig.resources_changed.emit()
 			_finish(&"hailed",
-				"They break off, slowly, and take a long look at you on the way past.")
+				"They break off slowly and scan you as they pass.")
 		_:
 			Run.heat += HAIL_HEAT_BOTCHED
 			Sig.resources_changed.emit()
 			hail_failed = true
-			exit_note = "You hail on an open channel. It tells them exactly where you are, and the turn is theirs. They will not take another."
+			exit_note = "Your hail on an open channel gives away your position, and they take the turn. They will not answer another hail."
 			Run.log_line(exit_note, &"heat")
 			end_turn()
 
@@ -1103,6 +1103,63 @@ func flee() -> void:
 	_finish(&"fled", "You burned %d fuel breaking contact. No salvage."
 		% (FLEE_FUEL + (FLEE_FUEL_PARTIAL if band == SkillCheck.Band.PARTIAL else 0)))
 
+## WHAT THE CUSTODIAN'S BODY HOLDS: two precursor parts, two branded
+## legendaries, and the instrument shadow (Jon, Oct 13, option C of three: the
+## first version took the best of any rarity and came back nearly all
+## precursor).
+##
+## Generous because it is the last thing a run pays, and nothing after it
+## competes for the hold. Each part is the first roll of `LootGen.roll_module`
+## that is what its slot asks for -- ARTIFACT with precursor parts allowed, or
+## LEGENDARY from a manufacturer -- so affixes and scrap value come out exactly
+## as any drop's, and never the same part twice. Rolled as the deepest danger
+## whatever the node says, so the gates that hold legendaries back never apply
+## to the galaxy's boss. If a slot finds nothing in `CORE_TRIES` rolls, the
+## best it saw stands, so the body is never short.
+##
+## The INSTRUMENT SHADOW is the material table's own core piece -- "a sensor
+## plate burned in the shape of something that passed between it and the
+## core" -- and taking it off the thing that guards the core is the fitting
+## place for it.
+##
+## POSITIONAL, as every wreck is (see `_victory`): keyed by the node and how
+## many wrecks it already holds, so a party's machines open the same body.
+const CORE_PRECURSOR := 2
+const CORE_LEGENDARY := 2
+const CORE_PARTS := CORE_PRECURSOR + CORE_LEGENDARY
+const CORE_TRIES := 300
+
+static func core_body(node: MapGen.MapNode, t: EnemyTemplate) -> MapGen.Jetsam:
+	var wrecks_before := 0
+	for raw in node.jetsam:
+		if (raw as MapGen.Jetsam).is_wreck():
+			wrecks_before += 1
+	var r := Rng.derive(&"wreck", node.index * 64 + wrecks_before)
+	var h := Run.new_wreck(node, t)
+	var have: Array[StringName] = []
+	for i in CORE_PARTS:
+		var precursor := i < CORE_PRECURSOR
+		var best: ModuleData = null
+		for k in CORE_TRIES:
+			var m := LootGen.roll_module(MapGen.DANGER_MAX, &"", precursor, r)
+			if m.id in have:
+				continue
+			var fits := m.rarity == ModuleData.Rarity.ARTIFACT if precursor \
+				else (m.rarity == ModuleData.Rarity.LEGENDARY and m.manufacturer != &"")
+			if fits:
+				best = m
+				break
+			if best == null or m.rarity > best.rarity:
+				best = m
+		if best == null:
+			best = LootGen.roll_module(MapGen.DANGER_MAX, &"", precursor, r)
+		have.append(best.id)
+		h.items.append(best)
+	var row := MaterialTable.by_id(&"custodian_shadow")
+	if not row.is_empty():
+		h.items.append(MaterialData.of(row))
+	return h
+
 func _victory() -> void:
 	Run.kills += 1
 	var node: MapGen.MapNode = Run.node_at()
@@ -1131,12 +1188,23 @@ func _victory() -> void:
 	Run.clear_contract_target(node.index)
 
 	if enemy.template.boss:
-		# STRAIGHT TO THE LEDGER, not into a wreck. The run ends on this kill,
-		# so there is no sector to reach into and no later screen to collect
-		# from -- packaged as salvage, the core boss's authored credit_reward
-		# simply evaporated. A chit takes no room, and the flight record logs
-		# the credits you finish with.
+		# THE CREDITS STRAIGHT TO THE LEDGER. A chit takes no room, and the
+		# flight record and the win screen both read the credits you finish
+		# with -- a chit left in the body would be money the summary never saw.
 		Run.add_credits(purse)
+		# AND THE BODY IS LOOTED BEFORE THE RUN ENDS (Jon, Oct 12: "when
+		# defeating the final boss at the core, let's have the body of the boss
+		# lootable, but let it end the alpha with a winning game popup"). It
+		# used to end on this line with nothing to open. Now the custodian
+		# leaves a wreck like any other kill, `Router.after_combat` opens it
+		# over LOCAL, and DONE brings up the win screen.
+		#
+		# THE WIN IS RECORDED HERE, AT THE KILL, not when the popup opens. The
+		# same rule as dying: a player who quits while looting has still won,
+		# the suspend save goes now, and `Run.won` keeps the autosave from
+		# writing a cleared core back to disk -- so no way out of the loot step
+		# leaves a run that can no longer be won.
+		Combat.core_body(node, enemy.template)
 		Run.win()
 		_finish(&"won", "The core opens.")
 		return
@@ -1235,7 +1303,7 @@ func _pacify() -> void:
 	# says where you were. Fifth door, same hinge; see Archive.recover_at.
 	Archive.recover_at(node, "left alongside")
 	_finish(&"pacified",
-		"It stops circling and drifts off singing. 1 exotic material. The pod remembers.")
+		"It stops circling and drifts off, singing. You get 1 exotic material.")
 
 func _finish(res: StringName, text: String) -> void:
 	finished = true
@@ -1346,7 +1414,7 @@ func _on_fight_changed(at: int) -> void:
 		# it and written its hull back; this machine only has to stop fighting.
 		if f.broke:
 			_finish(&"broke_off",
-				"A blind jump, furnace-bright. It is gone: hurt, hot, and mending. No salvage.")
+				"It makes a blind jump and gets away hurt. It mends as it feeds. No salvage.")
 			return
 		# The host decides the fight is won, not this machine. Everyone still in
 		# it when the last hull came apart is paid, which is the ruling: winning
