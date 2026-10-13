@@ -443,6 +443,8 @@ func show_wrecks(wrecks: Array, on_open: Callable) -> void:
 		_made[i].opened = on_open.bind(h)
 		# The style it died in, from where it lies -- the same roll the kill made.
 		_made[i].death_style = EnemyArt.death_style(t, Run.node_at().index, i)
+		# and where it lies, so the marks its fight left are on it
+		_made[i].wreck_id = Run.node_at().index * 64 + i
 		_made[i].bind(i, ghost, false)
 		# What is still in it, on the label. `ship_changed` re-runs the screen's
 		# refresh on every take, so the number follows the hand emptying it.
@@ -555,6 +557,8 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 		var e = list[i]
 		if death_style.is_valid():
 			_made[i].death_style = int(death_style.call(i))
+		if wreck_id.is_valid():
+			_made[i].wreck_id = int(wreck_id.call(i))
 		_made[i].bind(i, e, e.intent != null and e.intent.telegraph)
 	# A NEW SLOT IS AN ARRIVAL: a fight opening, or reinforcements. Flown in
 	# AFTER the bind, because the bind sizes the slot to its ship and the
@@ -654,6 +658,9 @@ func chips_for(i: int) -> HBoxContainer:
 ## Which style enemy `i` of this fight dies in, asked by the slots before they
 ## draw (the fight's screen knows where the wrecks will lie).
 var death_style: Callable
+## Where each fight slot's wreck will lie (`node * 64 + nth`), by index: keys the
+## slot's marked wreck and seeds its hit effects (`EnemySlot.wreck_id`).
+var wreck_id: Callable
 
 ## Forwarded to every slot: what a held card would do to that target.
 var preview: Callable:

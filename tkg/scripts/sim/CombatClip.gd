@@ -12,6 +12,7 @@ extends Node
 ##       out=<dir> fight=<id>[,<id>...] [end=win|lose|flee|hail] [seed=N]
 ##       [manufacturer=korvan] [weight=light|medium|heavy] [danger=N] [hp=N] [heat=N]
 ##       [after=150] [maxframes=N] [nofilm] [timing] [hints] [rest]
+##       [prefer=defence] [youblock=N]
 ##
 ## `out=<dir>` gets `f_####.png` (the window as seen: 1920x1080, the game at
 ## 2x), `events.json` (every signal that matters, by frame: card released, shot
@@ -184,6 +185,13 @@ func _run() -> void:
 			block = es.intent.block if es.intent != null else 0})
 	# The fight's opening: let the contacts fly in and the hand deal.
 	await _wait(45)
+	# `youblock=N`: N block on your ship now, as a card would give it (a deck
+	# may hold no block card), so a film shows your bubble come up and take hits
+	if _arg("youblock") != "":
+		_cb.block += int(_arg("youblock"))
+		_log("you_block", {block = _cb.block})
+		Sig.player_combat_state_changed.emit()
+		await _wait(30)
 
 	var end := _arg("end", "win")
 	var cap := int(_arg("maxframes", "2400"))
@@ -201,6 +209,14 @@ func _run() -> void:
 		if _cb.finished:
 			break
 		var pick := pol.best_card(_cb)
+		# `prefer=defence`: a playable block or brace card first, so a film
+		# shows your bubble and your armour (HitLayers)
+		if _arg("prefer") == "defence":
+			for k in _cb.hand.size():
+				var hc: CardData = _cb.hand[k]
+				if (hc.block > 0 or hc.brace > 0) and _cb.can_play(hc):
+					pick = k
+					break
 		if pick < 0:
 			await _wait(10)
 			await _click(_sc._end_button)
