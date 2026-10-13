@@ -219,8 +219,9 @@
    "y0": 20,
    "y1": 29,
    "behind": true,
-   "why": "the drive at the end of the spine, on the centre line, its flame passing BEHIND the end sphere (a weight) and out past it (Jon: \"have the middle thruster go BEHIND the middle pod and eminate from behind the middle of the ship\"); no flame on either arm; widens 3x as fast, so it is as tall as the weight by the time it passes it and shows above, below and beyond it",
-   "widen": 3.0
+   "why": "the drive at the end of the spine, on the centre line, its flame passing BEHIND the end sphere (a weight) and out past it (Jon: \"have the middle thruster go BEHIND the middle pod and eminate from behind the middle of the ship\"); no flame on either arm; widens 1.9x as fast, so a thin hot edge shows above and below the weight and the plume carries on past it; plume 1.25x the length its rows alone would give, so its tip reaches as far back as the earlier over-the-weight flame did.",
+   "widen": 1.9,
+   "length": 1.25
   }
  ],
  "ship_rf_pipes": [

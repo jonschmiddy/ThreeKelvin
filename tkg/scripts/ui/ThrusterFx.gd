@@ -610,7 +610,7 @@ func _override(list: Array, at: Vector2i, scale: float, img: Image = null) -> vo
 				pts[k5] = Vector2(x5 - 1, y5)
 		if not pts.is_empty():
 			var nzo := {pts = pts, dir = 1, behind = bool(d.get("behind", false)),
-				widen = float(d.get("widen", 1.0))}
+				widen = float(d.get("widen", 1.0)), length = float(d.get("length", 1.0))}
 			# A `behind` flame passes behind what is in its way instead of
 			# stopping (the orbit-arm ship's drive, behind its end weight -- Jon:
 			# "go BEHIND the middle pod"), and its length is measured from the far
@@ -861,7 +861,7 @@ static func _size_nozzle(nz: Dictionary, h: int) -> void:
 ## engine's size (`_size_nozzle`).
 func nozzle_length(n: int, thrust: int) -> int:
 	var nz: Dictionary = nozzles[n]
-	return maxi(3, int(round(float(base_length(thrust)) * float(nz.get("lscale", 1.0))))) + int(nz.get("over_span", 0))
+	return maxi(3, int(round(float(base_length(thrust)) * float(nz.get("lscale", 1.0)) * float(nz.get("length", 1.0))))) + int(nz.get("over_span", 0))
 
 
 ## How much hull an engine's middle row crosses after it first leaves the
@@ -1296,6 +1296,10 @@ func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedV
 		var ex := int(e2.x)
 		var ey := int(e2.y)
 		var u := (float(ey) - mid_y) / (half + 0.5)
+		# a drive split round a rod it passes behind (the orbit-arm ship) is one
+		# plume: no row of it is off its axis, so none is cut short
+		if skip > 0:
+			u = 0.0
 		var Lr := maxi(1, int(round(float(L) * (1.0 - 0.5 * u * u) * tongue[idx])))
 		var dim := 1.0 - 0.25 * u * u
 		# A FLAME STOPS AT WHAT IT HITS: once its row has been in open space, the
