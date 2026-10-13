@@ -4,7 +4,7 @@ extends Node
 ## system of a chosen sky, quiet or mid-fight, in the style on the command line.
 ##
 ##   godot --path . --windowed --position 3840,0 -- sheet=LocalShot keepwindow
-##       [style=simplified|legacy|painted|radiant] [graphics=low] [seed=N] [coreb]
+##       [style=simplified|legacy|painted|radiant] [graphics=low] [seed=N]
 ##       [sky=emission|reflection|planetary|remnant|dark|calm|pulsar|core] [node=I]
 ##       [combat [fire]] [approach] [wait=F] [out=<png>] [skyout=<png>]
 ##       [clip=<dir> clipframes=61 clipms=33 cliph=297] [stats=<json>] [bare=<png>] [reduced]
@@ -42,8 +42,6 @@ func _arg(k: String, d: String = "") -> String:
 
 func _ready() -> void:
 	_args = OS.get_cmdline_user_args()
-	# `coreb`: the core's hole big and in the middle (`LocalSky.core_big`, look B)
-	LocalSky.core_big = "coreb" in _args
 	_run.call_deferred()
 
 

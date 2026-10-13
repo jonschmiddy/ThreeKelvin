@@ -98,17 +98,17 @@ const TILT := 0.07
 const SUN_K := {"ORDINARY": 0.62, "RED": 0.44, "BLUE": 0.52}
 const PULSAR_K := 0.42
 const HOLE_K := 0.30
-## THE CORE, BIG (Oct 13, look B, beside A for Jon to pick): at the core the
-## hole you are at stands where the encounter's old flat disc stood, right of
-## your ship in the middle of the view and bigger than it was ("The core fills
-## the viewport"), instead of up on the band. The same shared hole
-## (`CoreLegacy`, its photon table traced once a process), only drawn at
-## CORE_B_K (its disc's outer edge 116 x CORE_B_K px out) round CORE_B_AT.
-## Off (look A, the default until Jon picks): the hole on the band, as every
-## other system's star.
-static var core_big := false
-const CORE_B_AT := Vector2(730.0, 262.0)
-const CORE_B_K := 0.9
+## THE CORE IS THE WORLD YOU ORBIT (Jon, Oct 13: "shouldn't the black hole be
+## bigger in the background though? it's like a planet you are orbiting"). At
+## the core the hole is laid out by the orbited world's own rules (`near_plan`,
+## `_core_near`): right of your ship, low in the view, NEAR_WORLD_R x 1.25 its
+## disc's outer edge, and sliding with the camera as that world does (F_NEAR,
+## Z_NEAR) -- but drawn where the star is drawn, in the scene with the cloud, so
+## its lens bends the cloud behind it (the near world's own picture is a layer
+## of its own and has nothing behind it to bend). The same shared hole
+## (`CoreLegacy`, its photon table traced once a process), at that size in its
+## own 2x2 blocks. There is no hole on the band: this is the system's star.
+const CORE_NEAR_K := 1.25
 const MIN_WORLD_R := 3.0
 ## HOW FAR OUT THE SHIP IS: at REF_K of the way to the system's edge the star is
 ## drawn at SUN_K; nearer bigger, further smaller, as (that distance over the
@@ -206,7 +206,9 @@ var _ready_sky := false
 var _palette_built := false
 var _frame := 0
 var _sun := Vector2(480.0, HORIZON)
-## where the cloud is laid round: the star, but for the core's big hole (look B)
+## where the cloud is laid round: the star, but at the core where the band's
+## star would be (it is baked round that point; slid down with the hole its
+## edge came into view)
 var _cloud_sun := Vector2(480.0, HORIZON)
 var _s := 0.5
 var _sd := 0.0
@@ -827,7 +829,7 @@ func star_k() -> float:
 	if layout.star == SystemLayout.StarKind.PULSAR:
 		return PULSAR_K * f
 	if layout.star == SystemLayout.StarKind.CORE:
-		return CORE_B_K if core_big else HOLE_K * f
+		return _core_near().R / 116.0
 	return float(SUN_K.get(kind, 0.6)) * f
 
 
@@ -846,17 +848,39 @@ func star_light() -> Vector3:
 ## sat inside the band's layer and took its zoom on top of its own, while the
 ## glow held still, so the two came apart.
 func origin() -> Vector2:
-	return _zp(rest_origin(), Z_STAR)
+	return _zp(rest_origin(), _star_z())
 
 
 ## The star with no zoom: what the layout and the palette are laid out from.
 func rest_origin() -> Vector2:
-	return _block_round(_sun - cam * F_STAR)
+	return _block_round(_sun - cam * _star_f())
 
 
 ## the band's centre this frame: where the worlds' orbits are laid out from
 func band_origin() -> Vector2:
 	return _block_round(_sun - cam * F_BAND)
+
+
+## THE CORE'S HOLE AS THE WORLD YOU ORBIT: where `near_plan` puts an orbited
+## world and how big, by its rules -- on the right (the event's side, where an
+## orbited world with an event on it goes), the world's radius NEAR_WORLD_R at
+## the top of its range (CORE_NEAR_K) as the disc's outer edge, centred where
+## that world is centred. {at, R}.
+func _core_near() -> Dictionary:
+	var h := SkyBakeS.hash2(node.index if node != null else 0, 811)
+	var R := roundf(NEAR_WORLD_R * CORE_NEAR_K / 2.0) * 2.0
+	var at := _block_round(Vector2(480.0 + 1.0 * (190.0 + 60.0 * h), 339.0 + 0.2 * R))
+	return {at = at, R = R}
+
+
+## How far the star slides with the camera, and its depth under the cutaway's
+## zoom: the core's hole as the world you orbit, every other star far off.
+func _star_f() -> float:
+	return F_NEAR if layout != null and layout.star == SystemLayout.StarKind.CORE else F_STAR
+
+
+func _star_z() -> float:
+	return Z_NEAR if layout != null and layout.star == SystemLayout.StarKind.CORE else Z_STAR
 
 
 ## WHERE THE CORE'S HOLE IS DRAWN, in the game frame's pixels (the sky's
@@ -963,7 +987,7 @@ func _step(delta: float) -> void:
 	# travel on screen, against the camera's)
 	_far_mat.set_shader_parameter("u_skyPan", -cam * SKY_K)
 	_far_mat.set_shader_parameter("star_at", so)
-	_far_mat.set_shader_parameter("glow_r", _glow_r * _zl(Z_STAR))
+	_far_mat.set_shader_parameter("glow_r", _glow_r * _zl(_star_z()))
 	_far_mat.set_shader_parameter("breath", SystemViewS.breath(pose(t, 4.0)))
 	if _neb_mat != null:
 		_neb_mat.set_shader_parameter("off", neb_off())
@@ -979,7 +1003,7 @@ func _step(delta: float) -> void:
 			_neb_mat.set_shader_parameter("home_zoom", 1.0)
 			_neb_mat.set_shader_parameter("lscale", 1.35)
 			_neb_mat.set_shader_parameter("breath", SystemViewS.breath(pose(t, 4.0)))
-			_neb_mat.set_shader_parameter("hole_r", 116.0 * star_k() * _zl(Z_STAR))
+			_neb_mat.set_shader_parameter("hole_r", 116.0 * star_k() * _zl(_star_z()))
 	if painted:
 		SectorPaintedS.push(self)
 	_step_star(o)
@@ -1011,8 +1035,8 @@ func _step_star(o: Vector2) -> void:
 	# placed where the zoom puts it and drawn at the size it gives it by its own
 	# painter's zoom, never scaled as a picture (a 1.04 scale of the disc drew a
 	# row of its blocks twice)
-	var k := _zl(Z_STAR)
-	star.position = _zp(o, Z_STAR)
+	var k := _zl(_star_z())
+	star.position = _zp(o, _star_z())
 	star.scale = Vector2.ONE
 	if layout.star == SystemLayout.StarKind.CORE:
 		star.set("hole_k", star_k() * k)
@@ -1068,7 +1092,7 @@ func _step_worlds(o: Vector2) -> void:
 			kl = 0.75
 		# (the star's disc as this layer sees it: where `_step_star` put it, at
 		# its own depth, in the band's coordinates)
-		var sr := float(layout.star_r) * star_k() * _zl(Z_STAR)
+		var sr := float(layout.star_r) * star_k() * _zl(_star_z())
 		var so: Vector2 = star.position if star != null else o
 		v.call("step", t, light, kl, so if behind else Vector2(-9999, -9999), sr if behind else 0.0)
 		var vm: ShaderMaterial = v.get("_mat")
@@ -1369,15 +1393,15 @@ func _situate() -> void:
 	_dk = REF_K * (layout.edge + 20.0) / orbit_d
 	# A BIG STAR rides up into the top of the view, cut by it, blazing
 	if layout.star != SystemLayout.StarKind.PULSAR:
-		# (look A's size for the core even under look B: the cloud's anchor)
+		# (the core's: the size it had on the band, for the cloud's anchor)
 		var sk := HOLE_K * clampf(pow(_dk, SIZE_POW), SIZE_LO, SIZE_HI) 			if layout.star == SystemLayout.StarKind.CORE else star_k()
 		var R := float(layout.star_r) * sk * (0.3 if layout.star == SystemLayout.StarKind.CORE else 1.0)
 		_sun.y = HORIZON - roundf(clampf(R - 20.0, 0.0, 36.0) / 2.0) * 2.0
 	# the cloud stays where look A has it: it is baked round that point, and
 	# slid down with the hole its edge came into the view
 	_cloud_sun = _sun
-	if layout.star == SystemLayout.StarKind.CORE and core_big:
-		_sun = CORE_B_AT
+	if layout.star == SystemLayout.StarKind.CORE:
+		_sun = _core_near().at
 
 
 ## The near things' own picture and what is in it.
@@ -1387,6 +1411,10 @@ func _build_near() -> void:
 	_near_world = null
 	near_storm = {}
 	if orbit_target < 0:
+		return
+	# AT THE CORE THE HOLE IS THE WORLD YOU ORBIT (`_core_near`): a rock of the
+	# core's drawn near as well would be a second world there, on your ship's side
+	if layout.star == SystemLayout.StarKind.CORE:
 		return
 	var tgt: SystemLayout.Body = layout.bodies[orbit_target]
 	_near_vp = SubViewport.new()
@@ -1564,7 +1592,7 @@ func scene_to_global(p: Vector2) -> Vector2:
 func star_px() -> float:
 	if layout == null:
 		return 0.0
-	return float(layout.star_r) * star_k() * _zl(Z_STAR)
+	return float(layout.star_r) * star_k() * _zl(_star_z())
 
 
 ## THE GAS CLOSED IN (`no_stars`: "The gas has closed in. ... No stars"): the

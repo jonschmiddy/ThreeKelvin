@@ -1,8 +1,8 @@
 extends Node
 
-## LOCAL AT THE CORE, filmed in either look of its hole (`LocalSky.core_big`):
+## LOCAL AT THE CORE, filmed (its hole as the world you orbit, `LocalSky`):
 ##   godot --path . --resolution 1920x1080 --write-movie <dir>/f.png --fixed-fps 60
-##       -- sheet=CoreLookFilm [coreb] [secs=4]
+##       -- sheet=CoreLookFilm [secs=4]
 ## Opens LOCAL at the core the way the sector map does (`Router.show_local`),
 ## waits two seconds for the sky to come up whole, prints the frame the film
 ## proper starts on, holds `secs` seconds and quits. Every clock in the picture
@@ -18,7 +18,6 @@ func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
 	var args := OS.get_cmdline_user_args()
-	LocalSky.core_big = "coreb" in args
 	var secs := 4.0
 	for a in args:
 		if a.begins_with("secs="):
@@ -37,7 +36,7 @@ func _run() -> void:
 		ShipView.shot_clock = t
 		if t >= 2.0 and start < 0:
 			start = Engine.get_process_frames()
-			print("corelookfilm: %s, film starts at %.3f s" % ["B" if LocalSky.core_big else "A", t])
+			print("corelookfilm: film starts at %.3f s" % t)
 		await tree.process_frame
 		t += 1.0 / 60.0
 	ShipView.shot_clock = -1.0

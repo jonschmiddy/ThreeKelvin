@@ -8,7 +8,9 @@ extends Node
 ## picture (`EncounterView.AreaView`) drew it a second time beside your ship.
 ## For several galaxies: at the core and at every pulsar the place picture is
 ## empty while the sky's star is that star; every other kind of system keeps
-## its place picture (a station, a beacon, a battlefield, a derelict).
+## its place picture (a station, a beacon, a battlefield, a derelict). Then the
+## real LOCAL at the core: the hole is drawn once, as the world you orbit (Jon:
+## "it's like a planet you are orbiting"), clear of your ship and the bottom.
 
 var _fails := 0
 
@@ -53,12 +55,11 @@ func _run() -> void:
 					if what == &"":
 						_ok("seed %d node %d (type %d) keeps its place picture" % [seed, n.index, n.type], false)
 		area.free()
-	# THE REAL LOCAL AT THE CORE, in both looks: no place picture; look A's hole
-	# up on the band, look B's big one clear of your ship and of the strip
-	# along the bottom, inside the view
-	for big in [false, true]:
-		await _local_core(big)
-	LocalSky.core_big = false
+	# THE REAL LOCAL AT THE CORE: no place picture, no near world, and the one
+	# hole -- the system's star, laid out as the world you orbit -- low on the
+	# right, clear of your ship and of the strip along the bottom, in the view
+	for seed in [4242, 31337, 7, 99]:
+		await _local_core(seed)
 	print("  places seen: %s" % str(seen))
 	_ok("the core was seen", int(seen.get(&"core", 0)) > 0)
 	_ok("a pulsar was seen", int(seen.get(&"pulsar", 0)) > 0)
@@ -68,9 +69,8 @@ func _run() -> void:
 	get_tree().quit(1 if _fails > 0 else 0)
 
 
-func _local_core(big: bool) -> void:
-	LocalSky.core_big = big
-	Rng.forced = 4242
+func _local_core(seed: int) -> void:
+	Rng.forced = seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var core := -1
 	for n: MapGen.MapNode in Run.map:
@@ -82,23 +82,22 @@ func _local_core(big: bool) -> void:
 	for i in 6:
 		await get_tree().process_frame
 	var sc := Router.current as SectorScreen
-	var look := "B" if big else "A"
-	if not _ok("look %s: LOCAL opens at the core" % look, sc != null and sc._view != null):
+	if not _ok("seed %d: LOCAL opens at the core" % seed, sc != null and sc._view != null):
 		return
 	var view: EncounterView = sc._view
-	_ok("look %s: no place picture at the core" % look, view._area._place_name() == &"")
 	var sky: LocalSky = view.backdrop
+	_ok("seed %d: no place picture and no near world at the core" % seed,
+		view._area._place_name() == &"" and sky._near.is_empty())
 	var hole := sky.hole_box()
-	if not big:
-		_ok("look A: the hole is the band's star, up top (%s)" % str(hole), hole.get_center().y < 140.0)
-		return
 	var sv := view.ship_view()
 	var sr: Rect2 = sv.ship_rect()
 	var ship := Rect2(sv.get_global_rect().position + sr.position, sr.size)
-	_ok("look B: the hole (%s) is clear of your ship (%s)" % [str(hole), str(ship)], not hole.intersects(ship))
+	_ok("seed %d: the hole (%s) is the world you orbit, low on the right" % [seed, str(hole)],
+		hole.get_center().y > 300.0 and hole.get_center().x > 600.0)
+	_ok("seed %d: the hole is clear of your ship (%s)" % [seed, str(ship)], not hole.intersects(ship))
 	var vr := view.get_global_rect()
-	_ok("look B: the hole is inside the view (%s)" % str(vr), vr.encloses(hole))
+	_ok("seed %d: the hole is inside the view (%s)" % [seed, str(vr)], vr.encloses(hole))
 	for c: Control in [sc._quiet_wrap, sc._events]:
 		if c != null and c.is_visible_in_tree():
-			_ok("look B: the hole is clear of the strip along the bottom (%s)" % str(c.get_global_rect()),
+			_ok("seed %d: the hole is clear of the strip along the bottom (%s)" % [seed, str(c.get_global_rect())],
 				not hole.intersects(c.get_global_rect()))
