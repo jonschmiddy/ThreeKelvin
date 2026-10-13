@@ -319,7 +319,7 @@ static func for_sprite(img: Image, used: Rect2i, the_look: int, seed: int, id: S
 	# `img`; `scale` is its size against the file the table was read off.
 	var ov = engine_override(id)
 	if ov != null:
-		fx._override(ov as Array, pic_at, scale)
+		fx._override(ov as Array, pic_at, scale, img)
 		fx.ink_w = used.size.x
 		for nz0 in fx.nozzles:
 			_size_nozzle(nz0, (nz0.pts as PackedVector2Array).size())
@@ -414,7 +414,7 @@ static func engine_override(id: String):
 ## from its column -- forward through plating to the first open pixel, or back
 ## through open space to the plating, at most 12 px -- and the flame starts
 ## there; a row that never finds one (a tow cable running on) is left out.
-func _override(list: Array, at: Vector2i, scale: float) -> void:
+func _override(list: Array, at: Vector2i, scale: float, img: Image = null) -> void:
 	for e in list:
 		var d: Dictionary = e
 		var pts := PackedVector2Array()
@@ -435,8 +435,18 @@ func _override(list: Array, at: Vector2i, scale: float) -> void:
 				while k <= 12 and not _is_solid(x - 1, cy):
 					x -= 1
 					k += 1
-			if k <= 12:
-				pts.append(Vector2(x, cy))
+			if k > 12:
+				continue
+			# FLUSH WITH THE NOZZLE (Jon on the domes ship: "Doesn't quite fit
+			# nozzle"): most of these pictures end in a 1 px dark outline, and a
+			# flame starting past it reads as starting a pixel off the engine.
+			# Where the last hull pixel is that outline, the flame starts on it.
+			if img != null and _is_solid(x - 1, cy):
+				var c := img.get_pixel(x - 1, cy)
+				if c.get_luminance() < 0.2:
+					x -= 1
+					_solid[cy * _w + x] = 0
+			pts.append(Vector2(x, cy))
 		if not pts.is_empty():
 			nozzles.append({pts = pts, dir = 1})
 

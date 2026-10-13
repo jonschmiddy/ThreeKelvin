@@ -202,6 +202,13 @@ func _film(group: String, ships: Array, dir: String, frames: int, layer: CanvasL
 			engines = [], build_ms = snappedf(build_ms, 0.1)}
 		e.merge(_diagnose(fx, img, used, player or ThrusterFx.engine_override(s2.id) != null), true)
 		e.override = ThrusterFx.engine_override(s2.id) != null
+		if e.override:
+			var fit := _fit_check(fx, img, ThrusterFx.engine_override(s2.id) as Array)
+			e.fit = fit
+			for f in fit:
+				if not bool(f.ok):
+					(e.flags as Array).append("engine %d does not fit its nozzle: lights %d of the opening's %d rows at their edge" % [
+						int(f.engine), int(f.start_h), int(f.opening_h)])
 		if player:
 			var looks := {0: {fx = fx, info = {look = "A  DYNAMIC"}}}
 			var st: Array = checker._check_starts(s2.hull, img, looks)
@@ -238,6 +245,86 @@ func _film(group: String, ships: Array, dir: String, frames: int, layer: CanvasL
 	fa.close()
 	sub.queue_free()
 	await tree.process_frame
+
+
+## A HAND-PLACED ENGINE FITS ITS NOZZLE (Jon on the domes ship: "Doesn't quite
+## fit nozzle"). The opening at the placed column: the contiguous rows round the
+## entry's middle whose hull edge is within 2 px of the deepest (not rows
+## another engine of the ship claims; a `port` entry is its own opening). The
+## flame's start: how many of those rows it lights right at their own edge (on
+## the outline, the edge or one past), on its worst loop frame at full burn. It
+## fits when that is at least 90% of the opening.
+func _fit_check(fx: ThrusterFx, img: Image, entries: Array) -> Array:
+	var out: Array = []
+	var solid := func(x: int, y: int) -> bool:
+		return x >= 0 and y >= 0 and x < img.get_width() and y < img.get_height() and img.get_pixel(x, y).a > 0.5
+	# rows another engine of this ship claims are not this one's opening
+	var claimed := {}
+	for i0 in entries.size():
+		for y0 in range(int(entries[i0].y0), int(entries[i0].y1) + 1):
+			claimed[y0] = i0
+	for i in mini(entries.size(), fx.nozzles.size()):
+		var d: Dictionary = entries[i]
+		var x0 := int(d.x)
+		var edges := {}
+		for y in range(maxi(0, int(d.y0) - 12), mini(img.get_height(), int(d.y1) + 13)):
+			if claimed.has(y) and int(claimed[y]) != i:
+				continue
+			var x := x0
+			var k := 0
+			if solid.call(x, y):
+				while k <= 12 and solid.call(x, y):
+					x += 1
+					k += 1
+			else:
+				while k <= 12 and not solid.call(x - 1, y):
+					x -= 1
+					k += 1
+			if k <= 12:
+				edges[y] = x
+		var deep := -1
+		for y2 in range(int(d.y0), int(d.y1) + 1):
+			if edges.has(y2):
+				deep = maxi(deep, int(edges[y2]))
+		var a := int(d.y0)
+		var b := int(d.y1)
+		# a deliberate port (a lit engine smaller than the flat stern it sits in,
+		# the dish ship's) is its own opening
+		if not bool(d.get("port", false)):
+			while edges.has(a - 1) and deep - int(edges[a - 1]) <= 2:
+				a -= 1
+			while edges.has(b + 1) and deep - int(edges[b + 1]) <= 2:
+				b += 1
+		var rows := 0
+		for y3 in range(a, b + 1):
+			if edges.has(y3):
+				rows += 1
+		# the flame's start: how many of the opening's rows it lights at their own
+		# edge (on the outline, on the edge or one past), on its worst frame
+		var covered := 1 << 20
+		for fr in fx.frames():
+			var p := fx.plume(i, fx.nozzle_length(i, ThrusterFx.Thrust.FULL), fr)
+			if p.tex == null:
+				covered = 0
+				continue
+			var pim: Image = (p.tex as ImageTexture).get_image()
+			var pat: Vector2i = p.at
+			var n := 0
+			for y4 in range(a, b + 1):
+				if not edges.has(y4):
+					continue
+				var hit := false
+				for dx: int in [-1, 0, 1]:
+					var px := int(edges[y4]) + dx - pat.x
+					var py := y4 - pat.y
+					if px >= 0 and py >= 0 and px < pim.get_width() and py < pim.get_height() and pim.get_pixel(px, py).a > 0.0:
+						hit = true
+				if hit:
+					n += 1
+			covered = mini(covered, n)
+		out.append({engine = i, opening_rows = [a, b], opening_h = rows, start_h = covered,
+			ok = covered >= int(ceil(0.9 * float(rows)))})
+	return out
 
 
 ## What can be measured about a ship's engines without looking at it:
