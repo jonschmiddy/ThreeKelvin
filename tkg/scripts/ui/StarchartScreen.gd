@@ -99,6 +99,43 @@ var _primer: Control = null
 ## than silently skipped. Still no save key, still nothing on the wire.
 static var _primed_for: int = -1
 
+## THE TOOLBAR ROW along the top of the chart, and of the sector map, which is
+## built from the same pieces (Jon: "do the danger bar the same style as the
+## layer bar ... It should be the same height as the button bar for the
+## starchart"): one height whether it holds buttons or not (17, a button's own,
+## measured), so the two rows line up to the pixel as the camera moves between
+## them.
+const BAR_H := 17
+
+
+static func toolbar_row() -> HBoxContainer:
+	var r := HBoxContainer.new()
+	r.add_theme_constant_override("separation", 7)
+	r.custom_minimum_size = Vector2(0, BAR_H)
+	return r
+
+
+## A button on that row, its width held so the row does not shuffle as its
+## word changes (SHOW / HIDE).
+static func bar_button(text: String, action: Callable, w: float) -> Button:
+	var b := Widgets.button(text, action)
+	b.custom_minimum_size = Vector2(w, 14)
+	return b
+
+
+## The row's pips: `n` blocks, each the colour `colour(i)` says.
+static func fill_pips(cells: HBoxContainer, n: int, colour: Callable) -> void:
+	for c in cells.get_children():
+		cells.remove_child(c)
+		c.queue_free()
+	for i in n:
+		var cell := Panel.new()
+		cell.custom_minimum_size = Vector2(11, 5)
+		cell.add_theme_stylebox_override("panel",
+			UITheme.flat(colour.call(i), Color(0, 0, 0, 0), 0, 0, 0))
+		cells.add_child(cell)
+
+
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
@@ -119,8 +156,7 @@ func _build() -> void:
 	add_child(root)
 
 	# --- depth strip: the greed clock, always visible
-	var strip := HBoxContainer.new()
-	strip.add_theme_constant_override("separation", 7)
+	var strip := toolbar_row()
 	_layer_text = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	strip.add_child(_layer_text)
 	_layer_cells = HBoxContainer.new()
@@ -135,29 +171,25 @@ func _build() -> void:
 	# rolled something odd — and every one of them shows the player the map they
 	# are supposed to be earning. See DevMode.
 	if DevMode.enabled:
-		_icons_btn = Widgets.button("HIDE SYSTEMS", _on_toggle_icons)
-		_icons_btn.custom_minimum_size = Vector2(112, 14)
+		_icons_btn = bar_button("HIDE SYSTEMS", _on_toggle_icons, 112)
 		strip.add_child(_icons_btn)
 
 	# Debug: the lattice MapGen actually built, rather than the slice of it you
 	# are allowed to use. Pairs with the button beside it — that one shows every
 	# system, this one shows how they are wired, and a generation problem is
 	# usually only visible with both on.
-		_links_btn = Widgets.button("SHOW REACH", _on_toggle_links)
-		_links_btn.custom_minimum_size = Vector2(128, 14)
+		_links_btn = bar_button("SHOW REACH", _on_toggle_links, 128)
 		strip.add_child(_links_btn)
 
 	# And the systems those links run to. Without this the one above draws the
 	# whole lattice over a chart that is still hiding most of the galaxy.
-		_all_btn = Widgets.button("SHOW ALL SYSTEMS", _on_toggle_all)
-		_all_btn.custom_minimum_size = Vector2(140, 14)
+		_all_btn = bar_button("SHOW ALL SYSTEMS", _on_toggle_all, 140)
 		strip.add_child(_all_btn)
 
 	# A new galaxy, right here, under the same ship -- for looking at what the
 	# generator rolls (`Run.dev_regenerate_galaxy`). Not in a co-op session:
 	# the galaxy is the party's.
-		var regen := Widgets.button("REGENERATE GALAXY", _on_regenerate)
-		regen.custom_minimum_size = Vector2(150, 14)
+		var regen := bar_button("REGENERATE GALAXY", _on_regenerate, 150)
 		if Net.is_networked():
 			regen.disabled = true
 			regen.tooltip_text = "Not in a co-op session: the galaxy belongs to the whole party."
@@ -636,18 +668,10 @@ func _refresh() -> void:
 	var here: MapGen.MapNode = Run.node_at()
 
 	_layer_text.text = "LAYER %d/%d" % [here.layer + 1, MapGen.LAYERS]
-	_clear(_layer_cells)
-	for i in MapGen.LAYERS:
-		var cell := Panel.new()
-		cell.custom_minimum_size = Vector2(11, 5)
-		var col := UITheme.LINE
+	fill_pips(_layer_cells, MapGen.LAYERS, func(i: int) -> Color:
 		if i < here.layer:
-			col = UITheme.COLD
-		elif i == here.layer:
-			col = UITheme.FLARE
-		cell.add_theme_stylebox_override("panel",
-			UITheme.flat(col, Color(0, 0, 0, 0), 0, 0, 0))
-		_layer_cells.add_child(cell)
+			return UITheme.COLD
+		return UITheme.FLARE if i == here.layer else UITheme.LINE)
 
 	if _selected >= Run.map.size():
 		_selected = -1

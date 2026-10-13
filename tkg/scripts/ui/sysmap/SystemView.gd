@@ -288,6 +288,8 @@ const BEAT_FOLLOW_S := 0.5
 var _palette: ColorRect
 var _palette_mat: ShaderMaterial
 var _lines: _Lines
+## The worlds' orbit rings drawn (the map's toolbar, HIDE ORBITS)
+var orbits_on := true
 var _fabric: _Fabric
 var _worlds: Node2D
 var _moons: _Moons
@@ -2253,6 +2255,9 @@ class _Lines extends Node2D:
 		return Vector2(L.star_r * k + 2.0, L.star_r * k + 2.0)
 
 	func _draw() -> void:
+		# (HIDE ORBITS on the map's toolbar)
+		if not view.orbits_on:
+			return
 		var L: SystemLayout = view.layout
 		var cam := Vector3(view.zoom, view.pan.x, view.pan.y)
 		var t1 := Time.get_ticks_usec()

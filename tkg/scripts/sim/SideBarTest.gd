@@ -336,6 +336,55 @@ func _click_bar_mid_decode() -> void:
 		(target as Button).text if target is Button else "its row", blocked, heard[0]], blocked and heard[0] == 0)
 
 
+## THE MAP'S TOOLBAR IS THE CHART'S ROW (Jon: "the same style as the layer
+## bar ... the same height as the button bar for the starchart"): the two rows
+## the same height and at the same place to the pixel, the danger pips the
+## chart's own blocks, and its toggles -- HIDE NAMES, HIDE ORBITS -- reaching
+## the overlay and the view and kept across a visit to the chart and back.
+func _toolbar_rows() -> void:
+	ZoomLadder.force = 0
+	Router.show_system()
+	await _frames(6)
+	var m := Router.current as SystemMapScreen
+	var mr: Rect2 = m._strip.get_global_rect()
+	var m_pips := m._danger_cells.get_child_count()
+	var m_pip: Vector2 = (m._danger_cells.get_child(0) as Control).size if m_pips > 0 else Vector2.ZERO
+	Router.show_starchart()
+	await _frames(6)
+	var c := Router.current as StarchartScreen
+	var cr: Rect2 = c._strip_row.get_global_rect()
+	var c_pip: Vector2 = (c._layer_cells.get_child(0) as Control).size
+	_ok("the map's toolbar is the chart's row to the pixel (map %s, chart %s)" % [mr, cr],
+		is_equal_approx(mr.size.y, cr.size.y) and is_equal_approx(mr.position.y, cr.position.y)
+		and is_equal_approx(mr.size.y, float(StarchartScreen.BAR_H)))
+	_ok("its danger pips are the chart's blocks (%d of %s; the chart's %s)" % [m_pips, m_pip, c_pip],
+		m_pips == MapGen.DANGER_MAX and m_pip == c_pip)
+	Router.show_system()
+	await _frames(6)
+	m = Router.current as SystemMapScreen
+	var n0 := SystemMapScreen.names_on
+	var o0 := SystemMapScreen.orbits_on
+	m._names_btn.pressed.emit()
+	m._orbits_btn.pressed.emit()
+	_ok("HIDE NAMES and HIDE ORBITS reach the overlay and the view (%s, %s)" % [m.overlay.names_on, m.view.orbits_on],
+		m.overlay.names_on == not n0 and m.view.orbits_on == not o0
+		and m._names_btn.text == ("HIDE NAMES" if not n0 else "SHOW NAMES"))
+	Router.show_starchart()
+	await _frames(6)
+	Router.show_system()
+	await _frames(6)
+	m = Router.current as SystemMapScreen
+	_ok("and they are kept across the chart and back (%s, %s, \"%s\")" % [m.overlay.names_on, m.view.orbits_on, m._names_btn.text],
+		m.overlay.names_on == not n0 and m.view.orbits_on == not o0
+		and m._orbits_btn.text == ("HIDE ORBITS" if not o0 else "SHOW ORBITS"))
+	m._names_btn.pressed.emit()
+	m._orbits_btn.pressed.emit()
+	_ok("and back on again", SystemMapScreen.names_on == n0 and SystemMapScreen.orbits_on == o0)
+	Router.show_local()
+	await _frames(6)
+	ZoomLadder.force = 1
+
+
 func _buttons(n: Node) -> Array[BaseButton]:
 	var out: Array[BaseButton] = []
 	if n == null:
@@ -403,6 +452,8 @@ func _run() -> void:
 		await _idle()
 	_set_look("")
 	print("  [sidebar] blank frames over every hop: %d" % total)
+	if _ss != null:
+		await _toolbar_rows()
 
 	# THE ANIMATION OFF: headless as the game runs it, and reduced motion
 	Router.animate_in_harness = false

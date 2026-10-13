@@ -251,7 +251,7 @@ func _content() -> void:
 			_total = E_ROW
 			for i in rows.size():
 				var t0 := st * int(group[i])
-				rows[i] = [rows[i][0], rows[i][1], t0, t0 + E_ROW]
+				rows[i] = [rows[i][0], rows[i][1], t0, t0 + E_ROW, rows[i][4], rows[i][5]]
 				_total = maxf(_total, t0 + E_ROW)
 		5:
 			# (each line of text as long as it is wide, one after another in
@@ -268,7 +268,7 @@ func _content() -> void:
 			var at := F_LOST
 			for i: int in order:
 				var d := 0.0 if int(rows[i][1]) == 1 else F_PRINT * maxf((rows[i][0] as Rect2).size.x, 12.0) / maxf(wsum, 1.0)
-				rows[i] = [rows[i][0], rows[i][1], at, at + d]
+				rows[i] = [rows[i][0], rows[i][1], at, at + d, rows[i][4], rows[i][5]]
 				at += d
 			_total = (F_LOST + F_PRINT) if _new_rect.size.x > 0.0 else F_LOST
 	var rv := PackedVector4Array()
@@ -276,7 +276,7 @@ func _content() -> void:
 	for r: Array in rows:
 		var rr := r[0] as Rect2
 		rv.append(Vector4(rr.position.x, rr.position.y, rr.size.x, rr.size.y))
-		rt.append(Vector4(float(r[2]) if r.size() > 2 else 0.0, float(r[3]) if r.size() > 3 else 0.0, float(r[1]), 0.0))
+		rt.append(Vector4(float(r[2]), float(r[3]), float(r[1]), float(r[4])))
 	rv.resize(MAXR)
 	rt.resize(MAXR)
 	var sv := PackedVector4Array()
@@ -447,7 +447,14 @@ func click_floor() -> float:
 func blocks(p: Vector2) -> bool:
 	if done or not _laid or not _rect.has_point(p):
 		return false
-	return state_at(p).z < click_floor()
+	if state_at(p).z < click_floor():
+		return true
+	# (a button: all of it, until its word has resolved, not only the word)
+	for r: Array in _rows_now:
+		var hit: Rect2 = r[5]
+		if hit.has_area() and hit.has_point(p) and t < float(r[3]):
+			return true
+	return false
 
 
 # ------------------------------------------------------------ the content
@@ -471,7 +478,7 @@ static func rows_of(root: Control, clip: Rect2) -> Array:
 			if d < bd:
 				bd = d
 				best = i
-		out[best] = [(out[best][0] as Rect2).merge(out[best + 1][0] as Rect2), 0]
+		out[best] = [(out[best][0] as Rect2).merge(out[best + 1][0] as Rect2), 0, 0.0, 0.0, -1.0, Rect2()]
 		out.remove_at(best + 1)
 	# (text before pictures, each in reading order: where a line of text lies on
 	# a picture -- a card's ground, a stripe -- the line is what a point is in)
@@ -489,6 +496,7 @@ static func _collect(c: Control, clip: Rect2, out: Array) -> void:
 	if c is Label:
 		var l := c as Label
 		var lines := maxi(l.get_visible_line_count(), 1)
+		var gx := -1.0
 		# (one line: only as wide as its words, where its alignment puts them, so
 		# a line resolves and prints over its letters, not the air beside them)
 		if lines == 1:
@@ -501,6 +509,8 @@ static func _collect(c: Control, clip: Rect2, out: Array) -> void:
 				elif l.horizontal_alignment == HORIZONTAL_ALIGNMENT_RIGHT:
 					k = 1.0
 				r = Rect2(r.position.x + floorf((r.size.x - w) * k) - 1.0, r.position.y, ceilf(w) + 2.0, r.size.y)
+				# (and its ground the pixel before its first letter)
+				gx = 0.0
 		var lh := float(l.get_line_height())
 		var sp := float(l.get_theme_constant(&"line_spacing"))
 		var h := lines * lh + (lines - 1) * sp
@@ -516,7 +526,7 @@ static func _collect(c: Control, clip: Rect2, out: Array) -> void:
 				top = minf(top, r.position.y)
 			if i == lines - 1:
 				bot = maxf(bot, r.end.y)
-			_add(out, Rect2(r.position.x, top, r.size.x, bot - top), 0, clip)
+			_add(out, Rect2(r.position.x, top, r.size.x, bot - top), 0, clip, gx)
 		return
 	if c is RichTextLabel:
 		var rt := c as RichTextLabel
@@ -527,7 +537,24 @@ static func _collect(c: Control, clip: Rect2, out: Array) -> void:
 				ch / n + (2.0 if i > 0 else 0.0) + (r.size.y - ch if i == n - 1 else 2.0)), 0, clip)
 		return
 	if c is BaseButton:
-		_add(out, r, 0, clip)
+		# (only as wide as its word, where it sits on the plate -- the plate
+		# itself comes up with the layout -- its ground the plate just before
+		# the word; a button with no word, its whole plate, read 3 px in)
+		var gb := 3.0
+		if c is Button and (c as Button).text != "":
+			var bt := c as Button
+			var w := bt.get_theme_font(&"font").get_string_size(bt.text, HORIZONTAL_ALIGNMENT_LEFT, -1,
+				bt.get_theme_font_size(&"font_size")).x + 2.0
+			if w + 4.0 < r.size.x:
+				var k := 0.5
+				if bt.alignment == HORIZONTAL_ALIGNMENT_LEFT:
+					k = 0.0
+				elif bt.alignment == HORIZONTAL_ALIGNMENT_RIGHT:
+					k = 1.0
+				var pad := bt.get_theme_stylebox(&"normal").get_margin(SIDE_LEFT) if k == 0.0 else 0.0
+				r = Rect2(r.position.x + pad + floorf((r.size.x - pad - w) * k) - 1.0, r.position.y + 2.0, ceilf(w) + 2.0, r.size.y - 4.0)
+				gb = 0.0
+		_add(out, r, 0, clip, gb, c.get_global_rect())
 		return
 	var kids := 0
 	for k in c.get_children():
@@ -538,10 +565,13 @@ static func _collect(c: Control, clip: Rect2, out: Array) -> void:
 		_add(out, r, 1, clip)
 
 
-static func _add(out: Array, r: Rect2, kind: int, clip: Rect2) -> void:
+## A row: [rect, kind, t0, t1, where its ground is read -- px in from its left
+## edge, or -1 for the panel's own ground, and for a button the whole of it,
+## which takes no click until its word has resolved]
+static func _add(out: Array, r: Rect2, kind: int, clip: Rect2, gx: float = -1.0, hit: Rect2 = Rect2()) -> void:
 	var cr := r.intersection(clip)
 	if cr.size.x >= 1.0 and cr.size.y >= 1.0:
-		out.append([Rect2(cr.position.floor(), cr.size.ceil()), kind])
+		out.append([Rect2(cr.position.floor(), cr.size.ceil()), kind, 0.0, 0.0, gx, hit])
 
 
 ## A panel's sections, top to bottom (viewport y): its rows gathered into

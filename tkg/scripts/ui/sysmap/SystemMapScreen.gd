@@ -82,6 +82,16 @@ var _frame: Control
 var _box: SubViewportContainer
 var _vp: SubViewport
 var _strip: HBoxContainer
+var _danger_text: Label
+var _danger_cells: HBoxContainer
+var _tier_text: Label
+var _names_btn: Button
+var _orbits_btn: Button
+## HOW THE MAP IS BEING LOOKED AT, static like the chart's toggles: the screen
+## is built anew on every visit, and the player should not have to hide the
+## names again after every jump. A session's preference, not the run's.
+static var names_on := true
+static var orbits_on := true
 var _transfer: TransferView = null
 ## The beacon the cursor is on, as [body, beacon], so its card lights while it is.
 var _lit: Array = []
@@ -142,8 +152,26 @@ func _init() -> void:
 	root.add_theme_constant_override("separation", 4)
 	add_child(root)
 
-	_strip = HBoxContainer.new()
-	_strip.add_theme_constant_override("separation", 7)
+	# THE TOOLBAR, the chart's own row (Jon: "do the danger bar the same style
+	# as the layer bar and do hide names etc. It should be the same height as
+	# the button bar for the starchart"): DANGER n/10 and its pips where the
+	# chart has LAYER, the tier where it has CORE, and two toggles that change
+	# what the map draws. No reach: "fuel is infinite basically in the sector".
+	_strip = StarchartScreen.toolbar_row()
+	_danger_text = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+	_strip.add_child(_danger_text)
+	_danger_cells = HBoxContainer.new()
+	_danger_cells.add_theme_constant_override("separation", 2)
+	_strip.add_child(_danger_cells)
+	_tier_text = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+	_strip.add_child(_tier_text)
+	var strip_gap := Control.new()
+	strip_gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_strip.add_child(strip_gap)
+	_names_btn = StarchartScreen.bar_button("", _on_names, 112)
+	_strip.add_child(_names_btn)
+	_orbits_btn = StarchartScreen.bar_button("", _on_orbits, 112)
+	_strip.add_child(_orbits_btn)
 	root.add_child(_strip)
 
 	var mid := HBoxContainer.new()
@@ -372,13 +400,42 @@ func _on_style() -> void:
 ## The chart's strip, for this sector: how dangerous it is. What it is goes in
 ## the panel.
 func _fill_strip(n: MapGen.MapNode) -> void:
-	Widgets.clear(_strip)
-	_strip.add_child(UITheme.body("DANGER", UITheme.COLD, UITheme.FS_SMALL))
-	var g := StarchartScreen.MicroGauge.new()
-	g.setup(MapGen.DANGER_MAX, n.danger, StarchartScreen.MicroGauge.Mode.DANGER)
-	_strip.add_child(g)
-	_strip.add_child(UITheme.body(MapGen.tier_name(n.danger),
-		UITheme.WARN if n.danger >= 7 else UITheme.COLD, UITheme.FS_SMALL))
+	_danger_text.text = "DANGER %d/%d" % [n.danger, MapGen.DANGER_MAX]
+	# (lit in the danger ramp the jump gauges use: blue, amber, red as it runs
+	# deeper; dark past it, as the chart's layers to come)
+	StarchartScreen.fill_pips(_danger_cells, MapGen.DANGER_MAX, func(i: int) -> Color:
+		if i >= n.danger:
+			return UITheme.LINE
+		if i < 3:
+			return Color("#5d7a93")
+		return UITheme.WARN if i < 6 else UITheme.BAD)
+	_tier_text.text = MapGen.tier_name(n.danger)
+	_tier_text.add_theme_color_override("font_color", UITheme.WARN if n.danger >= 7 else UITheme.COLD)
+	_paint_toggles()
+
+
+## The toolbar's two toggles, saying what a press does now, and what they
+## change set on the view and the overlay.
+func _paint_toggles() -> void:
+	_names_btn.text = "HIDE NAMES" if names_on else "SHOW NAMES"
+	_orbits_btn.text = "HIDE ORBITS" if orbits_on else "SHOW ORBITS"
+	if overlay != null:
+		overlay.names_on = names_on
+		overlay.queue_redraw()
+	if view != null:
+		view.orbits_on = orbits_on
+		if view._lines != null and is_instance_valid(view._lines):
+			view._lines.queue_redraw()
+
+
+func _on_names() -> void:
+	names_on = not names_on
+	_paint_toggles()
+
+
+func _on_orbits() -> void:
+	orbits_on = not orbits_on
+	_paint_toggles()
 
 
 func _process(delta: float) -> void:

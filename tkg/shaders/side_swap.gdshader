@@ -91,6 +91,16 @@ vec3 bg_old(float y) {
 	return oldc(vec2(old_r.x + bg_dx, y));
 }
 
+// a row's own ground at y: `gx` px in from its left edge, or (gx < 0) its
+// panel's
+vec3 ground_of(vec4 r, float gx, float y, bool from_new) {
+	if (gx < 0.0) {
+		return from_new ? bg_new(y) : bg_old(y);
+	}
+	vec2 q = vec2(r.x + gx, y);
+	return from_new ? newc(q) : oldc(q);
+}
+
 // whether a glyph cell `h` tall holds any ink (differs from the ground beside it)
 bool ink(vec2 c0, float h, bool from_new, vec3 g) {
 	for (int j = 0; j < 4; j++) {
@@ -196,13 +206,13 @@ void fragment() {
 			if (tt.z > 0.5 && from_new) {
 				// an icon: hidden, then on, off, on a frame each
 				float a = secs - tt.x;
-				vec3 g = bg_new(p.y);
+				vec3 g = ground_of(r, tt.w, p.y, true);
 				col = (a < 0.0 || (a >= 1.0 / 60.0 && a < 2.0 / 60.0)) ? g : N;
 			} else {
 				float fr = r.x + floor(clamp((secs - tt.x) / max(tt.y - tt.x, 0.001), 0.0, 1.0) * r.z / cell.x) * cell.x;
 				if (p.x >= fr) {
 					vec2 c0 = vec2(r.x + floor((p.x - r.x) / cell.x) * cell.x, r.y);
-					vec3 g = from_new ? bg_new(p.y) : bg_old(p.y);
+					vec3 g = ground_of(r, tt.w, p.y, from_new);
 					if (ink(c0, r.w, from_new, g)) {
 						col = scramble(p, r, i, from_new);
 					} else {
@@ -231,7 +241,7 @@ void fragment() {
 					break;
 				}
 				float fr = r.x + floor(clamp((secs - tt.x) / max(tt.y - tt.x, 0.001), 0.0, 1.0) * r.z / cell.x) * cell.x;
-				col = p.x < fr ? N : bg_new(p.y);
+				col = p.x < fr ? N : ground_of(r, tt.w, p.y, true);
 				// the cursor: a block at the write head of the row being
 				// written, blinking (a 30th of a second off in every 10th)
 				bool typing = secs >= tt.x && secs < tt.y;
