@@ -61,6 +61,13 @@ func _run() -> void:
 		var before := _fails
 		var cases := 0
 		var home := await _home(tree)
+		# every picture alone, the calf and the Leviathan too (their gap under
+		# the hull, at full size)
+		await _open(tree, 1)
+		for k in DB.enemies.keys():
+			for look in maxi(1, DB.enemy_looks(k)):
+				cases += 1
+				await _check(tree, "%s alone %s:%d" % [mode, k, look], [[k, look]], home, false)
 		# pairs
 		await _open(tree, 2)
 		for i in pics.size():
@@ -199,6 +206,23 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 		for b in _slot_boxes(view.slot(i)):
 			boxes.append([i, b[0], b[1]])
 		i += 1
+	# THE SAME ROOM UNDER EVERY HULL (Jon: "The hellbender is a bit close to
+	# its text box"): ink bottom to name top UNDER_GAP game px, 12 at 1080p
+	# (at least ~10 asked), the same for every ship at every scale
+	for k in n:
+		var sl: EnemySlot = view.slot(k)
+		var ship := Rect2()
+		var name_top := INF
+		for b in _slot_boxes(sl):
+			if String(b[0]) == "ship":
+				ship = b[1]
+			elif String(b[0]).begins_with("name"):
+				name_top = (b[1] as Rect2).position.y
+		if ship.size != Vector2.ZERO and name_top < INF and sl.get("side") == false:
+			var gap := name_top - ship.end.y
+			var want_gap: float = float(sl.get("UNDER_GAP")) if sl.get("UNDER_GAP") != null else 5.0
+			_ok("%s: ship %d's name %.0f px under its hull (want %.0f)" % [tag, k, gap, want_gap],
+				gap >= 5.0 and absf(gap - want_gap) < 0.5)
 	var you := _you(view)
 	if home != Vector2.INF:
 		_ok("%s: your ship stays where it stood (%s, was %s)" % [tag, you[0].position, home], you[0].position.distance_to(home) <= 1.0)

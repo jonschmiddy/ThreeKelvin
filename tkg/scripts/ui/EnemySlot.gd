@@ -94,6 +94,12 @@ var _enter_end: int = 0
 ## no longer used: packs are placed by `EncounterView._layout_pack`.
 var _lift_top: Control
 var _lift_bot: Control
+## THE SAME ROOM UNDER EVERY HULL (Jon: "The hellbender is a bit close to its
+## text box"). Between the ship's own ink and the top of its name there is
+## always UNDER_GAP: the holder's margin under the ink varies by a pixel with
+## the picture's size, and this spacer makes up the rest.
+const UNDER_GAP := 6
+var _under: Control
 ## The column everything hangs in, the bars' box, and -- in a column pack (layout
 ## C) -- the row that puts the readout beside the ship instead of under it.
 var _col: VBoxContainer
@@ -265,6 +271,9 @@ func _init() -> void:
 	art.size = Vector2(EnemyArt.W, EnemyArt.H)
 	_art_holder.add_child(art)
 	col.add_child(_art_holder)
+	_under = Control.new()
+	_under.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(_under)
 
 	_name = UITheme.body("", UITheme.THEM, UITheme.FS_SMALL)
 	_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -480,6 +489,23 @@ func _fit_holder() -> void:
 			_enter_tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 			var left := maxf(0.05, float(_enter_end - Time.get_ticks_msec()) / 1000.0)
 			_enter_tw.tween_property(art, "position:x", base.x, left)
+	_fit_under()
+
+
+## The spacer under the hull, so ink-bottom to name-top is UNDER_GAP: the
+## holder's own margin under the ink, the two 1 px separations, and this.
+func _fit_under() -> void:
+	if _under == null or art == null:
+		return
+	var ink := art.ink_rect()
+	var margin := _art_holder.custom_minimum_size.y - (_art_base.y + float(ink.end.y))
+	var h := maxf(0.0, float(UNDER_GAP) - margin - 2.0)
+	if _under.custom_minimum_size.y != h:
+		_under.custom_minimum_size.y = h
+
+## What the spacer adds to the column's height, its separation included.
+func _under_h() -> float:
+	return (_under.custom_minimum_size.y + 1.0) if _under != null and _under.visible else 0.0
 
 
 ## What the last bind drew, so the pack layout can redraw it at another size.
@@ -577,8 +603,8 @@ func unit(s: float, beside: bool) -> Vector2:
 	# under the hull: name, brace and hull bars, number, a row of chips
 	# (a wreck on LOCAL has no brace and carries nothing: just its name, its
 	# empty bar and its word)
-	var below := lh + 1.0 + float(EnemySlot.BracePips.CELL.y) + 1.0 + 6.0 + 1.0 + lh + 1.0 + _chip_row_h() \
-		if reserve_intent else lh + 1.0 + 6.0 + 1.0 + lh
+	var below := _under_h() + lh + 1.0 + float(EnemySlot.BracePips.CELL.y) + 1.0 + 6.0 + 1.0 + lh + 1.0 + _chip_row_h() \
+		if reserve_intent else _under_h() + lh + 1.0 + 6.0 + 1.0 + lh
 	if beside:
 		var lw := maxf(widest, it_w)
 		var lab_h := below + ((lh + 1.0) * 2.0 if reserve_intent else 0.0)
@@ -656,6 +682,7 @@ func set_side(on: bool) -> void:
 		_col.add_child(_side_row)
 		_col.move_child(_side_row, _art_holder.get_index())
 		_art_holder.reparent(_side_row, false)
+		_under.visible = false
 		for p in parts:
 			p.reparent(_side_box, false)
 			if p is Label:
@@ -678,6 +705,8 @@ func set_side(on: bool) -> void:
 		for k in after.size():
 			after[k].reparent(_col, false)
 			_col.move_child(after[k], _art_holder.get_index() + 1 + k)
+		_col.move_child(_under, _art_holder.get_index() + 1)
+		_under.visible = true
 		for p in parts:
 			if p is Label:
 				(p as Label).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

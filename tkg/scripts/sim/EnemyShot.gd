@@ -128,6 +128,9 @@ func _shoot(tree: SceneTree, ids: Array, out: String) -> Dictionary:
 			# `dead=0,2`: those ships are already wrecks when the picture is taken
 			if str(k) in _arg("dead").split(","):
 				e.hp = 0
+			# `block=N`: every ship holding N block (its shield up)
+			if _arg("block") != "":
+				e.block = int(_arg("block"))
 			if "tele" in _args:
 				var t: IntentData = null
 				for it in e.template.loop:
@@ -150,7 +153,10 @@ func _shoot(tree: SceneTree, ids: Array, out: String) -> Dictionary:
 					if e2.hp > 0:
 						cb.damage_enemy(9999, 1, "film", e2)
 						break
-			if f > 0 and f % 45 == 0 and kill_at < 0 and cb != null and not cb.finished:
+			# a card at the first ship every 45 frames (every 20 before a `killat`,
+			# so its marks are on it when it dies)
+			var every := 20 if kill_at > 0 else 45
+			if f > 0 and f % every == 0 and (kill_at < 0 or f < kill_at) and cb != null and not cb.finished:
 				for i in (cb.hand as Array).size():
 					if cb.can_play(cb.hand[i]):
 						cb.play(i, 0)
