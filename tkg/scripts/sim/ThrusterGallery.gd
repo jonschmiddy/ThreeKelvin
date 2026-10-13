@@ -256,7 +256,7 @@ func _diagnose(fx: ThrusterFx, img: Image, used: Rect2i, player: bool) -> Dictio
 		x /= float(pts.size())
 		var fwd := (stern_x - x) * float(dir) if not player else (x - stern_x)
 		# blocked: of every stream's first L pixels, how many land on hull
-		var L := fx.base_length(ThrusterFx.Thrust.FULL)
+		var L := fx.nozzle_length(fx.nozzles.find(nz), ThrusterFx.Thrust.FULL)
 		var blocked := 0
 		var total := 0
 		for p2 in pts:
@@ -284,7 +284,7 @@ func _diagnose(fx: ThrusterFx, img: Image, used: Rect2i, player: bool) -> Dictio
 	for n in fx.nozzles.size():
 		for thrust in [ThrusterFx.Thrust.IDLE, ThrusterFx.Thrust.FULL]:
 			for fr in fx.frames():
-				var p3 := fx.plume(n, fx.base_length(thrust), fr)
+				var p3 := fx.plume(n, fx.nozzle_length(n, thrust), fr)
 				if p3.tex == null:
 					continue
 				var pim: Image = (p3.tex as ImageTexture).get_image()

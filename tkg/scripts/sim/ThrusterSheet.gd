@@ -303,7 +303,11 @@ func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 ##          at least half of them.
 ##   coded  each look's flame picture at every thrust: its last lit column and
 ##          the rows lit there.
-## FAIL when the column or either end of the row span is more than 1 px off.
+## FAIL when the column is more than 1 px off, or the flame's HEIGHT 2-6 px
+## out from its start is under 90% of the strip's there (the strip's middle
+## frame; the coded flame's lowest frame). The row span used to have to match
+## the strip's start rows, which are its narrowest, and every blunt stern got
+## a thin stream out of a big engine (Jon, Oct 13: "too small on the main body").
 ## Also counts flame pixels on a hull pixel the strip leaves visible (one it
 ## does not cover in every frame); that must be 0 (heavy S's dome).
 func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
@@ -339,7 +343,7 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 				if all and cx >= 0 and cy >= 0 and cx < cw and cy < chh:
 					shown[cy * cw + cx] = 0
 	print("thrustersheet starts: %s" % DB.hull_art_name(h.weight, h.tier))
-	print("  %-3s %-5s %-12s %-12s | %-10s %-6s %-12s %-5s %s" % ["eng", "strip", "today col", "today rows", "look", "thrust", "coded col/rows", "over", ""])
+	print("  %-3s %-5s %-12s %-12s | %-10s %-6s %-12s %-5s %s" % ["eng", "strip", "today col", "today rows", "look", "thrust", "coded col/height", "over", ""])
 	for ti in h.thrusters.size():
 		var e2: Dictionary = h.thrusters[ti]
 		var im2: Image = strips[ti]
@@ -381,6 +385,30 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 				r0 = mini(r0, at.y + y4)
 				r1 = maxi(r1, at.y + y4)
 		var today_col := at.x + col
+		# The strip's height 2-6 px out from its start, per frame; the middle one.
+		var hs: Array = []
+		for f3 in n:
+			var q0 := 1 << 20
+			var q1 := -1
+			for x6 in fw:
+				var out6 := col - x6
+				if out6 < 2 or out6 > 6:
+					continue
+				for y7 in im2.get_height():
+					if im2.get_pixel(f3 * fw + x6, y7).a <= 0.5:
+						continue
+					# open space only: over plating the strip leaves visible is the
+					# hull, and no flame may be drawn there
+					var hx := at.x + x6
+					var hy := at.y + y7
+					if hx >= 0 and hy >= 0 and hx < cw and hy < chh and shown[hy * cw + hx] == 1:
+						continue
+					q0 = mini(q0, y7)
+					q1 = maxi(q1, y7)
+			if q1 >= q0:
+				hs.append(q1 - q0 + 1)
+		hs.sort()
+		var today_h: int = hs[hs.size() / 2] if not hs.is_empty() else 0
 		for look in looks.size():
 			var fx: ThrusterFx = looks[look].fx
 			var ni := -1
@@ -389,6 +417,7 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 					ni = k2
 			for thrust in 3:
 				var row := {engine = ti, strip = int(e2.id), back = back, today_col = today_col, today_rows = [r0, r1],
+					today_h = today_h,
 					look = looks[look].info.look, thrust = ThrusterFx.THRUST_NAMES[thrust]}
 				# Every loop frame of a living flame: the start must hold on all of
 				# them. The worst frame's numbers are kept.
@@ -400,12 +429,13 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 				var r1_hi := -(1 << 20)
 				var over := 0
 				var ok := ni >= 0
+				var h_lo := 1 << 20
 				if ni >= 0:
 					for fr in fx.frames():
 						var c_col := -1
 						var c0 := 1 << 20
 						var c1 := -1
-						var p := fx.plume(ni, fx.base_length(thrust), fr)
+						var p := fx.plume(ni, fx.nozzle_length(ni, thrust), fr)
 						if p.tex != null:
 							var pim: Image = (p.tex as ImageTexture).get_image()
 							var pat: Vector2i = p.at
@@ -423,19 +453,34 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 								if c_col - pat.x < pim.get_width() and pim.get_pixel(c_col - pat.x, y6).a > 0.0:
 									c0 = mini(c0, pat.y + y6)
 									c1 = maxi(c1, pat.y + y6)
+							# its height 2-6 px out, the strip's own measure
+							var g0 := 1 << 20
+							var g1 := -1
+							for x8 in pim.get_width():
+								var out8 := c_col - (pat.x + x8)
+								if out8 < 2 or out8 > 6:
+									continue
+								for y8 in pim.get_height():
+									if pim.get_pixel(x8, y8).a > 0.0:
+										g0 = mini(g0, y8)
+										g1 = maxi(g1, y8)
+							h_lo = mini(h_lo, g1 - g0 + 1 if g1 >= g0 else 0)
 						c_lo = mini(c_lo, c_col)
 						c_hi = maxi(c_hi, c_col)
 						r0_lo = mini(r0_lo, c0)
 						r0_hi = maxi(r0_hi, c0)
 						r1_lo = mini(r1_lo, c1)
 						r1_hi = maxi(r1_hi, c1)
-						if c_col < 0 or absi(c_col - today_col) > 1 or absi(c0 - r0) > 1 or absi(c1 - r1) > 1:
+						if c_col < 0 or absi(c_col - today_col) > 1:
 							ok = false
+				if h_lo < int(ceil(0.9 * float(today_h))):
+					ok = false
 				if over > 0:
 					ok = false
 				row.coded_col = [c_lo, c_hi]
 				row.coded_rows = [[r0_lo, r0_hi], [r1_lo, r1_hi]]
 				row.over_hull = over
+				row.coded_h_min = h_lo
 				row.frames = fx.frames()
 				row.ok = ok
 				if not ok:
@@ -447,7 +492,7 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 					var a1 := "%d" % r1_lo if r1_lo == r1_hi else "%d..%d" % [r1_lo, r1_hi]
 					print("  %-3d %-5d %-12s %-12s | %-10s %-6s %-18s %-5d %s" % [ti, int(e2.id), "%d%s" % [today_col, " back" if back else ""],
 						"%d-%d" % [r0, r1], (looks[look].info.look as String).substr(0, 10), ThrusterFx.THRUST_NAMES[thrust],
-						"%s / %s-%s" % [cc, a0, a1], over, "ok" if ok else "FAIL"])
+						"%s / h%d (strip h%d)" % [cc, h_lo, today_h], over, "ok" if ok else "FAIL"])
 	# THE BELL IS FULL: at full burn the hull pixels a strip always covers (heavy
 	# S's stern cavity) are at least 90% lit by the coded flame, every look.
 	var channel := 0
@@ -505,7 +550,10 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 						worst_cov = covered
 					worst_past = mini(worst_past, rim_x - min_x)
 				var idle_case := (cs[0] as String).begins_with("IDLE")
-				var ok2 := worst_frac >= 0.9 and (worst_past >= 8 or not idle_case)
+				# 8 px past the rim on heavy S (its idle burn is 19 px); a light hull's
+				# shallow bell, with an 11 px idle burn, needs half its burn
+				var need_past := mini(8, int(fx2.base_length(ThrusterFx.Thrust.IDLE) / 2))
+				var ok2 := worst_frac >= 0.9 and (worst_past >= need_past or not idle_case)
 				if not ok2:
 					bad += 1
 				out.append({fill_check = looks[look2].info.look, thrust = cs[0], length = cs[1], channel_px = channel,

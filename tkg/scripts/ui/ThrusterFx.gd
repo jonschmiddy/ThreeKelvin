@@ -218,16 +218,75 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 				rows.append(y3)
 		if rows.is_empty():
 			continue
+		# THE ENGINE'S SIZE (Jon, Oct 13, on the gallery: "the exhaust of these
+		# looks too small on the main body"). The rows the strip starts on are its
+		# narrowest; the flame he is used to is as tall as the engine. So measure
+		# the strip: how tall its visible flame is 2-6 px out from the start, the
+		# middle frame's worth (and its tallest anywhere, for the record). The
+		# coded flame starts that tall, centred on the same axis, at the same
+		# column; a row the start column has under plating walks out to open
+		# space (at most 6 px), as an override's rows do.
+		var spans: Array = []
+		var max_h := 0
+		for i5 in n:
+			var r0 := 1 << 20
+			var r1 := -1
+			var a0 := 1 << 20
+			var a1 := -1
+			for x5 in fw:
+				for y5 in sh:
+					if strip.get_pixel(i5 * fw + x5, y5).a <= 0.5:
+						continue
+					# only flame in open space counts: a front strip painted over
+					# plating it does not always cover is drawing on the hull, which
+					# the coded flame never does
+					if fx._is_solid(at.x + x5, at.y + y5):
+						continue
+					a0 = mini(a0, y5)
+					a1 = maxi(a1, y5)
+					var out := xr - x5
+					if out >= 2 and out <= 6:
+						r0 = mini(r0, y5)
+						r1 = maxi(r1, y5)
+			if r1 >= r0:
+				spans.append(r1 - r0 + 1)
+			if a1 >= a0:
+				max_h = maxi(max_h, a1 - a0 + 1)
+		spans.sort()
+		var near_h: int = spans[spans.size() / 2] if not spans.is_empty() else rows.size()
+		var target := maxi(near_h, rows.size())
+		var centre := float(rows[0] + rows[-1]) * 0.5
+		var lo_r := mini(rows[0], int(floor(centre - float(target - 1) * 0.5)))
+		var hi_r := maxi(rows[-1], lo_r + target - 1)
 		var pts := PackedVector2Array()
-		for y4 in rows:
-			pts.append(Vector2(at.x + xr, at.y + y4))
+		for y4 in range(lo_r, hi_r + 1):
+			var cy4: int = at.y + y4
+			var cx4: int = at.x + xr
+			if y4 in rows:
+				pts.append(Vector2(cx4, cy4))
+				continue
+			var k4 := 0
+			while k4 <= 10 and fx._is_solid(cx4, cy4):
+				cx4 -= 1
+				k4 += 1
+			if k4 <= 10:
+				pts.append(Vector2(cx4, cy4))
 		# A point of a nozzle widens faster, so at full burn it is a flame and
-		# not a needle; its start stays where it is.
-		var widen := clampf(10.0 / float(rows.size()), 1.0, 3.0)
-		var nz := {pts = pts, dir = -1, thruster = ti, widen = widen}
-		var bell := _bell(cells, int(pts[0].x))
+		# not a needle; its start stays where it is. And the BODY grows to the
+		# strip's tallest within a quarter of the full-burn length, as the
+		# PixelLab plume flares straight out of the engine: the widening is set
+		# to get there (half the length read thin on heavy C).
+		var widen := clampf(10.0 / float(pts.size()), 1.0, 3.0)
+		var l_full := float(fx.ink_w) * THRUST_K[Thrust.FULL] * clampf(sqrt(float(target) / 8.0), 0.85, 1.8)
+		var need := float(maxi(0, max_h - target)) * 0.5 / maxf(1.0, l_full * 0.25)
+		widen = clampf(maxf(widen, need / float(SHAPE[the_look].spread)), 1.0, 3.0)
+		var nz := {pts = pts, dir = -1, thruster = ti, widen = widen, strip_near_h = near_h,
+			strip_max_h = max_h}
+		var bell := _bell(cells, at.x + xr)
 		if not bell.is_empty():
 			nz.bell = bell
+			fx._grow_mouth(bell, target)
+		_size_nozzle(nz, target)
 		fx.nozzles.append(nz)
 	fx._plan(seed)
 	return fx
@@ -250,6 +309,8 @@ static func for_sprite(img: Image, used: Rect2i, the_look: int, seed: int, id: S
 	if ov != null:
 		fx._override(ov as Array, pic_at, scale)
 		fx.ink_w = used.size.x
+		for nz0 in fx.nozzles:
+			_size_nozzle(nz0, (nz0.pts as PackedVector2Array).size())
 		fx._plan(seed)
 		return fx
 	var H := _hull_pic(img, used, 2)
@@ -283,6 +344,8 @@ static func for_sprite(img: Image, used: Rect2i, the_look: int, seed: int, id: S
 	fx._add_run(run, by_row, cap)
 	fx.ink_w = used.size.x
 	fx._keep_sternmost(used)
+	for nz in fx.nozzles:
+		_size_nozzle(nz, (nz.pts as PackedVector2Array).size())
 	fx._plan(seed)
 	return fx
 
@@ -355,6 +418,41 @@ func _override(list: Array, at: Vector2i, scale: float) -> void:
 				pts.append(Vector2(x, cy))
 		if not pts.is_empty():
 			nozzles.append({pts = pts, dir = 1})
+
+
+## A bell's mouth at least as tall as its engine (`target` rows, centred): a
+## strip that laps the stern by a few pixels makes a shallow bell whose mouth
+## is only the rows it always covers, and the flame left it thinner than the
+## strip it replaces. Each added row walks out to open space from the mouth's
+## column, at most 10 px.
+func _grow_mouth(bell: Dictionary, target: int) -> void:
+	var mouth: PackedVector2Array = bell.mouth
+	if mouth.size() >= target or mouth.is_empty():
+		return
+	var y0 := int(mouth[0].y)
+	var y1 := int(mouth[-1].y)
+	var mx := 0.0
+	var have := {}
+	for p in mouth:
+		mx += p.x
+		have[int(p.y)] = true
+	var x0 := int(round(mx / float(mouth.size())))
+	var lo := int(floor(float(y0 + y1) * 0.5 - float(target - 1) * 0.5))
+	var out := PackedVector2Array()
+	for y in range(mini(lo, y0), maxi(lo + target - 1, y1) + 1):
+		if have.has(y):
+			for p2 in mouth:
+				if int(p2.y) == y:
+					out.append(p2)
+			continue
+		var x := x0
+		var k := 0
+		while k <= 10 and _is_solid(x, y):
+			x -= 1
+			k += 1
+		if k <= 10:
+			out.append(Vector2(x, y))
+	bell.mouth = out
 
 
 ## One engine from a run of stern rows. A tall flat stern is not one tall engine:
@@ -464,6 +562,27 @@ func _plan(seed: int) -> void:
 
 # ------------------------------------------------------------------ reading it
 
+## A BIG ENGINE THROWS A BIGGER FLAME: an engine's length goes with the square
+## root of its height against an 8-row one (0.85x to 1.8x), and its sparks and
+## fire with its height (0.75x to 2.5x). A bell (heavy S) keeps 1: its size is
+## the bell's.
+static func _size_nozzle(nz: Dictionary, h: int) -> void:
+	nz.height = h
+	if nz.has("bell"):
+		nz.lscale = 1.0
+		nz.pscale = clampf(float(h) / 8.0, 0.75, 2.5)
+		return
+	nz.lscale = clampf(sqrt(float(h) / 8.0), 0.85, 1.8)
+	nz.pscale = clampf(float(h) / 8.0, 0.75, 2.5)
+
+
+## Engine `n`'s own length at this thrust: the hull's length, scaled by the
+## engine's size (`_size_nozzle`).
+func nozzle_length(n: int, thrust: int) -> int:
+	var nz: Dictionary = nozzles[n]
+	return maxi(3, int(round(float(base_length(thrust)) * float(nz.get("lscale", 1.0)))))
+
+
 func base_length(thrust: int) -> int:
 	var s: Dictionary = SHAPE[look]
 	return maxi(3, int(round(float(ink_w) * THRUST_K[thrust] * float(s.len))))
@@ -487,12 +606,12 @@ func step_at(t: float) -> int:
 ## wanders 1-2 px in held steps a few times a second.
 func length_at(n: int, thrust: int, t: float) -> int:
 	if fps > 0.0:
-		return base_length(thrust)
+		return nozzle_length(n, thrust)
 	var o: PackedInt32Array = _offs[step_at(t)]
 	var amp := FLICK[thrust]
 	if look == Look.SPILL:
 		amp = maxi(1, amp - 1)
-	return maxi(2, base_length(thrust) + o[n] * amp)
+	return maxi(2, nozzle_length(n, thrust) + o[n] * amp)
 
 
 ## Which of the LOOP shapes engine `n` shows at `t`: held frames at `fps`, each
@@ -510,8 +629,8 @@ func frames() -> int:
 
 ## Every picture this thrust can ask for, built now rather than on first sight.
 func warm_up(thrust: int) -> void:
-	var b := base_length(thrust)
 	for n in nozzles.size():
+		var b := nozzle_length(n, thrust)
 		if fps > 0.0:
 			for f in loop_n:
 				plume(n, b, f)
@@ -697,7 +816,8 @@ func particles_at(n: int, thrust: int, t: float) -> Array:
 	var dith: Array = s.dith
 	var rng := RandomNumberGenerator.new()
 	for kind in 2:
-		var rate: float = SPARK_RATE[thrust] if kind == 0 else BLOB_RATE[thrust]
+		var rate: float = (SPARK_RATE[thrust] if kind == 0 else BLOB_RATE[thrust]) \
+			* float((nozzles[n] as Dictionary).get("pscale", 1.0))
 		var period := 1.0 / rate
 		var max_life := (8.0 if kind == 0 else 10.0) / 30.0
 		var i0 := int(floor((t - max_life) / period)) - 1
@@ -748,7 +868,7 @@ func _tail(n: int, thrust: int) -> Dictionary:
 	if _tails.has(key):
 		return _tails[key]
 	var nz: Dictionary = nozzles[n]
-	var L := base_length(thrust)
+	var L := nozzle_length(n, thrust)
 	var out := {pts = nz.pts, L = L, dir = nz.dir}
 	if nz.has("bell"):
 		var idle := thrust == Thrust.IDLE
