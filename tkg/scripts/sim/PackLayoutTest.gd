@@ -46,7 +46,7 @@ func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
 	var scr: Script = load("res://scripts/ui/EncounterView.gd")
-	var modes: Array = [&"A", &"B", &"C"] if _arg("packlayout", "all") == "all" else [StringName(_arg("packlayout"))]
+	var modes: Array = [&"B", &"C"] if _arg("packlayout", "all") == "all" else [StringName(_arg("packlayout"))]
 	if scr.get("pack_layout") == null:
 		modes = [&"-"]
 		print("packlayouttest: this build has no pack layouts; testing the one it has")
@@ -81,6 +81,24 @@ func _run() -> void:
 						[pics[i], pics[j], pics[k]], home, false)
 					await _check(tree, "%s triple with a wreck %s+%s+%s" % [mode, _n(pics[i]), _n(pics[j]), _n(pics[k])],
 						[pics[i], pics[j], pics[k]], home, true)
+		# piles: four to twelve ships, the widest pictures, half of them wrecks --
+		# a fight's row, and LOCAL's row of wrecks left at one system
+		var wide: Array = [[&"marauder", 0], [&"hulk", 0], [&"marauder", 1], [&"hulk", 1], [&"custodian", 0], [&"hellbender", 0]]
+		# (a fight brings at most two, and a reinforcement only to one; four is
+		# the dev flag's most. A system can hold the wrecks of its own fight, its
+		# one ambush, the Hellbender's and its events' fights: eight is a lot,
+		# and twelve is checked)
+		for n in [4, 5, 6, 8, 10, 12]:
+			await _open(tree, n)
+			var pile: Array = []
+			for i in n:
+				pile.append(wide[i % wide.size()])
+			if n <= 8:
+				cases += 2
+				await _check(tree, "%s pile of %d" % [mode, n], pile, home, false)
+				await _check(tree, "%s pile of %d, every other a wreck" % [mode, n], pile, home, false, true)
+			cases += 1
+			await _wrecks(tree, "%s LOCAL's row of %d wrecks" % [mode, n], pile, home)
 		print("packlayouttest: layout %s, %d packs, %d failures" % [mode, cases, _fails - before])
 	print("packlayouttest: %s (%d failures)" % ["PASS" if _fails == 0 else "FAIL", _fails])
 	tree.quit()
@@ -117,7 +135,7 @@ func _view() -> EncounterView:
 	return sc.get("_view") if sc != null else null
 
 
-func _check(tree: SceneTree, tag: String, pack: Array, home: Vector2, wreck: bool) -> void:
+func _check(tree: SceneTree, tag: String, pack: Array, home: Vector2, wreck: bool, every_other: bool = false) -> void:
 	var cb = Router.combat
 	if cb == null:
 		_ok("%s: a fight" % tag, false)
@@ -127,17 +145,51 @@ func _check(tree: SceneTree, tag: String, pack: Array, home: Vector2, wreck: boo
 		e.template = DB.enemies[pack[i][0]]
 		e.look = int(pack[i][1])
 		e.max_hp = e.template.max_hull
-		e.hp = 0 if (wreck and i == 0) else e.max_hp
+		e.hp = 0 if ((wreck and i == 0) or (every_other and i % 2 == 0)) else e.max_hp
 		e.pick_intent()
 	Sig.enemy_changed.emit()
 	await tree.process_frame
 	await tree.process_frame
 	await tree.process_frame
 	# (headless, nothing eases: a move lands on the frame it is laid out)
+	_measure(_view(), tag, home)
+
+
+## LOCAL's row of wrecks: the same view shows a system's wrecks after a fight.
+func _wrecks(tree: SceneTree, tag: String, pile: Array, home: Vector2) -> void:
 	var view := _view()
+	if view == null:
+		_ok("%s: a view" % tag, false)
+		return
+	var hs: Array = []
+	for i in pile.size():
+		var h := MapGen.Jetsam.new()
+		h.slot = i
+		h.art = pile[i][0]
+		h.look = int(pile[i][1])
+		h.label = String(DB.enemies[h.art].name).to_upper()
+		hs.append(h)
+	view.show_wrecks(hs, func(_h) -> void: pass)
+	await tree.process_frame
+	await tree.process_frame
+	await tree.process_frame
+	_measure(view, tag, home)
+
+
+func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 	if view == null:
 		_ok("%s: the fight has a view" % tag, false)
 		return
+	# three or more blocks, wrecks counted: every ship from its half sheet
+	var n := 0
+	while view.slot(n) != null:
+		n += 1
+	var want := 0.5 if n >= 3 else 1.0
+	for k in n:
+		var art: EnemyArt = view.slot(k).art
+		var got: Variant = art.get("draw_scale")
+		if got != null:
+			_ok("%s: ship %d drawn at %s (%d in the pack wants %s)" % [tag, k, got, n, want], is_equal_approx(float(got), want))
 	var boxes: Array = []   # [owner, what, Rect2]
 	var i := 0
 	while view.slot(i) != null:

@@ -443,7 +443,7 @@ func _fit_holder() -> void:
 var _last_e = null
 var _last_tele: bool = false
 
-## Draw the ship at `s` of its size (the pack layout's shrink, `EnemyArt.draw_scale`).
+## Draw the ship at `s`: 1, or 0.5 from its half sheet (`EnemyArt.draw_scale`).
 func apply_scale(s: float) -> void:
 	if art == null or is_equal_approx(art.draw_scale, s):
 		return
@@ -459,7 +459,7 @@ func apply_scale(s: float) -> void:
 ## under the ship or (`beside`) to its near side.
 func unit(s: float, beside: bool) -> Vector2:
 	var ship := art.custom_minimum_size if art.full_ink == Vector2i.ZERO \
-		else (Vector2(art.full_ink) * s).round() + Vector2(6, 6)
+		else Vector2(art.half_ink if s < 1.0 else art.full_ink) + Vector2(6, 6)
 	var lh := _name.get_minimum_size().y
 	var parts := 0
 	var lab_h := 0.0

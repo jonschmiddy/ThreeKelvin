@@ -125,9 +125,6 @@ func _blit_sprite(tex: Texture2D) -> bool:
 	if src.get_format() != Image.FORMAT_RGBA8:
 		src = src.duplicate()
 		src.convert(Image.FORMAT_RGBA8)
-	full_ink = src.get_used_rect().size
-	if draw_scale < 1.0:
-		src = shrunk(src, draw_scale, tex.resource_path)
 	var ink := src.get_used_rect()
 	if ink.size == Vector2i.ZERO:
 		return false
@@ -145,92 +142,20 @@ func _blit_sprite(tex: Texture2D) -> bool:
 		_bounds = r if _bounds.size == Vector2i.ZERO else _bounds.merge(r)
 	return true
 
-## HOW BIG THE PICTURE IS DRAWN, 1 at its own size. Set by the fight's row
-## (`EncounterView`'s pack layout A, "shrink to fit") when a pack is too wide
-## for the enemy half at full size; every ship in the pack takes the same step.
+## HOW BIG THE PICTURE IS DRAWN: 1, or 0.5 from the picture's half sheet.
+## A fight with three or more ships draws every one at half (Jon: "render them
+## at 1X, kinda like how we do for multiplayer"; `EncounterView._layout_pack`),
+## from a second file made offline the way the hulls' are -- never a resample.
 var draw_scale: float = 1.0
-## The picture's own size, before any shrinking: what the pack layout plans
-## with (zero while a coded drawing is drawn).
+## The picture's size and its half sheet's: what the pack layout plans with
+## (zero while a coded drawing is drawn).
 var full_ink: Vector2i = Vector2i.ZERO
+var half_ink: Vector2i = Vector2i.ZERO
 
 func set_draw_scale(s: float) -> void:
 	if not is_equal_approx(s, draw_scale):
 		draw_scale = s
 		_sig = ""
-
-## SMALLER AS PIXEL ART, never resampled on screen: each new pixel takes the
-## area it covers of the old (light weighted by how much of it is hull), is
-## kept where at least COVER of it is hull, and snaps back to a colour the
-## picture already has -- the way `tools/enemy_sprites.py` shrank the calf. Cut
-## once per picture and scale.
-const COVER := 0.34
-static var _shrunk: Dictionary = {}
-
-static func shrunk(src: Image, s: float, key: String = "") -> Image:
-	var k := "%s@%.3f" % [key, s]
-	if key != "" and _shrunk.has(k):
-		return _shrunk[k]
-	var ink := src.get_used_rect()
-	var w := ink.size.x
-	var h := ink.size.y
-	var ow := maxi(1, int(round(w * s)))
-	var oh := maxi(1, int(round(h * s)))
-	var out := Image.create(ow, oh, false, Image.FORMAT_RGBA8)
-	var pal := {}
-	for y in h:
-		for x in w:
-			var c := src.get_pixel(ink.position.x + x, ink.position.y + y)
-			if c.a > 0.5:
-				pal[c.to_rgba32()] = c
-	var cols: Array = pal.values()
-	var memo := {}
-	var fx := float(w) / float(ow)
-	var fy := float(h) / float(oh)
-	for j in oh:
-		var y0 := j * fy
-		var y1 := (j + 1) * fy
-		for i in ow:
-			var x0 := i * fx
-			var x1 := (i + 1) * fx
-			var cover := 0.0
-			var acc := Vector3.ZERO
-			var only := -1
-			var mixed := false
-			for sy in range(int(floor(y0)), mini(h, int(ceil(y1)))):
-				var wy := minf(y1, sy + 1.0) - maxf(y0, float(sy))
-				for sx in range(int(floor(x0)), mini(w, int(ceil(x1)))):
-					var wx := minf(x1, sx + 1.0) - maxf(x0, float(sx))
-					var c := src.get_pixel(ink.position.x + sx, ink.position.y + sy)
-					if c.a <= 0.5:
-						continue
-					var a := wx * wy
-					cover += a
-					acc += Vector3(c.r, c.g, c.b) * a
-					var id := c.to_rgba32()
-					if only == -1:
-						only = id
-					elif only != id:
-						mixed = true
-			if cover / (fx * fy) < COVER:
-				continue
-			if not mixed:
-				out.set_pixel(i, j, pal[only])
-				continue
-			var m := acc / cover
-			var q := Vector3i(int(m.x * 31.0), int(m.y * 31.0), int(m.z * 31.0))
-			if not memo.has(q):
-				var best: Color = cols[0]
-				var bd := 99.0
-				for c2 in cols:
-					var d := Vector3(c2.r, c2.g, c2.b).distance_squared_to(m)
-					if d < bd:
-						bd = d
-						best = c2
-				memo[q] = best
-			out.set_pixel(i, j, memo[q])
-	if key != "":
-		_shrunk[k] = out
-	return out
 
 func dither(x: int, y: int, w: int, h: int, c: Color, density: float) -> void:
 	var thresholds := [0.0, 0.5, 0.75, 0.25]
@@ -607,7 +532,11 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 ## breakup cuts out of it is the ship's own alpha -- a star showing through a
 ## gap in a ring would otherwise break off as hull.
 func _draw_sprite(e: Combat.EnemyState, wounded: float, telegraphing: bool) -> bool:
-	if not _blit_sprite(DB.enemy_sprite(e.template.id, e.look)):
+	var full := DB.enemy_sprite(e.template.id, e.look)
+	var half := DB.enemy_sprite(e.template.id, e.look, true)
+	full_ink = Vector2i(full.get_size()) if full != null else Vector2i.ZERO
+	half_ink = Vector2i(half.get_size()) if half != null else full_ink
+	if not _blit_sprite(half if draw_scale < 1.0 and half != null else full):
 		return false
 	var ink := _bounds
 	# Damage, on the hull and sized to it. `_wound` is the one the coded ships

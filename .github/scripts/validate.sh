@@ -546,8 +546,9 @@ fi
 step "Nothing in a fight sits on anything else"
 # Jon, on three enemies piled on each other: no ship, wreck, name, hull bar,
 # chips or intent may overlap another enemy's, or yours. Every pair and triple
-# of the pictures a fight can bring (and every triple with a wreck in it), in
-# each pack layout (A shrink, B formation, C column), the real fight laid out:
+# of the pictures a fight can bring, every triple with a wreck in it, piles of
+# four to eight and LOCAL's rows of up to twelve wrecks, in the formation (B, the
+# game's) and the column (C): three or more blocks drawn from their half sheets,
 # every box apart, inside the view, your ship where it stood.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
 	run_godot packlayouttest 420 --headless --path "$PROJECT" -- sheet=PackLayoutTest; then

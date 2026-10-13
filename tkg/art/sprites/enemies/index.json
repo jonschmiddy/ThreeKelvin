@@ -39,8 +39,47 @@
    "leviathan_lev_spine.png"
   ]
  },
+ "half": {
+  "cutter": [
+   "cutter_coiled_half.png",
+   "cutter_swarm_half.png",
+   "cutter_saucer_half.png"
+  ],
+  "lancer": [
+   "lancer_gp_barrel_half.png",
+   "lancer_enginebar_half.png",
+   "lancer_solarsail_half.png"
+  ],
+  "marauder": [
+   "marauder_gn_barnacle_half.png",
+   "marauder_tp_spires_half.png",
+   "marauder_dc_comb_half.png"
+  ],
+  "hulk": [
+   "hulk_rg_hulk_half.png",
+   "hulk_rs_net_half.png",
+   "hulk_honeycomb_half.png"
+  ],
+  "sentinel": [
+   "sentinel_gyro_half.png",
+   "sentinel_scales_half.png",
+   "sentinel_hl_column_half.png"
+  ],
+  "hellbender": [
+   "hellbender_helix_half.png"
+  ],
+  "custodian": [
+   "custodian_tetra_half.png"
+  ],
+  "whale": [
+   "whale_fan_half.png"
+  ],
+  "leviathan": [
+   "leviathan_lev_spine_half.png"
+  ]
+ },
  "inputs": {
-  "enemy_sprites.py": "3948793cf9b33c25",
+  "enemy_sprites.py": "f02bcacb0e1dddd2",
   "art_pool/picks.json": "7a65efa17522760a",
   "art_pool/ships/coiled.png": "300ea5f0b8c08d0a",
   "art_pool/ships/swarm.png": "587b52ce5c3482c8",
@@ -64,23 +103,42 @@
  },
  "outputs": {
   "cutter_coiled.png": "869ab9ed467ccb75",
+  "cutter_coiled_half.png": "3d05a6e7e9b4b793",
   "cutter_swarm.png": "a346810f88017b42",
+  "cutter_swarm_half.png": "0043b800404046e6",
   "cutter_saucer.png": "861a09c805a1a5d7",
+  "cutter_saucer_half.png": "e68e70890ce6aa90",
   "lancer_gp_barrel.png": "edffd8e7957f04f1",
+  "lancer_gp_barrel_half.png": "328e66f23b79d5a8",
   "lancer_enginebar.png": "07b979c08c6f31b4",
+  "lancer_enginebar_half.png": "83e79fb1d897ce28",
   "lancer_solarsail.png": "1b8191df8af0a3be",
+  "lancer_solarsail_half.png": "b38e12b27579843e",
   "marauder_gn_barnacle.png": "36cbbeabe911ad1b",
+  "marauder_gn_barnacle_half.png": "3e8c7f9f7188a285",
   "marauder_tp_spires.png": "c3de6ae787be5eb7",
+  "marauder_tp_spires_half.png": "23546036fd36ce50",
   "marauder_dc_comb.png": "05153ea839e6d447",
+  "marauder_dc_comb_half.png": "e9f75b8bb588759f",
   "hulk_rg_hulk.png": "ca853eb779f64387",
+  "hulk_rg_hulk_half.png": "79635db8d13ce448",
   "hulk_rs_net.png": "29eab339743da78f",
+  "hulk_rs_net_half.png": "8786ffc17c069cc3",
   "hulk_honeycomb.png": "adb4d2cbec7b4066",
+  "hulk_honeycomb_half.png": "96df7b49790e6731",
   "sentinel_gyro.png": "1b4dea001738659f",
+  "sentinel_gyro_half.png": "6677e90e7df67d8f",
   "sentinel_scales.png": "e4c9ded83fc6c26c",
+  "sentinel_scales_half.png": "ad81a7e6f8efcb52",
   "sentinel_hl_column.png": "068abb600be4311d",
+  "sentinel_hl_column_half.png": "276496bc7a14c1d1",
   "hellbender_helix.png": "cebef507acc0e984",
+  "hellbender_helix_half.png": "16ffb643f5ef674e",
   "custodian_tetra.png": "90ca6f75f762f65b",
+  "custodian_tetra_half.png": "060293ee79407c37",
   "whale_fan.png": "baa93498f5c9b625",
-  "leviathan_lev_spine.png": "ca3605b5b3b3348a"
+  "whale_fan_half.png": "e23e4a1c65a2585e",
+  "leviathan_lev_spine.png": "ca3605b5b3b3348a",
+  "leviathan_lev_spine_half.png": "50b3213f95be97fd"
  }
 }

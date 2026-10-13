@@ -105,6 +105,17 @@ func _shoot(tree: SceneTree, ids: Array, out: String) -> Dictionary:
 	for i in range(1, kinds.size()):
 		extras.append(DB.enemies[kinds[i]])
 	var name := "+".join(ids).replace(":", "-") + _arg("tag")
+	# `local` (a pack of one shot's ids): no fight -- each is left at the
+	# system as a wreck, and LOCAL is opened on them, as after a fight
+	if "local" in _args:
+		for i in kinds.size():
+			Run.new_wreck(Run.node_at(), DB.enemies[kinds[i]], maxi(0, int(looks[i])))
+		Router.show_local()
+		for i in int(_arg("wait", "150")):
+			await RenderingServer.frame_post_draw
+		tree.root.get_texture().get_image().save_png("%s/%s.png" % [out, name])
+		GameShell.input_target(tree).get_texture().get_image().save_png("%s/%s_1x.png" % [out, name])
+		return {"name": name, "ids": ids, "local": true}
 	Router.start_combat(DB.enemies[kinds[0]], extras, false, false)
 	var hp := float(_arg("hp", "1"))
 	if Router.combat != null:

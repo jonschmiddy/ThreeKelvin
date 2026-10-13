@@ -576,8 +576,7 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 ## them, measured after the row has been laid out again.
 ## NOTHING IN A PACK SITS ON ANYTHING ELSE (Jon, Oct 13: three ships "don't fit
 ## on screen"; then, of the overlapped row: no ship, wreck, name, hull bar,
-## chips or intent may overlap another, or yours). The kept ships are 170 to 310
-## wide; three of them are wider than the enemy half.
+## chips or intent may overlap another, or yours).
 ##
 ## Every slot is placed by hand, as a unit -- its ship and its whole readout --
 ## and no two units share a pixel. The room they have is the band of the row
@@ -585,22 +584,29 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 ## is centred on the enemy half while it fits there and slides toward you only
 ## as far as it must. Your ship never moves.
 ##
-## A pack that fits in one row at full size is drawn that way in every layout.
-## When it does not, `pack_layout` decides (Jon is choosing):
-##   A  SHRINK -- one row, every ship drawn smaller by the same step, only as
-##      far down as the row needs (`EnemyArt.draw_scale`, shrunk as pixel art).
-##   B  FORMATION -- two ranks at full size: the first two ships in front, the
-##      rest behind them and above, each with its readout under it.
-##   C  COLUMN -- ships stacked top to bottom at full size, each readout beside
-##      its ship on your side of it.
-## B and C fall back to A's steps only when even they do not fit (a field of
-## four or five wrecks on LOCAL).
-static var pack_layout: StringName = &"A"
+## THREE OR MORE AT HALF (Jon: "when there are 3+ enemy ships on the screen can
+## we render them at 1X? Kinda like how we do for multiplayer"). With three or
+## more blocks in the pack, wrecks counted, every ship is drawn from its HALF
+## sheet, the way the convoy draws hulls (`ShipView.use_half`): a second file,
+## nearest 2:1, never a resample (`EnemyArt.draw_scale`). One or two stay at full
+## size. The step happens at once, at the start of the move that makes room.
+##
+## THE FORMATION (Jon picked B): one row while it fits -- one or two ships, at
+## full size; with three or more, ranks: the first two in front, the rest behind
+## and above, a rank of the same width behind that, each rank standing off the
+## one in front of it away from you, each ship with its readout under it. More
+## ranks when there are more ships, never smaller ships: a rank holds as many as
+## fit across.
+##
+## `pack_layout` C (a column, each readout beside its ship) is kept to compare
+## against, and for the test; B is the game's.
+static var pack_layout: StringName = &"B"
 const PACK_GAP := 10.0
 const PACK_VGAP := 6.0
 const PACK_MARGIN := 12.0
-const PACK_SCALES: Array[float] = [1.0, 0.85, 0.75, 0.65, 0.55, 0.5]
 const PACK_EASE := 0.4
+## From this many blocks in the pack, every ship is drawn from its half sheet.
+const PACK_HALF_AT := 3
 
 var _pack_queued := false
 ## Where each slot was last put, so a move eases rather than jumps.
@@ -666,30 +672,28 @@ func _layout_pack() -> void:
 			live.append(c)
 	if live.is_empty():
 		return
-	# in fight order, not child order: the rank behind is moved first among the
-	# children so it draws underneath, and must not then be taken for the front
+	# in fight order, not child order: the ranks behind are moved first among
+	# the children so they draw underneath, and must not then be taken for the
+	# front
 	live.sort_custom(func(a: EnemySlot, b: EnemySlot) -> bool: return a.index < b.index)
 	var area := _pack_area()
 	var mid := _slots.size.x * 0.5
-	# full size in one row if it fits; else the layout's own arrangement; else
-	# the same steps down, its own arrangement first at each
-	var plan := _pack_row(live, 1.0, area, mid)
-	for s in PACK_SCALES:
-		if not plan.is_empty():
-			break
-		if pack_layout == &"B":
-			plan = _pack_ranks(live, s, area, mid)
-		elif pack_layout == &"C":
-			plan = _pack_column(live, s, area, mid)
-		if plan.is_empty() and s < 1.0:
-			plan = _pack_row(live, s, area, mid)
+	var s := 0.5 if live.size() >= PACK_HALF_AT else 1.0
+	var plan := {}
+	if s == 1.0:
+		plan = _pack_row(live, s, area, mid)
+	if plan.is_empty() and pack_layout == &"C":
+		plan = _pack_column(live, s, area, mid)
 	if plan.is_empty():
-		# nothing fits even at the smallest step: the smallest row, overflowing
-		plan = _pack_row(live, PACK_SCALES[PACK_SCALES.size() - 1], area, mid, true)
+		plan = _pack_ranks(live, s, area, mid)
+	if plan.is_empty():
+		# more than the band can hold even in ranks: the row, overflowing
+		plan = _pack_row(live, s, area, mid, true)
 	var back: Array = plan.get("back", [])
 	var placed := {}
 	for sl in live:
 		var u: Dictionary = plan[sl]
+		# the size steps at once, at the start of the move
 		sl.apply_scale(float(u.scale))
 		sl.set_side(bool(u.side))
 		var r: Rect2 = u.rect
@@ -713,7 +717,7 @@ func _layout_pack() -> void:
 	for k in _pack_tw.keys():
 		if not placed.has(k):
 			_pack_tw.erase(k)
-	# the rank behind is drawn first, under the one in front
+	# the ranks behind are drawn first, farthest first, under the ones in front
 	for k in back.size():
 		_slots.move_child(back[k], k)
 
@@ -741,47 +745,60 @@ func _pack_row(live: Array[EnemySlot], s: float, area: Rect2, mid: float, force:
 	return out
 
 
-## B: the first two in front, the rest a rank behind and above.
+## B: ranks of `per` ships, the first rank in front (lowest), each one after it
+## behind and above, standing off the one in front away from you. Two to a
+## rank first -- two in front, the third behind -- and more to a rank only when
+## the ranks would not fit the band's height. Empty if nothing fits.
 func _pack_ranks(live: Array[EnemySlot], s: float, area: Rect2, mid: float) -> Dictionary:
-	var front: Array[EnemySlot] = []
-	var back: Array[EnemySlot] = []
-	for i in live.size():
-		(front if i < 2 else back).append(live[i])
-	var ranks := [back, front]
-	var widths: Array[float] = []
-	var heights: Array[float] = []
 	var units := {}
-	for rank: Array in ranks:
-		var w := 0.0
-		var h := 0.0
-		for sl: EnemySlot in rank:
-			var u := sl.unit(s, false)
-			units[sl] = u
-			w += u.x
-			h = maxf(h, u.y)
-		w += PACK_GAP * float(maxi(0, rank.size() - 1))
-		widths.append(w)
-		heights.append(h)
-	var block_h := heights[0] + PACK_VGAP + heights[1]
-	if widths[0] > area.size.x or widths[1] > area.size.x or block_h > area.size.y:
-		return {}
-	var out := {back = back}
-	var y := area.position.y + (area.size.y - block_h) * 0.5
-	# the rank behind sits over the gap between the two in front, nudged away
-	# from you, the way a second line stands off a first
-	var fx := _place_span(widths[1], area, mid)
-	var bmid := fx + widths[1] * 0.5 + 0.15 * widths[1]
-	var bx := clampf(bmid - widths[0] * 0.5, area.position.x, area.end.x - widths[0])
-	for k in 2:
-		var rank: Array = ranks[k]
-		var x := bx if k == 0 else fx
-		var ry := y if k == 0 else y + heights[0] + PACK_VGAP
-		for sl: EnemySlot in rank:
-			var u: Vector2 = units[sl]
-			out[sl] = {scale = s, side = false,
-				rect = Rect2(x, ry + (heights[k] - u.y) * (1.0 if k == 0 else 0.0), u.x, u.y)}
-			x += u.x + PACK_GAP
-	return out
+	for sl in live:
+		units[sl] = sl.unit(s, false)
+	for per in range(2 if live.size() >= 3 else 1, maxi(2, live.size()) + 1):
+		var ranks: Array = []
+		for i in live.size():
+			if i % per == 0:
+				ranks.append([])
+			(ranks[ranks.size() - 1] as Array).append(live[i])
+		var widths: Array[float] = []
+		var heights: Array[float] = []
+		var fits := true
+		for rank: Array in ranks:
+			var w := 0.0
+			var h := 0.0
+			for sl: EnemySlot in rank:
+				w += (units[sl] as Vector2).x
+				h = maxf(h, (units[sl] as Vector2).y)
+			w += PACK_GAP * float(maxi(0, rank.size() - 1))
+			widths.append(w)
+			heights.append(h)
+			fits = fits and w <= area.size.x
+		var block_h := PACK_VGAP * float(ranks.size() - 1)
+		for h in heights:
+			block_h += h
+		if not fits or block_h > area.size.y:
+			continue
+		var out := {}
+		var back: Array = []
+		# the front rank at the bottom of the block, each rank behind above it
+		var y := area.position.y + (area.size.y + block_h) * 0.5
+		var fx := _place_span(widths[0], area, mid)
+		var centre := fx + widths[0] * 0.5
+		for k in ranks.size():
+			var rank: Array = ranks[k]
+			y -= heights[k]
+			var want := centre + 0.15 * widths[0] * float(k)
+			var x := clampf(want - widths[k] * 0.5, area.position.x, area.end.x - widths[k])
+			for sl: EnemySlot in rank:
+				var u: Vector2 = units[sl]
+				# a rank stands on its baseline: readouts in a row end level
+				out[sl] = {scale = s, side = false, rect = Rect2(x, y + heights[k] - u.y, u.x, u.y)}
+				x += u.x + PACK_GAP
+			y -= PACK_VGAP
+		for k in range(ranks.size() - 1, 0, -1):
+			back.append_array(ranks[k])
+		out["back"] = back
+		return out
+	return {}
 
 
 ## C: one above another, each readout beside its ship.

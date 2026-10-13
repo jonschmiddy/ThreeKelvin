@@ -23,7 +23,9 @@ HOW EACH PICTURE IS MADE, all of it arithmetic on Jon's kept pixels:
   nothing resampled at run time (a plain nearest-neighbour drops every third
   row and snaps the 1 px spines);
 - cropped to the ink, hard alpha (0 or 255).
-Writes `<enemy>_<source>.png` and `index.json` ({enemy id: [file, ...]}), which
+Writes `<enemy>_<source>.png`, its half sheet `<enemy>_<source>_half.png` (for
+fights with three or more ships), and `index.json` ({enemy id: [file, ...]},
+and the same under "half"), which
 also records a hash of this script, of every source picture and of every file
 written, so `--check` (plain python, no numpy) can say the install is stale.
 """
@@ -171,8 +173,10 @@ def build():
     picks = json.load(io.open(os.path.join(POOL, "picks.json"), encoding="utf-8"))
     files = {}
     index = {}
+    halves = {}
     for enemy, srcs in VARIANTS.items():
         index[enemy] = []
+        halves[enemy] = []
         for src in srcs:
             a, gone = make(src, picks)
             if a.shape[1] > 340 or a.shape[0] > 160:
@@ -182,8 +186,19 @@ def build():
             Image.fromarray(a, "RGBA").save(buf, "PNG", optimize=True)
             files[fn] = buf.getvalue()
             index[enemy].append(fn)
+            # THE HALF SHEET, for a fight with three or more ships in it (Jon:
+            # "render them at 1X, kinda like how we do for multiplayer"). Made
+            # the way the hulls' half sheets are (`HullData.sprite_half`):
+            # nearest, keeping the top-left pixel of every 2x2 block, which read
+            # better than an averaged-and-snapped reduction side by side.
+            h = trim(a[::2, ::2])
+            hn = fn[:-4] + "_half.png"
+            buf = io.BytesIO()
+            Image.fromarray(np.ascontiguousarray(h), "RGBA").save(buf, "PNG", optimize=True)
+            files[hn] = buf.getvalue()
+            halves[enemy].append(hn)
             print("  %-10s %-24s %3dx%-3d specks %d" % (enemy, fn, a.shape[1], a.shape[0], gone))
-    record = {"source": "tools/enemy_sprites.py", "enemies": index,
+    record = {"source": "tools/enemy_sprites.py", "enemies": index, "half": halves,
               "inputs": {p: sha(os.path.join(HERE, p)) for p in sources()},
               "outputs": {fn: hashlib.sha256(data).hexdigest()[:16] for fn, data in files.items()}}
     files["index.json"] = (json.dumps(record, indent=1) + "\n").encode()
