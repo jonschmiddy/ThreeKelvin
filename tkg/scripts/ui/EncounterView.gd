@@ -605,6 +605,8 @@ const PACK_HALF_AT := 3
 var _pack_queued := false
 ## Where each slot was last put, so a move eases rather than jumps.
 var _placed: Dictionary = {}
+## Which rank of the formation each slot stands in (0 the front), for the test.
+var _pack_rank_of: Dictionary = {}
 var _pack_tw: Dictionary = {}
 
 func _queue_pack() -> void:
@@ -681,10 +683,19 @@ func _layout_pack() -> void:
 			plan = _pack_column(live, s, area, mid)
 	if plan.is_empty():
 		plan = _pack_ranks(live, s, area, mid)
+		# A PAIR TOO BIG FOR THE BAND at full size, with its shields' room (two
+		# Marauders, a Marauder and a Hulk): drawn from half sheets like a pack
+		# of three, rather than packed tighter than the least gap
+		if s == 1.0 and (plan.is_empty() or float(plan.get("low", INF)) < PACK_GAP_MIN):
+			var half := _pack_ranks(live, 0.5, area, mid)
+			if not half.is_empty():
+				plan = half
+				s = 0.5
 	if plan.is_empty():
 		# more than the band can hold even in ranks: the row, overflowing
 		plan = _pack_row(live, s, area, mid, true)
 	var back: Array = plan.get("back", [])
+	_pack_rank_of = plan.get("ranks", {})
 	var placed := {}
 	for sl in live:
 		var u: Dictionary = plan[sl]
@@ -736,7 +747,7 @@ func _pack_row(live: Array[EnemySlot], s: float, area: Rect2, mid: float, force:
 	for i in live.size():
 		var u := units[i]
 		out[live[i]] = {scale = s, side = false,
-			rect = Rect2(x, area.position.y + (area.size.y - u.y) * 0.5, u.x, u.y)}
+			rect = Rect2(x, _low_enough(area.position.y + (area.size.y - u.y) * 0.5, u.y, area), u.x, u.y)}
 		x += u.x + PACK_GAP
 	return out
 
@@ -776,6 +787,7 @@ func _pack_ranks(live: Array[EnemySlot], s: float, area: Rect2, mid: float) -> D
 		# at the least gap, leaving it room (at 24 px between blocks the fuel
 		# cache's pieces had nowhere left beside three wrecks; subjecttest)
 		var g := PACK_GAP_WRECKS if _slots_mode == &"wrecks" else PACK_GAP_MAX
+		var multi := false
 		var heights: Array[float] = []
 		var total_h := 0.0
 		var fits := true
@@ -789,30 +801,40 @@ func _pack_ranks(live: Array[EnemySlot], s: float, area: Rect2, mid: float) -> D
 				fits = false
 			if rank.size() > 1:
 				g = minf(g, (area.size.x - w) / float(rank.size() - 1))
+				multi = true
 			heights.append(h)
 			total_h += h
 		if not fits or total_h > area.size.y:
 			continue
+		# ACROSS a rank one gap, as wide as the band allows; BETWEEN ranks the
+		# same or less, down to the floor (Jon: "decrease the vertical space
+		# between the top and bottom ships to make room for the text")
+		var gv := g
 		if ranks.size() > 1:
-			g = minf(g, (area.size.y - total_h) / float(ranks.size() - 1))
+			gv = minf(g, (area.size.y - total_h) / float(ranks.size() - 1))
 		g = floorf(g)
-		var plan := _place_ranks(ranks, heights, blocks, units, g, s, area, mid)
+		gv = floorf(gv)
+		var plan := _place_ranks(ranks, heights, blocks, units, g, s, area, mid, gv)
 		if plan.is_empty():
 			continue
-		if g >= PACK_GAP_MIN:
+		var low := minf(g if multi else INF, gv if ranks.size() > 1 else INF)
+		plan["low"] = low
+		if low >= PACK_GAP_MIN:
 			return plan
-		if g > best_g:
+		if low > best_g:
 			best = plan
-			best_g = g
+			best_g = low
 	return best
 
 
 func _place_ranks(ranks: Array, heights: Array[float], blocks: Dictionary, units: Dictionary,
-		g: float, s: float, area: Rect2, mid: float) -> Dictionary:
-	var total_h := g * float(ranks.size() - 1)
+		g: float, s: float, area: Rect2, mid: float, gv: float = -1.0) -> Dictionary:
+	if gv < 0.0:
+		gv = g
+	var total_h := gv * float(ranks.size() - 1)
 	for h in heights:
 		total_h += h
-	var bottom := area.position.y + floorf((area.size.y + total_h) * 0.5)
+	var bottom := _low_enough(area.position.y + floorf((area.size.y - total_h) * 0.5), total_h, area) + total_h
 	var placed: Array = []   # per rank: Array of Rect2, the blocks as drawn
 	for k in ranks.size():
 		var rank: Array = ranks[k]
@@ -855,7 +877,7 @@ func _place_ranks(ranks: Array, heights: Array[float], blocks: Dictionary, units
 			# a rank stands on its baseline
 			rects.append(Rect2(xs[j] + shift, bottom - b.size.y, b.size.x, b.size.y))
 		placed.append(rects)
-		bottom -= heights[k] + g
+		bottom -= heights[k] + gv
 	var out := {}
 	var back: Array = []
 	for k in ranks.size():
@@ -868,6 +890,11 @@ func _place_ranks(ranks: Array, heights: Array[float], blocks: Dictionary, units
 	for k in range(ranks.size() - 1, 0, -1):
 		back.append_array(ranks[k])
 	out["back"] = back
+	var rank_of := {}
+	for k in ranks.size():
+		for sl in ranks[k]:
+			rank_of[sl] = k
+	out["ranks"] = rank_of
 	return out
 
 
@@ -893,6 +920,22 @@ func _pack_column(live: Array[EnemySlot], s: float, area: Rect2, mid: float) -> 
 		out[live[i]] = {scale = s, side = true, rect = Rect2(x + wide - u.x, y, u.x, u.y)}
 		y += u.y + PACK_VGAP
 	return out
+
+
+## ROOM FOR THE NUMBERS (Jon, Oct 13, "C": a landing's numbers stack above
+## the ship's words). A fight's ships, centred in the band, sit lower where
+## the band allows, so the stack over the top rank -- three lines, risen --
+## stays under the HUD rather than go on the hull. `top` is where the blocks'
+## top would be centred; `h` their height. LOCAL's wrecks take no hits.
+const POP_ROOM := HitText.GAP + 2.0 * HitText.LINE + HitText.CAP + 1.0 + HitText.RISE + 2.0
+
+func _low_enough(top: float, h: float, area: Rect2) -> float:
+	if _slots_mode == &"wrecks":
+		return top
+	var want := area.position.y + POP_ROOM
+	if top >= want:
+		return top
+	return maxf(top, minf(want, area.end.y - h))
 
 
 ## Where a span of `w` starts: centred on the enemy half while it fits there,
@@ -1761,16 +1804,24 @@ class ShipSlot extends Control:
 		# What this card would give you, over your own hull. Same idea as the
 		# enemy's number and the opposite colour: one is what you take off them,
 		# the other is what you put on yourself.
+		# On the hull too, for the same reason the brackets are, in the same
+		# letters a landing pops (`HitText`): centred on the hull's INK, not
+		# the bracket box (clipped to the view) nor the canvas (which carries
+		# the exhaust's clearance on one side).
 		if _drag_text != "":
-			var f := UITheme.pixel_font()
-			var fs := UITheme.FS_HEAD
-			var tw := f.get_string_size(_drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-			# Over the hull too, for the same reason the brackets are.
-			var at := Vector2(box.position.x + (box.size.x - tw) * 0.5,
-				box.position.y + box.size.y * 0.5 + fs * 0.4)
-			draw_string(f, at + Vector2(1, 1), _drag_text,
-				HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.75))
-			draw_string(f, at, _drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UITheme.GOOD)
+			HitText.draw_centred(self, ink_rect().get_center(), _drag_text, HitText.colour(&"gain"))
+
+	## Your hull's ink in this slot's coordinates, the bob taken out.
+	func ink_rect() -> Rect2:
+		if art == null:
+			return Rect2(Vector2.ZERO, size)
+		var r := art.ship_rect()
+		r.position += art.position
+		return r
+
+	## Where the held card's number is drawn, its letters' own box.
+	func preview_rect(text: String) -> Rect2:
+		return HitText.ink_rect(HitText.centred_at(ink_rect().get_center(), text), text)
 
 
 ## One ship flying with you: their hull, their name, and how they are doing.

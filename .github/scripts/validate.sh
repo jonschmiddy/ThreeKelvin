@@ -472,6 +472,22 @@ else
 	bad "deathpooltest did not finish"
 fi
 
+step "Fight numbers sit on the hull's ink, and land above it"
+# Jon, Oct 13 ("Pops: B"): a held card's number centred on the ship's ink both
+# ways; a landing's pops centred across on the ink and wholly above its top.
+# Every enemy picture and every player hull (manufacturer x weight), in a fight.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot popplacetest 240 --headless --path "$PROJECT" -- sheet=PopPlaceTest; then
+	if grep -qE '^popplacetest: PASS' "$LOG_DIR/popplacetest.log"; then
+		ok "previews on the ink, pops above it, on every hull"
+	else
+		bad "a fight number is off its hull"
+		grep -E 'FAIL|^popplacetest' "$LOG_DIR/popplacetest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "popplacetest did not finish"
+fi
+
 step "Hits, block and brace drawn on every ship in a fight"
 # Through the real screen, a pack of three: each ship carries its hit marks, the
 # bubble for block and the plated overlay for brace; every kind of landing
@@ -613,11 +629,13 @@ fi
 step "Nothing in a fight sits on anything else"
 # Jon, on three enemies piled on each other: no ship, wreck, name, hull bar,
 # chips or intent may overlap another enemy's, or yours. Every pair and triple
-# of the pictures a fight can bring, every triple with a wreck in it, piles of
-# four to eight and LOCAL's rows of up to twelve wrecks, in the formation (B, the
-# game's) and the column (C): three or more blocks drawn from their half sheets,
-# every box apart, inside the view, your ship where it stood; in B the gaps
-# between neighbouring blocks even (within 4 px at 1080p) and at least 24 px.
+# of the pictures a fight can bring, every triple with a wreck in it, and
+# LOCAL's rows of up to twelve wrecks, in the formation (B, the game's) and the
+# column (C): three or more blocks drawn from their half sheets, every box
+# apart, inside the view, your ship where it stood; each fighting ship's shield
+# oval clear of its words, name, bars and chips and of every other block (Jon,
+# "shield:A"); in B the gaps across a rank even (within 4 px at 1080p), the
+# gaps between ranks even, every gap at least 24 px.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
 	run_godot packlayouttest 420 --headless --path "$PROJECT" -- sheet=PackLayoutTest; then
 	if grep -qE '^packlayouttest: PASS' "$LOG_DIR/packlayouttest.log"; then

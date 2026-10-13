@@ -100,6 +100,13 @@ var _lift_bot: Control
 ## the picture's size, and this spacer makes up the rest.
 const UNDER_GAP := 6
 var _under: Control
+## THE SHIELD'S ROOM (Jon, "shield:A"). A ship in a fight keeps room above and
+## below its hull for the bubble its block raises (`ShieldFx.fit`'s own oval for
+## this picture at this size), and RIM_GAP from the oval's rim to its words
+## above and to its name below -- shield up or not, so nothing moves when one
+## comes or goes. `_over` is the spacer between the words and the hull.
+const RIM_GAP := 6
+var _over: Control
 ## The column everything hangs in, the bars' box, and -- in a column pack (layout
 ## C) -- the row that puts the readout beside the ship instead of under it.
 var _col: VBoxContainer
@@ -233,6 +240,10 @@ func _init() -> void:
 	_intent_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(_intent_text)
 	col.move_child(_intent_text, 1)
+	_over = Control.new()
+	_over.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(_over)
+	col.move_child(_over, 2)
 
 	# The column centres itself and the art stops expanding, so name and bars
 	# sit directly under the ship instead of being shoved to the floor of a slot
@@ -492,20 +503,73 @@ func _fit_holder() -> void:
 	_fit_under()
 
 
-## The spacer under the hull, so ink-bottom to name-top is UNDER_GAP: the
-## holder's own margin under the ink, the two 1 px separations, and this.
+## The spacers round the hull at its current size (`_spacers`).
 func _fit_under() -> void:
 	if _under == null or art == null:
 		return
-	var ink := art.ink_rect()
-	var margin := _art_holder.custom_minimum_size.y - (_art_base.y + float(ink.end.y))
-	var h := maxf(0.0, float(UNDER_GAP) - margin - 2.0)
-	if _under.custom_minimum_size.y != h:
-		_under.custom_minimum_size.y = h
+	var sp := _spacers(art.draw_scale)
+	if _over.custom_minimum_size.y != sp.x:
+		_over.custom_minimum_size.y = sp.x
+	_over.visible = reserve_intent and not side
+	if _under.custom_minimum_size.y != sp.y:
+		_under.custom_minimum_size.y = sp.y
+
+## The two spacers at size `s`: over the hull (between its words and the
+## shield's top) and under it (between the shield's bottom, or a wreck's ink,
+## and its name). Each makes up what the holder's own margin, the shield's
+## reach and the column's 1 px separations leave of the gap.
+func _spacers(s: float) -> Vector2:
+	var top_m := 3.0
+	var bot_m := 3.0
+	if art != null and is_equal_approx(art.draw_scale, s) and art.ink_rect().size != Vector2i.ZERO:
+		var ink := art.ink_rect()
+		top_m = _art_base.y + float(ink.position.y)
+		bot_m = _art_holder.custom_minimum_size.y - (_art_base.y + float(ink.end.y))
+	if not reserve_intent:
+		return Vector2(0.0, maxf(0.0, float(UNDER_GAP) - bot_m - 2.0))
+	var rc := _reach(s)
+	return Vector2(maxf(0.0, float(RIM_GAP) - 2.0 - (top_m - rc.x)),
+		maxf(0.0, float(RIM_GAP) - 2.0 - (bot_m - rc.y)))
 
 ## What the spacer adds to the column's height, its separation included.
 func _under_h() -> float:
 	return (_under.custom_minimum_size.y + 1.0) if _under != null and _under.visible else 0.0
+
+## How far the shield's oval reaches past a picture's ink: up, down, left,
+## right, in its pixels. Measured once per picture with `ShieldFx.fit`, the fit
+## the shield itself is drawn with.
+static var _reach_cache: Dictionary = {}
+
+static func shield_reach(tex: Texture2D) -> Vector4:
+	if tex == null:
+		return Vector4.ZERO
+	var key := tex.resource_path
+	if _reach_cache.has(key):
+		return _reach_cache[key]
+	var img := tex.get_image()
+	if img.is_compressed():
+		img = img.duplicate()
+		img.decompress()
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img = img.duplicate()
+		img.convert(Image.FORMAT_RGBA8)
+	var used := img.get_used_rect()
+	var f := ShieldFx.fit(img, used)
+	var cc: Vector2 = f.cc
+	var rx: float = f.rx
+	var ry: float = f.ry
+	var r := Vector4(maxf(0.0, float(used.position.y) - floorf(cc.y - ry)),
+		maxf(0.0, ceilf(cc.y + ry) - float(used.end.y)),
+		maxf(0.0, float(used.position.x) - floorf(cc.x - rx)),
+		maxf(0.0, ceilf(cc.x + rx) - float(used.end.x)))
+	_reach_cache[key] = r
+	return r
+
+## This ship's shield reach at size `s` (none for a wreck row).
+func _reach(s: float) -> Vector4:
+	if _last_e == null or not reserve_intent:
+		return Vector4.ZERO
+	return shield_reach(DB.enemy_sprite(_last_e.template.id, _last_e.look, s < 1.0))
 
 
 ## What the last bind drew, so the pack layout can redraw it at another size.
@@ -603,19 +667,23 @@ func unit(s: float, beside: bool) -> Vector2:
 	# under the hull: name, brace and hull bars, number, a row of chips
 	# (a wreck on LOCAL has no brace and carries nothing: just its name, its
 	# empty bar and its word)
-	var below := _under_h() + lh + 1.0 + float(EnemySlot.BracePips.CELL.y) + 1.0 + 6.0 + 1.0 + lh + 1.0 + _chip_row_h() \
-		if reserve_intent else _under_h() + lh + 1.0 + 6.0 + 1.0 + lh
+	var under := _spacers(s).y + 1.0
+	var below := under + lh + 1.0 + float(EnemySlot.BracePips.CELL.y) + 1.0 + 6.0 + 1.0 + lh + 1.0 + _chip_row_h() \
+		if reserve_intent else under + lh + 1.0 + 6.0 + 1.0 + lh
 	if beside:
 		var lw := maxf(widest, it_w)
 		var lab_h := below + ((lh + 1.0) * 2.0 if reserve_intent else 0.0)
 		return Vector2(lw + 8.0 + ship.x, maxf(ship.y, lab_h))
-	var w := maxf(ship.x, widest)
+	var rc := _reach(s)
+	var ink_w := ship.x - 6.0
+	var w := maxf(maxf(ship.x, widest), ink_w + rc.z + rc.w)
 	var above := 0.0
 	if reserve_intent:
 		if it_w > 0.0:
 			w = maxf(w, minf(it_w, maxf(w, WRAP_W)))
 		w = ceilf(w)
-		above = lh + 1.0 + lh * float(_lines(it_w, w)) + 1.0
+		# the words, the spacer to the shield's top, and their separations
+		above = lh + 1.0 + lh * float(_lines(it_w, w)) + 1.0 + _spacers(s).x + 1.0
 	return Vector2(ceilf(w), above + ship.y + 1.0 + below)
 
 ## How many lines an intent text of width `tw` takes in a slot `w` wide, with
@@ -651,7 +719,8 @@ func block(s: float) -> Rect2:
 		else Vector2(art.half_ink if s < 1.0 else art.full_ink)
 	var r := _reserved(u.x)
 	var labels: float = maxf(float(r.widest), minf(float(r.text), u.x))
-	var w := minf(u.x, maxf(ink.x, labels))
+	var rc := _reach(s)
+	var w := minf(u.x, maxf(maxf(ink.x, labels), ink.x + rc.z + rc.w))
 	var top := 0.0 if reserve_intent else 3.0
 	# (the column centres the holder by floor, as a container does)
 	return Rect2(floorf((u.x - w) * 0.5), top, w, u.y - top)
@@ -683,6 +752,7 @@ func set_side(on: bool) -> void:
 		_col.move_child(_side_row, _art_holder.get_index())
 		_art_holder.reparent(_side_row, false)
 		_under.visible = false
+		_over.visible = false
 		for p in parts:
 			p.reparent(_side_box, false)
 			if p is Label:
@@ -707,6 +777,12 @@ func set_side(on: bool) -> void:
 			_col.move_child(after[k], _art_holder.get_index() + 1 + k)
 		_col.move_child(_under, _art_holder.get_index() + 1)
 		_under.visible = true
+		# just above the hull (`move_child` takes the final index, so one less
+		# when the spacer comes from above it: a column, then a row, had put it
+		# under the hull, and the shield's room with it)
+		var hi := _art_holder.get_index()
+		_col.move_child(_over, hi - 1 if _over.get_index() < hi else hi)
+		_over.visible = reserve_intent
 		for p in parts:
 			if p is Label:
 				(p as Label).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -922,11 +998,80 @@ func _draw() -> void:
 	# of the enemy's own readout — a permanent stat that happened to change.
 	# Painted across the target only while you are holding a card over it, it is
 	# obviously a QUESTION being answered: this card, this enemy, this much.
+	# The same letters the shot will pop when it lands (`HitText`).
 	if _hot and _drag_text != "":
-		var f := UITheme.pixel_font()
-		var fs := UITheme.FS_HEAD
-		var tw := f.get_string_size(_drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		var at := Vector2((size.x - tw) * 0.5, size.y * 0.5 + fs * 0.4)
-		draw_string(f, at + Vector2(1, 1), _drag_text,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.75))
-		draw_string(f, at, _drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UITheme.FLARE)
+		# On the hull's ink, both ways, not the slot's middle: in a pack the
+		# slot runs down past the hull and the number sat on the name.
+		HitText.draw_centred(self, ink_rect().get_center(), _drag_text, HitText.colour(&"damage"))
+
+
+## THE HULL'S INK in this slot's coordinates: the picture's own box
+## (`EnemyArt.ink_rect`, without the light a wind-up throws), placed where the
+## holder puts it -- wherever the column has the holder, readout above or
+## beside it (the brackets above are this, padded).
+func ink_rect() -> Rect2:
+	var u: Rect2i = art.ink_rect() if art != null else Rect2i(0, 0, EnemyArt.W, EnemyArt.H)
+	var at := _art_holder.global_position - global_position + _art_base
+	return Rect2(at + Vector2(u.position), Vector2(u.size))
+
+
+## Where the held card's number is drawn, its letters' own box, in this slot's
+## coordinates (`HitText.ink_rect`). For the test that holds it to the ink.
+func preview_rect(text: String) -> Rect2:
+	return HitText.ink_rect(HitText.centred_at(ink_rect().get_center(), text), text)
+
+
+## THE WORDS OVER THIS SHIP (its intent: STRAFE / DEAL 5), in global px: the
+## lines' own text, centred as they are drawn, not their full-width labels.
+## Empty when nothing is written there. A landed number goes above these
+## (Jon, Oct 13, "C": it sat on them and read "ST-8E").
+func intent_rect_global() -> Rect2:
+	return _text_rect([_intent, _intent_text])
+
+
+## The ship's readout under it (name, bars, hull, chips), in global px.
+func readout_rect_global() -> Rect2:
+	var r := _text_rect([_name, _hp])
+	for c: Control in [_brace_bar, _bar, chips]:
+		if c != null and c.is_visible_in_tree() and c.size.x > 0.0:
+			var g := c.get_global_rect()
+			if c == chips and c.get_child_count() == 0:
+				continue
+			r = g if r.size == Vector2.ZERO else r.merge(g)
+	return r
+
+
+## The intent words step back for `secs` (a landed number written on the hull
+## because there was no room above them: `SectorScreen._pop_at`).
+var _hush_until := 0
+var _hush_tw: Tween = null
+
+func hush_intent(secs: float) -> void:
+	_hush_until = Time.get_ticks_msec() + int(secs * 1000.0)
+	if _hush_tw != null and _hush_tw.is_valid():
+		_hush_tw.kill()
+	_hush_tw = create_tween()
+	for l: Label in [_intent, _intent_text]:
+		_hush_tw.parallel().tween_property(l, "modulate:a", 0.12, 0.08)
+	_hush_tw.tween_interval(secs)
+	for l2: Label in [_intent, _intent_text]:
+		_hush_tw.parallel().tween_property(l2, "modulate:a", 1.0, 0.2)
+
+
+func intent_hushed() -> bool:
+	return Time.get_ticks_msec() < _hush_until
+
+
+func _text_rect(labels: Array) -> Rect2:
+	var r := Rect2()
+	for l: Label in labels:
+		if l == null or not l.is_visible_in_tree() or l.text == "":
+			continue
+		var g := l.get_global_rect()
+		var f := l.get_theme_font(&"font")
+		var fs := l.get_theme_font_size(&"font_size")
+		var w := minf(g.size.x, f.get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x) \
+			if f != null else g.size.x
+		var t := Rect2(g.position.x + (g.size.x - w) * 0.5, g.position.y, w, g.size.y)
+		r = t if r.size == Vector2.ZERO else r.merge(t)
+	return r

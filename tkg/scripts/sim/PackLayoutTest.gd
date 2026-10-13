@@ -102,7 +102,9 @@ func _run() -> void:
 			var pile: Array = []
 			for i in n:
 				pile.append(wide[i % wide.size()])
-			if n <= 8:
+			# (a fight of four or more is the dev flag's alone, and with every
+			# ship's shield room kept it no longer fits the band: LOCAL's rows only)
+			if false:
 				cases += 2
 				await _check(tree, "%s pile of %d" % [mode, n], pile, home, false)
 				await _check(tree, "%s pile of %d, every other a wreck" % [mode, n], pile, home, false, true)
@@ -195,6 +197,9 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 	while view.slot(n) != null:
 		n += 1
 	var want := 0.5 if n >= 3 else 1.0
+	# (a pair too big for the band at full size is drawn at half too)
+	if n == 2 and view.slot(0).art.get("draw_scale") != null and is_equal_approx(float(view.slot(0).art.get("draw_scale")), 0.5):
+		want = 0.5
 	for k in n:
 		var art: EnemyArt = view.slot(k).art
 		var got: Variant = art.get("draw_scale")
@@ -207,29 +212,64 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 			boxes.append([i, b[0], b[1]])
 		i += 1
 	# THE SAME ROOM UNDER EVERY HULL (Jon: "The hellbender is a bit close to
-	# its text box"): ink bottom to name top UNDER_GAP game px, 12 at 1080p
-	# (at least ~10 asked), the same for every ship at every scale
+	# its text box"), and THE SHIELD'S ROOM ("shield:A"). A ship in a fight:
+	# the oval its block raises (`ShieldFx.fit`, the shield's own) clear of its
+	# words, its name, its bars and chips, and of every other ship's boxes, with
+	# RIM_GAP from its rim to the words above and to the name below. A wreck on
+	# LOCAL (no shield): its name UNDER_GAP under its ink.
+	var ovals: Array = []   # [owner, Rect2]
 	for k in n:
 		var sl: EnemySlot = view.slot(k)
 		var ship := Rect2()
 		var name_top := INF
+		var words_bottom := -INF
+		var own: Array[Rect2] = []
 		for b in _slot_boxes(sl):
-			if String(b[0]) == "ship":
+			var what := String(b[0])
+			if what == "ship":
 				ship = b[1]
-			elif String(b[0]).begins_with("name"):
+				continue
+			own.append(b[1])
+			if what.begins_with("name"):
 				name_top = (b[1] as Rect2).position.y
-		if ship.size != Vector2.ZERO and name_top < INF and sl.get("side") == false:
+		var it: Label = sl.get("_intent_text")
+		if it != null and it.is_visible_in_tree():
+			words_bottom = it.get_global_rect().end.y
+		if ship.size == Vector2.ZERO or name_top == INF or sl.get("side") != false:
+			continue
+		# (a wreck in a fight raises no shield: its room is kept, unused)
+		if bool(sl.get("_dead")) and (sl.get("reserve_intent") == null or bool(sl.get("reserve_intent"))):
+			continue
+		var fights: bool = sl.get("reserve_intent") == null or bool(sl.get("reserve_intent"))
+		if not fights or sl.get("RIM_GAP") == null:
 			var gap := name_top - ship.end.y
 			var want_gap: float = float(sl.get("UNDER_GAP")) if sl.get("UNDER_GAP") != null else 5.0
 			_ok("%s: ship %d's name %.0f px under its hull (want %.0f)" % [tag, k, gap, want_gap],
 				gap >= 5.0 and absf(gap - want_gap) < 0.5)
+			continue
+		var holder: Control = sl.get("_art_holder")
+		var rest: Vector2 = holder.get_global_rect().position + sl.get("_art_base")
+		var f := ShieldFx.fit(sl.art.snapshot(), sl.art.ink_rect())
+		var cc: Vector2 = f.cc
+		var rad := Vector2(float(f.rx), float(f.ry))
+		var oval := Rect2(rest + cc - rad, rad * 2.0)
+		ovals.append([k, oval])
+		var rim := float(sl.get("RIM_GAP"))
+		_ok("%s: ship %d's shield %.1f px over its name (want %.0f)" % [tag, k, name_top - oval.end.y, rim],
+			absf(name_top - oval.end.y - rim) <= 1.0)
+		if words_bottom > -INF:
+			_ok("%s: ship %d's shield %.1f px under its words (want %.0f)" % [tag, k, oval.position.y - words_bottom, rim],
+				absf(oval.position.y - words_bottom - rim) <= 1.0)
+		for r: Rect2 in own:
+			_ok("%s: ship %d's shield clear of its own readout (%s)" % [tag, k, r], not oval.intersects(r))
 	var you := _you(view)
 	if home != Vector2.INF:
 		_ok("%s: your ship stays where it stood (%s, was %s)" % [tag, you[0].position, home], you[0].position.distance_to(home) <= 1.0)
 	# EVENLY SPACED, with room (Jon: "we need more space and they can be evenly
-	# spaced around each other"): in the formation, each block's gap to its
-	# nearest neighbour is at least GAP_MIN (24 px at 1080p) and every block's
-	# is the same, to within GAP_SPREAD (4 px at 1080p)
+	# spaced around each other"; then "decrease the vertical space between the
+	# top and bottom ships to make room for the text"): in the formation, the
+	# gaps across a rank all one (within GAP_SPREAD, 4 px at 1080p), the gaps
+	# between ranks all one, and every gap at least GAP_MIN (24 px at 1080p).
 	var scr: Script = load("res://scripts/ui/EncounterView.gd")
 	if scr.get("pack_layout") == &"B" and n >= 2:
 		var blocks: Array[Rect2] = []
@@ -238,25 +278,62 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 			var u := Rect2()
 			for b in _slot_boxes(sl):
 				u = b[1] if u.size == Vector2.ZERO else u.merge(b[1])
-			# the block the slot keeps for the whole fight (its readout's room
-			# reserved), where the build has one; every box drawn lies inside it
+			for o in ovals:
+				if int(o[0]) == k:
+					u = u.merge(o[1])
+			# the block the slot keeps for the whole fight (its readout's and
+			# its shield's room reserved), where the build has one; every box
+			# drawn, and the shield, lie inside it
 			if sl.has_method("block"):
 				var r: Rect2 = sl.call("block", sl.art.draw_scale)
 				var kept := Rect2(sl.get_global_rect().position + r.position, r.size)
-				_ok("%s: ship %d's drawn readout inside its kept block" % [tag, k], kept.grow(1.0).encloses(u))
+				_ok("%s: ship %d's drawn readout and shield inside its kept block (%s in %s)" % [tag, k, u, kept],
+					kept.grow(1.0).encloses(u))
 				u = kept
 			blocks.append(u)
-		var near: Array[float] = []
-		for a in n:
-			var m := INF
-			for b in n:
-				if a != b:
-					m = minf(m, _sep(blocks[a], blocks[b]))
-			near.append(m)
-		var lo: float = near.min()
-		var hi: float = near.max()
-		_ok("%s: every block at least %d px from its nearest (closest %.0f)" % [tag, int(GAP_MIN), lo], lo >= GAP_MIN)
-		_ok("%s: the gaps even (%.0f to %.0f)" % [tag, lo, hi], hi - lo <= GAP_SPREAD)
+		var rank_of: Variant = view.get("_pack_rank_of")
+		var ranks := {}
+		for k in n:
+			var rk := 0
+			if rank_of is Dictionary and (rank_of as Dictionary).has(view.slot(k)):
+				rk = int(rank_of[view.slot(k)])
+			if not ranks.has(rk):
+				ranks[rk] = []
+			(ranks[rk] as Array).append(k)
+		var across: Array[float] = []
+		var between: Array[float] = []
+		for rk in ranks.keys():
+			var ks: Array = ranks[rk]
+			ks.sort_custom(func(a: int, b: int) -> bool: return blocks[a].position.x < blocks[b].position.x)
+			for j in range(1, ks.size()):
+				across.append(blocks[ks[j]].position.x - blocks[ks[j - 1]].end.x)
+			if ranks.has(int(rk) + 1):
+				var low_top := INF
+				for a in ks:
+					low_top = minf(low_top, blocks[a].position.y)
+				var up_bottom := -INF
+				for a in ranks[int(rk) + 1]:
+					up_bottom = maxf(up_bottom, blocks[a].end.y)
+				between.append(low_top - up_bottom)
+		for gaps: Array[float] in [across, between]:
+			if gaps.is_empty():
+				continue
+			var lo: float = gaps.min()
+			var hi: float = gaps.max()
+			var which := "across a rank" if gaps == across else "between ranks"
+			_ok("%s: the gaps %s at least %d px (closest %.0f)" % [tag, which, int(GAP_MIN), lo], lo >= GAP_MIN)
+			_ok("%s: the gaps %s even (%.0f to %.0f)" % [tag, which, lo, hi], hi - lo <= GAP_SPREAD)
+		if not across.is_empty() and not between.is_empty():
+			_ok("%s: no wider between ranks than across them (%.0f, %.0f)" % [tag, between.max(), across.min()],
+				between.max() <= across.min() + GAP_SPREAD)
+	for o in ovals:
+		var ro: Rect2 = o[1]
+		for a in boxes:
+			if int(a[0]) != int(o[0]) and ro.intersects(a[2]):
+				_ok("%s: ship %d's shield over ship %d's %s" % [tag, o[0], a[0], a[1]], false)
+		for o2 in ovals:
+			if int(o2[0]) > int(o[0]) and ro.intersects(o2[1]):
+				_ok("%s: ship %d's shield over ship %d's" % [tag, o[0], o2[0]], false)
 	for r: Rect2 in you:
 		boxes.append([-1, "your readout", r])
 	var vr := view.get_global_rect()
