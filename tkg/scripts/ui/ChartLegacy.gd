@@ -66,6 +66,13 @@ const STARS_SH := preload("res://shaders/chart_l_stars.gdshader")
 const HOLE_SH := preload("res://shaders/chart_l_hole.gdshader")
 const PAL_SH := preload("res://shaders/chart_l_palette.gdshader")
 const LUT_SH := preload("res://shaders/chart_l_palette_lut.gdshader")
+const SOLID_BAKE_SH := preload("res://shaders/chart_l_bake_solid.gdshader")
+## THE SOLID LOOK'S TWO FIELDS (`chart_l_bake_solid`): how big, and over how much of
+## the plane (gu either way), as SIMPLIFIED's noise bake is.
+const SOLID_BAKE := 1024
+const SOLID_EXT := 1.2
+## How much further out than the shared radii LEGACY's edge fades (`_push`).
+const EDGE_K := 1.2
 const SystemPaletteS := preload("res://scripts/ui/sysmap/SystemPalette.gd")
 
 ## The extra stars' colours, and the star sets every palette carries.
@@ -139,6 +146,9 @@ static var _pts_cache: Dictionary = {}
 ## a bake finishes even if the chart that asked for it has closed.
 static var _baker: ChartLegacy = null
 var chart: StarchartScreen.MapChart = null
+## The ChartSky this renderer draws for (its parent; none for the baker): THE SOLID
+## LOOK's camera and uniforms are its (`solid_frame`, `push_solid`, `push_solid_stars`).
+var sky: ChartSky = null
 
 ## Seconds between frames of the sky's own motion. 0 is every frame. See
 ## `MapChart.set_anim_interval`.
@@ -191,6 +201,16 @@ var _hold_o_now := Vector2.ZERO
 var _hold_bad := false
 var _frame_pan := false
 var _frame_zoom := false
+## the solid look's camera as each frame drew (`_push`): on, the camera, where it
+## looked, screen px a gu -- this frame's and the last drawn frame's, for the hold
+var _cam_now := Vector4.ZERO
+var _cam_now_t := Vector2.ZERO
+var _kgu_now := 0.0
+var _sol_now := false
+var _cam_ref := Vector4.ZERO
+var _cam_ref_t := Vector2.ZERO
+var _kgu_ref := 0.0
+var _sol_ref := false
 ## Palettes being worked out on other threads: bucket -> task.
 var _tasks: Dictionary = {}
 ## Lookups being made on the GPU: bucket -> [viewport, frame, palette image].
@@ -271,6 +291,11 @@ func ready_to_draw() -> bool:
 func setup(c: StarchartScreen.MapChart) -> void:
 	chart = c
 	_use_map = c.run_galaxy
+	sky = get_parent() as ChartSky
+	# (the sky's camera is the run's chart's only, as its own draw would have it: the
+	# title screen's galaxy is drawn flat)
+	if sky != null:
+		sky._use_map = _use_map
 	var pk: String = c._star_key
 	if pk != _pts_key:
 		_pts_key = pk
@@ -754,7 +779,21 @@ func _base_mat(chains: Array[SubViewport], p: Dictionary, mode: int) -> ShaderMa
 func hole_px() -> float:
 	if chart == null or not _baked.has(_key):
 		return 0.0
-	return hole_r(_baked[_key].p, _z())
+	# (through the solid look's camera the hole is drawn at the camera's scale at the
+	# core, `_solid_on`)
+	return hole_r(_baked[_key].p, _z()) * (_core_k() if _solid_on() else 1.0)
+
+
+## Whether the chart is seen through the solid look's camera (`ChartSky.solid`, LEGACY's
+## line in `SOLID_STYLES`): the run's chart, once its solid fields are baked.
+func _solid_on() -> bool:
+	return sky != null and _use_map and ChartSky.solid() and (_baked.get(_key, {}) as Dictionary).has("s_struct")
+
+
+## How much the camera magnifies the core (the shader's solidCoreK).
+static func _core_k() -> float:
+	var w := ChartSky.solid_cam()
+	return w.x / (w.x + ChartSky.SOLID_T.y * w.z)
 
 
 func _process(delta: float) -> void:
@@ -891,6 +930,24 @@ func _stage_textures() -> void:
 		m.set_shader_parameter("vp_size", Vector2(PROBE))
 		probes.append(_pass_vp(_job.holder, PROBE, _rect(m), false))
 	_job.probes = probes
+	# THE SOLID LOOK's two fields, from this bake (`chart_l_bake_solid`): read back with
+	# the palettes' probes and mip-mapped, as SIMPLIFIED's bakes are
+	var p: Dictionary = g.p
+	var sv := []
+	for mode in 2:
+		var ms := ShaderMaterial.new()
+		ms.shader = SOLID_BAKE_SH
+		ms.set_shader_parameter("mode", mode)
+		ms.set_shader_parameter("ext", SOLID_EXT)
+		ms.set_shader_parameter("aux_tex", g.aux)
+		ms.set_shader_parameter("dust_tex", g.dust)
+		ms.set_shader_parameter("bake_size", Vector2(BAKE))
+		ms.set_shader_parameter("bake_origin", BAKE_O)
+		for k in ["big_r", "eff", "arm_k", "sd"]:
+			ms.set_shader_parameter(k, p[k])
+		ms.set_shader_parameter("lane_amt", p.lane)
+		sv.append(_pass_vp(_job.holder, Vector2i(SOLID_BAKE, SOLID_BAKE), _rect(ms), false))
+	_job.solid = sv
 	_job.stage = 3
 	_job.frame = Engine.get_frames_drawn()
 
@@ -927,6 +984,14 @@ func _stage_palettes() -> void:
 			job.merge = _merge_of(li)
 			var id := WorkerThreadPool.add_task(job.run, false, "chart palette")
 			_tasks[li] = [id, job, _key]
+	var sv: Array = _job.get("solid", [])
+	if sv.size() == 2 and _baked.has(_key):
+		var gk: Dictionary = _baked[_key]
+		for i in 2:
+			var im := (sv[i] as SubViewport).get_texture().get_image()
+			if im != null:
+				im.generate_mipmaps()
+				gk["s_noise" if i == 0 else "s_struct"] = ImageTexture.create_from_image(im)
 	var holder: Node = _job.holder
 	_job = {}
 	holder.queue_free()
@@ -1506,8 +1571,56 @@ func _push() -> void:
 	m.set_shader_parameter("filler_k", (0.0 if diag & 2 else 1.0) * float(p.eff) * 0.25 * [1.0, 1.0, 0.5, 0.25, 0.125][clampi(star_level, 1, 4)])
 	m.set_shader_parameter("star_level", star_level)
 	_feed_events(m, g, t, phi, z)
+	# THE SOLID LOOK (`ChartSky.solid`, LEGACY's line in `SOLID_STYLES`): the camera
+	# stepped once a frame by the sky (`solid_frame`), its uniforms on the field, the
+	# stars and the hole. The field takes the include's contract in LEGACY's units
+	# (`chart_l_field`'s solid section): screen px a gu now, the turn, the lanes, and
+	# LEGACY's own two solid fields. The hole is drawn about the core's place on the
+	# screen (`pc`) at the camera's scale there (`kc`).
+	var sol := false
+	if sky != null and _use_map and g.has("s_struct"):
+		sol = sky.solid_frame(t)
+	var kgu := z * float(p.big_r)
+	if sky != null:
+		sky.push_solid(m, sol)
+	# LEGACY'S GALAXY KEEPS ITS OWN SIZE (Jon, "2B"): its disc carries its light further
+	# out than SIMPLIFIED's, so its edge fades over radii 1.2 times the shared ones
+	# (`EDGE_K`); the far nebulae's gap and the puffs' taper, which read the same
+	# uniform, move out with it
+	if sol and ChartSky.edge_on():
+		var ed := ChartSky.edge()
+		m.set_shader_parameter("u_edge", Vector4(ed.x * EDGE_K, ed.y * EDGE_K, ed.z, 1.0))
+	# (tuning, `diag`: the solid look's parts off one at a time -- 65536 the puffs,
+	# 131072 the relief, 262144 the edge, 524288 the nebulae's bodies)
+	if diag & 65536:
+		m.set_shader_parameter("u_fluff", 0.0)
+	if diag & 131072:
+		m.set_shader_parameter("u_terr", 0.0)
+	if diag & 262144:
+		m.set_shader_parameter("u_edge", Vector4.ZERO)
+	if diag & 524288:
+		m.set_shader_parameter("u_neb", 0.0)
+	m.set_shader_parameter("u_k", kgu)
+	m.set_shader_parameter("u_phi", phi)
+	m.set_shader_parameter("u_laneStr", float(p.lane))
+	if g.has("s_struct"):
+		m.set_shader_parameter("u_struct", g.s_struct)
+		m.set_shader_parameter("u_noise", g.s_noise)
+	var pc := ChartSky.solid_fwd(Vector2.ZERO) * kgu if sol else Vector2.ZERO
+	var kc := _core_k() if sol else 1.0
+	# (the harness's solidtest, `ChartSky.diag` 4096: the field writes the plane point
+	# it shows, into a picture of floats, with nothing drawn over it)
+	var dg := (ChartSky.diag & 4096) != 0
+	m.set_shader_parameter("diag_plane", dg)
+	if _vp.use_hdr_2d != dg:
+		_vp.use_hdr_2d = dg
+	for it: CanvasItem in [_stars, _hole, _pal]:
+		it.visible = not dg
 
 	var ms := _m_stars
+	if sky != null:
+		sky.push_solid_stars(ms, sol)
+	ms.set_shader_parameter("kgu", kgu)
 	ms.set_shader_parameter("vp_origin", _vp_origin)
 	ms.set_shader_parameter("cpix", ccon)
 	ms.set_shader_parameter("z", z)
@@ -1526,8 +1639,8 @@ func _push() -> void:
 	var mh := _m_hole
 	mh.set_shader_parameter("vp_size", vs)
 	mh.set_shader_parameter("vp_origin", _vp_origin)
-	mh.set_shader_parameter("cpix", ccon)
-	mh.set_shader_parameter("shadow", hole_r(p, z))
+	mh.set_shader_parameter("cpix", ccon + pc)
+	mh.set_shader_parameter("shadow", hole_r(p, z) * kc)
 	mh.set_shader_parameter("t", t)
 	mh.set_shader_parameter("clumps", 0.0 if diag & 128 else _sm(2.6, 4.0, zc))
 	mh.set_shader_parameter("cool_amt", 0.0 if diag & 128 else _sm(3.0, 6.0, zc))
@@ -1549,10 +1662,17 @@ func _push() -> void:
 		_hold_ref_c = _hold_c_now
 		_hold_ref_o = _hold_o_now
 		_hold_ref_z = _hold_z
+		_cam_ref = _cam_now
+		_cam_ref_t = _cam_now_t
+		_kgu_ref = _kgu_now
+		_sol_ref = _sol_now
 		_hold_bad = false
 		_frame_pan = false
 		_frame_zoom = false
 	_hold_bad = _hold_bad or resized
+	# (through the solid look's camera what is held follows the camera, `cam_on`:
+	# nothing held as it comes on or goes off)
+	_hold_bad = _hold_bad or sol != _sol_ref
 	_frame_pan = _frame_pan or panned
 	_frame_zoom = _frame_zoom or zooming
 	# NOTHING HELD WHILE THE VIEW IS ONLY DRAGGED: a drag moves the galaxy rigidly,
@@ -1572,6 +1692,17 @@ func _push() -> void:
 	mp.set_shader_parameter("prev_o", _hold_ref_o)
 	mp.set_shader_parameter("prev_k", (_hold_ref_z / z) if valid else 1.0)
 	mp.set_shader_parameter("hyst", ChartSky.hyst if valid else 0.0)
+	_cam_now = ChartSky.solid_cam()
+	_cam_now_t = ChartSky.SOLID_T
+	_kgu_now = kgu
+	_sol_now = sol
+	mp.set_shader_parameter("cam_on", sol and _sol_ref)
+	mp.set_shader_parameter("cam_cur", _cam_now)
+	mp.set_shader_parameter("cam_cur_t", _cam_now_t)
+	mp.set_shader_parameter("cam_prev", _cam_ref)
+	mp.set_shader_parameter("cam_prev_t", _cam_ref_t)
+	mp.set_shader_parameter("kgu_cur", kgu)
+	mp.set_shader_parameter("kgu_prev", _kgu_ref)
 	_hold_b0 = b0
 	mp.set_shader_parameter("aa_k", _aa_of(z * float(p.big_r) / ChartSky.K0))
 	# one palette at every zoom (`_held_level`): the opening's, going over to the

@@ -61,6 +61,30 @@ uniform sampler2D dust_tex : filter_linear, repeat_disable;
 uniform vec2 bake_size = vec2(896.0, 616.0);
 uniform vec2 bake_origin = vec2(448.0, 308.0);
 
+// THE SOLID LOOK (`chart_solid.gdshaderinc`, approved in SIMPLIFIED Oct 12; LEGACY's
+// line in `ChartSky.SOLID_STYLES`): the chart seen through the camera, its gas in
+// puffs, its edge dissolving, its middle in relief, its nebulae with bodies, all in
+// LEGACY's own drawing (see `fragment`, `look`, `gal_fields`, `neb_v2`). What the
+// include asks of its includer, in LEGACY's terms:
+//   * u_k: screen px a gu NOW (`z` x `big_r`; a gu is the disc's radius), and u_zoom
+//     1, so a view point is this chart's screen px from the galaxy's centre and a
+//     block (`edgeDq`) is two of them;
+//   * u_phi: the galaxy's turn (`phi`); u_laneStr: its lanes (`lane_amt`'s rule);
+//   * u_struct and u_noise with bakeUV: LEGACY's own two solid fields
+//     (`chart_l_bake_solid`, made from its bake, face-on over -1.2..1.2 gu).
+uniform sampler2D u_struct : filter_linear_mipmap, repeat_disable;
+uniform sampler2D u_noise : filter_linear_mipmap, repeat_disable;
+uniform float u_k = 261.0;
+uniform float u_phi = 0.0;
+uniform float u_zoom = 1.0;
+uniform float u_laneStr = 1.0;
+const float SOLID_EXT = 1.2;
+vec2 bakeUV(vec2 p) { return (p + SOLID_EXT) / (2.0 * SOLID_EXT); }
+#include "res://shaders/chart_solid.gdshaderinc"
+// (`ChartSky.diag` 4096, the harness's solidtest: each block writes the point of the
+// disc's plane it shows, gu, in place of its light)
+uniform bool diag_plane = false;
+
 uniform vec2 vp_size = vec2(330.0, 220.0);
 uniform vec2 vp_origin = vec2(-2.0, -2.0);
 uniform vec2 cpix = vec2(327.0, 217.0);
@@ -307,12 +331,15 @@ float neb_pulse(int i) {
 // Colours as they are, bright; the field's tone map keeps them off white.
 void neb_v2(int i, int kind, int shp, vec2 o, vec4 a, vec4 b,
 		inout vec3 light, inout float hold, inout float moat, inout float hollow, inout float ndark,
-		inout float clr) {
+		inout float clr, inout float nflo) {
 	vec2 q = vec2(o.x, o.y / b.w) / a.z;
 	float r = length(q);
 	if (r > 1.3) {
 		return;
 	}
+	// (THE NEBULAE'S BODIES, `u_neb`: the way to the galaxy's core in the cloud's own
+	// frame, where its light comes from)
+	vec2 toc_q = normalize(vec2(-a.x, -a.y / b.w) + vec2(1e-4));
 	float ang = atan(q.y, q.x);
 	float sdk = float(i) * 7.13 + 3.0;
 	// a screen pixel, in the cloud's own units (stars are a block)
@@ -344,6 +371,11 @@ void neb_v2(int i, int kind, int shp, vec2 o, vec4 a, vec4 b,
 			vec2 dl = (q - lt.yz) / lt.w;
 			float d2 = dot(dl, dl);
 			em += LIGHTNING * lt.x * wx * (body * (0.6 + 0.8 * fine) * exp(-d2 * 0.8) * 2.4 + exp(-d2 * 9.0) * 1.2);
+		}
+		// (with the nebulae's bodies: a puff standing off the disc, its tops toward the
+		// core lit and its undersides in shade, where the cloud is, `nebPuff`)
+		if (u_neb > 0.0) {
+			em *= mix(1.0, nebPuff(q, 1.0, sdk * 0.37, toc_q), g_sm(0.02, 0.35, body));
 		}
 		light += em * pls;
 		hold = max(hold, body);
@@ -401,7 +433,16 @@ void neb_v2(int i, int kind, int shp, vec2 o, vec4 a, vec4 b,
 			knots = exp(-dot(k1, k1) / 0.003) + exp(-dot(k2, k2) / 0.003);
 		}
 		float star = r < pxq * 1.05 ? 4.0 : exp(-pow(r / (pxq * 3.0), 2.0)) * 0.6;
-		light += (vec3(1.0, 0.32, 0.3) * ring * (1.3 + 0.5 * fine) + O3 * fill * (0.6 + 0.5 * bil)
+		// (with the nebulae's bodies: its ring a wall, lit on its face toward the core,
+		// the floor inside shaded under it on that side, `nebShell`; its teal fill kept)
+		float ringK = 1.0;
+		if (u_neb > 0.0) {
+			float xr = rr / 0.5;
+			vec2 sl = nebShell(q / max(r, 1e-4), xr - 1.0, toc_q);
+			ringK = xr < 0.85 ? 1.0 : sl.x;
+			nflo *= xr < 1.0 ? sl.y : 1.0;
+		}
+		light += (vec3(1.0, 0.32, 0.3) * ring * (1.3 + 0.5 * fine) * ringK + O3 * fill * (0.6 + 0.5 * bil)
 			+ vec3(1.0, 0.55, 0.4) * knots * 1.6 + vec3(0.85, 0.95, 1.0) * star) * pls;
 		hold = max(hold, ring * 0.9);
 		hollow = max(hollow, 1.0 - g_sm(0.9, 1.15, r));
@@ -419,8 +460,25 @@ void neb_v2(int i, int kind, int shp, vec2 o, vec4 a, vec4 b,
 			glim += 0.6 * exp(-pow(wrap_pi(ang - th0) / 0.15, 2.0));
 		}
 		shell *= 1.0 + 1.5 * glim * wx;
-		light += (HA * shell * (0.25 + 1.7 * fil) + O3 * inner * (0.15 + 1.3 * fil) * 0.85
-			+ mix(HA, O3, 0.5) * mid) * pls;
+		// WITH THE NEBULAE'S BODIES (Jon, of SIMPLIFIED's: "the supernova remnants would
+		// have height at the edges and be more flat towards the emptier center"; of its
+		// green middle, "it looks weird"): a crater. Its wall lit on the face toward the
+		// core and its back in shade, its floor low and dark under the wall on that
+		// side (`nebShell`, in the units where the wall is at 0.95); no fill and no
+		// patches of oxygen in the middle, only an even teal band hugging the wall's
+		// inner side all the way round, fading to the floor (red outside, teal just
+		// inside). The palette's dither breaks its fade into steps.
+		vec3 nl3 = HA * shell * (0.25 + 1.7 * fil) + O3 * inner * (0.15 + 1.3 * fil) * 0.85
+			+ mix(HA, O3, 0.5) * mid;
+		if (u_neb > 0.0) {
+			float xs = rag / 0.8 * 0.95;
+			vec2 sl = nebShell(q / max(r, 1e-4), xs - 0.95, toc_q);
+			float band = pow(g_sm(0.55, 0.90, xs), 2.2) * (1.0 - g_sm(0.90, 0.96, xs));
+			vec3 nb3 = HA * shell * (0.25 + 1.7 * fil) * (xs < 0.8 ? 1.0 : sl.x) + O3 * band * 1.1;
+			nl3 = mix(nl3, nb3, u_neb);
+			nflo *= xs < 0.95 ? mix(1.0, sl.y, u_neb) : 1.0;
+		}
+		light += nl3 * pls;
 		hold = max(hold, shell * 0.8);
 		hollow = max(hollow, 1.0 - g_sm(0.95, 1.3, r));
 		clr = max(clr, 0.45 * (1.0 - g_sm(0.6, 0.85, r)));
@@ -435,6 +493,22 @@ void neb_v2(int i, int kind, int shp, vec2 o, vec4 a, vec4 b,
 		float rim = g_sm(0.06, 0.16, dens) * (1.0 - g_sm(0.18, 0.34, dens)) * g_sm(0.2, 0.85, face)
 			* g_sm(0.45, 0.75, fine);
 		light += vec3(1.0, 0.62, 0.42) * rim * 0.28 * pls;
+		// (with the nebulae's bodies: a mound, its own shadow cast outward, away from the
+		// core, onto what lies behind it, and its rim toward the core lit more)
+		if (u_neb > 0.0) {
+			vec2 q2 = q + toc_q * 0.5;
+			float r2 = length(q2);
+			float bil2 = g_fbm(q2 * 2.2 + cw + vec2(sdk, 3.0), 4.0);
+			float dT = pow(max(0.0, 1.0 - r2 * r2), 0.8) * g_sm(0.3, 0.65, bil2 + 0.2 * (1.0 - r2));
+			float shd = g_sm(0.02, 0.4, dT - dens) * (1.0 - g_sm(0.3, 0.8, dens));
+			nflo *= 1.0 - 0.7 * shd * u_neb;
+			float rimL = g_sm(0.02, 0.25, dens - dT) * g_sm(0.03, 0.2, dens) * (1.0 - g_sm(0.35, 0.7, dens));
+			// (lit only as much as the core's light reaches it: SIMPLIFIED's `irr`, so out
+			// in the arms a mound's rim is a hint and near the core a lit edge)
+			float rc = length(vec2(a.x, a.y / eff)) / big_r;
+			float irr = 1.0 / (1.0 + pow(rc / 0.10, 2.0));
+			light += vec3(1.0, 0.62, 0.42) * rimL * 0.35 * min(1.0, 0.04 + 4.0 * irr) * u_neb * pls;
+		}
 		vec4 lt = neb_lt[i];
 		if (lt.x > 0.0 && wx > 0.0) {
 			vec2 dl = (q - lt.yz) / lt.w;
@@ -444,8 +518,9 @@ void neb_v2(int i, int kind, int shp, vec2 o, vec4 a, vec4 b,
 }
 
 void nebulae(vec2 p, out vec3 light, out float hold, out float moat, out float hollow, out float ndark,
-		out float nclear) {
+		out float nclear, out float nflo) {
 	nclear = 0.0;
+	nflo = 1.0;
 	light = vec3(0.0);
 	hold = 0.0;
 	moat = 0.0;
@@ -493,7 +568,7 @@ void nebulae(vec2 p, out vec3 light, out float hold, out float moat, out float h
 		}
 		vec3 c = b.rgb;
 		if (neb_style == 4) {
-			neb_v2(i, kind, shp, o, a, b, light, hold, moat, hollow, ndark, nclear);
+			neb_v2(i, kind, shp, o, a, b, light, hold, moat, hollow, ndark, nclear, nflo);
 		} else if (neb_style == 1) {
 			// A, OF THE GALAXY: no edge, no moat. Brighter coloured gas that
 			// billows out into the arm round it, with pink star-forming knots
@@ -594,7 +669,10 @@ float rim_fade(vec2 pl) {
 
 // Everything the galaxy carries at a point of its own frame (bake pixels):
 // the disc's light dimmed by its dust, the bulge's light, the dust, the gas.
-void gal_fields(vec2 p, vec2 down_p, float nearf, float youk, float smth, out vec3 o_dd, out vec3 o_bs, out float o_kd, out vec3 o_gg, float lsq) {
+// `sh`: THE SOLID LOOK's light here (`fragment`): what the gas's light is multiplied by
+// as puffs lit from the core, the puffs' rims, their lit bodies, and how much of the
+// disc is left at its dissolving edge (1, 0, 0, 1: none of it)
+void gal_fields(vec2 p, vec2 down_p, float nearf, float youk, float smth, out vec3 o_dd, out vec3 o_bs, out float o_kd, out vec3 o_gg, float lsq, vec4 sh) {
 	vec4 slv = sb4(sl_tex, p);
 	vec4 aux = sb4(aux_tex, p);
 	vec3 gcl_c = sbb(p);
@@ -677,7 +755,7 @@ void gal_fields(vec2 p, vec2 down_p, float nearf, float youk, float smth, out ve
 		neb_gas = max(vec3(0.0), sat) * 1.1 * tex * (0.8 + 0.3 * near) * (1.0 - 0.45 * exp(-dd / (bul * 0.8)));
 	}
 	vec3 nl;
-	float nh, nmoat, nhollow, ndark, nclear;
+	float nh, nmoat, nhollow, ndark, nclear, nflo;
 	// (not in the gas's own colour: that is read where the gas is, risen above
 	// the plane, and a cloud drawn there sat above its outline, sheared by the
 	// churning -- "the wave is messing with the localization", Jon. A named
@@ -689,8 +767,9 @@ void gal_fields(vec2 p, vec2 down_p, float nearf, float youk, float smth, out ve
 		nhollow = 0.0;
 		ndark = 0.0;
 		nclear = 0.0;
+		nflo = 1.0;
 	} else {
-		nebulae(p, nl, nh, nmoat, nhollow, ndark, nclear);
+		nebulae(p, nl, nh, nmoat, nhollow, ndark, nclear, nflo);
 	}
 	// THE CLOUDS' LIGHT TONED DOWN as the bulge's is, so it climbs and keeps
 	// its colour instead of clipping to white
@@ -845,6 +924,16 @@ void gal_fields(vec2 p, vec2 down_p, float nearf, float youk, float smth, out ve
 		+ 0.22 * fbmB(vec2(p.x * 0.09 - 5.0, p.y / bsq * 0.09), 3.0, 0.09 * lsq);
 	o_bs = s * bf * det * tt * grain * stip * (1.0 - 0.85 * ndark);
 	o_kd = max(dkv, ndark * 0.9);
+	// THE SOLID LOOK, in LEGACY's light (`chart_solid`; SIMPLIFIED's `galaxy` shows the
+	// same steps): the disc's gas lit as a body of cloud -- its lit side toward the core,
+	// its shade away, its creases (`fluffShade`, `sh.x`) -- with the puff's own lit gas
+	// in the disc's own colour there (`sh.z`), a floor shaded under a nebula's wall or
+	// a dark mound's shadow (`nflo`), and the outer disc dissolving into the dark: its
+	// light and dust fade, its stars stay (`edgeMask`, `sh.w`; the stars are their own pass)
+	vec3 sdisc = s * (1.0 - bf) * det * stip;
+	o_dd = (o_dd * sh.x + sdisc * sh.z * u_fluff * 0.28) * nflo * sh.w;
+	o_bs *= nflo * sh.w;
+	o_kd *= sh.w;
 	{
 		vec2 plr = vec2(lx, ly);
 		float fd = rim_fade(plr);
@@ -859,6 +948,10 @@ void gal_fields(vec2 p, vec2 down_p, float nearf, float youk, float smth, out ve
 			o_gg *= kf;
 		}
 	}
+	// (the arms' gas lit and dissolved as the disc's light is; a puff's edge toward the
+	// core catching its light, `sh.y`)
+	arm_gas = arm_gas * sh.x * nflo * sh.w
+		+ vec3(1.0, 0.82, 0.62) * sh.y * (0.6 * g_lum(sdisc) + 0.04 * exp(-dd / (bul * 2.5))) * sh.w;
 	vec3 nk = mix(kk, vec3(1.0), max(neb, nh) * 0.85);
 	// (the new look draws each cloud itself: the bake's flat wash of its gas
 	// only faint under it)
@@ -885,21 +978,24 @@ void gal_fields(vec2 p, vec2 down_p, float nearf, float youk, float smth, out ve
 		// lit only as brightly as the light round it: dust out in the dark
 		// between the arms has nothing to glow with
 		float amb = g_sm(0.03, 0.5, g_lum(s) + g_lum(arm_gas) * 2.0);
-		o_gg += lit * (0.35 + 1.4 * nearc) * 0.7 * amb * rc;
+		o_gg += lit * (0.35 + 1.4 * nearc) * 0.7 * amb * rc * sh.w;
 	}
 }
 
 // The block at screen offset (x, dy) from the centre, dy already taken into
 // the plane, turned by `ang` and looked up in the galaxy, weighted `w`.
+// `dP`: THE SOLID LOOK's shift of the point the eye meets, gu, through the middle's
+// relief and the gas's puffs standing toward the camera (`terrSeen`, `fluffSeen`);
+// `sh` its light (`gal_fields`)
 void look(float x, float dy, float qs, float ang, float w, float nearf, float youk, float smth, float lsq,
-		inout vec3 dd, inout vec3 bs, inout float kd, inout vec3 gg) {
+		vec2 dP, vec4 sh, inout vec3 dd, inout vec3 bs, inout float kd, inout vec3 gg) {
 	float ca = cos(ang), sa = sin(ang);
-	vec2 p = vec2(x * ca - dy * sa, (x * sa + dy * ca) * qs) / z;
+	vec2 p = vec2(x * ca - dy * sa, (x * sa + dy * ca) * qs) / z + vec2(dP.x, dP.y * eff) * big_r;
 	// one bake pixel down the screen, in the galaxy's frame
 	vec2 down_p = vec2(-sa / qs, ca);
 	vec3 a, b, c;
 	float k;
-	gal_fields(p, down_p, nearf, youk, smth, a, b, k, c, lsq);
+	gal_fields(p, down_p, nearf, youk, smth, a, b, k, c, lsq, sh);
 	dd += a * w;
 	bs += b * w;
 	kd += k * w;
@@ -1026,13 +1122,34 @@ void fragment() {
 	vec2 vp = floor(UV * vp_size);
 	vec2 rel;
 	float lsq = 1.0;
+	// THE SOLID LOOK'S CAMERA (`chart_solid`'s `solidO`): the picture is LEGACY's flat
+	// chart as before, and each block looks it up through the camera -- `rs` the
+	// block on the screen, `rel` the point of the flat chart it shows (both px from
+	// the galaxy's centre), `rf0` that point before the hole's lens bends it. The
+	// hole, its lens and the bulge are drawn about the core's place on the screen
+	// (`pc`) at the camera's one scale there (`kc`), never stretched by the
+	// perspective round them; `rcb` is the block about the core at that scale, through
+	// the lens (what the bulge's glow, the screen's, is drawn from). With the camera
+	// off every one of these is the flat chart's own.
+	vec2 rs = vec2(0.0), rcb = vec2(0.0), rf0 = vec2(0.0);
+	bool lensd = false;
+	float lensS = 99.0;
 	if (probe) {
 		rel = (vp + 0.5) / vp_size * vec2(896.0, 616.0) - vec2(448.0, 308.0);
+		rs = rel;
+		rcb = rel;
+		rf0 = rel;
 	} else {
-		rel = vp_origin + vp * 2.0 + 0.5 - cpix;
+		rs = vp_origin + vp * 2.0 + 0.5 - cpix;
+		vec2 pc = solidV(vec2(0.0));
+		float kc = solidCoreK();
+		rel = u_solid ? (rs - pc) / kc : rs;
+		rf0 = solidO(rs);
 		if (lens_shadow > 0.0) {
 			vec2 S = lh_to_s(rel, vec2(0.0), lens_shadow);
+			lensS = length(S);
 			if (length(S) <= lh_dims.x * 0.97) {
+				lensd = true;
 				// how many times the lens packs the picture into this block: the
 				// fine noises and the grain are read that much coarser there
 				float b = max(length(S), 1e-3);
@@ -1049,6 +1166,10 @@ void fragment() {
 				rel *= lh_behind(S);
 			}
 		}
+		rcb = rel;
+		// (what the lens shows, read back through the camera; at the lens's edge, where
+		// it bends nothing, the two agree)
+		rel = u_solid ? (lensd ? solidO(pc + rel * kc) : rf0) : rel;
 	}
 	float lxs = rel.x, lys = rel.y;
 	float ph = probe ? 0.0 : phi;
@@ -1062,8 +1183,43 @@ void fragment() {
 	// how near the viewer this part of the disc is: low on the screen is near
 	float nearf = g_sm(-0.6, 0.6, lys / z / eff / big_r);
 	// no dust round YOU (`you_rel`, screen pixels from the centre)
-	float youk = probe ? 1.0 : g_sm(you_r * 0.55, you_r, length(rel - you_rel));
+	// (YOU is where the chart draws it: on the screen, through the camera)
+	float youk = probe ? 1.0 : g_sm(you_r * 0.55, you_r, length(rs - you_rel));
 	float f_kd = 0.0;
+	// ---- THE SOLID LOOK's gas and relief (`chart_solid`), once a block, at the point
+	// of the disc this block shows (LEGACY's own plane, as `look` reads it, gu): the
+	// middle's relief standing toward the camera (`terrSeen`, never through the hole's
+	// lens: faded out from 9.5 to 6.5 shadow radii), then the gas's puffs (`fluffSeen`),
+	// the shift `sdP` every `look` here takes; how the puffs are lit and how much of the
+	// disc is left at its edge (`ssh`, for `gal_fields`); the relief's light (`sterr`)
+	// and how much a near ridge stands in front of the bulge (`ssilh`), for below
+	vec2 sdP = vec2(0.0);
+	vec4 ssh = vec4(1.0, 0.0, 0.0, 1.0);
+	vec3 sterr = vec3(1.0, 0.0, 0.0);
+	float ssilh = 0.0;
+	if (!probe && (u_fluff > 0.0 || u_terr > 0.0 || u_edge.w > 0.0)) {
+		float ca = cos(ph), sa = sin(ph);
+		vec2 P0 = vec2(lxs * ca - dy * sa, (lxs * sa + dy * ca) * qs / eff) / (z * big_r);
+		float stk = lensd ? smoothstep(6.5, 9.5, lensS) : 1.0;
+		vec2 Pt = stk > 0.0 ? mix(P0, terrSeen(P0), stk) : P0;
+		vec2 Pf = fluffSeen(Pt);
+		sdP = Pf - P0;
+		if (u_terr > 0.0 && stk > 0.0) {
+			sterr = terrShade(Pt);
+			sterr.xy = mix(vec2(1.0, 0.0), sterr.xy, stk);
+			ssilh = terrSilh(Pt) * stk;
+		}
+		if (u_fluff > 0.0) {
+			ssh.xyz = fluffShade(Pf);
+		}
+		// (the fade dithered a step either way on the Bayer of the flat chart's block,
+		// so the dither travels with the disc as the camera turns)
+		float em = edgeMask(Pf);
+		if (em < 0.999) {
+			em = clamp(em * (1.0 + 0.5 * (kitBayer4(edgeDq(rel)) - 0.5)), 0.0, 1.0);
+		}
+		ssh.w = em;
+	}
 	// ---- THE VOLUME: the view ray marched down through the slab from its top;
 	// where it first meets a cloud top is what this block shows -- so a tall
 	// cloud rises above its own footprint and hides what lies behind it --
@@ -1190,14 +1346,14 @@ void fragment() {
 	if (kb < 1e-5 && galpha > 0.01) {
 		vec3 c_dd = vec3(0.0), c_bs = vec3(0.0), c_gg = vec3(0.0);
 		float c_kd = 0.0;
-		look(lxs, gdy, qs, ph, galpha, nearf, youk, 1.0, lsq, c_dd, c_bs, c_kd, c_gg);
-		look(lxs, dy, qs, ph, 1.0 - galpha, nearf, youk, 0.0, lsq, f_dd, f_bs, f_kd, f_gg);
+		look(lxs, gdy, qs, ph, galpha, nearf, youk, 1.0, lsq, sdP, ssh, c_dd, c_bs, c_kd, c_gg);
+		look(lxs, dy, qs, ph, 1.0 - galpha, nearf, youk, 0.0, lsq, sdP, ssh, f_dd, f_bs, f_kd, f_gg);
 		f_dd += c_dd * gshade;
 		f_bs += c_bs * gshade;
 		f_gg += c_gg * gshade;
 		f_kd += c_kd;
 	} else if (kb < 1e-5) {
-		look(lxs, dy, qs, ph, 1.0, nearf, youk, 0.0, lsq, f_dd, f_bs, f_kd, f_gg);
+		look(lxs, dy, qs, ph, 1.0, nearf, youk, 0.0, lsq, sdP, ssh, f_dd, f_bs, f_kd, f_gg);
 		f_dd *= vshade;
 		f_gg *= vshade;
 	} else {
@@ -1207,32 +1363,46 @@ void fragment() {
 		float t0 = mod(t, pp), t1 = mod(t0 + pp * 0.5, pp);
 		float w0 = 1.0 - abs(2.0 * t0 / pp - 1.0), w1 = 1.0 - w0;
 		if (w0 > 0.001) {
-			look(lxs, dy, qs, ph + kb * t0, w0, nearf, youk, 0.0, lsq, f_dd, f_bs, f_kd, f_gg);
+			look(lxs, dy, qs, ph + kb * t0, w0, nearf, youk, 0.0, lsq, sdP, ssh, f_dd, f_bs, f_kd, f_gg);
 		}
 		if (w1 > 0.001) {
-			look(lxs, dy, qs, ph + kb * t1, w1, nearf, youk, 0.0, lsq, f_dd, f_bs, f_kd, f_gg);
+			look(lxs, dy, qs, ph + kb * t1, w1, nearf, youk, 0.0, lsq, sdP, ssh, f_dd, f_bs, f_kd, f_gg);
 		}
 	}
 
 	// ---- the screen's: the bulge's glow and which side of it is in front
-	float vs = lys / z;
-	float dball = length(vec2(lxs / z, vs / bsq));
+	// (about the core at the camera's one scale there, `rcb`: the flat chart's own
+	// point with the camera off)
+	float vs = rcb.y / z;
+	// THROUGH THE CAMERA (SIMPLIFIED's `bulgeLight`): rounder, an egg pushed through a
+	// plate, held round however the pitch opens or flattens the disc, and a little
+	// bigger, more of a body to see turn
+	float rnd = u_solid ? (TILT / u_solidW.y) * (0.86 / 1.08) : 1.0;
+	float bulc = u_solid ? bul * 1.15 : bul;
+	float dball = length(vec2(rcb.x / z, vs * rnd / bsq));
 	float dsm = sqrt(dball * dball + te_b * te_b);
-	float dco = sqrt(dball * dball + bul * bul * 0.03 / (zf * zf) + te_b * te_b);
-	float nuc = 3.2 * exp(-2.4 * sqrt(dsm / (bul * 0.4))) * g_sm(1.3, 4.0, zf);
+	float dco = sqrt(dball * dball + bulc * bulc * 0.03 / (zf * zf) + te_b * te_b);
+	float nuc = 3.2 * exp(-2.4 * sqrt(dsm / (bulc * 0.4))) * g_sm(1.3, 4.0, zf);
 	// (the bulge's glow keeps its own glare control deep in, `core_res` / `core_dz`:
 	// the one thing the zoom still turns down, and it touches nothing but the glow)
 	// (and only on the bulge itself, `cm`: across the whole field it dimmed the
 	// bulge's light over the gas outside it too, which darkened 2 as you zoomed)
-	float cm = core_wide ? 1.0 : exp(-pow(dball / (bul * 1.3), 2.0));
+	float cm = core_wide ? 1.0 : exp(-pow(dball / (bulc * 1.3), 2.0));
 	float c_res = mix(1.0, core_res, cm), c_dz = core_dz * cm;
-	float ci = (3.0 * exp(-3.0 * sqrt(dco / (bul * (1.8 - 0.5 * arm_k)))) * (0.6 + 0.4 * c_res) + nuc) * (1.0 - c_dz * 0.125);
+	float ci = (3.0 * exp(-3.0 * sqrt(dco / (bulc * (1.8 - 0.5 * arm_k)))) * (0.6 + 0.4 * c_res) + nuc) * (1.0 - c_dz * 0.125);
+	// THROUGH THE CAMERA THE SWELL IS COMPACT (Jon, of SIMPLIFIED's: "The haze on top of
+	// the galaxy is kinda crazy"): the glow's long tails stood up past the far side of
+	// the disc as a dome of haze. So it ends, a soft round top fading into black a
+	// little way above the disc (`solidBulgeEnd`, at SIMPLIFIED's radii)
+	if (u_solid) {
+		ci *= solidBulgeEnd(dball / big_r, (bul / big_r) / 0.128 * 1.15);
+	}
 	float rout = rh * disc_k;
-	float hd = length(vec2(lxs, lys / TILT));
+	float hd = length(vec2(rcb.x, rcb.y / TILT));
 	// the light dims a little round the hole, so the hole and its ring sit in
 	// a darker ring of light rather than a white field
 	float hdim = 1.0 - (0.14 + zoom_dim * 0.15) * exp(-pow(hd / (rout * 2.2), 2.0));
-	float inner = exp(-dball / (bul * 0.4)), hot = exp(-dsm / (bul * 0.16 / sqrt(zf)));
+	float inner = exp(-dball / (bulc * 0.4)), hot = exp(-dsm / (bulc * 0.16 / sqrt(zf)));
 	vec3 c_i = vec3(1.0, 0.82, 0.55) / g_lum(vec3(1.0, 0.82, 0.55));
 	vec3 c_o = vec3(0.95, 0.45, 0.17) / g_lum(vec3(0.95, 0.45, 0.17));
 	vec3 kc = c_o * (1.0 - inner) + c_i * inner;
@@ -1242,18 +1412,34 @@ void fragment() {
 	// (a cloud risen in front holds back the bulge's glow behind it)
 	sci *= gas_k > 0.0 ? 1.0 - 0.7 * galpha : 1.0 - 0.7 * g_sm(0.0, vol_h * 0.5 + 1e-3, vhit) * (vol_h > 0.0 ? 1.0 : 0.0);
 	float front = g_sm(-bul * 0.9, bul * 0.9, -(vs / eff) * SIN_I);
-	float dbs = length(vec2(lxs / z, lys / z / bsq));
+	float dbs = length(vec2(rcb.x / z, rcb.y / z / bsq));
 	float cis = 2.4 * exp(-3.0 * sqrt(sqrt(dbs * dbs + bul * bul * 0.03) / (bul * 1.8)));
 	float bulop = dk_g > 0.5 ? g_sm(0.12, 0.7, cis * 0.55) : 0.0;
 	float behind = 1.0 - 0.55 * bulop * front;
-	float gd = length(vec2(lxs / (rout * 1.5), lys / (rout * 1.5 * TILT * 1.35)));
+	float gd = length(vec2(rcb.x / (rout * 1.5), rcb.y / (rout * 1.5 * TILT * 1.35)));
 	float bhl = gd < 1.0 ? (1.0 - gd) * (1.0 - gd) * g_sm(0.05, 0.5, gd) : 0.0;
 	vec3 sgh = vec3(0.0) * bhl;
 
 	vec3 qv = front + (1.0 - front) * (1.0 - f_kd * vec3(0.72, 0.8, 0.88));
+	// THE MIDDLE'S RELIEF lit as terrain from the core (`terrShade`): faces toward it
+	// lit warm, backs and the valleys behind the ridges in shade -- the disc and its gas,
+	// and the bulge's light behind the disc, in full; the bulge's light in front of the
+	// disc mostly (the dust round the bulge is mostly its light through the dust); and a
+	// near ridge standing in front of the bulge's lower edge, its gold hidden there, the
+	// ridge dark against it with a lit rim (`terrSilh`)
+	float rimS = 0.0;
+	if (u_terr > 0.0) {
+		vec3 terrM = sterr.x + sterr.y * vec3(0.55, 0.38, 0.22);
+		f_dd *= terrM;
+		f_gg *= terrM;
+		f_bs *= terrM;
+		qv = front * mix(vec3(1.0), terrM, 0.7) * (1.0 - 0.85 * ssilh)
+			+ (1.0 - front) * (1.0 - f_kd * vec3(0.72, 0.8, 0.88)) * terrM;
+		rimS = front * 0.35 * ssilh * (1.0 - ssilh) * 4.0;
+	}
 	// (the bulge, its glow and its own stars, is the core's light: deep in it is turned
 	// down as the whole picture used to be, `1 - 0.42 dz`, and nothing else is)
-	vec3 o = (f_dd * behind + (f_bs + sci) * qv * (1.0 - 0.42 * c_dz)) * hdim * 0.72;
+	vec3 o = (f_dd * behind + (f_bs + sci) * qv * (1.0 - 0.42 * c_dz) + sci * vec3(1.0, 0.8, 0.6) * rimS) * hdim * 0.72;
 	// THE BULGE'S EXPOSURE ("the center of the galaxy is SO WASHED out", Jon).
 	// Its light sat high on the tone curve all across it, one flat cream
 	// plate. Brought down over the bulge and less so toward the nucleus, it
@@ -1301,7 +1487,9 @@ void fragment() {
 		// its arms and bulge, as bright as they are (`gal`) -- darkening
 		// them, with the edges of each wisp lit
 		float ka = depth_look == 1 ? 1.0 : depth_amt;
-		vec2 sp = vp_origin + vp * 2.0 + 0.5;
+		// (the flat chart's point this block shows: through the camera the sheets ride
+		// with the disc as everything else does)
+		vec2 sp = cpix + rf0;
 		vec2 cam = (view_c - cpix) / z;
 		float gal = g_sm(0.07, 0.4, g_lum(light));
 		float dk = 0.0, lg = 0.0;
@@ -1417,7 +1605,8 @@ void fragment() {
 	if (!probe) {
 		// THE KNOTS, breathing: the block's point of the disc's plane
 		float cph = cos(ph), sph = sin(ph);
-		vec2 pk = vec2(lxs * cph - dy * sph, (lxs * sph + dy * cph) * qs / eff) / z;
+		// (riding on the puffs, through the relief, as the gas does: `sdP`)
+		vec2 pk = vec2(lxs * cph - dy * sph, (lxs * sph + dy * cph) * qs / eff) / z + sdP * big_r;
 		float pxk = 1.0 / z;
 		for (int k = 0; k < 64; k++) {
 			if (k >= n_kn) {
@@ -1432,6 +1621,14 @@ void fragment() {
 			}
 			float qd = sqrt(d2) / s;
 			float core = exp(-qd * qd * 1.6), fall = exp(-qd * 1.2) * 0.30;
+			// (with the nebulae's bodies, `u_neb`: a puff standing off the disc, its top
+			// toward the core lit, its underside away in shade)
+			if (u_neb > 0.0) {
+				vec3 Nk = normalize(vec3(dk / s * 0.55, 1.0));
+				vec2 tcn = -kk.xy / max(length(kk.xy), 1e-4);
+				core *= mix(1.0, 0.35 + 1.2 * max(dot(Nk, normalize(vec3(tcn, 0.55))), 0.0), u_neb);
+				fall *= mix(1.0, 0.35 + 1.2 * max(dot(Nk, normalize(vec3(tcn, 0.55))), 0.0), u_neb);
+			}
 			// (in the gas's own pink, as the old look's knots are, its young
 			// stars a little paler at the middle)
 			light += kk.w * (mix(vec3(1.0, 0.24, 0.48), pal1, 0.5) * (core + fall) + vec3(0.8, 0.9, 1.0) * exp(-qd * qd * 6.0) * 0.25) * 1.3;
@@ -1458,11 +1655,16 @@ void fragment() {
 			float x = (dl - Rr) / wr;
 			float shell = exp(-x * x) * (0.45 + 0.55 * g_sm(-0.4, 0.3, kitSnoise2(vec2(an * 2.3, rm.w + 5.0))));
 			float life = g_sm(1.5, 8.0, age) * exp(-age / 360.0) * (1.0 - g_sm(480.0, 600.0, age));
-			light += mix(vec3(0.2, 0.95, 0.85), vec3(1.0, 0.2, 0.3), g_sm(-0.6, 0.6, x)) * shell * life * 3.5;
+			// (with the nebulae's bodies: the shell a wall, lit on its face toward the core,
+			// `nebShell`, and a teal band hugging it inside, as SIMPLIFIED's `remnants`)
+			vec2 sl = nebShell(dr / max(dl, 1e-5), x * wr / max(Rr, 1e-5), -rm.xy / max(length(rm.xy), 1e-4));
+			float inside = u_neb * g_sm(Rr * 0.5, Rr * 0.88, dl) * (1.0 - g_sm(Rr * 0.9, Rr, dl)) * 0.07;
+			light += (mix(vec3(0.2, 0.95, 0.85), vec3(1.0, 0.2, 0.3), g_sm(-0.6, 0.6, x)) * shell * sl.x
+				+ vec3(0.2, 0.95, 0.85) * inside / 1.6) * life * 3.5;
 		}
 		// THE SUPERNOVA: a flare, a cross of light a few blocks long, a glow
 		if (sn.z > 0.0) {
-			vec2 sb = floor((cpix + sn.xy - vp_origin) * 0.5);
+			vec2 sb = floor((cpix + solidV(sn.xy) - vp_origin) * 0.5);
 			vec2 db = vp - sb;
 			float g = sn.z;
 			float L = 3.0 + 3.0 * g;
@@ -1479,6 +1681,12 @@ void fragment() {
 			float dd = length(rel - sn.xy);
 			light += FLARE * g * (0.34 * exp(-dd / 3.0) + 0.05 * exp(-dd / 9.0) + 0.008 * exp(-dd / 24.0));
 		}
+	}
+	// THE NEAR SIDE'S DUST LANE ACROSS THE CORE (`solidLane`): through the camera the
+	// disc passes in front of the bottom of the bulge, so a dark lane of its dust cuts
+	// across the core below the hole, read where the lane is (never through the lens)
+	if (!probe && u_solid && dk_g > 0.5) {
+		light *= solidLane(rf0);
 	}
 	vec3 disp = g_tone(light);
 	float flag = (keep ? 0.75 : 1.0);
@@ -1526,7 +1734,8 @@ void fragment() {
 				// a block is a pixel or two across on the screen, and up the
 				// screen the disc's plane is stretched by 1 / eff: that many
 				// cells round it may hold the star that lands in it
-				int nb = min(4, int(ceil(zbl / (z * eff))));
+				// (through the camera the far side is squashed to 0.7: more cells to a block)
+				int nb = min(4, int(ceil(zbl / (z * eff) * (u_solid ? 1.5 : 1.0))));
 				for (int jy = -nb; jy <= nb; jy++) {
 					for (int jx = -nb; jx <= nb; jx++) {
 						if (found) {
@@ -1541,7 +1750,8 @@ void fragment() {
 						float rr = length(gp);
 						float sa = atan(gp.y, gp.x) - (phi + wk(rr / zbl) * t);
 						vec2 sp = vec2(cos(sa) * rr, sin(sa) * rr * eff) * (z / zbl);
-						vec2 spx = floor(cpix + sp + 0.5);
+						// (where the camera shows it)
+						vec2 spx = floor(cpix + solidV(sp) + 0.5);
 						if (floor((spx - vp_origin) * 0.5) != vp) {
 							continue;
 						}
@@ -1564,7 +1774,7 @@ void fragment() {
 							sc *= 0.72;
 						}
 						// (one in ten of those the light would hide: accents)
-						bool near = length(spx - cpix) < near_r && g_hash(cell.x * 13 - 7, cell.y * 3 + 91 + L * 17) < 0.1;
+						bool near = length(spx - cpix - solidV(vec2(0.0))) < near_r && g_hash(cell.x * 13 - 7, cell.y * 3 + 91 + L * 17) < 0.1;
 						// and true white only for a few: the rest at the dimmer
 						// shade every palette keeps, so a tinted star colour that
 						// no palette change can recolour
@@ -1673,7 +1883,12 @@ void fragment() {
 			vec2 spb = vp_origin + vp * 2.0 + 1.0 - view_c;
 			// (the far nebulae thin away well before the galaxy's faintest light: its
 			// rim meets dark sky, never a far cloud -- `bgNebSeen`)
-			vec3 bl = bgLightChart(spb, 1.0, 1.0 - smoothstep(13.0, 21.0, g_lum(d255)), 20.0);
+			// (with the dissolving edge the disc's light fades out over a long stretch, so
+			// they also keep clear of where the disc is, out past the fade's end: SIMPLIFIED's
+			// `nebGap`)
+			float rpl = length(vec2(lxs, lys / eff)) / (z * big_r);
+			float nebGap = u_edge.w > 0.0 ? smoothstep(u_edge.y + 0.05, u_edge.y + 0.45, rpl) : 1.0;
+			vec3 bl = bgLightChart(spb, 1.0, (1.0 - smoothstep(13.0, 21.0, g_lum(d255))) * nebGap, 20.0);
 			vec3 bs = g_tone(bl * 1.2) * 255.0;
 			if (g_lum(bs) > g_lum(d255) + 2.0) {
 				d255 = bs;
@@ -1685,7 +1900,7 @@ void fragment() {
 			if (k >= n_puls) {
 				break;
 			}
-			vec2 pb = floor((cpix + puls[k].xy - vp_origin) * 0.5);
+			vec2 pb = floor((cpix + solidV(puls[k].xy) - vp_origin) * 0.5);
 			vec2 dp = abs(vp - pb);
 			float bt = puls[k].z;
 			bool on = (dp.x == 0.0 && dp.y == 0.0) || (bt > 1.0 && dp.x + dp.y == 1.0);
@@ -1697,5 +1912,8 @@ void fragment() {
 			}
 		}
 		COLOR = vec4(d255 / 255.0, flag);
+		if (diag_plane) {
+			COLOR = vec4(kitViewToPlane(rf0, phi, z * big_r), 0.0, 1.0);
+		}
 	}
 }

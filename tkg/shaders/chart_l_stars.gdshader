@@ -55,6 +55,25 @@ uniform int star_level = 1;
 // those that would otherwise be hidden
 uniform float near_r = 0.0;
 
+// THE SOLID LOOK (`ChartSky.solid`, LEGACY's line): the stars where the camera shows
+// them, as SIMPLIFIED's (`chart_c_stars`' toScreen, `chart_solid`'s solidFwdN): on, and
+// the camera's distance (gu), its elevation's sine and cosine; where it looks (gu); and
+// this chart's screen px a gu now (`z` x the disc's radius in bake px)
+uniform bool solid = false;
+uniform vec4 solidW = vec4(1.9, 0.38, 0.92499, 0.0);
+uniform vec2 solidT = vec2(0.0);
+uniform float kgu = 261.0;
+
+// a point of the flat chart (screen px from the centre) where the camera shows it
+vec2 toScreen(vec2 v) {
+	if (!solid) {
+		return v;
+	}
+	vec2 d = vec2(v.x, v.y / TILT) / kgu - solidT;
+	float sc = solidW.x / (solidW.x - d.y * solidW.z);
+	return (vec2(solidT.x, solidT.y * TILT) + vec2(d.x * sc, d.y * solidW.y * sc)) * kgu;
+}
+
 varying vec4 v_col;
 varying float v_near;
 
@@ -144,7 +163,7 @@ void vertex() {
 		float ang = atan(yb, xb) - (phi + mod(wk(rs) * t, TAU_G));
 		rel = vec2(cos(ang) * rs, sin(ang) * rs * eff - zz * SIN_I) * z;
 	}
-	vec2 spx = floor(cpix + rel + 0.5);
+	vec2 spx = floor(cpix + toScreen(rel) + 0.5);
 	vec2 blk = floor((spx - vp_origin) * 0.5);
 	VERTEX = show ? blk + CORNER[VERTEX_ID % 6] : vec2(-100000.0);
 	// TRUE WHITE ONLY FOR THE FEW BRIGHTEST (level 4): a near-white star a
@@ -155,7 +174,7 @@ void vertex() {
 	}
 	v_col = vec4(c * 255.0, lm);
 	// (one in ten of the stars the light would hide: accents, not speckle)
-	v_near = (length(spx - cpix) < near_r && g_hash(id, 93) < 0.1) ? 1.0 : 0.0;
+	v_near = (length(spx - cpix - toScreen(vec2(0.0))) < near_r && g_hash(id, 93) < 0.1) ? 1.0 : 0.0;
 }
 
 void fragment() {
