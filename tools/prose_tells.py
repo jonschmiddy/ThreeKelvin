@@ -99,7 +99,41 @@ REVIEW = [
 	("soft-word",
 		r"\b(?:quietly|softly|somehow|gently)\b",
 		"humanizer's soft words; weak alone, flag with company (SKILL §3)"),
+	# The narrator explaining the line before: "Heat is what they leave
+	# behind.", "The ore is what they are paying with.", "That is why." The
+	# ERROR above catches only "which is how / why / the point".
+	("explains",
+		r"(?:^|[.!?]\s+)(?:That|This|It|Which)\s+(?:is|was)\s+(?:how|why|what|the reason|all)\b"
+		r"|\b(?:is|are|was|were)\s+what\s+(?:they|it|you|we|he|she|people|ships?|crews?)\s+"
+		r"(?:leave|leaves|left|do|does|did|want|wants|are|is|were|was|get|gets|have|has|had"
+		r"|need|needs|pay|pays)\b"
+		r"|\bwhich\s+(?:is|was)\s+(?:all|the whole|exactly)\b",
+		"the narrator explaining what the line meant, \"X is what they leave behind\" (SKILL §0)"),
 ]
+
+# An epigram: two short sentences on one frame, the second answering the first.
+# "Nothing they build is clever. Everything they build still works." The capper
+# test sees only a last line that opens on Nobody or Nothing; this sees the pair.
+EPIGRAM_PAIRS = [("nothing", "everything"), ("nobody", "everybody"), ("no one", "everyone"),
+	("nobody", "everyone"), ("never", "always"), ("none", "all")]
+
+
+def epigram(text: str):
+	"""The two sentences that make an epigram, or None."""
+	ss = sentences(text)
+	for a, b in zip(ss, ss[1:]):
+		wa, wb = re.findall(r"[a-z']+", a.lower()), re.findall(r"[a-z']+", b.lower())
+		if not wa or not wb or len(wa) > 9 or len(wb) > 9:
+			continue
+		la, lb = " ".join(wa) + " ", " ".join(wb) + " "
+		for x, y in EPIGRAM_PAIRS:
+			if ((la.startswith(x + " ") and lb.startswith(y + " "))
+					or (la.startswith(y + " ") and lb.startswith(x + " "))):
+				return a + " " + b
+		# one frame, a new first word: "Nothing THEY BUILD ... Everything THEY BUILD"
+		if len(wa) >= 3 and len(wb) >= 3 and wa[1:3] == wb[1:3] and wa[0] != wb[0]:
+			return a + " " + b
+	return None
 
 # A fragment: a sentence with no finite verb a cheap test can see. Two or more
 # in a string, making up most of it, is the clipped catalogue cadence -- "Sparse,
@@ -223,6 +257,11 @@ def main() -> int:
 				continue
 			if rx.search(text):
 				review.append((rel, n, tid, why, text))
+		pair = epigram(text)
+		if pair:
+			review.append((rel, n, "epigram",
+				"two short sentences on one frame, the second answering the first (SKILL §0)",
+				pair))
 		# A string with a slot in it (%s, {PLACE}) is a status line or a
 		# tooltip, and terse is right for those.
 		ss = [] if re.search(r"%[sd0-9.]|\{[A-Z_]+\}", text) else sentences(text)
