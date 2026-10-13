@@ -4401,8 +4401,12 @@ func _lower_band(then: Callable) -> void:
 	if n != null and not Run.dead:
 		_rebuild_drawer(n)
 	_sync_drawer_box()
-	var target := _quiet_wrap.get_combined_minimum_size().y
+	var target := _one_line_height()
 	var from := _hand_holder.size.y
+	# DOWN, NEVER UP. At the core LOCAL's band says a paragraph and asked for
+	# more than the hand had, so the "lowering" grew the band and pulled every
+	# ship to the top of the screen. The body's popup covers that swap anyway.
+	target = minf(target, from)
 	if not Router.animating() or _hand_holder == null or not _hand_holder.visible:
 		_finish_lower()
 		then.call()
@@ -4418,6 +4422,22 @@ func _lower_band(then: Callable) -> void:
 		_quiet_wrap.modulate.a = 0.0)
 	tw.tween_property(_quiet_wrap, "modulate:a", 1.0, 0.18)
 	tw.tween_callback(then)
+
+
+## How tall LOCAL's band will be. Its words wrap, and a wrapping label hidden
+## in a fight has no width to wrap to: asked as it stands, the core's line
+## measured a column of single words, most of the screen high. LOCAL gives it
+## the whole width, where one line fits, so a measure taller than the hand is
+## replaced by one line: the button's height or the text's, whichever is more,
+## inside the panel's own padding.
+func _one_line_height() -> float:
+	var measured := _quiet_wrap.get_combined_minimum_size().y
+	if measured < DRAWER_H:
+		return measured
+	var sb := _quiet_wrap.get_theme_stylebox(&"panel")
+	var pad := sb.get_minimum_size().y if sb != null else 0.0
+	var line := float(UITheme.pixel_font().get_height(UITheme.FS_SMALL))
+	return maxf(EncounterDrawer.BTN.y, line) + pad
 
 
 func _finish_lower() -> void:

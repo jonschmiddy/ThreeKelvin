@@ -101,7 +101,14 @@ func _run() -> void:
 			cb.end_turn()
 		await _draw_frames(12)
 	print("corewinshot: fight %s after %d plays" % [cb.result, tries])
-	# the body opens; its scan sweep plays
+	# the body opens once the screen has played the kill out -- the shot, the
+	# Custodian's death, the hand lowering (combat polish) -- then its scan
+	# sweep plays
+	var waited := 0
+	while not Router.final_loot and waited < 600:
+		await _draw_frames(1)
+		waited += 1
+	print("corewinshot: the body opened %d frames after the last play" % waited)
 	await _draw_frames(120)
 	var sc := Router.current as SectorScreen
 	print("corewinshot: loot step %s, popup %s, music asked %s" % [Router.final_loot,
