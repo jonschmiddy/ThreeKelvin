@@ -138,7 +138,12 @@ func _film(group: String, ships: Array, dir: String, frames: int, layer: CanvasL
 	var th := 0
 	for s in ships:
 		var im: Image = s.img
-		tw = maxi(tw, im.get_width() + (16 if player else 76))
+		# Room for the longest flame and its sparks, so no ship's flame reaches
+		# into its neighbour's tile: a player hull's canvas carries some at the
+		# stern, given 60 more; a pool ship or an enemy gets 128 behind it. (At
+		# 76 the Rustjaw hulk's flame burned across the net ship's nose, and Jon
+		# asked what the flame on its front was.)
+		tw = maxi(tw, im.get_width() + (76 if player else 136))
 		th = maxi(th, im.get_height() + 12 + LABEL_H)
 	var cols := 3 if player else 4
 	var rows := int(ceil(float(ships.size()) / float(cols)))
@@ -166,7 +171,7 @@ func _film(group: String, ships: Array, dir: String, frames: int, layer: CanvasL
 		var used := img.get_used_rect()
 		var tx := (i % cols) * tw
 		var ty := LABEL_H + (i / cols) * th
-		var at := Vector2(tx + 8, ty + LABEL_H + 4)
+		var at := Vector2(tx + (60 if player else 8), ty + LABEL_H + 4)
 		var lab := UITheme.body(s2.id, UITheme.CHILL, UITheme.FS_SMALL)
 		lab.position = Vector2(tx + 6, ty)
 		sub.add_child(lab)
