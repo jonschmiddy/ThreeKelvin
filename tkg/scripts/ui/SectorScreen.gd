@@ -3923,6 +3923,10 @@ func _sync_hull() -> void:
 
 
 func _wait_s(t: float) -> void:
+	# NOTHING TO WAIT FOR when nothing animates: reduced motion, headless, the
+	# sim. The order of events is kept; only the time between them goes.
+	if not Router.animating():
+		return
 	await get_tree().create_timer(t).timeout
 
 
@@ -4069,6 +4073,10 @@ func _fire_q(q: Dictionary) -> void:
 			_slot_shown[who] = clampi(int(q.pre), 0, e.max_hp)
 		_slot_volleys[who] = int(_slot_volleys.get(who, 0)) + 1
 		_show_slot(who)
+	# Without motion the shot has nothing to cross: it lands now.
+	if not Router.animating():
+		_on_volley_landed(id)
+		return
 	var here := _view.enemy_anchor(who)
 	var mine := _view.ship_muzzle()
 	if q.to_player:
@@ -4223,6 +4231,8 @@ func _death_style(who: int) -> int:
 var _prebuilt: Dictionary = {}
 
 func _prebuild_death(who: int) -> void:
+	if not Router.animating():
+		return
 	var sl := _view.slot(who)
 	if sl == null or sl.art == null or who >= combat.enemies.size() or _prebuilt.has(who):
 		return
@@ -4251,6 +4261,11 @@ func _start_death(who: int) -> void:
 		return
 	var art := sl.art
 	var e: Combat.EnemyState = combat.enemies[who]
+	# WITHOUT MOTION a death is the wreck, at once (reduced motion, headless).
+	if not Router.animating():
+		sl.hide_art(false)
+		_check_ending()
+		return
 	var b: ShipBreakup = null
 	if _prebuilt.has(who):
 		var pre: Dictionary = _prebuilt[who]
