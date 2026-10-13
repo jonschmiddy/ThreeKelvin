@@ -2,18 +2,22 @@ extends Node
 
 ## A CREATURE'S BLOCK, BRACE OR DAMAGE IN A REAL FIGHT, for a film (`FaunaGuard`).
 ##   godot --path . --resolution 1920x1080 --write-movie <dir>/f.png --fixed-fps 60
-##       -- sheet=GuardFilm id=<leviathan|whale|custodian> def=<block|brace|damage>
-##          look=<0|1|2|ship> [boxtest=1]
+##       -- sheet=GuardFilm id=<leviathan|whale|custodian>
+##          def=<block|brace|guard|damage> [look=ship] [kind=0|1|2] [boxtest=1]
 ## Through the real SectorScreen, one enemy: its fly-in, then (from the line
 ## `guardfilm: start <frame>`, about 6 s):
 ##   block   12 block gained; a 5 the block soaks (2.0 s); a 10 that breaks it,
 ##           3 going on to the hull (3.6 s);
 ##   brace   12 brace gained; 4 (1.7 s), 4 (2.9 s), then 6 that spends it, 2 to
 ##           the hull (4.1 s);
-##   damage  from full hull, eight shots of 11.5% each, 0.8 s apart, to 8%.
+##   guard   12 brace and 10 block gained; a 6 the block soaks (1.8 s); an 8
+##           that breaks it and goes into the brace (3.2 s); a 6 (4.6 s); a 6
+##           that spends the brace, 4 to the hull (5.8 s);
+##   damage  from full hull, eight shots of 11.5% each, 0.8 s apart, to 8%
+##           (the kinds rolled as in play; `kind` forces one).
 ## Shots go through `Combat.damage_enemy` (your ship fires, the volley lands,
-## `HitLayers.land`). `look` sets `FaunaGuard`'s statics; `ship` turns the
-## creature looks off (today's). Prints the crop (window px: the ship, its words
+## `HitLayers.land`). `look=ship` turns the creature looks off (the ship
+## looks). Prints the crop (window px: the ship, its words
 ## and its readout), each guard's shape changes per half second, and with
 ## `boxtest=1` (no movie) compares the words' pixels with the guard drawn and
 ## hidden, every 0.1 s: they must be the same.
@@ -57,10 +61,7 @@ func _run() -> void:
 		DirAccess.make_dir_recursive_absolute(_shots)
 	if look == "ship":
 		FaunaGuard.enabled = false
-	else:
-		FaunaGuard.block_look = int(look)
-		FaunaGuard.brace_look = int(look)
-		FaunaGuard.damage_look = int(look) if def == "damage" else 0
+	FaunaHitFx.force_kind = int(_arg("kind", "-1"))
 	Rng.forced = int(_arg("seed", "4242"))
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	for n: MapGen.MapNode in Run.map:
@@ -74,13 +75,10 @@ func _run() -> void:
 	var e: Combat.EnemyState = cb.enemies[0]
 	e.hp = e.max_hp
 	e.block = 0
-	if def != "brace":
-		e.brace = 0
-	else:
-		e.brace = 0
+	e.brace = 0
 	Sig.enemy_changed.emit()
 	var sc := Router.current as SectorScreen
-	await _wait(2.6)
+	await _wait(float(_arg("settle", "3.4")))
 	var sl: EnemySlot = sc._view.slot(0)
 	var L: HitLayers = sl.layers
 	var k := float(get_window().size.x) / get_viewport().get_visible_rect().size.x
@@ -101,6 +99,9 @@ func _run() -> void:
 			plan = [[0.0, &"block", 12], [2.0, &"hit", 5], [3.6, &"hit", 10], [6.1, &"end", 0]]
 		"brace":
 			plan = [[0.0, &"brace", 12], [1.7, &"hit", 4], [2.9, &"hit", 4], [4.1, &"hit", 6], [6.1, &"end", 0]]
+		"guard":
+			plan = [[0.0, &"brace", 12], [0.0, &"block", 10], [1.8, &"hit", 6], [3.2, &"hit", 8], [4.6, &"hit", 6],
+				[5.8, &"hit", 6], [7.2, &"end", 0]]
 		"damage":
 			var each := int(ceil(float(e.max_hp) * 0.115))
 			for i in 8:

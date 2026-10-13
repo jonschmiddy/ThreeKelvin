@@ -1,47 +1,29 @@
 class_name FaunaGuard
 extends RefCounted
 
-## BLOCK, BRACE AND DAMAGE ON A LIVING CREATURE (Oct 13, mockups for a pick).
-## Jon, of the Void Leviathan in a fight with the plated brace on it: "The void
-## leviathan having plating or shield is kinda weird", and "the damage to the
-## void leviathan and voidwhale calf should be more organic... not ship
-## damage". The bubble (`ShieldFx`), the plates (`BraceFx`) and the hull marks
-## (`ShipHitFx`) are machine looks; on the Voidwhale Calf and the Void Leviathan
-## (`wants`) `HitLayers` lays these instead, three ideas each, picked by the
-## statics below (A, B, C = 0, 1, 2). The Custodian is a construct and keeps the
-## ship looks; so does every ship.
-##   BLOCK  (`FaunaShield`)  A  GLOW SKIN: its own outline lit cold, breathing
-##                              with it, packets of light running head to tail;
-##                              a hit runs a ring of light over the skin; at 0 it
-##                              gutters out pixel by pixel.
-##                           B  SPORES: a cloud of motes hugging the body; a hit
-##                              is soaked in puffs and the cloud thins; at 0 the
-##                              cloud drifts off.
-##                           C  MEMBRANE: a faint skin-bubble a few pixels out,
-##                              veined, wobbling with the body; a hit dents it and
-##                              lights its veins; at 0 it tears from the hit.
-##   BRACE  (`FaunaBrace`)   A  HARDENED HIDE: the hide darkens and goes glassy
-##                              teal, a rim light along its back and a sheen
-##                              crossing it; hits flake patches off.
-##                           B  TENSED: a pose (`FaunaMotion.pose`): breath held,
-##                              spines up and trembling, their tips lit cold,
-##                              flippers in; a hit makes it flinch; letting go
-##                              breathes out.
-##                           C  CRYSTAL GROWTH: ice crystals erupt along its
-##                              back; a hit shatters the nearest; they fall in
-##                              proportion.
-##   DAMAGE (`FaunaHitFx`)   A  WOUNDS: the hide tears, glowing tissue inside,
-##                              pulsing with a heartbeat, weeping ichor.
-##                           B  BRUISES: the hide bruises purple and its own
-##                              lights flicker and die round each hit.
-##                           C  SHED: scales chip off and tumble, raw skin under
-##                              them; crystals break off; badly hurt, it trails
-##                              vapour.
+## BLOCK, BRACE AND DAMAGE ON A LIVING CREATURE (Oct 13). Jon, of the Void
+## Leviathan in a fight with the plated brace on it: "The void leviathan having
+## plating or shield is kinda weird", and "the damage to the void leviathan and
+## voidwhale calf should be more organic... not ship damage". The bubble
+## (`ShieldFx`), the plates (`BraceFx`) and the hull marks (`ShipHitFx`) are
+## machine looks; on the Voidwhale Calf and the Void Leviathan (`wants`)
+## `HitLayers` lays these instead, Jon's picks of three ideas each ("block:A
+## brace:A damage:A+B+C"). The Custodian is a construct and keeps the ship
+## looks ("custodian C"); so does every ship.
+##   BLOCK  (`FaunaShield`)  GLOW SKIN: its own outline lit cold, breathing with
+##                           it, packets of light running head to tail; a hit
+##                           runs a ring of light over the skin; at 0 it gutters
+##                           out pixel by pixel.
+##   BRACE  (`FaunaBrace`)   HARDENED HIDE: the hide darkens and goes glassy
+##                           teal, a rim light along its back and a sheen
+##                           crossing it; hits flake patches off.
+##   DAMAGE (`FaunaHitFx`)   WOUNDS, BRUISES and SHED scales, rolled per hit;
+##                           its lights die and, badly hurt, it trails vapour.
 ##
 ## WITH THE BODY, NOT OVER IT. Everything is drawn in the picture's own rest
 ## space and shown where `FaunaMotion` shows that pixel now: a shader layer
-## (`Skin`, `PRELUDE`) maps each pixel through the motion's own column table
-## (the swell, the spines' lift, the flippers' sweep), and motes and crystals
+## (`GuardSkin`, `PRELUDE`) maps each pixel through the motion's own column table
+## (the swell, the spines' lift, the flippers' sweep), and motes and flakes
 ## take `FaunaMotion.off_at` at their foot. Damage is baked into the picture the
 ## motion is cut from, so it moves as the body does for nothing. Steps are the
 ## motion's (8 a second the Leviathan, 12 the calf), on its own phase, so a
@@ -52,15 +34,6 @@ extends RefCounted
 ## no shader pixel lights inside them.
 
 static var enabled := true
-static var block_look := 0
-static var brace_look := 0
-static var damage_look := 0
-
-const NAMES := {
-	&"block": ["GLOW SKIN", "SPORES", "MEMBRANE"],
-	&"brace": ["HARDENED HIDE", "TENSED", "CRYSTAL GROWTH"],
-	&"damage": ["WOUNDS", "BRUISES", "SHED"]}
-
 ## Block's light (the bubble's colour, so block still reads as block).
 const BLOCK_COL := Color("#7cd8ff")
 

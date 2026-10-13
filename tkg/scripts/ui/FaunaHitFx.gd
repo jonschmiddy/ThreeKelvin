@@ -1,27 +1,35 @@
 class_name FaunaHitFx
 extends ShipHitFx
 
-## DAMAGE ON A CREATURE (`FaunaGuard`): three ideas, `FaunaGuard.damage_look`.
-## Jon: "the damage to the void leviathan and voidwhale calf should be more
-## organic... not ship damage". Every mark is baked into the picture the motion
-## is cut from (`marks()`, as the ship marks are), so it swells and dips with
-## the body; what moves on it (a wound's pulse, a dying light) is drawn through
-## the motion's own table; what comes off it (drops, scales, vapour) flies free.
-##   A  WOUNDS: the hide tears in a slit along the body, glowing tissue inside,
-##      the torn lip lit above and dark round it. Every wound pulses with one
-##      heartbeat, quicker as the hull goes; each weeps a drop of ichor now and
-##      then, more often when badly hurt. A hit splashes ichor.
-##   B  BRUISES: the hide bruises purple-dark round each hit, and the creature's
-##      own lights near it flicker and die -- more of them the bigger the hit,
-##      nearest first -- until near death it is nearly dark, a dead light
-##      sparking back now and then.
-##   C  SHED: a patch of scales chips off and tumbles away, raw pale skin under
-##      it, cracks running from its edge; a crystal or spine near the hit snaps
-##      and falls. Under 45% hull it trails a pale vapour from its raw patches.
+## DAMAGE ON A CREATURE (`FaunaGuard`). Jon: "the damage to the void leviathan
+## and voidwhale calf should be more organic... not ship damage", and of the
+## three ideas, "damage:A+B+C (all wounds! they're sick)": every hit is one of
+## three KINDS, rolled from the fight's seeded generator the way a ship's hit
+## marks roll theirs (`roll_organic`), and they build up together. Every mark
+## is baked into the picture the motion is cut from (`marks()`, as the ship
+## marks are), so it swells and dips with the body; what moves on it (a
+## wound's pulse, a dying light) is drawn through the motion's own table; what
+## comes off it (drops, scales, vapour) flies free.
+##   WOUND   the hide tears in a slit along the body, glowing tissue inside,
+##           the torn lip lit above and dark round it. Every wound pulses with
+##           one heartbeat, quicker as the hull goes; each weeps a drop of ichor
+##           now and then, more often when badly hurt. A hit splashes ichor.
+##   BRUISE  the hide bruises purple-dark round the hit.
+##   SHED    a patch of scales chips off and tumbles away, raw pale skin under
+##           it, cracks running from its edge; a crystal or spine near the hit
+##           snaps and falls.
+## Whatever the kind, two things build with the hull lost: the creature's own
+## lights flicker and die round each hit (more the bigger it was, nearest
+## first) until near death it is nearly dark, a dead light sparking back now
+## and then; and under 45% it trails a pale vapour from its raw patches (or,
+## with none yet, from its marks).
+## ONE PICTURE, SO NO FIGHTING: the marks are one baked image, each kind
+## leaving tissue (a wound, raw skin) alone -- a bruise or a shed goes round a
+## wound, a wound may open on a bruise or on raw skin -- and nothing that moves
+## is drawn on a pixel a later wound has opened.
 ## The hit's white flash (the art's) and the numbers stay as they are.
 
 var body: FaunaGuard.Body
-var look := 0
 var changes := 0
 
 var _clock := FaunaGuard.Clock.new()
@@ -33,13 +41,14 @@ var _bound: FaunaMotion = null
 var _last_sig := 0
 var _since_step := 0
 var _ooze := FaunaGuard.Motes.new()
-## A: {c (canvas), low (canvas, the drip point), big, next}
+var _vapour := FaunaGuard.Motes.new()
+## Wounds: {c (canvas), low (canvas, the drip point), big, next}
 var _wounds: Array = []
-## B: {p (canvas), c (its light colour), t0, len}
+## Dying lights: {p (canvas), c (its light colour), t0, len}
 var _dying: Array = []
 var _dead_lights: Array[Vector2i] = []
 var _lights_alive: Array[Vector2i] = []
-## C: raw skin left (canvas points), the cut-off pixels (canvas), falling bits
+## Shed: raw skin left (canvas points), the cut-off pixels (canvas), falling bits
 var _raw: Array[Vector2i] = []
 var _cut := PackedVector2Array()
 var _bits: Array = []      ## {tex, at, size, dir, speed, spin, t0}
@@ -70,24 +79,22 @@ void fragment() {
 
 
 func setup(img: Image, used: Rect2i, origin: Vector2, seed: int, the_facing: int = -1) -> void:
-	look = clampi(FaunaGuard.damage_look, 0, 2)
 	super.setup(img, used, origin, seed, the_facing)
 	_clock.fps = body.fps
 	var b := body
 	for i in b.W * b.H:
 		if b.glow[i] == 1:
 			_lights_alive.append(Vector2i(i % b.W, i / b.W))
-	if look == 0:
-		_wl = Image.create(b.W, b.H, false, Image.FORMAT_RGBA8)
-		_wl_tex = ImageTexture.create_from_image(_wl)
-		_skin = FaunaGuard.GuardSkin.new()
-		_skin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		_skin.make(b, FaunaGuard.skin_code(true, SKIN_WOUND))
-		_skin.paint = func(ci: CanvasItem) -> void:
-			if not _wounds.is_empty():
-				ci.draw_texture(_wl_tex, Vector2.ZERO)
-		add_child(_skin)
-		move_child(_skin, 1)
+	_wl = Image.create(b.W, b.H, false, Image.FORMAT_RGBA8)
+	_wl_tex = ImageTexture.create_from_image(_wl)
+	_skin = FaunaGuard.GuardSkin.new()
+	_skin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_skin.make(b, FaunaGuard.skin_code(true, SKIN_WOUND))
+	_skin.paint = func(ci: CanvasItem) -> void:
+		if not _wounds.is_empty():
+			ci.draw_texture(_wl_tex, Vector2.ZERO)
+	add_child(_skin)
+	move_child(_skin, 1)
 
 
 func _canvas(p: Vector2i) -> Vector2i:
@@ -116,17 +123,40 @@ func hit(amount: int, hp_after: int, max_hp: int, kind: int = -1, near: Vector2 
 	var frac := float(amount) / float(maxi(1, max_hp))
 	var big := frac >= 0.12
 	_hp = float(hp_after) / float(maxi(1, max_hp))
+	if kind < 0 or kind > Organic.SHED:
+		kind = roll_organic(frac)
 	var p := _on_hide(_pick(false, 6.0 if big else 4.5, near))
-	_mark(p, big, frac, false)
+	_mark(kind, p, big, frac, false)
+	_dim_lights(p, big, frac, kind == Organic.BRUISE)
 	moment.emit(&"impact", 0.35 + 0.55 * minf(1.0, frac / 0.3), 0.0)
 	var extras := 0 if _hp > 0.75 else (1 if _hp > 0.5 else (2 if _hp > 0.25 else 3))
 	_quiet = true
 	_sc = SIZE * 0.7 * mark_scale
 	for e in extras:
-		_mark(_on_hide(_pick(false, 4.0, Vector2.INF, Vector2(p))), false, frac * 0.3, true)
+		_mark(roll_organic(0.03), _on_hide(_pick(false, 4.0, Vector2.INF, Vector2(p))), false, frac * 0.3, true)
 	_sc = SIZE * mark_scale
 	_quiet = false
-	return Kind.SCORCH
+	return kind
+
+
+enum Organic { WOUND, BRUISE, SHED }
+## Forced kind for a harness (-1: rolled).
+static var force_kind := -1
+
+
+## Which kind a hit is, from the fight's generator (repeatable): small hits
+## lean to bruises, big ones tear and shed.
+func roll_organic(frac: float) -> int:
+	if force_kind >= 0:
+		return force_kind
+	var small := frac < 0.12
+	var w := [0.3, 0.45, 0.25] if small else [0.45, 0.2, 0.35]
+	var r := _rng.randf()
+	for k in 3:
+		r -= float(w[k])
+		if r < 0.0:
+			return k
+	return Organic.WOUND
 
 
 ## A hit lands on the hide, not on a spine (the pale crystals drew `_pick`'s
@@ -144,17 +174,17 @@ func _on_hide(p: Vector2i) -> Vector2i:
 	return p
 
 
-func _mark(p: Vector2i, big: bool, frac: float, extra: bool) -> void:
-	match look:
-		0:
+func _mark(kind: int, p: Vector2i, big: bool, frac: float, extra: bool) -> void:
+	match kind:
+		Organic.WOUND:
 			_wound(p, big, extra)
-		1:
+		Organic.BRUISE:
 			_bruise(p, big, frac, extra)
-		2:
+		_:
 			_shed(p, big, extra)
 
 
-# ------------------------------------------------------------------ A: wounds
+# ------------------------------------------------------------------ wounds
 
 func _wound(p: Vector2i, big: bool, extra: bool) -> void:
 	var k := _sc / SIZE
@@ -219,9 +249,9 @@ func _wound(p: Vector2i, big: bool, extra: bool) -> void:
 		moment.emit(&"sizzle", 0.25, 0.3)
 
 
-# ------------------------------------------------------------------ B: bruises
+# ------------------------------------------------------------------ bruises
 
-func _bruise(p: Vector2i, big: bool, frac: float, extra: bool) -> void:
+func _bruise(p: Vector2i, big: bool, _frac: float, _extra: bool) -> void:
 	var k := _sc / SIZE
 	var R := (9.0 if big else 6.5) * k
 	var fd := ShipBreakup._field(_rng, _w, _h, 3)
@@ -252,12 +282,17 @@ func _bruise(p: Vector2i, big: bool, frac: float, extra: bool) -> void:
 			if _what[i] == 0:
 				_what[i] = 1
 	_marks.append({p = Vector2(p), r = R})
-	# its own lights die round the hit, nearest first, more the bigger it was
+	_brings.append({p = Vector2(_canvas(p)), t0 = t, r1 = 9.0 if big else 6.0})
+	if not _quiet:
+		moment.emit(&"thud", 0.4, 0.0)
+
+
+## Every hit: its own lights die round it, nearest first, more the bigger it
+## was (a bruise, more again), so the creature goes dark as its hull goes.
+func _dim_lights(p: Vector2i, big: bool, frac: float, bruise: bool) -> void:
 	var cp := Vector2(_canvas(p))
 	var total := maxi(1, _lights_alive.size() + _dead_lights.size())
-	var kill := maxi(4 if big else 2, int(round(float(total) * frac * 1.4)))
-	if extra:
-		kill = maxi(1, kill / 3)
+	var kill := maxi(4 if big else 2, int(round(float(total) * frac * (1.6 if bruise else 1.25))))
 	_lights_alive.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
 		return Vector2(a).distance_squared_to(cp) < Vector2(b).distance_squared_to(cp))
 	var n := mini(kill, _lights_alive.size())
@@ -273,12 +308,9 @@ func _bruise(p: Vector2i, big: bool, frac: float, extra: bool) -> void:
 		_dead_lights.append(lp)
 		_dying.append({p = lp, c = oc, t0 = t + float(j) * 0.02, len = _rng.randf_range(0.45, 0.9), h = _rng.randi() % 997})
 	_lights_alive = _lights_alive.slice(n)
-	_brings.append({p = cp, t0 = t, r1 = 9.0 if big else 6.0})
-	if not _quiet:
-		moment.emit(&"thud", 0.4, 0.0)
 
 
-# ------------------------------------------------------------------ C: shed
+# ------------------------------------------------------------------ shed
 
 func _shed(p: Vector2i, big: bool, extra: bool) -> void:
 	var k := _sc / SIZE
@@ -458,7 +490,7 @@ func advance(delta: float) -> void:
 		_clock.bind(t, fm)
 	var tq := _clock.tq(t)
 	var ks := FaunaGuard.keep_of(self)
-	if look == 0:
+	if true:
 		# drips: a drop from each wound now and then, more often when hurt
 		var gap := 1.5 if _hp > 0.6 else (1.0 if _hp > 0.3 else 0.6)
 		for w in _wounds:
@@ -475,14 +507,19 @@ func advance(delta: float) -> void:
 		var beat := 1.0 if ph < 0.08 else (0.45 if ph < 0.16 else (0.85 if ph < 0.24 else (0.35 if ph < 0.36 else (0.12 if ph < 0.6 else 0.0))))
 		_skin.follow(fm, tq + _clock.phase, ks)
 		_skin.mat.set_shader_parameter("beat", beat)
-	elif look == 2 and _hp < 0.45 and not _raw.is_empty() and t >= _next_vapour:
+	if _hp < 0.45 and not _marks.is_empty() and t >= _next_vapour:
 		_next_vapour = t + (0.16 if _hp > 0.25 else 0.09)
-		var src: Vector2i = _raw[_rng.randi() % _raw.size()]
+		var src: Vector2i
+		if not _raw.is_empty():
+			src = _raw[_rng.randi() % _raw.size()]
+		else:
+			src = _canvas(Vector2i((_marks[_rng.randi() % _marks.size()].p as Vector2).round()))
 		var at2 := FaunaGuard.shown(fm, Vector2(src))
-		_ooze.add(at2, Vector2(float(-facing) * _rng.randf_range(6.0, 14.0), -_rng.randf_range(6.0, 14.0)),
+		_vapour.add(at2, Vector2(float(-facing) * _rng.randf_range(6.0, 14.0), -_rng.randf_range(6.0, 14.0)),
 			_rng.randf_range(0.8, 1.2), t, [Color("#fff2ee"), Color("#f0d0cc"), Color("#c8a6a8"), Color("#8a7478"), Color("#4a3c40")], 0.8,
 			0.0, _rng.randf() < 0.5)
 	_ooze.prune(tq)
+	_vapour.prune(tq)
 	_dying = _dying.filter(func(d: Dictionary) -> bool: return tq - float(d.t0) < float(d.len))
 	_bits = _bits.filter(func(c: Dictionary) -> bool: return tq - float(c.t0) < 0.8)
 	_brings = _brings.filter(func(r: Dictionary) -> bool: return tq - float(r.t0) < 0.3)
@@ -500,13 +537,20 @@ func advance(delta: float) -> void:
 	var sig := 0
 	for c2 in get_children():
 		sig = sig * 7919 + int(c2.get_meta(&"sig", 0))
-	if look == 0 and not _wounds.is_empty():
+	if not _wounds.is_empty():
 		sig = sig * 31 + int(_skin.mat.get_shader_parameter("beat") * 8.0)
 	# counted once a step, on the frame after it (the step's paint is in)
 	if _since_step == 1:
 		if sig != _last_sig:
 			changes += 1
 		_last_sig = sig
+
+
+## A wound has opened (or scales come off) on this canvas pixel since: no
+## dying light is drawn on it.
+func _opened(c: Vector2i) -> bool:
+	var l := _local(c)
+	return l.x >= 0 and l.y >= 0 and l.x < _w and l.y < _h and _what[l.y * _w + l.x] == 2
 
 
 func busy() -> bool:
@@ -535,8 +579,7 @@ func _paint_body(ci: CanvasItem) -> void:
 		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		h = h * 31 + int(pp.x) * 3 + int(pp.y) * 7 + rot
 	# vapour is matter, drawn over (not light)
-	if look == 2:
-		h = h * 31 + _ooze.paint(ci, keep, tq)
+	h = h * 31 + _vapour.paint(ci, keep, tq)
 	ci.set_meta(&"sig", h)
 
 
@@ -546,23 +589,24 @@ func _paint_light(ci: CanvasItem) -> void:
 	var tq := _clock.tq(t)
 	var st := _clock.index(t)
 	var h := 0
-	if look != 2:
-		h = _ooze.paint(ci, keep, tq)
+	h = _ooze.paint(ci, keep, tq)
 	# B: dying lights flickering out, and near death a dead one sparking back
 	for d in _dying:
 		var a := tq - float(d.t0)
 		if a < 0.0:
 			continue
 		var on := FaunaGuard.hash01(int(d.h), st) < (0.75 - 0.5 * a / float(d.len))
-		if on:
+		if on and not _opened(d.p):
 			var p := FaunaGuard.shown(fm, Vector2(d.p as Vector2i))
 			var c: Color = d.c
 			if FaunaGuard.dot(ci, keep, p, Color(c.r * 0.8, c.g * 0.8, c.b * 0.8)):
 				h = h * 31 + int(p.x) + int(p.y) * 3
-	if look == 1 and _hp < 0.4 and not _dead_lights.is_empty():
+	if _hp < 0.4 and not _dead_lights.is_empty():
 		for k in 2:
 			if FaunaGuard.hash01(st, 77 + k) < 0.35:
 				var lp: Vector2i = _dead_lights[int(FaunaGuard.hash01(st, 11 + k) * float(_dead_lights.size())) % _dead_lights.size()]
+				if _opened(lp):
+					continue
 				var p2 := FaunaGuard.shown(fm, Vector2(lp))
 				var oc := body.img.get_pixel(lp.x, lp.y)
 				if FaunaGuard.dot(ci, keep, p2, Color(oc.r * 0.6, oc.g * 0.6, oc.b * 0.6)):
