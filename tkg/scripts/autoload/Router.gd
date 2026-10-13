@@ -816,7 +816,7 @@ func resolve_current_node() -> void:
 	# the same second, and a set piece a party cannot gather at is fought alone
 	# by design. See the CORE note below.
 	if Run.hellbender_alive() and Run.hellbender_at == n.index:
-		Run.log_line("The Hellbender rides at anchor here, holds glowing with everything it has taken. It is between you and the rest of the system.", &"big")
+		Run.log_line("The Hellbender is anchored here, its holds glowing with what it has taken. It blocks the rest of this system.", &"big")
 		show_local()
 		return
 
@@ -844,7 +844,7 @@ func resolve_current_node() -> void:
 			if n.cleared:
 				Run.log_line("The core is open. The light is behind you.", &"good")
 			else:
-				Run.log_line("The core fills the viewport. Something is guarding it. Engage when you are ready.", &"big")
+				Run.log_line("The core fills the viewport. The Custodian guards it. Engage when you are ready.", &"big")
 			show_sector()
 		_:
 			show_sector()
