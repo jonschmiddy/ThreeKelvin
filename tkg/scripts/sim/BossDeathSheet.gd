@@ -12,7 +12,9 @@ extends Node
 ## (every moment with the death's time and the film's, and whether the last
 ## frame is `wreck_image` pixel for pixel).
 
-const PAD := 24
+## Room round the boss for its pieces to settle in: H3 scatters its rib
+## sections up to about 30 px.
+const PAD := 40
 
 var _args: PackedStringArray
 var _dir := ""

@@ -5,7 +5,8 @@ extends Node
 ## Over many seeded kills: every kept ship style and every creature style is
 ## reachable; the cut styles (E CHAIN, H SLICE) never play; a ship never rolls a
 ## creature's death and a creature never rolls a ship's; the Custodian rolls
-## from the ships' pool; the same place gives the same death every time. Then a
+## one of its own three (C1a, C1b, C1c) and never a ship's, the Hellbender H3;
+## the same place gives the same death every time. Then a
 ## real fight won: each wreck lies in the slot the fight assumed when it chose
 ## its death, so LOCAL's wreck is the wreck the animation ended on.
 
@@ -54,9 +55,27 @@ func _run() -> void:
 	h._ok("the cut styles never play (%d)" % cut_played, cut_played == 0)
 	h._ok("ships and creatures never cross (%d)" % crossed, crossed == 0)
 	h._ok("the same place gives the same death (%d unstable)" % unstable, unstable == 0)
+	# The bosses die their own set pieces: the Custodian one of C1a, C1b, C1c
+	# (all three reachable, never a ship's), the Hellbender H3.
 	var boss: EnemyTemplate = DB.enemies[&"custodian"]
-	h._ok("the Custodian rolls from the ships' pool",
-		EnemyArt.death_style(boss, 3, 0) in EnemyArt.SHIP_STYLES)
+	var seen := {}
+	var ordinary := 0
+	for node2 in 400:
+		var s4 := EnemyArt.death_style(boss, node2, 0)
+		seen[s4] = true
+		if not s4 in EnemyArt.CUSTODIAN_STYLES:
+			ordinary += 1
+	for s5 in EnemyArt.CUSTODIAN_STYLES:
+		h._ok("the Custodian can die in %s" % ShipBreakup.NAMES[s5], seen.has(s5))
+	h._ok("the Custodian never dies a ship's death (%d)" % ordinary, ordinary == 0)
+	h._ok("the Custodian's death replays from its seed",
+		EnemyArt.death_style(boss, 7, 0) == EnemyArt.death_style(boss, 7, 0))
+	var hb: EnemyTemplate = DB.enemies[&"hellbender"]
+	var hb_ok := true
+	for node3 in 50:
+		if EnemyArt.death_style(hb, node3, 0) != ShipBreakup.Style.HELL_UNCOIL:
+			hb_ok = false
+	h._ok("the Hellbender dies in H3 UNCOIL", hb_ok)
 
 	# A won fight's wrecks lie where the fight said they would.
 	var idx := -1
