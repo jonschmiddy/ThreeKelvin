@@ -411,33 +411,50 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 			has_bell = true
 	# Only a hull with a bell: a strip that laps the hull's edge by a pixel
 	# covers a few hull pixels the stream is not meant to fill.
+	# And at IDLE (Jon: "The flame should extend slightly out of the ship ...
+	# that little depression is the entire exhaust"): the bell at least 90% lit
+	# and the flame at least 8 px past the rim, at the idle length and at the
+	# shortest its flicker takes it to.
+	var rim_x := 1 << 20
+	for y10 in chh:
+		for x10 in cw:
+			if hull_img.get_pixel(x10, y10).a > 0.5 and shown[y10 * cw + x10] == 0:
+				rim_x = mini(rim_x, x10)
 	if channel > 0 and has_bell:
 		for look2 in 3:
 			var fx2: ThrusterFx = looks[look2].fx
-			var lit := {}
-			for k3 in fx2.nozzles.size():
-				var p2 := fx2.plume(k3, fx2.base_length(ThrusterFx.Thrust.FULL))
-				if p2.tex == null:
-					continue
-				var pim2: Image = (p2.tex as ImageTexture).get_image()
-				var pat2: Vector2i = p2.at
-				for y8 in pim2.get_height():
-					for x8 in pim2.get_width():
-						if pim2.get_pixel(x8, y8).a > 0.0:
-							lit[Vector2i(pat2.x + x8, pat2.y + y8)] = true
-			var covered := 0
-			for y9 in chh:
-				for x9 in cw:
-					if hull_img.get_pixel(x9, y9).a > 0.5 and shown[y9 * cw + x9] == 0 and lit.has(Vector2i(x9, y9)):
-						covered += 1
-			var frac := float(covered) / float(channel)
-			var ok2 := frac >= 0.9
-			if not ok2:
-				bad += 1
-			out.append({fill_check = ThrusterFx.LOOK_NAMES[look2], channel_px = channel, covered_px = covered,
-				fraction = snappedf(frac, 0.001), ok = ok2})
-			print("  bell fill at FULL, %-11s %d of %d always-covered hull px lit (%.1f%%) %s" % [
-				ThrusterFx.LOOK_NAMES[look2], covered, channel, frac * 100.0, "ok" if ok2 else "FAIL"])
+			var cases := [["FULL", fx2.base_length(ThrusterFx.Thrust.FULL)],
+				["IDLE", fx2.base_length(ThrusterFx.Thrust.IDLE)],
+				["IDLE-1", fx2.base_length(ThrusterFx.Thrust.IDLE) - ThrusterFx.FLICK[ThrusterFx.Thrust.IDLE]]]
+			for cs in cases:
+				var lit := {}
+				var min_x := 1 << 20
+				for k3 in fx2.nozzles.size():
+					var p2 := fx2.plume(k3, int(cs[1]))
+					if p2.tex == null:
+						continue
+					var pim2: Image = (p2.tex as ImageTexture).get_image()
+					var pat2: Vector2i = p2.at
+					for y8 in pim2.get_height():
+						for x8 in pim2.get_width():
+							if pim2.get_pixel(x8, y8).a > 0.0:
+								lit[Vector2i(pat2.x + x8, pat2.y + y8)] = true
+								min_x = mini(min_x, pat2.x + x8)
+				var covered := 0
+				for y9 in chh:
+					for x9 in cw:
+						if hull_img.get_pixel(x9, y9).a > 0.5 and shown[y9 * cw + x9] == 0 and lit.has(Vector2i(x9, y9)):
+							covered += 1
+				var frac := float(covered) / float(channel)
+				var past := rim_x - min_x
+				var idle_case := (cs[0] as String).begins_with("IDLE")
+				var ok2 := frac >= 0.9 and (past >= 8 or not idle_case)
+				if not ok2:
+					bad += 1
+				out.append({fill_check = ThrusterFx.LOOK_NAMES[look2], thrust = cs[0], length = cs[1], channel_px = channel,
+					covered_px = covered, fraction = snappedf(frac, 0.001), past_rim_px = past, ok = ok2})
+				print("  bell at %-6s L=%-3d %-11s %d of %d always-covered hull px lit (%.1f%%), %d px past the rim (x %d) %s" % [
+					cs[0], cs[1], ThrusterFx.LOOK_NAMES[look2], covered, channel, frac * 100.0, past, rim_x, "ok" if ok2 else "FAIL"])
 	print("thrustersheet starts %s: %s (%d rows, %d off)" % [DB.hull_art_name(h.weight, h.tier),
 		"PASS" if bad == 0 else "FAIL", out.size(), bad])
 	return out

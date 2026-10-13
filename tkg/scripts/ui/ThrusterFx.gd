@@ -458,43 +458,42 @@ func plume(n: int, L: int) -> Dictionary:
 		var i := (int(f2.y) - at.y) * W + (int(f2.x) - at.x)
 		buf[i] = maxf(buf[i], float(f2.v))
 	for st2 in streams:
-		_stream(buf, W, Hh, at, st2.pts, int(st2.L), float(st2.spk), expo, dir)
+		_stream(buf, W, Hh, at, st2.pts, int(st2.L), float(st2.spk), expo, dir, float(st2.get("gain", 1.0)))
 	var out := _quantize(buf, W, Hh, at, s)
 	_cache[key] = out
 	return out
 
 
-## THE BELL'S LIGHT (heavy S). Above idle the cavity is FILLED: every cell the
-## strip always covers, brightest toward the rim as today's flame is (0.55 at
-## the apex to 0.95 at the rim), and past the rim the flame leaves at the
-## mouth's full width with the look's own spread and falloff, 0.7 of the
-## length. At idle there is only a glow deep in the bell, filling its inner 60%.
+## THE BELL'S LIGHT (heavy S). The cavity is always FILLED, every cell the
+## strip always covers, brighter toward the rim as today's flame is, and past
+## the rim the flame leaves at the mouth's full width with the look's own
+## spread and falloff. Jon, on idle: "The flame should extend slightly out of
+## the ship ... that little depression is the entire exhaust" -- so idle is the
+## same shape, dimmer: the bell held in the second band (0.52 to 0.70, no white
+## core) and the full idle length past the rim, at 0.75 of the light. The bell
+## does not depend on L, so the flicker moves only the part past the rim.
+## Cruise and full: the bell 0.55 to 0.95 and 0.7 of the length past it.
 ## Nothing here touches a hull pixel the strip leaves visible: cells are the
 ## strip's own, and the streams are cut out by the hull like any other.
 func _bell_light(bell: Dictionary, L: int, expo: float, spread: float, streams: Array, fills: Array) -> void:
 	var depth: int = bell.depth
 	var apex: int = bell.apex
-	var idle_top := base_length(Thrust.IDLE) + FLICK[Thrust.IDLE]
-	if L <= idle_top:
-		var reach := minf(float(L), float(depth) * 0.6)
-		for c in (bell.cells as PackedVector2Array):
-			var d := float(apex - int(c.x))
-			if d <= reach:
-				fills.append({x = int(c.x), y = int(c.y), v = 0.68 * pow(1.0 - d / (reach + 1.0), expo)})
-		return
-	for c2 in (bell.cells as PackedVector2Array):
-		var d2 := float(apex - int(c2.x))
-		fills.append({x = int(c2.x), y = int(c2.y), v = 0.55 + 0.4 * clampf(d2 / float(depth), 0.0, 1.0)})
-	var lout := int(round(float(L) * 0.7))
+	var idle := L <= base_length(Thrust.IDLE) + FLICK[Thrust.IDLE]
+	var v0 := 0.52 if idle else 0.55
+	var v1 := 0.70 if idle else 0.95
+	for c in (bell.cells as PackedVector2Array):
+		var d := float(apex - int(c.x))
+		fills.append({x = int(c.x), y = int(c.y), v = lerpf(v0, v1, clampf(d / float(depth), 0.0, 1.0))})
+	var lout := L if idle else int(round(float(L) * 0.7))
 	if lout > 0:
-		streams.append({pts = bell.mouth, L = lout, spk = spread})
+		streams.append({pts = bell.mouth, L = lout, spk = spread, gain = 0.75 if idle else 1.0})
 
 
 ## One nozzle's light streaming back over `L` px into `buf` (canvas box `at`,
 ## W x Hh): every point of the nozzle streams, falling off as
 ## pow(1 - d/(L+1), expo), widening 1 px every 1/spk, overlaps taking the max.
 func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedVector2Array, L: int,
-		spk: float, expo: float, dir: int) -> void:
+		spk: float, expo: float, dir: int, gain: float = 1.0) -> void:
 	if em.is_empty():
 		return
 	var lo_y := 1 << 20
@@ -515,7 +514,7 @@ func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedV
 		var Lr := maxi(1, int(round(float(L) * (1.0 - 0.5 * u * u))))
 		var dim := 1.0 - 0.25 * u * u
 		for d in Lr + 1:
-			var fall := dim * pow(1.0 - float(d) / float(Lr + 1), expo)
+			var fall := gain * dim * pow(1.0 - float(d) / float(Lr + 1), expo)
 			var spread := 1 + int(float(d) * spk)
 			# B's knots: every fifth pixel along the AXIS (the nozzle's middle
 			# rows only), held where they are, lifted a band while the jet is
