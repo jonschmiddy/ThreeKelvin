@@ -1140,7 +1140,11 @@ void fragment() {
 		rcb = rel;
 		rf0 = rel;
 	} else {
-		rs = vp_origin + vp * 2.0 + 0.5 - cpix;
+		// (through the camera a block is read through its middle: the flat chart reads a
+		// quarter of the way in, which the flat chart's own marks only just forgive -- 2.78
+		// px at worst over all 638 systems -- and through the camera's perspective it came
+		// to 2.81; read through the middle the solid chart's marks are within 2.04)
+		rs = vp_origin + vp * 2.0 + (u_solid ? 1.0 : 0.5) - cpix;
 		vec2 pc = solidV(vec2(0.0));
 		float kc = solidCoreK();
 		rel = u_solid ? (rs - pc) / kc : rs;
