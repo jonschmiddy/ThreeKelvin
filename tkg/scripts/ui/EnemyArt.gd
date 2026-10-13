@@ -548,7 +548,7 @@ func _draw_sprite(e: Combat.EnemyState, wounded: float, telegraphing: bool) -> b
 		var q := _on_hull(ink, Vector2(0.7, 0.42))
 		_wound(q.x, q.y, clampi(ink.size.x / 13, 8, 16), clampi(ink.size.y / 8, 6, 10))
 	if telegraphing:
-		_windup(e.template, ink)
+		_windup(e.template, ink, e.look)
 	return true
 
 ## THE DRAWINGS, for a kind with no picture. Authored in a 240x120 box, so drawn
@@ -622,7 +622,13 @@ const WINDUP := {&"hulk": &"nose", &"hellbender": &"stern"}
 const COLD: Array[Color] = [Color("#3a6b8c"), Color("#5c9cc4"), Color("#8ec8e6"),
 	Color("#cfe8f5"), Color("#eaf6fc"), Color("#ffffff")]
 
-func _windup(t: EnemyTemplate, ink: Rect2i) -> void:
+## WHERE A PICTURE'S HEART IS, where its own drawing says it is, as a share of
+## its box; a picture not listed charges at its mass. The Custodian's take 1 is
+## one huge octahedron leading a chain of small ones, and its mass falls in the
+## gap between them -- the light belongs in the big one.
+const CORE_AT := {"custodian_t1_grown": Vector2(0.23, 0.46)}
+
+func _windup(t: EnemyTemplate, ink: Rect2i, look: int = 0) -> void:
 	var where: StringName = WINDUP.get(t.id, &"core")
 	match where:
 		&"nose":
@@ -634,7 +640,9 @@ func _windup(t: EnemyTemplate, ink: Rect2i) -> void:
 			_light(p, clampf(ink.size.y * 0.8, 18.0, 40.0), _heat[3], 1.0)
 			_glow(p.x + 1, p.y, maxi(4, ink.size.y / 7), 30)
 		_:
-			var p := _on_hull(ink, _mass(ink))
+			var files := DB.enemy_sprite_files(t.id)
+			var key := String(files[posmod(look, files.size())]).get_basename() if not files.is_empty() else ""
+			var p := _on_hull(ink, CORE_AT.get(key, _mass(ink)))
 			_pool(p, clampf(minf(ink.size.x, ink.size.y) * 0.7, 20.0, 52.0), COLD[3], 1.6)
 			# the heart itself, white, on the hull only
 			for dy in range(-2, 3):

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dvry2oynirkcw"
-path="res://.godot/imported/custodian_tetra.png-bccb05d61211ab99036189c705646073.ctex"
+uid="uid://c6n0y7rpydo33"
+path="res://.godot/imported/custodian_t1_grown_half.png-ef12af64660f36cb4c55982d4ee5c760.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/sprites/enemies/custodian_tetra.png"
-dest_files=["res://.godot/imported/custodian_tetra.png-bccb05d61211ab99036189c705646073.ctex"]
+source_file="res://art/sprites/enemies/custodian_t1_grown_half.png"
+dest_files=["res://.godot/imported/custodian_t1_grown_half.png-ef12af64660f36cb4c55982d4ee5c760.ctex"]
 
 [params]
 

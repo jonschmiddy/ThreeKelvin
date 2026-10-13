@@ -2123,22 +2123,15 @@ func _refresh_enemy() -> void:
 			row.add_child(Widgets.chip("block %d" % e.block, Color("#3a4a6e")))
 
 	_view.show_enemies(combat.enemies, _on_card_dropped, _on_slot_hovered)
-	# SOMETHING JOINED. "answers the call" went only to the log, which a fight
-	# does not show; the newcomer's name is said over it as it arrives.
-	if _foes_seen > 0 and combat.enemies.size() > _foes_seen and _view.fx != null:
-		for i in range(_foes_seen, combat.enemies.size()):
-			var who := i
-			var tw := create_tween()
-			tw.tween_interval(EnemySlot.ENTER_SECS)
-			tw.tween_callback(func() -> void:
-				if _view != null and _view.fx != null and who < combat.enemies.size():
-					_view.fx.pop(_pop_at(false, who) + Vector2(0, -6),
-						"%s JOINS" % combat.enemies[who].template.name.to_upper(), UITheme.THEM, false))
+	# Each ship's wreck cut ahead of its death, at the size its pack draws it
+	# (a pack of three or more is drawn from half sheets; `EnemyArt.draw_scale`).
 	for i2 in range(_foes_seen, combat.enemies.size()):
-		EnemyArt.warm_wreck(combat.enemies[i2], _death_style(i2))
+		var sl2 := _view.slot(i2)
+		EnemyArt.warm_wreck(combat.enemies[i2], _death_style(i2),
+			sl2.art.draw_scale if sl2 != null and sl2.art != null else 1.0)
 	_foes_seen = combat.enemies.size()
 
-## How many contacts this screen has drawn, so a newcomer can be announced.
+## How many contacts this screen has drawn (each one's wreck is warmed once).
 var _foes_seen := 0
 
 func _refresh_hand() -> void:

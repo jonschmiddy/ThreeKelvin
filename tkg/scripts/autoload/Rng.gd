@@ -82,7 +82,7 @@ var loot: RandomNumberGenerator = RandomNumberGenerator.new()
 var event: RandomNumberGenerator = RandomNumberGenerator.new()
 ## Who is waiting at a node, and whether an ambush rolls.
 var foe: RandomNumberGenerator = RandomNumberGenerator.new()
-## Inside a fight: dodges, reinforcements, deck shuffles.
+## Inside a fight: dodges, deck shuffles.
 var fight: RandomNumberGenerator = RandomNumberGenerator.new()
 
 ## Salts. Arbitrary, large, odd, and never reused — the only requirement is that

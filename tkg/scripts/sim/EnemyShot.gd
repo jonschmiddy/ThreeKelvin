@@ -142,21 +142,14 @@ func _shoot(tree: SceneTree, ids: Array, out: String) -> Dictionary:
 		DirAccess.make_dir_recursive_absolute(dir)
 		var cb = Router.combat
 		var kill_at := int(_arg("killat", "-1"))
-		var rein := _arg("reinforceat").split(":")
 		for f in film:
 			# `killat=F`: the first ship still flying is killed outright on frame F
-			# (its breakup plays); `reinforceat=F:id[:look]`: that ship answers the
-			# call on frame F and flies in
+			# (its breakup plays)
 			if f == kill_at and cb != null:
 				for e2 in cb.enemies:
 					if e2.hp > 0:
 						cb.damage_enemy(9999, 1, "film", e2)
 						break
-			if rein.size() >= 2 and f == int(rein[0]) and cb != null:
-				cb.reinforce(DB.enemies[StringName(rein[1])], Run.node_at().danger)
-				if rein.size() >= 3:
-					cb.enemies[cb.enemies.size() - 1].look = int(rein[2])
-				Sig.enemy_changed.emit()
 			if f > 0 and f % 45 == 0 and kill_at < 0 and cb != null and not cb.finished:
 				for i in (cb.hand as Array).size():
 					if cb.can_play(cb.hand[i]):

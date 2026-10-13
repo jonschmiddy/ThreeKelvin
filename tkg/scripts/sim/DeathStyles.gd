@@ -14,7 +14,8 @@ extends Node
 ## `each [styles=3,4,...]` films every style on its own (default all sixteen)
 ## into out/<id>/f_####.png, the same layout every time so a page can tile
 ## them: A-M on the Cutter and the pool ship, N-P (the creature deaths) on the
-## Voidwhale Calf at 70% and the Void Leviathan (tools/art_pool/megafauna).
+## Voidwhale Calf at 70% and the Void Leviathan (tools/art_pool/megafauna);
+## `eachships=custodian,cutter` puts other enemies in the two ship rows.
 ## Each folder gets meta.json: the moments the breakup fired and when (what
 ## sounds follow), its length, and whether its last frame is `wreck_image`
 ## pixel for pixel (`rest_image` against `wreck_image`, both ships).
@@ -184,7 +185,10 @@ func _run_each(layer: CanvasLayer) -> void:
 	else:
 		for s in arg.split(","):
 			list.append(int(s))
-	var ships := [_ship_image("cutter"), _ship_image("sprite")]
+	# `eachships=a,b`: the two ship rows (default the Cutter and a pool ship)
+	var ships := []
+	for k in _arg("eachships", "cutter,sprite").split(","):
+		ships.append(_ship_image(k))
 	var beasts := [_creature_image("fan", 0.7), _creature_image("lev_spine", 1.0)]
 	for st in list:
 		var dir := _dir.path_join(style_id(st))

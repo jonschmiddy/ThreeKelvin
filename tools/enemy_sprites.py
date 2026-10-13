@@ -5,8 +5,8 @@
 
 WHAT EACH ENEMY IS. Jon's picks (2026-10-13): the five ordinary kinds fly all
 three of their candidates, one chosen per fight (`DB.enemy_sprite(id, look)`,
-`Combat.look_for`); the Hellbender is `helix`; the Custodian is `tetra` until a
-boss-sized take is picked; the calf is `fan` drawn smaller and the Leviathan is
+`Combat.look_for`); the Hellbender is `helix`; the Custodian is take 1 ("grown") of the
+boss-size batch in `art_pool/custodian`; the calf is `fan` drawn smaller and the Leviathan is
 `lev_spine`. `VARIANTS` below is the whole table, in the order the game indexes
 them.
 
@@ -47,7 +47,9 @@ VARIANTS = {
     "hulk": ["rg_hulk", "rs_net", "honeycomb"],
     "sentinel": ["gyro", "scales", "hl_column"],
     "hellbender": ["helix"],
-    "custodian": ["tetra"],
+    # Jon picked take 1 of the boss-size batch (Oct 13: "custodian:t1"), grown
+    # from tetra; generated facing you, so it is not turned
+    "custodian": ["custodian/t1_grown"],
     "whale": ["mega/fan@70"],
     "leviathan": ["mega/lev_spine"],
 }
@@ -71,6 +73,7 @@ def sources():
         for src in srcs:
             name = src.split("@")[0]
             out.append("art_pool/megafauna/%s.png" % name[5:] if name.startswith("mega/")
+                       else "art_pool/%s.png" % name if name.startswith("custodian/")
                        else "art_pool/ships/%s.png" % name)
     return out
 
@@ -149,6 +152,8 @@ def make(src, picks):
     name, pct = (src.split("@") + [None])[:2]
     if name.startswith("mega/"):
         a = np.array(Image.open(os.path.join(POOL, "megafauna", name[5:] + ".png")).convert("RGBA"))
+    elif name.startswith("custodian/"):
+        a = np.array(Image.open(os.path.join(POOL, name + ".png")).convert("RGBA"))
     else:
         v = picks["ships"].get(name, {})
         if v.get("verdict") != "keep":

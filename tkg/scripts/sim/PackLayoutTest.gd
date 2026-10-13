@@ -83,7 +83,9 @@ func _run() -> void:
 						[pics[i], pics[j], pics[k]], home, true)
 		# piles: four to twelve ships, the widest pictures, half of them wrecks --
 		# a fight's row, and LOCAL's row of wrecks left at one system
-		var wide: Array = [[&"marauder", 0], [&"hulk", 0], [&"marauder", 1], [&"hulk", 1], [&"custodian", 0], [&"hellbender", 0]]
+		# (no Custodian: it is fought alone and its death ends the run, so it is
+		# never in a pack and never left on LOCAL)
+		var wide: Array = [[&"marauder", 0], [&"hulk", 0], [&"marauder", 1], [&"hulk", 1], [&"hellbender", 0], [&"hulk", 2]]
 		# (a fight brings at most two, and a reinforcement only to one; four is
 		# the dev flag's most. A system can hold the wrecks of its own fight, its
 		# one ambush, the Hellbender's and its events' fights: eight is a lot,

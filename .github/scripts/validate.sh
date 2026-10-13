@@ -543,6 +543,21 @@ else
 	bad "enemyarttest did not finish"
 fi
 
+step "Nothing joins a fight"
+# Jon: "No reinforcements anywhere." Every kind, alone and in a pack, over
+# seeded fights at a lawless danger-5 system played to turn 7: the enemy
+# count never rises, and the Custodian and the Hellbender stand alone.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot fightcounttest 240 --headless --path "$PROJECT" -- sheet=FightCountTest; then
+	if grep -qE '^fightcounttest: PASS' "$LOG_DIR/fightcounttest.log"; then
+		ok "$(grep -E '^fightcounttest: [0-9]+ fights' "$LOG_DIR/fightcounttest.log" | head -n 1 | sed 's/^fightcounttest: //')"
+	else
+		bad "a ship joined a fight"
+		grep -E 'FAIL|^fightcounttest' "$LOG_DIR/fightcounttest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "fightcounttest did not finish"
+fi
+
 step "Nothing in a fight sits on anything else"
 # Jon, on three enemies piled on each other: no ship, wreck, name, hull bar,
 # chips or intent may overlap another enemy's, or yours. Every pair and triple

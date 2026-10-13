@@ -30,7 +30,7 @@
    "hellbender_helix.png"
   ],
   "custodian": [
-   "custodian_tetra.png"
+   "custodian_t1_grown.png"
   ],
   "whale": [
    "whale_fan.png"
@@ -69,7 +69,7 @@
    "hellbender_helix_half.png"
   ],
   "custodian": [
-   "custodian_tetra_half.png"
+   "custodian_t1_grown_half.png"
   ],
   "whale": [
    "whale_fan_half.png"
@@ -79,7 +79,7 @@
   ]
  },
  "inputs": {
-  "enemy_sprites.py": "f02bcacb0e1dddd2",
+  "enemy_sprites.py": "70a49eb4a0e72520",
   "art_pool/picks.json": "7a65efa17522760a",
   "art_pool/ships/coiled.png": "300ea5f0b8c08d0a",
   "art_pool/ships/swarm.png": "587b52ce5c3482c8",
@@ -97,7 +97,7 @@
   "art_pool/ships/scales.png": "a654b9fcd7433adf",
   "art_pool/ships/hl_column.png": "d81a696a4844db06",
   "art_pool/ships/helix.png": "ecb8c31d8eb6cdd1",
-  "art_pool/ships/tetra.png": "04d06952d0bc9c04",
+  "art_pool/custodian/t1_grown.png": "1f75b9d1ef05b988",
   "art_pool/megafauna/fan.png": "c7b5189994b2deed",
   "art_pool/megafauna/lev_spine.png": "974c20c28b50d3e5"
  },
@@ -134,8 +134,8 @@
   "sentinel_hl_column_half.png": "276496bc7a14c1d1",
   "hellbender_helix.png": "cebef507acc0e984",
   "hellbender_helix_half.png": "16ffb643f5ef674e",
-  "custodian_tetra.png": "90ca6f75f762f65b",
-  "custodian_tetra_half.png": "060293ee79407c37",
+  "custodian_t1_grown.png": "627ab70704366d9c",
+  "custodian_t1_grown_half.png": "64e77d65e1558c70",
   "whale_fan.png": "baa93498f5c9b625",
   "whale_fan_half.png": "e23e4a1c65a2585e",
   "leviathan_lev_spine.png": "ca3605b5b3b3348a",

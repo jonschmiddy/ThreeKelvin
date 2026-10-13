@@ -50,8 +50,8 @@ var _made: Array[EnemySlot] = []
 ## WHAT THE SLOTS ARE CURRENTLY SHOWING: a fight, or the wrecks it left.
 ##
 ## They are rebuilt only when the COUNT changes -- which is right within one
-## mode, since reinforcements should slide in without resetting the ships
-## already there -- and catastrophically wrong across the two. One wreck in a
+## mode, since a fight's dead keep their slots -- and catastrophically wrong
+## across the two. One wreck in a
 ## system and then one new contact is a count that did not change, so the slot
 ## kept its dead binding: the live ship drew on top of a corpse and could not be
 ## hit, because the thing under the cursor was still a hull with no hp.
@@ -124,7 +124,7 @@ func _ready() -> void:
 	_slots.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_slots.visible = false
 	_row.add_child(_slots)
-	# Packed whenever the row lays them out: a fight opening, a reinforcement,
+	# Packed whenever the row lays them out: a fight opening, LOCAL's wrecks,
 	# a ship's picture changing size.
 	_slots.resized.connect(_queue_pack)
 
@@ -461,8 +461,7 @@ func show_area(n: MapGen.MapNode) -> void:
 	queue_redraw()
 
 ## Combat: the right side is everything shooting at you. Slots are rebuilt only
-## when the count changes, so reinforcements arriving mid-fight slide in without
-## resetting the ones already there.
+## when the count changes, which is when a fight opens.
 ## WHAT IS UNDER THIS GLOBAL POINT: an enemy index, -1 for your own hull, or
 ## AIM_NONE for nothing.
 ##
@@ -522,19 +521,9 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 	_ship.modulate = Color.WHITE
 
 	var arrived: Array[EnemySlot] = []
-	# REINFORCEMENTS JOIN THE ROW; they do not rebuild it. Any change in the
-	# count used to clear every slot and build them all again, so when a ship
-	# answered the call the ones already fighting flew in from off screen a
-	# second time (combat polish audit, item 14). A row that only GREW keeps
-	# its slots and adds the newcomers, and only the newcomers fly in.
-	var grew := _slots_mode == &"fight" and not _made.is_empty() and list.size() > _made.size()
-	# Where the ships already here are, so they can ease to their new places
-	# when the row makes room, rather than jumping there in a frame.
-	var was: Array = []
-	if grew:
-		for sl0 in _made:
-			was.append((sl0 as EnemySlot).art.global_position.x)
-	if (_made.size() != list.size() or _slots_mode != &"fight") and not grew:
+	# Built once a fight: nothing joins one (`Combat`), and the dead keep their
+	# slots, so the count only changes when a new fight opens.
+	if _made.size() != list.size() or _slots_mode != &"fight":
 		_slots_mode = &"fight"
 		Widgets.clear(_slots)
 		_made.clear()
@@ -559,7 +548,7 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 		if death_style.is_valid():
 			_made[i].death_style = int(death_style.call(i))
 		_made[i].bind(i, e, e.intent != null and e.intent.telegraph)
-	# A NEW SLOT IS AN ARRIVAL: a fight opening, or reinforcements. Flown in
+	# A NEW SLOT IS AN ARRIVAL: a fight opening. Flown in
 	# AFTER the bind, because the bind sizes the slot to its ship and the
 	# entrance flies to that resting place. The dead keep their slots, so a
 	# kill does not change the count and the survivors are never re-flown.
