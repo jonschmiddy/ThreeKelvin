@@ -96,14 +96,19 @@ func _run() -> void:
 	var list: Array[int] = []
 	var arg := _arg("styles", "")
 	if arg == "":
-		for s in range(ShipBreakup.Style.CUST_CASCADE, ShipBreakup.Style.HELL_UNCOIL + 1):
+		for s in range(ShipBreakup.Style.CUST_CASCADE, ShipBreakup.Style.CUST_SPLIT + 1):
 			list.append(s)
 	else:
 		for s2 in arg.split(","):
 			list.append(int(s2))
 	for st in list:
-		await _film(layer, st, cust if st <= ShipBreakup.Style.CUST_SUPERNOVA else hell, player)
+		await _film(layer, st, cust if _custodian(st) else hell, player)
 	tree.quit()
+
+
+func _custodian(st: int) -> bool:
+	return st in [ShipBreakup.Style.CUST_CASCADE, ShipBreakup.Style.CUST_UNMAKING, ShipBreakup.Style.CUST_SUPERNOVA,
+		ShipBreakup.Style.CUST_COLLAPSE, ShipBreakup.Style.CUST_SPLIT]
 
 
 func _film(layer: CanvasLayer, st: int, boss: Array, player: Array) -> void:
@@ -213,7 +218,7 @@ func _film(layer: CanvasLayer, st: int, boss: Array, player: Array) -> void:
 			break
 	var ok := b.rest_image().get_data() == ShipBreakup.wreck_image(bimg, boss[1], 4242, false, st).get_data()
 	var meta := {id = id, name = ShipBreakup.NAMES[st], blurb = ShipBreakup.BLURB[st], sound = ShipBreakup.SOUND[st],
-		boss = "custodian" if st <= ShipBreakup.Style.CUST_SUPERNOVA else "hellbender",
+		boss = "custodian" if _custodian(st) else "hellbender",
 		duration = b.duration, film_seconds = snappedf(float(f) / 30.0, 0.01), start_frame = 15, done_frame = done_at,
 		frames = f, moments = moments, wreck_ok = ok, setup_ms = snappedf(setup_ms, 0.1),
 		tick_ms = snappedf(tick_us / 1000.0 / maxf(1.0, float(done_at - 15)), 0.01), worst_ms = snappedf(worst_us / 1000.0, 0.01)}
@@ -222,5 +227,16 @@ func _film(layer: CanvasLayer, st: int, boss: Array, player: Array) -> void:
 	fo.close()
 	print("bossdeath: %s frames=%d wreck_ok=%s setup=%.0fms tick=%.2fms worst=%.1fms moments=%d" % [id, f, str(ok),
 		setup_ms, meta.tick_ms, meta.worst_ms, moments.size()])
+	if b._plan.has("rib_pts"):
+		# the traced rib seams over the sprite, at 2x, to check against it
+		var tr: Image = bimg.duplicate()
+		for q in (b._plan.rib_pts as PackedVector2Array):
+			tr.set_pixel(int(q.x), int(q.y), Color(1.0, 0.1, 0.9))
+		tr.resize(tr.get_width() * 2, tr.get_height() * 2, Image.INTERPOLATE_NEAREST)
+		tr.save_png(dir.path_join("rib_trace_2x.png"))
+		var plain: Image = bimg.duplicate()
+		plain.resize(plain.get_width() * 2, plain.get_height() * 2, Image.INTERPOLATE_NEAREST)
+		plain.save_png(dir.path_join("rib_plain_2x.png"))
+		print("bossdeath: %d rib seams traced" % int(b._plan.rib_count))
 	root.queue_free()
 	await tree.process_frame

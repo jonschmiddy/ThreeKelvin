@@ -56,7 +56,8 @@ signal finished
 
 enum Style { SNAP, BURN, IMPLODE, BREACH, CHAIN, OVERLOAD, VENT, SLICE, DISSOLVE, COLLAPSE,
 	SHIELD, MELT, CRUMPLE, GLOWOUT, BLOOM, PART,
-	CUST_CASCADE, CUST_UNMAKING, CUST_SUPERNOVA, HELL_CHAIN, HELL_BURNOUT, HELL_UNCOIL }
+	CUST_CASCADE, CUST_UNMAKING, CUST_SUPERNOVA, HELL_CHAIN, HELL_BURNOUT, HELL_UNCOIL,
+	CUST_COLLAPSE, CUST_SPLIT }
 
 ## How long each style runs to its resting wreck, seconds. A normal kill is held
 ## for this before the fight is allowed to end (audit item 2 as Jon ruled it).
@@ -66,16 +67,18 @@ const LIFE := {Style.SNAP: 1.15, Style.BURN: 1.6, Style.IMPLODE: 1.45,
 	Style.MELT: 2.0, Style.CRUMPLE: 1.5,
 	Style.GLOWOUT: 2.2, Style.BLOOM: 2.0, Style.PART: 2.0,
 	Style.CUST_CASCADE: 7.5, Style.CUST_UNMAKING: 8.0, Style.CUST_SUPERNOVA: 7.0,
-	Style.HELL_CHAIN: 7.5, Style.HELL_BURNOUT: 8.0, Style.HELL_UNCOIL: 7.0}
+	Style.HELL_CHAIN: 7.5, Style.HELL_BURNOUT: 8.0, Style.HELL_UNCOIL: 7.0,
+	Style.CUST_COLLAPSE: 7.5, Style.CUST_SPLIT: 7.5}
 ## Letter and name, as the pick page shows them.
 const NAMES := {Style.SNAP: "A  SNAP", Style.BURN: "B  BURN", Style.IMPLODE: "C  IMPLODE",
 	Style.BREACH: "D  BREACH", Style.CHAIN: "E  CHAIN", Style.OVERLOAD: "F  OVERLOAD",
 	Style.VENT: "G  VENT", Style.SLICE: "H  SLICE", Style.DISSOLVE: "I  DISSOLVE",
 	Style.COLLAPSE: "J  COLLAPSE", Style.SHIELD: "K  SHIELD", Style.MELT: "L  MELT",
 	Style.CRUMPLE: "M  CRUMPLE", Style.GLOWOUT: "N  GLOW OUT", Style.BLOOM: "O  BLOOM",
-	Style.PART: "P  PART", Style.CUST_CASCADE: "C1  CASCADE", Style.CUST_UNMAKING: "C2  UNMAKING",
+	Style.PART: "P  PART", Style.CUST_CASCADE: "C1a  SHATTER OUTWARD", Style.CUST_UNMAKING: "C2  UNMAKING",
 	Style.CUST_SUPERNOVA: "C3  SUPERNOVA", Style.HELL_CHAIN: "H1  CHAIN REACTION", Style.HELL_BURNOUT: "H2  BURN-OUT",
-	Style.HELL_UNCOIL: "H3  UNCOIL"}
+	Style.HELL_UNCOIL: "H3  UNCOIL", Style.CUST_COLLAPSE: "C1b  COLLAPSE INWARD",
+	Style.CUST_SPLIT: "C1c  SPLIT ALONG THE SPINE"}
 const BLURB := {
 	Style.SNAP: "One flash, the hull cracks white and snaps apart, shards fly fast.",
 	Style.BURN: "The cracks heat up and shed fire first, then the hull splits and peels away slowly.",
@@ -93,12 +96,14 @@ const BLURB := {
 	Style.GLOWOUT: "Creatures. Its lights flare once and go out from head to tail while the body slowly curls and drifts, dimming.",
 	Style.BLOOM: "Creatures. It flares, then a cloud of glowing spores blooms out of it and thins away as it goes still and dark.",
 	Style.PART: "Creatures. It parts softly along its segments, glowing fluid drifting from the seams as its lights fade.",
-	Style.CUST_CASCADE: "The Custodian. Its facets crack one by one along the spine, each shooting a beam of white light; the core swells, pulls everything in, and blows out in a white blast and shock ring; glass rains out and cools.",
+	Style.CUST_CASCADE: "The Custodian. Its facets crack one by one along the spine, each shooting a beam of white light, and a ball of light swells at its centre. Then a white blast from the centre: the facets fly outward as big tumbling, glinting shards and slow, settling into the wreck.",
+	Style.CUST_COLLAPSE: "The Custodian. The same cracks and beams and the swelling centre; then the implosion crushes the cluster in on its centre, and a ring of light blows the pieces back out in layers, the outer ones first.",
+	Style.CUST_SPLIT: "The Custodian. The same cracks and beams and the swelling centre; then a blast at the centre runs along the silver spine to both ends, and the guardian breaks in half, the halves drifting apart, glass shedding from the break.",
 	Style.CUST_UNMAKING: "The Custodian. It loses cohesion: the facets drift apart on the spine, its lights go out one by one, then each facet shatters in turn, in slow motion, the glass glinting.",
 	Style.CUST_SUPERNOVA: "The Custodian. A rising whine, the core white-hot through the glass until the whole body glows; a flash fills the enemy's half, a dark ring follows, and the body is left charred and smoking.",
 	Style.HELL_CHAIN: "The Hellbender. Reactor alarms strobe, blasts march through the hull from the stern, the holds burst and spill glowing stolen cargo, then the main reactor goes and the hull splits in two.",
 	Style.HELL_BURNOUT: "The Hellbender. Fire spreads from the salamander device, which glows red-hot; blasts walk through it; it lists nose-down and breaks apart, the pieces trailing fire.",
-	Style.HELL_UNCOIL: "The Hellbender. The stolen light breaks out ring by ring: its ribs light gold from the hold outward, the hull stretches apart rib from rib, and the light bursts out, leaving a dark husk."}
+	Style.HELL_UNCOIL: "The Hellbender. The stolen light breaks out ring by ring: gold light runs along its ribs' own seams from the hold outward, the hull stretches apart rib from rib, and the light bursts out, leaving a dark husk."}
 ## What a sound designer follows, per style: each `moment` kind, when (seconds
 ## from the death), and whether it lasts. Read off the code that draws it, and
 ## checked against what the harness records (DeathStyles writes them out).
@@ -119,7 +124,9 @@ const SOUND := {
 	Style.GLOWOUT: "0.00 flare (a last pulse); 0.00 groan, 1.8 long; 0.30 curl, 1.3 long (stretch, creak); 0.35 / 0.65 / 0.95 / 1.25 dim (each part of it going dark); 1.70 still",
 	Style.BLOOM: "0.00 flare; 0.25 bloom (a soft whump); 0.25 spores, 1.0 long (a breathy hiss, thinning); 0.70 / 0.90 / 1.10 dim; 1.30 still",
 	Style.PART: "0.00 pulse; 0.15 / 0.35 / 0.55 tear (soft, wet, each a little bigger); 0.15 fluid, 1.4 long (drips, bubbles); 0.70 on, one dim a segment; 1.60 still",
-	Style.CUST_CASCADE: "0.25 on, every 0.32 s, eight times: crack (each with a shake 1 and a beam, a hum that holds to 4.4); 3.00 swell, 1.4 long + duck 3.5; 4.40 implode 0.5 + slowmo 0.35 for 0.7 s; 4.90 blast + flash 1.0 + shake 6 + stinger; 5.00 debris, 2.0 long; 5.60 cool, 1.8 long",
+	Style.CUST_CASCADE: "0.25 on, every 0.32 s, eight times: crack (shake 1) with a beam (a hum held to 4.4); 3.00 swell, 1.4 long + duck 3.5; 4.40 implode 0.5 + slowmo 0.35 for 0.7 s; 4.90 blast + flash 1.0 + shake 6 + stinger; 4.90 shatter, 1.5 long (big glass, tumbling); 5.00 debris, 2.0 long; 5.60 cool, 1.8 long",
+	Style.CUST_COLLAPSE: "0.25 on, every 0.32 s: crack (shake 1) with a beam (held to 4.2); 3.00 swell + duck 3.5; 4.20 crush, 0.8 long (grinding, shake 2) + slowmo 0.35 from 4.6; 5.00 blast + flash 1.0 + shake 6 + stinger; 5.00 layer (the outer pieces); 5.25 layer (the inner); 5.30 debris, 2.0 long; 5.80 cool, 1.6 long",
+	Style.CUST_SPLIT: "0.25 on, every 0.32 s: crack (shake 1) with a beam (held to 4.4); 3.00 swell + duck 3.5; 4.40 implode + slowmo 0.35; 4.90 blast + flash 1.0 + shake 6 + stinger; 4.95 run, 0.5 long (tearing along the spine) with pops out to both ends; 5.50 split (a deep crack, shake 3); 5.50 shed, 1.5 long (glass); 5.80 cool, 1.6 long",
 	Style.CUST_UNMAKING: "0.00 groan, 2.8 long + duck 7.5; 0.8-3.2 light_out (one per light, a falling ping); 3.20 on, every 0.42 s, eight times: shatter (glass, slowed) + shake 1; slowmo 0.6 from 3.2 for 3.6 s; stinger at the last shatter; 6.60 settle, 1.2 long",
 	Style.CUST_SUPERNOVA: "0.00 whine, 2.6 long (rising); 1.00 duck 4.0; 1.60 shake 1, 2.20 shake 2; 2.60 nova + flash 1.0 (0.45) + slowmo 0.3 + shake 9 + stinger; 2.90 ring, 1.2 long (a deep rush); 3.00 smoulder, 4.0 long; 3.4 / 4.1 / 4.9 / 5.8 crackle",
 	Style.HELL_CHAIN: "0.00 alarm, 2.8 long (klaxon, faster from 1.6) + duck 6.5; 1.20 / 1.55 / 1.85 / 2.15 / 2.40 / 2.62 blast (marching, louder) + shake 2; 3.00 and 3.20 rupture; 3.00 spill, 1.6 long (a rush of loose cargo); 4.60 reactor + flash 0.7 + slowmo 0.4 + shake 7 + stinger; 4.70 debris, 2.0 long; 5.50 cool, 1.8 long",
@@ -1472,7 +1479,7 @@ static func _majors_of(H: Dictionary, col: PackedColorArray, lab: PackedInt32Arr
 ## leaves as its own shards, at its own moment). Square, so a quarter turn keeps
 ## every pixel.
 static func _shards_of(H: Dictionary, col: PackedColorArray, lab: PackedInt32Array, sm: PackedByteArray,
-		rng: RandomNumberGenerator) -> Array:
+		rng: RandomNumberGenerator, per: int = 26, density: float = 0.035) -> Array:
 	var w: int = H.w
 	var h: int = H.h
 	var r: Rect2i = H.r
@@ -1493,9 +1500,9 @@ static func _shards_of(H: Dictionary, col: PackedColorArray, lab: PackedInt32Arr
 		var pts: Array = by[mk]
 		var seeds: Array[Vector2i] = []
 		for p in pts:
-			if rng.randf() < 0.035:
+			if rng.randf() < density:
 				seeds.append(p)
-		var want := maxi(1, pts.size() / 26)
+		var want := maxi(1, pts.size() / per)
 		while seeds.size() < want:
 			seeds.append(pts[rng.randi() % pts.size()])
 		var groups := {}
@@ -4070,6 +4077,11 @@ static func _cut_boss(img: Image, used: Rect2i, seed: int, st: int) -> Dictionar
 	var core := rp + Vector2(cx, cy)
 	if not lights.is_empty():
 		core = lights[0].p
+	if st == Style.CUST_CASCADE or st == Style.CUST_COLLAPSE or st == Style.CUST_SPLIT:
+		# Jon: "The explosion needs to be centered on the custodian, not the
+		# front." The centre of its bounding box (139.5, 70 on take 1), not of its
+		# ink mass, which the big front octahedron pulls 9 px forward.
+		core = rp + Vector2(float(int(H.x0) + int(H.x1) + 1), float(int(H.y0) + int(H.y1) + 1)) * 0.5
 	var plan := {r = r, glob = Vector2i.ZERO, lights = lights, core = core, cx = cx, cy = cy, bw = bw, bh = bh,
 		box = Rect2i(r.position + Vector2i(int(H.x0), int(H.y0)), Vector2i(int(bw), int(bh)))}
 	var sm := PackedByteArray()
@@ -4080,7 +4092,48 @@ static func _cut_boss(img: Image, used: Rect2i, seed: int, st: int) -> Dictionar
 		Style.CUST_CASCADE:
 			k = 8
 			lab = _lab_voronoi(H, mask, k, rng)
+			_mark_band(H, lab, sm, 3, rng)
+		Style.CUST_COLLAPSE:
+			# wedges round the centre, each cut again into an inner and an
+			# outer layer
+			k = 16
+			lab.resize(n)
+			var lc := core - rp
+			var rot := rng.randf() * TAU
+			var fd := _field(rng, w, h, 6)
+			for y in h:
+				for x in w:
+					var i5 := y * w + x
+					if mask[i5] == 0:
+						lab[i5] = -1
+						continue
+					var u := Vector2((float(x) - lc.x) / (bw * 0.5), (float(y) - lc.y) / (bh * 0.5))
+					var a := atan2(u.y, u.x) + 0.15 * _nz(fd, x, y) + rot
+					var wedge := clampi(int(fposmod(a, TAU) / (TAU / 8.0)), 0, 7)
+					var outer := 1 if u.length() + 0.05 * _nz(fd, y, x) > 0.5 else 0
+					lab[i5] = wedge * 2 + outer
 			_mark_band(H, lab, sm, 2, rng)
+		Style.CUST_SPLIT:
+			# the facets, each cut again along the spine: top and bottom halves
+			k = 16
+			var v := _lab_voronoi(H, mask, 8, rng)
+			lab.resize(n)
+			var jag2 := _field(rng, w, h, 5)
+			var sy := core.y - rp.y
+			var spine := PackedVector2Array()
+			for y in h:
+				for x in w:
+					var i6 := y * w + x
+					if mask[i6] == 0:
+						lab[i6] = -1
+						continue
+					var line := sy + 1.6 * _nz(jag2, x, 0.0)
+					lab[i6] = v[i6] * 2 + (1 if float(y) > line else 0)
+					if absf(float(y) - line) < 1.6:
+						sm[i6] = 3
+						spine.append(rp + Vector2(x, y))
+			_mark_band(H, lab, sm, 2, rng)
+			plan.spine_pts = spine
 		Style.CUST_UNMAKING:
 			k = 8
 			lab = _lab_voronoi(H, mask, k, rng)
@@ -4121,9 +4174,38 @@ static func _cut_boss(img: Image, used: Rect2i, seed: int, st: int) -> Dictionar
 			lab = _lab_slices(H, mask, k, rng)
 			_mark_band(H, lab, sm, 1, rng)
 		Style.HELL_UNCOIL:
-			k = 9
-			lab = _lab_slices(H, mask, k, rng)
-			_mark_band(H, lab, sm, 1, rng)
+			# Jon: "let's have the cracks follow the actual contours of the
+			# ship's ribs." The seams are traced off the picture (`_rib_curves`);
+			# the hull is cut at every second one and all of them are cracks.
+			var curves := _rib_curves(H)
+			lab.resize(n)
+			var cuts: Array = []
+			for ci in curves.size():
+				if ci % 2 == 1:
+					cuts.append(curves[ci])
+			k = cuts.size() + 1
+			for y in h:
+				for x in w:
+					var i7 := y * w + x
+					if mask[i7] == 0:
+						lab[i7] = -1
+						continue
+					var j7 := 0
+					for c in cuts:
+						var cx7: int = (c as Dictionary).full[y]
+						if x > cx7:
+							j7 += 1
+					lab[i7] = j7
+			var pts := PackedVector2Array()
+			for c2 in curves:
+				var tr: PackedInt32Array = (c2 as Dictionary).traced
+				for y2 in h:
+					var x2 := tr[y2]
+					if x2 >= 0 and mask[y2 * w + x2] == 1:
+						sm[y2 * w + x2] = 1
+						pts.append(rp + Vector2(x2, y2))
+			plan.rib_pts = pts
+			plan.rib_count = curves.size()
 	var lit := _majors_of(H, raw, lab, sm, k)
 	var mj := _majors_of(H, col, lab, sm, k)
 	for i4 in mj.size():
@@ -4136,8 +4218,15 @@ static func _cut_boss(img: Image, used: Rect2i, seed: int, st: int) -> Dictionar
 		var j: int = m.lab
 		match st:
 			Style.CUST_CASCADE:
-				own = Vector2i((dir * rng.randf_range(7.0, 12.0)).round())
-				stages.append(_scorched(dead, m.at, core, 0.45 * bw))
+				own = Vector2i((dir * rng.randf_range(11.0, 16.0)).round())
+				stages.append(_scorched(dead, m.at, core, 0.4 * bw))
+			Style.CUST_COLLAPSE:
+				own = Vector2i((dir * (rng.randf_range(10.0, 14.0) if j % 2 == 1 else rng.randf_range(5.0, 8.0))).round())
+				stages.append(_scorched(dead, m.at, core, 0.4 * bw))
+			Style.CUST_SPLIT:
+				var top := j % 2 == 0
+				own = Vector2i(roundi(signf(away.x) * rng.randf_range(1.0, 3.0)), -rng.randi_range(10, 13) if top else rng.randi_range(10, 13))
+				stages.append(_scorched(dead, m.at, core, 0.3 * bw))
 			Style.CUST_UNMAKING:
 				own = Vector2i(roundi(((m.mid as Vector2).x - (rp.x + cx)) / (bw * 0.5) * 13.0), rng.randi_range(-2, 2))
 				stages.append(dead)
@@ -4155,7 +4244,7 @@ static func _cut_boss(img: Image, used: Rect2i, seed: int, st: int) -> Dictionar
 				stages.append(_charred_all(dead, 0.45))
 				stages.append(_charred_all(dead, 0.8))
 			Style.HELL_UNCOIL:
-				own = Vector2i((j - 4) * 3, 1 if j % 2 == 0 else -1)
+				own = Vector2i(roundi((float(j) - float(k - 1) * 0.5) * 1.2), 1 if j % 2 == 0 else -1)
 				stages.append(_charred_all(dead, 0.55))
 		m.own = own
 		m.glob = Vector2i.ZERO
@@ -4163,7 +4252,7 @@ static func _cut_boss(img: Image, used: Rect2i, seed: int, st: int) -> Dictionar
 		m.dir = dir
 		m.stages = stages
 		m.image = stages.back()
-	var sh := _shards_of(H, raw, lab, sm, rng)
+	var sh := _shards_of(H, raw, lab, sm, rng, 70, 0.012) if st == Style.CUST_CASCADE else _shards_of(H, raw, lab, sm, rng)
 	return {majors = mj, shards = sh, centre = r.position + Vector2i(int(cx), int(cy)), plan = plan}
 
 
@@ -4182,9 +4271,12 @@ func _setup_boss(img: Image, used: Rect2i, seed: int) -> void:
 		for im in m.stages:
 			stex.append(ImageTexture.create_from_image(im))
 		var mi: Image = m.image
+		# H3's ribs are close together: a three-pixel glow would flood them, so
+		# its light is the contour and a dithered pixel beside it
+		var gim := _thin_glow(m.crack, mi.get_size()) if style == Style.HELL_UNCOIL else _glow_image(m.crack, mi.get_size())
 		_majors.append({tex = stex.back(), stages = stex, images = m.stages, at = m.at, off = m.off, own = m.own,
 			glob = m.glob, crack = m.crack, dir = m.dir, lab = m.lab, mid = m.mid, keys = [], stage_t = [],
-			glow = ImageTexture.create_from_image(_glow_image(m.crack, mi.get_size())), glow_keys = [], glow_col = 0})
+			glow = ImageTexture.create_from_image(gim), glow_keys = [], glow_col = 0})
 	for s in _cut.shards:
 		var im2: Image = s.image
 		var sz := im2.get_size()
@@ -4194,11 +4286,33 @@ func _setup_boss(img: Image, used: Rect2i, seed: int) -> void:
 			dir = away.normalized() if away.length() > 0.5 else Vector2.RIGHT.rotated(_rng.randf() * TAU),
 			speed = _rng.randf_range(0.6, 1.4), spin = _rng.randf_range(1.5, 5.0) * (1.0 if _rng.randf() < 0.5 else -1.0),
 			rot0 = _rng.randi() % 4, release = 99.0, life = 1.0, piece = _piece_of_point(mid), glass = false,
-			glint = _rng.randf_range(0.2, 1.0)})
+			glint = _rng.randf_range(0.2, 1.0), glint2 = -1.0})
 	_shard_speed = 1.0
 	_plan_boss()
 	_events.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a.t) < float(b.t))
 	_split_at = duration
+
+
+## A crack's light one pixel wide: the crack itself at full, a dithered pixel
+## either side. Same canvas as `_glow_image`, so it draws in the same place.
+func _thin_glow(crack: PackedVector2Array, sz: Vector2i) -> Image:
+	var w := sz.x + GLOW_PAD * 2
+	var h := sz.y + GLOW_PAD * 2
+	var im := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	var core := {}
+	for p in crack:
+		core[Vector2i(int(p.x) + GLOW_PAD, int(p.y) + GLOW_PAD)] = true
+	for q in core:
+		var v: Vector2i = q
+		im.set_pixel(v.x, v.y, Color(1, 1, 1, 1))
+	for q2 in core:
+		var v2: Vector2i = q2
+		for o in [Vector2i(1, 0), Vector2i(-1, 0)]:
+			var n: Vector2i = v2 + o
+			if core.has(n) or ((n.x + n.y) & 1) == 1:
+				continue
+			im.set_pixel(n.x, n.y, Color(0.4, 0.4, 0.4, 1))
+	return im
 
 
 func _piece_of_point(p: Vector2) -> int:
@@ -4308,58 +4422,8 @@ func _plan_boss() -> void:
 	var order: Array = range(_majors.size())
 	order.sort_custom(func(a: int, b: int) -> bool: return (_majors[a].mid as Vector2).x > (_majors[b].mid as Vector2).x)
 	match style:
-		Style.CUST_CASCADE:
-			# 1 the cascade: crack by crack from the small end to the core's end
-			for oi in order.size():
-				var m: Dictionary = _majors[order[oi]]
-				var tc := 0.25 + 0.32 * oi
-				m.glow_keys = [[tc, 0.5, 1.0], [tc + 0.1, 0.75, 1.0], [4.4, 1.0, 1.0], [4.9, 1.0, 1.0], [5.4, 1.0, 0.75],
-					[5.9, 0.75, 0.5], [6.4, 0.5, 0.25], [6.9, 0.25, 0.0], [7.25, 0.0, 0.0]]
-				_ev(tc, &"crack", 0.35 + 0.05 * oi)
-				_hook(tc, &"shake", 1.0, 0.15)
-				var cr := _crack_points(m)
-				if not cr.is_empty():
-					var cm := Vector2.ZERO
-					for p in cr:
-						cm += p
-					cm /= float(cr.size())
-					var up := -1.0 if oi % 2 == 0 else 1.0
-					var dirv := Vector2(_rng.randf_range(-0.35, 0.35), up)
-					var L := _rng.randf_range(80.0, 140.0)
-					_beam(cm, dirv, [[tc, 0.0, 1.0], [tc + 0.12, L, 1.0], [4.4, L, 1.0], [4.6, L * 0.4, 0.7], [4.75, 0.0, 0.0]])
-					_flash(_origin + cm, 10, 0.7, GLASS, 0.2)
-					_ev(tc + 0.02, &"beam", 0.3, 4.4 - tc)
-				m.keys = [[0.0, Vector2.ZERO], [4.4, Vector2.ZERO], [4.85, -(m.dir as Vector2) * 5.0],
-					[4.9, -(m.dir as Vector2) * 5.0], [5.6, Vector2(m.own)], [LIFE[style], Vector2(m.own)]]
-				m.stage_t = [4.92]
-			for L2 in _bp.lights:
-				var lp: Vector2 = L2.p
-				if lp == core:
-					continue
-				_blight(lp, [[0.0, 0.5, 3], [1.0 + _rng.randf() * 1.5, 0.9, 4], [4.9, 0.0, 0]], HEAT_RAMP[1])
-			# 2 the core swells
-			_blight(core, [[0.0, 0.55, 4], [3.0, 0.8, 8], [4.9, 0.0, 0]], HEAT_RAMP[0])
-			# the core as a ball of light: swelling, then pulled small, then the blast
-			_bspheres.append({p = cs, keys = [[3.0, 2.0, 0.6], [3.4, 6.0, 0.75], [3.8, 11.0, 0.9], [4.4, 18.0, 1.0],
-				[4.85, 3.0, 1.0], [4.9, 0.0, 0.0]]})
-			_ev(3.0, &"swell", 0.6, 1.4)
-			_hook(3.0, &"duck", 0.7, 3.5)
-			# 3 everything pulled in
-			_ev(4.4, &"implode", 0.8, 0.5)
-			_hook(4.4, &"slowmo", 0.35, 0.7)
-			# 4 the blast
-			_ev(4.9, &"blast", 1.0, 0.0, cs, {fx = &"blast"})
-			_hook(4.9, &"flash", 1.0, 0.3)
-			_hook(4.9, &"shake", 6.0, 0.9)
-			_hook(4.9, &"stinger", 1.0, 0.0)
-			for s in _shards:
-				s.release = 4.9 + _rng.randf_range(0.0, 0.06)
-				s.life = _rng.randf_range(1.5, 2.3)
-				s.speed = _rng.randf_range(80.0, 190.0)
-				s.glass = true
-			_emit(4.9, 6.8, 70.0, 1, PackedVector2Array(), {mode = &"crack"})
-			_ev(5.0, &"debris", 0.5, 2.0)
-			_ev(5.6, &"cool", 0.2, 1.8)
+		Style.CUST_CASCADE, Style.CUST_COLLAPSE, Style.CUST_SPLIT:
+			_plan_c1(order, core, cs)
 		Style.CUST_UNMAKING:
 			_ev(0.0, &"groan", 0.5, 2.8)
 			_hook(0.0, &"duck", 0.5, 7.5)
@@ -4524,9 +4588,10 @@ func _plan_boss() -> void:
 			_ev(5.3, &"debris", 0.4, 2.0)
 		Style.HELL_UNCOIL:
 			var mid_i := (_majors.size() - 1) / 2
+			var step6 := 1.8 / maxf(1.0, float(mid_i))
 			for m6 in _majors:
 				var j6: int = m6.lab
-				var ton := 0.3 + absf(float(j6 - mid_i)) * 0.45
+				var ton := 0.3 + absf(float(j6 - mid_i)) * step6
 				m6.glow_col = 2
 				m6.glow_keys = [[ton, 0.5, 0.0], [ton + 0.1, 0.75, 0.0], [2.4, 1.0, 0.0], [3.6, 1.0, 0.0], [4.2, 0.75, 0.0],
 					[5.0, 0.5, 0.0], [5.8, 0.25, 0.0], [6.5, 0.0, 0.0]]
@@ -4656,6 +4721,20 @@ func _fire_boss(e: Dictionary) -> void:
 			_bspheres.append({p = p, t0 = t, grow = 0.22, hold = 0.12, fade = 0.3, r1 = 62})
 			_ring(p, 10.0, 260.0, 1.0, 0.45, 1.0, HEAT_RAMP[1])
 			_spray(p, 60, 300.0)
+		&"blast_small":
+			_bspheres.append({p = p, t0 = t, grow = 0.18, hold = 0.1, fade = 0.3, r1 = 50})
+			_ring(p, 8.0, 200.0, 0.8, 0.45, 0.9, HEAT_RAMP[1])
+			_spray(p, 40, 260.0)
+		&"ring_light":
+			# the crushed cluster lets go: a big centred blast and a ring of white
+			# light, round, flung outward through the layers
+			_bspheres.append({p = p, t0 = t, grow = 0.2, hold = 0.1, fade = 0.3, r1 = 56})
+			_ring(p, 6.0, 220.0, 0.9, 0.8, 1.0, GLASS)
+			_ring(p, 4.0, 140.0, 0.7, 0.8, 0.7, HEAT_RAMP[0])
+			_spray(p, 60, 300.0)
+		&"spine_pop":
+			_flash(p, 10, 0.8, Color(), 0.2)
+			_spray(p, 10, 150.0)
 		&"nova":
 			_bspheres.append({p = p, t0 = t, grow = 0.35, hold = 0.15, fade = 0.4, r1 = 230})
 			_spray(p, 50, 320.0)
@@ -4918,13 +4997,259 @@ func _paint_boss_light(ci: CanvasItem) -> void:
 		var x := age2 / float(dk.dur)
 		var rr := float(dk.r0) + (float(dk.r1) - float(dk.r0)) * (1.0 - pow(1.0 - x, 2.0))
 		_draw_ring(ci, dk.p, int(rr) + 1, 0.55, 0.5 if x < 0.5 else 0.25, Color(0.85, 0.9, 1.0))
+	# C1c: the blast running along the spine, white-hot where it has just
+	# passed, cooling behind it
+	if style == Style.CUST_SPLIT and _bp.has("spine_pts"):
+		var cxs: float = (_bp.core as Vector2).x
+		var maxd := float(_bp.bw) * 0.5
+		for sp2 in (_bp.spine_pts as PackedVector2Array):
+			var tr := 4.95 + 0.5 * absf(sp2.x - cxs) / maxd
+			var ag := t - tr
+			if ag < 0.0 or ag >= 0.8:
+				continue
+			var lc: Color = HEAT_RAMP[0] if ag < 0.1 else (HEAT_RAMP[1] if ag < 0.25 else (HEAT_RAMP[2] if ag < 0.45 else HEAT_RAMP[3]))
+			var lv := 1.0 if ag < 0.1 else (0.8 if ag < 0.25 else (0.55 if ag < 0.45 else 0.3))
+			ci.draw_rect(Rect2(_origin + sp2, Vector2.ONE), _lv(lc, lv))
 	# glass catching the light as it turns
 	for sh in _shards:
 		if not sh.glass or t < float(sh.release):
 			continue
 		var age3 := t - float(sh.release)
 		var gl: float = sh.glint
-		if age3 >= gl and age3 < gl + 0.067 and age3 < float(sh.life) * 0.8:
+		var gl2: float = sh.glint2
+		if ((age3 >= gl and age3 < gl + 0.067) or (gl2 > 0.0 and age3 >= gl2 and age3 < gl2 + 0.067)) and age3 < float(sh.life) * 0.8:
 			var dist2 := float(sh.speed) * (1.0 - exp(-1.2 * age3)) / 1.2
 			var p3 := _origin + Vector2(sh.at) + _ride(int(sh.piece)) + (sh.dir as Vector2) * dist2 + Vector2(sh.size) * 0.5
 			ci.draw_texture(sh.tex, (p3 - Vector2(sh.size) * 0.5).round(), Color(0.6, 0.7, 0.8, 1))
+
+
+# ---------------------------------------------------------------- C1: the cascade, three ways to end
+
+## Jon picked C1, centred, with "some variants of the explosion and how the
+## ship falls apart". All three open the same way -- the facets crack one by
+## one along the spine, each shooting a beam, while a ball of light swells at
+## the true centre -- and end differently:
+##   C1a SHATTER OUTWARD  a white blast; the facets fly out and slow into the
+##                        wreck; big glass shards tumble out, glinting.
+##   C1b COLLAPSE INWARD  the cluster crushed in on its centre, then a ring of
+##                        light blows the pieces out in layers, outer first.
+##   C1c SPLIT            a blast that runs along the spine from the centre to
+##                        both ends; the guardian breaks in half, glass shedding.
+func _plan_c1(order: Array, core: Vector2, cs: Vector2) -> void:
+	var n := order.size()
+	var crush_at := 4.2 if style == Style.CUST_COLLAPSE else 4.4
+	var blast_at := 5.0 if style == Style.CUST_COLLAPSE else 4.9
+	# 1 the cascade, crack by crack from the small end to the big one
+	for oi in n:
+		var m: Dictionary = _majors[order[oi]]
+		var tc := 0.25 + 0.32 * float(oi) * 8.0 / float(n)
+		m.glow_keys = [[tc, 0.5, 1.0], [tc + 0.1, 0.75, 1.0], [crush_at, 1.0, 1.0], [blast_at, 1.0, 1.0],
+			[blast_at + 0.5, 1.0, 0.75], [blast_at + 1.0, 0.75, 0.5], [blast_at + 1.5, 0.5, 0.25],
+			[blast_at + 2.0, 0.25, 0.0], [7.3, 0.0, 0.0]]
+		m.stage_t = [blast_at + 0.02]
+		if n > 8 and oi % 2 == 1:
+			continue
+		_ev(tc, &"crack", 0.35 + 0.05 * oi * 8.0 / float(n))
+		_hook(tc, &"shake", 1.0, 0.15)
+		var cr := _crack_points(m)
+		if cr.is_empty():
+			continue
+		var cm := Vector2.ZERO
+		for p in cr:
+			cm += p
+		cm /= float(cr.size())
+		var up := -1.0 if (oi / (2 if n > 8 else 1)) % 2 == 0 else 1.0
+		var L := _rng.randf_range(80.0, 140.0)
+		_beam(cm, Vector2(_rng.randf_range(-0.35, 0.35), up), [[tc, 0.0, 1.0], [tc + 0.12, L, 1.0], [crush_at, L, 1.0],
+			[crush_at + 0.2, L * 0.4, 0.7], [crush_at + 0.35, 0.0, 0.0]])
+		_flash(_origin + cm, 10, 0.7, GLASS, 0.2)
+		_ev(tc + 0.02, &"beam", 0.3, crush_at - tc)
+	for L2 in _bp.lights:
+		_blight(L2.p, [[0.0, 0.5, 3], [1.0 + _rng.randf() * 1.5, 0.9, 4], [blast_at, 0.0, 0]], HEAT_RAMP[1])
+	# 2 the centre swells: a ball of light at the true middle
+	_bspheres.append({p = cs, keys = [[3.0, 2.0, 0.6], [3.4, 6.0, 0.75], [3.8, 11.0, 0.9], [crush_at, 18.0, 1.0],
+		[blast_at - 0.05, 3.0, 1.0], [blast_at, 0.0, 0.0]]})
+	_ev(3.0, &"swell", 0.6, crush_at - 3.0)
+	_hook(3.0, &"duck", 0.7, 3.5)
+	var lifeT: float = LIFE[style]
+	match style:
+		Style.CUST_CASCADE:
+			_ev(4.4, &"implode", 0.8, 0.5)
+			_hook(4.4, &"slowmo", 0.35, 0.7)
+			for m2 in _majors:
+				var d: Vector2 = m2.dir
+				m2.keys = [[0.0, Vector2.ZERO], [4.4, Vector2.ZERO], [4.85, -d * 4.0], [4.9, -d * 4.0],
+					[5.2, Vector2(m2.own) * 0.75], [6.4, Vector2(m2.own)], [lifeT, Vector2(m2.own)]]
+			_ev(4.9, &"blast", 1.0, 0.0, cs, {fx = &"blast"})
+			_ev(4.9, &"shatter", 0.8, 1.5)
+			for s in _shards:
+				s.release = 4.9 + _rng.randf_range(0.0, 0.05)
+				s.life = _rng.randf_range(1.8, 2.4)
+				s.speed = _rng.randf_range(70.0, 160.0)
+				s.spin = _rng.randf_range(1.5, 3.0) * (1.0 if _rng.randf() < 0.5 else -1.0)
+				s.glass = true
+				s.glint2 = float(s.glint) + _rng.randf_range(0.4, 0.8)
+		Style.CUST_COLLAPSE:
+			_ev(4.2, &"crush", 0.8, 0.8)
+			_hook(4.2, &"shake", 2.0, 0.8)
+			_hook(4.6, &"slowmo", 0.35, 0.6)
+			for m3 in _majors:
+				var d3: Vector2 = m3.dir
+				var outer := int(m3.lab) % 2 == 1
+				var crush := d3 * (-9.0 if outer else -5.0)
+				var go := 5.0 if outer else 5.25
+				m3.keys = [[0.0, Vector2.ZERO], [4.2, Vector2.ZERO], [4.85, crush], [go, crush],
+					[go + 0.25, Vector2(m3.own) * 0.8], [go + 1.2, Vector2(m3.own)], [lifeT, Vector2(m3.own)]]
+			_ev(5.0, &"blast", 1.0, 0.0, cs, {fx = &"ring_light"})
+			_ev(5.0, &"layer", 0.8)
+			_ev(5.25, &"layer", 0.6)
+			for s3 in _shards:
+				var dist := (Vector2(s3.at) - core).length()
+				var outer2 := dist > 0.3 * float(_bp.bw)
+				s3.release = (5.0 if outer2 else 5.25) + _rng.randf_range(0.0, 0.05)
+				s3.life = _rng.randf_range(1.3, 1.9)
+				s3.speed = _rng.randf_range(70.0, 150.0)
+				s3.glass = true
+		Style.CUST_SPLIT:
+			_ev(4.4, &"implode", 0.8, 0.5)
+			_hook(4.4, &"slowmo", 0.35, 0.6)
+			for m4 in _majors:
+				var d4: Vector2 = m4.dir
+				m4.keys = [[0.0, Vector2.ZERO], [4.4, Vector2.ZERO], [4.85, -d4 * 3.0], [5.0, -d4 * 3.0],
+					[5.6, Vector2(m4.own) * 0.6], [6.8, Vector2(m4.own)], [lifeT, Vector2(m4.own)]]
+			_ev(4.9, &"blast", 1.0, 0.0, cs, {fx = &"blast_small"})
+			_ev(4.95, &"run", 0.7, 0.5)
+			var maxd := float(_bp.bw) * 0.5
+			for k5 in 4:
+				var dx := maxd * float(k5 + 1) / 4.5
+				for side in [-1.0, 1.0]:
+					var tp := 4.95 + 0.5 * dx / maxd
+					_ev(tp, &"pop", 0.3, 0.0, cs + Vector2(side * dx, 0.0), {fx = &"spine_pop"})
+			_ev(5.5, &"split", 0.9)
+			_hook(5.5, &"shake", 3.0, 0.4)
+			_ev(5.5, &"shed", 0.4, 1.5)
+			for s4 in _shards:
+				var mid4 := Vector2(s4.at) + Vector2(s4.size) * 0.5
+				if int(s4.mark) == 3:
+					s4.release = 4.95 + 0.5 * absf(mid4.x - core.x) / maxd + _rng.randf_range(0.0, 0.04)
+					s4.dir = Vector2(_rng.randf_range(-0.4, 0.4), signf(mid4.y - core.y + 0.01)).normalized()
+					s4.speed = _rng.randf_range(25.0, 70.0)
+				else:
+					s4.release = 5.5 + _rng.randf_range(0.0, 0.15)
+					s4.speed = _rng.randf_range(40.0, 100.0)
+				s4.life = _rng.randf_range(1.2, 1.8)
+				s4.glass = true
+	_hook(blast_at, &"flash", 1.0, 0.3)
+	_hook(blast_at, &"shake", 6.0, 0.9)
+	_hook(blast_at, &"stinger", 1.0, 0.0)
+	_emit(blast_at, 6.8, 70.0, 1, PackedVector2Array(), {mode = &"crack"})
+	_ev(blast_at + 0.1, &"debris", 0.5, 2.0)
+	_ev(blast_at + 0.7, &"cool", 0.2, 1.6)
+
+
+## H3's rib seams, traced off the picture: the luminance smoothed down each
+## column (the ribs run near vertical, so this keeps the seams and loses the
+## plating's grain), its dips along each row, and the dips linked row to row
+## from the middle outward into curves. A curve that does not reach half the
+## hull's height there is grain, not a seam. Each curve: `traced` (its x per
+## row, -1 where it was not found) and `full` (carried on to every row, so a
+## cut runs the whole height).
+static func _rib_curves(H: Dictionary) -> Array:
+	var w: int = H.w
+	var h: int = H.h
+	var mask: PackedByteArray = H.mask
+	var raw: PackedColorArray = H.raw
+	var L := PackedFloat32Array()
+	L.resize(w * h)
+	for i in w * h:
+		if mask[i] == 1:
+			L[i] = raw[i].get_luminance()
+	var Ls := PackedFloat32Array()
+	Ls.resize(w * h)
+	for y in h:
+		for x in w:
+			if mask[y * w + x] == 0:
+				continue
+			var sum := 0.0
+			var cnt := 0
+			for yy in range(y - 2, y + 3):
+				if yy >= 0 and yy < h and mask[yy * w + x] == 1:
+					sum += L[yy * w + x]
+					cnt += 1
+			Ls[y * w + x] = sum / float(cnt)
+	var mins := PackedByteArray()
+	mins.resize(w * h)
+	for y2 in h:
+		for x2 in range(3, w - 3):
+			var i2 := y2 * w + x2
+			if mask[i2 - 3] == 0 or mask[i2 + 3] == 0:
+				continue
+			var v := Ls[i2]
+			if v < Ls[i2 - 1] and v <= Ls[i2 + 1] and v <= Ls[i2 - 2] and v <= Ls[i2 + 2] \
+					and (Ls[i2 - 3] + Ls[i2 + 3]) * 0.5 - v > 0.03:
+				mins[i2] = 1
+	var cy := int(H.cy)
+	var curves: Array = []
+	for x0 in w:
+		if mins[cy * w + x0] == 0:
+			continue
+		var tr := PackedInt32Array()
+		tr.resize(h)
+		tr.fill(-1)
+		tr[cy] = x0
+		var count := 1
+		for d in [-1, 1]:
+			var x := x0
+			var y3 := cy
+			var miss := 0
+			while true:
+				y3 += int(d)
+				if y3 < 0 or y3 >= h:
+					break
+				var best := -1
+				for xx in range(x - 2, x + 3):
+					if xx >= 0 and xx < w and mins[y3 * w + xx] == 1:
+						if best < 0 or absi(xx - x) < absi(best - x):
+							best = xx
+				if best >= 0:
+					x = best
+					tr[y3] = x
+					count += 1
+					miss = 0
+				else:
+					miss += 1
+					if miss > 2 or mask[y3 * w + x] == 0:
+						break
+					tr[y3] = x
+					count += 1
+		var colh := 0
+		for y4 in h:
+			if mask[y4 * w + x0] == 1:
+				colh += 1
+		if count >= colh / 2:
+			curves.append({traced = tr, x = x0})
+	curves.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.x) < int(b.x))
+	var kept: Array = []
+	for c in curves:
+		if not kept.is_empty() and int(c.x) - int(kept.back().x) < 3:
+			continue
+		kept.append(c)
+	for c2 in kept:
+		var tr2: PackedInt32Array = c2.traced
+		var full := tr2.duplicate()
+		var first := -1
+		var last := -1
+		for y5 in h:
+			if tr2[y5] >= 0:
+				if first < 0:
+					first = y5
+				last = y5
+		for y6 in h:
+			if y6 < first:
+				full[y6] = tr2[first]
+			elif y6 > last:
+				full[y6] = tr2[last]
+			elif full[y6] < 0:
+				full[y6] = full[y6 - 1]
+		c2.full = full
+	return kept
