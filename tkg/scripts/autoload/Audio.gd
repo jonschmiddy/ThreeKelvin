@@ -1220,20 +1220,18 @@ func ship_thrust_off() -> void:
 ## first gap after it; a hyperdrive's dark, a departure, a screen without your
 ## ship (or a view freed with its screen) all take it down the same way.
 ##
-## THREE BEDS UNTIL JON PICKS ONE (`audio/idle_bed.py` makes them, from audio
-## already in the game, and says how each loop is made seamless):
-##   a  the map's thrust loop pitched down a fourth and low-passed: a soft low rumble
-##   b  the heavy arrival's calmest clean burn, re-cut: darker, breathier
-##   c  the thrust loop an octave down, in uneven puffs at the flame's 8 a second
-static var idle_look: StringName = &"a"
-const IDLE_LOOPS: Dictionary = {&"a": &"ship_idle_a", &"b": &"ship_idle_b", &"c": &"ship_idle_c"}
-## Where each bed sits, measured, not guessed. All three are mastered to -20 dBFS
-## RMS; the trims level them to each other by loudness (c is sparse and measured
-## 1.2 LU quieter), and IDLE_DB puts them at -40 LUFS as heard: 12 LU under the
-## map's thrust loop as it is heard (SHIP_DB at 0.7, -28 LUFS), about 7 under a
-## UI click's 400 ms loudness (-33) and 20 under a hit on your hull (-20).
-const IDLE_DB := -17.0
-const IDLE_TRIM: Dictionary = {&"a": 0.0, &"b": 0.0, &"c": 1.2}
+## THE BED: the map's thrust loop pitched down a fourth and low-passed, a soft
+## low rumble (`audio/idle_bed.py` makes it from audio already in the game and
+## says how the loop is made seamless). Jon picked it from three, Oct 13: "bed:A";
+## the others were a darker re-cut of the heavy arrival's burn and a sparse
+## burble at the flame's 8 a second. git has them.
+const IDLE_LOOP := &"ship_idle"
+## Where it sits, measured, not guessed. Mastered to -20 dBFS RMS; at IDLE_DB it
+## is -44 LUFS as heard: 16 LU under the map's thrust loop as it is heard
+## (SHIP_DB at 0.7, -28 LUFS), about 11 under a UI click's 400 ms loudness (-33)
+## and 24 under a hit on your hull (-20). It was -17 (-40 LUFS); Jon picked the
+## quieter of three levels ("level:C"), 4 dB down.
+const IDLE_DB := -21.0
 ## In and out over the same 0.3 s: long enough that the bed never steps, short
 ## enough that it is gone with the flame.
 const IDLE_FADE_S := 0.3
@@ -1271,9 +1269,8 @@ func _tick_idle(delta: float) -> void:
 	idle_level = move_toward(idle_level, 1.0 if idle_want else 0.0, delta / IDLE_FADE_S)
 	if not _enabled:
 		return
-	var name: StringName = IDLE_LOOPS.get(idle_look, IDLE_LOOPS[&"a"])
 	if _idle_player == null:
-		if idle_level <= 0.0 or not ResourceLoader.exists(SFX_PATH % name):
+		if idle_level <= 0.0 or not ResourceLoader.exists(SFX_PATH % IDLE_LOOP):
 			return
 		_idle_player = AudioStreamPlayer.new()
 		_idle_player.bus = &"SFX"
@@ -1283,18 +1280,13 @@ func _tick_idle(delta: float) -> void:
 		# it, so the bed keeps playing there too.)
 		_idle_player.process_mode = Node.PROCESS_MODE_PAUSABLE
 		_idle_player.volume_db = -80.0
+		_idle_player.stream = load(SFX_PATH % IDLE_LOOP)
 		add_child(_idle_player)
-	if _idle_player.get_meta(&"loop", &"") != name:
-		# a look swapped mid-run starts its own loop from its head, at the
-		# level the fade is at, rather than holding the old one
-		_idle_player.stream = load(SFX_PATH % name)
-		_idle_player.set_meta(&"loop", name)
-		_idle_player.play()
-	elif not _idle_player.playing:
+		# STARTED SILENT AND NEVER RESTARTED, like the map's thrust loop: the
+		# fade alone brings it in and out, so no play() lands mid-swing
 		_idle_player.play()
 	var g := idle_level * _duck
-	_idle_player.volume_db = -80.0 if g < 0.002 \
-			else IDLE_DB + float(IDLE_TRIM.get(idle_look, 0.0)) + linear_to_db(g)
+	_idle_player.volume_db = -80.0 if g < 0.002 else IDLE_DB + linear_to_db(g)
 
 
 func _ship_player() -> AudioStreamPlayer:

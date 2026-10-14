@@ -1,8 +1,8 @@
 extends Node
 
-## YOUR IDLE, SEEN AND HEARD, for Jon to audition the three beds:
+## YOUR IDLE, SEEN AND HEARD, for Jon to hear the bed where it plays:
 ##   godot --path . --resolution 1920x1080 --write-movie <dir>/f.png --fixed-fps 60
-##       -- sheet=IdleFilm look=<a|b|c> [mode=arrive|fight] [hold=4] [seed=N]
+##       -- sheet=IdleFilm [mode=arrive|fight] [hold=4] [seed=N]
 ## Godot's movie writer writes every frame and the game's own mix (`f.wav`) on
 ## the game clock, so it plays back at true speed.
 ##   arrive  a new run's first arrival on LOCAL: the name card, the drive, the
@@ -10,7 +10,7 @@ extends Node
 ##           seconds parked.
 ##   fight   a fight with a cutter: it flies in, one card played, then `hold`
 ##           seconds of the turn standing.
-## `look` is `Audio.idle_look`. Prints `mark <name> <seconds>` for the edges.
+## Prints `mark <name> <seconds>` for the edges, with the bed's state.
 
 var _args: PackedStringArray
 var _t0 := 0.0
@@ -34,15 +34,14 @@ func _wait(s: float) -> void:
 
 func _mark(what: String) -> void:
 	var p: AudioStreamPlayer = Audio._idle_player
-	print("mark %s %.2f  idle %s %s %.1f dB" % [what, GameClock.now() - _t0,
-		Audio.idle_look, "playing" if p != null and p.playing else "silent",
+	print("mark %s %.2f  idle %s %.1f dB" % [what, GameClock.now() - _t0,
+		"playing" if p != null and p.playing else "silent",
 		p.volume_db if p != null else -80.0])
 
 
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	Audio.idle_look = StringName(_arg("look", "a"))
 	Rng.forced = int(_arg("seed", "4242"))
 	Router.animate_in_harness = true
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
