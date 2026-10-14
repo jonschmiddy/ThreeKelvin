@@ -338,6 +338,7 @@ func setup(c: Combat = null) -> void:
 			# pitch-shifted, but in the render, before the flame was cut in.
 			# The ship waits out the drive's lead-in here too, or the clip's coughs
 			# would land ARRIVE_LEAD_S after the flame's.
+			_hold_outline()
 			Audio.play(art.arrive(2, ShipView.ARRIVE_LEAD_S), 0.0)
 
 
@@ -473,6 +474,7 @@ func _commit(skipped: bool) -> void:
 ## The system announcing itself, then the ship arriving into it.
 func _begin_arrive() -> void:
 	_phase = Phase.ARRIVE
+	_hold_outline()
 	_cine_sfx.clear()
 	_shut_drawer()
 	var art := _view.ship_view()
@@ -2385,6 +2387,12 @@ var _cutaway: CutawayView = null
 ## How many clicks on your ship were refused with the thud (for `-- cutawaytest`).
 var denied_clicks := 0
 var _ship_outline: CutawayView.Outline = null
+## WHERE THE POINTER WAS WHEN THE SHIP ARRIVED UNDER IT, or INF. A ship coming
+## to rest under a pointer nobody moved is not being pointed at: the outline
+## lit there the instant the arrival ended (Jon, Oct 13: "the ship is
+## highlighted... No highlight"). Held until the pointer moves off this spot
+## or clicks; then the hover works as it always did.
+var _still_pointer := Vector2.INF
 
 
 func _hook_cutaway() -> void:
@@ -2404,6 +2412,14 @@ func _hook_cutaway() -> void:
 		slot.mouse_default_cursor_shape = Control.CURSOR_ARROW)
 
 
+## An arrival is starting: whatever the pointer is resting on when the ship
+## parks under it is not a hover (`_still_pointer`).
+func _hold_outline() -> void:
+	_still_pointer = Vector2(DisplayServer.mouse_get_position())
+	if _ship_outline != null:
+		_ship_outline.visible = false
+
+
 ## Whether your ship can be opened up now: out of a fight, not mid-jump, alive.
 func cutaway_ready() -> bool:
 	return not fighting() and _phase == Phase.NONE and not Run.dead 		and _cutaway == null and Run.hull != null and _transfer == null
@@ -2416,7 +2432,11 @@ func _on_own_ship_input(e: InputEvent) -> void:
 	# harness pushes clicks without moving a pointer)
 	var mev := e as InputEventMouse
 	var at := (art.get_global_transform().affine_inverse() * (slot.get_global_transform() * mev.position)) 		if mev != null else art.get_local_mouse_position()
-	if not cutaway_ready():
+	var mpos := Vector2(DisplayServer.mouse_get_position())
+	var press0 := e as InputEventMouseButton
+	if _still_pointer != Vector2.INF and (mpos.distance_to(_still_pointer) >= 1.0 			or (press0 != null and press0.pressed)):
+		_still_pointer = Vector2.INF
+	if not cutaway_ready() or _still_pointer != Vector2.INF:
 		# NOT PRESSABLE NOW -- a fight, an arrival, a screen up over LOCAL -- so it
 		# does not look it (no outline, no hand), and a click on it is the thud a
 		# button that cannot be pressed makes (Jon: "the same thud sound when you

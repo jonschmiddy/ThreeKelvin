@@ -1287,45 +1287,78 @@ static func on_hull(v: ShipView, p: Vector2) -> bool:
 ## THE AMBER OUTLINE IN THE HULL'S OWN PIXELS, while the pointer is on your ship:
 ## every clear pixel touching an opaque one, so the line hugs the silhouette and
 ## nothing else on screen gets one. A child of the ship's view, so it rides its
-## bob; re-traced when the bob steps.
+## bob.
+##
+## FOUND ON THE GPU, FROM THE SHIP'S OWN TEXTURE. It was traced here a pixel at
+## a time (`get_pixel` through a lambda, five per pixel of the canvas) every
+## time the bob stepped: 40 ms on the main thread, a stall about every quarter
+## second for as long as the pointer stayed on the ship -- the hitch Jon saw as
+## his ship came to rest under the pointer (Oct 13). The shader asks the same
+## question of the texture the hull is drawn from, so it follows every repaint
+## for nothing.
 class Outline extends Control:
 	var view: ShipView
-	var _pts := PackedVector2Array()
-	var _bob := -999
+	var _key := Vector4(-1, -1, -1, -1)
+	static var _shader: Shader = null
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		if _shader == null:
+			_shader = Shader.new()
+			_shader.code = OUTLINE_SHADER
+		var m := ShaderMaterial.new()
+		m.shader = _shader
+		m.set_shader_parameter("col", Color(UITheme.HOT, 0.85))
+		material = m
 
+	## Redrawn only when the canvas's size or place changes: the texture's
+	## contents (the bob, the heat, the damage) reach the shader by themselves.
 	func _process(_d: float) -> void:
 		if view == null or not visible:
 			return
-		if view.bob_offset() != _bob:
-			_bob = view.bob_offset()
-			_trace()
-			queue_redraw()
-
-	func _trace() -> void:
-		_pts.clear()
 		var img := view.canvas()
 		if img == null:
 			return
-		var w := img.get_width()
-		var h := img.get_height()
-		var solid := func(x: int, y: int) -> bool:
-			return x >= 0 and y >= 0 and x < w and y < h and img.get_pixel(x, y).a > 0.1
-		for y in range(-1, h + 1):
-			for x in range(-1, w + 1):
-				if solid.call(x, y):
-					continue
-				if solid.call(x + 1, y) or solid.call(x - 1, y) or solid.call(x, y + 1) or solid.call(x, y - 1):
-					_pts.append(Vector2(x, y))
+		var k := Vector4(img.get_width(), img.get_height(), view.art_scale(), view.size.x * 4096.0 + view.size.y)
+		if k != _key:
+			_key = k
+			queue_redraw()
 
 	func _draw() -> void:
-		if view == null:
+		if view == null or view.texture == null:
+			return
+		var img := view.canvas()
+		if img == null:
 			return
 		var kk := view.art_scale()
 		var origin := ((view.size - Vector2(view.canvas_width(), view.canvas_height())) * 0.5).floor()
-		var c := Color(UITheme.HOT, 0.85)
-		for p in _pts:
-			draw_rect(Rect2(origin + p * kk, Vector2(kk, kk)), c)
+		var wh := Vector2(img.get_width(), img.get_height())
+		(material as ShaderMaterial).set_shader_parameter("canvas", wh)
+		# one canvas pixel of margin all round: the outline's pixels are clear
+		# ones, so the ring round the edge of the canvas is part of it
+		draw_texture_rect(view.texture, Rect2(origin - Vector2(kk, kk), (wh + Vector2(2, 2)) * kk), false)
+
+
+const OUTLINE_SHADER := """
+shader_type canvas_item;
+render_mode unshaded;
+uniform vec2 canvas;
+uniform vec4 col : source_color;
+
+// a macro, not a function: the canvas's TEXTURE cannot be handed to one
+#define SOLID(q) (all(greaterThanEqual(q, vec2(0.0))) && all(lessThan(q, canvas)) && textureLod(TEXTURE, ((q) + 0.5) / canvas, 0.0).a > 0.1)
+
+void fragment() {
+	vec2 p = floor(UV * (canvas + 2.0)) - 1.0;
+	if (SOLID(p)) {
+		COLOR = vec4(0.0);
+	} else if (SOLID(p + vec2(1.0, 0.0)) || SOLID(p - vec2(1.0, 0.0))
+			|| SOLID(p + vec2(0.0, 1.0)) || SOLID(p - vec2(0.0, 1.0))) {
+		COLOR = col;
+	} else {
+		COLOR = vec4(0.0);
+	}
+}
+"""
