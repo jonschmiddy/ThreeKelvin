@@ -141,6 +141,17 @@ func _label(at: Vector2, s: String, c: Color, prio: int, shadow: bool) -> void:
 	_lq.append([prio, at, s, c, shadow])
 
 
+## HIDE NAMES (the map's toolbar, `SystemMapScreen._on_names`): the words that
+## name a place -- the one selected, the orbit you are in or going to, where a
+## flight will leave you -- held back; YOU and the flight's warnings stay.
+var names_on := true
+
+
+func _name_label(at: Vector2, s: String, c: Color, prio: int, shadow: bool) -> void:
+	if names_on:
+		_label(at, s, c, prio, shadow)
+
+
 func _place_labels() -> void:
 	_lq.sort_custom(func(x: Array, y: Array) -> bool: return int(x[0]) > int(y[0]))
 	var placed: Array = []
@@ -430,7 +441,7 @@ func _draw() -> void:
 			var lx := s.x + r + 4.0
 			if lx + tw > view.window.end.x - 4.0:
 				lx = s.x - r - 4.0 - tw
-			_label(Vector2(lx, s.y + 3.0), nm, UITheme.ICE, 2, false)
+			_name_label(Vector2(lx, s.y + 3.0), nm, UITheme.ICE, 2, false)
 	# THE HOVER: the same reticle, closing in from 13 px to 7 px as it eases in
 	var hk: StringName = hover.get("kind", &"")
 	if (hk == &"body" or hk == &"star") and int(hover.body) != selected and _hover_t > 0.0:
@@ -980,7 +991,7 @@ func _label_clear(tag: String, at: Vector2, half: float, path: PackedVector2Arra
 			pick = p
 			break
 	pick = pick.round()
-	_label(pick, tag, Color(UITheme.HOT, minf(1.0, a * 1.8)), 3, true)
+	_name_label(pick, tag, Color(UITheme.HOT, minf(1.0, a * 1.8)), 3, true)
 
 
 # ---------------------------------------------------------------- the ship
@@ -1120,7 +1131,10 @@ func _draw_ship(t: float) -> void:
 			lc = bw
 			ly = bw.y + maxf(rr * view.TILT, disc) + 13.0
 		var lx := clampf(lc.x - roundf(tw / 2.0), view.window.position.x + 4.0, view.window.end.x - tw - 4.0)
-		_label(Vector2(lx, ly), words, UITheme.FLARE, 4, true)
+		if names_on:
+			_label(Vector2(lx, ly), words, UITheme.FLARE, 4, true)
+		else:
+			_label(x + Vector2(-8, -13), "YOU", UITheme.FLARE, 1, false)
 
 
 ## WHAT THE MAP SAYS ABOUT THE SHIP, top left: in orbit, alongside, too fast,
