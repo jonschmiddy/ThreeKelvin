@@ -89,6 +89,8 @@ var _art_base: Vector2 = Vector2.ZERO
 ## The entrance in flight, and when it lands: a holder that resizes mid-flight
 ## (the ship's picture arriving after `enter`) sends it to the new resting place.
 var _enter_tw: Tween
+## The slot's own fade up with the entrance.
+var _fade_tw: Tween
 var _enter_end: int = 0
 ## How far this slot's column sits off the row's middle, down positive: a pack
 ## no longer used: packs are placed by `EncounterView._layout_pack`.
@@ -126,7 +128,9 @@ var side: bool = false
 ##
 ## Slower and shallower than your ship's `bob(2)`: they are further away, and a
 ## pack drifting in step reads as one object rather than three ships. The phase
-## comes off the slot index for the same reason.
+## comes off the slot index for the same reason. The clock is `GameClock`: one
+## clock the whole pack reads, so the phases hold, and game time, so a film
+## made with the movie writer bobs at 4.76 s a cycle like play does.
 const BOB_AMP := 2.0
 const BOB_HZ := 0.21
 var _bob_phase: float = 0.0
@@ -177,7 +181,7 @@ func _process(_dt: float) -> void:
 			art.set_enemy(_bound_e, _bound_tel, shown_hp, true, death_style)
 	# ROUNDED. A sub-pixel offset resamples the sprite and undoes the
 	# nearest-neighbour crispness the whole art direction rests on.
-	var t := float(Time.get_ticks_msec()) / 1000.0
+	var t := GameClock.now()
 	art.position.y = _art_base.y + roundf(sin((t + _bob_phase) * TAU * BOB_HZ) * BOB_AMP)
 	_fauna_step(_dt)
 
@@ -191,14 +195,32 @@ func enter(delay: float = 0.0) -> void:
 	# full for a ship that is still off-screen reads as a rendering fault. Fading
 	# the whole slot up over the same window keeps the two halves one event.
 	modulate.a = 0.0
-	create_tween().tween_property(self, "modulate:a", 1.0, ENTER_SECS * 0.7) 		.set_delay(delay)
+	if _fade_tw != null and _fade_tw.is_valid():
+		_fade_tw.kill()
+	_fade_tw = create_tween()
+	_fade_tw.tween_property(self, "modulate:a", 1.0, ENTER_SECS * 0.7).set_delay(delay)
+	if _enter_tw != null and _enter_tw.is_valid():
+		_enter_tw.kill()
 	var tw := create_tween()
 	tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	if delay > 0.0:
 		tw.tween_interval(delay)
 	tw.tween_property(art, "position:x", _art_base.x, ENTER_SECS)
 	_enter_tw = tw
-	_enter_end = Time.get_ticks_msec() + int((delay + ENTER_SECS) * 1000.0)
+	_enter_end = GameClock.now_ms() + int((delay + ENTER_SECS) * 1000.0)
+
+
+## Off screen and unseen, waiting to `enter` (`EncounterView.hold_entrances`).
+func hold_entrance() -> void:
+	if _art_holder == null:
+		return
+	for tw in [_enter_tw, _fade_tw]:
+		if tw != null and (tw as Tween).is_valid():
+			(tw as Tween).kill()
+	_enter_tw = null
+	_fade_tw = null
+	modulate.a = 0.0
+	art.position.x = _art_base.x + ENTER_FROM
 
 
 func _init() -> void:
@@ -500,7 +522,7 @@ func _fit_holder() -> void:
 			_enter_tw.kill()
 			_enter_tw = create_tween()
 			_enter_tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-			var left := maxf(0.05, float(_enter_end - Time.get_ticks_msec()) / 1000.0)
+			var left := maxf(0.05, float(_enter_end - GameClock.now_ms()) / 1000.0)
 			_enter_tw.tween_property(art, "position:x", base.x, left)
 	_fit_under()
 
@@ -677,7 +699,9 @@ static var _chip_h := -1.0
 
 static func _chip_row_h() -> float:
 	if _chip_h < 0.0:
-		var c := Widgets.chip("block 99", Color("#3a4a6e"))
+		# the row holds the block chip, an icon now (`StatusChip`,
+		# `SectorScreen._refresh_enemy`)
+		var c := StatusChip.make(&"block", "99", Color("#3a4a6e"), "")
 		_chip_h = c.get_combined_minimum_size().y
 		c.free()
 	return _chip_h
@@ -1097,7 +1121,7 @@ var _hush_until := 0
 var _hush_tw: Tween = null
 
 func hush_intent(secs: float) -> void:
-	_hush_until = Time.get_ticks_msec() + int(secs * 1000.0)
+	_hush_until = GameClock.now_ms() + int(secs * 1000.0)
 	if _hush_tw != null and _hush_tw.is_valid():
 		_hush_tw.kill()
 	_hush_tw = create_tween()
@@ -1109,7 +1133,7 @@ func hush_intent(secs: float) -> void:
 
 
 func intent_hushed() -> bool:
-	return Time.get_ticks_msec() < _hush_until
+	return GameClock.now_ms() < _hush_until
 
 
 func _text_rect(labels: Array) -> Rect2:
@@ -1173,7 +1197,7 @@ func _fauna_bind(e, telegraphed: bool) -> void:
 ## Cut the picture shown now, if it is not the one cut (and nothing is being
 ## cut: the next frame asks again).
 func _fauna_recut() -> void:
-	if _fauna_e == null or _fauna_done or _fauna_job >= 0 or Time.get_ticks_msec() < _fauna_next:
+	if _fauna_e == null or _fauna_done or _fauna_job >= 0 or GameClock.now_ms() < _fauna_next:
 		return
 	var e = _fauna_e
 	var hull: int = e.hp if shown_hp < 0 else shown_hp
@@ -1182,7 +1206,7 @@ func _fauna_recut() -> void:
 	if key == _fauna_key:
 		return
 	_fauna_key = key
-	_fauna_next = Time.get_ticks_msec() + 120
+	_fauna_next = GameClock.now_ms() + 120
 	var k := FaunaMotion.kind_of(e.template.id)
 	var img := FaunaMotion.still_canvas(e, hull, sc, art.marks)
 	var pic := FaunaMotion.picture_name(e)
@@ -1213,7 +1237,7 @@ func _fauna_step(dt: float) -> void:
 		var fm: FaunaMotion = _fauna_held.get("fm")
 		# a cut that comes in once the death has started is too late to show
 		if fm != null and String(_fauna_held.get("key", "")) == _fauna_key and _fauna_key != "" 				and not _fauna_done:
-			var t0 := float(Time.get_ticks_msec()) / 1000.0
+			var t0 := GameClock.now()
 			if _fauna != null:
 				t0 = _fauna.t
 				_fauna.queue_free()

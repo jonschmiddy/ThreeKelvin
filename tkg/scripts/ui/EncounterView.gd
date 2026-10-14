@@ -459,7 +459,8 @@ func show_wrecks(wrecks: Array, on_open: Callable) -> void:
 
 func show_area(n: MapGen.MapNode) -> void:
 	_area.setup(n)
-	_area.visible = true
+	# (not while an event's subject stands in its place: `LocalSubject`)
+	_area.visible = LocalSubject.of(self) == null
 	_slots.visible = false
 	_ship.modulate = Color(0.55, 0.55, 0.6) if Run.dead else Color.WHITE
 	queue_redraw()
@@ -520,8 +521,8 @@ func clear_aim() -> void:
 
 func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 		on_wreck: Callable = Callable()) -> void:
-	_area.visible = false
-	_slots.visible = true
+	if not hold_row:
+		open_row()
 	_ship.modulate = Color.WHITE
 
 	var arrived: Array[EnemySlot] = []
@@ -562,9 +563,95 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 	# here ease to theirs (`_layout_pack` moves a placed slot, never jumps it).
 	_layout_pack()
 	for k in arrived.size():
-		arrived[k].enter(float(k) * 0.09)
+		if _entrances_held:
+			arrived[k].hold_entrance()
+		else:
+			arrived[k].enter(float(k) * 0.09)
 	_queue_pack()
 	queue_redraw()
+
+
+## LOCAL's row kept as it is while a fight's first frame is drawn
+## (`SectorScreen._raise_band`): the contacts' slots are made but not shown, so
+## your ship stands where LOCAL had it until the screen eases it across.
+var hold_row := false
+
+
+## The row as a fight has it: the place out (fading, `_area_fade_out`), the
+## contacts' slots in.
+func open_row() -> void:
+	hold_row = false
+	if _slots.visible:
+		return
+	if _area.visible:
+		_area_fade_out()
+	_area.visible = false
+	_slots.visible = true
+
+
+## Whether something LOCAL showed is fading out of the scene: the place's
+## picture (`_area_fade_out`) or an event's subject (`LocalSubject.fade_out`).
+func leaving() -> bool:
+	for c in get_children():
+		if (c is LocalSubject and (c as Node).has_meta(&"leaving")) or c.name == "AreaLeaving":
+			return not (c as Node).is_queued_for_deletion()
+	return false
+
+
+## The contacts wait off screen until `release_entrances` (an ambush waiting
+## for your ship to arrive: `SectorScreen._hold_for_arrival`).
+var _entrances_held := false
+
+func hold_entrances() -> void:
+	_entrances_held = true
+	for sl in _made:
+		(sl as EnemySlot).hold_entrance()
+
+
+## And in, staggered as a fight opening flies them.
+func release_entrances() -> void:
+	if not _entrances_held:
+		return
+	_entrances_held = false
+	for k in _made.size():
+		(_made[k] as EnemySlot).enter(float(k) * 0.09)
+
+
+## THE PLACE GOES BY FADING when a fight takes its half of the row: it was
+## gone on the frame the fight opened. The row's own place picture has to leave
+## the row at once (the enemies take its share of it), so a copy of it fades out
+## where it stood: the share of the row right of your ship, worked out the way
+## the row lays it out (`_pack_room`) and anchored, so it is right on the first
+## frame and follows the view as the hand comes up.
+func _area_fade_out() -> void:
+	if not Router.animating() or not is_visible_in_tree() or _area.node == null \
+			or _area._place_name() == &"":
+		return
+	var fixed := 0.0
+	var seen := 0
+	for c in _row.get_children():
+		if not (c is Control) or not (c as Control).visible:
+			continue
+		seen += 1
+		if not ((c as Control).size_flags_horizontal & Control.SIZE_EXPAND):
+			fixed += (c as Control).get_combined_minimum_size().x
+	var ghost := AreaView.new()
+	ghost.name = "AreaLeaving"
+	ghost.anchor_left = 0.5
+	ghost.anchor_right = 1.0
+	ghost.anchor_top = 0.0
+	ghost.anchor_bottom = 1.0
+	ghost.offset_left = (fixed + float(_row.get_theme_constant("separation")) * maxf(0.0, seen - 1)) * 0.5
+	ghost.offset_right = 0.0
+	ghost.offset_top = 0.0
+	ghost.offset_bottom = _row.offset_bottom
+	ghost._clock = _area._clock
+	add_child(ghost)
+	move_child(ghost, _row.get_index())
+	ghost.setup(_area.node)
+	var tw := ghost.create_tween()
+	tw.tween_property(ghost, "modulate:a", 0.0, LocalSubject.FADE_OUT_S)
+	tw.tween_callback(ghost.queue_free)
 
 
 ## The ships already in the row slide to the places a newcomer's arrival gave
@@ -607,6 +694,10 @@ var _pack_queued := false
 var _placed: Dictionary = {}
 ## Which rank of the formation each slot stands in (0 the front), for the test.
 var _pack_rank_of: Dictionary = {}
+## How much higher the hand's band is still to come, as laid out now (a
+## fight opening: `SectorScreen._band_still_to_come`; 0 once it has settled).
+var band_left := Callable()
+var _lift_was := 0.0
 ## The last plan and what it was made from (`_layout_pack`).
 var _plan_key := ""
 var _plan_memo: Dictionary = {}
@@ -676,6 +767,15 @@ func _layout_pack() -> void:
 	# front
 	live.sort_custom(func(a: EnemySlot, b: EnemySlot) -> bool: return a.index < b.index)
 	var area := _pack_area()
+	# THE BAND STILL COMING UP (a fight opening, `SectorScreen._raise_band`):
+	# the pack is planned in the arena it will have once the band has settled,
+	# and carried up with the band as the arena shrinks to it, so its shape
+	# never changes on the way and nothing jumps when the band stops
+	var lift := 0.0
+	var to_come := float(band_left.call()) if band_left.is_valid() else 0.0
+	if to_come > 0.0:
+		area.size.y = maxf(0.0, area.size.y - to_come)
+		lift = floorf(to_come * 0.5)
 	var mid := _slots.size.x * 0.5
 	var s := 0.5 if live.size() >= PACK_HALF_AT else 1.0
 	# THE SAME PACK, THE SAME PLAN. A fight asks for the layout dozens of times
@@ -689,7 +789,8 @@ func _layout_pack() -> void:
 			e.look if e != null else -1, sl.reserve_intent, sl.get("_dead"),
 			sl.chips.get_child_count() if sl.chips != null else 0]
 	var plan := {}
-	if key == _plan_key and not _plan_memo.is_empty():
+	var same_plan := key == _plan_key and not _plan_memo.is_empty()
+	if same_plan:
 		plan = _plan_memo
 	else:
 		if pack_layout == &"C":
@@ -723,15 +824,18 @@ func _layout_pack() -> void:
 		sl.reserve_readout(u.rect.size)
 		var r: Rect2 = u.rect
 		sl.size = r.size
-		var at := r.position.round()
+		var at := (r.position + Vector2(0.0, lift)).round()
 		var was: Variant = _placed.get(sl)
 		if _pack_tw.has(sl) and (_pack_tw[sl] as Tween).is_valid():
 			if was == at:
 				placed[sl] = at
 				continue
 			(_pack_tw[sl] as Tween).kill()
-		# eased where things move (never under reduced motion or headless)
-		if was != null and was != at and is_inside_tree() and Router.animating():
+		# eased where things move (never under reduced motion or headless);
+		# carried, not eased, with a band that is coming up: it moves a frame
+		# at a time already
+		if was != null and was != at and is_inside_tree() and Router.animating() \
+				and not (same_plan and _lift_was != lift):
 			var tw := sl.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 			tw.tween_property(sl, "position", at, PACK_EASE)
 			_pack_tw[sl] = tw
@@ -739,6 +843,7 @@ func _layout_pack() -> void:
 			sl.position = at
 		placed[sl] = at
 	_placed = placed
+	_lift_was = lift
 	for k in _pack_tw.keys():
 		if not placed.has(k):
 			_pack_tw.erase(k)

@@ -654,9 +654,21 @@ func _result() -> void:
 
 
 ## The fight the event started: the existing one, whose hand takes the band.
+##
+## ONCE THE BAND IS DOWN. It used to start on the press, which threw the band
+## away in the middle of its drop and swapped the fight in over it; now LOCAL
+## is whole again when the fight's screen takes its picture, and the hand comes
+## up from there (`SectorScreen._raise_band`). Once: a second press on the
+## button sliding away is nothing.
 func _fight() -> void:
+	if fought:
+		return
 	fought = true
-	if not quiet:
+	if quiet:
+		return
+	if _tw != null and _tw.is_valid() and _tw.is_running() and _moving():
+		await _tw.finished
+	if is_inside_tree():
 		Router.start_ambush()
 
 
