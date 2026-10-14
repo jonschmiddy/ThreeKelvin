@@ -648,6 +648,9 @@ func _build() -> void:
 	# cinematic's parked one. Asked again every time the view is re-laid out.
 	_view.resized.connect(_sync_bleed)
 	_build_self_plate()
+	# YOUR IDLE, HEARD: this is the one view of your ship whose idle flame has
+	# a sound (`ShipView.hums`), on LOCAL and in fights alike.
+	_view.ship_view().hums = true
 	_view.fx.landed.connect(_on_shot_landed)
 	_view.fx.volley_landed.connect(_on_volley_landed)
 	_view.death_style = _death_style
