@@ -1196,6 +1196,12 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 	combat = Combat.new()
 	combat.clears_node = clears_node
 	var s := SectorScreen.new()
+	# FROM LOCAL, NOT A FADE. The fight's screen is built as the LOCAL it
+	# replaces and raises its own hand (`SectorScreen._raise_band`); faded in, its
+	# first frame was a fifth of the picture over black (Jon: "the ships pop up
+	# and the drawer pops into view").
+	if animating() and current is SectorScreen and (current as SectorScreen).settled_local():
+		seamless_next = true
 	_swap(s)
 	# Connect before starting. Turn one resolves inside start() — charges, opening
 	# log lines, even an instant win — and a screen wired up afterwards misses all

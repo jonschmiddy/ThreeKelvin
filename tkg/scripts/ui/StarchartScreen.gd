@@ -336,11 +336,13 @@ func _build() -> void:
 	# `_view_zoom`. Re-framing here would run before layout and land on ZOOM_MIN,
 	# which is the bug that made LOCAL REGION look like it had stopped working.
 
-	# LAST, so it is the last child and therefore the top one. There is no
-	# CanvasLayer on this screen and it does not need one: sibling order is draw
-	# order, and the primer is the only thing that has ever wanted to be above
-	# the chart.
-	_build_primer()
+	# NO FIRST SURVEY CARD (Jon, Oct 13: "we can just remove the popup that
+	# happens when you open the starchart for the first time"). The galaxy's
+	# name, type and blurb stay on the no-selection destination panel, and the
+	# legend stays in the corner KEY. The card is built only for ChartShot's
+	# `primer` photograph, LAST so it would be the top child.
+	if "primer" in OS.get_cmdline_user_args():
+		_build_primer()
 
 ## THE FIRST TIME YOU OPEN THE CHART IN A RUN, what this galaxy is and how to
 ## read the thing you are looking at.

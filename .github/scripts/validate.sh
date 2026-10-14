@@ -472,6 +472,22 @@ else
 	bad "deathpooltest did not finish"
 fi
 
+step "Fight numbers sit on the hull's ink, and land above it"
+# Jon, Oct 13 ("Pops: B"): a held card's number centred on the ship's ink both
+# ways; a landing's pops centred across on the ink and wholly above its top.
+# Every enemy picture and every player hull (manufacturer x weight), in a fight.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot popplacetest 240 --headless --path "$PROJECT" -- sheet=PopPlaceTest; then
+	if grep -qE '^popplacetest: PASS' "$LOG_DIR/popplacetest.log"; then
+		ok "previews on the ink, pops above it, on every hull"
+	else
+		bad "a fight number is off its hull"
+		grep -E 'FAIL|^popplacetest' "$LOG_DIR/popplacetest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "popplacetest did not finish"
+fi
+
 step "Hits, block and brace drawn on every ship in a fight"
 # Through the real screen, a pack of three: each ship carries its hit marks, the
 # bubble for block and the plated overlay for brace; every kind of landing
@@ -486,6 +502,47 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 else
 	bad "hitfxlivetest did not finish"
+fi
+
+step "The bobs run on game time, not the wall's"
+# Jon, Oct 13, of the full fight films: "the hovering animation is REALLY fast".
+# The movie writer steps 1/60 s a frame however long a frame takes to write, so
+# the wall's clock raced (the cutter's bob at 0.375 s a cycle, not 4.76). In a
+# real fight of three: time stopped with the wall running, no bob moves; time
+# at 20x, every bob goes top to bottom; a slot made later bobs in step with the
+# first; `ShipView.shot_clock` still drives your ship.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot gameclocktest 120 --headless --path "$PROJECT" -- sheet=GameClockTest; then
+	if grep -qE '^gameclocktest: PASS' "$LOG_DIR/gameclocktest.log"; then
+		ok "the bobs keep game time, in step"
+	else
+		bad "a bob ran on the wall's clock, or out of step"
+		grep -E 'FAIL|^gameclocktest' "$LOG_DIR/gameclocktest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "gameclocktest did not finish"
+fi
+
+step "A fight opens by easing up out of LOCAL, not with a pop"
+# Jon, Oct 13: "When the enemy ship enters.... the ships pop up and the drawer
+# pops into view.... can we have the opposite of the fight ending screen".
+# Animated headless at 60 fps, through the real screens: the core's ENGAGE, an
+# event's THEY ARE FIRING, a pack of three started on LOCAL, and an ambush met
+# on arrival. Every frame: nothing (your ship, plate, bands, rails, each
+# contact's box, readout and intent) jumps over 10 px or pops in or out, no
+# frame is faded dark, nothing overlaps the rising band, no card / END TURN /
+# FLEE / HAIL / pile takes a click before the band settles (and they do after);
+# an ambush keeps its contacts and hand until your ship has arrived.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot fightopentest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=FightOpenTest; then
+	if grep -qE '^fightopentest: PASS' "$LOG_DIR/fightopentest.log"; then
+		ok "the fight's hand comes up out of LOCAL, eased, and takes no early click"
+	else
+		bad "a fight's opening jumped, popped, went dark or took an early click"
+		grep -E 'FAIL|^fightopentest' "$LOG_DIR/fightopentest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "fightopentest did not finish"
 fi
 
 step "Dying: your ship breaks up, a beat on the wreck, then the run's screen"
@@ -594,6 +651,39 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 else
 	bad "enemyarttest did not finish"
+fi
+
+step "One black hole at the core, one pulsar at a pulsar"
+# LOCAL's sky draws the system's own star; the encounter's place picture must
+# not draw the core's hole or a pulsar a second time (Jon, Oct 13: "why are
+# there two black holes"). Every other system keeps its place picture.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot oneholetest 120 --headless --path "$PROJECT" -- sheet=OneHoleTest; then
+	if grep -qE '^oneholetest: PASS' "$LOG_DIR/oneholetest.log"; then
+		ok "the core and the pulsars are drawn once, every other place keeps its picture"
+	else
+		bad "a star is drawn twice on LOCAL, or a place lost its picture"
+		grep -E 'FAIL|^oneholetest' "$LOG_DIR/oneholetest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "oneholetest did not finish"
+fi
+
+step "The Custodian and the megafauna move, and are still for their deaths"
+# FaunaMotion, headless: the cut at full size and from a half sheet, idle,
+# the wind-up, and settle() at rest in four frames on the picture it was cut
+# from; then the real fight, animated, on each of the three: the art hands its
+# picture to the motion, the bob is the motion's, Charging and a creature's
+# strike wind it up, a kill is at rest when the breakup is cut, and the dead
+# slot is the art's wreck again. Reduced motion has none of it.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot faunatest 300 --headless --path "$PROJECT" -- sheet=FaunaTest; then
+	if grep -qE '^faunatest: PASS' "$LOG_DIR/faunatest.log"; then
+		ok "the three move, wind up and come to rest for their deaths"
+	else
+		bad "a creature's or the Custodian's motion is wrong"
+		grep -E 'FAIL|^faunatest' "$LOG_DIR/faunatest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "faunatest did not finish"
 fi
 
 step "Every event opens and resolves on LOCAL"

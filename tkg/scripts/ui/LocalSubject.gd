@@ -1672,7 +1672,7 @@ func _wrecks() -> Array[Rect2]:
 static func sync(view: Control, n: MapGen.MapNode, fighting: bool) -> LocalSubject:
 	var cur: LocalSubject = null
 	for c in view.get_children():
-		if c is LocalSubject:
+		if c is LocalSubject and not (c as Node).has_meta(&"leaving"):
 			cur = c
 	var opt := -1
 	if n != null and not fighting:
@@ -1687,7 +1687,13 @@ static func sync(view: Control, n: MapGen.MapNode, fighting: bool) -> LocalSubje
 	if cur != null and cur.key == want:
 		return cur
 	if cur != null:
-		cur.queue_free()
+		# A FIGHT TAKES THE SCENE, AND THE SUBJECT GOES BY FADING: it used to be
+		# gone on the frame the fight opened, over the hand coming up
+		# (`SectorScreen._raise_band`).
+		if fighting and want == "" and Router.animating() and cur.is_visible_in_tree():
+			fade_out(cur)
+		else:
+			cur.queue_free()
 		cur = null
 	if want == "":
 		return null
@@ -1700,6 +1706,9 @@ static func sync(view: Control, n: MapGen.MapNode, fighting: bool) -> LocalSubje
 	cur.sky = view.get("backdrop") as LocalSky
 	var area: Variant = view.get("_area")
 	cur._area = area as Control if area is Control else null
+	# the stand-in goes as the subject comes, not a frame later (`_process`)
+	if cur._area != null:
+		cur._area.visible = false
 	view.add_child(cur)
 	# in the scene's depth: in front of the sky and its weather, behind the hulls
 	var w: Variant = view.get("weather")
@@ -1709,12 +1718,27 @@ static func sync(view: Control, n: MapGen.MapNode, fighting: bool) -> LocalSubje
 	return cur
 
 
-## The subject on a view, if one is drawn there.
+## The subject on a view, if one is drawn there (one fading out is not).
 static func of(view: Control) -> LocalSubject:
 	for c in view.get_children():
-		if c is LocalSubject and not (c as Node).is_queued_for_deletion():
+		if c is LocalSubject and not (c as Node).is_queued_for_deletion() \
+				and not (c as Node).has_meta(&"leaving"):
 			return c
 	return null
+
+
+## How long a subject takes to go when a fight takes the scene: LOCAL's line
+## fading off the band (`SectorScreen.BAND_FADE_S`). The contacts wait for it
+## (`SectorScreen._raise_band`), so they never fly in across what it showed.
+const FADE_OUT_S := 0.18
+
+
+## Gone over `FADE_OUT_S`, then freed; no longer the view's subject meanwhile.
+static func fade_out(s: LocalSubject) -> void:
+	s.set_meta(&"leaving", true)
+	var tw := s.create_tween()
+	tw.tween_property(s, "modulate:a", 0.0, FADE_OUT_S)
+	tw.tween_callback(s.queue_free)
 
 
 func _build() -> void:
@@ -2405,7 +2429,7 @@ func _layout() -> void:
 func _clock() -> float:
 	if ShipView.shot_clock >= 0.0:
 		return ShipView.shot_clock
-	return float(Time.get_ticks_msec()) / 1000.0
+	return GameClock.now()
 
 
 func _process(_d: float) -> void:
@@ -2911,6 +2935,39 @@ func _at(rec: Dictionary, a: Variant) -> Vector2:
 	return node.position + (rec.vshift as Vector2) + v.rotated(node.rotation + float(rec.vrot)) * float(rec.scale) * _scale
 
 
+## A ship piece's flame, for the picture size it is drawn at (its own _half or
+## _quarter file when it has one; else the full one, scaled with the piece).
+func _flame_of(rec: Dictionary) -> ThrusterFx:
+	var k := float(rec.tex_k)
+	var orig: Dictionary = rec.orig
+	var tex: Texture2D = orig.get(k, null)
+	if tex == null:
+		tex = orig.get(1.0, null)
+		k = 1.0
+	if tex == null:
+		return null
+	if rec.get("flame_tex") != tex:
+		rec.flame_tex = tex
+		rec.flame_k = k
+		rec.flame = ThrusterFx.for_picture(tex, k)
+	return rec.flame
+
+
+## From the drawn picture's pixels (unturned, at its own size) to the overlay:
+## the same frame `_at` maps a point through -- the piece's place and rotation,
+## its size, its mirror, its own turn.
+func _pic_xf(rec: Dictionary) -> Transform2D:
+	var p: Dictionary = rec.info
+	var node: Node2D = rec.node
+	var k := float(rec.get("flame_k", 1.0))
+	var sc := float(rec.scale) * _scale
+	var xf := Transform2D(node.rotation + float(rec.vrot), node.position + (rec.vshift as Vector2))
+	xf = xf * Transform2D(0.0, Vector2(-sc if bool(rec.flip) else sc, sc), 0.0, Vector2.ZERO)
+	xf = xf * Transform2D(float(rec.turn), Vector2.ZERO)
+	xf = xf * Transform2D(0.0, -Vector2(float(p.w), float(p.h)) * 0.5)
+	return xf * Transform2D(0.0, Vector2(1.0 / k, 1.0 / k), 0.0, Vector2.ZERO)
+
+
 ## How big a light is drawn on this piece: smaller on far ones.
 func _lk(rec: Dictionary) -> float:
 	return float(rec.scale) * _scale
@@ -2930,7 +2987,23 @@ func _draw_over() -> void:
 			continue
 		var k := _lk(rec)
 		var dim := 1.0 - 0.6 * float(rec.far)
+		# THE ENGINE FLAME (look A, Oct 13): a ship under way (`drive`) burns at
+		# CRUISE, a lit one sitting here idles (Jon: "a gentle idle burn ...
+		# anywhere a ship sits"), a dark one is dead. Its engines are the
+		# picture's own or art/engines.json's, drawn in the piece's own frame
+		# (its turn, its mirror, its size) so it leaves the stern wherever the
+		# piece is pointing.
+		var burn := -1
 		if bool(rec.drive):
+			burn = ThrusterFx.Thrust.CRUISE
+		elif StringName(rec.lights) != &"" and float(rec.dark) < 0.5:
+			burn = ThrusterFx.Thrust.IDLE
+		var ffx: ThrusterFx = _flame_of(rec) if burn >= 0 else null
+		if ffx != null:
+			_over.draw_set_transform_matrix(_pic_xf(rec))
+			ffx.draw(_over, Vector2.ZERO, burn, t, false, Color(dim, dim, dim, 1.0))
+			_over.draw_set_transform_matrix(Transform2D.IDENTITY)
+		elif bool(rec.drive):
 			# a drive at the stern, breathing a little
 			var fl := 0.85 + 0.1 * sin(t * 5.1 + float(rec.phase)) + 0.05 * sin(t * 13.7 + float(rec.phase) * 2.0)
 			var at := _at(rec, p.stern) + Vector2(-2.0 * k if bool(rec.flip) else 2.0 * k, 0.0)
