@@ -1206,13 +1206,20 @@ const WRECK_CREDIT_SPREAD := 0.20
 ## WHAT AN ORDINARY SHIP'S PURSE IS WORTH against its `credit_reward` (Jon, Oct
 ## 13, option C of three: keep the chance per ship and raise every ship's pay so
 ## a run banks what it did before the chance came in). Set by measurement, not
-## by the 1/0.75 the chance suggests. `-- sim runs=200 seed=777` on 3e47e4d (no
-## reinforcements): the old single payout banked 88 credits a run, and x1.24
-## banks 88. With `packs` (ambushes field their whole pack, as the game does)
-## the old rule banked 78 and x1.10 banks 79, because a pack now pays every
-## ship. Re-measure whenever the mix of pack sizes moves. Never the set pieces:
-## the Hellbender and the custodian are hand-tuned and pay their own numbers.
-const WRECK_CREDIT_SCALE := 1.24
+## by the 1/0.75 the chance suggests, on 3e47e4d (no reinforcements), `-- sim
+## runs=200 seed=777`, two readings:
+##   - `packs` (ambushes field their whole `Router._roll_foes` pack, as the game
+##     does): the old single payout banked 78 credits a run; x1.10 banks 79.
+##   - the sim's default (every fight one ship): the old rule banked 88; x1.24
+##     banks 88, x1.10 about 78.
+## 1.10 is the one chosen, because Jon's goal is the money per run IN THE GAME,
+## and the game's ambushes bring their packs, each ship of which now pays. Two
+## things the default sim gets wrong and that are left for later: it fights an
+## ambush's lead ship alone (hence `packs`), and it plays ambushes with
+## `clears_node` true where `Router.start_ambush` opens them with it false.
+## Re-measure whenever the mix of pack sizes moves. Never the set pieces: the
+## Hellbender and the custodian are hand-tuned and pay their own numbers.
+const WRECK_CREDIT_SCALE := 1.10
 ## Parts one hand can expect from a hull of each kind. The tuning table: an
 ## enemy missing from it gets `WRECK_PARTS_DEFAULT`.
 const WRECK_PARTS := {
