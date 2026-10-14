@@ -49,15 +49,6 @@ static func bake_mix(src: Image, grade: int, looks: Array, seed_in: int = 7, hul
 	img.convert(Image.FORMAT_RGBA8)
 	var r := _Ramps.new(img)
 	var at := places(hull)
-	# ROOM ON TOP FOR THE KIT: the sprites are cut three pixels above their
-	# masts, so an S-grade's taller masts, yards and dish had nowhere to go. A
-	# kit bake is KIT_ROOM rows taller, the hull at the bottom of it, and every
-	# hand placement moves down with it (the caller draws it KIT_ROOM higher).
-	if Look.KIT in looks:
-		var tall := Image.create(img.get_width(), img.get_height() + KIT_ROOM, false, Image.FORMAT_RGBA8)
-		tall.blit_rect(img, Rect2i(Vector2i.ZERO, img.get_size()), Vector2i(0, KIT_ROOM))
-		img = tall
-		at = _moved(at, KIT_ROOM)
 	# the silhouette first, then the yard's paint, the age over it, the marks,
 	# then the lights shining through the grime
 	if Look.KIT in looks:
@@ -327,28 +318,6 @@ static func _finish(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
 # --------------------------------------------------------- the hand placements
 
 const PLACES_PATH := "res://art/hull_grade.json"
-## Rows a kit bake adds above the hull.
-const KIT_ROOM := 14
-
-## A hull's placements moved down `dy` rows (every [x, y, ...] and the dish).
-static func _moved(at: Dictionary, dy: int) -> Dictionary:
-	var out := {}
-	for k in at:
-		var v = at[k]
-		if v is Array and not (v as Array).is_empty() and (v as Array)[0] is Array:
-			var rows: Array = []
-			for e in v:
-				var e2: Array = (e as Array).duplicate()
-				e2[1] = int(e2[1]) + dy
-				rows.append(e2)
-			out[k] = rows
-		elif v is Array and (v as Array).size() >= 2:
-			var e3: Array = (v as Array).duplicate()
-			e3[1] = int(e3[1]) + dy
-			out[k] = e3
-		else:
-			out[k] = v
-	return out
 static var _places: Dictionary = {}
 
 ## A hull's hand-placed spots, or {} when it has none.
@@ -471,119 +440,50 @@ static func _lights(img: Image, r: _Ramps, grade: int, at: Dictionary) -> void:
 
 # ---------------------------------------------------------------------- F  kit
 
-## KIT. The thin things on top -- masts, antennas, the small fittings on the
-## cabin roof: every run of three pixels or narrower above the hull's first
-## broad row (a run of twelve or more). Cut off at C, halved at B, as drawn at
-## A; at S each mast twelve pixels taller, the tallest with two yards and an
-## amber beacon, a radar dish on the roof (`dish`) and the whip antennas the
-## hull's entry adds (`masts`). C keeps one bent stub, so the cut reads as broken
-## off rather than never fitted (Jon: "Can we have kit be more dramatic?").
-## The first cut looked for single-pixel masts with nothing beside them and
-## found one of this hull's, three pixels in all (Jon: "There is no difference
-## between C > S with kit?").
+## KIT. Every thin thing standing proud of the hull's top edge -- masts,
+## antennas, the small fittings on the roof and the nose -- is DETAIL, and the
+## grades take it away: S is the sprite exactly as drawn, A loses the top third
+## of each, B two thirds, C all of it. Nothing is ever drawn, only removed (Jon,
+## Oct 14: "I don't want you to DRAW pixels for S. I want you to remove details
+## towards C"). A thin thing: a column's top pixels while the row's run of
+## opaque pixels through them is three wide or narrower.
 static func _kit(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictionary) -> void:
+	if grade >= 3:
+		return
 	var src := img.duplicate() as Image
 	var w := src.get_width()
 	var h := src.get_height()
-	# the hull's top: the first row with a broad run
-	var body_top := h
+	var keep: float = [0.0, 0.34, 0.67][grade]
+	# every row's run widths, once: each pixel's run, 0 where clear
+	var runs := PackedInt32Array()
+	runs.resize(w * h)
 	for y in h:
-		var run := 0
-		for x in w:
-			run = run + 1 if src.get_pixel(x, y).a > 0.0 else 0
-			if run >= 12:
-				body_top = y
-				break
-		if body_top < h:
-			break
-	# every thin run above it, row by row
-	var thin := {}
-	for y in body_top:
-		var x := 0
-		while x < w:
-			if src.get_pixel(x, y).a <= 0.0:
-				x += 1
+		var x0 := 0
+		while x0 < w:
+			if src.get_pixel(x0, y).a <= 0.0:
+				x0 += 1
 				continue
-			var x1 := x
+			var x1 := x0
 			while x1 < w and src.get_pixel(x1, y).a > 0.0:
 				x1 += 1
-			if x1 - x <= 3:
-				for k in range(x, x1):
-					thin[Vector2i(k, y)] = true
-			x = x1
-	if thin.is_empty():
-		return
-	# each column's kit: from its top down to the hull
-	var cols := {}
-	for p in thin:
-		var c: int = p.x
-		cols[c] = mini(int(cols.get(c, h)), p.y)
-	match grade:
-		0, 1:
-			var stub := -1
-			for c in cols:
-				var top: int = cols[c]
-				var cut := body_top if grade == 0 else top + (body_top - top) / 2
-				for y in range(top, cut):
-					if thin.has(Vector2i(c, y)):
-						img.set_pixel(c, y, Color(0, 0, 0, 0))
-				if stub < 0 or top < int(cols[stub]):
-					stub = c
-			# at C the tallest mast is left as a bent stub, so the cut reads as
-			# broken off rather than never there
-			if grade == 0 and stub >= 0:
-				var mc: Color = src.get_pixel(stub, int(cols[stub]))
-				for k in 4:
-					var y := body_top - 1 - k
-					var x := stub + (k / 2)
-					if y >= 0:
-						img.set_pixel(x, y, mc)
-		3:
-			# every mast eight pixels taller, the tallest with a yard across it
-			# and a beacon, and the whips the hull's entry adds
-			var tallest := -1
-			for c in cols:
-				var top: int = cols[c]
-				var col := src.get_pixel(c, top)
-				for k in range(1, 13):
-					if top - k >= 0:
-						img.set_pixel(c, top - k, col)
-				if tallest < 0 or top < int(cols[tallest]):
-					tallest = c
-			# drawn in a mid grey: the masts' own colour is their near-black outline,
-			# which vanished against space as soon as it stood alone
-			var mast_c: Color = r.grey[int(r.grey.size() * 0.55)]
-			for c in cols:
-				var top: int = cols[c]
-				for k in range(1, 13):
-					if top - k >= 0:
-						img.set_pixel(c, top - k, mast_c)
-			var tip := int(cols[tallest]) - 12
-			# two yards across the tallest
-			for yard in [[tip + 3, 4], [tip + 8, 2]]:
-				for dx in range(-int(yard[1]), int(yard[1]) + 1):
-					if int(yard[0]) >= 0 and not _opaque(img, tallest + dx, int(yard[0])):
-						img.set_pixel(tallest + dx, int(yard[0]), mast_c)
-			# a side-on radar dish on the roof
-			if at.has("dish"):
-				var dx0 := int(at.dish[0])
-				var dy0 := int(at.dish[1])
-				var rim := r.lightest_grey()
-				var dish := ["##....", ".##...", "..####", "...#..", "...#.."]
-				for row in dish.size():
-					for col2 in 6:
-						if dish[row][col2] == "#":
-							var y := dy0 - dish.size() + row
-							if y >= 0 and not _opaque(src, dx0 + col2, y):
-								img.set_pixel(dx0 + col2, y, rim if row == 0 else mast_c)
-			if not r.accent.is_empty() and tip - 1 >= 0:
-				img.set_pixel(tallest, tip - 1, r.light_accent())
-			for m in at.get("masts", []):
-				var mx := int(m[0])
-				for k in int(m[2]):
-					var y := int(m[1]) - k
-					if y >= 0 and not _opaque(src, mx, y):
-						img.set_pixel(mx, y, mast_c)
-				var ty := int(m[1]) - int(m[2])
-				if ty >= 0:
-					img.set_pixel(mx, ty, r.lightest_grey())
+			for k in range(x0, x1):
+				runs[y * w + k] = x1 - x0
+			x0 = x1
+	for x in w:
+		var top := -1
+		for y in h:
+			if src.get_pixel(x, y).a > 0.0:
+				top = y
+				break
+		if top < 0:
+			continue
+		var y := top
+		while y < h and runs[y * w + x] > 0 and runs[y * w + x] <= 3:
+			y += 1
+		var n := y - top
+		if n < 2:
+			continue
+		# cut from the top down, leaving the lower `keep` of it
+		var cut := n - int(round(float(n) * keep))
+		for k in cut:
+			img.set_pixel(x, top + k, Color(0, 0, 0, 0))

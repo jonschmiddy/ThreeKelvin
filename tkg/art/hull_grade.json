@@ -1,5 +1,5 @@
 {
- "_about": "Where HullGrade's placed looks go on each hull, by hand, because finding them in the pixels put them anywhere (Jon, Oct 14: running lights 'random and bad', markings 'the execution is bad', the plate behind the number 'looks bad'). Keyed by the hull's path under art/sprites/hulls/ without .png; coordinates in that picture's own pixels (the full-size file). registry: the top-left of the 3x5 stencilled number, painted straight on a plain panel, and ink 'light' or 'dark' for what reads on that panel. chevrons: the tip of the first S-grade chevron on the nose, [x, y]. windows: [x, y, w, h] panes, aft to fore -- the hull's own dark glass where it has some. nav: [x, y, 'white' | 'amber'], the top-left of a 2x2 light. masts: [x, base_y, height] new whip antennas an S-grade frame carries. dish: [x, y] the bottom-left of a side-on radar dish on the roof at S.",
+ "_about": "Where HullGrade's placed looks go on each hull, by hand, because finding them in the pixels put them anywhere (Jon, Oct 14: running lights 'random and bad', markings 'the execution is bad', the plate behind the number 'looks bad'). Keyed by the hull's path under art/sprites/hulls/ without .png; coordinates in that picture's own pixels (the full-size file). registry: the top-left of the 3x5 stencilled number, painted straight on a plain panel, and ink 'light' or 'dark' for what reads on that panel. chevrons: the tip of the first S-grade chevron on the nose, [x, y]. windows: [x, y, w, h] panes, aft to fore -- the hull's own dark glass where it has some. nav: [x, y, 'white' | 'amber'], the top-left of a 2x2 light.",
  "korvan/hull_medium_a": {
   "registry": [
    202,
@@ -83,22 +83,6 @@
     57,
     "amber"
    ]
-  ],
-  "masts": [
-   [
-    146,
-    26,
-    16
-   ],
-   [
-    262,
-    50,
-    14
-   ]
-  ],
-  "dish": [
-   133,
-   26
   ]
  }
 }
