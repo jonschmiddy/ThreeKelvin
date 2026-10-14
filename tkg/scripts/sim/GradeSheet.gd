@@ -34,7 +34,7 @@ func _run() -> void:
 	var fails := 0
 	for lk in HullGrade.LOOKS:
 		for gi in 4:
-			var img := HullGrade.bake(src, gi, HullGrade.LOOKS[lk])
+			var img := HullGrade.bake(src, gi, HullGrade.LOOKS[lk], 7, "korvan/hull_%s_%s" % [wt, base])
 			img.save_png("%s/%s_%s.png" % [out, lk, grades[gi]])
 			var extra := 0
 			for k in HullWear.palette(img):
@@ -49,7 +49,7 @@ func _run() -> void:
 		for ch in combo:
 			looks.append(HullGrade.LOOKS[StringName(ch)])
 		for gi in 4:
-			var img := HullGrade.bake_mix(src, gi, looks)
+			var img := HullGrade.bake_mix(src, gi, looks, 7, "korvan/hull_%s_%s" % [wt, base])
 			img.save_png("%s/%s_%s.png" % [out, combo, grades[gi]])
 			var extra := 0
 			for k in HullWear.palette(img):

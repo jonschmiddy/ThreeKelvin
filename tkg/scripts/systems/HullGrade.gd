@@ -30,8 +30,8 @@ const AGE := [1.0, 0.55, 0.2, 0.0]
 
 
 ## The graded copy. `grade` 0..3 is C..S. The source is never touched.
-static func bake(src: Image, grade: int, look: int, seed_in: int = 7) -> Image:
-	return bake_mix(src, grade, [look], seed_in)
+static func bake(src: Image, grade: int, look: int, seed_in: int = 7, hull: String = "") -> Image:
+	return bake_mix(src, grade, [look], seed_in, hull)
 
 
 ## More than one look on one hull (Jon: "the combinations of wear using A B and
@@ -39,7 +39,10 @@ static func bake(src: Image, grade: int, look: int, seed_in: int = 7) -> Image:
 ## the yard put on, then the age on top of the paint, then the light falling on
 ## all of it -- and every pass steps along the ramps read off the SOURCE, so a
 ## pass after the paint still knows the amber the paint took away.
-static func bake_mix(src: Image, grade: int, looks: Array, seed_in: int = 7) -> Image:
+## `hull` is the hull's key in art/hull_grade.json ("korvan/hull_medium_a"): the
+## markings and the lights are placed by hand there, and a hull with no entry
+## gets neither.
+static func bake_mix(src: Image, grade: int, looks: Array, seed_in: int = 7, hull: String = "") -> Image:
 	var img := src.duplicate() as Image
 	if img.is_compressed():
 		img.decompress()
@@ -55,9 +58,9 @@ static func bake_mix(src: Image, grade: int, looks: Array, seed_in: int = 7) -> 
 		_wear(img, r, AGE[grade], seed_in)
 	# after the age: the S clean-up wipes lone pixels, and a stencil is made of them
 	if Look.MARKS in looks:
-		_marks(img, r, grade, seed_in)
+		_marks(img, r, grade, seed_in, places(hull))
 	if Look.LIGHTS in looks:
-		_lights(img, r, grade, seed_in)
+		_lights(img, r, grade, places(hull))
 	if Look.FINISH in looks:
 		_finish(img, r, grade, seed_in)
 	return img
@@ -311,6 +314,20 @@ static func _finish(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
 				break
 
 
+# --------------------------------------------------------- the hand placements
+
+const PLACES_PATH := "res://art/hull_grade.json"
+static var _places: Dictionary = {}
+
+## A hull's hand-placed spots, or {} when it has none.
+static func places(hull: String) -> Dictionary:
+	if _places.is_empty() and FileAccess.file_exists(PLACES_PATH):
+		var d = JSON.parse_string(FileAccess.get_file_as_string(PLACES_PATH))
+		if d is Dictionary:
+			_places = d
+	return _places.get(hull, {})
+
+
 # -------------------------------------------------------------------- D  marks
 
 ## A 3x5 stencil for the registry: K, a dash and the digits.
@@ -323,156 +340,161 @@ const STENCIL := {
 	"8": ["111", "1.1", "111", "1.1", "111"], "9": ["111", "1.1", "111", "..1", "111"],
 }
 
-## MARKINGS. A registry stencilled on the flank in the hull's own lightest grey,
-## where the hull is plain enough to take it, and amber chevrons near the nose.
-## C has had its numbers scraped (a few strokes left), B's are faded through a
-## dither, A's are whole, S has them whole and the chevrons too.
-static func _marks(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
-	var box := img.get_used_rect()
-	var text := "K-%d%02d" % [2 + seed_in % 7, (seed_in * 37) % 100]
-	var tw := text.length() * 4 - 1
-	# the plainest 5-row patch on the upper flank (42-58% down the hull, clear
-	# of the nose): most inner pixels, least change from pixel to pixel
-	var best := Vector2i(-1, -1)
-	var best_score := -1.0
-	var y0 := box.position.y + int(box.size.y * 0.42)
-	var y1 := box.position.y + int(box.size.y * 0.58)
-	for y in range(y0, maxi(y0 + 1, y1 - 5)):
-		for x in range(box.position.x + 6, box.end.x - box.size.x / 6 - tw, 2):
-			var ok := 0
-			var calm := 0
-			for dy in 5:
-				for dx in tw:
-					if _inner(img, x + dx, y + dy):
-						ok += 1
-						var c := img.get_pixel(x + dx, y + dy)
-						if key(c) == key(img.get_pixel(x + dx + 1, y + dy)):
-							calm += 1
-			var score := float(ok) + float(calm) * 0.5
-			if ok == 5 * tw and score > best_score:
-				best_score = score
-				best = Vector2i(x, y)
-	if best.x < 0:
+## MARKINGS, on a REGISTRY PLATE where the hull's entry puts it: a light plate
+## with the number stencilled dark on it, so it reads whatever panel it sits on.
+## C has had its plate painted over (a blank patch, a stroke or two showing
+## through), B's is faded through a dither, A's is whole, and S's is whole with
+## two amber chevrons on the nose.
+static func _marks(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictionary) -> void:
+	if not at.has("plate"):
 		return
-	# dark stencil on light metal, light on dark
-	var under := luma(img.get_pixel(best.x + tw / 2, best.y + 2))
-	var ink: Color = r.grey[0] if under > 0.45 else r.lightest_grey()
-	var keep: float = [0.25, 0.55, 1.0, 1.0][grade]
-	var cx := best.x
+	var pr: Array = at.plate
+	var plate := Rect2i(int(pr[0]), int(pr[1]), int(pr[2]), int(pr[3]))
+	var text := "K-%d%02d" % [2 + seed_in % 7, (seed_in * 37) % 100]
+	var fill: Color = r.grey[int(r.grey.size() * 0.72)]
+	var ink: Color = r.grey[0]
+	# the plate, and the number centred on it
+	var stencil := {}
+	var tw := text.length() * 4 - 1
+	var cx := plate.position.x + (plate.size.x - tw) / 2
+	var cy := plate.position.y + (plate.size.y - 5) / 2
 	for ch in text:
 		var glyph: Array = STENCIL.get(ch, STENCIL["-"])
 		for gy in 5:
 			for gx in 3:
-				if String(glyph[gy])[gx] != "1":
-					continue
-				var px := cx + gx
-				var py := best.y + gy
-				var on := true
-				if grade == 0:
-					on = noise(px, py, seed_in + 11) < keep
-				elif grade == 1:
-					on = float(HullWear.BAYER[py % 4][px % 4]) / 16.0 < keep
-				if on:
-					img.set_pixel(px, py, ink)
+				if String(glyph[gy])[gx] == "1":
+					stencil[Vector2i(cx + gx, cy + gy)] = true
 		cx += 4
-	if grade == 3 and not r.accent.is_empty():
-		_chevrons(img, r, box)
-
-
-## Three amber chevrons pointing forward, on the flank behind the nose.
-static func _chevrons(img: Image, r: _Ramps, box: Rect2i) -> void:
-	var amber: Color = r.accent[r.accent.size() / 2]
-	var mid := box.position.y + box.size.y / 2
-	var x0 := box.end.x - box.size.x / 5
-	for k in 3:
-		var x := x0 - k * 6
-		for d in 4:
-			for p in [Vector2i(x + d, mid - 3 + d), Vector2i(x + d, mid + 3 - d),
-					Vector2i(x + d + 1, mid - 3 + d), Vector2i(x + d + 1, mid + 3 - d)]:
-				if _inner(img, p.x, p.y):
-					img.set_pixel(p.x, p.y, amber)
+	for y in range(plate.position.y, plate.end.y):
+		for x in range(plate.position.x, plate.end.x):
+			if not _opaque(img, x, y):
+				continue
+			var p := Vector2i(x, y)
+			var under := img.get_pixel(x, y)
+			var c: Color = ink if stencil.has(p) else fill
+			match grade:
+				0:
+					# painted over: a patch a shade off the hull, a stroke or two showing
+					c = r.step(under, 1)
+					if stencil.has(p) and noise(x, y, seed_in + 11) < 0.2:
+						c = ink
+				1:
+					if float(HullWear.BAYER[y % 4][x % 4]) / 16.0 > 0.6:
+						c = under
+			img.set_pixel(x, y, c)
+	if grade == 3 and at.has("chevrons") and not r.accent.is_empty():
+		var amber: Color = r.accent[r.accent.size() / 2]
+		var tip := Vector2i(int(at.chevrons[0]), int(at.chevrons[1]))
+		for k in 2:
+			var tx := tip.x - k * 6
+			for d in 5:
+				for t in 2:
+					for p in [Vector2i(tx - d - t, tip.y - d), Vector2i(tx - d - t, tip.y + d)]:
+						if _inner(img, p.x, p.y):
+							img.set_pixel(p.x, p.y, amber)
 
 
 # ------------------------------------------------------------------- E  lights
 
-## RUNNING LIGHTS. The hull's own window slots (runs of three or more of its
-## darkest pixels with lighter metal above and below) and its nose light: dead
-## at C, a few lit at B, most at A, every one at S, in the manufacturer's colour.
-static func _lights(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
-	var lit := r.light_accent()
-	var frac: float = [0.0, 0.3, 0.65, 1.0][grade]
-	var w := img.get_width()
-	var h := img.get_height()
-	var src := img.duplicate() as Image
-	var slot := func(x: int, y: int) -> bool:
-		if not _inner(src, x, y):
-			return false
-		var l := luma(src.get_pixel(x, y))
-		return luma(src.get_pixel(x, y - 1)) > l + 0.14 and luma(src.get_pixel(x, y + 1)) > l + 0.14
-	for y in h:
-		var x := 0
-		while x < w:
-			if not slot.call(x, y):
-				x += 1
-				continue
-			var x1 := x
-			while x1 < w and slot.call(x1, y):
-				x1 += 1
-			var n := x1 - x
-			var framed := n >= 2 and n <= 7
-			if framed and noise(x, y, seed_in + 12) < frac:
-				for k in n:
-					img.set_pixel(x + k, y, lit)
-			x = x1
-	if grade >= 2:
-		# the nose light: the hull's forward-most pixel on its middle row
-		var box := src.get_used_rect()
-		var mid := box.position.y + box.size.y / 2
-		for xx in range(box.end.x - 1, box.position.x, -1):
-			if _inner(src, xx, mid):
-				img.set_pixel(xx, mid, lit)
-				break
+## RUNNING LIGHTS where the hull's entry puts them: a row of bridge windows and
+## the nav lights. Dead at C (the windows dark glass, no nav lights); at B a
+## third of the windows and the nose light; at A two thirds and every nav light;
+## at S every window lit. Lit windows are warm, in the manufacturer's colour;
+## the nose is white and the stern amber. Which windows light is fixed by their
+## order (every third dark at A), never rolled.
+static func _lights(img: Image, r: _Ramps, grade: int, at: Dictionary) -> void:
+	var warm := r.light_accent()
+	var glass: Color = r.grey[0]
+	var wins: Array = at.get("windows", [])
+	for i in wins.size():
+		var on := false
+		match grade:
+			1: on = i % 3 == 1
+			2: on = i % 3 != 2
+			3: on = true
+		var c: Color = warm if on else glass
+		for dy in 2:
+			for dx in 2:
+				var x := int(wins[i][0]) + dx
+				var y := int(wins[i][1]) + dy
+				if _opaque(img, x, y):
+					img.set_pixel(x, y, c)
+	if grade == 0:
+		return
+	var navs: Array = at.get("nav", [])
+	for n in navs:
+		var kind := String(n[2])
+		if grade == 1 and kind != "white":
+			continue
+		var x := int(n[0])
+		var y := int(n[1])
+		if _opaque(img, x, y):
+			img.set_pixel(x, y, r.lightest_grey() if kind == "white" else warm)
 
 
 # ---------------------------------------------------------------------- F  kit
 
-## KIT. The thin things on top -- masts and antennas, a pixel or two wide with
-## nothing beside them -- cut off at C and halved at B; at A as drawn; at S
-## four pixels taller each, with an amber beacon on the tallest.
+## KIT. The thin things on top -- masts, antennas, the small fittings on the
+## cabin roof: every run of three pixels or narrower above the hull's first
+## broad row (a run of twelve or more). Cut off at C, halved at B, as drawn at
+## A; at S each mast four pixels taller with an amber beacon on the tallest.
+## The first cut looked for single-pixel masts with nothing beside them and
+## found one of this hull's, three pixels in all (Jon: "There is no difference
+## between C > S with kit?").
 static func _kit(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
 	var src := img.duplicate() as Image
 	var w := src.get_width()
-	var masts: Array = []      ## [x, top, base]
-	for x in w:
-		var top := -1
-		for y in src.get_height():
-			if src.get_pixel(x, y).a > 0.0:
-				top = y
+	var h := src.get_height()
+	# the hull's top: the first row with a broad run
+	var body_top := h
+	for y in h:
+		var run := 0
+		for x in w:
+			run = run + 1 if src.get_pixel(x, y).a > 0.0 else 0
+			if run >= 12:
+				body_top = y
 				break
-		if top < 0:
-			continue
-		var y := top
-		while y < src.get_height() and src.get_pixel(x, y).a > 0.0 \
-				and not _opaque(src, x - 1, y) and not _opaque(src, x + 1, y):
-			y += 1
-		if y - top >= 3:
-			masts.append([x, top, y])
-	if masts.is_empty():
+		if body_top < h:
+			break
+	# every thin run above it, row by row
+	var thin := {}
+	for y in body_top:
+		var x := 0
+		while x < w:
+			if src.get_pixel(x, y).a <= 0.0:
+				x += 1
+				continue
+			var x1 := x
+			while x1 < w and src.get_pixel(x1, y).a > 0.0:
+				x1 += 1
+			if x1 - x <= 3:
+				for k in range(x, x1):
+					thin[Vector2i(k, y)] = true
+			x = x1
+	if thin.is_empty():
 		return
+	# each column's kit: from its top down to the hull
+	var cols := {}
+	for p in thin:
+		var c: int = p.x
+		cols[c] = mini(int(cols.get(c, h)), p.y)
 	match grade:
 		0, 1:
-			for m in masts:
-				var keep := 0 if grade == 0 else (int(m[2]) - int(m[1])) / 2
-				for y in range(int(m[1]), int(m[2]) - keep):
-					img.set_pixel(int(m[0]), y, Color(0, 0, 0, 0))
+			for c in cols:
+				var top: int = cols[c]
+				var cut := body_top if grade == 0 else top + (body_top - top) / 2
+				for y in range(top, cut):
+					if thin.has(Vector2i(c, y)):
+						img.set_pixel(c, y, Color(0, 0, 0, 0))
 		3:
-			var tallest: Array = masts[0]
-			for m in masts:
-				var c := src.get_pixel(int(m[0]), int(m[1]))
+			var tallest := -1
+			for c in cols:
+				var top: int = cols[c]
+				var col := src.get_pixel(c, top)
 				for k in range(1, 5):
-					if int(m[1]) - k >= 0:
-						img.set_pixel(int(m[0]), int(m[1]) - k, c)
-				if int(m[2]) - int(m[1]) > int(tallest[2]) - int(tallest[1]):
-					tallest = m
-			if not r.accent.is_empty() and int(tallest[1]) - 5 >= 0:
-				img.set_pixel(int(tallest[0]), int(tallest[1]) - 5, r.light_accent())
+					if top - k >= 0:
+						img.set_pixel(c, top - k, col)
+				if tallest < 0 or top < int(cols[tallest]):
+					tallest = c
+			if not r.accent.is_empty() and int(cols[tallest]) - 5 >= 0:
+				img.set_pixel(tallest, int(cols[tallest]) - 5, r.light_accent())
