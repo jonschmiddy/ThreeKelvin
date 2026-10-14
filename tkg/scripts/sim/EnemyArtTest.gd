@@ -17,7 +17,7 @@ extends Node
 ##     (in fight order) and through the save;
 ##   - PACKS FIT: the real fight opened on every pair of kinds a fight can
 ##     roll at their widest pictures, every picture beside the widest ship, a
-##     set piece with a reinforcement, the dev flag's three: once the entrance
+##     the dev flag's three: once the entrance
 ##     has landed, every ship where its art actually IS -- inside the view, clear
 ##     of your ship, your ship not moved -- and a lone ship in the middle of the
 ##     enemy half.
@@ -192,7 +192,7 @@ func _wrecks(tree: SceneTree) -> void:
 
 
 ## Every pair a fight can roll, at every combination of pictures of the widest
-## kinds, a set piece with a reinforcement, and three at once: on screen.
+## kinds, and three at once (a set piece is always alone): on screen.
 func _packs(tree: SceneTree) -> void:
 	# every ordered pair of kinds at their widest pictures, and every picture
 	# beside the widest ship there is
@@ -216,8 +216,6 @@ func _packs(tree: SceneTree) -> void:
 	for k in pool:
 		for look in DB.enemy_looks(k):
 			pairs.append([[k, look], [top[0], top[1]]])
-	pairs.append([[&"custodian", 0], [&"marauder", 0]])
-	pairs.append([[&"hellbender", 0], [&"hulk", 0]])
 	pairs.append([[&"marauder", 0], [&"hulk", 0], [&"sentinel", 0]])
 	pairs.append([[&"marauder", 0], [&"hulk", 1], [&"marauder", 1]])
 	pairs.append([[&"whale", 0]])

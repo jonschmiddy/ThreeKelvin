@@ -8,7 +8,9 @@ extends Node
 ## `event`   an Escort event up on LOCAL, Take the contract, THEY ARE FIRING;
 ## `ambush`  a jump into a system where something is waiting: the departure,
 ##           the commit, and the fight that meets you there;
-## `pack`    LOCAL at a system with its place drawn, a fight of three started;
+## `pack`    LOCAL at a system with its place drawn, a fight of three started
+##           (`block=N`: shields up as they come; `kill`: the first killed once
+##           the band has settled);
 ## `end`     a fight already under way, won, lowering into LOCAL (for comparison).
 ## `animate` turns the motion on headless (`Router.animate_in_harness`). Prints
 ## `mark <name> <frame>` (the movie writer's picture numbers are frames drawn)
@@ -130,7 +132,18 @@ func _pack() -> void:
 	_t0 = _t
 	_mark("trigger")
 	Router.start_combat(DB.enemies[&"cutter"], [DB.enemies[&"lancer"], DB.enemies[&"marauder"]], false, false)
+	# `block=N`: every contact opens holding N block (its shield up as it comes)
+	if _arg("block") != "" and Router.combat != null:
+		for e in Router.combat.enemies:
+			e.block = int(_arg("block"))
+		Sig.enemy_changed.emit()
 	await _settle()
+	# `kill`: once the band has settled, the first contact is killed outright
+	# (its breakup plays), and the film runs on a while
+	if "kill" in OS.get_cmdline_user_args() and Router.combat != null:
+		_mark("kill")
+		Router.combat.damage_enemy(9999, 1, "film", Router.combat.enemies[0])
+		await _wait(3.0)
 
 
 ## LOCAL at the core, ENGAGE pressed.

@@ -42,6 +42,8 @@ func _arg(k: String, d: String = "") -> String:
 
 func _ready() -> void:
 	_args = OS.get_cmdline_user_args()
+	if _arg("packlayout") != "":
+		EncounterView.pack_layout = StringName(_arg("packlayout"))
 	_run.call_deferred()
 
 
@@ -103,6 +105,17 @@ func _shoot(tree: SceneTree, ids: Array, out: String) -> Dictionary:
 	for i in range(1, kinds.size()):
 		extras.append(DB.enemies[kinds[i]])
 	var name := "+".join(ids).replace(":", "-") + _arg("tag")
+	# `local` (a pack of one shot's ids): no fight -- each is left at the
+	# system as a wreck, and LOCAL is opened on them, as after a fight
+	if "local" in _args:
+		for i in kinds.size():
+			Run.new_wreck(Run.node_at(), DB.enemies[kinds[i]], maxi(0, int(looks[i])))
+		Router.show_local()
+		for i in int(_arg("wait", "150")):
+			await RenderingServer.frame_post_draw
+		tree.root.get_texture().get_image().save_png("%s/%s.png" % [out, name])
+		GameShell.input_target(tree).get_texture().get_image().save_png("%s/%s_1x.png" % [out, name])
+		return {"name": name, "ids": ids, "local": true}
 	Router.start_combat(DB.enemies[kinds[0]], extras, false, false)
 	var hp := float(_arg("hp", "1"))
 	if Router.combat != null:
@@ -112,6 +125,12 @@ func _shoot(tree: SceneTree, ids: Array, out: String) -> Dictionary:
 				e.look = int(looks[k])
 			if hp < 1.0:
 				e.hp = clampi(int(round(float(e.max_hp) * hp)), 1, e.max_hp)
+			# `dead=0,2`: those ships are already wrecks when the picture is taken
+			if str(k) in _arg("dead").split(","):
+				e.hp = 0
+			# `block=N`: every ship holding N block (its shield up)
+			if _arg("block") != "":
+				e.block = int(_arg("block"))
 			if "tele" in _args:
 				var t: IntentData = null
 				for it in e.template.loop:
@@ -125,14 +144,46 @@ func _shoot(tree: SceneTree, ids: Array, out: String) -> Dictionary:
 		var dir := "%s/%s_clip" % [out, name]
 		DirAccess.make_dir_recursive_absolute(dir)
 		var cb = Router.combat
+		var kill_at := int(_arg("killat", "-1"))
 		for f in film:
-			if f > 0 and f % 45 == 0 and cb != null and not cb.finished:
+			# `killat=F`: the first ship still flying is killed outright on frame F
+			# (its breakup plays)
+			if f == kill_at and cb != null:
+				for e2 in cb.enemies:
+					if e2.hp > 0:
+						cb.damage_enemy(9999, 1, "film", e2)
+						break
+			# a card at the first ship every 45 frames (every 20 before a `killat`,
+			# so its marks are on it when it dies)
+			var every := 20 if kill_at > 0 else 45
+			if f > 0 and f % every == 0 and (kill_at < 0 or f < kill_at) and cb != null and not cb.finished:
 				for i in (cb.hand as Array).size():
 					if cb.can_play(cb.hand[i]):
 						cb.play(i, 0)
 						break
 			await RenderingServer.frame_post_draw
 			gv.get_texture().get_image().save_png("%s/f_%04d.png" % [dir, f])
+			# where every slot and its art stand this frame (`track.jsonl`)
+			var sc2 = Router.current
+			var v2: EncounterView = sc2.get("_view") if sc2 != null else null
+			if v2 != null:
+				var row := {"f": f, "slots": []}
+				var k := 0
+				while v2.slot(k) != null:
+					var sl: EnemySlot = v2.slot(k)
+					var ag := sl.art.get_global_transform() * Vector2.ZERO
+					row.slots.append([k, sl.get_global_rect().position.x, sl.get_global_rect().position.y,
+						ag.x, ag.y, sl.size.x, sl.size.y, sl.art.self_modulate.a, str(sl.get("_art_holder").size), str(sl._art_base), str(sl.art.custom_minimum_size), str(sl.art.ink_rect()), str(sl.art.used_rect())])
+					k += 1
+				var bk: Array = []
+				for c in v2.get_children():
+					if c is ShipBreakup:
+						bk.append([(c as Control).global_position.x, (c as Control).global_position.y])
+				row["breakups"] = bk
+				var tf := FileAccess.open("%s/track.jsonl" % dir, FileAccess.READ_WRITE if FileAccess.file_exists("%s/track.jsonl" % dir) else FileAccess.WRITE)
+				tf.seek_end()
+				tf.store_line(JSON.stringify(row))
+				tf.close()
 		return {"name": name, "ids": ids, "film": film}
 	for i in int(_arg("wait", "150")):
 		await RenderingServer.frame_post_draw
@@ -169,10 +220,20 @@ func _shoot(tree: SceneTree, ids: Array, out: String) -> Dictionary:
 		var sg := sv.get_global_rect()
 		rec["you"] = [sg.position.x + sr.position.x, sg.position.y + sr.position.y, sr.size.x, sr.size.y]
 		var vr := view.get_global_rect()
-		var sl: HBoxContainer = view.get("_slots")
+		var sl: Control = view.get("_slots")
 		var gr := sl.get_global_rect()
-		rec["slots"] = [gr.position.x, gr.size.x, sl.get_theme_constant("separation"), view._pack_room(),
-			(view.get("_row") as Control).size.x]
+		var ar: Rect2 = view._pack_area()
+		rec["slots"] = [gr.position.x, gr.size.x, String(EncounterView.pack_layout), gr.position.x + ar.position.x, ar.size.x]
+		var boxes: Array = []
+		var k := 0
+		while view.slot(k) != null:
+			for b in view.slot(k).boxes():
+				var r: Rect2 = b[1]
+				boxes.append([k, String(b[0]), r.position.x, r.position.y, r.size.x, r.size.y])
+			k += 1
+		for r: Rect2 in view.player_boxes():
+			boxes.append([-1, "you", r.position.x, r.position.y, r.size.x, r.size.y])
+		rec["boxes"] = boxes
 		rec["view"] = [vr.position.x, vr.position.y, vr.size.x, vr.size.y]
 		gv.get_texture().get_image().save_png("%s/%s_1x.png" % [out, name])
 	tree.root.get_texture().get_image().save_png("%s/%s.png" % [out, name])

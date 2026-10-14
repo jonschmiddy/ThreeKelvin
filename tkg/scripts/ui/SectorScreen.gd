@@ -338,6 +338,7 @@ func setup(c: Combat = null) -> void:
 			# pitch-shifted, but in the render, before the flame was cut in.
 			# The ship waits out the drive's lead-in here too, or the clip's coughs
 			# would land ARRIVE_LEAD_S after the flame's.
+			_hold_outline()
 			Audio.play(art.arrive(2, ShipView.ARRIVE_LEAD_S), 0.0)
 
 
@@ -473,6 +474,7 @@ func _commit(skipped: bool) -> void:
 ## The system announcing itself, then the ship arriving into it.
 func _begin_arrive() -> void:
 	_phase = Phase.ARRIVE
+	_hold_outline()
 	_cine_sfx.clear()
 	_shut_drawer()
 	var art := _view.ship_view()
@@ -646,6 +648,9 @@ func _build() -> void:
 	# cinematic's parked one. Asked again every time the view is re-laid out.
 	_view.resized.connect(_sync_bleed)
 	_build_self_plate()
+	# YOUR IDLE, HEARD: this is the one view of your ship whose idle flame has
+	# a sound (`ShipView.hums`), on LOCAL and in fights alike.
+	_view.ship_view().hums = true
 	_view.fx.landed.connect(_on_shot_landed)
 	_view.fx.volley_landed.connect(_on_volley_landed)
 	_view.death_style = _death_style
@@ -2184,24 +2189,17 @@ func _refresh_enemy() -> void:
 				Color("#3a4a6e"), "BLOCK\n\nStops %d damage this turn." % e.block))
 
 	_view.show_enemies(combat.enemies, _on_card_dropped, _on_slot_hovered)
-	# SOMETHING JOINED. "answers the call" went only to the log, which a fight
-	# does not show; the newcomer's name is said over it as it arrives.
-	if _foes_seen > 0 and combat.enemies.size() > _foes_seen and _view.fx != null:
-		for i in range(_foes_seen, combat.enemies.size()):
-			var who := i
-			var tw := create_tween()
-			tw.tween_interval(EnemySlot.ENTER_SECS)
-			tw.tween_callback(func() -> void:
-				if _view != null and _view.fx != null and who < combat.enemies.size():
-					_view.fx.pop(_pop_at(false, who),
-						"%s JOINS" % combat.enemies[who].template.name.to_upper(), UITheme.THEM, false))
+	# Each ship's wreck cut ahead of its death, at the size its pack draws it
+	# (a pack of three or more is drawn from half sheets; `EnemyArt.draw_scale`).
 	for i2 in range(_foes_seen, combat.enemies.size()):
-		EnemyArt.warm_wreck(combat.enemies[i2], _death_style(i2))
+		var sl2 := _view.slot(i2)
+		EnemyArt.warm_wreck(combat.enemies[i2], _death_style(i2),
+			sl2.art.draw_scale if sl2 != null and sl2.art != null else 1.0)
 	_foes_seen = combat.enemies.size()
 	for i3 in combat.enemies.size():
 		_fx_sync_enemy(i3)
 
-## How many contacts this screen has drawn, so a newcomer can be announced.
+## How many contacts this screen has drawn (each one's wreck is warmed once).
 var _foes_seen := 0
 
 func _refresh_hand() -> void:
@@ -2420,6 +2418,12 @@ var _cutaway: CutawayView = null
 ## How many clicks on your ship were refused with the thud (for `-- cutawaytest`).
 var denied_clicks := 0
 var _ship_outline: CutawayView.Outline = null
+## WHERE THE POINTER WAS WHEN THE SHIP ARRIVED UNDER IT, or INF. A ship coming
+## to rest under a pointer nobody moved is not being pointed at: the outline
+## lit there the instant the arrival ended (Jon, Oct 13: "the ship is
+## highlighted... No highlight"). Held until the pointer moves off this spot
+## or clicks; then the hover works as it always did.
+var _still_pointer := Vector2.INF
 
 
 func _hook_cutaway() -> void:
@@ -2439,6 +2443,14 @@ func _hook_cutaway() -> void:
 		slot.mouse_default_cursor_shape = Control.CURSOR_ARROW)
 
 
+## An arrival is starting: whatever the pointer is resting on when the ship
+## parks under it is not a hover (`_still_pointer`).
+func _hold_outline() -> void:
+	_still_pointer = Vector2(DisplayServer.mouse_get_position())
+	if _ship_outline != null:
+		_ship_outline.visible = false
+
+
 ## Whether your ship can be opened up now: out of a fight, not mid-jump, alive.
 func cutaway_ready() -> bool:
 	return not fighting() and _phase == Phase.NONE and not Run.dead 		and _cutaway == null and Run.hull != null and _transfer == null
@@ -2451,7 +2463,11 @@ func _on_own_ship_input(e: InputEvent) -> void:
 	# harness pushes clicks without moving a pointer)
 	var mev := e as InputEventMouse
 	var at := (art.get_global_transform().affine_inverse() * (slot.get_global_transform() * mev.position)) 		if mev != null else art.get_local_mouse_position()
-	if not cutaway_ready():
+	var mpos := Vector2(DisplayServer.mouse_get_position())
+	var press0 := e as InputEventMouseButton
+	if _still_pointer != Vector2.INF and (mpos.distance_to(_still_pointer) >= 1.0 			or (press0 != null and press0.pressed)):
+		_still_pointer = Vector2.INF
+	if not cutaway_ready() or _still_pointer != Vector2.INF:
 		# NOT PRESSABLE NOW -- a fight, an arrival, a screen up over LOCAL -- so it
 		# does not look it (no outline, no hand), and a click on it is the thud a
 		# button that cannot be pressed makes (Jon: "the same thud sound when you
@@ -4040,6 +4056,7 @@ func _raise_band() -> void:
 	if from <= 0.0:
 		from = minf(_one_line_height(), float(DRAWER_H))
 	from = roundf(from * 0.5) * 2.0
+	_view.band_left = _band_still_to_come
 	_open_row_eased()
 	# WHAT LOCAL SHOWED GOES BEFORE THEY COME: an event's subject or the
 	# place's picture fades with LOCAL's line, and the contacts fly in once it
@@ -4121,6 +4138,16 @@ func _pin_ship() -> void:
 
 
 ## The band is up: the cards are dealt and the hand is yours.
+## How much the hand's band has still to grow while a fight opens, measured
+## off the band as it is laid out (the pack plans in the arena it will have:
+## `EncounterView.band_left`).
+func _band_still_to_come() -> float:
+	if not _raising:
+		return 0.0
+	var now := _hand_holder.size.y if _hand_holder.visible else _quiet_holder.size.y
+	return maxf(0.0, float(DRAWER_H) - now)
+
+
 func _band_up() -> void:
 	_raise_tw = null
 	_raising = false
@@ -4468,13 +4495,19 @@ func _pop_at(to_player: bool, who: int, lines: int = 1) -> Vector2:
 	# NO ROOM ABOVE (a ship high in a pack, its words close under the HUD): the
 	# stack goes on the hull instead, centred on its ink, and the ship's words
 	# step back while the numbers are up rather than be written over.
-	if not to_player and at.y - _pop_reach(lines) < _pop_limit():
+	if not to_player and at.y - _pop_reach(lines) < _pop_limit(who, ink):
 		var mid := ink.get_center()
 		at = Vector2(mid.x, mid.y + HitText.CAP * 0.5 + float(maxi(lines, 1) - 1) * HitText.LINE * 0.5).round()
 		var sl2 := _view.slot(who)
+		# a stack taller than a thin hull (a Lancer from a half sheet) lifted
+		# clear of the ship's own name and bars, into the words' stepped-back room
+		var plate := sl2.readout_rect_global() if sl2 != null else Rect2()
+		if plate.size.y > 0.0:
+			var inv2 := _view.fx.get_global_transform().affine_inverse()
+			at.y = minf(at.y, (inv2 * plate.position).y - 3.0)
 		if sl2 != null:
 			sl2.hush_intent(1.15)
-	return _pop_room(at, lines)
+	return _pop_room(at, lines, -1 if to_player else who, ink)
 
 
 ## How far above its baseline a stack of `lines` pops reaches, risen.
@@ -4483,19 +4516,47 @@ func _pop_reach(lines: int) -> float:
 
 
 ## The top of the fight in the fx layer: under the HUD.
-func _pop_limit() -> float:
+## How high a number may rise: under the HUD, and -- for a ship in a pack's
+## front rank -- under whatever ship stands behind and above it in the
+## formation (its words, hull and plate, wherever they come over the
+## numbers' width: the ship behind is set into the front ships' shoulders,
+## `EncounterView._pack_shoulders`), so a landed number never runs into the
+## rank behind. `ink` is the hull's ink in the fight layer's coordinates.
+func _pop_limit(who: int = -1, ink: Rect2 = Rect2()) -> float:
 	var inv := _view.fx.get_global_transform().affine_inverse()
 	var top_g := _view.get_global_rect().position.y
 	if Router.hud != null and Router.hud.is_visible_in_tree():
 		top_g = maxf(top_g, Router.hud.get_global_rect().end.y)
+	if who >= 0 and ink.size.x > 0.0:
+		var fxg := _view.fx.get_global_transform()
+		# as wide as the numbers' widest line, centred on the ink
+		var wide := maxf(ink.size.x, HitText.ink_width("BLOCKED 99") + 2.0)
+		var span := Rect2(fxg * Vector2(ink.get_center().x - wide * 0.5, ink.position.y), Vector2(wide, ink.size.y))
+		var mine := _view.slot(who)
+		var k := 0
+		while _view.slot(k) != null:
+			var other := _view.slot(k)
+			if other != mine and other.visible and mine != null \
+					and other.get_global_rect().position.y < mine.get_global_rect().position.y - 0.5:
+				var oi := other.ink_rect()
+				var parts: Array[Rect2] = [other.intent_rect_global(), other.readout_rect_global(),
+					Rect2(other.get_global_rect().position + oi.position, oi.size)]
+				# and its shield's oval, up or not
+				for p in other.rooms(other.art.draw_scale):
+					if p[0] == &"oval":
+						parts.append(Rect2(other.get_global_rect().position + (p[1] as Rect2).position, (p[1] as Rect2).size))
+				for g in parts:
+					if g.size.x > 0.0 and g.position.x < span.end.x and g.end.x > span.position.x:
+						top_g = maxf(top_g, g.end.y)
+			k += 1
 	return (inv * Vector2(0.0, top_g)).y + 2.0
 
 
 ## ON SCREEN: a stack of `lines` pops from `at`, risen, stays under the top of
 ## the fight (a ship sitting high in a pack would put its numbers under the HUD).
 ## Moved down only as far as it has to be.
-func _pop_room(at: Vector2, lines: int) -> Vector2:
-	var limit := _pop_limit()
+func _pop_room(at: Vector2, lines: int, who: int = -1, ink: Rect2 = Rect2()) -> Vector2:
+	var limit := _pop_limit(who, ink)
 	_view.fx.pop_top = limit
 	var reach := _pop_reach(lines)
 	if at.y - reach < limit:
@@ -4519,6 +4580,15 @@ func _hull_ink(to_player: bool, who: int) -> Rect2:
 	var art := _view.enemy_view(who)
 	if art == null:
 		return Rect2(_view.enemy_anchor(who), Vector2.ZERO)
+	# WHERE THE SHIP STANDS AT REST (`EnemySlot.ink_rect`: the sprite's ink,
+	# without a wind-up's glow), not where its entry slide, a hit's shake or
+	# the bob has it this frame: a number landing as a pack flies in was put
+	# where the ship was mid-slide, over its neighbour's words.
+	var sl := _view.slot(who)
+	if sl != null:
+		var ink := sl.ink_rect()
+		var at := sl.get_global_transform() * ink.position
+		return Rect2(inv * at, ink.size)
 	var u := art.used_rect()
 	var tl := art.get_global_rect().position + (art.size - _canvas_size(art)) * 0.5
 	return Rect2(inv * (tl + Vector2(u.position)), Vector2(u.size))
@@ -4703,8 +4773,9 @@ func _prebuild_death(who: int) -> void:
 	var e: Combat.EnemyState = combat.enemies[who]
 	# Cut from the ship drawn dead, so the breakup's last frame IS the wreck the
 	# slot and LOCAL draw afterwards (see EnemyArt.dead_canvas) -- with the marks
-	# its fight left on it, and its wreck cut from the same picture.
-	var dc := EnemyArt.dead_canvas(e, _enemy_marks(who))
+	# its fight left on it, its wreck cut from the same picture, at the size the
+	# pack draws it (a pack of three or more from half sheets).
+	var dc := EnemyArt.dead_canvas(e, _enemy_marks(who), sl.art.draw_scale)
 	var img: Image = dc[0]
 	var used: Rect2i = dc[1]
 	var seed := EnemyArt.wreck_seed(e.template)
@@ -4718,7 +4789,7 @@ func _prebuild_death(who: int) -> void:
 		held.b = b
 		if marked:
 			held.w = ShipBreakup.wreck_image(img, used, seed, boss, style))
-	_prebuilt[who] = {task = task, held = held}
+	_prebuilt[who] = {task = task, held = held, scale = sl.art.draw_scale}
 
 
 ## How long a creature winds up before its shot leaves.
@@ -4746,7 +4817,7 @@ func _start_death(who: int) -> void:
 	# still the wreck with its marks.
 	if not Router.animating():
 		if mk != null:
-			var dc0 := EnemyArt.dead_canvas(e, mk)
+			var dc0 := EnemyArt.dead_canvas(e, mk, art.draw_scale)
 			EnemyArt.set_marked_wreck(_wreck_id_of(who), _death_style(who), ShipBreakup.wreck_image(dc0[0], dc0[1],
 				EnemyArt.wreck_seed(e.template), e.template.boss, _death_style(who)))
 		sl.hide_art(false)
@@ -4758,12 +4829,14 @@ func _start_death(who: int) -> void:
 		var pre: Dictionary = _prebuilt[who]
 		_prebuilt.erase(who)
 		WorkerThreadPool.wait_for_task_completion(pre.task)
-		b = pre.held.b
-		if pre.held.w != null:
-			EnemyArt.set_marked_wreck(_wreck_id_of(who), _death_style(who), pre.held.w)
+		# cut at the size the ship is drawn now (`EnemyArt.draw_scale`)
+		if is_equal_approx(float(pre.get("scale", 1.0)), art.draw_scale):
+			b = pre.held.b
+			if pre.held.w != null:
+				EnemyArt.set_marked_wreck(_wreck_id_of(who), _death_style(who), pre.held.w)
 	if b == null:
 		b = ShipBreakup.new()
-		var dc := EnemyArt.dead_canvas(e, mk)
+		var dc := EnemyArt.dead_canvas(e, mk, art.draw_scale)
 		b.setup(dc[0], dc[1], Vector2.ZERO, _death_style(who),
 			EnemyArt.wreck_seed(e.template), e.template.boss)
 		if mk != null:
@@ -4774,12 +4847,16 @@ func _start_death(who: int) -> void:
 	_view.add_child(b)
 	# Under the shots and the numbers, over everything else.
 	_view.move_child(b, _view.fx.get_index())
-	var canvas := art.get_global_rect().position \
-		+ (art.size - _canvas_size(art)) * 0.5
+	# WHERE THE SHIP STANDS AT REST, not where a hit's shake or the bob has it
+	# this frame: the canvas's corner at the art's resting place in its holder.
+	# The breakup then rides the bob from that rest, and hands back to the
+	# wreck drawn at that same rest, pixel for pixel.
+	var rest := sl.holder_rect().position + sl._art_base
+	var canvas := rest + (art.size - _canvas_size(art)) * 0.5
 	var base := (_view.get_global_transform().affine_inverse() * canvas).round()
-	b.position = base
+	b.position = base + Vector2(0, roundf(art.position.y - sl._art_base.y))
 	sl.hide_art(true)
-	var entry := {b = b, art = art, y0 = art.position.y, base = base}
+	var entry := {b = b, art = art, y0 = sl._art_base.y, base = base}
 	_breakups.append(entry)
 	# SOUND ON EACH VISIBLE BREAK, never on the resolution (Jon's rule). The
 	# death styles' own sounds are not made yet: `moment` names every event a

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dvry2oynirkcw"
-path="res://.godot/imported/custodian_tetra.png-bccb05d61211ab99036189c705646073.ctex"
+uid="uid://b8d53h4g1aw11"
+path="res://.godot/imported/lancer_gp_barrel_half.png-eaaac6a55885e4d5d789ed03c4d53bea.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/sprites/enemies/custodian_tetra.png"
-dest_files=["res://.godot/imported/custodian_tetra.png-bccb05d61211ab99036189c705646073.ctex"]
+source_file="res://art/sprites/enemies/lancer_gp_barrel_half.png"
+dest_files=["res://.godot/imported/lancer_gp_barrel_half.png-eaaac6a55885e4d5d789ed03c4d53bea.ctex"]
 
 [params]
 
