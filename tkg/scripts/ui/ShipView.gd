@@ -1718,6 +1718,40 @@ func _thrust_now() -> int:
 	return ThrusterFx.Thrust.IDLE
 
 
+## YOUR ENGINES AT IDLE, HEARD (Jon, Oct 13: "Let's have a low burn sound for
+## the idle engines"). Set on ONE view: your ship on LOCAL and in fights
+## (`SectorScreen`). Every other ship idles in silence -- a pack of enemies, a
+## convoy and you each with a bed would be mud -- and so does your ship on the
+## screens that only show it (the refit, the transfer). `Audio` keeps the view
+## and asks `idle_heard()` every frame; the sound follows the picture, so
+## nothing here starts or stops it.
+var hums := false:
+	set(v):
+		hums = v
+		if v:
+			Audio.idle_from(self)
+
+
+## Whether the idle bed should be sounding for this view right now: it hums,
+## it is drawn, the hull is on screen, and its flame is the IDLE. An arrival's
+## coughs after its clean burn count as idle too: the drive is settling into
+## the idle there and the coughs are flashes over it, so the bed comes up in
+## the first gap and stays up rather than pumping with each flash (its fade is
+## longer than a cough). The clean burn, a departure's FULL and a hyperdrive's
+## dark (`_engines_off`) are not.
+func idle_heard() -> bool:
+	if not hums or not is_inside_tree() or not is_visible_in_tree():
+		return false
+	var th := _thrust_now()
+	var settling := _arrive_at >= 0 and _arrive_window >= 1 and th >= 0
+	if th != ThrusterFx.Thrust.IDLE and not settling:
+		return false
+	var h := hull_rect()
+	var xf := get_global_transform()
+	var r := Rect2(xf * h.position, Vector2.ZERO).expand(xf * h.end)
+	return r.intersects(get_viewport_rect())
+
+
 ## THE ARRIVAL SPUTTERS DOWN TO THE IDLE; IT NEVER GOES OUT (Jon, Oct 13: "I
 ## don't want the engines to turn off... I just want them to sputter to an
 ## idle"). `window` is the FLAMEOUTS window the approach is in, or -1 between

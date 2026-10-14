@@ -263,6 +263,10 @@ var _rduck: float = 1.0
 ## builds it and prints its own seam and level checks on every run.
 
 func _ready() -> void:
+	# the idle bed decides on a headless run too, so a test can read it
+	_idle_clock = IdleClock.new()
+	_idle_clock.audio = self
+	add_child(_idle_clock)
 	# The balance sim boots the whole project so the autoloads exist. It runs
 	# hundreds of combats with no window and no audio device, and loading 36 MB
 	# of streams for it would be pure cost. Same guard Main.gd uses.
@@ -1203,6 +1207,94 @@ func ship_thrust_off() -> void:
 	_ship_level = 0.0
 	if _ship_loop != null and _ship_loop.volume_db > -79.0:
 		create_tween().tween_property(_ship_loop, "volume_db", -80.0, 0.1)
+
+
+# ---------------------------------------------------------------- the idle
+## YOUR ENGINES AT IDLE, HEARD (Jon, Oct 13: "Let's have a low burn sound for
+## the idle engines"). A bed you notice when it stops: it plays exactly while
+## your ship's idle flame is on screen and fades with it. The view that is your
+## ship on LOCAL and in fights (`ShipView.hums`) hands itself in, and this asks
+## it every frame (`ShipView.idle_heard`) -- the same reasoning as the duck in
+## `_process`: a fact about the picture, read each frame, cannot miss an edge.
+## So the arrival's clean burn is the clip alone and the bed comes up under the
+## first gap after it; a hyperdrive's dark, a departure, a screen without your
+## ship (or a view freed with its screen) all take it down the same way.
+##
+## THREE BEDS UNTIL JON PICKS ONE (`audio/idle_bed.py` makes them, from audio
+## already in the game, and says how each loop is made seamless):
+##   a  the map's thrust loop pitched down a fourth and low-passed: a soft low rumble
+##   b  the heavy arrival's calmest clean burn, re-cut: darker, breathier
+##   c  the thrust loop an octave down, in uneven puffs at the flame's 8 a second
+static var idle_look: StringName = &"a"
+const IDLE_LOOPS: Dictionary = {&"a": &"ship_idle_a", &"b": &"ship_idle_b", &"c": &"ship_idle_c"}
+## Where each bed sits, measured, not guessed. All three are mastered to -20 dBFS
+## RMS; the trims level them to each other by loudness (c is sparse and measured
+## 1.2 LU quieter), and IDLE_DB puts them at -40 LUFS as heard: 12 LU under the
+## map's thrust loop as it is heard (SHIP_DB at 0.7, -28 LUFS), about 7 under a
+## UI click's 400 ms loudness (-33) and 20 under a hit on your hull (-20).
+const IDLE_DB := -17.0
+const IDLE_TRIM: Dictionary = {&"a": 0.0, &"b": 0.0, &"c": 1.2}
+## In and out over the same 0.3 s: long enough that the bed never steps, short
+## enough that it is gone with the flame.
+const IDLE_FADE_S := 0.3
+var _idle_src: WeakRef = null
+var _idle_player: AudioStreamPlayer = null
+## What the picture says this frame, and the fade toward it (0..1). Kept on a
+## headless run too, where no sound exists, so a test can read the decision.
+var idle_want := false
+var idle_level := 0.0
+
+
+## AFTER THE PICTURE, NOT BEFORE IT. This autoload processes ahead of every
+## screen, so asking the view from `_process` read the frame before: the bed
+## came up a frame after the flame dropped to the idle (`-- sheet=IdleSoundTest`
+## caught it). Its own node, last in the frame, reads the frame being drawn.
+class IdleClock extends Node:
+	var audio: Node
+	func _init() -> void:
+		process_priority = 1000
+		process_mode = Node.PROCESS_MODE_ALWAYS
+	func _process(delta: float) -> void:
+		audio.call(&"_tick_idle", delta)
+var _idle_clock: Node = null
+
+
+## The view whose idle flame is heard. One at a time; the newest wins.
+func idle_from(view: Node) -> void:
+	_idle_src = weakref(view) if view != null else null
+
+
+func _tick_idle(delta: float) -> void:
+	var v: Node = _idle_src.get_ref() as Node if _idle_src != null else null
+	idle_want = v != null and is_instance_valid(v) and v.has_method(&"idle_heard") \
+			and bool(v.call(&"idle_heard"))
+	idle_level = move_toward(idle_level, 1.0 if idle_want else 0.0, delta / IDLE_FADE_S)
+	if not _enabled:
+		return
+	var name: StringName = IDLE_LOOPS.get(idle_look, IDLE_LOOPS[&"a"])
+	if _idle_player == null:
+		if idle_level <= 0.0 or not ResourceLoader.exists(SFX_PATH % name):
+			return
+		_idle_player = AudioStreamPlayer.new()
+		_idle_player.bus = &"SFX"
+		# HELD WITH THE GAME: the bed is part of the picture, so a paused tree
+		# pauses it where it is. (Nothing pauses the tree today -- the escape
+		# menu overlays a turn-based game -- and the flame keeps drawing behind
+		# it, so the bed keeps playing there too.)
+		_idle_player.process_mode = Node.PROCESS_MODE_PAUSABLE
+		_idle_player.volume_db = -80.0
+		add_child(_idle_player)
+	if _idle_player.get_meta(&"loop", &"") != name:
+		# a look swapped mid-run starts its own loop from its head, at the
+		# level the fade is at, rather than holding the old one
+		_idle_player.stream = load(SFX_PATH % name)
+		_idle_player.set_meta(&"loop", name)
+		_idle_player.play()
+	elif not _idle_player.playing:
+		_idle_player.play()
+	var g := idle_level * _duck
+	_idle_player.volume_db = -80.0 if g < 0.002 \
+			else IDLE_DB + float(IDLE_TRIM.get(idle_look, 0.0)) + linear_to_db(g)
 
 
 func _ship_player() -> AudioStreamPlayer:

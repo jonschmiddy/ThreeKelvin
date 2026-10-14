@@ -599,6 +599,23 @@ else
 	bad "arriveidletest did not finish"
 fi
 
+step "Your idle engines are heard exactly while the idle flame is seen"
+# Jon, Oct 13: "Let's have a low burn sound for the idle engines". Audio is off
+# headless, but its decision (`Audio.idle_want`) and fade are not: silent
+# through the arrival's clean burn, up from the first gap, full when parked;
+# down in a hyperdrive's dark, a departure, hidden or off screen; heard in a
+# fight; silent on the chart and the refit; one view only, yours.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot idlesoundtest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=IdleSoundTest; then
+	if grep -qE '^idlesoundtest: PASS' "$LOG_DIR/idlesoundtest.log"; then
+		ok "the idle bed follows the idle flame"
+	else
+		bad "the idle bed does not follow the idle flame"
+		grep -E 'FAIL|^idlesoundtest' "$LOG_DIR/idlesoundtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "idlesoundtest did not finish"
+fi
+
 step "Jon's welcome note: once per profile, and on the title menu"
 # Opens by itself on a fresh profile's title, word for word and inside the
 # screen; marked seen only when CLOSED; never again after; MESSAGE FROM JON
