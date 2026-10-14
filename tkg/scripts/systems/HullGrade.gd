@@ -395,47 +395,110 @@ static func _marks(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictiona
 ## so the light spills without a colour the sprite does not have. Which panes
 ## light is fixed by their order, never rolled.
 static func _lights(img: Image, r: _Ramps, grade: int, at: Dictionary) -> void:
-	var warm := r.light_accent()
 	var glass: Color = r.grey[0]
 	var wins: Array = at.get("windows", [])
+	var amb := r.accent
 	for i in wins.size():
-		var on := false
-		match grade:
-			1: on = i % 3 == 1
-			2: on = i % 3 != 2
-			3: on = true
+		var on := _lit(i, grade)
 		var w: Array = wins[i]
+		var ww := int(w[2])
 		for dy in int(w[3]):
-			for dx in int(w[2]):
+			for dx in ww:
 				var x := int(w[0]) + dx
 				var y := int(w[1]) + dy
-				if _opaque(img, x, y):
-					img.set_pixel(x, y, warm if on else (glass if grade == 0 else img.get_pixel(x, y)))
+				if not _opaque(img, x, y):
+					continue
+				if not on:
+					if grade == 0:
+						img.set_pixel(x, y, glass)
+					continue
+				# a lit pane is brightest in its middle, deeper amber at its ends
+				var edge := dx == 0 or dx == ww - 1
+				var c: Color = amb[amb.size() - 1] if not edge or ww <= 2 else amb[maxi(0, amb.size() - 3)]
+				img.set_pixel(x, y, c)
 	if grade == 0:
 		return
 	for nv in at.get("nav", []):
-		var kind := String(nv[2])
-		if grade == 1 and kind != "white":
+		if not _nav_on(String(nv[2]), grade):
 			continue
-		var c: Color = r.lightest_grey() if kind == "white" else warm
-		var x0 := int(nv[0])
-		var y0 := int(nv[1])
-		# the glow first, one and two pixels out, then the light itself
-		for dy in range(-2, 4):
-			for dx in range(-2, 4):
-				var x := x0 + dx
-				var y := y0 + dy
-				if not _opaque(img, x, y):
-					continue
-				var ring := maxi(maxi(-dx, dx - 1), maxi(-dy, dy - 1))
-				if ring == 1:
-					img.set_pixel(x, y, r.step(img.get_pixel(x, y), 2))
-				elif ring == 2 and grade == 3:
-					img.set_pixel(x, y, r.step(img.get_pixel(x, y), 1))
+		var c: Color = r.lightest_grey() if String(nv[2]) == "white" else r.light_accent()
 		for dy in 2:
 			for dx in 2:
-				if _opaque(img, x0 + dx, y0 + dy):
-					img.set_pixel(x0 + dx, y0 + dy, c)
+				if _opaque(img, int(nv[0]) + dx, int(nv[1]) + dy):
+					img.set_pixel(int(nv[0]) + dx, int(nv[1]) + dy, c)
+
+
+## Which panes light at a grade: fixed by their order, never rolled.
+static func _lit(i: int, grade: int) -> bool:
+	match grade:
+		1: return i % 3 == 1
+		2: return i % 3 != 2
+		3: return true
+	return false
+
+
+static func _nav_on(kind: String, grade: int) -> bool:
+	return grade >= 2 or (grade == 1 and kind == "white")
+
+
+## THE GLOW, which the bake cannot make: a light is brighter than any colour the
+## hull has, so it is a separate layer added over the hull where it is drawn
+## (ThrusterFx.add_material, the flames' own blend), the one thing here off the
+## palette, as a flame is. Three stepped rings round every lit pane and nav
+## light, pixel-sharp, fading out; a hull with no entry gets none. `dy` moves it
+## with a bake that moved the hull. Jon: "The lights look just like rectangular
+## pixels."
+const GLOW := [0.55, 0.28, 0.12]
+static func light_layer(size: Vector2i, grade: int, hull: String) -> Image:
+	var out := Image.create(size.x, size.y, false, Image.FORMAT_RGBAF)
+	var at := places(hull)
+	if grade == 0 or at.is_empty():
+		return out
+	var warm := Color(1.0, 0.72, 0.32)
+	var white := Color(0.95, 0.97, 1.0)
+	var spots: Array = []      ## [rect, colour]
+	var wins: Array = at.get("windows", [])
+	for i in wins.size():
+		if _lit(i, grade):
+			var w: Array = wins[i]
+			spots.append([Rect2i(int(w[0]), int(w[1]), int(w[2]), int(w[3])), warm])
+	for nv in at.get("nav", []):
+		if _nav_on(String(nv[2]), grade):
+			spots.append([Rect2i(int(nv[0]), int(nv[1]), 2, 2), white if String(nv[2]) == "white" else warm])
+	for sp in spots:
+		var rc: Rect2i = sp[0]
+		var col: Color = sp[1]
+		var reach := GLOW.size()
+		for y in range(rc.position.y - reach, rc.end.y + reach):
+			for x in range(rc.position.x - reach, rc.end.x + reach):
+				if x < 0 or y < 0 or x >= size.x or y >= size.y:
+					continue
+				var dx := maxi(maxi(rc.position.x - x, x - (rc.end.x - 1)), 0)
+				var dy := maxi(maxi(rc.position.y - y, y - (rc.end.y - 1)), 0)
+				var d := dx + dy
+				var a: float = 0.35 if d == 0 else (float(GLOW[d - 1]) if d <= reach else 0.0)
+				if a <= 0.0:
+					continue
+				var prev := out.get_pixel(x, y)
+				out.set_pixel(x, y, Color(minf(1.0, prev.r + col.r * a), minf(1.0, prev.g + col.g * a),
+					minf(1.0, prev.b + col.b * a), 1.0))
+	return out
+
+
+## The hull with its light layer added, as the game draws them together: for a
+## still, a film or a test, never for the palette check (the glow is light).
+static func lit(baked: Image, grade: int, hull: String) -> Image:
+	var glow := light_layer(baked.get_size(), grade, hull)
+	var out := baked.duplicate() as Image
+	for y in out.get_height():
+		for x in out.get_width():
+			var g := glow.get_pixel(x, y)
+			if g.r + g.g + g.b <= 0.0:
+				continue
+			var c := out.get_pixel(x, y)
+			out.set_pixel(x, y, Color(minf(1.0, c.r + g.r), minf(1.0, c.g + g.g), minf(1.0, c.b + g.b),
+				maxf(c.a, minf(1.0, (g.r + g.g + g.b) / 1.2))))
+	return out
 
 
 # ---------------------------------------------------------------------- F  kit

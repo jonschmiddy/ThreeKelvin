@@ -35,7 +35,10 @@ func _run() -> void:
 	for lk in HullGrade.LOOKS:
 		for gi in 4:
 			var img := HullGrade.bake(src, gi, HullGrade.LOOKS[lk], 7, "korvan/hull_%s_%s" % [wt, base])
-			img.save_png("%s/%s_%s.png" % [out, lk, grades[gi]])
+			if lk == &"E":
+				HullGrade.lit(img, gi, "korvan/hull_%s_%s" % [wt, base]).save_png("%s/%s_%s.png" % [out, lk, grades[gi]])
+			else:
+				img.save_png("%s/%s_%s.png" % [out, lk, grades[gi]])
 			var extra := 0
 			for k in HullWear.palette(img):
 				if not pal.has(k):
@@ -50,7 +53,11 @@ func _run() -> void:
 			looks.append(HullGrade.LOOKS[StringName(ch)])
 		for gi in 4:
 			var img := HullGrade.bake_mix(src, gi, looks, 7, "korvan/hull_%s_%s" % [wt, base])
-			img.save_png("%s/%s_%s.png" % [out, combo, grades[gi]])
+			# with E, the still is the hull and its light layer as the game draws them
+			if "E" in combo:
+				HullGrade.lit(img, gi, "korvan/hull_%s_%s" % [wt, base]).save_png("%s/%s_%s.png" % [out, combo, grades[gi]])
+			else:
+				img.save_png("%s/%s_%s.png" % [out, combo, grades[gi]])
 			var extra := 0
 			for k in HullWear.palette(img):
 				if not pal.has(k):
