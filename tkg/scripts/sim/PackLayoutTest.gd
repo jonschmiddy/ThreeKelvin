@@ -161,10 +161,33 @@ func _check(tree: SceneTree, tag: String, pack: Array, home: Vector2, wreck: boo
 		e.pick_intent()
 	Sig.enemy_changed.emit()
 	# (headless, nothing eases: a move lands on the frame it is laid out; the
-	# formation re-measures what it drew and may lay out again, up to 3 times)
+	# formation re-measures what it drew and may lay out again, up to 3 times):
+	# measured once every box has held still three frames running, ten at most
+	var last := ""
+	var still := 0
 	for f in 10:
 		await tree.process_frame
+		var now := _pose(_view())
+		still = still + 1 if now == last else 0
+		last = now
+		if f >= 3 and still >= 3:
+			break
 	_measure(_view(), tag, home)
+
+
+## Where every contact's boxes are this frame, as one string to compare.
+func _pose(view: EncounterView) -> String:
+	if view == null:
+		return ""
+	var out := ""
+	var k := 0
+	while view.slot(k) != null:
+		var sl := view.slot(k)
+		out += "%s%s" % [sl.get_global_rect(), sl.art.position if sl.art != null else Vector2.ZERO]
+		for b in _slot_boxes(sl):
+			out += str(b[1])
+		k += 1
+	return out
 
 
 ## LOCAL's row of wrecks: the same view shows a system's wrecks after a fight.
