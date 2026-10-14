@@ -17,6 +17,14 @@ corrected against the code; §4 gains a table of what the commission still owes;
 items in §10 were fixed by other work and are struck through rather than
 dropped.*
 
+***Updated 2026-10-14**, against `main` at `a6976ef` plus the fix in `81e2088`.
+About 330 commits had landed without this file hearing of them, nearly
+all of them look and feel. **The table is 130 and the commission is finished**
+(`0c2b158`, 2026-09-12). The one finding that is not a reading: **the merge gate
+had been red on every push to `main` since 2026-10-09**, for two reasons that
+were not any test's failure. See §1's health check. Everything below §1's
+health check is as it was on 2026-09-11 unless it carries a 2026-10-14 note.*
+
 This is the index. Every other file in this bundle is linked from here.
 
 ---
@@ -46,9 +54,75 @@ All of it now lives in `docs/briefs/`, committed at `f7cf04e`.
 
 ## 1. STATE OF THE WORLD
 
-**Repo:** ~~`main` at `76001d1`, two commits ahead of `origin`, `SaveGame VERSION
-24`~~ **`main` at `04cc9ba`, level with `origin/main`. `SaveGame VERSION 27`**,
-`PROTOCOL 8`. *`validate.sh` is not re-asserted here: this pass was written with
+**Repo, 2026-10-14:** `main` at `a6976ef`. **`SaveGame VERSION 32`, `PROTOCOL
+9`**, `OptionTable` 130 rows, `ACTIVE_MANUFACTURERS` still `[korvan]`. The gate
+was run whole for this update and passes with `81e2088`; see the health check
+below.
+
+### ▸ HEALTH CHECK — 2026-10-14
+
+**The gate was red on `main` for five days and nobody's test had failed.** CI's
+last green run was `9b01e23` on 2026-10-06; every push from 2026-10-09 on is
+`failure` or `cancelled`, thirty-six in a row. Two causes, both fixed in
+`81e2088`:
+
+- **`stowtest` hung at exit.** It printed `stowtest: PASS` and the process
+  never ended, so the step's 120 s watchdog failed it. Five runs in six locally.
+  Bisected to `37811eb` (2026-10-10), which started the system map's fabric grid
+  on worker threads (`SystemView._Fabric.warm`) and waited for a level only when
+  the zoom drew it. A map left before the camera got there quit with tasks
+  nobody had waited for, and the main thread blocked on the pool with every
+  worker idle. `_Fabric._exit_tree` now waits for them. **The general rule, which
+  `ThreadStress` does not check: a task nobody waits for can hang the quit.**
+  ChartSky, ChartLegacy and ThrusterFx already wait at teardown for this reason.
+- **The gate outgrew CI's 25-minute backstop.** `fightcounttest` and
+  `packlayouttest` take about four minutes each on a runner. Run 211 was
+  cancelled at `localeventtest`, about two and a half minutes short of the end,
+  so pushes from `3e47e4d` on never reached a verdict. Raised to 40. Locally
+  (four cores) the whole gate takes 1,536 s.
+
+**Note for the next session:** `validate.yml` runs on pushes to `main` and PRs
+into it, not on other branches, so a branch is unchecked until it is merged or
+the workflow is dispatched by hand.
+
+**What the tools said:**
+
+```
+python tools/encounter_lint.py --strict     130 encounters checked · clean
+.github/scripts/validate.sh                 VALIDATION PASSED (with 81e2088)
+godot --headless --path tkg -- sim seed=1000 runs=500
+  runs 500 · wins 25 (5%) · deaths 476 · errors 0
+  avg jumps 11.0 · avg kills 2.4 · avg danger reached 7.23
+  stranded 0 (0.0%) · fuel left at run end 93% of the tank
+  options: 2.87 taken a system · 0.28 a system opened a fight
+  heat: arrived hot 36.1% · left a fight hot 62.5%
+  deaths: overheated 142 · hull to enemy fire 129 · the rest spread over
+          fifty-odd encounter outcomes, none above 19
+  ambushes 1.04 a run · hellbender met 9 times in 500, killed 0
+  credits -2 net at stations a run · fights paid 95 a run
+  spread: Irregular 10% down to three kinds at 0% (17 kinds)
+```
+
+**Reading, not a target**, under §2's ruling. Three things worth a look:
+
+- **Three kinds at 0%** (Grand-Design Spiral 0/24, Lenticular 0/22, Magellanic
+  Irregular 0/28). §2 says a 0% kind is a broken loop, but that rule was written
+  when the floor was 19%. At a 5% overall rate, about 25 runs a kind gives a
+  ~28% chance of 0 wins by luck alone, so three of seventeen is about what noise
+  produces. Not evidence of a broken kind. A paired 2,000-run sweep would settle
+  it.
+- **The reactor is the leading killer**, 142 of 476, ahead of hull loss. Arrival
+  heat went 0.18 → 0.34 since 2026-09-11, and over a third of arrivals are hot.
+  §2's point 0 is sharper than it was: the permanent heat-cap reward that left
+  with `coolant_seller` is still not back.
+- **Fuel does not bind.** Runs end with 93% of the tank, the stations pay out no
+  fuel, and nothing strands. Run length (11 jumps against `GALAXY_SCALE`'s
+  25–35) is set by dying, not by distance.
+
+### Before 2026-10-14
+
+**Repo, 2026-09-11 (superseded above):** `main` at `04cc9ba`, `SaveGame VERSION
+27`, `PROTOCOL 8`. *`validate.sh` is not re-asserted here: this pass was written with
 other sessions mid-edit in the scripts tree, so the gate was deliberately not
 run. The three checks that were run are named below.*
 
@@ -75,6 +149,10 @@ per bump and is the place to read them. The two that matter to anyone reading th
 context: **21–22** renamed the container class twice (`hoards` → `flotsam` →
 `jetsam`) and **24** deleted the material ledger. A mismatch refuses the load, so
 every one of those is a discarded save rather than a migration path.
+**AMENDED 2026-10-14: it is 32, and the discard is no longer the only path.**
+30 was the first bump that reads the one before it (`OLDEST_READ` is 29), and 31
+and 32 read the way 30 does: a field a 29 save lacks, read as its correct
+default. A save from 28 or earlier is still refused.
 
 **Constants that moved on 2026-08-26** — several of these are new, and the old
 values appear all over the older briefs:
@@ -456,7 +534,8 @@ every step of the night.
 | 10 | **G §5** — chart primer | ✅ |
 | 11–12 | **L** | ✅ |
 | 9 | Tune — **moved to last**, see the ruling | ⬜ **blocked, see below** |
-| — | **Eighty encounters** — ~~47 → 127~~ 47 → **130** | ◧ **41 of 80 in** · `ENCOUNTER_COMMISSION.md` |
+| — | **Eighty encounters** — ~~47 → 127~~ 47 → **130** | ✅ `0c2b158`, 2026-09-12 · 17 rows `fight`-tagged (was 6), 35 `hazard` |
+| — | **Look and feel** — stations, labs, yard, LOCAL, chart styles, fights, deaths | ✅ landed 2026-09-13 to 2026-10-14, about 330 commits; the alpha export in `build/alpha` |
 
 ### What the commission still owes, read off the table 2026-09-11
 
