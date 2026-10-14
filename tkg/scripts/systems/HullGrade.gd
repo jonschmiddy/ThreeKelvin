@@ -408,6 +408,9 @@ static func _lights(img: Image, r: _Ramps, grade: int, at: Dictionary) -> void:
 				var y := int(w[1]) + dy
 				if not _opaque(img, x, y):
 					continue
+				# a shaped pane: only its dark glass inside the box
+				if w.size() > 4 and String(w[4]) == "glass" and luma(img.get_pixel(x, y)) > 0.2:
+					continue
 				if not on:
 					if grade == 0:
 						img.set_pixel(x, y, glass)
@@ -426,6 +429,9 @@ static func _lights(img: Image, r: _Ramps, grade: int, at: Dictionary) -> void:
 			for dx in 2:
 				if _opaque(img, int(nv[0]) + dx, int(nv[1]) + dy):
 					img.set_pixel(int(nv[0]) + dx, int(nv[1]) + dy, c)
+	for mk in at.get("markers", []):
+		if _marker_on(String(mk[3]), grade) and _opaque(img, int(mk[0]), int(mk[1])):
+			img.set_pixel(int(mk[0]), int(mk[1]), r.lightest_grey() if String(mk[2]) == "white" else r.light_accent())
 
 
 ## Which panes light at a grade: fixed by their order, never rolled.
@@ -437,7 +443,15 @@ static func _lit(i: int, grade: int) -> bool:
 	return false
 
 
+## Surface markers, an aircraft's: on the hull at A and S; on a tip the kit
+## trims below S, at S alone.
+static func _marker_on(where: String, grade: int) -> bool:
+	return grade == 3 or (grade == 2 and where == "hull")
+
+
 static func _nav_on(kind: String, grade: int) -> bool:
+	if kind == "beacon":
+		return grade == 3
 	return grade >= 2 or (grade == 1 and kind == "white")
 
 
@@ -445,11 +459,42 @@ static func _nav_on(kind: String, grade: int) -> bool:
 ## hull has, so it is a separate layer added over the hull where it is drawn
 ## (ThrusterFx.add_material, the flames' own blend), the one thing here off the
 ## palette, as a flame is. Three stepped rings round every lit pane and nav
-## light, pixel-sharp, fading out; a hull with no entry gets none. `dy` moves it
+## light, pixel-sharp, fading out (two round a surface marker); a hull with no
+## entry gets none. `dy` moves it
 ## with a bake that moved the hull. Jon: "The lights look just like rectangular
 ## pixels."
 const GLOW := [0.55, 0.28, 0.12]
-static func light_layer(size: Vector2i, grade: int, hull: String) -> Image:
+## THE LIGHTS LIVE (Jon: "Can the lights on the surface flicker?"). `t` is
+## the game clock in seconds; -1 draws every light at rest (a still, a test).
+## A surface marker strobes: a short flash every 1.2-1.6 s on its own beat, a
+## white one twice. The masthead beacon swells and fades once a second and a
+## half. A window is steady, but now and then dips for a moment, as if someone
+## crossed in front of it. Nav lights are steady, as a ship's are.
+static func level(kind: String, i: int, t: float) -> float:
+	if t < 0.0:
+		return 1.0
+	var ph := noise(i, 17, 31) * 10.0
+	match kind:
+		"marker_white", "marker_amber":
+			var period := 1.2 + noise(i, 3, 7) * 0.4
+			var u := fposmod(t + ph, period)
+			if u < 0.08:
+				return 1.0
+			if kind == "marker_white" and u > 0.18 and u < 0.26:
+				return 1.0
+			return 0.0
+		"beacon":
+			return 0.25 + 0.75 * pow(0.5 + 0.5 * sin((t + ph) * TAU / 1.5), 2.0)
+		"window":
+			# a dip: 0.15 s at 55%, roughly once every eight seconds a pane
+			var k := floori((t + ph) / 8.0)
+			var at := noise(i, k, 5) * 7.5
+			var u2 := fposmod(t + ph, 8.0)
+			return 0.55 if u2 > at and u2 < at + 0.15 else 1.0
+	return 1.0
+
+
+static func light_layer(size: Vector2i, grade: int, hull: String, t: float = -1.0) -> Image:
 	var out := Image.create(size.x, size.y, false, Image.FORMAT_RGBAF)
 	var at := places(hull)
 	if grade == 0 or at.is_empty():
@@ -461,14 +506,26 @@ static func light_layer(size: Vector2i, grade: int, hull: String) -> Image:
 	for i in wins.size():
 		if _lit(i, grade):
 			var w: Array = wins[i]
-			spots.append([Rect2i(int(w[0]), int(w[1]), int(w[2]), int(w[3])), warm])
-	for nv in at.get("nav", []):
+			spots.append([Rect2i(int(w[0]), int(w[1]), int(w[2]), int(w[3])), warm, GLOW.size(), level("window", i, t)])
+	var navs: Array = at.get("nav", [])
+	for i in navs.size():
+		var nv: Array = navs[i]
 		if _nav_on(String(nv[2]), grade):
-			spots.append([Rect2i(int(nv[0]), int(nv[1]), 2, 2), white if String(nv[2]) == "white" else warm])
+			var lv := level("beacon", i, t) if String(nv[2]) == "beacon" else 1.0
+			spots.append([Rect2i(int(nv[0]), int(nv[1]), 2, 2), white if String(nv[2]) == "white" else warm, GLOW.size(), lv])
+	var marks: Array = at.get("markers", [])
+	for i in marks.size():
+		var mk: Array = marks[i]
+		if _marker_on(String(mk[3]), grade):
+			spots.append([Rect2i(int(mk[0]), int(mk[1]), 1, 1), white if String(mk[2]) == "white" else warm, 2,
+				level("marker_" + String(mk[2]), i, t)])
 	for sp in spots:
 		var rc: Rect2i = sp[0]
-		var col: Color = sp[1]
-		var reach := GLOW.size()
+		var lv: float = sp[3]
+		if lv <= 0.0:
+			continue
+		var col: Color = (sp[1] as Color) * lv
+		var reach: int = sp[2]
 		for y in range(rc.position.y - reach, rc.end.y + reach):
 			for x in range(rc.position.x - reach, rc.end.x + reach):
 				if x < 0 or y < 0 or x >= size.x or y >= size.y:
@@ -487,8 +544,8 @@ static func light_layer(size: Vector2i, grade: int, hull: String) -> Image:
 
 ## The hull with its light layer added, as the game draws them together: for a
 ## still, a film or a test, never for the palette check (the glow is light).
-static func lit(baked: Image, grade: int, hull: String) -> Image:
-	var glow := light_layer(baked.get_size(), grade, hull)
+static func lit(baked: Image, grade: int, hull: String, t: float = -1.0) -> Image:
+	var glow := light_layer(baked.get_size(), grade, hull, t)
 	var out := baked.duplicate() as Image
 	for y in out.get_height():
 		for x in out.get_width():

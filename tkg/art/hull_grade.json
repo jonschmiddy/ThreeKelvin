@@ -1,5 +1,5 @@
 {
- "_about": "Where HullGrade's placed looks go on each hull, by hand, because finding them in the pixels put them anywhere (Jon, Oct 14: running lights 'random and bad', markings 'the execution is bad', the plate behind the number 'looks bad'). Keyed by the hull's path under art/sprites/hulls/ without .png; coordinates in that picture's own pixels (the full-size file). registry: the top-left of the 3x5 stencilled number, painted straight on a plain panel, and ink 'light' or 'dark' for what reads on that panel. chevrons: the tip of the first S-grade chevron on the nose, [x, y]. windows: [x, y, w, h] panes, aft to fore -- the hull's own dark glass where it has some. nav: [x, y, 'white' | 'amber'], the top-left of a 2x2 light.",
+ "_about": "Where HullGrade's placed looks go on each hull, by hand, because finding them in the pixels put them anywhere (Jon, Oct 14: running lights 'random and bad', markings 'the execution is bad', the plate behind the number 'looks bad'). Keyed by the hull's path under art/sprites/hulls/ without .png; coordinates in that picture's own pixels (the full-size file). registry: the top-left of the 3x5 stencilled number, painted straight on a plain panel, and ink 'light' or 'dark' for what reads on that panel. chevrons: the tip of the first S-grade chevron on the nose, [x, y]. windows: [x, y, w, h] panes, aft to fore -- the hull's own dark glass where it has some; a fifth element 'glass' lights only the dark pixels inside the box, for a pane that is not a rectangle (a sloped canopy). nav: [x, y, 'white' | 'amber' | 'beacon'], the top-left of a 2x2 light; a beacon (the masthead) shows at S only, the one grade whose masts are whole. markers: [x, y, 'white' | 'amber', 'hull' | 'tip'] single-pixel surface lights, like an aircraft's: on the hull they light at A and S; on the tip of an antenna or mast (which the kit trims below S) at S only.",
  "korvan/hull_medium_a": {
   "registry": [
    202,
@@ -12,46 +12,17 @@
   ],
   "windows": [
    [
-    137,
-    57,
-    4,
-    2
-   ],
-   [
-    143,
-    57,
-    4,
-    2
-   ],
-   [
-    147,
+    176,
     31,
     3,
-    2
+    3
    ],
    [
-    152,
-    31,
+    196,
+    43,
+    10,
     3,
-    2
-   ],
-   [
-    157,
-    31,
-    3,
-    2
-   ],
-   [
-    162,
-    31,
-    3,
-    2
-   ],
-   [
-    167,
-    31,
-    3,
-    2
+    "glass"
    ],
    [
     246,
@@ -70,11 +41,29 @@
     61,
     6,
     2
+   ],
+   [
+    249,
+    74,
+    3,
+    2
+   ],
+   [
+    254,
+    74,
+    2,
+    2
+   ],
+   [
+    259,
+    74,
+    3,
+    2
    ]
   ],
   "nav": [
    [
-    319,
+    317,
     66,
     "white"
    ],
@@ -82,6 +71,49 @@
     94,
     57,
     "amber"
+   ],
+   [
+    152,
+    3,
+    "beacon"
+   ]
+  ],
+  "markers": [
+   [
+    150,
+    100,
+    "amber",
+    "hull"
+   ],
+   [
+    175,
+    107,
+    "white",
+    "hull"
+   ],
+   [
+    220,
+    97,
+    "amber",
+    "hull"
+   ],
+   [
+    111,
+    48,
+    "amber",
+    "tip"
+   ],
+   [
+    249,
+    46,
+    "white",
+    "tip"
+   ],
+   [
+    158,
+    8,
+    "amber",
+    "tip"
    ]
   ]
  }

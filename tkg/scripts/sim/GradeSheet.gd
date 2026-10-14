@@ -65,5 +65,15 @@ func _run() -> void:
 			if extra > 0:
 				fails += 1
 			print("  %s %s: %d colours not in the base" % [combo, grades[gi], extra])
+	# `film=<dir>`: AB+E at A and S, the lights live, 90 frames at 30 a second
+	var film := _arg("film", "")
+	if film != "":
+		for gi in [2, 3]:
+			var lk: Array = [HullGrade.LOOKS[&"A"], HullGrade.LOOKS[&"B"], HullGrade.LOOKS[&"E"]]
+			var bk := HullGrade.bake_mix(src, gi, lk, 7, "korvan/hull_%s_%s" % [wt, base])
+			DirAccess.make_dir_recursive_absolute("%s/%s" % [film, grades[gi]])
+			for f in 90:
+				HullGrade.lit(bk, gi, "korvan/hull_%s_%s" % [wt, base], float(f) / 30.0).save_png(
+					"%s/%s/f%03d.png" % [film, grades[gi], f])
 	print("gradesheet: %s" % ("PASS" if fails == 0 else "%d off-palette" % fails))
 	get_tree().quit(0 if fails == 0 else 1)
