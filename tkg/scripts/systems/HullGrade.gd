@@ -22,9 +22,11 @@ extends RefCounted
 ## A is the one that leans on condition's register; that is a known risk against
 ## the "a class is a SPECIFICATION, not a condition" ruling, and why B and C exist.
 
-enum Look { WEAR, PAINT, FINISH, MARKS, LIGHTS, KIT }
-const LOOKS := {&"A": Look.WEAR, &"B": Look.PAINT, &"C": Look.FINISH,
-	&"D": Look.MARKS, &"E": Look.LIGHTS, &"F": Look.KIT}
+enum Look { WEAR, PAINT, MARKS, LIGHTS, KIT }
+const LOOKS := {&"A": Look.WEAR, &"B": Look.PAINT, &"D": Look.MARKS, &"E": Look.LIGHTS, &"F": Look.KIT}
+## WHAT SHIPS (Jon, Oct 14: "AB+DEF"). A finish-and-light look (C) was tried
+## and cut ("kinda sucks"); git has it.
+const SHIPPED := [Look.WEAR, Look.PAINT, Look.MARKS, Look.LIGHTS, Look.KIT]
 ## C, B, A, S: how far from the yard's best each grade is (1 the worst).
 const AGE := [1.0, 0.55, 0.2, 0.0]
 
@@ -62,8 +64,6 @@ static func bake_mix(src: Image, grade: int, looks: Array, seed_in: int = 7, hul
 		_marks(img, r, grade, seed_in, at)
 	if Look.LIGHTS in looks:
 		_lights(img, r, grade, at)
-	if Look.FINISH in looks:
-		_finish(img, r, grade, seed_in)
 	return img
 
 
@@ -279,42 +279,6 @@ static func _paint(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
 				img.set_pixel(x, y2, trim)
 
 
-# ------------------------------------------------------------------- C  finish
-
-## LIGHT. C is flat: every colour pulled toward the middle of its ramp, so the
-## shapes go soft and the ship reads as matte and tired. B a little less, A as
-## drawn. S is crisp: every colour pushed away from the middle of its ramp (more
-## contrast), and the top edge catches the light (its own lightest grey). Lit
-## ports were tried and read as specks at game size.
-static func _finish(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
-	var w := img.get_width()
-	var h := img.get_height()
-	var src := img.duplicate() as Image
-	var flat: float = [0.55, 0.3, 0.0, 0.0][grade]
-	if flat > 0.0:
-		for y in h:
-			for x in w:
-				if _inner(src, x, y):
-					img.set_pixel(x, y, r.flatten(src.get_pixel(x, y), flat))
-		return
-	if grade < 3:
-		return
-	for y in h:
-		for x in w:
-			if _inner(src, x, y):
-				img.set_pixel(x, y, r.flatten(src.get_pixel(x, y), -0.22))
-	var hi := r.lightest_grey()
-	for x in w:
-		for y in h:
-			if not _inner(src, x, y):
-				continue
-			if not _opaque(src, x, y - 2):
-				# the edge catching the light, every pixel but a broken few
-				if noise(x, y, seed_in + 8) < 0.85:
-					img.set_pixel(x, y, hi)
-				break
-
-
 # --------------------------------------------------------- the hand placements
 
 const PLACES_PATH := "res://art/hull_grade.json"
@@ -496,12 +460,21 @@ static func level(kind: String, i: int, t: float) -> float:
 
 static func light_layer(size: Vector2i, grade: int, hull: String, t: float = -1.0) -> Image:
 	var out := Image.create(size.x, size.y, false, Image.FORMAT_RGBAF)
+	var acc := light_layer_sparse(grade, hull, t)
+	for p in acc:
+		if p.x >= 0 and p.y >= 0 and p.x < size.x and p.y < size.y:
+			out.set_pixel(p.x, p.y, acc[p])
+	return out
+
+
+## Every lit thing at a grade and time: [Rect2i, colour, glow reach, level].
+static func _spots(grade: int, hull: String, t: float) -> Array:
+	var spots: Array = []
 	var at := places(hull)
 	if grade == 0 or at.is_empty():
-		return out
+		return spots
 	var warm := Color(1.0, 0.72, 0.32)
 	var white := Color(0.95, 0.97, 1.0)
-	var spots: Array = []      ## [rect, colour]
 	var wins: Array = at.get("windows", [])
 	for i in wins.size():
 		if _lit(i, grade):
@@ -519,27 +492,7 @@ static func light_layer(size: Vector2i, grade: int, hull: String, t: float = -1.
 		if _marker_on(String(mk[3]), grade):
 			spots.append([Rect2i(int(mk[0]), int(mk[1]), 1, 1), white if String(mk[2]) == "white" else warm, 2,
 				level("marker_" + String(mk[2]), i, t)])
-	for sp in spots:
-		var rc: Rect2i = sp[0]
-		var lv: float = sp[3]
-		if lv <= 0.0:
-			continue
-		var col: Color = (sp[1] as Color) * lv
-		var reach: int = sp[2]
-		for y in range(rc.position.y - reach, rc.end.y + reach):
-			for x in range(rc.position.x - reach, rc.end.x + reach):
-				if x < 0 or y < 0 or x >= size.x or y >= size.y:
-					continue
-				var dx := maxi(maxi(rc.position.x - x, x - (rc.end.x - 1)), 0)
-				var dy := maxi(maxi(rc.position.y - y, y - (rc.end.y - 1)), 0)
-				var d := dx + dy
-				var a: float = 0.35 if d == 0 else (float(GLOW[d - 1]) if d <= reach else 0.0)
-				if a <= 0.0:
-					continue
-				var prev := out.get_pixel(x, y)
-				out.set_pixel(x, y, Color(minf(1.0, prev.r + col.r * a), minf(1.0, prev.g + col.g * a),
-					minf(1.0, prev.b + col.b * a), 1.0))
-	return out
+	return spots
 
 
 ## The hull with its light layer added, as the game draws them together: for a
@@ -607,3 +560,92 @@ static func _kit(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictionary
 		var cut := n - int(round(float(n) * keep))
 		for k in cut:
 			img.set_pixel(x, top + k, Color(0, 0, 0, 0))
+
+
+# ------------------------------------------------------------------- in game
+
+## The hull's key in art/hull_grade.json, or "" when its weight is not graded.
+## Every manufacturer flies Korvan's pictures for now (Database.hull_sprite).
+static func key_for(h: HullData) -> String:
+	if h == null or not DB.graded(h.weight):
+		return ""
+	return "korvan/" + DB.hull_art_name(h.weight, h.tier)
+
+static var _tex := {}
+
+## The hull's picture at its grade, baked once and kept. `half` is the convoy's
+## half sheet, brought down from the graded full picture the way the half sheets
+## were made (every other pixel), so the two always agree. `seed_in` picks the
+## registry number, so it is the ship's. Its resource path is set apart from the
+## base's, because HullWear's cache is keyed by path.
+static func graded_tex(h: HullData, half: bool, seed_in: int) -> Texture2D:
+	var key := key_for(h)
+	if key == "" or h.sprite == null:
+		return h.sprite_half if half and h.sprite_half != null else h.sprite
+	var ck := "%s|%d|%d|%d" % [key, h.tier, int(half), seed_in]
+	if _tex.has(ck):
+		return _tex[ck]
+	var full := h.sprite.get_image()
+	if full.is_compressed():
+		full.decompress()
+	full.convert(Image.FORMAT_RGBA8)
+	var img := bake_mix(full, clampi(h.tier, 0, 3), SHIPPED, seed_in, key)
+	if half and h.sprite_half != null:
+		var small := Image.create(h.sprite_half.get_width(), h.sprite_half.get_height(), false, Image.FORMAT_RGBA8)
+		for y in small.get_height():
+			for x in small.get_width():
+				if x * 2 < img.get_width() and y * 2 < img.get_height():
+					small.set_pixel(x, y, img.get_pixel(x * 2, y * 2))
+		img = small
+	var tex := ImageTexture.create_from_image(img)
+	tex.resource_path = "%s#grade%d%s%d" % [h.sprite.resource_path, h.tier, "h" if half else "", seed_in]
+	_tex[ck] = tex
+	return tex
+
+
+## The lights as the game draws them: every lit spot's pixels and how bright,
+## at time `t`. [Vector2i, Color] pairs in the full picture's pixels, the glow
+## included; draw them additively (ThrusterFx.add_material).
+static func light_pixels(grade: int, hull: String, t: float) -> Array:
+	var out: Array = []
+	var glow := light_layer_sparse(grade, hull, t)
+	for k in glow:
+		out.append([k, glow[k]])
+	return out
+
+
+## light_layer's sums, kept only where something shines.
+static func light_layer_sparse(grade: int, hull: String, t: float) -> Dictionary:
+	var acc := {}
+	for sp in _spots(grade, hull, t):
+		var rc: Rect2i = sp[0]
+		var lv: float = sp[3]
+		if lv <= 0.0:
+			continue
+		var col: Color = (sp[1] as Color) * lv
+		var reach: int = sp[2]
+		for y in range(rc.position.y - reach, rc.end.y + reach):
+			for x in range(rc.position.x - reach, rc.end.x + reach):
+				var dx := maxi(maxi(rc.position.x - x, x - (rc.end.x - 1)), 0)
+				var dy := maxi(maxi(rc.position.y - y, y - (rc.end.y - 1)), 0)
+				var d := dx + dy
+				var a: float = 0.35 if d == 0 else (float(GLOW[d - 1]) if d <= reach else 0.0)
+				if a <= 0.0:
+					continue
+				var p := Vector2i(x, y)
+				var prev: Color = acc.get(p, Color(0, 0, 0, 1))
+				acc[p] = Color(minf(1.0, prev.r + col.r * a), minf(1.0, prev.g + col.g * a),
+					minf(1.0, prev.b + col.b * a), 1.0)
+	return acc
+
+
+## Draw the lights into `ci` (its material additive), in the picture's own
+## pixels: the caller sets the transform from the picture to its canvas.
+## `scale` 0.5 for a half sheet.
+static func draw_lights(ci: CanvasItem, h: HullData, t: float, scale: float = 1.0) -> void:
+	var key := key_for(h)
+	if key == "":
+		return
+	for e in light_pixels(clampi(h.tier, 0, 3), key, t):
+		var p: Vector2i = e[0]
+		ci.draw_rect(Rect2(Vector2(p) * scale, Vector2(scale, scale)), e[1])

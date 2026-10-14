@@ -356,7 +356,7 @@ func _process(_delta: float) -> void:
 			dirty = true
 	# THE FLAME: its own layer, redrawn every frame (the loop holds its shapes
 	# at 8 a second; the sparks move every frame), never a repaint of the hull.
-	if _hull().has_exhaust():
+	if _hull().has_exhaust() or HullGrade.key_for(_hull()) != "":
 		_flame_layer.queue_redraw()
 	# One repaint per CHANGE, not per frame. Between them the texture is simply
 	# left alone, which is why an animated ship costs about twenty redraws a
@@ -1316,6 +1316,12 @@ func _blit_sprite() -> void:
 	var src: Texture2D = h.sprite
 	if _half and h.sprite_half != null:
 		src = h.sprite_half
+	# THE GRADE FIRST, THE FIGHTS ON TOP OF IT: a graded weight's one hull baked
+	# at this ship's grade (HullGrade: wear, paint, markings, lights, kit), and
+	# its registry the ship's own; then HullWear's damage over that, so a beaten
+	# S still reads as a good ship that got shot.
+	if HullGrade.key_for(h) != "":
+		src = HullGrade.graded_tex(h, _half and h.sprite_half != null, wseed)
 	var img: Image = HullWear.worn_cached(src, band, wseed)
 	if img == null:
 		img = src.get_image()
@@ -1775,6 +1781,7 @@ static func arrive_thrust(window: int) -> int:
 ## zoom and the half sheet exactly. Nothing until the flame's pictures have
 ## been built (`ThrusterFx.for_view` builds them off the main thread).
 func _draw_flame(ci: CanvasItem) -> void:
+	_draw_lights(ci)
 	var th := _thrust_now()
 	if th < 0:
 		return
@@ -1784,4 +1791,21 @@ func _draw_flame(ci: CanvasItem) -> void:
 	var t := shot_clock if shot_clock >= 0.0 else GameClock.now()
 	ci.draw_set_transform(canvas_to_local(Vector2.ZERO), 0.0, Vector2(float(_k), float(_k)))
 	fx.draw(ci, Vector2.ZERO, th, t, false)
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## THE HULL'S LIGHTS (HullGrade), live on the game clock and added like the
+## flame: the hull's own glass, its nav lights and an aircraft's surface
+## markers, strobing and dipping (Jon, Oct 14). Out with the ship: none on a
+## hull at no hull points, or in a hyperdrive's dark.
+func _draw_lights(ci: CanvasItem) -> void:
+	var h := _hull()
+	if HullGrade.key_for(h) == "" or _engines_off:
+		return
+	var b := _b()
+	if b != null and b.damage() >= 1.0:
+		return
+	var t := shot_clock if shot_clock >= 0.0 else GameClock.now()
+	ci.draw_set_transform(canvas_to_local(Vector2.ZERO), 0.0, Vector2(float(_k), float(_k)))
+	HullGrade.draw_lights(ci, h, t, 0.5 if _half and h.sprite_half != null else 1.0)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

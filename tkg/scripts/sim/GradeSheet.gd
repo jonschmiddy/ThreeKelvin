@@ -47,7 +47,7 @@ func _run() -> void:
 				fails += 1
 			print("  %s %s: %d colours not in the base" % [lk, grades[gi], extra])
 	# and every combination of two or three
-	for combo in ["AB", "AC", "BC", "ABC", "ABD", "ABE", "ABF", "ABDEF"]:
+	for combo in ["AB", "ABD", "ABE", "ABF", "ABDEF"]:
 		var looks: Array = []
 		for ch in combo:
 			looks.append(HullGrade.LOOKS[StringName(ch)])

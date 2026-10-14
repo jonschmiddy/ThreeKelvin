@@ -1656,10 +1656,31 @@ func hull_art_name(w: HullData.Weight, cls: int = 0) -> String:
 		HullData.Weight.MEDIUM: stem = "medium"
 		HullData.Weight.HEAVY: stem = "heavy"
 		_: return ""
+	# ONE HULL PER WEIGHT where GRADE_BASE names it: every grade draws, mounts
+	# and burns from that one picture, and HullGrade bakes the grade onto it.
+	if GRADE_BASE.has(stem):
+		return "hull_%s_%s" % [stem, GRADE_BASE[stem]]
 	# TIER_NAMES is an untyped Array, so an element comes back as Variant and
 	# `:=` has nothing to infer from. Declared rather than inferred.
 	var letter: String = HullData.TIER_NAMES[clampi(cls, 0, 3)]
 	return "hull_%s_%s" % [stem, letter.to_lower()]
+
+
+## ONE HULL PER WEIGHT, FOUR GRADES BAKED FROM IT (Jon, Oct 14: "Instead of
+## generating 12 ships per manufacturer. We just do Three"; picked wear + paint +
+## markings + lights + kit, "AB+DEF"). The weight's base picture, by today's
+## letter; a weight not listed still has a picture per grade. The Frigate is
+## first; the light and heavy wait on Jon's pick of their bases.
+const GRADE_BASE := {"medium": "a"}
+
+## Whether this weight's grades are baked from one hull (HullGrade) rather than
+## drawn as four.
+func graded(w: HullData.Weight) -> bool:
+	match w:
+		HullData.Weight.LIGHT: return GRADE_BASE.has("light")
+		HullData.Weight.MEDIUM: return GRADE_BASE.has("medium")
+		HullData.Weight.HEAVY: return GRADE_BASE.has("heavy")
+	return false
 
 ## Copy the measured dorsal, ventral and flank lines onto a hull.
 ##
