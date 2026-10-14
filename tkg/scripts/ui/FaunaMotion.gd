@@ -459,6 +459,13 @@ var _mat: ShaderMaterial
 var _body_tex: ImageTexture
 var _shader_tex := {}
 var _nglow := 0
+## The cut's masks, canvas-sized (`FaunaGuard.Body` reads them): the ink, its
+## lights, its spines (the calf's thin lines, the Leviathan's crystals) and the
+## Leviathan's flippers (1 the front, 2 the rear).
+var m_ink := PackedByteArray()
+var m_glow := PackedByteArray()
+var m_spine := PackedByteArray()
+var m_fin := PackedByteArray()
 
 
 func _cut_creature() -> void:
@@ -566,6 +573,10 @@ func _cut_creature() -> void:
 		_curl[x * 2] = 1.0
 		_curl[x * 2 + 1] = 0.0
 	_fin_cur = Vector2i.ZERO
+	m_ink = ink
+	m_glow = glow
+	m_spine = spine
+	m_fin = fin
 	_upload()
 
 
@@ -862,6 +873,39 @@ func _idle(u: float, ts: float) -> Array:
 		l = 0.4 + 1.1 * p
 	var halo := maxf(0.0, l - 1.0) * 1.7 if kind == Kind.CALF else maxf(0.0, b - 0.55) * 1.8
 	return [0.0, sdy - su, su, sd, l, halo]
+
+
+## The rest-space pixel (x, y) of the picture is shown this many pixels lower
+## (the body's swell and dip; `FaunaGuard` carries what it draws on the body).
+func off_at(x: int, y: int) -> int:
+	if not ready_to_draw or rested or kind == Kind.CUSTODIAN or x < 0 or x >= _W:
+		return 0
+	var i := x * 4
+	return _cur[i] + (_cur[i + 3] if y > _mid[x] else -_cur[i + 2])
+
+
+## The same for a spine pixel in column x.
+func spine_off_at(x: int) -> int:
+	if not ready_to_draw or rested or kind == Kind.CUSTODIAN or x < 0 or x >= _W:
+		return 0
+	return _cur[x * 4 + 1]
+
+
+## The held step's time: what is drawn now was worked out for this moment.
+func step_t() -> float:
+	return floorf(t * fps() + 1e-3) / fps()
+
+
+## What a shader needs to show a rest-space picture where this motion shows the
+## body (`FaunaGuard.PRELUDE`), or {} when it is not moving the picture.
+func shader_inputs() -> Dictionary:
+	if not ready_to_draw or rested or kind == Kind.CUSTODIAN or _mat == null:
+		return {}
+	var d := _shader_tex.duplicate()
+	d.fin_piv = _fin_piv
+	d.fin_k = Vector2(_fin_cur)
+	d.csize = Vector2(_W, _H)
+	return d
 
 
 ## The strike at u: the deep in-breath (the swell to three pixels, the spines
