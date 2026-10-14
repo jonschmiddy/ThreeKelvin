@@ -49,6 +49,7 @@ static func bake_mix(src: Image, grade: int, looks: Array, seed_in: int = 7, hul
 	if img.is_compressed():
 		img.decompress()
 	img.convert(Image.FORMAT_RGBA8)
+	_band(img, hull)
 	var r := _Ramps.new(img)
 	var at := places(hull)
 	# the silhouette first, then the yard's paint, the age over it, the marks,
@@ -85,7 +86,11 @@ class _Ramps extends RefCounted:
 					seen[HullGrade.key(c)] = c
 		for k in seen:
 			var c: Color = seen[k]
-			if c.s > 0.28 and c.v > 0.25:
+			# warm only: a navy grey is saturated too (the light and heavy
+			# sprites' shadow side is #2f3348), and was being worn as if it
+			# were the band. Korvan's band is amber; another manufacturer's
+			# band hue goes here when it has one.
+			if c.s > 0.28 and c.v > 0.25 and (c.h < 0.17 or c.h > 0.95):
 				accent.append(c)
 			else:
 				grey.append(c)
@@ -152,6 +157,22 @@ static func noise(x: int, y: int, seed_in: int) -> float:
 	return float(h & 0xffff) / 65535.0
 
 
+## The same field, but soft: `noise` at the corners of `sx` x `sy` cells,
+## eased between, so a threshold on it cuts round patches rather than a checker
+## of cells (Jon, Oct 14: "All of the C tiers should have a degraded band, but
+## have it be less pixelated").
+static func smooth(x: int, y: int, sx: int, sy: int, seed_in: int) -> float:
+	var gx := floori(float(x) / sx)
+	var gy := floori(float(y) / sy)
+	var fx := float(x - gx * sx) / sx
+	var fy := float(y - gy * sy) / sy
+	fx = fx * fx * (3.0 - 2.0 * fx)
+	fy = fy * fy * (3.0 - 2.0 * fy)
+	var a := lerpf(noise(gx, gy, seed_in), noise(gx + 1, gy, seed_in), fx)
+	var b := lerpf(noise(gx, gy + 1, seed_in), noise(gx + 1, gy + 1, seed_in), fx)
+	return lerpf(a, b, fy)
+
+
 static func _opaque(img: Image, x: int, y: int) -> bool:
 	return x >= 0 and y >= 0 and x < img.get_width() and y < img.get_height() \
 		and img.get_pixel(x, y).a > 0.0
@@ -189,20 +210,24 @@ static func _wear(img: Image, r: _Ramps, age: float, seed_in: int) -> void:
 			if not _inner(src, x, y):
 				continue
 			var c := src.get_pixel(x, y)
+			# the amber dulls in patches and wears through to the grey in a few:
+			# the manufacturer's colour is always still there (Jon, Oct 14).
+			# Soft patches, no speckle: on the band a checker of cells read as
+			# pixelation, not as paint worn off
+			if r.is_accent(c):
+				var f := smooth(x, y, 6, 5, seed_in + 2)
+				if f < age * 0.2:
+					c = r.to_grey(c)
+				elif f < age * 0.62:
+					c = r.step(c, -1)
+				img.set_pixel(x, y, c)
+				continue
 			# grime: 3x2 blotches, with a speckled edge
 			var blot := noise(x / 3, y / 2, seed_in)
 			if blot < age * 0.18:
 				c = r.step(c, -2)
 			elif blot < age * 0.45 and noise(x, y, seed_in + 1) < 0.8:
 				c = r.step(c, -1)
-			# the amber dulls in patches and wears through to the grey in a few:
-			# the manufacturer's colour is always still there (Jon, Oct 14)
-			if r.is_accent(c):
-				var f := noise(x / 4, y / 3, seed_in + 2)
-				if f < age * 0.22:
-					c = r.to_grey(c)
-				elif f < age * 0.7:
-					c = r.step(c, -1)
 			img.set_pixel(x, y, c)
 	# drips: down from under a seam, a few pixels, thinning out
 	for y in range(1, h):
@@ -247,10 +272,12 @@ static func _paint(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
 					# manufacturer identity"): a shade darker and worn through to the
 					# grey in patches, never gone
 					if r.is_accent(c):
-						if noise(x / 3, y / 3, seed_in + 7) < 0.35:
+						if smooth(x, y, 7, 6, seed_in + 7) < 0.3:
 							c = r.to_grey(c)
 						else:
 							c = r.step(c, -1)
+						img.set_pixel(x, y, c)
+						continue
 					# mismatched panels: 12x8 cells, two shades either way
 					var p := noise(x / 12, y / 8, seed_in)
 					if p < 0.2:
@@ -277,6 +304,87 @@ static func _paint(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
 			var y2 := top + 2
 			if _inner(src, x, y2) and _inner(src, x, y2 + 1):
 				img.set_pixel(x, y2, trim)
+
+
+# ------------------------------------------------------------------- the band
+
+## THE MANUFACTURER'S BAND IN ITS OWN AMBER on every weight (Jon, Oct 14: "can
+## we make the orange band ... as vibrantly orange as the medium?"). Today's
+## light and heavy sprites were generated apart and their band came out a
+## duller, browner orange, with its lower half in shadow. The band's colours
+## are the manufacturer's, so they are read off one sprite (the medium's) and
+## every other hull's band is put onto them by lightness. The palette lock
+## still holds, against the sprite's own colours AND the manufacturer's ramp.
+const BAND_FROM := {"korvan": "res://art/sprites/hulls/korvan/hull_medium_a.png"}
+## A warm run smaller than this is a rust speck, not the band, and keeps its colour.
+const BAND_MIN := 40
+static var _band_ramps: Dictionary = {}
+
+
+## The manufacturer's band colours, dark to light, or [] for a hull with none.
+static func band_ramp(hull: String) -> Array:
+	var who := hull.get_slice("/", 0)
+	if not BAND_FROM.has(who):
+		return []
+	if not _band_ramps.has(who):
+		var img := (load(BAND_FROM[who]) as Texture2D).get_image()
+		if img.is_compressed():
+			img.decompress()
+		img.convert(Image.FORMAT_RGBA8)
+		_band_ramps[who] = _Ramps.new(img).accent
+	return _band_ramps[who]
+
+
+static func _band(img: Image, hull: String) -> void:
+	var ramp := band_ramp(hull)
+	if ramp.size() < 3 or hull == "" or BAND_FROM[hull.get_slice("/", 0)].ends_with(hull.get_slice("/", 1) + ".png"):
+		return
+	var own := _Ramps.new(img).accent
+	if own.size() < 2:
+		return
+	var lo := luma(own[0])
+	var hi := luma(own[own.size() - 1])
+	# own lightest onto the ramp's face colour (one under its highlight), own
+	# darkest onto its second step; the curve lifts the shaded half, which is
+	# what made the band read dull
+	var t_lo := luma(ramp[1])
+	var t_hi := luma(ramp[ramp.size() - 2])
+	var to := {}
+	for c: Color in own:
+		var t := pow(clampf((luma(c) - lo) / maxf(hi - lo, 0.001), 0.0, 1.0), 0.6)
+		var want := lerpf(t_lo, t_hi, t)
+		var best: Color = ramp[0]
+		for rc: Color in ramp:
+			if absf(luma(rc) - want) < absf(luma(best) - want):
+				best = rc
+		to[key(c)] = best
+	# only runs big enough to be the band: 4-connected, over the warm pixels
+	var w := img.get_width()
+	var h := img.get_height()
+	var seen := PackedByteArray()
+	seen.resize(w * h)
+	for y0 in h:
+		for x0 in w:
+			if seen[y0 * w + x0] or not to.has(key(img.get_pixel(x0, y0))) or img.get_pixel(x0, y0).a <= 0.0:
+				continue
+			var run: Array[Vector2i] = [Vector2i(x0, y0)]
+			seen[y0 * w + x0] = 1
+			var i := 0
+			while i < run.size():
+				var p := run[i]
+				i += 1
+				for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+					var q := p + d
+					if q.x < 0 or q.y < 0 or q.x >= w or q.y >= h or seen[q.y * w + q.x]:
+						continue
+					var cq := img.get_pixel(q.x, q.y)
+					if cq.a > 0.0 and to.has(key(cq)):
+						seen[q.y * w + q.x] = 1
+						run.append(q)
+			if run.size() < BAND_MIN:
+				continue
+			for p: Vector2i in run:
+				img.set_pixel(p.x, p.y, to[key(img.get_pixel(p.x, p.y))])
 
 
 # --------------------------------------------------------- the hand placements

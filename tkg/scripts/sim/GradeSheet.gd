@@ -31,6 +31,10 @@ func _run() -> void:
 	var src: Image = (load("res://art/sprites/hulls/korvan/hull_%s_%s.png" % [wt, base]) as Texture2D).get_image()
 	src.convert(Image.FORMAT_RGBA8)
 	var pal := HullWear.palette(src)
+	# the manufacturer's band ramp is allowed too: HullGrade._band puts every
+	# hull's band onto it
+	for c: Color in HullGrade.band_ramp("korvan/hull_%s_%s" % [wt, base]):
+		pal[HullGrade.key(c)] = true
 	var fails := 0
 	for lk in HullGrade.LOOKS:
 		for gi in 4:

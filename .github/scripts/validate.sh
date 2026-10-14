@@ -647,6 +647,23 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 fi
 
+step "A graded hull keeps its palette"
+# HullGrade bakes each weight's one hull at C, B, A and S (Jon's AB+DEF) and
+# may only use colours the sprite already has, plus the manufacturer's band
+# ramp; the lights are additive and drawn apart. Each weight on the base
+# DB.GRADE_BASE names.
+for wb in light:c medium:a heavy:a; do
+	w="${wb%%:*}"; b="${wb##*:}"
+	if run_godot "gradesheet_$w" 180 --headless --path "$PROJECT" -- sheet=GradeSheet weight="$w" base="$b" out="$LOG_DIR/gradesheet_$w"; then
+		if grep -qE '^gradesheet: PASS' "$LOG_DIR/gradesheet_$w.log"; then
+			ok "the $w hull's grades use only its own colours"
+		else
+			bad "a graded $w hull drew a colour it does not have"
+			grep -E 'colours not in the base' "$LOG_DIR/gradesheet_$w.log" | grep -v ': 0 colours' | sed 's/^/        /'
+		fi
+	fi
+done
+
 step "Your idle engines are heard exactly while the idle flame is seen"
 # Jon, Oct 13: "Let's have a low burn sound for the idle engines". Audio is off
 # headless, but its decision (`Audio.idle_want`) and fade are not: silent

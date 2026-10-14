@@ -1669,9 +1669,10 @@ func hull_art_name(w: HullData.Weight, cls: int = 0) -> String:
 ## ONE HULL PER WEIGHT, FOUR GRADES BAKED FROM IT (Jon, Oct 14: "Instead of
 ## generating 12 ships per manufacturer. We just do Three"; picked wear + paint +
 ## markings + lights + kit, "AB+DEF"). The weight's base picture, by today's
-## letter; a weight not listed still has a picture per grade. The Frigate is
-## first; the light and heavy wait on Jon's pick of their bases.
-const GRADE_BASE := {"medium": "a"}
+## letter; a weight not listed still has a picture per grade. Jon picked each
+## base off the pick page (Oct 14: "L1 H3"): the light is today's C, the medium
+## and the heavy today's A.
+const GRADE_BASE := {"light": "c", "medium": "a", "heavy": "a"}
 
 ## Whether this weight's grades are baked from one hull (HullGrade) rather than
 ## drawn as four.
