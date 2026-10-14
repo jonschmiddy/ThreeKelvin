@@ -5,8 +5,8 @@
 
 WHAT EACH ENEMY IS. Jon's picks (2026-10-13): the five ordinary kinds fly all
 three of their candidates, one chosen per fight (`DB.enemy_sprite(id, look)`,
-`Combat.look_for`); the Hellbender is `helix`; the Custodian is `tetra` until a
-boss-sized take is picked; the calf is `fan` drawn smaller and the Leviathan is
+`Combat.look_for`); the Hellbender is `helix`; the Custodian is take 1 ("grown") of the
+boss-size batch in `art_pool/custodian`; the calf is `fan` drawn smaller and the Leviathan is
 `lev_spine`. `VARIANTS` below is the whole table, in the order the game indexes
 them.
 
@@ -23,7 +23,9 @@ HOW EACH PICTURE IS MADE, all of it arithmetic on Jon's kept pixels:
   nothing resampled at run time (a plain nearest-neighbour drops every third
   row and snaps the 1 px spines);
 - cropped to the ink, hard alpha (0 or 255).
-Writes `<enemy>_<source>.png` and `index.json` ({enemy id: [file, ...]}), which
+Writes `<enemy>_<source>.png`, its half sheet `<enemy>_<source>_half.png` (for
+fights with three or more ships), and `index.json` ({enemy id: [file, ...]},
+and the same under "half"), which
 also records a hash of this script, of every source picture and of every file
 written, so `--check` (plain python, no numpy) can say the install is stale.
 """
@@ -45,7 +47,9 @@ VARIANTS = {
     "hulk": ["rg_hulk", "rs_net", "honeycomb"],
     "sentinel": ["gyro", "scales", "hl_column"],
     "hellbender": ["helix"],
-    "custodian": ["tetra"],
+    # Jon picked take 1 of the boss-size batch (Oct 13: "custodian:t1"), grown
+    # from tetra; generated facing you, so it is not turned
+    "custodian": ["custodian/t1_grown"],
     "whale": ["mega/fan@70"],
     "leviathan": ["mega/lev_spine"],
 }
@@ -69,6 +73,7 @@ def sources():
         for src in srcs:
             name = src.split("@")[0]
             out.append("art_pool/megafauna/%s.png" % name[5:] if name.startswith("mega/")
+                       else "art_pool/%s.png" % name if name.startswith("custodian/")
                        else "art_pool/ships/%s.png" % name)
     return out
 
@@ -147,6 +152,8 @@ def make(src, picks):
     name, pct = (src.split("@") + [None])[:2]
     if name.startswith("mega/"):
         a = np.array(Image.open(os.path.join(POOL, "megafauna", name[5:] + ".png")).convert("RGBA"))
+    elif name.startswith("custodian/"):
+        a = np.array(Image.open(os.path.join(POOL, name + ".png")).convert("RGBA"))
     else:
         v = picks["ships"].get(name, {})
         if v.get("verdict") != "keep":
@@ -171,8 +178,10 @@ def build():
     picks = json.load(io.open(os.path.join(POOL, "picks.json"), encoding="utf-8"))
     files = {}
     index = {}
+    halves = {}
     for enemy, srcs in VARIANTS.items():
         index[enemy] = []
+        halves[enemy] = []
         for src in srcs:
             a, gone = make(src, picks)
             if a.shape[1] > 340 or a.shape[0] > 160:
@@ -182,8 +191,19 @@ def build():
             Image.fromarray(a, "RGBA").save(buf, "PNG", optimize=True)
             files[fn] = buf.getvalue()
             index[enemy].append(fn)
+            # THE HALF SHEET, for a fight with three or more ships in it (Jon:
+            # "render them at 1X, kinda like how we do for multiplayer"). Made
+            # the way the hulls' half sheets are (`HullData.sprite_half`):
+            # nearest, keeping the top-left pixel of every 2x2 block, which read
+            # better than an averaged-and-snapped reduction side by side.
+            h = trim(a[::2, ::2])
+            hn = fn[:-4] + "_half.png"
+            buf = io.BytesIO()
+            Image.fromarray(np.ascontiguousarray(h), "RGBA").save(buf, "PNG", optimize=True)
+            files[hn] = buf.getvalue()
+            halves[enemy].append(hn)
             print("  %-10s %-24s %3dx%-3d specks %d" % (enemy, fn, a.shape[1], a.shape[0], gone))
-    record = {"source": "tools/enemy_sprites.py", "enemies": index,
+    record = {"source": "tools/enemy_sprites.py", "enemies": index, "half": halves,
               "inputs": {p: sha(os.path.join(HERE, p)) for p in sources()},
               "outputs": {fn: hashlib.sha256(data).hexdigest()[:16] for fn, data in files.items()}}
     files["index.json"] = (json.dumps(record, indent=1) + "\n").encode()

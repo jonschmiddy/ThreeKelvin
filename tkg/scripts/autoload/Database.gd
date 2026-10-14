@@ -1578,10 +1578,14 @@ func card_art(key: StringName) -> Texture2D:
 ## `tools/enemy_sprites.py`) and `look` picks one, wrapping: the fight stores it
 ## on the `EnemyState` (`Combat.look_for`, positional, so every machine and the
 ## wreck it leaves agree). An id with no list falls back to `<id>.png`.
-func enemy_sprite(id: StringName, look: int = 0) -> Texture2D:
+##
+## `half` takes the picture's HALF SHEET instead (a fight with three or more
+## ships draws them all from it, the way the convoy draws hulls; see
+## `EncounterView._layout_pack`).
+func enemy_sprite(id: StringName, look: int = 0, half: bool = false) -> Texture2D:
 	if id == &"":
 		return null
-	var files: Array = enemy_sprite_files(id)
+	var files: Array = enemy_sprite_files(id, half)
 	var path := "res://art/sprites/enemies/%s.png" % id
 	if not files.is_empty():
 		path = "res://art/sprites/enemies/%s" % String(files[posmod(look, files.size())])
@@ -1594,7 +1598,7 @@ func enemy_looks(id: StringName) -> int:
 	return enemy_sprite_files(id).size()
 
 ## The kind's picture files, in the order `look` indexes them.
-func enemy_sprite_files(id: StringName) -> Array:
+func enemy_sprite_files(id: StringName, half: bool = false) -> Array:
 	if _enemy_art_index.is_empty():
 		_enemy_art_index = {"_": true}
 		var f := FileAccess.open("res://art/sprites/enemies/index.json", FileAccess.READ)
@@ -1602,10 +1606,13 @@ func enemy_sprite_files(id: StringName) -> Array:
 			var d = JSON.parse_string(f.get_as_text())
 			if d is Dictionary and d.get("enemies") is Dictionary:
 				_enemy_art_index.merge(d["enemies"])
-	var got = _enemy_art_index.get(String(id), [])
+			if d is Dictionary and d.get("half") is Dictionary:
+				_enemy_half_index = d["half"]
+	var got = (_enemy_half_index if half else _enemy_art_index).get(String(id), [])
 	return got if got is Array else []
 
 var _enemy_art_index: Dictionary = {}
+var _enemy_half_index: Dictionary = {}
 
 ## A SECTOR PLACE'S PICTURE, or null while it has none.
 ##

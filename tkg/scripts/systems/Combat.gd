@@ -107,8 +107,6 @@ var resolving: CardData = null
 ## Which enemy the card being played is aimed at. Set by play(); damage_enemy
 ## falls back to it so the resolver never has to know about targeting.
 var current_target: EnemyState = null
-## At most one wave of reinforcements per fight.
-var reinforced: bool = false
 ## Whether winning consumes the system. True for the contact a node was
 ## generated holding; FALSE for an ambush, which is something that followed you
 ## to a station rather than the reason the station is there. Without it, killing
@@ -296,37 +294,12 @@ func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0) -> Enem
 	e.pick_intent()
 	return e
 
-## Something else arrives mid-fight. Spawned at full health rather than a pack
-## share: it did not agree to split anything, it just turned up.
-func reinforce(template: EnemyTemplate, danger: int) -> void:
-	if finished:
-		return
-	var e := _spawn(template, danger, 0.75)
-	enemies.append(e)
-	e.look = look_for(enemies.size() - 1)
-	reinforced = true
-	_log("◂ %s answers the call." % e.template.name, &"them")
-	Sig.enemy_changed.emit()
-
-## Rolled at the top of a turn. Lawless space is where nobody flies alone, and
-## a fight that has already run long is the one worth interrupting.
-func _maybe_reinforce() -> void:
-	# Solo only, for now. A shared fight's enemy list is the host's, and adding
-	# a hull to it mid-fight means every machine spawning the same reinforcement
-	# at the same index and agreeing what it is worth. That is a real feature
-	# and a short one — the wire already carries foe ids — but it is not this
-	# one, and half of it silently would be four different rooms.
-	if reinforced or finished or is_shared() or Run.node_at().danger < 3:
-		return
-	# One roll, on one turn. Rolling every turn compounds: 12% a turn over a ten
-	# turn fight is a ~72% chance, which is not "sometimes", it is "usually".
-	if enemies.size() > 1 or turn != 3:
-		return
-	var lawless := Run.node_at().region == MapGen.Region.LAWLESS
-	if Rng.fight.randf() >= (0.25 if lawless else 0.10):
-		return
-	var pool := DB.fight_pool(Run.node_at().danger, false)
-	reinforce(DB.enemies[Rng.pick(Rng.fight, pool)], Run.node_at().danger)
+## NOTHING JOINS A FIGHT (Jon, Oct 13: "No reinforcements anywhere."). A fight
+## is the ships it was planned with (`plan`: the contact and its pack, or the
+## dev flag's `foes=`) and only ever loses them. There was a wave: one roll on
+## turn 3, solo, danger 3 and up, 10% (25% lawless), a fresh ship at three
+## quarters' hull. It went, and with it the only way a third ship reached the
+## screen in play.
 
 func alive() -> Array[EnemyState]:
 	var out: Array[EnemyState] = []
@@ -374,7 +347,6 @@ func begin_turn() -> void:
 		if finished:
 			return
 
-	_maybe_reinforce()
 	Sig.turn_started.emit(turn)
 	Sig.hand_changed.emit()
 	Sig.player_combat_state_changed.emit()

@@ -456,6 +456,22 @@ else
 	bad "laddertest did not finish"
 fi
 
+step "The side bar never goes blank between distances"
+# Every hop with a side bar at one end (LOCAL, map, chart), frame by frame at
+# 60 fps for every look of the swap: no frame with the side bar empty, a click
+# on content not yet resolved eaten, and an instant swap headless and under
+# reduced motion (Jon, Oct 13).
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot sidebartest 300 --headless --path "$PROJECT" -- sheet=SideBarTest; then
+	if grep -qE '^sidebartest: PASS' "$LOG_DIR/sidebartest.log"; then
+		ok "the side bar swaps in place, never blank"
+	else
+		bad "the side bar went blank or took a click it should not"
+		grep -E 'FAIL|^sidebartest' "$LOG_DIR/sidebartest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "sidebartest did not finish"
+fi
+
 step "Ships and creatures die the ways Jon kept"
 # Every kept death style reachable, the cut ones (E CHAIN, H SLICE) never
 # played, ships and creatures never crossing, and a won fight's wrecks dying
@@ -600,6 +616,40 @@ else
 	bad "wreckloottest did not finish"
 fi
 
+step "A new run's arrival: the engines sputter to the idle, no highlight"
+# Jon, Oct 13: "I don't want the engines to turn off... I just want them to
+# sputter to an idle. No highlight." LOCAL launched as the hull pick launches
+# it, stepped a frame at a time: the flame never fully off from the clean burn
+# to the idle, the cutaway outline never lit by the ship coming to rest, and a
+# pointer left where it parked does not light it.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot arriveidletest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=ArriveIdleTest; then
+	if grep -qE '^arriveidletest: PASS' "$LOG_DIR/arriveidletest.log"; then
+		ok "the arrival sputters to the idle, never off, no highlight"
+	else
+		bad "the arrival's engines or highlight are wrong"
+		grep -E 'FAIL|^arriveidletest' "$LOG_DIR/arriveidletest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "arriveidletest did not finish"
+fi
+
+step "Your idle engines are heard exactly while the idle flame is seen"
+# Jon, Oct 13: "Let's have a low burn sound for the idle engines". Audio is off
+# headless, but its decision (`Audio.idle_want`) and fade are not: silent
+# through the arrival's clean burn, up from the first gap, full when parked;
+# down in a hyperdrive's dark, a departure, hidden or off screen; heard in a
+# fight; silent on the chart and the refit; one view only, yours.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot idlesoundtest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=IdleSoundTest; then
+	if grep -qE '^idlesoundtest: PASS' "$LOG_DIR/idlesoundtest.log"; then
+		ok "the idle bed follows the idle flame"
+	else
+		bad "the idle bed does not follow the idle flame"
+		grep -E 'FAIL|^idlesoundtest' "$LOG_DIR/idlesoundtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "idlesoundtest did not finish"
+fi
+
 step "Jon's welcome note: once per profile, and on the title menu"
 # Opens by itself on a fresh profile's title, word for word and inside the
 # screen; marked seen only when CLOSED; never again after; MESSAGE FROM JON
@@ -651,6 +701,60 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 else
 	bad "enemyarttest did not finish"
+fi
+
+step "Nothing joins a fight"
+# Jon: "No reinforcements anywhere." Every kind, alone and in a pack, over
+# seeded fights at a lawless danger-5 system played to turn 7: the enemy
+# count never rises, and the Custodian and the Hellbender stand alone.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot fightcounttest 240 --headless --path "$PROJECT" -- sheet=FightCountTest; then
+	if grep -qE '^fightcounttest: PASS' "$LOG_DIR/fightcounttest.log"; then
+		ok "$(grep -E '^fightcounttest: [0-9]+ fights' "$LOG_DIR/fightcounttest.log" | head -n 1 | sed 's/^fightcounttest: //')"
+	else
+		bad "a ship joined a fight"
+		grep -E 'FAIL|^fightcounttest' "$LOG_DIR/fightcounttest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "fightcounttest did not finish"
+fi
+
+step "A kill moves nothing"
+# Jon: "The enemy dips down and then pops up after the death animation?" A
+# seeded pack of three (half) and a pair (full size), the first ship killed
+# with the animations on: no slot or resting place moves from the kill to a
+# second after the breakup, the breakup stands where the ship rests, and its
+# last frame is the wreck the slot draws, pixel for pixel.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot killholdtest 180 --headless --path "$PROJECT" -- sheet=KillHoldTest; then
+	if grep -qE '^killholdtest: PASS' "$LOG_DIR/killholdtest.log"; then
+		ok "a kill leaves the pack where it stood"
+	else
+		bad "a kill moved the pack, or the breakup and its wreck disagree"
+		grep -E 'FAIL|^killholdtest' "$LOG_DIR/killholdtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "killholdtest did not finish"
+fi
+
+step "Nothing in a fight sits on anything else"
+# Jon, on three enemies piled on each other: no ship, wreck, name, hull bar,
+# chips or intent may overlap another enemy's, or yours. Every pair and triple
+# of the pictures a fight can bring, every triple with a wreck in it, and
+# LOCAL's rows of up to twelve wrecks, in the formation (B, the game's) and the
+# column (C): three or more blocks drawn from their half sheets, every box
+# apart, inside the view, your ship where it stood; each fighting ship's shield
+# oval clear of its words, name, bars and chips and of every other block (Jon,
+# "shield:A"); in B the gaps across a rank even (within 4 px at 1080p), the
+# gaps between ranks even, every gap at least 24 px.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot packlayouttest 420 --headless --path "$PROJECT" -- sheet=PackLayoutTest; then
+	if grep -qE '^packlayouttest: PASS' "$LOG_DIR/packlayouttest.log"; then
+		ok "$(grep -cE '^packlayouttest: layout' "$LOG_DIR/packlayouttest.log") layouts, every pack apart"
+	else
+		bad "something in a fight sits on something else"
+		grep -E 'FAIL|^packlayouttest' "$LOG_DIR/packlayouttest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "packlayouttest did not finish"
 fi
 
 step "One black hole at the core, one pulsar at a pulsar"

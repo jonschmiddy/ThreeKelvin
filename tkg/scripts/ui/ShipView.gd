@@ -1085,11 +1085,26 @@ func _spooled(img: Image) -> Image:
 	return out
 
 ## Children are the fitted modules, added by whichever slot built this view.
+##
+## PUT BACK ONLY WHAT IT TOOK AWAY. A child that was hidden for its own reasons
+## stays hidden: the cutaway's hover outline (`CutawayView.Outline`) is a child
+## too, and `park()` -- which every arrival ends with -- used to switch it on,
+## so your ship lit up amber the moment it came to rest with nobody pointing at
+## it (Jon, Oct 13: "the ship is highlighted... No highlight").
+var _fittings_hidden: Array[Control] = []
+
 func _hide_fittings(gone: bool) -> void:
-	for c in get_children():
-		var ctrl := c as Control
-		if ctrl != null:
-			ctrl.visible = not gone
+	if gone:
+		for c in get_children():
+			var ctrl := c as Control
+			if ctrl != null and ctrl.visible:
+				ctrl.visible = false
+				_fittings_hidden.append(ctrl)
+		return
+	for ctrl in _fittings_hidden:
+		if is_instance_valid(ctrl):
+			ctrl.visible = true
+	_fittings_hidden.clear()
 
 func _shift(dx: int) -> bool:
 	if dx == int(position.x):
@@ -1697,14 +1712,61 @@ func _thrust_now() -> int:
 	if h == null or not h.has_exhaust() or h.sprite == null:
 		return -1
 	if _arrive_at >= 0:
-		if not _burning:
-			return -1                       # coasting dark between the stutters
-		if _arrive_window <= 0:
-			return ThrusterFx.Thrust.FULL
-		return ThrusterFx.Thrust.CRUISE if _arrive_window <= 2 else ThrusterFx.Thrust.IDLE
+		return arrive_thrust(_arrive_window if _burning else -1)
 	if _burning:
 		return _burn_thrust
 	return ThrusterFx.Thrust.IDLE
+
+
+## YOUR ENGINES AT IDLE, HEARD (Jon, Oct 13: "Let's have a low burn sound for
+## the idle engines"). Set on ONE view: your ship on LOCAL and in fights
+## (`SectorScreen`). Every other ship idles in silence -- a pack of enemies, a
+## convoy and you each with a bed would be mud -- and so does your ship on the
+## screens that only show it (the refit, the transfer). `Audio` keeps the view
+## and asks `idle_heard()` every frame; the sound follows the picture, so
+## nothing here starts or stops it.
+var hums := false:
+	set(v):
+		hums = v
+		if v:
+			Audio.idle_from(self)
+
+
+## Whether the idle bed should be sounding for this view right now: it hums,
+## it is drawn, the hull is on screen, and its flame is the IDLE. An arrival's
+## coughs after its clean burn count as idle too: the drive is settling into
+## the idle there and the coughs are flashes over it, so the bed comes up in
+## the first gap and stays up rather than pumping with each flash (its fade is
+## longer than a cough). The clean burn, a departure's FULL and a hyperdrive's
+## dark (`_engines_off`) are not.
+func idle_heard() -> bool:
+	if not hums or not is_inside_tree() or not is_visible_in_tree():
+		return false
+	var th := _thrust_now()
+	var settling := _arrive_at >= 0 and _arrive_window >= 1 and th >= 0
+	if th != ThrusterFx.Thrust.IDLE and not settling:
+		return false
+	var h := hull_rect()
+	var xf := get_global_transform()
+	var r := Rect2(xf * h.position, Vector2.ZERO).expand(xf * h.end)
+	return r.intersects(get_viewport_rect())
+
+
+## THE ARRIVAL SPUTTERS DOWN TO THE IDLE; IT NEVER GOES OUT (Jon, Oct 13: "I
+## don't want the engines to turn off... I just want them to sputter to an
+## idle"). `window` is the FLAMEOUTS window the approach is in, or -1 between
+## them and after the last. The clean burn and the first two coughs are FULL,
+## the later coughs CRUISE (shrinking flashes as the drive starves), and every
+## gap between them, and the coast after the last, is the IDLE the ship then
+## sits at. So the engines settle into the burn they keep. They used to go
+## dark in the gaps and through the coast (1.8 s at the end of an arrival), and
+## the idle came on with the park: off, then on again.
+static func arrive_thrust(window: int) -> int:
+	if window < 0:
+		return ThrusterFx.Thrust.IDLE
+	if window <= 2:
+		return ThrusterFx.Thrust.FULL
+	return ThrusterFx.Thrust.CRUISE
 
 
 ## The coded flame, onto `_flame_layer` (ADD), in canvas pixels: the same

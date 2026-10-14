@@ -27,6 +27,13 @@ var _track: bool = false
 func used_rect() -> Rect2i:
 	return _used
 
+## The picture's own box on the canvas -- the sprite, without the light a
+## wind-up throws past it; the whole drawing for a coded ship.
+var _ink_box: Rect2i = Rect2i()
+
+func ink_rect() -> Rect2i:
+	return _ink_box if _ink_box.size != Vector2i.ZERO else _used
+
 ## THE CANVAS, 340x160 since the Custodian grew past 240x120 (Oct 13). Every
 ## other picture still fits the old box; the slot fits itself to the ship
 ## (`EnemySlot._fit_holder`), so the bigger canvas costs no room on screen. The
@@ -183,7 +190,23 @@ func _blit_sprite(tex: Texture2D) -> bool:
 	if _track:
 		var r := Rect2i(at, ink.size)
 		_bounds = r if _bounds.size == Vector2i.ZERO else _bounds.merge(r)
+		_ink_box = r
 	return true
+
+## HOW BIG THE PICTURE IS DRAWN: 1, or 0.5 from the picture's half sheet.
+## A fight with three or more ships draws every one at half (Jon: "render them
+## at 1X, kinda like how we do for multiplayer"; `EncounterView._layout_pack`),
+## from a second file made offline the way the hulls' are -- never a resample.
+var draw_scale: float = 1.0
+## The picture's size and its half sheet's: what the pack layout plans with
+## (zero while a coded drawing is drawn).
+var full_ink: Vector2i = Vector2i.ZERO
+var half_ink: Vector2i = Vector2i.ZERO
+
+func set_draw_scale(s: float) -> void:
+	if not is_equal_approx(s, draw_scale):
+		draw_scale = s
+		_sig = ""
 
 func dither(x: int, y: int, w: int, h: int, c: Color, density: float) -> void:
 	var thresholds := [0.0, 0.5, 0.75, 0.25]
@@ -428,18 +451,19 @@ static func set_marked_wreck(id: int, style: int, img: Image) -> void:
 		_marked[id] = {style = style, img = img}
 static var _wreck_tasks: Dictionary = {}
 
-static func _wreck_key(t: EnemyTemplate, max_hp: int, style: int, look: int) -> String:
+static func _wreck_key(t: EnemyTemplate, max_hp: int, style: int, look: int, scale: float = 1.0) -> String:
 	# Size only changes the drawing for fauna; see `_draw_fauna`. `look` is which
-	# of the kind's pictures this ship wears (`Combat.look_for`).
-	return "%s|%d|%d|%d" % [t.id, int(t.fauna and max_hp > 60), style, look]
+	# of the kind's pictures this ship wears (`Combat.look_for`); `scale` how big
+	# the pack drew it (`draw_scale`).
+	return "%s|%d|%d|%d|%.3f" % [t.id, int(t.fauna and max_hp > 60), style, look, scale]
 
 ## Start cutting this enemy's wreck now, off the main thread. Drawing the dead
 ## canvas to cut is the only part done here (a few ms).
-static func warm_wreck(e: Combat.EnemyState, style: int) -> void:
-	var key := _wreck_key(e.template, e.max_hp, style, e.look)
+static func warm_wreck(e: Combat.EnemyState, style: int, scale: float = 1.0) -> void:
+	var key := _wreck_key(e.template, e.max_hp, style, e.look, scale)
 	if _wrecks.has(key) or _wreck_tasks.has(key):
 		return
-	var dc := dead_canvas(e)
+	var dc := dead_canvas(e, null, scale)
 	var img: Image = dc[0]
 	var used: Rect2i = dc[1]
 	var seed := wreck_seed(e.template)
@@ -465,9 +489,11 @@ static func _take_wreck(key: String) -> Image:
 ## dead draw -- the slot, LOCAL's wreck -- are one image to the pixel; the live
 ## picture's wound depends on the hull it had, which nothing after the kill
 ## knows. The difference is hidden under the hit's flash.
-static func dead_canvas(e: Combat.EnemyState, with_marks: ShipHitFx = null) -> Array:
+static func dead_canvas(e: Combat.EnemyState, with_marks: ShipHitFx = null, scale: float = 1.0) -> Array:
 	var art := EnemyArt.new()
 	art.marks = with_marks
+	# at the size the pack draws it (`draw_scale`: 0.5 from its half sheet)
+	art.draw_scale = scale
 	var ghost := Combat.EnemyState.new()
 	ghost.template = e.template
 	ghost.max_hp = e.max_hp
@@ -509,7 +535,7 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	# has a sprite and the other does not, it would.
 	var sig := "%s|%s|%d|%d|%d|%d|%d" % [e.template.id, e.template.art, int(telegraphing),
 		int(wounded * 20.0), int(e.max_hp > 60), int(dead), int(cut_wreck) * (style + 2)]
-	sig += "|look %d" % e.look
+	sig += "|look %d|scale %.3f" % [e.look, draw_scale]
 	if marks != null:
 		sig += "|marks %d" % marks.version
 	if dead and _marked.has(wreck_id):
@@ -527,6 +553,7 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	# a lot of empty pixels, which costs real estate as soon as two enemies
 	# share the arena.
 	_bounds = Rect2i()
+	_ink_box = Rect2i()
 	_track = true
 	# ONE DOOR: the ship's own sprite if it has one, the drawing if it does not.
 	# The same shape `ModuleIcon.draw_body` uses, and for the same reason -- there
@@ -550,6 +577,8 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 		var mi := marks.marks()
 		if mi != null:
 			_img.blend_rect(mi, Rect2i(Vector2i.ZERO, mi.get_size()), marks.marks_at())
+		for q in marks.cut_px():
+			_img.set_pixel(int(q.x), int(q.y), Color(0, 0, 0, 0))
 	_used = _bounds if _bounds.size != Vector2i.ZERO else Rect2i(0, 0, W, H)
 
 	# And the Control shrinks to fit it. The canvas is a fixed 240x120 while a
@@ -563,8 +592,12 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	# without ever moving the hull inside the frame.
 	var cx := W * 0.5
 	var cy := H * 0.5
-	var half_w: float = maxf(absf(float(_used.position.x) - cx), absf(float(_used.end.x) - cx))
-	var half_h: float = maxf(absf(float(_used.position.y) - cy), absf(float(_used.end.y) - cy))
+	# THE PICTURE'S OWN BOX, not the light it throws: a wind-up's flare or burn
+	# spills past the hull into the space round it, and a box that grew with it
+	# would move the ship's neighbours every time an intent changed.
+	var box := _ink_box if _ink_box.size != Vector2i.ZERO else _used
+	var half_w: float = maxf(absf(float(box.position.x) - cx), absf(float(box.end.x) - cx))
+	var half_h: float = maxf(absf(float(box.position.y) - cy), absf(float(box.end.y) - cy))
 	clip_contents = true
 	custom_minimum_size = Vector2(half_w, half_h) * 2.0 + Vector2(6, 6)
 	if wounded < 0.3:
@@ -574,7 +607,7 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	# fight, are the same broken hull the animation ended on.
 	if dead and cut_wreck:
 		var st := style if style >= 0 else _default_style(e.template)
-		var key := _wreck_key(e.template, e.max_hp, st, e.look)
+		var key := _wreck_key(e.template, e.max_hp, st, e.look, draw_scale)
 		var w := _take_wreck(key)
 		var mk: Dictionary = _marked.get(wreck_id, {})
 		if not mk.is_empty() and int(mk.style) == st:
@@ -594,7 +627,11 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 ## breakup cuts out of it is the ship's own alpha -- a star showing through a
 ## gap in a ring would otherwise break off as hull.
 func _draw_sprite(e: Combat.EnemyState, wounded: float, telegraphing: bool) -> bool:
-	if not _blit_sprite(DB.enemy_sprite(e.template.id, e.look)):
+	var full := DB.enemy_sprite(e.template.id, e.look)
+	var half := DB.enemy_sprite(e.template.id, e.look, true)
+	full_ink = Vector2i(full.get_size()) if full != null else Vector2i.ZERO
+	half_ink = Vector2i(half.get_size()) if half != null else full_ink
+	if not _blit_sprite(half if draw_scale < 1.0 and half != null else full):
 		return false
 	var ink := _bounds
 	# Damage, on the hull and sized to it. `_wound` is the one the coded ships
@@ -607,7 +644,7 @@ func _draw_sprite(e: Combat.EnemyState, wounded: float, telegraphing: bool) -> b
 		var q := _on_hull(ink, Vector2(0.7, 0.42))
 		_wound(q.x, q.y, clampi(ink.size.x / 13, 8, 16), clampi(ink.size.y / 8, 6, 10))
 	if telegraphing:
-		_windup(e.template, ink)
+		_windup(e.template, ink, e.look)
 	return true
 
 ## THE DRAWINGS, for a kind with no picture. Authored in a 240x120 box, so drawn
@@ -681,7 +718,13 @@ const WINDUP := {&"hulk": &"nose", &"hellbender": &"stern"}
 const COLD: Array[Color] = [Color("#3a6b8c"), Color("#5c9cc4"), Color("#8ec8e6"),
 	Color("#cfe8f5"), Color("#eaf6fc"), Color("#ffffff")]
 
-func _windup(t: EnemyTemplate, ink: Rect2i) -> void:
+## WHERE A PICTURE'S HEART IS, where its own drawing says it is, as a share of
+## its box; a picture not listed charges at its mass. The Custodian's take 1 is
+## one huge octahedron leading a chain of small ones, and its mass falls in the
+## gap between them -- the light belongs in the big one.
+const CORE_AT := {"custodian_t1_grown": Vector2(0.23, 0.46)}
+
+func _windup(t: EnemyTemplate, ink: Rect2i, look: int = 0) -> void:
 	var where: StringName = WINDUP.get(t.id, &"core")
 	match where:
 		&"nose":
@@ -693,7 +736,9 @@ func _windup(t: EnemyTemplate, ink: Rect2i) -> void:
 			_light(p, clampf(ink.size.y * 0.8, 18.0, 40.0), _heat[3], 1.0)
 			_glow(p.x + 1, p.y, maxi(4, ink.size.y / 7), 30)
 		_:
-			var p := _on_hull(ink, _mass(ink))
+			var files := DB.enemy_sprite_files(t.id)
+			var key := String(files[posmod(look, files.size())]).get_basename() if not files.is_empty() else ""
+			var p := _on_hull(ink, CORE_AT.get(key, _mass(ink)))
 			_pool(p, clampf(minf(ink.size.x, ink.size.y) * 0.7, 20.0, 52.0), COLD[3], 1.6)
 			# the heart itself, white, on the hull only
 			for dy in range(-2, 3):
