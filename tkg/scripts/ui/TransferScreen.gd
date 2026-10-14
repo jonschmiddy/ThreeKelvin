@@ -279,6 +279,8 @@ func _portrait(h: HullData, foreign: bool) -> Control:
 		v.setup_build(ShipBuild.fitted_out(h, Run.pad))
 	else:
 		v.setup_preview(h, 0, 1)
+		# The ship you fly hums; the old frame on the dock is already traded in.
+		v.hums = true
 
 	# THE MOUNTS ARE A CHILD OF THE VIEW, not a sibling in a stack beside it.
 	# `attach` anchors them to their PARENT, so parenting them to the ship makes

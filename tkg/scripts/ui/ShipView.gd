@@ -1719,10 +1719,11 @@ func _thrust_now() -> int:
 
 
 ## YOUR ENGINES AT IDLE, HEARD (Jon, Oct 13: "Let's have a low burn sound for
-## the idle engines"). Set on ONE view: your ship on LOCAL and in fights
-## (`SectorScreen`). Every other ship idles in silence -- a pack of enemies, a
-## convoy and you each with a bed would be mud -- and so does your ship on the
-## screens that only show it (the refit, the transfer). `Audio` keeps the view
+## the idle engines"). Set on the view that is YOUR ship: on LOCAL and in
+## fights (`SectorScreen`), on the refit (`ShipScreen`) and on the transfer's
+## new hull (`TransferScreen`), because the sound follows the picture and each
+## of those draws your idle flame. Every other ship idles in silence -- a pack
+## of enemies, a convoy and you each with a bed would be mud. `Audio` keeps the view
 ## and asks `idle_heard()` every frame; the sound follows the picture, so
 ## nothing here starts or stops it.
 var hums := false:

@@ -14,7 +14,10 @@ extends Node
 ##   - a hyperdrive's dark (engines off) takes it down, within the fade; so does
 ##     a departure's FULL; parking brings it back;
 ##   - a fight: your ship idles there, and it is heard there;
-##   - the star chart and the refit (no LOCAL ship on screen): silent;
+##   - the star chart (no ship on screen): silent;
+##   - the refit and the transfer: your ship's idle flame is drawn there, so it is
+##     heard there too, and only by that one view (the transfer's old frame is
+##     quiet);
 ##   - back on LOCAL: heard again.
 ## The fade itself: up and down in IDLE_FADE_S, give or take a frame.
 
@@ -182,10 +185,14 @@ func _run() -> void:
 	_ok("the star chart is silent (want %s, level 0 in %d frames)" % [Audio.idle_want, gone],
 			not Audio.idle_want and gone > 0)
 	Router.show_ship()
-	for i in 30:
-		await _tree.process_frame
-	_ok("the refit is silent: your ship is shown, not heard (want %s)" % Audio.idle_want,
-			not Audio.idle_want and is_zero_approx(Audio.idle_level))
+	var refit := await _settle(1.0, 120)
+	_ok("the refit is heard: your ship's idle flame is drawn there (%d frames)" % refit,
+			refit > 0 and Audio.idle_want)
+	Router.show_transfer()
+	var moved := await _settle(1.0, 120)
+	var thum := _hummers(_tree.root, [])
+	_ok("the transfer is heard, by your new hull alone (%d frames, %d humming views)"
+			% [moved, thum.size()], moved > 0 and Audio.idle_want and thum.size() == 1)
 
 	# ---- and back
 	Router.animate_in_harness = false

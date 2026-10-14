@@ -357,6 +357,8 @@ func _build() -> void:
 	view.self_clip = false
 	view.magnify(1, HULL_VIEW_H)
 	view.bob(2)
+	# Heard as well as seen: the idle flame is on screen, so its bed is too.
+	view.hums = true
 	view.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	# The mounts are a CHILD of the view, so they inherit its rect and every
 	# position they draw is in the view's own coordinates — which is what makes
