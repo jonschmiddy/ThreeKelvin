@@ -765,7 +765,7 @@ var _scene_duck_to := 1.0
 
 func duck_music(amount: float, secs: float) -> void:
 	_scene_duck_to = clampf(1.0 - amount, 0.05, 1.0)
-	_scene_duck_until = float(Time.get_ticks_msec()) / 1000.0 + secs
+	_scene_duck_until = GameClock.now() + secs
 
 
 ## A MUSIC HIT at a set piece's peak. There is no stinger yet (Jon cut the old
@@ -801,7 +801,7 @@ func _process(delta: float) -> void:
 		_pa.stop()
 	var duck_to: float = db_to_linear(DUCK_DB) if _room_talking() else 1.0
 	# a boss's death holds the music down for its set piece (`duck_music`)
-	if float(Time.get_ticks_msec()) / 1000.0 < _scene_duck_until:
+	if GameClock.now() < _scene_duck_until:
 		duck_to = minf(duck_to, _scene_duck_to)
 	_duck = move_toward(_duck, duck_to,
 			delta / (DUCK_IN if duck_to < _duck else DUCK_OUT))

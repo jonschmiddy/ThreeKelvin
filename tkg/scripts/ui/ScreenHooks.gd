@@ -13,8 +13,10 @@ extends Node
 ##   slowmo   Engine.time_scale for its length, in real time;
 ##   flash    a white layer over the whole screen, eased out a frame at a time;
 ##   duck / stinger  through Audio.
-## Everything on the real clock (Time), so slow motion never stretches the
-## shake or the flash. Reduced motion (`Router.animating()` false) and the
+## Everything on the game's clock (`GameClock`), as everything on screen is, so
+## a film made with the movie writer plays it at true speed and the slow motion
+## reaches the shake and the flash too. A slow motion's length is screen time:
+## it is kept in game seconds scaled down by its own rate. Reduced motion (`Router.animating()` false) and the
 ## screen-shake setting are honoured: no shake, no flash, no slow motion then.
 
 var target: Control
@@ -46,7 +48,7 @@ func _ready() -> void:
 
 
 static func _now() -> float:
-	return float(Time.get_ticks_usec()) / 1000000.0
+	return GameClock.now()
 
 
 ## Wire to a breakup's `moment`.
@@ -62,7 +64,7 @@ func on_moment(kind: StringName, s: float, len: float) -> void:
 		&"slowmo":
 			if not calm:
 				Engine.time_scale = clampf(s, 0.1, 1.0)
-				_slow_until = _now() + len
+				_slow_until = _now() + len * Engine.time_scale
 		&"duck":
 			Audio.duck_music(s, len)
 		&"stinger":
