@@ -2151,12 +2151,17 @@ func _refresh_enemy() -> void:
 		var e = combat.enemies[i]
 		if e.hp <= 0:
 			continue
-		# THE SAME CHIPS AS YOURS (Jon: "why is it BLOCK 6 instead of the
+		# THE SAME CHIP AS YOURS (Jon: "why is it BLOCK 6 instead of the
 		# icon?"). The enemy's row was still the words-in-a-box chip the player
-		# row dropped, and its brace was never shown at all.
-		if e.brace > 0:
-			row.add_child(StatusChip.make(&"brace", str(e.brace),
-				Color("#3a5a6e"), "BRACE\n\nMitigates %d damage, then goes away." % e.brace))
+		# row dropped.
+		#
+		# NO BRACE CHIP. An enemy's brace is already the pips on its hull bar
+		# (`EnemySlot.BracePips`) and the plating on its picture; a chip would
+		# say it a third time. It also cost room: the lancer, hulk, sentinel
+		# and custodian start every fight with brace, so the row was never
+		# empty, and the slot's centred column lifted each of them 9 px into
+		# its neighbours (PopPlaceTest: a pop on the cutter in cutter, lancer,
+		# hulk hit both their readouts).
 		if e.block > 0:
 			row.add_child(StatusChip.make(&"block", str(e.block),
 				Color("#3a4a6e"), "BLOCK\n\nStops %d damage this turn." % e.block))
