@@ -24,8 +24,11 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     # The script imposes its own per-step limits; this is the backstop for
-    # anything that hangs outside them, such as the Godot download.
-    timeout-minutes: 25
+    # anything that hangs outside them, such as the Godot download. It was 25
+    # and the gate outgrew it: by a6976ef the steps alone took about 26 minutes
+    # on a runner (fightcounttest and packlayouttest are four each), so every
+    # push from 3e47e4d on was cancelled mid-gate rather than failed by a step.
+    timeout-minutes: 40
 
     env:
       # Must match what the project is developed against. Godot is strict about

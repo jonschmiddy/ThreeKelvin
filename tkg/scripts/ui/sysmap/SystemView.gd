@@ -2460,7 +2460,8 @@ class _Fabric extends Node2D:
 		if _jobs.has(k):
 			var job: Dictionary = _jobs[k]
 			_jobs.erase(k)
-			WorkerThreadPool.wait_for_task_completion(int(job.id))
+			if int(job.id) >= 0:
+				WorkerThreadPool.wait_for_task_completion(int(job.id))
 			res = job.out
 		else:
 			res = [null]
@@ -2476,15 +2477,29 @@ class _Fabric extends Node2D:
 	static func collect() -> void:
 		for k: String in _jobs.keys():
 			var job: Dictionary = _jobs[k]
-			if not WorkerThreadPool.is_task_completed(int(job.id)):
+			var id := int(job.id)
+			if id >= 0 and not WorkerThreadPool.is_task_completed(id):
 				continue
 			_jobs.erase(k)
-			WorkerThreadPool.wait_for_task_completion(int(job.id))
+			if id >= 0:
+				WorkerThreadPool.wait_for_task_completion(id)
 			var m := _make_mesh((job.out as Array)[0])
 			if _meshes.size() >= MESHES_MAX:
 				_meshes.erase(_meshes.keys()[0])
 			_meshes[k] = m
 			return
+
+	## NO GRID IS LEFT ON A WORKER when a map goes, and quitting is why: a task
+	## nobody waits for hangs the process at exit (stowtest, killed by the gate's
+	## watchdog on every push from 37811eb on). Each job is waited for and kept,
+	## its id set to -1 so `_mesh` and `collect` take its points without waiting
+	## twice.
+	func _exit_tree() -> void:
+		for k: String in _jobs:
+			var job: Dictionary = _jobs[k]
+			if int(job.id) >= 0:
+				WorkerThreadPool.wait_for_task_completion(int(job.id))
+				job.id = -1
 
 	func _draw() -> void:
 		if _level >= 0:
