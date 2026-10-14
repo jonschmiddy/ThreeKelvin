@@ -2149,8 +2149,22 @@ func _refresh_enemy() -> void:
 			continue
 		Widgets.clear(row)
 		var e = combat.enemies[i]
-		if e.hp > 0 and e.block > 0:
-			row.add_child(Widgets.chip("block %d" % e.block, Color("#3a4a6e")))
+		if e.hp <= 0:
+			continue
+		# THE SAME CHIP AS YOURS (Jon: "why is it BLOCK 6 instead of the
+		# icon?"). The enemy's row was still the words-in-a-box chip the player
+		# row dropped.
+		#
+		# NO BRACE CHIP. An enemy's brace is already the pips on its hull bar
+		# (`EnemySlot.BracePips`) and the plating on its picture; a chip would
+		# say it a third time. It also cost room: the lancer, hulk, sentinel
+		# and custodian start every fight with brace, so the row was never
+		# empty, and the slot's centred column lifted each of them 9 px into
+		# its neighbours (PopPlaceTest: a pop on the cutter in cutter, lancer,
+		# hulk hit both their readouts).
+		if e.block > 0:
+			row.add_child(StatusChip.make(&"block", str(e.block),
+				Color("#3a4a6e"), "BLOCK\n\nStops %d damage this turn." % e.block))
 
 	_view.show_enemies(combat.enemies, _on_card_dropped, _on_slot_hovered)
 	# SOMETHING JOINED. "answers the call" went only to the log, which a fight
