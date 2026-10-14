@@ -26,7 +26,8 @@ extends Control
 ## THE PICTURE IS NEVER REDRAWN OR TURNED. Rotating pixel art shimmers, and an
 ## AI animation of a whole picture boils (memory turn-pixel-art-in-whole-pixel-
 ## steps, animate-image-redraws-the-whole-picture). Each picture is cut ONCE
-## (`cut`, safe on a worker thread) into the parts it already has, and only the
+## (`cut`, on a worker thread: pure CPU work, its textures owed until `attach`
+## pays them on the main thread -- `OffThread`) into the parts it already has, and only the
 ## parts move, in whole pixels, on held steps (8 or 12 a second):
 ##   - THE CUSTODIAN into its octahedra: their apexes are the dips in its top
 ##     edge and they all sit on one equator (the silver spine), so each is a
@@ -105,6 +106,8 @@ var _last_step := -1
 var _light: Control
 var _draw_us := 0
 var _pic_key := ""
+## Textures `cut` asked for on a worker, given their pictures by `attach`.
+var _owed: Array = []
 
 
 static func kind_of(id: StringName) -> int:
@@ -159,7 +162,9 @@ static func still_canvas(e, hull: int, s: float, marks = null) -> Image:
 
 
 ## Cut `img` (an `EnemyArt` canvas holding the picture, drawn without a wind-up)
-## for kind `k`. Touches nothing in the tree: safe on a worker thread.
+## for kind `k`. Touches nothing in the tree and makes no RID (its textures
+## are owed, `OffThread.tex`): safe on a worker thread. The node itself is
+## made on the main thread (a Control is a canvas item).
 ## `pic_key` is the picture's file name (for `EnemyArt.CORE_AT`, if it has one).
 func cut(img: Image, k: int, s: float = 1.0, pic_key: String = "") -> void:
 	var t0 := Time.get_ticks_usec()
@@ -172,7 +177,7 @@ func cut(img: Image, k: int, s: float = 1.0, pic_key: String = "") -> void:
 	_W = _img.get_width()
 	_H = _img.get_height()
 	_ink_r = _img.get_used_rect()
-	_still = ImageTexture.create_from_image(_img)
+	_still = _tex(_img)
 	if kind == Kind.CUSTODIAN:
 		_cut_custodian()
 	else:
@@ -180,9 +185,10 @@ func cut(img: Image, k: int, s: float = 1.0, pic_key: String = "") -> void:
 	setup_ms = (Time.get_ticks_usec() - t0) / 1000.0
 
 
-## On the main thread, once cut: the node's own pieces (its light layer, its
-## shader), at rest.
+## On the main thread, once cut: its textures, the node's own pieces (its light
+## layer, its shader), at rest.
 func attach() -> void:
+	OffThread.pay(_owed)
 	size = Vector2(_W, _H)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -332,6 +338,10 @@ func _rest() -> void:
 	_light.visible = false
 	queue_redraw()
 	came_to_rest.emit()
+
+
+func _tex(im: Image) -> ImageTexture:
+	return OffThread.tex(im, _owed)
 
 
 # ======================================================================= SHADERS
@@ -560,12 +570,8 @@ func _cut_creature() -> void:
 			var i := y * W + x
 			if ink[i] == 1 and spine[i] == 0 and fin[i] == 0 and acc[i] > 0.0:
 				halo.set_pixel(x, y, Color(hc.r, hc.g, hc.b, clampf(acc[i] / crowd, 0.0, 1.0)))
-	_body_tex = ImageTexture.create_from_image(body)
+	_body_tex = _tex(body)
 	_par = Image.create(W, 2, false, Image.FORMAT_RGBAF)
-	_par_tex = ImageTexture.create_from_image(_par)
-	_shader_tex = {body_tex = _body_tex, spine_tex = ImageTexture.create_from_image(sp),
-		fin_tex = ImageTexture.create_from_image(fi), core_tex = ImageTexture.create_from_image(core),
-		halo_tex = ImageTexture.create_from_image(halo), par_tex = _par_tex}
 	_cur.resize(W * 4)
 	_cur.fill(0)
 	_curl.resize(W * 2)
@@ -577,7 +583,12 @@ func _cut_creature() -> void:
 	m_glow = glow
 	m_spine = spine
 	m_fin = fin
-	_upload()
+	# the per-column inputs at rest, then their texture (made from them, where
+	# it was made empty and updated: the same texels)
+	_fill_par()
+	_par_tex = _tex(_par)
+	_shader_tex = {body_tex = _body_tex, spine_tex = _tex(sp), fin_tex = _tex(fi), core_tex = _tex(core),
+		halo_tex = _tex(halo), par_tex = _par_tex}
 
 
 ## 3x3 erosion and dilation of a mask, inside `r` (one pixel past it for the
@@ -824,6 +835,15 @@ func _tick_creature(ts: float) -> void:
 
 
 func _upload() -> void:
+	_fill_par()
+	_par_tex.update(_par)
+	if _mat != null:
+		_mat.set_shader_parameter("fin_k", Vector2(_fin_cur))
+
+
+## What is shown, per column, into `_par` (two rows: offsets and swells, lights
+## and the medial line).
+func _fill_par() -> void:
 	var W := _W
 	var buf := PackedFloat32Array()
 	buf.resize(W * 8)
@@ -839,9 +859,6 @@ func _upload() -> void:
 		buf[j + 2] = _cur[i] + _cur[i + 3]
 		buf[j + 3] = _mid[x]
 	_par.set_data(W, 2, false, Image.FORMAT_RGBAF, buf.to_byte_array())
-	_par_tex.update(_par)
-	if _mat != null:
-		_mat.set_shader_parameter("fin_k", Vector2(_fin_cur))
 
 
 func _at_rest_creature() -> bool:
@@ -1121,7 +1138,7 @@ func _cut_custodian() -> void:
 						im.set_pixel(xx - box.position.x, yy - box.position.y, Color(c2.r, c2.g, c2.b, 1.0))
 		var dir: Vector2 = (d.c as Vector2) - centre
 		dir = dir / maxf(1.0, dir.length()) if dir.length() > 10.0 * pic_scale else Vector2(0, -1)
-		_pieces.append({tex = ImageTexture.create_from_image(im), img = im, at = Vector2(box.position),
+		_pieces.append({tex = _tex(im), img = im, at = Vector2(box.position),
 			c = d.c, hh = d.hh, dir = dir, k = k, off = Vector2i.ZERO})
 	var byx: Array = range(_pieces.size())
 	byx.sort_custom(func(a: int, b: int) -> bool: return float(_pieces[a].c.x) < float(_pieces[b].c.x))
@@ -1203,7 +1220,7 @@ func _cut_custodian() -> void:
 					continue
 				var e := clampf(float(acc[q3]) / (2.5 if big else 1.6), 0.0, 1.0)
 				halo.set_pixel(q3.x - lr.position.x, q3.y - lr.position.y, Color(hc.r, hc.g, hc.b, e))
-			_lights.append({tex = ImageTexture.create_from_image(core), halo = ImageTexture.create_from_image(halo),
+			_lights.append({tex = _tex(core), halo = _tex(halo),
 				at = Vector2(lr.position), piece = pidx, x = sx / comp.size(), y = sy / comp.size(),
 				lvl = 1.0, hl = 0.0})
 	_cut_charge(ink)
@@ -1249,7 +1266,7 @@ func _cut_charge(ink: PackedByteArray) -> void:
 				continue
 			var e := (1.0 - d) * (1.0 - d) * (1.0 + 0.5 * (1.0 - d)) / 1.5
 			pim.set_pixel(x + pri, y + pri, Color(col.r, col.g, col.b, e))
-	_pool_tex = ImageTexture.create_from_image(pim)
+	_pool_tex = _tex(pim)
 	_pool_at = _core - Vector2(pri, pri)
 	var him := Image.create(5, 5, false, Image.FORMAT_RGBA8)
 	for dy in range(-2, 3):
@@ -1257,7 +1274,7 @@ func _cut_charge(ink: PackedByteArray) -> void:
 			var q := Vector2i(_core) + Vector2i(dx, dy)
 			if absi(dx) + absi(dy) <= 2 and q.x >= 0 and q.y >= 0 and q.x < W and q.y < H and ink[q.y * W + q.x] == 1:
 				him.set_pixel(dx + 2, dy + 2, HEART[1] if absi(dx) + absi(dy) <= 1 else HEART[0])
-	_heart_tex = ImageTexture.create_from_image(him)
+	_heart_tex = _tex(him)
 
 
 ## `EnemyArt._on_hull`: a pixel inside the hull near a point of its box, with

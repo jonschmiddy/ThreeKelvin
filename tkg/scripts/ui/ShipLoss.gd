@@ -143,8 +143,9 @@ static func prebuild(pic: Dictionary, style: int, seed: int) -> Dictionary:
 	var u: Rect2i = pic.used
 	var used := Rect2i(img.get_width() - u.end.x, u.position.y, u.size.x, u.size.y)
 	var held := {b = null}
+	# the node here, the cut on the worker, `finish` in `play`
+	var b := ShipBreakup.new()
 	var task := WorkerThreadPool.add_task(func() -> void:
-		var b := ShipBreakup.new()
 		b.setup(img, used, Vector2.ZERO, style, seed, true)
 		held.b = b)
 	return {task = task, held = held, pic = pic}
@@ -167,6 +168,7 @@ static func play(pre: Dictionary, host: Control, v: ShipView, at_index: int = -1
 	var b: ShipBreakup = pre.held.b
 	if b == null:
 		return null
+	b.finish()
 	var pic: Dictionary = pre.pic
 	# The bob has moved on since the picture was taken; the hull in it is where
 	# it was then. Kept from here on: the wreck does not bob.

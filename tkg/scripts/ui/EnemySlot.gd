@@ -1231,8 +1231,10 @@ func _fauna_recut() -> void:
 	var pic := FaunaMotion.picture_name(e)
 	var held := {key = key}
 	_fauna_held = held
+	# The node here (a Control is a canvas item: a RID), only the cut on the
+	# worker (`OffThread`); `held.fm` is set once the cut is done.
+	var fm := FaunaMotion.new()
 	_fauna_job = WorkerThreadPool.add_task(func() -> void:
-		var fm := FaunaMotion.new()
 		fm.cut(img, k, sc, pic)
 		held.fm = fm)
 

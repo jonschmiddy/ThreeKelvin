@@ -4783,8 +4783,9 @@ func _prebuild_death(who: int) -> void:
 	var style := _death_style(who)
 	var marked := _enemy_marks(who) != null
 	var held := {b = null, w = null}
+	# the node here, the cut on the worker, `finish` here once it is taken
+	var b := ShipBreakup.new()
 	var task := WorkerThreadPool.add_task(func() -> void:
-		var b := ShipBreakup.new()
 		b.setup(img, used, Vector2.ZERO, style, seed, boss)
 		held.b = b
 		if marked:
@@ -4832,8 +4833,12 @@ func _start_death(who: int) -> void:
 		# cut at the size the ship is drawn now (`EnemyArt.draw_scale`)
 		if is_equal_approx(float(pre.get("scale", 1.0)), art.draw_scale):
 			b = pre.held.b
+			if b != null:
+				b.finish()
 			if pre.held.w != null:
 				EnemyArt.set_marked_wreck(_wreck_id_of(who), _death_style(who), pre.held.w)
+		elif pre.held.b != null:
+			(pre.held.b as Node).free()
 	if b == null:
 		b = ShipBreakup.new()
 		var dc := EnemyArt.dead_canvas(e, mk, art.draw_scale)

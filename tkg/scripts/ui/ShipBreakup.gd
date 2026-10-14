@@ -171,10 +171,13 @@ class Layer extends Control:
 ## `img` is the ship's whole canvas; `used` the ship's box in it (EnemyArt's
 ## `used_rect`, or the sprite's ink); `origin` where the canvas's top-left sits
 ## in this control's space. Same `seed`, same cut -- see `wreck_image`.
+## ON A WORKER THREAD (`SectorScreen._prebuild_death`, `ShipLoss.prebuild`)
+## this is pure CPU work: the node is made on the main thread, its textures are
+## owed (`OffThread`), and its settings and layers wait for `finish`, which the
+## main thread calls once the worker is done. On the main thread it finishes
+## itself.
 func setup(img: Image, used: Rect2i, origin: Vector2, the_style: int, seed: int,
 		is_boss: bool = false) -> void:
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_img = img
 	_origin = origin.round()
 	style = the_style
@@ -182,24 +185,46 @@ func setup(img: Image, used: Rect2i, origin: Vector2, the_style: int, seed: int,
 	_rng.seed = seed * 7919 + 17
 	if style >= Style.BREACH:
 		_setup_new(img, used, seed)
-		_add_layers()
+		if OffThread.on_main():
+			finish()
 		return
 	_cut = cut(img, used, seed, is_boss)
 	duration = float(LIFE[style]) + (BOSS_PRELUDE + BOSS_EXTRA if boss else 0.0)
 	_centre = _origin + Vector2(_cut.centre)
 	for m in _cut.majors:
-		var tex := ImageTexture.create_from_image(m.image)
-		var glow := ImageTexture.create_from_image(_glow_image(m.crack, m.image.get_size()))
+		var tex := _tex(m.image)
+		var glow := _tex(_glow_image(m.crack, m.image.get_size()))
 		_majors.append({tex = tex, glow = glow, at = m.at, off = m.off, crack = m.crack})
 	for s in _cut.shards:
-		var tex2 := ImageTexture.create_from_image(s.image)
+		var tex2 := _tex(s.image)
 		var away: Vector2 = (Vector2(s.at) + Vector2(s.image.get_size()) * 0.5) - Vector2(_cut.centre)
 		var dir := away.normalized() if away.length() > 0.5 else Vector2.RIGHT.rotated(_rng.randf() * TAU)
 		_shards.append({tex = tex2, at = s.at, dir = dir, size = s.image.get_size(),
 			speed = _rng.randf_range(0.6, 1.4), spin = _rng.randf_range(2.0, 7.0) * (1.0 if _rng.randf() < 0.5 else -1.0),
 			rot0 = _rng.randi() % 4, delay = _rng.randf_range(0.0, 1.0)})
-	_flash_tex = ImageTexture.create_from_image(_radial_light(34 if boss else 22))
+	_flash_tex = _tex(_radial_light(34 if boss else 22))
 	_plan_beats()
+	if OffThread.on_main():
+		finish()
+
+
+## Textures `setup` asked for on a worker, given their pictures by `finish`.
+var _owed: Array = []
+var _finished := false
+
+func _tex(im: Image) -> ImageTexture:
+	return OffThread.tex(im, _owed)
+
+
+## On the main thread, once `setup` is done: its textures made, its settings and
+## its two layers. Once only.
+func finish() -> void:
+	if _finished:
+		return
+	_finished = true
+	OffThread.pay(_owed)
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_add_layers()
 
 
@@ -1086,13 +1111,16 @@ static func _melt_pic(H: Dictionary, seed: int, k: float, given: Dictionary = {}
 ## MELT's wander, worked out once a hull (noise is the slow part) and kept for
 ## its steps: each pixel's sideways and up-down reach, the far edges most.
 static var _melt_cache := {}
+## Breakups and wrecks are cut on several workers at once.
+static var _melt_lock := Mutex.new()
 
 static func _melt_field(H: Dictionary, seed: int) -> Dictionary:
 	var key := "%d:%d:%d:%d:%d" % [seed, int(H.w), int(H.h), int(H.n), (H.r as Rect2i).position.x]
-	if _melt_cache.has(key):
-		return _melt_cache[key]
-	if _melt_cache.size() > 16:
-		_melt_cache.clear()
+	_melt_lock.lock()
+	var had: Dictionary = _melt_cache.get(key, {})
+	_melt_lock.unlock()
+	if not had.is_empty():
+		return had
 	var w: int = H.w
 	var h: int = H.h
 	var cy: float = H.cy
@@ -1110,8 +1138,13 @@ static func _melt_field(H: Dictionary, seed: int) -> Dictionary:
 		for x in w:
 			ox[y * w + x] = 4.0 * reach * _nz(fx, x, y)
 			oy[y * w + x] = 3.0 * reach * _nz(fy, x, y)
-	_melt_cache[key] = {ox = ox, oy = oy}
-	return _melt_cache[key]
+	var made := {ox = ox, oy = oy}
+	_melt_lock.lock()
+	if _melt_cache.size() > 16:
+		_melt_cache.clear()
+	_melt_cache[key] = made
+	_melt_lock.unlock()
+	return made
 
 
 static func _fold_x(fx: float, tilt: float, jag: Dictionary, i: int, y: float, cy: float) -> float:
@@ -1993,21 +2026,21 @@ func _setup_new(img: Image, used: Rect2i, seed: int) -> void:
 	_cut = cut(img, used, seed, boss, style)
 	_plan = _cut.get("plan", {})
 	_centre = _origin + Vector2(_cut.centre)
-	_flash_tex = ImageTexture.create_from_image(_radial_light(34 if boss else 22))
+	_flash_tex = _tex(_radial_light(34 if boss else 22))
 	_plan_events()
 	for m in _cut.majors:
 		var stex: Array = []
 		for im in m.stages:
-			stex.append(ImageTexture.create_from_image(im))
+			stex.append(_tex(im))
 		var mi: Image = m.image
 		var gim := _glow_image(m.crack, mi.get_size())
 		if style == Style.COLLAPSE:
 			gim = _grey(gim)
 		var d := {tex = stex.back(), stages = stex, images = m.stages, at = m.at, off = m.off,
 			own = m.own, glob = m.glob, crack = m.crack, dir = m.dir,
-			glow = ImageTexture.create_from_image(gim)}
+			glow = _tex(gim)}
 		if style == Style.MELT:
-			d.heat = ImageTexture.create_from_image(_heat_light(_alpha_mask(mi), mi.get_width(), mi.get_height(), 2))
+			d.heat = _tex(_heat_light(_alpha_mask(mi), mi.get_width(), mi.get_height(), 2))
 		_majors.append(d)
 	_shard_speed = {Style.BREACH: 220.0, Style.CHAIN: 170.0, Style.OVERLOAD: 200.0, Style.VENT: 120.0,
 		Style.SHIELD: 200.0, Style.MELT: 55.0, Style.CRUMPLE: 120.0}.get(style, 180.0)
@@ -2019,7 +2052,7 @@ func _setup_new(img: Image, used: Rect2i, seed: int) -> void:
 		var away := mid - Vector2(_cut.centre)
 		var dir := away.normalized() if away.length() > 0.5 else Vector2.RIGHT.rotated(_rng.randf() * TAU)
 		var mk: int = s.mark
-		var sd := {tex = ImageTexture.create_from_image(im2), at = s.at, size = sz, dir = dir, mark = mk,
+		var sd := {tex = _tex(im2), at = s.at, size = sz, dir = dir, mark = mk,
 			speed = _rng.randf_range(0.6, 1.4), spin = _rng.randf_range(2.0, 7.0) * (1.0 if _rng.randf() < 0.5 else -1.0),
 			rot0 = _rng.randi() % 4, release = _split_at + _rng.randf_range(0.0, 0.05), life = 0.75, mode = 0}
 		match style:
@@ -2109,7 +2142,7 @@ func _setup_new(img: Image, used: Rect2i, seed: int) -> void:
 				order.append(i)
 			order.sort_custom(func(a: int, b: int) -> bool: return dt[a] > dt[b])
 			_dis_order = PackedInt32Array(order)
-			_dis_tex = ImageTexture.create_from_image(_dis_img)
+			_dis_tex = _tex(_dis_img)
 	if boss:
 		_plan_beats()
 
@@ -2150,10 +2183,10 @@ func _stage_get(i: int) -> ImageTexture:
 		_stage_lock.lock()
 		var d: Dictionary = _stage_data[i]
 		_stage_lock.unlock()
-		_stage_tex[i] = ImageTexture.create_from_image(d.img)
+		_stage_tex[i] = _tex(d.img)
 		_stage_mask[i] = d.mask
 		if style == Style.MELT:
-			_stage_heat[i] = ImageTexture.create_from_image(d.heat)
+			_stage_heat[i] = _tex(d.heat)
 	return _stage_tex[i]
 
 
@@ -2162,6 +2195,15 @@ func _exit_tree() -> void:
 	for i in _stage_jobs.keys():
 		WorkerThreadPool.wait_for_task_completion(_stage_jobs[i])
 	_stage_jobs.clear()
+
+
+## The same for a breakup freed without ever being shown (a prebuilt cut the
+## fight no longer wants): its steps' workers hold it.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		for i in _stage_jobs.keys():
+			WorkerThreadPool.wait_for_task_completion(_stage_jobs[i])
+		_stage_jobs.clear()
 
 
 func _ev(at: float, kind: StringName, s: float, len: float = 0.0, p: Vector2 = Vector2.INF,
@@ -2876,7 +2918,7 @@ func _build_shield() -> void:
 		var c := sum / float(arr.size())
 		var out := Vector2((c.x - cc.x) / rx, (c.y - cc.y) / ry)
 		var dir := out.normalized() if out.length() > 0.05 else Vector2.RIGHT.rotated(_rng.randf() * TAU)
-		_cells.append({tex = ImageTexture.create_from_image(im), at = Vector2(mn), dir = dir,
+		_cells.append({tex = _tex(im), at = Vector2(mn), dir = dir,
 			speed = _rng.randf_range(40.0, 95.0),
 			drop = _rng.randf_range(0.14, 0.4) if _rng.randf() < 0.3 else 99.0})
 
@@ -3595,7 +3637,7 @@ func _glow_band(pts: PackedVector2Array, cols: PackedColorArray, mean: Color) ->
 				im.set_pixel(x, y, _lv(mean, 0.3))
 			elif a >= 0.8 and ((x + lo.x + y + lo.y) & 1) == 0:
 				im.set_pixel(x, y, _lv(mean, 0.16))
-	return {tex = ImageTexture.create_from_image(im), at = Vector2(lo)}
+	return {tex = _tex(im), at = Vector2(lo)}
 
 
 func _setup_creature(img: Image, used: Rect2i, seed: int) -> void:
@@ -3604,14 +3646,14 @@ func _setup_creature(img: Image, used: Rect2i, seed: int) -> void:
 	_cut = cut(img, used, seed, false, style)
 	_plan = _cut.get("plan", {})
 	_centre = _origin + Vector2(_cut.centre)
-	_flash_tex = ImageTexture.create_from_image(_radial_light(22))
+	_flash_tex = _tex(_radial_light(22))
 	_plan_events()
 	for m in _cut.majors:
 		var mi: Image = m.image
-		var tex := ImageTexture.create_from_image(mi)
+		var tex := _tex(mi)
 		_majors.append({tex = tex, stages = [tex], images = [mi], at = m.at, off = m.off, own = m.own,
 			glob = m.glob, crack = m.crack, dir = m.dir, lab = m.lab,
-			glow = ImageTexture.create_from_image(_glow_image(m.crack, mi.get_size()))})
+			glow = _tex(_glow_image(m.crack, mi.get_size()))})
 		for y in mi.get_height():
 			for x in mi.get_width():
 				if mi.get_pixel(x, y).a > 0.0 and _rng.randf() < 0.12:
@@ -3658,7 +3700,7 @@ func _setup_creature(img: Image, used: Rect2i, seed: int) -> void:
 		_stage_at = Vector2((H.r as Rect2i).position)
 		for s2 in CURL_STEPS + 1:
 			var cp := _curl_pic(H, col, mask, _plan.curl, float(s2) / float(CURL_STEPS))
-			_stage_tex.append(ImageTexture.create_from_image(_pic_image(H, cp.col, cp.mask)))
+			_stage_tex.append(_tex(_pic_image(H, cp.col, cp.mask)))
 	if style == Style.PART:
 		_torn.resize(PART_TEAR.size() + 2)
 
@@ -4297,25 +4339,25 @@ func _setup_boss(img: Image, used: Rect2i, seed: int) -> void:
 	_plan = _cut.get("plan", {})
 	_bp = _plan
 	_centre = _origin + Vector2(_cut.centre)
-	_flash_tex = ImageTexture.create_from_image(_radial_light(22))
+	_flash_tex = _tex(_radial_light(22))
 	for m in _cut.majors:
 		var stex: Array = []
 		for im in m.stages:
-			stex.append(ImageTexture.create_from_image(im))
+			stex.append(_tex(im))
 		var mi: Image = m.image
 		# H3's ribs are close together: a three-pixel glow would flood them, so
 		# its light is the contour and a dithered pixel beside it
 		var gim := _thin_glow(m.crack, mi.get_size()) if style == Style.HELL_UNCOIL else _glow_image(m.crack, mi.get_size())
 		_majors.append({tex = stex.back(), stages = stex, images = m.stages, at = m.at, off = m.off, own = m.own,
 			glob = m.glob, crack = m.crack, dir = m.dir, lab = m.lab, mid = m.mid, keys = [], stage_t = [],
-			glow = ImageTexture.create_from_image(gim), glow_keys = [], glow_col = 0,
+			glow = _tex(gim), glow_keys = [], glow_col = 0,
 			rot_final = int(m.get("rot_final", 0)), rot_total = int(m.get("rot_total", 0))})
 	for s in _cut.shards:
 		var im2: Image = s.image
 		var sz := im2.get_size()
 		var mid := Vector2(s.at) + Vector2(sz) * 0.5
 		var away := mid - Vector2(_bp.core)
-		_shards.append({tex = ImageTexture.create_from_image(im2), at = s.at, size = sz, mark = int(s.mark),
+		_shards.append({tex = _tex(im2), at = s.at, size = sz, mark = int(s.mark),
 			dir = away.normalized() if away.length() > 0.5 else Vector2.RIGHT.rotated(_rng.randf() * TAU),
 			speed = _rng.randf_range(0.6, 1.4), spin = _rng.randf_range(1.5, 5.0) * (1.0 if _rng.randf() < 0.5 else -1.0),
 			rot0 = _rng.randi() % 4, release = 99.0, life = 1.0, piece = _piece_of_point(mid), glass = false,
@@ -4692,7 +4734,7 @@ func _nova_maps() -> Array:
 			if lv > 0.0:
 				var c: Color = HEAT_RAMP[0].lerp(HEAT_RAMP[2], clampf(d / maxd, 0.0, 1.0) * (1.0 - float(st) / 7.0))
 				im2.set_pixel(lp.x, lp.y, Color(c.r * lv, c.g * lv, c.b * lv, 1.0))
-		out.append(ImageTexture.create_from_image(im2))
+		out.append(_tex(im2))
 	return out
 
 
@@ -4708,7 +4750,7 @@ func _ember_map() -> ImageTexture:
 					var lp := Vector2i(m.at) - r.position + Vector2i(x, y)
 					var lv := 0.9 if _rng.randf() < 0.3 else 0.5
 					im2.set_pixel(lp.x, lp.y, Color(lv, lv, lv, 1.0))
-	return ImageTexture.create_from_image(im2)
+	return _tex(im2)
 
 
 ## BURN-OUT: fire across the hull from the emblem, edges brightest.
@@ -4747,7 +4789,7 @@ func _fire_maps(from: Vector2) -> Array:
 			else:
 				lv = 0.35 if odd else 0.2
 			im2.set_pixel(lp.x, lp.y, Color(lv, lv * 0.8, lv * 0.6, 1.0))
-		out.append(ImageTexture.create_from_image(im2))
+		out.append(_tex(im2))
 	return out
 
 

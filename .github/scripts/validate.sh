@@ -790,6 +790,23 @@ else
 	bad "faunatest did not finish"
 fi
 
+step "Worker threads make no textures, nodes or materials"
+# The fight's off-thread cuts (a creature's or the Custodian's motion, a
+# breakup ahead of a kill, a wreck) run back to back for 20 s while the main
+# thread loads card art and makes textures: no engine error at all. Before
+# Oct 14 the cuts made their textures on the worker and raced the main
+# thread's (26 errors in 20 s here; faunatest's rare "wrong RID").
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot threadstress 120 --headless --path "$PROJECT" -- sheet=ThreadStress secs=20; then
+	if grep -qE '^threadstress: PASS' "$LOG_DIR/threadstress.log"; then
+		ok "the cuts run on workers beside the main thread's textures without a race"
+	else
+		bad "an off-thread cut raced the main thread's textures"
+		grep -E 'error:|^threadstress' "$LOG_DIR/threadstress.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "threadstress did not finish"
+fi
+
 step "Every event opens and resolves on LOCAL"
 # The one place a choice is taken now: LOCAL's event band. Every authored
 # option is opened and every choice resolved through it, in all three layouts.
