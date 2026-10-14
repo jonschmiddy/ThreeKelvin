@@ -12,9 +12,13 @@ extends Node
 ## one and its block to none first, so the fight is short, and the cards are
 ## played through `Combat.play` as the hand plays them. Then, from the screen
 ## the router leaves:
-##   - the custodian's body open over LOCAL (the wreck popup a click opens), with
-##     the boss's own loot in it, and the win screen NOT up yet;
-##   - the run already in the record as a win, and the suspend save gone;
+##   - the custodian's body lying on LOCAL, NOT opened by itself (Jon: "I would
+##     want to have to click the dead custodian"): SALVAGE THE CUSTODIAN said,
+##     every door shut; clicking it (the wreck's own click) opens the popup with
+##     the boss's own loot in it, and the win screen is NOT up yet;
+##   - the run already in the record as a win, and the one save a won run may
+##     have written: the core with the body on it (`core_won`). Quit there and
+##     CONTINUE comes back to the body, still to click, recorded once;
 ##   - Tab doing nothing while the body is open, a part taken into the hold;
 ##   - DONE bringing up the win screen: YOU WON, Jon's note whole and unscrolled
 ##     at the game's size, the stats, TITLE, and the death screen's music
@@ -58,8 +62,29 @@ func _run() -> void:
 		return _finish()
 	var sc := Router.current as SectorScreen
 	_ok("the router leaves you on LOCAL", sc != null)
-	_ok("with the loot step open (Router.final_loot)", Router.final_loot)
-	_ok("and the body's popup up over it", sc != null and sc.has_open_container())
+	_ok("with the loot step on (Router.final_loot)", Router.final_loot)
+	_ok("the body's popup does NOT open by itself", sc != null and not sc.has_open_container())
+	_ok("LOCAL says SALVAGE THE CUSTODIAN", sc != null and _find(sc, func(n: Node) -> bool:
+		return n is Button and (n as Button).text == "SALVAGE THE CUSTODIAN") != null)
+	# QUIT HERE, AND COME BACK: the body, still to click
+	_ok("a save is left on disk: the core with its body", FileAccess.file_exists(SaveGame.path))
+	var records_mid := RunHistory.load_all().size()
+	Router.final_loot = false
+	Router.show_launcher()
+	await _frames(3)
+	Router.continue_run()
+	await _frames(4)
+	sc = Router.current as SectorScreen
+	_ok("CONTINUE comes back to the core's LOCAL, the body waiting",
+		sc != null and Router.final_loot and Run.won and Router.core_body_here() != null
+		and not sc.has_open_container())
+	_ok("and nothing more is recorded", RunHistory.load_all().size() == records_mid)
+	# the body clicked, as its wreck is clicked
+	var slot := _body_slot(sc)
+	if _ok("the body is a wreck on LOCAL you can click", slot != null and slot.opened.is_valid()):
+		slot.opened.call()
+		await _frames(3)
+	_ok("clicking the body opens its popup", sc != null and sc.has_open_container())
 	_ok("the win screen is NOT up yet", _win_screen() == null)
 	_ok("the HUD is hidden while the body is open",
 		Router.hud == null or not Router.hud.visible)
@@ -81,7 +106,7 @@ func _run() -> void:
 	_ok("and recorded as a win, once",
 		all.size() == records_before + 1
 		and int((all.back() as Dictionary).get("outcome", -1)) == RunHistory.Outcome.WON)
-	_ok("the suspend save is gone", not FileAccess.file_exists(SaveGame.path))
+	_ok("the save is still the core's (gone at DONE)", FileAccess.file_exists(SaveGame.path))
 	_ok("the music is not the death cue yet", Audio.music_asked != &"gameover")
 
 	# Tab is the one key that changes screens; it must not leave the body.
@@ -109,6 +134,7 @@ func _run() -> void:
 	done.pressed.emit()
 	await _frames(4)
 	_check_win_screen("after DONE")
+	_ok("and the save is gone", not FileAccess.file_exists(SaveGame.path))
 	_ok("the run is recorded once, not twice", RunHistory.load_all().size() == records_before + 1)
 	# Escape on the win screen is the escape menu, and its ABANDON used to
 	# write an ABANDONED record after the WON.
@@ -127,7 +153,7 @@ func _run() -> void:
 	# --------------------------------------------------------- two: Escape
 	core = await _to_core(40404)
 	if await _beat_core():
-		_ok("(second kill) the body is open", Router.final_loot and _win_screen() == null)
+		_ok("(second kill) the body waits", Router.final_loot and _win_screen() == null)
 		await _press(KEY_ESCAPE)
 		await _frames(4)
 		_check_win_screen("after Escape")
@@ -136,7 +162,7 @@ func _run() -> void:
 	# -------------------------------------------- three: a door left open
 	core = await _to_core(5150)
 	if await _beat_core():
-		_ok("(third kill) the body is open", Router.final_loot)
+		_ok("(third kill) the body waits", Router.final_loot)
 		Router.show_system()
 		await _frames(6)
 		_check_win_screen("after leaving by another door")
@@ -159,6 +185,14 @@ func _run() -> void:
 	_ok("the cue both screens ask for is Lights Out, played once",
 		Audio.DEATH_CUE == &"lightsout" and Audio.DEATH_CUE in Audio.ONE_SHOT)
 	_finish()
+
+
+## The wreck slot on LOCAL that is the custodian's body.
+func _body_slot(sc: SectorScreen) -> EnemySlot:
+	if sc == null:
+		return null
+	return _find(sc, func(n: Node) -> bool:
+		return n is EnemySlot and (n as EnemySlot)._dead and (n as EnemySlot).opened.is_valid()) as EnemySlot
 
 
 ## A fresh run with a used hold, parked at the core on LOCAL.

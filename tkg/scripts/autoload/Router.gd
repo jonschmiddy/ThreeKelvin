@@ -388,6 +388,10 @@ func continue_run() -> void:
 		Run.log_line("The save could not be read.", &"them")
 		show_launcher()
 		return
+	# QUIT BETWEEN THE CORE'S KILL AND ITS BODY: back to the body, to click.
+	if Run.won and core_body_here() != null:
+		await_core_body()
+		return
 	resume_here()
 
 ## Where a restored run picks up. Always the sector — every arrival lands there
@@ -1340,7 +1344,7 @@ func after_combat(_c: Combat) -> void:
 	if Run.won and not Run.dead and _c != null and _c.result == &"won":
 		var body := core_body_here()
 		if body != null and Run.jetsam_left(Run.node_at(), body) > 0:
-			_open_core_body(body)
+			await_core_body()
 			return
 	if Run.dead or Run.won:
 		show_game_over()
@@ -1372,9 +1376,38 @@ func core_body_here() -> MapGen.Jetsam:
 	return null
 
 
-func _open_core_body(body: MapGen.Jetsam) -> void:
+## THE BODY WAITS TO BE CLICKED (Jon: "Does the custodian death immediately open
+## the salvage box or do you have to click the dead custodian? I would want to
+## have to click the dead custodian."). LOCAL, with the body lying there as a
+## wreck and SALVAGE THE CUSTODIAN said under it; clicking it opens the popup
+## (`SectorScreen._open_jetsam`), and DONE brings the win screen. Every door is
+## shut meanwhile (`final_loot`: no HUD, no Tab, and any screen swapped in is
+## followed by the win screen), and the one save a won run may have is written
+## (`SaveGame.save_core_won`), so quitting here comes back to the body.
+func await_core_body() -> void:
 	final_loot = false
 	show_local()
+	if not (current is SectorScreen) or core_body_here() == null:
+		show_game_over()
+		return
+	final_loot = true
+	if hud != null:
+		hud.visible = false
+	SaveGame.save_core_won()
+	(current as SectorScreen)._refresh()
+
+
+## The custodian's body clicked: its popup, the win screen behind DONE.
+func open_core_body() -> void:
+	var body := core_body_here()
+	var s := current as SectorScreen
+	if body == null or s == null:
+		finish_core_loot()
+		return
+	_open_core_body(body)
+
+
+func _open_core_body(body: MapGen.Jetsam) -> void:
 	var s := current as SectorScreen
 	if s == null:
 		show_game_over()
@@ -1393,6 +1426,8 @@ func finish_core_loot() -> void:
 	if not final_loot:
 		return
 	final_loot = false
+	# the body's step is over: the won run's last save goes with it
+	SaveGame.clear()
 	show_game_over()
 
 func after_event() -> void:

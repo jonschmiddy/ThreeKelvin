@@ -993,6 +993,23 @@ func _rebuild_drawer(n: MapGen.MapNode) -> void:
 	if Run.dead:
 		_drawer_simple("The ship is lost. The run is over.", "SUMMARY")
 		return
+	# THE CORE WON, ITS BODY STILL SHUT: one line, and the body the one thing
+	# to do -- no jump, no way off (`Router.final_loot`).
+	if Router.final_loot:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		var t := UITheme.body("The Custodian is dead. Its body is yours to strip.", UITheme.CHILL, UITheme.FS_SMALL)
+		t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		row.add_child(t)
+		var b := Widgets.button("SALVAGE THE CUSTODIAN", Router.open_core_body)
+		b.custom_minimum_size = EncounterDrawer.BTN
+		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(b)
+		_drawer.add_child(row)
+		return
 	if Run.hellbender_alive() and Run.hellbender_at == n.index:
 		_drawer_simple("The Hellbender is anchored here, its holds glowing with what it has taken. It blocks the rest of this system.",
 			"ENGAGE THE HELLBENDER")
@@ -1860,7 +1877,7 @@ func _refresh() -> void:
 		if Run.dead:
 			_state.text = "THE SHIP IS LOST. THE RUN IS OVER."
 		elif n.cleared:
-			_state.text = "PICKED CLEAN."
+			_state.text = "SALVAGE THE CUSTODIAN." if Router.final_loot else "PICKED CLEAN."
 		else:
 			_state.text = "UNRESOLVED."
 
@@ -2252,8 +2269,12 @@ func _refresh_hand() -> void:
 ## contents -- `MATERIALS_NOTE` 3.6 -- and the only difference is which door you
 ## came through. The container names the popup, so a Rustjaw Cutter says so and
 ## the floor says SECTOR LOOT.
-func _open_jetsam(h: MapGen.Jetsam, title: String = "") -> void:
+func _open_jetsam(h: MapGen.Jetsam, title: String = "", direct: bool = false) -> void:
 	if _transfer != null or h == null:
+		return
+	# THE CUSTODIAN'S BODY, clicked: its popup, with the win screen behind DONE
+	if Router.final_loot and not direct and h == Router.core_body_here():
+		Router.open_core_body()
 		return
 	var n: MapGen.MapNode = Run.node_at()
 	if n == null:
@@ -2273,7 +2294,7 @@ func _open_jetsam(h: MapGen.Jetsam, title: String = "") -> void:
 ## shut: the custodian's body, which the win screen follows
 ## (`Router._open_core_body`). The same popup a wreck click opens.
 func open_jetsam(h: MapGen.Jetsam, title: String, after: Callable) -> void:
-	_open_jetsam(h, title)
+	_open_jetsam(h, title, true)
 	if _transfer != null and after.is_valid():
 		_transfer._on_close = func() -> void:
 			_close_transfer()
@@ -4844,10 +4865,20 @@ func _start_death(who: int) -> void:
 	if not e.template.fauna:
 		b.broke.connect(func(s: float) -> void:
 			Audio.play_kill(who, 0.0 if s >= 0.6 else -6.0))
+	# A BOSS'S SET PIECE HOLDS THE SCREEN (`ScreenHooks`): the shake, the slow
+	# motion, the flash and the music's duck and hit it names as moments.
+	var hooks: ScreenHooks = null
+	if ShipBreakup._is_boss(b.style):
+		hooks = ScreenHooks.new()
+		hooks.target = _view
+		add_child(hooks)
+		b.moment.connect(hooks.on_moment)
 	b.finished.connect(func() -> void:
 		sl.hide_art(false)
 		_breakups.erase(entry)
 		b.queue_free()
+		if hooks != null and is_instance_valid(hooks):
+			hooks.queue_free()
 		_check_ending())
 
 

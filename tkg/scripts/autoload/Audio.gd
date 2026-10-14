@@ -761,6 +761,28 @@ func _ramp(i: int, to: float, secs: float) -> void:
 	_mfade[i] = t
 
 ## What is playing. A name rather than a list, because there is only ever one.
+## THE MUSIC STEPS BACK for a set piece (a boss's death, `ScreenHooks`): down
+## by `amount` (0..1 of the way to silence, in level) for `secs`, on the same
+## eased duck as an announcement.
+var _scene_duck_until := -1.0
+var _scene_duck_to := 1.0
+
+func duck_music(amount: float, secs: float) -> void:
+	_scene_duck_to = clampf(1.0 - amount, 0.05, 1.0)
+	_scene_duck_until = GameClock.now() + secs
+
+
+## A MUSIC HIT at a set piece's peak. There is no stinger yet (Jon cut the old
+## stings), so this is asked for, counted and taped, and silent until one is
+## made; `stingers_asked` lets a harness see it was.
+var stingers_asked := 0
+
+func music_stinger(strength: float) -> void:
+	stingers_asked += 1
+	if taping:
+		tape.append([&"music_stinger", Time.get_ticks_msec(), linear_to_db(maxf(0.01, strength)), 1.0])
+
+
 func cue() -> StringName:
 	return _cue
 
@@ -782,6 +804,9 @@ func _process(delta: float) -> void:
 	elif _pa != null and _pa.playing:
 		_pa.stop()
 	var duck_to: float = db_to_linear(DUCK_DB) if _room_talking() else 1.0
+	# a boss's death holds the music down for its set piece (`duck_music`)
+	if GameClock.now() < _scene_duck_until:
+		duck_to = minf(duck_to, _scene_duck_to)
 	_duck = move_toward(_duck, duck_to,
 			delta / (DUCK_IN if duck_to < _duck else DUCK_OUT))
 	# The room itself, on the same clock as the room's own fade so the music

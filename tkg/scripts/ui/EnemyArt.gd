@@ -394,6 +394,11 @@ func _wound(cx: int, cy: int, w: int, h: int, ember: bool = true) -> void:
 ## ships' pool and plays its boss version.
 const SHIP_STYLES: Array[int] = [0, 1, 2, 3, 5, 6, 8, 9, 10, 11, 12]
 const CREATURE_STYLES: Array[int] = [13, 14, 15]
+## The bosses die their own set pieces (ShipBreakup, Oct 13). Jon on the
+## Custodian: "C1A, B, and C are all good. let's have them randomly be picked."
+## The Hellbender has the one he picked, H3 UNCOIL.
+const CUSTODIAN_STYLES: Array[int] = [16, 22, 23]
+const HELLBENDER_STYLES: Array[int] = [21]
 
 ## WHICH STYLE THIS WRECK DIED IN, as a fact about where it lies rather than a
 ## roll made at the time: the system, and which wreck of that system's it is
@@ -403,6 +408,10 @@ const CREATURE_STYLES: Array[int] = [13, 14, 15]
 ## run replays the same deaths. `Rng.derive`, as every positional thing is.
 static func death_style(t: EnemyTemplate, node_index: int, nth_wreck: int) -> int:
 	var pool := CREATURE_STYLES if t.fauna else SHIP_STYLES
+	if t.id == &"custodian":
+		pool = CUSTODIAN_STYLES
+	elif t.id == &"hellbender":
+		pool = HELLBENDER_STYLES
 	var r := Rng.derive(&"death", node_index * 64 + nth_wreck)
 	return pool[r.randi() % pool.size()]
 
