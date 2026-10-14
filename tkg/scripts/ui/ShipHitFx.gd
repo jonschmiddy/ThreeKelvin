@@ -341,6 +341,12 @@ func marks_at() -> Vector2i:
 	return _r.position
 
 
+## Canvas pixels a hit took off the picture altogether (none, on a ship: a
+## creature's snapped crystal, `FaunaHitFx`). `EnemyArt` clears them.
+func cut_px() -> PackedVector2Array:
+	return PackedVector2Array()
+
+
 func damaged(img: Image) -> Image:
 	var out: Image = img.duplicate()
 	out.blend_rect(_dmg, Rect2i(Vector2i.ZERO, _dmg.get_size()), _r.position)

@@ -456,6 +456,22 @@ else
 	bad "laddertest did not finish"
 fi
 
+step "The side bar never goes blank between distances"
+# Every hop with a side bar at one end (LOCAL, map, chart), frame by frame at
+# 60 fps for every look of the swap: no frame with the side bar empty, a click
+# on content not yet resolved eaten, and an instant swap headless and under
+# reduced motion (Jon, Oct 13).
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot sidebartest 300 --headless --path "$PROJECT" -- sheet=SideBarTest; then
+	if grep -qE '^sidebartest: PASS' "$LOG_DIR/sidebartest.log"; then
+		ok "the side bar swaps in place, never blank"
+	else
+		bad "the side bar went blank or took a click it should not"
+		grep -E 'FAIL|^sidebartest' "$LOG_DIR/sidebartest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "sidebartest did not finish"
+fi
+
 step "Ships and creatures die the ways Jon kept"
 # Every kept death style reachable, the cut ones (E CHAIN, H SLICE) never
 # played, ships and creatures never crossing, and a won fight's wrecks dying
@@ -580,6 +596,23 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 else
 	bad "corewintest did not finish"
+fi
+
+step "A new run's arrival: the engines sputter to the idle, no highlight"
+# Jon, Oct 13: "I don't want the engines to turn off... I just want them to
+# sputter to an idle. No highlight." LOCAL launched as the hull pick launches
+# it, stepped a frame at a time: the flame never fully off from the clean burn
+# to the idle, the cutaway outline never lit by the ship coming to rest, and a
+# pointer left where it parked does not light it.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot arriveidletest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=ArriveIdleTest; then
+	if grep -qE '^arriveidletest: PASS' "$LOG_DIR/arriveidletest.log"; then
+		ok "the arrival sputters to the idle, never off, no highlight"
+	else
+		bad "the arrival's engines or highlight are wrong"
+		grep -E 'FAIL|^arriveidletest' "$LOG_DIR/arriveidletest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "arriveidletest did not finish"
 fi
 
 step "Jon's welcome note: once per profile, and on the title menu"

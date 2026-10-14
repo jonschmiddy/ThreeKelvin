@@ -161,6 +161,7 @@ func _arm(e) -> void:
 	art.set_enemy(e, false, shown_hp, true, death_style)
 	layers = HitLayers.new()
 	layers.size = art.size
+	layers.kind = FaunaMotion.kind_of(e.template.id)
 	var seed := int(Rng.derive(&"hitfx", wreck_id).randi() & 0x7fffffff)
 	# shots come from your side, the left
 	# marks at the picture's own scale: 0.5 on a half sheet (`EnemyArt.draw_scale`)
@@ -184,6 +185,10 @@ func _process(_dt: float) -> void:
 	var t := GameClock.now()
 	art.position.y = _art_base.y + roundf(sin((t + _bob_phase) * TAU * BOB_HZ) * BOB_AMP)
 	_fauna_step(_dt)
+	# a creature's guard rides the body on this frame's bob, not last frame's
+	if layers != null and layers.body != null:
+		layers.position = art.position
+		_guard_keep()
 
 
 func enter(delay: float = 0.0) -> void:
@@ -1079,6 +1084,20 @@ func _draw() -> void:
 		HitText.draw_centred(self, ink_rect().get_center(), _drag_text, HitText.colour(&"damage"))
 
 
+## A CREATURE'S BLOCK, BRACE AND DAMAGE KEEP OFF ITS WORDS (`FaunaGuard`): the
+## intent words and the readout, in the layers' own pixels, a pixel round, and
+## the art's flash for a look that covers its hide.
+func _guard_keep() -> void:
+	var inv := layers.get_global_transform().affine_inverse()
+	var ks: Array = []
+	for r in [intent_rect_global(), readout_rect_global()]:
+		var rr: Rect2 = r
+		if rr.size != Vector2.ZERO:
+			ks.append((inv * rr).grow(1.0))
+	layers.keep = ks
+	layers.skin_mod = art.self_modulate
+
+
 ## THE HULL'S INK in this slot's coordinates: the picture's own box
 ## (`EnemyArt.ink_rect`, without the light a wind-up throws), placed where the
 ## holder puts it -- wherever the column has the holder, readout above or
@@ -1248,6 +1267,8 @@ func _fauna_step(dt: float) -> void:
 			fm.t = t0
 			fm.bob_phase = _bob_phase
 			fm.windup(_fauna_tele)
+			if layers != null:
+				layers.motion = fm
 			if _fauna_tex == null:
 				_fauna_tex = art.texture
 			art.texture = null
@@ -1297,6 +1318,8 @@ func _exit_tree() -> void:
 func _fauna_off() -> void:
 	_fauna_key = ""
 	_fauna_e = null
+	if layers != null:
+		layers.motion = null
 	if _fauna != null:
 		_fauna.queue_free()
 		_fauna = null
