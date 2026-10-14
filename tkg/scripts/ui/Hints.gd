@@ -330,10 +330,8 @@ func probe(id: StringName) -> Dictionary:
 			if n == null:
 				return {}
 			var k := 0
-			for raw in n.jetsam:
+			for raw in Run.wrecks_here(n):
 				var h: MapGen.Jetsam = raw
-				if not h.is_wreck():
-					continue
 				if Run.jetsam_left(n, h) > 0:
 					var art := sc._view.enemy_view(k)
 					if art != null and art.is_visible_in_tree():

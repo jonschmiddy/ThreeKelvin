@@ -445,10 +445,12 @@ func show_wrecks(wrecks: Array, on_open: Callable) -> void:
 		ghost.hp = 0
 		ghost.look = h.look
 		_made[i].opened = on_open.bind(h)
-		# The style it died in, from where it lies -- the same roll the kill made.
-		_made[i].death_style = EnemyArt.death_style(t, Run.node_at().index, i)
+		# The style it died in, from where it lies -- the same roll the kill made,
+		# by its number among the system's wrecks (this place shows only some)
+		var k := Run.wreck_ordinal(Run.node_at(), h)
+		_made[i].death_style = EnemyArt.death_style(t, Run.node_at().index, k)
 		# and where it lies, so the marks its fight left are on it
-		_made[i].wreck_id = Run.node_at().index * 64 + i
+		_made[i].wreck_id = Run.node_at().index * 64 + k
 		_made[i].bind(i, ghost, false)
 		# What is still in it, on the label. `ship_changed` re-runs the screen's
 		# refresh on every take, so the number follows the hand emptying it.

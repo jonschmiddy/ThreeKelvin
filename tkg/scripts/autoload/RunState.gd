@@ -688,9 +688,51 @@ func new_wreck(n: MapGen.MapNode, t: EnemyTemplate, look: int = 0) -> MapGen.Jet
 	h.art = t.id
 	h.look = look
 	h.label = String(t.name).to_upper()
+	h.site = site_here(n)
 	n.jetsam.append(h)
 	Sig.map_changed.emit()
 	return h
+
+
+## WHERE YOUR SHIP IS IN A SYSTEM: the body it orbits (-1 the star) or -9 for
+## open space, as the system map left it. A system the map has not flown you
+## round yet is open space: you arrived at its edge.
+func site_here(n: MapGen.MapNode = null) -> int:
+	if n == null:
+		n = node_at()
+	if n == null:
+		return -9
+	return int(SystemMapScreen._parked.get(n.index, {}).get("at", -9))
+
+
+## The wrecks lying where your ship is, in the order they died. Each wreck
+## belongs to the place its fight was at (`Jetsam.site`), so a world you fought
+## over keeps its hulls and the next world along has none of them.
+func wrecks_here(n: MapGen.MapNode = null) -> Array:
+	if n == null:
+		n = node_at()
+	var out: Array = []
+	if n == null:
+		return out
+	var site := site_here(n)
+	for raw in n.jetsam:
+		var h: MapGen.Jetsam = raw
+		if h.is_wreck() and (h.site == site or h.site == MapGen.SITE_ANY):
+			out.append(h)
+	return out
+
+
+## A wreck's number among every wreck in its system, in the order they died:
+## what its death roll and its fight's marks were keyed on when it was made
+## (`EnemyArt.death_style`, `wreck_id`), whichever place it lies at.
+func wreck_ordinal(n: MapGen.MapNode, h: MapGen.Jetsam) -> int:
+	var k := 0
+	for raw in n.jetsam:
+		if raw == h:
+			return k
+		if (raw as MapGen.Jetsam).is_wreck():
+			k += 1
+	return k
 
 
 ## The system's own pile: what you have put down here, and what an event paid

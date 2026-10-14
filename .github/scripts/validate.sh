@@ -616,6 +616,23 @@ else
 	bad "wreckloottest did not finish"
 fi
 
+step "Each place in a system keeps its own wrecks"
+# Jon, Oct 14: "each planet or POI you can visit should contain its own
+# wrecks/fights." A wreck lies where your ship was when it died (Jetsam.site);
+# LOCAL draws that place's wrecks and no other's, each with its own death and
+# marks; a save keeps the place, and an older save's wrecks show everywhere.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit|were leaked at exit' \
+	run_godot wrecksitetest 180 --headless --path "$PROJECT" -- sheet=WreckSiteTest; then
+	if grep -qE '^wrecksitetest: PASS' "$LOG_DIR/wrecksitetest.log"; then
+		ok "a world keeps its wrecks and the next one has none"
+	else
+		bad "a wreck shows at a place it did not die at"
+		grep -E 'FAIL|^wrecksitetest' "$LOG_DIR/wrecksitetest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "wrecksitetest did not finish"
+fi
+
 step "A new run's arrival: the engines sputter to the idle, no highlight"
 # Jon, Oct 13: "I don't want the engines to turn off... I just want them to
 # sputter to an idle. No highlight." LOCAL launched as the hull pick launches

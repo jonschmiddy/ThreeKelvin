@@ -182,6 +182,10 @@ const JETSAM_STRIDE := 64
 ## They persist. Jump away and come back and your wrecks are still where you left
 ## them with whatever you did not take still in them, which is the whole point of
 ## it being the system's state rather than the fight's.
+## A wreck with no place: shown at every place in its system (see `Jetsam.site`).
+const SITE_ANY := -99
+
+
 class Jetsam extends RefCounted:
 	## Its slot in `MapNode.jetsam`, and what its claims are numbered from. Never
 	## reused and never renumbered -- see `OPTION_JETSAM`.
@@ -192,6 +196,13 @@ class Jetsam extends RefCounted:
 	## Which of that kind's pictures the hull was (`EnemyState.look`).
 	var look: int = 0
 	var label: String = "SECTOR LOOT"
+	## WHERE IN THE SYSTEM IT LIES (Jon, Oct 14: "each planet or POI you can
+	## visit should contain its own wrecks/fights"): the body your ship orbited
+	## when the hull died, as `SystemMapScreen._parked` writes it -- -1 the
+	## star, -9 open space, or `SITE_ANY` for a wreck from a save made before
+	## wrecks had a place, which shows wherever you are, as it always did.
+	## LOCAL draws only the wrecks of the place you are parked at.
+	var site: int = -9
 	## MUST NOT SHRINK. A taken thing stays in it and is marked in `MapNode.taken`,
 	## exactly as `shop` and `bag` learned to.
 	var items: Array = []

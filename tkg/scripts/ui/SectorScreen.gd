@@ -1874,10 +1874,9 @@ func _refresh() -> void:
 		# left in them. A wreck does not stop existing because you emptied it,
 		# and one that vanished when picked clean would say the sector had
 		# forgotten a fight happened in it.
-		var wrecks: Array = []
-		for raw in n.jetsam:
-			if (raw as MapGen.Jetsam).is_wreck():
-				wrecks.append(raw)
+		# ...AT THIS PLACE: the world you orbit keeps the hulls of the fights
+		# over it, and the next world along has none of them.
+		var wrecks: Array = Run.wrecks_here(n)
 		if not wrecks.is_empty():
 			_view.show_wrecks(wrecks, _open_jetsam)
 		else:

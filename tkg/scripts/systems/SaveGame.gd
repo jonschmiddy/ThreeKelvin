@@ -246,7 +246,11 @@ static var path: String = TestRun.scratch("run", "save") if TestRun.active() els
 ## is clicked comes back to the body (`SaveGame.save_core_won`). Read the way 31
 ## reads 30: a 31 save has no `core_won`, and missing means not won -- the only
 ## state a 31 build ever wrote. OLDEST_READ stays at 29.
-const VERSION := 32
+## 33: A WRECK HAS A PLACE (`Jetsam.site`, Jon Oct 14: "each planet or POI you
+## can visit should contain its own wrecks/fights"). Read the way 32 reads 31: a
+## 32 save's wrecks have no `site`, and missing means `MapGen.SITE_ANY`, shown
+## at every place in the system -- what a 32 build drew. OLDEST_READ stays at 29.
+const VERSION := 33
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
 const OLDEST_READ := 29
@@ -948,7 +952,7 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		for m2 in h.items:
 			items.append(_item_to(m2))
 		jetsam.append({slot = h.slot, art = String(h.art), look = h.look, label = h.label,
-			scanned = h.scanned, items = items})
+			site = h.site, scanned = h.scanned, items = items})
 	return {
 		index = n.index, layer = n.layer, row = n.row,
 		rows_in_layer = n.rows_in_layer,
@@ -1085,6 +1089,8 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 		# (absent before the enemies had several pictures: the first one)
 		h.look = int(row.get("look", 0))
 		h.label = String(row.get("label", "SECTOR LOOT"))
+		# (absent before wrecks had a place: shown at every place, as then)
+		h.site = int(row.get("site", MapGen.SITE_ANY))
 		h.scanned = bool(row.get("scanned", false))
 		for e2 in row.get("items", []):
 			var it := _item_from(e2)
