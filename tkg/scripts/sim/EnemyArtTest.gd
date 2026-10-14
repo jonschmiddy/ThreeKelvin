@@ -94,6 +94,24 @@ func _pictures() -> void:
 					if canvas.get_pixel(x, y).a > 0.0 and not u.has_point(Vector2i(x, y)):
 						stray += 1
 			_ok("%s %s: nothing on the canvas outside the ship (%d px)" % [id, f, stray], stray == 0)
+			# THE FLAME STARTS ON ITS OWN SHIP at both sizes: read off the full
+			# picture and drawn over the half one, every nozzle sat twice as far from
+			# the corner as its engine, off the ship in every pack of three (Jon, Oct 14)
+			for sc in [1.0, 0.5]:
+				art.set_draw_scale(sc)
+				art.set_enemy(e, false)
+				if art._flame_fx == null:
+					continue
+				var on := art.used_rect().grow(2)
+				var off := 0
+				var pts := 0
+				for nz in art._flame_fx.nozzles:
+					for q in (nz as Dictionary).get("pts", PackedVector2Array()):
+						pts += 1
+						if not on.has_point(Vector2i(art._flame_at + (q as Vector2))):
+							off += 1
+				_ok("%s %s at %.1fx: its flame's %d nozzle points are on the ship (%d off)"
+						% [id, f, sc, pts, off], pts > 0 and off == 0)
 			art.free()
 	print("enemyarttest: %d kinds, %d pictures" % [ids.size(), files])
 

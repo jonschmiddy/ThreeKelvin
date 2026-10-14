@@ -236,6 +236,7 @@ func _lift() -> void:
 	if again or not _moving():
 		_place(0.0)
 		return
+	_bar(false)
 	_tw = create_tween()
 	_tw.tween_method(_place, 1.0, 0.0, LIFT_S).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
@@ -248,6 +249,7 @@ func _drop() -> void:
 	var gone := func() -> void:
 		visible = false
 		changed.emit()
+		_bar(true)
 	if not _moving():
 		_place(1.0)
 		gone.call()
@@ -257,53 +259,31 @@ func _drop() -> void:
 		_tw.tween_property(panel, "modulate:a", 0.0, POP_S * 0.8)
 		_tw.tween_callback(gone)
 		return
-	for a in OS.get_cmdline_user_args():
-		if a.begins_with("banddrop="):
-			DROP_LOOK = DROP_LOOKS.get(StringName(a.get_slice("=", 1).to_upper()), DROP_LOOK)
-	match DROP_LOOK:
-		&"dissolve":
-			_tw.set_parallel()
-			_tw.tween_property(panel, "modulate:a", 0.0, DISSOLVE_S)
-			_tw.tween_method(func(k: float) -> void:
-				offset_top = roundf(-height + DISSOLVE_SINK * k)
-				offset_bottom = roundf(DISSOLVE_SINK * k),
-				0.0, 1.0, DISSOLVE_S).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-			_tw.chain().tween_callback(func() -> void:
-				panel.modulate.a = 1.0
-				gone.call())
-		&"shutter":
-			# the panel held where it stands while the band's top comes down over it
-			var top := global_position.y
-			clip_contents = true
-			panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
-			panel.size = size
-			_tw.tween_method(func(k: float) -> void:
-				offset_top = roundf(-height + height * k)
-				panel.position.y = top - global_position.y,
-				0.0, 1.0, _drop_s()).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-			_tw.tween_callback(func() -> void:
-				clip_contents = false
-				panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-				panel.position = Vector2.ZERO
-				_place(1.0)
-				gone.call())
-		_:
-			_tw.tween_method(_place, 0.0, 1.0, _drop_s()).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-			_tw.tween_callback(gone)
+	_tw.tween_method(_place, 0.0, 1.0, _drop_s()).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_tw.tween_callback(gone)
 
 
-## THE DROP NEVER JUMPS (it moved up to 17 px a frame: a cubic ease-in ends at
-## three times its average speed). Each look keeps the band under DROP_MAX_PX a
-## frame at 60 fps; Jon picks one.
-##   A  slide:    the same slide down, eased at both ends, as long as its height asks
-##   B  dissolve: fades where it stands, sinking a few pixels
-##   C  shutter:  its top edge comes down over the text, which holds still until cut
-## `banddrop=A|B|C` on a harness's command line picks one for a film.
-const DROP_LOOKS := {&"A": &"slide", &"B": &"dissolve", &"C": &"shutter"}
-static var DROP_LOOK: StringName = &"slide"
+## THE BAR UNDER THE VIEW WAITS FOR THE BAND (Jon, Oct 14: "let's have the
+## smaller bar on the bottom ease up after the event band is gone"). It is
+## parked below the floor as the band lifts over it, and eases up once the drop
+## has finished (`SectorScreen._shut_drawer` / `_open_drawer`, the arrival's own
+## rise); at once when nothing animates, so it can never be left parked.
+func _bar(up: bool) -> void:
+	if screen == null or not is_instance_valid(screen):
+		return
+	if not up:
+		if screen.has_method(&"_shut_drawer"):
+			screen.call(&"_shut_drawer")
+	elif screen.has_method(&"_open_drawer"):
+		screen.call(&"_open_drawer", not _moving())
+
+
+## THE DROP NEVER JUMPS. It was a cubic ease-in, which ends at three times its
+## average speed: up to 29 px a frame on a middle-length band. It slides down
+## eased at both ends instead, over as long as its height needs to stay under
+## DROP_MAX_PX a frame at 60 fps (Jon, Oct 14: "Slide, eased"; a dissolve and a
+## shutter were the other two, and git has them). `-- sheet=BandDropTest`.
 const DROP_MAX_PX := 10.0
-const DISSOLVE_S := 0.2
-const DISSOLVE_SINK := 8.0
 
 ## A sine in-out's fastest frame is PI/2 times its average, so the time a
 ## height needs to stay under DROP_MAX_PX a frame; never quicker than the old drop.

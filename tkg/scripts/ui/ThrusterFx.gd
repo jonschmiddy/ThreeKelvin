@@ -1013,10 +1013,16 @@ static func for_view(h: HullData, half: bool) -> ThrusterFx:
 ## finder's, or the hand-placed ones in art/engines.json; `k` is how big the
 ## picture is against the file the table was read off (a pool ship's _half
 ## picture is 0.5). Enemies face left, so it burns to the right.
-static func for_picture(tex: Texture2D, k: float = 1.0) -> ThrusterFx:
+##
+## `half`: the picture's half sheet, when that is what is drawn (an enemy in a
+## pack of three or more, `EnemyArt.draw_scale`). The rig is still read off the
+## full picture and then brought down to the half one (`_halve`), as a hull's
+## half view is; read off the full picture and drawn over the half, every
+## nozzle sat twice as far from the picture's corner as its own engine.
+static func for_picture(tex: Texture2D, k: float = 1.0, half: Texture2D = null) -> ThrusterFx:
 	if tex == null:
 		return null
-	var key := [tex.resource_path, k]
+	var key := [tex.resource_path, k, half.resource_path if half != null else ""]
 	if _shared.has(key):
 		return _shared[key]
 	var img := tex.get_image()
@@ -1032,6 +1038,14 @@ static func for_picture(tex: Texture2D, k: float = 1.0) -> ThrusterFx:
 	fx.particles = true
 	fx.loop_n = 12
 	fx.fps = 8.0
+	if half != null:
+		var small := half.get_image()
+		if small != null:
+			if small.is_compressed():
+				small = small.duplicate()
+				small.decompress()
+			small.convert(Image.FORMAT_RGBA8)
+			fx._halve(small)
 	_shared[key] = fx
 	fx.build_async()
 	return fx

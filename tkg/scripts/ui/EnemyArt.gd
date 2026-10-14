@@ -579,7 +579,9 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	elif not dead:
 		var stex := DB.enemy_sprite(e.template.id, e.look)
 		if stex != null and not (stex.resource_path.get_file().get_basename() in NO_FLAME):
-			_flame_fx = ThrusterFx.for_picture(stex)
+			# the half sheet when that is what `_draw_sprite` drew
+			var htex := DB.enemy_sprite(e.template.id, e.look, true) if draw_scale < 1.0 else null
+			_flame_fx = ThrusterFx.for_picture(stex, 1.0, htex)
 			_flame_at = Vector2(_pic_at)
 	_track = false
 	if marks != null:
