@@ -48,19 +48,29 @@ static func bake_mix(src: Image, grade: int, looks: Array, seed_in: int = 7, hul
 		img.decompress()
 	img.convert(Image.FORMAT_RGBA8)
 	var r := _Ramps.new(img)
+	var at := places(hull)
+	# ROOM ON TOP FOR THE KIT: the sprites are cut three pixels above their
+	# masts, so an S-grade's taller masts, yards and dish had nowhere to go. A
+	# kit bake is KIT_ROOM rows taller, the hull at the bottom of it, and every
+	# hand placement moves down with it (the caller draws it KIT_ROOM higher).
+	if Look.KIT in looks:
+		var tall := Image.create(img.get_width(), img.get_height() + KIT_ROOM, false, Image.FORMAT_RGBA8)
+		tall.blit_rect(img, Rect2i(Vector2i.ZERO, img.get_size()), Vector2i(0, KIT_ROOM))
+		img = tall
+		at = _moved(at, KIT_ROOM)
 	# the silhouette first, then the yard's paint, the age over it, the marks,
 	# then the lights shining through the grime
 	if Look.KIT in looks:
-		_kit(img, r, grade, seed_in)
+		_kit(img, r, grade, seed_in, at)
 	if Look.PAINT in looks:
 		_paint(img, r, grade, seed_in)
 	if Look.WEAR in looks:
 		_wear(img, r, AGE[grade], seed_in)
 	# after the age: the S clean-up wipes lone pixels, and a stencil is made of them
 	if Look.MARKS in looks:
-		_marks(img, r, grade, seed_in, places(hull))
+		_marks(img, r, grade, seed_in, at)
 	if Look.LIGHTS in looks:
-		_lights(img, r, grade, places(hull))
+		_lights(img, r, grade, at)
 	if Look.FINISH in looks:
 		_finish(img, r, grade, seed_in)
 	return img
@@ -317,6 +327,28 @@ static func _finish(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
 # --------------------------------------------------------- the hand placements
 
 const PLACES_PATH := "res://art/hull_grade.json"
+## Rows a kit bake adds above the hull.
+const KIT_ROOM := 14
+
+## A hull's placements moved down `dy` rows (every [x, y, ...] and the dish).
+static func _moved(at: Dictionary, dy: int) -> Dictionary:
+	var out := {}
+	for k in at:
+		var v = at[k]
+		if v is Array and not (v as Array).is_empty() and (v as Array)[0] is Array:
+			var rows: Array = []
+			for e in v:
+				var e2: Array = (e as Array).duplicate()
+				e2[1] = int(e2[1]) + dy
+				rows.append(e2)
+			out[k] = rows
+		elif v is Array and (v as Array).size() >= 2:
+			var e3: Array = (v as Array).duplicate()
+			e3[1] = int(e3[1]) + dy
+			out[k] = e3
+		else:
+			out[k] = v
+	return out
 static var _places: Dictionary = {}
 
 ## A hull's hand-placed spots, or {} when it has none.
@@ -340,48 +372,38 @@ const STENCIL := {
 	"8": ["111", "1.1", "111", "1.1", "111"], "9": ["111", "1.1", "111", "..1", "111"],
 }
 
-## MARKINGS, on a REGISTRY PLATE where the hull's entry puts it: a light plate
-## with the number stencilled dark on it, so it reads whatever panel it sits on.
-## C has had its plate painted over (a blank patch, a stroke or two showing
-## through), B's is faded through a dither, A's is whole, and S's is whole with
-## two amber chevrons on the nose.
+## MARKINGS: the registry painted straight on the hull where its entry puts it
+## (a plate behind it looked stuck on: Jon, "Can't we have it more integrated
+## into the ship?"), in a grey that reads on that panel. Scraped at C (a few
+## strokes left), faded through a dither at B, clean at A, fresh at S -- the
+## lightest ink -- with two amber chevrons on the nose.
 static func _marks(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictionary) -> void:
-	if not at.has("plate"):
+	if not at.has("registry"):
 		return
-	var pr: Array = at.plate
-	var plate := Rect2i(int(pr[0]), int(pr[1]), int(pr[2]), int(pr[3]))
+	var reg: Array = at.registry
 	var text := "K-%d%02d" % [2 + seed_in % 7, (seed_in * 37) % 100]
-	var fill: Color = r.grey[int(r.grey.size() * 0.72)]
-	var ink: Color = r.grey[0]
-	# the plate, and the number centred on it
-	var stencil := {}
-	var tw := text.length() * 4 - 1
-	var cx := plate.position.x + (plate.size.x - tw) / 2
-	var cy := plate.position.y + (plate.size.y - 5) / 2
+	var light := String(reg[2]) != "dark"
+	var n := r.grey.size()
+	var ink: Color = r.grey[int(n * (0.92 if grade == 3 else 0.78))] if light else r.grey[int(n * 0.08)]
+	var cx := int(reg[0])
+	var y0 := int(reg[1])
 	for ch in text:
 		var glyph: Array = STENCIL.get(ch, STENCIL["-"])
 		for gy in 5:
 			for gx in 3:
-				if String(glyph[gy])[gx] == "1":
-					stencil[Vector2i(cx + gx, cy + gy)] = true
+				if String(glyph[gy])[gx] != "1":
+					continue
+				var x := cx + gx
+				var y := y0 + gy
+				if not _inner(img, x, y):
+					continue
+				var on := true
+				match grade:
+					0: on = noise(x, y, seed_in + 11) < 0.3
+					1: on = float(HullWear.BAYER[y % 4][x % 4]) / 16.0 < 0.55
+				if on:
+					img.set_pixel(x, y, ink)
 		cx += 4
-	for y in range(plate.position.y, plate.end.y):
-		for x in range(plate.position.x, plate.end.x):
-			if not _opaque(img, x, y):
-				continue
-			var p := Vector2i(x, y)
-			var under := img.get_pixel(x, y)
-			var c: Color = ink if stencil.has(p) else fill
-			match grade:
-				0:
-					# painted over: a patch a shade off the hull, a stroke or two showing
-					c = r.step(under, 1)
-					if stencil.has(p) and noise(x, y, seed_in + 11) < 0.2:
-						c = ink
-				1:
-					if float(HullWear.BAYER[y % 4][x % 4]) / 16.0 > 0.6:
-						c = under
-			img.set_pixel(x, y, c)
 	if grade == 3 and at.has("chevrons") and not r.accent.is_empty():
 		var amber: Color = r.accent[r.accent.size() / 2]
 		var tip := Vector2i(int(at.chevrons[0]), int(at.chevrons[1]))
@@ -396,12 +418,13 @@ static func _marks(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictiona
 
 # ------------------------------------------------------------------- E  lights
 
-## RUNNING LIGHTS where the hull's entry puts them: a row of bridge windows and
-## the nav lights. Dead at C (the windows dark glass, no nav lights); at B a
-## third of the windows and the nose light; at A two thirds and every nav light;
-## at S every window lit. Lit windows are warm, in the manufacturer's colour;
-## the nose is white and the stern amber. Which windows light is fixed by their
-## order (every third dark at A), never rolled.
+## RUNNING LIGHTS where the hull's entry puts them: its own dark glass (the
+## ports' panes, the bridge windows) and the nav lights. Dead at C; at B a third
+## of the panes and the white nose light; at A two thirds and every nav light; at
+## S every pane. Lit panes are warm, in the manufacturer's colour. A nav light is
+## 2x2 with a glow round it: the hull a step or two lighter along its own ramp,
+## so the light spills without a colour the sprite does not have. Which panes
+## light is fixed by their order, never rolled.
 static func _lights(img: Image, r: _Ramps, grade: int, at: Dictionary) -> void:
 	var warm := r.light_accent()
 	var glass: Color = r.grey[0]
@@ -412,24 +435,38 @@ static func _lights(img: Image, r: _Ramps, grade: int, at: Dictionary) -> void:
 			1: on = i % 3 == 1
 			2: on = i % 3 != 2
 			3: on = true
-		var c: Color = warm if on else glass
-		for dy in 2:
-			for dx in 2:
-				var x := int(wins[i][0]) + dx
-				var y := int(wins[i][1]) + dy
+		var w: Array = wins[i]
+		for dy in int(w[3]):
+			for dx in int(w[2]):
+				var x := int(w[0]) + dx
+				var y := int(w[1]) + dy
 				if _opaque(img, x, y):
-					img.set_pixel(x, y, c)
+					img.set_pixel(x, y, warm if on else (glass if grade == 0 else img.get_pixel(x, y)))
 	if grade == 0:
 		return
-	var navs: Array = at.get("nav", [])
-	for n in navs:
-		var kind := String(n[2])
+	for nv in at.get("nav", []):
+		var kind := String(nv[2])
 		if grade == 1 and kind != "white":
 			continue
-		var x := int(n[0])
-		var y := int(n[1])
-		if _opaque(img, x, y):
-			img.set_pixel(x, y, r.lightest_grey() if kind == "white" else warm)
+		var c: Color = r.lightest_grey() if kind == "white" else warm
+		var x0 := int(nv[0])
+		var y0 := int(nv[1])
+		# the glow first, one and two pixels out, then the light itself
+		for dy in range(-2, 4):
+			for dx in range(-2, 4):
+				var x := x0 + dx
+				var y := y0 + dy
+				if not _opaque(img, x, y):
+					continue
+				var ring := maxi(maxi(-dx, dx - 1), maxi(-dy, dy - 1))
+				if ring == 1:
+					img.set_pixel(x, y, r.step(img.get_pixel(x, y), 2))
+				elif ring == 2 and grade == 3:
+					img.set_pixel(x, y, r.step(img.get_pixel(x, y), 1))
+		for dy in 2:
+			for dx in 2:
+				if _opaque(img, x0 + dx, y0 + dy):
+					img.set_pixel(x0 + dx, y0 + dy, c)
 
 
 # ---------------------------------------------------------------------- F  kit
@@ -437,11 +474,14 @@ static func _lights(img: Image, r: _Ramps, grade: int, at: Dictionary) -> void:
 ## KIT. The thin things on top -- masts, antennas, the small fittings on the
 ## cabin roof: every run of three pixels or narrower above the hull's first
 ## broad row (a run of twelve or more). Cut off at C, halved at B, as drawn at
-## A; at S each mast four pixels taller with an amber beacon on the tallest.
+## A; at S each mast twelve pixels taller, the tallest with two yards and an
+## amber beacon, a radar dish on the roof (`dish`) and the whip antennas the
+## hull's entry adds (`masts`). C keeps one bent stub, so the cut reads as broken
+## off rather than never fitted (Jon: "Can we have kit be more dramatic?").
 ## The first cut looked for single-pixel masts with nothing beside them and
 ## found one of this hull's, three pixels in all (Jon: "There is no difference
 ## between C > S with kit?").
-static func _kit(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
+static func _kit(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictionary) -> void:
 	var src := img.duplicate() as Image
 	var w := src.get_width()
 	var h := src.get_height()
@@ -480,21 +520,70 @@ static func _kit(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
 		cols[c] = mini(int(cols.get(c, h)), p.y)
 	match grade:
 		0, 1:
+			var stub := -1
 			for c in cols:
 				var top: int = cols[c]
 				var cut := body_top if grade == 0 else top + (body_top - top) / 2
 				for y in range(top, cut):
 					if thin.has(Vector2i(c, y)):
 						img.set_pixel(c, y, Color(0, 0, 0, 0))
+				if stub < 0 or top < int(cols[stub]):
+					stub = c
+			# at C the tallest mast is left as a bent stub, so the cut reads as
+			# broken off rather than never there
+			if grade == 0 and stub >= 0:
+				var mc: Color = src.get_pixel(stub, int(cols[stub]))
+				for k in 4:
+					var y := body_top - 1 - k
+					var x := stub + (k / 2)
+					if y >= 0:
+						img.set_pixel(x, y, mc)
 		3:
+			# every mast eight pixels taller, the tallest with a yard across it
+			# and a beacon, and the whips the hull's entry adds
 			var tallest := -1
 			for c in cols:
 				var top: int = cols[c]
 				var col := src.get_pixel(c, top)
-				for k in range(1, 5):
+				for k in range(1, 13):
 					if top - k >= 0:
 						img.set_pixel(c, top - k, col)
 				if tallest < 0 or top < int(cols[tallest]):
 					tallest = c
-			if not r.accent.is_empty() and int(cols[tallest]) - 5 >= 0:
-				img.set_pixel(tallest, int(cols[tallest]) - 5, r.light_accent())
+			# drawn in a mid grey: the masts' own colour is their near-black outline,
+			# which vanished against space as soon as it stood alone
+			var mast_c: Color = r.grey[int(r.grey.size() * 0.55)]
+			for c in cols:
+				var top: int = cols[c]
+				for k in range(1, 13):
+					if top - k >= 0:
+						img.set_pixel(c, top - k, mast_c)
+			var tip := int(cols[tallest]) - 12
+			# two yards across the tallest
+			for yard in [[tip + 3, 4], [tip + 8, 2]]:
+				for dx in range(-int(yard[1]), int(yard[1]) + 1):
+					if int(yard[0]) >= 0 and not _opaque(img, tallest + dx, int(yard[0])):
+						img.set_pixel(tallest + dx, int(yard[0]), mast_c)
+			# a side-on radar dish on the roof
+			if at.has("dish"):
+				var dx0 := int(at.dish[0])
+				var dy0 := int(at.dish[1])
+				var rim := r.lightest_grey()
+				var dish := ["##....", ".##...", "..####", "...#..", "...#.."]
+				for row in dish.size():
+					for col2 in 6:
+						if dish[row][col2] == "#":
+							var y := dy0 - dish.size() + row
+							if y >= 0 and not _opaque(src, dx0 + col2, y):
+								img.set_pixel(dx0 + col2, y, rim if row == 0 else mast_c)
+			if not r.accent.is_empty() and tip - 1 >= 0:
+				img.set_pixel(tallest, tip - 1, r.light_accent())
+			for m in at.get("masts", []):
+				var mx := int(m[0])
+				for k in int(m[2]):
+					var y := int(m[1]) - k
+					if y >= 0 and not _opaque(src, mx, y):
+						img.set_pixel(mx, y, mast_c)
+				var ty := int(m[1]) - int(m[2])
+				if ty >= 0:
+					img.set_pixel(mx, ty, r.lightest_grey())

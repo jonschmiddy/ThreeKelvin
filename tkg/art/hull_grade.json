@@ -1,9 +1,104 @@
 {
- "_about": "Where HullGrade's placed looks go on each hull, by hand, because finding them in the pixels put them anywhere (Jon, Oct 14: running lights 'random and bad', markings 'the execution is bad'). Keyed by the hull's path under art/sprites/hulls/ without .png; coordinates in that picture's own pixels (the full-size file). plate: the registry plate, [x, y, w, h], 7 rows tall for the 3x5 stencil with a pixel round it. chevrons: the tip of the first S-grade chevron on the nose, [x, y]; two are drawn, pointing forward. windows: [x, y] of each 2x2 window, aft to fore. nav: [x, y, 'white' | 'amber'] running lights.",
+ "_about": "Where HullGrade's placed looks go on each hull, by hand, because finding them in the pixels put them anywhere (Jon, Oct 14: running lights 'random and bad', markings 'the execution is bad', the plate behind the number 'looks bad'). Keyed by the hull's path under art/sprites/hulls/ without .png; coordinates in that picture's own pixels (the full-size file). registry: the top-left of the 3x5 stencilled number, painted straight on a plain panel, and ink 'light' or 'dark' for what reads on that panel. chevrons: the tip of the first S-grade chevron on the nose, [x, y]. windows: [x, y, w, h] panes, aft to fore -- the hull's own dark glass where it has some. nav: [x, y, 'white' | 'amber'], the top-left of a 2x2 light. masts: [x, base_y, height] new whip antennas an S-grade frame carries. dish: [x, y] the bottom-left of a side-on radar dish on the roof at S.",
  "korvan/hull_medium_a": {
-  "plate": [200, 70, 21, 7],
-  "chevrons": [300, 67],
-  "windows": [[148, 31], [152, 31], [156, 31], [160, 31], [164, 31], [168, 31]],
-  "nav": [[320, 67, "white"], [95, 57, "amber"]]
+  "registry": [
+   202,
+   71,
+   "light"
+  ],
+  "chevrons": [
+   300,
+   67
+  ],
+  "windows": [
+   [
+    137,
+    57,
+    4,
+    2
+   ],
+   [
+    143,
+    57,
+    4,
+    2
+   ],
+   [
+    147,
+    31,
+    3,
+    2
+   ],
+   [
+    152,
+    31,
+    3,
+    2
+   ],
+   [
+    157,
+    31,
+    3,
+    2
+   ],
+   [
+    162,
+    31,
+    3,
+    2
+   ],
+   [
+    167,
+    31,
+    3,
+    2
+   ],
+   [
+    246,
+    61,
+    6,
+    2
+   ],
+   [
+    253,
+    61,
+    2,
+    2
+   ],
+   [
+    256,
+    61,
+    6,
+    2
+   ]
+  ],
+  "nav": [
+   [
+    319,
+    66,
+    "white"
+   ],
+   [
+    94,
+    57,
+    "amber"
+   ]
+  ],
+  "masts": [
+   [
+    146,
+    26,
+    16
+   ],
+   [
+    262,
+    50,
+    14
+   ]
+  ],
+  "dish": [
+   133,
+   26
+  ]
  }
 }
