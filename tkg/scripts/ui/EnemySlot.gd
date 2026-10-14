@@ -571,7 +571,13 @@ static func shield_reach(tex: Texture2D) -> Vector4:
 func _reach(s: float) -> Vector4:
 	if _last_e == null or not reserve_intent:
 		return Vector4.ZERO
-	return shield_reach(DB.enemy_sprite(_last_e.template.id, _last_e.look, s < 1.0))
+	# (asked many times a layout: kept by picture and size, not looked up)
+	var key := "%s/%d/%s" % [_last_e.template.id, _last_e.look, s < 1.0]
+	if not _reach_by_pic.has(key):
+		_reach_by_pic[key] = shield_reach(DB.enemy_sprite(_last_e.template.id, _last_e.look, s < 1.0))
+	return _reach_by_pic[key]
+
+static var _reach_by_pic: Dictionary = {}
 
 
 ## THE ROOM THE SHIP KEEPS, IN ITS PARTS, for packing a rank behind into the

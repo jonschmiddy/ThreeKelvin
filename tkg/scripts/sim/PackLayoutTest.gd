@@ -492,10 +492,20 @@ func _has_rooms(view: EncounterView, n: int) -> bool:
 			return false
 	return true
 
+var _rooms_memo: Dictionary = {}
+
 func _rooms_of(sl: EnemySlot) -> Array:
 	var out: Array = []
 	if sl.get("side") == true:
 		return out
+	var e: Variant = sl.get("_last_e")
+	var key := "%d|%s|%s|%s|%s" % [sl.get_instance_id(), sl.get_global_rect(), sl.art.draw_scale,
+		(e as Combat.EnemyState).template.id if e != null else &"", (e as Combat.EnemyState).look if e != null else -1]
+	if _rooms_memo.has(key):
+		return _rooms_memo[key]
+	if _rooms_memo.size() > 4096:
+		_rooms_memo.clear()
+	_rooms_memo[key] = out
 	for p in sl.call("rooms", sl.art.draw_scale):
 		var r: Rect2 = p[1]
 		out.append([p[0], Rect2(sl.get_global_rect().position + r.position, r.size)])
@@ -509,47 +519,56 @@ func _rooms_gap(a: Array, b: Array) -> float:
 			d = minf(d, _part_dist(p, q))
 	return d
 
-## Points round a part's edge: a box's corners and sides, an oval's rim.
-func _edge(p: Array) -> PackedVector2Array:
-	var r: Rect2 = p[1]
+## Points round an oval's rim.
+func _rim(r: Rect2, n: int) -> PackedVector2Array:
 	var out := PackedVector2Array()
-	if p[0] == &"oval":
-		for i in 128:
-			var t := TAU * float(i) / 128.0
-			out.append(r.get_center() + Vector2(cos(t) * r.size.x * 0.5, sin(t) * r.size.y * 0.5))
-	else:
-		for i in 33:
-			var f := float(i) / 32.0
-			out.append(r.position + Vector2(r.size.x * f, 0.0))
-			out.append(r.position + Vector2(r.size.x * f, r.size.y))
-			out.append(r.position + Vector2(0.0, r.size.y * f))
-			out.append(r.position + Vector2(r.size.x, r.size.y * f))
+	for i in n:
+		var t := TAU * float(i) / float(n)
+		out.append(r.get_center() + Vector2(cos(t) * r.size.x * 0.5, sin(t) * r.size.y * 0.5))
 	return out
 
-func _inside(p: Array, v: Vector2) -> bool:
-	var r: Rect2 = p[1]
-	if p[0] == &"oval":
-		var u := (v - r.get_center()) / (r.size * 0.5)
-		return u.length_squared() < 1.0
-	return r.has_point(v) and v.x > r.position.x and v.y > r.position.y
+func _in_oval(r: Rect2, v: Vector2) -> bool:
+	var u := (v - r.get_center()) / (r.size * 0.5)
+	return u.length_squared() < 1.0
 
-## Distance between two parts (0 where they meet or overlap).
+func _rect_dist(a: Rect2, b: Rect2) -> float:
+	var dx := maxf(0.0, maxf(a.position.x - b.end.x, b.position.x - a.end.x))
+	var dy := maxf(0.0, maxf(a.position.y - b.end.y, b.position.y - a.end.y))
+	return Vector2(dx, dy).length()
+
+## Distance between two parts (0 where they meet or overlap): boxes exactly,
+## an oval by its rim, 96 points round.
 func _part_dist(p: Array, q: Array) -> float:
-	var ep := _edge(p)
-	var eq := _edge(q)
-	for v in ep:
-		if _inside(q, v):
+	if p[0] != &"oval" and q[0] == &"oval":
+		return _part_dist(q, p)
+	var rp: Rect2 = p[1]
+	var rq: Rect2 = q[1]
+	if p[0] != &"oval":
+		return _rect_dist(rp, rq)
+	# p is an oval; cheap out when even its box is far
+	var far := _rect_dist(rp, rq)
+	if far > 150.0:
+		return far
+	var rim := _rim(rp, 96)
+	if q[0] != &"oval":
+		if _in_oval(rp, rq.get_center()) or rq.has_point(rp.get_center()):
 			return 0.0
-	for v in eq:
-		if _inside(p, v):
+		for c in [rq.position, rq.end, Vector2(rq.position.x, rq.end.y), Vector2(rq.end.x, rq.position.y)]:
+			if _in_oval(rp, c):
+				return 0.0
+		var d := INF
+		for v in rim:
+			if rq.has_point(v):
+				return 0.0
+			d = minf(d, v.distance_to(Vector2(clampf(v.x, rq.position.x, rq.end.x), clampf(v.y, rq.position.y, rq.end.y))))
+		return d
+	var rim2 := _rim(rq, 96)
+	if _in_oval(rp, rq.get_center()) or _in_oval(rq, rp.get_center()):
+		return 0.0
+	var d2 := INF
+	for v in rim:
+		if _in_oval(rq, v):
 			return 0.0
-	var d := INF
-	for v in ep:
-		if q[0] == &"oval":
-			for w in eq:
-				d = minf(d, v.distance_to(w))
-		else:
-			var rq: Rect2 = q[1]
-			var c := Vector2(clampf(v.x, rq.position.x, rq.end.x), clampf(v.y, rq.position.y, rq.end.y))
-			d = minf(d, v.distance_to(c))
-	return d
+		for w in rim2:
+			d2 = minf(d2, v.distance_to(w))
+	return d2

@@ -607,6 +607,9 @@ var _pack_queued := false
 var _placed: Dictionary = {}
 ## Which rank of the formation each slot stands in (0 the front), for the test.
 var _pack_rank_of: Dictionary = {}
+## The last plan and what it was made from (`_layout_pack`).
+var _plan_key := ""
+var _plan_memo: Dictionary = {}
 var _pack_tw: Dictionary = {}
 
 func _queue_pack() -> void:
@@ -675,25 +678,40 @@ func _layout_pack() -> void:
 	var area := _pack_area()
 	var mid := _slots.size.x * 0.5
 	var s := 0.5 if live.size() >= PACK_HALF_AT else 1.0
+	# THE SAME PACK, THE SAME PLAN. A fight asks for the layout dozens of times
+	# a turn (every readout change queues one) and the blocks are kept one size
+	# all fight; setting a triangle into the shoulders costs milliseconds, so
+	# the plan is worked out again only when what it is made from changes.
+	var key := "%s|%s|%s|%s" % [pack_layout, _slots_mode, area, mid]
+	for sl in live:
+		var e: Combat.EnemyState = sl.get("_last_e")
+		key += "|%d:%s:%d:%s:%s:%d" % [sl.get_instance_id(), e.template.id if e != null else &"",
+			e.look if e != null else -1, sl.reserve_intent, sl.get("_dead"),
+			sl.chips.get_child_count() if sl.chips != null else 0]
 	var plan := {}
-	if pack_layout == &"C":
-		if s == 1.0:
-			plan = _pack_row(live, s, area, mid)
+	if key == _plan_key and not _plan_memo.is_empty():
+		plan = _plan_memo
+	else:
+		if pack_layout == &"C":
+			if s == 1.0:
+				plan = _pack_row(live, s, area, mid)
+			if plan.is_empty():
+				plan = _pack_column(live, s, area, mid)
 		if plan.is_empty():
-			plan = _pack_column(live, s, area, mid)
-	if plan.is_empty():
-		plan = _pack_ranks(live, s, area, mid)
-		# A PAIR TOO BIG FOR THE BAND at full size, with its shields' room (two
-		# Marauders, a Marauder and a Hulk): drawn from half sheets like a pack
-		# of three, rather than packed tighter than the least gap
-		if s == 1.0 and (plan.is_empty() or float(plan.get("low", INF)) < PACK_GAP_MIN):
-			var half := _pack_ranks(live, 0.5, area, mid)
-			if not half.is_empty():
-				plan = half
-				s = 0.5
-	if plan.is_empty():
-		# more than the band can hold even in ranks: the row, overflowing
-		plan = _pack_row(live, s, area, mid, true)
+			plan = _pack_ranks(live, s, area, mid)
+			# A PAIR TOO BIG FOR THE BAND at full size, with its shields' room (two
+			# Marauders, a Marauder and a Hulk): drawn from half sheets like a pack
+			# of three, rather than packed tighter than the least gap
+			if s == 1.0 and (plan.is_empty() or float(plan.get("low", INF)) < PACK_GAP_MIN):
+				var half := _pack_ranks(live, 0.5, area, mid)
+				if not half.is_empty():
+					plan = half
+					s = 0.5
+		if plan.is_empty():
+			# more than the band can hold even in ranks: the row, overflowing
+			plan = _pack_row(live, s, area, mid, true)
+		_plan_key = key
+		_plan_memo = plan
 	var back: Array = plan.get("back", [])
 	_pack_rank_of = plan.get("ranks", {})
 	var placed := {}
@@ -924,6 +942,7 @@ const SHOULDER_EVEN := 0.75
 
 func _pack_shoulders(ranks: Array, blocks: Dictionary, units: Dictionary, g0: float,
 		s: float, area: Rect2, mid: float) -> Dictionary:
+	_tops_cache.clear()
 	var rooms := {}
 	for rank: Array in ranks:
 		for sl: EnemySlot in rank:
@@ -938,23 +957,51 @@ func _pack_shoulders(ranks: Array, blocks: Dictionary, units: Dictionary, g0: fl
 		wsum += (blocks[sl] as Rect2).size.x
 	var gmax := floorf((area.size.x - wsum) / float(maxi(1, front.size() - 1)))
 	var g := floorf(minf(g0, gmax))
-	while g <= gmax:
-		var plan := _shoulders_at(ranks, rooms, blocks, units, g, PACK_GAP_MIN, s, area, mid)
-		if not plan.is_empty():
-			# the gap between ranks as wide as still fits, up to the gap across
-			var lo := PACK_GAP_MIN
-			var hi := g + 1.0
-			while hi - lo > 1.0:
-				var m := floorf((lo + hi) * 0.5)
-				var p2 := _shoulders_at(ranks, rooms, blocks, units, g, m, s, area, mid)
-				if p2.is_empty():
-					hi = m
-				else:
-					lo = m
-					plan = p2
-			return plan
-		g += 4.0
-	return {}
+	# the least gap across that fits: stepped out from the usual gap (wider,
+	# the ship behind comes further down between the two in front; too wide,
+	# it is no longer behind them), then halved back
+	var plan := _shoulders_at(ranks, rooms, blocks, units, g, PACK_GAP_MIN, s, area, mid)
+	if plan.is_empty():
+		var lo_g := g
+		var hi_g := -1.0
+		var step := g + 8.0
+		while step <= gmax + 7.0:
+			var gs := minf(step, gmax)
+			var ps := _shoulders_at(ranks, rooms, blocks, units, gs, PACK_GAP_MIN, s, area, mid)
+			if not ps.is_empty():
+				hi_g = gs
+				plan = ps
+				break
+			lo_g = gs
+			if gs >= gmax:
+				break
+			step += 8.0
+		if hi_g < 0.0:
+			return {}
+		g = hi_g
+		while hi_g - lo_g > 1.0:
+			var m := floorf((lo_g + hi_g) * 0.5)
+			var pm := _shoulders_at(ranks, rooms, blocks, units, m, PACK_GAP_MIN, s, area, mid)
+			if pm.is_empty():
+				lo_g = m
+			else:
+				hi_g = m
+				plan = pm
+				g = m
+	# the gap between ranks as wide as still fits, up to the gap across
+	var lo := PACK_GAP_MIN
+	# (no wider than the band's spare height allows: a wider gap lifts the
+	# ship behind by at least as much)
+	var hi := minf(g, PACK_GAP_MIN + area.size.y - float(plan.get("h", 0.0))) + 1.0
+	while hi - lo > 1.0:
+		var m2 := floorf((lo + hi) * 0.5)
+		var p2 := _shoulders_at(ranks, rooms, blocks, units, g, m2, s, area, mid)
+		if p2.is_empty():
+			hi = m2
+		else:
+			lo = m2
+			plan = p2
+	return plan
 
 
 func _shoulders_at(ranks: Array, rooms: Dictionary, blocks: Dictionary, units: Dictionary,
@@ -983,40 +1030,60 @@ func _shoulders_at(ranks: Array, rooms: Dictionary, blocks: Dictionary, units: D
 		var x_lo := int(floorf(centre)) - SHOULDER_DX - int(gv) - 2
 		var x_hi := int(ceilf(centre + b.size.x)) + SHOULDER_DX + int(gv) + 2
 		# (a pixel's slack over the gap: the profile is taken down column middles)
-		var t1 := _room_tops(rooms[front[j]], left.position - (blocks[front[j]] as Rect2).position, x_lo, x_hi, gv + 0.75)
-		var t2 := _room_tops(rooms[front[j + 1]], right.position - (blocks[front[j + 1]] as Rect2).position, x_lo, x_hi, gv + 0.75)
+		var t1 := _tops_at(front[j], rooms, units, left.position - (blocks[front[j]] as Rect2).position, x_lo, x_hi, gv + 0.75)
+		var t2 := _tops_at(front[j + 1], rooms, units, right.position - (blocks[front[j + 1]] as Rect2).position, x_lo, x_hi, gv + 0.75)
 		var bp := _room_bottoms(rooms[sl], b)
 		var oval_top := minf(_oval_of(rooms[front[j]]).position.y + left.position.y - (blocks[front[j]] as Rect2).position.y,
 			_oval_of(rooms[front[j + 1]]).position.y + right.position.y - (blocks[front[j + 1]] as Rect2).position.y)
 		var back_oval_bottom := _oval_of(rooms[sl]).end.y - b.position.y
-		var best_y := -INF
-		var best_x := 0.0
+		# the nudge across that makes its gaps to the two in front equal: each
+		# place where the two gaps cross, found on a coarse pass and then by
+		# halving, the lowest of them kept
+		var d_lo := maxi(-SHOULDER_DX, int(ceilf(area.position.x - centre)))
+		var d_hi := mini(SHOULDER_DX, int(floorf(area.end.x - b.size.x - centre)))
+		if d_lo > d_hi:
+			return {}
+		var base := int(centre) - x_lo
+		var fb := Vector3(-INF, -INF, INF)
 		var best_dx := 0
-		for dx in range(-SHOULDER_DX, SHOULDER_DX + 1):
-			var bx := centre + float(dx)
-			if bx < area.position.x or bx + b.size.x > area.end.x:
-				continue
-			var y1 := INF
-			var y2 := INF
-			for c in bp.size():
-				if bp[c] == -INF:
-					continue
-				var col := int(bx) + c - x_lo
-				if col < 0 or col >= t1.size():
-					continue
-				y1 = minf(y1, t1[col] - bp[c])
-				y2 = minf(y2, t2[col] - bp[c])
-			if y1 == INF or y2 == INF or absf(y1 - y2) > SHOULDER_EVEN:
-				continue
-			var y := floorf(minf(y1, y2))
-			# behind and above: its shield clear above theirs
-			if y + back_oval_bottom > oval_top:
-				continue
-			if y > best_y + 0.5 or (absf(y - best_y) <= 0.5 and absi(dx) < absi(best_dx)):
-				best_y = y
-				best_x = bx
-				best_dx = dx
-		if best_y == -INF:
+		var prev_d := d_lo
+		var prev_f := _shoulder_lean(bp, t1, t2, base + d_lo)
+		var d := d_lo
+		while d <= d_hi:
+			var f := _shoulder_lean(bp, t1, t2, base + d)
+			var hit := absf(f.z) <= SHOULDER_EVEN
+			var a_d := prev_d
+			var a_f := prev_f
+			var c_d := d
+			var c_f := f
+			if not hit and d > d_lo and ((a_f.z < 0.0) != (c_f.z < 0.0)):
+				while c_d - a_d > 1:
+					var dm := (a_d + c_d) / 2
+					var fm := _shoulder_lean(bp, t1, t2, base + dm)
+					if (fm.z < 0.0) == (a_f.z < 0.0):
+						a_d = dm
+						a_f = fm
+					else:
+						c_d = dm
+						c_f = fm
+				if absf(a_f.z) <= absf(c_f.z):
+					c_d = a_d
+					c_f = a_f
+				hit = absf(c_f.z) <= SHOULDER_EVEN
+			if hit and minf(c_f.x, c_f.y) > minf(fb.x, fb.y) + 0.5:
+				fb = c_f
+				best_dx = c_d
+			prev_d = d
+			prev_f = f
+			if d == d_hi:
+				break
+			d = mini(d + 4, d_hi)
+		if fb.z == INF:
+			return {}
+		var best_y := floorf(minf(fb.x, fb.y))
+		var best_x := centre + float(best_dx)
+		# behind and above: its shield clear above theirs
+		if best_y + back_oval_bottom > oval_top:
 			return {}
 		br.append(Rect2(best_x, best_y, b.size.x, b.size.y))
 		top = minf(top, best_y)
@@ -1040,6 +1107,47 @@ func _shoulders_at(ranks: Array, rooms: Dictionary, blocks: Dictionary, units: D
 	out["back"] = back.duplicate()
 	out["ranks"] = rank_of
 	out["low"] = minf(g, gv)
+	out["h"] = h
+	return out
+
+
+## Where the ship behind may come down to, its block's left at column `at0`
+## of the profiles: (to clear the left one, to clear the right one, the first
+## less the second). Far from either, its side is very large.
+static func _shoulder_lean(bp: PackedFloat32Array, t1: PackedFloat32Array, t2: PackedFloat32Array, at0: int) -> Vector3:
+	var y1 := INF
+	var y2 := INF
+	for c in bp.size():
+		if bp[c] == -INF:
+			continue
+		var col := at0 + c
+		if col < 0 or col >= t1.size():
+			continue
+		y1 = minf(y1, t1[col] - bp[c])
+		y2 = minf(y2, t2[col] - bp[c])
+	var a := minf(y1, 1.0e6)
+	var b := minf(y2, 1.0e6)
+	return Vector3(a, b, a - b)
+
+
+## `_room_tops` for a slot standing at `at`: worked out once per ship and
+## gap in the ship's own columns (the pulling-up is the costly part, and the
+## search tries many places for the same ship), then read off where it stands.
+var _tops_cache: Dictionary = {}
+
+func _tops_at(sl: EnemySlot, rooms: Dictionary, units: Dictionary, at: Vector2,
+		x_lo: int, x_hi: int, gv: float) -> PackedFloat32Array:
+	var k := int(ceilf(gv)) + 1
+	var key := "%d|%.2f" % [sl.get_instance_id(), gv]
+	if not _tops_cache.has(key):
+		_tops_cache[key] = _room_tops(rooms[sl], Vector2.ZERO, -k, int(ceilf((units[sl] as Vector2).x)) + k, gv)
+	var loc: PackedFloat32Array = _tops_cache[key]
+	var ax := int(roundf(at.x))
+	var out := PackedFloat32Array()
+	out.resize(x_hi - x_lo + 1)
+	for i in out.size():
+		var lc := x_lo + i - ax + k
+		out[i] = loc[lc] + at.y if lc >= 0 and lc < loc.size() else INF
 	return out
 
 
@@ -1075,14 +1183,19 @@ static func _room_tops(rooms: Array, at: Vector2, x_lo: int, x_hi: int, gv: floa
 	var out := PackedFloat32Array()
 	out.resize(n)
 	var k := int(ceilf(gv))
-	for i in n:
-		var m := INF
-		for d in range(-k, k + 1):
-			var j := i + d
-			if j < 0 or j >= n or raw[j] == INF:
-				continue
-			m = minf(m, raw[j] - sqrt(maxf(0.0, gv * gv - float(d * d))))
-		out[i] = m
+	var lift := PackedFloat32Array()
+	for d in range(-k, k + 1):
+		lift.append(sqrt(maxf(0.0, gv * gv - float(d * d))))
+	out.fill(INF)
+	# each column with a top pulls up the columns round it
+	for j in n:
+		var t := raw[j]
+		if t == INF:
+			continue
+		for d in range(maxi(-k, -j), mini(k, n - 1 - j) + 1):
+			var v := t - lift[d + k]
+			if v < out[j + d]:
+				out[j + d] = v
 	return out
 
 
