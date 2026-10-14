@@ -4,6 +4,7 @@ extends Node
 ## place on every frame of it:
 ##   godot --path . --resolution 1920x1080 --write-movie <dir>/f.png --fixed-fps 60
 ##       -- sheet=FightOpenFilm entry=<engage|event|ambush|pack|end> out=<dir> [animate]
+##       [wrecks=N] [wreckexit=A|B|C]  (pack: N hulls lie there first; how they leave)
 ## `engage`  the core: LOCAL with ENGAGE on the band, pressed (`_on_action`);
 ## `event`   an Escort event up on LOCAL, Take the contract, THEY ARE FIRING;
 ## `ambush`  a jump into a system where something is waiting: the departure,
@@ -123,6 +124,11 @@ func _pack() -> void:
 	n.ambush_rolled = true
 	n.ambush_pending = false
 	n.visited = true
+	# `wrecks=N`: N hulls already lie here, so the fight opens over them
+	var foes: Array = DB.enemies.keys()
+	foes.sort()
+	for w in int(_arg("wrecks", "0")):
+		Run.new_wreck(n, DB.enemies[foes[(w * 7 + 3) % foes.size()]])
 	Run.at = n.index
 	SectorScreen._approached_at = Run.at
 	Router.show_local()

@@ -633,12 +633,27 @@ else
 	bad "arriveidletest did not finish"
 fi
 
+step "The event band drops without a jump"
+# It moved up to 29 px a frame on a middle-length event (a cubic ease-in ends at
+# three times its average speed). LOCAL's band opened on the shortest, a middle
+# and the longest event, NOT NOW pressed, and its top edge measured every frame
+# of the drop: never over LocalEventDrawer.DROP_MAX_PX, and gone at the end.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot banddroptest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=BandDropTest; then
+	if grep -qE '^banddroptest: PASS' "$LOG_DIR/banddroptest.log"; then
+		ok "the band drops under ten pixels a frame"
+	else
+		bad "the band jumps as it drops"
+		grep -E 'FAIL' "$LOG_DIR/banddroptest.log" | sed 's/^/        /'
+	fi
+fi
+
 step "Your idle engines are heard exactly while the idle flame is seen"
 # Jon, Oct 13: "Let's have a low burn sound for the idle engines". Audio is off
 # headless, but its decision (`Audio.idle_want`) and fade are not: silent
 # through the arrival's clean burn, up from the first gap, full when parked;
 # down in a hyperdrive's dark, a departure, hidden or off screen; heard in a
-# fight; silent on the chart and the refit; one view only, yours.
+# fight, on the refit and on the transfer's new hull; silent on the chart; one
+# view only, yours.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot idlesoundtest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=IdleSoundTest; then
 	if grep -qE '^idlesoundtest: PASS' "$LOG_DIR/idlesoundtest.log"; then
 		ok "the idle bed follows the idle flame"

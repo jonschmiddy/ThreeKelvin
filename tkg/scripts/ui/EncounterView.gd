@@ -529,9 +529,12 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 	# Built once a fight: nothing joins one (`Combat`), and the dead keep their
 	# slots, so the count only changes when a new fight opens.
 	if _made.size() != list.size() or _slots_mode != &"fight":
+		# a fight opening over wrecks on this same screen hands them to itself
+		var going := hand_wrecks()
 		_slots_mode = &"fight"
 		Widgets.clear(_slots)
 		_made.clear()
+		wrecks_out(going)
 	if _made.size() < list.size():
 		for i in range(_made.size(), list.size()):
 			var slot := EnemySlot.new()
@@ -593,9 +596,98 @@ func open_row() -> void:
 ## picture (`_area_fade_out`) or an event's subject (`LocalSubject.fade_out`).
 func leaving() -> bool:
 	for c in get_children():
-		if (c is LocalSubject and (c as Node).has_meta(&"leaving")) or c.name == "AreaLeaving":
+		if (c is LocalSubject and (c as Node).has_meta(&"leaving")) \
+				or c.name == "AreaLeaving" or c.name == "WrecksLeaving":
 			return not (c as Node).is_queued_for_deletion()
 	return false
+
+
+## THE WRECKS GO BEFORE THE FIGHT COMES, never on one frame. A fight opening
+## where hulls already lie swapped in a fight screen built without them, so
+## every wreck was gone on the frame it opened. The wreck slots LOCAL drew are
+## handed across instead (`hand_wrecks` on the screen going, `wrecks_out` on the
+## one coming: `Router.start_combat`), held where they stood on screen by a
+## top-level holder the row's layout never sees, and played out by
+## `WRECK_EXIT`; the contacts are held until they have gone (`leaving`), the
+## same handoff the place's picture makes.
+##   A  fade:   where they lie, in the time the place's picture takes
+##   B  drift:  carried off the view's right edge, easing in, fading at the end
+##   C  recede: into the distance -- smaller and darker toward the sky, then gone
+## `wreckexit=A|B|C` on a harness's command line picks one for a film.
+const WRECK_EXITS := {&"A": &"fade", &"B": &"drift", &"C": &"recede"}
+static var WRECK_EXIT: StringName = &"fade"
+const WRECK_DRIFT_S := 0.45
+const WRECK_RECEDE_S := 0.5
+
+## The wreck slots as they stand on screen, taken out of this view: only ones
+## that have been laid out and drawn (none headless or under reduced motion,
+## where they go with the screen, as they always did).
+func hand_wrecks() -> Array:
+	var out: Array = []
+	if _slots_mode != &"wrecks" or _made.is_empty() or not Router.animating() \
+			or not is_visible_in_tree():
+		return out
+	for sl in _made:
+		var e := sl as EnemySlot
+		if e == null or not is_instance_valid(e) or not _placed.has(e) or e.size == Vector2.ZERO:
+			continue
+		out.append([e, e.get_global_rect()])
+		_slots.remove_child(e)
+	_made.clear()
+	return out
+
+
+## And played out over this view, each at the place on screen it had.
+func wrecks_out(going: Array) -> void:
+	if going.is_empty():
+		return
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("wreckexit="):
+			WRECK_EXIT = WRECK_EXITS.get(StringName(a.get_slice("=", 1).to_upper()), WRECK_EXIT)
+	var holder := Control.new()
+	holder.name = "WrecksLeaving"
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.top_level = true
+	add_child(holder)
+	move_child(holder, _row.get_index())
+	var right := get_viewport_rect().end.x
+	var tw := holder.create_tween().set_parallel(true)
+	for pair in going:
+		var slot: EnemySlot = pair[0]
+		var r: Rect2 = pair[1]
+		holder.add_child(slot)
+		slot.position = r.position
+		slot.size = r.size
+		slot.opened = Callable()
+		_ignore_mouse(slot)
+		match WRECK_EXIT:
+			&"drift":
+				# whole pixels, so the art never shimmers on its way off
+				var x0: float = r.position.x
+				var run: float = right - x0 + 8.0
+				tw.tween_method(func(d: float) -> void:
+					if is_instance_valid(slot):
+						slot.position.x = x0 + roundf(d),
+					0.0, run, WRECK_DRIFT_S).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+				tw.tween_property(slot, "modulate:a", 0.0, WRECK_DRIFT_S * 0.4) \
+					.set_delay(WRECK_DRIFT_S * 0.6)
+			&"recede":
+				slot.pivot_offset = r.size * 0.5
+				tw.tween_property(slot, "scale", Vector2(0.55, 0.55), WRECK_RECEDE_S) \
+					.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+				tw.tween_property(slot, "modulate", Color(0.35, 0.38, 0.45, 0.0), WRECK_RECEDE_S) \
+					.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+			_:
+				tw.tween_property(slot, "modulate:a", 0.0, LocalSubject.FADE_OUT_S)
+	# freed once the slowest of them is gone, which is what `leaving` waits on
+	tw.chain().tween_callback(holder.queue_free)
+
+
+static func _ignore_mouse(n: Node) -> void:
+	if n is Control:
+		(n as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for c in n.get_children():
+		_ignore_mouse(c)
 
 
 ## The contacts wait off screen until `release_entrances` (an ambush waiting
@@ -606,6 +698,17 @@ func hold_entrances() -> void:
 	_entrances_held = true
 	for sl in _made:
 		(sl as EnemySlot).hold_entrance()
+
+
+## And in once the wrecks have gone, if they are still going: a drift or a
+## recede outlasts the band's fade, and a contact flown in over a wreck on its
+## way out would sit on it.
+func release_entrances_when_clear() -> void:
+	var w := get_node_or_null(^"WrecksLeaving")
+	if w != null and not w.is_queued_for_deletion():
+		w.tree_exited.connect(release_entrances, CONNECT_ONE_SHOT)
+		return
+	release_entrances()
 
 
 ## And in, staggered as a fight opening flies them.

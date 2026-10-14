@@ -351,6 +351,16 @@ func fighting() -> bool:
 func settled_local() -> bool:
 	return not fighting() and _phase == Phase.NONE and is_visible_in_tree()
 
+
+## The wrecks this LOCAL is drawing, taken for the fight screen that replaces
+## it, and played out on that one (`EncounterView.hand_wrecks` / `wrecks_out`).
+func hand_wrecks() -> Array:
+	return _view.hand_wrecks() if _view != null else []
+
+func wrecks_out(going: Array) -> void:
+	if _view != null:
+		_view.wrecks_out(going)
+
 # ------------------------------------------------------- the jump, as a journey
 
 ## How long the drive is up before the flare takes the ship. Straight out of
@@ -4068,7 +4078,7 @@ func _raise_band() -> void:
 	_raise_tw.tween_property(_quiet_wrap, "modulate:a", 0.0, BAND_FADE_S)
 	_raise_tw.tween_callback(func() -> void:
 		if clear_first:
-			_view.release_entrances()
+			_view.release_entrances_when_clear()
 		_quiet_holder.visible = false
 		_hand_holder.custom_minimum_size = Vector2(0, from)
 		_hand_holder.visible = true)

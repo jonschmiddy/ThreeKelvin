@@ -1204,13 +1204,17 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 	# replaces and raises its own hand (`SectorScreen._raise_band`); faded in, its
 	# first frame was a fifth of the picture over black (Jon: "the ships pop up
 	# and the drawer pops into view").
+	var wrecks: Array = []
 	if animating() and current is SectorScreen and (current as SectorScreen).settled_local():
 		seamless_next = true
+		# the wrecks LOCAL drew go with the picture, not with the screen
+		wrecks = (current as SectorScreen).hand_wrecks()
 	_swap(s)
 	# Connect before starting. Turn one resolves inside start() — charges, opening
 	# log lines, even an instant win — and a screen wired up afterwards misses all
 	# of it.
 	s.setup(combat)
+	s.wrecks_out(wrecks)
 	var node: MapGen.MapNode = Run.node_at()
 	# Development: `-- fight foes=3` forces a pack. Multi-enemy layout only
 	# exists at danger 2+ behind a 22% roll, so seeing two on screen was a
