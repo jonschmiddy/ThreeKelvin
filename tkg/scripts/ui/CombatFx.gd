@@ -174,6 +174,10 @@ func in_flight() -> bool:
 
 ## A number where a volley landed. Rises a few pixels in whole steps, holds,
 ## and goes in three steps rather than a smooth fade.
+## The highest a pop's letters may reach, risen, in this layer (the top of the
+## fight, under the HUD). Set by the screen hosting the fight.
+var pop_top := -INF
+
 func pop(at: Vector2, text: String, col: Color, big: bool = true, delay: float = 0.0) -> void:
 	var p := Pop.new()
 	# STACKED, never on top of each other. Three hits in a row on one hull put
@@ -184,9 +188,11 @@ func pop(at: Vector2, text: String, col: Color, big: bool = true, delay: float =
 	while moved:
 		moved = false
 		for o in _pops:
-			if absf(o.at.x - spot.x) < 40.0 and absf(o.at.y - spot.y) < 10.0 					and o.age < o.life * 0.75:
-				spot.y = o.at.y - 11.0
+			if absf(o.at.x - spot.x) < 40.0 and absf(o.at.y - spot.y) < HitText.LINE - 1.0 and o.age < o.life * 0.75:
+				spot.y = o.at.y - HitText.LINE
 				moved = true
+	# (never stacked off the top of the fight: `pop_top`, set by the screen)
+	spot.y = maxf(spot.y, pop_top + HitText.CAP + 1.0 + HitText.RISE)
 	p.at = spot
 	p.text = text
 	p.col = col
@@ -314,24 +320,21 @@ func _draw() -> void:
 			col = col.darkened(0.25)
 		draw_rect(Rect2(m.at.round(), Vector2(m.size, m.size)), col, true)
 
-	var f := UITheme.pixel_font()
+	# THE PREVIEW'S LETTERS (`HitText`): what the shot did, in the look the held
+	# card used to say what it would do. Only the motion is the pop's own.
 	for p in _pops:
 		if p.age < 0.0:
 			continue
-		var fs := UITheme.FS_HEAD if p.big else UITheme.FS_SMALL
 		# Up 10 pixels over the first third of a second, one whole pixel at a
 		# time, then held.
-		var rise := roundf(10.0 * (1.0 - pow(1.0 - clampf(p.age / 0.35, 0.0, 1.0), 3.0)))
-		var w := f.get_string_size(p.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		var at := (p.at + Vector2(-w * 0.5, -rise)).round()
+		var rise := roundf(HitText.RISE * (1.0 - pow(1.0 - clampf(p.age / 0.35, 0.0, 1.0), 3.0)))
+		var at := (p.at + Vector2(-HitText.ink_width(p.text) * 0.5, -rise)).round()
 		var k := p.age / p.life
-		var col := p.col
-		var sh := Color(0, 0, 0, 0.8)
+		# Out in three steps rather than a smooth fade.
+		var fade := 1.0
 		if k > 0.7:
-			col = col.darkened(0.25 if k < 0.8 else (0.5 if k < 0.9 else 0.7))
-			sh.a = 0.6 if k < 0.9 else 0.35
-		draw_string(f, at + Vector2(1, 1), p.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, sh)
-		draw_string(f, at, p.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+			fade = 0.75 if k < 0.8 else (0.5 if k < 0.9 else 0.3)
+		HitText.draw(self, at, p.text, p.col, fade)
 
 ## The lights, additively, on their own layer. Each holds full for its first
 ## frames and falls in three steps.

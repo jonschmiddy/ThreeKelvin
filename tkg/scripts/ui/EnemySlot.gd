@@ -89,6 +89,8 @@ var _art_base: Vector2 = Vector2.ZERO
 ## The entrance in flight, and when it lands: a holder that resizes mid-flight
 ## (the ship's picture arriving after `enter`) sends it to the new resting place.
 var _enter_tw: Tween
+## The slot's own fade up with the entrance.
+var _fade_tw: Tween
 var _enter_end: int = 0
 ## How far this slot's column sits off the row's middle, down positive: a pack
 ## too wide for the arena overlaps and staggers (`EncounterView._pack_slots`).
@@ -106,7 +108,9 @@ var _lift_bot: Control
 ##
 ## Slower and shallower than your ship's `bob(2)`: they are further away, and a
 ## pack drifting in step reads as one object rather than three ships. The phase
-## comes off the slot index for the same reason.
+## comes off the slot index for the same reason. The clock is `GameClock`: one
+## clock the whole pack reads, so the phases hold, and game time, so a film
+## made with the movie writer bobs at 4.76 s a cycle like play does.
 const BOB_AMP := 2.0
 const BOB_HZ := 0.21
 var _bob_phase: float = 0.0
@@ -156,8 +160,9 @@ func _process(_dt: float) -> void:
 			art.set_enemy(_bound_e, _bound_tel, shown_hp, true, death_style)
 	# ROUNDED. A sub-pixel offset resamples the sprite and undoes the
 	# nearest-neighbour crispness the whole art direction rests on.
-	var t := float(Time.get_ticks_msec()) / 1000.0
+	var t := GameClock.now()
 	art.position.y = _art_base.y + roundf(sin((t + _bob_phase) * TAU * BOB_HZ) * BOB_AMP)
+	_fauna_step(_dt)
 
 
 func enter(delay: float = 0.0) -> void:
@@ -169,14 +174,32 @@ func enter(delay: float = 0.0) -> void:
 	# full for a ship that is still off-screen reads as a rendering fault. Fading
 	# the whole slot up over the same window keeps the two halves one event.
 	modulate.a = 0.0
-	create_tween().tween_property(self, "modulate:a", 1.0, ENTER_SECS * 0.7) 		.set_delay(delay)
+	if _fade_tw != null and _fade_tw.is_valid():
+		_fade_tw.kill()
+	_fade_tw = create_tween()
+	_fade_tw.tween_property(self, "modulate:a", 1.0, ENTER_SECS * 0.7).set_delay(delay)
+	if _enter_tw != null and _enter_tw.is_valid():
+		_enter_tw.kill()
 	var tw := create_tween()
 	tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	if delay > 0.0:
 		tw.tween_interval(delay)
 	tw.tween_property(art, "position:x", _art_base.x, ENTER_SECS)
 	_enter_tw = tw
-	_enter_end = Time.get_ticks_msec() + int((delay + ENTER_SECS) * 1000.0)
+	_enter_end = GameClock.now_ms() + int((delay + ENTER_SECS) * 1000.0)
+
+
+## Off screen and unseen, waiting to `enter` (`EncounterView.hold_entrances`).
+func hold_entrance() -> void:
+	if _art_holder == null:
+		return
+	for tw in [_enter_tw, _fade_tw]:
+		if tw != null and (tw as Tween).is_valid():
+			(tw as Tween).kill()
+	_enter_tw = null
+	_fade_tw = null
+	modulate.a = 0.0
+	art.position.x = _art_base.x + ENTER_FROM
 
 
 func _init() -> void:
@@ -323,6 +346,7 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	if layers != null and _dead:
 		layers.visible = false
 	_fit_holder()
+	_fauna_bind(e, telegraphed)
 	art.modulate = Color(0.4, 0.4, 0.45) if _dead else Color.WHITE
 	_intent.text = "" if _dead or e.intent == null else e.intent.name.to_upper()
 	_intent.visible = _intent.text != ""
@@ -460,7 +484,7 @@ func _fit_holder() -> void:
 			_enter_tw.kill()
 			_enter_tw = create_tween()
 			_enter_tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-			var left := maxf(0.05, float(_enter_end - Time.get_ticks_msec()) / 1000.0)
+			var left := maxf(0.05, float(_enter_end - GameClock.now_ms()) / 1000.0)
 			_enter_tw.tween_property(art, "position:x", base.x, left)
 
 
@@ -604,11 +628,231 @@ func _draw() -> void:
 	# of the enemy's own readout — a permanent stat that happened to change.
 	# Painted across the target only while you are holding a card over it, it is
 	# obviously a QUESTION being answered: this card, this enemy, this much.
+	# The same letters the shot will pop when it lands (`HitText`).
 	if _hot and _drag_text != "":
-		var f := UITheme.pixel_font()
-		var fs := UITheme.FS_HEAD
-		var tw := f.get_string_size(_drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		var at := Vector2((size.x - tw) * 0.5, size.y * 0.5 + fs * 0.4)
-		draw_string(f, at + Vector2(1, 1), _drag_text,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.75))
-		draw_string(f, at, _drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UITheme.FLARE)
+		# On the hull's ink, both ways, not the slot's middle: in a pack the
+		# slot runs down past the hull and the number sat on the name.
+		HitText.draw_centred(self, ink_rect().get_center(), _drag_text, HitText.colour(&"damage"))
+
+
+## THE HULL'S INK in this slot's coordinates: the art's painted bounds, placed
+## where the holder puts them (the brackets above are this, padded).
+func ink_rect() -> Rect2:
+	var u: Rect2i = art.used_rect() if art != null else Rect2i(0, 0, EnemyArt.W, EnemyArt.H)
+	return Rect2(_art_holder.position + _art_base + Vector2(u.position), Vector2(u.size))
+
+
+## Where the held card's number is drawn, its letters' own box, in this slot's
+## coordinates (`HitText.ink_rect`). For the test that holds it to the ink.
+func preview_rect(text: String) -> Rect2:
+	return HitText.ink_rect(HitText.centred_at(ink_rect().get_center(), text), text)
+
+
+## THE WORDS OVER THIS SHIP (its intent: STRAFE / DEAL 5), in global px: the
+## lines' own text, centred as they are drawn, not their full-width labels.
+## Empty when nothing is written there. A landed number goes above these
+## (Jon, Oct 13, "C": it sat on them and read "ST-8E").
+func intent_rect_global() -> Rect2:
+	return _text_rect([_intent, _intent_text])
+
+
+## The ship's readout under it (name, bars, hull, chips), in global px.
+func readout_rect_global() -> Rect2:
+	var r := _text_rect([_name, _hp])
+	for c: Control in [_brace_bar, _bar, chips]:
+		if c != null and c.is_visible_in_tree() and c.size.x > 0.0:
+			var g := c.get_global_rect()
+			if c == chips and c.get_child_count() == 0:
+				continue
+			r = g if r.size == Vector2.ZERO else r.merge(g)
+	return r
+
+
+## The intent words step back for `secs` (a landed number written on the hull
+## because there was no room above them: `SectorScreen._pop_at`).
+var _hush_until := 0
+var _hush_tw: Tween = null
+
+func hush_intent(secs: float) -> void:
+	_hush_until = GameClock.now_ms() + int(secs * 1000.0)
+	if _hush_tw != null and _hush_tw.is_valid():
+		_hush_tw.kill()
+	_hush_tw = create_tween()
+	for l: Label in [_intent, _intent_text]:
+		_hush_tw.parallel().tween_property(l, "modulate:a", 0.12, 0.08)
+	_hush_tw.tween_interval(secs)
+	for l2: Label in [_intent, _intent_text]:
+		_hush_tw.parallel().tween_property(l2, "modulate:a", 1.0, 0.2)
+
+
+func intent_hushed() -> bool:
+	return GameClock.now_ms() < _hush_until
+
+
+func _text_rect(labels: Array) -> Rect2:
+	var r := Rect2()
+	for l: Label in labels:
+		if l == null or not l.is_visible_in_tree() or l.text == "":
+			continue
+		var g := l.get_global_rect()
+		var f := l.get_theme_font(&"font")
+		var fs := l.get_theme_font_size(&"font_size")
+		var w := minf(g.size.x, f.get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x) \
+			if f != null else g.size.x
+		var t := Rect2(g.position.x + (g.size.x - w) * 0.5, g.position.y, w, g.size.y)
+		r = t if r.size == Vector2.ZERO else r.merge(t)
+	return r
+
+
+# --- Its own movement --------------------------------------------------------
+
+## THE CUSTODIAN AND THE MEGAFAUNA MOVE ON THEIR OWN (`FaunaMotion`, Jon's
+## picks of Oct 13). The motion draws in the art's place, as a child of it, so
+## the fly-in, the bob and the hit's flash (said to the art's `self_modulate`,
+## which the motion copies) all still reach it; the art keeps drawing every
+## picture as it always has, only its texture is off while the motion shows.
+##
+## The motion is cut from the picture the art would show WITHOUT a wind-up (its
+## own charge is the motion's to light) and WITH the fight's hit marks
+## (`art.marks`, `HitLayers`), drawn here and cut on a worker thread, once per
+## picture: a new mark, a new wound band or the pack's half sheet cuts again
+## (one cut at a time; the newest picture is cut next), and the old cut moves
+## on until the new one is in. Without motion (reduced motion, headless,
+## `FaunaMotion.enabled` off) none of this exists.
+var _fauna: FaunaMotion
+var _fauna_key := ""
+var _fauna_job := -1
+var _fauna_held := {}
+var _fauna_tex: Texture2D
+var _fauna_tele := false
+var _fauna_e = null
+## Not before (ms): a crack grows over many frames, each a new version of the
+## marks, and a cut a frame would cost a picture drawn on the main thread each.
+var _fauna_next := 0
+## Settling for the death: nothing more is cut.
+var _fauna_done := false
+
+
+## Wired from `bind`.
+func _fauna_bind(e, telegraphed: bool) -> void:
+	if FaunaMotion.kind_of(e.template.id) < 0 or _dead or not FaunaMotion.enabled 			or not Router.animating():
+		_fauna_off()
+		return
+	if _fauna_done:
+		return
+	_fauna_e = e
+	_fauna_tele = telegraphed
+	if _fauna != null:
+		_fauna.windup(telegraphed)
+	_fauna_recut()
+
+
+## Cut the picture shown now, if it is not the one cut (and nothing is being
+## cut: the next frame asks again).
+func _fauna_recut() -> void:
+	if _fauna_e == null or _fauna_done or _fauna_job >= 0 or GameClock.now_ms() < _fauna_next:
+		return
+	var e = _fauna_e
+	var hull: int = e.hp if shown_hp < 0 else shown_hp
+	var sc := _fauna_scale()
+	var key := FaunaMotion.picture_key(e, hull, sc) + "|marks %d" % (art.marks.version if art.marks != null else -1)
+	if key == _fauna_key:
+		return
+	_fauna_key = key
+	_fauna_next = GameClock.now_ms() + 120
+	var k := FaunaMotion.kind_of(e.template.id)
+	var img := FaunaMotion.still_canvas(e, hull, sc, art.marks)
+	var pic := FaunaMotion.picture_name(e)
+	var held := {key = key}
+	_fauna_held = held
+	_fauna_job = WorkerThreadPool.add_task(func() -> void:
+		var fm := FaunaMotion.new()
+		fm.cut(img, k, sc, pic)
+		held.fm = fm)
+
+
+## How big the art draws the picture: its half sheet in a pack of three or more
+## (`EnemyArt.draw_scale`, where it exists).
+func _fauna_scale() -> float:
+	var s = art.get("draw_scale")
+	return float(s) if s != null else 1.0
+
+
+## Wired from `_process`: the cut taken in when it is done, the motion kept
+## over the art and stepped HERE, then the bob taken from that same step -- a
+## motion stepped in its own `_process` could land a frame apart from the bob
+## read here, and a part's step and the bob's on neighbouring frames put
+## pixels back where they were (flip-backs 0.1-0.4 x1e-4 a frame, 0.011 still).
+func _fauna_step(dt: float) -> void:
+	if _fauna_job >= 0 and WorkerThreadPool.is_task_completed(_fauna_job):
+		WorkerThreadPool.wait_for_task_completion(_fauna_job)
+		_fauna_job = -1
+		var fm: FaunaMotion = _fauna_held.get("fm")
+		# a cut that comes in once the death has started is too late to show
+		if fm != null and String(_fauna_held.get("key", "")) == _fauna_key and _fauna_key != "" 				and not _fauna_done:
+			var t0 := GameClock.now()
+			if _fauna != null:
+				t0 = _fauna.t
+				_fauna.queue_free()
+			_fauna = fm
+			art.add_child(fm)
+			fm.auto = false
+			fm.attach()
+			fm.t = t0
+			fm.bob_phase = _bob_phase
+			fm.windup(_fauna_tele)
+			if _fauna_tex == null:
+				_fauna_tex = art.texture
+			art.texture = null
+		elif fm != null:
+			fm.free()
+	_fauna_recut()
+	if _fauna == null:
+		return
+	_fauna.advance(dt)
+	# where the art draws its canvas (`STRETCH_KEEP_CENTERED`): a half pixel
+	# there lands on the next whole one, so this rounds the same way
+	_fauna.position = ((art.size - _fauna.size) * 0.5).round()
+	art.position.y = _art_base.y + _fauna.bob_px()
+
+
+## The death is coming (`SectorScreen._prebuild_death`): back to the still
+## picture before the breakup is cut from it.
+func fauna_settle() -> void:
+	_fauna_done = true
+	if _fauna != null:
+		_fauna.settle()
+
+
+## A creature is about to fire: its strike (`SectorScreen._play_turn` waits
+## for it). False when there is no creature's motion to wind up.
+func fauna_strike() -> bool:
+	if _fauna != null and _fauna.kind != FaunaMotion.Kind.CUSTODIAN and not _fauna_done:
+		_fauna.strike()
+		return true
+	return false
+
+
+func fauna_motion() -> FaunaMotion:
+	return _fauna
+
+
+## No cut outlives the slot that asked for it.
+func _exit_tree() -> void:
+	if _fauna_job >= 0:
+		WorkerThreadPool.wait_for_task_completion(_fauna_job)
+		_fauna_job = -1
+		var fm: FaunaMotion = _fauna_held.get("fm")
+		if fm != null:
+			fm.free()
+
+
+func _fauna_off() -> void:
+	_fauna_key = ""
+	_fauna_e = null
+	if _fauna != null:
+		_fauna.queue_free()
+		_fauna = null
+	if _fauna_tex != null:
+		art.texture = _fauna_tex
+		_fauna_tex = null

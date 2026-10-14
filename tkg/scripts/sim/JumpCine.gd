@@ -556,6 +556,12 @@ func run(tree: SceneTree) -> void:
 	Router.show_sector()
 	for i in 10:
 		await tree.process_frame
+	# SECTOR IS THE SYSTEM MAP NOW, and the jump leaves from LOCAL: the
+	# departure films below need the side-on screen (Oct 13).
+	if not (Router.current is SectorScreen):
+		Router.show_local()
+		for i2 in 20:
+			await tree.process_frame
 	if "demo" in OS.get_cmdline_user_args():
 		await _demo(tree)
 		return
