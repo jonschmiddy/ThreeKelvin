@@ -296,7 +296,7 @@ func _pair_sum() -> void:
 			want += Combat.WRECK_CREDIT_CHANCE * (Combat.wreck_purse(c, n.danger)
 				+ Combat.wreck_purse(m, n.danger))
 			# The old rule: the last ship's purse, once.
-			old += Combat.wreck_purse(m, n.danger)
+			old += m.credit_reward * (1.0 + (n.danger - 1) * 0.2)
 	var f := float(maxi(1, fights))
 	print("  %d cutter-and-marauder fights: %.1f credits a fight, the two ships' own %.1f, the old rule %.1f"
 		% [fights, got / f, want / f, old / f])

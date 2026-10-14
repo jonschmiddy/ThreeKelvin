@@ -1231,6 +1231,16 @@ static func core_body(node: MapGen.MapNode, t: EnemyTemplate) -> MapGen.Jetsam:
 ## bigger chit or one more exotic, as the old single payout did.
 const WRECK_CREDIT_CHANCE := 0.75
 const WRECK_CREDIT_SPREAD := 0.20
+## WHAT AN ORDINARY SHIP'S PURSE IS WORTH against its `credit_reward` (Jon, Oct
+## 13, option C of three: keep the chance per ship and raise every ship's pay so
+## a run banks what it did before the chance came in). Set by measurement, not
+## by the 1/0.75 the chance suggests: `-- sim runs=200 seed=777` banked 75
+## credits a run under the old single payout and 64 under the per-wreck rule
+## unscaled; x4/3 overshot to 87 (packs now pay every ship, so the chance costs
+## less than a quarter overall), and x1.17 banks 75. Re-measure it whenever the
+## mix of pack sizes moves. Never the set pieces: the Hellbender and the
+## custodian are hand-tuned and pay their own numbers.
+const WRECK_CREDIT_SCALE := 1.17
 ## Parts one hand can expect from a hull of each kind. The tuning table: an
 ## enemy missing from it gets `WRECK_PARTS_DEFAULT`.
 const WRECK_PARTS := {
@@ -1248,6 +1258,8 @@ const FAUNA_EXOTIC := 2
 ## A ship's purse before the chance and the spread: its reward at this danger.
 static func wreck_purse(t: EnemyTemplate, danger: int, probate: bool = false) -> float:
 	var base := t.credit_reward * (1.0 + (danger - 1) * 0.2)
+	if not (t.boss or t.miniboss):
+		base *= WRECK_CREDIT_SCALE
 	return base * 1.5 if probate else base
 
 ## The chance a wreck of this kind holds money at all.
