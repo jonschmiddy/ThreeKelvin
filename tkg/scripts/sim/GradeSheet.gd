@@ -4,7 +4,7 @@ extends Node
 ##   godot --headless --path . -- sheet=GradeSheet out=<dir> [weight=medium] [base=a]
 ##
 ## `base` is which of today's four sprites is the one hull (c, b, a, s). Writes
-## `<look>_<grade>.png` (A_c ... C_s) at the sprite's own size, today's four as
+## `<look>_<grade>.png` (A_c ... C_s, and the mixes AB, AC, BC, ABC) at the sprite's own size, today's four as
 ## `today_<grade>.png`, and prints each bake's colour count against the base's:
 ## a bake may only use colours the base already has.
 
@@ -43,5 +43,20 @@ func _run() -> void:
 			if extra > 0:
 				fails += 1
 			print("  %s %s: %d colours not in the base" % [lk, grades[gi], extra])
+	# and every combination of two or three
+	for combo in ["AB", "AC", "BC", "ABC"]:
+		var looks: Array = []
+		for ch in combo:
+			looks.append(HullGrade.LOOKS[StringName(ch)])
+		for gi in 4:
+			var img := HullGrade.bake_mix(src, gi, looks)
+			img.save_png("%s/%s_%s.png" % [out, combo, grades[gi]])
+			var extra := 0
+			for k in HullWear.palette(img):
+				if not pal.has(k):
+					extra += 1
+			if extra > 0:
+				fails += 1
+			print("  %s %s: %d colours not in the base" % [combo, grades[gi], extra])
 	print("gradesheet: %s" % ("PASS" if fails == 0 else "%d off-palette" % fails))
 	get_tree().quit(0 if fails == 0 else 1)

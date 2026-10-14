@@ -30,18 +30,26 @@ const AGE := [1.0, 0.55, 0.2, 0.0]
 
 ## The graded copy. `grade` 0..3 is C..S. The source is never touched.
 static func bake(src: Image, grade: int, look: int, seed_in: int = 7) -> Image:
+	return bake_mix(src, grade, [look], seed_in)
+
+
+## More than one look on one hull (Jon: "the combinations of wear using A B and
+## C"). Always in the same order whatever order they are asked in -- the paint
+## the yard put on, then the age on top of the paint, then the light falling on
+## all of it -- and every pass steps along the ramps read off the SOURCE, so a
+## pass after the paint still knows the amber the paint took away.
+static func bake_mix(src: Image, grade: int, looks: Array, seed_in: int = 7) -> Image:
 	var img := src.duplicate() as Image
 	if img.is_compressed():
 		img.decompress()
 	img.convert(Image.FORMAT_RGBA8)
 	var r := _Ramps.new(img)
-	match look:
-		Look.WEAR:
-			_wear(img, r, AGE[grade], seed_in)
-		Look.PAINT:
-			_paint(img, r, grade, seed_in)
-		Look.FINISH:
-			_finish(img, r, grade, seed_in)
+	if Look.PAINT in looks:
+		_paint(img, r, grade, seed_in)
+	if Look.WEAR in looks:
+		_wear(img, r, AGE[grade], seed_in)
+	if Look.FINISH in looks:
+		_finish(img, r, grade, seed_in)
 	return img
 
 
