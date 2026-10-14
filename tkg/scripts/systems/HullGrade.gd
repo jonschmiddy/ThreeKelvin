@@ -3,8 +3,8 @@ extends RefCounted
 
 ## ONE HULL PER WEIGHT, FOUR GRADES DRAWN FROM IT (Jon, Oct 14: "Instead of
 ## generating 12 ships per manufacturer. We just do Three... use shader code to
-## modify each ship at each heaviness to make them more shitty (C tier) or brand
-## new looking (S-tier)").
+## modify each ship at each heaviness to make them more shitty (C tier)" or new
+## looking at S).
 ##
 ## A BAKE, NOT A LIVE SHADER: one pass per hull and grade, cached, so it costs a
 ## frame nothing, and every operation ends on a colour the sprite ALREADY HAS (a
@@ -192,7 +192,7 @@ static func _wear(img: Image, r: _Ramps, age: float, seed_in: int) -> void:
 			elif blot < age * 0.45 and noise(x, y, seed_in + 1) < 0.8:
 				c = r.step(c, -1)
 			# the amber dulls in patches and wears through to the grey in a few:
-			# the house colour is always still there (Jon, Oct 14)
+			# the manufacturer's colour is always still there (Jon, Oct 14)
 			if r.is_accent(c):
 				var f := noise(x / 4, y / 3, seed_in + 2)
 				if f < age * 0.22:
@@ -223,10 +223,10 @@ static func _wear(img: Image, r: _Ramps, age: float, seed_in: int) -> void:
 # -------------------------------------------------------------------- B  paint
 
 ## LIVERY. C is in primer: a few panels two shades off their neighbours, as if
-## pulled from other hulls, and the house colour dulled and worn through in
+## pulled from other hulls, and the manufacturer's colour dulled and worn through in
 ## patches -- never gone, because the band is how a manufacturer is known. B has its livery chipped
 ## (the amber dithered out where it would have worn). A is as the yard paints it.
-## S adds a trim line in the house colour along the hull's top edge.
+## S adds a trim line in the manufacturer's colour along the hull's top edge.
 static func _paint(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
 	var w := img.get_width()
 	var h := img.get_height()
@@ -238,7 +238,7 @@ static func _paint(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
 			var c := src.get_pixel(x, y)
 			match grade:
 				0:
-					# THE HOUSE COLOUR STAYS (Jon, Oct 14: "there should be SOME COLOR even
+					# THE MANUFACTURER'S COLOUR STAYS (Jon, Oct 14: "there should be SOME COLOR even
 					# at C class. The color of the bands is really important for
 					# manufacturer identity"): a shade darker and worn through to the
 					# grey in patches, never gone
@@ -397,7 +397,7 @@ static func _chevrons(img: Image, r: _Ramps, box: Rect2i) -> void:
 
 ## RUNNING LIGHTS. The hull's own window slots (runs of three or more of its
 ## darkest pixels with lighter metal above and below) and its nose light: dead
-## at C, a few lit at B, most at A, every one at S, in the house colour.
+## at C, a few lit at B, most at A, every one at S, in the manufacturer's colour.
 static func _lights(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
 	var lit := r.light_accent()
 	var frac: float = [0.0, 0.3, 0.65, 1.0][grade]
