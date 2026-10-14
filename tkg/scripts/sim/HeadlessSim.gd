@@ -14,6 +14,11 @@ extends RefCounted
 ## here would fail to compile.
 
 var runs := 200
+## Whether an ambush fields its whole pack (`-- sim packs`). Off by default: the
+## sim has always fought the lead ship alone, and the game's ambushes bring the
+## `Router._roll_foes` pack (two ships 22% of the time from danger 2, 45% in
+## lawless space), so with it on the sim sees the pack fights the game has.
+var packs := false
 ## `-- sim seed=N` gives run i the seed N+i, so a whole sweep is reproducible
 ## and any single run in it can be flown again by hand. Zero means roll fresh
 ## seeds, which is what a balance measurement wants.
@@ -119,9 +124,9 @@ var all_systems := 0
 
 ## WHAT A WON FIGHT PAYS, read out of the wrecks it left (Jon, Oct 13: "each ship
 ## you kill has a chance to get credits and modules and other parts"). Split by
-## how many hulls the fight ended with: one, or two once a reinforcement arrived
-## (the sim's option fights and ambushes field one ship, so only `reinforce`
-## makes a pack here). The set pieces are counted in the totals and left out of
+## how many hulls the fight had: always one unless `packs` lets an ambush field
+## its pack (option fights pick one ship; reinforcements are gone). The set
+## pieces are counted in the totals and left out of
 ## the split, since they pay by their own rules. `fight_credits` is what fights
 ## put into wrecks (and, for the custodian, the ledger); `credits_taken` is what
 ## the pilot banked from them after looting.
@@ -179,6 +184,7 @@ func run_sim() -> void:
 	# back. It reported 0.2 kills a run before this was connected.
 	policy.fight_cb = _option_fight
 	hot = "hot" in OS.get_cmdline_user_args()
+	packs = "packs" in OS.get_cmdline_user_args()
 	# The control cell. Comparing `nohellbender` against the default on one build
 	# is what says what the roamer costs, without keeping a second checkout.
 	Run.hellbender_off = "nohellbender" in OS.get_cmdline_user_args()
@@ -333,7 +339,14 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 				ambushes += 1
 				jumped_hot = true
 				var pack := Router._roll_foes(node)
-				if not pack.is_empty() and not _fight(DB.enemies[pack[0]]):
+				# `packs` on the command line fields the whole pack, as
+				# `Router` does; without it the sim fights the lead alone, as
+				# it always has, so old baselines stay comparable.
+				var extras: Array = []
+				if packs:
+					for i in range(1, pack.size()):
+						extras.append(DB.enemies[pack[i]])
+				if not pack.is_empty() and not _fight(DB.enemies[pack[0]], true, extras):
 					break
 
 		# The hellbender holds this system. Same blockade the game enforces in
@@ -493,12 +506,12 @@ func _option_fight(n: MapGen.MapNode) -> bool:
 	return _fight(DB.enemies[Rng.pick(Rng.foe, pool)], false)
 
 
-func _fight(template: EnemyTemplate, clears_node: bool = true) -> bool:
+func _fight(template: EnemyTemplate, clears_node: bool = true, extras: Array = []) -> bool:
 	var cb := Combat.new()
 	cb.clears_node = clears_node
 	var wrecks0 := _wrecks_at(Run.node_at())
 	var cr0 := Run.credits
-	cb.start(template, Run.node_at().danger)
+	cb.start(template, Run.node_at().danger, extras)
 	var hp_in := Run.hp
 	var turns := 0
 	while not cb.finished and turns < 60:

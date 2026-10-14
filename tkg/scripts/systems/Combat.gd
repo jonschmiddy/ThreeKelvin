@@ -1206,13 +1206,13 @@ const WRECK_CREDIT_SPREAD := 0.20
 ## WHAT AN ORDINARY SHIP'S PURSE IS WORTH against its `credit_reward` (Jon, Oct
 ## 13, option C of three: keep the chance per ship and raise every ship's pay so
 ## a run banks what it did before the chance came in). Set by measurement, not
-## by the 1/0.75 the chance suggests: `-- sim runs=200 seed=777` banked 75
-## credits a run under the old single payout and 64 under the per-wreck rule
-## unscaled; x4/3 overshot to 87 (packs now pay every ship, so the chance costs
-## less than a quarter overall), and x1.17 banks 75. Re-measure it whenever the
-## mix of pack sizes moves. Never the set pieces: the Hellbender and the
-## custodian are hand-tuned and pay their own numbers.
-const WRECK_CREDIT_SCALE := 1.17
+## by the 1/0.75 the chance suggests. `-- sim runs=200 seed=777` on 3e47e4d (no
+## reinforcements): the old single payout banked 88 credits a run, and x1.24
+## banks 88. With `packs` (ambushes field their whole pack, as the game does)
+## the old rule banked 78 and x1.10 banks 79, because a pack now pays every
+## ship. Re-measure whenever the mix of pack sizes moves. Never the set pieces:
+## the Hellbender and the custodian are hand-tuned and pay their own numbers.
+const WRECK_CREDIT_SCALE := 1.24
 ## Parts one hand can expect from a hull of each kind. The tuning table: an
 ## enemy missing from it gets `WRECK_PARTS_DEFAULT`.
 const WRECK_PARTS := {
