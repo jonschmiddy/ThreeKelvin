@@ -654,7 +654,9 @@ const GLOW := [0.55, 0.28, 0.12]
 ## A surface marker strobes: a short flash every 1.2-1.6 s on its own beat, a
 ## white one twice. The masthead beacon swells and fades once a second and a
 ## half. A window is steady, but now and then dips for a moment, as if someone
-## crossed in front of it. Nav lights are steady, as a ship's are.
+## crossed in front of it. Nav lights are steady, as a ship's are. A pulsing
+## pane (Solari's bar strips: Jon, "softly pulsate... BACK to front") swells
+## and eases in turn, aft to fore by its order, one wave every 2.4 s.
 static func level(kind: String, i: int, t: float) -> float:
 	if t < 0.0:
 		return 1.0
@@ -670,6 +672,8 @@ static func level(kind: String, i: int, t: float) -> float:
 			return 0.0
 		"beacon":
 			return 0.25 + 0.75 * pow(0.5 + 0.5 * sin((t + ph) * TAU / 1.5), 2.0)
+		"pulse":
+			return 0.4 + 0.6 * pow(0.5 + 0.5 * cos(TAU * (t - i * 0.35) / 2.4), 3.0)
 		"window":
 			# a dip: 0.15 s at 55%, roughly once every eight seconds a pane
 			var k := floori((t + ph) / 8.0)
@@ -700,7 +704,8 @@ static func _spots(grade: int, hull: String, t: float) -> Array:
 	for i in wins.size():
 		if _lit(i, grade):
 			var w: Array = wins[i]
-			spots.append([Rect2i(int(w[0]), int(w[1]), int(w[2]), int(w[3])), warm, GLOW.size(), level("window", i, t)])
+			var kind := "pulse" if w.size() > 4 and String(w[4]) == "pulse" else "window"
+			spots.append([Rect2i(int(w[0]), int(w[1]), int(w[2]), int(w[3])), warm, GLOW.size(), level(kind, i, t)])
 	var navs: Array = at.get("nav", [])
 	for i in navs.size():
 		var nv: Array = navs[i]
