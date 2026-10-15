@@ -12,7 +12,7 @@ Jon's merge rule still holds: **main only moves on a full gate pass**
 
 ## The state of the branch
 
-- 26 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
+- 27 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
   which was `origin/main` when this was written. `origin/main` had not moved
   since, so as pushed this is a **fast-forward**.
 - Last full gate run in the cloud: **PASSED** on `9b2bb57` (one event per world
@@ -28,7 +28,7 @@ Jon's merge rule still holds: **main only moves on a full gate pass**
 ```bash
 git fetch origin
 git switch main && git pull                     # Jon's local main may have work the cloud never saw
-git log --oneline main..origin/claude/festive-rubin-hd2567 | wc -l   # 26 (more if work landed after this was written)
+git log --oneline main..origin/claude/festive-rubin-hd2567 | wc -l   # 27 (more if work landed after this was written)
 git merge-base main origin/claude/festive-rubin-hd2567               # a6976ef... if main has not moved
 ```
 
@@ -87,8 +87,8 @@ had no GPU window, only Xvfb). See "Look at it in the game".
 - `HullGrade.gd` (new, `class_name`) bakes a grade onto one sprite:
   - wear (A) and paint (B): the manufacturer's band colour always stays at C;
   - markings (D): a registry number painted on the hull, tone on tone
-    (Jon picked look A: each stroke `HullGrade.REG_LIFT`, a fifth, lighter
-    than the panel under it), plus chevrons at S;
+    (Jon picked look A: one ink, the hull's grey `HullGrade.REG_LIFT`, a fifth, lighter
+    than the average of the panel under the number), plus chevrons at S;
   - live lights (E): an additive layer that flickers like aircraft lights,
     drawn by `ShipView`;
   - kit (F): removes thin fittings toward C and never draws anything at S.

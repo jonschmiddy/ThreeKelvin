@@ -473,6 +473,22 @@ static func _marks(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictiona
 			cells.append([ch, Vector2i(cx, int(reg[1]))])
 			cx += 4
 	var src := img.duplicate() as Image
+	# LOOK A'S ONE INK: a fifth lighter than the panel under the whole number,
+	# not under each stroke. Lifted pixel by pixel, a speckled panel gave a
+	# speckled number that read fainter on one hull than another (Jon: "why are
+	# all three of these letters different brightness?")
+	if reg_look == &"A":
+		var sum := 0.0
+		var k := 0
+		for cell in cells:
+			var c0: Vector2i = cell[1]
+			for gy in 5:
+				for gx in 3:
+					if _inner(src, c0.x + gx, c0.y + gy):
+						sum += luma(src.get_pixel(c0.x + gx, c0.y + gy))
+						k += 1
+		var under := sum / maxf(1.0, float(k))
+		ink = r.lift(Color(under, under, under), REG_LIFT if light else -REG_LIFT)
 	for cell in cells:
 		var glyph: Array = STENCIL.get(cell[0], STENCIL["-"])
 		var at0: Vector2i = cell[1]
@@ -493,10 +509,7 @@ static func _marks(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictiona
 					1: on = float(HullWear.BAYER[y % 4][x % 4]) / 16.0 < 0.55
 				if not on:
 					continue
-				if reg_look == &"A":
-					img.set_pixel(x, y, r.lift(src.get_pixel(x, y), REG_LIFT if light else -REG_LIFT))
-				else:
-					img.set_pixel(x, y, ink)
+				img.set_pixel(x, y, ink)
 	_chevrons(img, r, grade, at)
 
 
