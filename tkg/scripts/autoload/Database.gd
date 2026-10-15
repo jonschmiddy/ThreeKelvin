@@ -562,16 +562,21 @@ func _seed_modules() -> void:
 		[{name = "Thermal Purge", energy = 1, damage_equals_heat = true, vent_all = true, copies = 1}])
 	_module(&"overdrive", "Overdrive Coils", &"solari", S, C1,
 		"Extra energy now, paid for in heat.",
-		[{name = "Overdrive", energy = 0, heat = 4, energy_gain = 2, copies = 2}])
+		# ONE AND ONE (catalogue §3: a 2-cell uncommon may not be a pair). The
+		# second is the same trade at half size, Solari's own verb, so its own card.
+		[{name = "Overdrive", energy = 0, heat = 4, energy_gain = 2},
+			{name = "Open the Throttle", energy = 0, heat = 2, energy_gain = 1}])
 	_module(&"shroud", "Solari Heat Shroud", &"solari", S, C2,
 		"Turns your heat into armor.",
-		[{name = "Shroud", energy = 1, brace_from_heat = true, copies = 2}])
+		# ONE AND ONE. A plain Solari plate would be Bolt On in Solari colours, so
+		# it is Bolt On (catalogue §6, Jon, Oct 15).
+		[{name = "Shroud", energy = 1, brace_from_heat = true}, &"brace"])
 	## Solari was the one manufacturer with no utility at all, which made a Solari
 	## starting kit impossible. Deliberately Korvan's Targeting Servo read hot:
 	## a better mark, paid for in heat — the whole manufacturer in one card.
 	_module(&"flare", "Solari Flare Rack", &"solari", U, C1,
 		"A flare that lights the target for your guns.",
-		[{name = "Flare", energy = 1, heat = 2, lock_on = 6, copies = 2}])
+		[{name = "Flare", energy = 1, heat = 2, lock_on = 6}, &"range"])
 
 	# --- Solari, the rest of the line (Jon, Oct 15: "Let's make the modules and
 	# cards now", from the manufacturer plan's Solari tab). Two checks hold it to
@@ -819,7 +824,7 @@ func _seed_modules() -> void:
 	## turns the second case back into the first.
 	_module(&"cautery", "Cauterising Torch", &"solari", S, C2,
 		"Seals hull breaches with heat, and runs hot doing it.",
-		[{name = "Cauterise", energy = 1, heat = 4, heal = 2, heal_scale = 3, copies = 1}])
+		[{name = "Cauterise", energy = 1, heat = 4, heal = 2, heal_scale = 3}, &"patch"])
 	## Repairs out of the hold, at Combine rates. The credit cost is the point:
 	## it is the only card in the game that spends the run's currency to buy hull
 	## back mid-fight, and Company Rates (3-set, +50% from wrecks) is what pays

@@ -142,7 +142,7 @@ const SCORE = [
   [/Discard your hand/, () => 3],
   [/Discard (\d+)/, (m) => (+m[1]) * 2],
   [/Decommission (\d+)/, (m) => (+m[1]) * 2],
-  [/Decommissions itself/, () => 0],
+  [/^Decommission$/, () => 0],
   [/Purge/, () => 0],
 ];
 

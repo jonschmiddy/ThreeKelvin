@@ -256,6 +256,24 @@ keeping something of their own are related without being the same.
 Anything with a manufacturer's fingerprints on it stays written where it is granted.
 That is what makes it that part's card.
 
+### Korvan is the generalist; the other six grant their own cards
+
+**Ruling (Jon, Oct 15): Korvan keeps drawing on the shared library, and the six
+newer manufacturers' parts grant their own cards.** Korvan is the tutorial ship
+with no gimmick, and the plain cards are what make it read as plain: 14 of its
+25 parts pair a Korvan card with a shared one. A Solari, Probate, Redline,
+Cygnet, Verity or Calyx part says who made it in both its cards.
+
+**The one exception: a part grants the shared card when its manufacturer's own
+version would only be the plain card in that manufacturer's colours.** Jon: "Let's
+just have it be the unbranded card." A Solari plate that is Bolt On with a new
+name is Bolt On, and §7 would catch the near-duplicate anyway. Solari's four
+(Foundry Bus: Bleed Heat; Heat Shroud: Bolt On; Flare Rack: Range; Cauterising
+Torch: Patch) are each the plain half of a part whose other card is the
+manufacturer's.
+
+Judgement, not gate: whether a card is "only the plain one" is a reading.
+
 ---
 
 ## §7 No two cards are the same card

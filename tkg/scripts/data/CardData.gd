@@ -519,8 +519,10 @@ func describe(live: int = -1) -> String:
 		bits.append("Discard your hand")
 	if decommission > 0:
 		bits.append("Decommission %d" % decommission)
+	# The bare keyword, no number: this card is what goes (Jon, Oct 15: "change
+	# ... decomissions itself to just DECOMISSION"). A number means you choose.
 	if self_decommission:
-		bits.append("Decommissions itself")
+		bits.append("Decommission")
 	if fused:
 		bits.append("Fused")
 	if hand_damage > 0:

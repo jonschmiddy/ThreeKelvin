@@ -12,7 +12,7 @@ Jon's merge rule still holds: **main only moves on a full gate pass**
 
 ## The state of the branch
 
-- 63 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
+- 65 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
   which was `origin/main` when this was written. If `origin/main` has not
   moved since, this is a **fast-forward**.
 - Last full gate run in the cloud: **PASSED** on `9b2bb57` (one event per world
@@ -271,9 +271,15 @@ Solari card as the game draws it: https://claude.ai/artifact/1tL4AXkZBhPL45XwXA4
 - **Gates (HoldTest):** "Solari attacks run hot" and "Solari heat is never
   waste", both passing. The rarity law now PRINTS a warning for a pair on a 1-2
   cell part above common (13 parts across five makers), not yet a failure.
-- **Open, Jon's call:** Overdrive, Shroud, Flare Rack and Cauterising Torch are
-  still pairs on 2-cell parts, which §3 forbids. Korvan's three pairs are all
-  legal. Proposed fixes are in the plan.
+- **Korvan is the generalist; the other six grant their own cards** (Jon's
+  ruling, written into `docs/catalogue.md` §6 and CLAUDE.md's rulings). A
+  shared card only where the manufacturer's own would be the plain card
+  recoloured ("Let's just have it be the unbranded card").
+- **The four Solari pairs are fixed** under it: Overdrive + Open the Throttle,
+  Heat Shroud + Bolt On, Flare Rack + Range, Cauterising Torch + Patch. Solari
+  is 40 of 40 unique cards. Nine pairs on other makers still warn.
+- A card that decommissions itself now prints **Decommission** (Jon), not
+  "Decommissions itself": Sunburst and Solstice.
 - Checked: holdtest, attrtest, reactor, content, glyphs, savetest, an import
   compile. Not run: the sim (Solari does not drop, so a Korvan sim cannot see
   it) or the whole gate.
