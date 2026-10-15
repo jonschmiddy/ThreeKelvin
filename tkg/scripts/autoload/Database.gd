@@ -1383,8 +1383,9 @@ const MANUFACTURER_HULLS := {
 	# dissipation in the game made its heavy the best chassis by six points.
 	# It keeps everything that is actually its identity.
 	&"calyx": {
-		# Jon's pick, Oct 15 (the name page, group P "Laboratory, Vivarium, Institute")
-		names = ["Laboratory", "Vivarium", "Institute"],
+		# Jon's pick, Oct 15, in chat: a tree, a small group of trees, then
+		# the grown room that keeps them
+		names = ["Sapling", "Copse", "Vivarium"],
 		perk_id = &"baffled_vents",
 		d = {dissipation = 1, dodge = 0.02, fuel_factor = -0.1,
 			sensors = 1, stealth = 1, system_slots = 1, weapon_slots = -1}},
