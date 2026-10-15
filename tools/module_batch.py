@@ -86,6 +86,25 @@ BOX = {
     "singing": (40, 40),
 }
 
+## SOLARI (Jon, Oct 15: "Let's do art for these modules and cards"). Same box
+## arithmetic. Its own ids, because they snap to a different palette -- see
+## `module_palette(maker)`.
+SOLARI = {
+    "emberlance": (60, 20), "plasma": (60, 20), "ventcan": (60, 20),
+    "overpressure": (60, 20), "heliostat": (80, 20), "sparkthrower": (40, 20),
+    "sunspot": (40, 40),
+    "overdrive": (40, 20), "shroud": (40, 20), "cautery": (40, 20),
+    "foundrybus": (40, 20), "firebrick": (40, 20), "bellows": (40, 20),
+    "heathaze": (40, 20), "heatbank": (40, 40), "starfurnace": (40, 40),
+    "sunheart": (40, 40), "crucible": (40, 40),
+    "flare": (40, 20), "radiatorsail": (40, 20), "annealer": (40, 20),
+    "mirrorarray": (40, 20), "heliograph": (20, 20), "incinerator": (20, 20),
+    "bleedvalve": (20, 20),
+}
+BOX.update(SOLARI)
+## The Solari hull's own colours: the white heat-shield tile ramp and the brass.
+SOLARI_PALETTE = os.path.join("tkg", "art", "hull_templates", "palette_solari.png")
+
 
 ## Probe ids from a wide round -- `cs01`..`cs20`, `gn01`..`gn20`. They are not
 ## module ids and never ship under these names; the winner is copied out under
@@ -105,7 +124,12 @@ def box_for(mid):
     return BOX.get(mid.rsplit("_", 1)[0])
 
 
-def module_palette(cold_only=False):
+def maker_of(mid):
+    base = mid if mid in BOX else mid.rsplit("_", 1)[0]
+    return "solari" if base in SOLARI else "korvan"
+
+
+def module_palette(cold_only=False, maker="korvan"):
     """The colours the accepted modules use, as a flat list.
 
     COLD ONLY, BY DEFAULT, and that is a bug fix rather than a taste. The first
@@ -133,6 +157,20 @@ def module_palette(cold_only=False):
                 continue
             if c not in seen:
                 seen.append(c)
+    # SOLARI SNAPS TO ITS OWN TILE AND BRASS, not to Korvan's. Its cream tile is
+    # "warm" by is_warm (red over blue), so on Korvan's palette it would land
+    # on an amber accent and the white heat-shield would come out orange.
+    if maker == "solari":
+        from PIL import Image
+        im = Image.open(SOLARI_PALETTE).convert("RGBA")
+        sol = []
+        for c in im.getdata():
+            if c[3] and c[:3] not in sol:
+                sol.append(c[:3])
+        # And Korvan's cold steel ramp, whole: with only its darks, every grey
+        # fitting on a Solari part snapped to the one blue (the hull's window
+        # glass) and came out blue.
+        return sol + [c for c in seen if not is_warm(c) and c not in sol]
     return seen
 
 
@@ -208,9 +246,9 @@ def main(argv):
         indir, outdir = argv[1], argv[2]
         if not os.path.isdir(outdir):
             os.makedirs(outdir)
-        pal = module_palette()
-        print("palette: %d colours from %d accepted modules"
-              % (len(pal), len(ACCEPTED)))
+        pals = {m: module_palette(maker=m) for m in ("korvan", "solari")}
+        print("palette: %d colours from %d accepted modules; solari %d"
+              % (len(pals["korvan"]), len(ACCEPTED), len(pals["solari"])))
         for f in sorted(os.listdir(indir)):
             if not f.endswith(".png"):
                 continue
@@ -220,7 +258,7 @@ def main(argv):
                 print("  %-12s SKIP  no box in the table" % mid)
                 continue
             w, h, rows, (ink, drift, over, hot) = post_one(
-                os.path.join(indir, f), box, pal)
+                os.path.join(indir, f), box, pals[maker_of(mid)])
             pt.encode(os.path.join(outdir, f), w, h, rows)
             flag = "  CLIPPED %dx%d" % over if any(over) else ""
             print("  %-12s box %-7s ink %-7s  %4d snapped  %3d warm%s"

@@ -319,11 +319,23 @@ def _warm(c):
     return mb.is_warm(c) and (max(c) - min(c)) >= CHROMA
 
 
-def post_one(src, pal):
+def solari_tile():
+    """Solari's white heat-shield tile ramp, from the hull's own palette.
+
+    A SOLARI CARD IS PALE CREAM TILE, which Korvan's ramp has no word for: the
+    pilot's tiles came back gold, because a cream a few points too saturated
+    counts as warm and the nearest warm entry is #d6b043. These go in BOTH
+    pools, so a tile lands on tile whichever side of CHROMA it was drawn.
+    """
+    return [c for c in mb.module_palette(maker="solari")[:24]
+            if (max(c) - min(c)) < 60 and sum(c) > 300]
+
+
+def post_one(src, pal, both=()):
     """Raw generation -> shipping illustration. Returns (w, h, rows, report)."""
     w, h, rows = pt.decode(src)
-    cold = [c for c in pal if not _warm(c)]
-    warm = [c for c in pal if _warm(c)]
+    cold = [c for c in pal if not _warm(c)] + list(both)
+    warm = [c for c in pal if _warm(c)] + list(both)
     drift, hot = _snap_split(w, h, rows, cold, warm)
     # OPAQUE TO THE EDGE. The generator is asked for a scene rather than a
     # sprite, but a stray transparent pixel in a full-bleed illustration draws
@@ -628,11 +640,14 @@ def main(argv):
         if not os.path.isdir(outdir):
             os.makedirs(outdir)
         pal = card_palette()
-        print("palette: %d colours from %d accepted" % (len(pal), len(ACCEPTED)))
+        # `solari` as a fourth argument: its tile ramp joins both pools.
+        both = solari_tile() if len(argv) > 3 and argv[3] == "solari" else []
+        print("palette: %d colours from %d accepted, %d Solari tile"
+              % (len(pal), len(ACCEPTED), len(both)))
         for f in sorted(os.listdir(indir)):
             if not f.endswith(".png"):
                 continue
-            w, h, rows, rep = post_one(os.path.join(indir, f), pal)
+            w, h, rows, rep = post_one(os.path.join(indir, f), pal, both)
             note = ""
             if (w, h) != SIZE:
                 note = "  WRONG SIZE, wants %dx%d" % SIZE
