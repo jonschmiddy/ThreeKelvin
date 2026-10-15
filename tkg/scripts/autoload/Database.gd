@@ -1352,14 +1352,16 @@ const MANUFACTURER_HULLS := {
 	# while, which suited the refit business and asked for a hardpoint no hull
 	# was rigged to carry -- see the note in _seed_perks.
 	&"redline": {
-		names = ["Hairpin", "Switchback", "Blindside"],
+		# Jon's pick, Oct 15 (the name page, group D "Contraband")
+		names = ["Mule Sloop", "Bootleg Runner", "Motherlode Clipper"],
 		# Was spare_bay. A chop shop that registers no serials is a salvage
 		# yard with a shopfront, so it takes the salvage perk outright.
 		perk_id = &"salvage_rack",
 		d = {max_hull = -3, dodge = 0.06, initiative = 1, fuel_factor = -0.1,
 			sensors = 1, stealth = 2}},
 	&"cygnet": {
-		names = ["Fledgling", "Brood Tender", "Rookery"],
+		# Jon's pick, Oct 15 (the name page, group E "Swarms")
+		names = ["Gnat Pinnace", "Swarm Tender", "Plague Carrier"],
 		# Was spare_bay. Drones are cards, and a drone manufacturer wants more of
 		# them in hand -- which is also why this one is NOT Redline's, whose
 		# 3-set already draws an extra card and would have stacked with it.
@@ -1377,7 +1379,8 @@ const MANUFACTURER_HULLS := {
 	# dissipation in the game made its heavy the best chassis by six points.
 	# It keeps everything that is actually its identity.
 	&"calyx": {
-		names = ["Spore Cutter", "Vivarium", "Greatvine"],
+		# Jon's pick, Oct 15 (the name page, group C "The lab")
+		names = ["Specimen Coracle", "Cultivar Pirogue", "Genome Umiak"],
 		perk_id = &"baffled_vents",
 		d = {dissipation = 1, dodge = 0.02, fuel_factor = -0.1,
 			sensors = 1, stealth = 1, system_slots = 1, weapon_slots = -1}},
