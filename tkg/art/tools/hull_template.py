@@ -131,6 +131,29 @@ def P(shape, mat='steel', **kw):
     return d
 
 
+def crest_on(hull, x0, x1, high, n):
+    """Solari's radiator crest sitting ON the spine: its bottom follows the
+    hull's top edge (a pixel inside, so they join) and its top is flat at
+    `high`, the ends swept down into the hull. The keel's mirror. List it
+    BEFORE the hull so the hull's edge is drawn over the seam (Jon, Oct 15:
+    "the top keel and the bottom keel can be more aligned along the top of
+    the hull, not sitting within it")."""
+    def spine(x):
+        for (a, ta, _), (b, tb, _) in zip(hull, hull[1:]):
+            if a <= x <= b:
+                return ta + (tb - ta) * (x - a) / max(1e-6, b - a)
+        return hull[-1][1] if x > hull[-1][0] else hull[0][1]
+    k = 12
+    pts = []
+    for i in range(k + 1):
+        x = x0 + (x1 - x0) * i / k
+        bot = spine(x) + .01
+        end = min(i, k - i) / 3.0          # the last three steps sweep down
+        top = high if end >= 1 else bot - (bot - high) * end
+        pts.append((x, min(top, bot - .005), bot))
+    return [P(('prof', pts), 'acc', rivets=True, ports=[(.25, .08, .92, n, 1, 4, n)])]
+
+
 def keel(hull, x0, x1, low, **kw):
     """A keel that hangs from the belly itself: its top follows the hull's
     bottom edge (a pixel inside it, so the two join) and its bottom is flat at
@@ -179,24 +202,24 @@ def crest(x0, x1, top, n):
 
 SPECS = {
  'solari': {
-  'light': {'parts': [
+  'light': {'parts': crest_on([(.04, .40, .72), (.18, .34, .82), (.38, .35, .82), (.50, .40, .74), (.60, .45, .68)], 0.08, 0.49, 0.25, 6) + [
      keel([(.04, .40, .72), (.18, .34, .82), (.38, .35, .82), (.50, .40, .74), (.60, .45, .68)], .08, .48, .91, seams=6),
      P(('prof', [(.44, .47, .65), (.8, .51, .61), (1, .55, .57)]), 'tile', seams=12, rivets=False, band=(.62, .70)),
      P(('prof', [(.04, .40, .72), (.18, .34, .82), (.38, .35, .82), (.50, .40, .74), (.60, .45, .68)]), 'tile', seams=8, rivets=False, belt=.55,
-       ports=[(.32, .45, .9, 3, 3, 2, 1)], hatch=[(.6, .6, .85, .85)])] + crest(.12, .44, .34, 6) + rings(.12, .44, .34, .84, 3, low=.91),
+       ports=[(.32, .45, .9, 3, 3, 2, 1)], hatch=[(.6, .6, .85, .85)])] + rings(.12, .44, .34, .84, 3, low=.91),
    'kit': [],
    'noz': [(.48, .11), (.64, .11)], 'noz_mat': 'acc', 'noz_out': True, 'noz_x': .04},
-  'medium': {'parts': [
+  'medium': {'parts': crest_on([(0, .40, .70), (.1, .34, .78), (.5, .34, .82), (.75, .38, .78), (.9, .44, .70), (1, .50, .64)], 0.08, 0.61, 0.25, 9) + [
      keel([(0, .40, .70), (.1, .34, .78), (.5, .34, .82), (.75, .38, .78), (.9, .44, .70), (1, .50, .64)], .08, .60, .91, seams=8),
      P(('prof', [(0, .40, .70), (.1, .34, .78), (.5, .34, .82), (.75, .38, .78), (.9, .44, .70), (1, .50, .64)]), 'tile', seams=10,
-       rivets=False, belt=.48, ports=[(.3, .62, .8, 4, 3, 2, 2)], band=(.68, .74))] + crest(.12, .56, .34, 9) + rings(.12, .56, .34, .82, 3, low=.91),
+       rivets=False, belt=.48, ports=[(.3, .62, .8, 4, 3, 2, 2)], band=(.68, .74))] + rings(.12, .56, .34, .82, 3, low=.91),
    'kit': [],
    'noz': [(.475, .10), (.625, .10)], 'noz_mat': 'acc', 'noz_out': True},
-  'heavy': {'parts': [
+  'heavy': {'parts': crest_on([(0, .40, .74), (.08, .34, .84), (.5, .34, .92), (.78, .38, .86), (.9, .44, .76), (1, .56, .66)], 0.22, 0.67, 0.25, 9) + [
      keel([(0, .40, .74), (.08, .34, .84), (.5, .34, .92), (.78, .38, .86), (.9, .44, .76), (1, .56, .66)], .22, .66, 1.0, seams=8),
      P(('prof', [(0, .40, .74), (.08, .34, .84), (.5, .34, .92), (.78, .38, .86), (.9, .44, .76), (1, .56, .66)]), 'tile', seams=12, rivets=False,
        belt=.5, ports=[(.28, .66, .84, 4, 3, 2, 2)], band=(.76, .82), hatch=[(.06, .6, .14, .8)]),
-     P(('poly', [(.92, .44), (1, .56), (1, .66), (.92, .70)]), 'acc')] + crest(.26, .62, .34, 9) + rings(.26, .62, .34, .92, 4, low=1.0),
+     P(('poly', [(.92, .44), (1, .56), (1, .66), (.92, .70)]), 'acc')] + rings(.26, .62, .34, .92, 4, low=1.0),
    'kit': [],
    'noz': [(.485, .12), (.655, .12)], 'noz_mat': 'acc', 'noz_out': True},
  },
