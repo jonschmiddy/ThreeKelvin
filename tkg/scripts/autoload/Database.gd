@@ -1320,20 +1320,12 @@ const TIER_DELTA := [
 const MANUFACTURER_HULLS := {
 	&"korvan": {
 		names = ["Picket Cutter", "Ironside Cutter", "Bastion Monitor"],
-		# A NAME PER CLASS, C through S. `names` above stays as the fallback for
-		# a manufacturer that has not been given twelve yet, and its entry is the C of
-		# each line here, so nothing that shipped changed its name.
-		#
-		# The escalation is inside the family rather than across it: a Korvan
-		# light is always a Cutter and a Korvan heavy is always a Monitor,
-		# because the hull TYPE is what the weight class means and only the
-		# grade should move. Sharpening for the escorts, fortification for the
-		# line ships, and the heavies climb from a bastion to a paladin.
-		class_names = [
-			["Picket Cutter", "Warden Cutter", "Halberd Cutter", "Sabre Cutter"],
-			["Ironside Cutter", "Bulwark Cutter", "Rampart Cutter", "Vanguard Cutter"],
-			["Bastion Monitor", "Citadel Monitor", "Aegis Monitor", "Paladin Monitor"],
-		],
+		# ONE NAME PER WEIGHT, the same C through S (Jon, Oct 15: "I just want
+		# them to have their own unique names. One for each weight. C>S for each
+		# weight would have the same name"). The four Korvan names a weight had
+		# (Picket, Warden, Halberd, Sabre Cutter) are retired with the other
+		# per-grade art: a grade is one ship graded in code now, so it is one
+		# ship by name too, and the letter says the grade.
 		perk_id = &"baffled_vents",
 		d = {max_hull = 5, heat_cap = 2, dodge = -0.02, initiative = -1}},
 	&"solari": {
@@ -1416,21 +1408,12 @@ func _seed_hulls() -> void:
 		for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
 			hull_frames.append(_manufacturer_hull(manufacturer, w, spec))
 
-## What a manufacturer calls a hull at a given class.
-##
-## Falls back to the one-name-per-weight list, which is what every manufacturer had
-## before and what six of the seven still have. A manufacturer with `class_names` gets
-## four distinct ships per weight instead of four grades of the same ship —
-## which is the difference between "Picket Cutter, C TIER" and a Sabre Cutter.
-func manufacturer_hull_name(manufacturer: StringName, w: HullData.Weight, cls: int = 0) -> String:
+## What a manufacturer calls its hull of a weight: one name, whatever the
+## grade (Jon, Oct 15). `cls` is kept so callers need not change, and ignored.
+func manufacturer_hull_name(manufacturer: StringName, w: HullData.Weight, _cls: int = 0) -> String:
 	if not MANUFACTURER_HULLS.has(manufacturer):
 		return ""
-	var spec: Dictionary = MANUFACTURER_HULLS[manufacturer]
-	if spec.has("class_names"):
-		var rows: Array = spec.class_names
-		var row: Array = rows[int(w)]
-		return row[clampi(cls, 0, row.size() - 1)]
-	return spec.names[int(w)]
+	return MANUFACTURER_HULLS[manufacturer].names[int(w)]
 
 func _manufacturer_hull(manufacturer: StringName, w: HullData.Weight, spec: Dictionary) -> HullData:
 	var h := HullData.new()
@@ -2139,10 +2122,8 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 	h.sprite_half = hull_sprite(h.weight, t, true)
 	apply_hull_lines(h)
 	set_exhaust(h, DEFAULT_EXHAUST, t)
-	# AND THE NAME. A class already grants a different sprite, different
-	# hardpoints and a different reactor; leaving four of them sharing one name
-	# meant the only thing telling a Sabre from a Picket was a letter in the
-	# subtitle. Salvage frames keep theirs — they have no manufacturer to name them.
+	# AND THE NAME: the weight's one name (`manufacturer_hull_name`). Salvage
+	# frames keep theirs -- they have no manufacturer to name them.
 	var named := manufacturer_hull_name(h.manufacturer, h.weight, t)
 	if named != "":
 		h.name = named
