@@ -790,6 +790,12 @@ static func _kit(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictionary
 static func key_for(h: HullData) -> String:
 	if h == null or not DB.graded(h.weight):
 		return ""
+	# a hull wearing another manufacturer's picture (art/sprites/hulls/<maker>/)
+	# grades by that picture's entry
+	if h.sprite != null and h.sprite.resource_path.begins_with("res://art/sprites/hulls/"):
+		var maker := h.sprite.resource_path.get_base_dir().get_file()
+		if maker != "korvan" and maker != "half":
+			return maker + "/" + h.sprite.resource_path.get_file().get_basename()
 	return "korvan/" + DB.hull_art_name(h.weight, h.tier)
 
 static var _tex := {}
