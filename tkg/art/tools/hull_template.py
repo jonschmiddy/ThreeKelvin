@@ -131,6 +131,27 @@ def P(shape, mat='steel', **kw):
     return d
 
 
+def keel(hull, x0, x1, low, **kw):
+    """A keel that hangs from the belly itself: its top follows the hull's
+    bottom edge (a pixel inside it, so the two join) and its bottom is flat at
+    `low`, the ends swept up into the hull (Jon, Oct 15: "the bottom part of
+    the ship is not connected to the bottom of the rounded hull")."""
+    def belly(x):
+        for (a, _, ba), (b, _, bb) in zip(hull, hull[1:]):
+            if a <= x <= b:
+                return ba + (bb - ba) * (x - a) / max(1e-6, b - a)
+        return hull[-1][2] if x > hull[-1][0] else hull[0][2]
+    n = 12
+    pts = []
+    for i in range(n + 1):
+        x = x0 + (x1 - x0) * i / n
+        top = belly(x) - .02
+        end = min(i, n - i) / 2.0          # the last two steps sweep up
+        bot = low if end >= 1 else top + (low - top) * end
+        pts.append((x, top, max(top + .005, bot)))
+    return P(('prof', pts), 'brick', **kw)
+
+
 def rings(x0, x1, top, bot, n, low=None):
     """Solari's reactor rings: n brass hoops clamped round the hull between x0
     and x1, standing proud of it, a hot seam glowing down each (Jon, Oct 15:
@@ -160,22 +181,22 @@ SPECS = {
      P(('prof', [(.44, .47, .65), (.8, .51, .61), (1, .55, .57)]), 'tile', seams=12, rivets=False, band=(.62, .70)),
      P(('prof', [(.04, .40, .72), (.18, .34, .82), (.38, .35, .82), (.50, .40, .74), (.60, .45, .68)]), 'tile', seams=8, rivets=False, belt=.55,
        ports=[(.32, .45, .9, 3, 3, 2, 1)], hatch=[(.6, .6, .85, .85)]),
-     P(('poly', [(.08, .80), (.48, .80), (.44, .87), (.12, .87)]), 'brick', seams=6)] + crest(.12, .44, .34, 6) + rings(.12, .44, .34, .84, 3, low=.87),
+     keel([(.04, .40, .72), (.18, .34, .82), (.38, .35, .82), (.50, .40, .74), (.60, .45, .68)], .08, .48, .87, seams=6)] + crest(.12, .44, .34, 6) + rings(.12, .44, .34, .84, 3, low=.87),
    'kit': [],
-   'noz': [(.50, .12), (.68, .12)], 'noz_mat': 'acc', 'noz_in': 6},
+   'noz': [(.50, .12), (.68, .12)], 'noz_mat': 'acc'},
   'medium': {'parts': [
      P(('prof', [(0, .40, .70), (.1, .34, .78), (.5, .34, .82), (.75, .38, .78), (.9, .44, .70), (1, .50, .64)]), 'tile', seams=10,
        rivets=False, belt=.48, ports=[(.3, .62, .8, 4, 3, 2, 2)], band=(.68, .74)),
-     P(('poly', [(.08, .80), (.60, .80), (.56, .87), (.12, .87)]), 'brick', seams=8)] + crest(.12, .56, .34, 9) + rings(.12, .56, .34, .82, 3, low=.87),
+     keel([(0, .40, .70), (.1, .34, .78), (.5, .34, .82), (.75, .38, .78), (.9, .44, .70), (1, .50, .64)], .08, .60, .87, seams=8)] + crest(.12, .56, .34, 9) + rings(.12, .56, .34, .82, 3, low=.87),
    'kit': [],
-   'noz': [(.48, .12), (.64, .12)], 'noz_mat': 'acc', 'noz_in': 6},
+   'noz': [(.48, .12), (.64, .12)], 'noz_mat': 'acc'},
   'heavy': {'parts': [
      P(('prof', [(0, .40, .74), (.08, .34, .84), (.5, .34, .92), (.78, .38, .86), (.9, .44, .76), (1, .56, .66)]), 'tile', seams=12, rivets=False,
        belt=.5, ports=[(.28, .66, .84, 4, 3, 2, 2)], band=(.76, .82), hatch=[(.06, .6, .14, .8)]),
-     P(('poly', [(.22, .90), (.66, .90), (.62, .96), (.26, .96)]), 'brick', seams=8),
+     keel([(0, .40, .74), (.08, .34, .84), (.5, .34, .92), (.78, .38, .86), (.9, .44, .76), (1, .56, .66)], .22, .66, .96, seams=8),
      P(('poly', [(.92, .44), (1, .56), (1, .66), (.92, .70)]), 'acc')] + crest(.26, .62, .34, 9) + rings(.26, .62, .34, .92, 4, low=.96),
    'kit': [],
-   'noz': [(.50, .14), (.72, .14)], 'noz_mat': 'acc', 'noz_in': 6},
+   'noz': [(.50, .14), (.72, .14)], 'noz_mat': 'acc'},
  },
  'probate': {
   'light': {'parts': [
