@@ -25,7 +25,7 @@ func _run() -> void:
 	var wt := _arg("weight", "medium")
 	var base := _arg("base", "a")
 	# `reglook=A|B|C`: the registry's look on trial (`HullGrade.reg_look`)
-	HullGrade.reg_look = StringName(_arg("reglook", ""))
+	HullGrade.reg_look = StringName(_arg("reglook", "A"))
 	var grades := ["c", "b", "a", "s"]
 	for g in grades:
 		var t: Texture2D = load("res://art/sprites/hulls/korvan/hull_%s_%s.png" % [wt, g])

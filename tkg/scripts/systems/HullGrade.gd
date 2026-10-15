@@ -436,8 +436,13 @@ const STENCIL := {
 ## BAD AND PRINTED ON", of the white number on L1 and H3): "" the white stencil
 ## as it was; &"A" tone on tone, each stroke the panel under it two shades
 ## lighter; &"B" the number alone, in dark paint across the band; &"C" no
-## number. A pick page sets it; the game keeps "" until Jon picks.
-static var reg_look: StringName = &""
+## number. Jon picked A (Oct 15), "a bit lighter, it's too faint": a fifth
+## lighter, up from a tenth.
+static var reg_look: StringName = &"A"
+
+
+## How much lighter look A's strokes are than the panel under them.
+const REG_LIFT := 0.2
 
 
 static func _marks(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictionary) -> void:
@@ -489,7 +494,7 @@ static func _marks(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictiona
 				if not on:
 					continue
 				if reg_look == &"A":
-					img.set_pixel(x, y, r.lift(src.get_pixel(x, y), 0.1 if light else -0.1))
+					img.set_pixel(x, y, r.lift(src.get_pixel(x, y), REG_LIFT if light else -REG_LIFT))
 				else:
 					img.set_pixel(x, y, ink)
 	_chevrons(img, r, grade, at)

@@ -12,14 +12,13 @@ Jon's merge rule still holds: **main only moves on a full gate pass**
 
 ## The state of the branch
 
-- 25 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
+- 26 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
   which was `origin/main` when this was written. `origin/main` had not moved
   since, so as pushed this is a **fast-forward**.
 - Last full gate run in the cloud: **PASSED** on `9b2bb57` (one event per world
   and the Hellbender's place). The two commits after it are this handoff and
-  the registry looks on trial, which leave the game as it was
-  (`HullGrade.reg_look` is `""`). GradeSheet passed on all three weights with
-  every look. **Run the gate yourself before merging, whatever this says.**
+  the registry look, which Jon then picked (A, tone on tone; `reg_look` is
+  `&"A"`). GradeSheet passed on all three weights with it. **Run the gate yourself before merging, whatever this says.**
 - The cloud container was slow. Two tests were timing-sensitive there and
   were fixed (see "Gate changes"). On Jon's machine the gate should take less
   time than it did there (26 to 45 minutes).
@@ -29,7 +28,7 @@ Jon's merge rule still holds: **main only moves on a full gate pass**
 ```bash
 git fetch origin
 git switch main && git pull                     # Jon's local main may have work the cloud never saw
-git log --oneline main..origin/claude/festive-rubin-hd2567 | wc -l   # 25 (more if work landed after this was written)
+git log --oneline main..origin/claude/festive-rubin-hd2567 | wc -l   # 26 (more if work landed after this was written)
 git merge-base main origin/claude/festive-rubin-hd2567               # a6976ef... if main has not moved
 ```
 
@@ -87,7 +86,9 @@ had no GPU window, only Xvfb). See "Look at it in the game".
 **AB+DEF**)
 - `HullGrade.gd` (new, `class_name`) bakes a grade onto one sprite:
   - wear (A) and paint (B): the manufacturer's band colour always stays at C;
-  - markings (D): a registry number painted on the hull, plus chevrons at S;
+  - markings (D): a registry number painted on the hull, tone on tone
+    (Jon picked look A: each stroke `HullGrade.REG_LIFT`, a fifth, lighter
+    than the panel under it), plus chevrons at S;
   - live lights (E): an additive layer that flickers like aircraft lights,
     drawn by `ShipView`;
   - kit (F): removes thin fittings toward C and never draws anything at S.
@@ -165,13 +166,6 @@ different body. That is harmless before the alpha ships.
    photographs its map): its contact past the last orbit, ENGAGE there.
 
 ## Open, for Jon to decide (do not decide for him)
-
-- The registry number's look (Jon: the white number "LOOKS BAD AND PRINTED
-  ON"). Pick page: https://claude.ai/artifact/HjWutxmgxUX81Hu4dVcvnS . A is
-  tone on tone, B is the number across the band, C is no number. Code:
-  `HullGrade.reg_look`, which is `""` (today's white stencil) until he picks.
-  Setting it is a one-line change to that static var's default. Then run
-  GradeSheet and drop its `reglook=` argument if it is no longer wanted.
 
 - The wreck exit look: A fade (current), B drift, C recede.
 - Whether a belt should also hold only one event.
