@@ -162,20 +162,20 @@ SPECS = {
        ports=[(.32, .45, .9, 3, 3, 2, 1)], hatch=[(.6, .6, .85, .85)]),
      P(('poly', [(.08, .80), (.48, .80), (.44, .87), (.12, .87)]), 'brick', seams=6)] + crest(.12, .44, .34, 6) + rings(.12, .44, .34, .84, 3, low=.87),
    'kit': [],
-   'noz': [(.50, .12), (.68, .12)], 'noz_mat': 'acc'},
+   'noz': [(.50, .12), (.68, .12)], 'noz_mat': 'acc', 'noz_in': 6},
   'medium': {'parts': [
      P(('prof', [(0, .40, .70), (.1, .34, .78), (.5, .34, .82), (.75, .38, .78), (.9, .44, .70), (1, .50, .64)]), 'tile', seams=10,
        rivets=False, belt=.48, ports=[(.3, .62, .8, 4, 3, 2, 2)], band=(.68, .74)),
      P(('poly', [(.08, .80), (.60, .80), (.56, .87), (.12, .87)]), 'brick', seams=8)] + crest(.12, .56, .34, 9) + rings(.12, .56, .34, .82, 3, low=.87),
    'kit': [],
-   'noz': [(.48, .12), (.64, .12)], 'noz_mat': 'acc'},
+   'noz': [(.48, .12), (.64, .12)], 'noz_mat': 'acc', 'noz_in': 6},
   'heavy': {'parts': [
      P(('prof', [(0, .40, .74), (.08, .34, .84), (.5, .34, .92), (.78, .38, .86), (.9, .44, .76), (1, .56, .66)]), 'tile', seams=12, rivets=False,
        belt=.5, ports=[(.28, .66, .84, 4, 3, 2, 2)], band=(.76, .82), hatch=[(.06, .6, .14, .8)]),
      P(('poly', [(.22, .90), (.66, .90), (.62, .96), (.26, .96)]), 'brick', seams=8),
      P(('poly', [(.92, .44), (1, .56), (1, .66), (.92, .70)]), 'acc')] + crest(.26, .62, .34, 9) + rings(.26, .62, .34, .92, 4, low=.96),
    'kit': [],
-   'noz': [(.50, .14), (.72, .14)], 'noz_mat': 'acc'},
+   'noz': [(.50, .14), (.72, .14)], 'noz_mat': 'acc', 'noz_in': 6},
  },
  'probate': {
   'light': {'parts': [
@@ -573,7 +573,9 @@ def render(maker, weight):
         for i in range(bw):
             half = hh // 2 + (bw - i) // 3
             for yy in range(cy - half, cy + half + 1):
-                xx = x0 - 2 + i
+                # noz_in pulls the bells into the stern (Solari: Jon, Oct 15, "it
+                # sticks out of the back")
+                xx = x0 - 2 + i + spec.get('noz_in', 0)
                 f = (yy - (cy - half)) / max(1, 2 * half)
                 nm = acc if spec.get('noz_mat') == 'acc' else MAT[spec.get('noz_mat', 'gun')]
                 c = nm[5] if yy == cy - half else _shade(nm, f, xx, yy)
