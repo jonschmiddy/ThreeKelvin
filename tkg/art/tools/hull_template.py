@@ -135,7 +135,9 @@ def keel(hull, x0, x1, low, **kw):
     """A keel that hangs from the belly itself: its top follows the hull's
     bottom edge (a pixel inside it, so the two join) and its bottom is flat at
     `low`, the ends swept up into the hull (Jon, Oct 15: "the bottom part of
-    the ship is not connected to the bottom of the rounded hull")."""
+    the ship is not connected to the bottom of the rounded hull"). List it
+    BEFORE the hull, so the hull's edge is drawn over the seam and the keel
+    hangs below the body instead of over it ("the keel is now inside the body")."""
     def belly(x):
         for (a, _, ba), (b, _, bb) in zip(hull, hull[1:]):
             if a <= x <= b:
@@ -145,7 +147,7 @@ def keel(hull, x0, x1, low, **kw):
     pts = []
     for i in range(n + 1):
         x = x0 + (x1 - x0) * i / n
-        top = belly(x) - .02
+        top = belly(x) - .01
         end = min(i, n - i) / 2.0          # the last two steps sweep up
         bot = low if end >= 1 else top + (low - top) * end
         pts.append((x, top, max(top + .005, bot)))
@@ -178,25 +180,25 @@ def crest(x0, x1, top, n):
 SPECS = {
  'solari': {
   'light': {'parts': [
+     keel([(.04, .40, .72), (.18, .34, .82), (.38, .35, .82), (.50, .40, .74), (.60, .45, .68)], .08, .48, .91, seams=6),
      P(('prof', [(.44, .47, .65), (.8, .51, .61), (1, .55, .57)]), 'tile', seams=12, rivets=False, band=(.62, .70)),
      P(('prof', [(.04, .40, .72), (.18, .34, .82), (.38, .35, .82), (.50, .40, .74), (.60, .45, .68)]), 'tile', seams=8, rivets=False, belt=.55,
-       ports=[(.32, .45, .9, 3, 3, 2, 1)], hatch=[(.6, .6, .85, .85)]),
-     keel([(.04, .40, .72), (.18, .34, .82), (.38, .35, .82), (.50, .40, .74), (.60, .45, .68)], .08, .48, .87, seams=6)] + crest(.12, .44, .34, 6) + rings(.12, .44, .34, .84, 3, low=.87),
+       ports=[(.32, .45, .9, 3, 3, 2, 1)], hatch=[(.6, .6, .85, .85)])] + crest(.12, .44, .34, 6) + rings(.12, .44, .34, .84, 3, low=.91),
    'kit': [],
-   'noz': [(.50, .12), (.68, .12)], 'noz_mat': 'acc'},
+   'noz': [(.50, .12), (.68, .12)], 'noz_mat': 'acc', 'noz_out': True, 'noz_x': .04},
   'medium': {'parts': [
+     keel([(0, .40, .70), (.1, .34, .78), (.5, .34, .82), (.75, .38, .78), (.9, .44, .70), (1, .50, .64)], .08, .60, .91, seams=8),
      P(('prof', [(0, .40, .70), (.1, .34, .78), (.5, .34, .82), (.75, .38, .78), (.9, .44, .70), (1, .50, .64)]), 'tile', seams=10,
-       rivets=False, belt=.48, ports=[(.3, .62, .8, 4, 3, 2, 2)], band=(.68, .74)),
-     keel([(0, .40, .70), (.1, .34, .78), (.5, .34, .82), (.75, .38, .78), (.9, .44, .70), (1, .50, .64)], .08, .60, .87, seams=8)] + crest(.12, .56, .34, 9) + rings(.12, .56, .34, .82, 3, low=.87),
+       rivets=False, belt=.48, ports=[(.3, .62, .8, 4, 3, 2, 2)], band=(.68, .74))] + crest(.12, .56, .34, 9) + rings(.12, .56, .34, .82, 3, low=.91),
    'kit': [],
-   'noz': [(.48, .12), (.64, .12)], 'noz_mat': 'acc'},
+   'noz': [(.48, .12), (.64, .12)], 'noz_mat': 'acc', 'noz_out': True},
   'heavy': {'parts': [
+     keel([(0, .40, .74), (.08, .34, .84), (.5, .34, .92), (.78, .38, .86), (.9, .44, .76), (1, .56, .66)], .22, .66, 1.0, seams=8),
      P(('prof', [(0, .40, .74), (.08, .34, .84), (.5, .34, .92), (.78, .38, .86), (.9, .44, .76), (1, .56, .66)]), 'tile', seams=12, rivets=False,
        belt=.5, ports=[(.28, .66, .84, 4, 3, 2, 2)], band=(.76, .82), hatch=[(.06, .6, .14, .8)]),
-     keel([(0, .40, .74), (.08, .34, .84), (.5, .34, .92), (.78, .38, .86), (.9, .44, .76), (1, .56, .66)], .22, .66, .96, seams=8),
-     P(('poly', [(.92, .44), (1, .56), (1, .66), (.92, .70)]), 'acc')] + crest(.26, .62, .34, 9) + rings(.26, .62, .34, .92, 4, low=.96),
+     P(('poly', [(.92, .44), (1, .56), (1, .66), (.92, .70)]), 'acc')] + crest(.26, .62, .34, 9) + rings(.26, .62, .34, .92, 4, low=1.0),
    'kit': [],
-   'noz': [(.50, .14), (.72, .14)], 'noz_mat': 'acc'},
+   'noz': [(.50, .14), (.72, .14)], 'noz_mat': 'acc', 'noz_out': True},
  },
  'probate': {
   'light': {'parts': [
@@ -594,9 +596,9 @@ def render(maker, weight):
         for i in range(bw):
             half = hh // 2 + (bw - i) // 3
             for yy in range(cy - half, cy + half + 1):
-                # noz_in pulls the bells into the stern (Solari: Jon, Oct 15, "it
-                # sticks out of the back")
-                xx = x0 - 2 + i + spec.get('noz_in', 0)
+                # noz_out hangs the whole bell behind the stern, none of it over
+                # the hull (Solari: Jon, Oct 15, "the engine bells are inside the hull")
+                xx = (X(spec.get('noz_x', 0)) - bw + i) if spec.get('noz_out') else (x0 - 2 + i + spec.get('noz_in', 0))
                 f = (yy - (cy - half)) / max(1, 2 * half)
                 nm = acc if spec.get('noz_mat') == 'acc' else MAT[spec.get('noz_mat', 'gun')]
                 c = nm[5] if yy == cy - half else _shade(nm, f, xx, yy)
