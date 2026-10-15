@@ -142,7 +142,10 @@ func _seed_manufacturers() -> void:
 			"Ex-military surplus parts. Ballistics run cold; ordnance and plate run hot.",
 			"Standard Issue", "Charge cards charge 1 turn faster.",
 			"Full Broadside", "Salvo applies to your first attack too."],
-		[&"solari", "Solari Foundry", "The line between reactor and weapon is philosophy.", "#ef9f27", "#3a2408",
+		# Field: white heat-shield, was #3a2408 dark bronze (Jon, Oct 15: "change the
+		# manufacturer colors ... of solari to these new colors? orange and white"),
+		# to match the hulls' pale ceramic tile. The amber mark stays.
+		[&"solari", "Solari Foundry", "The line between reactor and weapon is philosophy.", "#ef9f27", "#f2eee6",
 			"Weapons that hit harder the hotter you run.",
 			"Sunward", "Plasma weapons gain +2 damage.",
 			"Ignition", "Overheat damage halved."],

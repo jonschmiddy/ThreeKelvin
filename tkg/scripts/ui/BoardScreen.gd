@@ -61,7 +61,7 @@ const ADS := [
 	{"bg": Color("#a82020"), "ink": Color("#fff0b0"), "lines": [["TIME", 16], ["SHARE", 16], ["ON A", 8], ["MOON", 16], ["", 8], ["NEVER", 8], ["VISIT IT", 8]]},
 	{"bg": Color("#8ac8ff"), "ink": Color("#3a0a2a"), "lines": [["MOVING", 16], ["DECKS?", 16], ["WE CARRY", 8], ["THE BOXES", 8], ["UP STAIRS", 8]]},
 	{"bg": Color("#0e6a6a"), "ink": Color("#ffe040"), "lines": [["EYE", 16], ["DROPS", 16], ["FOR", 8], ["STAR GLARE", 8], ["2 CR", 16]]},
-	{"bg": Color("#3a2408"), "ink": Color("#ef9f27"), "lines": [["HEAT", 16], ["LAMPS", 16], ["FOR", 8], ["COLD BUNKS", 8], ["", 8], ["BY SOLARI", 8], ["FOUNDRY", 8]]},
+	{"bg": Color("#f2eee6"), "ink": Color("#c8661a"), "lines": [["HEAT", 16], ["LAMPS", 16], ["FOR", 8], ["COLD BUNKS", 8], ["", 8], ["BY SOLARI", 8], ["FOUNDRY", 8]]},
 	{"bg": Color("#ff8a6a"), "ink": Color("#14161c"), "lines": [["YARD", 16], ["SALE", 16], ["DOCK 9", 8], ["HULLS", 8], ["HALF", 8], ["BUILT", 8]]},
 	{"bg": Color("#2a0a4a"), "ink": Color("#ffe040"), "lines": [["NAME", 16], ["A", 8], ["STAR", 16], ["AFTER", 8], ["SOMEONE", 8], ["YOU LOVE", 8], ["1 CR", 16]]},
 	{"bg": Color("#e2ece6"), "ink": Color("#1e5a3a"), "lines": [["CALYX", 16], ["HOME", 16], ["MOSS", 16], ["MAKES AIR", 8], ["MAKES", 8], ["FRIENDS", 8]]},

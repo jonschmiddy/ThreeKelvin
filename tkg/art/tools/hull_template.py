@@ -573,7 +573,8 @@ def render(maker, weight):
             for yy in range(cy - half, cy + half + 1):
                 xx = x0 - 2 + i
                 f = (yy - (cy - half)) / max(1, 2 * half)
-                c = MAT['gun'][5] if yy == cy - half else _shade(MAT['gun'], f, xx, yy)
+                nm = acc if spec.get('noz_mat') == 'acc' else MAT[spec.get('noz_mat', 'gun')]
+                c = nm[5] if yy == cy - half else _shade(nm, f, xx, yy)
                 if i == 0 and abs(yy - cy) < half - 1:
                     c = HEAT[3] if abs(yy - cy) < half // 2 else HEAT[1]
                 px[xx, yy] = c + (255,)
