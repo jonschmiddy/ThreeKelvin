@@ -1,56 +1,78 @@
-"""HULL TEMPLATES: one per manufacturer per weight, for the three-sprite hulls.
+"""HULL TEMPLATES: one per manufacturer per weight, as starting images for the
+generator (Jon, Oct 15: "make the python templates for the manufacturer
+ships... then we use those as the base for pixellab").
 
 Since Oct 14 a weight has ONE sprite and its four grades are baked onto it in
-code (HullGrade). A manufacturer's three sprites are drawn complete, once, so a
-template has to carry everything all four grades will ask of that one picture.
+code (HullGrade), so a manufacturer's three sprites are drawn once, complete.
 This writes, for each manufacturer and weight:
 
-  template_<maker>_<weight>.png   a block-in at the game's own canvas for that
-                                  weight: the brief's silhouette in banded light
-                                  (bright top edge, mid flank, shadowed belly),
-                                  the manufacturer's band, glass, nozzles and the
-                                  thin fittings kit strips. An init image for the
-                                  generator (the canvas IS the output size, which
-                                  `init_image` requires), or a sketch to draw over.
-  guide_<maker>_<weight>.png      the block-in at 3x with what the code needs from
-                                  the sprite drawn over it, labelled.
+  template_<maker>_<weight>.png   the ship on the game's own canvas for that
+                                  weight -- which is the output size, as an
+                                  `init_image` must be -- for the generator to
+                                  elaborate.
+  guide_<maker>_<weight>.png      the template at 3x with what the code needs
+                                  from the one sprite every grade shares.
 
     python art/tools/hull_template.py <out_dir> [maker ...]
 
-EVERYTHING ON THE GUIDE IS MEASURED OFF KORVAN'S BASE FOR THAT WEIGHT (L1, the
-medium A, H3), which already passes -- mounts, MouthSize and YardSeatTest:
+WHY THESE ARE DETAILED. The first templates were flat shapes in four bands of
+one steel, and Jon called them boring; they were. `profile_template.py` had
+already measured why that matters for the generator too: "A flat template
+produces a flat result at EVERY strength tested... Seams give it something to
+work from: a panel edge is where rivets, wear and hatches belong." So every part
+here is lit on its own (ART_CONTRACT §2: every raised object needs a
+light-to-dark break), the plating is divided in the manufacturer's own rhythm,
+rivets ride the seams, there are ports, hatches, fittings and materials, and
+the light bands meet through ordered dithering rather than a hard edge.
 
-  envelope   the base's ink box. Inside it the station's mouth and the screens
-             that hold a hull fit, because they were sized from it.
-  engines    the rows the base's exhaust strips sit on (HULL_EXHAUST): the flame
-             is rigged to nozzles at the stern, nose right.
-  mounts     the dorsal and ventral lines (HULL_LINES) with S's weapon count:
-             A adds a weapon and S a system to the one sprite, so it needs room
-             for the S count along clean top and bottom edges.
-  band       the manufacturer's colour as one run of at least 40 px (BAND_MIN),
-             which HullGrade puts on the manufacturer's ramp and wears at C.
-  registry   a plain flank panel 21x7 (look A paints the number a fifth lighter
-             than the panel, so the panel must be one even grey).
-  glass      dark panes (luma 0.2 or under) for the live lights to fill.
-  kit        thin fittings, three pixels wide or less, off the top edge: what
-             kit strips toward C. Anything wider stays at every grade.
-  belly      a flat run under the hull's middle for the yard's two stands.
+THE GUIDE is measured off Korvan's base for the weight (L1, the medium A, H3),
+which passes -- mounts, MouthSize and YardSeatTest:
+  envelope  the base's ink box: inside it the station's mouth and the screens fit
+  mounts    the hull's own top and bottom edges, with room for S's count
+  engines   the template's nozzles, at the stern, nose right
+  band      one run of the manufacturer's colour, 40 px or more (BAND_MIN)
+  registry  a plain flank panel 21x7 in one grey (look A paints on it)
+  glass     dark panes, luma 0.2 or under, for the live lights
+  kit       fittings 3 px wide or less, which kit strips toward C
+  belly     flat under the middle, for the yard's two stands
 """
-import json, os, re, sys
+import os, re, sys
 from PIL import Image, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
-
 BASES = {'light': 'hull_light_c', 'medium': 'hull_medium_a', 'heavy': 'hull_heavy_a'}
 # weapon / system / utility at C; A adds a weapon, S a system (DB.TIER_DELTA)
 SLOTS = {'light': (2, 2, 2), 'medium': (3, 2, 2), 'heavy': (4, 2, 1)}
 
-STEEL = [(0x13, 0x1a, 0x23), (0x23, 0x2d, 0x3a), (0x34, 0x42, 0x54), (0x4a, 0x5c, 0x72), (0x6c, 0x80, 0x98), (0x92, 0xaa, 0xc4)]
-INK = (0x0b, 0x0f, 0x16)
-GUN = [(0x1a, 0x1e, 0x26), (0x3a, 0x40, 0x4c), (0x5c, 0x64, 0x74)]
-GLASS = [(0x16, 0x2e, 0x40), (0x3a, 0x6b, 0x8c)]
-HEAT = [(0x96, 0x42, 0x14), (0xff, 0xa6, 0x3c)]
+
+def hx(h):
+    h = h.lstrip('#')
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def R(*hs):
+    return [hx(h) for h in hs]
+
+
+# Five stops dark to light, then a rim. Cold steel, ink, gun metal, glass and
+# heat are the contract's own (ART_CONTRACT §3); the rest are each yard's
+# materials, kept to the same value spacing.
+MAT = {
+    'steel': R('#131a23', '#232d3a', '#344254', '#4a5c72', '#6c8098', '#92aac4'),
+    'dark': R('#0f141c', '#1a212c', '#262f3d', '#343f50', '#4a5668', '#66748a'),
+    'rust': R('#24160f', '#43281a', '#643d24', '#86552f', '#a6713f', '#c08c58'),
+    'olive': R('#191d14', '#2e3424', '#464e38', '#606a4e', '#7c8866', '#98a482'),
+    'brick': R('#28120e', '#461f16', '#672c1e', '#874028', '#a2573a', '#b8704e'),
+    'enamel': R('#3e3a32', '#6a6456', '#968e7a', '#c2b9a0', '#e2d9c2', '#f6efdd'),
+    'chitin': R('#26302b', '#45524a', '#6c7a70', '#96a498', '#bfcbbd', '#dde6da'),
+    'cold': R('#182636', '#283e56', '#3a5876', '#5c82a4', '#8cb6d4', '#b8dcee'),
+    'gun': R('#14171d', '#1a1e26', '#2a2f39', '#3a404c', '#5c6474', '#7a8494'),
+}
+INK = hx('#0b0f16')
+GLASS = R('#162e40', '#3a6b8c')
+LIT = R('#8a5c20', '#ffc66c', '#ffe8b8')
+HEAT = R('#5c280c', '#964214', '#cc641c', '#ffa63c', '#ffdca0')
 
 # the mark and the field (Database._seed_manufacturers)
 YARDS = {
@@ -60,248 +82,536 @@ YARDS = {
 }
 
 
-def hexrgb(h):
-    h = h.lstrip('#')
-    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+def accent(maker):
+    """Five stops from the field to the mark, darkest first, and a rim: the
+    contract's interpolated ramp. A pale field (Verity, Calyx) runs the other
+    way, so the stops are sorted by lightness."""
+    mark, field = (hx(c) for c in YARDS[maker])
+    st = [tuple(round(field[k] + (mark[k] - field[k]) * t / 4) for k in range(3)) for t in range(5)]
+    st.sort(key=lambda c: .299 * c[0] + .587 * c[1] + .114 * c[2])
+    rim = tuple(min(255, v + 40) for v in st[-1])
+    return st + [rim]
 
 
-def ramp(maker):
-    """Five stops from the field to the mark, darkest first (ART_CONTRACT §3)."""
-    mark, field = (hexrgb(c) for c in YARDS[maker])
-    stops = [tuple(round(field[k] + (mark[k] - field[k]) * t / 4) for k in range(3)) for t in range(5)]
-    return sorted(stops, key=lambda c: 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2])
+def lum(c):
+    return (.299 * c[0] + .587 * c[1] + .114 * c[2]) / 255.0
 
 
-# ---------------------------------------------------------------- the briefs
-# Each block-in, in fractions of the envelope (x 0 stern .. 1 nose, y 0 top ..
-# 1 bottom). `body` is the hull's profile, (x, top, bottom) points joined
-# straight; the rest are parts on it. Kit lines are the thin fittings.
-#   ('ell', cx, cy, rx, ry, tone)   ('rect', x0, y0, x1, y1, tone)
-#   ('poly', [(x, y) ...], tone)    ('kit', [(x, y) ...])     tone: 's' steel, 'a' accent
-#   ('glass', x0, y0, x1, y1)       ('band', x0, x1)          ('noz', y, h)
-BRIEFS = {
+# ---------------------------------------------------------------- the specs
+#
+# Fractions of the envelope: x 0 the stern .. 1 the nose, y 0 the top .. 1 the
+# bottom. Parts draw in order, later on top, each lit on its own.
+#   shape  ('prof', [(x, top, bottom), ...])  ('ell', cx, cy, rx, ry)
+#          ('rect', x0, y0, x1, y1)  ('poly', [(x, y), ...])
+#   mat    a MAT key, or 'acc' for the manufacturer's ramp
+#   seams  plate width in px (vertical seams); 'slant' leans them (Redline)
+#   rivets rivets along the seams and the belt
+#   belt   a horizontal seam at that fraction of the part's own height
+#   ports  [(y, x0, x1, n, w, h, lit)]: n panes across the part at height y,
+#          `lit` of them warm (lit windows are the contract's one warm light
+#          besides heat)
+#   ribs   n rib arches (Calyx)          lattice  X bracing (Cygnet, Probate)
+#   hatch  [(x0, y0, x1, y1)]: outlined hatches, in the part's fractions
+#   greeb  n small fittings along the part's top edge
+#   stripe (y, px): a horizontal run of the accent (Redline's redline)
+#   band   (x0, x1): the manufacturer's band across this part
+#   lens   r: a heat-lit lens at the part's centre (Solari)
+#   rule   a gilt hairline under the top edge (Verity)
+#   growth n rows of green growth inside (Calyx's translucent panel)
+# 'kit' lines are the thin fittings kit strips: [(x, y), ...] with a bead.
+# 'noz' (y, h): a bell nozzle at the stern, glowing inside.
+
+def P(shape, mat='steel', **kw):
+    d = {'shape': shape, 'mat': mat}
+    d.update(kw)
+    return d
+
+
+SPECS = {
  'solari': {
-  'light': {'body': [(0, .5, .74), (.08, .44, .78), (.35, .40, .80), (.62, .44, .74), (.86, .54, .64), (1, .58, .60)],
-            'parts': [('ell', .2, .58, .14, .26, 'a'), ('ell', .38, .48, .07, .16, 'a'), ('glass', .17, .52, .23, .62),
-                      ('kit', [(.08, .40), (.14, .12)]), ('kit', [(.14, .38), (.20, .08)]), ('kit', [(.20, .36), (.26, .10)]),
-                      ('kit', [(.26, .37), (.32, .16)]), ('kit', [(.62, .52), (.98, .58)]),
-                      ('band', .48, .55), ('noz', .5, .12), ('noz', .68, .12)]},
-  'medium': {'body': [(0, .42, .74), (.1, .36, .80), (.5, .36, .80), (.8, .40, .74), (.95, .46, .68), (1, .5, .64)],
-             'parts': [('ell', .42, .56, .11, .40, 'a'), ('ell', .22, .54, .07, .26, 'a'), ('rect', .82, .36, .97, .66, 's'),
-                       ('glass', .39, .5, .45, .62), ('kit', [(.12, .34), (.15, .14)]), ('kit', [(.2, .32), (.23, .1)]),
-                       ('kit', [(.28, .32), (.31, .12)]), ('kit', [(.52, .32), (.55, .1)]), ('kit', [(.6, .33), (.63, .14)]),
-                       ('band', .66, .72), ('noz', .5, .12), ('noz', .64, .12)]},
-  'heavy': {'body': [(0, .40, .82), (.08, .34, .90), (.6, .34, .92), (.86, .40, .82), (1, .56, .66)],
-            'parts': [('ell', .45, .58, .13, .36, 'a'), ('rect', .3, .2, .36, .36, 's'), ('glass', .42, .5, .48, .62),
-                      ('kit', [(.22, .32), (.24, .02)]), ('kit', [(.27, .32), (.29, .0)]), ('kit', [(.4, .2), (.42, .0)]),
-                      ('kit', [(.5, .2), (.52, .04)]), ('kit', [(.58, .3), (.6, .08)]), ('kit', [(.64, .32), (.66, .12)]),
-                      ('band', .74, .8), ('noz', .5, .14), ('noz', .7, .14)]},
+  'light': {'parts': [
+     P(('prof', [(.44, .47, .65), (.8, .51, .61), (1, .55, .57)]), seams=20, rivets=True, band=(.62, .70)),
+     P(('prof', [(.04, .38, .80), (.28, .34, .84), (.48, .38, .80), (.60, .45, .68)]), seams=14, rivets=True, belt=.55,
+       ports=[(.32, .45, .9, 3, 3, 2, 1)], hatch=[(.6, .6, .85, .85)]),
+     P(('rect', .06, .74, .48, .86), 'brick', seams=7),
+     P(('ell', .21, .58, .14, .30), 'acc', belt=.5, lens=5, rivets=True),
+     P(('rect', .33, .30, .36, .88), 'acc', rivets=True),
+     P(('ell', .41, .44, .05, .15), 'acc', lens=2)],
+   'kit': [[(.08, .38), (.13, .10)], [(.14, .36), (.19, .06)], [(.2, .34), (.25, .08)], [(.26, .34), (.31, .14)],
+           [(.62, .50), (.97, .56)], [(.41, .30), (.42, .18)]],
+   'noz': [(.50, .12), (.68, .12)]},
+  'medium': {'parts': [
+     P(('prof', [(0, .40, .76), (.1, .34, .82), (.62, .34, .82), (.82, .38, .76), (.96, .44, .70), (1, .50, .64)]), seams=18,
+       rivets=True, belt=.48, ports=[(.3, .62, .8, 4, 3, 2, 2)], band=(.68, .74)),
+     P(('rect', .82, .36, .98, .70), 'steel', seams=6, rivets=True),
+     P(('rect', .06, .78, .80, .88), 'brick', seams=9),
+     P(('ell', .42, .56, .11, .42), 'acc', belt=.5, lens=6, rivets=True, lattice=True),
+     P(('ell', .21, .54, .065, .27), 'acc', lens=3, rivets=True)],
+   'kit': [[(.11, .33), (.15, .12)], [(.18, .32), (.22, .08)], [(.26, .32), (.3, .1)], [(.52, .32), (.56, .06)],
+           [(.6, .33), (.64, .12)], [(.68, .34), (.72, .16)]],
+   'noz': [(.48, .12), (.64, .12)]},
+  'heavy': {'parts': [
+     P(('prof', [(0, .40, .82), (.08, .34, .90), (.62, .34, .92), (.86, .40, .82), (1, .56, .66)]), seams=20, rivets=True,
+       belt=.5, ports=[(.28, .66, .84, 4, 3, 2, 2)], band=(.76, .82), hatch=[(.06, .6, .14, .8)]),
+     P(('rect', .02, .82, .86, .94), 'brick', seams=10),
+     P(('ell', .45, .58, .13, .38), 'acc', belt=.5, lens=8, rivets=True, lattice=True),
+     P(('rect', .29, .18, .36, .36), 'rust', seams=5, rivets=True),
+     P(('rect', .36, .2, .38, .96), 'acc'), P(('rect', .52, .2, .54, .96), 'acc'),
+     P(('poly', [(.92, .44), (1, .56), (1, .66), (.92, .70)]), 'gun')],
+   'kit': [[(.18, .32), (.21, .02)], [(.23, .32), (.26, .0)], [(.4, .22), (.42, .0)], [(.48, .2), (.5, .02)],
+           [(.58, .3), (.61, .06)], [(.64, .32), (.67, .1)], [(.70, .33), (.73, .14)]],
+   'noz': [(.50, .14), (.72, .14)]},
  },
  'probate': {
-  'light': {'body': [(0, .46, .82), (.6, .46, .82), (.66, .36, .82), (.86, .36, .82), (1, .46, .78)],
-            'parts': [('rect', .66, .22, .86, .40, 's'), ('glass', .74, .27, .80, .34), ('rect', .08, .32, .36, .48, 'a'),
-                      ('rect', .4, .38, .54, .48, 's'), ('kit', [(.86, .82), (.98, .94)]), ('kit', [(.1, .32), (.1, .2)]),
-                      ('kit', [(.2, .32), (.2, .2)]), ('kit', [(.3, .32), (.3, .2)]), ('band', .56, .62),
-                      ('noz', .58, .14), ('noz', .74, .08)]},
-  'medium': {'body': [(0, .4, .84), (.9, .4, .84), (1, .48, .78)],
-             'parts': [('rect', .3, .28, .66, .42, 'a'), ('rect', .06, .2, .2, .42, 's'), ('glass', .1, .25, .16, .32),
-                       ('rect', .7, .14, .76, .42, 's'), ('kit', [(.3, .26), (.64, .06)]), ('kit', [(.64, .06), (.68, .2)]),
-                       ('kit', [(.36, .28), (.4, .18)]), ('band', .82, .88), ('noz', .5, .14), ('noz', .7, .12)]},
-  'heavy': {'body': [(0, .42, .86), (.92, .42, .86), (1, .44, .86)],
-            'parts': [('rect', .2, .3, .7, .44, 'a'), ('rect', .42, .1, .52, .44, 's'), ('glass', .44, .16, .5, .22),
-                      ('poly', [(0, .36), (.18, .36), (.18, .42), (0, .42)], 's'), ('kit', [(.24, .3), (.24, .2)]),
-                      ('kit', [(.34, .3), (.34, .22)]), ('kit', [(.6, .3), (.6, .18)]), ('kit', [(.47, .1), (.47, .0)]),
-                      ('band', .8, .86), ('noz', .5, .1), ('noz', .64, .1), ('noz', .76, .1)]},
+  'light': {'parts': [
+     P(('rect', .02, .42, .38, .84), 'olive', seams=11, rivets=True, belt=.5),
+     P(('rect', .36, .46, .66, .84), 'steel', seams=16, rivets=True, belt=.4, band=(.48, .62)),
+     P(('rect', .64, .22, .88, .84), 'rust', seams=12, rivets=True, ports=[(.2, .2, .8, 2, 4, 3, 1)], hatch=[(.2, .5, .7, .9)]),
+     P(('poly', [(.86, .34), (1, .48), (1, .80), (.86, .84)]), 'steel', seams=5),
+     P(('rect', .06, .30, .32, .44), 'olive', lattice=True),
+     P(('rect', .42, .38, .56, .48), 'gun', greeb=3)],
+   'kit': [[(.86, .84), (.95, .93), (.99, .88)], [(.70, .22), (.70, .08)], [(.80, .22), (.82, .12)],
+           [(.1, .30), (.1, .18)], [(.2, .30), (.2, .2)], [(.3, .30), (.3, .18)]],
+   'noz': [(.56, .14), (.74, .08)]},
+  'medium': {'parts': [
+     P(('rect', 0, .42, .90, .86), 'steel', seams=22, rivets=True, belt=.45, ports=[(.7, .3, .7, 5, 3, 2, 1)], band=(.78, .86)),
+     P(('rect', 0, .36, .24, .86), 'olive', seams=9, rivets=True),
+     P(('poly', [(.86, .38), (1, .50), (1, .78), (.86, .86)]), 'rust', seams=6, rivets=True),
+     P(('poly', [(.30, .42), (.33, .30), (.42, .26), (.52, .30), (.60, .27), (.66, .34), (.68, .42)]), 'rust', greeb=9),
+     P(('rect', .26, .20, .72, .24), 'steel', lattice=True),
+     P(('rect', .04, .18, .20, .40), 'steel', seams=8, ports=[(.35, .15, .85, 2, 4, 3, 1)]),
+     P(('rect', .72, .10, .78, .42), 'rust', seams=4, lens=2)],
+   'kit': [[(.30, .26), (.64, .06)], [(.64, .06), (.68, .20)], [(.27, .24), (.27, .42)], [(.71, .24), (.71, .42)],
+           [(.12, .18), (.12, .06)]],
+   'noz': [(.50, .14), (.72, .12)]},
+  'heavy': {'parts': [
+     P(('rect', .18, .42, .94, .88), 'steel', seams=24, rivets=True, belt=.5, ports=[(.28, .26, .9, 7, 3, 2, 2)], band=(.80, .86)),
+     P(('rect', .92, .40, 1, .90), 'olive', seams=3, rivets=True),
+     P(('poly', [(0, .34), (.20, .34), (.22, .88), (0, .88)]), 'rust', seams=8, rivets=True, belt=.5),
+     P(('rect', .24, .32, .36, .42), 'olive', seams=5, greeb=2), P(('rect', .36, .30, .44, .42), 'rust', greeb=2),
+     P(('rect', .56, .32, .70, .42), 'olive', seams=6, greeb=3),
+     P(('rect', .44, .12, .54, .42), 'steel', seams=5, rivets=True, ports=[(.25, .2, .8, 2, 3, 3, 2)], lens=2),
+     P(('rect', .30, .86, .70, .92), 'gun', seams=10)],
+   'kit': [[(.24, .32), (.24, .2)], [(.34, .32), (.34, .22)], [(.62, .32), (.62, .18)], [(.47, .12), (.47, .0)],
+           [(.51, .12), (.52, .04)]],
+   'noz': [(.48, .1), (.60, .08), (.70, .1), (.80, .08)]},
  },
  'redline': {
-  'light': {'body': [(0, .4, .74), (.5, .42, .74), (.8, .5, .72), (1, .64, .70)],
-            'parts': [('poly', [(.04, .4), (.16, .4), (.08, .12)], 's'), ('poly', [(.14, .41), (.24, .41), (.18, .18)], 's'),
-                      ('rect', .56, .38, .7, .5, 's'), ('glass', .6, .41, .68, .47), ('kit', [(.08, .12), (.06, .04)]),
-                      ('kit', [(.18, .18), (.17, .1)]), ('band', .38, .44), ('noz', .5, .14), ('noz', .64, .1)]},
-  'medium': {'body': [(0, .22, .86), (.3, .30, .86), (.7, .46, .80), (1, .62, .70)],
-             'parts': [('rect', .34, .78, .6, .9, 's'), ('glass', .7, .5, .78, .56), ('poly', [(0, .22), (.12, .22), (.04, .06)], 's'),
-                       ('kit', [(.04, .06), (.02, .0)]), ('kit', [(.5, .38), (.52, .2)]), ('band', .26, .32),
-                       ('noz', .34, .1), ('noz', .5, .1), ('noz', .64, .1), ('noz', .78, .08)]},
-  'heavy': {'body': [(0, .28, .80), (.2, .34, .82), (.8, .42, .76), (1, .6, .66)],
-            'parts': [('rect', .3, .48, .62, .58, 's'), ('glass', .82, .46, .88, .52), ('ell', .46, .4, .05, .08, 's'),
-                      ('kit', [(.12, .3), (.08, .02)]), ('kit', [(.2, .33), (.16, .04)]), ('kit', [(.66, .4), (.7, .2)]),
-                      ('band', .7, .76), ('noz', .44, .12), ('noz', .64, .12)]},
+  'light': {'parts': [
+     P(('prof', [(0, .36, .74), (.3, .40, .76), (.7, .48, .74), (1, .63, .69)]), 'steel', seams=16, slant=.5, stripe=(.6, 2),
+       band=(.32, .40), hatch=[(.12, .5, .28, .8)]),
+     P(('poly', [(0, .36), (.14, .36), (.05, .06)]), 'dark', seams=6, slant=.6),
+     P(('poly', [(.12, .38), (.24, .38), (.16, .16)]), 'rust'),
+     P(('rect', .40, .74, .58, .82), 'dark', seams=6),
+     P(('poly', [(.55, .44), (.70, .40), (.80, .48), (.60, .50)]), 'dark', ports=[(.4, .1, .9, 1, 12, 3, 0)])],
+   'kit': [[(.05, .06), (.03, .0)], [(.16, .16), (.15, .08)], [(.80, .58), (.98, .62)]],
+   'noz': [(.50, .14), (.64, .1)]},
+  'medium': {'parts': [
+     P(('prof', [(0, .18, .86), (.3, .26, .88), (.7, .44, .82), (1, .62, .70)]), 'steel', seams=20, slant=.5, stripe=(.72, 3),
+       ports=[(.3, .55, .85, 3, 3, 2, 1)], band=(.22, .30), hatch=[(.08, .3, .2, .6)]),
+     P(('rect', .30, .80, .62, .92), 'rust', seams=8, rivets=True),
+     P(('rect', .42, .40, .54, .62), 'olive', seams=6),
+     P(('poly', [(0, .18), (.13, .18), (.04, .02)]), 'dark', seams=5, slant=.6),
+     P(('poly', [(.78, .46), (.92, .52), (.96, .58), (.80, .56)]), 'dark', ports=[(.4, .1, .8, 1, 14, 3, 0)])],
+   'kit': [[(.04, .02), (.02, .0)], [(.50, .36), (.53, .16)], [(.94, .60), (1.0, .64)]],
+   'noz': [(.30, .1), (.46, .1), (.62, .1), (.76, .08)]},
+  'heavy': {'parts': [
+     P(('prof', [(0, .26, .80), (.15, .32, .82), (.8, .42, .74), (1, .60, .64)]), 'steel', seams=24, slant=.5, stripe=(.58, 3),
+       ports=[(.25, .2, .7, 6, 3, 2, 0)], band=(.70, .76), hatch=[(.25, .55, .4, .85), (.45, .55, .6, .85)]),
+     P(('ell', .46, .40, .05, .07), 'dark', lens=0),
+     P(('poly', [(0, .26), (.12, .26), (.04, .06)]), 'dark', seams=5, slant=.6),
+     P(('poly', [(.82, .44), (.94, .52), (.84, .54)]), 'dark', ports=[(.4, .1, .8, 1, 10, 3, 0)]),
+     P(('rect', .5, .74, .66, .80), 'rust', seams=5)],
+   'kit': [[(.10, .30), (.07, .0)], [(.18, .32), (.15, .04)], [(.66, .40), (.70, .2)], [(.95, .6), (1.0, .62)]],
+   'noz': [(.42, .12), (.62, .12)]},
  },
  'cygnet': {
-  'light': {'body': [(0, .46, .62), (.2, .44, .64), (.7, .44, .62), (.86, .48, .58), (1, .52, .54)],
-            'parts': [('rect', .24, .36, .5, .5, 's'), ('glass', .4, .4, .46, .45), ('rect', .3, .7, .62, .76, 's'),
-                      ('rect', .4, .76, .5, .86, 'a'), ('kit', [(.86, .52), (1, .5)]), ('kit', [(.6, .44), (.62, .2)]),
-                      ('kit', [(.3, .64), (.3, .7)]), ('kit', [(.6, .64), (.6, .7)]), ('band', .62, .68), ('noz', .54, .12)]},
-  'medium': {'body': [(0, .44, .6), (1, .5, .54)],
-             'parts': [('rect', .2, .28, .7, .4, 's'), ('rect', .2, .64, .7, .76, 's'), ('rect', .26, .2, .34, .28, 'a'),
-                       ('rect', .42, .2, .5, .28, 'a'), ('rect', .3, .76, .38, .86, 'a'), ('rect', .5, .76, .58, .86, 'a'),
-                       ('glass', .8, .46, .88, .52), ('kit', [(.6, .2), (.66, .02)]), ('kit', [(.66, .02), (.72, .12)]),
-                       ('kit', [(.76, .44), (.78, .1)]), ('kit', [(.24, .4), (.24, .44)]), ('kit', [(.66, .4), (.66, .44)]),
-                       ('band', .74, .8), ('noz', .52, .1)]},
-  'heavy': {'body': [(0, .3, .84), (.84, .3, .84), (1, .46, .7)],
-            'parts': [('glass', .2, .52, .26, .58), ('glass', .32, .52, .38, .58), ('glass', .44, .52, .5, .58), ('glass', .56, .52, .62, .58),
-                      ('rect', .84, .4, .96, .6, 's'), ('glass', .88, .44, .94, .5), ('kit', [(.1, .3), (.12, .0)]),
-                      ('kit', [(.2, .3), (.21, .06)]), ('kit', [(.3, .3), (.31, .1)]), ('kit', [(.4, .3), (.41, .04)]),
-                      ('kit', [(.5, .3), (.51, .12)]), ('band', .7, .76), ('noz', .44, .14), ('noz', .66, .14)]},
+  'light': {'parts': [
+     P(('rect', 0, .47, .86, .56), 'cold', seams=9, rivets=True, band=(.66, .76)),
+     P(('ell', .36, .47, .17, .11), 'cold', seams=8, belt=.5, ports=[(.35, .2, .8, 3, 2, 2, 1)]),
+     P(('poly', [(.84, .46), (1, .515), (.84, .57)]), 'steel'),
+     P(('rect', .26, .66, .66, .70), 'steel', lattice=True),
+     P(('ell', .46, .76, .06, .055), 'acc', lens=1), P(('ell', .58, .76, .045, .045), 'acc'),
+     P(('ell', .52, .38, .05, .05), 'steel', ports=[(.4, .3, .7, 1, 2, 2, 1)])],
+   'kit': [[(.30, .56), (.30, .66)], [(.42, .56), (.42, .66)], [(.54, .56), (.54, .66)], [(.62, .56), (.62, .66)],
+           [(.62, .47), (.64, .10)], [(.58, .22), (.70, .22)], [(.86, .50), (1.0, .49)]],
+   'noz': [(.51, .12)]},
+  'medium': {'parts': [
+     P(('rect', 0, .46, .9, .55), 'cold', seams=10, rivets=True),
+     P(('rect', .16, .31, .70, .36), 'steel', lattice=True), P(('rect', .16, .64, .70, .69), 'steel', lattice=True),
+     P(('ell', .24, .25, .045, .05), 'acc'), P(('ell', .36, .25, .045, .05), 'acc'), P(('ell', .48, .25, .045, .05), 'acc'),
+     P(('ell', .60, .25, .045, .05), 'acc'),
+     P(('ell', .28, .75, .045, .05), 'acc'), P(('ell', .44, .75, .045, .05), 'acc'), P(('ell', .58, .75, .045, .05), 'acc'),
+     P(('ell', .88, .50, .10, .14), 'cold', seams=8, belt=.5, ports=[(.3, .4, .9, 2, 3, 2, 1)], band=(.84, .92)),
+     P(('poly', [(.70, .26), (.76, .10), (.82, .26), (.76, .30)]), 'steel')],
+   'kit': [[(.2, .36), (.2, .46)], [(.4, .36), (.4, .46)], [(.6, .36), (.6, .46)], [(.2, .55), (.2, .64)],
+           [(.4, .55), (.4, .64)], [(.6, .55), (.6, .64)], [(.76, .30), (.76, .46)], [(.66, .46), (.68, .04)],
+           [(.62, .14), (.72, .14)]],
+   'noz': [(.50, .1)]},
+  'heavy': {'parts': [
+     P(('rect', 0, .32, .86, .84), 'cold', seams=22, rivets=True, belt=.5,
+       ports=[(.25, .06, .80, 7, 6, 4, 0), (.65, .06, .80, 7, 8, 6, 3)], band=(.74, .80)),
+     P(('rect', .84, .40, 1, .70), 'steel', seams=6, ports=[(.3, .2, .8, 2, 4, 3, 2)]),
+     P(('rect', .10, .26, .70, .32), 'steel', greeb=10),
+     P(('ell', .22, .89, .03, .04), 'acc'), P(('ell', .40, .89, .03, .04), 'acc'), P(('ell', .58, .89, .03, .04), 'acc')],
+   'kit': [[(.12, .26), (.13, .0)], [(.18, .26), (.19, .08)], [(.26, .26), (.27, .02)], [(.34, .26), (.35, .1)],
+           [(.42, .26), (.43, .04)], [(.50, .26), (.51, .12)], [(.58, .26), (.59, .06)], [(.66, .26), (.67, .14)],
+           [(.22, .84), (.22, .86)], [(.40, .84), (.40, .86)], [(.58, .84), (.58, .86)]],
+   'noz': [(.44, .14), (.66, .14)]},
  },
  'verity': {
-  'light': {'body': [(0, .5, .66), (.1, .46, .70), (.5, .44, .70), (.85, .48, .64), (1, .54, .58)],
-            'parts': [('ell', .4, .44, .1, .04, 's'), ('glass', .7, .5, .76, .54), ('rect', .2, .56, .3, .62, 'a'),
-                      ('kit', [(.46, .44), (.48, .02)]), ('kit', [(.18, .46), (.19, .18)]), ('band', .56, .6), ('noz', .58, .08)]},
-  'medium': {'body': [(0, .48, .7), (.1, .44, .76), (.5, .42, .78), (.86, .46, .70), (1, .52, .62)],
-             'parts': [('ell', .3, .42, .12, .04, 's'), ('ell', .62, .42, .1, .04, 's'), ('glass', .82, .5, .9, .55),
-                       ('rect', .7, .56, .8, .62, 'a'), ('kit', [(.36, .42), (.38, .02)]), ('kit', [(.62, .42), (.64, .04)]),
-                       ('band', .5, .55), ('noz', .56, .1)]},
-  'heavy': {'body': [(0, .46, .74), (.1, .42, .82), (.5, .40, .86), (.86, .44, .76), (1, .52, .64)],
-            'parts': [('ell', .28, .4, .1, .04, 's'), ('ell', .54, .4, .1, .04, 's'), ('glass', .04, .5, .1, .56),
-                      ('glass', .04, .6, .1, .66), ('rect', .66, .56, .8, .62, 'a'), ('kit', [(.24, .4), (.26, .06)]),
-                      ('kit', [(.46, .4), (.48, .0)]), ('kit', [(.66, .42), (.67, .12)]), ('band', .58, .63), ('noz', .56, .12)]},
+  'light': {'parts': [
+     P(('prof', [(0, .52, .66), (.08, .46, .72), (.5, .42, .72), (.86, .46, .66), (1, .54, .58)]), 'enamel', rule=True, belt=.6,
+       ports=[(.42, .08, .26, 3, 2, 2, 3), (.42, .62, .80, 2, 3, 2, 0)], band=(.54, .60)),
+     P(('ell', .40, .42, .10, .045), 'enamel'),
+     P(('rect', .24, .56, .32, .62), 'acc', rivets=True)],
+   'kit': [[(.46, .42), (.47, .02)], [(.40, .14), (.53, .14)], [(.18, .46), (.185, .16)], [(.15, .26), (.22, .26)]],
+   'noz': [(.58, .08)]},
+  'medium': {'parts': [
+     P(('prof', [(0, .48, .70), (.1, .44, .76), (.5, .42, .78), (.86, .46, .70), (1, .52, .62)]), 'enamel', rule=True, belt=.62,
+       ports=[(.45, .04, .18, 4, 2, 2, 4), (.45, .70, .84, 3, 3, 2, 0)], band=(.48, .53),
+       hatch=[(.22, .55, .34, .7)]),
+     P(('ell', .30, .42, .12, .04), 'enamel', ports=[(.5, .2, .8, 3, 3, 1, 0)]),
+     P(('ell', .64, .42, .10, .04), 'enamel', ports=[(.5, .2, .8, 2, 3, 1, 0)]),
+     P(('rect', .72, .58, .82, .64), 'acc', rivets=True)],
+   'kit': [[(.36, .42), (.38, .02)], [(.30, .12), (.46, .12)], [(.62, .42), (.64, .04)], [(.57, .16), (.71, .16)]],
+   'noz': [(.56, .1)]},
+  'heavy': {'parts': [
+     P(('prof', [(0, .46, .74), (.1, .42, .82), (.5, .40, .86), (.86, .44, .76), (1, .52, .64)]), 'enamel', rule=True, belt=.6,
+       ports=[(.36, .02, .12, 3, 3, 2, 3), (.56, .02, .12, 3, 3, 2, 3), (.4, .74, .86, 3, 3, 2, 0)], band=(.58, .63),
+       hatch=[(.2, .55, .3, .72), (.36, .55, .46, .72)]),
+     P(('ell', .28, .40, .10, .04), 'enamel', ports=[(.5, .2, .8, 3, 3, 1, 0)]),
+     P(('ell', .52, .40, .10, .04), 'enamel', ports=[(.5, .2, .8, 3, 3, 1, 0)]),
+     P(('rect', .66, .58, .80, .64), 'acc', rivets=True)],
+   'kit': [[(.24, .40), (.26, .06)], [(.19, .14), (.33, .14)], [(.46, .40), (.48, .0)], [(.40, .10), (.56, .10)],
+           [(.66, .42), (.67, .12)], [(.62, .20), (.72, .20)]],
+   'noz': [(.56, .12)]},
  },
  'calyx': {
-  'light': {'body': [(0, .5, .66), (.1, .40, .78), (.4, .32, .86), (.7, .32, .86), (.92, .40, .76), (1, .52, .62)],
-            'parts': [('ell', .55, .86, .08, .08, 'a'), ('glass', .62, .52, .7, .56), ('glass', .44, .52, .52, .56),
-                      ('kit', [(.55, .32), (.57, .12)]), ('kit', [(.02, .5), (0, .3)]), ('kit', [(.02, .62), (0, .82)]),
-                      ('band', .3, .36)]},
-  'medium': {'body': [(0, .5, .6), (.1, .40, .74), (.5, .34, .78), (.9, .40, .72), (1, .5, .6)],
-             'parts': [('rect', .18, .36, .82, .42, 'a'), ('ell', .5, .8, .08, .06, 'a'), ('glass', .3, .52, .36, .56),
-                       ('kit', [(.4, .34), (.42, .12)]), ('kit', [(.62, .74), (.64, .94)]), ('kit', [(.02, .52), (0, .36)]),
-                       ('kit', [(.98, .52), (1, .36)]), ('band', .66, .71)]},
-  'heavy': {'body': [(0, .48, .7), (.1, .38, .8), (.5, .32, .84), (.9, .38, .78), (1, .5, .64)],
-            'parts': [('rect', .04, .78, .96, .86, 'a'), ('ell', .38, .88, .08, .08, 's'), ('ell', .62, .88, .08, .08, 's'),
-                      ('glass', .2, .5, .24, .54), ('glass', .3, .5, .34, .54), ('glass', .4, .5, .44, .54),
-                      ('kit', [(.3, .32), (.32, .1)]), ('kit', [(.5, .32), (.52, .06)]), ('kit', [(.7, .34), (.72, .12)]),
-                      ('band', .78, .83)]},
+  'light': {'parts': [
+     P(('ell', .52, .58, .46, .28), 'chitin', ribs=7, ports=[(.5, .45, .7, 2, 4, 1, 0)], band=(.26, .33)),
+     P(('ell', .55, .88, .08, .07), 'acc', lens=2),
+     P(('ell', .05, .40, .04, .06), 'acc'), P(('ell', .02, .52, .03, .05), 'acc'), P(('ell', .02, .64, .03, .05), 'acc'),
+     P(('ell', .05, .76, .04, .06), 'acc')],
+   'kit': [[(.56, .30), (.58, .08)], [(.40, .32), (.41, .2)], [(.70, .32), (.71, .2)]],
+   'noz': [(.58, .1)]},
+  'medium': {'parts': [
+     P(('prof', [(0, .50, .60), (.1, .40, .74), (.5, .34, .78), (.9, .40, .72), (1, .50, .60)]), 'chitin', ribs=10,
+       ports=[(.55, .3, .7, 3, 4, 1, 0)], band=(.66, .71)),
+     P(('rect', .18, .36, .82, .44), 'acc', growth=2),
+     P(('ell', .50, .80, .08, .06), 'acc', lens=2),
+     P(('ell', .03, .44, .03, .05), 'acc'), P(('ell', .03, .66, .03, .05), 'acc'),
+     P(('ell', .97, .44, .03, .05), 'acc'), P(('ell', .97, .66, .03, .05), 'acc')],
+   'kit': [[(.40, .34), (.42, .12)], [(.62, .74), (.64, .94)], [(.24, .35), (.25, .2)], [(.76, .36), (.77, .22)]],
+   'noz': [(.55, .08)]},
+  'heavy': {'parts': [
+     P(('prof', [(0, .48, .70), (.1, .38, .80), (.5, .32, .84), (.9, .38, .78), (1, .50, .64)]), 'chitin', ribs=14,
+       ports=[(.5, .16, .5, 4, 3, 1, 0)], band=(.78, .83)),
+     P(('rect', .04, .76, .96, .84), 'acc', ribs=20, growth=1),
+     P(('ell', .38, .88, .08, .08), 'chitin', ribs=3, lens=2), P(('ell', .62, .88, .08, .08), 'chitin', ribs=3, lens=2),
+     P(('ell', .04, .58, .03, .14), 'acc', ribs=3)],
+   'kit': [[(.30, .32), (.32, .1)], [(.50, .32), (.52, .04)], [(.70, .34), (.72, .12)], [(.40, .33), (.41, .2)],
+           [(.60, .33), (.61, .2)]],
+   'noz': [(.56, .1)]},
  },
 }
 
 
 def lines_of(base):
-    """HULL_LINES and HULL_EXHAUST for a base, read out of Database.gd."""
+    """HULL_EXHAUST for a base, read out of Database.gd (for reference)."""
     src = open(os.path.join(ROOT, 'scripts', 'autoload', 'Database.gd')).read()
-    def block(const):
-        i = src.index('const %s := {' % const)
-        j = src.index('\t"%s":' % base, i)
-        k = src.index('\n\t', j + 1)
-        end = src.index('\n\t}', j) if const == 'HULL_LINES' else src.index('\n\t]', j)
-        return src[j:end]
-    out = {}
-    lb = block('HULL_LINES')
-    for name in ('dorsal', 'ventral'):
-        m = re.search(name + r' = \[(.*?)\]', lb)
-        out[name] = [tuple(map(float, p)) for p in re.findall(r'Vector2\(([\d.]+), ([\d.]+)\)', m.group(1))]
-    eb = block('HULL_EXHAUST')
-    out['exhaust'] = [tuple(map(int, p)) for p in re.findall(r'Vector2i\((\d+), (\d+)\)', eb)]
-    return out
+    i = src.index('const HULL_EXHAUST := {')
+    j = src.index('\t"%s":' % base, i)
+    end = src.index('\n\t]', j)
+    return [tuple(map(int, p)) for p in re.findall(r'Vector2i\((\d+), (\d+)\)', src[j:end])]
 
 
-def lum(c):
-    return 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]
+# ---------------------------------------------------------------- the renderer
+
+def _shade(r, f, x, y):
+    """A ramp stop for a point `f` down a part (0 top, 1 bottom), dithered where
+    two bands meet (ordered, a checkerboard: ART_CONTRACT §2)."""
+    edges = [.10, .30, .56, .80]
+    idx = 4 if f < edges[0] else (3 if f < edges[1] else (2 if f < edges[2] else (1 if f < edges[3] else 0)))
+    for k, e in enumerate(edges):
+        if abs(f - e) < .035 and (x + y) % 2:
+            idx = 4 - k if f >= e else 3 - k
+            break
+    return r[max(0, min(4, idx))]
 
 
-def block_in(maker, weight):
+def render(maker, weight):
     base = Image.open(os.path.join(ROOT, 'art', 'sprites', 'hulls', 'korvan', BASES[weight] + '.png')).convert('RGBA')
     W, H = base.size
     x0, y0, x1, y1 = base.getbbox()
     ew, eh = x1 - x0 - 1, y1 - y0 - 1
     X = lambda f: x0 + round(f * ew)
     Y = lambda f: y0 + round(f * eh)
-    brief = BRIEFS[maker][weight]
-    acc = ramp(maker)
-    solid = Image.new('L', (W, H), 0)      # the hull's own mask
-    tone = Image.new('L', (W, H), 0)       # 0 steel, 1 accent, 2 glass, 3 gun
-    d = ImageDraw.Draw(solid)
-    t = ImageDraw.Draw(tone)
-    body = brief['body']
-    for i in range(len(body) - 1):
-        a, b = body[i], body[i + 1]
-        for px in range(X(a[0]), X(b[0]) + 1):
-            f = 0 if X(b[0]) == X(a[0]) else (px - X(a[0])) / (X(b[0]) - X(a[0]))
-            top = Y(a[1] + (b[1] - a[1]) * f)
-            bot = Y(a[2] + (b[2] - a[2]) * f)
-            d.line([(px, top), (px, bot)], fill=255)
-    kits = []
-    band = None
-    for p in brief['parts']:
-        k = p[0]
-        if k == 'ell':
-            box = [X(p[1] - p[3]), Y(p[2] - p[4]), X(p[1] + p[3]), Y(p[2] + p[4])]
-            d.ellipse(box, fill=255)
-            t.ellipse(box, fill=1 if p[5] == 'a' else 0)
-        elif k == 'rect':
-            box = [X(p[1]), Y(p[2]), X(p[3]), Y(p[4])]
-            d.rectangle(box, fill=255)
-            t.rectangle(box, fill=1 if p[5] == 'a' else 0)
-        elif k == 'poly':
-            pts = [(X(a), Y(b)) for a, b in p[1]]
-            d.polygon(pts, fill=255)
-            t.polygon(pts, fill=1 if p[2] == 'a' else 0)
-        elif k == 'kit':
-            kits.append([(X(a), Y(b)) for a, b in p[1]])
-        elif k == 'band':
-            band = (X(p[1]), X(p[2]))
-        elif k == 'noz':
-            yc, hh = Y(p[1]), max(3, round(p[2] * eh))
-            box = [x0 - 2, yc - hh // 2, x0 + max(6, ew // 18), yc + hh // 2]
-            d.rectangle(box, fill=255)
-            t.rectangle(box, fill=3)
-    if band:
-        for py in range(H):
-            for px in range(band[0], band[1] + 1):
-                if solid.getpixel((px, py)) and tone.getpixel((px, py)) == 0:
-                    tone.putpixel((px, py), 1)
-    for p in brief['parts']:
-        if p[0] == 'glass':
-            t.rectangle([X(p[1]), Y(p[2]), X(p[3]), Y(p[4])], fill=2)
-    # banded light, column by column: rim, lit top, flank, shadowed belly
+    spec = SPECS[maker][weight]
+    acc = accent(maker)
     img = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-    S, T = solid.load(), tone.load()
-    for px in range(W):
-        ys = [py for py in range(H) if S[px, py]]
-        if not ys:
+    solid = Image.new('L', (W, H), 0)
+    tone = Image.new('L', (W, H), 0)          # 0 plain hull plate (registry may go here)
+    px, sp, tp = img.load(), solid.load(), tone.load()
+    marks = {'glass': [], 'kit': [], 'noz': [], 'band': None}
+
+    def mask_of(shape):
+        m = Image.new('L', (W, H), 0)
+        d = ImageDraw.Draw(m)
+        k = shape[0]
+        if k == 'prof':
+            pts = shape[1]
+            for i in range(len(pts) - 1):
+                a, b = pts[i], pts[i + 1]
+                for cx in range(X(a[0]), X(b[0]) + 1):
+                    t = 0 if X(b[0]) == X(a[0]) else (cx - X(a[0])) / (X(b[0]) - X(a[0]))
+                    d.line([(cx, Y(a[1] + (b[1] - a[1]) * t)), (cx, Y(a[2] + (b[2] - a[2]) * t))], fill=255)
+        elif k == 'ell':
+            d.ellipse([X(shape[1] - shape[3]), Y(shape[2] - shape[4]), X(shape[1] + shape[3]), Y(shape[2] + shape[4])], fill=255)
+        elif k == 'rect':
+            d.rectangle([X(shape[1]), Y(shape[2]), X(shape[3]), Y(shape[4])], fill=255)
+        elif k == 'poly':
+            d.polygon([(X(a), Y(b)) for a, b in shape[1]], fill=255)
+        return m
+
+    for part in spec['parts']:
+        m = mask_of(part['shape'])
+        mp = m.load()
+        bb = m.getbbox()
+        if not bb:
             continue
-        top, bot = ys[0], ys[-1]
-        for py in ys:
-            f = (py - top) / max(1, bot - top)
-            kind = T[px, py]
-            if kind == 2:
-                c = GLASS[1] if py == top or not S[px, py - 1] or T[px, py - 1] != 2 else GLASS[0]
-            elif kind == 3:
-                c = GUN[2] if f < .3 else (GUN[1] if f < .7 else GUN[0])
-            else:
-                r = acc if kind == 1 else STEEL[1:]
-                idx = 4 if f < .08 else (3 if f < .42 else (2 if f < .7 else (1 if f < .9 else 0)))
-                c = r[min(idx, len(r) - 1)]
-                if kind == 0 and py == top:
-                    c = STEEL[5]
-            img.putpixel((px, py), c + (255,))
-    # the thin fittings: one or two pixels, lit on top
-    kd = ImageDraw.Draw(img)
-    for pts in kits:
-        kd.line(pts, fill=STEEL[4] + (255,), width=2)
-    # outline
-    a = img.split()[3].load()
+        bx0, by0, bx1, by1 = bb
+        r = acc if part['mat'] == 'acc' else MAT[part['mat']]
+        hull_plate = part['mat'] in ('steel', 'dark', 'olive', 'rust', 'enamel', 'chitin', 'cold')
+        # fill, lit column by column on the part's own extent
+        cols = {}
+        for cx in range(bx0, bx1):
+            ys = [cy for cy in range(by0, by1) if mp[cx, cy]]
+            if ys:
+                cols[cx] = (ys[0], ys[-1])
+        for cx, (t, b) in cols.items():
+            for cy in range(t, b + 1):
+                f = (cy - t) / max(1, b - t)
+                c = r[5] if cy == t else _shade(r, f, cx, cy)
+                px[cx, cy] = c + (255,)
+                sp[cx, cy] = 255
+                tp[cx, cy] = 0 if hull_plate else 3
+        # the band, across this part
+        if part.get('band'):
+            ba, bb_ = X(part['band'][0]), X(part['band'][1])
+            marks['band'] = (ba, bb_)
+            for cx in range(max(ba, bx0), min(bb_, bx1 - 1) + 1):
+                if cx not in cols:
+                    continue
+                t, b = cols[cx]
+                for cy in range(t, b + 1):
+                    f = (cy - t) / max(1, b - t)
+                    px[cx, cy] = (acc[5] if cy == t else _shade(acc, f, cx, cy)) + (255,)
+                    tp[cx, cy] = 1
+        # seams: a dark line with a lit edge beside it, rivets along them
+        seam = part.get('seams')
+        if seam:
+            sl = part.get('slant', 0)
+            for sx in range(bx0 + seam, bx1 - 2, seam):
+                for cy in range(by0, by1):
+                    cx = sx + round((cy - by0) * sl * 0.4)
+                    if cx in cols and cols[cx][0] < cy < cols[cx][1] and mp[cx, cy]:
+                        c = px[cx, cy][:3]
+                        px[cx, cy] = _darker(r, c) + (255,)
+                        if cx + 1 in cols and mp[cx + 1, cy]:
+                            px[cx + 1, cy] = _lighter(r, px[cx + 1, cy][:3]) + (255,)
+                        tp[cx, cy] = 3
+                        if part.get('rivets') and (cy - by0) % 4 == 2 and cx - 2 in cols and mp[cx - 2, cy]:
+                            px[cx - 2, cy] = r[5] + (255,)
+                            tp[cx - 2, cy] = 3
+        # a belt line across the part
+        if part.get('belt'):
+            for cx, (t, b) in cols.items():
+                cy = t + round((b - t) * part['belt'])
+                if t < cy < b:
+                    px[cx, cy] = _darker(r, px[cx, cy][:3]) + (255,)
+                    if cy + 1 <= b:
+                        px[cx, cy + 1] = _lighter(r, px[cx, cy + 1][:3]) + (255,)
+                    tp[cx, cy] = tp[cx, cy + 1] = 3
+                    if part.get('rivets') and cx % 5 == 0 and cy - 2 > t:
+                        px[cx, cy - 2] = r[5] + (255,)
+        # a gilt hairline under the top edge (Verity)
+        if part.get('rule'):
+            for cx, (t, b) in cols.items():
+                if t + 2 < b:
+                    px[cx, t + 2] = acc[4] + (255,)
+                    tp[cx, t + 2] = 3
+        # a horizontal run of the accent (Redline)
+        if part.get('stripe'):
+            sy, sh = part['stripe']
+            for cx, (t, b) in cols.items():
+                cy0 = t + round((b - t) * sy)
+                for cy in range(cy0, cy0 + sh):
+                    if t < cy < b:
+                        px[cx, cy] = (acc[4] if cy == cy0 else acc[2]) + (255,)
+                        tp[cx, cy] = 1
+        # rib arches (Calyx): dark curves up the part, lit behind
+        if part.get('ribs'):
+            n = part['ribs']
+            for i in range(1, n + 1):
+                rx = bx0 + round((bx1 - bx0) * i / (n + 1))
+                for cy in range(by0, by1):
+                    if rx not in cols:
+                        continue
+                    t, b = cols[rx]
+                    if not (t < cy < b):
+                        continue
+                    f = (cy - t) / max(1, b - t)
+                    cx = rx + round((f - .5) ** 2 * 6) - 1
+                    if cx in cols and mp[cx, cy]:
+                        px[cx, cy] = _darker(r, px[cx, cy][:3]) + (255,)
+                        if cx - 1 in cols and mp[cx - 1, cy]:
+                            px[cx - 1, cy] = _lighter(r, px[cx - 1, cy][:3]) + (255,)
+                        tp[cx, cy] = 3
+        # X bracing (Cygnet, Probate's bins, Solari's cages)
+        if part.get('lattice'):
+            for cx, (t, b) in cols.items():
+                for cy in range(t + 1, b):
+                    if (cx - cy) % 6 == 0 or (cx + cy) % 6 == 0:
+                        px[cx, cy] = _darker(r, px[cx, cy][:3]) + (255,)
+                        tp[cx, cy] = 3
+        # green growth in rows (Calyx's translucent panel)
+        if part.get('growth'):
+            for cx, (t, b) in cols.items():
+                for k in range(part['growth']):
+                    cy = t + 1 + round((b - t - 2) * (k + 1) / (part['growth'] + 1))
+                    if (cx // 2) % 2 == 0 and t < cy < b:
+                        px[cx, cy] = hx('#9ad48a') + (255,)
+        # hatches
+        for hb in part.get('hatch', []):
+            ha, hb_ = bx0 + round((bx1 - bx0) * hb[0]), bx0 + round((bx1 - bx0) * hb[2])
+            hc, hd = by0 + round((by1 - by0) * hb[1]), by0 + round((by1 - by0) * hb[3])
+            for cx in range(ha, hb_ + 1):
+                for cy in (hc, hd):
+                    if mp[cx, cy]:
+                        px[cx, cy] = _darker(r, px[cx, cy][:3]) + (255,)
+                        tp[cx, cy] = 3
+            for cy in range(hc, hd + 1):
+                for cx in (ha, hb_):
+                    if mp[cx, cy]:
+                        px[cx, cy] = _darker(r, px[cx, cy][:3]) + (255,)
+                        tp[cx, cy] = 3
+        # ports: dark glass, some lit warm
+        for (py, pa, pb, n, w, h, lit) in part.get('ports', []):
+            cy = by0 + round((by1 - by0) * py)
+            for i in range(n):
+                cx = bx0 + round((bx1 - bx0) * (pa + (pb - pa) * (i + .5) / n)) - w // 2
+                on = i < lit
+                for yy in range(cy, cy + h):
+                    for xx in range(cx, cx + w):
+                        if mp[xx, yy]:
+                            if on:
+                                px[xx, yy] = (LIT[2] if yy == cy else LIT[1]) + (255,)
+                            else:
+                                px[xx, yy] = (GLASS[1] if yy == cy else GLASS[0]) + (255,)
+                            tp[xx, yy] = 2
+                if not on:
+                    marks['glass'].append((cx, cy, cx + w - 1, cy + h - 1))
+        # small fittings along the part's top edge
+        g = part.get('greeb', 0)
+        for i in range(g):
+            cx = bx0 + round((bx1 - bx0) * (i + .5) / g)
+            if cx not in cols:
+                continue
+            t = cols[cx][0]
+            gw, gh = 2 + (i * 7) % 3, 2 + (i * 5) % 3
+            for yy in range(t - gh, t):
+                for xx in range(cx, cx + gw):
+                    if 0 <= yy < H:
+                        px[xx, yy] = (MAT['gun'][4] if yy == t - gh else MAT['gun'][2]) + (255,)
+                        sp[xx, yy] = 255
+                        tp[xx, yy] = 3
+        # a heat-lit lens (Solari): the contract's warm light, from inside
+        if part.get('lens'):
+            lr = part['lens']
+            cx, cy = (bx0 + bx1) // 2, (by0 + by1) // 2
+            for yy in range(cy - lr, cy + lr + 1):
+                for xx in range(cx - lr, cx + lr + 1):
+                    dd = ((xx - cx) ** 2 + (yy - cy) ** 2) ** .5
+                    if dd <= lr + .3:
+                        px[xx, yy] = (HEAT[4] if dd < lr * .35 else (HEAT[3] if dd < lr * .7 else HEAT[2])) + (255,)
+                        tp[xx, yy] = 3
+            if lr >= 2:
+                for a in range(-lr - 1, lr + 2):
+                    for (xx, yy) in ((cx + a, cy - lr - 1), (cx + a, cy + lr + 1), (cx - lr - 1, cy + a), (cx + lr + 1, cy + a)):
+                        if mp[xx, yy] and abs(a) <= lr:
+                            px[xx, yy] = _darker(r, px[xx, yy][:3]) + (255,)
+        # the part's own edge, a recess where it meets what is behind it
+        for cx, (t, b) in cols.items():
+            for cy in range(t, b + 1):
+                edge = False
+                for dx, dy in ((1, 0), (-1, 0), (0, 1)):
+                    if not mp[cx + dx, cy + dy] if 0 <= cx + dx < W and 0 <= cy + dy < H else True:
+                        edge = True
+                if edge and cy != t and sp[cx, cy]:
+                    px[cx, cy] = r[0] + (255,)
+
+    # nozzles: bells at the stern, warm inside
+    for (ny, nh) in spec.get('noz', []):
+        cy, hh = Y(ny), max(4, round(nh * eh))
+        bw = max(5, ew // 22)
+        for i in range(bw):
+            half = hh // 2 + (bw - i) // 3
+            for yy in range(cy - half, cy + half + 1):
+                xx = x0 - 2 + i
+                f = (yy - (cy - half)) / max(1, 2 * half)
+                c = MAT['gun'][5] if yy == cy - half else _shade(MAT['gun'], f, xx, yy)
+                if i == 0 and abs(yy - cy) < half - 1:
+                    c = HEAT[3] if abs(yy - cy) < half // 2 else HEAT[1]
+                px[xx, yy] = c + (255,)
+                sp[xx, yy] = 255
+                tp[xx, yy] = 3
+        marks['noz'].append(cy)
+
+    # the thin fittings: two pixels, lit on top, a bead at the tip
+    d = ImageDraw.Draw(img)
+    for line in spec.get('kit', []):
+        pts = [(X(a), Y(b)) for a, b in line]
+        d.line(pts, fill=MAT['steel'][3] + (255,), width=2)
+        d.line([(p[0], p[1]) for p in pts], fill=MAT['steel'][5] + (255,), width=1)
+        tx, ty = pts[-1]
+        d.rectangle([tx - 1, ty - 1, tx, ty], fill=MAT['steel'][5] + (255,))
+        marks['kit'].append(pts[-1])
+    sp2 = img.split()[3].load()
+    for yy in range(H):
+        for xx in range(W):
+            if sp2[xx, yy]:
+                sp[xx, yy] = 255 if sp[xx, yy] else sp[xx, yy]
+
+    # the silhouette's outline, in ink
     out = img.copy()
-    for py in range(H):
-        for px in range(W):
-            if a[px, py]:
+    a = img.split()[3].load()
+    o = out.load()
+    for yy in range(H):
+        for xx in range(W):
+            if a[xx, yy]:
                 continue
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                qx, qy = px + dx, py + dy
+                qx, qy = xx + dx, yy + dy
                 if 0 <= qx < W and 0 <= qy < H and a[qx, qy]:
-                    out.putpixel((px, py), INK + (255,))
+                    o[xx, yy] = INK + (255,)
                     break
-    # a warm emitter in each nozzle (the only warm light: ART_CONTRACT)
-    for p in brief['parts']:
-        if p[0] == 'noz':
-            yc = Y(p[1])
-            out.putpixel((x0, yc), HEAT[1] + (255,))
-            out.putpixel((x0, yc - 1), HEAT[0] + (255,))
-    return out, base, (x0, y0, x1, y1), band, brief, solid, tone
+    return out, base, (x0, y0, x1, y1), marks, solid, tone
 
+
+def _darker(r, c):
+    i = min(range(len(r)), key=lambda k: sum((r[k][j] - c[j]) ** 2 for j in range(3)))
+    return r[max(0, i - 2)]
+
+
+def _lighter(r, c):
+    i = min(range(len(r)), key=lambda k: sum((r[k][j] - c[j]) ** 2 for j in range(3)))
+    return r[min(5, i + 1)]
+
+
+# ---------------------------------------------------------------- the guide
 
 def _edges(solid, env, frac=(.18, .82)):
-    """The hull's own top and bottom edge, column by column, over the middle of
-    its length: where the dorsal and ventral mounts have to sit."""
     x0, y0, x1, y1 = env
     S = solid.load()
     top, bot = [], []
@@ -314,103 +624,90 @@ def _edges(solid, env, frac=(.18, .82)):
 
 
 def _registry(solid, tone, env, band):
-    """A 21x7 run of plain steel in the lower flank, nearest the middle: the
-    panel the number is painted on."""
+    """A 21x7 run of plain hull plate in the lower flank, nearest the middle."""
     x0, y0, x1, y1 = env
     S, T = solid.load(), tone.load()
     best = None
     mid = (x0 + x1) / 2
-    for py in range(y0 + (y1 - y0) // 2, y1 - 8):
+    for py in range(y0 + (y1 - y0) // 3, y1 - 8):
         for px in range(x0 + 4, x1 - 26):
             ok = True
-            for yy in range(py - 1, py + 8):
-                for xx in range(px - 1, px + 22):
-                    if not S[xx, yy] or T[xx, yy] != 0 or (band and band[0] - 1 <= xx <= band[1] + 1):
+            for yy in range(py, py + 7):
+                for xx in range(px, px + 21):
+                    if not S[xx, yy] or T[xx, yy] != 0:
                         ok = False
                         break
                 if not ok:
                     break
             if ok:
-                d = abs(px + 10 - mid) + abs(py - (y0 + (y1 - y0) * .62)) * 2
-                if best is None or d < best[0]:
-                    best = (d, px, py)
+                dd = abs(px + 10 - mid) + abs(py - (y0 + (y1 - y0) * .62)) * 2
+                if best is None or dd < best[0]:
+                    best = (dd, px, py)
     return None if best is None else (best[1], best[2])
 
 
-def guide(maker, weight, tmpl, base, env, band, brief, solid, tone, k=3):
+def guide(maker, weight, tmpl, base, env, marks, solid, tone, k=3):
     W, H = tmpl.size
-    L, R, T_, B = 70, 30, 40, 110
-    g = Image.new('RGBA', (W * k + L + R, H * k + T_ + B), (14, 17, 24, 255))
+    L, R_, T_, B = 70, 30, 40, 110
+    g = Image.new('RGBA', (W * k + L + R_, H * k + T_ + B), (14, 17, 24, 255))
     ghost = base.resize((W * k, H * k), Image.NEAREST)
     gp = ghost.load()
     for y in range(H * k):
         for x in range(W * k):
             if gp[x, y][3]:
-                gp[x, y] = (60, 80, 100, 60)
+                gp[x, y] = (60, 80, 100, 50)
     g.alpha_composite(ghost, (L, T_))
     g.alpha_composite(tmpl.resize((W * k, H * k), Image.NEAREST), (L, T_))
     d = ImageDraw.Draw(g)
-    P = lambda x, y: (L + x * k, T_ + y * k)
+    Pt = lambda x, y: (L + x * k, T_ + y * k)
     x0, y0, x1, y1 = env
     WHITE, ORANGE, MAG, GOLD, GREEN, CYAN, BLUE = (230, 230, 230), (255, 160, 60), (230, 90, 230), (255, 200, 80), (120, 230, 140), (110, 220, 255), (160, 160, 255)
-    # envelope
-    a0, a1 = P(x0, y0), P(x1, y1)
+    a0, a1 = Pt(x0, y0), Pt(x1, y1)
     for i in range(a0[0], a1[0], 8):
         d.line([(i, a0[1]), (i + 4, a0[1])], fill=WHITE)
         d.line([(i, a1[1]), (i + 4, a1[1])], fill=WHITE)
     for i in range(a0[1], a1[1], 8):
         d.line([(a0[0], i), (a0[0], i + 4)], fill=WHITE)
         d.line([(a1[0], i), (a1[0], i + 4)], fill=WHITE)
-    # mounts, on the hull's own edges, S's count spread along each
     w_, s_, u_ = SLOTS[weight]
     top, bot = _edges(solid, env)
     for pts in (top, bot):
-        d.line([P(x, y) for x, y in pts], fill=ORANGE, width=2)
-    n_top = (w_ + 1 + 1) // 2
+        if len(pts) > 1:
+            d.line([Pt(x, y) for x, y in pts], fill=ORANGE, width=1)
+    n_top = (w_ + 2) // 2
     n_bot = w_ + 1 - n_top
     for pts, n in ((top, n_top), (bot, n_bot)):
         for i in range(n):
-            x, y = pts[round((i + .5) / n * (len(pts) - 1))]
-            c = P(x, y)
-            d.ellipse([c[0] - 5, c[1] - 5, c[0] + 5, c[1] + 5], outline=ORANGE, width=2)
-    # engines: the template's own nozzles
-    noz = [p for p in brief['parts'] if p[0] == 'noz']
-    if noz:
-        ys = [y0 + round(p[1] * (y1 - y0 - 1)) for p in noz]
-        c0, c1 = P(x0 - 3, min(ys) - 6), P(x0 + 8, max(ys) + 6)
+            if pts:
+                x, y = pts[round((i + .5) / n * (len(pts) - 1))]
+                c = Pt(x, y)
+                d.ellipse([c[0] - 5, c[1] - 5, c[0] + 5, c[1] + 5], outline=ORANGE, width=2)
+    if marks['noz']:
+        c0, c1 = Pt(x0 - 4, min(marks['noz']) - 6), Pt(x0 + 6, max(marks['noz']) + 6)
         d.rectangle([c0, c1], outline=MAG, width=2)
-    # band
-    if band:
-        d.rectangle([P(band[0], y0 + 2), P(band[1] + 1, y1 - 2)], outline=GOLD, width=2)
-    # registry
-    rg = _registry(solid, tone, env, band)
+    if marks['band']:
+        d.rectangle([Pt(marks['band'][0], y0 + 2), Pt(marks['band'][1] + 1, y1 - 2)], outline=GOLD, width=2)
+    rg = _registry(solid, tone, env, marks['band'])
     if rg:
-        d.rectangle([P(rg[0], rg[1]), P(rg[0] + 21, rg[1] + 7)], outline=GREEN, width=2)
-    # glass
-    for p in brief['parts']:
-        if p[0] == 'glass':
-            e0 = P(x0 + round(p[1] * (x1 - x0 - 1)), y0 + round(p[2] * (y1 - y0 - 1)))
-            e1 = P(x0 + round(p[3] * (x1 - x0 - 1)) + 1, y0 + round(p[4] * (y1 - y0 - 1)) + 1)
-            d.rectangle([e0[0] - 2, e0[1] - 2, e1[0] + 2, e1[1] + 2], outline=CYAN, width=2)
-    # kit
-    for p in brief['parts']:
-        if p[0] == 'kit':
-            pts = [P(x0 + round(a * (x1 - x0 - 1)), y0 + round(b * (y1 - y0 - 1))) for a, b in p[1]]
-            for q in pts:
-                d.ellipse([q[0] - 3, q[1] - 3, q[0] + 3, q[1] + 3], outline=WHITE)
-    # belly: the flat run the two stands take, under the middle
+        d.rectangle([Pt(rg[0], rg[1]), Pt(rg[0] + 21, rg[1] + 7)], outline=GREEN, width=2)
+    for (ga, gb, gc, gd) in marks['glass']:
+        e0, e1 = Pt(ga, gb), Pt(gc + 1, gd + 1)
+        d.rectangle([e0[0] - 2, e0[1] - 2, e1[0] + 2, e1[1] + 2], outline=CYAN, width=1)
+    for (tx, ty) in marks['kit']:
+        q = Pt(tx, ty)
+        d.ellipse([q[0] - 4, q[1] - 4, q[0] + 4, q[1] + 4], outline=WHITE)
     mid = (x0 + x1) // 2
     span = (x1 - x0) // 5
-    by = max(y for x, y in bot if mid - span <= x <= mid + span) if bot else y1
-    d.line([P(mid - span, by + 3), P(mid + span, by + 3)], fill=BLUE, width=3)
-    # legend
+    under = [y for x, y in bot if mid - span <= x <= mid + span]
+    by = max(under) if under else y1
+    d.line([Pt(mid - span, by + 3), Pt(mid + span, by + 3)], fill=BLUE, width=3)
     ly = T_ + H * k + 14
     rows = [
         (WHITE, 'envelope %dx%d on a %dx%d canvas: Korvan\'s %s, so the mouth and the screens fit' % (x1 - x0, y1 - y0, W, H, BASES[weight])),
         (ORANGE, 'mounts on the top and bottom edges: room for S, %d weapons, %d systems, %d utility (C has %d/%d/%d)' % (w_ + 1, s_ + 1, u_, w_, s_, u_)),
         (MAG, 'engines at the stern, nose right: the flame is rigged to these nozzles'),
         (GOLD, 'band: one run of the manufacturer\'s colour, 40 px or more, worn at C'),
-        (GREEN, 'registry: a plain panel 21x7 in one even grey (look A paints the number a fifth lighter)'),
+        (GREEN, 'registry: a plain panel 21x7 in one even grey (look A paints the number a fifth lighter)' + ('' if rg else ' -- NONE FOUND: leave one')),
         (CYAN, 'glass: dark panes, luma 0.2 or under, which the live lights fill'),
         (WHITE, 'kit (circled tips): fittings 3 px wide or less, stripped toward C; anything wider stays'),
         (BLUE, 'belly: flat under the middle, for the yard\'s two stands'),
@@ -418,20 +715,20 @@ def guide(maker, weight, tmpl, base, env, band, brief, solid, tone, k=3):
     for i, (c, t) in enumerate(rows):
         d.rectangle([L, ly + i * 12 + 2, L + 8, ly + i * 12 + 10], fill=c)
         d.text((L + 14, ly + i * 12), t, fill=c)
-    d.text((L, 10), '%s  %s  (%s)' % (maker.upper(), weight.upper(), 'template_%s_%s.png' % (maker, weight)), fill=WHITE)
+    d.text((L, 10), '%s  %s  (template_%s_%s.png)' % (maker.upper(), weight.upper(), maker, weight), fill=WHITE)
     return g
 
 
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else 'hull_templates'
-    makers = sys.argv[2:] or list(BRIEFS)
+    makers = sys.argv[2:] or list(SPECS)
     os.makedirs(out, exist_ok=True)
     for m in makers:
         for w in ('light', 'medium', 'heavy'):
-            tmpl, base, env, band, brief, solid, tone = block_in(m, w)
+            tmpl, base, env, marks, solid, tone = render(m, w)
             tmpl.save(os.path.join(out, 'template_%s_%s.png' % (m, w)))
-            guide(m, w, tmpl, base, env, band, brief, solid, tone).save(os.path.join(out, 'guide_%s_%s.png' % (m, w)))
-            print('%s %s: canvas %dx%d, envelope %dx%d' % (m, w, tmpl.width, tmpl.height, env[2] - env[0], env[3] - env[1]))
+            guide(m, w, tmpl, base, env, marks, solid, tone).save(os.path.join(out, 'guide_%s_%s.png' % (m, w)))
+            print('%s %s: canvas %dx%d, %d colours' % (m, w, tmpl.width, tmpl.height, len(set(tmpl.getdata()))))
 
 
 if __name__ == '__main__':
