@@ -12,7 +12,7 @@ Jon's merge rule still holds: **main only moves on a full gate pass**
 
 ## The state of the branch
 
-- 27 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
+- 29 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
   which was `origin/main` when this was written. `origin/main` had not moved
   since, so as pushed this is a **fast-forward**.
 - Last full gate run in the cloud: **PASSED** on `9b2bb57` (one event per world
@@ -28,7 +28,7 @@ Jon's merge rule still holds: **main only moves on a full gate pass**
 ```bash
 git fetch origin
 git switch main && git pull                     # Jon's local main may have work the cloud never saw
-git log --oneline main..origin/claude/festive-rubin-hd2567 | wc -l   # 27 (more if work landed after this was written)
+git log --oneline main..origin/claude/festive-rubin-hd2567 | wc -l   # 29 (more if work landed after this was written)
 git merge-base main origin/claude/festive-rubin-hd2567               # a6976ef... if main has not moved
 ```
 
@@ -174,6 +174,15 @@ different body. That is harmless before the alpha ships.
 - Other manufacturers' graded hulls come after the alpha. Korvan only for now.
   `HullGrade.key_for` assumes `korvan/`, which is right while every
   manufacturer shares the Korvan sprites.
+
+## Templates for the other manufacturers' hulls
+
+`tkg/art/tools/hull_template.py` writes a block-in and a code guide for each of
+the 18 sprites (six manufacturers, three weights) into `tkg/art/hull_templates/`
+(`.gdignore`, so they are never imported). Page:
+https://claude.ai/artifact/QnBxTyEYJ3ywNK35RWYSvZ . The manufacturer plan
+(https://claude.ai/artifact/7p4xze2tuQ2FAQ6MbTkMe7) now plans three sprites a
+manufacturer. Nothing here touches the game.
 
 ## Pages Jon judged this on
 
