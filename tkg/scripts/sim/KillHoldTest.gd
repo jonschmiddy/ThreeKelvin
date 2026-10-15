@@ -76,6 +76,12 @@ func _case(tree: SceneTree, pack: Array, tag: String) -> void:
 	var after := -1.0
 	var moved := 0.0
 	var off := 0.0
+	# where the ship rested last frame: the breakup takes the bob a frame after
+	# the art does, and on a slow machine a frame is long enough for the bob to
+	# move two pixels in it, so "within a pixel of now" failed a breakup that
+	# was exactly one frame behind (Oct 15, both before and after the wreck
+	# changes). It is held to the nearer of this frame's place and last frame's.
+	var want_was := Vector2(INF, INF)
 	var seen := false
 	var t0 := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < 8000:
@@ -98,7 +104,8 @@ func _case(tree: SceneTree, pack: Array, tag: String) -> void:
 			var canvas := _rest(dying) + (art.size - Vector2(EnemyArt.W, EnemyArt.H)) * 0.5
 			var want := (view.get_global_transform().affine_inverse() * canvas).round() \
 				+ Vector2(0, roundf(art.position.y - dying._art_base.y))
-			off = maxf(off, (b.position - want).length())
+			off = maxf(off, minf((b.position - want).length(), (b.position - want_was).length()))
+			want_was = want
 		if held.done and after < 0.0:
 			after = float(Time.get_ticks_msec())
 		if after > 0.0 and float(Time.get_ticks_msec()) - after > 1000.0:
@@ -106,7 +113,8 @@ func _case(tree: SceneTree, pack: Array, tag: String) -> void:
 	_ok("%s: the kill played a breakup" % tag, seen)
 	_ok("%s: the breakup finished" % tag, held.done)
 	_ok("%s: no slot and no ship's resting place moved from the kill to a second after (%.1f px)" % [tag, moved], moved < 0.5)
-	# (within a pixel: the breakup takes the bob a frame after the art does)
+	# (within a pixel of where the ship rests this frame or rested last frame:
+	# the breakup takes the bob a frame after the art does)
 	_ok("%s: the breakup stood where the ship rests (%.1f px off at worst)" % [tag, off], off <= 1.0)
 	if held.done:
 		await tree.process_frame
