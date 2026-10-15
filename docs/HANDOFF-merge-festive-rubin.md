@@ -12,14 +12,16 @@ Jon's merge rule still holds: **main only moves on a full gate pass**
 
 ## The state of the branch
 
-- 39 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
+- 63 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
   which was `origin/main` when this was written. If `origin/main` has not
   moved since, this is a **fast-forward**.
 - Last full gate run in the cloud: **PASSED** on `9b2bb57` (one event per world
   and the Hellbender's place). After it: the registry look (Jon picked A, tone
   on tone, one ink), the hull templates, the new hull names, and the party
-  lines saying LIGHT / MEDIUM / HEAVY. Those were checked with GradeSheet (all
-  three weights), savetest, nettest and attrs, not the whole gate. **Run the
+  lines saying LIGHT / MEDIUM / HEAVY, Solari's colours, its three hull
+  sprites, their grades and lights. Those were checked with GradeSheet (all
+  three weights, Korvan's bakes pixel-identical), savetest, nettest and attrs,
+  and filmed on LOCAL, not the whole gate. **Run the
   gate yourself before merging, whatever this says.**
 - The cloud container was slow. Two tests were timing-sensitive there and
   were fixed (see "Gate changes"). On Jon's machine the gate should take less
@@ -208,23 +210,47 @@ https://claude.ai/artifact/QnBxTyEYJ3ywNK35RWYSvZ . The manufacturer plan
 (https://claude.ai/artifact/7p4xze2tuQ2FAQ6MbTkMe7) now plans three sprites a
 manufacturer. Nothing here touches the game.
 
-## Next: the sprites (PixelLab), not started
+## Solari's hull sprites (Jon, Oct 15), done but not flown
 
-Jon, Oct 15: "Now let's start making sprites." The plan he was given, and not
-yet answered on spend:
+Solari is amber on white heat-shield now (`Database` manufacturer row: mark
+`#ef9f27`, field `#f2eee6`; the BoardScreen heat-lamp ad to match). Jon: "they
+look almost identical to the design language as korvan", so the hull is white
+tile, not steel.
 
-- The 18 templates (`tkg/art/hull_templates/template_<maker>_<weight>.png`,
-  committed) are the init images, with the game's palette as the colour image,
-  on `create_image_pixflux` at 1 generation a roll (see
-  `docs/art/PIXELLAB_WORKFLOW.md`, "A. A hull sprite"). Korvan keeps its art.
-- **Pilot first: Solari, 3 sprites x 4 takes (init strength sweep) = 12
-  generations, cap 20.** Then the other five at the same rate, about 60, cap
-  80. **Ask Jon before spending, every time, with takes and a cap.**
-- Takes go on a pick page at 2x game scale, lettered. Nothing goes in the game
-  until he picks.
-- The cloud session that wrote this could not reach PixelLab: the environment
-  now allows `api.pixellab.ai` and has `PIXELLAB_API_KEY` (which `.mcp.json`
-  reads), but both only reach a NEW session.
+- **Templates.** `hull_template.py`'s Solari spec: white `tile` plate, brass
+  reactor rings, the radiator crest on the spine and a blade keel under the
+  belly (both drawn before the hull, so they sit on it), engine bells on the
+  stern face. `palette_solari.png` is built from the templates' colours.
+- **Sprites.** PixelLab pixflux, the template as the init image and the palette
+  as the colour lock, 5 takes a weight. Jon picked light A, medium E, heavy A;
+  `tools/hull_clean.py` cleaned them (off-silhouette pixels, saturated specks on
+  tile, islands) and they were hand-fixed where Jon pointed (the third ring's
+  slot, the noses). Raw takes in `art/hull_templates/picked/raw/`, the picks in
+  `picked/`, and the game copies at `art/sprites/hulls/solari/hull_<w>_a.png`.
+- **Grades.** `HullGrade` bakes them C to S like Korvan (`_maker` picks the
+  registry letter, S; non-Korvan makers keep cool colours out of the ramps,
+  which fixed blue flecks). `key_for` reads the maker from the sprite's folder.
+  Placements in `art/hull_grade.json` under `solari/hull_<w>_a`.
+- **Lights (Jon: "The light positioning makes NO SENSE").** Each brass ring's
+  slot is one lit strip and nothing else is lit but the white nose light. The
+  strips are windows tagged `pulse`: they swell and ease in turn, back to front
+  (Jon: "BACK to front"), one wave every 2.4 s (`HullGrade.level`). The middle
+  ring lights at B, two at A, all at S.
+- **Not wired into play.** `DB.hull_sprite` still hardcodes the Korvan folder,
+  so a Solari ship in a run wears Korvan art. `-- sheet=GradeLocal maker=solari
+  weight=<w> grade=<0..3>` films one parked on LOCAL with its parts and flame
+  off. Still to do for play: the sprite path by manufacturer, mounts
+  (`anchors.py`), `engines.json`, then `-- mounts`, MouthSize, YardSeatTest.
+- **Pages:** grades https://claude.ai/artifact/4vWHrp4oD4cBhRhqHZEAxT (in game),
+  lights https://claude.ai/artifact/X7aMxAimjbMh9b7tdmzHhV (the pick).
+- The other five manufacturers: same pipeline, not started. **Ask Jon before
+  spending PixelLab credits, every time, with takes and a cap.**
+
+## Next: Solari's modules and cards (Jon, Oct 15)
+
+Jon: "Then work on the modules and cards." From the manufacturer plan's Solari
+tab (https://claude.ai/artifact/7p4xze2tuQ2FAQ6MbTkMe7). See the section below
+once it is written.
 
 ## Pages Jon judged this on
 
