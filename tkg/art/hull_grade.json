@@ -308,5 +308,157 @@
     "tip"
    ]
   ]
+ },
+ "solari/hull_light_a": {
+  "registry": [
+   176,
+   52,
+   "dark"
+  ],
+  "chevrons": [
+   250,
+   50
+  ],
+  "windows": [
+   [
+    228,
+    50,
+    3,
+    3,
+    "glass"
+   ],
+   [
+    236,
+    50,
+    7,
+    3,
+    "glass"
+   ]
+  ],
+  "nav": [
+   [
+    262,
+    49,
+    "white"
+   ],
+   [
+    92,
+    48,
+    "amber"
+   ],
+   [
+    139,
+    26,
+    "beacon"
+   ]
+  ],
+  "markers": [
+   [
+    200,
+    44,
+    "white",
+    "hull"
+   ],
+   [
+    110,
+    62,
+    "amber",
+    "hull"
+   ]
+  ]
+ },
+ "solari/hull_medium_a": {
+  "registry": [
+   225,
+   60,
+   "dark"
+  ],
+  "chevrons": [
+   305,
+   63
+  ],
+  "windows": [
+   [
+    240,
+    40,
+    4,
+    2,
+    "glass"
+   ]
+  ],
+  "nav": [
+   [
+    318,
+    62,
+    "white"
+   ],
+   [
+    74,
+    58,
+    "amber"
+   ],
+   [
+    175,
+    27,
+    "beacon"
+   ]
+  ],
+  "markers": [
+   [
+    250,
+    86,
+    "amber",
+    "hull"
+   ],
+   [
+    110,
+    88,
+    "white",
+    "hull"
+   ]
+  ]
+ },
+ "solari/hull_heavy_a": {
+  "registry": [
+   290,
+   85,
+   "dark"
+  ],
+  "chevrons": [
+   372,
+   80
+  ],
+  "windows": [],
+  "nav": [
+   [
+    386,
+    79,
+    "white"
+   ],
+   [
+    84,
+    76,
+    "amber"
+   ],
+   [
+    222,
+    40,
+    "beacon"
+   ]
+  ],
+  "markers": [
+   [
+    300,
+    110,
+    "amber",
+    "hull"
+   ],
+   [
+    130,
+    100,
+    "white",
+    "hull"
+   ]
+  ]
  }
 }

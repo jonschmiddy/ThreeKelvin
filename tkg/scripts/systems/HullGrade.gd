@@ -50,6 +50,7 @@ static func bake_mix(src: Image, grade: int, looks: Array, seed_in: int = 7, hul
 		img.decompress()
 	img.convert(Image.FORMAT_RGBA8)
 	_band(img, hull)
+	_maker = hull.get_slice("/", 0) if hull != "" else "korvan"
 	var r := _Ramps.new(img)
 	var at := places(hull)
 	# the silhouette first, then the yard's paint, the age over it, the marks,
@@ -92,6 +93,11 @@ class _Ramps extends RefCounted:
 			# band hue goes here when it has one.
 			if c.s > 0.28 and c.v > 0.25 and (c.h < 0.17 or c.h > 0.95):
 				accent.append(c)
+			elif HullGrade._maker != "korvan" and c.s > 0.45:
+				# a pale hull's glass and cold glints (Solari's blue panes):
+				# neither ramp, so grime on the white tile never steps into
+				# blue. Korvan keeps its navy in the grey, as approved.
+				pass
 			else:
 				grey.append(c)
 		var by := func(a: Color, b: Color) -> bool: return HullGrade.luma(a) < HullGrade.luma(b)
@@ -419,7 +425,7 @@ static func places(hull: String) -> Dictionary:
 
 ## A 3x5 stencil for the registry: K, a dash and the digits.
 const STENCIL := {
-	"K": ["1.1", "11.", "1..", "11.", "1.1"], "-": ["...", "...", "111", "...", "..."],
+	"K": ["1.1", "11.", "1..", "11.", "1.1"], "S": [".11", "1..", ".1.", "..1", "11."], "-": ["...", "...", "111", "...", "..."],
 	"0": ["111", "1.1", "1.1", "1.1", "111"], "1": [".1.", "11.", ".1.", ".1.", "111"],
 	"2": ["111", "..1", "111", "1..", "111"], "3": ["111", "..1", ".11", "..1", "111"],
 	"4": ["1.1", "1.1", "111", "..1", "..1"], "5": ["111", "1..", "111", "..1", "111"],
@@ -439,6 +445,10 @@ const STENCIL := {
 ## number. Jon picked A (Oct 15), "a bit lighter, it's too faint": a fifth
 ## lighter, up from a tenth.
 static var reg_look: StringName = &"A"
+
+## Whose hull is being baked: the registry's first letter is its manufacturer's
+## (Solari's ships read S-, Korvan's K-).
+static var _maker := "korvan"
 
 
 ## How much lighter look A's strokes are than the panel under them.
@@ -469,7 +479,8 @@ static func _marks(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictiona
 		ink = r.accent[0] if not r.accent.is_empty() else r.grey[0]
 	else:
 		var cx := int(reg[0])
-		for ch in "K-" + num:
+		var letter := _maker.substr(0, 1).to_upper()
+		for ch in (letter if STENCIL.has(letter) else "K") + "-" + num:
 			cells.append([ch, Vector2i(cx, int(reg[1]))])
 			cx += 4
 	var src := img.duplicate() as Image
