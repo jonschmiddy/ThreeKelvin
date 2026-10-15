@@ -470,7 +470,7 @@ func _list() -> void:
 	# of jettisoned things, as the sector screen counts it; with nothing on it
 	# there is no button, since only pressable things look pressable
 	var n_loot: MapGen.MapNode = screen.view.node
-	if Run.jetsam_left(n_loot, Run.sector_jetsam(n_loot, false)) > 0:
+	if Run.jetsam_left(n_loot, Run.sector_loot(n_loot)) > 0:
 		_act("SECTOR LOOT", func() -> void: screen.open_sector_loot())
 	_act("PLOT NEXT JUMP", func() -> void: screen.plot_next_jump(), false)
 

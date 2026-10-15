@@ -1103,7 +1103,7 @@ func plot_next_jump() -> void:
 
 
 func open_sector_loot() -> void:
-	_open_jetsam(Run.sector_jetsam(view.node, false))
+	_open_jetsam(Run.sector_loot(view.node))
 
 
 func _open_jetsam(h: MapGen.Jetsam, title: String = "") -> void:

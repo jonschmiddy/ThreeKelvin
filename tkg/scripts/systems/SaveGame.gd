@@ -249,7 +249,9 @@ static var path: String = TestRun.scratch("run", "save") if TestRun.active() els
 ## 33: A WRECK HAS A PLACE (`Jetsam.site`, Jon Oct 14: "each planet or POI you
 ## can visit should contain its own wrecks/fights"). Read the way 32 reads 31: a
 ## 32 save's wrecks have no `site`, and missing means `MapGen.SITE_ANY`, shown
-## at every place in the system -- what a 32 build drew. OLDEST_READ stays at 29.
+## at every place in the system -- what a 32 build drew. And `opened` (a wreck
+## you have looked in, whose leftovers SECTOR LOOT shows too); missing means
+## the wreck's `scanned`, the nearest thing a 32 save kept. OLDEST_READ stays at 29.
 const VERSION := 33
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
@@ -952,7 +954,7 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		for m2 in h.items:
 			items.append(_item_to(m2))
 		jetsam.append({slot = h.slot, art = String(h.art), look = h.look, label = h.label,
-			site = h.site, scanned = h.scanned, items = items})
+			site = h.site, scanned = h.scanned, opened = h.opened, items = items})
 	return {
 		index = n.index, layer = n.layer, row = n.row,
 		rows_in_layer = n.rows_in_layer,
@@ -1092,6 +1094,8 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 		# (absent before wrecks had a place: shown at every place, as then)
 		h.site = int(row.get("site", MapGen.SITE_ANY))
 		h.scanned = bool(row.get("scanned", false))
+		# (absent before SECTOR LOOT showed opened wrecks: a swept one was opened)
+		h.opened = bool(row.get("opened", h.scanned))
 		for e2 in row.get("items", []):
 			var it := _item_from(e2)
 			if it != null:

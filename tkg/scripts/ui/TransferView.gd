@@ -117,8 +117,12 @@ func setup(h: MapGen.Jetsam, n: MapGen.MapNode, on_close: Callable,
 	# finding it again, which is the one thing it must not say.
 	# PER CONTAINER, not per system. Three wrecks in one sector are three
 	# things found, and the second should sweep exactly as the first did.
+	if h != null and h.is_wreck():
+		h.opened = true
 	if animate and h != null and not h.scanned:
 		h.scanned = true
+		if h is MapGen.PileView and (h as MapGen.PileView).pile != null:
+			(h as MapGen.PileView).pile.scanned = true
 		_loose.scan()
 	else:
 		_loose.skip_scan()

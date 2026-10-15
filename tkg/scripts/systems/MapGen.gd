@@ -209,6 +209,11 @@ class Jetsam extends RefCounted:
 	## Whether the sweep has already run on this one. Once per container, so
 	## opening a wreck you have already been through is not a discovery.
 	var scanned: bool = false
+	## Whether you have looked inside this wreck. From then on whatever you
+	## leave in it is also under the system's SECTOR LOOT (Jon, Oct 15: "When a
+	## wreck is opened, and all or some of the parts are left behind, those
+	## should also show up in the sector loot pool for that sector").
+	var opened: bool = false
 
 	func is_wreck() -> bool:
 		return art != &""
@@ -234,6 +239,28 @@ class Jetsam extends RefCounted:
 	## The claim id of the i-th thing in here.
 	func option(i: int) -> int:
 		return OPTION_JETSAM + slot * JETSAM_STRIDE + i
+
+
+## SECTOR LOOT AS IT IS SHOWN: the system's own pile and what is left in every
+## wreck you have opened, in one grid (`RunState.sector_loot`). A VIEW, never
+## stored: each thing stays in the container it is in and is claimed there
+## (`option` answers that container's claim), so taking it here or out of the
+## wreck is one claim, and the lists still never shrink. Built fresh each time
+## the door is opened; something put down while it is open goes on the real
+## pile and onto the end of this (`RunState.put_in`).
+class PileView extends Jetsam:
+	## The system's pile, or null while nothing has been put down here.
+	var pile: Jetsam = null
+	## Per item: [the container it is in, its index there].
+	var from: Array = []
+
+	func add(h: Jetsam, i: int) -> void:
+		items.append(h.items[i])
+		from.append([h, i])
+
+	func option(i: int) -> int:
+		var f: Array = from[i]
+		return (f[0] as Jetsam).option(int(f[1]))
 
 ## Eight shells, wide apart, rather than twenty-four thin ones.
 ##

@@ -753,6 +753,32 @@ func sector_jetsam(n: MapGen.MapNode, make: bool = true) -> MapGen.Jetsam:
 	return fresh
 
 
+## SECTOR LOOT: the system's pile and what is left in every wreck you have
+## opened, as one container to show and take from (`MapGen.PileView`). Null
+## while there is neither, as `sector_jetsam(n, false)` is.
+func sector_loot(n: MapGen.MapNode) -> MapGen.Jetsam:
+	if n == null:
+		return null
+	var pile := sector_jetsam(n, false)
+	var v := MapGen.PileView.new()
+	v.pile = pile
+	if pile != null:
+		for i in pile.items.size():
+			v.add(pile, i)
+	var any := pile != null
+	for raw in n.jetsam:
+		var h: MapGen.Jetsam = raw
+		if h.is_wreck() and h.opened:
+			any = true
+			for i in h.items.size():
+				v.add(h, i)
+	if not any:
+		return null
+	# a wreck's leftovers were seen when it was opened: only the pile can sweep
+	v.scanned = pile == null or pile.scanned
+	return v
+
+
 ## What is still unclaimed in one container.
 func jetsam_left(n: MapGen.MapNode, h: MapGen.Jetsam) -> int:
 	if n == null or h == null:
@@ -871,6 +897,13 @@ func put_in(n: MapGen.MapNode, h: MapGen.Jetsam, m: HoldItem) -> bool:
 		var slot := n.taken.find(h.option(already))
 		if slot >= 0:
 			n.taken.remove_at(slot)
+	elif h is MapGen.PileView:
+		# onto the real pile, and onto the end of the view showing it
+		var v := h as MapGen.PileView
+		var real := sector_jetsam(n)
+		real.items.append(m)
+		v.pile = real
+		v.add(real, real.items.size() - 1)
 	else:
 		h.items.append(m)
 	log_line("%s goes overboard. It stays in this system." % m.name, &"sys")

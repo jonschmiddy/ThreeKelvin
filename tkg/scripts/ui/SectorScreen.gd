@@ -1148,7 +1148,8 @@ func _drawer_here(n: MapGen.MapNode) -> void:
 		oi.custom_minimum_size = EncounterDrawer.BTN
 		oi.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(oi)
-	var pile := Run.sector_jetsam(n, false)
+	# (the pile and what is left in every wreck you have opened: `sector_loot`)
+	var pile := Run.sector_loot(n)
 	var loose := Run.jetsam_left(n, pile) if pile != null else 0
 	if loose > 0:
 		var lb := Widgets.button("SECTOR LOOT · %d" % loose, _open_loose)
@@ -1233,7 +1234,7 @@ func _open_loose() -> void:
 		return
 	var from := _drawer.find_child("SectorLoot", true, false) as Control
 	if _cutaway != null and from != null:
-		_cutaway.open_popup(Run.sector_jetsam(n, false), from.get_global_rect())
+		_cutaway.open_popup(Run.sector_loot(n), from.get_global_rect())
 	else:
 		_open_sector_loot()
 
@@ -2322,7 +2323,7 @@ func has_open_container() -> bool:
 func _open_sector_loot() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if n != null:
-		_open_jetsam(Run.sector_jetsam(n, false))
+		_open_jetsam(Run.sector_loot(n))
 
 
 func _close_transfer() -> void:

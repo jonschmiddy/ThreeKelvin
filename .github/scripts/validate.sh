@@ -621,6 +621,8 @@ step "Each place in a system keeps its own wrecks"
 # wrecks/fights." A wreck lies where your ship was when it died (Jetsam.site);
 # LOCAL draws that place's wrecks and no other's, each with its own death and
 # marks; a save keeps the place, and an older save's wrecks show everywhere.
+# Jon, Oct 15: what is left in a wreck you have opened is under SECTOR LOOT too,
+# from anywhere in the system, claimed as the wreck's own.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit|were leaked at exit' \
 	run_godot wrecksitetest 180 --headless --path "$PROJECT" -- sheet=WreckSiteTest; then
 	if grep -qE '^wrecksitetest: PASS' "$LOG_DIR/wrecksitetest.log"; then

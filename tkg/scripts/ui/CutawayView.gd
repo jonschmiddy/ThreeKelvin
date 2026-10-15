@@ -884,6 +884,8 @@ func open_popup(h: MapGen.Jetsam, beside: Rect2) -> void:
 	if h == null:
 		return
 	_pop_jetsam = h
+	if h.is_wreck():
+		h.opened = true
 	_pop_beside = Rect2(get_global_transform().affine_inverse() * beside.position, beside.size)
 	_popup = PanelContainer.new()
 	_popup.add_theme_stylebox_override("panel",
