@@ -19,6 +19,10 @@ extends Harness
 ## two bodies on them are wide.
 ## **No shared stream is touched**: laying out a system draws only from
 ## `Rng.derive`, so looking at the map cannot move what the run rolls next.
+## **One event to a world** (Jon, Oct 15: "A planet should only hold one event.
+## That should be a rule."): no planet, giant or star holds two options.
+## **The Hellbender has a place of its own** where it is anchored, last, past
+## every orbit, and every other body is where it would be without it.
 
 const SEEDS := [4242, 7, 1999, 31337]
 
@@ -73,6 +77,14 @@ func run() -> void:
 			for i in n.options.size():
 				if int(seen.get(i, 0)) != 1:
 					_fail("system %d: option %d is on %d bodies" % [n.index, i, int(seen.get(i, 0))])
+			# one event to a world
+			for b in L.bodies:
+				if b.kind == &"planet" or b.kind == &"giant":
+					var on := b.beacons.filter(func(bc): return bc.opt >= 0).size()
+					if on > 1:
+						_fail("system %d: %s %s holds %d events" % [n.index, b.kind, b.name, on])
+			if L.star_beacons.size() > 1:
+				_fail("system %d: the star holds %d events" % [n.index, L.star_beacons.size()])
 			for k in seen.keys():
 				if int(k) >= n.options.size():
 					_fail("system %d: a beacon for option %d, which it does not have" % [n.index, int(k)])
@@ -102,7 +114,8 @@ func run() -> void:
 			for b in L.bodies:
 				if b.world != &"":
 					worlds[b.world] = int(worlds.get(b.world, 0)) + 1
-	_ok("%d systems laid out, every option on one body" % n_sys, true)
+	_ok("%d systems laid out, every option on one body, one event to a world" % n_sys, true)
+	_hellbender()
 	var cl: Array[String] = []
 	for k in range(1, 12):
 		if counts.has(k):
@@ -126,3 +139,28 @@ func run() -> void:
 		line.append("%s %d" % [k, worlds[k]])
 	print("  worlds drawn: " + ", ".join(line))
 	verdict("systemtest")
+
+
+## Its place: last, past every orbit, and nothing else moved by it.
+func _hellbender() -> void:
+	Rng.forced = SEEDS[0]
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	if not Run.hellbender_alive():
+		_fail("no Hellbender in this run to place")
+		return
+	var n: MapGen.MapNode = Run.map[Run.hellbender_at]
+	var with := SystemLayout.of(n)
+	var at := Run.hellbender_at
+	Run.hellbender_at = -1
+	var without := SystemLayout.of(n)
+	Run.hellbender_at = at
+	var hp := with.hellbender_place()
+	_ok("the Hellbender's system gives it a place, last (%d of %d)" % [hp, with.bodies.size()],
+		hp == with.bodies.size() - 1 and without.hellbender_place() == -2)
+	var same := with.bodies.size() == without.bodies.size() + 1
+	for i in without.bodies.size():
+		var a := with.bodies[i]
+		var b := without.bodies[i]
+		same = same and is_equal_approx(a.orbit, b.orbit) and is_equal_approx(a.phase, b.phase) and a.world == b.world
+	_ok("and every other body is where it is without it", same)
+	_ok("past every orbit", hp >= 0 and with.bodies[hp].orbit > without.bodies[without.bodies.size() - 1].orbit)

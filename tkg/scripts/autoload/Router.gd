@@ -796,6 +796,11 @@ func commit_jump(index: int, skipped: bool = false) -> void:
 		show_sector()
 
 func _on_jumped(_index: int) -> void:
+	# IN AT THE EDGE. A jump arrives where every arrival does, whatever orbit
+	# the ship was left in on the last visit, so an arrival's ambush is at the
+	# edge and leaves its wrecks there -- not on a world whose own fight's hulls
+	# are already lying round it (Jon, Oct 15: one place, one fight).
+	SystemMapScreen._parked.erase(_index)
 	resolve_current_node()
 
 func resolve_current_node() -> void:
@@ -1178,6 +1183,17 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 ## take a fight from (`OptionTable.ensure`), and `start_combat` refuses one there
 ## whoever asks -- an event's bait, a partner's shared fight, a save left
 ## mid-fight, a debug key -- so no wreck is ever left at one either.
+## WHETHER YOU ARE AT THE HELLBENDER, or at the core's Custodian: each has a
+## place of its own on the map (`SystemLayout`), and it is fought there and
+## nowhere else (Jon, Oct 15), so its wrecks are its own place's.
+static func at_hellbender(n: MapGen.MapNode) -> bool:
+	return n != null and Run.site_here(n) == SystemLayout.of(n).hellbender_place()
+
+
+static func at_custodian(n: MapGen.MapNode) -> bool:
+	return n != null and Run.site_here(n) == SystemLayout.of(n).core_place()
+
+
 static func no_fights_at(n: MapGen.MapNode) -> bool:
 	return n != null and n.type == MapGen.NodeType.STATION
 

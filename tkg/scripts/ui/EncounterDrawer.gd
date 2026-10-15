@@ -868,6 +868,8 @@ static func quiet_lines(n: MapGen.MapNode) -> Array:
 	if Run.dead:
 		return ["The ship is lost. The run is over.", "SUMMARY"]
 	if Run.hellbender_alive() and Run.hellbender_at == n.index:
+		if not Router.at_hellbender(n):
+			return ["The Hellbender is anchored past the last orbit, its holds glowing with what it has taken. It blocks the rest of this system. Fly out to it to engage.", TO_SECTOR]
 		return ["The Hellbender is anchored here, its holds glowing with what it has taken. It blocks the rest of this system.",
 			"ENGAGE THE HELLBENDER"]
 	match n.type:
@@ -906,6 +908,8 @@ static func quiet_lines(n: MapGen.MapNode) -> Array:
 				return ["The core is open. Its guard is gone.", TO_SECTOR]
 			if n.fled:
 				return ["You broke off. It still guards the core.", TO_SECTOR]
+			if not Router.at_custodian(n):
+				return ["The core fills the viewport. The Custodian guards it from the edge of the disc. Fly out to it to engage.", TO_SECTOR]
 			return ["The core fills the viewport. The Custodian still guards it.", "ENGAGE"]
 		_:
 			return ["", TO_SECTOR]

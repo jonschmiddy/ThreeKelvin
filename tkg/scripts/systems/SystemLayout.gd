@@ -22,11 +22,20 @@ extends RefCounted
 ## - a station's station as a body of its own, with DOCK on it;
 ## - about a third of the systems with no belt get one anyway, as scenery, and
 ##   a pulsar or the core always does;
-## - options that want a world share one about half the time;
+## - ONE EVENT TO A WORLD (Jon, Oct 15: "A planet should only hold one event.
+##   That should be a rule."): every option that wants a planet gets its own,
+##   and the giant and the star each hold one at most -- a second that wanted
+##   them takes its place by its tags. A place is where a fight leaves its
+##   wrecks (`Jetsam.site`), so one event to a place is one fight's wrecks to a
+##   place. A belt still holds every option that wanted a belt;
 ## - no padding: one body is always there, and a system has as many more as
 ##   its options, its giant, its station and its belt make -- one, two or three
 ##   is normal (Jon: "I like the diversity and scarcity");
-## - the core's custodian as a contact on the outermost orbit.
+## - the core's custodian as a contact on the outermost orbit;
+## - the Hellbender, while it is anchored here or its wreck lies here, as a
+##   contact of its own past every orbit, added last so no other body moves
+##   (Jon, Oct 15: the system's contact at a place of its own, so you fly there
+##   to fight it and its wrecks are its own).
 ##
 ## Orbits are spread from just outside the star (further out round a red giant
 ## and the black hole) to `HI`; periods follow Kepler, the square of the period
@@ -68,6 +77,8 @@ class Beacon extends RefCounted:
 	var opt: int = -1
 	var dock: bool = false
 	var core: bool = false
+	## The Hellbender, anchored here (or dead here: its wreck's place).
+	var hellbender: bool = false
 
 
 class Body extends RefCounted:
@@ -163,10 +174,10 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 	var hot_star := L.star == StarKind.RED or L.star == StarKind.BLUE
 	for i in n.options.size():
 		var site := StringName(OptionTable.by_id(n.options[i]).get("site", &""))
-		if site == &"giant" and giant_here:
+		if site == &"giant" and giant_here and on_giant.is_empty():
 			on_giant.append(i)
 			continue
-		if site == &"star" and hot_star:
+		if site == &"star" and hot_star and L.star_beacons.is_empty():
 			var sb := Beacon.new()
 			sb.opt = i
 			L.star_beacons.append(sb)
@@ -193,11 +204,6 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 		order.append({"kind": &"station", "r": 4.0})
 	for w in want:
 		if w[1] == &"planet":
-			var planets := order.filter(func(o): return o.kind == &"planet")
-			if not planets.is_empty() and R.randf() < 0.5:
-				var host: Dictionary = planets[int(R.randf() * planets.size())]
-				host["also"] = (host.get("also", []) as Array) + [w[0]]
-				continue
 			order.append({"kind": &"planet", "opt": w[0]})
 		else:
 			order.append({"kind": w[1], "opt": w[0], "r": 3.0 if w[1] == &"derelict" else 0.0})
@@ -337,6 +343,23 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 		last = b.orbit
 		last_reach = reach
 	L.edge = maxf(HI, last + last_reach) + 30.0
+	# THE HELLBENDER'S OWN PLACE, past every orbit and last in the list, so
+	# nothing else moves when it comes or goes
+	if hellbender_here(n):
+		var hb := Body.new()
+		hb.kind = &"contact"
+		var bh := Beacon.new()
+		bh.hellbender = true
+		hb.beacons.append(bh)
+		hb.index = L.bodies.size()
+		hb.zone = 2
+		hb.seed = n.index * 31 + hb.index * 7 + 1
+		hb.orbit = maxf(HI, last + last_reach) + reach_of(hb) + GAP + 24.0
+		hb.period = 800.0 * pow(hb.orbit / 100.0, 1.5)
+		hb.phase = float(Rng.derive(&"hellbender_place", n.index).randf()) * TAU
+		hb.name = "%s %s" % [short, ROMAN[mini(hb.index, ROMAN.size() - 1)]]
+		L.bodies.append(hb)
+		L.edge = hb.orbit + reach_of(hb) + 30.0
 	# EACH WORLD'S RING, sized by how much it weighs (giants biggest, small rocks
 	# least) and spread for the wider system; nothing else has one
 	for b in L.bodies:
@@ -393,6 +416,35 @@ func sink(x: float, z: float, pos: Array[Vector2]) -> float:
 		var dz := z - pos[i].y
 		d += b.mass * 0.9 * b.well_w * b.well_w / (dx * dx + dz * dz + b.well_w * b.well_w)
 	return d
+
+
+## Whether the Hellbender has a place in this system: anchored here, or its
+## wreck lying here (where it died stays a place you can fly back to).
+static func hellbender_here(n: MapGen.MapNode) -> bool:
+	if Run.hellbender_alive() and Run.hellbender_at == n.index:
+		return true
+	for raw in n.jetsam:
+		if (raw as MapGen.Jetsam).art == &"hellbender":
+			return true
+	return false
+
+
+## The Hellbender's place in this layout, or -2 if it has none.
+func hellbender_place() -> int:
+	for bi in bodies.size():
+		for bc in bodies[bi].beacons:
+			if bc.hellbender:
+				return bi
+	return -2
+
+
+## The core custodian's place in this layout, or -2 if it has none.
+func core_place() -> int:
+	for bi in bodies.size():
+		for bc in bodies[bi].beacons:
+			if bc.core:
+				return bi
+	return -2
 
 
 ## The body an option sits on, or null (also for one on the star: `place_of`).

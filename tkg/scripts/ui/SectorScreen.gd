@@ -1021,8 +1021,8 @@ func _rebuild_drawer(n: MapGen.MapNode) -> void:
 		_drawer.add_child(row)
 		return
 	if Run.hellbender_alive() and Run.hellbender_at == n.index:
-		_drawer_simple("The Hellbender is anchored here, its holds glowing with what it has taken. It blocks the rest of this system.",
-			"ENGAGE THE HELLBENDER")
+		var hl := EncounterDrawer.quiet_lines(n)
+		_drawer_simple(String(hl[0]), String(hl[1]))
 		return
 	# A SYSTEM OR A STATION: ONE LINE, AND THE WAY TO THE MAP. What is here, its
 	# pages and its choices, the floor's loot and the berth are all on the sector
@@ -1180,8 +1180,13 @@ func _on_action() -> void:
 		return
 	# While the hellbender holds the system it IS the one thing this place offers —
 	# same blockade the arrival path enforces in Router.resolve_current_node().
+	# ...where it is anchored: elsewhere the button is the way to the map,
+	# where its place is, to fly there
 	if Run.hellbender_alive() and Run.hellbender_at == n.index:
-		Router.engage_hellbender()
+		if Router.at_hellbender(n):
+			Router.engage_hellbender()
+		else:
+			Router.show_system()
 		return
 	match n.type:
 		MapGen.NodeType.STATION:
@@ -1200,7 +1205,7 @@ func _on_action() -> void:
 		# then commit to, so a party can be at it together. See
 		# Router.resolve_current_node().
 		MapGen.NodeType.CORE:
-			if n.cleared or n.fled:
+			if n.cleared or n.fled or not Router.at_custodian(n):
 				Router.show_system()
 			else:
 				Router.engage_here()

@@ -245,6 +245,8 @@ func _key(bc) -> Variant:
 		return &"dock"
 	if bc.core:
 		return &"core"
+	if bc.hellbender:
+		return &"hellbender"
 	return bc.opt
 
 
@@ -480,6 +482,8 @@ func _pair_open(pair: Array) -> bool:
 	var n: MapGen.MapNode = screen.view.node
 	if bc == null or bc.core:
 		return not (n.cleared or n.fled)
+	if bc.hellbender:
+		return Run.hellbender_alive() and Run.hellbender_at == n.index
 	if bc.dock:
 		return true
 	return _is_open(bc.opt)
@@ -660,7 +664,7 @@ func _card(body: int, bc) -> Control:
 	var card := EventCard.new()
 	card.hover_cb = func(on: bool) -> void: _on_card_hover(key, body, bc, on)
 	var where := _place_name(body)
-	if bc == null or bc.dock or bc.core:
+	if bc == null or bc.dock or bc.core or bc.hellbender:
 		# THE ACTIONS ARE CARDS WITH THEIR BUTTON ON THEM. They each had a page
 		# of their own holding one sentence and that button.
 		var words: Array
@@ -668,6 +672,9 @@ func _card(body: int, bc) -> Control:
 			words = ["HARVEST THE BEAM", "NEUTRON STAR", "The pulsar's beam sweeps by once a second. Sitting in it gives fuel but costs hull and heat.", "HARVESTED" if n.cleared else "HARVEST", UITheme.TRACTOR, n.cleared]
 		elif bc.dock:
 			words = ["DOCK", "STATION", "A station is in this orbit. Its berths are open.", "DOCK", UITheme.ICE, false]
+		elif bc.hellbender:
+			var alive := Run.hellbender_alive() and Run.hellbender_at == n.index
+			words = ["THE HELLBENDER", "CONTACT", "The Hellbender is anchored past the last orbit, its holds glowing with what it has taken. It blocks the rest of this system." if alive else "What is left of the Hellbender drifts past the last orbit.", "ENGAGE" if alive else "BROKEN", UITheme.BAD, not alive]
 		else:
 			words = ["THE CUSTODIAN", "CONTACT", "The Custodian holds station at the edge of the disc. It has guarded the core for a long time.", "ENGAGE", UITheme.BAD, n.cleared or n.fled]
 		var btn := _small(words[3], func() -> void: screen.take_action(bc), words[5])
@@ -718,7 +725,7 @@ func light(bc, on: bool) -> void:
 
 # ---------------------------------------------------------------- EVENT
 func show_beacon(body: int, bc) -> void:
-	if bc == null or bc.dock or bc.core:
+	if bc == null or bc.dock or bc.core or bc.hellbender:
 		# an action's card is its page: the list, narrowed to where it is
 		show_body(body)
 		return

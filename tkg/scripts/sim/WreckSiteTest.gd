@@ -21,7 +21,11 @@ extends Node
 ##     has been, through LOCAL's own door, the button shows what is left in it,
 ##     from any place in the system; a take through SECTOR LOOT is the wreck's
 ##     own claim, a part put down goes on the pile, one put back that came out
-##     of the wreck goes back into it; a save keeps which wrecks were opened.
+##     of the wreck goes back into it; a save keeps which wrecks were opened;
+##   - ONE PLACE, ONE FIGHT (Jon, Oct 15): the Hellbender and the core's
+##     Custodian are engaged at their own place on the map and nowhere else --
+##     LOCAL anywhere else sends you to the map -- and a jump arrives at the
+##     edge, wherever the ship was left on the last visit.
 
 var h := Harness.new()
 
@@ -98,6 +102,7 @@ func _run() -> void:
 		Run.wrecks_here(old).size() == 3)
 	Run.map[n.index] = n
 	await _sector_loot()
+	await _one_place()
 	h.verdict("wrecksitetest")
 	get_tree().quit(h.code())
 
@@ -196,3 +201,55 @@ func _sector_loot() -> void:
 		if (raw as MapGen.Jetsam).is_wreck():
 			opened = (raw as MapGen.Jetsam).opened
 	h._ok("a save keeps the wreck opened", opened)
+
+
+func _one_place() -> void:
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var parked := SystemMapScreen._parked
+	# the Hellbender
+	if not Run.hellbender_alive():
+		h._fail("no Hellbender in this run")
+		return
+	var n: MapGen.MapNode = Run.map[Run.hellbender_at]
+	Run.at = n.index
+	var hp := SystemLayout.of(n).hellbender_place()
+	parked.erase(n.index)
+	var away: Array = EncounterDrawer.quiet_lines(n)
+	h._ok("at the edge, LOCAL sends you to the Hellbender's place (%s)" % away[1], String(away[1]) == EncounterDrawer.TO_SECTOR)
+	Router.show_local()
+	for i in 4:
+		await get_tree().process_frame
+	(Router.current as SectorScreen)._on_action()
+	for i in 4:
+		await get_tree().process_frame
+	h._ok("and pressing it starts no fight", not Router.in_combat())
+	parked[n.index] = {"at": hp}
+	var there: Array = EncounterDrawer.quiet_lines(n)
+	h._ok("at its place, ENGAGE THE HELLBENDER (%s)" % there[1], String(there[1]) == "ENGAGE THE HELLBENDER" and Router.at_hellbender(n))
+	# the core
+	var core: MapGen.MapNode = null
+	for raw in Run.map:
+		if (raw as MapGen.MapNode).type == MapGen.NodeType.CORE:
+			core = raw
+	Run.at = core.index
+	parked.erase(core.index)
+	h._ok("at the core's edge, LOCAL sends you to the Custodian", String(EncounterDrawer.quiet_lines(core)[1]) == EncounterDrawer.TO_SECTOR)
+	parked[core.index] = {"at": SystemLayout.of(core).core_place()}
+	h._ok("at the Custodian, ENGAGE", String(EncounterDrawer.quiet_lines(core)[1]) == "ENGAGE" and Router.at_custodian(core))
+	# a jump arrives at the edge
+	var m: MapGen.MapNode = null
+	for raw in Run.map:
+		var c: MapGen.MapNode = raw
+		if c.type == MapGen.NodeType.SYSTEM and c.index != n.index:
+			m = c
+			break
+	OptionTable.ensure(m)
+	m.ambush_rolled = true
+	m.ambush_pending = false
+	parked[m.index] = {"at": 0}
+	Run.at = m.index
+	Router._on_jumped(m.index)
+	for i in 4:
+		await get_tree().process_frame
+	h._ok("a jump arrives at the edge, not where the ship was left (%d)" % Run.site_here(m), Run.site_here(m) == -9)

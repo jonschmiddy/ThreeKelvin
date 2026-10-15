@@ -1074,6 +1074,8 @@ func _act(bc) -> void:
 	elif bc.core:
 		if not (n.cleared or n.fled):
 			Router.engage_here()
+	elif bc.hellbender:
+		Router.engage_hellbender()
 
 
 ## The found hull, as the sector's rail handles it (`SectorScreen._on_salvage`).

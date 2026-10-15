@@ -227,7 +227,7 @@ func spent_word(bc) -> Array:
 func beacon_look(bc) -> Array:
 	if bc.dock:
 		return [&"dock", UITheme.ICE]
-	if bc.core:
+	if bc.core or bc.hellbender:
 		return [&"core", UITheme.BAD]
 	var o := option_of(bc)
 	if o.is_empty():
@@ -1222,6 +1222,10 @@ func _draw_tip() -> void:
 			chip = UITheme.BAD
 			lines.append(["THE CUSTODIAN", UITheme.HOT])
 			lines.append(["GUARDS THE CORE", UITheme.BAD])
+		elif bc.hellbender:
+			chip = UITheme.BAD
+			lines.append(["THE HELLBENDER", UITheme.HOT])
+			lines.append(["ANCHORED HERE" if Run.hellbender_alive() else "ITS WRECK", UITheme.BAD])
 		lines.append(_click_line(int(h.body)))
 	var f := _font()
 	var w := 0.0
