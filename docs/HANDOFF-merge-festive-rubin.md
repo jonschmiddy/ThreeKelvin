@@ -12,14 +12,14 @@ Jon's merge rule still holds: **main only moves on a full gate pass**
 
 ## The state of the branch
 
-- 23 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
+- 25 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
   which was `origin/main` when this was written. `origin/main` had not moved
   since, so as pushed this is a **fast-forward**.
-- Last full gate run in the cloud: **PASSED** on `eb3bb5b`. The newest commit
-  (`9b2bb57`, one event per world plus the Hellbender's place) had its own
-  targeted tests pass (systemtest, WreckSiteTest, FightOpenTest, CoreWinTest,
-  OneHoleTest, MoonTest), and a full gate on it was still running when this
-  was written. **Run the gate yourself before merging, whatever this says.**
+- Last full gate run in the cloud: **PASSED** on `9b2bb57` (one event per world
+  and the Hellbender's place). The two commits after it are this handoff and
+  the registry looks on trial, which leave the game as it was
+  (`HullGrade.reg_look` is `""`). GradeSheet passed on all three weights with
+  every look. **Run the gate yourself before merging, whatever this says.**
 - The cloud container was slow. Two tests were timing-sensitive there and
   were fixed (see "Gate changes"). On Jon's machine the gate should take less
   time than it did there (26 to 45 minutes).
@@ -29,7 +29,7 @@ Jon's merge rule still holds: **main only moves on a full gate pass**
 ```bash
 git fetch origin
 git switch main && git pull                     # Jon's local main may have work the cloud never saw
-git log --oneline main..origin/claude/festive-rubin-hd2567 | wc -l   # 23
+git log --oneline main..origin/claude/festive-rubin-hd2567 | wc -l   # 25 (more if work landed after this was written)
 git merge-base main origin/claude/festive-rubin-hd2567               # a6976ef... if main has not moved
 ```
 
@@ -165,6 +165,13 @@ different body. That is harmless before the alpha ships.
    photographs its map): its contact past the last orbit, ENGAGE there.
 
 ## Open, for Jon to decide (do not decide for him)
+
+- The registry number's look (Jon: the white number "LOOKS BAD AND PRINTED
+  ON"). Pick page: https://claude.ai/artifact/HjWutxmgxUX81Hu4dVcvnS . A is
+  tone on tone, B is the number across the band, C is no number. Code:
+  `HullGrade.reg_look`, which is `""` (today's white stencil) until he picks.
+  Setting it is a one-line change to that static var's default. Then run
+  GradeSheet and drop its `reglook=` argument if it is no longer wanted.
 
 - The wreck exit look: A fade (current), B drift, C recede.
 - Whether a belt should also hold only one event.
