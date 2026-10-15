@@ -68,6 +68,10 @@ MAT = {
     'chitin': R('#26302b', '#45524a', '#6c7a70', '#96a498', '#bfcbbd', '#dde6da'),
     'cold': R('#182636', '#283e56', '#3a5876', '#5c82a4', '#8cb6d4', '#b8dcee'),
     'gun': R('#14171d', '#1a1e26', '#2a2f39', '#3a404c', '#5c6474', '#7a8494'),
+    # Solari's white heat-shield (Jon, Oct 15: "C", over bronze and black ceramic):
+    # pale ceramic tile, so the brass rings and dark nose stand out and it is
+    # nobody's steel.
+    'tile': R('#4a4034', '#7a6e5c', '#a89a80', '#cfc2a4', '#e8dcc0', '#f8efda'),
 }
 INK = hx('#0b0f16')
 GLASS = R('#162e40', '#3a6b8c')
@@ -151,20 +155,20 @@ def crest(x0, x1, top, n):
 SPECS = {
  'solari': {
   'light': {'parts': [
-     P(('prof', [(.44, .47, .65), (.8, .51, .61), (1, .55, .57)]), seams=20, rivets=True, band=(.62, .70)),
-     P(('prof', [(.04, .40, .72), (.18, .34, .82), (.38, .35, .82), (.50, .40, .74), (.60, .45, .68)]), seams=14, rivets=True, belt=.55,
+     P(('prof', [(.44, .47, .65), (.8, .51, .61), (1, .55, .57)]), 'tile', seams=12, rivets=False, band=(.62, .70)),
+     P(('prof', [(.04, .40, .72), (.18, .34, .82), (.38, .35, .82), (.50, .40, .74), (.60, .45, .68)]), 'tile', seams=8, rivets=False, belt=.55,
        ports=[(.32, .45, .9, 3, 3, 2, 1)], hatch=[(.6, .6, .85, .85)]),
      P(('poly', [(.12, .80), (.40, .80), (.35, .87), (.17, .87)]), 'brick', seams=6)] + crest(.12, .44, .34, 6) + rings(.12, .44, .34, .84, 3),
    'kit': [],
    'noz': [(.50, .12), (.68, .12)]},
   'medium': {'parts': [
-     P(('prof', [(0, .40, .70), (.1, .34, .78), (.5, .34, .82), (.75, .38, .78), (.9, .44, .70), (1, .50, .64)]), seams=18,
-       rivets=True, belt=.48, ports=[(.3, .62, .8, 4, 3, 2, 2)], band=(.68, .74)),
+     P(('prof', [(0, .40, .70), (.1, .34, .78), (.5, .34, .82), (.75, .38, .78), (.9, .44, .70), (1, .50, .64)]), 'tile', seams=10,
+       rivets=False, belt=.48, ports=[(.3, .62, .8, 4, 3, 2, 2)], band=(.68, .74)),
      P(('poly', [(.16, .80), (.62, .80), (.55, .87), (.24, .87)]), 'brick', seams=8)] + crest(.12, .56, .34, 9) + rings(.12, .56, .34, .82, 3),
    'kit': [],
    'noz': [(.48, .12), (.64, .12)]},
   'heavy': {'parts': [
-     P(('prof', [(0, .40, .74), (.08, .34, .84), (.5, .34, .92), (.78, .38, .86), (.9, .44, .76), (1, .56, .66)]), seams=20, rivets=True,
+     P(('prof', [(0, .40, .74), (.08, .34, .84), (.5, .34, .92), (.78, .38, .86), (.9, .44, .76), (1, .56, .66)]), 'tile', seams=12, rivets=False,
        belt=.5, ports=[(.28, .66, .84, 4, 3, 2, 2)], band=(.76, .82), hatch=[(.06, .6, .14, .8)]),
      P(('poly', [(.18, .90), (.70, .90), (.62, .96), (.28, .96)]), 'brick', seams=8),
      P(('poly', [(.92, .44), (1, .56), (1, .66), (.92, .70)]), 'gun')] + crest(.26, .62, .34, 9) + rings(.26, .62, .34, .92, 4),
@@ -391,7 +395,7 @@ def render(maker, weight):
             continue
         bx0, by0, bx1, by1 = bb
         r = acc if part['mat'] == 'acc' else MAT[part['mat']]
-        hull_plate = part['mat'] in ('steel', 'dark', 'olive', 'rust', 'enamel', 'chitin', 'cold')
+        hull_plate = part['mat'] in ('steel', 'dark', 'olive', 'rust', 'enamel', 'chitin', 'cold', 'tile')
         # fill, lit column by column on the part's own extent
         cols = {}
         for cx in range(bx0, bx1):
