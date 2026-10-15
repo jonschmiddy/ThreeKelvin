@@ -158,7 +158,7 @@ func _row(slot: Dictionary) -> Control:
 
 	col.add_child(UITheme.body("%s · %s" % [
 		DB.manufacturer_name(b.hull.manufacturer).to_upper(),
-		DB.hull_class(b.hull.manufacturer, b.hull.weight).to_upper()],
+		HullData.weight_name(b.hull.weight).to_upper()],
 		DB.manufacturer_colour(b.hull.manufacturer), UITheme.FS_SMALL))
 
 	col.add_child(_gauge("HULL", BoxGauge.Mode.HULL, b.max_hp, b.hp,

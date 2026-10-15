@@ -1337,8 +1337,8 @@ const MANUFACTURER_HULLS := {
 		perk_id = &"overspec_reactor",
 		d = {heat_cap = 8, dissipation = -1, stealth = -2, fuel_factor = 0.1}},
 	&"probate": {
-		# Jon's pick, Oct 15 (the name page, group H "What's owed")
-		names = ["Tithe", "Levy", "Seizure"],
+		# Jon's pick, Oct 15 (the name page, group S "The salvage crew")
+		names = ["Picker", "Wrecker", "Breaker"],
 		perk_id = &"salvage_rack",
 		d = {max_hull = 8, heat_cap = 2, dissipation = -1, initiative = -1,
 			fuel_factor = 0.2, stealth = -1, utility_slots = 1, weapon_slots = -1}},
@@ -1383,8 +1383,8 @@ const MANUFACTURER_HULLS := {
 	# dissipation in the game made its heavy the best chassis by six points.
 	# It keeps everything that is actually its identity.
 	&"calyx": {
-		# Jon's pick, Oct 15 (the name page, group K "Laboratory, Arboretum, Institute")
-		names = ["Laboratory", "Arboretum", "Institute"],
+		# Jon's pick, Oct 15 (the name page, group P "Laboratory, Vivarium, Institute")
+		names = ["Laboratory", "Vivarium", "Institute"],
 		perk_id = &"baffled_vents",
 		d = {dissipation = 1, dodge = 0.02, fuel_factor = -0.1,
 			sensors = 1, stealth = 1, system_slots = 1, weapon_slots = -1}},
@@ -2043,7 +2043,9 @@ func set_exhaust(h: HullData, id: int, cls: int = 0) -> void:
 
 ## What each manufacturer CALLS its three weight classes.
 ##
-## AUTHORED BUT NOT DISPLAYED. The screens print plain LIGHT / MEDIUM / HEAVY,
+## AUTHORED BUT NOT DISPLAYED, anywhere now: the party screen and the fight's
+## party strip printed them too until Jon, Oct 15, "change to light medium
+## heavy". The screens print plain LIGHT / MEDIUM / HEAVY,
 ## because that is what reads for a player: weight class is the fact you compare
 ## ACROSS manufacturers, and this turns one shared word into twenty-one to learn. Kept
 ## because the names are content rather than code, and the moment there is

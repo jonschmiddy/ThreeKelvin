@@ -2603,7 +2603,7 @@ class ConvoySlot extends Control:
 			_lost = false
 		else:
 			_label = "%s · %s" % [who,
-				DB.hull_class(b.hull.manufacturer, b.hull.weight).to_upper()]
+				HullData.weight_name(b.hull.weight).to_upper()]
 			_hull_at = clampf(float(b.hp) / float(maxi(1, b.max_hp)), 0.0, 1.0)
 			_heat_at = clampf(b.heat_ratio(), 0.0, 1.0)
 			_lost = b.dead
