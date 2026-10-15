@@ -35,12 +35,6 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		cb.choose_kind = &"decommission" if c.decommission > 0 else &"discard"
 		cb.choosing = mini(maxi(c.discard, c.decommission), cb.hand.size())
 
-	if c.vent_all:
-		var purged := Run.heat
-		Run.heat = 0
-		if purged > 0:
-			cb._log("Purged %d heat." % purged, &"heat")
-
 	if c.damage_equals_heat:
 		var d := maxi(1, Run.heat + 2)
 		cb.damage_enemy(d, 1, c.name)
@@ -52,6 +46,9 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 			dmg += int(Run.heat / c.heat_scale)
 		if c.manufacturer == &"solari" and c.heat_scale > 0 and Run.has_set(&"solari", 3):
 			dmg += 2
+		if c.flashpoint > 0 and Run.heat > Run.heat_cap():
+			dmg += c.flashpoint
+			cb._log("  flashpoint +%d/hit" % c.flashpoint, &"good")
 		if c.adapt > 0:
 			dmg += cb.adapt_bonus
 		if c.salvo > 0 and cb.salvo_live(c):
@@ -94,7 +91,7 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 	if c.brace_from_heat:
 		var a2 := maxi(2, int(Run.heat / 2) + 2)
 		cb.brace += a2
-		cb._log("Shroud +%d brace from heat." % a2, &"you")
+		cb._log("%s +%d brace from heat." % [c.name, a2], &"you")
 
 	if c.block > 0:
 		cb.block += c.block
@@ -106,6 +103,15 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 	if c.negate_next:
 		cb.negate_next = true
 		cb._log("Next attack on you will be negated.", &"good")
+
+	# AFTER EVERYTHING THAT READS HEAT. It ran before damage_equals_heat, so
+	# Thermal Purge zeroed the gauge and then hit for 2 while its face, from
+	# Combat.card_output, said heat + 2. A card reads the heat it was played at.
+	if c.vent_all:
+		var purged := Run.heat
+		Run.heat = 0
+		if purged > 0:
+			cb._log("Purged %d heat." % purged, &"heat")
 
 	if c.vent > 0:
 		# PLUS THE SHIP'S DISSIPATION, which no longer sheds on its own. The

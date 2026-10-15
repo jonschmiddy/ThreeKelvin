@@ -117,6 +117,8 @@ const SCORE = [
   [/Deal (\d+)(?: × (\d+))?/, (m) => (+m[1]) * (+(m[2] || 1))],
   [/Damage from heat/, () => 8],
   [/Heat scaling per (\d+)/, () => 4],
+  // Pays only over the heat cap, so half its face, and per hit unseen here.
+  [/Flashpoint \+(\d+)/, (m) => (+m[1]) * 1.5],
   [/Charge (\d+)/, () => 0],
   [/Grows \+(\d+)/, (m) => (+m[1]) * 3],
   [/Salvo \+(\d+)/, (m) => (+m[1]) * 3],

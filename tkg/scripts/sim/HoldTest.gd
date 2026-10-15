@@ -27,6 +27,8 @@ func run() -> void:
 	_no_twins()
 	_no_echoes()
 	_korvan_runs_cold()
+	_solari_runs_hot()
+	_solari_heat_not_waste()
 	verdict("holdtest")
 
 
@@ -68,6 +70,14 @@ func _card_law() -> void:
 			bad += " %s(nothing at grade %d)" % [m.name, law[0]]
 		if got.size() > 1 and names.size() == 1:
 			pairs += 1
+			# THE PAIR BLIND SPOT. A pair on a 1-2 cell part above common passes
+			# the check above, because its second copy is stamped a grade lower
+			# when it is granted -- so it reads as one-and-one. §3 says such a
+			# part may not be a pair at all. Printed, not failed, until the
+			# parts that do it are rewritten.
+			if m.cells() < 3 and int(m.rarity) > 0:
+				print("  warn: %s is a pair on a %d-cell %s part" % [m.name, m.cells(),
+					ModuleData.Rarity.keys()[m.rarity].to_lower()])
 		for c in m.cards:
 			if DB.SHARED.values().any(func(d: Dictionary) -> bool:
 					return d.get("name", "") == (c as CardData).name):
@@ -653,5 +663,50 @@ func _korvan_runs_cold() -> void:
 			bad.append("%s (%s) costs %d heat and does not charge"
 				% [cd.name, m.name, cd.heat])
 	_ok("Korvan ballistics run cold; only its ordnance runs hot", bad.is_empty())
+	for b in bad:
+		_fail(b)
+
+
+## SOLARI ATTACKS RUN HOT. "The line between reactor and weapon is philosophy":
+## a Solari gun either costs heat or reads it (heat scaling, damage from heat,
+## flashpoint). A cold Solari gun is a worse Korvan gun, the mirror of
+## `_korvan_runs_cold`. Shared cards are anyone's and exempt.
+func _solari_runs_hot() -> void:
+	var bad: Array[String] = []
+	for id in DB.modules:
+		var m: ModuleData = DB.modules[id]
+		if m.manufacturer != &"solari":
+			continue
+		for cd: CardData in m.cards:
+			if cd.shared or (cd.damage <= 0 and not cd.damage_equals_heat):
+				continue
+			if cd.heat > 0 or cd.heat_scale > 0 or cd.damage_equals_heat or cd.flashpoint > 0:
+				continue
+			bad.append("%s (%s) attacks cold" % [cd.name, m.name])
+	_ok("Solari attacks run hot", bad.is_empty())
+	for b in bad:
+		_fail(b)
+
+
+## SOLARI HEAT IS NEVER WASTE. Every yard sheds heat; Solari sheds it for
+## something. A Solari card that vents also hits, braces, blocks, draws,
+## repairs, locks on or gives energy -- a bare vent is the shared Bleed Heat's
+## job, and a Solari card that only vents would be a Korvan card in the wrong
+## colours.
+func _solari_heat_not_waste() -> void:
+	var bad: Array[String] = []
+	for id in DB.modules:
+		var m: ModuleData = DB.modules[id]
+		if m.manufacturer != &"solari":
+			continue
+		for cd: CardData in m.cards:
+			if cd.shared or (cd.vent <= 0 and not cd.vent_all):
+				continue
+			if cd.damage > 0 or cd.damage_equals_heat or cd.brace > 0 or cd.brace_from_heat \
+					or cd.block > 0 or cd.draw > 0 or cd.heal > 0 or cd.heal_scale > 0 \
+					or cd.lock_on > 0 or cd.energy_gain > 0:
+				continue
+			bad.append("%s (%s) vents and does nothing else" % [cd.name, m.name])
+	_ok("Solari heat is never waste", bad.is_empty())
 	for b in bad:
 		_fail(b)

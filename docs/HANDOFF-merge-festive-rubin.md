@@ -246,11 +246,37 @@ tile, not steel.
 - The other five manufacturers: same pipeline, not started. **Ask Jon before
   spending PixelLab credits, every time, with takes and a cap.**
 
-## Next: Solari's modules and cards (Jon, Oct 15)
+## Solari's modules and cards (Jon, Oct 15)
 
-Jon: "Then work on the modules and cards." From the manufacturer plan's Solari
-tab (https://claude.ai/artifact/7p4xze2tuQ2FAQ6MbTkMe7). See the section below
-once it is written.
+Jon: "Then work on the modules and cards." Built from the manufacturer plan's
+Solari tab (https://claude.ai/artifact/7p4xze2tuQ2FAQ6MbTkMe7). Page with every
+Solari card as the game draws it: https://claude.ai/artifact/1tL4AXkZBhPL45XwXA4JNf
+
+- **18 new parts** in `Database.gd` under the Solari section: Solari is 25
+  parts and 39 unique cards of 40 (`-- content`). Not in the loot pool:
+  `ACTIVE_MANUFACTURERS` is still Korvan alone, so nothing changes for a
+  Korvan run.
+- **Flashpoint**, a new card field and keyword: +N damage per hit if heat is
+  over capacity when the card resolves. `CardData` (field, text, glossary,
+  `pyre` glyph), `CardResolver`, `Combat.card_output` / `card_hot`, `Policy`,
+  and the manifest's scorer. Jon: "As planned" (Sparkfall common, Overpressure
+  and Flashover epic).
+- **Starter:** Solari starts on the common Ember Lance (Jon). The Plasma Lance
+  is now a find.
+- **Names:** the heliostat's capstone is Sunburst and the Sunheart's is
+  Photosphere, not Nova and Prominence, which are hull names (Jon: rename).
+- **Fixed:** Thermal Purge vented before it read your heat, so it hit for 2
+  while its face said heat + 2. `vent_all` now resolves after everything that
+  reads heat. The brace-from-heat log names the card, not "Shroud".
+- **Gates (HoldTest):** "Solari attacks run hot" and "Solari heat is never
+  waste", both passing. The rarity law now PRINTS a warning for a pair on a 1-2
+  cell part above common (13 parts across five makers), not yet a failure.
+- **Open, Jon's call:** Overdrive, Shroud, Flare Rack and Cauterising Torch are
+  still pairs on 2-cell parts, which §3 forbids. Korvan's three pairs are all
+  legal. Proposed fixes are in the plan.
+- Checked: holdtest, attrtest, reactor, content, glyphs, savetest, an import
+  compile. Not run: the sim (Solari does not drop, so a Korvan sim cannot see
+  it) or the whole gate.
 
 ## Pages Jon judged this on
 

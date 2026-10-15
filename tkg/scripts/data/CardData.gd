@@ -22,6 +22,10 @@ extends Resource
 @export var charge_turns: int = 0       ## fires automatically after N turns
 @export var heat_scale: int = 0         ## +1 damage per N current heat
 @export var damage_equals_heat: bool = false
+## +N damage per hit if the ship is over its heat capacity when this resolves
+## (a charged card: when it discharges). Solari's: heat over the cap is a cost
+## everywhere else, and here it is the trigger.
+@export var flashpoint: int = 0
 @export var adapt: int = 0              ## permanently grows this combat
 
 @export_group("Defence")
@@ -176,7 +180,7 @@ func glyph_kind() -> StringName:
 		return &"drone"
 	# An attack whose number is your heat is a different animal from one with a
 	# number printed on it — it is the build asking you to run hot on purpose.
-	if damage_equals_heat or heat_scale > 0:
+	if damage_equals_heat or heat_scale > 0 or flashpoint > 0:
 		return &"pyre"
 	# THE SPLIT THAT DOES THE MOST WORK. "Deal 2 x 5" and "Deal 40" are the same
 	# picture under the old scheme and are not remotely the same card.
@@ -359,6 +363,8 @@ func keywords() -> Array:
 	if heal_scale > 0:
 		out.append(["Emergency repair",
 			"One more hull for every %d you are missing." % heal_scale])
+	if flashpoint > 0:
+		out.append(["Flashpoint", "Deals this much more per hit if your heat is over your capacity when it is played."])
 	if damage_equals_heat:
 		out.append(["Damage from heat", "Hits for exactly however much heat you are carrying."])
 	if lock_on > 0:
@@ -466,6 +472,8 @@ func describe(live: int = -1) -> String:
 		bits.append("Damage from heat")
 	if heat_scale > 0:
 		bits.append("Heat scaling per %d" % heat_scale)
+	if flashpoint > 0:
+		bits.append("Flashpoint +%d" % flashpoint)
 	if charge_turns > 0:
 		bits.append("Charge %d" % charge_turns)
 	if salvo > 0:

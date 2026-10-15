@@ -704,6 +704,8 @@ func card_output(c: CardData) -> int:
 			per += int(Run.heat / c.heat_scale)
 		if c.manufacturer == &"solari" and c.heat_scale > 0 and Run.has_set(&"solari", 3):
 			per += 2
+		if c.flashpoint > 0 and Run.heat > Run.heat_cap():
+			per += c.flashpoint
 		if c.adapt > 0:
 			per += adapt_bonus
 		if c.salvo > 0 and salvo_live(c):
@@ -729,6 +731,8 @@ func card_hot(c: CardData) -> PackedStringArray:
 		return out
 	if c.heat_scale > 0 and int(Run.heat / c.heat_scale) > 0:
 		out.append("Heat scaling")
+	if c.flashpoint > 0 and Run.heat > Run.heat_cap():
+		out.append("Flashpoint")
 	if c.adapt > 0 and adapt_bonus > 0:
 		out.append("Grows")
 	if c.salvo > 0 and salvo_live(c):

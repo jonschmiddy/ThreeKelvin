@@ -86,13 +86,12 @@ const GENERIC_STOCK: Array[StringName] = [
 ## they also even out a common tier of the drop pool that was six-sevenths
 ## Korvan.
 ##
-## STILL UNEVEN, deliberately for now: Solari, Redline and Cygnet start on
-## Uncommons, which melt for 16 against Korvan's 8. Half the gap that was there
-## and a quarter of what Probate had, but not zero — closing it means three more
-## modules, and that is a content decision rather than a bug fix.
+## STILL UNEVEN, deliberately for now: Redline and Cygnet start on Uncommons,
+## which melt for 16 against Korvan's 8. Solari did too, until its common Ember
+## Lance was written (Jon, Oct 15); the Plasma Lance is now its first upgrade.
 const STARTER_WEAPON: Dictionary = {
 	&"korvan": &"kh20",
-	&"solari": &"plasma",
+	&"solari": &"emberlance",
 	&"probate": &"breaker",
 	&"redline": &"needle",
 	&"cygnet": &"dronebay",
@@ -574,6 +573,107 @@ func _seed_modules() -> void:
 		"A flare that lights the target for your guns.",
 		[{name = "Flare", energy = 1, heat = 2, lock_on = 6, copies = 2}])
 
+	# --- Solari, the rest of the line (Jon, Oct 15: "Let's make the modules and
+	# cards now", from the manufacturer plan's Solari tab). Two checks hold it to
+	# the motto (HoldTest `_solari_runs_hot`, `_solari_heat_not_waste`): every
+	# Solari attack costs heat or reads it, and every Solari vent buys something.
+	#
+	# The issued gun, and a COMMON, so Solari launches on a common like Korvan.
+	# Glowshot is weak cold and fair at eight heat; Kindle is free and exists to
+	# start the gauge climbing.
+	_module(&"emberlance", "Ember Lance", &"solari", W, C0,
+		"Issued to every new hand on the floor.",
+		[{name = "Glowshot", energy = 1, heat = 2, damage = 4, heat_scale = 4},
+			{name = "Kindle", energy = 0, heat = 3, damage = 2, heat_scale = 3}])
+	# The multi-hit lane: heat scaling adds per hit, and so does Sunward's +2.
+	# Sparkfall is the first Flashpoint card a player meets.
+	_module(&"sparkthrower", "Spark Thrower", &"solari", W, C1,
+		"Sprays what the reactor could not hold.",
+		[{name = "Spatter", energy = 1, heat = 3, damage = 2, hits = 3, heat_scale = 6},
+			{name = "Sparkfall", energy = 1, heat = 2, damage = 4, hits = 2, flashpoint = 2}])
+	# Charge plus heat scaling: the shot reads your heat when it fires, so every
+	# hot card played while it charges makes it bigger.
+	_module(&"sunspot", "Sunspot Mortar", &"solari", W, C2,
+		"Fill it, wait a shift, then aim it.",
+		[{name = "Sunspot", energy = 2, heat = 4, damage = 12, heat_scale = 2, charge_turns = 1},
+			{name = "Long Noon", energy = 3, heat = 6, damage = 16, heat_scale = 2, charge_turns = 2}])
+	# The Flashpoint gun, for a build that lives over its cap on purpose.
+	# Ignition (5-set, overheat halved) is what makes that survivable.
+	_module(&"overpressure", "Overpressure Cannon", &"solari", W, C3,
+		"Rated for the pressure. The crew was not.",
+		[{name = "Overpressure", energy = 2, heat = 5, damage = 9, hits = 2, flashpoint = 5},
+			{name = "Flashover", energy = 1, heat = 6, damage = 8, flashpoint = 8}])
+	# The capstone, four across, a full row of a light hull's hold. Sunburst is
+	# the once-a-fight peak: three hits that each read half your heat, then it
+	# strikes itself off the books. (Not "Nova": that is the heavy hull's name.)
+	_module(&"heliostat", "Heliostat Lance", &"solari", W, C4,
+		"Ground for a sun the Foundry no longer has.",
+		[{name = "Noon Lance", energy = 3, heat = 6, damage = 10, heat_scale = 1},
+			{name = "Sunburst", energy = 3, heat = 8, damage = 4, hits = 3, heat_scale = 2,
+				self_decommission = true}])
+
+	# Systems: plate that feeds the guns, and an engine paid in heat.
+	_module(&"firebrick", "Firebrick Lining", &"solari", S, C0,
+		"Lined to the specification of a smelting floor.",
+		[{name = "Firebrick", energy = 1, heat = 2, brace = 6, copies = 2}])
+	_module(&"bellows", "Bellows Pump", &"solari", S, C0,
+		"It breathes for the furnace. Mind your hands.",
+		[{name = "Bellows", energy = 0, heat = 3, draw = 1, copies = 2}])
+	# Solari's only block: for the turn a Sunspot is charging.
+	_module(&"heathaze", "Heat Haze Projector", &"solari", S, C1,
+		"The air bends, and their gunners guess.",
+		[{name = "Heat Haze", energy = 1, heat = 2, block = 9},
+			{name = "Shimmer", energy = 0, heat = 3, block = 5}])
+	_module(&"heatbank", "Heat Bank", &"solari", S, C2,
+		"Allocated warmth, held until the schedule calls it.",
+		[{name = "Bank the Fire", energy = 2, brace = 6, brace_from_heat = true},
+			{name = "Draw Down", energy = 1, vent = 8, draw = 1, energy_gain = 1}])
+	_module(&"starfurnace", "Star Furnace", &"solari", S, C3,
+		"A smelt charge that never has to stop.",
+		[{name = "Stoke", energy = 0, heat = 5, draw = 2, energy_gain = 2},
+			{name = "Forced Draft", energy = 1, heat = 4, draw = 3}])
+	# Both read the gauge before their own heat lands. (Not "Prominence": that
+	# is the medium hull's name.)
+	_module(&"sunheart", "Sunheart Core", &"solari", S, C4,
+		"The floor calls it the heart. It is a reactor.",
+		[{name = "Corona", energy = 1, heat = 3, brace_from_heat = true, feedback = 5},
+			{name = "Photosphere", energy = 2, heat = 4, damage_equals_heat = true,
+				brace_from_heat = true}])
+	# The Solari answer to junk: burn the card and keep the warmth.
+	_module(&"crucible", "Smelting Crucible", &"solari", S, C3,
+		"Whatever goes in comes out as heat.",
+		[{name = "Melt Down", energy = 1, heat = 4, decommission = 2, energy_gain = 1},
+			{name = "Render", energy = 0, heat = 3, brace = 6, decommission = 1}])
+
+	# Utility.
+	_module(&"heliograph", "Heliograph", &"solari", U, C0,
+		"A polished plate and a steady wrist.",
+		[{name = "Glint", energy = 0, heat = 2, lock_on = 3, copies = 2}])
+	_module(&"incinerator", "Incinerator Hatch", &"solari", U, C0,
+		"Burned off the books, and logged as fuel.",
+		[{name = "Incinerate", energy = 0, heat = 3, decommission = 1, draw = 1, copies = 2}])
+	# Venting aimed at the enemy: damage resolves before the vent, so Backdraft
+	# hits for the heat it is about to shed.
+	_module(&"bleedvalve", "Bleed Valve", &"solari", U, C1,
+		"Opens toward the enemy, by regulation.",
+		[{name = "Backdraft", energy = 1, damage = 3, heat_scale = 2, vent = 4},
+			{name = "Pressure Drop", energy = 0, block = 4, vent = 2}])
+	# A radiator pointed at the enemy. Radiate hits for your heat and sheds 6, so
+	# unlike Thermal Purge it leaves you warm enough to keep going.
+	_module(&"radiatorsail", "Radiator Sail", &"solari", U, C2,
+		"Every other yard points these at the dark.",
+		[{name = "Radiate", energy = 2, damage_equals_heat = true, vent = 6, draw = 1},
+			{name = "Luff", energy = 1, vent = 3, draw = 2}])
+	_module(&"annealer", "Annealing Lamp", &"solari", U, C3,
+		"Tempered on the floor, retempered in the field.",
+		[{name = "Anneal", energy = 1, heat = 3, brace = 6, heal = 2, heal_scale = 3},
+			{name = "Temper", energy = 1, heat = 2, brace = 5, draw = 1}])
+	# The engine capstone: one enormous turn a fight.
+	_module(&"mirrorarray", "Solstice Mirror Array", &"solari", U, C4,
+		"Every mirror on it was aimed by hand.",
+		[{name = "Solstice", energy = 0, heat = 8, draw = 2, energy_gain = 3, self_decommission = true},
+			{name = "Backfire", energy = 2, heat = 3, damage_equals_heat = true, energy_gain = 1}])
+
 	# --- Probate: scrap and sustain
 	_module(&"claw", "Salvage Claw", &"probate", U, C0,
 		"Tears salvage off live targets.",
@@ -1009,13 +1109,14 @@ func _seed_module_sizes() -> void:
 	const FIT := Vector2i(1, 1)
 
 	# The three the hull is built AROUND rather than hung with.
-	var spinal: Array[StringName] = [&"widow", &"kh500", &"rail"]
+	var spinal: Array[StringName] = [&"widow", &"kh500", &"rail", &"heliostat"]
 	# Barrels, lances and rails. The shape IS the barrel.
 	var long_ones: Array[StringName] = [
 		&"km4", &"widow", &"kh500", &"plasma", &"ventcan", &"breaker",
 		&"needle", &"rail", &"beam", &"slug",
 		# A trunk line IS its length.
 		&"trunkline",
+		&"emberlance", &"overpressure",
 	]
 	# Bays, arrays, cradles and heavy plate — things with a volume rather than a
 	# barrel. `singing` and `lattice` are precursor artifacts and read as blocks.
@@ -1023,10 +1124,12 @@ func _seed_module_sizes() -> void:
 		&"dronebay", &"ripper", &"singing",
 		&"reactive", &"bulkhead", &"verity", &"lattice", &"braceframe", &"slag",
 		&"refinery", &"organ", &"mainbus", &"cryobat", &"keel", &"sepulchre",
+		&"sunspot", &"heatbank", &"starfurnace", &"sunheart", &"crucible",
 	]
 	# Utility that is a piece of EQUIPMENT rather than an instrument.
 	var util_units: Array[StringName] = [
 		&"flare", &"chaff", &"claw", &"ghost", &"standfast", &"director",
+		&"radiatorsail", &"annealer", &"mirrorarray",
 	]
 
 	# WHAT THE REACTOR CAN CARRY, granted by a part. Here rather than in the
@@ -1135,6 +1238,10 @@ const PASSIVE_AXIS := {
 	# The rungs that had nobody on them.
 	&"cryobat": [&"thermal"], &"gunnery": [&"sensors"],
 	&"keel": [&"hull"], &"sepulchre": [&"thermal"], &"oracle": [&"sensors"],
+	# Solari's line: thermal climbs rare to legendary, plus a plate and a sight.
+	&"firebrick": [&"hull"], &"annealer": [&"hull"], &"heatbank": [&"thermal"],
+	&"radiatorsail": [&"thermal"], &"starfurnace": [&"thermal"], &"sunheart": [&"thermal"],
+	&"mirrorarray": [&"sensors"],
 }
 
 
@@ -1147,6 +1254,8 @@ const PASSIVE_AXIS := {
 ## numbers.
 const PASSIVE_COST := {
 	&"flare": [&"stealth", 1],
+	# The brightest thing on the hull, by design.
+	&"radiatorsail": [&"stealth", 1],
 	&"organ": [&"stealth", 1],
 }
 

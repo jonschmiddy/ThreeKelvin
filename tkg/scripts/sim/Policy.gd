@@ -242,7 +242,9 @@ func score(c: CardData, cb: Combat) -> float:
 	if c.charge_turns > 0:
 		return 65.0
 	if c.damage > 0:
-		return 40.0 + float(c.damage * maxi(1, c.hits)) / 4.0
+		# Flashpoint pays only over the cap, so the pilot reaches for it there.
+		var per := c.damage + (c.flashpoint if Run.heat > Run.heat_cap() else 0)
+		return 40.0 + float(per * maxi(1, c.hits)) / 4.0
 	return 5.0
 
 
