@@ -30,7 +30,9 @@ extends Harness
 
 ## Cards in scope come from modules of these manufacturers, plus the malfunctions.
 ## `&""` is unbranded, which is a real key and not a missing one.
-const MANUFACTURERS: Array[StringName] = [&"korvan", &""]
+## Solari joined Oct 15, when its parts and cards were written and their art
+## was started (Jon: "Let's do art for these modules and cards").
+const MANUFACTURERS: Array[StringName] = [&"korvan", &"", &"solari"]
 
 ## How far past its box a part may stand before it is a fault, in art pixels.
 ## Half a cell. Beyond that it is not a gun on a mount, it is a gun beside one.

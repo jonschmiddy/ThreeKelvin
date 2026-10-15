@@ -1,0 +1,366 @@
+{
+ "set": "Solari Foundry: forty cards",
+ "lede": "<p class=\"lede\">Solari's forty, briefed the way Korvan's were: each card anchored to the <b>hardware of the part that grants it</b>, and two cards off one part are two <b>moments</b> of the same machine. The world line changes for Solari: <b>pale ceramic heat-shield tile and brass</b> instead of Korvan's weathered steel, and the warm light is no longer rationed to one point &mdash; heat is the resource, so the machinery glows.</p><p class=\"lede\">Approve, rewrite or drop each brief. Nothing is generated until you say so.</p>",
+ "cards": [
+  {
+   "id": "glowshot",
+   "actor": "a short ceramic-tiled lance with brass bands",
+   "on": "a fat bolt of plasma leaving its tip",
+   "moment": "the lance tip still glowing orange from the shot, a single bright ember-coloured bolt just clear of it and crossing dark void.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "kindle",
+   "actor": "a spark igniter at the breech of the same tiled lance",
+   "on": "the cold brass coil it is lighting",
+   "moment": "a small white spark jumping onto the first windings of a coil that are only just beginning to glow amber, the rest of the coil still dark.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "plasma_lance",
+   "actor": "a long lance wound with brass coils",
+   "on": "a thin white-hot spear of plasma it throws",
+   "moment": "every winding along the lance glowing orange, a thin white-hot line leaving the tip and crossing the void.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "spatter",
+   "actor": "a fan of three stubby ceramic nozzles",
+   "on": "the spray of molten droplets fanning out of them",
+   "moment": "three spreading jets of glowing orange droplets fanning away across dark void, the nozzle lips scorched.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "sparkfall",
+   "actor": "a split brass heat exchanger",
+   "on": "a curtain of sparks pouring out of the split",
+   "moment": "white-hot sparks cascading out of a torn seam in the exchanger and falling past rows of pale ceramic tiles.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "sunspot",
+   "actor": "a squat brass-ringed launch tube",
+   "on": "a glowing charge being seated into it",
+   "moment": "a heavy charge glowing like a small sun lowered on a cradle into the open tube, the tube rim scorched dark.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "long_noon",
+   "actor": "a long launch tube banded with brass rings",
+   "on": "the heat building ring by ring along its length",
+   "moment": "the rings nearest the breech glowing bright orange and the glow creeping toward the dark mouth, one ring at a time.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "overpressure",
+   "actor": "a riveted brass pressure drum",
+   "on": "the jet of plasma tearing out of its split seam",
+   "moment": "the drum's end cap bowed outward and a white-hot jet bursting from a split along its rivets.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "flashover",
+   "actor": "a sheet of flame",
+   "on": "a bay full of brass pipework",
+   "moment": "fire racing across every pipe in the same instant, the whole bay going bright orange, the open bay door showing indigo void beyond.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "noon_lance",
+   "actor": "a tall concave heliostat mirror",
+   "on": "a blinding beam of focused light it sends out",
+   "moment": "the polished mirror gathering gold light and throwing one hard straight beam across the void to a white point on dark plating far away.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "sunburst",
+   "actor": "three focusing mirrors on brass arms",
+   "on": "the burst of light where their beams meet",
+   "moment": "three beams meeting at one point between the mirrors and erupting outward into a star of white-gold rays.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "thermal_purge",
+   "actor": "a wide radiator vent mouth",
+   "on": "a torrent of fire pouring out of it",
+   "moment": "a broad column of orange fire and rippling heat leaving the vent into the void, the fins around the mouth already dimming to grey.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "overdrive",
+   "actor": "a bank of brass induction coils",
+   "on": "the arcs of current leaping between them",
+   "moment": "the coils glowing orange and fat blue-white arcs jumping coil to coil.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "open_the_throttle",
+   "actor": "a heavy brass throttle lever in a notched quadrant",
+   "on": "the reactor slot flaring behind it",
+   "moment": "the lever shoved fully forward, the long slot behind it brightening from dull red to orange.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "shroud",
+   "actor": "a curtain of overlapping pale ceramic tiles",
+   "on": "the heat soaking through it from behind",
+   "moment": "tile edges glowing amber where heat bleeds through the gaps while the tile faces stay pale.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "firebrick",
+   "actor": "rows of thick firebricks",
+   "on": "the steel bulkhead they line",
+   "moment": "fresh firebricks set over steel, their faces scorched dark and still warm, mortar lines glowing faintly.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "bellows",
+   "actor": "a pleated brass-ribbed bellows",
+   "on": "the furnace mouth it feeds",
+   "moment": "the bellows halfway through a stroke, the gust brightening the bed in the furnace mouth to yellow-white.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "heat_haze",
+   "actor": "a projector dish throwing a wall of heated air",
+   "on": "streaks of incoming fire bending through it",
+   "moment": "bright streaks kinking aside as they pass through a rippling curtain of heat in front of pale ceramic tiles.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "shimmer",
+   "actor": "a thin band of rippling heat off a brass collar",
+   "on": "the starfield behind it",
+   "moment": "the stars seen through the band smeared and doubled, cold and sharp everywhere else.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "bank_the_fire",
+   "actor": "a heavy cast damper door",
+   "on": "a deep bed of embers behind it",
+   "moment": "the damper swung half shut over embers glowing a dull steady red, heat haze rising along its edge.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "draw_down",
+   "actor": "a brass valve wheel",
+   "on": "glowing coolant draining down a clear sight tube",
+   "moment": "the wheel spun open and orange-hot coolant falling through the sight tube into darker pipe below.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "stoke",
+   "actor": "a long brass fire rake",
+   "on": "the reactor bed it is stoking",
+   "moment": "the rake mid-stroke through a bed of white-hot fuel, sparks pouring up past brass grating.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "forced_draft",
+   "actor": "a big ducted intake fan",
+   "on": "the furnace throat it is driving",
+   "moment": "the fan blades a blur and the throat beyond burning white, the duct walls tiled and scorched.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "corona",
+   "actor": "a ring of white-gold fire",
+   "on": "the tiled reactor core it stands off",
+   "moment": "tongues of flame leaping outward from a halo hovering just off the core's tiles, brass bands catching the light.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "photosphere",
+   "actor": "the churning surface of a caged star",
+   "on": "the brass cage bars holding it",
+   "moment": "a granular boiling orange surface pressing against the bars, light pouring out between them.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "melt_down",
+   "actor": "a brass crucible tipped on its trunnions",
+   "on": "a stream of molten metal running out of it",
+   "moment": "the crucible tilted, a bright stream pouring into a channel cut in a tiled deck.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "render",
+   "actor": "a pair of brass tongs",
+   "on": "a lump of dross pulled clear of the melt",
+   "moment": "the tongs lifting a dark crusted lump out of a white-hot pool, slag dripping off it in glowing threads.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "flare",
+   "actor": "a burning magnesium flare on a brass rack arm",
+   "on": "the dark machine far off that it lights up",
+   "moment": "the flare blazing at the end of the arm, hard shadows thrown across distant plating.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "glint",
+   "actor": "a polished brass heliograph mirror on a gimbal",
+   "on": "a flash of reflected sunlight leaving it",
+   "moment": "the mirror tilted, one hard four-pointed flash of light coming off its face toward the void.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "incinerate",
+   "actor": "a heavy round incinerator hatch",
+   "on": "tangled scrap cable tumbling into it",
+   "moment": "the hatch swung open on a roaring orange interior, scrap and cable falling in.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "backdraft",
+   "actor": "a rolling ball of flame",
+   "on": "the slatted vent louvres it bursts back out of",
+   "moment": "fire rolling out through the louvres the wrong way, every slat glowing orange.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "pressure_drop",
+   "actor": "a brass spring relief valve",
+   "on": "the short plume of grey vapour it releases",
+   "moment": "the spring lifted and a hard plume of grey vapour jetting sideways into the void.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "radiate",
+   "actor": "a broad sail of glowing radiator fins",
+   "on": "the distant dark machine it bathes in heat",
+   "moment": "the sail tilted toward the far machine, its fins glowing orange and heat shimmer pouring off them toward it.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "luff",
+   "actor": "a slack radiator sail turned edge-on",
+   "on": "the cold void it spills its heat into",
+   "moment": "the fins swung edge-on, their glow fading from orange at the root to grey at the tips.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "anneal",
+   "actor": "a hooded annealing lamp",
+   "on": "a buckled plate it is softening",
+   "moment": "the lamp pouring orange light onto a dented plate, the dent glowing cherry red as it eases flat.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "temper",
+   "actor": "a fan of quench spray",
+   "on": "a red-hot plate under it",
+   "moment": "the spray striking the glowing plate and bursting into grey steam, the metal under it darkening.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "solstice",
+   "actor": "a vast array of hexagonal mirror panels",
+   "on": "the sun they are all turned to face",
+   "moment": "every panel tilted to the same angle, a blinding gold sun reflected in each one, the array frame brass and tiled.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "backfire",
+   "actor": "a stubby exhaust stack",
+   "on": "the gout of flame and soot it coughs out",
+   "moment": "the stack belching a ball of orange fire and dark soot back across the plating.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "cauterise",
+   "actor": "a white-hot sealing iron",
+   "on": "a ragged tear in plating",
+   "moment": "the iron dragged along the tear, the metal flowing shut behind it in a glowing bead.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "cold_start",
+   "actor": "a frost-rimed brass power bus",
+   "on": "the first current reaching it",
+   "moment": "frost on every bar of the bus and the first thin orange glow creeping into its innermost conductor.",
+   "scale": "a detail of a much larger machine: bolt heads, brass ring bands and ceramic tiles give the size.",
+   "world": "industry in space, not on Earth: the void is never flat black but a dithered indigo with a hot gold glare washing in from one edge; Solari machinery is pale cream ceramic heat-shield tile with brass rings and brass fittings, scorched amber at the seams; the machinery glows with its own heat -- orange coils, white-hot slots, ember-red metal -- against cold indigo shadow; tile and brass scuffed and patched and never marked with words; dark plating or deep indigo shadow packed solid behind the subject AND in every gap inside it, out to all four edges, never empty and never white",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  }
+ ]
+}
