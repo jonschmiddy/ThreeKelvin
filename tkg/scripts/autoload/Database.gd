@@ -1316,12 +1316,13 @@ const TIER_DELTA := [
 ]
 
 ## Per-manufacturer deltas applied on top, and the three names. `names` runs
-## light, medium, heavy.
+## light, medium, heavy. One word each, with no class word after it (Jon, Oct 15:
+## "get rid of the second word for each ship").
 const MANUFACTURER_HULLS := {
 	&"korvan": {
 		# Jon's pick, Oct 15 (the name page, group G: "The works floor" with
 		# Hammer for Rivet -- "rivet is weird")
-		names = ["Hammer Cutter", "Anvil Frigate", "Foundry Monitor"],
+		names = ["Hammer", "Anvil", "Foundry"],
 		# ONE NAME PER WEIGHT, the same C through S (Jon, Oct 15: "I just want
 		# them to have their own unique names. One for each weight. C>S for each
 		# weight would have the same name"). The four Korvan names a weight had
@@ -1331,13 +1332,13 @@ const MANUFACTURER_HULLS := {
 		perk_id = &"baffled_vents",
 		d = {max_hull = 5, heat_cap = 2, dodge = -0.02, initiative = -1}},
 	&"solari": {
-		# Jon's pick, Oct 15 (the name page, group K "Flare, Starfire, Nova")
-		names = ["Flare Skiff", "Starfire Corvette", "Nova Dreadnought"],
+		# Jon's pick, Oct 15 (the name page, group O "Flare, Prominence, Nova")
+		names = ["Flare", "Prominence", "Nova"],
 		perk_id = &"overspec_reactor",
 		d = {heat_cap = 8, dissipation = -1, stealth = -2, fuel_factor = 0.1}},
 	&"probate": {
 		# Jon's pick, Oct 15 (the name page, group H "What's owed")
-		names = ["Tithe Trawler", "Levy Scow", "Seizure Barge"],
+		names = ["Tithe", "Levy", "Seizure"],
 		perk_id = &"salvage_rack",
 		d = {max_hull = 8, heat_cap = 2, dissipation = -1, initiative = -1,
 			fuel_factor = 0.2, stealth = -1, utility_slots = 1, weapon_slots = -1}},
@@ -1355,7 +1356,7 @@ const MANUFACTURER_HULLS := {
 	# was rigged to carry -- see the note in _seed_perks.
 	&"redline": {
 		# Jon's pick, Oct 15 (the name page, group B "Lights out")
-		names = ["Ghostlight Sloop", "Moonrunner Runner", "Blackout Clipper"],
+		names = ["Ghostlight", "Moonrunner", "Blackout"],
 		# Was spare_bay. A chop shop that registers no serials is a salvage
 		# yard with a shopfront, so it takes the salvage perk outright.
 		perk_id = &"salvage_rack",
@@ -1363,7 +1364,7 @@ const MANUFACTURER_HULLS := {
 			sensors = 1, stealth = 2}},
 	&"cygnet": {
 		# Jon's pick, Oct 15 (the name page, group I "Crows")
-		names = ["Raven Pinnace", "Murder Tender", "Nightfall Carrier"],
+		names = ["Raven", "Murder", "Nightfall"],
 		# Was spare_bay. Drones are cards, and a drone manufacturer wants more of
 		# them in hand -- which is also why this one is NOT Redline's, whose
 		# 3-set already draws an extra card and would have stacked with it.
@@ -1372,7 +1373,7 @@ const MANUFACTURER_HULLS := {
 			fuel_factor = -0.1, sensors = 2, utility_slots = 1, weapon_slots = -1}},
 	&"verity": {
 		# Jon's pick, Oct 15 (the name page, group L "Heirloom, Endowment, Inheritance")
-		names = ["Heirloom Yawl", "Endowment Schooner", "Inheritance Barque"],
+		names = ["Heirloom", "Endowment", "Inheritance"],
 		perk_id = &"overspec_reactor",
 		d = {max_hull = -2, reactor = 1, hand_size = -1, dodge = 0.05, initiative = 1,
 			fuel_factor = -0.1, sensors = 2, stealth = 1, weapon_slots = -1}},
@@ -1383,7 +1384,7 @@ const MANUFACTURER_HULLS := {
 	# It keeps everything that is actually its identity.
 	&"calyx": {
 		# Jon's pick, Oct 15 (the name page, group K "Laboratory, Arboretum, Institute")
-		names = ["Laboratory Coracle", "Arboretum Pirogue", "Institute Umiak"],
+		names = ["Laboratory", "Arboretum", "Institute"],
 		perk_id = &"baffled_vents",
 		d = {dissipation = 1, dodge = 0.02, fuel_factor = -0.1,
 			sensors = 1, stealth = 1, system_slots = 1, weapon_slots = -1}},
