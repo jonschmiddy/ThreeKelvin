@@ -758,7 +758,8 @@ step "Nothing joins a fight"
 # Jon: "No reinforcements anywhere." Every kind, alone and in a pack, over
 # seeded fights at a lawless danger-5 system played to turn 7: the enemy
 # count never rises, and the Custodian and the Hellbender stand alone.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot fightcounttest 240 --headless --path "$PROJECT" -- sheet=FightCountTest; then
+# 480 s: 168 fights take ~310 s on a slow container (Oct 15), on main as on this branch.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot fightcounttest 480 --headless --path "$PROJECT" -- sheet=FightCountTest; then
 	if grep -qE '^fightcounttest: PASS' "$LOG_DIR/fightcounttest.log"; then
 		ok "$(grep -E '^fightcounttest: [0-9]+ fights' "$LOG_DIR/fightcounttest.log" | head -n 1 | sed 's/^fightcounttest: //')"
 	else
