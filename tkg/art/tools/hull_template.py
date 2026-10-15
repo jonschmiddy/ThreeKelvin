@@ -127,16 +127,25 @@ def P(shape, mat='steel', **kw):
     return d
 
 
+def rings(x0, x1, top, bot, n):
+    """Solari's reactor rings: n brass hoops clamped round the hull between x0
+    and x1, standing proud of it, a hot seam glowing down each (Jon, Oct 15:
+    "I just don't like the middle circles", then look A of three)."""
+    out = []
+    for i in range(n):
+        cx = x0 + (x1 - x0) * (i + .5) / n
+        out.append(P(('rect', cx - .014, top - .07, cx + .014, bot + .05), 'acc', rivets=True, belt=.5))
+        out.append(P(('rect', cx - .005, top + .1, cx + .005, bot - .1), 'acc', ports=[(.1, 0, 1, 1, 2, 30, 1)]))
+    return out
+
+
 SPECS = {
  'solari': {
   'light': {'parts': [
      P(('prof', [(.44, .47, .65), (.8, .51, .61), (1, .55, .57)]), seams=20, rivets=True, band=(.62, .70)),
      P(('prof', [(.04, .38, .80), (.28, .34, .84), (.48, .38, .80), (.60, .45, .68)]), seams=14, rivets=True, belt=.55,
        ports=[(.32, .45, .9, 3, 3, 2, 1)], hatch=[(.6, .6, .85, .85)]),
-     P(('rect', .06, .74, .48, .86), 'brick', seams=7),
-     P(('ell', .21, .58, .14, .30), 'acc', belt=.5, lens=5, rivets=True),
-     P(('rect', .33, .30, .36, .88), 'acc', rivets=True),
-     P(('ell', .41, .44, .05, .15), 'acc', lens=2)],
+     P(('rect', .06, .74, .48, .86), 'brick', seams=7)] + rings(.12, .44, .34, .84, 3),
    'kit': [[(.08, .38), (.13, .10)], [(.14, .36), (.19, .06)], [(.2, .34), (.25, .08)], [(.26, .34), (.31, .14)],
            [(.62, .50), (.97, .56)], [(.41, .30), (.42, .18)]],
    'noz': [(.50, .12), (.68, .12)]},
@@ -144,9 +153,7 @@ SPECS = {
      P(('prof', [(0, .40, .76), (.1, .34, .82), (.62, .34, .82), (.82, .38, .76), (.96, .44, .70), (1, .50, .64)]), seams=18,
        rivets=True, belt=.48, ports=[(.3, .62, .8, 4, 3, 2, 2)], band=(.68, .74)),
      P(('rect', .82, .36, .98, .70), 'steel', seams=6, rivets=True),
-     P(('rect', .06, .78, .80, .88), 'brick', seams=9),
-     P(('ell', .42, .56, .11, .42), 'acc', belt=.5, lens=6, rivets=True, lattice=True),
-     P(('ell', .21, .54, .065, .27), 'acc', lens=3, rivets=True)],
+     P(('rect', .06, .78, .80, .88), 'brick', seams=9)] + rings(.12, .56, .34, .82, 3),
    'kit': [[(.11, .33), (.15, .12)], [(.18, .32), (.22, .08)], [(.26, .32), (.3, .1)], [(.52, .32), (.56, .06)],
            [(.6, .33), (.64, .12)], [(.68, .34), (.72, .16)]],
    'noz': [(.48, .12), (.64, .12)]},
@@ -154,10 +161,8 @@ SPECS = {
      P(('prof', [(0, .40, .82), (.08, .34, .90), (.62, .34, .92), (.86, .40, .82), (1, .56, .66)]), seams=20, rivets=True,
        belt=.5, ports=[(.28, .66, .84, 4, 3, 2, 2)], band=(.76, .82), hatch=[(.06, .6, .14, .8)]),
      P(('rect', .02, .82, .86, .94), 'brick', seams=10),
-     P(('ell', .45, .58, .13, .38), 'acc', belt=.5, lens=8, rivets=True, lattice=True),
      P(('rect', .29, .18, .36, .36), 'rust', seams=5, rivets=True),
-     P(('rect', .36, .2, .38, .96), 'acc'), P(('rect', .52, .2, .54, .96), 'acc'),
-     P(('poly', [(.92, .44), (1, .56), (1, .66), (.92, .70)]), 'gun')],
+     P(('poly', [(.92, .44), (1, .56), (1, .66), (.92, .70)]), 'gun')] + rings(.26, .62, .34, .92, 4),
    'kit': [[(.18, .32), (.21, .02)], [(.23, .32), (.26, .0)], [(.4, .22), (.42, .0)], [(.48, .2), (.5, .02)],
            [(.58, .3), (.61, .06)], [(.64, .32), (.67, .1)], [(.70, .33), (.73, .14)]],
    'noz': [(.50, .14), (.72, .14)]},
