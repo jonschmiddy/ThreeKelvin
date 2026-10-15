@@ -12,13 +12,15 @@ Jon's merge rule still holds: **main only moves on a full gate pass**
 
 ## The state of the branch
 
-- 29 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
-  which was `origin/main` when this was written. `origin/main` had not moved
-  since, so as pushed this is a **fast-forward**.
+- 39 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
+  which was `origin/main` when this was written. If `origin/main` has not
+  moved since, this is a **fast-forward**.
 - Last full gate run in the cloud: **PASSED** on `9b2bb57` (one event per world
-  and the Hellbender's place). The two commits after it are this handoff and
-  the registry look, which Jon then picked (A, tone on tone; `reg_look` is
-  `&"A"`). GradeSheet passed on all three weights with it. **Run the gate yourself before merging, whatever this says.**
+  and the Hellbender's place). After it: the registry look (Jon picked A, tone
+  on tone, one ink), the hull templates, the new hull names, and the party
+  lines saying LIGHT / MEDIUM / HEAVY. Those were checked with GradeSheet (all
+  three weights), savetest, nettest and attrs, not the whole gate. **Run the
+  gate yourself before merging, whatever this says.**
 - The cloud container was slow. Two tests were timing-sensitive there and
   were fixed (see "Gate changes"). On Jon's machine the gate should take less
   time than it did there (26 to 45 minutes).
@@ -175,6 +177,28 @@ different body. That is harmless before the alpha ships.
   `HullGrade.key_for` assumes `korvan/`, which is right while every
   manufacturer shares the Korvan sprites.
 
+## Hull names (Jon, Oct 15)
+
+One name a weight, the same at every grade, and ONE word: no class word after
+it ("get rid of the second word for each ship"). `MANUFACTURER_HULLS[m].names`
+in `Database.gd`, light, medium, heavy:
+
+| Maker | Light | Medium | Heavy |
+|---|---|---|---|
+| Korvan | Hammer | Anvil | Foundry |
+| Solari | Flare | Prominence | Nova |
+| Probate | Picker | Wrecker | Breaker |
+| Redline | Ghostlight | Moonrunner | Blackout |
+| Cygnet | Raven | Murder | Nightfall |
+| Verity | Heirloom | Endowment | Inheritance |
+| Calyx | Sapling | Copse | Vivarium |
+
+`CLASS_NAMES` / `hull_class()` stay authored and are now shown nowhere: the
+party screen and the fight's party strip print the weight instead ("change to
+light medium heavy"). A card is also called Flare; Jon was told. Picked on
+https://claude.ai/artifact/VkfSxfDsZiTBTGMJHiy1xq (its db holds the picks and
+Jon's notes).
+
 ## Templates for the other manufacturers' hulls
 
 `tkg/art/tools/hull_template.py` writes a block-in and a code guide for each of
@@ -183,6 +207,24 @@ the 18 sprites (six manufacturers, three weights) into `tkg/art/hull_templates/`
 https://claude.ai/artifact/QnBxTyEYJ3ywNK35RWYSvZ . The manufacturer plan
 (https://claude.ai/artifact/7p4xze2tuQ2FAQ6MbTkMe7) now plans three sprites a
 manufacturer. Nothing here touches the game.
+
+## Next: the sprites (PixelLab), not started
+
+Jon, Oct 15: "Now let's start making sprites." The plan he was given, and not
+yet answered on spend:
+
+- The 18 templates (`tkg/art/hull_templates/template_<maker>_<weight>.png`,
+  committed) are the init images, with the game's palette as the colour image,
+  on `create_image_pixflux` at 1 generation a roll (see
+  `docs/art/PIXELLAB_WORKFLOW.md`, "A. A hull sprite"). Korvan keeps its art.
+- **Pilot first: Solari, 3 sprites x 4 takes (init strength sweep) = 12
+  generations, cap 20.** Then the other five at the same rate, about 60, cap
+  80. **Ask Jon before spending, every time, with takes and a cap.**
+- Takes go on a pick page at 2x game scale, lettered. Nothing goes in the game
+  until he picks.
+- The cloud session that wrote this could not reach PixelLab: the environment
+  now allows `api.pixellab.ai` and has `PIXELLAB_API_KEY` (which `.mcp.json`
+  reads), but both only reach a NEW session.
 
 ## Pages Jon judged this on
 
