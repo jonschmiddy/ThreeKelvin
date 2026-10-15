@@ -1331,8 +1331,8 @@ const MANUFACTURER_HULLS := {
 		perk_id = &"baffled_vents",
 		d = {max_hull = 5, heat_cap = 2, dodge = -0.02, initiative = -1}},
 	&"solari": {
-		# Jon's pick, Oct 15 (the name page, group G "Brighter")
-		names = ["Flare Skiff", "Blaze Corvette", "Nova Dreadnought"],
+		# Jon's pick, Oct 15 (the name page, group K "Flare, Starfire, Nova")
+		names = ["Flare Skiff", "Starfire Corvette", "Nova Dreadnought"],
 		perk_id = &"overspec_reactor",
 		d = {heat_cap = 8, dissipation = -1, stealth = -2, fuel_factor = 0.1}},
 	&"probate": {
@@ -1354,8 +1354,8 @@ const MANUFACTURER_HULLS := {
 	# while, which suited the refit business and asked for a hardpoint no hull
 	# was rigged to carry -- see the note in _seed_perks.
 	&"redline": {
-		# Jon's pick, Oct 15 (the name page, group H "The job")
-		names = ["Skim Sloop", "Score Runner", "Heist Clipper"],
+		# Jon's pick, Oct 15 (the name page, group B "Lights out")
+		names = ["Ghostlight Sloop", "Moonrunner Runner", "Blackout Clipper"],
 		# Was spare_bay. A chop shop that registers no serials is a salvage
 		# yard with a shopfront, so it takes the salvage perk outright.
 		perk_id = &"salvage_rack",
@@ -1371,8 +1371,8 @@ const MANUFACTURER_HULLS := {
 		d = {max_hull = -3, dissipation = 1, dodge = 0.03, initiative = 1,
 			fuel_factor = -0.1, sensors = 2, utility_slots = 1, weapon_slots = -1}},
 	&"verity": {
-		# Jon's pick, Oct 15 (the name page, group H "Heirloom, Birthright")
-		names = ["Heirloom Yawl", "Birthright Schooner", "Inheritance Barque"],
+		# Jon's pick, Oct 15 (the name page, group L "Heirloom, Endowment, Inheritance")
+		names = ["Heirloom Yawl", "Endowment Schooner", "Inheritance Barque"],
 		perk_id = &"overspec_reactor",
 		d = {max_hull = -2, reactor = 1, hand_size = -1, dodge = 0.05, initiative = 1,
 			fuel_factor = -0.1, sensors = 2, stealth = 1, weapon_slots = -1}},
@@ -1382,8 +1382,8 @@ const MANUFACTURER_HULLS := {
 	# dissipation in the game made its heavy the best chassis by six points.
 	# It keeps everything that is actually its identity.
 	&"calyx": {
-		# Jon's pick, Oct 15 (the name page, group I "Where it's grown")
-		names = ["Incubator Coracle", "Hatchery Pirogue", "Institute Umiak"],
+		# Jon's pick, Oct 15 (the name page, group K "Laboratory, Arboretum, Institute")
+		names = ["Laboratory Coracle", "Arboretum Pirogue", "Institute Umiak"],
 		perk_id = &"baffled_vents",
 		d = {dissipation = 1, dodge = 0.02, fuel_factor = -0.1,
 			sensors = 1, stealth = 1, system_slots = 1, weapon_slots = -1}},
