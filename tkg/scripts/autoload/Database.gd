@@ -1319,7 +1319,8 @@ const TIER_DELTA := [
 ## light, medium, heavy.
 const MANUFACTURER_HULLS := {
 	&"korvan": {
-		names = ["Picket Cutter", "Ironside Cutter", "Bastion Monitor"],
+		# Jon's pick, Oct 15 (the name page, group C "The works floor")
+		names = ["Rivet Cutter", "Anvil Frigate", "Foundry Monitor"],
 		# ONE NAME PER WEIGHT, the same C through S (Jon, Oct 15: "I just want
 		# them to have their own unique names. One for each weight. C>S for each
 		# weight would have the same name"). The four Korvan names a weight had
@@ -1329,7 +1330,8 @@ const MANUFACTURER_HULLS := {
 		perk_id = &"baffled_vents",
 		d = {max_hull = 5, heat_cap = 2, dodge = -0.02, initiative = -1}},
 	&"solari": {
-		names = ["Cinder Skiff", "Emberwright", "Furnace Baron"],
+		# Jon's pick, Oct 15 (the name page, group B "The sun's own words")
+		names = ["Flare Skiff", "Corona Corvette", "Perihelion Dreadnought"],
 		perk_id = &"overspec_reactor",
 		d = {heat_cap = 8, dissipation = -1, stealth = -2, fuel_factor = 0.1}},
 	&"probate": {
