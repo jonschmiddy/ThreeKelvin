@@ -49,6 +49,8 @@ func _ready() -> void:
 			out = s.substr(4)
 		elif s.begins_with("seed="):
 			Rng.forced = int(s.substr(5))
+		elif s == "node=hellbender":
+			idx = -2
 		elif s.begins_with("node="):
 			idx = int(s.substr(5))
 		elif s.begins_with("at="):
@@ -89,6 +91,9 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 	var n: MapGen.MapNode = null
+	# `node=hellbender`: the system it is anchored at
+	if idx == -2:
+		idx = Run.hellbender_at
 	if idx >= 0:
 		n = Run.map[idx]
 	elif sky_key != "":
