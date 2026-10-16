@@ -148,7 +148,8 @@ def main():
     if cold_only:
         pt.snap(nw, nh, out, mb.module_palette(cold_only=True))
     else:
-        pal = mb.module_palette()
+        # The part's own maker's palette: Solari snaps to its tile and brass.
+        pal = mb.module_palette(maker=mb.maker_of(os.path.splitext(os.path.basename(dst))[0]))
         cold = [c for c in pal if not mb.is_warm(c)]
         warm = [c for c in pal if mb.is_warm(c)]
         mb.snap_split(nw, nh, out, cold, warm)
