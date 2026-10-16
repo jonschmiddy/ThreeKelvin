@@ -305,9 +305,16 @@ session).
 `ArtCheck.MANUFACTURERS` now includes Solari, so its 25 modules show as
 "still procedural" (missing art is the designed fallback, not a failure).
 
-**Modules not done.** A first round (100 pixflux takes on scaffolds) was
-rejected: too cream and brass, not Korvan's dark steel look, and the wrong
-subjects. A redo in Korvan's look is waiting on Jon's go.
+**Modules in progress (Oct 16).** A first round (100 pixflux takes on scaffolds)
+was rejected: too cream and brass, not Korvan's dark steel, wrong subjects.
+Jon approved a one-line reading per part and said "rip these and we can
+revise later": two ideas per part, Korvan's dark gunmetal side-on look with
+brass bands and one warm point. The prompts and exact settings are in
+`tools/briefs/solari_modules.json`. The 50 takes were generated in the cloud
+session's scratch space (not in the repo); a pick page for Jon is the next
+step. If that session is gone, re-roll from the brief (about 60 generations),
+post with `tools/module_batch.py --post <raw> <out>`, and show Jon every take
+at 2x before copying picks to `tkg/art/sprites/modules/<id>.png`.
 
 ## Pages Jon judged this on
 

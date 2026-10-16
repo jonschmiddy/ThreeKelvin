@@ -1,0 +1,207 @@
+{
+ "how": "PixelLab v1 generate-image-pixflux, no init image, no_background true, view side, text_guidance_scale 9, seeds 6217 (idea 1) and 6234 (idea 2); size is 2x the shipping box; prompt = idea + suffix; then python3 tools/module_batch.py --post <raw> <out> (Solari palette) and copy the pick to tkg/art/sprites/modules/<id>.png",
+ "suffix": ", strictly side-on with no perspective and no angle, a flat side profile. Dark gunmetal steel with brass bands, one small glowing orange point, dark outline, a single ship part, pixel art game sprite",
+ "negative": "perspective, three-quarter view, top face, text, letters, numbers, background, floor, ground shadow, white, cream",
+ "parts": {
+  "emberlance": {
+   "size": [
+    120,
+    40
+   ],
+   "idea1": "A short stubby ship-mounted plasma lance with two brass bands and a glowing orange tip",
+   "idea2": "A compact ship-mounted emitter tube, thick at the back and narrowing to a short glowing orange muzzle, two brass rings"
+  },
+  "plasma": {
+   "size": [
+    120,
+    40
+   ],
+   "idea1": "A long thin ship-mounted lance wound with brass coil along its whole length, glowing orange tip",
+   "idea2": "A long slender rail of dark steel with a tight brass coil spiralling along it, a heavy breech block at the back"
+  },
+  "ventcan": {
+   "size": [
+    120,
+    40
+   ],
+   "idea1": "A thick ship-mounted housing with radiator fins along the top, ending in a wide flared vent mouth glowing orange inside",
+   "idea2": "A heavy finned projector body with a big trumpet-shaped vent mouth at the front"
+  },
+  "overpressure": {
+   "size": [
+    120,
+    40
+   ],
+   "idea1": "A riveted steel pressure drum behind a short fat emitter nozzle, pipes looping over the top",
+   "idea2": "A squat ship-mounted emitter with a big round pressure tank at the back and thick brass pipes curving over it"
+  },
+  "heliostat": {
+   "size": [
+    160,
+    40
+   ],
+   "idea1": "A very long slim boom ending in a round concave mirror dish at the front",
+   "idea2": "A long thin lance boom with brass rings along it and a polished brass reflector dish on its tip"
+  },
+  "sparkthrower": {
+   "size": [
+    80,
+    40
+   ],
+   "idea1": "A small steel tank with three stubby nozzles fanned out at the front, sparks at the tips",
+   "idea2": "A compact spark emitter: a ribbed steel canister with a three-pronged nozzle head"
+  },
+  "sunspot": {
+   "size": [
+    80,
+    80
+   ],
+   "idea1": "A short wide brass-ringed mortar tube angled upward on a heavy turret base",
+   "idea2": "A squat stubby launch tube pointing up at an angle from a heavy round mounting block"
+  },
+  "overdrive": {
+   "size": [
+    80,
+    40
+   ],
+   "idea1": "A horizontal cylinder tightly wound with brass coils, glowing orange between the windings",
+   "idea2": "A bank of three brass induction coils side by side on a steel frame, glowing between them"
+  },
+  "shroud": {
+   "size": [
+    80,
+    40
+   ],
+   "idea1": "A low dome of overlapping pale ceramic tiles on a dark steel rim, glowing amber at the seams",
+   "idea2": "A curved heat cowl of overlapping armour scales on a steel base, faint glow in the gaps"
+  },
+  "cautery": {
+   "size": [
+    80,
+    40
+   ],
+   "idea1": "A small steel fuel tank with a short torch nozzle on one end, white-hot tip",
+   "idea2": "A welding torch unit: a round brass-banded tank and a bent nozzle arm with a glowing tip"
+  },
+  "foundrybus": {
+   "size": [
+    80,
+    40
+   ],
+   "idea1": "Thick brass bus bars running between two dark insulator blocks, glowing where they join",
+   "idea2": "A heavy power coupling: two steel junction boxes joined by three thick brass bars"
+  },
+  "firebrick": {
+   "size": [
+    80,
+    40
+   ],
+   "idea1": "A brass-framed block of thick firebricks, the mortar lines glowing orange",
+   "idea2": "A heavy steel box lined with dark firebricks, glowing faintly through the joints"
+  },
+  "bellows": {
+   "size": [
+    80,
+    40
+   ],
+   "idea1": "A pleated bellows between two steel end plates, with a nozzle on one end",
+   "idea2": "A ribbed accordion pump of dark steel with a brass outlet nozzle"
+  },
+  "heathaze": {
+   "size": [
+    80,
+    40
+   ],
+   "idea1": "A shallow dish emitter on a short steel stand, shimmering with heat",
+   "idea2": "A small projector dish mounted on a pivot arm, its face glowing faint orange"
+  },
+  "heatbank": {
+   "size": [
+    80,
+    80
+   ],
+   "idea1": "A squat insulated tank with brass bands and a valve on top, glowing orange at a seam",
+   "idea2": "A round-shouldered steel heat tank with two brass hoops and a pressure valve"
+  },
+  "starfurnace": {
+   "size": [
+    80,
+    80
+   ],
+   "idea1": "A heavy steel firebox with a round white-hot port in its face",
+   "idea2": "A compact furnace block with a thick round door glowing white-hot around its rim"
+  },
+  "sunheart": {
+   "size": [
+    80,
+    80
+   ],
+   "idea1": "A glowing orange core held inside a brass cage on a steel base",
+   "idea2": "A small reactor: a bright orange orb gripped by brass struts on a heavy mount"
+  },
+  "crucible": {
+   "size": [
+    80,
+    80
+   ],
+   "idea1": "A heavy pot hung on trunnions in a U-shaped steel frame, glowing inside",
+   "idea2": "A tilting brass crucible on a steel cradle, molten orange at its lip"
+  },
+  "flare": {
+   "size": [
+    80,
+    40
+   ],
+   "idea1": "A rail of upright flare canisters, one with a lit orange tip",
+   "idea2": "A short launch rack holding five upright brass-capped canisters"
+  },
+  "radiatorsail": {
+   "size": [
+    80,
+    40
+   ],
+   "idea1": "A fan of tall thin radiator fins on a hinge rail, glowing orange at their roots",
+   "idea2": "A row of tall copper radiator fins standing up from a steel base, warm at the bottom"
+  },
+  "annealer": {
+   "size": [
+    80,
+    40
+   ],
+   "idea1": "A hooded lamp head on a bent jointed steel arm, glowing orange",
+   "idea2": "An articulated arm with a domed heat lamp on the end, its lens glowing"
+  },
+  "mirrorarray": {
+   "size": [
+    80,
+    40
+   ],
+   "idea1": "A row of small hexagonal brass mirrors along a steel beam",
+   "idea2": "A slim steel rail carrying four small round reflector mirrors"
+  },
+  "heliograph": {
+   "size": [
+    40,
+    40
+   ],
+   "idea1": "A small round brass mirror on a gimbal stand",
+   "idea2": "A tiny signal mirror in a brass ring, on a short pivot post"
+  },
+  "incinerator": {
+   "size": [
+    40,
+    40
+   ],
+   "idea1": "A heavy round steel hatch with a glowing orange opening",
+   "idea2": "A small furnace hatch: a thick ring door ajar, orange glow inside"
+  },
+  "bleedvalve": {
+   "size": [
+    40,
+    40
+   ],
+   "idea1": "A brass spring relief valve on a short steel pipe stub",
+   "idea2": "A small steel valve body with a brass cap and a vent spout"
+  }
+ }
+}
