@@ -12,7 +12,7 @@ Jon's merge rule still holds: **main only moves on a full gate pass**
 
 ## The state of the branch
 
-- 74 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
+- 80 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
   which was `origin/main` when this was written. If `origin/main` has not
   moved since, this is a **fast-forward**.
 - Last full gate run in the cloud: **PASSED** on `9b2bb57` (one event per world
@@ -317,12 +317,30 @@ Array, Plasma Lance, Radiator Sail, Star Furnace, Sunheart Core. Page:
 https://claude.ai/artifact/3LSjHdDaAQTCh1TMZMUmLD (picks and flips in its db,
 `picks/solari_modules2`). Prompts and roll script: `tools/briefs/solari_modules.json`,
 `tools/briefs/solari_modules_roll.py`; every take in `tools/briefs/solari_module_takes/`.
-The last 13 had a fresh round: https://claude.ai/artifact/Xx8bubveSobnW3RWPaqzzs
+The last 13 had a fresh round (Jon, Oct 16: "none of these are good"; all 13
+still procedural, pick up here next session): https://claude.ai/artifact/Xx8bubveSobnW3RWPaqzzs
 (picks in its db, `picks/solari_modules3`; takes in
 `tools/briefs/solari_module_takes3/`, script `tools/briefs/solari_modules_roll3.py`;
 A/B/C/D map to files `<id>_1..4.png`).
 Lesson: generate at the slot's shape (a full-box silhouette under the prompt at init strength about 40; at 70 it draws grey boxes),
 or the generator draws the part small and thin.
+
+## Where to pick up (Oct 17)
+
+- **Solari modules:** 12 of 25 have art. The other 13 (Annealing Lamp, Bleed
+  Valve, Smelting Crucible, Flare Rack, Heat Haze Projector, Heliograph,
+  Heliostat Lance, Incinerator Hatch, Solstice Mirror Array, Plasma Lance,
+  Radiator Sail, Star Furnace, Sunheart Core) failed three rounds. Next time,
+  agree each part's one-line reading with Jon first, as the cards needed, and
+  consider the pro model with an accepted Korvan or Solari module as the
+  style reference rather than pixflux.
+- **Solari cards:** all 40 done.
+- **Solari is not wired into play yet:** hull sprite path by manufacturer,
+  mounts, engines; and Solari is not in `ACTIVE_MANUFACTURERS`, so its parts
+  do not drop.
+- **The full gate has not been run** since the hull-name commits. Run it before
+  merging.
+- PixelLab: about 2,850 generations left this cycle; it refills Oct 17.
 
 ## Pages Jon judged this on
 
