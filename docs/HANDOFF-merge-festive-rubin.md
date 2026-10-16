@@ -12,7 +12,7 @@ Jon's merge rule still holds: **main only moves on a full gate pass**
 
 ## The state of the branch
 
-- 65 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
+- 74 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
   which was `origin/main` when this was written. If `origin/main` has not
   moved since, this is a **fast-forward**.
 - Last full gate run in the cloud: **PASSED** on `9b2bb57` (one event per world
@@ -283,6 +283,31 @@ Solari card as the game draws it: https://claude.ai/artifact/1tL4AXkZBhPL45XwXA4
 - Checked: holdtest, attrtest, reactor, content, glyphs, savetest, an import
   compile. Not run: the sim (Solari does not drop, so a Korvan sim cannot see
   it) or the whole gate.
+
+## Solari's card art (Jon, Oct 16), all 40 done
+
+Every Solari card has a picture in `tkg/art/sprites/cards/` (`-- artcheck`:
+116 cards drawn, 0 on glyphs). Made with PixelLab's pro model
+(`generate-image-v2`, 92x60, a 46x30 style reference per prompt, 10
+generations a call, 9 takes), posted with `tools/card_batch.py --post <in>
+<out> solari` (the Solari tile ramp joins both snap pools, or the cream comes
+out gold), installed with `--install`.
+
+What worked, after three rejected rounds of one shared composition (close-up,
+ship-in-the-void, impact): **bespoke prompts per card**, two ideas a card,
+every take shown, Jon picking per card; then fresh ideas for the misses, and
+for the last few, a one-line reading of each card agreed with Jon BEFORE any
+prompt was written ("they just fundamentally misunderstand the cards").
+Glowshot was the first Solari picture and is the void-ship reference. Raw
+takes and prompts are in `tools/out/solari/` (gitignored, local to the cloud
+session).
+
+`ArtCheck.MANUFACTURERS` now includes Solari, so its 25 modules show as
+"still procedural" (missing art is the designed fallback, not a failure).
+
+**Modules not done.** A first round (100 pixflux takes on scaffolds) was
+rejected: too cream and brass, not Korvan's dark steel look, and the wrong
+subjects. A redo in Korvan's look is waiting on Jon's go.
 
 ## Pages Jon judged this on
 
