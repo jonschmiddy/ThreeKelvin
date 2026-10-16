@@ -317,7 +317,11 @@ Array, Plasma Lance, Radiator Sail, Star Furnace, Sunheart Core. Page:
 https://claude.ai/artifact/3LSjHdDaAQTCh1TMZMUmLD (picks and flips in its db,
 `picks/solari_modules2`). Prompts and roll script: `tools/briefs/solari_modules.json`,
 `tools/briefs/solari_modules_roll.py`; every take in `tools/briefs/solari_module_takes/`.
-Lesson: generate at the slot's shape (a full-box silhouette under the prompt),
+The last 13 had a fresh round: https://claude.ai/artifact/Xx8bubveSobnW3RWPaqzzs
+(picks in its db, `picks/solari_modules3`; takes in
+`tools/briefs/solari_module_takes3/`, script `tools/briefs/solari_modules_roll3.py`;
+A/B/C/D map to files `<id>_1..4.png`).
+Lesson: generate at the slot's shape (a full-box silhouette under the prompt at init strength about 40; at 70 it draws grey boxes),
 or the generator draws the part small and thin.
 
 ## Pages Jon judged this on
