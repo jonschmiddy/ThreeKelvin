@@ -312,7 +312,8 @@ revise later": two ideas per part, Korvan's dark gunmetal side-on look with
 brass bands and one warm point. The prompts and exact settings are in
 `tools/briefs/solari_modules.json`. The 50 takes were generated in the cloud
 session's scratch space (not in the repo); a pick page for Jon is the next
-step. If that session is gone, re-roll from the brief (about 60 generations),
+step: https://claude.ai/artifact/3LSjHdDaAQTCh1TMZMUmLD (A = idea 1, B = idea 2; posted takes also
+committed in `tools/briefs/solari_module_takes/<id>_<1|2>.png`). If that session is gone, re-roll from the brief (about 60 generations),
 post with `tools/module_batch.py --post <raw> <out>`, and show Jon every take
 at 2x before copying picks to `tkg/art/sprites/modules/<id>.png`.
 
