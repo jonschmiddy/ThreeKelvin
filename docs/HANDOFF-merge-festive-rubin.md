@@ -305,21 +305,20 @@ session).
 `ArtCheck.MANUFACTURERS` now includes Solari, so its 25 modules show as
 "still procedural" (missing art is the designed fallback, not a failure).
 
-**Modules in progress (Oct 16).** A first round (100 pixflux takes on scaffolds)
-was rejected: too cream and brass, not Korvan's dark steel, wrong subjects.
-Jon approved a one-line reading per part and said "rip these and we can
-revise later": two ideas per part, Korvan's dark gunmetal side-on look with
-brass bands and one warm point. The prompts and exact settings are in
-`tools/briefs/solari_modules.json`. The 50 takes were generated in the cloud
-session's scratch space (not in the repo); a pick page for Jon is the next
-step: https://claude.ai/artifact/3LSjHdDaAQTCh1TMZMUmLD (A = idea 1, B = idea 2, C/D = the same ideas re-generated at the slot's
-shape for parts drawn small; every take rescaled to fill its box with
-`tools/scale_to_box.py`, which now snaps Solari parts to Solari's palette; the
-takes are committed in `tools/briefs/solari_module_takes/<id>_<1-4>.png`, the
-roll script in `tools/briefs/solari_modules_roll.py`; Jon's picks and flips
-are saved in the page's db, `picks/solari_modules2`). If that session is gone, re-roll from the brief (about 60 generations),
-post with `tools/module_batch.py --post <raw> <out>`, and show Jon every take
-at 2x before copying picks to `tkg/art/sprites/modules/<id>.png`.
+**Modules: 12 of 25 in (Oct 16).** Jon's picks from the dark-steel round,
+installed in `tkg/art/sprites/modules/`: Bellows Pump, Cauterising Torch
+(flipped), Ember Lance (flipped), Firebrick Lining, Foundry Bus, Heat Bank,
+Overdrive Coils, Overpressure Cannon, Heat Shroud, Spark Thrower, Sunspot
+Mortar (flipped) and Thermal Purge Cannon. Each is rescaled to fill its box
+with `tools/scale_to_box.py` (artcheck: all at size). Still procedural, Jon
+said none: Annealing Lamp, Bleed Valve, Smelting Crucible, Flare Rack, Heat
+Haze Projector, Heliograph, Heliostat Lance, Incinerator Hatch, Solstice Mirror
+Array, Plasma Lance, Radiator Sail, Star Furnace, Sunheart Core. Page:
+https://claude.ai/artifact/3LSjHdDaAQTCh1TMZMUmLD (picks and flips in its db,
+`picks/solari_modules2`). Prompts and roll script: `tools/briefs/solari_modules.json`,
+`tools/briefs/solari_modules_roll.py`; every take in `tools/briefs/solari_module_takes/`.
+Lesson: generate at the slot's shape (a full-box silhouette under the prompt),
+or the generator draws the part small and thin.
 
 ## Pages Jon judged this on
 
