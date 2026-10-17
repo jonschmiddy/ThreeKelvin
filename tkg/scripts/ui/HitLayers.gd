@@ -4,9 +4,9 @@ extends Control
 ## ONE SHIP'S DAMAGE, BLOCK AND BRACE, DRAWN (Jon's picks, Oct 13: "Hits: brace:I
 ## go:A" -- hits B, the bubble shield, brace I). Laid over a ship's picture in a
 ## fight, in that picture's canvas pixels, by whoever draws the ship:
-##   `hits`   ShipHitFx: a mark for every shot that reaches the hull (scorch,
-##            Chain's holes, cracks, vents from 60% hull), building up; or, with
-##            a hull damage look picked (`ShipHitFx.look`), HullHitFx's;
+##   `hits`   HullHitFx (Jon's pick, D: dents, scrapes, heat blooms, knocked and
+##            peeled plates, mixed per hit, building up; no holes), or for the
+##            Custodian ShipHitFx's older marks (`ShipHitFx.look`);
 ##   `shield` ShieldFx: block as the hex bubble, fitted to the ship;
 ##   `brace`  BraceFx: brace as the plated overlay.
 ## Driven only by what the screen has SHOWN: `land` on the frame a volley lands
@@ -78,8 +78,9 @@ func setup(img: Image, used: Rect2i, seed: int, facing: int, hull_max: int, scal
 		c.moment.connect(func(k: StringName, s: float, l: float) -> void: moment.emit(k, s, l))
 
 
-## A ship's hull marks in the look `ShipHitFx.look` picks (today's, or one of
-## `HullHitFx`'s three). The Custodian keeps today's: it is grown, not built.
+## A ship's hull marks in the look `ShipHitFx.look` picks (D, the game's, unless
+## a harness or `-- hull=` says otherwise). The Custodian keeps ShipHitFx's
+## older marks: it is grown, not built.
 func _hull_hits() -> ShipHitFx:
 	if ShipHitFx.look > 0 and kind != FaunaMotion.Kind.CUSTODIAN:
 		var h := HullHitFx.new()

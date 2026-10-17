@@ -1,8 +1,9 @@
 class_name HullHitFx
 extends ShipHitFx
 
-## A SHIP'S HULL TAKING HITS WITHOUT HOLES IN IT (Oct 17, three looks for
-## Jon's pick; `ShipHitFx.look` chooses, today's marks until he does).
+## A SHIP'S HULL TAKING HITS WITHOUT HOLES IN IT (Oct 17). Three looks were made
+## for Jon's pick and he picked the fourth, D, all three mixed per hit: it is the
+## game's (`ShipHitFx.look`); A, B and C stay as its parts and as looks to compare.
 ##
 ## James, a playtester, of today's marks: when ships are damaged they get big
 ## holes in the hull, and ships can't really have holes in them. Jon: "Can we

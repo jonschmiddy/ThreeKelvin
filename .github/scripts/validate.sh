@@ -522,12 +522,13 @@ fi
 
 step "Hull damage looks leave no holes"
 # James, a playtester (Oct 17): ships get big holes in them, and ships can't
-# have holes. The three looks for Jon's pick (`HullHitFx`, `ShipHitFx.look`), on
-# a light, a dark and a white hull at both sheet sizes: no near-black blob, every
-# mark on the hull's own pixels in its own colours (or burnt metal), every glow
-# the heat ramp's and changing shape 8-12 times a second, the same seed the same
-# marks, more marks as the hull goes; then the real fight with a look picked and
-# without one, and the Custodian keeping today's.
+# have holes. Jon picked D (A+B+C mixed per hit, `HullHitFx`), the game's; A, B
+# and C are its parts. Each on a light, a dark and a white hull at both sheet
+# sizes: no near-black blob, every mark on the hull's own pixels in its own
+# colours (or burnt metal), every glow the heat ramp's and changing shape 8-12
+# times a second, the same seed the same marks, more marks as the hull goes, D
+# quieter than the older marks; then the real fight, D the default on every
+# ship but the Custodian (the older marks).
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot hulldamagetest 300 --headless --path "$PROJECT" -- sheet=HullDamageTest; then
 	if grep -qE '^hulldamagetest: PASS' "$LOG_DIR/hulldamagetest.log"; then
 		ok "no holes, on the hull, in its colours, glows that move"

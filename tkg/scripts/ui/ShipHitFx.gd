@@ -51,18 +51,20 @@ const SOUND := {
 	Kind.CRACK: "0.00 impact; 0.00 crack, 0.15-0.35 long (the crack running)",
 	Kind.VENT: "0.00 impact; 0.00 hiss, 0.35-0.45 long; below half hull, sputter every 1-3 s per hole, 0.15-0.25 long"}
 
-## WHICH LOOK A SHIP'S HULL TAKES ITS HITS IN (Oct 17, for Jon's pick): 0 today's
-## (this file), 1 A battle-worn plating, 2 B heat and stress, 3 C plates
-## cracking and peeling, 4 D all three mixed per hit (`HullHitFx`). `HitLayers`
-## reads it. `-- hull=A|B|C|D` on the command line plays one.
+## WHICH LOOK A SHIP'S HULL TAKES ITS HITS IN. Jon picked D (Oct 17): A, B and C
+## mixed per hit (`HullHitFx`), so D is the game's. 0 is this file's marks,
+## Chain's holes and all, which only the Custodian still wears (`HitLayers`:
+## it is grown, not built); 1 A battle-worn, 2 B heat and stress and 3 C crack
+## and peel are D's parts, kept as looks of their own for comparing.
+## `-- hull=today|A|B|C|D` on the command line plays one.
 static var look := _look_arg()
 
 
 static func _look_arg() -> int:
 	for a in OS.get_cmdline_user_args():
 		if (a as String).begins_with("hull="):
-			return {"A": 1, "B": 2, "C": 3, "D": 4}.get((a as String).substr(5).to_upper(), 0)
-	return 0
+			return {"TODAY": 0, "A": 1, "B": 2, "C": 3, "D": 4}.get((a as String).substr(5).to_upper(), 4)
+	return 4
 
 const SOOT := Color(0.17, 0.12, 0.10)
 const HOLE_COL := Color(0.05, 0.045, 0.055)

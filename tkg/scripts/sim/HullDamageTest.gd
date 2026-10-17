@@ -16,10 +16,11 @@ extends Node
 ##   * the marks build up: more of the hull marked at 6 hull than at 60;
 ##   * D mixes: its hits roll A's, B's and C's kinds over the three ships, and it
 ##     marks less of each hull than today's marks do for the same nine hits.
-## Then the real fight: with a look picked, every ship's hits are `HullHitFx`
-## (yours too), a shot through `Combat.damage_enemy` marks the enemy's picture,
-## and the kill's wreck keeps the marks; the Custodian keeps today's; with no
-## look picked (the default), everything is today's.
+## Then the real fight, in the older marks (0), B and D: every ship's hits are
+## that look's (yours too), a shot through `Combat.damage_enemy` marks the
+## enemy's picture, and the kill's wreck keeps the marks. And D is the game's
+## look (Jon's pick): with no `-- hull=` every ship wears D, the Custodian the
+## older marks.
 
 const Film := preload("res://scripts/sim/HullDamageFilm.gd")
 const SHIPS := ["cutter:0", "hulk:0", "marauder:2"]
@@ -281,15 +282,19 @@ func _fight() -> void:
 		Router.combat = null
 		await _frames(2)
 	# the Custodian keeps today's
-	ShipHitFx.look = 2
+	ShipHitFx.look = ShipHitFx._look_arg()
+	_ok("D is the game's look (%d)" % ShipHitFx.look, ShipHitFx.look == 4)
 	var L := HitLayers.new()
 	L.kind = FaunaMotion.Kind.CUSTODIAN
-	_ok("the Custodian keeps today's marks", L._hull_hits().get_script().get_global_name() == "ShipHitFx")
+	_ok("the Custodian keeps the older marks", L._hull_hits().get_script().get_global_name() == "ShipHitFx")
+	L.kind = -1
+	var mine := L._hull_hits()
+	_ok("every other ship wears D", mine is HullHitFx and (mine as HullHitFx).style == 4)
+	mine.free()
 	L.free()
-	ShipHitFx.look = 0
 
 
 func _end() -> void:
-	ShipHitFx.look = 0
+	ShipHitFx.look = ShipHitFx._look_arg()
 	h.verdict("hulldamagetest")
 	_tree.quit(h.code())
