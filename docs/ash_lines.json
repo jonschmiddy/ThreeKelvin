@@ -11,7 +11,8 @@
   "moment": "One more wreck",
   "lines": [
    "Sure. What's one more stop between friends.",
-   "We are, technically, still allowed to go home."
+   "We are, technically, still allowed to go home.",
+   "Fine. But I'm writing down that it was your idea."
   ]
  },
  "haul": {
@@ -28,7 +29,9 @@
   "moment": "Over the heat limit",
   "lines": [
    "Bold of you to treat the heat cap as a suggestion.",
-   "I'd vent. But you're the pilot."
+   "I'd vent. But you're the pilot.",
+   "That's not a warning light. That's the whole panel.",
+   "Hot enough to cook on. Please don't."
   ]
  },
  "hull": {
@@ -52,7 +55,9 @@
  "launch": {
   "moment": "First launch",
   "lines": [
-   "Launch clearance granted. By me. I'm the only one here."
+   "Launch clearance granted. By me. I'm the only one here.",
+   "Fuel's full. Optimism's at about half.",
+   "Engines warm. That's my job. The rest is yours."
   ]
  }
 }

@@ -4,7 +4,7 @@ The ship's AI, and the one person aboard. Named for Ashlee, by Jon, Oct 17.
 Her voice was chosen by Ashlee: **dry, humorous and teasing.** Her face is a
 **hologram.**
 
-Status: brief only. Nothing in the game yet.
+Status: brief and 26 approved lines (`docs/ash_lines.json`). Nothing in the game yet.
 
 ## Why she exists
 
@@ -39,7 +39,11 @@ while she lets a line land that suggests she has done the arithmetic too.
 
 - **Short.** One line, usually under twelve words. Never a paragraph.
 - **At moments that matter**, not as commentary on every action: first launch, a
-  big haul, overheating, hull failing, a new hull, a near miss, the ship lost.
+  big haul, overheating, hull failing, a new hull, one more wreck, and once in a
+  long while a line of doubt.
+- **Nothing after the ship is lost** (Jon, Oct 17: "No lines after the ship is
+  lost. The ship has blown up."). She is the ship; when it goes, she goes. Her
+  last words are whatever she said while the hull was failing.
 - **Never explains the world.** No lore dumps, no cosmology, no faction history
   ("No prophecy, no chosen crew, no faction explaining the cosmology in a text
   box"). If she knows more than the player, she does not say so.
@@ -61,7 +65,7 @@ frame on the main screen. It reacts to the ship, not to the script:
 | Over the heat cap | interference, colour bleeding, eyes narrowed |
 | Hull low | the image breaks up, lines drop out, she keeps her composure |
 | A big haul | the smallest smile she can get away with |
-| Ship lost | the projection holds a last expression, then cuts |
+| Ship lost | the projection cuts with the ship, no line |
 
 ## Where she shows up (planned)
 
@@ -69,7 +73,6 @@ frame on the main screen. It reacts to the ship, not to the script:
    and `Run.hp` / `Run.max_hp()`.
 2. Her lines in the log at the moments above, from a data table (like the cards),
    so more lines never need code.
-3. The death line when the ship is lost.
 
 Later, maybe: a voice (ElevenLabs — ask Jon before spending), and lines that
 shift with the hull's manufacturer.

@@ -346,9 +346,9 @@ teasing, with a holographic face. Brief in `docs/ash.md`, a ruling in
 CLAUDE.md ("A.S.H. is the ship, not crew"). Forty draft lines in
 `docs/ash_lines_draft.json`, on a keep/cut page:
 https://claude.ai/artifact/32V82WK5AkWDfHvp4ccPGs (choices in its db,
-`picks/ash_lines`). Jon and Ashlee kept 21 (in `docs/ash_lines.json`); round two
-for the moments that came up short (the ship lost, launch, heat, greed):
-https://claude.ai/artifact/Mtjy8qhcNYP4YLALGFnAPJ (`picks/ash_lines2`). Nothing in the game yet. Next: the portrait (holographic
+`picks/ash_lines`). Jon and Ashlee kept 26 over two rounds (in `docs/ash_lines.json`;
+round two: https://claude.ai/artifact/Mtjy8qhcNYP4YLALGFnAPJ). Ruling: no lines
+after the ship is lost; she goes with it. Nothing in the game yet. Next: the portrait (holographic
 face at a few moods; ask Jon before spending PixelLab credits), then a portrait
 slot on LOCAL and her lines in the log, driven by heat and hull.
 
