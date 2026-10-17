@@ -2,7 +2,7 @@ extends Node
 
 ## A NEW RUN'S FIRST ARRIVAL ON LOCAL, measured a frame at a time:
 ##   godot --path . --windowed --position 3840,0 -- sheet=ArriveProbe out=<file.tsv>
-##       [secs=11] [mouse=<x>,<y>] [hover=<frame>] [intro]
+##       [secs=11] [mouse=<x>,<y>] [hover=<frame>]
 ## A new run launched the way the hull pick launches it (`Router.show_local`),
 ## and for every real frame: its wall length (ms, the hitch is a wall question),
 ## the game clock, what the engines are doing (`ShipView._thrust_now`, -1 = no
@@ -35,7 +35,6 @@ func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
 	Router.animate_in_harness = true
-	FirstRunIntro.mark_seen(false)
 	Rng.forced = int(_arg("seed", "4242"))
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var mouse := _arg("mouse")
@@ -44,8 +43,6 @@ func _run() -> void:
 		get_viewport().warp_mouse(Vector2(float(xy[0]), float(xy[1])))
 		await tree.process_frame
 	Router.show_local()
-	if "intro" in _args:
-		FirstRunIntro.maybe_start()
 	var out := FileAccess.open(_arg("out", "user://arrive_probe.tsv"), FileAccess.WRITE)
 	out.store_line("frame\twall_ms\tgame_s\tthrust\twindow\tarriving\toutline\tphase\tevents")
 	var frames := int(float(_arg("secs", "11")) * 60.0)

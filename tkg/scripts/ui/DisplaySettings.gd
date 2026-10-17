@@ -30,6 +30,13 @@ const PATH := "user://settings.cfg"
 ## at once wrote over each other)
 static var HARNESS_PATH: String = TestRun.scratch("settings", "cfg") if TestRun.active() else "user://harness_settings.cfg"
 static var path: String = HARNESS_PATH if TestRun.active() else PATH
+## WHERE THE FIRST-RUN FLAGS LIVE (`[hints]`: the welcome note, each hint, the
+## goal line's steps): the player's settings, or this process's scratch file
+## under a harness, whatever `path` has been pointed at, so a harness that walks
+## the hints never marks the player's as seen. It was the opening tour's
+## (`FirstRunIntro.store_path`), and outlived it.
+static func hints_path() -> String:
+	return HARNESS_PATH if TestRun.active() else path
 ## Room left for the title bar and taskbar when sizing a windowed window.
 const CHROME_ALLOWANCE := 96
 
