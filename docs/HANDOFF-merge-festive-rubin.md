@@ -352,7 +352,9 @@ after the ship is lost; she goes with it. Portrait plan in `docs/ash.md` ("Makin
 portrait"): pick a calm face from three looks, then edit it into her moods.
 Step 1 done: 48 takes (cyan, white-blue wireframe, amber; 64x64) in
 `tools/briefs/ash_face_takes/`, pick page
-https://claude.ai/artifact/CSvS3545RvS8shquZpCr7Y (`picks/ash_face`). Nothing in the game yet. Next: the portrait (holographic
+https://claude.ai/artifact/CSvS3545RvS8shquZpCr7Y (`picks/ash_face`). Jon: "just the head. No shoulders." Round two,
+head only, in `tools/briefs/ash_face_takes/round2/`, page
+https://claude.ai/artifact/EyVuPQbPzfRm2Zxxo9RuqL (`picks/ash_face2`). Nothing in the game yet. Next: the portrait (holographic
 face at a few moods; ask Jon before spending PixelLab credits), then a portrait
 slot on LOCAL and her lines in the log, driven by heat and hull.
 

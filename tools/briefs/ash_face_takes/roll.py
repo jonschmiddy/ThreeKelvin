@@ -1,7 +1,8 @@
 import base64, json, os, sys, time, urllib.request, urllib.error
 D = os.path.dirname(os.path.abspath(__file__))
 API = "https://api.pixellab.ai/v2"
-BASE = ("Pixel art portrait, head and shoulders, of a ship's AI shown as a hologram of a woman's face, "
+BASE = ("Pixel art portrait of just the floating head of a ship's AI, no neck, no shoulders, no body, "
+        "a hologram of a woman's face, "
         "calm, half-lidded and mildly unimpressed, a dry little almost-smile, short hair, facing the viewer, "
         "%s, faint glitch at the edges, projected inside a dark ship console with a few cold indicator lights, "
         "deep indigo dark filling every edge, no lettering")
