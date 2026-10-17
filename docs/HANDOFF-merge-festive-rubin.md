@@ -346,7 +346,7 @@ teasing, with a holographic face. Brief in `docs/ash.md`, a ruling in
 CLAUDE.md ("A.S.H. is the ship, not crew"). Forty draft lines in
 `docs/ash_lines_draft.json`, on a keep/cut page:
 https://claude.ai/artifact/32V82WK5AkWDfHvp4ccPGs (choices in its db,
-`picks/ash_lines`). Jon and Ashlee kept 26 over two rounds (in `docs/ash_lines.json`;
+`picks/ash_lines`). Jon and Ashlee kept 30 over two rounds (in `docs/ash_lines.json`;
 round two: https://claude.ai/artifact/Mtjy8qhcNYP4YLALGFnAPJ). Ruling: no lines
 after the ship is lost; she goes with it. Portrait plan in `docs/ash.md` ("Making the
 portrait"): pick a calm face from three looks, then edit it into her moods.
@@ -354,9 +354,13 @@ Step 1 done: 48 takes (cyan, white-blue wireframe, amber; 64x64) in
 `tools/briefs/ash_face_takes/`, pick page
 https://claude.ai/artifact/CSvS3545RvS8shquZpCr7Y (`picks/ash_face`). Jon: "just the head. No shoulders." Round two,
 head only, in `tools/briefs/ash_face_takes/round2/`, page
-https://claude.ai/artifact/EyVuPQbPzfRm2Zxxo9RuqL (`picks/ash_face2`). Nothing in the game yet. Next: the portrait (holographic
-face at a few moods; ask Jon before spending PixelLab credits), then a portrait
-slot on LOCAL and her lines in the log, driven by heat and hull.
+https://claude.ai/artifact/EyVuPQbPzfRm2Zxxo9RuqL (`picks/ash_face2`). Jon picked **B15** (`round2/B_15.png`). 32 variations of
+B15 (V1 calm, V2 almost-smile with one eyebrow up; 2 pro calls, 20 generations)
+in `tools/briefs/ash_face_takes/variations/`, page
+https://claude.ai/artifact/VEysnjLHtDkNYZNoYPDX4m (`picks/ash_face3`, any number
+of picks). Nothing in the game yet. Next: her moods edited from the picked face
+(ask Jon before spending PixelLab credits), then a portrait slot on LOCAL and her
+lines in the log, driven by heat and hull.
 
 ## Pages Jon judged this on
 

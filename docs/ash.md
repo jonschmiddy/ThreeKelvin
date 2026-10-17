@@ -4,7 +4,7 @@ The ship's AI, and the one person aboard. Named for Ashlee, by Jon, Oct 17.
 Her voice was chosen by Ashlee: **dry, humorous and teasing.** Her face is a
 **hologram.**
 
-Status: brief and 26 approved lines (`docs/ash_lines.json`). Nothing in the game yet.
+Status: brief and 30 approved lines (`docs/ash_lines.json`). Nothing in the game yet.
 
 ## Why she exists
 

@@ -12,7 +12,9 @@
   "lines": [
    "Sure. What's one more stop between friends.",
    "We are, technically, still allowed to go home.",
-   "Fine. But I'm writing down that it was your idea."
+   "Fine. But I'm writing down that it was your idea.",
+   "One more wreck. You said that four wrecks ago.",
+   "The fuel gauge and I have concerns."
   ]
  },
  "haul": {
@@ -57,7 +59,9 @@
   "lines": [
    "Launch clearance granted. By me. I'm the only one here.",
    "Fuel's full. Optimism's at about half.",
-   "Engines warm. That's my job. The rest is yours."
+   "Engines warm. That's my job. The rest is yours.",
+   "Autonomous Systems Handler, reporting. Please don't make me handle much.",
+   "All green. Enjoy it. It won't last."
   ]
  }
 }
