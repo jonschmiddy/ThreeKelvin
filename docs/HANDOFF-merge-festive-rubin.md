@@ -371,6 +371,40 @@ https://claude.ai/artifact/JUTcAc8SVhsDiWbd4SmtNd. Nothing in the game yet. Next
 (ask Jon before spending PixelLab credits), then a portrait slot on LOCAL and her
 lines in the log, driven by heat and hull.
 
+### A.S.H.'s voice (Oct 17, not started)
+
+Jon asked for her voice from ElevenLabs. This cloud session cannot reach
+`api.elevenlabs.io` (the environment's network policy refuses it). To call it
+from a session, add that host under Allowed domains in the environment's
+Network access settings
+(https://code.claude.com/docs/en/cloud-environments#network-access).
+Otherwise Jon makes it on elevenlabs.io with Voice Design, on his ElevenLabs
+credits. Ask before spending, as always.
+
+Voice description to paste:
+
+> Adult woman, late twenties to thirties, neutral accent. Dry, low-key and
+> deadpan; she under-reacts to everything. Calm, measured pace with small
+> pauses before the punchline. A hint of amusement under the flatness, teasing
+> but warm. Clear and close, like a voice in a cockpit headset. Not robotic,
+> not bubbly, never excited.
+
+Preview text (from her approved lines):
+
+> Launch clearance granted. By me. I'm the only one here. … Structural
+> integrity: aspirational. … Fine. That was worth the detour. … I ran the
+> numbers again. I'll keep them to myself.
+
+Notes:
+
+- Add the hologram quality afterwards (a light radio band-pass and a touch of
+  shimmer) rather than asking ElevenLabs for "robotic".
+- Do not clone Ashlee's voice by default: the brief says "named for Ashlee,
+  not drawn from her". Only if she wants it.
+- Better option to raise: Ashlee records the lines herself, with the same
+  hologram filter. The most human option, and it answers the "100% AI"
+  concern for the one character players connect to.
+
 ## Pages Jon judged this on
 
 - The three graded hulls, all 12 ships: https://claude.ai/artifact/EE7Y4JKuiVY9igCZQ7r1qZ

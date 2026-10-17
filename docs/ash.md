@@ -84,5 +84,6 @@ frame on the main screen. It reacts to the ship, not to the script:
 2. Her lines in the log at the moments above, from a data table (like the cards),
    so more lines never need code.
 
-Later, maybe: a voice (ElevenLabs — ask Jon before spending), and lines that
+Later, maybe: a voice (ElevenLabs — ask Jon before spending; the voice
+description and options are in the handoff, "A.S.H.'s voice"), and lines that
 shift with the hull's manufacturer.
