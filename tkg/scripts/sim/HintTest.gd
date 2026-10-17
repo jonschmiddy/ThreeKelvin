@@ -311,6 +311,13 @@ func run(tree: SceneTree) -> void:
 		main.toggle_menu(false)
 		await _frames(5)
 
+	# off in a party (Jon, Oct 17: "coop:B")
+	Hints.forced = false
+	var was_state = Net.state
+	Net.state = Net.State.HOSTING
+	_ok("off in a party: enabled() is false", not Hints.enabled())
+	Net.state = was_state
+
 	# off under a harness that has not asked
 	Hints.forced = false
 	Hints.reset()

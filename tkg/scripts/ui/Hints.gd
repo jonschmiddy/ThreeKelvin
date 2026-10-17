@@ -34,11 +34,10 @@ extends Node
 ## all of them back, and the goal line's steps.
 ##
 ## OFF UNDER HARNESSES (`TestRun.active`) unless the run asks with `-- hints`;
-## `-- hinttest` turns it on by hand (`forced`). That is the whole rule: they
-## show in a party and on a seeded run like any other (a co-op player on a first
-## run needs them as much as a solo one, and nothing here is sent over the
-## network or waits on anything, so a co-op fight's barrier never does). Not off
-## under reduced motion: those players need hints too; only the fade goes.
+## `-- hinttest` turns it on by hand (`forced`). OFF IN A PARTY too (Jon, Oct 17:
+## "coop:B"): a networked run shows no hints and no goal-line steps. They still
+## show on a seeded solo run. Not off under reduced motion: those players need
+## hints too; only the fade goes.
 ##
 ## It finds its subjects by looking at the screens as they are each frame, so no
 ## screen has to call it.
@@ -134,7 +133,11 @@ func _heat_cap() -> int:
 
 
 func enabled() -> bool:
-	return forced or "hints" in OS.get_cmdline_user_args() or not TestRun.active()
+	if forced:
+		return true
+	if Net.is_networked():
+		return false
+	return "hints" in OS.get_cmdline_user_args() or not TestRun.active()
 
 
 # ------------------------------------------------------------------ seen
