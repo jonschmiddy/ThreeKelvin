@@ -51,6 +51,19 @@ const SOUND := {
 	Kind.CRACK: "0.00 impact; 0.00 crack, 0.15-0.35 long (the crack running)",
 	Kind.VENT: "0.00 impact; 0.00 hiss, 0.35-0.45 long; below half hull, sputter every 1-3 s per hole, 0.15-0.25 long"}
 
+## WHICH LOOK A SHIP'S HULL TAKES ITS HITS IN (Oct 17, for Jon's pick): 0 today's
+## (this file), 1 A battle-worn plating, 2 B heat and stress, 3 C plates
+## cracking and peeling (`HullHitFx`). `HitLayers` reads it. `-- hull=A|B|C` on
+## the command line plays one.
+static var look := _look_arg()
+
+
+static func _look_arg() -> int:
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("hull="):
+			return {"A": 1, "B": 2, "C": 3}.get((a as String).substr(5).to_upper(), 0)
+	return 0
+
 const SOOT := Color(0.17, 0.12, 0.10)
 const HOLE_COL := Color(0.05, 0.045, 0.055)
 const MAX_VENTS := 3
@@ -103,6 +116,8 @@ var draw_marks := true
 ## Goes up whenever a mark changes, so an owner that bakes them knows to redraw.
 var version := 0
 var _quiet := false   ## making an extra: its moments are the hit's
+## Every hit's kind, in order, for a harness.
+var rolled: Array = []
 
 
 class Layer extends Control:
@@ -294,6 +309,7 @@ func hit(amount: int, hp_after: int, max_hp: int, kind: int = -1, near: Vector2 
 	_hp = float(hp_after) / float(maxi(1, max_hp))
 	if kind < 0:
 		kind = roll(frac, _hp)
+	rolled.append(NAMES[kind])
 	var p: Vector2i
 	match kind:
 		Kind.SCORCH:

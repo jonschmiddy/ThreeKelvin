@@ -520,6 +520,25 @@ else
 	bad "hitfxlivetest did not finish"
 fi
 
+step "Hull damage looks leave no holes"
+# James, a playtester (Oct 17): ships get big holes in them, and ships can't
+# have holes. The three looks for Jon's pick (`HullHitFx`, `ShipHitFx.look`), on
+# a light, a dark and a white hull at both sheet sizes: no near-black blob, every
+# mark on the hull's own pixels in its own colours (or burnt metal), every glow
+# the heat ramp's and changing shape 8-12 times a second, the same seed the same
+# marks, more marks as the hull goes; then the real fight with a look picked and
+# without one, and the Custodian keeping today's.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot hulldamagetest 300 --headless --path "$PROJECT" -- sheet=HullDamageTest; then
+	if grep -qE '^hulldamagetest: PASS' "$LOG_DIR/hulldamagetest.log"; then
+		ok "no holes, on the hull, in its colours, glows that move"
+	else
+		bad "a hull damage look broke one of its rules"
+		grep -E 'FAIL|^hulldamagetest' "$LOG_DIR/hulldamagetest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "hulldamagetest did not finish"
+fi
+
 step "The bobs run on game time, not the wall's"
 # Jon, Oct 13, of the full fight films: "the hovering animation is REALLY fast".
 # The movie writer steps 1/60 s a frame however long a frame takes to write, so
