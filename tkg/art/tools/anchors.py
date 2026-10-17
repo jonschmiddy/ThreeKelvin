@@ -19,11 +19,14 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pixeltools as pt
 
-# One folder per manufacturer, since the hulls moved out of the flat sprites
-# directory. Korvan is the only manufacturer with art; when there are others this
-# takes the manufacturer as an argument and the filenames inside each folder stay identical.
-SPRITES = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                       "..", "sprites", "hulls", "korvan")
+# One folder per manufacturer, the filenames identical inside each. EVERY
+# folder is measured on every run, so the table it writes is always the whole
+# table: Korvan's keys are the bare file name (as they always were) and every
+# other manufacturer's carry its folder, "solari/hull_light_a" -- the key
+# `DB.hull_art_key` files a hull's tables under.
+HULLS = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     "..", "sprites", "hulls")
+MANUFACTURERS = ("korvan", "solari")
 
 # A column counts as hull rather than nose-taper or nozzle when it is at least
 # this fraction of the deepest column. 0.45 keeps the flat middle and drops the
@@ -135,17 +138,21 @@ def render(out):
 def main():
     out = {}
     names = []
-    for weight in ("light", "medium", "heavy"):
-        for cls in ("c", "b", "a", "s"):
-            names.append("hull_%s_%s" % (weight, cls))
-    for n in names:
-        p = os.path.join(SPRITES, n + ".png")
+    for mf in MANUFACTURERS:
+        for weight in ("light", "medium", "heavy"):
+            for cls in ("c", "b", "a", "s"):
+                stem = "hull_%s_%s" % (weight, cls)
+                if os.path.exists(os.path.join(HULLS, mf, stem + ".png")):
+                    names.append((mf, stem))
+    for mf, stem in names:
+        p = os.path.join(HULLS, mf, stem + ".png")
+        n = stem if mf == "korvan" else "%s/%s" % (mf, stem)
         r = lines(p)
         if r is None:
-            print("  %-18s NO HULL FOUND" % n)
+            print("  %-24s NO HULL FOUND" % n)
             continue
         out[n] = r
-        print("  %-18s canvas %3dx%-3d  span x%3d..%-3d  body y%3d..%-3d  deepest %3dpx"
+        print("  %-24s canvas %3dx%-3d  span x%3d..%-3d  body y%3d..%-3d  deepest %3dpx"
               % (n, r["canvas"][0], r["canvas"][1], r["span"][0], r["span"][1],
                  r["body"][0], r["body"][1], r["deepest"]))
     here = os.path.dirname(os.path.abspath(__file__))

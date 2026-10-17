@@ -5,6 +5,7 @@ extends Node
 ##   godot --path . --windowed --position 3840,0 -- sheet=CutawayShot keepwindow
 ##       clip=<dir> [weight=light|medium|heavy] [loot=no] [style=...] [seed=N]
 ##       [every=1] [nopause] [nofight] [yard] [bobcheck] [skyclip=<dir>] [orbit]
+##       [manufacturer=solari] [grade=0..3] [fit=full]
 ## A run at a system with a wreck you killed, parts in the hold and (unless
 ## `loot=no`) something loose in the system. Saves the game's picture every
 ## `every` frames through: the hover outline on your ship, the push-in (backdrop
@@ -22,6 +23,11 @@ extends Node
 ## THE CUTAWAY'S CLOCK IS STEPPED 1/30 s A FRAME (`CutawayView.fixed_step`), so
 ## the frames, encoded at 30 a second (every=1), show the real 0.4 s push-in
 ## however slowly the window drew them; nothing is saved before the hover.
+
+## Solari's parts with no picture yet, for `proc`.
+const PROC: Array[StringName] = [&"heliostat", &"plasma", &"sunheart", &"crucible", &"starfurnace",
+	&"heathaze", &"mirrorarray", &"radiatorsail", &"annealer", &"flare", &"heliograph",
+	&"incinerator", &"bleedvalve"]
 
 var _args: PackedStringArray
 var _dir := ""
@@ -76,7 +82,29 @@ func _run() -> void:
 		ShipView.shot_clock = -1.0
 	Rng.forced = int(_arg("seed", "4242"))
 	var wt: int = {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}.get(_arg("weight", "medium"), HullData.Weight.MEDIUM)
-	Run.start_new_run(&"korvan", int(wt))
+	# `manufacturer=solari grade=0..3`: that manufacturer's chassis at that grade
+	# with its starter kit; `fit=full` then fills every mount with its own parts
+	# (MouthSize's rule: couplings first, then the smallest draw, what the
+	# reactor runs).
+	var mk := StringName(_arg("manufacturer", "korvan"))
+	Run.start_new_run(mk, int(wt))
+	if _arg("grade", "") != "":
+		Run.fit_chassis(mk, wt as HullData.Weight, int(_arg("grade", "0")))
+	if _arg("fit", "") == "full":
+		_fit_full()
+	# `proc`: the parts with no picture yet (Solari's thirteen), fitted where a
+	# mount is free and the rest in the hold and the wreck, to see the
+	# procedural drawing where it is seen; `transfer` then opens the wreck.
+	var proc_left: Array[ModuleData] = []
+	if "proc" in _args:
+		Run.installed.clear()
+		for pid: StringName in PROC:
+			var pm := (DB.modules[pid] as ModuleData).duplicate(true) as ModuleData
+			if Run.slots_used(pm.slot) < Run.slots_for(pm.slot):
+				Run.install_module(pm)
+			else:
+				proc_left.append(pm)
+		Sig.ship_changed.emit()
 	var idx := -1
 	for n: MapGen.MapNode in Run.map:
 		if n.type == MapGen.NodeType.SYSTEM and not n.cleared:
@@ -87,10 +115,17 @@ func _run() -> void:
 	SectorScreen._approached_at = idx
 	var n: MapGen.MapNode = Run.node_at()
 	# what a used ship carries: parts in the hold, a wreck you killed, loot
-	for i in 3:
-		Run.stow(LootGen.roll_module(3, &"korvan"))
 	var wreck := Run.new_wreck(n, DB.enemies[&"cutter"])
-	wreck.items.append(LootGen.roll_module(4, &"korvan"))
+	if "proc" in _args:
+		for i in proc_left.size():
+			if i < 3:
+				Run.stow(proc_left[i])
+			else:
+				wreck.items.append(proc_left[i])
+	else:
+		for i in 3:
+			Run.stow(LootGen.roll_module(3, mk))
+		wreck.items.append(LootGen.roll_module(4, mk))
 	wreck.items.append(MaterialData.of(MaterialTable.all()[2]))
 	if _arg("loot", "yes") != "no":
 		var pile := Run.sector_jetsam(n, true)
@@ -114,6 +149,13 @@ func _run() -> void:
 		return
 	# 1. pointing at your own ship
 	_rec = true
+	if "transfer" in _args:
+		_still("00_local")
+		sc._open_jetsam(wreck, "Rustjaw Cutter", true)
+		await _frames(60)
+		_still("16_transfer")
+		tree.quit()
+		return
 	if "yard" in _args:
 		await _yard()
 		tree.quit()
@@ -122,6 +164,7 @@ func _run() -> void:
 		await _bobcheck(sc)
 		tree.quit()
 		return
+	_still("00_local")
 	sc._ship_outline.visible = true
 	sc._ship_outline.queue_redraw()
 	await _frames(8)
@@ -253,6 +296,7 @@ func _run() -> void:
 		Run.hand_size_override = 5
 		Router.start_combat(DB.enemies[&"cutter"], [], false, false)
 		await _frames(90)
+		_still("14a_fight")
 		var fs := Router.current as SectorScreen
 		if fs != null and fs._hand != null:
 			var views: Array = []
@@ -407,3 +451,23 @@ func _report_fit(cut: CutawayView) -> void:
 		n += 1
 	print("cutawayshot: %d parts lifted; lowest edge %.0f against the bottom bar at %.0f: %s" % [n, worst, top_y.y,
 		"clear" if worst <= top_y.y else "OVERLAPS"])
+
+
+## Every mount filled with the hull's own manufacturer's parts, as MouthSize does.
+func _fit_full() -> void:
+	var own: Array[ModuleData] = []
+	for mid in DB.modules:
+		var m: ModuleData = DB.modules[mid]
+		if m.manufacturer == Run.hull.manufacturer:
+			own.append(m)
+	own.sort_custom(func(x: ModuleData, y: ModuleData) -> bool:
+		if x.reactor != y.reactor:
+			return x.reactor > y.reactor
+		return x.cells() < y.cells())
+	for p in 2:
+		for m: ModuleData in own:
+			if p == 0 and Run.installed.any(func(on: ModuleData) -> bool: return on.id == m.id):
+				continue
+			if Run.slots_used(m.slot) < Run.slots_for(m.slot) and Run.can_power(m):
+				Run.install_module(m.duplicate(true) as ModuleData)
+	print("cutawayshot: fit=full, %d parts on %s" % [Run.installed.size(), Run.hull.display_name()])
