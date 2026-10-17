@@ -3,8 +3,8 @@ extends Node
 ## A GRADED HULL WHERE IT IS SEEN: your ship refitted to a Korvan frame at one
 ## grade and parked on LOCAL, its lights live.
 ##   godot --path . --resolution 1920x1080 --write-movie <dir>/f.png --fixed-fps 30
-##       -- sheet=GradeLocal [weight=medium] [grade=0..3] [hold=4] [seed=N] [maker=solari]
-## `maker=` puts that manufacturer's picture on the hull, bare: its parts and
+##       -- sheet=GradeLocal [weight=medium] [grade=0..3] [hold=4] [seed=N] [manufacturer=solari]
+## `manufacturer=` puts that manufacturer's picture on the hull, bare: its parts and
 ## flame are still placed for Korvan's shape, so they are taken off.
 ## Prints `mark parked <frame>` so the film's held stretch can be cut out, and
 ## the hull's art name and grade key, so a wrong base shows in the log.
@@ -32,7 +32,7 @@ func _run() -> void:
 	var w: HullData.Weight = weights.get(_arg("weight", "medium"), HullData.Weight.MEDIUM)
 	Run.start_new_run(&"korvan", int(w))
 	Run.fit_chassis(&"korvan", w, int(_arg("grade", "3")))
-	var mk := _arg("maker", "")
+	var mk := _arg("manufacturer", "")
 	if mk != "":
 		var path := "res://art/sprites/hulls/%s/hull_%s_a.png" % [mk, _arg("weight", "medium")]
 		Run.hull.sprite = load(path) as Texture2D

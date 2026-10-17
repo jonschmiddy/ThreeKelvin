@@ -50,7 +50,7 @@ static func bake_mix(src: Image, grade: int, looks: Array, seed_in: int = 7, hul
 		img.decompress()
 	img.convert(Image.FORMAT_RGBA8)
 	_band(img, hull)
-	_maker = hull.get_slice("/", 0) if hull != "" else "korvan"
+	_manufacturer = hull.get_slice("/", 0) if hull != "" else "korvan"
 	var r := _Ramps.new(img)
 	var at := places(hull)
 	# the silhouette first, then the yard's paint, the age over it, the marks,
@@ -93,7 +93,7 @@ class _Ramps extends RefCounted:
 			# band hue goes here when it has one.
 			if c.s > 0.28 and c.v > 0.25 and (c.h < 0.17 or c.h > 0.95):
 				accent.append(c)
-			elif HullGrade._maker != "korvan" and c.s > 0.45:
+			elif HullGrade._manufacturer != "korvan" and c.s > 0.45:
 				# a pale hull's glass and cold glints (Solari's blue panes):
 				# neither ramp, so grime on the white tile never steps into
 				# blue. Korvan keeps its navy in the grey, as approved.
@@ -448,7 +448,7 @@ static var reg_look: StringName = &"A"
 
 ## Whose hull is being baked: the registry's first letter is its manufacturer's
 ## (Solari's ships read S-, Korvan's K-).
-static var _maker := "korvan"
+static var _manufacturer := "korvan"
 
 
 ## How much lighter look A's strokes are than the panel under them.
@@ -479,7 +479,7 @@ static func _marks(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictiona
 		ink = r.accent[0] if not r.accent.is_empty() else r.grey[0]
 	else:
 		var cx := int(reg[0])
-		var letter := _maker.substr(0, 1).to_upper()
+		var letter := _manufacturer.substr(0, 1).to_upper()
 		for ch in (letter if STENCIL.has(letter) else "K") + "-" + num:
 			cells.append([ch, Vector2i(cx, int(reg[1]))])
 			cx += 4
@@ -795,12 +795,12 @@ static func _kit(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictionary
 static func key_for(h: HullData) -> String:
 	if h == null or not DB.graded(h.weight):
 		return ""
-	# a hull wearing another manufacturer's picture (art/sprites/hulls/<maker>/)
+	# a hull wearing another manufacturer's picture (art/sprites/hulls/<manufacturer>/)
 	# grades by that picture's entry
 	if h.sprite != null and h.sprite.resource_path.begins_with("res://art/sprites/hulls/"):
-		var maker := h.sprite.resource_path.get_base_dir().get_file()
-		if maker != "korvan" and maker != "half":
-			return maker + "/" + h.sprite.resource_path.get_file().get_basename()
+		var mf := h.sprite.resource_path.get_base_dir().get_file()
+		if mf != "korvan" and mf != "half":
+			return mf + "/" + h.sprite.resource_path.get_file().get_basename()
 	return "korvan/" + DB.hull_art_name(h.weight, h.tier)
 
 static var _tex := {}

@@ -185,7 +185,7 @@ One name a weight, the same at every grade, and ONE word: no class word after
 it ("get rid of the second word for each ship"). `MANUFACTURER_HULLS[m].names`
 in `Database.gd`, light, medium, heavy:
 
-| Maker | Light | Medium | Heavy |
+| Manufacturer | Light | Medium | Heavy |
 |---|---|---|---|
 | Korvan | Hammer | Anvil | Foundry |
 | Solari | Flare | Prominence | Nova |
@@ -227,9 +227,9 @@ tile, not steel.
   tile, islands) and they were hand-fixed where Jon pointed (the third ring's
   slot, the noses). Raw takes in `art/hull_templates/picked/raw/`, the picks in
   `picked/`, and the game copies at `art/sprites/hulls/solari/hull_<w>_a.png`.
-- **Grades.** `HullGrade` bakes them C to S like Korvan (`_maker` picks the
-  registry letter, S; non-Korvan makers keep cool colours out of the ramps,
-  which fixed blue flecks). `key_for` reads the maker from the sprite's folder.
+- **Grades.** `HullGrade` bakes them C to S like Korvan (`_manufacturer` picks the
+  registry letter, S; non-Korvan manufacturers keep cool colours out of the ramps,
+  which fixed blue flecks). `key_for` reads the manufacturer from the sprite's folder.
   Placements in `art/hull_grade.json` under `solari/hull_<w>_a`.
 - **Lights (Jon: "The light positioning makes NO SENSE").** Each brass ring's
   slot is one lit strip and nothing else is lit but the white nose light. The
@@ -237,7 +237,7 @@ tile, not steel.
   (Jon: "BACK to front"), one wave every 2.4 s (`HullGrade.level`). The middle
   ring lights at B, two at A, all at S.
 - **Not wired into play.** `DB.hull_sprite` still hardcodes the Korvan folder,
-  so a Solari ship in a run wears Korvan art. `-- sheet=GradeLocal maker=solari
+  so a Solari ship in a run wears Korvan art. `-- sheet=GradeLocal manufacturer=solari
   weight=<w> grade=<0..3>` films one parked on LOCAL with its parts and flame
   off. Still to do for play: the sprite path by manufacturer, mounts
   (`anchors.py`), `engines.json`, then `-- mounts`, MouthSize, YardSeatTest.
@@ -270,14 +270,14 @@ Solari card as the game draws it: https://claude.ai/artifact/1tL4AXkZBhPL45XwXA4
   reads heat. The brace-from-heat log names the card, not "Shroud".
 - **Gates (HoldTest):** "Solari attacks run hot" and "Solari heat is never
   waste", both passing. The rarity law now PRINTS a warning for a pair on a 1-2
-  cell part above common (13 parts across five makers), not yet a failure.
+  cell part above common (13 parts across five manufacturers), not yet a failure.
 - **Korvan is the generalist; the other six grant their own cards** (Jon's
   ruling, written into `docs/catalogue.md` §6 and CLAUDE.md's rulings). A
   shared card only where the manufacturer's own would be the plain card
   recoloured ("Let's just have it be the unbranded card").
 - **The four Solari pairs are fixed** under it: Overdrive + Open the Throttle,
   Heat Shroud + Bolt On, Flare Rack + Range, Cauterising Torch + Patch. Solari
-  is 40 of 40 unique cards. Nine pairs on other makers still warn.
+  is 40 of 40 unique cards. Nine pairs on other manufacturers still warn.
 - A card that decommissions itself now prints **Decommission** (Jon), not
   "Decommissions itself": Sunburst and Solstice.
 - Checked: holdtest, attrtest, reactor, content, glyphs, savetest, an import

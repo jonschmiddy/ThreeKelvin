@@ -1,7 +1,7 @@
 extends Node
 
 ## ONE HULL, FOUR GRADES, in each of HullGrade's looks, as PNGs for a pick page:
-##   godot --headless --path . -- sheet=GradeSheet out=<dir> [weight=medium] [base=a] [maker=korvan]
+##   godot --headless --path . -- sheet=GradeSheet out=<dir> [weight=medium] [base=a] [manufacturer=korvan]
 ##
 ## `base` is which of today's four sprites is the one hull (c, b, a, s). Writes
 ## `<look>_<grade>.png` (A_c ... C_s, and the mixes AB, AC, BC, ABC) at the sprite's own size, today's four as
@@ -24,7 +24,7 @@ func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(out)
 	var wt := _arg("weight", "medium")
 	var base := _arg("base", "a")
-	var mk := _arg("maker", "korvan")
+	var mk := _arg("manufacturer", "korvan")
 	# `reglook=A|B|C`: the registry's look on trial (`HullGrade.reg_look`)
 	HullGrade.reg_look = StringName(_arg("reglook", "A"))
 	var grades := ["c", "b", "a", "s"]
