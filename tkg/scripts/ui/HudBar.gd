@@ -446,6 +446,10 @@ func refresh() -> void:
 	# hull drops as each shot lands rather than on the click (combat polish).
 	var hp := Run.hp if SectorScreen.shown_hull < 0 else SectorScreen.shown_hull
 	var heat := Run.heat if SectorScreen.shown_heat < 0 else SectorScreen.shown_heat
+	# AND WHAT AN EVENT'S RESULT IS STILL FLYING UP HERE (`OutcomeRow.held`, look
+	# C): the number changes when its flight lands, not before
+	hp = int(OutcomeRow.held.get("hp", hp))
+	heat = int(OutcomeRow.held.get("heat", heat))
 	_hull.set_hull(hp, Run.max_hp())
 	_hint(_hull_label, hull_note)
 	_hull.tooltip_text = Widgets.tip(hull_note)
@@ -480,10 +484,10 @@ func refresh() -> void:
 		UITheme.FLARE if over > 0 else UITheme.COLD)
 	_hint(_heat_text, heat_note)
 
-	_value(_scrap, str(Run.credits))
+	_value(_scrap, str(int(OutcomeRow.held.get("credits", Run.credits))))
 	# One sentence, in one place. See `CreditChit.WHAT_MONEY_IS`.
 	_hint(_scrap, CreditChit.WHAT_MONEY_IS)
-	_value(_fuel, str(Run.fuel))
+	_value(_fuel, str(int(OutcomeRow.held.get("fuel", Run.fuel))))
 	_hint(_fuel, "Every jump burns fuel. Longer jumps burn more.\nIf you run dry between stations, the run ends.")
 
 ## Where the second nav tab goes: the station if you are tied up at one, the
@@ -565,6 +569,32 @@ func tab_rect(which: StringName) -> Rect2:
 		&"local":
 			return _merged([_tab_sector])
 	return Rect2()
+
+
+## THE READOUT A STAT LIVES IN, for an event's result to fly its change to
+## (`OutcomeRow`, look C): "hp" "heat" "credits" "fuel". Not one of them takes a
+## click, and the result only flickers them.
+func stat_nodes(key: String) -> Array:
+	match key:
+		"hp":
+			return [_hull_label, _hull, _hull_text]
+		"heat":
+			return [_heat_label, _heat, _heat_text]
+		"credits":
+			return [_scrap]
+		"fuel":
+			return [_fuel]
+	return []
+
+
+## A tab, for the same: flickered, never moved.
+func tab_nodes(which: StringName) -> Array:
+	match which:
+		&"archive":
+			return [_tab_archive]
+		&"chart":
+			return [_tab_chart]
+	return []
 
 
 ## Where the goal line is, global; empty while it is not up.

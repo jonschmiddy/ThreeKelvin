@@ -11,7 +11,8 @@ extends Control
 ## cards, odds, costs and readings the map's panel showed
 ## (`EncounterDrawer.choice_card`). Choosing resolves through `OptionResolve`,
 ## the one rule; the result comes up in the same place: the band word, YOU
-## CHOSE, what happened, the four ledger rows, REWARD (the system's pile in
+## CHOSE, what happened, what you end up with (`OutcomeRow`, in the look Jon
+## picks), REWARD (the system's pile in
 ## `TransferView`) and CONTINUE. A fight it starts is THEY ARE FIRING, and then
 ## the fight itself, whose hand takes the band's place. NOT NOW drops it and the
 ## bar under the view says OPEN IT.
@@ -242,6 +243,7 @@ func _lift() -> void:
 
 
 func _drop() -> void:
+	OutcomeRow.settle(self)
 	page = &""
 	_up = false
 	if _tw != null:
@@ -395,6 +397,8 @@ func _fit_and_show() -> void:
 
 ## The text is all here: the choices (or the buttons) fade in and take clicks.
 func _text_done() -> void:
+	if page == &"result":
+		OutcomeRow.fly(self)
 	if _choices == null:
 		return
 	if not _moving():
@@ -477,6 +481,7 @@ func _hulls(n: Node) -> Array:
 func open(i: int) -> void:
 	if node == null or i < 0 or i >= node.options.size():
 		return
+	OutcomeRow.settle(self)
 	opt = i
 	choice = -1
 	out = {}
@@ -602,7 +607,12 @@ func choose(j: int) -> Dictionary:
 
 # --------------------------------------------------------------- the result
 
+## B's receipt, beside the text, game px.
+const RECEIPT_W := 340.0
+
 func _result() -> void:
+	# a re-shown result (REWARD shut, a look changed) lands C's flights first
+	OutcomeRow.settle(self)
 	page = &"result"
 	var o := OptionTable.by_id(node.options[opt])
 	var choices: Array = o.get("choices", [])
@@ -627,28 +637,56 @@ func _result() -> void:
 	var band := UITheme.body(word, ink, UITheme.FS_HEAD)
 	band.name = "Band"
 	head.add_child(band)
+	head.name = "Head"
 	_box.add_child(head)
 	var chose := "YOU CHOSE: " + String((choices[choice] as Dictionary).get("label", "")).to_upper() \
 		if choice >= 0 and choice < choices.size() else ""
 	if out.get("checked", false):
 		chose += " · " + String(out.get("odds", ""))
 	var cl := UITheme.body(chose, UITheme.COLD, UITheme.FS_SMALL)
+	cl.name = "Chose"
 	cl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_box.add_child(cl)
-	_box.add_child(_text_box(String(res.get("text", "")), UITheme.CHILL if ink == UITheme.COLD else ink))
-	# THE LEDGER AS ONE ROW, the buttons at the end of it
+	# WHAT YOU END UP WITH, in the look Jon picks (`OutcomeRow.look`): today's
+	# four fixed pairs, A only what changed and big, B a GAINED | LOST receipt
+	# beside the text, C only what changed flying to the HUD
+	var look := OutcomeRow.look
+	var said := _text_box(String(res.get("text", "")), UITheme.CHILL if ink == UITheme.COLD else ink)
+	var receipt: Control = null
+	if look == &"B":
+		receipt = OutcomeRow.ledger(out, RECEIPT_W if layout != &"card" else CARD_W - 20.0)
+	if receipt != null and layout != &"card":
+		var lane := HBoxContainer.new()
+		lane.add_theme_constant_override("separation", 14)
+		lane.add_child(said)
+		lane.add_child(receipt)
+		_box.add_child(lane)
+	else:
+		_box.add_child(said)
+		if receipt != null:
+			_box.add_child(receipt)
+	# THE OUTCOME AS ONE ROW, the buttons at the end of it
 	var foot := HBoxContainer.new()
 	foot.add_theme_constant_override("separation", 6)
-	for r in out.get("bill", []):
-		foot.add_child(UITheme.body(String(r.name), UITheme.COLD, UITheme.FS_SMALL))
-		var v := UITheme.body(String(r.text), r.tone as Color, UITheme.FS_SMALL)
-		v.custom_minimum_size.x = 22
-		foot.add_child(v)
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	foot.add_child(sp)
+	if look == &"A" or look == &"C":
+		foot.add_child(OutcomeRow.line(out, look))
+	else:
+		if look == &"today":
+			for r in out.get("bill", []):
+				foot.add_child(UITheme.body(String(r.name), UITheme.COLD, UITheme.FS_SMALL))
+				var v := UITheme.body(String(r.text), r.tone as Color, UITheme.FS_SMALL)
+				v.custom_minimum_size.x = 22
+				v.add_to_group(OutcomeRow.GROUP)
+				v.set_meta(&"outcome_text", "%s %s" % [r.name, r.text])
+				foot.add_child(v)
+		var sp := Control.new()
+		sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		foot.add_child(sp)
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 6)
+	# CONTINUE STAYS WHERE IT IS: at its own height on the band's floor, whatever
+	# the outcome beside it stands as tall as
+	buttons.size_flags_vertical = Control.SIZE_SHRINK_END
 	if out.get("stay", false):
 		var again := Widgets.button("CHOOSE AGAIN", func() -> void: open(opt))
 		again.name = "ChooseAgain"
@@ -681,6 +719,7 @@ func _result() -> void:
 		foot.add_child(buttons)
 		_box.add_child(foot)
 	_choices = buttons
+	OutcomeRow.hold(self)
 	_fit_and_show()
 
 
