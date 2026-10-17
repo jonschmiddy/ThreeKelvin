@@ -25,7 +25,14 @@ extends Node
 ##   - ONE PLACE, ONE FIGHT (Jon, Oct 15): the Hellbender and the core's
 ##     Custodian are engaged at their own place on the map and nowhere else --
 ##     LOCAL anywhere else sends you to the map -- and a jump arrives at the
-##     edge, wherever the ship was left on the last visit.
+##     edge, wherever the ship was left on the last visit;
+##   - THE WRECKS STAY OFF YOU (Jon, Oct 17): after a fight won on LOCAL, every
+##     door off it and back -- the cutaway with a part moved or a wreck emptied
+##     in it first of all -- leaves every wreck where it lay, clear of your hull
+##     (`_round_trips`);
+##   - AND IN THEIR SYSTEM (Jon, Oct 17): a real jump to the next system draws
+##     none of them there, and a save made where they lie keeps them there
+##     (`_other_systems`).
 
 var h := Harness.new()
 
@@ -103,6 +110,8 @@ func _run() -> void:
 	Run.map[n.index] = n
 	await _sector_loot()
 	await _one_place()
+	await _round_trips()
+	await _other_systems()
 	h.verdict("wrecksitetest")
 	get_tree().quit(h.code())
 
@@ -253,3 +262,272 @@ func _one_place() -> void:
 	for i in 4:
 		await get_tree().process_frame
 	h._ok("a jump arrives at the edge, not where the ship was left (%d)" % Run.site_here(m), Run.site_here(m) == -9)
+
+
+## THE WRECKS STAY CLEAR OF YOU, WHEREVER YOU HAVE BEEN (Jon, Oct 17: "fix
+## destroyed ships from going on top of you when you edit your ship after a
+## fight"). A two-ship fight won on the real LOCAL, then every door off LOCAL
+## and back, and each time every wreck's drawn boxes -- its picture's ink, its
+## name and its SALVAGE / STRIPPED tag -- against your hull and its plate. The
+## cutaway is the one that broke: a part moved or a wreck emptied with the scene
+## zoomed 2x laid the wrecks out in the zoomed picture's room, and shut, they
+## stood across your bow.
+func _round_trips() -> void:
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var n: MapGen.MapNode = null
+	for c: MapGen.MapNode in Run.map:
+		if c.type == MapGen.NodeType.SYSTEM and not c.cleared and not Router.no_fights_at(c):
+			n = c
+			break
+	Run.at = n.index
+	n.visited = true
+	SectorScreen._approached_at = n.index
+	SystemMapScreen._parked[n.index] = {"at": 0}
+	Router.show_local()
+	await _frames(8)
+	Router.start_combat(DB.enemies[&"cutter"], [DB.enemies[&"lancer"]], false, false)
+	await _frames(8)
+	var cb: Combat = Router.combat
+	if cb == null:
+		h._fail("no fight opened on LOCAL")
+		return
+	for e in cb.enemies:
+		cb.damage_enemy(9999, 1, "test", e)
+	await _frames(20)
+	if not h._ok("the fight is won and LOCAL is up", not Router.in_combat() and Router.current is SectorScreen):
+		return
+	await _clear_of_you("after the win", 2)
+
+	# THE CUTAWAY, animated as in play: opened and shut; a part off the hull
+	# into the hold while it is open; a wreck emptied while it is open
+	for what in ["open and shut", "a part lifted into the hold", "a wreck emptied"]:
+		var sc := Router.current as SectorScreen
+		Router.animate_in_harness = true
+		var cut := sc.open_cutaway()
+		if not h._ok("the cutaway opens on LOCAL (%s)" % what, cut != null):
+			Router.animate_in_harness = false
+			continue
+		await _until(func() -> bool: return cut.t >= 1.0, 3.0)
+		var held: Array = []
+		for sl in sc._view._made:
+			held.append((sl as EnemySlot).position)
+		if what == "a part lifted into the hold":
+			var lifted := -1
+			for m in Run.installed:
+				if (m as ModuleData).slot == ModuleData.Slot.WEAPON:
+					lifted = Run.lift_part(m)
+					break
+			h._ok("  a weapon came off the hull into the hold", lifted >= 0)
+		elif what == "a wreck emptied":
+			await _empty(n, Run.wrecks_here(n)[0])
+		await _frames(12)
+		var still := true
+		for i in held.size():
+			still = still and (sc._view._made[i] as EnemySlot).position.distance_to(held[i]) <= 1.0
+		h._ok("  the wrecks hold their places in the zoomed scene", still)
+		cut.close()
+		await _until(func() -> bool: return not is_instance_valid(cut), 3.0)
+		Router.animate_in_harness = false
+		await _clear_of_you("the cutaway: " + what, 2)
+
+	# A WRECK OPENED THROUGH ITS OWN DOOR and picked clean (STRIPPED)
+	var sc2 := Router.current as SectorScreen
+	var w2: MapGen.Jetsam = Run.wrecks_here(n)[1]
+	sc2._open_jetsam(w2)
+	await _frames(2)
+	await _empty(n, w2)
+	sc2._close_transfer()
+	await _clear_of_you("a wreck opened and picked clean", 2)
+
+	# EVERY OTHER DOOR OFF LOCAL, and back
+	for door: String in ["the ship screen", "CARDS", "MODULES", "the map", "the star chart", "SAVE & EXIT, CONTINUE"]:
+		match door:
+			"the ship screen":
+				Router.show_ship()
+				await _frames(4)
+				# a part moved on the refit screen too
+				for m in Run.installed:
+					if (m as ModuleData).slot == ModuleData.Slot.WEAPON:
+						Run.lift_part(m)
+						break
+			"CARDS":
+				Router.show_cards()
+			"MODULES":
+				Router.show_modules()
+			"the map":
+				Router.show_system()
+			"the star chart":
+				Router.show_starchart()
+			"SAVE & EXIT, CONTINUE":
+				SaveGame.save()
+				Run.start_new_run(&"korvan", int(HullData.Weight.LIGHT))
+				SaveGame.load_into_run()
+		await _frames(6)
+		Router.show_local()
+		await _frames(6)
+		await _clear_of_you("back from " + door, 2)
+
+
+## Everything left in a wreck, taken.
+func _empty(n: MapGen.MapNode, w: MapGen.Jetsam) -> void:
+	while Run.jetsam_left(n, w) > 0:
+		var i := -1
+		for k in w.items.size():
+			if not n.taken.has(w.option(k)):
+				i = k
+				break
+		if i < 0:
+			return
+		await Run.take_from_jetsam(n, w, i)
+
+
+## Where each wreck lay after the win (its slot's box), to hold the rest to.
+var _rest: Array = []
+
+
+## Every wreck's drawn boxes on the real LOCAL against your ship's; `want` of them.
+func _clear_of_you(tag: String, want: int) -> void:
+	await _frames(6)
+	var sc := Router.current as SectorScreen
+	if sc == null:
+		h._fail("%s: LOCAL is not up (%s)" % [tag, Router.current])
+		return
+	var ev: EncounterView = sc._view
+	var drawn: int = ev._made.size() if ev._slots_mode == &"wrecks" and ev._slots.visible else 0
+	h._ok("%s: LOCAL draws the %d wrecks (%d)" % [tag, want, drawn], drawn == want)
+	# your hull's own pixels, and every line on its plate
+	var sv := ev.ship_view()
+	var you: Array[Rect2] = [sv.get_global_transform() * sv.ship_rect()]
+	you.append_array(ev.player_boxes())
+	var bad: Array[String] = []
+	for i in drawn:
+		for b in _wreck_boxes(ev._made[i]):
+			for y in you:
+				if (b[1] as Rect2).intersects(y):
+					bad.append("wreck %d's %s %s on your %s" % [i, b[0], b[1], y])
+					break
+	h._ok("%s: every wreck's picture, name and tag clear of your ship%s" % [tag,
+		"" if bad.is_empty() else ": " + "; ".join(bad)], bad.is_empty())
+	# and each where it lay after the win, at the size it was drawn at
+	var now: Array = []
+	for i in drawn:
+		now.append((ev._made[i] as EnemySlot).get_global_rect())
+	if _rest.is_empty():
+		_rest = now
+		return
+	var moved: Array[String] = []
+	for i in mini(now.size(), _rest.size()):
+		var a: Rect2 = _rest[i]
+		var b: Rect2 = now[i]
+		if a.position.distance_to(b.position) > 1.0 or a.size.distance_to(b.size) > 1.0:
+			moved.append("wreck %d %s -> %s" % [i, a, b])
+	h._ok("%s: every wreck where it lay after the win%s" % [tag,
+		"" if moved.is_empty() else ": " + "; ".join(moved)], moved.is_empty())
+
+
+## A wreck's picture (its ink where it rests), its name and its tag, global.
+func _wreck_boxes(sl: EnemySlot) -> Array:
+	var out: Array = []
+	var art: EnemyArt = sl.art
+	var holder: Control = sl.get("_art_holder")
+	var base: Vector2 = sl.get("_art_base") if sl.get("_art_base") != null else Vector2.ZERO
+	var u := Rect2(art.ink_rect())
+	var at := holder.get_global_rect().position + base
+	out.append(["picture", Rect2(at + u.position, u.size)])
+	for key in ["_name", "_hp"]:
+		var l: Label = sl.get(key)
+		if l != null and l.is_visible_in_tree() and l.text.strip_edges() != "":
+			out.append([l.text, EnemySlot.text_rect(l)])
+	return out
+
+
+## DESTROYED SHIPS STAY IN THEIR SYSTEM (Jon, Oct 17: "destroyed ships still
+## show up in other systems"). Hulls killed at a world and at the star of system
+## A; then every other place in A draws none of them, a save made in A and
+## loaded keeps them in A at their own places, and a real jump to system B
+## arrives where none of them is drawn, at B's edge or at any of B's places.
+func _other_systems() -> void:
+	h.seed_run(1618)
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var a: MapGen.MapNode = null
+	for c: MapGen.MapNode in Run.map:
+		if c.type == MapGen.NodeType.SYSTEM and c.region != MapGen.Region.FAUNA \
+				and not Router.no_fights_at(c) and SystemLayout.of(c).bodies.size() >= 2:
+			a = c
+			break
+	Run.at = a.index
+	a.visited = true
+	SectorScreen._approached_at = a.index
+	var parked := SystemMapScreen._parked
+	parked[a.index] = {"at": 0}
+	_win(a, &"cutter", [&"lancer"])
+	parked[a.index] = {"at": -1}
+	_win(a, &"hulk")
+	var sites := {0: 2, -1: 1}
+	await _each_place(a, sites, "system A")
+	SaveGame.save()
+	Run.start_new_run(&"korvan", int(HullData.Weight.LIGHT))
+	h._ok("a save made in A loads", SaveGame.load_into_run())
+	a = Run.map[Run.at]
+	await _each_place(a, sites, "system A, saved and loaded")
+	# a real jump to a neighbour
+	var b: MapGen.MapNode = null
+	for c: MapGen.MapNode in Run.map:
+		if c.index != a.index and c.type == MapGen.NodeType.SYSTEM and Run.can_jump_to(c):
+			b = c
+			break
+	if not h._ok("a system B in range of A", b != null):
+		return
+	OptionTable.ensure(b)
+	b.ambush_rolled = true
+	b.ambush_pending = false
+	Router.commit_jump(b.index)
+	await _frames(10)
+	h._ok("the jump lands in B", Run.at == b.index)
+	var held := 0
+	for raw in b.jetsam:
+		if (raw as MapGen.Jetsam).is_wreck():
+			held += 1
+	h._ok("B holds no wreck (%d)" % held, held == 0)
+	await _each_place(b, {}, "system B")
+
+
+## The real LOCAL at every place of `n` (the edge, the star, each body): it
+## draws exactly `sites[place]` wrecks there, none where it is not named.
+func _each_place(n: MapGen.MapNode, sites: Dictionary, tag: String) -> void:
+	var places: Array = [-9, -1]
+	for i in SystemLayout.of(n).bodies.size():
+		places.append(i)
+	# (LOCAL up before any place is set by hand: a won fight's door may have
+	# left the map up, and a map keeps where ITS ship is as it goes)
+	Router.show_local()
+	await _frames(4)
+	for site in places:
+		if site == -9:
+			SystemMapScreen._parked.erase(n.index)
+		else:
+			SystemMapScreen._parked[n.index] = {"at": site}
+		Router.show_local()
+		await _frames(6)
+		var sc := Router.current as SectorScreen
+		var ev: EncounterView = sc._view if sc != null else null
+		var drawn: int = ev._made.size() if ev != null and ev._slots_mode == &"wrecks" and ev._slots.visible else 0
+		var want := int(sites.get(site, 0))
+		var names: Array = []
+		for i in drawn:
+			names.append(ev._made[i]._name.text)
+		h._ok("%s at %d: LOCAL draws %d wrecks (%d %s; here %d, at %s)" % [tag, site, want, drawn, names, Run.wrecks_here(n).size(), Run.node_at().index],
+			ev != null and drawn == want and Run.wrecks_here(n).size() == want)
+	SystemMapScreen._parked[n.index] = {"at": 0}
+
+
+func _frames(k: int) -> void:
+	for i in k:
+		await get_tree().process_frame
+
+
+func _until(cond: Callable, secs: float) -> void:
+	var t0 := Time.get_ticks_msec()
+	while not bool(cond.call()) and Time.get_ticks_msec() - t0 < int(secs * 1000.0):
+		await get_tree().process_frame

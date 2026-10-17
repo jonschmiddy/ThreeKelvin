@@ -623,12 +623,16 @@ step "Each place in a system keeps its own wrecks"
 # marks; a save keeps the place, and an older save's wrecks show everywhere.
 # Jon, Oct 15: what is left in a wreck you have opened is under SECTOR LOOT too,
 # from anywhere in the system, claimed as the wreck's own.
+# Jon, Oct 17: "fix destroyed ships from going on top of you when you edit your
+# ship after a fight" -- every door off LOCAL and back (the cutaway with a part
+# moved in it was the one) leaves the wrecks where they lay, off your hull; and
+# "destroyed ships still show up in other systems" -- a real jump draws none.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit|were leaked at exit' \
 	run_godot wrecksitetest 180 --headless --path "$PROJECT" -- sheet=WreckSiteTest; then
 	if grep -qE '^wrecksitetest: PASS' "$LOG_DIR/wrecksitetest.log"; then
-		ok "a world keeps its wrecks and the next one has none"
+		ok "a world keeps its wrecks, the next one and the next system have none, and they stay off your hull"
 	else
-		bad "a wreck shows at a place it did not die at"
+		bad "a wreck shows at a place it did not die at, or on your hull"
 		grep -E 'FAIL|^wrecksitetest' "$LOG_DIR/wrecksitetest.log" | head -n 12 | sed 's/^/        /'
 	fi
 else

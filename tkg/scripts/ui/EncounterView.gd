@@ -821,8 +821,9 @@ func player_boxes() -> Array[Rect2]:
 	var out: Array[Rect2] = []
 	if _ship == null:
 		return out
-	var sr := _ship.ship_rect()
-	out.append(Rect2(_ship.get_global_rect().position + sr.position, sr.size))
+	# through the hull's whole transform, so a scene the cutaway or the ladder
+	# has scaled gives the hull's real box (its offset and size scaled too)
+	out.append(_ship.get_global_transform() * _ship.ship_rect())
 	_collect_boxes(_ship, out)
 	return out
 
@@ -842,19 +843,29 @@ func _collect_boxes(n: Node, out: Array[Rect2]) -> void:
 		_collect_boxes(c, out)
 
 
-## The room a pack has, in `_slots`' own coordinates.
+## The room a pack has, in `_slots`' own coordinates, AS THE SCENE STANDS AT
+## REST, whatever scale it is drawn at this frame.
+##
+## The cutaway and the zoom ladder scale and move `_row` (the scene: your ship,
+## the wrecks) round a point. This was measured on the screen, so a layout asked
+## for while the cutaway had the scene at 2x -- a part moved or a wreck emptied
+## in there, each of which refreshes LOCAL -- planned the wrecks into the room
+## the zoomed picture left them: half size, stacked in a column just past your
+## hull's middle. Shut, the scene went back to 1x and they stayed where that
+## plan put them, across your bow with their names on your hull (Jon, Oct 17:
+## "destroyed ships going on top of you when you edit your ship after a
+## fight"). Measured in the row's own frame, and against the row's size at rest
+## (this view's, less the bleed under it: a refresh in the cutaway can stretch
+## the zoomed row), the plan is the same zoomed or not. `-- sheet=WreckSiteTest`
+## goes round every door.
 func _pack_area() -> Rect2:
-	var inv := _slots.get_global_transform().affine_inverse()
+	var to_row := _row.get_global_transform().affine_inverse()
 	var right := 0.0
 	for r in player_boxes():
-		right = maxf(right, r.end.x)
-	var view := get_global_rect()
-	var g := _slots.get_global_rect()
-	var left_g := maxf(right + PACK_MARGIN, view.position.x + PACK_MARGIN)
-	var right_g := view.end.x - PACK_MARGIN
-	var p0 := inv * Vector2(left_g, g.position.y)
-	var p1 := inv * Vector2(right_g, g.end.y)
-	return Rect2(p0, p1 - p0)
+		right = maxf(right, (to_row * r).end.x)
+	var left := maxf(right + PACK_MARGIN, PACK_MARGIN)
+	var x0 := left - _slots.position.x
+	return Rect2(x0, 0.0, size.x - PACK_MARGIN - left, size.y - _bleed - _slots.position.y)
 
 
 func _layout_pack() -> void:
