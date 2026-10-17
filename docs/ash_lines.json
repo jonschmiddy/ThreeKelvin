@@ -1,0 +1,58 @@
+{
+ "doubt": {
+  "moment": "Once in a long while",
+  "lines": [
+   "If anyone's waiting at the other end, they're very patient.",
+   "I ran the numbers again. I'll keep them to myself.",
+   "We keep going because stopping is worse. Mostly."
+  ]
+ },
+ "greed": {
+  "moment": "One more wreck",
+  "lines": [
+   "Sure. What's one more stop between friends.",
+   "We are, technically, still allowed to go home."
+  ]
+ },
+ "haul": {
+  "moment": "A big haul",
+  "lines": [
+   "Oh. That's actually good. Don't let it go to your head.",
+   "Logged, stowed, and already spent, knowing you.",
+   "Fine. That was worth the detour.",
+   "Look at us. Solvent.",
+   "I'll allow it."
+  ]
+ },
+ "hot": {
+  "moment": "Over the heat limit",
+  "lines": [
+   "Bold of you to treat the heat cap as a suggestion.",
+   "I'd vent. But you're the pilot."
+  ]
+ },
+ "hull": {
+  "moment": "Moving to a new hull",
+  "lines": [
+   "New body. The ceilings are lower. I'll adjust.",
+   "I liked the old one. It knew where I kept things.",
+   "Moving day. Try not to scratch this one.",
+   "Fine. But I'm keeping the old seat settings."
+  ]
+ },
+ "hurt": {
+  "moment": "Hull failing",
+  "lines": [
+   "Structural integrity: aspirational.",
+   "Small hole. Medium hole. I've stopped naming them.",
+   "If you were waiting for a sign, this is the sign.",
+   "We're held together by optimism and two welds."
+  ]
+ },
+ "launch": {
+  "moment": "First launch",
+  "lines": [
+   "Launch clearance granted. By me. I'm the only one here."
+  ]
+ }
+}
