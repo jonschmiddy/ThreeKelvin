@@ -358,7 +358,10 @@ https://claude.ai/artifact/EyVuPQbPzfRm2Zxxo9RuqL (`picks/ash_face2`). Jon picke
 B15 (V1 calm, V2 almost-smile with one eyebrow up; 2 pro calls, 20 generations)
 in `tools/briefs/ash_face_takes/variations/`, page
 https://claude.ai/artifact/VEysnjLHtDkNYZNoYPDX4m (`picks/ash_face3`, any number
-of picks). Nothing in the game yet. Next: her moods edited from the picked face
+of picks). Talking mock-up (free, hand-drawn on B15: mouth closed/slight/open/round,
+each with a blink; mouth follows the letters as a line types out, plus hologram
+row glitches) in `tools/briefs/ash_face_takes/talk/`, page
+https://claude.ai/artifact/JUTcAc8SVhsDiWbd4SmtNd. Nothing in the game yet. Next: her moods edited from the picked face
 (ask Jon before spending PixelLab credits), then a portrait slot on LOCAL and her
 lines in the log, driven by heat and hull.
 
