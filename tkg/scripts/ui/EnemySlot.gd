@@ -156,6 +156,19 @@ func holder_rect() -> Rect2:
 	return Rect2(_art_holder.global_position, _art_holder.size)
 
 
+## The picture's holder and the words under it that show (name, bar, number or
+## SALVAGE / STRIPPED), global: all of this ship a thing standing beside it has
+## to keep off (`LocalSubject._wrecks`). A name is often wider than its hull.
+func drawn_box() -> Rect2:
+	var out := holder_rect()
+	for l: Label in [_name, _hp]:
+		if l != null and l.is_visible_in_tree() and l.text.strip_edges() != "":
+			out = out.merge(text_rect(l))
+	if _bar != null and _bar.is_visible_in_tree():
+		out = out.merge(_bar.get_global_rect())
+	return out
+
+
 ## Lay this ship's `HitLayers` over its picture, from the picture as drawn now.
 func _arm(e) -> void:
 	art.set_enemy(e, false, shown_hp, true, death_style)
@@ -803,6 +816,17 @@ func block(s: float) -> Rect2:
 	var top := 0.0 if reserve_intent else 3.0
 	# (the column centres the holder by floor, as a container does)
 	return Rect2(floorf((u.x - w) * 0.5), top, w, u.y - top)
+
+
+## THE WORDS UNDER THE SHIP inside the slot at `s`: its name, its bars, its
+## number or SALVAGE / STRIPPED (and its chips in a fight), the block's width.
+## What must stay readable where the picture may not (`EncounterView._clear_of_body`).
+func words(s: float) -> Rect2:
+	var b := block(s)
+	var lh := _name.get_minimum_size().y
+	var h := lh + 1.0 + float(EnemySlot.BracePips.CELL.y) + 1.0 + 6.0 + 1.0 + lh + 1.0 + _chip_row_h() \
+		if reserve_intent else lh + 1.0 + 6.0 + 1.0 + lh
+	return Rect2(b.position.x, b.end.y - h, b.size.x, h)
 
 
 ## THE READOUT BESIDE THE SHIP, or under it (the default). Layout C stacks a

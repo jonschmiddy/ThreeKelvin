@@ -1249,13 +1249,33 @@ func _live_wrecks(oid: StringName) -> Array:
 			avoid.append(Rect2(e.holder_rect().position - at, e.holder_rect().size))
 		sets.append(avoid)
 		var hits := 0
+		var on_words := 0
 		for r in sub.drawn_rects():
 			for e: EnemySlot in sc._view._made:
 				if r.intersects(e.holder_rect()):
 					hits += 1
+				# AND NONE UNDER ITS WORDS: a name over a piece of the scene
+				# cannot be read (Jon's rule: fit means nothing overlaps)
+				for w in _words_of(e):
+					if r.intersects(w):
+						on_words += 1
 		_ok("  and none of its pieces on a wreck (%d), drawn at %sx" % [hits, sub._scale], hits == 0)
+		_ok("  nor under a wreck's name, bar or tag (%d)" % on_words, on_words == 0)
 	LocalEventDrawer.quiet = false
 	return sets
+
+
+## A wreck's words as drawn, global: its name and tag (their text) and its bar.
+func _words_of(e: EnemySlot) -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	for key in ["_name", "_hp"]:
+		var l: Label = e.get(key)
+		if l != null and l.is_visible_in_tree() and l.text.strip_edges() != "":
+			out.append(EnemySlot.text_rect(l))
+	var bar: Control = e.get("_bar")
+	if bar != null and bar.is_visible_in_tree():
+		out.append(bar.get_global_rect())
+	return out
 
 
 ## An armed encounter opened on LOCAL, then its fight started as the event

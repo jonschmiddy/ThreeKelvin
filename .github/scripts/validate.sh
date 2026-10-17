@@ -627,6 +627,8 @@ step "Each place in a system keeps its own wrecks"
 # ship after a fight" -- every door off LOCAL and back (the cutaway with a part
 # moved in it was the one) leaves the wrecks where they lay, off your hull; and
 # "destroyed ships still show up in other systems" -- a real jump draws none.
+# Fit means nothing overlaps: no wreck's words on the world you orbit, and no
+# wreck's picture on it while the pile is a fight's worth.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit|were leaked at exit' \
 	run_godot wrecksitetest 180 --headless --path "$PROJECT" -- sheet=WreckSiteTest; then
 	if grep -qE '^wrecksitetest: PASS' "$LOG_DIR/wrecksitetest.log"; then

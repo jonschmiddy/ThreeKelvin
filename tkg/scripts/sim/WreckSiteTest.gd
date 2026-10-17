@@ -32,7 +32,10 @@ extends Node
 ##     (`_round_trips`);
 ##   - AND IN THEIR SYSTEM (Jon, Oct 17): a real jump to the next system draws
 ##     none of them there, and a save made where they lie keeps them there
-##     (`_other_systems`).
+##     (`_other_systems`);
+##   - AND OFF THE WORLD YOU ORBIT (fit means nothing overlaps): their words
+##     never on its disc, their pictures not either while the pile is a
+##     fight's worth (`_off_the_world`).
 
 var h := Harness.new()
 
@@ -112,6 +115,7 @@ func _run() -> void:
 	await _one_place()
 	await _round_trips()
 	await _other_systems()
+	await _off_the_world()
 	h.verdict("wrecksitetest")
 	get_tree().quit(h.code())
 
@@ -532,6 +536,132 @@ func _open_full(cut: CutawayView) -> void:
 	var t0 := Time.get_ticks_msec()
 	while is_instance_valid(cut) and cut.t < 1.0 and Time.get_ticks_msec() - t0 < 3000:
 		await get_tree().process_frame
+
+
+## WRECKS OFF THE WORLD YOU ORBIT (Jon's rule: fit means nothing overlaps). On
+## the real LOCAL, parked at every world of four systems in each of six
+## galaxies -- worlds and giants of every size, on either side of the view --
+## with one to six wrecks there: no wreck's name, bar or tag on the world's
+## disc, ever; no wreck's picture on it while the pile is a fight's worth (three
+## or fewer); and a count of the bigger piles whose pictures had no room off it.
+## The words draw over the world (the sky is the view's first child, the hulls
+## its row), but a grey name on a lit yellow face cannot be read: it is kept
+## off rather than drawn over.
+func _off_the_world() -> void:
+	var kinds: Array[StringName] = [&"cutter", &"lancer", &"hulk", &"marauder", &"cutter", &"lancer"]
+	var counts: Array[int] = [1, 2, 3, 4, 6]
+	var seeds: Array[int] = [4242, 2718, 1618, 777, 31337, 9001]
+	# (`worldseeds=N` on the command line: N galaxies and piles up to eight, for
+	# measuring how often a big pile has no room off the world; `worldbig` as
+	# well draws every world at the largest size it can be)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("worldseeds="):
+			seeds.clear()
+			for i in int(a.get_slice("=", 1)):
+				seeds.append(1000 + 37 * i)
+			counts.assign([1, 2, 3, 4, 5, 6, 8])
+	var big := OS.get_cmdline_user_args().has("worldbig")
+	var cases := 0
+	var words_on: Array[String] = []
+	var art_small: Array[String] = []
+	var art_big := {}
+	var big_cases := {}
+	var radii := {}
+	var order_ok := true
+	var word_places := 0
+	var small_cases := 0
+	for sd: int in seeds:
+		Rng.forced = sd
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		var systems := 0
+		for n: MapGen.MapNode in Run.map:
+			if systems >= 4:
+				break
+			if n.type != MapGen.NodeType.SYSTEM or Router.no_fights_at(n):
+				continue
+			var L := SystemLayout.of(n)
+			var worlds: Array[int] = []
+			for i in L.bodies.size():
+				if L.bodies[i].world != &"":
+					worlds.append(i)
+			if worlds.is_empty():
+				continue
+			systems += 1
+			Run.at = n.index
+			n.visited = true
+			SectorScreen._approached_at = n.index
+			for b in worlds.slice(0, 3):
+				SystemMapScreen._parked[n.index] = {"at": b}
+				for k: int in counts:
+					var keep: Array = []
+					for raw in n.jetsam:
+						if not (raw as MapGen.Jetsam).is_wreck():
+							keep.append(raw)
+					n.jetsam.assign(keep)
+					for j in k:
+						Run.new_wreck(n, DB.enemies[kinds[(j + b) % kinds.size()]], j)
+					Router.show_local()
+					await _frames(4)
+					var sc := Router.current as SectorScreen
+					var ev: EncounterView = sc._view if sc != null else null
+					if ev == null:
+						h._fail("LOCAL did not come up")
+						continue
+					# (`worldbig`: every world at the biggest LOCAL draws -- the
+					# sky's plan of it, which is what the pile is laid out round)
+					if big and ev.backdrop.layout != null:
+						ev.backdrop.layout.bodies[b].r *= 3.0
+						ev._queue_pack()
+						await _frames(3)
+					var p := ev.backdrop.near_plan()
+					if p.is_empty():
+						continue
+					cases += 1
+					var c: Vector2 = p.at
+					var R := float(p.R)
+					radii[int(R)] = true
+					var sub := LocalSubject.of(ev)
+					order_ok = order_ok and ev.backdrop.get_index() < ev._row.get_index() \
+						and (sub == null or sub.get_index() < ev._row.get_index())
+					var tag := "seed %d system %d world %d (r %d, x %d) with %d" % [sd, n.index, b, int(R), int(c.x), k]
+					var art_hit := false
+					var had := words_on.size()
+					for i in ev._made.size():
+						var sl: EnemySlot = ev._made[i]
+						for bx in _wreck_boxes(sl) + [["bar", (sl.get("_bar") as Control).get_global_rect()]]:
+							if not _on_disc(bx[1], c, R):
+								continue
+							if bx[0] == "picture":
+								art_hit = true
+							else:
+								words_on.append("%s: wreck %d's %s" % [tag, i, bx[0]])
+					if words_on.size() > had:
+						word_places += 1
+					if art_hit:
+						if k <= 3:
+							art_small.append(tag)
+						else:
+							art_big[k] = int(art_big.get(k, 0)) + 1
+					if k <= 3:
+						small_cases += 1
+					if k > 3:
+						big_cases[k] = int(big_cases.get(k, 0)) + 1
+	var radii_s: Array = radii.keys()
+	radii_s.sort()
+	print("  --   %d places parked at, world radii %s px" % [cases, radii_s])
+	h._ok("the sky and any subject draw under the wrecks and their words", order_ok)
+	h._ok("no wreck's name, bar or tag on the world you orbit (on it at %d of %d places)%s" % [word_places, cases,
+		"" if words_on.is_empty() else ": " + "; ".join(words_on.slice(0, 4))], words_on.is_empty() and cases > 0)
+	h._ok("no wreck's picture on it with three or fewer wrecks (on it at %d of %d)%s" % [art_small.size(), small_cases,
+		"" if art_small.is_empty() else ": " + "; ".join(art_small.slice(0, 4))], art_small.is_empty())
+	for k in big_cases:
+		print("  --   %d wrecks: a picture on the world (no room off it) at %d of %d places" % [k, int(art_big.get(k, 0)), int(big_cases[k])])
+
+
+## Whether a box comes onto a disc.
+static func _on_disc(r: Rect2, c: Vector2, R: float) -> bool:
+	var near := Vector2(clampf(c.x, r.position.x, r.end.x), clampf(c.y, r.position.y, r.end.y))
+	return near.distance_to(c) < R
 
 
 ## Until the cutaway has shut and freed itself (3 s at most). A loop, not a
