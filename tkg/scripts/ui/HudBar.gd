@@ -69,6 +69,8 @@ var _heat: BoxGauge
 var _heat_text: Label
 var _scrap: HBoxContainer
 var _fuel: HBoxContainer
+## The goal and the next step, under the bar (`GoalLine`).
+var goal: GoalLine = null
 
 func _ready() -> void:
 	add_theme_stylebox_override("panel", UITheme.bevel(UITheme.PANEL, 5, 6))
@@ -111,6 +113,11 @@ func _ready() -> void:
 	_row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	clip.add_child(_row)
 	_build()
+	# THE GOAL LINE (`GoalLine`), under the bar. In the bar's own column, after
+	# the screens, so it draws over the picture and under the escape menu; added
+	# once the column has finished taking its children.
+	goal = GoalLine.new()
+	get_parent().add_child.call_deferred(goal)
 	Sig.resources_changed.connect(refresh)
 	Sig.ship_changed.connect(refresh)
 	Sig.screen_changed.connect(refresh)
@@ -541,6 +548,43 @@ func _divider() -> Control:
 ## No button click: a tab changes the page, and the page change has its own
 ## sound. Both at once was a double click on every tab (Jon: "the ui click
 ## shouldn't happen too when you select ship sector starchart...").
+## THE BOXES THE HINTS AND THE GOAL LINE POINT AT, global; empty when the bar is
+## not up. The heat gauge with its word and number; the fuel readout; a tab.
+func heat_rect() -> Rect2:
+	return _merged([_heat_label, _heat, _heat_text])
+
+
+func fuel_rect() -> Rect2:
+	return _merged([_fuel])
+
+
+func tab_rect(which: StringName) -> Rect2:
+	match which:
+		&"chart":
+			return _merged([_tab_chart])
+		&"sector":
+			return _merged([_tab_system])
+		&"local":
+			return _merged([_tab_sector])
+	return Rect2()
+
+
+## Where the goal line is, global; empty while it is not up.
+func goal_rect() -> Rect2:
+	return goal.rect() if goal != null and is_instance_valid(goal) else Rect2()
+
+
+func _merged(cs: Array) -> Rect2:
+	if not is_visible_in_tree():
+		return Rect2()
+	var r := Rect2()
+	for c in cs:
+		if c != null and is_instance_valid(c) and (c as Control).is_visible_in_tree():
+			var g := (c as Control).get_global_rect()
+			r = g if r.size == Vector2.ZERO else r.merge(g)
+	return r
+
+
 func _tab(label: String, action: Callable) -> Button:
 	return Widgets.button(label, action, false)
 

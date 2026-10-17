@@ -1067,10 +1067,6 @@ static func _make() -> ZoomLadder:
 	var root: Node = Router.content.get_viewport() if Router.content != null else null
 	if root != null:
 		root.add_child(lad)
-		# the first-run intro's words stay over the move
-		if FirstRunIntro.playing != null and is_instance_valid(FirstRunIntro.playing) \
-				and FirstRunIntro.playing.get_parent() == root:
-			root.move_child(FirstRunIntro.playing, -1)
 	return lad
 
 
