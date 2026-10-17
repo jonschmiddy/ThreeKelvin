@@ -128,7 +128,7 @@ static var DISC_PX := 0.0
 ## landed, into LOCAL the column and band slide off (`CALM_SLIDE_S`), and the
 ## arriving screen's UI comes (`CALM_IN_S`) while its side bar and toolbar
 ## decode (`CALM_DECODE_S`). Never two of these at once with the camera.
-static var CALM_OUT_S := 0.12
+static var CALM_OUT_S := 0.2
 ## (the column crosses 265 px: at 0.6 s on its curve, at most 9 px a frame, the
 ## walk SideBarTest holds it to)
 static var CALM_SLIDE_S := 0.6
@@ -2452,6 +2452,7 @@ var _calm_e := 0.0
 var _calm_e_drawn := 0.0
 var _calm_e_h := -1.0
 var _calm_t_h := 0.0
+var _calm_swap_frame := 0
 var _calm_L := 0.0
 var _calm_p0 := Vector2.ZERO
 var _calm_p1 := Vector2.ZERO
@@ -2466,8 +2467,28 @@ var _calm_covers: Array = []
 var calm_log: Array = []
 
 
+## THE SWITCH: `[flow] calm=false` in settings.cfg, or `-- calm=off`, puts back
+## the moves Jon picked on Oct 8-13 (1A, 2C, the dip to black) -- the designs
+## and their dials kept whole behind it. A harness sets `calm_force`.
+static var calm_force := -1
+
+
+static func calm_on() -> bool:
+	if calm_force >= 0:
+		return calm_force == 1
+	var a := _arg("calm")
+	if a == "off":
+		return false
+	if a == "on":
+		return true
+	_read_cfg()
+	return bool(_cfg.get("calm", true))
+
+
 ## Whether a hop between ranks `a` and `b` is the calm move.
 static func calm_hop(a: int, b: int) -> bool:
+	if not calm_on():
+		return false
 	if a == b or a < CHART or a > LOCAL or b < CHART or b > LOCAL:
 		return false
 	# (docked, LOCAL is the berth; the jump's departure is its own cinematic)
@@ -2492,7 +2513,10 @@ static func calm_length(a: int, b: int) -> float:
 		t += _calm_post_s()
 	else:
 		t += maxf(CALM_IN_S, CALM_DECODE_S)
-	return t
+	# (and the frames between: the camera sets off the frame after the chrome
+	# has stood still, the screen arriving takes its camera the frame after it
+	# is shown, a decode lays itself out over two)
+	return t + 4.0 / 60.0
 
 
 ## Into LOCAL, after the landing: the column and band slide off, LOCAL's UI
@@ -2625,7 +2649,6 @@ func _process_calm(delta: float) -> void:
 			if _calm_t >= CALM_OUT_S:
 				_chrome(old, 1.0)
 				_calm_next(Phase.C_WAIT)
-				_calm_wait()
 		Phase.C_SLIDE:
 			if not is_instance_valid(old) or Router.current != old:
 				_calm_end()
@@ -2651,9 +2674,9 @@ func _process_slide_on() -> void:
 	var q := clampf(_calm_t / maxf(CALM_SLIDE_S, 0.001), 0.0, 1.0)
 	_drive_slide(q, true)
 	if q >= 1.0:
+		# (the column and band whole on this frame; the camera from the next)
 		_chrome(old, 1.0)
 		_calm_next(Phase.C_WAIT)
-		_calm_wait()
 
 
 ## (the screen arriving built and laid out, so where your ship will rest on it
@@ -2701,11 +2724,19 @@ func _calm_cam() -> void:
 			# (not laid out yet: the held picture stands, the clock waits)
 			_calm_t -= _calm_dt
 			return
-		new.call(&"calm_begin")
-		_calm_new_begun = true
+		# (its camera taken once it has stood a frame where it is shown -- laid
+		# out there, not where it was built -- the held picture whole over it
+		# meanwhile, still moving)
+		if Engine.get_process_frames() > _calm_swap_frame:
+			new.call(&"calm_begin")
+			_calm_new_begun = true
+			_calm_t_h = _calm_t
 	var p := _calm_p(e)
-	new.call(&"calm_at", p, exp(_calm_L * (e - 1.0)))
-	_calm_a = 1.0 - _ease(clampf((_calm_t - _calm_t_h) / CALM_DISSOLVE_S, 0.0, 1.0))
+	if _calm_new_begun:
+		new.call(&"calm_at", p, exp(_calm_L * (e - 1.0)))
+		_calm_a = 1.0 - _ease(clampf((_calm_t - _calm_t_h) / CALM_DISSOLVE_S, 0.0, 1.0))
+	else:
+		_calm_a = 1.0
 	_mat.set_shader_parameter(&"to_pt", p)
 	_mat.set_shader_parameter(&"scl", Vector2.ONE * exp(_calm_L * (e - _calm_e_h)))
 	_mat.set_shader_parameter(&"alpha", _calm_a)
@@ -2749,6 +2780,7 @@ func _calm_hold(n: Control) -> void:
 	# and the line goes on from there
 	_calm_e_h = _calm_e_drawn
 	_calm_t_h = _calm_t
+	_calm_swap_frame = Engine.get_process_frames()
 	_calm_ph = _calm_p0.lerp(_calm_p1, _calm_e_drawn)
 	var c := _content_rect()
 	var pic: Rect2 = old.call(&"ladder_picture")

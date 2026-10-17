@@ -4,14 +4,16 @@ extends Node
 ## 17: "the movement between local > sector > starchart ... EXTREMELY
 ## disorienting"), headless with the animation on, the ladder's clock stepped
 ## 1/60 s a frame:
-##   godot --headless --path . -- sheet=CalmLadderTest
+##   godot --headless --fixed-fps 60 --path . -- sheet=CalmLadderTest
+## (fixed fps: the goal line's fade is a tween on the engine's clock, which must
+## step with the ladder's)
 ## Every hop between LOCAL, the map and the chart -- by its HUD tab (a real
 ## click), by Tab, by NEXT SCREEN rebound to N, both ways where the route goes
 ## both ways, from a world's orbit and from the system's edge -- watched frame by
 ## frame for what the audit measured going wrong:
 ##   - ONE SHIP: wherever the picture held from the screen left and the screen
 ##     arriving both show, they show your ship in the same place (4 px);
-##   - ONE STRAIGHT LINE: your ship's place on screen keeps within 4 px of the
+##   - ONE STRAIGHT LINE: your ship's place on screen keeps within 6 px of the
 ##     line from where it rested to where it rests, never turning back on it,
 ##     never more than 40 px in a frame, never under the side bar;
 ##   - NO ONE-FRAME SWAP: the held picture never leaves (or comes) by more than a
@@ -31,9 +33,14 @@ var _fails := 0
 var _tree: SceneTree
 var _zl: GDScript = load("res://scripts/ui/ZoomLadder.gd")
 const JUMP_PX := 40.0
-const LINE_PX := 4.0
+## (a few px: LOCAL's hull bobs 3 px either way, the map's ship keeps to its
+## orbit and the chart's galaxy turns, all under the move)
+const LINE_PX := 6.0
 const SAME_PX := 4.0
 const SIDE_X := 689.0
+## (the chart draws your star on whole pixels as the galaxy turns under it, and
+## the hull bobs)
+const BACK_PX := 4.0
 
 
 func _ok(what: String, c: bool) -> bool:
@@ -79,6 +86,22 @@ func _ship(s: Control) -> Vector2:
 	return Vector2.INF
 
 
+## The camera between distances moving this frame: the screen being left's
+## pre-roll, the wait for the next, the move (on main: PRE, WAIT, MOVE), the
+## calm move's camera (C_CAM). Not the UI's beats either side of it.
+func _camera_moving() -> bool:
+	if not ZoomLadder.busy():
+		return false
+	var ph := int(ZoomLadder.active.phase)
+	var names: Array = ZoomLadder.Phase.keys()
+	var nm := String(names[ph]) if ph >= 0 and ph < names.size() else ""
+	return nm in ["PRE", "WAIT", "MOVE", "C_CAM"]
+
+
+func held_on_now() -> bool:
+	return ZoomLadder.busy() and ZoomLadder.active.get("_rect") != null and (ZoomLadder.active._rect as CanvasItem).visible
+
+
 func _rank(s: Control) -> int:
 	return ZoomLadder.rank_of(s)
 
@@ -90,23 +113,34 @@ func _target_s(a: int, b: int) -> float:
 	return 1.55
 
 
-func _chrome_state() -> String:
-	var out := PackedStringArray()
+## The chrome as it stands: each piece by its id, with what would show it
+## moving (a decode's clock and whether it is drawn, a slide's place, a band's
+## height, a side bar's or toolbar's place and opacity).
+func _chrome_state() -> Dictionary:
+	var out := {}
 	for sw: Variant in SideSwap.live:
 		if is_instance_valid(sw):
-			out.append("sw%d:%.3f" % [(sw as Object).get_instance_id(), float((sw as Object).get("t"))])
+			out[(sw as Object).get_instance_id()] = "%.3f %s" % [float((sw as Object).get("t")), (sw as CanvasItem).visible]
 	for p: Variant in ChromeSlide.live:
 		if is_instance_valid(p):
-			out.append("cs%d:%.3f" % [(p as Object).get_instance_id(), float((p as Object).get("k"))])
+			out[(p as Object).get_instance_id()] = "%.3f" % float((p as Object).get("k"))
 	for b: Variant in SideBand.live:
 		if is_instance_valid(b):
-			out.append("sb%d:%.1f" % [(b as Object).get_instance_id(), (b as Control).size.y])
+			out[(b as Object).get_instance_id()] = "%.1f" % (b as Control).size.y
 	var cur := Router.current
 	for c: Variant in [ZoomLadder.side_of(cur), ZoomLadder.bar_of(cur)]:
 		if c != null and is_instance_valid(c) and (c as Control).is_visible_in_tree():
 			var r := (c as Control).get_global_rect()
-			out.append("ui%d:%.0f,%.0f,%.2f" % [(c as Object).get_instance_id(), r.position.x, r.position.y, (c as CanvasItem).modulate.a])
-	return ",".join(out)
+			out[(c as Object).get_instance_id()] = "%.0f,%.0f,%.2f" % [r.position.x, r.position.y, (c as CanvasItem).modulate.a]
+	return out
+
+
+## Whether any piece there both times changed.
+func _chrome_changed(a: Dictionary, b: Dictionary) -> bool:
+	for k: Variant in a:
+		if b.has(k) and str(a[k]) != str(b[k]):
+			return true
+	return false
 
 
 func _key(code: Key) -> void:
@@ -118,8 +152,17 @@ func _key(code: Key) -> void:
 		Input.parse_input_event(e)
 
 
-func _click(at: Vector2) -> void:
+## A real click, as a hand makes it (`NavFilm`'s): the pointer there, a
+## moment's hover, down, two frames, up.
+func _click(at: Vector2, c: Control = null) -> void:
 	var vp := GameShell.input_target(_tree)
+	var mm := InputEventMouseMotion.new()
+	mm.position = at
+	mm.global_position = at
+	vp.push_input(mm)
+	if c != null:
+		c.notification(Control.NOTIFICATION_MOUSE_ENTER)
+	await _frames(3)
 	for down in [true, false]:
 		var mb := InputEventMouseButton.new()
 		mb.button_index = MOUSE_BUTTON_LEFT
@@ -128,6 +171,28 @@ func _click(at: Vector2) -> void:
 		mb.global_position = at
 		mb.button_mask = MOUSE_BUTTON_MASK_LEFT if down else 0
 		vp.push_input(mb)
+		if down:
+			await _frames(2)
+	if c != null and is_instance_valid(c):
+		c.notification(Control.NOTIFICATION_MOUSE_EXIT)
+
+
+func _tab_button(rank: int) -> Button:
+	var h := Router.hud
+	return h._tab_sector if rank == ZoomLadder.LOCAL else (h._tab_system if rank == ZoomLadder.MAP else h._tab_chart)
+
+
+## Your ship's place at rest, the mean of 40 frames (its hull's bob averaged).
+func _rest_pt() -> Vector2:
+	var sum := Vector2.ZERO
+	var n := 0
+	for i in 40:
+		var q := _ship(Router.current)
+		if q != Vector2.INF:
+			sum += q
+			n += 1
+		await _tree.process_frame
+	return sum / float(n) if n > 0 else Vector2.INF
 
 
 func _tab_at(rank: int) -> Vector2:
@@ -141,8 +206,12 @@ func _tab_at(rank: int) -> Vector2:
 func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 	var from := _rank(Router.current)
 	var target := _target_s(from, want)
-	var p0 := _ship(Router.current)
+	# (where it rests, over a bob's worth of frames: the line's two ends)
+	var p0 := await _rest_pt()
 	var pts: Array = []
+	# (the camera's own path: from the last frame before it moves, to the end)
+	var cam_pts: Array = []
+	var cam_on := false
 	var bad: Array = []
 	var held_last := -1.0
 	var chrome_last := _chrome_state()
@@ -152,11 +221,10 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 	var frames := 0
 	var pressed_at := -1
 	var press_done := false
-	var steps := 0.0
-	var steps_at := -1
 	var swap_seen := false
 	var max_apart := 0.0
 	var under_side := 0
+	var began := false
 	go.call()
 	for i in 900:
 		await _tree.process_frame
@@ -176,7 +244,7 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 				var sc: Variant = m.get_shader_parameter(&"scl")
 				if fp is Vector2 and tp is Vector2 and sc is Vector2 and last_old_pt != Vector2.INF:
 					held_pt = (tp as Vector2) + (last_old_pt - (fp as Vector2)) * (sc as Vector2).x
-		if cur == was:
+		if not held_on_now():
 			last_old_pt = live
 		elif not swap_seen:
 			swap_seen = true
@@ -184,13 +252,22 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 			if held_a < 0.95:
 				bad.append("the screens changed hands with the held picture at %.2f (a one-frame swap)" % held_a)
 		# ONE SHIP
-		if held_a > 0.05 and live_a > 0.05 and held_pt != Vector2.INF and live != Vector2.INF:
+		# (both drawn: the held picture part-way gone over the live screen; whole,
+		# it covers the screen under it)
+		if held_a > 0.05 and held_a < 0.999 and live_a > 0.05 and held_pt != Vector2.INF and live != Vector2.INF:
 			var apart := held_pt.distance_to(live)
 			max_apart = maxf(max_apart, apart)
+			if apart > SAME_PX and OS.get_cmdline_user_args().has("debug"):
+				var L2 := ZoomLadder.active
+				print("    apart %.1f f%d held %s live %s (%s) old pt %s from %s to %s scl %s ph %s %s" % [apart, frames, held_pt, live, cur.get_class(), last_old_pt,
+					L2._mat.get_shader_parameter(&"from_pt"), L2._mat.get_shader_parameter(&"to_pt"), L2._mat.get_shader_parameter(&"scl"), L2.phase,
+					[(cur as SectorScreen)._lad.get("fixed"), (cur as SectorScreen)._lad_zs] if cur is SectorScreen else
+					([(cur as StarchartScreen)._chart.size, (cur as StarchartScreen)._chart.zoom, (cur as StarchartScreen)._chart.pan, L2._calm_p(L2._calm_e), L2._calm_e] if cur is StarchartScreen else "")])
 		# NO ONE-FRAME SWAP
-		if held_last >= 0.0 and absf(held_a - held_last) > (0.35 if pressed_at >= 0 else 0.2):
-			bad.append("the held picture went %.2f -> %.2f in one frame" % [held_last, held_a])
-		held_last = held_a if (held_a > 0.0 or ZoomLadder.busy()) else -1.0
+		var held_on := ZoomLadder.busy() and ZoomLadder.active.get("_rect") != null and (ZoomLadder.active._rect as CanvasItem).visible
+		if held_last >= 0.0 and absf((held_a if held_on else 0.0) - held_last) > (0.35 if pressed_at >= 0 else 0.2):
+			bad.append("the held picture went %.2f -> %.2f in one frame" % [held_last, held_a if held_on else 0.0])
+		held_last = held_a if held_on else -1.0
 		var pt := held_pt if held_a >= 0.5 and held_pt != Vector2.INF else live
 		if pt != Vector2.INF:
 			if not pts.is_empty():
@@ -199,14 +276,22 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 					bad.append("your ship jumped %.0f px in a frame" % d)
 				# THE CHROME STILL WHILE THE CAMERA MOVES
 				var ch := _chrome_state()
-				if d > 0.25 and ch != chrome_last:
+				if _camera_moving() and _chrome_changed(chrome_last, ch):
 					chrome_moved += 1
+					if OS.get_cmdline_user_args().has("debug"):
+						print("    chrome f%d %s -> %s" % [frames, chrome_last, ch])
 				chrome_last = ch
 			else:
 				chrome_last = _chrome_state()
 			if pt.x > SIDE_X and (_rank(cur) != ZoomLadder.LOCAL or held_a >= 0.5):
 				under_side += 1
 			pts.append(pt)
+			if _camera_moving() and not cam_on:
+				cam_on = true
+				if pts.size() > 1:
+					cam_pts.append(pts[-2])
+			if cam_on:
+				cam_pts.append(pt)
 		# A PRESS MID-MOVE
 		if not press.is_empty() and not press_done and frames >= int(float(press[1]) * target * 60.0):
 			press_done = true
@@ -219,10 +304,12 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 					_click(Vector2(c.position.x + 120.0, c.end.y - 60.0))
 				"tab":
 					_key(KEY_TAB)
-		if _settled() and frames > 2:
+		if ZoomLadder.busy():
+			began = true
+		if _settled() and (began or frames > 40):
 			break
-	var p1 := _ship(Router.current)
 	var secs := frames / 60.0
+	var p1 := await _rest_pt()
 	_ok("%s lands on the screen asked (%s)" % [label, Router.current], _rank(Router.current) == want)
 	var uniq: Array = []
 	for b in bad:
@@ -233,13 +320,23 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 	# ONE STRAIGHT LINE, never turning back
 	var off := 0.0
 	var back := 0.0
+	# THE LINE: from where the camera set off (your ship goes round its orbit,
+	# and bobs, before that as at rest) to where it rests
+	if not cam_pts.is_empty():
+		p0 = cam_pts[0]
+		pts = cam_pts
 	if p0 != Vector2.INF and p1 != Vector2.INF and pts.size() > 1:
 		var dir := p1 - p0
 		var len := dir.length()
+		var qi := 0
 		for q: Vector2 in pts:
+			qi += 1
 			if len > 0.5:
 				var n := dir / len
-				off = maxf(off, absf((q - p0).cross(n)))
+				var o := absf((q - p0).cross(n))
+				if o > LINE_PX and OS.get_cmdline_user_args().has("debug"):
+					print("    off %.1f at point %d of %d: %s (line %s -> %s)" % [o, qi, pts.size(), q, p0, p1])
+				off = maxf(off, o)
 			else:
 				off = maxf(off, q.distance_to(p0))
 		if len > 10.0:
@@ -249,12 +346,19 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 				var s := (q - p0).dot(n2)
 				back = maxf(back, best - s)
 				best = maxf(best, s)
-	_ok("%s: your ship on one straight line from where it rested to where it rests (%.1f px off it at most)" % [label, off], off <= LINE_PX)
-	_ok("%s: and never turning back along it (%.1f px back at most)" % [label, back], back <= 1.5)
+	var two := not press.is_empty() and String(press[0]) == "tab"
+	if not two:
+		_ok("%s: your ship on one straight line from where it rested to where it rests (%.1f px off it at most)" % [label, off], off <= LINE_PX)
+		_ok("%s: and never turning back along it (%.1f px back at most)" % [label, back], back <= BACK_PX)
 	_ok("%s: and never under the side bar (%d frames)" % [label, under_side], under_side == 0)
 	_ok("%s: the side bar, the toolbar, the column and the band still while the camera moves (%d frames moving)" % [label, chrome_moved], chrome_moved <= 1)
 	if press.is_empty():
 		_ok("%s: %.2f s, within 10%% of its %.2f s" % [label, secs, target], absf(secs - target) <= target * 0.1)
+	elif two:
+		# (Tab mid-move: the move hurried to the map, then the map to the chart)
+		var after2 := (frames - pressed_at) / 60.0
+		var next := _target_s(ZoomLadder.MAP, want)
+		_ok("%s: the press hurried the move and went on to the next distance in %.2f s (under %.2f)" % [label, after2, 0.45 + next * 1.1], after2 <= 0.45 + next * 1.1)
 	else:
 		var after := (frames - pressed_at) / 60.0
 		_ok("%s: the press hurried the move to its end in %.2f s (under 0.45)" % [label, after], after <= 0.45)
@@ -302,7 +406,7 @@ func _run() -> void:
 	var M := ZoomLadder.MAP
 	var C := ZoomLadder.CHART
 	var tab := func(r: int) -> Callable:
-		return func() -> void: _click(_tab_at(r))
+		return func() -> void: _click(_tab_at(r), _tab_button(r))
 	# BY THE HUD'S TABS, every way
 	for h: Array in [[L, M], [M, C], [C, M], [M, L], [L, C], [C, L]]:
 		await _at(h[0])
@@ -339,17 +443,65 @@ func _run() -> void:
 		Run.map[edge].visited = true
 		SectorScreen._approached_at = edge
 		SystemMapScreen._parked.erase(edge)
-		await _at(M)
+		# (arriving, as a jump does: in at the edge, the map's own arrival)
+		if Router.current is SystemMapScreen:
+			await _at(L)
+		Router._post_arrive = true
+		Router.show_system()
+		await _frames(300)
+		await _rest()
 		var mp := Router.current as SystemMapScreen
 		print("  [calm] at the edge: your ship at %s, flying %s" % [_ship(mp), mp.flight.mode if mp != null and mp.flight != null else &"-"])
 		await _hop("tab map -> LOCAL, at the edge", tab.call(L), L)
 		await _rest()
 		await _hop("tab LOCAL -> map, at the edge", tab.call(M), M)
 		await _rest()
+	await _goal_line()
 	ZoomLadder.force = -1
 	ZoomLadder.fixed_dt = -1.0
 	print("calmladdertest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
 	_tree.quit(1 if _fails > 0 else 0)
+
+
+## THE GOAL LINE (`GoalLine`, tutorial B) under the HUD: gone before the camera
+## moves, on no frame of it, and back once the hop has landed.
+func _goal_line() -> void:
+	var g: Variant = Router.hud.get("goal") if Router.hud != null else null
+	if g == null:
+		print("  --   no goal line on this build")
+		return
+	Hints.forced = true
+	await _at(ZoomLadder.LOCAL)
+	await _frames(40)
+	for h: Array in [[ZoomLadder.LOCAL, ZoomLadder.MAP, KEY_TAB], [ZoomLadder.MAP, ZoomLadder.CHART, KEY_TAB],
+			[ZoomLadder.CHART, ZoomLadder.LOCAL, KEY_TAB]]:
+		var label := "the goal line, %s -> %s" % [_nm(h[0]), _nm(h[1])]
+		var gl := g as CanvasItem
+		var before: bool = gl.visible and gl.modulate.a > 0.99
+		_key(h[2])
+		var seen := 0
+		var cam := 0
+		for i in 400:
+			await _tree.process_frame
+			if _camera_moving():
+				cam += 1
+				if gl.visible and gl.modulate.a > 0.001:
+					seen += 1
+			if _settled() and i > 5:
+				break
+		_ok("%s: not drawn on any frame the camera moves (%d of %d)" % [label, seen, cam], cam > 0 and seen == 0)
+		var back := false
+		for i in 60:
+			await _tree.process_frame
+			if gl.visible and gl.modulate.a > 0.99:
+				back = true
+				break
+		if before:
+			_ok("%s: back within a second of the landing" % label, back)
+		else:
+			print("  --   %s: it was not up before the hop (nothing to bring back)" % label)
+		await _rest()
+	Hints.forced = false
 
 
 func _nm(r: int) -> String:

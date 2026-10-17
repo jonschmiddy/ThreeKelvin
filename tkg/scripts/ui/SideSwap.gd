@@ -186,7 +186,7 @@ func _material(tex: Texture2D) -> void:
 ## resolved), viewport px: for the harness, which holds them to a band.
 func scrambling() -> Array:
 	var out: Array = []
-	if done or not _laid or not (_li in [4, 5]):
+	if done or not _laid or frozen or not (_li in [4, 5]):
 		return out
 	for r: Array in _rows_now:
 		if int(r[1]) == 0 and t < float(r[3]):

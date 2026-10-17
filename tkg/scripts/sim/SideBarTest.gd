@@ -25,6 +25,9 @@ extends Node
 
 var _fails := 0
 var _tree: SceneTree
+## the calm move (Jon's pick A, Oct 17) on this build: the side bar and toolbar
+## change after the camera lands, and a press hurries a move rather than ending it
+var _calm := false
 var _zl: Script = load("res://scripts/ui/ZoomLadder.gd")
 ## (a grid across the side bar's rect, for the swap's coverage)
 const GX := 6
@@ -195,6 +198,11 @@ func _measure() -> Array:
 
 ## (a piece of it on the move, `ChromeSlide`, is it, drawn whole)
 func _measure_region(side: Control, sw: Object, kind: StringName = &"") -> Array:
+	# (a swap held at its first frame through the calm move's camera draws
+	# nothing yet: what stands over the rect is what stood there, or the column
+	# and band that came on before the move)
+	if sw != null and sw.get("frozen") == true:
+		sw = null
 	if side == null and sw == null:
 		return []
 	if sw == null:
@@ -305,7 +313,7 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 		var se := _side_edge()
 		side_jump = maxf(side_jump, absf(se - side0))
 		side0 = se
-		if landed_at < 0 and (not ZoomLadder.busy() or ZoomLadder.active.phase == ZoomLadder.Phase.UI_IN):
+		if landed_at < 0 and (not ZoomLadder.busy() or String(ZoomLadder.Phase.keys()[ZoomLadder.active.phase]) in ["UI_IN", "C_IN", "C_POST"]):
 			landed_at = frames
 		frames += 1
 		if not ZoomLadder.busy() and ZoomLadder.chain == &"" and _swap_now() == null and _bar_now() == null:
@@ -333,7 +341,16 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 		# at most 8 px a frame at its fastest, never at once)
 		_ok("%s: the side bar's left edge, the picture's right, never more than 10 px in a frame (most %.0f)" % [label, side_jump], side_jump <= 10.0)
 		_ok("%s: no decoded letter off a band (%d rows)" % [label, loose], loose == 0)
-	if _cur_look == "E" and letter_frames > 0:
+	if _calm and _cur_look == "E" and letter_frames > 0:
+		# THE CALM MOVE: the decode runs after the camera has landed, never under
+		# it, over its dial (`ZoomLadder.CALM_DECODE_S`: Jon's "slowly" was 1.1 s
+		# when it ran under the camera; after it, that second was the hop's)
+		var dsecs := letter_frames / 60.0
+		var d_start := decode_end - letter_frames + 1
+		var dial := float(_zl.get("CALM_DECODE_S"))
+		_ok("%s: E decodes after the landing (from frame %d, landed %d) over its dial (%.2f s for %.2f)" % [label, d_start, landed_at, dsecs, dial],
+			d_start >= landed_at and dsecs >= dial - 0.15 and dsecs <= dial + 0.2)
+	elif _cur_look == "E" and letter_frames > 0:
 		# E, SLOW (Jon: "happen slowly and not so fast"): the side bar decodes for
 		# a second or more, and is done within 0.35 s of the camera landing --
 		# or, on a hop shorter than that, runs on past it no longer than it needs
@@ -399,7 +416,17 @@ func _click_mid_swap() -> void:
 		ev.global_position = p
 		jump.get_viewport().push_input(ev)
 		await _tree.process_frame
-	_ok("%s: a click on the side bar mid-swap ends the move" % _cur_look, not ZoomLadder.busy())
+	if _calm:
+		# (the calm move: hurried to its end, not cut)
+		var t_end := -1
+		for i in 60:
+			if not ZoomLadder.busy():
+				t_end = i
+				break
+			await _tree.process_frame
+		_ok("%s: a click on the side bar mid-move hurries the move to its end (%.2f s)" % [_cur_look, t_end / 60.0], t_end >= 0 and t_end / 60.0 <= 0.45)
+	else:
+		_ok("%s: a click on the side bar mid-swap ends the move" % _cur_look, not ZoomLadder.busy())
 	_ok("%s: and on JUMP not yet resolved, it was eaten (blocked %s, heard %d)" % [_cur_look, blocked, heard[0]],
 		blocked and heard[0] == 0)
 	for b in _buttons(_side_of(ch)):
@@ -538,7 +565,17 @@ func _click_moving_chrome() -> void:
 		loc.get_viewport().push_input(ev)
 		await _tree.process_frame
 	loc._view.gui_input.disconnect(probe)
-	_ok("a click on it mid-slide ends the move and lands on nothing (heard %d)" % heard[0], heard[0] == 0 and not ZoomLadder.busy())
+	if _calm:
+		var t_end := -1
+		for i in 60:
+			if not ZoomLadder.busy():
+				t_end = i
+				break
+			await _tree.process_frame
+		_ok("a click on it mid-slide hurries the move to its end (%.2f s) and lands on nothing (heard %d)" % [t_end / 60.0, heard[0]],
+			heard[0] == 0 and t_end >= 0 and t_end / 60.0 <= 0.45)
+	else:
+		_ok("a click on it mid-slide ends the move and lands on nothing (heard %d)" % heard[0], heard[0] == 0 and not ZoomLadder.busy())
 	await _idle()
 	await _frames(4)
 
@@ -573,6 +610,9 @@ func _run() -> void:
 	Router.show_local()
 	await _frames(40)
 	_ok("a run opens on LOCAL", Router.current is SectorScreen)
+	for m: Dictionary in _zl.get_script_method_list():
+		if String(m.name) == "calm_on":
+			_calm = bool(_zl.call(&"calm_on"))
 	var has_looks := _zl.get_script_constant_map().has("SIDE_LOOKS")
 	if has_looks:
 		_looks = PackedStringArray(_zl.get_script_constant_map()["SIDE_LOOKS"])
@@ -610,8 +650,9 @@ func _run() -> void:
 		await _idle()
 	_set_look("")
 	print("  [sidebar] blank frames over every hop: %d" % total)
-	# THE DIVES TOO (Tab: LOCAL to the chart and back, through black), the
-	# chrome sliding in them as in the moves
+	# THE DIVES TOO (Tab: LOCAL to the chart and back -- through black before
+	# the calm move, the one move with it), the chrome sliding in them as in the
+	# moves
 	_cur_look = "E"
 	_set_look("E")
 	total += await _hop("LOCAL -> chart (dive)", Router.show_starchart, StarchartScreen)

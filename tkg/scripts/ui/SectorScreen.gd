@@ -2981,7 +2981,12 @@ func calm_begin() -> void:
 	if not ladder_ready():
 		return
 	ladder_cam_end()
+	# (your hull where it sits, its idle bob left out: the move aims at the
+	# place, and the hull bobs about it on the way as it does at rest)
 	var fixed := _ladder_ship()
+	var art := _view.ship_view() if _view != null else null
+	if art != null:
+		fixed -= art.get_global_transform().basis_xform(Vector2(0.0, float(art.bob_offset()) * float(art._k)))
 	var scenes: Array = []
 	for c: Control in [LocalSubject.of(_view), _face, _view._row, _face_front, _view.dust, _view.fx]:
 		if c != null and is_instance_valid(c):

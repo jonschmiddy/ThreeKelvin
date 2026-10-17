@@ -1393,8 +1393,8 @@ func calm_ship() -> Vector2:
 
 
 func calm_rest() -> Vector2:
-	if _chart != null and _chart._lad.has("rest"):
-		return _chart._lad.rest
+	if _chart != null and _chart._lad.has("calm"):
+		return _chart.calm_rest_star()
 	return calm_ship()
 
 
@@ -2937,6 +2937,18 @@ class MapChart extends Control:
 		_lad = {"calm": true, "z0": zoom, "p0": pan, "s0": sky_pan}
 		_lad["rest"] = calm_star()
 
+	## Where your star rests now: the rest camera, the galaxy turned as it is
+	## this moment (it turns under the move too).
+	func calm_rest_star() -> Vector2:
+		var z := zoom
+		var pn := pan
+		zoom = _lad.z0
+		pan = _lad.p0
+		var at := calm_star()
+		zoom = z
+		pan = pn
+		return at
+
 	func calm_star() -> Vector2:
 		if Run.map.is_empty():
 			return global_position + size * 0.5
@@ -2948,7 +2960,10 @@ class MapChart extends Control:
 		var z0: float = _lad.z0
 		zoom = z0 * s
 		pan = _lad.p0
-		pan += p - calm_star()
+		# (the solid galaxy's projection is not quite flat: a step or two more
+		# puts your star where it is asked to be)
+		for i in 3:
+			pan += p - calm_star()
 		var c0 := size * 0.5
 		sky_pan = c0 - (c0 - (_lad.s0 as Vector2)) * pow(zoom / maxf(z0, 0.0001), SKY_ZOOM_POWER) + (pan - (_lad.p0 as Vector2))
 		_repaint_galaxy()

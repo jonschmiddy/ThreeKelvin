@@ -760,7 +760,16 @@ func _run() -> void:
 	_ok("a run opens on LOCAL", Router.current is SectorScreen)
 	SectorScreen._approached_at = Run.at
 
-	# 1. the four distances, out and back in, every design of every seam
+	# 1. the four distances, out and back in: THE CALM MOVE (Jon's pick, Oct 17,
+	# `-- sheet=CalmLadderTest` watches it frame by frame), then, behind the
+	# switch (`[flow] calm=false`), every design of every seam as it was
+	await _go("calm LOCAL -> map", Router.show_system, SystemMapScreen)
+	await _go("calm map -> chart", Router.show_starchart, StarchartScreen)
+	await _go("calm chart -> map", Router.show_system, SystemMapScreen)
+	await _go("calm map -> LOCAL", Router.show_local, SectorScreen)
+	await _go("calm LOCAL -> chart (two distances)", Router.show_starchart, StarchartScreen)
+	await _go("calm chart -> LOCAL (two distances)", Router.show_local, SectorScreen)
+	ZoomLadder.calm_force = 0
 	for d in ["A", "B", "C"]:
 		ZoomLadder.force_design = {1: d, 2: d, 3: d}
 		await _go("%s LOCAL -> map" % d, Router.show_system, SystemMapScreen)
@@ -770,10 +779,32 @@ func _run() -> void:
 	ZoomLadder.force_design = {}
 	await _go("LOCAL -> chart (two distances)", Router.show_starchart, StarchartScreen)
 	await _go("chart -> LOCAL (two distances)", Router.show_local, SectorScreen)
+	ZoomLadder.calm_force = -1
+
+	# 1c. THE CALM MOVE BUILDS THE SCREEN ARRIVING AT THE CLICK, as 2C did LOCAL:
+	# the one shown is the one built ahead, and the run is written once it lands
+	await _go("calm LOCAL -> map, for the way back", Router.show_system, SystemMapScreen)
+	for want: Array in [[Router.show_local, SectorScreen, "LOCAL"], [Router.show_starchart, StarchartScreen, "the chart"]]:
+		(want[0] as Callable).call()
+		var built: Control = ZoomLadder.prebuilt
+		_ok("calm: %s built at the click" % want[2], built != null and built.get_script() == want[1])
+		var mid := false
+		for i in 400:
+			await _tree.process_frame
+			if Router.current == built and ZoomLadder.busy() and ZoomLadder.save_after:
+				mid = true
+			if not ZoomLadder.busy():
+				break
+		_ok("calm: the %s built ahead is the one shown" % want[2], Router.current == built and built != null)
+		_ok("calm: the run is written when the move lands, not mid-move (%s)" % want[2], mid and not ZoomLadder.save_after)
+		_clean("calm built ahead (%s)" % want[2])
+		await _go("calm back to the map", Router.show_system, SystemMapScreen)
+	await _go("calm back to LOCAL", Router.show_local, SectorScreen)
 
 	# 1a. 2C BUILDS LOCAL AT THE CLICK (Jon: "2C still has a small delay/hitch"):
 	# the screen that arrives is the one built ahead, before anything moved, and
 	# the run is written when the move lands, not in the middle of it
+	ZoomLadder.calm_force = 0
 	ZoomLadder.force_design = {2: "C"}
 	await _go("2C LOCAL -> map, for the way back", Router.show_system, SystemMapScreen)
 	Router.show_local()
@@ -825,8 +856,38 @@ func _run() -> void:
 			_ok("2C: and IS LOCAL's world after it (one world, never a second)", now_world == mv)
 		_clean("2C handover")
 		ZoomLadder.force_design = {}
+	ZoomLadder.calm_force = -1
 
-	# 2. the pre-roll defers the swap, and a key mid-move ends the move at once
+	# 2. THE CALM MOVE: a key mid-move hurries it to its end -- never a cut, and
+	# not lost -- landing at rest within a quarter of a second or so
+	if not Router.current is SectorScreen:
+		await _go("calm to LOCAL (for the key)", Router.show_local, SectorScreen)
+	Router.show_system()
+	for i in 200:
+		if ZoomLadder.busy() and String(ZoomLadder.Phase.keys()[ZoomLadder.active.phase]) == "C_CAM":
+			break
+		await _tree.process_frame
+	await _frames(6)
+	var ck := InputEventKey.new()
+	ck.keycode = KEY_SHIFT
+	ck.pressed = true
+	Input.parse_input_event(ck)
+	var hurried := -1
+	for i in 120:
+		await _tree.process_frame
+		if not ZoomLadder.busy():
+			hurried = i
+			break
+	_ok("calm: a key mid-move hurries it to its end in %.2f s (not a cut: more than 2 frames; under 0.45 s)" % (hurried / 30.0),
+		hurried > 2 and hurried / 30.0 <= 0.45)
+	var cm := Router.current as SystemMapScreen
+	_clean("calm after the key")
+	if cm != null:
+		_ok("and the map is at rest (zoom %.2f, its fit %.2f)" % [cm.view.zoom, cm.zoom_min], absf(cm.view.zoom - cm.zoom_min) < 0.01)
+	await _go("back to LOCAL (the old flow's key)", Router.show_local, SectorScreen)
+	# the old flow (behind the switch): the pre-roll defers the swap, and a key
+	# mid-move ends the move at once
+	ZoomLadder.calm_force = 0
 	Router.show_system()
 	_ok("the screen being left moves first (LOCAL still up)", Router.current is SectorScreen and ZoomLadder.busy())
 	for i in 40:
@@ -852,6 +913,7 @@ func _run() -> void:
 		m._zoom_to = m.zoom_min
 		m.view.zoom = m.zoom_min
 		await _frames(2)
+	ZoomLadder.calm_force = -1
 
 	# 3. THE WHEEL STOPS AT EACH SCREEN'S END (Jon, Oct 10: the wheel between
 	# distances "isn't intuitive ... and is kinda disruptive"): notch after notch
@@ -900,8 +962,42 @@ func _run() -> void:
 	await _go("back to the map", Router.show_system, SystemMapScreen)
 
 	# 3b. THREE BEATS, NEVER OVERLAPPING (Jon, Oct 10: "fast and rushed and
-	# chaotic"): the map's UI leaves with its camera still, the camera moves with
-	# no UI on either screen, and the chart's UI comes up once it has landed
+	# chaotic"; and A, Oct 17: the chrome outside the move): the map's UI leaves
+	# with its camera still, the camera moves with no UI on either screen, and
+	# the chart's UI comes up once it has landed
+	var cmm := Router.current as SystemMapScreen
+	if cmm != null:
+		var cz0: float = cmm.view.zoom
+		Router.show_starchart()
+		var c_out := false
+		var c_in := false
+		var c_early := 0
+		var c_ui_cam := 0
+		for i in 600:
+			await _tree.process_frame
+			if not ZoomLadder.busy():
+				break
+			var CL := ZoomLadder.active
+			var nm := String(ZoomLadder.Phase.keys()[CL.phase])
+			if nm == "C_OUT":
+				c_out = true
+				if is_instance_valid(cmm) and absf(cmm.view.zoom - cz0) > 0.0001:
+					c_early += 1
+			if nm == "C_CAM" and CL.new is StarchartScreen:
+				var cc := CL.new as StarchartScreen
+				if cc._key_row.modulate.a > 0.01 or cc._chart.ui_a > 0.01:
+					c_ui_cam += 1
+			if nm == "C_IN":
+				c_in = true
+		_ok("calm: the map's UI leaves before its camera moves (%s, %d frames moved early)" % [c_out, c_early], c_out and c_early == 0)
+		_ok("calm: no UI on the chart while the camera moves (%d frames with it)" % c_ui_cam, c_ui_cam == 0)
+		var cc3 := Router.current as StarchartScreen
+		await _frames(40)
+		_ok("calm: and the chart's UI comes up after it lands, all of it", c_in and cc3 != null
+			and cc3._ladder_side.modulate.a > 0.99 and cc3._chart.ui_a > 0.99 and cc3._key_row.modulate.a > 0.99)
+		_clean("calm UI beats")
+		await _go("back to the map (calm UI beats)", Router.show_system, SystemMapScreen)
+	ZoomLadder.calm_force = 0
 	var mm := Router.current as SystemMapScreen
 	if mm != null:
 		var z0: float = mm.view.zoom
@@ -937,6 +1033,28 @@ func _run() -> void:
 		var m4 := Router.current as SystemMapScreen
 		_ok("and the map's panel, strip and key are back whole", m4 != null and m4.panel.get_parent().modulate.a > 0.99
 			and m4._strip.modulate.a > 0.99 and m4._key_row.modulate.a > 0.99 and m4.overlay.label_a > 0.99)
+	ZoomLadder.calm_force = -1
+	# 3c'. THE CHART AND LOCAL ARE THE ONE MOVE TOO (A, Oct 17): no black, LOCAL's
+	# own camera moving (its scene scaled about your ship) on the way in and out
+	await _go("the chart (for the calm dive)", Router.show_starchart, StarchartScreen)
+	for way in [[Router.show_local, SectorScreen, "calm chart to LOCAL"], [Router.show_starchart, StarchartScreen, "calm LOCAL to chart"]]:
+		(way[0] as Callable).call()
+		var blk := 0.0
+		var cam := 0
+		for i in 600:
+			await _tree.process_frame
+			if not ZoomLadder.busy():
+				break
+			var L := ZoomLadder.active
+			if L._black != null and is_instance_valid(L._black):
+				blk = maxf(blk, L._black.color.a)
+			var cur := Router.current
+			if cur is SectorScreen and not is_equal_approx((cur as SectorScreen)._lad_zs, 1.0):
+				cam += 1
+		_ok("%s is one camera move, no black (%.2f), LOCAL's camera moving (%d frames)" % [way[2], blk, cam], blk <= 0.0 and cam > 10)
+		_ok("%s lands" % way[2], Router.current != null and Router.current.get_script() == way[1])
+		_clean(String(way[2]))
+	ZoomLadder.calm_force = 0
 	# 3c. THE CHART AND LOCAL ARE A FADE (Jon, Oct 10: "just do a fade. No
 	# transition"): through black both ways, no camera move on either screen,
 	# LOCAL built in the black
@@ -965,9 +1083,10 @@ func _run() -> void:
 		_ok("%s lands" % way[2], Router.current != null and Router.current.get_script() == way[1])
 		_clean(String(way[2]))
 	await _go("back to the map (after the fade)", Router.show_system, SystemMapScreen)
-	# (the dials: every length a move is made of is one)
-	_ok("the move lengths are dials (seam 1 %.2f s, UI out %.2f s)" % [ZoomLadder.SEAM1_S, ZoomLadder.UI_OUT_S],
-		ZoomLadder.SEAM1_S > 0.4 and ZoomLadder.UI_OUT_S >= 0.0 and ZoomLadder.DIALS.size() == 20)
+	ZoomLadder.calm_force = -1
+	# (the dials: every length a move is made of is one, the calm move's five too)
+	_ok("the move lengths are dials (seam 1 %.2f s, UI out %.2f s, the calm camera %.2f s)" % [ZoomLadder.SEAM1_S, ZoomLadder.UI_OUT_S, ZoomLadder.CALM_CAM_S],
+		ZoomLadder.SEAM1_S > 0.4 and ZoomLadder.UI_OUT_S >= 0.0 and ZoomLadder.CALM_CAM_S > 0.3 and ZoomLadder.DIALS.size() == 25)
 
 	# 4. a fight opened from the map arrives on LOCAL, and its end goes back
 	Router.start_ambush()
@@ -1053,6 +1172,7 @@ func _run() -> void:
 	await _frames(4)
 	_clean("off")
 	ZoomLadder.force = -1
+	ZoomLadder.calm_force = -1
 	ZoomLadder.fixed_dt = -1.0
 	print("laddertest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
 	_tree.quit(1 if _fails > 0 else 0)
