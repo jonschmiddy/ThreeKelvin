@@ -1217,10 +1217,18 @@ const WRECK_CREDIT_SPREAD := 0.20
 ##   - the sim's default (every fight one ship): the old rule banked 88; x1.24
 ##     banks 88, x1.10 about 78.
 ## 1.10 is the one chosen, because Jon's goal is the money per run IN THE GAME,
-## and the game's ambushes bring their packs, each ship of which now pays. Two
-## things the default sim gets wrong and that are left for later: it fights an
-## ambush's lead ship alone (hence `packs`), and it plays ambushes with
-## `clears_node` true where `Router.start_ambush` opens them with it false.
+## and the game's ambushes bring their packs, each ship of which now pays.
+##
+## RE-MEASURED Oct 17, after the sim was made to field fights as Router does
+## (whole packs and `clears_node` false on ambushes, none at stations, option
+## fights from `Router.option_foe`), and with the old rule put back for the
+## money alone -- the last hull's reward, certain, in the first wreck -- so both
+## readings fly identical runs: the old rule banks 92 a run, x1.10 banks 80,
+## x1.26 91, x1.28 93. The same money-only swap on the sim as it was gave 87
+## against 78, so most of the gap is in how "the old rule" was measured, not in
+## the sim. The arithmetic says the same: a lone ship pays 0.75 x 1.10 = 0.825
+## of what it did, and only about 6% of won fights are pairs. NOT CHANGED here:
+## the factor is Jon's to move, and about 1.27 is what the corrected sim asks.
 ## Re-measure whenever the mix of pack sizes moves. Never the set pieces: the
 ## Hellbender and the custodian are hand-tuned and pay their own numbers.
 const WRECK_CREDIT_SCALE := 1.10
