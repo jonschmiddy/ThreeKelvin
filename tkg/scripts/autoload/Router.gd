@@ -854,14 +854,11 @@ func resolve_current_node() -> void:
 		# Asked for HERE rather than stored at arrival. Positional, so it is the
 		# same pack however often it is asked and on whichever machine -- which
 		# is what lets the flag be a boolean instead of a list.
-		var pack := _roll_foes(n)
+		var pack := ambush_pack(n)
 		if pack.is_empty():
 			n.ambush_pending = false
 		else:
-			var extras: Array = []
-			for i in range(1, pack.size()):
-				extras.append(DB.enemies[pack[i]])
-			start_combat(DB.enemies[pack[0]], extras, false, false)
+			start_combat(pack[0], pack.slice(1), false, false)
 			return
 
 	# The hellbender holds this system. Nothing here is reachable past it — not the
@@ -1350,8 +1347,23 @@ func engage_hellbender() -> void:
 ## The option consumes ITSELF, through `taken`. The system is finished when
 ## nothing is left in it, which is `event_resolved`'s rule.
 func start_ambush() -> void:
-	var pool := DB.fight_pool(Run.node_at().danger, false)
-	start_combat(DB.enemies[Rng.pick(Rng.foe, pool)], [], false, false)
+	start_combat(option_foe(Run.node_at()), [], false, false)
+
+## The ship an option's fight brings at `n`: one, off `Rng.foe`, from the
+## ordinary pool -- never fauna, even in a fauna region. One function so the
+## headless sim (`HeadlessSim._option_fight`) fields what this does: it used to
+## pick its own, with fauna, and fought whales in fauna space where the game
+## fights ships.
+func option_foe(n: MapGen.MapNode) -> EnemyTemplate:
+	return DB.enemies[Rng.pick(Rng.foe, DB.fight_pool(n.danger, false))]
+
+## An arrival's ambush at `n` as templates, lead first: `_roll_foes`, the same
+## pack whoever asks. The arrival and the headless sim both field it whole.
+func ambush_pack(n: MapGen.MapNode) -> Array:
+	var out: Array = []
+	for id in _roll_foes(n):
+		out.append(DB.enemies[id])
+	return out
 
 ## The fight a loaded save was left in (see resume_here), and the one in
 ## progress now, as SaveGame.mark_fight writes it.
