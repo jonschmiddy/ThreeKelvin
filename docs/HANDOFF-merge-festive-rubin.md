@@ -336,7 +336,13 @@ or the generator draws the part small and thin.
   mounts, engines; and Solari is not in `ACTIVE_MANUFACTURERS`, so its parts
   do not drop.
 - **The full gate passed** on `8556415` (Oct 17). Run it again before merging.
-- PixelLab: about 2,850 generations left this cycle; it refills Oct 17.
+- PixelLab: about 9,920 generations left (checked Oct 17, after the refill).
+- **A.S.H. (next session):** Jon liked the B15 variations and the talking
+  mock-up ("this is good"). No variation is picked in `picks/ash_face3` yet;
+  ask which one is her. Then, in order: her moods from that face (ask before
+  spending), optionally PixelLab's lip-sync tool for better mouths (one-time
+  cost per mood, cap 20, ask first), then the in-game portrait slot and her
+  lines in the log (details in the A.S.H. section below).
 
 ## A.S.H., the ship's AI (Jon and Ashlee, Oct 17), design only
 
