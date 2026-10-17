@@ -1649,7 +1649,9 @@ static func fit(box: Rect2, bounds: Rect2, avoid: Array[Rect2]) -> Dictionary:
 	return {centre = (big.get_center() - bounds.get_center() * 0.5).round(), scale = 0.5, clear = big}
 
 
-## The wrecks on LOCAL's view now, in this control's own space.
+## The wrecks on LOCAL's view now, each its picture and the words under it
+## (`EnemySlot.drawn_box`: a name is often wider than its hull), in this
+## control's own space.
 func _wrecks() -> Array[Rect2]:
 	var out: Array[Rect2] = []
 	var view := get_parent()
@@ -1661,7 +1663,7 @@ func _wrecks() -> Array[Rect2]:
 	var inv := get_global_transform().affine_inverse()
 	for e: Variant in view.get("_made"):
 		if e is EnemySlot and is_instance_valid(e) and (e as EnemySlot).is_visible_in_tree():
-			out.append(inv * (e as EnemySlot).holder_rect())
+			out.append(inv * (e as EnemySlot).drawn_box())
 	return out
 
 
@@ -2424,6 +2426,14 @@ func _notification(what: int) -> void:
 func _layout() -> void:
 	_box = box_for(size)
 	queue_redraw()
+	# AND THE PIECES PUT WHERE THEY STAND, NOW. They are placed each frame in
+	# `_process`, and a subject built after this frame's process pass -- the
+	# fight's screen, built as LOCAL in the swap that `Router.start_combat` makes
+	# from a tween's callback -- was drawn once with every piece at its holder's
+	# origin, the top left corner: the event's ship blinked out for a frame as the
+	# fight opened (nav audit, Oct 17). `_build` ends here, and so does a resize.
+	if is_inside_tree() and (not _placed.is_empty() or fx != null):
+		_place()
 
 
 func _clock() -> float:
@@ -2433,6 +2443,12 @@ func _clock() -> float:
 
 
 func _process(_d: float) -> void:
+	_place()
+
+
+## Every piece where it stands at this moment's clock: its drift, its turn, its
+## light. Each frame, and once more when it is built or resized (`_layout`).
+func _place() -> void:
 	# THE SUBJECT TAKES THE PLACE'S STAND-IN: LOCAL's drawn place (its beacon,
 	# its plate) stands where the subject goes, and two things in one spot is a
 	# muddle. Held every frame, because the view's own refresh shows it again

@@ -458,6 +458,10 @@ func show_archive(from_launcher: bool = false) -> void:
 ## Cheap enough to just do: one pass over the map, once per opening, against a
 ## draw that walks every node anyway.
 func show_starchart() -> void:
+	# (no chart in a fight: back to it, or nothing if it is up -- `fight_up`)
+	if in_combat():
+		show_local()
+		return
 	Run.chart_from(Run.node_at())
 	_show_starchart()
 
@@ -547,7 +551,11 @@ func _undock() -> void:
 ## No combat guard here. after_combat() routes here from inside the fight, so a
 ## "are we in combat" check would swallow the very transition that ends it — the
 ## HUD disables the SECTOR tab during a fight, which is where that belongs.
+## (after_combat clears `combat` first, so `fight_up` never swallows it: it
+## stops only a rebuild of the fight's own screen while that is the one up.)
 func show_local() -> void:
+	if fight_up():
+		return
 	if ZoomLadder.preroll(ZoomLadder.LOCAL, show_local):
 		return
 	# Before the swap, not after: `_swap` emits screen_changed, and the HUD reads
@@ -1345,6 +1353,19 @@ var current_fight: Dictionary = {}
 
 func in_combat() -> bool:
 	return combat != null and not combat.finished
+
+
+## THE FIGHT HOLDS THE CAMERA: its own screen is up. While it is, every way
+## between distances does nothing -- Tab or whatever key NEXT SCREEN is bound
+## to, the HUD's tabs, anything else that calls a door -- the same as the
+## SECTOR and STARCHART tabs the HUD greys for `in_combat`. The doors to the map
+## and the chart lead back to the fight, and `show_local` stops there. It did not: Tab in a fight went `show_system` -> `show_local` and
+## built the fight's screen again over itself, so the picture dimmed and came
+## back, the hand was dealt again and the enemy flew in a second time (nav
+## audit, Oct 17). From a page opened OVER the fight (CARDS, the archive) the
+## same doors are still the way back to it.
+func fight_up() -> bool:
+	return in_combat() and current is SectorScreen and (current as SectorScreen).combat == combat
 
 func after_combat(_c: Combat) -> void:
 	# WON: STAY BY THE WRECKS (alpha blocker 4). The pay is in them, and the map

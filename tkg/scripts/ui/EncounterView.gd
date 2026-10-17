@@ -893,12 +893,13 @@ func _layout_pack() -> void:
 		area.size.y = maxf(0.0, area.size.y - to_come)
 		lift = floorf(to_come * 0.5)
 	var mid := _slots.size.x * 0.5
-	var s := 0.5 if live.size() >= PACK_HALF_AT else 1.0
+	# THE WORLD YOU ORBIT, where LOCAL's wrecks lie (`_body_rest`)
+	var body := _body_rest() if _slots_mode == &"wrecks" else Vector3.ZERO
 	# THE SAME PACK, THE SAME PLAN. A fight asks for the layout dozens of times
 	# a turn (every readout change queues one) and the blocks are kept one size
 	# all fight; setting a triangle into the shoulders costs milliseconds, so
 	# the plan is worked out again only when what it is made from changes.
-	var key := "%s|%s|%s|%s" % [pack_layout, _slots_mode, area, mid]
+	var key := "%s|%s|%s|%s|%s" % [pack_layout, _slots_mode, area, mid, body]
 	for sl in live:
 		var e: Combat.EnemyState = sl.get("_last_e")
 		key += "|%d:%s:%d:%s:%s:%d" % [sl.get_instance_id(), e.template.id if e != null else &"",
@@ -909,24 +910,12 @@ func _layout_pack() -> void:
 	if same_plan:
 		plan = _plan_memo
 	else:
-		if pack_layout == &"C":
-			if s == 1.0:
-				plan = _pack_row(live, s, area, mid)
-			if plan.is_empty():
-				plan = _pack_column(live, s, area, mid)
-		if plan.is_empty():
-			plan = _pack_ranks(live, s, area, mid)
-			# A PAIR TOO BIG FOR THE BAND at full size, with its shields' room (two
-			# Marauders, a Marauder and a Hulk): drawn from half sheets like a pack
-			# of three, rather than packed tighter than the least gap
-			if s == 1.0 and (plan.is_empty() or float(plan.get("low", INF)) < PACK_GAP_MIN):
-				var half := _pack_ranks(live, 0.5, area, mid)
-				if not half.is_empty():
-					plan = half
-					s = 0.5
+		plan = _plan_in(live, area, mid)
 		if plan.is_empty():
 			# more than the band can hold even in ranks: the row, overflowing
-			plan = _pack_row(live, s, area, mid, true)
+			plan = _pack_row(live, 0.5 if live.size() >= PACK_HALF_AT else 1.0, area, mid, true)
+		if body.z > 0.0:
+			plan = _clear_of_body(live, plan, area, mid, body)
 		_plan_key = key
 		_plan_memo = plan
 	var back: Array = plan.get("back", [])
@@ -966,6 +955,149 @@ func _layout_pack() -> void:
 	# the ranks behind are drawn first, farthest first, under the ones in front
 	for k in back.size():
 		_slots.move_child(back[k], k)
+
+
+## The plan for a pack in `area`: the layout's own way, at full size or from
+## half sheets as the pack asks. Empty if it does not fit there.
+func _plan_in(live: Array[EnemySlot], area: Rect2, mid: float) -> Dictionary:
+	var s := 0.5 if live.size() >= PACK_HALF_AT else 1.0
+	var plan := {}
+	if pack_layout == &"C":
+		if s == 1.0:
+			plan = _pack_row(live, s, area, mid)
+		if plan.is_empty():
+			plan = _pack_column(live, s, area, mid)
+	if plan.is_empty():
+		plan = _pack_ranks(live, s, area, mid)
+		# A PAIR TOO BIG FOR THE BAND at full size, with its shields' room (two
+		# Marauders, a Marauder and a Hulk): drawn from half sheets like a pack
+		# of three, rather than packed tighter than the least gap
+		if s == 1.0 and (plan.is_empty() or float(plan.get("low", INF)) < PACK_GAP_MIN):
+			var half := _pack_ranks(live, 0.5, area, mid)
+			if not half.is_empty():
+				plan = half
+	return plan
+
+
+## THE WORLD YOU ORBIT, as LOCAL draws it at rest: its disc's middle and radius
+## in `_slots`' own frame (x, y, r), or r 0 where there is none.
+##
+## From the sky's plan of it (`LocalSky.near_plan`), not from its picture: the
+## plan is there the moment the sky is set up, headless too, and is where the
+## picture stands at rest -- the sky's 960x540 frame is the screen's, the view
+## at rest is the row's frame (`_pack_area`), and the cutaway's or the ladder's
+## zoom moves neither.
+func _body_rest() -> Vector3:
+	if backdrop == null or _slots == null:
+		return Vector3.ZERO
+	var p := backdrop.near_plan()
+	if p.is_empty():
+		return Vector3.ZERO
+	var c: Vector2 = Vector2(p.at) - get_global_rect().position - _slots.position
+	return Vector3(c.x, c.y, float(p.R))
+
+
+## WRECKS OFF THE WORLD YOU ORBIT (Jon's rule: fit means nothing overlaps). A
+## wreck's name and tag across the world's lit face cannot be read, and a hulk
+## laid over a planet is a picture of neither. The plan that fits the room is
+## kept if no wreck's block (its picture and its words, `EnemySlot.block`)
+## comes within BODY_GAP of the world's disc; else the pack is planned again in
+## the room left beside the world -- just over it, above it, before it, after
+## it, below it, or at last the whole width over it, your ship's side too --
+## and the one at the larger size nearest where the pack would have stood wins.
+## With no such room (a big world and a big pile), the art may cross the world
+## but the words never do: the same rooms are tried again for the words alone
+## (`EnemySlot.words`). Only if even that fails does the plan stand as it was.
+const BODY_GAP := 8.0
+
+func _clear_of_body(live: Array[EnemySlot], plan: Dictionary, area: Rect2, mid: float, body: Vector3) -> Dictionary:
+	if _plan_clear(live, plan, body, false):
+		return plan
+	var c := Vector2(body.x, body.y)
+	var r := body.z + BODY_GAP
+	# (first the strip just over the world, the pack's own height: the pile
+	# standing on the world's shoulder, near the middle of the view where the
+	# hulls are, not up in the sky's bright band, `LocalSky`)
+	var hp := _plan_box(live, plan).size.y
+	var over := minf(hp, (c.y - r) - area.position.y)
+	var rooms: Array[Rect2] = [
+		Rect2(area.position.x, (c.y - r) - over, area.size.x, over),
+		Rect2(area.position.x, area.position.y, area.size.x, (c.y - r) - area.position.y),
+		Rect2(area.position.x, area.position.y, (c.x - r) - area.position.x, area.size.y),
+		Rect2(c.x + r, area.position.y, area.end.x - (c.x + r), area.size.y),
+		Rect2(area.position.x, c.y + r, area.size.x, area.end.y - (c.y + r)),
+	]
+	# (and, when a big world leaves a big pile nowhere else, the whole width
+	# over it, your ship's side too, above your hull and its plate)
+	var to_row := _row.get_global_transform().affine_inverse()
+	var top := INF
+	for b in player_boxes():
+		top = minf(top, (to_row * b).position.y - _slots.position.y)
+	var x0 := PACK_MARGIN - _slots.position.x
+	var low := minf(c.y - r, top - PACK_MARGIN)
+	rooms.append(Rect2(x0, area.position.y, area.end.x - x0, low - area.position.y))
+	var was := _plan_mid(live, plan)
+	for words_only in [false, true]:
+		var best := {}
+		var best_k := INF
+		var tries: Array = rooms.duplicate()
+		if words_only:
+			tries.push_front(area)
+		for room: Rect2 in tries:
+			if room.size.x <= 0.0 or room.size.y <= 0.0:
+				continue
+			var p := plan if room == area else _plan_in(live, room, mid)
+			if p.is_empty() or not _plan_clear(live, p, body, words_only):
+				continue
+			# the larger size first, then the least move
+			var k := (0.0 if _plan_scale(live, p) >= 1.0 else 1e6) + _plan_mid(live, p).distance_to(was)
+			if k < best_k:
+				best = p
+				best_k = k
+		if not best.is_empty():
+			return best
+	return plan
+
+
+## Whether every wreck in `plan` keeps BODY_GAP off the world's disc: its whole
+## block, or (`words_only`) the words under it.
+func _plan_clear(live: Array[EnemySlot], plan: Dictionary, body: Vector3, words_only: bool) -> bool:
+	var c := Vector2(body.x, body.y)
+	for sl in live:
+		if not plan.has(sl):
+			return false
+		var u: Dictionary = plan[sl]
+		var s := float(u.scale)
+		var b: Rect2 = sl.words(s) if words_only else sl.block(s)
+		var at := Rect2((u.rect as Rect2).position + b.position, b.size)
+		var near := Vector2(clampf(c.x, at.position.x, at.end.x), clampf(c.y, at.position.y, at.end.y))
+		if near.distance_to(c) < body.z + BODY_GAP:
+			return false
+	return true
+
+
+func _plan_mid(live: Array[EnemySlot], plan: Dictionary) -> Vector2:
+	return _plan_box(live, plan).get_center()
+
+
+func _plan_box(live: Array[EnemySlot], plan: Dictionary) -> Rect2:
+	var box := Rect2()
+	var first := true
+	for sl in live:
+		if not plan.has(sl):
+			continue
+		var r: Rect2 = plan[sl].rect
+		box = r if first else box.merge(r)
+		first = false
+	return box
+
+
+func _plan_scale(live: Array[EnemySlot], plan: Dictionary) -> float:
+	var s := 1.0
+	for sl in live:
+		if plan.has(sl):
+			s = minf(s, float(plan[sl].scale))
+	return s
 
 
 ## One row, every ship at `s`. Empty if it does not fit (unless `force`).
