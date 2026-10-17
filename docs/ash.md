@@ -67,6 +67,16 @@ frame on the main screen. It reacts to the ship, not to the script:
 | A big haul | the smallest smile she can get away with |
 | Ship lost | the projection cuts with the ship, no line |
 
+### Making the portrait (planned, Oct 17)
+
+1. **Her face, calm.** 64x64 pixel art, shown at 2x and 3x. Three looks, one
+   PixelLab pro call each (16 takes a call, about 10 generations):
+   A, cyan projector light and scanlines; B, a pale white-blue wireframe face;
+   C, warm amber light matching the UI. Jon and Ashlee pick one. Cap 50.
+2. **Her moods**, edited from the picked face so she stays one person: hot,
+   over the heat cap, hurt, pleased (the table above). Spend asked separately.
+3. Never a real person's likeness: she is named for Ashlee, not drawn from her.
+
 ## Where she shows up (planned)
 
 1. A portrait slot on LOCAL and in fights, driven by `Run.heat`, `Run.heat_cap()`
