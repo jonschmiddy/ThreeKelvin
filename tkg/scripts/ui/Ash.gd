@@ -32,8 +32,8 @@ extends Node
 ##     cutaway, a wreck's window, the event band, the escape menu.
 ## NOTHING AFTER THE SHIP IS LOST (Jon: "No lines after the ship is lost. The ship
 ## has blown up."): she is the ship. Up when it goes, she cuts with it, no fade.
-## HINTS WIN (`Hints`): she does not start while a hint is up or settling, and
-## goes the moment one starts to settle.
+## HINTS WIN (`Hints`): she does not start while a hint is up, settling or due
+## on this screen, and goes the moment one starts to settle.
 ##
 ## SHE NEVER COVERS ANYTHING. She stands at the first of `SPOTS` that is clear of
 ## everything listed in `avoid_rects` (the HUD, the goal line's band, the event
@@ -403,11 +403,9 @@ func _cannot_start(kind: StringName) -> String:
 ## Why the screen is not one she may speak on now; "" if it is. `starting`: to
 ## come up, rather than to stay up.
 func _screen_block(starting: bool = true) -> String:
-	if _hint_up():
+	if _hint_up(starting):
 		return "hint"
-	if _menu_up() or ZoomLadder.busy():
-		return "screen"
-	if FirstRunIntro.playing != null and is_instance_valid(FirstRunIntro.playing):
+	if Hints.menu_up() or ZoomLadder.busy():
 		return "screen"
 	var sc := Router.current as SectorScreen
 	if sc == null or not is_instance_valid(sc) or not sc.is_visible_in_tree():
@@ -454,19 +452,21 @@ func _dragging(sc: SectorScreen) -> bool:
 	return sc._grab_view != null or sc._aim_view != null or sc.get_viewport().gui_is_dragging()
 
 
-func _hint_up() -> bool:
+## A hint is up, settling, or between two of a run (its gap), or one this
+## screen would show has not been seen yet: hints win, and she does not start
+## a line the next hint would cut short. `starting` false: only up or settling.
+func _hint_up(starting: bool = true) -> bool:
 	if Hints.card != null and is_instance_valid(Hints.card):
 		return true
-	return Hints._cand != &""
-
-
-## The escape menu is Main's (`Main.toggle_menu`), above the screens.
-func _menu_up() -> bool:
-	var n: Node = Router.content
-	while n != null:
-		if n.get_script() != null and "_menu" in n:
-			return n.get("_menu") != null
-		n = n.get_parent()
+	if Hints._cand != &"":
+		return true
+	if not starting or not Hints.enabled():
+		return false
+	if Hints._quiet > 0.0:
+		return true
+	for id in Hints.ORDER:
+		if not Hints.seen(id) and not Hints.probe(id).is_empty():
+			return true
 	return false
 
 

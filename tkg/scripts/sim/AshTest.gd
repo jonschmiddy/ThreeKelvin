@@ -500,40 +500,54 @@ func _hints() -> void:
 	Hints.forced = true
 	Hints.set_process(false)
 	Hints.reset()
-	var sc := await _local()
-	# the "ship" hint: LOCAL at rest, your ship there
-	for i in 60:
-		Hints.poll(1.0 / 60.0)
-		Ash.poll(0.0)
-	var card_up := Hints.card != null
-	Ash.arm(&"launch")
-	var before := Ash.said_log.size()
-	for i in 30:
-		Hints.poll(1.0 / 60.0)
-		await _tree.process_frame
-	var k := "said" if Ash.said_log.size() > before else ""
-	_ok("a hint is up (%s), and she does not start over it (%s, held by %s)" % [Hints.card.id if card_up else "none", k, Ash.held_by],
-		card_up and k == "" and Ash.held_by == "hint")
+	# after the first jump (the first screen of a run is the goal line's), a
+	# wreck lying here: the wreck's, the loot's and the ship's hints are due
+	var sc := await _local(HullData.Weight.MEDIUM, [[&"cutter", 0]])
+	Run.jumps = 1
+	Ash.arm(&"haul")
 	var press := InputEventMouseButton.new()
 	press.pressed = true
 	press.button_index = MOUSE_BUTTON_LEFT
-	Hints._up_t = 1.0
-	Hints.click(press)
-	# the hints' gap, then her line (no further hint settles: `ship` was the one)
+	# a new run's LOCAL with every hint unseen: each hint as it comes, clicked
+	# away, and her line only once none is up, settling or due here
+	var shown: Array[String] = []
+	var over := 0
+	var said_with_due := false
 	var said := false
-	for i in 120:
+	for i in 1800:
 		Hints.poll(1.0 / 60.0)
 		await _tree.process_frame
-		if Ash.portrait != null and Ash.portrait.speaking():
+		var card_up := Hints.card != null and is_instance_valid(Hints.card)
+		var up := Ash.portrait != null and Ash.portrait.visible and Ash.portrait.speaking()
+		if card_up and up:
+			over += 1
+		if card_up and Hints._up_t > 0.5:
+			shown.append(String(Hints.card.id))
+			Hints.click(press)
+		if up and not said:
 			said = true
+			for id in Hints.ORDER:
+				if not Hints.seen(id) and not Hints.probe(id).is_empty():
+					said_with_due = true
 			break
-	_ok("she speaks once the hint is clicked away (%s)" % ("up" if said else "no"), said)
+	_ok("hints came first on a fresh LOCAL (%s)" % ", ".join(shown), shown.size() > 0)
+	_ok("never up with a hint card on screen (%d frames)" % over, over == 0)
+	_ok("she speaks once the hints here are done (%s)" % ("up" if said else "no"), said and not said_with_due)
 	# a hint starting to settle while she talks sends her off
 	if said:
 		Hints._cand = &"wreck"
 		await _frames(2)
 		_ok("a hint settling sends her off at once", not Ash.portrait.speaking())
 		Hints._cand = &""
+	Run.jumps = 0
+	# and in a fight: the hand's hints come before her heat line
+	sc = await _fight(HullData.Weight.MEDIUM, &"cutter")
+	Run.heat = Run.heat_cap() + 2
+	Ash.arm(&"hot")
+	await _frames(3)
+	_ok("in a fight with hints due, her heat line waits (held by %s)" % Ash.held_by,
+		Ash.held_by == "hint" and not Ash.portrait.speaking())
+	Run.heat = 0
 	Hints.forced = false
 	Hints.reset()
 	Hints.set_process(true)
@@ -609,6 +623,8 @@ func _subject_local() -> SectorScreen:
 func _check_screen(name: String, sc: SectorScreen, table: Dictionary) -> void:
 	var boxes := _boxes(sc)
 	var v := Ash.view_rect(sc)
+	var goal := boxes.filter(func(b: Array) -> bool: return b[0] == "the goal line")
+	_ok("%s: the goal line is up, and measured (%s)" % [name, goal[0][1] if goal.size() > 0 else "none"], goal.size() == 1)
 	# which spots are clear, for the record
 	var marks: Array[String] = []
 	for s: Dictionary in Ash.survey_boxes(sc):
@@ -650,6 +666,9 @@ func _hits(r: Rect2, boxes: Array, v: Rect2) -> Array[String]:
 func _boxes(sc: SectorScreen) -> Array:
 	var hud := Router.hud.get_global_rect()
 	var out: Array = [["HUD", hud], ["goal line's band", Rect2(hud.position.x, hud.end.y, hud.size.x, 26.0)]]
+	var goal := Router.hud.get_parent().get_node_or_null("GoalLine") as Control
+	if goal != null and goal.visible and goal.modulate.a > 0.0:
+		out.append(["the goal line", Rect2(goal.global_position, goal.size)])
 	if Hints.card != null and is_instance_valid(Hints.card):
 		out.append(["hint card", Hints.card.get_global_rect()])
 	if sc._events != null and sc._events.visible:
