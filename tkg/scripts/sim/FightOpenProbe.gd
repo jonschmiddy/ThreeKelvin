@@ -39,6 +39,25 @@ static func _box(r: Rect2, a: float) -> Array:
 		snappedf(r.size.x, 0.01), snappedf(r.size.y, 0.01), snappedf(a, 0.001)]
 
 
+## WHERE A SUBJECT'S PIECES ARE DRAWN, in game px: every placed piece's picture
+## (its sprite's rect, or a few px round its holder for one the planet painter
+## draws), merged. Empty if it has none to draw.
+static func subject_ink(s: LocalSubject) -> Rect2:
+	var r := Rect2()
+	var first := true
+	for rec: Dictionary in s._placed:
+		var node := rec.get("node") as Node2D
+		if node == null or not is_instance_valid(node) or not node.is_visible_in_tree():
+			continue
+		var spr := rec.get("sprite") as Sprite2D
+		var b := Rect2(node.global_position - Vector2(2.0, 2.0), Vector2(4.0, 4.0))
+		if spr != null and spr.texture != null and spr.is_visible_in_tree():
+			b = spr.get_global_transform() * spr.get_rect()
+		r = b if first else r.merge(b)
+		first = false
+	return r
+
+
 ## The part of `c` its clipping holder lets through.
 static func _clipped(c: Control, clip: Control) -> Rect2:
 	var r := c.get_global_rect()
@@ -85,6 +104,11 @@ static func sample(sc: SectorScreen) -> Dictionary:
 	for n in v.get_children():
 		if n is LocalSubject:
 			d.subject = _box((n as Control).get_global_rect(), alpha_of(n as CanvasItem))
+			# (and what it draws: its pieces where they stand this frame. The box is
+			# the whole view and says nothing about whether a piece is on it)
+			var ink := subject_ink(n as LocalSubject)
+			if ink.has_area():
+				d.subject_ink = _box(ink, alpha_of(n as CanvasItem))
 	var ghost := v.get_node_or_null("AreaLeaving") as Control
 	if ghost != null:
 		d.area_ghost = _box(ghost.get_global_rect(), alpha_of(ghost))

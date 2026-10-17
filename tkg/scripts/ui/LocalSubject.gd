@@ -2424,6 +2424,14 @@ func _notification(what: int) -> void:
 func _layout() -> void:
 	_box = box_for(size)
 	queue_redraw()
+	# AND THE PIECES PUT WHERE THEY STAND, NOW. They are placed each frame in
+	# `_process`, and a subject built after this frame's process pass -- the
+	# fight's screen, built as LOCAL in the swap that `Router.start_combat` makes
+	# from a tween's callback -- was drawn once with every piece at its holder's
+	# origin, the top left corner: the event's ship blinked out for a frame as the
+	# fight opened (nav audit, Oct 17). `_build` ends here, and so does a resize.
+	if is_inside_tree() and (not _placed.is_empty() or fx != null):
+		_place()
 
 
 func _clock() -> float:
@@ -2433,6 +2441,12 @@ func _clock() -> float:
 
 
 func _process(_d: float) -> void:
+	_place()
+
+
+## Every piece where it stands at this moment's clock: its drift, its turn, its
+## light. Each frame, and once more when it is built or resized (`_layout`).
+func _place() -> void:
 	# THE SUBJECT TAKES THE PLACE'S STAND-IN: LOCAL's drawn place (its beacon,
 	# its plate) stands where the subject goes, and two things in one spot is a
 	# muddle. Held every frame, because the view's own refresh shows it again
