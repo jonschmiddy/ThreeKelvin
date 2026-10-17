@@ -4841,7 +4841,7 @@ static func _authored() -> Array[Dictionary]:
 			choices = [
 				{label = "Finish it for her", fight = true, effect = func() -> Dictionary:
 					Run.add_credits(OptionTable.purse(24))
-					return {text = "She pays as soon as you agree. You come in on the leviathan's flank while the line holds it still. It turns away from the line, toward the heat of your drive, and comes at you.", fight = true}},
+					return {text = "She pays. You come in on the leviathan's flank while the line holds it still. It turns away from the line, toward the heat of your drive, and comes at you.", fight = true}},
 				{label = "Cut her line",
 					check = {attr = &"maneuver", need = 6},
 					met = func() -> Dictionary:
@@ -4875,11 +4875,11 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"sensors", need = 7},
 					met = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(28))
-						return {text = "You come in slowly until the dish can read the paint, and you record the plate from three sides. The leviathan never wakes. The clerk at Harl Station checks the number against the list and pays for the record."},
+						return {text = "You come in slowly until the dish can read the paint, and you record the plate from three sides. The leviathan never wakes. You send the record to the registry office at Harl Station. The clerk checks the number against the list and pays."},
 					clean = func() -> Dictionary:
 						Run.heat += 10
 						Run.add_credits(OptionTable.purse(18))
-						return {text = "The dish needs a long look before the paint will read, and the drive runs warm holding you that close. The clerk at Harl Station takes the record. She pays less for one this rough."},
+						return {text = "The dish needs a long look before the paint will read, and the drive runs warm holding you that close. You send the record to Harl Station. The clerk takes it and pays less for one this rough."},
 					partial = func() -> Dictionary:
 						Run.take_hull_damage(OptionTable.toll(3), "Too close to a sleeping leviathan when it shifted.")
 						return {text = "It shifts in its sleep while you are close. A crystal on its back scrapes the length of your hull. The record you got is too poor to send, and you back off with a damaged hull."},
@@ -4888,14 +4888,14 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Cut the plate out", fight = true, effect = func() -> Dictionary:
 					return {text = "You get the cutter onto the edge of the plate. The leviathan wakes at the first touch and rolls toward your ship. The plate is still in its flank.", fight = true}},
 				{label = "Leave it sleeping", stay = true, effect = func() -> Dictionary:
-					return {text = "You log the number and the world it sleeps beside, and you fly on. The leviathan still has not moved when the dish loses it."}},
+					return {text = "You log the number and the world it sleeps beside. The clerk at Harl Station only pays for a record, so you send nothing and fly on."}},
 			],
 		},
 		{
 			id = &"the_warm_reactor",
 			title = "The warm reactor",
 			subject = {layers = [{stage = &"single", pieces = [&"role:hauler"], dark = 0.8, at = Vector2(40.0, -60.0)}, {stage = &"single", flip = true, pieces = [&"pool_lev_spine"], at = Vector2(80.0, 55.0)}]},
-			body = "A dead freighter hangs off the star with its reactor still warm. A void leviathan stays close to the stern to feed on the heat. It is dark blue and plated, and the pale crystal on its back glows in the reactor's light. The freighter's forward holds are sealed and read full. They are at the bow, the far end from the leviathan. The transponder is dead, and nobody has filed a claim on the wreck. The leviathan moves only to press closer to the reactor.",
+			body = "A dead freighter hangs off the star with its reactor still warm. A void leviathan stays close to the stern to feed on the heat. It is dark blue and plated, and the pale crystal on its back glows in the reactor's light. The freighter's forward holds are sealed and read full. They are at the bow, the far end from the leviathan. The transponder is dead. The leviathan moves only to press closer to the reactor.",
 			tags = [&"fight", &"salvage"],
 			group = &"",
 			weight = 8,
@@ -4910,7 +4910,7 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "You come in cold on the bow and open the first hold with the cutter on its lowest setting. The leviathan never moves from the reactor. The grapple brings out one sealed crate, and you are gone before it stirs.", material = &"wreck"},
 					clean = func() -> Dictionary:
 						Run.heat += 12
-						return {text = "You get one hold open, but holding the ship cold that long heats it from the inside. The grapple brings out a sealed crate. The leviathan shifts once at the stern and settles again.", material = &"wreck"},
+						return {text = "You get one hold open, but running quiet that long lets heat build up inside the ship. The grapple brings out a sealed crate. The leviathan shifts once at the stern and settles again.", material = &"wreck"},
 					partial = func() -> Dictionary:
 						Run.heat += 16
 						return {text = "You get the hold half open before the leviathan lifts its head. You back off and wait. It settles again, but by then the hull is warm and you have nothing aboard."},
@@ -4919,7 +4919,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Drive it off the reactor", fight = true, effect = func() -> Dictionary:
 					return {text = "You put a shot into the plates on its back from the stern side. It leaves the reactor and turns. It comes at you along the freighter's length.", fight = true}},
 				{label = "Leave it feeding", stay = true, effect = func() -> Dictionary:
-					return {text = "You keep well clear of the freighter and fly on. The leviathan is still hanging off the stern, close to the heat, when the dish loses them."}},
+					return {text = "You keep well clear of the freighter and fly on. You run the drive cold until you are past the star, so the leviathan has no heat to follow."}},
 			],
 		},
 	])
