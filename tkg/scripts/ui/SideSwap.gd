@@ -380,6 +380,7 @@ func _process(delta: float) -> void:
 		if str(now.map(func(r: Array) -> Rect2: return r[0])) != _sig:
 			_content()
 	t += ZoomLadder.fixed_dt if ZoomLadder.fixed_dt > 0.0 else minf(delta, 1.0 / 30.0)
+	_blip()
 	# (where there was no side bar, the crossfade, the slide, the cascade and
 	# the line keep at least level with the held picture going from over them,
 	# so the rect is never the bare ground between the two)
@@ -389,6 +390,25 @@ func _process(delta: float) -> void:
 		finish()
 		return
 	_push()
+
+
+## E, HEARD: the event text's blip as a line starts to resolve (`Audio.FX`
+## side_decode, at most two in the air), once a frame however many rows of the
+## line start on it. The side bar's, not a toolbar's.
+var _blip_to := -1.0     ## the decode's time heard up to
+
+
+func _blip() -> void:
+	if _li != 4 or across:
+		return
+	var due := false
+	for r: Array in _rows_now:
+		var t0 := float(r[2])
+		if int(r[1]) == 0 and t0 >= 0.0 and t0 > _blip_to and t0 <= t:
+			due = true
+	_blip_to = t
+	if due:
+		Audio.fx(&"side_decode")
 
 
 ## Straight to the end: the new panel stands alone.

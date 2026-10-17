@@ -707,6 +707,26 @@ else
 	bad "idlesoundtest did not finish"
 fi
 
+step "October's effects are heard, once, on the frame each picture acts"
+# The free half of the Oct 17 sound plan (`Audio.FX`, one switchable row a
+# moment). Audio is off headless, but while it tapes it makes every decision
+# (limits, suppression, the pick, the caps) and writes it down: through the real
+# fights, deaths, your ship's loss and the ladder, each picture's own `moment`
+# against what was heard -- the band, plates on and off, a hit partly taken,
+# vents and their sputters, deaths G, N, O, P, the Hellbender's furnace and pops,
+# C1c's split, power_off and no page click into RUN ENDED, the chrome sliding
+# and the side bar's decode.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot soundmomenttest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=SoundMomentTest; then
+	if grep -qE '^soundmomenttest: PASS' "$LOG_DIR/soundmomenttest.log"; then
+		ok "every moment's sound plays once, on its frame, at its level"
+	else
+		bad "a moment's sound is missing, doubled, early or late"
+		grep -E 'FAIL|^soundmomenttest' "$LOG_DIR/soundmomenttest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "soundmomenttest did not finish"
+fi
+
 step "Jon's welcome note: once per profile, and on the title menu"
 # Opens by itself on a fresh profile's title, word for word and inside the
 # screen; marked seen only when CLOSED; never again after; MESSAGE FROM JON

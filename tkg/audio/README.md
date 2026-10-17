@@ -278,6 +278,37 @@ takes bought for each. What changed in `assets/audio/sfx/`:
   lead ... into heavy ... into game hit".
 * **The red hypergiant is the furnace alone** ("not the groan").
 
+### October's effects, the free pass (2026-10-17)
+
+Every effect built in October (hits, the bubble shield, brace plates, the deaths,
+the side bar's decode, the chrome sliding) already said when it acts, as a
+`moment(kind, strength, length)`, and almost nothing listened. The sound plan
+(scratchpad `sfx-plan/plan.json`) mapped each silent moment; this pass hooks the
+ones the game already has a fitting file for, and spends nothing.
+
+* **`Audio.FX` is the table**: one row a moment, each with its `pick`, what
+  played `before`, and `off`. Every row is switchable for auditioning:
+  `-- fx=brace_on:before,vent_sputter:off`, `fx=all:before`, a file of its own as
+  `fx=brace_on:brace_on_b@-3[@offset]`, or the same under `[fx]` in
+  settings.cfg. A paid take drops in as a file and a row change, nothing else.
+* **The picks**: `fauna_falls` on a creature's death (Jon's Sep 19 takes, never
+  reached until now) at -4 dB; `module_install` for plates going on, ours and
+  theirs, started on the wave so its clunk lands on the 0.35 s clamp (it was
+  `shield_block`, a shield's sound on armour); `jettison` -10 for plates
+  falling off; `vent` for death G's jets and a vent mark (-8) and the sputters
+  (-12, never closer than 0.4 s); `text_blip` per line of the side bar's decode
+  (at most two in the air); `menu_open` / `menu_close` -6 as the chrome's column
+  first moves; `hold_lift` -4 for the fight's band rising (its envelope fits the
+  band's speed better than `menu_open`'s, 0.57 to 0.44); `power_off` as your
+  loss's handoff starts, the score ducked through the gap and no page click
+  into RUN ENDED; `amb_red` under the Hellbender's heating; the kill pool for
+  the bosses' pops (-10) and C1c's split (0); `shield_block` -8 under a hit
+  partly taken.
+* **Headless, Audio decides and tapes**: with `taping` on and no window, `play`
+  runs its limits, suppression and pick and writes the result down
+  (`_dry_play`), so `-- sheet=SoundMomentTest` checks every row against the
+  picture's own moment, frame for frame.
+
 ## Sizes
 
 | | Before | After |
