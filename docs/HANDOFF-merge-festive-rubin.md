@@ -338,6 +338,18 @@ or the generator draws the part small and thin.
 - **The full gate passed** on `8556415` (Oct 17). Run it again before merging.
 - PixelLab: about 2,850 generations left this cycle; it refills Oct 17.
 
+## A.S.H., the ship's AI (Jon and Ashlee, Oct 17), design only
+
+Ashlee's idea: the player needs someone alive to connect to. A.S.H.
+(Autonomous Systems Handler) is the ship's AI, named for her: dry, humorous and
+teasing, with a holographic face. Brief in `docs/ash.md`, a ruling in
+CLAUDE.md ("A.S.H. is the ship, not crew"). Forty draft lines in
+`docs/ash_lines_draft.json`, on a keep/cut page:
+https://claude.ai/artifact/32V82WK5AkWDfHvp4ccPGs (choices in its db,
+`picks/ash_lines`). Nothing in the game yet. Next: the portrait (holographic
+face at a few moods; ask Jon before spending PixelLab credits), then a portrait
+slot on LOCAL and her lines in the log, driven by heat and hull.
+
 ## Pages Jon judged this on
 
 - The three graded hulls, all 12 ships: https://claude.ai/artifact/EE7Y4JKuiVY9igCZQ7r1qZ

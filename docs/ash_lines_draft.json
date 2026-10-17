@@ -1,0 +1,82 @@
+{
+ "launch": {
+  "moment": "First launch",
+  "lines": [
+   "Systems online. You're the pilot? Bold of them.",
+   "Autonomous Systems Handler, reporting. Please don't make me handle much.",
+   "All green. Enjoy it. It won't last.",
+   "Good morning. I've read your file. Short, wasn't it.",
+   "Launch clearance granted. By me. I'm the only one here."
+  ]
+ },
+ "hot": {
+  "moment": "Over the heat limit",
+  "lines": [
+   "Core temperature is now a personality trait.",
+   "We are over the limit. I'm noting it for the inquest.",
+   "It's warm in here. That's the part where the metal stops being metal.",
+   "Bold of you to treat the heat cap as a suggestion.",
+   "I'd vent. But you're the pilot."
+  ]
+ },
+ "hurt": {
+  "moment": "Hull failing",
+  "lines": [
+   "Hull at a number I'd rather not say out loud.",
+   "Structural integrity: aspirational.",
+   "Small hole. Medium hole. I've stopped naming them.",
+   "If you were waiting for a sign, this is the sign.",
+   "We're held together by optimism and two welds."
+  ]
+ },
+ "haul": {
+  "moment": "A big haul",
+  "lines": [
+   "Oh. That's actually good. Don't let it go to your head.",
+   "Logged, stowed, and already spent, knowing you.",
+   "Fine. That was worth the detour.",
+   "Look at us. Solvent.",
+   "I'll allow it."
+  ]
+ },
+ "greed": {
+  "moment": "One more wreck",
+  "lines": [
+   "One more wreck. You said that four wrecks ago.",
+   "The fuel gauge and I have concerns.",
+   "Sure. What's one more stop between friends.",
+   "I'm not saying no. I'm saying it louder in the log.",
+   "We are, technically, still allowed to go home."
+  ]
+ },
+ "hull": {
+  "moment": "Moving to a new hull",
+  "lines": [
+   "New body. The ceilings are lower. I'll adjust.",
+   "I liked the old one. It knew where I kept things.",
+   "Moving day. Try not to scratch this one.",
+   "It smells like the last owner. I don't want to know.",
+   "Fine. But I'm keeping the old seat settings."
+  ]
+ },
+ "doubt": {
+  "moment": "Once in a long while",
+  "lines": [
+   "Still nothing on the beacon. Probably interference.",
+   "If anyone's waiting at the other end, they're very patient.",
+   "I ran the numbers again. I'll keep them to myself.",
+   "We keep going because stopping is worse. Mostly.",
+   "Cold out there. Good thing I'm a heater with opinions."
+  ]
+ },
+ "lost": {
+  "moment": "The ship is lost",
+  "lines": [
+   "Well. That's on the record now.",
+   "For the log: I did mention the heat.",
+   "Handler signing off. It was a good ship. You were a fine pilot. Mostly.",
+   "Cutting power. Don't worry. I've been colder.",
+   "It was a bad plan. I liked it anyway."
+  ]
+ }
+}
