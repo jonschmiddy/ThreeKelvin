@@ -19,8 +19,9 @@ extends Control
 ##   - THE MOUTH FOLLOWS THE LETTERS: each tick it takes the shape of the last
 ##     letter that settled in that tick (a vowel open, o/u/w/y round, m/b/p
 ##     shut, any other letter slight; a space or a mark shut), and a shape the
-##     same as the tick before gives way to the next one down so the mouth does
-##     not freeze on a long vowel run. Shut once the line is out.
+##     same as the tick before gives way to another (open or round to slight,
+##     slight to shut, shut to slight) so a mouth that is talking moves every
+##     tick. Shut through a mark's pause, and once the line is out.
 ##   - SHE BLINKS for one tick every 2.2 to 5.7 s.
 ##   - THE HOLOGRAM SLIPS: a band of one to three rows shifted a whole pixel
 ##     sideways for one tick, with a faint lit row over it, every 0.9 to 3.5 s
@@ -55,8 +56,11 @@ const TICK_S := 0.1
 ## allowance per letter, s.
 const HOLD_MIN_S := 2.6
 const HOLD_PER_CHAR_S := 0.035
-const FADE_IN_S := 0.15
-const FADE_OUT_S := 0.3
+## Coming up and going are HELD STEPS of the tick too, not a smooth ramp: a
+## projector striking and cutting out (half, then whole; two thirds, a third,
+## then gone; one step when a hint or a drag sends her off).
+const FADE_IN := [0.5, 1.0]
+const FADE_OUT := [0.66, 0.33]
 ## The frames, by name, as `ash_face.py` lays them out.
 enum Mouth { CLOSED, SLIGHT, OPEN, ROUND }
 const BLINK := 4
@@ -99,6 +103,7 @@ var _settled: Array = []   # letters settled since the last tick
 var _hold_until := INF
 var _going_at := INF
 var _second_chirp := false
+var _out_steps: Array = []
 var _rng := RandomNumberGenerator.new()
 ## Set by `Ash` each frame: the hull failing (slips come twice as often).
 var hurt := false
@@ -149,7 +154,7 @@ func say(what: String, k: StringName) -> void:
 	phase = Phase.UP
 	visible = true
 	if _moving():
-		modulate.a = 0.0
+		modulate.a = float(FADE_IN[0])
 		_slip_ticks = 2
 		_new_slip()
 		_next_slip = now + _slip_gap()
@@ -173,9 +178,8 @@ func leave(quick: bool = false) -> void:
 	if not _moving():
 		cut()
 		return
-	var t := create_tween()
-	t.tween_property(self, "modulate:a", 0.0, FADE_OUT_S * (0.4 if quick else 1.0))
-	t.tween_callback(cut)
+	_out_steps = FADE_OUT.slice(FADE_OUT.size() - 1) if quick else FADE_OUT
+	modulate.a = float(_out_steps[0])
 
 
 ## Gone this frame, no fade: the ship is lost, and the projection goes with it.
@@ -259,8 +263,15 @@ func _process(_d: float) -> void:
 	if phase == Phase.GONE:
 		return
 	var now := GameClock.now()
-	if phase != Phase.GOING and _moving():
-		modulate.a = clampf((now - _born) / FADE_IN_S, 0.0, 1.0)
+	if phase == Phase.GOING:
+		var j := int(floorf((now - _going_at) / TICK_S + 0.0001))
+		if j >= _out_steps.size():
+			cut()
+			return
+		modulate.a = float(_out_steps[j])
+	elif _moving():
+		var i := int(floorf((now - _born) / TICK_S + 0.0001))
+		modulate.a = float(FADE_IN[mini(i, FADE_IN.size() - 1)])
 	if _text.done and phase == Phase.TYPING:
 		phase = Phase.HOLDING
 		_hold_until = now + HOLD_MIN_S + HOLD_PER_CHAR_S * float(line.length())
@@ -283,7 +294,7 @@ func _tick(at: float) -> bool:
 	if phase == Phase.TYPING and not _text.done:
 		if not _settled.is_empty():
 			m = shape_for(String(_settled.back()))
-			if m == _mouth and m != Mouth.CLOSED:
+			if m == _mouth:
 				m = Mouth.SLIGHT if m != Mouth.SLIGHT else Mouth.CLOSED
 	_settled.clear()
 	_mouth = m

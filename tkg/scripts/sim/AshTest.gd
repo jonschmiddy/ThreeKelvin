@@ -225,6 +225,36 @@ func _talk() -> void:
 		longest.length(), typed_for, changes, rate, shortest])
 	print("    over the whole line: %d frames with a slip, %d with her eyes shut" % [all_slips, all_blinks])
 	_ok("the face changes 8 to 12 times a second while she talks (%.1f)" % rate, rate >= 8.0 and rate <= 12.0)
+	# and over every line she has, typed on the same clock
+	var lo := INF
+	var hi := 0.0
+	var lo_line := ""
+	var all_n := 0
+	var all_t := 0.0
+	for kk in AshLines.MOMENTS:
+		for l in AshLines.of(kk):
+			p.say(String(l), kk)
+			var s0 := GameClock.now()
+			var n0 := 0
+			while p.phase == AshPortrait.Phase.TYPING and GameClock.now() - s0 < 6.0:
+				await _tree.process_frame
+			var dur := GameClock.now() - s0
+			n0 = p.frames_log.size() - 1
+			all_n += n0
+			all_t += dur
+			var r := float(n0) / maxf(dur, 0.001)
+			if String(l).length() < 30:
+				continue
+			if r < lo:
+				lo = r
+				lo_line = String(l)
+			hi = maxf(hi, r)
+			p.cut()
+	var mean := float(all_n) / maxf(all_t, 0.001)
+	_ok("over all thirty lines typed, %.1f changes a second; every line of 30 letters or more 8 to 12 (%.1f to %.1f; slowest: \"%s\")" % [mean, lo, hi, lo_line],
+		mean >= 8.0 and mean <= 12.0 and lo >= 8.0 and hi <= 12.0)
+	Ash.portrait.cut()
+	Ash.poll(0.0)
 	_ok("every change is held a tick (%.3f s) or longer (shortest %.3f)" % [AshPortrait.TICK_S, shortest],
 		shortest >= AshPortrait.TICK_S - 0.02)
 	_ok("all four mouths are used (%s)" % str(mouths.keys()), mouths.size() == 4)
