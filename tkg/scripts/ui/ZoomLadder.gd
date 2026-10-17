@@ -997,7 +997,9 @@ static func capture(o: Control, n: Control) -> void:
 		ChromeSlide.finish_all()
 	if not enabled():
 		if busy():
+			_capturing = true
 			active.finish_now()
+			_capturing = false
 		return
 	var ro := rank_of(o)
 	var rn := rank_of(n)
@@ -1018,7 +1020,11 @@ static func capture(o: Control, n: Control) -> void:
 				lad._hide_chrome.call_deferred(n)
 			return
 	elif busy():
+		# (another screen is coming in by some other door: a calm move under
+		# way gives way to it rather than taking its own door on top of it)
+		_capturing = true
 		active.finish_now()
+		_capturing = false
 	if ro < 0 or rn < 0 or ro == rn or Router._post_arrive:
 		if lad != null:
 			lad._end()
@@ -2443,6 +2449,8 @@ const CALM_DISSOLVE_S := 0.3
 const CALM_HURRY_S := 0.25
 
 var _calm := false
+## (set while `capture` ends a move for a screen swapped in by another door)
+static var _capturing := false
 var _calm_firing := false
 var _calm_t := 0.0
 var _calm_rate := 1.0
@@ -3004,10 +3012,10 @@ func _calm_eats(e: InputEvent) -> bool:
 ## of move): the screen asked for up, at rest, its UI back.
 func _calm_finish_now() -> void:
 	if _calm_e_h < 0.0 and is_instance_valid(old) and Router.current == old:
-		_chrome(old, 1.0)
 		if phase == Phase.C_CAM:
 			old.call(&"calm_end")
-		if _then.is_valid():
+		if _then.is_valid() and not _capturing:
+			_chrome(old, 1.0)
 			_calm_fire()
 	if _calm_e_h >= 0.0 and is_instance_valid(new):
 		if not _calm_new_begun and bool(new.call(&"ladder_ready")):
