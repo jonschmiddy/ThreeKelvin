@@ -1216,10 +1216,10 @@ const WRECK_CREDIT_SPREAD := 0.20
 ##     does): the old single payout banked 78 credits a run; x1.10 banks 79.
 ##   - the sim's default (every fight one ship): the old rule banked 88; x1.24
 ##     banks 88, x1.10 about 78.
-## 1.10 is the one chosen, because Jon's goal is the money per run IN THE GAME,
-## and the game's ambushes bring their packs, each ship of which now pays.
+## 1.10 was the one chosen then, because Jon's goal is the money per run IN THE
+## GAME, and the game's ambushes bring their packs, each ship of which now pays.
 ##
-## RE-MEASURED Oct 17, after the sim was made to field fights as Router does
+## NOW 1.27 (Oct 17). RE-MEASURED, after the sim was made to field fights as Router does
 ## (whole packs and `clears_node` false on ambushes, none at stations, option
 ## fights from `Router.option_foe`), and with the old rule put back for the
 ## money alone -- the last hull's reward, certain, in the first wreck -- so both
@@ -1227,11 +1227,12 @@ const WRECK_CREDIT_SPREAD := 0.20
 ## x1.26 91, x1.28 93. The same money-only swap on the sim as it was gave 87
 ## against 78, so most of the gap is in how "the old rule" was measured, not in
 ## the sim. The arithmetic says the same: a lone ship pays 0.75 x 1.10 = 0.825
-## of what it did, and only about 6% of won fights are pairs. NOT CHANGED here:
-## the factor is Jon's to move, and about 1.27 is what the corrected sim asks.
+## of what it did, and only about 6% of won fights are pairs. Jon's rule is
+## "75% chance, money per run where it was", so the old rule's 92 is the
+## target, and 1.27 sits between the two readings that bracket it.
 ## Re-measure whenever the mix of pack sizes moves. Never the set pieces: the
 ## Hellbender and the custodian are hand-tuned and pay their own numbers.
-const WRECK_CREDIT_SCALE := 1.10
+const WRECK_CREDIT_SCALE := 1.27
 ## Parts one hand can expect from a hull of each kind. The tuning table: an
 ## enemy missing from it gets `WRECK_PARTS_DEFAULT`.
 const WRECK_PARTS := {
