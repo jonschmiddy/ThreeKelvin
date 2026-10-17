@@ -1649,7 +1649,9 @@ static func fit(box: Rect2, bounds: Rect2, avoid: Array[Rect2]) -> Dictionary:
 	return {centre = (big.get_center() - bounds.get_center() * 0.5).round(), scale = 0.5, clear = big}
 
 
-## The wrecks on LOCAL's view now, in this control's own space.
+## The wrecks on LOCAL's view now, each its picture and the words under it
+## (`EnemySlot.drawn_box`: a name is often wider than its hull), in this
+## control's own space.
 func _wrecks() -> Array[Rect2]:
 	var out: Array[Rect2] = []
 	var view := get_parent()
@@ -1661,7 +1663,7 @@ func _wrecks() -> Array[Rect2]:
 	var inv := get_global_transform().affine_inverse()
 	for e: Variant in view.get("_made"):
 		if e is EnemySlot and is_instance_valid(e) and (e as EnemySlot).is_visible_in_tree():
-			out.append(inv * (e as EnemySlot).holder_rect())
+			out.append(inv * (e as EnemySlot).drawn_box())
 	return out
 
 
