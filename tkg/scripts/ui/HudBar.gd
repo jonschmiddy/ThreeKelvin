@@ -368,7 +368,9 @@ func refresh() -> void:
 		return
 
 
-	var fighting := Router.in_combat()
+	# (and until the fight has handed over: its screen still up after the last
+	# kill, `Router.fight_up` -- a tab there raced the hand-off to LOCAL)
+	var fighting := Router.in_combat() or Router.fight_up()
 	# Choosing a chassis locks the whole bar. Until you have launched there is no
 	# sector to look at, no chart to plot on and nothing to refit — and a SHIP
 	# tab that works before the run starts is an invitation to change a hull

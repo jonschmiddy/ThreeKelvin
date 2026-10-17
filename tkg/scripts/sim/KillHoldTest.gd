@@ -12,6 +12,11 @@ extends Node
 ##     stood before the kill, every frame;
 ##   - the breakup is drawn from the dying ship's resting place (riding its bob);
 ##   - its last frame is the wreck the slot then draws, pixel for pixel.
+## And THE KILL TO LOCAL (`_window`): a lone ship killed, and in the stretch
+## after the fight is finished but before `Router.after_combat` has handed over,
+## Tab, NEXT SCREEN on another key and clicks on the SECTOR and STARCHART tabs
+## change nothing (`Router.fight_up`: they started a ladder move that raced the
+## hand-off), and the hand-off still lands on LOCAL and stays there.
 
 var _fails := 0
 
@@ -33,6 +38,7 @@ func _run() -> void:
 	Router.animate_in_harness = true
 	await _case(tree, [[&"lancer", 0], [&"marauder", 0], [&"hulk", 0]], "pack of three (half)")
 	await _case(tree, [[&"lancer", 0], [&"marauder", 0]], "pair (full size)")
+	await _window(tree)
 	Router.animate_in_harness = false
 	print("killholdtest: %s (%d failures)" % ["PASS" if _fails == 0 else "FAIL", _fails])
 	tree.quit()
@@ -129,3 +135,99 @@ func _case(tree: SceneTree, pack: Array, tag: String) -> void:
 						diff += 1
 		_ok("%s: its last frame is the wreck the slot draws (%d pixels differ)" % [tag, diff], same)
 	print("killholdtest: %s, %d frames watched" % [tag, frames])
+
+
+# ------------------------------------------------- the kill to LOCAL
+
+func _window(tree: SceneTree) -> void:
+	var tag := "the kill to LOCAL"
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	for m: MapGen.MapNode in Run.map:
+		if m.type == MapGen.NodeType.SYSTEM and not Router.no_fights_at(m):
+			Run.at = m.index
+			break
+	SectorScreen._approached_at = Run.at
+	# (the ladder on, as the game has it: a move started here is the race)
+	ZoomLadder.force = 1
+	Router.start_combat(DB.enemies[&"lancer"], [], false, false)
+	var cb = Router.combat
+	if not _ok("%s: a fight" % tag, cb != null):
+		ZoomLadder.force = -1
+		return
+	await tree.create_timer(1.2).timeout
+	var sc := Router.current as SectorScreen
+	Keys.set_key(&"next_screen", 1, KEY_N)
+	cb.damage_enemy(9999, 1, "test", cb.enemies[0])
+	var tries: Array = [
+		["Tab", func() -> void: _key(KEY_TAB)],
+		["NEXT SCREEN on N", func() -> void: _key(KEY_N)],
+		["a click on SECTOR", func() -> void: _click(Router.hud._tab_system)],
+		["a click on STARCHART", func() -> void: _click(Router.hud._tab_chart)],
+	]
+	var tried := 0
+	var in_window := 0
+	var bad: Array = []
+	var t0 := Time.get_ticks_msec()
+	var landed := false
+	while Time.get_ticks_msec() - t0 < 12000:
+		await tree.process_frame
+		var window: bool = cb.finished and Router.combat == cb
+		if window:
+			in_window += 1
+			# (each try a few frames apart, so each has time to start something)
+			if tried < tries.size() and in_window % 6 == 1:
+				(tries[tried][1] as Callable).call()
+				tried += 1
+			if Router.current != sc:
+				bad.append("the screen changed in the window (%s)" % Router.current)
+			if ZoomLadder.busy():
+				bad.append("a ladder move under way in the window")
+			for c in Router.content.get_children():
+				if c != sc and (c is SystemMapScreen or c is StarchartScreen) and not (c as Node).is_queued_for_deletion():
+					bad.append("a %s built in the window" % c.get_class())
+		elif Router.combat == null:
+			landed = true
+			break
+	_ok("%s: the window was long enough for every try (%d of %d made over %d frames)" % [tag, tried, tries.size(), in_window], tried == tries.size())
+	var uniq: Array = []
+	for b in bad:
+		if not b in uniq:
+			uniq.append(b)
+	_ok("%s: Tab, NEXT SCREEN on N and the SECTOR and STARCHART tabs change nothing before the hand-off%s" % [tag,
+		"" if uniq.is_empty() else " (" + "; ".join(PackedStringArray(uniq)) + ")"], uniq.is_empty())
+	_ok("%s: the fight handed over" % tag, landed)
+	# THE HAND-OFF LANDS ON LOCAL, and nothing queued in the window takes it away
+	var stayed := true
+	for f in 120:
+		await tree.process_frame
+		if not (Router.current is SectorScreen) or ZoomLadder.busy():
+			stayed = false
+	_ok("%s: the hand-off landed on LOCAL and stayed there (%s)" % [tag, Router.current], stayed and Router.current is SectorScreen)
+	Keys.reset(&"next_screen")
+	ZoomLadder.force = -1
+
+
+func _key(code: Key) -> void:
+	for down in [true, false]:
+		var e := InputEventKey.new()
+		e.keycode = code
+		e.physical_keycode = code
+		e.pressed = down
+		Input.parse_input_event(e)
+
+
+## A real click on a HUD tab: pushed into the viewport the game is drawn in.
+func _click(c: Control) -> void:
+	if c == null or not is_instance_valid(c):
+		return
+	var at := c.get_global_rect().get_center()
+	var vp := GameShell.input_target(get_tree())
+	for down in [true, false]:
+		var mb := InputEventMouseButton.new()
+		mb.button_index = MOUSE_BUTTON_LEFT
+		mb.pressed = down
+		mb.position = at
+		mb.global_position = at
+		mb.button_mask = MOUSE_BUTTON_MASK_LEFT if down else 0
+		vp.push_input(mb)

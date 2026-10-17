@@ -459,7 +459,7 @@ func show_archive(from_launcher: bool = false) -> void:
 ## draw that walks every node anyway.
 func show_starchart() -> void:
 	# (no chart in a fight: back to it, or nothing if it is up -- `fight_up`)
-	if in_combat():
+	if in_combat() or fight_up():
 		show_local()
 		return
 	Run.chart_from(Run.node_at())
@@ -499,7 +499,7 @@ func show_sector() -> void:
 	if docked and current is StationScreen and ZoomLadder.chosen():
 		show_local()
 		return
-	if in_combat() or _post_depart >= 0 or held:
+	if in_combat() or fight_up() or _post_depart >= 0 or held:
 		show_local()
 	else:
 		_undock()
@@ -514,7 +514,7 @@ func show_system() -> void:
 	if Run.dead:
 		show_game_over()
 		return
-	if in_combat() or (Run.hellbender_alive() and Run.hellbender_at == Run.at):
+	if in_combat() or fight_up() or (Run.hellbender_alive() and Run.hellbender_at == Run.at):
 		show_local()
 		return
 	if ZoomLadder.preroll(ZoomLadder.MAP, show_system):
@@ -1364,8 +1364,15 @@ func in_combat() -> bool:
 ## back, the hand was dealt again and the enemy flew in a second time (nav
 ## audit, Oct 17). From a page opened OVER the fight (CARDS, the archive) the
 ## same doors are still the way back to it.
+##
+## AND UNTIL THE FIGHT HAS HANDED OVER. From the last kill to `after_combat` --
+## the breakup played out, the hand lowered -- the fight is `finished`, so
+## `in_combat` is false, but its screen is still the one up and `combat` still
+## set: Tab, a rebound key or a HUD tab there started a ladder move that raced
+## the hand-off to LOCAL (Oct 17). `after_combat` clears `combat` before it
+## swaps, so this never stops the hand-off itself.
 func fight_up() -> bool:
-	return in_combat() and current is SectorScreen and (current as SectorScreen).combat == combat
+	return combat != null and current is SectorScreen and (current as SectorScreen).combat == combat
 
 func after_combat(_c: Combat) -> void:
 	# WON: STAY BY THE WRECKS (alpha blocker 4). The pay is in them, and the map
