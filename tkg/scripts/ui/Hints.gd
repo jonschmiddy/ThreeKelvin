@@ -619,7 +619,7 @@ func _fuel_low() -> bool:
 			continue
 		dear = maxi(dear, Run.fuel_cost_to(n))
 	if dear == 0:
-		dear = Run.FUEL_MAX_HOP
+		dear = Run.fuel_max_hop()
 	return Run.fuel < dear * 2
 
 

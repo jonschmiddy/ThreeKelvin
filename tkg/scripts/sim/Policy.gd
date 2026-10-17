@@ -154,6 +154,31 @@ static func _worth(m: HoldItem) -> int:
 ## Policy outlives a run in the by-chassis sweep.
 func begin_run() -> void:
 	_farmed.clear()
+	spend = {fuel = 0, repair = 0, options = 0}
+	fuel_bought = 0
+	refuel_stops = 0
+	limited = false
+
+
+## WHERE THE MONEY WENT, for the fuel audit (balance/fuel, Oct 17). Counted at
+## the three places this pilot spends: the refuel and repair desks (and the
+## bench's equivalents) and an option's price. It buys no parts and no hulls,
+## so those three are the whole of its spending.
+var spend: Dictionary = {fuel = 0, repair = 0, options = 0}
+var fuel_bought := 0
+var refuel_stops := 0
+
+## A PERSON HEADING FOR THE CORE, rather than the gate's farmer. `-- sim human`.
+##
+## The gate's model picks forward stars AT RANDOM and farms a ring on a coin.
+## A person reads the chart: they go deeper, they go somewhere new, they divert
+## to a dock when hurt or low, and they notice the fuel price a little. That is
+## the player Jon is describing, and it is the one whose choice of star fuel can
+## be said to LIMIT -- the random model has no best star to be denied.
+var human: bool = false
+## Set by `choose_jump` in human mode: the star it scored best was in reach and
+## seen but not affordable, so it flew its second choice.
+var limited: bool = false
 
 ## What the model is willing to haul. A BEHAVIOUR, not a capacity — hulls hold
 ## 8 / 12 / 16. A competent player does not carry twenty parts hoping for a
@@ -329,6 +354,7 @@ func shop(n: MapGen.MapNode) -> void:
 	if missing > 0 and Run.credits > repair + 25:
 		Run.add_credits(-repair)
 		Run.heal(missing)
+		spend.repair += repair
 	# A COMPETENT PILOT TOPS UP; they do not coast to empty and hope for a
 	# station. `Run.fuel < 8` was the old test, and it is a fault in the
 	# INSTRUMENT rather than a fact about the game -- see the note on
@@ -344,12 +370,55 @@ func shop(n: MapGen.MapNode) -> void:
 	# Tops up toward half a tank, keeping a credit reserve so refuelling never
 	# eats the repair budget -- hull loss is the largest death cause and buying
 	# fuel instead of a hull is not competence.
-	var tank := Run.FUEL_PER_RING_STEP * float(MapGen.LAYERS - 2)
+	var tank := float(Run.fuel_cap()) if Run.fuel_cap() > 0 else float(Run.start_fuel())
 	var want := int(tank * FUEL_TOPUP)
-	var refuel := Market.refuel_price(n)
-	while Run.fuel < want and Run.credits >= refuel + FUEL_RESERVE:
-		Run.add_credits(-refuel)
-		Run.fuel += Market.REFUEL_UNITS
+	# HALF A TANK WAS A RULE FOR A 279 TANK. With a small one (tunings A and C)
+	# half is ten jumps and a competent pilot fills it.
+	if Run.fuel_tuning == &"A" or Run.fuel_tuning == &"C":
+		want = int(tank)
+	if human:
+		want = human_fuel_want(n)
+	var bought := false
+	var guard := 0
+	while Run.fuel < want and guard < 40:
+		guard += 1
+		var refuel := int(Run.refuel_offer(n).cost)
+		if Run.credits < refuel + FUEL_RESERVE:
+			break
+		var f0 := Run.fuel
+		if not Run.buy_refuel(n):
+			break
+		spend.fuel += refuel
+		fuel_bought += Run.fuel - f0
+		bought = true
+	if bought:
+		refuel_stops += 1
+
+
+## What a person wants in the tank leaving a dock: enough for the rest of the
+## way in at what jumps cost here, with half again for detours, or a top-up to
+## the cap. Not "half a tank": a person with 279 aboard does not buy fuel, and
+## that is the behaviour being measured.
+func human_fuel_want(n: MapGen.MapNode) -> int:
+	var rings_left := maxi(1, MapGen.LAYERS - 1 - n.layer)
+	var typ := 0.0
+	var k := 0
+	for t in Run.in_range_of(n):
+		var tn: MapGen.MapNode = t
+		if tn.sensed and tn.layer >= n.layer:
+			typ += float(Run.fuel_cost_to(tn))
+			k += 1
+	typ = typ / k if k > 0 else 3.0
+	var need := int(ceil(typ * float(rings_left) * HUMAN_HOPS_PER_RING * 1.5))
+	var cap := Run.fuel_cap()
+	return mini(need, cap) if cap > 0 else need
+
+## Hops a person spends per ring on the way in: one down and a look around.
+const HUMAN_HOPS_PER_RING := 1.6
+## What a fresh system in this ring is worth against one a ring in, while the
+## ring still has looking-round left in it. 12 makes it a near coin against a
+## ring in (10 + 6 for somewhere new), which is the person who explores.
+var HUMAN_LOOK_ROUND := 12.0
 
 
 ## Anything left in the hold at a station was already destined for scrapping —
@@ -396,11 +465,14 @@ func bench(n: MapGen.MapNode) -> void:
 						break
 					if Fabricator.price(n, r) >= Market.repair_price(n, int(r.amount)):
 						break
+					spend.repair += Fabricator.price(n, r)
 				&"cracker":
 					if Run.fuel > 40:
 						break
 					if Fabricator.price(n, r) >= Market.refuel_price(n):
 						break
+					spend.fuel += Fabricator.price(n, r)
+					fuel_bought += int(r.amount)
 				_:
 					break
 			if Fabricator.make(n, r).is_empty():
@@ -503,6 +575,8 @@ func take_options(n: MapGen.MapNode) -> Dictionary:
 			out.declined += 1
 			continue
 		var line: Dictionary = (opt.choices as Array)[pick]
+		if line.has("cost_credits"):
+			spend.options += int(line.cost_credits)
 		var res := _resolve_line(n, line)
 		n.taken.append(oid)
 		# THE SAME RULE THE GAME PLAYS. This loop has always honoured exclusive
@@ -591,6 +665,9 @@ func choose_jump(node: MapGen.MapNode) -> int:
 	# Routing on links made the simulator play a narrower game than the one that
 	# ships, and it showed: the policy running out of charted options was being
 	# counted as the run ending, and 46% of those ships could still fly.
+	limited = false
+	if human:
+		return _human_jump(node)
 	var options: Array[int] = []
 	for n in Run.in_range_of(node):
 		if Run.can_jump_to(n):
@@ -616,7 +693,7 @@ func choose_jump(node: MapGen.MapNode) -> int:
 	# SCALED TO THE TANK, not a flat 45. That number meant "fuel to spare" when
 	# a run started with 150; at 279 it is true almost always and the gate never
 	# closes. Three tenths reproduces the old proportion.
-	var tank := Run.FUEL_PER_RING_STEP * float(MapGen.LAYERS - 2)
+	var tank := float(Run.start_fuel())
 	var can_wander := float(Run.fuel) > tank * 0.3
 	# AND THE RING HAS TO HAVE SOMETHING LEFT. `not healthy` used to force a
 	# lateral hop, which meant a damaged ship could not descend at all -- it
@@ -659,3 +736,65 @@ func choose_jump(node: MapGen.MapNode) -> int:
 			return Rng.pick(pilot, doors)
 		return Rng.pick(pilot, sideways)
 	return Rng.pick(pilot, options)
+
+
+## The human pilot's jump: score every star it can SEE and REACH, fuel aside,
+## and fly the best one it can afford. When the best is not affordable that is
+## a jump fuel limited, and `limited` says so.
+func _human_jump(node: MapGen.MapNode) -> int:
+	var best := -1
+	var best_s := -INF
+	var best_ok := -1
+	var best_ok_s := -INF
+	for raw in Run.in_range_of(node):
+		var t: MapGen.MapNode = raw
+		if not t.sensed:
+			continue
+		var s := human_score(node, t)
+		if s > best_s:
+			best_s = s
+			best = t.index
+		if Run.fuel >= Run.fuel_cost_to(t) and s > best_ok_s:
+			best_ok_s = s
+			best_ok = t.index
+	if best_ok < 0:
+		return -1
+	limited = best != best_ok
+	var tn: MapGen.MapNode = Run.map[best_ok]
+	if tn.layer == node.layer and not tn.cleared:
+		_farmed[node.layer] = int(_farmed.get(node.layer, 0)) + 1
+	return best_ok
+
+
+## How much a person wants to fly to `t` from `here`. Depth first; somewhere
+## new over somewhere seen; a dock when hurt or low; a little for the price.
+## The noise is the pilot's own stream, so two equal stars split by taste and
+## the run still replays from its seed.
+func human_score(here: MapGen.MapNode, t: MapGen.MapNode) -> float:
+	if t.type == MapGen.NodeType.CORE:
+		return 1000.0
+	var s := 0.0
+	var dl := t.layer - here.layer
+	# The first ring in is the point; more than one at a hop is worth a little,
+	# because each ring in is a step up in danger a person feels.
+	if dl > 0:
+		s += 10.0 - 1.0 * float(maxi(0, t.danger - here.danger))
+	elif dl < 0:
+		s -= 15.0 * float(-dl)
+	if t.visited:
+		s -= 8.0
+	elif not t.cleared:
+		s += 6.0
+	var healthy := Run.hp > Run.max_hp() * 0.6
+	# A look round the ring while it is worth it: three hops, as the farmer.
+	if dl == 0 and not t.visited and healthy 			and int(_farmed.get(here.layer, 0)) < FARM_LIMIT:
+		s += HUMAN_LOOK_ROUND
+	if t.type == MapGen.NodeType.STATION:
+		var low := Run.fuel < human_fuel_want(here) / 2
+		s += 14.0 if (not healthy or low) else 3.0
+	if t.type == MapGen.NodeType.PULSAR and not t.cleared and healthy:
+		s += 4.0
+	if not healthy:
+		s -= 0.8 * float(t.danger)
+	s -= 0.6 * float(Run.fuel_cost_to(t))
+	return s + pilot.randf() * 6.0

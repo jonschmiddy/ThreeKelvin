@@ -1424,6 +1424,21 @@ func _victory() -> void:
 	var bits: PackedStringArray = [wreck_line(credits, parts, exotic, enemies.size(), empty)]
 	if new_dross > 0:
 		bits.append("%d Dross" % new_dross)
+	# TUNING C ONLY: a hull's tanks, siphoned as it dies. Straight into yours
+	# rather than into the wreck, because fuel is not a thing a hold carries.
+	# Positional, by the wreck's place among the system's, so every seat in a
+	# party rolls the same. See RunState.fuel_tuning.
+	if Run.fuel_tuning == &"C":
+		var siphoned := 0
+		for i in enemies.size():
+			if enemies[i].template.fauna:
+				continue
+			var fr := Rng.derive(&"wreckfuel", node.index * 64 + wrecks_before + i)
+			if fr.randf() < Run.FUEL_C_WRECK_CHANCE:
+				siphoned += fr.randi_range(Run.FUEL_C_WRECK_MIN, Run.FUEL_C_WRECK_MAX)
+		if siphoned > 0:
+			Run.fuel += siphoned
+			bits.append("%d fuel siphoned" % siphoned)
 	# What was aboard the thing you just killed. Not part of the bag and not
 	# claimed: knowledge is the one thing here nobody has to race for, so in a
 	# party every ship in the fight reads the same page. See Archive.

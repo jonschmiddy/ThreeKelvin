@@ -1649,7 +1649,8 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 	var eight := mini(8, maxi(1, missing))
 	var eight_cost := Market.repair_price(n, eight)
 	var full_cost := Market.repair_price(n, missing)
-	var refuel_cost := Market.refuel_price(n)
+	var refuel := Run.refuel_offer(n)
+	var refuel_cost := int(refuel.cost)
 	var dross_n := Run.dross_count()
 	var purge_cost := Market.purge_price(n)
 	var offers: Array = [
@@ -1657,7 +1658,7 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 			"tip": "%.1f credits a point here. Repairs cost more on the frontier than in a capital." % Market.repair_rate(n)},
 		{"label": "REPAIR +%d" % missing, "cost": full_cost, "done": "" if missing > 0 else "HULL FULL",
 			"tip": "Repairs the whole hull at once."},
-		{"label": "REFUEL +%d" % Market.REFUEL_UNITS, "cost": refuel_cost, "done": "",
+		{"label": "REFUEL +%d" % maxi(1, int(refuel.units)), "cost": refuel_cost, "done": Run.refuel_blocked(n),
 			"tip": "Fills the tank. Each jump costs fuel (see the starchart's reach ring)."},
 		{"label": "FAULTS %d" % dross_n, "cost": purge_cost, "done": "" if dross_n > 0 else "NO FAULTS",
 			"tip": "Choose which one comes out. Each costs the same and clears exactly one."},
@@ -2096,11 +2097,12 @@ func _on_yard_service(i: int) -> void:
 			_repair(amount)
 			_scene.served(i, "+%d HULL" % amount)
 		2:
-			if Run.credits < Market.refuel_price(n):
+			var offer := Run.refuel_offer(n)
+			if Run.credits < int(offer.cost) or Run.refuel_blocked(n) != "":
 				return
 			_scene.serving(2)
 			_refuel()
-			_scene.served(2, "+%d FUEL" % Market.REFUEL_UNITS)
+			_scene.served(2, "+%d FUEL" % int(offer.units))
 		3:
 			# THE FAULTS DRONE OPENS THE PICKER, as the fault post did: which one
 			# comes out is the decision, and a card is the only way to see it.
@@ -2126,15 +2128,10 @@ func _repair(amount: int) -> void:
 	Run.log_line("Repaired %d hull for %d credits." % [healed, cost], &"good")
 
 func _refuel() -> void:
-	var cost := Market.refuel_price(Run.node_at())
-	if Run.credits < cost:
-		return
-	Run.add_credits(-cost)
-	# No emit. `fuel` has a setter now — see RunState. This line was the third
-	# copy of the write-then-remember-to-emit shape that three of today's bugs
-	# came out of.
-	Run.fuel += Market.REFUEL_UNITS
-	Run.log_line("Refuelled.", &"good")
+	# Through Run, so the fuel tuning's top and stock are one rule. No emit:
+	# `fuel` has a setter -- see RunState.
+	if Run.buy_refuel(Run.node_at()):
+		Run.log_line("Refuelled.", &"good")
 
 ## One malfunction, named, and only one. `clear_dross` removes a single entry,
 ## so paying once to clear three copies of the same thing is not a thing that
