@@ -449,6 +449,27 @@ else
 	bad "goaltest did not finish"
 fi
 
+step "A.S.H. speaks at her moments, within her limits, and never over anything"
+# The ship's AI (Jon and Ashlee, Oct 17; docs/ash.md). Her thirty approved
+# lines, character for character against docs/ash_lines.json; each moment fires
+# its own (launch, a new hull, the hull failing, over the heat cap, a big haul,
+# one more wreck, doubt); the quiet after a line, one line a fight, never during
+# a drag or the enemy's turn; nothing after the ship is lost; hints win; her face
+# 8 to 12 changes a second while she talks; and the box test on 65 screens, LOCAL
+# and fights of one to three ships in every weight, against the HUD, the goal
+# line, the hand, both ships and their words, plates, ovals and numbers.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot ashtest 600 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=AshTest; then
+	if grep -qE '^ashtest: PASS' "$LOG_DIR/ashtest.log"; then
+		ok "A.S.H. at her moments, within her limits, clear of everything"
+	else
+		bad "A.S.H. spoke out of turn, or over something"
+		grep -E 'FAIL|^ashtest' "$LOG_DIR/ashtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "ashtest did not finish"
+fi
+
 step "The sector map's worlds keep up with a pan"
 # Each world's picture sits on its place (its ring, label and beacons) on every
 # frame of a pan; an ease that chased the place left it trailing by frames.
