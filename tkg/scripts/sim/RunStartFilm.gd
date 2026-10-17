@@ -11,7 +11,6 @@ extends Node
 ## A manufacturer past Korvan is locked until a win with the one before it
 ## (`Unlocks`), so the harness's own scratch flight record (never the player's)
 ## is given that win first: this is the hull pick of a player who has earned it.
-## That player has seen the first-run intro, so it is not played.
 ## Every wait is in game seconds (`_process`), never the wall clock: the movie
 ## writer runs the clock at its own rate. Prints `mark <name> <frame>`.
 
@@ -66,7 +65,6 @@ func _run() -> void:
 		f.store_string(JSON.stringify({"version": RunHistory.VERSION, "runs": [
 			{"outcome": int(RunHistory.Outcome.WON), "chassis_manufacturer": String(need)}]}))
 		f.close()
-	FirstRunIntro.mark_seen(true)
 	Rng.forced = int(_arg("seed", "4242"))
 	Run.start_new_run(&"korvan", int(wt))
 	Router.show_chassis_select()
