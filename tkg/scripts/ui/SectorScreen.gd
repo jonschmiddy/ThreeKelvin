@@ -2042,7 +2042,7 @@ func _refresh_player() -> void:
 	Widgets.clear(_player_chips)
 	if combat.brace > 0:
 		_player_chips.add_child(StatusChip.make(&"brace", str(combat.brace),
-			Color("#3a5a6e"), "BRACE\n\nMitigates %d damage, then goes away." % combat.brace))
+			Color("#3a5a6e"), "BRACE\n\nStops %d damage. Stays up, and costs 1 heat a turn." % combat.brace))
 	if combat.block > 0:
 		_player_chips.add_child(StatusChip.make(&"block", str(combat.block),
 			Color("#3a4a6e"), "BLOCK\n\nStops %d damage this turn." % combat.block))

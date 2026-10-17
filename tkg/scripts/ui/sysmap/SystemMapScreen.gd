@@ -1030,7 +1030,7 @@ func go_event(i: int) -> void:
 	_go_then(body, func() -> void: _zoom_down(i))
 
 
-## DOWN THE ZOOM LADDER (the one the first-run intro climbs): onto the ship, then
+## DOWN THE ZOOM LADDER (the one the first-run tour used to climb): onto the ship, then
 ## LOCAL. Reduced motion cuts.
 const ZOOM_DOWN_S := 0.7
 func _zoom_down(i: int) -> void:

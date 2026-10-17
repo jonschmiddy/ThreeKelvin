@@ -373,11 +373,11 @@ func show_chassis_select() -> void:
 	_swap(s)
 	s.setup()
 	# A NEW RUN OPENS ON LOCAL, your ship side on (Jon: "when you start the game,
-	# you start in the local view"); the sector map is a tab away
-	s.launched.connect(func() -> void:
-		show_local()
-		# AND THE FIRST TIME, THE TOUR: LOCAL, SECTOR, STARCHART (`FirstRunIntro`)
-		FirstRunIntro.maybe_start())
+	# you start in the local view"); the sector map is a tab away.
+	# NO TOUR (tutorial direction B, Oct 17): the controls are yours the moment
+	# the ship stops. What to do next is the goal line under the HUD (`GoalLine`),
+	# and each thing is taught by a hint the first time it matters (`Hints`).
+	s.launched.connect(func() -> void: show_local())
 
 ## Resume the suspend save. Falls back to the launcher rather than to a new run:
 ## a player who pressed CONTINUE did not ask to start over, and silently rolling
