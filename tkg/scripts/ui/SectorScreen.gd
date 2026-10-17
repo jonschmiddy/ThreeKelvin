@@ -2969,6 +2969,65 @@ func ladder_cam_end() -> void:
 	ladder_hide_hull(false)
 
 
+# ------------------------------------------------------------ the calm move
+## THE CALM MOVE (`ZoomLadder`, Jon's pick A, Oct 17: "one motion everywhere").
+## LOCAL's camera is placed by two numbers: where your ship is on screen and how
+## big the scene is drawn against rest. The ladder walks your ship along one
+## straight line between where it rests here and where it rests on the next
+## view; nothing else on LOCAL moves on its own account.
+
+## The camera taken: the scene's places at rest kept, to put back exactly.
+func calm_begin() -> void:
+	if not ladder_ready():
+		return
+	ladder_cam_end()
+	var fixed := _ladder_ship()
+	var scenes: Array = []
+	for c: Control in [LocalSubject.of(_view), _face, _view._row, _face_front, _view.dust, _view.fx]:
+		if c != null and is_instance_valid(c):
+			scenes.append([c, c.scale, c.offset_left, c.offset_top, c.offset_right, c.offset_bottom, c.size,
+				c.get_global_transform().affine_inverse() * fixed, c.get_global_transform().affine_inverse()])
+	var sky: LocalSky = _view.backdrop
+	_lad = {"fixed": fixed, "to1": fixed, "zs1": 1.0, "scenes": scenes, "smooth": true, "ship": {},
+		"sky_fixed": _sky_pt(sky, fixed) if sky != null else Vector2.ZERO,
+		"bar": _quiet_holder.modulate.a if _quiet_holder != null else 1.0, "x0": position.x, "calm": true}
+
+
+## Where your ship sits on screen at rest (the calm move's end on this view).
+func calm_rest() -> Vector2:
+	if _lad.has("calm"):
+		return _lad.fixed
+	return _ladder_ship()
+
+
+## Where your ship is drawn now.
+func calm_ship() -> Vector2:
+	return _ladder_ship()
+
+
+## The camera with your ship at `p` on screen and the scene `s` times its size
+## at rest (fractions of a pixel: smooth, not stepped).
+func calm_at(p: Vector2, s: float) -> void:
+	if not _lad.has("calm"):
+		return
+	_lad_zs = s
+	for w: Array in _lad.scenes:
+		var sc: Control = w[0]
+		if not is_instance_valid(sc):
+			continue
+		sc.scale = (w[1] as Vector2) * s
+		var to := (sc.get_parent() as CanvasItem).get_global_transform().affine_inverse() * p
+		sc.position = to - (w[7] as Vector2) * sc.scale
+		sc.size = w[6]
+	var sky: LocalSky = _view.backdrop
+	if sky != null and is_instance_valid(sky):
+		sky.set_zoom(s, _lad.sky_fixed, _sky_pt(sky, p))
+
+
+func calm_end() -> void:
+	ladder_cam_end()
+
+
 ## THE MAP'S WORLD, TAKEN (2C): into the sky's near picture in place of its own,
 ## at the map's size and place; moved and eased by `ladder_cam` from here on.
 func ladder_take_world(g: Dictionary) -> bool:

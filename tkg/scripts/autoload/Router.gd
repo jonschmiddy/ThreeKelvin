@@ -531,7 +531,14 @@ func show_system() -> void:
 		_swap(pre)
 		return
 	var s := SystemMapScreen.new()
+	# A JUMP'S ARRIVAL IS NOT A MOVE BETWEEN DISTANCES: the departure's LOCAL is
+	# another system. Taken as one, the zoom out of it carried the old system's
+	# planet and station into the new system's map for half a second as its name
+	# decoded beside them (nav audit, Oct 17). The map plays its own arrival.
+	if arrived:
+		ZoomLadder.hold_off = true
 	_swap(s)
+	ZoomLadder.hold_off = false
 	s.show_system(Run.node_at(), 0.0, arrived)
 
 

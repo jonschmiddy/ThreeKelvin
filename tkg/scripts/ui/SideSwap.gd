@@ -77,6 +77,13 @@ var across := false
 ## band's ground, never the scene under it (`SideBand`)
 var banded := false
 var _decode_end := 0.0
+## THE CALM MOVE (`ZoomLadder`): held at its first frame -- the old panel, whole
+## -- while the camera moves, and let go once it has landed; and E's whole
+## length set by the move (`ZoomLadder.CALM_DECODE_S`) rather than its own
+var frozen := false
+var target_s := -1.0
+## (a calm move hurried by a press: the decode hurries with it)
+var rate := 1.0
 
 ## EVERY SWAP STILL DRAWING, the ladder's and any it handed on when it ended
 ## before the decode did (`ZoomLadder._end`): finished at once by the next
@@ -222,7 +229,8 @@ func _lay() -> void:
 	_mat.set_shader_parameter(&"cold", Vector3(UITheme.COLD.r, UITheme.COLD.g, UITheme.COLD.b))
 	_mat.set_shader_parameter(&"chill", Vector3(UITheme.CHILL.r, UITheme.CHILL.g, UITheme.CHILL.b))
 	_push()
-	visible = true
+	# (held unseen while frozen: what stood there is drawn over it by the ladder)
+	visible = not frozen
 	laid.emit(_rect)
 	# (on a band already open (`SideBand`) there is nothing to cross from: the
 	# looks without letters put the toolbar straight up on it, this frame)
@@ -281,12 +289,18 @@ func _content() -> void:
 				group[i] = g
 				end = maxf(end, rr.end.x) if across else at
 			var target := maxf(E_TARGET, _rem + 0.3)
+			var row_s := E_ROW
 			var st := clampf((target - E_ROW) / float(maxi(g, 1)), E_STAGGER.x, E_STAGGER.y)
-			_total = E_ROW
+			if target_s > 0.0:
+				# (the calm move's: the whole decode in `target_s`, a line half of it)
+				target = target_s
+				row_s = minf(E_ROW, target * 0.5)
+				st = (target - row_s) / float(maxi(g, 1))
+			_total = row_s
 			for i in rows.size():
 				var t0 := st * int(group[i])
-				rows[i] = [rows[i][0], rows[i][1], t0, t0 + E_ROW, rows[i][4], rows[i][5], rows[i][6]]
-				_total = maxf(_total, t0 + E_ROW)
+				rows[i] = [rows[i][0], rows[i][1], t0, t0 + row_s, rows[i][4], rows[i][5], rows[i][6]]
+				_total = maxf(_total, t0 + row_s)
 			# WHAT DOES NOT CHANGE DOES NOT DECODE (LOCAL's band and the map's
 			# both read DANGER 1/10): a word the old side had, the same, in the
 			# same place, is resolved from the start; and the pips after a
@@ -379,7 +393,9 @@ func _process(delta: float) -> void:
 		var now := rows_of(new_side, _new_rect)
 		if str(now.map(func(r: Array) -> Rect2: return r[0])) != _sig:
 			_content()
-	t += ZoomLadder.fixed_dt if ZoomLadder.fixed_dt > 0.0 else minf(delta, 1.0 / 30.0)
+	if not frozen:
+		visible = true
+		t += (ZoomLadder.fixed_dt if ZoomLadder.fixed_dt > 0.0 else minf(delta, 1.0 / 30.0)) * rate
 	# (where there was no side bar, the crossfade, the slide, the cascade and
 	# the line keep at least level with the held picture going from over them,
 	# so the rect is never the bare ground between the two)

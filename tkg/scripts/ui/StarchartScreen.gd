@@ -1382,6 +1382,32 @@ func ladder_cam_end() -> void:
 		_chart.ladder_end()
 
 
+## THE CALM MOVE (`ZoomLadder`): your star is your ship out here.
+func calm_begin() -> void:
+	if ladder_ready():
+		_chart.calm_begin()
+
+
+func calm_ship() -> Vector2:
+	return _chart.calm_star() if ladder_ready() else get_global_rect().get_center()
+
+
+func calm_rest() -> Vector2:
+	if _chart != null and _chart._lad.has("rest"):
+		return _chart._lad.rest
+	return calm_ship()
+
+
+func calm_at(p: Vector2, s: float) -> void:
+	if _chart != null:
+		_chart.calm_at(p, s)
+
+
+func calm_end() -> void:
+	if _chart != null:
+		_chart.calm_end()
+
+
 func _on_jump() -> void:
 	if _selected >= 0:
 		# `begin_jump`, not `jump_to`: it hands the sector a departure to play
@@ -2902,6 +2928,38 @@ class MapChart extends Control:
 		if ladder_hush:
 			ladder_hush = false
 			queue_redraw()
+
+	## THE CALM MOVE (`ZoomLadder`, Jon's pick A): the camera placed by where
+	## your star is on screen and how far in it is against rest.
+	func calm_begin() -> void:
+		if _glide != null and _glide.is_valid():
+			_glide.kill()
+		_lad = {"calm": true, "z0": zoom, "p0": pan, "s0": sky_pan}
+		_lad["rest"] = calm_star()
+
+	func calm_star() -> Vector2:
+		if Run.map.is_empty():
+			return global_position + size * 0.5
+		return global_position + _screen_pos(Run.node_at())
+
+	func calm_at(p: Vector2, s: float) -> void:
+		if not _lad.has("calm"):
+			return
+		var z0: float = _lad.z0
+		zoom = z0 * s
+		pan = _lad.p0
+		pan += p - calm_star()
+		var c0 := size * 0.5
+		sky_pan = c0 - (c0 - (_lad.s0 as Vector2)) * pow(zoom / maxf(z0, 0.0001), SKY_ZOOM_POWER) + (pan - (_lad.p0 as Vector2))
+		_repaint_galaxy()
+
+	func calm_end() -> void:
+		if _lad.has("calm"):
+			zoom = _lad.z0
+			pan = _lad.p0
+			sky_pan = _lad.s0
+			_repaint_galaxy()
+		ladder_end()
 
 	func _zoom_at(at: Vector2, factor: float) -> void:
 		var c0 := size * 0.5
