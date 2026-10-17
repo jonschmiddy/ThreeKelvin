@@ -7,7 +7,7 @@ extends Node
 ## 2.6 s after the last -- as the marks and the light on the plating (no
 ## sparks or vapour: those are drawn, not baked). Headless.
 ##   godot --headless --path . -- sheet=HullDamageSheet out=<png>
-##       [ships=cutter:0,hulk:0,marauder:2] [looks=0,1,2,3] [scale=1|0.5] [k=2]
+##       [ships=cutter:0,hulk:0,marauder:2] [looks=0,1,2,3,4] [scale=1|0.5] [k=2]
 ## One PNG a ship (`<out>_<ship>.png`), one row a look, today's first. `scale=0.5` uses the half sheets, as
 ## a pack of three draws them.
 
@@ -32,7 +32,7 @@ func _run() -> void:
 	await get_tree().process_frame
 	var out := _arg("out", "user://hull_damage_sheet.png")
 	var ships := _arg("ships", "cutter:0,hulk:0,marauder:2").split(",")
-	var looks := _arg("looks", "0,1,2,3").split(",")
+	var looks := _arg("looks", "0,1,2,3,4").split(",")
 	var half := float(_arg("scale", "1")) < 1.0
 	var zoom := int(_arg("k", "2"))
 	for s in ships:
@@ -101,7 +101,7 @@ func _row(pic: Image, look: int, scale: float) -> Image:
 		hx2._tone(pi0, 0.5)
 		print("debug: after tone %s" % hx2._col[pi0])
 		var pts := _arg("stamp").split(";")
-		var nk := 5 if look == 1 else 3
+		var nk: int = {1: 5, 4: 8}.get(look, 3)
 		var tiles: Array[Image] = []
 		for kk in nk:
 			for ps in pts:

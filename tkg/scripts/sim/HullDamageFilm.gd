@@ -8,7 +8,7 @@ extends Node
 ##
 ##   one ship, cropped at 2x (the window is the game at 2x):
 ##   godot --path . --resolution 1920x1080 --fixed-fps 30 -- sheet=HullDamageFilm
-##       id=<kind>[:<look>] hull=<today|A|B|C> crop=<dir> [boxtest=1]
+##       id=<kind>[:<look>] hull=<today|A|B|C|D> crop=<dir> [boxtest=1]
 ##   a pack of three and your ship, the whole window (with --write-movie):
 ##   godot --path . --resolution 1920x1080 --write-movie <dir>/f.png --fixed-fps 30
 ##       -- sheet=HullDamageFilm pack=<kind>[:<look>],<kind>[:<look>],<kind>[:<look>] hull=<...>
@@ -55,7 +55,7 @@ func _wait(s: float) -> void:
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	ShipHitFx.look = {"today": 0, "A": 1, "B": 2, "C": 3}.get(_arg("hull", "today"), 0)
+	ShipHitFx.look = {"today": 0, "A": 1, "B": 2, "C": 3, "D": 4}.get(_arg("hull", "today"), 0)
 	var pack := _arg("pack", "")
 	var specs := (pack if pack != "" else _arg("id", "cutter")).split(",")
 	var kinds: Array[StringName] = []

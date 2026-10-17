@@ -26,6 +26,14 @@ extends ShipHitFx
 ##      hinge, showing the ribs and stringers under it (lit and shadowed, never
 ##      empty); a small one cracks a plate along its panel lines. Under half
 ##      hull, each breach sputters vapour and throws sparks.
+##   D  ALL THREE, MIXED PER HIT (Jon: "What would battleworn + heat + stress
+##      and crack and peel look like together?"), as a creature's hits mix
+##      wounds, bruises and shed. Small hits lean to A's dents and scrapes and
+##      C's knocked panels, big ones to B's blooms and C's peels; every hit
+##      also gets B's bloom cooling to a scorch (smaller on a small hit), the
+##      mark that reads on a dark hull. Low hull brings B's glowing lines, C's
+##      breaches and A's split edges together, each held down (fewer lines, the
+##      newest three breaches and two splits) so it stays quieter than today's.
 ##
 ## THE SAME RULES AS EVERY MARK SINCE: on the hull's own pixels, never its
 ## outline (the silhouette never changes); every colour is one the sprite
@@ -43,9 +51,18 @@ const GLOW_HZ := 12.0
 const NAMES_A := ["DENT", "SOOT", "SCRAPE", "RIVETS", "SPLIT"]
 const NAMES_B := ["BLOOM", "SPLASH", "STRESS"]
 const NAMES_C := ["PEEL", "KNOCK", "SOOT"]
+const NAMES_D := ["DENT", "SCRAPE", "RIVETS", "SOOT", "BLOOM", "PEEL", "KNOCK", "SPLIT"]
+## D at most this many breaches sputtering and this many split edges, the
+## newest, so a wrecked hull does not turn into noise.
+const D_BREACHES := 3
+const D_SPLITS := 2
 
-## 1 A, 2 B, 3 C (`ShipHitFx.look`).
+## 1 A, 2 B, 3 C, 4 D (all three mixed per hit; `ShipHitFx.look`).
 var style := 1
+## Drawing a mark that belongs on the plate (a dent, a scrape, rivets, a knocked
+## panel, a split edge): it leaves alone the structure a peel has bared, so a
+## dent never sits inside a plate that is already peeled back.
+var _plate := false
 
 var _lum := PackedFloat32Array()
 var _seam := PackedByteArray()
@@ -303,6 +320,8 @@ func _shine(i: int, f: float) -> void:
 
 
 func _mark_px(i: int, c: Color) -> void:
+	if _plate and _what[i] == 2:
+		return
 	_put_px(i, Color(c.r, c.g, c.b, _orig[i].a))
 	if _what[i] == 0:
 		_what[i] = 1
@@ -363,6 +382,8 @@ func _pick(edge: bool, rad: float, near: Vector2 = Vector2.INF, around: Vector2 
 			score = -_screen(Vector2i(x, y)).distance_to(near) * 0.05 + 0.4 * lv + _rng.randf() * 0.4
 		else:
 			score = 0.35 * float(facing) * (float(x) - cx) / bw + 1.2 * lv + _rng.randf() * 0.6
+		if style == 4 and _what[i] == 2:
+			score -= 3.0
 		for m in _marks:
 			var dd := Vector2(x, y).distance_to(m.p)
 			var lim := float(m.r) * 0.85 + rad * _K() * 0.5
@@ -383,7 +404,7 @@ func hit(amount: int, hp_after: int, max_hp: int, kind: int = -1, near: Vector2 
 	_sc = SIZE * mark_scale
 	if kind < 0:
 		kind = _roll_x(frac)
-	var edge := kind == 4 and style == 1
+	var edge := (kind == 4 and style == 1) or (kind == 7 and style == 4)
 	var p := _pick(edge, 6.0, near)
 	_one(kind, p, frac, big)
 	rolled.append(_name(kind))
@@ -401,7 +422,7 @@ func hit(amount: int, hp_after: int, max_hp: int, kind: int = -1, near: Vector2 
 	var sp := _screen(p)
 	_bloom(p, (7.0 if big else 5.0) * mark_scale, 0.07, 0.95)
 	_sparks(sp, 16 if big else 8, 150.0 if big else 110.0, Vector2(float(facing) * 0.9, 0.0))
-	if style == 2 and _hp <= 0.6:
+	if (style == 2 or style == 4) and _hp <= 0.6:
 		_stress(p)
 	_gdirty = true
 	return kind
@@ -413,6 +434,8 @@ func _name(k: int) -> String:
 			return NAMES_A[k]
 		2:
 			return NAMES_B[k]
+		4:
+			return NAMES_D[k]
 	return NAMES_C[k]
 
 
@@ -426,6 +449,12 @@ func _roll_x(frac: float) -> int:
 				w[4] = 0.3
 		2:
 			w = [0.5, 0.3, 0.2] if small else [0.3, 0.3, 0.4]
+		4:
+			# small hits lean to A's dents and scrapes and C's knocked
+			# panels; big ones to B's blooms and C's peels
+			w = [0.28, 0.24, 0.1, 0.1, 0.1, 0.0, 0.18, 0.0] if small 				else [0.1, 0.05, 0.05, 0.05, 0.35, 0.3, 0.1, 0.0]
+			if _hp <= VENT_FROM and _count_vents(false) < D_SPLITS:
+				w[7] = 0.15
 		_:
 			w = [0.25, 0.45, 0.3] if small else [0.55, 0.35, 0.1]
 	var tot := 0.0
@@ -446,7 +475,17 @@ func _roll_extra() -> int:
 			return 1 if r < 0.45 else (0 if r < 0.75 else 2)
 		2:
 			return 0 if r < 0.6 else 1
+		4:
+			return 0 if r < 0.3 else (1 if r < 0.55 else (3 if r < 0.8 else 6))
 	return 2 if r < 0.4 else (1 if r < 0.75 else 0)
+
+
+func _count_vents(breach: bool) -> int:
+	var n := 0
+	for v in _vents2:
+		if bool(v.sparks) == breach:
+			n += 1
+	return n
 
 
 func _one(kind: int, p: Vector2i, frac: float, big: bool) -> void:
@@ -466,6 +505,31 @@ func _one(kind: int, p: Vector2i, frac: float, big: bool) -> void:
 				0: _peel(p, big)
 				1: _knock(p, big)
 				2: _soot(p, big)
+		4:
+			_mixed(kind, p, frac, big)
+
+
+## D: one of A's, B's or C's marks, and under every one of them B's bloom,
+## cooling to a scorch (smaller on a small hit): the one mark that reads on a
+## dark hull. A peel brings its own scorch; a bloom is B's whole hit.
+func _mixed(kind: int, p: Vector2i, frac: float, big: bool) -> void:
+	if kind == 4:
+		_heat(p, frac, big, _rng.randi_range(0, 2))
+		return
+	var rr := clampf(2.2 + 10.0 * frac, 2.4, 4.2) * _K()
+	_bloom(p, rr, 1.2 if big else 0.9, 0.95)
+	if kind != 5:
+		_blotch(p, rr * 0.7, rr * 0.55)
+	_plate = kind != 5 and kind != 3
+	match kind:
+		0: _dent(p, big)
+		1: _scrape(p, big)
+		2: _rivets(p, big)
+		3: _soot(p, big)
+		5: _peel(p, big)
+		6: _knock(p, big)
+		7: _split(p, big)
+	_plate = false
 
 
 # ------------------------------------------------------- A: battle-worn plating
@@ -763,7 +827,7 @@ func _stress(p: Vector2i) -> void:
 	var q := _near_seam(p, int(14.0 * maxf(0.5, mark_scale)))
 	if q.x < 0:
 		return
-	var budget := int((30.0 + 90.0 * clampf((0.6 - _hp) / 0.6, 0.0, 1.0)) * mark_scale)
+	var budget := int((30.0 + 90.0 * clampf((0.6 - _hp) / 0.6, 0.0, 1.0)) * mark_scale * (0.6 if style == 4 else 1.0))
 	var seen := {q: 0}
 	var queue: Array[Vector2i] = [q]
 	var head := 0
@@ -927,7 +991,7 @@ func _inner(i: int, f: float) -> void:
 func _knock(p: Vector2i, big: bool) -> void:
 	var k := _K()
 	var lim := Vector2i(int(8.0 * k), int(5.0 * k))
-	if not _ok(p.x, p.y) or _seam[p.y * _w + p.x] == 1:
+	if not _ok(p.x, p.y) or _seam[p.y * _w + p.x] == 1 or _what[p.y * _w + p.x] == 2:
 		_plate_crack(p, big)
 		return
 	var region := {p: true}
@@ -939,7 +1003,7 @@ func _knock(p: Vector2i, big: bool) -> void:
 		head += 1
 		for o in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
 			var nb: Vector2i = cur + o
-			if region.has(nb) or not _ok(nb.x, nb.y) or _seam[nb.y * _w + nb.x] == 1:
+			if region.has(nb) or not _ok(nb.x, nb.y) or _seam[nb.y * _w + nb.x] == 1 					or _what[nb.y * _w + nb.x] == 2:
 				continue
 			if absi(nb.x - p.x) > lim.x or absi(nb.y - p.y) > lim.y:
 				open = true
@@ -1134,7 +1198,7 @@ func _glow_once(step: int, gain: float) -> void:
 					continue
 				_heat_at(i, lvl * pow(1.0 - d, 1.3) * 1.15)
 	_blooms = keep
-	if style == 2 and _hp <= 0.6:
+	if (style == 2 or style == 4) and _hp <= 0.6:
 		for i2 in _lit_px:
 			var base: float = _lit[i2]
 			var pulse := 0.82 + 0.18 * sin(tq * 3.1 + float(i2 % 97) * 0.37)
@@ -1170,8 +1234,8 @@ func _process(_delta: float) -> void:
 func advance(delta: float) -> void:
 	t += delta
 	# B: a glowing line throws sparks now and then, faster the lower the hull
-	if style == 2 and _hp <= 0.6 and not _lit_px.is_empty() and t >= _next_spark:
-		_next_spark = t + _fx.randf_range(0.15, 0.5) * (1.6 if _hp > 0.3 else 1.0)
+	if (style == 2 or style == 4) and _hp <= 0.6 and not _lit_px.is_empty() and t >= _next_spark:
+		_next_spark = t + _fx.randf_range(0.15, 0.5) * (1.6 if _hp > 0.3 else 1.0) * (1.8 if style == 4 else 1.0)
 		var i: int = _lit_px[_fx.randi_range(0, _lit_px.size() - 1)]
 		var q := Vector2i(i % _w, i / _w)
 		var up := -1.0 if float(q.y) < float(_H.cy) else 1.0
@@ -1180,10 +1244,24 @@ func advance(delta: float) -> void:
 		moment.emit(&"spark", 0.12, 0.1)
 	# A's split seams and C's breaches, while the hull is low: vapour in
 	# sputters, and (C) sparks from what is torn open
-	var low := VENT_FROM if style == 1 else 0.5
-	for v in _vents2:
+	var splits := 0
+	var breaches := 0
+	for vi in range(_vents2.size() - 1, -1, -1):
+		var v: Dictionary = _vents2[vi]
 		var sp: Vector2 = v.p
 		var nv: Vector2 = v.n
+		# a split edge sputters from 60% hull, a breach from half
+		var low := 0.5 if bool(v.sparks) else VENT_FROM
+		# D: only the newest few go on sputtering
+		if style == 4:
+			if bool(v.sparks):
+				breaches += 1
+				if breaches > D_BREACHES:
+					continue
+			else:
+				splits += 1
+				if splits > D_SPLITS:
+					continue
 		if t < float(v.until):
 			if _fx.randf() < 0.6:
 				_puff(sp + nv, nv, 1)

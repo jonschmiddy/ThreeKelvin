@@ -2,7 +2,7 @@ extends Node
 
 ## THE HULL DAMAGE LOOKS KEEP THEIR RULES (Oct 17; `HullHitFx`, `ShipHitFx.look`).
 ##   godot --headless --path . -- sheet=HullDamageTest
-## Headless. For each look (A, B, C), on three ships' pictures (a light hull, a
+## Headless. For each look (A, B, C, and D, all three mixed), on three ships' pictures (a light hull, a
 ## dark one, a white one) from their full sheets and their half sheets, the nine
 ## hits of `HullDamageFilm` from full hull to 6, the clock stepped 1/60 s:
 ##   * NO HOLES: no blob of 4 or more pixels gone near black (under 9% light)
@@ -13,7 +13,9 @@ extends Node
 ##     darkest (burnt metal); every glowing pixel the heat ramp's, on the hull;
 ##   * the same seed, the same marks, pixel for pixel;
 ##   * a glow changes shape, while it glows, between 8 and 12 times a second;
-##   * the marks build up: more of the hull marked at 6 hull than at 60.
+##   * the marks build up: more of the hull marked at 6 hull than at 60;
+##   * D mixes: its hits roll A's, B's and C's kinds over the three ships, and it
+##     marks less of each hull than today's marks do for the same nine hits.
 ## Then the real fight: with a look picked, every ship's hits are `HullHitFx`
 ## (yours too), a shot through `Combat.damage_enemy` marks the enemy's picture,
 ## and the kill's wreck keeps the marks; the Custodian keeps today's; with no
@@ -112,14 +114,33 @@ func _run() -> void:
 	var ramp := {}
 	for c in ShipBreakup.HEAT_RAMP:
 		ramp[HullHitFx._key(c)] = true
-	for look in [1, 2, 3]:
+	var d_kinds := {}
+	for look in [1, 2, 3, 4]:
 		for spec in SHIPS:
 			for half in [false, true]:
 				var pic := _pic(spec, half)
 				var sc := 0.5 if half else 1.0
 				var hx := _make(pic, look, sc, 4242)
 				var r := _play(hx)
-				var tag := "%s %s %s" % ["ABC"[look - 1], spec, "half" if half else "full"]
+				var tag := "%s %s %s" % ["ABCD"[look - 1], spec, "half" if half else "full"]
+				if look == 4:
+					for kd in hx.rolled:
+						d_kinds[kd] = true
+					var today := ShipHitFx.new()
+					today.auto = false
+					today.mark_scale = sc
+					add_child(today)
+					today.setup(pic, pic.get_used_rect(), Vector2.ZERO, 4242, -1)
+					var hp2 := 100
+					for s2 in Film.SHOTS:
+						hp2 -= s2
+						today.hit(s2, hp2, 100)
+					var tm := 0
+					for i5 in today._w * today._h:
+						if today.marks().get_pixel(i5 % today._w, i5 / today._w).a > 0.0:
+							tm += 1
+					_ok("%s: quieter than today's (%d px marked, today %d)" % [tag, r.end, tm], r.end < tm)
+					today.queue_free()
 				# holes
 				var worst := _worst_blob(hx)
 				_ok("%s: no hole (largest near-black blob %d px)" % [tag, worst], worst < 4)
@@ -166,6 +187,12 @@ func _run() -> void:
 				hx.queue_free()
 				hx2.queue_free()
 				hx3.queue_free()
+	var fam := {"A": ["DENT", "SCRAPE", "RIVETS", "SPLIT"], "B": ["BLOOM"], "C": ["PEEL", "KNOCK"]}
+	for f in fam:
+		var any := false
+		for kd2 in fam[f]:
+			any = any or d_kinds.has(kd2)
+		_ok("D rolls %s's kinds (%s)" % [f, ", ".join(d_kinds.keys())], any)
 	await _fight()
 	_end()
 
@@ -204,7 +231,7 @@ func _worst_blob(hx: HullHitFx) -> int:
 
 func _fight() -> void:
 	h.seed_run(4242)
-	for look in [0, 2]:
+	for look in [0, 2, 4]:
 		ShipHitFx.look = look
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 		var idx := -1

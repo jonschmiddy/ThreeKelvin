@@ -53,15 +53,15 @@ const SOUND := {
 
 ## WHICH LOOK A SHIP'S HULL TAKES ITS HITS IN (Oct 17, for Jon's pick): 0 today's
 ## (this file), 1 A battle-worn plating, 2 B heat and stress, 3 C plates
-## cracking and peeling (`HullHitFx`). `HitLayers` reads it. `-- hull=A|B|C` on
-## the command line plays one.
+## cracking and peeling, 4 D all three mixed per hit (`HullHitFx`). `HitLayers`
+## reads it. `-- hull=A|B|C|D` on the command line plays one.
 static var look := _look_arg()
 
 
 static func _look_arg() -> int:
 	for a in OS.get_cmdline_user_args():
 		if (a as String).begins_with("hull="):
-			return {"A": 1, "B": 2, "C": 3}.get((a as String).substr(5).to_upper(), 0)
+			return {"A": 1, "B": 2, "C": 3, "D": 4}.get((a as String).substr(5).to_upper(), 0)
 	return 0
 
 const SOOT := Color(0.17, 0.12, 0.10)
