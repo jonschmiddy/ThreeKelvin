@@ -88,6 +88,10 @@ var choose_kind: StringName = &""
 
 var energy: int = 0
 var brace: int = 0
+## How many times this fight brace was carried over an end of turn, and charged
+## its heat for it. Read by the first-run hint that says what holding it costs
+## (`Hints`, `brace`): the moment it has happened, not a guess at it.
+var brace_held: int = 0
 var block: int = 0
 var lock_on: int = 0
 var feedback: int = 0
@@ -393,6 +397,7 @@ func end_turn() -> void:
 
 	if brace > 0:
 		Run.heat += 1
+		brace_held += 1
 		_log("+1 heat maintaining brace.", &"heat")
 
 	# NO END-OF-TURN SHED, and this is where it used to be. It was one point --

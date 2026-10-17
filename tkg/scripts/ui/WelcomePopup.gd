@@ -7,13 +7,14 @@ extends Control
 ## ONCE PER PROFILE on its own: the first time the title screen opens, and never
 ## again once it has been CLOSED (a player who quits with it still up sees it
 ## next time, since they never got past it). The seen flag sits beside the
-## first-run intro's, `[hints] welcome` in settings.cfg, through the intro's
-## own `store_path` -- so under a harness it is the per-process scratch file.
-## Never shown by itself under a harness unless asked (`-- welcome`), the intro's
-## rule, so no other harness meets it on the title screen.
+## hints', `[hints] welcome` in settings.cfg (`DisplaySettings.hints_path`) --
+## so under a harness it is the per-process scratch file. Never shown by itself
+## under a harness unless asked (`-- welcome`), so no other harness meets it on
+## the title screen.
 ##
-## It never touches the first-run intro: that plays after the hull pick, and this
-## covers the title until it is closed, so the two cannot be up together.
+## There is no opening tour after it any more (tutorial direction B, Oct 17):
+## the next thing after this note and the hull pick is the game, with the goal
+## line under the HUD (`GoalLine`).
 ##
 ## The title menu's MESSAGE FROM JON opens it again at any time. ITS BUTTON SAYS
 ## WHERE IT GOES (Jon): START YOUR JOURNEY the first time, when the next thing is
@@ -34,16 +35,16 @@ var button: Button
 
 static func seen() -> bool:
 	var cfg := ConfigFile.new()
-	if cfg.load(FirstRunIntro.store_path()) != OK:
+	if cfg.load(DisplaySettings.hints_path()) != OK:
 		return false
 	return bool(cfg.get_value(SECTION, KEY, false))
 
 
 static func mark_seen(v: bool = true) -> void:
 	var cfg := ConfigFile.new()
-	cfg.load(FirstRunIntro.store_path())
+	cfg.load(DisplaySettings.hints_path())
 	cfg.set_value(SECTION, KEY, v)
-	cfg.save(FirstRunIntro.store_path())
+	cfg.save(DisplaySettings.hints_path())
 
 
 ## Whether the title screen should open it by itself.

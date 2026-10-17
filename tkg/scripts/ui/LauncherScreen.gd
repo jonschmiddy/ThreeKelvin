@@ -437,8 +437,16 @@ func _line(text: String, colour: Color, size: int) -> Label:
 ##
 ## So this panel does both jobs. With a save it warns; without one it is simply
 ## where you decide whether this run is a fresh galaxy or a named one.
+##
+## NOT ON A FRESH PROFILE (tutorial direction B, Oct 17): no save and no run on
+## the flight record means a first launch, and asking somebody about seeds
+## before they know what a run is was one click spent on a question they could
+## not answer. Straight to the hull pick; the panel is there from the second run.
 func _confirm_new_run() -> void:
 	var save := SaveGame.summary()
+	if fresh_profile():
+		Router.new_run(0)
+		return
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 6)
 	col.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -469,6 +477,10 @@ func _confirm_new_run() -> void:
 	# field. Everything else here is one keystroke away either way.
 	if _seed_field != null:
 		_seed_field.grab_focus()
+
+## No run to abandon and none ever flown: a first launch.
+static func fresh_profile() -> bool:
+	return SaveGame.summary().is_empty() and RunHistory.load_all().is_empty()
 
 func _launch() -> void:
 	var n := _typed_seed()
