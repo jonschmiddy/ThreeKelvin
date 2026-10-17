@@ -91,6 +91,9 @@ const EDGE := 6.0
 
 ## On for a harness that drives her by hand (`-- sheet=AshTest`).
 var forced := false
+## For the harness that photographs the spots she was not given
+## (`-- sheet=AshShot mode=options`): stand here whatever is under it.
+var force_spot: StringName = &""
 ## Game seconds since launch (the process delta summed: `GameClock`'s clock).
 var now := 0.0
 ## Every line said since launch: {kind, line, at, spot, rect}.
@@ -588,6 +591,10 @@ func _spot(line: String) -> Dictionary:
 	var cur := Router.current
 	var v := view_rect(cur)
 	var avoid := avoid_rects(cur)
+	if force_spot != &"":
+		for s: Dictionary in survey_boxes(cur):
+			if s.name == force_spot:
+				return s
 	for s: Dictionary in spot_boxes(cur):
 		if clear(s.rect, avoid, v):
 			return s
