@@ -415,7 +415,11 @@ fi
 step "Each first-run hint shows once, where it belongs"
 # Hints watch the screens for their moment; each must fire once, sit clear of
 # what it points at, never come back, and come back after SHOW HINTS AGAIN.
-# Same exit-time leak allowance as stowtest.
+# Tutorial direction B (Oct 17): the ones a moment decides -- the intent after
+# the first card, END TURN with nothing playable, brace held over a turn, heat
+# risen, fuel short -- are held to not firing before it; the wreck's points at
+# a wreck a click opens, never an event's derelict; the ship's waits for an
+# idle LOCAL. Same exit-time leak allowance as stowtest.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot hinttest 300 --headless --path "$PROJECT" -- hinttest; then
 	if grep -qE '^hinttest: PASS' "$LOG_DIR/hinttest.log"; then
 		ok "hints show once, in place"
@@ -425,6 +429,24 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 else
 	bad "hinttest did not finish"
+fi
+
+step "The goal line: always the goal, the next step, never over anything"
+# Tutorial direction B (Oct 17): GOAL: REACH THE CORE under the HUD, and the
+# step while one is pending (open STARCHART and jump; click an event and GO),
+# through a new run on LOCAL, the chart, the map, an event's band and a fight:
+# box-tested against the HUD, the side bar, the toolbar row, the event band, the
+# hand and every hull and its words; done steps never come back; not pressable.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot goaltest 180 --headless --path "$PROJECT" -- sheet=GoalTest; then
+	if grep -qE '^goaltest: PASS' "$LOG_DIR/goaltest.log"; then
+		ok "the goal line says the goal and the next step, clear of everything"
+	else
+		bad "the goal line is wrong or covers something"
+		grep -E 'FAIL|^goaltest' "$LOG_DIR/goaltest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "goaltest did not finish"
 fi
 
 step "The sector map's worlds keep up with a pan"
@@ -643,12 +665,18 @@ step "Each place in a system keeps its own wrecks"
 # marks; a save keeps the place, and an older save's wrecks show everywhere.
 # Jon, Oct 15: what is left in a wreck you have opened is under SECTOR LOOT too,
 # from anywhere in the system, claimed as the wreck's own.
+# Jon, Oct 17: "fix destroyed ships from going on top of you when you edit your
+# ship after a fight" -- every door off LOCAL and back (the cutaway with a part
+# moved in it was the one) leaves the wrecks where they lay, off your hull; and
+# "destroyed ships still show up in other systems" -- a real jump draws none.
+# Fit means nothing overlaps: no wreck's words on the world you orbit, and no
+# wreck's picture on it while the pile is a fight's worth.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit|were leaked at exit' \
 	run_godot wrecksitetest 180 --headless --path "$PROJECT" -- sheet=WreckSiteTest; then
 	if grep -qE '^wrecksitetest: PASS' "$LOG_DIR/wrecksitetest.log"; then
-		ok "a world keeps its wrecks and the next one has none"
+		ok "a world keeps its wrecks, the next one and the next system have none, and they stay off your hull"
 	else
-		bad "a wreck shows at a place it did not die at"
+		bad "a wreck shows at a place it did not die at, or on your hull"
 		grep -E 'FAIL|^wrecksitetest' "$LOG_DIR/wrecksitetest.log" | head -n 12 | sed 's/^/        /'
 	fi
 else
@@ -724,10 +752,12 @@ fi
 step "Jon's welcome note: once per profile, and on the title menu"
 # Opens by itself on a fresh profile's title, word for word and inside the
 # screen; marked seen only when CLOSED; never again after; MESSAGE FROM JON
-# above QUIT opens it again; the first-run intro is never in its way. `welcome`
-# and `intro` let both run under the harness, in its own scratch settings.
+# above QUIT opens it again. Then a first launch (Oct 17): NEW RUN on a fresh
+# profile goes straight to the hull pick, no seed panel (it stays with a save),
+# and LAUNCH lands on LOCAL with no tour. `welcome` lets it run under the
+# harness, in its own scratch settings.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot welcometest 120 --headless --path "$PROJECT" -- sheet=WelcomeTest welcome intro; then
+	run_godot welcometest 120 --headless --path "$PROJECT" -- sheet=WelcomeTest welcome; then
 	if grep -qE '^welcometest: PASS' "$LOG_DIR/welcometest.log"; then
 		ok "the welcome note shows once and comes back from the menu"
 	else

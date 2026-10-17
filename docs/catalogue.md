@@ -132,10 +132,13 @@ Two defensive layers and one counter, and each has exactly one name:
 | **Brace** | after block | yes | 1 heat a turn to hold |
 | **Feedback** | hits back instead | yes | — |
 
-    Brace — Mitigates damage. Stays up between turns, and costs 1 heat a
+    Brace — Stops damage. Stays up between turns, and costs 1 heat a
             turn to hold.
-    Block — Mitigates damage before your brace does. Gone at the end of the
+    Block — Stops damage before your brace does. Gone at the end of the
             enemy's turn.
+
+("Mitigates" became "Stops" on Oct 17, in the keyword and on the chip alike: the
+chip had said brace "goes away", which it does not, and a new player reads "stops".)
 
 Both entries lead with **what they do**. The old Brace entry never said it
 mitigated anything — only how long it lasted and what it cost, which assumes the

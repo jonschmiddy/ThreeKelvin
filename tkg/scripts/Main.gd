@@ -1563,7 +1563,8 @@ func _input(event: InputEvent) -> void:
 	# tab is (Jon: "include local in the tabbable pages list"). SHIP is gone from
 	# the round with its tab: your ship opens from LOCAL or the Shipyard.
 	#
-	# Each `show_` refuses on its own terms -- `show_ship` during a fight, the
+	# Each `show_` refuses on its own terms -- the map and the chart during a
+	# fight (`Router.fight_up`: Tab there rebuilt the fight over itself), the
 	# chart with nothing to jump to -- so a refused step simply leaves you where
 	# you were rather than needing a guard here.
 	if Router.current is SectorScreen or Router.current is StationScreen:

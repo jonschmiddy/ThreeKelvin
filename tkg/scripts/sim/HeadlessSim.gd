@@ -14,11 +14,6 @@ extends RefCounted
 ## here would fail to compile.
 
 var runs := 200
-## Whether an ambush fields its whole pack (`-- sim packs`). Off by default: the
-## sim has always fought the lead ship alone, and the game's ambushes bring the
-## `Router._roll_foes` pack (two ships 22% of the time from danger 2, 45% in
-## lawless space), so with it on the sim sees the pack fights the game has.
-var packs := false
 ## `-- sim seed=N` gives run i the seed N+i, so a whole sweep is reproducible
 ## and any single run in it can be flown again by hand. Zero means roll fresh
 ## seeds, which is what a balance measurement wants.
@@ -124,8 +119,8 @@ var all_systems := 0
 
 ## WHAT A WON FIGHT PAYS, read out of the wrecks it left (Jon, Oct 13: "each ship
 ## you kill has a chance to get credits and modules and other parts"). Split by
-## how many hulls the fight had: always one unless `packs` lets an ambush field
-## its pack (option fights pick one ship; reinforcements are gone). The set
+## how many hulls the fight had: an ambush fields its whole pack, as the game
+## does, and an option's fight one ship (reinforcements are gone). The set
 ## pieces are counted in the totals and left out of
 ## the split, since they pay by their own rules. `fight_credits` is what fights
 ## put into wrecks (and, for the custodian, the ledger); `credits_taken` is what
@@ -184,7 +179,6 @@ func run_sim() -> void:
 	# back. It reported 0.2 kills a run before this was connected.
 	policy.fight_cb = _option_fight
 	hot = "hot" in OS.get_cmdline_user_args()
-	packs = "packs" in OS.get_cmdline_user_args()
 	# The control cell. Comparing `nohellbender` against the default on one build
 	# is what says what the roamer costs, without keeping a second checkout.
 	Run.hellbender_off = "nohellbender" in OS.get_cmdline_user_args()
@@ -315,6 +309,11 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 	policy.begin_run()
 	var guard := 0
 	var jumped_hot := false
+	# Whether the ship just ARRIVED here by a jump. The game rolls an ambush on
+	# arrival (`Router.resolve_current_node`, off `Sig.jumped`) and nowhere
+	# else, so the start system is not rolled until a jump comes back to it, and
+	# a jump `Run.jump_to` refused is no arrival at all.
+	var arrived := false
 	while not Run.won and not Run.dead and guard < 600:
 		guard += 1
 		var node: MapGen.MapNode = Run.node_at()
@@ -333,20 +332,24 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		# `_roll_foes`, and this picked ONE enemy off `Rng.foe` from a pool that
 		# always passed `false` for fauna. Two implementations, one of them
 		# measuring the other.
-		if not node.ambush_rolled and node.type != MapGen.NodeType.CORE:
+		#
+		# AND NOW FIELDED AS THE GAME FIELDS IT, which it was not until Oct 17:
+		# the sim fought the pack's lead alone, with `clears_node` true, so a
+		# won ambush consumed the system and the options it held were never
+		# taken; it rolled ambushes at stations, which never have fights
+		# (`Router.no_fights_at`), and on cleared systems, which `_roll_here`
+		# leaves alone; and it rolled one at the start system before any jump.
+		# Now: the gates of `Router._roll_ambush`, on arrival only, and the
+		# whole `Router.ambush_pack` with `clears_node` false, as
+		# `Router.resolve_current_node` opens it.
+		if arrived and not node.cleared and not node.ambush_rolled \
+				and node.type != MapGen.NodeType.CORE and not Router.no_fights_at(node):
 			node.ambush_rolled = true
 			if Rng.foe.randf() < Run.ambush_chance(node):
 				ambushes += 1
 				jumped_hot = true
-				var pack := Router._roll_foes(node)
-				# `packs` on the command line fields the whole pack, as
-				# `Router` does; without it the sim fights the lead alone, as
-				# it always has, so old baselines stay comparable.
-				var extras: Array = []
-				if packs:
-					for i in range(1, pack.size()):
-						extras.append(DB.enemies[pack[i]])
-				if not pack.is_empty() and not _fight(DB.enemies[pack[0]], true, extras):
+				var pack := Router.ambush_pack(node)
+				if not pack.is_empty() and not _fight(pack[0], false, pack.slice(1)):
 					break
 
 		# The hellbender holds this system. Same blockade the game enforces in
@@ -441,7 +444,9 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		# in step with the loop above.
 		var jf := Run.fuel
 		var jc := Run.credits
+		var jumps_before := Run.jumps
 		Run.jump_to(pick)
+		arrived = Run.jumps != jumps_before
 		# ARRIVING SOMEWHERE ALREADY STRIPPED is the only way the hellbender's
 		# appetite actually costs the player anything. A wreck it ate in a system
 		# nobody was ever going to fly to is a number, not a loss, and §9a's
@@ -491,19 +496,18 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 ## damage, vent before overheating, and never overheat unless it secures a kill.
 ## A fight an option opened, against whatever this system would field.
 ##
-## The pack comes from the same place the deleted FIGHT branch drew it: the
-## danger-scaled pool, fauna where the region is fauna. What is fought is a
-## property of WHERE YOU ARE, which is what made the node type redundant in the
-## first place -- the label was never carrying information the system did not
-## already have.
+## The ship is `Router.option_foe`, the one `Router.start_ambush` fields when an
+## option's outcome says "fight": one ship off `Rng.foe` from the danger's
+## ordinary pool. It was this file's own pick, with fauna where the region is
+## fauna -- and the game's never is, so in fauna space the sim fought whales
+## (no money, no parts) where the game fights ships.
 func _option_fight(n: MapGen.MapNode) -> bool:
-	var pool := DB.fight_pool(n.danger, n.region == MapGen.Region.FAUNA)
-	if pool.is_empty():
+	if DB.fight_pool(n.danger, false).is_empty():
 		return not Run.dead
 	# Not consuming, for the reason `Router.start_ambush` spells out: the option
 	# spends itself and the system is finished when nothing is left in it. A sim
 	# that cleared the node here would take fewer options than the game does.
-	return _fight(DB.enemies[Rng.pick(Rng.foe, pool)], false)
+	return _fight(Router.option_foe(n), false)
 
 
 func _fight(template: EnemyTemplate, clears_node: bool = true, extras: Array = []) -> bool:
@@ -513,6 +517,30 @@ func _fight(template: EnemyTemplate, clears_node: bool = true, extras: Array = [
 	var cr0 := Run.credits
 	cb.start(template, Run.node_at().danger, extras)
 	var hp_in := Run.hp
+	var turns := _play_out(cb)
+	fights_n += 1
+	fights_turns += turns
+	fights_hull += maxi(0, hp_in - Run.hp)
+	if Run.dead:
+		fights_lost += 1
+	# AND THEN YOU GO AND LOOK IN IT. A kill fills a container at the node now
+	# rather than putting parts in your hold, so a sim that does not reach into
+	# one is a sim whose pilot never picks anything up. See `Policy.loot`.
+	_tally(cb, wrecks0, cr0)
+	if not Run.dead:
+		_loot()
+	postfight_samples += 1
+	postfight_total += Run.signature()
+	if Run.signature() > Run.SIGNATURE_FLOOR:
+		postfight_hot += 1
+	return not Run.dead
+
+
+## The model's turns until the fight ends (or 60 turns), and how many it took.
+## Every fight the sim plays goes through here, the Hellbender's too: its own
+## copy of this loop never answered a pending pick, so a card that asked one
+## locked the rest of that turn, which no player is made to do.
+func _play_out(cb: Combat) -> int:
 	var turns := 0
 	while not cb.finished and turns < 60:
 		turns += 1
@@ -531,22 +559,7 @@ func _fight(template: EnemyTemplate, clears_node: bool = true, extras: Array = [
 				acted = true
 		if not cb.finished:
 			cb.end_turn()
-	fights_n += 1
-	fights_turns += turns
-	fights_hull += maxi(0, hp_in - Run.hp)
-	if Run.dead:
-		fights_lost += 1
-	# AND THEN YOU GO AND LOOK IN IT. A kill fills a container at the node now
-	# rather than putting parts in your hold, so a sim that does not reach into
-	# one is a sim whose pilot never picks anything up. See `Policy.loot`.
-	_tally(cb, wrecks0, cr0)
-	if not Run.dead:
-		_loot()
-	postfight_samples += 1
-	postfight_total += Run.signature()
-	if Run.signature() > Run.SIGNATURE_FLOOR:
-		postfight_hot += 1
-	return not Run.dead
+	return turns
 
 
 ## The pilot reaches into the system's containers, and what it took is counted.
@@ -627,18 +640,7 @@ func _fight_hellbender() -> bool:
 	cb.enemies[0].hp = clampi(Run.hellbender_hp, 1, cb.enemies[0].max_hp)
 	cb.enemies[0].pick_intent()
 	cb.begin(null)
-	var turns := 0
-	while not cb.finished and turns < 60:
-		turns += 1
-		var acted := true
-		while acted and not cb.finished:
-			acted = false
-			var best := policy.best_card(cb)
-			if best >= 0:
-				cb.play(best)
-				acted = true
-		if not cb.finished:
-			cb.end_turn()
+	_play_out(cb)
 	_tally(cb, wrecks0, cr0)
 	if not Run.dead:
 		_loot()

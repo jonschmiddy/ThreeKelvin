@@ -100,7 +100,9 @@ func aim(at: Rect2, avoid: Array) -> void:
 			best = clamped
 			best_side = s
 	side = best_side
-	position = best
+	# on whole pixels: a card centred on an odd-sized subject sat on a half one
+	# and its type blurred
+	position = best.round()
 	size = sz
 	_panel.position = Vector2.ZERO
 	_panel.size = sz
