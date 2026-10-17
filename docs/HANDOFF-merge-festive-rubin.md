@@ -12,16 +12,13 @@ Jon's merge rule still holds: **main only moves on a full gate pass**
 
 ## The state of the branch
 
-- 80 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
+- 82 commits on top of `a6976ef` ("Worker threads do pure CPU work only..."),
   which was `origin/main` when this was written. If `origin/main` has not
   moved since, this is a **fast-forward**.
-- Last full gate run in the cloud: **PASSED** on `9b2bb57` (one event per world
-  and the Hellbender's place). After it: the registry look (Jon picked A, tone
-  on tone, one ink), the hull templates, the new hull names, and the party
-  lines saying LIGHT / MEDIUM / HEAVY, Solari's colours, its three hull
-  sprites, their grades and lights. Those were checked with GradeSheet (all
-  three weights, Korvan's bakes pixel-identical), savetest, nettest and attrs,
-  and filmed on LOCAL, not the whole gate. **Run the
+- Last full gate run in the cloud: **PASSED** on `8556415` (Oct 17), after
+  every change on this branch (Solari's hulls, grades, lights, parts, cards
+  and art). The run before it failed only the retired-vocabulary check
+  ("maker"), fixed in that commit. **Run the
   gate yourself before merging, whatever this says.**
 - The cloud container was slow. Two tests were timing-sensitive there and
   were fixed (see "Gate changes"). On Jon's machine the gate should take less
@@ -338,8 +335,7 @@ or the generator draws the part small and thin.
 - **Solari is not wired into play yet:** hull sprite path by manufacturer,
   mounts, engines; and Solari is not in `ACTIVE_MANUFACTURERS`, so its parts
   do not drop.
-- **The full gate has not been run** since the hull-name commits. Run it before
-  merging.
+- **The full gate passed** on `8556415` (Oct 17). Run it again before merging.
 - PixelLab: about 2,850 generations left this cycle; it refills Oct 17.
 
 ## Pages Jon judged this on
