@@ -18,7 +18,7 @@ Jon's merge rule still holds: **main only moves on a full gate pass**
 - Last full gate run in the cloud: **PASSED** on `8556415` (Oct 17), after
   every change on this branch (Solari's hulls, grades, lights, parts, cards
   and art). The run before it failed only the retired-vocabulary check
-  ("maker"), fixed in that commit. **Run the
+  (one retired word in comments and this file), fixed in that commit. **Run the
   gate yourself before merging, whatever this says.**
 - The cloud container was slow. Two tests were timing-sensitive there and
   were fixed (see "Gate changes"). On Jon's machine the gate should take less
