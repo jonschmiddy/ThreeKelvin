@@ -440,7 +440,7 @@ func _screen_block(starting: bool = true) -> String:
 ## Why she must go now she is up; "" to stay.
 func _must_go(r: Rect2) -> String:
 	var why := _screen_block(false)
-	if why != "":
+	if why != "" or force_spot != &"":
 		return why
 	for a in avoid_rects(Router.current):
 		if (a as Rect2).size != Vector2.ZERO and r.intersects(a as Rect2):

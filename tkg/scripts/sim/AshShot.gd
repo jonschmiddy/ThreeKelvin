@@ -2,7 +2,7 @@ extends Node
 
 ## A.S.H. PHOTOGRAPHED where she is seen (`Ash`, `AshPortrait`). Needs a window.
 ##
-##   godot --path . --windowed --position 3840,0 -- sheet=AshShot out=<dir> mode=stills
+##   godot --path . --windowed --resolution 1920x1080 --position 3840,0 -- sheet=AshShot keepwindow out=<dir> mode=stills
 ##       LOCAL with her launch line up, and a fight of three with her heat line
 ##       up, each held once the line is all out: `<name>.png` the 1080p window as
 ##       the player sees it, `<name>_1x.png` the game's own 960x540.
@@ -109,6 +109,7 @@ func _speak(sc: SectorScreen, line: String = "") -> bool:
 	var kind := &"hot" if sc.fighting() else &"launch"
 	if sc.fighting():
 		Run.heat = Run.heat_cap() + 2
+		Sig.resources_changed.emit()
 	if line != "":
 		Ash._bags[kind] = [line]
 	Ash.arm(kind)

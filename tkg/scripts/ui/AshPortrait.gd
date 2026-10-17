@@ -213,7 +213,9 @@ func _moving() -> bool:
 func _layout() -> void:
 	var tx := 0.0 if mirrored else float(FACE + GAP)
 	_back.position = Vector2(tx, 0.0)
-	_back.size = Vector2(TEXT_W, H)
+	# the backing as tall as what it holds (the face keeps the frame's height)
+	var lh := float(UITheme.pixel_font().get_height(UITheme.FS_SMALL)) + float(SignalText.LINE_GAP)
+	_back.size = Vector2(TEXT_W, minf(H, roundf(PAD_Y + 12.0 + lh * float(lines_for(line)) + PAD_Y - 2.0)))
 	_name.position = Vector2(tx + PAD_X, PAD_Y - 1.0)
 	_name.size = Vector2(TEXT_W - PAD_X * 2, 10.0)
 	_text.position = Vector2(tx + PAD_X, PAD_Y + 12.0)
