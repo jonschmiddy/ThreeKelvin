@@ -308,7 +308,7 @@ func _round_trips() -> void:
 		if not h._ok("the cutaway opens on LOCAL (%s)" % what, cut != null):
 			Router.animate_in_harness = false
 			continue
-		await _until(func() -> bool: return cut.t >= 1.0, 3.0)
+		await _open_full(cut)
 		var held: Array = []
 		for sl in sc._view._made:
 			held.append((sl as EnemySlot).position)
@@ -327,7 +327,7 @@ func _round_trips() -> void:
 			still = still and (sc._view._made[i] as EnemySlot).position.distance_to(held[i]) <= 1.0
 		h._ok("  the wrecks hold their places in the zoomed scene", still)
 		cut.close()
-		await _until(func() -> bool: return not is_instance_valid(cut), 3.0)
+		await _gone(cut)
 		Router.animate_in_harness = false
 		await _clear_of_you("the cutaway: " + what, 2)
 
@@ -527,7 +527,17 @@ func _frames(k: int) -> void:
 		await get_tree().process_frame
 
 
-func _until(cond: Callable, secs: float) -> void:
+## Until the cutaway is fully open (3 s at most).
+func _open_full(cut: CutawayView) -> void:
 	var t0 := Time.get_ticks_msec()
-	while not bool(cond.call()) and Time.get_ticks_msec() - t0 < int(secs * 1000.0):
+	while is_instance_valid(cut) and cut.t < 1.0 and Time.get_ticks_msec() - t0 < 3000:
+		await get_tree().process_frame
+
+
+## Until the cutaway has shut and freed itself (3 s at most). A loop, not a
+## lambda: a lambda holding the cutaway is handed null once it is freed, and
+## the engine says so as an ERROR the gate counts.
+func _gone(cut: CutawayView) -> void:
+	var t0 := Time.get_ticks_msec()
+	while is_instance_valid(cut) and Time.get_ticks_msec() - t0 < 3000:
 		await get_tree().process_frame
