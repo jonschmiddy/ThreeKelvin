@@ -152,6 +152,10 @@ var fuel_spent_jumping := 0
 var fuel_from_stations := 0
 var fuel_from_elsewhere := 0
 var credits_at_stations := 0
+## Fights an event's outcome opened, and how many of them brought a creature,
+## by kind -- the number Jon's Oct 17 ruling moves.
+var option_fights := 0
+var option_creatures: Dictionary = {}
 
 ## Entry point. Reads `runs=N` from the user args after `--`, plays that many
 ## complete runs, and prints the report. The caller quits the tree.
@@ -501,13 +505,21 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 ## ordinary pool. It was this file's own pick, with fauna where the region is
 ## fauna -- and the game's never is, so in fauna space the sim fought whales
 ## (no money, no parts) where the game fights ships.
-func _option_fight(n: MapGen.MapNode) -> bool:
-	if DB.fight_pool(n.danger, false).is_empty():
+##
+## `foe` is the event's creature tag (`OptionTable.fight_foe`), as the screen
+## hands it to `Router.start_ambush`: a creature event's fight brings that
+## creature, everything else a ship.
+func _option_fight(n: MapGen.MapNode, foe: StringName = &"") -> bool:
+	if foe == &"" and DB.fight_pool(n.danger, false).is_empty():
 		return not Run.dead
 	# Not consuming, for the reason `Router.start_ambush` spells out: the option
 	# spends itself and the system is finished when nothing is left in it. A sim
 	# that cleared the node here would take fewer options than the game does.
-	return _fight(Router.option_foe(n), false)
+	var t := Router.option_foe(n, foe)
+	option_fights += 1
+	if t.fauna:
+		option_creatures[t.id] = int(option_creatures.get(t.id, 0)) + 1
+	return _fight(t, false)
 
 
 func _fight(template: EnemyTemplate, clears_node: bool = true, extras: Array = []) -> bool:
@@ -722,6 +734,12 @@ func _report() -> void:
 	print("ambushes %d (%.2f per run) · runs jumped at least once %d (%.1f%%)" % [
 		ambushes, float(ambushes) / maxi(1, runs), runs_ambushed,
 		100.0 * runs_ambushed / maxi(1, runs)])
+	var creatures := 0
+	for k in option_creatures:
+		creatures += int(option_creatures[k])
+	print("event fights %d (%.2f per run) · brought a creature %d (%.1f%%) %s" % [
+		option_fights, float(option_fights) / maxi(1, runs), creatures,
+		100.0 * creatures / maxi(1, option_fights), str(option_creatures)])
 	_report_economy()
 	_report_kinds()
 	print("---")

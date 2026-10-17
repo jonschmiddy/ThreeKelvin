@@ -269,6 +269,10 @@ func _gates_are_real() -> void:
 		# `&"star"` puts it on the giant or the star when the system has one),
 		# and how LOCAL draws the giant while it is open (`LocalSky`, `near`)
 		&"site": true, &"near": true,
+		# WHAT ITS FIGHT BRINGS: the creature its text set up (Jon, Oct 17),
+		# read by `OptionTable.fight_foe` -- not a gate; `-- sheet=FoeTagTest`
+		# holds it to the text and to the fight that opens
+		&"foe": true,
 	}
 	var bad: Array[String] = []
 	for o in OptionTable.all():

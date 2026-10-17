@@ -20,6 +20,8 @@ extends RefCounted
 ##   bill       `EncounterDrawer.bill_rows` from before the choice to after `pay`
 ##   dead       the ship died of it: show the game over
 ##   fight_now  a fight the player chose with nothing to read: start it, no panel
+##   foe        what that fight brings: the event's creature tag, or &"" for a
+##              ship (`OptionTable.fight_foe`); hand it to `Router.start_ambush`
 
 ## Whether an outcome handed over any of the things the result panel exists to
 ## show. The ledger covers credits, fuel, heat and hull; this covers the rest.
@@ -49,7 +51,8 @@ static func take(n: MapGen.MapNode, i: int, j: int) -> Dictionary:
 		return {"ok": false, "why": "credits"}
 	if c.has("needs_material") and Run.material(StringName(c.needs_material)) < 1:
 		return {"ok": false, "why": "material"}
-	var out := {"ok": true, "checked": c.has("check"), "stay": bool(c.get("stay", false))}
+	var out := {"ok": true, "checked": c.has("check"), "stay": bool(c.get("stay", false)),
+		"foe": OptionTable.fight_foe(opt, c)}
 	# ASK THE PARTY FIRST -- the same door the wreck path uses. An option two
 	# ships can race for is arbitrated through `Run.take_option` before
 	# anything is rolled or paid: assume you won and both players pocket the

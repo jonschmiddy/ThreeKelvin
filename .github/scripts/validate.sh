@@ -917,6 +917,24 @@ if run_godot optiontest 180 --headless --path "$PROJECT" -- optiontest; then
 	fi
 fi
 
+step "An event's fight brings what its text set up"
+# Jon, Oct 17: an event's fight may bring a creature, but only when the text
+# before it is about that creature. Every `foe` tag names a creature, sits on a
+# fauna-gated event that fights and whose body names it; no untagged fight
+# follows creature text; over 24 galaxies every event fight brings a creature
+# exactly when tagged, and a build that drops the tag or takes creatures from
+# the region is caught; the real LOCAL band opens the tagged creature.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot foetagtest 300 --headless --path "$PROJECT" -- sheet=FoeTagTest; then
+	if grep -qE '^foetagtest: PASS' "$LOG_DIR/foetagtest.log"; then
+		ok "$(grep -E 'fight choices asked' "$LOG_DIR/foetagtest.log" | head -n 1 | sed 's/^ *//')"
+	else
+		bad "an event's fight brought something its text did not set up"
+		grep -E 'FAIL|^foetagtest' "$LOG_DIR/foetagtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "foetagtest did not finish"
+fi
+
 step "Every system lays out its map with every option on a body"
 # SystemLayout is derived and never saved, so what it gets wrong is wrong
 # silently: an option with no body is an encounter nobody can click, an
