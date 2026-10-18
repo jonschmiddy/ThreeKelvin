@@ -1082,6 +1082,16 @@ float flowFbm(vec2 g, float scale, vec2 off, float blk, int oct) {
 }
 
 // ------------------------------------------------------------------ an elliptical's form
+// HOW BIG AND HOW BRIGHT A BALL IS PAINTED, against SIMPLIFIED's of the same galaxy
+// (Jon, Oct 18: "painted is TOO BRIGHT"): its size, of the showcase's, and the light
+// past which its heart is the bulge's cream and gold rather than the ball's salmon
+// and violet bands. Measured on PGC 6236's sky alone at the opening (`BallHaloTest`'s
+// shots): see `scene`, where they are used.
+const float BALL_SIZE_B = 0.62;
+const float BALL_HEART_B = 0.25;
+// and how far down its own bands the ball's light is painted: its top salmon step
+// only round the heart, the body in the mid steps
+const float BALL_DIM_B = 0.10;
 // A ROUND GALAXY PAINTED AS A LIT BALL, not as rings of flat bands (the way B
 // would hand-paint one): its bands pushed toward the light on the upper left
 // and away from it on the lower right, as a sphere's are, and its band edges
@@ -1101,7 +1111,7 @@ float ballForm(vec2 v, float k, float bs, float blk, bool lit) {
 		vec2 ebc = eb / 1.1 / max(re, 1.0);
 		float nz = sqrt(max(1.0 - dot(ebc, ebc), 0.0));
 		float shc = dot(vec3(ebc, nz), vec3(-0.5735, -0.6257, 0.5292));
-		return (0.5 * (shc - 0.5292) + 0.1 * lob - 0.22 * (1.0 - sqrt(nz)) + 0.12) * smoothstep(0.02, 0.12, re);
+		return (0.42 * (shc - 0.5292) + 0.1 * lob - 0.22 * (1.0 - sqrt(nz)) + 0.12) * smoothstep(0.02, 0.12, re);
 	}
 	return (0.2 * sh + 0.1 * lob) * smoothstep(1.25, 0.3, re) * smoothstep(0.02, 0.12, re);
 }
@@ -1286,7 +1296,10 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	float rho = solidB ? length(vec2(vb.x, vb.y * (KIT_TILT / u_solidW.y) / 1.08)) / k : length(vec2(vB.x, vB.y / u_g2.z)) / k;
 	rho *= 1.0 + 0.07 * fbmL(gB * 9.0 + 2.0, blkB * 9.0, 2);
 	// the ball: a broad warm glow and a small cusp, its size and brightness the kind's
-	float bs = u_g8.x / 0.30;
+	// (BALL_SIZE_B: Jon, Oct 18, "painted is TOO BRIGHT" -- at the size the showcase
+	// drew it the ball's lit bands filled 63% of the chart at its opening on PGC 6236
+	// and its cream heart 5.5%, against SIMPLIFIED's 17% and 0.2%)
+	float bs = u_g8.x / 0.30 * (ellip ? BALL_SIZE_B : 1.0);
 	float rb = rho / bs;
 	float Ib = ellip ? u_g8.y * (0.6 * pow(1.0 + sq(rb / 0.13), -1.2) * smoothstep(1.3, 0.75, rb) + 0.45 * exp(-sq(rb / 0.012))) * (1.0 + 0.16 * fbmL(gB * 26.0 + 3.0, blkB * 26.0, 4))
 		: u_g5.y * pow(1.0 + sq(rho / (u_g5.z * Rb)), -1.05) * exp(-sq(rho / (u_g5.w * Rb)));
@@ -1449,9 +1462,9 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			warmSide = wf > 0.5 + 0.38 * smoothstep(0.42, 0.2, lv0);
 		}
 		if (warmSide) {
-			int m = (ellip && Et < 0.06) ? M_BALL : M_BULGE;
+			int m = (ellip && Et < BALL_HEART_B) ? M_BALL : M_BULGE;
 			float ELw = max((Ew + 0.35 * (Ec + Ep)) / (1.0 + EwA * adaptW) + streams + dbt, 1e-5);
-			float lvb = (m == M_BALL) ? clamp((log2(ELw) + 7.4) / 3.6, 0.0, 0.83) : clamp(1.0 + log2(ELw) / 7.0, 0.0, 0.999);
+			float lvb = (m == M_BALL) ? clamp((log2(ELw) + 7.4) / 3.6 - BALL_DIM_B, 0.0, 0.83) : clamp(1.0 + log2(ELw) / 7.0, 0.0, 0.999);
 			if (ellip) {
 				lvb = clamp(lvb + ballForm(vB, k, bs, blkB, depthA), 0.0, m == M_BALL ? 0.83 : 0.999);
 			}

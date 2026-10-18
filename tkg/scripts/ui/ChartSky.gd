@@ -566,16 +566,19 @@ static func ball_of(kind: int, g: Dictionary) -> Vector4:
 ##   B (2) the structure real ones have: a dust lane across SOME of them (seeded
 ##     off the galaxy), faint shells of swallowed galaxies, a scatter of globular
 ##     clusters round it, lumpier star clouds in its body;
-##   C (3) A and B together.
-## `-- balllook=A|B|C` picks one (a harness's, in memory); `balllane=0|1` forces the
-## lane off or on, to show it. Read by SIMPLIFIED's `ellBall` and PAINTED's ball.
+##   C (3) A and B together -- THE GAME'S (Jon picked it, Oct 18: "Galaxy depth: look:C
+##     lane:both", the lane in SIMPLIFIED and PAINTED alike).
+## `-- balllook=0|A|B|C` draws another (a harness's, in memory: 0 is the ball before,
+## for a before and an after); `balllane=0|1` forces the lane off or on, to show it.
+## Read by SIMPLIFIED's `ellBall` and PAINTED's ball.
+const BALL_LOOK := 3
 static var ball_look := -1
 static var ball_lane_forced := -1
 
 
 static func ball_look_now() -> int:
 	if ball_look < 0:
-		ball_look = 0
+		ball_look = BALL_LOOK
 		for a in OS.get_cmdline_user_args():
 			var arg := a as String
 			if arg.begins_with("balllook="):

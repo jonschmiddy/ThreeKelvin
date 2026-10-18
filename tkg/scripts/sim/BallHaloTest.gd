@@ -35,7 +35,7 @@ extends Node
 ## LEGACY is left out of the default styles: it draws a ball mostly in the
 ## disc's plane on purpose (`ChartLegacy.params`, "why does this galaxy not
 ## look edge on?", Jon), so it is a disc here too; `styles=legacy` measures it.
-## `balllook=A|B|C` measures one of a ball's depth looks (`ChartSky.ball_depth`):
+## A ball's depth (`ChartSky.ball_depth`): the game's look C unless `balllook=0|A|B`:
 ## lit as a ball it is brighter on its upper left, but it must still END as far out
 ## on its shaded side as on its lit one, so every look passes this as today's does.
 ## Needs a window (it reads the drawn sky).
