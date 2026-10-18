@@ -212,6 +212,11 @@ func run() -> void:
 	#
 	# Pointer at the centre of cell (2,1) is (100, 60) at a 40px cell. A 3x1
 	# centred there starts at x=40, which is column 1.
+	# --- an inspection of a hold with a material in it -------------------------
+	# contraband_count read `contraband` off every cargo item; a material has none
+	Run.cargo.clear()
+	Run.cargo.append(MaterialData.new())
+	_ok("a hold with a material counts no contraband, and does not crash", Run.contraband_count() == 0)
 	Run.cargo.clear()
 	var grid := HoldGrid.new()
 	grid.refresh()

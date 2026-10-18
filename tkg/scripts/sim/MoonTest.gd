@@ -131,8 +131,10 @@ func _run() -> void:
 				bad.append("seed %d system %d body %d: no LOCAL" % [seed, e[0], e[1]])
 				continue
 			var station: bool = e[2]
-			if station and sky.life.keep_out(true).size() < 3:
-				bad.append("seed %d system %d: a station system with no station side on LOCAL" % [seed, e[0]])
+			# (the station's side is drawn only AT the station, whose place has no
+			# world and no moons: at a world of its system there is none -- dock:A)
+			if station and sky.life.keep_out(true).size() > 1:
+				bad.append("seed %d system %d: the station's side drawn at a world of its system" % [seed, e[0]])
 			var a := sky.life.audit(600.0)
 			n_worlds += 1
 			if station:
@@ -200,29 +202,19 @@ func _run() -> void:
 			await _frames(90)
 			_ok("in a fight every moon holds still", _phases(sky_f) == p1 and not sky_f.life.quiet())
 
-	# 4. the dock: every moon holds, none over the station or your ship
+	# 4. THE DOCK IS ONLY AT THE STATION (Jon, Oct 18, "dock:A"), whose own place
+	# has no world and so no moons: a moon can never be over the station or your
+	# ship through a dock. From a world with moons in a station's system there
+	# is no station side, no DOCK, and the door refuses.
 	if _ok("a station system with a world with moons", not station_world.is_empty()):
 		Rng.forced = int(station_world[0])
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
-		var sky4 := await _park(int(station_world[1]), int(station_world[2]))
+		await _park(int(station_world[1]), int(station_world[2]))
 		await _frames(30)
 		var loc := Router.current as SectorScreen
-		var p2 := _phases(sky4)
-		var moved := false
-		var frames := 0
-		var over4 := 0
 		Router.show_station()
-		for i in 600:
-			await _frames(1)
-			if Router.current != loc or not is_instance_valid(sky4):
-				break
-			frames += 1
-			if _phases(sky4) != p2:
-				moved = true
-			over4 += _over(sky4, sky4.life.keep_out(true))
-			if not ZoomLadder.busy():
-				break
-		_ok("through the dock (%d frames on LOCAL) every moon holds still, none over the station or your ship (%d over)" % [frames, over4],
-			frames > 0 and not moved and over4 == 0)
+		await _frames(60)
+		_ok("at a world of a station's system: no station side, no DOCK, and docking refused (still on LOCAL, docked %s)" % Router.docked,
+			Router.current == loc and not Router.docked and loc._face == null and loc.find_child("Dock", true, false) == null)
 	print("moontest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
 	_tree.quit(1 if _fails > 0 else 0)

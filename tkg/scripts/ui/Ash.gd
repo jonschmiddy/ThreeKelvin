@@ -8,8 +8,9 @@ extends Node
 ##
 ## THE MOMENTS, each line's own (`AshLines` has the list):
 ##   launch  a new run, once the ship is at rest on LOCAL; gone at the first jump
-##   hull    the first time she is up in a new hull (after the dock, never in it);
-##           not if the move is called off
+##   hull    the first time she is up in a hull BOUGHT at a station's yard mid-run
+##           (after the dock, never in it); not if the move is called off, and
+##           never for the chassis select, a load or a hull found in the field
 ##   hurt    the hull at a quarter or under, alive; again only after it has been
 ##           back over half
 ##   hot     over the heat cap in a fight; once a fight
@@ -20,6 +21,18 @@ extends Node
 ##           jumps after the last one and never before jump DOUBT_FROM
 ## A moment waits for its chance (`WAIT_S`) and is dropped if it does not get
 ## one: a line about the heat said once the heat is gone would be about nothing.
+##
+## HER FIRST LINE INTRODUCES HER (Jon, Oct 18, "intro:A"). The first launch line
+## a profile ever hears is `AshLines.INTRO` (launch_04, "Autonomous Systems
+## Handler, reporting..."), not a pick from the bag; said once, it is marked in
+## the first-run flags (`[hints] ash_intro`, `DisplaySettings.hints_path`, beside
+## the welcome note; SHOW HINTS AGAIN leaves it) and every launch after is the
+## bag's, as before. Marked when she says it, so a first run that never heard
+## her (her switch off, a jump before she could speak) still opens with it. Same
+## moment and slot as any launch line; the one difference is the order: the
+## hints and the goal steps wait for it (`intro_holds`, read by `Hints`), where
+## every other bark waits for them, so her first words are her name and no
+## lesson cuts them. The goal's first step follows it.
 ##
 ## SHE NEVER TALKS OVER HERSELF OR EVERY TURN:
 ##   - one line at a time, and COOLDOWN_S of quiet after one before the next;
@@ -71,6 +84,10 @@ extends Node
 ## switch, and the cards come back exactly as they were.
 
 const SECTION := "ash"
+## Her introduction said, once per profile: `[hints] ash_intro` in the first-run
+## flags' file (`DisplaySettings.hints_path`; a harness's scratch file under one).
+const INTRO_SECTION := "hints"
+const INTRO_KEY := "ash_intro"
 ## Highest first: when two are waiting, this one is said.
 const ORDER: Array[StringName] = [&"hurt", &"hull", &"hot", &"haul", &"greed", &"launch", &"doubt"]
 ## The moments that may break the quiet early, and a fight's one-line rule.
@@ -126,6 +143,9 @@ var held_by := ""
 ## Settings' switch, loaded once.
 var _on := true
 var _loaded := false
+## Her introduction: said on this profile (-1 not read yet), and up now.
+var _intro_said := -1
+var _introducing := false
 
 var _last_end := -INF
 var _fight: Object = null
@@ -135,6 +155,9 @@ var _fight_hot := false
 var _hurt_latched := false
 var _known_hull: HullData = null
 var _left_hull: HullData = null
+## `Run.hulls_bought` as of the last poll: a hull change with no purchase
+## since then (the chassis select, a load, a found hull) says nothing.
+var _bought := 0
 var _hauls := 0
 var _credits := 0
 var _items: Dictionary = {}
@@ -199,6 +222,52 @@ func _load() -> void:
 ## Re-read the file (a harness that wrote it behind our back).
 func reload() -> void:
 	_loaded = false
+	_intro_said = -1
+
+
+## HER INTRODUCTION (intro:A): whether this profile has heard it.
+func intro_said() -> bool:
+	if _intro_said < 0:
+		var cfg := ConfigFile.new()
+		_intro_said = 0
+		if cfg.load(DisplaySettings.hints_path()) == OK:
+			_intro_said = 1 if bool(cfg.get_value(INTRO_SECTION, INTRO_KEY, false)) else 0
+	return _intro_said == 1
+
+
+## Mark it said (or not: a harness that wants a fresh profile's first launch).
+func mark_intro(v: bool = true) -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(DisplaySettings.hints_path())
+	cfg.set_value(INTRO_SECTION, INTRO_KEY, v)
+	cfg.save(DisplaySettings.hints_path())
+	_intro_said = 1 if v else 0
+
+
+## Her introduction is up, or it is next and could start now: the hints and the
+## goal steps wait for it (`Hints.poll`, `Hints.step_due`), so it is her first
+## line and none of them cuts it. False the moment anything else would keep it
+## waiting (the screen, a hint card already up, no room), so a hint is never
+## held for a line that is not coming.
+func intro_holds() -> bool:
+	if not _run_live or Run.hull == null or Run.dead or Run.hp <= 0 or not enabled():
+		return false
+	var up := portrait != null and is_instance_valid(portrait)
+	if _introducing:
+		if up and portrait.speaking() and portrait.kind == &"launch":
+			return true
+		_introducing = false
+	if not waiting.has(&"launch") or intro_said() or lesson != &"" or _next() != &"launch":
+		return false
+	if up and portrait.phase != AshPortrait.Phase.GONE:
+		return false
+	if now - _last_end < COOLDOWN_S or (_fight != null and _fight_lines >= 1):
+		return false
+	if Hints.card != null and is_instance_valid(Hints.card):
+		return false
+	if _screen_only(true) != "":
+		return false
+	return not _spot(AshLines.line_of(AshLines.INTRO)).is_empty()
 
 
 # ------------------------------------------------------------------ the moments
@@ -209,6 +278,7 @@ func _on_run_started() -> void:
 	_fight_lines = 0
 	_hurt_latched = false
 	_known_hull = Run.hull
+	_bought = Run.hulls_bought
 	_hauls = Run.hauls
 	_credits = Run.credits
 	_items = _item_ids()
@@ -289,17 +359,20 @@ func _watch() -> void:
 			arm(&"hot")
 	else:
 		waiting.erase(&"hot")
-	# A NEW HULL: armed when the frame changes (a dock's move or a hull found
-	# in the field), said the next time she is up, on LOCAL or in a fight, so
-	# never mid-dock; and forgotten if the move is called off and the old frame
-	# comes back (`Run.abandon_move`)
+	# A NEW HULL: armed when the frame changes BECAUSE ONE WAS BOUGHT at a
+	# station's yard (`Run.hulls_bought`; Jon, Oct 18: only "when a player buys
+	# a new ship mid run" -- never the chassis select's picks before launch, a
+	# load, or a hull found in the field), said the next time she is up, on
+	# LOCAL or in a fight, so never mid-dock; and forgotten if the move is
+	# called off and the old frame comes back (`Run.abandon_move`)
 	if Run.hull != _known_hull:
 		if Run.hull != null and Run.hull == _left_hull and waiting.has(&"hull"):
 			waiting.erase(&"hull")
-		elif _known_hull != null and Run.hull != null:
+		elif _known_hull != null and Run.hull != null and Run.hulls_bought > _bought:
 			arm(&"hull")
 		_left_hull = _known_hull
 		_known_hull = Run.hull
+	_bought = Run.hulls_bought
 	# A BIG HAUL, taken aboard on LOCAL
 	var items := _item_ids()
 	if Run.hauls > _hauls and sc != null:
@@ -454,6 +527,11 @@ func _cannot_start(kind: StringName) -> String:
 func _screen_block(starting: bool = true) -> String:
 	if _hint_up(starting):
 		return "hint"
+	return _screen_only(starting)
+
+
+## `_screen_block` without the hints: the screen itself.
+func _screen_only(starting: bool = true) -> String:
 	if Hints.menu_up() or ZoomLadder.busy():
 		return "screen"
 	var sc := Router.current as SectorScreen
@@ -508,7 +586,13 @@ func _hint_up(starting: bool = true) -> bool:
 	if Hints.card != null and is_instance_valid(Hints.card):
 		return true
 	# her own teaching line, or one of a goal step's on its way (`Hints.step_due`)
-	if lesson != &"" or Hints.lesson != &"" or (starting and Hints.step_due()):
+	if lesson != &"" or Hints.lesson != &"":
+		return true
+	# HER INTRODUCTION GOES FIRST (intro:A): the hints and steps wait for it
+	# (`intro_holds`), so it does not wait for them
+	if starting and intro_holds():
+		return false
+	if starting and Hints.step_due():
 		return true
 	if Hints._cand != &"":
 		return true
@@ -530,6 +614,9 @@ func pick_line(kind: StringName) -> String:
 	var all := AshLines.of(kind)
 	if all.is_empty():
 		return ""
+	# HER FIRST LAUNCH LINE EVER introduces her (intro:A); the bag is untouched
+	if kind == &"launch" and not intro_said():
+		return AshLines.line_of(AshLines.INTRO)
 	var bag: Array = _bags.get(kind, [])
 	if bag.is_empty():
 		bag = all.duplicate()
@@ -565,6 +652,10 @@ func _say(kind: StringName, line: String, spot: Dictionary) -> void:
 	portrait.size = Vector2(AshPortrait.W, AshPortrait.H)
 	portrait.say(line, kind)
 	_up = true
+	# her introduction, said: never forced again on this profile
+	if kind == &"launch" and not intro_said() and AshLines.id_of(line) == AshLines.INTRO:
+		mark_intro(true)
+		_introducing = true
 	if _fight != null:
 		_fight_lines += 1
 		if kind == &"hurt":
@@ -701,6 +792,8 @@ static func avoid_rects(cur: Control) -> Array:
 	var sc := cur as SectorScreen
 	if sc == null:
 		return out
+	# the fight log's LOG button, and the log while it is open (`FightLog`)
+	out.append_array(FightLog.rects(sc))
 	var d := sc._events
 	if d != null and is_instance_valid(d) and d.visible:
 		out.append(d.get_global_rect())

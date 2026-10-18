@@ -435,6 +435,8 @@ func _run() -> void:
 			Run.at = st
 			Run.map[st].visited = true
 			SectorScreen._approached_at = st
+			# (LOCAL beside the station: the dock is only there, dock:A)
+			Router.park_at_station()
 			# (`side=<id>` / `interior=<id>`: the station's side and its bay's
 			# interior, instead of the station's own pick -- `StationSides`)
 			StationSides.force_side = StringName(_arg("side", ""))
@@ -577,6 +579,7 @@ func _run() -> void:
 			Run.at = st2
 			Run.map[st2].visited = true
 			SectorScreen._approached_at = st2
+			Router.park_at_station()
 			ZoomLadder.force = 0
 			Router.show_starchart()
 			await _frames(90)

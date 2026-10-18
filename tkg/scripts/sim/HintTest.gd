@@ -237,6 +237,7 @@ func run(tree: SceneTree) -> void:
 			Run.at = m.index
 			m.visited = true
 			break
+	Router.park_at_station()
 	Router.show_station()
 	await _frames(60)
 	await _expect(&"dock")

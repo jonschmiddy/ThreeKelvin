@@ -55,6 +55,18 @@ func _run() -> void:
 						print("        place %s, star %d" % [what, star])
 				MapGen.NodeType.START:
 					pass
+				# A STATION'S RING ONLY AT THE STATION (dock:A): none at the edge
+				# of its system, its own picture once parked beside it
+				MapGen.NodeType.STATION:
+					SystemMapScreen._parked.erase(n.index)
+					_ok("seed %d node %d: a station's system draws no ring away from the station" % [seed, n.index],
+						area._place_name() == &"")
+					Router.park_at_station(n)
+					what = area._place_name()
+					seen[what] = int(seen.get(what, 0)) + 1
+					if what != &"station":
+						_ok("seed %d node %d: a station keeps its picture at the station (%s)" % [seed, n.index, what], false)
+					SystemMapScreen._parked.erase(n.index)
 				_:
 					seen[what] = int(seen.get(what, 0)) + 1
 					if what == &"":

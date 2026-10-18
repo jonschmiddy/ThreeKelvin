@@ -337,6 +337,9 @@ else
 fi
 
 step "Leaving a station without UNDOCK leaves nothing of it behind"
+# DOCK only at the station itself (Jon, Oct 18, "dock:A"): at the system's edge
+# and at a world, no DOCK on LOCAL or the map, no station side, and the door
+# refuses; flown to the station, DOCK is offered and docks.
 # Docked, the ship flown off by the map (a world, the star, open space) and back
 # to LOCAL by the HUD's tab and by Tab, and by the chart's JUMP and GO beyond it:
 # LOCAL as after a proper UNDOCK (ship, zoom, the sky's place, no berth left,
@@ -350,6 +353,22 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 else
 	bad "dockflytest did not finish"
+fi
+
+step "The fight log is hidden until LOG is pressed, and records all the same"
+# Jon, Oct 18, "fightlog:hidden". From a used settings file: hidden by default,
+# recording while hidden, LOG clicked shows every line and moves nothing that can
+# be clicked, the choice kept in the settings file; and the box test, LOG and the
+# open log against everything on the fight's screen in every hull and pack.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot fightlogtest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=FightLogTest; then
+	if grep -qE '^fightlogtest: PASS' "$LOG_DIR/fightlogtest.log"; then
+		ok "the fight log hides, records, opens, and covers nothing"
+	else
+		bad "the fight log shows by default, loses lines, moves a control or covers something"
+		grep -E 'FAIL|^fightlogtest' "$LOG_DIR/fightlogtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "fightlogtest did not finish"
 fi
 
 step "Every material is a thing the hold can actually hold"

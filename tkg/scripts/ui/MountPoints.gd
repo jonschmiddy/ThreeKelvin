@@ -571,6 +571,45 @@ static func empty_text(slot: int) -> String:
 	return "EMPTY " + ModuleData.slot_name(slot).to_upper()
 
 
+## THE LEADER FROM A RING TO ITS WORDS, when the cutaway had to set them away
+## from it: whole pixels (this widget's px), one wide, from just outside the
+## ring at `at` to one pixel short of the words' box `box`, straight. None when
+## the words are beside the ring anyway. The one place it is worked out: the
+## cutaway keeps it clear with this, the drawing draws it and `-- cutawaytest`
+## checks it.
+static func label_leader(at: Vector2, box: Rect2, k: float) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	var g := box.grow(2.0)
+	var to := Vector2(clampf(at.x, g.position.x, g.end.x - 1.0), clampf(at.y, g.position.y, g.end.y - 1.0)).floor()
+	var r0 := (R + 2.0) * k
+	var d := to - at
+	if d.length() <= r0 + 2.0:
+		return out
+	var from := (at + d.normalized() * r0).floor()
+	# Bresenham: one pixel per step along the longer axis, no doubled corners
+	var x0 := int(from.x)
+	var y0 := int(from.y)
+	var x1 := int(to.x)
+	var y1 := int(to.y)
+	var dx := absi(x1 - x0)
+	var dy := -absi(y1 - y0)
+	var sx := 1 if x0 < x1 else -1
+	var sy := 1 if y0 < y1 else -1
+	var err := dx + dy
+	while true:
+		out.append(Vector2(x0, y0))
+		if x0 == x1 and y0 == y1:
+			break
+		var e2 := 2 * err
+		if e2 >= dy:
+			err += dy
+			x0 += sx
+		if e2 <= dx:
+			err += dx
+			y0 += sy
+	return out
+
+
 ## EVERY WORD THE CUTAWAY HAS PUT ON SCREEN, and every part it lifted, as this
 ## widget draws them: [{kind = "tag"|"label"|"part", rect, text}]. For
 ## `-- cutawaytest`, which checks none of them sits on another or on the hull.
@@ -613,7 +652,30 @@ func drawn_rects() -> Array[Dictionary]:
 	return out
 
 
-## WHETHER A POINT IS ON SOMETHING THE CUTAWAY DREW: a lifted part, a tag, an
+## The leaders drawn now, to words set away from their rings: [{at, rect,
+## points, text}], `rect` the words' box as `drawn_rects` gives it. For
+## `-- cutawaytest`.
+func empty_leaders() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if explode <= 0.85:
+		return out
+	var k := _mag()
+	var f := UITheme.pixel_font()
+	for s in _spots:
+		if s.held != null or not _shows_empty(s):
+			continue
+		var key := spot_key(int(s.slot), int(s.index))
+		var off: Variant = tag_side.get("empty:" + key)
+		if not off is Vector2 or not tag_side.get("lead:" + key, false):
+			continue
+		var txt := empty_text(int(s.slot))
+		var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+		var box := label_box(s.at, off, w, k)
+		out.append({at = s.at, rect = box, points = label_leader(s.at, box, k), text = txt})
+	return out
+
+
+## WHETHER A POINT IS ON SOMETHING THE CUTAWAY DREW:a lifted part, a tag, an
 ## empty mount's ring or its words. A click there is not a click on the sky.
 func hit_drawn(p: Vector2) -> bool:
 	if explode <= 0.0:
@@ -656,7 +718,12 @@ func _empty_words(s: Dictionary, k: float) -> void:
 	var txt := empty_text(int(s.slot))
 	var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 	var box := label_box(s.at, off, w, k)
-	draw_string(f, box.position + Vector2(0, f.get_ascent(UITheme.FS_SMALL)), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(UITheme.COLD, a))
+	var col := Color(UITheme.COLD, a)
+	draw_string(f, box.position + Vector2(0, f.get_ascent(UITheme.FS_SMALL)), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, col)
+	# set away from its ring: a 1 px leader back to it, in the words' own ink
+	if tag_side.get("lead:" + spot_key(int(s.slot), int(s.index)), false):
+		for p in label_leader(s.at, box, k):
+			draw_rect(Rect2(p, Vector2.ONE), col)
 
 
 func _ring(at: Vector2, r: float, col: Color) -> void:

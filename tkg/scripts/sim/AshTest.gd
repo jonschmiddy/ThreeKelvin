@@ -157,6 +157,14 @@ func _said_after(frames: int = 6) -> String:
 	return String(Ash.said_log.back().kind) if Ash.said_log.size() > before else ""
 
 
+## Whether she said a "hull" line anywhere in her log from entry `from` on.
+func _hull_said_since(from: int) -> bool:
+	for i in range(from, Ash.said_log.size()):
+		if Ash.said_log[i].kind == &"hull":
+			return true
+	return false
+
+
 func _kind_of(line: String) -> StringName:
 	for k in AshLines.MOMENTS:
 		if AshLines.of(k).has(line):
@@ -756,12 +764,54 @@ func _moments() -> void:
 	_ok("launch: not after the first jump (%s)" % k, k == &"")
 	Run.jumps = 0
 
-	# HULL: bought at a dock, the move called off; then one taken for good
+	# HULL: ONLY A HULL BOUGHT MID-RUN (Jon, Oct 18: "New body..." only "when a
+	# player buys a new ship mid run"). Not the chassis select's picks before
+	# launch -- it fits a hull per click, and the first LOCAL heard "New body"
+	# on every new run --, not a resume, not a hull found in the field.
+	Rng.forced = 4242
+	var said0 := Ash.said_log.size()
+	Run.start_new_run(&"korvan", HullData.Weight.MEDIUM)
+	_settle()
+	Run.fit_chassis(&"korvan", HullData.Weight.LIGHT)
+	Ash.poll(0.0)
+	Run.fit_chassis(&"korvan", HullData.Weight.HEAVY)
+	Ash.poll(0.0)
+	for m: MapGen.MapNode in Run.map:
+		if m.type == MapGen.NodeType.SYSTEM and not Router.no_fights_at(m):
+			Run.at = m.index
+			break
+	SectorScreen._approached_at = Run.at
+	Router.show_local()
+	await _frames(12)
+	k = await _said_after()
+	_ok("hull: a new run's hull pick is not a new body (%s; waiting %s)" % [k, Ash.waiting.keys()],
+		not _hull_said_since(said0) and not Ash.waiting.has(&"hull"))
+	sc = await _local()
+	said0 = Ash.said_log.size()
+	SaveGame.save()
+	_settle()
+	Run.hull = null
+	SaveGame.load_into_run()
+	Router.resume_here()
+	await _frames(12)
+	k = await _said_after()
+	_ok("hull: a resumed run is not a new body (%s; waiting %s)" % [k, Ash.waiting.keys()],
+		not _hull_said_since(said0) and not Ash.waiting.has(&"hull"))
+	SaveGame.clear()
+	sc = await _local()
+	said0 = Ash.said_log.size()
+	Run.transfer_to_hull(DB.hull_for(&"korvan", HullData.Weight.LIGHT).duplicate() as HullData)
+	Run.old_hull = null
+	await _frames(4)
+	k = await _said_after()
+	_ok("hull: a hull found in the field and flown is not one bought (%s)" % k,
+		not _hull_said_since(said0) and not Ash.waiting.has(&"hull"))
+	# bought at a dock, the move called off; then one bought for good
 	sc = await _local()
 	var h := DB.hull_for(&"korvan", HullData.Weight.HEAVY).duplicate() as HullData
 	Router.show_station()
 	await _frames(10)
-	Run.transfer_to_hull(h)
+	Run.transfer_to_hull(h, 0, Run.node_at())
 	await _frames(4)
 	Run.abandon_move()
 	Router.show_local()
@@ -770,7 +820,7 @@ func _moments() -> void:
 	_ok("hull: a move called off at the dock says nothing (%s)" % k, k == &"")
 	Router.show_station()
 	await _frames(10)
-	Run.transfer_to_hull(h)
+	Run.transfer_to_hull(h, 0, Run.node_at())
 	await _frames(4)
 	_ok("hull: nothing on the dock's own screens (%s)" % Ash.held_by, Ash.said_log.back().kind != &"hull")
 	Run.old_hull = null

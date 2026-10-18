@@ -32,6 +32,8 @@ extends Node
 ## at every 2 px.
 ##
 ## A BARK NEVER INTERRUPTS A TEACHING LINE, and a teaching line cuts a bark.
+## HER INTRODUCTION (intro:A) is the exception: a fresh profile's first launch
+## says launch_04 first, the step waits for it and follows; never forced again.
 ## HER VOICE: no take is silence and the words alone at her text pace; a take
 ## types at its pace, and the shown words (numbers and names in them) end when
 ## she stops; what she says has no field and no live number. OFF: her switch
@@ -100,6 +102,7 @@ func _run() -> void:
 	await _bark_and_lesson()
 	await _voice()
 	await _switch()
+	await _intro()
 	await _coop()
 	_finish()
 
@@ -616,6 +619,8 @@ func _flow() -> void:
 			Run.at = m.index
 			m.visited = true
 			break
+	# (DOCK only at the station itself, Jon's dock:A: park there first)
+	Router.park_at_station()
 	Router.show_station()
 	await _frames(90)
 	await _expect(&"dock")
@@ -874,6 +879,145 @@ func _switch() -> void:
 	_ok("off: the hints are cards (%s) and she says nothing" % ", ".join(cards),
 		cards.size() >= 2 and Ash.said_log.size() == said)
 	Ash.set_on(true)
+
+
+# ------------------------------------------------------------------ her introduction
+
+## HER FIRST LINE INTRODUCES HER (Jon, Oct 18, "intro:A"), through real new runs
+## with her and the hints both on the game's clock, as in play. Read through the
+## settings file and her log, not her own calls, so it fails on a game without it.
+func _intro() -> void:
+	print("her first line introduces her")
+	var intro := String(AshLines.of(&"launch")[3])
+	_ok("the intro is launch_04, voiced (\"%s\")" % intro, AshLines.id_of(intro) == &"launch_04"
+		and intro == "Autonomous Systems Handler, reporting. Please don't make me handle much."
+		and AshLines.voice_path(intro).ends_with("/launch_04.ogg"))
+	# A FRESH PROFILE, in the used state: lines of hers said this process, the
+	# flag unset, every hint and step unseen
+	_intro_flag_set(false)
+	Hints.reset()
+	Ash.reload()
+	Hints._quiet = 0.0
+	Audio.taping = true
+	Audio.tape.clear()
+	Hints.set_process(true)
+	var n0 := Ash.said_log.size()
+	Rng.forced = 5150
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	Router.show_local()
+	var w := await _watch_launch(n0, &"step_jump")
+	var first: Dictionary = w.first
+	_ok("a fresh profile's first launch: her first line is the intro (%s: \"%s\")" % [first.get("kind", &"none"),
+		first.get("line", "")], first.get("kind", &"") == &"launch" and String(first.get("line", "")) == intro)
+	_ok("in the launch's slot: on LOCAL, before the first jump, at one of her bark spots (%s)" % first.get("spot", &""),
+		Run.jumps == 0 and Router.current is SectorScreen and Ash.SPOTS.has(StringName(first.get("spot", &""))))
+	var taped: Array = Audio.tape.filter(func(r: Array) -> bool: return String(r[0]).begins_with("ash/"))
+	_ok("its clip plays: launch_04 taped once, not cut (%s)" % ", ".join(taped.map(func(r: Array) -> String: return String(r[0]))),
+		taped.size() >= 1 and taped[0][0] == &"ash/launch_04"
+		and taped.filter(func(r: Array) -> bool: return r[0] == &"ash/launch_04").size() == 1
+		and (taped.size() < 2 or taped[1][0] != &"ash/stop"))
+	_ok("the flag is saved ([hints] ash_intro in %s)" % DisplaySettings.hints_path(), _intro_flag())
+	_ok("the step never cut it: it ended of itself (%s) before the step began" % ("of itself" if w.natural else "cut"),
+		w.natural and w.intro_end > 0.0 and w.step_at >= w.intro_end)
+	_ok("the goal's first step follows it (%.2f s after; between them: %s)" % [w.step_at - w.intro_end,
+		", ".join(w.between) if not w.between.is_empty() else "nothing"],
+		w.step_at > 0.0 and w.step_at - w.intro_end <= 2.0 + 15.0 * float(w.between.size()))
+	Hints.set_process(false)
+	if Ash.portrait != null:
+		Ash.portrait.cut()
+	Audio.taping = false
+	Audio.tape.clear()
+	# (the hints' clock stops with the step's line up: let it go)
+	Hints.reset()
+
+	# LATER RUNS: the bag's, as before (nothing taught, so the launch comes at once)
+	var picks: Dictionary = {}
+	var all_pool := true
+	for i in 8:
+		for id in Hints.ORDER + Hints.STEPS:
+			Hints.mark_seen(id)
+		for id in Hints.STEP_LINES:
+			Hints.mark_seen(StringName("said_" + String(id)))
+		var n1 := Ash.said_log.size()
+		Rng.forced = 6000 + i
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		await _local()
+		# (the last run's line was cut by hand: no quiet carried over from it)
+		Ash._last_end = -INF
+		for f in 120:
+			if Ash.said_log.size() > n1:
+				break
+			await _tree.process_frame
+		var got: Dictionary = Ash.said_log[n1] if Ash.said_log.size() > n1 else {}
+		if got.is_empty():
+			print("    (run %d: nothing said; held by %s, waiting %s)" % [i, Ash.held_by, Ash.waiting.keys()])
+		var l := String(got.get("line", ""))
+		all_pool = all_pool and got.get("kind", &"") == &"launch" and AshLines.of(&"launch").has(l)
+		picks[l] = int(picks.get(l, 0)) + 1
+		if Ash.portrait != null:
+			Ash.portrait.cut()
+	_ok("eight later runs: each first launch is from the pool, not forced (%s)" % str(picks.values()),
+		all_pool and picks.size() >= 2 and int(picks.get(intro, 0)) < 8)
+	_ok("the flag stays", _intro_flag())
+
+	# A PROFILE THAT HAS THE FLAG, hints shown again: today's order (the step,
+	# then a launch from the bag); SHOW HINTS AGAIN does not bring the intro back
+	Hints.reset()
+	Ash.reload()
+	_ok("SHOW HINTS AGAIN leaves the flag", _intro_flag())
+	Hints._quiet = 0.0
+	Hints.set_process(true)
+	var n2 := Ash.said_log.size()
+	Rng.forced = 5150
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	Router.show_local()
+	var w2 := await _watch_launch(n2, &"step_jump")
+	var f2: Dictionary = w2.first
+	_ok("the flag set: no forced intro, the step comes first as today (first: %s)" % f2.get("kind", &"none"),
+		f2.get("kind", &"") == &"tut_step_jump")
+	Hints.set_process(false)
+	if Ash.portrait != null:
+		Ash.portrait.cut()
+	Hints.reset()
+	Ash.waiting.clear()
+
+
+## Watch a launch frame by frame until her line `step` (or 40 s): the first
+## line she says, when the first launch line stops being said and whether of
+## itself, when the step starts, and what came between. A hint before the step
+## is clicked through, as a player would.
+func _watch_launch(n0: int, step: StringName) -> Dictionary:
+	var out := {first = {}, intro_end = -1.0, natural = false, step_at = -1.0, between = []}
+	var watching := false
+	var t0 := GameClock.now()
+	while GameClock.now() - t0 < 40.0:
+		await _tree.process_frame
+		if (out.first as Dictionary).is_empty() and Ash.said_log.size() > n0:
+			out.first = Ash.said_log[n0]
+			watching = out.first.kind == &"launch"
+		var p := Ash.portrait
+		if watching and float(out.intro_end) < 0.0 and (p == null or not p.speaking() or p.kind != &"launch"):
+			out.intro_end = GameClock.now()
+			out.natural = p != null and p._natural and p.kind == &"launch"
+		if Hints.lesson != &"" and Hints._up_t > 0.5:
+			(out.between as Array).append(String(Hints.lesson))
+			Hints.click(_press())
+		if Ash.lesson == step and Ash.lesson_up():
+			out.step_at = GameClock.now()
+			break
+	return out
+
+
+func _intro_flag() -> bool:
+	var cfg := ConfigFile.new()
+	return cfg.load(DisplaySettings.hints_path()) == OK and bool(cfg.get_value("hints", "ash_intro", false))
+
+
+func _intro_flag_set(v: bool) -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(DisplaySettings.hints_path())
+	cfg.set_value("hints", "ash_intro", v)
+	cfg.save(DisplaySettings.hints_path())
 
 
 # ------------------------------------------------------------------ co-op

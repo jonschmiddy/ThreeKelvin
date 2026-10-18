@@ -5,7 +5,7 @@ extends Node
 ##   godot --path . --windowed --position 3840,0 -- sheet=CutawayShot keepwindow
 ##       clip=<dir> [weight=light|medium|heavy] [loot=no] [style=...] [seed=N]
 ##       [every=1] [nopause] [nofight] [yard] [bobcheck] [skyclip=<dir>] [orbit]
-##       [manufacturer=solari] [grade=0..3] [fit=full]
+##       [manufacturer=solari] [grade=0..3] [fit=full] [carry=utility]
 ## A run at a system with a wreck you killed, parts in the hold and (unless
 ## `loot=no`) something loose in the system. Saves the game's picture every
 ## `every` frames through: the hover outline on your ship, the push-in (backdrop
@@ -19,7 +19,9 @@ extends Node
 ## station and does it in the Shipyard: your ship on its stands, the outline,
 ## the push-in onto ship and stands, a part and a hold module pointed at, the
 ## close back to the yard. Prints the push-in scale and what 2x needs against
-## the room. Needs a window.
+## the room. Needs a window. `carry=weapon|system|utility` carries a part of
+## that slot for the carrying still (its empty mounts' rings and words) and
+## stops there.
 ## THE CUTAWAY'S CLOCK IS STEPPED 1/30 s A FRAME (`CutawayView.fixed_step`), so
 ## the frames, encoded at 30 a second (every=1), show the real 0.4 s push-in
 ## however slowly the window drew them; nothing is saved before the hover.
@@ -92,6 +94,13 @@ func _run() -> void:
 		Run.fit_chassis(mk, wt as HullData.Weight, int(_arg("grade", "0")))
 	if _arg("fit", "") == "full":
 		_fit_full()
+	# `carry=<slot>` wants an empty mount of that slot to show: a hull that
+	# launches with all of them fitted has one part of it taken off, to the hold
+	var cs := {"weapon": ModuleData.Slot.WEAPON, "system": ModuleData.Slot.SYSTEM, "utility": ModuleData.Slot.UTILITY}.get(_arg("carry"), -1) as int
+	if cs >= 0:
+		var css := cs as ModuleData.Slot
+		if Run.slots_for(css) > 0 and Run.slots_used(css) >= Run.slots_for(css):
+			Run.uninstall_module(Run.module_at(css, 0))
 	# `proc`: the parts with no picture yet (Solari's thirteen), fitted where a
 	# mount is free and the rest in the hold and the wreck, to see the
 	# procedural drawing where it is seen; `transfer` then opens the wreck.
@@ -262,7 +271,10 @@ func _run() -> void:
 	# an empty mount, so there is a ring to see
 	var carried: ModuleData = in_hold
 	var shown: ModuleData = carried
+	var want := {"weapon": ModuleData.Slot.WEAPON, "system": ModuleData.Slot.SYSTEM, "utility": ModuleData.Slot.UTILITY}.get(_arg("carry"), -1) as int
 	for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
+		if want >= 0 and slot != want:
+			continue
 		if Run.slots_used(slot) < Run.slots_for(slot):
 			for mid in DB.modules:
 				if (DB.modules[mid] as ModuleData).slot == slot:
@@ -273,6 +285,18 @@ func _run() -> void:
 		cut._mounts.light(shown)
 		await _frames(24)
 		_still("05_carrying")
+		if want >= 0:
+			# where each empty mount's words landed, in the game's px, for crops
+			for d in cut._mounts.drawn_rects():
+				if d.kind == "label":
+					var g: Rect2 = cut._mounts.get_global_transform() * (d.rect as Rect2)
+					print("cutawayshot: label %s at %d,%d %dx%d" % [d.text, g.position.x, g.position.y, g.size.x, g.size.y])
+			for sp in cut._mounts.spots():
+				if sp.held == null and (sp.slot as ModuleData.Slot) == shown.slot:
+					var a: Vector2 = cut._mounts.get_global_transform() * (sp.at as Vector2)
+					print("cutawayshot: ring %s at %d,%d" % [MountPoints.empty_text(int(sp.slot)), a.x, a.y])
+			tree.quit()
+			return
 		cut._mounts.light(null)
 	if carried != null:
 		# 6. dropped onto a mount of its kind: an empty one if there is one
@@ -387,6 +411,7 @@ func _yard() -> void:
 	here.type = MapGen.NodeType.STATION
 	here.development = MapGen.Development.CITY
 	here.security = 4
+	Router.park_at_station(here)
 	Router.show_station()
 	await _frames(90)
 	var st := Router.current as StationScreen

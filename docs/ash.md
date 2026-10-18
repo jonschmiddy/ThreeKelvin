@@ -104,6 +104,21 @@ frame on the main screen. It reacts to the ship, not to the script:
   camera moving, the cutaway, a wreck's window, the event band or the escape menu; a moment
   that cannot be said in time is dropped. **Nothing after the ship is lost**: up when it goes,
   she cuts with it. **Hints win**: she waits while a hint is up, settling or due on the screen.
+- **Her first line introduces her** (Jon, Oct 18, intro:A). The first launch line a profile
+  ever hears is launch_04, "Autonomous Systems Handler, reporting. Please don't make me handle
+  much." (`AshLines.INTRO`), in its own take, not a pick from the bag. Once said it is marked
+  `[hints] ash_intro` in the first-run flags (`DisplaySettings.hints_path`, beside the welcome
+  note; a harness's scratch file under one), and every launch after, later runs included, is
+  the bag's as before, launch_04 among them. SHOW HINTS AGAIN leaves the flag. It is marked when
+  she says it, so a first run that never heard her (her switch off, a jump before she could
+  speak) opens with it the next time she can. Same moment and slot as any launch line. The one
+  difference is the order: an ordinary launch line waits for the goal's first step (barks wait
+  for teaching), so on a fresh profile the step used to be her first words. The intro goes
+  first instead: while it is up, or next and able to start, no hint or step starts and none can
+  cut it (`Ash.intro_holds`, read by `Hints`), and the moment anything else would keep it waiting
+  (the screen, a card already up, no room) the hints go on as before. The first step follows
+  0.6 s after it ends (its settle time), measured in `AshTutorTest`. In a party it plays like
+  her other lines: each player's own, on their own machine, off their own profile.
 - **Talking:** the mouth follows the typed letters, a held frame every 0.1 s, with blinks and
   one-pixel hologram slips (more often with the hull failing); about 9 changes a second while
   she talks, all on the game's clock. A two-note `text_blip` chirp as she appears, then
@@ -219,7 +234,7 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
 - **Exceptions to her bark rules, for teaching only:** she may stand over the cutaway, a
   wreck's window and the event band; no quiet before one; any number a fight. A teaching
   line outranks a bark (a bark up is cut), and no bark starts while one is up, settling
-  or due.
+  or due, but her introduction, which goes first ("Her first line introduces her", above).
 - **New screens:** the STARCHART and the SECTOR map (inside the picture's frame) and the
   station (the deck's picture). Her spot is the first of her corners, then the middles,
   clear of everything (`Ash.tut_avoid_rects`) and of anything a click picks in the

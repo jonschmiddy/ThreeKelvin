@@ -179,6 +179,8 @@ var _end_button: Button
 var _hail_button: Button
 var _flee_button: Button
 var _log: LogPanel
+## The fight's turn-by-turn log and its LOG button (`FightLog`).
+var _fight_log: FightLog = null
 var _quiet_wrap: PanelContainer
 ## The clipping box the drawer slides inside. See `_build_quiet_strip`.
 var _quiet_holder: Control
@@ -720,12 +722,17 @@ func _build() -> void:
 	root.add_child(_build_quiet_strip())
 	_build_orphans()
 	root.add_child(_build_hand())
+	# THE FIGHT LOG, over the screen and hidden until asked for (`FightLog`):
+	# laid out round nothing, so nothing moves for it
+	_fight_log = FightLog.new(self)
+	add_child(_fight_log)
 	_build_overlay()
 
 ## The side rail is gone. Its contents, in order of what happened to them:
 ##
 ## The log went because every line was a transcript of an animation you had just
-## watched, competing with the board for the same glance. The enemy's name,
+## watched, competing with the board for the same glance. (It came back hidden,
+## behind a LOG button, for whoever wants the transcript: `FightLog`.) The enemy's name,
 ## health bar, hull count and class went because all four already sit under its
 ## sprite, where the enemy actually is. The two chip rows moved to the intent
 ## strip, which was already the line answering "what is happening this turn".
@@ -1122,7 +1129,9 @@ func _drawer_here(n: MapGen.MapNode) -> void:
 	var left := EncounterDrawer.untaken(n).size() if n.type == MapGen.NodeType.SYSTEM else 0
 	var line := "NOTHING ELSE HERE - SEE SECTOR"
 	if n.type == MapGen.NodeType.STATION:
-		line = "A STATION HERE - SEE SECTOR"
+		# (the berth is at the station's own body: anywhere else in its system
+		# the way to it is the map -- dock:A)
+		line = "A STATION HERE - SEE SECTOR" if Router.at_station(n) else "FLY TO THE STATION TO DOCK - SEE SECTOR"
 	elif left > 0:
 		line = "%d THING%s HERE - SEE SECTOR" % [left, "" if left == 1 else "S"]
 	# THE EVENT YOU CAME FOR, how it went and what is left (`LocalEventDrawer`)
@@ -1158,8 +1167,11 @@ func _drawer_here(n: MapGen.MapNode) -> void:
 		lb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(lb)
 	# DOCK, ONE DISTANCE IN (`ZoomLadder`): the station is right there, so the way
-	# into it is here as well as on the map
-	if n.type == MapGen.NodeType.STATION and ZoomLadder.chosen():
+	# into it is here as well as on the map -- ONLY THERE (Jon, Oct 18, "dock:A"):
+	# at a world, the star or open space in a station's system there is no
+	# station beside you to dock with (`Router.at_station`), and no button that
+	# looks like one; the line says where to go
+	if n.type == MapGen.NodeType.STATION and ZoomLadder.chosen() and Router.at_station(n):
 		var dk := Widgets.button("DOCK", func() -> void: Router.show_station())
 		dk.name = "Dock"
 		dk.custom_minimum_size = EncounterDrawer.BTN
@@ -1190,7 +1202,11 @@ func _on_action() -> void:
 		return
 	match n.type:
 		MapGen.NodeType.STATION:
-			Router.show_station()
+			# (docks only at the station; elsewhere in its system, the map to fly there)
+			if Router.at_station(n):
+				Router.show_station()
+			else:
+				Router.show_system()
 		# The rows are the options now, so the button under them only ever leaves.
 		MapGen.NodeType.SYSTEM:
 			_plot_next_jump()
@@ -2546,7 +2562,9 @@ var _face_front: StationFace = null
 
 func _attach_station_face() -> void:
 	var n: MapGen.MapNode = Run.node_at()
-	if n == null or n.type != MapGen.NodeType.STATION or not ZoomLadder.chosen() or _view == null:
+	# (the station's side is beside you only AT the station: at a world of its
+	# system it drew there too, and DOCK played into it -- dock:A)
+	if n == null or n.type != MapGen.NodeType.STATION or not ZoomLadder.chosen() or _view == null 			or not Router.at_station(n):
 		return
 	var pair := StationFace.make_pair(n, _view)
 	_face = pair[0]
@@ -4634,6 +4652,16 @@ func _pop_limit(who: int = -1, ink: Rect2 = Rect2()) -> float:
 					if g.size.x > 0.0 and g.position.x < span.end.x and g.end.x > span.position.x:
 						top_g = maxf(top_g, g.end.y)
 			k += 1
+	# THE FIGHT LOG, while it is open over the top left (`FightLog`): it keeps
+	# room for two of your numbers over your hull, and a third and on stay
+	# under it rather than run into its lines
+	if who < 0 and _fight_log != null and is_instance_valid(_fight_log) and _fight_log.panel.is_visible_in_tree():
+		var lr := _fight_log.panel.get_global_rect()
+		var sv := _view.ship_view()
+		if sv != null:
+			var sr := sv.get_global_transform() * sv.ship_rect()
+			if sr.position.x < lr.end.x and sr.end.x > lr.position.x:
+				top_g = maxf(top_g, lr.end.y)
 	return (inv * Vector2(0.0, top_g)).y + 2.0
 
 

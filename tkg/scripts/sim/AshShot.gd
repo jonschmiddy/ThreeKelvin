@@ -49,6 +49,9 @@ func _run() -> void:
 	Ash.forced = true
 	Ash.reload()
 	Ash.set_on(true)
+	# her introduction already heard (intro:A), so the launch lines it asks for
+	# are the ones she says
+	Ash.mark_intro(true)
 	_test = load("res://scripts/sim/AshTest.gd").new()
 	match _arg("mode", "stills"):
 		"stills":

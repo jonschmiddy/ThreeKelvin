@@ -46,6 +46,13 @@ extends Node
 const REACH_T := 6.0
 const REACH_MAX := 1.3
 const ASYM_MAX := 0.2
+## A BALL FADES INTO SPACE (Jon, Oct 18, "radiant:yes": RADIANT's balls bloomed into a
+## big orb with a hard edge). `fade`: the share of the ball's reach its light takes to
+## go from 0.4 of its light at 0.1 gu out to nothing -- a hard-rimmed orb holds its
+## light and drops it at once. RADIANT's before: 0.24 to 0.40 (PGC 6236 0.26); after,
+## 0.45 to 0.54; SIMPLIFIED's 0.49 to 0.67, PAINTED's 0.42 to 0.59. Judged in RADIANT
+## (its balls alone: every RADIANT ball before failed it), printed for every style.
+const FADE_MIN := 0.42
 const BALL_KINDS := [8, 9, 10, 13, 14, 15]
 const DISC_KINDS := [0, 6]
 ## Jon's run: PGC 6236, The Drowned Coil, a giant elliptical
@@ -135,12 +142,13 @@ func _case(st: StringName, seed_v: int, kind: int) -> void:
 	# (LEGACY by its reach alone: its own dust lies where its seed puts it, and on Jon's
 	# galaxy it lies under the core -- 0.22 of the light lopsided upward in the flat chart,
 	# no camera at all, `chartflat`; the camera's stretch is what the reach measures)
-	var bad := ball and (ratio > REACH_MAX or ratio < 1.0 / REACH_MAX or (absf(m.asym) > ASYM_MAX and st != &"legacy"))
+	var hard: bool = ball and st == &"radiant" and m.fade < FADE_MIN
+	var bad := ball and (ratio > REACH_MAX or ratio < 1.0 / REACH_MAX or (absf(m.asym) > ASYM_MAX and st != &"legacy") or hard)
 	if bad:
 		_fails += 1
-	print("  %-10s %-34s reach above %.2f%s below %.2f%s gu (x%.2f)  asym %+.2f  %s" % [
+	print("  %-10s %-34s reach above %.2f%s below %.2f%s gu (x%.2f)  asym %+.2f  fade %.2f%s  %s" % [
 		String(st).to_upper(), name, m.up, " edge" if m.up_edge else "", m.down, " edge" if m.down_edge else "",
-		ratio, m.asym, ("FAIL" if bad else "ok") if ball else "(a disc: not judged)"])
+		ratio, m.asym, m.fade, " (a hard rim)" if hard else "", ("FAIL" if bad else "ok") if ball else "(a disc: not judged)"])
 	if ball and st == _first:
 		# the region's frame (the marks', the same in every style: measured in the first), from YOU and from the system farthest out: the whole ball in view
 		var far := Run.node_at()
@@ -190,9 +198,22 @@ func _measure(img: Image, core: Vector2, gu: float) -> Dictionary:
 	for d in range(d0, maxi(up, dn) + 1):
 		sa += maxf(la[d], 0.0)
 		sb += maxf(lb[d], 0.0)
+	# how the light ends: from 0.4 of its light at 0.1 gu to the reach, as a share of the
+	# reach, each way and averaged
+	var d10 := mini(int(0.1 * gu), room)
+	var fades: Array[float] = []
+	for pair in [[la, up], [lb, dn]]:
+		var l: Array[float] = pair[0]
+		var r: int = pair[1]
+		var d40 := r
+		for d in range(d10, r + 1):
+			if l[d] < 0.4 * l[d10]:
+				d40 = d
+				break
+		fades.append(float(r - d40) / maxf(float(r), 1.0))
 	return {
 		up = up / gu, down = dn / gu, up_edge = up >= room, down_edge = dn >= room,
-		asym = (sb - sa) / maxf(sb + sa, 1e-6),
+		asym = (sb - sa) / maxf(sb + sa, 1e-6), fade = (fades[0] + fades[1]) * 0.5,
 	}
 
 

@@ -222,6 +222,8 @@ func _show(want: String, seed: int, orbit: String) -> bool:
 		Run.at = idx
 		Run.map[idx].visited = true
 		SectorScreen._approached_at = idx
+		# (its side is beside you only at the station itself: dock:A)
+		Router.park_at_station()
 		Router.show_local()
 		return true
 	for pass_i in 2:

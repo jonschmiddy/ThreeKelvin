@@ -1044,6 +1044,8 @@ func _ready() -> void:
 			here2.shop_hull = LootGen.roll_hull(7)
 			print("[station] full: hold %d items, shelf %d, hull on the blocks"
 				% [Run.cargo.size(), here2.shop.size()])
+		# (docked is at the station: the ship alongside it, as if flown there)
+		Router.park_at_station()
 		Router.show_station()
 	elif "salvage" in OS.get_cmdline_user_args():
 		# `-- salvage 8` opens the sector with eight parts in the hold.

@@ -403,6 +403,163 @@ func _held(p: int) -> void:
 	_ok("held: Tab from the chart goes back to the berth", Router.current is StationScreen and Router.docked)
 
 
+## DOCK ONLY AT THE STATION (Jon, Oct 18, "dock:A"), AND A JUMP IN ARRIVES AT
+## IT ("arrive:B"): in a used run (docked and undocked here once, off to a
+## neighbour by the chart and back), the ship arrives alongside the station:
+## the map's DOCK card live and LOCAL with the station's side and DOCK. Flown
+## to a world of the system, nothing offers DOCK -- LOCAL's bar, the station's
+## side on LOCAL, the map's DOCK card (greyed, with the way to it on it) and its
+## beacon, the fuel hint, `show_station` itself. Flown back to the station, DOCK
+## again, and pressed it docks; flown off to the world from the berth, the ship
+## undocks first (`cast_off`) and LOCAL there has no berth and no DOCK.
+func _only_at_station() -> void:
+	if _only != "" and _only != "dockplace":
+		return
+	print("route dockplace")
+	var world := int(_places().world)
+	var sb := _station_body()
+	if not _ok("dockplace: docked in the berth (the run's first visit)", await _to_berth()):
+		return
+	Router.show_sector()
+	await _idle()
+	_ok("dockplace: UNDOCK lands on LOCAL", Router.current is SectorScreen and not Router.docked)
+	# off by the chart and back
+	Run.chart_from(Run.map[_st])
+	var away := _jump_target(false)
+	if not _ok("dockplace: a neighbour to jump to (%d)" % away, away >= 0):
+		return
+	if not _ok("dockplace: jumped away (at %d)" % Run.at, await _jump_to(away)):
+		return
+	_ok("dockplace: a system with no station arrives at the edge (site %d)" % Run.site_here(), Run.site_here() < -1)
+	if not _ok("dockplace: and back to the station's system (at %d)" % Run.at, await _jump_to(_st)):
+		return
+	# ARRIVED ALONGSIDE THE STATION: the map's DOCK live, then LOCAL with it
+	if not Router.current is SystemMapScreen:
+		await _tab()
+	var m := Router.current as SystemMapScreen
+	if _ok("dockplace: on the map", m != null):
+		await _frames(10)
+		_ok("dockplace: arrived alongside the station (the map's ship at %d, station %d)" % [m.flight.reached(), sb],
+			m.flight.reached() == sb and Router.at_station())
+		await _map_dock("dockplace: arrived", m, true)
+		await _shot("dock_map_arrive")
+	await _here_tab()
+	await _at_dock("dockplace: LOCAL on arrival")
+	await _shot("dock_local_arrive")
+	# a world of the station's system: no DOCK
+	await _tab()
+	m = Router.current as SystemMapScreen
+	if _ok("dockplace: to the map again", m != null) and _ok("dockplace: flown to the world %d" % world, await _fly(world)):
+		await _map_dock("dockplace: at the world", m, false)
+		await _shot("dock_map_world")
+	await _here_tab()
+	await _no_dock("dockplace: LOCAL at the world")
+	await _shot("dock_local_world")
+	# and back to the station: DOCK offered again
+	await _tab()
+	m = Router.current as SystemMapScreen
+	if _ok("dockplace: to the map once more", m != null) and _ok("dockplace: flown back to the station %d" % sb, await _fly(sb)):
+		await _map_dock("dockplace: back at the station", m, true)
+		await _shot("dock_map_station")
+	await _here_tab()
+	var dk: Button = await _at_dock("dockplace: LOCAL back at the station")
+	await _shot("dock_local_station")
+	if dk == null:
+		return
+	dk.pressed.emit()
+	await _idle()
+	await _frames(10)
+	_ok("dockplace: DOCK docks (on %s, docked %s)" % [Router.current.get_script().get_global_name(), Router.docked],
+		Router.current is StationScreen and Router.docked)
+	# docked, the map, and away to the world: undocked first
+	await _tab()
+	m = Router.current as SystemMapScreen
+	if _ok("dockplace: Tab from the berth to the map", m != null):
+		_ok("dockplace: flown from the berth to the world", await _fly(world))
+		_ok("dockplace: undocked as it left (docked %s, tab %s)" % [Router.docked, Router.hud._tab_sector.text],
+			not Router.docked and Router.hud._tab_sector.text == "LOCAL")
+		await _map_dock("dockplace: at the world after the berth", m, false)
+	await _here_tab()
+	await _no_dock("dockplace: LOCAL at the world after the berth")
+	_clean("dockplace", await _local())
+
+
+## LOCAL at the station: its side, DOCK, the bar, the fuel hint. DOCK, or null.
+func _at_dock(what: String) -> Button:
+	var loc := Router.current as SectorScreen
+	var dk: Button = loc.find_child("Dock", true, false) as Button if loc != null else null
+	_ok("%s: the station's side and DOCK (%s, face %s)" % [what, dk != null, loc != null and loc._face != null],
+		loc != null and dk != null and loc._face != null and Router.at_station())
+	_ok("%s: its bar says a station is here" % what, _bar_has(loc, "A STATION HERE"))
+	_ok("%s: the fuel hint: \"%s\"" % [what, Hints.fuel_dock_line()], Hints.fuel_dock_line() == "Refuel here before you leave.")
+	await _frames(1)
+	return dk
+
+
+## Fly the chart's JUMP to system `to` and wait for the arrival to settle.
+func _jump_to(to: int) -> bool:
+	if not Run.can_jump_to(Run.map[to]):
+		return false
+	Router.begin_jump(to)
+	for i in 1800:
+		await _tree.process_frame
+		if Run.at == to and not ZoomLadder.busy() and (Router.current is SystemMapScreen or Router.current is SectorScreen) 				and Router._post_arrive == false:
+			break
+	await _idle()
+	await _frames(30)
+	return Run.at == to
+
+
+## The map's DOCK card: woken (`there`), or greyed with the way to the station
+## on its button; and its beacon taken from away is refused.
+func _map_dock(what: String, m: SystemMapScreen, there: bool) -> void:
+	m.panel.show_system()
+	await _frames(2)
+	var card = m.panel._cards.get(&"dock")
+	var btn := (card._right as Button) if card != null else null
+	if not _ok("%s: the map lists the DOCK card" % what, btn != null):
+		return
+	if there:
+		_ok("%s: its DOCK can be pressed" % what, not btn.disabled)
+		return
+	_ok("%s: its DOCK is greyed, and says \"%s\" (%s)" % [what, Router.DOCK_AWAY, btn.tooltip_text.replace("
+", " ")],
+		btn.disabled and btn.tooltip_text.contains(Router.DOCK_AWAY))
+	var bc = null
+	for b in m.view.layout.bodies[_station_body()].beacons:
+		if b.dock:
+			bc = b
+	var at0: int = m.flight.reached()
+	m.take_action(bc)
+	await _frames(20)
+	_ok("%s: the DOCK beacon from here docks nothing and flies nowhere" % what,
+		Router.current == m and not Router.docked and m.flight.reached() == at0 and m.flight.can_fly())
+
+
+## LOCAL away from the station: no DOCK, no station side or ring, the bar says
+## where to go, the fuel hint the same, and the door refuses.
+func _no_dock(what: String) -> void:
+	var loc := Router.current as SectorScreen
+	if not _ok("%s: on LOCAL" % what, loc != null):
+		return
+	_ok("%s: no DOCK button" % what, loc.find_child("Dock", true, false) == null)
+	_ok("%s: no station side, no ring" % what, loc._face == null and loc._view._area._place_name() == &"")
+	_ok("%s: the bar says to fly to the station" % what, _bar_has(loc, "FLY TO THE STATION TO DOCK"))
+	_ok("%s: the fuel hint: \"%s\"" % [what, Hints.fuel_dock_line()], Hints.fuel_dock_line() == "Fly to the station here to refuel.")
+	Router.show_station()
+	await _frames(20)
+	_ok("%s: docking refused, still on LOCAL" % what, Router.current == loc and not Router.docked)
+
+
+func _bar_has(loc: SectorScreen, words: String) -> bool:
+	if loc == null:
+		return false
+	for l in loc.find_children("*", "Label", true, false):
+		if (l as Label).is_visible_in_tree() and (l as Label).text.contains(words):
+			return true
+	return false
+
+
 ## A system the chart can jump to from the station (one holding an event, for GO).
 func _jump_target(with_event: bool) -> int:
 	var here: MapGen.MapNode = Run.map[_st]
@@ -456,6 +613,7 @@ func _run() -> void:
 	var pl := _places()
 	print("station %d: its body %d, a world %d, a belt %d" % [_st, _station_body(), pl.world, pl.belt])
 	_want = {"world_hud": pl.world, "world_tab": pl.world, "star_hud": -1, "belt_hud": pl.belt, "open_tab": -9}
+	await _only_at_station()
 	await _route("world_hud", _map_trip(int(pl.world), "hud"))
 	await _route("world_tab", _map_trip(int(pl.world), "tab"))
 	await _route("star_hud", _map_trip(-1, "hud"))

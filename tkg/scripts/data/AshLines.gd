@@ -95,6 +95,11 @@ const MOMENTS: Dictionary = {
 ## `VOICE_DIR` + the name here. A line with "" has no take and is said as text
 ## alone (`AshPortrait.say`). A new take is its file and its entry here and
 ## nothing else: the typing follows each file's own length.
+## HER FIRST LINE EVER (Jon, Oct 18, "intro:A"): a profile's first launch says
+## this one, whatever the bag holds (`Ash.pick_line`); every launch after is the
+## bag's, this line among them.
+const INTRO := &"launch_04"
+
 const VOICE_DIR := "res://assets/audio/voice/ash/%s.ogg"
 const VOICE: Dictionary = {
 	&"doubt_01": "doubt_01", &"doubt_02": "doubt_02", &"doubt_03": "doubt_03",
@@ -117,6 +122,17 @@ static func id_of(line: String) -> StringName:
 		if i >= 0:
 			return StringName("%s_%02d" % [k, i + 1])
 	return &""
+
+
+## The line with id `id` ("launch_04"); "" for none.
+static func line_of(id: StringName) -> String:
+	var s := String(id)
+	var cut := s.rfind("_")
+	if cut < 0:
+		return ""
+	var all := of(StringName(s.left(cut)))
+	var i := s.substr(cut + 1).to_int() - 1
+	return String(all[i]) if i >= 0 and i < all.size() else ""
 
 
 ## The voice file for `line`, or "" if it is said as text alone.

@@ -1880,8 +1880,10 @@ class AreaView extends Control:
 		if node == null:
 			return &""
 		match node.type:
+			# THE STATION ONLY WHERE IT IS (dock:A): at a world, the star or open
+			# space of its system the hab ring is not beside you
 			MapGen.NodeType.STATION:
-				return &"station"
+				return &"station" if Router.at_station(node) else &""
 			# READ WHAT IS HERE. The three types this replaced each had their own
 			# picture, and the picture is still worth having -- it just comes off
 			# the options now instead of a label chosen before anything rolled.
