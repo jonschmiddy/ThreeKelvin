@@ -96,9 +96,26 @@ func _run() -> void:
 	# mount is free and the rest in the hold and the wreck, to see the
 	# procedural drawing where it is seen; `transfer` then opens the wreck.
 	var proc_left: Array[ModuleData] = []
+	# `takemap=<json> takeslot=K`: each part's K-th candidate picture
+	# ({id: [png, ...]}, absolute paths) worn in place of its procedural
+	# drawing, to judge generated takes where they are seen, before any is
+	# installed. `procset=a,b`: only those parts, fitted.
+	if _arg("takemap") != "":
+		var tm: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(_arg("takemap")))
+		var k := int(_arg("takeslot", "0"))
+		for tid: String in tm:
+			var paths: Array = tm[tid]
+			if k < paths.size() and DB.modules.has(StringName(tid)):
+				var img := Image.load_from_file(String(paths[k]))
+				if img != null:
+					(DB.modules[StringName(tid)] as ModuleData).sprite = ImageTexture.create_from_image(img)
+					print("cutawayshot: %s wears %s" % [tid, String(paths[k]).get_file()])
+	var proc_ids: Array = PROC
+	if _arg("procset") != "":
+		proc_ids = Array(_arg("procset").split(",")).map(func(x: String) -> StringName: return StringName(x))
 	if "proc" in _args:
 		Run.installed.clear()
-		for pid: StringName in PROC:
+		for pid: StringName in proc_ids:
 			var pm := (DB.modules[pid] as ModuleData).duplicate(true) as ModuleData
 			if Run.slots_used(pm.slot) < Run.slots_for(pm.slot):
 				Run.install_module(pm)
@@ -122,6 +139,13 @@ func _run() -> void:
 				Run.stow(proc_left[i])
 			else:
 				wreck.items.append(proc_left[i])
+		# `takeshot`: the fitted parts again, in the hold where they fit and in
+		# the wreck after that, for the transfer screen
+		if "takeshot" in _args:
+			for im: ModuleData in Run.installed:
+				var cp := im.duplicate(true) as ModuleData
+				if not Run.stow(cp):
+					wreck.items.append(cp)
 	else:
 		for i in 3:
 			Run.stow(LootGen.roll_module(3, mk))
@@ -179,6 +203,15 @@ func _run() -> void:
 		return
 	await _frames(40)
 	_still("02_open")
+	# `takeshot`: the cutaway, then the wreck's transfer screen, and stop
+	if "takeshot" in _args:
+		cut.close_now()
+		await _frames(30)
+		sc._open_jetsam(wreck, "Rustjaw Cutter", true)
+		await _frames(60)
+		_still("16_transfer")
+		tree.quit()
+		return
 	print("cutawayshot: push-in %dx, left panel %dx%d, hull %s" % [cut.k, cut._hold_w, cut.size.y, Run.hull.display_name()])
 	_report_fit(cut)
 	print("cutawayshot: %s" % cut.fit_note)
