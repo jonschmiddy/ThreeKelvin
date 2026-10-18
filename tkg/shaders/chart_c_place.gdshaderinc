@@ -1168,7 +1168,14 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 	// (each layer is called ONCE whatever the galaxy's shape: a call in each
 	// branch inlines it twice and the shader took seconds longer to compile)
 	if (ball) {
-		vec3 Bb = ellBall(v, gas);
+		// A BALL IS NOT A DISC: through the solid galaxy's camera it is drawn about the
+		// core in the core's own frame (vb, as the bulge is), round on the screen as the
+		// flat chart drew it. Read at v -- the disc's plane -- its light lay on the plane
+		// and the camera stretched the near half toward itself: on PGC 6236 (a giant
+		// elliptical) it ended 0.47 gu above the core and ran on past the chart's
+		// bottom edge, since below the core the plane runs out to the camera's horizon
+		// (2.38 gu out on the plane) long before the ball's light does (4.2 gu out).
+		vec3 Bb = ellBall(vb, gas);
 		// close in, the ball resolves into its stars and its diffuse light thins
 		// (the core's glare only: the ball's heart, never its outskirts)
 		Bb *= mix(1.0, 0.3, glareOn() * smoothstep(2.4, 6.0, u_zoom) * mix(1.0 - smoothstep(0.05, 0.30, r), 1.0, zoomChanges()));
