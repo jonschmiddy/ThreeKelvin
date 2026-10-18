@@ -62,6 +62,8 @@ func run(tree: SceneTree) -> void:
 			await _graphics_case()
 			print("SAVE MY LOGS")
 			await _logs_case()
+			print("the first launch's window")
+			await _first_window_case()
 	DisplaySettings.reduced_motion = was_reduced
 	DisplaySettings.skip_jump = was_skip
 	Router.animate_in_harness = false
@@ -269,6 +271,55 @@ func _logs_case() -> void:
 	DirAccess.remove_absolute(dest)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
 	DisplaySettings.path = was_path
+	await _tree.process_frame
+
+
+## THE FIRST LAUNCH'S WINDOW (`DisplaySettings.first_launch_window`; Jon's
+## release-check pick A, Oct 18). With no settings file: BORDERLESS where a
+## window could only be 1x (a 1080p screen), else a window at the largest size
+## that fits. A settings file that exists is never overridden. Through the real
+## `load_and_apply`, on a scratch file.
+func _first_window_case() -> void:
+	const SCRATCH := "user://firstwindow_settings.cfg"
+	var was_path := DisplaySettings.path
+	var was_mode := DisplaySettings.mode
+	var was_scale := DisplaySettings.window_scale
+	DisplaySettings.first_launch_window(1)
+	_ok("  a screen that fits only 1x starts BORDERLESS", DisplaySettings.mode == DisplaySettings.Mode.BORDERLESS)
+	DisplaySettings.first_launch_window(2)
+	_ok("  one that fits 2x starts in a 2x window", DisplaySettings.mode == DisplaySettings.Mode.WINDOWED
+		and DisplaySettings.window_scale == 2)
+	DisplaySettings.first_launch_window(3)
+	_ok("  one that fits 3x starts in a 3x window", DisplaySettings.mode == DisplaySettings.Mode.WINDOWED
+		and DisplaySettings.window_scale == 3)
+	DisplaySettings.path = SCRATCH
+	DisplaySettings.first_launch_in_harness = true
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
+	DisplaySettings.mode = DisplaySettings.Mode.WINDOWED
+	DisplaySettings.window_scale = 1
+	DisplaySettings.load_and_apply()
+	var top := DisplaySettings.max_window_scale()
+	_ok("  no settings file: %s (largest window %dx)" % [
+		"BORDERLESS" if DisplaySettings.mode == DisplaySettings.Mode.BORDERLESS else "WINDOWED %dx" % DisplaySettings.window_scale, top],
+		DisplaySettings.mode == DisplaySettings.Mode.BORDERLESS if top <= 1
+		else (DisplaySettings.mode == DisplaySettings.Mode.WINDOWED and DisplaySettings.window_scale == top))
+	var kept := ConfigFile.new()
+	_ok("  and that choice is saved", kept.load(SCRATCH) == OK
+		and int(kept.get_value("display", "mode", -1)) == int(DisplaySettings.mode))
+	# a player's own file, WINDOWED at 1x, read back as it is
+	var own := ConfigFile.new()
+	own.set_value("display", "mode", int(DisplaySettings.Mode.WINDOWED))
+	own.set_value("display", "window_scale", 1)
+	own.save(SCRATCH)
+	DisplaySettings.load_and_apply()
+	_ok("  an existing settings file is never overridden", DisplaySettings.mode == DisplaySettings.Mode.WINDOWED
+		and DisplaySettings.window_scale == 1)
+	DisplaySettings.first_launch_in_harness = false
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
+	DisplaySettings.path = was_path
+	DisplaySettings.mode = was_mode
+	DisplaySettings.window_scale = was_scale
+	DisplaySettings.load_and_apply()
 	await _tree.process_frame
 
 

@@ -13,6 +13,11 @@ config/use_custom_user_dir.template=true
 config/custom_user_dir_name.template="ThreeKelvinAlpha"
 config/description="Chart coreward. Your modules are your deck."
 run/main_scene="res://scenes/Shell.tscn"
+; WRITE EVERY LOG LINE THROUGH TO godot.log AS IT IS PRINTED. A release build
+; otherwise flushes the log only on an error, so a game that hangs and is ended
+; from Task Manager left a 0-byte godot.log (measured on the export, Oct 18) --
+; the one file a friend sends us. The game prints a few lines a minute.
+run/flush_stdout_on_print=true
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.png"
 

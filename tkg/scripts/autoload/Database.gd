@@ -1869,9 +1869,9 @@ func apply_hull_lines(h: HullData) -> void:
 ## whose slot count this rigging does not cover.
 const HULL_MOUNTS := {
 	"hull_light_c": {
-		weapon = [Vector2(220, 27), Vector2(220, 67)],
-		system = [Vector2(144, 48), Vector2(185, 48)],
-		utility = [Vector2(108, 48), Vector2(227, 48)],
+		weapon = [Vector2(220, 27), Vector2(220, 67), Vector2(144, 79)],
+		system = [Vector2(144, 39), Vector2(184, 39), Vector2(144, 59), Vector2(184, 59)],
+		utility = [Vector2(108, 48), Vector2(227, 47), Vector2(144, 19)],
 	},
 	"hull_light_b": {
 		weapon = [Vector2(204, 30), Vector2(204, 77)],
@@ -1899,9 +1899,9 @@ const HULL_MOUNTS := {
 		utility = [Vector2(206, 71), Vector2(156, 71)],
 	},
 	"hull_medium_a": {
-		weapon = [Vector2(271, 50), Vector2(174, 33), Vector2(271, 89), Vector2(220, 94)],
-		system = [Vector2(111, 67), Vector2(149, 67)],
-		utility = [Vector2(238, 67), Vector2(197, 67)],
+		weapon = [Vector2(271, 50), Vector2(201, 42), Vector2(271, 89), Vector2(184, 103)],
+		system = [Vector2(109, 67), Vector2(149, 67), Vector2(189, 67), Vector2(154, 103)],
+		utility = [Vector2(251, 67), Vector2(224, 67), Vector2(154, 35)],
 	},
 	"hull_medium_s": {
 		weapon = [Vector2(277, 64), Vector2(277, 91), Vector2(241, 58), Vector2(241, 96)],
@@ -1919,9 +1919,9 @@ const HULL_MOUNTS := {
 		utility = [Vector2(249, 53)],
 	},
 	"hull_heavy_a": {
-		weapon = [Vector2(323, 73), Vector2(323, 110), Vector2(238, 63), Vector2(229, 124), Vector2(183, 121)],
-		system = [Vector2(143, 91), Vector2(185, 92)],
-		utility = [Vector2(200, 64)],
+		weapon = [Vector2(331, 75), Vector2(331, 110), Vector2(258, 64), Vector2(249, 123), Vector2(171, 123)],
+		system = [Vector2(133, 92), Vector2(173, 92), Vector2(213, 92), Vector2(253, 92)],
+		utility = [Vector2(203, 49), Vector2(297, 92)],
 	},
 	"hull_heavy_s": {
 		weapon = [Vector2(303, 63), Vector2(303, 105), Vector2(205, 42), Vector2(228, 114), Vector2(166, 124)],
@@ -1936,18 +1936,18 @@ const HULL_MOUNTS := {
 	# Listed in the order the grades open them (C first, then A's gun, then S's
 	# system), so a C-grade ship is never missing its front pair.
 	"solari/hull_light_a": {
-		weapon = [Vector2(166, 30), Vector2(166, 70), Vector2(210, 50)],
-		system = [Vector2(136, 40), Vector2(136, 60), Vector2(136, 79)],
-		utility = [Vector2(180, 50), Vector2(136, 24)],
+		weapon = [Vector2(166, 32), Vector2(166, 72), Vector2(251, 50)],
+		system = [Vector2(156, 52), Vector2(209, 52), Vector2(116, 53)],
+		utility = [Vector2(136, 30), Vector2(136, 73)],
 	},
 	"solari/hull_medium_a": {
 		weapon = [Vector2(236, 40), Vector2(236, 88), Vector2(292, 63), Vector2(160, 28)],
-		system = [Vector2(140, 63), Vector2(180, 63), Vector2(108, 63)],
+		system = [Vector2(150, 61), Vector2(222, 63), Vector2(102, 61)],
 		utility = [Vector2(252, 63), Vector2(150, 100)],
 	},
 	"solari/hull_heavy_a": {
 		weapon = [Vector2(290, 51), Vector2(290, 113), Vector2(340, 80), Vector2(200, 41), Vector2(200, 125)],
-		system = [Vector2(150, 80), Vector2(215, 80), Vector2(112, 80)],
+		system = [Vector2(152, 80), Vector2(215, 80), Vector2(112, 80)],
 		utility = [Vector2(256, 80)],
 	},
 }

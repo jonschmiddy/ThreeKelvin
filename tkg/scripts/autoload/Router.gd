@@ -44,6 +44,43 @@ func register(content_holder: Control, hud_bar: HudBar) -> void:
 	Sig.jumped.connect(_on_jumped)
 	Sig.run_started.connect(_on_run_started)
 	Sig.run_ended.connect(_on_run_ended)
+	Sig.combat_started.connect(func(enemy: String) -> void:
+		crumb("[fight] start: %s" % enemy))
+	Sig.combat_ended.connect(func(result: StringName, _s: String) -> void:
+		crumb("[fight] end: %s, hull %d/%d" % [result, Run.hp, Run.max_hp()]))
+
+
+## BREADCRUMBS IN godot.log, one short line each: every screen change, a
+## resume, a jump, a fight's start and end. A friend's log used to hold the
+## build, the run's seed and A.S.H.'s lines and nothing else, so a report
+## could not say where they were when it went wrong (release check, Oct 18).
+## Not under the balance sim, which plays hundreds of runs.
+var _crumbs := not "sim" in OS.get_cmdline_user_args()
+
+func crumb(line: String) -> void:
+	if _crumbs:
+		print(line)
+
+
+## CLOSING THE WINDOW SAVES, as SAVE & EXIT does (release check, Oct 18). The
+## autosave only writes on a screen change, so a wreck looted, a part fitted or
+## a trade made since then was lost to the window's X. Mid-fight it does what
+## SAVE & EXIT does there: the save from before the fight stands and the fight
+## is noted so it starts again. The title, the hull pick and a finished run
+## save nothing (`_autosave`'s own rules). A harness's `quit()` never comes here.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		save_on_close()
+
+func save_on_close() -> void:
+	if in_combat():
+		if Run.hull != null and not Run.dead and not Run.won:
+			SaveGame.mark_fight(current_fight)
+			crumb("[run] window closed mid-fight; the fight starts again on resume")
+		return
+	_autosave()
+	if SaveGame.has_save():
+		crumb("[run] window closed, run saved")
 
 ## `chrome` is whether the HUD belongs above this screen. The launcher and the
 ## record reached from it run before any run exists, and the HUD reads ship
@@ -75,6 +112,10 @@ func _swap(screen: Control, chrome: bool = true) -> void:
 	# a dock open over the station goes with it
 	dock = null
 	current = screen
+	var sname: String = screen.get_class()
+	if screen.get_script() != null and String(screen.get_script().get_global_name()) != "":
+		sname = String(screen.get_script().get_global_name())
+	crumb("[screen] %s" % sname)
 	content.add_child(screen)
 	var room: Variant = _room_for(screen)
 	if room != null:
@@ -388,6 +429,7 @@ func continue_run() -> void:
 		Run.log_line("The save could not be read.", &"them")
 		show_launcher()
 		return
+	crumb("[run] resumed, seed %d, jump %d, %s" % [Run.galaxy_seed, Run.jumps, BuildInfo.stamp()])
 	# QUIT BETWEEN THE CORE'S KILL AND ITS BODY: back to the body, to click.
 	if Run.won and core_body_here() != null:
 		await_core_body()
@@ -903,6 +945,7 @@ func commit_jump(index: int, skipped: bool = false) -> void:
 		show_sector()
 
 func _on_jumped(_index: int) -> void:
+	crumb("[jump] #%d to %s, fuel %d" % [Run.jumps, MapGen.star_name(Run.node_at()), Run.fuel])
 	# IN AT THE EDGE. A jump arrives where every arrival does, whatever orbit
 	# the ship was left in on the last visit, so an arrival's ambush is at the
 	# edge and leaves its wrecks there -- not on a world whose own fight's hulls

@@ -376,12 +376,38 @@ static func save() -> void:
 	cfg.set_value("display", "graphics_low", _file_low if _harness_low else graphics_low)
 	cfg.save(path)
 
+## THE FIRST LAUNCH'S WINDOW, when there is no settings file at all (an
+## existing file is never overridden). A window is a whole multiple of 960x540
+## and has to leave room for the title bar and taskbar, so on a 1080p screen
+## the biggest one is 1x: a quarter of the screen with every pixel at half the
+## size the game is drawn for. That was a fresh profile's first sight of the
+## game (release check, Oct 18; Jon: "A"). So: BORDERLESS (the whole screen,
+## 2x on 1080p) when a window could only be 1x there, otherwise a window at the
+## largest size that fits. Not under a harness (`TestRun`): its scratch
+## settings file is always new, and its windows keep the size they had --
+## unless it sets `first_launch_in_harness` to test this (`-- menutest`).
+## `top` stands in for the screen's largest window scale in that test.
+static var first_launch_in_harness := false
+
+static func first_launch_window(top: int = -1) -> void:
+	if top < 1:
+		top = max_window_scale()
+	if top <= 1:
+		mode = Mode.BORDERLESS
+		window_scale = 1
+	else:
+		mode = Mode.WINDOWED
+		window_scale = top
+
 static func load_and_apply() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(path) == OK:
 		mode = cfg.get_value("display", "mode", int(Mode.WINDOWED)) as Mode
 		window_scale = int(cfg.get_value("display", "window_scale", 1))
 		screen = int(cfg.get_value("display", "screen", -1))
+	elif first_launch_in_harness or not TestRun.active():
+		# A harness's scratch file is always new; its window stays as it was.
+		first_launch_window()
 	fps_meter = bool(cfg.get_value("display", "fps_meter", false))
 	screen_shake = bool(cfg.get_value("display", "screen_shake", true))
 	colour_help = int(cfg.get_value("display", "colour_help", 0))
