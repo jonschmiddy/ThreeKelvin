@@ -616,6 +616,8 @@ func _flow() -> void:
 			Run.at = m.index
 			m.visited = true
 			break
+	# (DOCK only at the station itself, Jon's dock:A: park there first)
+	Router.park_at_station()
 	Router.show_station()
 	await _frames(90)
 	await _expect(&"dock")
