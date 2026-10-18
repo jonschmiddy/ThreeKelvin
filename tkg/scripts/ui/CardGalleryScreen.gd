@@ -149,11 +149,6 @@ func _fill(col: VBoxContainer) -> int:
 	var kept: Array = []
 	for k in DB.modules:
 		var m: ModuleData = DB.modules[k]
-		if manufacturer == &"(unbranded)":
-			if m.manufacturer != &"":
-				continue
-		elif manufacturer != &"" and m.manufacturer != manufacturer:
-			continue
 		if slot >= 0 and int(m.slot) != slot:
 			continue
 		# resolved_cards(), not `cards`. The Grant Count Law decides how many a
@@ -161,6 +156,14 @@ func _fill(col: VBoxContainer) -> int:
 		# grants one means only one is ever seen. This page shows what the deck sees.
 		for c in m.resolved_cards():
 			var cd: CardData = c
+			# THE CARD'S OWN MANUFACTURER, not its part's (Jon, Oct 18): a shared card a
+			# Korvan part grants is drawn unbranded, so it files under UNBRANDED
+			# and never under KORVAN.
+			if manufacturer == &"(unbranded)":
+				if cd.manufacturer != &"":
+					continue
+			elif manufacturer != &"" and cd.manufacturer != manufacturer:
+				continue
 			if grade >= 0 and cd.rarity != grade:
 				continue
 			kept.append({card = cd, part = m})
@@ -210,14 +213,14 @@ func _fill(col: VBoxContainer) -> int:
 		for id in DB.manufacturers:
 			var bucket2: Array = []
 			for row in kept:
-				if (row as Dictionary).part.manufacturer == id:
+				if ((row as Dictionary).card as CardData).manufacturer == id:
 					bucket2.append(row)
 			if not bucket2.is_empty():
 				groups.append({label = DB.manufacturer_name(id).to_upper(),
 					colour = DB.manufacturer_colour(id), rows = bucket2})
 		var yard: Array = []
 		for row in kept:
-			if (row as Dictionary).part.manufacturer == &"":
+			if ((row as Dictionary).card as CardData).manufacturer == &"":
 				yard.append(row)
 		if not yard.is_empty():
 			groups.append({label = "UNBRANDED", colour = UITheme.COLD, rows = yard})
