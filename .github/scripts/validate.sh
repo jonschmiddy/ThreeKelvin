@@ -504,6 +504,25 @@ else
 	bad "ashtest did not finish"
 fi
 
+step "A.S.H. teaches: the hints in her corner, clear of everything, and the cards when she is off"
+# Jon's tutorial A (Oct 17): each first-run hint said in her corner in his
+# words with its subject outlined, the goal steps said as they start, on LOCAL,
+# fights, the chart, the map and the station, over the cutaway, the band and a
+# wreck's window; held until a click; a bark never over one; the box test on
+# every screen against a list gathered by the test and the pictures' own hit
+# tests; her switch off brings today's cards back; nothing in a party.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot ashtutortest 600 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=AshTutorTest; then
+	if grep -qE '^ashtutortest: PASS' "$LOG_DIR/ashtutortest.log"; then
+		ok "A.S.H. teaches every hint and step, clear of everything"
+	else
+		bad "A.S.H.'s teaching failed"
+		grep -E 'FAIL|^ashtutortest' "$LOG_DIR/ashtutortest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "ashtutortest did not finish"
+fi
+
 step "The sector map's worlds keep up with a pan"
 # Each world's picture sits on its place (its ring, label and beacons) on every
 # frame of a pan; an ease that chased the place left it trailing by frames.

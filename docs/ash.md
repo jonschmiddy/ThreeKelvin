@@ -194,3 +194,40 @@ fades. Fixed with the rooms: PCM, and looped a frame short.
   a second and she is rarely up for one.
 
 Later, maybe: lines that shift with the hull's manufacturer.
+
+## She teaches (Oct 17, tutorial A)
+
+Jon picked how A for the tutorial: **A.S.H. replaces the hint cards.** While she is on,
+each first-run hint is said in her corner in Jon's words (`tkg/scripts/data/AshTutorLines.gd`),
+and the thing it is about gets a 1 px ice outline, as the goal line outlines a tab. No card.
+
+- **Same hints, new delivery.** `Hints` still decides everything: the same triggers, the
+  same order, the same subjects, settle time, the click that spends one, hiding unspent
+  when the subject goes, SHOW HINTS AGAIN. Only `_show` changed: it asks `Ash.teach`, and
+  only if she has nowhere clear to stand on that screen does the card come instead (so a
+  lesson never waits for room).
+- **The goal steps** are said once each as they start (`said_<step>` in the hints file,
+  cleared by SHOW HINTS AGAIN), after any hint due on that screen. The goal line itself
+  is unchanged and keeps showing.
+- **Live values** fill the fields: the hand size, the heat cap, the dock's jumps and name,
+  the cutaway's keys. One jump reads "1 jump". The dock's name is typed after her last
+  word, never spoken.
+- **The cutaway's line is pending** Jon's rewrite: today's card text, behind
+  `AshTutorLines.CUTAWAY_LINE`.
+- **Held until a click** for a hint (Jon's rule: hints advance with a click); a goal
+  step's line types, holds its reading time on `GameClock` and goes.
+- **Exceptions to her bark rules, for teaching only:** she may stand over the cutaway, a
+  wreck's window and the event band; no quiet before one; any number a fight. A teaching
+  line outranks a bark (a bark up is cut), and no bark starts while one is up, settling
+  or due.
+- **New screens:** the STARCHART and the SECTOR map (inside the picture's frame) and the
+  station (the deck's picture). Her spot is the first of her corners, then the middles,
+  clear of everything (`Ash.tut_avoid_rects`) and of anything a click picks in the
+  picture (`Ash.covers`: the chart's systems, the map's worlds, beacons, star, belts and
+  orbit lines).
+- **Voice:** one take per line id, `tkg/assets/audio/voice/ash/tut_<id>.ogg`, and per value
+  where a line has a field (`tut_endturn_5.ogg`, `tut_heat_14.ogg`, `tut_fuel_dock_2.ogg`),
+  used when present, else the base take. A missing take is silence and the words alone.
+  None is recorded yet.
+- **Off:** her switch off brings today's cards back exactly; off in a party (hints are).
+  `-- sheet=AshTutorTest` holds all of it, in the merge gate.

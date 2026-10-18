@@ -42,6 +42,17 @@ extends Node
 ##
 ## It finds its subjects by looking at the screens as they are each frame, so no
 ## screen has to call it.
+##
+## A.S.H. SAYS THEM (Jon picked how A for the tutorial, Oct 17: "A.S.H. replaces
+## the hint cards"). While she is on (`Ash.teaches`), a hint that is due is said
+## in her corner in her words (`AshTutorLines`) with its subject outlined,
+## instead of a card: the same trigger, the same order, the same subject, the
+## same click to spend it, the same hiding unspent when the subject goes. Where
+## she has nowhere clear to stand it is the card after all, so a lesson never
+## waits for room. With her off, the cards, exactly as before. She also says
+## each goal step (`GoalLine`) once as it starts (`said_<step>`), after any hint
+## due on that screen; the goal line itself does not change. All of it is off in
+## a party with the hints (`enabled`).
 
 const SECTION := "hints"
 ## Highest first: when two could show, this one does.
@@ -51,6 +62,9 @@ const ORDER: Array[StringName] = [&"hand", &"endturn", &"intent", &"brace", &"he
 ## The goal line's steps (`GoalLine`), done once: kept beside the hints, and
 ## cleared with them.
 const STEPS: Array[StringName] = [&"step_jump", &"step_event"]
+## The lines A.S.H. says as a goal step starts, each once (`said_<id>`), cleared
+## with the hints.
+const STEP_LINES: Array[StringName] = [&"step_jump", &"step_jump_chart", &"step_event", &"step_event_map"]
 ## How long a subject must hold before its hint shows, s.
 const SETTLE_S := 0.6
 ## Quiet after one hint before the next may show, s.
@@ -63,6 +77,12 @@ const GRACE_S := 0.2
 var forced := false
 ## The hint on screen, if any.
 var card: HintCard = null
+## The hint A.S.H. is saying instead of a card, if any (`Ash.teach`).
+var lesson: StringName = &""
+## The goal step's line she is saying, if any.
+var step_up: StringName = &""
+## The hints that came as a card although she was on: nowhere clear for her.
+var fallback_log: Array[StringName] = []
 ## Every hint that has shown since launch, in order (for the harnesses).
 var shown_log: Array[StringName] = []
 
@@ -76,6 +96,8 @@ var _quiet := 0.0
 ## The fight a card has been played in (`Sig.card_played`): the intent hint's
 ## "after the first card".
 var _played_in: Combat = null
+var _step_cand: StringName = &""
+var _step_t := 0.0
 
 
 func _ready() -> void:
@@ -151,6 +173,24 @@ func fuel_dock_line() -> String:
 	return "Nearest dock: %s, %d jump%s." % [MapGen.star_name(d.node), j, "" if j == 1 else "s"]
 
 
+## THE LIVE VALUES her lines' fields are filled from (`AshTutorLines.fill`):
+## the hand, the heat cap, the dock in reach and the jumps to it, the keys.
+func values(id: StringName = &"") -> Dictionary:
+	var out := {hand = _hand_size(), cap = _heat_cap(),
+		turn = Keys.describe(&"hold_turn"), flip = Keys.describe(&"part_flip")}
+	if id == &"fuel" and _fuel_low():
+		var d := _dock_cached()
+		if not d.is_empty():
+			out["jumps"] = int(d.jumps)
+			out["name"] = MapGen.star_name(d.node)
+	return out
+
+
+## Whether she says the hints (her switch, a harness that asked); else cards.
+func by_ash() -> bool:
+	return Ash.teaches()
+
+
 func _hand_size() -> int:
 	return Run.hand_size() if Run.hull != null else 5
 
@@ -160,10 +200,12 @@ func _heat_cap() -> int:
 
 
 func enabled() -> bool:
-	if forced:
-		return true
+	# (a party first: not even a harness that forces the hints on gets them
+	# there, so `-- sheet=AshTutorTest` can hold her teaching to it)
 	if Net.is_networked():
 		return false
+	if forced:
+		return true
 	return "hints" in OS.get_cmdline_user_args() or not TestRun.active()
 
 
@@ -179,6 +221,8 @@ func _load() -> void:
 	if cfg.load(store_path()) == OK:
 		for id in ORDER + STEPS:
 			_seen[id] = bool(cfg.get_value(SECTION, String(id), false))
+		for id in STEP_LINES:
+			_seen[_said_key(id)] = bool(cfg.get_value(SECTION, String(_said_key(id)), false))
 	_loaded = true
 
 
@@ -198,17 +242,32 @@ func mark_seen(id: StringName, v: bool = true) -> void:
 	_seen[id] = v
 
 
-## SHOW HINTS AGAIN: every hint and the goal line's steps, unseen.
+## Whether A.S.H. has said goal step `id`'s line (`STEP_LINES`).
+func said(id: StringName) -> bool:
+	return seen(_said_key(id))
+
+
+func _said_key(id: StringName) -> StringName:
+	return StringName("said_" + String(id))
+
+
+## SHOW HINTS AGAIN: every hint and the goal line's steps, unseen, and her
+## steps' lines unsaid.
 func reset() -> void:
 	var cfg := ConfigFile.new()
 	cfg.load(store_path())
 	for id in ORDER + STEPS:
 		cfg.set_value(SECTION, String(id), false)
+	for id in STEP_LINES:
+		cfg.set_value(SECTION, String(_said_key(id)), false)
 	cfg.save(store_path())
 	_load()
 	_close(false)
+	_close_lesson(false)
+	_end_step()
 	_quiet = 0.0
 	_cand = &""
+	_step_cand = &""
 
 
 ## Re-read the file (a harness that wrote it behind our back).
@@ -228,8 +287,33 @@ func poll(delta: float) -> void:
 	if not enabled():
 		if card != null:
 			_close(false)
+		if lesson != &"":
+			_close_lesson(false)
+		_end_step()
 		return
 	_quiet = maxf(0.0, _quiet - delta)
+	# HER LESSON: kept on its subject, and spent only by a click (`click`)
+	if lesson != &"":
+		_up_t += delta
+		if not by_ash() or not Ash.lesson_up() or Ash.lesson_hint != lesson:
+			# she went (her switch, the screen changed, something came into her
+			# box): unspent, and it comes again
+			_close_lesson(false)
+			return
+		var lp := probe(lesson) if not _blocked() else {}
+		if lp.is_empty():
+			_gone_t += delta
+			if _gone_t > 0.25:
+				_close_lesson(false)
+		else:
+			_gone_t = 0.0
+			Ash.aim_lesson(lp.subject)
+		return
+	# a goal step's line up: the hints wait for it
+	if step_up != &"":
+		if Ash.lesson_up() and Ash.lesson == step_up:
+			return
+		step_up = &""
 	if card != null:
 		if not is_instance_valid(card):
 			card = null
@@ -262,6 +346,56 @@ func poll(delta: float) -> void:
 			_show(id, p)
 		return
 	_cand = &""
+	_poll_step(delta)
+
+
+## THE GOAL STEPS IN HER VOICE: once a step is up on the goal line and has held
+## SETTLE_S, and no hint is due, she says its line, once ever (until SHOW HINTS
+## AGAIN). No outline of her own: the goal line outlines the tab it names.
+func _poll_step(delta: float) -> void:
+	var id := _step_now()
+	if id == &"":
+		_step_cand = &""
+		return
+	if _step_cand != id:
+		_step_cand = id
+		_step_t = 0.0
+	_step_t += delta
+	if _step_t < SETTLE_S:
+		return
+	var vals := values()
+	if Ash.teach(id, AshTutorLines.fill(id, vals), &"", Rect2(),
+			{voice = AshTutorLines.voice_path(id, vals), spoken = AshTutorLines.spoken(id, vals)}):
+		mark_seen(_said_key(id))
+		step_up = id
+		shown_log.append(id)
+		_step_cand = &""
+
+
+## The goal step whose line she has yet to say, up on the goal line now; &"".
+func _step_now() -> StringName:
+	if not by_ash() or Router.hud == null or not is_instance_valid(Router.hud):
+		return &""
+	if Router.hud.goal_rect().size == Vector2.ZERO:
+		return &""
+	var st := GoalLine.step()
+	var id := StringName(st.get("id", &""))
+	if id == &"" or said(id):
+		return &""
+	return id
+
+
+## A goal step's line is due here or being said (her barks wait for it).
+func step_due() -> bool:
+	if not enabled() or _blocked():
+		return false
+	return step_up != &"" or _step_now() != &""
+
+
+func _end_step() -> void:
+	if step_up != &"" and Ash.lesson == step_up:
+		Ash.end_lesson(true)
+	step_up = &""
 
 
 ## ANY CLICK DISMISSES IT, and is not taken: the click still does its own job.
@@ -271,6 +405,15 @@ func _input(e: InputEvent) -> void:
 
 ## A click as `_input` sees it; public for the harness. True if it dismissed one.
 func click(e: InputEvent) -> bool:
+	var press := e as InputEventMouseButton
+	if press != null and press.pressed and step_up != &"":
+		# a goal step's line is said once; a click lets it go
+		_end_step()
+	if lesson != &"":
+		if press == null or not press.pressed or _up_t < GRACE_S:
+			return false
+		_close_lesson(true)
+		return true
 	if card == null or not is_instance_valid(card):
 		return false
 	var mb := e as InputEventMouseButton
@@ -284,6 +427,21 @@ func _show(id: StringName, p: Dictionary) -> void:
 	var host := _host()
 	if host == null:
 		return
+	if by_ash():
+		var lid := AshTutorLines.line_id(id, _dock_cached() if id == &"fuel" else {})
+		var vals := values(id)
+		if Ash.teach(lid, AshTutorLines.fill(lid, vals), id, p.subject,
+				{voice = AshTutorLines.voice_path(lid, vals), spoken = AshTutorLines.spoken(lid, vals)}):
+			lesson = id
+			_up_t = 0.0
+			_gone_t = 0.0
+			_cand = &""
+			shown_log.append(id)
+			return
+		# NOWHERE CLEAR FOR HER on this screen: the card, so the lesson is never
+		# held back waiting for room
+		fallback_log.append(id)
+		print("[hints] %s: no clear spot for A.S.H. (%s), as a card" % [id, Ash.held_by])
 	card = HintCard.new(id, lines(id))
 	card.theme = _theme()
 	host.add_child(card)
@@ -319,6 +477,18 @@ func _close(read: bool) -> void:
 		if card.get_parent() != null:
 			card.get_parent().remove_child(card)
 	card = null
+	_quiet = GAP_S
+
+
+## Her lesson goes: spent by a click (`read`), or unspent.
+func _close_lesson(read: bool) -> void:
+	if lesson == &"":
+		return
+	if read:
+		mark_seen(lesson)
+	if Ash.lesson_hint == lesson:
+		Ash.end_lesson(true)
+	lesson = &""
 	_quiet = GAP_S
 
 
