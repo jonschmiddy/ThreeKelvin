@@ -1571,8 +1571,11 @@ static func _authored() -> Array[Dictionary]:
 			regions = [MapGen.Region.DEEP],
 			needs_berth = true,
 			choices = [
-				{label = "Buy fuel at her rates", cost_credits = 30, effect = func() -> Dictionary:
-					Run.add_credits(-30)
+				# 4 for 6 units, so "the cheapest in the galaxy" is true: a
+				# capital's REFUEL is 24 for 25, about 1 a unit (fuel:A, Oct 18).
+				# It was 30 for 6, five a unit, dearer than any dock.
+				{label = "Buy fuel at her rates", cost_credits = 4, effect = func() -> Dictionary:
+					Run.add_credits(-4)
 					Run.fuel += 6
 					return {text = "The rate is on a sheet she cannot change and has no reason to doubt. She stamps the receipt twice, once for you and once for a copy no one has collected in eleven years."}},
 				{label = "Stay and copy the folder", effect = func() -> Dictionary:

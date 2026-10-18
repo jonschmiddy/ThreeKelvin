@@ -552,6 +552,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		_tr.spent = policy.spend.duplicate()
 		_tr.fuel_bought = policy.fuel_bought
 		_tr.refuel_stops = policy.refuel_stops
+		_tr.rescues = policy.rescues
 		_tr.kills = Run.kills
 		_trace_file.store_line(JSON.stringify(_tr))
 		_trace_file.flush()

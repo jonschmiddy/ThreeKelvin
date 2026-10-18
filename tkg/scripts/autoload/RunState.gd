@@ -2863,13 +2863,106 @@ func refuel_blocked(_n: MapGen.MapNode) -> String:
 
 ## What one REFUEL puts in and costs here: a can, or the room left in the tank
 ## when that is less, charged by the unit, so a top-up is not a can's price
-## for a splash.
+## for a splash. Or, docked and broke with a tank that cannot reach another
+## dock, exactly the fuel to reach one for what you have (`dock_rescue`):
+## then the offer carries `rescue` and the `dock` it reaches.
 func refuel_offer(n: MapGen.MapNode) -> Dictionary:
+	var r := dock_rescue(n)
+	return r if not r.is_empty() else _can_offer(n)
+
+func _can_offer(n: MapGen.MapNode) -> Dictionary:
 	var units := clampi(fuel_cap() - fuel, 0, Market.REFUEL_UNITS)
 	var cost := Market.refuel_price(n)
 	if units < Market.REFUEL_UNITS:
 		cost = maxi(1, int(ceil(float(cost) * units / Market.REFUEL_UNITS)))
 	return {units = units, cost = cost}
+
+## NO DEAD END AT A DOCK (Jon, Oct 18: "fuel:B"). The one strand the balance
+## check found that a person would hit: docked, the tank short of every other
+## dock, and the credits short of a can. Then the dock sells exactly the fuel
+## to reach the cheapest other dock (`nearest_other_dock`), never more, for
+## what that fuel costs here or for every credit you have when that is less,
+## down to none. {units, cost, rescue, dock}, or {} when it does not apply:
+## not docked here, a dock already in reach, the ordinary REFUEL affordable,
+## or no other dock on the chart within a full tank.
+##
+## It cannot be farmed past the fuel to the dock: once bought, that dock is in
+## reach and the offer is gone. Flying off and back burns more than it returns.
+func dock_rescue(n: MapGen.MapNode) -> Dictionary:
+	if n == null or n.type != MapGen.NodeType.STATION or node_at() != n:
+		return {}
+	if credits >= int(_can_offer(n).cost):
+		return {}
+	var d := nearest_other_dock()
+	if d.is_empty():
+		return {}
+	var need := int(d.fuel) - fuel
+	if need <= 0:
+		return {}
+	var price := int(ceil(float(Market.refuel_price(n)) * need / Market.REFUEL_UNITS))
+	return {units = need, cost = clampi(price, 0, maxi(0, credits)), rescue = true, dock = d.node}
+
+## THE CHEAPEST OTHER DOCK TO REACH FROM HERE, and the fuel it takes, whatever
+## is in the tank: least fuel first, each hop priced from where it starts,
+## through no core and within one full tank. Here does not count. {node,
+## jumps, fuel}, or {} with none.
+##
+## OVER HOPS THE SHIP WILL BE ABLE TO TAKE WHEN IT GETS THERE, which is not
+## the chart. `can_jump_to` wants `sensed`, and sight is LIVE (`chart_from`
+## clears it every arrival): the first hop is to a system seen from here; each
+## hop after it is to one inside the dish of the star it leaves, which is what
+## arriving there will show. Routing on `charted` sold fuel for a path whose
+## last star was out of sight from the one before it.
+func nearest_other_dock() -> Dictionary:
+	if map.is_empty() or node_at() == null:
+		return {}
+	var here := node_at()
+	var known: Array = []
+	for raw in map:
+		var t: MapGen.MapNode = raw
+		if t.type != MapGen.NodeType.CORE:
+			known.append(t)
+	var best := {here.index: 0}
+	var hops := {here.index: 0}
+	var open: Array = [here]
+	var done := {}
+	while not open.is_empty():
+		var bi := 0
+		for k in open.size():
+			if int(best[(open[k] as MapGen.MapNode).index]) < int(best[(open[bi] as MapGen.MapNode).index]):
+				bi = k
+		var from: MapGen.MapNode = open[bi]
+		open.remove_at(bi)
+		if done.has(from.index):
+			continue
+		done[from.index] = true
+		if from.type == MapGen.NodeType.STATION and from.index != here.index:
+			return {node = from, jumps = int(hops[from.index]), fuel = int(best[from.index])}
+		var dish := sense_radius_of(from)
+		for raw2 in known:
+			var t: MapGen.MapNode = raw2
+			if done.has(t.index) or not reachable_from(from, t):
+				continue
+			var seen := t.sensed if from.index == here.index \
+				else MapGen.hop_distance(from, t) <= dish
+			if not seen:
+				continue
+			var c := int(best[from.index]) + _hop_cost(from, t)
+			if c > fuel_cap() or (best.has(t.index) and int(best[t.index]) <= c):
+				continue
+			best[t.index] = c
+			hops[t.index] = int(hops[from.index]) + 1
+			open.append(t)
+	return {}
+
+## The plain line for a rescue offer, for the drone's tooltip and the log.
+func rescue_line(o: Dictionary) -> String:
+	var name := MapGen.star_name(o.dock)
+	if credits <= 0:
+		return "Enough fuel to reach %s. You have no credits, so it is free." % name
+	if int(o.cost) >= credits:
+		return "Enough fuel to reach %s: all your credits." % name
+	return "Enough fuel to reach %s: %d credits." % [name, int(o.cost)]
 
 ## One REFUEL, paid. The station screen, the simulator and the party bot all
 ## buy through this, so the tank's rule is in one place.

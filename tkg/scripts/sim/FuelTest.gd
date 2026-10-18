@@ -21,6 +21,15 @@ extends Node
 ##   the band under it on the left, and every spot A.S.H. can stand in; with dev
 ##   mode's two extra
 ##   tabs too. Not pressable: no button, no focus, the arrow cursor.
+## - THE PRICE AND THE WAY OUT (Jon, Oct 18: "fuel:AB"), in a USED run -- a
+##   few hops flown, credits spent, a can bought, docks visited -- not a fresh
+##   one. A whole tank costs 55-60 at an outpost and follows the service
+##   ladder elsewhere. Docked, broke and short of every other dock, REFUEL
+##   sells exactly the fuel to reach the cheapest one (checked against a
+##   search written here, and then flown), for what that costs or every credit
+##   you have; buying again gets nothing more; and it is not offered when the
+##   ordinary can is affordable, when a dock is already in reach, or away from
+##   the dock.
 
 var _tree: SceneTree
 var _fails := 0
@@ -48,6 +57,7 @@ func _run() -> void:
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	_cap()
+	_price_and_rescue()
 	_floor()
 	_events_scaled()
 	_flee_and_pulsar()
@@ -88,6 +98,269 @@ func _cap() -> void:
 	_ok("an emptier tank buys a whole can at a can's price",
 		int(o.units) == Market.REFUEL_UNITS and int(o.cost) == can)
 	Run.fuel = 45
+
+
+# ------------------------------------------------- the price and the way out
+
+const STATION := MapGen.NodeType.STATION
+
+
+## A hop flown as a jump flies one -- the fuel, the arrival, the chart --
+## without `Run.jump_to`'s signal, which would open the arrival's screens.
+func _hop(t: MapGen.MapNode) -> void:
+	Run.fuel -= Run.fuel_cost_to(t)
+	Run.at = t.index
+	Run.trail.append(t.index)
+	t.visited = true
+	Run.chart_from(t)
+	Run.jumps += 1
+
+
+func _price_and_rescue() -> void:
+	Rng.forced = 4243
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	# A USED RUN: hops flown on the chart's own rules, a dock visited with a
+	# can bought and a repair's worth spent, the hull scratched, then on to a
+	# second dock. A fresh run has one dock charted and a full tank, which is
+	# the state this rule never meets.
+	var docks := 0
+	var guard := 0
+	while docks < 2 and guard < 40:
+		guard += 1
+		var pick: MapGen.MapNode = null
+		for raw in Run.in_range():
+			var t: MapGen.MapNode = raw
+			if not Run.can_jump_to(t) or t.type == MapGen.NodeType.CORE or t.visited:
+				continue
+			if pick == null or (t.type == STATION and pick.type != STATION) \
+					or (t.type == pick.type and Run.fuel_cost_to(t) < Run.fuel_cost_to(pick)):
+				pick = t
+		if pick == null:
+			break
+		_hop(pick)
+		if pick.type == STATION:
+			docks += 1
+			if docks == 1:
+				Run.credits = 300
+				Run.hp = Run.max_hp() - 6
+				Run.buy_refuel(pick)
+				Run.add_credits(-Market.repair_price(pick, 6))
+				Run.heal(6)
+	var dock := Run.node_at()
+	if not _ok("a used run: %d jumps, %d docks visited, %d credits, docked at %s"
+			% [Run.jumps, docks, Run.credits, MapGen.star_name(dock)],
+			docks == 2 and dock.type == STATION and Run.jumps >= 2 and Run.credits < 300):
+		return
+
+	# THE PRICE. A whole tank from empty, bought through the game's own REFUEL
+	# at each rung of the service ladder, this dock standing in for each.
+	var dev0 := dock.development
+	var tank: Array = []
+	for dev in 5:
+		dock.development = dev as MapGen.Development
+		Run.fuel = 0
+		Run.credits = 999
+		var g := 0
+		while Run.refuel_blocked(dock) == "" and g < 6:
+			g += 1
+			if not Run.buy_refuel(dock):
+				break
+		tank.append(999 - Run.credits if Run.fuel == 45 else -1)
+	dock.development = dev0
+	_ok("a whole tank from empty at an outpost costs %d credits (55-60)" % int(tank[1]),
+		int(tank[1]) >= 55 and int(tank[1]) <= 60)
+	_ok("and follows the service ladder: unclaimed %d, outpost %d, settlement %d, city %d, capital %d"
+		% tank, int(tank[0]) > int(tank[1]) and int(tank[1]) > int(tank[2])
+		and int(tank[2]) > int(tank[3]) and int(tank[3]) > int(tank[4]) and int(tank[4]) > 0)
+
+	# THE WAY OUT. The cheapest other dock, the game's against this test's.
+	var game := Run.nearest_other_dock()
+	var mine := _my_cheapest_other_dock()
+	if not _ok("the cheapest other dock: the game's %s at %d fuel, this test's %s at %d"
+			% [MapGen.star_name(game.node) if not game.is_empty() else "none", int(game.get("fuel", -1)),
+				MapGen.star_name(mine.node) if not mine.is_empty() else "none", int(mine.get("fuel", -1))],
+			not game.is_empty() and not mine.is_empty() and int(game.fuel) == int(mine.fuel)
+			and int(game.fuel) > 0 and (game.node as MapGen.MapNode).index != dock.index):
+		return
+	var need := int(game.fuel)
+	var name := MapGen.star_name(game.node)
+	var can := Market.refuel_price(dock)
+	var priced := int(ceil(can * float(need) / Market.REFUEL_UNITS))
+
+	# Broke, on an empty tank: exactly the fuel to the dock, for every credit.
+	Run.fuel = 0
+	Run.credits = mini(can - 1, priced)
+	var c0 := Run.credits
+	var o := Run.refuel_offer(dock)
+	_ok("broke (%d credits, a can is %d) on an empty tank: REFUEL offers the %d fuel to reach %s, for %d"
+		% [c0, can, int(o.units), name, int(o.cost)],
+		o.get("rescue", false) and int(o.units) == need and int(o.cost) == c0
+		and (o.dock as MapGen.MapNode).index == (game.node as MapGen.MapNode).index)
+	_ok("its line, plain: \"%s\"" % Run.rescue_line(o),
+		Run.rescue_line(o) == "Enough fuel to reach %s: all your credits." % name)
+	_ok("bought: the tank holds %d, exactly the way to the dock, and credits are %d"
+		% [Run.fuel if Run.buy_refuel(dock) else -1, Run.credits],
+		Run.fuel == need and Run.credits == 0)
+	var again := Run.refuel_offer(dock)
+	_ok("again: no way out offered (the dock is in reach), and nothing more sells (tank %d, %d credits)"
+		% [Run.fuel, Run.credits],
+		not again.get("rescue", false) and not Run.buy_refuel(dock) and Run.fuel == need and Run.credits == 0)
+	# One short of the dock, with nothing: one unit, free, and no more.
+	Run.fuel = need - 1
+	o = Run.refuel_offer(dock)
+	_ok("one short with 0 credits: one unit, free: \"%s\"" % Run.rescue_line(o),
+		o.get("rescue", false) and int(o.units) == 1 and int(o.cost) == 0
+		and Run.rescue_line(o) == "Enough fuel to reach %s. You have no credits, so it is free." % name)
+	Run.buy_refuel(dock)
+	Run.buy_refuel(dock)
+	Run.buy_refuel(dock)
+	_ok("three presses later the tank holds %d, still the way to the dock" % Run.fuel, Run.fuel == need)
+	# Some credits, not a can's worth, and the fuel costs less than them: the
+	# fuel's price, not the purse.
+	if priced < can - 1:
+		Run.fuel = 0
+		Run.credits = can - 1
+		o = Run.refuel_offer(dock)
+		_ok("%d credits, the fuel to the dock priced %d: it costs %d and leaves %d"
+			% [can - 1, priced, int(o.cost), can - 1 - int(o.cost)],
+			o.get("rescue", false) and int(o.cost) == priced
+			and Run.rescue_line(o) == "Enough fuel to reach %s: %d credits." % [name, priced])
+
+	# Not offered when the can is affordable, when a dock is in reach, or away.
+	Run.fuel = 0
+	Run.credits = can
+	o = Run.refuel_offer(dock)
+	_ok("a can's price in hand (%d): the ordinary can, %d fuel for %d" % [can, int(o.units), int(o.cost)],
+		not o.get("rescue", false) and int(o.units) == Market.REFUEL_UNITS and int(o.cost) == can)
+	Run.fuel = need
+	Run.credits = 0
+	_ok("the dock already in reach (%d fuel), broke: no way-out offer" % need,
+		Run.dock_rescue(dock).is_empty() and not Run.refuel_offer(dock).get("rescue", false))
+	var away: MapGen.MapNode = null
+	for raw in Run.in_range():
+		if (raw as MapGen.MapNode).type != STATION and (raw as MapGen.MapNode).type != MapGen.NodeType.CORE:
+			away = raw
+			break
+	if away != null:
+		Run.at = away.index
+		Run.fuel = 0
+		_ok("broke and empty but not at the dock: no way-out offer from it",
+			Run.dock_rescue(dock).is_empty() and not Run.refuel_offer(dock).get("rescue", false))
+		Run.at = dock.index
+
+	# AND THEN FLOWN: the rescue's fuel, along this test's path, hop by hop on
+	# the chart's own rule (`can_jump_to`), lands on a dock.
+	Run.fuel = need
+	var path: Array = mine.path
+	var flew := true
+	for raw in path:
+		var t: MapGen.MapNode = raw
+		if not Run.can_jump_to(t):
+			flew = false
+			break
+		_hop(t)
+	_ok("flown on %d fuel: %d hop%s, landed on %s with %d left"
+		% [need, path.size(), "" if path.size() == 1 else "s", MapGen.star_name(Run.node_at()), Run.fuel],
+		flew and Run.node_at().type == STATION and Run.fuel >= 0)
+
+	# A FAR DOCK TOO: on a heavy frame (dearer hops), the dock in this galaxy
+	# whose cheapest other dock is the furthest, as the chart around it shows.
+	Run.fit_chassis(&"korvan", HullData.Weight.HEAVY)
+	var far: MapGen.MapNode = null
+	var far_d := {}
+	for raw in Run.map:
+		var s: MapGen.MapNode = raw
+		if s.type != STATION:
+			continue
+		_stand(s)
+		var d := _my_cheapest_other_dock()
+		if not d.is_empty() and (far_d.is_empty() or int(d.fuel) > int(far_d.fuel)):
+			far = s
+			far_d = d
+	# Docks sit a hop apart in most galaxies, so take the nearest ones out of
+	# sight from here (as a dish too small for them would) until the way out is
+	# two hops or more: a dock you cannot see now, seen from the next star.
+	if far != null:
+		_stand(far)
+		var hid := 0
+		while not far_d.is_empty() and (far_d.path as Array).size() < 2 and hid < 8:
+			(far_d.path[0] as MapGen.MapNode).sensed = false
+			hid += 1
+			far_d = _my_cheapest_other_dock()
+	if not _ok("a dock far from the next one it knows: %s, %d fuel and %d hops on a heavy frame"
+			% [MapGen.star_name(far) if far != null else "none", int(far_d.get("fuel", 0)),
+				(far_d.get("path", []) as Array).size()],
+			far != null and not far_d.is_empty() and int(far_d.fuel) >= 4 and (far_d.path as Array).size() >= 2):
+		return
+	game = Run.nearest_other_dock()
+	need = int(far_d.fuel)
+	Run.fuel = 0
+	Run.credits = 5
+	o = Run.refuel_offer(far)
+	_ok("broke (5 credits) and empty there: the offer is %d fuel to %s for %d (the game's search: %d)"
+		% [int(o.get("units", 0)), MapGen.star_name(o.dock) if o.has("dock") else "none",
+			int(o.get("cost", -1)), int(game.get("fuel", -1))],
+		o.get("rescue", false) and int(o.units) == need and int(game.fuel) == need and int(o.cost) == 5)
+	Run.buy_refuel(far)
+	_ok("bought: %d fuel, 0 credits, and pressing again sells nothing" % Run.fuel,
+		Run.fuel == need and Run.credits == 0 and not Run.buy_refuel(far) and Run.fuel == need)
+	flew = true
+	var why := ""
+	for raw in far_d.path:
+		var t: MapGen.MapNode = raw
+		if not Run.can_jump_to(t):
+			why = " (refused %s: sensed %s, visited %s, reach %s, costs %d of %d)" % [MapGen.star_name(t),
+				t.sensed, t.visited, Run.reachable(t), Run.fuel_cost_to(t), Run.fuel]
+			flew = false
+			break
+		_hop(t)
+	_ok("flown: %d hops, landed on %s with %d left%s"
+		% [(far_d.path as Array).size(), MapGen.star_name(Run.node_at()), Run.fuel, why],
+		flew and Run.node_at().type == STATION and Run.fuel >= 0)
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+
+
+## This test's own search: the least fuel to any other dock, priced with the
+## jump formula restated here, through no core, within a tank, over hops the
+## ship can take when it gets there -- the first to a star seen from here, each
+## after it to one inside the dish of the star it leaves (sight is live: it is
+## what arriving shows). {node, fuel, path} (path excludes here), or {}.
+func _my_cheapest_other_dock() -> Dictionary:
+	var here := Run.node_at()
+	var cost := {here.index: 0}
+	var prev := {}
+	var todo: Array = [here.index]
+	var seen := {}
+	while not todo.is_empty():
+		todo.sort_custom(func(a: int, b: int) -> bool: return int(cost[a]) < int(cost[b]))
+		var i: int = todo.pop_front()
+		if seen.has(i):
+			continue
+		seen[i] = true
+		var at: MapGen.MapNode = Run.map[i]
+		if at.type == STATION and i != here.index:
+			var path: Array = []
+			var k := i
+			while k != here.index:
+				path.push_front(Run.map[k])
+				k = int(prev[k])
+			return {node = at, fuel = int(cost[i]), path = path}
+		for raw in Run.map:
+			var t: MapGen.MapNode = raw
+			if seen.has(t.index) or t.type == MapGen.NodeType.CORE or not Run.reachable_from(at, t):
+				continue
+			if not (t.sensed if i == here.index else MapGen.hop_distance(at, t) <= Run.sense_radius_of(at)):
+				continue
+			var hop := clampi(int(round(Run.fuel_factor() * MapGen.hop_distance(at, t)
+				* Run.FUEL_PER_DISC_RADIUS)), 1, Run.FUEL_MAX_HOP)
+			var c := int(cost[i]) + hop
+			if c > 45 or (cost.has(t.index) and int(cost[t.index]) <= c):
+				continue
+			cost[t.index] = c
+			prev[t.index] = i
+			todo.append(t.index)
+	return {}
 
 
 # ------------------------------------------------------------------ the floor
