@@ -2139,7 +2139,10 @@ func harvest_pulsar() -> void:
 	take_whole(n)
 	# Scales with danger, so a deep pulsar is both a better haul and a worse
 	# idea — which is the shape of this whole map.
-	var gain_fuel := 14 + n.danger * 2
+	# ABOUT HALF A TANK (Jon, Oct 17: "pulsar:C"): 15 at danger 1, 24 at 10,
+	# of 45. It was 14 + 2 a danger point against 279; the setter holds it
+	# under the top. Still the densest fuel there is, and still paid in hull.
+	var gain_fuel := 14 + n.danger
 	var gain_exotic := 1 + int(n.danger / 4)
 	var burn := 6 + int(n.danger * 1.6)
 	var gain_heat := 3 + int(n.danger / 3)
@@ -2160,7 +2163,7 @@ func harvest_pulsar() -> void:
 	# rather than by tier is unaffected.
 	add_material(PULSAR_DROP, gain_exotic)
 	heat += gain_heat
-	log_line("Beam sweep. The tank fills in eleven seconds.", &"good")
+	log_line("Beam sweep. Fuel pours into the tank for eleven seconds.", &"good")
 	# The name comes off the table rather than being written here twice.
 	var silt: Dictionary = MaterialTable.by_id(PULSAR_DROP)
 	log_line("+%d fuel, and %d %s adrift alongside." % [gain_fuel, gain_exotic,

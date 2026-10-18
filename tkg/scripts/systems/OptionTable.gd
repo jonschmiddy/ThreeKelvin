@@ -1550,10 +1550,10 @@ static func _authored() -> Array[Dictionary]:
 			regions = [MapGen.Region.DEEP],
 			needs_berth = true,
 			choices = [
-				{label = "Fill the tank at her rates", cost_credits = 30, effect = func() -> Dictionary:
+				{label = "Buy fuel at her rates", cost_credits = 30, effect = func() -> Dictionary:
 					Run.add_credits(-30)
 					Run.fuel += 6
-					return {text = "She charges you a third of what a rim station would. The rate is on a sheet she cannot change and has no reason to doubt. She stamps the receipt twice, once for you and once for a copy no one has collected in eleven years."}},
+					return {text = "The rate is on a sheet she cannot change and has no reason to doubt. She stamps the receipt twice, once for you and once for a copy no one has collected in eleven years."}},
 				{label = "Stay and copy the folder", effect = func() -> Dictionary:
 					Run.drain_fuel(1)
 					return {text = "Copying it takes most of a shift, with the reactor idling. It is other crews' paperwork about the thing at the core. There are transit logs that stop mid line and a mass estimate crossed out four times. There is an order for instruments that were never sent and never cancelled. She reads along with you in silence. In eleven years, no one else has asked to see it.", archive_recover = true, material_id = &"survey_film", material = &"event"}},
@@ -3206,7 +3206,7 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"thermal", need = 7},
 					met = func() -> Dictionary:
 						Run.fuel += 5
-						return {text = "You warm the valves one at a time and take all six tanks, five units. The owners will not find out for months."},
+						return {text = "You warm the valves one at a time and take all six tanks. The owners will not find out for months."},
 					clean = func() -> Dictionary:
 						Run.fuel += 3
 						Run.heat += 10
@@ -4422,7 +4422,7 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "The push goes in off centre. The tank starts a slow yaw you cannot get in front of. One corner comes around into your plating at walking speed. At that mass, walking speed is enough. The tank stops where it stops. The freighter leaves on time and empty."}},
 				{label = "Sell the site your reserve", effect = func() -> Dictionary:
 					Run.drain_fuel(2)
-					return {text = "Their last working tug can do it in three trips if it has fuel to burn. Two units is three trips. It goes across the line in an hour. The tug is moving before the pump is cold. The foreman pays in ore off the top of the tank. He would rather part with the ore than the money. The tug is out at the anchor before he finishes saying it.", material = &"mining"}},
+					return {text = "Their last working tug can do it in three trips if it has fuel to burn. Two units go across the line in an hour. The tug is moving before the pump is cold. The foreman pays in ore off the top of the tank. He would rather part with the ore than the money. The tug is out at the anchor before he finishes saying it.", material = &"mining"}},
 				{label = "Hold your heading", stay = true, effect = func() -> Dictionary:
 					return {text = "He is still on the channel two hours later. He is offering the same rate to a different set of ships. The tank sits where it was filled. The window closes whether anybody answers him or not."}},
 			],

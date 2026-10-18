@@ -18,7 +18,8 @@ extends Node
 ##   figure, the bar's fill, the colour (ice, amber, red, with or without hints,
 ##   so a party is warned too); and the box test -- every piece inside the bar,
 ##   on screen, clear of every other thing on the row, of the goal line and of
-##   the band under it on the left where A.S.H. sits; with dev mode's two extra
+##   the band under it on the left, and every spot A.S.H. can stand in; with dev
+##   mode's two extra
 ##   tabs too. Not pressable: no button, no focus, the arrow cursor.
 
 var _tree: SceneTree
@@ -49,6 +50,7 @@ func _run() -> void:
 	_cap()
 	_floor()
 	_events_scaled()
+	_flee_and_pulsar()
 	await _hint()
 	await _hud()
 	_finish()
@@ -146,6 +148,44 @@ func _floor() -> void:
 ## (round(n * 45 / 279), at least 1), so the largest of either is 6. Counted
 ## at least, not exactly, so a branch that adds an event (feat/fauna-events'
 ## `in_the_wake`) passes once its drain goes through `drain_fuel` at the scale.
+## FLEE AND THE PULSAR ON THE 45 SCALE (Jon: "flee:A", "pulsar:C"). A flee burns
+## 1, and 2 more on a partial, through the floor; the pulsar pays 14 + danger,
+## about half a tank, held under the top.
+func _flee_and_pulsar() -> void:
+	var src := FileAccess.get_file_as_string("res://scripts/systems/Combat.gd")
+	var bare := RegEx.create_from_string("Run\\.fuel\\s*=\\s*maxi\\(0").search_all(src)
+	_ok("a flee costs %d, %d more on a partial, and burns through the floor (%d bare writes)"
+		% [Combat.FLEE_FUEL, Combat.FLEE_FUEL_PARTIAL, bare.size()],
+		Combat.FLEE_FUEL == 1 and Combat.FLEE_FUEL_PARTIAL == 2 and bare.is_empty()
+		and src.contains("Run.drain_fuel(FLEE_FUEL)") and src.contains("Run.drain_fuel(FLEE_FUEL_PARTIAL)"))
+	var p: MapGen.MapNode = null
+	for raw in Run.map:
+		if (raw as MapGen.MapNode).type == MapGen.NodeType.PULSAR and not (raw as MapGen.MapNode).cleared:
+			p = raw
+			break
+	if not _ok("a pulsar to fly", p != null):
+		return
+	var at0 := Run.at
+	Run.at = p.index
+	Run.chart_from(p)
+	Run.hp = Run.max_hp()
+	Run.fuel = 10
+	Run.harvest_pulsar()
+	_ok("the beam pays 14 + danger %d: 10 -> %d" % [p.danger, Run.fuel],
+		Run.fuel == mini(45, 10 + 14 + p.danger))
+	p.cleared = false
+	Run.hp = Run.max_hp()
+	Run.fuel = 40
+	Run.harvest_pulsar()
+	_ok("and stops at the top: 40 -> %d" % Run.fuel, Run.fuel == 45)
+	p.cleared = false
+	Run.at = at0
+	Run.chart_from(Run.node_at())
+	Run.hp = Run.max_hp()
+	Run.heat = 0
+	Run.fuel = 45
+
+
 func _events_scaled() -> void:
 	var src := FileAccess.get_file_as_string("res://scripts/systems/OptionTable.gd")
 	var raw := RegEx.create_from_string("Run\\.fuel\\s*=\\s*maxi\\(0,\\s*Run\\.fuel\\s*-").search_all(src)
@@ -374,6 +414,16 @@ func _readout(hud: HudBar, f: int, tag: String) -> void:
 	_ok("%s: clear of the goal line (%s)" % [tag, g], g.size == Vector2.ZERO or not g.intersects(whole))
 	_ok("%s: never below the bar, where the goal line and A.S.H.'s corner are, and on the right half"
 		% tag, whole.end.y <= bar.end.y and whole.position.x > view.size.x * 0.5)
+	# A.S.H.'s every spot (`Ash.survey_boxes`: top left first, all eight) on LOCAL
+	var cur := Router.current as Control
+	if cur is SectorScreen:
+		var spots := Ash.survey_boxes(cur)
+		var on: Array = []
+		for sp: Dictionary in spots:
+			if (sp.rect as Rect2).intersects(whole):
+				on.append(sp.name)
+		_ok("%s: clear of all %d of A.S.H.'s spots, top left first %s" % [tag, spots.size(), on],
+			spots.size() > 0 and on.is_empty())
 	# not pressable
 	var pressable := false
 	for p in parts:
