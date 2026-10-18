@@ -33,7 +33,8 @@ extends Node
 ##
 ## A BARK NEVER INTERRUPTS A TEACHING LINE, and a teaching line cuts a bark.
 ## HER VOICE: no take is silence and the words alone at her text pace; a take
-## types at its pace, a per-value take wins over the base one. OFF: her switch
+## types at its pace, and the shown words (numbers and names in them) end when
+## she stops; what she says has no field and no live number. OFF: her switch
 ## off brings back today's cards, exactly, mid-lesson too; and in a party there
 ## is no teaching at all.
 
@@ -441,13 +442,33 @@ func _lines() -> void:
 	_ok("one jump reads \"1 jump\", two \"2 jumps\"",
 		AshTutorLines.fill(&"fuel_dock", {jumps = 1, name = "X"}).contains("is 1 jump: X")
 		and AshTutorLines.fill(&"fuel_dock", {jumps = 2, name = "X"}).contains("is 2 jumps: X"))
-	_ok("the dock's name is typed, not said",
-		AshTutorLines.spoken(&"fuel_dock", vals) == "Fuel is low. Run dry and the run ends. Nearest dock is 2 jumps:")
+	# SHE NEVER SAYS A NUMBER OR A NAME (Jon, numbers:A): every spoken script has
+	# no digit and no field, and a line with a field has a script of its own
+	var digits := RegEx.create_from_string("[0-9]")
+	var said_bad: Array[String] = []
+	for k in AshTutorLines.LINES:
+		var sp := AshTutorLines.spoken(k)
+		var has_field := String(AshTutorLines.LINES[k]).contains("{")
+		if sp.contains("{") or sp.contains("}") or (has_field and not AshTutorLines.SPOKEN.has(k)) \
+				or (not has_field and sp != String(AshTutorLines.LINES[k])):
+			said_bad.append(String(k))
+		# (her own "1 hull", "1 heat" are words of the line, not a live value)
+		if digits.search(sp.replace("1 hull", "").replace("1 heat", "")) != null:
+			said_bad.append("%s has a digit" % k)
+	_ok("what she says has no field and no live number; every line with a field has a script (%s)" % [
+		"all %d" % AshTutorLines.LINES.size() if said_bad.is_empty() else "NOT " + ", ".join(said_bad)], said_bad.is_empty())
+	_ok("the four scripts are Jon's", AshTutorLines.spoken(&"endturn") == "Out of energy. Press END TURN. They act, then you draw new cards."
+		and AshTutorLines.spoken(&"heat") == "Heat. Past the limit, we lose 1 hull per point over, at end of turn."
+		and AshTutorLines.spoken(&"fuel_dock") == "Fuel is low. Run dry and the run ends. Here's the nearest dock."
+		and AshTutorLines.spoken(&"cutaway") == "Drag a part onto a ring to fit it. You can turn it and flip it.")
 	_ok("the fuel hint picks its line by the dock: in reach, none, here",
 		AshTutorLines.line_id(&"fuel", {jumps = 2}) == &"fuel_dock" and AshTutorLines.line_id(&"fuel", {}) == &"fuel_none"
 		and AshTutorLines.line_id(&"fuel", {jumps = 0}) == &"fuel_here")
-	_ok("no take recorded yet: every line is silent", AshTutorLines.LINES.keys().all(
-		func(k: StringName) -> bool: return AshTutorLines.voice_path(k, vals) == ""))
+	var silent := 0
+	for k in AshTutorLines.LINES:
+		if AshTutorLines.voice_path(k) == "":
+			silent += 1
+	print("    (%d of %d lines have no take installed: text alone)" % [silent, AshTutorLines.LINES.size()])
 
 
 # ------------------------------------------------------------------ the used state
@@ -750,6 +771,9 @@ func _voice() -> void:
 	await _local()
 	Hints.mark_seen(&"ship", false)
 	Hints._quiet = 0.0
+	# NO TAKE: every line has one now (Jon's picks, Oct 18), so the silent path is
+	# held by a stand-in naming no file
+	AshTutorLines.stand_in = {"tut_ship": ""}
 	var up: bool = await _until_said(&"ship")
 	var p := Ash.portrait
 	_ok("no take: nothing taped, the words typed at once at her text pace", up and p.voice == ""
@@ -758,7 +782,7 @@ func _voice() -> void:
 	Hints.poll(0.3)
 	Hints.click(_press())
 	Hints.poll(Hints.GAP_S + 0.1)
-	# A TAKE, and a take per value (stand-ins: two of her recorded lines)
+	# A TAKE (a stand-in: one of her recorded lines)
 	AshTutorLines.stand_in = {"tut_ship": "res://assets/audio/voice/ash/haul_04.ogg"}
 	Hints.mark_seen(&"ship", false)
 	Hints._quiet = 0.0
@@ -777,12 +801,25 @@ func _voice() -> void:
 	Hints.poll(0.3)
 	Hints.click(_press())
 	_ok("a click stops her voice", Audio.voice_now == "")
+	# THE SHOWN WORDS, NUMBERS AND NAMES IN THEM, END WHEN SHE STOPS, whether her
+	# take (from the SPOKEN script) is shorter or longer than they are: a short
+	# take under the long dock line, a long one under the END TURN line
+	var spans: Array[String] = []
+	var span_ok := true
+	for c: Array in [[&"fuel_dock", {jumps = 2, name = "GAMMA KESTREL REACH"}, "res://assets/audio/voice/ash/haul_03.ogg"],
+			[&"endturn", {hand = 5}, "res://assets/audio/voice/ash/doubt_03.ogg"]]:
+		var shown := AshTutorLines.fill(c[0], c[1])
+		p.say(shown, StringName("tut_" + String(c[0])), {voice = c[2], spoken = AshTutorLines.spoken(c[0]), held = true})
+		var s0 := GameClock.now()
+		while p.phase != AshPortrait.Phase.HOLDING and GameClock.now() - s0 < 10.0:
+			await _tree.process_frame
+		var talk := p.voice_secs - AshPortrait.VOICE_TAIL_S
+		var o := absf(p.typed_for - talk) / maxf(talk, 0.001)
+		span_ok = span_ok and o <= 0.10 and p._text.done and p._text.text == shown
+		spans.append("%s: %d letters typed in %.2f s, her take %.2f s" % [c[0], shown.length(), p.typed_for, talk])
+		p.cut()
+	_ok("the shown words end with her take, shorter or longer (%s)" % "; ".join(spans), span_ok)
 	Router.animate_in_harness = false
-	AshTutorLines.stand_in = {"tut_endturn": "res://assets/audio/voice/ash/doubt_01.ogg",
-		"tut_endturn_5": "res://assets/audio/voice/ash/doubt_02.ogg"}
-	_ok("a take per value wins over the base one, and the base plays for other values",
-		AshTutorLines.voice_path(&"endturn", {hand = 5}).ends_with("doubt_02.ogg")
-		and AshTutorLines.voice_path(&"endturn", {hand = 6}).ends_with("doubt_01.ogg"))
 	AshTutorLines.stand_in = {}
 	Audio.taping = false
 	Audio.tape.clear()

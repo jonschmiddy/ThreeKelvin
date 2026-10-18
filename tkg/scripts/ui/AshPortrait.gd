@@ -116,8 +116,10 @@ var kind: StringName = &""
 ## click that dismisses it, its subject gone), never on a timer: Jon's hint rule,
 ## "let's have them advance with a click".
 var held := false
-## What she says of the line, for the typing's pace with a take (a teaching
-## line's dock name is typed after her last word, not spoken); "" for all of it.
+## What she says, where a teaching line's take was recorded from a script that
+## differs from the words shown (`AshTutorLines.SPOKEN`: no numbers, no names);
+## "" when she says what shows. For the harnesses: the typing always spans the
+## SHOWN words over her take, so they end when she stops whatever their length.
 var spoken := ""
 ## Mirror: the face on the right, the words on its left.
 var mirrored := false
@@ -256,7 +258,7 @@ func _start_words(now: float) -> void:
 		voice_secs = Audio.ash_voice(voice)
 		if voice_secs > 0.0:
 			voice_started_at = now
-			_text.rate = SignalText.rate_for(spoken if spoken != "" else line, voice_secs - VOICE_TAIL_S)
+			_text.rate = SignalText.rate_for(line, voice_secs - VOICE_TAIL_S)
 	_text.text = line
 	_text.play()
 	typed_at = now
