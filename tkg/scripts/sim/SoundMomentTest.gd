@@ -161,13 +161,25 @@ func _run() -> void:
 	_table()
 	await _hulk()
 	await _vent_death()
+	# the deaths that sound on their own beats now, besides their booms
+	await _ship_death(ShipBreakup.Style.SNAP, [[&"break", &"snap_crack", &"hull_crunch", 0.0, ""]])
+	await _ship_death(ShipBreakup.Style.BURN, [[&"burst", &"heat", &"heat_sizzle", 0.0, ""]])
+	await _ship_death(ShipBreakup.Style.IMPLODE, [[&"gather", &"charge", &"charge_whine", 0.0, "break"]])
+	await _ship_death(ShipBreakup.Style.BREACH, [[&"charge", &"charge", &"charge_whine", 0.0, "breach"]])
+	await _ship_death(ShipBreakup.Style.OVERLOAD, [[&"spool", &"charge", &"charge_whine", 0.0, "blow"]])
+	await _ship_death(ShipBreakup.Style.DISSOLVE, [[&"fizz", &"dissolve", &"dissolve_fizz", 0.0, ""]])
+	await _ship_death(ShipBreakup.Style.COLLAPSE, [[&"pull", &"collapse", &"gravity_collapse", 0.0, "collapse"]])
+	await _ship_death(ShipBreakup.Style.SHIELD, [[&"shatter", &"k_shatter", &"glass_crack", 0.0, ""]], [&"shatter"])
+	await _ship_death(ShipBreakup.Style.MELT, [[&"heat", &"heat", &"heat_sizzle", 0.0, ""]])
+	await _ship_death(ShipBreakup.Style.CRUMPLE, [[&"crunch", &"crumple", &"hull_crunch", 0.0, ""]], [&"crunch"])
 	for st in [ShipBreakup.Style.GLOWOUT, ShipBreakup.Style.BLOOM, ShipBreakup.Style.PART]:
 		await _creature(st)
 	await _hellbender()
 	await _loss()
 	await _ladder()
 	# last: a won core leaves the run's last loot open
-	await _custodian()
+	await _custodian(ShipBreakup.Style.CUST_COLLAPSE)
+	await _custodian(ShipBreakup.Style.CUST_SPLIT)
 
 	Router.animate_in_harness = false
 	Audio.taping = false
@@ -181,6 +193,9 @@ func _table() -> void:
 	print("-- the table")
 	if not _ok("the table exists (Audio.FX)", not _sfx.is_empty()):
 		return
+	# (a choice from the command line -- `fx=all:off` to watch these checks
+	# fail -- is put back once the table's own switching is done)
+	var given := (Audio.get("fx_choice") as Dictionary).duplicate()
 	var missing: Array = []
 	var no_pick: Array = []
 	for row: StringName in _sfx:
@@ -191,36 +206,62 @@ func _table() -> void:
 			var t: Dictionary = r.get(which, {})
 			if t.has("file") and not ResourceLoader.exists(Audio.SFX_PATH % t.file):
 				missing.append("%s.%s %s" % [row, which, t.file])
-			if t.has("bed") and not ResourceLoader.exists(Audio.ROOM_WAV % t.bed):
+			if t.has("bed") and not ResourceLoader.exists(Audio.ROOM_WAV % t.bed) \
+					and not ResourceLoader.exists(Audio.SFX_PATH % t.bed):
 				missing.append("%s.%s %s" % [row, which, t.bed])
 	_ok("every row's files are on disk %s" % [missing], missing.is_empty())
 	_ok("every row has a pick %s" % [no_pick], no_pick.is_empty())
-	# JON'S VERDICT (Oct 17): eleven rows go paid, four keep their free pick. A
-	# paid row names its family and plays its free pick until a take is named
-	var paid_rows := [&"brace_on", &"brace_on_yours", &"brace_off", &"hit_partial", &"vent_jet",
-		&"vent_sputter", &"fight_band", &"loss_handoff", &"hb_heat", &"boss_pop", &"boss_split"]
-	var kept_rows := [&"fauna_death", &"chrome_on", &"side_decode", &"chrome_off"]
+	# JON'S PICKS (Oct 17): the bought takes he chose by ear, each row on its
+	# file; the four free picks he kept, and the rows he gave no take, as they were
+	var want := {&"brace_on": &"brace_on", &"brace_on_yours": &"brace_on", &"hit_partial": &"brace_clang",
+		&"vent_jet": &"gas_vent", &"vent_sputter": &"gas_puff", &"boss_split": &"glass_shatter",
+		&"fight_band": &"menu_open", &"fight_band_down": &"menu_close",
+		&"fauna_death": &"fauna_falls", &"chrome_on": &"menu_open", &"side_decode": &"text_blip",
+		&"chrome_off": &"menu_close", &"brace_off": &"jettison", &"loss_handoff": &"power_off",
+		&"boss_pop": &"explosion_small", &"crumple": &"hull_crunch", &"snap_crack": &"hull_crunch",
+		&"crack_mark": &"hull_crunch", &"charge": &"charge_whine", &"charge_prelude": &"charge_whine",
+		&"heat": &"heat_sizzle", &"heat_mark": &"heat_sizzle", &"dissolve": &"dissolve_fizz",
+		&"collapse": &"gravity_collapse", &"cust_crack": &"glass_crack", &"k_shatter": &"glass_crack",
+		&"shed": &"glass_crack", &"spine_pop": &"glass_crack", &"riser": &"boss_riser",
+		&"shield_glitch": &"shield_glitch"}
+	var beds := {&"shield_idle": &"shield_idle_bed", &"arc": &"unstable_arc", &"hb_heat": &"amb_red"}
 	var bad: Array = []
-	for row: StringName in paid_rows:
-		var pd: Dictionary = (_sfx.get(row, {}) as Dictionary).get("paid", {})
-		var take := StringName(pd.get("take", &""))
-		if StringName(pd.get("family", &"")) == &"":
-			bad.append("%s: no family" % row)
-		elif take != &"" and not ResourceLoader.exists(Audio.SFX_PATH % take):
-			bad.append("%s: take %s not in sfx/" % [row, take])
-		elif take == &"" and Audio.call(&"fx_take", row) != (_sfx[row] as Dictionary).get("pick", {}):
-			bad.append("%s: not on its free pick while unpicked" % row)
-	for row: StringName in kept_rows:
-		if (_sfx.get(row, {}) as Dictionary).has("paid"):
-			bad.append("%s: kept free, but waits on a paid take" % row)
-	_ok("the eleven paid rows name their family and play the free pick until a take is named; the four kept rows do not wait %s"
-		% [bad], bad.is_empty())
-	Audio.call(&"fx_choose", &"brace_off", "paid")
-	var unpicked: Dictionary = Audio.call(&"fx_take", &"brace_off")
-	Audio.call(&"fx_choose", &"brace_off", "free")
-	var free: Dictionary = Audio.call(&"fx_take", &"brace_off")
+	for row: StringName in want:
+		var pk: Dictionary = (_sfx.get(row, {}) as Dictionary).get("pick", {})
+		if StringName(pk.get("file", &"")) != want[row]:
+			bad.append("%s: %s" % [row, pk.get("file", "-")])
+	for row: StringName in beds:
+		var pk2: Dictionary = (_sfx.get(row, {}) as Dictionary).get("pick", {})
+		if StringName(pk2.get("bed", &"")) != beds[row]:
+			bad.append("%s: %s" % [row, pk2.get("bed", "-")])
+	_ok("every row plays Jon's pick %s" % [bad], bad.is_empty())
+	# A1 AND A2 TAKE TURNS: brace_clang has its second take beside it
+	var rr: Array = []
+	if ResourceLoader.exists(Audio.SFX_PATH % &"brace_clang_2"):
+		var seen := {}
+		for k in 40:
+			(Audio.get("_fx_last") as Dictionary).clear()
+			var t9 := Audio.tape.size()
+			Audio.call(&"fx", &"hit_partial", &"")
+			if Audio.tape.size() > t9:
+				seen[StringName((Audio.tape[t9] as Array)[0])] = true
+		rr = seen.keys()
+	(Audio.get("_fx_last") as Dictionary).clear()
+	_ok("brace_clang plays both of Jon's takes in turn (%s)" % [rr], rr.size() == 2)
+	# THE LOOPS ARE PCM AND LOOP
+	var loops: Array = []
+	for nm: StringName in [&"shield_idle_bed", &"unstable_arc"]:
+		var st := load(Audio.SFX_PATH % nm) as AudioStreamWAV
+		if st != null:
+			print("    [loop] %s format %d loop %d %d-%d" % [nm, st.format, st.loop_mode, st.loop_begin, st.loop_end])
+		loops.append("%s %s %s" % [nm, "pcm" if st != null and st.format == AudioStreamWAV.FORMAT_16_BITS else "not pcm",
+			"loops" if st != null and st.loop_mode == AudioStreamWAV.LOOP_FORWARD else "no loop"])
+	_ok("the two loops ship as PCM and loop forward %s" % [loops],
+		loops.all(func(x: String) -> bool: return x.ends_with("pcm loops")))
+	Audio.call(&"fx_choose", &"hit_partial", "free")
+	var free: Dictionary = Audio.call(&"fx_take", &"hit_partial")
 	(Audio.get("fx_choice") as Dictionary).clear()
-	_ok("paid with no take is silence, free is the free pick", unpicked.is_empty() and free.get("file") == &"jettison")
+	_ok("free is the free pass's pick (%s)" % [free.get("file", "-")], free.get("file") == &"shield_block")
 	# switchable: off, back to before, a file of its own, and the pick again
 	var h0 := _heard_rows().size()
 	var t0 := Audio.tape.size()
@@ -244,6 +285,9 @@ func _table() -> void:
 	_ok("a file of its own plays at its level (%s)" % [own_rows], own and own_rows.size() == 1
 		and is_equal_approx(float(own_rows[0][2]), -3.0))
 	_ok("and the pick again (heard twice: its own file, then the pick)", back and _heard(&"boss_split", h0).size() == 2)
+	(Audio.get("fx_choice") as Dictionary).merge(given, true)
+	if not given.is_empty():
+		print("  [given] %s" % given)
 
 
 # ---------------------------------------------------------------- a fight
@@ -312,8 +356,7 @@ func _hulk() -> void:
 	_ok("the band's rise heard once (%d), on the frame it starts (%s vs %d)"
 		% [fb.size(), fb.map(func(r: Array) -> int: return int(r[4])), band.frame],
 		fb.size() == 1 and int(fb[0][4]) == band.frame)
-	_ok("as hold_lift at -4 dB", _taped_at(&"hold_lift", band.frame, t0).size() == 1
-		and is_equal_approx(float(_taped_at(&"hold_lift", band.frame, t0)[0][2]), -4.0))
+	_ok("as the escape menu's menu_open at 0 dB", _one(&"menu_open", band.frame, t0, 0.0))
 	var cb: Combat = Router.combat
 	var e: Combat.EnemyState = cb.enemies[0]
 	e.hp = e.max_hp
@@ -339,10 +382,10 @@ func _hulk() -> void:
 		on_frames == bolt_frames)
 	var mi_ok := true
 	for f: int in bolt_frames:
-		var rows := _taped_at(&"module_install", f, t0b)
+		var rows := _taped_at(&"brace_on", f, t0b)
 		if rows.size() != 1 or not is_equal_approx(float(rows[0][2]), 0.0):
 			mi_ok = false
-	_ok("as module_install at 0 dB", mi_ok and not bolt_frames.is_empty())
+	_ok("as brace_on at 0 dB", mi_ok and not bolt_frames.is_empty())
 	var sb_clamp := 0
 	for m: Array in clamps:
 		sb_clamp += _taped_at(&"shield_block", int(m[2]), t0b).size()
@@ -360,7 +403,7 @@ func _hulk() -> void:
 	_ok("Bolt On: your plates go on (%d) and are heard on that frame (%s vs %s)"
 		% [mine.size(), yours.map(func(r: Array) -> int: return int(r[4])), mine.map(func(m: Array) -> int: return int(m[2]))],
 		mine.size() == 1 and yours.size() == 1 and int(yours[0][4]) == int(mine[0][2]))
-	_ok("as module_install", not mine.is_empty() and _taped_at(&"module_install", int(mine[0][2]), t1).size() == 1)
+	_ok("as brace_on", not mine.is_empty() and _taped_at(&"brace_on", int(mine[0][2]), t1).size() == 1)
 	var sb := _tape(t1).filter(func(r: Array) -> bool: return r[1] == &"shield_block")
 	_ok("and the card plays no shield_block (%d)" % sb.size(), sb.is_empty())
 
@@ -392,9 +435,8 @@ func _hulk() -> void:
 	var part := _heard(&"hit_partial", h2)
 	_ok("heard on its landing (%s vs %d)" % [part.map(func(r: Array) -> int: return int(r[4])), land[3]],
 		part.size() == 1 and int(part[0][4]) == int(land[3]))
-	var sbp := _taped_at(&"shield_block", int(land[3]), t2)
-	_ok("shield_block at -8 dB under the impact (%s)" % [sbp],
-		sbp.size() == 1 and is_equal_approx(float(sbp[0][2]), -8.0)
+	_ok("brace_clang at 0 dB under the impact, and no shield_block",
+		_one(&"brace_clang", int(land[3]), t2, 0.0) and _taped_at(&"shield_block", int(land[3]), t2).is_empty()
 		and _taped_at(&"impact_enemy", int(land[3]), t2).size() == 1)
 	var spent := _moments_of(&"enemy", [&"plate_off"], m2)
 	_ok("the last plate off with it (brace spent: %d sheds, %d heard)" % [spent.size(), _heard(&"brace_off", h2).size()],
@@ -415,6 +457,33 @@ func _hulk() -> void:
 	_ok("its shield up plays shield_block at -6 dB as before",
 		ups.size() == 1 and _taped_at(&"shield_block", int(ups[0][2]), t3).size() == 1
 		and is_equal_approx(float(_taped_at(&"shield_block", int(ups[0][2]), t3)[0][2]), -6.0))
+	# ITS HUM: up on the frame the shield is (one hum, whoever holds one; the
+	# screen asks after the shields every frame, later in this one)
+	await _frames(2)
+	var hum := _heard(&"shield_idle", h3)
+	_ok("the shield's hum comes up with it (%s vs %s), as shield_idle_bed" % [hum.map(func(r: Array) -> int: return int(r[4])),
+		ups.map(func(m: Array) -> int: return int(m[2]))],
+		hum.size() == 1 and not ups.is_empty() and int(hum[0][4]) == int(ups[0][2]) and hum[0][2] == &"shield_idle_bed"
+		and _beds().has(&"shield_idle"))
+	cb.block = 12
+	sc._fx_sync_player()
+	await _frames(240)
+	_ok("a second shield (yours) does not stack a second hum (%d)" % _heard(&"shield_idle", h3).size(),
+		_heard(&"shield_idle", h3).size() == 1)
+	# ITS RIPPLES AND GLITCHES, four seconds of them: on their frames, half a
+	# second apart at least, one in the air
+	var gl := _moments_of(&"enemy", [&"shield_ripple", &"shield_glitch"], m3) + _moments_of(&"you", [&"shield_ripple", &"shield_glitch"], m3)
+	var gh := _heard(&"shield_glitch", h3)
+	var gf := gl.map(func(m: Array) -> int: return int(m[2]))
+	var gclose := 0
+	for i in range(1, gh.size()):
+		if float(gh[i][5]) - float(gh[i - 1][5]) < 0.5 - 0.001:
+			gclose += 1
+	_ok("its ripples and glitches (%d) heard %d times, on their frames, never under 0.5 s apart (%d)"
+		% [gl.size(), gh.size(), gclose], gl.size() >= 3 and gh.size() >= 2 and gclose == 0
+		and gh.all(func(r: Array) -> bool: return int(r[4]) in gf and _one(&"shield_glitch", int(r[4]), t3, 0.0)))
+	cb.block = 0
+	sc._fx_sync_player()
 	await _frames(30)
 	OS.delay_msec(150)
 	_play(shot)
@@ -425,6 +494,37 @@ func _hulk() -> void:
 	_ok("a hit taken whole: shield_block at -4 dB, no partial (%s)" % [whole],
 		int(land3[0]) == 0 and whole.size() == 1 and is_equal_approx(float(whole[0][2]), -4.0)
 		and _heard(&"hit_partial", h3).is_empty())
+	# AND DOWN WITH IT: the shield expired, the hum goes on the frame it does
+	var m3b := _moments.size()
+	var h3b := _heard_rows().size()
+	e.block = 0
+	sc._fx_sync_enemy(0)
+	await _frames(20)
+	var stop := _heard(&"shield_idle", h3b).filter(func(r: Array) -> bool: return r[1] == &"stop")
+	var fz := _moments_of(&"enemy", [&"shield_fizzle"], m3b)
+	_ok("its hum goes down as the shield fizzles (%s vs %s)" % [stop.map(func(r: Array) -> int: return int(r[4])),
+		fz.map(func(m: Array) -> int: return int(m[2]))],
+		stop.size() == 1 and not fz.is_empty() and int(stop[0][4]) == int(fz[0][2]) and not _beds().has(&"shield_idle"))
+
+	# A HULL'S MARKS: a crack and a heat bloom, under their impacts
+	print("-- a hull's marks")
+	var Lm := sc._enemy_fx(0)
+	var hm := Lm.hits as ShipHitFx
+	var mk := _mask_points(hm, 2)
+	var m6 := _moments.size()
+	var h6 := _heard_rows().size()
+	var t6 := Audio.tape.size()
+	if hm.has_method(&"_plate_crack") and mk.size() == 2:
+		hm.call(&"_plate_crack", mk[0], true)
+		hm.call(&"_soot", mk[1], true)
+	var cr := _moments_of(&"enemy", [&"crack"], m6)
+	var sz := _moments_of(&"enemy", [&"sizzle"], m6)
+	var ch := _heard(&"crack_mark", h6)
+	var hh2 := _heard(&"heat_mark", h6)
+	_ok("a crack in the hull (%d) heard once on its frame as hull_crunch -6 dB (%d)" % [cr.size(), ch.size()],
+		cr.size() >= 1 and ch.size() == 1 and int(ch[0][4]) == int(cr[0][2]) and _one(&"hull_crunch", int(cr[0][2]), t6, -6.0))
+	_ok("a scorch (%d) heard once on its frame as heat_sizzle -6 dB (%d)" % [sz.size(), hh2.size()],
+		sz.size() >= 1 and hh2.size() == 1 and int(hh2[0][4]) == int(sz[0][2]) and _one(&"heat_sizzle", int(sz[0][2]), t6, -6.0))
 
 	# VENTS: three opened on one frame (split edges, in look D), then their sputters
 	print("-- vents")
@@ -462,8 +562,7 @@ func _hulk() -> void:
 	var hh := _heard(&"vent_hiss", h4)
 	_ok("three vents opened on one frame (%d) heard once (%d)" % [hiss.size(), hh.size()],
 		hiss.size() == 3 and hh.size() == 1 and int(hh[0][4]) == int(hiss[0][2]))
-	_ok("as vent at -8 dB", not hh.is_empty() and _taped_at(&"vent", int(hh[0][4]), t4).size() == 1
-		and is_equal_approx(float(_taped_at(&"vent", int(hh[0][4]), t4)[0][2]), -8.0))
+	_ok("as gas_vent at 0 dB", not hh.is_empty() and _one(&"gas_vent", int(hh[0][4]), t4, 0.0))
 	await _frames(600)
 	var sp := _moments_of(&"enemy", [&"sputter"], m4)
 	var sh := _heard(&"vent_sputter", h4)
@@ -476,8 +575,7 @@ func _hulk() -> void:
 			stray += 1
 		if i > 0 and float(sh[i][5]) - float(sh[i - 1][5]) < 0.4 - 0.001:
 			close += 1
-		var rows := _taped_at(&"vent", int(sh[i][4]), t4)
-		if rows.size() != 1 or not is_equal_approx(float(rows[0][2]), -12.0):
+		if not _one(&"gas_puff", int(sh[i][4]), t4, 0.0):
 			bad_db += 1
 	# every sputter heard, or one was heard under 0.4 s before it
 	var lost := 0
@@ -487,9 +585,9 @@ func _hulk() -> void:
 			lost += 1
 	_ok("ten seconds of sputters (%d) heard %d times, on their frames (%d not), never under 0.4 s apart (%d)"
 		% [sp.size(), sh.size(), stray, close], sp.size() >= 3 and sh.size() >= 2 and stray == 0 and close == 0)
-	_ok("none left unheard but for the limit (%d), all at -12 dB (%d not)" % [lost, bad_db], lost == 0 and bad_db == 0)
+	_ok("none left unheard but for the limit (%d), all gas_puff at 0 dB (%d not)" % [lost, bad_db], lost == 0 and bad_db == 0)
 	var peak: Dictionary = Audio.get("dry_peak") if Audio.get("dry_peak") is Dictionary else {}
-	print("    [vents] most vent voices in the air at once: %s" % str(peak.get(&"vent", "-")))
+	_ok("never more than one puff in the air (%s)" % str(peak.get(&"gas_puff", "-")), int(peak.get(&"gas_puff", 9)) <= 1)
 	# NOTHING SEEN, NOTHING HEARD: the ship hidden (as while it breaks up, and
 	# as its wreck), its vents keep their clock and are not heard
 	var m5 := _moments.size()
@@ -500,7 +598,20 @@ func _hulk() -> void:
 	_ok("its layers hidden, its sputters (%d) are not heard (%d)" % [hid.size(), _heard(&"vent_sputter", h5).size()],
 		hid.size() >= 1 and _heard(&"vent_sputter", h5).is_empty())
 	sc._view.slot(0).hide_art(false)
+	# THE BAND DOWN as the fight ends: the escape menu's close, as it starts
+	var h7 := _heard_rows().size()
+	var t7 := Audio.tape.size()
+	var low := {frame = -1}
+	var scw: WeakRef = weakref(sc)
+	_sampler = func(f: int) -> void:
+		var s2: Variant = scw.get_ref()
+		if low.frame < 0 and s2 != null and bool((s2 as Node).get("_lowered")):
+			low.frame = f
 	await _leave()
+	_sampler = Callable()
+	var down := _heard(&"fight_band_down", h7)
+	_ok("the band's drop heard once, as it starts down (%s vs %d), as menu_close at 0 dB" % [down.map(func(r: Array) -> int: return int(r[4])), low.frame],
+		down.size() == 1 and int(down[0][4]) == int(low.frame) and _one(&"menu_close", int(low.frame), t7, 0.0))
 
 
 func _until(c: Callable, n: int) -> void:
@@ -576,9 +687,7 @@ func _vent_death() -> void:
 			lost += 1
 	_ok("its jets (%d) heard %d times, on their frames, none lost but to the limit (%d)" % [jets.size(), jh.size(), lost],
 		jets.size() >= 1 and jh.size() >= 1 and ok_frames and lost == 0)
-	_ok("as vent at -8 dB", jh.all(func(r: Array) -> bool:
-		var rows := _taped_at(&"vent", int(r[4]), t0)
-		return rows.size() == 1 and is_equal_approx(float(rows[0][2]), -8.0)))
+	_ok("as gas_vent at 0 dB", jh.all(func(r: Array) -> bool: return _one(&"gas_vent", int(r[4]), t0, 0.0)))
 	var sps := _moments_of(&"death", [&"sputter"], m0)
 	var sph := _heard(&"vent_sputter", h0)
 	_ok("its sputters (%d) heard %d times, at least 0.4 s apart" % [sps.size(), sph.size()],
@@ -657,30 +766,32 @@ func _pops(m0: int, h0: int, t0: int, who: String, row: StringName = &"boss_pop"
 	_ok("%s: its pops (%d) heard %d times on their frames, none lost but to the limit (%d)"
 		% [who, pops.size(), ph.size(), lost], pops.size() >= 2 and ph.size() >= 2
 		and ph.all(func(r: Array) -> bool: return int(r[4]) in pf) and lost == 0)
-	_ok("%s: as explosion_small at -10 dB" % who, ph.all(func(r: Array) -> bool:
-		var rows := _taped_at(&"explosion_small", int(r[4]), t0).filter(func(x: Array) -> bool: return is_equal_approx(float(x[2]), -10.0))
-		return rows.size() == 1))
+	var fname := &"explosion_small" if row == &"boss_pop" else &"glass_crack"
+	var lvl := -10.0 if row == &"boss_pop" else 0.0
+	_ok("%s: as %s at %.0f dB" % [who, fname, lvl], ph.all(func(r: Array) -> bool: return _one(fname, int(r[4]), t0, lvl)))
 
 
-func _custodian() -> void:
-	print("-- the Custodian's C1c")
+func _custodian(style: int) -> void:
+	var nm := String(ShipBreakup.NAMES.get(style, str(style)))
+	print("-- the Custodian's %s" % nm)
 	var core := -1
 	var seed := -1
 	for s in range(4242, 4282):
 		Rng.forced = s
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 		for n: MapGen.MapNode in Run.map:
-			if n.type == MapGen.NodeType.CORE and EnemyArt.death_style(DB.enemies[&"custodian"], n.index, 0) == ShipBreakup.Style.CUST_SPLIT:
+			if n.type == MapGen.NodeType.CORE and EnemyArt.death_style(DB.enemies[&"custodian"], n.index, 0) == style:
 				core = n.index
 				seed = s
 		if core >= 0:
 			break
-	if not _ok("a core where it splits", core >= 0):
+	if not _ok("a core where it dies in %s" % nm, core >= 0):
 		return
 	Rng.forced = seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Run.at = core
 	SectorScreen._approached_at = core
+	Router.final_loot = false
 	Router.show_local()
 	await _frames(4)
 	Router.start_combat(DB.enemies[&"custodian"], [], false, false)
@@ -696,15 +807,127 @@ func _custodian() -> void:
 	var m0 := _moments.size()
 	var h0 := _heard_rows().size()
 	var t0 := Audio.tape.size()
+	var arc := {on = -1, off = -1}
+	_sampler = func(f: int) -> void:
+		var up := _beds().has(&"arc")
+		if up and arc.on < 0:
+			arc.on = f
+		if not up and arc.on >= 0 and arc.off < 0:
+			arc.off = f
 	_ok("it comes apart", await _kill_and_watch(1500))
-	_pops(m0, h0, t0, "C1c", &"spine_pop")
-	var split := _moments_of(&"death", [&"split"], m0)
-	var sh := _heard(&"boss_split", h0)
-	_ok("its split heard once on its frame (%s vs %s)" % [sh.map(func(r: Array) -> int: return int(r[4])),
-		split.map(func(m: Array) -> int: return int(m[2]))],
-		split.size() == 1 and sh.size() == 1 and int(sh[0][4]) == int(split[0][2]))
-	_ok("as explosion_small at 0 dB", not split.is_empty() and _taped_at(&"explosion_small", int(split[0][2]), t0).any(
-		func(r: Array) -> bool: return is_equal_approx(float(r[2]), 0.0)))
+	_sampler = Callable()
+	# ITS EIGHT CRACKS: glass, on their own times, and no longer explosions
+	var cracks := _moments_of(&"death", [&"crack"], m0)
+	var ch := _heard(&"cust_crack", h0)
+	var cf := cracks.map(func(m: Array) -> int: return int(m[2]))
+	var booms := 0
+	for f: int in cf:
+		booms += _taped_at(&"explosion_small", f, t0).size()
+	_ok("%s: its cracks (%d) heard as glass_crack on their frames (%d), none an explosion (%d)" % [nm, cracks.size(), ch.size(), booms],
+		cracks.size() >= 4 and ch.size() == cracks.size() and ch.all(func(r: Array) -> bool: return int(r[4]) in cf and _one(&"glass_crack", int(r[4]), t0, 0.0)) and booms == 0)
+	# ITS BEAMS: one hum, up with the first, down as they shrink in
+	var beams := _moments_of(&"death", [&"beam"], m0)
+	var ends := _moments_of(&"death", [&"crush", &"implode"], m0)
+	_ok("%s: the beams' hum up with the first beam (%d vs %s) and down as they shrink (%d vs %s)" % [nm, arc.on,
+		beams.map(func(m: Array) -> int: return int(m[2])).slice(0, 1), arc.off, ends.map(func(m: Array) -> int: return int(m[2]))],
+		not beams.is_empty() and not ends.is_empty() and arc.on == int(beams[0][2]) and arc.off == int(ends[0][2])
+		and _heard(&"arc", h0).filter(func(r: Array) -> bool: return r[1] != &"stop").size() == 1)
+	# ITS SWELL: the riser, run out as the swell ends (the crush or the implode)
+	var swell := _moments_of(&"death", [&"swell"], m0)
+	_ok("%s: the swell's riser ends on the swell's end" % nm, not swell.is_empty() and not ends.is_empty()
+		and _ends_on(&"boss_riser", int(swell[0][2]), t0, float(ends[0][3])))
+	if style == ShipBreakup.Style.CUST_COLLAPSE:
+		var crush := _moments_of(&"death", [&"crush"], m0)
+		var blast := _moments_of(&"death", [&"blast"], m0)
+		_ok("%s: the crush pulls in (gravity_collapse) and runs out on the blast" % nm, not crush.is_empty()
+			and not blast.is_empty() and _ends_on(&"gravity_collapse", int(crush[0][2]), t0, float(blast[0][3])))
+	if style == ShipBreakup.Style.CUST_SPLIT:
+		_pops(m0, h0, t0, "C1c", &"spine_pop")
+		var split := _moments_of(&"death", [&"split"], m0)
+		var sh := _heard(&"boss_split", h0)
+		_ok("its split heard once on its frame (%s vs %s)" % [sh.map(func(r: Array) -> int: return int(r[4])),
+			split.map(func(m: Array) -> int: return int(m[2]))],
+			split.size() == 1 and sh.size() == 1 and int(sh[0][4]) == int(split[0][2]))
+		_ok("as glass_shatter at 0 dB", not split.is_empty() and _one(&"glass_shatter", int(split[0][2]), t0, 0.0))
+	await _frames(30)
+	Router.final_loot = false
+
+
+## A ship dying in `style`: each [moment, row, file, db, ends-on moment] heard
+## once a moment on its frame at its level (and, where one is named, run out
+## as that later moment lands); `quiet`: moments that are no longer booms.
+func _ship_death(style: int, rows: Array, quiet: Array = []) -> void:
+	var nm := String(ShipBreakup.NAMES.get(style, str(style)))
+	print("-- a ship dying in %s" % nm)
+	var at := _style_seed(&"cutter", style, 4242)
+	if not _ok("%s: a system for it" % nm, not at.is_empty()):
+		return
+	var sc := await _start(int(at[0]), &"cutter", func(n: MapGen.MapNode) -> bool: return n.index == int(at[1]))
+	if not _ok("%s: its fight opens" % nm, sc != null):
+		return
+	var m0 := _moments.size()
+	var h0 := _heard_rows().size()
+	var t0 := Audio.tape.size()
+	_ok("%s: it comes apart" % nm, await _kill_and_watch())
+	for r: Array in rows:
+		var ms := _moments_of(&"death", [r[0]], m0)
+		var hd := _heard(r[1], h0)
+		var mf := ms.map(func(m: Array) -> int: return int(m[2]))
+		var hf := hd.map(func(x: Array) -> int: return int(x[4]))
+		_ok("%s: its %s (%s) heard as %s on each (%s)" % [nm, r[0], mf, r[1], hf], not ms.is_empty() and hf == mf)
+		_ok("%s: as %s at %.0f dB" % [nm, r[2], r[3]], not mf.is_empty()
+			and mf.all(func(f: int) -> bool: return _one(r[2], f, t0, float(r[3]))))
+		if String(r[4]) != "":
+			var land := _moments_of(&"death", [StringName(r[4])], m0)
+			_ok("%s: and runs out as its %s lands" % [nm, r[4]], not ms.is_empty() and not land.is_empty()
+				and _ends_on(r[2], int(ms[0][2]), t0, float(land[0][3])))
+	for q: StringName in quiet:
+		var qm := _moments_of(&"death", [q], m0)
+		var boom := 0
+		for m: Array in qm:
+			boom += _taped_at(&"explosion_small", int(m[2]), t0).size()
+		_ok("%s: its %s no longer an explosion (%d)" % [nm, q, boom], not qm.is_empty() and boom == 0)
+	await _leave()
+
+
+## One row of `asked` on `frame` (since tape index `t0`) at `db`.
+func _one(asked: StringName, frame: int, t0: int, db: float) -> bool:
+	var rows := _taped_at(asked, frame, t0)
+	return rows.size() == 1 and is_equal_approx(float(rows[0][2]), db)
+
+
+## The beds up now, by name (none on main).
+func _beds() -> Dictionary:
+	var b: Variant = Audio.get("beds_on")
+	return b if b is Dictionary else {}
+
+
+## `asked`'s row on `frame`, run out by `at` (game s), within a frame or so.
+func _ends_on(asked: StringName, frame: int, t0: int, at: float) -> bool:
+	for i in range(t0, Audio.tape.size()):
+		var r: Array = Audio.tape[i]
+		if r.size() > 7 and StringName(r[6]) == asked and int(r[5]) == frame:
+			var st := load(Audio.SFX_PATH % StringName(r[0])) as AudioStream
+			var end := float(r[4]) + (st.get_length() - float(r[7])) / maxf(float(r[3]), 0.01)
+			print("    [ends] %s at %.3f, lands %.3f" % [asked, end, at])
+			return absf(end - at) <= 0.06
+	return false
+
+
+## `n` points inside a hull's mask, spread out.
+func _mask_points(h: ShipHitFx, n: int) -> Array:
+	var out: Array = []
+	if h == null:
+		return out
+	var mask: PackedByteArray = h.get("_mask")
+	var w: int = h.get("_w")
+	var step := maxi(1, mask.size() / (n + 1))
+	for i in range(step / 2, mask.size()):
+		if mask[i] == 1 and (out.is_empty() or i - (out.back() as Vector2i).y * w > step / 2):
+			out.append(Vector2i(i % w, i / w))
+		if out.size() >= n:
+			break
+	return out
 
 
 # ---------------------------------------------------------------- your ship lost
@@ -747,6 +970,16 @@ func _loss() -> void:
 		hand.map(func(m: Array) -> int: return int(m[2]))],
 		hand.size() == 1 and lh.size() == 1 and int(lh[0][4]) == int(hand[0][2]))
 	_ok("as power_off at 0 dB", not hand.is_empty() and _taped_at(&"power_off", int(hand[0][2]), t0).size() == 1)
+	# THE PRELUDE'S WHINE: from its first burst, run out as the ship's own style
+	# begins (1.5 s in, the prelude's length)
+	var pre := _moments_of(&"death", [&"prelude"], m0)
+	var ph := _heard(&"charge_prelude", h0)
+	_ok("the prelude (%d bursts) whines once, 0.7 s after its first, on the game's clock (%s vs %s)" % [pre.size(),
+		ph.map(func(r: Array) -> float: return float(r[5])), pre.map(func(m: Array) -> float: return float(m[3]) + 0.7).slice(0, 1)],
+		pre.size() >= 3 and ph.size() == 1 and absf(float(ph[0][5]) - float(pre[0][3]) - 0.7) <= 1.0 / 60.0 + 0.001)
+	var cw := _tape(t0).filter(func(r: Array) -> bool: return r[1] == &"charge_whine")
+	_ok("and runs out as the style begins (%s)" % [cw], cw.size() == 1 and not pre.is_empty()
+		and _ends_on(&"charge_whine", int(cw[0][3]), t0, float(pre[0][3]) + ShipBreakup.BOSS_PRELUDE))
 	var done := _moments_of(&"death", [&"finished"], m0)
 	var dk := _heard(&"loss_duck", h0)
 	_ok("the score ducked as the breakup ends (%s vs %s)" % [dk.map(func(r: Array) -> int: return int(r[4])),
