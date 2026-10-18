@@ -34,6 +34,11 @@ var plate_rect := Rect2()
 ## 1 in place, 0 gone
 var k := 1.0
 var done := false
+## HEARD AS IT FIRST MOVES (`Audio.FX` chrome_on / chrome_off): the side bar's
+## column only, one a hop, on the first frame it stands a whole pixel from where
+## it started -- the chrome's own motion, whoever drives it.
+var _k0 := 1.0
+var _heard := false
 
 
 static func finish_all() -> void:
@@ -56,6 +61,7 @@ func setup(kind_: StringName, rest_: Rect2, off_: Vector2, clip_: Rect2, k0: flo
 	off = off_
 	clip = clip_
 	k = k0
+	_k0 = k0
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	clip_contents = true
 	# (over the held picture and over the dip to black of a dive)
@@ -82,6 +88,9 @@ func set_k(v: float) -> void:
 	if not is_equal_approx(v, k):
 		k = v
 		_redraw()
+		if not _heard and kind == &"side" and at().position != rest.position + (off * (1.0 - _k0)).round():
+			_heard = true
+			Audio.fx(&"chrome_on" if _k0 < 0.5 else &"chrome_off")
 
 
 ## Where it is now (viewport px), on whole pixels.

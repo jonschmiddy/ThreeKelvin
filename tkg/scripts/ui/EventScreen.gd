@@ -13,6 +13,8 @@ var _resolved: bool = false
 ## Held while a claim is in the air, so a double-click cannot commit twice.
 var _claiming: bool = false
 var _then_fight: bool = false
+## What that fight brings: the event's creature tag, or &"" for a ship.
+var _then_foe: StringName = &""
 ## The prize popup, while it is up. One at a time, like the sector's.
 var _transfer: TransferView = null
 ## CONTINUE, held while a crate sits unopened. See `SectorScreen._res_seen` --
@@ -120,6 +122,8 @@ func _choose(index: int) -> void:
 	# No EventTable event grants one, which is why nothing caught it earlier.
 	OptionTable.pay(outcome, Run.node_at())
 	_then_fight = bool(outcome.get("fight", false))
+	# the option's tag rides in on `setup` (`Router.show_option_at`); a choice's own wins
+	_then_foe = OptionTable.fight_foe(_event, opt)
 	_refresh()
 	var panel := PanelContainer.new()
 	var edge := SkillCheck.band_colour(band) if opt.has("check") else UITheme.EMBER
@@ -210,6 +214,6 @@ func _close_transfer() -> void:
 
 func _continue() -> void:
 	if _then_fight:
-		Router.start_ambush()
+		Router.start_ambush(_then_foe)
 	else:
 		Router.after_event()

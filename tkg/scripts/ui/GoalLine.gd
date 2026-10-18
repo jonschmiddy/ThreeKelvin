@@ -85,8 +85,9 @@ func _init() -> void:
 	col.add_child(_step)
 
 
-## The step pending now, as {text, tab}; {} for none. Marks a step done the
-## first time it sees it done.
+## The step pending now, as {text, tab, id}; {} for none. Marks a step done the
+## first time it sees it done. `id` is the line A.S.H. says for it as it starts
+## (`AshTutorLines`, `Hints` decides when).
 static func step() -> Dictionary:
 	if Run.hull == null or not Hints.enabled():
 		return {}
@@ -95,9 +96,9 @@ static func step() -> Dictionary:
 		if Run.jumps >= 1:
 			Hints.mark_seen(&"step_jump")
 		elif cur is StarchartScreen:
-			return {text = "Pick a star in range, then JUMP.", tab = &""}
+			return {text = "Pick a star in range, then JUMP.", tab = &"", id = &"step_jump_chart"}
 		else:
-			return {text = "Open STARCHART. Pick a star in range, then JUMP.", tab = &"chart"}
+			return {text = "Open STARCHART. Pick a star in range, then JUMP.", tab = &"chart", id = &"step_jump"}
 	if Run.jumps >= 1 and not Hints.seen(&"step_event"):
 		var sc := cur as SectorScreen
 		if sc != null and sc._events != null and is_instance_valid(sc._events) and sc._events.page != &"":
@@ -105,8 +106,8 @@ static func step() -> Dictionary:
 			return {}
 		if _open_events() > 0:
 			if cur is SystemMapScreen:
-				return {text = "Click an event, then GO.", tab = &""}
-			return {text = "Open SECTOR. Click an event, then GO.", tab = &"sector"}
+				return {text = "Click an event, then GO.", tab = &"", id = &"step_event_map"}
+			return {text = "Open SECTOR. Click an event, then GO.", tab = &"sector", id = &"step_event"}
 	return {}
 
 

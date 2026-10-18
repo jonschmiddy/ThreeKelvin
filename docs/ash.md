@@ -107,7 +107,7 @@ frame on the main screen. It reacts to the ship, not to the script:
 - **Talking:** the mouth follows the typed letters, a held frame every 0.1 s, with blinks and
   one-pixel hologram slips (more often with the hull failing); about 9 changes a second while
   she talks, all on the game's clock. A two-note `text_blip` chirp as she appears, then
-  her voice (below).
+  her voice (below), and the chirp reversed as she goes.
 - **Settings:** SHIP'S AI, A.S.H. ON / OFF, under HINTS. Off under harnesses unless `-- ash`.
 - **Co-op:** each player's A.S.H. is their own ship's, on their own machine: she reads that
   machine's run, sends nothing, and nothing waits on her.
@@ -130,48 +130,40 @@ the same way: `VOICE_TAIL_S` (0.1 s, for the silence trimmed after the last word
 `VOICE_DB` (set against takes levelled to -18.3 LUFS). Trim or level them differently
 and re-measure both. The swap from C3 to the warm set moved neither.
 
-- **When:** each line at its own moment: a new run's launch; the first time she is up in a new
-  hull; the hull at a quarter or under; over the heat cap in a fight; a chit of 60 credits or
-  an epic part taken aboard; the third wreck opened since the last dock; and, from jump 6, a
-  three-in-ten chance on arrival at least ten jumps after the last doubt.
-- **Limits:** one line at a time; 40 s of quiet after a line (6 s before the hull failing or a
-  new hull); one line a fight unless the hull starts failing in it; never during a card drag
-  or the enemy's turn (END TURN takes her off that frame); nothing over a jump, an arrival, the
-  camera moving, the cutaway, a wreck's window, the event band or the escape menu; a moment
-  that cannot be said in time is dropped. **Nothing after the ship is lost**: up when it goes,
-  she cuts with it. **Hints win**: she waits while a hint is up, settling or due on the screen.
-- **Talking:** the mouth follows the typed letters, a held frame every 0.1 s, with blinks and
-  one-pixel hologram slips (more often with the hull failing); about 9 changes a second while
-  she talks, all on the game's clock. A two-note `text_blip` chirp as she appears, then
-  her voice (below).
-- **Settings:** SHIP'S AI, A.S.H. ON / OFF, under HINTS. Off under harnesses unless `-- ash`.
-- **Co-op:** each player's A.S.H. is their own ship's, on their own machine: she reads that
-  machine's run, sends nothing, and nothing waits on her.
+**The takes are de-clicked** (Oct 17, Jon: "a bit of a click when she leaves?"). It
+was in the takes, not the encode: ElevenLabs ends a take mid-waveform (its last 5 ms
+-13 to -55 dB under the peak), and the chain's padding of silence after it turned that
+edge into a one-sample step at the end of her last word, 4 to 159 times the steps round
+it in 17 of the 30 (haul_02 32, launch_05 18; the film's mix showed it at 12.05 and
+76.16 s). They are rebuilt from Jon's raw picks with the same chain, trim and level and
+one change: the raw take's last 15 ms faded out (and its first 3 ms in) before the
+chain. The same pipeline without that fade reproduces the old files sample for sample;
+with it every step there is under 3. `AshTest` renders each take through Godot's own
+decoder and holds it under 4. The script is the scratchpad's `ashv/declick.py`, beside
+`ash_lines.py`; a new take needs the same fade.
 
-## Her voice (Oct 17)
+The film also had a click every 7.75 s that was not hers: the red star's room tone
+crossing its loop seam (`Audio.loop_whole`), the one half a second before each of her
+fades. Fixed with the rooms: PCM, and looped a frame short.
 
-Jon picked her voice and a take of each line: ElevenLabs (eleven_v3), the Cortana
-chain, levelled to -18.3 LUFS, trimmed to 30 ms before the first word and 80 ms after
-the last. The takes are `tkg/assets/audio/voice/ash/<id>.ogg` (Ogg Vorbis, imported
-without a loop), and `AshLines.VOICE` names each line's take; a line's id is its
-moment and its place in that moment's list, `greed_05`. **`greed_05` and `launch_02`
-have no take yet**: their entries are `""` and they are said as text alone, as every
-line was before. Picking one is copying it in as `<id>.ogg`, importing, and putting
-its name in that entry; the TODO is there and nowhere else.
-
-**These takes are placeholders** (Oct 17): Jon has moved her to a warmer voice and all
-30 lines will be recorded again. New takes drop in: replace the files and fill the
-table, and nothing else changes. The typing follows each file's own length
-(`AudioStream.get_length()` as it plays), and `AshTest` counts the voiced lines off
-the table. Two numbers assume the new takes are made the same way: `VOICE_TAIL_S`
-(0.1 s, for the 80 ms trimmed after the last word) and `VOICE_DB` (set against takes
-levelled to -18.3 LUFS). Trim or level them differently and re-measure both.
-
-- **When:** 0.3 s after she appears (`AshPortrait.VOICE_AT`), after the chirp. The
-  chirp is kept. Measured over all 30 takes at their game levels against her first
-  quarter second: started with her, the chirp sat 18 dB under on average and 9 at
-  worst, its second blip's click landing inside the first word; at 0.3 s it is
-  27 dB under, 18 at worst (a soft first syllable), only the second blip's ring.
+- **When:** 0.35 s after she appears (`AshPortrait.VOICE_AT`), after the chirp. The
+  chirp is at the text's own level (`CHIRP_DB` 0; it was -3 until Jon: "the beep when
+  ash comes in can be a little louder"). Measured over all 30 takes at their game
+  levels against her first quarter second: at -3 dB and 0.3 s the chirp sat 27.5 dB
+  under on average and 18 at worst; 3 dB up at 0.3 s that would be 24.5 and 15, so
+  her voice moved to 0.35 s, which gives back 26.9 and 17.5 (started with her, the
+  louder chirp would sit only 6 dB under at worst, its second blip's click inside the
+  first word).
+- **Her power-down** (Jon: "Can the sound go in reverse when she goes away?"): the
+  power-on's two blips reversed (`text_blip_rev`, the file reversed, so the same
+  level), in mirror order and time, the higher first, ending 0.2 s before she goes;
+  the lower ending on the frame the projection goes. Only when a line ends of itself:
+  the power-down has to start a quarter second before her fade, which only a natural
+  end knows, and every other exit (END TURN, a hint, a card picked up, something in
+  her box, Settings, the ship lost) is the game taking the floor with sounds of its
+  own while she goes in a tenth of a second; a power-down there would land after her
+  and over them. A cut while it plays hushes it (the ship lost: she cuts out with
+  the ship).
 - **The words type with her:** they start on the frame her voice does and type at the
   speed that ends them as she stops (`SignalText.rate_for`, over the take less its
   0.1 s of trailing silence; punctuation keeps its beats). Over all 30 the words end
@@ -202,3 +194,42 @@ levelled to -18.3 LUFS). Trim or level them differently and re-measure both.
   a second and she is rarely up for one.
 
 Later, maybe: lines that shift with the hull's manufacturer.
+
+## She teaches (Oct 17, tutorial A)
+
+Jon picked how A for the tutorial: **A.S.H. replaces the hint cards.** While she is on,
+each first-run hint is said in her corner in Jon's words (`tkg/scripts/data/AshTutorLines.gd`),
+and the thing it is about gets a 1 px ice outline, as the goal line outlines a tab. No card.
+
+- **Same hints, new delivery.** `Hints` still decides everything: the same triggers, the
+  same order, the same subjects, settle time, the click that spends one, hiding unspent
+  when the subject goes, SHOW HINTS AGAIN. Only `_show` changed: it asks `Ash.teach`, and
+  only if she has nowhere clear to stand on that screen does the card come instead (so a
+  lesson never waits for room).
+- **The goal steps** are said once each as they start (`said_<step>` in the hints file,
+  cleared by SHOW HINTS AGAIN), after any hint due on that screen. The goal line itself
+  is unchanged and keeps showing.
+- **Live values** fill the fields: the hand size, the heat cap, the dock's jumps and name,
+  the cutaway's keys. One jump reads "1 jump". The dock's name is typed after her last
+  word, never spoken.
+- **The cutaway's line is pending** Jon's rewrite: today's card text, behind
+  `AshTutorLines.CUTAWAY_LINE`.
+- **Held until a click** for a hint (Jon's rule: hints advance with a click); a goal
+  step's line types, holds its reading time on `GameClock` and goes.
+- **Exceptions to her bark rules, for teaching only:** she may stand over the cutaway, a
+  wreck's window and the event band; no quiet before one; any number a fight. A teaching
+  line outranks a bark (a bark up is cut), and no bark starts while one is up, settling
+  or due.
+- **New screens:** the STARCHART and the SECTOR map (inside the picture's frame) and the
+  station (the deck's picture). Her spot is the first of her corners, then the middles,
+  clear of everything (`Ash.tut_avoid_rects`) and of anything a click picks in the
+  picture (`Ash.covers`: the chart's systems, the map's worlds, beacons, star, belts and
+  orbit lines).
+- **Voice:** one take per line id, `tkg/assets/audio/voice/ash/tut_<id>.ogg`. A missing take
+  is silence and the words alone. **She never says a number or a name** (Jon, Oct 18,
+  numbers:A): the text shows them, and the four lines with a field (END TURN, heat, the
+  dock in reach, the cutaway's keys) are recorded from scripts of their own,
+  `AshTutorLines.SPOKEN`. The typing spans the shown words over her take, so they end when
+  she stops. 21 lines x 2 takes recorded Oct 18 (956 credits), not yet installed.
+- **Off:** her switch off brings today's cards back exactly; off in a party (hints are).
+  `-- sheet=AshTutorTest` holds all of it, in the merge gate.

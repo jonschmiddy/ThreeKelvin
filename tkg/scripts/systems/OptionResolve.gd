@@ -18,8 +18,14 @@ extends RefCounted
 ##   odds       the odds line the choice showed
 ##   res        the outcome's own dictionary (its `text`, its payload)
 ##   bill       `EncounterDrawer.bill_rows` from before the choice to after `pay`
+##   got        the THINGS it moved, which the bill's four numbers cannot say:
+##              a part or a material put on the system's pile (REWARD), a hull
+##              frame found, a document recovered, a place marked, an item
+##              taken out of your hold (`_things_after`)
 ##   dead       the ship died of it: show the game over
 ##   fight_now  a fight the player chose with nothing to read: start it, no panel
+##   foe        what that fight brings: the event's creature tag, or &"" for a
+##              ship (`OptionTable.fight_foe`); hand it to `Router.start_ambush`
 
 ## Whether an outcome handed over any of the things the result panel exists to
 ## show. The ledger covers credits, fuel, heat and hull; this covers the rest.
@@ -49,7 +55,8 @@ static func take(n: MapGen.MapNode, i: int, j: int) -> Dictionary:
 		return {"ok": false, "why": "credits"}
 	if c.has("needs_material") and Run.material(StringName(c.needs_material)) < 1:
 		return {"ok": false, "why": "material"}
-	var out := {"ok": true, "checked": c.has("check"), "stay": bool(c.get("stay", false))}
+	var out := {"ok": true, "checked": c.has("check"), "stay": bool(c.get("stay", false)),
+		"foe": OptionTable.fight_foe(opt, c)}
 	# ASK THE PARTY FIRST -- the same door the wreck path uses. An option two
 	# ships can race for is arbitrated through `Run.take_option` before
 	# anything is rolled or paid: assume you won and both players pocket the
@@ -79,6 +86,7 @@ static func take(n: MapGen.MapNode, i: int, j: int) -> Dictionary:
 	# simulator has always priced these options at one charge and the win rate
 	# in the gate was measured against that.
 	var was := Run.ledger()
+	var things := _things_before(n)
 	var res: Variant = call.call() if call.is_valid() else {}
 	if typeof(res) != TYPE_DICTIONARY:
 		res = {}
@@ -86,8 +94,9 @@ static func take(n: MapGen.MapNode, i: int, j: int) -> Dictionary:
 	# AND AFTER `pay`, WHICH CAN STILL MOVE THE LEDGER. It is the one call that
 	# turns a payload into what the payload promised, so the books close on the
 	# far side of it or they close early.
-	OptionTable.pay(res, n)
+	var paid := OptionTable.pay(res, n)
 	out.bill = EncounterDrawer.bill_rows(was, Run.ledger())
+	out.got = _things_after(n, things, paid)
 	# SPENT NOW, NOT ON CONTINUE. The result is already applied -- credits moved,
 	# hull taken, a module in the hold -- so a player who closed the game on the
 	# result screen must not come back to an option they have already been paid
@@ -113,6 +122,67 @@ static func take(n: MapGen.MapNode, i: int, j: int) -> Dictionary:
 		if line != "":
 			Run.log_line(line, &"them")
 	return out
+
+
+## WHAT WAS THERE BEFORE THE CHOICE RAN, so `_things_after` can say what it
+## added or took by looking rather than by trusting each effect to report it:
+## an effect that calls `Run.add_material` itself reports nothing, and that
+## crate is on the pile all the same.
+static func _things_before(n: MapGen.MapNode) -> Dictionary:
+	var pile := Run.sector_jetsam(n, false)
+	var doc := Archive.at_node(n)
+	return {
+		pile = (pile.items as Array).duplicate() if pile != null else [],
+		hold = Run.cargo.duplicate(),
+		doc = doc if doc != &"" and not Archive.has(doc) else &"",
+		frame = Run.found_hull,
+	}
+
+
+## Every thing the choice moved, gains first, as rows the result's outcome line
+## draws (`OutcomeRow`): {kind, name, gain, tone, cards, item}. `kind` is part,
+## material, frame, document or place. A part names the cards it would add to
+## your deck, which is the only way an event ever hands you a card. `item` is
+## the part or the material itself, for a look that draws it (E).
+static func _things_after(n: MapGen.MapNode, was: Dictionary, paid: String) -> Array:
+	var got: Array = []
+	var pile := Run.sector_jetsam(n, false)
+	if pile != null:
+		for it in pile.items:
+			if not (was.pile as Array).has(it):
+				got.append(_thing(it, true))
+	if Run.found_hull != null and Run.found_hull != was.frame:
+		got.append({kind = &"frame", name = Run.found_hull.display_name().to_upper(),
+			gain = true, tone = UITheme.GOOD, cards = []})
+	if StringName(was.doc) != &"" and Archive.has(StringName(was.doc)):
+		var d: DocumentData = DB.documents[StringName(was.doc)]
+		got.append({kind = &"document", name = d.title.to_upper(), gain = true,
+			tone = UITheme.ICE, cards = []})
+	for bit in paid.split(", ", false):
+		if bit.ends_with(" MARKED"):
+			got.append({kind = &"place", name = bit.trim_suffix(" MARKED").to_upper(),
+				gain = true, tone = UITheme.ICE, cards = []})
+	for it in was.hold:
+		if not Run.cargo.has(it):
+			got.append(_thing(it, false))
+	return got
+
+
+static func _thing(it: Variant, gain: bool) -> Dictionary:
+	if it is ModuleData:
+		var m := it as ModuleData
+		var cards: Array = []
+		for c in m.resolved_cards():
+			cards.append(c.name.to_upper())
+		return {kind = &"part", name = m.name.to_upper(), gain = gain,
+			tone = ModuleData.rarity_ink(m.rarity),
+			cards = cards, item = m}
+	if it is MaterialData:
+		var md := it as MaterialData
+		return {kind = &"material", name = md.name.to_upper(), gain = gain,
+			tone = UITheme.tier_colour(md.tier), cards = [], item = md}
+	var nm := String((it as Resource).get("name")) if it is Resource else "ITEM"
+	return {kind = &"item", name = nm.to_upper(), gain = gain, tone = UITheme.ICE, cards = []}
 
 
 ## The walk-away or the outcome, onto the node for the system map's cards
