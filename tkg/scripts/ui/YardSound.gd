@@ -142,9 +142,7 @@ func _loop(name: StringName, dir: String) -> AudioStream:
 	var s := _stream(name, dir)
 	if s is AudioStreamWAV:
 		var w := s as AudioStreamWAV
-		w.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		w.loop_begin = 0
-		w.loop_end = roundi(w.get_length() * float(w.mix_rate))
+		Audio.loop_whole(w)
 	return s
 
 
