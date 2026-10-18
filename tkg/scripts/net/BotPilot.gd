@@ -499,10 +499,7 @@ func _station() -> void:
 				Run.heal(missing)
 			continue
 		if move == "refuel":
-			var rp := Market.refuel_price(n)
-			if Run.credits >= rp:
-				Run.add_credits(-rp)
-				Run.fuel += Market.REFUEL_UNITS
+			Run.buy_refuel(n)
 			continue
 		if move.begins_with("sell "):
 			var si := int(move.substr(5))

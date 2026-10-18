@@ -802,6 +802,92 @@ func music_stinger(strength: float) -> void:
 func cue() -> StringName:
 	return _cue
 
+
+# ---------------- A.S.H.'s voice ----------------
+## HER VOICE (`AshPortrait` asks; `AshLines.VOICE` names the takes): one line at
+## a time on a player of its own, so a line never steals an effect's voice from
+## the pool or has one stolen from it, on the SFX bus -- she is the ship
+## talking, and the EFFECTS slider is the ship's own sounds. Ogg, not WAV like
+## the effects: a line is seconds long and never loops, so the codec's edges
+## (the reason looping room tone is PCM) never meet.
+##
+## HER LEVEL is set against the in-game mix, measured off the movie writer's
+## `f.wav` (`-- sheet=AshFilm`): the takes are levelled to -18.3 LUFS, and
+## VOICE_DB puts her where the measurement says (`docs/ash.md`, "Her voice").
+const VOICE_DB := -4.0
+## THE SCORE STEPS ASIDE FOR HER, a little: -4 dB on every music stem while a
+## line plays, on the announcement duck's own ramp (`DUCK_IN` / `DUCK_OUT` per
+## whole unit of level, so -4 dB goes down in 0.13 s and back in 0.44 s). Asked
+## every frame off the player, like the station's PA, so a line cut short lets
+## the music up from that frame.
+const VOICE_DUCK_DB := -4.0
+## A cut line's fade, ms: under a frame and a half at 60, and long enough that
+## the stream lands on zero rather than clicking (`hush`'s reasoning).
+const VOICE_CUT_MS := 60
+var _voice: AudioStreamPlayer = null
+var _voice_fade: Tween = null
+## What she is saying now, as a harness reads it (headless has no player, so
+## this is the account): the file, and the game second it runs out.
+var voice_now := ""
+var _voice_end := 0.0
+
+
+## Say the take at `path`. Returns its length, s (0 if it will not load). Taped
+## (`taping`) as `ash/<name>` even where nothing plays: headless and harness
+## runs hear nothing, and a test reads the tape.
+func ash_voice(path: String) -> float:
+	var stream := load(path) as AudioStream if ResourceLoader.exists(path) else null
+	if stream == null:
+		push_warning("Audio: missing voice %s" % path)
+		return 0.0
+	var secs := stream.get_length()
+	voice_now = path
+	_voice_end = GameClock.now() + secs
+	if taping:
+		tape.append([StringName("ash/" + path.get_file().get_basename()), Time.get_ticks_msec(), VOICE_DB, 1.0])
+	if not _enabled:
+		return secs
+	if _voice == null:
+		_voice = AudioStreamPlayer.new()
+		_voice.bus = &"SFX"
+		add_child(_voice)
+	if _voice_fade != null and _voice_fade.is_valid():
+		_voice_fade.kill()
+	_voice_fade = null
+	_voice.stream = stream
+	_voice.volume_db = VOICE_DB
+	_voice.pitch_scale = 1.0
+	_voice.play()
+	return secs
+
+
+## Stop her line, faded over `fade_ms` (her words were cut: a hint, END TURN,
+## the ship lost, Settings).
+func ash_voice_stop(fade_ms: int = VOICE_CUT_MS) -> void:
+	if not ash_speaking():
+		voice_now = ""
+		return
+	voice_now = ""
+	if taping:
+		tape.append([&"ash/stop", Time.get_ticks_msec(), 0.0, 1.0])
+	if not _enabled or _voice == null or not _voice.playing:
+		return
+	if _voice_fade != null and _voice_fade.is_valid():
+		return
+	_voice_fade = create_tween()
+	_voice_fade.tween_property(_voice, "volume_db", _voice.volume_db - 40.0, fade_ms / 1000.0)
+	_voice_fade.tween_callback(_voice.stop)
+
+
+## A line of hers is sounding (or, headless, would be).
+func ash_speaking() -> bool:
+	if voice_now != "" and GameClock.now() >= _voice_end:
+		voice_now = ""
+	if _enabled and _voice != null:
+		return _voice.playing and voice_now != ""
+	return voice_now != ""
+
+
 func _process(delta: float) -> void:
 	_fx_tick()
 	if not _enabled:
@@ -821,6 +907,9 @@ func _process(delta: float) -> void:
 	elif _pa != null and _pa.playing:
 		_pa.stop()
 	var duck_to: float = db_to_linear(DUCK_DB) if _room_talking() else 1.0
+	# A.S.H. talking (`ash_voice`)
+	if ash_speaking():
+		duck_to = minf(duck_to, db_to_linear(VOICE_DUCK_DB))
 	# a boss's death holds the music down for its set piece (`duck_music`)
 	if GameClock.now() < _scene_duck_until:
 		duck_to = minf(duck_to, _scene_duck_to)
