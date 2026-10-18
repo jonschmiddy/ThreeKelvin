@@ -141,6 +141,12 @@ uniform sampler2D u_sNoise : filter_linear_mipmap, repeat_disable;
 uniform sampler2D u_sStruct : filter_linear_mipmap, repeat_disable;
 uniform float u_sExt = 1.2;
 uniform bool u_isBall = false;
+// A BALL'S LIGHT, through the solid look's camera (Jon, Oct 18, "radiant:yes": the
+// balls bloomed into a big orb with a hard edge): where its light fades out, in its
+// bulge's outer scale (`u_bulge.y`, the ball's re), and where its halo does, in the
+// halo's own scale -- both long and soft, so a ball fades into space
+const vec2 BALL_FADE_R = vec2(0.5, 1.8);
+const vec2 BALL_HALO_END = vec2(0.8, 2.8);
 vec2 bakeUV(vec2 p) { return (p + u_sExt) / (2.0 * u_sExt); }
 #define u_noise u_sNoise
 #define u_struct u_sStruct
@@ -1039,7 +1045,19 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 		// over the far side of the disc as stacked coloured arcs, Jon, Oct 13: "get rid of
 		// the halo above the galaxies")
 		if (u_solid) {
-			float eb = solidBulgeEnd(length(qb * vec2(1.0, KIT_TILT / 1.08)), 0.6 * u_bulge.y / 0.13);
+			// (A BALL'S LIGHT FADES INTO SPACE: a ball is all bulge, and the bulge's compact
+			// end cut it at about half SIMPLIFIED's reach into an orb with a hard rim --
+			// on PGC 6236 its light held 113 of 255 out at 0.2 gu and was gone by 0.5. A
+			// ball's own envelope, `BALL_FADE_R`, in its outer scale's units)
+			// (its edge broken by the halo's own wisps, so it ends in soft clouds, never a circle)
+			float eb = u_isBall ? 1.0 - smoothstep(BALL_FADE_R.x, BALL_FADE_R.y, length(qb * vec2(1.0, KIT_TILT / 1.08)) / u_bulge.y * (0.82 + 0.36 * nz(vec3(qb * 2.1, 0.71)).r))
+				: solidBulgeEnd(length(qb * vec2(1.0, KIT_TILT / 1.08)), 0.6 * u_bulge.y / 0.13);
+			// (and its body mottled in broad patches of unresolved stars, past the heart: smooth
+			// to the rim, the palette's rust step lay round it as a ring)
+			if (u_isBall) {
+				float sM = length(qb * vec2(1.0, KIT_TILT / 1.08)) / u_bulge.y;
+				eb *= mix(1.0, 0.72 + 0.56 * nz(vec3(qb * 3.3, 0.37)).r, smoothstep(0.15, 0.55, sM));
+			}
 			bF *= eb;
 			bB *= eb;
 		}
@@ -1237,13 +1255,14 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 	}
 
 	// the stellar halo: a faint round glow the disc thins into, broken into soft wisps
-	vec2 hv = vec2(v.x, v.y / u_halo.z) / u_k;
+	// (a ball's halo is its own, round its core in the core's frame: `vb`)
+	vec2 hv = u_isBall ? vec2(vb.x, vb.y / u_halo.z) / u_k : vec2(v.x, v.y / u_halo.z) / u_k;
 	float hr2 = dot(hv, hv) / (u_halo.y * u_halo.y);
 	vec4 hw = nz(vec3(hv * 0.32, 0.53));
 	float wisp = max(0.25 + 0.8 * hw.r + 0.45 * nz(vec3(hv * 1.3 + hw.ag * 0.3, 0.21)).r, 0.0);
 	// (the solid look: the halo ends with the disc's own fade, so the galaxy fades
 	// into true black space)
-	float hE = u_edge.w > 0.0 ? solidHaloEnd(length(q0)) : 1.0;
+	float hE = u_edge.w > 0.0 ? (u_isBall ? 1.0 - smoothstep(BALL_HALO_END.x, BALL_HALO_END.y, length(hv) / u_halo.y) : solidHaloEnd(length(q0))) : 1.0;
 	C += mix(vec3(0.42, 0.52, 0.9), vec3(0.95, 0.7, 0.48), u_halo.w) * u_halo.x * wisp / pow(1.0 + hr2, 1.7) * hE;
 	// the sky behind shows only where the galaxy in front is fainter than it
 	// (`bgSeen`), and through what the dust lets by. (THROUGH THE SOLID LOOK'S CAMERA

@@ -254,6 +254,8 @@ func run(tree: SceneTree) -> void:
 
 	# 10. the picture itself, on every hull
 	await _check_layouts()
+	# 10b. every empty mount's words, on every startable hull
+	await _check_empty_words()
 	# 11. the real LOCAL: a wreck in the sky behind is not opened from in here,
 	# and outside it opens its own screen; in a fight your ship is a dead button
 	await _check_local()
@@ -516,6 +518,153 @@ func _check_layouts() -> void:
 		await _settle()
 	_ok("the heavy is drawn at least as big as the medium (%d px wide against %d)" % [int(widths.heavy), int(widths.medium)],
 		widths.heavy >= widths.medium)
+
+
+## EVERY EMPTY MOUNT GETS ITS WORDS (Jon: "There is no text for an empty
+## utility, just empty systems and empty weapons."). "EMPTY UTILITY" is the
+## widest of the three and a utility ring sits in the tightest spots, so the
+## near-ring search found no room and dropped it -- and the check above counted
+## the rings, never the words. On every startable manufacturer's light, medium
+## and heavy, in three used states (as launched with a part in the hold, loot in
+## the system and malfunctions in the deck; one part of each slot taken off; and
+## crowded, every mount but the last of each slot fitted), carrying a part of
+## each slot that has an empty mount: one label per empty mount of that slot,
+## each clear of every part, tag, other label and ring, off the hull's pixels,
+## inside the view and right of the left panel (its buttons with it); and a
+## label set away from its ring has a 1 px leader to it that crosses none of
+## those either.
+func _check_empty_words() -> void:
+	var weights := [["light", HullData.Weight.LIGHT], ["medium", HullData.Weight.MEDIUM], ["heavy", HullData.Weight.HEAVY]]
+	for mk: StringName in DB.STARTABLE:
+		for pair in weights:
+			for state in ["launched", "stripped", "crowded"]:
+				var wname := "%s %s %s" % [mk, pair[0], state]
+				seed_run(4242)
+				Run.start_new_run(mk, int(pair[1]))
+				var node := Run.node_at()
+				node.jetsam.clear()
+				node.taken.clear()
+				Run.cargo.clear()
+				Run.place_in_hold(_module_of(ModuleData.Slot.SYSTEM))
+				Run.sector_jetsam(node, true).items.append(_module_of(ModuleData.Slot.WEAPON))
+				var junk: Array[StringName] = [DB.MALFUNCTIONS[0][0], DB.MALFUNCTIONS[0][0]]
+				Run.dross = junk
+				for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
+					if state == "stripped":
+						for i in Run.slots_for(slot):
+							var m := Run.module_at(slot, i)
+							if m != null:
+								if not Run.uninstall_module(m):
+									Run.installed.erase(m)
+									m.mount = -1
+								break
+					elif state == "crowded":
+						for i in Run.slots_for(slot) - 1:
+							if Run.module_at(slot, i) == null:
+								var m := _module_of(slot)
+								m.mount = i
+								Run.installed.append(m)
+				Sig.ship_changed.emit()
+				var host := Control.new()
+				host.size = Vector2(960, 459)
+				_tree.root.add_child(host)
+				var cut := CutawayView.open_over(host, null)
+				for i in 4:
+					await _tree.process_frame
+				await _empty_words_on(cut, wname)
+				cut.queue_free()
+				host.queue_free()
+				await _tree.process_frame
+
+
+func _empty_words_on(cut: CutawayView, wname: String) -> void:
+	var view := cut.get_global_rect()
+	var left := cut._hold_panel.get_global_rect()
+	var mp := cut._mounts
+	var to_cut := cut.get_global_transform().affine_inverse() * mp.get_global_transform()
+	var img := cut._ship.canvas()
+	var origin := cut._ship.canvas_to_local(Vector2(0, -float(cut._ship._bob_amp + cut._ship._bob_off)))
+	var sc := cut._ship.art_scale()
+	var k := mp._mag()
+	var rings: Array[Rect2] = []
+	var per := {}
+	for sp in mp.spots():
+		if sp.held == null:
+			rings.append(Rect2((sp.at as Vector2) - Vector2.ONE * (MountPoints.R + 1.0) * k, Vector2.ONE * (MountPoints.R + 1.0) * k * 2.0))
+			per[sp.slot] = int(per.get(sp.slot, 0)) + 1
+	print("  ..   %s: %dx, empty mounts W%d S%d U%d of W%d S%d U%d" % [wname, cut.k,
+		per.get(ModuleData.Slot.WEAPON, 0), per.get(ModuleData.Slot.SYSTEM, 0), per.get(ModuleData.Slot.UTILITY, 0),
+		Run.slots_for(ModuleData.Slot.WEAPON), Run.slots_for(ModuleData.Slot.SYSTEM), Run.slots_for(ModuleData.Slot.UTILITY)])
+	for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
+		var empties := int(per.get(slot, 0))
+		if empties == 0:
+			continue
+		var carried := _module_of(slot)
+		mp.light(carried)
+		mp.queue_redraw()
+		await _tree.process_frame
+		var lr := mp.drawn_rects()
+		var leads: Array = mp.call("empty_leaders") if mp.has_method("empty_leaders") else []
+		var shown := 0
+		var bad: Array[String] = []
+		for i in lr.size():
+			if lr[i].kind != "label":
+				continue
+			var ra: Rect2 = lr[i].rect
+			var txt: String = lr[i].text
+			shown += 1
+			if txt != MountPoints.empty_text(int(slot)):
+				bad.append("wrong words %s" % txt)
+			for j in lr.size():
+				if j != i and ra.intersects(lr[j].rect):
+					bad.append("on %s %s" % [lr[j].kind, lr[j].text])
+			for rg in rings:
+				if ra.intersects(rg):
+					bad.append("on a ring")
+			if _opaque_in(img, Rect2((ra.position - origin) / sc, ra.size / sc)):
+				bad.append("on the hull")
+			var g := to_cut * ra
+			if g.position.x < cut._hold_w or g.position.y < 0.0 or g.end.x > cut.size.x or g.end.y > cut.size.y or g.intersects(left):
+				bad.append("off the picture (%d,%d %dx%d)" % [g.position.x, g.position.y, g.size.x, g.size.y])
+			# beside its ring, or led to it
+			var led := false
+			for ld in leads:
+				if (ld.rect as Rect2).is_equal_approx(ra):
+					led = true
+			var near := INF
+			for sp in mp.spots():
+				if sp.held == null and (sp.slot as ModuleData.Slot) == slot:
+					var at: Vector2 = sp.at
+					near = minf(near, at.distance_to(Vector2(clampf(at.x, ra.position.x, ra.end.x), clampf(at.y, ra.position.y, ra.end.y))))
+			if not led and near > (MountPoints.R + 16.0) * k:
+				bad.append("%d px from any ring with no leader" % int(near))
+		# each leader: 1 px, from its ring to its words, over nothing else drawn
+		for ld in leads:
+			var pts: PackedVector2Array = ld.points
+			var own: Rect2 = ld.rect
+			var at: Vector2 = ld.at
+			if pts.is_empty():
+				bad.append("an empty leader")
+				continue
+			if pts[0].distance_to(at) > (MountPoints.R + 4.0) * k or own.grow(3.0).has_point(pts[pts.size() - 1]) == false:
+				bad.append("a leader that does not join its ring to its words")
+			for p in pts:
+				var px := Rect2(p, Vector2.ONE)
+				for d in lr:
+					if (d.rect as Rect2) != own and (d.rect as Rect2).intersects(px):
+						bad.append("a leader over %s %s" % [d.kind, d.text])
+						break
+				for rg in rings:
+					if rg.intersects(px) and not rg.has_point(at):
+						bad.append("a leader over another ring")
+						break
+		_ok("%s: carrying a %s part, every one of its %d empty mount(s) has its words (%d, %d led), clear of everything (%s)" % [
+			wname, ModuleData.Slot.keys()[slot].to_lower(), empties, shown, leads.size(),
+			", ".join(bad) if not bad.is_empty() else "clear"],
+			shown == empties and bad.is_empty())
+		mp._unlight()
+	mp.queue_redraw()
+	await _tree.process_frame
 
 
 func _point_at(cut: CutawayView, wname: String, where: String, want: ModuleData, icon: Control) -> void:

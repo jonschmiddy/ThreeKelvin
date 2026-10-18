@@ -129,6 +129,12 @@ static func probe_forced() -> bool:
 ## The galaxy's look: the showcase's per-kind numbers (set by eye for the
 ## grand design, the barred spiral and the elliptical), generalised by shape and
 ## by the galaxy's own bulge, gas and arms.
+## A BALL'S BODY AND HALO (Jon, Oct 18, "radiant:yes": the balls bloomed into a big orb
+## with a hard edge): the outer component's peak, and the halo's light, a ball is
+## lit by. The showcase's were 0.95 and 0.03.
+const BALL_BODY := 0.8
+const BALL_HALO := 0.06
+
 static func look(p: Dictionary) -> Dictionary:
 	var form: int = p.form
 	var br: float = p.bulge_r
@@ -145,8 +151,8 @@ static func look(p: Dictionary) -> Dictionary:
 	if ell:
 		var re: float = ball.x
 		L.bulge = Vector4(0.23 * re, 1.0 * re, 0.72, 0.08 * re)
-		L.peaks = Vector4(1.5, 0.95 * clampf(float(ball.z) / 0.085, 0.4, 1.3), 0.25, 1.4)
-		L.halo = Vector4(0.03, maxf(0.3, 1.4 * re), 0.72, 1.0)
+		L.peaks = Vector4(1.5, BALL_BODY * clampf(float(ball.z) / 0.085, 0.4, 1.3), 0.25, 1.4)
+		L.halo = Vector4(BALL_HALO, maxf(0.3, 1.4 * re), 0.72, 1.0)
 		# (no disc under a ball: the showcase's faint one drew a flat plate with a
 		# hard rim round the small ones)
 		L.discK = Vector4(0.0, 0.0, 0.0, 0.0)
