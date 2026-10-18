@@ -43,8 +43,8 @@ const LINES: Dictionary = {
 	&"step_event_map": "Click an event, then press GO.",
 }
 
-## THE CUTAWAY'S LINE IS PENDING a rewrite Jon has not picked yet: today's card
-## text, both lines, until then. This is the one line to change.
+## THE CUTAWAY'S LINE is Jon's A (Oct 18): the keys show in the text but her
+## voice never says them, since a player may have rebound them.
 const CUTAWAY_LINE := "Drag a part onto a ring to fit it. You can turn it ({turn}) and flip it ({flip})."
 
 ## The field a line's per-value takes are keyed by.
