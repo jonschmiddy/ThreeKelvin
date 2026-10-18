@@ -156,7 +156,7 @@ func _fill(col: VBoxContainer) -> int:
 		# grants one means only one is ever seen. This page shows what the deck sees.
 		for c in m.resolved_cards():
 			var cd: CardData = c
-			# THE CARD'S BRAND, not its part's (Jon, Oct 18): a shared card a
+			# THE CARD'S OWN MANUFACTURER, not its part's (Jon, Oct 18): a shared card a
 			# Korvan part grants is drawn unbranded, so it files under UNBRANDED
 			# and never under KORVAN.
 			if manufacturer == &"(unbranded)":
