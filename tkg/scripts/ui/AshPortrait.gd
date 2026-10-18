@@ -36,9 +36,19 @@ extends Control
 ## words sit on the dim edgeless backing the goal line uses (an edged box is
 ## what this game's buttons look like). Nothing dismisses it but time.
 ##
-## THE SOUND, from what is already in the game (voice comes later): two of the
-## event text's own `text_blip`, the second a minor third up, at her appearance
-## and at the end of the power-on slip, a little under the text's level.
+## THE SOUND: her power-on is two of the event text's own `text_blip`, the
+## second a minor third up, at her appearance and at the end of the power-on
+## slip, a little under the text's level. THEN HER VOICE (`AshLines.VOICE`,
+## `Audio.ash_voice`), VOICE_AT after she appears: after the chirp rather than
+## under it. Measured over all 28 takes at their in-game levels, the chirp
+## against her first quarter second: started with her, 17 dB under on average
+## and 12 at worst (the second blip's click lands inside the first word, a tick
+## on it); at 0.3 s, 26 dB under and 21 at worst, only the second blip's ring.
+## The words start typing WITH the voice, at the speed that ends them when she
+## stops (`SignalText.rate_for`, over the take's length less VOICE_TAIL_S), so
+## the mouth, which follows the letters, follows her. A line with no take yet
+## types at once at the text's own speed, as before. Wherever her words are cut
+## or sent off (`cut`, `leave`) the voice stops too, faded (`Audio.ash_voice_stop`).
 
 const SHEET := "res://art/ash/face.png"
 const FACE := 64
@@ -72,6 +82,15 @@ const CHIRP := &"text_blip"
 const CHIRP_UP := 1.189207
 const CHIRP_DB := -3.0
 const DESIGNATION := "A.S.H."
+## Her voice starts this long after she appears, s: the power-on's two ticks
+## and one more, past the second chirp's click.
+const VOICE_AT := 0.3
+## A take's own silence after her last word, s (the takes were trimmed to 30 ms
+## ahead and 80 ms after): the words end with the word, not the file.
+const VOICE_TAIL_S := 0.1
+## Once her voice has run out, the words stay at least this long, s (reduced
+## motion shows them whole at once; they must not go before she has finished).
+const VOICE_HOLD_S := 1.0
 
 ## The line she is saying, and its moment (for the harnesses).
 var line := ""
@@ -86,6 +105,15 @@ var phase: Phase = Phase.GONE
 var frames_log: Array = []
 ## Chirps asked for (`Audio` is off headless; `AshTest` counts these).
 var chirps := 0
+## Her voice for this line ("" for text alone), its length, and the game
+## seconds it started and the words started and finished typing (-1 until
+## they have): `AshTest` measures one against the other.
+var voice := ""
+var voice_secs := 0.0
+var voice_started_at := -1.0
+var typed_at := -1.0
+var typed_for := -1.0
+var _voice_at := INF
 
 var _sheet: Texture2D
 var _back: Panel
@@ -134,10 +162,18 @@ func _init() -> void:
 
 ## Say `what` (one of `AshLines`' moments, `k`). Starts the power-on.
 func say(what: String, k: StringName) -> void:
+	# whatever she was saying, she is not now
+	Audio.ash_voice_stop()
 	line = what
 	kind = k
+	voice = AshLines.voice_path(what)
+	voice_secs = 0.0
+	voice_started_at = -1.0
+	typed_at = -1.0
+	typed_for = -1.0
+	_voice_at = INF
+	_text.rate = 0.0
 	_layout()
-	_text.text = what
 	var now := GameClock.now()
 	_born = now
 	_tick_at = now
@@ -163,10 +199,29 @@ func say(what: String, k: StringName) -> void:
 		_slip_ticks = 0
 		_next_slip = INF
 	_chirp(1.0)
-	_text.play()
-	phase = Phase.TYPING
+	if voice == "":
+		_start_words(now)
+	else:
+		# nothing typed until she speaks, after the power-on
+		_text.text = ""
+		_text.skip()
+		_voice_at = now + VOICE_AT
 	_log_frame(now)
 	queue_redraw()
+
+
+## Her voice (if the line has one) and the words, together.
+func _start_words(now: float) -> void:
+	_voice_at = INF
+	if voice != "":
+		voice_secs = Audio.ash_voice(voice)
+		if voice_secs > 0.0:
+			voice_started_at = now
+			_text.rate = SignalText.rate_for(line, voice_secs - VOICE_TAIL_S)
+	_text.text = line
+	_text.play()
+	typed_at = now
+	phase = Phase.TYPING
 
 
 ## Fade out now (`quick`: the hints' or a drag's turn, faster).
@@ -175,6 +230,8 @@ func leave(quick: bool = false) -> void:
 		return
 	phase = Phase.GOING
 	_going_at = GameClock.now()
+	_voice_at = INF
+	Audio.ash_voice_stop()
 	if not _moving():
 		cut()
 		return
@@ -187,6 +244,8 @@ func cut() -> void:
 	phase = Phase.GONE
 	visible = false
 	modulate.a = 0.0
+	_voice_at = INF
+	Audio.ash_voice_stop()
 	_text.skip()
 
 
@@ -272,9 +331,14 @@ func _process(_d: float) -> void:
 	elif _moving():
 		var i := int(floorf((now - _born) / TICK_S + 0.0001))
 		modulate.a = float(FADE_IN[mini(i, FADE_IN.size() - 1)])
+	if phase == Phase.UP and now >= _voice_at - 0.0001:
+		_start_words(now)
 	if _text.done and phase == Phase.TYPING:
 		phase = Phase.HOLDING
+		typed_for = now - typed_at
 		_hold_until = now + HOLD_MIN_S + HOLD_PER_CHAR_S * float(line.length())
+		if voice_started_at >= 0.0:
+			_hold_until = maxf(_hold_until, voice_started_at + voice_secs + VOICE_HOLD_S)
 	if phase == Phase.HOLDING and now >= _hold_until:
 		leave()
 	var changed := false

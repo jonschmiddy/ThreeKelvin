@@ -4,7 +4,7 @@ extends Node
 ## ruling "A.S.H. is the ship, not crew"). Her face comes up in a small hologram
 ## frame on LOCAL and in fights, says one of the thirty approved lines at the
 ## moment it was written for, and fades (`AshPortrait` draws it; `AshLines`
-## holds the lines). No voice yet: text.
+## holds the lines), in her voice as it types (`AshLines.VOICE`, `Audio.ash_voice`).
 ##
 ## THE MOMENTS, each line's own (`AshLines` has the list):
 ##   launch  a new run, once the ship is at rest on LOCAL; gone at the first jump

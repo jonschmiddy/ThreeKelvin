@@ -4,8 +4,9 @@ The ship's AI, and the one person aboard. Named for Ashlee, by Jon, Oct 17.
 Her voice was chosen by Ashlee: **dry, humorous and teasing.** Her face is a
 **hologram.**
 
-Status: in the game (Oct 17), text only: her face on LOCAL and in fights, the 30 approved
-lines (`docs/ash_lines.json`) at their moments. Moods and a voice are still to come.
+Status: in the game (Oct 17): her face on LOCAL and in fights, the 30 approved lines
+(`docs/ash_lines.json`) at their moments, 28 of them in her recorded voice (two takes
+still to pick). Moods are still to come.
 
 ## Why she exists
 
@@ -105,11 +106,61 @@ frame on the main screen. It reacts to the ship, not to the script:
   she cuts with it. **Hints win**: she waits while a hint is up, settling or due on the screen.
 - **Talking:** the mouth follows the typed letters, a held frame every 0.1 s, with blinks and
   one-pixel hologram slips (more often with the hull failing); about 9 changes a second while
-  she talks, all on the game's clock. A two-note `text_blip` chirp as she appears.
+  she talks, all on the game's clock. A two-note `text_blip` chirp as she appears, then
+  her voice (below).
 - **Settings:** SHIP'S AI, A.S.H. ON / OFF, under HINTS. Off under harnesses unless `-- ash`.
 - **Co-op:** each player's A.S.H. is their own ship's, on their own machine: she reads that
   machine's run, sends nothing, and nothing waits on her.
 
-Later, maybe: a voice (ElevenLabs — ask Jon before spending; the voice
-description and options are in the handoff, "A.S.H.'s voice"), and lines that
-shift with the hull's manufacturer.
+## Her voice (Oct 17)
+
+Jon picked her voice and a take of each line: ElevenLabs (eleven_v3), the Cortana
+chain, levelled to -18.3 LUFS, trimmed to 30 ms before the first word and 80 ms after
+the last. The takes are `tkg/assets/audio/voice/ash/<id>.ogg` (Ogg Vorbis, imported
+without a loop), and `AshLines.VOICE` names each line's take; a line's id is its
+moment and its place in that moment's list, `greed_05`. **`greed_05` and `launch_02`
+have no take yet**: their entries are `""` and they are said as text alone, as every
+line was before. Picking one is copying it in as `<id>.ogg`, importing, and putting
+its name in that entry; the TODO is there and nowhere else.
+
+**These takes are placeholders** (Oct 17): Jon has moved her to a warmer voice and all
+30 lines will be recorded again. New takes drop in: replace the files and fill the
+table, and nothing else changes. The typing follows each file's own length
+(`AudioStream.get_length()` as it plays), and `AshTest` counts the voiced lines off
+the table. Two numbers assume the new takes are made the same way: `VOICE_TAIL_S`
+(0.1 s, for the 80 ms trimmed after the last word) and `VOICE_DB` (set against takes
+levelled to -18.3 LUFS). Trim or level them differently and re-measure both.
+
+- **When:** 0.3 s after she appears (`AshPortrait.VOICE_AT`), after the chirp. The
+  chirp is kept. Measured over all 28 takes at their game levels against her first
+  quarter second: started with her, the chirp sat 17 dB under on average and 12 at
+  worst, its second blip's click landing inside the first word; at 0.3 s it is
+  26 dB under, 21 at worst, only the second blip's ring.
+- **The words type with her:** they start on the frame her voice does and type at the
+  speed that ends them as she stops (`SignalText.rate_for`, over the take less its
+  0.1 s of trailing silence; punctuation keeps its beats). Over all 28 the words end
+  0.07 s before the file and within 2.1% of what she says. The mouth follows the
+  letters as before, so it follows her: 8.9 to 9.6 changes a second.
+- **Where:** her own player on the SFX bus (`Audio.ash_voice`): she is the ship
+  talking, so the EFFECTS slider is hers too. No bus or slider of her own.
+- **Level:** `Audio.VOICE_DB` -4 dB. Measured off the movie writer's audio in
+  `-- sheet=AshFilm`: the music and room bed sits at -25.5 to -26 LUFS on LOCAL; her
+  lines measure -19.8 to -20.9 LUFS in the mix (she alone is about -21), so about
+  5 LU over the bed before the duck and 9 over it ducked; the loud effects in a
+  fight (hits, the kill) reach -11.7 momentary against her loudest -15.9, so she
+  sits under the guns, never over them.
+- **The duck:** the music steps down 4 dB while she speaks (`Audio.VOICE_DUCK_DB`),
+  on the station PA's own duck (asked every frame off her player). Measured in the
+  film: down in 0.13 s, back up over 0.43 s once she stops.
+- **Cut short:** wherever her words go before their time (END TURN, a card picked up,
+  a hint settling, something coming into her box, the ship lost, Settings' switch, a
+  new run) her voice stops too, faded over 60 ms (`Audio.ash_voice_stop`).
+- **Off** with Settings' switch, and under harnesses that do not ask, like the words.
+  Headless and in harnesses nothing plays, but `Audio.tape` records each take
+  (`ash/<id>`) and each cut (`ash/stop`); `-- sheet=AshTest` reads it.
+- **Co-op:** her voice is on your machine only, like the rest of her.
+- The words and the voice part a little in the hit-stop's slow motion: the words run
+  on the game's clock and a playing sound does not slow. A hit-stop is a fraction of
+  a second and she is rarely up for one.
+
+Later, maybe: lines that shift with the hull's manufacturer.
