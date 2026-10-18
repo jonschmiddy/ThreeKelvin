@@ -2439,6 +2439,7 @@ func _end() -> void:
 ## The station and the jump's departure keep their own moves.
 
 const CALM_SHADER := preload("res://shaders/calm_ladder.gdshader")
+const CALM_STARS := preload("res://shaders/calm_stars.gdshader")
 ## How much bigger the nearer screen draws the same thing, by the two distances
 ## a hop joins (what the camera's zoom crosses: the held picture shrinks by this
 ## much going out, the arriving one grows from it going in)
@@ -2477,6 +2478,10 @@ var _calm_q: Callable
 ## the side bar and toolbar of the screen being left, as the held picture has
 ## them, standing still over their places until the camera lands
 var _calm_covers: Array = []
+## THE STARS WHERE THE SIDE PANEL GOES (Jon, Oct 17, "A · Stars fill it": not
+## the dark box the panel left): open space over the screen's own ground beside
+## its picture, while a hop to or from LOCAL has the panel and toolbar away
+var _calm_stars: ColorRect = null
 ## (for the harness) what the move has done: [what, seconds into its phase]
 var calm_log: Array = []
 
@@ -2659,6 +2664,7 @@ func _process_calm(delta: float) -> void:
 				_calm_t = dt
 				_chrome_off(_calm_grab(), old)
 				_hide_chrome(old)
+				_calm_stars_on(old, _calm_p0)
 				_process_slide_off()
 				return
 			_chrome(old, _ease(_calm_t / maxf(CALM_OUT_S, 0.001)))
@@ -2687,6 +2693,9 @@ func _process_calm(delta: float) -> void:
 ## screen's UI leaving over the first of it; gone whole before the camera moves.
 func _process_slide_off() -> void:
 	_chrome(old, _ease(_calm_t / maxf(CALM_OUT_S, 0.001)))
+	# (the stars come up as the UI round the picture goes: under the panel
+	# sliding off, they are what it uncovers)
+	_calm_stars_set(_calm_p0, _calm_p0, 1.0, _ease(_calm_t / maxf(CALM_OUT_S, 0.001)), old)
 	var q := clampf(_calm_t / maxf(CALM_SLIDE_S, 0.001), 0.0, 1.0)
 	_drive_slide(q, false)
 	if q >= 1.0 and _calm_t >= CALM_OUT_S:
@@ -2766,6 +2775,8 @@ func _calm_cam() -> void:
 	var p := _calm_p(e)
 	if _calm_new_begun:
 		new.call(&"calm_at", p, exp(_calm_L * (e - 1.0)))
+		if _calm_stars != null:
+			_calm_stars_set(p, new.call(&"calm_rest"), exp(_calm_L * (e - 1.0)), 1.0, new)
 	_mat.set_shader_parameter(&"to_pt", p)
 	_mat.set_shader_parameter(&"scl", Vector2.ONE * exp(_calm_L * (e - _calm_e_h)))
 	_calm_fade()
@@ -2841,9 +2852,10 @@ func _calm_hold(n: Control) -> void:
 	_rect.visible = true
 	# (the swap's own page sound was the click's: `_calm_preroll`)
 	Audio.suppress(&"ui_tab", 200)
-	# THE CHROME STANDS STILL THROUGH THE MOVE (into LOCAL it went before it)
+	# THE CHROME STANDS STILL THROUGH THE MOVE (into LOCAL it went before it,
+	# and the stars it uncovered are in the picture held)
 	if r_old != LOCAL and r_new == LOCAL:
-		pass
+		_calm_stars_off()
 	elif r_old != LOCAL and r_new != LOCAL:
 		# the map and the chart: the old side bar and toolbar held whole, to decode
 		# into the new ones once landed
@@ -2859,9 +2871,52 @@ func _calm_hold(n: Control) -> void:
 				(sw as SideSwap).rate = _calm_rate
 	else:
 		# out of LOCAL: the arriving screen's side bar and toolbar kept out of
-		# sight until the camera has landed and the column and band are on
+		# sight until the camera has landed and the column and band are on, and
+		# stars where they stand, carried with the move
 		_hide_chrome.call_deferred(n)
+		_calm_stars_on(n, _calm_ph)
 	calm_log.append(["swap", _calm_t])
+
+
+## The stars up over the content area but `s`'s picture, under the held one.
+func _calm_stars_on(s: Control, at: Vector2) -> void:
+	_calm_stars_off()
+	_fit()
+	var r := ColorRect.new()
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	r.color = Color.WHITE
+	var m := ShaderMaterial.new()
+	m.shader = CALM_STARS
+	r.material = m
+	add_child(r)
+	move_child(r, _rect.get_index())
+	r.position = Vector2.ZERO
+	r.size = size
+	var c := _content_rect()
+	m.set_shader_parameter(&"rect_pos", c.position)
+	m.set_shader_parameter(&"rect_size", c.size)
+	m.set_shader_parameter(&"alpha", 0.0)
+	_calm_stars = r
+	_calm_stars_set(at, at, 1.0, 0.0, s)
+
+
+func _calm_stars_set(anchor: Vector2, rest: Vector2, s: float, a: float, by: Control) -> void:
+	if _calm_stars == null or not is_instance_valid(_calm_stars):
+		return
+	var m := _calm_stars.material as ShaderMaterial
+	m.set_shader_parameter(&"anchor", anchor)
+	m.set_shader_parameter(&"rest", rest)
+	m.set_shader_parameter(&"scl", s)
+	m.set_shader_parameter(&"alpha", a)
+	if by != null and is_instance_valid(by) and bool(by.call(&"ladder_ready")):
+		var pic: Rect2 = by.call(&"ladder_picture")
+		m.set_shader_parameter(&"hole", Vector4(pic.position.x, pic.position.y, pic.size.x, pic.size.y))
+
+
+func _calm_stars_off() -> void:
+	if _calm_stars != null and is_instance_valid(_calm_stars):
+		_calm_stars.queue_free()
+	_calm_stars = null
 
 
 ## A piece of the held picture, standing where it stood (viewport px).
@@ -2918,6 +2973,17 @@ func _calm_land() -> void:
 ## them (the column standing until the decode is drawing, the band until the
 ## toolbar's is), the arriving UI coming with them.
 func _calm_decode_on() -> void:
+	# (the column and band are on: the stars keep only the strip under the
+	# picture, where the key comes back, and go as it does -- `_calm_in`)
+	if _calm_stars != null and is_instance_valid(_calm_stars):
+		var c := _content_rect()
+		var pic: Rect2 = new.call(&"ladder_picture")
+		var keep := Rect2(c.position.x, pic.end.y, _side_rest().position.x - 5.0 - c.position.x, c.end.y - pic.end.y)
+		_calm_stars.position = keep.position - global_position
+		_calm_stars.size = keep.size
+		var m := _calm_stars.material as ShaderMaterial
+		m.set_shader_parameter(&"rect_pos", keep.position)
+		m.set_shader_parameter(&"rect_size", keep.size)
 	# (what it decodes from is the empty column as it stands now, landed)
 	_tex = _calm_grab()
 	_show_chrome()
@@ -2987,6 +3053,8 @@ func _calm_in() -> void:
 		_calm_end()
 		return
 	_chrome(new, 1.0 - _ease(_calm_t / maxf(CALM_IN_S, 0.001)))
+	if _calm_stars != null and is_instance_valid(_calm_stars):
+		(_calm_stars.material as ShaderMaterial).set_shader_parameter(&"alpha", 1.0 - _ease(_calm_t / maxf(CALM_IN_S, 0.001)))
 	if _calm_t >= CALM_IN_S:
 		_calm_end()
 
@@ -3083,6 +3151,7 @@ func _calm_end() -> void:
 	if not _calm:
 		return
 	_calm = false
+	_calm_stars_off()
 	if _calm_e_h < 0.0:
 		drop_prebuilt()
 		if is_instance_valid(old) and Router.current == old:

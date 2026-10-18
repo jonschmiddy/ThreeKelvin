@@ -86,6 +86,61 @@ func _ship(s: Control) -> Vector2:
 	return Vector2.INF
 
 
+## THE SIDE PANEL'S PLACE FILLED (Jon, Oct 17, "A · Stars fill it": the space
+## the side panel goes in never shows as a dark box). While the ladder moves,
+## at the middle of the side bar's column and of the toolbar's row, something
+## is drawn this frame: LOCAL (it runs edge to edge), the screen's own picture,
+## the held picture whole, the ladder's stars, the side bar or toolbar standing,
+## or a piece of them sliding or decoding. Otherwise it is the screen's bare
+## ground there -- a dark box. Returns the places bare ("" when none).
+func _strip_bare() -> String:
+	if not ZoomLadder.busy():
+		return ""
+	var c := Router.content.get_global_rect()
+	var out: Array = []
+	for nm: String in ["column", "toolbar"]:
+		var at := Vector2(c.end.x - 130.0, c.position.y + c.size.y * 0.5)
+		if nm == "toolbar":
+			at = Vector2(c.position.x + c.size.x * 0.4, c.position.y + StarchartScreen.BAR_H * 0.5)
+		if not _drawn_at(at):
+			out.append(nm)
+	return ",".join(PackedStringArray(out))
+
+
+func _drawn_at(at: Vector2) -> bool:
+	var cur := Router.current
+	if cur is SectorScreen:
+		return true
+	if cur != null and is_instance_valid(cur) and bool(cur.call(&"ladder_ready")) and (cur.call(&"ladder_picture") as Rect2).has_point(at):
+		return true
+	var L := ZoomLadder.active
+	if (L._rect as CanvasItem).visible and L.held_alpha() >= 0.999:
+		var pv: Variant = L._mat.get_shader_parameter(&"pic")
+		if pv is Vector4:
+			var v := pv as Vector4
+			if Rect2(v.x, v.y, v.z, v.w).has_point(at):
+				return true
+	var st: Variant = L.get("_calm_stars")
+	if st != null and is_instance_valid(st) and (st as CanvasItem).is_visible_in_tree():
+		var sm := (st as CanvasItem).material as ShaderMaterial
+		var hv: Vector4 = sm.get_shader_parameter(&"hole")
+		if float(sm.get_shader_parameter(&"alpha")) > 0.95 and (st as Control).get_global_rect().has_point(at) 				and not Rect2(hv.x, hv.y, hv.z, hv.w).has_point(at):
+			return true
+	for ch: Variant in [ZoomLadder.side_of(cur), ZoomLadder.bar_of(cur)]:
+		if ch != null and is_instance_valid(ch) and (ch as CanvasItem).is_visible_in_tree() 				and (ch as CanvasItem).modulate.a > 0.99 and (ch as Control).get_global_rect().has_point(at):
+			return true
+	for pc: Variant in ChromeSlide.live:
+		if is_instance_valid(pc) and (pc as CanvasItem).is_visible_in_tree() and (pc as ChromeSlide).at().has_point(at):
+			return true
+	for b: Variant in SideBand.live:
+		if is_instance_valid(b) and (b as CanvasItem).is_visible_in_tree() and (b as Control).get_global_rect().has_point(at):
+			return true
+	for sw: Variant in SideSwap.live:
+		if is_instance_valid(sw) and (sw as CanvasItem).is_visible_in_tree() and (sw as SideSwap).rect().has_point(at):
+			return true
+	return false
+
+
 ## A side panel or toolbar piece of the ladder's up this frame: a column or a
 ## band sliding (`ChromeSlide`, `SideBand`), or a decode drawn (`SideSwap`).
 func _side_chrome_up() -> bool:
@@ -233,6 +288,9 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 	# frames any side panel or toolbar piece (a column, a band, a decode) was up
 	var cam_first := -1
 	var cam_last := -1
+	# (frames the side panel's place showed as an empty dark box)
+	var dark_box := 0
+	var local_hop := from == ZoomLadder.LOCAL or want == ZoomLadder.LOCAL
 	var panel_first := -1
 	var panel_last := -1
 	var bad: Array = []
@@ -326,6 +384,12 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 			if panel_first < 0:
 				panel_first = frames
 			panel_last = frames
+		if local_hop:
+			var bare := _strip_bare()
+			if bare != "":
+				dark_box += 1
+				if OS.get_cmdline_user_args().has("debug"):
+					print("    bare %s at frame %d (%s)" % [bare, frames, String(ZoomLadder.Phase.keys()[ZoomLadder.active.phase]) if ZoomLadder.busy() else "-"])
 		# A PRESS MID-MOVE
 		if not press.is_empty() and not press_done and frames >= int(float(press[1]) * target * 60.0):
 			press_done = true
@@ -388,6 +452,8 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 		_ok("%s: and never turning back along it (%.1f px back at most)" % [label, back], back <= BACK_PX)
 	_ok("%s: and never under the side bar (%d frames)" % [label, under_side], under_side == 0)
 	_ok("%s: the side bar, the toolbar, the column and the band still while the camera moves (%d frames moving)" % [label, chrome_moved], chrome_moved <= 1)
+	if local_hop:
+		_ok("%s: where the side panel goes is never an empty dark box -- the panel, a piece of it sliding, a decode, or stars (%d frames bare)" % [label, dark_box], dark_box == 0)
 	if press.is_empty() and from == ZoomLadder.LOCAL and want != ZoomLadder.LOCAL:
 		_ok("%s: the side panel comes in only after the camera has landed (camera to frame %d, panel from %d)" % [label, cam_last, panel_first],
 			cam_last >= 0 and panel_first > cam_last)
