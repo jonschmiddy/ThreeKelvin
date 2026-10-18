@@ -411,6 +411,7 @@ func _yard() -> void:
 	here.type = MapGen.NodeType.STATION
 	here.development = MapGen.Development.CITY
 	here.security = 4
+	Router.park_at_station(here)
 	Router.show_station()
 	await _frames(90)
 	var st := Router.current as StationScreen

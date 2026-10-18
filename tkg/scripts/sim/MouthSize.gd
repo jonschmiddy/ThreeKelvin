@@ -65,6 +65,7 @@ func _run() -> void:
 	Run.at = st
 	Run.map[st].visited = true
 	SectorScreen._approached_at = st
+	Router.park_at_station()
 	Router.show_local()
 	await _frames(90)
 	var weights := {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}

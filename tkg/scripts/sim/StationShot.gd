@@ -117,6 +117,8 @@ func run(tree: SceneTree) -> void:
 			else:
 				print("  no development level '%s' -- CITY" % lv)
 	here.security = 4
+	# (docked is at the station: alongside it, as `-- station` leaves you -- dock:A)
+	Router.park_at_station(here)
 	# Two statements rather than a ternary: `berths` is typed, and an untyped
 	# empty array will not assign to it.
 	here.berths.clear()

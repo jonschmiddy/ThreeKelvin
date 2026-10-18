@@ -447,6 +447,16 @@ func core_place() -> int:
 	return -2
 
 
+## The station's place in this layout (the body its DOCK is on), or -2 if it
+## has none: where the ship has to be to dock (`Router.at_station`).
+func dock_place() -> int:
+	for bi in bodies.size():
+		for bc in bodies[bi].beacons:
+			if bc.dock:
+				return bi
+	return -2
+
+
 ## The body an option sits on, or null (also for one on the star: `place_of`).
 func body_of_option(i: int) -> Body:
 	for b in bodies:

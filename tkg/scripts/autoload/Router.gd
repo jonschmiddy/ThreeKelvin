@@ -584,6 +584,55 @@ func may_cast_off() -> bool:
 	return not docked or Run.ready_to_fly().is_empty()
 
 
+## WHETHER THE SHIP IS AT THE STATION ITSELF, the one place DOCK is offered
+## (Jon, Oct 18, "dock:A": "only at the station", not anywhere in a system that
+## has one). The other half of `cast_off`: a move off the berth undocks, and a
+## dock only happens where the berth is. It was offered from anywhere in the
+## system -- LOCAL's bar at a world drew the station's side beside it and DOCK
+## played the whole dock into a station that was not there -- the same picture
+## that undocking without leaving made (8d653b27).
+##
+## At the station's own body as the map left the ship (`Run.site_here`), or
+## where the map's ship is right now while the map is up on that system, or
+## docked. Every DOCK asks this: LOCAL's bar and the station's side on it
+## (`SectorScreen`), the map's DOCK card (`SystemPanel`) and its beacon
+## (`SystemMapScreen.take_action`), the fuel hint's "Refuel here", and
+## `show_station` itself.
+func at_station(n: MapGen.MapNode = null) -> bool:
+	if n == null:
+		n = Run.node_at()
+	if n == null or n.type != MapGen.NodeType.STATION:
+		return false
+	if docked and n == Run.node_at():
+		return true
+	var place := SystemLayout.of(n).dock_place()
+	if place < 0:
+		return false
+	var m := current as SystemMapScreen
+	if m != null and is_instance_valid(m) and m.view != null and m.view.node == n and m.flight != null:
+		return m.flight.reached() == place
+	return Run.site_here(n) == place
+
+
+## What a DOCK says where the ship is not at the station (its tooltip, the map
+## card's line). Plain, and the way to it.
+const DOCK_AWAY := "Fly to the station to dock."
+
+
+## PARKS THE SHIP AT THE STATION'S BODY, as the map leaves it after flying
+## there: for the doors that start a run or a harness docked (`-- station`, the
+## sheets), never for a player, who flies there. Nothing if the system has no
+## station.
+func park_at_station(n: MapGen.MapNode = null) -> void:
+	if n == null:
+		n = Run.node_at()
+	if n == null or n.type != MapGen.NodeType.STATION:
+		return
+	var place := SystemLayout.of(n).dock_place()
+	if place >= 0:
+		SystemMapScreen._parked[n.index] = {"at": place, "mode": &"rail"}
+
+
 ## LOCAL: the side-on view of the system, where the jump leaves from and every
 ## fight is fought.
 ## Where you are. Always available, including after the run ends.
@@ -859,6 +908,12 @@ func _on_jumped(_index: int) -> void:
 	# edge and leaves its wrecks there -- not on a world whose own fight's hulls
 	# are already lying round it (Jon, Oct 15: one place, one fight).
 	SystemMapScreen._parked.erase(_index)
+	# ...BUT AT A STATION, AT THE STATION (Jon, Oct 18, "arrive:B"): a jump into
+	# a system with a station brings the ship in alongside it, so DOCK is there
+	# on arrival and LOCAL has the station's side; a jump anywhere else arrives
+	# at the edge as above. (No fight is ever rolled at a station, so nothing
+	# arrives there to leave its wrecks.)
+	park_at_station(Run.node_at())
 	resolve_current_node()
 
 func resolve_current_node() -> void:
@@ -1020,6 +1075,16 @@ func show_station() -> void:
 	# still here -- close it and stand in the same yard.
 	if dock != null and is_instance_valid(dock) and current is StationScreen:
 		_close_dock()
+		return
+	# ONLY AT THE STATION (dock:A): every DOCK is offered only there, and this is
+	# the door they all go through, so a dock from anywhere else in a station's
+	# system is refused here too, whoever asks. A run or a harness that starts
+	# docked parks the ship at the station first (`park_at_station`). (A system
+	# with no station never offers one; the harnesses that dock there anyway,
+	# to see the berth, still can.)
+	var here: MapGen.MapNode = Run.node_at()
+	if not docked and here != null and here.type == MapGen.NodeType.STATION and not at_station(here):
+		Audio.denied()
 		return
 	# ARRIVING, OR JUST COMING BACK TO THE DESK? Docking is a thing the ship
 	# does once; walking back to the station from the chart or the ship screen

@@ -282,7 +282,8 @@ func _place_map() -> void:
 	view.window = Rect2(-at, _frame.size)
 
 
-## `arrived`: the ship has just jumped in, so it warps in at the edge.
+## `arrived`: the ship has just jumped in, so it warps in at the edge (in a
+## station's system, alongside the station: arrive:B).
 func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> void:
 	_keep_ship()
 	view.t = t0
@@ -314,6 +315,10 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 	flight.setup(view.layout, Vector2(ex, -210.0), t0)
 	if not arrived:
 		_restore_ship(_parked.get(n.index, {}))
+	elif n.type == MapGen.NodeType.STATION and view.layout.dock_place() >= 0:
+		# (a jump into a station's system arrives alongside the station:
+		# arrive:B, `Router._on_jumped`)
+		flight.place_at(view.layout.dock_place(), t0)
 	overlay.flight = flight
 	_was_at = flight.reached()
 	# THE WEATHER sees the ship, the labels and the panel; a fresh warp-in pushes
@@ -1069,6 +1074,12 @@ func _zoom_down(i: int) -> void:
 ## opens (`SectorScreen._on_action`).
 func take_action(bc) -> void:
 	if _taking:
+		return
+	# DOCK ONLY AT THE STATION (dock:A). It used to fly you there and dock on
+	# arrival from anywhere in the system; now its card is greyed until you are
+	# there, and this door refuses the same, whoever presses it.
+	if bc != null and bc.dock and not Router.docked and not ship_reached(_body_of_beacon(bc)):
+		Audio.denied()
 		return
 	_go_then(_body_of_beacon(bc), func() -> void: _act(bc))
 

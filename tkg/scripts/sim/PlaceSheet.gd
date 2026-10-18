@@ -38,6 +38,8 @@ func run(tree: SceneTree) -> void:
 	var period: float = EncounterView.AreaView.RING_S * 5.0
 	for r in rows.size():
 		var n: MapGen.MapNode = rows[r][1]
+		# (a station's ring is drawn only at the station: dock:A)
+		Router.park_at_station(n)
 		for i in SHOTS:
 			var at := period * float(i) / float(SHOTS)
 			var img := await _frame(tree, n, at)
