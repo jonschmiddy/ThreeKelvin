@@ -4780,9 +4780,9 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Go cold and wait it out",
 					check = {attr = &"stealth", need = 5},
 					met = func() -> Dictionary:
-						return {text = "You shut the drive down and let the hull cool. The calf noses along the stern for an hour and finds nothing warm. Then it turns away into the dark. The grapple picks a sheet of its hide out of your wake, and a spine it broke on your stern.", material_id = &"hide_scrap", material = &"fauna"},
+						return {text = "You shut the drive down and let the hull cool. The calf noses along the stern for an hour and finds nothing warm. Then it leaves. The grapple picks a sheet of its hide out of your wake, and a spine it broke on your stern.", material_id = &"hide_scrap", material = &"fauna"},
 					clean = func() -> Dictionary:
-						Run.fuel = maxi(0, Run.fuel - 6)
+						Run.drain_fuel(1)
 						return {text = "It takes three hours of drifting cold before the calf loses interest and leaves. Starting the drive again costs fuel. The grapple finds one piece of loose hide in your wake and brings it in.", material = &"fauna"},
 					partial = func() -> Dictionary:
 						Run.take_hull_damage(OptionTable.toll(2), "A voidwhale calf looking for warmth cracked the stern open.")
@@ -4792,14 +4792,14 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Drive it off with the guns", fight = true, effect = func() -> Dictionary:
 					return {text = "You come about and put a shot across its path to scare it off. It does not run. It spreads its spines wide and comes at the ship, tail first.", fight = true}},
 				{label = "Let it follow", stay = true, effect = func() -> Dictionary:
-					return {text = "You hold your course and let it nose along behind you. It is still there when you next check the dish, bumping the stern now and then."}},
+					return {text = "You hold your course and let it nose along behind you. It bumps the stern now and then, and the hull sensors log each bump."}},
 			],
 		},
 		{
 			id = &"the_tow_cable",
 			title = "The tow cable",
 			subject = {layers = [{stage = &"single", pieces = [&"role:barge"], dark = 0.7, at = Vector2(90.0, -40.0)}, {stage = &"single", pieces = [&"pool_fan"], at = Vector2(-90.0, 50.0)}]},
-			body = "A dead ore barge drifts at the edge of the system with its tow cable still trailing from the stern. A voidwhale calf has wound itself into the cable. It is pale, with thin spines along its back. Every time it pulls, the cable cuts in deeper between the spines. It has stopped calling for its pod. The barge's forward hold reads full of ore. There is no claim filed on the barge, and the dish shows no other ship in the system.",
+			body = "A dead ore barge drifts at the edge of the system with its tow cable still trailing from the stern. A voidwhale calf has wound itself into the cable. It is pale, with thin spines along its back. Every time it pulls, the cable cuts in deeper between the spines. The dish picked up its calls for a while. They have stopped. The barge's forward hold reads full of ore. There is no claim filed on the barge, and the dish shows no other ship in the system.",
 			tags = [&"fight", &"salvage"],
 			group = &"",
 			weight = 11,
@@ -4811,7 +4811,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Cut the calf free",
 					check = {attr = &"maneuver", need = 4},
 					met = func() -> Dictionary:
-						return {text = "You bring the cutter in along the cable and take it apart one length at a time. The calf holds still for the last cut. Then it moves off slowly toward the dark. Two of its spines broke off in the cable, and the grapple takes them.", material = &"fauna"},
+						return {text = "You bring the cutter in along the cable and take it apart one length at a time. The calf holds still for the last cut. Then it moves off slowly toward the dark. One of its spines broke off in the cable, and the grapple takes it.", material = &"fauna"},
 					clean = func() -> Dictionary:
 						Run.heat += 5
 						return {text = "It takes two hours with the cutter running hot. The calf pulls once and then holds still until the last length parts. It leaves a broken spine in the cable, and the grapple takes it.", material = &"fauna"},
@@ -4823,7 +4823,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Work the barge's hold around it", fight = true, effect = func() -> Dictionary:
 					return {text = "The grapple gets one load of ore out of the forward hold. Then the barge shifts, and the cable cuts into the calf again. It tears loose and comes straight at your ship.", material = &"mining", fight = true}},
 				{label = "Leave the barge", stay = true, effect = func() -> Dictionary:
-					return {text = "You log the barge's position and fly on. The calf has stopped pulling. It is still caught in the cable when the dish loses them both."}},
+					return {text = "You log the barge's position and the calf beside it, and fly on. The calf has stopped pulling. It is still caught in the cable."}},
 			],
 		},
 		{
