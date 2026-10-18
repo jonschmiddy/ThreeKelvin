@@ -336,6 +336,22 @@ else
 	bad "moontest did not finish"
 fi
 
+step "Leaving a station without UNDOCK leaves nothing of it behind"
+# Docked, the ship flown off by the map (a world, the star, open space) and back
+# to LOCAL by the HUD's tab and by Tab, and by the chart's JUMP and GO beyond it:
+# LOCAL as after a proper UNDOCK (ship, zoom, the sky's place, no berth left,
+# the ladder idle), and where UNDOCK refuses, the flight and the jump refuse too.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot dockflytest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=DockFlyTest; then
+	if grep -qE '^dockflytest: PASS' "$LOG_DIR/dockflytest.log"; then
+		ok "every way off the berth undocks, or is refused"
+	else
+		bad "a way off the berth left the station behind"
+		grep -E 'FAIL|^dockflytest' "$LOG_DIR/dockflytest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "dockflytest did not finish"
+fi
+
 step "Every material is a thing the hold can actually hold"
 # `MaterialTable` authored 64 rows a day before anything could carry one, so its
 # shapes had never met the grid that has to accept them. A row whose `cells`
