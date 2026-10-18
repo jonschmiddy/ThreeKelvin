@@ -40,10 +40,10 @@ extends Control
 ## second a minor third up, at her appearance and at the end of the power-on
 ## slip, a little under the text's level. THEN HER VOICE (`AshLines.VOICE`,
 ## `Audio.ash_voice`), VOICE_AT after she appears: after the chirp rather than
-## under it. Measured over all 28 takes at their in-game levels, the chirp
-## against her first quarter second: started with her, 17 dB under on average
-## and 12 at worst (the second blip's click lands inside the first word, a tick
-## on it); at 0.3 s, 26 dB under and 21 at worst, only the second blip's ring.
+## under it. Measured over all 30 takes at their in-game levels, the chirp
+## against her first quarter second: started with her, 18 dB under on average
+## and 9 at worst (the second blip's click lands inside the first word, a tick
+## on it); at 0.3 s, 27 dB under and 18 at worst, only the second blip's ring.
 ## The words start typing WITH the voice, at the speed that ends them when she
 ## stops (`SignalText.rate_for`, over the take's length less VOICE_TAIL_S), so
 ## the mouth, which follows the letters, follows her. A line with no take yet

@@ -88,29 +88,25 @@ const MOMENTS: Dictionary = {
 }
 
 
-## HER VOICE, line by line (Jon's picks, Oct 17: ElevenLabs, the Cortana chain,
-## levelled to -18.3 LUFS). A line's id is its moment and its place in that
-## moment's list, from 1 (`id_of`); its file is `VOICE_DIR` + the name here.
-## A line with "" has no take yet and is said as text alone, as every line was
-## before (`AshPortrait.say`). A new line's take is one entry here; new takes
-## replace these files and entries and nothing else (the typing follows each
-## file's own length). These are placeholders: Jon is re-recording all thirty.
+## HER VOICE, line by line: Jon's picks of her warm voice (Oct 17: ElevenLabs,
+## voice W1_2, the subtle Cortana chain; trimmed to 30 ms before the first word
+## and 80 ms after the last, levelled to -18.3 LUFS). A line's id is its moment
+## and its place in that moment's list, from 1 (`id_of`); its file is
+## `VOICE_DIR` + the name here. A line with "" has no take and is said as text
+## alone (`AshPortrait.say`). A new take is its file and its entry here and
+## nothing else: the typing follows each file's own length.
 const VOICE_DIR := "res://assets/audio/voice/ash/%s.ogg"
 const VOICE: Dictionary = {
 	&"doubt_01": "doubt_01", &"doubt_02": "doubt_02", &"doubt_03": "doubt_03",
 	&"greed_01": "greed_01", &"greed_02": "greed_02", &"greed_03": "greed_03",
-	&"greed_04": "greed_04",
+	&"greed_04": "greed_04", &"greed_05": "greed_05",
 	&"haul_01": "haul_01", &"haul_02": "haul_02", &"haul_03": "haul_03",
 	&"haul_04": "haul_04", &"haul_05": "haul_05",
 	&"hot_01": "hot_01", &"hot_02": "hot_02", &"hot_03": "hot_03", &"hot_04": "hot_04",
 	&"hull_01": "hull_01", &"hull_02": "hull_02", &"hull_03": "hull_03", &"hull_04": "hull_04",
 	&"hurt_01": "hurt_01", &"hurt_02": "hurt_02", &"hurt_03": "hurt_03", &"hurt_04": "hurt_04",
-	&"launch_01": "launch_01", &"launch_03": "launch_03", &"launch_04": "launch_04",
-	&"launch_05": "launch_05",
-	# TODO(Jon): the two takes still to pick (the scratchpad's ash-voice/lines/fx,
-	# <id>_3/4/5.ogg). Copy the pick to assets/audio/voice/ash/<id>.ogg, import,
-	# and put its name here; nothing else changes.
-	&"greed_05": "", &"launch_02": "",
+	&"launch_01": "launch_01", &"launch_02": "launch_02", &"launch_03": "launch_03",
+	&"launch_04": "launch_04", &"launch_05": "launch_05",
 }
 
 
