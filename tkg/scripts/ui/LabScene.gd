@@ -359,9 +359,7 @@ func _amb_setup() -> void:
 		# SEAMLESS ON ITS OWN LENGTH, as the station's rooms are (`Audio.room`):
 		# a wav, because ogg clicks at a loop's seam.
 		var w := stream as AudioStreamWAV
-		w.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		w.loop_begin = 0
-		w.loop_end = roundi(w.get_length() * float(w.mix_rate))
+		Audio.loop_whole(w)
 	_bed.stream = stream
 
 

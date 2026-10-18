@@ -556,6 +556,79 @@ static func ball_of(kind: int, g: Dictionary) -> Vector4:
 	return b
 
 
+## A BALL'S DEPTH, three looks to compare (Jon, Oct 18: "Why do giant elliptical
+## galaxies look so much flatter than all the other galaxies?" -- a ball had only its
+## smooth glow and a broad mottle, none of the layers that give a spiral its body):
+##   0 today's ball;
+##   A (1) lit as a ball: a bright side toward the chart's key light (upper left, the
+##     painted style's `ballForm` light), a shaded side away, the light falling off
+##     toward the rim (limb darkening), so it reads as a sphere standing in space;
+##   B (2) the structure real ones have: a dust lane across SOME of them (seeded
+##     off the galaxy), faint shells of swallowed galaxies, a scatter of globular
+##     clusters round it, lumpier star clouds in its body;
+##   C (3) A and B together -- THE GAME'S (Jon picked it, Oct 18: "Galaxy depth: look:C
+##     lane:both", the lane in SIMPLIFIED and PAINTED alike).
+## `-- balllook=0|A|B|C` draws another (a harness's, in memory: 0 is the ball before,
+## for a before and an after); `balllane=0|1` forces the lane off or on, to show it.
+## Read by SIMPLIFIED's `ellBall` and PAINTED's ball.
+const BALL_LOOK := 3
+static var ball_look := -1
+static var ball_lane_forced := -1
+
+
+static func ball_look_now() -> int:
+	if ball_look < 0:
+		ball_look = BALL_LOOK
+		for a in OS.get_cmdline_user_args():
+			var arg := a as String
+			if arg.begins_with("balllook="):
+				ball_look = maxi(0, "0ABC".find(arg.substr(9).to_upper()))
+			elif arg.begins_with("balllane="):
+				ball_lane_forced = int(arg.substr(9))
+	return ball_look
+
+
+## The ball's depth for the place passes: (look, lane strength, lane angle, seed 0..1)
+## and (shells, globular clusters, star-cloud lumps, 0), each by kind. The lane is
+## seeded off the galaxy: about two old balls in five carry one (a giant swallowed a
+## gas-rich spiral not long ago); the merger has its own, the dwarfs none.
+static func ball_depth(kind: int) -> Array[Vector4]:
+	var look := ball_look_now()
+	var h := absi(hash([Run.galaxy_seed, Run.galaxy_kind, 4471]))
+	var seed01 := float(h % 1000) / 1000.0
+	var lane := 0.0
+	var e := Vector4.ZERO
+	match GalaxyGen.type_name(kind):
+		"Giant Elliptical":
+			e = Vector4(1.0, 1.0, 1.0, 0.0)
+			lane = 1.0 if (h >> 10) % 100 < 45 else 0.0
+		"Round Elliptical":
+			e = Vector4(0.6, 0.7, 1.0, 0.0)
+			lane = 1.0 if (h >> 10) % 100 < 45 else 0.0
+		"Flattened Elliptical":
+			e = Vector4(0.5, 0.6, 1.0, 0.0)
+			lane = 1.0 if (h >> 10) % 100 < 45 else 0.0
+		"Merger Remnant":
+			e = Vector4(0.5, 0.8, 1.0, 0.0)
+		"Blue Compact Dwarf":
+			e = Vector4(0.0, 0.3, 0.6, 0.0)
+		"Dwarf Spheroidal":
+			e = Vector4(0.0, 0.45, 0.7, 0.0)
+	if ball_lane_forced >= 0 and e.x > 0.0 and GalaxyGen.type_name(kind) != "Merger Remnant":
+		lane = float(ball_lane_forced)
+	# (near level, either way: the lane is the swallowed disc seen almost edge on)
+	var ang := (float((h >> 20) % 1000) / 1000.0 - 0.5) * 0.9
+	return [Vector4(float(look), lane, ang, seed01), e]
+
+
+## How far out a ball's light is lit, in gu across (its height is this times its
+## roundness, `ball_of`'s y): what the chart's frame of a region takes in round the
+## core so the whole ball is in view (`MapChart.frame_region`). The body's lit
+## bands, where SIMPLIFIED's amber and PAINTED's violet end, at the chart's opening.
+static func ball_lit_gu(ball: Vector4) -> float:
+	return 1.8 * ball.x
+
+
 ## The rolled galaxy as the place pass's constants.
 static func params(_use_map: bool = true) -> Dictionary:
 	var g: Dictionary = Run.galaxy
@@ -1547,6 +1620,9 @@ func _feed_static(m: ShaderMaterial, g: Dictionary) -> void:
 	m.set_shader_parameter("u_ext", EXT)
 	m.set_shader_parameter("u_form", int(p.form))
 	m.set_shader_parameter("u_ball", p.ball)
+	var bd := ball_depth(Run.galaxy_kind)
+	m.set_shader_parameter("u_ballD", bd[0])
+	m.set_shader_parameter("u_ballE", bd[1])
 	m.set_shader_parameter("u_bulgeR", float(p.bulge_r))
 	m.set_shader_parameter("u_holeR", float(p.hole_r))
 	m.set_shader_parameter("u_gasAmt", float(p.gas))

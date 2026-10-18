@@ -1400,6 +1400,7 @@ func _feed_field(m: ShaderMaterial, g: Dictionary, z: float) -> void:
 	for k in ["eff", "bsq", "bul", "sd", "gas", "pal0", "pal1", "rin_p", "rb", "rb_ring"]:
 		m.set_shader_parameter(k, p[k])
 	m.set_shader_parameter("dk_g", p.dk)
+	m.set_shader_parameter("ball_core", ChartSky.form_of(Run.galaxy_kind) == 1 and _use_map)
 	m.set_shader_parameter("arm_k", p.arm_k)
 	m.set_shader_parameter("big_r", p.big_r)
 	m.set_shader_parameter("lane_amt", p.lane)

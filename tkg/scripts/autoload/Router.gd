@@ -1100,7 +1100,7 @@ func show_option_at(index: int) -> void:
 	var e := EventScreen.new()
 	_swap(e)
 	e.setup({title = opt.get("title", ""), body = opt.get("body", ""),
-		options = opt.get("choices", [])})
+		options = opt.get("choices", []), foe = opt.get("foe", &"")})
 
 
 ## Mark one option spent without opening anything.
@@ -1389,15 +1389,27 @@ func engage_hellbender() -> void:
 ##
 ## The option consumes ITSELF, through `taken`. The system is finished when
 ## nothing is left in it, which is `event_resolved`'s rule.
-func start_ambush() -> void:
-	start_combat(option_foe(Run.node_at()), [], false, false)
+##
+## `foe` is the event's tag (`OptionTable.fight_foe`): the creature its text set
+## up, or `&""` for a ship.
+func start_ambush(foe: StringName = &"") -> void:
+	start_combat(option_foe(Run.node_at(), foe), [], false, false)
 
-## The ship an option's fight brings at `n`: one, off `Rng.foe`, from the
-## ordinary pool -- never fauna, even in a fauna region. One function so the
-## headless sim (`HeadlessSim._option_fight`) fields what this does: it used to
-## pick its own, with fauna, and fought whales in fauna space where the game
-## fights ships.
-func option_foe(n: MapGen.MapNode) -> EnemyTemplate:
+## What an option's fight brings at `n`. With no `foe`, a ship: one, off
+## `Rng.foe`, from the ordinary pool -- never fauna, even in a fauna region,
+## because the event's text set up a ship. With `foe` (the event's tag,
+## `OptionTable.fight_foe`), that creature and nothing else: the text named it
+## (Jon, Oct 17: the text leading up to the fight "should mention the megafauna
+## or whales"). A tag naming anything that is not a creature is refused loudly
+## and fields a ship, so a typo cannot put a pirate behind a whale's text.
+## One function so the headless sim (`HeadlessSim._option_fight`) fields what
+## this does.
+func option_foe(n: MapGen.MapNode, foe: StringName = &"") -> EnemyTemplate:
+	if foe != &"":
+		var t: EnemyTemplate = DB.enemies.get(foe)
+		if t != null and t.fauna:
+			return t
+		push_error("Router.option_foe: '%s' is not a creature" % foe)
 	return DB.enemies[Rng.pick(Rng.foe, DB.fight_pool(n.danger, false))]
 
 ## An arrival's ambush at `n` as templates, lead first: `_roll_foes`, the same
