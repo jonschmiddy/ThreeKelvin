@@ -53,8 +53,8 @@ extends RefCounted
 ## or a malfunction directly (malfunctions come from fights); a part's cards are
 ## the only cards an event ever offers, so a part names them.
 
-## The look up now. Jon picks; `-- sheet=OutcomeShot` photographs them all.
-static var look: StringName = &"today"
+## The look up now: D, Jon's pick (Oct 18, "outcome:D"). `-- sheet=OutcomeShot` photographs them all.
+static var look: StringName = &"D"
 const LOOKS: Array[StringName] = [&"today", &"A", &"B", &"C", &"D", &"E"]
 
 ## Every drawn outcome entry is in this group, so a test can find and box it.
