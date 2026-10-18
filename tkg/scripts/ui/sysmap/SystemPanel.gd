@@ -289,10 +289,21 @@ const COMING_LINE := "ON YOUR WAY THERE"
 
 
 func _can_go() -> bool:
-	return screen.flight != null and screen.flight.can_fly()
+	return screen.flight != null and screen.flight.can_fly() and Router.may_cast_off()
+
+
+## Docked, and the berth will not let the ship go (`Router.cast_off`): crates on
+## the pad, or a deck smaller than a hand.
+func _held() -> bool:
+	return not Router.may_cast_off()
+
+
+const HELD_LINE := "CANNOT UNDOCK: SEE THE STATION"
 
 
 func _locked_line(body: int = -9) -> String:
+	if _held():
+		return HELD_LINE
 	if _can_go():
 		return LOCKED_LINE
 	return COMING_LINE if _heading_to(body) else WAIT_LINE
@@ -585,7 +596,9 @@ func _way_there(i: int) -> void:
 		go.add_child(_small(_there_word(i), func() -> void: pass, true))
 	else:
 		go.add_child(_spacer())
-		if _can_go():
+		if _held():
+			go.add_child(_small("CANNOT UNDOCK", func() -> void: pass, true))
+		elif _can_go():
 			go.add_child(_small("FLY HERE", func() -> void: screen.fly_to_body(i)))
 		elif _heading_to(i):
 			go.add_child(_small("ON YOUR WAY", func() -> void: pass, true))

@@ -4,7 +4,8 @@ The ship's AI, and the one person aboard. Named for Ashlee, by Jon, Oct 17.
 Her voice was chosen by Ashlee: **dry, humorous and teasing.** Her face is a
 **hologram.**
 
-Status: brief and 30 approved lines (`docs/ash_lines.json`). Nothing in the game yet.
+Status: in the game (Oct 17), text only: her face on LOCAL and in fights, the 30 approved
+lines (`docs/ash_lines.json`) at their moments. Moods and a voice are still to come.
 
 ## Why she exists
 
@@ -77,12 +78,37 @@ frame on the main screen. It reacts to the ship, not to the script:
    over the heat cap, hurt, pleased (the table above). Spend asked separately.
 3. Never a real person's likeness: she is named for Ashlee, not drawn from her.
 
-## Where she shows up (planned)
+## Where she shows up (built Oct 17)
 
-1. A portrait slot on LOCAL and in fights, driven by `Run.heat`, `Run.heat_cap()`
-   and `Run.hp` / `Run.max_hp()`.
-2. Her lines in the log at the moments above, from a data table (like the cards),
-   so more lines never need code.
+`scripts/ui/Ash.gd` decides, `AshPortrait` draws, `AshLines` holds the lines (held to
+`docs/ash_lines.json` by `-- sheet=AshTest`, in the merge gate).
+
+- **Her face** is one file, `tkg/art/ash/face.png`: eight 64x64 frames (four mouths, each
+  with a blink), cut from the hand-drawn talk frames on B15 by `tkg/art/tools/ash_face.py`.
+  When Jon picks a variation, `ash_face.py --face <png>` lays the same mouths and blink onto
+  it and says how far the new face's features have moved; look at it at 2x before keeping it.
+- **Where:** the top left of the picture, under the goal line's band, the face with her line
+  typing beside it in the event text's signal type. It was the one spot clear on every screen
+  she uses (65 built by AshTest: LOCAL with and without wrecks or a subject, fights of one to
+  three ships in every weight); every other corner and the middles cover a plate, an enemy's
+  words or its numbers in some fight. If something ever stands there, she tries the other
+  corners and otherwise waits. Not pressable and not clickable: clicks go through her.
+- **When:** each line at its own moment: a new run's launch; the first time she is up in a new
+  hull; the hull at a quarter or under; over the heat cap in a fight; a chit of 60 credits or
+  an epic part taken aboard; the third wreck opened since the last dock; and, from jump 6, a
+  three-in-ten chance on arrival at least ten jumps after the last doubt.
+- **Limits:** one line at a time; 40 s of quiet after a line (6 s before the hull failing or a
+  new hull); one line a fight unless the hull starts failing in it; never during a card drag
+  or the enemy's turn (END TURN takes her off that frame); nothing over a jump, an arrival, the
+  camera moving, the cutaway, a wreck's window, the event band or the escape menu; a moment
+  that cannot be said in time is dropped. **Nothing after the ship is lost**: up when it goes,
+  she cuts with it. **Hints win**: she waits while a hint is up, settling or due on the screen.
+- **Talking:** the mouth follows the typed letters, a held frame every 0.1 s, with blinks and
+  one-pixel hologram slips (more often with the hull failing); about 9 changes a second while
+  she talks, all on the game's clock. A two-note `text_blip` chirp as she appears.
+- **Settings:** SHIP'S AI, A.S.H. ON / OFF, under HINTS. Off under harnesses unless `-- ash`.
+- **Co-op:** each player's A.S.H. is their own ship's, on their own machine: she reads that
+  machine's run, sends nothing, and nothing waits on her.
 
 Later, maybe: a voice (ElevenLabs — ask Jon before spending; the voice
 description and options are in the handoff, "A.S.H.'s voice"), and lines that

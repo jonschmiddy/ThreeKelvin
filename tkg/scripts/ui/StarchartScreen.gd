@@ -736,7 +736,7 @@ func _refresh() -> void:
 		# can read is information; an absence they have to notice is a bug.
 		_rows.add_child(_row("SURVEY", "NONE"))
 		_hint.text = "They gave you a position and nothing else."
-		_jump.disabled = not Run.can_jump_to(t)
+		_jump.disabled = not Run.can_jump_to(t) or not Router.may_cast_off()
 		return
 
 	# The name is the place; the classification is what kind of place it is -
@@ -899,6 +899,11 @@ func _refresh() -> void:
 		_jump.text = "NOT SCANNED"
 	else:
 		_jump.text = "NOT ENOUGH FUEL"
+	# FROM THE BERTH, the station's own rule (`Router.cast_off`): what UNDOCK
+	# refuses, the jump refuses too
+	if not _jump.disabled and not Router.may_cast_off():
+		_jump.disabled = true
+		_jump.text = "CANNOT UNDOCK"
 
 ## Everything within reach, nearest first, as a list you can click. Cleared
 ## systems stay on it — knowing the nearby ground is already stripped is the

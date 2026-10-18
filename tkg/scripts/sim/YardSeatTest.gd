@@ -18,9 +18,9 @@ extends Node
 ##     hull's mass middle (its opaque pixels' balance, column by column);
 ##   - the two stands one height (Jon: "Why are the stands two different
 ##     heights"), and the hull inside the hall.
-## Hulls share pictures (only Korvan art exists; every chassis and salvage frame
-## draws a Korvan sprite of its weight and grade), so each picture is stood once
-## and the frames drawing it are named beside it.
+## Hulls share pictures (Korvan's and Solari's are their own; every other chassis
+## and the salvage frames draw Korvan's), so each picture is stood once and the
+## frames drawing it are named beside it.
 
 const LEVELS := {"unclaimed": MapGen.Development.UNCLAIMED, "outpost": MapGen.Development.OUTPOST,
 	"settlement": MapGen.Development.SETTLEMENT, "city": MapGen.Development.CITY,
@@ -29,7 +29,11 @@ const LEVELS := {"unclaimed": MapGen.Development.UNCLAIMED, "outpost": MapGen.De
 ## The most rows a hull may be let down past its seat to close a step in its
 ## belly over a cap: the heavy B on the unclaimed slab takes 5, its lowest
 ## pixel then 5 rows down the slab's front face, below its front edge (row 7).
-const SINK_MAX := 5
+## 6 since Solari's light (Oct 17): its blade keel drops 11 rows below the
+## stern and the nose, the hull is too short for both caps to stand under the
+## keel, and on the unclaimed slab the best pair lets it down 6. Still above
+## row 7, so the slab's front edge stays in front of the belly.
+const SINK_MAX := 6
 
 var _fails := 0
 

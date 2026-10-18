@@ -28,7 +28,14 @@ extends Node
 ##
 ## Restoring the others means putting this back to [] and STARTABLE back to all
 ## seven. Nothing else is gated on it.
-const ACTIVE_MANUFACTURERS: Array[StringName] = [&"korvan"]
+##
+## SOLARI JOINS (Oct 17), the second manufacturer with a full ladder: 25 parts,
+## 40 cards, its own three hulls and their mounts and engines. A Solari run can
+## now find its second and third Solari part, so its 3+ and 5+ sets are
+## reachable, and a Solari Territory rolls Solari rather than falling back to
+## unbranded. The cost is Korvan's: a Korvan run's branded drops are now split
+## two ways. `-- sim runs=200 seed=777` before and after is in the commit.
+const ACTIVE_MANUFACTURERS: Array[StringName] = [&"korvan", &"solari"]
 
 var manufacturers: Dictionary = {}      ## StringName -> ManufacturerData
 var modules: Dictionary = {}            ## StringName -> ModuleData (templates)
@@ -103,15 +110,15 @@ const STARTER_WEAPON: Dictionary = {
 ## Korvan first because it is the tutorial ship: no gimmick, all three slots
 ## filled, nothing that needs explaining before the first fight.
 ##
-## ALL SEVEN, even though only Korvan parts drop — see ACTIVE_MANUFACTURERS. The focus
+## ALL SEVEN, even though only Korvan and Solari parts drop — see ACTIVE_MANUFACTURERS. The focus
 ## is on what gets BUILT, not on what you may fly, and the run-start choice is
 ## the one place the other six manufacturers still pay for themselves: seven attribute
 ## signatures, seven hulls, seven palettes, all authored and all reachable.
 ##
-## THE COST, on the record. A loot pool gated to Korvan means a Solari ship
-## finds no second Solari part, so the 3+ and 5+ set bonuses of the other six
-## are unreachable for as long as ACTIVE_MANUFACTURERS is narrowed. You can fly them;
-## you cannot complete them.
+## THE COST, on the record. A loot pool gated to Korvan and Solari means a
+## Probate ship finds no second Probate part, so the 3+ and 5+ set bonuses of the
+## other five are unreachable for as long as ACTIVE_MANUFACTURERS is narrowed. You
+## can fly them; you cannot complete them.
 const STARTABLE: Array[StringName] = [
 	&"korvan", &"solari", &"probate", &"redline", &"cygnet", &"verity", &"calyx",
 ]
@@ -1567,8 +1574,8 @@ func _manufacturer_hull(manufacturer: StringName, w: HullData.Weight, spec: Dict
 	h.manufacturer = manufacturer
 	h.name = manufacturer_hull_name(manufacturer, w, 0)
 	h.perk_id = spec.perk_id
-	h.sprite = hull_sprite(w)
-	h.sprite_half = hull_sprite(w, 0, true)
+	h.sprite = hull_sprite(w, 0, false, manufacturer)
+	h.sprite_half = hull_sprite(w, 0, true, manufacturer)
 	apply_hull_lines(h)
 	set_exhaust(h, DEFAULT_EXHAUST)
 	return h
@@ -1576,12 +1583,12 @@ func _manufacturer_hull(manufacturer: StringName, w: HullData.Weight, spec: Dict
 ## The art for a weight class at a specification class, or null to fall back to
 ## ShipView's procedural drawing.
 ##
-## Every sprite is given to every manufacturer, not just Korvan's. That is
-## knowingly wrong: these hulls wear Korvan amber and a Solari one should not. It
-## stands because the point of the step is to judge real hulls in the running
-## game, and hiding them behind a single chassis would mean almost never seeing
-## them. Per-manufacturer hulls, or a livery tint over a neutral one, is the next
-## art decision — see ART_CONTRACT.md §5.
+## ONE FOLDER PER MANUFACTURER THAT HAS ART (`HULL_ART`), and Korvan's for
+## everyone else. Solari got its own three (Jon, Oct 15) and flies them; the
+## five without pictures, and the unbranded salvage frames, still wear Korvan's.
+## That last part is knowingly wrong -- a Calyx hull in Korvan amber -- and it
+## stands until each manufacturer's three are drawn: a picture in the wrong
+## livery is a better placeholder than a procedural box.
 ##
 ## KEYED ON CLASS AS WELL AS WEIGHT, which is what finally makes C through S
 ## something a player can SEE. TIER_DELTA has granted an A-class frame an extra
@@ -1601,15 +1608,41 @@ func _manufacturer_hull(manufacturer: StringName, w: HullData.Weight, spec: Dict
 ## thing rendered.
 ## `half` asks for the reduced set the convoy column draws from. Same filenames
 ## one folder down, so the two can never describe different hulls.
-func hull_sprite(w: HullData.Weight, cls: int = 0, half: bool = false) -> Texture2D:
-	var n := hull_art_name(w, cls)
+func hull_sprite(w: HullData.Weight, cls: int = 0, half: bool = false,
+		manufacturer: StringName = &"") -> Texture2D:
+	var n := hull_art_name(w, cls, manufacturer)
 	if n == "":
 		return null
-	# One folder per manufacturer. Korvan is hardcoded because it is the only
-	# one with art; when Solari and the rest arrive this takes a manufacturer argument
-	# and the filenames stay identical inside each folder.
+	# The filenames are identical inside each folder, so the folder is the
+	# whole difference between a Korvan and a Solari medium.
 	var sub := "half/" if half else ""
-	return load("res://art/sprites/hulls/korvan/%s%s.png" % [sub, n]) as Texture2D
+	return load("res://art/sprites/hulls/%s/%s%s.png" % [hull_art_dir(manufacturer), sub, n]) as Texture2D
+
+## The manufacturers with hull pictures of their own, and which picture each
+## weight's grades are baked from (`HullGrade`). Korvan's light is today's C and
+## its medium and heavy today's A (Jon, Oct 14: "L1 H3"); Solari has one
+## picture a weight, Jon's picks of Oct 15, all filed as A.
+const HULL_ART := {
+	&"korvan": {"light": "c", "medium": "a", "heavy": "a"},
+	&"solari": {"light": "a", "medium": "a", "heavy": "a"},
+}
+
+## The folder a manufacturer's hulls are drawn from: its own where it has one,
+## Korvan's otherwise (the other five, and the unbranded frames).
+func hull_art_dir(manufacturer: StringName) -> String:
+	return String(manufacturer) if HULL_ART.has(manufacturer) else "korvan"
+
+## THE KEY a hull's measured tables are filed under: `HULL_MOUNTS`,
+## `HULL_EXHAUST`, `HULL_LINES`. Korvan's are the bare file name, as they always
+## were; another manufacturer's carry its folder ("solari/hull_light_a"),
+## because the file names repeat in every folder and a Solari light reading
+## Korvan's light's mounts would hang its guns in the air.
+func hull_art_key(w: HullData.Weight, cls: int = 0, manufacturer: StringName = &"") -> String:
+	var n := hull_art_name(w, cls, manufacturer)
+	if n == "":
+		return ""
+	var dir := hull_art_dir(manufacturer)
+	return n if dir == "korvan" else "%s/%s" % [dir, n]
 
 ## THE SPRITE BOLTED TO A HULL for a module, or null while it has none.
 ##
@@ -1760,17 +1793,19 @@ func station_sprite(id: StringName, layer: StringName = &"wall") -> Texture2D:
 ## The art file for a weight and class, without the extension. One place the
 ## naming convention is written, so the sprite and its measured lines cannot
 ## disagree about which hull they describe.
-func hull_art_name(w: HullData.Weight, cls: int = 0) -> String:
+func hull_art_name(w: HullData.Weight, cls: int = 0, manufacturer: StringName = &"") -> String:
 	var stem := ""
 	match w:
 		HullData.Weight.LIGHT: stem = "light"
 		HullData.Weight.MEDIUM: stem = "medium"
 		HullData.Weight.HEAVY: stem = "heavy"
 		_: return ""
-	# ONE HULL PER WEIGHT where GRADE_BASE names it: every grade draws, mounts
-	# and burns from that one picture, and HullGrade bakes the grade onto it.
-	if GRADE_BASE.has(stem):
-		return "hull_%s_%s" % [stem, GRADE_BASE[stem]]
+	# ONE HULL PER WEIGHT where the manufacturer's row of HULL_ART names it:
+	# every grade draws, mounts and burns from that one picture, and HullGrade
+	# bakes the grade onto it.
+	var base: Dictionary = HULL_ART[StringName(hull_art_dir(manufacturer))]
+	if base.has(stem):
+		return "hull_%s_%s" % [stem, base[stem]]
 	# TIER_NAMES is an untyped Array, so an element comes back as Variant and
 	# `:=` has nothing to infer from. Declared rather than inferred.
 	var letter: String = HullData.TIER_NAMES[clampi(cls, 0, 3)]
@@ -1779,19 +1814,19 @@ func hull_art_name(w: HullData.Weight, cls: int = 0) -> String:
 
 ## ONE HULL PER WEIGHT, FOUR GRADES BAKED FROM IT (Jon, Oct 14: "Instead of
 ## generating 12 ships per manufacturer. We just do Three"; picked wear + paint +
-## markings + lights + kit, "AB+DEF"). The weight's base picture, by today's
-## letter; a weight not listed still has a picture per grade. Jon picked each
-## base off the pick page (Oct 14: "L1 H3"): the light is today's C, the medium
-## and the heavy today's A.
-const GRADE_BASE := {"light": "c", "medium": "a", "heavy": "a"}
+## markings + lights + kit, "AB+DEF"). Korvan's row of HULL_ART, which is what
+## this constant always held; a weight missing from a manufacturer's row would
+## still have a picture per grade.
+const GRADE_BASE: Dictionary = HULL_ART[&"korvan"]
 
 ## Whether this weight's grades are baked from one hull (HullGrade) rather than
 ## drawn as four.
-func graded(w: HullData.Weight) -> bool:
+func graded(w: HullData.Weight, manufacturer: StringName = &"") -> bool:
+	var base: Dictionary = HULL_ART[StringName(hull_art_dir(manufacturer))]
 	match w:
-		HullData.Weight.LIGHT: return GRADE_BASE.has("light")
-		HullData.Weight.MEDIUM: return GRADE_BASE.has("medium")
-		HullData.Weight.HEAVY: return GRADE_BASE.has("heavy")
+		HullData.Weight.LIGHT: return base.has("light")
+		HullData.Weight.MEDIUM: return base.has("medium")
+		HullData.Weight.HEAVY: return base.has("heavy")
 	return false
 
 ## Copy the measured dorsal, ventral and flank lines onto a hull.
@@ -1802,7 +1837,7 @@ func graded(w: HullData.Weight) -> bool:
 ## adjacent is what stops them drifting apart.
 ## Copy the placed mounts AND the fallback lines onto a hull.
 func apply_hull_lines(h: HullData) -> void:
-	var key := hull_art_name(h.weight, h.tier)
+	var key := hull_art_key(h.weight, h.tier, h.manufacturer)
 	if not HULL_LINES.has(key):
 		return
 	var d: Dictionary = HULL_LINES[key]
@@ -1893,6 +1928,28 @@ const HULL_MOUNTS := {
 		system = [Vector2(135, 84), Vector2(196, 84), Vector2(262, 84)],
 		utility = [Vector2(176, 50)],
 	},
+	# SOLARI (Oct 17), placed against Jon's three picks the way Korvan's were:
+	# the guns on the hull's top and bottom edge ahead of the brass rings,
+	# pointing forward, a third down the nose's spine; the systems on the ring
+	# section, where the hull is deepest; utilities on the centre line and the
+	# radiator crest. Clear of the stern bells, which the flame comes out of.
+	# Listed in the order the grades open them (C first, then A's gun, then S's
+	# system), so a C-grade ship is never missing its front pair.
+	"solari/hull_light_a": {
+		weapon = [Vector2(166, 30), Vector2(166, 70), Vector2(210, 50)],
+		system = [Vector2(136, 40), Vector2(136, 60), Vector2(136, 79)],
+		utility = [Vector2(180, 50), Vector2(136, 24)],
+	},
+	"solari/hull_medium_a": {
+		weapon = [Vector2(236, 40), Vector2(236, 88), Vector2(292, 63), Vector2(160, 28)],
+		system = [Vector2(140, 63), Vector2(180, 63), Vector2(108, 63)],
+		utility = [Vector2(252, 63), Vector2(150, 100)],
+	},
+	"solari/hull_heavy_a": {
+		weapon = [Vector2(290, 51), Vector2(290, 113), Vector2(340, 80), Vector2(200, 41), Vector2(200, 125)],
+		system = [Vector2(150, 80), Vector2(215, 80), Vector2(112, 80)],
+		utility = [Vector2(256, 80)],
+	},
 }
 
 ## The plume each hull flies, and where it sits, from the same bench.
@@ -1946,6 +2003,20 @@ const HULL_EXHAUST := {
 	],
 	"hull_heavy_s": [
 		{id = 24, at = Vector2i(44, 64), back = false},
+	],
+	# SOLARI'S ENGINE BELLS are on the stern face (hull_template.py's spec): the
+	# light's one flat plate, the medium's two stacked bells, the heavy's one
+	# big bell. Each strip sits behind its bell, so its flame shows where the
+	# bell ends and ThrusterFx reads the mouth off the bell's own pixels.
+	"solari/hull_light_a": [
+		{id = 8, at = Vector2i(39, 32), back = true},
+	],
+	"solari/hull_medium_a": [
+		{id = 1, at = Vector2i(17, 39), back = true},
+		{id = 1, at = Vector2i(17, 56), back = true},
+	],
+	"solari/hull_heavy_a": [
+		{id = 21, at = Vector2i(37, 60), back = true},
 	],
 }
 
@@ -2022,6 +2093,21 @@ const HULL_LINES := {
 		ventral = [Vector2(106, 95), Vector2(119, 96), Vector2(132, 97), Vector2(146, 96), Vector2(159, 98), Vector2(172, 98), Vector2(186, 98), Vector2(199, 98), Vector2(212, 98)],
 		flank = [Vector2(106, 68), Vector2(119, 68), Vector2(132, 68), Vector2(146, 67), Vector2(159, 68), Vector2(172, 68), Vector2(186, 68), Vector2(199, 69), Vector2(212, 70)],
 	},
+	"solari/hull_heavy_a": {
+		dorsal = [Vector2(80, 57), Vector2(115, 52), Vector2(149, 51), Vector2(184, 51), Vector2(218, 51), Vector2(253, 51), Vector2(288, 51), Vector2(322, 56), Vector2(357, 61)],
+		ventral = [Vector2(80, 97), Vector2(115, 107), Vector2(149, 111), Vector2(184, 111), Vector2(218, 111), Vector2(253, 111), Vector2(288, 111), Vector2(322, 108), Vector2(357, 100)],
+		flank = [Vector2(80, 77), Vector2(115, 79), Vector2(149, 81), Vector2(184, 81), Vector2(218, 81), Vector2(253, 81), Vector2(288, 81), Vector2(322, 82), Vector2(357, 80)],
+	},
+	"solari/hull_light_a": {
+		dorsal = [Vector2(91, 38), Vector2(103, 36), Vector2(115, 30), Vector2(127, 30), Vector2(138, 30), Vector2(150, 30), Vector2(162, 30), Vector2(174, 36), Vector2(186, 39)],
+		ventral = [Vector2(91, 61), Vector2(103, 63), Vector2(115, 73), Vector2(127, 73), Vector2(138, 73), Vector2(150, 73), Vector2(162, 73), Vector2(174, 65), Vector2(186, 62)],
+		flank = [Vector2(91, 49), Vector2(103, 49), Vector2(115, 51), Vector2(127, 51), Vector2(138, 51), Vector2(150, 51), Vector2(162, 51), Vector2(174, 50), Vector2(186, 50)],
+	},
+	"solari/hull_medium_a": {
+		dorsal = [Vector2(70, 45), Vector2(98, 39), Vector2(126, 38), Vector2(153, 38), Vector2(181, 38), Vector2(209, 38), Vector2(236, 40), Vector2(264, 42), Vector2(292, 47)],
+		ventral = [Vector2(70, 78), Vector2(98, 83), Vector2(126, 88), Vector2(153, 88), Vector2(181, 88), Vector2(209, 88), Vector2(236, 88), Vector2(264, 85), Vector2(292, 79)],
+		flank = [Vector2(70, 61), Vector2(98, 61), Vector2(126, 63), Vector2(153, 63), Vector2(181, 63), Vector2(209, 63), Vector2(236, 64), Vector2(264, 63), Vector2(292, 63)],
+	},
 }
 
 ## The widest canvas any player hull draws into, measured rather than typed.
@@ -2049,11 +2135,12 @@ func widest_hull(half: bool = false) -> int:
 	if not half and _widest > 0:
 		return _widest
 	var found := 0
-	for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
-		for cls in HullData.TIER_NAMES.size():
-			var tex := hull_sprite(w, cls, half)
-			if tex != null:
-				found = maxi(found, tex.get_width())
+	for mf: StringName in HULL_ART:
+		for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
+			for cls in HullData.TIER_NAMES.size():
+				var tex := hull_sprite(w, cls, half, mf)
+				if tex != null:
+					found = maxi(found, tex.get_width())
 	if half:
 		_widest_half = found
 		# Half the procedural fallback, so a build with no art at all still
@@ -2123,8 +2210,9 @@ func exhaust_art(id: int) -> Texture2D:
 ## of clearance to the left of its engines — the geometry the one hull already
 ## had — so the plume centres on the hull's own canvas and nothing needs a table
 ## that a new sprite could fall out of step with.
-func hull_exhaust_at(w: HullData.Weight, cls: int = 0, id: int = 0) -> Vector2i:
-	var tex := hull_sprite(w, cls)
+func hull_exhaust_at(w: HullData.Weight, cls: int = 0, id: int = 0,
+		manufacturer: StringName = &"") -> Vector2i:
+	var tex := hull_sprite(w, cls, false, manufacturer)
 	var plume := exhaust_art(id)
 	if tex == null or plume == null:
 		return EXHAUST_AT
@@ -2140,7 +2228,7 @@ func set_exhaust(h: HullData, id: int, cls: int = 0) -> void:
 	# the computed centring is only for one that has not been rigged yet.
 	h.exhaust_frames = EXHAUST_FRAMES
 	h.thrusters = []
-	var key := hull_art_name(h.weight, cls)
+	var key := hull_art_key(h.weight, cls, h.manufacturer)
 	if HULL_EXHAUST.has(key):
 		for e in HULL_EXHAUST[key] as Array:
 			var d: Dictionary = e
@@ -2156,7 +2244,7 @@ func set_exhaust(h: HullData, id: int, cls: int = 0) -> void:
 	h.thrusters.append({
 		id = id,
 		tex = exhaust_art(id),
-		at = hull_exhaust_at(h.weight, cls, id),
+		at = hull_exhaust_at(h.weight, cls, id, h.manufacturer),
 		back = false,
 	})
 
@@ -2248,8 +2336,8 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 	#
 	# See TIER_PERKS on why every manufacturer ends up with the same four at S.
 	h.tier_perks = tier_perks_for(h.manufacturer, t)
-	h.sprite = hull_sprite(h.weight, t)
-	h.sprite_half = hull_sprite(h.weight, t, true)
+	h.sprite = hull_sprite(h.weight, t, false, h.manufacturer)
+	h.sprite_half = hull_sprite(h.weight, t, true, h.manufacturer)
 	apply_hull_lines(h)
 	set_exhaust(h, DEFAULT_EXHAUST, t)
 	# AND THE NAME: the weight's one name (`manufacturer_hull_name`). Salvage

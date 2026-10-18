@@ -874,8 +874,10 @@ func act(name: StringName) -> void:
 ## six times a system. `loot_drop` is written as a reward sting; taking a crate
 ## off the floor does not deserve one, but the alternative was authoring a second
 ## quieter file rather than turning the existing one down.
+## `pitch` is the note the spread is taken round (A.S.H.'s power-on plays the
+## text blip twice, the second a minor third up: `AshPortrait`).
 func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
-		db: float = 0.0) -> void:
+		db: float = 0.0, pitch: float = 1.0) -> void:
 	if not _enabled:
 		return
 	var now := Time.get_ticks_msec()
@@ -925,7 +927,7 @@ func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
 	_fade[_sfx_next] = null
 	_sfx_next = (_sfx_next + 1) % _sfx.size()
 	p.stream = stream
-	p.pitch_scale = 1.0 + randf_range(-pitch_var, pitch_var)
+	p.pitch_scale = pitch * (1.0 + randf_range(-pitch_var, pitch_var))
 	p.volume_db = db
 	# WHAT THIS VOICE IS CARRYING, so `hush` can find it again. The pick, not the
 	# name asked for -- a round robin plays `thruster_arrive_c` when the caller
