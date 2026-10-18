@@ -20,6 +20,13 @@ extends RefCounted
 ##   B  A LEDGER. A small receipt beside the text, GAINED | LOST, each row the
 ##      stat's mark, its word, the amount and where it leaves you ("HULL -5
 ##      35 > 30"), so you read where you stand now and not only what moved.
+##   D  A LITTLE TABLE ON THE RIGHT (Jon, of the first three: "can we have the
+##      results be on the right side right above the reward and continue? Like
+##      in a little table?"). Directly above REWARD and CONTINUE, its right edge
+##      on theirs and at least their width: a row a change, its mark, its name,
+##      the signed change and the new total ("HULL -5 31"), hull, fuel,
+##      credits, heat, then the things, a part with its cards under it. The
+##      text on the left wraps to stay clear of it; the buttons do not move.
 ##   C  SHOW IT. Today's size, only what changed, each with its mark; once the
 ##      text is in, each change flies from the band to the HUD readout it moves
 ##      (the hull gauge, credits, fuel, heat; a document to ARCHIVE, a place to
@@ -38,7 +45,7 @@ extends RefCounted
 
 ## The look up now. Jon picks; `-- sheet=OutcomeShot` photographs all four.
 static var look: StringName = &"today"
-const LOOKS: Array[StringName] = [&"today", &"A", &"B", &"C"]
+const LOOKS: Array[StringName] = [&"today", &"A", &"B", &"C", &"D"]
 
 ## Every drawn outcome entry is in this group, so a test can find and box it.
 const GROUP := &"outcome_entry"
@@ -475,6 +482,135 @@ static func fit(text: String, fs: int, w: float) -> String:
 	while t.length() > 1 and f.get_string_size(t + "..", HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w:
 		t = t.substr(0, t.length() - 1)
 	return t.strip_edges() + ".."
+
+
+# ------------------------------------------------------------------ D
+
+## D's table at its widest, game px: past this a name wraps.
+const TABLE_MAX_W := 230.0
+
+static func table(out: Dictionary) -> Control:
+	var t := Table.new()
+	t.name = "OutcomeTable"
+	t.setup(changes(out))
+	return t
+
+
+## A small table, drawn: mark | name | change | total, a row a stat, the
+## change and the total right-aligned in their columns so the digits line up.
+## The things after, a line each with their count leading ("+1 PART: ..."),
+## wrapped to TABLE_MAX_W, a part's cards under it in the quiet grey. As wide
+## as it needs and drawn against its right edge, so stretched to the buttons'
+## width it still ends where they end.
+class Table extends Control:
+	const ROW := 11.0
+	const GAP := 6.0
+	## [y, mark entry or null, [[text, ink, x, right_aligned]], text]
+	var rows: Array = []
+	var content_w := 0.0
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		size_flags_horizontal = Control.SIZE_FILL
+		add_to_group(OutcomeRow.GROUP)
+
+	func setup(entries: Array) -> void:
+		var f := UITheme.pixel_font()
+		var sm := UITheme.FS_SMALL
+		var sw := func(t: String) -> float: return f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, sm).x
+		rows.clear()
+		if entries.is_empty():
+			rows.append([0.0, null, [[OutcomeRow.NOTHING, UITheme.COLD, 0.0, false]], OutcomeRow.NOTHING])
+			content_w = ceilf(sw.call(OutcomeRow.NOTHING))
+			custom_minimum_size = Vector2(content_w, ROW)
+			queue_redraw()
+			return
+		var name_w := 0.0
+		var chg_w := 0.0
+		var tot_w := 0.0
+		for e: Dictionary in entries:
+			if e.kind == &"stat":
+				chg_w = maxf(chg_w, sw.call(String(e.big)))
+				name_w = maxf(name_w, sw.call(String(e.word)))
+				tot_w = maxf(tot_w, sw.call(str(int(e.now))))
+		var x_name := OutcomeRow.MARK + 4.0
+		# THE STATS AS A COMPACT BLOCK: name, change, total, the digits lined
+		# up; a thing is a line of its own under them, its count leading
+		var x_chg := x_name + name_w + GAP + chg_w
+		var x_tot := x_chg + GAP + tot_w
+		content_w = ceilf(x_tot if tot_w > 0.0 else 0.0)
+		var y := 0.0
+		for e: Dictionary in entries:
+			var tone: Color = e.tone
+			if e.kind == &"stat":
+				rows.append([y, e, [[String(e.word), UITheme.CHILL, x_name, false],
+					[String(e.big), tone, x_chg, true], [str(int(e.now)), UITheme.ICE, x_tot, true]],
+					"%s %s %d" % [e.word, e.big, int(e.now)]])
+				y += ROW
+				continue
+			var lead := String(e.big)
+			var x_txt: float = x_name + (sw.call(lead + " ") if lead != "" else 0.0)
+			var room: float = OutcomeRow.TABLE_MAX_W - x_txt
+			var first := true
+			for ln: String in OutcomeRow.wrap(_thing_name(e), sm, room):
+				var runs: Array = [[ln, e.item_tone if int(e.n) > 0 else UITheme.LEAVE, x_txt, false]]
+				if first and lead != "":
+					runs.append([lead, tone, x_name, false])
+				rows.append([y, e if first else null, runs, OutcomeRow.line_text(e) if first else ""])
+				content_w = maxf(content_w, ceilf(x_txt + sw.call(ln)))
+				first = false
+				y += ROW
+			if (e.cards as Array).size() > 0:
+				for ln: String in OutcomeRow.wrap("CARDS: " + ", ".join(e.cards), sm, room):
+					rows.append([y, null, [[ln, UITheme.COLD, x_txt, false]], ""])
+					content_w = maxf(content_w, ceilf(x_txt + sw.call(ln)))
+					y += ROW
+		custom_minimum_size = Vector2(content_w, y)
+		queue_redraw()
+
+	## "PART: TARGETING SERVO", "DECK PLATE", "MARKED: SIGMA HOLLOW".
+	static func _thing_name(e: Dictionary) -> String:
+		var w := String(e.word)
+		return (w + ": " + String(e.name)) if w != "" else String(e.name)
+
+	## Where the content starts: against the right edge.
+	func _left() -> float:
+		return floorf(size.x - content_w)
+
+	func _draw() -> void:
+		var f := UITheme.pixel_font()
+		var sm := UITheme.FS_SMALL
+		var base := roundf(f.get_ascent(sm))
+		var x0 := _left()
+		for row: Array in rows:
+			var y := float(row[0])
+			if row[1] != null:
+				OutcomeRow.draw_mark(self, Vector2(x0, y + base - OutcomeRow.MARK), row[1])
+			for run: Array in row[2]:
+				var x := x0 + float(run[2])
+				if bool(run[3]):
+					x -= f.get_string_size(String(run[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, sm).x
+				draw_string(f, Vector2(roundf(x), y + base), String(run[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, sm, run[1] as Color)
+
+	## {rect, text} per drawn row, each its ink's box.
+	func entry_boxes() -> Array:
+		var f := UITheme.pixel_font()
+		var sm := UITheme.FS_SMALL
+		var outb: Array = []
+		var x0 := _left()
+		for row: Array in rows:
+			var lo := INF
+			var hi := 0.0
+			if row[1] != null:
+				lo = 0.0
+			for run: Array in row[2]:
+				var w := f.get_string_size(String(run[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, sm).x
+				var a := float(run[2]) - (w if bool(run[3]) else 0.0)
+				lo = minf(lo, a)
+				hi = maxf(hi, a + w)
+			outb.append({rect = Rect2(global_position + Vector2(x0 + lo, float(row[0])), Vector2(hi - lo, ROW - 1.0)),
+				text = String(row[3]), col = -1, cw = 0.0})
+		return outb
 
 
 # ------------------------------------------------------------------ C's flight

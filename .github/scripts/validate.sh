@@ -695,7 +695,8 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 fi
 
 step "An event's result says what you end up with"
-# OutcomeRow's four looks (today, A big, B a ledger, C flown to the HUD) on the
+# OutcomeRow's five looks (today, A big, B a ledger, C flown to the HUD, D a
+# table over the buttons) on the
 # real LOCAL with the HUD: the real outcomes OutcomeCheck finds (Jon's lifepod,
 # credits and a part, credits and fuel, a part alone, nothing, the most
 # changes), the numbers the run moved said in every look and layout, every

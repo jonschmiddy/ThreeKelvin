@@ -380,6 +380,11 @@ func _fit_and_show() -> void:
 		var want := text.custom_minimum_size.y
 		_scroll.custom_minimum_size.y = 0.0
 		var rest := panel.get_combined_minimum_size().y
+		# D's text stands BESIDE its table, not over it: the table's height is
+		# not taken off the text's
+		var lane := _scroll.get_parent() as Control
+		if page == &"result" and lane != null and lane.name == &"ResultLane":
+			rest -= lane.get_combined_minimum_size().y
 		_scroll.custom_minimum_size.y = minf(want, maxf(cap - rest, 12.0))
 	height = minf(cap, panel.get_combined_minimum_size().y)
 	if layout == &"card":
@@ -649,18 +654,37 @@ func _result() -> void:
 	_box.add_child(cl)
 	# WHAT YOU END UP WITH, in the look Jon picks (`OutcomeRow.look`): today's
 	# four fixed pairs, A only what changed and big, B a GAINED | LOST receipt
-	# beside the text, C only what changed flying to the HUD
+	# beside the text, C only what changed flying to the HUD, D a little table
+	# over the buttons
 	var look := OutcomeRow.look
 	var said := _text_box(String(res.get("text", "")), UITheme.CHILL if ink == UITheme.COLD else ink)
 	var receipt: Control = null
 	if look == &"B":
 		receipt = OutcomeRow.ledger(out, RECEIPT_W if layout != &"card" else CARD_W - 20.0)
+	# D: a table on the right, right over the buttons, the text wrapping clear
+	# of it; the buttons go in that column, on the band's floor as ever
+	var right: VBoxContainer = null
+	var tab: Control = OutcomeRow.table(out) if look == &"D" else null
 	if receipt != null and layout != &"card":
 		var lane := HBoxContainer.new()
 		lane.add_theme_constant_override("separation", 14)
 		lane.add_child(said)
 		lane.add_child(receipt)
 		_box.add_child(lane)
+	elif tab != null and layout != &"card":
+		var lane2 := HBoxContainer.new()
+		lane2.name = "ResultLane"
+		lane2.add_theme_constant_override("separation", 16)
+		lane2.add_child(said)
+		right = VBoxContainer.new()
+		right.add_theme_constant_override("separation", 6)
+		right.size_flags_horizontal = Control.SIZE_SHRINK_END
+		var push := Control.new()
+		push.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		right.add_child(push)
+		right.add_child(tab)
+		lane2.add_child(right)
+		_box.add_child(lane2)
 	else:
 		_box.add_child(said)
 		if receipt != null:
@@ -706,14 +730,30 @@ func _result() -> void:
 		var cont := Widgets.button("CONTINUE", continue_on)
 		cont.name = "Continue"
 		buttons.add_child(cont)
-	if layout == &"card":
-		# (narrow: the ledger on its line, the buttons under it)
-		_box.add_child(foot)
+	if right != null:
+		foot.free()
+		buttons.size_flags_horizontal = Control.SIZE_SHRINK_END
+		right.add_child(buttons)
+	elif layout == &"card":
+		# (narrow: the ledger on its line, the buttons under it; D's table
+		# right-aligned over them)
 		var brow := HBoxContainer.new()
 		var sp2 := Control.new()
 		sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		brow.add_child(sp2)
-		brow.add_child(buttons)
+		if tab != null:
+			# D: the table and the buttons one right-aligned column, the table at
+			# least as wide as the buttons
+			foot.free()
+			var col := VBoxContainer.new()
+			col.add_theme_constant_override("separation", 6)
+			col.add_child(tab)
+			buttons.size_flags_horizontal = Control.SIZE_SHRINK_END
+			col.add_child(buttons)
+			brow.add_child(col)
+		else:
+			_box.add_child(foot)
+			brow.add_child(buttons)
 		_box.add_child(brow)
 	else:
 		foot.add_child(buttons)

@@ -100,13 +100,16 @@ static func check(d: LocalEventDrawer, look: StringName, want: Dictionary) -> Ar
 				var t := "%s %s" % [WORDS[k], "—" if int(s[0]) == 0 else "%+d" % int(s[0])]
 				if not texts.has(t):
 					bad.append("today: no '%s' in [%s]" % [t, said])
-		&"A", &"C", &"B":
+		&"A", &"C", &"B", &"D":
 			for k in WORDS:
 				var s: Array = want.stats[k]
 				if int(s[0]) == 0:
 					continue
-				var t := ("%s %+d %d > %d" % [WORDS[k], int(s[0]), int(s[1]), int(s[2])]) if look == &"B" \
-					else ("%+d %s" % [int(s[0]), WORDS[k]])
+				var t := "%+d %s" % [int(s[0]), WORDS[k]]
+				if look == &"B":
+					t = "%s %+d %d > %d" % [WORDS[k], int(s[0]), int(s[1]), int(s[2])]
+				elif look == &"D":
+					t = "%s %+d %d" % [WORDS[k], int(s[0]), int(s[2])]
 				if not texts.has(t):
 					bad.append("%s: no '%s' in [%s]" % [look, t, said])
 			for nm in want.gained:
@@ -132,6 +135,30 @@ static func check(d: LocalEventDrawer, look: StringName, want: Dictionary) -> Ar
 			elif named.size() < changed + (want.gained as Dictionary).size() + (want.lost as Dictionary).size():
 				bad.append("%s: %d entries for %d changes: [%s]" % [look, named.size(), changed + things, said])
 	bad.append_array(boxes(d, look, ents))
+	if look == &"D":
+		bad.append_array(table_place(d))
+	return bad
+
+
+## D's table sits directly over the buttons, its right edge on theirs, at
+## least their width (in every layout: on the card too it is right-aligned
+## over them).
+static func table_place(d: LocalEventDrawer) -> Array:
+	var bad: Array = []
+	var t := d.panel.find_child("OutcomeTable", true, false) as Control
+	var b := d._choices
+	if t == null or b == null:
+		return ["D: no table or no buttons"]
+	var tr := t.get_global_rect()
+	var br := b.get_global_rect()
+	if absf(tr.end.x - br.end.x) > 0.5:
+		bad.append("D: the table ends at x %d, the buttons at %d" % [int(tr.end.x), int(br.end.x)])
+	if tr.size.x < br.size.x - 0.5:
+		bad.append("D: the table %d wide, narrower than the buttons' %d" % [int(tr.size.x), int(br.size.x)])
+	if tr.end.y > br.position.y + 0.5:
+		bad.append("D: the table %s comes down onto the buttons %s" % [tr, br])
+	if br.position.y - tr.end.y > 12.0:
+		bad.append("D: the table %s floats %d px above the buttons" % [tr, int(br.position.y - tr.end.y)])
 	return bad
 
 

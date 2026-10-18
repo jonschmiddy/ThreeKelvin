@@ -87,7 +87,7 @@ func _run() -> void:
 	var cases: Array = _arg("cases", "jon,gain,mix,card,nothing,big").split(",")
 	if _film:
 		cases = [_arg("case", "mix")]
-	var looks: Array = _arg("looks", "today,A,B,C").split(",")
+	var looks: Array = _arg("looks", "today,A,B,C,D").split(",")
 	if _film:
 		looks = [_arg("film")]
 	var index: Array = []
