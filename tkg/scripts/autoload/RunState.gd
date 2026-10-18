@@ -2007,8 +2007,10 @@ func contraband_count() -> int:
 	for m in installed:
 		if m.contraband:
 			n += 1
+	# The hold carries materials too, and a material has no `contraband`: reading
+	# it crashed every inspection of a hold with ore in it (Oct 18, the fuel sims)
 	for m in cargo:
-		if m.contraband:
+		if m is ModuleData and m.contraband:
 			n += 1
 	return n
 
