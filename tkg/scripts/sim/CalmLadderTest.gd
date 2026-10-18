@@ -604,6 +604,7 @@ func _run() -> void:
 		await _hop("tab LOCAL -> map, at the edge", tab.call(M), M)
 		await _rest()
 	await _goal_line()
+	await _no_box()
 	ZoomLadder.force = -1
 	ZoomLadder.fixed_dt = -1.0
 	print("calmladdertest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
@@ -612,6 +613,40 @@ func _run() -> void:
 
 ## THE GOAL LINE (`GoalLine`, tutorial B) under the HUD: gone before the camera
 ## moves, on no frame of it, and back once the hop has landed.
+## NO BOX ROUND THE PICTURE (Jon, Oct 18: "why is there a box around the galaxy
+## panel?"): on the map and the chart at rest, the picture's frame draws no
+## line and fills nothing, and its key fades what the picture holds out toward
+## its edge (`nav_key.gdshader` `fade`) rather than cutting it. (The pixels are
+## read windowed: `-- sheet=FieldEdgeTest`.)
+func _no_box() -> void:
+	for r: int in [ZoomLadder.MAP, ZoomLadder.CHART]:
+		await _at(r)
+		var cur := Router.current
+		var pic: Control = null
+		var key: Variant = null
+		if cur is SystemMapScreen:
+			pic = (cur as SystemMapScreen)._frame
+			key = (cur as SystemMapScreen)._box.material
+		elif cur is StarchartScreen:
+			pic = (cur as StarchartScreen)._chart
+			key = (cur as StarchartScreen)._chart._sky.material if (cur as StarchartScreen)._chart._sky != null else null
+		var wrap := pic.get_parent() as Control if pic != null else null
+		var sb: StyleBox = wrap.get_theme_stylebox(&"panel") if wrap != null else null
+		var drawn := sb != null and not (sb is StyleBoxEmpty) and (not (sb is StyleBoxFlat) or (sb as StyleBoxFlat).bg_color.a > 0.0
+			or (sb as StyleBoxFlat).border_width_left + (sb as StyleBoxFlat).border_width_top + (sb as StyleBoxFlat).border_width_bottom > 0)
+		_ok("%s: the picture's frame draws no line and fills nothing (%s)" % [_nm(r), sb], not drawn)
+		var fade := 0.0
+		var fr := Vector4.ZERO
+		if key is ShaderMaterial:
+			var fd: Variant = (key as ShaderMaterial).get_shader_parameter(&"fade")
+			fade = float(fd) if fd != null else 0.0
+			var fv: Variant = (key as ShaderMaterial).get_shader_parameter(&"frame")
+			if fv is Vector4:
+				fr = fv
+		_ok("%s: what the picture holds fades out toward its edge (%.0f px), on its frame as it stands (%s)" % [_nm(r), fade, fr],
+			fade >= 16.0 and fr.z > 0.0 and absf(fr.x - pic.get_global_rect().position.x) < 1.0)
+
+
 func _goal_line() -> void:
 	var g: Variant = Router.hud.get("goal") if Router.hud != null else null
 	if g == null:

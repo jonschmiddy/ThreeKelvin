@@ -34,6 +34,8 @@ const FAR := preload("res://shaders/local_far.gdshader")
 const GRADE := preload("res://shaders/local_grade.gdshader")
 const PALETTE := preload("res://shaders/map_palette.gdshader")
 const KEY := preload("res://shaders/nav_key.gdshader")
+## how far in from a picture's edge what it holds fades out (px), never cut
+const EDGE_FADE := 24.0
 
 
 ## THE SWITCH: `-- field=off` puts the map's and the chart's own skies back, in
@@ -47,13 +49,21 @@ static func used() -> bool:
 static func key_material() -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = KEY
+	m.set_shader_parameter("fade", EDGE_FADE)
 	return m
 
 
-## A picture's frame on the field: its line and its margin, nothing filled, so
-## the stars inside it and round it are the same stars.
-static func window_style() -> StyleBoxFlat:
-	return UITheme.flat(Color(0, 0, 0, 0), UITheme.LINE, 0, 12, 12)
+## A picture's frame on the field: its margin alone, no line, nothing filled,
+## so the stars inside it and round it are the same stars.
+static func window_style() -> StyleBox:
+	# (no line either: Jon, Oct 18, "why is there a box around the galaxy
+	# panel?" -- the picture's edge is its soft fade, `nav_key.gdshader`)
+	var sb := StyleBoxEmpty.new()
+	sb.content_margin_top = 12
+	sb.content_margin_bottom = 12
+	sb.content_margin_left = 12
+	sb.content_margin_right = 12
+	return sb
 
 ## the system it is the sky of (`setup`), and whose LOCAL sky last fed it
 var node_index := -1
@@ -237,12 +247,42 @@ static func live_local_sky() -> LocalSky:
 
 
 func _process(_delta: float) -> void:
-	if not _enabled or not on:
+	if not on:
+		return
+	# (the keys' frames headless too: the harness reads them)
+	_frames_keyed()
+	if not _enabled:
 		return
 	_place()
 	var sky := live_local_sky()
 	if sky != null:
 		feed(sky)
+
+
+## Each map's and chart's key told where its picture's frame stands now, for the
+## soft edge (`nav_key.gdshader`): the screen up, and one built ahead or
+## arriving on a move.
+func _frames_keyed() -> void:
+	var screens: Array = []
+	if Router.content != null:
+		for c: Node in Router.content.get_children():
+			screens.append(c)
+	var pb := ZoomLadder.prebuilt_screen()
+	if pb != null:
+		screens.append(pb)
+	for s: Variant in screens:
+		if not is_instance_valid(s):
+			continue
+		var m: Variant = null
+		var r := Rect2()
+		if s is SystemMapScreen and (s as SystemMapScreen)._box != null:
+			m = (s as SystemMapScreen)._box.material
+			r = (s as SystemMapScreen)._frame.get_global_rect()
+		elif s is StarchartScreen and (s as StarchartScreen)._chart != null and (s as StarchartScreen)._chart._sky != null:
+			m = (s as StarchartScreen)._chart._sky.material
+			r = (s as StarchartScreen)._chart.get_global_rect()
+		if m is ShaderMaterial and (m as ShaderMaterial).shader == KEY:
+			(m as ShaderMaterial).set_shader_parameter("frame", Vector4(r.position.x, r.position.y, r.size.x, r.size.y))
 
 
 ## The field's picture lies on the window as LOCAL's does (`LocalSky._place_box`).
