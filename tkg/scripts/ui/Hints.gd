@@ -330,6 +330,12 @@ func poll(delta: float) -> void:
 				card.visible = true
 				card.aim(p.subject, _with_goal(p.get("avoid", [])))
 			return
+	# HER INTRODUCTION FIRST (Jon, Oct 18, "intro:A"): up, or next and able to
+	# start, no hint or step starts and none cuts it; the step follows it
+	if Ash.intro_holds():
+		_cand = &""
+		_step_cand = &""
+		return
 	if _quiet > 0.0 or _blocked():
 		_cand = &""
 		return
@@ -389,6 +395,8 @@ func _step_now() -> StringName:
 ## A goal step's line is due here or being said (her barks wait for it).
 func step_due() -> bool:
 	if not enabled() or _blocked():
+		return false
+	if step_up == &"" and Ash.intro_holds():
 		return false
 	return step_up != &"" or _step_now() != &""
 
