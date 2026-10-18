@@ -4,7 +4,7 @@ extends RefCounted
 ## A.S.H.'S LINES, the thirty Jon and Ashlee kept over two rounds (Oct 17), by the
 ## moment each was written for. The source of truth is `docs/ash_lines.json` at
 ## the repo root, outside the game's folder; this is that file as the game reads
-## it, and `-- sheet=AshTest` fails if the two ever differ by a character. More
+## it (plus `VOICE`, her recorded take of each), and `-- sheet=AshTest` fails if the two ever differ by a character. More
 ## lines are more entries here and nothing else (`docs/ash.md`: "from a data
 ## table, like the cards, so more lines never need code").
 ##
@@ -86,6 +86,43 @@ const MOMENTS: Dictionary = {
 		],
 	},
 }
+
+
+## HER VOICE, line by line: Jon's picks of her warm voice (Oct 17: ElevenLabs,
+## voice W1_2, the subtle Cortana chain; trimmed to 30 ms before the first word
+## and 80 ms after the last, levelled to -18.3 LUFS). A line's id is its moment
+## and its place in that moment's list, from 1 (`id_of`); its file is
+## `VOICE_DIR` + the name here. A line with "" has no take and is said as text
+## alone (`AshPortrait.say`). A new take is its file and its entry here and
+## nothing else: the typing follows each file's own length.
+const VOICE_DIR := "res://assets/audio/voice/ash/%s.ogg"
+const VOICE: Dictionary = {
+	&"doubt_01": "doubt_01", &"doubt_02": "doubt_02", &"doubt_03": "doubt_03",
+	&"greed_01": "greed_01", &"greed_02": "greed_02", &"greed_03": "greed_03",
+	&"greed_04": "greed_04", &"greed_05": "greed_05",
+	&"haul_01": "haul_01", &"haul_02": "haul_02", &"haul_03": "haul_03",
+	&"haul_04": "haul_04", &"haul_05": "haul_05",
+	&"hot_01": "hot_01", &"hot_02": "hot_02", &"hot_03": "hot_03", &"hot_04": "hot_04",
+	&"hull_01": "hull_01", &"hull_02": "hull_02", &"hull_03": "hull_03", &"hull_04": "hull_04",
+	&"hurt_01": "hurt_01", &"hurt_02": "hurt_02", &"hurt_03": "hurt_03", &"hurt_04": "hurt_04",
+	&"launch_01": "launch_01", &"launch_02": "launch_02", &"launch_03": "launch_03",
+	&"launch_04": "launch_04", &"launch_05": "launch_05",
+}
+
+
+## A line's id, "greed_05"; "" for a line that is not one of hers.
+static func id_of(line: String) -> StringName:
+	for k in MOMENTS:
+		var i := of(k).find(line)
+		if i >= 0:
+			return StringName("%s_%02d" % [k, i + 1])
+	return &""
+
+
+## The voice file for `line`, or "" if it is said as text alone.
+static func voice_path(line: String) -> String:
+	var f := String(VOICE.get(id_of(line), ""))
+	return "" if f == "" else VOICE_DIR % f
 
 
 static func of(kind: StringName) -> Array:

@@ -3810,8 +3810,9 @@ func _on_flee() -> void:
 		return
 	# The exact cost, from the same constant the code charges.
 	_ask_exit("BREAK CONTACT?", Color("#d4614f"), Color("#8f4034"),
-		"%s. You lose the salvage and burn %d fuel. Fail and there is no second try."
-			% [SkillCheck.badge(combat.flee_check()), Combat.FLEE_FUEL],
+		"%s. You lose the salvage and burn %d fuel, %d if it goes badly. Fail and there is no second try."
+			% [SkillCheck.badge(combat.flee_check()), Combat.FLEE_FUEL,
+				Combat.FLEE_FUEL + Combat.FLEE_FUEL_PARTIAL],
 		"BREAK CONTACT", "STILL ON YOU", func() -> void: combat.flee())
 
 

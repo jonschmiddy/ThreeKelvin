@@ -765,10 +765,11 @@ func _seed_modules() -> void:
 	##
 	## THE FIGURE THAT USED TO BE HERE IS OUT OF DATE, and it is left corrected
 	## rather than deleted because the decision it justified still stands. It said
-	## hull loss causes half the deaths. Measured again over 600 runs while the
-	## repair modules below were being added: 105 of 338 deaths, so 31%, against
-	## 56% for running the tank dry. Hull loss is the second killer in this game
-	## and has been for a while.
+	## hull loss causes half the deaths, and its first correction said 56% were
+	## running the tank dry, which was the old sim counting its own pilot's dead
+	## ends. Re-measured 2026-10-17 (seed 777, 200 runs, the corrected sim): of 192
+	## deaths, events 45%, fights 28%, heat 27%, a dry tank none (1% once the tank
+	## became 45, Oct 17).
 	##
 	## The trim was still right — Calyx was strongest and this is why — but
 	## anybody reaching for "sustain decides the game" as a reason to refuse

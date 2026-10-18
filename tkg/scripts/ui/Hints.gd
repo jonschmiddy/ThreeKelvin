@@ -19,7 +19,8 @@ extends Node
 ##   wreck    a wreck is clicked to loot it
 ##   loot     SECTOR LOOT, beside SCAN SECTOR
 ##   dock     the first station: what it does, and its decks
-##   fuel     the tank covers under two jumps: fuel ends runs; stations sell it
+##   fuel     a third of the tank left: running dry ends the run, and the
+##            nearest dock in reach by name (or what to do with none)
 ##   ship     click your ship (LOCAL or the shipyard) to open it up
 ##
 ## ONE AT A TIME, a `HintCard` beside its subject. Its subject has to hold still
@@ -118,10 +119,36 @@ func lines(id: StringName) -> Array:
 			# station's section, a column down the left side (`StationScreen.DECKS`)
 			return ["Stations repair, refuel and trade.", "Pick a deck on the left."]
 		&"fuel":
-			return ["Every jump burns fuel. Run dry and the run ends.", "Stations sell fuel."]
+			return ["Fuel is low. Run dry and the run ends.", fuel_dock_line()]
 		&"ship":
 			return ["Click your ship to open it up.", "Fit and swap parts there."]
 	return []
+
+
+## `Run.nearest_dock`, worked out once per place and tank: the chart's probe
+## asks every frame the card is up.
+var _dock_key := Vector2i(-1, -1)
+var _dock := {}
+
+func _dock_cached() -> Dictionary:
+	var k := Vector2i(Run.at, Run.fuel)
+	if k != _dock_key:
+		_dock_key = k
+		_dock = Run.nearest_dock()
+	return _dock
+
+
+## WHERE TO GET FUEL, named (Jon: "warn:A"): the nearest dock the tank can
+## still reach, by its name on the chart and the jumps to it; with none in
+## reach, what to do instead. Read when the card shows, never a stale name.
+func fuel_dock_line() -> String:
+	var d := _dock_cached()
+	if d.is_empty():
+		return "No dock in reach. Make short jumps and look for one."
+	var j := int(d.jumps)
+	if j == 0:
+		return "Refuel here before you leave."
+	return "Nearest dock: %s, %d jump%s." % [MapGen.star_name(d.node), j, "" if j == 1 else "s"]
 
 
 func _hand_size() -> int:
@@ -512,12 +539,42 @@ func probe(id: StringName) -> Dictionary:
 				return {}
 			return {subject = r, avoid = [hud]}
 		&"fuel":
-			# THE TANK COVERS UNDER TWO OF THE JUMPS ON OFFER, out of a fight on a
-			# screen that is still
+			# A THIRD OF THE TANK LEFT (`Run.fuel_low`), out of a fight on a screen
+			# that is still. It waited for "under two of the dearest jump" (about
+			# 12 of 279) and in every stranded run the sim flew, that was one to
+			# three jumps from the end.
 			if Router.hud == null or ZoomLadder.busy() or not _fuel_low():
 				return {}
 			if not (cur is StarchartScreen or cur is SystemMapScreen or _local_idle(sc)):
 				return {}
+			# ON THE CHART IT POINTS AT THE DOCK IT NAMES, in the in-range list, or
+			# at the list when the dock is further: the readout is in the bar's
+			# corner and on the chart the only room near it is the bar itself (the
+			# side bar under it, the toolbar and the picture's frame beside it), so
+			# the card stood on the HUD. Kept off the HUD and the side bar, as the
+			# chart's own hint is, which puts it on the picture beside the list.
+			if cur is StarchartScreen:
+				var ch := cur as StarchartScreen
+				if ch._neigh == null or not ch._neigh.is_visible_in_tree():
+					return {}
+				var to := -1
+				var d := _dock_cached()
+				if not d.is_empty():
+					to = (d.node as MapGen.MapNode).index
+				var row := Rect2()
+				for c in ch._neigh.get_children():
+					var cc := c as Control
+					if cc != null and cc.is_visible_in_tree() and int(cc.get_meta(&"node", -2)) == to:
+						row = cc.get_global_rect()
+				if row.size == Vector2.ZERO:
+					row = _union(ch._neigh.get_children())
+				if row.size == Vector2.ZERO:
+					return {}
+				var cav: Array = [hud]
+				var cside := ch.ladder_side()
+				if cside != null and cside.is_visible_in_tree():
+					cav.append(cside.get_global_rect())
+				return {subject = row, avoid = cav}
 			var fr: Rect2 = Router.hud.fuel_rect()
 			if fr.size == Vector2.ZERO:
 				return {}
@@ -607,20 +664,11 @@ func _transfer(sc: SectorScreen) -> TransferView:
 	return null
 
 
-## Fewer than two of the jumps in range paid for: the dearest one on offer,
-## twice, is more than the tank holds.
+## A third of the tank or less. See `RunState.fuel_low_at`.
 func _fuel_low() -> bool:
 	if Run.hull == null or Run.map.is_empty() or Run.node_at() == null:
 		return false
-	var dear := 0
-	for raw in Run.in_range():
-		var n: MapGen.MapNode = raw
-		if n == Run.node_at() or not n.sensed:
-			continue
-		dear = maxi(dear, Run.fuel_cost_to(n))
-	if dear == 0:
-		dear = Run.FUEL_MAX_HOP
-	return Run.fuel < dear * 2
+	return Run.fuel_low()
 
 
 func _hud_rect() -> Rect2:

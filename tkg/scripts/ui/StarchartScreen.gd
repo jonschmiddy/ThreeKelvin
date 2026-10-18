@@ -996,6 +996,8 @@ func _notable(n: MapGen.MapNode) -> int:
 func _neighbour_row(n: MapGen.MapNode) -> Control:
 	var afford := Run.can_jump_to(n)
 	var b := Button.new()
+	# which system the row is, for the fuel hint, which points at the dock it names
+	b.set_meta(&"node", n.index)
 	Widgets.wear_pointer(b)
 	b.custom_minimum_size = Vector2(0, 15)
 	b.focus_mode = Control.FOCUS_NONE
