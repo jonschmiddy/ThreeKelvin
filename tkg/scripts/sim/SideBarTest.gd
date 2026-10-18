@@ -127,6 +127,9 @@ func _slides() -> Array:
 		for pc: Variant in _ps.get("live"):
 			if is_instance_valid(pc) and not bool(pc.get("done")):
 				var r2: Rect2 = pc.call(&"at")
+				# (a band carries the 4 px under it, as the row at rest does)
+				if StringName(pc.get("kind")) == &"band":
+					r2 = r2.grow_side(SIDE_BOTTOM, 4.0)
 				out.append([StringName(pc.get("kind")), r2.intersection(Router.content.get_global_rect())])
 	return out
 
@@ -176,7 +179,8 @@ func _bands() -> Array:
 	var c := Router.content.get_global_rect()
 	var b := _bar_of(Router.current)
 	if b != null and (_eff(b) > 0.5 or _covered(b.get_global_rect())):
-		out.append(Rect2(c.position.x, b.get_global_rect().position.y, c.size.x, _bar_h + 4))
+		# (the row's height as it stands: on the field, its plate's -- `row_h`)
+		out.append(Rect2(c.position.x, b.get_global_rect().position.y, c.size.x, b.get_global_rect().size.y + 4))
 	for sl: Array in _slides():
 		if sl[0] == &"band" and (sl[1] as Rect2).has_area():
 			out.append(sl[1])

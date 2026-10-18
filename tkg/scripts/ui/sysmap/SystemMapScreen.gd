@@ -172,9 +172,11 @@ func _init() -> void:
 	_strip.add_child(_names_btn)
 	_orbits_btn = StarchartScreen.bar_button("", _on_orbits, 112)
 	_strip.add_child(_orbits_btn)
-	root.add_child(_strip)
 	if NavField.used():
-		NavField.plate_behind(_strip)
+		_row_plate = NavField.row_plate(_strip)
+		root.add_child(_row_plate)
+	else:
+		root.add_child(_strip)
 
 	var mid := HBoxContainer.new()
 	mid.add_theme_constant_override("separation", 5)
@@ -1429,7 +1431,11 @@ var _scale_bar: Control = null
 ## The toolbar along the top (DANGER), which decodes into the next screen's
 ## the way the side bar does (`SideSwap`).
 func ladder_bar() -> Control:
-	return _strip
+	return _row_plate if _row_plate != null else _strip
+
+
+## the toolbar row's plate, on the field (`NavField.row_plate`)
+var _row_plate: PanelContainer = null
 
 
 ## The side bar, for the ladder to swap in place (`SideSwap`).

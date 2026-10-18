@@ -472,7 +472,7 @@ func _make_band() -> SideBand:
 	var b := SideBand.new()
 	add_child(b)
 	var c := _content_rect()
-	b.setup(Rect2(c.position.x, c.position.y, c.size.x, StarchartScreen.BAR_H + 4), false)
+	b.setup(Rect2(c.position.x, c.position.y, c.size.x, StarchartScreen.row_h() + 4), false)
 	b.driven = true
 	b.drive(0.0)
 	return b
@@ -486,7 +486,7 @@ static func _content_rect() -> Rect2:
 ## their band, the key's row below it (viewport px).
 static func _side_rest() -> Rect2:
 	var c := _content_rect()
-	var top := c.position.y + StarchartScreen.BAR_H + 4
+	var top := c.position.y + StarchartScreen.row_h() + 4
 	return Rect2(c.end.x - 260, top, 260, c.end.y - top - 16)
 
 
@@ -2607,8 +2607,16 @@ func _calm_prebuild(target: int) -> void:
 	if pm == null:
 		return
 	pm.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(pm)
-	move_child(pm, 0)
+	if pm is StarchartScreen and Router.field != null and Router.field.visible:
+		# (the chart drawn faintly to warm it, BEHIND the field, not over the
+		# screen being left: at PREBUILT_A over it, it lifted the top plate two
+		# levels for the UI's fade -- Jon's "the border on the top panel
+		# flickers?". Under the field it is drawn all the same, and unseen)
+		Router.content.add_child(pm)
+		Router.content.move_child(pm, 0)
+	else:
+		add_child(pm)
+		move_child(pm, 0)
 	pm.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	if pm is SystemMapScreen:
 		(pm as SystemMapScreen).show_system(Run.node_at(), 0.0, false)
@@ -2830,6 +2838,12 @@ func _calm_hold(n: Control) -> void:
 		img = vp.get_texture().get_image()
 	if img == null or img.is_empty():
 		img = Image.create(960, 540, false, Image.FORMAT_RGBA8)
+	# OPAQUE, as it was seen (Jon, of the map <-> chart hop: "the border on the
+	# top panel flickers?"): the viewport's own alpha is not what was seen --
+	# where a see-through plate was drawn over the field it reads 0.84, and the
+	# plate held over its place (`_calm_cover`) let the screen arriving under it
+	# show through, the plate's line and fill shifting for the length of the move
+	img.convert(Image.FORMAT_RGB8)
 	_tex = ImageTexture.create_from_image(img)
 	# THE PICTURE HELD IS THE LAST FRAME DRAWN: its ship where that frame put it,
 	# and the line goes on from there
@@ -2837,6 +2851,14 @@ func _calm_hold(n: Control) -> void:
 	_calm_t_h = _calm_t
 	_calm_swap_frame = Engine.get_process_frames()
 	_calm_ph = _calm_p0.lerp(_calm_p1, _calm_e_drawn)
+	# (where the screen left actually drew your ship in that frame, not where its
+	# camera was asked to put it: the chart's turning galaxy lands it a pixel or
+	# so off its aim at a far zoom, and the held picture, carried at four times
+	# its size into LOCAL, put a second ship 5 px from the first)
+	if is_instance_valid(old) and bool(old.call(&"ladder_ready")):
+		var seen: Variant = old.call(&"calm_ship")
+		if seen is Vector2 and (seen as Vector2).is_finite() and (seen as Vector2).distance_to(_calm_ph) < 8.0:
+			_calm_ph = seen
 	var pic: Rect2 = old.call(&"ladder_picture")
 	if r_new == LOCAL:
 		# (into LOCAL the side panel and toolbar went before the move: the whole

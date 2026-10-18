@@ -68,16 +68,17 @@ static func plate_style() -> StyleBoxFlat:
 	return UITheme.flat(Color(UITheme.PANEL, PLATE_A), UITheme.LINE, 0, 12, 12)
 
 
-## A row made a plate without laying it out again: the plate drawn behind its
-## controls, over its whole rect and the 2 px gap under it (so not a control of
-## it moves). `meta nav_plate`: the style, for the harness.
-static func plate_behind(c: Control) -> void:
-	var sb := plate_style()
-	c.set_meta(&"nav_plate", sb)
-	c.draw.connect(func() -> void:
-		c.draw_style_box(sb, Rect2(Vector2.ZERO, c.size + Vector2(0.0, 2.0))))
-	c.resized.connect(c.queue_redraw)
-	c.queue_redraw()
+## A TOOLBAR ROW ON ITS PLATE (Jon, Oct 18: "the size of that panel also
+## doesn't seem big enough... the border comes right up to the button's
+## edges"): the row inside a plate of the side panel's own look and margins
+## (`plate_style`, 12 px every side), so its line stands as clear of the row's
+## buttons as the side panel's does of its own. The ladder's `ladder_bar`.
+static func row_plate(row: Control) -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.add_theme_stylebox_override("panel", plate_style())
+	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pc.add_child(row)
+	return pc
 
 
 ## A picture's frame on the field: its margin alone, no line, nothing filled,

@@ -108,6 +108,12 @@ static var _primed_for: int = -1
 const BAR_H := 17
 
 
+## The toolbar row's whole height as it stands: the row, and on the field its
+## plate's margins (`NavField.row_plate`).
+static func row_h() -> float:
+	return float(BAR_H) + (24.0 if NavField.used() else 0.0)
+
+
 static func toolbar_row() -> HBoxContainer:
 	var r := HBoxContainer.new()
 	r.add_theme_constant_override("separation", 7)
@@ -194,10 +200,12 @@ func _build() -> void:
 			regen.disabled = true
 			regen.tooltip_text = "Not in a co-op session: the galaxy belongs to the whole party."
 		strip.add_child(regen)
-	root.add_child(strip)
-	_strip_row = strip
 	if NavField.used():
-		NavField.plate_behind(strip)
+		_row_plate = NavField.row_plate(strip)
+		root.add_child(_row_plate)
+	else:
+		root.add_child(strip)
+	_strip_row = strip
 
 	# --- chart | destination
 	var mid := HBoxContainer.new()
@@ -1377,7 +1385,11 @@ func ladder_side() -> Control:
 ## And the toolbar along the top -- LAYER, its pips, CORE, the view toggles --
 ## which decodes into the next screen's the same way (Jon: "these buttons").
 func ladder_bar() -> Control:
-	return _strip_row
+	return _row_plate if _row_plate != null else _strip_row
+
+
+## the toolbar row's plate, on the field (`NavField.row_plate`)
+var _row_plate: PanelContainer = null
 
 
 func ladder_spans() -> Vector2:

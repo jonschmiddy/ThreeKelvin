@@ -113,6 +113,49 @@ func _field_wrong(f0: Variant, v0: int) -> String:
 	return ""
 
 
+## THE TOP PLATE THIS FRAME: drawn by the screen up at full strength with
+## nothing held over it, or held whole (`ZoomLadder._calm_covers`) by an opaque
+## picture of it -- never the two at once part-way, never a see-through hold
+## ("" when steady, else what is wrong).
+func _plate_unsteady() -> String:
+	var cur := Router.current
+	var bar := ZoomLadder.bar_of(cur)
+	if bar == null or not is_instance_valid(bar):
+		return ""
+	var r := bar.get_global_rect()
+	var a := 1.0
+	var n: Node = bar
+	while n != null and n != Router.content:
+		if n is CanvasItem:
+			a *= (n as CanvasItem).modulate.a
+		n = n.get_parent()
+	var held := false
+	if ZoomLadder.busy():
+		var cv: Variant = ZoomLadder.active.get("_calm_covers")
+		if cv is Array:
+			for c: Variant in cv:
+				if not is_instance_valid(c) or not (c as CanvasItem).is_visible_in_tree():
+					continue
+				var cr := (c as Control).get_global_rect()
+				if not cr.intersects(r):
+					continue
+				if not cr.grow(1.0).encloses(r):
+					return "held in part (%s over %s)" % [cr, r]
+				var tex: Texture2D = (c as TextureRect).texture
+				var img: Image = (tex as AtlasTexture).atlas.get_image() if tex is AtlasTexture else (tex.get_image() if tex != null else null)
+				if img != null and img.detect_alpha() != Image.ALPHA_NONE:
+					return "held see-through (its picture has alpha)"
+				held = true
+	if not held and a < 0.999 and a > 0.001:
+		# (a hurried crossfade running on past the landing: the plate as held,
+		# opaque, going as the live one comes -- the two adding to one)
+		var L := ZoomLadder.active if ZoomLadder.busy() else null
+		if L != null and (L._rect as CanvasItem).visible and absf(L.held_alpha() + a - 1.0) < 0.02:
+			return ""
+		return "drawn at %.2f" % a
+	return ""
+
+
 ## The screens' own panels sliding (`PanelSlide`, by name: none on a build
 ## without it).
 var _ps: Script = load("res://scripts/ui/PanelSlide.gd") if ResourceLoader.exists("res://scripts/ui/PanelSlide.gd") else null
@@ -319,6 +362,11 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 	var panel_moving := 0
 	var panel_blank := 0
 	var blank_why := ""
+	# THE TOP PLATE STEADY between the map and the chart (Jon: "the border on
+	# the top panel flickers?"): frames it was not drawn by one opaque thing
+	var map_chart := (from == ZoomLadder.MAP or from == ZoomLadder.CHART) and (want == ZoomLadder.MAP or want == ZoomLadder.CHART)
+	var plate_shaky := 0
+	var plate_why := ""
 	var panel_first := -1
 	var panel_last := -1
 	var bad: Array = []
@@ -417,6 +465,12 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 			field_bad += 1
 			if field_why == "":
 				field_why = "%s at frame %d" % [fw, frames]
+		if map_chart:
+			var pw := _plate_unsteady()
+			if pw != "":
+				plate_shaky += 1
+				if plate_why == "":
+					plate_why = "%s at frame %d" % [pw, frames]
 		for psv: Variant in _panel_slides():
 			if not is_instance_valid(psv) or bool(psv.get("done")):
 				continue
@@ -488,6 +542,8 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 		_ok("%s: and never turning back along it (%.1f px back at most)" % [label, back], back <= BACK_PX)
 	_ok("%s: and never under the side bar (%d frames)" % [label, under_side], under_side == 0)
 	_ok("%s: the side bar, the toolbar, the column and the band still while the camera moves (%d frames moving)" % [label, chrome_moved], chrome_moved <= 1)
+	if map_chart:
+		_ok("%s: the top plate steady -- one opaque thing draws it every frame, the plate itself or it as held (%d frames not%s)" % [label, plate_shaky, "" if plate_why == "" else ": " + plate_why], plate_shaky == 0)
 	_ok("%s: one field under it all -- the same layer, on, under the screens, never faded or redrawn (%d frames not%s)" % [label, field_bad, "" if field_why == "" else ": " + field_why], field_bad == 0)
 	if local_hop:
 		_ok("%s: the side panel and toolbar drawn on every frame they move, never an empty plate (%d of %d frames blank%s)" % [label, panel_blank, panel_moving, "" if blank_why == "" else ": " + blank_why], panel_blank == 0)
@@ -653,10 +709,53 @@ func _no_box() -> void:
 		var side := ZoomLadder.side_of(cur)
 		var bar := ZoomLadder.bar_of(cur)
 		var ssb: StyleBox = side.get_theme_stylebox(&"panel") if side is PanelContainer else null
-		var bsb: Variant = bar.get_meta(&"nav_plate") if bar != null and bar.has_meta(&"nav_plate") else null
+		var bsb: Variant = bar.get_theme_stylebox(&"panel") if bar is PanelContainer else (bar.get_meta(&"nav_plate") if bar != null and bar.has_meta(&"nav_plate") else null)
 		var sa := (ssb as StyleBoxFlat).bg_color.a if ssb is StyleBoxFlat else -1.0
 		var ba := (bsb as StyleBoxFlat).bg_color.a if bsb is StyleBoxFlat else -1.0
 		_ok("%s: the side panel a see-through plate (alpha %.2f)" % [_nm(r), sa], sa >= 0.72 and sa <= 0.85)
+		# THE TOP PLATE'S MARGIN (Jon: "the border comes right up to the button's
+		# edges"): every piece of the row as far inside its line as the side
+		# panel keeps its own contents
+		var margin := ssb.get_content_margin(SIDE_LEFT) if ssb != null else 12.0
+		var least := INF
+		var tight := ""
+		if bar != null and bar.get_child_count() > 0:
+			var pieces: Array = []
+			GoalLine._inked(bar.get_child(0) as Control, pieces)
+			var pr := bar.get_global_rect()
+			for q: Rect2 in pieces:
+				var gap := minf(minf(q.position.x - pr.position.x, pr.end.x - q.end.x), minf(q.position.y - pr.position.y, pr.end.y - q.end.y))
+				if gap < least:
+					least = gap
+					tight = str(q)
+		_ok("%s: every piece of the toolbar row %.0f px or more inside its plate's line, the side panel's margin (least %.1f, %s)" % [_nm(r), margin, least, tight],
+			least != INF and least >= margin - 0.01)
+		# THE GOAL IN THE ROW (Jon: "Goal is in a weird spot"): inside the plate,
+		# on the row's own line, clear of its pieces -- or, where the row has no
+		# room (developer mode's buttons on the chart's), inside the picture
+		var g: GoalLine = Router.hud.goal if Router.hud != null else null
+		if g != null:
+			g.refresh()
+			var gr := Rect2(g.position, g.size)
+			var lab := g._goal.get_global_rect()
+			var line_y := -1.0
+			if bar != null and bar.get_child_count() > 0:
+				for k: Node in (bar.get_child(0) as Control).get_children():
+					if k is Label and (k as Label).text != "":
+						line_y = (k as Label).get_global_rect().position.y
+						break
+			var clear := true
+			var pieces2: Array = []
+			if bar != null and bar.get_child_count() > 0:
+				GoalLine._inked(bar.get_child(0) as Control, pieces2)
+			for q: Rect2 in pieces2:
+				if q.intersects(gr):
+					clear = false
+			var inside := bar != null and bar.get_global_rect().grow(-margin).encloses(gr.grow(-0.5))
+			var in_pic := GoalLine.picture_rect(cur).encloses(gr)
+			_ok("%s: the goal in the row, on its line (goal %s at y %.0f, the row's words at %.0f), inside the plate, clear of its pieces%s" % [_nm(r), gr, lab.position.y, line_y,
+				"" if g._in_row else " -- or, the row full, inside the picture (%s)" % in_pic],
+				g.visible and ((g._in_row and inside and clear and absf(lab.position.y - line_y) < 0.5) or (not g._in_row and in_pic and r == ZoomLadder.CHART and DevMode.enabled)))
 		_ok("%s: the toolbar row a plate, the side panel's own (alpha %.2f)" % [_nm(r), ba], ba >= 0.72 and ba <= 0.85
 			and ssb is StyleBoxFlat and bsb is StyleBoxFlat and (ssb as StyleBoxFlat).bg_color == (bsb as StyleBoxFlat).bg_color
 			and (ssb as StyleBoxFlat).border_color == (bsb as StyleBoxFlat).border_color

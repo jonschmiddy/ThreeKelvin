@@ -74,8 +74,92 @@ func _run() -> void:
 		await _frames(30)
 		await RenderingServer.frame_post_draw
 		_check(which)
+	# THE TOP PLATE STEADY THROUGH A HOP BETWEEN THE MAP AND THE CHART (Jon: "When
+	# going from sector to starchart and vice versa the border on the top panel
+	# flickers? or something"): every frame of each, the plate's line and its
+	# ground clear of the row's words, against the frame before the click
+	await _plate_hop(&"map")
+	await _plate_hop(&"chart")
 	print("fieldedgetest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
 	_tree.quit(1 if _fails > 0 else 0)
+
+
+func _shot() -> Image:
+	var img := Router.content.get_viewport().get_texture().get_image()
+	img.convert(Image.FORMAT_RGB8)
+	return img
+
+
+## The plate's line (its four edges, 1 px) and its ground (its 12 px margin
+## inside the line, clear of the row) as drawn: [line pixels, ground pixels].
+func _plate_px(img: Image, r: Rect2) -> Array:
+	var line: Array = []
+	var ground: Array = []
+	var x0 := int(r.position.x)
+	var x1 := int(r.end.x) - 1
+	var y0 := int(r.position.y)
+	var y1 := int(r.end.y) - 1
+	for x in range(x0, x1 + 1, 3):
+		line.append(img.get_pixel(x, y0))
+		line.append(img.get_pixel(x, y1))
+		for y in [y0 + 4, y1 - 4]:
+			ground.append(img.get_pixel(x, y))
+	for y in range(y0, y1 + 1, 3):
+		line.append(img.get_pixel(x0, y))
+		line.append(img.get_pixel(x1, y))
+	return [line, ground]
+
+
+func _most_off(a: Array, b: Array) -> float:
+	var m := 0.0
+	for i in mini(a.size(), b.size()):
+		var p: Color = a[i]
+		var q: Color = b[i]
+		m = maxf(m, maxf(absf(p.r - q.r), maxf(absf(p.g - q.g), absf(p.b - q.b))) * 255.0)
+	return m
+
+
+func _plate_hop(to: StringName) -> void:
+	# (from the other one, at rest)
+	ZoomLadder.hold_off = true
+	if to == &"map":
+		Router.show_starchart()
+	else:
+		Router.show_system()
+	ZoomLadder.hold_off = false
+	for i in 400:
+		await _tree.process_frame
+		if _settled() and i > 60:
+			break
+	await _frames(20)
+	await RenderingServer.frame_post_draw
+	var bar := ZoomLadder.bar_of(Router.current)
+	if bar == null:
+		return
+	var r := bar.get_global_rect()
+	var base := _plate_px(_shot(), r)
+	if to == &"map":
+		Router.show_system()
+	else:
+		Router.show_starchart()
+	var worst_line := 0.0
+	var worst_ground := 0.0
+	var at := -1
+	var frames := 0
+	for i in 300:
+		await RenderingServer.frame_post_draw
+		frames += 1
+		var now := _plate_px(_shot(), r)
+		var ol := _most_off(base[0], now[0])
+		var og := _most_off(base[1], now[1])
+		if ol > worst_line:
+			worst_line = ol
+			at = frames
+		worst_ground = maxf(worst_ground, og)
+		if _settled() and frames > 30:
+			break
+	_ok("%s -> %s: the top plate steady every frame -- its line at most %.0f levels off what it was (frame %d), its ground %.0f (%d frames)" % ["chart" if to == &"map" else "map", to, worst_line, at, worst_ground, frames],
+		worst_line <= 2.0 and worst_ground <= 2.0)
 
 
 ## The screen as drawn, and the field alone, both on the game's 960x540.

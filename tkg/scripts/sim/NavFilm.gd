@@ -6,7 +6,7 @@ extends Node
 ## pointer, Tab pressed, the wheel turned -- filmed under the movie writer with
 ## sound, and every frame's state logged beside it for measuring.
 ##   godot --path . --resolution 1920x1080 --write-movie <dir>/film.avi --fixed-fps 60
-##       -- sheet=NavFilm reel=<ladder|journey|dock|session> out=<dir> flow=c asrelease [seed=N]
+##       -- sheet=NavFilm reel=<ladder|journey|dock|session> out=<dir> flow=c asrelease [seed=N] [at=nebula]
 ## Writes <out>/frames.jsonl (one line a process frame: the screen up, the
 ## ladder's phase, where your ship is on screen in game px, which HUD tab is lit,
 ## the side bar's and toolbar's opacity, the map's zoom) and <out>/marks.json;
@@ -429,6 +429,13 @@ func _run() -> void:
 	Run.start_new_run(&"korvan", HullData.Weight.MEDIUM)
 	StarchartScreen._primed_for = Run.galaxy_seed
 	_overlay()
+	# (`at=nebula`: the run moved to the first system that sits in a cloud, so a
+	# reel films the map's and LOCAL's gas)
+	if _arg("at", "") == "nebula":
+		for n: MapGen.MapNode in Run.map:
+			if n.in_nebula and n.type == MapGen.NodeType.SYSTEM:
+				Run.at = n.index
+				break
 	Sig.screen_changed.connect(func() -> void: _mark("screen", {screen = _scr(Router.current)}))
 	var sys := Run.at
 	_park(sys)

@@ -41,6 +41,15 @@ const GOAL := "GOAL: REACH THE CORE"
 ## Under the HUD's bottom edge, px. One: on the map and the chart the band
 ## between the HUD and the picture's frame is 26 px, and the line is 24.
 const DROP := 1.0
+## IN THE TOOLBAR ROW, ON ITS PLATE (Jon, Oct 18: "Goal is in a weird spot" --
+## it straddled the plate's top line under the HUD): on the map and the chart
+## it sits in the row itself, its words on the row's own line, this far from
+## the screens' left edge -- the same place on both, clear of the map's DANGER
+## pips and tier and of the chart's LAYER pips and CORE by 16 px -- with no
+## backing of its own (the plate is its backing). Where the row has no room
+## there (developer mode's buttons on the chart's) it goes inside the picture's
+## top, as it always did when the band was full.
+const ROW_X := 312.0
 ## How far apart the places it tries along the band are, px.
 const STEP_X := 4.0
 ## The fade in and out, s (none under reduced motion or headless).
@@ -56,6 +65,11 @@ var _tw: Tween = null
 ## Where it last stood, while the screen under it stays the same: it moves only
 ## when what it must keep off moves into it, or the screen changes.
 var _spot := Vector2.INF
+## in the toolbar row this frame (no backing), and the two looks
+var _in_row := false
+var _backed: StyleBoxFlat
+var _bare: StyleBoxEmpty
+const PAD_T := 1
 var _spot_for: Object = null
 
 
@@ -68,9 +82,15 @@ func _init() -> void:
 	modulate.a = 0.0
 	_panel = PanelContainer.new()
 	# a dim backing so the words read over a bright sky, and no edge: an edged
-	# box is what this game's controls look like
-	_panel.add_theme_stylebox_override("panel",
-		UITheme.flat(Color(UITheme.VOID, 0.72), Color(0, 0, 0, 0), 0, 1, 5))
+	# box is what this game's controls look like (in the toolbar row's plate,
+	# none: `_bare`, the same margins)
+	_backed = UITheme.flat(Color(UITheme.VOID, 0.72), Color(0, 0, 0, 0), 0, 1, 5)
+	_bare = StyleBoxEmpty.new()
+	_bare.content_margin_top = PAD_T
+	_bare.content_margin_bottom = PAD_T
+	_bare.content_margin_left = 5
+	_bare.content_margin_right = 5
+	_panel.add_theme_stylebox_override("panel", _backed)
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_panel)
 	var col := VBoxContainer.new()
@@ -146,6 +166,7 @@ func refresh() -> void:
 			want = false
 		else:
 			position = at
+	_panel.add_theme_stylebox_override("panel", _bare if _in_row else _backed)
 	_fade(want)
 	queue_redraw()
 
@@ -182,11 +203,23 @@ func _place(sz: Vector2, cur: Control) -> Vector2:
 	var hud := Router.hud.get_global_rect()
 	var screen := get_viewport_rect()
 	var avoid := avoid_rects(cur)
+	_in_row = false
+	var trow := _row_of(cur)
+	if trow != null and not _step.visible:
+		var ry := roundf(trow.get_global_rect().position.y + (trow.size.y - _goal.get_combined_minimum_size().y) / 2.0) - PAD_T
+		var rr := Rect2(Vector2(roundf(Router.content.get_global_rect().position.x + ROW_X), ry), sz)
+		if _clear(rr, avoid, screen):
+			_in_row = true
+			_spot = rr.position
+			_spot_for = cur
+			return _spot
 	# where it stood, if that is still clear: it does not hop about as things
 	# come and go on the far side of the screen
 	if _spot_for == cur and _spot != Vector2.INF and _clear(Rect2(_spot, sz), avoid, screen):
 		return _spot
-	var rows: Array = [[roundf(hud.end.y + DROP), screen]]
+	# (the band under the HUD, where there is no plated row there: with one, the
+	# row is the band, and a line not in it goes inside the picture)
+	var rows: Array = [] if trow != null else [[roundf(hud.end.y + DROP), screen]]
 	var inner := picture_rect(cur)
 	if inner.size != Vector2.ZERO:
 		# inside the frame: clear of everything but the frame it sits in
@@ -205,6 +238,16 @@ func _place(sz: Vector2, cur: Control) -> Vector2:
 			x += STEP_X
 	_spot = Vector2.INF
 	return Vector2.INF
+
+
+## The toolbar row inside its plate (`NavField.row_plate`) on `cur`, or null.
+static func _row_of(cur: Control) -> Control:
+	if cur == null or not is_instance_valid(cur) or not cur.has_method("ladder_bar"):
+		return null
+	var bar: Control = cur.call("ladder_bar")
+	if bar is PanelContainer and bar.is_visible_in_tree() and bar.get_child_count() > 0:
+		return bar.get_child(0) as Control
+	return null
 
 
 ## The map's and the chart's picture inside its frame, global; empty elsewhere.
