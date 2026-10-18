@@ -203,6 +203,16 @@ already there:
 `salvage`. **Material tables for `material`:** `wreck`, `event`, `fauna`,
 `fight`, `mining`.
 
+**A fight brings a ship unless the event says otherwise.** `fight = true` opens
+a fight with one ship off the danger's ordinary pool. When the text is about a
+creature, tag the option `foe = &"whale"` (the Voidwhale Calf) or
+`foe = &"leviathan"` (the Void Leviathan): the fight brings that creature and
+nothing else. Jon, Oct 17: the text leading up to the fight "should mention the
+megafauna or whales". A tagged event is `needs_fauna`, names its creature in the
+body (a calf is not a leviathan), and pays what animals pay: hide and `fauna`
+rolls, the body's exotic in its wreck, credits only from a person in the text.
+`-- sheet=FoeTagTest` fails a creature after ship text or a ship after creature text.
+
 **The second argument to `take_hull_damage` is a death line.** If that damage
 kills you it becomes the run's epitaph on the game-over screen. Write it as a
 cause of death, not a description of a scratch.

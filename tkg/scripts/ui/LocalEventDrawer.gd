@@ -700,7 +700,8 @@ func _fight() -> void:
 	if _tw != null and _tw.is_valid() and _tw.is_running() and _moving():
 		await _tw.finished
 	if is_inside_tree():
-		Router.start_ambush()
+		# the creature the event's text set up, or a ship (`OptionResolve.take`)
+		Router.start_ambush(StringName(out.get("foe", &"")))
 
 
 ## CONTINUE: it drops and you stay on LOCAL, the bar saying how it went.
