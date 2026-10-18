@@ -8,8 +8,9 @@ extends Node
 ##
 ## THE MOMENTS, each line's own (`AshLines` has the list):
 ##   launch  a new run, once the ship is at rest on LOCAL; gone at the first jump
-##   hull    the first time she is up in a new hull (after the dock, never in it);
-##           not if the move is called off
+##   hull    the first time she is up in a hull BOUGHT at a station's yard mid-run
+##           (after the dock, never in it); not if the move is called off, and
+##           never for the chassis select, a load or a hull found in the field
 ##   hurt    the hull at a quarter or under, alive; again only after it has been
 ##           back over half
 ##   hot     over the heat cap in a fight; once a fight
@@ -154,6 +155,9 @@ var _fight_hot := false
 var _hurt_latched := false
 var _known_hull: HullData = null
 var _left_hull: HullData = null
+## `Run.hulls_bought` as of the last poll: a hull change with no purchase
+## since then (the chassis select, a load, a found hull) says nothing.
+var _bought := 0
 var _hauls := 0
 var _credits := 0
 var _items: Dictionary = {}
@@ -274,6 +278,7 @@ func _on_run_started() -> void:
 	_fight_lines = 0
 	_hurt_latched = false
 	_known_hull = Run.hull
+	_bought = Run.hulls_bought
 	_hauls = Run.hauls
 	_credits = Run.credits
 	_items = _item_ids()
@@ -354,17 +359,20 @@ func _watch() -> void:
 			arm(&"hot")
 	else:
 		waiting.erase(&"hot")
-	# A NEW HULL: armed when the frame changes (a dock's move or a hull found
-	# in the field), said the next time she is up, on LOCAL or in a fight, so
-	# never mid-dock; and forgotten if the move is called off and the old frame
-	# comes back (`Run.abandon_move`)
+	# A NEW HULL: armed when the frame changes BECAUSE ONE WAS BOUGHT at a
+	# station's yard (`Run.hulls_bought`; Jon, Oct 18: only "when a player buys
+	# a new ship mid run" -- never the chassis select's picks before launch, a
+	# load, or a hull found in the field), said the next time she is up, on
+	# LOCAL or in a fight, so never mid-dock; and forgotten if the move is
+	# called off and the old frame comes back (`Run.abandon_move`)
 	if Run.hull != _known_hull:
 		if Run.hull != null and Run.hull == _left_hull and waiting.has(&"hull"):
 			waiting.erase(&"hull")
-		elif _known_hull != null and Run.hull != null:
+		elif _known_hull != null and Run.hull != null and Run.hulls_bought > _bought:
 			arm(&"hull")
 		_left_hull = _known_hull
 		_known_hull = Run.hull
+	_bought = Run.hulls_bought
 	# A BIG HAUL, taken aboard on LOCAL
 	var items := _item_ids()
 	if Run.hauls > _hauls and sc != null:

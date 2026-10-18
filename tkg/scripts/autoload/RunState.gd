@@ -324,6 +324,13 @@ var found_hull: HullData = null:
 	set(v):
 		found_hull = v
 		Sig.ship_changed.emit()
+## Hulls BOUGHT at a station's yard this run (`transfer_to_hull` with the
+## station it came off). A.S.H.'s "New body" moment keys on this and not on
+## `hull` changing: the chassis select swaps `hull` once per click before a run
+## has started, and a hull found in the field is not a purchase. Jon, Oct 18:
+## only "when a player buys a new ship mid run". Not saved -- A.S.H. compares
+## it against her own count from the run's start or load.
+var hulls_bought: int = 0
 var whale_boon: bool = false
 
 const MAP_CANVAS := Rect2(60, 50, 900, 430)
@@ -417,6 +424,7 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	dead = false
 	death_reason = ""
 	found_hull = null
+	hulls_bought = 0
 	whale_boon = false
 	galaxy_kind = Rng.world.randi() % GalaxyGen.count()
 	galaxy = GalaxyGen.roll(galaxy_kind)
@@ -2525,6 +2533,9 @@ func transfer_to_hull(h: HullData, paid: int = 0,
 	var ratio := float(hp) / float(max_hp())
 	hull = h
 	hp = maxi(6, int(round(h.max_hull * ratio)))
+	# Bought off a station's rack (the yard passes its node); a found hull is not.
+	if node != null:
+		hulls_bought += 1
 
 	found_hull = null
 	var said: Array[String] = []
