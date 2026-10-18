@@ -192,6 +192,9 @@ func _init() -> void:
 		overlay.hover = {}
 		_light_from_map({}))
 	var wrap := Widgets.panel_with(_frame)
+	if NavField.used():
+		wrap.add_theme_stylebox_override("panel", NavField.window_style())
+	_frame_wrap = wrap
 	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mid.add_child(wrap)
 	_box = SubViewportContainer.new()
@@ -207,6 +210,9 @@ func _init() -> void:
 	_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_box.add_child(_vp)
 	view = SystemViewS.new()
+	if NavField.used():
+		view.set("field_under", true)
+		_box.material = NavField.key_material()
 	_vp.add_child(view)
 	_cursor = SectorCursorS.new()
 	_cursor.set("view", view)
@@ -1427,9 +1433,15 @@ func ladder_side() -> Control:
 	return panel.get_parent() as Control if panel != null and is_instance_valid(panel) else null
 
 
+## the map's frame (on the field, its line alone): UI, gone with the rest
+var _frame_wrap: Control = null
+
+
 func ladder_chrome(k: float) -> void:
 	for c: CanvasItem in [_key_row, _scale_bar, _loc_btn]:
 		ZoomLadder.fade_chrome(c, k)
+	if _frame_wrap != null and is_instance_valid(_frame_wrap):
+		_frame_wrap.self_modulate.a = 1.0 - clampf(k, 0.0, 1.0)
 	if overlay != null:
 		overlay.label_a = 1.0 - k
 		overlay.hush_labels = k >= 0.999

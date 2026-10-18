@@ -25,7 +25,13 @@ extends Node
 ##     A's 1.55 s where there is none);
 ##   - A PRESS MID-MOVE: a key, a click on the picture, Tab -- the move hurries
 ##     to its end (under 0.45 s from the press), no frame of it a cut, and the
-##     press is not lost (Tab goes on to the next distance).
+##     press is not lost (Tab goes on to the next distance);
+##   - ONE FIELD UNDER IT ALL (Jon, Oct 18: stars edge to edge, the panels built
+##     on top): the Router's `NavField` is the same layer on every frame of every
+##     hop, on, under the screens, never faded, never redrawn (its `version`);
+##   - THE PANELS DRAWN AS THEY MOVE (Jon, Oct 18: "they come in blank now"):
+##     on every frame a side panel or toolbar row slides, it is the screen's own,
+##     opaque, with its words on it -- never an empty plate.
 ## Written to run on main too (the ship's place read by the hooks every build
 ## has), so it can be watched failing there.
 
@@ -86,81 +92,68 @@ func _ship(s: Control) -> Vector2:
 	return Vector2.INF
 
 
-## THE SIDE PANEL'S PLACE FILLED (Jon, Oct 17, "A · Stars fill it": the space
-## the side panel goes in never shows as a dark box). While the ladder moves,
-## at the middle of the side bar's column and of the toolbar's row, something
-## is drawn this frame: LOCAL (it runs edge to edge), the screen's own picture,
-## the held picture whole, the ladder's stars, the side bar or toolbar standing,
-## or a piece of them sliding or decoding. Otherwise it is the screen's bare
-## ground there -- a dark box. Returns the places bare ("" when none).
-func _strip_bare() -> String:
-	if not ZoomLadder.busy():
-		return ""
-	var c := Router.content.get_global_rect()
-	var out: Array = []
-	for nm: String in ["column", "toolbar"]:
-		var at := Vector2(c.end.x - 130.0, c.position.y + c.size.y * 0.5)
-		if nm == "toolbar":
-			at = Vector2(c.position.x + c.size.x * 0.4, c.position.y + StarchartScreen.BAR_H * 0.5)
-		if not _drawn_at(at):
-			out.append(nm)
-	return ",".join(PackedStringArray(out))
-
-
-func _drawn_at(at: Vector2) -> bool:
+## THE FIELD AS IT STANDS: the same layer, on, under the screen, unfaded, as
+## drawn ("" when so, else what is wrong).
+func _field_wrong(f0: Variant, v0: int) -> String:
+	var fv: Variant = Router.get("field")
+	if fv == null or not is_instance_valid(fv):
+		return "no field"
+	var f := fv as Control
+	if f != f0:
+		return "a different field"
+	if not bool(f.get("on")):
+		return "the field off"
+	if int(f.get("version")) != v0:
+		return "the field redrawn (%d -> %d)" % [v0, int(f.get("version"))]
+	if f.modulate.a < 0.999 or f.self_modulate.a < 0.999:
+		return "the field faded"
 	var cur := Router.current
-	if cur is SectorScreen:
-		return true
-	if cur != null and is_instance_valid(cur) and bool(cur.call(&"ladder_ready")) and (cur.call(&"ladder_picture") as Rect2).has_point(at):
-		return true
-	var L := ZoomLadder.active
-	if (L._rect as CanvasItem).visible and L.held_alpha() >= 0.999 and _held_at(L._mat as ShaderMaterial, at):
-		return true
-	var st: Variant = L.get("_calm_stars")
-	if st != null and is_instance_valid(st) and (st as CanvasItem).is_visible_in_tree():
-		var sm := (st as CanvasItem).material as ShaderMaterial
-		var hv: Vector4 = sm.get_shader_parameter(&"hole")
-		if float(sm.get_shader_parameter(&"alpha")) > 0.95 and (st as Control).get_global_rect().has_point(at) 				and not Rect2(hv.x, hv.y, hv.z, hv.w).has_point(at):
-			return true
-	for ch: Variant in [ZoomLadder.side_of(cur), ZoomLadder.bar_of(cur)]:
-		if ch != null and is_instance_valid(ch) and (ch as CanvasItem).is_visible_in_tree() 				and (ch as CanvasItem).modulate.a > 0.99 and (ch as Control).get_global_rect().has_point(at):
-			return true
-	for pc: Variant in ChromeSlide.live:
-		if is_instance_valid(pc) and (pc as CanvasItem).is_visible_in_tree() and (pc as ChromeSlide).at().has_point(at):
-			return true
-	for b: Variant in SideBand.live:
-		if is_instance_valid(b) and (b as CanvasItem).is_visible_in_tree() and (b as Control).get_global_rect().has_point(at):
-			return true
-	for sw: Variant in SideSwap.live:
-		if is_instance_valid(sw) and (sw as CanvasItem).is_visible_in_tree() and (sw as SideSwap).rect().has_point(at):
-			return true
-	return false
+	if cur != null and is_instance_valid(cur) and cur.get_parent() == f.get_parent() and cur.get_index() < f.get_index():
+		return "the field over the screen"
+	return ""
 
 
-## Whether the held picture is drawn whole at `at` as it stands: its picture
-## carried from `from_pt` to `to_pt` at its scale, inside its soft edge when
-## smaller than the screen, and not where a side bar's rect (screen px) is cut
-## out of it.
-func _held_at(m: ShaderMaterial, at: Vector2) -> bool:
-	var pv: Variant = m.get_shader_parameter(&"pic")
-	if not pv is Vector4:
-		return false
-	var v := pv as Vector4
-	var a: Vector2 = m.get_shader_parameter(&"from_pt")
-	var b: Vector2 = m.get_shader_parameter(&"to_pt")
-	var k: Vector2 = m.get_shader_parameter(&"scl")
-	var r := Rect2(b + (Vector2(v.x, v.y) - a) * k, Vector2(v.z, v.w) * k)
-	var fv: Variant = m.get_shader_parameter(&"feather")
-	r = r.grow(-(float(fv) if fv != null else 28.0) * clampf((1.0 - k.x) * 2.0, 0.0, 1.0))
-	if not r.has_point(at):
-		return false
-	for nm: StringName in [&"side", &"side2"]:
-		var cv: Variant = m.get_shader_parameter(nm)
-		if cv is Vector4 and (cv as Vector4).z > 0.0:
-			var c := cv as Vector4
-			if Rect2(c.x, c.y, c.z, c.w).has_point(at):
-				return false
-	return true
+## The screens' own panels sliding (`PanelSlide`, by name: none on a build
+## without it).
+var _ps: Script = load("res://scripts/ui/PanelSlide.gd") if ResourceLoader.exists("res://scripts/ui/PanelSlide.gd") else null
+
+
+func _panel_slides() -> Array:
+	return (_ps.get("live") as Array) if _ps != null else []
+
+
+## A PANEL MOVING, DRAWN: the screen's own control, opaque (it and its screen),
+## with words on it -- some label or button with text, shown. Returns what is
+## wrong ("" when it is drawn).
+func _panel_blank(ps: Object) -> String:
+	var t: Control = ps.get("target")
+	if t == null or not is_instance_valid(t):
+		return "gone"
+	if not t.is_visible_in_tree():
+		return "hidden"
+	var a := 1.0
+	var n: Node = t
+	while n != null and n != Router.content:
+		if n is CanvasItem:
+			a *= (n as CanvasItem).modulate.a
+		n = n.get_parent()
+	if a < 0.99:
+		return "faded to %.2f" % a
+	var words := 0
+	var stack: Array = [t]
+	while not stack.is_empty():
+		var c: Node = stack.pop_back()
+		if c is CanvasItem and not (c as CanvasItem).visible:
+			continue
+		if (c is Label and (c as Label).text.strip_edges() != "" and (c as Label).modulate.a > 0.9) \
+				or (c is Button and (c as Button).text.strip_edges() != "" and (c as Button).modulate.a > 0.9) \
+				or (c is RichTextLabel and (c as RichTextLabel).get_parsed_text().strip_edges() != ""):
+			words += 1
+		for k: Node in c.get_children():
+			stack.append(k)
+	if words == 0:
+		return "no words on it"
+	return ""
 
 
 ## A side panel or toolbar piece of the ladder's up this frame: a column or a
@@ -174,6 +167,9 @@ func _side_chrome_up() -> bool:
 			return true
 	for sw: Variant in SideSwap.live:
 		if is_instance_valid(sw) and (sw as CanvasItem).is_visible_in_tree():
+			return true
+	for ps: Variant in _panel_slides():
+		if is_instance_valid(ps) and not bool(ps.get("done")):
 			return true
 	return false
 
@@ -219,6 +215,9 @@ func _chrome_state() -> Dictionary:
 	for b: Variant in SideBand.live:
 		if is_instance_valid(b):
 			out[(b as Object).get_instance_id()] = "%.1f" % (b as Control).size.y
+	for ps: Variant in _panel_slides():
+		if is_instance_valid(ps):
+			out[(ps as Object).get_instance_id()] = "%.3f" % float(ps.get("k"))
 	var cur := Router.current
 	for c: Variant in [ZoomLadder.side_of(cur), ZoomLadder.bar_of(cur)]:
 		if c != null and is_instance_valid(c) and (c as Control).is_visible_in_tree():
@@ -310,9 +309,16 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 	# frames any side panel or toolbar piece (a column, a band, a decode) was up
 	var cam_first := -1
 	var cam_last := -1
-	# (frames the side panel's place showed as an empty dark box)
-	var dark_box := 0
+	# ONE FIELD: as it stood before the hop, and the frames it was not that
+	var field0: Variant = Router.get("field")
+	var field_v0: int = int((field0 as Object).get("version")) if field0 != null else -1
+	var field_bad := 0
+	var field_why := ""
+	# THE PANELS DRAWN AS THEY MOVE: frames one moved, frames one moved blank
 	var local_hop := from == ZoomLadder.LOCAL or want == ZoomLadder.LOCAL
+	var panel_moving := 0
+	var panel_blank := 0
+	var blank_why := ""
 	var panel_first := -1
 	var panel_last := -1
 	var bad: Array = []
@@ -406,12 +412,20 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 			if panel_first < 0:
 				panel_first = frames
 			panel_last = frames
-		if local_hop:
-			var bare := _strip_bare()
-			if bare != "":
-				dark_box += 1
-				if OS.get_cmdline_user_args().has("debug"):
-					print("    bare %s at frame %d (%s)" % [bare, frames, String(ZoomLadder.Phase.keys()[ZoomLadder.active.phase]) if ZoomLadder.busy() else "-"])
+		var fw := _field_wrong(field0, field_v0)
+		if fw != "":
+			field_bad += 1
+			if field_why == "":
+				field_why = "%s at frame %d" % [fw, frames]
+		for psv: Variant in _panel_slides():
+			if not is_instance_valid(psv) or bool(psv.get("done")):
+				continue
+			panel_moving += 1
+			var why := _panel_blank(psv)
+			if why != "":
+				panel_blank += 1
+				if blank_why == "":
+					blank_why = "%s %s at frame %d" % [psv.get("kind"), why, frames]
 		# A PRESS MID-MOVE
 		if not press.is_empty() and not press_done and frames >= int(float(press[1]) * target * 60.0):
 			press_done = true
@@ -474,8 +488,11 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 		_ok("%s: and never turning back along it (%.1f px back at most)" % [label, back], back <= BACK_PX)
 	_ok("%s: and never under the side bar (%d frames)" % [label, under_side], under_side == 0)
 	_ok("%s: the side bar, the toolbar, the column and the band still while the camera moves (%d frames moving)" % [label, chrome_moved], chrome_moved <= 1)
+	_ok("%s: one field under it all -- the same layer, on, under the screens, never faded or redrawn (%d frames not%s)" % [label, field_bad, "" if field_why == "" else ": " + field_why], field_bad == 0)
 	if local_hop:
-		_ok("%s: where the side panel goes is never an empty dark box -- the panel, a piece of it sliding, a decode, or stars (%d frames bare)" % [label, dark_box], dark_box == 0)
+		_ok("%s: the side panel and toolbar drawn on every frame they move, never an empty plate (%d of %d frames blank%s)" % [label, panel_blank, panel_moving, "" if blank_why == "" else ": " + blank_why], panel_blank == 0)
+		if press.is_empty():
+			_ok("%s: and they do move, the screen's own (%d frames)" % [label, panel_moving], panel_moving > 0)
 	if press.is_empty() and from == ZoomLadder.LOCAL and want != ZoomLadder.LOCAL:
 		_ok("%s: the side panel comes in only after the camera has landed (camera to frame %d, panel from %d)" % [label, cam_last, panel_first],
 			cam_last >= 0 and panel_first > cam_last)

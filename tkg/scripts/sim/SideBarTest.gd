@@ -111,7 +111,11 @@ var _cs: Script = load("res://scripts/ui/ChromeSlide.gd") if ResourceLoader.exis
 var _bar_h: float = float((load("res://scripts/ui/StarchartScreen.gd") as Script).get_script_constant_map().get("BAR_H", 17))
 
 
-## The chrome on the move this frame (`ChromeSlide`): [kind, its rect now].
+## The chrome on the move this frame (`ChromeSlide`; on the field, the screen's
+## own panel drawn as it slides, `PanelSlide`): [kind, its rect now].
+var _ps: Script = load("res://scripts/ui/PanelSlide.gd") if ResourceLoader.exists("res://scripts/ui/PanelSlide.gd") else null
+
+
 func _slides() -> Array:
 	var out: Array = []
 	if _cs != null:
@@ -119,7 +123,33 @@ func _slides() -> Array:
 			if is_instance_valid(pc) and (pc as CanvasItem).is_visible_in_tree():
 				var r: Rect2 = pc.call(&"at")
 				out.append([StringName(pc.get("kind")), r.intersection(Router.content.get_global_rect())])
+	if _ps != null:
+		for pc: Variant in _ps.get("live"):
+			if is_instance_valid(pc) and not bool(pc.get("done")):
+				var r2: Rect2 = pc.call(&"at")
+				out.append([StringName(pc.get("kind")), r2.intersection(Router.content.get_global_rect())])
 	return out
+
+
+## THE CALM MOVE'S COVERS (the map and the chart): the side bar and toolbar as the
+## held picture had them, standing where they stood until the decode -- what is
+## seen over their rects while the screen arriving fades up under them.
+func _covers() -> Array:
+	var out: Array = []
+	if ZoomLadder.busy():
+		var cv: Variant = ZoomLadder.active.get("_calm_covers")
+		if cv is Array:
+			for c: Variant in cv:
+				if is_instance_valid(c) and (c as CanvasItem).is_visible_in_tree():
+					out.append((c as Control).get_global_rect())
+	return out
+
+
+func _covered(r: Rect2) -> bool:
+	for c: Rect2 in _covers():
+		if c.grow(1.0).encloses(r.grow(-2.0)):
+			return true
+	return false
 
 
 ## Where the scene's picture ends on the right this frame, viewport x: where
@@ -133,7 +163,7 @@ func _side_edge() -> float:
 		if sl[0] == &"side" and (sl[1] as Rect2).has_area():
 			e = minf(e, (sl[1] as Rect2).position.x)
 	var sd := _side_of(Router.current)
-	if sd != null and _eff(sd) > 0.5:
+	if sd != null and (_eff(sd) > 0.5 or _covered(sd.get_global_rect())):
 		e = minf(e, sd.get_global_rect().position.x - 5.0)
 	var sw := _swap_now()
 	if sw != null:
@@ -145,7 +175,7 @@ func _bands() -> Array:
 	var out: Array = []
 	var c := Router.content.get_global_rect()
 	var b := _bar_of(Router.current)
-	if b != null and _eff(b) > 0.5:
+	if b != null and (_eff(b) > 0.5 or _covered(b.get_global_rect())):
 		out.append(Rect2(c.position.x, b.get_global_rect().position.y, c.size.x, _bar_h + 4))
 	for sl: Array in _slides():
 		if sl[0] == &"band" and (sl[1] as Rect2).has_area():
@@ -207,6 +237,8 @@ func _measure_region(side: Control, sw: Object, kind: StringName = &"") -> Array
 		return []
 	if sw == null:
 		var whole := _eff(side)
+		if side != null and is_instance_valid(side) and side.is_visible_in_tree() and _covered(side.get_global_rect()):
+			whole = 1.0
 		for sl: Array in _slides():
 			if sl[0] == kind and (sl[1] as Rect2).has_area():
 				whole = 1.0
@@ -551,7 +583,10 @@ func _click_moving_chrome() -> void:
 	var pc: Object = null
 	for i in 400:
 		await _tree.process_frame
-		for p: Variant in _cs.get("live"):
+		var pieces: Array = (_cs.get("live") as Array).duplicate()
+		if _ps != null:
+			pieces.append_array(_ps.get("live") as Array)
+		for p: Variant in pieces:
 			if is_instance_valid(p) and StringName(p.get("kind")) == &"side" and float(p.get("k")) < 0.8 and float(p.get("k")) > 0.2:
 				pc = p
 		if pc != null:

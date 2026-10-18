@@ -25,13 +25,40 @@ uniform float feather = 28.0;
 // chrome is drawn over them, so the held picture leaves them alone
 uniform vec4 side = vec4(0.0);
 uniform vec4 side2 = vec4(0.0);
+// THE FIELD KEYED OUT (`NavField`; Jon, Oct 18: one space under all three
+// screens, the swap carrying what is in front of it): the field's picture as it
+// stood when the picture was held, on the window's 2x2 blocks; a texel of the
+// held picture within `key_tol` of the field under it is the field itself, so
+// it is left out -- the stars stay where they are while the things in front
+// move. Off (`field_on` false): the picture whole, as before.
+uniform sampler2D field_tex : filter_nearest;
+uniform bool field_on = false;
+uniform float key_tol = 0.03;
 
-// sharp bilinear: whole texels, blended only across their own edges
+// a texel of the held picture, premultiplied, keyed against the field
+vec4 held_texel(vec2 t) {
+	vec2 tc = clamp(t, vec2(0.0), vp - 1.0);
+	vec4 h = texelFetch(old_lin, ivec2(tc), 0);
+	if (field_on) {
+		vec3 f = texture(field_tex, (tc + 0.5) / vp).rgb;
+		vec3 d = abs(h.rgb - f);
+		if (max(d.r, max(d.g, d.b)) <= key_tol) {
+			h.a = 0.0;
+		}
+	}
+	return vec4(h.rgb * h.a, h.a);
+}
+
+// sharp bilinear: whole texels, blended only across their own edges (by hand,
+// so each texel is keyed before it is blended); premultiplied
 vec4 old_at(vec2 q) {
 	vec2 w = max(fwidth(q), vec2(0.0001));
 	vec2 f = fract(q - 0.5);
 	vec2 g = clamp((f - 0.5) / min(w, vec2(1.0)) + 0.5, 0.0, 1.0);
-	return texture(old_lin, (floor(q - 0.5) + 0.5 + g) / vp);
+	vec2 b = floor(q - 0.5);
+	vec4 a0 = mix(held_texel(b), held_texel(b + vec2(1.0, 0.0)), g.x);
+	vec4 a1 = mix(held_texel(b + vec2(0.0, 1.0)), held_texel(b + vec2(1.0, 1.0)), g.x);
+	return mix(a0, a1, g.y);
 }
 
 // minified smoothly (a 2x2 box) when it shrinks, so no rows drop out
@@ -65,5 +92,6 @@ void fragment() {
 	if (side2.z > 0.0 && in_rect(p, side2)) {
 		a = 0.0;
 	}
-	COLOR = a > 0.0 ? vec4(old_pic(q).rgb, a) : vec4(0.0);
+	vec4 h = a > 0.0 ? old_pic(q) : vec4(0.0);
+	COLOR = h.a > 0.0001 ? vec4(h.rgb / h.a, a * h.a) : vec4(0.0);
 }

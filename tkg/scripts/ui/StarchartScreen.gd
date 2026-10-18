@@ -212,6 +212,10 @@ func _build() -> void:
 	_chart.cleared.connect(_on_chart_cleared)
 	_chart.view_dragged.connect(_on_view_dragged)
 	var chart_wrap := Widgets.panel_with(_chart)
+	if NavField.used() and not ChartLegacy.wanted():
+		_chart.on_field = true
+		chart_wrap.add_theme_stylebox_override("panel", NavField.window_style())
+	_frame_wrap = chart_wrap
 	chart_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mid.add_child(chart_wrap)
 
@@ -1354,9 +1358,15 @@ var _strip_row: Control = null
 var _key_row: Control = null
 
 
+## the chart's frame (on the field, its line alone): UI, gone with the rest
+var _frame_wrap: Control = null
+
+
 func ladder_chrome(k: float) -> void:
 	for c: CanvasItem in [_key_row, _region_btn, _reach_btn, _sight_btn]:
 		ZoomLadder.fade_chrome(c, k)
+	if _frame_wrap != null and is_instance_valid(_frame_wrap):
+		_frame_wrap.self_modulate.a = 1.0 - clampf(k, 0.0, 1.0)
 	if _chart != null:
 		_chart.ui_a = 1.0 - k
 		_chart.queue_redraw()
@@ -2192,6 +2202,13 @@ class MapChart extends Control:
 	## The sky, behind everything the chart draws itself (`ChartSky`), and the
 	## flashes over it.
 	var _sky: ChartSky
+	## ON THE FIELD (`NavField`, the star chart's): the sky's own far stars off and
+	## its empty sky keyed away, so the field's stars are the chart's
+	var on_field := false:
+		set(v):
+			on_field = v
+			if _sky != null:
+				_sky.material = NavField.key_material() if v else null
 	var _flash: Flashes
 	## Screen positions are pure functions of the node and the transform, and
 	## they are wanted for every system on every redraw AND on every mouse

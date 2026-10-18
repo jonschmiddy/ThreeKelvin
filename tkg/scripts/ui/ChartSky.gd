@@ -1658,7 +1658,7 @@ func _feed_view(m: ShaderMaterial, _g: Dictionary, vsz: Vector2, origin: Vector2
 func _feed_sky(m: ShaderMaterial) -> void:
 	m.set_shader_parameter("u_skyPan", chart.sky_pan.round())
 	m.set_shader_parameter("u_skySeed", float(posmod(Run.galaxy_seed, 997)))
-	if "bgoff" in OS.get_cmdline_user_args():
+	if "bgoff" in OS.get_cmdline_user_args() or (chart != null and bool(chart.get("on_field"))):
 		m.set_shader_parameter("u_bgOn", 0.0)
 
 

@@ -2250,6 +2250,12 @@ const PREBUILT_A := 0.008
 static var prebuilt: Control = null
 
 
+## The screen built ahead for the move under way (`NavField` feeds on its LOCAL
+## sky), or null.
+static func prebuilt_screen() -> Control:
+	return prebuilt if prebuilt != null and is_instance_valid(prebuilt) else null
+
+
 ## The map (or the chart) built ahead, if it is the kind asked for and ready;
 ## the Router takes it.
 static func take_prebuilt(kind: int) -> Control:
@@ -2439,7 +2445,6 @@ func _end() -> void:
 ## The station and the jump's departure keep their own moves.
 
 const CALM_SHADER := preload("res://shaders/calm_ladder.gdshader")
-const CALM_STARS := preload("res://shaders/calm_stars.gdshader")
 ## How much bigger the nearer screen draws the same thing, by the two distances
 ## a hop joins (what the camera's zoom crosses: the held picture shrinks by this
 ## much going out, the arriving one grows from it going in)
@@ -2478,10 +2483,9 @@ var _calm_q: Callable
 ## the side bar and toolbar of the screen being left, as the held picture has
 ## them, standing still over their places until the camera lands
 var _calm_covers: Array = []
-## THE STARS WHERE THE SIDE PANEL GOES (Jon, Oct 17, "A · Stars fill it": not
-## the dark box the panel left): open space over the screen's own ground beside
-## its picture, while a hop to or from LOCAL has the panel and toolbar away
-var _calm_stars: ColorRect = null
+## THE FIELD UNDER THE MOVE (`NavField`), as it stood when the picture was held:
+## what is keyed out of the held picture (`calm_ladder.gdshader`)
+var _calm_field: Texture2D = null
 ## (for the harness) what the move has done: [what, seconds into its phase]
 var calm_log: Array = []
 
@@ -2534,7 +2538,8 @@ static func calm_length(a: int, b: int) -> float:
 	if b == LOCAL:
 		t = maxf(CALM_OUT_S, CALM_SLIDE_S) + CALM_CAM_S + CALM_IN_S
 	elif a == LOCAL:
-		t = CALM_OUT_S + CALM_CAM_S + CALM_SLIDE_S + maxf(CALM_IN_S, CALM_DECODE_S)
+		# (the side panel and toolbar slide on drawn: nothing left to decode)
+		t = CALM_OUT_S + CALM_CAM_S + CALM_SLIDE_S + CALM_IN_S
 	else:
 		t = CALM_OUT_S + CALM_CAM_S + maxf(CALM_IN_S, CALM_DECODE_S)
 	# (and the frames between: the camera sets off the frame after the chrome
@@ -2662,9 +2667,7 @@ func _process_calm(delta: float) -> void:
 				# leaving with them, all before the camera moves
 				_calm_next(Phase.C_SLIDE)
 				_calm_t = dt
-				_chrome_off(_calm_grab(), old)
-				_hide_chrome(old)
-				_calm_stars_on(old, _calm_p0)
+				_panels_slide(old, false)
 				_process_slide_off()
 				return
 			_chrome(old, _ease(_calm_t / maxf(CALM_OUT_S, 0.001)))
@@ -2693,15 +2696,13 @@ func _process_calm(delta: float) -> void:
 ## screen's UI leaving over the first of it; gone whole before the camera moves.
 func _process_slide_off() -> void:
 	_chrome(old, _ease(_calm_t / maxf(CALM_OUT_S, 0.001)))
-	# (the stars come up as the UI round the picture goes: under the panel
-	# sliding off, they are what it uncovers)
-	_calm_stars_set(_calm_p0, _calm_p0, 1.0, _ease(_calm_t / maxf(CALM_OUT_S, 0.001)), old)
 	var q := clampf(_calm_t / maxf(CALM_SLIDE_S, 0.001), 0.0, 1.0)
 	_drive_slide(q, false)
 	if q >= 1.0 and _calm_t >= CALM_OUT_S:
+		# (the panels stay away, on the screen about to go)
 		for pc: Variant in slides:
 			if is_instance_valid(pc):
-				(pc as ChromeSlide).finish()
+				pc.call(&"finish")
 		slides.clear()
 		_chrome(old, 1.0)
 		# (gone on this frame; the camera from the next)
@@ -2775,11 +2776,6 @@ func _calm_cam() -> void:
 	var p := _calm_p(e)
 	if _calm_new_begun:
 		new.call(&"calm_at", p, exp(_calm_L * (e - 1.0)))
-	# (the stars from the swap on, before the screen arriving has its camera too:
-	# a hurried move shrinks the held picture off them at once. Their plane's
-	# origin is any fixed point -- they scale about your ship either way)
-	if _calm_stars != null:
-		_calm_stars_set(p, _calm_ph, exp(_calm_L * (e - 1.0)), 1.0, new)
 	_mat.set_shader_parameter(&"to_pt", p)
 	_mat.set_shader_parameter(&"scl", Vector2.ONE * exp(_calm_L * (e - _calm_e_h)))
 	_calm_fade()
@@ -2797,6 +2793,11 @@ func _calm_fade() -> void:
 		_calm_a = 1.0 - _ease(clampf(_calm_diss / d, 0.0, 1.0))
 	_mat.set_shader_parameter(&"alpha", _calm_a)
 	_rect.visible = _calm_a > 0.0
+	# THE SCREEN ARRIVING COMES UP AS THE ONE LEFT GOES, over the field: each is
+	# the things in front of the same stars (LOCAL's sky over them is its own
+	# far sky, the field's own; its cloud and its worlds come with it)
+	if is_instance_valid(new) and _calm_e_h >= 0.0:
+		new.modulate.a = 1.0 - _calm_a
 
 
 ## THE SCREENS CHANGE HANDS: the Router's own door, which builds (or takes) the
@@ -2851,14 +2852,25 @@ func _calm_hold(n: Control) -> void:
 	_mat.set_shader_parameter(&"alpha", 1.0)
 	_mat.set_shader_parameter(&"side", Vector4.ZERO)
 	_mat.set_shader_parameter(&"side2", Vector4.ZERO)
+	# THE FIELD KEYED OUT of the picture held: it stays, the things in front go
+	_calm_field = null
+	var fld: NavField = Router.field
+	if fld != null and is_instance_valid(fld) and fld.visible and fld.picture() != null:
+		var fi := fld.picture().get_image()
+		if fi != null and not fi.is_empty():
+			_calm_field = ImageTexture.create_from_image(fi)
+	_mat.set_shader_parameter(&"field_on", _calm_field != null)
+	if _calm_field != null:
+		_mat.set_shader_parameter(&"field_tex", _calm_field)
+	# (the screen arriving unseen until the held one starts to go)
+	n.modulate.a = 0.0
 	_calm_a = 1.0
 	_rect.visible = true
 	# (the swap's own page sound was the click's: `_calm_preroll`)
 	Audio.suppress(&"ui_tab", 200)
-	# THE CHROME STANDS STILL THROUGH THE MOVE (into LOCAL it went before it,
-	# and the stars it uncovered are in the picture held)
+	# THE CHROME STANDS STILL THROUGH THE MOVE (into LOCAL it went before it)
 	if r_old != LOCAL and r_new == LOCAL:
-		_calm_stars_off()
+		pass
 	elif r_old != LOCAL and r_new != LOCAL:
 		# the map and the chart: the old side bar and toolbar held whole, to decode
 		# into the new ones once landed
@@ -2874,52 +2886,9 @@ func _calm_hold(n: Control) -> void:
 				(sw as SideSwap).rate = _calm_rate
 	else:
 		# out of LOCAL: the arriving screen's side bar and toolbar kept out of
-		# sight until the camera has landed and the column and band are on, and
-		# stars where they stand, carried with the move
+		# sight until the camera has landed, the field where they stand
 		_hide_chrome.call_deferred(n)
-		_calm_stars_on(n, _calm_ph)
 	calm_log.append(["swap", _calm_t])
-
-
-## The stars up over the content area but `s`'s picture, under the held one.
-func _calm_stars_on(s: Control, at: Vector2) -> void:
-	_calm_stars_off()
-	_fit()
-	var r := ColorRect.new()
-	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	r.color = Color.WHITE
-	var m := ShaderMaterial.new()
-	m.shader = CALM_STARS
-	r.material = m
-	add_child(r)
-	move_child(r, _rect.get_index())
-	r.position = Vector2.ZERO
-	r.size = size
-	var c := _content_rect()
-	m.set_shader_parameter(&"rect_pos", c.position)
-	m.set_shader_parameter(&"rect_size", c.size)
-	m.set_shader_parameter(&"alpha", 0.0)
-	_calm_stars = r
-	_calm_stars_set(at, at, 1.0, 0.0, s)
-
-
-func _calm_stars_set(anchor: Vector2, rest: Vector2, s: float, a: float, by: Control) -> void:
-	if _calm_stars == null or not is_instance_valid(_calm_stars):
-		return
-	var m := _calm_stars.material as ShaderMaterial
-	m.set_shader_parameter(&"anchor", anchor)
-	m.set_shader_parameter(&"rest", rest)
-	m.set_shader_parameter(&"scl", s)
-	m.set_shader_parameter(&"alpha", a)
-	if by != null and is_instance_valid(by) and bool(by.call(&"ladder_ready")):
-		var pic: Rect2 = by.call(&"ladder_picture")
-		m.set_shader_parameter(&"hole", Vector4(pic.position.x, pic.position.y, pic.size.x, pic.size.y))
-
-
-func _calm_stars_off() -> void:
-	if _calm_stars != null and is_instance_valid(_calm_stars):
-		_calm_stars.queue_free()
-	_calm_stars = null
 
 
 ## A piece of the held picture, standing where it stood (viewport px).
@@ -2957,9 +2926,10 @@ func _calm_land() -> void:
 	if r_old == LOCAL and r_new != LOCAL:
 		# OUT OF LOCAL, the camera still: the column and band come on, then the
 		# side bar and toolbar decode onto them
+		# (the panels slide on once the screen left has gone whole: a hurried
+		# crossfade runs on past the landing, and a panel half seen is half blank)
 		_calm_next(Phase.C_POST)
-		_chrome_on()
-		_drive_slide(0.0, true)
+		_calm_post()
 		return
 	_calm_next(Phase.C_IN)
 	if chain == &"station" and r_new == LOCAL:
@@ -2972,58 +2942,28 @@ func _calm_land() -> void:
 			(sw as SideSwap).rate = _calm_rate
 
 
-## Out of LOCAL, the column and band on: the side bar and toolbar decode in on
-## them (the column standing until the decode is drawing, the band until the
-## toolbar's is), the arriving UI coming with them.
-func _calm_decode_on() -> void:
-	# (the column and band are on: the stars keep only the strip under the
-	# picture, where the key comes back, and go as it does -- `_calm_in`)
-	if _calm_stars != null and is_instance_valid(_calm_stars):
-		var c := _content_rect()
-		var pic: Rect2 = new.call(&"ladder_picture")
-		var keep := Rect2(c.position.x, pic.end.y, _side_rest().position.x - 5.0 - c.position.x, c.end.y - pic.end.y)
-		_calm_stars.position = keep.position - global_position
-		_calm_stars.size = keep.size
-		var m := _calm_stars.material as ShaderMaterial
-		m.set_shader_parameter(&"rect_pos", keep.position)
-		m.set_shader_parameter(&"rect_size", keep.size)
-	# (what it decodes from is the empty column as it stands now, landed)
-	_tex = _calm_grab()
-	_show_chrome()
-	side_swap = _region_swap(null, side_of(new), &"side", CALM_DECODE_S, false)
-	bar_swap = _region_swap(null, bar_of(new), &"side2", CALM_DECODE_S, true)
-	if bar_swap != null:
-		bar_swap.banded = true
-		bar_swap.held = Callable()
-	if side_swap != null:
-		side_swap.held = func() -> float: return 1.0
-	for sw: Variant in [side_swap, bar_swap]:
-		if sw != null:
-			(sw as SideSwap).target_s = CALM_DECODE_S
-			(sw as SideSwap).rate = _calm_rate
-	for pc: Variant in slides:
-		if is_instance_valid(pc) and side_swap != null:
-			var wp: WeakRef = weakref(pc)
-			side_swap.laid.connect(func(_r: Rect2) -> void:
-				var o: Variant = wp.get_ref()
-				if o != null:
-					(o as ChromeSlide).finish())
-		elif is_instance_valid(pc):
-			(pc as ChromeSlide).finish()
-	if band != null and is_instance_valid(band):
-		var wb: WeakRef = weakref(band)
-		band.driven = false
-		band._u = 1.0
-		if bar_swap != null:
-			bar_swap.laid.connect(func(_r: Rect2) -> void:
-				var o: Variant = wb.get_ref()
-				if o != null:
-					(o as SideBand).finish())
-			move_child(band, bar_swap.get_index() - 1)
-		else:
-			band.finish()
-	slides.clear()
-	_slide_way = &"done"
+## THE PANELS, DRAWN, SLIDING (Jon, Oct 18: "the panels should be drawn in as
+## they are coming into the frame, they come in blank now"): the screen's own
+## side bar off to the right and its toolbar row up, everything on them drawn the
+## whole way (`PanelSlide`), on (out of LOCAL, `s` the screen arrived, after the
+## camera) or off (into LOCAL, `s` the screen being left, before it).
+func _panels_slide(s: Control, on: bool) -> void:
+	_slide_way = &"on" if on else &"off"
+	var c := _content_rect()
+	var sd := side_of(s)
+	if sd != null and is_instance_valid(sd) and sd.size.x > 2.0:
+		var ps := PanelSlide.new()
+		add_child(ps)
+		var r := sd.get_global_rect()
+		ps.setup(sd, &"side", Vector2(c.end.x - r.position.x + 2.0, 0.0), 0.0 if on else 1.0, s)
+		slides.append(ps)
+	var br := bar_of(s)
+	if br != null and is_instance_valid(br) and br.size.y > 2.0:
+		var pb := PanelSlide.new()
+		add_child(pb)
+		var r2 := br.get_global_rect()
+		pb.setup(br, &"band", Vector2(0.0, -(r2.end.y - c.position.y + 2.0)), 0.0 if on else 1.0, s)
+		slides.append(pb)
 
 
 ## The side column and the band at `q` (0 to 1) of their slide, on (out of
@@ -3033,22 +2973,33 @@ func _drive_slide(q: float, on: bool) -> void:
 	var k := c if on else 1.0 - c
 	for p: Variant in slides:
 		if is_instance_valid(p):
-			(p as ChromeSlide).set_k(k)
+			p.call(&"set_k", k)
 	if band != null and is_instance_valid(band) and band.driven:
 		band.drive(k)
 
 
-## Out of LOCAL, landed: the column and band slide on, then the decode.
+## Out of LOCAL, landed: the side panel and toolbar slide on, drawn, then the UI.
 func _calm_post() -> void:
 	if not is_instance_valid(new) or Router.current != new:
 		_calm_end()
 		return
 	_chrome(new, 1.0)
+	if _slide_way != &"on":
+		if _rect.visible:
+			_calm_t = 0.0
+			return
+		_show_chrome()
+		_panels_slide(new, true)
+		_calm_t = 0.0
 	var q := clampf(_calm_t / maxf(CALM_SLIDE_S, 0.001), 0.0, 1.0)
 	_drive_slide(q, true)
 	if q >= 1.0:
+		for pc: Variant in slides:
+			if is_instance_valid(pc):
+				pc.call(&"finish")
+		slides.clear()
+		_slide_way = &"done"
 		_calm_next(Phase.C_IN)
-		_calm_decode_on()
 
 
 func _calm_in() -> void:
@@ -3056,8 +3007,6 @@ func _calm_in() -> void:
 		_calm_end()
 		return
 	_chrome(new, 1.0 - _ease(_calm_t / maxf(CALM_IN_S, 0.001)))
-	if _calm_stars != null and is_instance_valid(_calm_stars):
-		(_calm_stars.material as ShaderMaterial).set_shader_parameter(&"alpha", 1.0 - _ease(_calm_t / maxf(CALM_IN_S, 0.001)))
 	if _calm_t >= CALM_IN_S:
 		_calm_end()
 
@@ -3069,8 +3018,9 @@ func hurry() -> void:
 		return
 	_calm_hurried = true
 	var left := 0.0
-	var after := CALM_IN_S if r_new == LOCAL else maxf(CALM_IN_S, CALM_DECODE_S) \
-		+ (CALM_SLIDE_S if r_old == LOCAL else 0.0)
+	var after := CALM_IN_S if (r_new == LOCAL or r_old == LOCAL) else maxf(CALM_IN_S, CALM_DECODE_S)
+	if r_old == LOCAL:
+		after += CALM_SLIDE_S
 	match phase:
 		Phase.C_OUT:
 			left = CALM_OUT_S - _calm_t + CALM_CAM_S + after
@@ -3081,9 +3031,9 @@ func hurry() -> void:
 		Phase.C_CAM:
 			left = CALM_CAM_S - _calm_t + after
 		Phase.C_POST:
-			left = CALM_SLIDE_S - _calm_t + maxf(CALM_IN_S, CALM_DECODE_S)
+			left = CALM_SLIDE_S - _calm_t + CALM_IN_S
 		Phase.C_IN:
-			left = (CALM_IN_S if r_new == LOCAL else maxf(CALM_IN_S, CALM_DECODE_S)) - _calm_t
+			left = (CALM_IN_S if (r_new == LOCAL or r_old == LOCAL) else maxf(CALM_IN_S, CALM_DECODE_S)) - _calm_t
 	_calm_rate = maxf(1.0, left / CALM_HURRY_S)
 	for sw: Variant in [side_swap, bar_swap]:
 		if sw != null and is_instance_valid(sw):
@@ -3104,6 +3054,9 @@ func _calm_eats(e: InputEvent) -> bool:
 	var p := (e as InputEventMouseButton).position
 	for pc: Variant in ChromeSlide.live:
 		if is_instance_valid(pc) and (pc as ChromeSlide).at().intersection((pc as ChromeSlide).clip).has_point(p):
+			return true
+	for pc: Variant in PanelSlide.live:
+		if is_instance_valid(pc) and (pc as PanelSlide).at().intersection(_content_rect()).has_point(p):
 			return true
 	if phase == Phase.C_IN or phase == Phase.C_POST:
 		for sw: Variant in [side_swap, bar_swap]:
@@ -3137,8 +3090,12 @@ func _calm_finish_now() -> void:
 	_calm_uncover()
 	for p: Variant in slides:
 		if is_instance_valid(p):
-			(p as ChromeSlide).finish()
+			if p is PanelSlide:
+				(p as PanelSlide).set_k(1.0)
+			p.call(&"finish")
 	slides.clear()
+	if is_instance_valid(new):
+		new.modulate.a = 1.0
 	for sw: Variant in [side_swap, bar_swap]:
 		if sw != null and is_instance_valid(sw):
 			(sw as SideSwap).finish()
@@ -3154,7 +3111,8 @@ func _calm_end() -> void:
 	if not _calm:
 		return
 	_calm = false
-	_calm_stars_off()
+	if is_instance_valid(new):
+		new.modulate.a = 1.0
 	if _calm_e_h < 0.0:
 		drop_prebuilt()
 		if is_instance_valid(old) and Router.current == old:
@@ -3163,7 +3121,9 @@ func _calm_end() -> void:
 			_chrome(old, 0.0)
 			for p: Variant in slides:
 				if is_instance_valid(p):
-					(p as ChromeSlide).finish()
+					if p is PanelSlide:
+						(p as PanelSlide).set_k(1.0)
+					p.call(&"finish")
 			slides.clear()
 			if band != null and is_instance_valid(band):
 				band.finish()

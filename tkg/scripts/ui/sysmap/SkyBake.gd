@@ -239,6 +239,10 @@ static func smooth_k(a: float, b: float, x: float) -> float:
 ## Bake the sky of system `index` (its seed), with a star of `kind` at
 ## (`cx`, `cy`) and its outermost orbit at `edge`. `parent` hosts the
 ## one-shot viewport. Two frames, then both pictures are ready.
+## the sky baked with no stars of its own (the sector map on `NavField`)
+var no_stars := false
+
+
 func make(parent: Node, index: int, kind: String, in_nebula: bool, edge: float, cx: float, cy: float, tilt: float, look: Dictionary = {}) -> void:
 	var R := Worlds.XRng.new(float(index) * 7919.0 + 17.0)
 	var sd := float(index) * 0.731
@@ -252,6 +256,10 @@ func make(parent: Node, index: int, kind: String, in_nebula: bool, edge: float, 
 		if _stars_kept.size() >= STARS_KEPT_MAX:
 			_stars_kept.erase(_stars_kept.keys()[0])
 		_stars_kept[skey] = [stars_tex, twinkle.duplicate(true)]
+	if no_stars:
+		# (on the field: the stars are its, the sky here its void, glow and dust)
+		var blank := Image.create(stars_tex.get_width(), stars_tex.get_height(), false, Image.FORMAT_RGBA8)
+		stars_tex = ImageTexture.create_from_image(blank)
 	await _bake_rest(parent, index, kind, in_nebula, edge, cx, cy, tilt, look, sd, stars_tex)
 
 

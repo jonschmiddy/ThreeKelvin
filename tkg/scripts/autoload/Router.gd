@@ -10,6 +10,9 @@ var combat: Combat
 ## than in a screen so that swapping screens changes what is in front of the
 ## world instead of replacing the world.
 var sky: SpaceLayer
+## THE SPACE LOCAL, THE MAP AND THE CHART ARE BUILT ON (`NavField`): one field
+## of stars under all three, kept through every move between them.
+var field: NavField
 ## Whether the ship is tied up at a station rather than flying the system.
 ##
 ## Not on Run and not a Sig signal: it is a fact about which side of the airlock
@@ -41,6 +44,9 @@ func register(content_holder: Control, hud_bar: HudBar) -> void:
 	# place outlives the thing you happen to be looking at.
 	sky = SpaceLayer.new()
 	content.add_child(sky)
+	field = NavField.new()
+	field.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	content.add_child(field)
 	Sig.jumped.connect(_on_jumped)
 	Sig.run_started.connect(_on_run_started)
 	Sig.run_ended.connect(_on_run_ended)
@@ -203,6 +209,11 @@ var animate_in_harness := false
 ## screens a sky for the first time.
 ##
 ## Everything else is somewhere in space, which is the entire point of the layer.
+## LOCAL, the sector map or the star chart: the screens built on `field`.
+static func nav_screen(s: Control) -> bool:
+	return s is SectorScreen or s is SystemMapScreen or s is StarchartScreen
+
+
 func _refresh_sky() -> void:
 	if sky == null:
 		return
@@ -212,6 +223,10 @@ func _refresh_sky() -> void:
 	sky.set_active(not interior and not has_own)
 	if Run.map.size() > 0:
 		sky.setup(Run.node_at())
+	if field != null:
+		field.set_on(nav_screen(current))
+		if Run.map.size() > 0:
+			field.setup(Run.node_at())
 
 ## The one place the run is written to disk.
 ##
