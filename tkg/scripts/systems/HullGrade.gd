@@ -791,9 +791,10 @@ static func _kit(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictionary
 # ------------------------------------------------------------------- in game
 
 ## The hull's key in art/hull_grade.json, or "" when its weight is not graded.
-## Every manufacturer flies Korvan's pictures for now (Database.hull_sprite).
+## A manufacturer with no pictures of its own flies Korvan's (DB.hull_art_dir),
+## and grades by Korvan's entry.
 static func key_for(h: HullData) -> String:
-	if h == null or not DB.graded(h.weight):
+	if h == null or not DB.graded(h.weight, h.manufacturer):
 		return ""
 	# a hull wearing another manufacturer's picture (art/sprites/hulls/<manufacturer>/)
 	# grades by that picture's entry
@@ -801,7 +802,7 @@ static func key_for(h: HullData) -> String:
 		var mf := h.sprite.resource_path.get_base_dir().get_file()
 		if mf != "korvan" and mf != "half":
 			return mf + "/" + h.sprite.resource_path.get_file().get_basename()
-	return "korvan/" + DB.hull_art_name(h.weight, h.tier)
+	return DB.hull_art_dir(h.manufacturer) + "/" + DB.hull_art_name(h.weight, h.tier, h.manufacturer)
 
 static var _tex := {}
 

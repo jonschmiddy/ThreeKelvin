@@ -71,4 +71,19 @@ const HULL_LINES := {
 		ventral = [Vector2(106, 95), Vector2(119, 96), Vector2(132, 97), Vector2(146, 96), Vector2(159, 98), Vector2(172, 98), Vector2(186, 98), Vector2(199, 98), Vector2(212, 98)],
 		flank = [Vector2(106, 68), Vector2(119, 68), Vector2(132, 68), Vector2(146, 67), Vector2(159, 68), Vector2(172, 68), Vector2(186, 68), Vector2(199, 69), Vector2(212, 70)],
 	},
+	"solari/hull_heavy_a": {
+		dorsal = [Vector2(80, 57), Vector2(115, 52), Vector2(149, 51), Vector2(184, 51), Vector2(218, 51), Vector2(253, 51), Vector2(288, 51), Vector2(322, 56), Vector2(357, 61)],
+		ventral = [Vector2(80, 97), Vector2(115, 107), Vector2(149, 111), Vector2(184, 111), Vector2(218, 111), Vector2(253, 111), Vector2(288, 111), Vector2(322, 108), Vector2(357, 100)],
+		flank = [Vector2(80, 77), Vector2(115, 79), Vector2(149, 81), Vector2(184, 81), Vector2(218, 81), Vector2(253, 81), Vector2(288, 81), Vector2(322, 82), Vector2(357, 80)],
+	},
+	"solari/hull_light_a": {
+		dorsal = [Vector2(91, 38), Vector2(103, 36), Vector2(115, 30), Vector2(127, 30), Vector2(138, 30), Vector2(150, 30), Vector2(162, 30), Vector2(174, 36), Vector2(186, 39)],
+		ventral = [Vector2(91, 61), Vector2(103, 63), Vector2(115, 73), Vector2(127, 73), Vector2(138, 73), Vector2(150, 73), Vector2(162, 73), Vector2(174, 65), Vector2(186, 62)],
+		flank = [Vector2(91, 49), Vector2(103, 49), Vector2(115, 51), Vector2(127, 51), Vector2(138, 51), Vector2(150, 51), Vector2(162, 51), Vector2(174, 50), Vector2(186, 50)],
+	},
+	"solari/hull_medium_a": {
+		dorsal = [Vector2(70, 45), Vector2(98, 39), Vector2(126, 38), Vector2(153, 38), Vector2(181, 38), Vector2(209, 38), Vector2(236, 40), Vector2(264, 42), Vector2(292, 47)],
+		ventral = [Vector2(70, 78), Vector2(98, 83), Vector2(126, 88), Vector2(153, 88), Vector2(181, 88), Vector2(209, 88), Vector2(236, 88), Vector2(264, 85), Vector2(292, 79)],
+		flank = [Vector2(70, 61), Vector2(98, 61), Vector2(126, 63), Vector2(153, 63), Vector2(181, 63), Vector2(209, 63), Vector2(236, 64), Vector2(264, 63), Vector2(292, 63)],
+	},
 }

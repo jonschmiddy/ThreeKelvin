@@ -1,7 +1,7 @@
 extends Node
 
 ## A NEW RUN'S FIRST ARRIVAL, THE ENGINES AND THE HOVER:
-##   godot --headless --fixed-fps 60 --path . -- sheet=ArriveIdleTest
+##   godot --headless --fixed-fps 60 --path . -- sheet=ArriveIdleTest [manufacturer=solari] [weight=light]
 ##
 ## Jon, Oct 13, of the first sector: "your ship sputters to a stop... the
 ## engines turn OFF and then there is a hitch... the ship is highlighted and
@@ -40,7 +40,18 @@ func _run() -> void:
 	await _tree.process_frame
 	Router.animate_in_harness = true
 	Rng.forced = 4242
-	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	# `manufacturer=solari weight=light`: another chassis's arrival (its own
+	# engines); Korvan's medium by default, as the gate runs it
+	var mk := &"korvan"
+	var wt := HullData.Weight.MEDIUM
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("manufacturer="):
+			mk = StringName((a as String).substr(13))
+		elif (a as String).begins_with("weight="):
+			wt = {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM,
+				"heavy": HullData.Weight.HEAVY}.get((a as String).substr(7), HullData.Weight.MEDIUM)
+	Run.start_new_run(mk, int(wt))
+	print("arriveidletest: %s, %d engines" % [Run.hull.name, Run.hull.thrusters.size()])
 	Router.show_local()
 
 	var off := 0

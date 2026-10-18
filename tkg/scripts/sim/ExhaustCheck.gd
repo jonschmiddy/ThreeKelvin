@@ -55,7 +55,7 @@ func run(tree: SceneTree) -> void:
 			print("hull '%s' has no exhaust" % h.name)
 			bad += 1
 			continue
-		var key := DB.hull_art_name(h.weight, h.tier)
+		var key := DB.hull_art_key(h.weight, h.tier, h.manufacturer)
 		var listed := DB.HULL_EXHAUST.has(key)
 		if listed:
 			rigged += 1
@@ -83,7 +83,7 @@ func run(tree: SceneTree) -> void:
 				continue
 			var at: Vector2i = t.at
 			if not listed:
-				var want_at := DB.hull_exhaust_at(h.weight, h.tier, int(t.id))
+				var want_at := DB.hull_exhaust_at(h.weight, h.tier, int(t.id), h.manufacturer)
 				if at != want_at:
 					print("hull '%s' unrigged plume at %s, expected %s" % [h.name, at, want_at])
 					bad += 1

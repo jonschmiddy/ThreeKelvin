@@ -474,6 +474,11 @@ func _step_ship(delta: float) -> void:
 	if _pan_v.length() > 1.0:
 		_let_go_of_view()
 		view.pan += _pan_v * delta
+	# WASD FROM THE BERTH flies the ship out of it (`Router.cast_off`), or not at
+	# all where UNDOCK would refuse
+	if Router.docked and free and not _taking and (_wasd.w or _wasd.a or _wasd.s or _wasd.d) 			and not Router.cast_off():
+		for k in _wasd:
+			_wasd[k] = false
 	var keys: Dictionary = _wasd if free and not _taking else {"w": false, "a": false, "s": false, "d": false}
 	var level: float = flight.step(delta, view.t, keys)
 	flight.predict(view.t, keys)
@@ -910,6 +915,10 @@ func _go_then(body: int, then: Callable) -> void:
 	# to go to another planet"): anywhere else the panel says so and nothing flies
 	if not flight.can_fly():
 		return
+	# (from the berth: the ship leaves it, or stays if UNDOCK would refuse,
+	# `Router.cast_off`)
+	if not Router.cast_off():
+		return
 	_taking = true
 	_fly(body, func() -> void:
 		_taking = false
@@ -965,6 +974,9 @@ func _body_of_beacon(bc) -> int:
 ## stays on it and opens it there.
 func fly_to_body(i: int) -> void:
 	if _taking or not flight.can_fly():
+		return
+	# (from the berth: the ship leaves it, `Router.cast_off`)
+	if not Router.cast_off():
 		return
 	_sound(&"chart_select", 0.04, 60)
 	overlay.selected = i
