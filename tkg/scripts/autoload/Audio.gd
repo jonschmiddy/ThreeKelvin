@@ -530,6 +530,21 @@ func warm_room(name: StringName) -> void:
 		ResourceLoader.load_threaded_request(path)
 
 
+## LOOP A ROOM TONE ON ITS WHOLE LENGTH, seamlessly (this, `LabScene` and
+## `YardSound`). ONE FRAME SHORT OF THE END, AND PCM (the rooms' imports say
+## compress/mode=0). Looped at the frame count, Godot's player reads a frame past
+## the data at every lap, and the QOA the rooms were imported as also restarts
+## its decoder wrong at the wrap: rendered through `mix_audio`, amb_red's seam
+## stepped 128 times its typical sample step, amb_pulsar 112, amb_space 30, a
+## click every lap (every 7.75 s on a red star, one of them half a second before
+## A.S.H.'s fade in her film). PCM and frames - 1 measure 2 to 4.4 on all ten
+## looped rooms, which is the files' own seams. `-- sheet=AshTest` holds it.
+static func loop_whole(w: AudioStreamWAV) -> void:
+	w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	w.loop_begin = 0
+	w.loop_end = roundi(w.get_length() * float(w.mix_rate)) - 1
+
+
 func room(name: StringName, fade_s: float = ROOM_FADE) -> void:
 	if not _enabled or name == _room_now:
 		return
@@ -558,10 +573,7 @@ func room(name: StringName, fade_s: float = ROOM_FADE) -> void:
 	if stream is AudioStreamOggVorbis:
 		(stream as AudioStreamOggVorbis).loop = true
 	elif stream is AudioStreamWAV:
-		var w := stream as AudioStreamWAV
-		w.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		w.loop_begin = 0
-		w.loop_end = roundi(w.get_length() * float(w.mix_rate))
+		loop_whole(stream as AudioStreamWAV)
 	_load_pa(name)
 	if _room == null:
 		_room = AudioStreamPlayer.new()

@@ -307,6 +307,13 @@ not been made because it should be a deliberate call and not a side effect.
 
 ## Gotchas
 
+* **A looping WAV is PCM and loops a frame short.** QOA (`compress/mode=2`, the
+  importer's default) restarts its decoder wrong at a loop's wrap, and a loop
+  set at the frame count reads a frame past the data: the room tones clicked
+  every lap, 17 to 148 times their typical sample step, until both changed
+  (`Audio.loop_whole`, Oct 17). `-- sheet=AshTest` renders every room across
+  its seam.
+
 * **Encode Ogg in blocks.** libsndfile's Vorbis encoder sizes a stack buffer
   from the write length, so handing it a two-minute buffer in one call
   overflows the thread stack and segfaults inside `_preextrapolate_helper`.
