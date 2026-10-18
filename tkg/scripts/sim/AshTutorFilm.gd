@@ -83,9 +83,8 @@ func _seen_all_but(keep: Array) -> void:
 	for id in Hints.STEP_LINES:
 		if not keep.has(id):
 			Hints.mark_seen(StringName("said_" + String(id)))
-	for id in Hints.STEPS:
-		if not keep.has(id):
-			Hints.mark_seen(id)
+	# (the goal line's own steps stay pending, as on a first run: only her
+	# lines for them are marked said)
 
 
 func _system() -> MapGen.MapNode:
@@ -147,8 +146,9 @@ func _run() -> void:
 				_plant_event(n)
 			Router.show_system()
 			_f0 = Engine.get_frames_drawn()
-			await _hear(&"step_event_map")
+			# (a hint due on a screen comes before the step's line there)
 			await _hear(&"events")
+			await _hear(&"step_event_map")
 			await _wait(1.5)
 		"drawer":
 			_seen_all_but([&"drawer"])

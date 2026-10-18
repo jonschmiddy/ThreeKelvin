@@ -980,6 +980,13 @@ static func tut_avoid_rects(cur: Control) -> Array:
 	var out := avoid_rects(cur)
 	if cur == null or not is_instance_valid(cur):
 		return out
+	# THE GOAL LINE'S BAND is LOCAL's: on the chart and the map the line lives
+	# in the toolbar row (its own rect is still in the list), and the station
+	# has none, so the band under the HUD is free there
+	if not (cur is SectorScreen) and Router.hud != null:
+		var hud := Router.hud.get_global_rect()
+		var band := Rect2(hud.position.x, hud.end.y, hud.size.x, GOAL_BAND)
+		out = out.filter(func(r: Rect2) -> bool: return r != band)
 	if cur.has_method("ladder_bar"):
 		var bar: Control = cur.call("ladder_bar")
 		if bar != null and is_instance_valid(bar) and bar.is_visible_in_tree():
@@ -1071,6 +1078,11 @@ static func _map_rects(map: SystemMapScreen, out: Array) -> void:
 	var g := map._box.get_global_transform()
 	for r: Rect2 in ov.label_rects:
 		out.append(g * r)
+	# what the ship is doing, in the frame's top left (`SystemOverlay._draw`)
+	var st: Array = ov.ship_status()
+	if String(st[0]) != "":
+		var tw := UITheme.pixel_font().get_string_size(String(st[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+		out.append(g * Rect2(ov.view.window.position + Vector2(8, 4), Vector2(tw + 4, 16)))
 	var ship: Vector2 = ov._ship_at
 	out.append(g * Rect2(ship - Vector2(12, 12), Vector2(24, 24)))
 

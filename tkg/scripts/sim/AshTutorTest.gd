@@ -232,6 +232,29 @@ func _box(name: String) -> void:
 		if x.size.x > 0.0 and x.size.y > 0.0 and r.intersects(x):
 			hits.append("%s %s" % [b[0], x])
 	hits.append_array(_picture_hits(cur, r))
+	# WHY NOT THE SPOTS BEFORE IT, by this test's own list (for the record)
+	var why: Array[String] = []
+	for s: Dictionary in Ash.tut_spot_boxes(cur, r.size):
+		if s.name == Ash.said_log.back().spot:
+			break
+		var first := ""
+		if not v.grow(0.5).encloses(s.rect):
+			first = "outside the view"
+		for b: Array in _gather(cur, v):
+			if first == "" and (b[1] as Rect2).size.x > 0.0 and (s.rect as Rect2).intersects(b[1]):
+				first = String(b[0])
+		if first == "":
+			var ph := _picture_hits(cur, s.rect)
+			first = ph[0] if not ph.is_empty() else ""
+		if first == "":
+			for x: Rect2 in Ash.tut_avoid_rects(cur):
+				if first == "" and x.size.x > 0.0 and (s.rect as Rect2).intersects(x):
+					first = "her own list's %s" % x
+			if first == "":
+				first = Ash.covers(cur, s.rect)
+		why.append("%s: %s" % [s.name, first])
+	if not why.is_empty():
+		print("    (%s: not %s)" % [name, "; ".join(why)])
 	_screens[name] = "%s at %s" % [Ash.said_log.back().spot, r]
 	_ok("%s: box test at %s %s (%s)" % [name, Ash.said_log.back().spot, r,
 		"nothing under her" if hits.is_empty() else ", ".join(hits.slice(0, 4))], hits.is_empty())
@@ -289,6 +312,16 @@ func _gather(cur: Control, v: Rect2) -> Array:
 			out.append(["the cutaway's panel", cut._hold_panel.get_global_rect()])
 			for d in cut._mounts.drawn_rects():
 				out.append(["the cutaway's %s %s" % [d.kind, d.text], cut._mounts.get_global_transform() * (d.rect as Rect2)])
+	var map := cur as SystemMapScreen
+	if map != null:
+		var ov = map.overlay
+		var stt: Array = ov.ship_status()
+		if String(stt[0]) != "":
+			var tw := UITheme.pixel_font().get_string_size(String(stt[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+			out.append(["the map's ship status \"%s\"" % stt[0], map._box.get_global_transform()
+				* Rect2(ov.view.window.position + Vector2(10, 6), Vector2(tw, 12))])
+		for lr: Rect2 in ov.label_rects:
+			out.append(["a word on the map", map._box.get_global_transform() * lr])
 	var st := cur as StationScreen
 	if st != null and st._cutaway != null and st._cutaway.is_open():
 		out.append(["the cutaway's panel", st._cutaway._hold_panel.get_global_rect()])
