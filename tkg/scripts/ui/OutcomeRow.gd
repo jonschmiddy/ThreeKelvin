@@ -27,6 +27,16 @@ extends RefCounted
 ##      the signed change and the new total ("HULL -5 31"), hull, fuel,
 ##      credits, heat, then the things, a part with its cards under it. The
 ##      text on the left wraps to stay clear of it; the buttons do not move.
+##   E  D, AND WHAT YOU GOT, BIG (Jon, of D: "I like this, but there was a
+##      previous version of this where the things you get are big on the
+##      right side"). D's table over REWARD and CONTINUE stays where it is; a
+##      part or a material the event put on the pile is drawn beside it, to
+##      its left, as the hold draws it -- its plate (as big as the band holds,
+##      `BIG_KS`), the grade's ground and edge, its art -- with its name in its
+##      grade's ink, the grade and kind under it, and a part's cards. What is
+##      drawn big is not said again in the table; the rest of the table is
+##      D's. Nothing that takes a click moves: the text wraps narrower and the
+##      band grows upward if the plates stand taller than the table.
 ##   C  SHOW IT. Today's size, only what changed, each with its mark; once the
 ##      text is in, each change flies from the band to the HUD readout it moves
 ##      (the hull gauge, credits, fuel, heat; a document to ARCHIVE, a place to
@@ -43,9 +53,9 @@ extends RefCounted
 ## or a malfunction directly (malfunctions come from fights); a part's cards are
 ## the only cards an event ever offers, so a part names them.
 
-## The look up now. Jon picks; `-- sheet=OutcomeShot` photographs all four.
+## The look up now. Jon picks; `-- sheet=OutcomeShot` photographs them all.
 static var look: StringName = &"today"
-const LOOKS: Array[StringName] = [&"today", &"A", &"B", &"C", &"D"]
+const LOOKS: Array[StringName] = [&"today", &"A", &"B", &"C", &"D", &"E"]
 
 ## Every drawn outcome entry is in this group, so a test can find and box it.
 const GROUP := &"outcome_entry"
@@ -77,6 +87,7 @@ const FLICKER := [0.07, 0.06, 0.07]
 ##   good   whether it went your way; tone  its colour
 ##   big    the signed number; word  what it is; name  a thing's name
 ##   cards  a part's cards, by name
+##   item   the part or the material itself (a thing on the pile), else null
 ## Empty when nothing changed.
 static func changes(out: Dictionary) -> Array:
 	var rows: Array = []
@@ -93,7 +104,7 @@ static func changes(out: Dictionary) -> Array:
 		rows.append({key = key, kind = &"stat", n = n, was = int(r.get("was", 0)),
 			now = int(r.get("now", 0)), good = bool(r.get("good", n > 0)),
 			tone = r.get("tone", UITheme.ICE), big = "%+d" % n, word = String(WORDS[key]),
-			name = "", item_tone = UITheme.ICE, cards = []})
+			name = "", item_tone = UITheme.ICE, cards = [], item = null})
 	# THE THINGS, two of one name merged: "+2 EXOTIC TISSUE", not the line twice
 	var by := {}
 	var things: Array = []
@@ -108,7 +119,8 @@ static func changes(out: Dictionary) -> Array:
 		var e := {key = String(kind), kind = kind, n = 1 if gain else -1, was = 0, now = 0,
 			good = gain, tone = UITheme.GOOD if gain else UITheme.LEAVE,
 			big = "", word = String(THING_WORDS.get(kind, "")), name = String(g.get("name", "")),
-			item_tone = g.get("tone", UITheme.ICE), cards = g.get("cards", [])}
+			item_tone = g.get("tone", UITheme.ICE), cards = g.get("cards", []),
+			item = g.get("item", null)}
 		by[id] = e
 		things.append(e)
 	# gains before losses, and in the stats' spirit: a part first
@@ -489,10 +501,18 @@ static func fit(text: String, fs: int, w: float) -> String:
 ## D's table at its widest, game px: past this a name wraps.
 const TABLE_MAX_W := 230.0
 
-static func table(out: Dictionary) -> Control:
+## `without_big`: E's table, the things E draws big left out of it (`big_ones`);
+## null when that leaves it nothing to say.
+static func table(out: Dictionary, without_big := false) -> Control:
+	var rows := changes(out)
+	if without_big:
+		var big := big_ones(rows)
+		rows = rows.filter(func(e: Dictionary) -> bool: return not big.has(e))
+		if rows.is_empty() and not big.is_empty():
+			return null
 	var t := Table.new()
 	t.name = "OutcomeTable"
-	t.setup(changes(out))
+	t.setup(rows)
 	return t
 
 
@@ -610,6 +630,173 @@ class Table extends Control:
 				hi = maxf(hi, a + w)
 			outb.append({rect = Rect2(global_position + Vector2(x0 + lo, float(row[0])), Vector2(hi - lo, ROW - 1.0)),
 				text = String(row[3]), col = -1, cw = 0.0})
+		return outb
+
+
+# ------------------------------------------------------------------ E
+
+## How many things E draws big; past that they are rows in the table.
+const BIG_MAX := 3
+## The magnifications a plate may be drawn at, biggest first: the largest that
+## fits BIG_FULL_W x BIG_FULL_H (a two-cell part three cells wide, or two
+## tall). A one-cell part gets 3x, half again the hold's own 2x
+## (`ModuleIcon.HOLD_K`) -- the point of E is that it is big -- a 2x2 the
+## hold's size, a long rail 1x. Whole numbers only: a sprite is drawn at a
+## whole multiple or not at all (`ModuleIcon.draw_sprite`).
+const BIG_KS: Array[float] = [3.0, 2.0, 1.0]
+const BIG_FULL_W := 124.0
+const BIG_FULL_H := 82.0
+## A thing's words wrap at least this wide (or its plate's width), at most
+## BIG_TEXT_MAX.
+const BIG_TEXT_MIN := 100.0
+const BIG_TEXT_MAX := 150.0
+
+
+## The things E draws big, in the table's order: a part or a material that
+## came aboard the pile, with the thing itself to draw. At most BIG_MAX.
+static func big_ones(rows: Array) -> Array:
+	var outb: Array = []
+	for e: Dictionary in rows:
+		if outb.size() >= BIG_MAX:
+			break
+		if (e.kind == &"part" or e.kind == &"material") and int(e.n) > 0 and e.get("item") is HoldItem:
+			outb.append(e)
+	return outb
+
+
+## E's things, drawn big, in rows no wider than `max_w`, against the right
+## edge; null when the result put nothing on the pile.
+static func prizes(out: Dictionary, max_w: float) -> Control:
+	var big := big_ones(changes(out))
+	if big.is_empty():
+		return null
+	var p := Prizes.new()
+	p.name = "OutcomePrizes"
+	p.setup(big, max_w)
+	return p
+
+
+## E's plates: each thing as the hold draws it, its words under it. A row of
+## them right-aligned, wrapping under when the next would pass `max_w`, each
+## top-aligned in its row. A part is `ModuleIcon.draw_plate`; a material is a
+## `MaterialIcon` that takes no clicks -- the one door that decides between
+## its picture and its crate.
+class Prizes extends Control:
+	const GAP := 14.0
+	const ROW_GAP := 8.0
+	const UNDER := 4.0
+	const LINE := 10.0
+	## Per thing: {e, k, plate (Vector2), lines [[text, ink]], w, h, at (Vector2)}
+	var tiles: Array = []
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_to_group(OutcomeRow.GROUP)
+
+	func setup(big: Array, max_w: float) -> void:
+		var f := UITheme.pixel_font()
+		var sm := UITheme.FS_SMALL
+		tiles.clear()
+		for e: Dictionary in big:
+			var it: HoldItem = e.item
+			var k := 1.0
+			var box := Vector2.ZERO
+			for kk: float in OutcomeRow.BIG_KS:
+				k = kk
+				box = ModuleIcon.footprint_box(it, k)
+				if box.x <= OutcomeRow.BIG_FULL_W and box.y <= OutcomeRow.BIG_FULL_H:
+					break
+			var tw := clampf(box.x, OutcomeRow.BIG_TEXT_MIN, OutcomeRow.BIG_TEXT_MAX)
+			var lines: Array = []
+			var nm := String(e.name) + ("  X%d" % int(e.n) if int(e.n) > 1 else "")
+			for ln: String in OutcomeRow.wrap(nm, sm, tw):
+				lines.append([ln, e.item_tone])
+			var grade := ""
+			if it is ModuleData:
+				grade = "%s PART" % ModuleData.rarity_name((it as ModuleData).rarity).to_upper()
+			elif it is MaterialData:
+				grade = "%s MATERIAL" % ModuleData.rarity_name(UITheme.tier_rarity((it as MaterialData).tier)).to_upper()
+			lines.append([grade, UITheme.CHILL])
+			if (e.cards as Array).size() > 0:
+				for ln: String in OutcomeRow.wrap("CARDS: " + ", ".join(e.cards), sm, tw):
+					lines.append([ln, UITheme.COLD])
+			var w := box.x
+			for l: Array in lines:
+				w = maxf(w, f.get_string_size(String(l[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, sm).x)
+			tiles.append({e = e, k = k, plate = box, lines = lines, w = ceilf(w),
+				h = box.y + UNDER + LINE * lines.size(), at = Vector2.ZERO})
+		_lay(max_w)
+
+	## Rows from the right: a tile goes left of the last until the row would
+	## pass `max_w`; then a new row under it.
+	func _lay(max_w: float) -> void:
+		var rows: Array = [[]]
+		var row_w := 0.0
+		for t: Dictionary in tiles:
+			var add := float(t.w) + (GAP if not (rows[-1] as Array).is_empty() else 0.0)
+			if not (rows[-1] as Array).is_empty() and row_w + add > max_w:
+				rows.append([])
+				row_w = 0.0
+				add = float(t.w)
+			(rows[-1] as Array).append(t)
+			row_w += add
+		var widths: Array = []
+		var total_w := 0.0
+		for r: Array in rows:
+			var rw := 0.0
+			for t: Dictionary in r:
+				rw += float(t.w) + (GAP if rw > 0.0 else 0.0)
+			widths.append(rw)
+			total_w = maxf(total_w, rw)
+		var y := 0.0
+		for ri in rows.size():
+			var r: Array = rows[ri]
+			# right-aligned: the row's last tile ends on the right edge
+			var x := total_w - float(widths[ri])
+			var rh := 0.0
+			for t: Dictionary in r:
+				t.at = Vector2(roundf(x), y)
+				x += float(t.w) + GAP
+				rh = maxf(rh, float(t.h))
+			y += rh + ROW_GAP
+		custom_minimum_size = Vector2(ceilf(total_w), ceilf(maxf(0.0, y - ROW_GAP)))
+		_materials()
+		queue_redraw()
+
+	## A material is its own icon, placed on its tile, taking no clicks.
+	func _materials() -> void:
+		for c in get_children():
+			c.queue_free()
+		for t: Dictionary in tiles:
+			if t.e.item is MaterialData:
+				var mi := MaterialIcon.new()
+				mi.setup(t.e.item as MaterialData, &"reward")
+				mi.plate_scale = float(t.k)
+				mi.tooltip_text = ""
+				mi.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				mi.position = t.at
+				mi.size = t.plate
+				add_child(mi)
+
+	func _draw() -> void:
+		var f := UITheme.pixel_font()
+		var sm := UITheme.FS_SMALL
+		var base := roundf(f.get_ascent(sm))
+		for t: Dictionary in tiles:
+			var at: Vector2 = t.at
+			if t.e.item is ModuleData:
+				ModuleIcon.draw_plate(self, t.e.item as ModuleData, Rect2(at, t.plate), Vector2i.ZERO, false, float(t.k))
+			var y := at.y + (t.plate as Vector2).y + UNDER
+			for l: Array in t.lines:
+				draw_string(f, Vector2(at.x, y + base), String(l[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, sm, l[1] as Color)
+				y += LINE
+
+	## {rect, text} per thing: its plate and its words, one box.
+	func entry_boxes() -> Array:
+		var outb: Array = []
+		for t: Dictionary in tiles:
+			outb.append({rect = Rect2(global_position + (t.at as Vector2), Vector2(float(t.w), float(t.h) - 1.0)),
+				text = OutcomeRow.line_text(t.e), col = -1, cw = 0.0})
 		return outb
 
 

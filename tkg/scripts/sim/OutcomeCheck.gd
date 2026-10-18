@@ -11,7 +11,7 @@ extends RefCounted
 ## archive, diffed here. A look that drew what `OutcomeRow.changes` said would
 ## agree with itself whatever the run did.
 ##
-## THE NUMBERS: today's four pairs ("HULL -5", "CREDITS —"); A and C one entry
+## THE NUMBERS (E's as D's): today's four pairs ("HULL -5", "CREDITS —"); A and C one entry
 ## for every change and nothing else ("-5 HULL", "+1 PART: ...", no dash
 ## anywhere); B a row for every change with its totals ("HULL -5 35 > 30");
 ## NOTHING GAINED OR LOST when nothing moved.
@@ -100,7 +100,7 @@ static func check(d: LocalEventDrawer, look: StringName, want: Dictionary) -> Ar
 				var t := "%s %s" % [WORDS[k], "—" if int(s[0]) == 0 else "%+d" % int(s[0])]
 				if not texts.has(t):
 					bad.append("today: no '%s' in [%s]" % [t, said])
-		&"A", &"C", &"B", &"D":
+		&"A", &"C", &"B", &"D", &"E":
 			for k in WORDS:
 				var s: Array = want.stats[k]
 				if int(s[0]) == 0:
@@ -108,7 +108,7 @@ static func check(d: LocalEventDrawer, look: StringName, want: Dictionary) -> Ar
 				var t := "%+d %s" % [int(s[0]), WORDS[k]]
 				if look == &"B":
 					t = "%s %+d %d > %d" % [WORDS[k], int(s[0]), int(s[1]), int(s[2])]
-				elif look == &"D":
+				elif look == &"D" or look == &"E":
 					t = "%s %+d %d" % [WORDS[k], int(s[0]), int(s[2])]
 				if not texts.has(t):
 					bad.append("%s: no '%s' in [%s]" % [look, t, said])
@@ -137,28 +137,76 @@ static func check(d: LocalEventDrawer, look: StringName, want: Dictionary) -> Ar
 	bad.append_array(boxes(d, look, ents))
 	if look == &"D":
 		bad.append_array(table_place(d))
+	if look == &"E":
+		bad.append_array(prize_place(d, want, texts))
+	return bad
+
+
+## E: D's table where D has it (when E leaves it anything to say); a plate
+## for every part and material that came aboard (up to `OutcomeRow.BIG_MAX`),
+## none for anything else, each thing said once (a plate's thing is not a row
+## of the table too); the plates clear of the text and of the buttons' column
+## in the band, over that column on the card.
+static func prize_place(d: LocalEventDrawer, want: Dictionary, texts: Array) -> Array:
+	var bad: Array = []
+	var p := d.panel.find_child("OutcomePrizes", true, false) as Control
+	var t := d.panel.find_child("OutcomeTable", true, false) as Control
+	var pile := 0
+	for nm in want.gained:
+		if String(want.kind.get(nm, "")) in ["part", "material"]:
+			pile += 1
+	if (p != null) != (pile > 0):
+		bad.append("E: %d things came aboard and %s" % [pile, "plates are drawn" if p != null else "no plate is drawn"])
+	if p != null:
+		var drawn := (p as OutcomeRow.Prizes).tiles.size()
+		if drawn != mini(pile, OutcomeRow.BIG_MAX):
+			bad.append("E: %d plates for %d things" % [drawn, pile])
+	for nm in want.gained:
+		var said := texts.filter(func(x: String) -> bool: return x.contains(String(nm)))
+		if said.size() > 1:
+			bad.append("E: %s said %d times %s" % [nm, said.size(), said])
+	if t != null:
+		bad.append_array(table_place(d, &"E"))
+	if p == null:
+		if t == null:
+			bad.append("E: no table and no plates")
+		return bad
+	var pr := p.get_global_rect()
+	var b := d._choices
+	var br := b.get_global_rect() if b != null else Rect2()
+	if LocalEventDrawer.layout != &"card":
+		var col := br if t == null else br.merge(t.get_global_rect())
+		if pr.end.x > col.position.x - 0.5:
+			bad.append("E: the plates %s reach the buttons' column %s" % [pr, col])
+		if d._scroll != null and pr.position.x < d._scroll.get_global_rect().end.x:
+			bad.append("E: the plates %s reach the text" % [pr])
+	else:
+		if absf(pr.end.x - br.end.x) > 0.5:
+			bad.append("E: the plates end at x %d on the card, the buttons at %d" % [int(pr.end.x), int(br.end.x)])
+		if pr.end.y > br.position.y + 0.5 or (t != null and pr.end.y > t.get_global_rect().position.y + 0.5):
+			bad.append("E: the plates %s come down onto the table or the buttons" % [pr])
 	return bad
 
 
 ## D's table sits directly over the buttons, its right edge on theirs, at
 ## least their width (in every layout: on the card too it is right-aligned
-## over them).
-static func table_place(d: LocalEventDrawer) -> Array:
+## over them). E's table, where it has one, the same.
+static func table_place(d: LocalEventDrawer, lk: StringName = &"D") -> Array:
 	var bad: Array = []
 	var t := d.panel.find_child("OutcomeTable", true, false) as Control
 	var b := d._choices
 	if t == null or b == null:
-		return ["D: no table or no buttons"]
+		return ["%s: no table or no buttons" % lk]
 	var tr := t.get_global_rect()
 	var br := b.get_global_rect()
 	if absf(tr.end.x - br.end.x) > 0.5:
-		bad.append("D: the table ends at x %d, the buttons at %d" % [int(tr.end.x), int(br.end.x)])
+		bad.append("%s: the table ends at x %d, the buttons at %d" % [lk, int(tr.end.x), int(br.end.x)])
 	if tr.size.x < br.size.x - 0.5:
-		bad.append("D: the table %d wide, narrower than the buttons' %d" % [int(tr.size.x), int(br.size.x)])
+		bad.append("%s: the table %d wide, narrower than the buttons' %d" % [lk, int(tr.size.x), int(br.size.x)])
 	if tr.end.y > br.position.y + 0.5:
-		bad.append("D: the table %s comes down onto the buttons %s" % [tr, br])
+		bad.append("%s: the table %s comes down onto the buttons %s" % [lk, tr, br])
 	if br.position.y - tr.end.y > 12.0:
-		bad.append("D: the table %s floats %d px above the buttons" % [tr, int(br.position.y - tr.end.y)])
+		bad.append("%s: the table %s floats %d px above the buttons" % [lk, tr, int(br.position.y - tr.end.y)])
 	return bad
 
 
@@ -296,6 +344,8 @@ static func find_cases(n: MapGen.MapNode, verbose: bool = false) -> Dictionary:
 					found["card"] = rec
 				if not found.has("nothing") and sg.is_empty() and not rec.stay and not fight:
 					found["nothing"] = rec
+				if not found.has("credits") and sg == ["credits+"] and not rec.stay and not fight:
+					found["credits"] = rec
 				# THE MOST LINES: every stat moved and every different thing named
 				var lines := (sg.size() - (1 if sg.has("part+") else 0) - (1 if sg.has("material+") else 0)
 					+ (want.gained as Dictionary).size())

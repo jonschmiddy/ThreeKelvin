@@ -137,9 +137,10 @@ static func _things_before(n: MapGen.MapNode) -> Dictionary:
 
 
 ## Every thing the choice moved, gains first, as rows the result's outcome line
-## draws (`OutcomeRow`): {kind, name, gain, tone, cards}. `kind` is part,
+## draws (`OutcomeRow`): {kind, name, gain, tone, cards, item}. `kind` is part,
 ## material, frame, document or place. A part names the cards it would add to
-## your deck, which is the only way an event ever hands you a card.
+## your deck, which is the only way an event ever hands you a card. `item` is
+## the part or the material itself, for a look that draws it (E).
 static func _things_after(n: MapGen.MapNode, was: Dictionary, paid: String) -> Array:
 	var got: Array = []
 	var pile := Run.sector_jetsam(n, false)
@@ -172,11 +173,11 @@ static func _thing(it: Variant, gain: bool) -> Dictionary:
 			cards.append(c.name.to_upper())
 		return {kind = &"part", name = m.name.to_upper(), gain = gain,
 			tone = ModuleData.rarity_ink(m.rarity),
-			cards = cards}
+			cards = cards, item = m}
 	if it is MaterialData:
 		var md := it as MaterialData
 		return {kind = &"material", name = md.name.to_upper(), gain = gain,
-			tone = UITheme.tier_colour(md.tier), cards = []}
+			tone = UITheme.tier_colour(md.tier), cards = [], item = md}
 	var nm := String((it as Resource).get("name")) if it is Resource else "ITEM"
 	return {kind = &"item", name = nm.to_upper(), gain = gain, tone = UITheme.ICE, cards = []}
 

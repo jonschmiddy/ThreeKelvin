@@ -614,6 +614,8 @@ func choose(j: int) -> Dictionary:
 
 ## B's receipt, beside the text, game px.
 const RECEIPT_W := 340.0
+## E's plates at their widest before a row wraps under, game px.
+const PRIZES_W := 330.0
 
 func _result() -> void:
 	# a re-shown result (REWARD shut, a look changed) lands C's flights first
@@ -655,34 +657,46 @@ func _result() -> void:
 	# WHAT YOU END UP WITH, in the look Jon picks (`OutcomeRow.look`): today's
 	# four fixed pairs, A only what changed and big, B a GAINED | LOST receipt
 	# beside the text, C only what changed flying to the HUD, D a little table
-	# over the buttons
+	# over the buttons, E that table and the things that came aboard drawn big
 	var look := OutcomeRow.look
 	var said := _text_box(String(res.get("text", "")), UITheme.CHILL if ink == UITheme.COLD else ink)
 	var receipt: Control = null
 	if look == &"B":
 		receipt = OutcomeRow.ledger(out, RECEIPT_W if layout != &"card" else CARD_W - 20.0)
 	# D: a table on the right, right over the buttons, the text wrapping clear
-	# of it; the buttons go in that column, on the band's floor as ever
+	# of it; the buttons go in that column, on the band's floor as ever. E: D,
+	# and what came aboard drawn big beside that column, to its left (the
+	# table then leaves out what the plates say)
 	var right: VBoxContainer = null
-	var tab: Control = OutcomeRow.table(out) if look == &"D" else null
+	var prizes: Control = null
+	if look == &"E":
+		prizes = OutcomeRow.prizes(out, PRIZES_W if layout != &"card" else CARD_W - 20.0)
+	var tab: Control = null
+	if look == &"D" or look == &"E":
+		tab = OutcomeRow.table(out, prizes != null)
 	if receipt != null and layout != &"card":
 		var lane := HBoxContainer.new()
 		lane.add_theme_constant_override("separation", 14)
 		lane.add_child(said)
 		lane.add_child(receipt)
 		_box.add_child(lane)
-	elif tab != null and layout != &"card":
+	elif (tab != null or prizes != null) and layout != &"card":
 		var lane2 := HBoxContainer.new()
 		lane2.name = "ResultLane"
 		lane2.add_theme_constant_override("separation", 16)
 		lane2.add_child(said)
+		if prizes != null:
+			# its foot on the band's floor beside the buttons' column
+			prizes.size_flags_vertical = Control.SIZE_SHRINK_END
+			lane2.add_child(prizes)
 		right = VBoxContainer.new()
 		right.add_theme_constant_override("separation", 6)
 		right.size_flags_horizontal = Control.SIZE_SHRINK_END
 		var push := Control.new()
 		push.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		right.add_child(push)
-		right.add_child(tab)
+		if tab != null:
+			right.add_child(tab)
 		lane2.add_child(right)
 		_box.add_child(lane2)
 	else:
@@ -741,13 +755,17 @@ func _result() -> void:
 		var sp2 := Control.new()
 		sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		brow.add_child(sp2)
-		if tab != null:
+		if tab != null or prizes != null:
 			# D: the table and the buttons one right-aligned column, the table at
-			# least as wide as the buttons
+			# least as wide as the buttons; E's plates over the table
 			foot.free()
 			var col := VBoxContainer.new()
 			col.add_theme_constant_override("separation", 6)
-			col.add_child(tab)
+			if prizes != null:
+				prizes.size_flags_horizontal = Control.SIZE_SHRINK_END
+				col.add_child(prizes)
+			if tab != null:
+				col.add_child(tab)
 			buttons.size_flags_horizontal = Control.SIZE_SHRINK_END
 			col.add_child(buttons)
 			brow.add_child(col)

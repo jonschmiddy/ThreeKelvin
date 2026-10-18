@@ -1,7 +1,7 @@
 extends Node
 
 ## WHAT YOU END UP WITH, photographed in every look (`OutcomeRow`):
-##   godot --path . -- sheet=OutcomeShot out=<dir> [cases=jon,gain,...] [looks=today,A,B,C]
+##   godot --path . -- sheet=OutcomeShot out=<dir> [cases=jon,gain,...] [looks=today,A,B,C,D,E]
 ##   godot --path . --resolution 1920x1080 --write-movie <dir>/f.png --fixed-fps 30
 ##       -- sheet=OutcomeShot out=<dir> film=C case=mix
 ##   godot --headless --path . -- sheet=OutcomeShot survey
@@ -15,6 +15,7 @@ extends Node
 ##   mix      credits up, fuel down, heat up
 ##   card     a part alone: the only way an event offers a card is a part's
 ##   nothing  a choice taken that moved nothing
+##   credits  credits and nothing else
 ##   big      the outcome that moved the most
 ## Then each is played on the real LOCAL: the event asked for as the map's GO
 ## asks (`LocalEventDrawer.request`), the band up, the choice taken, and the
@@ -84,10 +85,10 @@ func _run() -> void:
 	if "survey" in _args:
 		tree.quit()
 		return
-	var cases: Array = _arg("cases", "jon,gain,mix,card,nothing,big").split(",")
+	var cases: Array = _arg("cases", "jon,gain,mix,card,nothing,credits,big").split(",")
 	if _film:
 		cases = [_arg("case", "mix")]
-	var looks: Array = _arg("looks", "today,A,B,C,D").split(",")
+	var looks: Array = _arg("looks", "today,A,B,C,D,E").split(",")
 	if _film:
 		looks = [_arg("film")]
 	var index: Array = []

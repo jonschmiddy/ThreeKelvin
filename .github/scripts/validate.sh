@@ -695,11 +695,11 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 fi
 
 step "An event's result says what you end up with"
-# OutcomeRow's five looks (today, A big, B a ledger, C flown to the HUD, D a
-# table over the buttons) on the
+# OutcomeRow's six looks (today, A big, B a ledger, C flown to the HUD, D a
+# table over the buttons, E that table and the things you got drawn big) on the
 # real LOCAL with the HUD: the real outcomes OutcomeCheck finds (Jon's lifepod,
-# credits and a part, credits and fuel, a part alone, nothing, the most
-# changes), the numbers the run moved said in every look and layout, every
+# credits and a part, credits and fuel, a part alone, nothing, credits alone,
+# the most changes), the numbers the run moved said in every look and layout, every
 # entry box-tested against the band, the buttons and the text, CONTINUE where
 # today's look has it; then C animated and under reduced motion: the HUD holds
 # its old number until the flight lands, flickers, and nothing pressable moves.

@@ -1,17 +1,20 @@
 extends Node
 
 ## WHAT YOU END UP WITH, on the real LOCAL with the real HUD and theme
-## (`OutcomeRow`, all four looks):
+## (`OutcomeRow`, every look):
 ##   godot --headless --fixed-fps 60 --path . -- sheet=OutcomeTest
 ##
 ## The real outcomes `OutcomeCheck.find_cases` finds (Jon's lifepod, credits and
-## a part, credits and fuel, a part alone, nothing, the most changes), each
+## a part, credits and fuel, a part alone, nothing, credits alone, the most
+## changes), each
 ## played through LOCAL's band as the map's GO asks for it, its result drawn in
 ## every look in all three layouts:
 ##   the numbers the run moved, said (`OutcomeCheck.check`);
 ##   the box test, in Silkscreen at the game's own sizes: every entry inside
 ##     the band, off every other, off the buttons, the text, the head and the
 ##     YOU CHOSE line, B's rows in their columns;
+##   E's plates: one for each part and material that came aboard, said once,
+##     clear of the text and the buttons' column (`OutcomeCheck.prize_place`);
 ##   CONTINUE exactly where today's look has it (in the band layouts; the card
 ##     is seated by its height, so there it is the card's width that holds).
 ## Then C's flight, animated (the game's clock stepped 1/60 s):
@@ -51,7 +54,7 @@ func _run() -> void:
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var n := _system()
 	var cases: Dictionary = await OutcomeCheck.find_cases(n)
-	for c in ["jon", "gain", "mix", "card", "nothing", "big"]:
+	for c in ["jon", "gain", "mix", "card", "nothing", "credits", "big"]:
 		_ok("a real outcome for the case '%s' (%s)" % [c, cases.get(c, {}).get("sig", "none")], cases.has(c))
 	Router.animate_in_harness = false
 	for layout: StringName in [&"row", &"column", &"card"]:
