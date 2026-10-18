@@ -86,6 +86,21 @@ func _ship(s: Control) -> Vector2:
 	return Vector2.INF
 
 
+## A side panel or toolbar piece of the ladder's up this frame: a column or a
+## band sliding (`ChromeSlide`, `SideBand`), or a decode drawn (`SideSwap`).
+func _side_chrome_up() -> bool:
+	for pc: Variant in ChromeSlide.live:
+		if is_instance_valid(pc) and (pc as CanvasItem).is_visible_in_tree():
+			return true
+	for b: Variant in SideBand.live:
+		if is_instance_valid(b) and (b as CanvasItem).is_visible_in_tree():
+			return true
+	for sw: Variant in SideSwap.live:
+		if is_instance_valid(sw) and (sw as CanvasItem).is_visible_in_tree():
+			return true
+	return false
+
+
 ## The camera between distances moving this frame: the screen being left's
 ## pre-roll, the wait for the next, the move (on main: PRE, WAIT, MOVE), the
 ## calm move's camera (C_CAM). Not the UI's beats either side of it.
@@ -212,6 +227,14 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 	# (the camera's own path: from the last frame before it moves, to the end)
 	var cam_pts: Array = []
 	var cam_on := false
+	var cam_done := false
+	# THE ORDER (Jon, Oct 17: the side panel comes in AFTER the camera out of
+	# LOCAL, and goes BEFORE it into LOCAL): the frames the camera moved, and the
+	# frames any side panel or toolbar piece (a column, a band, a decode) was up
+	var cam_first := -1
+	var cam_last := -1
+	var panel_first := -1
+	var panel_last := -1
 	var bad: Array = []
 	var held_last := -1.0
 	var chrome_last := _chrome_state()
@@ -290,8 +313,19 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 				cam_on = true
 				if pts.size() > 1:
 					cam_pts.append(pts[-2])
-			if cam_on:
+			if cam_on and not cam_done:
 				cam_pts.append(pt)
+				# (the line ends where the camera lands: the frame after its last)
+				if not _camera_moving():
+					cam_done = true
+		if _camera_moving():
+			if cam_first < 0:
+				cam_first = frames
+			cam_last = frames
+		if _side_chrome_up():
+			if panel_first < 0:
+				panel_first = frames
+			panel_last = frames
 		# A PRESS MID-MOVE
 		if not press.is_empty() and not press_done and frames >= int(float(press[1]) * target * 60.0):
 			press_done = true
@@ -325,6 +359,8 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 	if not cam_pts.is_empty():
 		p0 = cam_pts[0]
 		pts = cam_pts
+		if cam_done:
+			p1 = cam_pts[-1]
 	if p0 != Vector2.INF and p1 != Vector2.INF and pts.size() > 1:
 		var dir := p1 - p0
 		var len := dir.length()
@@ -352,6 +388,12 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 		_ok("%s: and never turning back along it (%.1f px back at most)" % [label, back], back <= BACK_PX)
 	_ok("%s: and never under the side bar (%d frames)" % [label, under_side], under_side == 0)
 	_ok("%s: the side bar, the toolbar, the column and the band still while the camera moves (%d frames moving)" % [label, chrome_moved], chrome_moved <= 1)
+	if press.is_empty() and from == ZoomLadder.LOCAL and want != ZoomLadder.LOCAL:
+		_ok("%s: the side panel comes in only after the camera has landed (camera to frame %d, panel from %d)" % [label, cam_last, panel_first],
+			cam_last >= 0 and panel_first > cam_last)
+	if press.is_empty() and want == ZoomLadder.LOCAL and from != ZoomLadder.LOCAL:
+		_ok("%s: the side panel is gone before the camera moves (panel to frame %d, camera from %d)" % [label, panel_last, cam_first],
+			cam_first >= 0 and panel_last < cam_first)
 	if press.is_empty():
 		_ok("%s: %.2f s, within 10%% of its %.2f s" % [label, secs, target], absf(secs - target) <= target * 0.1)
 	elif two:

@@ -254,6 +254,14 @@ func _set_look(l: String) -> void:
 ## half and half, the frames a click would have gone through onto content not
 ## yet resolved, and how many frames the swap drew.
 func _hop(label: String, call: Callable, want: Script) -> int:
+	# THE CALM MOVE WITH LOCAL AT ONE END (Jon, Oct 17): out of LOCAL the side
+	# panel comes on only after the camera has landed, into LOCAL it goes before
+	# the camera moves -- so with LOCAL at one end there is no side bar to show
+	# while the camera moves. Blank is counted out of LOCAL from the decode on
+	# (it must never go blank once it is there), and not at all into LOCAL.
+	var from_local := Router.current is SectorScreen
+	var calm_local := _calm and (from_local or want == SectorScreen)
+	var decoding := false
 	call.call()
 	var blank := 0
 	var mixed := 0
@@ -278,7 +286,10 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 	var decode_end := -1
 	for i in 900:
 		var m := _measure()
-		if not m.is_empty():
+		if _swap_now() != null or _bar_now() != null:
+			decoding = true
+		var counts := not calm_local or (from_local and decoding)
+		if not m.is_empty() and counts:
 			if float(m[0]) < 0.5:
 				blank += 1
 			low = minf(low, float(m[0]))
@@ -294,7 +305,7 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 				letter_frames += 1
 				decode_end = frames
 		var mb := _measure_region(_bar_of(Router.current), _bar_now(), &"band")
-		if not mb.is_empty():
+		if not mb.is_empty() and counts:
 			if float(mb[0]) < 0.5:
 				bar_blank += 1
 			bar_low = minf(bar_low, float(mb[0]))
@@ -545,26 +556,37 @@ func _click_moving_chrome() -> void:
 				pc = p
 		if pc != null:
 			break
-	if not _ok("the side bar's column is seen sliding off LOCAL", pc != null):
+	if not _ok("the side bar's column is seen sliding off, on the way to LOCAL", pc != null):
 		await _idle()
 		return
 	var r: Rect2 = (pc.call(&"at") as Rect2).intersection(Router.content.get_global_rect())
 	var at := r.get_center()
-	var loc := Router.current as SectorScreen
+	# (whatever is under it: LOCAL's scene once arrived, or -- the calm move's
+	# column going before its camera -- the map, its side bar's own controls)
+	var cur := Router.current
+	var targets: Array = []
+	if cur is SectorScreen:
+		targets.append((cur as SectorScreen)._view)
+	else:
+		targets.append(cur)
+		targets.append_array(_buttons(_side_of(cur)))
 	var heard := [0]
 	var probe := func(ev: InputEvent) -> void:
 		if ev is InputEventMouseButton:
 			heard[0] += 1
-	loc._view.gui_input.connect(probe)
+	for t: Variant in targets:
+		(t as Control).gui_input.connect(probe)
 	for pressed in [true, false]:
 		var ev := InputEventMouseButton.new()
 		ev.button_index = MOUSE_BUTTON_LEFT
 		ev.pressed = pressed
 		ev.position = at
 		ev.global_position = at
-		loc.get_viewport().push_input(ev)
+		cur.get_viewport().push_input(ev)
 		await _tree.process_frame
-	loc._view.gui_input.disconnect(probe)
+	for t: Variant in targets:
+		if is_instance_valid(t) and (t as Control).gui_input.is_connected(probe):
+			(t as Control).gui_input.disconnect(probe)
 	if _calm:
 		var t_end := -1
 		for i in 60:

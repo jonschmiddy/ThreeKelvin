@@ -135,9 +135,9 @@ static var CALM_SLIDE_S := 0.6
 static var CALM_CAM_S := 0.8
 static var CALM_IN_S := 0.25
 ## (Jon asked for E's decode "slowly" on Oct 13, 1.1 s, when it ran under the
-## camera; after the landing that second is all added to the hop. 0.4 s keeps
-## the hop under two seconds; the dial is there to give the second back)
-static var CALM_DECODE_S := 0.4
+## camera; after the landing that second is all added to the hop. Of 0.4, 0.7
+## and 1.1 s filmed he picked 0.7, Oct 17: "decode:B")
+static var CALM_DECODE_S := 0.7
 
 ## The dials as Settings lists them: [key in `[flow]`, its name, the static var
 ## it sets, least, most]. The default is the var's own value at load.
@@ -2423,13 +2423,16 @@ func _end() -> void:
 ## press mid-move was a hard cut.
 ##
 ## Every hop between LOCAL, the map and the chart -- both ways, by a tab, Tab,
-## any door -- is now this one motion: the UI leaves, (out of LOCAL) the side
-## column and band slide on, ONE CAMERA MOVE (`CALM_CAM_S`, smootherstep) with
+## any door -- is now this one motion: the UI leaves, (into LOCAL) the side
+## column and band slide off, ONE CAMERA MOVE (`CALM_CAM_S`, smootherstep) with
 ## both screens scaled about your ship (your star, on the chart) and your ship
 ## walked along ONE STRAIGHT LINE from where it rests to where it will rest, the
 ## screens changing hands by a crossfade where both draw it in the same place;
-## then (into LOCAL) the column and band slide off, the side bar and toolbar
-## decode, the UI arrives. "Out" is always the picture shrinking about you, "in"
+## then (out of LOCAL) the column and band slide on, the side bar and toolbar
+## decode, the UI arrives. The side panel is never on the move with the camera
+## (Jon, Oct 17: "The side panel should come in AFTER the animation stops when
+## going local > sector or local > starchart ... go away BEFORE the animation
+## starts when going from sector > local or starchart > local"). "Out" is always the picture shrinking about you, "in"
 ## always it growing. THE CHART AND LOCAL are the same move with one handoff
 ## (not two through the map, which would be twice as long, nor the dip to black
 ## Jon asked for on Oct 10 when the zoom between them swung round).
@@ -2460,6 +2463,9 @@ var _calm_e := 0.0
 var _calm_e_drawn := 0.0
 var _calm_e_h := -1.0
 var _calm_t_h := 0.0
+## the crossfade's own clock (the move's, a press's hurry and all), from the
+## moment the screen arriving took its camera
+var _calm_diss := 0.0
 var _calm_swap_frame := 0
 var _calm_L := 0.0
 var _calm_p0 := Vector2.ZERO
@@ -2516,25 +2522,20 @@ static func _calm_key(a: int, b: int) -> String:
 ## off and the UI in (into LOCAL), or the decode and the UI in together.
 static func calm_length(a: int, b: int) -> float:
 	_read_cfg()
-	var t := (CALM_SLIDE_S if a == LOCAL else CALM_OUT_S) + CALM_CAM_S
+	# into LOCAL: the side panel off (the UI leaving with it), the camera, LOCAL's
+	# UI; out of LOCAL: LOCAL's UI off, the camera, the side panel on, then its
+	# decode with the UI; the map and the chart: the UI off, the camera, the decode
+	var t := 0.0
 	if b == LOCAL:
-		t += _calm_post_s()
+		t = maxf(CALM_OUT_S, CALM_SLIDE_S) + CALM_CAM_S + CALM_IN_S
+	elif a == LOCAL:
+		t = CALM_OUT_S + CALM_CAM_S + CALM_SLIDE_S + maxf(CALM_IN_S, CALM_DECODE_S)
 	else:
-		t += maxf(CALM_IN_S, CALM_DECODE_S)
+		t = CALM_OUT_S + CALM_CAM_S + maxf(CALM_IN_S, CALM_DECODE_S)
 	# (and the frames between: the camera sets off the frame after the chrome
 	# has stood still, the screen arriving takes its camera the frame after it
 	# is shown, a decode lays itself out over two)
 	return t + 4.0 / 60.0
-
-
-## Into LOCAL, after the landing: the column and band slide off, LOCAL's UI
-## coming up over the slide's last stretch.
-static func _calm_post_s() -> float:
-	return maxf(CALM_SLIDE_S, CALM_SLIDE_S * CALM_IN_FROM + CALM_IN_S)
-
-
-## (into LOCAL: how far through the slide off LOCAL's own UI starts to come)
-const CALM_IN_FROM := 0.6
 
 
 ## The slide's curve (the column and the band): eased up to speed over its first
@@ -2641,17 +2642,24 @@ func _process_calm(delta: float) -> void:
 	var dt := _dt(delta) * _calm_rate
 	_calm_dt = dt
 	_calm_t += dt
+	if _calm_new_begun:
+		_calm_diss += dt
+	# (a crossfade a press hurried runs on past the landing rather than be cut)
+	if phase != Phase.C_CAM and _rect.visible and _calm_e_h >= 0.0:
+		_calm_fade()
 	match phase:
 		Phase.C_OUT:
 			if not is_instance_valid(old) or Router.current != old:
 				_calm_end()
 				return
-			if r_old == LOCAL:
-				# (out of LOCAL the UI leaves as the column and band come on)
+			if r_new == LOCAL:
+				# INTO LOCAL: the side panel and toolbar slide off first, the UI
+				# leaving with them, all before the camera moves
 				_calm_next(Phase.C_SLIDE)
 				_calm_t = dt
-				_chrome_on()
-				_process_slide_on()
+				_chrome_off(_calm_grab(), old)
+				_hide_chrome(old)
+				_process_slide_off()
 				return
 			_chrome(old, _ease(_calm_t / maxf(CALM_OUT_S, 0.001)))
 			if _calm_t >= CALM_OUT_S:
@@ -2661,7 +2669,7 @@ func _process_calm(delta: float) -> void:
 			if not is_instance_valid(old) or Router.current != old:
 				_calm_end()
 				return
-			_process_slide_on()
+			_process_slide_off()
 		Phase.C_WAIT:
 			if not is_instance_valid(old) or Router.current != old:
 				_calm_end()
@@ -2675,16 +2683,31 @@ func _process_calm(delta: float) -> void:
 			_calm_in()
 
 
-## OUT OF LOCAL: the side column and the band come on, the camera still, and
-## LOCAL's UI leaves over the first of it.
-func _process_slide_on() -> void:
+## INTO LOCAL: the side column and the band go off, the camera still, the
+## screen's UI leaving over the first of it; gone whole before the camera moves.
+func _process_slide_off() -> void:
 	_chrome(old, _ease(_calm_t / maxf(CALM_OUT_S, 0.001)))
 	var q := clampf(_calm_t / maxf(CALM_SLIDE_S, 0.001), 0.0, 1.0)
-	_drive_slide(q, true)
-	if q >= 1.0:
-		# (the column and band whole on this frame; the camera from the next)
+	_drive_slide(q, false)
+	if q >= 1.0 and _calm_t >= CALM_OUT_S:
+		for pc: Variant in slides:
+			if is_instance_valid(pc):
+				(pc as ChromeSlide).finish()
+		slides.clear()
 		_chrome(old, 1.0)
+		# (gone on this frame; the camera from the next)
 		_calm_next(Phase.C_WAIT)
+
+
+## The picture as it was last drawn (a blank one headless).
+func _calm_grab() -> Texture2D:
+	var vp := get_viewport()
+	var img: Image = null
+	if vp != null and vp.get_texture() != null and DisplayServer.get_name() != "headless":
+		img = vp.get_texture().get_image()
+	if img == null or img.is_empty():
+		img = Image.create(960, 540, false, Image.FORMAT_RGBA8)
+	return ImageTexture.create_from_image(img)
 
 
 ## (the screen arriving built and laid out, so where your ship will rest on it
@@ -2739,18 +2762,27 @@ func _calm_cam() -> void:
 			new.call(&"calm_begin")
 			_calm_new_begun = true
 			_calm_t_h = _calm_t
+			_calm_diss = 0.0
 	var p := _calm_p(e)
 	if _calm_new_begun:
 		new.call(&"calm_at", p, exp(_calm_L * (e - 1.0)))
-		_calm_a = 1.0 - _ease(clampf((_calm_t - _calm_t_h) / CALM_DISSOLVE_S, 0.0, 1.0))
-	else:
-		_calm_a = 1.0
 	_mat.set_shader_parameter(&"to_pt", p)
 	_mat.set_shader_parameter(&"scl", Vector2.ONE * exp(_calm_L * (e - _calm_e_h)))
-	_mat.set_shader_parameter(&"alpha", _calm_a)
-	_rect.visible = _calm_a > 0.0
+	_calm_fade()
 	if u >= 1.0:
 		_calm_land()
+
+
+## The held picture's crossfade: `CALM_DISSOLVE_S` of the move's clock, and
+## never quicker than a hurried 0.12 s of real time.
+func _calm_fade() -> void:
+	if not _calm_new_begun:
+		_calm_a = 1.0
+	else:
+		var d := maxf(CALM_DISSOLVE_S, 0.12 * _calm_rate)
+		_calm_a = 1.0 - _ease(clampf(_calm_diss / d, 0.0, 1.0))
+	_mat.set_shader_parameter(&"alpha", _calm_a)
+	_rect.visible = _calm_a > 0.0
 
 
 ## THE SCREENS CHANGE HANDS: the Router's own door, which builds (or takes) the
@@ -2790,12 +2822,12 @@ func _calm_hold(n: Control) -> void:
 	_calm_t_h = _calm_t
 	_calm_swap_frame = Engine.get_process_frames()
 	_calm_ph = _calm_p0.lerp(_calm_p1, _calm_e_drawn)
-	var c := _content_rect()
 	var pic: Rect2 = old.call(&"ladder_picture")
-	if r_old == LOCAL:
-		# (under the column and the band that came on before the move: chrome)
-		var pr := _side_rest()
-		pic = Rect2(c.position.x, pr.position.y, pr.position.x - 5.0 - c.position.x, c.end.y - pr.position.y)
+	if r_new == LOCAL:
+		# (into LOCAL the side panel and toolbar went before the move: the whole
+		# of the screen left is the picture carried, the ground where they stood
+		# with it -- cut at its frame, LOCAL showed beside it at once)
+		pic = _content_rect()
 	_mat.set_shader_parameter(&"old_lin", _tex)
 	_mat.set_shader_parameter(&"vp", Vector2(img.get_width(), img.get_height()))
 	_mat.set_shader_parameter(&"pic", Vector4(pic.position.x, pic.position.y, pic.size.x, pic.size.y))
@@ -2809,12 +2841,9 @@ func _calm_hold(n: Control) -> void:
 	_rect.visible = true
 	# (the swap's own page sound was the click's: `_calm_preroll`)
 	Audio.suppress(&"ui_tab", 200)
-	# THE CHROME STANDS STILL THROUGH THE MOVE
+	# THE CHROME STANDS STILL THROUGH THE MOVE (into LOCAL it went before it)
 	if r_old != LOCAL and r_new == LOCAL:
-		# into LOCAL: the side bar and band as they were, to slide off once landed
-		_chrome_off(_tex, old)
-		for p: Variant in slides:
-			(p as ChromeSlide).set_k(1.0)
+		pass
 	elif r_old != LOCAL and r_new != LOCAL:
 		# the map and the chart: the old side bar and toolbar held whole, to decode
 		# into the new ones once landed
@@ -2829,21 +2858,9 @@ func _calm_hold(n: Control) -> void:
 				(sw as SideSwap).target_s = CALM_DECODE_S
 				(sw as SideSwap).rate = _calm_rate
 	else:
-		# out of LOCAL: the column and band came on before the move; the swaps
-		# that will decode the arriving side bar and toolbar onto them stand at
-		# their first frame -- the empty column, the band's ground -- till landed
-		side_swap = _region_swap(null, side_of(n), &"side", CALM_DECODE_S, false)
-		bar_swap = _region_swap(null, bar_of(n), &"side2", CALM_DECODE_S, true)
-		if side_swap != null:
-			side_swap.held = func() -> float: return 1.0
-		if bar_swap != null:
-			bar_swap.banded = true
-			bar_swap.held = Callable()
-		for sw: Variant in [side_swap, bar_swap]:
-			if sw != null:
-				(sw as SideSwap).frozen = true
-				(sw as SideSwap).target_s = CALM_DECODE_S
-				(sw as SideSwap).rate = _calm_rate
+		# out of LOCAL: the arriving screen's side bar and toolbar kept out of
+		# sight until the camera has landed and the column and band are on
+		_hide_chrome.call_deferred(n)
 	calm_log.append(["swap", _calm_t])
 
 
@@ -2877,37 +2894,67 @@ func _calm_land() -> void:
 	if is_instance_valid(new) and _calm_new_begun:
 		new.call(&"calm_at", new.call(&"calm_rest"), 1.0)
 		new.call(&"calm_end")
-	_rect.visible = false
-	_calm_a = 0.0
 	_run_landed()
-	_calm_next(Phase.C_POST if r_new == LOCAL else Phase.C_IN)
 	_calm_uncover()
-	if r_new != LOCAL:
-		for sw: Variant in [side_swap, bar_swap]:
-			if sw != null and is_instance_valid(sw):
-				(sw as SideSwap).frozen = false
-				(sw as SideSwap).rate = _calm_rate
-		if r_old == LOCAL:
-			# (the decode draws over the column now: the column goes, and the
-			# band stands under the toolbar decoding on it)
-			for p: Variant in slides:
-				if is_instance_valid(p):
-					(p as ChromeSlide).finish()
-			slides.clear()
-			if band != null and is_instance_valid(band):
-				band.driven = false
-				band._u = 1.0
-				band.drive(1.0)
-				if bar_swap != null and is_instance_valid(bar_swap):
-					move_child(band, bar_swap.get_index() - 1)
-					var wb: WeakRef = weakref(band)
-					bar_swap.tree_exiting.connect(func() -> void:
-						var o: Variant = wb.get_ref()
-						if o != null:
-							(o as SideBand).finish())
-				else:
-					band.finish()
-			_slide_way = &"done"
+	if r_old == LOCAL and r_new != LOCAL:
+		# OUT OF LOCAL, the camera still: the column and band come on, then the
+		# side bar and toolbar decode onto them
+		_calm_next(Phase.C_POST)
+		_chrome_on()
+		_drive_slide(0.0, true)
+		return
+	_calm_next(Phase.C_IN)
+	if chain == &"station" and r_new == LOCAL:
+		# (the map's DOCK: LOCAL's UI stays away, the hangar is next, at once)
+		_calm_end()
+		return
+	for sw: Variant in [side_swap, bar_swap]:
+		if sw != null and is_instance_valid(sw):
+			(sw as SideSwap).frozen = false
+			(sw as SideSwap).rate = _calm_rate
+
+
+## Out of LOCAL, the column and band on: the side bar and toolbar decode in on
+## them (the column standing until the decode is drawing, the band until the
+## toolbar's is), the arriving UI coming with them.
+func _calm_decode_on() -> void:
+	# (what it decodes from is the empty column as it stands now, landed)
+	_tex = _calm_grab()
+	_show_chrome()
+	side_swap = _region_swap(null, side_of(new), &"side", CALM_DECODE_S, false)
+	bar_swap = _region_swap(null, bar_of(new), &"side2", CALM_DECODE_S, true)
+	if bar_swap != null:
+		bar_swap.banded = true
+		bar_swap.held = Callable()
+	if side_swap != null:
+		side_swap.held = func() -> float: return 1.0
+	for sw: Variant in [side_swap, bar_swap]:
+		if sw != null:
+			(sw as SideSwap).target_s = CALM_DECODE_S
+			(sw as SideSwap).rate = _calm_rate
+	for pc: Variant in slides:
+		if is_instance_valid(pc) and side_swap != null:
+			var wp: WeakRef = weakref(pc)
+			side_swap.laid.connect(func(_r: Rect2) -> void:
+				var o: Variant = wp.get_ref()
+				if o != null:
+					(o as ChromeSlide).finish())
+		elif is_instance_valid(pc):
+			(pc as ChromeSlide).finish()
+	if band != null and is_instance_valid(band):
+		var wb: WeakRef = weakref(band)
+		band.driven = false
+		band._u = 1.0
+		if bar_swap != null:
+			bar_swap.laid.connect(func(_r: Rect2) -> void:
+				var o: Variant = wb.get_ref()
+				if o != null:
+					(o as SideBand).finish())
+			move_child(band, bar_swap.get_index() - 1)
+		else:
+			band.finish()
+	slides.clear()
+	_slide_way = &"done"
 
 
 ## The side column and the band at `q` (0 to 1) of their slide, on (out of
@@ -2922,26 +2969,17 @@ func _drive_slide(q: float, on: bool) -> void:
 		band.drive(k)
 
 
-## Into LOCAL, landed: the column and band slide off, then LOCAL's UI.
+## Out of LOCAL, landed: the column and band slide on, then the decode.
 func _calm_post() -> void:
-	var q := clampf(_calm_t / maxf(CALM_SLIDE_S, 0.001), 0.0, 1.0)
-	_drive_slide(q, false)
-	if q >= 1.0 and not slides.is_empty():
-		for p: Variant in slides:
-			if is_instance_valid(p):
-				(p as ChromeSlide).finish()
-		slides.clear()
-	if chain == &"station":
-		# (the map's DOCK: LOCAL's UI stays away, the hangar is next, at once)
-		if q >= 1.0:
-			_calm_end()
-		return
-	# LOCAL's own UI over the slide's last stretch, the camera long still
-	var t_in := _calm_t - CALM_SLIDE_S * CALM_IN_FROM
-	if is_instance_valid(new) and Router.current == new:
-		_chrome(new, 1.0 - _ease(t_in / maxf(CALM_IN_S, 0.001)))
-	if q >= 1.0 and t_in >= CALM_IN_S:
+	if not is_instance_valid(new) or Router.current != new:
 		_calm_end()
+		return
+	_chrome(new, 1.0)
+	var q := clampf(_calm_t / maxf(CALM_SLIDE_S, 0.001), 0.0, 1.0)
+	_drive_slide(q, true)
+	if q >= 1.0:
+		_calm_next(Phase.C_IN)
+		_calm_decode_on()
 
 
 func _calm_in() -> void:
@@ -2960,7 +2998,8 @@ func hurry() -> void:
 		return
 	_calm_hurried = true
 	var left := 0.0
-	var after := _calm_post_s() if r_new == LOCAL else CALM_IN_S
+	var after := CALM_IN_S if r_new == LOCAL else maxf(CALM_IN_S, CALM_DECODE_S) \
+		+ (CALM_SLIDE_S if r_old == LOCAL else 0.0)
 	match phase:
 		Phase.C_OUT:
 			left = CALM_OUT_S - _calm_t + CALM_CAM_S + after
@@ -2971,9 +3010,9 @@ func hurry() -> void:
 		Phase.C_CAM:
 			left = CALM_CAM_S - _calm_t + after
 		Phase.C_POST:
-			left = _calm_post_s() - _calm_t
+			left = CALM_SLIDE_S - _calm_t + maxf(CALM_IN_S, CALM_DECODE_S)
 		Phase.C_IN:
-			left = CALM_IN_S - _calm_t
+			left = (CALM_IN_S if r_new == LOCAL else maxf(CALM_IN_S, CALM_DECODE_S)) - _calm_t
 	_calm_rate = maxf(1.0, left / CALM_HURRY_S)
 	for sw: Variant in [side_swap, bar_swap]:
 		if sw != null and is_instance_valid(sw):
@@ -3056,6 +3095,7 @@ func _calm_end() -> void:
 			slides.clear()
 			if band != null and is_instance_valid(band):
 				band.finish()
+			_show_chrome()
 	elif phase == Phase.C_CAM and _calm_new_begun and is_instance_valid(new):
 		new.call(&"calm_end")
 	var chained := false
