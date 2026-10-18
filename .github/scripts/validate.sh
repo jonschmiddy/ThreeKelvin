@@ -788,6 +788,24 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 fi
 
+step "An event's result says what you end up with"
+# OutcomeRow's six looks (today, A big, B a ledger, C flown to the HUD, D a
+# table over the buttons, E that table and the things you got drawn big) on the
+# real LOCAL with the HUD: the real outcomes OutcomeCheck finds (Jon's lifepod,
+# credits and a part, credits and fuel, a part alone, nothing, credits alone,
+# the most changes), the numbers the run moved said in every look and layout, every
+# entry box-tested against the band, the buttons and the text, CONTINUE where
+# today's look has it; then C animated and under reduced motion: the HUD holds
+# its old number until the flight lands, flickers, and nothing pressable moves.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot outcometest 240 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=OutcomeTest; then
+	if grep -qE '^outcometest: PASS' "$LOG_DIR/outcometest.log"; then
+		ok "every look says what moved, fits, and C flies without moving a button"
+	else
+		bad "an event's result misstates or overlaps what you end up with"
+		grep -E 'FAIL' "$LOG_DIR/outcometest.log" | head -n 12 | sed 's/^/        /'
+	fi
+fi
+
 step "A graded hull keeps its palette"
 # HullGrade bakes each weight's one hull at C, B, A and S (Jon's AB+DEF) and
 # may only use colours the sprite already has, plus the manufacturer's band
