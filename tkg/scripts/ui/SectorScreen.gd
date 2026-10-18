@@ -3259,6 +3259,9 @@ func _notification(what: int) -> void:
 		shown_hull = -1
 		shown_heat = -1
 		Engine.time_scale = 1.0
+		# nor any hum it was holding up
+		Audio.fx_stop(&"shield_idle")
+		Audio.fx_stop(&"arc")
 		# No cut outlives the screen that asked for it.
 		EnemyArt.reap_wrecks()
 		for who in _prebuilt.keys():
@@ -3874,8 +3877,9 @@ func _on_flee() -> void:
 		return
 	# The exact cost, from the same constant the code charges.
 	_ask_exit("BREAK CONTACT?", Color("#d4614f"), Color("#8f4034"),
-		"%s. You lose the salvage and burn %d fuel. Fail and there is no second try."
-			% [SkillCheck.badge(combat.flee_check()), Combat.FLEE_FUEL],
+		"%s. You lose the salvage and burn %d fuel, %d if it goes badly. Fail and there is no second try."
+			% [SkillCheck.badge(combat.flee_check()), Combat.FLEE_FUEL,
+				Combat.FLEE_FUEL + Combat.FLEE_FUEL_PARTIAL],
 		"BREAK CONTACT", "STILL ON YOU", func() -> void: combat.flee())
 
 
@@ -4150,7 +4154,9 @@ func _raise_band() -> void:
 			_view.release_entrances_when_clear()
 		_quiet_holder.visible = false
 		_hand_holder.custom_minimum_size = Vector2(0, from)
-		_hand_holder.visible = true)
+		_hand_holder.visible = true
+		# the band starts up: the escape menu's open (Jon: the same drawer)
+		Audio.fx(&"fight_band"))
 	_raise_tw.tween_method(func(h: float) -> void:
 		_hand_holder.custom_minimum_size = Vector2(0, roundf(h * 0.5) * 2.0),
 		from, float(DRAWER_H), LOWER_S).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
@@ -4779,7 +4785,7 @@ func _fx_sync_enemy(who: int) -> void:
 	if e.hp <= 0 and not _slot_volleys.has(who):
 		return
 	if not L.moment.is_connected(_on_fx_moment):
-		L.moment.connect(_on_fx_moment.bind(false))
+		L.moment.connect(_on_fx_moment.bind(false, FaunaGuard.wants(L.kind), L))
 	# a shot still in the air at it has already spent block in the maths
 	L.sync(e.block, e.brace, int(_slot_shown.get(who, e.hp)), not _slot_volleys.has(who))
 
@@ -4794,7 +4800,7 @@ func _fx_sync_player() -> void:
 			return
 		sv.get_parent().add_child(_ship_fx)
 		sv.get_parent().move_child(_ship_fx, sv.get_index() + 1)
-		_ship_fx.moment.connect(_on_fx_moment.bind(true))
+		_ship_fx.moment.connect(_on_fx_moment.bind(true, false, _ship_fx))
 	var pending := false
 	for q in _volleys.values():
 		if q.to_player:
@@ -4808,18 +4814,131 @@ func _fx_drop_player() -> void:
 		_ship_fx.queue_free()
 	_ship_fx = null
 
-## The effects' own sounds are not made yet; the ones with an obvious sound
-## today play it, the rest are named for later and left quiet. (The impact and
-## the plate's ring on a landing are already `Audio._on_hit_landed`'s.)
-func _on_fx_moment(kind: StringName, s: float, _len: float, mine: bool) -> void:
+## THE EFFECTS' MOMENTS, HEARD on the frame each picture acts (`Audio.FX`, one
+## row a moment, each switchable). The ones still without a sound of their own
+## are named in the plan (`sfx-plan/plan.json`) and left quiet. (The impact and
+## the plate's ring on a landing are `Audio._on_hit_landed`'s.) `creature`: a
+## living thing's looks (`FaunaBrace` and the rest), which say the same words.
+func _on_fx_moment(kind: StringName, s: float, len: float, mine: bool, creature: bool, from: HitLayers) -> void:
+	# NOTHING SEEN, NOTHING HEARD: a ship's layers go with it while it breaks up
+	# and stay hidden on its wreck, but its open vents keep their clock -- and
+	# sputtered, heard, over a Hellbender coming apart and after it was a wreck.
+	if from != null and is_instance_valid(from) and not from.is_visible_in_tree():
+		return
 	match kind:
 		&"shield_up":
 			# an enemy's block arriving (yours plays with the card)
 			if not mine:
 				Audio.play(&"shield_block", 0.06, 90, -6.0)
-		&"clamp":
-			if not mine:
-				Audio.play(&"shield_block", 0.06, 90, -8.0)
+		&"shield_ripple", &"shield_glitch":
+			if not creature:
+				Audio.fx(&"shield_glitch", kind)
+		&"bolt_on", &"clamp":
+			if creature:
+				# a hide hardening is not plating: as it was until it has a sound
+				if kind == &"clamp":
+					Audio.play(&"shield_block", 0.06, 90, -8.0)
+			else:
+				Audio.fx(&"brace_on_yours" if mine else &"brace_on", kind)
+		&"plate_off":
+			if not creature:
+				Audio.fx(&"brace_off", kind)
+		&"hiss":
+			Audio.fx(&"vent_hiss", kind)
+		&"sputter":
+			Audio.fx(&"vent_sputter", kind)
+		&"crack":
+			# a creature's crack is its scales shedding; a ship's, its hull
+			Audio.fx(&"shed" if creature else &"crack_mark", kind)
+		&"sizzle":
+			# (a creature's sizzle is ichor, not heat: still unheard)
+			if not creature:
+				Audio.fx(&"heat_mark", kind)
+
+
+## The shield's hum, every frame of a fight: up while any hex shield is up and
+## seen (yours or theirs; a creature's glow skin is not one), down when none is.
+func _shield_hum() -> void:
+	var up := false
+	if fighting() and _view != null and combat != null:
+		var all: Array = [_ship_fx]
+		for i in combat.enemies.size():
+			all.append(_enemy_fx(i))
+		for L: Variant in all:
+			if L == null or not is_instance_valid(L):
+				continue
+			var hl := L as HitLayers
+			var sh := hl.shield
+			if sh != null and not (sh is FaunaShield) and sh.block > 0 and sh.is_visible_in_tree():
+				up = true
+				break
+	Audio.fx_hold(&"shield_idle", up)
+
+
+## A DEATH'S OWN BEATS, heard (a breakup's `moment`): the beats a style has
+## besides its booms (`broke`, `Audio.play_kill`). `who` -1 is your ship.
+func _on_death_moment(kind: StringName, _s: float, len: float, who: int, style: int) -> void:
+	const S := ShipBreakup.Style
+	if kind == &"prelude":
+		# your ship's breakup, the bursts before its style: a whine up into it
+		Audio.fx(&"charge_prelude", kind)
+		return
+	if style >= S.GLOWOUT and style <= S.PART:
+		if kind == &"flare" or kind == &"pulse":
+			Audio.play_kill(who)
+		return
+	if ShipBreakup._is_boss(style):
+		_on_boss_moment(kind, len, style)
+		return
+	if style == S.SNAP and kind == &"break":
+		Audio.fx(&"snap_crack", kind)
+	elif style == S.BURN and kind == &"burst":
+		Audio.fx(&"heat", kind)
+	elif (style == S.IMPLODE and kind == &"gather") or (style == S.BREACH and kind == &"charge") 			or (style == S.OVERLOAD and kind == &"spool"):
+		Audio.fx(&"charge", kind, len)
+	elif style == S.VENT and kind == &"vent":
+		Audio.fx(&"vent_jet", kind)
+	elif style == S.VENT and kind == &"sputter":
+		Audio.fx(&"vent_sputter", kind)
+	elif style == S.DISSOLVE and kind == &"fizz":
+		Audio.fx(&"dissolve", kind)
+	elif style == S.COLLAPSE and kind == &"pull":
+		Audio.fx(&"collapse", kind, len)
+	elif style == S.SHIELD and kind == &"shatter":
+		Audio.fx(&"k_shatter", kind)
+	elif style == S.MELT and kind == &"heat":
+		Audio.fx(&"heat", kind)
+	elif style == S.CRUMPLE and kind == &"crunch":
+		Audio.fx(&"crumple", kind)
+
+
+## The Custodian's and the Hellbender's.
+func _on_boss_moment(kind: StringName, len: float, style: int) -> void:
+	const S := ShipBreakup.Style
+	var hell := style == S.HELL_CHAIN or style == S.HELL_BURNOUT or style == S.HELL_UNCOIL
+	match kind:
+		&"pop", &"rupture":
+			# the Hellbender's holds and cargo; the Custodian's spine
+			Audio.fx(&"boss_pop" if hell else &"spine_pop", kind)
+		&"split":
+			Audio.fx(&"boss_split", kind)
+		&"emblem_heat":
+			Audio.fx(&"hb_heat", kind)
+		&"emblem_burst":
+			Audio.fx_stop(&"hb_heat")
+		&"crack":
+			if not hell:
+				Audio.fx(&"cust_crack", kind)
+		&"beam":
+			# (one hum for every beam: up with the first)
+			Audio.fx_hold(&"arc", true, kind)
+		&"swell":
+			Audio.fx(&"riser", kind, len)
+		&"crush":
+			Audio.fx_stop(&"arc")
+			Audio.fx(&"collapse", kind, len)
+		&"implode":
+			Audio.fx_stop(&"arc")
 
 
 ## THE STYLE ENEMY `who` DIES IN: rolled from where its wreck will lie, the
@@ -4949,6 +5068,12 @@ func _start_death(who: int) -> void:
 	if not e.template.fauna:
 		b.broke.connect(func(s: float) -> void:
 			Audio.play_kill(who, 0.0 if s >= 0.6 else -6.0))
+	b.moment.connect(_on_death_moment.bind(who, b.style))
+	# (a furnace under a set piece goes with it, however it ends)
+	if ShipBreakup._is_boss(b.style):
+		b.tree_exiting.connect(func() -> void:
+			Audio.fx_stop(&"hb_heat")
+			Audio.fx_stop(&"arc"))
 	# A BOSS'S SET PIECE HOLDS THE SCREEN (`ScreenHooks`): the shake, the slow
 	# motion, the flash and the music's duck and hit it names as moments.
 	var hooks: ScreenHooks = null
@@ -5021,6 +5146,9 @@ func _death_handoff() -> void:
 	var look := handoff_override if handoff_override != "" else DEATH_HANDOFF
 	var fade := DeathHandoff.new()
 	add_child(fade)
+	# THE SET GOING OFF as the picture starts to go (Jon's quit sound: a line,
+	# a dot, a click as it goes dark)
+	Audio.fx(&"loss_handoff")
 	match look:
 		"B":
 			# the hand down first: the camera holds every scene where it stands
@@ -5066,6 +5194,17 @@ func _death_handoff() -> void:
 	Router.death_look = &"type" if look == "C" else &"rise"
 
 
+## How long the picked handoff takes, s.
+static func handoff_s() -> float:
+	var look := handoff_override if handoff_override != "" else DEATH_HANDOFF
+	match look:
+		"B":
+			return LOWER_S + BAND_FADE_S + PULL_S
+		"C":
+			return SIGNAL_S
+	return LINGER_S
+
+
 ## Your hull breaks up; returns once it has, true if it did.
 func _lose_ship() -> bool:
 	if _loss_pre.is_empty() or not Router.animating():
@@ -5084,11 +5223,13 @@ func _lose_ship() -> bool:
 	# sound follows what you see, never the resolution).
 	b.broke.connect(func(s: float) -> void:
 		Audio.play_kill(-1, 0.0 if s >= 0.6 else -6.0))
+	b.moment.connect(_on_death_moment.bind(-1, b.style))
 	await b.finished
 	return is_inside_tree()
 
 
 func _process(_delta: float) -> void:
+	_shield_hum()
 	# A breakup draws where the hull was; the hull's slot keeps its slow bob, so
 	# the breakup rides it, and the wreck it hands back to is where it ended.
 	for en in _breakups:
@@ -5132,6 +5273,9 @@ func _check_ending() -> void:
 			# beat on the wreck, then the run's own screen (Jon, Oct 13). With
 			# nothing animating it is the beat alone, as it always was.
 			if await _lose_ship():
+				# THE SCORE STEPS BACK through the gap the breakup leaves, the
+				# wreck's hold and the handoff, and comes up as Lights Out
+				Audio.fx(&"loss_duck", &"", WRECK_HOLD_S + handoff_s())
 				await _wait_s(WRECK_HOLD_S)
 				# and from the wreck into RUN ENDED, not a cut (`DeathHandoff`)
 				if is_inside_tree():
@@ -5139,6 +5283,8 @@ func _check_ending() -> void:
 			else:
 				await _wait_s(0.7)
 			if is_inside_tree():
+				# RUN ENDED is not another page: no page door on the swap
+				Audio.fx(&"loss_swap")
 				_leave_combat()
 		&"broke_off":
 			await _escape(0)
@@ -5214,6 +5360,8 @@ func _lower_band(then: Callable) -> void:
 	tw.tween_method(func(h: float) -> void:
 		_hand_holder.custom_minimum_size = Vector2(0, roundf(h * 0.5) * 2.0),
 		from, target, LOWER_S).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	# the band starts down: the escape menu's close (Jon: the same drawer)
+	Audio.fx(&"fight_band_down")
 	if _self_plate != null:
 		tw.parallel().tween_property(_self_plate, "modulate:a", 0.0, LOWER_S * 0.5)
 	tw.tween_callback(func() -> void:

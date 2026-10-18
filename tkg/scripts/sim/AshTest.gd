@@ -40,6 +40,27 @@ extends Node
 ## second while she talks (Jon judges motion per second; the fire ruling), every
 ## change a held frame at least TICK_S long; she blinks and the hologram slips.
 ##
+## HER VOICE (`AshLines.VOICE`, `Audio.ash_voice`), read off `Audio.tape`, which
+## records her takes headless where nothing plays: every voiced line plays its
+## own take exactly once, VOICE_AT after she appears (after the chirp) on the
+## frame its words start, and the words type for as long as the take within
+## 10%; the lines with no take yet are text alone, at once, with nothing taped;
+## END TURN, a card picked up, a hint settling, the ship lost and Settings'
+## switch each stop the voice where they cut the words; switched off, no voice.
+##
+## HER POWER-DOWN AND NO CLICK AS SHE GOES: a line that ends of itself plays the
+## power-on's two blips reversed (`text_blip_rev`), the higher first, the last
+## ending on the frame the projection goes and the first CHIRP_GAP before it
+## (one blip in reduced motion); END TURN, a hint, a card picked up, the ship
+## lost and Settings play none, and a cut during it hushes it. Every take,
+## rendered through Godot's own decoder (`AudioStreamPlayback.mix_audio`), stops
+## at the end of her last word without a step: the sharpest sample jump within
+## 30 ms of it under CLICK_MAX times the jumps round it (the takes as first made
+## measured up to 159: ElevenLabs ends a take mid-waveform, and the chain's
+## silence after it made the edge a click); the blip and its reverse start and
+## end at rest; and every looped room tone under her (`Audio.loop_whole`)
+## crosses its seam without a step (they clicked every lap, 17 to 148 times).
+##
 ## NOT PRESSABLE: everything in her ignores the mouse, no button, no hand.
 ## OFF: under a harness that did not ask, and with Settings' switch off.
 
@@ -77,6 +98,8 @@ func _run() -> void:
 	Hints.forced = false
 	_lines()
 	await _talk()
+	await _voice()
+	await _exits()
 	await _moments()
 	await _limits()
 	await _loss()
@@ -236,7 +259,9 @@ func _talk() -> void:
 			p.say(String(l), kk)
 			var s0 := GameClock.now()
 			var n0 := 0
-			while p.phase == AshPortrait.Phase.TYPING and GameClock.now() - s0 < 6.0:
+			# (the power-on before her voice, then the words with it)
+			while (p.phase == AshPortrait.Phase.UP or p.phase == AshPortrait.Phase.TYPING) \
+					and GameClock.now() - s0 < 8.0:
 				await _tree.process_frame
 			var dur := GameClock.now() - s0
 			n0 = p.frames_log.size() - 1
@@ -281,6 +306,436 @@ func _talk() -> void:
 	_ok("drawn at a whole pixel (%s)" % p.position, p.position == p.position.round())
 	Router.animate_in_harness = false
 	sc = null
+
+
+# ------------------------------------------------------------------ the voice
+
+## Her rows on the tape (`Audio.taping`: headless plays nothing and tapes all).
+func _taped(prefix: String) -> Array:
+	var out: Array = []
+	for row in Audio.tape:
+		if String(row[0]).begins_with(prefix):
+			out.append(String(row[0]))
+	return out
+
+
+## Until her voice is sounding, or `limit` frames; whether it is. A line she
+## picked that has no take yet is swapped for one of its moment's that has.
+func _voice_up(limit: int = 60) -> bool:
+	var p := Ash.portrait
+	if p != null and p.speaking() and p.voice == "":
+		for l in AshLines.of(p.kind):
+			if AshLines.voice_path(String(l)) != "":
+				p.say(String(l), p.kind)
+				break
+	for i in limit:
+		if Audio.voice_now != "":
+			return true
+		await _tree.process_frame
+	return Audio.voice_now != ""
+
+
+func _voice() -> void:
+	print("her voice")
+	# THE TABLE: an entry for every line, and every take it names loads, one-shot
+	var missing: Array[String] = []
+	var voiced := 0
+	for k in AshLines.MOMENTS:
+		for l in AshLines.of(k):
+			var id := AshLines.id_of(String(l))
+			if not AshLines.VOICE.has(id):
+				missing.append("%s has no entry" % id)
+				continue
+			var path := AshLines.voice_path(String(l))
+			if path == "":
+				continue
+			voiced += 1
+			var s: AudioStream = load(path) as AudioStream if ResourceLoader.exists(path) else null
+			if s == null or s.get_length() <= 0.0:
+				missing.append(path)
+			elif s is AudioStreamOggVorbis and (s as AudioStreamOggVorbis).loop:
+				missing.append("%s loops" % path)
+	_ok("every line has a voice entry; the %d takes named all load, none looping (%s)" % [
+		voiced, "all" if missing.is_empty() else ", ".join(missing)],
+		missing.is_empty() and AshLines.VOICE.size() == AshLines.count() and voiced > 0)
+
+	# EVERY LINE SAID: its take once, as the words start, after the chirp; the
+	# words as long as the take
+	var sc := await _local()
+	Router.animate_in_harness = true
+	Ash.arm(&"launch")
+	await _frames(2)
+	var p := Ash.portrait
+	if not _ok("she is up to speak", p != null and p.speaking()):
+		Router.animate_in_harness = false
+		return
+	Audio.taping = true
+	var once_bad: Array[String] = []
+	var when_bad: Array[String] = []
+	var len_bad: Array[String] = []
+	var pend_bad: Array[String] = []
+	var pend_ok: Array[String] = []
+	var worst := 0.0
+	var worst_line := ""
+	var mean_gap := 0.0
+	var timed := 0
+	var frame := 1.0 / 60.0
+	for k in AshLines.MOMENTS:
+		for l in AshLines.of(k):
+			var line := String(l)
+			var id := String(AshLines.id_of(line))
+			Audio.tape.clear()
+			p.say(line, k)
+			var born := GameClock.now()
+			var first_at := -1.0
+			while (p.speaking() and p.phase != AshPortrait.Phase.HOLDING or Audio.ash_speaking()) \
+					and GameClock.now() - born < 8.0:
+				await _tree.process_frame
+				if first_at < 0.0 and not _taped("ash/").is_empty():
+					first_at = GameClock.now()
+			var rows := _taped("ash/")
+			if p.voice == "":
+				# NO TAKE YET: the words at once at the text's own speed, nothing taped
+				var at_once := p.typed_at >= 0.0 and absf(p.typed_at - born) < 0.001
+				if rows.is_empty() and at_once and p.voice_secs == 0.0 and p.typed_for > 0.0:
+					pend_ok.append(id)
+				else:
+					pend_bad.append("%s (taped %s, typed at %+.2f)" % [id, str(rows), p.typed_at - born])
+				continue
+			if rows.count("ash/" + id) != 1 or rows.size() != 1:
+				once_bad.append("%s %s" % [id, str(rows)])
+			# it starts after the chirp, on the frame the words start
+			if absf(first_at - (born + AshPortrait.VOICE_AT)) > frame + 0.001 \
+					or absf(p.voice_started_at - first_at) > frame + 0.001 \
+					or absf(p.typed_at - p.voice_started_at) > 0.001:
+				when_bad.append("%s (voice %+.3f, words %+.3f)" % [id, first_at - born, p.typed_at - born])
+			# against what she SAYS: the take less the silence trimmed after her
+			# last word (the words would end with the file, not the word)
+			var said := p.voice_secs - AshPortrait.VOICE_TAIL_S
+			var off := absf(p.typed_for - said) / maxf(said, 0.001)
+			mean_gap += p.voice_secs - p.typed_for
+			timed += 1
+			if off > worst:
+				worst = off
+				worst_line = "%s: typed %.2f s, said %.2f s of a %.2f s take" % [id, p.typed_for, said, p.voice_secs]
+			if off > 0.10:
+				len_bad.append("%s %.0f%%" % [id, off * 100.0])
+	print("    the words end %.2f s before the take on average (its tail is %.2f s); worst %.1f%% (%s)" % [
+		mean_gap / maxf(timed, 1), AshPortrait.VOICE_TAIL_S, worst * 100.0, worst_line])
+	_ok("each voiced line plays its file exactly once (%d lines; %s)" % [timed,
+		"all" if once_bad.is_empty() else ", ".join(once_bad)], timed == voiced and once_bad.is_empty())
+	_ok("each starts %.2f s after she appears, after the chirp, with the words (%s)" % [AshPortrait.VOICE_AT,
+		"all" if when_bad.is_empty() else ", ".join(when_bad)], timed == voiced and when_bad.is_empty())
+	_ok("the typing takes as long as she speaks, within 10%% (worst %.1f%%%s)" % [worst * 100.0,
+		"" if len_bad.is_empty() else "; " + ", ".join(len_bad)], timed == voiced and len_bad.is_empty())
+	_ok("the lines with no take yet are text alone, at once, without errors (%s%s)" % [", ".join(pend_ok),
+		"" if pend_bad.is_empty() else "; BAD " + ", ".join(pend_bad)],
+		pend_bad.is_empty() and pend_ok.size() == AshLines.count() - voiced)
+	p.cut()
+	Router.animate_in_harness = false
+
+	# A CUT STOPS HER VOICE, wherever her words are cut or sent off
+	var cuts: Array[String] = []
+	var bad: Array[String] = []
+	# END TURN, in a fight
+	sc = await _fight(HullData.Weight.MEDIUM, &"cutter")
+	Run.heat = Run.heat_cap() + 2
+	await _said_after()
+	if await _voice_up():
+		Audio.tape.clear()
+		sc._on_end_turn()
+		Ash.poll(0.0)
+		(cuts if Audio.voice_now == "" and _taped("ash/stop").size() == 1 else bad).append("END TURN")
+	else:
+		bad.append("END TURN (never spoke)")
+	Run.heat = 0
+	await _frames(30)
+	# a card picked up, in a fight
+	sc = await _fight(HullData.Weight.MEDIUM, &"cutter")
+	Run.heat = Run.heat_cap() + 2
+	await _said_after()
+	if await _voice_up():
+		Audio.tape.clear()
+		sc._grab_view = sc._hand._views[0] if sc._hand._views.size() > 0 else null
+		Ash.poll(0.0)
+		(cuts if Audio.voice_now == "" and _taped("ash/stop").size() == 1 else bad).append("a drag")
+		sc._grab_view = null
+	else:
+		bad.append("a drag (never spoke)")
+	Run.heat = 0
+	# a hint starting to settle, on LOCAL
+	sc = await _local()
+	Ash.arm(&"launch")
+	await _said_after()
+	if await _voice_up():
+		Audio.tape.clear()
+		Hints._cand = &"wreck"
+		Ash.poll(0.0)
+		Hints._cand = &""
+		(cuts if Audio.voice_now == "" and _taped("ash/stop").size() == 1 else bad).append("a hint")
+	else:
+		bad.append("a hint (never spoke)")
+	# the ship lost
+	sc = await _local()
+	Ash.arm(&"launch")
+	await _said_after()
+	if await _voice_up():
+		Audio.tape.clear()
+		Run.hp = 0
+		Ash.poll(0.0)
+		(cuts if Audio.voice_now == "" and _taped("ash/stop").size() == 1 else bad).append("the ship lost")
+	else:
+		bad.append("the ship lost (never spoke)")
+	Run.hp = Run.max_hp()
+	# Settings' switch turned off mid-line
+	sc = await _local()
+	Ash.arm(&"launch")
+	await _said_after()
+	if await _voice_up():
+		Audio.tape.clear()
+		Ash.set_on(false)
+		Ash.poll(0.0)
+		(cuts if Audio.voice_now == "" and _taped("ash/stop").size() == 1 else bad).append("Settings off")
+	else:
+		bad.append("Settings off (never spoke)")
+	_ok("a cut stops her voice, faded over %d ms (%s%s)" % [Audio.VOICE_CUT_MS, ", ".join(cuts),
+		"" if bad.is_empty() else "; NOT " + ", ".join(bad)], bad.is_empty() and cuts.size() == 5)
+	# SETTINGS OFF: no voice at all
+	Audio.tape.clear()
+	sc = await _local()
+	Ash.arm(&"launch")
+	await _frames(40)
+	_ok("Settings off: no voice (taped %s)" % str(_taped("ash/")), _taped("ash/").is_empty() and Audio.voice_now == "")
+	Ash.set_on(true)
+	Audio.taping = false
+	Audio.tape.clear()
+
+
+# ------------------------------------------------------------------ the exits
+
+## A take's sharpest step: the largest second difference within 30 ms of where
+## her last word ends (the last 5 ms block within 40 dB of the loudest), against
+## the 95th centile of those 4 to 50 ms round it.
+const CLICK_MAX := 4.0
+## A room tone's seam: its sharpest sample step across the wrap, against its
+## typical step just before (the files' own seams measure 2 to 4.4).
+const ROOM_SEAM_MAX := 6.0
+
+
+static func _render(path: String) -> Dictionary:
+	var st := load(path) as AudioStream
+	var pb := st.instantiate_playback()
+	pb.start(0.0)
+	var x := PackedFloat32Array()
+	while pb.is_playing() and x.size() < 44100 * 12:
+		for v: Vector2 in pb.mix_audio(1.0, 4096):
+			x.append((v.x + v.y) * 0.5)
+	return {x = x, sr = float(x.size()) / maxf(st.get_length(), 0.001)}
+
+
+static func _d2(x: PackedFloat32Array, i: int) -> float:
+	return absf(x[i + 1] - 2.0 * x[i] + x[i - 1])
+
+
+static func word_end_step(path: String) -> float:
+	var r := _render(path)
+	var x: PackedFloat32Array = r.x
+	var sr: float = r.sr
+	var w := int(0.005 * sr)
+	var n := x.size() / w
+	var e := PackedFloat32Array()
+	var top := 0.0
+	for b in n:
+		var acc := 0.0
+		for i in range(b * w, b * w + w):
+			acc += x[i] * x[i]
+		e.append(sqrt(acc / w))
+		top = maxf(top, e[b])
+	var last := 0
+	for b in n:
+		if e[b] > top * 0.01:
+			last = b
+	var end := (last + 1) * w
+	var a := maxi(1, end - int(0.03 * sr))
+	var z := mini(x.size() - 2, end + int(0.03 * sr))
+	var j := a
+	for i in range(a, z):
+		if _d2(x, i) > _d2(x, j):
+			j = i
+	var near: Array[float] = []
+	for i in range(maxi(1, j - int(0.05 * sr)), j - int(0.004 * sr)):
+		near.append(_d2(x, i))
+	for i in range(j + int(0.004 * sr), mini(x.size() - 2, j + int(0.05 * sr))):
+		near.append(_d2(x, i))
+	near.sort()
+	var p95: float = near[int(near.size() * 0.95)] if not near.is_empty() else 0.0
+	return _d2(x, j) / maxf(p95, 1e-9)
+
+
+## Until she has gone, or `limit` s; the game second she went.
+func _until_gone(p: AshPortrait, limit: float = 14.0) -> float:
+	while p.phase != AshPortrait.Phase.GONE and GameClock.now() - p._born < limit:
+		await _tree.process_frame
+	return GameClock.now()
+
+
+func _exits() -> void:
+	print("her power-down, and no click as she goes")
+	var b := AshPortrait.blip_secs()
+	var frame := 1.0 / 60.0
+	# A NATURAL END, animated: both blips, in mirror order and time
+	var sc := await _local()
+	Router.animate_in_harness = true
+	Ash.arm(&"launch")
+	await _frames(2)
+	var p := Ash.portrait
+	var gone_at := await _until_gone(p)
+	var log: Array = p.rev_log.duplicate()
+	var want := [gone_at - AshPortrait.CHIRP_GAP - b / AshPortrait.CHIRP_UP, gone_at - b]
+	var ok_order := log.size() == 2 and is_equal_approx(float(log[0][1]), AshPortrait.CHIRP_UP) \
+		and is_equal_approx(float(log[1][1]), 1.0)
+	var off := 0.0
+	var seen: Array[String] = []
+	for i in log.size():
+		seen.append("%.2f at %+.3f s" % [float(log[i][1]), float(log[i][0]) - gone_at])
+		if i < 2:
+			off = maxf(off, absf(float(log[i][0]) - float(want[i])))
+	_ok("a line that ends of itself powers down: the two blips reversed, the higher first, the last ending as she goes (%s; %.3f s off)" % [
+		", ".join(seen), off], ok_order and off <= frame + 0.001 and not p.rev_hushed)
+	_ok("the power-on still chirps twice, now at the text's level (%d, %+.0f dB)" % [p.chirps, AshPortrait.CHIRP_DB],
+		p.chirps == 2 and AshPortrait.CHIRP_DB == 0.0)
+	Router.animate_in_harness = false
+	# reduced motion: one blip, the lower, ending as she goes
+	sc = await _local()
+	Ash.arm(&"launch")
+	await _frames(2)
+	p = Ash.portrait
+	gone_at = await _until_gone(p)
+	_ok("reduced motion: one blip reversed, ending as she goes (%s)" % str(p.rev_log),
+		p.rev_log.size() == 1 and is_equal_approx(float(p.rev_log[0][1]), 1.0)
+		and absf(float(p.rev_log[0][0]) - (gone_at - b)) <= frame + 0.001)
+	# THE OTHER EXITS: none
+	var none: Array[String] = []
+	var some: Array[String] = []
+	sc = await _fight(HullData.Weight.MEDIUM, &"cutter")
+	Run.heat = Run.heat_cap() + 2
+	await _said_after()
+	await _voice_up()
+	sc._on_end_turn()
+	Ash.poll(0.0)
+	await _frames(40)
+	(none if Ash.portrait.rev_log.is_empty() else some).append("END TURN")
+	Run.heat = 0
+	await _frames(30)
+	sc = await _fight(HullData.Weight.MEDIUM, &"cutter")
+	Run.heat = Run.heat_cap() + 2
+	await _said_after()
+	await _voice_up()
+	sc._grab_view = sc._hand._views[0] if sc._hand._views.size() > 0 else null
+	await _frames(40)
+	(none if Ash.portrait.rev_log.is_empty() else some).append("a drag")
+	sc._grab_view = null
+	Run.heat = 0
+	sc = await _local()
+	Ash.arm(&"launch")
+	await _said_after()
+	await _voice_up()
+	Hints._cand = &"wreck"
+	await _frames(40)
+	Hints._cand = &""
+	(none if Ash.portrait.rev_log.is_empty() else some).append("a hint")
+	sc = await _local()
+	Ash.arm(&"launch")
+	await _said_after()
+	await _voice_up()
+	Run.hp = 0
+	await _frames(40)
+	(none if Ash.portrait.rev_log.is_empty() else some).append("the ship lost")
+	Run.hp = Run.max_hp()
+	sc = await _local()
+	Ash.arm(&"launch")
+	await _said_after()
+	await _voice_up()
+	Ash.set_on(false)
+	await _frames(40)
+	(none if Ash.portrait.rev_log.is_empty() else some).append("Settings off")
+	Ash.set_on(true)
+	_ok("no power-down when she is sent off (%s%s)" % [", ".join(none), "" if some.is_empty() else "; BUT " + ", ".join(some)],
+		some.is_empty() and none.size() == 5)
+	# the ship lost DURING the power-down: hushed, she goes with the ship
+	sc = await _local()
+	Router.animate_in_harness = true
+	Ash.arm(&"launch")
+	await _frames(2)
+	p = Ash.portrait
+	while p.rev_log.is_empty() and p.speaking() and GameClock.now() - p._born < 14.0:
+		await _tree.process_frame
+	var started := not p.rev_log.is_empty()
+	Run.hp = 0
+	Ash.poll(0.0)
+	await _frames(20)
+	_ok("the ship lost during the power-down hushes it (started %s, hushed %s, %d blip)" % [started, p.rev_hushed, p.rev_log.size()],
+		started and p.rev_hushed and p.rev_log.size() == 1)
+	Run.hp = Run.max_hp()
+	Router.animate_in_harness = false
+	# NO CLICK: every take ends her last word without a step, through Godot's decoder
+	var worst := 0.0
+	var worst_id := ""
+	var bad: Array[String] = []
+	for k in AshLines.MOMENTS:
+		for l in AshLines.of(k):
+			var path := AshLines.voice_path(String(l))
+			if path == "":
+				continue
+			var r := word_end_step(path)
+			if r > worst:
+				worst = r
+				worst_id = path.get_file()
+			if r > CLICK_MAX:
+				bad.append("%s %.1f" % [path.get_file(), r])
+	_ok("every take ends her last word without a click: its sharpest step under %.0f x the jumps round it (worst %.1f, %s%s)" % [
+		CLICK_MAX, worst, worst_id, "" if bad.is_empty() else "; " + ", ".join(bad)], bad.is_empty() and worst > 0.0)
+	var edges: Array[String] = []
+	var rough := false
+	for nm in [AshPortrait.CHIRP, AshPortrait.CHIRP_REV]:
+		var x: PackedFloat32Array = _render(Audio.SFX_PATH % nm).x
+		var head := absf(x[0])
+		var tail := absf(x[x.size() - 1])
+		edges.append("%s %.4f / %.4f" % [nm, head, tail])
+		rough = rough or head > 0.01 or tail > 0.01
+	_ok("the blip and its reverse start and end at rest (%s)" % ", ".join(edges), not rough)
+	_ok("every stop of hers is faded: the voice and the power-down over %d ms" % Audio.VOICE_CUT_MS, Audio.VOICE_CUT_MS >= 30)
+	# AND THE ROOM UNDER HER: every looped room tone (`Audio.loop_whole`) crosses
+	# its seam without a step, rendered across the wrap
+	var rooms: Array[String] = []
+	var loud: Array[String] = []
+	var dir := DirAccess.open("res://assets/audio/ambience")
+	for f in dir.get_files():
+		if not f.ends_with(".wav"):
+			continue
+		var w := (load("res://assets/audio/ambience/" + f) as AudioStreamWAV).duplicate() as AudioStreamWAV
+		Audio.loop_whole(w)
+		var sr := float(w.mix_rate)
+		var pb := w.instantiate_playback()
+		var lead := 0.05
+		pb.start(float(w.loop_end) / sr - lead)
+		var x := PackedFloat32Array()
+		while x.size() < int(sr * lead * 2.0):
+			for v: Vector2 in pb.mix_audio(1.0, 1024):
+				x.append(v.x)
+		var c := int(sr * lead)
+		var step := 0.0
+		for i in range(c - 40, c + 40):
+			step = maxf(step, absf(x[i + 1] - x[i]))
+		var typ := 0.0
+		for i in range(c - 1200, c - 200):
+			typ += absf(x[i + 1] - x[i])
+		var r := step / maxf(typ / 1000.0, 1e-9)
+		rooms.append("%s %.1f" % [f.get_basename(), r])
+		if r > ROOM_SEAM_MAX:
+			loud.append(f.get_basename())
+	_ok("every looped room crosses its seam without a click: under %.0f x its typical step (%s)" % [ROOM_SEAM_MAX, ", ".join(rooms)],
+		loud.is_empty() and rooms.size() >= 10)
 
 
 # ------------------------------------------------------------------ the moments
@@ -540,6 +995,8 @@ func _hints() -> void:
 	press.button_index = MOUSE_BUTTON_LEFT
 	# a new run's LOCAL with every hint unseen: each hint as it comes, clicked
 	# away, and her line only once none is up, settling or due here
+	# (she says the hints herself now, `Hints.lesson`: Jon's tutorial A; a card
+	# only where she has no room. A bark is any line of hers that is not one.)
 	var shown: Array[String] = []
 	var over := 0
 	var said_with_due := false
@@ -547,12 +1004,13 @@ func _hints() -> void:
 	for i in 1800:
 		Hints.poll(1.0 / 60.0)
 		await _tree.process_frame
-		var card_up := Hints.card != null and is_instance_valid(Hints.card)
-		var up := Ash.portrait != null and Ash.portrait.visible and Ash.portrait.speaking()
+		var card_up := (Hints.card != null and is_instance_valid(Hints.card)) or Hints.lesson != &""
+		var up := Ash.portrait != null and Ash.portrait.visible and Ash.portrait.speaking() \
+			and not String(Ash.portrait.kind).begins_with("tut_")
 		if card_up and up:
 			over += 1
 		if card_up and Hints._up_t > 0.5:
-			shown.append(String(Hints.card.id))
+			shown.append(String(Hints.card.id) if Hints.card != null else String(Hints.lesson))
 			Hints.click(press)
 		if up and not said:
 			said = true

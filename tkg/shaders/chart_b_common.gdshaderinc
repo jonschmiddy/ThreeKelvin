@@ -16,6 +16,8 @@ uniform vec4 u_g5;          // bulge look: S strength, ball peak, ball core (x b
 uniform vec4 u_g6;          // warm-to-cool hand-over: width below, width above, level offset, the second arm's light
 uniform vec4 u_g7;          // arm strokes: arm A bright radius, arm B bright radius, width, strength
 uniform vec4 u_g8;          // ball size (re gu), ball brightness, chaos, tail 0/1
+uniform vec4 u_ballD = vec4(0.0);   // a ball's depth (`ChartSky.ball_depth`): look 0 today / 1 A / 2 B / 3 C, lane, lane angle, seed
+uniform vec4 u_ballE = vec4(0.0);   // and its kind's share of B: shells, globular clusters, star-cloud lumps
 uniform int u_ncl = 0;
 uniform vec4 u_cl[12];      // cloud: x, y, radius, reach (plane, gu)
 uniform vec4 u_ck[12];      // cloud: kind (0 emission 1 reflection 2 planetary 3 remnant 4 dark), hollow, shape, lighting lobe

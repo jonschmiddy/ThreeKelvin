@@ -371,7 +371,7 @@ func _tiles() -> Control:
 	h.add_theme_constant_override("separation", 6)
 	var low := Run.hp < Run.max_hp() * 0.35
 	for pair in [["HULL", "%d/%d" % [Run.hp, Run.max_hp()], Color("#d4614f") if low else UITheme.ICE],
-			["CREDITS", str(Run.credits), UITheme.ICE], ["FUEL", str(Run.fuel), UITheme.ICE]]:
+			["CREDITS", str(Run.credits), UITheme.ICE], ["FUEL", "%d/%d" % [Run.fuel, Run.fuel_cap()], HudBar.FUEL_INK[HudBar.fuel_state()]]]:
 		var t := PanelContainer.new()
 		t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		t.add_theme_stylebox_override("panel", UITheme.flat(Color(0, 0, 0, 0), UITheme.LINE, 0, 6, 6))

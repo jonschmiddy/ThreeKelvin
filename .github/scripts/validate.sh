@@ -465,6 +465,24 @@ else
 	bad "goaltest did not finish"
 fi
 
+# The 45 tank (Jon, Oct 17: "fuel:A warn:A events:A"): the cap on every write
+# and a refuel's top-up, the event floor and the 45-scale events, the fuel hint
+# at a third of the tank naming the nearest dock in reach (against the test's
+# own search), and the HUD's "FUEL [bar] 23/45" at full, a third and near empty:
+# its colours with hints on and off, and the box test on LOCAL and the chart,
+# dev mode on and off.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot fueltest 180 --headless --path "$PROJECT" -- sheet=FuelTest; then
+	if grep -qE '^fueltest: PASS' "$LOG_DIR/fueltest.log"; then
+		ok "the 45 tank: cap, event floor, the hint and its dock, the HUD readout"
+	else
+		bad "the fuel tank, its hint or its readout is wrong"
+		grep -E 'FAIL|^fueltest' "$LOG_DIR/fueltest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "fueltest did not finish"
+fi
+
 step "A.S.H. speaks at her moments, within her limits, and never over anything"
 # The ship's AI (Jon and Ashlee, Oct 17; docs/ash.md). Her thirty approved
 # lines, character for character against docs/ash_lines.json; each moment fires
@@ -484,6 +502,25 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 else
 	bad "ashtest did not finish"
+fi
+
+step "A.S.H. teaches: the hints in her corner, clear of everything, and the cards when she is off"
+# Jon's tutorial A (Oct 17): each first-run hint said in her corner in his
+# words with its subject outlined, the goal steps said as they start, on LOCAL,
+# fights, the chart, the map and the station, over the cutaway, the band and a
+# wreck's window; held until a click; a bark never over one; the box test on
+# every screen against a list gathered by the test and the pictures' own hit
+# tests; her switch off brings today's cards back; nothing in a party.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot ashtutortest 600 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=AshTutorTest; then
+	if grep -qE '^ashtutortest: PASS' "$LOG_DIR/ashtutortest.log"; then
+		ok "A.S.H. teaches every hint and step, clear of everything"
+	else
+		bad "A.S.H.'s teaching failed"
+		grep -E 'FAIL|^ashtutortest' "$LOG_DIR/ashtutortest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "ashtutortest did not finish"
 fi
 
 step "The sector map's worlds keep up with a pan"
@@ -768,6 +805,24 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 fi
 
+step "An event's result says what you end up with"
+# OutcomeRow's six looks (today, A big, B a ledger, C flown to the HUD, D a
+# table over the buttons, E that table and the things you got drawn big) on the
+# real LOCAL with the HUD: the real outcomes OutcomeCheck finds (Jon's lifepod,
+# credits and a part, credits and fuel, a part alone, nothing, credits alone,
+# the most changes), the numbers the run moved said in every look and layout, every
+# entry box-tested against the band, the buttons and the text, CONTINUE where
+# today's look has it; then C animated and under reduced motion: the HUD holds
+# its old number until the flight lands, flickers, and nothing pressable moves.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot outcometest 240 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=OutcomeTest; then
+	if grep -qE '^outcometest: PASS' "$LOG_DIR/outcometest.log"; then
+		ok "every look says what moved, fits, and C flies without moving a button"
+	else
+		bad "an event's result misstates or overlaps what you end up with"
+		grep -E 'FAIL' "$LOG_DIR/outcometest.log" | head -n 12 | sed 's/^/        /'
+	fi
+fi
+
 step "A graded hull keeps its palette"
 # HullGrade bakes each weight's one hull at C, B, A and S (Jon's AB+DEF) and
 # may only use colours the sprite already has, plus the manufacturer's band
@@ -801,6 +856,26 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 else
 	bad "idlesoundtest did not finish"
+fi
+
+step "October's effects are heard, once, on the frame each picture acts"
+# The free half of the Oct 17 sound plan (`Audio.FX`, one switchable row a
+# moment). Audio is off headless, but while it tapes it makes every decision
+# (limits, suppression, the pick, the caps) and writes it down: through the real
+# fights, deaths, your ship's loss and the ladder, each picture's own `moment`
+# against what was heard -- the band, plates on and off, a hit partly taken,
+# vents and their sputters, deaths G, N, O, P, the Hellbender's furnace and pops,
+# C1c's split, power_off and no page click into RUN ENDED, the chrome sliding
+# and the side bar's decode.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot soundmomenttest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=SoundMomentTest; then
+	if grep -qE '^soundmomenttest: PASS' "$LOG_DIR/soundmomenttest.log"; then
+		ok "every moment's sound plays once, on its frame, at its level"
+	else
+		bad "a moment's sound is missing, doubled, early or late"
+		grep -E 'FAIL|^soundmomenttest' "$LOG_DIR/soundmomenttest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "soundmomenttest did not finish"
 fi
 
 step "Jon's welcome note: once per profile, and on the title menu"
@@ -989,6 +1064,24 @@ if run_godot optiontest 180 --headless --path "$PROJECT" -- optiontest; then
 		grep -E '^  FAIL|^optiontest' "$LOG_DIR/optiontest.log" \
 			| head -n 12 | sed 's/^/        /'
 	fi
+fi
+
+step "An event's fight brings what its text set up"
+# Jon, Oct 17: an event's fight may bring a creature, but only when the text
+# before it is about that creature. Every `foe` tag names a creature, sits on a
+# fauna-gated event that fights and whose body names it; no untagged fight
+# follows creature text; over 24 galaxies every event fight brings a creature
+# exactly when tagged, and a build that drops the tag or takes creatures from
+# the region is caught; the real LOCAL band opens the tagged creature.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot foetagtest 300 --headless --path "$PROJECT" -- sheet=FoeTagTest; then
+	if grep -qE '^foetagtest: PASS' "$LOG_DIR/foetagtest.log"; then
+		ok "$(grep -E 'fight choices asked' "$LOG_DIR/foetagtest.log" | head -n 1 | sed 's/^ *//')"
+	else
+		bad "an event's fight brought something its text did not set up"
+		grep -E 'FAIL|^foetagtest' "$LOG_DIR/foetagtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "foetagtest did not finish"
 fi
 
 step "Every system lays out its map with every option on a body"

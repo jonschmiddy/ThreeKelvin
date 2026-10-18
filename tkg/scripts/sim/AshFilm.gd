@@ -11,7 +11,8 @@ extends Node
 ## not wait out the quiet). Attacks until the cutter dies; its wreck on LOCAL.
 ## The wreck opened and its credits taken (a chit of HAUL_CREDITS and more is
 ## put in it), the window shut, and her big-haul line when the quiet after the
-## last one is over. Every clock is the game's (`GameClock`, timers), so the
+## last one is over. Each line in her voice: the lines with no take yet are
+## left out of her picks. Every clock is the game's (`GameClock`, timers), so the
 ## movie writer's frames are true speed. Prints `mark <what> <seconds>`.
 
 var _args: PackedStringArray
@@ -38,6 +39,17 @@ func _mark(what: String) -> void:
 	print("mark %s %.2f" % [what, GameClock.now()])
 
 
+var _duck_was := -1.0
+
+
+## The music's duck as it moves (`Audio._duck`, 1 is none), for measuring the
+## attack and release against her voice.
+func _process(_d: float) -> void:
+	if absf(Audio._duck - _duck_was) > 0.0005:
+		_duck_was = Audio._duck
+		print("duck %.3f %.4f" % [GameClock.now(), Audio._duck])
+
+
 func _speaking() -> bool:
 	return Ash.portrait != null and Ash.portrait.speaking()
 
@@ -50,6 +62,10 @@ func _until_said(kind: StringName, limit: float) -> void:
 		await _tree.process_frame
 		if Ash.said_log.size() > n and StringName(Ash.said_log.back().kind) == kind:
 			_mark("said_%s" % kind)
+			while _speaking() and Ash.portrait.voice_started_at < 0.0:
+				await _tree.process_frame
+			if Ash.portrait.voice_started_at >= 0.0:
+				print("mark voice_%s %.2f %.2f" % [kind, Ash.portrait.voice_started_at, Ash.portrait.voice_secs])
 			break
 	while _speaking() and GameClock.now() - t0 < limit + 10.0:
 		await _tree.process_frame
@@ -64,6 +80,15 @@ func _run() -> void:
 	Rng.forced = int(_arg("seed", "4242"))
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Run.hand_size_override = 5
+	# HER VOICE ON EVERY LINE: the lines with no take yet (`AshLines.VOICE`)
+	# taken out of her bags, so the film hears her each time
+	for k in AshLines.MOMENTS:
+		var bag: Array = []
+		for l in AshLines.of(k):
+			if AshLines.voice_path(String(l)) != "":
+				bag.append(l)
+		bag.shuffle()
+		Ash._bags[k] = bag
 	for n: MapGen.MapNode in Run.map:
 		if n.type == MapGen.NodeType.SYSTEM and not Router.no_fights_at(n):
 			Run.at = n.index
@@ -169,5 +194,6 @@ func _run() -> void:
 	await _wait(1.5)
 	_mark("end")
 	for row in Ash.said_log:
-		print("ashfilm: said %s at %.1f: %s" % [row.kind, row.at, row.line])
+		print("ashfilm: said %s at %.2f (%s): %s" % [row.kind, row.at,
+			AshLines.voice_path(String(row.line)).get_file(), row.line])
 	_tree.quit()

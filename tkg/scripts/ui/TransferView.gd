@@ -81,6 +81,8 @@ var _node: MapGen.MapNode = null
 var _jetsam: MapGen.Jetsam = null
 var _busy: bool = false
 var _on_close: Callable
+## The window itself (the popup in the middle of the dimmed backdrop).
+var _window: PanelContainer = null
 
 
 ## `title` names the container -- SALVAGE, the wreck's name, whatever handed it
@@ -160,6 +162,7 @@ func _init() -> void:
 	# the backdrop, which is this view's own catch-all. A STOP frame would eat
 	# exactly the drops that are currently reaching it.
 	var popup := PanelContainer.new()
+	_window = popup
 	popup.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	popup.add_theme_stylebox_override("panel", _cut_box(PAD_V, PAD_H))
 	centre.add_child(popup)
@@ -630,6 +633,13 @@ class Ticks extends Control:
 			var d: Vector2 = p[1]
 			draw_line(o, o + Vector2(d.x * n, 0), c, 1.0)
 			draw_line(o, o + Vector2(0, d.y * n), c, 1.0)
+
+
+## The window's box, global (what A.S.H. keeps off when she teaches over it).
+func window_rect() -> Rect2:
+	if _window == null or not is_instance_valid(_window) or not _window.is_visible_in_tree():
+		return Rect2()
+	return _window.get_global_rect()
 
 
 func _build_hold() -> Control:

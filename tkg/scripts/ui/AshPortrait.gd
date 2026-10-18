@@ -36,9 +36,32 @@ extends Control
 ## words sit on the dim edgeless backing the goal line uses (an edged box is
 ## what this game's buttons look like). Nothing dismisses it but time.
 ##
-## THE SOUND, from what is already in the game (voice comes later): two of the
-## event text's own `text_blip`, the second a minor third up, at her appearance
-## and at the end of the power-on slip, a little under the text's level.
+## THE SOUND: her power-on is two of the event text's own `text_blip`, the
+## second a minor third up, at her appearance and at the end of the power-on
+## slip, at the text's own level (Jon, Oct 17: "the beep when ash comes in can
+## be a little louder": it was 3 dB under). THEN HER VOICE (`AshLines.VOICE`,
+## `Audio.ash_voice`), VOICE_AT after she appears: after the chirp rather than
+## under it. Measured over all 30 takes at their in-game levels, the chirp
+## against her first quarter second: at -3 dB and 0.3 s it sat 27.5 dB under on
+## average and 18 at worst; 3 dB up at 0.3 s that was 24.5 and 15, so her voice
+## moved to 0.35 s, which gives back 26.9 and 17.5 (started with her, the louder
+## chirp would sit only 6 dB under at worst, the second blip's click inside the
+## first word).
+## HER POWER-DOWN IS THE POWER-ON REVERSED (Jon: "Can the sound go in reverse
+## when she goes away?"): the same two blips, each played backwards
+## (`text_blip_rev`, the file reversed, so the same level), in mirror order and
+## mirror time, so the second blip's reverse ends as the fade starts and the
+## first's ends on the frame the projection goes. Only when a line ends of
+## itself: it has to start before the fade does, which only a natural end
+## knows, and the other exits (END TURN, a hint, a card picked up, something
+## in her box, Settings, the ship lost) are the game taking the floor, with
+## sounds of their own, and she is gone in a tenth of a second; a power-down
+## there would land after her and over them. A cut while it plays hushes it.
+## The words start typing WITH the voice, at the speed that ends them when she
+## stops (`SignalText.rate_for`, over the take's length less VOICE_TAIL_S), so
+## the mouth, which follows the letters, follows her. A line with no take yet
+## types at once at the text's own speed, as before. Wherever her words are cut
+## or sent off (`cut`, `leave`) the voice stops too, faded (`Audio.ash_voice_stop`).
 
 const SHEET := "res://art/ash/face.png"
 const FACE := 64
@@ -70,12 +93,34 @@ const SLIP_LIGHT := Color(0.75, 0.91, 1.0, 0.18)
 ## The power-on chirp: `text_blip`, the second a minor third (2^(3/12)) up, dB.
 const CHIRP := &"text_blip"
 const CHIRP_UP := 1.189207
-const CHIRP_DB := -3.0
+const CHIRP_DB := 0.0
+## The power-down: `text_blip` reversed, played the same way.
+const CHIRP_REV := &"text_blip_rev"
+## The forward chirp's gap between its two blips, s (the power-on slip's two ticks).
+const CHIRP_GAP := 0.2
 const DESIGNATION := "A.S.H."
+## Her voice starts this long after she appears, s: past the second chirp's
+## click and most of its ring (measured: see THE SOUND above).
+const VOICE_AT := 0.35
+## A take's own silence after her last word, s (the takes were trimmed to 30 ms
+## ahead and 80 ms after): the words end with the word, not the file.
+const VOICE_TAIL_S := 0.1
+## Once her voice has run out, the words stay at least this long, s (reduced
+## motion shows them whole at once; they must not go before she has finished).
+const VOICE_HOLD_S := 1.0
 
 ## The line she is saying, and its moment (for the harnesses).
 var line := ""
 var kind: StringName = &""
+## A TEACHING LINE (`Ash.teach`): held once it is out until it is let go (the
+## click that dismisses it, its subject gone), never on a timer: Jon's hint rule,
+## "let's have them advance with a click".
+var held := false
+## What she says, where a teaching line's take was recorded from a script that
+## differs from the words shown (`AshTutorLines.SPOKEN`: no numbers, no names);
+## "" when she says what shows. For the harnesses: the typing always spans the
+## SHOWN words over her take, so they end when she stops whatever their length.
+var spoken := ""
 ## Mirror: the face on the right, the words on its left.
 var mirrored := false
 ## Up, typing, holding, going, gone.
@@ -86,6 +131,19 @@ var phase: Phase = Phase.GONE
 var frames_log: Array = []
 ## Chirps asked for (`Audio` is off headless; `AshTest` counts these).
 var chirps := 0
+## The power-down's blips asked for, each [game s, pitch], and whether one was
+## hushed by a cut (`AshTest`).
+var rev_log: Array = []
+var rev_hushed := false
+## Her voice for this line ("" for text alone), its length, and the game
+## seconds it started and the words started and finished typing (-1 until
+## they have): `AshTest` measures one against the other.
+var voice := ""
+var voice_secs := 0.0
+var voice_started_at := -1.0
+var typed_at := -1.0
+var typed_for := -1.0
+var _voice_at := INF
 
 var _sheet: Texture2D
 var _back: Panel
@@ -103,6 +161,9 @@ var _settled: Array = []   # letters settled since the last tick
 var _hold_until := INF
 var _going_at := INF
 var _second_chirp := false
+var _rev_step := 0
+var _natural := false
+static var _blip_s := -1.0
 var _out_steps: Array = []
 var _rng := RandomNumberGenerator.new()
 ## Set by `Ash` each frame: the hull failing (slips come twice as often).
@@ -132,12 +193,24 @@ func _init() -> void:
 	add_child(_text)
 
 
-## Say `what` (one of `AshLines`' moments, `k`). Starts the power-on.
-func say(what: String, k: StringName) -> void:
+## Say `what` (one of `AshLines`' moments, `k`). Starts the power-on. `opts`,
+## for a teaching line (`Ash.teach`): `voice` (its take, "" for none), `spoken`
+## (the part she says) and `held` (hold until let go).
+func say(what: String, k: StringName, opts: Dictionary = {}) -> void:
+	# whatever she was saying, she is not now
+	Audio.ash_voice_stop()
 	line = what
 	kind = k
+	held = bool(opts.get("held", false))
+	spoken = String(opts.get("spoken", ""))
+	voice = String(opts["voice"]) if opts.has("voice") else AshLines.voice_path(what)
+	voice_secs = 0.0
+	voice_started_at = -1.0
+	typed_at = -1.0
+	typed_for = -1.0
+	_voice_at = INF
+	_text.rate = 0.0
 	_layout()
-	_text.text = what
 	var now := GameClock.now()
 	_born = now
 	_tick_at = now
@@ -150,6 +223,10 @@ func say(what: String, k: StringName) -> void:
 	_going_at = INF
 	_second_chirp = false
 	chirps = 0
+	_rev_step = 0
+	_natural = false
+	rev_log.clear()
+	rev_hushed = false
 	_next_blink = now + _rng.randf_range(1.2, 3.0)
 	phase = Phase.UP
 	visible = true
@@ -163,20 +240,44 @@ func say(what: String, k: StringName) -> void:
 		_slip_ticks = 0
 		_next_slip = INF
 	_chirp(1.0)
-	_text.play()
-	phase = Phase.TYPING
+	if voice == "":
+		_start_words(now)
+	else:
+		# nothing typed until she speaks, after the power-on
+		_text.text = ""
+		_text.skip()
+		_voice_at = now + VOICE_AT
 	_log_frame(now)
 	queue_redraw()
 
 
-## Fade out now (`quick`: the hints' or a drag's turn, faster).
+## Her voice (if the line has one) and the words, together.
+func _start_words(now: float) -> void:
+	_voice_at = INF
+	if voice != "":
+		voice_secs = Audio.ash_voice(voice)
+		if voice_secs > 0.0:
+			voice_started_at = now
+			_text.rate = SignalText.rate_for(line, voice_secs - VOICE_TAIL_S)
+	_text.text = line
+	_text.play()
+	typed_at = now
+	phase = Phase.TYPING
+
+
+## Fade out now (`quick`: the hints' or a drag's turn, faster). Sent off from
+## outside, so no power-down (THE SOUND), and any already started is hushed.
 func leave(quick: bool = false) -> void:
 	if phase == Phase.GOING or phase == Phase.GONE:
 		return
+	if not _natural:
+		_hush_rev()
 	phase = Phase.GOING
 	_going_at = GameClock.now()
+	_voice_at = INF
+	Audio.ash_voice_stop()
 	if not _moving():
-		cut()
+		_gone()
 		return
 	_out_steps = FADE_OUT.slice(FADE_OUT.size() - 1) if quick else FADE_OUT
 	modulate.a = float(_out_steps[0])
@@ -184,9 +285,16 @@ func leave(quick: bool = false) -> void:
 
 ## Gone this frame, no fade: the ship is lost, and the projection goes with it.
 func cut() -> void:
+	_hush_rev()
+	_gone()
+
+
+func _gone() -> void:
 	phase = Phase.GONE
 	visible = false
 	modulate.a = 0.0
+	_voice_at = INF
+	Audio.ash_voice_stop()
 	_text.skip()
 
 
@@ -217,14 +325,28 @@ func _moving() -> bool:
 func _layout() -> void:
 	var tx := 0.0 if mirrored else float(FACE + GAP)
 	_back.position = Vector2(tx, 0.0)
-	# the backing as tall as what it holds (the face keeps the frame's height)
-	var lh := float(UITheme.pixel_font().get_height(UITheme.FS_SMALL)) + float(SignalText.LINE_GAP)
-	_back.size = Vector2(TEXT_W, minf(H, roundf(PAD_Y + 12.0 + lh * float(lines_for(line)) + PAD_Y - 2.0)))
+	# the backing as tall as what it holds (the face keeps the frame's height; a
+	# teaching line of five lines makes the frame taller, never narrower)
+	var sz := size_for(line)
+	size = sz
+	_back.size = Vector2(TEXT_W, minf(sz.y, _words_h(line)))
 	_name.position = Vector2(tx + PAD_X, PAD_Y - 1.0)
 	_name.size = Vector2(TEXT_W - PAD_X * 2, 10.0)
 	_text.position = Vector2(tx + PAD_X, PAD_Y + 12.0)
-	_text.size = Vector2(TEXT_W - PAD_X * 2, H - PAD_Y * 2 - 12.0)
+	_text.size = Vector2(TEXT_W - PAD_X * 2, sz.y - PAD_Y * 2 - 12.0)
 	_text.custom_minimum_size = Vector2(TEXT_W - PAD_X * 2, 0.0)
+
+
+## The words' backing for `what`: the designation, the lines and the padding, px.
+static func _words_h(what: String) -> float:
+	var lh := float(UITheme.pixel_font().get_height(UITheme.FS_SMALL)) + float(SignalText.LINE_GAP)
+	return roundf(PAD_Y + 12.0 + lh * float(lines_for(what)) + PAD_Y - 2.0)
+
+
+## The whole frame for `what`: W wide, and the face's height or the words', the
+## taller (`Ash` finds her spot with it).
+static func size_for(what: String) -> Vector2:
+	return Vector2(W, maxf(float(H), _words_h(what)))
 
 
 ## How many lines `what` takes in the words' column (Ash keeps them to four).
@@ -259,6 +381,45 @@ func _chirp(pitch: float) -> void:
 	Audio.play(CHIRP, 0.0, 0, CHIRP_DB, pitch)
 
 
+## One blip of the power-down.
+func _rev_chirp(pitch: float, at: float) -> void:
+	rev_log.append([at, pitch])
+	Audio.play(CHIRP_REV, 0.0, 0, CHIRP_DB, pitch)
+
+
+func _hush_rev() -> void:
+	if _rev_step > 0 and not rev_hushed:
+		rev_hushed = true
+		Audio.hush([CHIRP_REV] as Array[StringName], Audio.VOICE_CUT_MS)
+
+
+## The blip's length, s (the file, read once; headless too).
+static func blip_secs() -> float:
+	if _blip_s < 0.0:
+		var st := load(Audio.SFX_PATH % CHIRP_REV) as AudioStream
+		_blip_s = st.get_length() if st != null else 0.3
+	return _blip_s
+
+
+## THE POWER-DOWN'S SCHEDULE while she holds: the projection goes at `gone`
+## (the end of the hold, plus the fade's steps); the first blip's reverse ends
+## there, and the second's, a minor third up, CHIRP_GAP before it. Reduced
+## motion has no power-on slip and so no second blip, and none here either.
+func _power_down(now: float) -> void:
+	var fade := float(FADE_OUT.size()) * TICK_S if _moving() else 0.0
+	var gone := _hold_until + fade
+	var b := blip_secs()
+	if _rev_step == 0:
+		if not _moving():
+			_rev_step = 1
+		elif now >= gone - CHIRP_GAP - b / CHIRP_UP - 0.0001:
+			_rev_step = 1
+			_rev_chirp(CHIRP_UP, now)
+	if _rev_step == 1 and now >= gone - b - 0.0001:
+		_rev_step = 2
+		_rev_chirp(1.0, now)
+
+
 func _process(_d: float) -> void:
 	if phase == Phase.GONE:
 		return
@@ -266,16 +427,26 @@ func _process(_d: float) -> void:
 	if phase == Phase.GOING:
 		var j := int(floorf((now - _going_at) / TICK_S + 0.0001))
 		if j >= _out_steps.size():
-			cut()
+			_gone()
 			return
 		modulate.a = float(_out_steps[j])
 	elif _moving():
 		var i := int(floorf((now - _born) / TICK_S + 0.0001))
 		modulate.a = float(FADE_IN[mini(i, FADE_IN.size() - 1)])
+	if phase == Phase.UP and now >= _voice_at - 0.0001:
+		_start_words(now)
 	if _text.done and phase == Phase.TYPING:
 		phase = Phase.HOLDING
+		typed_for = now - typed_at
 		_hold_until = now + HOLD_MIN_S + HOLD_PER_CHAR_S * float(line.length())
+		if voice_started_at >= 0.0:
+			_hold_until = maxf(_hold_until, voice_started_at + voice_secs + VOICE_HOLD_S)
+		if held:
+			_hold_until = INF
+	if phase == Phase.HOLDING:
+		_power_down(now)
 	if phase == Phase.HOLDING and now >= _hold_until:
+		_natural = true
 		leave()
 	var changed := false
 	while now - _tick_at >= TICK_S - 0.0001:

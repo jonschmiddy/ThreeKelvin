@@ -11,7 +11,8 @@ extends Control
 ## cards, odds, costs and readings the map's panel showed
 ## (`EncounterDrawer.choice_card`). Choosing resolves through `OptionResolve`,
 ## the one rule; the result comes up in the same place: the band word, YOU
-## CHOSE, what happened, the four ledger rows, REWARD (the system's pile in
+## CHOSE, what happened, what you end up with (`OutcomeRow`, in the look Jon
+## picks), REWARD (the system's pile in
 ## `TransferView`) and CONTINUE. A fight it starts is THEY ARE FIRING, and then
 ## the fight itself, whose hand takes the band's place. NOT NOW drops it and the
 ## bar under the view says OPEN IT.
@@ -242,6 +243,7 @@ func _lift() -> void:
 
 
 func _drop() -> void:
+	OutcomeRow.settle(self)
 	page = &""
 	_up = false
 	if _tw != null:
@@ -378,6 +380,11 @@ func _fit_and_show() -> void:
 		var want := text.custom_minimum_size.y
 		_scroll.custom_minimum_size.y = 0.0
 		var rest := panel.get_combined_minimum_size().y
+		# D's text stands BESIDE its table, not over it: the table's height is
+		# not taken off the text's
+		var lane := _scroll.get_parent() as Control
+		if page == &"result" and lane != null and lane.name == &"ResultLane":
+			rest -= lane.get_combined_minimum_size().y
 		_scroll.custom_minimum_size.y = minf(want, maxf(cap - rest, 12.0))
 	height = minf(cap, panel.get_combined_minimum_size().y)
 	if layout == &"card":
@@ -395,6 +402,8 @@ func _fit_and_show() -> void:
 
 ## The text is all here: the choices (or the buttons) fade in and take clicks.
 func _text_done() -> void:
+	if page == &"result":
+		OutcomeRow.fly(self)
 	if _choices == null:
 		return
 	if not _moving():
@@ -477,6 +486,7 @@ func _hulls(n: Node) -> Array:
 func open(i: int) -> void:
 	if node == null or i < 0 or i >= node.options.size():
 		return
+	OutcomeRow.settle(self)
 	opt = i
 	choice = -1
 	out = {}
@@ -602,7 +612,14 @@ func choose(j: int) -> Dictionary:
 
 # --------------------------------------------------------------- the result
 
+## B's receipt, beside the text, game px.
+const RECEIPT_W := 340.0
+## E's plates at their widest before a row wraps under, game px.
+const PRIZES_W := 330.0
+
 func _result() -> void:
+	# a re-shown result (REWARD shut, a look changed) lands C's flights first
+	OutcomeRow.settle(self)
 	page = &"result"
 	var o := OptionTable.by_id(node.options[opt])
 	var choices: Array = o.get("choices", [])
@@ -627,28 +644,87 @@ func _result() -> void:
 	var band := UITheme.body(word, ink, UITheme.FS_HEAD)
 	band.name = "Band"
 	head.add_child(band)
+	head.name = "Head"
 	_box.add_child(head)
 	var chose := "YOU CHOSE: " + String((choices[choice] as Dictionary).get("label", "")).to_upper() \
 		if choice >= 0 and choice < choices.size() else ""
 	if out.get("checked", false):
 		chose += " · " + String(out.get("odds", ""))
 	var cl := UITheme.body(chose, UITheme.COLD, UITheme.FS_SMALL)
+	cl.name = "Chose"
 	cl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_box.add_child(cl)
-	_box.add_child(_text_box(String(res.get("text", "")), UITheme.CHILL if ink == UITheme.COLD else ink))
-	# THE LEDGER AS ONE ROW, the buttons at the end of it
+	# WHAT YOU END UP WITH, in the look Jon picks (`OutcomeRow.look`): today's
+	# four fixed pairs, A only what changed and big, B a GAINED | LOST receipt
+	# beside the text, C only what changed flying to the HUD, D a little table
+	# over the buttons, E that table and the things that came aboard drawn big
+	var look := OutcomeRow.look
+	var said := _text_box(String(res.get("text", "")), UITheme.CHILL if ink == UITheme.COLD else ink)
+	var receipt: Control = null
+	if look == &"B":
+		receipt = OutcomeRow.ledger(out, RECEIPT_W if layout != &"card" else CARD_W - 20.0)
+	# D: a table on the right, right over the buttons, the text wrapping clear
+	# of it; the buttons go in that column, on the band's floor as ever. E: D,
+	# and what came aboard drawn big beside that column, to its left (the
+	# table then leaves out what the plates say)
+	var right: VBoxContainer = null
+	var prizes: Control = null
+	if look == &"E":
+		prizes = OutcomeRow.prizes(out, PRIZES_W if layout != &"card" else CARD_W - 20.0)
+	var tab: Control = null
+	if look == &"D" or look == &"E":
+		tab = OutcomeRow.table(out, prizes != null)
+	if receipt != null and layout != &"card":
+		var lane := HBoxContainer.new()
+		lane.add_theme_constant_override("separation", 14)
+		lane.add_child(said)
+		lane.add_child(receipt)
+		_box.add_child(lane)
+	elif (tab != null or prizes != null) and layout != &"card":
+		var lane2 := HBoxContainer.new()
+		lane2.name = "ResultLane"
+		lane2.add_theme_constant_override("separation", 16)
+		lane2.add_child(said)
+		if prizes != null:
+			# its foot on the band's floor beside the buttons' column
+			prizes.size_flags_vertical = Control.SIZE_SHRINK_END
+			lane2.add_child(prizes)
+		right = VBoxContainer.new()
+		right.add_theme_constant_override("separation", 6)
+		right.size_flags_horizontal = Control.SIZE_SHRINK_END
+		var push := Control.new()
+		push.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		right.add_child(push)
+		if tab != null:
+			right.add_child(tab)
+		lane2.add_child(right)
+		_box.add_child(lane2)
+	else:
+		_box.add_child(said)
+		if receipt != null:
+			_box.add_child(receipt)
+	# THE OUTCOME AS ONE ROW, the buttons at the end of it
 	var foot := HBoxContainer.new()
 	foot.add_theme_constant_override("separation", 6)
-	for r in out.get("bill", []):
-		foot.add_child(UITheme.body(String(r.name), UITheme.COLD, UITheme.FS_SMALL))
-		var v := UITheme.body(String(r.text), r.tone as Color, UITheme.FS_SMALL)
-		v.custom_minimum_size.x = 22
-		foot.add_child(v)
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	foot.add_child(sp)
+	if look == &"A" or look == &"C":
+		foot.add_child(OutcomeRow.line(out, look))
+	else:
+		if look == &"today":
+			for r in out.get("bill", []):
+				foot.add_child(UITheme.body(String(r.name), UITheme.COLD, UITheme.FS_SMALL))
+				var v := UITheme.body(String(r.text), r.tone as Color, UITheme.FS_SMALL)
+				v.custom_minimum_size.x = 22
+				v.add_to_group(OutcomeRow.GROUP)
+				v.set_meta(&"outcome_text", "%s %s" % [r.name, r.text])
+				foot.add_child(v)
+		var sp := Control.new()
+		sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		foot.add_child(sp)
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 6)
+	# CONTINUE STAYS WHERE IT IS: at its own height on the band's floor, whatever
+	# the outcome beside it stands as tall as
+	buttons.size_flags_vertical = Control.SIZE_SHRINK_END
 	if out.get("stay", false):
 		var again := Widgets.button("CHOOSE AGAIN", func() -> void: open(opt))
 		again.name = "ChooseAgain"
@@ -668,19 +744,40 @@ func _result() -> void:
 		var cont := Widgets.button("CONTINUE", continue_on)
 		cont.name = "Continue"
 		buttons.add_child(cont)
-	if layout == &"card":
-		# (narrow: the ledger on its line, the buttons under it)
-		_box.add_child(foot)
+	if right != null:
+		foot.free()
+		buttons.size_flags_horizontal = Control.SIZE_SHRINK_END
+		right.add_child(buttons)
+	elif layout == &"card":
+		# (narrow: the ledger on its line, the buttons under it; D's table
+		# right-aligned over them)
 		var brow := HBoxContainer.new()
 		var sp2 := Control.new()
 		sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		brow.add_child(sp2)
-		brow.add_child(buttons)
+		if tab != null or prizes != null:
+			# D: the table and the buttons one right-aligned column, the table at
+			# least as wide as the buttons; E's plates over the table
+			foot.free()
+			var col := VBoxContainer.new()
+			col.add_theme_constant_override("separation", 6)
+			if prizes != null:
+				prizes.size_flags_horizontal = Control.SIZE_SHRINK_END
+				col.add_child(prizes)
+			if tab != null:
+				col.add_child(tab)
+			buttons.size_flags_horizontal = Control.SIZE_SHRINK_END
+			col.add_child(buttons)
+			brow.add_child(col)
+		else:
+			_box.add_child(foot)
+			brow.add_child(buttons)
 		_box.add_child(brow)
 	else:
 		foot.add_child(buttons)
 		_box.add_child(foot)
 	_choices = buttons
+	OutcomeRow.hold(self)
 	_fit_and_show()
 
 
@@ -700,7 +797,8 @@ func _fight() -> void:
 	if _tw != null and _tw.is_valid() and _tw.is_running() and _moving():
 		await _tw.finished
 	if is_inside_tree():
-		Router.start_ambush()
+		# the creature the event's text set up, or a ship (`OptionResolve.take`)
+		Router.start_ambush(StringName(out.get("foe", &"")))
 
 
 ## CONTINUE: it drops and you stay on LOCAL, the bar saying how it went.

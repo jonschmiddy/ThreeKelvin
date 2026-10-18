@@ -996,6 +996,8 @@ func _notable(n: MapGen.MapNode) -> int:
 func _neighbour_row(n: MapGen.MapNode) -> Control:
 	var afford := Run.can_jump_to(n)
 	var b := Button.new()
+	# which system the row is, for the fuel hint, which points at the dock it names
+	b.set_meta(&"node", n.index)
 	Widgets.wear_pointer(b)
 	b.custom_minimum_size = Vector2(0, 15)
 	b.focus_mode = Control.FOCUS_NONE
@@ -3421,6 +3423,19 @@ class MapChart extends Control:
 			lo = lo.min(p)
 			hi = hi.max(p)
 			n += 1
+		# A BALL IS FRAMED WHOLE (Jon, Oct 18, "frame:A"): a ball galaxy is drawn round its
+		# core, but its systems lie on the disc's plane, which the camera draws mostly
+		# below the core (the disc's rim at 0.27 gu above it and 0.66 below), so a frame of
+		# the systems alone put the core near the top and cut the ball off there. The
+		# box takes in the core and the ball's lit radius too (`ChartSky.ball_lit_gu`).
+		# A spiral's frame is the systems' alone, as it always was.
+		if run_galaxy and ChartSky.form_of(Run.galaxy_kind) == 1:
+			var bl := ChartSky.ball_of(Run.galaxy_kind, Run.galaxy)
+			var rr := ChartSky.ball_lit_gu(bl) * _radius() * DISC
+			var cb := _proj_unit(Vector2.ZERO)
+			lo = lo.min(cb - Vector2(rr, rr * bl.y))
+			hi = hi.max(cb + Vector2(rr, rr * bl.y))
+			n = maxi(n, 2)
 		if n <= 1:
 			# Nothing near you but you. Centre on the ship at a readable zoom
 		# rather than dividing by a span of nothing.

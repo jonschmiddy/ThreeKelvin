@@ -69,6 +69,9 @@ var _heat: BoxGauge
 var _heat_text: Label
 var _scrap: HBoxContainer
 var _fuel: HBoxContainer
+## The tank as a bar between FUEL and "23/45" (Jon: "warn:A"). Drawn, flat and
+## not a control anyone presses; see `FuelBar`.
+var _fuel_bar: FuelBar
 ## The goal and the next step, under the bar (`GoalLine`).
 var goal: GoalLine = null
 
@@ -347,6 +350,13 @@ func _build() -> void:
 	# introduced to fix, reintroduced by removing the divider that was hiding it.
 	_fuel = Widgets.stat("fuel", "")
 	_fuel.add_theme_constant_override("separation", STAT_GAP)
+	# "FUEL [bar] 23/45": the bar between the word and the figure, so the three
+	# read as one readout. The figure is held at the width of "45/45" so a tank
+	# going from 10 to 9 does not move the bar.
+	_fuel_bar = FuelBar.new()
+	_fuel.add_child(_fuel_bar)
+	_fuel.move_child(_fuel_bar, 1)
+	_reserve(_fuel.get_node("Value") as Label, "%d/%d" % [Run.FUEL_TANK, Run.FUEL_TANK])
 	econ.add_child(_hintable(_fuel))
 	_row.add_child(econ)
 
@@ -448,6 +458,10 @@ func refresh() -> void:
 	# hull drops as each shot lands rather than on the click (combat polish).
 	var hp := Run.hp if SectorScreen.shown_hull < 0 else SectorScreen.shown_hull
 	var heat := Run.heat if SectorScreen.shown_heat < 0 else SectorScreen.shown_heat
+	# AND WHAT AN EVENT'S RESULT IS STILL FLYING UP HERE (`OutcomeRow.held`, look
+	# C): the number changes when its flight lands, not before
+	hp = int(OutcomeRow.held.get("hp", hp))
+	heat = int(OutcomeRow.held.get("heat", heat))
 	_hull.set_hull(hp, Run.max_hp())
 	_hint(_hull_label, hull_note)
 	_hull.tooltip_text = Widgets.tip(hull_note)
@@ -482,11 +496,32 @@ func refresh() -> void:
 		UITheme.FLARE if over > 0 else UITheme.COLD)
 	_hint(_heat_text, heat_note)
 
-	_value(_scrap, str(Run.credits))
+	_value(_scrap, str(int(OutcomeRow.held.get("credits", Run.credits))))
 	# One sentence, in one place. See `CreditChit.WHAT_MONEY_IS`.
 	_hint(_scrap, CreditChit.WHAT_MONEY_IS)
-	_value(_fuel, str(Run.fuel))
-	_hint(_fuel, "Every jump burns fuel. Longer jumps burn more.\nIf you run dry between stations, the run ends.")
+	# "23/45", the bar, and a colour that says it before you read it: amber at
+	# a third of the tank (where the fuel hint fires), red when two of the
+	# dearest jump on offer would empty it. In a party there are no hints
+	# (Hints.enabled), so this is the warning there.
+	var state := fuel_state()
+	# (an outcome counting up holds the figure back: `OutcomeRow.held`)
+	var shown := int(OutcomeRow.held.get("fuel", Run.fuel))
+	_value(_fuel, "%d/%d" % [shown, Run.fuel_cap()])
+	var fv := _fuel.get_node_or_null("Value") as Label
+	if fv != null:
+		fv.add_theme_color_override("font_color", FUEL_INK[state])
+	_fuel_bar.set_tank(shown, Run.fuel_cap(), state)
+	_hint(_fuel, "Every jump burns fuel. Longer jumps burn more. The tank holds %d.\nStations sell fuel. If you run dry between them, the run ends." % Run.fuel_cap())
+
+## 0 the tank is fine, 1 low (a third or less), 2 critical (under two of the
+## dearest jump on offer). Public for the harnesses.
+static func fuel_state() -> int:
+	if Run.fuel_critical():
+		return 2
+	return 1 if Run.fuel_low() else 0
+
+## The figure's colour in each state: the bar's own ice, amber, the hull's red.
+const FUEL_INK: Array[Color] = [UITheme.ICE, UITheme.WARN, Color("#d4614f")]
 
 ## Where the second nav tab goes: the station if you are tied up at one, the
 ## sector if you are flying it. Read at click time so the label and the
@@ -558,6 +593,11 @@ func fuel_rect() -> Rect2:
 	return _merged([_fuel])
 
 
+## The fuel readout's pieces, for the box test: the word, the bar, the figure.
+func fuel_parts() -> Array:
+	return _fuel.get_children() if _fuel != null else []
+
+
 func tab_rect(which: StringName) -> Rect2:
 	match which:
 		&"chart":
@@ -567,6 +607,32 @@ func tab_rect(which: StringName) -> Rect2:
 		&"local":
 			return _merged([_tab_sector])
 	return Rect2()
+
+
+## THE READOUT A STAT LIVES IN, for an event's result to fly its change to
+## (`OutcomeRow`, look C): "hp" "heat" "credits" "fuel". Not one of them takes a
+## click, and the result only flickers them.
+func stat_nodes(key: String) -> Array:
+	match key:
+		"hp":
+			return [_hull_label, _hull, _hull_text]
+		"heat":
+			return [_heat_label, _heat, _heat_text]
+		"credits":
+			return [_scrap]
+		"fuel":
+			return [_fuel]
+	return []
+
+
+## A tab, for the same: flickered, never moved.
+func tab_nodes(which: StringName) -> Array:
+	match which:
+		&"archive":
+			return [_tab_archive]
+		&"chart":
+			return [_tab_chart]
+	return []
 
 
 ## Where the goal line is, global; empty while it is not up.
@@ -701,3 +767,46 @@ class SetChip extends Control:
 		# every one of the seven. Bottom-up, so the stack grows as the set does.
 		for i in mini(count, 5):
 			draw_rect(Rect2(13.0, PLATE - 3.0 - i * 2.0, 2.0, 1.0), ink, true)
+
+
+## THE TANK AS A BAR, between FUEL and its figure. A gauge, not a control: flat,
+## no bevel, no hover state, no focus, so nothing about it says "press me" (the
+## rule is only pressable things look pressable). It takes the hover only so the
+## readout's tooltip works across it, as every readout on this bar does.
+##
+## Continuous rather than cells: hull and heat are ten cells beside it, and a
+## third row of cells read as one long gauge. A thin bar is a different kind
+## of thing at a glance, which is what fuel is -- the clock, not the ship.
+class FuelBar extends Control:
+	const W := 24
+	const H := 5
+	const FILL: Array[Color] = [UITheme.GOOD, UITheme.WARN, Color("#d4614f")]
+	var ratio := 1.0
+	var state := 0
+
+	func _init() -> void:
+		custom_minimum_size = Vector2(W, H)
+		size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		focus_mode = Control.FOCUS_NONE
+
+	func set_tank(have: int, cap: int, s: int) -> void:
+		ratio = clampf(float(have) / float(maxi(1, cap)), 0.0, 1.0)
+		state = s
+		queue_redraw()
+
+	## How many of the bar's inner pixels are lit. One while anything is left,
+	## so the bar is empty only when the tank is.
+	func lit_px() -> int:
+		var inner := W - 2
+		if ratio <= 0.0:
+			return 0
+		return clampi(int(round(ratio * inner)), 1, inner)
+
+	func _draw() -> void:
+		# +1 for the same optical reason as BoxGauge: Silkscreen's caps sit high.
+		var y: float = floor((size.y - H) * 0.5) + 1.0
+		draw_rect(Rect2(0, y, W, H), Color("#10161f"), true)
+		draw_rect(Rect2(0, y, W, H), UITheme.LINE, false, 1.0)
+		var px := lit_px()
+		if px > 0:
+			draw_rect(Rect2(1, y + 1, px, H - 2), FILL[state], true)
