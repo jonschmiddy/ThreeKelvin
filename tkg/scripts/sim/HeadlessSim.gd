@@ -140,6 +140,18 @@ var modules_taken := 0
 ## across twenty-one chassis is already thin, and resetting it per chassis would
 ## leave every cell too small to read.
 var by_kind: Dictionary = {}
+## THE SAME SPLIT BY THE MANUFACTURER YOU LAUNCHED AS, with each death bucketed
+## by what ended it. A new manufacturer switched on moves two things at once --
+## its own runs, which can now find their sets, and everybody else's, whose
+## branded drops are now shared -- and one win rate cannot say which moved.
+var by_manufacturer: Dictionary = {}
+## FLASHPOINT IN REAL FIGHTS: cards with the keyword played, and how many of
+## those resolved over capacity (the bonus fired, read off the fight's own log
+## line, so it counts what CardResolver did rather than what the sim expected).
+var flash_played := 0
+var flash_fired := 0
+## Branded parts the pilot picked up, by manufacturer.
+var aboard_by_manufacturer: Dictionary = {}
 
 ## THE ECONOMY, which decided more runs than danger did and was invisible.
 ##
@@ -157,6 +169,17 @@ var credits_at_stations := 0
 var option_fights := 0
 var option_creatures: Dictionary = {}
 
+## THE FUEL AUDIT (balance/fuel, Oct 17). `fueltrace=<path>` writes one JSON
+## line a run: the tank at every departure and arrival, what each jump cost,
+## what was bought and where the money went, and the two "did fuel bite"
+## counts -- jumps where a seen, reachable star was too dear, and (human
+## pilot) jumps where the star it wanted most was. Read by the scratchpad's
+## fuel_report.py; nothing here changes how a run plays.
+var sturdy := false
+var _trace_path := ""
+var _trace_file: FileAccess = null
+var _tr: Dictionary = {}
+
 ## Entry point. Reads `runs=N` from the user args after `--`, plays that many
 ## complete runs, and prints the report. The caller quits the tree.
 func run_sim() -> void:
@@ -170,6 +193,21 @@ func run_sim() -> void:
 			policy.vent_cold = float(arg.split("=")[1])
 		elif arg.begins_with("venthot="):
 			policy.vent_hot = float(arg.split("=")[1])
+		elif arg.begins_with("fueltrace="):
+			_trace_path = arg.split("=")[1]
+	policy.human = "human" in OS.get_cmdline_user_args()
+	# A LENS, NOT A PLAYER: hull and heat restored at every arrival, so runs
+	# live long enough for the fuel economy to be what is measured. Today's
+	# pilot dies at ~11 jumps of fights and heat with 92% of the tank unspent,
+	# which says nothing about fuel either way. Never a balance number.
+	sturdy = "sturdy" in OS.get_cmdline_user_args()
+	if sturdy:
+		print("STURDY lens: hull and heat restored on every arrival.")
+	if policy.human:
+		print("HUMAN policy: heads for the core, scores the chart, buys fuel for the way in.")
+	print("fuel: start %d · tank %d" % [Run.start_fuel(), Run.fuel_cap()])
+	if _trace_path != "":
+		_trace_file = FileAccess.open(_trace_path, FileAccess.WRITE)
 
 	# THE SECOND POLICY `ENCOUNTER_REBUILD.md` 8 ASKS FOR. A greedy model takes
 	# every check it is offered, which overstates income and makes the shortfall
@@ -182,6 +220,9 @@ func run_sim() -> void:
 	# `fight_cb` means every hostile line resolves to its prose and nothing shoots
 	# back. It reported 0.2 kills a run before this was connected.
 	policy.fight_cb = _option_fight
+	Sig.log_line.connect(func(text: String, _kind: StringName) -> void:
+		if text.begins_with("  flashpoint +"):
+			flash_fired += 1)
 	hot = "hot" in OS.get_cmdline_user_args()
 	# The control cell. Comparing `nohellbender` against the default on one build
 	# is what says what the roamer costs, without keeping a second checkout.
@@ -297,6 +338,7 @@ func _reset() -> void:
 func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> void:
 	Rng.forced = (seed_base + index) if seed_base != 0 else 0
 	Run.start_new_run(manufacturer, w)
+	var started_as := Run.hull.manufacturer
 	# The simulated pilot's own generator: one per run, seeded from the run's
 	# master seed. The model is a player, not a place — so its choices replay
 	# with the run, and drawing them does not move what the world rolls next.
@@ -311,6 +353,12 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 	pilot = Rng.derive(&"pilot", 0)
 	policy.pilot = pilot
 	policy.begin_run()
+	_tr = {seed = Rng.forced, manufacturer = String(Run.hull.manufacturer), weight = int(Run.hull.weight),
+		ff = Run.fuel_factor(), start = Run.fuel, dep = [], arr = [], cost = [], layer = [],
+		dist = [], any_dear = 0, limited = 0, hint_at = -1, pulsar_fuel = 0, event_fuel = 0,
+		station_fuel = 0, stations = 0, hint_station_reach = -1}
+	if _trace_file != null:
+		_tr.core_hops = _hops_to_core()
 	var guard := 0
 	var jumped_hot := false
 	# Whether the ship just ARRIVED here by a jump. The game rolls an ambush on
@@ -321,6 +369,9 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 	while not Run.won and not Run.dead and guard < 600:
 		guard += 1
 		var node: MapGen.MapNode = Run.node_at()
+		if sturdy:
+			Run.hp = Run.max_hp()
+			Run.heat = 0
 
 		# How hot the model actually arrives, sampled before anything here is
 		# resolved. This is the number every other heat rule keys off, so a
@@ -382,13 +433,17 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 			var sc := Run.credits
 			policy.shop(Run.node_at())
 			fuel_from_stations += maxi(0, Run.fuel - sf)
+			_tr.station_fuel += maxi(0, Run.fuel - sf)
+			_tr.stations += 1
 			credits_at_stations += Run.credits - sc
 		elif node.type == MapGen.NodeType.PULSAR and not node.cleared:
 			# Always taken. A competent player does not walk past the best fuel
 			# in the galaxy — the question the model cannot answer is whether
 			# the hull cost is worth it, which is exactly what the win rate is
 			# for.
+			var pf := Run.fuel
 			Run.harvest_pulsar()
+			_tr.pulsar_fuel += Run.fuel - pf
 			if Run.dead:
 				break
 		# WHAT THE SYSTEM OFFERS, taken by the policy rather than by the type.
@@ -398,7 +453,9 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		# label; those are gone and this is what replaced them, fights included --
 		# `policy.fight_cb` is wired to `_fight` below.
 		if not node.cleared:
+			var of := Run.fuel
 			var got := policy.take_options(node)
+			_tr.event_fuel += Run.fuel - of
 			if int(got.taken) + int(got.declined) + int(got.forgone) + int(got.fights) > 0:
 				sites_with_options += 1
 			opts_taken += int(got.taken)
@@ -413,6 +470,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		# lives in Policy; what stays here is the ACCOUNTING for the case where
 		# there is no choice, which is a measurement rather than a decision.
 		var pick := policy.choose_jump(node)
+		_audit_jump(node, pick)
 		if pick < 0:
 			# F1 -- A STRAND IS WHAT THE GAME SAYS IT IS. This used to call
 			# `check_stranded()` and then increment regardless of what it did:
@@ -449,8 +507,15 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		var jf := Run.fuel
 		var jc := Run.credits
 		var jumps_before := Run.jumps
+		var jd := MapGen.hop_distance(node, Run.map[pick])
 		Run.jump_to(pick)
 		arrived = Run.jumps != jumps_before
+		if arrived:
+			_tr.dep.append(jf)
+			_tr.arr.append(Run.fuel)
+			_tr.cost.append(jf - Run.fuel)
+			_tr.layer.append(Run.node_at().layer)
+			_tr.dist.append(snappedf(jd, 0.001))
 		# ARRIVING SOMEWHERE ALREADY STRIPPED is the only way the hellbender's
 		# appetite actually costs the player anything. A wreck it ate in a system
 		# nobody was ever going to fly to is a number, not a loss, and §9a's
@@ -476,12 +541,55 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 	total_kills += Run.kills
 	total_danger += Run.node_at().danger
 	end_fuel_total += Run.fuel
+	if _trace_file != null:
+		_tr.end = Run.fuel
+		_tr.jumps = Run.jumps
+		_tr.won = Run.won
+		_tr.dead = Run.dead
+		_tr.reason = Run.death_reason
+		_tr.depth = Run.node_at().layer
+		_tr.credits_end = Run.credits
+		_tr.spent = policy.spend.duplicate()
+		_tr.fuel_bought = policy.fuel_bought
+		_tr.refuel_stops = policy.refuel_stops
+		_tr.kills = Run.kills
+		_trace_file.store_line(JSON.stringify(_tr))
+		_trace_file.flush()
 	if Run.won:
 		wins += 1
 	if Run.dead:
 		deaths += 1
 		var key := Run.death_reason.substr(0, 24)
 		death_causes[key] = int(death_causes.get(key, 0)) + 1
+
+	var mrow: Dictionary = by_manufacturer.get(started_as, {
+		"runs": 0, "wins": 0, "fire": 0, "heat": 0, "event": 0, "stranded": 0,
+		"set3": 0,
+	})
+	mrow.runs += 1
+	mrow.wins += 1 if Run.won else 0
+	if Run.dead:
+		var why := Run.death_reason
+		if why.begins_with("Enemy fire"):
+			mrow.fire += 1
+		elif why.begins_with("The ship overheated"):
+			mrow.heat += 1
+		elif why.begins_with("Adrift"):
+			mrow.stranded += 1
+		else:
+			mrow.event += 1
+	# Did this run ever hold three of its own manufacturer at the end?
+	if started_as != &"" and Run.manufacturer_count(started_as) >= 3:
+		mrow.set3 += 1
+	by_manufacturer[started_as] = mrow
+	for raw in Run.installed:
+		var im: ModuleData = raw
+		if im != null and im.manufacturer != &"":
+			aboard_by_manufacturer[im.manufacturer] = int(aboard_by_manufacturer.get(im.manufacturer, 0)) + 1
+	for raw2 in Run.cargo:
+		var cm := raw2 as ModuleData
+		if cm != null and cm.manufacturer != &"":
+			aboard_by_manufacturer[cm.manufacturer] = int(aboard_by_manufacturer.get(cm.manufacturer, 0)) + 1
 
 	# WHICH GALAXY THIS RUN HAPPENED IN. Read after the run rather than before,
 	# because `start_new_run` is what rolls the kind and the map it implies.
@@ -567,6 +675,8 @@ func _play_out(cb: Combat) -> int:
 				acted = true
 			var best := policy.best_card(cb)
 			if best >= 0:
+				if cb.hand[best].flashpoint > 0:
+					flash_played += 1
 				cb.play(best)
 				acted = true
 		if not cb.finished:
@@ -691,9 +801,9 @@ func _report() -> void:
 	# the old counter called stranded and the game did not.
 	print("fuel left at run end: %.0f of a %d tank (%.0f%%)" % [
 		float(end_fuel_total) / maxi(1, runs),
-		int(round(Run.FUEL_PER_RING_STEP * float(MapGen.LAYERS - 2))),
+		Run.start_fuel(),
 		100.0 * (float(end_fuel_total) / maxi(1, runs))
-			/ maxf(1.0, Run.FUEL_PER_RING_STEP * float(MapGen.LAYERS - 2))])
+			/ maxf(1.0, float(Run.start_fuel()))])
 	if sites_with_options > 0:
 		print("options: %d systems offered them · %.2f taken, %.2f declined, %.2f FORGONE per system"
 			% [sites_with_options,
@@ -742,10 +852,30 @@ func _report() -> void:
 		100.0 * creatures / maxi(1, option_fights), str(option_creatures)])
 	_report_economy()
 	_report_kinds()
+	_report_manufacturers()
 	print("---")
 	print("Healthy target: 40-55% win rate for this competent-player model.")
 	print("Too easy? Raise station repair prices before touching enemy damage —")
 	print("this design's difficulty lives in the economy, not in single fights.")
+
+
+## Win rate and how each run ended, by the manufacturer it launched as; then
+## Flashpoint in the fights, and whose parts the ships ended their runs holding.
+func _report_manufacturers() -> void:
+	if by_manufacturer.is_empty():
+		return
+	print("---")
+	print("by starting manufacturer (deaths: enemy fire / overheated / events / stranded):")
+	print("  %-10s %5s %6s %6s %6s %6s %6s %8s" % ["started", "runs", "win%", "fire", "heat", "event", "strand", "set3 end"])
+	var keys := by_manufacturer.keys()
+	keys.sort()
+	for k in keys:
+		var v: Dictionary = by_manufacturer[k]
+		print("  %-10s %5d %5.0f%% %6d %6d %6d %6d %8d" % [str(k), int(v.runs),
+			100.0 * float(v.wins) / maxf(1.0, float(v.runs)), int(v.fire), int(v.heat),
+			int(v.event), int(v.stranded), int(v.set3)])
+	print("flashpoint: %d cards played, %d hits resolved over capacity" % [flash_played, flash_fired])
+	print("branded parts on board at run end: %s" % str(aboard_by_manufacturer))
 
 
 ## What each galaxy kind actually played like.
@@ -830,3 +960,50 @@ func _report_economy() -> void:
 		var w := float(maxi(1, int(won_by_pack[k])))
 		print("  won %d-ship fights: %d · %.1f credits a fight · %.2f modules a fight"
 			% [k, int(won_by_pack[k]), float(credits_by_pack[k]) / w, float(modules_by_pack[k]) / w])
+
+
+## Before every jump: did fuel narrow the choice, and would the fuel hint be up?
+## The first jump the hint's rule is true on is kept, with whether it would have
+## named a dock (`Run.nearest_dock`) -- the warning a stranded run had.
+func _audit_jump(node: MapGen.MapNode, pick: int) -> void:
+	if _tr.is_empty():
+		return
+	var dear := 0
+	var any_dear := false
+	for raw in Run.in_range_of(node):
+		var t: MapGen.MapNode = raw
+		if not t.sensed:
+			continue
+		var c := Run.fuel_cost_to(t)
+		dear = maxi(dear, c)
+		if c > Run.fuel:
+			any_dear = true
+	if dear == 0:
+		dear = Run.FUEL_MAX_HOP
+	if any_dear:
+		_tr.any_dear += 1
+	if policy.limited:
+		_tr.limited += 1
+	# THE FUEL HINT AS THE GAME FIRES IT (`Run.fuel_low`, a third of the tank),
+	# and whether the dock it would name was in reach on what was left.
+	if Run.fuel_low() and int(_tr.hint_at) < 0:
+		_tr.hint_at = Run.jumps
+		_tr.hint_station_reach = 0 if Run.nearest_dock().is_empty() else 1
+
+
+## The fewest jumps from the start to the core, reach alone (no fuel, no sight):
+## the length of the shortest possible run.
+func _hops_to_core() -> int:
+	var seen := {Run.at: 0}
+	var q: Array = [Run.at]
+	while not q.is_empty():
+		var i: int = q.pop_front()
+		var here: MapGen.MapNode = Run.map[i]
+		if here.type == MapGen.NodeType.CORE:
+			return int(seen[i])
+		for raw in Run.in_range_of(here):
+			var t: MapGen.MapNode = raw
+			if not seen.has(t.index):
+				seen[t.index] = int(seen[i]) + 1
+				q.append(t.index)
+	return -1

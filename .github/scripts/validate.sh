@@ -336,6 +336,22 @@ else
 	bad "moontest did not finish"
 fi
 
+step "Leaving a station without UNDOCK leaves nothing of it behind"
+# Docked, the ship flown off by the map (a world, the star, open space) and back
+# to LOCAL by the HUD's tab and by Tab, and by the chart's JUMP and GO beyond it:
+# LOCAL as after a proper UNDOCK (ship, zoom, the sky's place, no berth left,
+# the ladder idle), and where UNDOCK refuses, the flight and the jump refuse too.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot dockflytest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=DockFlyTest; then
+	if grep -qE '^dockflytest: PASS' "$LOG_DIR/dockflytest.log"; then
+		ok "every way off the berth undocks, or is refused"
+	else
+		bad "a way off the berth left the station behind"
+		grep -E 'FAIL|^dockflytest' "$LOG_DIR/dockflytest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "dockflytest did not finish"
+fi
+
 step "Every material is a thing the hold can actually hold"
 # `MaterialTable` authored 64 rows a day before anything could carry one, so its
 # shapes had never met the grid that has to accept them. A row whose `cells`
@@ -449,6 +465,45 @@ else
 	bad "goaltest did not finish"
 fi
 
+# The 45 tank (Jon, Oct 17: "fuel:A warn:A events:A"): the cap on every write
+# and a refuel's top-up, the event floor and the 45-scale events, the fuel hint
+# at a third of the tank naming the nearest dock in reach (against the test's
+# own search), and the HUD's "FUEL [bar] 23/45" at full, a third and near empty:
+# its colours with hints on and off, and the box test on LOCAL and the chart,
+# dev mode on and off.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot fueltest 180 --headless --path "$PROJECT" -- sheet=FuelTest; then
+	if grep -qE '^fueltest: PASS' "$LOG_DIR/fueltest.log"; then
+		ok "the 45 tank: cap, event floor, the hint and its dock, the HUD readout"
+	else
+		bad "the fuel tank, its hint or its readout is wrong"
+		grep -E 'FAIL|^fueltest' "$LOG_DIR/fueltest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "fueltest did not finish"
+fi
+
+step "A.S.H. speaks at her moments, within her limits, and never over anything"
+# The ship's AI (Jon and Ashlee, Oct 17; docs/ash.md). Her thirty approved
+# lines, character for character against docs/ash_lines.json; each moment fires
+# its own (launch, a new hull, the hull failing, over the heat cap, a big haul,
+# one more wreck, doubt); the quiet after a line, one line a fight, never during
+# a drag or the enemy's turn; nothing after the ship is lost; hints win; her face
+# 8 to 12 changes a second while she talks; and the box test on 65 screens, LOCAL
+# and fights of one to three ships in every weight, against the HUD, the goal
+# line, the hand, both ships and their words, plates, ovals and numbers.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot ashtest 600 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=AshTest; then
+	if grep -qE '^ashtest: PASS' "$LOG_DIR/ashtest.log"; then
+		ok "A.S.H. at her moments, within her limits, clear of everything"
+	else
+		bad "A.S.H. spoke out of turn, or over something"
+		grep -E 'FAIL|^ashtest' "$LOG_DIR/ashtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "ashtest did not finish"
+fi
+
 step "The sector map's worlds keep up with a pan"
 # Each world's picture sits on its place (its ring, label and beacons) on every
 # frame of a pan; an ease that chased the place left it trailing by frames.
@@ -540,6 +595,26 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 else
 	bad "hitfxlivetest did not finish"
+fi
+
+step "Hull damage looks leave no holes"
+# James, a playtester (Oct 17): ships get big holes in them, and ships can't
+# have holes. Jon picked D (A+B+C mixed per hit, `HullHitFx`), the game's; A, B
+# and C are its parts. Each on a light, a dark and a white hull at both sheet
+# sizes: no near-black blob, every mark on the hull's own pixels in its own
+# colours (or burnt metal), every glow the heat ramp's and changing shape 8-12
+# times a second, the same seed the same marks, more marks as the hull goes, D
+# quieter than the older marks; then the real fight, D the default on every
+# ship but the Custodian (the older marks).
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot hulldamagetest 300 --headless --path "$PROJECT" -- sheet=HullDamageTest; then
+	if grep -qE '^hulldamagetest: PASS' "$LOG_DIR/hulldamagetest.log"; then
+		ok "no holes, on the hull, in its colours, glows that move"
+	else
+		bad "a hull damage look broke one of its rules"
+		grep -E 'FAIL|^hulldamagetest' "$LOG_DIR/hulldamagetest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "hulldamagetest did not finish"
 fi
 
 step "The bobs run on game time, not the wall's"

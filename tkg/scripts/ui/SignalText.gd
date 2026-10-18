@@ -30,6 +30,9 @@ signal finished
 ## letters arrive more slowly"; he set 40 by ear on the audition page) -- and
 ## the beat a punctuation mark holds, s.
 static var cps := 40.0
+## This text's own speed, characters a second, over `cps` when set: A.S.H.'s
+## line types as long as her voice takes to say it (`rate_for`).
+var rate := 0.0
 const PAUSE := {".": 0.09, "!": 0.09, "?": 0.09, ",": 0.03, ";": 0.05, ":": 0.05}
 ## How many characters past the settled edge show as noise, and how often
 ## their glyph changes, s.
@@ -92,6 +95,16 @@ func play() -> void:
 	if not Router.animating():
 		skip()
 	queue_redraw()
+
+
+## The speed at which `what` takes `secs` to arrive, characters a second: its
+## letters share what the punctuation's beats leave (the last mark's beat is
+## never waited out: the text is done when its last letter settles).
+static func rate_for(what: String, secs: float) -> float:
+	var beats := 0.0
+	for i in what.length() - 1:
+		beats += float(PAUSE.get(what[i], 0.0))
+	return float(what.length()) / maxf(secs - beats, 0.25)
 
 
 ## Finish now.
@@ -168,7 +181,7 @@ func _process(delta: float) -> void:
 		_hold -= delta
 	else:
 		var before := int(shown)
-		shown = minf(shown + cps * delta, float(n))
+		shown = minf(shown + (rate if rate > 0.0 else cps) * delta, float(n))
 		for k in range(before, int(shown)):
 			var ch := text.substr(k, 1)
 			char_settled.emit(k, ch)

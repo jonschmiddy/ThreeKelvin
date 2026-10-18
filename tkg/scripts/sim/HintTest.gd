@@ -7,7 +7,7 @@ extends Harness
 ## never over what it points at, and never again once a click has dismissed it;
 ## the ones a moment decides (the intent after the first card, END TURN when
 ## nothing is playable, brace once held over an end of turn, heat once it rises,
-## fuel once the tank is short) are also shown NOT to fire before it. SHOW HINTS
+## fuel at a third of the tank) are also shown NOT to fire before it. SHOW HINTS
 ## AGAIN (`Hints.reset`) brings them back, and the goal line's steps.
 ##
 ## THE USED STATE, NOT THE FRESH ONE: the run starts from a settings file that
@@ -244,7 +244,8 @@ func run(tree: SceneTree) -> void:
 	await _frames(60)
 	await _none("docked again: the station's hint does not come back", [&"ship"])
 
-	# FUEL: not while the tank is full; once it covers under two jumps
+	# FUEL: not while the tank is full; once a third of it is left (`-- sheet=FuelTest`
+	# has the threshold and the dock it names)
 	n = _system()
 	Router.show_starchart()
 	await _frames(40)

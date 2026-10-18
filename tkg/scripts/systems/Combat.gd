@@ -842,7 +842,11 @@ func damage_enemy(amount: int, hits: int, label: String,
 
 ## What breaking contact costs. Read by the confirmation prompt too, so the
 ## warning cannot drift from the charge.
-const FLEE_FUEL := 6
+##
+## 1 of a 45 tank (Jon, Oct 17: "flee:A"). It was 6 of 279; scaled with the
+## events, and taken through the same floor (`Run.drain_fuel`), so a burn out
+## of a fight leaves the fuel to reach a dock in sight and cannot strand you.
+const FLEE_FUEL := 1
 
 ## What a hail is checked against, and how hard.
 ##
@@ -973,7 +977,7 @@ func hail_reason() -> String:
 ##
 ## The same exit `flee` buys, bought with words: the contact breaks off, there is
 ## no salvage, and the node is marked so the sector offers a jump rather than the
-## fight again. What it does NOT cost is the six fuel -- that is the whole point
+## fight again. What it does NOT cost is the fuel -- that is the whole point
 ## of having stealth on the ship.
 ##
 ## Failure is loud rather than damaging. You have broadcast, and they did not
@@ -1044,7 +1048,7 @@ func flee_cause() -> StringName:
 
 ## Breaking contact is MANEUVER, and it can fail.
 ##
-## It used to be a purchase: six fuel, always granted. That made FLEE the safest
+## It used to be a purchase: fuel, always granted. That made FLEE the safest
 ## button on the panel -- every fight had a guaranteed exit and the only question
 ## was whether you minded the price. A check makes leaving a thing your ship is
 ## either good at or is not, and puts MANEUVER -- which had almost nothing to do
@@ -1056,7 +1060,8 @@ const FLEE_ATTR := &"maneuver"
 const FLEE_NEED := 3
 
 ## The ugly version of getting away. Beyond `FLEE_FUEL`, not instead of it.
-const FLEE_FUEL_PARTIAL := 10
+## 2 of 45 (was 10 of 279), through the same floor.
+const FLEE_FUEL_PARTIAL := 2
 
 
 ## What a flee would roll, for the panel to print before you commit.
@@ -1083,7 +1088,7 @@ func flee() -> void:
 		flee_failed = true
 		# YOU HAVE TO STAY. The burn is spent whether or not it worked, which is
 		# the honest cost of trying: you turned your back to do it.
-		Run.fuel = maxi(0, Run.fuel - FLEE_FUEL)
+		Run.drain_fuel(FLEE_FUEL)
 		Sig.resources_changed.emit()
 		exit_note = "You commit to the burn and they are still on you when it ends."
 		Run.log_line(exit_note, &"heat")
@@ -1091,12 +1096,15 @@ func flee() -> void:
 		return
 	# One number, named once. The line said 2 while the code took 6 — a
 	# discrepancy the player pays and the log denies.
-	Run.fuel = maxi(0, Run.fuel - FLEE_FUEL)
+	var fuel0 := Run.fuel
+	Run.drain_fuel(FLEE_FUEL)
 	if band == SkillCheck.Band.PARTIAL:
 		# Out, but the expensive way round. In domain: a burn costs fuel.
-		Run.fuel = maxi(0, Run.fuel - FLEE_FUEL_PARTIAL)
+		Run.drain_fuel(FLEE_FUEL_PARTIAL)
+	# What the burn really took: the floor can hold it under the price.
+	var burned := fuel0 - Run.fuel
 	# So the sector you are dropped back onto offers a jump rather than the
-	# fight you just paid six fuel to leave.
+	# fight you just paid fuel to leave.
 	Run.node_at().fled = true
 	# Running from the hellbender banks the damage you did — it does not heal
 	# between engagements, it heals per MOVE, which is the chase. Solo only:
@@ -1105,8 +1113,7 @@ func flee() -> void:
 	if not is_shared() and not enemies.is_empty() and enemies[0].template.miniboss:
 		Run.hellbender_scarred(enemies[0].hp)
 	Sig.resources_changed.emit()
-	_finish(&"fled", "You burned %d fuel breaking contact. No salvage."
-		% (FLEE_FUEL + (FLEE_FUEL_PARTIAL if band == SkillCheck.Band.PARTIAL else 0)))
+	_finish(&"fled", "You burned %d fuel breaking contact. No salvage." % burned)
 
 ## WHAT THE CUSTODIAN'S BODY HOLDS: two precursor parts, two branded
 ## legendaries, and the instrument shadow (Jon, Oct 13, option C of three: the

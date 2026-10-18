@@ -74,16 +74,23 @@ func _image(tex: Texture2D) -> Image:
 
 func _hull(name: String) -> HullData:
 	for h in DB.hull_frames:
-		if h.sprite != null and DB.hull_art_name(h.weight, h.tier) == name:
+		if h.sprite != null and DB.hull_art_key(h.weight, h.tier, h.manufacturer) == name:
 			return h
 	# Not every frame is in the table (no Korvan heavy S): rig one the way the
-	# table would, from its art and DB.HULL_EXHAUST.
-	var parts := name.split("_")
+	# table would, from its art and DB.HULL_EXHAUST. Another manufacturer's
+	# picture is named by its folder, "solari/hull_light_a".
+	var mf := &"korvan"
+	var stem := name
+	if "/" in name:
+		mf = StringName(name.get_slice("/", 0))
+		stem = name.get_slice("/", 1)
+	var parts := stem.split("_")
 	var hd := HullData.new()
+	hd.manufacturer = mf
 	hd.weight = {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM,
 		"heavy": HullData.Weight.HEAVY}[parts[1]]
 	hd.tier = HullData.TIER_NAMES.find(parts[2].to_upper())
-	hd.sprite = DB.hull_sprite(hd.weight, hd.tier)
+	hd.sprite = DB.hull_sprite(hd.weight, hd.tier, false, mf)
 	DB.set_exhaust(hd, DB.DEFAULT_EXHAUST, hd.tier)
 	return hd
 
@@ -137,7 +144,7 @@ func _run() -> void:
 func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 	var tree := get_tree()
 	DirAccess.make_dir_recursive_absolute(dir)
-	var player := ship.begins_with("hull_")
+	var player := ship.get_file().begins_with("hull_")
 	var hull_img: Image
 	var used: Rect2i
 	var h: HullData = null
@@ -382,7 +389,7 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 				var cy := at0.y + y2
 				if all and cx >= 0 and cy >= 0 and cx < cw and cy < chh:
 					shown[cy * cw + cx] = 0
-	print("thrustersheet starts: %s" % DB.hull_art_name(h.weight, h.tier))
+	print("thrustersheet starts: %s" % DB.hull_art_key(h.weight, h.tier, h.manufacturer))
 	print("  %-3s %-5s %-12s %-12s | %-10s %-6s %-12s %-5s %s" % ["eng", "strip", "today col", "today rows", "look", "thrust", "coded col/height", "over", ""])
 	for ti in h.thrusters.size():
 		var e2: Dictionary = h.thrusters[ti]
@@ -719,6 +726,6 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 		lens.append("%s%d:%d rows,%d px" % ["main " if bool(fx9.nozzles[i8].get("main", false)) else "", i8,
 			(fx9.nozzles[i8].pts as PackedVector2Array).size(), fx9.nozzle_length(i8, ThrusterFx.Thrust.FULL)])
 	print("  engines at FULL: %s" % ", ".join(lens))
-	print("thrustersheet starts %s: %s (%d rows, %d off)" % [DB.hull_art_name(h.weight, h.tier),
+	print("thrustersheet starts %s: %s (%d rows, %d off)" % [DB.hull_art_key(h.weight, h.tier, h.manufacturer),
 		"PASS" if bad == 0 else "FAIL", out.size(), bad])
 	return out

@@ -257,10 +257,10 @@ static func station(seq: int) -> Dictionary:
 		moves.append("sell %d" % i)
 	var missing := Run.max_hp() - Run.hp
 	d["repair_price"] = Market.repair_price(n, missing) if missing > 0 else 0
-	d["refuel_price"] = Market.refuel_price(n)
+	d["refuel_price"] = int(Run.refuel_offer(n).cost)
 	if missing > 0 and Run.credits >= d["repair_price"]:
 		moves.append("repair")
-	if Run.credits >= d["refuel_price"]:
+	if Run.credits >= d["refuel_price"] and Run.refuel_blocked(n) == "":
 		moves.append("refuel")
 	moves.append("pass")
 	moves.append("leave")
