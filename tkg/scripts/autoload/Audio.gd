@@ -1054,9 +1054,13 @@ func denied() -> void:  play(&"ui_denied", 0.03)
 ##
 ## ONE ROW PER MOMENT, AND EVERY ROW IS SWITCHABLE, because these are picks to
 ## audition and not verdicts. `pick` is the free pick; `before` is what played
-## there before it (empty: nothing did); `off` is silence. A paid take drops in
-## the same way, as a file of its own: `fx=brace_on:brace_on_b@-3` on the
-## command line, or the same under `[fx]` in settings.cfg (`brace_on="before"`).
+## there before it (empty: nothing did); `off` is silence; `paid` is the bought
+## family the row is waiting on (Jon, Oct 17: eleven rows go paid, four keep
+## their free pick). A row plays its paid `take` once one is named there --
+## THE ONE LINE A PICK CHANGES, with the take's file copied into `sfx/` under
+## that name -- and its free pick until then. On the command line
+## `fx=brace_on:before`, `:free`, `:paid`, `:off`, or a file of its own
+## (`fx=brace_on:brace_on_B_1@-3`); the same under `[fx]` in settings.cfg.
 ## `fx=all:before` puts every row back as it was.
 ##
 ## In a row's take:
@@ -1072,6 +1076,9 @@ func denied() -> void:  play(&"ui_denied", 0.03)
 ##   hush    a name to keep quiet instead of a sound (`suppress`)
 ##   duck    how far the music steps back, for the caller's length
 ##   bed     a looping room tone (`ambience/`) faded in, held until `fx_stop`
+## and in `paid`: `family` (the plan's bought sound, `scratchpad/sfx-takes/
+## leveled/<family>_<idea>_<n>.wav`, levelled to its peer already, so db 0)
+## and `take`, empty until Jon picks one. The rest is the take's beat.
 const FX: Dictionary = {
 	# CREATURE DEATHS N, O, P. Jon picked the three takes on Sep 19 and nothing
 	# ever reached them: `play_kill` routed fauna to them, but only a ship's
@@ -1082,18 +1089,23 @@ const FX: Dictionary = {
 	# wave starts so its clunk (0.22-0.44 s into the takes) lands on the 0.35 s
 	# clamp. It was a shield's sound on armour.
 	&"brace_on": {pick = {file = &"module_install", db = 0.0, at = &"bolt_on", limit = 0.09, pitch = 0.04},
-			before = {file = &"shield_block", db = -8.0, at = &"clamp", limit = 0.09, pitch = 0.06}},
+			before = {file = &"shield_block", db = -8.0, at = &"clamp", limit = 0.09, pitch = 0.06},
+			paid = {family = &"brace_on", take = &"", db = 0.0, at = &"bolt_on", limit = 0.09, pitch = 0.03}},
 	# AND YOURS: the card played it before the picture did anything.
 	&"brace_on_yours": {pick = {file = &"module_install", db = 0.0, at = &"bolt_on", limit = 0.09, pitch = 0.04},
-			before = {file = &"shield_block", db = 0.0, at = &"card", pitch = 0.06}},
+			before = {file = &"shield_block", db = 0.0, at = &"card", pitch = 0.06},
+			paid = {family = &"brace_on", take = &"", db = 0.0, at = &"bolt_on", limit = 0.09, pitch = 0.03}},
 	# PLATES TUMBLING OFF: something thrown off a hull (-14 LUFS, so down 10).
-	&"brace_off": {pick = {file = &"jettison", db = -10.0, limit = 0.25}, before = {}},
+	&"brace_off": {pick = {file = &"jettison", db = -10.0, limit = 0.25}, before = {},
+			paid = {family = &"brace_off", take = &"", db = 0.0, limit = 0.25}},
 	# GAS LEAVING THE HULL: the vent card's own hiss. Death G's two jets and a
 	# vent mark's burst at the plan's -24 LUFS; the sputters lower, and never
 	# closer than 0.4 s whatever number of vents are open.
-	&"vent_jet": {pick = {file = &"vent", db = -8.0, limit = 0.15}, before = {}},
+	&"vent_jet": {pick = {file = &"vent", db = -8.0, limit = 0.15}, before = {},
+			paid = {family = &"gas_vent", take = &"", db = 0.0, limit = 0.15}},
 	&"vent_hiss": {pick = {file = &"vent", db = -8.0, limit = 0.15}, before = {}},
-	&"vent_sputter": {pick = {file = &"vent", db = -12.0, limit = 0.4, cap = 1}, before = {}},
+	&"vent_sputter": {pick = {file = &"vent", db = -12.0, limit = 0.4, cap = 1}, before = {},
+			paid = {family = &"gas_puff", take = &"", db = 0.0, limit = 0.4, cap = 1}},
 	# THE SIDE BAR DECODING: a blip as each line starts to resolve, the event
 	# text's own, at most two in the air.
 	&"side_decode": {pick = {file = &"text_blip", db = 0.0, cap = 2, pitch = 0.06}, before = {}},
@@ -1102,21 +1114,36 @@ const FX: Dictionary = {
 	&"chrome_off": {pick = {file = &"menu_close", db = -6.0, pitch = 0.03}, before = {}},
 	# THE FIGHT'S BAND RISING (0.65 s, sine in-out). hold_lift over menu_open by
 	# its envelope against the band's speed (0.57 to 0.44; `band_fit.py`).
-	&"fight_band": {pick = {file = &"hold_lift", db = -4.0, pitch = 0.03}, before = {}},
+	# Paid: ui_slide over flyin. The band is a panel rising, and the contacts'
+	# fly-in is a moment of its own (flyin's envelopes fit as well, 0.80-0.90
+	# against ui_slide A and C's 0.82-0.85, but a roar is not a drawer).
+	&"fight_band": {pick = {file = &"hold_lift", db = -4.0, pitch = 0.03}, before = {},
+			paid = {family = &"ui_slide", take = &"", db = 0.0, pitch = 0.02}},
 	# YOUR SHIP LOST: the set going off as the picture goes, the score down
 	# through the gap after the breakup, and no page click on the swap.
-	&"loss_handoff": {pick = {file = &"power_off", db = 0.0, pitch = 0.0}, before = {}},
+	&"loss_handoff": {pick = {file = &"power_off", db = 0.0, pitch = 0.0}, before = {},
+			paid = {family = &"run_lost", take = &"", db = 0.0, pitch = 0.0}},
 	&"loss_duck": {pick = {duck = 0.6}, before = {}},
 	&"loss_swap": {pick = {hush = &"ui_tab"}, before = {}},
 	# THE HELLBENDER HEATING: the red hypergiant's furnace, faded in as the
-	# device heats (1.5 s) and out as it bursts (5.6 s).
-	&"hb_heat": {pick = {bed = &"amb_red", db = -13.0, fade_in = 0.6, fade_out = 0.4}, before = {}},
-	# THE BOSSES' SMALL BREAKS: the Hellbender's holds and its cargo popping, the
-	# Custodian C1c's spine pops (the kill pool, low); C1c's split at full.
-	&"boss_pop": {pick = {file = &"explosion_small", db = -10.0, limit = 0.08, pitch = 0.09}, before = {}},
-	&"boss_split": {pick = {file = &"explosion_small", db = 0.0, pitch = 0.09}, before = {}},
+	# device heats (1.5 s) and out as it bursts (5.6 s). Paid: the 7 s build is
+	# one take from the death's first beat (its hum, 0.0) to before the 7.0 burst.
+	&"hb_heat": {pick = {bed = &"amb_red", db = -13.0, fade_in = 0.6, fade_out = 0.4, at = &"emblem_heat"},
+			before = {}, paid = {family = &"hellbender_build", take = &"", db = 0.0, at = &"hum", pitch = 0.0}},
+	# THE BOSSES' SMALL BREAKS: the Hellbender's holds and its cargo popping (the
+	# kill pool, low; paid, one 2 s burst take from the first hold's rupture,
+	# which carries the spill), and the Custodian C1c's spine pops, a row of
+	# their own since a hold's burst is no sound for glass; C1c's split at
+	# full (paid: glass_shatter over gravity_collapse. It breaks in half and
+	# sheds glass; gravity_collapse is C1b's inward crush).
+	&"boss_pop": {pick = {file = &"explosion_small", db = -10.0, limit = 0.08, pitch = 0.09}, before = {},
+			paid = {family = &"hold_burst", take = &"", db = 0.0, at = &"rupture", limit = 1.0, pitch = 0.0}},
+	&"spine_pop": {pick = {file = &"explosion_small", db = -10.0, limit = 0.08, pitch = 0.09}, before = {}},
+	&"boss_split": {pick = {file = &"explosion_small", db = 0.0, pitch = 0.09}, before = {},
+			paid = {family = &"glass_shatter", take = &"", db = 0.0, pitch = 0.0}},
 	# A HIT PARTLY TAKEN BY BLOCK OR BRACE: the plate under the impact.
-	&"hit_partial": {pick = {file = &"shield_block", db = -8.0, limit = 0.09, pitch = 0.06}, before = {}},
+	&"hit_partial": {pick = {file = &"shield_block", db = -8.0, limit = 0.09, pitch = 0.06}, before = {},
+			paid = {family = &"brace_clang", take = &"", db = 0.0, limit = 0.09, pitch = 0.04}},
 }
 
 ## row -> &"pick" (the default), &"before", &"off", or a take of its own.
@@ -1138,10 +1165,20 @@ var _fx_last: Dictionary = {}       ## row -> game s it last sounded
 var _fx_due: Array = []             ## [game s, row, take, kind, secs]
 
 
-## The take a row plays now ({} for silence).
+## The take a row plays now ({} for silence). `pick` is the paid take where
+## one is named, the free pick until then; `free` and `paid` ask for either.
 func fx_take(row: StringName) -> Dictionary:
 	var c: Variant = fx_choice.get(row, &"pick")
 	var r: Dictionary = FX.get(row, {})
+	var paid: Dictionary = r.get(&"paid", {})
+	if c is StringName and (c == &"paid" or c == &"pick") and StringName(paid.get(&"take", &"")) != &"":
+		var t0 := paid.duplicate()
+		t0.erase(&"family")
+		t0.erase(&"take")
+		t0.file = StringName(paid.take)
+		return t0
+	if c is StringName and (c == &"free" or c == &"pick" or c == &"paid"):
+		return r.get(&"pick", {}) if c != &"paid" else {}
 	if c is Dictionary:
 		# a file of its own, with the pick's timing unless it says otherwise
 		var t: Dictionary = (r.get(&"pick", {}) as Dictionary).duplicate()
@@ -1156,7 +1193,7 @@ func fx_take(row: StringName) -> Dictionary:
 
 ## Choose for a row: &"pick", &"before", &"off", or "file@db[@offset]".
 func fx_choose(row: StringName, choice: String) -> void:
-	if choice in ["pick", "before", "off"]:
+	if choice in ["pick", "free", "paid", "before", "off"]:
 		fx_choice[row] = StringName(choice)
 		return
 	var bits := choice.split("@")

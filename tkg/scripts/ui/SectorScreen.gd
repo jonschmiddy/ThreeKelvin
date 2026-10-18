@@ -4796,10 +4796,13 @@ func _on_death_moment(kind: StringName, _s: float, _len: float, who: int, style:
 	if ShipBreakup._is_boss(style):
 		match kind:
 			&"pop", &"rupture":
-				Audio.fx(&"boss_pop", kind)
+				# the Hellbender's holds and cargo; the Custodian's spine
+				var hell := style == ShipBreakup.Style.HELL_CHAIN or style == ShipBreakup.Style.HELL_BURNOUT 					or style == ShipBreakup.Style.HELL_UNCOIL
+				Audio.fx(&"boss_pop" if hell else &"spine_pop", kind)
 			&"split":
 				Audio.fx(&"boss_split", kind)
-			&"emblem_heat":
+			&"hum", &"emblem_heat":
+				# (the free bed comes in on the heating, a paid build on the hum)
 				Audio.fx(&"hb_heat", kind)
 			&"emblem_burst":
 				Audio.fx_stop(&"hb_heat")

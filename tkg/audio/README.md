@@ -304,6 +304,14 @@ ones the game already has a fitting file for, and spends nothing.
   into RUN ENDED; `amb_red` under the Hellbender's heating; the kill pool for
   the bosses' pops (-10) and C1c's split (0); `shield_block` -8 under a hit
   partly taken.
+* **Jon's verdict (Oct 17)**: `fauna_death`, `chrome_on`, `chrome_off` and
+  `side_decode` keep their free picks; the other eleven rows go paid. Each of
+  those names its bought family in `paid` (brace_on, brace_off, brace_clang,
+  gas_vent, gas_puff, ui_slide, run_lost, hellbender_build, hold_burst,
+  glass_shatter) and plays its free pick until `take` is filled in: a pick is
+  that one line plus the take's file copied into `sfx/` under its name. C1c's
+  spine pops left `boss_pop` for a row of their own (`spine_pop`, free), since
+  a hold bursting is no sound for glass.
 * **Headless, Audio decides and tapes**: with `taping` on and no window, `play`
   runs its limits, suppression and pick and writes the result down
   (`_dry_play`), so `-- sheet=SoundMomentTest` checks every row against the

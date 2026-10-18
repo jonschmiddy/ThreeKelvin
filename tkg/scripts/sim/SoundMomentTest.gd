@@ -195,6 +195,32 @@ func _table() -> void:
 				missing.append("%s.%s %s" % [row, which, t.bed])
 	_ok("every row's files are on disk %s" % [missing], missing.is_empty())
 	_ok("every row has a pick %s" % [no_pick], no_pick.is_empty())
+	# JON'S VERDICT (Oct 17): eleven rows go paid, four keep their free pick. A
+	# paid row names its family and plays its free pick until a take is named
+	var paid_rows := [&"brace_on", &"brace_on_yours", &"brace_off", &"hit_partial", &"vent_jet",
+		&"vent_sputter", &"fight_band", &"loss_handoff", &"hb_heat", &"boss_pop", &"boss_split"]
+	var kept_rows := [&"fauna_death", &"chrome_on", &"side_decode", &"chrome_off"]
+	var bad: Array = []
+	for row: StringName in paid_rows:
+		var pd: Dictionary = (_sfx.get(row, {}) as Dictionary).get("paid", {})
+		var take := StringName(pd.get("take", &""))
+		if StringName(pd.get("family", &"")) == &"":
+			bad.append("%s: no family" % row)
+		elif take != &"" and not ResourceLoader.exists(Audio.SFX_PATH % take):
+			bad.append("%s: take %s not in sfx/" % [row, take])
+		elif take == &"" and Audio.call(&"fx_take", row) != (_sfx[row] as Dictionary).get("pick", {}):
+			bad.append("%s: not on its free pick while unpicked" % row)
+	for row: StringName in kept_rows:
+		if (_sfx.get(row, {}) as Dictionary).has("paid"):
+			bad.append("%s: kept free, but waits on a paid take" % row)
+	_ok("the eleven paid rows name their family and play the free pick until a take is named; the four kept rows do not wait %s"
+		% [bad], bad.is_empty())
+	Audio.call(&"fx_choose", &"brace_off", "paid")
+	var unpicked: Dictionary = Audio.call(&"fx_take", &"brace_off")
+	Audio.call(&"fx_choose", &"brace_off", "free")
+	var free: Dictionary = Audio.call(&"fx_take", &"brace_off")
+	(Audio.get("fx_choice") as Dictionary).clear()
+	_ok("paid with no take is silence, free is the free pick", unpicked.is_empty() and free.get("file") == &"jettison")
 	# switchable: off, back to before, a file of its own, and the pick again
 	var h0 := _heard_rows().size()
 	var t0 := Audio.tape.size()
@@ -619,9 +645,9 @@ func _hellbender() -> void:
 	await _leave()
 
 
-func _pops(m0: int, h0: int, t0: int, who: String) -> void:
+func _pops(m0: int, h0: int, t0: int, who: String, row: StringName = &"boss_pop") -> void:
 	var pops := _moments_of(&"death", [&"pop", &"rupture"], m0)
-	var ph := _heard(&"boss_pop", h0)
+	var ph := _heard(row, h0)
 	var pf := pops.map(func(m: Array) -> int: return int(m[2]))
 	var lost := 0
 	for m: Array in pops:
@@ -671,7 +697,7 @@ func _custodian() -> void:
 	var h0 := _heard_rows().size()
 	var t0 := Audio.tape.size()
 	_ok("it comes apart", await _kill_and_watch(1500))
-	_pops(m0, h0, t0, "C1c")
+	_pops(m0, h0, t0, "C1c", &"spine_pop")
 	var split := _moments_of(&"death", [&"split"], m0)
 	var sh := _heard(&"boss_split", h0)
 	_ok("its split heard once on its frame (%s vs %s)" % [sh.map(func(r: Array) -> int: return int(r[4])),
