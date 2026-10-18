@@ -425,7 +425,7 @@ func _lines() -> void:
 			bad.append(String(k))
 	_ok("her lines are Jon's picks, character for character (%d; %s)" % [JON.size(),
 		"all" if bad.is_empty() else "NOT " + ", ".join(bad)], bad.is_empty())
-	_ok("the cutaway's is today's card text, behind one constant (\"%s\")" % AshTutorLines.CUTAWAY_LINE,
+	_ok("the cutaway line is Jon's A (Oct 18), behind one constant (\"%s\")" % AshTutorLines.CUTAWAY_LINE,
 		AshTutorLines.LINES[&"cutaway"] == AshTutorLines.CUTAWAY_LINE
 		and AshTutorLines.CUTAWAY_LINE.begins_with("Drag a part onto a ring to fit it."))
 	var vals := {hand = 5, cap = 14, jumps = 2, name = "GAMMA KESTREL REACH", turn = "R", flip = "F"}

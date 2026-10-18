@@ -45,7 +45,7 @@ const LINES: Dictionary = {
 
 ## THE CUTAWAY'S LINE IS PENDING a rewrite Jon has not picked yet: today's card
 ## text, both lines, until then. This is the one line to change.
-const CUTAWAY_LINE := "Drag a part onto a ring to fit it. {turn} turns it. {flip} flips it."
+const CUTAWAY_LINE := "Drag a part onto a ring to fit it. You can turn it ({turn}) and flip it ({flip})."
 
 ## The field a line's per-value takes are keyed by.
 const FIELD: Dictionary = {&"endturn": "hand", &"heat": "cap", &"fuel_dock": "jumps"}
