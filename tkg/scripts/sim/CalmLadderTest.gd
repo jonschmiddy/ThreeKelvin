@@ -645,6 +645,22 @@ func _no_box() -> void:
 				fr = fv
 		_ok("%s: what the picture holds fades out toward its edge (%.0f px), on its frame as it stands (%s)" % [_nm(r), fade, fr],
 			fade >= 16.0 and fr.z > 0.0 and absf(fr.x - pic.get_global_rect().position.x) < 1.0)
+		# THE TWO PLATES (Jon, Oct 18: "Let's have the top part also be a panel.
+		# Let's make both panels slightly see through like the other panels"):
+		# the side panel and the toolbar row each on a plate, see-through by the
+		# same alpha (0.72 to 0.85: the field shows, the words stand -- more open
+		# than `UITheme.PANEL_A`, 0.88, which read as solid), one look
+		var side := ZoomLadder.side_of(cur)
+		var bar := ZoomLadder.bar_of(cur)
+		var ssb: StyleBox = side.get_theme_stylebox(&"panel") if side is PanelContainer else null
+		var bsb: Variant = bar.get_meta(&"nav_plate") if bar != null and bar.has_meta(&"nav_plate") else null
+		var sa := (ssb as StyleBoxFlat).bg_color.a if ssb is StyleBoxFlat else -1.0
+		var ba := (bsb as StyleBoxFlat).bg_color.a if bsb is StyleBoxFlat else -1.0
+		_ok("%s: the side panel a see-through plate (alpha %.2f)" % [_nm(r), sa], sa >= 0.72 and sa <= 0.85)
+		_ok("%s: the toolbar row a plate, the side panel's own (alpha %.2f)" % [_nm(r), ba], ba >= 0.72 and ba <= 0.85
+			and ssb is StyleBoxFlat and bsb is StyleBoxFlat and (ssb as StyleBoxFlat).bg_color == (bsb as StyleBoxFlat).bg_color
+			and (ssb as StyleBoxFlat).border_color == (bsb as StyleBoxFlat).border_color
+			and (ssb as StyleBoxFlat).border_width_top == (bsb as StyleBoxFlat).border_width_top)
 
 
 func _goal_line() -> void:

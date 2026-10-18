@@ -53,6 +53,33 @@ static func key_material() -> ShaderMaterial:
 	return m
 
 
+## HOW MUCH OF THE FIELD A PLATE LETS THROUGH (Jon, Oct 18: "Let's have the top
+## part also be a panel. Let's make both panels slightly see through like the
+## other panels"): the side panel and the toolbar row on the map and the chart,
+## glass over the stars at LOCAL's own event drawer's alpha
+## (`SectorScreen.DRAWER_A`, the plate already over this sky), a shade more
+## open than `UITheme.PANEL_A`.
+const PLATE_A := 0.80
+
+
+## The plates' one look: the panel's colour at `PLATE_A`, its line, its margins
+## (`Widgets.panel_with`'s, so nothing on them moves).
+static func plate_style() -> StyleBoxFlat:
+	return UITheme.flat(Color(UITheme.PANEL, PLATE_A), UITheme.LINE, 0, 12, 12)
+
+
+## A row made a plate without laying it out again: the plate drawn behind its
+## controls, over its whole rect and the 2 px gap under it (so not a control of
+## it moves). `meta nav_plate`: the style, for the harness.
+static func plate_behind(c: Control) -> void:
+	var sb := plate_style()
+	c.set_meta(&"nav_plate", sb)
+	c.draw.connect(func() -> void:
+		c.draw_style_box(sb, Rect2(Vector2.ZERO, c.size + Vector2(0.0, 2.0))))
+	c.resized.connect(c.queue_redraw)
+	c.queue_redraw()
+
+
 ## A picture's frame on the field: its margin alone, no line, nothing filled,
 ## so the stars inside it and round it are the same stars.
 static func window_style() -> StyleBox:

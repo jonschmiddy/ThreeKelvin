@@ -196,6 +196,8 @@ func _build() -> void:
 		strip.add_child(regen)
 	root.add_child(strip)
 	_strip_row = strip
+	if NavField.used():
+		NavField.plate_behind(strip)
 
 	# --- chart | destination
 	var mid := HBoxContainer.new()
@@ -339,6 +341,8 @@ func _build() -> void:
 	right.add_child(_jump)
 
 	_ladder_side = Widgets.panel_with(right)
+	if NavField.used():
+		_ladder_side.add_theme_stylebox_override("panel", NavField.plate_style())
 	mid.add_child(_ladder_side)
 
 	# --- key: icons are only better than labels if you can learn them

@@ -95,8 +95,65 @@ func _check(which: String) -> void:
 	# (the screen's words and buttons are UI over the field, not the picture's
 	# edge: the lines skip them)
 	var ui := _ui_rects(cur)
+	# (and the two plates, the toolbar row's and the side panel's: chrome too)
+	for pl: Control in [ZoomLadder.bar_of(cur), ZoomLadder.side_of(cur)]:
+		if pl != null:
+			ui.append(pl.get_global_rect().grow(4.0))
 	var c := Router.content.get_global_rect()
 	# (the picture's frame was 12 px of margin round it, then a line)
+	# THE PLATES SEE-THROUGH (Jon, Oct 18: "make both panels slightly see
+	# through like the other panels"): over the toolbar row's plate and the side
+	# panel's, clear of their words, the screen follows the field under it by
+	# about 1 - `NavField.PLATE_A` (fitted: the slope of the screen's luminance
+	# on the field's)
+	var words := _ui_rects(cur)
+	for pl: Control in [ZoomLadder.bar_of(cur), ZoomLadder.side_of(cur)]:
+		if pl == null:
+			continue
+		var r := pl.get_global_rect().grow(-4.0)
+		# (the plate's own pictures -- a star's portrait, a glow -- left out: only
+		# pixels near the plate's own dark, split by the field's under them, the
+		# field's stars against its void)
+		var lo_s := 0.0
+		var lo_f := 0.0
+		var hi_s := 0.0
+		var hi_f := 0.0
+		var nlo := 0
+		var nhi := 0
+		for y in range(int(r.position.y), int(r.end.y), 1):
+			for x in range(int(r.position.x), int(r.end.x), 1):
+				if _in_any(words, Vector2(x, y)) or _in_inner(pl, Vector2(x, y)):
+					continue
+				var fl := _lum(fimg, x, y)
+				var sl := _lum(shot, x, y)
+				if sl > 60.0:
+					continue
+				if fl < 14.0:
+					lo_s += sl
+					lo_f += fl
+					nlo += 1
+				elif fl > 40.0:
+					hi_s += sl
+					hi_f += fl
+					nhi += 1
+		var n := nhi
+		var slope := 0.0
+		if nlo > 0 and nhi > 0:
+			slope = (hi_s / nhi - lo_s / nlo) / maxf(hi_f / nhi - lo_f / nlo, 1.0)
+		var want := 1.0 - NavField.PLATE_A
+		var nm2 := "toolbar" if pl == ZoomLadder.bar_of(cur) else "side"
+		if n >= 8:
+			_ok("%s: the field shows through the %s plate (the screen follows its stars by %.2f, %.2f wanted, %d star px)" % [which, nm2, slope, want, n],
+				absf(slope - want) <= 0.08)
+		else:
+			# (too few of the field's stars under it to fit: its ground, then -- the
+			# plate's colour over the field's void at PLATE_A, not the panel's own)
+			var pc := UITheme.PANEL
+			var pl_l := (0.299 * pc.r + 0.587 * pc.g + 0.114 * pc.b) * 255.0
+			var got := lo_s / maxf(nlo, 1)
+			var mix := NavField.PLATE_A * pl_l + (1.0 - NavField.PLATE_A) * lo_f / maxf(nlo, 1)
+			_ok("%s: the %s plate is the panel's colour over the field at %.2f (its ground %.1f, %.1f wanted, %.1f were it solid; %d px)" % [which, nm2, NavField.PLATE_A, got, mix, pl_l, nlo],
+				nlo > 40 and absf(got - mix) <= 1.0 and absf(got - pl_l) > 1.0)
 	var edges := {
 		"left": [Vector2(pic.position.x, 0), true],
 		"top": [Vector2(0, pic.position.y), false],
@@ -192,6 +249,21 @@ func _ui_rects(root: Node) -> Array:
 		if leaf or bit:
 			out.append(r.grow(3.0))
 	return out
+
+
+## A point on a plate's own inner cards (an opaque row, a portrait's box), not
+## the plate itself.
+func _in_inner(plate: Control, p: Vector2) -> bool:
+	var st: Array = plate.get_children()
+	while not st.is_empty():
+		var c: Node = st.pop_back()
+		for k: Node in c.get_children():
+			st.append(k)
+		if (c is PanelContainer or c is Panel) and (c as Control).is_visible_in_tree() and (c as Control).get_global_rect().has_point(p):
+			var sb: StyleBox = (c as Control).get_theme_stylebox(&"panel")
+			if sb is StyleBoxFlat and (sb as StyleBoxFlat).bg_color.a > 0.0:
+				return true
+	return false
 
 
 func _in_any(rs: Array, p: Vector2) -> bool:

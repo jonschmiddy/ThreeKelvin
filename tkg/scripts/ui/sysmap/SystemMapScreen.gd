@@ -173,6 +173,8 @@ func _init() -> void:
 	_orbits_btn = StarchartScreen.bar_button("", _on_orbits, 112)
 	_strip.add_child(_orbits_btn)
 	root.add_child(_strip)
+	if NavField.used():
+		NavField.plate_behind(_strip)
 
 	var mid := HBoxContainer.new()
 	mid.add_theme_constant_override("separation", 5)
@@ -244,7 +246,10 @@ func _init() -> void:
 
 	panel = SystemPanelS.new()
 	panel.screen = self
-	mid.add_child(Widgets.panel_with(panel))
+	var side_wrap := Widgets.panel_with(panel)
+	if NavField.used():
+		side_wrap.add_theme_stylebox_override("panel", NavField.plate_style())
+	mid.add_child(side_wrap)
 
 	var key := HBoxContainer.new()
 	key.add_theme_constant_override("separation", 8)
