@@ -199,6 +199,8 @@ func run(tree: SceneTree) -> void:
 		var ch := sc._chart
 		print("chart core %s gu_px %.3f" % [ch.get_global_rect().position + ch.centre_px(),
 			ch._radius() * StarchartScreen.MapChart.DISC * ch.zoom])
+		if ChartSky.form_of(Run.galaxy_kind) == 1:
+			print("chart ball depth %s" % [ChartSky.ball_depth(Run.galaxy_kind)])
 	# `cursor`: a pointer parked mid-chart, so the reticle is in the picture.
 	# A shot has no mouse, and the reticle only draws where one is.
 	if "cursor" in OS.get_cmdline_user_args() and sc != null and sc._chart != null 			and sc._chart._cross != null:

@@ -35,6 +35,9 @@ extends Node
 ## LEGACY is left out of the default styles: it draws a ball mostly in the
 ## disc's plane on purpose (`ChartLegacy.params`, "why does this galaxy not
 ## look edge on?", Jon), so it is a disc here too; `styles=legacy` measures it.
+## `balllook=A|B|C` measures one of a ball's depth looks (`ChartSky.ball_depth`):
+## lit as a ball it is brighter on its upper left, but it must still END as far out
+## on its shaded side as on its lit one, so every look passes this as today's does.
 ## Needs a window (it reads the drawn sky).
 
 const REACH_T := 6.0
@@ -131,7 +134,8 @@ func _case(st: StringName, seed_v: int, kind: int) -> void:
 		String(st).to_upper(), name, m.up, " edge" if m.up_edge else "", m.down, " edge" if m.down_edge else "",
 		ratio, m.asym, ("FAIL" if bad else "ok") if ball else "(a disc: not judged)"])
 	if _shots != "":
-		img.save_png(_shots.path_join("%s_%d_%d.png" % [st, seed_v, Run.galaxy_kind]))
+		# (Jon's galaxy as rolled is `_rolled`: by its kind it took the forced giant's name)
+		img.save_png(_shots.path_join("%s_%d_%s.png" % [st, seed_v, str(kind) if kind >= 0 else "rolled"]))
 
 
 ## Down a vertical line through the core: how far the light reaches each way and

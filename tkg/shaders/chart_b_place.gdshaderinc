@@ -1087,13 +1087,50 @@ float flowFbm(vec2 g, float scale, vec2 off, float blk, int oct) {
 // and away from it on the lower right, as a sphere's are, and its band edges
 // gathered into a few big mottled lobes. What it adds to the ball's level,
 // strongest in its body and gone at its centre's cusp and its rim.
-float ballForm(vec2 v, float k, float bs, float blk) {
+// `lit` (a ball's depth, look A: `ChartSky.ball_depth`): lit as a ball in earnest --
+// the bands pushed well toward the light and away from it, the light falling off
+// toward the rim (limb darkening), carried out over the dim bands, not faded there
+float ballForm(vec2 v, float k, float bs, float blk, bool lit) {
 	vec2 eb = vec2(v.x, v.y / u_g2.z) / (k * bs);
 	float re = length(eb) / 1.1;
 	vec3 nb = vec3(eb / 1.1, sqrt(max(1.0 - re * re, 0.0)));
 	float sh = dot(nb, vec3(-0.5735, -0.6257, 0.5292));
 	float lob = fbmL(eb * 2.6 + u_g3.w * 7.0, blk / bs * 2.6, 2);
+	if (lit) {
+		// (past the rim the rim's own shading carries on, so it ends in no ring)
+		vec2 ebc = eb / 1.1 / max(re, 1.0);
+		float nz = sqrt(max(1.0 - dot(ebc, ebc), 0.0));
+		float shc = dot(vec3(ebc, nz), vec3(-0.5735, -0.6257, 0.5292));
+		return (0.5 * (shc - 0.5292) + 0.1 * lob - 0.22 * (1.0 - sqrt(nz)) + 0.12) * smoothstep(0.02, 0.12, re);
+	}
 	return (0.2 * sh + 0.1 * lob) * smoothstep(1.25, 0.3, re) * smoothstep(0.02, 0.12, re);
+}
+
+// B: a ball's globular clusters, as SIMPLIFIED's `globulars` (the same cells, so the
+// same clusters in both styles), in the ball's own frame (gu about the core):
+// 2 on a cluster's bright knot, 1 in its fuzz, 0 elsewhere. Never under a block.
+float globularsB(vec2 g, float Rs, float blk) {
+	const float CELL = 0.05;
+	ivec2 c0 = ivec2(floor(g / CELL));
+	int salt = int(u_ballD.w * 997.0);
+	float rC = max(0.0038, 0.55 * blk);   // the knot: one block at least
+	float rF = max(0.009, 1.15 * blk);   // its fuzz: the four blocks round it, a plus
+	float best = 0.0;
+	for (int j = -1; j <= 1; j++) {
+		for (int i = -1; i <= 1; i++) {
+			ivec2 cc = c0 + ivec2(i, j);
+			vec3 h = kitHash3(cc + ivec2(salt * 31 + 401, salt * 7 - 113));
+			vec2 ctr = (vec2(cc) + 0.15 + 0.7 * h.xy) * CELL;
+			float rc = length(vec2(ctr.x, ctr.y / u_g2.z)) / Rs;
+			float prob = 0.07 * u_ballE.y * exp(-rc * 1.4) * smoothstep(0.18, 0.4, rc) * (1.0 - smoothstep(1.4, 1.9, rc));
+			if (h.z > prob) {
+				continue;
+			}
+			float d = length(g - ctr);
+			best = max(best, d < rC ? 2.0 : (d < rF ? 1.0 : 0.0));
+		}
+	}
+	return best;
 }
 
 // ------------------------------------------------------------------ the scene behind the hole
@@ -1256,6 +1293,42 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	if (solidB) {
 		Ib *= solidBulgeEnd(rho, Rb / 0.128);
 	}
+	// A BALL'S DEPTH (`ChartSky.ball_depth`; look 0 is today's ball, untouched): A is
+	// its lighting (`ballForm`'s `lit`, below); B its structure, here, in its light
+	int bLook = ellip ? int(u_ballD.x + 0.5) : 0;
+	bool depthA = bLook == 1 || bLook == 3;
+	bool depthB = bLook >= 2;
+	float laneBall = 0.0;
+	float RsB = 2.2 * u_g8.x;
+	if (depthB) {
+		vec2 gS = vB / k;                                   // the ball's own frame, gu
+		float srB = length(vec2(gS.x, gS.y / u_g2.z)) / u_g8.x;
+		// lumpier star clouds through the body (as SIMPLIFIED's)
+		float lump = smoothstep(0.3, 0.7, 0.5 + 0.5 * fbmL(gB * 7.0 + vec2(5.3 + 17.0 * u_ballD.w, 2.9), blkB * 7.0, 3));
+		float lump2 = 0.5 + 0.5 * fbmL(gB * 31.0 + vec2(1.7, 9.4 + 11.0 * u_ballD.w), blkB * 31.0, 2);
+		float body = smoothstep(0.15, 0.5, srB) * (1.0 - smoothstep(1.6, 2.8, srB));
+		Ib *= mix(1.0, 0.76 + 0.45 * lump + 0.25 * (lump2 - 0.5), body * u_ballE.z);
+		// the shells of the galaxies it swallowed: arcs each on a side of its own
+		if (u_ballE.x > 0.0) {
+			float anB = atan(gS.y / u_g2.z, gS.x);
+			float shB = 0.0;
+			for (int kk = 0; kk < 4; kk++) {
+				float rk = 1.15 + 0.42 * float(kk);
+				float side = pow(0.5 + 0.5 * cos(anB - 6.2832 * u_ballD.w - 2.4 * float(kk)), 3.0);
+				float dk = srB - rk;
+				shB += (dk < 0.0 ? exp(dk / 0.22) : exp(-sq(dk / 0.035))) * side * (1.0 - 0.15 * float(kk));
+			}
+			Ib *= 1.0 + 1.3 * u_ballE.x * shB;
+		}
+		// a dust lane across the middle (seeded: some balls only), wavering, in filaments
+		if (u_ballD.y > 0.0) {
+			vec2 lr = kitRot(u_ballD.z) * gS;
+			float wv = 0.010 * kitSnoise2(vec2(lr.x * 7.0, 4.1 + 9.0 * u_ballD.w)) + 0.004 * kitSnoise2(vec2(lr.x * 23.0, 2.3));
+			float filB = smoothstep(0.3, 0.8, 0.5 + 0.5 * fbmL(gB * 40.0 + 3.1, blkB * 40.0, 2));
+			laneBall = u_ballD.y * exp(-sq((lr.y - wv) / (0.075 * u_g8.x))) * (1.0 - smoothstep(0.45 * RsB, 0.95 * RsB, abs(lr.x))) * (0.6 + 0.4 * filB);
+			Ib *= exp(-2.6 * laneBall);
+		}
+	}
 	float hR = u_g3.z;
 	float rp = length(vec2(vb.x, vb.y / 0.5)) / k;
 	float clearZ = smoothstep(1.5, 5.0, u_zoom);
@@ -1380,7 +1453,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			float ELw = max((Ew + 0.35 * (Ec + Ep)) / (1.0 + EwA * adaptW) + streams + dbt, 1e-5);
 			float lvb = (m == M_BALL) ? clamp((log2(ELw) + 7.4) / 3.6, 0.0, 0.83) : clamp(1.0 + log2(ELw) / 7.0, 0.0, 0.999);
 			if (ellip) {
-				lvb = clamp(lvb + ballForm(vB, k, bs, blkB), 0.0, m == M_BALL ? 0.83 : 0.999);
+				lvb = clamp(lvb + ballForm(vB, k, bs, blkB, depthA), 0.0, m == M_BALL ? 0.83 : 0.999);
 			}
 			sc = cand(m, lvb - 0.1 * shade, 0, 0.0);
 			// THE BULGE'S TOP FADES INTO THE DARK (the solid look's compact bulge: "a soft
@@ -1430,6 +1503,19 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		}
 	} else if (lip > 0.5 && galaxy && !warmSide && sc.m == M_ARM) {
 		sc = cand(M_ARM, sc.lv + 1.0 / 6.0, 0, 0.0);
+	}
+	// a ball's depth, B: its globular clusters, a bright knot in a plus of mid light.
+	// (Its lane is the light it takes, above: the ball's own bands stepping down
+	// across it. Drawn as dust, a band of the darkest brown, it read as a crack.)
+	if (depthB) {
+		if (u_ballE.y > 0.0) {
+			float gcl = globularsB(vB / k, RsB, blkB);
+			if (gcl > 1.5) {
+				sc = cand(M_BULGE, 0.92, 0, 0.0);
+			} else if (gcl > 0.5) {
+				sc = cand(M_BULGE, max(sc.m == M_BULGE ? sc.lv : 0.0, 0.62), 0, 0.0);
+			}
+		}
 	}
 	// the supernova's light echo: a ring stepping out through the gas and dust,
 	// one block wide, lit in the flare's colours a step at a time

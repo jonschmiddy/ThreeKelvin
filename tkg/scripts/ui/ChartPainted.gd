@@ -132,7 +132,10 @@ static func galaxy_uniforms(p: Dictionary) -> Dictionary:
 	if form == 0 and arms > 0:
 		arm_k = clampf(1.0 - chaos * 1.8, 0.35, 1.0) * (0.75 if arms >= 5 else 1.0)
 	var ball: Vector4 = p.ball
+	var bd := ChartSky.ball_depth(Run.galaxy_kind)
 	return {
+		"u_ballD": bd[0],
+		"u_ballE": bd[1],
 		"u_g0": Vector4(float(maxi(arms, 1)), float(p.twist), float(p.bar), float(p.spread)),
 		"u_g1": Vector4(float(p.spin), arm_k, float(p.lane), float(p.gas)),
 		"u_g2": Vector4(float(g.get("dust", 1.6)), float(p.bulge_r), ball.y if form == 1 else 0.86, float(p.hole_r)),
