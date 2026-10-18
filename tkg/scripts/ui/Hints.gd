@@ -365,7 +365,7 @@ func _poll_step(delta: float) -> void:
 		return
 	var vals := values()
 	if Ash.teach(id, AshTutorLines.fill(id, vals), &"", Rect2(),
-			{voice = AshTutorLines.voice_path(id, vals), spoken = AshTutorLines.spoken(id, vals)}):
+			{voice = AshTutorLines.voice_path(id), spoken = AshTutorLines.spoken(id)}):
 		mark_seen(_said_key(id))
 		step_up = id
 		shown_log.append(id)
@@ -431,7 +431,7 @@ func _show(id: StringName, p: Dictionary) -> void:
 		var lid := AshTutorLines.line_id(id, _dock_cached() if id == &"fuel" else {})
 		var vals := values(id)
 		if Ash.teach(lid, AshTutorLines.fill(lid, vals), id, p.subject,
-				{voice = AshTutorLines.voice_path(lid, vals), spoken = AshTutorLines.spoken(lid, vals)}):
+				{voice = AshTutorLines.voice_path(lid), spoken = AshTutorLines.spoken(lid)}):
 			lesson = id
 			_up_t = 0.0
 			_gone_t = 0.0

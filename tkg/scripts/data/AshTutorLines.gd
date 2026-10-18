@@ -13,11 +13,12 @@ extends RefCounted
 ## fuel hint: a dock in reach, none, or here) and the goal steps (`step_*`).
 ##
 ## HER VOICE: one take per line id, `VOICE_DIR` + `tut_<id>.ogg`, the folder her
-## other takes are in. A missing take is silence and the words still show. A
-## line with a field (`FIELD`) may have a take per value, `tut_<id>_<value>.ogg`
-## (`tut_endturn_5.ogg`), used when it exists; otherwise the base take. No take
-## has been recorded yet (Oct 17): every line is text alone until Jon approves
-## the spend.
+## other takes are in. A missing take is silence and the words still show. SHE
+## NEVER SAYS A NUMBER OR A NAME (Jon, Oct 18, "numbers:A"): the text shows the
+## live values, and a line with a field is recorded from its `SPOKEN` script
+## instead, so one take serves every value. The typing follows the take as her
+## barks do, over the SHOWN text (`AshPortrait`): the words end when she stops,
+## whatever the numbers make their length.
 
 const LINES: Dictionary = {
 	&"chart": "These stars are in reach. Left bar is danger. Right bar is fuel.",
@@ -47,12 +48,16 @@ const LINES: Dictionary = {
 ## voice never says them, since a player may have rebound them.
 const CUTAWAY_LINE := "Drag a part onto a ring to fit it. You can turn it ({turn}) and flip it ({flip})."
 
-## The field a line's per-value takes are keyed by.
-const FIELD: Dictionary = {&"endturn": "hand", &"heat": "cap", &"fuel_dock": "jumps"}
-
-## Words typed but never spoken: the dock's name (3,024 of them) follows her
-## last word at her own pace.
-const UNSPOKEN := ["{name}"]
+## WHAT SHE SAYS where it differs from what shows (Jon's numbers:A, Oct 18): no
+## number, no name, no key. Every other line is said as it shows. These are the
+## scripts her takes were recorded from; `-- sheet=AshTutorTest` holds them to
+## having no digit and no field.
+const SPOKEN: Dictionary = {
+	&"endturn": "Out of energy. Press END TURN. They act, then you draw new cards.",
+	&"heat": "Heat. Past the limit, we lose 1 hull per point over, at end of turn.",
+	&"fuel_dock": "Fuel is low. Run dry and the run ends. Here's the nearest dock.",
+	&"cutaway": "Drag a part onto a ring to fit it. You can turn it and flip it.",
+}
 
 const VOICE_DIR := "res://assets/audio/voice/ash/"
 
@@ -81,36 +86,20 @@ static func fill(lid: StringName, values: Dictionary) -> String:
 	return s
 
 
-## What she SAYS of the filled line: everything before the first unspoken field
-## (the dock's name), so the typing keeps her pace and the name types after.
-static func spoken(lid: StringName, values: Dictionary) -> String:
-	var raw := String(LINES.get(lid, ""))
-	for u in UNSPOKEN:
-		var i := raw.find(u)
-		if i >= 0:
-			var head := raw.substr(0, i)
-			for k in values:
-				head = head.replace("{%s}" % k, str(values[k]))
-			if lid == &"fuel_dock" and int(values.get("jumps", 0)) == 1:
-				head = head.replace(" jumps", " jump")
-			return head.strip_edges()
-	return fill(lid, values)
+## What she SAYS for line `lid`: its `SPOKEN` script, or the line as it shows.
+static func spoken(lid: StringName) -> String:
+	return String(SPOKEN.get(lid, LINES.get(lid, "")))
 
 
-## Her take for line `lid` with these values: the per-value take if there is
-## one, the base take, or "" (silent, the words alone).
-static func voice_path(lid: StringName, values: Dictionary = {}) -> String:
-	var f := String(FIELD.get(lid, ""))
-	if f != "" and values.has(f):
-		var per := _take("tut_%s_%s" % [lid, str(values[f])])
-		if per != "":
-			return per
+## Her take for line `lid`, or "" (silent, the words alone). One take a line:
+## she never says the values, so no take is kept per value.
+static func voice_path(lid: StringName) -> String:
 	return _take("tut_%s" % lid)
 
 
 ## FOR THE HARNESS ONLY (`-- sheet=AshTutorTest`): a take's name -> a file to
-## play for it, so the per-value rule and the typing's pace can be held to it
-## before any take exists. Empty in the game.
+## play for it, so the typing's pace can be held to a take before one is
+## installed. Empty in the game.
 static var stand_in: Dictionary = {}
 
 

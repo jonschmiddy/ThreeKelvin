@@ -233,9 +233,11 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
   clear of everything (`Ash.tut_avoid_rects`) and of anything a click picks in the
   picture (`Ash.covers`: the chart's systems, the map's worlds, beacons, star, belts and
   orbit lines).
-- **Voice:** one take per line id, `tkg/assets/audio/voice/ash/tut_<id>.ogg`, and per value
-  where a line has a field (`tut_endturn_5.ogg`, `tut_heat_14.ogg`, `tut_fuel_dock_2.ogg`),
-  used when present, else the base take. A missing take is silence and the words alone.
-  None is recorded yet.
+- **Voice:** one take per line id, `tkg/assets/audio/voice/ash/tut_<id>.ogg`. A missing take
+  is silence and the words alone. **She never says a number or a name** (Jon, Oct 18,
+  numbers:A): the text shows them, and the four lines with a field (END TURN, heat, the
+  dock in reach, the cutaway's keys) are recorded from scripts of their own,
+  `AshTutorLines.SPOKEN`. The typing spans the shown words over her take, so they end when
+  she stops. 21 lines x 2 takes recorded Oct 18 (956 credits), not yet installed.
 - **Off:** her switch off brings today's cards back exactly; off in a party (hints are).
   `-- sheet=AshTutorTest` holds all of it, in the merge gate.
