@@ -519,6 +519,10 @@ static func bill_rows(before: Dictionary, after: Dictionary) -> Array:
 		var n := int(after.get(key, 0)) - int(before.get(key, 0))
 		var good := (n * int(row[2])) > 0
 		out.append({
+			# the stat, the move and both ends of it, for the result's outcome
+			# line (`OutcomeRow`): "HULL 35 > 30" needs the totals, not the text
+			key = key, n = n, was = int(before.get(key, 0)), now = int(after.get(key, 0)),
+			good = good,
 			name = String(row[0]),
 			text = "—" if n == 0 else ("%+d" % n),
 			tone = UITheme.COLD if n == 0 \

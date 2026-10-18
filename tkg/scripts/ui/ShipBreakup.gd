@@ -154,7 +154,9 @@ var _cut: Dictionary = {}
 var _majors: Array = []   ## {tex, glow, at (Vector2i image px), off (final), crack (PackedVector2Array)}
 var _shards: Array = []   ## {tex, at, v, spin, rot0, life, born}
 var _motes: Array = []    ## {p, v, age, life, kind}
-var _beats: Array = []    ## [time, strength, fired]
+var _beats: Array = []    ## [time, strength, fired, at, moment (or &"" for break / burst)]
+## when the style itself starts, after a boss-length prelude (`_plan_beats`)
+var _style_lead := 0.0
 var _flash_tex: ImageTexture
 var _flashes: Array = []  ## {p (Vector2), t0, r_scale}
 var _light: Control
@@ -667,8 +669,10 @@ func _plan_beats() -> void:
 			if not m.is_empty() and not (m.crack as PackedVector2Array).is_empty():
 				var cr: PackedVector2Array = m.crack
 				p = _origin + Vector2(m.at) + cr[_rng.randi() % cr.size()]
-			_beats.append([float(times[i]), 0.45 + 0.1 * i, false, p])
+			# (named for what it is, so its sound is the prelude's, not a ship's)
+			_beats.append([float(times[i]), 0.45 + 0.1 * i, false, p, &"prelude"])
 		lead = BOSS_PRELUDE
+	_style_lead = lead
 	match style:
 		Style.SNAP:
 			_split_at = lead
@@ -699,7 +703,11 @@ func advance(delta: float) -> void:
 	for b in _beats:
 		if not b[2] and t >= float(b[0]):
 			b[2] = true
-			_on_beat(float(b[1]), b[3])
+			_on_beat(float(b[1]), b[3], StringName(b[4]) if b.size() > 4 else &"")
+	# C's gather has no beat of its own (its one beat is the burst it gathers
+	# to): say when it starts, for its sound
+	if style == Style.IMPLODE and (was < _style_lead or (was == 0.0 and _style_lead == 0.0)) and t >= _style_lead:
+		moment.emit(&"gather", 0.4, 0.42)
 	if style >= Style.BREACH:
 		_advance_new(delta)
 		return
@@ -714,10 +722,10 @@ func advance(delta: float) -> void:
 		(c as CanvasItem).queue_redraw()
 
 
-func _on_beat(strength: float, at: Vector2) -> void:
+func _on_beat(strength: float, at: Vector2, kind: StringName = &"") -> void:
 	_flashes.append({p = at, t0 = t, s = strength})
 	_burst_sparks(at, int(10 + 14 * strength), 150.0 * (0.6 + strength))
-	moment.emit(&"break" if strength >= 0.9 else &"burst", strength, 0.0)
+	moment.emit(kind if kind != &"" else (&"break" if strength >= 0.9 else &"burst"), strength, 0.0)
 	broke.emit(strength)
 
 
@@ -935,8 +943,11 @@ const SHIELD_COL := Color("#7cd8ff")
 const VOID_COL := Color("#dcd4ff")
 const SOOT := Color(0.17, 0.12, 0.10)
 ## The moments that are explosions: `broke` fires on these too.
+## (M's crunches left this list for a sound of their own, a hull buckling --
+## `Audio.FX` crumple; its rip at 0.72 keeps the boom. K's shatter is glass
+## now, not a boom, and its break at 0.82 still is: see `_fire`.)
 const BOOMS := [&"breach", &"pop", &"break", &"blow", &"split", &"shatter", &"rip", &"tear",
-	&"crunch", &"collapse", &"sever"]
+	&"collapse", &"sever"]
 
 
 ## The hull as a picture to work on: the canvas round the ship's box with room
@@ -2340,7 +2351,9 @@ func _fire(e: Dictionary) -> void:
 	var s: float = e.s
 	moment.emit(kind, s, float(e.len))
 	if _is_boss(style):
-		if kind in [&"blast", &"reactor", &"nova", &"break", &"burst", &"shatter", &"crack"]:
+		# (the Custodian's cracks are glass cracking now, `Audio.FX` cust_crack,
+		# not eight explosions)
+		if kind in [&"blast", &"reactor", &"nova", &"break", &"burst", &"shatter"]:
 			broke.emit(s)
 		_fire_boss(e)
 		return
@@ -2348,7 +2361,7 @@ func _fire(e: Dictionary) -> void:
 		# A creature dies without an explosion: no `broke`, only moments.
 		_fire_creature(e)
 		return
-	if kind in BOOMS:
+	if kind in BOOMS and not (style == Style.SHIELD and kind == &"shatter"):
 		broke.emit(s)
 	var p: Vector2 = e.p
 	match kind:

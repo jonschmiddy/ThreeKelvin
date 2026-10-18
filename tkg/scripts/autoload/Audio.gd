@@ -267,11 +267,27 @@ func _ready() -> void:
 	_idle_clock = IdleClock.new()
 	_idle_clock.audio = self
 	add_child(_idle_clock)
+	# a harness's (or Jon's) choice of take per moment: `fx=row:choice,...`;
+	# `sfxtape=<json>` tapes every sound and writes the tape at exit, with the
+	# frame each was drawn on (for laying a film's events against its sound)
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("fx="):
+			_fx_args(a.substr(3))
+		elif a.begins_with("sfxtape="):
+			_tape_to = a.substr(8)
+			taping = true
 	# The balance sim boots the whole project so the autoloads exist. It runs
 	# hundreds of combats with no window and no audio device, and loading 36 MB
 	# of streams for it would be pure cost. Same guard Main.gd uses.
-	if "sim" in OS.get_cmdline_user_args() or DisplayServer.get_name() == "headless":
+	if "sim" in OS.get_cmdline_user_args():
 		_enabled = false
+		return
+	# HEADLESS IS SILENT BUT STILL WIRED, so a harness that tapes can read what
+	# would have played and when (`_dry_play`); untaped, every call returns at
+	# once.
+	if DisplayServer.get_name() == "headless":
+		_enabled = false
+		_connect_signals()
 		return
 	process_mode = Node.PROCESS_MODE_ALWAYS      ## music keeps playing while paused
 	load_settings()
@@ -530,6 +546,21 @@ func warm_room(name: StringName) -> void:
 		ResourceLoader.load_threaded_request(path)
 
 
+## LOOP A ROOM TONE ON ITS WHOLE LENGTH, seamlessly (this, `LabScene` and
+## `YardSound`). ONE FRAME SHORT OF THE END, AND PCM (the rooms' imports say
+## compress/mode=0). Looped at the frame count, Godot's player reads a frame past
+## the data at every lap, and the QOA the rooms were imported as also restarts
+## its decoder wrong at the wrap: rendered through `mix_audio`, amb_red's seam
+## stepped 128 times its typical sample step, amb_pulsar 112, amb_space 30, a
+## click every lap (every 7.75 s on a red star, one of them half a second before
+## A.S.H.'s fade in her film). PCM and frames - 1 measure 2 to 4.4 on all ten
+## looped rooms, which is the files' own seams. `-- sheet=AshTest` holds it.
+static func loop_whole(w: AudioStreamWAV) -> void:
+	w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	w.loop_begin = 0
+	w.loop_end = roundi(w.get_length() * float(w.mix_rate)) - 1
+
+
 func room(name: StringName, fade_s: float = ROOM_FADE) -> void:
 	if not _enabled or name == _room_now:
 		return
@@ -558,10 +589,7 @@ func room(name: StringName, fade_s: float = ROOM_FADE) -> void:
 	if stream is AudioStreamOggVorbis:
 		(stream as AudioStreamOggVorbis).loop = true
 	elif stream is AudioStreamWAV:
-		var w := stream as AudioStreamWAV
-		w.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		w.loop_begin = 0
-		w.loop_end = roundi(w.get_length() * float(w.mix_rate))
+		loop_whole(stream as AudioStreamWAV)
 	_load_pa(name)
 	if _room == null:
 		_room = AudioStreamPlayer.new()
@@ -873,6 +901,7 @@ func ash_speaking() -> bool:
 
 
 func _process(delta: float) -> void:
+	_fx_tick()
 	if not _enabled:
 		return
 	# ASKED EVERY FRAME, NOT FIRED ON AN EVENT. Whether a line is playing is a
@@ -966,8 +995,10 @@ func act(name: StringName) -> void:
 ## `pitch` is the note the spread is taken round (A.S.H.'s power-on plays the
 ## text blip twice, the second a minor third up: `AshPortrait`).
 func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
-		db: float = 0.0, pitch: float = 1.0) -> void:
-	if not _enabled:
+		db: float = 0.0, pitch: float = 1.0, from: float = 0.0) -> void:
+	# (headless there is no sound, but a harness taping still gets the decision:
+	# everything below down to the pick, then `_dry_play`)
+	if not _enabled and not taping:
 		return
 	var now := Time.get_ticks_msec()
 	# SUPPRESSION IS NOT A RATE LIMIT, and it was only ever read as one. `suppress`
@@ -998,6 +1029,9 @@ func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
 		_variants[name] = vars
 	if vars.size() > 1:
 		pick = vars[randi() % vars.size()]
+	if not _enabled:
+		_dry_play(pick, name, db, pitch * (1.0 + randf_range(-pitch_var, pitch_var)), from)
+		return
 	var stream: AudioStream = _cache.get(pick)
 	if stream == null:
 		stream = load(SFX_PATH % pick)
@@ -1025,8 +1059,9 @@ func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
 	p.set_meta(&"asked", name)
 	p.set_meta(&"t0", Time.get_ticks_msec())
 	if taping:
-		tape.append([pick, Time.get_ticks_msec(), db, p.pitch_scale])
-	p.play()
+		tape.append([pick, Time.get_ticks_msec(), db, p.pitch_scale, GameClock.now(),
+			Engine.get_process_frames(), name, from])
+	p.play(from)
 
 ## Hold a name's tongue for a moment. The resource watcher plays loot_drop
 ## and scrap_gain on ANY cargo/credit increase -- right for a windfall,
@@ -1077,8 +1112,11 @@ func hush(names: Array[StringName], fade_ms: int = 120) -> void:
 ## gives. The new one still plays, so the rhythm Jon picked on the audition page
 ## is kept; only the tails get shorter. A voice already fading does not count.
 func play_capped(name: StringName, pitch_var: float, cap: int, db: float = 0.0,
-		steal_ms: int = 25) -> void:
+		steal_ms: int = 25, from: float = 0.0) -> void:
 	if not _enabled:
+		if taping:
+			_dry_steal(name, cap)
+			play(name, pitch_var, 0, db, 1.0, from)
 		return
 	var live: Array[int] = []
 	for i in _sfx.size():
@@ -1094,7 +1132,7 @@ func play_capped(name: StringName, pitch_var: float, cap: int, db: float = 0.0,
 		t.tween_property(p, "volume_db", p.volume_db - 40.0, steal_ms / 1000.0)
 		t.tween_callback(p.stop)
 		_fade[i] = t
-	play(name, pitch_var, 0, db)
+	play(name, pitch_var, 0, db, 1.0, from)
 
 func click() -> void:   play(&"ui_click", 0.05)
 func hover() -> void:   play(&"ui_hover", 0.09, 40)
@@ -1104,6 +1142,399 @@ func back() -> void:    play(&"ui_back", 0.03)
 ## nowhere else. ui_confirm was cut after twenty takes missed (sound pass).
 func confirm() -> void: play(&"ui_click", 0.02)
 func denied() -> void:  play(&"ui_denied", 0.03)
+
+
+# ---------------- the effects' moments ----------------
+##
+## OCTOBER'S EFFECTS WERE SILENT (the sound plan of Oct 17, scratchpad
+## `sfx-plan/plan.json`). Every one of them already said when it acts -- a
+## `moment(kind, strength, length)` from ShipHitFx, ShieldFx, BraceFx and
+## ShipBreakup -- and the one listener played two of them. Now each is heard on
+## the frame its picture acts: first with files the game already had (the free
+## pass), then with the ElevenLabs takes Jon picked by ear (Oct 17), copied into
+## `sfx/` under the plan's names (`brace_clang` and `brace_clang_2` are his
+## A1 and A2, alternated as round robins).
+##
+## ONE ROW PER MOMENT, AND EVERY ROW IS SWITCHABLE. `pick` is what plays;
+## `free` the free pass's pick where a bought take replaced it; `before` what
+## played there before any of this (empty: nothing did); `off` silence. On the
+## command line `fx=brace_on:free`, `:before`, `:off`, or a file of its own
+## (`fx=brace_on:brace_on_b@-3[@offset]`); the same under `[fx]` in
+## settings.cfg. `fx=all:before` puts every row back as it was.
+##
+## In a row's take:
+##   file    the sfx played (round robins as `play` finds them)
+##   db      its level against its peers (the bought takes are levelled to the
+##           plan's targets already, so 0 unless the row says why not)
+##   at      the moment kind it lands on, where the caller sees more than one
+##           (bolt_on starts the plates, clamp locks them 0.35 s later)
+##   offset  s: later than the moment (> 0, on the game's clock) or that far
+##           into the file (< 0), to put a file's own hit on the picture's
+##   end_on  started far enough into the file that it runs out as the moment's
+##           length does: a whine into the blast it leads to
+##   limit   s on the game's clock between two of this row: never chatters
+##   cap     at most this many of the file in the air (`play_capped`)
+##   pitch   the round robin's pitch spread (0.05 if not given)
+##   hush    a name to keep quiet instead of a sound (`suppress`)
+##   duck    how far the music steps back, for the caller's length
+##   bed     a loop (`ambience/` or `sfx/`) faded in, held until `fx_stop`
+const FX: Dictionary = {
+	# CREATURE DEATHS N, O, P. Jon picked the three takes on Sep 19 and nothing
+	# ever reached them: `play_kill` routed fauna to them, but only a ship's
+	# breakup said `broke`. On the death's first beat (the flare, or P's pulse).
+	# They measure -10 to -15 LUFS against explosion_small's -15 to -21.
+	&"fauna_death": {pick = {file = &"fauna_falls", db = -4.0, limit = 0.4}, before = {}},
+	# PLATING GOING ON (an enemy's, and yours): Jon's B1, a bolt driver's three
+	# bangs and a latch, from the wave's start so the latch is the clamp. The
+	# free pass had module_install; before that, a shield's sound on armour.
+	&"brace_on": {pick = {file = &"brace_on", db = 0.0, at = &"bolt_on", limit = 0.09, pitch = 0.03},
+			free = {file = &"module_install", db = 0.0, at = &"bolt_on", limit = 0.09, pitch = 0.04},
+			before = {file = &"shield_block", db = -8.0, at = &"clamp", limit = 0.09, pitch = 0.06}},
+	&"brace_on_yours": {pick = {file = &"brace_on", db = 0.0, at = &"bolt_on", limit = 0.09, pitch = 0.03},
+			free = {file = &"module_install", db = 0.0, at = &"bolt_on", limit = 0.09, pitch = 0.04},
+			before = {file = &"shield_block", db = 0.0, at = &"card", pitch = 0.06}},
+	# PLATES TUMBLING OFF: something thrown off a hull (-14 LUFS, so down 10).
+	# Jon picked no bought take for it.
+	&"brace_off": {pick = {file = &"jettison", db = -10.0, limit = 0.25}, before = {}},
+	# A HIT PARTLY TAKEN BY BLOCK OR BRACE: the armour ringing under the impact,
+	# Jon's A1 and A2 in turn (the free pass: shield_block -8).
+	&"hit_partial": {pick = {file = &"brace_clang", db = 0.0, limit = 0.09, pitch = 0.04},
+			free = {file = &"shield_block", db = -8.0, limit = 0.09, pitch = 0.06}, before = {}},
+	# GAS LEAVING THE HULL: death G's two jets and a vent's opening burst (Jon's
+	# gas_vent A1, -24 LUFS), and the sputters (gas_puff C1, -34), never closer
+	# than 0.4 s whatever number of vents are open. The free pass used `vent`.
+	&"vent_jet": {pick = {file = &"gas_vent", db = 0.0, limit = 0.15},
+			free = {file = &"vent", db = -8.0, limit = 0.15}, before = {}},
+	&"vent_hiss": {pick = {file = &"gas_vent", db = 0.0, limit = 0.15},
+			free = {file = &"vent", db = -8.0, limit = 0.15}, before = {}},
+	&"vent_sputter": {pick = {file = &"gas_puff", db = 0.0, limit = 0.4, cap = 1},
+			free = {file = &"vent", db = -12.0, limit = 0.4, cap = 1}, before = {}},
+	# THE SIDE BAR DECODING: a blip as each line starts to resolve, the event
+	# text's own, at most two in the air.
+	&"side_decode": {pick = {file = &"text_blip", db = 0.0, cap = 2, pitch = 0.06}, before = {}},
+	# THE CHROME SLIDING: the escape menu's drawer sounds, down 6 for every hop.
+	&"chrome_on": {pick = {file = &"menu_open", db = -6.0, pitch = 0.03}, before = {}},
+	&"chrome_off": {pick = {file = &"menu_close", db = -6.0, pitch = 0.03}, before = {}},
+	# THE FIGHT'S BAND, up as the fight opens and down as it ends. Jon: "the
+	# drawer sliding up sound and closing sound should be the same as the esc
+	# menu opening and closing" -- its own files at its own level
+	# (`Main.toggle_menu`: 0 dB). The free pass had hold_lift up, nothing down.
+	&"fight_band": {pick = {file = &"menu_open", db = 0.0, pitch = 0.03},
+			free = {file = &"hold_lift", db = -4.0, pitch = 0.03}, before = {}},
+	&"fight_band_down": {pick = {file = &"menu_close", db = 0.0, pitch = 0.03}, before = {}},
+	# YOUR SHIP LOST: the set going off as the picture goes, the score down
+	# through the gap after the breakup, and no page click on the swap; and the
+	# breakup's prelude of bursts whining up into the ship's own death (Jon's
+	# charge_whine A1, from the first burst, ending as the style begins 1.5 s in).
+	&"loss_handoff": {pick = {file = &"power_off", db = 0.0, pitch = 0.0}, before = {}},
+	&"loss_duck": {pick = {duck = 0.6}, before = {}},
+	&"loss_swap": {pick = {hush = &"ui_tab"}, before = {}},
+	&"charge_prelude": {pick = {file = &"charge_whine", db = 0.0, offset = 0.7, limit = 3.0, pitch = 0.0}, before = {}},
+	# THE HELLBENDER HEATING: the red hypergiant's furnace, faded in as the
+	# device heats (1.5 s) and out as it bursts (5.6 s).
+	&"hb_heat": {pick = {bed = &"amb_red", db = -13.0, fade_in = 0.6, fade_out = 0.4, at = &"emblem_heat"}, before = {}},
+	# THE BOSSES' SMALL BREAKS: the Hellbender's holds and its cargo popping (the
+	# kill pool, low); the Custodian C1c's spine pops, glass cracking (Jon's
+	# glass_crack B2, the Custodian's cracks); C1c's split, glass shattering
+	# (glass_shatter A1). The free pass played the kill pool for all three.
+	&"boss_pop": {pick = {file = &"explosion_small", db = -10.0, limit = 0.08, pitch = 0.09}, before = {}},
+	&"spine_pop": {pick = {file = &"glass_crack", db = 0.0, limit = 0.08, pitch = 0.06},
+			free = {file = &"explosion_small", db = -10.0, limit = 0.08, pitch = 0.09}, before = {}},
+	&"boss_split": {pick = {file = &"glass_shatter", db = 0.0, pitch = 0.0},
+			free = {file = &"explosion_small", db = 0.0, pitch = 0.09}, before = {}},
+	# THE SHIELD AT REST: one hum while any hex shield is up and seen (Jon's
+	# shield_idle_bed A1, -46 LUFS, a PCM loop), however many ships hold one --
+	# a room of shields is not louder, it is the same field -- faded with it.
+	&"shield_idle": {pick = {bed = &"shield_idle_bed", db = 0.0, fade_in = 0.3, fade_out = 0.3}, before = {}},
+	# ITS RIPPLES AND GLITCHES (about 43 a minute a shield): a crackle (Jon's
+	# shield_glitch A1, -36), never closer than half a second, one at a time.
+	&"shield_glitch": {pick = {file = &"shield_glitch", db = 0.0, limit = 0.5, cap = 1, pitch = 0.08}, before = {}},
+	# A HULL BUCKLING (Jon's hull_crunch A1, -24): death M's four crunches on
+	# their own grid (0, 0.20, 0.38, 0.54), which were explosions; death A's
+	# crack (its break keeps the boom); and a crack in a hit's marks, under the
+	# impact (down 6: it lands with impact_enemy or impact_hull).
+	&"crumple": {pick = {file = &"hull_crunch", db = 0.0, limit = 0.1, pitch = 0.05}, before = {}},
+	&"snap_crack": {pick = {file = &"hull_crunch", db = 0.0, pitch = 0.04}, before = {}},
+	&"crack_mark": {pick = {file = &"hull_crunch", db = -6.0, limit = 0.3, pitch = 0.06}, before = {}},
+	# A CHARGE WHINING UP INTO ITS BLAST (Jon's charge_whine A1, -26): D's
+	# charge, F's spool, C's gather, each started so it runs out as the blast
+	# lands (that blast keeps its explosion).
+	&"charge": {pick = {file = &"charge_whine", db = 0.0, end_on = true, limit = 0.3, pitch = 0.02}, before = {}},
+	# HEAT (Jon's heat_sizzle A1, -28): L's melt and B's embers; and a hit's
+	# scorch or heat bloom, under its impact (down 6, and half a second apart).
+	&"heat": {pick = {file = &"heat_sizzle", db = 0.0, limit = 0.5, pitch = 0.03}, before = {}},
+	&"heat_mark": {pick = {file = &"heat_sizzle", db = -6.0, limit = 0.6, pitch = 0.06}, before = {}},
+	# DEATH I DISSOLVING (Jon's dissolve_fizz B1), which was silent.
+	&"dissolve": {pick = {file = &"dissolve_fizz", db = 0.0, pitch = 0.02}, before = {}},
+	# A PULL INWARD (Jon's gravity_collapse B1, a reverse whoosh cut dead): death
+	# J's pull into its collapse and C1b's crush into its blast, ending on it.
+	&"collapse": {pick = {file = &"gravity_collapse", db = 0.0, end_on = true, pitch = 0.0}, before = {}},
+	# GLASS CRACKING (Jon's glass_crack B2): the Custodian's eight cracks on
+	# their own times (which were eight explosions), K's shield shattering
+	# (which was one), and a creature's scales shedding (down 6, under its hit).
+	&"cust_crack": {pick = {file = &"glass_crack", db = 0.0, limit = 0.1, pitch = 0.05}, before = {}},
+	&"k_shatter": {pick = {file = &"glass_crack", db = 0.0, pitch = 0.03}, before = {}},
+	&"shed": {pick = {file = &"glass_crack", db = -6.0, limit = 0.3, pitch = 0.08}, before = {}},
+	# THE CUSTODIAN'S BEAMS (Jon's unstable_arc A1, a PCM loop): up with the
+	# first beam, down as they shrink into the crush.
+	&"arc": {pick = {bed = &"unstable_arc", db = 0.0, fade_in = 0.15, fade_out = 0.35}, before = {}},
+	# AND ITS CENTRE SWELLING (Jon's boss_riser A1), into the crush or the
+	# implode. The plan put charge_whine on this swell too; one riser is enough.
+	&"riser": {pick = {file = &"boss_riser", db = 0.0, end_on = true, pitch = 0.0}, before = {}},
+}
+
+## row -> &"pick" (the default), &"before", &"off", or a take of its own.
+var fx_choice: Dictionary = {}
+## While `taping`: every row that sounded, [row, kind, file, db, frame, game s].
+var fx_heard: Array = []
+var _tape_to := ""
+
+
+func _exit_tree() -> void:
+	if _tape_to == "":
+		return
+	var f := FileAccess.open(_tape_to, FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify({tape = tape, fx = fx_heard,
+			frame_offset = Engine.get_frames_drawn() - Engine.get_process_frames()}))
+		f.close()
+var _fx_last: Dictionary = {}       ## row -> game s it last sounded
+var _fx_due: Array = []             ## [game s, row, take, kind, secs]
+
+
+## The take a row plays now ({} for silence).
+func fx_take(row: StringName) -> Dictionary:
+	var c: Variant = fx_choice.get(row, &"pick")
+	var r: Dictionary = FX.get(row, {})
+	if c is Dictionary:
+		# a file of its own, with the pick's timing unless it says otherwise
+		var t: Dictionary = (r.get(&"pick", {}) as Dictionary).duplicate()
+		for k: StringName in [&"file", &"bed", &"duck", &"hush"]:
+			t.erase(k)
+		t.merge(c as Dictionary, true)
+		return t
+	if c == &"off":
+		return {}
+	if c == &"free":
+		return r.get(&"free", r.get(&"pick", {}))
+	return r.get(c, {})
+
+
+## Choose for a row: &"pick", &"free", &"before", &"off", or "file@db[@offset]".
+func fx_choose(row: StringName, choice: String) -> void:
+	if choice in ["pick", "free", "before", "off"]:
+		fx_choice[row] = StringName(choice)
+		return
+	var bits := choice.split("@")
+	var t := {file = StringName(bits[0])}
+	if bits.size() > 1 and bits[1].is_valid_float():
+		t.db = float(bits[1])
+	if bits.size() > 2 and bits[2].is_valid_float():
+		t.offset = float(bits[2])
+	fx_choice[row] = t
+
+
+## `fx=row:choice,row:choice` (`all:` for every row).
+func _fx_args(spec: String) -> void:
+	for part in spec.split(",", false):
+		var kv := part.split(":")
+		if kv.size() != 2:
+			continue
+		var rows: Array = FX.keys() if kv[0] == "all" else [StringName(kv[0])]
+		for row: StringName in rows:
+			fx_choose(row, kv[1])
+
+
+## THE MOMENT `row` NAMES HAS HAPPENED ON SCREEN, this frame. `kind` is the
+## picture's own name for it (a row with `at` plays on that kind only); `secs`
+## is how long a duck holds. True if the row sounded (or will, `offset`).
+func fx(row: StringName, kind: StringName = &"", secs: float = 0.0) -> bool:
+	var take := fx_take(row)
+	if take.is_empty():
+		return false
+	if take.has(&"at") and StringName(take.at) != kind:
+		return false
+	var now := GameClock.now()
+	var lim := float(take.get(&"limit", 0.0))
+	if lim > 0.0 and now - float(_fx_last.get(row, -1e9)) < lim - 0.0001:
+		return false
+	_fx_last[row] = now
+	var off := float(take.get(&"offset", 0.0))
+	if off > 0.0:
+		_fx_due.append([now + off, row, take, kind, secs])
+		return true
+	_fx_do(row, take, kind, secs)
+	return true
+
+
+func _fx_do(row: StringName, take: Dictionary, kind: StringName, secs: float) -> void:
+	var file: StringName = take.get(&"file", &"")
+	var db := float(take.get(&"db", 0.0))
+	if taping:
+		fx_heard.append([row, kind, file if file != &"" else StringName(take.get(&"bed",
+			take.get(&"hush", &"duck" if take.has(&"duck") else &""))), db,
+			Engine.get_process_frames(), GameClock.now()])
+	if take.has(&"hush"):
+		suppress(StringName(take.hush), 400)
+	if take.has(&"duck"):
+		duck_music(float(take.duck), secs)
+	if take.has(&"bed"):
+		_bed_on(row, take)
+	if file == &"":
+		return
+	var pv := float(take.get(&"pitch", 0.05))
+	var from := maxf(0.0, -float(take.get(&"offset", 0.0)))
+	# ENDS ON THE MOMENT'S END: started that far into the file, so it runs out
+	# as the beat it leads up to lands (a charge's whine into its blast)
+	if bool(take.get(&"end_on", false)) and secs > 0.0:
+		from = maxf(from, _len_of(file) - secs)
+	var cap := int(take.get(&"cap", 0))
+	if cap > 0:
+		play_capped(file, pv, cap, db, 25, from)
+	else:
+		play(file, pv, 0, db, 1.0, from)
+
+
+## Delayed takes (`offset` > 0), on the game's clock: a film runs them at its
+## own speed and slow motion reaches them.
+func _fx_tick() -> void:
+	if _fx_due.is_empty():
+		return
+	var now := GameClock.now()
+	var keep: Array = []
+	for d: Array in _fx_due:
+		if now >= float(d[0]):
+			_fx_do(d[1], d[2], d[3], float(d[4]))
+		else:
+			keep.append(d)
+	_fx_due = keep
+
+
+## ---- beds: loops under what the picture holds (`bed` rows)
+##
+## ONE PLAYER A ROW, so the Hellbender's furnace, the Custodian's arcs and a
+## shield's hum are each their own and none cuts another off. A row's bed is
+## up from its `fx` until its `fx_stop` (or `fx_hold` false), faded both ways.
+## `bed` names a room tone (`ambience/<bed>.wav`) or an effect's loop
+## (`sfx/<bed>.wav`); either is looped on its whole length, as `room` loops.
+var _beds: Dictionary = {}		  ## row -> AudioStreamPlayer
+var _bed_tws: Dictionary = {}	   ## row -> Tween
+## the rows whose bed is up (kept headless too, for a harness)
+var beds_on: Dictionary = {}
+## the last row brought up and still up, or &"" (for a harness)
+var bed_now: StringName = &""
+
+
+func _bed_on(row: StringName, take: Dictionary) -> void:
+	beds_on[row] = true
+	bed_now = row
+	if not _enabled:
+		return
+	var path := ROOM_WAV % StringName(take.bed)
+	if not ResourceLoader.exists(path):
+		path = SFX_PATH % StringName(take.bed)
+	if not ResourceLoader.exists(path):
+		return
+	var stream := load(path) as AudioStreamWAV
+	if stream == null:
+		return
+	# (a room's loop, as `room` loops it: the same file, the same seam)
+	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	stream.loop_begin = 0
+	stream.loop_end = roundi(stream.get_length() * float(stream.mix_rate))
+	var pl: AudioStreamPlayer = _beds.get(row)
+	if pl == null:
+		pl = AudioStreamPlayer.new()
+		pl.bus = &"SFX"
+		add_child(pl)
+		_beds[row] = pl
+	var old: Tween = _bed_tws.get(row)
+	if old != null and old.is_valid():
+		old.kill()
+	pl.stream = stream
+	pl.volume_db = OFF_DB
+	pl.play()
+	var tw := create_tween()
+	tw.tween_property(pl, ^"volume_db", float(take.get(&"db", 0.0)),
+		maxf(0.01, float(take.get(&"fade_in", 0.5)))).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_bed_tws[row] = tw
+
+
+## The set piece a bed was under has done what the bed was for (or is gone).
+func fx_stop(row: StringName) -> void:
+	if not beds_on.has(row):
+		return
+	beds_on.erase(row)
+	if bed_now == row:
+		bed_now = &""
+	if taping:
+		fx_heard.append([row, &"stop", &"", 0.0, Engine.get_process_frames(), GameClock.now()])
+	var pl: AudioStreamPlayer = _beds.get(row)
+	if pl == null or not pl.playing:
+		return
+	var take := fx_take(row)
+	var old: Tween = _bed_tws.get(row)
+	if old != null and old.is_valid():
+		old.kill()
+	var tw := create_tween()
+	tw.tween_property(pl, ^"volume_db", OFF_DB,
+		maxf(0.01, float(take.get(&"fade_out", 0.4)))).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_callback(pl.stop)
+	_bed_tws[row] = tw
+
+
+## A bed that follows a state the picture shows every frame (a shield up and
+## seen): up while `on`, down when not. Asked each frame; acts on the edges.
+func fx_hold(row: StringName, on: bool, kind: StringName = &"") -> void:
+	if on and not beds_on.has(row):
+		fx(row, kind)
+	elif not on and beds_on.has(row):
+		fx_stop(row)
+
+
+## A file's length, s (its first take), or 0.
+func _len_of(file: StringName) -> float:
+	var stream: AudioStream = _cache.get(file)
+	if stream == null and ResourceLoader.exists(SFX_PATH % file):
+		stream = load(SFX_PATH % file)
+		_cache[file] = stream
+	return stream.get_length() if stream != null else 0.0
+
+
+## ---- headless, taping: what would have played, with no sound made
+##
+## A harness without a window has no Audio at all (`_ready`), so a test of
+## WHEN a sound plays had nothing to read. While `taping`, `play` runs its rate
+## limits, suppression and pick and tapes the result here instead; the voices it
+## would hold are kept as lengths, so `play_capped`'s cap can be read too.
+var _dry: Array = []                ## [asked, end game s]
+## asked -> the most voices of it ever in the air at once
+var dry_peak: Dictionary = {}
+
+
+func _dry_play(pick: StringName, asked: StringName, db: float, pitch: float, from: float) -> void:
+	var now := GameClock.now()
+	var stream: AudioStream = _cache.get(pick)
+	if stream == null and ResourceLoader.exists(SFX_PATH % pick):
+		stream = load(SFX_PATH % pick)
+		_cache[pick] = stream
+	var length := (stream.get_length() - from) / maxf(pitch, 0.01) if stream != null else 0.3
+	_dry = _dry.filter(func(v: Array) -> bool: return float(v[1]) > now)
+	_dry.append([asked, now + length])
+	var n := 0
+	for v: Array in _dry:
+		if v[0] == asked:
+			n += 1
+	dry_peak[asked] = maxi(int(dry_peak.get(asked, 0)), n)
+	tape.append([pick, Time.get_ticks_msec(), db, pitch, now, Engine.get_process_frames(), asked, from])
+
+
+func _dry_steal(asked: StringName, cap: int) -> void:
+	var now := GameClock.now()
+	_dry = _dry.filter(func(v: Array) -> bool: return float(v[1]) > now)
+	var live: Array = _dry.filter(func(v: Array) -> bool: return v[0] == asked)
+	while live.size() >= maxi(cap, 1):
+		_dry.erase(live.pop_front())
 
 # ---------------- signal handlers ----------------
 
@@ -1125,8 +1556,13 @@ func _on_card_played(c: CardData) -> void:
 			play(&"shot_kinetic", 0.06)        # one cold slug
 	elif c.vent > 0 or c.vent_all:
 		play(&"vent", 0.05)
-	elif c.block > 0 or c.brace > 0 or c.brace_from_heat:
+	elif c.block > 0:
 		play(&"shield_block", 0.06)
+	# BRACE IS PLATING, NOT A SHIELD: its sound is the plates going on, played
+	# by the picture when they do (`SectorScreen._on_fx_moment`, `brace_on_yours`).
+	# Here only if that row is set back to what it was.
+	elif c.brace > 0 or c.brace_from_heat:
+		fx(&"brace_on_yours", &"card")
 	# EMERGENCY REPAIR IS THE STATION'S REPAIR, at Jon's ask: the same welding
 	# out here as at the berth, because it is the same job done worse. The
 	# berth's repair is the Yard's drones at work now (`yard_repair_*`, quiet
@@ -1176,7 +1612,9 @@ func play_kill(who: int, db: float = 0.0) -> void:
 	if Router.combat != null and who >= 0 and who < Router.combat.enemies.size():
 		t = Router.combat.enemies[who].template
 	if t != null and t.fauna:
-		play(&"fauna_falls", 0.04, 400, db)
+		# on the death's first beat (`SectorScreen._on_death_moment`), at the
+		# row's own level
+		fx(&"fauna_death")
 	else:
 		# ONE POOL FOR EVERY KILL. Jon: "kill and boss kill can be
 		# consolidated." The three boss takes joined the two ordinary ones as
@@ -1191,6 +1629,9 @@ func _on_hit_landed(amount: int, to_player: bool, _who: int, absorbed: int) -> v
 		if absorbed > 0:
 			play(&"shield_block", 0.06, 90, -4.0)
 		return
+	# PARTLY TAKEN: the plate (or the bubble) rang too, under the impact
+	if absorbed > 0:
+		fx(&"hit_partial")
 	if to_player:
 		play(&"impact_hull", 0.05)
 	else:
@@ -1273,6 +1714,12 @@ func load_settings() -> void:
 		music_volume = float(cfg.get_value("audio", "music", music_volume))
 		sfx_volume = float(cfg.get_value("audio", "sfx", sfx_volume))
 		ambient_volume = float(cfg.get_value("audio", "ambient", ambient_volume))
+		# auditioning the effects' takes: `[fx] brace_on="before"` (the command
+		# line's `fx=` wins, read after)
+		if cfg.has_section("fx"):
+			for row: String in cfg.get_section_keys("fx"):
+				if not fx_choice.has(StringName(row)):
+					fx_choose(StringName(row), str(cfg.get_value("fx", row)))
 	_apply_volumes()
 
 

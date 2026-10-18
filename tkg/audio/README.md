@@ -278,6 +278,58 @@ takes bought for each. What changed in `assets/audio/sfx/`:
   lead ... into heavy ... into game hit".
 * **The red hypergiant is the furnace alone** ("not the groan").
 
+### October's effects, the free pass (2026-10-17)
+
+Every effect built in October (hits, the bubble shield, brace plates, the deaths,
+the side bar's decode, the chrome sliding) already said when it acts, as a
+`moment(kind, strength, length)`, and almost nothing listened. The sound plan
+(scratchpad `sfx-plan/plan.json`) mapped each silent moment; this pass hooks the
+ones the game already has a fitting file for, and spends nothing.
+
+* **`Audio.FX` is the table**: one row a moment, each with its `pick`, what
+  played `before`, and `off`. Every row is switchable for auditioning:
+  `-- fx=brace_on:before,vent_sputter:off`, `fx=all:before`, a file of its own as
+  `fx=brace_on:brace_on_b@-3[@offset]`, or the same under `[fx]` in
+  settings.cfg. A paid take drops in as a file and a row change, nothing else.
+* **The picks**: `fauna_falls` on a creature's death (Jon's Sep 19 takes, never
+  reached until now) at -4 dB; `module_install` for plates going on, ours and
+  theirs, started on the wave so its clunk lands on the 0.35 s clamp (it was
+  `shield_block`, a shield's sound on armour); `jettison` -10 for plates
+  falling off; `vent` for death G's jets and a vent mark (-8) and the sputters
+  (-12, never closer than 0.4 s); `text_blip` per line of the side bar's decode
+  (at most two in the air); `menu_open` / `menu_close` -6 as the chrome's column
+  first moves; `hold_lift` -4 for the fight's band rising (its envelope fits the
+  band's speed better than `menu_open`'s, 0.57 to 0.44); `power_off` as your
+  loss's handoff starts, the score ducked through the gap and no page click
+  into RUN ENDED; `amb_red` under the Hellbender's heating; the kill pool for
+  the bosses' pops (-10) and C1c's split (0); `shield_block` -8 under a hit
+  partly taken.
+* **Jon's picks (Oct 17)**, by ear, from the ElevenLabs takes the plan bought
+  (`scratchpad/sfx-takes/`), copied in under the plan's names: `brace_on` (B1)
+  for plates going on, `brace_clang` + `brace_clang_2` (A1, A2 in turn) for a
+  hit partly taken, `gas_vent` (A1) and `gas_puff` (C1) for vents,
+  `glass_shatter` (A1) for C1c's split, and for moments that had no sound at
+  all: `shield_idle_bed` (A1, a PCM loop: one hum while any hex shield is up and
+  seen), `shield_glitch` (A1, ripples and glitches, 0.5 s apart), `hull_crunch`
+  (A1: death M's crunches, which were explosions; A's crack; a crack mark, -6),
+  `charge_whine` (A1: D's charge, F's spool, C's gather, your loss's prelude,
+  each run out as its blast lands), `heat_sizzle` (A1: L, B, a scorch or heat
+  bloom, -6), `dissolve_fizz` (B1: death I), `gravity_collapse` (B1: J's pull,
+  C1b's crush), `glass_crack` (B2: the Custodian's eight cracks, which were
+  explosions; K's shatter, which was one; C1c's spine pops; a creature's scales,
+  -6), `unstable_arc` (A1, a PCM loop under the Custodian's beams) and
+  `boss_riser` (A1: its swell; the plan's charge_whine there too would double
+  it). The fight's band goes up and down to the escape menu's own `menu_open` /
+  `menu_close` ("the same as the esc menu"). Kept free: `fauna_death`, the
+  chrome, the decode, plates off, the loss's `power_off`, the Hellbender's
+  furnace and pops. Every row keeps its `free` and `before` takes to audition.
+  The two loops import as PCM, forward-looped (`.import`: loop_mode 2,
+  compress 0); Ogg cannot hold a loop.
+* **Headless, Audio decides and tapes**: with `taping` on and no window, `play`
+  runs its limits, suppression and pick and writes the result down
+  (`_dry_play`), so `-- sheet=SoundMomentTest` checks every row against the
+  picture's own moment, frame for frame.
+
 ## Sizes
 
 | | Before | After |
@@ -306,6 +358,13 @@ already 27 dB down. It is a one-line change and a full re-encode, and it has
 not been made because it should be a deliberate call and not a side effect.
 
 ## Gotchas
+
+* **A looping WAV is PCM and loops a frame short.** QOA (`compress/mode=2`, the
+  importer's default) restarts its decoder wrong at a loop's wrap, and a loop
+  set at the frame count reads a frame past the data: the room tones clicked
+  every lap, 17 to 148 times their typical sample step, until both changed
+  (`Audio.loop_whole`, Oct 17). `-- sheet=AshTest` renders every room across
+  its seam.
 
 * **Encode Ogg in blocks.** libsndfile's Vorbis encoder sizes a stack buffer
   from the write length, so handing it a two-minute buffer in one call

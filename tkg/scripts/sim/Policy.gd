@@ -593,7 +593,9 @@ func take_options(n: MapGen.MapNode) -> Dictionary:
 		# does not own a Combat.
 		if bool(res.get("fight", false)):
 			out.fights += 1
-			if fight_cb.is_valid() and not fight_cb.call(n):
+			# What it brings is the event's tag, as on the screen: the
+			# creature its text set up, or a ship (`OptionTable.fight_foe`).
+			if fight_cb.is_valid() and not fight_cb.call(n, OptionTable.fight_foe(opt, line)):
 				break
 	return out
 

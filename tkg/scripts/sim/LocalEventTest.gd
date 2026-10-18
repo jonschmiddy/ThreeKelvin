@@ -14,8 +14,40 @@ extends Harness
 ## carrying) is given what it wants first, so every branch is reached. In all
 ## three layouts. The screens a fight or a death would open are not opened
 ## (`LocalEventDrawer.quiet`).
+##
+## And WHAT YOU END UP WITH, in every look (`OutcomeRow`): each result drawn
+## again as today, A, B and C and held to what the run actually moved
+## (`OutcomeCheck`: the ledger, the system's pile, the hold, the frame, the
+## archive, diffed), with the box test. Every choice in the column layout,
+## every fifth option in the other two.
 
 var _tree: SceneTree
+var _opt_i := -1
+## Renders checked, and what kinds of change they covered ("hp-", "part+").
+var looked := 0
+var _kinds_seen := {}
+
+
+func _tally(want: Dictionary) -> void:
+	var any := false
+	for k in want.stats:
+		var d := int((want.stats[k] as Array)[0])
+		if d != 0:
+			any = true
+			var key := "%s%s" % [k, "+" if d > 0 else "-"]
+			_kinds_seen[key] = int(_kinds_seen.get(key, 0)) + 1
+	for pair in [["gained", "+"], ["lost", "-"]]:
+		for nm in want[pair[0]]:
+			any = true
+			var key2: String = "%s%s" % [want.kind.get(nm, "item"), pair[1]]
+			_kinds_seen[key2] = int(_kinds_seen.get(key2, 0)) + 1
+	for k2 in ["frame", "doc", "place"]:
+		if want[k2]:
+			any = true
+			var key3: String = ("document" if k2 == "doc" else String(k2)) + "+"
+			_kinds_seen[key3] = int(_kinds_seen.get(key3, 0)) + 1
+	if not any:
+		_kinds_seen["nothing"] = int(_kinds_seen.get("nothing", 0)) + 1
 
 
 func run(tree: SceneTree) -> void:
@@ -36,7 +68,9 @@ func run(tree: SceneTree) -> void:
 	var kinds := {}
 	for layout: StringName in [&"row", &"column", &"card"]:
 		LocalEventDrawer.layout = layout
+		_opt_i = -1
 		for o in OptionTable.all():
+			_opt_i += 1
 			var choices: Array = o.get("choices", [])
 			for j in choices.size():
 				_fresh(n, StringName(o.id))
@@ -62,6 +96,7 @@ func run(tree: SceneTree) -> void:
 					d.queue_free()
 					continue
 				opened += 1
+				var before := OutcomeCheck.snapshot(n)
 				var r: Dictionary = await d.choose(j)
 				await tree.process_frame
 				var what := ""
@@ -84,12 +119,34 @@ func run(tree: SceneTree) -> void:
 				elif what != "":
 					resolved += 1
 					kinds[what] = int(kinds.get(what, 0)) + 1
+				# WHAT YOU END UP WITH, in every look (`OutcomeRow`): the numbers the
+				# run actually moved, and the box test. Every choice in Jon's
+				# layout (the column); every fifth option in the other two.
+				if what != "" and d.page == &"result" and (layout == &"column" or _opt_i % 5 == 0):
+					var want := OutcomeCheck.expect(n, before, r.get("res", {}))
+					_tally(want)
+					for lk: StringName in OutcomeRow.LOOKS:
+						OutcomeRow.look = lk
+						d.out.erase("flown")
+						d._result()
+						for f in 3:
+							await tree.process_frame
+						var bad := OutcomeCheck.check(d, lk, want)
+						looked += 1
+						for line in bad.slice(0, 3):
+							_fail("%s choice %d (%s): %s" % [o.id, j, layout, line])
+						if not OutcomeRow.held.is_empty():
+							_fail("%s choice %d (%s, %s): HUD numbers left held %s" % [o.id, j, layout, lk, OutcomeRow.held])
+					OutcomeRow.look = &"today"
 				d.queue_free()
 				if Run.dead:
 					Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 					n = _system()
 	print("  %d openings, %d resolutions: %s" % [opened, resolved, kinds])
-	_ok("every option opened and every choice resolved in all three layouts", _fails == 0)
+	print("  %d outcomes drawn in every look and box-tested, %d renders; what they moved: %s" % [looked / OutcomeRow.LOOKS.size(), looked, _kinds_seen])
+	_ok("every option opened and every choice resolved in all three layouts, and every look said what moved and fit", _fails == 0)
+	for k in ["hp-", "credits+", "credits-", "fuel+", "fuel-", "heat+", "part+", "material+", "frame+", "nothing"]:
+		_ok("an outcome that moved %s was among them (%d)" % [k, int(_kinds_seen.get(k, 0))], int(_kinds_seen.get(k, 0)) > 0)
 	_reveal_sound(holder)
 	_end(tree)
 

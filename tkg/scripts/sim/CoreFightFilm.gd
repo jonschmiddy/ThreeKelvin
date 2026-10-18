@@ -3,7 +3,7 @@ extends Node
 ## THE CORE'S HOLE WHERE JON WILL SEE IT, in one look (`LocalSky.core_look`),
 ## filmed with its sound:
 ##   godot --path . --resolution 1920x1080 --write-movie <dir>/f.png --fixed-fps 60
-##       -- sheet=CoreFightFilm look=<a|b|c> out=<dir>
+##       -- sheet=CoreFightFilm look=<a|b|c> out=<dir> [seed=N]
 ## LOCAL at the core with your ship (the Custodian is not on LOCAL before you
 ## ENGAGE: the core draws no place picture and its encounter stands nothing
 ## there); ENGAGE (`Router.engage_here`), the Custodian's fight as the game opens
@@ -37,13 +37,17 @@ func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
 	var out := ""
+	# (the seed picks the Custodian's death: 4242 dies in C1b, 4243 in C1c)
+	var seed := 4242
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("look="):
 			LocalSky.core_look = StringName(a.substr(5))
 		elif a.begins_with("out="):
 			out = a.substr(4)
+		elif a.begins_with("seed="):
+			seed = int(a.substr(5))
 	DirAccess.make_dir_recursive_absolute(out)
-	Rng.forced = 4242
+	Rng.forced = seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	for n: MapGen.MapNode in Run.map:
 		if n.type == MapGen.NodeType.CORE:

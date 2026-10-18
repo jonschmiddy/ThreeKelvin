@@ -13,8 +13,8 @@ part as drawn at its size.
 
 Installed Oct 17 (Jon's picks): annealer:85 bleedvalve:13 heliograph:25
 heliostat:1 mirrorarray:4 plasma:5 radiatorsail:65 starfurnace:16 sunheart:7.
-Still procedural, waiting on take numbers: crucible, flare, heathaze,
-incinerator.
+Installed Oct 18: crucible:6 flare:41 incinerator:126. Heat Haze stays
+procedural (Jon: none; "they shouldn't have flames on top").
 """
 import os
 import sys
