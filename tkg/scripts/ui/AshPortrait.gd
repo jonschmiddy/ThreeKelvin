@@ -95,6 +95,13 @@ const VOICE_HOLD_S := 1.0
 ## The line she is saying, and its moment (for the harnesses).
 var line := ""
 var kind: StringName = &""
+## A TEACHING LINE (`Ash.teach`): held once it is out until it is let go (the
+## click that dismisses it, its subject gone), never on a timer: Jon's hint rule,
+## "let's have them advance with a click".
+var held := false
+## What she says of the line, for the typing's pace with a take (a teaching
+## line's dock name is typed after her last word, not spoken); "" for all of it.
+var spoken := ""
 ## Mirror: the face on the right, the words on its left.
 var mirrored := false
 ## Up, typing, holding, going, gone.
@@ -160,13 +167,17 @@ func _init() -> void:
 	add_child(_text)
 
 
-## Say `what` (one of `AshLines`' moments, `k`). Starts the power-on.
-func say(what: String, k: StringName) -> void:
+## Say `what` (one of `AshLines`' moments, `k`). Starts the power-on. `opts`,
+## for a teaching line (`Ash.teach`): `voice` (its take, "" for none), `spoken`
+## (the part she says) and `held` (hold until let go).
+func say(what: String, k: StringName, opts: Dictionary = {}) -> void:
 	# whatever she was saying, she is not now
 	Audio.ash_voice_stop()
 	line = what
 	kind = k
-	voice = AshLines.voice_path(what)
+	held = bool(opts.get("held", false))
+	spoken = String(opts.get("spoken", ""))
+	voice = String(opts["voice"]) if opts.has("voice") else AshLines.voice_path(what)
 	voice_secs = 0.0
 	voice_started_at = -1.0
 	typed_at = -1.0
@@ -217,7 +228,7 @@ func _start_words(now: float) -> void:
 		voice_secs = Audio.ash_voice(voice)
 		if voice_secs > 0.0:
 			voice_started_at = now
-			_text.rate = SignalText.rate_for(line, voice_secs - VOICE_TAIL_S)
+			_text.rate = SignalText.rate_for(spoken if spoken != "" else line, voice_secs - VOICE_TAIL_S)
 	_text.text = line
 	_text.play()
 	typed_at = now
@@ -276,14 +287,28 @@ func _moving() -> bool:
 func _layout() -> void:
 	var tx := 0.0 if mirrored else float(FACE + GAP)
 	_back.position = Vector2(tx, 0.0)
-	# the backing as tall as what it holds (the face keeps the frame's height)
-	var lh := float(UITheme.pixel_font().get_height(UITheme.FS_SMALL)) + float(SignalText.LINE_GAP)
-	_back.size = Vector2(TEXT_W, minf(H, roundf(PAD_Y + 12.0 + lh * float(lines_for(line)) + PAD_Y - 2.0)))
+	# the backing as tall as what it holds (the face keeps the frame's height; a
+	# teaching line of five lines makes the frame taller, never narrower)
+	var sz := size_for(line)
+	size = sz
+	_back.size = Vector2(TEXT_W, minf(sz.y, _words_h(line)))
 	_name.position = Vector2(tx + PAD_X, PAD_Y - 1.0)
 	_name.size = Vector2(TEXT_W - PAD_X * 2, 10.0)
 	_text.position = Vector2(tx + PAD_X, PAD_Y + 12.0)
-	_text.size = Vector2(TEXT_W - PAD_X * 2, H - PAD_Y * 2 - 12.0)
+	_text.size = Vector2(TEXT_W - PAD_X * 2, sz.y - PAD_Y * 2 - 12.0)
 	_text.custom_minimum_size = Vector2(TEXT_W - PAD_X * 2, 0.0)
+
+
+## The words' backing for `what`: the designation, the lines and the padding, px.
+static func _words_h(what: String) -> float:
+	var lh := float(UITheme.pixel_font().get_height(UITheme.FS_SMALL)) + float(SignalText.LINE_GAP)
+	return roundf(PAD_Y + 12.0 + lh * float(lines_for(what)) + PAD_Y - 2.0)
+
+
+## The whole frame for `what`: W wide, and the face's height or the words', the
+## taller (`Ash` finds her spot with it).
+static func size_for(what: String) -> Vector2:
+	return Vector2(W, maxf(float(H), _words_h(what)))
 
 
 ## How many lines `what` takes in the words' column (Ash keeps them to four).
@@ -339,6 +364,8 @@ func _process(_d: float) -> void:
 		_hold_until = now + HOLD_MIN_S + HOLD_PER_CHAR_S * float(line.length())
 		if voice_started_at >= 0.0:
 			_hold_until = maxf(_hold_until, voice_started_at + voice_secs + VOICE_HOLD_S)
+		if held:
+			_hold_until = INF
 	if phase == Phase.HOLDING and now >= _hold_until:
 		leave()
 	var changed := false

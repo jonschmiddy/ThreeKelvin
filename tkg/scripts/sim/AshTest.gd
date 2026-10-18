@@ -754,6 +754,8 @@ func _hints() -> void:
 	press.button_index = MOUSE_BUTTON_LEFT
 	# a new run's LOCAL with every hint unseen: each hint as it comes, clicked
 	# away, and her line only once none is up, settling or due here
+	# (she says the hints herself now, `Hints.lesson`: Jon's tutorial A; a card
+	# only where she has no room. A bark is any line of hers that is not one.)
 	var shown: Array[String] = []
 	var over := 0
 	var said_with_due := false
@@ -761,12 +763,13 @@ func _hints() -> void:
 	for i in 1800:
 		Hints.poll(1.0 / 60.0)
 		await _tree.process_frame
-		var card_up := Hints.card != null and is_instance_valid(Hints.card)
-		var up := Ash.portrait != null and Ash.portrait.visible and Ash.portrait.speaking()
+		var card_up := (Hints.card != null and is_instance_valid(Hints.card)) or Hints.lesson != &""
+		var up := Ash.portrait != null and Ash.portrait.visible and Ash.portrait.speaking() \
+			and not String(Ash.portrait.kind).begins_with("tut_")
 		if card_up and up:
 			over += 1
 		if card_up and Hints._up_t > 0.5:
-			shown.append(String(Hints.card.id))
+			shown.append(String(Hints.card.id) if Hints.card != null else String(Hints.lesson))
 			Hints.click(press)
 		if up and not said:
 			said = true
