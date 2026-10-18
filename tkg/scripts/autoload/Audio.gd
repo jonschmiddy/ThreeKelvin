@@ -891,8 +891,10 @@ func act(name: StringName) -> void:
 ## six times a system. `loot_drop` is written as a reward sting; taking a crate
 ## off the floor does not deserve one, but the alternative was authoring a second
 ## quieter file rather than turning the existing one down.
+## `pitch` is the note the spread is taken round (A.S.H.'s power-on plays the
+## text blip twice, the second a minor third up: `AshPortrait`).
 func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
-		db: float = 0.0, from: float = 0.0) -> void:
+		db: float = 0.0, pitch: float = 1.0, from: float = 0.0) -> void:
 	# (headless there is no sound, but a harness taping still gets the decision:
 	# everything below down to the pick, then `_dry_play`)
 	if not _enabled and not taping:
@@ -927,7 +929,7 @@ func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
 	if vars.size() > 1:
 		pick = vars[randi() % vars.size()]
 	if not _enabled:
-		_dry_play(pick, name, db, 1.0 + randf_range(-pitch_var, pitch_var), from)
+		_dry_play(pick, name, db, pitch * (1.0 + randf_range(-pitch_var, pitch_var)), from)
 		return
 	var stream: AudioStream = _cache.get(pick)
 	if stream == null:
@@ -947,7 +949,7 @@ func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
 	_fade[_sfx_next] = null
 	_sfx_next = (_sfx_next + 1) % _sfx.size()
 	p.stream = stream
-	p.pitch_scale = 1.0 + randf_range(-pitch_var, pitch_var)
+	p.pitch_scale = pitch * (1.0 + randf_range(-pitch_var, pitch_var))
 	p.volume_db = db
 	# WHAT THIS VOICE IS CARRYING, so `hush` can find it again. The pick, not the
 	# name asked for -- a round robin plays `thruster_arrive_c` when the caller
@@ -1013,7 +1015,7 @@ func play_capped(name: StringName, pitch_var: float, cap: int, db: float = 0.0,
 	if not _enabled:
 		if taping:
 			_dry_steal(name, cap)
-			play(name, pitch_var, 0, db, from)
+			play(name, pitch_var, 0, db, 1.0, from)
 		return
 	var live: Array[int] = []
 	for i in _sfx.size():
@@ -1029,7 +1031,7 @@ func play_capped(name: StringName, pitch_var: float, cap: int, db: float = 0.0,
 		t.tween_property(p, "volume_db", p.volume_db - 40.0, steal_ms / 1000.0)
 		t.tween_callback(p.stop)
 		_fade[i] = t
-	play(name, pitch_var, 0, db, from)
+	play(name, pitch_var, 0, db, 1.0, from)
 
 func click() -> void:   play(&"ui_click", 0.05)
 func hover() -> void:   play(&"ui_hover", 0.09, 40)
@@ -1220,7 +1222,7 @@ func _fx_do(row: StringName, take: Dictionary, kind: StringName, secs: float) ->
 	if cap > 0:
 		play_capped(file, pv, cap, db, 25, from)
 	else:
-		play(file, pv, 0, db, from)
+		play(file, pv, 0, db, 1.0, from)
 
 
 ## Delayed takes (`offset` > 0), on the game's clock: a film runs them at its

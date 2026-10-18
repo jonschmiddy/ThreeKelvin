@@ -111,12 +111,13 @@ func _page_playtest() -> void:
 				func() -> void: PlaytestLogs.show_in_folder(String(_last_logs.path))))
 			_body.add_child(srow)
 
-## HINTS: SHOW HINTS AGAIN (`Hints.reset`). Every first-run hint, and the
-## opening tour, shows again at its moment; then a line saying so.
+## HINTS: SHOW HINTS AGAIN (`Hints.reset`). Every first-run hint, and the goal
+## line's steps, show again at their moment; then a line saying so. (Its second
+## line said AND THE OPENING TOUR until the tour went, Oct 17.)
 var _hints_reset := false
 func _page_hints() -> void:
 	_body.add_child(Section.new(&"hint", "HINTS"))
-	_body.add_child(DrawerPlate.plate(&"hint", "SHOW HINTS AGAIN", "AND THE OPENING TOUR",
+	_body.add_child(DrawerPlate.plate(&"hint", "SHOW HINTS AGAIN", "",
 		func() -> void:
 			Hints.reset()
 			_hints_reset = true
@@ -125,6 +126,13 @@ func _page_hints() -> void:
 		var l := UITheme.body("Done. Each hint shows again when it comes up.", UITheme.CHILL, UITheme.FS_SMALL)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_body.add_child(l)
+	# A.S.H., THE SHIP'S AI (`Ash`): her face and her lines at the moments that
+	# matter, or never. On by default.
+	_body.add_child(_row_chips("SHIP'S AI, A.S.H.", ["ON", "OFF"],
+		0 if Ash.is_on() else 1,
+		func(i: int) -> void:
+			Ash.set_on(i == 0)
+			_refresh()))
 
 ## CONTROLS: every key a player can move. The rows are their own widget
 ## (KeyBindings) because a key changing rebuilds only them.

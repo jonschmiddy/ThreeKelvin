@@ -336,6 +336,22 @@ else
 	bad "moontest did not finish"
 fi
 
+step "Leaving a station without UNDOCK leaves nothing of it behind"
+# Docked, the ship flown off by the map (a world, the star, open space) and back
+# to LOCAL by the HUD's tab and by Tab, and by the chart's JUMP and GO beyond it:
+# LOCAL as after a proper UNDOCK (ship, zoom, the sky's place, no berth left,
+# the ladder idle), and where UNDOCK refuses, the flight and the jump refuse too.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot dockflytest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=DockFlyTest; then
+	if grep -qE '^dockflytest: PASS' "$LOG_DIR/dockflytest.log"; then
+		ok "every way off the berth undocks, or is refused"
+	else
+		bad "a way off the berth left the station behind"
+		grep -E 'FAIL|^dockflytest' "$LOG_DIR/dockflytest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "dockflytest did not finish"
+fi
+
 step "Every material is a thing the hold can actually hold"
 # `MaterialTable` authored 64 rows a day before anything could carry one, so its
 # shapes had never met the grid that has to accept them. A row whose `cells`
@@ -415,7 +431,11 @@ fi
 step "Each first-run hint shows once, where it belongs"
 # Hints watch the screens for their moment; each must fire once, sit clear of
 # what it points at, never come back, and come back after SHOW HINTS AGAIN.
-# Same exit-time leak allowance as stowtest.
+# Tutorial direction B (Oct 17): the ones a moment decides -- the intent after
+# the first card, END TURN with nothing playable, brace held over a turn, heat
+# risen, fuel short -- are held to not firing before it; the wreck's points at
+# a wreck a click opens, never an event's derelict; the ship's waits for an
+# idle LOCAL. Same exit-time leak allowance as stowtest.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot hinttest 300 --headless --path "$PROJECT" -- hinttest; then
 	if grep -qE '^hinttest: PASS' "$LOG_DIR/hinttest.log"; then
 		ok "hints show once, in place"
@@ -425,6 +445,45 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 else
 	bad "hinttest did not finish"
+fi
+
+step "The goal line: always the goal, the next step, never over anything"
+# Tutorial direction B (Oct 17): GOAL: REACH THE CORE under the HUD, and the
+# step while one is pending (open STARCHART and jump; click an event and GO),
+# through a new run on LOCAL, the chart, the map, an event's band and a fight:
+# box-tested against the HUD, the side bar, the toolbar row, the event band, the
+# hand and every hull and its words; done steps never come back; not pressable.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot goaltest 180 --headless --path "$PROJECT" -- sheet=GoalTest; then
+	if grep -qE '^goaltest: PASS' "$LOG_DIR/goaltest.log"; then
+		ok "the goal line says the goal and the next step, clear of everything"
+	else
+		bad "the goal line is wrong or covers something"
+		grep -E 'FAIL|^goaltest' "$LOG_DIR/goaltest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "goaltest did not finish"
+fi
+
+step "A.S.H. speaks at her moments, within her limits, and never over anything"
+# The ship's AI (Jon and Ashlee, Oct 17; docs/ash.md). Her thirty approved
+# lines, character for character against docs/ash_lines.json; each moment fires
+# its own (launch, a new hull, the hull failing, over the heat cap, a big haul,
+# one more wreck, doubt); the quiet after a line, one line a fight, never during
+# a drag or the enemy's turn; nothing after the ship is lost; hints win; her face
+# 8 to 12 changes a second while she talks; and the box test on 65 screens, LOCAL
+# and fights of one to three ships in every weight, against the HUD, the goal
+# line, the hand, both ships and their words, plates, ovals and numbers.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot ashtest 600 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=AshTest; then
+	if grep -qE '^ashtest: PASS' "$LOG_DIR/ashtest.log"; then
+		ok "A.S.H. at her moments, within her limits, clear of everything"
+	else
+		bad "A.S.H. spoke out of turn, or over something"
+		grep -E 'FAIL|^ashtest' "$LOG_DIR/ashtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "ashtest did not finish"
 fi
 
 step "The sector map's worlds keep up with a pan"
@@ -518,6 +577,26 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 else
 	bad "hitfxlivetest did not finish"
+fi
+
+step "Hull damage looks leave no holes"
+# James, a playtester (Oct 17): ships get big holes in them, and ships can't
+# have holes. Jon picked D (A+B+C mixed per hit, `HullHitFx`), the game's; A, B
+# and C are its parts. Each on a light, a dark and a white hull at both sheet
+# sizes: no near-black blob, every mark on the hull's own pixels in its own
+# colours (or burnt metal), every glow the heat ramp's and changing shape 8-12
+# times a second, the same seed the same marks, more marks as the hull goes, D
+# quieter than the older marks; then the real fight, D the default on every
+# ship but the Custodian (the older marks).
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot hulldamagetest 300 --headless --path "$PROJECT" -- sheet=HullDamageTest; then
+	if grep -qE '^hulldamagetest: PASS' "$LOG_DIR/hulldamagetest.log"; then
+		ok "no holes, on the hull, in its colours, glows that move"
+	else
+		bad "a hull damage look broke one of its rules"
+		grep -E 'FAIL|^hulldamagetest' "$LOG_DIR/hulldamagetest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "hulldamagetest did not finish"
 fi
 
 step "The bobs run on game time, not the wall's"
@@ -730,10 +809,12 @@ fi
 step "Jon's welcome note: once per profile, and on the title menu"
 # Opens by itself on a fresh profile's title, word for word and inside the
 # screen; marked seen only when CLOSED; never again after; MESSAGE FROM JON
-# above QUIT opens it again; the first-run intro is never in its way. `welcome`
-# and `intro` let both run under the harness, in its own scratch settings.
+# above QUIT opens it again. Then a first launch (Oct 17): NEW RUN on a fresh
+# profile goes straight to the hull pick, no seed panel (it stays with a save),
+# and LAUNCH lands on LOCAL with no tour. `welcome` lets it run under the
+# harness, in its own scratch settings.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot welcometest 120 --headless --path "$PROJECT" -- sheet=WelcomeTest welcome intro; then
+	run_godot welcometest 120 --headless --path "$PROJECT" -- sheet=WelcomeTest welcome; then
 	if grep -qE '^welcometest: PASS' "$LOG_DIR/welcometest.log"; then
 		ok "the welcome note shows once and comes back from the menu"
 	else

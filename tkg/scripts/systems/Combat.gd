@@ -88,6 +88,10 @@ var choose_kind: StringName = &""
 
 var energy: int = 0
 var brace: int = 0
+## How many times this fight brace was carried over an end of turn, and charged
+## its heat for it. Read by the first-run hint that says what holding it costs
+## (`Hints`, `brace`): the moment it has happened, not a guess at it.
+var brace_held: int = 0
 var block: int = 0
 var lock_on: int = 0
 var feedback: int = 0
@@ -393,6 +397,7 @@ func end_turn() -> void:
 
 	if brace > 0:
 		Run.heat += 1
+		brace_held += 1
 		_log("+1 heat maintaining brace.", &"heat")
 
 	# NO END-OF-TURN SHED, and this is where it used to be. It was one point --
@@ -1216,14 +1221,23 @@ const WRECK_CREDIT_SPREAD := 0.20
 ##     does): the old single payout banked 78 credits a run; x1.10 banks 79.
 ##   - the sim's default (every fight one ship): the old rule banked 88; x1.24
 ##     banks 88, x1.10 about 78.
-## 1.10 is the one chosen, because Jon's goal is the money per run IN THE GAME,
-## and the game's ambushes bring their packs, each ship of which now pays. Two
-## things the default sim gets wrong and that are left for later: it fights an
-## ambush's lead ship alone (hence `packs`), and it plays ambushes with
-## `clears_node` true where `Router.start_ambush` opens them with it false.
+## 1.10 was the one chosen then, because Jon's goal is the money per run IN THE
+## GAME, and the game's ambushes bring their packs, each ship of which now pays.
+##
+## NOW 1.27 (Oct 17). RE-MEASURED, after the sim was made to field fights as Router does
+## (whole packs and `clears_node` false on ambushes, none at stations, option
+## fights from `Router.option_foe`), and with the old rule put back for the
+## money alone -- the last hull's reward, certain, in the first wreck -- so both
+## readings fly identical runs: the old rule banks 92 a run, x1.10 banks 80,
+## x1.26 91, x1.28 93. The same money-only swap on the sim as it was gave 87
+## against 78, so most of the gap is in how "the old rule" was measured, not in
+## the sim. The arithmetic says the same: a lone ship pays 0.75 x 1.10 = 0.825
+## of what it did, and only about 6% of won fights are pairs. Jon's rule is
+## "75% chance, money per run where it was", so the old rule's 92 is the
+## target, and 1.27 sits between the two readings that bracket it.
 ## Re-measure whenever the mix of pack sizes moves. Never the set pieces: the
 ## Hellbender and the custodian are hand-tuned and pay their own numbers.
-const WRECK_CREDIT_SCALE := 1.10
+const WRECK_CREDIT_SCALE := 1.27
 ## Parts one hand can expect from a hull of each kind. The tuning table: an
 ## enemy missing from it gets `WRECK_PARTS_DEFAULT`.
 const WRECK_PARTS := {

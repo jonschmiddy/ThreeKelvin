@@ -400,7 +400,7 @@ func _hulk() -> void:
 		int(land3[0]) == 0 and whole.size() == 1 and is_equal_approx(float(whole[0][2]), -4.0)
 		and _heard(&"hit_partial", h3).is_empty())
 
-	# VENTS: three opened on one frame, then their sputters
+	# VENTS: three opened on one frame (split edges, in look D), then their sputters
 	print("-- vents")
 	e.block = 0
 	var L := sc._enemy_fx(0)
@@ -427,8 +427,11 @@ func _hulk() -> void:
 			pts.append(i)
 		if pts.size() >= 3:
 			break
+	# (a ship's hull marks are look D now, `HullHitFx`: its split edges are the
+	# vents, the same `hiss` and `sputter`; ShipHitFx's own vents where not)
+	var opener := &"_split" if hits.has_method(&"_split") else &"_vent"
 	for i: int in pts:
-		hits.call(&"_vent", Vector2i(i % w, i / w), true)
+		hits.call(opener, Vector2i(i % w, i / w), true)
 	var hiss := _moments_of(&"enemy", [&"hiss"], m4)
 	var hh := _heard(&"vent_hiss", h4)
 	_ok("three vents opened on one frame (%d) heard once (%d)" % [hiss.size(), hh.size()],

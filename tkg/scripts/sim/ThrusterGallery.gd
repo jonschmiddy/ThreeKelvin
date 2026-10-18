@@ -68,21 +68,25 @@ func _image(tex: Texture2D) -> Image:
 
 func _player_hulls() -> Array:
 	var out: Array = []
-	for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
-		for tier in 4:
-			var name := DB.hull_art_name(w, tier)
-			var h: HullData = null
-			for hh in DB.hull_frames:
-				if hh.sprite != null and DB.hull_art_name(hh.weight, hh.tier) == name:
-					h = hh
-					break
-			if h == null:
-				h = HullData.new()
-				h.weight = w
-				h.tier = tier
-				h.sprite = DB.hull_sprite(w, tier)
-				DB.set_exhaust(h, DB.DEFAULT_EXHAUST, tier)
-			out.append({id = name, hull = h, img = _image(h.sprite)})
+	for mf: StringName in DB.HULL_ART:
+		for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
+			for tier in 4:
+				var name := DB.hull_art_key(w, tier, mf)
+				var h: HullData = null
+				for hh in DB.hull_frames:
+					if hh.sprite != null and DB.hull_art_key(hh.weight, hh.tier, hh.manufacturer) == name:
+						h = hh
+						break
+				if h == null:
+					h = HullData.new()
+					h.weight = w
+					h.tier = tier
+					h.manufacturer = mf
+					h.sprite = DB.hull_sprite(w, tier, false, mf)
+					DB.set_exhaust(h, DB.DEFAULT_EXHAUST, tier)
+				if out.any(func(e: Dictionary) -> bool: return e.id == name):
+					continue
+				out.append({id = name, hull = h, img = _image(h.sprite)})
 	return out
 
 
