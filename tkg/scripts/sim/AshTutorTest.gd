@@ -771,6 +771,9 @@ func _voice() -> void:
 	await _local()
 	Hints.mark_seen(&"ship", false)
 	Hints._quiet = 0.0
+	# NO TAKE: every line has one now (Jon's picks, Oct 18), so the silent path is
+	# held by a stand-in naming no file
+	AshTutorLines.stand_in = {"tut_ship": ""}
 	var up: bool = await _until_said(&"ship")
 	var p := Ash.portrait
 	_ok("no take: nothing taped, the words typed at once at her text pace", up and p.voice == ""
