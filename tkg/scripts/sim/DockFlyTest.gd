@@ -403,14 +403,14 @@ func _held(p: int) -> void:
 	_ok("held: Tab from the chart goes back to the berth", Router.current is StationScreen and Router.docked)
 
 
-## DOCK ONLY AT THE STATION (Jon, Oct 18, "dock:A"): in a used run (docked and
-## undocked here once, off to a neighbour by the chart and back, arriving at the
-## system's edge as a player does), nothing offers DOCK anywhere in the station's
-## system but at the station itself -- LOCAL's bar, the station's side on LOCAL,
-## the map's DOCK card (greyed, with the way to it on it) and its beacon, the
-## fuel hint, `show_station` itself -- at the edge and at a world; flown to the
-## station on the map, the card wakes and LOCAL has the station's side and DOCK;
-## DOCK pressed docks; and flown off to the world from the berth, the ship
+## DOCK ONLY AT THE STATION (Jon, Oct 18, "dock:A"), AND A JUMP IN ARRIVES AT
+## IT ("arrive:B"): in a used run (docked and undocked here once, off to a
+## neighbour by the chart and back), the ship arrives alongside the station:
+## the map's DOCK card live and LOCAL with the station's side and DOCK. Flown
+## to a world of the system, nothing offers DOCK -- LOCAL's bar, the station's
+## side on LOCAL, the map's DOCK card (greyed, with the way to it on it) and its
+## beacon, the fuel hint, `show_station` itself. Flown back to the station, DOCK
+## again, and pressed it docks; flown off to the world from the berth, the ship
 ## undocks first (`cast_off`) and LOCAL there has no berth and no DOCK.
 func _only_at_station() -> void:
 	if _only != "" and _only != "dockplace":
@@ -423,31 +423,30 @@ func _only_at_station() -> void:
 	Router.show_sector()
 	await _idle()
 	_ok("dockplace: UNDOCK lands on LOCAL", Router.current is SectorScreen and not Router.docked)
-	# off by the chart and back: the system arrived at, at its edge
+	# off by the chart and back
 	Run.chart_from(Run.map[_st])
 	var away := _jump_target(false)
 	if not _ok("dockplace: a neighbour to jump to (%d)" % away, away >= 0):
 		return
 	if not _ok("dockplace: jumped away (at %d)" % Run.at, await _jump_to(away)):
 		return
+	_ok("dockplace: a system with no station arrives at the edge (site %d)" % Run.site_here(), Run.site_here() < -1)
 	if not _ok("dockplace: and back to the station's system (at %d)" % Run.at, await _jump_to(_st)):
 		return
-	_ok("dockplace: arrived at the edge, not at the station (site %d, station %d)" % [Run.site_here(), sb],
-		Run.site_here() != sb and not Router.at_station())
-	# THE MAP from the edge: the DOCK card greyed with the way there on it, and
-	# its beacon refused
+	# ARRIVED ALONGSIDE THE STATION: the map's DOCK live, then LOCAL with it
 	if not Router.current is SystemMapScreen:
 		await _tab()
 	var m := Router.current as SystemMapScreen
 	if _ok("dockplace: on the map", m != null):
 		await _frames(10)
-		await _map_dock("dockplace: the edge", m, false)
-		await _shot("dock_map_edge")
-	# LOCAL at the edge
+		_ok("dockplace: arrived alongside the station (the map's ship at %d, station %d)" % [m.flight.reached(), sb],
+			m.flight.reached() == sb and Router.at_station())
+		await _map_dock("dockplace: arrived", m, true)
+		await _shot("dock_map_arrive")
 	await _here_tab()
-	await _no_dock("dockplace: LOCAL at the edge")
-	await _shot("dock_local_edge")
-	# a world of the station's system
+	await _at_dock("dockplace: LOCAL on arrival")
+	await _shot("dock_local_arrive")
+	# a world of the station's system: no DOCK
 	await _tab()
 	m = Router.current as SystemMapScreen
 	if _ok("dockplace: to the map again", m != null) and _ok("dockplace: flown to the world %d" % world, await _fly(world)):
@@ -456,19 +455,14 @@ func _only_at_station() -> void:
 	await _here_tab()
 	await _no_dock("dockplace: LOCAL at the world")
 	await _shot("dock_local_world")
-	# and on to the station: DOCK offered
+	# and back to the station: DOCK offered again
 	await _tab()
 	m = Router.current as SystemMapScreen
-	if _ok("dockplace: to the map once more", m != null) and _ok("dockplace: flown to the station %d" % sb, await _fly(sb)):
-		await _map_dock("dockplace: at the station", m, true)
+	if _ok("dockplace: to the map once more", m != null) and _ok("dockplace: flown back to the station %d" % sb, await _fly(sb)):
+		await _map_dock("dockplace: back at the station", m, true)
 		await _shot("dock_map_station")
 	await _here_tab()
-	var loc := Router.current as SectorScreen
-	var dk: Button = loc.find_child("Dock", true, false) as Button if loc != null else null
-	_ok("dockplace: LOCAL at the station: the station's side and DOCK (%s, face %s)" % [dk != null, loc != null and loc._face != null],
-		loc != null and dk != null and loc._face != null and Router.at_station())
-	_ok("dockplace: its bar says a station is here", _bar_has(loc, "A STATION HERE"))
-	_ok("dockplace: the fuel hint at the station: \"%s\"" % Hints.fuel_dock_line(), Hints.fuel_dock_line() == "Refuel here before you leave.")
+	var dk: Button = await _at_dock("dockplace: LOCAL back at the station")
 	await _shot("dock_local_station")
 	if dk == null:
 		return
@@ -488,6 +482,18 @@ func _only_at_station() -> void:
 	await _here_tab()
 	await _no_dock("dockplace: LOCAL at the world after the berth")
 	_clean("dockplace", await _local())
+
+
+## LOCAL at the station: its side, DOCK, the bar, the fuel hint. DOCK, or null.
+func _at_dock(what: String) -> Button:
+	var loc := Router.current as SectorScreen
+	var dk: Button = loc.find_child("Dock", true, false) as Button if loc != null else null
+	_ok("%s: the station's side and DOCK (%s, face %s)" % [what, dk != null, loc != null and loc._face != null],
+		loc != null and dk != null and loc._face != null and Router.at_station())
+	_ok("%s: its bar says a station is here" % what, _bar_has(loc, "A STATION HERE"))
+	_ok("%s: the fuel hint: \"%s\"" % [what, Hints.fuel_dock_line()], Hints.fuel_dock_line() == "Refuel here before you leave.")
+	await _frames(1)
+	return dk
 
 
 ## Fly the chart's JUMP to system `to` and wait for the arrival to settle.

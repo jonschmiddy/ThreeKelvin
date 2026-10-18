@@ -282,7 +282,8 @@ func _place_map() -> void:
 	view.window = Rect2(-at, _frame.size)
 
 
-## `arrived`: the ship has just jumped in, so it warps in at the edge.
+## `arrived`: the ship has just jumped in, so it warps in at the edge (in a
+## station's system, alongside the station: arrive:B).
 func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> void:
 	_keep_ship()
 	view.t = t0
@@ -314,6 +315,10 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 	flight.setup(view.layout, Vector2(ex, -210.0), t0)
 	if not arrived:
 		_restore_ship(_parked.get(n.index, {}))
+	elif n.type == MapGen.NodeType.STATION and view.layout.dock_place() >= 0:
+		# (a jump into a station's system arrives alongside the station:
+		# arrive:B, `Router._on_jumped`)
+		flight.place_at(view.layout.dock_place(), t0)
 	overlay.flight = flight
 	_was_at = flight.reached()
 	# THE WEATHER sees the ship, the labels and the panel; a fresh warp-in pushes

@@ -908,6 +908,12 @@ func _on_jumped(_index: int) -> void:
 	# edge and leaves its wrecks there -- not on a world whose own fight's hulls
 	# are already lying round it (Jon, Oct 15: one place, one fight).
 	SystemMapScreen._parked.erase(_index)
+	# ...BUT AT A STATION, AT THE STATION (Jon, Oct 18, "arrive:B"): a jump into
+	# a system with a station brings the ship in alongside it, so DOCK is there
+	# on arrival and LOCAL has the station's side; a jump anywhere else arrives
+	# at the edge as above. (No fight is ever rolled at a station, so nothing
+	# arrives there to leave its wrecks.)
+	park_at_station(Run.node_at())
 	resolve_current_node()
 
 func resolve_current_node() -> void:
