@@ -129,6 +129,12 @@ uniform float t = 0.0;
 uniform float eff = 0.38;
 uniform float bsq = 0.86;
 uniform float dk_g = 1.0;
+// A BALL IS NOT A DISC (Jon, Oct 18, "legacy:A"): through the camera a ball galaxy's
+// picture is read about the core in the core's own frame (`rcb`), as SIMPLIFIED's and
+// PAINTED's balls are -- the flat chart's ball, round its core, never stretched toward
+// the camera by the perspective (read on the plane its near half ran 0.46 gu below the
+// core against 0.27 above). `ChartLegacy._feed_field`, from `ChartSky.form_of`.
+uniform bool ball_core = false;
 uniform float bul = 10.0;
 uniform float arm_k = 1.0;
 uniform float sd = 0.0;
@@ -1211,7 +1217,8 @@ void fragment() {
 		rcb = rel;
 		// (what the lens shows, read back through the camera; at the lens's edge, where
 		// it bends nothing, the two agree)
-		rel = u_solid ? (lensd ? solidO(pc + rel * kc) : rf0) : rel;
+		// (a ball: the flat chart about the core, `ball_core`)
+		rel = u_solid ? (ball_core ? rel : (lensd ? solidO(pc + rel * kc) : rf0)) : rel;
 		// THE NEAR SIDE AT ITS OWN NEARNESS (Jon, of LEGACY under the solid camera: "almost
 		// looks like deformed and stretched out ... it's like muddy"): the camera magnifies
 		// the near half of the disc, up the screen most (`sc` across, `sc` squared x the
@@ -1219,7 +1226,7 @@ void fragment() {
 		// flat view's zoom, were drawn that much bigger -- soft, and stretched toward the
 		// viewer. Read as a zoom that much closer would read them (`lsq` under 1: more
 		// octaves, finer grain); the far side, which the camera shrinks, keeps its own.
-		if (u_solid) {
+		if (u_solid && !ball_core) {
 			vec2 dd = vec2(rf0.x, rf0.y / KIT_TILT) / u_k - u_solidT;
 			float sc = u_solidW.x / max(u_solidW.x - dd.y * u_solidW.z, 1e-3);
 			// (the two ways' geometric mean: by the larger, up the screen, the grain came
@@ -1254,19 +1261,23 @@ void fragment() {
 	vec4 ssh = vec4(1.0, 0.0, 0.0, 1.0);
 	vec3 sterr = vec3(1.0, 0.0, 0.0);
 	float ssilh = 0.0;
+	// (a ball, `ball_core`, keeps the edge's fade, round its core, and none of the puffs
+	// or the relief: they are a disc's, standing toward the camera, and SIMPLIFIED's and
+	// PAINTED's balls have none either; the relief's near ridge hid the lower half of a
+	// ball's gold, 0.43 of its light lopsided upward)
 	if (!probe && (u_fluff > 0.0 || u_terr > 0.0 || u_edge.w > 0.0)) {
 		float ca = cos(ph), sa = sin(ph);
 		vec2 P0 = vec2(lxs * ca - dy * sa, (lxs * sa + dy * ca) * qs / eff) / (z * big_r);
-		float stk = lensd ? smoothstep(6.5, 9.5, lensS) : 1.0;
+		float stk = ball_core ? 0.0 : (lensd ? smoothstep(6.5, 9.5, lensS) : 1.0);
 		vec2 Pt = stk > 0.0 ? mix(P0, terrSeen(P0), stk) : P0;
-		vec2 Pf = fluffSeen(Pt);
+		vec2 Pf = ball_core ? Pt : fluffSeen(Pt);
 		sdP = Pf - P0;
 		if (u_terr > 0.0 && stk > 0.0) {
 			sterr = terrShade(Pt);
 			sterr.xy = mix(vec2(1.0, 0.0), sterr.xy, stk);
 			ssilh = terrSilh(Pt) * stk;
 		}
-		if (u_fluff > 0.0) {
+		if (u_fluff > 0.0 && !ball_core) {
 			ssh.xyz = fluffShade(Pf);
 		}
 		// (the fade dithered a step either way on the Bayer of the flat chart's block,
@@ -1485,7 +1496,7 @@ void fragment() {
 	// near ridge standing in front of the bulge's lower edge, its gold hidden there, the
 	// ridge dark against it with a lit rim (`terrSilh`)
 	float rimS = 0.0;
-	if (u_terr > 0.0) {
+	if (u_terr > 0.0 && !ball_core) {
 		vec3 terrM = vec3(terrLevelL(sterr));
 		f_dd *= terrM;
 		f_gg *= terrM;

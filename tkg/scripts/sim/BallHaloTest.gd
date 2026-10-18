@@ -32,9 +32,12 @@ extends Node
 ## 1.72x and PAINTED 1.88x on Jon's galaxy, both still lit at the frame's bottom.
 ## A spiral and a lenticular are printed for comparison and never fail: they are
 ## discs, and a disc's near half IS bigger through the camera.
-## LEGACY is left out of the default styles: it draws a ball mostly in the
-## disc's plane on purpose (`ChartLegacy.params`, "why does this galaxy not
-## look edge on?", Jon), so it is a disc here too; `styles=legacy` measures it.
+## LEGACY too (Jon, Oct 18, "legacy:A"): its balls were read on the disc's plane
+## like the others' (0.27 gu above the core, 0.46 below on PGC 6236) and are
+## drawn round their core now (`chart_l_field`'s `ball_core`); judged by reach.
+## AND THE FRAME (Jon, "frame:A"): LOCAL REGION's frame of a ball galaxy
+## (`MapChart.frame_region`) has the whole ball in view, its core and its lit
+## radius (`ChartSky.ball_lit_gu`) inside the chart, wherever YOU are.
 ## A ball's depth (`ChartSky.ball_depth`): the game's look C unless `balllook=0|A|B`:
 ## lit as a ball it is brighter on its upper left, but it must still END as far out
 ## on its shaded side as on its lit one, so every look passes this as today's does.
@@ -50,6 +53,7 @@ const SEED := 884043030
 
 var _fails := 0
 var _shots := ""
+var _first := &""
 
 
 func _arg(name: String, fallback: String = "") -> String:
@@ -71,11 +75,12 @@ func _run() -> void:
 	print("\n=== BALL HALO: a ball galaxy's light about its core ===")
 	StarchartScreen.MapChart.clock_override = 600.0
 	DisplaySettings.reduced_motion = false
-	var styles := _arg("styles", "simplified,painted,radiant").split(",")
+	var styles := _arg("styles", "simplified,painted,radiant,legacy").split(",")
 	# (Jon's galaxy as rolled; then every ball kind and two discs on its seed)
 	var cases: Array = [[SEED, -1]]
 	for k in BALL_KINDS + DISC_KINDS:
 		cases.append([SEED, k])
+	_first = StringName(styles[0])
 	for st in styles:
 		# in memory only, as a harness's `style=` is: nothing is saved
 		DisplaySettings._harness_style = true
@@ -127,12 +132,33 @@ func _case(st: StringName, seed_v: int, kind: int) -> void:
 	var m := _measure(img, core, gu)
 	var name := "%s %s" % [GalaxyGen.type_name(Run.galaxy_kind), Run.galaxy_name if kind < 0 else "(forced)"]
 	var ratio: float = maxf(m.down, 0.01) / maxf(m.up, 0.01)
-	var bad := ball and (ratio > REACH_MAX or ratio < 1.0 / REACH_MAX or absf(m.asym) > ASYM_MAX)
+	# (LEGACY by its reach alone: its own dust lies where its seed puts it, and on Jon's
+	# galaxy it lies under the core -- 0.22 of the light lopsided upward in the flat chart,
+	# no camera at all, `chartflat`; the camera's stretch is what the reach measures)
+	var bad := ball and (ratio > REACH_MAX or ratio < 1.0 / REACH_MAX or (absf(m.asym) > ASYM_MAX and st != &"legacy"))
 	if bad:
 		_fails += 1
 	print("  %-10s %-34s reach above %.2f%s below %.2f%s gu (x%.2f)  asym %+.2f  %s" % [
 		String(st).to_upper(), name, m.up, " edge" if m.up_edge else "", m.down, " edge" if m.down_edge else "",
 		ratio, m.asym, ("FAIL" if bad else "ok") if ball else "(a disc: not judged)"])
+	if ball and st == _first:
+		# the region's frame (the marks', the same in every style: measured in the first), from YOU and from the system farthest out: the whole ball in view
+		var far := Run.node_at()
+		for raw in Run.map:
+			if (raw as MapGen.MapNode).gal.length() > far.gal.length():
+				far = raw
+		for here: MapGen.MapNode in [Run.node_at(), far]:
+			chart.frame_region(here, 0.24, false)
+			var bl := ChartSky.ball_of(Run.galaxy_kind, Run.galaxy)
+			var rr: float = ChartSky.ball_lit_gu(bl) * chart._radius() * StarchartScreen.MapChart.DISC * chart.zoom
+			var cs: Vector2 = chart.centre_px() + chart._proj(Vector2.ZERO, chart._drawn_turn)
+			var box := Rect2(cs - Vector2(rr, rr * bl.y), Vector2(rr, rr * bl.y) * 2.0)
+			var inside := Rect2(Vector2(-2.0, -2.0), chart.size + Vector2(4.0, 4.0)).encloses(box)
+			if not inside:
+				_fails += 1
+			print("  %-10s %-34s frame from %s: the ball %s in view  %s" % [String(st).to_upper(), name,
+				"YOU" if here == Run.node_at() else "the rim", box, "ok" if inside else "FAIL"])
+		chart._go_to(0.42 * ChartSky.K0 / k, Vector2.ZERO, false)
 	if _shots != "":
 		# (Jon's galaxy as rolled is `_rolled`: by its kind it took the forced giant's name)
 		img.save_png(_shots.path_join("%s_%d_%s.png" % [st, seed_v, str(kind) if kind >= 0 else "rolled"]))

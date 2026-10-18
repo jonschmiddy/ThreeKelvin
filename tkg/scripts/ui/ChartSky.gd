@@ -621,6 +621,14 @@ static func ball_depth(kind: int) -> Array[Vector4]:
 	return [Vector4(float(look), lane, ang, seed01), e]
 
 
+## How far out a ball's light is lit, in gu across (its height is this times its
+## roundness, `ball_of`'s y): what the chart's frame of a region takes in round the
+## core so the whole ball is in view (`MapChart.frame_region`). The body's lit
+## bands, where SIMPLIFIED's amber and PAINTED's violet end, at the chart's opening.
+static func ball_lit_gu(ball: Vector4) -> float:
+	return 1.8 * ball.x
+
+
 ## The rolled galaxy as the place pass's constants.
 static func params(_use_map: bool = true) -> Dictionary:
 	var g: Dictionary = Run.galaxy
