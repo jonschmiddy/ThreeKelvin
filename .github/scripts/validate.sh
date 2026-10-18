@@ -449,6 +449,24 @@ else
 	bad "goaltest did not finish"
 fi
 
+# The 45 tank (Jon, Oct 17: "fuel:A warn:A events:A"): the cap on every write
+# and a refuel's top-up, the event floor and the 45-scale events, the fuel hint
+# at a third of the tank naming the nearest dock in reach (against the test's
+# own search), and the HUD's "FUEL [bar] 23/45" at full, a third and near empty:
+# its colours with hints on and off, and the box test on LOCAL and the chart,
+# dev mode on and off.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot fueltest 180 --headless --path "$PROJECT" -- sheet=FuelTest; then
+	if grep -qE '^fueltest: PASS' "$LOG_DIR/fueltest.log"; then
+		ok "the 45 tank: cap, event floor, the hint and its dock, the HUD readout"
+	else
+		bad "the fuel tank, its hint or its readout is wrong"
+		grep -E 'FAIL|^fueltest' "$LOG_DIR/fueltest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "fueltest did not finish"
+fi
+
 step "The sector map's worlds keep up with a pan"
 # Each world's picture sits on its place (its ring, label and beacons) on every
 # frame of a pan; an ease that chased the place left it trailing by frames.

@@ -991,6 +991,8 @@ func _notable(n: MapGen.MapNode) -> int:
 func _neighbour_row(n: MapGen.MapNode) -> Control:
 	var afford := Run.can_jump_to(n)
 	var b := Button.new()
+	# which system the row is, for the fuel hint, which points at the dock it names
+	b.set_meta(&"node", n.index)
 	Widgets.wear_pointer(b)
 	b.custom_minimum_size = Vector2(0, 15)
 	b.focus_mode = Control.FOCUS_NONE
@@ -1033,7 +1035,7 @@ func _neighbour_row(n: MapGen.MapNode) -> Control:
 	# Same cell count as danger so the two columns line up. A jump never costs
 	# ten, and that is the point: a full-looking danger gauge beside a nearly
 	# empty fuel one is the shape of a cheap trip into somewhere awful.
-	fg.setup(MapGen.DANGER_MAX, Run.fuel_cells(cost),
+	fg.setup(MapGen.DANGER_MAX, cost,
 		MicroGauge.Mode.FUEL if afford else MicroGauge.Mode.UNAFFORDABLE)
 	row.add_child(fg)
 	# The exact numbers are still one hover away, which is where precision
@@ -1115,7 +1117,7 @@ func _danger_row(danger: int) -> Control:
 ## Fuel in the same boxes as danger, at the same count, so the two rows read as
 ## one comparison: what it costs against what it costs you.
 func _fuel_row(cost: int, afford: bool) -> Control:
-	return _gauge_row("FUEL", Run.fuel_cells(cost),
+	return _gauge_row("FUEL", cost,
 		MicroGauge.Mode.FUEL if afford else MicroGauge.Mode.UNAFFORDABLE)
 
 func _gauge_row(key: String, value: int, mode: MicroGauge.Mode) -> Control:

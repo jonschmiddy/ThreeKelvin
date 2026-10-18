@@ -96,13 +96,12 @@ var old_hull: HullData = null
 var _undo_move: Dictionary = {}
 var credits: int = 40
 ## FUEL AND DROSS ANNOUNCE THEMSELVES. See the note below.
-var fuel: int = 150:
+var fuel: int = FUEL_TANK:
 	set(v):
-		# A TANK WITH A TOP, under tuning A only. Every write goes through here
-		# -- a refuel, a pulsar, an event's grant -- so the cap cannot be missed
-		# by a site that forgot it. See `fuel_tuning`.
-		var cap := fuel_cap()
-		fuel = mini(v, cap) if cap > 0 else v
+		# A TANK WITH A TOP. Every write goes through here -- a refuel, a
+		# pulsar, an event's grant, a save from before the tank had one -- so the
+		# cap cannot be missed by a site that forgot it. See FUEL_TANK.
+		fuel = mini(v, fuel_cap())
 		Sig.resources_changed.emit()
 
 ## Raw materials, by id. See MaterialTable.
@@ -398,12 +397,7 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	old_hull = null
 	_undo_move.clear()
 	credits = 40
-	# STILL SCALED TO GALAXY DEPTH, though the reason narrowed. It went in when
-	# RIM was derived and the disc was 1.75x wider, which it no longer is -- but
-	# a fifteen-ring galaxy still asks for fourteen ring-crossings against nine's
-	# eight, plus the lateral travel between them, and a flat 150 was tuned
-	# against the shorter one. LAYERS 9 gives back exactly 150.
-	fuel_sold.clear()
+	# A full tank, which is now a small one. See FUEL_TANK.
 	fuel = start_fuel()
 	dross = []
 	jumps = 0
@@ -2729,96 +2723,119 @@ func here() -> MapGen.MapNode:
 ## the price per unit had to change with it.
 const FUEL_PER_DISC_RADIUS := 13.0
 
-## What one ring-step of the galaxy is worth in starting fuel.
-##
-## 150/7: the flat 150 that was tuned at LAYERS 9, divided by the seven
-## ring-steps that galaxy had. A run now starts with as much fuel as its galaxy
-## is deep, and LAYERS 9 reproduces 150 exactly.
-const FUEL_PER_RING_STEP := 150.0 / 7.0
 const FUEL_MAX_HOP := 6
 
-## WHICH FUEL ECONOMY THE GAME PLAYS. Jon, Oct 17: "Starting with almost 280
-## fuel allows a player to basically jump all over the galaxy without paying
-## for gas once. Fuel should feel painful." Three answers were measured
-## (balance/fuel); none is picked yet, so the default is the game as it was.
+## THE TANK HOLDS 45, and that is where a run starts. Jon, Oct 17: "Starting
+## with almost 280 fuel allows a player to basically jump all over the galaxy
+## without paying for gas once. Fuel should feel painful." Picked "fuel:A".
 ##
-##   &""   today: 279 to start, no top to the tank, 1-6 a jump by distance,
-##         a station sells 25 for ~12 credits as often as you like.
-##   &"A"  A SMALL TANK. Starts at FUEL_A_TANK and holds no more, so a run has
-##         to stop and pay two or three times, and a greedy detour can strand.
-##   &"B"  DISTANCE AND DANGER PRICING. The same 279, but a jump's price grows
-##         faster than its length and a dangerous star costs extra to reach.
-##   &"C"  SCARCE SUPPLY. A short start, no top; a station sells only a few
-##         cans, fewer and dearer deeper in; won wrecks sometimes hold fuel.
+## It was 279 -- 150/7 a ring-step of the galaxy, from when a flat 150 was tuned
+## against nine rings -- with no top. Measured on the corrected sim (seed 777,
+## 200 runs, balance/fuel): a run that reaches the core burns 46-67 fuel, at
+## most 130, so the tank held four to six winning runs, no run ever bought a
+## can, and runs ended 90-92% full. Two other answers were flown and not
+## picked: pricing jumps by distance and danger on the same 279 (it charged
+## credits and the tank never felt low), and scarce, depth-priced docks with
+## fuel in wrecks (gentler, more to explain). The numbers are in the commit.
 ##
-## Picking one is this line. A plain var rather than a const only so the
-## simulator can fly all four from one build (`-- sim fuel=A`).
-var fuel_tuning: StringName = &""
+## 45 is about one winning run. 40 made a winning run stop 3.5 times at docks;
+## 45 is the two or three Jon asked for. Every write to `fuel` is held under it
+## by the setter, so a refuel, a pulsar or an event cannot overfill.
+const FUEL_TANK := 45
 
-## A: the tank, start and top. A run that reaches the core burns 46-67 fuel
-## today (seed 777, 200 runs), so 45 is about one run, not five of them. 40
-## made a winning run stop 3.5 times; 45 is the 2-3 asked for.
-const FUEL_A_TANK := 45
+## The fuel hint and the HUD's amber: a third of the tank (Jon: "warn:A").
+## The old hint waited for "under two of the dearest jump in range", about 12
+## fuel, which in every stranded run was one to three jumps from the end.
+const FUEL_LOW_FRACTION := 1.0 / 3.0
 
-## B: the price of a jump. FUEL_B_PER_RADIUS * d * (1 + d / JUMP_RADIUS), so a
-## hop the length of the drive's base reach costs twice per unit what a short
-## one does, plus FUEL_B_DANGER per point of the target's danger. The level is
-## set by the 279 it keeps: a medium's ordinary hop into danger 6 is ~17, so a
-## run to the core burns about a tank and a heavy's burns more. (32 / 0.6 was
-## measured first: winners never fell under 76 and it only cost credits.)
-const FUEL_B_PER_RADIUS := 40.0
-const FUEL_B_DANGER := 0.8
-const FUEL_B_MAX_HOP := 36
-
-## C: the start, and what a station has to sell.
-const FUEL_C_START := 50
-## Cans of REFUEL_UNITS a station holds for the whole run, before depth: rolled
-## 1..FUEL_C_STOCK_MAX positionally, minus one every FUEL_C_STOCK_FALL rings in,
-## never under one -- a dock with nothing at all is a strand you cannot see.
-const FUEL_C_STOCK_MAX := 3
-const FUEL_C_STOCK_FALL := 6
-## The price climbs this fraction per ring in.
-const FUEL_C_DEPTH_MARKUP := 0.10
-## The chance a won fight's wreck holds fuel, and how much.
-const FUEL_C_WRECK_CHANCE := 0.5
-const FUEL_C_WRECK_MIN := 8
-const FUEL_C_WRECK_MAX := 16
-
-## C: cans bought at each station this run, by node index. Not saved: a reload
-## restocks the station, which is the price of keeping the switch out of the
-## save format until a tuning is picked.
-var fuel_sold: Dictionary = {}
-
-## What a new run starts with.
+## What a new run starts with: a full tank.
 func start_fuel() -> int:
-	match fuel_tuning:
-		&"A":
-			return FUEL_A_TANK
-		&"C":
-			return FUEL_C_START
-	return int(round(FUEL_PER_RING_STEP * float(MapGen.LAYERS - 2)))
+	return FUEL_TANK
 
-## The top of the tank, or 0 for none.
+## The top of the tank.
 func fuel_cap() -> int:
-	return FUEL_A_TANK if fuel_tuning == &"A" else 0
+	return FUEL_TANK
 
-## The most one jump can cost.
-func fuel_max_hop() -> int:
-	return FUEL_B_MAX_HOP if fuel_tuning == &"B" else FUEL_MAX_HOP
+## At or under this the tank is LOW: the hint fires and the HUD turns amber.
+func fuel_low_at() -> int:
+	return int(ceil(float(fuel_cap()) * FUEL_LOW_FRACTION))
 
-## AN EVENT TAKES FUEL THROUGH HERE. 109 outcomes burn 4 to 40 units, which is
-## flavour against a 279 tank and a death sentence against a 45 one: in the
-## first measurement of the small tanks most strands were one event emptying
-## the tank, not a route the player chose (balance/fuel, Oct 17).
+func fuel_low() -> bool:
+	return fuel <= fuel_low_at()
+
+## CRITICAL, and the HUD turns red: fewer than two of the dearest jump on offer
+## are left in the tank. This was the whole of the old hint's rule, and it is
+## still the right word for "one more of the long ones and you are out".
+func fuel_critical() -> bool:
+	if map.is_empty() or node_at() == null:
+		return false
+	var dear := 0
+	for raw in in_range():
+		var n: MapGen.MapNode = raw
+		if n.sensed:
+			dear = maxi(dear, fuel_cost_to(n))
+	if dear == 0:
+		dear = FUEL_MAX_HOP
+	return fuel < dear * 2
+
+## THE NEAREST DOCK YOU CAN REACH ON WHAT IS IN THE TANK, for the fuel hint
+## ("Nearest dock: GAMMA BRINE PRIME, 2 jumps"). Fewest jumps first, then the
+## least fuel, over the systems the chart draws (`charted`) and the hops the
+## drive allows (`reachable_from`), each hop priced from where it starts.
+## {node, jumps, fuel}, or {} when no dock is in reach. Here counts when you are
+## docked: zero jumps.
+func nearest_dock() -> Dictionary:
+	if map.is_empty() or node_at() == null:
+		return {}
+	var here := node_at()
+	if here.type == MapGen.NodeType.STATION:
+		return {node = here, jumps = 0, fuel = 0}
+	var known: Array = []
+	for raw in map:
+		var t: MapGen.MapNode = raw
+		if charted(t):
+			known.append(t)
+	# Breadth first by jumps, keeping the cheapest fuel to reach each system at
+	# that depth; a ring of a few dozen charted systems, so this is small.
+	var best_fuel := {here.index: 0}
+	var frontier: Array = [here]
+	var jumps := 0
+	var found: Dictionary = {}
+	while not frontier.is_empty() and found.is_empty():
+		jumps += 1
+		var next: Array = []
+		for raw in frontier:
+			var from: MapGen.MapNode = raw
+			var spent: int = best_fuel[from.index]
+			for raw2 in known:
+				var t: MapGen.MapNode = raw2
+				if t.index == from.index or not reachable_from(from, t):
+					continue
+				var c := spent + _hop_cost(from, t)
+				if c > fuel or (best_fuel.has(t.index) and best_fuel[t.index] <= c):
+					continue
+				best_fuel[t.index] = c
+				next.append(t)
+				if t.type == MapGen.NodeType.STATION 						and (found.is_empty() or c < int(found.fuel)):
+					found = {node = t, jumps = jumps, fuel = c}
+		frontier = next
+	return found
+
+## `fuel_cost_to` from somewhere other than where the ship is.
+func _hop_cost(from: MapGen.MapNode, to: MapGen.MapNode) -> int:
+	var d := MapGen.hop_distance(from, to)
+	return clampi(int(round(fuel_factor() * d * FUEL_PER_DISC_RADIUS)), 1, FUEL_MAX_HOP)
+
+## AN EVENT TAKES FUEL THROUGH HERE, and leaves you the way out: the fuel to
+## reach a dock you can see, or with none in sight three of the cheapest jumps
+## from here -- room to go and find one. It never adds fuel.
 ##
-## So under a tuning an event leaves you the way out: the fuel to reach a dock
-## you can see, or with none in sight three of the cheapest jumps from here --
-## room to go and find one. Leaving only the single cheapest jump was measured
-## first and only moved the strand one system on. It never ADDS fuel, and it
-## makes the prose's "forty units" read high when it bites; the ledger says
-## what was really taken. Today's game is unchanged: floored at zero.
+## Measured with the 45 tank before the events were rescaled to it: most
+## strands were one event emptying the tank (109 outcomes took 4 to 40 of a
+## 279 tank), not a route the player chose. Leaving only the single cheapest
+## jump was tried first and moved the strand one system on.
 func drain_fuel(n: int) -> void:
-	if fuel_tuning == &"" or map.is_empty():
+	if map.is_empty() or node_at() == null:
 		fuel = maxi(0, fuel - n)
 		return
 	var limp := 0
@@ -2834,63 +2851,33 @@ func drain_fuel(n: int) -> void:
 	var keep := dock if dock > 0 else limp * 3
 	fuel = maxi(mini(fuel, keep), fuel - n)
 
-## How many of the chart's ten fuel cells a jump fills. One a unit today, where
-## a jump tops out at six; a quarter under tuning B, whose jumps run to 36,
-## so the cells still say "cheap" and "dear" rather than all reading full.
-func fuel_cells(cost: int) -> int:
-	return int(ceil(cost / 4.0)) if fuel_tuning == &"B" else cost
+## Why REFUEL cannot sell here right now ("" when it can). Credits are the
+## caller's business.
+func refuel_blocked(_n: MapGen.MapNode) -> String:
+	return "TANK FULL" if fuel >= fuel_cap() else ""
 
-## Cans this station can still sell, or -1 for no limit.
-func fuel_stock(n: MapGen.MapNode) -> int:
-	if fuel_tuning != &"C" or n == null:
-		return -1
-	var r := Rng.derive(&"fuelstock", n.index)
-	var cans := r.randi_range(1, FUEL_C_STOCK_MAX) - int(n.layer / FUEL_C_STOCK_FALL)
-	return maxi(0, maxi(1, cans) - int(fuel_sold.get(n.index, 0)))
-
-## Why REFUEL cannot sell here right now ("" when it can): the tank is full,
-## or the station has none left. Credits are the caller's business.
-func refuel_blocked(n: MapGen.MapNode) -> String:
-	var cap := fuel_cap()
-	if cap > 0 and fuel >= cap:
-		return "TANK FULL"
-	if fuel_stock(n) == 0:
-		return "SOLD OUT"
-	return ""
-
-## What one REFUEL puts in and costs here: a full can, or under tuning A the
-## room left in the tank, charged by the unit so a top-up is not a full can's
-## price for a splash.
+## What one REFUEL puts in and costs here: a can, or the room left in the tank
+## when that is less, charged by the unit, so a top-up is not a can's price
+## for a splash.
 func refuel_offer(n: MapGen.MapNode) -> Dictionary:
-	var units := Market.REFUEL_UNITS
-	var cap := fuel_cap()
-	if cap > 0:
-		units = clampi(cap - fuel, 0, units)
+	var units := clampi(fuel_cap() - fuel, 0, Market.REFUEL_UNITS)
 	var cost := Market.refuel_price(n)
 	if units < Market.REFUEL_UNITS:
 		cost = maxi(1, int(ceil(float(cost) * units / Market.REFUEL_UNITS)))
 	return {units = units, cost = cost}
 
 ## One REFUEL, paid. The station screen, the simulator and the party bot all
-## buy through this, so a tuning's rule is in one place.
+## buy through this, so the tank's rule is in one place.
 func buy_refuel(n: MapGen.MapNode) -> bool:
 	var o := refuel_offer(n)
 	if credits < int(o.cost) or refuel_blocked(n) != "":
 		return false
 	add_credits(-int(o.cost))
-	if fuel_tuning == &"C" and n != null:
-		fuel_sold[n.index] = int(fuel_sold.get(n.index, 0)) + 1
 	fuel += int(o.units)
 	return true
 
 func fuel_cost_to(n: MapGen.MapNode) -> int:
-	var d := MapGen.hop_distance(node_at(), n)
-	if fuel_tuning == &"B":
-		var raw := FUEL_B_PER_RADIUS * d * (1.0 + d / JUMP_RADIUS)
-		return clampi(int(round(fuel_factor() * raw + FUEL_B_DANGER * float(n.danger))),
-			1, FUEL_B_MAX_HOP)
-	return clampi(int(round(fuel_factor() * d * FUEL_PER_DISC_RADIUS)),
-		1, FUEL_MAX_HOP)
+	return _hop_cost(node_at(), n)
 
 ## How many systems the drive can pick from. Range is whatever radius happens
 ## to enclose this many of your nearest neighbours, so it scales itself: half a

@@ -187,12 +187,13 @@ var limited: bool = false
 ## measuring a hold no ship in the game has.
 const HOLD_LIMIT := 4
 
-## Top up to half a tank at a station, and never below this many credits.
+## Top up to a full tank at a station, and never below this many credits. It
+## was half, against a 279 tank with no top; against 45, half is ten jumps.
 ##
 ## The reserve exists because hull loss kills more runs than fuel does: a model
 ## that spends its last credit on fuel arrives at the next fight unable to
 ## repair, which is a worse death for the same money.
-const FUEL_TOPUP := 0.5
+const FUEL_TOPUP := 1.0
 
 ## How many lateral hops the model will spend in one ring before descending.
 ##
@@ -367,15 +368,10 @@ func shop(n: MapGen.MapNode) -> void:
 	# of them, and 20% of runs ending blocked by fuel while sitting on 125
 	# credits of profit.
 	#
-	# Tops up toward half a tank, keeping a credit reserve so refuelling never
-	# eats the repair budget -- hull loss is the largest death cause and buying
-	# fuel instead of a hull is not competence.
-	var tank := float(Run.fuel_cap()) if Run.fuel_cap() > 0 else float(Run.start_fuel())
-	var want := int(tank * FUEL_TOPUP)
-	# HALF A TANK WAS A RULE FOR A 279 TANK. With a small one (tunings A and C)
-	# half is ten jumps and a competent pilot fills it.
-	if Run.fuel_tuning == &"A" or Run.fuel_tuning == &"C":
-		want = int(tank)
+	# Tops up, keeping a credit reserve so refuelling never eats the repair
+	# budget -- hull loss is the largest death cause and buying fuel instead of
+	# a hull is not competence.
+	var want := int(float(Run.fuel_cap()) * FUEL_TOPUP)
 	if human:
 		want = human_fuel_want(n)
 	var bought := false
@@ -396,9 +392,9 @@ func shop(n: MapGen.MapNode) -> void:
 
 
 ## What a person wants in the tank leaving a dock: enough for the rest of the
-## way in at what jumps cost here, with half again for detours, or a top-up to
-## the cap. Not "half a tank": a person with 279 aboard does not buy fuel, and
-## that is the behaviour being measured.
+## way in at what jumps cost here, with half again for detours, up to the top
+## of the tank. With 279 aboard a person never bought fuel at all, which is what
+## Jon reported and the audit measured.
 func human_fuel_want(n: MapGen.MapNode) -> int:
 	var rings_left := maxi(1, MapGen.LAYERS - 1 - n.layer)
 	var typ := 0.0
@@ -410,8 +406,7 @@ func human_fuel_want(n: MapGen.MapNode) -> int:
 			k += 1
 	typ = typ / k if k > 0 else 3.0
 	var need := int(ceil(typ * float(rings_left) * HUMAN_HOPS_PER_RING * 1.5))
-	var cap := Run.fuel_cap()
-	return mini(need, cap) if cap > 0 else need
+	return mini(need, Run.fuel_cap())
 
 ## Hops a person spends per ring on the way in: one down and a look around.
 const HUMAN_HOPS_PER_RING := 1.6

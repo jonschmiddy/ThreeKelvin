@@ -227,12 +227,7 @@ static func repair_price(n: MapGen.MapNode, points: int) -> int:
 const REFUEL_UNITS := 25
 
 static func refuel_price(n: MapGen.MapNode) -> int:
-	var base := 12.0 * service_index(n)
-	# Tuning C's depth markup: the further in, the further it was hauled. See
-	# RunState.fuel_tuning.
-	if Run.fuel_tuning == &"C" and n != null:
-		base *= 1.0 + Run.FUEL_C_DEPTH_MARKUP * float(n.layer)
-	return maxi(1, int(round(base)))
+	return maxi(1, int(round(12.0 * service_index(n))))
 
 static func purge_price(n: MapGen.MapNode) -> int:
 	return maxi(1, int(round(15.0 * service_index(n))))

@@ -177,9 +177,6 @@ func run_sim() -> void:
 			policy.vent_cold = float(arg.split("=")[1])
 		elif arg.begins_with("venthot="):
 			policy.vent_hot = float(arg.split("=")[1])
-		# The fuel tuning to fly (RunState.fuel_tuning): A, B, C, or none.
-		elif arg.begins_with("fuel="):
-			Run.fuel_tuning = StringName(arg.split("=")[1].to_upper())
 		elif arg.begins_with("fueltrace="):
 			_trace_path = arg.split("=")[1]
 	policy.human = "human" in OS.get_cmdline_user_args()
@@ -192,7 +189,7 @@ func run_sim() -> void:
 		print("STURDY lens: hull and heat restored on every arrival.")
 	if policy.human:
 		print("HUMAN policy: heads for the core, scores the chart, buys fuel for the way in.")
-	print("fuel tuning: '%s' · start %d · cap %d" % [Run.fuel_tuning, Run.start_fuel(), Run.fuel_cap()])
+	print("fuel: start %d · tank %d" % [Run.start_fuel(), Run.fuel_cap()])
 	if _trace_path != "":
 		_trace_file = FileAccess.open(_trace_path, FileAccess.WRITE)
 
@@ -336,7 +333,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 	pilot = Rng.derive(&"pilot", 0)
 	policy.pilot = pilot
 	policy.begin_run()
-	_tr = {seed = Rng.forced, maker = String(Run.hull.manufacturer), weight = int(Run.hull.weight),
+	_tr = {seed = Rng.forced, manufacturer = String(Run.hull.manufacturer), weight = int(Run.hull.weight),
 		ff = Run.fuel_factor(), start = Run.fuel, dep = [], arr = [], cost = [], layer = [],
 		dist = [], any_dear = 0, limited = 0, hint_at = -1, pulsar_fuel = 0, event_fuel = 0,
 		station_fuel = 0, stations = 0, hint_station_reach = -1}
@@ -881,15 +878,13 @@ func _report_economy() -> void:
 
 
 ## Before every jump: did fuel narrow the choice, and would the fuel hint be up?
-## `hint` is `Hints._fuel_low` asked the same way (under two of the dearest
-## seen jump in range), and the first jump it is true on is kept, with whether
-## a dock was then in reach and affordable -- the warning a stranded run had.
+## The first jump the hint's rule is true on is kept, with whether it would have
+## named a dock (`Run.nearest_dock`) -- the warning a stranded run had.
 func _audit_jump(node: MapGen.MapNode, pick: int) -> void:
 	if _tr.is_empty():
 		return
 	var dear := 0
 	var any_dear := false
-	var dock := false
 	for raw in Run.in_range_of(node):
 		var t: MapGen.MapNode = raw
 		if not t.sensed:
@@ -898,17 +893,17 @@ func _audit_jump(node: MapGen.MapNode, pick: int) -> void:
 		dear = maxi(dear, c)
 		if c > Run.fuel:
 			any_dear = true
-		elif t.type == MapGen.NodeType.STATION:
-			dock = true
 	if dear == 0:
-		dear = Run.fuel_max_hop()
+		dear = Run.FUEL_MAX_HOP
 	if any_dear:
 		_tr.any_dear += 1
 	if policy.limited:
 		_tr.limited += 1
-	if Run.fuel < dear * 2 and int(_tr.hint_at) < 0:
+	# THE FUEL HINT AS THE GAME FIRES IT (`Run.fuel_low`, a third of the tank),
+	# and whether the dock it would name was in reach on what was left.
+	if Run.fuel_low() and int(_tr.hint_at) < 0:
 		_tr.hint_at = Run.jumps
-		_tr.hint_station_reach = 1 if dock else 0
+		_tr.hint_station_reach = 0 if Run.nearest_dock().is_empty() else 1
 
 
 ## The fewest jumps from the start to the core, reach alone (no fuel, no sight):
