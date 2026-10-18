@@ -723,12 +723,18 @@ func _no_box() -> void:
 			var pieces: Array = []
 			GoalLine._inked(bar.get_child(0) as Control, pieces)
 			var pr := bar.get_global_rect()
+			var least_v := INF
 			for q: Rect2 in pieces:
-				var gap := minf(minf(q.position.x - pr.position.x, pr.end.x - q.end.x), minf(q.position.y - pr.position.y, pr.end.y - q.end.y))
+				var gap := minf(q.position.x - pr.position.x, pr.end.x - q.end.x)
 				if gap < least:
 					least = gap
 					tight = str(q)
-		_ok("%s: every piece of the toolbar row %.0f px or more inside its plate's line, the side panel's margin (least %.1f, %s)" % [_nm(r), margin, least, tight],
+				least_v = minf(least_v, minf(q.position.y - pr.position.y, pr.end.y - q.end.y))
+			# (and hugging it top and bottom, Jon: "a bit excessive on the
+			# height" -- but never touching its line)
+			_ok("%s: the toolbar row's plate close above and below it, 4 px or more clear (least %.1f)" % [_nm(r), least_v],
+				least_v >= 4.0 - 0.01 and least_v <= 8.0)
+		_ok("%s: every piece of the toolbar row %.0f px or more in from its plate's ends, the side panel's margin (least %.1f, %s)" % [_nm(r), margin, least, tight],
 			least != INF and least >= margin - 0.01)
 		# THE GOAL IN THE ROW (Jon: "Goal is in a weird spot"): inside the plate,
 		# on the row's own line, clear of its pieces -- or, where the row has no
@@ -751,7 +757,7 @@ func _no_box() -> void:
 			for q: Rect2 in pieces2:
 				if q.intersects(gr):
 					clear = false
-			var inside := bar != null and bar.get_global_rect().grow(-margin).encloses(gr.grow(-0.5))
+			var inside := bar != null and bar.get_global_rect().grow_individual(-margin, -4.0, -margin, -4.0).encloses(gr.grow(-0.5))
 			var in_pic := GoalLine.picture_rect(cur).encloses(gr)
 			_ok("%s: the goal in the row, on its line (goal %s at y %.0f, the row's words at %.0f), inside the plate, clear of its pieces%s" % [_nm(r), gr, lab.position.y, line_y,
 				"" if g._in_row else " -- or, the row full, inside the picture (%s)" % in_pic],

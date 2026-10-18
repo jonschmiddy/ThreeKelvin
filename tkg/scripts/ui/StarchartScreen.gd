@@ -111,7 +111,7 @@ const BAR_H := 17
 ## The toolbar row's whole height as it stands: the row, and on the field its
 ## plate's margins (`NavField.row_plate`).
 static func row_h() -> float:
-	return float(BAR_H) + (24.0 if NavField.used() else 0.0)
+	return float(BAR_H) + (2.0 * NavField.ROW_PAD_V if NavField.used() else 0.0)
 
 
 static func toolbar_row() -> HBoxContainer:

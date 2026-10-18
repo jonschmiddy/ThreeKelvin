@@ -70,12 +70,18 @@ static func plate_style() -> StyleBoxFlat:
 
 ## A TOOLBAR ROW ON ITS PLATE (Jon, Oct 18: "the size of that panel also
 ## doesn't seem big enough... the border comes right up to the button's
-## edges"): the row inside a plate of the side panel's own look and margins
-## (`plate_style`, 12 px every side), so its line stands as clear of the row's
-## buttons as the side panel's does of its own. The ladder's `ladder_bar`.
+## edges"): the row inside a plate of the side panel's own look, its line as
+## far from the row's ends as the side panel's is from its contents (12 px),
+## and close above and below (`ROW_PAD_V`: "The row is good on the width...
+## but a bit excessive on the height"). The ladder's `ladder_bar`.
+const ROW_PAD_V := 5
 static func row_plate(row: Control) -> PanelContainer:
 	var pc := PanelContainer.new()
-	pc.add_theme_stylebox_override("panel", plate_style())
+	var sb := plate_style()
+	# (hugging the row top and bottom: Jon, "a bit excessive on the height")
+	sb.content_margin_top = ROW_PAD_V
+	sb.content_margin_bottom = ROW_PAD_V
+	pc.add_theme_stylebox_override("panel", sb)
 	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pc.add_child(row)
 	return pc
