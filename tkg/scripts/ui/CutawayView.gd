@@ -129,6 +129,16 @@ var _say_until := 0
 var fit_note := ""
 var _room := Rect2()
 var _layout_ok := true
+## Whether every empty mount's words found a place (see `_layout`).
+var _words_ok := true
+## THE ROOM AS IT LANDS, in sprite px at scale `_real_k` (0 until the push-in's
+## target is set): the picture is centred on its bounds, not on the hull, so
+## the words set away from their rings are kept inside what is really on screen.
+var _real_room := Rect2()
+var _real_k := 0
+## The words set away from their rings, sprite px: outside the bounds the
+## picture is centred on (so they never move the ship), inside `_pic`.
+var _far_bounds := Rect2()
 ## Where the exploded ship -- hull, parts, tags, rings -- is drawn, this view's px.
 var _pic := Rect2()
 var _offs_cache := {}
@@ -280,11 +290,12 @@ func _measure() -> void:
 func _choose_scale() -> void:
 	var room := Rect2(_hold_w + MARGIN, MARGIN, size.x - _hold_w - MARGIN * 2.0, size.y - MARGIN * 2.0)
 	fit_note = ""
+	_real_k = 0
 	for kk: int in [2, 1]:
 		var b := _layout(kk, room)
 		# (every part and word is inside the room by construction; a ring on the
 		# hull's very edge may stand a few px past it, into the margin, not more)
-		var fits := _layout_ok and b.size.x * kk <= room.size.x + MARGIN and b.size.y * kk <= room.size.y + MARGIN
+		var fits := _layout_ok and _words_ok and b.size.x * kk <= room.size.x + MARGIN and b.size.y * kk <= room.size.y + MARGIN
 		fit_note += "%dx %s in %dx%d; " % [kk,
 			("fits, %dx%d" % [int(b.size.x * kk), int(b.size.y * kk)]) if fits else ("does not fit, %dx%d" % [int(b.size.x * kk), int(b.size.y * kk)]),
 			int(room.size.x), int(room.size.y)]
@@ -297,7 +308,14 @@ func _choose_scale() -> void:
 			_mounts.refresh()
 			b = _layout(k, room)
 			_target = (room.get_center() - b.get_center() * float(k)).round()
+			# and once more against the room where it really landed, for the
+			# words set away from their rings (the rest comes out the same)
+			_real_room = Rect2((room.position - _target) / float(k), room.size / float(k))
+			_real_k = k
+			b = _layout(k, room)
 			_pic = Rect2(_target + b.position * float(k), b.size * float(k))
+			if _far_bounds.has_area():
+				_pic = _pic.merge(Rect2(_target + _far_bounds.position * float(k), _far_bounds.size * float(k)))
 			return
 
 
@@ -307,7 +325,8 @@ func _choose_scale() -> void:
 ## are inside the room, off the hull's own pixels and clear of every part, tag
 ## and ring already placed; its tag beside it (toward the hull's middle first)
 ## or above or below it, which is what lets parts stack in narrow columns off a
-## heavy's nose and tail. Then each empty mount's words, near its ring, or none.
+## heavy's nose and tail. Then each empty mount's words: near its ring, or, where
+## there is no room near it, in the nearest clear space with a leader to it.
 ## The boxes are the ones `MountPoints` draws (`tag_box`, `label_box`), so what
 ## is kept apart here is what is on screen. Written into the mounts widget
 ## (`lift`, `tag_side`); `_layout_ok` says whether everything found a place.
@@ -416,13 +435,14 @@ func _layout(kk: int, room: Rect2) -> Rect2:
 			var pr := Rect2(b.position + o, b.size)
 			placed.append(pr)
 			bounds = bounds.merge(pr)
-	# THE EMPTY MOUNTS' WORDS, near the ring, off the hull and everything placed;
-	# a ring with no room for them keeps the ring alone (an "EMPTY WEAPON" laid
-	# over the hull plating read as part of it)
+	# THE EMPTY MOUNTS' WORDS, near the ring, off the hull and everything placed
+	# (an "EMPTY WEAPON" laid over the hull plating read as part of it)
+	var missed: Array = []
 	for e in empties:
 		var pt: Vector2 = e[2]
 		var key := MountPoints.spot_key(int(e[0]), int(e[1]))
 		var lw := f.get_string_size(MountPoints.empty_text(int(e[0])), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+		var near := false
 		for o in offs:
 			if absf(o.y) > MountPoints.R + 14.0 or absf(o.x) > lw / (2.0 * kk) + MountPoints.R + 6.0:
 				continue
@@ -431,7 +451,79 @@ func _layout(kk: int, room: Rect2) -> Rect2:
 				sides["empty:" + key] = o
 				placed.append(r)
 				bounds = bounds.merge(r)
+				near = true
 				break
+		if not near:
+			missed.append(e)
+	# AND WHERE THERE IS NO ROOM NEAR THE RING, THE NEAREST CLEAR SPACE, with a
+	# 1 px leader back to it (Jon: "There is no text for an empty utility, just
+	# empty systems and empty weapons."). The ring used to keep itself alone
+	# here, and "EMPTY UTILITY" -- the widest of the three words, on mounts set
+	# deep in the hull's middle -- never once found room within the near reach,
+	# so the utilities lost theirs on every hull and the heavies' inboard guns
+	# and systems with them. Still never on the plating, another word, a part, a
+	# tag or a ring, and the leader crosses none of them either. Kept out of the
+	# bounds the picture is centred on, so no word set out here moves the ship
+	# or anything on it; inside the room as it really lands.
+	_words_ok = true
+	_far_bounds = Rect2()
+	var real := _real_room if _real_k == kk else Rect2(bounds.get_center() - rs.size * 0.5, rs.size)
+	real = real.grow(-1.0)
+	if real.size.x <= 0.0 or real.size.y <= 0.0:
+		# (no room yet: laid out before the view has a size, and again once it has)
+		missed.clear()
+	var leads: Array[Rect2] = []
+	for e in missed:
+		var pt: Vector2 = e[2]
+		var key := MountPoints.spot_key(int(e[0]), int(e[1]))
+		var lw := f.get_string_size(MountPoints.empty_text(int(e[0])), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+		var ring := Rect2(pt - Vector2.ONE * (MountPoints.R + 1.0), Vector2.ONE * (MountPoints.R + 1.0) * 2.0)
+		var found := false
+		for o in offs:
+			var box := MountPoints.label_box(pt * kk, o, lw, kk)
+			var r := _sprite_box(box, kk)
+			if not real.encloses(r) or on_hull.call(r.grow(1.0)):
+				continue
+			var clear := true
+			for q in placed:
+				if r.grow(1.5).intersects(q):
+					clear = false
+					break
+			if clear:
+				for q in leads:
+					if r.grow(1.0).intersects(q):
+						clear = false
+						break
+			if not clear:
+				continue
+			# the leader, pixel by pixel, over nothing but its own ring
+			var line := MountPoints.label_leader(pt * kk, box, kk)
+			var dots: Array[Rect2] = []
+			for p in line:
+				var d := Rect2(p / float(kk), Vector2.ONE / float(kk))
+				for q in placed:
+					if q != ring and d.intersects(q):
+						clear = false
+						break
+				if clear:
+					for q in leads:
+						if d.grow(0.5).intersects(q):
+							clear = false
+							break
+				if not clear:
+					break
+				dots.append(d)
+			if not clear:
+				continue
+			sides["empty:" + key] = o
+			sides["lead:" + key] = not line.is_empty()
+			placed.append(r)
+			leads.append_array(dots)
+			_far_bounds = r if not _far_bounds.has_area() else _far_bounds.merge(r)
+			found = true
+			break
+		if not found:
+			_words_ok = false
 	_mounts.lift = lift
 	_mounts.tag_side = sides
 	return bounds
