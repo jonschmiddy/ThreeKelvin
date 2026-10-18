@@ -2775,8 +2775,11 @@ func _calm_cam() -> void:
 	var p := _calm_p(e)
 	if _calm_new_begun:
 		new.call(&"calm_at", p, exp(_calm_L * (e - 1.0)))
-		if _calm_stars != null:
-			_calm_stars_set(p, new.call(&"calm_rest"), exp(_calm_L * (e - 1.0)), 1.0, new)
+	# (the stars from the swap on, before the screen arriving has its camera too:
+	# a hurried move shrinks the held picture off them at once. Their plane's
+	# origin is any fixed point -- they scale about your ship either way)
+	if _calm_stars != null:
+		_calm_stars_set(p, _calm_ph, exp(_calm_L * (e - 1.0)), 1.0, new)
 	_mat.set_shader_parameter(&"to_pt", p)
 	_mat.set_shader_parameter(&"scl", Vector2.ONE * exp(_calm_L * (e - _calm_e_h)))
 	_calm_fade()

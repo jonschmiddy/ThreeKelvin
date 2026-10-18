@@ -114,12 +114,8 @@ func _drawn_at(at: Vector2) -> bool:
 	if cur != null and is_instance_valid(cur) and bool(cur.call(&"ladder_ready")) and (cur.call(&"ladder_picture") as Rect2).has_point(at):
 		return true
 	var L := ZoomLadder.active
-	if (L._rect as CanvasItem).visible and L.held_alpha() >= 0.999:
-		var pv: Variant = L._mat.get_shader_parameter(&"pic")
-		if pv is Vector4:
-			var v := pv as Vector4
-			if Rect2(v.x, v.y, v.z, v.w).has_point(at):
-				return true
+	if (L._rect as CanvasItem).visible and L.held_alpha() >= 0.999 and _held_at(L._mat as ShaderMaterial, at):
+		return true
 	var st: Variant = L.get("_calm_stars")
 	if st != null and is_instance_valid(st) and (st as CanvasItem).is_visible_in_tree():
 		var sm := (st as CanvasItem).material as ShaderMaterial
@@ -139,6 +135,32 @@ func _drawn_at(at: Vector2) -> bool:
 		if is_instance_valid(sw) and (sw as CanvasItem).is_visible_in_tree() and (sw as SideSwap).rect().has_point(at):
 			return true
 	return false
+
+
+## Whether the held picture is drawn whole at `at` as it stands: its picture
+## carried from `from_pt` to `to_pt` at its scale, inside its soft edge when
+## smaller than the screen, and not where a side bar's rect (screen px) is cut
+## out of it.
+func _held_at(m: ShaderMaterial, at: Vector2) -> bool:
+	var pv: Variant = m.get_shader_parameter(&"pic")
+	if not pv is Vector4:
+		return false
+	var v := pv as Vector4
+	var a: Vector2 = m.get_shader_parameter(&"from_pt")
+	var b: Vector2 = m.get_shader_parameter(&"to_pt")
+	var k: Vector2 = m.get_shader_parameter(&"scl")
+	var r := Rect2(b + (Vector2(v.x, v.y) - a) * k, Vector2(v.z, v.w) * k)
+	var fv: Variant = m.get_shader_parameter(&"feather")
+	r = r.grow(-(float(fv) if fv != null else 28.0) * clampf((1.0 - k.x) * 2.0, 0.0, 1.0))
+	if not r.has_point(at):
+		return false
+	for nm: StringName in [&"side", &"side2"]:
+		var cv: Variant = m.get_shader_parameter(nm)
+		if cv is Vector4 and (cv as Vector4).z > 0.0:
+			var c := cv as Vector4
+			if Rect2(c.x, c.y, c.z, c.w).has_point(at):
+				return false
+	return true
 
 
 ## A side panel or toolbar piece of the ladder's up this frame: a column or a
