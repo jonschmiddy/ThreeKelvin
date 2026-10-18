@@ -1070,6 +1070,12 @@ func _zoom_down(i: int) -> void:
 func take_action(bc) -> void:
 	if _taking:
 		return
+	# DOCK ONLY AT THE STATION (dock:A). It used to fly you there and dock on
+	# arrival from anywhere in the system; now its card is greyed until you are
+	# there, and this door refuses the same, whoever presses it.
+	if bc != null and bc.dock and not Router.docked and not ship_reached(_body_of_beacon(bc)):
+		Audio.denied()
+		return
 	_go_then(_body_of_beacon(bc), func() -> void: _act(bc))
 
 

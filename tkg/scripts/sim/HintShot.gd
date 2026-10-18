@@ -201,6 +201,7 @@ func _run() -> void:
 			break
 	Run.jumps = 1
 	Hints.mark_seen(&"ship", false)
+	Router.park_at_station()
 	Router.show_station()
 	await _secs(3.0)
 	await _hint(&"dock", 10.0)

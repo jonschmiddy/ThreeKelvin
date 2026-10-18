@@ -147,7 +147,8 @@ func fuel_dock_line() -> String:
 		return "No dock in reach. Make short jumps and look for one."
 	var j := int(d.jumps)
 	if j == 0:
-		return "Refuel here before you leave."
+		# (a dock in this system: here only at the station itself, dock:A)
+		return "Refuel here before you leave." if Router.at_station() else "Fly to the station here to refuel."
 	return "Nearest dock: %s, %d jump%s." % [MapGen.star_name(d.node), j, "" if j == 1 else "s"]
 
 
@@ -634,6 +635,8 @@ func _hand_settled(sc: SectorScreen) -> bool:
 ## the words over them.
 func _fight_avoid(sc: SectorScreen, hud: Rect2) -> Array:
 	var avoid: Array = [hud, sc._end_button.get_global_rect()]
+	# the fight log's LOG button, and the log while it is open (`FightLog`)
+	avoid.append_array(FightLog.rects(sc))
 	var ship := sc._view.ship_view()
 	if ship != null:
 		avoid.append(_ship_box(ship))

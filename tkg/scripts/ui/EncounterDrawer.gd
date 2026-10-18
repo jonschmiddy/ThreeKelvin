@@ -874,6 +874,9 @@ static func quiet_lines(n: MapGen.MapNode) -> Array:
 			"ENGAGE THE HELLBENDER"]
 	match n.type:
 		MapGen.NodeType.STATION:
+			# (docks only at the station itself, dock:A; elsewhere the map, to fly there)
+			if not Router.at_station(n):
+				return ["A hab ring turns slowly, lights on. It trades, repairs and refuels, all paid from your one balance. " + Router.DOCK_AWAY, TO_SECTOR]
 			return ["A hab ring turns slowly, lights on. It trades, repairs and refuels, all paid from your one balance.", "DOCK"]
 		MapGen.NodeType.SYSTEM:
 			if n.eaten:

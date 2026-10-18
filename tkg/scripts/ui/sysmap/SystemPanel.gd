@@ -684,13 +684,22 @@ func _card(body: int, bc) -> Control:
 		if bc == null:
 			words = ["HARVEST THE BEAM", "NEUTRON STAR", "The pulsar's beam sweeps by once a second. Sitting in it gives fuel but costs hull and heat.", "HARVESTED" if n.cleared else "HARVEST", UITheme.TRACTOR, n.cleared]
 		elif bc.dock:
-			words = ["DOCK", "STATION", "A station is in this orbit. Its berths are open.", "DOCK", UITheme.ICE, false]
+			# ONLY AT THE STATION (Jon, Oct 18, "dock:A"): from anywhere else in
+			# the system the card says where to go and its DOCK is greyed, with
+			# the same words on it; FLY HERE on the station's page, or a click on
+			# it on the map, takes you there, and the card wakes when you arrive
+			var there := _ship_at(body) or Router.docked
+			words = ["DOCK", "STATION", "A station is in this orbit. " + ("Its berths are open." if there else Router.DOCK_AWAY), "DOCK", UITheme.ICE, not there]
 		elif bc.hellbender:
 			var alive := Run.hellbender_alive() and Run.hellbender_at == n.index
 			words = ["THE HELLBENDER", "CONTACT", "The Hellbender is anchored past the last orbit, its holds glowing with what it has taken. It blocks the rest of this system." if alive else "What is left of the Hellbender drifts past the last orbit.", "ENGAGE" if alive else "BROKEN", UITheme.BAD, not alive]
 		else:
 			words = ["THE CUSTODIAN", "CONTACT", "The Custodian holds station at the edge of the disc. It has guarded the core for a long time.", "ENGAGE", UITheme.BAD, n.cleared or n.fled]
 		var btn := _small(words[3], func() -> void: screen.take_action(bc), words[5])
+		if bc != null and bc.dock and btn.disabled:
+			btn.tooltip_text = Widgets.tip("DOCK
+
+" + Router.DOCK_AWAY)
 		card.build(words[0], UITheme.ICE, btn, _c(words[1], words[4]), where, _ship_at(body), _c(words[2], UITheme.CHILL), words[4])
 		_cards[key] = card
 		return card

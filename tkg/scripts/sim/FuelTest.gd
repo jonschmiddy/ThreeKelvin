@@ -278,13 +278,18 @@ func _hint() -> void:
 	Run.fuel = 0
 	_ok("an empty tank: \"%s\"" % Hints.fuel_dock_line(),
 		Hints.fuel_dock_line() == "No dock in reach. Make short jumps and look for one.")
-	# docked, or at a station's system: refuel here
+	# in a station's system: refuel here at the station itself, and elsewhere in
+	# its system fly to it (the dock is only offered there, dock:A)
 	var st := _a_station()
 	if st != null:
 		Run.at = st.index
 		Run.chart_from(st)
 		Run.fuel = 10
-		_ok("at a dock: \"%s\"" % Hints.fuel_dock_line(), Hints.fuel_dock_line() == "Refuel here before you leave.")
+		SystemMapScreen._parked.erase(st.index)
+		_ok("in a station's system, not at the station: \"%s\"" % Hints.fuel_dock_line(),
+			Hints.fuel_dock_line() == "Fly to the station here to refuel.")
+		Router.park_at_station(st)
+		_ok("at the station: \"%s\"" % Hints.fuel_dock_line(), Hints.fuel_dock_line() == "Refuel here before you leave.")
 	Hints._close(false)
 	Hints.forced = false
 	Run.fuel = 45

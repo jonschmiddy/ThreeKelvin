@@ -649,6 +649,8 @@ static func avoid_rects(cur: Control) -> Array:
 	var sc := cur as SectorScreen
 	if sc == null:
 		return out
+	# the fight log's LOG button, and the log while it is open (`FightLog`)
+	out.append_array(FightLog.rects(sc))
 	var d := sc._events
 	if d != null and is_instance_valid(d) and d.visible:
 		out.append(d.get_global_rect())

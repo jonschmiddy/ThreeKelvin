@@ -992,6 +992,8 @@ func _run() -> void:
 		Run.at = st
 		Run.map[st].visited = true
 		SectorScreen._approached_at = st
+		# (parked at the station's own body: the dock is only there, dock:A)
+		Router.park_at_station()
 		await _go("to LOCAL at the station", Router.show_local, SectorScreen)
 		loc = Router.current as SectorScreen
 		var dock_b: Button = loc.find_child("Dock", true, false) as Button if loc != null else null
