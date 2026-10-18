@@ -194,6 +194,11 @@ func run(tree: SceneTree) -> void:
 	var sc := Router.current as StarchartScreen
 	if sc != null and sc._chart != null:
 		print("chart rect ", sc._chart.get_global_rect())
+		# and where the core is on it, with how many px a galaxy unit is there (for
+		# measuring a light's reach about the core off the picture)
+		var ch := sc._chart
+		print("chart core %s gu_px %.3f" % [ch.get_global_rect().position + ch.centre_px(),
+			ch._radius() * StarchartScreen.MapChart.DISC * ch.zoom])
 	# `cursor`: a pointer parked mid-chart, so the reticle is in the picture.
 	# A shot has no mouse, and the reticle only draws where one is.
 	if "cursor" in OS.get_cmdline_user_args() and sc != null and sc._chart != null 			and sc._chart._cross != null:
@@ -203,6 +208,10 @@ func run(tree: SceneTree) -> void:
 		for i in 3:
 			await RenderingServer.frame_post_draw
 	var path := "user://chart%s.png" % tag
+	# `shot=<png>`: written there instead (two harnesses on one machine share user://)
+	for a2 in OS.get_cmdline_user_args():
+		if (a2 as String).begins_with("shot="):
+			path = (a2 as String).substr(5)
 	tree.root.get_texture().get_image().save_png(path)
 	print("wrote ", ProjectSettings.globalize_path(path))
 	tree.quit()

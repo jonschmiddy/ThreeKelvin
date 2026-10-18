@@ -1235,13 +1235,23 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	// fading into the dark a little above the disc (`solidBulgeEnd`), never a dome of
 	// haze over the far side. A ball keeps its own shape, seen through the camera.
 	bool solidB = u_solid && !ellip;
+	// A BALL IS NOT A DISC: through the camera it is drawn about the core in the core's
+	// own frame (vb), round on the screen as the flat chart drew it -- its light, its
+	// halo, its form and their grain (gB, blkB: the flat chart's plane and block there).
+	// Read at v and g, the disc's plane, its light lay on the plane and the camera
+	// stretched the near half toward itself: on PGC 6236 (a giant elliptical) the
+	// ball's bands ended 0.43 gu above the core and ran on past the chart's bottom
+	// edge, the plane below the core running out to the camera's horizon first.
+	vec2 vB = ellip ? vb : v;
+	vec2 gB = ellip ? kitRot(-u_phi) * (vec2(vb.x, vb.y / KIT_TILT) / k) : g;
+	float blkB = ellip ? blockView() / k / solidCoreK() : blk;
 	float Rb = solidB ? R * 1.15 : R;
-	float rho = solidB ? length(vec2(vb.x, vb.y * (KIT_TILT / u_solidW.y) / 1.08)) / k : length(vec2(v.x, v.y / u_g2.z)) / k;
-	rho *= 1.0 + 0.07 * fbmL(g * 9.0 + 2.0, blk * 9.0, 2);
+	float rho = solidB ? length(vec2(vb.x, vb.y * (KIT_TILT / u_solidW.y) / 1.08)) / k : length(vec2(vB.x, vB.y / u_g2.z)) / k;
+	rho *= 1.0 + 0.07 * fbmL(gB * 9.0 + 2.0, blkB * 9.0, 2);
 	// the ball: a broad warm glow and a small cusp, its size and brightness the kind's
 	float bs = u_g8.x / 0.30;
 	float rb = rho / bs;
-	float Ib = ellip ? u_g8.y * (0.6 * pow(1.0 + sq(rb / 0.13), -1.2) * smoothstep(1.3, 0.75, rb) + 0.45 * exp(-sq(rb / 0.012))) * (1.0 + 0.16 * fbmL(g * 26.0 + 3.0, blk * 26.0, 4))
+	float Ib = ellip ? u_g8.y * (0.6 * pow(1.0 + sq(rb / 0.13), -1.2) * smoothstep(1.3, 0.75, rb) + 0.45 * exp(-sq(rb / 0.012))) * (1.0 + 0.16 * fbmL(gB * 26.0 + 3.0, blkB * 26.0, 4))
 		: u_g5.y * pow(1.0 + sq(rho / (u_g5.z * Rb)), -1.05) * exp(-sq(rho / (u_g5.w * Rb)));
 	if (solidB) {
 		Ib *= solidBulgeEnd(rho, Rb / 0.128);
@@ -1332,7 +1342,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	}
 
 	Cand sc;
-	float Ehalo = (ellip ? 0.0085 * u_g8.y * bs : 0.0068) * exp(-max(r - (ellip ? 0.55 * bs : 0.74), 0.0) / 0.26) * (1.0 + 0.4 * fbmL(g * 3.0, blk * 3.0, low ? 2 : 5));
+	float Ehalo = (ellip ? 0.0085 * u_g8.y * bs : 0.0068) * exp(-max(length(gB) - (ellip ? 0.55 * bs : 0.74), 0.0) / 0.26) * (1.0 + 0.4 * fbmL(gB * 3.0, blkB * 3.0, low ? 2 : 5));
 	// THE HALO ENDS WITH THE DISC (the solid look's edge, `solidHaloEnd`): its tints
 	// stepped out round the galaxy as rings of navy -- a plate's rim, then a halo oval
 	// -- so past the disc's fade the sky is the sky, the same as far away
@@ -1370,7 +1380,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			float ELw = max((Ew + 0.35 * (Ec + Ep)) / (1.0 + EwA * adaptW) + streams + dbt, 1e-5);
 			float lvb = (m == M_BALL) ? clamp((log2(ELw) + 7.4) / 3.6, 0.0, 0.83) : clamp(1.0 + log2(ELw) / 7.0, 0.0, 0.999);
 			if (ellip) {
-				lvb = clamp(lvb + ballForm(v, k, bs, blk), 0.0, m == M_BALL ? 0.83 : 0.999);
+				lvb = clamp(lvb + ballForm(vB, k, bs, blkB), 0.0, m == M_BALL ? 0.83 : 0.999);
 			}
 			sc = cand(m, lvb - 0.1 * shade, 0, 0.0);
 			// THE BULGE'S TOP FADES INTO THE DARK (the solid look's compact bulge: "a soft
