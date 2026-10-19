@@ -2796,10 +2796,16 @@ func fuel_critical() -> bool:
 
 ## THE NEAREST DOCK YOU CAN REACH ON WHAT IS IN THE TANK, for the fuel hint
 ## ("Nearest dock: GAMMA BRINE PRIME, 2 jumps"). Fewest jumps first, then the
-## least fuel, over the systems the chart draws (`charted`) and the hops the
-## drive allows (`reachable_from`), each hop priced from where it starts.
+## least fuel, over hops the ship can take when it gets there (`hop_seen`, the
+## rule `nearest_other_dock` routes on) and the drive allows
+## (`reachable_from`), each hop priced from where it starts, through no core.
 ## {node, jumps, fuel}, or {} when no dock is in reach. Here counts when you are
 ## docked: zero jumps.
+##
+## NOT OVER THE CHART (Jon, Oct 18: "hint:fix"). `charted` also draws a
+## contract's system you have never seen and a visited one out of sight now,
+## and `can_jump_to` refuses both: the hint named a dock the ship could not fly
+## to.
 func nearest_dock() -> Dictionary:
 	if map.is_empty() or node_at() == null:
 		return {}
@@ -2809,7 +2815,7 @@ func nearest_dock() -> Dictionary:
 	var known: Array = []
 	for raw in map:
 		var t: MapGen.MapNode = raw
-		if charted(t):
+		if t.type != MapGen.NodeType.CORE:
 			known.append(t)
 	# Breadth first by jumps, keeping the cheapest fuel to reach each system at
 	# that depth; a ring of a few dozen charted systems, so this is small.
@@ -2823,9 +2829,11 @@ func nearest_dock() -> Dictionary:
 		for raw in frontier:
 			var from: MapGen.MapNode = raw
 			var spent: int = best_fuel[from.index]
+			var dish := sense_radius_of(from)
 			for raw2 in known:
 				var t: MapGen.MapNode = raw2
-				if t.index == from.index or not reachable_from(from, t):
+				if t.index == from.index or not reachable_from(from, t) \
+						or not hop_seen(here, from, t, dish):
 					continue
 				var c := spent + _hop_cost(from, t)
 				if c > fuel or (best_fuel.has(t.index) and best_fuel[t.index] <= c):
@@ -2836,6 +2844,18 @@ func nearest_dock() -> Dictionary:
 					found = {node = t, jumps = jumps, fuel = c}
 		frontier = next
 	return found
+
+## WHETHER A ROUTE FROM `here` CAN TAKE THE HOP `from` -> `t` WHEN IT GETS
+## THERE: `can_jump_to` wants `sensed`, and sight is live (`chart_from` clears
+## it every arrival). The first hop is to a system seen from here now; a later
+## one to a system inside the dish of the star it leaves, which is what
+## arriving there will show. `dish` is `sense_radius_of(from)`, passed in so a
+## search works it out once a star. The routes the fuel hint and the dock's way
+## out are priced on, and nothing the chart merely draws.
+func hop_seen(here: MapGen.MapNode, from: MapGen.MapNode, t: MapGen.MapNode, dish: float) -> bool:
+	if from.index == here.index:
+		return t.sensed
+	return MapGen.hop_distance(from, t) <= dish
 
 ## `fuel_cost_to` from somewhere other than where the ship is.
 func _hop_cost(from: MapGen.MapNode, to: MapGen.MapNode) -> int:
@@ -2952,11 +2972,7 @@ func nearest_other_dock() -> Dictionary:
 		var dish := sense_radius_of(from)
 		for raw2 in known:
 			var t: MapGen.MapNode = raw2
-			if done.has(t.index) or not reachable_from(from, t):
-				continue
-			var seen := t.sensed if from.index == here.index \
-				else MapGen.hop_distance(from, t) <= dish
-			if not seen:
+			if done.has(t.index) or not reachable_from(from, t) or not hop_seen(here, from, t, dish):
 				continue
 			var c := int(best[from.index]) + _hop_cost(from, t)
 			if c > fuel_cap() or (best.has(t.index) and int(best[t.index]) <= c):

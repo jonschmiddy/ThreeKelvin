@@ -520,8 +520,9 @@ func _hint() -> void:
 	# A DOCK ONE JUMP OFF AND ONE FURTHER, wherever the map has them: the line
 	# names it, with the jumps, and agrees with this test's own search
 	var cases := {1: false, 2: false}
-	# Docks you have been to stay on the chart (`Run.charted`), so a remembered
-	# one out of sight can be the nearest, two jumps through a star you can see.
+	# Docks you have been to stay on the chart (`Run.charted`); one out of sight
+	# counts once a star on the way has it in its dish, two jumps through a star
+	# you can see.
 	for raw in Run.map:
 		if (raw as MapGen.MapNode).type == MapGen.NodeType.STATION:
 			(raw as MapGen.MapNode).visited = true
@@ -547,6 +548,7 @@ func _hint() -> void:
 			and (g.node as MapGen.MapNode).type == MapGen.NodeType.STATION
 			and Hints.fuel_dock_line() == want_line)
 	_ok("found a dock one jump off and one further off to name", cases[1] and cases[2])
+	_hint_unflyable()
 	# with nothing in the tank there is no dock in reach
 	Run.fuel = 0
 	_ok("an empty tank: \"%s\"" % Hints.fuel_dock_line(),
@@ -568,6 +570,96 @@ func _hint() -> void:
 	Run.fuel = 45
 
 
+## A DOCK THE CHART DRAWS AND THE SHIP CANNOT FLY TO (Jon, Oct 18: "hint:fix").
+## A heavy frame reaches past its dish, so a dock you have visited can sit in
+## reach, on the chart, and out of sight -- `can_jump_to` refuses it. Routed
+## over the chart the hint named it, one jump; now it names the dock the ship
+## can fly to, as this test's own search finds it, or says none is in reach.
+## A.S.H. says the same line's name (`Hints.values`), so she is checked too.
+func _hint_unflyable() -> void:
+	Run.fit_chassis(&"korvan", HullData.Weight.HEAVY)
+	var at0 := Run.at
+	var found := false
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		if n.type != MapGen.NodeType.SYSTEM:
+			continue
+		_stand(n)
+		Run.fuel = 15
+		var chart := _my_nearest_dock(true)
+		if chart.is_empty() or int(chart.jumps) != 1 or (chart.node as MapGen.MapNode).sensed:
+			continue
+		found = true
+		var bad: MapGen.MapNode = chart.node
+		var mine := _my_nearest_dock()
+		var game := Run.nearest_dock()
+		var line := Hints.fuel_dock_line()
+		var want := "No dock in reach. Make short jumps and look for one."
+		if not mine.is_empty():
+			var j := int(mine.jumps)
+			want = "Nearest dock: %s, %d jump%s." % [MapGen.star_name(mine.node), j, "" if j == 1 else "s"]
+		_ok("the chart's route names %s, 1 jump, which the ship cannot fly to (can_jump_to %s)"
+			% [MapGen.star_name(bad), Run.can_jump_to(bad)], not Run.can_jump_to(bad))
+		_ok("the hint names the dock it can reach: \"%s\" (this test's search: %s)"
+			% [line, "none" if mine.is_empty() else "%s, %d jumps" % [MapGen.star_name(mine.node), int(mine.jumps)]],
+			line == want and not (not game.is_empty() and game.node == bad and int(game.jumps) == 1)
+			and (mine.is_empty() == game.is_empty())
+			and (mine.is_empty() or (int(game.jumps) == int(mine.jumps) and int(game.fuel) == int(mine.fuel))))
+		var v := Hints.values(&"fuel")
+		_ok("A.S.H.'s fields agree: %s" % [v],
+			(mine.is_empty() and not v.has("name"))
+			or (not mine.is_empty() and String(v.get("name", "")) == MapGen.star_name(game.node)
+				and int(v.get("jumps", -1)) == int(game.jumps)))
+		if not mine.is_empty():
+			# and that dock really is flown to, hop by hop on the game's rule
+			var path := _fly_to_dock(int(mine.jumps))
+			_ok("flown there on 15: %s" % path, path.ends_with(", dock"))
+		break
+	_ok("found a dock the chart draws in reach and out of sight", found)
+	Run.fit_chassis(&"korvan", HullData.Weight.MEDIUM)
+	_stand(Run.map[at0])
+
+
+## Fly the nearest dock's route the way a pilot reading the hint would: each
+## hop to a star `can_jump_to` allows, choosing by the game's own search from
+## where the ship now is. "<names> dock", or where it stopped.
+func _fly_to_dock(jumps: int) -> String:
+	var said: Array = []
+	for i in jumps:
+		var g := Run.nearest_dock()
+		if g.is_empty():
+			return "stopped, no dock in reach after %s" % [said]
+		if int(g.jumps) == 0:
+			break
+		var next: MapGen.MapNode = null
+		var goal: MapGen.MapNode = g.node
+		if int(g.jumps) == 1:
+			next = goal
+		else:
+			for raw in Run.in_range():
+				var t: MapGen.MapNode = raw
+				if not Run.can_jump_to(t) or t.type == MapGen.NodeType.CORE:
+					continue
+				var f0 := Run.fuel
+				var at0 := Run.at
+				Run.fuel -= Run.fuel_cost_to(t)
+				Run.at = t.index
+				Run.chart_from(t)
+				var after := Run.nearest_dock()
+				Run.at = at0
+				Run.fuel = f0
+				Run.chart_from(Run.node_at())
+				if not after.is_empty() and int(after.jumps) == int(g.jumps) - 1:
+					next = t
+					break
+		if next == null or not Run.can_jump_to(next):
+			return "stopped at %s, %s refused" % [MapGen.star_name(Run.node_at()),
+				"nothing" if next == null else MapGen.star_name(next)]
+		said.append(MapGen.star_name(next))
+		_hop(next)
+	return "%s, %d left, %s" % [said, Run.fuel, "dock" if Run.node_at().type == MapGen.NodeType.STATION else "no dock"]
+
+
 func _poll(secs: float) -> void:
 	var t := 0.0
 	while t < secs:
@@ -576,10 +668,14 @@ func _poll(secs: float) -> void:
 		t += 1.0 / 30.0
 
 
-## Fewest jumps to a station, then least fuel, over the systems the chart draws,
-## each hop priced as the game prices a hop from where it starts. Written apart
-## from `Run.nearest_dock` so the two can disagree.
-func _my_nearest_dock() -> Dictionary:
+## Fewest jumps to a station, then least fuel, each hop priced as the game
+## prices a hop from where it starts, over hops the ship can take when it gets
+## there: the first to a star seen from here, each after it to one inside the
+## dish of the star it leaves (sight is live), through no core. Written apart
+## from `Run.nearest_dock` so the two can disagree. `by_chart` routes the old
+## way, over every system the chart draws -- the rule that named docks the ship
+## could not fly to (Jon, Oct 18: "hint:fix").
+func _my_nearest_dock(by_chart := false) -> Dictionary:
 	var here := Run.node_at()
 	var cost := {here.index: 0}
 	var layer: Array = [here]
@@ -590,7 +686,12 @@ func _my_nearest_dock() -> Dictionary:
 			var from: MapGen.MapNode = a
 			for raw in Run.map:
 				var t: MapGen.MapNode = raw
-				if t.index == from.index or not Run.charted(t) or not Run.reachable_from(from, t):
+				if t.index == from.index or not Run.reachable_from(from, t):
+					continue
+				if by_chart and not Run.charted(t):
+					continue
+				if not by_chart and (t.type == MapGen.NodeType.CORE or not (t.sensed if from == here
+						else MapGen.hop_distance(from, t) <= Run.sense_radius_of(from))):
 					continue
 				var d := MapGen.hop_distance(from, t)
 				var c: int = int(cost[from.index]) + clampi(int(round(Run.fuel_factor() * d

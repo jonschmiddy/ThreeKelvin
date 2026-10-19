@@ -663,6 +663,7 @@ func _flow() -> void:
 	await _expect(&"fuel", lid)
 	_ok("fuel_dock: it names the dock and the jumps (\"%s\")" % Ash.said_log.back().line,
 		lid != &"fuel_dock" or String(Ash.said_log.back().line).ends_with(": %s." % MapGen.star_name(d.node)))
+	await _fuel_unflyable()
 	# the other two, through the same hint
 	for want: StringName in [&"fuel_none", &"fuel_here"]:
 		Hints.mark_seen(&"fuel", false)
@@ -687,6 +688,56 @@ func _flow() -> void:
 	print("    where she stood:")
 	for k in _screens:
 		print("      %-16s %s" % [k, _screens[k]])
+
+
+## THE CHART'S DOCK SHE MUST NOT NAME (Jon, Oct 18: "hint:fix"). A heavy frame
+## reaches past its dish, so a dock you have visited can sit in reach, on the
+## chart, and out of sight, which `can_jump_to` refuses. Routed over the chart
+## the hint named it at one jump; she must name the dock the ship can fly to,
+## or say none is in reach.
+func _fuel_unflyable() -> void:
+	var maker := Run.hull.manufacturer
+	var weight := Run.hull.weight
+	var at0 := Run.at
+	Run.fit_chassis(&"korvan", HullData.Weight.HEAVY)
+	for raw in Run.map:
+		if (raw as MapGen.MapNode).type == MapGen.NodeType.STATION:
+			(raw as MapGen.MapNode).visited = true
+	var bad: MapGen.MapNode = null
+	for raw in Run.map:
+		var m: MapGen.MapNode = raw
+		if m.type != MapGen.NodeType.SYSTEM:
+			continue
+		Run.at = m.index
+		Run.chart_from(m)
+		Run.fuel = 15
+		# the chart's one-jump dock, least fuel first, as the old route chose it
+		var pick: MapGen.MapNode = null
+		for raw2 in Run.map:
+			var s: MapGen.MapNode = raw2
+			if s.type != MapGen.NodeType.STATION or not Run.charted(s) or not Run.reachable_from(m, s) 					or Run.fuel_cost_to(s) > Run.fuel:
+				continue
+			if pick == null or Run.fuel_cost_to(s) < Run.fuel_cost_to(pick):
+				pick = s
+		if pick != null and not pick.sensed:
+			bad = pick
+			break
+	if _ok("fuel, the chart's dock: %s, one jump on the chart, which the ship cannot fly to"
+			% (MapGen.star_name(bad) if bad != null else "none found"), bad != null and not Run.can_jump_to(bad)):
+		Hints.mark_seen(&"fuel", false)
+		Hints._dock_key = Vector2i(-2, -2)
+		Router.show_starchart()
+		await _frames(40)
+		var d := Run.nearest_dock()
+		var lid := AshTutorLines.line_id(&"fuel", d)
+		await _expect(&"fuel", lid)
+		var said := String(Ash.said_log.back().line)
+		_ok("she names the dock it can reach, not the chart's one jump (\"%s\", %d jumps)" % [said, int(d.get("jumps", 0))],
+			(d.is_empty() and lid == &"fuel_none")
+			or (not d.is_empty() and not (d.node == bad and int(d.jumps) == 1) and said.ends_with(": %s." % MapGen.star_name(d.node))))
+	Run.fit_chassis(maker, weight)
+	Run.at = at0
+	Run.chart_from(Run.node_at())
 
 
 func _play_one(cb: Combat) -> bool:

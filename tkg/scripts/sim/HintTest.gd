@@ -259,6 +259,12 @@ func run(tree: SceneTree) -> void:
 	await _none("the tank still short: its hint does not come back")
 	Run.fuel = was_fuel
 
+	# THE CHART'S DOCK THE SHIP CANNOT FLY TO (Jon, Oct 18: "hint:fix"): on a
+	# heavy frame, which reaches past its dish, a visited dock can be in reach,
+	# on the chart and out of sight. The card's dock line names the one the
+	# ship can fly to, or says none is in reach -- never that one.
+	await _fuel_unflyable()
+
 	# NO CLICK, NO ADVANCE: a hint left alone stays, however long; its subject
 	# leaving hides it unspent
 	Hints.reset()
@@ -361,6 +367,60 @@ func _step_until(id: StringName) -> bool:
 
 ## `id` shows, in the tree, clear of its subject and on screen; a click
 ## dismisses it and it is seen.
+func _fuel_unflyable() -> void:
+	var maker := Run.hull.manufacturer
+	var weight := Run.hull.weight
+	var at0 := Run.at
+	var fuel0 := Run.fuel
+	Run.fit_chassis(&"korvan", HullData.Weight.HEAVY)
+	for raw in Run.map:
+		if (raw as MapGen.MapNode).type == MapGen.NodeType.STATION:
+			(raw as MapGen.MapNode).visited = true
+	var bad: MapGen.MapNode = null
+	for raw in Run.map:
+		var m: MapGen.MapNode = raw
+		if m.type != MapGen.NodeType.SYSTEM:
+			continue
+		Run.at = m.index
+		Run.chart_from(m)
+		Run.fuel = 15
+		var pick: MapGen.MapNode = null
+		for raw2 in Run.map:
+			var s: MapGen.MapNode = raw2
+			if s.type != MapGen.NodeType.STATION or not Run.charted(s) or not Run.reachable_from(m, s) 					or Run.fuel_cost_to(s) > Run.fuel:
+				continue
+			if pick == null or Run.fuel_cost_to(s) < Run.fuel_cost_to(pick):
+				pick = s
+		if pick != null and not pick.sensed:
+			bad = pick
+			break
+	if _ok("fuel: a dock on the chart one jump off that the ship cannot fly to (%s)"
+			% (MapGen.star_name(bad) if bad != null else "none found"), bad != null and not Run.can_jump_to(bad)):
+		Hints.mark_seen(&"fuel", false)
+		Hints._dock_key = Vector2i(-2, -2)
+		Router.show_starchart()
+		await _frames(40)
+		var up: bool = await _step_until(&"fuel")
+		var lines: Array = []
+		if up:
+			for l in Hints.card.find_children("*", "Label", true, false):
+				lines.append((l as Label).text)
+		var d := Run.nearest_dock()
+		var want := "No dock in reach. Make short jumps and look for one."
+		if not d.is_empty():
+			want = "Nearest dock: %s, %d jump%s." % [MapGen.star_name(d.node), int(d.jumps),
+				"" if int(d.jumps) == 1 else "s"]
+		_ok("fuel: the card names the dock it can reach, not the chart's (%s)" % [lines],
+			up and lines.size() == 2 and lines[1] == want and lines[1] != "Nearest dock: %s, 1 jump." % MapGen.star_name(bad)
+			and (d.is_empty() or Run.can_jump_to(d.node) or int(d.jumps) >= 2))
+		if up:
+			await _dismiss(&"fuel")
+	Run.fit_chassis(maker, weight)
+	Run.at = at0
+	Run.chart_from(Run.node_at())
+	Run.fuel = fuel0
+
+
 func _expect(id: StringName) -> void:
 	var up: bool = await _step_until(id)
 	var got := String(Hints.card.id) if Hints.card != null else "none"
