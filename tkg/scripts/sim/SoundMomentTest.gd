@@ -1016,7 +1016,10 @@ func _ladder() -> void:
 	SectorScreen._approached_at = sys
 	Router.show_local()
 	await _frames(40)
-	await _hop("LOCAL -> map", Router.show_system, &"chrome_on", &"menu_open", true)
+	# (out of LOCAL the side panel slides on drawn, its words on it the whole way
+	# -- Jon, Oct 18, "they come in blank now" -- so nothing decodes there
+	# either: the slide's sound, no blips)
+	await _hop("LOCAL -> map", Router.show_system, &"chrome_on", &"menu_open", false)
 	await _hop("map -> chart", Router.show_starchart, &"", &"", true)
 	await _hop("chart -> map", Router.show_system, &"", &"", true)
 	# (into LOCAL the side bar's column slides off whole: nothing decodes)
@@ -1044,6 +1047,18 @@ func _hop(label: String, door: Callable, chrome_row: StringName, chrome_file: St
 					var k0: Variant = (pc as ChromeSlide).get("_k0")
 					seen.start = (pc as ChromeSlide).rest.position 						+ ((pc as ChromeSlide).off * (1.0 - float(k0))).round() if k0 != null else p
 				if p != seen.start and seen.moved < 0:
+					seen.moved = f
+		# (the screen's own side panel sliding, drawn: `PanelSlide`)
+		var ps_s: Script = load("res://scripts/ui/PanelSlide.gd") if ResourceLoader.exists("res://scripts/ui/PanelSlide.gd") else null
+		if ps_s != null:
+			for ps: Variant in ps_s.get("live"):
+				if not is_instance_valid(ps) or StringName(ps.get("kind")) != &"side":
+					continue
+				if seen.slide != ps:
+					seen.slide = ps
+					seen.start = (ps.get("rest") as Vector2) + ((ps.get("off") as Vector2) * (1.0 - float(ps.get("_k0")))).round()
+				var tg: Control = ps.get("target")
+				if is_instance_valid(tg) and tg.position != seen.start and seen.moved < 0:
 					seen.moved = f
 		var sw := SideSwap.side_now()
 		if sw != null and sw.get("look") == "E":

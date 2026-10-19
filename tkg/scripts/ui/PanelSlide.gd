@@ -29,6 +29,13 @@ var off := Vector2.ZERO
 ## 1 at rest, 0 all the way off
 var k := 1.0
 var done := false
+## HEARD AS IT FIRST MOVES (`Audio.FX` chrome_on / chrome_off, Jon's picks:
+## menu_open coming on, menu_close going off, -6 dB): the side panel only --
+## the toolbar row's plate moves with it, under the same one sound -- once a
+## hop, on the first frame it stands a whole pixel from where it started, as
+## the column it took over from (`ChromeSlide`) was heard
+var _k0 := 1.0
+var _heard := false
 var _host: Control = null
 var _host_clip := false
 var _parent: Control = null
@@ -47,6 +54,7 @@ func setup(t: Control, kind_: StringName, off_: Vector2, k0: float, host: Contro
 	if _parent is Container and not (_parent as Container).sort_children.is_connected(_resorted):
 		(_parent as Container).sort_children.connect(_resorted)
 	live.append(self)
+	_k0 = k0
 	set_k(k0)
 
 
@@ -61,6 +69,9 @@ func _resorted() -> void:
 func set_k(v: float) -> void:
 	k = clampf(v, 0.0, 1.0)
 	_apply()
+	if not _heard and kind == &"side" and is_instance_valid(target) and target.position != rest + (off * (1.0 - _k0)).round():
+		_heard = true
+		Audio.fx(&"chrome_on" if _k0 < 0.5 else &"chrome_off")
 
 
 func _apply() -> void:
