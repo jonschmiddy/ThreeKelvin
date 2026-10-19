@@ -53,12 +53,20 @@ void fragment() {
 		// block at a time: hard-edged, the palette cut them to one step at 0.45 of
 		// the view, and with the play's tone evening out everything below the top
 		// band it stood as a dark rectangle in the top left corner)
-		float th = kitBayer4(ivec2(floor(SCREEN_UV * vec2(480.0, 270.0))));
-		float steps = clamp(floor((fx - 0.40) / 0.24 * 5.0 + th), 0.0, 5.0);
-		for (int i = 0; i < 5; i++) {
-			if (float(i) < steps) {
-				c = mix(c, wash_tint, 0.10);
-			}
+		// ONE GENTLE RISE, NOT FIVE STEPS (Jon: "soften LEGACY's band" -- the
+		// steps between came out of the palette's cut as a lighter band with a
+		// stepped edge, here and on the field under the map and the chart): two
+		// colours only, the void and the wash at its full five steps, each block
+		// one or the other, as many of the wash as the rise asks for, in an
+		// ordered pattern -- the palette keeps both whole, so the rise reads as a
+		// dither across nearly half the view, never a line
+		ivec2 blk = ivec2(floor(SCREEN_UV * vec2(480.0, 270.0)));
+		float th = kitBayer4(blk);
+		// (each block's share nudged by up to a step of the pattern, so where the
+		// rise passes from one step of it to the next is no straight line down)
+		float rise = smoothstep(0.26, 0.74, fx) + (kitHash1(blk + ivec2(17, 3)) - 0.5) / 16.0;
+		if (rise > th) {
+			c = mix(c, wash_tint, 1.0 - pow(0.9, 5.0));
 		}
 		vec4 gx = bgGalaxy(sp);
 		vec3 warm = vec3(1.0, 0.78, 0.52), blue = vec3(0.55, 0.68, 1.0);
