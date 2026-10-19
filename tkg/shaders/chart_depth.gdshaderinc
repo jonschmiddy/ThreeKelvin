@@ -28,12 +28,13 @@
 // turned to the view, as `fluffToward` reads the camera's foot), 0
 uniform vec4 u_depth = vec4(0.0);
 
-const float DEPTH_H = 0.07;          // the disc's half height at the bulge, gu
-const float DEPTH_HALO = 0.010;      // the thick halo of stars' light
+const float DEPTH_H = 0.09;          // the disc's half height at the bulge, gu
+const float DEPTH_HALO = 0.012;     // the thick halo of stars' light
+const float DEPTH_WALL = 0.12;      // the rim's wall and top's light
 
 // how thick the disc is at plane radius r: thickest toward the bulge, thin at the rim
 float depthH(float r) {
-	return DEPTH_H * (0.28 + 0.72 * exp(-r / 0.45));
+	return DEPTH_H * (0.5 + 0.5 * exp(-r / 0.45));
 }
 
 // the plane's shift per unit of height toward the camera: the solid look's own, or,
@@ -60,30 +61,38 @@ vec3 depthLight(vec2 p, float emHere, float blk) {
 	if (u_depth.x < 0.5) {
 		return vec3(0.0);
 	}
+	// THE OUTLINE: where the plane's own light has fallen to about a third (`edgeMask`).
+	// Outside it, a block may still meet the disc's material off the plane: below it,
+	// past the near rim (the side wall, in shade), and above it, past the far rim (the
+	// top, lit). Inside it the disc's approved light, lanes and all, is left alone
+	// (spread over them, this light filled the lanes and flattened the arms).
+	float outside = 1.0 - smoothstep(0.08, 0.22, emHere);
+	if (outside <= 0.0) {
+		return vec3(0.0);
+	}
 	vec2 dT = depthToward(p);
 	vec3 L = vec3(0.0);
-	// four heights through the disc's thickness, below and above
 	for (int k = 0; k < 4; k++) {
 		float hf = k == 0 ? -1.0 : (k == 1 ? -0.5 : (k == 2 ? 0.5 : 1.0));
 		vec2 q0 = p + hf * depthH(length(p)) * dT;
-		float rq = length(q0);
-		// (the height broken into puffs at the edge: the outline frays above and below)
-		float puff = 0.45 + 1.1 * smoothstep(-0.35, 0.55, kitFbm2(q0 * 7.0 + vec2(hf * 3.1, 1.7), 3));
-		float H = depthH(rq) * puff;
+		// (the height broken into puffs, each a cloud of its own: the outline frays
+		// above and below into wisps rather than standing as a clean wall)
+		float pf = kitFbm2(q0 * 6.0 + vec2(hf * 3.1, 1.7), 3);
+		float H = depthH(length(q0)) * (0.45 + 1.2 * smoothstep(-0.25, 0.5, pf));
 		vec2 q = p + hf * H * dT;
-		float m = depthMat(q) * exp(-hf * hf * 0.9);
-		// under the plane, seen past the near rim: the side wall, facing away from the
-		// core's light, in shade; over it, past the far rim: the top, lit
-		float shade = hf < 0.0 ? 0.5 : 1.15;
+		// inside the outline there, at that height: the disc
+		float inq = smoothstep(0.06, 0.3, edgeMask(q));
+		float puff = smoothstep(0.2, 0.45, kitFbm2(q * 8.0 + vec2(5.3, hf), 3));
+		// the side wall under the plane in shade, the top over it lit, the middle of the
+		// thickness the brightest (it is where the disc's stars are)
+		float shade = hf < 0.0 ? 0.55 : 1.25;
+		vec4 S = textureLod(u_struct, bakeUV(q), 3.0);
 		vec3 col = mix(vec3(1.0, 0.74, 0.48), vec3(0.42, 0.56, 1.0), smoothstep(0.12, 0.55, length(q)));
-		L += col * m * shade * 0.25;
+		L += col * inq * puff * shade * (0.5 + 0.8 * S.r) * exp(-hf * hf * 0.5) * 0.25;
 	}
-	L *= 0.05 * (1.0 - 0.85 * emHere);
-	// a faint thick halo of stars over and under the disc, grainy, round the rim
-	float r = length(p);
-	float hz = smoothstep(1.25, 0.55, r) * (1.0 - 0.8 * emHere);
-	vec2 c = floor(p / max(blk * 1.5, 0.004));
-	float gr = step(0.82, kitHash1(ivec2(c) + ivec2(71, 13)));
-	L += vec3(0.75, 0.8, 1.0) * hz * (DEPTH_HALO * 0.3 + DEPTH_HALO * 2.0 * gr);
+	L *= DEPTH_WALL * outside;
+	// a faint thick halo of stars over and under the disc, past the rim
+	float hz = smoothstep(1.35, 0.8, length(p)) * outside;
+	L += vec3(0.75, 0.8, 1.0) * hz * DEPTH_HALO * (0.5 + 0.8 * smoothstep(0.2, 0.7, kitFbm2(p * 14.0 + 2.3, 2)));
 	return L;
 }
