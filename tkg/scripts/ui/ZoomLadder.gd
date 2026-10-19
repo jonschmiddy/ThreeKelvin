@@ -2871,11 +2871,17 @@ func _calm_hold(n: Control) -> void:
 	var ext: Variant = old.get("_gas_ext") if old is SystemMapScreen else null
 	_mat.set_shader_parameter(&"under_on", false)
 	_mat.set_shader_parameter(&"feather", 28.0)
+	_mat.set_shader_parameter(&"cloud_edge", false)
 	if ext is TextureRect and (ext as TextureRect).visible:
 		pic = _content_rect()
-		# (made smaller, a cloud thins out at its edge: a wide soft edge, not a
-		# card of gas)
+		# (made smaller, a cloud thins out at its edge as a cloud: rounded about
+		# the picture's middle, broken by the gas -- `cloud_edge`)
 		_mat.set_shader_parameter(&"feather", 160.0)
+		var mid := (old.call(&"ladder_picture") as Rect2).get_center()
+		var c := _content_rect()
+		_mat.set_shader_parameter(&"cloud_edge", true)
+		_mat.set_shader_parameter(&"cloud_c", mid)
+		_mat.set_shader_parameter(&"cloud_h", Vector2(maxf(mid.x - c.position.x, c.end.x - mid.x), maxf(mid.y - c.position.y, c.end.y - mid.y)))
 		# (and under them the map's own sky as it was, its cloud running on)
 		var et := (ext as TextureRect).texture
 		var ei: Image = et.get_image() if et != null and DisplayServer.get_name() != "headless" else null

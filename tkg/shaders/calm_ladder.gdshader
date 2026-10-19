@@ -53,6 +53,38 @@ uniform sampler2D under_tex : filter_nearest;
 uniform bool under_on = false;
 uniform vec2 under_at = vec2(0.0);
 uniform float under_right = 99999.0;
+// A CLOUD MADE SMALLER THINS OUT AS A CLOUD (Jon, of the cloud shrinking into
+// the chart: "is there any way to have it be less of a square when zooming
+// out?"): held smaller than it was, its edge is a rounded falloff about the
+// picture's middle, broken by low-frequency noise and by the gas's own light
+// (bright gas holds on further) -- no straight side, no corner. None at its
+// own size: the frame held is the screen as it was.
+uniform bool cloud_edge = false;
+uniform vec2 cloud_c = vec2(480.0, 270.0);
+uniform vec2 cloud_h = vec2(470.0, 245.0);
+
+float cl_hash(vec2 c) {
+	return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float cl_noise(vec2 x) {
+	vec2 i = floor(x);
+	vec2 f = fract(x);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(cl_hash(i), cl_hash(i + vec2(1.0, 0.0)), f.x), mix(cl_hash(i + vec2(0.0, 1.0)), cl_hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+// how much of the held cloud stands at source point q (0..1), held at s
+float cloud_shape(vec2 q, float lum, float s) {
+	vec2 d = (q - cloud_c) / cloud_h;
+	float r = length(d);
+	float n = cl_noise(q / 70.0) * 0.6 + cl_noise(q / 31.0 + 7.3) * 0.4;
+	float reach = 0.78 + (n - 0.5) * 0.42 + lum * 0.35;
+	float m = 1.0 - smoothstep(reach - 0.38, reach + 0.08, r);
+	// (comes in as it shrinks: whole at its own size, all of it by 3/4)
+	float k = clamp((1.0 - s) * 4.0, 0.0, 1.0);
+	return mix(1.0, m, k);
+}
 
 vec4 under_texel(vec2 tc) {
 	vec2 u = (tc + 0.5 - under_at) / vec2(960.0, 540.0);
@@ -123,6 +155,11 @@ void fragment() {
 		float lo = min(min(q.x - pic.x, q.y - pic.y), min(pic.x + pic.z - q.x, pic.y + pic.w - q.y)) * scl.x;
 		float fw = feather * clamp((1.0 - scl.x) * 2.0, 0.0, 1.0);
 		float e = fw > 0.5 ? smoothstep(0.0, fw, lo) : 1.0;
+		if (cloud_edge && scl.x < 1.0) {
+			// (no straight side at all: the rounded thinning instead of the rect's)
+			vec3 hc = texture(old_lin, (floor(q) + 0.5) / vp).rgb;
+			e = cloud_shape(q, dot(hc, vec3(0.299, 0.587, 0.114)), scl.x);
+		}
 		a = alpha * e;
 	}
 	if (side.z > 0.0 && in_rect(p, side)) {

@@ -97,6 +97,8 @@ func _run() -> void:
 	# ground clear of the row's words, against the frame before the click
 	await _plate_hop(&"map")
 	await _plate_hop(&"chart")
+	if _cloud:
+		await _cloud_hop()
 	print("fieldedgetest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
 	_tree.quit(1 if _fails > 0 else 0)
 
@@ -146,6 +148,83 @@ func _local_match() -> void:
 		return
 	_ok("LOCAL (%s): its stars are the field's -- %d of %d of the field's stars in LOCAL's open sky drawn there (%.0f%%)" % [LocalSky.style_now(), hit, stars, share * 100.0],
 		share >= 0.8)
+
+
+## A CLOUD MADE SMALLER HAS NO STRAIGHT SIDE (Jon: "is there any way to have it
+## be less of a square when zooming out?"): the map in a cloud to the chart,
+## every frame the held cloud is drawn smaller and still half there, the cloud
+## as drawn (brighter than the field by 12 levels, the plates and the HUD left
+## out) found, and along its bounding box's four sides, 4 px in, how much of
+## each line is cloud: a rect would fill them; a cloud thinning out does not.
+func _cloud_hop() -> void:
+	ZoomLadder.hold_off = true
+	Router.show_system()
+	ZoomLadder.hold_off = false
+	for i in 400:
+		await _tree.process_frame
+		if _settled() and i > 60:
+			break
+	await _frames(30)
+	await RenderingServer.frame_post_draw
+	var cur := Router.current
+	var skip: Array = [Router.hud.get_global_rect()]
+	for pl: Control in [ZoomLadder.bar_of(cur), ZoomLadder.side_of(cur)]:
+		if pl != null:
+			skip.append(pl.get_global_rect().grow(2.0))
+	var fimg := Router.field.picture().get_image()
+	fimg.convert(Image.FORMAT_RGB8)
+	fimg.resize(960, 540, Image.INTERPOLATE_NEAREST)
+	var c := Router.content.get_global_rect()
+	Router.show_starchart()
+	var worst := 0.0
+	var seen := 0
+	var why := ""
+	for f in 300:
+		await RenderingServer.frame_post_draw
+		if not ZoomLadder.busy():
+			if _settled() and f > 30:
+				break
+			continue
+		var L := ZoomLadder.active
+		var sc: Variant = (L._mat as ShaderMaterial).get_shader_parameter(&"scl")
+		if not (L._rect as CanvasItem).visible or not (sc is Vector2) or (sc as Vector2).x > 0.85 or L.held_alpha() < 0.5:
+			continue
+		var shot := _shot()
+		var x0 := 9999
+		var y0 := 9999
+		var x1 := -1
+		var y1 := -1
+		var cloud := {}
+		for y in range(int(c.position.y), int(c.end.y), 2):
+			for x in range(int(c.position.x), int(c.end.x), 2):
+				if _in_any(skip, Vector2(x, y)):
+					continue
+				if _lum(shot, x, y) - _lum(fimg, x, y) > 12.0:
+					cloud[Vector2i(x, y)] = true
+					x0 = mini(x0, x)
+					y0 = mini(y0, y)
+					x1 = maxi(x1, x)
+					y1 = maxi(y1, y)
+		if x1 - x0 < 40 or y1 - y0 < 40:
+			continue
+		seen += 1
+		var sides := {"top": [], "bottom": [], "left": [], "right": []}
+		for x in range(x0 + 8 - (x0 + 8) % 2, x1 - 6, 2):
+			sides.top.append(cloud.has(Vector2i(x, y0 + 4 - (y0 + 4) % 2)))
+			sides.bottom.append(cloud.has(Vector2i(x, y1 - 4 - (y1 - 4) % 2)))
+		for y in range(y0 + 8 - (y0 + 8) % 2, y1 - 6, 2):
+			sides.left.append(cloud.has(Vector2i(x0 + 4 - (x0 + 4) % 2, y)))
+			sides.right.append(cloud.has(Vector2i(x1 - 4 - (x1 - 4) % 2, y)))
+		for nm: String in sides:
+			var arr: Array = sides[nm]
+			if arr.is_empty():
+				continue
+			var cov := float(arr.count(true)) / arr.size()
+			if cov > worst:
+				worst = cov
+				why = "%s side %.0f%% cloud, frame %d (held at %.2f)" % [nm, cov * 100.0, f, (sc as Vector2).x]
+	_ok("map -> chart in a cloud: the held cloud, made smaller, has no straight side -- the most of any side's line that is cloud %.0f%% (%s; %d frames read)" % [worst * 100.0, why, seen],
+		seen >= 3 and worst <= 0.75)
 
 
 func _shot() -> Image:
