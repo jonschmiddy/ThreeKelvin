@@ -2676,8 +2676,19 @@ class MapChart extends Control:
 
 	## The galaxy's centre on the screen, on a whole pixel: the sky's blocks are
 	## anchored to it and the systems are drawn from it.
+	## ON THE PIXEL THE SKY SETS THE GALAXY ON: once the sky has settled after a zoom
+	## (`ChartSky.settled`) it moves the galaxy a whole 2x2 block of its own art at a
+	## time, on the even pixel at or below the centre, so its far stars never hop back
+	## on a pan; on an odd centre the systems stood a pixel off the light they belong
+	## to. Hidden while the chart's height was even and a test's drag even too, until
+	## the top plate's new height (d1256496) made the chart 419 px tall and the centre
+	## odd at rest -- `solidtest` 1.93 -> 2.28 px after a drag. While the sky holds a
+	## zoom it draws about the exact centre, and the marks stay on its whole pixel.
 	func centre_px() -> Vector2:
-		return (size * 0.5 + pan).floor()
+		var c := (size * 0.5 + pan).floor()
+		if _sky != null and is_instance_valid(_sky) and _sky.settled():
+			c = (c / 2.0).floor() * 2.0
+		return c
 
 	## How flat the chart's plane is drawn -- its systems, routes and rings:
 	## always the sector map's own (TILT), so the chart's geometry matches the
