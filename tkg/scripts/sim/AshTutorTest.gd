@@ -696,7 +696,7 @@ func _flow() -> void:
 ## the hint named it at one jump; she must name the dock the ship can fly to,
 ## or say none is in reach.
 func _fuel_unflyable() -> void:
-	var maker := Run.hull.manufacturer
+	var mfr := Run.hull.manufacturer
 	var weight := Run.hull.weight
 	var at0 := Run.at
 	Run.fit_chassis(&"korvan", HullData.Weight.HEAVY)
@@ -735,7 +735,7 @@ func _fuel_unflyable() -> void:
 		_ok("she names the dock it can reach, not the chart's one jump (\"%s\", %d jumps)" % [said, int(d.get("jumps", 0))],
 			(d.is_empty() and lid == &"fuel_none")
 			or (not d.is_empty() and not (d.node == bad and int(d.jumps) == 1) and said.ends_with(": %s." % MapGen.star_name(d.node))))
-	Run.fit_chassis(maker, weight)
+	Run.fit_chassis(mfr, weight)
 	Run.at = at0
 	Run.chart_from(Run.node_at())
 

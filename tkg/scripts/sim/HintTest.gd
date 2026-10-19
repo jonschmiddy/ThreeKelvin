@@ -368,7 +368,7 @@ func _step_until(id: StringName) -> bool:
 ## `id` shows, in the tree, clear of its subject and on screen; a click
 ## dismisses it and it is seen.
 func _fuel_unflyable() -> void:
-	var maker := Run.hull.manufacturer
+	var mfr := Run.hull.manufacturer
 	var weight := Run.hull.weight
 	var at0 := Run.at
 	var fuel0 := Run.fuel
@@ -415,7 +415,7 @@ func _fuel_unflyable() -> void:
 			and (d.is_empty() or Run.can_jump_to(d.node) or int(d.jumps) >= 2))
 		if up:
 			await _dismiss(&"fuel")
-	Run.fit_chassis(maker, weight)
+	Run.fit_chassis(mfr, weight)
 	Run.at = at0
 	Run.chart_from(Run.node_at())
 	Run.fuel = fuel0
