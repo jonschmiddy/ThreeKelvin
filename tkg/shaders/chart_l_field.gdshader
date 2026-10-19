@@ -81,6 +81,7 @@ uniform float u_laneStr = 1.0;
 const float SOLID_EXT = 1.2;
 vec2 bakeUV(vec2 p) { return (p + SOLID_EXT) / (2.0 * SOLID_EXT); }
 #include "res://shaders/chart_solid.gdshaderinc"
+#include "res://shaders/chart_story.gdshaderinc"
 // (`ChartSky.diag` 4096, the harness's solidtest: each block writes the point of the
 // disc's plane it shows, gu, in place of its light)
 uniform bool diag_plane = false;
@@ -1761,6 +1762,12 @@ void fragment() {
 		// SIMPLIFIED's dust colour)
 		vec3 ln = solidLane(rf0);
 		light *= pow(dot(ln, vec3(0.3, 0.59, 0.11)), LANE_K);
+	}
+	// A BALL'S STORY (`chart_story`): its victims and its busy core, light like its own,
+	// about the core (`rcb`, px at the camera's one scale there)
+	if (!probe && ball_core) {
+		float swl, scl;
+		light += storyLight(rcb / (z * big_r), phi, t, 2.0 / (z * big_r), swl, scl);
 	}
 	vec3 disp = g_tone(light);
 	float flag = (keep ? 0.75 : 1.0);

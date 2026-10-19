@@ -226,8 +226,16 @@ static func repair_price(n: MapGen.MapNode, points: int) -> int:
 
 const REFUEL_UNITS := 25
 
+## A can of REFUEL_UNITS at an outpost (index 1.00). 32, up from 12 (Jon,
+## Oct 18: "fuel:A"): a whole 45 tank from empty is a can and 20 units by the
+## unit, 32 + 26 = 58 credits at an outpost -- 65 on the frontier, 44 in a
+## capital. At 12 a tank cost 22 and fuel was 8-10% of a run's spending against
+## repairs' 72 credits (balance check, seed 777, 2,600 runs): it cost stops,
+## never money.
+const REFUEL_BASE := 32.0
+
 static func refuel_price(n: MapGen.MapNode) -> int:
-	return maxi(1, int(round(12.0 * service_index(n))))
+	return maxi(1, int(round(REFUEL_BASE * service_index(n))))
 
 static func purge_price(n: MapGen.MapNode) -> int:
 	return maxi(1, int(round(15.0 * service_index(n))))

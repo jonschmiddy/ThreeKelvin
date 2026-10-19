@@ -1643,8 +1643,10 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 	#
 	# The same four the machines in the bay sold, at the same prices: a drone
 	# carries what it will do and what it costs, and when there is nothing left
-	# for it to do its screen says why and it flies off. REFUEL never goes,
-	# because a tank has no top here; FAULTS opens the picker.
+	# for it to do its screen says why and it flies off (REFUEL at a full tank:
+	# TANK FULL); FAULTS opens the picker. Broke with a tank that cannot reach
+	# another dock, REFUEL sells the fuel to reach one for what you have, and its
+	# tip says so (`Run.dock_rescue`).
 	var missing := Run.max_hp() - Run.hp
 	var eight := mini(8, maxi(1, missing))
 	var eight_cost := Market.repair_price(n, eight)
@@ -1659,7 +1661,8 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 		{"label": "REPAIR +%d" % missing, "cost": full_cost, "done": "" if missing > 0 else "HULL FULL",
 			"tip": "Repairs the whole hull at once."},
 		{"label": "REFUEL +%d" % maxi(1, int(refuel.units)), "cost": refuel_cost, "done": Run.refuel_blocked(n),
-			"tip": "Fills the tank. Each jump costs fuel (see the starchart's reach ring)."},
+			"tip": Run.rescue_line(refuel) if refuel.get("rescue", false)
+				else "Fuel costs more on the frontier than in a capital. Each jump costs fuel (see the starchart's reach ring)."},
 		{"label": "FAULTS %d" % dross_n, "cost": purge_cost, "done": "" if dross_n > 0 else "NO FAULTS",
 			"tip": "Choose which one comes out. Each costs the same and clears exactly one."},
 	]
@@ -2130,8 +2133,10 @@ func _repair(amount: int) -> void:
 func _refuel() -> void:
 	# Through Run, so the fuel tuning's top and stock are one rule. No emit:
 	# `fuel` has a setter -- see RunState.
+	var o := Run.refuel_offer(Run.node_at())
+	var line := Run.rescue_line(o) if o.get("rescue", false) else "Refuelled."
 	if Run.buy_refuel(Run.node_at()):
-		Run.log_line("Refuelled.", &"good")
+		Run.log_line(line, &"good")
 
 ## One malfunction, named, and only one. `clear_dross` removes a single entry,
 ## so paying once to clear three copies of the same thing is not a thing that

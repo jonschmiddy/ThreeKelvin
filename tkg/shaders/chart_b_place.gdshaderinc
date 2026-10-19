@@ -98,6 +98,8 @@ uniform float u_ext = 1.2;
 uniform float u_laneStr = 1.0;
 vec2 bakeUV(vec2 p) { return (p + u_ext) / (2.0 * u_ext); }
 #include "res://shaders/chart_solid.gdshaderinc"
+#include "res://shaders/chart_story.gdshaderinc"
+#include "res://shaders/chart_depth.gdshaderinc"
 
 // how much the camera magnifies the flat view at v (1 with it off): a block of the
 // screen covers 1 / this of a block of the flat view, so whatever this style sizes
@@ -1273,6 +1275,15 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		}
 		Ed *= lit;
 		EdS *= lit;
+		// clouds of its gas over and under the plane (`chart_depth`, `galdepth=`): their
+		// light in the disc's own, so they step on its bands
+		vec3 dE = vec3(0.0), dT3 = vec3(1.0);
+		// (the block's point on the screen, as `fragment` has it)
+		vec2 vscr = (u_vp_origin + (vec2(P.blk) + 0.5) * 2.0 - u_cpix) / u_zoom;
+		depthClouds(gd, vscr, edgeMask(gd), vec3(Ed), dE, dT3);
+		float dL = kitLum(dE);
+		Ed = Ed * dT3.x + dL;
+		EdS = EdS * dT3.x + dL;
 	}
 
 	float R = u_g2.y;
@@ -1342,6 +1353,14 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			Ib *= exp(-2.6 * laneBall);
 		}
 	}
+	// A BALL'S STORY (`chart_story`): its light in the ball's own bands -- the warm (its
+	// victims' old stars, the stream, the shells, the ring, the clusters) into the ball's
+	// light, the cool (a companion's arms, the jet) into the cool light, below
+	float stW = 0.0, stC = 0.0;
+	if (ellip) {
+		storyLight(vB / k, u_phi, u_time, blkB, stW, stC);
+		Ib += stW;
+	}
 	float hR = u_g3.z;
 	float rp = length(vec2(vb.x, vb.y / 0.5)) / k;
 	float clearZ = smoothstep(1.5, 5.0, u_zoom);
@@ -1374,9 +1393,9 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	float bFront = ff * (mix(1.0, tL, 0.7) * (1.0 - 0.85 * silh) + 0.6 * silh * (1.0 - silh));
 	float Ew = Ib * (bFront + bBack * T) + Ed * warmD * T;
 	float streams = clearK * holeL * 0.075 * (sw * sw * sw - 0.3125);   // (mean 0: sw^3 averages 5/16)
-	float Ec = Ed * (1.0 - warmD) * T;
+	float Ec = Ed * (1.0 - warmD) * T + stC;
 	float TS = 1.0 - 0.8 * laneS;
-	float EwS = Ib * (bFront + bBack * TS) + EdS * warmD * TS, EcS = EdS * (1.0 - warmD) * TS;
+	float EwS = Ib * (bFront + bBack * TS) + EdS * warmD * TS, EcS = EdS * (1.0 - warmD) * TS + stC;
 	// (the relief's faces toward the core are lit warm, `terrShade`'s warm light: round
 	// the bulge, where the gas is already the core's, the cool gas there hands that share
 	// to the warm side, so a lit face goes over to the warm ramp and its back stays on

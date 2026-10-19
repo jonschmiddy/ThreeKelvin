@@ -132,6 +132,8 @@ static func probe_forced() -> bool:
 ## A BALL'S BODY AND HALO (Jon, Oct 18, "radiant:yes": the balls bloomed into a big orb
 ## with a hard edge): the outer component's peak, and the halo's light, a ball is
 ## lit by. The showcase's were 0.95 and 0.03.
+## A ball's story's light in this style's own (`ChartSky.ball_story`)
+const STORY_GAIN_R := 1.0
 const BALL_BODY := 0.8
 const BALL_HALO := 0.06
 
@@ -323,6 +325,7 @@ static func feed_static(m: ShaderMaterial, g: Dictionary) -> void:
 	m.set_shader_parameter("u_sStruct", g.get("struct"))
 	m.set_shader_parameter("u_sExt", ChartSky.EXT)
 	m.set_shader_parameter("u_isBall", bool(L.ell))
+	ChartSky.push_story(m, STORY_GAIN_R)
 	m.set_shader_parameter("u_discA", g.discA)
 	m.set_shader_parameter("u_discB", g.discB)
 	m.set_shader_parameter("u_hor", g.hor)

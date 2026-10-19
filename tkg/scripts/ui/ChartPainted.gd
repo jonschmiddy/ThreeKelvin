@@ -123,6 +123,10 @@ static func wanted() -> bool:
 
 ## The galaxy's constants as the painted pass reads them (the showcase's G0-G7,
 ## and G8 for what every kind needs beyond its three).
+## A ball's story's light in this style's own (`ChartSky.ball_story`)
+const STORY_GAIN_B := 0.5
+
+
 static func galaxy_uniforms(p: Dictionary) -> Dictionary:
 	var g: Dictionary = Run.galaxy
 	var form: int = p.form
@@ -133,7 +137,8 @@ static func galaxy_uniforms(p: Dictionary) -> Dictionary:
 		arm_k = clampf(1.0 - chaos * 1.8, 0.35, 1.0) * (0.75 if arms >= 5 else 1.0)
 	var ball: Vector4 = p.ball
 	var bd := ChartSky.ball_depth(Run.galaxy_kind)
-	return {
+	var story := ChartSky.ball_story(STORY_GAIN_B)
+	return story.merged({
 		"u_ballD": bd[0],
 		"u_ballE": bd[1],
 		"u_g0": Vector4(float(maxi(arms, 1)), float(p.twist), float(p.bar), float(p.spread)),
@@ -145,7 +150,7 @@ static func galaxy_uniforms(p: Dictionary) -> Dictionary:
 		"u_g6": Vector4(0.12, 0.06, 1.25, 0.8),
 		"u_g7": Vector4(0.4, 0.72, 0.16, 0.7 if arms == 2 else 0.0),
 		"u_g8": Vector4(ball.x, ball.z / 0.085, chaos, 1.0 if p.tail else 0.0),
-	}
+	})
 
 
 ## The named clouds as uniform arrays: plane centre and size, kind (NebulaField's
@@ -518,6 +523,7 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	mp.set_shader_parameter("u_vp_size", vs)
 	mp.set_shader_parameter("u_vp_origin", origin)
 	mp.set_shader_parameter("u_cpix", ccon)
+	mp.set_shader_parameter("u_depth", ChartSky.depth_uniform(res, ccon, z))
 	mp.set_shader_parameter("u_res", res)
 	mp.set_shader_parameter("u_zoom", z)
 	mp.set_shader_parameter("u_diag", ChartSky.diag)

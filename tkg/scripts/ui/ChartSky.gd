@@ -623,6 +623,100 @@ static func ball_depth(kind: int) -> Array[Vector4]:
 	return [Vector4(float(look), lane, ang, seed01), e]
 
 
+## A BALL'S STORY (`chart_story.gdshaderinc` says what each look draws; Jon, Oct 19: a
+## round elliptical beside a spiral is "so boring"): `-- balllook2=0|A|B|C`, A the game's.
+## A its victims round it, B a busy core, C both. In every style; each style's light
+## for it at its own scale (`push_story`'s gain).
+static var ball_look2 := -1
+## A GALAXY'S DEPTH AT ITS RIM (`chart_depth.gdshaderinc` says what it draws; Jon, Oct 19:
+## "They seem like a flat image right now. This is especially evident on the edges"):
+## `-- galdepth=0|1|2`, 0 today; 1 the disc's thickness at its rim, 2 and parallax. The
+## discs (spirals, lenticulars) in SIMPLIFIED; a ball is drawn round and has its story.
+static var gal_depth := -1
+## The game's: the clouds and their parallax (Jon, Oct 19, "Depth: puffs:2").
+const GAL_DEPTH := 2
+
+
+## `chart_depth`'s uniform: the mode, the view's centre (view px at zoom 1, from the
+## galaxy's centre) and a block (view px at zoom 1).
+static func depth_uniform(res: Vector2, cpix: Vector2, z: float) -> Vector4:
+	var vc := (res * 0.5 - cpix) / maxf(z, 1e-4)
+	return Vector4(float(gal_depth_now()), vc.x, vc.y, 2.0 / maxf(z, 1e-4))
+
+
+static func gal_depth_now() -> int:
+	if gal_depth < 0:
+		gal_depth = GAL_DEPTH
+		for a in OS.get_cmdline_user_args():
+			var arg := a as String
+			if arg.begins_with("galdepth="):
+				gal_depth = clampi(int(arg.substr(9)), 0, 2)
+	return gal_depth
+
+## The game's: A (Jon, Oct 19, "ball:A" -- its victims; B's jet, ring and swarm stay
+## off but for a harness's `balllook2=B|C`)
+const BALL_LOOK2 := 1
+## SIMPLIFIED's gain (its ball's own light)
+const STORY_GAIN_C := 1.0
+
+
+static func ball_look2_now() -> int:
+	if ball_look2 < 0:
+		ball_look2 = BALL_LOOK2
+		for a in OS.get_cmdline_user_args():
+			var arg := a as String
+			if arg.begins_with("balllook2="):
+				ball_look2 = maxi(0, "0ABC".find(arg.substr(10).to_upper()))
+	return ball_look2
+
+
+## The story's uniforms for the run's galaxy, its light at `gain`: seeded off the
+## galaxy, so the same ball has the same victims and the same jet every time.
+## Look 0 (nothing drawn) for anything that is not a ball.
+static func ball_story(gain: float) -> Dictionary:
+	var kind := Run.galaxy_kind
+	var look := ball_look2_now() if form_of(kind) == 1 else 0
+	var h := absi(hash([Run.galaxy_seed, kind, 9311]))
+	var r := RandomNumberGenerator.new()
+	r.seed = h
+	var ball := ball_of(kind, Run.galaxy)
+	var dwarf := GalaxyGen.type_name(kind) in ["Blue Compact Dwarf", "Dwarf Spheroidal"]
+	var cs := PackedVector4Array()
+	var ds := PackedVector4Array()
+	# two or three small galaxies on the plane, spread round it, outside its body
+	var n := 1 if dwarf else r.randi_range(2, 3)
+	var torn := r.randi_range(0, n - 1)
+	var sgn := 1.0 if r.randf() < 0.5 else -1.0
+	for i in 3:
+		if i >= n:
+			cs.append(Vector4.ZERO)
+			ds.append(Vector4.ZERO)
+			continue
+		# (out past the systems' rim, toward the near and far sides of the plane -- above
+		# and below the ball on the screen -- so they never stand under a system's mark)
+		var ang: float = [PI * 0.5, -PI * 0.5, PI * 0.5 + 1.1 * sgn][i] + r.randf_range(-0.45, 0.45)
+		var rad := r.randf_range(1.25, 1.5)
+		var k := 1 if i == 0 else 2
+		var size := r.randf_range(0.07, 0.10) if k == 1 else r.randf_range(0.045, 0.065)
+		cs.append(Vector4(cos(ang) * rad, sin(ang) * rad, size, float(k)))
+		ds.append(Vector4(r.randf() * TAU, r.randf_range(1.6, 2.6), 1.0 if i == torn and not dwarf else 0.0,
+			r.randf_range(0.14, 0.2)))
+	var jet_a := r.randf() * TAU
+	var jet_l := r.randf_range(0.25, 0.7)
+	return {
+		"u_story": Vector4(float(look), float(h % 1000) / 1000.0, jet_a, jet_l),
+		"u_storyC": cs,
+		"u_storyD": ds,
+		"u_storyK": Vector4(ball.x, ball.y, gain, 1.0 if dwarf else 0.0),
+	}
+
+
+static func push_story(m: ShaderMaterial, gain: float) -> void:
+	var d := ball_story(gain)
+	for k in d:
+		m.set_shader_parameter(k, d[k])
+
+
 ## How far out a ball's light is lit, in gu across (its height is this times its
 ## roundness, `ball_of`'s y): what the chart's frame of a region takes in round the
 ## core so the whole ball is in view (`MapChart.frame_region`). The body's lit
@@ -1625,6 +1719,7 @@ func _feed_static(m: ShaderMaterial, g: Dictionary) -> void:
 	var bd := ball_depth(Run.galaxy_kind)
 	m.set_shader_parameter("u_ballD", bd[0])
 	m.set_shader_parameter("u_ballE", bd[1])
+	push_story(m, STORY_GAIN_C)
 	m.set_shader_parameter("u_bulgeR", float(p.bulge_r))
 	m.set_shader_parameter("u_holeR", float(p.hole_r))
 	m.set_shader_parameter("u_gasAmt", float(p.gas))
@@ -1650,6 +1745,7 @@ func _feed_view(m: ShaderMaterial, _g: Dictionary, vsz: Vector2, origin: Vector2
 	m.set_shader_parameter("u_time", t)
 	m.set_shader_parameter("u_phi", phi)
 	m.set_shader_parameter("u_diag", diag)
+	m.set_shader_parameter("u_depth", depth_uniform(res, cpix, z))
 	var block_gu := 2.0 / ((minf(z, 1.0) if diag & 4 else z) * K0)
 	m.set_shader_parameter("u_lod", Vector2(maxf(0.0, log(block_gu / (2.0 * EXT / NOISE_N)) / log(2.0) + LODB),
 		maxf(0.0, log(block_gu / (2.0 * EXT / STRUCT_N)) / log(2.0) + LODB)))
