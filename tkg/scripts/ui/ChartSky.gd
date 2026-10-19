@@ -631,11 +631,20 @@ static var ball_look2 := -1
 ## `-- galdepth=0|1|2`, 0 today; 1 the disc's thickness at its rim, 2 and parallax. The
 ## discs (spirals, lenticulars) in SIMPLIFIED; a ball is drawn round and has its story.
 static var gal_depth := -1
+## The game's: the clouds and their parallax (Jon, Oct 19, "Depth: puffs:2").
+const GAL_DEPTH := 2
+
+
+## `chart_depth`'s uniform: the mode, the view's centre (view px at zoom 1, from the
+## galaxy's centre) and a block (view px at zoom 1).
+static func depth_uniform(res: Vector2, cpix: Vector2, z: float) -> Vector4:
+	var vc := (res * 0.5 - cpix) / maxf(z, 1e-4)
+	return Vector4(float(gal_depth_now()), vc.x, vc.y, 2.0 / maxf(z, 1e-4))
 
 
 static func gal_depth_now() -> int:
 	if gal_depth < 0:
-		gal_depth = 0
+		gal_depth = GAL_DEPTH
 		for a in OS.get_cmdline_user_args():
 			var arg := a as String
 			if arg.begins_with("galdepth="):
@@ -1734,10 +1743,7 @@ func _feed_view(m: ShaderMaterial, _g: Dictionary, vsz: Vector2, origin: Vector2
 	m.set_shader_parameter("u_time", t)
 	m.set_shader_parameter("u_phi", phi)
 	m.set_shader_parameter("u_diag", diag)
-	# a galaxy's depth (`chart_depth`): its mode and the view's centre on the plane
-	var vc := ((res * 0.5 - cpix) / maxf(z, 1e-4)) / K0
-	var fo := solid_inv(vc) if solid() else vc
-	m.set_shader_parameter("u_depth", Vector4(float(gal_depth_now()), fo.x, fo.y / TILT, 0.0))
+	m.set_shader_parameter("u_depth", depth_uniform(res, cpix, z))
 	var block_gu := 2.0 / ((minf(z, 1.0) if diag & 4 else z) * K0)
 	m.set_shader_parameter("u_lod", Vector2(maxf(0.0, log(block_gu / (2.0 * EXT / NOISE_N)) / log(2.0) + LODB),
 		maxf(0.0, log(block_gu / (2.0 * EXT / STRUCT_N)) / log(2.0) + LODB)))

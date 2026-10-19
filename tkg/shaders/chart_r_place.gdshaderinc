@@ -152,6 +152,8 @@ vec2 bakeUV(vec2 p) { return (p + u_sExt) / (2.0 * u_sExt); }
 #define u_struct u_sStruct
 #include "res://shaders/chart_solid.gdshaderinc"
 #include "res://shaders/chart_story.gdshaderinc"
+#define DEPTH_PROBE u_tone_out
+#include "res://shaders/chart_depth.gdshaderinc"
 #undef u_noise
 #undef u_struct
 
@@ -1276,6 +1278,11 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 	if (u_isBall) {
 		float swl, scl;
 		C += T * storyLight(vb / u_k, u_phi, u_time, 2.0 / (u_zoom * u_k), swl, scl);
+	} else {
+		// clouds of its gas over and under the plane (`chart_depth`, `galdepth=`)
+		vec3 dE = vec3(0.0), dT3 = vec3(1.0);
+		depthClouds(pP, vsky, em, C, dE, dT3);
+		C = C * dT3 + dE;
 	}
 	float seen = bgSeen(C, u_exp);
 	C += T * (sky(vsky, u_solid ? seen : bgNebSeen(C, u_exp)) * seen + vec3(0.0021, 0.0030, 0.0062));

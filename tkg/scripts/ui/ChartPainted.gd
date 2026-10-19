@@ -523,6 +523,7 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	mp.set_shader_parameter("u_vp_size", vs)
 	mp.set_shader_parameter("u_vp_origin", origin)
 	mp.set_shader_parameter("u_cpix", ccon)
+	mp.set_shader_parameter("u_depth", ChartSky.depth_uniform(res, ccon, z))
 	mp.set_shader_parameter("u_res", res)
 	mp.set_shader_parameter("u_zoom", z)
 	mp.set_shader_parameter("u_diag", ChartSky.diag)

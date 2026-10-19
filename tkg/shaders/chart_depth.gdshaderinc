@@ -1,4 +1,4 @@
-// A GALAXY'S DEPTH (SIMPLIFIED; `ChartSky.gal_depth`, `-- galdepth=0|1|2`, 0 today).
+// A GALAXY'S DEPTH (SIMPLIFIED, PAINTED, RADIANT; `ChartSky.gal_depth`, `-- galdepth=0|1|2`, 2 the game's).
 // Jon, Oct 19: "let's also explore giving the galaxies some depth. They seem like a
 // flat image right now. This is especially evident on the edges"; then, of a first
 // try with a side wall and a lit top at the rim, "depth:puffs" -- keep the approved
@@ -26,11 +26,18 @@
 // and every arm came out a step duller).
 //
 // THE INCLUDING SHADER PROVIDES chart_solid (fluffToward, edgeMask, u_solidW, u_phi,
-// u_solid) and u_struct / bakeUV (the disc's own bake), and `u_tone_out`.
+// u_solid) and u_struct / bakeUV (the disc's own bake); and, if it draws the palette's
+// probes through this pass, `#define DEPTH_PROBE <its probe flag>` before including.
+#ifndef DEPTH_PROBE
+#define DEPTH_PROBE false
+#endif
 
-// the mode (0 off, 1 the clouds, 2 and parallax), the view's centre on the plane (gu,
-// turned to the view, as `fluffToward` reads the camera's foot), 0
+// the mode (0 off, 1 the clouds, 2 and parallax), the view's centre (view px at zoom
+// 1, from the galaxy's centre), a block (view px at zoom 1)
 uniform vec4 u_depth = vec4(0.0);
+// how far a layer slides against the plane as the view's centre moves, a unit of its
+// height (in its own scale): the camera's foot following the view
+const float DEPTH_PAR = 0.035;
 
 const float DEPTH_H = 0.05;          // a cloud layer's height off the plane at the bulge, gu
 const float DEPTH_HALO = 0.006;      // the soft halo of stars' light
@@ -40,16 +47,25 @@ float depthH(float r) {
 	return DEPTH_H * (0.55 + 0.45 * exp(-r / 0.5));
 }
 
-// the plane's shift per unit of height toward the camera: the solid look's own, or,
-// with parallax, from a camera whose foot is under the view's centre
+// the plane's shift per unit of height toward the camera: the solid look's own
 vec2 depthToward(vec2 p) {
+	return fluffToward(p);
+}
+
+// THE PARALLAX (depth 2): a layer at height h slides against the plane as the view's
+// centre moves, as it would under a camera whose foot followed the view -- but the
+// WHOLE LAYER as one, ON THE SCREEN, IN WHOLE BLOCKS (view px). Worked out per block
+// from a moving camera (the first try), every cloud was re-read a fraction of a block
+// over each frame of a drag and the clouds crawled: shimmer 0.63 against today's 0.26
+// on The Long Harvest's slow drag; held in whole steps of the PLANE (the second), the
+// perspective still made each step a fraction of a block on the screen: 0.60.
+vec2 depthSlide(float h) {
 	if (u_depth.x < 1.5 || !u_solid) {
-		return fluffToward(p);
+		return vec2(0.0);
 	}
-	vec2 q = kitRot(u_phi) * p;
-	float D = u_solidW.x;
-	vec2 cxy = u_depth.yz + vec2(0.0, D * u_solidW.z);
-	return kitRot(-u_phi) * ((cxy - q) / (D * u_solidW.y));
+	vec2 s = -h * DEPTH_PAR * u_depth.yz;
+	float bk = max(u_depth.w, 1e-4);
+	return floor(s / bk + 0.5) * bk;
 }
 
 // the clouds of one layer at plane point q (0..1): billows of a size of their own,
@@ -68,8 +84,10 @@ float depthCloud(vec2 q, float f, float seed, float thr) {
 // a layer's clouds seen at the block whose plane point is p: (light, how much they
 // hold back of what lies behind). `h` the layer's height (in depthH), f its billows'
 // size, `lit` how much of the core's light reaches it, `base` the disc's light here
-vec4 depthLayer(vec2 p, vec2 dT, float h, float f, float seed, float thr, float lit, float base) {
-	vec2 q = p + h * depthH(length(p)) * dT;
+vec4 depthLayer(vec2 p, vec2 vs, vec2 dT, float h, float f, float seed, float thr, float lit, float base) {
+	// (with the parallax, the layer read at the screen point it has slid to, whole)
+	vec2 ps = u_depth.x > 1.5 && u_solid ? kitViewToPlane(solidO(vs + depthSlide(h)), u_phi, u_k) : p;
+	vec2 q = ps + h * depthH(length(ps)) * dT;
 	float d = depthCloud(q, f, seed, thr);
 	if (d <= 0.0) {
 		return vec4(0.0);
@@ -86,8 +104,9 @@ vec4 depthLayer(vec2 p, vec2 dT, float h, float f, float seed, float thr, float 
 
 // the clouds over and under the disc, and its halo, at the block whose plane point is
 // p: what lies behind (the disc, C so far) goes through `T`, and `Em` gains their light
-void depthClouds(vec2 p, float em, vec3 discL, inout vec3 Em, inout vec3 T) {
-	if (u_depth.x < 0.5 || u_tone_out) {
+// (`vs`: the block's point on the screen, view px at zoom 1 from the galaxy's centre)
+void depthClouds(vec2 p, vec2 vs, float em, vec3 discL, inout vec3 Em, inout vec3 T) {
+	if (u_depth.x < 0.5 || DEPTH_PROBE) {
 		return;
 	}
 	vec2 dT = depthToward(p);
@@ -96,11 +115,11 @@ void depthClouds(vec2 p, float em, vec3 discL, inout vec3 Em, inout vec3 T) {
 	// arms: so the palette's existing steps carry it)
 	float base = max(kitLum(discL), 0.006) * 1.5 + 0.006 * exp(-r / 0.7);
 	// under the plane: seen through the disc's thin outskirts, in its shadow
-	vec4 lo = depthLayer(p, dT, -1.1, 7.0, 0.3, 0.36, 0.55, base);
+	vec4 lo = depthLayer(p, vs, dT, -1.1, 7.0, 0.3, 0.36, 0.55, base);
 	Em += lo.rgb * (1.0 - 0.75 * em);
 	// over it: two sizes, the small ones higher, a few well off the plane
-	vec4 hi = depthLayer(p, dT, 1.0, 6.0, 0.7, 0.32, 1.0, base);
-	vec4 hi2 = depthLayer(p, dT, 2.3, 13.0, 1.9, 0.45, 1.05, base);
+	vec4 hi = depthLayer(p, vs, dT, 1.0, 6.0, 0.7, 0.32, 1.0, base);
+	vec4 hi2 = depthLayer(p, vs, dT, 2.3, 13.0, 1.9, 0.45, 1.05, base);
 	float a = clamp(0.55 * hi.a + 0.6 * hi2.a, 0.0, 0.8);
 	T *= 1.0 - 0.3 * a;
 	Em = Em * (1.0 - 0.3 * a) + hi.rgb + hi2.rgb;

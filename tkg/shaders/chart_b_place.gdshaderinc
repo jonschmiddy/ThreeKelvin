@@ -99,6 +99,7 @@ uniform float u_laneStr = 1.0;
 vec2 bakeUV(vec2 p) { return (p + u_ext) / (2.0 * u_ext); }
 #include "res://shaders/chart_solid.gdshaderinc"
 #include "res://shaders/chart_story.gdshaderinc"
+#include "res://shaders/chart_depth.gdshaderinc"
 
 // how much the camera magnifies the flat view at v (1 with it off): a block of the
 // screen covers 1 / this of a block of the flat view, so whatever this style sizes
@@ -1274,6 +1275,15 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		}
 		Ed *= lit;
 		EdS *= lit;
+		// clouds of its gas over and under the plane (`chart_depth`, `galdepth=`): their
+		// light in the disc's own, so they step on its bands
+		vec3 dE = vec3(0.0), dT3 = vec3(1.0);
+		// (the block's point on the screen, as `fragment` has it)
+		vec2 vscr = (u_vp_origin + (vec2(P.blk) + 0.5) * 2.0 - u_cpix) / u_zoom;
+		depthClouds(gd, vscr, edgeMask(gd), vec3(Ed), dE, dT3);
+		float dL = kitLum(dE);
+		Ed = Ed * dT3.x + dL;
+		EdS = EdS * dT3.x + dL;
 	}
 
 	float R = u_g2.y;

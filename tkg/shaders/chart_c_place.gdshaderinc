@@ -143,6 +143,7 @@ vec4 noiseRawL(vec2 p, float lod) { return textureLod(u_noise, bakeUV(p), lod); 
 // and lighting, shared with every style that draws it
 #include "res://shaders/chart_solid.gdshaderinc"
 #include "res://shaders/chart_story.gdshaderinc"
+#define DEPTH_PROBE u_tone_out
 #include "res://shaders/chart_depth.gdshaderinc"
 
 // Currents: the gas turns at a flat rotation curve's rate less the arms' pattern
@@ -1320,7 +1321,7 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 		Em = Em * em + star * (1.0 - em);
 		// clouds of its gas over and under the plane (`chart_depth`, `galdepth=`; nothing at 0)
 		vec3 discL = Em;
-		depthClouds(p, em, discL, Em, T);
+		depthClouds(p, vsky, em, discL, Em, T);
 		T = mix(vec3(1.0), T, em);
 		gas *= em;
 		dustOut = dust;
