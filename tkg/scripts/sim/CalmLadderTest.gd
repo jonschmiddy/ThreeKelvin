@@ -371,6 +371,8 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 	var goal_off := 0
 	var goal_why := ""
 	var gnode: Control = Router.hud.get("goal") if Router.hud != null else null
+	var ghost := 0
+	var ghost_why := ""
 	var panel_first := -1
 	var panel_last := -1
 	var bad: Array = []
@@ -469,6 +471,17 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 			field_bad += 1
 			if field_why == "":
 				field_why = "%s at frame %d" % [fw, frames]
+		# ONE GOAL: while the picture held is drawn, the goal (up over both
+		# screens, so in the frame held too) is cut out of it where it stood
+		# -- never a second one carried off with the picture
+		if gnode != null and gnode.visible and ZoomLadder.busy() and (ZoomLadder.active._rect as CanvasItem).visible:
+			var gr := Rect2(gnode.position, gnode.size).grow(1.0)
+			var cv: Variant = (ZoomLadder.active._mat as ShaderMaterial).get_shader_parameter(&"cut")
+			var cut := Rect2((cv as Vector4).x, (cv as Vector4).y, (cv as Vector4).z, (cv as Vector4).w) if cv is Vector4 else Rect2()
+			if not cut.encloses(gr):
+				ghost += 1
+				if ghost_why == "":
+					ghost_why = "the held picture's cut %s, the goal %s, frame %d" % [cut, gr, frames]
 		if gnode != null and _rank(Router.current) >= ZoomLadder.CHART and _rank(Router.current) <= ZoomLadder.LOCAL:
 			var gok: bool = gnode.visible and gnode.modulate.a > 0.99 and gnode.position == GoalLine.fixed_at()
 			if not gok:
@@ -554,6 +567,7 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 	_ok("%s: the side bar, the toolbar, the column and the band still while the camera moves (%d frames moving)" % [label, chrome_moved], chrome_moved <= 1)
 	if gnode != null:
 		_ok("%s: the goal up in its one place on every frame (%d frames not%s)" % [label, goal_off, "" if goal_why == "" else ": " + goal_why], goal_off == 0)
+		_ok("%s: one goal -- left out of the picture held on every frame it is drawn (%d frames not%s)" % [label, ghost, "" if ghost_why == "" else ": " + ghost_why], ghost == 0)
 	if map_chart:
 		_ok("%s: the top plate steady -- one opaque thing draws it every frame, the plate itself or it as held (%d frames not%s)" % [label, plate_shaky, "" if plate_why == "" else ": " + plate_why], plate_shaky == 0)
 	_ok("%s: one field under it all -- the same layer, on, under the screens, never faded or redrawn (%d frames not%s)" % [label, field_bad, "" if field_why == "" else ": " + field_why], field_bad == 0)
