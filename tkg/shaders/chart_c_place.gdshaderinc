@@ -142,6 +142,7 @@ vec4 noiseRawL(vec2 p, float lod) { return textureLod(u_noise, bakeUV(p), lod); 
 // THE SOLID LOOK (`chart_solid.gdshaderinc`): its uniforms, projection, height fields
 // and lighting, shared with every style that draws it
 #include "res://shaders/chart_solid.gdshaderinc"
+#include "res://shaders/chart_story.gdshaderinc"
 
 // Currents: the gas turns at a flat rotation curve's rate less the arms' pattern
 // speed (corotation at 0.55 gu), so it streams THROUGH the arms while they stay.
@@ -1277,6 +1278,9 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 		// (no blue halo under a ball: over its red outskirts it read mauve; the
 		// ball's own envelope is its halo)
 		C = C * exp(-kitLum(Bb) * 120.0) + Bb + star + tailLight(p) + knots(p) + remnants(p);
+		// (its story, `chart_story`: its victims, its busy core -- light like its own)
+		float swl, scl;
+		C += storyLight(vb / u_k, u_phi, u_time, blockGu(la), swl, scl);
 	} else {
 		C += halo(v) + tailLight(p);
 		underSheet(v, la, C);

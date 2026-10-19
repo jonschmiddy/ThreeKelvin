@@ -53,6 +53,15 @@ const ASYM_MAX := 0.2
 ## 0.45 to 0.54; SIMPLIFIED's 0.49 to 0.67, PAINTED's 0.42 to 0.59. Judged in RADIANT
 ## (its balls alone: every RADIANT ball before failed it), printed for every style.
 const FADE_MIN := 0.42
+## THE CLICKABLES (Jon, Oct 19, the ball's story): a mark's sky may not rise more than
+## MARK_RISE (0..255) under the story to past MARK_LUMA -- a bright mark on a dim sky
+## that the story lit up behind it
+const MARK_RISE := 30.0
+const MARK_LUMA := 110.0
+## and the story's light: the chart's mean luma up at most this, its cream (over 200, % of
+## the chart) at most this
+const STORY_MEAN_RISE := 8.0
+const STORY_CREAM_RISE := 0.3
 const BALL_KINDS := [8, 9, 10, 13, 14, 15]
 const DISC_KINDS := [0, 6]
 ## Jon's run: PGC 6236, The Drowned Coil, a giant elliptical
@@ -110,33 +119,27 @@ func _case(st: StringName, seed_v: int, kind: int) -> void:
 		Run._range_cache.clear()
 		Run.chart_from(Run.node_at())
 	var ball := ChartSky.form_of(Run.galaxy_kind) == 1
-	var old := Router.current
-	Router.show_starchart()
-	var t0 := Time.get_ticks_msec()
-	while (Router.current == old or not Router.current is StarchartScreen) and Time.get_ticks_msec() - t0 < 10000:
-		await get_tree().process_frame
-	var scp := Router.current as StarchartScreen
-	var chart: StarchartScreen.MapChart = scp._chart
-	var sky := chart._sky as ChartSky
-	while not sky.ready_to_draw() and Time.get_ticks_msec() - t0 < 30000:
-		await get_tree().process_frame
-	scp.dismiss_primer()
-	chart.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# the chart's opening zoom (ChartLook's `opening`), the core in the middle
-	var k: float = chart._radius() * StarchartScreen.MapChart.DISC
-	chart._go_to(0.42 * ChartSky.K0 / k, Vector2.ZERO, false)
-	chart._repaint_sky()
-	chart.show_icons = false
-	chart.queue_redraw()
-	for _i in 8:
-		await RenderingServer.frame_post_draw
-	var img := chart.get_viewport().get_texture().get_image()
-	var at := chart.get_global_transform_with_canvas().origin
-	img = img.get_region(Rect2i(Vector2i(at.round()), Vector2i(chart.size.round())))
-	chart.show_icons = true
+	var op: Dictionary = await _open()
+	var chart: StarchartScreen.MapChart = op.chart
+	var img: Image = op.img
+	var k: float = op.k
+	# WITH A BALL'S STORY ON (`balllook2=`) the ball's own light is judged on the chart
+	# without it, drawn in this run: the story is lopsided on purpose (shells on the far
+	# side, a jet, its victims round it). The story itself is judged by what it does to
+	# the chart's clickables and to the light (below).
+	var story_on := ChartSky.form_of(Run.galaxy_kind) == 1 and ChartSky.ball_look2_now() > 0
+	var img0: Image = img
+	if story_on:
+		var l2 := ChartSky.ball_look2
+		ChartSky.ball_look2 = 0
+		img0 = (await _open(true)).img
+		ChartSky.ball_look2 = l2
+		op = await _open(true)
+		chart = op.chart
+		img = op.img
 	var core := chart.centre_px()
 	var gu: float = chart._radius() * StarchartScreen.MapChart.DISC * chart.zoom
-	var m := _measure(img, core, gu)
+	var m := _measure(img0, core, gu)
 	var name := "%s %s" % [GalaxyGen.type_name(Run.galaxy_kind), Run.galaxy_name if kind < 0 else "(forced)"]
 	var ratio: float = maxf(m.down, 0.01) / maxf(m.up, 0.01)
 	# (LEGACY by its reach alone: its own dust lies where its seed puts it, and on Jon's
@@ -167,6 +170,33 @@ func _case(st: StringName, seed_v: int, kind: int) -> void:
 			print("  %-10s %-34s frame from %s: the ball %s in view  %s" % [String(st).to_upper(), name,
 				"YOU" if here == Run.node_at() else "the rim", box, "ok" if inside else "FAIL"])
 		chart._go_to(0.42 * ChartSky.K0 / k, Vector2.ZERO, false)
+	# THE CHART'S CLICKABLES STAY LEGIBLE under a ball's story (`ChartSky.ball_story`,
+	# `balllook2=`): the sky under every system's mark and under YOU's, against the same
+	# chart without the story, drawn in this run (its palette is the first's)
+	if story_on:
+		var boxes := _mark_boxes(chart)
+		var now := _box_lumas(img, boxes)
+		var was := _box_lumas(img0, boxes)
+		var worst := 0.0
+		var worst_i := -1
+		for i in boxes.size():
+			var rise: float = now[i] - was[i]
+			if rise > worst:
+				worst = rise
+				worst_i = i
+		var hid := worst_i >= 0 and worst > MARK_RISE and now[worst_i] > MARK_LUMA
+		if hid:
+			_fails += 1
+		print("  %-10s %-34s marks: %d, the sky under them up %.1f at most (to %.1f)  %s" % [String(st).to_upper(), name,
+			boxes.size(), worst, now[worst_i] if worst_i >= 0 else 0.0, "FAIL" if hid else "ok"])
+		# and the light: no blow-out (the brightness the balls were brought to, Oct 18)
+		var lu := _lumas(img)
+		var lu0 := _lumas(img0)
+		var hot: bool = lu.x - lu0.x > STORY_MEAN_RISE or lu.y - lu0.y > STORY_CREAM_RISE
+		if hot:
+			_fails += 1
+		print("  %-10s %-34s light: mean %.1f (was %.1f), over 200 %.2f%% (was %.2f%%)  %s" % [String(st).to_upper(), name,
+			lu.x, lu0.x, lu.y, lu0.y, "FAIL" if hot else "ok"])
 	if _shots != "":
 		# (Jon's galaxy as rolled is `_rolled`: by its kind it took the forced giant's name)
 		img.save_png(_shots.path_join("%s_%d_%s.png" % [st, seed_v, str(kind) if kind >= 0 else "rolled"]))
@@ -241,3 +271,86 @@ func _row(img: Image, y: int, x0: int, x1: int) -> float:
 		v.append((0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) * 255.0)
 	v.sort()
 	return v[v.size() / 2] if not v.is_empty() else 0.0
+
+
+## The chart opened on the run's galaxy at the opening zoom, the core in the middle, and
+## its sky alone (the chart's rect). `fresh`: baked afresh, palette and all (a style
+## keeps its galaxy's bake, and the bake holds what was drawn for it the first time).
+func _open(fresh: bool = false) -> Dictionary:
+	if fresh:
+		ChartSky._baked.clear()
+		ChartSky._early.clear()
+		ChartLegacy._baked.clear()
+	var old := Router.current
+	Router.show_starchart()
+	var t0 := Time.get_ticks_msec()
+	while (Router.current == old or not Router.current is StarchartScreen) and Time.get_ticks_msec() - t0 < 10000:
+		await get_tree().process_frame
+	var scp := Router.current as StarchartScreen
+	var chart: StarchartScreen.MapChart = scp._chart
+	var sky := chart._sky as ChartSky
+	while not sky.ready_to_draw() and Time.get_ticks_msec() - t0 < 30000:
+		await get_tree().process_frame
+	scp.dismiss_primer()
+	chart.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# the chart's opening zoom (ChartLook's `opening`), the core in the middle
+	var k: float = chart._radius() * StarchartScreen.MapChart.DISC
+	chart._go_to(0.42 * ChartSky.K0 / k, Vector2.ZERO, false)
+	chart._repaint_sky()
+	chart.show_icons = false
+	chart.queue_redraw()
+	for _i in 8:
+		await RenderingServer.frame_post_draw
+	var img := chart.get_viewport().get_texture().get_image()
+	var at := chart.get_global_transform_with_canvas().origin
+	img = img.get_region(Rect2i(Vector2i(at.round()), Vector2i(chart.size.round())))
+	chart.show_icons = true
+	return {chart = chart, img = img, k = k}
+
+
+## The boxes the chart's clickables stand in (the chart's rect, px): every system it
+## shows, and YOU's mark and name.
+func _mark_boxes(chart: StarchartScreen.MapChart) -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	var here := Run.node_at()
+	var visible: Dictionary = chart._visible_set(here, chart._in_range())
+	for raw in Run.map:
+		var nd: MapGen.MapNode = raw
+		if not visible.has(nd.index) or nd.type == MapGen.NodeType.CORE:
+			continue
+		var sp: Vector2 = chart._screen_pos(nd)
+		if Rect2(Vector2.ZERO, chart.size).has_point(sp):
+			out.append(Rect2(sp - Vector2(6, 6), Vector2(12, 12)))
+	var yp: Vector2 = chart._screen_pos(here)
+	out.append(Rect2(yp + Vector2(-14, 22), Vector2(28, 10)))
+	return out
+
+
+## The mean luma (0..255) of the sky under each box.
+func _box_lumas(img: Image, boxes: Array[Rect2]) -> Array[float]:
+	var out: Array[float] = []
+	for b in boxes:
+		var s := 0.0
+		var n := 0
+		for y in range(maxi(int(b.position.y), 0), mini(int(b.end.y), img.get_height())):
+			for x in range(maxi(int(b.position.x), 0), mini(int(b.end.x), img.get_width())):
+				var c := img.get_pixel(x, y)
+				s += (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) * 255.0
+				n += 1
+		out.append(s / maxf(float(n), 1.0))
+	return out
+
+
+## The chart's mean luma (0..255) and its share over 200 (%).
+func _lumas(img: Image) -> Vector2:
+	var s := 0.0
+	var hi := 0
+	var n := 0
+	for y in range(0, img.get_height(), 2):
+		for x in range(0, img.get_width(), 2):
+			var c := img.get_pixel(x, y)
+			var l := (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) * 255.0
+			s += l
+			hi += 1 if l > 200.0 else 0
+			n += 1
+	return Vector2(s / float(n), 100.0 * float(hi) / float(n))

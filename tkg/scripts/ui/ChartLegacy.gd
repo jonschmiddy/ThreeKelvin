@@ -40,6 +40,8 @@ const PROBE := Vector2i(224, 154)
 ## The zooms the mockup was built at; each has its own palette and its own grid
 ## of extra stars. A zoom between two uses the nearer.
 const LEVELS: Array[float] = [0.42, 0.59, 0.84, 1.18, 1.66, 2.35, 3.3, 4.65, 6.0]
+## A ball's story's light in this style's own (`ChartSky.ball_story`)
+const STORY_GAIN_L := 3.0
 const TILT := 0.38
 const DISC := 2.05
 ## One turn of the whole galaxy, in minutes: twelve hours, so at a glance it
@@ -1401,6 +1403,7 @@ func _feed_field(m: ShaderMaterial, g: Dictionary, z: float) -> void:
 		m.set_shader_parameter(k, p[k])
 	m.set_shader_parameter("dk_g", p.dk)
 	m.set_shader_parameter("ball_core", ChartSky.form_of(Run.galaxy_kind) == 1 and _use_map)
+	ChartSky.push_story(m, STORY_GAIN_L if _use_map else 0.0)
 	m.set_shader_parameter("arm_k", p.arm_k)
 	m.set_shader_parameter("big_r", p.big_r)
 	m.set_shader_parameter("lane_amt", p.lane)

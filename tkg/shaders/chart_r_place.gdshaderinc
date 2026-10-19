@@ -151,6 +151,7 @@ vec2 bakeUV(vec2 p) { return (p + u_sExt) / (2.0 * u_sExt); }
 #define u_noise u_sNoise
 #define u_struct u_sStruct
 #include "res://shaders/chart_solid.gdshaderinc"
+#include "res://shaders/chart_story.gdshaderinc"
 #undef u_noise
 #undef u_struct
 
@@ -1270,6 +1271,12 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 	// `bgNebSeen`, nor a gap out past the fade: with the disc's long faint fade those cut
 	// a black band round it where nothing stands -- Jon, Oct 13: "it doesn't make sense".
 	// The far dust stays apart from the galaxy's by its own colours and grain.)
+	// A BALL'S STORY (`chart_story`): its victims and its busy core, light like its own,
+	// through what the dust lets by
+	if (u_isBall) {
+		float swl, scl;
+		C += T * storyLight(vb / u_k, u_phi, u_time, 2.0 / (u_zoom * u_k), swl, scl);
+	}
 	float seen = bgSeen(C, u_exp);
 	C += T * (sky(vsky, u_solid ? seen : bgNebSeen(C, u_exp)) * seen + vec3(0.0021, 0.0030, 0.0062));
 	return C;
