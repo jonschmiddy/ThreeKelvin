@@ -136,7 +136,7 @@ static func check(d: LocalEventDrawer, look: StringName, want: Dictionary) -> Ar
 				bad.append("%s: %d entries for %d changes: [%s]" % [look, named.size(), changed + things, said])
 	bad.append_array(boxes(d, look, ents))
 	if look == &"D":
-		bad.append_array(table_place(d))
+		bad.append_array(d_place(d))
 	if look == &"E":
 		bad.append_array(prize_place(d, want, texts))
 	return bad
@@ -166,7 +166,7 @@ static func prize_place(d: LocalEventDrawer, want: Dictionary, texts: Array) -> 
 		if said.size() > 1:
 			bad.append("E: %s said %d times %s" % [nm, said.size(), said])
 	if t != null:
-		bad.append_array(table_place(d, &"E"))
+		bad.append_array(table_place(d))
 	if p == null:
 		if t == null:
 			bad.append("E: no table and no plates")
@@ -188,10 +188,10 @@ static func prize_place(d: LocalEventDrawer, want: Dictionary, texts: Array) -> 
 	return bad
 
 
-## D's table sits directly over the buttons, its right edge on theirs, at
-## least their width (in every layout: on the card too it is right-aligned
-## over them). E's table, where it has one, the same.
-static func table_place(d: LocalEventDrawer, lk: StringName = &"D") -> Array:
+## E's table, where it has one, sits directly over the buttons, its right
+## edge on theirs, at least their width (in every layout: on the card too it
+## is right-aligned over them). D's was the same until it moved (`d_place`).
+static func table_place(d: LocalEventDrawer, lk: StringName = &"E") -> Array:
 	var bad: Array = []
 	var t := d.panel.find_child("OutcomeTable", true, false) as Control
 	var b := d._choices
@@ -207,6 +207,70 @@ static func table_place(d: LocalEventDrawer, lk: StringName = &"D") -> Array:
 		bad.append("%s: the table %s comes down onto the buttons %s" % [lk, tr, br])
 	if br.position.y - tr.end.y > 12.0:
 		bad.append("%s: the table %s floats %d px above the buttons" % [lk, tr, int(br.position.y - tr.end.y)])
+	return bad
+
+
+## D (Jon, Oct 19: "can the text on the right be a bit bigger? and centered
+## vertically?", "can we also have the buttons at the top right?"): the table
+## at `OutcomeRow.D_FS`; the buttons at the top right, level with the title,
+## inside the band and clear of the title, YOU CHOSE, the text and the table;
+## the table under them, its right edge on theirs and at least their width,
+## centred in the room under them (in the band; on the card it sits at the
+## foot, the buttons on the title's line or a line of their own over it).
+static func d_place(d: LocalEventDrawer) -> Array:
+	var bad: Array = []
+	var t := d.panel.find_child("OutcomeTable", true, false) as Control
+	var b := d._choices
+	if t == null or b == null:
+		return ["D: no table or no buttons"]
+	if (t as OutcomeRow.Table).fs != OutcomeRow.D_FS:
+		bad.append("D: the table at %d px, not %d" % [(t as OutcomeRow.Table).fs, OutcomeRow.D_FS])
+	var band := d.panel.get_global_rect()
+	var tr := t.get_global_rect()
+	var br := b.get_global_rect()
+	if not band.encloses(br):
+		bad.append("D: the buttons %s are off the band %s" % [br, band])
+	if absf(tr.end.x - br.end.x) > 0.5:
+		bad.append("D: the table ends at x %d, the buttons at %d" % [int(tr.end.x), int(br.end.x)])
+	if tr.size.x < br.size.x - 0.5:
+		bad.append("D: the table %d wide, narrower than the buttons' %d" % [int(tr.size.x), int(br.size.x)])
+	var inner_r := band.end.x - 10.0
+	if absf(br.end.x - inner_r) > 0.5:
+		bad.append("D: the buttons end at x %d, not on the band's right edge %d" % [int(br.end.x), int(inner_r)])
+	for nm in ["Head", "Chose"]:
+		var c := d.panel.find_child(nm, true, false) as Control
+		if c != null and c.is_visible_in_tree() and br.intersects(_ink_rect(c)):
+			bad.append("D: the buttons %s are on %s %s" % [br, nm, _ink_rect(c)])
+	if d._scroll != null and br.intersects(d._scroll.get_global_rect()):
+		bad.append("D: the buttons %s are on the text %s" % [br, d._scroll.get_global_rect()])
+	if br.intersects(tr):
+		bad.append("D: the buttons %s are on the table %s" % [br, tr])
+	var head := d.panel.find_child("Head", true, false) as Control
+	var hr := head.get_global_rect() if head != null else Rect2()
+	if LocalEventDrawer.layout != &"card":
+		# level with the title: the buttons' middle within the head row (the
+		# real theme puts it within 2 px of the head's middle; the bare band
+		# of `-- localeventtest` has Godot's own font in the labels), and the
+		# table under the buttons, centred in the column's room under them
+		if br.get_center().y < hr.position.y or br.get_center().y > hr.end.y:
+			bad.append("D: the buttons' middle at y %.1f, off the title's row %s" % [br.get_center().y, hr])
+		var col := t.get_parent() as Control
+		var over := tr.position.y - br.end.y
+		var under := col.get_global_rect().end.y - tr.end.y
+		if over < 4.0:
+			bad.append("D: the table %s only %d px under the buttons %s" % [tr, int(over), br])
+		elif absf(over - under) > 1.0 and not (over <= 6.5 and under <= over):
+			# (at the least gap, 6, the table is what sets the column's height:
+			# any room left is a pixel or two the left column is taller)
+			bad.append("D: the table not centred under the buttons: %d px over it, %d under" % [int(over), int(under)])
+		if col.get_global_rect().end.y > band.end.y - 5.5:
+			bad.append("D: the right column %s runs past the band's floor %s" % [col.get_global_rect(), band])
+	else:
+		# the card: the buttons on the title's line, or on their own over it
+		if br.position.y > hr.end.y:
+			bad.append("D: the buttons %s are under the title %s on the card" % [br, hr])
+		if tr.position.y < br.end.y:
+			bad.append("D: the table %s is over the buttons %s on the card" % [tr, br])
 	return bad
 
 

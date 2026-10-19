@@ -26,7 +26,17 @@ extends RefCounted
 ##      on theirs and at least their width: a row a change, its mark, its name,
 ##      the signed change and the new total ("HULL -5 31"), hull, fuel,
 ##      credits, heat, then the things, a part with its cards under it. The
-##      text on the left wraps to stay clear of it; the buttons do not move.
+##      text on the left wraps to stay clear of it.
+##      THEN BIGGER, AND THE BUTTONS ON TOP (Jon, Oct 19, of the band: "can
+##      the text on the right be a bit bigger? and centered vertically?" and
+##      "can we also have the buttons at the top right?"). The table is drawn
+##      at FS_HEAD (`D_FS`), the face's next crisp size up from the body's 8,
+##      its marks at 2x; REWARD and CONTINUE stand at the band's top right,
+##      level with the title, and the table is centred in the right column
+##      under them. The title, YOU CHOSE and the text are a column on the
+##      left that wraps clear of it. On the card the buttons go on the
+##      title's line too (or on a line of their own over it when the title
+##      leaves them no room) and the table sits at the foot, right-aligned.
 ##   E  D, AND WHAT YOU GOT, BIG (Jon, of D: "I like this, but there was a
 ##      previous version of this where the things you get are big on the
 ##      right side"). D's table over REWARD and CONTINUE stays where it is; a
@@ -253,11 +263,13 @@ class Chip extends Control:
 ## (`ChitIcon`), a tank for fuel; for a thing, a plate in its grade's colour.
 const MARK := 7.0
 
-static func draw_mark(ci: CanvasItem, at: Vector2, e: Dictionary) -> void:
+## `px`: how many game px one of the mark's pixels is (2 beside text at
+## FS_HEAD, so the mark grows with the words, still in whole pixels).
+static func draw_mark(ci: CanvasItem, at: Vector2, e: Dictionary, px: int = 1) -> void:
 	var o := at.round()
 	var k := String(e.key)
 	var r := func(x: int, y: int, w: int, h: int, c: Color) -> void:
-		ci.draw_rect(Rect2(o + Vector2(x, y), Vector2(w, h)), c, true)
+		ci.draw_rect(Rect2(o + Vector2(x, y) * px, Vector2(w, h) * px), c, true)
 	match k:
 		"hp", "heat":
 			# the gauge's cell, in the gauge's own colours: hull green (red when
@@ -498,12 +510,22 @@ static func fit(text: String, fs: int, w: float) -> String:
 
 # ------------------------------------------------------------------ D
 
-## D's table at its widest, game px: past this a name wraps.
+## The table at its widest at FS_SMALL, game px: past this a name wraps.
+## Bigger, D_TABLE_MAX_W (`Table.max_w`).
 const TABLE_MAX_W := 230.0
+## D's table's size: one step up from the body's 8. Silkscreen is an 8 px face
+## and only whole multiples of 8 stay crisp on the 960x540 grid
+## (`UITheme.FS_SMALL`), so the next step is FS_HEAD's 16.
+const D_FS := UITheme.FS_HEAD
+## D's table at its widest in the band: not TABLE_MAX_W doubled, which would
+## take half the band from the text; on the card, the card's 300 (`table`'s
+## `max_w`).
+const D_TABLE_MAX_W := 340.0
 
 ## `without_big`: E's table, the things E draws big left out of it (`big_ones`);
-## null when that leaves it nothing to say.
-static func table(out: Dictionary, without_big := false) -> Control:
+## null when that leaves it nothing to say. `fs`: its text's size; `max_w`:
+## its widest, when not TABLE_MAX_W (at 8) or D_TABLE_MAX_W (bigger).
+static func table(out: Dictionary, without_big := false, fs: int = UITheme.FS_SMALL, max_w: float = 0.0) -> Control:
 	var rows := changes(out)
 	if without_big:
 		var big := big_ones(rows)
@@ -512,6 +534,8 @@ static func table(out: Dictionary, without_big := false) -> Control:
 			return null
 	var t := Table.new()
 	t.name = "OutcomeTable"
+	t.fs = fs
+	t.widest = max_w
 	t.setup(rows)
 	return t
 
@@ -523,8 +547,18 @@ static func table(out: Dictionary, without_big := false) -> Control:
 ## as it needs and drawn against its right edge, so stretched to the buttons'
 ## width it still ends where they end.
 class Table extends Control:
-	const ROW := 11.0
-	const GAP := 6.0
+	## A row's height and the columns' gap at FS_SMALL; at a bigger size each
+	## scales with it (`px`), so a table at 16 is the one at 8 drawn twice as big.
+	const ROW8 := 11.0
+	const GAP8 := 6.0
+	## The text's size (FS_SMALL; D's is `OutcomeRow.D_FS`), and what one of
+	## the 8 px face's pixels is at it.
+	var fs := UITheme.FS_SMALL
+	var px := 1
+	## Its widest, game px; 0 for the size's own (`max_w`).
+	var widest := 0.0
+	var ROW := ROW8
+	var GAP := GAP8
 	## [y, mark entry or null, [[text, ink, x, right_aligned]], text]
 	var rows: Array = []
 	var content_w := 0.0
@@ -534,9 +568,17 @@ class Table extends Control:
 		size_flags_horizontal = Control.SIZE_FILL
 		add_to_group(OutcomeRow.GROUP)
 
+	func max_w() -> float:
+		if widest > 0.0:
+			return widest
+		return OutcomeRow.TABLE_MAX_W if px == 1 else OutcomeRow.D_TABLE_MAX_W
+
 	func setup(entries: Array) -> void:
+		px = maxi(1, int(float(fs) / UITheme.FS_SMALL))
+		ROW = ROW8 * px
+		GAP = GAP8 * px
 		var f := UITheme.pixel_font()
-		var sm := UITheme.FS_SMALL
+		var sm := fs
 		var sw := func(t: String) -> float: return f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, sm).x
 		rows.clear()
 		if entries.is_empty():
@@ -553,7 +595,7 @@ class Table extends Control:
 				chg_w = maxf(chg_w, sw.call(String(e.big)))
 				name_w = maxf(name_w, sw.call(String(e.word)))
 				tot_w = maxf(tot_w, sw.call(str(int(e.now))))
-		var x_name := OutcomeRow.MARK + 4.0
+		var x_name := (OutcomeRow.MARK + 4.0) * px
 		# THE STATS AS A COMPACT BLOCK: name, change, total, the digits lined
 		# up; a thing is a line of its own under them, its count leading
 		var x_chg := x_name + name_w + GAP + chg_w
@@ -570,7 +612,7 @@ class Table extends Control:
 				continue
 			var lead := String(e.big)
 			var x_txt: float = x_name + (sw.call(lead + " ") if lead != "" else 0.0)
-			var room: float = OutcomeRow.TABLE_MAX_W - x_txt
+			var room: float = max_w() - x_txt
 			var first := true
 			for ln: String in OutcomeRow.wrap(_thing_name(e), sm, room):
 				var runs: Array = [[ln, e.item_tone if int(e.n) > 0 else UITheme.LEAVE, x_txt, false]]
@@ -599,13 +641,13 @@ class Table extends Control:
 
 	func _draw() -> void:
 		var f := UITheme.pixel_font()
-		var sm := UITheme.FS_SMALL
+		var sm := fs
 		var base := roundf(f.get_ascent(sm))
 		var x0 := _left()
 		for row: Array in rows:
 			var y := float(row[0])
 			if row[1] != null:
-				OutcomeRow.draw_mark(self, Vector2(x0, y + base - OutcomeRow.MARK), row[1])
+				OutcomeRow.draw_mark(self, Vector2(x0, y + base - OutcomeRow.MARK * px), row[1], px)
 			for run: Array in row[2]:
 				var x := x0 + float(run[2])
 				if bool(run[3]):
@@ -615,7 +657,7 @@ class Table extends Control:
 	## {rect, text} per drawn row, each its ink's box.
 	func entry_boxes() -> Array:
 		var f := UITheme.pixel_font()
-		var sm := UITheme.FS_SMALL
+		var sm := fs
 		var outb: Array = []
 		var x0 := _left()
 		for row: Array in rows:
