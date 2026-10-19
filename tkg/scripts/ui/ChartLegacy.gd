@@ -1574,6 +1574,11 @@ func _push() -> void:
 	m.set_shader_parameter("u_skyPan", chart.sky_pan.round())
 	m.set_shader_parameter("u_skySeed", float(posmod(Run.galaxy_seed, 997)))
 	m.set_shader_parameter("sky_seed", (Run.galaxy_seed % 100003) * 31)
+	# ON THE FIELD (`NavField`): its own sky behind off, the field's stars the
+	# chart's (`StarchartScreen.MapChart.on_field`, the key on `ChartSky`)
+	var fld := chart != null and bool(chart.get("on_field"))
+	m.set_shader_parameter("sky_own", not fld)
+	m.set_shader_parameter("u_bgOn", 0.0 if fld else 1.0)
 	var glow := _nebula_glow(p)
 	m.set_shader_parameter("neb_glow", glow)
 	m.set_shader_parameter("neb_style", nebula_look)

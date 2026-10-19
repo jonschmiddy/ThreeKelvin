@@ -34,6 +34,7 @@ const FAR := preload("res://shaders/local_far.gdshader")
 const GRADE := preload("res://shaders/local_grade.gdshader")
 const PALETTE := preload("res://shaders/map_palette.gdshader")
 const KEY := preload("res://shaders/nav_key.gdshader")
+const EXT := preload("res://shaders/nav_ext.gdshader")
 ## how far in from a picture's edge what it holds fades out (px), never cut
 const EDGE_FADE := 24.0
 
@@ -118,6 +119,10 @@ var _copy2: BackBufferCopy = null
 ## the uniforms as last drawn, to tell a change
 var _sig := ""
 var _enabled := true
+## PAINTED (styles:now): the field through the style's own whole pass, a LOCAL
+## sky of its own with nothing in front of its far sky (`LocalSky.field_only`)
+var _painted: LocalSky = null
+var _style: StringName = &""
 
 
 func _init() -> void:
@@ -189,13 +194,21 @@ func _rect() -> ColorRect:
 ## The sky of system `n`: LOCAL's far sky as its own setup makes it, until a
 ## LOCAL sky up over the system is copied.
 func setup(n: MapGen.MapNode) -> void:
-	if n == null or n.index == node_index:
+	if n == null or (n.index == node_index and LocalSky.style_now() == _style):
 		return
 	node_index = n.index
+	_style = LocalSky.style_now()
 	version += 1
 	if not _enabled:
 		return
+	if _style == &"painted":
+		_paint_field(n)
+		return
+	if _painted != null and is_instance_valid(_painted):
+		_painted.queue_free()
+		_painted = null
 	_build()
+	_box.visible = true
 	for k: String in LocalSky.far_defaults(n).keys():
 		_far_mat.set_shader_parameter(k, LocalSky.far_defaults(n)[k])
 	_far_mat.set_shader_parameter("glow_k", 0.0)
@@ -214,6 +227,21 @@ func _set_palette(cached: Array) -> void:
 		_pal.visible = true
 
 
+## PAINTED: a LOCAL sky of the field's own, far sky only, through B's whole
+## paint (its tables, its ramps, its band memory), so the stars LOCAL paints and
+## the field's are the same where its cloud is not.
+func _paint_field(n: MapGen.MapNode) -> void:
+	if _box != null:
+		_box.visible = false
+	if _painted == null or not is_instance_valid(_painted):
+		_painted = LocalSky.new()
+		_painted.field_only = true
+		_painted.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_painted.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		add_child(_painted)
+	_painted.setup(n)
+
+
 func _redraw() -> void:
 	if _scene != null:
 		_scene.render_target_update_mode = SubViewport.UPDATE_ONCE
@@ -225,6 +253,16 @@ func feed(sky: LocalSky) -> void:
 	if not _enabled or sky == null or not is_instance_valid(sky) or sky.node == null:
 		return
 	if sky.node.index != node_index:
+		return
+	if _painted != null and is_instance_valid(_painted):
+		# (PAINTED: LOCAL's camera and its cloud's closing in, held by the field's
+		# own painted sky)
+		var moved: bool = _painted.cam_hold != sky.cam or not is_equal_approx(_painted.closed, sky.closed)
+		_painted.cam_hold = sky.cam
+		if not is_equal_approx(_painted.closed, sky.closed):
+			_painted.set_closed(sky.closed)
+		if moved:
+			version += 1
 		return
 	var fm: ShaderMaterial = sky.get("_far_mat")
 	if fm == null or not bool(sky.get("_ready_sky")):
@@ -293,6 +331,33 @@ func _process(_delta: float) -> void:
 		feed(sky)
 
 
+## THE MAP'S CLOUD PAST ITS PICTURE (cloud:A): in a system inside a cloud, the
+## map's own sky, where its picture has it, across the screens' area, under the
+## picture's own soft edge (`nav_ext.gdshader`); none in a clear sky.
+func _gas_past(map: SystemMapScreen, frame: Rect2) -> void:
+	var ext: TextureRect = map.get("_gas_ext")
+	if ext == null or not is_instance_valid(ext):
+		return
+	var v = map.view
+	var cloud: bool = v != null and v.get("_neb_mat") != null and v.get("_scene") != null and bool(v.get("_ready_sky"))
+	ext.visible = cloud
+	if not cloud:
+		return
+	var sc: SubViewport = v.get("_scene")
+	if ext.texture != sc.get_texture():
+		ext.texture = sc.get_texture()
+	var at: Vector2 = map._frame.global_position + map._box.position
+	var r := Rect2(at, Vector2(960, 540))
+	ext.position = at - map.global_position
+	ext.size = r.size
+	var c := Router.content.get_global_rect() if Router.content != null else r
+	var o := r.intersection(c)
+	var m := ext.material as ShaderMaterial
+	m.set_shader_parameter("inner", Vector4(frame.position.x, frame.position.y, frame.size.x, frame.size.y))
+	m.set_shader_parameter("outer", Vector4(o.position.x, o.position.y, o.size.x, o.size.y))
+	m.set_shader_parameter("tex_right", r.end.x)
+
+
 ## Each map's and chart's key told where its picture's frame stands now, for the
 ## soft edge (`nav_key.gdshader`): the screen up, and one built ahead or
 ## arriving on a move.
@@ -312,6 +377,7 @@ func _frames_keyed() -> void:
 		if s is SystemMapScreen and (s as SystemMapScreen)._box != null:
 			m = (s as SystemMapScreen)._box.material
 			r = (s as SystemMapScreen)._frame.get_global_rect()
+			_gas_past(s as SystemMapScreen, r)
 		elif s is StarchartScreen and (s as StarchartScreen)._chart != null and (s as StarchartScreen)._chart._sky != null:
 			m = (s as StarchartScreen)._chart._sky.material
 			r = (s as StarchartScreen)._chart.get_global_rect()
@@ -331,6 +397,8 @@ func _place() -> void:
 ## The field as drawn (the harness, and the ladder keying it out of a held
 ## picture): its 480x270 picture, its frame on the window.
 func picture() -> Texture2D:
+	if _painted != null and is_instance_valid(_painted) and _painted.get("_scene") != null:
+		return (_painted.get("_scene") as SubViewport).get_texture()
 	return _scene.get_texture() if _scene != null else null
 
 

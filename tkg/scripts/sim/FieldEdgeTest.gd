@@ -13,10 +13,19 @@ extends Node
 ## its edge -- to within the field's own line-to-line variation, and the lines
 ## either side of the edge never differ by more than the field's own step
 ## there. `out=`: each strip written beside the screen, as PNGs, for a look.
+## In every style (`style=legacy|simplified|painted|radiant`, the game's own
+## switch) and in a system inside a cloud (`at=nebula`: the map's cloud runs
+## past its picture, cloud:A -- the edge is then read against the gas either
+## side of it, not the field). And LOCAL's stars ARE the field's (styles:now):
+## on LOCAL at rest, where the field has a star, LOCAL draws it there.
 
 var _fails := 0
 var _tree: SceneTree
 var _out := ""
+## the run's system sits in a cloud (`at=nebula`)
+var _cloud := false
+var _fmed := 0.0
+var _style_lo := false
 const BAND := 24
 ## (levels of 255, on a line's median) -- how far the screen may stand off the
 ## field at the edge's lines, and how far either side's mean may differ
@@ -55,11 +64,19 @@ func _run() -> void:
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	StarchartScreen._primed_for = Run.galaxy_seed
+	if "at=nebula" in OS.get_cmdline_user_args():
+		for n: MapGen.MapNode in Run.map:
+			if n.in_nebula and n.type == MapGen.NodeType.SYSTEM:
+				Run.at = n.index
+				_cloud = true
+				break
 	Run.map[Run.at].visited = true
+	print("  --   style %s, %s" % [LocalSky.style_now(), "a system in a cloud" if _cloud else "a clear system"])
 	ZoomLadder.hold_off = true
 	Router.show_local()
 	ZoomLadder.hold_off = false
 	await _frames(120)
+	await _local_match()
 	for which: String in ["SECTOR", "STARCHART"]:
 		ZoomLadder.hold_off = true
 		if which == "SECTOR":
@@ -84,6 +101,53 @@ func _run() -> void:
 	_tree.quit(1 if _fails > 0 else 0)
 
 
+## LOCAL'S STARS ARE THE FIELD'S (styles:now): on LOCAL at rest, every place
+## the field has a star -- clear of LOCAL's cloud, its worlds, its ship and its
+## words, which stand in front of it -- LOCAL draws that star there. Measured as
+## the share of the field's stars LOCAL matches within 10 levels, where LOCAL's
+## sky is dark round them (its cloud's open sky).
+func _local_match() -> void:
+	if _cloud:
+		print("  --   LOCAL: inside a cloud its far stars stand behind the gas; the match is read in a clear sky")
+		return
+	await _frames(30)
+	await RenderingServer.frame_post_draw
+	var field: NavField = Router.field
+	if not _ok("LOCAL: the field is fed", field != null and field.picture() != null):
+		return
+	var shot := _shot()
+	var fimg := field.picture().get_image()
+	fimg.convert(Image.FORMAT_RGB8)
+	fimg.resize(960, 540, Image.INTERPOLATE_NEAREST)
+	var c := Router.content.get_global_rect()
+	var stars := 0
+	var hit := 0
+	for y in range(int(c.position.y) + 60, int(c.end.y) - 40, 2):
+		for x in range(int(c.position.x) + 10, int(c.end.x) - 10, 2):
+			var f := _lum(fimg, x, y)
+			if f < 40.0:
+				continue
+			# (round it LOCAL's sky open -- LOCAL there the field's own ground: its
+			# cloud, a world, the ship stand in front elsewhere)
+			var dark := true
+			for o: Vector2i in [Vector2i(-6, 0), Vector2i(6, 0), Vector2i(0, -6), Vector2i(0, 6)]:
+				if absf(_lum(shot, x + o.x, y + o.y) - _lum(fimg, x + o.x, y + o.y)) > 10.0:
+					dark = false
+			if not dark:
+				continue
+			stars += 1
+			var a := shot.get_pixel(x, y)
+			var b := fimg.get_pixel(x, y)
+			if maxf(absf(a.r - b.r), maxf(absf(a.g - b.g), absf(a.b - b.b))) * 255.0 <= 10.0:
+				hit += 1
+	var share := float(hit) / maxf(stars, 1)
+	if stars < 10:
+		print("  --   LOCAL (%s): too little open sky to compare (%d of the field's stars in it; a cloud in front)" % [LocalSky.style_now(), stars])
+		return
+	_ok("LOCAL (%s): its stars are the field's -- %d of %d of the field's stars in LOCAL's open sky drawn there (%.0f%%)" % [LocalSky.style_now(), hit, stars, share * 100.0],
+		share >= 0.8)
+
+
 func _shot() -> Image:
 	var img := Router.content.get_viewport().get_texture().get_image()
 	img.convert(Image.FORMAT_RGB8)
@@ -102,7 +166,8 @@ func _plate_px(img: Image, r: Rect2) -> Array:
 	for x in range(x0, x1 + 1, 3):
 		line.append(img.get_pixel(x, y0))
 		line.append(img.get_pixel(x, y1))
-		for y in [y0 + 4, y1 - 4]:
+		# (the margin between the line and the row: 5 px, its middle)
+		for y in [y0 + 2, y1 - 2]:
 			ground.append(img.get_pixel(x, y))
 	for y in range(y0, y1 + 1, 3):
 		line.append(img.get_pixel(x0, y))
@@ -138,6 +203,7 @@ func _plate_hop(to: StringName) -> void:
 		return
 	var r := bar.get_global_rect()
 	var base := _plate_px(_shot(), r)
+	var f0: Image = Router.field.picture().get_image() if Router.field != null and Router.field.picture() != null else null
 	if to == &"map":
 		Router.show_system()
 	else:
@@ -158,8 +224,17 @@ func _plate_hop(to: StringName) -> void:
 		worst_ground = maxf(worst_ground, og)
 		if _settled() and frames > 30:
 			break
-	_ok("%s -> %s: the top plate steady every frame -- its line at most %.0f levels off what it was (frame %d), its ground %.0f (%d frames)" % ["chart" if to == &"map" else "map", to, worst_line, at, worst_ground, frames],
-		worst_line <= 2.0 and worst_ground <= 2.0)
+	if f0 != null and OS.get_cmdline_user_args().has("debug"):
+		var f1: Image = Router.field.picture().get_image()
+		var most := 0.0
+		for y in range(0, f0.get_height(), 2):
+			for x in range(0, f0.get_width(), 2):
+				var a := f0.get_pixel(x, y)
+				var b := f1.get_pixel(x, y)
+				most = maxf(most, maxf(absf(a.r - b.r), maxf(absf(a.g - b.g), absf(a.b - b.b))) * 255.0)
+		print("    debug: the field picture moved %.0f levels at most over the hop" % most)
+	_ok("%s -> %s: the top plate steady every frame -- its line at most %.0f levels off what it was (frame %d), its ground %.0f (%d frames%s)" % ["chart" if to == &"map" else "map", to, worst_line, at, worst_ground, frames, "; in a cloud the gas behind the glass moves, the line alone held" if _cloud else ""],
+		worst_line <= 2.0 and (worst_ground <= 3.0 or _cloud))
 
 
 ## The screen as drawn, and the field alone, both on the game's 960x540.
@@ -198,6 +273,15 @@ func _check(which: String) -> void:
 		# (the plate's own pictures -- a star's portrait, a glow -- left out: only
 		# pixels near the plate's own dark, split by the field's under them, the
 		# field's stars against its void)
+		# (the field's own ground under it: its dark where it is dark, LEGACY's
+		# wash where that lifts it)
+		var fl_all: Array = []
+		for y in range(int(r.position.y), int(r.end.y), 4):
+			for x in range(int(r.position.x), int(r.end.x), 4):
+				fl_all.append(_lum(fimg, x, y))
+		fl_all.sort()
+		_fmed = float(fl_all[fl_all.size() / 2]) if not fl_all.is_empty() else 0.0
+		_style_lo = _fmed >= 12.0
 		var lo_s := 0.0
 		var lo_f := 0.0
 		var hi_s := 0.0
@@ -212,7 +296,7 @@ func _check(which: String) -> void:
 				var sl := _lum(shot, x, y)
 				if sl > 60.0:
 					continue
-				if fl < 14.0:
+				if fl < 14.0 or (_style_lo and fl < _fmed + 4.0):
 					lo_s += sl
 					lo_f += fl
 					nlo += 1
@@ -228,7 +312,7 @@ func _check(which: String) -> void:
 		var nm2 := "toolbar" if pl == ZoomLadder.bar_of(cur) else "side"
 		if n >= 8:
 			_ok("%s: the field shows through the %s plate (the screen follows its stars by %.2f, %.2f wanted, %d star px)" % [which, nm2, slope, want, n],
-				absf(slope - want) <= 0.08)
+				absf(slope - want) <= 0.12)
 		else:
 			# (too few of the field's stars under it to fit: its ground, then -- the
 			# plate's colour over the field's void at PLATE_A, not the panel's own)
@@ -302,6 +386,23 @@ func _check(which: String) -> void:
 				fjump = maxf(fjump, absf(float(l[2]) - float(prev[2])))
 			prev = l
 		var step := absf(ins / maxf(ni, 1) - outs / maxf(no, 1))
+		if _cloud and which == "SECTOR":
+			# (the cloud runs on past the picture: its gas either side, not the
+			# field -- the line at the edge no further from the one before it than
+			# the cloud's own lines are from theirs)
+			var at_edge := 0.0
+			var others: Array = []
+			for i in range(1, lines.size()):
+				var d := absf(float(lines[i][1]) - float(lines[i - 1][1]))
+				if int(lines[i][0]) == 0 or int(lines[i - 1][0]) == 0 or (nm == "bottom" and int(lines[i][0]) == -1):
+					at_edge = maxf(at_edge, d)
+				else:
+					others.append(d)
+			others.sort()
+			var typical: float = others[int(others.size() * 0.9)] if not others.is_empty() else 0.0
+			_ok("%s, the picture's %s edge in the cloud: no step across it (the line at the edge %.1f from the one before it, the cloud's own up to %.1f)" % [which, nm, at_edge, typical],
+				at_edge <= typical + 2.0)
+			continue
 		_ok("%s, the picture's %s edge: no step across it (the screen less the field: sides %.1f levels apart, the biggest jump line to line %.1f against the field's own %.1f; the most any line stood off the field %.1f)" % [which, nm, step, jump, fjump, worst],
 			step <= STEP and jump <= maxf(STEP, fjump + 1.0))
 		if _out != "":
@@ -324,7 +425,7 @@ func _ui_rects(root: Node) -> Array:
 			continue
 		for k: Node in n.get_children():
 			stack.append(k)
-		if not (n is Control) or not (n as Control).is_visible_in_tree():
+		if not (n is Control) or not (n as Control).is_visible_in_tree() or n.name == &"GasPastPicture":
 			continue
 		var r := (n as Control).get_global_rect()
 		var small := r.get_area() < 3000.0

@@ -2864,6 +2864,35 @@ func _calm_hold(n: Control) -> void:
 		if seen is Vector2 and (seen as Vector2).is_finite() and (seen as Vector2).distance_to(_calm_ph) < 8.0:
 			_calm_ph = seen
 	var pic: Rect2 = old.call(&"ladder_picture")
+	# (a map in a cloud draws its cloud past its picture, across the screens'
+	# area (cloud:A): the picture held is the whole of that, its side bar and
+	# toolbar left where they stand -- held, the cloud never drops away at once)
+	var cuts := [Vector4.ZERO, Vector4.ZERO]
+	var ext: Variant = old.get("_gas_ext") if old is SystemMapScreen else null
+	_mat.set_shader_parameter(&"under_on", false)
+	_mat.set_shader_parameter(&"feather", 28.0)
+	if ext is TextureRect and (ext as TextureRect).visible:
+		pic = _content_rect()
+		# (made smaller, a cloud thins out at its edge: a wide soft edge, not a
+		# card of gas)
+		_mat.set_shader_parameter(&"feather", 160.0)
+		# (and under them the map's own sky as it was, its cloud running on)
+		var et := (ext as TextureRect).texture
+		var ei: Image = et.get_image() if et != null and DisplayServer.get_name() != "headless" else null
+		if ei != null and not ei.is_empty():
+			var at: Vector2 = (ext as TextureRect).global_position
+			_mat.set_shader_parameter(&"under_tex", ImageTexture.create_from_image(ei))
+			_mat.set_shader_parameter(&"under_at", at)
+			_mat.set_shader_parameter(&"under_right", at.x + 960.0)
+			_mat.set_shader_parameter(&"under_on", true)
+		var i := 0
+		for oc: Variant in [side_of(old), bar_of(old)]:
+			if oc != null and (oc as Control).is_visible_in_tree():
+				var cr := (oc as Control).get_global_rect().grow(1.0)
+				cuts[i] = Vector4(cr.position.x, cr.position.y, cr.size.x, cr.size.y)
+				i += 1
+	_mat.set_shader_parameter(&"cut3", cuts[0])
+	_mat.set_shader_parameter(&"cut4", cuts[1])
 	if r_new == LOCAL:
 		# (into LOCAL the side panel and toolbar went before the move: the whole
 		# of the screen left is the picture carried, the ground where they stood
@@ -2888,6 +2917,20 @@ func _calm_hold(n: Control) -> void:
 	_mat.set_shader_parameter(&"field_on", _calm_field != null)
 	if _calm_field != null:
 		_mat.set_shader_parameter(&"field_tex", _calm_field)
+	# (the goal line, up through the move over both screens, left out of the
+	# picture held: `calm_ladder.gdshader` `cut`)
+	var gcut := Vector4.ZERO
+	var gcut2 := Vector4.ZERO
+	var gl: Variant = Router.hud.get("goal") if Router.hud != null else null
+	if gl is GoalLine and (gl as GoalLine).visible:
+		var gr := Rect2((gl as GoalLine).position, (gl as GoalLine).size).grow(1.0)
+		gcut = Vector4(gr.position.x, gr.position.y, gr.size.x, gr.size.y)
+		var sr: Rect2 = (gl as GoalLine).step_rect()
+		if sr.size != Vector2.ZERO:
+			sr = sr.grow(1.0)
+			gcut2 = Vector4(sr.position.x, sr.position.y, sr.size.x, sr.size.y)
+	_mat.set_shader_parameter(&"cut", gcut)
+	_mat.set_shader_parameter(&"cut2", gcut2)
 	# (the screen arriving unseen until the held one starts to go)
 	n.modulate.a = 0.0
 	_calm_a = 1.0

@@ -34,11 +34,50 @@ uniform vec4 side2 = vec4(0.0);
 uniform sampler2D field_tex : filter_nearest;
 uniform bool field_on = false;
 uniform float key_tol = 0.03;
+// THE HUD'S OWN THINGS IN THE PICTURE HELD (the goal line, a fixed piece of the
+// HUD that stays up through the move, drawn over the screens: the frame held
+// has it too), left out where they stood -- one goal, never a second carried
+// off with the picture (texels, as the picture was)
+uniform vec4 cut = vec4(0.0);
+uniform vec4 cut2 = vec4(0.0);
+// and where the picture held runs past the map's own (its cloud, cloud:A), the
+// screen's side bar and toolbar there, standing still where they were
+// (`_calm_cover`), not carried with it
+uniform vec4 cut3 = vec4(0.0);
+uniform vec4 cut4 = vec4(0.0);
+// ... and under them, the map's own sky as it was there (its cloud runs on
+// under the plates): its picture (`under_tex`, the map's 960x540 sky from
+// `under_at`), keyed to its void as the map keys it, thinning out to its end on
+// the right as the map's cloud does (`nav_ext.gdshader`)
+uniform sampler2D under_tex : filter_nearest;
+uniform bool under_on = false;
+uniform vec2 under_at = vec2(0.0);
+uniform float under_right = 99999.0;
+
+vec4 under_texel(vec2 tc) {
+	vec2 u = (tc + 0.5 - under_at) / vec2(960.0, 540.0);
+	if (u.x < 0.0 || u.y < 0.0 || u.x > 1.0 || u.y > 1.0) {
+		return vec4(0.0);
+	}
+	vec3 c = texture(under_tex, u).rgb;
+	float L = dot(c, vec3(0.299, 0.587, 0.114));
+	float k = max(smoothstep(0.046, 0.085, L), 1.0 - smoothstep(0.008, 0.018, L));
+	k *= smoothstep(0.0, 120.0, under_right - tc.x);
+	return vec4(c * k, k);
+}
 
 // a texel of the held picture, premultiplied, keyed against the field
 vec4 held_texel(vec2 t) {
 	vec2 tc = clamp(t, vec2(0.0), vp - 1.0);
 	vec4 h = texelFetch(old_lin, ivec2(tc), 0);
+	if ((cut.z > 0.0 && tc.x >= cut.x && tc.y >= cut.y && tc.x < cut.x + cut.z && tc.y < cut.y + cut.w)
+			|| (cut2.z > 0.0 && tc.x >= cut2.x && tc.y >= cut2.y && tc.x < cut2.x + cut2.z && tc.y < cut2.y + cut2.w)) {
+		return vec4(0.0);
+	}
+	if ((cut3.z > 0.0 && tc.x >= cut3.x && tc.y >= cut3.y && tc.x < cut3.x + cut3.z && tc.y < cut3.y + cut3.w)
+			|| (cut4.z > 0.0 && tc.x >= cut4.x && tc.y >= cut4.y && tc.x < cut4.x + cut4.z && tc.y < cut4.y + cut4.w)) {
+		return under_on ? under_texel(tc) : vec4(0.0);
+	}
 	if (field_on) {
 		vec3 f = texture(field_tex, (tc + 0.5) / vp).rgb;
 		vec3 d = abs(h.rgb - f);

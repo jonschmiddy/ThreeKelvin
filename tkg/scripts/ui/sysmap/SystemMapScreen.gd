@@ -147,6 +147,23 @@ var last_zoom_t := -100.0
 
 func _init() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# THE CLOUD PAST THE PICTURE (Jon, Oct 18, cloud:A): in a system inside a
+	# gas cloud, the map's own sky drawn again round its picture, across the
+	# screens' area, behind everything here (`nav_ext.gdshader`; placed and fed
+	# each frame by `NavField`)
+	if NavField.used():
+		_gas_ext = TextureRect.new()
+		_gas_ext.name = "GasPastPicture"
+		_gas_ext.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_gas_ext.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		_gas_ext.stretch_mode = TextureRect.STRETCH_SCALE
+		_gas_ext.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		var em := ShaderMaterial.new()
+		em.shader = NavField.EXT
+		em.set_shader_parameter("fade", NavField.EDGE_FADE)
+		_gas_ext.material = em
+		_gas_ext.visible = false
+		add_child(_gas_ext)
 	var root := VBoxContainer.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_theme_constant_override("separation", 4)
@@ -1450,6 +1467,8 @@ func ladder_bar() -> Control:
 
 ## the toolbar row's plate, on the field (`NavField.row_plate`)
 var _row_plate: PanelContainer = null
+## the map's own sky drawn on past its picture (a system in a cloud)
+var _gas_ext: TextureRect = null
 
 
 ## The side bar, for the ladder to swap in place (`SideSwap`).

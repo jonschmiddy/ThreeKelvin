@@ -471,6 +471,8 @@ func setup(c: StarchartScreen.MapChart) -> void:
 		if _legacy == null:
 			_legacy = ChartLegacy.new()
 			_legacy.name = "Legacy"
+			# (keyed onto the field with the rest of the sky: `MapChart.on_field`)
+			_legacy.use_parent_material = true
 			add_child(_legacy)
 		_legacy.interval = interval
 		_legacy.setup(c)

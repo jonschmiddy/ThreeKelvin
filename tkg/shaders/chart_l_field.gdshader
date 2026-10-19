@@ -232,6 +232,9 @@ uniform int star_level = 1;
 // the sky behind
 uniform vec2 sky_pan = vec2(0.0);
 uniform int sky_seed = 0;
+// THE SKY BEHIND ITS OWN (its three depths of stars and far galaxies): off on
+// the field (`NavField`), whose stars are the chart's there
+uniform bool sky_own = true;
 // a palette probe: the level's window round the centre, field only
 uniform bool probe = false;
 
@@ -1875,7 +1878,7 @@ void fragment() {
 		}
 		// ---- the sky behind: three depths of stars, and far galaxies
 		vec2 b0 = vp_origin + vp * 2.0;
-		for (int li = 0; li < 3; li++) {
+		for (int li = 0; li < (sky_own ? 3 : 0); li++) {
 			float rate = li == 0 ? 0.18 : (li == 1 ? 0.38 : 0.62);
 			float cell = li == 0 ? 32.0 : (li == 1 ? 48.0 : 90.0);
 			float keep_p = li == 0 ? 0.88 : (li == 1 ? 0.92 : 0.93);
@@ -1959,8 +1962,9 @@ void fragment() {
 		}
 		// ---- the sky behind at infinity (`chart_bg.gdshaderinc`): far nebulae, far
 		// galaxies and the nearest stars, sliding by depth as you pan; shown where
-		// they are brighter than the galaxy in front
-		{
+		// they are brighter than the galaxy in front (none on the field: its own
+		// dark, toned, read as a grey lift there)
+		if (sky_own) {
 			vec2 spb = vp_origin + vp * 2.0 + 1.0 - view_c;
 			// (the far nebulae thin away well before the galaxy's faintest light: its
 			// rim meets dark sky, never a far cloud -- `bgNebSeen`)

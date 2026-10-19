@@ -233,7 +233,7 @@ func _build() -> void:
 	_chart.cleared.connect(_on_chart_cleared)
 	_chart.view_dragged.connect(_on_view_dragged)
 	var chart_wrap := Widgets.panel_with(_chart)
-	if NavField.used() and not ChartLegacy.wanted():
+	if NavField.used():
 		_chart.on_field = true
 		chart_wrap.add_theme_stylebox_override("panel", NavField.window_style())
 	chart_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL

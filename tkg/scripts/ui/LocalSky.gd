@@ -242,6 +242,13 @@ var _near_mat: ShaderMaterial = null
 var _near: Array = []
 ## the picture the near layer is drawn onto (for the cutaway's zoom)
 var _near_rect: ColorRect = null
+## THE FIELD'S OWN (`NavField`, PAINTED: styles:now, the handoff matching): this
+## sky's far picture alone -- no cloud, no star, no worlds, no near one, no
+## life -- through the style's own whole pass, so the field under the map and
+## the chart is LOCAL's far sky as LOCAL paints it. `cam_hold`: LOCAL's camera,
+## held (where its far stars slid to), not this one's.
+var field_only := false
+var cam_hold := Vector2.INF
 ## the world you orbit, as drawn (`near_info`); a great storm an event holds on
 ## its face (`_hold_storm`); how far the gas has closed in (`set_closed`)
 var _near_world: Node2D = null
@@ -626,6 +633,8 @@ func _build() -> void:
 	_build_near()
 	_apply_closed()
 	_wx_setup()
+	if field_only:
+		_field_hide()
 	_place_box()
 	_step(0.0)
 	# THE FIRST FRAME ANYBODY SEES IS THE FINISHED ONE (Jon, of the arrival:
@@ -699,6 +708,29 @@ func _rect() -> ColorRect:
 	return r
 
 
+## The far sky alone (`field_only`): everything in front of it hidden, every
+## frame (LOCAL's life adds its own as it goes).
+func _field_hide() -> void:
+	if _far_mat != null:
+		_far_mat.set_shader_parameter("glow_k", 0.0)
+	# (PAINTED paints the sun's light itself: none here, the sun is LOCAL's)
+	if not _pt.is_empty():
+		var away := Vector2(-9999.0, -9999.0)
+		(_pt.state as ShaderMaterial).set_shader_parameter("sun_r", 0.0)
+		(_pt.state as ShaderMaterial).set_shader_parameter("star_px", away)
+		(_pt.paint as ShaderMaterial).set_shader_parameter("star_at", away)
+	for n: Variant in [_worlds, _near_rect, _neb]:
+		if n != null and is_instance_valid(n):
+			(n as CanvasItem).visible = false
+	if star != null and is_instance_valid(star):
+		(star as CanvasItem).visible = false
+	if life != null:
+		for nm: String in ["_air", "_night", "_traffic"]:
+			var n2: Variant = life.get(nm)
+			if n2 != null and is_instance_valid(n2):
+				(n2 as CanvasItem).visible = false
+
+
 ## The cloud's density, baked once a system and kept (`SkyBake.field`).
 func _bake_cloud(gen: int) -> void:
 	var key := "%d|%s|%s" % [node.index, "L" if legacy else "C", int(_sky_look.neb)]
@@ -756,7 +788,7 @@ func _bake_cloud(gen: int) -> void:
 			var ps = _neb_mat.get_shader_parameter("p_sheets")
 			if ps != null and not (ps as Texture2D).get_image().is_invisible():
 				f.append(ps)
-	_neb.visible = true
+	_neb.visible = not field_only
 	_ready_sky = true
 	_reveal()
 
@@ -1001,7 +1033,8 @@ func _step(delta: float) -> void:
 	_place_box()
 	# REDUCED MOTION: the sky holds still -- its gas, its star, the hole's disc,
 	# the pulsar's beams -- and the weather never comes
-	var still := DisplaySettings.reduced_motion
+	# (the field's own holds still: it is the ground every move stands on)
+	var still := DisplaySettings.reduced_motion or field_only
 	if not still:
 		t += delta
 	# (the palette's own frames: the sky at its clock's start, see `_build_palette`)
@@ -1013,6 +1046,8 @@ func _step(delta: float) -> void:
 	if cam_ship != null and is_instance_valid(cam_ship) and cam_ship.is_inside_tree():
 		cx = cam_ship.position.x * CAM_FOLLOW
 	cam = Vector2(roundf(cx), 0.0)
+	if cam_hold != Vector2.INF:
+		cam = cam_hold
 	cam_follow = cam
 	# (while the palette is being found the sky is laid out at rest, behind a
 	# still of itself: see `_build_palette`)
@@ -1062,6 +1097,8 @@ func _step(delta: float) -> void:
 	_wx_step(delta)
 	if life != null:
 		life.step(delta)
+	if field_only:
+		_field_hide()
 	if _ready_sky and not _palette_built and _frame > 8 and _palette_mat != null:
 		_build_palette()
 
