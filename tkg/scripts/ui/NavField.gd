@@ -347,15 +347,17 @@ func _gas_past(map: SystemMapScreen, frame: Rect2) -> void:
 	if ext.texture != sc.get_texture():
 		ext.texture = sc.get_texture()
 	var at: Vector2 = map._frame.global_position + map._box.position
-	var r := Rect2(at, Vector2(960, 540))
+	var c := Router.content.get_global_rect() if Router.content != null else Rect2(at, Vector2(960, 540))
+	# (on to the screens' own edges, the sky mirrored past its end: `nav_ext`)
+	var sz := Vector2(maxf(960.0, c.end.x - at.x), maxf(540.0, c.end.y - at.y))
+	var r := Rect2(at, sz)
 	ext.position = at - map.global_position
-	ext.size = r.size
-	var c := Router.content.get_global_rect() if Router.content != null else r
+	ext.size = sz
 	var o := r.intersection(c)
 	var m := ext.material as ShaderMaterial
 	m.set_shader_parameter("inner", Vector4(frame.position.x, frame.position.y, frame.size.x, frame.size.y))
 	m.set_shader_parameter("outer", Vector4(o.position.x, o.position.y, o.size.x, o.size.y))
-	m.set_shader_parameter("tex_right", r.end.x)
+	m.set_shader_parameter("span", sz / Vector2(960, 540))
 
 
 ## Each map's and chart's key told where its picture's frame stands now, for the

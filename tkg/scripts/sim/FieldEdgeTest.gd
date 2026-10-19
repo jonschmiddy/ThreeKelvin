@@ -179,6 +179,8 @@ func _cloud_hop() -> void:
 	var worst := 0.0
 	var seen := 0
 	var why := ""
+	var corner_worst := 0.0
+	var corner_why := ""
 	for f in 300:
 		await RenderingServer.frame_post_draw
 		if not ZoomLadder.busy():
@@ -187,7 +189,7 @@ func _cloud_hop() -> void:
 			continue
 		var L := ZoomLadder.active
 		var sc: Variant = (L._mat as ShaderMaterial).get_shader_parameter(&"scl")
-		if not (L._rect as CanvasItem).visible or not (sc is Vector2) or (sc as Vector2).x > 0.85 or L.held_alpha() < 0.5:
+		if not (L._rect as CanvasItem).visible or not (sc is Vector2) or (sc as Vector2).x > 0.97 or L.held_alpha() < 0.5:
 			continue
 		var shot := _shot()
 		var x0 := 9999
@@ -223,8 +225,25 @@ func _cloud_hop() -> void:
 			if cov > worst:
 				worst = cov
 				why = "%s side %.0f%% cloud, frame %d (held at %.2f)" % [nm, cov * 100.0, f, (sc as Vector2).x]
+		# (and its corners empty: a twelfth of the box each way at each corner)
+		var cw := int((x1 - x0) / 12.0)
+		var ch := int((y1 - y0) / 12.0)
+		for cc: Vector2i in [Vector2i(x0, y0), Vector2i(x1 - cw, y0), Vector2i(x0, y1 - ch), Vector2i(x1 - cw, y1 - ch)]:
+			var tot := 0
+			var on := 0
+			for y in range(cc.y, cc.y + ch + 1, 2):
+				for x in range(cc.x, cc.x + cw + 1, 2):
+					tot += 1
+					if cloud.has(Vector2i(x - x % 2, y - y % 2)):
+						on += 1
+			var cf := float(on) / maxf(tot, 1)
+			if cf > corner_worst:
+				corner_worst = cf
+				corner_why = "corner at %s %.0f%% cloud, frame %d" % [cc, cf * 100.0, f]
 	_ok("map -> chart in a cloud: the held cloud, made smaller, has no straight side -- the most of any side's line that is cloud %.0f%% (%s; %d frames read)" % [worst * 100.0, why, seen],
-		seen >= 3 and worst <= 0.75)
+		seen >= 3 and worst <= 0.40)
+	_ok("map -> chart in a cloud: and no corner -- the most of any corner that is cloud %.0f%% (%s)" % [corner_worst * 100.0, corner_why],
+		seen >= 3 and corner_worst <= 0.10)
 
 
 func _shot() -> Image:
@@ -348,6 +367,11 @@ func _check(which: String) -> void:
 	for pl: Control in [ZoomLadder.bar_of(cur), ZoomLadder.side_of(cur)]:
 		if pl == null:
 			continue
+		if _cloud and which == "SECTOR":
+			# (in a cloud the map's gas runs on under the plates: what shows
+			# through them is the gas, not the field)
+			print("  --   %s: under its plates, the cloud" % which)
+			break
 		var r := pl.get_global_rect().grow(-4.0)
 		# (the plate's own pictures -- a star's portrait, a glow -- left out: only
 		# pixels near the plate's own dark, split by the field's under them, the

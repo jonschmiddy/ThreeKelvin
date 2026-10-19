@@ -1,4 +1,5 @@
 shader_type canvas_item;
+#include "res://shaders/cloud_round.gdshaderinc"
 
 // THE MAP'S CLOUD PAST ITS PICTURE (Jon, Oct 18, cloud:A -- of a system inside
 // a gas cloud, the map's picture "reads as a lit rectangle"): the map's own sky
@@ -18,23 +19,38 @@ uniform float dark_w = 0.010;
 uniform vec4 inner = vec4(0.0);
 uniform vec4 outer = vec4(0.0, 0.0, 960.0, 540.0);
 uniform float fade = 24.0;
+// (the map going small into the chart, a cloud: `cloud_round.gdshaderinc`)
+uniform float round_k = 0.0;
+uniform vec2 round_c = vec2(480.0, 270.0);
+uniform vec2 round_h = vec2(470.0, 245.0);
 // the map's own sky ends short of the screens' right edge (the side panel's
-// side): thinned out over this many px to its end there, not cut
-uniform float tex_right = 99999.0;
-uniform float fade_right = 120.0;
+// side): this is drawn wider than it (`span`, its size over the sky's), and
+// past its end the sky goes on as its own mirror -- gas at full strength to the
+// screens' edge, under the plates (Jon: "Why is there a missing part when the
+// panel comes in?")
+uniform vec2 span = vec2(1.0);
 
 float inside(vec2 p, vec4 r) {
 	return min(min(p.x - r.x, p.y - r.y), min(r.x + r.z - p.x, r.y + r.w - p.y));
 }
 
 void fragment() {
-	vec4 c = COLOR;
+	vec2 u = UV * span;
+	if (u.x > 1.0) {
+		u.x = 2.0 - u.x;
+	}
+	if (u.y > 1.0) {
+		u.y = 2.0 - u.y;
+	}
+	vec4 c = texture(TEXTURE, u);
 	float L = dot(c.rgb, vec3(0.299, 0.587, 0.114));
 	float k = max(smoothstep(lo, hi, L), 1.0 - smoothstep(dark - dark_w, dark, L)) * c.a;
 	vec2 p = FRAGCOORD.xy;
 	float fp = inner.z > 0.0 ? smoothstep(0.0, fade, inside(p, inner)) : 0.0;
-	float e = k * (1.0 - fp) / max(1.0 - k * fp, 0.001);
+	// (the cloud's rounding is on the picture too: what the picture lets through
+	// here is k m fp, so this gives the rest of k m)
+	float m = cloud_round(p, L, round_k, round_c, round_h);
+	float e = k * m * (1.0 - fp) / max(1.0 - k * m * fp, 0.001);
 	e *= smoothstep(0.0, fade, inside(p, outer));
-	e *= smoothstep(0.0, fade_right, tex_right - p.x);
 	COLOR = vec4(c.rgb, clamp(e, 0.0, 1.0));
 }

@@ -1,4 +1,5 @@
 shader_type canvas_item;
+#include "res://shaders/cloud_round.gdshaderinc"
 
 // THE MAP'S AND THE CHART'S EMPTY SKY KEYED AWAY ONTO THE FIELD (`NavField`;
 // Jon, Oct 18: stars edge to edge, the panels built on top). With their own far
@@ -22,6 +23,10 @@ uniform bool on = true;
 // so it fades out over `fade` px inside it instead of stopping at a cut
 uniform vec4 frame = vec4(0.0);
 uniform float fade = 24.0;
+// (the map going small into the chart, a cloud: `cloud_round.gdshaderinc`)
+uniform float round_k = 0.0;
+uniform vec2 round_c = vec2(480.0, 270.0);
+uniform vec2 round_h = vec2(470.0, 245.0);
 
 void fragment() {
 	// (COLOR comes in as the texture under the item's modulate)
@@ -30,6 +35,7 @@ void fragment() {
 		float L = dot(c.rgb, vec3(0.299, 0.587, 0.114));
 		float a = max(smoothstep(lo, hi, L), 1.0 - smoothstep(dark - dark_w, dark, L));
 		c.a *= a;
+		c.a *= cloud_round(FRAGCOORD.xy, L, round_k, round_c, round_h);
 		if (frame.z > 0.0) {
 			vec2 p = FRAGCOORD.xy;
 			float d = min(min(p.x - frame.x, p.y - frame.y), min(frame.x + frame.z - p.x, frame.y + frame.w - p.y));

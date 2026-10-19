@@ -2764,6 +2764,7 @@ func _calm_cam() -> void:
 				return
 		else:
 			old.call(&"calm_at", _calm_p(e), exp(_calm_L * e))
+			_cloud_round(old, e)
 			_calm_e_drawn = e
 			return
 	# THE SCREEN ARRIVED, live underneath; the held picture over it on the same
@@ -2790,6 +2791,7 @@ func _calm_cam() -> void:
 		new.call(&"calm_at", p, exp(_calm_L * (e - 1.0)))
 	_mat.set_shader_parameter(&"to_pt", p)
 	_mat.set_shader_parameter(&"scl", Vector2.ONE * exp(_calm_L * (e - _calm_e_h)))
+	_mat.set_shader_parameter(&"cloud_k", _cloud_k(e))
 	_calm_fade()
 	if u >= 1.0:
 		_calm_land()
@@ -2877,11 +2879,11 @@ func _calm_hold(n: Control) -> void:
 		# (made smaller, a cloud thins out at its edge as a cloud: rounded about
 		# the picture's middle, broken by the gas -- `cloud_edge`)
 		_mat.set_shader_parameter(&"feather", 160.0)
-		var mid := (old.call(&"ladder_picture") as Rect2).get_center()
-		var c := _content_rect()
-		_mat.set_shader_parameter(&"cloud_edge", true)
-		_mat.set_shader_parameter(&"cloud_c", mid)
-		_mat.set_shader_parameter(&"cloud_h", Vector2(maxf(mid.x - c.position.x, c.end.x - mid.x), maxf(mid.y - c.position.y, c.end.y - mid.y)))
+		var ce := _cloud_ellipse(old)
+		_mat.set_shader_parameter(&"cloud_edge", r_new == CHART)
+		_mat.set_shader_parameter(&"cloud_k", _cloud_k(_calm_e_drawn))
+		_mat.set_shader_parameter(&"cloud_c", ce.position)
+		_mat.set_shader_parameter(&"cloud_h", ce.size)
 		# (and under them the map's own sky as it was, its cloud running on)
 		var et := (ext as TextureRect).texture
 		var ei: Image = et.get_image() if et != null and DisplayServer.get_name() != "headless" else null
@@ -3015,6 +3017,36 @@ func _calm_land() -> void:
 		if sw != null and is_instance_valid(sw):
 			(sw as SideSwap).frozen = false
 			(sw as SideSwap).rate = _calm_rate
+
+
+## THE MAP IN A CLOUD GOING SMALL INTO THE CHART (Jon: "Zooming out still has a
+## huge square"): its cloud rounds off as a cloud from the camera's first
+## steps, on the live map (its picture and its cloud past it) and on in the
+## picture held, one curve (`cloud_round.gdshaderinc`): how far in at `e`.
+static func _cloud_k(e: float) -> float:
+	return smoothstep(0.04, 0.5, e)
+
+
+## the ellipse's middle (the map's picture's) and its reach (to the screens'
+## area's farthest edges), as [position, size]
+func _cloud_ellipse(m: Control) -> Rect2:
+	var mid := (m.call(&"ladder_picture") as Rect2).get_center()
+	var c := _content_rect()
+	return Rect2(mid, Vector2(maxf(mid.x - c.position.x, c.end.x - mid.x), maxf(mid.y - c.position.y, c.end.y - mid.y)))
+
+
+func _cloud_round(m: Control, e: float) -> void:
+	if r_new != CHART or not (m is SystemMapScreen):
+		return
+	var ext: Variant = m.get("_gas_ext")
+	if not (ext is TextureRect) or not (ext as TextureRect).visible:
+		return
+	var ce := _cloud_ellipse(m)
+	for mat: Variant in [(ext as TextureRect).material, (m as SystemMapScreen)._box.material]:
+		if mat is ShaderMaterial:
+			(mat as ShaderMaterial).set_shader_parameter(&"round_k", _cloud_k(e))
+			(mat as ShaderMaterial).set_shader_parameter(&"round_c", ce.position)
+			(mat as ShaderMaterial).set_shader_parameter(&"round_h", ce.size)
 
 
 ## THE PANELS, DRAWN, SLIDING (Jon, Oct 18: "the panels should be drawn in as
@@ -3186,6 +3218,12 @@ func _calm_end() -> void:
 	if not _calm:
 		return
 	_calm = false
+	# (a map that stays -- the move given up -- back to its whole cloud)
+	if is_instance_valid(old) and old is SystemMapScreen and Router.current == old:
+		var ext: Variant = old.get("_gas_ext")
+		for mat: Variant in [(ext as TextureRect).material if ext is TextureRect else null, (old as SystemMapScreen)._box.material]:
+			if mat is ShaderMaterial:
+				(mat as ShaderMaterial).set_shader_parameter(&"round_k", 0.0)
 	if is_instance_valid(new):
 		new.modulate.a = 1.0
 	if _calm_e_h < 0.0:
