@@ -24,6 +24,8 @@ extends Node
 
 var _tree: SceneTree
 var _fails := 0
+## the goal's rect where first seen up: every screen after has it the same
+var _goal_rect := Rect2()
 
 
 func _ok(what: String, c: bool) -> bool:
@@ -167,6 +169,23 @@ func _check(g: Control, where: String, step: String) -> void:
 	var r := Rect2(g.global_position, g.size)
 	var screen := g.get_viewport_rect()
 	_ok("%s: inside the picture (%s)" % [where, r], screen.encloses(r) and r.size.x > 10.0)
+	# ONE PLACE (Jon, Oct 18: "Can we have the goal: xxx always be in this
+	# location?"): the same rect on every screen it shows on
+	if _goal_rect == Rect2():
+		_goal_rect = r
+	_ok("%s: in its one place (%s; first seen %s)" % [where, r, _goal_rect], r == _goal_rect)
+	# and the step's line, while one is pending, boxed the same
+	var sr: Rect2 = g.call("step_rect") if g.has_method("step_rect") else Rect2()
+	if sr.size != Vector2.ZERO:
+		var shits: Array[String] = []
+		for pair in _boxes(Router.current):
+			var b2: Rect2 = pair[1]
+			if b2.size.x > 0.0 and b2.size.y > 0.0 and sr.intersects(b2):
+				shits.append("%s %s" % [pair[0], b2])
+		var inner2: Control = Router.current.get("_chart") if Router.current is StarchartScreen else (Router.current.get("_frame") if Router.current is SystemMapScreen else null)
+		if inner2 != null and sr.intersects(inner2.get_parent_control().get_global_rect()) and not inner2.get_global_rect().encloses(sr):
+			shits.append("the picture's frame")
+		_ok("%s: the step's line clear of everything (%s)" % [where, "nothing under it" if shits.is_empty() else ", ".join(shits)], shits.is_empty() and screen.encloses(sr))
 	var hits: Array[String] = []
 	# the map's and the chart's frame: off it, or wholly inside its picture
 	var inner: Control = null

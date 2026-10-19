@@ -2607,11 +2607,15 @@ func _calm_prebuild(target: int) -> void:
 	if pm == null:
 		return
 	pm.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if pm is StarchartScreen and Router.field != null and Router.field.visible:
-		# (the chart drawn faintly to warm it, BEHIND the field, not over the
-		# screen being left: at PREBUILT_A over it, it lifted the top plate two
-		# levels for the UI's fade -- Jon's "the border on the top panel
-		# flickers?". Under the field it is drawn all the same, and unseen)
+	if Router.content != null:
+		# BUILT WHERE IT WILL STAND, in the screens' area, behind all of it: laid
+		# out by the game's own theme (the ladder is not under it, and a chart
+		# built here took the engine's -- its buttons 31 px tall, its row 1020
+		# wide, your ship's place on it 7 to 50 px off where it then rested: the
+		# move aimed at the one and landed on the other); and the chart, drawn
+		# faintly to warm it, behind the field, not over the screen being left
+		# (at PREBUILT_A over it, it lifted the top plate two levels for the UI's
+		# fade -- Jon's "the border on the top panel flickers?")
 		Router.content.add_child(pm)
 		Router.content.move_child(pm, 0)
 	else:

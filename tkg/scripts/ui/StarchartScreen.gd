@@ -163,6 +163,17 @@ func _build() -> void:
 
 	# --- depth strip: the greed clock, always visible
 	var strip := toolbar_row()
+	# (the goal's room at the row's start: `GoalLine.fixed_at`)
+	if NavField.used():
+		strip.add_child(GoalLine.row_lead())
+	# DEVELOPER MODE'S BUTTONS narrower, where at their old widths they would
+	# crowd the goal off its place (Jon: the goal always in one place) -- still
+	# held (their SHOW / HIDE must not shuffle the row: a shuffle re-laid the
+	# chart under a move), and the row the same height as the map's, so the
+	# plate never changes between them
+	var dev_host: HBoxContainer = strip
+	var narrow := {112.0: 96.0, 128.0: 96.0, 140.0: 124.0, 150.0: 124.0}
+	var dev_w := func(w: float) -> float: return float(narrow.get(w, w)) if NavField.used() else w
 	_layer_text = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	strip.add_child(_layer_text)
 	_layer_cells = HBoxContainer.new()
@@ -177,29 +188,29 @@ func _build() -> void:
 	# rolled something odd — and every one of them shows the player the map they
 	# are supposed to be earning. See DevMode.
 	if DevMode.enabled:
-		_icons_btn = bar_button("HIDE SYSTEMS", _on_toggle_icons, 112)
-		strip.add_child(_icons_btn)
+		_icons_btn = bar_button("HIDE SYSTEMS", _on_toggle_icons, dev_w.call(112.0))
+		dev_host.add_child(_icons_btn)
 
 	# Debug: the lattice MapGen actually built, rather than the slice of it you
 	# are allowed to use. Pairs with the button beside it — that one shows every
 	# system, this one shows how they are wired, and a generation problem is
 	# usually only visible with both on.
-		_links_btn = bar_button("SHOW REACH", _on_toggle_links, 128)
-		strip.add_child(_links_btn)
+		_links_btn = bar_button("SHOW REACH", _on_toggle_links, dev_w.call(128.0))
+		dev_host.add_child(_links_btn)
 
 	# And the systems those links run to. Without this the one above draws the
 	# whole lattice over a chart that is still hiding most of the galaxy.
-		_all_btn = bar_button("SHOW ALL SYSTEMS", _on_toggle_all, 140)
-		strip.add_child(_all_btn)
+		_all_btn = bar_button("SHOW ALL SYSTEMS", _on_toggle_all, dev_w.call(140.0))
+		dev_host.add_child(_all_btn)
 
 	# A new galaxy, right here, under the same ship -- for looking at what the
 	# generator rolls (`Run.dev_regenerate_galaxy`). Not in a co-op session:
 	# the galaxy is the party's.
-		var regen := bar_button("REGENERATE GALAXY", _on_regenerate, 150)
+		var regen := bar_button("REGENERATE GALAXY", _on_regenerate, dev_w.call(150.0))
 		if Net.is_networked():
 			regen.disabled = true
 			regen.tooltip_text = "Not in a co-op session: the galaxy belongs to the whole party."
-		strip.add_child(regen)
+		dev_host.add_child(regen)
 	if NavField.used():
 		_row_plate = NavField.row_plate(strip)
 		root.add_child(_row_plate)

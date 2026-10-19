@@ -158,6 +158,9 @@ func _init() -> void:
 	# chart has LAYER, the tier where it has CORE, and two toggles that change
 	# what the map draws. No reach: "fuel is infinite basically in the sector".
 	_strip = StarchartScreen.toolbar_row()
+	# (the goal's room at the row's start: `GoalLine.fixed_at`)
+	if NavField.used():
+		_strip.add_child(GoalLine.row_lead())
 	_danger_text = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	_strip.add_child(_danger_text)
 	_danger_cells = HBoxContainer.new()

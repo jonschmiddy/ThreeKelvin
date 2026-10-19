@@ -367,6 +367,10 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 	var map_chart := (from == ZoomLadder.MAP or from == ZoomLadder.CHART) and (want == ZoomLadder.MAP or want == ZoomLadder.CHART)
 	var plate_shaky := 0
 	var plate_why := ""
+	# THE GOAL, a fixed piece of the HUD: frames it was not up in its place
+	var goal_off := 0
+	var goal_why := ""
+	var gnode: Control = Router.hud.get("goal") if Router.hud != null else null
 	var panel_first := -1
 	var panel_last := -1
 	var bad: Array = []
@@ -465,6 +469,12 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 			field_bad += 1
 			if field_why == "":
 				field_why = "%s at frame %d" % [fw, frames]
+		if gnode != null and _rank(Router.current) >= ZoomLadder.CHART and _rank(Router.current) <= ZoomLadder.LOCAL:
+			var gok: bool = gnode.visible and gnode.modulate.a > 0.99 and gnode.position == GoalLine.fixed_at()
+			if not gok:
+				goal_off += 1
+				if goal_why == "":
+					goal_why = "%s at %s, alpha %.2f, frame %d" % ["up" if gnode.visible else "hidden", gnode.position, gnode.modulate.a, frames]
 		if map_chart:
 			var pw := _plate_unsteady()
 			if pw != "":
@@ -542,6 +552,8 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 		_ok("%s: and never turning back along it (%.1f px back at most)" % [label, back], back <= BACK_PX)
 	_ok("%s: and never under the side bar (%d frames)" % [label, under_side], under_side == 0)
 	_ok("%s: the side bar, the toolbar, the column and the band still while the camera moves (%d frames moving)" % [label, chrome_moved], chrome_moved <= 1)
+	if gnode != null:
+		_ok("%s: the goal up in its one place on every frame (%d frames not%s)" % [label, goal_off, "" if goal_why == "" else ": " + goal_why], goal_off == 0)
 	if map_chart:
 		_ok("%s: the top plate steady -- one opaque thing draws it every frame, the plate itself or it as held (%d frames not%s)" % [label, plate_shaky, "" if plate_why == "" else ": " + plate_why], plate_shaky == 0)
 	_ok("%s: one field under it all -- the same layer, on, under the screens, never faded or redrawn (%d frames not%s)" % [label, field_bad, "" if field_why == "" else ": " + field_why], field_bad == 0)
@@ -736,38 +748,34 @@ func _no_box() -> void:
 				least_v >= 4.0 - 0.01 and least_v <= 8.0)
 		_ok("%s: every piece of the toolbar row %.0f px or more in from its plate's ends, the side panel's margin (least %.1f, %s)" % [_nm(r), margin, least, tight],
 			least != INF and least >= margin - 0.01)
-		# THE GOAL IN THE ROW (Jon: "Goal is in a weird spot"): inside the plate,
-		# on the row's own line, clear of its pieces -- or, where the row has no
-		# room (developer mode's buttons on the chart's), inside the picture
+		# THE GOAL IN ITS ONE PLACE (Jon: "Can we have the goal: xxx always be in
+		# this location?"): where LOCAL has it, inside the row's plate, its words
+		# 12 px in and on the row's line, clear of every piece of the row
 		var g: GoalLine = Router.hud.goal if Router.hud != null else null
 		if g != null:
 			g.refresh()
 			var gr := Rect2(g.position, g.size)
 			var lab := g._goal.get_global_rect()
-			var line_y := -1.0
-			if bar != null and bar.get_child_count() > 0:
-				for k: Node in (bar.get_child(0) as Control).get_children():
-					if k is Label and (k as Label).text != "":
-						line_y = (k as Label).get_global_rect().position.y
-						break
-			var clear := true
 			var pieces2: Array = []
 			if bar != null and bar.get_child_count() > 0:
 				GoalLine._inked(bar.get_child(0) as Control, pieces2)
+			var hit := ""
 			for q: Rect2 in pieces2:
-				if q.intersects(gr):
-					clear = false
-			var inside := bar != null and bar.get_global_rect().grow_individual(-margin, -4.0, -margin, -4.0).encloses(gr.grow(-0.5))
-			var in_pic := GoalLine.picture_rect(cur).encloses(gr)
-			_ok("%s: the goal in the row, on its line (goal %s at y %.0f, the row's words at %.0f), inside the plate, clear of its pieces%s" % [_nm(r), gr, lab.position.y, line_y,
-				"" if g._in_row else " -- or, the row full, inside the picture (%s)" % in_pic],
-				g.visible and ((g._in_row and inside and clear and absf(lab.position.y - line_y) < 0.5) or (not g._in_row and in_pic and r == ZoomLadder.CHART and DevMode.enabled)))
+				if q.intersects(lab):
+					hit = str(q)
+			var inside := bar != null and bar.get_global_rect().grow_individual(-margin, -4.0, -margin, -4.0).encloses(lab)
+			_ok("%s: the goal where LOCAL has it (%s, its place %s), its words inside the plate's margins and clear of the row%s" % [_nm(r), gr.position, GoalLine.fixed_at(), "" if hit == "" else " (over %s)" % hit],
+				g.visible and gr.position == GoalLine.fixed_at() and inside and hit == "")
 		_ok("%s: the toolbar row a plate, the side panel's own (alpha %.2f)" % [_nm(r), ba], ba >= 0.72 and ba <= 0.85
 			and ssb is StyleBoxFlat and bsb is StyleBoxFlat and (ssb as StyleBoxFlat).bg_color == (bsb as StyleBoxFlat).bg_color
 			and (ssb as StyleBoxFlat).border_color == (bsb as StyleBoxFlat).border_color
 			and (ssb as StyleBoxFlat).border_width_top == (bsb as StyleBoxFlat).border_width_top)
 
 
+## THE GOAL LINE (`GoalLine`) A FIXED PIECE OF THE HUD (Jon, Oct 18: "Can we
+## have the goal: xxx always be in this location?"): on LOCAL, the map and the
+## chart at rest, and on every frame of a move between them, up and in the one
+## place (`GoalLine.fixed_at`), the same size.
 func _goal_line() -> void:
 	var g: Variant = Router.hud.get("goal") if Router.hud != null else null
 	if g == null:
@@ -776,33 +784,27 @@ func _goal_line() -> void:
 	Hints.forced = true
 	await _at(ZoomLadder.LOCAL)
 	await _frames(40)
+	var gl := g as Control
+	var r0 := Rect2(gl.position, gl.size)
 	for h: Array in [[ZoomLadder.LOCAL, ZoomLadder.MAP, KEY_TAB], [ZoomLadder.MAP, ZoomLadder.CHART, KEY_TAB],
 			[ZoomLadder.CHART, ZoomLadder.LOCAL, KEY_TAB]]:
 		var label := "the goal line, %s -> %s" % [_nm(h[0]), _nm(h[1])]
-		var gl := g as CanvasItem
-		var before: bool = gl.visible and gl.modulate.a > 0.99
 		_key(h[2])
-		var seen := 0
-		var cam := 0
+		var off := 0
+		var frames := 0
+		var why := ""
 		for i in 400:
 			await _tree.process_frame
-			if _camera_moving():
-				cam += 1
-				if gl.visible and gl.modulate.a > 0.001:
-					seen += 1
+			frames += 1
+			var r := Rect2(gl.position, gl.size)
+			var up: bool = gl.visible and gl.modulate.a > 0.99
+			if not up or r != r0:
+				off += 1
+				if why == "":
+					why = "%s at frame %d" % ["%s, not %s" % [r, r0] if up else "not up", frames]
 			if _settled() and i > 5:
 				break
-		_ok("%s: not drawn on any frame the camera moves (%d of %d)" % [label, seen, cam], cam > 0 and seen == 0)
-		var back := false
-		for i in 60:
-			await _tree.process_frame
-			if gl.visible and gl.modulate.a > 0.99:
-				back = true
-				break
-		if before:
-			_ok("%s: back within a second of the landing" % label, back)
-		else:
-			print("  --   %s: it was not up before the hop (nothing to bring back)" % label)
+		_ok("%s: up and in its one place on every frame (%d of %d not%s)" % [label, off, frames, "" if why == "" else ": " + why], off == 0)
 		await _rest()
 	Hints.forced = false
 
