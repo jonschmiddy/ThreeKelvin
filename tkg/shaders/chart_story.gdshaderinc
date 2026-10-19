@@ -153,17 +153,27 @@ vec3 storyShells(vec2 g, float blk) {
 		sh += (dk < 0.0 ? exp(dk / (0.20 * re)) : exp(-pow(dk / (0.03 * re), 2.0))) * side * (1.0 - 0.18 * float(k));
 	}
 	vec3 C = STORY_STAR * sh * 0.04;
-	// two long, thin streams through the halo, broken along their length
+	// two stray streams through the halo, curving ROUND the ball as the tidal stream does
+	// (arcs about the core on the plane, each a stretch of an orbit, broad and faint):
+	// first drawn as arcs of circles off to one side, near the ball they ran straight
+	// out from it and read as spokes
+	vec2 pv = vec2(g.x, g.y / KIT_TILT);
+	float rp = length(pv);
+	float thp = atan(pv.y, pv.x);
 	for (int k = 0; k < 2; k++) {
-		float a0 = 6.2832 * u_story.y + 2.4 * float(k);
-		vec2 cc = vec2(cos(a0), sin(a0) * 0.6) * re * (2.6 + 0.8 * float(k));
-		float R = re * (2.2 + 0.7 * float(k));
-		float dl = abs(length(g - cc) - R);
-		float rr = length(g);
-		float on = smoothstep(0.6 * re, 1.3 * re, rr) * (1.0 - smoothstep(1.9 * re, 2.6 * re, rr));
-		float brk = smoothstep(-0.7, 0.1, kitSnoise2(g * 2.2 + vec2(float(k) * 5.1, 1.3)));
-		// (broad and faint: drawn as thin lines they read as the chart's own lines, routes and rings)
-		C += STORY_STAR * exp(-pow(dl / max(0.028, 1.5 * blk), 2.0)) * on * brk * 0.012 * storyGrain(g, blk);
+		float rk = re * (2.3 + 0.9 * float(k)) / KIT_TILT * 0.45;
+		float a0 = 6.2832 * u_story.y + 2.6 * float(k) + 1.0;
+		float u = mod(thp - a0 + 6.2832, 6.2832);
+		float span = 2.0;
+		if (u > span) {
+			continue;
+		}
+		float f = u / span;
+		float rs = rk * (1.0 + 0.10 * f) + 0.03 * kitSnoise2(vec2(u * 2.0, float(k) + 9.0));
+		float w = 0.05 + 0.04 * sin(f * 3.1416);
+		float along = sin(f * 3.1416);
+		float brk = smoothstep(-0.6, 0.2, kitSnoise2(pv * 2.5 + vec2(float(k) * 5.1, 1.3)));
+		C += STORY_STAR * exp(-pow((rp - rs) / w, 2.0)) * along * brk * 0.010 * storyGrain(g, blk);
 	}
 	return C;
 }

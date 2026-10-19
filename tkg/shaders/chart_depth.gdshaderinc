@@ -1,40 +1,43 @@
-// A GALAXY'S DEPTH AT ITS RIM (SIMPLIFIED; `ChartSky.gal_depth`, `-- galdepth=0|1|2`,
-// 0 today). Jon, Oct 19: "let's also explore giving the galaxies some depth. They seem
-// like a flat image right now. This is especially evident on the edges" -- a spiral's
-// outer edge read as a flat cut-out tilted on the chart.
+// A GALAXY'S DEPTH (SIMPLIFIED; `ChartSky.gal_depth`, `-- galdepth=0|1|2`, 0 today).
+// Jon, Oct 19: "let's also explore giving the galaxies some depth. They seem like a
+// flat image right now. This is especially evident on the edges"; then, of a first
+// try with a side wall and a lit top at the rim, "depth:puffs" -- keep the approved
+// soft dissolving edge and build the volume with clouds above and below the disc.
 //
-// What was tried before and kept (Oct 11-13): the layers floated AROUND the galaxy
-// read flat whatever their height ("still too high up ... like it's a single plane");
-// what worked was the galaxy itself as a solid object (the camera, the gas as a lit
-// height field standing toward it, the edge dissolving into black). So this builds
-// on the disc itself: the disc has a THICKNESS, and the camera sees it.
-//   1  thickness at the rim: the disc's material stands above and below the plane,
-//      thicker toward the bulge. A ray through a block meets that material wherever
-//      it passes it, so past the near rim the lower half of the disc shows as a side
-//      wall in shade, past the far rim the top of the far side shows, lit; the height
-//      itself is broken into puffs at the edge, so the outline frays into wisps above
-//      and below; and a faint thick halo of stars rises over and under the disc.
-//   2  1, and parallax: the camera's foot follows the view's centre instead of staying
-//      on the core, so as the chart slides the material above and below the plane
-//      slides against the plane itself.
-// Light, in the disc's own colours, added where the plane's own light has faded (the
-// disc's interior keeps its light as approved). Fixed sizes in gu: a zoom only
-// magnifies it.
+// What was tried before and kept (Oct 11-13): layers floated AROUND the galaxy read
+// flat whatever their height ("still too high up ... like it's a single plane"); what
+// worked was the galaxy itself as a solid object (the camera, the gas as a lit height
+// field standing toward it, the edge dissolving into black). So these clouds are the
+// disc's own gas, standing off it:
+//   1  billows of its gas and dust raised ABOVE and BELOW the plane across the outer
+//      disc and out over the dissolving edge, of varied sizes, denser toward the
+//      bulge and where the arms' gas is, a few reaching well off the plane; each lit
+//      from the core on the side toward it and shaded on the side away, the ones
+//      under the plane dimmer (in the disc's shadow, seen through its thin outskirts);
+//      the ones over it stand in front of the disc and hold back a little of it. And
+//      a soft halo of stars round it.
+//   2  1, with the camera's foot under the view's centre, so as the chart slides the
+//      clouds over the plane, the plane and the clouds under it slide against each
+//      other (parallax between the three).
+// LIGHT ONLY WHERE A CLOUD IS: the disc's own light, lanes and arms are untouched
+// between them. And NOT IN THE PALETTE'S PROBES (`u_tone_out`): the palette is cut
+// from the galaxy as it was, so the clouds take its existing steps and the disc's
+// contrast cannot move (a first try, drawn in the probes too, re-cut the palette
+// and every arm came out a step duller).
 //
-// THE INCLUDING SHADER PROVIDES chart_solid (fluffToward, edgeMask, u_solidW, u_phi)
-// and u_struct / bakeUV (the disc's own bake).
+// THE INCLUDING SHADER PROVIDES chart_solid (fluffToward, edgeMask, u_solidW, u_phi,
+// u_solid) and u_struct / bakeUV (the disc's own bake), and `u_tone_out`.
 
-// the mode (0 off, 1 thickness, 2 and parallax), the view's centre on the plane (gu,
+// the mode (0 off, 1 the clouds, 2 and parallax), the view's centre on the plane (gu,
 // turned to the view, as `fluffToward` reads the camera's foot), 0
 uniform vec4 u_depth = vec4(0.0);
 
-const float DEPTH_H = 0.09;          // the disc's half height at the bulge, gu
-const float DEPTH_HALO = 0.012;     // the thick halo of stars' light
-const float DEPTH_WALL = 0.12;      // the rim's wall and top's light
+const float DEPTH_H = 0.05;          // a cloud layer's height off the plane at the bulge, gu
+const float DEPTH_HALO = 0.006;      // the soft halo of stars' light
 
-// how thick the disc is at plane radius r: thickest toward the bulge, thin at the rim
+// how far off the plane the clouds stand at plane radius r: higher toward the bulge
 float depthH(float r) {
-	return DEPTH_H * (0.5 + 0.5 * exp(-r / 0.45));
+	return DEPTH_H * (0.55 + 0.45 * exp(-r / 0.5));
 }
 
 // the plane's shift per unit of height toward the camera: the solid look's own, or,
@@ -49,50 +52,59 @@ vec2 depthToward(vec2 p) {
 	return kitRot(-u_phi) * ((cxy - q) / (D * u_solidW.y));
 }
 
-// the disc's material at plane point q: its own envelope, ridged where its arms are
-float depthMat(vec2 q) {
+// the clouds of one layer at plane point q (0..1): billows of a size of their own,
+// over the outer disc and its dissolving edge, denser toward the bulge and on the arms
+float depthCloud(vec2 q, float f, float seed, float thr) {
+	float r = length(q);
+	float env = smoothstep(0.22, 0.5, r) * (1.0 - smoothstep(1.0, 1.35, r)) * (0.45 + 0.75 * exp(-r / 0.6));
+	if (env <= 0.0) {
+		return 0.0;
+	}
 	vec4 S = textureLod(u_struct, bakeUV(q), 3.0);
-	return edgeMask(q) * (0.4 + 0.9 * S.r) * exp(-length(q) / 0.85);
+	float n = kitFbm2(q * f + vec2(seed * 7.3, seed * 3.1), 4);
+	return smoothstep(thr, thr + 0.25, n + 0.35 * S.r) * env;
 }
 
-// the light seen off the plane at the block whose plane point is p; `emHere` how much of
-// the plane's own light is left there (its edge's fade), `blk` a block (gu)
-vec3 depthLight(vec2 p, float emHere, float blk) {
-	if (u_depth.x < 0.5) {
-		return vec3(0.0);
+// a layer's clouds seen at the block whose plane point is p: (light, how much they
+// hold back of what lies behind). `h` the layer's height (in depthH), f its billows'
+// size, `lit` how much of the core's light reaches it, `base` the disc's light here
+vec4 depthLayer(vec2 p, vec2 dT, float h, float f, float seed, float thr, float lit, float base) {
+	vec2 q = p + h * depthH(length(p)) * dT;
+	float d = depthCloud(q, f, seed, thr);
+	if (d <= 0.0) {
+		return vec4(0.0);
 	}
-	// THE OUTLINE: where the plane's own light has fallen to about a third (`edgeMask`).
-	// Outside it, a block may still meet the disc's material off the plane: below it,
-	// past the near rim (the side wall, in shade), and above it, past the far rim (the
-	// top, lit). Inside it the disc's approved light, lanes and all, is left alone
-	// (spread over them, this light filled the lanes and flattened the arms).
-	float outside = 1.0 - smoothstep(0.08, 0.22, emHere);
-	if (outside <= 0.0) {
-		return vec3(0.0);
+	// lit from the core: the side toward it bright, the side away in shade
+	vec2 toC = -q / max(length(q), 1e-4);
+	float dn = depthCloud(q + toC * (0.6 / f), f, seed, thr);
+	float face = clamp(0.5 + 2.2 * (d - dn), 0.0, 1.0);
+	float r = length(q);
+	vec3 col = mix(vec3(1.0, 0.78, 0.55), vec3(0.50, 0.62, 1.0), smoothstep(0.15, 0.6, r));
+	vec3 L = col * base * (0.25 + 1.6 * face) * lit;
+	return vec4(L * d, d);
+}
+
+// the clouds over and under the disc, and its halo, at the block whose plane point is
+// p: what lies behind (the disc, C so far) goes through `T`, and `Em` gains their light
+void depthClouds(vec2 p, float em, vec3 discL, inout vec3 Em, inout vec3 T) {
+	if (u_depth.x < 0.5 || u_tone_out) {
+		return;
 	}
 	vec2 dT = depthToward(p);
-	vec3 L = vec3(0.0);
-	for (int k = 0; k < 4; k++) {
-		float hf = k == 0 ? -1.0 : (k == 1 ? -0.5 : (k == 2 ? 0.5 : 1.0));
-		vec2 q0 = p + hf * depthH(length(p)) * dT;
-		// (the height broken into puffs, each a cloud of its own: the outline frays
-		// above and below into wisps rather than standing as a clean wall)
-		float pf = kitFbm2(q0 * 6.0 + vec2(hf * 3.1, 1.7), 3);
-		float H = depthH(length(q0)) * (0.45 + 1.2 * smoothstep(-0.25, 0.5, pf));
-		vec2 q = p + hf * H * dT;
-		// inside the outline there, at that height: the disc
-		float inq = smoothstep(0.06, 0.3, edgeMask(q));
-		float puff = smoothstep(0.2, 0.45, kitFbm2(q * 8.0 + vec2(5.3, hf), 3));
-		// the side wall under the plane in shade, the top over it lit, the middle of the
-		// thickness the brightest (it is where the disc's stars are)
-		float shade = hf < 0.0 ? 0.55 : 1.25;
-		vec4 S = textureLod(u_struct, bakeUV(q), 3.0);
-		vec3 col = mix(vec3(1.0, 0.74, 0.48), vec3(0.42, 0.56, 1.0), smoothstep(0.12, 0.55, length(q)));
-		L += col * inq * puff * shade * (0.5 + 0.8 * S.r) * exp(-hf * hf * 0.5) * 0.25;
-	}
-	L *= DEPTH_WALL * outside;
-	// a faint thick halo of stars over and under the disc, past the rim
-	float hz = smoothstep(1.35, 0.8, length(p)) * outside;
-	L += vec3(0.75, 0.8, 1.0) * hz * DEPTH_HALO * (0.5 + 0.8 * smoothstep(0.2, 0.7, kitFbm2(p * 14.0 + 2.3, 2)));
-	return L;
+	float r = length(p);
+	// (each cloud as bright as the disc's own light thereabouts, never brighter than its
+	// arms: so the palette's existing steps carry it)
+	float base = max(kitLum(discL), 0.006) * 1.5 + 0.006 * exp(-r / 0.7);
+	// under the plane: seen through the disc's thin outskirts, in its shadow
+	vec4 lo = depthLayer(p, dT, -1.1, 7.0, 0.3, 0.36, 0.55, base);
+	Em += lo.rgb * (1.0 - 0.75 * em);
+	// over it: two sizes, the small ones higher, a few well off the plane
+	vec4 hi = depthLayer(p, dT, 1.0, 6.0, 0.7, 0.32, 1.0, base);
+	vec4 hi2 = depthLayer(p, dT, 2.3, 13.0, 1.9, 0.45, 1.05, base);
+	float a = clamp(0.55 * hi.a + 0.6 * hi2.a, 0.0, 0.8);
+	T *= 1.0 - 0.3 * a;
+	Em = Em * (1.0 - 0.3 * a) + hi.rgb + hi2.rgb;
+	// a soft halo of stars round the disc, out past its edge
+	float hz = smoothstep(1.35, 0.7, r) * (1.0 - em);
+	Em += vec3(0.72, 0.78, 1.0) * DEPTH_HALO * hz * (0.6 + 0.6 * smoothstep(0.2, 0.7, kitFbm2(p * 9.0 + 2.3, 2)));
 }

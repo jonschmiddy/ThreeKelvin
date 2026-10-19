@@ -622,7 +622,7 @@ static func ball_depth(kind: int) -> Array[Vector4]:
 
 
 ## A BALL'S STORY (`chart_story.gdshaderinc` says what each look draws; Jon, Oct 19: a
-## round elliptical beside a spiral is "so boring"): `-- balllook2=0|A|B|C`, 0 today.
+## round elliptical beside a spiral is "so boring"): `-- balllook2=0|A|B|C`, A the game's.
 ## A its victims round it, B a busy core, C both. In every style; each style's light
 ## for it at its own scale (`push_story`'s gain).
 static var ball_look2 := -1
@@ -642,13 +642,16 @@ static func gal_depth_now() -> int:
 				gal_depth = clampi(int(arg.substr(9)), 0, 2)
 	return gal_depth
 
+## The game's: A (Jon, Oct 19, "ball:A" -- its victims; B's jet, ring and swarm stay
+## off but for a harness's `balllook2=B|C`)
+const BALL_LOOK2 := 1
 ## SIMPLIFIED's gain (its ball's own light)
 const STORY_GAIN_C := 1.0
 
 
 static func ball_look2_now() -> int:
 	if ball_look2 < 0:
-		ball_look2 = 0
+		ball_look2 = BALL_LOOK2
 		for a in OS.get_cmdline_user_args():
 			var arg := a as String
 			if arg.begins_with("balllook2="):
