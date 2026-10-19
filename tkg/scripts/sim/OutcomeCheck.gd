@@ -11,10 +11,12 @@ extends RefCounted
 ## archive, diffed here. A look that drew what `OutcomeRow.changes` said would
 ## agree with itself whatever the run did.
 ##
-## THE NUMBERS (E's as D's): today's four pairs ("HULL -5", "CREDITS —"); A and C one entry
+## THE NUMBERS: today's four pairs ("HULL -5", "CREDITS —"); A and C one entry
 ## for every change and nothing else ("-5 HULL", "+1 PART: ...", no dash
 ## anywhere); B a row for every change with its totals ("HULL -5 35 > 30");
-## NOTHING GAINED OR LOST when nothing moved.
+## E a row for every change with its new total ("HULL -5 31"); NOTHING GAINED
+## OR LOST when nothing moved. D only the four stats that moved, as E's rows,
+## and no table when none did (Jon, Oct 19).
 ##
 ## THE BOXES (fit means nothing overlaps): every entry inside the band, apart
 ## from every other entry, off every button (CONTINUE, REWARD, CHOOSE AGAIN,
@@ -100,7 +102,22 @@ static func check(d: LocalEventDrawer, look: StringName, want: Dictionary) -> Ar
 				var t := "%s %s" % [WORDS[k], "—" if int(s[0]) == 0 else "%+d" % int(s[0])]
 				if not texts.has(t):
 					bad.append("today: no '%s' in [%s]" % [t, said])
-		&"A", &"C", &"B", &"D", &"E":
+		&"D":
+			# THE FOUR STATS AND NOTHING ELSE (Jon, Oct 19: "let's only show
+			# CREDITS, FUEL, HULL, HEAT on the right"): a row for each that
+			# moved, in hull, fuel, credits, heat order, no thing ever (those
+			# are REWARD's), and no table at all when none of the four moved
+			var rows: Array = []
+			for k in OutcomeRow.ORDER:
+				var s: Array = want.stats[k]
+				if int(s[0]) != 0:
+					rows.append("%s %+d %d" % [WORDS[k], int(s[0]), int(s[2])])
+			if texts != rows:
+				bad.append("D: the table says [%s], not [%s]" % [said, ", ".join(rows)])
+			var tab := d.panel.find_child("OutcomeTable", true, false)
+			if rows.is_empty() and tab != null:
+				bad.append("D: none of the four stats moved and there is a table [%s]" % said)
+		&"A", &"C", &"B", &"E":
 			for k in WORDS:
 				var s: Array = want.stats[k]
 				if int(s[0]) == 0:
@@ -108,7 +125,7 @@ static func check(d: LocalEventDrawer, look: StringName, want: Dictionary) -> Ar
 				var t := "%+d %s" % [int(s[0]), WORDS[k]]
 				if look == &"B":
 					t = "%s %+d %d > %d" % [WORDS[k], int(s[0]), int(s[1]), int(s[2])]
-				elif look == &"D" or look == &"E":
+				elif look == &"E":
 					t = "%s %+d %d" % [WORDS[k], int(s[0]), int(s[2])]
 				if not texts.has(t):
 					bad.append("%s: no '%s' in [%s]" % [look, t, said])
@@ -212,7 +229,8 @@ static func table_place(d: LocalEventDrawer, lk: StringName = &"E") -> Array:
 
 ## D (Jon, Oct 19: "can the text on the right be a bit bigger? and centered
 ## vertically?", "can we also have the buttons at the top right?"): the table
-## at `OutcomeRow.D_FS`; the buttons at the top right, level with the title,
+## at `OutcomeRow.D_FS` (8: Jon saw 16 and kept 8), the four stats that moved
+## only and none when none did (`check`); the buttons at the top right, level with the title,
 ## inside the band and clear of the title, YOU CHOSE, the text and the table;
 ## the table under them, its right edge on theirs and at least their width,
 ## centred in the room under them (in the band; on the card it sits at the
@@ -221,18 +239,21 @@ static func d_place(d: LocalEventDrawer) -> Array:
 	var bad: Array = []
 	var t := d.panel.find_child("OutcomeTable", true, false) as Control
 	var b := d._choices
-	if t == null or b == null:
-		return ["D: no table or no buttons"]
-	if (t as OutcomeRow.Table).fs != OutcomeRow.D_FS:
+	if b == null:
+		return ["D: no buttons"]
+	# (no table when none of the four stats moved: `check` holds that)
+	if t != null and (t as OutcomeRow.Table).fs != OutcomeRow.D_FS:
 		bad.append("D: the table at %d px, not %d" % [(t as OutcomeRow.Table).fs, OutcomeRow.D_FS])
 	var band := d.panel.get_global_rect()
-	var tr := t.get_global_rect()
+	var tr := t.get_global_rect() if t != null else Rect2()
 	var br := b.get_global_rect()
 	if not band.encloses(br):
 		bad.append("D: the buttons %s are off the band %s" % [br, band])
-	if absf(tr.end.x - br.end.x) > 0.5:
+	if t != null and absf(tr.end.x - br.end.x) > 0.5:
 		bad.append("D: the table ends at x %d, the buttons at %d" % [int(tr.end.x), int(br.end.x)])
-	if tr.size.x < br.size.x - 0.5:
+	# (in the band they share a column; on the card the table is at the foot,
+	# only its right edge on theirs)
+	if t != null and LocalEventDrawer.layout != &"card" and tr.size.x < br.size.x - 0.5:
 		bad.append("D: the table %d wide, narrower than the buttons' %d" % [int(tr.size.x), int(br.size.x)])
 	var inner_r := band.end.x - 10.0
 	if absf(br.end.x - inner_r) > 0.5:
@@ -243,7 +264,7 @@ static func d_place(d: LocalEventDrawer) -> Array:
 			bad.append("D: the buttons %s are on %s %s" % [br, nm, _ink_rect(c)])
 	if d._scroll != null and br.intersects(d._scroll.get_global_rect()):
 		bad.append("D: the buttons %s are on the text %s" % [br, d._scroll.get_global_rect()])
-	if br.intersects(tr):
+	if t != null and br.intersects(tr):
 		bad.append("D: the buttons %s are on the table %s" % [br, tr])
 	var head := d.panel.find_child("Head", true, false) as Control
 	var hr := head.get_global_rect() if head != null else Rect2()
@@ -254,6 +275,8 @@ static func d_place(d: LocalEventDrawer) -> Array:
 		# table under the buttons, centred in the column's room under them
 		if br.get_center().y < hr.position.y or br.get_center().y > hr.end.y:
 			bad.append("D: the buttons' middle at y %.1f, off the title's row %s" % [br.get_center().y, hr])
+		if t == null:
+			return bad
 		var col := t.get_parent() as Control
 		var over := tr.position.y - br.end.y
 		var under := col.get_global_rect().end.y - tr.end.y
@@ -269,7 +292,7 @@ static func d_place(d: LocalEventDrawer) -> Array:
 		# the card: the buttons on the title's line, or on their own over it
 		if br.position.y > hr.end.y:
 			bad.append("D: the buttons %s are under the title %s on the card" % [br, hr])
-		if tr.position.y < br.end.y:
+		if t != null and tr.position.y < br.end.y:
 			bad.append("D: the table %s is over the buttons %s on the card" % [tr, br])
 	return bad
 

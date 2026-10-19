@@ -681,11 +681,11 @@ func _result() -> void:
 		prizes = OutcomeRow.prizes(out, PRIZES_W if layout != &"card" else CARD_W - 20.0)
 	var tab: Control = null
 	if look == &"D" or look == &"E":
-		tab = OutcomeRow.table(out, prizes != null, OutcomeRow.D_FS if look == &"D" else UITheme.FS_SMALL,
-			CARD_W - 20.0 if look == &"D" and layout == &"card" else 0.0)
+		tab = OutcomeRow.table(out, prizes != null, OutcomeRow.D_FS if look == &"D" else UITheme.FS_SMALL, look == &"D")
 	# D's BUTTONS AT THE TOP RIGHT, level with the title (Jon, Oct 19: "can we
-	# also have the buttons at the top right?"), its table, bigger, centred in
-	# the right column under them (`OutcomeRow`'s D)
+	# also have the buttons at the top right?"), its table -- the four stats
+	# that moved, none when none did -- centred in the right column under
+	# them (`OutcomeRow`'s D)
 	var d_top := look == &"D"
 	if receipt != null and layout != &"card":
 		var lane := HBoxContainer.new()
@@ -693,7 +693,7 @@ func _result() -> void:
 		lane.add_child(said)
 		lane.add_child(receipt)
 		_box.add_child(lane)
-	elif (tab != null or prizes != null) and layout != &"card":
+	elif (tab != null or prizes != null or d_top) and layout != &"card":
 		var lane2 := HBoxContainer.new()
 		lane2.name = "ResultLane"
 		lane2.add_theme_constant_override("separation", 16)
@@ -801,7 +801,7 @@ func _result() -> void:
 		var sp2 := Control.new()
 		sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		brow.add_child(sp2)
-		if tab != null or prizes != null:
+		if tab != null or prizes != null or d_top:
 			# D: the table and the buttons one right-aligned column, the table at
 			# least as wide as the buttons; E's plates over the table
 			foot.free()
@@ -821,7 +821,12 @@ func _result() -> void:
 		else:
 			_box.add_child(foot)
 			brow.add_child(buttons)
-		_box.add_child(brow)
+		if d_top and tab == null:
+			# D with none of the four stats moved: the buttons on the title's
+			# line and nothing at the foot
+			brow.free()
+		else:
+			_box.add_child(brow)
 	else:
 		foot.add_child(buttons)
 		_box.add_child(foot)

@@ -18,8 +18,9 @@ extends Node
 ##   CONTINUE exactly where today's look has it (in the band layouts; the card
 ##     is seated by its height, so there it is the card's width that holds);
 ##     but D's, at the band's top right, its size and right edge today's;
-##   D's table at FS_HEAD, the buttons level with the title and clear of
-##     everything, the table centred under them (`OutcomeCheck.d_place`).
+##   D's table at 8, only the four stats that moved (none, no table), the
+##     buttons level with the title and clear of everything, the table
+##     centred under them (`OutcomeCheck.check` / `d_place`).
 ## Then C's flight, animated (the game's clock stepped 1/60 s):
 ##   the HUD holds its old number until the flight for it lands, then shows the
 ##   new one; something is in the air between; a readout flickers on landing

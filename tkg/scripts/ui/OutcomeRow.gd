@@ -27,16 +27,21 @@ extends RefCounted
 ##      the signed change and the new total ("HULL -5 31"), hull, fuel,
 ##      credits, heat, then the things, a part with its cards under it. The
 ##      text on the left wraps to stay clear of it.
-##      THEN BIGGER, AND THE BUTTONS ON TOP (Jon, Oct 19, of the band: "can
-##      the text on the right be a bit bigger? and centered vertically?" and
-##      "can we also have the buttons at the top right?"). The table is drawn
-##      at FS_HEAD (`D_FS`), the face's next crisp size up from the body's 8,
-##      its marks at 2x; REWARD and CONTINUE stand at the band's top right,
-##      level with the title, and the table is centred in the right column
-##      under them. The title, YOU CHOSE and the text are a column on the
-##      left that wraps clear of it. On the card the buttons go on the
-##      title's line too (or on a line of their own over it when the title
-##      leaves them no room) and the table sits at the foot, right-aligned.
+##      THEN THE BUTTONS ON TOP, AND ONLY THE FOUR STATS (Jon, Oct 19, of the
+##      band: "can the text on the right be a bit bigger? and centered
+##      vertically?", "can we also have the buttons at the top right?", then
+##      "let's only show CREDITS, FUEL, HULL, HEAT on the right"). REWARD and
+##      CONTINUE stand at the band's top right, level with the title, and the
+##      table is centred in the right column under them. It lists only the
+##      four stats, each only when it moved: a part, a material, a frame, a
+##      document or a place is collected through REWARD and is not listed,
+##      and a result that moved none of the four has no table at all (the
+##      buttons alone). Its size is `D_FS`: he tried the next crisp size up,
+##      16, and kept 8 ("size 8"). The title, YOU CHOSE and the text are a
+##      column on the left that wraps clear of it. On the card the buttons go
+##      on the title's line too (or on a line of their own over it when the
+##      title leaves them no room) and the table sits at the foot,
+##      right-aligned.
 ##   E  D, AND WHAT YOU GOT, BIG (Jon, of D: "I like this, but there was a
 ##      previous version of this where the things you get are big on the
 ##      right side"). D's table over REWARD and CONTINUE stays where it is; a
@@ -510,23 +515,25 @@ static func fit(text: String, fs: int, w: float) -> String:
 
 # ------------------------------------------------------------------ D
 
-## The table at its widest at FS_SMALL, game px: past this a name wraps.
-## Bigger, D_TABLE_MAX_W (`Table.max_w`).
+## The table at its widest at FS_SMALL, game px: past this a name wraps (as
+## many characters wide at a bigger size, `Table.max_w`).
 const TABLE_MAX_W := 230.0
-## D's table's size: one step up from the body's 8. Silkscreen is an 8 px face
-## and only whole multiples of 8 stay crisp on the 960x540 grid
-## (`UITheme.FS_SMALL`), so the next step is FS_HEAD's 16.
-const D_FS := UITheme.FS_HEAD
-## D's table at its widest in the band: not TABLE_MAX_W doubled, which would
-## take half the band from the text; on the card, the card's 300 (`table`'s
-## `max_w`).
-const D_TABLE_MAX_W := 340.0
+## D's table's size. Silkscreen is an 8 px face and only whole multiples of 8
+## stay crisp on the 960x540 grid (`UITheme.FS_SMALL`), so the one step up is
+## FS_HEAD's 16, which Jon saw and turned down (Oct 19, "size 8"). The table
+## draws at any multiple of 8 (`Table.px`).
+const D_FS := UITheme.FS_SMALL
 
 ## `without_big`: E's table, the things E draws big left out of it (`big_ones`);
-## null when that leaves it nothing to say. `fs`: its text's size; `max_w`:
-## its widest, when not TABLE_MAX_W (at 8) or D_TABLE_MAX_W (bigger).
-static func table(out: Dictionary, without_big := false, fs: int = UITheme.FS_SMALL, max_w: float = 0.0) -> Control:
+## null when that leaves it nothing to say. `fs`: its text's size.
+## `stats_only`: D's, the four stats that moved and nothing else; null when
+## none of them did.
+static func table(out: Dictionary, without_big := false, fs: int = UITheme.FS_SMALL, stats_only := false) -> Control:
 	var rows := changes(out)
+	if stats_only:
+		rows = rows.filter(func(e: Dictionary) -> bool: return e.kind == &"stat")
+		if rows.is_empty():
+			return null
 	if without_big:
 		var big := big_ones(rows)
 		rows = rows.filter(func(e: Dictionary) -> bool: return not big.has(e))
@@ -535,7 +542,6 @@ static func table(out: Dictionary, without_big := false, fs: int = UITheme.FS_SM
 	var t := Table.new()
 	t.name = "OutcomeTable"
 	t.fs = fs
-	t.widest = max_w
 	t.setup(rows)
 	return t
 
@@ -555,8 +561,6 @@ class Table extends Control:
 	## the 8 px face's pixels is at it.
 	var fs := UITheme.FS_SMALL
 	var px := 1
-	## Its widest, game px; 0 for the size's own (`max_w`).
-	var widest := 0.0
 	var ROW := ROW8
 	var GAP := GAP8
 	## [y, mark entry or null, [[text, ink, x, right_aligned]], text]
@@ -569,9 +573,7 @@ class Table extends Control:
 		add_to_group(OutcomeRow.GROUP)
 
 	func max_w() -> float:
-		if widest > 0.0:
-			return widest
-		return OutcomeRow.TABLE_MAX_W if px == 1 else OutcomeRow.D_TABLE_MAX_W
+		return OutcomeRow.TABLE_MAX_W * px
 
 	func setup(entries: Array) -> void:
 		px = maxi(1, int(float(fs) / UITheme.FS_SMALL))
