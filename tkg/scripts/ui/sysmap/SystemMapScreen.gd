@@ -158,6 +158,9 @@ func _init() -> void:
 	# chart has LAYER, the tier where it has CORE, and two toggles that change
 	# what the map draws. No reach: "fuel is infinite basically in the sector".
 	_strip = StarchartScreen.toolbar_row()
+	# (the goal's room at the row's start: `GoalLine.fixed_at`)
+	if NavField.used():
+		_strip.add_child(GoalLine.row_lead())
 	_danger_text = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	_strip.add_child(_danger_text)
 	_danger_cells = HBoxContainer.new()
@@ -172,7 +175,11 @@ func _init() -> void:
 	_strip.add_child(_names_btn)
 	_orbits_btn = StarchartScreen.bar_button("", _on_orbits, 112)
 	_strip.add_child(_orbits_btn)
-	root.add_child(_strip)
+	if NavField.used():
+		_row_plate = NavField.row_plate(_strip)
+		root.add_child(_row_plate)
+	else:
+		root.add_child(_strip)
 
 	var mid := HBoxContainer.new()
 	mid.add_theme_constant_override("separation", 5)
@@ -192,6 +199,8 @@ func _init() -> void:
 		overlay.hover = {}
 		_light_from_map({}))
 	var wrap := Widgets.panel_with(_frame)
+	if NavField.used():
+		wrap.add_theme_stylebox_override("panel", NavField.window_style())
 	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mid.add_child(wrap)
 	_box = SubViewportContainer.new()
@@ -207,6 +216,9 @@ func _init() -> void:
 	_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_box.add_child(_vp)
 	view = SystemViewS.new()
+	if NavField.used():
+		view.set("field_under", true)
+		_box.material = NavField.key_material()
 	_vp.add_child(view)
 	_cursor = SectorCursorS.new()
 	_cursor.set("view", view)
@@ -239,7 +251,10 @@ func _init() -> void:
 
 	panel = SystemPanelS.new()
 	panel.screen = self
-	mid.add_child(Widgets.panel_with(panel))
+	var side_wrap := Widgets.panel_with(panel)
+	if NavField.used():
+		side_wrap.add_theme_stylebox_override("panel", NavField.plate_style())
+	mid.add_child(side_wrap)
 
 	var key := HBoxContainer.new()
 	key.add_theme_constant_override("separation", 8)
@@ -641,7 +656,12 @@ func _step_camera(delta: float) -> void:
 		return
 	# THE ZOOM LADDER HAS THE CAMERA for the length of a move (`ZoomLadder`)
 	if cam_held:
-		_tick_zoom()
+		# (the calm move is heard at the click, not as the zoom crosses its
+		# levels: the level kept, silently)
+		if _lad.has("calm"):
+			_tick_level = _zoom_level()
+		else:
+			_tick_zoom()
 		return
 	if _step_glide():
 		_tick_zoom()
@@ -1355,6 +1375,63 @@ func ladder_cam_end() -> void:
 	_locked = false
 
 
+# ------------------------------------------------------------ the calm move
+## THE CALM MOVE (`ZoomLadder`, Jon's pick A, Oct 17): the map's camera placed
+## by where your ship is on screen and how far in it is against rest -- the
+## zoom about your ship, never about the sun or the world you orbit, so your
+## ship walks one straight line and nothing swings round it.
+
+## The base of the map's picture: where the star is drawn with no pan.
+func _calm_base() -> Vector2:
+	return _frame.global_position + _box.position + Vector2(view.CX, view.CY)
+
+
+func calm_begin() -> void:
+	if not ladder_ready():
+		return
+	_place_map()
+	_lad = {"calm": true, "z0": view.zoom, "pan0": view.pan, "locked": _locked, "zoom_to": _zoom_to}
+	cam_held = true
+	_glide = {}
+	_homing = false
+	_anchor = Vector2(-1, -1)
+
+
+## Where your ship is drawn now (the map's marker for it).
+func calm_ship() -> Vector2:
+	return _ladder_origin() + overlay.ship_rel()
+
+
+## Where your ship sits at rest, now: the rest camera with the ship where its
+## orbit has it this moment.
+func calm_rest() -> Vector2:
+	if not _lad.has("calm"):
+		return calm_ship()
+	var p: Vector3 = flight.where3() if flight != null else Vector3.ZERO
+	return _calm_base() + (_lad.pan0 as Vector2) + Vector2(p.x, p.z * view.TILT) * float(_lad.z0)
+
+
+func calm_at(p: Vector2, s: float) -> void:
+	if not _lad.has("calm") or not ladder_ready():
+		return
+	view.zoom = float(_lad.z0) * s
+	_zoom_to = view.zoom
+	view.pan = p - _calm_base() - overlay.ship_rel()
+
+
+func calm_end() -> void:
+	if not _lad.has("calm"):
+		ladder_cam_end()
+		return
+	view.zoom = float(_lad.z0)
+	view.pan = _lad.pan0
+	var locked: bool = _lad.locked
+	var zt: float = _lad.zoom_to
+	ladder_cam_end()
+	_locked = locked
+	_zoom_to = zt
+
+
 ## THE MAP'S UI, k of the way gone (`ZoomLadder`: it leaves before the camera
 ## moves and comes back after it lands, never during): the key, the scale bar
 ## and LOCATION, and the words over the worlds (a label magnified with the
@@ -1368,7 +1445,11 @@ var _scale_bar: Control = null
 ## The toolbar along the top (DANGER), which decodes into the next screen's
 ## the way the side bar does (`SideSwap`).
 func ladder_bar() -> Control:
-	return _strip
+	return _row_plate if _row_plate != null else _strip
+
+
+## the toolbar row's plate, on the field (`NavField.row_plate`)
+var _row_plate: PanelContainer = null
 
 
 ## The side bar, for the ladder to swap in place (`SideSwap`).

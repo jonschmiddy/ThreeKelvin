@@ -25,6 +25,9 @@ extends Node
 
 var _fails := 0
 var _tree: SceneTree
+## the calm move (Jon's pick A, Oct 17) on this build: the side bar and toolbar
+## change after the camera lands, and a press hurries a move rather than ending it
+var _calm := false
 var _zl: Script = load("res://scripts/ui/ZoomLadder.gd")
 ## (a grid across the side bar's rect, for the swap's coverage)
 const GX := 6
@@ -108,7 +111,11 @@ var _cs: Script = load("res://scripts/ui/ChromeSlide.gd") if ResourceLoader.exis
 var _bar_h: float = float((load("res://scripts/ui/StarchartScreen.gd") as Script).get_script_constant_map().get("BAR_H", 17))
 
 
-## The chrome on the move this frame (`ChromeSlide`): [kind, its rect now].
+## The chrome on the move this frame (`ChromeSlide`; on the field, the screen's
+## own panel drawn as it slides, `PanelSlide`): [kind, its rect now].
+var _ps: Script = load("res://scripts/ui/PanelSlide.gd") if ResourceLoader.exists("res://scripts/ui/PanelSlide.gd") else null
+
+
 func _slides() -> Array:
 	var out: Array = []
 	if _cs != null:
@@ -116,7 +123,36 @@ func _slides() -> Array:
 			if is_instance_valid(pc) and (pc as CanvasItem).is_visible_in_tree():
 				var r: Rect2 = pc.call(&"at")
 				out.append([StringName(pc.get("kind")), r.intersection(Router.content.get_global_rect())])
+	if _ps != null:
+		for pc: Variant in _ps.get("live"):
+			if is_instance_valid(pc) and not bool(pc.get("done")):
+				var r2: Rect2 = pc.call(&"at")
+				# (a band carries the 4 px under it, as the row at rest does)
+				if StringName(pc.get("kind")) == &"band":
+					r2 = r2.grow_side(SIDE_BOTTOM, 4.0)
+				out.append([StringName(pc.get("kind")), r2.intersection(Router.content.get_global_rect())])
 	return out
+
+
+## THE CALM MOVE'S COVERS (the map and the chart): the side bar and toolbar as the
+## held picture had them, standing where they stood until the decode -- what is
+## seen over their rects while the screen arriving fades up under them.
+func _covers() -> Array:
+	var out: Array = []
+	if ZoomLadder.busy():
+		var cv: Variant = ZoomLadder.active.get("_calm_covers")
+		if cv is Array:
+			for c: Variant in cv:
+				if is_instance_valid(c) and (c as CanvasItem).is_visible_in_tree():
+					out.append((c as Control).get_global_rect())
+	return out
+
+
+func _covered(r: Rect2) -> bool:
+	for c: Rect2 in _covers():
+		if c.grow(1.0).encloses(r.grow(-2.0)):
+			return true
+	return false
 
 
 ## Where the scene's picture ends on the right this frame, viewport x: where
@@ -130,7 +166,7 @@ func _side_edge() -> float:
 		if sl[0] == &"side" and (sl[1] as Rect2).has_area():
 			e = minf(e, (sl[1] as Rect2).position.x)
 	var sd := _side_of(Router.current)
-	if sd != null and _eff(sd) > 0.5:
+	if sd != null and (_eff(sd) > 0.5 or _covered(sd.get_global_rect())):
 		e = minf(e, sd.get_global_rect().position.x - 5.0)
 	var sw := _swap_now()
 	if sw != null:
@@ -142,8 +178,9 @@ func _bands() -> Array:
 	var out: Array = []
 	var c := Router.content.get_global_rect()
 	var b := _bar_of(Router.current)
-	if b != null and _eff(b) > 0.5:
-		out.append(Rect2(c.position.x, b.get_global_rect().position.y, c.size.x, _bar_h + 4))
+	if b != null and (_eff(b) > 0.5 or _covered(b.get_global_rect())):
+		# (the row's height as it stands: on the field, its plate's -- `row_h`)
+		out.append(Rect2(c.position.x, b.get_global_rect().position.y, c.size.x, b.get_global_rect().size.y + 4))
 	for sl: Array in _slides():
 		if sl[0] == &"band" and (sl[1] as Rect2).has_area():
 			out.append(sl[1])
@@ -195,10 +232,17 @@ func _measure() -> Array:
 
 ## (a piece of it on the move, `ChromeSlide`, is it, drawn whole)
 func _measure_region(side: Control, sw: Object, kind: StringName = &"") -> Array:
+	# (a swap held at its first frame through the calm move's camera draws
+	# nothing yet: what stands over the rect is what stood there, or the column
+	# and band that came on before the move)
+	if sw != null and sw.get("frozen") == true:
+		sw = null
 	if side == null and sw == null:
 		return []
 	if sw == null:
 		var whole := _eff(side)
+		if side != null and is_instance_valid(side) and side.is_visible_in_tree() and _covered(side.get_global_rect()):
+			whole = 1.0
 		for sl: Array in _slides():
 			if sl[0] == kind and (sl[1] as Rect2).has_area():
 				whole = 1.0
@@ -246,6 +290,14 @@ func _set_look(l: String) -> void:
 ## half and half, the frames a click would have gone through onto content not
 ## yet resolved, and how many frames the swap drew.
 func _hop(label: String, call: Callable, want: Script) -> int:
+	# THE CALM MOVE WITH LOCAL AT ONE END (Jon, Oct 17): out of LOCAL the side
+	# panel comes on only after the camera has landed, into LOCAL it goes before
+	# the camera moves -- so with LOCAL at one end there is no side bar to show
+	# while the camera moves. Blank is counted out of LOCAL from the decode on
+	# (it must never go blank once it is there), and not at all into LOCAL.
+	var from_local := Router.current is SectorScreen
+	var calm_local := _calm and (from_local or want == SectorScreen)
+	var decoding := false
 	call.call()
 	var blank := 0
 	var mixed := 0
@@ -270,7 +322,10 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 	var decode_end := -1
 	for i in 900:
 		var m := _measure()
-		if not m.is_empty():
+		if _swap_now() != null or _bar_now() != null:
+			decoding = true
+		var counts := not calm_local or (from_local and decoding)
+		if not m.is_empty() and counts:
 			if float(m[0]) < 0.5:
 				blank += 1
 			low = minf(low, float(m[0]))
@@ -286,7 +341,7 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 				letter_frames += 1
 				decode_end = frames
 		var mb := _measure_region(_bar_of(Router.current), _bar_now(), &"band")
-		if not mb.is_empty():
+		if not mb.is_empty() and counts:
 			if float(mb[0]) < 0.5:
 				bar_blank += 1
 			bar_low = minf(bar_low, float(mb[0]))
@@ -305,7 +360,7 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 		var se := _side_edge()
 		side_jump = maxf(side_jump, absf(se - side0))
 		side0 = se
-		if landed_at < 0 and (not ZoomLadder.busy() or ZoomLadder.active.phase == ZoomLadder.Phase.UI_IN):
+		if landed_at < 0 and (not ZoomLadder.busy() or String(ZoomLadder.Phase.keys()[ZoomLadder.active.phase]) in ["UI_IN", "C_IN", "C_POST"]):
 			landed_at = frames
 		frames += 1
 		if not ZoomLadder.busy() and ZoomLadder.chain == &"" and _swap_now() == null and _bar_now() == null:
@@ -333,7 +388,16 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 		# at most 8 px a frame at its fastest, never at once)
 		_ok("%s: the side bar's left edge, the picture's right, never more than 10 px in a frame (most %.0f)" % [label, side_jump], side_jump <= 10.0)
 		_ok("%s: no decoded letter off a band (%d rows)" % [label, loose], loose == 0)
-	if _cur_look == "E" and letter_frames > 0:
+	if _calm and _cur_look == "E" and letter_frames > 0:
+		# THE CALM MOVE: the decode runs after the camera has landed, never under
+		# it, over its dial (`ZoomLadder.CALM_DECODE_S`: Jon's "slowly" was 1.1 s
+		# when it ran under the camera; after it, that second was the hop's)
+		var dsecs := letter_frames / 60.0
+		var d_start := decode_end - letter_frames + 1
+		var dial := float(_zl.get("CALM_DECODE_S"))
+		_ok("%s: E decodes after the landing (from frame %d, landed %d) over its dial (%.2f s for %.2f)" % [label, d_start, landed_at, dsecs, dial],
+			d_start >= landed_at and dsecs >= dial - 0.15 and dsecs <= dial + 0.2)
+	elif _cur_look == "E" and letter_frames > 0:
 		# E, SLOW (Jon: "happen slowly and not so fast"): the side bar decodes for
 		# a second or more, and is done within 0.35 s of the camera landing --
 		# or, on a hop shorter than that, runs on past it no longer than it needs
@@ -399,7 +463,17 @@ func _click_mid_swap() -> void:
 		ev.global_position = p
 		jump.get_viewport().push_input(ev)
 		await _tree.process_frame
-	_ok("%s: a click on the side bar mid-swap ends the move" % _cur_look, not ZoomLadder.busy())
+	if _calm:
+		# (the calm move: hurried to its end, not cut)
+		var t_end := -1
+		for i in 60:
+			if not ZoomLadder.busy():
+				t_end = i
+				break
+			await _tree.process_frame
+		_ok("%s: a click on the side bar mid-move hurries the move to its end (%.2f s)" % [_cur_look, t_end / 60.0], t_end >= 0 and t_end / 60.0 <= 0.45)
+	else:
+		_ok("%s: a click on the side bar mid-swap ends the move" % _cur_look, not ZoomLadder.busy())
 	_ok("%s: and on JUMP not yet resolved, it was eaten (blocked %s, heard %d)" % [_cur_look, blocked, heard[0]],
 		blocked and heard[0] == 0)
 	for b in _buttons(_side_of(ch)):
@@ -513,32 +587,56 @@ func _click_moving_chrome() -> void:
 	var pc: Object = null
 	for i in 400:
 		await _tree.process_frame
-		for p: Variant in _cs.get("live"):
+		var pieces: Array = (_cs.get("live") as Array).duplicate()
+		if _ps != null:
+			pieces.append_array(_ps.get("live") as Array)
+		for p: Variant in pieces:
 			if is_instance_valid(p) and StringName(p.get("kind")) == &"side" and float(p.get("k")) < 0.8 and float(p.get("k")) > 0.2:
 				pc = p
 		if pc != null:
 			break
-	if not _ok("the side bar's column is seen sliding off LOCAL", pc != null):
+	if not _ok("the side bar's column is seen sliding off, on the way to LOCAL", pc != null):
 		await _idle()
 		return
 	var r: Rect2 = (pc.call(&"at") as Rect2).intersection(Router.content.get_global_rect())
 	var at := r.get_center()
-	var loc := Router.current as SectorScreen
+	# (whatever is under it: LOCAL's scene once arrived, or -- the calm move's
+	# column going before its camera -- the map, its side bar's own controls)
+	var cur := Router.current
+	var targets: Array = []
+	if cur is SectorScreen:
+		targets.append((cur as SectorScreen)._view)
+	else:
+		targets.append(cur)
+		targets.append_array(_buttons(_side_of(cur)))
 	var heard := [0]
 	var probe := func(ev: InputEvent) -> void:
 		if ev is InputEventMouseButton:
 			heard[0] += 1
-	loc._view.gui_input.connect(probe)
+	for t: Variant in targets:
+		(t as Control).gui_input.connect(probe)
 	for pressed in [true, false]:
 		var ev := InputEventMouseButton.new()
 		ev.button_index = MOUSE_BUTTON_LEFT
 		ev.pressed = pressed
 		ev.position = at
 		ev.global_position = at
-		loc.get_viewport().push_input(ev)
+		cur.get_viewport().push_input(ev)
 		await _tree.process_frame
-	loc._view.gui_input.disconnect(probe)
-	_ok("a click on it mid-slide ends the move and lands on nothing (heard %d)" % heard[0], heard[0] == 0 and not ZoomLadder.busy())
+	for t: Variant in targets:
+		if is_instance_valid(t) and (t as Control).gui_input.is_connected(probe):
+			(t as Control).gui_input.disconnect(probe)
+	if _calm:
+		var t_end := -1
+		for i in 60:
+			if not ZoomLadder.busy():
+				t_end = i
+				break
+			await _tree.process_frame
+		_ok("a click on it mid-slide hurries the move to its end (%.2f s) and lands on nothing (heard %d)" % [t_end / 60.0, heard[0]],
+			heard[0] == 0 and t_end >= 0 and t_end / 60.0 <= 0.45)
+	else:
+		_ok("a click on it mid-slide ends the move and lands on nothing (heard %d)" % heard[0], heard[0] == 0 and not ZoomLadder.busy())
 	await _idle()
 	await _frames(4)
 
@@ -573,6 +671,9 @@ func _run() -> void:
 	Router.show_local()
 	await _frames(40)
 	_ok("a run opens on LOCAL", Router.current is SectorScreen)
+	for m: Dictionary in _zl.get_script_method_list():
+		if String(m.name) == "calm_on":
+			_calm = bool(_zl.call(&"calm_on"))
 	var has_looks := _zl.get_script_constant_map().has("SIDE_LOOKS")
 	if has_looks:
 		_looks = PackedStringArray(_zl.get_script_constant_map()["SIDE_LOOKS"])
@@ -610,8 +711,9 @@ func _run() -> void:
 		await _idle()
 	_set_look("")
 	print("  [sidebar] blank frames over every hop: %d" % total)
-	# THE DIVES TOO (Tab: LOCAL to the chart and back, through black), the
-	# chrome sliding in them as in the moves
+	# THE DIVES TOO (Tab: LOCAL to the chart and back -- through black before
+	# the calm move, the one move with it), the chrome sliding in them as in the
+	# moves
 	_cur_look = "E"
 	_set_look("E")
 	total += await _hop("LOCAL -> chart (dive)", Router.show_starchart, StarchartScreen)

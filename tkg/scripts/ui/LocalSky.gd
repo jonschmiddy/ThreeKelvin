@@ -371,6 +371,40 @@ func _restyle() -> void:
 		setup(node)
 
 
+## LOCAL'S FAR SKY OVER SYSTEM `n` as `_build` sets it up, before its camera or
+## its cloud has moved it: what `NavField` draws until a LOCAL sky over the
+## system is up to copy (the uniforms of `local_far.gdshader`).
+static func far_defaults(n: MapGen.MapNode) -> Dictionary:
+	var lay := SystemLayout.of(n)
+	var knd: String = KIND_NAMES[lay.star]
+	var leg := style_now() == &"legacy"
+	var c: Vector3 = SkyBakeS.STARCOL.get(knd, SkyBakeS.STARCOL.ORDINARY)
+	var l := Vector3(pow(c.x, 2.2), pow(c.y, 2.2), pow(c.z, 2.2))
+	var tint := l / maxf(l.x, maxf(l.y, l.z))
+	var look: Dictionary = SkyBakeS.look_for(n, knd)
+	var clear: bool = not bool(look.get("nebula", true)) and lay.star < SystemLayout.StarKind.PULSAR
+	var wt := MapGen.star_colour(n).darkened(0.72)
+	var st: Color = Color("#ffc29a") if lay.star == SystemLayout.StarKind.RED else (Color("#eaf4ff") if lay.star == SystemLayout.StarKind.BLUE else Color("#f6f2e4"))
+	var ba := float(n.index) * 0.731 * 2.7
+	return {
+		"legacy": leg,
+		"u_skySeed": float(n.index % 97) * 0.37,
+		"star_light": tint,
+		"wash_tint": Vector3(wt.r, wt.g, wt.b),
+		"old_tint": Vector3(st.r, st.g, st.b),
+		"glow_k": 1.0 if clear else 0.0,
+		"band_n": Vector2(-sin(ba), cos(ba)),
+		"band_off": (SkyBakeS.hash2(n.index, 403) - 0.5) * 300.0,
+		"band_w": 70.0 if clear else 0.0,
+	}
+
+
+## System `n`'s palette as LOCAL cut it this session ([colours, count]), or [].
+static func palette_for(n: MapGen.MapNode) -> Array:
+	var key := "%d|%s|%s" % [n.index, style_now(), DisplaySettings.graphics_low]
+	return _pal_cache.get(key, [])
+
+
 static func headless() -> bool:
 	return DisplayServer.get_name() == "headless" or "sim" in OS.get_cmdline_user_args()
 

@@ -10,6 +10,9 @@ var combat: Combat
 ## than in a screen so that swapping screens changes what is in front of the
 ## world instead of replacing the world.
 var sky: SpaceLayer
+## THE SPACE LOCAL, THE MAP AND THE CHART ARE BUILT ON (`NavField`): one field
+## of stars under all three, kept through every move between them.
+var field: NavField
 ## Whether the ship is tied up at a station rather than flying the system.
 ##
 ## Not on Run and not a Sig signal: it is a fact about which side of the airlock
@@ -41,6 +44,9 @@ func register(content_holder: Control, hud_bar: HudBar) -> void:
 	# place outlives the thing you happen to be looking at.
 	sky = SpaceLayer.new()
 	content.add_child(sky)
+	field = NavField.new()
+	field.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	content.add_child(field)
 	Sig.jumped.connect(_on_jumped)
 	Sig.run_started.connect(_on_run_started)
 	Sig.run_ended.connect(_on_run_ended)
@@ -244,6 +250,11 @@ var animate_in_harness := false
 ## screens a sky for the first time.
 ##
 ## Everything else is somewhere in space, which is the entire point of the layer.
+## LOCAL, the sector map or the star chart: the screens built on `field`.
+static func nav_screen(s: Control) -> bool:
+	return s is SectorScreen or s is SystemMapScreen or s is StarchartScreen
+
+
 func _refresh_sky() -> void:
 	if sky == null:
 		return
@@ -253,6 +264,10 @@ func _refresh_sky() -> void:
 	sky.set_active(not interior and not has_own)
 	if Run.map.size() > 0:
 		sky.setup(Run.node_at())
+	if field != null:
+		field.set_on(nav_screen(current))
+		if Run.map.size() > 0:
+			field.setup(Run.node_at())
 
 ## The one place the run is written to disk.
 ##
@@ -501,7 +516,7 @@ func show_archive(from_launcher: bool = false) -> void:
 ## draw that walks every node anyway.
 func show_starchart() -> void:
 	# (no chart in a fight: back to it, or nothing if it is up -- `fight_up`)
-	if in_combat():
+	if in_combat() or fight_up():
 		show_local()
 		return
 	Run.chart_from(Run.node_at())
@@ -541,7 +556,7 @@ func show_sector() -> void:
 	if docked and current is StationScreen and ZoomLadder.chosen():
 		show_local()
 		return
-	if in_combat() or _post_depart >= 0 or held:
+	if in_combat() or fight_up() or _post_depart >= 0 or held:
 		show_local()
 	else:
 		_undock()
@@ -556,7 +571,7 @@ func show_system() -> void:
 	if Run.dead:
 		show_game_over()
 		return
-	if in_combat() or (Run.hellbender_alive() and Run.hellbender_at == Run.at):
+	if in_combat() or fight_up() or (Run.hellbender_alive() and Run.hellbender_at == Run.at):
 		show_local()
 		return
 	if ZoomLadder.preroll(ZoomLadder.MAP, show_system):
@@ -573,7 +588,14 @@ func show_system() -> void:
 		_swap(pre)
 		return
 	var s := SystemMapScreen.new()
+	# A JUMP'S ARRIVAL IS NOT A MOVE BETWEEN DISTANCES: the departure's LOCAL is
+	# another system. Taken as one, the zoom out of it carried the old system's
+	# planet and station into the new system's map for half a second as its name
+	# decoded beside them (nav audit, Oct 17). The map plays its own arrival.
+	if arrived:
+		ZoomLadder.hold_off = true
 	_swap(s)
+	ZoomLadder.hold_off = false
 	s.show_system(Run.node_at(), 0.0, arrived)
 
 
@@ -1546,8 +1568,15 @@ func in_combat() -> bool:
 ## back, the hand was dealt again and the enemy flew in a second time (nav
 ## audit, Oct 17). From a page opened OVER the fight (CARDS, the archive) the
 ## same doors are still the way back to it.
+##
+## AND UNTIL THE FIGHT HAS HANDED OVER. From the last kill to `after_combat` --
+## the breakup played out, the hand lowered -- the fight is `finished`, so
+## `in_combat` is false, but its screen is still the one up and `combat` still
+## set: Tab, a rebound key or a HUD tab there started a ladder move that raced
+## the hand-off to LOCAL (Oct 17). `after_combat` clears `combat` before it
+## swaps, so this never stops the hand-off itself.
 func fight_up() -> bool:
-	return in_combat() and current is SectorScreen and (current as SectorScreen).combat == combat
+	return combat != null and current is SectorScreen and (current as SectorScreen).combat == combat
 
 func after_combat(_c: Combat) -> void:
 	# WON: STAY BY THE WRECKS (alpha blocker 4). The pay is in them, and the map

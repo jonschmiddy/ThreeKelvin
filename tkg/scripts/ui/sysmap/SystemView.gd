@@ -110,6 +110,11 @@ const NEB_GAS_K := 0.6
 const NEB_DUST_K := 0.55
 ## this system drawn in LEGACY (set as it is shown)
 var legacy := false
+## ON THE FIELD (`NavField`, the sector map's: Jon, Oct 18, "stars fill the
+## entire panel edge-to-edge"): its own far stars, galaxies and twinkling ones
+## left out, the stars the picture shows are the field's under it
+## (`SystemMapScreen` keys its empty sky away, `nav_key.gdshader`)
+var field_under := false
 ## PAINTED (`painted`, `is_painted()`; `SectorPainted`): direction B, "a pixel
 ## artist's hand". The far picture is SIMPLIFIED's, drawn into its own viewport
 ## and painted on the scene's curated palette; the sun, the worlds, their rings
@@ -713,6 +718,7 @@ func show_system(n: MapGen.MapNode) -> void:
 	if headless():
 		return
 	_bake = SkyBakeS.new()
+	_bake.no_stars = field_under
 	await _bake.make(self, n.index, kind, n.in_nebula, layout.edge, CX, CY, TILT, _sky_look)
 	_sky_mat.set_shader_parameter("base", _bake.base)
 	_sky_mat.set_shader_parameter("gas", _bake.gas)
@@ -749,7 +755,20 @@ func show_system(n: MapGen.MapNode) -> void:
 	_palette_mat.set_shader_parameter("x0", 0.0)
 	_shadow_mat.set_shader_parameter("x0", 0.0)
 	_twinkle.stars = _bake.twinkle
+	_field_off()
 	_ready_sky = true
+
+
+## The far sky the field draws instead, not drawn here.
+func _field_off() -> void:
+	if not field_under:
+		return
+	for f: Variant in _fields:
+		if is_instance_valid(f):
+			(f as CanvasItem).visible = false
+	for c: Variant in [_twinkle, _galaxies]:
+		if c != null and is_instance_valid(c):
+			(c as CanvasItem).visible = false
 
 
 ## A shader setting on every material under `n` (a star's box, its web, its lens).

@@ -571,6 +571,23 @@ else
 	bad "laddertest did not finish"
 fi
 
+step "One motion: every hop between LOCAL, the map and the chart is the calm move"
+# Jon's pick A (Oct 17). Every hop by tab, Tab and a rebound key, from a world's
+# orbit and the system's edge, frame by frame at 60 fps: one ship on one
+# straight line, no cut or one-frame swap, the side bar and toolbar still while
+# the camera moves, the hop within 10% of its length, a press mid-move hurried
+# and not lost, the goal line away for the move and back after it.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot calmladdertest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=CalmLadderTest; then
+	if grep -qE '^calmladdertest: PASS' "$LOG_DIR/calmladdertest.log"; then
+		ok "every hop is one calm move about your ship"
+	else
+		bad "a hop between distances was not the calm move"
+		grep -E 'FAIL|^calmladdertest' "$LOG_DIR/calmladdertest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "calmladdertest did not finish"
+fi
+
 step "The side bar never goes blank between distances"
 # Every hop with a side bar at one end (LOCAL, map, chart), frame by frame at
 # 60 fps for every look of the swap: no frame with the side bar empty, a click

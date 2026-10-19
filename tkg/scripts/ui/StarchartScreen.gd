@@ -108,6 +108,12 @@ static var _primed_for: int = -1
 const BAR_H := 17
 
 
+## The toolbar row's whole height as it stands: the row, and on the field its
+## plate's margins (`NavField.row_plate`).
+static func row_h() -> float:
+	return float(BAR_H) + (2.0 * NavField.ROW_PAD_V if NavField.used() else 0.0)
+
+
 static func toolbar_row() -> HBoxContainer:
 	var r := HBoxContainer.new()
 	r.add_theme_constant_override("separation", 7)
@@ -157,6 +163,17 @@ func _build() -> void:
 
 	# --- depth strip: the greed clock, always visible
 	var strip := toolbar_row()
+	# (the goal's room at the row's start: `GoalLine.fixed_at`)
+	if NavField.used():
+		strip.add_child(GoalLine.row_lead())
+	# DEVELOPER MODE'S BUTTONS narrower, where at their old widths they would
+	# crowd the goal off its place (Jon: the goal always in one place) -- still
+	# held (their SHOW / HIDE must not shuffle the row: a shuffle re-laid the
+	# chart under a move), and the row the same height as the map's, so the
+	# plate never changes between them
+	var dev_host: HBoxContainer = strip
+	var narrow := {112.0: 96.0, 128.0: 96.0, 140.0: 124.0, 150.0: 124.0}
+	var dev_w := func(w: float) -> float: return float(narrow.get(w, w)) if NavField.used() else w
 	_layer_text = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	strip.add_child(_layer_text)
 	_layer_cells = HBoxContainer.new()
@@ -171,30 +188,34 @@ func _build() -> void:
 	# rolled something odd — and every one of them shows the player the map they
 	# are supposed to be earning. See DevMode.
 	if DevMode.enabled:
-		_icons_btn = bar_button("HIDE SYSTEMS", _on_toggle_icons, 112)
-		strip.add_child(_icons_btn)
+		_icons_btn = bar_button("HIDE SYSTEMS", _on_toggle_icons, dev_w.call(112.0))
+		dev_host.add_child(_icons_btn)
 
 	# Debug: the lattice MapGen actually built, rather than the slice of it you
 	# are allowed to use. Pairs with the button beside it — that one shows every
 	# system, this one shows how they are wired, and a generation problem is
 	# usually only visible with both on.
-		_links_btn = bar_button("SHOW REACH", _on_toggle_links, 128)
-		strip.add_child(_links_btn)
+		_links_btn = bar_button("SHOW REACH", _on_toggle_links, dev_w.call(128.0))
+		dev_host.add_child(_links_btn)
 
 	# And the systems those links run to. Without this the one above draws the
 	# whole lattice over a chart that is still hiding most of the galaxy.
-		_all_btn = bar_button("SHOW ALL SYSTEMS", _on_toggle_all, 140)
-		strip.add_child(_all_btn)
+		_all_btn = bar_button("SHOW ALL SYSTEMS", _on_toggle_all, dev_w.call(140.0))
+		dev_host.add_child(_all_btn)
 
 	# A new galaxy, right here, under the same ship -- for looking at what the
 	# generator rolls (`Run.dev_regenerate_galaxy`). Not in a co-op session:
 	# the galaxy is the party's.
-		var regen := bar_button("REGENERATE GALAXY", _on_regenerate, 150)
+		var regen := bar_button("REGENERATE GALAXY", _on_regenerate, dev_w.call(150.0))
 		if Net.is_networked():
 			regen.disabled = true
 			regen.tooltip_text = "Not in a co-op session: the galaxy belongs to the whole party."
-		strip.add_child(regen)
-	root.add_child(strip)
+		dev_host.add_child(regen)
+	if NavField.used():
+		_row_plate = NavField.row_plate(strip)
+		root.add_child(_row_plate)
+	else:
+		root.add_child(strip)
 	_strip_row = strip
 
 	# --- chart | destination
@@ -212,6 +233,9 @@ func _build() -> void:
 	_chart.cleared.connect(_on_chart_cleared)
 	_chart.view_dragged.connect(_on_view_dragged)
 	var chart_wrap := Widgets.panel_with(_chart)
+	if NavField.used() and not ChartLegacy.wanted():
+		_chart.on_field = true
+		chart_wrap.add_theme_stylebox_override("panel", NavField.window_style())
 	chart_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mid.add_child(chart_wrap)
 
@@ -336,6 +360,8 @@ func _build() -> void:
 	right.add_child(_jump)
 
 	_ladder_side = Widgets.panel_with(right)
+	if NavField.used():
+		_ladder_side.add_theme_stylebox_override("panel", NavField.plate_style())
 	mid.add_child(_ladder_side)
 
 	# --- key: icons are only better than labels if you can learn them
@@ -1370,7 +1396,11 @@ func ladder_side() -> Control:
 ## And the toolbar along the top -- LAYER, its pips, CORE, the view toggles --
 ## which decodes into the next screen's the same way (Jon: "these buttons").
 func ladder_bar() -> Control:
-	return _strip_row
+	return _row_plate if _row_plate != null else _strip_row
+
+
+## the toolbar row's plate, on the field (`NavField.row_plate`)
+var _row_plate: PanelContainer = null
 
 
 func ladder_spans() -> Vector2:
@@ -1387,6 +1417,32 @@ func ladder_split(f: float) -> void:
 func ladder_cam_end() -> void:
 	if _chart != null:
 		_chart.ladder_end()
+
+
+## THE CALM MOVE (`ZoomLadder`): your star is your ship out here.
+func calm_begin() -> void:
+	if ladder_ready():
+		_chart.calm_begin()
+
+
+func calm_ship() -> Vector2:
+	return _chart.calm_star() if ladder_ready() else get_global_rect().get_center()
+
+
+func calm_rest() -> Vector2:
+	if _chart != null and _chart._lad.has("calm"):
+		return _chart.calm_rest_star()
+	return calm_ship()
+
+
+func calm_at(p: Vector2, s: float) -> void:
+	if _chart != null:
+		_chart.calm_at(p, s)
+
+
+func calm_end() -> void:
+	if _chart != null:
+		_chart.calm_end()
 
 
 func _on_jump() -> void:
@@ -2166,6 +2222,13 @@ class MapChart extends Control:
 	## The sky, behind everything the chart draws itself (`ChartSky`), and the
 	## flashes over it.
 	var _sky: ChartSky
+	## ON THE FIELD (`NavField`, the star chart's): the sky's own far stars off and
+	## its empty sky keyed away, so the field's stars are the chart's
+	var on_field := false:
+		set(v):
+			on_field = v
+			if _sky != null:
+				_sky.material = NavField.key_material() if v else null
 	var _flash: Flashes
 	## Screen positions are pure functions of the node and the transform, and
 	## they are wanted for every system on every redraw AND on every mouse
@@ -2909,6 +2972,53 @@ class MapChart extends Control:
 		if ladder_hush:
 			ladder_hush = false
 			queue_redraw()
+
+	## THE CALM MOVE (`ZoomLadder`, Jon's pick A): the camera placed by where
+	## your star is on screen and how far in it is against rest.
+	func calm_begin() -> void:
+		if _glide != null and _glide.is_valid():
+			_glide.kill()
+		_lad = {"calm": true, "z0": zoom, "p0": pan, "s0": sky_pan}
+		_lad["rest"] = calm_star()
+
+	## Where your star rests now: the rest camera, the galaxy turned as it is
+	## this moment (it turns under the move too).
+	func calm_rest_star() -> Vector2:
+		var z := zoom
+		var pn := pan
+		zoom = _lad.z0
+		pan = _lad.p0
+		var at := calm_star()
+		zoom = z
+		pan = pn
+		return at
+
+	func calm_star() -> Vector2:
+		if Run.map.is_empty():
+			return global_position + size * 0.5
+		return global_position + _screen_pos(Run.node_at())
+
+	func calm_at(p: Vector2, s: float) -> void:
+		if not _lad.has("calm"):
+			return
+		var z0: float = _lad.z0
+		zoom = z0 * s
+		pan = _lad.p0
+		# (the solid galaxy's projection is not quite flat: a step or two more
+		# puts your star where it is asked to be)
+		for i in 3:
+			pan += p - calm_star()
+		var c0 := size * 0.5
+		sky_pan = c0 - (c0 - (_lad.s0 as Vector2)) * pow(zoom / maxf(z0, 0.0001), SKY_ZOOM_POWER) + (pan - (_lad.p0 as Vector2))
+		_repaint_galaxy()
+
+	func calm_end() -> void:
+		if _lad.has("calm"):
+			zoom = _lad.z0
+			pan = _lad.p0
+			sky_pan = _lad.s0
+			_repaint_galaxy()
+		ladder_end()
 
 	func _zoom_at(at: Vector2, factor: float) -> void:
 		var c0 := size * 0.5

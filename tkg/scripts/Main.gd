@@ -1569,7 +1569,20 @@ func _input(event: InputEvent) -> void:
 	# fight (`Router.fight_up`: Tab there rebuilt the fight over itself), the
 	# chart with nothing to jump to -- so a refused step simply leaves you where
 	# you were rather than needing a guard here.
-	if Router.current is SectorScreen or Router.current is StationScreen:
+	# FROM WHERE A MOVE UNDER WAY IS GOING (`ZoomLadder.lit_rank`, the tab lit):
+	# Tab twice quickly is two steps round, the second taken when the first
+	# lands (`ZoomLadder.hurry`), not the first one asked for again
+	var at := ZoomLadder.lit_rank() if ZoomLadder.busy() else -1
+	if at == ZoomLadder.LOCAL or at == ZoomLadder.STATION:
+		Router.show_system()
+	elif at == ZoomLadder.MAP:
+		Router.show_starchart()
+	elif at == ZoomLadder.CHART:
+		if Router.docked:
+			Router.show_station()
+		else:
+			Router.show_local()
+	elif Router.current is SectorScreen or Router.current is StationScreen:
 		Router.show_system()
 	elif Router.current is SystemMapScreen:
 		Router.show_starchart()
