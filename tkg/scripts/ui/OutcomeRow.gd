@@ -41,7 +41,9 @@ extends RefCounted
 ##      column on the left that wraps clear of it. On the card the buttons go
 ##      on the title's line too (or on a line of their own over it when the
 ##      title leaves them no room) and the table sits at the foot,
-##      right-aligned.
+##      right-aligned. And no totals ("you can remove the total credits and
+##      fuel part. just put what is added or lost"): "FUEL -3", not
+##      "FUEL -3 42".
 ##   E  D, AND WHAT YOU GOT, BIG (Jon, of D: "I like this, but there was a
 ##      previous version of this where the things you get are big on the
 ##      right side"). D's table over REWARD and CONTINUE stays where it is; a
@@ -526,8 +528,9 @@ const D_FS := UITheme.FS_SMALL
 
 ## `without_big`: E's table, the things E draws big left out of it (`big_ones`);
 ## null when that leaves it nothing to say. `fs`: its text's size.
-## `stats_only`: D's, the four stats that moved and nothing else; null when
-## none of them did.
+## `stats_only`: D's, the four stats that moved and nothing else, each its
+## change alone with no new total (Jon: "just put what is added or lost");
+## null when none of them did.
 static func table(out: Dictionary, without_big := false, fs: int = UITheme.FS_SMALL, stats_only := false) -> Control:
 	var rows := changes(out)
 	if stats_only:
@@ -542,6 +545,7 @@ static func table(out: Dictionary, without_big := false, fs: int = UITheme.FS_SM
 	var t := Table.new()
 	t.name = "OutcomeTable"
 	t.fs = fs
+	t.totals = not stats_only
 	t.setup(rows)
 	return t
 
@@ -561,6 +565,9 @@ class Table extends Control:
 	## the 8 px face's pixels is at it.
 	var fs := UITheme.FS_SMALL
 	var px := 1
+	## Whether a stat's row ends on its new total ("HULL -5 31"); D's does
+	## not ("HULL -5").
+	var totals := true
 	var ROW := ROW8
 	var GAP := GAP8
 	## [y, mark entry or null, [[text, ink, x, right_aligned]], text]
@@ -596,20 +603,23 @@ class Table extends Control:
 			if e.kind == &"stat":
 				chg_w = maxf(chg_w, sw.call(String(e.big)))
 				name_w = maxf(name_w, sw.call(String(e.word)))
-				tot_w = maxf(tot_w, sw.call(str(int(e.now))))
+				if totals:
+					tot_w = maxf(tot_w, sw.call(str(int(e.now))))
 		var x_name := (OutcomeRow.MARK + 4.0) * px
 		# THE STATS AS A COMPACT BLOCK: name, change, total, the digits lined
 		# up; a thing is a line of its own under them, its count leading
 		var x_chg := x_name + name_w + GAP + chg_w
 		var x_tot := x_chg + GAP + tot_w
-		content_w = ceilf(x_tot if tot_w > 0.0 else 0.0)
+		content_w = ceilf(x_tot if tot_w > 0.0 else (x_chg if chg_w > 0.0 else 0.0))
 		var y := 0.0
 		for e: Dictionary in entries:
 			var tone: Color = e.tone
 			if e.kind == &"stat":
-				rows.append([y, e, [[String(e.word), UITheme.CHILL, x_name, false],
-					[String(e.big), tone, x_chg, true], [str(int(e.now)), UITheme.ICE, x_tot, true]],
-					"%s %s %d" % [e.word, e.big, int(e.now)]])
+				var runs: Array = [[String(e.word), UITheme.CHILL, x_name, false], [String(e.big), tone, x_chg, true]]
+				if totals:
+					runs.append([str(int(e.now)), UITheme.ICE, x_tot, true])
+				rows.append([y, e, runs,
+					("%s %s %d" % [e.word, e.big, int(e.now)]) if totals else ("%s %s" % [e.word, e.big])])
 				y += ROW
 				continue
 			var lead := String(e.big)

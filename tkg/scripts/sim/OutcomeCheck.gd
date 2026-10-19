@@ -15,8 +15,8 @@ extends RefCounted
 ## for every change and nothing else ("-5 HULL", "+1 PART: ...", no dash
 ## anywhere); B a row for every change with its totals ("HULL -5 35 > 30");
 ## E a row for every change with its new total ("HULL -5 31"); NOTHING GAINED
-## OR LOST when nothing moved. D only the four stats that moved, as E's rows,
-## and no table when none did (Jon, Oct 19).
+## OR LOST when nothing moved. D only the four stats that moved, each its
+## change alone ("HULL -5"), and no table when none did (Jon, Oct 19).
 ##
 ## THE BOXES (fit means nothing overlaps): every entry inside the band, apart
 ## from every other entry, off every button (CONTINUE, REWARD, CHOOSE AGAIN,
@@ -105,13 +105,14 @@ static func check(d: LocalEventDrawer, look: StringName, want: Dictionary) -> Ar
 		&"D":
 			# THE FOUR STATS AND NOTHING ELSE (Jon, Oct 19: "let's only show
 			# CREDITS, FUEL, HULL, HEAT on the right"): a row for each that
-			# moved, in hull, fuel, credits, heat order, no thing ever (those
+			# moved, its change and no total ("just put what is added or
+			# lost"), in hull, fuel, credits, heat order, no thing ever (those
 			# are REWARD's), and no table at all when none of the four moved
 			var rows: Array = []
 			for k in OutcomeRow.ORDER:
 				var s: Array = want.stats[k]
 				if int(s[0]) != 0:
-					rows.append("%s %+d %d" % [WORDS[k], int(s[0]), int(s[2])])
+					rows.append("%s %+d" % [WORDS[k], int(s[0])])
 			if texts != rows:
 				bad.append("D: the table says [%s], not [%s]" % [said, ", ".join(rows)])
 			var tab := d.panel.find_child("OutcomeTable", true, false)
