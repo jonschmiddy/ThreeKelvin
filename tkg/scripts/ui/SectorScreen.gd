@@ -4918,9 +4918,8 @@ func _on_death_moment(kind: StringName, _s: float, len: float, who: int, style: 
 	if ShipBreakup._is_boss(style):
 		_on_boss_moment(kind, len, style)
 		return
-	if style == S.SNAP and kind == &"break":
-		Audio.fx(&"snap_crack", kind)
-	elif style == S.BURN and kind == &"burst":
+	# (A's crack is its main break's buckling metal, `Audio.kill_beat`)
+	if style == S.BURN and kind == &"burst":
 		Audio.fx(&"heat", kind)
 	elif (style == S.IMPLODE and kind == &"gather") or (style == S.BREACH and kind == &"charge") 			or (style == S.OVERLOAD and kind == &"spool"):
 		Audio.fx(&"charge", kind, len)
@@ -5095,7 +5094,7 @@ func _start_death(who: int) -> void:
 	# play today's explosion, and a creature's death plays nothing.
 	if not e.template.fauna:
 		b.broke.connect(func(s: float) -> void:
-			Audio.play_kill(who, 0.0 if s >= 0.6 else -6.0))
+			Audio.kill_beat(s))
 	b.moment.connect(_on_death_moment.bind(who, b.style))
 	# (a furnace under a set piece goes with it, however it ends)
 	if ShipBreakup._is_boss(b.style):
@@ -5250,7 +5249,7 @@ func _lose_ship() -> bool:
 	# The explosion on each visible break, the enemies' pool (Jon's rule:
 	# sound follows what you see, never the resolution).
 	b.broke.connect(func(s: float) -> void:
-		Audio.play_kill(-1, 0.0 if s >= 0.6 else -6.0))
+		Audio.kill_beat(s))
 	b.moment.connect(_on_death_moment.bind(-1, b.style))
 	await b.finished
 	return is_inside_tree()

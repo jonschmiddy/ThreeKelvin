@@ -325,6 +325,21 @@ ones the game already has a fitting file for, and spends nothing.
   furnace and pops. Every row keeps its `free` and `before` takes to audition.
   The two loops import as PCM, forward-looped (`.import`: loop_mode 2,
   compress 0); Ogg cannot hold a loop.
+* **A death hits as one boom (Oct 19)**. Jon, of a hulk's: "the ship exploding
+  at the end of that video is weak". Measured off the game's own tape
+  (`scratchpad/death-punch/`): the kill pool's five takes spread 5 dB, and
+  `explosion_small` / `_2` sat 4 dB under a plain hit landing (momentary max
+  -17.6 / -17.2 against impact_enemy's -13.8); a D whose round robin drew one
+  was quieter than the shot that killed it, and a break under 0.6 strength
+  played at -6 (B's came out at -21). Now a main break (`Audio.kill_beat`, on
+  the frame `broke` fires) is three rows: `kill_boom`, the three heavy takes
+  alone, each levelled by its own offset (`pool`); `kill_thump`, the first
+  `impact_hull` (80% under 90 Hz, gone in 0.45 s) at -6; `kill_crunch`,
+  `hull_crunch` at -4. Every look with a boom now lands at -12.1 to -12.5
+  momentary (it was -13.1 to -21.1), level with a hit's whole volley (-12.2),
+  peaks under -0.5 dBFS. Lesser breaks are `kill_pop`, the two short takes at
+  -3. Death I has no break in its picture and stays a fizz. A's crack is the
+  boom's crunch now. `fx=kill_boom:before` (and the other three) is the old pool.
 * **Headless, Audio decides and tapes**: with `taping` on and no window, `play`
   runs its limits, suppression and pick and writes the result down
   (`_dry_play`), so `-- sheet=SoundMomentTest` checks every row against the

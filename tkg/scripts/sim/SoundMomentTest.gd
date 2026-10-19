@@ -162,7 +162,8 @@ func _run() -> void:
 	await _hulk()
 	await _vent_death()
 	# the deaths that sound on their own beats now, besides their booms
-	await _ship_death(ShipBreakup.Style.SNAP, [[&"break", &"snap_crack", &"hull_crunch", 0.0, ""]])
+	# (A's crack is the boom's own buckling metal now: nothing of its own)
+	await _ship_death(ShipBreakup.Style.SNAP, [])
 	await _ship_death(ShipBreakup.Style.BURN, [[&"burst", &"heat", &"heat_sizzle", 0.0, ""]])
 	await _ship_death(ShipBreakup.Style.IMPLODE, [[&"gather", &"charge", &"charge_whine", 0.0, "break"]])
 	await _ship_death(ShipBreakup.Style.BREACH, [[&"charge", &"charge", &"charge_whine", 0.0, "breach"]])
@@ -218,7 +219,7 @@ func _table() -> void:
 		&"fight_band": &"menu_open", &"fight_band_down": &"menu_close",
 		&"fauna_death": &"fauna_falls", &"chrome_on": &"menu_open", &"side_decode": &"text_blip",
 		&"chrome_off": &"menu_close", &"brace_off": &"jettison", &"loss_handoff": &"power_off",
-		&"boss_pop": &"explosion_small", &"crumple": &"hull_crunch", &"snap_crack": &"hull_crunch",
+		&"boss_pop": &"explosion_small", &"crumple": &"hull_crunch",
 		&"crack_mark": &"hull_crunch", &"charge": &"charge_whine", &"charge_prelude": &"charge_whine",
 		&"heat": &"heat_sizzle", &"heat_mark": &"heat_sizzle", &"dissolve": &"dissolve_fizz",
 		&"collapse": &"gravity_collapse", &"cust_crack": &"glass_crack", &"k_shatter": &"glass_crack",
@@ -692,7 +693,7 @@ func _vent_death() -> void:
 	var sph := _heard(&"vent_sputter", h0)
 	_ok("its sputters (%d) heard %d times, at least 0.4 s apart" % [sps.size(), sph.size()],
 		sps.size() == 2 and sph.size() == 1)
-	_ok("and its booms still the kill pool", _tape(t0).any(func(r: Array) -> bool: return r[1] == &"explosion_small"))
+	_ok("and its booms still the kill pool", _tape(t0).any(func(r: Array) -> bool: return String(r[1]).begins_with("explosion_small")))
 	await _leave()
 
 
@@ -716,7 +717,7 @@ func _creature(style: int) -> void:
 		fd.map(func(r: Array) -> int: return int(r[4])), first], fd.size() == 1 and int(fd[0][4]) == first)
 	var rows := _taped_at(&"fauna_falls", first, t0)
 	_ok("%s: as fauna_falls at -4 dB (%s)" % [nm, rows], rows.size() == 1 and is_equal_approx(float(rows[0][2]), -4.0))
-	_ok("%s: and no explosion" % nm, not _tape(t0).any(func(r: Array) -> bool: return r[1] == &"explosion_small"))
+	_ok("%s: and no explosion" % nm, not _tape(t0).any(func(r: Array) -> bool: return String(r[1]).begins_with("explosion_small")))
 	await _leave()
 
 
@@ -822,7 +823,7 @@ func _custodian(style: int) -> void:
 	var cf := cracks.map(func(m: Array) -> int: return int(m[2]))
 	var booms := 0
 	for f: int in cf:
-		booms += _taped_at(&"explosion_small", f, t0).size()
+		booms += _booms_at(f, t0)
 	_ok("%s: its cracks (%d) heard as glass_crack on their frames (%d), none an explosion (%d)" % [nm, cracks.size(), ch.size(), booms],
 		cracks.size() >= 4 and ch.size() == cracks.size() and ch.all(func(r: Array) -> bool: return int(r[4]) in cf and _one(&"glass_crack", int(r[4]), t0, 0.0)) and booms == 0)
 	# ITS BEAMS: one hum, up with the first, down as they shrink in
@@ -881,13 +882,49 @@ func _ship_death(style: int, rows: Array, quiet: Array = []) -> void:
 			var land := _moments_of(&"death", [StringName(r[4])], m0)
 			_ok("%s: and runs out as its %s lands" % [nm, r[4]], not ms.is_empty() and not land.is_empty()
 				and _ends_on(r[2], int(ms[0][2]), t0, float(land[0][3])))
+	_kill_layers(nm, m0, h0, t0)
 	for q: StringName in quiet:
 		var qm := _moments_of(&"death", [q], m0)
 		var boom := 0
 		for m: Array in qm:
-			boom += _taped_at(&"explosion_small", int(m[2]), t0).size()
+			boom += _booms_at(int(m[2]), t0)
 		_ok("%s: its %s no longer an explosion (%d)" % [nm, q, boom], not qm.is_empty() and boom == 0)
 	await _leave()
+
+
+## Jon, Oct 19: "the ship exploding ... is weak". A death's MAIN BREAK is one
+## layered boom (`Audio.kill_beat`): a heavy take at its own level, a sub thump
+## and buckling metal, all three on the frame of a boom the picture shows, each
+## once; and no break left to the old pool's luck.
+const KILL_POOL := {&"explosion_small_3": -0.9, &"explosion_small_4": 2.1, &"explosion_small_5": -0.2}
+
+
+func _kill_layers(nm: String, m0: int, h0: int, t0: int) -> void:
+	var booms := _moments_of(&"death", [&"breach", &"pop", &"break", &"blow", &"split", &"rip", &"tear",
+		&"collapse", &"sever", &"burst"], m0).map(func(m: Array) -> int: return int(m[2]))
+	var kb := _heard(&"kill_boom", h0)
+	var kf := kb.map(func(r: Array) -> int: return int(r[4]))
+	if booms.is_empty():
+		# (I dissolves: no burst in the picture, none heard)
+		_ok("%s: no break in the picture, no boom heard (%d)" % [nm, kb.size()], kb.is_empty())
+		return
+	var bad := 0
+	for r: Array in kb:
+		var f := int(r[4])
+		var take := StringName(r[2])
+		if not KILL_POOL.has(take) or not _one(take, f, t0, float(KILL_POOL[take])) \
+				or not _one(&"impact_hull", f, t0, -6.0) or not _one(&"hull_crunch", f, t0, -4.0):
+			bad += 1
+	_ok("%s: its main break one layered boom (%d) on a boom's frame (%s in %s), a heavy take at its level, the thump -6, the crunch -4 (%d off)"
+		% [nm, kb.size(), kf, booms, bad], kb.size() >= 1 and kf.all(func(f: int) -> bool: return f in booms) and bad == 0
+		and _heard(&"kill_thump", h0).size() == kb.size() and _heard(&"kill_crunch", h0).size() == kb.size())
+	var thin := _tape(t0).filter(func(r: Array) -> bool: return (r[0] == &"explosion_small" or r[0] == &"explosion_small_2") and float(r[2]) > -2.9)
+	_ok("%s: no short take as the main break (%d)" % [nm, thin.size()], thin.is_empty())
+
+
+## Rows of any of the kill pool's takes on `frame` (since `t0`).
+func _booms_at(frame: int, t0: int) -> int:
+	return _tape(t0).filter(func(r: Array) -> bool: return String(r[0]).begins_with("explosion_small") and int(r[3]) == frame).size()
 
 
 ## One row of `asked` on `frame` (since tape index `t0`) at `db`.
