@@ -48,6 +48,10 @@ uniform float r_haze = 0.085;
 uniform float tilt = 0.38;
 uniform vec2 sky_off = vec2(0.0);
 uniform float margin = 0.0;
+// (the map's strip past its picture's end, `SystemView` `_past`: this rect is
+// `px_span` of the sky's px from `px0`; the picture's own, all 960x540 from 0)
+uniform vec2 px_span = vec2(960.0, 540.0);
+uniform vec2 px0 = vec2(0.0);
 // the beam's angle on screen, and whether it points across the screen at all
 uniform float beam_angle = 0.0;
 uniform bool beam_on = false;
@@ -169,7 +173,7 @@ float lit_by_beam(float d) {
 }
 
 void fragment() {
-	vec2 px = floor(UV * vec2(960.0, 540.0));
+	vec2 px = floor(UV * px_span) + px0;
 	ivec2 tp = ivec2(px - floor(sky_off) + margin);
 	vec4 bs = texelFetch(base, tp, 0);
 	vec3 c = bs.rgb;

@@ -27,6 +27,7 @@ var _cloud := false
 var _fmed := 0.0
 var _style_lo := false
 const BAND := 24
+const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
 ## (levels of 255, on a line's median) -- how far the screen may stand off the
 ## field at the edge's lines, and how far either side's mean may differ
 const STEP := 2.0
@@ -91,6 +92,8 @@ func _run() -> void:
 		await _frames(30)
 		await RenderingServer.frame_post_draw
 		_check(which)
+		if which == "SECTOR" and _cloud:
+			_cloud_past()
 	# THE TOP PLATE STEADY THROUGH A HOP BETWEEN THE MAP AND THE CHART (Jon: "When
 	# going from sector to starchart and vice versa the border on the top panel
 	# flickers? or something"): every frame of each, the plate's line and its
@@ -148,6 +151,58 @@ func _local_match() -> void:
 		return
 	_ok("LOCAL (%s): its stars are the field's -- %d of %d of the field's stars in LOCAL's open sky drawn there (%.0f%%)" % [LocalSky.style_now(), hit, stars, share * 100.0],
 		share >= 0.8)
+
+
+## THE CLOUD PAST THE MAP'S PICTURE IS THE CLOUD GOING ON (Jon: "the mirror is
+## visible"): the map's sky ends under the side panel; past it the same cloud is
+## drawn on (`SystemView._past`, the cloud's own material, read by `nav_ext`
+## with `past_on`), not a mirror or a copy of gas from elsewhere. Where the
+## strip starts over the picture's last 32 px it is the same gas, drawn the
+## same way: its light follows the picture's there (correlation 1.00 in
+## SIMPLIFIED and LEGACY on seed 4242's cloud; the picture's own gas mirrored
+## there 0.25, moved 16 px 0.19-0.34; the cloud alone without the sky and dust
+## sheets under it 0.24-0.57) at its level (within 2).
+func _cloud_past() -> void:
+	var v: Variant = (Router.current as SystemMapScreen).view if Router.current is SystemMapScreen else null
+	var pv: Variant = v.get("_past") if v != null else null
+	var ext: TextureRect = Router.current.get("_gas_ext") if Router.current is SystemMapScreen else null
+	if v != null and bool(v.get("painted")):
+		# (PAINTED's cloud is its paint pass over the picture: no strip of it --
+		# past the end, the sky's own off-screen strip handed over to, `sky_past`)
+		print("  --   SECTOR in a cloud (painted): past the picture the sky's off-screen strip, no strip drawn on")
+		return
+	if not _ok("SECTOR in a cloud: its cloud drawn on past the picture's end (a strip of its own, on)",
+			pv is SubViewport and ext != null and ext.visible and bool((ext.material as ShaderMaterial).get_shader_parameter("past_on"))):
+		return
+	var a := (v.get("_scene") as SubViewport).get_texture().get_image()
+	var b := (pv as SubViewport).get_texture().get_image()
+	a.convert(Image.FORMAT_RGB8)
+	b.convert(Image.FORMAT_RGB8)
+	var x0 := SystemViewS.PAST_X0 / 2
+	var xs: Array[float] = []
+	var ys: Array[float] = []
+	for y in mini(a.get_height(), b.get_height()):
+		for i in (960 - SystemViewS.PAST_X0) / 2:
+			xs.append(_lum(a, x0 + i, y))
+			ys.append(_lum(b, i, y))
+	var n := float(xs.size())
+	var mx := 0.0
+	var my := 0.0
+	for k in xs.size():
+		mx += xs[k]
+		my += ys[k]
+	mx /= maxf(n, 1.0)
+	my /= maxf(n, 1.0)
+	var sxy := 0.0
+	var sxx := 0.0
+	var syy := 0.0
+	for k in xs.size():
+		sxy += (xs[k] - mx) * (ys[k] - my)
+		sxx += (xs[k] - mx) * (xs[k] - mx)
+		syy += (ys[k] - my) * (ys[k] - my)
+	var r := sxy / maxf(sqrt(sxx * syy), 0.0001)
+	_ok("SECTOR in a cloud: past the picture the same cloud goes on -- where the two meet its light follows the picture's (correlation %.2f) at its level (%.1f against %.1f)" % [r, my, mx],
+		r >= 0.9 and absf(my - mx) <= 2.0)
 
 
 ## A CLOUD MADE SMALLER HAS NO STRAIGHT SIDE (Jon: "is there any way to have it

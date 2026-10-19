@@ -178,8 +178,18 @@ void strike(vec2 sp, vec2 at, float a, float k, float size, float dens, bool bac
 	}
 }
 
+// THE SKY'S OWN PIXEL, from the rect's own corner (its 960x540, so the same as
+// `UV` there): one picture or the map's strip past its end (`SystemView`
+// `_past`, a wider rect started 928 px back) evaluate the same cloud at the
+// same pixel -- the gas past the side panel's edge is the cloud going on
+varying vec2 v_px;
+
+void vertex() {
+	v_px = VERTEX;
+}
+
 void fragment() {
-	vec2 px = floor(UV * vec2(960.0, 540.0));
+	vec2 px = floor(v_px + 0.01);
 	vec2 b = px - mod(px, 2.0) + 1.0;
 	vec2 sp = b - off;
 	vec2 u = sp / 430.0 + vec2(sd * 1.7, sd * 0.9);

@@ -53,6 +53,9 @@ uniform sampler2D under_tex : filter_nearest;
 uniform bool under_on = false;
 uniform vec2 under_at = vec2(0.0);
 uniform float under_right = 99999.0;
+// (and the cloud drawn on past its end, as it was: `SystemView` `_past`)
+uniform sampler2D under_past : filter_nearest, repeat_disable;
+uniform bool under_past_on = false;
 // A CLOUD MADE SMALLER THINS OUT AS A CLOUD (`cloud_round.gdshaderinc`): its
 // texels are the screen as it was at the handoff, so the live map's own
 // rounding (`nav_key`, `nav_ext`) goes on here unbroken; `cloud_k` how far in,
@@ -62,33 +65,30 @@ uniform bool cloud_edge = false;
 uniform float cloud_k = 0.0;
 uniform vec2 cloud_c = vec2(480.0, 270.0);
 uniform vec2 cloud_h = vec2(470.0, 245.0);
+// (between LOCAL and the map: the feather's own line broken too)
+uniform bool feather_noise = false;
 
 vec4 under_texel(vec2 tc) {
 	vec2 u = (tc + 0.5 - under_at) / vec2(960.0, 540.0);
-	// (past its end the map's sky goes on as its own mirror, as `nav_ext` draws it)
-	if (u.x > 1.0) {
-		u.x = 2.0 - u.x;
-	}
-	if (u.y > 1.0) {
-		u.y = 2.0 - u.y;
-	}
 	if (u.x < 0.0 || u.y < 0.0) {
 		return vec4(0.0);
 	}
-	vec3 c = texture(under_tex, u).rgb;
-	float L = dot(c, vec3(0.299, 0.587, 0.114));
-	float k = max(smoothstep(0.046, 0.085, L), 1.0 - smoothstep(0.008, 0.018, L));
-	return vec4(c * k, k);
+	// (past its end the map's sky goes on as `nav_ext` draws it: `sky_wide`)
+	return sky_wide(under_tex, under_past, under_past_on, u);
 }
 
 // a texel of the held picture, premultiplied, keyed against the field
 vec4 held_texel(vec2 t) {
 	vec2 tc = clamp(t, vec2(0.0), vp - 1.0);
-	vec4 h = texelFetch(old_lin, ivec2(tc), 0);
-	if ((cut.z > 0.0 && tc.x >= cut.x && tc.y >= cut.y && tc.x < cut.x + cut.z && tc.y < cut.y + cut.w)
-			|| (cut2.z > 0.0 && tc.x >= cut2.x && tc.y >= cut2.y && tc.x < cut2.x + cut2.z && tc.y < cut2.y + cut2.w)) {
-		return vec4(0.0);
+	// (the goal's place filled with what lies just under it, folded up -- no
+	// hole, no notch; the sky there is the sky round it)
+	if (cut.z > 0.0 && tc.x >= cut.x && tc.y >= cut.y && tc.x < cut.x + cut.z && tc.y < cut.y + cut.w) {
+		tc.y = 2.0 * (cut.y + cut.w) - tc.y;
 	}
+	if (cut2.z > 0.0 && tc.x >= cut2.x && tc.y >= cut2.y && tc.x < cut2.x + cut2.z && tc.y < cut2.y + cut2.w) {
+		tc.y = 2.0 * (cut2.y + cut2.w) - tc.y;
+	}
+	vec4 h = texelFetch(old_lin, ivec2(tc), 0);
 	if ((cut3.z > 0.0 && tc.x >= cut3.x && tc.y >= cut3.y && tc.x < cut3.x + cut3.z && tc.y < cut3.y + cut3.w)
 			|| (cut4.z > 0.0 && tc.x >= cut4.x && tc.y >= cut4.y && tc.x < cut4.x + cut4.z && tc.y < cut4.y + cut4.w)) {
 		return under_on ? under_texel(tc) : vec4(0.0);
@@ -138,10 +138,18 @@ void fragment() {
 		float lo = min(min(q.x - pic.x, q.y - pic.y), min(pic.x + pic.z - q.x, pic.y + pic.w - q.y)) * scl.x;
 		float fw = feather * clamp((1.0 - scl.x) * 2.0, 0.0, 1.0);
 		float e = fw > 0.5 ? smoothstep(0.0, fw, lo) : 1.0;
+		if (cloud_edge && feather_noise && fw > 0.5) {
+			// (and that feather's own line broken by the gas's noise, so no straight
+			// side shows while the rounding draws in: Jon, "a hard-edged rectangle")
+			float nb = cl_noise(q / 37.0) * 0.65 + cl_noise(q / 13.0 + 3.1) * 0.35;
+			e = smoothstep(0.0, fw, lo - nb * fw * 0.9);
+		}
 		if (cloud_edge) {
 			// (no straight side at all: the rounded thinning instead of the rect's)
 			vec3 hc = texture(old_lin, (floor(q) + 0.5) / vp).rgb;
-			e = cloud_round(q, dot(hc, vec3(0.299, 0.587, 0.114)), cloud_k, cloud_c, cloud_h);
+			// (with the rect's own wide feather, not instead of it: as the rounding
+			// comes in, no straight side shows meanwhile)
+			e *= cloud_round(q, dot(hc, vec3(0.299, 0.587, 0.114)), cloud_k, cloud_c, cloud_h);
 		}
 		a = alpha * e;
 	}

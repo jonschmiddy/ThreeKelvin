@@ -2791,7 +2791,10 @@ func _calm_cam() -> void:
 		new.call(&"calm_at", p, exp(_calm_L * (e - 1.0)))
 	_mat.set_shader_parameter(&"to_pt", p)
 	_mat.set_shader_parameter(&"scl", Vector2.ONE * exp(_calm_L * (e - _calm_e_h)))
-	_mat.set_shader_parameter(&"cloud_k", _cloud_k(e))
+	if _calm_round_from < 0.0:
+		_mat.set_shader_parameter(&"cloud_k", _cloud_k(e))
+	else:
+		_mat.set_shader_parameter(&"cloud_h", _calm_round_h * _cloud_g(e))
 	_calm_fade()
 	if u >= 1.0:
 		_calm_land()
@@ -2812,6 +2815,11 @@ func _calm_fade() -> void:
 	# far sky, the field's own; its cloud and its worlds come with it)
 	if is_instance_valid(new) and _calm_e_h >= 0.0:
 		new.modulate.a = 1.0 - _calm_a
+		# (between LOCAL and the map in a cloud the screen arriving is there whole
+		# under the picture held from the handoff: the held one thins out as a
+		# cloud over the other's cloud, never over bare sky)
+		if _calm_round_from >= 0.0:
+			new.modulate.a = 1.0
 
 
 ## THE SCREENS CHANGE HANDS: the Router's own door, which builds (or takes) the
@@ -2872,8 +2880,10 @@ func _calm_hold(n: Control) -> void:
 	var cuts := [Vector4.ZERO, Vector4.ZERO]
 	var ext: Variant = old.get("_gas_ext") if old is SystemMapScreen else null
 	_mat.set_shader_parameter(&"under_on", false)
+	_mat.set_shader_parameter(&"under_past_on", false)
 	_mat.set_shader_parameter(&"feather", 28.0)
 	_mat.set_shader_parameter(&"cloud_edge", false)
+	_mat.set_shader_parameter(&"feather_noise", false)
 	if ext is TextureRect and (ext as TextureRect).visible:
 		pic = _content_rect()
 		# (made smaller, a cloud thins out at its edge as a cloud: rounded about
@@ -2893,12 +2903,33 @@ func _calm_hold(n: Control) -> void:
 			_mat.set_shader_parameter(&"under_at", at)
 			_mat.set_shader_parameter(&"under_right", at.x + 960.0)
 			_mat.set_shader_parameter(&"under_on", true)
+			# (and the cloud past its end, as it was)
+			var pv: Variant = (old as SystemMapScreen).view.get("_past") if (old as SystemMapScreen).view != null else null
+			var pi: Image = (pv as SubViewport).get_texture().get_image() if pv is SubViewport and is_instance_valid(pv) else null
+			_mat.set_shader_parameter(&"under_past_on", pi != null and not pi.is_empty())
+			if pi != null and not pi.is_empty():
+				_mat.set_shader_parameter(&"under_past", ImageTexture.create_from_image(pi))
 		var i := 0
 		for oc: Variant in [side_of(old), bar_of(old)]:
 			if oc != null and (oc as Control).is_visible_in_tree():
 				var cr := (oc as Control).get_global_rect().grow(1.0)
 				cuts[i] = Vector4(cr.position.x, cr.position.y, cr.size.x, cr.size.y)
 				i += 1
+	# BETWEEN LOCAL AND THE MAP IN A CLOUD (Jon: "a hard-edged rectangle"): the
+	# picture held -- LOCAL's going small into the map, the map's going large into
+	# LOCAL -- thins out as a cloud too, from the handoff on (`_calm_round_from`)
+	_calm_round_from = -1.0
+	var nd := Run.node_at() if Run.map.size() > 0 else null
+	if nd != null and nd.in_nebula and ((r_old == LOCAL and r_new == MAP) or (r_old == MAP and r_new == LOCAL)):
+		var ce2 := _cloud_ellipse(old)
+		_calm_round_from = _calm_e_drawn
+		_mat.set_shader_parameter(&"cloud_edge", true)
+		_calm_round_h = ce2.size
+		_mat.set_shader_parameter(&"feather_noise", true)
+		_mat.set_shader_parameter(&"cloud_k", 1.0)
+		_mat.set_shader_parameter(&"cloud_c", ce2.position)
+		_mat.set_shader_parameter(&"cloud_h", ce2.size * _cloud_g(_calm_e_drawn))
+		_mat.set_shader_parameter(&"feather", 160.0)
 	_mat.set_shader_parameter(&"cut3", cuts[0])
 	_mat.set_shader_parameter(&"cut4", cuts[1])
 	if r_new == LOCAL:
@@ -2940,7 +2971,7 @@ func _calm_hold(n: Control) -> void:
 	_mat.set_shader_parameter(&"cut", gcut)
 	_mat.set_shader_parameter(&"cut2", gcut2)
 	# (the screen arriving unseen until the held one starts to go)
-	n.modulate.a = 0.0
+	n.modulate.a = 1.0 if _calm_round_from >= 0.0 else 0.0
 	_calm_a = 1.0
 	_rect.visible = true
 	# (the swap's own page sound was the click's: `_calm_preroll`)
@@ -3017,6 +3048,24 @@ func _calm_land() -> void:
 		if sw != null and is_instance_valid(sw):
 			(sw as SideSwap).frozen = false
 			(sw as SideSwap).rate = _calm_rate
+
+
+## (the move between LOCAL and the map in a cloud, from the handoff: `e` there)
+var _calm_round_from := -1.0
+var _calm_round_h := Vector2.ONE
+
+## ... and between LOCAL and the map the rounding comes in as a shape, never as
+## a fade (Jon: "a hard-edged rectangle"): at the handoff the round reaches past
+## the picture's corners (whole, as it was the frame before), then draws in on
+## one steady curve to the shrink's own size, so its edge is round from the
+## first frame and no straight side ever thins out on its own
+const CLOUD_G0 := 12.0
+const CLOUD_G_SPAN := 0.15
+
+
+func _cloud_g(e: float) -> float:
+	var t := smoothstep(_calm_round_from, _calm_round_from + CLOUD_G_SPAN, e)
+	return exp(lerpf(log(CLOUD_G0), 0.0, t))
 
 
 ## THE MAP IN A CLOUD GOING SMALL INTO THE CHART (Jon: "Zooming out still has a

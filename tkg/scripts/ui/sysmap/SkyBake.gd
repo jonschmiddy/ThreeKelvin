@@ -103,10 +103,15 @@ var twinkle: Array = []
 ## THE CLOUD SEEN FROM INSIDE, BAKED (SIMPLIFIED, direction C: `field`): its
 ## density, its billows and far gas, and their gradients, one texel a 2x2 block
 ## of the sky with FIELD_MB blocks of margin for the slide and the flow, for
-## `sky_nebula.gdshader` to light and stream every frame.
+## `sky_nebula.gdshader` to light and stream every frame -- and on the right
+## FIELD_MR, for the map's cloud drawn on past its picture's end (`SystemView`
+## `_past`, to sky px 1120). (Every reader takes FIELD_MB as the margin on the
+## left and the top, and the width as FIELD_W: the extra on the right only
+## adds sky there.)
 const FIELD := preload("res://shaders/sky_field.gdshader")
 const FIELD_MB := 48
-const FIELD_W := W / 2 + 2 * FIELD_MB
+const FIELD_MR := 88
+const FIELD_W := W / 2 + FIELD_MB + FIELD_MR
 const FIELD_H := H / 2 + 2 * FIELD_MB
 var field0: ImageTexture
 var field1: ImageTexture

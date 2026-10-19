@@ -348,7 +348,7 @@ func _gas_past(map: SystemMapScreen, frame: Rect2) -> void:
 		ext.texture = sc.get_texture()
 	var at: Vector2 = map._frame.global_position + map._box.position
 	var c := Router.content.get_global_rect() if Router.content != null else Rect2(at, Vector2(960, 540))
-	# (on to the screens' own edges, the sky mirrored past its end: `nav_ext`)
+	# (on to the screens' own edges, the cloud drawn on past its end: `nav_ext`)
 	var sz := Vector2(maxf(960.0, c.end.x - at.x), maxf(540.0, c.end.y - at.y))
 	var r := Rect2(at, sz)
 	ext.position = at - map.global_position
@@ -358,6 +358,12 @@ func _gas_past(map: SystemMapScreen, frame: Rect2) -> void:
 	m.set_shader_parameter("inner", Vector4(frame.position.x, frame.position.y, frame.size.x, frame.size.y))
 	m.set_shader_parameter("outer", Vector4(o.position.x, o.position.y, o.size.x, o.size.y))
 	m.set_shader_parameter("span", sz / Vector2(960, 540))
+	# (past the sky's end, the same cloud drawn on: `SystemView` `_past`)
+	var pv: Variant = v.get("_past")
+	var pon: bool = pv is SubViewport and is_instance_valid(pv)
+	m.set_shader_parameter("past_on", pon)
+	if pon and m.get_shader_parameter("past_tex") != (pv as SubViewport).get_texture():
+		m.set_shader_parameter("past_tex", (pv as SubViewport).get_texture())
 
 
 ## Each map's and chart's key told where its picture's frame stands now, for the

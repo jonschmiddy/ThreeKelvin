@@ -123,9 +123,14 @@ float dens(vec2 w, float ob) {
 	return smooth_k(cover - 0.06, cover + 0.2, d);
 }
 
+
+// (the map's strip past its picture's end, `SystemView` `_past`: this rect is
+// `px_span` of the sky's px from `px0`; the picture's own, all 960x540 from 0)
+uniform vec2 px_span = vec2(960.0, 540.0);
+uniform vec2 px0 = vec2(0.0);
 void fragment() {
 	// a 2x2 block of the screen (a pixel of the half-size picture), its middle
-	vec2 px = floor(UV * vec2(960.0, 540.0));
+	vec2 px = floor(UV * px_span) + px0;
 	vec2 b = px - mod(px, 2.0) + 1.0;
 	// where on the sheet: the plane's own place as this sheet shows it
 	float s = max(zoom * q, 1e-4);

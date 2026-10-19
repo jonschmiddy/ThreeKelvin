@@ -234,6 +234,20 @@ var _veil_mat: ShaderMaterial
 var _depth: Array = []
 ## The half-size picture the place is drawn into.
 var _scene: SubViewport
+## THE CLOUD PAST THE PICTURE'S END (Jon: "the mirror is visible"): the map's
+## picture is 960 px wide and the screens' area runs on past it on the right
+## (under the side panel); in a cloud the same cloud is drawn on there, its own
+## material on a second rect in a strip of its own, `PAST_X0`..`PAST_X0 +
+## PAST_W` of the sky's px (its first 32 px over the picture's last, for
+## `cloud_round.gdshaderinc` `sky_wide` to hand over in). Null with no cloud.
+var _past: SubViewport
+## [the picture's material, the strip's copy of it], for the layers drawn
+## from their own pixel (`px_span`, `px0`)
+var _past_mats: Array = []
+## [the picture's layer, the strip's twin of it]
+var _past_twins: Array = []
+const PAST_X0 := 928
+const PAST_W := 192
 var _belts: _Belts
 var _shadows: ColorRect
 var _shadow_mat: ShaderMaterial
@@ -333,6 +347,94 @@ func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
+## THE STRIP PAST THE PICTURE'S END (`_past`): the picture's own sky layers
+## again, in their order, over the sky's px `PAST_X0`.. -- each rect drawn
+## from its own pixel the same way (the sky, its veil, the dust sheets: their
+## material's copy told its span, `px_span` / `px0`; the cloud: its own
+## material, which reads its pixel from the rect's corner, on a rect started
+## `PAST_X0` back; the palette last, which reads the screen, the strip starting
+## on its dither's cells). The worlds, belts and drawn stars are not carried:
+## the strip is the cloud. Not in PAINTED (its paint pass is the picture's).
+## `hold`: round a pulsar the palette reads the picture's last frame -- left off.
+func _past_build(hold: bool) -> void:
+	_past = SubViewport.new()
+	_past.size = Vector2i(PAST_W / 2, SCENE.y)
+	_past.size_2d_override = Vector2i(PAST_W, 540)
+	_past.size_2d_override_stretch = true
+	_past.transparent_bg = false
+	_past.disable_3d = true
+	_past.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
+	_past.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(_past)
+	_past_mats.clear()
+	_past_twins.clear()
+	for ch in _scene.get_children():
+		if not (ch is ColorRect):
+			continue
+		var cr := ch as ColorRect
+		var tw := ColorRect.new()
+		tw.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tw.color = cr.color
+		var sm := cr.material as ShaderMaterial
+		if sm == null or sm == _neb_mat:
+			# (a flat rect -- the pulsar's flash -- or the cloud: the whole width,
+			# its corner PAST_X0 back)
+			tw.position = Vector2(-PAST_X0, 0)
+			tw.size = Vector2(PAST_X0 + PAST_W, 540)
+			tw.material = cr.material
+		elif sm == _palette_mat:
+			if hold:
+				continue
+			tw.size = Vector2(PAST_W, 540)
+			tw.material = sm
+		elif _has_uniform(sm.shader, &"px_span"):
+			var pm := sm.duplicate() as ShaderMaterial
+			pm.set_shader_parameter("px_span", Vector2(PAST_W, 540))
+			pm.set_shader_parameter("px0", Vector2(PAST_X0, 0))
+			tw.size = Vector2(PAST_W, 540)
+			tw.material = pm
+			_past_mats.append([sm, pm])
+		else:
+			continue
+		_past.add_child(tw)
+		_past_twins.append([cr, tw])
+	# (copied just before each frame is drawn, after everything has moved)
+	if not RenderingServer.frame_pre_draw.is_connected(_past_sync):
+		RenderingServer.frame_pre_draw.connect(_past_sync)
+
+
+static func _has_uniform(sh: Shader, nm: StringName) -> bool:
+	if sh == null:
+		return false
+	for u: Dictionary in sh.get_shader_uniform_list():
+		if StringName(u.get("name", "")) == nm:
+			return true
+	return false
+
+
+## The strip drawn as the picture is this frame: each twin shown as its layer
+## is, each copy given every value the picture's has (but its own span), so the
+## gas there is lit and moved as the gas beside it.
+func _past_sync() -> void:
+	if _past == null or not is_instance_valid(_past):
+		return
+	for tw: Array in _past_twins:
+		var src := tw[0] as ColorRect
+		var dst := tw[1] as ColorRect
+		if is_instance_valid(src) and is_instance_valid(dst):
+			dst.visible = src.visible
+			dst.color = src.color
+			dst.modulate = src.modulate
+	for pair: Array in _past_mats:
+		var src := pair[0] as ShaderMaterial
+		var dst := pair[1] as ShaderMaterial
+		for u: Dictionary in src.shader.get_shader_uniform_list():
+			var nm: StringName = u.get("name", &"")
+			if nm == &"" or nm == &"px_span" or nm == &"px0":
+				continue
+			dst.set_shader_parameter(nm, src.get_shader_parameter(nm))
+
+
 ## Show system `n`. Returns once its sky is baked.
 func show_system(n: MapGen.MapNode) -> void:
 	node = n
@@ -344,6 +446,9 @@ func show_system(n: MapGen.MapNode) -> void:
 	_pt = {}
 	for c in get_children():
 		c.queue_free()
+	_past = null
+	_past_mats.clear()
+	_past_twins.clear()
 	_views.clear()
 	_rq.clear()
 	_kq = -1.0
@@ -635,6 +740,9 @@ func show_system(n: MapGen.MapNode) -> void:
 	_palette.material = _palette_mat
 	_palette.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_scene.add_child(_palette)
+	# (the cloud drawn on past the picture's end: `_past`)
+	if _neb_mat != null and not painted:
+		_past_build(hold)
 	# THE SHADOWS AFTER THE PALETTE, so their fade is not snapped to its colours
 	_scene.move_child(_shadows, _palette.get_index())
 	if painted:
