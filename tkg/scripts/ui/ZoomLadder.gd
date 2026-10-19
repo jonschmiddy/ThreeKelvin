@@ -2888,6 +2888,20 @@ func _calm_hold(n: Control) -> void:
 	_mat.set_shader_parameter(&"field_on", _calm_field != null)
 	if _calm_field != null:
 		_mat.set_shader_parameter(&"field_tex", _calm_field)
+	# (the goal line, up through the move over both screens, left out of the
+	# picture held: `calm_ladder.gdshader` `cut`)
+	var gcut := Vector4.ZERO
+	var gcut2 := Vector4.ZERO
+	var gl: Variant = Router.hud.get("goal") if Router.hud != null else null
+	if gl is GoalLine and (gl as GoalLine).visible:
+		var gr := Rect2((gl as GoalLine).position, (gl as GoalLine).size).grow(1.0)
+		gcut = Vector4(gr.position.x, gr.position.y, gr.size.x, gr.size.y)
+		var sr: Rect2 = (gl as GoalLine).step_rect()
+		if sr.size != Vector2.ZERO:
+			sr = sr.grow(1.0)
+			gcut2 = Vector4(sr.position.x, sr.position.y, sr.size.x, sr.size.y)
+	_mat.set_shader_parameter(&"cut", gcut)
+	_mat.set_shader_parameter(&"cut2", gcut2)
 	# (the screen arriving unseen until the held one starts to go)
 	n.modulate.a = 0.0
 	_calm_a = 1.0

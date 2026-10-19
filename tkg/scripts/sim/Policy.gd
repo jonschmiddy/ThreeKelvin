@@ -157,6 +157,7 @@ func begin_run() -> void:
 	spend = {fuel = 0, repair = 0, options = 0}
 	fuel_bought = 0
 	refuel_stops = 0
+	rescues = 0
 	limited = false
 
 
@@ -167,6 +168,8 @@ func begin_run() -> void:
 var spend: Dictionary = {fuel = 0, repair = 0, options = 0}
 var fuel_bought := 0
 var refuel_stops := 0
+## REFUELs that were the way out of a dock (`Run.dock_rescue`), a run.
+var rescues := 0
 
 ## A PERSON HEADING FOR THE CORE, rather than the gate's farmer. `-- sim human`.
 ##
@@ -378,17 +381,37 @@ func shop(n: MapGen.MapNode) -> void:
 	var guard := 0
 	while Run.fuel < want and guard < 40:
 		guard += 1
-		var refuel := int(Run.refuel_offer(n).cost)
-		if Run.credits < refuel + FUEL_RESERVE:
+		var offer := Run.refuel_offer(n)
+		var refuel := int(offer.cost)
+		# NO RESERVE WHEN THE TANK CANNOT MAKE THE NEXT JUMP, or the dock is
+		# offering the way out (`Run.dock_rescue`). Keeping 40 back for repairs
+		# there is not competence, it is the end of the run: the balance check
+		# (Oct 18) replayed three strands that sat on docks with 23-46 credits
+		# and refused a can.
+		var reserve := FUEL_RESERVE
+		if offer.get("rescue", false) or not _can_make_a_jump(n):
+			reserve = 0
+		if Run.credits < refuel + reserve:
 			break
 		var f0 := Run.fuel
 		if not Run.buy_refuel(n):
 			break
+		if offer.get("rescue", false):
+			rescues += 1
 		spend.fuel += refuel
 		fuel_bought += Run.fuel - f0
 		bought = true
 	if bought:
 		refuel_stops += 1
+
+
+## Whether the tank holds the cheapest jump on the chart from here.
+static func _can_make_a_jump(n: MapGen.MapNode) -> bool:
+	for raw in Run.in_range_of(n):
+		var t: MapGen.MapNode = raw
+		if t.sensed and Run.fuel >= Run.fuel_cost_to(t):
+			return true
+	return false
 
 
 ## What a person wants in the tank leaving a dock: enough for the rest of the

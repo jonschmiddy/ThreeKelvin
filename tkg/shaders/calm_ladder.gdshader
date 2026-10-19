@@ -34,10 +34,20 @@ uniform vec4 side2 = vec4(0.0);
 uniform sampler2D field_tex : filter_nearest;
 uniform bool field_on = false;
 uniform float key_tol = 0.03;
+// THE HUD'S OWN THINGS IN THE PICTURE HELD (the goal line, a fixed piece of the
+// HUD that stays up through the move, drawn over the screens: the frame held
+// has it too), left out where they stood -- one goal, never a second carried
+// off with the picture (texels, as the picture was)
+uniform vec4 cut = vec4(0.0);
+uniform vec4 cut2 = vec4(0.0);
 
 // a texel of the held picture, premultiplied, keyed against the field
 vec4 held_texel(vec2 t) {
 	vec2 tc = clamp(t, vec2(0.0), vp - 1.0);
+	if ((cut.z > 0.0 && tc.x >= cut.x && tc.y >= cut.y && tc.x < cut.x + cut.z && tc.y < cut.y + cut.w)
+			|| (cut2.z > 0.0 && tc.x >= cut2.x && tc.y >= cut2.y && tc.x < cut2.x + cut2.z && tc.y < cut2.y + cut2.w)) {
+		return vec4(0.0);
+	}
 	vec4 h = texelFetch(old_lin, ivec2(tc), 0);
 	if (field_on) {
 		vec3 f = texture(field_tex, (tc + 0.5) / vp).rgb;
