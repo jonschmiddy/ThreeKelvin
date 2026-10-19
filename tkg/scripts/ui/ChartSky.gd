@@ -304,6 +304,14 @@ var _vp_origin := Vector2.ZERO
 ## screen; then it settles onto the snapped grid over two frames.
 var _last_zoom := -1.0
 var _since_zoom := 999
+
+
+## Whether the galaxy is set on its even pixel this frame (no zoom's hold left):
+## `MapChart.centre_px` draws the systems from the same pixel.
+func settled() -> bool:
+	if _legacy != null and is_instance_valid(_legacy):
+		return _legacy._since_zoom >= 61
+	return _since_zoom >= 61
 var _hold_d := Vector2.ZERO
 var _hold_c := Vector2.ZERO
 ## RADIANT's safety: the sky's own GPU time over its first frames (`_radiant_safety`).
