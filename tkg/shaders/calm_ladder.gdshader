@@ -74,7 +74,7 @@ vec4 under_texel(vec2 tc) {
 		return vec4(0.0);
 	}
 	// (past its end the map's sky goes on as `nav_ext` draws it: `sky_wide`)
-	return sky_wide(under_tex, under_past, under_past_on, u);
+	return sky_wide(texture(under_tex, sky_uv_a(u)), texture(under_tex, sky_uv_b(u)), texture(under_past, sky_uv_past(u)), under_past_on, u);
 }
 
 // a texel of the held picture, premultiplied, keyed against the field

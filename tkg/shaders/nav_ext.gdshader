@@ -41,7 +41,8 @@ float inside(vec2 p, vec4 r) {
 }
 
 void fragment() {
-	vec4 w = sky_wide(TEXTURE, past_tex, past_on, UV * span);
+	vec2 us = UV * span;
+	vec4 w = sky_wide(texture(TEXTURE, sky_uv_a(us)), texture(TEXTURE, sky_uv_b(us)), texture(past_tex, sky_uv_past(us)), past_on, us);
 	float k = w.a;
 	vec4 c = vec4(k > 0.0001 ? w.rgb / k : vec3(0.0), 1.0);
 	float am = mod_c.a;
