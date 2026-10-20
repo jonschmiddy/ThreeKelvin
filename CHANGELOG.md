@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fixed** — the game froze while A.S.H. taught the star chart's list on a first run. Each
+  check that her box covers no system asked the whole galaxy at every few pixels: about a
+  second a frame. It asks only the systems near her box now.
+- **Fixed** — LOCAL REGION (L, or the key it is bound to) pressed while the chart was still
+  coming on was lost. It is kept and given to the chart when it lands.
+
 ### Changed
 
 - **Changed** — a manufacturer you have not unlocked appears nowhere. On a new profile, wrecks,

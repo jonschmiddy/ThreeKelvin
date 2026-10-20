@@ -49,9 +49,12 @@ const SunViewS := preload("res://scripts/ui/sysmap/SunView.gd")
 ## A locked choice: dimmed this far, and still clickable.
 const LOCKED_A := 0.55
 
-## The chart's panel width, and the width its text wraps at.
+## The chart's panel width, and the width its text wraps at: the panel less the
+## scroll bar and its gutter (`UITheme.BAR_W`), so a page that scrolls keeps
+## every word and value clear of the bar (Jon, Oct 20: "the scroll bar covers
+## up text") without the panel widening when the bar comes.
 const W := 236
-const TEXT_W := 228
+const TEXT_W := W - UITheme.BAR_W
 const DIM := Color("#55647a")
 ## A finished card's stripe and ground: dimmed hard, so the open ones are the
 ## brightest things in the list.

@@ -1309,11 +1309,16 @@ static func covers(cur: Control, r: Rect2) -> String:
 		if mc == null or not is_instance_valid(mc):
 			return ""
 		var inv := mc.get_global_transform().affine_inverse()
+		# (the systems near her box asked for once, not the whole map at every
+		# point: 1.2 s a check on a 410-system chart, `MapChart.nodes_near`)
+		var near: Dictionary = mc.nodes_near(inv * r)
+		if (near.nodes as Array).is_empty():
+			return ""
 		var y := r.position.y
 		while y <= r.end.y:
 			var x := r.position.x
 			while x <= r.end.x:
-				var hit: int = mc._node_at(inv * Vector2(x, y))
+				var hit: int = StarchartScreen.MapChart.node_among(inv * Vector2(x, y), near)
 				if hit >= 0:
 					return "a system (%s)" % MapGen.star_name(Run.map[hit])
 				x += 3.0

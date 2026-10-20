@@ -18,8 +18,11 @@ func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
+	# over the whole picture, as the escape menu's is (it sits on Main's overlay
+	# layer; this drawer is on the title screen, which stops short of the glass
+	# by Main's margin: `Widgets.cover_picture`)
 	var scrim := ColorRect.new()
-	scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	Widgets.cover_picture(scrim)
 	scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_mat = ShaderMaterial.new()
 	_mat.shader = PauseMenu.BACKDROP

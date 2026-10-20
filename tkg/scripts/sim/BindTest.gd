@@ -245,6 +245,31 @@ func _star_chart() -> void:
 	_ok("L toggles LOCAL REGION (the default)", StarchartScreen._region_on != was)
 	await _press(KEY_L)
 
+	# AND THE VIEW GOES THERE (Jon, Oct 20: "L doesn't work to bring you to the
+	# local region"): the toggle lit was never the claim; the chart framed on
+	# where you are is
+	StarchartScreen._region_on = false
+	await _region_key(scr, KEY_L, "L")
+	# REBOUND: the new key frames it, L no longer does
+	Keys.set_key(&"chart_region", 0, KEY_K)
+	await _press(KEY_L)
+	_ok("rebound to K, L no longer toggles LOCAL REGION", not StarchartScreen._region_on)
+	await _region_key(scr, KEY_K, "K")
+	Keys.reset(&"chart_region")
+	# PRESSED AS THE CHART COMES ON: the calm move from LOCAL is under way and
+	# LOCAL still the screen up, so the key went to LOCAL and was lost
+	await _region_mid_move(KEY_L, "L")
+	Keys.set_key(&"chart_region", 0, KEY_K)
+	await _region_mid_move(KEY_K, "K (rebound)")
+	Keys.reset(&"chart_region")
+	StarchartScreen._region_on = false
+	Router.show_starchart()
+	await _wait_for(func() -> bool:
+		return Router.current is StarchartScreen and (Router.current as StarchartScreen)._chart != null)
+	scr = Router.current as StarchartScreen
+	chart = scr._chart
+	await _frames(2)
+
 	await _down(KEY_W)
 	_ok("W held pans up (the default)", chart._walk.y < 0.0)
 	await _up(KEY_W)
@@ -273,6 +298,83 @@ func _star_chart() -> void:
 	await _up(KEY_W)
 	_ok("and letting go of W stops it", chart._walk == Vector2.ZERO)
 	Keys.reset(&"chart_up")
+
+
+## The chart's view where LOCAL REGION frames it (`frame_region`, snapped),
+## [zoom, pan]; the view left as it was.
+func _region_frame(chart: StarchartScreen.MapChart) -> Array:
+	var z := chart.zoom
+	var p := chart.pan
+	chart.frame_region(Run.node_at(), 0.24, false)
+	var out := [chart.zoom, chart.pan]
+	chart.zoom = z
+	chart.pan = p
+	return out
+
+
+## The chart's glide to rest (`glide_to`), bounded.
+func _glided(chart: StarchartScreen.MapChart) -> void:
+	await _until(func() -> bool:
+		return chart._glide == null or not chart._glide.is_valid() or not chart._glide.is_running(), 600)
+	await _frames(2)
+
+
+## `cond` within `n` frames (a glide and a move are timed, not counted).
+func _until(cond: Callable, n: int) -> bool:
+	for i in n:
+		if cond.call():
+			return true
+		await _tree.process_frame
+	return cond.call()
+
+
+## `key` on the chart at rest: LOCAL REGION on and the view on its frame, YOU
+## inside it; again: off and the whole galaxy.
+func _region_key(scr: StarchartScreen, key: Key, name: String) -> void:
+	var chart := scr._chart
+	var want := _region_frame(chart)
+	await _press(key)
+	await _glided(chart)
+	var you := chart._screen_pos(Run.node_at())
+	_ok("%s: LOCAL REGION on and the view on the local region (zoom %.3f, pan %s; its frame %.3f, %s), YOU in view at %s" % [
+		name, chart.zoom, chart.pan, want[0], want[1], you],
+		StarchartScreen._region_on and absf(chart.zoom - float(want[0])) < 0.002
+		and chart.pan.distance_to(want[1] as Vector2) < 1.0 and Rect2(Vector2.ZERO, chart.size).has_point(you))
+	await _press(key)
+	await _glided(chart)
+	_ok("%s again: off, and the whole galaxy (zoom %.3f)" % [name, chart.zoom],
+		not StarchartScreen._region_on and absf(chart.zoom - StarchartScreen.MapChart.ZOOM_MIN) < 0.002)
+
+
+## `key` pressed while the calm move from LOCAL to the chart is under way (the
+## game's flow, animated): the chart lands framed on the local region.
+func _region_mid_move(key: Key, name: String) -> void:
+	StarchartScreen._region_on = false
+	Router.show_local()
+	await _wait_for(func() -> bool: return Router.current is SectorScreen)
+	await _frames(10)
+	ZoomLadder.force = 1
+	Router.animate_in_harness = true
+	Router.show_starchart()
+	await _frames(3)
+	var mid := ZoomLadder.busy() and ZoomLadder.active._calm and not (Router.current is StarchartScreen)
+	await _press(key)
+	await _until(func() -> bool: return not ZoomLadder.busy() and Router.current is StarchartScreen, 600)
+	var scr := Router.current as StarchartScreen
+	if scr != null and scr._chart != null:
+		await _glided(scr._chart)
+		await _frames(4)
+		await _glided(scr._chart)
+	ZoomLadder.force = -1
+	Router.animate_in_harness = false
+	if not _ok("%s mid-move: pressed while the move from LOCAL was under way (%s) and the chart came up" % [name, mid],
+			mid and scr != null and scr._chart != null):
+		return
+	var want := _region_frame(scr._chart)
+	_ok("%s mid-move: carried to the chart, LOCAL REGION on and the view on its frame (zoom %.3f; its frame %.3f)" % [
+		name, scr._chart.zoom, want[0]],
+		StarchartScreen._region_on and absf(scr._chart.zoom - float(want[0])) < 0.002
+		and scr._chart.pan.distance_to(want[1] as Vector2) < 1.0)
 
 
 ## The sector map: THRUST rebound flies the ship on the new key and not on W,
@@ -320,9 +422,12 @@ func _sector_map() -> void:
 
 	Keys.set_key(&"ship_thrust", 0, KEY_I)
 	await _frames(20)
+	# (THE SETTLE'S OWN BURN onto the star's orbit after a thrust is not W: its
+	# length goes with how long the frames were, so it is let finish first)
+	await _until(func() -> bool: return not scr.flight.burn, 600)
 	await _down(KEY_W)
 	await _frames(4)
-	_ok("rebound to I, W no longer thrusts", not scr._wasd.w and not scr.flight.burn)
+	_ok("rebound to I, W no longer thrusts (held %s, burning %s)" % [scr._wasd.w, scr.flight.burn], not scr._wasd.w and not scr.flight.burn)
 	await _up(KEY_W)
 	await _down(KEY_I)
 	await _frames(4)

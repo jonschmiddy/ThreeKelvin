@@ -328,14 +328,24 @@ const POPUP_PROMPT_W := 356
 func _open_popup(inner: Control, compact: bool = false) -> void:
 	if _popup != null or _settings != null:
 		return
+	# The shade lays the popup out and takes the clicks, over this screen's rect
+	# as it always has; the dim it draws is its first child, over the whole
+	# picture (`Widgets.cover_picture`): this screen stops short of the glass by
+	# Main's margin, and the galaxy, which does not, showed through it undimmed
 	var shade := ColorRect.new()
-	shade.color = Color(0.02, 0.03, 0.05, 0.80)
+	shade.color = Color(0, 0, 0, 0)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_STOP
 	shade.gui_input.connect(func(e: InputEvent) -> void:
 		var mb := e as InputEventMouseButton
 		if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 			_close_popup())
+	var dim := ColorRect.new()
+	dim.name = "Dim"
+	dim.color = NoteCard.DIM
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	Widgets.cover_picture(dim)
+	shade.add_child(dim)
 	add_child(shade)
 	_popup = shade
 
