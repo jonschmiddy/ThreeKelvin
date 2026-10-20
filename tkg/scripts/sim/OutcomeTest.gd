@@ -16,7 +16,11 @@ extends Node
 ##   E's plates: one for each part and material that came aboard, said once,
 ##     clear of the text and the buttons' column (`OutcomeCheck.prize_place`);
 ##   CONTINUE exactly where today's look has it (in the band layouts; the card
-##     is seated by its height, so there it is the card's width that holds).
+##     is seated by its height, so there it is the card's width that holds);
+##     but D's, at the band's top right, its size and right edge today's;
+##   D's table at 8, only the four stats that moved, no totals (none, no table), the
+##     buttons level with the title and clear of everything, the table
+##     centred under them (`OutcomeCheck.check` / `d_place`).
 ## Then C's flight, animated (the game's clock stepped 1/60 s):
 ##   the HUD holds its old number until the flight for it lands, then shows the
 ##   new one; something is in the air between; a readout flickers on landing
@@ -123,6 +127,14 @@ func _looks(n: MapGen.MapNode, c: String, f: Dictionary, layout: StringName) -> 
 			var cr := cont.get_global_rect()
 			if lk == &"today":
 				cont_today = cr
+			elif lk == &"D":
+				# D's at the band's top right (Jon, Oct 19): the same size and
+				# the same right edge as today's, at the top of the band
+				# (`OutcomeCheck.d_place` holds it level with the title)
+				if not cr.size.is_equal_approx(cont_today.size) or absf(cr.end.x - cont_today.end.x) > 0.5:
+					bad.append("D: CONTINUE %s, not today's %s moved up" % [cr, cont_today])
+				if cr.position.y > d.panel.get_global_rect().position.y + 12.0:
+					bad.append("D: CONTINUE at %s, not at the band's top %s" % [cr, d.panel.get_global_rect()])
 			elif not cr.is_equal_approx(cont_today):
 				bad.append("%s: CONTINUE at %s, today's at %s" % [lk, cr, cont_today])
 		# the card is seated by its height (`_seat_card`), so it is its WIDTH
@@ -131,7 +143,7 @@ func _looks(n: MapGen.MapNode, c: String, f: Dictionary, layout: StringName) -> 
 			bad.append("%s: the card is %d wide, not %d" % [lk, int(d.panel.size.x), int(LocalEventDrawer.CARD_W)])
 		if not OutcomeRow.held.is_empty():
 			bad.append("%s: HUD numbers left held %s" % [lk, OutcomeRow.held])
-	_ok("%s (%s): every look says what moved, fits, and keeps CONTINUE where it was%s" % [c, layout,
+	_ok("%s (%s): every look says what moved, fits, and keeps CONTINUE where it was (D's at the top right)%s" % [c, layout,
 		"" if bad.is_empty() else ": " + "; ".join(bad.slice(0, 4))], bad.is_empty())
 	OutcomeRow.look = &"today"
 	d._drop()

@@ -26,7 +26,24 @@ extends RefCounted
 ##      on theirs and at least their width: a row a change, its mark, its name,
 ##      the signed change and the new total ("HULL -5 31"), hull, fuel,
 ##      credits, heat, then the things, a part with its cards under it. The
-##      text on the left wraps to stay clear of it; the buttons do not move.
+##      text on the left wraps to stay clear of it.
+##      THEN THE BUTTONS ON TOP, AND ONLY THE FOUR STATS (Jon, Oct 19, of the
+##      band: "can the text on the right be a bit bigger? and centered
+##      vertically?", "can we also have the buttons at the top right?", then
+##      "let's only show CREDITS, FUEL, HULL, HEAT on the right"). REWARD and
+##      CONTINUE stand at the band's top right, level with the title, and the
+##      table is centred in the right column under them. It lists only the
+##      four stats, each only when it moved: a part, a material, a frame, a
+##      document or a place is collected through REWARD and is not listed,
+##      and a result that moved none of the four has no table at all (the
+##      buttons alone). Its size is `D_FS`: he tried the next crisp size up,
+##      16, and kept 8 ("size 8"). The title, YOU CHOSE and the text are a
+##      column on the left that wraps clear of it. On the card the buttons go
+##      on the title's line too (or on a line of their own over it when the
+##      title leaves them no room) and the table sits at the foot,
+##      right-aligned. And no totals ("you can remove the total credits and
+##      fuel part. just put what is added or lost"): "FUEL -3", not
+##      "FUEL -3 42".
 ##   E  D, AND WHAT YOU GOT, BIG (Jon, of D: "I like this, but there was a
 ##      previous version of this where the things you get are big on the
 ##      right side"). D's table over REWARD and CONTINUE stays where it is; a
@@ -253,11 +270,13 @@ class Chip extends Control:
 ## (`ChitIcon`), a tank for fuel; for a thing, a plate in its grade's colour.
 const MARK := 7.0
 
-static func draw_mark(ci: CanvasItem, at: Vector2, e: Dictionary) -> void:
+## `px`: how many game px one of the mark's pixels is (2 beside text at
+## FS_HEAD, so the mark grows with the words, still in whole pixels).
+static func draw_mark(ci: CanvasItem, at: Vector2, e: Dictionary, px: int = 1) -> void:
 	var o := at.round()
 	var k := String(e.key)
 	var r := func(x: int, y: int, w: int, h: int, c: Color) -> void:
-		ci.draw_rect(Rect2(o + Vector2(x, y), Vector2(w, h)), c, true)
+		ci.draw_rect(Rect2(o + Vector2(x, y) * px, Vector2(w, h) * px), c, true)
 	match k:
 		"hp", "heat":
 			# the gauge's cell, in the gauge's own colours: hull green (red when
@@ -498,13 +517,26 @@ static func fit(text: String, fs: int, w: float) -> String:
 
 # ------------------------------------------------------------------ D
 
-## D's table at its widest, game px: past this a name wraps.
+## The table at its widest at FS_SMALL, game px: past this a name wraps (as
+## many characters wide at a bigger size, `Table.max_w`).
 const TABLE_MAX_W := 230.0
+## D's table's size. Silkscreen is an 8 px face and only whole multiples of 8
+## stay crisp on the 960x540 grid (`UITheme.FS_SMALL`), so the one step up is
+## FS_HEAD's 16, which Jon saw and turned down (Oct 19, "size 8"). The table
+## draws at any multiple of 8 (`Table.px`).
+const D_FS := UITheme.FS_SMALL
 
 ## `without_big`: E's table, the things E draws big left out of it (`big_ones`);
-## null when that leaves it nothing to say.
-static func table(out: Dictionary, without_big := false) -> Control:
+## null when that leaves it nothing to say. `fs`: its text's size.
+## `stats_only`: D's, the four stats that moved and nothing else, each its
+## change alone with no new total (Jon: "just put what is added or lost");
+## null when none of them did.
+static func table(out: Dictionary, without_big := false, fs: int = UITheme.FS_SMALL, stats_only := false) -> Control:
 	var rows := changes(out)
+	if stats_only:
+		rows = rows.filter(func(e: Dictionary) -> bool: return e.kind == &"stat")
+		if rows.is_empty():
+			return null
 	if without_big:
 		var big := big_ones(rows)
 		rows = rows.filter(func(e: Dictionary) -> bool: return not big.has(e))
@@ -512,6 +544,8 @@ static func table(out: Dictionary, without_big := false) -> Control:
 			return null
 	var t := Table.new()
 	t.name = "OutcomeTable"
+	t.fs = fs
+	t.totals = not stats_only
 	t.setup(rows)
 	return t
 
@@ -523,8 +557,19 @@ static func table(out: Dictionary, without_big := false) -> Control:
 ## as it needs and drawn against its right edge, so stretched to the buttons'
 ## width it still ends where they end.
 class Table extends Control:
-	const ROW := 11.0
-	const GAP := 6.0
+	## A row's height and the columns' gap at FS_SMALL; at a bigger size each
+	## scales with it (`px`), so a table at 16 is the one at 8 drawn twice as big.
+	const ROW8 := 11.0
+	const GAP8 := 6.0
+	## The text's size (FS_SMALL; D's is `OutcomeRow.D_FS`), and what one of
+	## the 8 px face's pixels is at it.
+	var fs := UITheme.FS_SMALL
+	var px := 1
+	## Whether a stat's row ends on its new total ("HULL -5 31"); D's does
+	## not ("HULL -5").
+	var totals := true
+	var ROW := ROW8
+	var GAP := GAP8
 	## [y, mark entry or null, [[text, ink, x, right_aligned]], text]
 	var rows: Array = []
 	var content_w := 0.0
@@ -534,9 +579,15 @@ class Table extends Control:
 		size_flags_horizontal = Control.SIZE_FILL
 		add_to_group(OutcomeRow.GROUP)
 
+	func max_w() -> float:
+		return OutcomeRow.TABLE_MAX_W * px
+
 	func setup(entries: Array) -> void:
+		px = maxi(1, int(float(fs) / UITheme.FS_SMALL))
+		ROW = ROW8 * px
+		GAP = GAP8 * px
 		var f := UITheme.pixel_font()
-		var sm := UITheme.FS_SMALL
+		var sm := fs
 		var sw := func(t: String) -> float: return f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, sm).x
 		rows.clear()
 		if entries.is_empty():
@@ -552,25 +603,28 @@ class Table extends Control:
 			if e.kind == &"stat":
 				chg_w = maxf(chg_w, sw.call(String(e.big)))
 				name_w = maxf(name_w, sw.call(String(e.word)))
-				tot_w = maxf(tot_w, sw.call(str(int(e.now))))
-		var x_name := OutcomeRow.MARK + 4.0
+				if totals:
+					tot_w = maxf(tot_w, sw.call(str(int(e.now))))
+		var x_name := (OutcomeRow.MARK + 4.0) * px
 		# THE STATS AS A COMPACT BLOCK: name, change, total, the digits lined
 		# up; a thing is a line of its own under them, its count leading
 		var x_chg := x_name + name_w + GAP + chg_w
 		var x_tot := x_chg + GAP + tot_w
-		content_w = ceilf(x_tot if tot_w > 0.0 else 0.0)
+		content_w = ceilf(x_tot if tot_w > 0.0 else (x_chg if chg_w > 0.0 else 0.0))
 		var y := 0.0
 		for e: Dictionary in entries:
 			var tone: Color = e.tone
 			if e.kind == &"stat":
-				rows.append([y, e, [[String(e.word), UITheme.CHILL, x_name, false],
-					[String(e.big), tone, x_chg, true], [str(int(e.now)), UITheme.ICE, x_tot, true]],
-					"%s %s %d" % [e.word, e.big, int(e.now)]])
+				var runs: Array = [[String(e.word), UITheme.CHILL, x_name, false], [String(e.big), tone, x_chg, true]]
+				if totals:
+					runs.append([str(int(e.now)), UITheme.ICE, x_tot, true])
+				rows.append([y, e, runs,
+					("%s %s %d" % [e.word, e.big, int(e.now)]) if totals else ("%s %s" % [e.word, e.big])])
 				y += ROW
 				continue
 			var lead := String(e.big)
 			var x_txt: float = x_name + (sw.call(lead + " ") if lead != "" else 0.0)
-			var room: float = OutcomeRow.TABLE_MAX_W - x_txt
+			var room: float = max_w() - x_txt
 			var first := true
 			for ln: String in OutcomeRow.wrap(_thing_name(e), sm, room):
 				var runs: Array = [[ln, e.item_tone if int(e.n) > 0 else UITheme.LEAVE, x_txt, false]]
@@ -599,13 +653,13 @@ class Table extends Control:
 
 	func _draw() -> void:
 		var f := UITheme.pixel_font()
-		var sm := UITheme.FS_SMALL
+		var sm := fs
 		var base := roundf(f.get_ascent(sm))
 		var x0 := _left()
 		for row: Array in rows:
 			var y := float(row[0])
 			if row[1] != null:
-				OutcomeRow.draw_mark(self, Vector2(x0, y + base - OutcomeRow.MARK), row[1])
+				OutcomeRow.draw_mark(self, Vector2(x0, y + base - OutcomeRow.MARK * px), row[1], px)
 			for run: Array in row[2]:
 				var x := x0 + float(run[2])
 				if bool(run[3]):
@@ -615,7 +669,7 @@ class Table extends Control:
 	## {rect, text} per drawn row, each its ink's box.
 	func entry_boxes() -> Array:
 		var f := UITheme.pixel_font()
-		var sm := UITheme.FS_SMALL
+		var sm := fs
 		var outb: Array = []
 		var x0 := _left()
 		for row: Array in rows:
