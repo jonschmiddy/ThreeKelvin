@@ -539,6 +539,47 @@ static func panel_with(child: Control) -> PanelContainer:
 	p.add_child(child)
 	return p
 
+## A DIM OR A SCRIM OVER THE WHOLE PICTURE, wherever it is parented.
+##
+## Every screen sits in Main's content area, which is the picture less an 8 x 7
+## px margin (and the HUD's row, when there is one), so a dim anchored to its
+## screen stopped that far short of the edges. The title screen's galaxy runs on
+## past its own rect to the glass, so it showed through the margin undimmed: a
+## lighter frame round every popup on the title, which read as a dark box
+## behind it (Jon, Oct 20, on his welcome note: "a weird dark box around the
+## background ... in the corners and side of the screen"). The escape menu has
+## no margin to miss, being on Main's overlay layer. This pins `c` to the
+## viewport's rect and keeps it there as its parent or the window changes; only
+## the drawn rect grows, so anything laid out on `c` itself is not a pixel off.
+static func cover_picture(c: Control) -> void:
+	c.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	var fit := func() -> void:
+		if not is_instance_valid(c) or not c.is_inside_tree():
+			return
+		var vr := c.get_viewport_rect()
+		if c.global_position != vr.position:
+			c.global_position = vr.position
+		if c.size != vr.size:
+			c.size = vr.size
+	# (connected while it is in the tree and let go as it leaves: a lambda made
+	# here has no object of its own for Godot to drop the connections with)
+	c.tree_entered.connect(func() -> void:
+		var p := c.get_parent() as CanvasItem
+		if p != null and not p.item_rect_changed.is_connected(fit):
+			p.item_rect_changed.connect(fit)
+		if not c.get_viewport().size_changed.is_connected(fit):
+			c.get_viewport().size_changed.connect(fit)
+		fit.call_deferred())
+	c.tree_exiting.connect(func() -> void:
+		var p := c.get_parent() as CanvasItem
+		if p != null and p.item_rect_changed.is_connected(fit):
+			p.item_rect_changed.disconnect(fit)
+		var vp := c.get_viewport()
+		if vp != null and vp.size_changed.is_connected(fit):
+			vp.size_changed.disconnect(fit))
+	c.ready.connect(fit)
+
+
 static func scroller(child: Control, min_height: int = 200) -> ScrollContainer:
 	var s := ScrollContainer.new()
 	s.custom_minimum_size = Vector2(0, min_height)
