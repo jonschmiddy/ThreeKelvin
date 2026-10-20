@@ -64,3 +64,7 @@ music/engine/package-lock.json
 
 # Exports (tkg/tools/export.sh): builds/<version>-<commit>/
 builds/
+
+# Agent worktrees made by Claude Code under the main checkout. Each is a full
+# checkout of its own branch; none of it belongs in this one.
+.claude/worktrees/

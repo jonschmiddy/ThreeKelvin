@@ -26,7 +26,8 @@ extends Node
 ## the frames, encoded at 30 a second (every=1), show the real 0.4 s push-in
 ## however slowly the window drew them; nothing is saved before the hover.
 
-## Solari's parts with no picture yet, for `proc`.
+## The thirteen Solari parts `proc` fits. They had no picture when it was
+## written; every one has a picture now, so `proc` shows them as drawn.
 const PROC: Array[StringName] = [&"heliostat", &"plasma", &"sunheart", &"crucible", &"starfurnace",
 	&"heathaze", &"mirrorarray", &"radiatorsail", &"annealer", &"flare", &"heliograph",
 	&"incinerator", &"bleedvalve"]
@@ -101,9 +102,9 @@ func _run() -> void:
 		var css := cs as ModuleData.Slot
 		if Run.slots_for(css) > 0 and Run.slots_used(css) >= Run.slots_for(css):
 			Run.uninstall_module(Run.module_at(css, 0))
-	# `proc`: the parts with no picture yet (Solari's thirteen), fitted where a
-	# mount is free and the rest in the hold and the wreck, to see the
-	# procedural drawing where it is seen; `transfer` then opens the wreck.
+	# `proc`: Solari's thirteen parts in PROC (pictureless when it was written,
+	# all drawn now), fitted where a mount is free and the rest in the hold and
+	# the wreck; `transfer` then opens the wreck.
 	var proc_left: Array[ModuleData] = []
 	# `takemap=<json> takeslot=K`: each part's K-th candidate picture
 	# ({id: [png, ...]}, absolute paths) worn in place of its procedural
