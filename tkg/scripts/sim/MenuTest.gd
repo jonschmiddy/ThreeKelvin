@@ -64,6 +64,8 @@ func run(tree: SceneTree) -> void:
 			await _logs_case()
 			print("the first launch's window")
 			await _first_window_case()
+			print("MOTION in dev mode: the player's rows only")
+			await _dev_motion_case()
 	DisplaySettings.reduced_motion = was_reduced
 	DisplaySettings.skip_jump = was_skip
 	Router.animate_in_harness = false
@@ -321,6 +323,83 @@ func _first_window_case() -> void:
 	DisplaySettings.window_scale = was_scale
 	DisplaySettings.load_and_apply()
 	await _tree.process_frame
+
+
+## MOTION HOLDS THE PLAYER'S ROWS, EVEN IN DEV MODE. The zoom ladder's
+## developer rows -- ONE CAMERA, each seam's design, 3B into the yard, the move
+## timings and the station lights -- were built there under `DevMode.enabled`
+## until Jon had them out, Oct 19; what he had them on is `ZoomLadder`'s
+## constants. So the section, built with dev mode on, names exactly ANIMATION,
+## CLICK TO SKIP JUMP, SCREEN SHAKE and FRAME CAP; and a settings file still
+## holding the old `[flow]` keys loads without a word and moves nothing.
+const PLAYER_MOTION := ["ANIMATION", "CLICK TO SKIP JUMP", "SCREEN SHAKE", "FRAME CAP"]
+const GONE_ROWS := ["ONE CAMERA", "CHART - MAP", "MAP - LOCAL", "LOCAL - STATION",
+	"3B INTO THE YARD", "MOVE TIMINGS", "STATION LIGHTS", "TIMINGS", "UI LEAVES",
+	"UI ARRIVES", "TWO AT ONCE", "DOCK: THE STATION WAKES", "HANDOFF DISC SIZE (PX)",
+	"HOP: THE CAMERA", "STATION OFF", "STATION ON", "LAMP GLOW"]
+
+
+func _dev_motion_case() -> void:
+	const SCRATCH := "user://devmotion_settings.cfg"
+	var was_dev := DevMode.enabled
+	var was_path := DisplaySettings.path
+	DevMode.enabled = true
+	_ok("  dev mode is on for the check", DevMode.enabled)
+	var panel := SettingsPanel.new()
+	_tree.root.add_child(panel)
+	panel.build()
+	await _tree.process_frame
+	# the labels between MOTION's head and the next section's
+	var labels: Array[String] = []
+	var inside := false
+	for c: Node in panel._body.get_children():
+		if c is SettingsPanel.Section:
+			inside = (c as SettingsPanel.Section).id == &"motion"
+			continue
+		if inside:
+			_labels_in(c, labels)
+	_ok("  MOTION names only the player's rows (%s)" % ", ".join(labels), ", ".join(labels) == ", ".join(PackedStringArray(PLAYER_MOTION)))
+	var all: Array[String] = []
+	_labels_in(panel, all)
+	var stray := GONE_ROWS.filter(func(t: String) -> bool: return t in all)
+	_ok("  and no developer row anywhere in Settings (%s)" % ", ".join(PackedStringArray(stray)), stray.is_empty())
+	panel.queue_free()
+	await _tree.process_frame
+	# a settings file from before, every old key set away from what ships
+	var old := ConfigFile.new()
+	old.set_value("flow", "ladder", false)
+	old.set_value("flow", "seam1", "C")
+	old.set_value("flow", "seam2", "A")
+	old.set_value("flow", "seam3", "D")
+	old.set_value("flow", "seam3_fade", "P")
+	old.set_value("flow", "calm", false)
+	old.set_value("flow", "ui_out_s", 0.9)
+	old.set_value("flow", "calm_cam_s", 2.5)
+	old.set_value("flow", "light_on", 2.0)
+	old.save(SCRATCH)
+	DisplaySettings.path = SCRATCH
+	DisplaySettings.load_and_apply()
+	_ok("  a saved [flow] is not read: the designs are Jon's (%s %s %s, into the yard %s)" % [
+		ZoomLadder.design_for(1), ZoomLadder.design_for(2), ZoomLadder.design_for(3), ZoomLadder.seam3_fade()],
+		ZoomLadder.design_for(1) == "A" and ZoomLadder.design_for(2) == "C"
+		and ZoomLadder.design_for(3) == "B" and ZoomLadder.seam3_fade() == "F")
+	_ok("  the calm move stays on", ZoomLadder.calm_on())
+	_ok("  and the timings are the baked ones (UI out %.2f, hop camera %.2f, station on %.2f)" % [
+		ZoomLadder.UI_OUT_S, ZoomLadder.CALM_CAM_S, ZoomLadder.LIGHT_ON],
+		is_equal_approx(ZoomLadder.UI_OUT_S, 0.22) and is_equal_approx(ZoomLadder.CALM_CAM_S, 0.8)
+		and is_equal_approx(ZoomLadder.LIGHT_ON, 1.35))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
+	DisplaySettings.path = was_path
+	DisplaySettings.load_and_apply()
+	DevMode.enabled = was_dev
+	await _tree.process_frame
+
+
+func _labels_in(n: Node, out: Array[String]) -> void:
+	if n is Label:
+		out.append((n as Label).text)
+	for c in n.get_children():
+		_labels_in(c, out)
 
 
 # ------------------------------------------------------------------- helpers

@@ -32,20 +32,21 @@ extends Control
 ##                       C mosaic blocks.
 ## Two distances apart (LOCAL <-> chart, map <-> station) is one dive.
 ##
-## THE SWITCHES. `[flow] ladder=false` in settings.cfg, or `-- flow=legacy`, is
-## today's flow (the alpha's fallback); `[flow] seam1=B` (seam2, seam3) or
-## `-- flow1=B` picks a design. Off under reduced motion and wherever
-## `Router.animating()` is false, so every harness and the sim take the plain
-## swap they always took. Any key or click during a move finishes it at once,
-## and is not eaten.
+## THE SWITCHES. `-- flow=legacy` is today's flow (the alpha's fallback);
+## `-- flow1=B` (flow2, flow3) picks a design, for a harness or a film. They
+## were Settings > MOTION rows in dev mode, kept in `[flow]` of settings.cfg,
+## until Jon said remove them, even in dev mode (Oct 19): what he had picked
+## ships, and a `[flow]` left in a settings file is not read. Off under
+## reduced motion and wherever `Router.animating()` is false, so every harness
+## and the sim take the plain swap they always took. Any key or click during a
+## move finishes it at once, and is not eaten.
 
 enum { CHART = 0, MAP = 1, LOCAL = 2, STATION = 3 }
 
-const SECTION := "flow"
 const DESIGNS := {1: ["A", "B", "C"], 2: ["A", "B", "C"], 3: ["A", "B", "C", "D"]}
 ## Jon's picks (Oct 8): 1A toned down, 2C smoothed, 3B with the hull flying in.
 const DEFAULTS := {1: "A", 2: "C", 3: "B"}
-## what each design is called where a person picks one (Settings, the sheet)
+## what each design is called where a person picks one (the sheet)
 const NAMES := {
 	"1A": "STAR OPENS", "1B": "STARS STREAM", "1C": "MOSAIC",
 	"2A": "DIVE PAST THE SHIP", "2B": "INTO THE PLANE", "2C": "WORLD HANDOFF",
@@ -60,18 +61,18 @@ const MOVE_S := 0.72
 const WAIT_MAX_S := 1.2
 
 ## THE TIMINGS, ONE DIAL EACH (Jon, Oct 10: the moves "feel really fast and
-## rushed and chaotic"). Each is in Settings > MOTION in dev mode and stored in
-## `[flow]` of settings.cfg, so they can be set by feel; these are the defaults.
+## rushed and chaotic"). They were dials in Settings > MOTION in dev mode, set by
+## feel; these are what Jon had them at when the dials went (Oct 19), baked.
 ## A move is three beats that never overlap: THE UI LEAVES (`UI_OUT_S`, the
 ## camera still), ONE CAMERA MOVE (the seam's own length, eased in and out),
 ## THE UI ARRIVES (`UI_IN_S`, the camera at rest).
-static var UI_OUT_S := 0.22
-static var UI_IN_S := 0.4
+const UI_OUT_S := 0.22
+const UI_IN_S := 0.4
 ## chart <-> map (1A), map <-> LOCAL (2C), and two distances in one go (a
 ## dive: Tab from the chart to LOCAL, the berth to the map): the camera move, s
-static var SEAM1_S := 1.7
-static var SEAM2_S := 1.8
-static var DIVE_S := 1.9
+const SEAM1_S := 1.7
+const SEAM2_S := 1.8
+const DIVE_S := 1.9
 ## 3B AT A STATION, in seconds, in two beats (Jon: "The lights turn on ...
 ## flickering .. warning lights etc like an entry way ... and the ship slowly
 ## entering the dock", then "Let's have the station turn on BEFORE the ship moves
@@ -80,10 +81,10 @@ static var DIVE_S := 1.9
 ## the mouth and on into the hull in one slow move, as approved
 ## (`SectorScreen.ladder_cam`). LOCAL's whole pre-roll is the two
 ## (`dock_approach_s`).
-static var DOCK_WAKE_S := 3.0
-static var DOCK_ENTER_S := 4.0
+const DOCK_WAKE_S := 3.0
+const DOCK_ENTER_S := 4.0
 ## how fast the warning lights at the mouth flash while your ship waits (a second)
-static var DOCK_WARN_HZ := 1.6
+const DOCK_WARN_HZ := 1.6
 ## the dip to black at the end of the dock, your ship already out of sight (s)
 const DOCK_DIP_S := 0.4
 ## THE STATION'S LIGHTS (Jon: "i think the lighting can be MUCH more dramatic
@@ -92,32 +93,32 @@ const DOCK_DIP_S := 0.4
 ## only); ON, how bright the bay and every lamp are once it wakes (over 1 is
 ## brighter than painted); GLOW, how strongly each lamp's light spills onto the
 ## plating round it (`StationFace`)
-static var LIGHT_OFF := 0.22
-static var LIGHT_ON := 1.35
-static var LIGHT_GLOW := 1.8
+const LIGHT_OFF := 0.22
+const LIGHT_ON := 1.35
+const LIGHT_GLOW := 1.8
 ## the camera's pan sideways through the station's hull into the yard
 const DOCK_PAN_S := 1.4
 ## the yard: your ship in from the left onto its stands (and then the elevator,
 ## `ELEVATOR_S`)
-static var DOCK_YARD_S := 2.2
+const DOCK_YARD_S := 2.2
 ## undocking: the elevator out, your ship off its stands and away to the left
-static var UNDOCK_YARD_S := 2.0
+const UNDOCK_YARD_S := 2.0
 ## and LOCAL: your ship backing out of the hallway to where it sat, the lights
 ## going down behind it (after the same pan the other way)
-static var UNDOCK_LOCAL_S := 3.4
+const UNDOCK_LOCAL_S := 3.4
 ## the elevator sliding back in once your ship is down (and out, undocking)
-static var ELEVATOR_S := 0.8
+const ELEVATOR_S := 0.8
 ## THE CHART TO LOCAL OR THE BERTH, AND BACK (Jon, Oct 10: "Chart straight to
 ## local is ehhhh kinda hard to do... just do a fade. No transition"): down to
 ## black, the new screen built in the black, and up from it. No camera.
-static var FADE_OUT_S := 0.3
-static var FADE_IN_S := 0.45
+const FADE_OUT_S := 0.3
+const FADE_IN_S := 0.45
 ## THE HANDOFF DISC (1A, 2C, GO): the radius, screen px at the swap, of the soft
 ## disc round the focus -- your star, the world you orbit -- that carries the
 ## screen being left into the one arriving. Jon: "the circle is better.... but
 ## it's still WAYYY too big". 0 is the focus object and a thin halo round it,
 ## which is Jon's pick of three sizes filmed (Oct 11, "Circle: C").
-static var DISC_PX := 0.0
+const DISC_PX := 0.0
 ## THE CALM MOVE (Jon's pick A, Oct 17, after "the movement between local >
 ## sector > starchart ... EXTREMELY disorienting"): every hop between LOCAL, the
 ## map and the chart, both ways and by every route, is one motion of the same
@@ -128,158 +129,17 @@ static var DISC_PX := 0.0
 ## landed, into LOCAL the column and band slide off (`CALM_SLIDE_S`), and the
 ## arriving screen's UI comes (`CALM_IN_S`) while its side bar and toolbar
 ## decode (`CALM_DECODE_S`). Never two of these at once with the camera.
-static var CALM_OUT_S := 0.2
+const CALM_OUT_S := 0.2
 ## (the column crosses 265 px: at 0.6 s on its curve, at most 9 px a frame, the
 ## walk SideBarTest holds it to)
-static var CALM_SLIDE_S := 0.6
-static var CALM_CAM_S := 0.8
-static var CALM_IN_S := 0.25
+const CALM_SLIDE_S := 0.6
+const CALM_CAM_S := 0.8
+const CALM_IN_S := 0.25
 ## (Jon asked for E's decode "slowly" on Oct 13, 1.1 s, when it ran under the
 ## camera; after the landing that second is all added to the hop. Of 0.4, 0.7
 ## and 1.1 s filmed he picked 0.7, Oct 17: "decode:B")
-static var CALM_DECODE_S := 0.7
+const CALM_DECODE_S := 0.7
 
-## The dials as Settings lists them: [key in `[flow]`, its name, the static var
-## it sets, least, most]. The default is the var's own value at load.
-const DIALS := [
-	["ui_out_s", "UI LEAVES", "UI_OUT_S", 0.0, 1.0],
-	["ui_in_s", "UI ARRIVES", "UI_IN_S", 0.0, 1.5],
-	["seam1_s", "CHART - MAP", "SEAM1_S", 0.4, 4.0],
-	["seam2_s", "MAP - LOCAL", "SEAM2_S", 0.4, 4.0],
-	["dive_s", "TWO AT ONCE", "DIVE_S", 0.4, 4.0],
-	["dock_wake_s", "DOCK: THE STATION WAKES", "DOCK_WAKE_S", 0.6, 8.0],
-	["dock_enter_s", "DOCK: INTO THE HULL", "DOCK_ENTER_S", 1.0, 8.0],
-	["dock_warn_hz", "DOCK: WARNING FLASHES /S", "DOCK_WARN_HZ", 0.3, 4.0],
-	["yard_fade_s", "DOCK: YARD FADES UP", "YARD_FADE_S", 0.2, 3.0],
-	["yard_beat_s", "DOCK: EMPTY YARD", "YARD_BEAT_S", 0.0, 2.0],
-	["dock_yard_s", "DOCK: SHIP LANDS", "DOCK_YARD_S", 0.6, 5.0],
-	["elevator_s", "DOCK: ELEVATOR", "ELEVATOR_S", 0.2, 2.0],
-	["undock_yard_s", "UNDOCK: SHIP LEAVES", "UNDOCK_YARD_S", 0.8, 5.0],
-	["undock_local_s", "UNDOCK: OUT OF THE HULL", "UNDOCK_LOCAL_S", 1.0, 8.0],
-	["fade_out_s", "CHART - LOCAL: TO BLACK", "FADE_OUT_S", 0.05, 2.0],
-	["fade_in_s", "CHART - LOCAL: UP FROM BLACK", "FADE_IN_S", 0.05, 2.0],
-	["handoff_disc_px", "HANDOFF DISC SIZE (PX)", "DISC_PX", 0.0, 400.0],
-	["light_off", "STATION OFF", "LIGHT_OFF", 0.0, 1.0, "lights"],
-	["light_on", "STATION ON", "LIGHT_ON", 0.6, 2.0, "lights"],
-	["light_glow", "LAMP GLOW", "LIGHT_GLOW", 0.0, 4.0, "lights"],
-	["calm_out_s", "HOP: UI LEAVES", "CALM_OUT_S", 0.0, 0.6],
-	["calm_slide_s", "HOP: SIDE BAR SLIDES", "CALM_SLIDE_S", 0.1, 1.5],
-	["calm_cam_s", "HOP: THE CAMERA", "CALM_CAM_S", 0.3, 3.0],
-	["calm_in_s", "HOP: UI ARRIVES", "CALM_IN_S", 0.0, 1.0],
-	["calm_decode_s", "HOP: SIDE BAR DECODES", "CALM_DECODE_S", 0.2, 1.5],
-]
-## the defaults as the code has them (taken the first time the dials are read)
-static var _dial_defaults := {}
-
-
-## A dial's value now (`DIALS`).
-static func dial(key: String) -> float:
-	_read_cfg()
-	for d: Array in DIALS:
-		if d[0] == key:
-			return _dial_get(String(d[2]))
-	return 0.0
-
-
-static func dial_default(key: String) -> float:
-	_read_cfg()
-	for d: Array in DIALS:
-		if d[0] == key:
-			return float(_dial_defaults.get(d[2], 0.0))
-	return 0.0
-
-
-## Settings sets a dial (rounded to a twentieth of a second), or `reset` puts it
-## back to the code's own default.
-static func set_dial(key: String, v: float, reset: bool = false) -> void:
-	for d: Array in DIALS:
-		if d[0] == key:
-			var cf := ConfigFile.new()
-			cf.load(DisplaySettings.path)
-			if reset:
-				if cf.has_section_key(SECTION, key):
-					cf.erase_section_key(SECTION, key)
-			else:
-				cf.set_value(SECTION, key, snappedf(clampf(v, float(d[3]), float(d[4])), 0.05))
-			cf.save(DisplaySettings.path)
-			reload()
-			_read_cfg()
-			return
-
-
-static func _dial_get(var_name: String) -> float:
-	match var_name:
-		"UI_OUT_S": return UI_OUT_S
-		"UI_IN_S": return UI_IN_S
-		"SEAM1_S": return SEAM1_S
-		"SEAM2_S": return SEAM2_S
-		"DIVE_S": return DIVE_S
-		"DOCK_WAKE_S": return DOCK_WAKE_S
-		"DOCK_ENTER_S": return DOCK_ENTER_S
-		"DOCK_WARN_HZ": return DOCK_WARN_HZ
-		"LIGHT_OFF": return LIGHT_OFF
-		"LIGHT_ON": return LIGHT_ON
-		"LIGHT_GLOW": return LIGHT_GLOW
-		"YARD_FADE_S": return YARD_FADE_S
-		"YARD_BEAT_S": return YARD_BEAT_S
-		"DOCK_YARD_S": return DOCK_YARD_S
-		"ELEVATOR_S": return ELEVATOR_S
-		"FADE_OUT_S": return FADE_OUT_S
-		"FADE_IN_S": return FADE_IN_S
-		"DISC_PX": return DISC_PX
-		"UNDOCK_YARD_S": return UNDOCK_YARD_S
-		"UNDOCK_LOCAL_S": return UNDOCK_LOCAL_S
-		"CALM_OUT_S": return CALM_OUT_S
-		"CALM_SLIDE_S": return CALM_SLIDE_S
-		"CALM_CAM_S": return CALM_CAM_S
-		"CALM_IN_S": return CALM_IN_S
-		"CALM_DECODE_S": return CALM_DECODE_S
-	return 0.0
-
-
-static func _dial_set(var_name: String, v: float) -> void:
-	match var_name:
-		"UI_OUT_S": UI_OUT_S = v
-		"UI_IN_S": UI_IN_S = v
-		"SEAM1_S": SEAM1_S = v
-		"SEAM2_S": SEAM2_S = v
-		"DIVE_S": DIVE_S = v
-		"DOCK_WAKE_S": DOCK_WAKE_S = v
-		"DOCK_ENTER_S": DOCK_ENTER_S = v
-		"DOCK_WARN_HZ": DOCK_WARN_HZ = v
-		"LIGHT_OFF": LIGHT_OFF = v
-		"LIGHT_ON": LIGHT_ON = v
-		"LIGHT_GLOW": LIGHT_GLOW = v
-		"YARD_FADE_S": YARD_FADE_S = v
-		"YARD_BEAT_S": YARD_BEAT_S = v
-		"DOCK_YARD_S": DOCK_YARD_S = v
-		"ELEVATOR_S": ELEVATOR_S = v
-		"FADE_OUT_S": FADE_OUT_S = v
-		"FADE_IN_S": FADE_IN_S = v
-		"DISC_PX": DISC_PX = v
-		"UNDOCK_YARD_S": UNDOCK_YARD_S = v
-		"UNDOCK_LOCAL_S": UNDOCK_LOCAL_S = v
-		"CALM_OUT_S": CALM_OUT_S = v
-		"CALM_SLIDE_S": CALM_SLIDE_S = v
-		"CALM_CAM_S": CALM_CAM_S = v
-		"CALM_IN_S": CALM_IN_S = v
-		"CALM_DECODE_S": CALM_DECODE_S = v
-
-
-## The dials from the settings file (or the defaults where it has none), and a
-## harness's `dial_<key>=` on the command line over both.
-static func _apply_dials() -> void:
-	if _dial_defaults.is_empty():
-		for d: Array in DIALS:
-			_dial_defaults[d[2]] = _dial_get(String(d[2]))
-	for d: Array in DIALS:
-		var v := float(_dial_defaults[d[2]])
-		if _cfg.has(d[0]):
-			v = float(_cfg[d[0]])
-		var a := _arg("dial_" + String(d[0]))
-		if a != "":
-			v = float(a)
-		_dial_set(String(d[2]), clampf(v, float(d[3]), float(d[4])))
 ## how much of the station's hull the pan passes through (game px)
 const PAN_HULL_W := 520.0
 ## THE HAND-OFF INTO THE YARD (3B). "F", Jon's pick and the default: a dip to
@@ -290,15 +150,15 @@ const PAN_HULL_W := 520.0
 ## lands; then the elevator. Undocking: the elevator out, your ship off its
 ## stands and away to the left, a beat of the empty yard, the yard slowly down
 ## to black, and up on LOCAL with your ship coming out of the hull. "P", kept
-## as the alternative: the pan through the hull. `[flow] seam3_fade=`.
+## as the alternative: the pan through the hull, a harness's `seam3_fade=P`.
 const FADES := ["F", "P"]
 static var force_fade := ""
 ## F: the dip to black over the approach's last tenth (your ship already in
 ## behind the lips); the empty yard up from black, and its beat before your
 ## ship comes in; LOCAL up from black undocking
 const FADE_DOWN := 0.1
-static var YARD_FADE_S := 1.2
-static var YARD_BEAT_S := 0.5
+const YARD_FADE_S := 1.2
+const YARD_BEAT_S := 0.5
 const LOCAL_FADE_S := 0.6
 
 
@@ -306,17 +166,12 @@ static func seam3_fade() -> String:
 	if force_fade in FADES:
 		return force_fade
 	var a := _arg("seam3_fade").to_upper()
-	if a in FADES:
-		return a
-	_read_cfg()
-	var v := String(_cfg.get("seam3_fade", "F")).to_upper()
-	return v if v in FADES else "F"
+	return a if a in FADES else "F"
 
 
 ## The dock's two beats, s: (the station wakes, your ship in). Reduced motion
 ## (if a dock is ever animated under it) waits a moment, not the wake.
 static func dock_beats() -> Vector2:
-	_read_cfg()
 	var w := DOCK_WAKE_S
 	if DisplaySettings.reduced_motion:
 		w = minf(w, 0.8)
@@ -362,8 +217,6 @@ static var force := -1
 static var force_design := {}
 ## The Router's own call, being made by a pre-roll's end: `preroll` declines it.
 static var _going := false
-static var _cfg_read := false
-static var _cfg := {}
 
 ## UI_OUT: the screen being left takes its UI away, its camera still; UI_IN:
 ## the camera has landed and the arriving screen's UI comes up. (Appended, so
@@ -632,25 +485,7 @@ var _landed_done := false
 static var chrome_hidden: Control = null
 
 
-# ------------------------------------------------------------------ settings
-
-static func _read_cfg() -> void:
-	if _cfg_read:
-		return
-	_cfg_read = true
-	var cf := ConfigFile.new()
-	if cf.load(DisplaySettings.path) == OK and cf.has_section(SECTION):
-		for k in cf.get_section_keys(SECTION):
-			_cfg[k] = cf.get_value(SECTION, k)
-	_apply_dials()
-
-
-
-## Read the switches again (Settings wrote them).
-static func reload() -> void:
-	_cfg_read = false
-	_cfg.clear()
-
+# ------------------------------------------------------------------ switches
 
 static func _arg(k: String) -> String:
 	for a in OS.get_cmdline_user_args():
@@ -659,7 +494,7 @@ static func _arg(k: String) -> String:
 	return ""
 
 
-## Whether C's flow is on (the setting, or a harness's `flow=`), animation aside.
+## Whether C's flow is on (always, but for a harness's `flow=`), animation aside.
 static func chosen() -> bool:
 	if force >= 0:
 		return force == 1
@@ -672,8 +507,7 @@ static func chosen() -> bool:
 	# before the ladder expects the doors it was written against
 	if TestRun.active():
 		return false
-	_read_cfg()
-	return bool(_cfg.get("ladder", true))
+	return true
 
 
 static func enabled() -> bool:
@@ -690,17 +524,7 @@ static func design_for(s: int) -> String:
 	var a := _arg("flow%d" % s).to_upper()
 	if a in DESIGNS.get(s, []):
 		return a
-	_read_cfg()
-	var v := String(_cfg.get("seam%d" % s, DEFAULTS.get(s, "A"))).to_upper()
-	return v if v in DESIGNS.get(s, []) else String(DEFAULTS.get(s, "A"))
-
-
-static func save_setting(key: String, value: Variant) -> void:
-	var cf := ConfigFile.new()
-	cf.load(DisplaySettings.path)
-	cf.set_value(SECTION, key, value)
-	cf.save(DisplaySettings.path)
-	reload()
+	return String(DEFAULTS.get(s, "A"))
 
 
 static func rank_of(s: Control) -> int:
@@ -2490,9 +2314,10 @@ var _calm_field: Texture2D = null
 var calm_log: Array = []
 
 
-## THE SWITCH: `[flow] calm=false` in settings.cfg, or `-- calm=off`, puts back
-## the moves Jon picked on Oct 8-13 (1A, 2C, the dip to black) -- the designs
-## and their dials kept whole behind it. A harness sets `calm_force`.
+## THE SWITCH: `-- calm=off` puts back the moves Jon picked on Oct 8-13 (1A,
+## 2C, the dip to black) -- the designs and their timings kept whole behind it.
+## A harness sets `calm_force`. (`[flow] calm=false` in settings.cfg did it too,
+## and is not read since the dev rows went from Settings, Oct 19.)
 static var calm_force := -1
 
 
@@ -2502,10 +2327,7 @@ static func calm_on() -> bool:
 	var a := _arg("calm")
 	if a == "off":
 		return false
-	if a == "on":
-		return true
-	_read_cfg()
-	return bool(_cfg.get("calm", true))
+	return true
 
 
 ## Whether a hop between ranks `a` and `b` is the calm move.
@@ -2530,7 +2352,6 @@ static func _calm_key(a: int, b: int) -> String:
 ## target): the UI out, the slide on (out of LOCAL), the camera, then the slide
 ## off and the UI in (into LOCAL), or the decode and the UI in together.
 static func calm_length(a: int, b: int) -> float:
-	_read_cfg()
 	# into LOCAL: the side panel off (the UI leaving with it), the camera, LOCAL's
 	# UI; out of LOCAL: LOCAL's UI off, the camera, the side panel on, then its
 	# decode with the UI; the map and the chart: the UI off, the camera, the decode
