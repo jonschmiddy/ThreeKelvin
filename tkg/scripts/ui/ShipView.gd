@@ -1215,6 +1215,40 @@ func park() -> void:
 	_engines_off = false
 	_bob_amp = _arrive_bob
 
+## THE DOCK'S APPROACH, ITS ENGINES (Jon, Oct 20: "the ship should fly in like
+## normal... have the thrusters fizzle to a low burn... then the station turns
+## on, then the ship flies in"): `SectorScreen.ladder_cam` flies the hull up to
+## the station's mouth itself, and hands in here the arrival's own flame at `e`
+## of an arrival's progress on flameout row `row` -- the clean burn, the
+## stutter, then the idle it keeps -- so the dock's flame is the arrival's, and
+## the clip cut from that row plays under it in step (`dock_flame_clip`).
+## `e` < 0 gives the engines back (the idle, or whatever they were doing).
+var _dock_e := -1.0
+var _dock_row := 0
+
+
+func dock_flame(e: float, row: int) -> void:
+	_dock_e = e
+	_dock_row = clampi(row, 0, FLAMEOUTS.size() - 1)
+
+
+## The window of row `row` that `e` is in, or -1 (`_flame_window`'s rule).
+static func flame_window_of(row: int, e: float) -> int:
+	var spans: Array = FLAMEOUTS[clampi(row, 0, FLAMEOUTS.size() - 1)]
+	for i in spans.size():
+		var span: Vector2 = spans[i]
+		if e >= span.x and e < span.y:
+			return i
+	return -1
+
+
+## The clip cut from row `row`, at this hull's weight (what `arrive` returns).
+func dock_flame_clip(row: int) -> StringName:
+	var hull := _hull()
+	var w := int(hull.weight) if hull != null else int(HullData.Weight.MEDIUM)
+	return (FLAMEOUT_SFX[w] as Array)[clampi(row, 0, FLAMEOUTS.size() - 1)]
+
+
 ## Engines guttering out rather than switching off. The whole answer is in the
 ## row: the flame is lit while the approach is inside one of its spans, and the
 ## first span is the clean burn. No formula, because the sound was cut from
@@ -1717,6 +1751,8 @@ func _thrust_now() -> int:
 	var h := _hull()
 	if h == null or not h.has_exhaust() or h.sprite == null:
 		return -1
+	if _dock_e >= 0.0:
+		return arrive_thrust(flame_window_of(_dock_row, _dock_e))
 	if _arrive_at >= 0:
 		return arrive_thrust(_arrive_window if _burning else -1)
 	if _burning:
@@ -1750,7 +1786,7 @@ func idle_heard() -> bool:
 	if not hums or not is_inside_tree() or not is_visible_in_tree():
 		return false
 	var th := _thrust_now()
-	var settling := _arrive_at >= 0 and _arrive_window >= 1 and th >= 0
+	var settling := (_arrive_at >= 0 and _arrive_window >= 1 and th >= 0) 		or (_dock_e >= 0.0 and _dock_e >= (FLAMEOUTS[_dock_row][0] as Vector2).y and th >= 0)
 	if th != ThrusterFx.Thrust.IDLE and not settling:
 		return false
 	var h := hull_rect()

@@ -73,16 +73,31 @@ const UI_IN_S := 0.4
 const SEAM1_S := 1.7
 const SEAM2_S := 1.8
 const DIVE_S := 1.9
-## 3B AT A STATION, in seconds, in two beats (Jon: "The lights turn on ...
-## flickering .. warning lights etc like an entry way ... and the ship slowly
-## entering the dock", then "Let's have the station turn on BEFORE the ship moves
-## in"): THE STATION WAKES, your ship still where it was parked, the power-on and
-## the warning lights at the mouth; then IN, your ship from where it sits up to
-## the mouth and on into the hull in one slow move, as approved
-## (`SectorScreen.ladder_cam`). LOCAL's whole pre-roll is the two
-## (`dock_approach_s`).
-const DOCK_WAKE_S := 3.0
-const DOCK_ENTER_S := 4.0
+## 3B AT A STATION: THE DOCK IN FIVE STEPS, in seconds, one dial each (Jon, Oct
+## 20: "the ship should fly in like normal... have the thrusters fizzle to a low
+## burn... then the station turns on, then the ship flies in"; before that, "Let's
+## have the station turn on BEFORE the ship moves in"). In order, never two at
+## once (`SectorScreen.ladder_cam`):
+##   1. FLY: your ship from where it was parked up to the station's mouth, its
+##      engines up as an arrival's are, slowing to a stop `DOCK_HOLD_PX` short
+##      of the lips;
+##   2. SETTLE: stopped, its thrusters sputter down to the idle burn (the
+##      arrival's own flameout, and its clip, ending as this step ends);
+##   3. BEAT: a breath, the ship idling at the dark station;
+##   4. POWER: the station's lights come on (`StationFace.power`), the warning
+##      lights at the mouth flashing and then green;
+##   5. ENTER: your ship from the mouth on into the hull in one move, the camera
+##      after it, at the idle burn.
+## LOCAL's whole pre-roll is the five (`dock_approach_s`); the yard after it is
+## its own (`YARD_FADE_S`, `YARD_BEAT_S`, `DOCK_YARD_S`). Reduced motion never
+## animates a dock (`Router.animating`), and a press mid-dock ends it at once.
+const DOCK_FLY_S := 1.1
+const DOCK_SETTLE_S := 0.5
+const DOCK_BEAT_S := 0.3
+const DOCK_POWER_S := 1.3
+const DOCK_ENTER_S := 1.3
+## where the FLY stops: your ship's nose this many plate px short of the lips
+const DOCK_HOLD_PX := 14.0
 ## how fast the warning lights at the mouth flash while your ship waits (a second)
 const DOCK_WARN_HZ := 1.6
 ## the dip to black at the end of the dock, your ship already out of sight (s)
@@ -169,18 +184,35 @@ static func seam3_fade() -> String:
 	return a if a in FADES else "F"
 
 
-## The dock's two beats, s: (the station wakes, your ship in). Reduced motion
-## (if a dock is ever animated under it) waits a moment, not the wake.
-static func dock_beats() -> Vector2:
-	var w := DOCK_WAKE_S
-	if DisplaySettings.reduced_motion:
-		w = minf(w, 0.8)
-	return Vector2(w, DOCK_ENTER_S)
+## The dock's five steps, s, in order (`DOCK_FLY_S` .. `DOCK_ENTER_S`).
+static func dock_steps() -> PackedFloat32Array:
+	return PackedFloat32Array([DOCK_FLY_S, DOCK_SETTLE_S, DOCK_BEAT_S, DOCK_POWER_S, DOCK_ENTER_S])
+
+
+## The step under way at `t` s into the dock (0 FLY .. 4 ENTER, 5 past the
+## end), and how far into it (0..1): `Vector2(step, u)`.
+static func dock_step_at(t: float) -> Vector2:
+	var at := 0.0
+	var steps := dock_steps()
+	for i in steps.size():
+		var d := maxf(steps[i], 0.001)
+		if t < at + d:
+			return Vector2(i, clampf((t - at) / d, 0.0, 1.0))
+		at += steps[i]
+	return Vector2(steps.size(), 1.0)
+
+
+## When step `i` starts, s into the dock.
+static func dock_step_from(i: int) -> float:
+	var at := 0.0
+	var steps := dock_steps()
+	for j in mini(i, steps.size()):
+		at += steps[j]
+	return at
 
 
 static func dock_approach_s() -> float:
-	var b := dock_beats()
-	return b.x + b.y
+	return dock_step_from(5)
 
 
 ## A Hermite curve from 0 to 1 over u 0..1, leaving at slope `m0` and arriving at
@@ -1066,6 +1098,9 @@ func _process_move(delta: float) -> void:
 				# slowly)
 				# (docking: the last tenth of the approach, your ship in behind the lips)
 				var fd := minf(DOCK_DIP_S, _pre_s * FADE_DOWN) if old is SectorScreen else YARD_FADE_S
+				# (and only once your ship is all in: LOCAL knows when that is)
+				if old is SectorScreen and float(old.call(&"ladder_dip_s")) > 0.0:
+					fd = minf(fd, float(old.call(&"ladder_dip_s")))
 				_black_at(_ease(clampf((_u * _pre_s - (_pre_s - fd)) / fd, 0.0, 1.0)))
 			if _u >= 1.0:
 				# (the move goes on from where the clock is, not a frame later)

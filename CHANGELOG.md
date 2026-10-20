@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Docking** is five steps on LOCAL, about 4.5 s in all: your ship flies up to the station's
+  mouth with its engines up, stops as they sputter down to the idle burn, waits a beat, the
+  station's lights come on, and then the ship goes in. A key or click during it still docks at once.
+- **The station's left column of decks** slides in like the other panels once your ship is on
+  its stands, with its dark ground under it. It used to slide in see-through over the hangar and
+  then pop to its dark column when it landed.
+
 ### Roadmap
 
 The next build is **0.2.0-alpha.1**, with the fixes from the first playtest. See

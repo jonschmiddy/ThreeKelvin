@@ -118,12 +118,15 @@ const GREEN := Color("#5ae678")
 ## the bay's light standing by, of its lit picture over its dark one
 const BAY_REST := 0.0
 ## THE POWER-ON, along the approach (`power` 0 -> 1): when each group starts
-## coming on, and how long one lamp's flicker takes
+## coming on, and how long one lamp's flicker takes. (The power-on is its own
+## step of the dock now, `ZoomLadder.DOCK_POWER_S`, 1.3 s where the wake was 3:
+## the flicker is the larger share of it, so a lamp still stutters for about a
+## quarter of a second, each on and off near two frames, not under one.)
 const ON_DOOR := 0.0
 const ON_SEAM := 0.18
 const ON_GUIDE := 0.42
 const ON_SPREAD := 0.3
-const FLICKER := 0.09
+const FLICKER := 0.21
 ## where the other sides' lamps come on outward from (plate px): the hallway
 const ON_FROM := Vector2(160, 269)
 

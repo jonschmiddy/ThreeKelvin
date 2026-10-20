@@ -2607,7 +2607,7 @@ class _YardEdge extends Node:
 		# stands in it)
 		if not screen._lad.is_empty() and not is_nan(float(screen._lad.get("rail_x", NAN))):
 			_rest_x = float(screen._lad.rail_x)
-		elif (screen._lad_tw == null or not screen._lad_tw.is_valid()) \
+		elif (screen._lad_tw == null or not screen._lad_tw.is_valid()) and screen._rail_slide == null \
 				and (screen._cutaway == null or not is_instance_valid(screen._cutaway)):
 			_rest_x = r.position.x
 		# (not while the cutaway has the yard zoomed: the hall is not where it was)
@@ -2700,8 +2700,8 @@ func ladder_cam_begin(_other: int, seam: int, design: String) -> void:
 	_lad_going = false
 	if not (seam == 3 and (design == "B" or design == "D")) or _mine_view == null or not is_instance_valid(_mine_view):
 		return
-	if _lad_tw != null and _lad_tw.is_valid():
-		_lad_tw.kill()
+	# (the elevator still sliding in from the last dock: in its place first)
+	rail_land()
 	var rail_x := NAN
 	if _rail != null and is_instance_valid(_rail):
 		rail_x = _rail.position.x
@@ -2763,13 +2763,173 @@ func ladder_cam_end() -> void:
 	_lad = {}
 	if _rail == null or not is_instance_valid(_rail) or is_nan(rx):
 		return
-	# AND THEN THE ELEVATOR SLIDES IN
-	if Router.animating():
-		_rail.position.x = rx - (_rail.size.x + 16.0)
-		_lad_tw = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		_lad_tw.tween_property(_rail, "position:x", rx, ZoomLadder.ELEVATOR_S)
-	else:
-		_rail.position.x = rx
+	# AND THEN THE ELEVATOR SLIDES IN, as the game's other panels do (a press
+	# that cut the dock short wants the berth, not the slide: it is there)
+	var cut := ZoomLadder.active != null and ZoomLadder.active._cut
+	_rail.position.x = rx
+	if Router.animating() and not cut:
+		_rail_in()
+
+
+## THE ELEVATOR COMES IN LIKE EVERY OTHER PANEL (Jon, Oct 20: "The left panel
+## coming into the station doesn't come in correctly"). Filmed, it slid in as a
+## column of words and deck pictures with nothing behind them: the yard's hall
+## run on into its column (`_YardEdge`) showed through its header and round its
+## cells all the way in, and on the frame it landed the hall went and the dark
+## column and the yard's frame appeared under it at once -- a pop of the whole
+## column. It also eased in on its own cubic, off the whole pixel, in silence.
+## Now it is the side panel's slide (`PanelSlide`): the control itself moved,
+## in whole pixels, on the panels' one curve (`ZoomLadder._calm_slide_curve`)
+## over `ZoomLadder.CALM_SLIDE_S`, heard as they are (`chrome_on`), carrying its
+## own ground with it -- the dark the column stands on at rest and the yard's
+## frame beside it (`_RailBack`) -- over the hall, so when it lands the picture
+## is already what the column is at rest and the hall goes under it unseen.
+## Nothing on it takes a click while it moves (`_RailBlock`): a press there
+## lands it at once and goes no further.
+var _rail_slide: PanelSlide = null
+var _rail_back: Control = null
+var _rail_block: Control = null
+var _rail_back_x0 := 0.0
+var _rail_rest_x := 0.0
+
+
+## The column's ground at rest: the screen's dark from the view's left edge to
+## the yard's panel, and that panel's own left edge (its frame and margin) up to
+## the yard, cut from the panel's own style; drawn just under the elevator.
+class _RailBack extends Control:
+	var panel_rect := Rect2()
+	var style: StyleBox = null
+
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, size), RenderingServer.get_default_clear_color(), true)
+		if style != null and panel_rect.size.x > 0.0:
+			draw_style_box(style, panel_rect)
+
+
+## Takes every press over the moving elevator, and lands it.
+class _RailBlock extends Control:
+	var screen: StationScreen
+
+	func _gui_input(e: InputEvent) -> void:
+		if e is InputEventMouseButton and (e as InputEventMouseButton).pressed:
+			accept_event()
+			screen.rail_land()
+
+
+func _rail_in() -> void:
+	if _rail == null or not is_instance_valid(_rail):
+		return
+	_rail_land_now()
+	_rail_rest_x = _rail.position.x
+	var me := get_global_transform().affine_inverse()
+	var rr := _rail.get_global_rect()
+	# (where the yard's picture starts, and its panel round it: the column's
+	# ground runs up to the picture, the panel's edge included)
+	var yard_l := rr.end.x + 8.0
+	var panel := Rect2()
+	var panel_style: StyleBox = null
+	if _scene != null and is_instance_valid(_scene) and _scene.is_visible_in_tree():
+		yard_l = _scene.get_global_rect().position.x
+		var pc := _scene.get_parent()
+		while pc != null and pc != self:
+			if pc is PanelContainer:
+				panel = (pc as Control).get_global_rect()
+				panel_style = (pc as Control).get_theme_stylebox(&"panel")
+				break
+			pc = pc.get_parent()
+	var top := rr.position.y
+	var bot := rr.end.y
+	if panel.size.y > 0.0:
+		top = minf(top, panel.position.y)
+		bot = maxf(bot, panel.end.y)
+	var g := Rect2(Vector2(minf(0.0, rr.position.x) - 2.0, top), Vector2.ZERO)
+	g.end = Vector2(yard_l, bot)
+	# (a box that clips, round the ground that draws: the panel's style is drawn
+	# whole and only its edge up to the yard is kept)
+	var back := Control.new()
+	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	back.clip_contents = true
+	back.position = me * g.position
+	back.size = g.size
+	var ground := _RailBack.new()
+	ground.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ground.size = g.size
+	ground.style = panel_style
+	ground.panel_rect = Rect2(panel.position - g.position, panel.size)
+	back.add_child(ground)
+	# (under the elevator, over the yard: the elevator is lifted while it is
+	# away, `_YardEdge`, and this before it in the tree at the same height)
+	back.z_index = 1
+	add_child(back)
+	move_child(back, 0)
+	_rail_back = back
+	_rail_back_x0 = back.position.x
+	var blk := _RailBlock.new()
+	blk.screen = self
+	blk.mouse_filter = Control.MOUSE_FILTER_STOP
+	blk.position = back.position
+	blk.size = back.size
+	add_child(blk)
+	_rail_block = blk
+	# (all of it off the view's left edge at the start, and in whole pixels)
+	var ps := PanelSlide.new()
+	add_child(ps)
+	ps.setup(_rail, &"side", Vector2(-roundf(g.end.x + 2.0), 0.0), 0.0, null)
+	_rail_slide = ps
+	_rail_t = 0.0
+	_rail_step(0.0)
+	var tick := _RailTick.new()
+	tick.screen = self
+	ps.add_child(tick)
+
+
+## The slide's clock: the game's, or the ladder's step where a harness steps it
+## (`ZoomLadder.fixed_dt`), as the moves before it run on.
+var _rail_t := 0.0
+
+
+class _RailTick extends Node:
+	var screen: StationScreen
+
+	func _process(delta: float) -> void:
+		var dt := ZoomLadder.fixed_dt if ZoomLadder.fixed_dt > 0.0 else delta
+		screen._rail_t += dt
+		var q := clampf(screen._rail_t / maxf(ZoomLadder.CALM_SLIDE_S, 0.001), 0.0, 1.0)
+		screen._rail_step(q)
+		if q >= 1.0:
+			screen._rail_land_now()
+
+
+func _rail_step(q: float) -> void:
+	if _rail_slide == null or not is_instance_valid(_rail_slide):
+		return
+	_rail_slide.set_k(ZoomLadder._calm_slide_curve(q))
+	if _rail_back != null and is_instance_valid(_rail_back):
+		_rail_back.position.x = _rail_back_x0 + (_rail.position.x - _rail_slide.rest.x)
+
+
+## The elevator in its place now (a press on it while it slides; another move).
+func rail_land() -> void:
+	if _lad_tw != null and _lad_tw.is_valid():
+		_lad_tw.kill()
+	_rail_land_now()
+
+
+func _rail_land_now() -> void:
+	var was := _rail_slide != null or _rail_back != null
+	if _rail_slide != null and is_instance_valid(_rail_slide):
+		_rail_slide.set_k(1.0)
+		_rail_slide.finish()
+	_rail_slide = null
+	for c: Control in [_rail_back, _rail_block]:
+		if c != null and is_instance_valid(c):
+			c.queue_free()
+	_rail_back = null
+	_rail_block = null
+	# (the yard's hall out of the column on the same frame the elevator stands
+	# in it, not the next, when `_YardEdge` would see it there)
+	if was and _edge != null and is_instance_valid(_edge):
+		_edge._process(0.0)
 
 
 ## Undocking (3B): k 0 to 1 is the elevator out (the first 30%), then the hull
@@ -2804,7 +2964,7 @@ func ladder_chrome(k: float) -> void:
 	if _scene != null and is_instance_valid(_scene):
 		_scene.mine_a = 1.0 - k
 		_scene.queue_redraw()
-	var own := not _lad.is_empty() or (_lad_tw != null and _lad_tw.is_valid())
+	var own := not _lad.is_empty() or (_lad_tw != null and _lad_tw.is_valid()) or _rail_slide != null
 	# (where the move owns the elevator it is drawn whole, its slide the arrival)
 	_rail_a = 1.0 if own else 1.0 - k
 	if _rail != null and is_instance_valid(_rail) and _rail.modulate.a > 0.0:
@@ -2838,6 +2998,9 @@ func ladder_hide_hull(on: bool) -> void:
 func open_cutaway() -> CutawayView:
 	if not cutaway_ready():
 		return null
+	# (the elevator still sliding in: in its place, so the cutaway takes it from
+	# there)
+	rail_land()
 	if _mine_outline != null:
 		_mine_outline.visible = false
 	if _mine_slab != null and is_instance_valid(_mine_slab):

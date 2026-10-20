@@ -119,19 +119,34 @@ func _hull_flies_in(dock_b: Button) -> void:
 	var lip_room := INF
 	var lip_at := Rect2()
 	var whole := Rect2()
-	# THE DOCK IN THREE BEATS (Jon: "a few seconds beat between the ship arriving
-	# at the space station dock... The lights turn on ... warning lights ... and
-	# the ship slowly entering"): the beats as they came, your ship on the plate
-	# through the wake, the lights through each beat
+	# THE DOCK IN FIVE STEPS (Jon, Oct 20: "the ship should fly in like normal...
+	# have the thrusters fizzle to a low burn... then the station turns on, then
+	# the ship flies in"): the steps as they came, your ship on the plate and its
+	# engines through each, the lights through each
 	var beats: Array[StringName] = []
-	var wake_x: Array[float] = []
-	var wake_y: Array[float] = []
+	var wait_x: Array[float] = []
+	var wait_y: Array[float] = []
 	var power_end_wake := 0.0
 	var warn_end_wake := 0.0
-	# (the station all awake by your ship's first moving frame)
+	# (the station all awake by your ship's first moving frame in)
 	var power_first_move := -1.0
 	var x_parked := INF
+	var x_prev := INF
+	# (the lights on any frame your ship was still moving up to the mouth, or
+	# had not yet stood still a frame)
+	var lit_while_moving := 0.0
+	var fly_moved := 0.0
 	var warn_seen := {}
+	# the engines: the flame on the FLY's first frame, every flame seen once the
+	# SETTLE is done, and the flameout's clip as it was played
+	var thr_fly0 := -9
+	var thr_after := {}
+	var thr_coughs := 0
+	Audio.taping = true
+	Audio.tape.clear()
+	var row := -1
+	var rail_s := {}
+	var first_fly_frame := -1
 	var hall := loc0 != null and loc0._face != null and is_instance_valid(loc0._face)
 	var pan_x: Array[float] = []
 	var edge_off := 0
@@ -157,24 +172,43 @@ func _hull_flies_in(dock_b: Button) -> void:
 			var beat: StringName = (loc0._lad.get("hall", {}) as Dictionary).get("beat", &"")
 			if beat != &"" and (beats.is_empty() or beats[-1] != beat):
 				beats.append(beat)
-			if beat == &"wake":
-				wake_x.append(last.get_center().x)
-				# (its bob on screen, px)
-				var art_w := loc0._view.ship_view()
-				if art_w != null:
-					wake_y.append(art_w.get_global_rect().position.y)
+			var cx := last.get_center().x
+			if row < 0:
+				row = int((loc0._lad.get("hall", {}) as Dictionary).get("row", -1))
+			var art_d := loc0._view.ship_view()
+			var th := art_d._thrust_now() if art_d != null else -9
+			if beat == &"fly":
+				if x_parked == INF:
+					x_parked = cx
+				if thr_fly0 == -9:
+					thr_fly0 = th
+					first_fly_frame = Engine.get_process_frames()
+				fly_moved = maxf(fly_moved, absf(cx - x_parked))
+				if th != ThrusterFx.Thrust.IDLE and th != ThrusterFx.Thrust.FULL:
+					thr_coughs += 1
+			if loc0._face.power > 0.0 and (beat == &"fly" or beat == &"settle" or beat == &"beat"
+					or (beat == &"power" and (x_prev == INF or absf(cx - x_prev) > 0.01))):
+				lit_while_moving = maxf(lit_while_moving, loc0._face.power)
+			if beat == &"settle" and th != ThrusterFx.Thrust.IDLE and th != ThrusterFx.Thrust.FULL:
+				thr_coughs += 1
+			if beat == &"beat" or beat == &"power" or beat == &"enter":
+				thr_after[th] = true
+			if beat == &"settle" or beat == &"beat" or beat == &"power":
+				wait_x.append(cx)
+				if art_d != null:
+					wait_y.append(art_d.get_global_rect().position.y)
+			if beat == &"power":
 				power_end_wake = loc0._face.power
 				warn_end_wake = loc0._face.warn
-				if x_parked == INF:
-					x_parked = last.get_center().x
-			elif beat == &"enter" and power_first_move < 0.0 and absf(last.get_center().x - x_parked) > 0.01:
+			elif beat == &"enter" and power_first_move < 0.0 and not wait_x.is_empty() and absf(cx - wait_x[-1]) > 0.01:
 				power_first_move = loc0._face.power
+			x_prev = cx
 			if beat != &"":
 				warn_seen[int(floorf(loc0._face.warn))] = true
 			if ZoomLadder.busy() and last.size.x > 0.0:
 				# (the arrival, the wait and the way in: three pieces, the wait
 				# no motion at all)
-				var tag := "H" if beat == &"wake" else "L"
+				var tag := "F" if beat == &"fly" else ("L" if beat == &"enter" else "H")
 				track.append([tag, last.get_center().x, loc0._lad_zs])
 			# (behind the front, over the plate, the two in one place)
 			var v := loc0._view
@@ -213,8 +247,12 @@ func _hull_flies_in(dock_b: Button) -> void:
 					edge_off += 1
 			if st._rail != null and not st._lad.is_empty() and st._rail.position.x > float(st._lad.rail_x) - 20.0 					and st._rail.modulate.a > 0.01:
 				rail_out = false
+		# (the elevator's slide, from its first frame: it starts as the yard's
+		# flight lands, while the berth's UI is still arriving)
+		_rail_sample(Router.current as StationScreen, rail_s)
 		if not ZoomLadder.busy() and Router.current is StationScreen:
 			break
+	Audio.taping = false
 	st = Router.current as StationScreen
 	if not _ok("3B DOCK lands in the station", st != null and Router.docked):
 		return
@@ -226,18 +264,37 @@ func _hull_flies_in(dock_b: Button) -> void:
 		_ok("3B: on LOCAL your ship sets off from where it sat (tail at plate x %.0f) and only moves right" % first.position.x,
 			tails.size() > 20 and first.end.x < StationFace.EDGE_X and right)
 		_ok("3B: the station's lights are all on before the pan (power %.2f)" % power, power >= 0.999)
-		_ok("3B: the dock comes in two beats, the station waking then your ship in: %s" % [beats], beats == [&"wake", &"enter"])
+		_ok("3B: the dock comes in five steps, in order -- your ship flies up, its engines settle, a beat, the station powers on, your ship goes in: %s" % [beats],
+			beats == [&"fly", &"settle", &"beat", &"power", &"enter"])
+		_ok("3B FLY: your ship flies up from where it was parked (%.0f plate px) with its engines up (flame %d on the first frame, FULL %d)" % [
+			fly_moved, thr_fly0, ThrusterFx.Thrust.FULL], fly_moved > 40.0 and thr_fly0 == ThrusterFx.Thrust.FULL)
+		var held := wait_x.size()
 		var wx := 0.0
 		var wy := 0.0
-		if not wake_x.is_empty():
-			wx = wake_x.max() - wake_x.min()
-			wy = wake_y.max() - wake_y.min()
-		_ok("3B: your ship waits where it was parked while the station wakes, still but for its bob, a pixel either way on screen (%d frames; it moved %.2f plate px along, %.2f screen px up and down)" % [
-			wake_x.size(), wx, wy], wake_x.size() >= int(ZoomLadder.dock_beats().x * 30.0 * 0.9) and wx < 0.5 and wy <= 2.0 * SectorScreen.WAIT_BOB_PX + 0.01)
-		_ok("3B: the station is all awake (power %.2f at the wake's end, %.2f on your ship's first moving frame) and has cleared it in (warning %.1f) before your ship moves" % [
+		if not wait_x.is_empty():
+			wx = wait_x.max() - wait_x.min()
+			wy = wait_y.max() - wait_y.min()
+		var want := int((ZoomLadder.DOCK_SETTLE_S + ZoomLadder.DOCK_BEAT_S + ZoomLadder.DOCK_POWER_S) * 30.0 * 0.9)
+		_ok("3B: STOPPED before the station lights -- no light on any frame your ship was moving up to the mouth (at most %.2f), and it stands still through the settle, the beat and the power-on but for its bob, a pixel either way on screen (%d frames, at least %d; it moved %.2f plate px along, %.2f screen px up and down)" % [
+			lit_while_moving, held, want, wx, wy], lit_while_moving <= 0.0 and held >= want and wx < 0.5 and wy <= 2.0 * SectorScreen.WAIT_BOB_PX + 0.01)
+		_ok("3B: the thrusters fizzle -- the arrival's coughs as it slows and stops (%d frames), and only the idle burn from the beat on (%s, IDLE %d)" % [
+			thr_coughs, thr_after.keys(), ThrusterFx.Thrust.IDLE], thr_coughs > 0 and thr_after.keys() == [ThrusterFx.Thrust.IDLE])
+		_ok("3B: the LIGHTS UP before your ship moves in -- all on (power %.2f at the power-on's end, %.2f on your ship's first moving frame in) and the warning lights green (%.1f)" % [
 			power_end_wake, power_first_move, warn_end_wake], power_end_wake >= 0.999 and power_first_move >= 0.999 and warn_end_wake >= 2.0)
 		_ok("3B: the warning lights flash while your ship waits and go green before it goes in (%s)" % [warn_seen.keys()],
 			warn_seen.has(1) and warn_seen.has(2))
+		# THE SOUND FOLLOWS THE PICTURE: the flameout's clip cut from the row the
+		# flame flew, at this hull's weight, started on the ship's first moving
+		# frame, and no other thruster sound
+		var clips: Array = []
+		for tp: Array in Audio.tape:
+			if String(tp[6]).begins_with("thruster_"):
+				clips.append([tp[6], int(tp[5]) - first_fly_frame, float(tp[7])])
+		var want_clip := ""
+		if row >= 0:
+			want_clip = String((ShipView.FLAMEOUT_SFX[int(Run.hull.weight)] as Array)[row])
+		_ok("3B: the flameout's clip cut from the row the flame flew (%s) is heard once, from the ship's first moving frame (%s)" % [want_clip, clips],
+			clips.size() == 1 and String(clips[0][0]) == want_clip and absi(int(clips[0][1])) <= 1 and float(clips[0][2]) > ShipView.ARRIVE_LEAD_S)
 		# (seen only in the recess: wholly past its end, inside the hull's rows --
 		# the lips' outer rows, solid on every side, `_front_is_plate_less_recess`
 		# -- all of it, parts and all, is 0 pixels seen)
@@ -281,6 +338,7 @@ func _hull_flies_in(dock_b: Button) -> void:
 	_ok("3B: the yard stands where it always does while the elevator is away (at x %.0f)" % yard_at, not yard_x.is_empty() and not yard_moved)
 	_ok("3B: the yard's hall runs on where the elevator will come in (%d frames without it)" % edge_off, edge_off == 0)
 	_ok("3B: the hull ends on its stands", xs.is_empty() or absf(xs[-1] - berth) < 1.0)
+	await _rail_comes_in(st, rail_s)
 	# SEATED WHERE THE YARD SEATS IT (Jon: "DOCKING IS PERFECT!!!! But the ship
 	# sits too high on the stands"): the landed hull exactly where the yard's own
 	# stand-up (`YardScene._stand`) puts it -- its picture's rect and its ink's
@@ -290,11 +348,105 @@ func _hull_flies_in(dock_b: Button) -> void:
 	var landed := st._mine_view.get_rect() if st._mine_view != null else Rect2()
 	_ok("3B: the landed hull's rect is the yard's own seat (%s, the yard %s)" % [landed, seat],
 		seat.size.x > 1.0 and landed.position.is_equal_approx(seat.position) and landed.size.is_equal_approx(seat.size))
-	var rx := st._rail.position.x if st._rail != null else 0.0
-	await _frames(int(ZoomLadder.ELEVATOR_S * 30.0) + 6)
-	_ok("3B: then the elevator slides in (%.0f -> %.0f)" % [rx, st._rail.position.x if st._rail != null else 0.0],
-		st._rail == null or st._rail.position.x > rx + 20.0)
 	_clean("3B dock")
+
+
+## A PRESS MID-DOCK, the plain version (`ZoomLadder.finish_now`): a key in the
+## FLY lands in the berth at once -- the elevator already in its place, no slide,
+## nothing of the dock left on your ship's engines -- and UNDOCK goes back.
+func _dock_skipped(dock_b: Button) -> void:
+	var loc := Router.current as SectorScreen
+	var art := loc._view.ship_view() if loc != null else null
+	dock_b.pressed.emit()
+	var in_fly := false
+	for i in 120:
+		await _tree.process_frame
+		if loc != null and is_instance_valid(loc) and not loc._lad.is_empty() 				and (loc._lad.get("hall", {}) as Dictionary).get("beat", &"") == &"fly":
+			in_fly = true
+			break
+	var k := InputEventKey.new()
+	k.keycode = KEY_SHIFT
+	k.physical_keycode = KEY_SHIFT
+	k.pressed = true
+	Input.parse_input_event(k)
+	await _frames(1)
+	var u := k.duplicate() as InputEventKey
+	u.pressed = false
+	Input.parse_input_event(u)
+	var n := await _idle()
+	await _frames(2)
+	var st := Router.current as StationScreen
+	_ok("3B: a key in the FLY (%s) lands in the berth at once (%d frames), the elevator in its place with no slide" % [in_fly, n],
+		in_fly and n >= 0 and n <= 3 and st != null and Router.docked and st._rail_slide == null and st._rail_back == null
+			and PanelSlide.live.is_empty())
+	_ok("3B: and nothing of the dock is left on your ship's engines", art == null or not is_instance_valid(art) or art._dock_e < 0.0)
+	_clean("3B dock, skipped")
+	Router.show_sector()
+	await _idle()
+	_ok("3B: UNDOCK after the skipped dock lands on LOCAL", Router.current is SectorScreen and not Router.docked)
+
+
+## THE ELEVATOR, AFTER YOUR SHIP IS IN, LIKE THE GAME'S OTHER PANELS (Jon, Oct
+## 20: "The left panel coming into the station doesn't come in correctly"):
+## it starts only once the yard's flight is done (the yard's `_lad` empty on its first
+## frame), slides as a `PanelSlide` on the panels' curve, in whole pixels, only
+## ever right, carrying its ground (`_RailBack`) with it so the yard's hall is
+## never seen through it nor gone from under it at once; nothing on it takes a
+## click while it moves; and it lands in its place, the hall gone.
+func _rail_comes_in(st: StationScreen, rs: Dictionary) -> void:
+	if st._rail == null:
+		return
+	_ok("3B: the elevator comes in only after your ship is on its stands (its slide's first frame %d, the yard's flight %s)" % [
+		int(rs.get("from", -1)), "still on" if bool(rs.get("lad", true)) else "done"], int(rs.get("from", -1)) >= 0 and not bool(rs.get("lad", true)))
+	var tab0: StringName = st._tab
+	for i in 120:
+		if st._rail_slide == null:
+			break
+		_rail_sample(st, rs)
+		await _tree.process_frame
+	var xs: Array = rs.get("xs", [])
+	var whole := bool(rs.get("whole", true))
+	var right := bool(rs.get("right", true))
+	var ground := bool(rs.get("ground", true))
+	var blocked := bool(rs.get("blocked", true))
+	var n := xs.size()
+	var want := int(ZoomLadder.CALM_SLIDE_S * 30.0)
+	_ok("3B: the elevator slides in as the other panels do, %d frames (%d is `CALM_SLIDE_S`), whole pixels %s, only right %s, from off the view's left (%.0f -> %.0f)" % [
+		n, want, whole, right, xs[0] if n > 0 else 0.0, xs[-1] if n > 0 else 0.0],
+		n >= want - 2 and n <= want + 3 and whole and right and n > 0 and xs[0] < -100.0)
+	_ok("3B: the elevator carries its ground with it, just under it, on every frame it slides", ground and n > 0)
+	_ok("3B: nothing on the elevator takes a click while it slides", blocked and n > 0)
+	var hall_off := st._scene == null or st._scene._edge == null or not st._scene._edge.visible
+	_ok("3B: it lands in its place, on a whole pixel, its ground and the yard's hall in its column gone (x %.1f, hall shown %s)" % [
+		st._rail.get_global_rect().position.x, not hall_off],
+		st._rail_slide == null and st._rail_back == null and st._rail_block == null and hall_off and PanelSlide.live.is_empty()
+			and absf(st._rail.position.x - roundf(st._rail.position.x)) < 0.001 and st._tab == tab0)
+
+
+## One frame of the elevator's slide, if it is sliding, into `rs`: where it is,
+## and whether it is on a whole pixel, only going right, its ground moved with
+## it just under it, and nothing on it clickable.
+func _rail_sample(st: StationScreen, rs: Dictionary) -> void:
+	if st == null or st._rail == null or st._rail_slide == null:
+		return
+	if not rs.has("xs"):
+		rs.xs = []
+		rs.from = Engine.get_process_frames()
+		rs.lad = not st._lad.is_empty()
+	var xs: Array = rs.xs
+	var gx := st._rail.get_global_rect().position.x
+	xs.append(gx)
+	if absf(gx - roundf(gx)) > 0.001:
+		rs.whole = false
+	if xs.size() > 1 and gx < float(xs[-2]) - 0.001:
+		rs.right = false
+	var bk := st._rail_back
+	var under := bk != null and is_instance_valid(bk) and (bk.z_index < st._rail.z_index
+		or (bk.z_index == st._rail.z_index and bk.get_index() == 0) or st._rail.modulate.a <= 0.0)
+	if not under or absf((bk.position.x - st._rail_back_x0) - (st._rail.position.x - st._rail_slide.rest.x)) > 0.001:
+		rs.ground = false
+	if st._rail_block == null or not is_instance_valid(st._rail_block) or st._rail_block.mouse_filter != Control.MOUSE_FILTER_STOP:
+		rs.blocked = false
 
 
 ## 3B, UNDOCKING: the elevator out first, then the hull off to the left; the pan
@@ -1088,7 +1240,11 @@ func _run() -> void:
 	# baked at what he had them on -- a settings file's old `[flow]` is not read)
 	_ok("the move lengths are Jon's (seam 1 %.2f s, UI out %.2f s, the calm camera %.2f s)" % [ZoomLadder.SEAM1_S, ZoomLadder.UI_OUT_S, ZoomLadder.CALM_CAM_S],
 		is_equal_approx(ZoomLadder.SEAM1_S, 1.7) and is_equal_approx(ZoomLadder.UI_OUT_S, 0.22) and is_equal_approx(ZoomLadder.CALM_CAM_S, 0.8)
-		and is_equal_approx(ZoomLadder.DOCK_WAKE_S, 3.0) and is_equal_approx(ZoomLadder.LIGHT_ON, 1.35))
+		and is_equal_approx(ZoomLadder.LIGHT_ON, 1.35))
+	# (the dock on LOCAL, its five steps: readable and not slow, 3 to 5 s in all,
+	# Jon, Oct 20)
+	_ok("the dock's five steps on LOCAL take %.2f s (3 to 5)" % ZoomLadder.dock_approach_s(),
+		ZoomLadder.dock_approach_s() >= 3.0 and ZoomLadder.dock_approach_s() <= 5.0)
 
 	# 4. a fight opened from the map arrives on LOCAL, and its end goes back
 	Router.start_ambush()
@@ -1128,6 +1284,10 @@ func _run() -> void:
 			await _hull_flies_out()
 			loc = Router.current as SectorScreen
 			dock_b = loc.find_child("Dock", true, false) as Button if loc != null else null
+			if dock_b != null:
+				await _dock_skipped(dock_b)
+				loc = Router.current as SectorScreen
+				dock_b = loc.find_child("Dock", true, false) as Button if loc != null else null
 		await _every_side()
 		loc = Router.current as SectorScreen
 		dock_b = loc.find_child("Dock", true, false) as Button if loc != null else null
