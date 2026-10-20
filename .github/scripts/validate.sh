@@ -15,6 +15,34 @@
 # script fails to compile.** It prints the failure and carries on to the next
 # resource. So every check below reads the OUTPUT rather than the exit status,
 # and `run_godot` is the only place that logic lives.
+#
+# STEPS RUN SIDE BY SIDE. Serially the gate took about 42 minutes, nearly all of
+# it Godot runs that wait on nothing but themselves. Each check is a `unit_*`
+# function below, and the scheduler at the bottom runs them:
+#
+#   1. `import` first, alone: nothing compiles without the class cache it writes.
+#   2. the pool, GATE_JOBS at once (default 6, fewer on a machine with fewer
+#      cores), the longest first so the long tail starts early;
+#   3. the SOLO units, one at a time after the pool: the steps that measure
+#      wall-clock time, frame-to-frame motion or threads, which other processes
+#      competing for the CPU could fail for reasons that are not the code's.
+#
+#   GATE_JOBS=1 .github/scripts/validate.sh   # one at a time, in file order
+#
+# Every unit runs in its own subshell with its OWN USER FOLDER: user:// is
+# pointed at a scratch folder per unit (APPDATA on Windows, as tkg/tools/
+# export.sh does; XDG_DATA_HOME and HOME on Linux and macOS), so no two units
+# share settings, hints, saves or harness files, and no unit touches the
+# machine's real profile. Each unit's output is held and printed whole, in file
+# order, so the log reads as it did when the steps ran one after another. The
+# summary lists every FAIL and the time each unit took.
+#
+# ADDING A STEP: write a `unit_<name>() { ... }` function anywhere among the
+# others; it runs in the pool, in its file position for output. The function's
+# name is all the scheduler needs. If the step times anything, add it to
+# SOLO_UNITS; if it is long, give it a weight in `gate_weight` so it starts
+# early. A unit sees only its own variables: anything two units both need is
+# set once at the top of the file, before the units.
 
 set -uo pipefail
 
@@ -28,7 +56,25 @@ mkdir -p "$LOG_DIR"
 FAIL=0
 step()  { printf '\n\033[1m=== %s\033[0m\n' "$1"; }
 ok()    { printf '  \033[32mok\033[0m    %s\n' "$1"; }
-bad()   { printf '  \033[31mFAIL\033[0m  %s\n' "$1"; FAIL=1; }
+# A unit's FAILs are also written to its own list, for the summary at the end.
+bad()   {
+	printf '  \033[31mFAIL\033[0m  %s\n' "$1"; FAIL=1
+	if [ -n "${GATE_UNIT_DIR:-}" ]; then printf '%s\n' "$1" >>"$GATE_UNIT_DIR/fails"; fi
+}
+
+# The interpreter, found once for every unit. In one shell the steps used to
+# hand it on: the audio step's `PY` was what the encounter and prose steps ran.
+# A unit is its own subshell and inherits nothing from the unit before it, so
+# the steps that only READ it get it from here.
+PY=""
+for candidate in python3 python; do
+	if "$candidate" -c "" >/dev/null 2>&1; then
+		PY="$candidate"
+		break
+	fi
+done
+RIPY="$PY"
+VGPY="$PY"
 
 # Anything Godot prints that means a script did not survive. `ERROR:` is in
 # here deliberately: a null dereference at runtime prints one and nothing else,
@@ -51,10 +97,21 @@ ALLOW='^$'
 # outstays its welcome. Not optional — the first script that failed to compile
 # left Godot wedged, and without this a pull request would have sat open for the
 # runner's full six-hour limit instead of failing in three minutes.
+#
+# Under the scheduler the command gets the unit's own user folder (see the top
+# of the file), set on the command itself so the PID polled and killed here is
+# the program's, not a wrapper's. Its PID is written down too, so an
+# interrupted gate can stop every Godot it started.
 run_limited() {
 	local limit="$1"; shift
-	"$@" &
+	if [ -n "${GATE_USER_DIR:-}" ]; then
+		APPDATA="$GATE_APPDATA" HOME="$GATE_USER_DIR" XDG_DATA_HOME="$GATE_USER_DIR/.local/share" \
+			"$@" &
+	else
+		"$@" &
+	fi
 	local pid=$!
+	if [ -n "${GATE_UNIT_DIR:-}" ]; then printf '%s\n' "$pid" >>"$GATE_UNIT_DIR/pids"; fi
 	local waited=0
 	while kill -0 "$pid" 2>/dev/null; do
 		if [ "$waited" -ge "$limit" ]; then
@@ -95,6 +152,7 @@ run_godot() {
 	return 0
 }
 
+unit_tabs() {
 step "Indentation is tabs (Godot requires it)"
 SPACE_INDENTED="$(grep -rln '^ ' --include='*.gd' "$PROJECT" || true)"
 if [ -n "$SPACE_INDENTED" ]; then
@@ -103,20 +161,26 @@ if [ -n "$SPACE_INDENTED" ]; then
 else
 	ok "no space-indented .gd files"
 fi
+}
 
+unit_import() {
 step "Global class cache builds"
 # REQUIRED before anything compiles at all: class_name registration lives in
 # .godot/global_script_class_cache.cfg, which only --import writes, and .godot/
 # is gitignored — so a fresh clone (which is what CI always is) has none.
 run_godot import 420 --headless --path "$PROJECT" --import
+}
 
+unit_boot() {
 step "Project boots and builds its UI"
 # Not the simulator: this path constructs the theme, the HUD and a real screen,
 # so it compiles the UI classes the simulator never touches. `gateboot` is no
 # harness Main knows (it boots as normal) but marks the run as a test, so it
 # reads and writes the harness settings, never the player's settings.cfg.
 run_godot boot 240 --headless --path "$PROJECT" --quit-after 240 -- gateboot
+}
 
+unit_market() {
 step "Market invariant holds and prices round-trip"
 # Two checks the gate had no equivalent of, added with the economy they guard.
 # Both fail SILENTLY in the running game, which is the only reason a check is
@@ -142,7 +206,9 @@ if grep -qE '^=== FAIL' "$LOG_DIR/market.log" 2>/dev/null; then
 	bad "market invariant violated — a part can be bought and melted for profit"
 	grep -E 'BUY-AND-MELT|SELL-BACK' "$LOG_DIR/market.log" | head -n 20 | sed 's/^/        /'
 fi
+}
 
+unit_contracttest() {
 step "Contracts, standing, and the salvage rail's dismissal rule"
 # Three claims, and the middle one is the one no other step can make. `-- market`
 # proves the price invariant at standing zero, which is the only standing it can
@@ -159,7 +225,9 @@ if run_godot contracttest 120 --headless --path "$PROJECT" -- contracttest; then
 			| sed 's/^/        /'
 	fi
 fi
+}
 
+unit_stowtest() {
 step "The salvage rail survives a jump"
 # Driven through the REAL screen, because the rule has been wrong three times
 # and the first of those was not about the rule at all — the flag lived on
@@ -180,7 +248,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 			| sed 's/^/        /'
 	fi
 fi
+}
 
+unit_quittest() {
 step "Leaving a run draws nothing without a ship"
 # QUIT and SAVE & QUIT clear the hull and then swap to the title screen, and the
 # screen they leave is still in the tree for the rest of that frame. The
@@ -197,7 +267,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 			| sed 's/^/        /'
 	fi
 fi
+}
 
+unit_bindtest() {
 step "Key bindings rebind, fire, persist and clash"
 # Every key the game listens for is a binding (`Keys`), and a wrong default
 # moves a key with nobody deciding to. Rebinds through Settings with real key
@@ -215,7 +287,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 			| sed 's/^/        /'
 	fi
 fi
+}
 
+unit_menutest() {
 step "The escape menu still answers after the motion settings change"
 # A menu opened under REDUCED MOTION and closed after it was turned off threw
 # on the animated way out and stayed up, swallowing every click. Headless never
@@ -231,7 +305,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 			| sed 's/^/        /'
 	fi
 fi
+}
 
+unit_devtest() {
 step "Developer mode exists only in the editor"
 # An exported game has no workshop: DevMode.available is the editor binary, so
 # a friend's install gets no switch, no CARDS tab, no tier row, no star chart
@@ -253,7 +329,9 @@ for DEVRUN in devtest devtest_release; do
 		fi
 	fi
 done
+}
 
+unit_holdtest() {
 step "The hold never overlaps itself"
 # Invisible in the data, which is the whole reason it is here. Two parts sharing
 # a cell still add up to a sensible "17 of 28", still save and load, still sell
@@ -267,7 +345,9 @@ if run_godot holdtest 120 --headless --path "$PROJECT" -- holdtest; then
 		grep -E '^  FAIL|^holdtest' "$LOG_DIR/holdtest.log" | head -n 20 			| sed 's/^/        /'
 	fi
 fi
+}
 
+unit_transfertest() {
 step "The container draws what the ship actually holds"
 # THE VIEW, NOT THE MODEL. One bug was reported three times with three different
 # triggers -- a drop, a right-click, a drag that looked refused -- and every time
@@ -282,7 +362,9 @@ if run_godot transfertest 120 --headless --path "$PROJECT" -- transfertest; then
 		grep -E '^  FAIL|^transfertest' "$LOG_DIR/transfertest.log" | head -n 20 | sed 's/^/        /'
 	fi
 fi
+}
 
+unit_cutawaytest() {
 step "The cutaway moves parts by the refit rule"
 # LOCAL's cutaway is a third place a part can be moved and loot claimed, beside
 # the refit screen and the map's SECTOR LOOT. It calls the same rule
@@ -299,7 +381,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 		grep -E '^  FAIL|^cutawaytest' "$LOG_DIR/cutawaytest.log" | head -n 20 | sed 's/^/        /'
 	fi
 fi
+}
 
+unit_subjecttest() {
 step "Every encounter's subject is real art and fits LOCAL"
 # An option's `subject` names pieces of art and how they are staged
 # (`LocalSubject`). A misspelt piece draws nothing and says nothing, and a
@@ -315,7 +399,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 		grep -E '^  FAIL|^subjecttest' "$LOG_DIR/subjecttest.log" | head -n 20 | sed 's/^/        /'
 	fi
 fi
+}
 
+unit_moontest() {
 step "LOCAL's moons keep out of what is staged"
 # The moons of the world you orbit go round it (`LocalLife`). Jon: a moon must
 # never pass over an event's subject, a station or your ship during the dock.
@@ -335,7 +421,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "moontest did not finish"
 fi
+}
 
+unit_dockflytest() {
 step "Leaving a station without UNDOCK leaves nothing of it behind"
 # DOCK only at the station itself (Jon, Oct 18, "dock:A"): at the system's edge
 # and at a world, no DOCK on LOCAL or the map, no station side, and the door
@@ -354,7 +442,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "dockflytest did not finish"
 fi
+}
 
+unit_fightlogtest() {
 step "The fight log is hidden until LOG is pressed, and records all the same"
 # Jon, Oct 18, "fightlog:hidden". From a used settings file: hidden by default,
 # recording while hidden, LOG clicked shows every line and moves nothing that can
@@ -370,7 +460,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "fightlogtest did not finish"
 fi
+}
 
+unit_materialtest() {
 step "Every material is a thing the hold can actually hold"
 # `MaterialTable` authored 64 rows a day before anything could carry one, so its
 # shapes had never met the grid that has to accept them. A row whose `cells`
@@ -386,7 +478,9 @@ if run_godot materialtest 120 --headless --path "$PROJECT" -- materialtest; then
 		grep -E '^  FAIL|^ +refused|^materialtest' "$LOG_DIR/materialtest.log" | head -n 20 | sed 's/^/        /'
 	fi
 fi
+}
 
+unit_content() {
 step "The catalogue export is a shape the manifest can read"
 # NEITHER OF THESE WAS IN THE GATE AT ALL, which is how the export and the page
 # drifted apart in silence. PASSIVE_AXIS values became arrays while the exporter
@@ -402,7 +496,10 @@ if run_godot content 120 --headless --path "$PROJECT" -- content json; then
 	if grep -qE '^content: PASS' "$LOG_DIR/content.log"; then
 		if command -v node >/dev/null 2>&1; then
 			MANIFEST_OUT="$LOG_DIR/manifest.html"
-			if node "$PROJECT/tools/manifest.mjs" "$MANIFEST_OUT" >"$LOG_DIR/manifest.log" 2>&1; then
+			# (the export is in this unit's user folder, so the page is pointed
+			# at the same one: manifest.mjs finds it by APPDATA or the home folder)
+			if APPDATA="${GATE_APPDATA:-${APPDATA:-}}" HOME="${GATE_USER_DIR:-$HOME}" \
+					node "$PROJECT/tools/manifest.mjs" "$MANIFEST_OUT" >"$LOG_DIR/manifest.log" 2>&1; then
 				ok "export and manifest"
 			else
 				bad "the manifest refused the export"
@@ -416,6 +513,9 @@ if run_godot content 120 --headless --path "$PROJECT" -- content json; then
 		grep -E '^  FAIL|^content' "$LOG_DIR/content.log" | head -n 20 | sed 's/^/        /'
 	fi
 fi
+}
+
+unit_attrtest() {
 step "A part moves the gauge its grade promised"
 # The ladder converts a grade into pips, _lay_pips converts pips into whatever
 # raw unit a gauge is kept in, and attr_* converts that back. Two ways the round
@@ -431,6 +531,9 @@ if run_godot attrtest 120 --headless --path "$PROJECT" -- attrtest; then
 			| head -n 20 | sed 's/^/        /'
 	fi
 fi
+}
+
+unit_maptest() {
 step "Every galaxy can be crossed, and every enum still has its labels"
 # NOT GATED UNTIL NOW, which is how MapTest lost its verdict line without
 # anything noticing: it prints four results and nothing was reading them. It
@@ -446,7 +549,9 @@ if run_godot maptest 180 --headless --path "$PROJECT" -- maptest; then
 			| head -n 10 | sed 's/^/        /'
 	fi
 fi
+}
 
+unit_hinttest() {
 step "Each first-run hint shows once, where it belongs"
 # Hints watch the screens for their moment; each must fire once, sit clear of
 # what it points at, never come back, and come back after SHOW HINTS AGAIN.
@@ -465,7 +570,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "hinttest did not finish"
 fi
+}
 
+unit_goaltest() {
 step "The goal line: always the goal, the next step, never over anything"
 # Tutorial direction B (Oct 17): GOAL: REACH THE CORE under the HUD, and the
 # step while one is pending (open STARCHART and jump; click an event and GO),
@@ -483,7 +590,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "goaltest did not finish"
 fi
+}
 
+unit_fueltest() {
 # The 45 tank (Jon, Oct 17: "fuel:A warn:A events:A"): the cap on every write
 # and a refuel's top-up, the event floor and the 45-scale events, the fuel hint
 # at a third of the tank naming the nearest dock in reach (against the test's
@@ -501,7 +610,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "fueltest did not finish"
 fi
+}
 
+unit_ashtest() {
 step "A.S.H. speaks at her moments, within her limits, and never over anything"
 # The ship's AI (Jon and Ashlee, Oct 17; docs/ash.md). Her thirty approved
 # lines, character for character against docs/ash_lines.json; each moment fires
@@ -522,7 +633,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "ashtest did not finish"
 fi
+}
 
+unit_ashtutortest() {
 step "A.S.H. teaches: the hints in her corner, clear of everything, and the cards when she is off"
 # Jon's tutorial A (Oct 17): each first-run hint said in her corner in his
 # words with its subject outlined, the goal steps said as they start, on LOCAL,
@@ -541,7 +654,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "ashtutortest did not finish"
 fi
+}
 
+unit_maplagtest() {
 step "The sector map's worlds keep up with a pan"
 # Each world's picture sits on its place (its ring, label and beacons) on every
 # frame of a pan; an ease that chased the place left it trailing by frames.
@@ -555,7 +670,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "maplagtest did not finish"
 fi
+}
 
+unit_laddertest() {
 step "One camera: every move between chart, map, LOCAL and station lands"
 # Each seam's designs both ways, input mid-move, scroll past a zoom's end, a
 # fight from the map, DOCK/UNDOCK, and the switch off giving a plain swap.
@@ -570,7 +687,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "laddertest did not finish"
 fi
+}
 
+unit_calmladdertest() {
 step "One motion: every hop between LOCAL, the map and the chart is the calm move"
 # Jon's pick A (Oct 17). Every hop by tab, Tab and a rebound key, from a world's
 # orbit and the system's edge, frame by frame at 60 fps: one ship on one
@@ -587,7 +706,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "calmladdertest did not finish"
 fi
+}
 
+unit_sidebartest() {
 step "The side bar never goes blank between distances"
 # Every hop with a side bar at one end (LOCAL, map, chart), frame by frame at
 # 60 fps for every look of the swap: no frame with the side bar empty, a click
@@ -603,7 +724,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "sidebartest did not finish"
 fi
+}
 
+unit_deathpooltest() {
 step "Ships and creatures die the ways Jon kept"
 # Every kept death style reachable, the cut ones (E CHAIN, H SLICE) never
 # played, ships and creatures never crossing, and a won fight's wrecks dying
@@ -619,7 +742,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "deathpooltest did not finish"
 fi
+}
 
+unit_popplacetest() {
 step "Fight numbers sit on the hull's ink, and land above it"
 # Jon, Oct 13 ("Pops: B"): a held card's number centred on the ship's ink both
 # ways; a landing's pops centred across on the ink and wholly above its top.
@@ -635,7 +760,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "popplacetest did not finish"
 fi
+}
 
+unit_hitfxlivetest() {
 step "Hits, block and brace drawn on every ship in a fight"
 # Through the real screen, a pack of three: each ship carries its hit marks, the
 # bubble for block and the plated overlay for brace; every kind of landing
@@ -651,7 +778,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "hitfxlivetest did not finish"
 fi
+}
 
+unit_hulldamagetest() {
 step "Hull damage looks leave no holes"
 # James, a playtester (Oct 17): ships get big holes in them, and ships can't
 # have holes. Jon picked D (A+B+C mixed per hit, `HullHitFx`), the game's; A, B
@@ -671,7 +800,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "hulldamagetest did not finish"
 fi
+}
 
+unit_gameclocktest() {
 step "The bobs run on game time, not the wall's"
 # Jon, Oct 13, of the full fight films: "the hovering animation is REALLY fast".
 # The movie writer steps 1/60 s a frame however long a frame takes to write, so
@@ -690,7 +821,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "gameclocktest did not finish"
 fi
+}
 
+unit_fightopentest() {
 step "A fight opens by easing up out of LOCAL, not with a pop"
 # Jon, Oct 13: "When the enemy ship enters.... the ships pop up and the drawer
 # pops into view.... can we have the opposite of the fight ending screen".
@@ -712,7 +845,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "fightopentest did not finish"
 fi
+}
 
+unit_playerdeathtest() {
 step "Dying: your ship breaks up, a beat on the wreck, then the run's screen"
 # Jon, Oct 13: "When you die... let's have your ship crack and explode... pause
 # for a beat... then the run ended popup shows up." The same fight twice from
@@ -731,7 +866,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "playerdeathtest did not finish"
 fi
+}
 
+unit_corewintest() {
 step "Beating the core's boss: its body looted, then the win screen"
 # Jon, Oct 12: the custodian's body lootable, then a win popup with the death
 # screen's music. ENGAGE at the core, the custodian killed through the real
@@ -749,7 +886,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "corewintest did not finish"
 fi
+}
 
+unit_wreckloottest() {
 step "Each wreck holds its own ship's loot"
 # Jon, Oct 13: "Each ship you kill has a chance to get credits and modules and
 # other parts." Every wreck holds its own template's roll at its own place; the
@@ -767,7 +906,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "wreckloottest did not finish"
 fi
+}
 
+unit_wrecksitetest() {
 step "Each place in a system keeps its own wrecks"
 # Jon, Oct 14: "each planet or POI you can visit should contain its own
 # wrecks/fights." A wreck lies where your ship was when it died (Jetsam.site);
@@ -792,7 +933,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "wrecksitetest did not finish"
 fi
+}
 
+unit_arriveidletest() {
 step "A new run's arrival: the engines sputter to the idle, no highlight"
 # Jon, Oct 13: "I don't want the engines to turn off... I just want them to
 # sputter to an idle. No highlight." LOCAL launched as the hull pick launches
@@ -809,7 +952,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "arriveidletest did not finish"
 fi
+}
 
+unit_banddroptest() {
 step "The event band drops without a jump"
 # It moved up to 29 px a frame on a middle-length event (a cubic ease-in ends at
 # three times its average speed). LOCAL's band opened on the shortest, a middle
@@ -823,7 +968,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 		grep -E 'FAIL' "$LOG_DIR/banddroptest.log" | sed 's/^/        /'
 	fi
 fi
+}
 
+unit_outcometest() {
 step "An event's result says what you end up with"
 # OutcomeRow's six looks (today, A big, B a ledger, C flown to the HUD, D a
 # table over the buttons, E that table and the things you got drawn big) on the
@@ -841,7 +988,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 		grep -E 'FAIL' "$LOG_DIR/outcometest.log" | head -n 12 | sed 's/^/        /'
 	fi
 fi
+}
 
+unit_gradesheet() {
 step "A graded hull keeps its palette"
 # HullGrade bakes each weight's one hull at C, B, A and S (Jon's AB+DEF) and
 # may only use colours the sprite already has, plus the manufacturer's band
@@ -858,7 +1007,9 @@ for wb in light:c medium:a heavy:a; do
 		fi
 	fi
 done
+}
 
+unit_idlesoundtest() {
 step "Your idle engines are heard exactly while the idle flame is seen"
 # Jon, Oct 13: "Let's have a low burn sound for the idle engines". Audio is off
 # headless, but its decision (`Audio.idle_want`) and fade are not: silent
@@ -876,7 +1027,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "idlesoundtest did not finish"
 fi
+}
 
+unit_soundmomenttest() {
 step "October's effects are heard, once, on the frame each picture acts"
 # The free half of the Oct 17 sound plan (`Audio.FX`, one switchable row a
 # moment). Audio is off headless, but while it tapes it makes every decision
@@ -896,7 +1049,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "soundmomenttest did not finish"
 fi
+}
 
+unit_welcometest() {
 step "Jon's welcome note: once per profile, and on the title menu"
 # Opens by itself on a fresh profile's title, word for word and inside the
 # screen; marked seen only when CLOSED; never again after; MESSAGE FROM JON
@@ -915,7 +1070,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "welcometest did not finish"
 fi
+}
 
+unit_yardseattest() {
 step "Every hull sits on its yard stands, centred"
 # Jon: "The ship needs to sit lower. Like actually be on the stands and centered
 # on them." Every hull frame at every grade on every level's stands, measured
@@ -931,7 +1088,9 @@ if run_godot yardseattest 120 --headless --path "$PROJECT" -- sheet=YardSeatTest
 else
 	bad "yardseattest did not finish"
 fi
+}
 
+unit_enemyarttest() {
 step "Every enemy wears Jon's kept ships, and every pack fits"
 # The enemies are kept PixelLab ships (`art/sprites/enemies`, from
 # `tools/enemy_sprites.py`): every kind names one, every picture loads, fits the
@@ -951,7 +1110,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "enemyarttest did not finish"
 fi
+}
 
+unit_fightcounttest() {
 step "Nothing joins a fight"
 # Jon: "No reinforcements anywhere." Every kind, alone and in a pack, over
 # seeded fights at a lawless danger-5 system played to turn 7: the enemy
@@ -967,7 +1128,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "fightcounttest did not finish"
 fi
+}
 
+unit_killholdtest() {
 step "A kill moves nothing"
 # Jon: "The enemy dips down and then pops up after the death animation?" A
 # seeded pack of three (half) and a pair (full size), the first ship killed
@@ -984,7 +1147,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "killholdtest did not finish"
 fi
+}
 
+unit_packlayouttest() {
 step "Nothing in a fight sits on anything else"
 # Jon, on three enemies piled on each other: no ship, wreck, name, hull bar,
 # chips or intent may overlap another enemy's, or yours. Every pair and triple
@@ -1006,7 +1171,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "packlayouttest did not finish"
 fi
+}
 
+unit_oneholetest() {
 step "One black hole at the core, one pulsar at a pulsar"
 # LOCAL's sky draws the system's own star; the encounter's place picture must
 # not draw the core's hole or a pulsar a second time (Jon, Oct 13: "why are
@@ -1021,7 +1188,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "oneholetest did not finish"
 fi
+}
 
+unit_faunatest() {
 step "The Custodian and the megafauna move, and are still for their deaths"
 # FaunaMotion, headless: the cut at full size and from a half sheet, idle,
 # the wind-up, and settle() at rest in four frames on the picture it was cut
@@ -1039,7 +1208,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "faunatest did not finish"
 fi
+}
 
+unit_threadstress() {
 step "Worker threads make no textures, nodes or materials"
 # The fight's off-thread cuts (a creature's or the Custodian's motion, a
 # breakup ahead of a kill, a wreck) run back to back for 20 s while the main
@@ -1056,7 +1227,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "threadstress did not finish"
 fi
+}
 
+unit_localeventtest() {
 step "Every event opens and resolves on LOCAL"
 # The one place a choice is taken now: LOCAL's event band. Every authored
 # option is opened and every choice resolved through it, in all three layouts.
@@ -1070,7 +1243,9 @@ if run_godot localeventtest 300 --headless --path "$PROJECT" -- localeventtest; 
 else
 	bad "localeventtest did not finish"
 fi
+}
 
+unit_optiontest() {
 step "The option table rolls a legal system every time"
 # Also never gated, and it is the only thing checking the content that landed
 # tonight: 42 options, unique ids, every rolled option admitted by its own gate,
@@ -1084,7 +1259,9 @@ if run_godot optiontest 180 --headless --path "$PROJECT" -- optiontest; then
 			| head -n 12 | sed 's/^/        /'
 	fi
 fi
+}
 
+unit_foetagtest() {
 step "An event's fight brings what its text set up"
 # Jon, Oct 17: an event's fight may bring a creature, but only when the text
 # before it is about that creature. Every `foe` tag names a creature, sits on a
@@ -1102,7 +1279,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 else
 	bad "foetagtest did not finish"
 fi
+}
 
+unit_systemtest() {
 step "Every system lays out its map with every option on a body"
 # SystemLayout is derived and never saved, so what it gets wrong is wrong
 # silently: an option with no body is an encounter nobody can click, an
@@ -1117,7 +1296,9 @@ if run_godot systemtest 180 --headless --path "$PROJECT" -- systemtest; then
 			| head -n 12 | sed 's/^/        /'
 	fi
 fi
+}
 
+unit_weathertest() {
 step "The sector map's weather keeps its schedule"
 # The weather's scheduler alone (`SkyWeather`), two hours of every sky at every
 # temperament with no picture: one event at a time, showpieces rare, nothing
@@ -1133,7 +1314,9 @@ if run_godot weathertest 180 --headless --path "$PROJECT" -- weathertest; then
 			| head -n 12 | sed 's/^/        /'
 	fi
 fi
+}
 
+unit_namefit() {
 step "A destination name fits the height the panel reserves for it"
 # The right-hand panel is as tall as its content and the chart shares a row with
 # it, so a name that wraps one line further than the panel reserves moves the
@@ -1148,7 +1331,9 @@ if run_godot namefit 120 --headless --path "$PROJECT" -- namefit; then
 			| head -n 10 | sed 's/^/        /'
 	fi
 fi
+}
 
+unit_chartfilter() {
 step "The chart's filtered view is mostly filtered"
 # An exception that grows until it swallows the rule. Stations are on the
 # chart before you visit them, deliberately, and the range that exception
@@ -1166,6 +1351,9 @@ if run_godot chartfilter 120 --headless --path "$PROJECT" -- chartfilter; then
 			| head -n 20 | sed 's/^/        /'
 	fi
 fi
+}
+
+unit_reactor() {
 step "Every frame launches with a deck it can play"
 # The reactor cap decides how many modules a frame can RUN, and a cap set too
 # low does not produce a small ship â it produces a ship whose every turn is
@@ -1182,7 +1370,9 @@ if run_godot reactor 120 --headless --path "$PROJECT" -- reactor; then
 		grep -E '^  FAIL|THIN|^reactor' "$LOG_DIR/reactor.log" | head -n 20 			| sed 's/^/        /'
 	fi
 fi
+}
 
+unit_mounts() {
 step "Every hull's mounts land on the hull"
 # Cheap, and it guards a failure with no other symptom. The dorsal, ventral and
 # flank lines are measured off ONE image each by art/tools/anchors.py, so
@@ -1198,7 +1388,9 @@ if run_godot mounts 120 --headless --path "$PROJECT" -- mounts; then
 		grep -E '^  FAIL|^mounts' "$LOG_DIR/mounts.log" | head -n 20 			| sed 's/^/        /'
 	fi
 fi
+}
 
+unit_artcheck() {
 step "No sprite is the wrong size for the box it sits in"
 # THE SIZE MISTAKE IS THE INVISIBLE ONE. Everything else about a sprite is
 # visible the moment you look at it; a module eight pixels too wide, or a card
@@ -1219,7 +1411,9 @@ if run_godot artcheck 120 --headless --path "$PROJECT" -- artcheck; then
 			| head -n 20 | sed 's/^/        /'
 	fi
 fi
+}
 
+unit_rooms() {
 step "The shop rooms are the ones Jon laid out"
 # THE ROOMS ARE BAKED, SO THEY CAN GO STALE. `tools/room_install.py` turns the
 # room bench's export into the pictures, layouts and light the game draws, and
@@ -1244,7 +1438,9 @@ if [ -n "$RIPY" ]; then
 else
 	ok "python absent, skipped"
 fi
+}
 
+unit_labs() {
 step "The laboratories are the ones Jon passed"
 # THE LABS ARE BAKED TOO. `tools/lab_install.py` turns the five pictures on the
 # lab stage and their settings (`tools/room_stage/lab/`) into the pictures,
@@ -1262,7 +1458,9 @@ if [ -n "$RIPY" ]; then
 else
 	ok "python absent, skipped"
 fi
+}
 
+unit_yard() {
 step "The yard is the one Jon passed"
 # THE SHIPYARD IS BAKED TOO. `tools/yard_install.py` turns the five halls on the
 # yard stage and everything the Yard Drones page drew (`tools/room_stage/yard/`)
@@ -1280,7 +1478,9 @@ if [ -n "$RIPY" ]; then
 else
 	ok "python absent, skipped"
 fi
+}
 
+unit_enemysprites() {
 step "The enemies' pictures are the ones Jon picked"
 # `tools/enemy_sprites.py` turns Jon's kept pool ships (`tools/art_pool`) into
 # the enemies' pictures: turned to how he judged them, specks and gyro's stand
@@ -1297,7 +1497,9 @@ if [ -n "$RIPY" ]; then
 else
 	ok "python absent, skipped"
 fi
+}
 
+unit_rail() {
 step "The elevator's pictures are the ones Jon picked"
 # `tools/rail_install.py` copies the floor pictures on the rail stage
 # (`tools/room_stage/rail/`) into the game, where `StationSpine` draws them.
@@ -1312,7 +1514,9 @@ if [ -n "$RIPY" ]; then
 else
 	ok "python absent, skipped"
 fi
+}
 
+unit_fittest() {
 step "A part can be moved between the hold and the hull"
 # THE GATE'S BLIND SPOT, CLOSED. This has existed for a long time and never ran
 # here, so it went eight failures deep without anybody hearing -- six of them a
@@ -1338,7 +1542,9 @@ if run_godot fittest 120 --headless --path "$PROJECT" -- fittest; then
 		grep -E '^  FAIL|^fittest' "$LOG_DIR/fittest.log" | head -n 20 			| sed 's/^/        /'
 	fi
 fi
+}
 
+unit_parseall() {
 step "Every script in the project parses"
 # `--check-only` DOES NOT SEE EVERY FILE. CoFightTest.gd sat un-parseable for
 # five days while it reported zero errors, because it only reaches scripts the
@@ -1360,7 +1566,9 @@ if run_godot parseall 180 --headless --path "$PROJECT" -- parseall; then
 		bad "the parse sweep did not finish"
 	fi
 fi
+}
 
+unit_archivetest() {
 step "The archive round-trips, and none of it has become an essay"
 # Half machinery and half STYLE GATE. `docs/lore.md` §5 says an entry is a
 # primary source that fits on one screen, and that is prose — it rots, and its
@@ -1375,7 +1583,9 @@ if run_godot archivetest 120 --headless --path "$PROJECT" -- archivetest; then
 			| sed 's/^/        /'
 	fi
 fi
+}
 
+unit_rngtest() {
 step "Seeded RNG replays, and four machines agree"
 # Neither of these was in the gate, and both guard a rule the codebase leans on
 # hard. `-- rngtest` is what enforces the named-stream rule: draw from the
@@ -1396,6 +1606,9 @@ if run_godot rngtest 120 --headless --path "$PROJECT" -- rngtest; then
 			| sed 's/^/        /'
 	fi
 fi
+}
+
+unit_nettest() {
 # Same exit-time teardown reports as stowtest, and scoped the same way: eight
 # peers in one process end holding the theme's font.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
@@ -1408,7 +1621,9 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 			| sed 's/^/        /'
 	fi
 fi
+}
 
+unit_sim() {
 step "Simulator plays $SIM_RUNS complete runs"
 # The repo's actual regression test. It has already caught an infinite draw
 # loop and a structural map flaw; a balance change that crashes a run shows up
@@ -1434,7 +1649,9 @@ if run_godot sim $((90 + SIM_RUNS * 9)) --headless --path "$PROJECT" -- sim "run
 		tail -n 20 "$LOG_DIR/sim.log" | sed 's/^/        /'
 	fi
 fi
+}
 
+unit_pysyntax() {
 step "Audio generators are valid Python"
 # Syntax only. Rendering needs numpy, scipy and soundfile and writes ~850 MB,
 # which is not what a pull request check is for.
@@ -1461,7 +1678,9 @@ if [ -n "$PY" ]; then
 else
 	ok "python absent, skipped"
 fi
+}
 
+unit_musiclab() {
 step "The music lab still holds together"
 # THE LAB IS THE SOURCE OF THE MUSIC, so it gets checked like source.
 #
@@ -1496,7 +1715,9 @@ if command -v node >/dev/null 2>&1 && [ -d music/tools/node_modules ]; then
 else
 	ok "node or music/tools/node_modules absent, skipped"
 fi
+}
 
+unit_versionguard() {
 step "A shape that changed took its version with it"
 # THE GUARD THE VOCABULARY PASS NEEDED AND DID NOT HAVE. That pass renamed keys
 # in three persistence surfaces and raised none of the numbers guarding them.
@@ -1536,7 +1757,9 @@ if [ -n "$VGPY" ]; then
 else
 	bad "no python for the version guard"
 fi
+}
 
+unit_enclint() {
 step "Encounters follow their own rulings"
 
 # WHY THIS IS A GATE AND NOT A HABIT. Every fault it finds was found by hand
@@ -1562,7 +1785,9 @@ if [ -n "$PY" ]; then
 else
 	warn "no python for the encounter linter"
 fi
+}
 
+unit_prose() {
 step "The prose reads plainly, and does not explain itself"
 
 # Two tools, one question each. `prose_grade.py` holds the encounters to the
@@ -1593,7 +1818,9 @@ if [ -n "$PY" ]; then
 else
 	warn "no python for the prose checks"
 fi
+}
 
+unit_vocab() {
 step "One word for the thing: manufacturer"
 # A VOCABULARY RULING WITH NOTHING CHECKING IT DECAYS BACK. This project spent
 # months with four words for one concept -- house, maker, man, manufacturer --
@@ -1714,6 +1941,267 @@ if [ -z "$VOCAB_DOCS" ]; then
 else
 	bad "retired vocabulary in the docs"
 	printf '%s\n' "$VOCAB_DOCS" | head -n 20 | sed 's/^/        /'
+fi
+}
+
+# =============================================================================
+# THE SCHEDULER. Everything above is a unit; nothing above runs until here.
+# Plain bash 3.2 (a stock macOS), so no associative arrays and no `wait -n`.
+# =============================================================================
+
+# RUN ALONE, after the pool. Each of these measures time, motion from one frame
+# to the next, or threads, so a CPU shared with five other Godots could fail it
+# where the code is fine. Frames are not fixed in any of them (no
+# --fixed-fps), so a starved frame is a longer step of the game too.
+#   maplagtest       a world's picture against its place on every frame of a
+#                    pan; one long frame is a bigger lag
+#   gameclocktest    the bobs read against wall-clock windows of 800 and 400 ms
+#   playerdeathtest  RUN ENDED timed by the wall clock from the break, to 0.1 s
+#                    early and 1 s late
+#   faunatest        the wind-up must lead the shot by 300 ms of wall clock, and
+#                    its cuts run on worker threads (its rare "wrong RID" was a
+#                    thread race)
+#   threadstress     workers racing the main thread for 20 s, each take timed in
+#                    microseconds
+#   sim              forty whole runs, the regression test of last resort; run
+#                    alone so its limit is never spent waiting for a CPU
+SOLO_UNITS="maplagtest gameclocktest playerdeathtest faunatest threadstress sim"
+# Run first and alone, because every other unit needs what it writes: the class
+# cache in .godot/, without which nothing compiles.
+FIRST_UNITS="import"
+
+# Seconds each unit took serially (Oct 20). The pool starts the heaviest first,
+# so the longest runs are never the last to begin. Only the ORDER depends on
+# these; a wrong one costs minutes, never a result. Unlisted units count as 15.
+gate_weight() {
+	case "$1" in
+		packlayouttest) echo 225 ;; laddertest) echo 170 ;; fightcounttest) echo 166 ;;
+		ashtest) echo 133 ;; localeventtest) echo 109 ;; ashtutortest) echo 104 ;;
+		enemyarttest) echo 95 ;; wrecksitetest) echo 80 ;; dockflytest) echo 62 ;;
+		subjecttest) echo 61 ;; outcometest) echo 58 ;; soundmomenttest) echo 57 ;;
+		maptest) echo 53 ;; sidebartest) echo 50 ;; popplacetest) echo 45 ;;
+		cutawaytest) echo 44 ;; gradesheet) echo 44 ;; moontest) echo 40 ;;
+		fightlogtest) echo 38 ;; killholdtest) echo 31 ;; wreckloottest) echo 29 ;;
+		hinttest) echo 28 ;; calmladdertest) echo 28 ;; foetagtest) echo 28 ;;
+		menutest) echo 25 ;; market) echo 24 ;; parseall) echo 24 ;;
+		devtest) echo 22 ;; hulldamagetest) echo 22 ;; fightopentest) echo 22 ;;
+		*) echo 15 ;;
+	esac
+}
+
+GATE_T0=$SECONDS
+GATE_SELF="${BASH_SOURCE[0]}"
+
+# The units, in file order: every `unit_<name>() {` above. Output is printed in
+# this order whatever order they run in. The prefix is the whole registration,
+# so no helper may be named `unit_*` (one was, and ran as a unit, and failed).
+UNITS=()
+for u in $(sed -n 's/^unit_\([A-Za-z0-9_]*\)() {$/\1/p' "$GATE_SELF"); do
+	UNITS+=("$u")
+done
+gate_has_unit() {
+	local u
+	for u in "${UNITS[@]}"; do [ "$u" = "$1" ] && return 0; done
+	return 1
+}
+gate_in() {  # gate_in NAME "LIST OF NAMES"
+	case " $2 " in *" $1 "*) return 0 ;; esac
+	return 1
+}
+# A renamed unit must not quietly lose its place in the order.
+for u in $SOLO_UNITS $FIRST_UNITS; do
+	if ! gate_has_unit "$u" || ! declare -F "unit_$u" >/dev/null; then
+		printf 'validate.sh: SOLO_UNITS or FIRST_UNITS names %s, and there is no unit_%s\n' "$u" "$u" >&2
+		exit 2
+	fi
+done
+
+GATE_CORES="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 6)"
+case "$GATE_CORES" in ''|*[!0-9]*|0) GATE_CORES=6 ;; esac
+if [ -z "${GATE_JOBS:-}" ]; then
+	# Six at once, or one a core where there are fewer (a 4-core CI runner):
+	# more Godots than cores only makes each one slower against its limit.
+	GATE_JOBS=6
+	[ "$GATE_CORES" -lt "$GATE_JOBS" ] && GATE_JOBS="$GATE_CORES"
+fi
+case "$GATE_JOBS" in
+	''|*[!0-9]*|0) printf 'validate.sh: GATE_JOBS must be a whole number, 1 or more (got %s)\n' "$GATE_JOBS" >&2; exit 2 ;;
+esac
+
+# Each unit's held output, its verdict, its Godot PIDs and its user folder. Not
+# LOG_DIR: that is kept, and this is not.
+GATE_TMP="$(mktemp -d)"
+gate_native_path() {
+	case "$(uname -s)" in
+		MINGW*|MSYS*|CYGWIN*) cygpath -w "$1" ;;
+		*) printf '%s\n' "$1" ;;
+	esac
+}
+
+RUN_PIDS=()
+RUN_NAMES=()
+RUN_COUNT=0
+
+start_unit() {
+	local u="$1"
+	local d="$GATE_TMP/$u"
+	mkdir -p "$d/u"
+	local appdata
+	appdata="$(gate_native_path "$d/u")"
+	(
+		GATE_UNIT_DIR="$d"
+		GATE_USER_DIR="$d/u"
+		GATE_APPDATA="$appdata"
+		FAIL=0
+		t0=$SECONDS
+		"unit_$u"
+		printf '%s %s\n' "$FAIL" "$((SECONDS - t0))" >"$d/verdict"
+	) >"$d/out" 2>&1 </dev/null &
+	RUN_PIDS[$RUN_COUNT]=$!
+	RUN_NAMES[$RUN_COUNT]="$u"
+	RUN_COUNT=$((RUN_COUNT + 1))
+}
+
+# Print every finished unit's output that is next in file order.
+GATE_NEXT_OUT=0
+flush_output() {
+	local u
+	while [ "$GATE_NEXT_OUT" -lt "${#UNITS[@]}" ]; do
+		u="${UNITS[$GATE_NEXT_OUT]}"
+		[ -e "$GATE_TMP/$u/done" ] || break
+		cat "$GATE_TMP/$u/out"
+		GATE_NEXT_OUT=$((GATE_NEXT_OUT + 1))
+	done
+}
+
+# Collect every unit that has ended; keep the rest.
+reap_units() {
+	local i n=$RUN_COUNT kept=0
+	local -a kp kn
+	for ((i = 0; i < n; i++)); do
+		if kill -0 "${RUN_PIDS[$i]}" 2>/dev/null; then
+			kp[$kept]="${RUN_PIDS[$i]}"
+			kn[$kept]="${RUN_NAMES[$i]}"
+			kept=$((kept + 1))
+		else
+			wait "${RUN_PIDS[$i]}" 2>/dev/null
+			: >"$GATE_TMP/${RUN_NAMES[$i]}/done"
+		fi
+	done
+	RUN_PIDS=()
+	RUN_NAMES=()
+	for ((i = 0; i < kept; i++)); do
+		RUN_PIDS[$i]="${kp[$i]}"
+		RUN_NAMES[$i]="${kn[$i]}"
+	done
+	RUN_COUNT=$kept
+	flush_output
+}
+
+# run_phase MAX UNIT... : run the units in the order given, MAX at a time.
+run_phase() {
+	local max="$1"; shift
+	local u
+	for u in "$@"; do
+		while [ "$RUN_COUNT" -ge "$max" ]; do
+			if [ "$max" -eq 1 ]; then wait "${RUN_PIDS[0]}" 2>/dev/null; fi
+			reap_units
+			[ "$RUN_COUNT" -ge "$max" ] && sleep 0.5
+		done
+		start_unit "$u"
+	done
+	while [ "$RUN_COUNT" -gt 0 ]; do
+		if [ "$max" -eq 1 ]; then wait "${RUN_PIDS[0]}" 2>/dev/null; fi
+		reap_units
+		[ "$RUN_COUNT" -gt 0 ] && sleep 0.5
+	done
+}
+
+# Interrupted: stop every unit, then every Godot one started (a killed subshell
+# leaves its children running), and keep nothing but LOG_DIR.
+gate_stop() {
+	trap - INT TERM
+	printf '\nvalidate.sh: interrupted, stopping every unit and its Godot\n' >&2
+	local i p f
+	for ((i = 0; i < RUN_COUNT; i++)); do kill -9 "${RUN_PIDS[$i]}" 2>/dev/null; done
+	for f in "$GATE_TMP"/*/pids; do
+		[ -f "$f" ] || continue
+		while read -r p; do kill -9 "$p" 2>/dev/null; done <"$f"
+	done
+	exit 130
+}
+gate_cleanup() {
+	if [ -n "${GATE_TMP:-}" ] && [ -d "$GATE_TMP" ]; then rm -rf "$GATE_TMP"; fi
+}
+trap gate_stop INT TERM
+trap gate_cleanup EXIT
+
+if [ "$GATE_JOBS" -eq 1 ]; then
+	# The old gate: one at a time, in file order, nothing moved.
+	run_phase 1 "${UNITS[@]}"
+else
+	GATE_FIRST=()
+	GATE_SOLO=()
+	GATE_POOL=()
+	i=0
+	for u in "${UNITS[@]}"; do
+		if gate_in "$u" "$FIRST_UNITS"; then
+			GATE_FIRST+=("$u")
+		elif gate_in "$u" "$SOLO_UNITS"; then
+			GATE_SOLO+=("$u")
+		else
+			# heaviest first; file order among equals
+			GATE_POOL+=("$(gate_weight "$u") $i $u")
+		fi
+		i=$((i + 1))
+	done
+	GATE_POOL_ORDER=()
+	while read -r _w _i u; do
+		GATE_POOL_ORDER+=("$u")
+	done < <(printf '%s\n' "${GATE_POOL[@]}" | sort -k1,1nr -k2,2n)
+	run_phase 1 "${GATE_FIRST[@]}"
+	run_phase "$GATE_JOBS" "${GATE_POOL_ORDER[@]}"
+	run_phase 1 "${GATE_SOLO[@]}"
+fi
+flush_output
+
+# The verdicts, the times, and every FAIL by its unit.
+gate_mmss() { printf '%d:%02d' "$(($1 / 60))" "$(($1 % 60))"; }
+GATE_WALL=$((SECONDS - GATE_T0))
+GATE_SUM=0
+GATE_FAILS=""
+printf '\n\033[1m=== Time per unit\033[0m\n'
+for u in "${UNITS[@]}"; do
+	d="$GATE_TMP/$u"
+	tag=""
+	gate_in "$u" "$FIRST_UNITS" && tag="  (first, alone)"
+	gate_in "$u" "$SOLO_UNITS" && tag="  (solo)"
+	if [ -f "$d/verdict" ]; then
+		read -r ufail usecs <"$d/verdict"
+		GATE_SUM=$((GATE_SUM + usecs))
+		printf '  %6s  %s%s\n' "$(gate_mmss "$usecs")" "$u" "$tag"
+		if [ "$ufail" != 0 ]; then
+			FAIL=1
+			if [ -s "$d/fails" ]; then
+				while IFS= read -r line; do
+					GATE_FAILS="$GATE_FAILS  $u: $line"$'\n'
+				done <"$d/fails"
+			else
+				GATE_FAILS="$GATE_FAILS  $u: failed"$'\n'
+			fi
+		fi
+	else
+		FAIL=1
+		printf '  %6s  %s%s\n' "-" "$u" "$tag"
+		GATE_FAILS="$GATE_FAILS  $u: ended without a verdict (the unit itself broke; see its output above)"$'\n'
+	fi
+done
+printf '  wall %s with %d at once; the units add up to %s\n' \
+	"$(gate_mmss "$GATE_WALL")" "$GATE_JOBS" "$(gate_mmss "$GATE_SUM")"
+
+if [ -n "$GATE_FAILS" ]; then
+	printf '\n\033[1m=== Failed\033[0m\n'
+	printf '%s' "$GATE_FAILS" | sed "s/^  /  $(printf '\033[31m')FAIL$(printf '\033[0m')  /"
 fi
 
 printf '\n'
