@@ -113,8 +113,21 @@ does not run.
 godot                                          # then F5
 godot --headless --path . --import             # REQUIRED after any new class_name,
                                                # and once on a fresh clone
-.github/scripts/validate.sh                    # the merge gate, from the repo root
+.github/scripts/validate.sh                    # the merge gate, from the repo root:
+                                               # ~10 min, six steps at once
+GATE_JOBS=1 .github/scripts/validate.sh        # the same gate one step at a time (~45 min)
 ```
+
+**The gate runs its steps side by side.** Each step is a `unit_<name>()` function in
+`validate.sh`; `import` runs first and alone, then a pool of `GATE_JOBS` (default 6)
+longest first, then the `SOLO_UNITS` one at a time: the steps that time something
+against the wall clock, measure motion frame to frame without `--fixed-fps`, or race
+threads (`maplagtest`, `gameclocktest`, `playerdeathtest`, `faunatest`,
+`threadstress`, the sim). Every unit gets its own user folder (`APPDATA` on Windows,
+`XDG_DATA_HOME`/`HOME` elsewhere), so user:// is never shared between steps and never
+the real profile; output prints whole per step in file order, then each step's time and
+every FAIL. A new gated harness is a new `unit_` function; if it times anything, it
+goes in `SOLO_UNITS`.
 
 | Command | Run it after |
 |---|---|
