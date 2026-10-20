@@ -484,6 +484,11 @@ func _commit(skipped: bool) -> void:
 	Router.commit_jump(to, skipped)
 
 ## The system announcing itself, then the ship arriving into it.
+## Your ship's idle bob once an arrival has brought it to rest (source px):
+## a system's arrival and the dock's, which is the same arrival (`_dock_arrival`).
+const ARRIVE_BOB := 2
+
+
 func _begin_arrive() -> void:
 	_phase = Phase.ARRIVE
 	_hold_outline()
@@ -500,7 +505,7 @@ func _begin_arrive() -> void:
 	# later instead would leave the ship sitting at its mooring through the card.
 	# And the drive's lead-in on top: the ship moves ARRIVE_LEAD_S after its sound
 	# starts. See ShipView.ARRIVE_LEAD_S.
-	var clip := art.arrive(2, CARD_TOTAL + ShipView.ARRIVE_LEAD_S)
+	var clip := art.arrive(ARRIVE_BOB, CARD_TOTAL + ShipView.ARRIVE_LEAD_S)
 	_card = _build_name_card(Run.node_at())
 	add_child(_card)
 
@@ -2745,7 +2750,7 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 		var berth := Vector2(StationFace.TAIL_IN + len_end * 0.5, StationFace.ROW)
 		# (docking: LOCAL is the screen being left; undocking it is the one coming)
 		var inward := ZoomLadder.active == null or ZoomLadder.active.old == self
-		# WHERE THE FLY STOPS (docking, `ZoomLadder.DOCK_HOLD_PX`): the fraction of
+		# WHERE THE ARRIVAL STOPS (docking, `ZoomLadder.DOCK_HOLD_PX`): the fraction of
 		# the way to the berth at which your ship's nose is that far short of the
 		# lips, on the same path and the same shrink with depth the approved dock
 		# flew (so it passes the lips at the size the mouth was cut for)
@@ -2775,7 +2780,7 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 		_lad["hall"] = {"xf": xf0, "o": _face.origin(),
 			"right": _view.get_global_rect().end.x, "vc": _view.get_global_rect().get_center(), "s_end": s_end,
 			"berth": berth, "start": start, "path": absf(berth.x - start.x), "inward": inward, "beat": &"",
-			"hold": hold, "dip_s": dip_s, "row": randi() % ShipView.FLAMEOUTS.size(), "heard": false}
+			"hold": hold, "dip_s": dip_s, "heard": false}
 	# 2C, LEAVING for the map (no meeting point: this is the screen being left):
 	# the world you orbit carried in its own picture, as the map's is carried in
 	if smooth and meet.is_empty() and other == ZoomLadder.MAP and sky != null and is_instance_valid(sky) \
@@ -2808,36 +2813,34 @@ func ladder_cam(k: float) -> void:
 	var hall_fly := hk * hk
 	var follow := clampf((hk - HALL_FOLLOW) / (1.0 - HALL_FOLLOW), 0.0, 1.0)
 	follow = follow * follow * (3.0 - 2.0 * follow)
-	var bob := 0.0
 	var beat := &""
 	if not hall.is_empty() and bool(hall.get("inward", true)):
-		# DOCKING, IN FIVE STEPS (`ZoomLadder.dock_steps`; Jon, Oct 20: "the ship
-		# should fly in like normal... have the thrusters fizzle to a low burn...
-		# then the station turns on, then the ship flies in"): k is the whole
-		# approach's clock, linear. The camera holds still until the ENTER.
+		# DOCKING, IN FIVE STEPS (`ZoomLadder.dock_steps`; Jon, Oct 20: "I want
+		# the ship to enter the screen like it does for the first sector"): k is
+		# the whole approach's clock, linear. The camera holds still until the
+		# ENTER; your ship's own arrival is stepped on this clock (below).
 		var t := hk * ZoomLadder.dock_approach_s()
 		var su := ZoomLadder.dock_step_at(t)
 		var step := int(su.x)
 		var u := su.y
 		var hold := float(hall.get("hold", 0.0))
 		var ue := 0.0
+		var blk := 0.0
 		kc = 0.0
 		follow = 0.0
 		hall_fly = hold
 		if step == 0:
-			# 1. FLY: from where it was parked up to the mouth, engines up, the
-			# way an arrival flies in, slowing to a stop short of the lips
-			beat = &"fly"
-			hall_fly = hold * ZoomLadder.herm(u, 0.0, 0.0)
+			# 1. CUT: LOCAL down to black, your ship still at its mooring
+			beat = &"cut"
+			blk = ZoomLadder._ease(u)
+		elif step == 1:
+			# 2. ARRIVE: up from black, and the arrival itself flies it in
+			beat = &"arrive"
+			blk = 1.0 - ZoomLadder._ease((t - ZoomLadder.dock_step_from(1)) / maxf(ZoomLadder.FADE_IN_S, 0.001))
 		elif step <= 3:
-			# 2-4. STOPPED at the mouth, still but for its bob: the engines
-			# sputter down to the idle (SETTLE), a breath (BEAT), and the station
-			# powers up to meet it (POWER)
-			beat = [&"settle", &"beat", &"power"][step - 1]
-			var w0 := ZoomLadder.dock_step_from(1)
-			var wn := ZoomLadder.dock_step_from(4) - w0
-			var uw := clampf((t - w0) / maxf(wn, 0.001), 0.0, 1.0)
-			bob = roundf(sin(TAU * 0.45 * (t - w0)) * sin(PI * uw)) * WAIT_BOB_PX
+			# 3-4. AT THE MOUTH, idling: a breath (BEAT), and the station powers
+			# up to meet it (POWER)
+			beat = [&"beat", &"power"][step - 2]
 		else:
 			# 5. THEN IN, ONE MOVE: from the mouth, slowly at first, gathering
 			# speed down the hallway and on into the hull, still at speed as it
@@ -2850,7 +2853,10 @@ func ladder_cam(k: float) -> void:
 			follow = clampf((ue - HALL_FOLLOW) / (1.0 - HALL_FOLLOW), 0.0, 1.0)
 			follow = follow * follow * (3.0 - 2.0 * follow)
 		hall["beat"] = beat
+		hall["step"] = step
 		hall["t"] = t
+		hall["t_arrive"] = t - ZoomLadder.dock_step_from(1)
+		hall["black"] = clampf(blk, 0.0, 1.0)
 		hall["u_power"] = 0.0 if step < 3 else (u if step == 3 else 1.0)
 		hall["u_enter"] = ue
 	var zs := pow(float(_lad.zs1), kc)
@@ -2916,16 +2922,18 @@ func ladder_cam(k: float) -> void:
 		var fly := eq if not deep else clampf(q * 1.25, 0.0, 1.0)
 		fly = fly * fly * (3.0 - 2.0 * fly)
 		if deep and not hall.is_empty():
-			# FROM WHERE IT SITS, slowly at first, down the hallway and on into the
-			# hull, still at speed as it goes in (`hall_fly`, one curve)
 			fly = hall_fly
 			var berth := slot.get_global_transform().affine_inverse() * _face.plate_g(hall.berth)
-			art.position = (ship.pos as Vector2).lerp(berth - (ship.mid as Vector2), fly)
-			# (the bob a whole pixel on screen, up and down)
-			art.position.y += bob / maxf(slot.get_global_transform().get_scale().y, 0.001)
-			art.scale = (ship.scale as Vector2) * lerpf(1.0, float(hall.s_end), fly)
-			if bool(hall.get("inward", true)):
-				_dock_engines(art, hall)
+			var p0: Vector2 = ship.pos
+			var p1: Vector2 = berth - (ship.mid as Vector2)
+			var docking := bool(hall.get("inward", true))
+			if docking and int(hall.get("step", 0)) <= 1:
+				_dock_arrival(art, hall, p0, p1)
+			else:
+				# FROM THE MOUTH (docking) or the bay (undocking), down the hallway
+				# (`hall_fly`, one curve)
+				art.position = p0.lerp(p1, fly)
+				art.scale = (ship.scale as Vector2) * lerpf(1.0, float(hall.s_end), fly)
 		else:
 			art.position = (ship.pos as Vector2).lerp(ring - (ship.mid as Vector2) + (Vector2(24, 0) if deep else Vector2.ZERO), fly)
 			art.scale = (ship.scale as Vector2) * lerpf(1.0, 0.62 if deep else 0.2, fly)
@@ -2943,28 +2951,55 @@ func ladder_dip_s() -> float:
 	return float(hall.get("dip_s", ZoomLadder.DOCK_DIP_S))
 
 
-## THE DOCK'S ENGINES (docking, every frame of the approach): the arrival's own
-## flameout row (`ShipView.FLAMEOUTS`), run at its own speed and placed so its
-## stutter ends as the SETTLE step does -- the clean burn through the FLY, the
-## coughs as it slows and stops, then the idle it keeps on in -- and the clip
-## cut from that row, at your hull's weight, started on the ship's first moving
-## frame at the point in it that frame is (`Audio.ship_flight`'s way), so the
-## coughs heard are the coughs seen.
-func _dock_engines(art: ShipView, hall: Dictionary) -> void:
-	var row := int(hall.get("row", 0))
-	var spans: Array = ShipView.FLAMEOUTS[row]
-	var y0 := (spans[0] as Vector2).y
-	var y1 := (spans[-1] as Vector2).y
-	var arr_s := ShipView.ARRIVE_MS / 1000.0
-	var t := float(hall.get("t", 0.0))
-	var cut := ZoomLadder.dock_step_from(2) - (y1 - y0) * arr_s
-	var e := maxf(0.0, y0 + (t - cut) / arr_s)
-	art.dock_flame(e, row)
-	if not bool(hall.get("heard", false)) and t > 0.0:
+## Docking: LOCAL's own black for the CUT (0 none, 1 all), which the ladder
+## draws (`ZoomLadder`'s pre-roll).
+func ladder_black() -> float:
+	var hall: Dictionary = _lad.get("hall", {})
+	if hall.is_empty() or not bool(hall.get("inward", true)):
+		return 0.0
+	return float(hall.get("black", 0.0))
+
+
+## THE DOCK'S ENTRANCE IS THE ARRIVAL (Jon, Oct 20: "I want the ship to enter
+## the screen like it does for the first sector"). Under the CUT's black your
+## ship stays at its mooring; on the ARRIVE's first frame it is handed to
+## `ShipView.arrive` -- LOCAL's own call (`_begin_arrive`: `ARRIVE_BOB`, its drive
+## heard `ARRIVE_LEAD_S` before it moves, the clip it returns played with it) --
+## sent to rest in front of the station's mouth (`to_x`, the hold point on the
+## dock's path) instead of at its mooring, and stepped on the ladder's clock
+## (`arrive_step`), so its approach from off the left edge, its flameout down to
+## the idle and its drift are the arrival's own, frame for frame. Only what the
+## arrival does not do is done here: once the ship is past its mooring, the
+## dock's path drops it by the rows the path does and shrinks it with the depth
+## as the approved dock did, so it reaches the lips at the size the mouth was
+## cut for and the ENTER carries on from exactly where it stopped.
+func _dock_arrival(art: ShipView, hall: Dictionary, p0: Vector2, p1: Vector2) -> void:
+	var ship: Dictionary = _lad.ship
+	if int(hall.get("step", 0)) == 0:
+		art.position = p0
+		art.scale = ship.scale
+		return
+	if not bool(hall.get("heard", false)):
 		hall["heard"] = true
-		var clip := art.dock_flame_clip(row)
+		var run := p1.x - p0.x
+		var to_x := int(roundf(lerpf(p0.x, p1.x, float(hall.get("hold", 0.0)))))
+		# (the hold made whole: the ENTER sets off from the pixel it stopped on)
+		if absf(run) > 0.5:
+			hall["hold"] = clampf((float(to_x) - p0.x) / run, 0.0, 1.0)
+		art.position = p0
+		art.scale = ship.scale
+		var clip := art.arrive(ARRIVE_BOB, ShipView.ARRIVE_LEAD_S, to_x)
+		art.arrive_driven = true
 		hall["clip"] = clip
-		Audio.play(clip, 0.0, 0, 0.0, 1.0, maxf(0.0, ShipView.ARRIVE_LEAD_S + e * arr_s), true)
+		hall["to_x"] = to_x
+		Audio.play(clip, 0.0)
+	art.arrive_step(float(hall.get("t_arrive", 0.0)))
+	var run2 := p1.x - p0.x
+	var f := 0.0
+	if absf(run2) > 0.5:
+		f = clampf((art.position.x - p0.x) / run2, 0.0, float(hall.get("hold", 0.0)))
+	art.position.y = lerpf(p0.y, p1.y, f)
+	art.scale = (ship.scale as Vector2) * lerpf(1.0, float(hall.s_end), f)
 
 
 ## THE HALLWAY'S TIMING, as fractions of the approach (`ZoomLadder.DOCK_APPROACH_S`):
@@ -2977,8 +3012,6 @@ const HALL_FOLLOW := 0.5
 ## `WAKE_POWER_BY` of the POWER step, and the warning lights go green at
 ## `WARN_CLEAR` of it. Undocking, the station stays lit until your ship is `UNDOCK_LIT_TO` of
 ## its way back out.
-## your ship's bob while it waits, screen px either way (whole pixels)
-const WAIT_BOB_PX := 1.0
 const WAKE_POWER_BY := 0.85
 const WARN_CLEAR := 0.86
 const UNDOCK_LIT_TO := 0.35
@@ -3053,11 +3086,15 @@ func ladder_cam_end() -> void:
 		art.position = ship.pos
 		art.scale = ship.scale
 		art.pivot_offset = ship.pivot
+		# (an arrival cut short -- a press mid-dock -- parked where it was going)
+		if art.arrive_driven:
+			art.park()
+		art.position = ship.pos
+		art.scale = ship.scale
 		art.visible = true
-		art.dock_flame(-1.0, 0)
-	# (a dock ended before its engines had settled -- a press, or the berth
-	# taken some other way -- takes the flameout's clip with it: the sound follows
-	# the picture, and the picture has gone)
+	# (a dock ended before its arrival had -- a press, or the berth taken some
+	# other way -- takes the arrival's clip with it: the sound follows the
+	# picture, and the picture has gone)
 	var hall_e: Dictionary = _lad.get("hall", {})
 	if hall_e.has("clip") and float(hall_e.get("t", 0.0)) < ZoomLadder.dock_step_from(2):
 		var hn: Array[StringName] = [hall_e.clip as StringName]

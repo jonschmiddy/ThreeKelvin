@@ -256,6 +256,14 @@ var _arrive_bob: int = 2
 ## How far left of its resting place the ship starts, in screen pixels. Measured
 ## on the first tick, once layout has actually happened.
 var _arrive_span: int = 0
+## Where the approach comes to rest (`arrive`'s `to_x`), and when it was asked
+## for (ms, the arrival's own clock).
+var _arrive_to: int = 0
+var _arrive_from: int = 0
+## THE APPROACH STEPPED BY ITS OWNER (the dock, on the ladder's clock: a film or
+## a harness steps that clock, and the two must not drift apart): `_process`
+## leaves it alone, and `arrive_step` runs the very same tick.
+var arrive_driven := false
 
 ## Fly in, then idle. Safe on a view that is already parked.
 ##
@@ -267,10 +275,16 @@ var _arrive_span: int = 0
 ## the drive plays the one cut from this row at this hull's weight. A caller
 ## with no sound to play ignores it — and a convoy still gets four different
 ## patterns, which is the one place the variation is free.
-func arrive(bob_amp: int = 2, delay: float = 0.0) -> StringName:
+##
+## `to_x` is where it comes to rest, its own `position.x` (0, its mooring, for
+## every arrival but the dock's: `SectorScreen.ladder_cam` sends it to the
+## station's mouth -- the same approach, flameout and drift, ending there).
+func arrive(bob_amp: int = 2, delay: float = 0.0, to_x: int = 0) -> StringName:
 	_flameout = randi() % FLAMEOUTS.size()
 	_arrive_bob = maxi(0, bob_amp)
-	_arrive_at = GameClock.now_ms() + int(maxf(0.0, delay) * 1000.0)
+	_arrive_from = GameClock.now_ms()
+	_arrive_at = _arrive_from + int(maxf(0.0, delay) * 1000.0)
+	_arrive_to = to_x
 	_arrive_dx = 0
 	_arrive_span = 0
 	_bob_amp = 0
@@ -333,7 +347,7 @@ func _process(_delta: float) -> void:
 		return
 	var t := shot_clock if shot_clock >= 0.0 else GameClock.now()
 	var dirty := false
-	if _arrive_at >= 0 and _tick_arrival():
+	if _arrive_at >= 0 and not arrive_driven and _tick_arrival():
 		dirty = true
 	if _depart_at >= 0 and _tick_departure():
 		dirty = true
@@ -820,7 +834,16 @@ func refresh() -> void:
 ## here, because that is the shader's job now and the modules are their own
 ## sprites. See shaders/heat.gdshader.
 ## One step of the fly-in. Returns whether the canvas needs repainting.
-func _tick_arrival() -> bool:
+## The approach `t` s after `arrive` was called, on the caller's clock (with
+## `arrive_driven`): the same tick as every arrival's.
+func arrive_step(t: float) -> void:
+	if _arrive_at >= 0 and _tick_arrival(_arrive_from + int(roundf(maxf(0.0, t) * 1000.0))):
+		refresh()
+
+
+func _tick_arrival(now: int = -1) -> bool:
+	if now < 0:
+		now = GameClock.now_ms()
 	# The span is taken once, on the first tick that has a real layout: far
 	# enough left that the ship's trailing edge starts off the SCREEN, not off
 	# its own texture. Sliding inside the canvas was the bug — the canvas is only
@@ -835,18 +858,20 @@ func _tick_arrival() -> bool:
 	# Still waiting its turn. Held off screen rather than parked at rest, so a
 	# staggered convoy does not show three ships standing still while the first
 	# one flies in.
-	if GameClock.now_ms() < _arrive_at:
+	if now < _arrive_at:
 		return false
 
-	var e := float(GameClock.now_ms() - _arrive_at) / ARRIVE_MS
+	var e := float(now - _arrive_at) / ARRIVE_MS
 	if e >= 1.0:
+		var to := _arrive_to
 		park()
+		position.x = float(to)
 		return true
 
 	var dirty := false
 	# Ease-out cubic: it arrives with speed and gives it all up to the drift.
 	var p := 1.0 - pow(1.0 - e, 3.0)
-	var dx := int(round(lerpf(float(-_arrive_span), 0.0, p)))
+	var dx := int(round(lerpf(float(-_arrive_span), float(_arrive_to), p)))
 	if dx != _arrive_dx:
 		_arrive_dx = dx
 		position.x = float(dx)
@@ -1200,6 +1225,8 @@ func _unhide_arrival() -> void:
 func park() -> void:
 	_unhide_arrival()
 	_arrive_at = -1
+	_arrive_to = 0
+	arrive_driven = false
 	_arrive_dx = 0
 	_arrive_span = 0
 	_depart_at = -1
@@ -1214,40 +1241,6 @@ func park() -> void:
 	_arrive_window = -1
 	_engines_off = false
 	_bob_amp = _arrive_bob
-
-## THE DOCK'S APPROACH, ITS ENGINES (Jon, Oct 20: "the ship should fly in like
-## normal... have the thrusters fizzle to a low burn... then the station turns
-## on, then the ship flies in"): `SectorScreen.ladder_cam` flies the hull up to
-## the station's mouth itself, and hands in here the arrival's own flame at `e`
-## of an arrival's progress on flameout row `row` -- the clean burn, the
-## stutter, then the idle it keeps -- so the dock's flame is the arrival's, and
-## the clip cut from that row plays under it in step (`dock_flame_clip`).
-## `e` < 0 gives the engines back (the idle, or whatever they were doing).
-var _dock_e := -1.0
-var _dock_row := 0
-
-
-func dock_flame(e: float, row: int) -> void:
-	_dock_e = e
-	_dock_row = clampi(row, 0, FLAMEOUTS.size() - 1)
-
-
-## The window of row `row` that `e` is in, or -1 (`_flame_window`'s rule).
-static func flame_window_of(row: int, e: float) -> int:
-	var spans: Array = FLAMEOUTS[clampi(row, 0, FLAMEOUTS.size() - 1)]
-	for i in spans.size():
-		var span: Vector2 = spans[i]
-		if e >= span.x and e < span.y:
-			return i
-	return -1
-
-
-## The clip cut from row `row`, at this hull's weight (what `arrive` returns).
-func dock_flame_clip(row: int) -> StringName:
-	var hull := _hull()
-	var w := int(hull.weight) if hull != null else int(HullData.Weight.MEDIUM)
-	return (FLAMEOUT_SFX[w] as Array)[clampi(row, 0, FLAMEOUTS.size() - 1)]
-
 
 ## Engines guttering out rather than switching off. The whole answer is in the
 ## row: the flame is lit while the approach is inside one of its spans, and the
@@ -1751,8 +1744,6 @@ func _thrust_now() -> int:
 	var h := _hull()
 	if h == null or not h.has_exhaust() or h.sprite == null:
 		return -1
-	if _dock_e >= 0.0:
-		return arrive_thrust(flame_window_of(_dock_row, _dock_e))
 	if _arrive_at >= 0:
 		return arrive_thrust(_arrive_window if _burning else -1)
 	if _burning:
@@ -1786,7 +1777,7 @@ func idle_heard() -> bool:
 	if not hums or not is_inside_tree() or not is_visible_in_tree():
 		return false
 	var th := _thrust_now()
-	var settling := (_arrive_at >= 0 and _arrive_window >= 1 and th >= 0) 		or (_dock_e >= 0.0 and _dock_e >= (FLAMEOUTS[_dock_row][0] as Vector2).y and th >= 0)
+	var settling := _arrive_at >= 0 and _arrive_window >= 1 and th >= 0
 	if th != ThrusterFx.Thrust.IDLE and not settling:
 		return false
 	var h := hull_rect()
