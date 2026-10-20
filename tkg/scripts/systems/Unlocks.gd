@@ -70,6 +70,42 @@ static func unlocked(manufacturer: StringName) -> bool:
 		return true
 	return won_with().has(need)
 
+## Every manufacturer this profile has unlocked, in chain order. Korvan at least.
+##
+## WHAT A NEW RUN'S WORLD MAY HOLD (Jon, Oct 20: "Solari things should NOT show
+## up in the game until Solari is unlocked (win the game once)"). A locked
+## manufacturer's parts and hulls drop nowhere, sell nowhere and come off no
+## derelict: `LootGen.can_appear` reads this, as `Run.unlocked_manufacturers`,
+## with `DB.ACTIVE_MANUFACTURERS` on top. The record is read ONCE, at run
+## start (`for_new_run`), and the run keeps the answer and its save carries it,
+## so a win recorded mid-run, or a CONTINUE on a profile that has moved on
+## since, cannot change what a run already under way can find.
+##
+## One fold over the record rather than `unlocked()` seven times, which would
+## read the file seven times.
+static func open_now() -> Array[StringName]:
+	var out: Array[StringName] = []
+	var won := {} if DevMode.enabled else won_with()
+	for m in CHAIN:
+		var need := prereq(m)
+		if DevMode.enabled or need == &"" or won.has(need):
+			out.append(m)
+	return out
+
+## What a run starting now keeps as its `Run.unlocked_manufacturers`.
+##
+## IN A PARTY, THE HOST'S. The galaxy is one galaxy: a wreck holds what a wreck
+## holds and a shelf is one shelf on every machine (`Rng.derive`), so the pool
+## those positional rolls draw from has to be one pool too, or two ships at one
+## derelict would open two different hulls. The host's profile decides it and
+## sends it with the seed (`NetSession._begin_dive`, PROTOCOL 10). What each
+## player may FLY is still their own record, read by the chassis select.
+static func for_new_run() -> Array[StringName]:
+	if Net.state == NetSession.State.DIVING and Net.dive_seed != 0 \
+			and not Net.dive_unlocked.is_empty():
+		return Net.dive_unlocked.duplicate()
+	return open_now()
+
 ## What the chassis select prints for a locked manufacturer.
 ##
 ## The prerequisite is NAMED only if you have already unlocked it. Otherwise it

@@ -165,8 +165,15 @@ static func _trip_pay(from: MapGen.MapNode, to: MapGen.MapNode) -> int:
 
 
 ## What got left out there. A NAME AND NOTHING ELSE — see recover().
+##
+## Only a part this run can find (`LootGen.can_appear`): a Solari station on a
+## profile that has not unlocked Solari still posts its work, but the crate it
+## asks for is unmarked rather than named after a part the player has never
+## seen and cannot meet.
 static func _item(manufacturer: StringName, r: RandomNumberGenerator) -> String:
 	var pool: Array = []
+	if not LootGen.can_appear(manufacturer):
+		return "a crate with no markings on it"
 	for id in DB.modules:
 		var m: ModuleData = DB.modules[id]
 		if m.manufacturer == manufacturer and not m.starter_only:

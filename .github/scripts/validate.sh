@@ -926,6 +926,26 @@ else
 fi
 }
 
+unit_lockedpooltest() {
+step "A locked manufacturer appears nowhere"
+# Jon, Oct 20: "Solari things should NOT show up in the game until Solari is
+# unlocked (win the game once)." Over seeded galaxies, every wreck, kill bag,
+# shelf, yard hull, derelict hull, event part, relic analysis, contract item
+# and the custodian's body: a fresh profile finds Korvan and unbranded only and
+# every roll still rolls something; a Korvan win finds Solari too; developer
+# mode finds it; a save keeps its pool across CONTINUE; a party rolls the host's.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot lockedpooltest 240 --headless --path "$PROJECT" -- sheet=LockedPoolTest; then
+	if grep -qE '^lockedpooltest: PASS' "$LOG_DIR/lockedpooltest.log"; then
+		ok "a manufacturer appears only once it is unlocked"
+	else
+		bad "a locked manufacturer's part or hull reached a player, or a pool ran dry"
+		grep -E 'FAIL|^lockedpooltest' "$LOG_DIR/lockedpooltest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "lockedpooltest did not finish"
+fi
+}
+
 unit_wrecksitetest() {
 step "Each place in a system keeps its own wrecks"
 # Jon, Oct 14: "each planet or POI you can visit should contain its own
@@ -2003,6 +2023,7 @@ gate_weight() {
 		hinttest) echo 28 ;; calmladdertest) echo 28 ;; foetagtest) echo 28 ;;
 		menutest) echo 25 ;; market) echo 24 ;; parseall) echo 24 ;;
 		devtest) echo 22 ;; hulldamagetest) echo 22 ;; fightopentest) echo 22 ;;
+		lockedpooltest) echo 41 ;;
 		*) echo 15 ;;
 	esac
 }

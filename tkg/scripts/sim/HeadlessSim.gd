@@ -18,6 +18,17 @@ var runs := 200
 ## and any single run in it can be flown again by hand. Zero means roll fresh
 ## seeds, which is what a balance measurement wants.
 var seed_base := 0
+## `-- sim manufacturer=korvan` flies every run in that manufacturer's chassis
+## (the weight still rolls). Empty rolls one of the seven per run, as before.
+## What a fresh profile can fly is Korvan alone, so this is how a sweep asks
+## about the game a new player gets rather than an average over seven starts.
+var pin_manufacturer: StringName = &""
+## `-- sim unlocked=korvan` (or `korvan,solari`) sets what every run's world may
+## hold (`Run.unlocked_manufacturers`), whatever this profile's flight record
+## and developer mode say. Empty keeps what `start_new_run` read -- and from the
+## editor binary developer mode is on, so that is every manufacturer, within
+## `DB.ACTIVE_MANUFACTURERS`. `unlocked=korvan` is a fresh profile's world.
+var pin_unlocked: Array[StringName] = []
 var pilot: RandomNumberGenerator = RandomNumberGenerator.new()
 ## Every decision this file used to make itself. Extracted so the party bot can
 ## fly the same model the gate measures — see scripts/sim/Policy.gd.
@@ -188,6 +199,12 @@ func run_sim() -> void:
 			runs = int(arg.split("=")[1])
 		elif arg.begins_with("seed="):
 			seed_base = int(arg.split("=")[1])
+		elif arg.begins_with("manufacturer="):
+			pin_manufacturer = StringName(arg.split("=")[1])
+		elif arg.begins_with("unlocked="):
+			for m in arg.split("=")[1].split(","):
+				if Unlocks.CHAIN.has(StringName(m)):
+					pin_unlocked.append(StringName(m))
 		# The vent thresholds, as fractions of heat capacity. See Policy.
 		elif arg.begins_with("ventcold="):
 			policy.vent_cold = float(arg.split("=")[1])
@@ -240,8 +257,12 @@ func run_sim() -> void:
 	if seed_base != 0:
 		print("Seeded sweep from %d. Run i uses seed %d + i." % [seed_base, seed_base])
 	print("Three Kelvin — simulating %d runs" % runs)
+	if pin_manufacturer != &"":
+		print("Every run flies %s." % pin_manufacturer)
+	if not pin_unlocked.is_empty():
+		print("Every run's world holds %s and unbranded." % ", ".join(pin_unlocked))
 	for i in runs:
-		_play_one(&"", -1, i)
+		_play_one(pin_manufacturer, -1, i)
 	_report()
 
 ## Every chassis in the game, `runs` each, reported as a table.
@@ -338,6 +359,10 @@ func _reset() -> void:
 func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> void:
 	Rng.forced = (seed_base + index) if seed_base != 0 else 0
 	Run.start_new_run(manufacturer, w)
+	# Before anything has been rolled from it: `start_new_run` rolls the map,
+	# and no shelf, wreck or derelict is filled until it is reached.
+	if not pin_unlocked.is_empty():
+		Run.unlocked_manufacturers = pin_unlocked.duplicate()
 	var started_as := Run.hull.manufacturer
 	# The simulated pilot's own generator: one per run, seeded from the run's
 	# master seed. The model is a player, not a place — so its choices replay

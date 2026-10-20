@@ -236,7 +236,11 @@ func _party_test() -> void:
 	ok("the launch reached every client", launched)
 	for i in clients.size():
 		check("client %d dives on the host's seed" % i, clients[i].dive_seed, host.dive_seed)
+		# And on the host's unlocks (PROTOCOL 10): one world, one pool of parts.
+		check("client %d rolls from the host's unlocks" % i, str(clients[i].dive_unlocked),
+			str(host.dive_unlocked))
 	ok("the seed is not zero", host.dive_seed != 0)
+	ok("the host's unlocks went with it", host.dive_unlocked.has(&"korvan"))
 
 	# One ship past the last seat.
 	var extra := _make_peer("gatecrash")

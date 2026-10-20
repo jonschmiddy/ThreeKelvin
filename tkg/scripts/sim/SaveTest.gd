@@ -148,6 +148,10 @@ func fingerprint() -> Dictionary:
 		pad = mods.call(Run.pad),
 		econ = [Run.hp, Run.heat, Run.heat_cap_bonus, Run.credits,
 			Run.fuel, Run.dross_count(), Run.whale_boon],
+		# WHAT THE WORLD MAY HOLD (VERSION 34). Fixtured below to three, so a
+		# load that fell back to the profile's own (Korvan alone here) shows.
+		unlocked = ",".join(Array(Run.unlocked_manufacturers).map(
+			func(m: StringName) -> String: return String(m))),
 		# Every material, not just the one that used to be a field. Written as a
 		# sorted list so a ledger that came back with the same counts under
 		# String keys instead of StringName ones still compares equal — the
@@ -288,6 +292,7 @@ func run() -> void:
 		Run.stow(MaterialData.of(MaterialTable.by_id(seeded)))
 	Run.dross = [&"slag", &"arcfault"] as Array[StringName]
 	Run.whale_boon = true
+	Run.unlocked_manufacturers = [&"korvan", &"solari", &"probate"] as Array[StringName]
 	Run.kills = 4
 	for i in 4:
 		Run.place_in_hold(LootGen.roll_module(3 + i, &"", true))
@@ -427,6 +432,7 @@ func run() -> void:
 	Run.fuel = 0
 	Run.dross = [] as Array[StringName]
 	Run.whale_boon = false
+	Run.unlocked_manufacturers = [&"calyx"] as Array[StringName]
 	Run.jumps = 0
 	Run.kills = 0
 	Run.at = 0
@@ -533,12 +539,18 @@ func run_version_test() -> void:
 		fr.close()
 	old_save["version"] = SaveGame.OLDEST_READ
 	old_save.erase("parked")
+	old_save.erase("unlocked")
+	Run.unlocked_manufacturers = [&"korvan"] as Array[StringName]
 	var fo := FileAccess.open(SaveGame.path, FileAccess.WRITE)
 	if fo != null:
 		fo.store_string(JSON.stringify(old_save, "", true, true))
 		fo.close()
 	check("a save of version %d (no parked spot) still loads" % SaveGame.OLDEST_READ, true, SaveGame.load_into_run())
 	check("and with no parked spot: every ship at its edge", 0, SystemMapScreen._parked.size())
+	# VERSION 34: a save from before `unlocked` rolls on from every manufacturer,
+	# which is what the build that wrote it was rolling.
+	check("and with no unlocked list: every manufacturer, as it was", str(Unlocks.CHAIN),
+		str(Run.unlocked_manufacturers))
 
 	# A save older than that must not load, whatever is inside it -- the same
 	# whole file, so it is the number that refuses it and not a missing map.

@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Changed** — a manufacturer you have not unlocked appears nowhere. On a new profile, wrecks,
+  shelves, the yard, derelicts, rewards, contracts and the Custodian hold Korvan and unbranded
+  parts and hulls only. Win with Korvan and Solari's join them from the next run. In co-op, the
+  host's unlocks decide what the galaxy holds.
+
 ### Roadmap
 
 The next build is **0.2.0-alpha.1**, with the fixes from the first playtest. See
