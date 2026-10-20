@@ -762,7 +762,7 @@ func _run() -> void:
 
 	# 1. the four distances, out and back in: THE CALM MOVE (Jon's pick, Oct 17,
 	# `-- sheet=CalmLadderTest` watches it frame by frame), then, behind the
-	# switch (`[flow] calm=false`), every design of every seam as it was
+	# switch (`calm_force`, a player's `-- calm=off`), every design of every seam as it was
 	await _go("calm LOCAL -> map", Router.show_system, SystemMapScreen)
 	await _go("calm map -> chart", Router.show_starchart, StarchartScreen)
 	await _go("calm chart -> map", Router.show_system, SystemMapScreen)
@@ -1084,9 +1084,11 @@ func _run() -> void:
 		_clean(String(way[2]))
 	await _go("back to the map (after the fade)", Router.show_system, SystemMapScreen)
 	ZoomLadder.calm_force = -1
-	# (the dials: every length a move is made of is one, the calm move's five too)
-	_ok("the move lengths are dials (seam 1 %.2f s, UI out %.2f s, the calm camera %.2f s)" % [ZoomLadder.SEAM1_S, ZoomLadder.UI_OUT_S, ZoomLadder.CALM_CAM_S],
-		ZoomLadder.SEAM1_S > 0.4 and ZoomLadder.UI_OUT_S >= 0.0 and ZoomLadder.CALM_CAM_S > 0.3 and ZoomLadder.DIALS.size() == 25)
+	# (the move lengths: dials in Settings until Jon had them out, Oct 19, and
+	# baked at what he had them on -- a settings file's old `[flow]` is not read)
+	_ok("the move lengths are Jon's (seam 1 %.2f s, UI out %.2f s, the calm camera %.2f s)" % [ZoomLadder.SEAM1_S, ZoomLadder.UI_OUT_S, ZoomLadder.CALM_CAM_S],
+		is_equal_approx(ZoomLadder.SEAM1_S, 1.7) and is_equal_approx(ZoomLadder.UI_OUT_S, 0.22) and is_equal_approx(ZoomLadder.CALM_CAM_S, 0.8)
+		and is_equal_approx(ZoomLadder.DOCK_WAKE_S, 3.0) and is_equal_approx(ZoomLadder.LIGHT_ON, 1.35))
 
 	# 4. a fight opened from the map arrives on LOCAL, and its end goes back
 	Router.start_ambush()

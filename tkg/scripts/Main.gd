@@ -1170,6 +1170,11 @@ func _ready() -> void:
 			_open_settings()
 			_show_keys.call_deferred()
 			break
+		# `-- settings=motion`: scrolled to MOTION, for a still of it
+		if a_k == "settings=motion":
+			_open_settings()
+			_show_section.call_deferred(&"motion")
+			break
 	if "confirm" in OS.get_cmdline_user_args() and _menu != null:
 		_menu.confirm(true)
 	if _wants_shot():
@@ -1744,6 +1749,15 @@ func _show_keys() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(scratch))
 	await get_tree().process_frame
 	panel.show_keys("bindshot=reset" in OS.get_cmdline_user_args())
+
+## For `-- settings=motion`: the open Settings, scrolled to one section's head
+## once the drawer has laid out.
+func _show_section(id: StringName) -> void:
+	for i in 3:
+		await get_tree().process_frame
+	var panel: SettingsPanel = _find_settings_panel(self)
+	if panel != null:
+		panel.show_section(id)
 
 func _find_settings_panel(n: Node) -> SettingsPanel:
 	if n is SettingsPanel:
