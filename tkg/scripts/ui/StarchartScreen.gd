@@ -3174,6 +3174,40 @@ class MapChart extends Control:
 				return node.index
 		return -1
 
+	## THE SYSTEMS A CLICK COULD PICK ANYWHERE IN `r` (local), as
+	## `[index, screen position]` in `_node_at`'s order, with the radius it
+	## picks by: what `node_among` asks instead of the whole map.
+	##
+	## For A.S.H.'s `covers`, which asks at every 3 px of her box. `_node_at`
+	## rebuilds the visible set over every system (410: 0.8 ms) on each call,
+	## and some 1,500 calls a box made 1.2 s, every tenth of a second while she
+	## taught the chart's list -- the game frozen until she was clicked away
+	## (Jon, Oct 20: "SUPER laggy and unresponsive"). Asked once here, the
+	## answer is the same to the system: a point picks a system within the
+	## radius of it, so any system it could pick stands inside `r` grown by it.
+	func nodes_near(r: Rect2) -> Dictionary:
+		var visible := _visible_set(Run.node_at(), _in_range())
+		var rad := maxf(5.0, 12.0 * zoom)
+		var g := r.grow(rad + 1.0)
+		var out: Array = []
+		for n in Run.map:
+			var node: MapGen.MapNode = n
+			if not visible.has(node.index):
+				continue
+			var sp := _screen_pos(node)
+			if g.has_point(sp):
+				out.append([node.index, sp])
+		return {nodes = out, rad = rad}
+
+	## `_node_at` among `near` (`nodes_near`) alone: the same system for any
+	## point inside the rect it was asked for.
+	static func node_among(p: Vector2, near: Dictionary) -> int:
+		var rad: float = near.rad
+		for e: Array in near.nodes:
+			if (e[1] as Vector2).distance_to(p) < rad:
+				return int(e[0])
+		return -1
+
 	func _draw() -> void:
 		var t0 := Time.get_ticks_usec()
 		_draw_chart()
