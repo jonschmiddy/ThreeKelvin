@@ -1,303 +1,198 @@
-# Handoff — writing options for Three Kelvin
+# Three Kelvin: handoff
 
-**For a chat session with no repo access.** Everything needed to write a valid
-option is in this file. Checked against `main` on 2026-08-27, after phase 8b —
-not against the older briefs, which are wrong in three places noted below.
+For a new person or a new session picking up the project. Written 2026-10-20, the
+day the first alpha, **0.1.0-alpha.1**, goes to a playtester. If something here
+disagrees with the code, the code is right; fix this file.
 
-Paste finished options back into the repo session and they go into
-`OptionTable.gd` as-is.
-
----
-
-## What an option is
-
-A system in Three Kelvin rolls **2–4 options** on arrival. Each one is a
-*situation* with **two or three things you can do about it**. The chart never
-says what a system holds — you find out by flying there.
-
-The arrival screen renders them as a list. One line of prose per option, the
-label on a button, and the odds on its face.
-
-```gdscript
-{
-	id = &"salvage_rights",           # stable identity, NEVER the title
-	title = "Salvage rights",
-	body = "A hull lies open across two claims and neither claimant is here...",
-	tags = [&"salvage", &"contract"],
-	group = &"wreck",                 # &"" is independent
-	weight = 11,
-	regions = [MapGen.Region.LAWLESS], min_danger = 2,
-	choices = [ ... ],
-}
-```
-
-**The `id` is the key and the title is copy.** Renaming a title is free;
-renaming an id invalidates every save that rolled it.
+The writing guide for encounters that used to live in this file is now
+[`docs/briefs/ENCOUNTER_OPTIONS_GUIDE.md`](docs/briefs/ENCOUNTER_OPTIONS_GUIDE.md).
 
 ---
 
-## The one test every option must pass
+## What the game is
 
-> **If the player walks away, what do they not get?**
-> If the answer is "nothing", the option is a wall — and the wall is imaginary.
+A pixel-art, turn-based roguelite in Godot 4.7.1 (GDScript). Your ship is your
+character and its modules are your deck. You fly from the rim of a generated
+galaxy to its core, fight ships and creatures in card battles, loot modules,
+refit, and manage heat, fuel and credits on the way. You win by destroying The
+Custodian at the core.
 
-PLOT NEXT JUMP is live from the moment you arrive. **Nothing at a system can
-stand between the player and anywhere else.** Any option whose premise is *you
-have to get past me* is lying, and the player finds out the first time they
-shrug and leave.
-
-This killed two already-written options. An obstacle has to **guard a reward**,
-never a door. A picket across a lane is nothing; a picket ringing a debris field
-with a bulk hauler's spine inside it is an option.
+- What it is and why: [`docs/design-doc.md`](docs/design-doc.md).
+- Who works on it and how: Jon designs and rules on craft; playtesters rule on fun.
+- What is in the current build: [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 
-## Choices
+## Where things live
 
-Two shapes. Both legal, mix freely inside one option.
-
-**Flat** — no roll:
-
-```gdscript
-{label = "Strip it now", effect = func() -> Dictionary:
-	return {text = "You take what is loose and leave.", module = true}},
+```
+CHANGELOG.md         what each alpha build holds
+HANDOFF.md           this file
+README-ALPHA.txt     the player's first-launch notes; ships in the zips
+LICENSES.txt         Godot and font licences; ships in the zips
+play.bat / play.command   import, then launch the game from source
+setup.sh             run once per clone: points git at .githooks/
+docs/                every design and reference document (index: docs/README.md)
+tkg/                 the Godot project
+  CLAUDE.md          the working rules, the harness table and the rulings table
+  project.godot      version string, autoloads, the main scene
+  scenes/            Shell.tscn (the main scene) and Main.tscn; all UI is built in code
+  scripts/autoload/  Run (RunState), DB (Database), Rng, Router, Sig, Audio, Keys
+  scripts/data/      plain resources: CardData, ModuleData, HullData, AshLines, ...
+  scripts/systems/   rules with no UI: Combat, CardResolver, MapGen, GalaxyGen,
+                     OptionTable (the 135 encounters), Market, LootGen, SaveGame, ...
+  scripts/net/       co-op: NetSession (the Net autoload), transports, SharedFight
+  scripts/ui/        one Control per screen; Hints and Ash (both autoloads) live here
+  scripts/sim/       headless harnesses and contact sheets, run as `-- <flag>`
+  art/               sprites (hulls, modules, cards, enemies), stations, art tools
+  assets/            audio (music, sfx, ambience, A.S.H.'s voice) and fonts
+  audio/             the Python sound generators and their README
+  tools/             export.sh, build_alpha.sh, cofight.sh, coplay.sh, bot.sh
+music/               the music lab: one HTML page is the source of every cue
+relay/               the co-op relay, a Cloudflare Durable Object worker
+tools/               repo tools: encounter_lint.py, prose_grade.py, prose_tells.py,
+                     and the art pipeline scripts (hulls, rooms, walkers, benches)
 ```
 
-**Checked** — rolls an attribute, four possible bands:
+The ten autoloads are listed in `project.godot` and described in `tkg/CLAUDE.md`
+("The shape of the code"). Content (modules, cards, hulls, enemies, affixes,
+manufacturers, archive documents) is data in `tkg/scripts/autoload/Database.gd`.
+Encounters are data in `tkg/scripts/systems/OptionTable.gd`.
 
-```gdscript
-{label = "File a third claim",
-	check = {attr = &"sensors", need = 5},
-	met = func() -> Dictionary:      # you meet or exceed `need` — no roll at all
-		Run.add_credits(35)
-		return {text = "Your filing is cleaner than either of theirs."},
-	clean = func() -> Dictionary:    # rolled and won
-		return {text = "Your claim holds long enough to matter."},
-	partial = func() -> Dictionary:  # rolled and half-won
-		Run.add_credits(45)
-		return {text = "The board accepts it and one claimant contests it."},
-	botched = func() -> Dictionary:  # rolled and lost
-		Run.add_credits(-25)
-		return {text = "You file into the middle of a dispute."}},
+---
+
+## Run it
+
+- **Play from source:** `play.bat` (Windows) or `play.command` (Mac). Both run
+  `--import` and then launch `tkg`. Or open `tkg/project.godot` in Godot 4.7.1 and
+  press F5.
+- **After any new `class_name`, and once on a fresh clone:**
+  `godot --headless --path tkg --import`.
+- **Headless harnesses:** `godot --headless --path tkg -- <flag>`, for example
+  `-- sim runs=200`, `-- parseall`, `-- holdtest`, `-- content`. Add
+  `--audio-driver Dummy` so a harness does not take the sound device. The table in
+  `tkg/CLAUDE.md` ("Run and test") says which harness to run after which change.
+- **Developer mode** exists only in the editor. `-- asrelease` plays without it.
+
+Exported builds keep their saves, settings and logs in their own folder
+(`%APPDATA%\ThreeKelvinAlpha` on Windows, `~/Library/Application Support/ThreeKelvinAlpha`
+on a Mac). Never point a harness or a test at that folder; `export.sh` points its
+smoke test at a scratch one.
+
+---
+
+## Gate and land a change
+
+1. Work on a branch in its own git worktree, never on `main` directly.
+2. Merge `main` into the branch so the gate tests what will land.
+3. Run the gate from the repo root: `.github/scripts/validate.sh`. Useful
+   variables: `GODOT=<path to the console binary>`, `SIM_RUNS=<n>` (default 40),
+   `LOG_DIR=<dir>`. It reads Godot's output rather than its exit code, because
+   Godot exits 0 even when a script fails to compile. CI
+   (`.github/workflows/validate.yml`) runs the same file on every pull request
+   into `main` and on `main` itself.
+4. On a pass, fast-forward `main` to the branch (`git merge --ff-only`) and push.
+
+Run one gate at a time on a machine; two at once compete for the same resources
+and fail each other. The gate is being made to run its steps side by side on
+`chore/parallel-gate`; until that lands it runs them one after another and takes
+the better part of an hour.
+
+The gate also checks the documents: a retired-words scan over `docs/` and
+`tkg/*.md` (the company word is "manufacturer"), `prose_grade.py` and
+`prose_tells.py` over the encounter text, and `encounter_lint.py --strict`.
+
+---
+
+## Build the alpha
+
+From a clean tree:
+
+```bash
+GODOT=<path to godot_console.exe> tkg/tools/build_alpha.sh
 ```
 
-Bands fall back down the ladder, so **a check with only `met` and `botched` is
-complete and legal.** Write the bands you care about.
+It refuses a dirty tree, runs `tkg/tools/export.sh all` (release exports for
+Windows and macOS, stamped with the version and commit, pack-checked and
+smoke-tested), zips each platform with `README-ALPHA.txt` and `LICENSES.txt`, and
+prints sizes and sha256 sums. The output goes to `builds/<version>-<commit>/`,
+which is gitignored. The upload and the git tag are commented steps at the end of
+the script, done by hand. It needs the Godot 4.7.1 export templates. The version
+string is `config/version` in `tkg/project.godot`.
 
-### The six attributes
+---
 
-`&"hull"` · `&"thrust"` · `&"maneuver"` · `&"thermal"` · `&"sensors"` ·
-`&"stealth"`
+## Design rulings
 
-### The odds ladder — this is the whole tension
+The rulings that matter, and the reversals with their reasons, are the rulings
+table in [`tkg/CLAUDE.md`](tkg/CLAUDE.md). Read it before changing how anything
+plays. The rules for writing modules and cards are in
+[`docs/catalogue.md`](docs/catalogue.md); the sequence for building a manufacturer
+is [`docs/building-a-manufacturer.md`](docs/building-a-manufacturer.md); the rules
+for encounter prose are [`docs/briefs/ENCOUNTER_COMMISSION.md`](docs/briefs/ENCOUNTER_COMMISSION.md)
+§2 and [`docs/briefs/ENCOUNTER_PROSE.md`](docs/briefs/ENCOUNTER_PROSE.md).
 
-| Short by | Chance of the good outcome |
+---
+
+## What is in 0.1.0-alpha.1
+
+See [`CHANGELOG.md`](CHANGELOG.md). In short: a full run from rim to core, card
+fights, 135 encounters, 24 hulls, 95 modules, stations, A.S.H. and the tutorial,
+co-op for up to eight ships, Windows and Mac builds, and Settings > PLAYTEST >
+SAVE MY LOGS for reports.
+
+---
+
+## Known issues
+
+- **Only Korvan, Solari and unbranded parts drop** (`Database.ACTIVE_MANUFACTURERS`).
+  The other five manufacturers can be unlocked and flown, but have 4 to 7 parts
+  each, use Korvan's hull art, and their set bonuses cannot be completed.
+- **Three set bonus texts are wrong** (Cygnet 5, Korvan 3, Solari 3; listed in
+  `CHANGELOG.md`). Parked until after the alpha.
+- **A fight is not saved.** Quitting mid-fight starts the fight again on CONTINUE.
+- **`-- sheet=FieldEdgeTest`** reports a step of about 2.7 levels at the chart's
+  bottom edge inside a cloud. It is not in the gate.
+- **`-- charttest` can crash on a machine short of memory.** Rerun it with other
+  programs closed before reading a crash as a bug.
+- **Korvan heavy wins with the human pilot** (`-- sim human`) fell from 38% to 23%
+  between Oct 17 and Oct 18, from merges that did not touch fuel. Flagged, not yet
+  re-measured.
+- **`art/tools/boxes.py` is broken** (its header says why). Do not run it.
+- **`validate.sh` calls `warn`, which it never defines.** It only matters when no
+  Python is found.
+- Four tracked `.uid` files had no script beside them; this pass removed them.
+
+---
+
+## On branches, not merged
+
+| Branch | What it holds |
 | --- | --- |
-| 0 (you meet it) | **certain, no roll** |
-| 1 | 65% |
-| 2 | 40% |
-| 3 | 20% |
-| 4 or more | 5% |
+| `feat/low-hull-warning` | A low-hull warning: red edges, text that decodes worse as the hull falls, and A.S.H.'s voice breaking up. Live work. |
+| `chore/parallel-gate` | The gate running its steps side by side. Live work, not yet committed. |
+| `chore/tidy` | This documentation and repo pass. |
+| `fx/hits` | Hit and block effects: a pool of hit kinds, the bubble shield, three rounds of brace. Mockups and a partial build from Oct 13. |
+| `fx/fauna-motion` | Idle motion for the Custodian, the calf and the Leviathan, with the bob on the motion's held steps (Oct 13). |
+| `art/core-depth` | The galaxy as a 3D object: bodies of cloud, more parallax, the core in front. SIMPLIFIED only, not yet reading as volumes. Parked until after the alpha. |
+| `ui/locked-hint` | Three looks for a locked manufacturer's tooltip. Jon kept look A, which is on `main`; this holds the other two. |
+| `audit/nav` | `NavFilm`, a harness that films every move between the distances with real input, for the navigation audit. |
 
-Meeting a requirement is **certain** — an attribute you earned should never fail
-you. Being one short is a real attempt; being four short is a stunt, and the 5%
-floor exists so a desperate option is never a disabled button with extra steps.
+Also parked until after the alpha, with no branch yet: the set bonus texts.
 
-Failure splits **evenly** between PARTIAL and BOTCHED. At four short that is
-47.5% each — so **PARTIAL is the band a marginal attempt produces most often,
-and it is where the design effort goes.** It must not read as a watered-down
-botch. Give it its own outcome, not a smaller number.
-
-### Hard gates
-
-```gdscript
-{label = "Pay it", cost_credits = 60, effect = func() -> Dictionary: ... },
-```
-
-Only for **meter payments and physical impossibility**. Everything else rolls
-the ladder. The button greys when you cannot afford it and says by how much —
-*60 credits · you have 40* — so a disabled thing still states what it wants.
-
-### Fights
-
-```gdscript
-{label = "Engage", fight = true, effect = func() -> Dictionary:
-	return {text = "It came out here expecting easier work.", fight = true}},
-```
-
-**`fight` appears twice and it is not a typo.** On the *choice* it is a
-declaration — *this row leads to a fight* — which the list reads before the
-click, to print what your sensors can tell you about it. In the *returned
-dictionary* it is the trigger that actually starts the fight. An outcome may
-open a fight the choice never declared; that is a twist, and it is why they are
-separate.
+Rejected work is kept as annotated tags, not branches: `archive/art/half-parts`,
+`archive/fix/mount-points`, `archive/art/cloud-shapes` and the older `archive/*`
+tags. `git show archive/<name>` says what each was.
 
 ---
 
-## What an option may pay
+## What is next
 
-**Only these. An option that pays in a mechanic nobody built cannot land.**
-
-| Reward | How | Note |
-| --- | --- | --- |
-| credits | `Run.add_credits(n)` | negative to charge |
-| fuel | `Run.fuel += n` / `Run.fuel = maxi(0, Run.fuel - n)` | |
-| **a module** | `return {module = true}` | **not a function call** — see below |
-| materials | `Run.add_material(&"exotic", n)` | **only `exotic` and `relic` exist** |
-| hull damage | `Run.take_hull_damage(n, "reason")` | |
-| healing | `Run.heal(n)` | |
-
-**The module is the exception and the briefs get it wrong.** Older documents say
-`Run.stow(LootGen.roll_module(danger))`. Do not write that. Return
-`{module = true}` and the caller rolls one at the system's own danger — that is
-how rarity stays tied to where you are.
-
-**Standing is out.** It exists as a dictionary but nothing subtracts from it,
-nothing displays it, and it only affects the sell price. A consequence the
-player cannot see is not a consequence. No option touches it.
-
-**Archive documents cannot be granted.** A system either holds one or it does
-not — it is derived from the system's position. An option can only recover the
-one that is already here.
-
-### Three rules on failure
-
-- **Failure domain.** A ram costs hull, a sneak costs detection, a burn costs
-  heat. **Botches surprise in degree, never in kind.** A stealth botch must not
-  cost hull.
-- **Pile-on guard.** No BOTCHED band stacks two of {hull damage, malfunction,
-  combat entry}.
-- **Every group needs a free exit.** Not every option — declining an independent
-  option is already free. But if every member of a boxed exclusive set costs
-  something, the box needs a *leave it* row.
-
----
-
-## Groups — exclusivity
-
-`group = &"wreck"` on two or more options makes them **mutually exclusive**:
-taking one closes the rest. The screen boxes them under **ONE OF THESE**, and
-hovering a member greys its siblings *before* the click.
-
-**A group means "these compete for the same thing", not "these matter more."**
-They stay in rolled order and are never sorted to the top.
-
-Group whole *situations*, not individual lines — `salvage_rights` competes with
-`still_under_warranty` because they are two readings of the same wreck.
-
----
-
-## Where an option can appear
-
-All gates are **ANDed**. Omit them for an option that can happen anywhere —
-`hostile_contact` and `dead_hull` are ungated on purpose, because a hostile and
-a dead hull are the two things that can happen in any system.
-
-| Field | Meaning |
-| --- | --- |
-| `min_danger` / `max_danger` | 1–10ish, rises toward the core |
-| `min_security` / `max_security` | how policed |
-| `min_development` | `MapGen.Development.` `UNCLAIMED` `OUTPOST` `SETTLEMENT` `CITY` `CAPITAL` |
-| `regions` | `MapGen.Region.` `FRONTIER` `TERRITORY` `COSMOPOLITAN` `LAWLESS` `FAUNA` `CORE` |
-| `needs_fauna = true` | the system has living things in it |
-| `needs_berth = true` | any manufacturer has a berth here |
-| `berth = &"verity"` | that specific manufacturer has one |
-
-**Gate lightly.** A heavily gated option is one most players never see. The
-current table over-gates: at the outer rim almost nothing qualifies, which is why
-a scaffolding rule has to force a fight or salvage option into thin systems.
-
----
-
-## Tags
-
-`&"fight"` · `&"salvage"` · `&"signal"` · `&"contract"`
-
-Not decoration — the game reads them:
-
-- **`fight`** — contracts hunt for a system offering one, and fights are where
-  modules and rarity come from.
-- **`salvage`** — **the Hellbender eats systems tagged this.** It is currently
-  eating twice as much as it was designed to, precisely because this tag became
-  common. Do not tag salvage reflexively.
-
----
-
-## Weight
-
-Relative likelihood within whatever the gates admit. Current spread: **16**
-(`hostile_contact`, the most common thing in space) down to **6**
-(`still_under_warranty`, a specific manufacturer's specific paperwork).
-
-**10 is ordinary.** Rare and flavourful gets 6; the plain thing that happens
-everywhere gets 14–16.
-
----
-
-## Prose
-
-Roughly what is already there, which is worth matching:
-
-- **Body: 1–3 sentences.** Only the first sentence shows in the list — the rest
-  appears if the option opens a detail view. Front-load it.
-- **Outcome text: one or two sentences.** Written as fiction, and deliberately
-  never says "you failed" — the band is labelled separately above it.
-- **Labels are plain and imperative.** *Strip it now. Break it. Answer the
-  notice.* Anything explaining a **rule** is plain English, never in-fiction —
-  making a player parse prose to learn a mechanic is the failure mode.
-- **The register.** Dry, procedural, faintly bureaucratic; the universe is
-  running down and everyone is filing paperwork about it. Nothing is heroic.
-  Humour is deadpan and comes from institutions, not jokes.
-
-An option gets its own screen only if it has **both a body and a check**.
-Everything else resolves in its row. Two to four options across twenty-five
-systems is a lot of reading, and prose that is unavoidable stops being read.
-
----
-
-## Already written — do not duplicate
-
-| id | tags | group | weight | gates |
-| --- | --- | --- | --- | --- |
-| `hostile_contact` | fight | — | 16 | none |
-| `dead_hull` | salvage | — | 14 | none |
-| `cordon` | fight, signal | — | 12 | LAWLESS, sec ≤2, danger ≥3 |
-| `salvage_rights` | salvage, contract | wreck | 11 | LAWLESS/TERRITORY, danger ≥2 |
-| `still_under_warranty` | salvage | wreck | 6 | 3 regions, Verity berth |
-| `collapsed_lane` | signal | — | 9 | 3 regions, dev ≥ SETTLEMENT |
-| `drifting_lifepod` | signal | — | 10 | none |
-
-**Seven options is the whole table**, and a system draws about three of them.
-That is the problem this content session exists to fix.
-
-### What is most wanted
-
-1. **Ungated or lightly gated options.** The rim currently has almost nothing
-   legal, which is what the scaffolding rule is papering over. Options that can
-   happen *anywhere* are worth more right now than perfectly-gated ones.
-2. **Non-salvage rewards.** The table leans on wrecks, which is feeding the
-   Hellbender. Signals, claims and contracts paying credits, fuel and materials
-   are underweight.
-3. **More exclusive groups.** Only one exists (`wreck`). Exclusivity is the point
-   of the whole system and there is exactly one instance of it in the game.
-4. **`FAUNA` and `CORE` region options.** Nothing is written for either.
-
----
-
-## Format to hand back
-
-Either GDScript matching the shape above, or plain prose in this order — the
-repo session can convert it:
-
-```
-id, title
-body (1-3 sentences)
-tags, group, weight, gates
-for each choice:
-  label
-  check (attribute + number) or cost, or neither
-  the outcome for each band you want to write, with what it pays
-```
-
-**A finished option is one that answers the walk-away test, pays only in what
-exists, and gives PARTIAL something real to say.**
+1. The first playtest of 0.1.0-alpha.1. Ask for the zip from SAVE MY LOGS with
+   every report.
+2. **0.2.0-alpha.1:** the fixes from that playtest. Add them under
+   `[Unreleased]` in `CHANGELOG.md` as they land, then cut the version by changing
+   `config/version` in `tkg/project.godot` and building with `build_alpha.sh`.
+3. After that: the parked items above, and the five manufacturers still to write
+   (`docs/catalogue.md` §17 has the count; `docs/building-a-manufacturer.md` the
+   method).
