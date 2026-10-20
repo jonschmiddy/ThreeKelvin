@@ -103,6 +103,7 @@ func _run() -> void:
 	await _voice()
 	await _switch()
 	await _intro()
+	await _first_launch()
 	await _coop()
 	_finish()
 
@@ -264,6 +265,29 @@ func _box(name: String) -> void:
 		"nothing under her" if hits.is_empty() else ", ".join(hits.slice(0, 4))], hits.is_empty())
 
 
+## THE STEP'S LINE under the goal (`GoalLine`, Jon, Oct 20), gathered here: as
+## drawn while a step is pending, and where it stands when one is (the longest
+## step's words under the goal), so a step coming up never lands on her. In a
+## fight no step shows (its tabs are locked), so it has no place there: held to
+## that here too.
+func _step_boxes(goal: Control, fight: bool = false) -> Array:
+	var out: Array = []
+	if goal == null or not goal.visible or goal.modulate.a <= 0.0:
+		return out
+	var g := Rect2(goal.global_position, goal.size)
+	for pc in goal.find_children("*", "PanelContainer", false, false):
+		var p := pc as Control
+		if p.visible and p.get_global_rect() != g:
+			out.append(["the step's line", p.get_global_rect()])
+	var w := UITheme.pixel_font().get_string_size("Open STARCHART. Pick a star in range, then JUMP.",
+		HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x + 10.0
+	if not fight:
+		out.append(["the step's place", Rect2(g.position.x, g.end.y + 1.0, w, g.size.y)])
+	elif not out.is_empty():
+		_ok("in a fight, no step's line under the goal (%s)" % out[0][1], false)
+	return out
+
+
 ## Everything on `cur` she must not cover, [what, global rect], gathered here.
 func _gather(cur: Control, v: Rect2) -> Array:
 	var out: Array = []
@@ -276,6 +300,7 @@ func _gather(cur: Control, v: Rect2) -> Array:
 	var goal := Router.hud.get_parent().get_node_or_null("GoalLine") as Control
 	if goal != null and goal.visible and goal.modulate.a > 0.0:
 		out.append(["the goal line", Rect2(goal.global_position, goal.size)])
+	out.append_array(_step_boxes(goal, cur is SectorScreen and (cur as SectorScreen).fighting()))
 	if cur is SectorScreen:
 		out.append(["the goal line's band", Rect2(hud.position.x, hud.end.y, hud.size.x, 26.0)])
 	if Ash.lesson_subject.size != Vector2.ZERO:
@@ -321,9 +346,7 @@ func _gather(cur: Control, v: Rect2) -> Array:
 		var ov = map.overlay
 		var stt: Array = ov.ship_status()
 		if String(stt[0]) != "":
-			var tw := UITheme.pixel_font().get_string_size(String(stt[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
-			out.append(["the map's ship status \"%s\"" % stt[0], map._box.get_global_transform()
-				* Rect2(ov.view.window.position + Vector2(10, 6), Vector2(tw, 12))])
+			out.append(["the map's ship status \"%s\"" % stt[0], map._box.get_global_transform() * (ov.status_rect(String(stt[0])) as Rect2)])
 		for lr: Rect2 in ov.label_rects:
 			out.append(["a word on the map", map._box.get_global_transform() * lr])
 	var st := cur as StationScreen
@@ -1069,6 +1092,97 @@ func _intro_flag_set(v: bool) -> void:
 	cfg.load(DisplaySettings.hints_path())
 	cfg.set_value("hints", "ash_intro", v)
 	cfg.save(DisplaySettings.hints_path())
+
+
+# ------------------------------------------------------------------ a first launch, as seen
+
+## A RUN'S FIRST LAUNCH AS PLAYED (Jon, Oct 20: "A.S.H. introduces herself and
+## also reads the tutorial at the same time. The GOAL and the tutorial tip are
+## right under her box."), the screens animating as in play (the goal line
+## fades in, so it is not drawn on the frame the ship stops), her and the hints
+## on the game's clock. Both profiles: one that has not heard her introduction
+## (the intro, then the step), and one that has (the step, then a launch line
+## from the bag). Every frame: one line of hers at a time, none cut by the next,
+## and her box clear of the goal, the step's line as drawn and the step's place.
+func _first_launch() -> void:
+	print("a first launch, as seen")
+	# THE FRAME THE SHIP STOPS: the goal line is up from it but not drawn yet (it
+	# fades in, and its own frame may come after hers). The step is due all the
+	# same, so a launch line waits for it -- in play the line asked the drawn
+	# line, the launch started there and the step cut it 0.6 s later
+	_intro_flag_set(true)
+	Hints.reset()
+	Ash.reload()
+	Rng.forced = 5150
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	await _local()
+	var gl := Router.hud.get_parent().get_node_or_null("GoalLine") as Control
+	if gl != null:
+		gl.visible = false
+		gl.modulate.a = 0.0
+		var due := Hints.step_due()
+		var why := Ash._cannot_start(&"launch")
+		_ok("the goal line up but not yet drawn: the step is due and a launch line waits for it (due %s, held by %s)" % [due, why],
+			due and why == "hint")
+		gl.visible = true
+		gl.modulate.a = 1.0
+	Ash.waiting.clear()
+	for heard: bool in [false, true]:
+		_intro_flag_set(heard)
+		Hints.reset()
+		Ash.reload()
+		Hints._quiet = 0.0
+		Hints.set_process(true)
+		Router.animate_in_harness = true
+		var n0 := Ash.said_log.size()
+		Rng.forced = 5150
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		Router.show_local()
+		var cuts: Array[String] = []
+		var over: Array[String] = []
+		var prev := &""
+		var t0 := GameClock.now()
+		var goal := Router.hud.get_parent().get_node_or_null("GoalLine") as Control
+		while GameClock.now() - t0 < 60.0:
+			await _tree.process_frame
+			var p := Ash.portrait
+			var now_kind: StringName = p.kind if p != null and p.speaking() else &""
+			# ONE LINE AT A TIME: a line still saying, replaced by another
+			if prev != &"" and now_kind != &"" and now_kind != prev:
+				cuts.append("%s cut by %s" % [prev, now_kind])
+			prev = now_kind
+			if now_kind != &"":
+				var r := p.rect()
+				var under: Array = []
+				if goal != null and goal.visible and goal.modulate.a > 0.0:
+					under.append(["the goal line", Rect2(goal.global_position, goal.size)])
+				under.append_array(_step_boxes(goal))
+				for b: Array in under:
+					if r.intersects(b[1]) and over.size() < 4:
+						over.append("%s over %s %s at %.2f s" % [now_kind, b[0], b[1], GameClock.now() - t0])
+			if Hints.lesson != &"" and Hints._up_t > 0.5:
+				Hints.click(_press())
+			if Ash.said_log.size() >= n0 + 2 and now_kind == &"":
+				break
+		var order: Array[String] = []
+		for d: Dictionary in Ash.said_log.slice(n0):
+			order.append(String(d.kind))
+		var want: Array[String] = []
+		want.assign(["launch", "tut_step_jump"] if not heard else ["tut_step_jump", "launch"])
+		var who := "heard her introduction" if heard else "a fresh profile"
+		_ok("%s: her lines in order %s (said %s)" % [who, want, order], order.slice(0, 2) == want)
+		if not heard:
+			_ok("%s: the first is the intro" % who, order.size() > 0
+				and String(Ash.said_log[n0].line) == String(AshLines.of(&"launch")[3]))
+		_ok("%s: one line at a time, none cut by the next (%s)" % [who, ", ".join(cuts) if not cuts.is_empty() else "none"], cuts.is_empty())
+		_ok("%s: her box never over the goal or the step's line (%s)" % [who, "; ".join(over) if not over.is_empty() else "clear every frame"], over.is_empty())
+		Hints.set_process(false)
+		Router.animate_in_harness = false
+		if Ash.portrait != null:
+			Ash.portrait.cut()
+		await _frames(2)
+		Hints.reset()
+		Ash.waiting.clear()
 
 
 # ------------------------------------------------------------------ co-op

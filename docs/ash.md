@@ -94,6 +94,24 @@ frame on the main screen. It reacts to the ship, not to the script:
   three ships in every weight); every other corner and the middles cover a plate, an enemy's
   words or its numbers in some fight. If something ever stands there, she tries the other
   corners and otherwise waits. Not pressable and not clickable: clicks go through her.
+- **Off the goal and its step** (Jon, Oct 20: "The GOAL and the tutorial tip are right under
+  her box"). The goal's line stands just below the map's and the chart's top plate, at their
+  picture's top left, and at the same place on LOCAL (24, 89 on the 960x540 grid), with the
+  step's line under it; her top-left spot was on both. She keeps off the two lines as drawn and
+  off the room they keep whether a step is pending or not (`GoalLine.stack_rect`), so a step
+  coming up never lands on her. A top spot that would touch it stands 6 px under the step's
+  room instead: top left is 14, 122 on LOCAL and 26, 122 on the chart and the map. In a fight
+  there is no step (its tabs are locked there, so `GoalLine.step` gives none) and under the goal
+  is your hull, so her top left moves beside the goal's line instead, 146, 65. AshTest measured
+  that place clear on all 65 of its screens. Her teaching spots follow the same rule. The map's
+  "IN ORBIT · ..." status line was under the new goal and moved down under the step's room
+  (`SystemOverlay.STATUS_AT`).
+- **One line at a time, the step before a bark.** A launch line waits for the goal's first step
+  to be said, as barks wait for teaching. That used to fail in play: the step counted as due
+  only once the goal line had drawn, and the goal fades in after the ship stops, so on that
+  frame the launch line started and the step cut it 0.6 s later. The step is due from the frame
+  the line is up (`GoalLine.shows_on`), drawn or not. The intro is the one line that goes before
+  the step (below).
 - **When:** each line at its own moment: a new run's launch; the first time she is up in a new
   hull; the hull at a quarter or under; over the heat cap in a fight; a chit of 60 credits or
   an epic part taken aboard; the third wreck opened since the last dock; and, from jump 6, a

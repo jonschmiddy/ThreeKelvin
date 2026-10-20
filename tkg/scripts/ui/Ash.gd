@@ -720,11 +720,27 @@ static func spot_boxes(cur: Control) -> Array:
 			continue
 		var parts := String(s).split("_")
 		var y := top if parts[0] == "top" else bottom
-		out.append({name = s, rect = Rect2(Vector2(float(xs[StringName(parts[1])]), y), sz),
-			mirrored = parts[1] == "right"})
+		var r := _under_goal(Rect2(Vector2(float(xs[StringName(parts[1])]), y), sz), cur)
+		out.append({name = s, rect = r, mirrored = parts[1] == "right"})
 	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return _rank(a.name) < _rank(b.name))
 	return out
+
+
+## A TOP SPOT THAT WOULD STAND ON THE GOAL OR ITS STEP (`GoalLine`: at the top
+## left of the picture on LOCAL, the map and the chart, Jon, Oct 20) stands
+## under the two of them instead, EDGE below the step's room. In a fight beside
+## the goal's line instead, at the same height (a fight has no step, and under
+## the goal is your hull: the 65 screens of `AshTest` measured that corner as
+## the one clear in every fight).
+static func _under_goal(r: Rect2, cur: Control) -> Rect2:
+	var st := GoalLine.stack_rect(cur)
+	if st.size != Vector2.ZERO and r.intersects(st.grow(EDGE - 1.0)):
+		if GoalLine._fighting(cur):
+			r.position.x = roundf(st.end.x + EDGE)
+		else:
+			r.position.y = roundf(st.end.y + EDGE)
+	return r
 
 
 ## The first spot clear of everything for `line`; {} if none is.
@@ -776,11 +792,17 @@ static func avoid_rects(cur: Control) -> Array:
 	if Router.hud != null and is_instance_valid(Router.hud) and Router.hud.is_visible_in_tree():
 		var hud := Router.hud.get_global_rect()
 		out.append(hud)
-		# THE GOAL LINE'S BAND under the HUD (`GoalLine`), wherever along it the
-		# line has been set down, and the line itself if it is up
+		# the band under the HUD, kept clear as it always was on LOCAL
 		out.append(Rect2(hud.position.x, hud.end.y, hud.size.x, GOAL_BAND))
+		# THE GOAL AND ITS STEP (`GoalLine`, at the picture's top left, Jon, Oct
+		# 20): the two lines as drawn, and the room they keep whether a step is
+		# pending or not, so a step arriving never lands on her
 		if Router.hud.has_method("goal_rect"):
 			out.append(Router.hud.call("goal_rect"))
+		var gl: Variant = Router.hud.get("goal")
+		if gl is GoalLine and is_instance_valid(gl):
+			out.append((gl as GoalLine).step_rect())
+		out.append(GoalLine.stack_rect(cur))
 	if Hints.card != null and is_instance_valid(Hints.card) and Hints.card.visible:
 		out.append(Hints.card.get_global_rect())
 	if cur == null or not is_instance_valid(cur):
@@ -1055,8 +1077,8 @@ static func tut_spot_boxes(cur: Control, sz: Vector2) -> Array:
 	for s in ALL_SPOTS:
 		var parts := String(s).split("_")
 		var y := top if parts[0] == "top" else bottom
-		out.append({name = s, rect = Rect2(Vector2(float(xs[StringName(parts[1])]), y), sz),
-			mirrored = parts[1] == "right"})
+		var r := _under_goal(Rect2(Vector2(float(xs[StringName(parts[1])]), y), sz), cur)
+		out.append({name = s, rect = r, mirrored = parts[1] == "right"})
 	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return _rank(a.name) < _rank(b.name))
 	return out
@@ -1174,8 +1196,7 @@ static func _map_rects(map: SystemMapScreen, out: Array) -> void:
 	# what the ship is doing, in the frame's top left (`SystemOverlay._draw`)
 	var st: Array = ov.ship_status()
 	if String(st[0]) != "":
-		var tw := UITheme.pixel_font().get_string_size(String(st[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
-		out.append(g * Rect2(ov.view.window.position + Vector2(8, 4), Vector2(tw + 4, 16)))
+		out.append(g * (ov.status_rect(String(st[0])) as Rect2).grow(2.0))
 	var ship: Vector2 = ov._ship_at
 	out.append(g * Rect2(ship - Vector2(12, 12), Vector2(24, 24)))
 

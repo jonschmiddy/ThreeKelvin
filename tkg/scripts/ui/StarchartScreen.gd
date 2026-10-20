@@ -163,14 +163,11 @@ func _build() -> void:
 
 	# --- depth strip: the greed clock, always visible
 	var strip := toolbar_row()
-	# (the goal's room at the row's start: `GoalLine.fixed_at`)
-	if NavField.used():
-		strip.add_child(GoalLine.row_lead())
-	# DEVELOPER MODE'S BUTTONS narrower, where at their old widths they would
-	# crowd the goal off its place (Jon: the goal always in one place) -- still
-	# held (their SHOW / HIDE must not shuffle the row: a shuffle re-laid the
-	# chart under a move), and the row the same height as the map's, so the
-	# plate never changes between them
+	# (LAYER at the row's own start: the goal is below the plate, at the
+	# picture's top left -- Jon, Oct 20 -- not in the row: `GoalLine.fixed_at`)
+	# DEVELOPER MODE'S BUTTONS narrower: still held (their SHOW / HIDE must not
+	# shuffle the row: a shuffle re-laid the chart under a move), and the row
+	# the same height as the map's, so the plate never changes between them
 	var dev_host: HBoxContainer = strip
 	var narrow := {112.0: 96.0, 128.0: 96.0, 140.0: 124.0, 150.0: 124.0}
 	var dev_w := func(w: float) -> float: return float(narrow.get(w, w)) if NavField.used() else w

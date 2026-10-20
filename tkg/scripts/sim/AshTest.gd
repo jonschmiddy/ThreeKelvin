@@ -1200,6 +1200,29 @@ func _hits(r: Rect2, boxes: Array, v: Rect2) -> Array[String]:
 	return out
 
 
+## THE STEP'S LINE under the goal (`GoalLine`, Jon, Oct 20), gathered here: as
+## drawn while a step is pending, and where it stands when one is (the longest
+## step's words under the goal), so a step coming up never lands on her. In a
+## fight no step shows (its tabs are locked), so it has no place there: held to
+## that here too.
+func _step_boxes(goal: Control, fight: bool = false) -> Array:
+	var out: Array = []
+	if goal == null or not goal.visible or goal.modulate.a <= 0.0:
+		return out
+	var g := Rect2(goal.global_position, goal.size)
+	for pc in goal.find_children("*", "PanelContainer", false, false):
+		var p := pc as Control
+		if p.visible and p.get_global_rect() != g:
+			out.append(["the step's line", p.get_global_rect()])
+	var w := UITheme.pixel_font().get_string_size("Open STARCHART. Pick a star in range, then JUMP.",
+		HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x + 10.0
+	if not fight:
+		out.append(["the step's place", Rect2(g.position.x, g.end.y + 1.0, w, g.size.y)])
+	elif not out.is_empty():
+		_ok("in a fight, no step's line under the goal (%s)" % out[0][1], false)
+	return out
+
+
 ## Everything she must not cover, [what, global rect], gathered here.
 func _boxes(sc: SectorScreen) -> Array:
 	var hud := Router.hud.get_global_rect()
@@ -1207,6 +1230,7 @@ func _boxes(sc: SectorScreen) -> Array:
 	var goal := Router.hud.get_parent().get_node_or_null("GoalLine") as Control
 	if goal != null and goal.visible and goal.modulate.a > 0.0:
 		out.append(["the goal line", Rect2(goal.global_position, goal.size)])
+	out.append_array(_step_boxes(goal, sc is SectorScreen and (sc as SectorScreen).fighting()))
 	if Hints.card != null and is_instance_valid(Hints.card):
 		out.append(["hint card", Hints.card.get_global_rect()])
 	if sc._events != null and sc._events.visible:

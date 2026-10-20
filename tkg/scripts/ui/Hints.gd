@@ -383,7 +383,10 @@ func _poll_step(delta: float) -> void:
 func _step_now() -> StringName:
 	if not by_ash() or Router.hud == null or not is_instance_valid(Router.hud):
 		return &""
-	if Router.hud.goal_rect().size == Vector2.ZERO:
+	# (whether the goal line is up this frame, not whether it has drawn yet: a
+	# bark asked first on the frame the ship stopped, the line not yet faded in,
+	# so the launch bark started and the step cut it 0.6 s later)
+	if not GoalLine.shows_on(Router.current):
 		return &""
 	var st := GoalLine.step()
 	var id := StringName(st.get("id", &""))
@@ -461,14 +464,18 @@ func _show(id: StringName, p: Dictionary) -> void:
 	shown_log.append(id)
 
 
-## A card keeps off the goal line too (`GoalLine`), so the one thing that is
-## always on screen is never covered by the thing that comes and goes.
+## A card keeps off the goal line too (`GoalLine`), and the step's line under
+## it, so the one thing that is always on screen is never covered by the thing
+## that comes and goes.
 func _with_goal(avoid: Array) -> Array:
 	var g := goal_rect()
 	if g.size == Vector2.ZERO:
 		return avoid
 	var out := avoid.duplicate()
 	out.append(g)
+	var gl: Variant = Router.hud.get("goal")
+	if gl is GoalLine and is_instance_valid(gl):
+		out.append((gl as GoalLine).step_rect())
 	return out
 
 

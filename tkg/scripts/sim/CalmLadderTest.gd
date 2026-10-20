@@ -763,23 +763,31 @@ func _no_box() -> void:
 		_ok("%s: every piece of the toolbar row %.0f px or more in from its plate's ends, the side panel's margin (least %.1f, %s)" % [_nm(r), margin, least, tight],
 			least != INF and least >= margin - 0.01)
 		# THE GOAL IN ITS ONE PLACE (Jon: "Can we have the goal: xxx always be in
-		# this location?"): where LOCAL has it, inside the row's plate, its words
-		# 12 px in and on the row's line, clear of every piece of the row
+		# this location?"; Oct 20: just below the top plate, top left): where
+		# LOCAL has it, below the plate, 4 px into the picture's top left, clear
+		# of every piece of the row; and the row's own words start at its plate's
+		# margin (no room left in it for the goal any more)
 		var g: GoalLine = Router.hud.goal if Router.hud != null else null
 		if g != null:
 			g.refresh()
 			var gr := Rect2(g.position, g.size)
-			var lab := g._goal.get_global_rect()
 			var pieces2: Array = []
 			if bar != null and bar.get_child_count() > 0:
 				GoalLine._inked(bar.get_child(0) as Control, pieces2)
 			var hit := ""
+			var first_x := INF
 			for q: Rect2 in pieces2:
-				if q.intersects(lab):
+				first_x = minf(first_x, q.position.x)
+				if q.intersects(gr):
 					hit = str(q)
-			var inside := bar != null and bar.get_global_rect().grow_individual(-margin, -4.0, -margin, -4.0).encloses(lab)
-			_ok("%s: the goal where LOCAL has it (%s, its place %s), its words inside the plate's margins and clear of the row%s" % [_nm(r), gr.position, GoalLine.fixed_at(), "" if hit == "" else " (over %s)" % hit],
-				g.visible and gr.position == GoalLine.fixed_at() and inside and hit == "")
+			var gpic := GoalLine.picture_rect(Router.current)
+			var below := bar != null and gr.position.y >= bar.get_global_rect().end.y
+			_ok("%s: the goal where LOCAL has it (%s, its place %s), below the plate, at the picture's top left %s + 4 px, clear of the row%s" % [_nm(r), gr.position, GoalLine.fixed_at(), gpic.position, "" if hit == "" else " (over %s)" % hit],
+				g.visible and gr.position == GoalLine.fixed_at() and below and gr.position == gpic.position + Vector2(4, 4)
+				and gpic.encloses(gr) and hit == "")
+			var bx := bar.get_global_rect().position.x if bar != null else 0.0
+			_ok("%s: the row's words start at its plate's margin (first at %.0f, the plate's %.0f + %.0f)" % [_nm(r), first_x, bx, margin],
+				absf(first_x - (bx + margin)) <= 1.0)
 		_ok("%s: the toolbar row a plate, the side panel's own (alpha %.2f)" % [_nm(r), ba], ba >= 0.72 and ba <= 0.85
 			and ssb is StyleBoxFlat and bsb is StyleBoxFlat and (ssb as StyleBoxFlat).bg_color == (bsb as StyleBoxFlat).bg_color
 			and (ssb as StyleBoxFlat).border_color == (bsb as StyleBoxFlat).border_color
