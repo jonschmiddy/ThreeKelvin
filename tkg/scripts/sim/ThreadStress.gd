@@ -17,10 +17,15 @@ extends Node
 ## cuts (its textures owed, `OffThread`), and the take-in (`FaunaMotion.attach`,
 ## `ShipBreakup.finish`) makes them; its slowest is printed (it is on the
 ## frame a creature's motion or a breakup starts).
+## And A.S.H.'s glitched take while the hull fails (`Audio.ash_voice_prepare`):
+## its playback made on the main thread, the decode and the edits on a worker
+## (`VoiceGlitch.bake`), the stream made from the bytes on the main thread
+## (`VoiceGlitch.from_pcm`); its slowest take-in printed too.
 
 const IDS := ["custodian", "whale", "leviathan"]
 const FAUNA_JOBS := 6
 const BREAK_JOBS := 3
+const VOICE_JOBS := 2
 
 
 class Counter extends Logger:
@@ -84,12 +89,20 @@ func _run() -> void:
 	for f in DirAccess.get_files_at("res://art/sprites/cards"):
 		if f.ends_with(".png"):
 			cards.append("res://art/sprites/cards/" + f)
+	var takes: Array = []
+	for f in DirAccess.get_files_at("res://assets/audio/voice/ash"):
+		if f.ends_with(".ogg"):
+			takes.append("res://assets/audio/voice/ash/" + f)
 	var small := Image.create(24, 24, false, Image.FORMAT_RGBA8)
 	small.fill(Color(0.4, 0.6, 0.8, 1.0))
 	print("threadstress: %.0f s, %d pictures to cut, %d deaths, %d card pictures" % [_secs, cuts.size(), deaths.size(), cards.size()])
 
 	var fauna: Array = []    # in flight: {task, held}
 	var breaks: Array = []
+	var voices: Array = []
+	var n_voice := 0
+	var worst_voice := 0
+	var vi := 0
 	var n_cut := 0
 	var n_break := 0
 	var n_tex := 0
@@ -125,6 +138,16 @@ func _run() -> void:
 		while breaks.size() < BREAK_JOBS:
 			breaks.append(_start_break(deaths[di % deaths.size()]))
 			di += 1
+		for j in range(voices.size() - 1, -1, -1):
+			if WorkerThreadPool.is_task_completed(voices[j].task):
+				var t3 := Time.get_ticks_usec()
+				if _take_voice(voices[j]) != null:
+					n_voice += 1
+				worst_voice = maxi(worst_voice, Time.get_ticks_usec() - t3)
+				voices.remove_at(j)
+		while voices.size() < VOICE_JOBS and not takes.is_empty():
+			voices.append(_start_voice(takes[vi % takes.size()]))
+			vi += 1
 		# the main thread's own textures, as many as a busy frame makes
 		for k in 4:
 			var tex := ResourceLoader.load(cards[(n_load + k) % cards.size()], "", ResourceLoader.CACHE_MODE_IGNORE) as Texture2D
@@ -145,13 +168,15 @@ func _run() -> void:
 		var bb: ShipBreakup = _take_break(b2)
 		if bb != null:
 			bb.free()
+	for v in voices:
+		_take_voice(v)
 	OS.remove_logger(_log)
-	print("threadstress: %d motion cuts, %d breakups, %d card loads, %d main-thread textures" % [n_cut, n_break, n_load, n_tex])
-	print("threadstress: slowest take-in on the main thread: a motion %.1f ms, a breakup %.1f ms"
-		% [worst_take / 1000.0, worst_break / 1000.0])
+	print("threadstress: %d motion cuts, %d breakups, %d glitched takes, %d card loads, %d main-thread textures" % [n_cut, n_break, n_voice, n_load, n_tex])
+	print("threadstress: slowest take-in on the main thread: a motion %.1f ms, a breakup %.1f ms, a take %.1f ms"
+		% [worst_take / 1000.0, worst_break / 1000.0, worst_voice / 1000.0])
 	for l in _log.first:
 		print("  error: " + l)
-	var ok := _log.n == 0 and n_cut > 0 and n_break > 0
+	var ok := _log.n == 0 and n_cut > 0 and n_break > 0 and n_voice > 0
 	print("threadstress: %s (%d engine errors)" % ["PASS" if ok else "FAIL", _log.n])
 	_tree.quit(0 if ok else 1)
 
@@ -201,3 +226,20 @@ func _take_break(j: Dictionary) -> ShipBreakup:
 	if b != null:
 		b.finish()
 	return b
+
+
+func _start_voice(path: String) -> Dictionary:
+	var st := load(path) as AudioStream
+	var held := {}
+	var pb := st.instantiate_playback()
+	var secs := st.get_length()
+	var sr := AudioServer.get_mix_rate()
+	var plan := LowHull.plan_for(secs, 2, LowHull.LOOKS[LowHull.Preset.STRONG])
+	var task := WorkerThreadPool.add_task(func() -> void:
+		held.b = VoiceGlitch.bake(pb, secs, sr, plan))
+	return {task = task, held = held, sr = sr}
+
+
+func _take_voice(j: Dictionary) -> AudioStream:
+	WorkerThreadPool.wait_for_task_completion(j.task)
+	return VoiceGlitch.from_pcm(j.held.get("b", PackedByteArray()), float(j.sr))

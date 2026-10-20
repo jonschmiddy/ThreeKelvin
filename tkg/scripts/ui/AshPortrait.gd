@@ -256,6 +256,8 @@ func say(what: String, k: StringName, opts: Dictionary = {}) -> void:
 		_text.text = ""
 		_text.skip()
 		_voice_at = now + VOICE_AT
+		# her take, glitched if the hull is failing, made on a worker meanwhile
+		Audio.ash_voice_prepare(voice)
 	_log_frame(now)
 	queue_redraw()
 

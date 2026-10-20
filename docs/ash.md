@@ -212,7 +212,10 @@ fades. Fixed with the rooms: PCM, and looped a frame short.
   second, at least 0.2 s apart, one or two a line on the subtle preset (up to three at 15%). Live, from the same
   take: decoded by Godot's own decoder, edited in place (`VoiceGlitch`, every window faded in
   and out over 4 ms so no glitch puts a click back), and played from memory, the same length
-  to the sample, so the words still end with her. No new takes. Her portrait slips one tick
+  to the sample, so the words still end with her. The decode and the edits run on a worker
+  during her power-on (`Audio.ash_voice_prepare`; 40 ms at worst against the 0.35 s before she
+  speaks), and her line's start costs the main thread half a millisecond (it was 19 to 29 ms
+  done there, a dropped frame); a take not ready in time is said clean, with no glitches. No new takes. Her portrait slips one tick
   on each (her own slip, reused). Reduced motion keeps the voice glitches at the subtle
   preset and drops the slips. `-- sheet=LowHullTest` holds all of it.
 - The words and the voice part a little in the hit-stop's slow motion: the words run

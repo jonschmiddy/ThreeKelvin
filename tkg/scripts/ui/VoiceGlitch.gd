@@ -33,14 +33,20 @@ const CRUSH_BITS := [7.0, 5.0]
 const CRUSH_HOLD := [3, 6]
 
 
-## Decode `stream` to stereo frames at the mixer's rate. {x, sr}.
+## Decode `stream` to stereo frames at the mixer's rate. {x, sr}. Main thread
+## (it makes the playback); `decode_from` is the part a worker may run.
 static func decode(stream: AudioStream) -> Dictionary:
 	var pb := stream.instantiate_playback()
 	if pb == null:
 		return {}
-	pb.start(0.0)
-	var secs := stream.get_length()
 	var sr := AudioServer.get_mix_rate()
+	return {x = decode_from(pb, stream.get_length(), sr), sr = sr}
+
+
+## A playback made on the main thread, decoded to `secs` of stereo frames at
+## `sr`. Pure CPU: safe on a worker (`OffThread`'s rule).
+static func decode_from(pb: AudioStreamPlayback, secs: float, sr: float) -> PackedVector2Array:
+	pb.start(0.0)
 	var want := int(roundf(secs * sr))
 	var x := PackedVector2Array()
 	var guard := 0
@@ -49,19 +55,26 @@ static func decode(stream: AudioStream) -> Dictionary:
 		guard += 1
 	if x.size() > want:
 		x.resize(want)
-	return {x = x, sr = sr}
+	return x
 
 
-## Her take with `plan`'s glitches, as a stream the same length. Null if it
-## could not be decoded (the caller plays the take as it was).
+## Her take with `plan`'s glitches, as a stream the same length, all on the
+## calling thread. Null if it could not be decoded. In play the work is split
+## (`bake` on a worker, `from_pcm` on the main thread: `Audio.ash_voice_prepare`).
 static func render(stream: AudioStream, plan: Array) -> AudioStream:
 	var d := decode(stream)
 	if d.is_empty() or (d.x as PackedVector2Array).is_empty():
 		return null
-	var x: PackedVector2Array = d.x
-	var sr: float = d.sr
-	x = apply(x, sr, plan)
-	return to_wav(x, sr)
+	return from_pcm(pcm16(apply(d.x, d.sr, plan)), d.sr)
+
+
+## THE WORKER'S HALF: decode, glitch, and the 16-bit PCM. Pure CPU on arrays,
+## no resource made; empty if nothing decoded.
+static func bake(pb: AudioStreamPlayback, secs: float, sr: float, plan: Array) -> PackedByteArray:
+	var x := decode_from(pb, secs, sr)
+	if x.is_empty():
+		return PackedByteArray()
+	return pcm16(apply(x, sr, plan))
 
 
 ## `x` with the glitches (returned: a packed array is not shared through a call).
@@ -109,24 +122,34 @@ static func apply(x: PackedVector2Array, sr: float, plan: Array) -> PackedVector
 	return x
 
 
-## Stereo frames to a stream, through a 32-bit float WAV in memory: the frames'
-## own bytes behind a 44-byte header, so no sample is touched in script.
+## Stereo frames as 16-bit PCM, interleaved, little-endian: what an
+## AudioStreamWAV holds. Pure CPU, sample by sample in script, so it is the
+## worker's to do (3 to 5 ms a second of her voice there; on the main thread it
+## would be the hitch this split exists to remove).
+static func pcm16(x: PackedVector2Array) -> PackedByteArray:
+	var b := PackedByteArray()
+	b.resize(x.size() * 4)
+	var o := 0
+	for v: Vector2 in x:
+		b.encode_s16(o, clampi(int(roundf(v.x * 32767.0)), -32768, 32767))
+		b.encode_s16(o + 2, clampi(int(roundf(v.y * 32767.0)), -32768, 32767))
+		o += 4
+	return b
+
+
+## THE MAIN THREAD'S HALF: the PCM as a stream (a resource, so made here). A
+## copy of the bytes and nothing else.
+static func from_pcm(b: PackedByteArray, sr: float) -> AudioStream:
+	if b.is_empty():
+		return null
+	var w := AudioStreamWAV.new()
+	w.format = AudioStreamWAV.FORMAT_16_BITS
+	w.stereo = true
+	w.mix_rate = int(sr)
+	w.data = b
+	return w
+
+
+## Frames to a stream in one go (the harness's way).
 static func to_wav(x: PackedVector2Array, sr: float) -> AudioStream:
-	var data := x.to_byte_array()
-	var h := PackedByteArray()
-	h.resize(44)
-	h.encode_u32(0, 0x46464952)         # "RIFF"
-	h.encode_u32(4, 36 + data.size())
-	h.encode_u32(8, 0x45564157)         # "WAVE"
-	h.encode_u32(12, 0x20746d66)        # "fmt "
-	h.encode_u32(16, 16)
-	h.encode_u16(20, 3)                 # IEEE float
-	h.encode_u16(22, 2)
-	h.encode_u32(24, int(sr))
-	h.encode_u32(28, int(sr) * 8)
-	h.encode_u16(32, 8)
-	h.encode_u16(34, 32)
-	h.encode_u32(36, 0x61746164)        # "data"
-	h.encode_u32(40, data.size())
-	h.append_array(data)
-	return AudioStreamWAV.load_from_buffer(h)
+	return from_pcm(pcm16(x), sr)

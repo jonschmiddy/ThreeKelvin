@@ -843,10 +843,67 @@ var _voice_fade: Tween = null
 var voice_now := ""
 var _voice_end := 0.0
 ## HER VOICE BREAKING UP (`LowHull`, `VoiceGlitch`): where this line glitches,
-## [{at, len, kind, amt}] from the take's start, decided as it starts and kept
-## for her portrait to slip in step with. Empty with the hull sound. Planned
+## [{at, len, kind, amt}] from the take's start, decided as her power-on starts
+## (`ash_voice_prepare`) and kept for her portrait to slip in step with. Empty with the hull sound. Planned
 ## headless too, where nothing plays, so a harness can read it.
 var voice_glitches: Array = []
+## THE GLITCHED TAKE IS MADE OFF THE MAIN THREAD. Decoding and editing a take
+## cost up to 19 ms, which on the frame she started speaking was a dropped
+## frame. So `ash_voice_prepare` (called as her power-on starts, 0.35 s before
+## she speaks) plans the line and hands the decode and the edits to a worker
+## (`VoiceGlitch.bake`, pure CPU on arrays, `OffThread`'s rule); `ash_voice`
+## takes the finished bytes and makes the stream on the main thread. Not
+## finished in time: the clean take, and no glitches planned (so her portrait
+## does not slip on sounds that are not there). The main thread never waits.
+## {path, plan, task, out}; `out` gets the worker's bytes.
+var _prep := {}
+## Workers whose take was not wanted any more, waited on once they are done.
+var _reap: Array[int] = []
+## What the last line cost the main thread to start, usec, and whether it was
+## heard glitched: for `-- sheet=LowHullTest`.
+var voice_start_usec := 0
+var voice_heard_glitched := false
+## Harness hooks: bake even where nothing plays (headless), and pretend the
+## worker is not done yet (the fallback).
+var bake_headless := false
+var bake_hold := false
+
+
+## Her line at `path` is coming (her power-on has begun): plan its glitches
+## now, and if it has any, start making the glitched take on a worker.
+func ash_voice_prepare(path: String) -> void:
+	_drop_prep()
+	var stream := load(path) as AudioStream if ResourceLoader.exists(path) else null
+	if stream == null:
+		return
+	var plan := LowHull.voice_plan(stream.get_length())
+	_prep = {path = path, plan = plan, task = -1, out = [], sr = AudioServer.get_mix_rate()}
+	if plan.is_empty() or not (_enabled or bake_headless):
+		return
+	# the playback is made here, on the main thread; the worker only reads it
+	var pb := stream.instantiate_playback()
+	if pb == null:
+		return
+	var secs := stream.get_length()
+	var sr: float = _prep.sr
+	var out: Array = _prep.out
+	var plan_copy := plan.duplicate(true)
+	_prep.task = WorkerThreadPool.add_task(func() -> void:
+		out.append(VoiceGlitch.bake(pb, secs, sr, plan_copy)), false, "ash voice glitch")
+
+
+## A prepared take nobody will say: its worker reaped when it is done.
+func _drop_prep() -> void:
+	if int(_prep.get("task", -1)) >= 0:
+		_reap.append(int(_prep.task))
+	_prep = {}
+
+
+func _reap_done() -> void:
+	for i in range(_reap.size() - 1, -1, -1):
+		if WorkerThreadPool.is_task_completed(_reap[i]):
+			WorkerThreadPool.wait_for_task_completion(_reap[i])
+			_reap.remove_at(i)
 
 
 ## Say the take at `path`. Returns its length, s (0 if it will not load). Taped
@@ -860,7 +917,26 @@ func ash_voice(path: String) -> float:
 	var secs := stream.get_length()
 	voice_now = path
 	_voice_end = GameClock.now() + secs
-	voice_glitches = LowHull.voice_plan(secs)
+	var t0 := Time.get_ticks_usec()
+	# the glitched take, if its worker is done; otherwise the clean one
+	var glitched: AudioStream = null
+	voice_glitches = []
+	if String(_prep.get("path", "")) == path:
+		var task := int(_prep.task)
+		if task < 0:
+			# nothing baked: planned only where nothing plays (a harness reads it)
+			if not _enabled and not bake_headless:
+				voice_glitches = _prep.plan
+		elif WorkerThreadPool.is_task_completed(task) and not bake_hold:
+			WorkerThreadPool.wait_for_task_completion(task)
+			_prep.task = -1
+			if not (_prep.out as Array).is_empty():
+				glitched = VoiceGlitch.from_pcm(_prep.out[0], float(_prep.sr))
+			if glitched != null:
+				voice_glitches = _prep.plan
+	_drop_prep()
+	voice_heard_glitched = glitched != null
+	voice_start_usec = Time.get_ticks_usec() - t0
 	if taping:
 		tape.append([StringName("ash/" + path.get_file().get_basename()), Time.get_ticks_msec(), VOICE_DB, 1.0])
 	if not _enabled:
@@ -873,12 +949,7 @@ func ash_voice(path: String) -> float:
 		_voice_fade.kill()
 	_voice_fade = null
 	# the same take with its glitches in, the same length to the sample
-	var heard: AudioStream = stream
-	if not voice_glitches.is_empty():
-		var g := VoiceGlitch.render(stream, voice_glitches)
-		if g != null:
-			heard = g
-	_voice.stream = heard
+	_voice.stream = glitched if glitched != null else stream
 	_voice.volume_db = VOICE_DB
 	_voice.pitch_scale = 1.0
 	_voice.play()
@@ -914,6 +985,8 @@ func ash_speaking() -> bool:
 
 func _process(delta: float) -> void:
 	_fx_tick()
+	if not _reap.is_empty():
+		_reap_done()
 	if not _enabled:
 		return
 	# ASKED EVERY FRAME, NOT FIRED ON AN EVENT. Whether a line is playing is a

@@ -148,7 +148,8 @@ func _run() -> void:
 			while Ash.portrait != null and Ash.portrait.voice_started_at < 0.0:
 				await _tree.process_frame
 			if Ash.portrait != null:
-				_mark("her voice, %.2f s" % Ash.portrait.voice_secs)
+				_mark("her voice, %.2f s, heard glitched %s, its start %.2f ms on the main thread" % [
+					Ash.portrait.voice_secs, Audio.voice_heard_glitched, Audio.voice_start_usec / 1000.0])
 				for g: Dictionary in Audio.voice_glitches:
 					_mark("voice glitch %s %.0f ms at +%.2f s" % [g.kind, float(g.len) * 1000.0, float(g.at)])
 			var t := GameClock.now()

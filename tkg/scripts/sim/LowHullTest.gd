@@ -385,7 +385,8 @@ func _voice() -> void:
 	_ok("untouched outside its windows (%d samples differ)" % outside, outside == 0)
 	_ok("each window changes what she says", changed)
 	_ok("no step into or out of a window (worst %.2f x the take's own)" % worst_edge, worst_edge <= 1.05)
-	_ok("decoded, glitched and rebuilt in %.1f ms at worst" % ms, ms < 120.0)
+	_ok("the worker's whole job (decode, glitch, 16-bit PCM) %.1f ms at worst, inside her power-on (%.2f s)" % [ms, AshPortrait.VOICE_AT],
+		ms < AshPortrait.VOICE_AT * 1000.0 * 0.5)
 
 
 func _portrait() -> void:
@@ -420,6 +421,63 @@ func _portrait() -> void:
 				plan > 0 and p.glitch_slips == plan)
 		p.queue_free()
 		await _frames(2)
+	DisplaySettings.reduced_motion = false
+
+	# MADE OFF THE MAIN THREAD (`Audio.ash_voice_prepare`): the glitched take
+	# baked on a worker during her power-on, and her line's start on the main
+	# thread costing only the stream made from the bytes
+	var path := AshLines.voice_path(line)
+	var st := load(path) as AudioStream
+	var t_old := Time.get_ticks_usec()
+	VoiceGlitch.render(st, LowHull.plan_for(st.get_length(), 1, LowHull.look()))
+	var old_ms := (Time.get_ticks_usec() - t_old) / 1000.0
+	Audio.bake_headless = true
+	var p2 := AshPortrait.new()
+	LowHull.instance.get_parent().add_child(p2)
+	p2.say(line, &"hurt")
+	# HEADLESS GAME TIME RUNS FASTER THAN THE WALL: the 0.35 s of her power-on
+	# can pass in a few milliseconds here, where in play it is 0.35 s of real
+	# time and the worker's 40 ms fits in it many times. So the wall time her
+	# power-on would take is given back to the worker before the game moves on
+	# (the worker's own time is checked above, against VOICE_AT).
+	var wall := Time.get_ticks_msec()
+	while int(Audio._prep.get("task", -1)) >= 0 and not WorkerThreadPool.is_task_completed(int(Audio._prep.task)) \
+			and Time.get_ticks_msec() - wall < int(AshPortrait.VOICE_AT * 1000.0):
+		OS.delay_msec(1)
+	var started := false
+	var start_ms := 0.0
+	var t1 := GameClock.now()
+	while p2.phase != AshPortrait.Phase.GONE and GameClock.now() - t1 < 14.0:
+		await _tree.process_frame
+		if not started and p2.voice_started_at >= 0.0:
+			started = true
+			start_ms = Audio.voice_start_usec / 1000.0
+	var plan2 := Audio.voice_glitches.size()
+	_ok("baked on a worker during her power-on: heard glitched (%s), %d glitches, the portrait in step (%d)" % [
+		Audio.voice_heard_glitched, plan2, p2.glitch_slips],
+		Audio.voice_heard_glitched and plan2 > 0 and p2.glitch_slips == plan2)
+	_ok("her line's start costs the main thread %.2f ms (the old way, all of it on the main thread: %.1f ms)" % [start_ms, old_ms],
+		start_ms < 2.0)
+	p2.queue_free()
+	await _frames(2)
+	# NOT READY IN TIME: the clean take, nothing planned, no slips, no wait
+	Audio.bake_hold = true
+	var p3 := AshPortrait.new()
+	LowHull.instance.get_parent().add_child(p3)
+	p3.say(line, &"hurt")
+	var t2 := GameClock.now()
+	var start3 := -1.0
+	while p3.phase != AshPortrait.Phase.GONE and GameClock.now() - t2 < 14.0:
+		await _tree.process_frame
+		if start3 < 0.0 and p3.voice_started_at >= 0.0:
+			start3 = Audio.voice_start_usec / 1000.0
+	_ok("a take not baked in time: the clean take, no glitches, no slips, no wait (%.2f ms)" % start3,
+		not Audio.voice_heard_glitched and Audio.voice_glitches.is_empty() and p3.glitch_slips == 0 and start3 < 2.0)
+	p3.queue_free()
+	Audio.bake_hold = false
+	Audio.bake_headless = false
+	await _frames(30)
+	_ok("its worker reaped once done", Audio._reap.is_empty())
 	_set_share(0.9)
 	await _frames(2)
 	_ok("the hull sound: no glitches planned", LowHull.voice_plan(3.0).is_empty())
