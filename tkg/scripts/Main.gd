@@ -3,6 +3,11 @@ extends Control
 ## area to Router. Everything else is created in code by the screens.
 
 func _ready() -> void:
+	# A harness gets the window it always had, framed and 1920x1080, not the
+	# small borderless one the game launches in (`DisplaySettings`); a player's
+	# leaves it below, in `load_and_apply`.
+	if TestRun.active():
+		DisplaySettings.leave_launch_window()
 	_wear_cursor()
 	# The run seed, before anything can roll:  godot --path . -- seed 12345
 	# A run is one number. This is the flag that makes a bug report replayable,

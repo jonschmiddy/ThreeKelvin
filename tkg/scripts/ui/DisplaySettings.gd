@@ -440,5 +440,62 @@ static func load_and_apply() -> void:
 	# on the monitor the saved mode would cover. Godot strips its own flags from
 	# what a script can read, so the run has to say so itself.
 	if "keepwindow" in OS.get_cmdline_user_args():
+		leave_launch_window()
 		return
+	var from_launch := in_launch_window()
 	apply()
+	# The window just grew from the launch window to the game's, and the first
+	# frame of the title is most of a second away (the launcher builds and warms
+	# its sky first). Until something is presented the new area holds whatever
+	# the compositor had, so put one dark frame in it now.
+	if from_launch:
+		RenderingServer.force_draw()
+
+
+## THE LAUNCH WINDOW (Jon, Oct 20: "not full screen, just like a small window
+## in the center of the screen"). project.godot opens the game in a small
+## borderless window on the primary screen, holding the boot splash while the
+## scripts load, and `apply` then gives it the player's own mode and size.
+## Whether the window is still that one: borderless, as the project opened it.
+## (A `--resolution` the size of the screen makes Windows report a borderless
+## window as fullscreen, so the mode is not part of the test.)
+static func in_launch_window() -> bool:
+	if DisplayServer.get_name() == "headless":
+		return false
+	if not bool(ProjectSettings.get_setting("display/window/size/borderless", false)):
+		return false
+	return DisplayServer.window_get_flag(DisplayServer.WINDOW_FLAG_BORDERLESS)
+
+## The window every harness and `-- keepwindow` run had before the launch
+## window: framed, 1920x1080, centred where it opened. A run that gave its own
+## `--resolution` keeps that size and only gets its frame back; one that gave
+## `--position` stays where it was put.
+const HARNESS_WINDOW := Vector2i(1920, 1080)
+
+static func leave_launch_window() -> void:
+	if not in_launch_window():
+		return
+	# Read before the frame comes back: dropping the flag keeps the outer rect,
+	# so the picture inside shrinks by the frame.
+	var was := DisplayServer.window_get_size()
+	var at := DisplayServer.window_get_position()
+	var launch := Vector2i(
+		int(ProjectSettings.get_setting("display/window/size/window_width_override")),
+		int(ProjectSettings.get_setting("display/window/size/window_height_override")))
+	# The frame first, then the mode: a borderless window the size of the
+	# screen is fullscreen to Windows, and asking it for WINDOWED while it is
+	# still borderless does nothing (measured on the hidden desktop, Oct 20).
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
+	if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	if was != launch:
+		DisplayServer.window_set_size(was)
+		DisplayServer.window_set_position(at)
+		return
+	var idx := DisplayServer.window_get_current_screen()
+	DisplayServer.window_set_size(HARNESS_WINDOW)
+	if "--position" in OS.get_cmdline_args():
+		DisplayServer.window_set_position(at)
+	else:
+		DisplayServer.window_set_position(DisplayServer.screen_get_position(idx)
+			+ (DisplayServer.screen_get_size(idx) - HARNESS_WINDOW) / 2)

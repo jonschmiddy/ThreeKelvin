@@ -20,22 +20,19 @@ run/main_scene="res://scenes/Shell.tscn"
 run/flush_stdout_on_print=true
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.png"
-; THE LAUNCH SCREEN, shown while the game loads, instead of Godot's logo. Three
-; in assets/splash/, all 1920x1080 and cut from the game's own frames and icon;
-; switching is this one image line:
+; THE LAUNCH SCREEN, shown in the launch window (display/window/size below)
+; while the game loads, instead of Godot's logo. Jon's pick is B (Oct 20):
+;   splash_b_icon.png      the app icon at 6 px a cell on its own dark space,
+;                          768x432, LOADING under it in the game's face
+; A and C are the two he did not pick, made for the old full-screen window
+; (1920x1080), so they would need remaking at 768x432 to be used:
 ;   splash_a_wordmark.png  the title's own first frame, THREE KELVIN where the
-;                          title draws it, so loading runs straight into it
-;                          (`Router.show_launcher` holds the wordmark through
-;                          the handover)
-;   splash_b_icon.png      the app icon at 3x on its own dark space
+;                          title draws it (`Router.show_launcher` holds the
+;                          wordmark through the handover)
 ;   splash_c_title.png     the title with its galaxy, menu not drawn
-; 1920x1080 because that is the window the splash is shown in (the size
-; override below; the saved window mode and size apply only once the game
-; runs), so Keep draws it at exactly 1:1 there. Keep rather than Disabled for
-; the one other case: a screen too small for that window, where the OS hands
-; back a smaller one -- Disabled would centre-crop the corner wordmark away,
-; Keep shrinks the whole picture (unfiltered, so never blurred). Black ground,
-; as the game's own letterbox is black.
+; Keep draws it at 1:1 in the 768x432 window and at exactly 2x in the Mac's
+; 1536x864; unfiltered, so a window the OS hands back at another size is
+; never blurred. Black ground, as the game's own letterbox is black.
 boot_splash/image="res://assets/splash/splash_b_icon.png"
 boot_splash/bg_color=Color(0, 0, 0, 1)
 boot_splash/show_image=true
@@ -57,8 +54,25 @@ Ash="*res://scripts/ui/Ash.gd"
 [display]
 window/size/viewport_width=960
 window/size/viewport_height=540
-window/size/window_width_override=1920
-window/size/window_height_override=1080
+; THE LAUNCH WINDOW: small, borderless, centred on the primary screen, holding
+; the boot splash while the scripts load (about five seconds in the export).
+; `DisplaySettings.load_and_apply` then gives it the player's saved mode and
+; size, or the first launch's (`first_launch_window`); a harness gets the old
+; framed 1920x1080 (`DisplaySettings.leave_launch_window`). 768x432 is the
+; splash at 1:1. A Mac sizes windows in points (Godot divides by the Retina
+; scale), so it asks for twice that, which is the same 768x432 on the screen
+; and the splash at exactly 2x.
+window/size/window_width_override=768
+window/size/window_height_override=432
+window/size/window_width_override.macos=1536
+window/size/window_height_override.macos=864
+window/size/borderless=true
+; A FILM (--write-movie) keeps the old framed 1920x1080 window: the movie writer
+; records at the project's window size whatever --resolution says, and every
+; film tool expects 1080p frames. `movie` is the feature tag Godot sets for it.
+window/size/window_width_override.movie=1920
+window/size/window_height_override.movie=1080
+window/size/borderless.movie=false
 window/size/initial_position_type=1
 window/stretch/mode="disabled"
 window/stretch/aspect="keep"
