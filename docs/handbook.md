@@ -269,7 +269,7 @@ musical; `validate.sh` runs `check_cue.mjs` and `check_lab.mjs`. `Audio` now pla
 per cue (`Audio.music_state`, `Audio.play_cue`); the old stem ladder (`CUES`, `STATES`,
 `DEEP`) is gone, and `Audio.gd`'s music header says why.
 
-The sound effects are in `assets/audio/sfx/`. Most of the current set are ElevenLabs takes
+The sound effects are in `assets/audio/sfx/`. Many of the current set are ElevenLabs takes
 Jon picked by ear (Oct 17); some are still built by the Python in `audio/`. A.S.H.'s voice is
 in `assets/audio/voice/ash/`. `audio/README.md` has the sound-effect rules and the history.
 

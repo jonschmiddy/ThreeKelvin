@@ -196,7 +196,7 @@ The roster of seven:
 
 ## Meta-Progression
 
-- **Unlock manufacturers** — each unlock adds a starting loadout kit and puts that manufacturer's modules into loot pools. The flight record unlocks manufacturers and nothing else (the unlock ruling in `tkg/CLAUDE.md`; `Unlocks.CHAIN`). Unlocking hull tiers or starting regions was considered and is not built.
+- **Unlock manufacturers** — each unlock adds that manufacturer's chassis and starting kit to run start (its parts drop only while it is in `ACTIVE_MANUFACTURERS`). The flight record unlocks manufacturers and nothing else (the unlock ruling in `tkg/CLAUDE.md`; `Unlocks.CHAIN`). Unlocking hull tiers or starting regions was considered and is not built.
 - Possibly a light permanent-upgrade layer (starting resources, reroll tokens) — kept restrained to protect run integrity. **Avoid** numeric power creep that trivializes early game.
 - Death feeds knowledge + unlocks, not raw stats (lean toward StS/FTL-style unlock meta over Rogue Legacy–style stat meta). *Open question — revisit.*
 
