@@ -794,10 +794,14 @@ func _no_box() -> void:
 			and (ssb as StyleBoxFlat).border_width_top == (bsb as StyleBoxFlat).border_width_top)
 
 
-## THE GOAL LINE (`GoalLine`) A FIXED PIECE OF THE HUD (Jon, Oct 18: "Can we
-## have the goal: xxx always be in this location?"): on LOCAL, the map and the
-## chart at rest, and on every frame of a move between them, up and in the one
-## place (`GoalLine.fixed_at`), the same size.
+## THE GOAL LINE (`GoalLine`) A PIECE OF THE HUD (Jon, Oct 18: "Can we have the
+## goal: xxx always be in this location?"; Oct 20, "snug:B": below the top plate
+## on the map and the chart, snug under the HUD on LOCAL, "smooth animation as
+## it drops down or up"): up on every frame of a move between them, at the same
+## left; moving only while the top plate slides and at the plate's own point on
+## its curve, in whole pixels, a few a frame at most and one way only; never on
+## the plate or the HUD; still between the map and the chart; and at rest where
+## the screen arrived at has it.
 func _goal_line() -> void:
 	var g: Variant = Router.hud.get("goal") if Router.hud != null else null
 	if g == null:
@@ -807,26 +811,80 @@ func _goal_line() -> void:
 	await _at(ZoomLadder.LOCAL)
 	await _frames(40)
 	var gl := g as Control
-	var r0 := Rect2(gl.position, gl.size)
 	for h: Array in [[ZoomLadder.LOCAL, ZoomLadder.MAP, KEY_TAB], [ZoomLadder.MAP, ZoomLadder.CHART, KEY_TAB],
 			[ZoomLadder.CHART, ZoomLadder.LOCAL, KEY_TAB]]:
 		var label := "the goal line, %s -> %s" % [_nm(h[0]), _nm(h[1])]
+		var r0 := Rect2(gl.position, gl.size)
+		var local_hop: bool = h[0] == ZoomLadder.LOCAL or h[1] == ZoomLadder.LOCAL
 		_key(h[2])
 		var off := 0
 		var frames := 0
 		var why := ""
+		var moved := 0
+		var stray := 0
+		var stray_why := ""
+		var over := 0
+		var over_why := ""
+		var big := 0.0
+		var dirs := {}
+		var prev := r0
 		for i in 400:
 			await _tree.process_frame
 			frames += 1
 			var r := Rect2(gl.position, gl.size)
 			var up: bool = gl.visible and gl.modulate.a > 0.99
-			if not up or r != r0:
+			if not up or r.position.x != r0.position.x or r.size != r0.size or r.position != r.position.round():
 				off += 1
 				if why == "":
-					why = "%s at frame %d" % ["%s, not %s" % [r, r0] if up else "not up", frames]
+					why = "%s at frame %d" % ["%s, from %s" % [r, r0] if up else "not up", frames]
+			if r.position.y != prev.position.y:
+				moved += 1
+				var dy := r.position.y - prev.position.y
+				big = maxf(big, absf(dy))
+				dirs[signf(dy)] = true
+				# only with the plate, at its own point on the curve
+				var ps := GoalLine.plate_slide()
+				if not local_hop or ps == null or r.position != GoalLine.place_at(ps.k):
+					stray += 1
+					if stray_why == "":
+						stray_why = "frame %d at %s, the plate %s" % [frames, r.position, "k %.3f -> %s" % [ps.k, GoalLine.place_at(ps.k)] if ps != null else "not sliding"]
+			# never on the plate or the HUD (the goal and the step's line)
+			var plate := Rect2()
+			var ps2 := GoalLine.plate_slide()
+			if ps2 != null:
+				plate = ps2.at()
+			elif Router.current != null and Router.current.has_method("ladder_bar"):
+				var bar: Control = Router.current.call("ladder_bar")
+				# (one the move has hidden is not drawn: `ZoomLadder._hide_chrome`)
+				if bar != null and bar.is_visible_in_tree() and bar.modulate.a > 0.0:
+					plate = bar.get_global_rect()
+			var hud := Router.hud.get_global_rect()
+			var sr: Rect2 = (gl as GoalLine).step_rect()
+			for x: Rect2 in [r, sr]:
+				if x.size == Vector2.ZERO:
+					continue
+				var hit := ""
+				if plate.size != Vector2.ZERO and x.intersects(plate):
+					hit = "the plate %s" % plate
+				elif x.intersects(hud):
+					hit = "the HUD"
+				if hit != "":
+					over += 1
+					if over_why == "":
+						over_why = "%s on %s at frame %d" % [x, hit, frames]
+			prev = r
 			if _settled() and i > 5:
 				break
-		_ok("%s: up and in its one place on every frame (%d of %d not%s)" % [label, off, frames, "" if why == "" else ": " + why], off == 0)
+		var want_y: float = GoalLine.place_at(1.0 if h[1] != ZoomLadder.LOCAL else 0.0).y
+		_ok("%s: up on every frame, at the same left, the same size, whole pixels (%d of %d not%s)" % [label, off, frames, "" if why == "" else ": " + why], off == 0)
+		if local_hop:
+			_ok("%s: it moves with the plate only, at the plate's point on its curve (%d frames moved, %d not with it%s)" % [label, moved, stray, "" if stray_why == "" else ": " + stray_why],
+				moved > 3 and stray == 0)
+			_ok("%s: smooth, one way, %.0f px a frame at most" % [label, big], dirs.size() <= 1 and big <= 4.0)
+		else:
+			_ok("%s: it does not move (%d frames moved)" % [label, moved], moved == 0)
+		_ok("%s: never on the plate or the HUD (%d frames%s)" % [label, over, "" if over_why == "" else ": " + over_why], over == 0)
+		_ok("%s: at rest where %s has it (y %.0f, wants %.0f)" % [label, _nm(h[1]), gl.position.y, want_y], gl.position.y == want_y)
 		await _rest()
 	Hints.forced = false
 

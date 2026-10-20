@@ -12,8 +12,8 @@ extends Node
 ## step done), a fight; and hidden over the cutaway and the escape menu.
 ##
 ## WHERE (Jon, Oct 20): just below the map's and the chart's top plate, at
-## their picture's top left, and the same place on LOCAL; the step directly
-## under it on all three.
+## their picture's top left; on LOCAL snug under the HUD at the same left
+## ("snug:B"); the step directly under it on all three.
 ##
 ## THE BOX TEST, on every screen it shows on: its rect is inside the picture
 ## and clear of the HUD, the side bar, every piece of the toolbar row, LOCAL's
@@ -29,7 +29,7 @@ extends Node
 var _tree: SceneTree
 var _fails := 0
 ## the goal's rect where first seen up: every screen after has it the same
-var _goal_rect := Rect2()
+var _goal_rects := {}
 
 
 func _ok(what: String, c: bool) -> bool:
@@ -175,9 +175,20 @@ func _check(g: Control, where: String, step: String) -> void:
 	_ok("%s: inside the picture (%s)" % [where, r], screen.encloses(r) and r.size.x > 10.0)
 	# ONE PLACE (Jon, Oct 18: "Can we have the goal: xxx always be in this
 	# location?"): the same rect on every screen it shows on
-	if _goal_rect == Rect2():
-		_goal_rect = r
-	_ok("%s: in its one place (%s; first seen %s)" % [where, r, _goal_rect], r == _goal_rect)
+	# (Jon, Oct 20, "snug:B": one place on the map and the chart, below their
+	# top plate; one on LOCAL, snug under the HUD; the same left on all three)
+	var nav := Router.current is StarchartScreen or Router.current is SystemMapScreen
+	var key := "nav" if nav else "local"
+	if not _goal_rects.has(key):
+		_goal_rects[key] = r
+	_ok("%s: in its one place for %s (%s; first seen %s)" % [where, "the map and the chart" if nav else "LOCAL", r, _goal_rects[key]],
+		r == _goal_rects[key])
+	var content := Router.content.get_global_rect()
+	_ok("%s: at the same left on every screen (x %.0f, the screens' area's + 16)" % [where, r.position.x], r.position.x == content.position.x + 16.0)
+	if not nav:
+		var hb := Router.hud.get_global_rect().end.y
+		_ok("%s: snug under the HUD (top %.0f, the HUD's bottom %.0f, the screens' area's top %.0f + 4)" % [where, r.position.y, hb, content.position.y],
+			r.position.y == content.position.y + 4.0 and r.position.y - hb <= 10.0 and r.position.y >= hb)
 	# BELOW THE TOP PLATE, AT THE PICTURE'S TOP LEFT (Jon, Oct 20), on the map
 	# and the chart; LOCAL has the same place (the rect above)
 	if Router.current is StarchartScreen or Router.current is SystemMapScreen:

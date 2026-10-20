@@ -146,6 +146,12 @@ var _loaded := false
 ## Her introduction: said on this profile (-1 not read yet), and up now.
 var _intro_said := -1
 var _introducing := false
+## HER BOX WITH THE GOAL (Jon, Oct 20: the goal, its step and her box one
+## group): a top spot's y and the goal's when she came up, so while the goal
+## slides with the top plate she goes with it (`_follow_goal`).
+var _group := false
+var _group_y := 0.0
+var _goal_y := 0.0
 
 var _last_end := -INF
 var _fight: Object = null
@@ -450,6 +456,7 @@ func poll(delta: float) -> void:
 	if not enabled():
 		_quiet()
 		return
+	_follow_goal()
 	_watch()
 	# THE QUIET STARTS WHEN A LINE ENDS, however it ended
 	if _up and (portrait == null or not portrait.speaking()):
@@ -501,6 +508,20 @@ func poll(delta: float) -> void:
 		held_by = "room"
 		return
 	_say(kind, line, spot)
+
+
+## Her box up on a top spot moves with the goal as it slides with the top plate
+## (`GoalLine.fixed_at`), the same pixels, so the three never part or touch.
+func _follow_goal() -> void:
+	if not _group or portrait == null or not is_instance_valid(portrait) or not portrait.visible:
+		return
+	portrait.position.y = _group_y + (GoalLine.fixed_at().y - _goal_y)
+
+
+func _group_from(spot: Dictionary) -> void:
+	_group = String(spot.get("name", "")).begins_with("top")
+	_group_y = (spot.rect as Rect2).position.y
+	_goal_y = GoalLine.fixed_at().y
 
 
 ## The first waiting moment, by `ORDER`.
@@ -651,6 +672,7 @@ func _say(kind: StringName, line: String, spot: Dictionary) -> void:
 	portrait.position = (spot.rect as Rect2).position
 	portrait.size = Vector2(AshPortrait.W, AshPortrait.H)
 	portrait.say(line, kind)
+	_group_from(spot)
 	_up = true
 	# her introduction, said: never forced again on this profile
 	if kind == &"launch" and not intro_said() and AshLines.id_of(line) == AshLines.INTRO:
@@ -914,6 +936,7 @@ func teach(lid: StringName, text: String, hint: StringName, subject: Rect2, opts
 	portrait.theme = _theme()
 	portrait.mirrored = bool(spot.mirrored)
 	portrait.position = (spot.rect as Rect2).position
+	_group_from(spot)
 	portrait.say(text, StringName("tut_" + String(lid)), {
 		voice = String(opts.get("voice", "")), spoken = String(opts.get("spoken", "")),
 		held = hint != &""})
@@ -1138,6 +1161,11 @@ static func _cutaway_rects(cut: CutawayView, out: Array) -> void:
 			out.append(c.get_global_rect())
 	if cut._pic.size.x > 0.0:
 		out.append(cut.get_global_transform() * cut._pic)
+	# the rings' layer over the exploded ship takes the clicks (a part dropped on
+	# a ring) a little past the picture's own box
+	var mp: Control = cut._mounts
+	if mp != null and is_instance_valid(mp) and mp.is_visible_in_tree() and mp.mouse_filter != Control.MOUSE_FILTER_IGNORE:
+		out.append(mp.get_global_rect())
 	if cut._popup != null and is_instance_valid(cut._popup) and cut._popup.is_visible_in_tree():
 		out.append(cut._popup.get_global_rect())
 

@@ -96,16 +96,27 @@ frame on the main screen. It reacts to the ship, not to the script:
   corners and otherwise waits. Not pressable and not clickable: clicks go through her.
 - **Off the goal and its step** (Jon, Oct 20: "The GOAL and the tutorial tip are right under
   her box"). The goal's line stands just below the map's and the chart's top plate, at their
-  picture's top left, and at the same place on LOCAL (24, 89 on the 960x540 grid), with the
-  step's line under it; her top-left spot was on both. She keeps off the two lines as drawn and
-  off the room they keep whether a step is pending or not (`GoalLine.stack_rect`), so a step
-  coming up never lands on her. A top spot that would touch it stands 6 px under the step's
-  room instead: top left is 14, 122 on LOCAL and 26, 122 on the chart and the map. In a fight
-  there is no step (its tabs are locked there, so `GoalLine.step` gives none) and under the goal
-  is your hull, so her top left moves beside the goal's line instead, 146, 65. AshTest measured
-  that place clear on all 65 of its screens. Her teaching spots follow the same rule. The map's
-  "IN ORBIT · ..." status line was under the new goal and moved down under the step's room
+  picture's top left (24, 89 on the 960x540 grid). On LOCAL it is snug under the HUD at the
+  same left, 24, 46 (Jon, "snug:B": no empty gap where the plate would be). The step's line is
+  under it. She keeps off the two lines as drawn and off the room they keep whether a step is
+  pending or not (`GoalLine.stack_rect`), so a step coming up never lands on her. A top spot
+  that would touch it stands 6 px under the step's room instead: top left is 14, 79 on LOCAL
+  and 26, 122 on the chart and the map. In a fight there is no step (its tabs are locked there,
+  so `GoalLine.step` gives none), so the room is the goal's line alone, and her top left is her
+  old corner, 14, 65, under it. Her teaching spots follow the same rule. The map's "IN ORBIT ·
+  ..." status line was under the new goal and moved down under the step's room
   (`SystemOverlay.STATUS_AT`).
+- **The three move as one with the top plate** (Jon: "Can we make it smooth animation as it
+  drops down or up"). On a move between LOCAL and the map or the chart, the goal, the step and
+  her box slide down or up with the plate as it slides on or off. They use the plate's own
+  point on its curve (`GoalLine.drop`, read off its `PanelSlide`), on the same frame (the goal
+  line processes after the ladder), in whole pixels. They hold still while the camera moves and
+  do not move between the map and the chart. `CalmLadderTest` holds this to every frame of a hop.
+- **Said once, not twice** (Jon, "twice:hide"). While she has a goal step to say, or is saying
+  it, the step's line under the goal is not shown; its room stays kept. When she is done it
+  comes back as the quiet reminder: a 0.45 s eased fade with a 3 px settle up into its place,
+  in whole pixels, on the game's clock (`GoalLine.APPEAR_S`, `APPEAR_DY`). A step that changes
+  while she talks keeps it hidden until she has said that one too, so it never flickers.
 - **One line at a time, the step before a bark.** A launch line waits for the goal's first step
   to be said, as barks wait for teaching. That used to fail in play: the step counted as due
   only once the goal line had drawn, and the goal fades in after the ship stops, so on that

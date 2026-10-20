@@ -23,12 +23,25 @@ extends Control
 ## after the screens, so it is over the picture and under the escape menu. It
 ## is `top_level`, so the column does not lay it out; it places itself.
 ##
-## ONE PLACE, ALWAYS (Jon, Oct 18: "Can we have the goal: xxx always be in this
-## location?"), the same on all three and through every move between them
-## (`fixed_at`). WHERE (Jon, Oct 20): not in the map's and the chart's top plate
-## left of their DANGER / LAYER, but just below it, at the top left of their
-## picture; and at that same place on LOCAL. The step's line, while one is
-## pending, directly under it, the same on all three (`step_at`). Both have the
+## ITS PLACE (`fixed_at`). Jon, Oct 18: "Can we have the goal: xxx always be in
+## this location?". Oct 20: not in the map's and the chart's top plate left of
+## their DANGER / LAYER, but just below it, at the top left of their picture.
+## Oct 20, "snug:B": on LOCAL, where there is no plate, snug under the HUD at
+## the same left, not low with an empty gap over it. Between the two it moves
+## only with the top plate ("Can we make it smooth animation as it drops down
+## or up"): on a move between LOCAL and the map or the chart it slides down or
+## up as the plate slides on or off, on the plate's own curve (`drop`, read off
+## its `PanelSlide`), in whole pixels; between the map and the chart it stays.
+## The step's line, while one is pending, directly under it (`step_at`), and
+## A.S.H.'s box under both, the three as one group.
+##
+## SAID ONCE, NOT TWICE (Jon, Oct 20, "twice:hide"): while A.S.H. has a step to
+## say, or is saying it, the step's line is not shown; when she has finished it
+## comes back as the quiet reminder, "slowly pop in all smooth like": a fade
+## over `APPEAR_S` with a small settle up from `APPEAR_DY` px, eased, in whole
+## pixels, on the game's clock. Its room is kept all the while (`stack_rect`),
+## so nothing moves when it comes back; a step changing while she talks keeps
+## it hidden until she is done with that one too. Both have the
 ## step's dim backing: they stand over the picture. The two lines' room is kept
 ## whether a step is pending or not (`stack_rect`), so A.S.H., who keeps off it,
 ## is never sent away by a step arriving. `-- sheet=GoalTest` holds both clear
@@ -51,10 +64,17 @@ const STEP_TEXTS: Array[String] = ["Open STARCHART. Pick a star in range, then J
 ## into the picture, where the step used to stand. LOCAL takes the same place
 ## (`GoalTest` and `CalmLadderTest` hold it to the map's and the chart's picture).
 const AT := Vector2(16.0, 47.0)
+## ITS PLACE ON LOCAL (Jon, Oct 20, "snug:B"): snug under the HUD, 4 px into the
+## screens' area as it is 4 px into the map's picture, at the same left.
+const AT_LOCAL := Vector2(16.0, 4.0)
 ## Between the goal's line and the step's, px.
 const GAP := 1.0
 ## One line's height with its backing, px (where it cannot be measured).
 const LINE_H := 13.0
+## THE STEP'S LINE COMING BACK after she has said it: how long, s, and the
+## settle up into its place, px.
+const APPEAR_S := 0.45
+const APPEAR_DY := 3.0
 ## The fade in and out, s (none under reduced motion or headless).
 const FADE_S := 0.2
 
@@ -67,11 +87,21 @@ var cue: StringName = &""
 var _want := false
 var _tw: Tween = null
 var _backed: StyleBoxFlat
+## WHERE IT STANDS between LOCAL's place (0) and the place below the map's and
+## the chart's top plate (1); -1 before it has been placed.
+var drop := -1.0
+## the step's line held back while she says it (`_step_held`), and when it
+## started coming back (GameClock s; -1 not coming back)
+var step_held := false
+var _appear_t0 := -1.0
 
 
 func _init() -> void:
 	name = "GoalLine"
 	top_level = true
+	# (after the ladder has moved the top plate this frame, so the two move on
+	# the same frame, never a frame apart)
+	process_priority = 100
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	focus_mode = Control.FOCUS_NONE
 	visible = false
@@ -153,8 +183,15 @@ func refresh() -> void:
 	var st := step() if want else {}
 	_step.text = String(st.get("text", ""))
 	_step.visible = _step.text != ""
-	_step_panel.visible = _step.visible
+	# SAID ONCE, NOT TWICE: held back while she has it to say or says it, and
+	# coming back slowly once she is done
+	var held := _step.visible and _step_held()
+	if step_held and not held and _step.visible:
+		_appear_t0 = GameClock.now() if Router.animating() else -1.0
+	step_held = held
+	_step_panel.visible = _step.visible and not held
 	cue = StringName(st.get("tab", &""))
+	drop = drop_now(cur, drop)
 	if want:
 		var sz := _panel.get_combined_minimum_size()
 		_panel.size = sz
@@ -163,18 +200,84 @@ func refresh() -> void:
 		if _step.visible:
 			var ssz := _step_panel.get_combined_minimum_size()
 			_step_panel.size = ssz
-			_step_panel.position = step_at(cur) - position
+			_step_panel.position = step_at(cur) - position + Vector2(0.0, _appear())
 	_fade(want)
 	queue_redraw()
 
 
-## THE GOAL'S ONE PLACE (Jon, Oct 18: "Can we have the goal: xxx always be in
-## this location?"; Oct 20: just below the map's and the chart's top plate, top
-## left, and the same on LOCAL): the same on all three and through every move
-## between them, a fixed piece of the HUD.
+## A.S.H. has the step on the goal line to say, or is saying it (`Hints`): its
+## line waits for her.
+static func _step_held() -> bool:
+	if not Hints.enabled() or not Hints.by_ash():
+		return false
+	if Hints.step_up != &"" and Ash.lesson_up() and Ash.lesson == Hints.step_up:
+		return true
+	return Hints._step_now() != &""
+
+
+## The step's line coming back: its alpha set here, and how far under its place
+## it stands this frame (whole px).
+func _appear() -> float:
+	if _appear_t0 < 0.0:
+		_step_panel.modulate.a = 1.0
+		return 0.0
+	var u := clampf((GameClock.now() - _appear_t0) / APPEAR_S, 0.0, 1.0)
+	var e := 1.0 - pow(1.0 - u, 3.0)
+	_step_panel.modulate.a = e
+	if u >= 1.0:
+		_appear_t0 = -1.0
+	return roundf(APPEAR_DY * (1.0 - e))
+
+
+## WHERE THE GOAL STANDS NOW (global): LOCAL's place snug under the HUD, the
+## place below the map's and the chart's top plate, or on the way between them
+## with the plate, in whole pixels.
 static func fixed_at() -> Vector2:
+	var g: GoalLine = Router.hud.goal if Router.hud != null and is_instance_valid(Router.hud) else null
+	return place_at(drop_now(Router.current, g.drop if g != null and is_instance_valid(g) else -1.0))
+
+
+## The place at `k` (0 LOCAL's, 1 below the plate), global, whole pixels.
+static func place_at(k: float) -> Vector2:
 	var c := Router.content.get_global_rect() if Router.content != null else Rect2(8, 42, 944, 491)
-	return c.position + AT
+	return (c.position + AT_LOCAL.lerp(AT, clampf(k, 0.0, 1.0))).round()
+
+
+## Its place at rest on `cur`: below the plate on the map and the chart, LOCAL's
+## anywhere else it shows (LOCAL, a fight).
+static func rest_drop(cur: Control) -> float:
+	return 1.0 if cur is SystemMapScreen or cur is StarchartScreen else 0.0
+
+
+## A calm move between LOCAL and the map or the chart under way: the one kind
+## of move the goal travels on.
+static func _plate_moving() -> bool:
+	if not ZoomLadder.busy() or not bool(ZoomLadder.active.get("_calm")):
+		return false
+	var zl := ZoomLadder.active
+	return zl.r_old == ZoomLadder.LOCAL or zl.r_new == ZoomLadder.LOCAL
+
+
+## The top plate's own slide, if it is moving: its `PanelSlide` (1 in place).
+static func plate_slide() -> PanelSlide:
+	for p: Variant in PanelSlide.live:
+		if is_instance_valid(p) and not (p as PanelSlide).done and (p as PanelSlide).kind == &"band":
+			return p as PanelSlide
+	return null
+
+
+## WHERE IT STANDS THIS FRAME (`drop`): at rest, the screen's place; on a move
+## between LOCAL and the map or the chart, with the plate while it slides and
+## where it was while it does not (the camera's part of the move), so it never
+## jumps at the swap.
+static func drop_now(cur: Control, was: float) -> float:
+	if _plate_moving():
+		var ps := plate_slide()
+		if ps != null:
+			return ps.k
+		if was >= 0.0:
+			return was
+	return rest_drop(cur)
 
 
 ## Where the step's line goes (global): directly under the goal, on all three.
@@ -215,6 +318,11 @@ static func _fighting(cur: Control) -> bool:
 ## The step's line as drawn (global), or empty.
 func step_rect() -> Rect2:
 	return Rect2(position + _step_panel.position, _step_panel.size) if visible and _step_panel.visible else Rect2()
+
+
+## The step's line is coming back (fading in) this frame.
+func step_appearing() -> bool:
+	return _appear_t0 >= 0.0
 
 
 ## On LOCAL (a fight too), the sector map and the chart, with a run, nothing

@@ -196,17 +196,28 @@ func _expect_step(lid: StringName) -> void:
 	await _box(String(lid))
 	var t0 := GameClock.now()
 	var held_from := -1.0
+	# SAID ONCE, NOT TWICE (Jon, "twice:hide"): the goal line's step not shown
+	# on any frame she says it
+	var gl: GoalLine = Router.hud.goal
+	var shown := 0
 	while p.speaking() and GameClock.now() - t0 < 15.0:
 		Hints.poll(1.0 / 60.0)
 		await _tree.process_frame
 		if held_from < 0.0 and p.phase == AshPortrait.Phase.HOLDING:
 			held_from = GameClock.now()
+		if p.speaking() and gl.step_rect() != Rect2():
+			shown += 1
 	var held := GameClock.now() - held_from
 	var need := AshPortrait.HOLD_MIN_S + AshPortrait.HOLD_PER_CHAR_S * float(p.line.length())
 	_ok("%s: typed, held %.2f s to read (wants %.2f), then went on its own" % [lid, held, need],
 		held_from > 0.0 and held >= need - 0.05 and not p.speaking())
 	_ok("%s: said for good" % lid, Hints.said(lid))
+	_ok("%s: the goal line's step hidden on every frame she says it (%d frames shown)" % [lid, shown], shown == 0)
 	Hints.poll(0.1)
+	await _frames(3)
+	var sr := gl.step_rect()
+	_ok("%s: once she is done, the step's line back as the reminder (%s), in its room under the goal" % [lid, sr],
+		sr.size != Vector2.ZERO and GoalLine.stack_rect(Router.current).encloses(sr))
 
 
 ## Nothing of hers about `lid` comes over a few seconds.
@@ -1141,6 +1152,15 @@ func _first_launch() -> void:
 		var cuts: Array[String] = []
 		var over: Array[String] = []
 		var prev := &""
+		# THE STEP'S LINE, said once: hidden every frame she says it, then back
+		# slowly (alpha and how far under its place, each frame), never hidden again
+		var step_shown_while := 0
+		var back: Array[String] = []
+		var back_a: Array[float] = []
+		var back_dy: Array[float] = []
+		var flick := 0
+		var was_vis := false
+		var gln: GoalLine = Router.hud.goal
 		var t0 := GameClock.now()
 		var goal := Router.hud.get_parent().get_node_or_null("GoalLine") as Control
 		while GameClock.now() - t0 < 60.0:
@@ -1160,9 +1180,20 @@ func _first_launch() -> void:
 				for b: Array in under:
 					if r.intersects(b[1]) and over.size() < 4:
 						over.append("%s over %s %s at %.2f s" % [now_kind, b[0], b[1], GameClock.now() - t0])
+			var srr := gln.step_rect()
+			var vis := srr != Rect2()
+			if now_kind == &"tut_step_jump" and vis:
+				step_shown_while += 1
+			if vis and not step_shown_while and (back_a.size() < 60):
+				var sp := gln._step_panel
+				back_a.append(sp.modulate.a)
+				back_dy.append(srr.position.y - (gln.position.y + gln.size.y + GoalLine.GAP))
+			if was_vis and not vis and gln.visible:
+				flick += 1
+			was_vis = vis
 			if Hints.lesson != &"" and Hints._up_t > 0.5:
 				Hints.click(_press())
-			if Ash.said_log.size() >= n0 + 2 and now_kind == &"":
+			if Ash.said_log.size() >= n0 + 2 and now_kind == &"" and back_a.size() >= 40:
 				break
 		var order: Array[String] = []
 		for d: Dictionary in Ash.said_log.slice(n0):
@@ -1176,6 +1207,17 @@ func _first_launch() -> void:
 				and String(Ash.said_log[n0].line) == String(AshLines.of(&"launch")[3]))
 		_ok("%s: one line at a time, none cut by the next (%s)" % [who, ", ".join(cuts) if not cuts.is_empty() else "none"], cuts.is_empty())
 		_ok("%s: her box never over the goal or the step's line (%s)" % [who, "; ".join(over) if not over.is_empty() else "clear every frame"], over.is_empty())
+		_ok("%s: the step's line hidden on every frame she says the step (%d shown)" % [who, step_shown_while], step_shown_while == 0)
+		# back slowly: from faint, rising to whole over about APPEAR_S, settling up
+		# a few whole pixels into its place, never down, and not hidden again
+		var rises := true
+		for i in range(1, back_a.size()):
+			rises = rises and back_a[i] >= back_a[i - 1] - 0.001 and back_dy[i] <= back_dy[i - 1] and back_dy[i] == roundf(back_dy[i])
+		var full_at := back_a.find(1.0)
+		_ok("%s: then back slowly (alpha %s; px under its place %s; whole at frame %d), never hidden again (%d)" % [who,
+			str(back_a.slice(0, 8).map(func(a: float) -> String: return "%.2f" % a)), str(back_dy.slice(0, 8)), full_at, flick],
+			back_a.size() > 0 and back_a[0] < 0.5 and rises and full_at >= 15 and full_at <= 40
+			and back_dy[0] >= 1.0 and back_dy[0] <= GoalLine.APPEAR_DY and back_dy.back() == 0.0 and flick == 0)
 		Hints.set_process(false)
 		Router.animate_in_harness = false
 		if Ash.portrait != null:
