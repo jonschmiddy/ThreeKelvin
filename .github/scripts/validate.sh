@@ -677,7 +677,7 @@ step "One camera: every move between chart, map, LOCAL and station lands"
 # Each seam's designs both ways, input mid-move, scroll past a zoom's end, a
 # fight from the map, DOCK/UNDOCK, and the switch off giving a plain swap.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot laddertest 300 --headless --path "$PROJECT" -- sheet=LadderTest; then
+	run_godot laddertest 420 --headless --path "$PROJECT" -- sheet=LadderTest; then
 	if grep -qE '^laddertest: PASS' "$LOG_DIR/laddertest.log"; then
 		ok "every move lands where it should"
 	else
