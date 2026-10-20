@@ -36,7 +36,7 @@ config/icon="res://icon.png"
 ; back a smaller one -- Disabled would centre-crop the corner wordmark away,
 ; Keep shrinks the whole picture (unfiltered, so never blurred). Black ground,
 ; as the game's own letterbox is black.
-boot_splash/image="res://assets/splash/splash_a_wordmark.png"
+boot_splash/image="res://assets/splash/splash_b_icon.png"
 boot_splash/bg_color=Color(0, 0, 0, 1)
 boot_splash/show_image=true
 boot_splash/stretch_mode=1
