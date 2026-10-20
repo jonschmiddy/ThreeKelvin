@@ -17,7 +17,9 @@ extends Node
 ## the goal steps on LOCAL, the chart and the map; the chart's list; the map's
 ## events; LOCAL's wreck, loot and ship; the cutaway; the event band; a wreck's
 ## window; a fight's hand, intent, END TURN, brace and heat (five lines, one
-## fight); the station's decks, its yard's ship and its cutaway; fuel low with a
+## fight); the station's decks, each deck the first time it is open (the yard,
+## the Promenade, the Exchange, the Hiring Board, the Laboratory), its yard's
+## ship and its cutaway; fuel low with a
 ## dock in reach, none, and here. Each is her line with the right words, in her
 ## corner and not a card, the outline on the hint's own subject, held until a
 ## click (a goal step goes after its reading time), and the click spends it.
@@ -38,7 +40,10 @@ extends Node
 ## types at its pace, and the shown words (numbers and names in them) end when
 ## she stops; what she says has no field and no live number. OFF: her switch
 ## off brings back today's cards, exactly, mid-lesson too; and in a party there
-## is no teaching at all.
+## is no teaching at all. THE DECKS (Jon, Oct 20): each deck's line once, spent
+## as it shows, so leaving the deck without a click does not bring it back;
+## queued behind the dock's; off with TUTORIAL OFF, back with REPLAY TUTORIAL,
+## a card with her off, nothing in a party; her box clear on each deck.
 
 var _tree: SceneTree
 var _fails := 0
@@ -68,6 +73,19 @@ const JON := {
 	&"step_event": "Open SECTOR. Click an event, then press GO.",
 	&"step_event_map": "Click an event, then press GO.",
 }
+
+## THE DECKS' LINES, DRAFTS (Oct 20) for Jon to pick from: option A of two, in
+## the game as text alone until he picks and a take is recorded. Held here so a
+## change to them is a change to this file too.
+const DECK_A := {
+	&"shipyard": "The drones fix the ship. Click one to buy its job: PATCH, REPAIR, REFUEL or FAULTS.",
+	&"promenade": "We buy parts here. Point at one to read it. Drag it to the till to pay.",
+	&"exchange": "We sell here. Drag a part from the hold onto the counter to be paid for it.",
+	&"hiring_board": "Manufacturers post paid work here. Press SIGN on a note to take the job.",
+	&"laboratory": "The fabricator turns a relic into a part. Press MAKE when you can pay for it.",
+}
+## The decks' hints, in the rail's order from the deck the station opens on.
+const DECKS: Array[StringName] = [&"shipyard", &"promenade", &"exchange", &"hiring_board", &"laboratory"]
 
 
 func _ok(what: String, c: bool) -> bool:
@@ -103,6 +121,7 @@ func _run() -> void:
 	await _voice()
 	await _switch()
 	await _cutaway_once()
+	await _decks()
 	await _tutorial_switch()
 	await _intro()
 	await _first_launch()
@@ -369,6 +388,25 @@ func _gather(cur: Control, v: Rect2) -> Array:
 		out.append(["the cutaway's panel", st._cutaway._hold_panel.get_global_rect()])
 		for d in st._cutaway._mounts.drawn_rects():
 			out.append(["the cutaway's %s %s" % [d.kind, d.text], st._cutaway._mounts.get_global_transform() * (d.rect as Rect2)])
+	# THE DECKS' PIECES, whether or not they take the mouse: the shelf, the till,
+	# the hold, the counter, the notes on the board, the fabricator's screen
+	if st != null and (st._cutaway == null or not st._cutaway.is_open()):
+		var sh: Control = st._shop.shelf_node if st._shop != null else null
+		if sh != null and is_instance_valid(sh) and sh.is_visible_in_tree():
+			out.append(["the shelf", sh.get_global_transform() * Rect2(Vector2.ZERO, sh.size)])
+		for k: Control in [st._till, st._hold_grid, st._sell_desk, st._bench_clip]:
+			if k != null and k.is_visible_in_tree():
+				out.append(["the deck's %s" % k.get_class(), k.get_global_rect()])
+		if st._work != null and st._work.is_visible_in_tree():
+			for c in st._work.get_children():
+				if c is Control and (c as Control).is_visible_in_tree():
+					out.append(["a note on the board", (c as Control).get_global_rect()])
+		# the board's screen: its app bar (the tabs take clicks), its ticker, a popup
+		if st._board != null and st._board.is_visible_in_tree():
+			for r: Rect2 in st._board.chrome_rects():
+				out.append(["the board's app bar or ticker", st._board.get_global_transform() * r])
+			if st._board.pop_rect.has_area():
+				out.append(["a popup on the board", st._board.get_global_transform() * st._board.pop_rect])
 	if st != null and st._scene != null and st._scene.is_visible_in_tree() and (st._cutaway == null or not st._cutaway.is_open()):
 		var ys := st._scene
 		for i in 2:
@@ -508,6 +546,20 @@ func _lines() -> void:
 	_ok("the fuel hint picks its line by the dock: in reach, none, here",
 		AshTutorLines.line_id(&"fuel", {jumps = 2}) == &"fuel_dock" and AshTutorLines.line_id(&"fuel", {}) == &"fuel_none"
 		and AshTutorLines.line_id(&"fuel", {jumps = 0}) == &"fuel_here")
+	# THE DECKS' DRAFTS: option A in the game, a hint each with a two-line card,
+	# spent as it shows; never a retired word (house, maker, man, brand, marque)
+	var deck_bad: Array[String] = []
+	var retired := RegEx.create_from_string("(?i)\\b(house|maker|man|brand|marque)s?\\b")
+	for k: StringName in DECKS:
+		var words := String(AshTutorLines.LINES.get(k, ""))
+		var card := Hints.lines(k)
+		if words != String(DECK_A[k]) or card.size() != 2 or not Hints.ORDER.has(k) or not Hints.SPENT_ON_SHOW.has(k) \
+				or retired.search(words + " " + " ".join(card)) != null or AshTutorLines.SPOKEN.has(k):
+			deck_bad.append(String(k))
+	_ok("the decks' lines are the drafts' option A, each a hint with a two-line card, spent as it shows, no retired word (%s)" % [
+		"all %d" % DECKS.size() if deck_bad.is_empty() else "NOT " + ", ".join(deck_bad)], deck_bad.is_empty())
+	_ok("the decks' hints come after the dock's", DECKS.all(func(k: StringName) -> bool:
+		return Hints.ORDER.find(k) > Hints.ORDER.find(&"dock")))
 	var silent := 0
 	for k in AshTutorLines.LINES:
 		if AshTutorLines.voice_path(k) == "":
@@ -651,23 +703,26 @@ func _flow() -> void:
 		_ok("five teaching lines in one fight (%d)" % in_fight, in_fight == 5)
 	Run.heat = 0
 
-	# THE STATION: its decks, its yard's ship, its cutaway
+	# THE STATION: its decks, the yard's own, its yard's ship, its cutaway, then
+	# each other deck as it is first opened (a station with all five)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Run.jumps = 1
-	for raw in Run.map:
-		var m: MapGen.MapNode = raw
-		if m.type == MapGen.NodeType.STATION:
-			Run.at = m.index
-			m.visited = true
-			break
+	var full := _full_station()
+	_ok("a station with all five decks (%s)" % (MapGen.star_name(full) if full != null else "none"), full != null)
+	# (flown in: hull and fuel spent, so the yard's drones have work and come)
+	Run.hp = maxi(1, Run.max_hp() - 12)
+	Run.fuel = maxi(1, Run.fuel - 4)
+	Router.docked = false
 	# (DOCK only at the station itself, Jon's dock:A: park there first)
 	Router.park_at_station()
 	Router.show_station()
 	await _frames(90)
 	await _expect(&"dock")
+	var st := Router.current as StationScreen
+	_ok("the yard's drones flown in", await _visit(st, &"shipyard"))
+	await _expect(&"shipyard")
 	Hints.mark_seen(&"ship", false)
 	await _expect(&"ship")
-	var st := Router.current as StationScreen
 	Hints.mark_seen(&"cutaway", false)
 	if st != null and st.open_cutaway() != null:
 		await _frames(30)
@@ -677,6 +732,12 @@ func _flow() -> void:
 		await _expect(&"cutaway")
 		st._cutaway.close_now()
 		await _frames(10)
+	if st != null:
+		for id: StringName in DECKS.slice(1):
+			if _ok("%s: its deck open, its main thing up" % id, await _visit(st, id)):
+				await _expect(id)
+		await _visit(st, &"shipyard")
+	Run.hp = Run.max_hp()
 
 	# FUEL LOW: on the chart, by where the nearest dock is
 	n = _system()
@@ -1039,6 +1100,191 @@ func _cutaway_once() -> void:
 	await _frames(10)
 	Hints.set_tutorial(true)
 	Hints.reset()
+
+
+# ------------------------------------------------------------------ the decks
+
+## A station with all five decks (work on its board, a laboratory), the ship at
+## it; null if the map has none.
+func _full_station() -> MapGen.MapNode:
+	for raw in Run.map:
+		var m: MapGen.MapNode = raw
+		if m.type == MapGen.NodeType.STATION and Fabricator.has_bench(m) and not Contracts.board(m).is_empty():
+			Run.at = m.index
+			m.visited = true
+			return m
+	return null
+
+
+## Open the deck of hint `id` by its button on the rail, and wait (20 s of the
+## game's clock and of the wall's: the board's lamp strikes on the wall clock)
+## for its main thing to be up: the drones flown in, the lamp lit, the lab's
+## scan passed.
+func _visit(st: StationScreen, id: StringName) -> bool:
+	var tab: StringName = Hints.DECK_HINTS[id]
+	(st._tabs[tab] as Button).pressed.emit()
+	var t0 := Time.get_ticks_msec()
+	var i := 0
+	while i < 1200 or Time.get_ticks_msec() - t0 < 20000:
+		await _tree.process_frame
+		i += 1
+		if st._tab == tab and st.deck_subject(tab).has_area():
+			await _frames(2)
+			return true
+	return false
+
+
+## THE DECKS' LINES (Jon, Oct 20: "There is no tutorial tip for the promenade,
+## exchange, shipyard, laboratory, or hiring board"), through the real station
+## and its deck buttons: each said the first time its deck is open and SPENT AS
+## IT SHOWS, so leaving the deck by another deck's button, no click on her line,
+## takes her off and it never comes back; queued behind the dock's line (another
+## deck opened under it waits); TUTORIAL OFF: none, and REPLAY TUTORIAL brings
+## each back; her switch off: today's card; in a party: nothing.
+func _decks() -> void:
+	print("the decks, each the first time it is open")
+	Hints.reset()
+	for id in Hints.ORDER:
+		Hints.mark_seen(id, not DECKS.has(id))
+	for id in Hints.STEP_LINES:
+		Hints.mark_seen(StringName("said_" + String(id)))
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	Run.jumps = 1
+	var full := _full_station()
+	Run.hp = maxi(1, Run.max_hp() - 12)
+	Run.fuel = maxi(1, Run.fuel - 4)
+	Router.docked = false
+	Router.park_at_station()
+	Router.show_station()
+	await _frames(60)
+	var st := Router.current as StationScreen
+	if not _ok("decks: a station with all five up (%s)" % (MapGen.star_name(full) if full != null else "none"), full != null and st != null):
+		return
+	var said := func(id: StringName) -> int:
+		var k := 0
+		for d: Dictionary in Ash.said_log:
+			if d.kind == StringName("tut_" + String(id)):
+				k += 1
+		return k
+	var before := {}
+	for id in DECKS:
+		before[id] = said.call(id)
+	# each, then left by the next deck's button with no click on her line
+	for i in DECKS.size():
+		var id: StringName = DECKS[i]
+		if not _ok("%s: its deck open, its main thing up" % id, await _visit(st, id)):
+			continue
+		var up: bool = await _until_said(id)
+		if not _ok("%s: she says it on the first visit (got %s)" % [id, Ash.lesson], up):
+			continue
+		_ok("%s: spent as it shows, before any click" % id, Hints.seen(id))
+		var next: StringName = DECKS[(i + 1) % DECKS.size()]
+		(st._tabs[Hints.DECK_HINTS[next]] as Button).pressed.emit()
+		for f in 6:
+			Hints.poll(0.1)
+			await _tree.process_frame
+		_ok("%s: left by another deck's button, no click: she goes, and it stays spent" % id,
+			Ash.lesson != id and Hints.lesson != id and Hints.seen(id) and Hints.card == null)
+		Hints.poll(Hints.GAP_S + 0.1)
+	# every deck again: none of them a second time
+	for id in DECKS:
+		await _visit(st, id)
+		await _never(id, "%s again: not said a second time" % id)
+	var counts: Array = DECKS.map(func(id: StringName) -> int: return said.call(id) - int(before[id]))
+	_ok("each deck's line said once over two visits (%s)" % str(counts), counts.all(func(k: int) -> bool: return k == 1))
+
+	# QUEUED BEHIND ANOTHER LINE: the dock's up, unclicked, and the Promenade
+	# opened under it
+	Hints.mark_seen(&"dock", false)
+	Hints.mark_seen(&"promenade", false)
+	await _visit(st, &"shipyard")
+	Hints._quiet = 0.0
+	if _ok("queue: the dock's line is up", await _until_said(&"dock")):
+		await _visit(st, &"promenade")
+		var jumped := false
+		for i in 40:
+			Hints.poll(0.1)
+			await _tree.process_frame
+			if Ash.lesson == &"promenade" or Hints.card != null:
+				jumped = true
+		_ok("queue: the Promenade's waits behind the dock's (4 s; never said, no card)", not jumped and not Hints.seen(&"promenade"))
+		Hints.poll(0.3)
+		Hints.click(_press())
+		Hints.poll(Hints.GAP_S + 0.1)
+		_ok("queue: once the dock's is spent, the Promenade's is said", await _until_said(&"promenade"))
+		Hints.poll(0.3)
+		Hints.click(_press())
+		Hints.poll(Hints.GAP_S + 0.1)
+
+	# HER SWITCH OFF: each deck's hint is today's card, with the card's words
+	Ash.set_on(false)
+	for id in DECKS:
+		Hints.mark_seen(id, false)
+	var cards: Array[String] = []
+	for id in DECKS:
+		await _visit(st, id)
+		var card := false
+		for i in 40:
+			Hints.poll(0.1)
+			await _tree.process_frame
+			if Hints.card != null and Hints.card.id == id:
+				card = true
+				break
+		var words: Array = []
+		if card:
+			for l in Hints.card.find_children("*", "Label", true, false):
+				words.append((l as Label).text)
+		if card and words == Hints.lines(id) and Ash.lesson == &"" and Hints.seen(id):
+			cards.append(String(id))
+		Hints.poll(0.3)
+		Hints.click(_press())
+		Hints.poll(Hints.GAP_S + 0.1)
+	_ok("her switch off: each deck's hint is today's card, its words, spent as it shows, nothing of hers (%s)" % ", ".join(cards),
+		cards.size() == DECKS.size())
+	Ash.set_on(true)
+
+	# TUTORIAL OFF: nothing on any deck; REPLAY TUTORIAL, then ON: each back, once
+	var was_seen := {}
+	for id in Hints.ORDER:
+		was_seen[id] = Hints.seen(id)
+	Hints.set_tutorial(false)
+	Hints.reset()
+	for id in Hints.ORDER:
+		if not DECKS.has(id):
+			Hints.mark_seen(id)
+	for id in Hints.STEP_LINES:
+		Hints.mark_seen(StringName("said_" + String(id)))
+	var t0 := _taught()
+	for id in DECKS:
+		await _visit(st, id)
+		await _never(id, "tutorial OFF: nothing on the %s" % id)
+	_ok("tutorial OFF: nothing of hers taught on the decks, no card", _taught() == t0 and Hints.card == null)
+	Hints.set_tutorial(true)
+	for id in DECKS:
+		await _visit(st, id)
+		var back: bool = await _until_said(id)
+		_ok("REPLAY TUTORIAL, then ON: the %s's line is said again" % id, back and Hints.seen(id))
+		await _visit(st, DECKS[(DECKS.find(id) + 1) % DECKS.size()])
+		Hints.poll(Hints.GAP_S + 0.1)
+
+	# IN A PARTY: none
+	for id in DECKS:
+		Hints.mark_seen(id, false)
+	var was_state = Net.state
+	Net.state = Net.State.HOSTING
+	t0 = _taught()
+	for id in DECKS:
+		await _visit(st, id)
+		await _never(id, "in a party: nothing on the %s" % id)
+	_ok("in a party: no deck's line, no card", _taught() == t0 and Hints.card == null)
+	Net.state = was_state
+	for id in was_seen:
+		Hints.mark_seen(id, bool(was_seen[id]))
+	Run.hp = Run.max_hp()
+	if Ash.portrait != null:
+		Ash.portrait.cut()
+	await _frames(2)
 
 
 # ------------------------------------------------------------------ TUTORIAL ON / OFF

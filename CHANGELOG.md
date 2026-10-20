@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A first-visit tip for each station deck: the Shipyard, the Promenade, the Exchange, the
+  Hiring Board and the Laboratory. Each shows the first time you open that deck, after the
+  station's own tip, and outlines the deck's main thing: the drones, the shelf, the sell
+  counter, the job notes, the fabricator. It counts as seen as soon as it shows. A.S.H. says
+  it, or it shows as a card with her off. The words are drafts, said as text alone for now.
+
 ### Roadmap
 
 The next build is **0.2.0-alpha.1**, with the fixes from the first playtest. See

@@ -2536,6 +2536,51 @@ func _on_mine_hover(on: bool) -> void:
 			_mine_hit.mouse_default_cursor_shape = Control.CURSOR_ARROW
 
 
+## THE MAIN THING ON DECK `tab`, global, once it is up and still; Rect2() before
+## (the first-visit hints, `Hints.DECK_HINTS`, point at it). The yard: its
+## drones, each home over your ship, once all that came have flown in (the box
+## takes in their bob, so the outline holds still while they move). The
+## Promenade: the shelf. The Exchange: the counter that pays. The Hiring Board:
+## the notes, once its lamp is lit. The Laboratory: the recipes on its screen,
+## once the power-on's scan has passed.
+func deck_subject(tab: StringName) -> Rect2:
+	var page: Control = _pages.get(tab)
+	if page == null or not page.is_visible_in_tree():
+		return Rect2()
+	match tab:
+		&"services":
+			if _scene == null or not is_instance_valid(_scene) or not _scene.is_visible_in_tree() or _scene.drones == null:
+				return Rect2()
+			var r := _scene.drones.services_rect()
+			return _scene.get_global_transform() * r if r.has_area() else Rect2()
+		&"stock":
+			var sh: Control = _shop.shelf_node if _shop != null else null
+			if sh == null or not is_instance_valid(sh) or not sh.is_visible_in_tree():
+				return Rect2()
+			return sh.get_global_transform() * Rect2(Vector2.ZERO, sh.size)
+		&"hold":
+			if _sell_desk == null or not _sell_desk.is_visible_in_tree():
+				return Rect2()
+			return _sell_desk.get_global_rect()
+		&"work":
+			if _work == null or not _work.is_visible_in_tree() or (_board_lamp != null and not _board_lamp.lit()):
+				return Rect2()
+			var r := Rect2()
+			for c in _work.get_children():
+				var k := c as Control
+				if k != null and k.is_visible_in_tree() and k.size.x > 0.0:
+					r = k.get_global_rect() if not r.has_area() else r.merge(k.get_global_rect())
+			return r
+		&"bench":
+			if _bench_clip == null or not _bench_clip.is_visible_in_tree() or _lab == null:
+				return Rect2()
+			# (the scan opens the screen's holder a line at a time: whole once it has passed)
+			if _bench_clip.size.y < _lab.win_rect().size.y - 0.5 or _bench.get_child_count() == 0:
+				return Rect2()
+			return _bench_clip.get_global_rect()
+	return Rect2()
+
+
 ## Whether your ship can be opened up here now: on the yard, nothing over it.
 func cutaway_ready() -> bool:
 	return Run.hull != null and _cutaway == null and _mine_view != null and is_instance_valid(_mine_view) 		and _mine_view.is_visible_in_tree() and (Router.dock == null or not is_instance_valid(Router.dock))

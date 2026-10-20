@@ -289,6 +289,32 @@ func hit(p: Vector2) -> int:
 	return -1
 
 
+## WHERE THE SERVICES HANG, in the hall's pixels: the box round every drone that
+## came and its screen, each at its home, wide and tall enough for its sway and
+## bob, so an outline on it holds still while they move (the shipyard's
+## first-visit hint, `StationScreen.deck_subject`). Empty until every one that
+## came is hovering; one flying off with its job done is left out.
+func services_rect() -> Rect2:
+	var out := Rect2()
+	for d: Dictionary in D:
+		var mode := String(d["mode"])
+		if d.get("away", false) or mode == "gone" or mode == "leave":
+			continue
+		if not (mode == "hover" or mode == "dip" or mode == "tell") or not d.has("r"):
+			return Rect2()
+		var r: Dictionary = d["r"]
+		# (back to its home: the bob, the sway and a doze or a bump taken off)
+		var dx := float(d["x"]) - float(d["hx"])
+		var dy := float(d["y"]) - float(d["hy"])
+		var x0 := minf(float(r["fx0"]), float(r["sx"])) - dx
+		var x1 := maxf(float(r["fx0"]) + float(r["fw"]), float(r["sx"]) + float(r["w"])) - dx
+		var y0 := float(r["fy0"]) - dy
+		var y1 := float(r["sy"]) + float(r["h"]) - dy
+		var box := Rect2(x0, y0, x1 - x0, y1 - y0).grow_individual(3.0, 6.0, 3.0, 6.0)
+		out = box if not out.has_area() else out.merge(box)
+	return out
+
+
 ## A drone clicked: it wakes if it was dozing; the scene decides if it sells.
 func wake(i: int, t: float) -> void:
 	var d: Dictionary = D[i]

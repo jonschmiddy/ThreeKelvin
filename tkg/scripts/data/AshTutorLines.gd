@@ -34,6 +34,16 @@ const LINES: Dictionary = {
 	&"wreck": "Click a wreck to loot it. Its parts and credits are ours.",
 	&"loot": "SECTOR LOOT is what's loose here. It stays until you take it.",
 	&"dock": "Stations repair, refuel and trade. Pick a deck on the left.",
+	# THE DECKS, the first time each is open (`Hints.DECK_HINTS`). DRAFTS, not
+	# Jon's picks yet (Oct 20): option A of two each (the other, and the cards'
+	# words, in the scratchpad's `deck-tips/lines.json`), as text alone, no take
+	# recorded. Each says what the deck is for and the one thing to do there in
+	# the deck's own words; no number and no name, so each is said as it shows.
+	&"shipyard": "The drones fix the ship. Click one to buy its job: PATCH, REPAIR, REFUEL or FAULTS.",
+	&"promenade": "We buy parts here. Point at one to read it. Drag it to the till to pay.",
+	&"exchange": "We sell here. Drag a part from the hold onto the counter to be paid for it.",
+	&"hiring_board": "Manufacturers post paid work here. Press SIGN on a note to take the job.",
+	&"laboratory": "The fabricator turns a relic into a part. Press MAKE when you can pay for it.",
 	&"fuel_dock": "Fuel is low. Run dry and the run ends. Nearest dock is {jumps} jumps: {name}.",
 	&"fuel_none": "Fuel is low, and empty ends the run. No dock in reach. Jump short and look.",
 	&"fuel_here": "Fuel is low. Run dry and the run ends. Refuel here before we go.",

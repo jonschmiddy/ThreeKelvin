@@ -19,6 +19,9 @@ extends Node
 ##   wreck    a wreck is clicked to loot it
 ##   loot     SECTOR LOOT, beside SCAN SECTOR
 ##   dock     the first station: what it does, and its decks
+##   shipyard, promenade, exchange, hiring_board, laboratory
+##            the first time each deck is open: what it is for and the one
+##            thing to do there, on its main thing (`DECK_HINTS`)
 ##   fuel     a third of the tank left: running dry ends the run, and the
 ##            nearest dock in reach by name (or what to do with none)
 ##   ship     click your ship (LOCAL or the shipyard) to open it up
@@ -66,7 +69,15 @@ const SECTION := "hints"
 ## Highest first: when two could show, this one does.
 const ORDER: Array[StringName] = [&"hand", &"endturn", &"intent", &"brace", &"heat",
 	&"drawer", &"events", &"chart", &"salvage", &"cutaway", &"wreck", &"loot", &"dock",
-	&"fuel", &"ship"]
+	&"shipyard", &"promenade", &"exchange", &"hiring_board", &"laboratory", &"fuel", &"ship"]
+## ONE HINT A DECK, the first time it is open (Jon, Oct 20, playing the alpha:
+## "There is no tutorial tip for the promenade, exchange, shipyard, laboratory,
+## or hiring board"): hint id -> the station's page (`StationScreen.DECKS`). Each
+## points at the deck's main thing (`StationScreen.deck_subject`): the yard's
+## drones, the shelf, the sell counter, the notes on the board, the fabricator's
+## screen. After `dock`, which still comes first on arrival.
+const DECK_HINTS := {&"shipyard": &"services", &"promenade": &"stock", &"exchange": &"hold",
+	&"hiring_board": &"work", &"laboratory": &"bench"}
 ## The goal line's steps (`GoalLine`), done once: kept beside the hints, and
 ## cleared with them.
 const STEPS: Array[StringName] = [&"step_jump", &"step_event"]
@@ -79,8 +90,10 @@ const STEP_LINES: Array[StringName] = [&"step_jump", &"step_jump_chart", &"step_
 ## the cutaway is shut with DONE, Escape or a key as often as with a click on
 ## nothing, so it went unspent and came back at every opening. It is said once,
 ## the first time your ship is opened up, and kept seen however it goes; SHOW
-## HINTS AGAIN brings it back.
-const SPENT_ON_SHOW: Array[StringName] = [&"cutaway"]
+## HINTS AGAIN brings it back. The decks' too: people leave a deck by clicking
+## another without clicking her line.
+const SPENT_ON_SHOW: Array[StringName] = [&"cutaway", &"shipyard", &"promenade", &"exchange",
+	&"hiring_board", &"laboratory"]
 ## How long a subject must hold before its hint shows, s.
 const SETTLE_S := 0.6
 ## Quiet after one hint before the next may show, s.
@@ -158,6 +171,17 @@ func lines(id: StringName) -> Array:
 			# ON THE LEFT, not "at the top" as the brief had it: the decks are the
 			# station's section, a column down the left side (`StationScreen.DECKS`)
 			return ["Stations repair, refuel and trade.", "Pick a deck on the left."]
+		# THE DECKS' (drafts, Oct 20: Jon picks the words)
+		&"shipyard":
+			return ["The drones over your ship repair and refuel it.", "Click one to pay for its job."]
+		&"promenade":
+			return ["Buy parts here. Point at one to read it.", "Drag it to the till to buy it."]
+		&"exchange":
+			return ["Sell what you carry here.", "Drag a part from your hold to the counter."]
+		&"hiring_board":
+			return ["Manufacturers post paid work here.", "Press SIGN on a note to take the job."]
+		&"laboratory":
+			return ["The fabricator turns a relic into a part.", "Press MAKE when you can pay for it."]
 		&"fuel":
 			return ["Fuel is low. Run dry and the run ends.", fuel_dock_line()]
 		&"ship":
@@ -829,10 +853,15 @@ func probe(id: StringName) -> Dictionary:
 			# and off the side bar, the toolbar and the scene's own pieces: the
 			# readout is in the corner, so the card lands among them
 			return {subject = fr, avoid = GoalLine.avoid_rects(cur)}
+		&"shipyard", &"promenade", &"exchange", &"hiring_board", &"laboratory":
+			# THE DECK OPEN FOR THE FIRST TIME: its main thing
+			return _deck_probe(cur as StationScreen, id)
 		&"ship":
 			if cur is StationScreen:
 				var st := cur as StationScreen
-				if not st.cutaway_ready():
+				# (after the yard's own hint, which says what the deck is for: it
+				# is spent as it shows, so this follows it)
+				if not st.cutaway_ready() or not seen(&"shipyard"):
 					return {}
 				# with its name sign over it (`YardScene._names`, 16 px type at the
 				# yard's 2x), so the card never stands on the name
@@ -847,6 +876,23 @@ func probe(id: StringName) -> Dictionary:
 				return {}
 			return {subject = _ship_box(ship), avoid = [hud]}
 	return {}
+
+
+## A DECK'S FIRST-VISIT HINT: its deck the one open, the dock landed, nothing
+## over it (your ship opened up, the faults picker), and its main thing up and
+## still (`StationScreen.deck_subject`: the drones home, the lamp lit, the scan
+## passed). A card keeps off everything she keeps off (`Ash.tut_avoid_rects`:
+## the decks, UNDOCK, every button and word), so it never covers what you press.
+func _deck_probe(st: StationScreen, id: StringName) -> Dictionary:
+	if st == null or ZoomLadder.busy() or st._cutaway != null or st._purge_prompt != null:
+		return {}
+	var tab: StringName = DECK_HINTS[id]
+	if st._tab != tab or not st._tabs_on.get(tab, true):
+		return {}
+	var r := st.deck_subject(tab)
+	if r.size.x < 2.0 or r.size.y < 2.0:
+		return {}
+	return {subject = r, avoid = Ash.tut_avoid_rects(st)}
 
 
 ## The hull's own pixels, not the box it is drawn in (a third of it at most).
