@@ -18,14 +18,15 @@ The next build is **0.2.0-alpha.1**, with the fixes from the first playtest. See
 The first alpha, for playtesters. The Windows and Mac builds come from the same commit.
 
 - **Added** — a run to the core of a galaxy. The galaxy has 15 layers and about 287 star systems,
-  and each jump moves you one layer. Danger rises from 1 at the rim to 10 at the core. A run ends
+  and you can jump to any system within your drive's range. Danger rises from 1 at the rim to 10 at the core. A run ends
   when the hull reaches 0, the tank runs dry, or you abandon it. You win by destroying The
   Custodian at the core.
-- **Added** — four screens, all one camera at different distances:
+- **Added** — four views, all one camera at different distances, and the archive:
   - **LOCAL:** your ship side-on, the world you orbit, its wrecks and its events.
   - **SECTOR:** the system map. You fly the ship to events and the station.
   - **STARCHART:** the galaxy, with your jump range and the danger and fuel cost of each system.
-  - **ARCHIVE:** 41 documents recovered from wrecks and events.
+  - **The station:** you dock and the camera goes in.
+  - **ARCHIVE:** its own screen, with 41 documents recovered from wrecks and events.
 - **Added** — card fights:
   - The reactor sets your energy, and the hull's weight sets your hand size. Press END TURN to
     end your turn.
@@ -41,8 +42,8 @@ The first alpha, for playtesters. The Windows and Mac builds come from the same 
 
   Every kill leaves a wreck where the fight happened, and you can loot it.
 - **Added** — 135 encounters, with checks against the ship's six attributes: HULL, THRUST,
-  MANEUVER, THERMAL, SENSORS and STEALTH. Each choice shows its odds, and a check you meet always
-  passes. After an encounter, a small table shows only what changed among credits, fuel, hull and
+  MANEUVER, THERMAL, SENSORS and STEALTH. A choice that is a check shows its odds, and a check you
+  meet always passes. After an encounter, a small table shows only what changed among credits, fuel, hull and
   heat.
 - **Added** — weather. There are eight kinds of sky and about 43 weather events. They play on the
   SECTOR map and, more rarely, on LOCAL.
@@ -54,8 +55,9 @@ The first alpha, for playtesters. The Windows and Mac builds come from the same 
 - **Added** — the ship editor. Click your ship to open it. Drag a module onto an empty slot to
   install it, or off the ship into the hold to remove it. You can rename the ship here.
 - **Added** — stations, with five decks:
-  - **PROMENADE:** buy parts and hulls.
-  - **SHIPYARD:** patch, repair, refuel, clear a fault, or trade in your hull.
+  - **PROMENADE:** buy parts.
+  - **SHIPYARD:** patch, repair, refuel, clear a fault, or buy a new hull with yours in part
+    exchange.
   - **EXCHANGE:** sell parts and materials.
   - **HIRING BOARD:** fetch, hunt and heat contracts.
   - **LABORATORY:** relic analysis, in cities only.
@@ -71,8 +73,8 @@ The first alpha, for playtesters. The Windows and Mac builds come from the same 
   - 15 one-time hints each wait for a click.
   - Settings > HINTS has TUTORIAL ON/OFF and REPLAY TUTORIAL.
 - **Added** — co-op. FLY TOGETHER on the title screen lets you host or join a party of up to 8
-  ships, by code over a relay or by direct address. Fights are shared. A party has no hints and no
-  A.S.H.
+  ships, by code over a relay or by direct address. Fights are shared. A party has no hints or tutorial.
+  A.S.H. still speaks, but does not teach.
 - **Added** — the look:
   - pixel art drawn at 960×540 and shown at 2x;
   - four render styles, with SIMPLIFIED the default;
@@ -86,7 +88,7 @@ The first alpha, for playtesters. The Windows and Mac builds come from the same 
   - render style, graphics level, screen look, colorblind modes, contrast and brightness;
   - reduced motion, screen shake and a frame cap;
   - four volume sliders;
-  - 22 rebindable keys.
+  - 21 rebindable keys.
 - **Added** — saving. The run saves at safe points and when you close the window. SAVE & EXIT TO
   TITLE, then CONTINUE, picks up where you left off. A fight is not saved: if you quit
   mid-fight, it starts again. The flight record and the archive carry over between runs.
