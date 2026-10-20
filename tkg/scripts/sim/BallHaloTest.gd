@@ -81,6 +81,14 @@ func _arg(name: String, fallback: String = "") -> String:
 
 func _ready() -> void:
 	get_viewport().gui_disable_input = true
+	# THE CHART'S OWN SKY, NOT THE FIELD THROUGH IT (Oct 18): since the chart's empty
+	# sky lets the shared field through (`NavField`: its stars, far galaxies and the
+	# system's own cloud) and fades what it holds out over its last 24 px, a ball's
+	# light read off the screen took the field's cloud for the ball (PAINTED "lit to
+	# the top edge") and the edge's fade for a hard rim (RADIANT's fade 0.35-0.42). The
+	# ball is judged on the chart as it stands without the field, its own sky behind it.
+	# (Subtracting the field instead took it off where the galaxy covers it too.)
+	NavField.harness_off = true
 	_shots = _arg("shots")
 	if _shots != "":
 		DirAccess.make_dir_recursive_absolute(_shots)

@@ -995,7 +995,7 @@ func act(name: StringName) -> void:
 ## `pitch` is the note the spread is taken round (A.S.H.'s power-on plays the
 ## text blip twice, the second a minor third up: `AshPortrait`).
 func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
-		db: float = 0.0, pitch: float = 1.0, from: float = 0.0) -> void:
+		db: float = 0.0, pitch: float = 1.0, from: float = 0.0, exact: bool = false) -> void:
 	# (headless there is no sound, but a harness taping still gets the decision:
 	# everything below down to the pick, then `_dry_play`)
 	if not _enabled and not taping:
@@ -1015,7 +1015,9 @@ func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
 	# plays a random take.  One file per shot always reads as a toy, no
 	# matter how good the file is -- the ear catches the exact repeat.
 	var pick := name
-	var vars: Array = _variants.get(name, [])
+	# `exact`: this take and no other (a pool that levels its takes one by one,
+	# `Audio.FX` `pool`, names each; `explosion_small` alone would round-robin)
+	var vars: Array = [name] if exact else _variants.get(name, [])
 	if vars.is_empty() and not _variants.has(name):
 		vars = [name]
 		# UP TO _16, it was _4 then _8. Merging the kill pools made
@@ -1179,6 +1181,29 @@ func denied() -> void:  play(&"ui_denied", 0.03)
 ##   duck    how far the music steps back, for the caller's length
 ##   bed     a loop (`ambience/` or `sfx/`) faded in, held until `fx_stop`
 const FX: Dictionary = {
+	# A SHIP'S DEATH, HEARD AS ONE (Jon, Oct 19, of a hulk's: "the ship exploding
+	# at the end of that video is weak"). Measured (`scratchpad/death-punch/`):
+	# the kill pool's five takes spread 5 dB -- explosion_small and _2 are 4 dB
+	# under a plain hit landing (momentary max -17.6 / -17.2 against
+	# impact_enemy's -13.8), _3 to _5 the old boss takes (-12.6 to -14.9) -- so
+	# a death came out as loud as a round robin's luck, and a D under the hit
+	# that caused it. Its MAIN BREAK (`broke` at 0.6 or more, on the frame the
+	# picture bursts) is now three layers: the three heavy takes alone, each
+	# levelled to -12.8 (`pool`, a take and its own offset); a sub thump, the
+	# first impact_hull (80% of it under 90 Hz, gone in 0.45 s), down 6; and
+	# hull_crunch's buckling metal, down 4. Together about 1.5 dB over a hit's
+	# impact and level with a hit's whole volley (card, shot and impact), every
+	# look within about a dB of the others, peaks under -0.5 dBFS (_3 a touch
+	# lower for it). The
+	# lesser breaks (a burst before the break, a prelude) are the two short
+	# takes, down 3. `before` is the one pool as it was.
+	&"kill_boom": {pick = {pool = [[&"explosion_small_3", -0.9], [&"explosion_small_4", 2.1],
+				[&"explosion_small_5", -0.2]], db = 0.0, limit = 0.2, pitch = 0.05},
+			before = {file = &"explosion_small", db = 0.0, pitch = 0.09}},
+	&"kill_thump": {pick = {pool = [[&"impact_hull", 0.0]], db = -6.0, limit = 0.2, pitch = 0.03}, before = {}},
+	&"kill_crunch": {pick = {file = &"hull_crunch", db = -4.0, limit = 0.2, pitch = 0.05}, before = {}},
+	&"kill_pop": {pick = {pool = [[&"explosion_small", 0.0], [&"explosion_small_2", -0.4]], db = -3.0, limit = 0.12, pitch = 0.08},
+			before = {file = &"explosion_small", db = -6.0, pitch = 0.09}},
 	# CREATURE DEATHS N, O, P. Jon picked the three takes on Sep 19 and nothing
 	# ever reached them: `play_kill` routed fauna to them, but only a ship's
 	# breakup said `broke`. On the death's first beat (the flare, or P's pulse).
@@ -1250,11 +1275,11 @@ const FX: Dictionary = {
 	# shield_glitch A1, -36), never closer than half a second, one at a time.
 	&"shield_glitch": {pick = {file = &"shield_glitch", db = 0.0, limit = 0.5, cap = 1, pitch = 0.08}, before = {}},
 	# A HULL BUCKLING (Jon's hull_crunch A1, -24): death M's four crunches on
-	# their own grid (0, 0.20, 0.38, 0.54), which were explosions; death A's
-	# crack (its break keeps the boom); and a crack in a hit's marks, under the
-	# impact (down 6: it lands with impact_enemy or impact_hull).
+	# their own grid (0, 0.20, 0.38, 0.54), which were explosions; and a crack
+	# in a hit's marks, under the impact (down 6: it lands with impact_enemy or
+	# impact_hull). Death A's crack is every main break's buckling layer now
+	# (`kill_crunch`), so it has no row of its own.
 	&"crumple": {pick = {file = &"hull_crunch", db = 0.0, limit = 0.1, pitch = 0.05}, before = {}},
-	&"snap_crack": {pick = {file = &"hull_crunch", db = 0.0, pitch = 0.04}, before = {}},
 	&"crack_mark": {pick = {file = &"hull_crunch", db = -6.0, limit = 0.3, pitch = 0.06}, before = {}},
 	# A CHARGE WHINING UP INTO ITS BLAST (Jon's charge_whine A1, -26): D's
 	# charge, F's spool, C's gather, each started so it runs out as the blast
@@ -1370,6 +1395,15 @@ func fx(row: StringName, kind: StringName = &"", secs: float = 0.0) -> bool:
 func _fx_do(row: StringName, take: Dictionary, kind: StringName, secs: float) -> void:
 	var file: StringName = take.get(&"file", &"")
 	var db := float(take.get(&"db", 0.0))
+	# A POOL OF TAKES, EACH AT ITS OWN LEVEL: one drawn at random, played as
+	# itself (not round-robined), its own offset on the row's level
+	var exact := false
+	if take.has(&"pool"):
+		var pool: Array = take.pool
+		var one: Array = pool[randi() % pool.size()]
+		file = StringName(one[0])
+		db += float(one[1])
+		exact = true
 	if taping:
 		fx_heard.append([row, kind, file if file != &"" else StringName(take.get(&"bed",
 			take.get(&"hush", &"duck" if take.has(&"duck") else &""))), db,
@@ -1392,7 +1426,7 @@ func _fx_do(row: StringName, take: Dictionary, kind: StringName, secs: float) ->
 	if cap > 0:
 		play_capped(file, pv, cap, db, 25, from)
 	else:
-		play(file, pv, 0, db, 1.0, from)
+		play(file, pv, 0, db, 1.0, from, exact)
 
 
 ## Delayed takes (`offset` > 0), on the game's clock: a film runs them at its
@@ -1607,6 +1641,18 @@ func _poll_resources() -> void:
 ## fauna do not explode at all, because one of the warm things going out is
 ## a loss even when it was trying to eat you. limit_ms: a card that clears
 ## a board is one explosion, not a drum roll.
+## A ship's breakup breaking, on the frame it does (`ShipBreakup.broke`): its
+## main break (`s` 0.6 or more) the layered boom, a lesser one a pop. A
+## creature never breaks (its first beat is `play_kill`'s).
+func kill_beat(s: float) -> void:
+	if s >= 0.6:
+		fx(&"kill_boom", &"broke")
+		fx(&"kill_thump", &"broke")
+		fx(&"kill_crunch", &"broke")
+	else:
+		fx(&"kill_pop", &"broke")
+
+
 func play_kill(who: int, db: float = 0.0) -> void:
 	var t: EnemyTemplate = null
 	if Router.combat != null and who >= 0 and who < Router.combat.enemies.size():

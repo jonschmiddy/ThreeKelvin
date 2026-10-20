@@ -42,7 +42,12 @@ const EDGE_FADE := 24.0
 ## THE SWITCH: `-- field=off` puts the map's and the chart's own skies back, in
 ## their opaque frames (a harness's before).
 static func used() -> bool:
-	return not ("field=off" in OS.get_cmdline_user_args())
+	return not ("field=off" in OS.get_cmdline_user_args() or harness_off)
+
+
+## A harness's own `field=off`, for a screen built after it is set: `BallHaloTest`
+## judges a ball's light on the chart's own sky, not on the field let through it.
+static var harness_off := false
 
 
 ## The map's or the chart's picture keyed onto the field (its empty sky let
