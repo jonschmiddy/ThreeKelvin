@@ -1090,6 +1090,24 @@ else
 fi
 }
 
+unit_scrollcheck() {
+step "No scroll bar on the sector map's panel covers a word"
+# Jon, Oct 20, on the WORLD card: "the scroll bar covers up text". Over the
+# run's first 40 systems, the sector's list and every world's page, unscrolled
+# and scrolled to the end: no text and nothing that takes the mouse within
+# UITheme.BAR_GAP of the bar as drawn. It fails if no page scrolled at all.
+if run_godot scrollcheck 240 --headless --path "$PROJECT" -- sheet=SystemShot scrollcheck; then
+	if grep -qE '^scrollcheck: PASS' "$LOG_DIR/scrollcheck.log"; then
+		ok "the sector panel's words stay clear of its scroll bar"
+	else
+		bad "something on the sector panel sits under its scroll bar"
+		grep -E 'FAIL|^scrollcheck|  scrollcheck' "$LOG_DIR/scrollcheck.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "scrollcheck did not finish"
+fi
+}
+
 unit_yardseattest() {
 step "Every hull sits on its yard stands, centred"
 # Jon: "The ship needs to sit lower. Like actually be on the stands and centered

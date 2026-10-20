@@ -174,6 +174,15 @@ func _check_letter(w: WelcomePopup) -> void:
 	print("    screen %s, panel %s, note scrolls: %s" % [screen,
 		w.panel_rect(), w.note_scrolls()])
 	_ok("  the panel is inside the screen", screen.grow(0.5).encloses(w.panel_rect()))
+	# THE DIM REACHES THE GLASS (Jon, Oct 20: "a weird dark box around the
+	# background ... in the corners and side of the screen"): the title's galaxy
+	# runs past the screen's rect, which stops Main's margin short of the
+	# picture's edge, so a dim the size of the screen left it lit round the note
+	var dim := card.get_child(0) as ColorRect
+	var pic := w.get_viewport_rect()
+	_ok("  its dim covers the whole picture, Main's margin too (%s on %s)" % [
+		dim.get_global_rect() if dim != null else Rect2(), pic],
+		dim != null and dim.get_global_rect().grow(0.5).encloses(pic))
 	_ok("  the note shows whole at the game's size (no scroll)", not w.note_scrolls())
 
 
