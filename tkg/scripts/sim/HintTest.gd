@@ -611,6 +611,11 @@ static func deck_things(st: StationScreen, subject: Rect2) -> Array:
 	if st._board != null and st._board.is_visible_in_tree():
 		for r: Rect2 in st._board.chrome_rects():
 			out.append(["the board's app bar or ticker", st._board.get_global_transform() * r])
+		# every job note whole, real or drawn, but the real ones it points at
+		for r: Rect2 in st._board.job_rects():
+			var jr := st._board.get_global_transform() * r
+			if not subject.grow(8.0).encloses(jr):
+				out.append(["a job note on the board", jr])
 		if st._board.pop_rect.has_area():
 			out.append(["a popup on the board", st._board.get_global_transform() * st._board.pop_rect])
 	for p: Array in pieces:

@@ -734,6 +734,20 @@ func _app_bar(w: float) -> void:
 
 
 ## The side of the marketplace: featured, an ad, the sponsored, a popup.
+## The screen's side column, local: the town's own, right of the work.
+func _side_rect() -> Rect2:
+	var w := size.x
+	var h := size.y
+	return Rect2(w * NOTICE_SHARE + 8.0, FRAME_W + HEADER + 6.0,
+		w * (1.0 - NOTICE_SHARE) - FRAME_W - 16.0, h - FRAME_W * 2.0 - HEADER - TICKER - 14.0)
+
+
+## The FEATURED listing's sheet in the side column, and its tag over it, local.
+func _featured_rect(col: Rect2) -> Rect2:
+	var poster := Vector2(minf(136.0, col.size.x * 0.56), 170.0)
+	return Rect2(Vector2(col.position.x + 4.0, col.position.y + 4.0), poster + Vector2(0.0, 10.0))
+
+
 func _side(col: Rect2) -> void:
 	var x := col.position.x
 	var y := col.position.y + 4.0
@@ -1001,6 +1015,25 @@ func town_rect() -> Rect2:
 	return Rect2(x0, top, size.x - FRAME_W - x0, bottom - top)
 
 
+## EVERY JOB NOTE ON THE BOARD, local, whole (Oct 20: a job note is a thing you
+## press, even where it has no words, so A.S.H. never stands on any of one): the
+## real notices, and what is drawn as one: on a screen the other people's
+## listings in the work's free slots and the FEATURED bounty, on a board the
+## WANTED bounty poster. The town's ads and paper are not jobs.
+func job_rects() -> Array[Rect2]:
+	var out: Array[Rect2] = _work_rects()
+	if size.x <= 60.0 or size.y <= 60.0 or gallery_from >= 0 or reel >= 0 or piece.is_valid():
+		return out
+	if screen():
+		out.append_array(_free_slots(size.y))
+		out.append(_featured_rect(_side_rect()))
+	else:
+		for p: Dictionary in _lay_out(size.x, size.y):
+			if String(p["what"]) == "wanted":
+				out.append(Rect2(p["at"], p["size"]))
+	return out
+
+
 ## The screen's app bar (its tabs take clicks) and its ticker, local; empty on a
 ## board, which has neither.
 func chrome_rects() -> Array[Rect2]:
@@ -1122,8 +1155,7 @@ func _draw() -> void:
 	# column. (On a board the town's paper is scattered with the rest, above.)
 	if screen() and gallery_from < 0 and reel < 0 and not piece.is_valid():
 		_app_bar(w)
-		_side(Rect2(w * NOTICE_SHARE + 8.0, FRAME_W + HEADER + 6.0,
-			w * (1.0 - NOTICE_SHARE) - FRAME_W - 16.0, h - FRAME_W * 2.0 - HEADER - TICKER - 14.0))
+		_side(_side_rect())
 
 	# --- THE SHADOWS THE REAL NOTICES CAST, down and right of each, which is what
 	# makes a notice sit ON the board rather than printed into it.

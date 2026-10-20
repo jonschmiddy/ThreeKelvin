@@ -292,10 +292,13 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
   the shelf, the sell counter, the notes on the board once its lamp is lit, the fabricator's
   screen once its scan has passed. Spent as it shows, like the cutaway's: people leave a deck by
   clicking another without clicking her line. The yard's ship hint follows the yard's. On the
-  Hiring Board she stands over the town's side (`PostingBoard.town_rect`), never the work, the
-  app bar's tabs, the ticker or a popup, and no popup comes up while she teaches. The words
-  are drafts (option A of two, the other and the cards in the scratchpad's
-  `deck-tips/lines.json`), said as text alone until Jon picks and a take is recorded.
+  Hiring Board she stands over the town's side (`PostingBoard.town_rect`), never the app bar's
+  tabs, the ticker, a popup or any part of a job note, real or drawn (the other listings, the
+  FEATURED or WANTED bounty: `PostingBoard.job_rects`; Oct 20, "a job note is a pressable
+  thing even where it has no words"), and no popup comes up while she teaches. Ads and
+  scenery she may cover. The words are Jon's picks of two drafts each (Oct 20,
+  "promenade:B shipyard:B exchange:B hiring_board:A laboratory:A"); the cards stay as
+  drafted. Text alone until a take is recorded.
 - **Held until a click** for a hint (Jon's rule: hints advance with a click); a goal
   step's line types, holds its reading time on `GameClock` and goes.
 - **Exceptions to her bark rules, for teaching only:** she may stand over the cutaway, a

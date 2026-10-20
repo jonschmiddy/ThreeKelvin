@@ -74,13 +74,13 @@ const JON := {
 	&"step_event_map": "Click an event, then press GO.",
 }
 
-## THE DECKS' LINES, DRAFTS (Oct 20) for Jon to pick from: option A of two, in
-## the game as text alone until he picks and a take is recorded. Held here so a
-## change to them is a change to this file too.
+## THE DECKS' LINES, Jon's picks of two drafts each (Oct 20, "promenade:B
+## shipyard:B exchange:B hiring_board:A laboratory:A"), character for character;
+## text alone until a take is recorded.
 const DECK_A := {
-	&"shipyard": "The drones fix the ship. Click one to buy its job: PATCH, REPAIR, REFUEL or FAULTS.",
-	&"promenade": "We buy parts here. Point at one to read it. Drag it to the till to pay.",
-	&"exchange": "We sell here. Drag a part from the hold onto the counter to be paid for it.",
+	&"shipyard": "Repairs and fuel are here. Click a drone over the ship to pay for its job.",
+	&"promenade": "The shelf sells parts. Drag one down to the till to buy it. It goes in the hold.",
+	&"exchange": "Spare parts turn into credits here. Drag one to the counter to sell it.",
 	&"hiring_board": "Manufacturers post paid work here. Press SIGN on a note to take the job.",
 	&"laboratory": "The fabricator turns a relic into a part. Press MAKE when you can pay for it.",
 }
@@ -405,6 +405,9 @@ func _gather(cur: Control, v: Rect2) -> Array:
 		if st._board != null and st._board.is_visible_in_tree():
 			for r: Rect2 in st._board.chrome_rects():
 				out.append(["the board's app bar or ticker", st._board.get_global_transform() * r])
+			# every job note whole, real or drawn: the listings, the FEATURED or WANTED bounty
+			for r: Rect2 in st._board.job_rects():
+				out.append(["a job note on the board", st._board.get_global_transform() * r])
 			if st._board.pop_rect.has_area():
 				out.append(["a popup on the board", st._board.get_global_transform() * st._board.pop_rect])
 	if st != null and st._scene != null and st._scene.is_visible_in_tree() and (st._cutaway == null or not st._cutaway.is_open()):
@@ -556,7 +559,7 @@ func _lines() -> void:
 		if words != String(DECK_A[k]) or card.size() != 2 or not Hints.ORDER.has(k) or not Hints.SPENT_ON_SHOW.has(k) \
 				or retired.search(words + " " + " ".join(card)) != null or AshTutorLines.SPOKEN.has(k):
 			deck_bad.append(String(k))
-	_ok("the decks' lines are the drafts' option A, each a hint with a two-line card, spent as it shows, no retired word (%s)" % [
+	_ok("the decks' lines are Jon's picks (B, B, B, A, A), each a hint with a two-line card, spent as it shows, no retired word (%s)" % [
 		"all %d" % DECKS.size() if deck_bad.is_empty() else "NOT " + ", ".join(deck_bad)], deck_bad.is_empty())
 	_ok("the decks' hints come after the dock's", DECKS.all(func(k: StringName) -> bool:
 		return Hints.ORDER.find(k) > Hints.ORDER.find(&"dock")))

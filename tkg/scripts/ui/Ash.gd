@@ -1280,11 +1280,12 @@ static func _station_rects(st: StationScreen, out: Array) -> void:
 		if c != null and is_instance_valid(c) and c.is_visible_in_tree():
 			out.append(c.get_global_rect())
 	_cutaway_rects(st._cutaway, out)
-	# the board's app bar (its tabs), its ticker and a popup up on it
+	# the board's app bar (its tabs), its ticker, a popup up on it, and every job
+	# note on it whole, real or drawn (`PostingBoard.job_rects`)
 	var bd := st._board
 	if bd != null and is_instance_valid(bd) and bd.is_visible_in_tree():
 		var bg := bd.get_global_transform()
-		for r: Rect2 in bd.chrome_rects():
+		for r: Rect2 in bd.chrome_rects() + bd.job_rects():
 			out.append(bg * r)
 		if bd.pop_rect.has_area():
 			out.append(bg * bd.pop_rect)
