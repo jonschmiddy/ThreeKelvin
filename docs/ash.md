@@ -286,7 +286,8 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
   numbers:A): the text shows them, and the four lines with a field (END TURN, heat, the
   dock in reach, the cutaway's keys) are recorded from scripts of their own,
   `AshTutorLines.SPOKEN`. The typing spans the shown words over her take, so they end when
-  she stops. 21 lines x 2 takes recorded Oct 18 (956 credits), not yet installed.
+  she stops. 21 lines recorded Oct 18, two takes each; Jon's pick of each is installed as
+  `assets/audio/voice/ash/tut_<id>.ogg`.
 - **TUTORIAL ON / OFF** (Jon, Oct 20: "Have a setting in the options for tutorial on or
   tutorial off"): Settings' HINTS, first row, ON by default, `[hints] tutorial` in the settings
   file (`Hints.set_tutorial`). Off: no hint card, no goal step and none of her teaching; the

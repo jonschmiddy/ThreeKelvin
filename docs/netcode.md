@@ -9,13 +9,13 @@
 
 Those two sentences are not in tension. The transport is swappable; the session layer above it is not, and the session layer is where the bugs that ruin an evening live. So the session layer is built first and once, and the transport question stays open for as long as it can.
 
-**What is built and passing today:** a host opens a party, gets a code, and three friends join it by typing that code. The roster reaches every machine, mismatched builds are refused by name before anybody wastes forty minutes, a fifth player is turned away in words rather than by silence, and a launch puts the same galaxy seed on all four machines. Four peers, one process, no hardware:
+**What is built and passing today:** a host opens a party, gets a code, and up to seven friends join it by typing that code (`NetTransport.MAX_PLAYERS` is 8). The roster reaches every machine, mismatched builds are refused by name before anybody wastes forty minutes, a ninth player is turned away in words rather than by silence, and a launch puts the same galaxy seed on every machine. A full party, one process, no hardware:
 
 ```bash
 godot --headless --path . -- nettest
 ```
 
-**What is not:** the code today carries an IP address, so the host needs an open port. That is the only piece Steam or a relay replaces, and it is deliberately the last piece.
+**The transport:** a D code carries an IP address, so the host needs an open port; an R code goes through the relay (`relay/`, a Cloudflare Durable Object), so nobody does. See §2 and §4.
 
 ---
 
@@ -47,8 +47,6 @@ A machine on the internet hands out room numbers and either introduces the two p
 This game is an unusually good fit and it is worth being specific about why. Three Kelvin is turn-based. The session layer sends a roster and a seed. Even a full co-op build sends card plays and jump commits — events, not state, and at human speed. **A relay for this game is measured in kilobytes per party per minute.** One $5 virtual machine carries hundreds of simultaneous parties, and the bill does not move until the game is a success.
 
 Hole punching is cheaper still and fails on some networks, so a relay fallback is not optional. Existing options rather than writing one: **noray** (Foxssake) is a Godot-focused hole-punch-and-relay coordinator and is the closest fit; a plain WebSocket relay is a weekend of work if you would rather own it.
-
-Hole punching is cheaper still and fails on some networks, so a relay fallback is not optional.
 
 **There does not have to be a persistent server.** See §2 — a Cloudflare Durable Object is a rendezvous that exists only while a party is playing, and the numbers are better than a virtual machine's.
 
@@ -163,7 +161,7 @@ Not WebRTC. Cloudflare would serve that shape well too — Worker and Durable Ob
 ## 3. The recommendation
 
 1. **Now — direct.** Built. It is the test harness for everything above it, and it is the LAN path forever.
-2. **Before any playtest with people outside your manufacturer — a Cloudflare Durable Object relay.** Room codes already exist in `LobbyCode`, and the code is the object's address. Free at this scale, nothing to keep running. This is the smallest thing that makes the game playable by four friends who have never heard of port forwarding, and it is independent of where the game ships.
+2. **Before any playtest with people outside your own home — a Cloudflare Durable Object relay.** Room codes already exist in `LobbyCode`, and the code is the object's address. Free at this scale, nothing to keep running. This is the smallest thing that makes the game playable by four friends who have never heard of port forwarding, and it is independent of where the game ships.
 3. **At the Steam page — add Steam.** One more `NetTransport`. Prefer it when Steam is running; fall back to the rendezvous when it is not.
 4. **Only if shipping off-Steam matters and the bill does not — EOS instead of step 2.**
 
@@ -181,7 +179,7 @@ scripts/net/NetSession.gd       autoload `Net` — the party
 scripts/net/RelayPeer.gd        a MultiplayerPeer over one WebSocket
 scripts/net/RelayTransport.gd   a room number at the Cloudflare relay
 scripts/data/ShipBuild.gd       one ship, small enough to send
-scripts/sim/NetTest.gd          four peers in one process
+scripts/sim/NetTest.gd          a full party (eight peers) in one process
 scripts/sim/ConvoyTest.gd       the party display, without a party
 ```
 
@@ -266,7 +264,7 @@ The star chart draws the party from that — a diamond and a name per partner, *
 
 ### An option, not a system — and asking instead of assuming
 
-A system that offers three or four things to do is not one resource. One ship strips the wreck and another still wants the fight, so the unit a claim names has to be the **option**, not the node. `MapGen.OPTION_WHOLE` is the id for an encounter that consumes the system entirely, which is every encounter that exists today — so a node with one thing to do carries exactly one entry and nothing reading `cleared` had to change.
+A system that offers three or four things to do is not one resource. One ship strips the wreck and another still wants the fight, so the unit a claim names has to be the **option**, not the node. `MapGen.OPTION_WHOLE` is the id for an encounter that consumes the system entirely, which was every encounter that existed at protocol 4 (today every rolled option is claimed on its own, as `OPTION_SITE + i`) — so a node with one thing to do carries exactly one entry and nothing reading `cleared` had to change.
 
 A claim also records **who**. That is not bookkeeping: arriving at a wreck that says *Mercer stripped this* is the difference between a system that is empty and a system somebody emptied, and it is most of the social texture of flying together.
 
@@ -282,7 +280,7 @@ Three things make that cheap:
 - **There is no reply message.** The host broadcasts the whole claim list on every change anyway, so the answer is already on its way. The client waits for the option to appear in `claims` and reads the owner off it.
 - **A click can afford a round trip.** Well under 200 ms on the relay, and it only runs when a player has pressed something. A timeout refuses rather than assumes: refusing costs one wreck, assuming costs the party's economy.
 
-Today exactly one encounter takes the contested path — salvaging a derelict, the only thing two ships can genuinely race for. Everything else uses `take_whole()`. When a system starts offering a menu, each option picks its path by what it consumes.
+At protocol 4 exactly one encounter took the contested path — salvaging a derelict, the only thing two ships can genuinely race for. Everything else uses `take_whole()`. When a system starts offering a menu, each option picks its path by what it consumes.
 
 **Protocol 4** is this change. Save version 5 carries `MapNode.taken`, so a resumed run remembers which options are gone — which `cleared` alone cannot say.
 
@@ -561,7 +559,7 @@ crossed the wire and both machines built the rest from it — which is the entir
 reason the RNG work came before the netcode, and the thing that would have been
 impossible to add afterwards.
 
-What it is not: a game. There are no gameplay messages above the seed, so from
+What it was not, at that point: a game. There were no gameplay messages above the seed, so from
 the moment both sectors draw, the two runs diverge the instant either player
 does anything. See the table above.
 
@@ -582,10 +580,10 @@ The session layer is the part that is hard to change later, which is why it is b
 | | Why it blocks | Size |
 |---|---|---|
 | ~~**RNG determinism**~~ | ✅ **Done.** The seed `_begin_dive` sends is now honoured: `Rng` puts one galaxy, one map and one set of shelves on every machine that shares it. | Was the top item. See `Rng.gd` and `-- rngtest` |
-| **`Run` is a singleton** | 655 references across 33 files. A host holding four ships needs four of it. | Largest single item; gates most of the rest |
-| **Gameplay messages** | Three exist. A roster slot carries the ship each player is flying and the system they are in; the host holds which OPTIONS the party has consumed and who took each one; and the host owns the enemy in any fight more than one ship is in. Still missing: the shared heat field on the map, the shared fuel tank, danger tracking the deepest ship. | Real work, but `Combat` is already UI-free and already headless. §7 is now cheap — every position is already on the wire |
+| **`Run` is a singleton** | Over 2,000 references in 75 files (Oct 20). A host holding four ships needs four of it. | Largest single item; gates most of the rest |
+| **Gameplay messages** | Several exist, among them these three. A roster slot carries the ship each player is flying and the system they are in; the host holds which OPTIONS the party has consumed and who took each one; and the host owns the enemy in any fight more than one ship is in. Still missing: the shared heat field on the map, the shared fuel tank, danger tracking the deepest ship. | Real work, but `Combat` is already UI-free and already headless. §7 is now cheap — every position is already on the wire |
 | ~~**Lobby UI**~~ | ✅ **Done.** `LobbyScreen` — host, code, COPY/PASTE, join, roster, ready, launch. Reached from the title screen under **FLY TOGETHER**; the `-- lobby host` / `-- lobby join CODE` / `auto` flags exist to test it, not to use it. | Two processes have now formed a party and landed in the same galaxy. See below |
-| **§0's gate** | `coop-design.md` rules that heat must gate reward before a commons is built on it, and the measurement says it does not yet. | A design gate, not a code one |
+| ~~**§0's gate**~~ | Closed by ruling: `coop-design.md` §0 reversed its own conclusion, so heat is not required to gate reward. | None |
 
 **Determinism is done.** It was the only item on that list that paid for itself before a second player existed, and it did: `-- seed N` replays a run exactly, and `-- sim seed=N` makes a whole balance sweep reproducible.
 

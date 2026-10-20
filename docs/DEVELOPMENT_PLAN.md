@@ -35,7 +35,7 @@ and `.github/scripts/validate.sh`, none of which can go stale.
 > | **B1** | batch-01 is built on run-state flags the whitelist defers | **Still open.** Events are still hardcoded lambdas — the single largest gap in the project |
 > | **B2** | card dimensions frozen at a size the code contradicts | **Dead.** Settled at 112×160 in `CardView.gd`, with the reasoning in comments. Card art shipped at 92×60 per `ArtCheck.CARD_ART` |
 > | **B3** | two incompatible manufacturer palettes | **Dead.** `Database.gd`'s `_seed_manufacturers()` is the one palette, `colour` + `field` per manufacturer |
-> | **B4** | six of seven manufacturers are switched off | **Still true.** `DB.ACTIVE_MANUFACTURERS` is `[korvan]`. It is a balance event, not a data flip — the six-point win-rate gap is in `handbook.md` |
+> | **B4** | six of seven manufacturers are switched off | **Still true for five of seven.** `DB.ACTIVE_MANUFACTURERS` is `[korvan, solari]` (Solari since Oct 17). It is a balance event, not a data flip — the six-point win-rate gap is in `handbook.md` |
 > | **B5** | existing events would fail the whitelist they're about to be held to | **Still open**, and blocked behind B1 |
 > | **B6** | the economy is already lethal (3–5% win rate over 40 runs) | **Dead as stated.** 16% Korvan-only / 22% open pool at 500 runs. Read the current number off `-- sim`, never off this file |
 
@@ -167,11 +167,11 @@ exists.*
 - **Rule B1 first.** By this point you will know how much run-scoped
   state the ship half carries, which is most of the cost of deciding
   whether run-state flags come into the MVP.
-- Event resource schema replacing `EventTable`'s lambdas.
+- Event resource schema replacing `EventTable`'s lambdas. (`EventTable` was deleted 2026-08-27; its entries live in `OptionTable`, still as lambdas.)
 - Four option types; checks read **current** values.
-- Odds ladder 100 / 65 / 40 / 20 / 5, shortfall-driven.
+- Odds ladder 100 / 65 / 40 / 20 / 5, shortfall-driven. (Built: `SkillCheck`.)
 - Three outcome bands; Partial gets the design effort.
-- **Whitelist validator that runs at load and fails loudly.**
+- **Whitelist validator that runs at load and fails loudly.** (Built as a gate step instead: `tools/encounter_lint.py --strict`.)
 - Badge grammar per §7.3.
 - Port or retire the existing hardcoded events (B5).
 
@@ -181,7 +181,7 @@ shortfall option reads `Hull 5 · you have 3 · 65%`.
 ### Phase 8 — Event content
 *Implements the `EXPANSION.md` process.*
 
-90 active seeds, batches of ten, **human review between every batch**.
+90 active seeds, batches of ten, **human review between every batch**. (Done another way: 135 encounters are authored in `OptionTable`, the last 80 under `briefs/ENCOUNTER_COMMISSION.md`.)
 Skip `deferred` and `reserved`; EVT-101 is hand-authored. Region pools
 need a translation table from the CSV's manufacturer names to `MapGen.Region`.
 
@@ -260,7 +260,7 @@ Each needs a human decision.
 | 1b | EVT-092 opt 2 — §15 names content that does not exist | B1 | batch-02 |
 | 3 | Canonical manufacturer palette | B3 | Phase 8, chart tints |
 | 4 | Three reds — resolve centrally in `UITheme` | B3 | Badge + hazard UI |
-| 5 | When do the other six manufacturers switch on | B4 | Phases 4, 7, 8 |
+| 5 | When do the other five manufacturers switch on | B4 | Phases 4, 7, 8 |
 | 7 | The met-threshold outcome tier rolls can't reach | §4.2 | Phase 2 authoring |
 | 8 | Hard gate ratio — how many walls before walls stop mattering | §4.2 | Phase 4 |
 | 9 | Do unique cards earn unique art | card §14 | Phase 8 |

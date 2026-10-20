@@ -1,5 +1,5 @@
 # THREE KELVIN — Threads
-*Companion to `lore.md`, which said what the world is and how it must be told. This says how it deepens: the motifs already humming in the sixteen entries that exist, the craft techniques the next shelf of paperwork should be written with, the threads that stay open, the story arcs that close, and a drafted batch of twenty entries that tie all of it together without answering anything. Draft v0.1.*
+*Companion to `lore.md`, which said what the world is and how it must be told. This says how it deepens: the motifs already humming in the sixteen entries that existed when it was written (there are 41 now), the craft techniques the next shelf of paperwork should be written with, the threads that stay open, the story arcs that close, and a drafted batch of twenty entries that tie all of it together without answering anything. Draft v0.1.*
 
 ---
 
@@ -529,7 +529,7 @@ Web-checked every invented name and load-bearing concept against fiction, games,
 Manufacturer renames touch `Database.BACKSTORY`, manufacturer ids, and the design docs — a decision for the design owner, not a lore-pass side effect. Nothing in this document depends on the outcome; the constants roster contains no flagged name.
 
 **Both were decided and applied to `Database.gd`; the docs did not follow for
-roughly three months.** The propagation finally happened on 2026-08-24, along
+a few days.** The propagation finally happened on 2026-08-24, along
 with the archive entries that were still *tagged* to the retired ids and had
 been rendering in unbranded grey the whole time. The finding above is left
 exactly as written — it is the record of why, and rewriting it would erase the

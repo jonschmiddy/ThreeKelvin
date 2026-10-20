@@ -11,7 +11,7 @@ Everything below is that sentence. If a piece of fiction cannot be traced back t
 
 It does three jobs at once, which is why it is the frame and not a flourish:
 
-**It explains the economy that is already in the build.** `Market.gd` runs one base value and three prices, and the whole dive is denominated in scrap and credits. That is the HUMAN economy, and it is human because the people in it will be dead long before the dark arrives — a station broker will sell you a brace frame for thirty credits because thirty credits is a real number on a timescale a person can hold. Heat is not on that shelf. Heat is what the manufacturers buy, in quantities no person needs, for reasons no person is given.
+**It explains the economy that is already in the build.** `Market.gd` runs one base value and three prices, and the whole dive is denominated in credits. That is the HUMAN economy, and it is human because the people in it will be dead long before the dark arrives — a station broker will sell you a brace frame for thirty credits because thirty credits is a real number on a timescale a person can hold. Heat is not on that shelf. Heat is what the manufacturers buy, in quantities no person needs, for reasons no person is given.
 
 **It protects `design-doc.md`'s standing ruling instead of breaking it.** That document says: *no prophecy, no chosen crew, no faction explaining the cosmology in a text box.* The obvious way to add lore is to have somebody explain the world, and that ruling forbids it. Under this frame nobody explains the world because **the people who could are not talking, and the things that are talking are not people.** The silence stops being an authorial choice the player has to tolerate and becomes a fact about the world that the player can be angry at. That is a much better version of the same restraint.
 
@@ -85,7 +85,7 @@ Their backstories are already written and live in `Database.BACKSTORY` — that 
 
 The texture. None of this is explained in play; all of it is encountered.
 
-**The warm things.** Megafauna swim between systems and they are warm — which is why they are hunted, and which means the player and the whale are the same kind of animal doing the same thing for the same reason. A player who works that out has been told the game's cruellest joke without a line of dialogue. `Combat.pacify` exists so that working it out can change what you do.
+**The warm things.** Megafauna swim between systems and they are warm — which is why they are hunted, and which means the player and the whale are the same kind of animal doing the same thing for the same reason. A player who works that out has been told the game's cruellest joke without a line of dialogue. `Combat._pacify()` exists so that working it out can change what you do.
 
 **Wrecks older than anyone who could have built them.** Already in the build as a rarity tier: precursor fragments come off deep wrecks and nowhere else. The hulls are wrong in ways that are structural rather than mysterious — bays that do not open onto anything, a mass distribution nobody would choose. Nothing in the game ever says who. The correct amount of information about the precursors is the amount currently in the game, which is a rarity tier and a material.
 

@@ -6,7 +6,7 @@ quoted strings.*
 
 Sibling document: `GALAXY_SCALE.md`. §5 and §8 depend on it.
 
-**Status: design agreed, nothing built.** §9 lists what is still open. This is
+**Status: landed** (see `ROADMAP.md` §0). Written as design agreed, nothing built. §9 lists what is still open. This is
 the argument and the data model, not a work order — read §8 before estimating,
 because the sim is part of the feature rather than a check on it.
 
