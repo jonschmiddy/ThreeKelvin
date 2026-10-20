@@ -2048,6 +2048,9 @@ func push() -> void:
 ## The part of the chart that can be seen: all of it on the chart, the screen's
 ## share of the title's square (which is bigger than the screen).
 func _visible_rect() -> Rect2:
+	# (drawn on past the picture, under the glass: `MapChart.sky_out`)
+	if chart.sky_out.has_area():
+		return chart.sky_out
 	var full := Rect2(Vector2.ZERO, chart.size)
 	if chart.clip_contents or not chart.is_inside_tree():
 		return full

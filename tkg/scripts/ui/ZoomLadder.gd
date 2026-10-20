@@ -2909,12 +2909,14 @@ func _calm_hold(n: Control) -> void:
 			_mat.set_shader_parameter(&"under_past_on", pi != null and not pi.is_empty())
 			if pi != null and not pi.is_empty():
 				_mat.set_shader_parameter(&"under_past", ImageTexture.create_from_image(pi))
-		var i := 0
-		for oc: Variant in [side_of(old), bar_of(old)]:
-			if oc != null and (oc as Control).is_visible_in_tree():
-				var cr := (oc as Control).get_global_rect().grow(1.0)
-				cuts[i] = Vector4(cr.position.x, cr.position.y, cr.size.x, cr.size.y)
-				i += 1
+		cuts = _chrome_cuts(old)
+	elif old is StarchartScreen and (old as StarchartScreen)._chart != null and (old as StarchartScreen)._chart.sky_out.has_area():
+		# (the chart's sky runs on past its picture under the glass, Jon: "why
+		# does a galaxy disappear near the side panel?": the picture held is the
+		# whole of it, its side bar and toolbar left where they stand)
+		pic = _content_rect()
+		if r_new != LOCAL:
+			cuts = _chrome_cuts(old)
 	# BETWEEN LOCAL AND THE MAP IN A CLOUD (Jon: "a hard-edged rectangle"): the
 	# picture held -- LOCAL's going small into the map, the map's going large into
 	# LOCAL -- thins out as a cloud too, from the handoff on (`_calm_round_from`)
@@ -3074,6 +3076,19 @@ func _cloud_g(e: float) -> float:
 ## picture held, one curve (`cloud_round.gdshaderinc`): how far in at `e`.
 static func _cloud_k(e: float) -> float:
 	return smoothstep(0.04, 0.5, e)
+
+
+## The screen's side bar and toolbar, where they stand, as the held picture's
+## cuts (`calm_ladder.gdshader` `cut3`, `cut4`).
+func _chrome_cuts(s: Control) -> Array:
+	var cuts := [Vector4.ZERO, Vector4.ZERO]
+	var i := 0
+	for oc: Variant in [side_of(s), bar_of(s)]:
+		if oc != null and (oc as Control).is_visible_in_tree():
+			var cr := (oc as Control).get_global_rect().grow(1.0)
+			cuts[i] = Vector4(cr.position.x, cr.position.y, cr.size.x, cr.size.y)
+			i += 1
+	return cuts
 
 
 ## the ellipse's middle (the map's picture's) and its reach (to the screens'
