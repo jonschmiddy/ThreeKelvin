@@ -1,5 +1,11 @@
 # THREE KELVIN — Co-op Design
-*An extraction deckbuilder for one to four ships, tuned at four. Draft v0.3 — living document. Companion to `design-doc.md`. v0.1 assumed roguelite resets; v0.2 replaced that with persistent collections and extraction stakes; v0.3 adds the heat-death frame, the two-doors rule, and §0 — which is measured rather than argued.*
+> **Read this first (Oct 20).** The currency this doc calls *scrap* was renamed
+> **credits** and is the only currency. Materials are items in the hold
+> (`MaterialData`), not a `RunState.materials` dictionary. The party cap is eight
+> (`NetTransport.MAX_PLAYERS`); the design is still tuned at four. Extraction and
+> the hangar are not built.
+
+*An extraction deckbuilder for one to eight ships, tuned at four. Draft v0.3 — living document. Companion to `design-doc.md`. v0.1 assumed roguelite resets; v0.2 replaced that with persistent collections and extraction stakes; v0.3 adds the heat-death frame, the two-doors rule, and §0 — which is measured rather than argued.*
 
 ---
 
@@ -87,7 +93,7 @@ than a bug fix:
   physical; a bag on the floor of a system you both just fought in is as physical
   as this game gets.
 
-Built. See `netcode.md`, "One kill, one bag", and `tools/cofight.sh`.
+Built. See `netcode.md`, "One kill, one bag", and `tkg/tools/cofight.sh`.
 
 **Since then: one wreck per hull, and each wreck holds its own ship's loot**
 (Jon, Oct 13: "Each ship you kill has a chance to get credits and modules and
@@ -170,25 +176,25 @@ The main doc already runs a two-tier economy. Give each tier a job and the split
 | | Extracts | Job |
 |---|---|---|
 | **Modules and hulls** | ✅ | The collection. This is progression. |
-| **Materials** — exotic, precursor fragments (`RunState.materials`) | ✅ | The meta currency. Pays for hangar work, crafting, slot unlocks. |
+| **Materials** — exotic, precursor fragments (`MaterialData` items in the hold) | ✅ | The meta currency. Pays for hangar work, crafting, slot unlocks. |
 | **Scrap** | ❌ | The dive currency. Repairs, station stock, fuel. Spend it or lose it. |
 
 **Scrap must not extract.** It is the one currency on every price tag, and `Market.gd` is tuned as a closed loop — one base value, three prices, with the repair rate as the master difficulty lever. Let scrap bank between dives and players buy past the early game, and the main doc's own tuning rule collapses.
 
 Non-extracting scrap also creates a good last beat. At the final station before you climb out, unspent scrap is wasted scrap. Spend it or lose it.
 
-`RunState.materials` is already a `Dictionary` keyed by material id, with `exotic` as a property over it. The meta currency is modelled today.
+Materials are `MaterialData` items in the hold today (`MaterialTable` has 69), and `exotic` is a count over them. The meta currency would need a store of its own.
 
 ---
 
 ## 4. Extraction is the way out
 
-**You extract by flying back out to the rim.** No new map structure is needed. `MapGen` already runs `LAYERS` 9 shells from rim to core with `DANGER_MAX` 10, and the main doc already rules that lateral travel is cheap and that depth is the danger gradient.
+**You extract by flying back out to the rim.** No new map structure is needed. `MapGen` already runs `LAYERS` 15 shells from rim to core with `DANGER_MAX` 10, and the main doc already rules that lateral travel is cheap and that depth is the danger gradient.
 
 Three things fall out of this for free:
 
-- **Fuel means twice what it meant.** `RunState.fuel` starts at 150 and every jump bills against it. Now the budget has to cover the climb back out. Every coreward jump is two jumps.
-- **The dive length is chosen by the player, not by the map.** Go three shells deep for a small safe haul. Go nine for the ember. The greed gradient becomes the session planner. "We have forty minutes" is now a legal in-fiction decision.
+- **Fuel means twice what it meant.** The tank holds 45 (`RunState.FUEL_TANK`) and every jump bills against it. Now the budget has to cover the climb back out. Every coreward jump is two jumps.
+- **The dive length is chosen by the player, not by the map.** Go three shells deep for a small safe haul. Go fifteen for the ember. The greed gradient becomes the session planner. "We have forty minutes" is now a legal in-fiction decision.
 - **It is the long way home.** The main doc already leans on that framing for the run goal. Extraction is that framing, made into a rule.
 
 ---
@@ -346,7 +352,7 @@ A rendezvous is therefore a promise, not a waypoint. You agree a system and you 
 
 Under extraction, death is not the end of a player's evening. It is the start of everybody else's real decision.
 
-When a ship dies it becomes a **WRECK** node at the system where it fell, holding the hull, the installed modules and the entire hold. `MapGen.NodeType` currently holds START, FIGHT, STATION, EVENT, DERELICT, GOAL and PULSAR. This one is placed at runtime.
+When a ship dies it becomes a **WRECK** node at the system where it fell, holding the hull, the installed modules and the entire hold. `MapGen.NodeType` holds START, STATION, CORE, PULSAR and SYSTEM. This one is placed at runtime.
 
 - **Every chart shows it always, through fog.** The pull has to be legible or it is not a decision.
 - It shows an age. Time matters and players can watch it matter.
@@ -464,7 +470,7 @@ That lands the title and gives the deep dive a mechanic instead of a cutscene.
 
 ## 13. The ember — the prize is a burden
 
-At the core there is one ember. It is the top of the loot ladder and it is the reason to dive nine shells instead of three.
+At the core there is one ember. It is the top of the loot ladder and it is the reason to dive fifteen shells instead of three.
 
 **No player-versus-player combat.** Every card assumes one-sided damage and no player dodge. Building a duel is large scope and it turns cosmic horror into an arena. The environment does the killing. Your partner just does not move.
 
@@ -475,7 +481,7 @@ At the core there is one ember. It is the top of the loot ladder and it is the r
 - **Only the ship that lands with it keeps it.**
 - It can be handed off at dock. It can be dropped.
 
-So the party must choose a carrier, and the carrier is simultaneously the winner and the most likely to die. Nine shells of climbing out, hot, with everything in the sector awake.
+So the party must choose a carrier, and the carrier is simultaneously the winner and the most likely to die. Fifteen shells of climbing out, hot, with everything in the sector awake.
 
 **The escape is the climax.** Going in is easy. Getting home is the game — which is the pitch, arriving on schedule at the end of the deepest dive.
 
@@ -497,25 +503,25 @@ Both problems have structural answers rather than tuning answers.
 
 ## 15. What this costs in code
 
-Measured against `main`, not assumed.
+Measured against `main` in August, not assumed. Cells corrected Oct 20 where the code has moved.
 
 | Item | Current state | Work |
 |---|---|---|
-| **`Run` is a singleton** | Autoload holding one run. **697 references, 68 distinct members, 33 files.** | Becomes an instance. Largest single item; gates most of the rest. |
+| **`Run` is a singleton** | Autoload holding one run. **Over 2,000 references in 75 files** (Oct 20, outside `sim/`). | Becomes an instance. Largest single item; gates most of the rest. |
 | **The hangar layer** | Does not exist. No persistent player state of any kind. | New save file, new screen family: collection, loadout curation, crafting. `RunHistory`'s split from `SaveGame` is the pattern to copy — one file appends, one file is the present tense. |
 | **Extraction** | No concept. A run ends at the GOAL node or in death. | Win condition becomes "reach the rim alive". Cheap: the shells already exist. |
 | **Networking** | **The session layer is built and tested — see `netcode.md`.** Host, lobby code, join, roster, version refusal, one seed on four machines, each player's ship and position on everybody's screen, **one map rather than four copies**, and **one enemy rather than four copies** — the host owns any fight more than one ship is in. Direct and relay transports both. `godot --headless --path . -- nettest`. | Three gameplay messages exist above the seed. Still to come: the shared heat field of §6 on the map, the shared fuel tank, and danger tracking the deepest ship (§7) — which is now cheap, because everybody's position is already on the wire. |
 | **RNG determinism** | ✅ **Built.** `Rng` autoload: five named streams off one master seed, plus `Rng.derive()` for anything a player can reach out of order. `Run.galaxy_seed` is now the master seed and is what a host sends. `-- seed N` replays a run; `-- rngtest` proves it. Balance re-measured at n=1000 either side — within noise. | Combat and event RESOLUTION are still host-only. A client cannot yet replay a fight from the same seed, because nothing sends the inputs. |
-| **Serialization** | `SaveGame` writes a complete run to JSON at VERSION 2, full float precision. | Reuse as the wire format. Add a separate hangar file. |
+| **Serialization** | `SaveGame` writes a complete run to JSON (VERSION 33 today), full float precision. | Reuse as the wire format. Add a separate hangar file. |
 | **Combat** | ✅ **Shared.** The host owns the enemy — hull, block, armor, intent, and who it swings at. Your deck, hand, energy, block, heat and hull stay on your own machine, because nobody else targets them. `SharedFight` is a plain `RefCounted` with no `Run`, no `Combat` and no screen in it. Everything funnels through `Combat.damage_enemy()`, which is why this needed a field rather than a rewrite. | Reinforcements and pacification are off in a shared fight rather than wrong in one. Both want the host counting something it does not count yet. Simultaneous lock-in was **rejected** in favour of free-running turns with one barrier — see §5. |
 | **Screen grammar** | Your ship left, the thing you face right. **`ShipView` no longer reads `Run` — it takes a `ShipBuild`, and `EncounterView` puts a convoy column left of your hull: one slot per partner, drawn from their build, with their name, hull class, hull and heat.** `SectorScreen` and `HudBar` still read `Run.*` directly. | The hardest half is still open: four ships is four hands, four intent strips and four sets of chips, and only the ships themselves have somewhere to live. What is settled is that a partner's ship is drawn from a description of THEIR ship, which had to come first — see `netcode.md` §4. |
-| **Map heat signature** | Does not exist. `DEVELOPMENT_PLAN.md` already lists Thermal as "derive; add map signature". | Build once; solo and party both use it. |
-| **`sensors` / `stealth`** | Fields exist on `HullData`, signed, unused. | Wire to fog and partner visibility. |
-| **`NodeType.WRECK`** | Seven generated entries. | New type, placed at runtime. |
+| **Map heat signature** | Built (§0; `RunState.signature()`). | Done. |
+| **`sensors` / `stealth`** | Feed the Sensors and Stealth checks (`attr_sensors`, `attr_stealth`). | Wire to fog and partner visibility. |
+| **`NodeType.WRECK`** | Five generated entries today, none of them WRECK. | New type, placed at runtime. |
 | **`RunHistory.Outcome`** | DIED, WON, ABANDONED. | Extracted, total loss, partial extraction, ember recovered. |
 | **Background temperature** | Does not exist. | One float, one HUD readout, one dissipation modifier. Cheap for what it buys. |
 | **Scrap non-persistence** | Already true. Scrap resets in `start_new_run()`. | Nothing. The economy is already a closed per-dive loop. |
-| **Materials as meta currency** | `RunState.materials` is already a `Dictionary` with `exotic` as a property over it. | Move the store to the hangar. Small. |
+| **Materials as meta currency** | Materials are `MaterialData` items in the hold; `exotic` counts them. | Give the hangar a store of its own. |
 
 **Sequencing.** The `Run` instance refactor gates most of this. Three items do not depend on it and improve the solo game on their own: the map heat signature, the background temperature, and RNG determinism. Build those first regardless of when co-op starts.
 

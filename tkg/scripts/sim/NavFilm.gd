@@ -449,6 +449,8 @@ func _run() -> void:
 			await _reel_ladder()
 		"short":
 			await _reel_short()
+		"drift":
+			await _reel_drift()
 		"journey":
 			await _reel_journey()
 		"dock":
@@ -548,6 +550,43 @@ func _reel_short() -> void:
 	await _wait(0.45)
 	await _key(KEY_TAB, "Tab again")
 	await _settle(2.0)
+
+
+## THE FIELD'S DRIFT (Jon: "Why is the parallax gone from the sector and
+## starchart views?"): on the chart a slow drag one way and back and the wheel
+## in and out, then the same on the map, then LOCAL -- each drag a mark of its
+## own (`drag_chart`, `drag_map`) to cut clips at.
+func _reel_drift() -> void:
+	await _hop_tab("STARCHART", "L_C_tab")
+	await _drag(Vector2(420, 300), Vector2(250, 340), 1.6, "drag_chart")
+	await _drag(Vector2(250, 340), Vector2(430, 260), 1.6, "drag_chart_back")
+	await _wheel(Vector2(400, 300), true, 4, "chart wheel in", 0.12)
+	await _wait(0.6)
+	await _wheel(Vector2(400, 300), false, 4, "chart wheel out", 0.12)
+	await _settle(1.0)
+	await _hop_tab("SECTOR", "C_M_tab")
+	await _drag(Vector2(380, 300), Vector2(220, 260), 1.6, "drag_map")
+	await _drag(Vector2(220, 260), Vector2(400, 330), 1.6, "drag_map_back")
+	await _wheel(Vector2(380, 300), true, 4, "map wheel in", 0.12)
+	await _wait(0.6)
+	await _wheel(Vector2(380, 300), false, 4, "map wheel out", 0.12)
+	await _settle(1.0)
+	await _hop_tab("LOCAL", "M_L_tab")
+	await _settle(1.0)
+
+
+## A drag, as a hand makes one: down at `from`, an eased slide to `to` over `s`,
+## up, a breath after.
+func _drag(from: Vector2, to: Vector2, s: float, name: String) -> void:
+	await _glide(from.round(), 0.35)
+	await _wait(0.1)
+	_push(from.round(), true, true)
+	await get_tree().process_frame
+	_mark(name, {from = _v(from), to = _v(to), s = s})
+	await _glide(to.round(), s)
+	_push(to.round(), false, true)
+	_mark(name + "_end")
+	await _wait(0.5)
 
 
 ## A flight across the system (LOCAL mid-flight, and on arrival), GO on an

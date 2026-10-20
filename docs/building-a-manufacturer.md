@@ -1,7 +1,7 @@
 # Building a manufacturer
 
 How Korvan and the unbranded stock were written, in the order it happened, so
-the next five manufacturers can be built the same way rather than rediscovered.
+the next manufacturers can be built the same way rather than rediscovered. Korvan and Solari are done; five remain.
 
 `docs/catalogue.md` is the **rules** — what a module is, what it may grant, what
 a grade is worth. This is the **method**: the sequence, the checks at each step,
@@ -21,7 +21,7 @@ contract, not decoration**:
 
 | Manufacturer | The line |
 | --- | --- |
-| Korvan Heavy Works | Ex-military surplus parts. Ballistics run cold; ordnance and plate run hot. |
+| Korvan Heavy Works | It fires. Every time. |
 | Solari Foundry | The line between reactor and weapon is philosophy. |
 | The Probate Combine | Everything is salvage. Even you. |
 | Redline Shipyards | Still flying? Then we did our job. |
@@ -130,14 +130,14 @@ page.
 
 ## §6 Measure
 
-    godot --headless --path tkg -- sim 200 seed=4242
+    godot --headless --path tkg -- sim runs=200 seed=4242
 
 **Always at a fixed seed, before and after.** The gate's own sweep is unseeded
 and swings five points on a run that changed nothing; reading it as a regression
 signal will send you chasing ghosts. Stash, run, unstash, run:
 
     git stash push -q -- tkg/scripts
-    godot --headless --path tkg -- sim 200 seed=4242
+    godot --headless --path tkg -- sim runs=200 seed=4242
     git stash pop -q
 
 **A win-rate rise is not automatically a regression.** Pillar 5 says the ceiling
@@ -229,8 +229,8 @@ independently and report each one.
     4  -- holdtest -- attrtest        the laws
        -- reactor  -- content
     5  -- content json                the export
-       node tools/manifest.mjs        the page
+       node tkg/tools/manifest.mjs    the page
        publish, and read it
-    6  -- sim 200 seed=4242           before and after, stashed
+    6  -- sim runs=200 seed=4242      before and after, stashed
     7  the six audit questions
     8  commit with the numbers in the message

@@ -125,7 +125,7 @@ func _run() -> void:
 	hs.seed_rolls(99)
 	_ok("its glass ignores the mouse and takes no focus",
 		lh._rect.mouse_filter == Control.MOUSE_FILTER_IGNORE and lh._rect.focus_mode == Control.FOCUS_NONE)
-	_ok("the preset is one constant, subtle by default", LowHull.PRESET == LowHull.Preset.SUBTLE)
+	_ok("the preset is one constant, Jon's strong (Oct 20)", LowHull.PRESET == LowHull.Preset.STRONG)
 
 	# no run: off
 	await _secs(0.3)
@@ -267,7 +267,8 @@ func _run() -> void:
 	_ok("never past its ceiling (%d at once at most, the ceiling %d)" % [peak_once, int(lk.most)], peak_once <= int(lk.most))
 	_ok("readable at 5%%: %.1f of %d letters on screen scrambled at once (%.1f%%)" % [
 		at_once[3], letters_on_screen, 100.0 * at_once[3] / maxf(1.0, letters_on_screen)],
-		letters_on_screen > 60 and at_once[3] / float(letters_on_screen) < 0.05)
+		# (under one letter in eight: Jon's strong is about 7 to 8% at 5%, Oct 20)
+		letters_on_screen > 60 and at_once[3] / float(letters_on_screen) < 0.125)
 	_ok("Labels and Buttons both scramble (kinds %s)" % str(kinds.keys()),
 		kinds.has(HullScramble.Kind.LABEL) and kinds.has(HullScramble.Kind.BUTTON))
 	_ok("the HUD's hull readout is among the texts that scramble", hull_known)
@@ -662,10 +663,9 @@ func _voice() -> void:
 			n += placed.size()
 			t += float(lens[path])
 		heard_s.append(float(n) / t)
-	var up2 := true
-	for i in 3:
-		if not (heard_s[i + 1] > heard_s[i]):
-			up2 = false
+	# RISING to 10%, then LEVEL: on the strong preset the spacing and the 45% share
+	# are full by 10%, and 5%'s glitches are longer, so as many fit or a few fewer
+	var up2 := heard_s[1] > heard_s[0] and heard_s[2] > heard_s[1] and heard_s[3] >= heard_s[2] * 0.9
 	_ok("as heard (moved onto her words): %s glitches a second of her voice, 30 -> 20 -> 10 -> 5%%; %d of %d planned kept" % [
 		_fmt(heard_s), kept, planned], up2 and heard_s[0] >= 0.6 and kept >= planned * 0.75)
 

@@ -687,10 +687,79 @@ func _run() -> void:
 		await _rest()
 	await _goal_line()
 	await _no_box()
+	await _field_drift()
 	ZoomLadder.force = -1
 	ZoomLadder.fixed_dt = -1.0
 	print("calmladdertest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
 	_tree.quit(1 if _fails > 0 else 0)
+
+
+## A drag on the picture, as a hand makes one: down at `from`, a slide to `to`
+## over `n` frames, up.
+func _drag(from: Vector2, to: Vector2, n: int = 40) -> void:
+	var vp := GameShell.input_target(_tree)
+	var last := from
+	for i in n + 2:
+		if i == 1 or i == n + 1:
+			var mb := InputEventMouseButton.new()
+			mb.button_index = MOUSE_BUTTON_LEFT
+			mb.pressed = i == 1
+			mb.position = last
+			mb.global_position = last
+			mb.button_mask = MOUSE_BUTTON_MASK_LEFT if i == 1 else 0
+			vp.push_input(mb)
+		else:
+			var u := clampf(float(i - 1) / float(n), 0.0, 1.0)
+			var at := from.lerp(to, u * u * (3.0 - 2.0 * u)).round()
+			var mm := InputEventMouseMotion.new()
+			mm.position = at
+			mm.global_position = at
+			mm.relative = at - last
+			mm.button_mask = MOUSE_BUTTON_MASK_LEFT if i > 1 else 0
+			vp.push_input(mm)
+			last = at
+		await _tree.process_frame
+
+
+## THE FIELD DRIFTS ON A PAN (Jon: "Why is the parallax gone from the sector and
+## starchart views?"): a drag on the chart and one on the map slide the field
+## (`NavField.pan`, its far layers' `u_skyPan`) the way the drag went, the
+## chart's by its own sky's pan; a hop never moves it (`_field_wrong`, every
+## frame of every hop above) and never puts it back: across each hop it stands
+## where it was, and LOCAL arrived lies where it does (`LocalSky` `u_skyPan`).
+func _field_drift() -> void:
+	var f: NavField = Router.field
+	if not _ok("drift: the field is there", f != null and is_instance_valid(f)):
+		return
+	for r: int in [ZoomLadder.CHART, ZoomLadder.MAP]:
+		await _at(r)
+		await _frames(20)
+		var p0 := f.pan
+		var q0: Variant = NavField.screen_pan(Router.current)
+		var pic: Rect2 = Router.current.call(&"ladder_picture")
+		var c := pic.get_center()
+		await _drag(c + Vector2(80, 20), c + Vector2(-60, -10))
+		await _frames(20)
+		var p1 := f.pan
+		var q1: Variant = NavField.screen_pan(Router.current)
+		var want: Vector2 = ((q1 as Vector2) - (q0 as Vector2)) if q0 is Vector2 and q1 is Vector2 else Vector2.ZERO
+		_ok("drift: a drag on the %s slides the field the way its own sky went (%s -> %s: %s, its sky %s)" % [_nm(r), p0, p1, p1 - p0, want],
+			(p1 - p0).length() >= 2.0 and (p1 - p0).dot(want) > 0.0 and ((p1 - p0) - want.round()).length() <= 1.5)
+		# (and a hop away: still where it was when it lands)
+		var away := ZoomLadder.LOCAL if r == ZoomLadder.CHART else ZoomLadder.CHART
+		await _hop("drift: tab %s -> %s after a drag" % [_nm(r), _nm(away)], func() -> void: _click(_tab_at(away), _tab_button(away)), away)
+		await _rest()
+		await _frames(10)
+		_ok("drift: across the hop %s -> %s the field stands where it was (%s, then %s)" % [_nm(r), _nm(away), p1, f.pan], f.pan == p1)
+		if away == ZoomLadder.LOCAL:
+			var sky := NavField.live_local_sky()
+			var fm: ShaderMaterial = sky.get("_far_mat") if sky != null else null
+			var lp: Variant = fm.get_shader_parameter("u_skyPan") if fm != null else null
+			if fm == null:
+				print("  --   drift: LOCAL's sky is not drawn here (headless); its stars against the field's are read windowed (FieldEdgeTest)")
+				continue
+			_ok("drift: LOCAL arrived lies where the field has slid to (its sky %s, the field %s)" % [lp, f.pan],
+				lp is Vector2 and (lp as Vector2).is_equal_approx(f.pan))
 
 
 ## THE GOAL LINE (`GoalLine`, tutorial B) under the HUD: gone before the camera
@@ -725,8 +794,15 @@ func _no_box() -> void:
 			var fv: Variant = (key as ShaderMaterial).get_shader_parameter(&"frame")
 			if fv is Vector4:
 				fr = fv
-		_ok("%s: what the picture holds fades out toward its edge (%.0f px), on its frame as it stands (%s)" % [_nm(r), fade, fr],
-			fade >= 16.0 and fr.z > 0.0 and absf(fr.x - pic.get_global_rect().position.x) < 1.0)
+		# (the chart's sky runs on past its picture to the field's edges, and
+		# fades out there: `MapChart.sky_out`, Jon: "why does a galaxy disappear
+		# near the side panel?")
+		var want := pic.get_global_rect()
+		if cur is StarchartScreen and (cur as StarchartScreen)._chart.sky_out.has_area():
+			var so: Rect2 = (cur as StarchartScreen)._chart.sky_out
+			want = Rect2((cur as StarchartScreen)._chart.global_position + so.position, so.size)
+		_ok("%s: what the picture holds fades out toward its edge (%.0f px), on its frame as it stands (%s, want %s)" % [_nm(r), fade, fr, want],
+			fade >= 16.0 and fr.z > 0.0 and absf(fr.x - want.position.x) < 1.0 and absf(fr.z - want.size.x) < 1.0)
 		# THE TWO PLATES (Jon, Oct 18: "Let's have the top part also be a panel.
 		# Let's make both panels slightly see through like the other panels"):
 		# the side panel and the toolbar row each on a plate, see-through by the
@@ -763,33 +839,45 @@ func _no_box() -> void:
 		_ok("%s: every piece of the toolbar row %.0f px or more in from its plate's ends, the side panel's margin (least %.1f, %s)" % [_nm(r), margin, least, tight],
 			least != INF and least >= margin - 0.01)
 		# THE GOAL IN ITS ONE PLACE (Jon: "Can we have the goal: xxx always be in
-		# this location?"): where LOCAL has it, inside the row's plate, its words
-		# 12 px in and on the row's line, clear of every piece of the row
+		# this location?"; Oct 20: just below the top plate, top left): where
+		# LOCAL has it, below the plate, 4 px into the picture's top left, clear
+		# of every piece of the row; and the row's own words start at its plate's
+		# margin (no room left in it for the goal any more)
 		var g: GoalLine = Router.hud.goal if Router.hud != null else null
 		if g != null:
 			g.refresh()
 			var gr := Rect2(g.position, g.size)
-			var lab := g._goal.get_global_rect()
 			var pieces2: Array = []
 			if bar != null and bar.get_child_count() > 0:
 				GoalLine._inked(bar.get_child(0) as Control, pieces2)
 			var hit := ""
+			var first_x := INF
 			for q: Rect2 in pieces2:
-				if q.intersects(lab):
+				first_x = minf(first_x, q.position.x)
+				if q.intersects(gr):
 					hit = str(q)
-			var inside := bar != null and bar.get_global_rect().grow_individual(-margin, -4.0, -margin, -4.0).encloses(lab)
-			_ok("%s: the goal where LOCAL has it (%s, its place %s), its words inside the plate's margins and clear of the row%s" % [_nm(r), gr.position, GoalLine.fixed_at(), "" if hit == "" else " (over %s)" % hit],
-				g.visible and gr.position == GoalLine.fixed_at() and inside and hit == "")
+			var gpic := GoalLine.picture_rect(Router.current)
+			var below := bar != null and gr.position.y >= bar.get_global_rect().end.y
+			_ok("%s: the goal where LOCAL has it (%s, its place %s), below the plate, at the picture's top left %s + 4 px, clear of the row%s" % [_nm(r), gr.position, GoalLine.fixed_at(), gpic.position, "" if hit == "" else " (over %s)" % hit],
+				g.visible and gr.position == GoalLine.fixed_at() and below and gr.position == gpic.position + Vector2(4, 4)
+				and gpic.encloses(gr) and hit == "")
+			var bx := bar.get_global_rect().position.x if bar != null else 0.0
+			_ok("%s: the row's words start at its plate's margin (first at %.0f, the plate's %.0f + %.0f)" % [_nm(r), first_x, bx, margin],
+				absf(first_x - (bx + margin)) <= 1.0)
 		_ok("%s: the toolbar row a plate, the side panel's own (alpha %.2f)" % [_nm(r), ba], ba >= 0.72 and ba <= 0.85
 			and ssb is StyleBoxFlat and bsb is StyleBoxFlat and (ssb as StyleBoxFlat).bg_color == (bsb as StyleBoxFlat).bg_color
 			and (ssb as StyleBoxFlat).border_color == (bsb as StyleBoxFlat).border_color
 			and (ssb as StyleBoxFlat).border_width_top == (bsb as StyleBoxFlat).border_width_top)
 
 
-## THE GOAL LINE (`GoalLine`) A FIXED PIECE OF THE HUD (Jon, Oct 18: "Can we
-## have the goal: xxx always be in this location?"): on LOCAL, the map and the
-## chart at rest, and on every frame of a move between them, up and in the one
-## place (`GoalLine.fixed_at`), the same size.
+## THE GOAL LINE (`GoalLine`) A PIECE OF THE HUD (Jon, Oct 18: "Can we have the
+## goal: xxx always be in this location?"; Oct 20, "snug:B": below the top plate
+## on the map and the chart, snug under the HUD on LOCAL, "smooth animation as
+## it drops down or up"): up on every frame of a move between them, at the same
+## left; moving only while the top plate slides and at the plate's own point on
+## its curve, in whole pixels, a few a frame at most and one way only; never on
+## the plate or the HUD; still between the map and the chart; and at rest where
+## the screen arrived at has it.
 func _goal_line() -> void:
 	var g: Variant = Router.hud.get("goal") if Router.hud != null else null
 	if g == null:
@@ -799,26 +887,80 @@ func _goal_line() -> void:
 	await _at(ZoomLadder.LOCAL)
 	await _frames(40)
 	var gl := g as Control
-	var r0 := Rect2(gl.position, gl.size)
 	for h: Array in [[ZoomLadder.LOCAL, ZoomLadder.MAP, KEY_TAB], [ZoomLadder.MAP, ZoomLadder.CHART, KEY_TAB],
 			[ZoomLadder.CHART, ZoomLadder.LOCAL, KEY_TAB]]:
 		var label := "the goal line, %s -> %s" % [_nm(h[0]), _nm(h[1])]
+		var r0 := Rect2(gl.position, gl.size)
+		var local_hop: bool = h[0] == ZoomLadder.LOCAL or h[1] == ZoomLadder.LOCAL
 		_key(h[2])
 		var off := 0
 		var frames := 0
 		var why := ""
+		var moved := 0
+		var stray := 0
+		var stray_why := ""
+		var over := 0
+		var over_why := ""
+		var big := 0.0
+		var dirs := {}
+		var prev := r0
 		for i in 400:
 			await _tree.process_frame
 			frames += 1
 			var r := Rect2(gl.position, gl.size)
 			var up: bool = gl.visible and gl.modulate.a > 0.99
-			if not up or r != r0:
+			if not up or r.position.x != r0.position.x or r.size != r0.size or r.position != r.position.round():
 				off += 1
 				if why == "":
-					why = "%s at frame %d" % ["%s, not %s" % [r, r0] if up else "not up", frames]
+					why = "%s at frame %d" % ["%s, from %s" % [r, r0] if up else "not up", frames]
+			if r.position.y != prev.position.y:
+				moved += 1
+				var dy := r.position.y - prev.position.y
+				big = maxf(big, absf(dy))
+				dirs[signf(dy)] = true
+				# only with the plate, at its own point on the curve
+				var ps := GoalLine.plate_slide()
+				if not local_hop or ps == null or r.position != GoalLine.place_at(ps.k):
+					stray += 1
+					if stray_why == "":
+						stray_why = "frame %d at %s, the plate %s" % [frames, r.position, "k %.3f -> %s" % [ps.k, GoalLine.place_at(ps.k)] if ps != null else "not sliding"]
+			# never on the plate or the HUD (the goal and the step's line)
+			var plate := Rect2()
+			var ps2 := GoalLine.plate_slide()
+			if ps2 != null:
+				plate = ps2.at()
+			elif Router.current != null and Router.current.has_method("ladder_bar"):
+				var bar: Control = Router.current.call("ladder_bar")
+				# (one the move has hidden is not drawn: `ZoomLadder._hide_chrome`)
+				if bar != null and bar.is_visible_in_tree() and bar.modulate.a > 0.0:
+					plate = bar.get_global_rect()
+			var hud := Router.hud.get_global_rect()
+			var sr: Rect2 = (gl as GoalLine).step_rect()
+			for x: Rect2 in [r, sr]:
+				if x.size == Vector2.ZERO:
+					continue
+				var hit := ""
+				if plate.size != Vector2.ZERO and x.intersects(plate):
+					hit = "the plate %s" % plate
+				elif x.intersects(hud):
+					hit = "the HUD"
+				if hit != "":
+					over += 1
+					if over_why == "":
+						over_why = "%s on %s at frame %d" % [x, hit, frames]
+			prev = r
 			if _settled() and i > 5:
 				break
-		_ok("%s: up and in its one place on every frame (%d of %d not%s)" % [label, off, frames, "" if why == "" else ": " + why], off == 0)
+		var want_y: float = GoalLine.place_at(1.0 if h[1] != ZoomLadder.LOCAL else 0.0).y
+		_ok("%s: up on every frame, at the same left, the same size, whole pixels (%d of %d not%s)" % [label, off, frames, "" if why == "" else ": " + why], off == 0)
+		if local_hop:
+			_ok("%s: it moves with the plate only, at the plate's point on its curve (%d frames moved, %d not with it%s)" % [label, moved, stray, "" if stray_why == "" else ": " + stray_why],
+				moved > 3 and stray == 0)
+			_ok("%s: smooth, one way, %.0f px a frame at most" % [label, big], dirs.size() <= 1 and big <= 4.0)
+		else:
+			_ok("%s: it does not move (%d frames moved)" % [label, moved], moved == 0)
+		_ok("%s: never on the plate or the HUD (%d frames%s)" % [label, over, "" if over_why == "" else ": " + over_why], over == 0)
+		_ok("%s: at rest where %s has it (y %.0f, wants %.0f)" % [label, _nm(h[1]), gl.position.y, want_y], gl.position.y == want_y)
 		await _rest()
 	Hints.forced = false
 

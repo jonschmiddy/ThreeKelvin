@@ -102,6 +102,8 @@ func _run() -> void:
 	await _plate_hop(&"chart")
 	if _cloud:
 		await _cloud_hop()
+	await _chart_edges()
+	await _drift_layers()
 	print("fieldedgetest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
 	_tree.quit(1 if _fails > 0 else 0)
 
@@ -301,6 +303,216 @@ func _cloud_hop() -> void:
 		seen >= 3 and corner_worst <= 0.10)
 
 
+## THE GALAXY RUNS ON PAST THE PICTURE (Jon: "why does a galaxy disappear near
+## the side panel?", "And also disappear in the corner?"): the chart's galaxy
+## set across each of the picture's four old edges in turn (its centre on the
+## edge's middle), and along each, in a band from 20 px inside to 24 px past it
+## (where it is open: clear of the field's own edge and its fade there, of the
+## plates, the words and the buttons), how much of the sky as the chart drew it stands on
+## the screen where the galaxy is bright -- the screen less the field over the
+## sky less the field, the median of each line. A picture cut or faded at its
+## old frame falls to nothing there; drawn on past it, every line is the sky's.
+func _chart_edges() -> void:
+	ZoomLadder.hold_off = true
+	Router.show_starchart()
+	ZoomLadder.hold_off = false
+	await _frames(90)
+	var scr := Router.current as StarchartScreen
+	if not _ok("chart edges: the chart up", scr != null and scr._chart != null and scr._chart._sky != null):
+		return
+	var ch := scr._chart
+	var sky: Node2D = ch._sky
+	var lg: Variant = sky.get("_legacy")
+	var src: Node = lg if lg is Node and is_instance_valid(lg) else sky
+	var pr := ch.get_global_rect()
+	var c := Router.content.get_global_rect()
+	var plates: Array = []
+	for pl: Variant in [ZoomLadder.bar_of(scr), ZoomLadder.side_of(scr)]:
+		if pl != null:
+			plates.append((pl as Control).get_global_rect())
+	var ui := _ui_rects(scr)
+	var pan0 := ch.pan
+	for e: Array in [["right", Vector2(pr.size.x * 0.5, 0.0)], ["left", Vector2(-pr.size.x * 0.5, 0.0)],
+			["bottom", Vector2(0.0, pr.size.y * 0.5)], ["top", Vector2(0.0, -pr.size.y * 0.5)],
+			["corner", Vector2(-pr.size.x * 0.5, pr.size.y * 0.5)]]:
+		var nm: String = e[0]
+		ch.pan = pan0 + (e[1] as Vector2)
+		ch.queue_redraw()
+		sky.call(&"queue_push")
+		await _frames(45)
+		await RenderingServer.frame_post_draw
+		var shot := _shot()
+		var fimg := Router.field.picture().get_image()
+		fimg.convert(Image.FORMAT_RGB8)
+		fimg.resize(960, 540, Image.INTERPOLATE_NEAREST)
+		if _out != "":
+			shot.save_png("%s/chart_edge_%s.png" % [_out, nm])
+		# (the lower left corner, for the eye: its two edges are read above)
+		if nm == "corner":
+			continue
+		var vp: Variant = src.get("_vp")
+		if not (vp is SubViewport):
+			_ok("chart edges: the sky drawn (%s)" % nm, false)
+			continue
+		var simg := (vp as SubViewport).get_texture().get_image()
+		simg.convert(Image.FORMAT_RGB8)
+		var vo: Vector2 = src.get("_vp_origin")
+		var host := sky.get_global_transform().origin
+		var worst := 1.0
+		var worst_k := 0
+		var lines := 0
+		for k in range(-20, 24):
+			var ss: Array = []
+			for t in range(-120, 121, 2):
+				var p := Vector2.ZERO
+				match nm:
+					"right":
+						p = Vector2(pr.end.x + k, pr.get_center().y + t)
+					"left":
+						p = Vector2(pr.position.x - 1 - k, pr.get_center().y + t)
+					"bottom":
+						p = Vector2(pr.get_center().x + t * 2, pr.end.y + k)
+					"top":
+						p = Vector2(pr.get_center().x + t * 2, pr.position.y - 1 - k)
+				if not c.grow(-NavField.EDGE_FADE).has_point(p) or _in_any(plates, p) or _in_any(ui, p):
+					continue
+				var sp := ((p - host - vo) / 2.0).floor()
+				if sp.x < 0 or sp.y < 0 or sp.x >= simg.get_width() or sp.y >= simg.get_height():
+					continue
+				var sl := _lum(simg, int(sp.x), int(sp.y))
+				var fl := _lum(fimg, int(p.x), int(p.y))
+				if sl - fl < 30.0:
+					continue
+				ss.append((_lum(shot, int(p.x), int(p.y)) - fl) / (sl - fl))
+			if ss.size() < 6:
+				continue
+			ss.sort()
+			lines += 1
+			var med: float = ss[ss.size() / 2]
+			if med < worst:
+				worst = med
+				worst_k = k
+		_ok("chart edges: a galaxy across the picture's old %s edge runs on past it -- the least of the sky shown on any line %.2f (line %+d, %d lines read)" % [nm, worst, worst_k, lines],
+			lines >= 8 and worst >= 0.8)
+	ch.pan = pan0
+	ch.queue_redraw()
+	await _frames(30)
+
+
+## THE FIELD'S DRIFT IN LAYERS (Jon: "Why is the parallax gone from the sector
+## and starchart views?"): a drag on the chart, and the field's stars before and
+## after it matched star to star: they slid the way the drag went, by more
+## than one amount (the far stars least, the near most) -- and back on LOCAL
+## afterwards, LOCAL's stars are still the field's.
+func _drift_layers() -> void:
+	ZoomLadder.hold_off = true
+	Router.show_starchart()
+	ZoomLadder.hold_off = false
+	await _frames(60)
+	await RenderingServer.frame_post_draw
+	var f: NavField = Router.field
+	var a := f.picture().get_image()
+	a.convert(Image.FORMAT_RGB8)
+	var p0 := f.pan
+	var pr: Rect2 = Router.current.call(&"ladder_picture")
+	var from := pr.get_center() + Vector2(120, 30)
+	var to := pr.get_center() + Vector2(-140, -20)
+	var vp := GameShell.input_target(_tree)
+	var last := from
+	for i in 52:
+		if i == 1 or i == 51:
+			var mb := InputEventMouseButton.new()
+			mb.button_index = MOUSE_BUTTON_LEFT
+			mb.pressed = i == 1
+			mb.position = last
+			mb.global_position = last
+			mb.button_mask = MOUSE_BUTTON_MASK_LEFT if i == 1 else 0
+			vp.push_input(mb)
+		else:
+			var u := clampf(float(i - 1) / 50.0, 0.0, 1.0)
+			var at := from.lerp(to, u).round()
+			var mm := InputEventMouseMotion.new()
+			mm.position = at
+			mm.global_position = at
+			mm.relative = at - last
+			mm.button_mask = MOUSE_BUTTON_MASK_LEFT if i > 1 else 0
+			vp.push_input(mm)
+			last = at
+		await _tree.process_frame
+	await _frames(20)
+	await RenderingServer.frame_post_draw
+	var b := f.picture().get_image()
+	b.convert(Image.FORMAT_RGB8)
+	var dp := f.pan - p0
+	_ok("drift: a drag on the chart slides the field (%s)" % dp, dp.length() >= 4.0)
+	# the field's stars (480x270, a block a pixel), each matched to the nearest
+	# in the picture after
+	var sa := _stars(a)
+	var sb := _stars(b)
+	var hist := {}
+	var n := 0
+	for q: Vector2i in sa:
+		var best := 99.0
+		var bd := Vector2i.ZERO
+		for r: Vector2i in sb:
+			var d := r - q
+			var dl := Vector2(d).length()
+			if dl < best:
+				best = dl
+				bd = d
+		if best <= 12.0:
+			n += 1
+			hist[bd.x] = int(hist.get(bd.x, 0)) + 1
+	var moved: Array = []
+	var still := 0
+	for kx: int in hist:
+		if kx == 0:
+			still += int(hist[kx])
+		elif int(hist[kx]) >= maxi(3, int(n * 0.06)) and signf(kx) == signf(dp.x):
+			moved.append(kx)
+	moved.sort()
+	if n < 40:
+		# (a cloud's own field shows few stars through it: too few to tell
+		# its layers apart -- read in a clear sky)
+		print("  --   drift: %d of the field's stars matched, too few to tell its layers apart (%s)" % [n, hist])
+	else:
+		_ok("drift: the field's stars slid in more than one layer, the way the drag went (block shifts %s of %d matched, %d still; %s)" % [moved, n, still, hist],
+			moved.size() >= 2)
+	ZoomLadder.hold_off = true
+	Router.show_local()
+	ZoomLadder.hold_off = false
+	await _frames(120)
+	print("  --   drift: back on LOCAL after the drag (the field at %s)" % f.pan)
+	await _local_match()
+
+
+## The field picture's stars (480x270): blocks brighter than all their
+## neighbours and than the dark round them by 24 levels.
+func _stars(img: Image) -> Array:
+	var out: Array = []
+	for y in range(2, img.get_height() - 2):
+		for x in range(2, img.get_width() - 2):
+			var l := _lum(img, x, y)
+			if l < 40.0:
+				continue
+			var top := true
+			var lo := 999.0
+			for o: Vector2i in [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1), Vector2i(-2, 0), Vector2i(2, 0), Vector2i(0, -2), Vector2i(0, 2)]:
+				var m := _lum(img, x + o.x, y + o.y)
+				lo = minf(lo, m)
+				if m > l:
+					top = false
+			if top and l - lo >= 24.0:
+				out.append(Vector2i(x, y))
+	return out
+
+
+## Whether the pictures run on under the glass (the chart's sky past its
+## picture, `MapChart.sky_out`): what shows through a plate on a hop is theirs.
+func _under_glass() -> bool:
+	return NavField.used() and not ("skyhost=off" in OS.get_cmdline_user_args())
+
+
 func _shot() -> Image:
 	var img := Router.content.get_viewport().get_texture().get_image()
 	img.convert(Image.FORMAT_RGB8)
@@ -386,8 +598,8 @@ func _plate_hop(to: StringName) -> void:
 				var b := f1.get_pixel(x, y)
 				most = maxf(most, maxf(absf(a.r - b.r), maxf(absf(a.g - b.g), absf(a.b - b.b))) * 255.0)
 		print("    debug: the field picture moved %.0f levels at most over the hop" % most)
-	_ok("%s -> %s: the top plate steady every frame -- its line at most %.0f levels off what it was (frame %d), its ground %.0f (%d frames%s)" % ["chart" if to == &"map" else "map", to, worst_line, at, worst_ground, frames, "; in a cloud the gas behind the glass moves, the line alone held" if _cloud else ""],
-		worst_line <= 2.0 and (worst_ground <= 3.0 or _cloud))
+	_ok("%s -> %s: the top plate steady every frame -- its line at most %.0f levels off what it was (frame %d), its ground %.0f (%d frames%s)" % ["chart" if to == &"map" else "map", to, worst_line, at, worst_ground, frames, "; in a cloud the gas behind the glass moves, the line alone held" if _cloud else ("; the pictures run on under the glass, the line alone held" if _under_glass() else "")],
+		worst_line <= 2.0 and (worst_ground <= 3.0 or _cloud or _under_glass()))
 
 
 ## The screen as drawn, and the field alone, both on the game's 960x540.
@@ -426,6 +638,11 @@ func _check(which: String) -> void:
 			# (in a cloud the map's gas runs on under the plates: what shows
 			# through them is the gas, not the field)
 			print("  --   %s: under its plates, the cloud" % which)
+			break
+		if which == "SECTOR" and LocalSky.style_now() == &"painted":
+			# (PAINTED's map sky is painted all over, and runs on under the plates
+			# with the rest of the picture: what shows through them is its paint)
+			print("  --   %s: under its plates, its painted sky" % which)
 			break
 		var r := pl.get_global_rect().grow(-4.0)
 		# (the plate's own pictures -- a star's portrait, a glow -- left out: only
@@ -485,6 +702,11 @@ func _check(which: String) -> void:
 		"top": [Vector2(0, pic.position.y), false],
 		"bottom": [Vector2(0, pic.end.y), false],
 	}
+	# (the chart's sky runs on past its picture now: no edge there to step at --
+	# read by `_chart_edges`, a galaxy across each)
+	if which == "STARCHART" and cur is StarchartScreen and (cur as StarchartScreen)._chart.sky_out.has_area():
+		print("  --   STARCHART: its sky runs on past the picture's frame (no edge there; `_chart_edges` reads a galaxy across each)")
+		edges = {}
 	for nm: String in edges:
 		var at: Vector2 = edges[nm][0]
 		var vertical: bool = edges[nm][1]
@@ -561,8 +783,13 @@ func _check(which: String) -> void:
 			_ok("%s, the picture's %s edge in the cloud: no step across it (the line at the edge %.1f from the one before it, the cloud's own up to %.1f)" % [which, nm, at_edge, typical],
 				at_edge <= typical + 2.0)
 			continue
-		_ok("%s, the picture's %s edge: no step across it (the screen less the field: sides %.1f levels apart, the biggest jump line to line %.1f against the field's own %.1f; the most any line stood off the field %.1f)" % [which, nm, step, jump, fjump, worst],
-			step <= STEP and jump <= maxf(STEP, fjump + 1.0))
+		# (the map's picture runs on past its frame now, in a clear sky too --
+		# its worlds, orbits and its sky's own faint light -- out to the field's
+		# edge, where it fades: across its frame no line jumps; the two sides
+		# differ by that fade at the field's edge, not by a cut)
+		var runs_on: bool = which == "SECTOR" and cur is SystemMapScreen and (cur as SystemMapScreen)._gas_ext != null and (cur as SystemMapScreen)._gas_ext.visible
+		_ok("%s, the picture's %s edge: no step across it (the screen less the field: sides %.1f levels apart, the biggest jump line to line %.1f against the field's own %.1f; the most any line stood off the field %.1f%s)" % [which, nm, step, jump, fjump, worst, "; the picture runs on past its frame, the jump alone read" if runs_on else ""],
+			(step <= STEP or runs_on) and jump <= maxf(STEP, fjump + 1.0))
 		if _out != "":
 			var r := Rect2(at.x - BAND, pic.position.y, BAND * 2, pic.size.y) if vertical else Rect2(pic.position.x, at.y - BAND, pic.size.x, BAND * 2)
 			r = r.intersection(Rect2(0, 0, 960, 540))

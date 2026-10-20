@@ -45,8 +45,9 @@ extends Node
 ## strong` overrides it for a film.
 
 enum Preset { SUBTLE, MEDIUM, STRONG }
-## Jon's pick of LOOKS. Default subtle ("I don't want it to be too overt").
-const PRESET := Preset.SUBTLE
+## Jon's pick of LOOKS: STRONG (Oct 20, "strength:strong", after subtle, medium
+## and strong side by side; it began as subtle, "I don't want it to be too overt").
+const PRESET := Preset.STRONG
 
 ## The hull's share at or under which it comes on, and the red's second step.
 const TIER1_AT := 0.30

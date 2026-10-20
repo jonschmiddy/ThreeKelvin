@@ -1113,15 +1113,16 @@ func _seed_module_sizes() -> void:
 	# the bottom. That is a real decision rather than a side effect: it makes hull
 	# weight bite in the HOLD, where until now it only bit in the mount count.
 	#
-	# Three guns carry it and they are the three whose names already said so: a
-	# siege driver, a drumfire and a rail are things a frame is built around.
+	# Four parts carry it: the three guns whose names already said so (a siege
+	# driver, a drumfire and a rail are things a frame is built around) and
+	# Solari's Heliostat.
 	const SPINE := Vector2i(4, 1)
 	const LONG := Vector2i(3, 1)
 	const BULK := Vector2i(2, 2)
 	const UNIT := Vector2i(2, 1)
 	const FIT := Vector2i(1, 1)
 
-	# The three the hull is built AROUND rather than hung with.
+	# The four the hull is built AROUND rather than hung with.
 	var spinal: Array[StringName] = [&"widow", &"kh500", &"rail", &"heliostat"]
 	# Barrels, lances and rails. The shape IS the barrel.
 	var long_ones: Array[StringName] = [
@@ -2477,7 +2478,7 @@ func perk_text(id: StringName) -> String:
 # are dev 0. A station on unclaimed ground is still a station, and gating cheap
 # fuel behind a flag on the wall is what strands people.
 #
-# Deliberately four. This is the stage crafting is built on, not crafting: the
+# Deliberately few: one today, and there were four before alloy was retired. This is the stage crafting is built on, not crafting: the
 # ledger, the recipe shape, the resolver and the place it happens. Recipes that
 # reach into a specific module in the hold need a picker and a target, which is
 # the next piece of work and not this one.

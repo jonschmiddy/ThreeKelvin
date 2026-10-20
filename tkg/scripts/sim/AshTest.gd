@@ -145,6 +145,10 @@ func _settle() -> void:
 	Ash.waiting.clear()
 	if Ash.portrait != null:
 		Ash.portrait.cut()
+	# (and no introduction pending or just said, nor its beat: every new run has
+	# one, which the moments checked here are not about)
+	Ash.mark_intro(true)
+	Ash._introducing = false
 	Ash.poll(0.0)
 	Ash._last_end = -INF
 
@@ -763,6 +767,34 @@ func _moments() -> void:
 	k = await _said_after()
 	_ok("launch: not after the first jump (%s)" % k, k == &"")
 	Run.jumps = 0
+	# HER INTRODUCTION, EVERY NEW RUN (Jon, Oct 20): two new runs in a row each
+	# open with launch_04; a later launch in the same run is the bag's; a run
+	# picked up with CONTINUE has none due
+	var intro := String(AshLines.of(&"launch")[3])
+	var opens: Array[String] = []
+	for i in 2:
+		_settle()
+		Ash._on_run_started()
+		k = await _said_after()
+		opens.append(String(Ash.said_log.back().line) if k == &"launch" else "")
+	_ok("launch: every new run opens with her introduction (%s)" % " / ".join(opens),
+		opens.size() == 2 and opens[0] == intro and opens[1] == intro)
+	var later := {}
+	for i in 8:
+		_settle()
+		Ash.arm(&"launch")
+		k = await _said_after()
+		if k == &"launch":
+			later[String(Ash.said_log.back().line)] = true
+	_ok("launch: later in the same run, from the bag, not the intro forced (%d different lines)" % later.size(), later.size() >= 2)
+	_settle()
+	SaveGame.restoring = true
+	Ash._on_run_started()
+	SaveGame.restoring = false
+	_ok("launch: a run picked up with CONTINUE has no intro due", Ash.intro_said())
+	_settle()
+	Ash._on_run_started()
+	_settle()
 
 	# HULL: ONLY A HULL BOUGHT MID-RUN (Jon, Oct 18: "New body..." only "when a
 	# player buys a new ship mid run"). Not the chassis select's picks before
@@ -1200,6 +1232,29 @@ func _hits(r: Rect2, boxes: Array, v: Rect2) -> Array[String]:
 	return out
 
 
+## THE STEP'S LINE under the goal (`GoalLine`, Jon, Oct 20), gathered here: as
+## drawn while a step is pending, and where it stands when one is (the longest
+## step's words under the goal), so a step coming up never lands on her. In a
+## fight no step shows (its tabs are locked), so it has no place there: held to
+## that here too.
+func _step_boxes(goal: Control, fight: bool = false) -> Array:
+	var out: Array = []
+	if goal == null or not goal.visible or goal.modulate.a <= 0.0:
+		return out
+	var g := Rect2(goal.global_position, goal.size)
+	for pc in goal.find_children("*", "PanelContainer", false, false):
+		var p := pc as Control
+		if p.visible and p.get_global_rect() != g:
+			out.append(["the step's line", p.get_global_rect()])
+	var w := UITheme.pixel_font().get_string_size("Open STARCHART. Pick a star in range, then JUMP.",
+		HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x + 10.0
+	if not fight:
+		out.append(["the step's place", Rect2(g.position.x, g.end.y + 1.0, w, g.size.y)])
+	elif not out.is_empty():
+		_ok("in a fight, no step's line under the goal (%s)" % out[0][1], false)
+	return out
+
+
 ## Everything she must not cover, [what, global rect], gathered here.
 func _boxes(sc: SectorScreen) -> Array:
 	var hud := Router.hud.get_global_rect()
@@ -1207,6 +1262,7 @@ func _boxes(sc: SectorScreen) -> Array:
 	var goal := Router.hud.get_parent().get_node_or_null("GoalLine") as Control
 	if goal != null and goal.visible and goal.modulate.a > 0.0:
 		out.append(["the goal line", Rect2(goal.global_position, goal.size)])
+	out.append_array(_step_boxes(goal, sc is SectorScreen and (sc as SectorScreen).fighting()))
 	if Hints.card != null and is_instance_valid(Hints.card):
 		out.append(["hint card", Hints.card.get_global_rect()])
 	if sc._events != null and sc._events.visible:

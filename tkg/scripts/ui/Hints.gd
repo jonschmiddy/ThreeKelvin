@@ -31,8 +31,16 @@ extends Node
 ## first, it hides unspent and shows again the next time. Seen is per hint in
 ## settings.cfg `[hints] <id>` (`DisplaySettings.hints_path`), beside the welcome
 ## note's and the goal line's steps. Under a harness that is the harness
-## settings file, never the player's. Settings' SHOW HINTS AGAIN (`reset`) brings
+## settings file, never the player's. Settings' REPLAY TUTORIAL (`reset`) brings
 ## all of them back, and the goal line's steps.
+##
+## TUTORIAL ON / OFF (Jon, Oct 20: "Have a setting in the options for tutorial
+## on or tutorial off"): Settings' TUTORIAL row, `[hints] tutorial` in the
+## settings file, on by default (`set_tutorial`). Off: no hint, no goal step and
+## nothing of A.S.H.'s teaching; the goal line's GOAL stays, and her introduction
+## and her other lines are hers, not the tutorial's. Turned off mid-run, what is
+## up goes at once, unspent; turned on, the hints pick up where the player is
+## (what was seen stays seen; REPLAY TUTORIAL works either way).
 ##
 ## OFF UNDER HARNESSES (`TestRun.active`) unless the run asks with `-- hints`;
 ## `-- hinttest` turns it on by hand (`forced`). OFF IN A PARTY too (Jon, Oct 17:
@@ -65,6 +73,14 @@ const STEPS: Array[StringName] = [&"step_jump", &"step_event"]
 ## The lines A.S.H. says as a goal step starts, each once (`said_<id>`), cleared
 ## with the hints.
 const STEP_LINES: Array[StringName] = [&"step_jump", &"step_jump_chart", &"step_event", &"step_event_map"]
+## SPENT AS THEY SHOW, not on a click (Jon, Oct 20: "when I enter the ship
+## editor, A.S.H. keeps saying the tutorial line every time I enter. It should
+## only be the first time"). The cutaway's line was spent only by a click, and
+## the cutaway is shut with DONE, Escape or a key as often as with a click on
+## nothing, so it went unspent and came back at every opening. It is said once,
+## the first time your ship is opened up, and kept seen however it goes; SHOW
+## HINTS AGAIN brings it back.
+const SPENT_ON_SHOW: Array[StringName] = [&"cutaway"]
 ## How long a subject must hold before its hint shows, s.
 const SETTLE_S := 0.6
 ## Quiet after one hint before the next may show, s.
@@ -130,7 +146,9 @@ func lines(id: StringName) -> Array:
 		&"salvage":
 			return ["Drag a part into your hold.", "Double-click works too."]
 		&"cutaway":
-			return ["Drag a part onto a ring to fit it.",
+			# (her words, Jon's of Oct 20, "merge:A": the card says what she says)
+			return ["Drag a module onto an empty slot to install it.",
+				"Drag it off the ship into the hold to remove it.",
 				"%s turns it. %s flips it." % [Keys.describe(&"hold_turn"), Keys.describe(&"part_flip")]]
 		&"wreck":
 			return ["Click a wreck to loot it.", "Its parts and credits are yours."]
@@ -205,6 +223,10 @@ func enabled() -> bool:
 	# there, so `-- sheet=AshTutorTest` can hold her teaching to it)
 	if Net.is_networked():
 		return false
+	# (and the player's TUTORIAL OFF, over a harness's forcing too, so the
+	# harnesses can hold the switch to it)
+	if not tutorial_on():
+		return false
 	if forced:
 		return true
 	return "hints" in OS.get_cmdline_user_args() or not TestRun.active()
@@ -214,6 +236,41 @@ func enabled() -> bool:
 
 func store_path() -> String:
 	return DisplaySettings.hints_path()
+
+
+## THE TUTORIAL SWITCH (Settings' TUTORIAL), read once: `[hints] tutorial` in the
+## settings file (`DisplaySettings.path`, the harness's scratch file under one).
+const TUTORIAL_KEY := "tutorial"
+var _tutorial := true
+var _tutorial_read := false
+
+
+func tutorial_on() -> bool:
+	if not _tutorial_read:
+		var cfg := ConfigFile.new()
+		_tutorial = true
+		if cfg.load(DisplaySettings.path) == OK:
+			_tutorial = bool(cfg.get_value(SECTION, TUTORIAL_KEY, true))
+		_tutorial_read = true
+	return _tutorial
+
+
+## On or off, kept in the settings file. Off takes down at once, unspent, a
+## card, her teaching line and a goal step's line that are up.
+func set_tutorial(v: bool) -> void:
+	_tutorial = v
+	_tutorial_read = true
+	var cfg := ConfigFile.new()
+	cfg.load(DisplaySettings.path)
+	cfg.set_value(SECTION, TUTORIAL_KEY, v)
+	cfg.save(DisplaySettings.path)
+	if not v:
+		_close(false)
+		_close_lesson(false)
+		_end_step()
+		_cand = &""
+		_step_cand = &""
+	_quiet = 0.0
 
 
 func _load() -> void:
@@ -252,7 +309,7 @@ func _said_key(id: StringName) -> StringName:
 	return StringName("said_" + String(id))
 
 
-## SHOW HINTS AGAIN: every hint and the goal line's steps, unseen, and her
+## REPLAY TUTORIAL: every hint and the goal line's steps, unseen, and her
 ## steps' lines unsaid.
 func reset() -> void:
 	var cfg := ConfigFile.new()
@@ -274,6 +331,7 @@ func reset() -> void:
 ## Re-read the file (a harness that wrote it behind our back).
 func reload() -> void:
 	_load()
+	_tutorial_read = false
 
 
 # ------------------------------------------------------------------ the clock
@@ -383,7 +441,10 @@ func _poll_step(delta: float) -> void:
 func _step_now() -> StringName:
 	if not by_ash() or Router.hud == null or not is_instance_valid(Router.hud):
 		return &""
-	if Router.hud.goal_rect().size == Vector2.ZERO:
+	# (whether the goal line is up this frame, not whether it has drawn yet: a
+	# bark asked first on the frame the ship stopped, the line not yet faded in,
+	# so the launch bark started and the step cut it 0.6 s later)
+	if not GoalLine.shows_on(Router.current):
 		return &""
 	var st := GoalLine.step()
 	var id := StringName(st.get("id", &""))
@@ -446,6 +507,8 @@ func _show(id: StringName, p: Dictionary) -> void:
 			_gone_t = 0.0
 			_cand = &""
 			shown_log.append(id)
+			if SPENT_ON_SHOW.has(id):
+				mark_seen(id)
 			return
 		# NOWHERE CLEAR FOR HER on this screen: the card, so the lesson is never
 		# held back waiting for room
@@ -459,16 +522,22 @@ func _show(id: StringName, p: Dictionary) -> void:
 	_gone_t = 0.0
 	_cand = &""
 	shown_log.append(id)
+	if SPENT_ON_SHOW.has(id):
+		mark_seen(id)
 
 
-## A card keeps off the goal line too (`GoalLine`), so the one thing that is
-## always on screen is never covered by the thing that comes and goes.
+## A card keeps off the goal line too (`GoalLine`), and the step's line under
+## it, so the one thing that is always on screen is never covered by the thing
+## that comes and goes.
 func _with_goal(avoid: Array) -> Array:
 	var g := goal_rect()
 	if g.size == Vector2.ZERO:
 		return avoid
 	var out := avoid.duplicate()
 	out.append(g)
+	var gl: Variant = Router.hud.get("goal")
+	if gl is GoalLine and is_instance_valid(gl):
+		out.append((gl as GoalLine).step_rect())
 	return out
 
 

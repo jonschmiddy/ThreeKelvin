@@ -59,6 +59,10 @@ All of it now lives in `docs/briefs/`, committed at `f7cf04e`.
 was run whole for this update and passes with `81e2088`; see the health check
 below.
 
+**Since then (Oct 20):** `SaveGame VERSION 33`, `OptionTable` 135 rows,
+`ACTIVE_MANUFACTURERS` is `[korvan, solari]` (Oct 17). `CHANGELOG.md` at the repo
+root says what 0.1.0-alpha.1 holds, and `HANDOFF.md` what is open.
+
 ### ▸ HEALTH CHECK — 2026-10-14
 
 **The gate was red on `main` for five days and nobody's test had failed.** CI's

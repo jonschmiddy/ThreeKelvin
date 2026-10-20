@@ -1,7 +1,7 @@
 # Sim baselines
 
-Every numbered phase of `ROADMAP.md` records its `-- sim runs=500` here, before
-and after. The point is **attribution** — knowing which change moved a number —
+Every numbered phase of `ROADMAP.md` up to 2026-08-26 recorded its `-- sim runs=500`
+here, before and after; later readings are in `ROADMAP.md` and in the commit messages. The point is **attribution** — knowing which change moved a number —
 not holding a line. Per ROADMAP §4 the win rate is *expected* to rise, and per
 the ascension/difficulty-ladder direction a generous level 1 is the design
 rather than a fault.
@@ -117,7 +117,7 @@ exist. Ambush roughly doubled purely as a side effect of hotter fights.
 **Overheat deaths went 6 → 47.** §7 anticipates this: *"If burn spikes, the vent
 multiplier is not carrying enough and the answer is more vent cards in the pool,
 not restoring the drip."* Part of it is that the sim's policy has not been
-retuned — `Policy.gd`:86 is still playing the old game.
+retuned — `Policy.gd` (then line 86) is still playing the old game.
 
 ### What was reverted: full-rate transit cooling (§3)
 
@@ -171,7 +171,7 @@ profiles are now the same to two decimal places**, which is precisely what §7
 says to watch for: *"if both policies now behave the same, the threshold needs
 retuning before any other number here is trustworthy."*
 
-`Policy.gd`:86 vents at `heat_cap * 1.15` when hot and `* 0.7` when cold. With
+`Policy.gd` (line 252 today) vents at `heat_cap * 1.15` when hot and `* 0.7` when cold. With
 the free shed gone, heat climbs fast enough that both thresholds are crossed in
 the same turns, so the "hot" model is not actually running hotter — it is just
 dying slightly more. **Retuning that threshold is the first thing to do before
@@ -220,13 +220,13 @@ mirrored heat philosophies (manage it vs. surf it)"*, with Solari as
 *"weaponized heat: plasma damage scales with current heat, deliberate
 overheating for payoff, offensive venting"* — and **Korvan as the starter kit**.
 
-Korvan is also the only entry in `ACTIVE_MANUFACTURERS`. So the sim is asking
+Korvan was also the only entry in `ACTIVE_MANUFACTURERS` (Solari joined it on Oct 17). So the sim is asking
 the manufacturer whose identity is *managing* heat to *surf* it, with that
 manufacturer's own loot. It loses because it should.
 
 The three cards that want heat high are all Solari modules — Plasma Lance
 (`heat_scale`), Thermal Purge (`damage_equals_heat`), Heat Shroud
-(`brace_from_heat`). **Solari is 7 modules of a targeted 40** and does not drop.
+(`brace_from_heat`). **Solari was 7 modules of a targeted 40** and did not drop (it has 25 parts and 40 cards now, and drops).
 
 So §7's divergence check is not blocked on heat tuning or on writing generic
 run-hot cards. It is blocked on **Solari existing and being switched on**, which

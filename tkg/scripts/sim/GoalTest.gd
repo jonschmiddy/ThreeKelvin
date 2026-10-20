@@ -11,6 +11,10 @@ extends Node
 ## events (click one, then GO), LOCAL (open SECTOR), an event's band up (that
 ## step done), a fight; and hidden over the cutaway and the escape menu.
 ##
+## WHERE (Jon, Oct 20): just below the map's and the chart's top plate, at
+## their picture's top left; on LOCAL snug under the HUD at the same left
+## ("snug:B"); the step directly under it on all three.
+##
 ## THE BOX TEST, on every screen it shows on: its rect is inside the picture
 ## and clear of the HUD, the side bar, every piece of the toolbar row, LOCAL's
 ## event band and the bar under it, the hand, your hull, every enemy's hull and
@@ -25,7 +29,7 @@ extends Node
 var _tree: SceneTree
 var _fails := 0
 ## the goal's rect where first seen up: every screen after has it the same
-var _goal_rect := Rect2()
+var _goal_rects := {}
 
 
 func _ok(what: String, c: bool) -> bool:
@@ -171,12 +175,35 @@ func _check(g: Control, where: String, step: String) -> void:
 	_ok("%s: inside the picture (%s)" % [where, r], screen.encloses(r) and r.size.x > 10.0)
 	# ONE PLACE (Jon, Oct 18: "Can we have the goal: xxx always be in this
 	# location?"): the same rect on every screen it shows on
-	if _goal_rect == Rect2():
-		_goal_rect = r
-	_ok("%s: in its one place (%s; first seen %s)" % [where, r, _goal_rect], r == _goal_rect)
-	# and the step's line, while one is pending, boxed the same
+	# (Jon, Oct 20, "snug:B": one place on the map and the chart, below their
+	# top plate; one on LOCAL, snug under the HUD; the same left on all three)
+	var nav := Router.current is StarchartScreen or Router.current is SystemMapScreen
+	var key := "nav" if nav else "local"
+	if not _goal_rects.has(key):
+		_goal_rects[key] = r
+	_ok("%s: in its one place for %s (%s; first seen %s)" % [where, "the map and the chart" if nav else "LOCAL", r, _goal_rects[key]],
+		r == _goal_rects[key])
+	var content := Router.content.get_global_rect()
+	_ok("%s: at the same left on every screen (x %.0f, the screens' area's + 16)" % [where, r.position.x], r.position.x == content.position.x + 16.0)
+	if not nav:
+		var hb := Router.hud.get_global_rect().end.y
+		_ok("%s: snug under the HUD (top %.0f, the HUD's bottom %.0f, the screens' area's top %.0f + 4)" % [where, r.position.y, hb, content.position.y],
+			r.position.y == content.position.y + 4.0 and r.position.y - hb <= 10.0 and r.position.y >= hb)
+	# BELOW THE TOP PLATE, AT THE PICTURE'S TOP LEFT (Jon, Oct 20), on the map
+	# and the chart; LOCAL has the same place (the rect above)
+	if Router.current is StarchartScreen or Router.current is SystemMapScreen:
+		var bar: Control = Router.current.call("ladder_bar")
+		var pic: Control = Router.current.get("_chart") if Router.current is StarchartScreen else Router.current.get("_frame")
+		var pr := pic.get_global_rect() if pic != null else Rect2()
+		_ok("%s: below the top plate (top %.0f, the plate's bottom %.0f), 4 px into the picture's top left (%s)" % [where,
+			r.position.y, bar.get_global_rect().end.y if bar != null else -1.0, pr.position],
+			bar != null and r.position.y >= bar.get_global_rect().end.y and r.position == pr.position + Vector2(4, 4) and pr.encloses(r))
+	# and the step's line, while one is pending, boxed the same, directly under
+	# the goal on every screen
 	var sr: Rect2 = g.call("step_rect") if g.has_method("step_rect") else Rect2()
 	if sr.size != Vector2.ZERO:
+		_ok("%s: the step's line directly under the goal (%s, the goal %s)" % [where, sr.position, r],
+			sr.position == Vector2(r.position.x, r.end.y + 1.0))
 		var shits: Array[String] = []
 		for pair in _boxes(Router.current):
 			var b2: Rect2 = pair[1]
@@ -222,6 +249,17 @@ func _boxes(cur: Control) -> Array:
 				var k := c as Control
 				if k != null and k.is_visible_in_tree() and (k is Label or k is BaseButton or k is Panel):
 					out.append(["toolbar %s" % k.get_class(), k.get_global_rect()])
+	# THE MAP'S OWN WORDS in its picture: what the ship is doing (its top left,
+	# under where the goal now stands) and the worlds' names
+	var map := cur as SystemMapScreen
+	if map != null and map.overlay != null and map._box != null:
+		var ov = map.overlay
+		var mg := map._box.get_global_transform()
+		var stt: Array = ov.ship_status()
+		if String(stt[0]) != "":
+			out.append(["the map's ship status \"%s\"" % stt[0], mg * (ov.status_rect(String(stt[0])) as Rect2)])
+		for lr: Rect2 in ov.label_rects:
+			out.append(["a word on the map", mg * lr])
 	var sc := cur as SectorScreen
 	if sc != null:
 		if sc._events != null and sc._events.visible:

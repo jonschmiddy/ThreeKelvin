@@ -112,6 +112,23 @@ var node_index := -1
 var version := 0
 ## whether it is drawn: under LOCAL, the map and the chart (`Router`)
 var on := false
+## THE FIELD'S DRIFT (Jon: "Why is the parallax gone from the sector and
+## starchart views?"): its far layers slide by `pan` (`chart_bg`'s `u_skyPan`,
+## whole game px: the far nebulae 0.02 of it, the far galaxies 0.05, the three
+## depths of stars 0.04, 0.10 and 0.20) -- on the chart by the chart's own sky
+## pan (`MapChart.sky_pan`, exactly as its own far sky slid), on the map by the
+## map's (`SystemView._cam_pan`, at MAP_K: its old five fields slid 0.03-0.55
+## of it), on LOCAL by LOCAL's camera (copied, `feed`). Each screen moves it by
+## how far its own pan has gone since it came up, from wherever it stood, so a
+## hop never puts it back; and through a move it holds still (a move is not a
+## pan: `ZoomLadder.busy`).
+var pan := Vector2.ZERO
+const MAP_K := 0.9
+## the screen moving it now, its own pan when it took over, the field's then
+var _pan_src: Object = null
+var _pan_ref := Vector2.ZERO
+var _pan_base := Vector2.ZERO
+var _drift_off := "drift=off" in OS.get_cmdline_user_args()
 
 var _box: SubViewportContainer = null
 var _scene: SubViewport = null
@@ -217,6 +234,8 @@ func setup(n: MapGen.MapNode) -> void:
 	for k: String in LocalSky.far_defaults(n).keys():
 		_far_mat.set_shader_parameter(k, LocalSky.far_defaults(n)[k])
 	_far_mat.set_shader_parameter("glow_k", 0.0)
+	# (where it had slid to: a new system's sky does not snap back)
+	_far_mat.set_shader_parameter("u_skyPan", pan)
 	var cached: Array = LocalSky.palette_for(n)
 	_set_palette(cached)
 	_redraw()
@@ -244,6 +263,7 @@ func _paint_field(n: MapGen.MapNode) -> void:
 		_painted.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_painted.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		add_child(_painted)
+	_painted.sky_pan_hold = pan
 	_painted.setup(n)
 
 
@@ -264,6 +284,12 @@ func feed(sky: LocalSky) -> void:
 		# own painted sky)
 		var moved: bool = _painted.cam_hold != sky.cam or not is_equal_approx(_painted.closed, sky.closed)
 		_painted.cam_hold = sky.cam
+		var lfm: ShaderMaterial = sky.get("_far_mat")
+		var lpp: Variant = lfm.get_shader_parameter("u_skyPan") if lfm != null and bool(sky.get("sky_took")) else null
+		if lpp is Vector2 and lpp != pan:
+			pan = lpp
+			_painted.sky_pan_hold = pan
+			moved = true
 		if not is_equal_approx(_painted.closed, sky.closed):
 			_painted.set_closed(sky.closed)
 		if moved:
@@ -272,6 +298,12 @@ func feed(sky: LocalSky) -> void:
 	var fm: ShaderMaterial = sky.get("_far_mat")
 	if fm == null or not bool(sky.get("_ready_sky")):
 		return
+	# (LOCAL's own slide is the field's while it is up -- once it has taken the
+	# field over where it stood: `LocalSky.sky_took`)
+	var took := bool(sky.get("sky_took"))
+	var lp: Variant = fm.get_shader_parameter("u_skyPan")
+	if took and lp is Vector2:
+		pan = lp
 	_build()
 	var parts: Array = []
 	for u: Dictionary in FAR.get_shader_uniform_list():
@@ -279,6 +311,8 @@ func feed(sky: LocalSky) -> void:
 		var v: Variant = fm.get_shader_parameter(nm)
 		if nm == "glow_k":
 			v = 0.0
+		if nm == "u_skyPan":
+			v = pan
 		if v != null:
 			parts.append("%s=%s" % [nm, v])
 			_far_mat.set_shader_parameter(nm, v)
@@ -328,12 +362,55 @@ func _process(_delta: float) -> void:
 		return
 	# (the keys' frames headless too: the harness reads them)
 	_frames_keyed()
+	# (and its drift: the harness holds a move to it)
+	_drift()
 	if not _enabled:
 		return
 	_place()
 	var sky := live_local_sky()
 	if sky != null:
 		feed(sky)
+
+
+## A screen's own pan as the field slides by it (game px of `u_skyPan`), or
+## null: LOCAL's is copied whole (`feed`), and a screen without one holds it.
+static func screen_pan(s: Variant) -> Variant:
+	if s is StarchartScreen and is_instance_valid(s) and (s as StarchartScreen)._chart != null:
+		return (s as StarchartScreen)._chart.sky_pan
+	if s is SystemMapScreen and is_instance_valid(s) and (s as SystemMapScreen).view != null:
+		return (s as SystemMapScreen).view.call(&"_cam_pan") * MAP_K
+	return null
+
+
+func _drift() -> void:
+	# (a harness's `drift=off`: the field still, as before)
+	if ZoomLadder.busy() or _drift_off:
+		_pan_src = null
+		return
+	var s: Variant = Router.current
+	var q: Variant = screen_pan(s)
+	if q == null:
+		_pan_src = null
+		return
+	if _pan_src != s:
+		_pan_src = s
+		_pan_ref = q
+		_pan_base = pan
+		return
+	set_pan((_pan_base + (q as Vector2) - _pan_ref).round())
+
+
+## The field slid to `p` (whole game px), drawn again if it moved.
+func set_pan(p: Vector2) -> void:
+	if p == pan:
+		return
+	pan = p
+	version += 1
+	if _far_mat != null:
+		_far_mat.set_shader_parameter("u_skyPan", pan)
+		_redraw()
+	if _painted != null and is_instance_valid(_painted):
+		_painted.sky_pan_hold = pan
 
 
 ## THE MAP'S CLOUD PAST ITS PICTURE (cloud:A): in a system inside a cloud, the
@@ -344,9 +421,14 @@ func _gas_past(map: SystemMapScreen, frame: Rect2) -> void:
 	if ext == null or not is_instance_valid(ext):
 		return
 	var v = map.view
-	var cloud: bool = v != null and v.get("_neb_mat") != null and v.get("_scene") != null and bool(v.get("_ready_sky"))
-	ext.visible = cloud
-	if not cloud:
+	# (in a clear sky too, Jon: "why does a galaxy disappear near the side
+	# panel?" -- the map's worlds, orbits and its star's light run on past its
+	# picture's frame to the field's own edges, under the glass, as a cloud's gas
+	# does; only the picture is clicked)
+	var drawn: bool = v != null and v.get("_scene") != null and bool(v.get("_ready_sky"))
+	var cloud: bool = drawn and v.get("_neb_mat") != null
+	ext.visible = drawn
+	if not drawn:
 		return
 	var sc: SubViewport = v.get("_scene")
 	if ext.texture != sc.get_texture():
@@ -367,6 +449,8 @@ func _gas_past(map: SystemMapScreen, frame: Rect2) -> void:
 	var pv: Variant = v.get("_past")
 	var pon: bool = pv is SubViewport and is_instance_valid(pv)
 	m.set_shader_parameter("past_on", pon)
+	# (a clear sky has nothing past its end but the field: no copy of its left)
+	m.set_shader_parameter("past_cut", not cloud)
 	if pon and m.get_shader_parameter("past_tex") != (pv as SubViewport).get_texture():
 		m.set_shader_parameter("past_tex", (pv as SubViewport).get_texture())
 
@@ -394,6 +478,11 @@ func _frames_keyed() -> void:
 		elif s is StarchartScreen and (s as StarchartScreen)._chart != null and (s as StarchartScreen)._chart._sky != null:
 			m = (s as StarchartScreen)._chart._sky.material
 			r = (s as StarchartScreen)._chart.get_global_rect()
+			# (its sky drawn on past the picture, to the field's own edges: it fades
+			# out there, never at the picture's frame -- `MapChart.sky_out`)
+			var so: Rect2 = (s as StarchartScreen)._chart.sky_out
+			if so.has_area():
+				r = Rect2((s as StarchartScreen)._chart.global_position + so.position, so.size)
 		if m is ShaderMaterial and (m as ShaderMaterial).shader == KEY:
 			(m as ShaderMaterial).set_shader_parameter("frame", Vector4(r.position.x, r.position.y, r.size.x, r.size.y))
 

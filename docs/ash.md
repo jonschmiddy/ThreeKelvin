@@ -94,6 +94,35 @@ frame on the main screen. It reacts to the ship, not to the script:
   three ships in every weight); every other corner and the middles cover a plate, an enemy's
   words or its numbers in some fight. If something ever stands there, she tries the other
   corners and otherwise waits. Not pressable and not clickable: clicks go through her.
+- **Off the goal and its step** (Jon, Oct 20: "The GOAL and the tutorial tip are right under
+  her box"). The goal's line stands just below the map's and the chart's top plate, at their
+  picture's top left (24, 89 on the 960x540 grid). On LOCAL it is snug under the HUD at the
+  same left, 24, 46 (Jon, "snug:B": no empty gap where the plate would be). The step's line is
+  under it. She keeps off the two lines as drawn and off the room they keep whether a step is
+  pending or not (`GoalLine.stack_rect`), so a step coming up never lands on her. A top spot
+  that would touch it stands 6 px under the step's room instead: top left is 14, 79 on LOCAL
+  and 26, 122 on the chart and the map. In a fight there is no step (its tabs are locked there,
+  so `GoalLine.step` gives none), so the room is the goal's line alone, and her top left is her
+  old corner, 14, 65, under it. Her teaching spots follow the same rule. The map's "IN ORBIT ·
+  ..." status line was under the new goal and moved down under the step's room
+  (`SystemOverlay.STATUS_AT`).
+- **The three move as one with the top plate** (Jon: "Can we make it smooth animation as it
+  drops down or up"). On a move between LOCAL and the map or the chart, the goal, the step and
+  her box slide down or up with the plate as it slides on or off. They use the plate's own
+  point on its curve (`GoalLine.drop`, read off its `PanelSlide`), on the same frame (the goal
+  line processes after the ladder), in whole pixels. They hold still while the camera moves and
+  do not move between the map and the chart. `CalmLadderTest` holds this to every frame of a hop.
+- **Said once, not twice** (Jon, "twice:hide"). While she has a goal step to say, or is saying
+  it, the step's line under the goal is not shown; its room stays kept. When she is done it
+  comes back as the quiet reminder: a 0.45 s eased fade with a 3 px settle up into its place,
+  in whole pixels, on the game's clock (`GoalLine.APPEAR_S`, `APPEAR_DY`). A step that changes
+  while she talks keeps it hidden until she has said that one too, so it never flickers.
+- **One line at a time, the step before a bark.** A launch line waits for the goal's first step
+  to be said, as barks wait for teaching. That used to fail in play: the step counted as due
+  only once the goal line had drawn, and the goal fades in after the ship stops, so on that
+  frame the launch line started and the step cut it 0.6 s later. The step is due from the frame
+  the line is up (`GoalLine.shows_on`), drawn or not. The intro is the one line that goes before
+  the step (below).
 - **When:** each line at its own moment: a new run's launch; the first time she is up in a new
   hull; the hull at a quarter or under; over the heat cap in a fight; a chit of 60 credits or
   an epic part taken aboard; the third wreck opened since the last dock; and, from jump 6, a
@@ -104,21 +133,25 @@ frame on the main screen. It reacts to the ship, not to the script:
   camera moving, the cutaway, a wreck's window, the event band or the escape menu; a moment
   that cannot be said in time is dropped. **Nothing after the ship is lost**: up when it goes,
   she cuts with it. **Hints win**: she waits while a hint is up, settling or due on the screen.
-- **Her first line introduces her** (Jon, Oct 18, intro:A). The first launch line a profile
-  ever hears is launch_04, "Autonomous Systems Handler, reporting. Please don't make me handle
-  much." (`AshLines.INTRO`), in its own take, not a pick from the bag. Once said it is marked
-  `[hints] ash_intro` in the first-run flags (`DisplaySettings.hints_path`, beside the welcome
-  note; a harness's scratch file under one), and every launch after, later runs included, is
-  the bag's as before, launch_04 among them. SHOW HINTS AGAIN leaves the flag. It is marked when
-  she says it, so a first run that never heard her (her switch off, a jump before she could
-  speak) opens with it the next time she can. Same moment and slot as any launch line. The one
-  difference is the order: an ordinary launch line waits for the goal's first step (barks wait
-  for teaching), so on a fresh profile the step used to be her first words. The intro goes
-  first instead: while it is up, or next and able to start, no hint or step starts and none can
-  cut it (`Ash.intro_holds`, read by `Hints`), and the moment anything else would keep it waiting
-  (the screen, a card already up, no room) the hints go on as before. The first step follows
-  0.6 s after it ends (its settle time), measured in `AshTutorTest`. In a party it plays like
-  her other lines: each player's own, on their own machine, off their own profile.
+- **She introduces herself every new run** (Jon, Oct 18, intro:A; Oct 20: "On the first LOCAL
+  section you load into on a new game, A.S.H. should introduce herself. Short beat. THEN the
+  first tutorial hint", every run, not once a profile). A new run's launch line is launch_04,
+  "Autonomous Systems Handler, reporting. Please don't make me handle much."
+  (`AshLines.INTRO`), in its own take, not a pick from the bag. A run picked up with CONTINUE
+  does not hear it again (`SaveGame.restoring`): its launch, if it is still before the first
+  jump, is the bag's. The once-a-profile flag it had (`[hints] ash_intro`) is read by nothing
+  now; an old settings file with it loads as before. Same moment and slot as any launch line.
+  The one difference is the order: an ordinary launch line waits for the goal's first step
+  (barks wait for teaching). The intro goes first instead: while it is up, or next and able to
+  start, no hint or step starts and none can cut it (`Ash.intro_holds`, read by `Hints`), and
+  the moment anything else would keep it waiting (the screen, a card already up, no room) the
+  hints go on as before. After her LAST WORD, **a beat**: nothing of hers and no lesson for
+  `Ash.INTRO_BEAT_S` (1.5 s, the step's own 0.6 s settle inside it), then the first lesson.
+  Her box goes with her voice (`AshPortrait.quick`: 1 s past her last word, no reading
+  allowance). It used to hold her reading allowance first (2.6 s + 0.035 s a letter) and
+  count the beat after, about 7 s from her last word to the step (Jon, Oct 20: "The delay
+  between the intro and the first hint is WAY too long"). In a party it plays like her
+  other lines: each player's own, on their own machine.
 - **Talking:** the mouth follows the typed letters, a held frame every 0.1 s, with blinks and
   one-pixel hologram slips (more often with the hull failing); about 9 changes a second while
   she talks, all on the game's clock. A two-note `text_blip` chirp as she appears, then
@@ -232,17 +265,25 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
 
 - **Same hints, new delivery.** `Hints` still decides everything: the same triggers, the
   same order, the same subjects, settle time, the click that spends one, hiding unspent
-  when the subject goes, SHOW HINTS AGAIN. Only `_show` changed: it asks `Ash.teach`, and
+  when the subject goes, REPLAY TUTORIAL. Only `_show` changed: it asks `Ash.teach`, and
   only if she has nowhere clear to stand on that screen does the card come instead (so a
   lesson never waits for room).
 - **The goal steps** are said once each as they start (`said_<step>` in the hints file,
-  cleared by SHOW HINTS AGAIN), after any hint due on that screen. The goal line itself
+  cleared by REPLAY TUTORIAL), after any hint due on that screen. The goal line itself
   is unchanged and keeps showing.
 - **Live values** fill the fields: the hand size, the heat cap, the dock's jumps and name,
   the cutaway's keys. One jump reads "1 jump". The dock's name is typed after her last
   word, never spoken.
-- **The cutaway's line is pending** Jon's rewrite: today's card text, behind
-  `AshTutorLines.CUTAWAY_LINE`.
+- **The cutaway's line** is Jon's words of Oct 20, "Drag a module onto an empty slot to
+  install it. Drag it off the ship into the hold to remove it." (`AshTutorLines.CUTAWAY_LINE`;
+  grade 3.7). Its take is the first of three recorded for these words in her warm voice
+  (Jon, Oct 20, "take:1"; 6.7 s). `AshTutorLines.SILENT` is empty again, kept for the next
+  line whose words change after its take. The card, with her off, says the same (Jon, merge:A),
+  with the turn and flip keys under it. **Said once** (Jon: "A.S.H. keeps saying the tutorial line every time I enter. It
+  should only be the first time"): a hint is spent by a click, and the cutaway is shut with
+  DONE, Escape or a key as often as with a click, so it went unspent and came back at every
+  opening. It is spent as it shows (`Hints.SPENT_ON_SHOW`), kept seen, and REPLAY TUTORIAL
+  brings it back.
 - **Held until a click** for a hint (Jon's rule: hints advance with a click); a goal
   step's line types, holds its reading time on `GameClock` and goes.
 - **Exceptions to her bark rules, for teaching only:** she may stand over the cutaway, a
@@ -259,6 +300,13 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
   numbers:A): the text shows them, and the four lines with a field (END TURN, heat, the
   dock in reach, the cutaway's keys) are recorded from scripts of their own,
   `AshTutorLines.SPOKEN`. The typing spans the shown words over her take, so they end when
-  she stops. 21 lines x 2 takes recorded Oct 18 (956 credits), not yet installed.
+  she stops. 21 lines recorded Oct 18, two takes each; Jon's pick of each is installed as
+  `assets/audio/voice/ash/tut_<id>.ogg`.
+- **TUTORIAL ON / OFF** (Jon, Oct 20: "Have a setting in the options for tutorial on or
+  tutorial off"): Settings' HINTS, first row, ON by default, `[hints] tutorial` in the settings
+  file (`Hints.set_tutorial`). Off: no hint card, no goal step and none of her teaching; the
+  goal line's GOAL stays, and her introduction and her other lines play. Turned off mid-line,
+  what is up goes at once, unspent; on again, the lessons pick up where the player is (what
+  was seen stays seen). REPLAY TUTORIAL works either way.
 - **Off:** her switch off brings today's cards back exactly; off in a party (hints are).
   `-- sheet=AshTutorTest` holds all of it, in the merge gate.

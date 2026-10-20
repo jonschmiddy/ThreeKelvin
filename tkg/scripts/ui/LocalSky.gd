@@ -249,6 +249,16 @@ var _near_rect: ColorRect = null
 ## held (where its far stars slid to), not this one's.
 var field_only := false
 var cam_hold := Vector2.INF
+## THE FIELD'S DRIFT CARRIED (`NavField.pan`): the field's own sky (`field_only`)
+## slides to `sky_pan_hold` alone; LOCAL's, while it is not the screen at rest,
+## lies where the field has slid to (`_sky_on`, what its camera's slide is moved
+## by), so the stars it shows on a move in and at rest are the field's -- and at
+## rest its camera slides it on from there, the field copying it
+var sky_pan_hold := Vector2.INF
+var _sky_on := Vector2.ZERO
+## whether its camera has taken the field over (up at rest, laid where the
+## field stood first): till then the field is not fed its slide
+var sky_took := false
 ## the world you orbit, as drawn (`near_info`); a great storm an event holds on
 ## its face (`_hold_storm`); how far the gas has closed in (`set_closed`)
 var _near_world: Node2D = null
@@ -1059,7 +1069,17 @@ func _step(delta: float) -> void:
 	_far_mat.set_shader_parameter("wash", Vector2(vr.position.x, vr.size.x))
 	# (`chart_bg` slides a layer with its pan: the sky's pan is the world's
 	# travel on screen, against the camera's)
-	_far_mat.set_shader_parameter("u_skyPan", -cam * SKY_K)
+	var own := -cam * SKY_K
+	if field_only:
+		_far_mat.set_shader_parameter("u_skyPan", sky_pan_hold if sky_pan_hold != Vector2.INF else own)
+	else:
+		var fld: NavField = Router.field
+		if fld != null and is_instance_valid(fld) and fld.on and node != null and fld.node_index == node.index:
+			var live := NavField.live_local_sky() == self
+			if not live or not sky_took:
+				_sky_on = fld.pan - own
+				sky_took = live
+		_far_mat.set_shader_parameter("u_skyPan", own + _sky_on)
 	_far_mat.set_shader_parameter("star_at", so)
 	_far_mat.set_shader_parameter("glow_r", _glow_r * _zl(Z_STAR))
 	_far_mat.set_shader_parameter("breath", SystemViewS.breath(pose(t, 4.0)))

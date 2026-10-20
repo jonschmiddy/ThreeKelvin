@@ -40,8 +40,9 @@ func run(tree: SceneTree) -> void:
 	_ok("after a reset, the hints and the goal's steps are unseen, and one seen since stays seen",
 		not Hints.seen(&"ship") and not Hints.seen(&"wreck") and not Hints.seen(&"step_jump")
 		and Hints.seen(&"events"))
-	_ok("every hint is two lines at grade 5.2 or under (tools/prose_grade.py checks the grade; here: two lines each)",
-		Hints.ORDER.all(func(id: StringName) -> bool: return Hints.lines(id).size() == 2))
+	# (the cutaway's three: A.S.H.'s two sentences and its keys, Jon's merge:A, Oct 20)
+	_ok("every hint is two lines at grade 5.2 or under, the cutaway's three (tools/prose_grade.py checks the grade; here: the lines)",
+		Hints.ORDER.all(func(id: StringName) -> bool: return Hints.lines(id).size() == _lines_for(id)))
 
 	var n := _system()
 	if not _ok("a system to stand in", n != null):
@@ -296,15 +297,54 @@ func run(tree: SceneTree) -> void:
 		Hints.click(ev)
 		_ok("only the click spends it", Hints.seen(&"ship") and Hints.card == null)
 
-	# SHOW HINTS AGAIN
+	# REPLAY TUTORIAL
 	Hints.mark_seen(&"ship")
 	Hints.mark_seen(&"step_event")
 	Hints.reset()
-	_ok("SHOW HINTS AGAIN clears every hint and the goal line's steps",
+	_ok("REPLAY TUTORIAL clears every hint and the goal line's steps",
 		(Hints.ORDER + Hints.STEPS).all(func(id: StringName) -> bool: return not Hints.seen(id)))
 	sc = await _local()
 	if sc != null:
 		await _expect(&"ship")
+
+	# TUTORIAL OFF (Settings' TUTORIAL, Jon, Oct 20): a card up goes at once,
+	# unspent; nothing shows and the goal line has no step, GOAL alone; the
+	# switch is kept in the settings file; ON again, the hints pick up where the
+	# player is (what was seen stays seen)
+	Hints.reset()
+	Hints.mark_seen(&"events")
+	sc = await _local()
+	Hints.mark_seen(&"ship", false)
+	var shown_any := false
+	for i in 60:
+		Hints.poll(0.1)
+		await _tree.process_frame
+		if Hints.card != null:
+			shown_any = true
+			break
+	var was_id := Hints.card.id if Hints.card != null else &""
+	if _ok("tutorial: a card is up to turn off under (%s)" % was_id, shown_any):
+		Hints.set_tutorial(false)
+		await _frames(2)
+		_ok("tutorial OFF mid-card: it goes at once, unspent", Hints.card == null and not Hints.seen(was_id))
+	else:
+		Hints.set_tutorial(false)
+	var gl: GoalLine = Router.hud.goal
+	await _frames(3)
+	var step_txt := gl._step.text if gl != null else "?"
+	_ok("tutorial OFF: GOAL shows, with no step under it (step \"%s\")" % step_txt, gl != null and gl.visible
+		and gl.step_rect() == Rect2() and step_txt == "")
+	_ok("tutorial OFF: off even though a harness forces the hints", not Hints.enabled())
+	await _none("tutorial OFF: no hint shows")
+	var cfg := ConfigFile.new()
+	_ok("tutorial OFF is kept in the settings file", cfg.load(DisplaySettings.path) == OK
+		and not bool(cfg.get_value("hints", "tutorial", true)))
+	Hints.reload()
+	_ok("and read back so", not Hints.tutorial_on())
+	Hints.set_tutorial(true)
+	_ok("tutorial ON: on again, and what was seen stays seen", Hints.enabled() and Hints.seen(&"events"))
+	if was_id != &"":
+		await _expect(was_id)
 
 	# nothing over the escape menu
 	Hints.reset()
@@ -439,7 +479,7 @@ func _dismiss(id: StringName) -> void:
 	var g := Hints.goal_rect()
 	_ok("%s: clear of the goal line (%s)" % [id, g], g.size == Vector2.ZERO or not c.card_rect().intersects(g))
 	_ok("%s: two short lines, and it ignores the mouse" % id,
-		Hints.lines(id).size() == 2 and c.mouse_filter == Control.MOUSE_FILTER_IGNORE)
+		Hints.lines(id).size() == _lines_for(id) and c.mouse_filter == Control.MOUSE_FILTER_IGNORE)
 	Hints.poll(0.3)
 	var ev := InputEventMouseButton.new()
 	ev.button_index = MOUSE_BUTTON_LEFT
@@ -542,3 +582,9 @@ func _map_list(n: MapGen.MapNode) -> SystemMapScreen:
 	Router.show_system()
 	await _frames(40)
 	return Router.current as SystemMapScreen
+
+
+## A hint's lines: two, but the cutaway's three (A.S.H.'s words on the card, and
+## the turn and flip keys under them: Jon, merge:A, Oct 20).
+static func _lines_for(id: StringName) -> int:
+	return 3 if id == &"cutaway" else 2

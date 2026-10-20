@@ -13,10 +13,10 @@ Named after the temperature of the cosmic microwave background — the universe'
 Godot **4.7.1**. Open the project and press F5. Migrated from the original 4.3
 target with no code changes — `docs/handbook.md` has the record.
 
-Art is **generated procedurally as a fallback**, so the project still runs and
-looks like itself on a clean clone (see `scripts/ui/ShipView.gd`). Real sprites
-now exist and load where they are present: the full hull set, four module
-sprites and three card illustrations. Run `-- artcheck` to see which.
+Art is **generated procedurally as a fallback** (see `scripts/ui/ShipView.gd`).
+Real sprites load where they are present: hull pictures for Korvan and Solari,
+most module sprites, the enemies and the card illustrations. Run `-- artcheck` to
+see which.
 
 First clone? Run `./setup.sh` once — it points git at the hooks in `.githooks/`,
 which git cannot do for you.
@@ -27,7 +27,7 @@ which git cannot do for you.
 godot --headless --path . -- sim runs=200
 ```
 
-Plays complete runs with a competent-player model and reports win rate, average jumps, kills, and death causes. **Run this after any balance change.** In the earlier web prototype this tool found three real bugs and a structural map flaw within minutes. Healthy target: 40–55% win rate.
+Plays complete runs with a competent-player model and reports win rate, average jumps, kills, and death causes. **Run this after any balance change.** In the earlier web prototype this tool found three real bugs and a structural map flaw within minutes. There is no win-rate target: read the death causes (`docs/design-doc.md` §Pillar 5 and `CLAUDE.md`).
 
 ---
 
@@ -47,19 +47,20 @@ here.
 
 ```
 scripts/
-  autoload/       Sig (signal bus) · Database (content) · RunState (Run) · Router (screens)
+  autoload/       Sig (signal bus) · Database (content) · RunState (Run) · Router (screens) · Rng · Audio · Keys
   data/           Typed Resources: CardData, ModuleData, HullData, EnemyTemplate, AffixData…
-  systems/        Combat, CardResolver, DeckBuilder, LootGen, MapGen, EventTable
-  ui/             Code-built screens and widgets, UITheme, procedural ship/enemy art
-  sim/            HeadlessSim
-shaders/          heat.gdshader — the cold-universe/warm-ship palette shift
-tools/            export_resources.gd — dump Database to .tres for inspector editing
-resources/        (populated by the exporter)
+  systems/        Combat, CardResolver, DeckBuilder, LootGen, MapGen, OptionTable (the encounters)
+  net/            the co-op party: NetSession, the transports, SharedFight
+  ui/             Code-built screens and widgets, UITheme, Hints, Ash, procedural fallback art
+  sim/            HeadlessSim and the headless harnesses (`-- <flag>`)
+shaders/          the screen and sky shaders, heat.gdshader among them
+tools/            export.sh and build_alpha.sh (builds), cofight.sh / coplay.sh (co-op), export_resources.gd
+resources/        (made by export_resources.gd when run; not in the repo)
 ```
 
 **Content is authored in `Database.gd` as plain dictionaries**, seeded into typed Resources at boot. It diffs cleanly in git and needs no editor round-trip. When you want inspector editing instead, run `tools/export_resources.gd` and the same data becomes `.tres` files.
 
-**UI is built in code**, not `.tscn`. One scene file (`Main.tscn`) exists; everything else is constructed by the screen scripts against `UITheme`. This keeps styling in one place and avoids scene-merge conflicts.
+**UI is built in code**, not `.tscn`. Two scene files exist (`Shell.tscn`, the main scene, and `Main.tscn`); everything else is constructed by the screen scripts against `UITheme`. This keeps styling in one place and avoids scene-merge conflicts.
 
 **Systems never reach across scenes** — they emit on `Sig` and the UI listens.
 
@@ -131,8 +132,5 @@ The top tiers are **sources**, not just bigger numbers:
 
 ## Next up
 
-- Real pixel art to replace procedural sprites; wire `heat.gdshader` to `Sprite2D` hardpoints with `Marker2D` anchors
-- Audio — the melancholy lives in the soundtrack as much as the palette
-- Meta-progression: unlock manufacturers (their starting kits and loot-pool presence)
-- Save/load
-- More events, and events gated on installed modules or faction reputation
+`HANDOFF.md` at the repo root has what is open and what comes next; `CHANGELOG.md`
+has what each alpha holds.

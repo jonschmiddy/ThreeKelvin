@@ -5,6 +5,9 @@ measured off the live table, not estimated; the slot list in §3 is derived from
 where the coverage actually thins out. The table is at 47 today and this takes
 it to 127.*
 
+*Status (Oct 20): done. The table holds 135. §2's standard is still the rule for
+new encounters.*
+
 **Deliverable:** eighty new entries in `tkg/scripts/systems/OptionTable.gd`,
 written to the standard in §2, filling the slots in §3, passing
 `python tools/encounter_lint.py --strict` and `-- optiontest`.

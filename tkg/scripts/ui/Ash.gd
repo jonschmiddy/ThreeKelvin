@@ -22,17 +22,19 @@ extends Node
 ## A moment waits for its chance (`WAIT_S`) and is dropped if it does not get
 ## one: a line about the heat said once the heat is gone would be about nothing.
 ##
-## HER FIRST LINE INTRODUCES HER (Jon, Oct 18, "intro:A"). The first launch line
-## a profile ever hears is `AshLines.INTRO` (launch_04, "Autonomous Systems
-## Handler, reporting..."), not a pick from the bag; said once, it is marked in
-## the first-run flags (`[hints] ash_intro`, `DisplaySettings.hints_path`, beside
-## the welcome note; SHOW HINTS AGAIN leaves it) and every launch after is the
-## bag's, as before. Marked when she says it, so a first run that never heard
-## her (her switch off, a jump before she could speak) still opens with it. Same
-## moment and slot as any launch line; the one difference is the order: the
-## hints and the goal steps wait for it (`intro_holds`, read by `Hints`), where
-## every other bark waits for them, so her first words are her name and no
-## lesson cuts them. The goal's first step follows it.
+## SHE INTRODUCES HERSELF EVERY NEW RUN (Jon, Oct 18, "intro:A"; Oct 20: "On the
+## first LOCAL section you load into on a new game, A.S.H. should introduce
+## herself. Short beat. THEN the first tutorial hint." -- every run, not once a
+## profile). A new run's launch line is `AshLines.INTRO` (launch_04,
+## "Autonomous Systems Handler, reporting..."), not a pick from the bag; a run
+## picked up with CONTINUE does not hear it again (`SaveGame.restoring`), and
+## its launch, if it is still before the first jump, is the bag's. Same moment
+## and slot as any launch line; the one difference is the order: the hints and
+## the goal steps wait for it (`intro_holds`, read by `Hints`), where every
+## other bark waits for them, so her first words are her name and no lesson
+## cuts them; and after it ends, a beat (`INTRO_BEAT_S`) before the first of
+## them. The once-a-profile flag it had (`[hints] ash_intro`) is not read any
+## more; an old settings file that has it loads as before.
 ##
 ## SHE NEVER TALKS OVER HERSELF OR EVERY TURN:
 ##   - one line at a time, and COOLDOWN_S of quiet after one before the next;
@@ -84,10 +86,11 @@ extends Node
 ## switch, and the cards come back exactly as they were.
 
 const SECTION := "ash"
-## Her introduction said, once per profile: `[hints] ash_intro` in the first-run
-## flags' file (`DisplaySettings.hints_path`; a harness's scratch file under one).
-const INTRO_SECTION := "hints"
-const INTRO_KEY := "ash_intro"
+## THE BEAT after her introduction ends before the first lesson starts, s (game
+## time; Jon: "Short beat. THEN the first tutorial hint."). A goal step takes its
+## own settle (`Hints.SETTLE_S`) after the hold lets go, so the hold is this less
+## that: the step starts this long after she stops.
+const INTRO_BEAT_S := 1.5
 ## Highest first: when two are waiting, this one is said.
 const ORDER: Array[StringName] = [&"hurt", &"hull", &"hot", &"haul", &"greed", &"launch", &"doubt"]
 ## The moments that may break the quiet early, and a fight's one-line rule.
@@ -143,9 +146,17 @@ var held_by := ""
 ## Settings' switch, loaded once.
 var _on := true
 var _loaded := false
-## Her introduction: said on this profile (-1 not read yet), and up now.
-var _intro_said := -1
+## Her introduction: still to say this run, up now, and when it ended (GameClock
+## s; -1 not yet).
+var _intro_due := false
 var _introducing := false
+var _intro_end := -1.0
+## HER BOX WITH THE GOAL (Jon, Oct 20: the goal, its step and her box one
+## group): a top spot's y and the goal's when she came up, so while the goal
+## slides with the top plate she goes with it (`_follow_goal`).
+var _group := false
+var _group_y := 0.0
+var _goal_y := 0.0
 
 var _last_end := -INF
 var _fight: Object = null
@@ -222,26 +233,34 @@ func _load() -> void:
 ## Re-read the file (a harness that wrote it behind our back).
 func reload() -> void:
 	_loaded = false
-	_intro_said = -1
 
 
-## HER INTRODUCTION (intro:A): whether this profile has heard it.
+## HER INTRODUCTION: whether this run has had it (or a loaded run, which does
+## not hear it again).
 func intro_said() -> bool:
-	if _intro_said < 0:
-		var cfg := ConfigFile.new()
-		_intro_said = 0
-		if cfg.load(DisplaySettings.hints_path()) == OK:
-			_intro_said = 1 if bool(cfg.get_value(INTRO_SECTION, INTRO_KEY, false)) else 0
-	return _intro_said == 1
+	return not _intro_due
 
 
-## Mark it said (or not: a harness that wants a fresh profile's first launch).
+## Mark it said this run (or not: a harness that wants a launch line from the
+## bag, or the introduction again).
 func mark_intro(v: bool = true) -> void:
-	var cfg := ConfigFile.new()
-	cfg.load(DisplaySettings.hints_path())
-	cfg.set_value(INTRO_SECTION, INTRO_KEY, v)
-	cfg.save(DisplaySettings.hints_path())
-	_intro_said = 1 if v else 0
+	_intro_due = not v
+	if v:
+		_intro_end = -1.0
+
+
+## Her introduction has just stopped being said: the beat starts.
+func _intro_tick() -> void:
+	if not _introducing:
+		return
+	if portrait != null and is_instance_valid(portrait) and portrait.speaking() and portrait.kind == &"launch":
+		return
+	_introducing = false
+	# THE BEAT IS FROM HER LAST WORD (Jon, Oct 20: "The delay between the intro
+	# and the first hint is WAY too long"), not from her box going
+	_intro_end = GameClock.now()
+	if portrait != null and is_instance_valid(portrait) and portrait.voice_started_at >= 0.0:
+		_intro_end = minf(_intro_end, portrait.voice_started_at + portrait.voice_secs - AshPortrait.VOICE_TAIL_S)
 
 
 ## Her introduction is up, or it is next and could start now: the hints and the
@@ -253,10 +272,14 @@ func intro_holds() -> bool:
 	if not _run_live or Run.hull == null or Run.dead or Run.hp <= 0 or not enabled():
 		return false
 	var up := portrait != null and is_instance_valid(portrait)
+	_intro_tick()
 	if _introducing:
-		if up and portrait.speaking() and portrait.kind == &"launch":
+		return true
+	# THE BEAT after it, before the first lesson (less the step's own settle)
+	if _intro_end >= 0.0:
+		if GameClock.now() - _intro_end < INTRO_BEAT_S - Hints.SETTLE_S:
 			return true
-		_introducing = false
+		_intro_end = -1.0
 	if not waiting.has(&"launch") or intro_said() or lesson != &"" or _next() != &"launch":
 		return false
 	if up and portrait.phase != AshPortrait.Phase.GONE:
@@ -291,6 +314,10 @@ func _on_run_started() -> void:
 	_last_end = -INF
 	if portrait != null:
 		portrait.cut()
+	# HER INTRODUCTION, a new run's: not a run picked up with CONTINUE
+	_intro_due = not SaveGame.restoring
+	_introducing = false
+	_intro_end = -1.0
 	# A NEW RUN'S FIRST LAUNCH. A loaded run before its first jump hears it too:
 	# the suspend save is a bookmark, and this is still the launch.
 	if Run.jumps == 0:
@@ -450,6 +477,8 @@ func poll(delta: float) -> void:
 	if not enabled():
 		_quiet()
 		return
+	_follow_goal()
+	_intro_tick()
 	_watch()
 	# THE QUIET STARTS WHEN A LINE ENDS, however it ended
 	if _up and (portrait == null or not portrait.speaking()):
@@ -501,6 +530,20 @@ func poll(delta: float) -> void:
 		held_by = "room"
 		return
 	_say(kind, line, spot)
+
+
+## Her box up on a top spot moves with the goal as it slides with the top plate
+## (`GoalLine.fixed_at`), the same pixels, so the three never part or touch.
+func _follow_goal() -> void:
+	if not _group or portrait == null or not is_instance_valid(portrait) or not portrait.visible:
+		return
+	portrait.position.y = _group_y + (GoalLine.fixed_at().y - _goal_y)
+
+
+func _group_from(spot: Dictionary) -> void:
+	_group = String(spot.get("name", "")).begins_with("top")
+	_group_y = (spot.rect as Rect2).position.y
+	_goal_y = GoalLine.fixed_at().y
 
 
 ## The first waiting moment, by `ORDER`.
@@ -589,9 +632,11 @@ func _hint_up(starting: bool = true) -> bool:
 	if lesson != &"" or Hints.lesson != &"":
 		return true
 	# HER INTRODUCTION GOES FIRST (intro:A): the hints and steps wait for it
-	# (`intro_holds`), so it does not wait for them
+	# (`intro_holds`), so it does not wait for them; the beat after it holds
+	# everything
 	if starting and intro_holds():
-		return false
+		# (the beat after it: her other lines wait too, one thing at a time)
+		return _intro_end >= 0.0
 	if starting and Hints.step_due():
 		return true
 	if Hints._cand != &"":
@@ -614,7 +659,7 @@ func pick_line(kind: StringName) -> String:
 	var all := AshLines.of(kind)
 	if all.is_empty():
 		return ""
-	# HER FIRST LAUNCH LINE EVER introduces her (intro:A); the bag is untouched
+	# A NEW RUN'S LAUNCH introduces her (intro:A, every run); the bag is untouched
 	if kind == &"launch" and not intro_said():
 		return AshLines.line_of(AshLines.INTRO)
 	var bag: Array = _bags.get(kind, [])
@@ -650,10 +695,13 @@ func _say(kind: StringName, line: String, spot: Dictionary) -> void:
 	portrait.mirrored = bool(spot.mirrored)
 	portrait.position = (spot.rect as Rect2).position
 	portrait.size = Vector2(AshPortrait.W, AshPortrait.H)
-	portrait.say(line, kind)
+	var is_intro := kind == &"launch" and not intro_said() and AshLines.id_of(line) == AshLines.INTRO
+	# (her introduction goes with her voice: the beat after it is the wait)
+	portrait.say(line, kind, {quick = true} if is_intro else {})
+	_group_from(spot)
 	_up = true
-	# her introduction, said: never forced again on this profile
-	if kind == &"launch" and not intro_said() and AshLines.id_of(line) == AshLines.INTRO:
+	# her introduction, said: not again this run
+	if is_intro:
 		mark_intro(true)
 		_introducing = true
 	if _fight != null:
@@ -720,11 +768,27 @@ static func spot_boxes(cur: Control) -> Array:
 			continue
 		var parts := String(s).split("_")
 		var y := top if parts[0] == "top" else bottom
-		out.append({name = s, rect = Rect2(Vector2(float(xs[StringName(parts[1])]), y), sz),
-			mirrored = parts[1] == "right"})
+		var r := _under_goal(Rect2(Vector2(float(xs[StringName(parts[1])]), y), sz), cur)
+		out.append({name = s, rect = r, mirrored = parts[1] == "right"})
 	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return _rank(a.name) < _rank(b.name))
 	return out
+
+
+## A TOP SPOT THAT WOULD STAND ON THE GOAL OR ITS STEP (`GoalLine`: at the top
+## left of the picture on LOCAL, the map and the chart, Jon, Oct 20) stands
+## under the two of them instead, EDGE below the step's room. In a fight beside
+## the goal's line instead, at the same height (a fight has no step, and under
+## the goal is your hull: the 65 screens of `AshTest` measured that corner as
+## the one clear in every fight).
+static func _under_goal(r: Rect2, cur: Control) -> Rect2:
+	var st := GoalLine.stack_rect(cur)
+	if st.size != Vector2.ZERO and r.intersects(st.grow(EDGE - 1.0)):
+		if GoalLine._fighting(cur):
+			r.position.x = roundf(st.end.x + EDGE)
+		else:
+			r.position.y = roundf(st.end.y + EDGE)
+	return r
 
 
 ## The first spot clear of everything for `line`; {} if none is.
@@ -776,11 +840,17 @@ static func avoid_rects(cur: Control) -> Array:
 	if Router.hud != null and is_instance_valid(Router.hud) and Router.hud.is_visible_in_tree():
 		var hud := Router.hud.get_global_rect()
 		out.append(hud)
-		# THE GOAL LINE'S BAND under the HUD (`GoalLine`), wherever along it the
-		# line has been set down, and the line itself if it is up
+		# the band under the HUD, kept clear as it always was on LOCAL
 		out.append(Rect2(hud.position.x, hud.end.y, hud.size.x, GOAL_BAND))
+		# THE GOAL AND ITS STEP (`GoalLine`, at the picture's top left, Jon, Oct
+		# 20): the two lines as drawn, and the room they keep whether a step is
+		# pending or not, so a step arriving never lands on her
 		if Router.hud.has_method("goal_rect"):
 			out.append(Router.hud.call("goal_rect"))
+		var gl: Variant = Router.hud.get("goal")
+		if gl is GoalLine and is_instance_valid(gl):
+			out.append((gl as GoalLine).step_rect())
+		out.append(GoalLine.stack_rect(cur))
 	if Hints.card != null and is_instance_valid(Hints.card) and Hints.card.visible:
 		out.append(Hints.card.get_global_rect())
 	if cur == null or not is_instance_valid(cur):
@@ -892,6 +962,7 @@ func teach(lid: StringName, text: String, hint: StringName, subject: Rect2, opts
 	portrait.theme = _theme()
 	portrait.mirrored = bool(spot.mirrored)
 	portrait.position = (spot.rect as Rect2).position
+	_group_from(spot)
 	portrait.say(text, StringName("tut_" + String(lid)), {
 		voice = String(opts.get("voice", "")), spoken = String(opts.get("spoken", "")),
 		held = hint != &""})
@@ -1055,8 +1126,8 @@ static func tut_spot_boxes(cur: Control, sz: Vector2) -> Array:
 	for s in ALL_SPOTS:
 		var parts := String(s).split("_")
 		var y := top if parts[0] == "top" else bottom
-		out.append({name = s, rect = Rect2(Vector2(float(xs[StringName(parts[1])]), y), sz),
-			mirrored = parts[1] == "right"})
+		var r := _under_goal(Rect2(Vector2(float(xs[StringName(parts[1])]), y), sz), cur)
+		out.append({name = s, rect = r, mirrored = parts[1] == "right"})
 	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return _rank(a.name) < _rank(b.name))
 	return out
@@ -1116,6 +1187,11 @@ static func _cutaway_rects(cut: CutawayView, out: Array) -> void:
 			out.append(c.get_global_rect())
 	if cut._pic.size.x > 0.0:
 		out.append(cut.get_global_transform() * cut._pic)
+	# the rings' layer over the exploded ship takes the clicks (a part dropped on
+	# a ring) a little past the picture's own box
+	var mp: Control = cut._mounts
+	if mp != null and is_instance_valid(mp) and mp.is_visible_in_tree() and mp.mouse_filter != Control.MOUSE_FILTER_IGNORE:
+		out.append(mp.get_global_rect())
 	if cut._popup != null and is_instance_valid(cut._popup) and cut._popup.is_visible_in_tree():
 		out.append(cut._popup.get_global_rect())
 
@@ -1174,8 +1250,7 @@ static func _map_rects(map: SystemMapScreen, out: Array) -> void:
 	# what the ship is doing, in the frame's top left (`SystemOverlay._draw`)
 	var st: Array = ov.ship_status()
 	if String(st[0]) != "":
-		var tw := UITheme.pixel_font().get_string_size(String(st[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
-		out.append(g * Rect2(ov.view.window.position + Vector2(8, 4), Vector2(tw + 4, 16)))
+		out.append(g * (ov.status_rect(String(st[0])) as Rect2).grow(2.0))
 	var ship: Vector2 = ov._ship_at
 	out.append(g * Rect2(ship - Vector2(12, 12), Vector2(24, 24)))
 

@@ -38,8 +38,8 @@ The cards are the point. A module is not a stat stick; it is a way of putting
 particular verbs into a deck. Everything below is about keeping that honest.
 
 Modules live in one place — `tkg/scripts/autoload/Database.gd`, in `_module()`
-calls. There is no editor and no resource file per part, deliberately: sixty
-parts in one file can be read top to bottom, and reading them top to bottom is
+calls. There is no editor and no resource file per part, deliberately: every
+part in one file can be read top to bottom, and reading them top to bottom is
 the only way anybody has ever noticed two of them were the same.
 
 ---
@@ -227,12 +227,11 @@ than it is; below it, every part is a combination and nothing is a statement.
 **Judgement, with a printed measurement.** The gate prints the shape rather than
 failing on it, because the right number is a matter of feel:
 
-    shape: 33 of 63 modules grant a pair (52%), 22 draw on shared cards (35%)
+    shape: 33 of 95 modules grant a pair (35%), 31 draw on shared cards (33%)
 
-52% overall, because the six manufacturers that have not been rewritten yet sit at 97%.
-Korvan and the unbranded stock, which have been, sit at 25%. **Bringing the
-other six manufacturers down to a quarter is the largest single job left in the
-catalogue.**
+35% overall (`-- holdtest`, Oct 20). Korvan, Solari and the unbranded stock have been
+rewritten; the five manufacturers that have not are still mostly pairs. **Bringing
+those five down to a quarter is the largest single job left in the catalogue.**
 
 ---
 
@@ -253,7 +252,7 @@ rule nobody would remember.
 
 They exist so a part can be a **combination** rather than a verb with a name on
 it — a manufacturer card and a plain one beside it. It is also what makes a catalogue
-of sixty read as more than sixty things: two parts sharing a card while each
+read as more things than it has parts: two parts sharing a card while each
 keeping something of their own are related without being the same.
 
 Anything with a manufacturer's fingerprints on it stays written where it is granted.
@@ -377,7 +376,11 @@ manufacturer-by-grade pairings clears 3.0:1 for art on ground.
 
 ### The bar tracks the cells, not the energy
 
-`attr_reactor` is `energy × 0.6 + (cells − 4) / 3`. **Cells are about two thirds
+> **Superseded by §12.** `attr_reactor` now returns the reactor level and nothing else
+> (C is level 4, twelve cells, three energy). This subsection is the formula before that,
+> kept for why it was dropped.
+
+`attr_reactor` was `energy × 0.6 + (cells − 4) / 3`. **Cells are about two thirds
 of every reading.**
 
 | | cells | energy | REACTOR |
@@ -465,15 +468,15 @@ the shape is fixed.
 
 Holds are 4×3 (light, 12), 5×4 (medium, 20) and 6×5 (heavy, 30).
 
-Five shapes: **1×1** (14 parts), **2×1** (31), **3×1** (8), **2×2** (12) and
-**4×1** (3).
+Five shapes: **1×1** (21 parts), **2×1** (40), **3×1** (10), **2×2** (20) and
+**4×1** (4), counted Oct 20 off `_seed_module_sizes`.
 
 **4×1 is the light-hull tax.** It fills an entire row of the twelve cells a
 skiff has, and stood on end it does not fit at all — the grid refuses it,
 because 1×4 runs off the bottom of a 3-deep hold. That makes hull weight bite in
-the *hold*, where until now it only bit in the mount count. Three guns carry it,
-and they are the three whose names already said so: a siege driver, a drumfire
-and a rail are things a frame is built around.
+the *hold*, where until now it only bit in the mount count. Four parts carry it:
+the three guns whose names already said so (a siege driver, a drumfire and a rail
+are things a frame is built around) and Solari's Heliostat.
 
 **Gate:** every part fits the smallest hold. A 5-wide part could never be picked
 up by anyone flying a light and would fail by being silently left behind at
@@ -877,7 +880,7 @@ anywhere else in this file.*
 
     korvan          25 parts   40 cards   want 40   done
     (unbranded)     18         20         want 20   done
-    solari           7          7         want 40   short 33
+    solari          25         40         want 40   done
     probate          7          8         want 40   short 32
     redline          7          7         want 40   short 33
     cygnet           4          4         want 40   short 36
@@ -885,14 +888,14 @@ anywhere else in this file.*
     calyx            4          4         want 40   short 36
     malfunctions     -         16         want 15   done
 
-    95 unique cards across 77 modules; 205 still to write
+    128 unique cards across 95 modules; 172 still to write
 
-A card counts toward the first manufacturer that uses it, so the ten shared cards are
+A card counts toward the first manufacturer that uses it, so the eleven shared cards are
 counted once. Both `-- content` and the manifest do it that way; two answers to
 one question is how a number stops being believed.
 
-**Korvan and the unbranded stock are finished.** The five manufacturers left are the
-work: 205 cards, and their parts are still 97% pairs against a one-in-four
+**Korvan, Solari and the unbranded stock are finished.** The five manufacturers left are the
+work: 172 cards, and their parts are still 97% pairs against a one-in-four
 target.
 
 ### The gauge ladder, and what is still missing

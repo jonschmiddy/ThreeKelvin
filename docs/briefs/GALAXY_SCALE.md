@@ -3,7 +3,7 @@
 *Design brief, 2026-08-25. Written offline against `main` as merged (SaveGame VERSION 13,
 PROTOCOL 8 at time of writing; **now 14 / 8** — see `ROADMAP.md` §1). Line numbers will move; grep the quoted strings.*
 
-**Status: design agreed, nothing built.** Three separable changes that want doing
+**Status: §1–§4 and §5 landed, §3 void** (see `ROADMAP.md` §0). Written as design agreed, nothing built. Three separable changes that want doing
 in one pass because they all touch `MapGen`'s scale maths. §6 lists what is open.
 
 Sibling document: `ENCOUNTER_REBUILD.md`. §5 of this file depends on it.

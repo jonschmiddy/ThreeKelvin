@@ -1,8 +1,10 @@
 # Art sizes — one spec before anything is generated
 
 *Written 2026-08-31. Every current figure was measured off the files and the
-running game, not read off an older document. Nothing here has been generated
-yet; this exists so that nothing is generated twice.*
+running game, not read off an older document. Nothing here had been generated
+yet; this exists so that nothing is generated twice.* *(Oct 20: hulls, modules,
+cards and enemies have been generated since, so check `-- artcheck` before trusting
+a "current" figure here.)*
 
 **The problem, in the words it was reported in:** *"since I made the modules
 bigger, the ships are smaller in comparison."* That is exactly right, and it is

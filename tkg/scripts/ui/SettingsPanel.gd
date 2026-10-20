@@ -111,19 +111,27 @@ func _page_playtest() -> void:
 				func() -> void: PlaytestLogs.show_in_folder(String(_last_logs.path))))
 			_body.add_child(srow)
 
-## HINTS: SHOW HINTS AGAIN (`Hints.reset`). Every first-run hint, and the goal
+## HINTS: REPLAY TUTORIAL (`Hints.reset`). Every first-run hint, and the goal
 ## line's steps, show again at their moment; then a line saying so. (Its second
 ## line said AND THE OPENING TOUR until the tour went, Oct 17.)
 var _hints_reset := false
 func _page_hints() -> void:
 	_body.add_child(Section.new(&"hint", "HINTS"))
-	_body.add_child(DrawerPlate.plate(&"hint", "SHOW HINTS AGAIN", "",
+	# TUTORIAL ON / OFF (Jon, Oct 20): the hints, the goal's steps and A.S.H.'s
+	# teaching, or none of them (`Hints.set_tutorial`). First in the section, so
+	# the line REPLAY TUTORIAL adds never moves it.
+	_body.add_child(_row_chips("TUTORIAL", ["ON", "OFF"],
+		0 if Hints.tutorial_on() else 1,
+		func(i: int) -> void:
+			Hints.set_tutorial(i == 0)
+			_refresh()))
+	_body.add_child(DrawerPlate.plate(&"hint", "REPLAY TUTORIAL", "",
 		func() -> void:
 			Hints.reset()
 			_hints_reset = true
 			_refresh()))
 	if _hints_reset:
-		var l := UITheme.body("Done. Each hint shows again when it comes up.", UITheme.CHILL, UITheme.FS_SMALL)
+		var l := UITheme.body("Done. Each tutorial step plays again when it comes up.", UITheme.CHILL, UITheme.FS_SMALL)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_body.add_child(l)
 	# A.S.H., THE SHIP'S AI (`Ash`): her face and her lines at the moments that

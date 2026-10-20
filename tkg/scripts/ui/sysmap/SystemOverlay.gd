@@ -454,10 +454,10 @@ func _draw() -> void:
 	_draw_ship(t)
 	view.tick("overlay ship", t_ship)
 	_place_labels()
-	# WHAT THE SHIP IS DOING, top left of the frame
+	# WHAT THE SHIP IS DOING, top left of the frame, under the goal and its step
 	var st := ship_status()
 	if String(st[0]) != "":
-		_text(view.window.position + Vector2(10, 16), st[0], st[1])
+		_text(view.window.position + STATUS_AT, st[0], st[1])
 	if not hover.is_empty():
 		_draw_tip()
 
@@ -1135,6 +1135,22 @@ func _draw_ship(t: float) -> void:
 			_label(Vector2(lx, ly), words, UITheme.FLARE, 4, true)
 		else:
 			_label(x + Vector2(-8, -13), "YOU", UITheme.FLARE, 1, false)
+
+
+## Where the ship's status is written (its words' baseline) from the frame's top
+## left: under the goal line and its step (`GoalLine`, at the picture's top left
+## since Jon's Oct 20 ruling; 4 px in, two 13 px lines and 1 between), 6 px clear
+## of them. It was 16, where the goal now stands.
+const STATUS_AT := Vector2(10, 47)
+## Its box from there: the words' height above the baseline, and the line.
+const STATUS_UP := 10.0
+const STATUS_H := 12.0
+
+
+## The ship's status line's box for `words`, in the overlay's own space.
+func status_rect(words: String) -> Rect2:
+	var tw := UITheme.pixel_font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+	return Rect2(view.window.position + STATUS_AT - Vector2(0, STATUS_UP), Vector2(tw, STATUS_H))
 
 
 ## WHAT THE MAP SAYS ABOUT THE SHIP, top left: in orbit, alongside, too fast,

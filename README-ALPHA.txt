@@ -29,9 +29,9 @@ MAC
 
         xattr -dr com.apple.quarantine "/Applications/Three Kelvin.app"
 
-      (change the path if you put the app somewhere else -- you can type
+      (Change the path if you put the app somewhere else. You can type
       xattr -dr com.apple.quarantine and a space, then drag the app onto the
-      Terminal window to fill in its path)
+      Terminal window to fill in its path.)
 
    or b) Double-click the app, click "Done" on the warning, then open
       System Settings > Privacy & Security, scroll down to the line about
@@ -46,7 +46,7 @@ WHEN SOMETHING GOES WRONG
 -------------------------
 Open the menu (Escape) > Settings > PLAYTEST > SAVE MY LOGS. It puts one zip on
 your Desktop. Send that zip along with what you were doing. The same button is
-on the game-over screen.
+on the RUN ENDED screen.
 
 Nothing is ever sent anywhere by the game itself.
 

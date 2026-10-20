@@ -1,6 +1,6 @@
 # Encounter prose — handoff
 
-*Generated from the live table on 2026-08-31. **47 encounters.** Every figure in
+*Generated from the live table on 2026-08-31. **47 encounters** then; there are 135 now (Oct 20), so the counts below are a snapshot and the rules are still current. Every figure in
 this document was read out of `OptionTable.all()` rather than counted by hand,
 so if it disagrees with the code, the code moved.*
 

@@ -95,9 +95,10 @@ const MOMENTS: Dictionary = {
 ## `VOICE_DIR` + the name here. A line with "" has no take and is said as text
 ## alone (`AshPortrait.say`). A new take is its file and its entry here and
 ## nothing else: the typing follows each file's own length.
-## HER FIRST LINE EVER (Jon, Oct 18, "intro:A"): a profile's first launch says
-## this one, whatever the bag holds (`Ash.pick_line`); every launch after is the
-## bag's, this line among them.
+## HER INTRODUCTION (Jon, Oct 18, "intro:A"; every new run since Oct 20): a new
+## run's launch says this one, whatever the bag holds (`Ash.pick_line`); a run
+## picked up with CONTINUE does not, and every other launch line is the bag's,
+## this line among them. `Ash.gd`'s header has the rule.
 const INTRO := &"launch_04"
 
 const VOICE_DIR := "res://assets/audio/voice/ash/%s.ogg"
