@@ -44,9 +44,11 @@ const LINES: Dictionary = {
 	&"step_event_map": "Click an event, then press GO.",
 }
 
-## THE CUTAWAY'S LINE is Jon's A (Oct 18): the keys show in the text but her
-## voice never says them, since a player may have rebound them.
-const CUTAWAY_LINE := "Drag a part onto a ring to fit it. You can turn it ({turn}) and flip it ({flip})."
+## THE CUTAWAY'S LINE, Jon's words (Oct 20: "install modules by dragging them
+## onto an empty module slot on the ship. Uninstall modules by dragging them off
+## the ship into the hold"). It was his A of Oct 18, "Drag a part onto a ring to
+## fit it. You can turn it ({turn}) and flip it ({flip})."
+const CUTAWAY_LINE := "Drag a module onto an empty slot to install it. Drag it off the ship into the hold to remove it."
 
 ## WHAT SHE SAYS where it differs from what shows (Jon's numbers:A, Oct 18): no
 ## number, no name, no key. Every other line is said as it shows. These are the
@@ -56,8 +58,13 @@ const SPOKEN: Dictionary = {
 	&"endturn": "Out of energy. Press END TURN. They act, then you draw new cards.",
 	&"heat": "Heat. Past the limit, we lose 1 hull per point over, at end of turn.",
 	&"fuel_dock": "Fuel is low. Run dry and the run ends. Here's the nearest dock.",
-	&"cutaway": "Drag a part onto a ring to fit it. You can turn it and flip it.",
 }
+
+## TAKES RECORDED FOR WORDS THAT HAVE SINCE CHANGED: said as text alone until a
+## new take is approved, never the old take under the new words. (The
+## cutaway's, recorded from "Drag a part onto a ring to fit it. You can turn it
+## and flip it." before Jon's Oct 20 words.)
+const SILENT: Array[StringName] = [&"cutaway"]
 
 const VOICE_DIR := "res://assets/audio/voice/ash/"
 
@@ -94,7 +101,10 @@ static func spoken(lid: StringName) -> String:
 ## Her take for line `lid`, or "" (silent, the words alone). One take a line:
 ## she never says the values, so no take is kept per value.
 static func voice_path(lid: StringName) -> String:
-	return _take("tut_%s" % lid)
+	var name := "tut_%s" % lid
+	if SILENT.has(lid) and not stand_in.has(name):
+		return ""
+	return _take(name)
 
 
 ## FOR THE HARNESS ONLY (`-- sheet=AshTutorTest`): a take's name -> a file to

@@ -60,6 +60,8 @@ func run(tree: SceneTree) -> void:
 			await _style_case()
 			print("graphics LOW")
 			await _graphics_case()
+			print("TUTORIAL ON / OFF")
+			await _tutorial_case()
 			print("SAVE MY LOGS")
 			await _logs_case()
 			print("the first launch's window")
@@ -229,6 +231,68 @@ func _graphics_case() -> void:
 	DisplaySettings.path = was_path
 	DisplaySettings.graphics_low = was_low
 	ChartRadiant.fell_back = was_fell
+
+
+## TUTORIAL ON / OFF (Jon, Oct 20: "Have a setting in the options for tutorial
+## on or tutorial off"): the row is in Settings' HINTS with ON picked on a fresh
+## file, OFF is kept and read back (written to a scratch settings file, never
+## the player's), ON brings it back; and pressing SHOW HINTS AGAIN does not move
+## it (nothing clickable moves).
+func _tutorial_case() -> void:
+	const SCRATCH := "user://tuttest_settings.cfg"
+	var was_path := DisplaySettings.path
+	var was_on := Hints.tutorial_on()
+	DisplaySettings.path = SCRATCH
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
+	Hints._tutorial_read = false
+	var panel := SettingsPanel.new()
+	_tree.root.add_child(panel)
+	panel.build()
+	await _tree.process_frame
+	var chips := _tutorial_chips(panel)
+	_ok("  Settings shows a TUTORIAL row with ON and OFF", chips.size() == 2 and chips[0].title == "ON" and chips[1].title == "OFF")
+	_ok("  ON on a fresh settings file", Hints.tutorial_on() and chips.size() == 2 and chips[0].lead and not chips[1].lead)
+	if chips.size() == 2:
+		var at0: Rect2 = (chips[1] as Control).get_global_rect()
+		chips[1].pressed.emit()
+		await _tree.process_frame
+		var saved := ConfigFile.new()
+		_ok("  pressing OFF turns it off", not Hints.tutorial_on())
+		_ok("  and keeps it, in the scratch file", saved.load(SCRATCH) == OK
+			and not bool(saved.get_value("hints", "tutorial", true)))
+		Hints._tutorial_read = false
+		_ok("  and it is read back off", not Hints.tutorial_on())
+		# SHOW HINTS AGAIN adds a line under itself: the TUTORIAL row stays put
+		var again := _plate(panel, "SHOW HINTS AGAIN")
+		if again != null:
+			again.pressed.emit()
+			await _tree.process_frame
+		var chips2 := _tutorial_chips(panel)
+		_ok("  SHOW HINTS AGAIN does not move it (%s, was %s)" % [chips2[1].get_global_rect() if chips2.size() == 2 else Rect2(), at0],
+			chips2.size() == 2 and chips2[1].get_global_rect() == at0)
+		if chips2.size() == 2:
+			chips2[0].pressed.emit()
+			await _tree.process_frame
+		_ok("  pressing ON turns it back on", Hints.tutorial_on())
+	panel.queue_free()
+	await _tree.process_frame
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
+	DisplaySettings.path = was_path
+	Hints._tutorial_read = false
+	if Hints.tutorial_on() != was_on:
+		Hints.set_tutorial(was_on)
+
+
+## The TUTORIAL row's chips, ON then OFF.
+func _tutorial_chips(panel: Node) -> Array:
+	var lab := first(panel, func(n: Node) -> bool:
+		return n is Label and (n as Label).text == "TUTORIAL")
+	if lab == null:
+		return []
+	var out: Array = []
+	for n in lab.get_parent().find_children("*", "DrawerPlate", true, false):
+		out.append(n)
+	return out
 
 
 ## SAVE MY LOGS (`PlaytestLogs`): the button is in Settings, and the zip it

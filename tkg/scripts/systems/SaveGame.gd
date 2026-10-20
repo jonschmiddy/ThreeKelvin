@@ -31,6 +31,9 @@ const PATH := "user://run.save"
 ## (`TestRun.scratch`): a single shared one let harnesses running side by side
 ## load each other's runs.
 static var path: String = TestRun.scratch("run", "save") if TestRun.active() else PATH
+## True while a load announces its run (`Sig.run_started`), so a listener can
+## tell CONTINUE from a new run (A.S.H.'s introduction is a new run's only).
+static var restoring := false
 ## Bumped whenever the shape below changes. An old file is discarded rather than
 ## guessed at — a half-understood save produces a run that is subtly wrong,
 ## which is worse than no save at all.
@@ -620,7 +623,9 @@ static func load_into_run() -> bool:
 	Run._range_cache.clear()
 
 	clear()
+	restoring = true
 	Sig.run_started.emit()
+	restoring = false
 	# AFTER run_started, not before: the Router's listener clears the record (a
 	# new run, or a load, must not inherit the last run's orbits), so anything
 	# put there first would be wiped by the signal that announces it. A 29 save

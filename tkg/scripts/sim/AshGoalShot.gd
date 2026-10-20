@@ -15,6 +15,10 @@ extends Node
 ## up, every frame's top left (`frames/00000.png`...): run with `--fixed-fps 30`.
 ## mode=stepfilm: on LOCAL she says the goal's step, and its line comes back
 ## once she is done, every frame's top left, `--fixed-fps 30`.
+## mode=introfilm: a new run's first LOCAL as played, for `--write-movie`: her
+## introduction, the beat, the goal's first step, its line coming back; it
+## quits a second after. Run with `--write-movie <dir>/film.avi --fixed-fps 30`.
+## mode=settings: Settings over the run, scrolled to HINTS (`settings.png`).
 ## Each still is the whole window and a 2x crop of its top left (`_tl.png`, the
 ## first 480x270 game pixels). Prints her box, the goal's and the step's. Needs
 ## a window.
@@ -119,13 +123,13 @@ func _start(intro_heard: bool) -> void:
 	Ash.set_on(true)
 	Hints.forced = true
 	Hints.reset()
-	var cfg := ConfigFile.new()
-	cfg.load(DisplaySettings.hints_path())
-	cfg.set_value("hints", "ash_intro", intro_heard)
-	cfg.save(DisplaySettings.hints_path())
 	Ash.reload()
 	Rng.forced = int(_arg("seed", "4242"))
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	# (every new run has her introduction: `intro=0` takes it off, for a launch
+	# line from the bag)
+	if intro_heard:
+		Ash.mark_intro(true)
 
 
 func _run() -> void:
@@ -140,6 +144,10 @@ func _run() -> void:
 			await _film()
 		"stepfilm":
 			await _stepfilm()
+		"introfilm":
+			await _introfilm()
+		"settings":
+			await _settings()
 		_:
 			await _stills()
 	Ash.forced = false
@@ -276,3 +284,49 @@ func _stepfilm() -> void:
 		await _frame()
 	await _film_secs(1.6)
 	print("[ashgoalshot] stepfilm: %d frames" % _n)
+
+
+func _introfilm() -> void:
+	await _start(false)
+	Router.animate_in_harness = true
+	Router.show_local()
+	var t0 := GameClock.now()
+	var said := {}
+	while GameClock.now() - t0 < 40.0:
+		await _tree.process_frame
+		for d: Dictionary in Ash.said_log:
+			if not said.has(d.kind):
+				said[d.kind] = GameClock.now() - t0
+				print("[ashgoalshot] introfilm: %s at %.2f s" % [d.kind, said[d.kind]])
+		if said.has(&"tut_step_jump") and not Ash.lesson_up():
+			break
+	await _secs(1.5)
+
+
+func _settings() -> void:
+	await _start(true)
+	Router.show_local()
+	await _secs(2.0)
+	var main: Node = Router.content
+	while main != null and not main.has_method("_open_settings"):
+		main = main.get_parent()
+	if main == null:
+		return
+	main.call("_open_settings")
+	await _secs(1.0)
+	var panel: SettingsPanel = null
+	for n in _tree.root.find_children("*", "SettingsPanel", true, false):
+		panel = n as SettingsPanel
+	if panel == null:
+		return
+	var lab: Control = null
+	for n in panel.find_children("*", "Label", true, false):
+		if (n as Label).text == "TUTORIAL":
+			lab = n as Control
+	if lab != null:
+		# (the HINTS section at the top of the page, its rows all in sight)
+		await _tree.process_frame
+		var sc := panel._scroll
+		sc.scroll_vertical = int(sc.scroll_vertical + lab.get_global_rect().position.y - sc.get_global_rect().position.y - 40.0)
+	await _secs(0.5)
+	await _shot("settings")

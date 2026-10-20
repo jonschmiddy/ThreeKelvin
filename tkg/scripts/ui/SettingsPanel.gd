@@ -117,6 +117,14 @@ func _page_playtest() -> void:
 var _hints_reset := false
 func _page_hints() -> void:
 	_body.add_child(Section.new(&"hint", "HINTS"))
+	# TUTORIAL ON / OFF (Jon, Oct 20): the hints, the goal's steps and A.S.H.'s
+	# teaching, or none of them (`Hints.set_tutorial`). First in the section, so
+	# the line SHOW HINTS AGAIN adds never moves it.
+	_body.add_child(_row_chips("TUTORIAL", ["ON", "OFF"],
+		0 if Hints.tutorial_on() else 1,
+		func(i: int) -> void:
+			Hints.set_tutorial(i == 0)
+			_refresh()))
 	_body.add_child(DrawerPlate.plate(&"hint", "SHOW HINTS AGAIN", "",
 		func() -> void:
 			Hints.reset()

@@ -34,6 +34,14 @@ extends Node
 ## settings file, never the player's. Settings' SHOW HINTS AGAIN (`reset`) brings
 ## all of them back, and the goal line's steps.
 ##
+## TUTORIAL ON / OFF (Jon, Oct 20: "Have a setting in the options for tutorial
+## on or tutorial off"): Settings' TUTORIAL row, `[hints] tutorial` in the
+## settings file, on by default (`set_tutorial`). Off: no hint, no goal step and
+## nothing of A.S.H.'s teaching; the goal line's GOAL stays, and her introduction
+## and her other lines are hers, not the tutorial's. Turned off mid-run, what is
+## up goes at once, unspent; turned on, the hints pick up where the player is
+## (what was seen stays seen; SHOW HINTS AGAIN works either way).
+##
 ## OFF UNDER HARNESSES (`TestRun.active`) unless the run asks with `-- hints`;
 ## `-- hinttest` turns it on by hand (`forced`). OFF IN A PARTY too (Jon, Oct 17:
 ## "coop:B"): a networked run shows no hints and no goal-line steps. They still
@@ -65,6 +73,14 @@ const STEPS: Array[StringName] = [&"step_jump", &"step_event"]
 ## The lines A.S.H. says as a goal step starts, each once (`said_<id>`), cleared
 ## with the hints.
 const STEP_LINES: Array[StringName] = [&"step_jump", &"step_jump_chart", &"step_event", &"step_event_map"]
+## SPENT AS THEY SHOW, not on a click (Jon, Oct 20: "when I enter the ship
+## editor, A.S.H. keeps saying the tutorial line every time I enter. It should
+## only be the first time"). The cutaway's line was spent only by a click, and
+## the cutaway is shut with DONE, Escape or a key as often as with a click on
+## nothing, so it went unspent and came back at every opening. It is said once,
+## the first time your ship is opened up, and kept seen however it goes; SHOW
+## HINTS AGAIN brings it back.
+const SPENT_ON_SHOW: Array[StringName] = [&"cutaway"]
 ## How long a subject must hold before its hint shows, s.
 const SETTLE_S := 0.6
 ## Quiet after one hint before the next may show, s.
@@ -205,6 +221,10 @@ func enabled() -> bool:
 	# there, so `-- sheet=AshTutorTest` can hold her teaching to it)
 	if Net.is_networked():
 		return false
+	# (and the player's TUTORIAL OFF, over a harness's forcing too, so the
+	# harnesses can hold the switch to it)
+	if not tutorial_on():
+		return false
 	if forced:
 		return true
 	return "hints" in OS.get_cmdline_user_args() or not TestRun.active()
@@ -214,6 +234,41 @@ func enabled() -> bool:
 
 func store_path() -> String:
 	return DisplaySettings.hints_path()
+
+
+## THE TUTORIAL SWITCH (Settings' TUTORIAL), read once: `[hints] tutorial` in the
+## settings file (`DisplaySettings.path`, the harness's scratch file under one).
+const TUTORIAL_KEY := "tutorial"
+var _tutorial := true
+var _tutorial_read := false
+
+
+func tutorial_on() -> bool:
+	if not _tutorial_read:
+		var cfg := ConfigFile.new()
+		_tutorial = true
+		if cfg.load(DisplaySettings.path) == OK:
+			_tutorial = bool(cfg.get_value(SECTION, TUTORIAL_KEY, true))
+		_tutorial_read = true
+	return _tutorial
+
+
+## On or off, kept in the settings file. Off takes down at once, unspent, a
+## card, her teaching line and a goal step's line that are up.
+func set_tutorial(v: bool) -> void:
+	_tutorial = v
+	_tutorial_read = true
+	var cfg := ConfigFile.new()
+	cfg.load(DisplaySettings.path)
+	cfg.set_value(SECTION, TUTORIAL_KEY, v)
+	cfg.save(DisplaySettings.path)
+	if not v:
+		_close(false)
+		_close_lesson(false)
+		_end_step()
+		_cand = &""
+		_step_cand = &""
+	_quiet = 0.0
 
 
 func _load() -> void:
@@ -274,6 +329,7 @@ func reset() -> void:
 ## Re-read the file (a harness that wrote it behind our back).
 func reload() -> void:
 	_load()
+	_tutorial_read = false
 
 
 # ------------------------------------------------------------------ the clock
@@ -449,6 +505,8 @@ func _show(id: StringName, p: Dictionary) -> void:
 			_gone_t = 0.0
 			_cand = &""
 			shown_log.append(id)
+			if SPENT_ON_SHOW.has(id):
+				mark_seen(id)
 			return
 		# NOWHERE CLEAR FOR HER on this screen: the card, so the lesson is never
 		# held back waiting for room
@@ -462,6 +520,8 @@ func _show(id: StringName, p: Dictionary) -> void:
 	_gone_t = 0.0
 	_cand = &""
 	shown_log.append(id)
+	if SPENT_ON_SHOW.has(id):
+		mark_seen(id)
 
 
 ## A card keeps off the goal line too (`GoalLine`), and the step's line under

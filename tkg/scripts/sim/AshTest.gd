@@ -145,6 +145,10 @@ func _settle() -> void:
 	Ash.waiting.clear()
 	if Ash.portrait != null:
 		Ash.portrait.cut()
+	# (and no introduction pending or just said, nor its beat: every new run has
+	# one, which the moments checked here are not about)
+	Ash.mark_intro(true)
+	Ash._introducing = false
 	Ash.poll(0.0)
 	Ash._last_end = -INF
 
@@ -763,6 +767,34 @@ func _moments() -> void:
 	k = await _said_after()
 	_ok("launch: not after the first jump (%s)" % k, k == &"")
 	Run.jumps = 0
+	# HER INTRODUCTION, EVERY NEW RUN (Jon, Oct 20): two new runs in a row each
+	# open with launch_04; a later launch in the same run is the bag's; a run
+	# picked up with CONTINUE has none due
+	var intro := String(AshLines.of(&"launch")[3])
+	var opens: Array[String] = []
+	for i in 2:
+		_settle()
+		Ash._on_run_started()
+		k = await _said_after()
+		opens.append(String(Ash.said_log.back().line) if k == &"launch" else "")
+	_ok("launch: every new run opens with her introduction (%s)" % " / ".join(opens),
+		opens.size() == 2 and opens[0] == intro and opens[1] == intro)
+	var later := {}
+	for i in 8:
+		_settle()
+		Ash.arm(&"launch")
+		k = await _said_after()
+		if k == &"launch":
+			later[String(Ash.said_log.back().line)] = true
+	_ok("launch: later in the same run, from the bag, not the intro forced (%d different lines)" % later.size(), later.size() >= 2)
+	_settle()
+	SaveGame.restoring = true
+	Ash._on_run_started()
+	SaveGame.restoring = false
+	_ok("launch: a run picked up with CONTINUE has no intro due", Ash.intro_said())
+	_settle()
+	Ash._on_run_started()
+	_settle()
 
 	# HULL: ONLY A HULL BOUGHT MID-RUN (Jon, Oct 18: "New body..." only "when a
 	# player buys a new ship mid run"). Not the chassis select's picks before

@@ -133,21 +133,22 @@ frame on the main screen. It reacts to the ship, not to the script:
   camera moving, the cutaway, a wreck's window, the event band or the escape menu; a moment
   that cannot be said in time is dropped. **Nothing after the ship is lost**: up when it goes,
   she cuts with it. **Hints win**: she waits while a hint is up, settling or due on the screen.
-- **Her first line introduces her** (Jon, Oct 18, intro:A). The first launch line a profile
-  ever hears is launch_04, "Autonomous Systems Handler, reporting. Please don't make me handle
-  much." (`AshLines.INTRO`), in its own take, not a pick from the bag. Once said it is marked
-  `[hints] ash_intro` in the first-run flags (`DisplaySettings.hints_path`, beside the welcome
-  note; a harness's scratch file under one), and every launch after, later runs included, is
-  the bag's as before, launch_04 among them. SHOW HINTS AGAIN leaves the flag. It is marked when
-  she says it, so a first run that never heard her (her switch off, a jump before she could
-  speak) opens with it the next time she can. Same moment and slot as any launch line. The one
-  difference is the order: an ordinary launch line waits for the goal's first step (barks wait
-  for teaching), so on a fresh profile the step used to be her first words. The intro goes
-  first instead: while it is up, or next and able to start, no hint or step starts and none can
-  cut it (`Ash.intro_holds`, read by `Hints`), and the moment anything else would keep it waiting
-  (the screen, a card already up, no room) the hints go on as before. The first step follows
-  0.6 s after it ends (its settle time), measured in `AshTutorTest`. In a party it plays like
-  her other lines: each player's own, on their own machine, off their own profile.
+- **She introduces herself every new run** (Jon, Oct 18, intro:A; Oct 20: "On the first LOCAL
+  section you load into on a new game, A.S.H. should introduce herself. Short beat. THEN the
+  first tutorial hint", every run, not once a profile). A new run's launch line is launch_04,
+  "Autonomous Systems Handler, reporting. Please don't make me handle much."
+  (`AshLines.INTRO`), in its own take, not a pick from the bag. A run picked up with CONTINUE
+  does not hear it again (`SaveGame.restoring`): its launch, if it is still before the first
+  jump, is the bag's. The once-a-profile flag it had (`[hints] ash_intro`) is read by nothing
+  now; an old settings file with it loads as before. Same moment and slot as any launch line.
+  The one difference is the order: an ordinary launch line waits for the goal's first step
+  (barks wait for teaching). The intro goes first instead: while it is up, or next and able to
+  start, no hint or step starts and none can cut it (`Ash.intro_holds`, read by `Hints`), and
+  the moment anything else would keep it waiting (the screen, a card already up, no room) the
+  hints go on as before. After it ends, **a beat**: nothing of hers and no lesson for
+  `Ash.INTRO_BEAT_S` (1.5 s, the step's own 0.6 s settle inside it), then the first lesson;
+  `AshTutorTest` measures 1.52 s from her last frame to the step. In a party it plays like her
+  other lines: each player's own, on their own machine.
 - **Talking:** the mouth follows the typed letters, a held frame every 0.1 s, with blinks and
   one-pixel hologram slips (more often with the hull failing); about 9 changes a second while
   she talks, all on the game's clock. A two-note `text_blip` chirp as she appears, then
@@ -256,8 +257,15 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
 - **Live values** fill the fields: the hand size, the heat cap, the dock's jumps and name,
   the cutaway's keys. One jump reads "1 jump". The dock's name is typed after her last
   word, never spoken.
-- **The cutaway's line is pending** Jon's rewrite: today's card text, behind
-  `AshTutorLines.CUTAWAY_LINE`.
+- **The cutaway's line** is Jon's words of Oct 20, "Drag a module onto an empty slot to
+  install it. Drag it off the ship into the hold to remove it." (`AshTutorLines.CUTAWAY_LINE`;
+  grade 3.7). Its take was recorded for the words before, so it is said as text alone
+  (`AshTutorLines.SILENT`) until a new take is approved. The card, with her off, keeps its own
+  words. **Said once** (Jon: "A.S.H. keeps saying the tutorial line every time I enter. It
+  should only be the first time"): a hint is spent by a click, and the cutaway is shut with
+  DONE, Escape or a key as often as with a click, so it went unspent and came back at every
+  opening. It is spent as it shows (`Hints.SPENT_ON_SHOW`), kept seen, and SHOW HINTS AGAIN
+  brings it back.
 - **Held until a click** for a hint (Jon's rule: hints advance with a click); a goal
   step's line types, holds its reading time on `GameClock` and goes.
 - **Exceptions to her bark rules, for teaching only:** she may stand over the cutaway, a
@@ -275,5 +283,11 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
   dock in reach, the cutaway's keys) are recorded from scripts of their own,
   `AshTutorLines.SPOKEN`. The typing spans the shown words over her take, so they end when
   she stops. 21 lines x 2 takes recorded Oct 18 (956 credits), not yet installed.
+- **TUTORIAL ON / OFF** (Jon, Oct 20: "Have a setting in the options for tutorial on or
+  tutorial off"): Settings' HINTS, first row, ON by default, `[hints] tutorial` in the settings
+  file (`Hints.set_tutorial`). Off: no hint card, no goal step and none of her teaching; the
+  goal line's GOAL stays, and her introduction and her other lines play. Turned off mid-line,
+  what is up goes at once, unspent; on again, the lessons pick up where the player is (what
+  was seen stays seen). SHOW HINTS AGAIN works either way.
 - **Off:** her switch off brings today's cards back exactly; off in a party (hints are).
   `-- sheet=AshTutorTest` holds all of it, in the merge gate.

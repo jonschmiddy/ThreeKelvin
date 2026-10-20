@@ -306,6 +306,45 @@ func run(tree: SceneTree) -> void:
 	if sc != null:
 		await _expect(&"ship")
 
+	# TUTORIAL OFF (Settings' TUTORIAL, Jon, Oct 20): a card up goes at once,
+	# unspent; nothing shows and the goal line has no step, GOAL alone; the
+	# switch is kept in the settings file; ON again, the hints pick up where the
+	# player is (what was seen stays seen)
+	Hints.reset()
+	Hints.mark_seen(&"events")
+	sc = await _local()
+	Hints.mark_seen(&"ship", false)
+	var shown_any := false
+	for i in 60:
+		Hints.poll(0.1)
+		await _tree.process_frame
+		if Hints.card != null:
+			shown_any = true
+			break
+	var was_id := Hints.card.id if Hints.card != null else &""
+	if _ok("tutorial: a card is up to turn off under (%s)" % was_id, shown_any):
+		Hints.set_tutorial(false)
+		await _frames(2)
+		_ok("tutorial OFF mid-card: it goes at once, unspent", Hints.card == null and not Hints.seen(was_id))
+	else:
+		Hints.set_tutorial(false)
+	var gl: GoalLine = Router.hud.goal
+	await _frames(3)
+	var step_txt := gl._step.text if gl != null else "?"
+	_ok("tutorial OFF: GOAL shows, with no step under it (step \"%s\")" % step_txt, gl != null and gl.visible
+		and gl.step_rect() == Rect2() and step_txt == "")
+	_ok("tutorial OFF: off even though a harness forces the hints", not Hints.enabled())
+	await _none("tutorial OFF: no hint shows")
+	var cfg := ConfigFile.new()
+	_ok("tutorial OFF is kept in the settings file", cfg.load(DisplaySettings.path) == OK
+		and not bool(cfg.get_value("hints", "tutorial", true)))
+	Hints.reload()
+	_ok("and read back so", not Hints.tutorial_on())
+	Hints.set_tutorial(true)
+	_ok("tutorial ON: on again, and what was seen stays seen", Hints.enabled() and Hints.seen(&"events"))
+	if was_id != &"":
+		await _expect(was_id)
+
 	# nothing over the escape menu
 	Hints.reset()
 	sc = await _local()

@@ -22,17 +22,19 @@ extends Node
 ## A moment waits for its chance (`WAIT_S`) and is dropped if it does not get
 ## one: a line about the heat said once the heat is gone would be about nothing.
 ##
-## HER FIRST LINE INTRODUCES HER (Jon, Oct 18, "intro:A"). The first launch line
-## a profile ever hears is `AshLines.INTRO` (launch_04, "Autonomous Systems
-## Handler, reporting..."), not a pick from the bag; said once, it is marked in
-## the first-run flags (`[hints] ash_intro`, `DisplaySettings.hints_path`, beside
-## the welcome note; SHOW HINTS AGAIN leaves it) and every launch after is the
-## bag's, as before. Marked when she says it, so a first run that never heard
-## her (her switch off, a jump before she could speak) still opens with it. Same
-## moment and slot as any launch line; the one difference is the order: the
-## hints and the goal steps wait for it (`intro_holds`, read by `Hints`), where
-## every other bark waits for them, so her first words are her name and no
-## lesson cuts them. The goal's first step follows it.
+## SHE INTRODUCES HERSELF EVERY NEW RUN (Jon, Oct 18, "intro:A"; Oct 20: "On the
+## first LOCAL section you load into on a new game, A.S.H. should introduce
+## herself. Short beat. THEN the first tutorial hint." -- every run, not once a
+## profile). A new run's launch line is `AshLines.INTRO` (launch_04,
+## "Autonomous Systems Handler, reporting..."), not a pick from the bag; a run
+## picked up with CONTINUE does not hear it again (`SaveGame.restoring`), and
+## its launch, if it is still before the first jump, is the bag's. Same moment
+## and slot as any launch line; the one difference is the order: the hints and
+## the goal steps wait for it (`intro_holds`, read by `Hints`), where every
+## other bark waits for them, so her first words are her name and no lesson
+## cuts them; and after it ends, a beat (`INTRO_BEAT_S`) before the first of
+## them. The once-a-profile flag it had (`[hints] ash_intro`) is not read any
+## more; an old settings file that has it loads as before.
 ##
 ## SHE NEVER TALKS OVER HERSELF OR EVERY TURN:
 ##   - one line at a time, and COOLDOWN_S of quiet after one before the next;
@@ -84,10 +86,11 @@ extends Node
 ## switch, and the cards come back exactly as they were.
 
 const SECTION := "ash"
-## Her introduction said, once per profile: `[hints] ash_intro` in the first-run
-## flags' file (`DisplaySettings.hints_path`; a harness's scratch file under one).
-const INTRO_SECTION := "hints"
-const INTRO_KEY := "ash_intro"
+## THE BEAT after her introduction ends before the first lesson starts, s (game
+## time; Jon: "Short beat. THEN the first tutorial hint."). A goal step takes its
+## own settle (`Hints.SETTLE_S`) after the hold lets go, so the hold is this less
+## that: the step starts this long after she stops.
+const INTRO_BEAT_S := 1.5
 ## Highest first: when two are waiting, this one is said.
 const ORDER: Array[StringName] = [&"hurt", &"hull", &"hot", &"haul", &"greed", &"launch", &"doubt"]
 ## The moments that may break the quiet early, and a fight's one-line rule.
@@ -143,9 +146,11 @@ var held_by := ""
 ## Settings' switch, loaded once.
 var _on := true
 var _loaded := false
-## Her introduction: said on this profile (-1 not read yet), and up now.
-var _intro_said := -1
+## Her introduction: still to say this run, up now, and when it ended (GameClock
+## s; -1 not yet).
+var _intro_due := false
 var _introducing := false
+var _intro_end := -1.0
 ## HER BOX WITH THE GOAL (Jon, Oct 20: the goal, its step and her box one
 ## group): a top spot's y and the goal's when she came up, so while the goal
 ## slides with the top plate she goes with it (`_follow_goal`).
@@ -228,26 +233,30 @@ func _load() -> void:
 ## Re-read the file (a harness that wrote it behind our back).
 func reload() -> void:
 	_loaded = false
-	_intro_said = -1
 
 
-## HER INTRODUCTION (intro:A): whether this profile has heard it.
+## HER INTRODUCTION: whether this run has had it (or a loaded run, which does
+## not hear it again).
 func intro_said() -> bool:
-	if _intro_said < 0:
-		var cfg := ConfigFile.new()
-		_intro_said = 0
-		if cfg.load(DisplaySettings.hints_path()) == OK:
-			_intro_said = 1 if bool(cfg.get_value(INTRO_SECTION, INTRO_KEY, false)) else 0
-	return _intro_said == 1
+	return not _intro_due
 
 
-## Mark it said (or not: a harness that wants a fresh profile's first launch).
+## Mark it said this run (or not: a harness that wants a launch line from the
+## bag, or the introduction again).
 func mark_intro(v: bool = true) -> void:
-	var cfg := ConfigFile.new()
-	cfg.load(DisplaySettings.hints_path())
-	cfg.set_value(INTRO_SECTION, INTRO_KEY, v)
-	cfg.save(DisplaySettings.hints_path())
-	_intro_said = 1 if v else 0
+	_intro_due = not v
+	if v:
+		_intro_end = -1.0
+
+
+## Her introduction has just stopped being said: the beat starts.
+func _intro_tick() -> void:
+	if not _introducing:
+		return
+	if portrait != null and is_instance_valid(portrait) and portrait.speaking() and portrait.kind == &"launch":
+		return
+	_introducing = false
+	_intro_end = GameClock.now()
 
 
 ## Her introduction is up, or it is next and could start now: the hints and the
@@ -259,10 +268,14 @@ func intro_holds() -> bool:
 	if not _run_live or Run.hull == null or Run.dead or Run.hp <= 0 or not enabled():
 		return false
 	var up := portrait != null and is_instance_valid(portrait)
+	_intro_tick()
 	if _introducing:
-		if up and portrait.speaking() and portrait.kind == &"launch":
+		return true
+	# THE BEAT after it, before the first lesson (less the step's own settle)
+	if _intro_end >= 0.0:
+		if GameClock.now() - _intro_end < INTRO_BEAT_S - Hints.SETTLE_S:
 			return true
-		_introducing = false
+		_intro_end = -1.0
 	if not waiting.has(&"launch") or intro_said() or lesson != &"" or _next() != &"launch":
 		return false
 	if up and portrait.phase != AshPortrait.Phase.GONE:
@@ -297,6 +310,10 @@ func _on_run_started() -> void:
 	_last_end = -INF
 	if portrait != null:
 		portrait.cut()
+	# HER INTRODUCTION, a new run's: not a run picked up with CONTINUE
+	_intro_due = not SaveGame.restoring
+	_introducing = false
+	_intro_end = -1.0
 	# A NEW RUN'S FIRST LAUNCH. A loaded run before its first jump hears it too:
 	# the suspend save is a bookmark, and this is still the launch.
 	if Run.jumps == 0:
@@ -457,6 +474,7 @@ func poll(delta: float) -> void:
 		_quiet()
 		return
 	_follow_goal()
+	_intro_tick()
 	_watch()
 	# THE QUIET STARTS WHEN A LINE ENDS, however it ended
 	if _up and (portrait == null or not portrait.speaking()):
@@ -610,9 +628,11 @@ func _hint_up(starting: bool = true) -> bool:
 	if lesson != &"" or Hints.lesson != &"":
 		return true
 	# HER INTRODUCTION GOES FIRST (intro:A): the hints and steps wait for it
-	# (`intro_holds`), so it does not wait for them
+	# (`intro_holds`), so it does not wait for them; the beat after it holds
+	# everything
 	if starting and intro_holds():
-		return false
+		# (the beat after it: her other lines wait too, one thing at a time)
+		return _intro_end >= 0.0
 	if starting and Hints.step_due():
 		return true
 	if Hints._cand != &"":
@@ -635,7 +655,7 @@ func pick_line(kind: StringName) -> String:
 	var all := AshLines.of(kind)
 	if all.is_empty():
 		return ""
-	# HER FIRST LAUNCH LINE EVER introduces her (intro:A); the bag is untouched
+	# A NEW RUN'S LAUNCH introduces her (intro:A, every run); the bag is untouched
 	if kind == &"launch" and not intro_said():
 		return AshLines.line_of(AshLines.INTRO)
 	var bag: Array = _bags.get(kind, [])
@@ -674,7 +694,7 @@ func _say(kind: StringName, line: String, spot: Dictionary) -> void:
 	portrait.say(line, kind)
 	_group_from(spot)
 	_up = true
-	# her introduction, said: never forced again on this profile
+	# her introduction, said: not again this run
 	if kind == &"launch" and not intro_said() and AshLines.id_of(line) == AshLines.INTRO:
 		mark_intro(true)
 		_introducing = true
