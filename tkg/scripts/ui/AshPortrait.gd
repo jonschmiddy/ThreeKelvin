@@ -121,6 +121,11 @@ var held := false
 ## "" when she says what shows. For the harnesses: the typing always spans the
 ## SHOWN words over her take, so they end when she stops whatever their length.
 var spoken := ""
+## A LINE THAT GOES WITH HER VOICE (her introduction: Jon, Oct 20, "The delay
+## between the intro and the first hint is WAY too long"): held `VOICE_HOLD_S`
+## past her last word, without the reading allowance, so what comes next is not
+## waiting on words she has already said. A line with no take keeps the floor.
+var quick := false
 ## Mirror: the face on the right, the words on its left.
 var mirrored := false
 ## Up, typing, holding, going, gone.
@@ -203,7 +208,8 @@ func say(what: String, k: StringName, opts: Dictionary = {}) -> void:
 	kind = k
 	held = bool(opts.get("held", false))
 	spoken = String(opts.get("spoken", ""))
-	voice = String(opts["voice"]) if opts.has("voice") else AshLines.voice_path(what)
+	quick = bool(opts.get("quick", false))
+	voice =String(opts["voice"]) if opts.has("voice") else AshLines.voice_path(what)
 	voice_secs = 0.0
 	voice_started_at = -1.0
 	typed_at = -1.0
@@ -441,6 +447,8 @@ func _process(_d: float) -> void:
 		_hold_until = now + HOLD_MIN_S + HOLD_PER_CHAR_S * float(line.length())
 		if voice_started_at >= 0.0:
 			_hold_until = maxf(_hold_until, voice_started_at + voice_secs + VOICE_HOLD_S)
+			if quick:
+				_hold_until = maxf(now, voice_started_at + voice_secs + VOICE_HOLD_S)
 		if held:
 			_hold_until = INF
 	if phase == Phase.HOLDING:

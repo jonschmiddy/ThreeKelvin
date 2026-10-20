@@ -40,8 +40,9 @@ func run(tree: SceneTree) -> void:
 	_ok("after a reset, the hints and the goal's steps are unseen, and one seen since stays seen",
 		not Hints.seen(&"ship") and not Hints.seen(&"wreck") and not Hints.seen(&"step_jump")
 		and Hints.seen(&"events"))
-	_ok("every hint is two lines at grade 5.2 or under (tools/prose_grade.py checks the grade; here: two lines each)",
-		Hints.ORDER.all(func(id: StringName) -> bool: return Hints.lines(id).size() == 2))
+	# (the cutaway's three: A.S.H.'s two sentences and its keys, Jon's merge:A, Oct 20)
+	_ok("every hint is two lines at grade 5.2 or under, the cutaway's three (tools/prose_grade.py checks the grade; here: the lines)",
+		Hints.ORDER.all(func(id: StringName) -> bool: return Hints.lines(id).size() == _lines_for(id)))
 
 	var n := _system()
 	if not _ok("a system to stand in", n != null):
@@ -296,11 +297,11 @@ func run(tree: SceneTree) -> void:
 		Hints.click(ev)
 		_ok("only the click spends it", Hints.seen(&"ship") and Hints.card == null)
 
-	# SHOW HINTS AGAIN
+	# REPLAY TUTORIAL
 	Hints.mark_seen(&"ship")
 	Hints.mark_seen(&"step_event")
 	Hints.reset()
-	_ok("SHOW HINTS AGAIN clears every hint and the goal line's steps",
+	_ok("REPLAY TUTORIAL clears every hint and the goal line's steps",
 		(Hints.ORDER + Hints.STEPS).all(func(id: StringName) -> bool: return not Hints.seen(id)))
 	sc = await _local()
 	if sc != null:
@@ -478,7 +479,7 @@ func _dismiss(id: StringName) -> void:
 	var g := Hints.goal_rect()
 	_ok("%s: clear of the goal line (%s)" % [id, g], g.size == Vector2.ZERO or not c.card_rect().intersects(g))
 	_ok("%s: two short lines, and it ignores the mouse" % id,
-		Hints.lines(id).size() == 2 and c.mouse_filter == Control.MOUSE_FILTER_IGNORE)
+		Hints.lines(id).size() == _lines_for(id) and c.mouse_filter == Control.MOUSE_FILTER_IGNORE)
 	Hints.poll(0.3)
 	var ev := InputEventMouseButton.new()
 	ev.button_index = MOUSE_BUTTON_LEFT
@@ -581,3 +582,9 @@ func _map_list(n: MapGen.MapNode) -> SystemMapScreen:
 	Router.show_system()
 	await _frames(40)
 	return Router.current as SystemMapScreen
+
+
+## A hint's lines: two, but the cutaway's three (A.S.H.'s words on the card, and
+## the turn and flip keys under them: Jon, merge:A, Oct 20).
+static func _lines_for(id: StringName) -> int:
+	return 3 if id == &"cutaway" else 2

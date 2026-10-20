@@ -31,7 +31,7 @@ extends Node
 ## first, it hides unspent and shows again the next time. Seen is per hint in
 ## settings.cfg `[hints] <id>` (`DisplaySettings.hints_path`), beside the welcome
 ## note's and the goal line's steps. Under a harness that is the harness
-## settings file, never the player's. Settings' SHOW HINTS AGAIN (`reset`) brings
+## settings file, never the player's. Settings' REPLAY TUTORIAL (`reset`) brings
 ## all of them back, and the goal line's steps.
 ##
 ## TUTORIAL ON / OFF (Jon, Oct 20: "Have a setting in the options for tutorial
@@ -40,7 +40,7 @@ extends Node
 ## nothing of A.S.H.'s teaching; the goal line's GOAL stays, and her introduction
 ## and her other lines are hers, not the tutorial's. Turned off mid-run, what is
 ## up goes at once, unspent; turned on, the hints pick up where the player is
-## (what was seen stays seen; SHOW HINTS AGAIN works either way).
+## (what was seen stays seen; REPLAY TUTORIAL works either way).
 ##
 ## OFF UNDER HARNESSES (`TestRun.active`) unless the run asks with `-- hints`;
 ## `-- hinttest` turns it on by hand (`forced`). OFF IN A PARTY too (Jon, Oct 17:
@@ -146,7 +146,9 @@ func lines(id: StringName) -> Array:
 		&"salvage":
 			return ["Drag a part into your hold.", "Double-click works too."]
 		&"cutaway":
-			return ["Drag a part onto a ring to fit it.",
+			# (her words, Jon's of Oct 20, "merge:A": the card says what she says)
+			return ["Drag a module onto an empty slot to install it.",
+				"Drag it off the ship into the hold to remove it.",
 				"%s turns it. %s flips it." % [Keys.describe(&"hold_turn"), Keys.describe(&"part_flip")]]
 		&"wreck":
 			return ["Click a wreck to loot it.", "Its parts and credits are yours."]
@@ -307,7 +309,7 @@ func _said_key(id: StringName) -> StringName:
 	return StringName("said_" + String(id))
 
 
-## SHOW HINTS AGAIN: every hint and the goal line's steps, unseen, and her
+## REPLAY TUTORIAL: every hint and the goal line's steps, unseen, and her
 ## steps' lines unsaid.
 func reset() -> void:
 	var cfg := ConfigFile.new()

@@ -145,9 +145,12 @@ frame on the main screen. It reacts to the ship, not to the script:
   (barks wait for teaching). The intro goes first instead: while it is up, or next and able to
   start, no hint or step starts and none can cut it (`Ash.intro_holds`, read by `Hints`), and
   the moment anything else would keep it waiting (the screen, a card already up, no room) the
-  hints go on as before. After it ends, **a beat**: nothing of hers and no lesson for
-  `Ash.INTRO_BEAT_S` (1.5 s, the step's own 0.6 s settle inside it), then the first lesson;
-  `AshTutorTest` measures 1.52 s from her last frame to the step. In a party it plays like her
+  hints go on as before. After her LAST WORD, **a beat**: nothing of hers and no lesson for
+  `Ash.INTRO_BEAT_S` (1.5 s, the step's own 0.6 s settle inside it), then the first lesson.
+  Her box goes with her voice (`AshPortrait.quick`: 1 s past her last word, no reading
+  allowance). It used to hold her reading allowance first (2.6 s + 0.035 s a letter) and
+  count the beat after, about 7 s from her last word to the step (Jon, Oct 20: "The delay
+  between the intro and the first hint is WAY too long"). In a party it plays like her
   other lines: each player's own, on their own machine.
 - **Talking:** the mouth follows the typed letters, a held frame every 0.1 s, with blinks and
   one-pixel hologram slips (more often with the hull failing); about 9 changes a second while
@@ -248,23 +251,24 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
 
 - **Same hints, new delivery.** `Hints` still decides everything: the same triggers, the
   same order, the same subjects, settle time, the click that spends one, hiding unspent
-  when the subject goes, SHOW HINTS AGAIN. Only `_show` changed: it asks `Ash.teach`, and
+  when the subject goes, REPLAY TUTORIAL. Only `_show` changed: it asks `Ash.teach`, and
   only if she has nowhere clear to stand on that screen does the card come instead (so a
   lesson never waits for room).
 - **The goal steps** are said once each as they start (`said_<step>` in the hints file,
-  cleared by SHOW HINTS AGAIN), after any hint due on that screen. The goal line itself
+  cleared by REPLAY TUTORIAL), after any hint due on that screen. The goal line itself
   is unchanged and keeps showing.
 - **Live values** fill the fields: the hand size, the heat cap, the dock's jumps and name,
   the cutaway's keys. One jump reads "1 jump". The dock's name is typed after her last
   word, never spoken.
 - **The cutaway's line** is Jon's words of Oct 20, "Drag a module onto an empty slot to
   install it. Drag it off the ship into the hold to remove it." (`AshTutorLines.CUTAWAY_LINE`;
-  grade 3.7). Its take was recorded for the words before, so it is said as text alone
-  (`AshTutorLines.SILENT`) until a new take is approved. The card, with her off, keeps its own
-  words. **Said once** (Jon: "A.S.H. keeps saying the tutorial line every time I enter. It
+  grade 3.7). Its take is the first of three recorded for these words in her warm voice
+  (Jon, Oct 20, "take:1"; 6.7 s). `AshTutorLines.SILENT` is empty again, kept for the next
+  line whose words change after its take. The card, with her off, says the same (Jon, merge:A),
+  with the turn and flip keys under it. **Said once** (Jon: "A.S.H. keeps saying the tutorial line every time I enter. It
   should only be the first time"): a hint is spent by a click, and the cutaway is shut with
   DONE, Escape or a key as often as with a click, so it went unspent and came back at every
-  opening. It is spent as it shows (`Hints.SPENT_ON_SHOW`), kept seen, and SHOW HINTS AGAIN
+  opening. It is spent as it shows (`Hints.SPENT_ON_SHOW`), kept seen, and REPLAY TUTORIAL
   brings it back.
 - **Held until a click** for a hint (Jon's rule: hints advance with a click); a goal
   step's line types, holds its reading time on `GameClock` and goes.
@@ -288,6 +292,6 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
   file (`Hints.set_tutorial`). Off: no hint card, no goal step and none of her teaching; the
   goal line's GOAL stays, and her introduction and her other lines play. Turned off mid-line,
   what is up goes at once, unspent; on again, the lessons pick up where the player is (what
-  was seen stays seen). SHOW HINTS AGAIN works either way.
+  was seen stays seen). REPLAY TUTORIAL works either way.
 - **Off:** her switch off brings today's cards back exactly; off in a party (hints are).
   `-- sheet=AshTutorTest` holds all of it, in the merge gate.

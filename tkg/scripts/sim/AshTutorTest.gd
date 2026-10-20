@@ -470,9 +470,9 @@ func _lines() -> void:
 	_ok("the cutaway line is Jon's words (Oct 20), behind one constant (\"%s\")" % AshTutorLines.CUTAWAY_LINE,
 		AshTutorLines.LINES[&"cutaway"] == AshTutorLines.CUTAWAY_LINE
 		and AshTutorLines.CUTAWAY_LINE == "Drag a module onto an empty slot to install it. Drag it off the ship into the hold to remove it.")
-	# ITS TAKE was recorded for the old words: text alone until a new one
-	_ok("the cutaway line is said as text alone, not in the old take (voice \"%s\")" % AshTutorLines.voice_path(&"cutaway"),
-		AshTutorLines.voice_path(&"cutaway") == "" and AshTutorLines.SILENT.has(&"cutaway"))
+	# ITS TAKE is Jon's pick for the new words (take:1, Oct 20)
+	_ok("the cutaway line is said in its own take (voice \"%s\")" % AshTutorLines.voice_path(&"cutaway"),
+		AshTutorLines.voice_path(&"cutaway") == AshTutorLines.VOICE_DIR + "tut_cutaway.ogg" and not AshTutorLines.SILENT.has(&"cutaway"))
 	var vals := {hand = 5, cap = 14, jumps = 2, name = "GAMMA KESTREL REACH", turn = "R", flip = "F"}
 	var left: Array[String] = []
 	var tallest := 0.0
@@ -979,7 +979,7 @@ func _switch() -> void:
 ## keeps saying the tutorial line every time I enter. It should only be the
 ## first time"): your ship opened up three times, shut each time without a
 ## click on her line, and she says it the first time only; it is kept seen in
-## the hints file; SHOW HINTS AGAIN brings it back once more; with the tutorial
+## the hints file; REPLAY TUTORIAL brings it back once more; with the tutorial
 ## off it does not come at all.
 func _cutaway_once() -> void:
 	print("the cutaway's line, once")
@@ -1024,7 +1024,7 @@ func _cutaway_once() -> void:
 			cut.close_now()
 		await _frames(10)
 		Hints.poll(Hints.GAP_S + 0.1)
-	_ok("SHOW HINTS AGAIN: once more, and once only (%d)" % (said.call() - before), said.call() - before == 1)
+	_ok("REPLAY TUTORIAL: once more, and once only (%d)" % (said.call() - before), said.call() - before == 1)
 	Hints.mark_seen(&"cutaway", false)
 	Hints.set_tutorial(false)
 	before = said.call()
@@ -1161,11 +1161,13 @@ func _intro() -> void:
 			and (taped.size() < 2 or taped[1][0] != &"ash/stop"))
 		_ok("%s: the step never cut it: it ended of itself (%s) before the step began" % [who, "of itself" if w.natural else "cut"],
 			w.natural and w.intro_end > 0.0 and w.step_at >= w.intro_end)
-		# A SHORT BEAT, THEN THE FIRST LESSON: at least 1.4 s, and not a wait
-		var beat: float = w.step_at - w.intro_end
-		_ok("%s: a beat, then the goal's first step (%.2f s after she stops; wants 1.4 to 2.2; between them: %s)" % [who, beat,
+		# A SHORT BEAT, THEN THE FIRST LESSON: from her last word, not her box
+		# going (Jon, Oct 20: "The delay between the intro and the first hint
+		# is WAY too long": it was 1.5 s after a 5 s reading hold)
+		var beat: float = w.step_at - w.last_word
+		_ok("%s: a beat, then the goal's first step (%.2f s after her last word; wants 1.4 to 2.2; between them: %s)" % [who, beat,
 			", ".join(w.between) if not w.between.is_empty() else "nothing"],
-			w.step_at > 0.0 and w.between.is_empty() and beat >= 1.4 and beat <= 2.2)
+			w.step_at > 0.0 and w.last_word > 0.0 and w.between.is_empty() and beat >= 1.4 and beat <= 2.2)
 		Hints.set_process(false)
 		if Ash.portrait != null:
 			Ash.portrait.cut()
@@ -1222,7 +1224,7 @@ func _intro() -> void:
 ## itself, when the step starts, and what came between. A hint before the step
 ## is clicked through, as a player would.
 func _watch_launch(n0: int, step: StringName) -> Dictionary:
-	var out := {first = {}, intro_end = -1.0, natural = false, step_at = -1.0, between = []}
+	var out := {first = {}, intro_end = -1.0, last_word = -1.0, natural = false, step_at = -1.0, between = []}
 	var watching := false
 	var t0 := GameClock.now()
 	while GameClock.now() - t0 < 40.0:
@@ -1231,6 +1233,9 @@ func _watch_launch(n0: int, step: StringName) -> Dictionary:
 			out.first = Ash.said_log[n0]
 			watching = out.first.kind == &"launch"
 		var p := Ash.portrait
+		# HER LAST WORD: the take's end less its trimmed tail
+		if watching and float(out.intro_end) < 0.0 and p != null and p.kind == &"launch" and p.voice_started_at >= 0.0:
+			out.last_word = p.voice_started_at + p.voice_secs - AshPortrait.VOICE_TAIL_S
 		if watching and float(out.intro_end) < 0.0 and (p == null or not p.speaking() or p.kind != &"launch"):
 			out.intro_end = GameClock.now()
 			out.natural = p != null and p._natural and p.kind == &"launch"

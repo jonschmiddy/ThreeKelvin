@@ -61,10 +61,9 @@ const SPOKEN: Dictionary = {
 }
 
 ## TAKES RECORDED FOR WORDS THAT HAVE SINCE CHANGED: said as text alone until a
-## new take is approved, never the old take under the new words. (The
-## cutaway's, recorded from "Drag a part onto a ring to fit it. You can turn it
-## and flip it." before Jon's Oct 20 words.)
-const SILENT: Array[StringName] = [&"cutaway"]
+## new take is approved, never the old take under the new words. (Empty: the
+## cutaway's was here until Jon picked take 1 of his Oct 20 words.)
+const SILENT: Array[StringName] = []
 
 const VOICE_DIR := "res://assets/audio/voice/ash/"
 

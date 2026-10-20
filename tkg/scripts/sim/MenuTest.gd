@@ -236,7 +236,7 @@ func _graphics_case() -> void:
 ## TUTORIAL ON / OFF (Jon, Oct 20: "Have a setting in the options for tutorial
 ## on or tutorial off"): the row is in Settings' HINTS with ON picked on a fresh
 ## file, OFF is kept and read back (written to a scratch settings file, never
-## the player's), ON brings it back; and pressing SHOW HINTS AGAIN does not move
+## the player's), ON brings it back; and pressing REPLAY TUTORIAL does not move
 ## it (nothing clickable moves).
 func _tutorial_case() -> void:
 	const SCRATCH := "user://tuttest_settings.cfg"
@@ -262,13 +262,13 @@ func _tutorial_case() -> void:
 			and not bool(saved.get_value("hints", "tutorial", true)))
 		Hints._tutorial_read = false
 		_ok("  and it is read back off", not Hints.tutorial_on())
-		# SHOW HINTS AGAIN adds a line under itself: the TUTORIAL row stays put
-		var again := _plate(panel, "SHOW HINTS AGAIN")
+		# REPLAY TUTORIAL adds a line under itself: the TUTORIAL row stays put
+		var again := _plate(panel, "REPLAY TUTORIAL")
 		if again != null:
 			again.pressed.emit()
 			await _tree.process_frame
 		var chips2 := _tutorial_chips(panel)
-		_ok("  SHOW HINTS AGAIN does not move it (%s, was %s)" % [chips2[1].get_global_rect() if chips2.size() == 2 else Rect2(), at0],
+		_ok("  REPLAY TUTORIAL does not move it (%s, was %s)" % [chips2[1].get_global_rect() if chips2.size() == 2 else Rect2(), at0],
 			chips2.size() == 2 and chips2[1].get_global_rect() == at0)
 		if chips2.size() == 2:
 			chips2[0].pressed.emit()

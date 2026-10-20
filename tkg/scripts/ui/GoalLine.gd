@@ -12,7 +12,7 @@ extends Control
 ## is gone; this says it for as long as a run lasts.
 ##
 ## THE STEPS, each done once per profile (`Hints.STEPS`, `[hints] step_*`,
-## cleared by SHOW HINTS AGAIN), and only where the hints are on (`Hints.enabled`,
+## cleared by REPLAY TUTORIAL), and only where the hints are on (`Hints.enabled`,
 ## so never under a harness that did not ask):
 ##   step_jump   no jump made yet: open STARCHART, pick a star, JUMP. Done at the
 ##               first jump.

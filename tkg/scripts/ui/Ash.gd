@@ -256,7 +256,11 @@ func _intro_tick() -> void:
 	if portrait != null and is_instance_valid(portrait) and portrait.speaking() and portrait.kind == &"launch":
 		return
 	_introducing = false
+	# THE BEAT IS FROM HER LAST WORD (Jon, Oct 20: "The delay between the intro
+	# and the first hint is WAY too long"), not from her box going
 	_intro_end = GameClock.now()
+	if portrait != null and is_instance_valid(portrait) and portrait.voice_started_at >= 0.0:
+		_intro_end = minf(_intro_end, portrait.voice_started_at + portrait.voice_secs - AshPortrait.VOICE_TAIL_S)
 
 
 ## Her introduction is up, or it is next and could start now: the hints and the
@@ -691,11 +695,13 @@ func _say(kind: StringName, line: String, spot: Dictionary) -> void:
 	portrait.mirrored = bool(spot.mirrored)
 	portrait.position = (spot.rect as Rect2).position
 	portrait.size = Vector2(AshPortrait.W, AshPortrait.H)
-	portrait.say(line, kind)
+	var is_intro := kind == &"launch" and not intro_said() and AshLines.id_of(line) == AshLines.INTRO
+	# (her introduction goes with her voice: the beat after it is the wait)
+	portrait.say(line, kind, {quick = true} if is_intro else {})
 	_group_from(spot)
 	_up = true
 	# her introduction, said: not again this run
-	if kind == &"launch" and not intro_said() and AshLines.id_of(line) == AshLines.INTRO:
+	if is_intro:
 		mark_intro(true)
 		_introducing = true
 	if _fight != null:
