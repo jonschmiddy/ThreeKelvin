@@ -233,6 +233,19 @@ func _build() -> void:
 	if NavField.used():
 		_chart.on_field = true
 		chart_wrap.add_theme_stylebox_override("panel", NavField.window_style())
+		# THE GALAXY RUNS ON UNDER THE GLASS (Jon: "why does a galaxy disappear
+		# near the side panel?", "And also disappear in the corner?"): the chart's
+		# sky drawn behind the whole screen, out past the picture to the field's
+		# own edges -- under the side panel, the toolbar row and the key row --
+		# and fading out only there; the picture keeps the clicks and the marks
+		# (`MapChart.sky_out`)
+		# (a harness's `skyhost=off`: the sky in the picture alone, as before)
+		if not ("skyhost=off" in OS.get_cmdline_user_args()):
+			var host := Node2D.new()
+			host.name = "SkyPastPicture"
+			add_child(host)
+			move_child(host, 0)
+			_chart.host_sky(host)
 	chart_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mid.add_child(chart_wrap)
 
@@ -2226,6 +2239,34 @@ class MapChart extends Control:
 			on_field = v
 			if _sky != null:
 				_sky.material = NavField.key_material() if v else null
+	## THE SKY PAST THE PICTURE: where the sky is drawn, in the chart's own px
+	## (the field's area, the screens' -- `Router.content` -- when it is drawn
+	## behind the whole screen, `host_sky`); empty, the chart's own rect
+	var sky_out := Rect2()
+	var _sky_host: Node2D = null
+
+	## The sky moved behind the whole screen (`host`, the screen's first child),
+	## kept on the chart's own px every frame (`_host_follow`).
+	func host_sky(host: Node2D) -> void:
+		_sky_host = host
+		if _sky != null:
+			_sky.get_parent().remove_child(_sky)
+			host.add_child(_sky)
+
+	func _host_follow() -> void:
+		if _sky_host == null or not is_instance_valid(_sky_host) or not is_inside_tree():
+			return
+		var par := _sky_host.get_parent() as CanvasItem
+		var at := global_position - (par.get_global_transform().origin if par != null else Vector2.ZERO)
+		if _sky_host.position != at:
+			_sky_host.position = at
+		var c := Router.content.get_global_rect() if Router.content != null else get_global_rect()
+		var so := Rect2(c.position - global_position, c.size)
+		if so != sky_out:
+			sky_out = so
+			if _sky != null:
+				_sky.queue_push()
+				_sky.queue_redraw()
 	var _flash: Flashes
 	## Screen positions are pure functions of the node and the transform, and
 	## they are wanted for every system on every redraw AND on every mouse
@@ -2427,6 +2468,7 @@ class MapChart extends Control:
 		_repaint_galaxy()
 
 	func _process(delta: float) -> void:
+		_host_follow()
 		_walk_view(delta)
 		_instrument(delta)
 		# RECORDED HERE RATHER THAN AT EVERY MUTATION. Zoom and pan are moved by

@@ -162,6 +162,15 @@ func show_keys(at_end: bool = false) -> void:
 	var target: Control = _body.get_child(head) as Control if head >= 0 else keys_page
 	_scroll.scroll_vertical = int(target.position.y)
 
+## Scroll so a section's head (`Section.id`, &"motion" say) is at the top.
+func show_section(id: StringName) -> void:
+	if _scroll == null:
+		return
+	for c in _body.get_children():
+		if c is Section and (c as Section).id == id:
+			_scroll.scroll_vertical = int((c as Control).position.y)
+			return
+
 func _page_screen() -> void:
 	_body.add_child(Section.new(&"display", "DISPLAY"))
 
@@ -358,48 +367,10 @@ func _page_motion() -> void:
 		func(i: int) -> void:
 			DisplaySettings.set_frame_cap(caps[i])
 			_refresh()))
-	# THE ZOOM LADDER (`ZoomLadder`), for the developer: C's one camera or today's
-	# flow, and which design each seam's move takes. Jon picks from these in play.
-	if DevMode.enabled:
-		_body.add_child(_row_chips("ONE CAMERA", ["ON", "OFF"],
-			0 if ZoomLadder.chosen() else 1,
-			func(i: int) -> void:
-				ZoomLadder.save_setting("ladder", i == 0)
-				_refresh()))
-		var seams := {1: "CHART - MAP", 2: "MAP - LOCAL", 3: "LOCAL - STATION"}
-		for sm: int in seams:
-			var ds: Array = ZoomLadder.DESIGNS[sm]
-			_body.add_child(_row_chips(String(seams[sm]), ds,
-				maxi(ds.find(ZoomLadder.design_for(sm)), 0),
-				func(i: int) -> void:
-					ZoomLadder.save_setting("seam%d" % sm, ds[i])
-					_refresh()))
-		# (3B's hand-off into the yard: a dip to black, Jon's pick, or the pan)
-		_body.add_child(_row_chips("3B INTO THE YARD", ZoomLadder.FADES,
-			maxi(ZoomLadder.FADES.find(ZoomLadder.seam3_fade()), 0),
-			func(i: int) -> void:
-				ZoomLadder.save_setting("seam3_fade", ZoomLadder.FADES[i])
-				_refresh()))
-		# THE MOVES' TIMINGS, by feel (Jon, Oct 10: "fast and rushed"): every
-		# length a move is made of, a twentieth or a tenth of a second a press,
-		# and the code's own defaults back with one
-		_body.add_child(_gap(2))
-		_body.add_child(_line("MOVE TIMINGS", "SECONDS"))
-		for d: Array in ZoomLadder.DIALS:
-			if d.size() < 6:
-				_body.add_child(_row_dial(String(d[1]), String(d[0])))
-		# (the station's lights, by feel: Jon, "MUCH more dramatic between turned
-		# off and turned on")
-		_body.add_child(_gap(2))
-		_body.add_child(_line("STATION LIGHTS", "LEVEL"))
-		for d: Array in ZoomLadder.DIALS:
-			if d.size() >= 6:
-				_body.add_child(_row_dial(String(d[1]), String(d[0])))
-		_body.add_child(_row_chips("TIMINGS", ["DEFAULTS"], -1,
-			func(_i: int) -> void:
-				for d: Array in ZoomLadder.DIALS:
-					ZoomLadder.set_dial(String(d[0]), 0.0, true)
-				_refresh()))
+	# (THE ZOOM LADDER'S DEV ROWS -- ONE CAMERA, each seam's design, 3B into
+	# the yard, the move timings and the station lights -- were here in dev mode.
+	# Jon, Oct 19: remove them, even in dev mode. What he had set ships as
+	# `ZoomLadder`'s constants; a harness still picks with `flow=` and the forces.)
 
 func _page_sound() -> void:
 	_body.add_child(Section.new(&"audio", "AUDIO"))
@@ -414,39 +385,8 @@ func _page_sound() -> void:
 		_body.add_child(gauge)
 		_body.add_child(_gap(3))
 
-## A dial (`ZoomLadder.DIALS`): its name, then - its value + on the right; the
-## value in ice when it is the code's own default and hot when it has been set.
-func _row_dial(label: String, key: String) -> Control:
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 6)
-	var k := UITheme.body(label, UITheme.COLD, UITheme.FS_SMALL)
-	k.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	k.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	h.add_child(k)
-	var v := ZoomLadder.dial(key)
-	var px := key.ends_with("_px")
-	var step := 6.0 if px else (0.05 if key.begins_with("ui_") else 0.1)
-	var row := _chips()
-	row.size_flags_horizontal = Control.SIZE_SHRINK_END
-	row.add_child(DrawerPlate.chip_for("-", false, func() -> void:
-		ZoomLadder.set_dial(key, ZoomLadder.dial(key) - step)
-		_refresh()))
-	var same := absf(v - ZoomLadder.dial_default(key)) < 0.001
-	var val := UITheme.body(("%d" % roundi(v)) if px else ("%.2f" % v), UITheme.ICE if same else UITheme.HOT, UITheme.FS_SMALL)
-	val.custom_minimum_size = Vector2(34, 0)
-	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	val.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(val)
-	row.add_child(DrawerPlate.chip_for("+", false, func() -> void:
-		ZoomLadder.set_dial(key, ZoomLadder.dial(key) + step)
-		_refresh()))
-	h.add_child(row)
-	return h
-
 ## A name on the left and its choices on the right, for the settings whose
 ## options are short enough to sit beside their label.
-
-
 func _row_chips(key: String, names: Array, picked: int, on_pick: Callable) -> Control:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 8)

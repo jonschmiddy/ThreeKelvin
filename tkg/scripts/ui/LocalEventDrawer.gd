@@ -52,6 +52,10 @@ const CHOICES_S := 0.15
 const FADE_S := 0.22
 ## The choices' column width, in the column layout.
 const COL_W := 300.0
+## D's buttons at the band's top right stand this far under its top edge, game
+## px: measured on the stills, it puts CONTINUE's words (8 px) on the title's
+## baseline and the button's middle on the 16 px band word's (`_result`).
+const D_BUTTONS_DROP := 3
 
 ## Jon picked the column ("Yeah, I like the column").
 static var layout: StringName = &"column"
@@ -385,6 +389,10 @@ func _fit_and_show() -> void:
 		var lane := _scroll.get_parent() as Control
 		if page == &"result" and lane != null and lane.name == &"ResultLane":
 			rest -= lane.get_combined_minimum_size().y
+		elif page == &"result" and lane != null and lane.name == &"ResultLeft":
+			# D's: the text, the title and YOU CHOSE beside the buttons and
+			# the table; only the left column's height is the text's to fit
+			rest += lane.get_combined_minimum_size().y - (lane.get_parent() as Control).get_combined_minimum_size().y
 		_scroll.custom_minimum_size.y = minf(want, maxf(cap - rest, 12.0))
 	height = minf(cap, panel.get_combined_minimum_size().y)
 	if layout == &"card":
@@ -663,28 +671,47 @@ func _result() -> void:
 	var receipt: Control = null
 	if look == &"B":
 		receipt = OutcomeRow.ledger(out, RECEIPT_W if layout != &"card" else CARD_W - 20.0)
-	# D: a table on the right, right over the buttons, the text wrapping clear
-	# of it; the buttons go in that column, on the band's floor as ever. E: D,
-	# and what came aboard drawn big beside that column, to its left (the
-	# table then leaves out what the plates say)
+	# D: a table on the right, the text wrapping clear of it; the buttons go
+	# in that column, at its top (below). E: D as it was, the table over the
+	# buttons on the band's floor, and what came aboard drawn big beside that
+	# column, to its left (the table then leaves out what the plates say)
 	var right: VBoxContainer = null
 	var prizes: Control = null
 	if look == &"E":
 		prizes = OutcomeRow.prizes(out, PRIZES_W if layout != &"card" else CARD_W - 20.0)
 	var tab: Control = null
 	if look == &"D" or look == &"E":
-		tab = OutcomeRow.table(out, prizes != null)
+		tab = OutcomeRow.table(out, prizes != null, OutcomeRow.D_FS if look == &"D" else UITheme.FS_SMALL, look == &"D")
+	# D's BUTTONS AT THE TOP RIGHT, level with the title (Jon, Oct 19: "can we
+	# also have the buttons at the top right?"), its table -- the four stats
+	# that moved, none when none did -- centred in the right column under
+	# them (`OutcomeRow`'s D)
+	var d_top := look == &"D"
 	if receipt != null and layout != &"card":
 		var lane := HBoxContainer.new()
 		lane.add_theme_constant_override("separation", 14)
 		lane.add_child(said)
 		lane.add_child(receipt)
 		_box.add_child(lane)
-	elif (tab != null or prizes != null) and layout != &"card":
+	elif (tab != null or prizes != null or d_top) and layout != &"card":
 		var lane2 := HBoxContainer.new()
 		lane2.name = "ResultLane"
 		lane2.add_theme_constant_override("separation", 16)
-		lane2.add_child(said)
+		if d_top:
+			# the title, YOU CHOSE and the text one column on the left, so the
+			# right column runs from the band's top and its buttons stand level
+			# with the title; the text wraps clear of it
+			var left := VBoxContainer.new()
+			left.name = "ResultLeft"
+			left.add_theme_constant_override("separation", 4)
+			left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			for c: Control in [head, cl]:
+				_box.remove_child(c)
+				left.add_child(c)
+			left.add_child(said)
+			lane2.add_child(left)
+		else:
+			lane2.add_child(said)
 		if prizes != null:
 			# its foot on the band's floor beside the buttons' column
 			prizes.size_flags_vertical = Control.SIZE_SHRINK_END
@@ -694,9 +721,20 @@ func _result() -> void:
 		right.size_flags_horizontal = Control.SIZE_SHRINK_END
 		var push := Control.new()
 		push.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		if d_top:
+			# no gaps of the column's own, so the two pushes are the whole
+			# room over and under the table and it is exactly centred; at
+			# least 6 under the buttons when the table is what sets the height
+			right.add_theme_constant_override("separation", 0)
+			push.custom_minimum_size.y = 6.0
 		right.add_child(push)
 		if tab != null:
 			right.add_child(tab)
+		if d_top:
+			# as much room under the table as over it: centred under the buttons
+			var push2 := Control.new()
+			push2.size_flags_vertical = Control.SIZE_EXPAND_FILL
+			right.add_child(push2)
 		lane2.add_child(right)
 		_box.add_child(lane2)
 	else:
@@ -747,7 +785,15 @@ func _result() -> void:
 	if right != null:
 		foot.free()
 		buttons.size_flags_horizontal = Control.SIZE_SHRINK_END
-		right.add_child(buttons)
+		if d_top:
+			# level with the title: CONTINUE's words on the title's baseline
+			# (`D_BUTTONS_DROP`), the button's middle on RESOLVED's
+			var drop := _dropped(buttons)
+			drop.size_flags_horizontal = Control.SIZE_SHRINK_END
+			right.add_child(drop)
+			right.move_child(drop, 0)
+		else:
+			right.add_child(buttons)
 	elif layout == &"card":
 		# (narrow: the ledger on its line, the buttons under it; D's table
 		# right-aligned over them)
@@ -755,7 +801,7 @@ func _result() -> void:
 		var sp2 := Control.new()
 		sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		brow.add_child(sp2)
-		if tab != null or prizes != null:
+		if tab != null or prizes != null or d_top:
 			# D: the table and the buttons one right-aligned column, the table at
 			# least as wide as the buttons; E's plates over the table
 			foot.free()
@@ -767,18 +813,69 @@ func _result() -> void:
 			if tab != null:
 				col.add_child(tab)
 			buttons.size_flags_horizontal = Control.SIZE_SHRINK_END
-			col.add_child(buttons)
+			if d_top:
+				_card_top(head, buttons)
+			else:
+				col.add_child(buttons)
 			brow.add_child(col)
 		else:
 			_box.add_child(foot)
 			brow.add_child(buttons)
-		_box.add_child(brow)
+		if d_top and tab == null:
+			# D with none of the four stats moved: the buttons on the title's
+			# line and nothing at the foot
+			brow.free()
+		else:
+			_box.add_child(brow)
 	else:
 		foot.add_child(buttons)
 		_box.add_child(foot)
 	_choices = buttons
 	OutcomeRow.hold(self)
 	_fit_and_show()
+
+
+## D's buttons in a box that stands them `D_BUTTONS_DROP` under the top.
+static func _dropped(buttons: Control) -> MarginContainer:
+	var drop := MarginContainer.new()
+	drop.name = "ButtonsDrop"
+	drop.add_theme_constant_override("margin_top", D_BUTTONS_DROP)
+	for side in ["margin_left", "margin_right", "margin_bottom"]:
+		drop.add_theme_constant_override(side, 0)
+	drop.add_child(buttons)
+	return drop
+
+
+## D on the card: the buttons on the title's line, against the card's right
+## edge; on a line of their own over the title when the title leaves them no
+## room (a long name, LEFT ALONE · STILL OPEN), so the card never widens.
+func _card_top(head: Control, buttons: Control) -> void:
+	var top := HBoxContainer.new()
+	top.name = "ResultTop"
+	top.add_theme_constant_override("separation", 10)
+	var at := head.get_index()
+	_box.remove_child(head)
+	head.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(head)
+	# level with the title, as in the band (`D_BUTTONS_DROP`)
+	var drop := _dropped(buttons)
+	drop.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	top.add_child(drop)
+	_box.add_child(top)
+	_box.move_child(top, at)
+	if top.get_combined_minimum_size().x <= CARD_W - 20.0:
+		return
+	drop.remove_child(buttons)
+	drop.free()
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(sp)
+	top.move_child(sp, 0)
+	top.add_child(buttons)
+	top.remove_child(head)
+	head.size_flags_horizontal = Control.SIZE_FILL
+	_box.add_child(head)
+	_box.move_child(head, at + 1)
 
 
 ## The fight the event started: the existing one, whose hand takes the band.

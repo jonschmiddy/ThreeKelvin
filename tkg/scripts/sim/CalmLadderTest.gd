@@ -687,10 +687,79 @@ func _run() -> void:
 		await _rest()
 	await _goal_line()
 	await _no_box()
+	await _field_drift()
 	ZoomLadder.force = -1
 	ZoomLadder.fixed_dt = -1.0
 	print("calmladdertest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
 	_tree.quit(1 if _fails > 0 else 0)
+
+
+## A drag on the picture, as a hand makes one: down at `from`, a slide to `to`
+## over `n` frames, up.
+func _drag(from: Vector2, to: Vector2, n: int = 40) -> void:
+	var vp := GameShell.input_target(_tree)
+	var last := from
+	for i in n + 2:
+		if i == 1 or i == n + 1:
+			var mb := InputEventMouseButton.new()
+			mb.button_index = MOUSE_BUTTON_LEFT
+			mb.pressed = i == 1
+			mb.position = last
+			mb.global_position = last
+			mb.button_mask = MOUSE_BUTTON_MASK_LEFT if i == 1 else 0
+			vp.push_input(mb)
+		else:
+			var u := clampf(float(i - 1) / float(n), 0.0, 1.0)
+			var at := from.lerp(to, u * u * (3.0 - 2.0 * u)).round()
+			var mm := InputEventMouseMotion.new()
+			mm.position = at
+			mm.global_position = at
+			mm.relative = at - last
+			mm.button_mask = MOUSE_BUTTON_MASK_LEFT if i > 1 else 0
+			vp.push_input(mm)
+			last = at
+		await _tree.process_frame
+
+
+## THE FIELD DRIFTS ON A PAN (Jon: "Why is the parallax gone from the sector and
+## starchart views?"): a drag on the chart and one on the map slide the field
+## (`NavField.pan`, its far layers' `u_skyPan`) the way the drag went, the
+## chart's by its own sky's pan; a hop never moves it (`_field_wrong`, every
+## frame of every hop above) and never puts it back: across each hop it stands
+## where it was, and LOCAL arrived lies where it does (`LocalSky` `u_skyPan`).
+func _field_drift() -> void:
+	var f: NavField = Router.field
+	if not _ok("drift: the field is there", f != null and is_instance_valid(f)):
+		return
+	for r: int in [ZoomLadder.CHART, ZoomLadder.MAP]:
+		await _at(r)
+		await _frames(20)
+		var p0 := f.pan
+		var q0: Variant = NavField.screen_pan(Router.current)
+		var pic: Rect2 = Router.current.call(&"ladder_picture")
+		var c := pic.get_center()
+		await _drag(c + Vector2(80, 20), c + Vector2(-60, -10))
+		await _frames(20)
+		var p1 := f.pan
+		var q1: Variant = NavField.screen_pan(Router.current)
+		var want: Vector2 = ((q1 as Vector2) - (q0 as Vector2)) if q0 is Vector2 and q1 is Vector2 else Vector2.ZERO
+		_ok("drift: a drag on the %s slides the field the way its own sky went (%s -> %s: %s, its sky %s)" % [_nm(r), p0, p1, p1 - p0, want],
+			(p1 - p0).length() >= 2.0 and (p1 - p0).dot(want) > 0.0 and ((p1 - p0) - want.round()).length() <= 1.5)
+		# (and a hop away: still where it was when it lands)
+		var away := ZoomLadder.LOCAL if r == ZoomLadder.CHART else ZoomLadder.CHART
+		await _hop("drift: tab %s -> %s after a drag" % [_nm(r), _nm(away)], func() -> void: _click(_tab_at(away), _tab_button(away)), away)
+		await _rest()
+		await _frames(10)
+		_ok("drift: across the hop %s -> %s the field stands where it was (%s, then %s)" % [_nm(r), _nm(away), p1, f.pan], f.pan == p1)
+		if away == ZoomLadder.LOCAL:
+			var sky := NavField.live_local_sky()
+			var fm: ShaderMaterial = sky.get("_far_mat") if sky != null else null
+			var lp: Variant = fm.get_shader_parameter("u_skyPan") if fm != null else null
+			if fm == null:
+				print("  --   drift: LOCAL's sky is not drawn here (headless); its stars against the field's are read windowed (FieldEdgeTest)")
+				continue
+			_ok("drift: LOCAL arrived lies where the field has slid to (its sky %s, the field %s)" % [lp, f.pan],
+				lp is Vector2 and (lp as Vector2).is_equal_approx(f.pan))
 
 
 ## THE GOAL LINE (`GoalLine`, tutorial B) under the HUD: gone before the camera
@@ -725,8 +794,15 @@ func _no_box() -> void:
 			var fv: Variant = (key as ShaderMaterial).get_shader_parameter(&"frame")
 			if fv is Vector4:
 				fr = fv
-		_ok("%s: what the picture holds fades out toward its edge (%.0f px), on its frame as it stands (%s)" % [_nm(r), fade, fr],
-			fade >= 16.0 and fr.z > 0.0 and absf(fr.x - pic.get_global_rect().position.x) < 1.0)
+		# (the chart's sky runs on past its picture to the field's edges, and
+		# fades out there: `MapChart.sky_out`, Jon: "why does a galaxy disappear
+		# near the side panel?")
+		var want := pic.get_global_rect()
+		if cur is StarchartScreen and (cur as StarchartScreen)._chart.sky_out.has_area():
+			var so: Rect2 = (cur as StarchartScreen)._chart.sky_out
+			want = Rect2((cur as StarchartScreen)._chart.global_position + so.position, so.size)
+		_ok("%s: what the picture holds fades out toward its edge (%.0f px), on its frame as it stands (%s, want %s)" % [_nm(r), fade, fr, want],
+			fade >= 16.0 and fr.z > 0.0 and absf(fr.x - want.position.x) < 1.0 and absf(fr.z - want.size.x) < 1.0)
 		# THE TWO PLATES (Jon, Oct 18: "Let's have the top part also be a panel.
 		# Let's make both panels slightly see through like the other panels"):
 		# the side panel and the toolbar row each on a plate, see-through by the

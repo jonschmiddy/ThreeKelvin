@@ -2,6 +2,7 @@ extends Node
 
 ## WHAT YOU END UP WITH, photographed in every look (`OutcomeRow`):
 ##   godot --path . -- sheet=OutcomeShot out=<dir> [cases=jon,gain,...] [looks=today,A,B,C,D,E]
+##       [layout=row|column|card]   (the band's layout; Jon's column when left out)
 ##   godot --path . --resolution 1920x1080 --write-movie <dir>/f.png --fixed-fps 30
 ##       -- sheet=OutcomeShot out=<dir> film=C case=mix
 ##   godot --headless --path . -- sheet=OutcomeShot survey
@@ -78,6 +79,9 @@ func _run() -> void:
 			await tree.process_frame
 	print("  outcomeshot: window %s, screen %s, root %s" % [DisplayServer.window_get_size(), DisplayServer.screen_get_size(), tree.root.get_texture().get_size()])
 	LocalEventDrawer.quiet = true
+	var was_layout := LocalEventDrawer.layout
+	if _arg("layout") != "":
+		LocalEventDrawer.layout = StringName(_arg("layout"))
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var n := _system()
@@ -105,6 +109,7 @@ func _run() -> void:
 		fh.close()
 	OutcomeRow.look = &"today"
 	LocalEventDrawer.quiet = false
+	LocalEventDrawer.layout = was_layout
 	print("  outcomeshot: done")
 	tree.quit()
 

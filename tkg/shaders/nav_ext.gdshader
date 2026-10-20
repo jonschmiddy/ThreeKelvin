@@ -28,6 +28,9 @@ uniform vec2 span = vec2(1.0);
 // ... the same cloud drawn on past its end (`SystemView` `_past`; `sky_wide`)
 uniform sampler2D past_tex : filter_nearest, repeat_disable;
 uniform bool past_on = false;
+// (a clear sky: nothing past its end -- what it holds there thins out over its
+// last `fade` px, the field on beyond)
+uniform bool past_cut = false;
 // (the map's own fade in and out, its modulate: the picture has it, so this
 // gives the rest of what the two make)
 varying vec4 mod_c;
@@ -43,6 +46,9 @@ float inside(vec2 p, vec4 r) {
 void fragment() {
 	vec2 us = UV * span;
 	vec4 w = sky_wide(texture(TEXTURE, sky_uv_a(us)), texture(TEXTURE, sky_uv_b(us)), texture(past_tex, sky_uv_past(us)), past_on, us);
+	if (past_cut) {
+		w *= 1.0 - smoothstep(1.0 - fade / 960.0, 1.0, us.x);
+	}
 	float k = w.a;
 	vec4 c = vec4(k > 0.0001 ? w.rgb / k : vec3(0.0), 1.0);
 	float am = mod_c.a;
@@ -53,6 +59,14 @@ void fragment() {
 	// here is k m fp, so this gives the rest of k m)
 	float m = cloud_round(p, L, round_k, round_c, round_h);
 	float e = am * k * m * (1.0 - fp) / max(1.0 - am * k * m * fp, 0.001);
-	e *= smoothstep(0.0, fade, inside(p, outer));
+	// (each side's fade no wider than the gap from the area's edge to the
+	// picture's: where the picture stands close to it -- its left, 12 px -- the
+	// sky reaches full there, as the picture does, not a step at its edge)
+	float fl = inner.z > 0.0 ? clamp(inner.x - outer.x, 4.0, fade) : fade;
+	float fr = inner.z > 0.0 ? clamp(outer.x + outer.z - inner.x - inner.z, 4.0, fade) : fade;
+	float ft = inner.z > 0.0 ? clamp(inner.y - outer.y, 4.0, fade) : fade;
+	float fb = inner.z > 0.0 ? clamp(outer.y + outer.w - inner.y - inner.w, 4.0, fade) : fade;
+	e *= smoothstep(0.0, fl, p.x - outer.x) * smoothstep(0.0, fr, outer.x + outer.z - p.x)
+		* smoothstep(0.0, ft, p.y - outer.y) * smoothstep(0.0, fb, outer.y + outer.w - p.y);
 	COLOR = vec4(c.rgb, clamp(e, 0.0, 1.0));
 }
