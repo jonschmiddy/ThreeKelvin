@@ -825,7 +825,7 @@ func _gem(r: Rect2, text: String, col: Color) -> void:
 	var fs := UITheme.FS_SMALL * _s
 	var tw := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 	draw_string(f, r.position + Vector2((r.size.x - tw) * 0.5, r.size.y * 0.5 + fs * 0.42),
-		text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+		LowHull.scr(self, text, fs, f), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 
 ## ALWAYS printed, even at zero.
 ##

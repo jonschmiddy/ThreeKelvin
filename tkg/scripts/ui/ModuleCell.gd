@@ -149,7 +149,7 @@ class Pad extends Control:
 		var txt := str(index + 1)
 		var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1,
 			UITheme.FS_SMALL).x
-		draw_string(f, Vector2((size.x - w) * 0.5, size.y * 0.5 + 4.0), txt,
+		draw_string(f, Vector2((size.x - w) * 0.5, size.y * 0.5 + 4.0), LowHull.scr(self, txt, UITheme.FS_SMALL, f),
 			HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, UITheme.LINE)
 
 

@@ -40,6 +40,8 @@ const NOISE_N := 2
 const NOISE_S := 0.035
 ## What the noise is drawn from: the face's own capitals, digits and marks.
 const NOISE := "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789#%&*+=/<>"
+## The noise's ink, as a share of the text's.
+const NOISE_A := 0.55
 ## A dropout's chance per settled character, and how long it lasts, s.
 const DROP_P := 0.012
 const DROP_S := 0.06
@@ -63,6 +65,9 @@ var text := "":
 		_lines.clear()
 		_relayout()
 var ink: Color = UITheme.CHILL
+## SETTLED LETTERS SHOWN AS NOISE FOR A MOMENT, by index: the hull failing
+## (`HullScramble` sets and clears it). Drawn only; `text` is never touched.
+var scramble := {}
 var size_px: int = UITheme.FS_BODY
 
 ## Settled characters (a float, so the clock can carry fractions).
@@ -243,10 +248,15 @@ func _draw() -> void:
 			if k < edge:
 				if k >= drop_from:
 					continue
+				if scramble.has(k):
+					var g: String = scramble[k]
+					var gx := xs[i] + floorf((xs[i + 1] - xs[i] - f.get_char_size(g.unicode_at(0), size_px).x) * 0.5)
+					draw_string(f, Vector2(gx, y), g, HORIZONTAL_ALIGNMENT_LEFT, -1, size_px, Color(ink, ink.a * NOISE_A))
+					continue
 				draw_string(f, Vector2(xs[i], y), ch, HORIZONTAL_ALIGNMENT_LEFT, -1, size_px, ink)
 			elif not done and k < edge + _noise.size():
 				if ch != " ":
-					draw_string(f, Vector2(xs[i], y), String(_noise[k - edge]), HORIZONTAL_ALIGNMENT_LEFT, -1, size_px, Color(ink, 0.55))
+					draw_string(f, Vector2(xs[i], y), String(_noise[k - edge]), HORIZONTAL_ALIGNMENT_LEFT, -1, size_px, Color(ink, NOISE_A))
 			elif not done and k == edge + _noise.size():
 				# the block cursor at the leading edge
 				var cw := f.get_char_size(0x4D, size_px).x

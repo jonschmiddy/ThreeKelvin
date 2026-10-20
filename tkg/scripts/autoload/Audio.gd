@@ -888,8 +888,11 @@ func ash_voice_prepare(path: String) -> void:
 	var sr: float = _prep.sr
 	var out: Array = _prep.out
 	var plan_copy := plan.duplicate(true)
-	_prep.task = WorkerThreadPool.add_task(func() -> void:
-		out.append(VoiceGlitch.bake(pb, secs, sr, plan_copy)), false, "ash voice glitch")
+	var job := func() -> void:
+		var r := VoiceGlitch.bake_placed(pb, secs, sr, plan_copy)
+		out.append(r.pcm)
+		out.append(r.plan)
+	_prep.task = WorkerThreadPool.add_task(job, false, "ash voice glitch")
 
 
 ## A prepared take nobody will say: its worker reaped when it is done.
@@ -933,7 +936,8 @@ func ash_voice(path: String) -> float:
 			if not (_prep.out as Array).is_empty():
 				glitched = VoiceGlitch.from_pcm(_prep.out[0], float(_prep.sr))
 			if glitched != null:
-				voice_glitches = _prep.plan
+				# where the worker moved them onto her words (`VoiceGlitch.place`)
+				voice_glitches = _prep.out[1] if (_prep.out as Array).size() > 1 else _prep.plan
 	_drop_prep()
 	voice_heard_glitched = glitched != null
 	voice_start_usec = Time.get_ticks_usec() - t0

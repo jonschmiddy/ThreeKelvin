@@ -1415,10 +1415,10 @@ class PileView extends Control:
 		var n := str(count)
 		var nw := f.get_string_size(n, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_HEAD).x
 		# The count rides the FRONT card, which is now four lower than the box.
-		draw_string(f, Vector2((W - nw) * 0.5 + 1, H * 0.5 + 11), n,
+		draw_string(f, Vector2((W - nw) * 0.5 + 1, H * 0.5 + 11), LowHull.scr(self, n, UITheme.FS_HEAD, f),
 			HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_HEAD, UITheme.ICE)
 		var lw := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
-		draw_string(f, Vector2((W - lw) * 0.5, H + 14), label,
+		draw_string(f, Vector2((W - lw) * 0.5, H + 14), LowHull.scr(self, label, UITheme.FS_SMALL, f),
 			HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, UITheme.COLD)
 
 ## Where the rails begin, which is where a HOVERED card begins.

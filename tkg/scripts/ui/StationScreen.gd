@@ -2455,7 +2455,7 @@ func _listing(c: ContractData) -> Control:
 		if mk != null:
 			CardView.draw_emblem(photo, mid, Vector2(photo.size.x * 0.5, 20.0), 1.4, mk.colour, mk.field)
 		photo.draw_string(UITheme.pixel_font(), Vector2(4.0, photo.size.y - 4.0),
-			DB.manufacturer_name(mid).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1,
+			LowHull.scr(photo, DB.manufacturer_name(mid).to_upper(), UITheme.FS_SMALL), HORIZONTAL_ALIGNMENT_LEFT, -1,
 			UITheme.FS_SMALL, Color(1, 1, 1, 0.85)))
 	box.add_child(photo)
 	box.add_child(UITheme.body("%d CR" % c.pay, UITheme.EMBER, UITheme.FS_HEAD))

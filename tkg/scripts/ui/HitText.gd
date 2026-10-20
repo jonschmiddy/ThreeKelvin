@@ -112,6 +112,7 @@ static func draw(ci: CanvasItem, at: Vector2, text: String, col: Color, fade: fl
 	if fade < 1.0:
 		c = col.darkened(1.0 - fade)
 	var p := at.round()
+	text = LowHull.scr(ci, text, fs, f)
 	# The outline: the line itself, dark, a pixel out in all eight directions.
 	for o in _RING:
 		ci.draw_string(f, p + o, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, sh)

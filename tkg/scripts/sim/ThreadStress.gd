@@ -19,7 +19,7 @@ extends Node
 ## frame a creature's motion or a breakup starts).
 ## And A.S.H.'s glitched take while the hull fails (`Audio.ash_voice_prepare`):
 ## its playback made on the main thread, the decode and the edits on a worker
-## (`VoiceGlitch.bake`), the stream made from the bytes on the main thread
+## (`VoiceGlitch.bake_placed`), the stream made from the bytes on the main thread
 ## (`VoiceGlitch.from_pcm`); its slowest take-in printed too.
 
 const IDS := ["custodian", "whale", "leviathan"]
@@ -234,9 +234,9 @@ func _start_voice(path: String) -> Dictionary:
 	var pb := st.instantiate_playback()
 	var secs := st.get_length()
 	var sr := AudioServer.get_mix_rate()
-	var plan := LowHull.plan_for(secs, 2, LowHull.LOOKS[LowHull.Preset.STRONG])
+	var plan := LowHull.plan_for(secs, 0.05, LowHull.LOOKS[LowHull.Preset.STRONG])
 	var task := WorkerThreadPool.add_task(func() -> void:
-		held.b = VoiceGlitch.bake(pb, secs, sr, plan))
+		held.b = VoiceGlitch.bake_placed(pb, secs, sr, plan).pcm)
 	return {task = task, held = held, sr = sr}
 
 

@@ -533,7 +533,7 @@ func _tag(m: ModuleData, r: Rect2, s: Dictionary) -> void:
 	var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 	var a := clampf((explode - 0.85) / 0.15, 0.0, 1.0)
 	var box := tag_box(r, String(tag_side.get(spot_key(int(s.slot), int(s.index)), "R")), w)
-	draw_string(f, box.position + Vector2(0, f.get_ascent(UITheme.FS_SMALL)), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(UITheme.ICE, a))
+	draw_string(f, box.position + Vector2(0, f.get_ascent(UITheme.FS_SMALL)), LowHull.scr(self, txt, UITheme.FS_SMALL, f), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(UITheme.ICE, a))
 
 
 ## WHERE A TAG'S WORDS ARE, for a part drawn at `r` (this widget's px) and a
@@ -719,7 +719,7 @@ func _empty_words(s: Dictionary, k: float) -> void:
 	var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 	var box := label_box(s.at, off, w, k)
 	var col := Color(UITheme.COLD, a)
-	draw_string(f, box.position + Vector2(0, f.get_ascent(UITheme.FS_SMALL)), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, col)
+	draw_string(f, box.position + Vector2(0, f.get_ascent(UITheme.FS_SMALL)), LowHull.scr(self, txt, UITheme.FS_SMALL, f), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, col)
 	# set away from its ring: a 1 px leader back to it, in the words' own ink
 	if tag_side.get("lead:" + spot_key(int(s.slot), int(s.index)), false):
 		for p in label_leader(s.at, box, k):

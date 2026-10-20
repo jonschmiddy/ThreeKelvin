@@ -2811,6 +2811,7 @@ class ConvoySlot extends Control:
 			text = "▸ " + text
 		# Shadowed, because the label sits on a hull rather than on a panel and
 		# the hull is the same value range as the type.
+		text = LowHull.scr(self, text, fs, f)
 		draw_string(f, Vector2(1, fs + 1), text,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.8))
 		var ink := UITheme.CHILL

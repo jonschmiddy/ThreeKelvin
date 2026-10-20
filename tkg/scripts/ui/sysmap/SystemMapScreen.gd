@@ -1615,5 +1615,5 @@ class _Scale extends Control:
 		draw_line(Vector2(x, y - 4.0), Vector2(x, y + 1.0), ink, 1.0)
 		draw_line(Vector2(x + w, y - 4.0), Vector2(x + w, y + 1.0), ink, 1.0)
 		var txt := "%d AU" % int(au) if au >= 1.0 else ("%.2f" % au).trim_suffix("0") + " AU"
-		draw_string(UITheme.pixel_font(), Vector2(x + w - BAR_MAX_PX, y - 7.0), txt,
+		draw_string(UITheme.pixel_font(), Vector2(x + w - BAR_MAX_PX, y - 7.0), LowHull.scr(self, txt, 8),
 			HORIZONTAL_ALIGNMENT_RIGHT, BAR_MAX_PX, 8, ink)

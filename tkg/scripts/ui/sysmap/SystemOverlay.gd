@@ -191,7 +191,7 @@ var label_a := 1.0
 func _text(at: Vector2, s: String, c: Color) -> void:
 	if hush_labels or label_a <= 0.01:
 		return
-	draw_string(_font(), at.round(), s, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(c, c.a * label_a))
+	draw_string(_font(), at.round(), LowHull.scr(self, s, UITheme.FS_SMALL, _font()), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(c, c.a * label_a))
 
 
 
