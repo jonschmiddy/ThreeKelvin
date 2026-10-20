@@ -11,6 +11,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 The next build is **0.2.0-alpha.1**, with the fixes from the first playtest. See
 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
+- **Fixed** — two copies of the same build could refuse to party ("Your content does not match
+  the host's"), depending on how each one started. The check that both players have the same game
+  now reads the same way in every copy.
+- **Added** — README-ALPHA.txt explains FLY TOGETHER: HOST PARTY and a code, the same build for
+  everyone, and the firewall prompt for HOST DIRECT.
+
 ## 2026-10-20
 
 ### [0.1.0-alpha.1]

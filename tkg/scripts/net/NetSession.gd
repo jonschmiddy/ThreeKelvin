@@ -434,6 +434,21 @@ func slots() -> Array:
 	return out
 
 
+## A table's keys as STRINGS, in alphabetical order. Sorted as Strings, never as
+## the StringNames they are: an Array of StringNames does not sort by its text,
+## so its order came out of how each process happened to start, and the same
+## exported build refused itself (one copy windowed, one headless) and the
+## editor refused the export ("Your content does not match the host's"). Found
+## Oct 20 testing two exports through the relay; `nettest` runs one process, so
+## it holds this order to the text itself.
+static func sorted_ids(table: Dictionary) -> PackedStringArray:
+	var out: PackedStringArray = []
+	for id in table:
+		out.append(String(id))
+	out.sort()
+	return out
+
+
 ## A number that must match across the party, standing in for "we are playing
 ## the same game". It covers the content tables rather than the build, because
 ## two players on the same commit with different mods is the case that actually
@@ -444,14 +459,8 @@ func slots() -> Array:
 ## compare builds, which is the only useful action anyway.
 func content_fingerprint() -> int:
 	var parts: PackedStringArray = []
-	var mod_ids := DB.modules.keys()
-	mod_ids.sort()
-	for id in mod_ids:
-		parts.append(String(id))
-	var foe_ids := DB.enemies.keys()
-	foe_ids.sort()
-	for id in foe_ids:
-		parts.append(String(id))
+	parts.append_array(sorted_ids(DB.modules))
+	parts.append_array(sorted_ids(DB.enemies))
 	for h in DB.hull_frames:
 		parts.append("%s/%d" % [h.manufacturer, int(h.weight)])
 	for a in DB.affixes:
