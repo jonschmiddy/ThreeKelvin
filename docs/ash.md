@@ -204,6 +204,17 @@ fades. Fixed with the rooms: PCM, and looped a frame short.
   Headless and in harnesses nothing plays, but `Audio.tape` records each take
   (`ash/<id>`) and each cut (`ash/stop`); `-- sheet=AshTest` reads it.
 - **Co-op:** her voice is on your machine only, like the rest of her.
+- **The hull failing** (Jon, Oct 20: "Maybe even A.S.H.'s voice could glitch a bit?"): while
+  the hull is at or under 30% (`LowHull`, the same state that reddens the screen's edges and
+  glitches its text), each line she starts gets a few short glitches in her take: a dropout,
+  a stutter (the 25 to 50 ms before, again), a bit-crush, a ring-mod blip or a small pitch
+  wobble, 20 to 60 ms each (the wobble 100 to 150), never on her first or last tenth of a
+  second, at least 0.2 s apart, one or two a line on the subtle preset (up to three at 15%). Live, from the same
+  take: decoded by Godot's own decoder, edited in place (`VoiceGlitch`, every window faded in
+  and out over 4 ms so no glitch puts a click back), and played from memory, the same length
+  to the sample, so the words still end with her. No new takes. Her portrait slips one tick
+  on each (her own slip, reused). Reduced motion keeps the voice glitches at the subtle
+  preset and drops the slips. `-- sheet=LowHullTest` holds all of it.
 - The words and the voice part a little in the hit-stop's slow motion: the words run
   on the game's clock and a playing sound does not slow. A hit-stop is a fraction of
   a second and she is rarely up for one.

@@ -168,6 +168,13 @@ var _out_steps: Array = []
 var _rng := RandomNumberGenerator.new()
 ## Set by `Ash` each frame: the hull failing (slips come twice as often).
 var hurt := false
+## HER VOICE'S GLITCHES, AS SLIPS (`LowHull`): the game second of each glitch in
+## the take she is saying (`Audio.voice_glitches`), and a one-tick slip on the
+## tick it falls in, so the picture breaks with the sound. Not under reduced
+## motion (no slips at all there).
+var _glitch_at: Array = []
+## How many of those slipped, for a harness.
+var glitch_slips := 0
 
 
 func _init() -> void:
@@ -217,6 +224,8 @@ func say(what: String, k: StringName, opts: Dictionary = {}) -> void:
 	_mouth = Mouth.CLOSED
 	_blink = false
 	_slip = {}
+	_glitch_at.clear()
+	glitch_slips = 0
 	_settled.clear()
 	frames_log.clear()
 	_hold_until = INF
@@ -258,6 +267,8 @@ func _start_words(now: float) -> void:
 		voice_secs = Audio.ash_voice(voice)
 		if voice_secs > 0.0:
 			voice_started_at = now
+			for g: Dictionary in Audio.voice_glitches:
+				_glitch_at.append(now + float(g.at))
 			_text.rate = SignalText.rate_for(line, voice_secs - VOICE_TAIL_S)
 	_text.text = line
 	_text.play()
@@ -484,6 +495,13 @@ func _tick(at: float) -> bool:
 				_chirp(CHIRP_UP)
 		else:
 			_new_slip()
+	elif _moving() and not _glitch_at.is_empty() and at >= float(_glitch_at[0]) - 0.0001 \
+			and phase != Phase.GOING:
+		while not _glitch_at.is_empty() and at >= float(_glitch_at[0]) - 0.0001:
+			_glitch_at.pop_front()
+		glitch_slips += 1
+		_slip_ticks = 1
+		_new_slip()
 	elif _moving() and at >= _next_slip and phase != Phase.GOING:
 		_slip_ticks = 1
 		_new_slip()

@@ -338,6 +338,9 @@ func _ready() -> void:
 	# which is exactly what got the last one deleted. Built whatever the setting
 	# says and hidden if it is off, so the toggle works without a relaunch.
 	add_child(FpsMeter.new())
+	# THE HULL FAILING (`LowHull`): a faint red at the edges and the odd glitch
+	# in the words, on a layer of its own over the game and under the menu.
+	add_child(LowHull.new())
 
 	Router.register(content, hud)
 	# THE VIEW KICKS WHEN YOUR HULL IS HIT. Connected here rather than in Audio

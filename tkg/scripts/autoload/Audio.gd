@@ -842,6 +842,11 @@ var _voice_fade: Tween = null
 ## this is the account): the file, and the game second it runs out.
 var voice_now := ""
 var _voice_end := 0.0
+## HER VOICE BREAKING UP (`LowHull`, `VoiceGlitch`): where this line glitches,
+## [{at, len, kind, amt}] from the take's start, decided as it starts and kept
+## for her portrait to slip in step with. Empty with the hull sound. Planned
+## headless too, where nothing plays, so a harness can read it.
+var voice_glitches: Array = []
 
 
 ## Say the take at `path`. Returns its length, s (0 if it will not load). Taped
@@ -855,6 +860,7 @@ func ash_voice(path: String) -> float:
 	var secs := stream.get_length()
 	voice_now = path
 	_voice_end = GameClock.now() + secs
+	voice_glitches = LowHull.voice_plan(secs)
 	if taping:
 		tape.append([StringName("ash/" + path.get_file().get_basename()), Time.get_ticks_msec(), VOICE_DB, 1.0])
 	if not _enabled:
@@ -866,7 +872,13 @@ func ash_voice(path: String) -> float:
 	if _voice_fade != null and _voice_fade.is_valid():
 		_voice_fade.kill()
 	_voice_fade = null
-	_voice.stream = stream
+	# the same take with its glitches in, the same length to the sample
+	var heard: AudioStream = stream
+	if not voice_glitches.is_empty():
+		var g := VoiceGlitch.render(stream, voice_glitches)
+		if g != null:
+			heard = g
+	_voice.stream = heard
 	_voice.volume_db = VOICE_DB
 	_voice.pitch_scale = 1.0
 	_voice.play()
