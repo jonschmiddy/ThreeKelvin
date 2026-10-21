@@ -16,6 +16,9 @@ The next build is **0.3.0-alpha.1**, with the fixes from the first outside playt
 - **Changed** — when A.S.H. explains your ship's cutaway, her box now also shows the keys under
   her words: "R turns a part. F flips it." It shows the keys as you have them bound in Settings.
   She does not say them; her spoken line is the same as before.
+- **Changed** — when your ship flies into a system on LOCAL, the dust and the sky now stay still
+  and only the ship moves, as they already do when you dock. Before, the dust jumped sideways as the
+  ship appeared and then slid back while it flew in.
 
 ## 2026-10-21
 

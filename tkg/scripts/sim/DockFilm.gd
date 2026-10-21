@@ -13,7 +13,8 @@ extends Node
 ## quit; `route=first` films instead the arrival a run's first system plays,
 ## at the same station, for laying the dock's beside (`[ship]` lines: every
 ## frame of an arrival, your ship's place and size; the AVI's frame is `drawn`),
-## quit. `rm` docks under reduced motion. A half-speed film is this one slowed
+## quit (`stills=<dir>`: the frame before it and 0.5 s and 1 s into it, at
+## 2x). `rm` docks under reduced motion. A half-speed film is this one slowed
 ## by the encoder, so its sound stays on its pictures. Prints the frame each
 ## step began on. Needs a window.
 
@@ -78,11 +79,19 @@ func _run() -> void:
 		# into the film like it, so the screen has long settled for both)
 		Router.show_local()
 		await _frames(150)
+		# (`stills=<dir>`: the frame before the arrival, then 0.5 s and 1 s into
+		# it, at 2x, for judging the dust against the arrival)
+		var stills := _arg("stills", "")
+		if stills != "":
+			DirAccess.make_dir_recursive_absolute(stills)
+			await _still(stills, "arrive_0.0s")
 		(Router.current as SectorScreen)._begin_arrive()
 		for i in 330:
 			await _tree.process_frame
 			_log_ship()
 			_log_dust(&"first")
+			if stills != "" and (i == 14 or i == 29):
+				await _still(stills, "arrive_%.1fs" % ((i + 1) / 30.0))
 		_tree.quit()
 		return
 	if route == "map":
@@ -141,6 +150,15 @@ func _log_ship() -> void:
 		var r := art.fitted_rect_global()
 		print("  [ship] drawn %d x %.1f rect %.1f %.1f %.1f %.1f scale %.3f thrust %d" % [Engine.get_frames_drawn(), art.position.x,
 			r.position.x, r.position.y, r.size.x, r.size.y, art.scale.x, art._thrust_now()])
+
+
+## The window as drawn this frame, at 2x (nearest), as `<dir>/<name>.png`.
+func _still(dir: String, name: String) -> void:
+	await RenderingServer.frame_post_draw
+	var img := _tree.root.get_texture().get_image()
+	img.resize(img.get_width() * 2, img.get_height() * 2, Image.INTERPOLATE_NEAREST)
+	img.save_png("%s/%s.png" % [dir, name])
+	print("  [dockfilm] still %s at drawn %d" % [name, Engine.get_frames_drawn()])
 
 
 ## LOCAL's dust this frame (`LocalDust`, through its motes' places as drawn,

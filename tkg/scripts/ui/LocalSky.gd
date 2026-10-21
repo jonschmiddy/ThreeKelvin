@@ -49,9 +49,9 @@ extends Control
 ## of the band: solid bodies, their light pressed as the gas's is, their dark
 ## never lifted.
 ##
-## THE CAMERA moves when the ship does: it follows the hull's approach and its
-## departure a little over half way (`CAM_FOLLOW`), and every layer slides by its
-## own depth -- the far stars and galaxies least, the system's star all but
+## THE CAMERA moves when the ship leaves: it follows the hull's departure a
+## little over half way (`CAM_FOLLOW`; never its arrival, `_follow`), and every
+## layer slides by its own depth -- the far stars and galaxies least, the system's star all but
 ## still, then the cloud, the band's worlds, and the world it orbits most -- in
 ## whole 2x2 blocks. Otherwise it holds still: the motion is the gas, the
 ## star and the weather.
@@ -994,9 +994,11 @@ static func _block_round(p: Vector2) -> Vector2:
 
 func _process(delta: float) -> void:
 	if _scene == null:
-		# (headless: no picture, but the moons' clock still runs, for `-- moontest`)
+		# (headless: no picture, but the moons' clock still runs, for `-- moontest`,
+		# and the camera still follows, for the dust's harnesses)
 		if life != null:
 			life.step(delta)
+		_follow()
 		return
 	# GRAPHICS LOW: the cloud reads its field once (`sky_nebula`'s `low`), and
 	# the whole sky is drawn every other frame -- its gas steps a block every
@@ -1038,6 +1040,26 @@ func _place_box() -> void:
 		_box.position = p
 
 
+## THE CAMERA follows the ship's own travel as it leaves (`CAM_FOLLOW` of it),
+## and holds still while it arrives (Jon, Oct 21, for 0.3.0, as docking has
+## since Oct 20: "The dust move too much"): an arrival takes the hull off the
+## view's left edge and flies it back to its mooring, and following that moved
+## the dust about 209 px on its first frame and slid it back over the approach.
+## Held where it was instead, so the sky and the dust keep their own drift and
+## the ship alone moves; at rest the hull is at its mooring (`position` 0), so
+## the camera the arrival hands back is the one it held. `cam_hold` (the dock)
+## over both.
+func _follow() -> void:
+	var cx := 0.0
+	if cam_ship != null and is_instance_valid(cam_ship) and cam_ship.is_inside_tree():
+		var sv := cam_ship as ShipView
+		cx = cam_follow.x if sv != null and sv.arriving() else cam_ship.position.x * CAM_FOLLOW
+	cam = Vector2(roundf(cx), 0.0)
+	if cam_hold != Vector2.INF:
+		cam = cam_hold
+	cam_follow = cam
+
+
 func _step(delta: float) -> void:
 	_frame += 1
 	_place_box()
@@ -1051,14 +1073,7 @@ func _step(delta: float) -> void:
 	if _cam_rest:
 		_t_saved += delta if not still else 0.0
 		t = 0.0
-	# THE CAMERA follows the ship's own travel: its approach and departure
-	var cx := 0.0
-	if cam_ship != null and is_instance_valid(cam_ship) and cam_ship.is_inside_tree():
-		cx = cam_ship.position.x * CAM_FOLLOW
-	cam = Vector2(roundf(cx), 0.0)
-	if cam_hold != Vector2.INF:
-		cam = cam_hold
-	cam_follow = cam
+	_follow()
 	# (while the palette is being found the sky is laid out at rest, behind a
 	# still of itself: see `_build_palette`)
 	if _cam_rest:

@@ -833,6 +833,12 @@ func refresh() -> void:
 ## layers on top of it — heat glow, battle damage, module shapes — is not drawn
 ## here, because that is the shader's job now and the modules are their own
 ## sprites. See shaders/heat.gdshader.
+## Flying in (`arrive` called and not yet parked: held off screen, or on its
+## approach). LOCAL's sky camera holds still for it (`LocalSky._follow`).
+func arriving() -> bool:
+	return _arrive_at >= 0
+
+
 ## One step of the fly-in. Returns whether the canvas needs repainting.
 ## The approach `t` s after `arrive` was called, on the caller's clock (with
 ## `arrive_driven`): the same tick as every arrival's.
