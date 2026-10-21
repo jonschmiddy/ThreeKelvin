@@ -30,7 +30,7 @@ const LINES: Dictionary = {
 	&"brace": "Brace stops damage till gone. Holding it costs 1 heat a turn.",
 	&"heat": "Heat. Past {cap}, we lose 1 hull per point over, at end of turn.",
 	&"salvage": "Drag a part into the hold. Double-click works too.",
-	&"cutaway": CUTAWAY_LINE,
+	&"cutaway": CUTAWAY_LINE + "\n" + CUTAWAY_KEYS,
 	&"wreck": "Click a wreck to loot it. Its parts and credits are ours.",
 	&"loot": "SECTOR LOOT is what's loose here. It stays until you take it.",
 	&"dock": "Stations repair, refuel and trade. Pick a deck on the left.",
@@ -58,12 +58,19 @@ const LINES: Dictionary = {
 ## the ship into the hold"). It was his A of Oct 18, "Drag a part onto a ring to
 ## fit it. You can turn it ({turn}) and flip it ({flip})."
 const CUTAWAY_LINE := "Drag a module onto an empty slot to install it. Drag it off the ship into the hold to remove it."
+## AND ITS KEYS, shown on a line of their own under her words and never said
+## (Jon, Oct 21, for 0.3.0): the keys as bound (`Hints.values`' `turn` and
+## `flip`, `Keys.describe`), so a rebound key shows as it is. Her take stays
+## the one recorded from `CUTAWAY_LINE` (`SPOKEN`), and the typing runs over
+## both lines as her take plays, as on every line with a field.
+const CUTAWAY_KEYS := "{turn} turns a part. {flip} flips it."
 
 ## WHAT SHE SAYS where it differs from what shows (Jon's numbers:A, Oct 18): no
 ## number, no name, no key. Every other line is said as it shows. These are the
 ## scripts her takes were recorded from; `-- sheet=AshTutorTest` holds them to
 ## having no digit and no field.
 const SPOKEN: Dictionary = {
+	&"cutaway": CUTAWAY_LINE,
 	&"endturn": "Out of energy. Press END TURN. They act, then you draw new cards.",
 	&"heat": "Heat. Past the limit, we lose 1 hull per point over, at end of turn.",
 	&"fuel_dock": "Fuel is low. Run dry and the run ends. Here's the nearest dock.",

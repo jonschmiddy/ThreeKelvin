@@ -368,19 +368,22 @@ static func size_for(what: String) -> Vector2:
 	return Vector2(W, maxf(float(H), _words_h(what)))
 
 
-## How many lines `what` takes in the words' column (Ash keeps them to four).
+## How many lines `what` takes in the words' column (Ash keeps them to four;
+## a "\n" starts a new one, as `SignalText` breaks it).
 static func lines_for(what: String) -> int:
 	var f := UITheme.pixel_font()
 	var w := float(TEXT_W - PAD_X * 2)
-	var n := 1
-	var cur := ""
-	for word in what.split(" "):
-		var trial := word if cur == "" else cur + " " + word
-		if cur != "" and f.get_string_size(trial, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x > w:
-			n += 1
-			cur = word
-		else:
-			cur = trial
+	var n := 0
+	for para in what.split("\n"):
+		n += 1
+		var cur := ""
+		for word in para.split(" "):
+			var trial := word if cur == "" else cur + " " + word
+			if cur != "" and f.get_string_size(trial, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x > w:
+				n += 1
+				cur = word
+			else:
+				cur = trial
 	return n
 
 

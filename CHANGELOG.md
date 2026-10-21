@@ -11,6 +11,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 The next build is **0.3.0-alpha.1**, with the fixes from the first outside playtest. See
 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
+### Changed
+
+- **Changed** — when A.S.H. explains your ship's cutaway, her box now also shows the keys under
+  her words: "R turns a part. F flips it." It shows the keys as you have them bound in Settings.
+  She does not say them; her spoken line is the same as before.
+
 ## 2026-10-21
 
 ### [0.2.0-alpha.1]

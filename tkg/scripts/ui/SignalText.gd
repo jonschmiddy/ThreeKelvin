@@ -134,7 +134,9 @@ func _line_h() -> int:
 	return int(_font().get_height(size_px)) + LINE_GAP
 
 
-## Words into lines at this width, each character's x measured once.
+## Words into lines at this width, each character's x measured once. A "\n"
+## starts a new line (the cutaway's keys under A.S.H.'s words): it is one
+## character of `text`, settled like a space and drawn as nothing.
 func _relayout() -> void:
 	var w := size.x
 	if w <= 1.0:
@@ -142,21 +144,21 @@ func _relayout() -> void:
 	_laid_w = w
 	_lines.clear()
 	var f := _font()
-	var words := text.split(" ")
-	var line := ""
-	var start := 0
 	var at := 0
-	for wi in words.size():
-		var word: String = words[wi]
-		var trial := word if line == "" else line + " " + word
-		if line != "" and f.get_string_size(trial, HORIZONTAL_ALIGNMENT_LEFT, -1, size_px).x > w:
-			_lines.append(_measure(start, line))
-			start = at
-			line = word
-		else:
-			line = trial
-		at += word.length() + 1
-	if line != "" or _lines.is_empty():
+	for para in text.split("\n"):
+		var words := para.split(" ")
+		var line := ""
+		var start := at
+		for wi in words.size():
+			var word: String = words[wi]
+			var trial := word if line == "" else line + " " + word
+			if line != "" and f.get_string_size(trial, HORIZONTAL_ALIGNMENT_LEFT, -1, size_px).x > w:
+				_lines.append(_measure(start, line))
+				start = at
+				line = word
+			else:
+				line = trial
+			at += word.length() + 1
 		_lines.append(_measure(start, line))
 	custom_minimum_size.y = float(_lines.size() * _line_h())
 	queue_redraw()
@@ -190,7 +192,7 @@ func _process(delta: float) -> void:
 		for k in range(before, int(shown)):
 			var ch := text.substr(k, 1)
 			char_settled.emit(k, ch)
-			if sound and ch != " ":
+			if sound and ch != " " and ch != "\n":
 				_letters += 1
 				if (_letters - 1) % BLIP_EVERY == 0:
 					blips += 1

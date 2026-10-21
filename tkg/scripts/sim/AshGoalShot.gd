@@ -24,6 +24,10 @@ extends Node
 ## then the same with her off, the card (`deck_<id>_card.png`); prints her box
 ## or the card's and the outline's. `pick=low`: a station under a city, the
 ## decks it has (`deck_low_<id>_...`).
+## mode=cutaway: your ship opened up on LOCAL, her cutaway line holding with
+## the keys under her words (`cutaway.png`), then again with TURN PART on T and
+## FLIP PART on G (`cutaway_rebound.png`); each also as her box alone, cropped
+## from the window (`_box.png`), and the keys put back after.
 ## Each still is the whole window and a 2x crop of its top left (`_tl.png`, the
 ## first 480x270 game pixels). Prints her box, the goal's and the step's. Needs
 ## a window.
@@ -155,6 +159,8 @@ func _run() -> void:
 			await _settings()
 		"decks":
 			await _decks()
+		"cutaway":
+			await _cutaway()
 		_:
 			await _stills()
 	Ash.forced = false
@@ -398,3 +404,47 @@ func _decks() -> void:
 			Hints.click(_press())
 			await _secs(Hints.GAP_S + 0.4)
 	Ash.set_on(true)
+
+
+func _cutaway() -> void:
+	await _start(true)
+	Run.jumps = 1
+	for id in Hints.ORDER:
+		if id != &"cutaway":
+			Hints.mark_seen(id)
+	for id in Hints.STEP_LINES:
+		Hints.mark_seen(StringName("said_" + String(id)))
+	Router.show_local()
+	await _secs(3.0)
+	for rebound: bool in [false, true]:
+		if rebound:
+			Keys.set_key(&"hold_turn", 0, KEY_T)
+			Keys.set_key(&"part_flip", 0, KEY_G)
+		Hints.mark_seen(&"cutaway", false)
+		var sc := Router.current as SectorScreen
+		if sc == null:
+			return
+		# (the arrival over and the screen at rest)
+		var t0 := GameClock.now()
+		while not sc.cutaway_ready() and GameClock.now() - t0 < 20.0:
+			await _tree.process_frame
+		var cut := sc.open_cutaway()
+		if cut == null:
+			print("[ashgoalshot] the cutaway did not open")
+			return
+		if await _holding(&"cutaway", 15.0):
+			await _secs(0.5)
+			var name := "cutaway_rebound" if rebound else "cutaway"
+			print("[ashgoalshot] %s: \"%s\" (said: \"%s\")" % [name, Ash.portrait.line.c_escape(), Ash.portrait.spoken])
+			await _shot(name)
+			var img := _tree.root.get_texture().get_image()
+			var k := float(img.get_width()) / 960.0
+			var r := Ash.portrait.rect().grow(6.0)
+			img.get_region(Rect2i(Vector2i(r.position * k), Vector2i(r.size * k))).save_png("%s/%s_box.png" % [_out, name])
+		else:
+			print("[ashgoalshot] MISSING her cutaway line")
+		Hints.click(_press())
+		cut.close_now()
+		await _secs(1.5)
+	Keys.reset(&"hold_turn")
+	Keys.reset(&"part_flip")

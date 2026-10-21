@@ -509,8 +509,17 @@ func _lines() -> void:
 	_ok("her lines are Jon's picks, character for character (%d; %s)" % [JON.size(),
 		"all" if bad.is_empty() else "NOT " + ", ".join(bad)], bad.is_empty())
 	_ok("the cutaway line is Jon's words (Oct 20), behind one constant (\"%s\")" % AshTutorLines.CUTAWAY_LINE,
-		AshTutorLines.LINES[&"cutaway"] == AshTutorLines.CUTAWAY_LINE
-		and AshTutorLines.CUTAWAY_LINE == "Drag a module onto an empty slot to install it. Drag it off the ship into the hold to remove it.")
+		AshTutorLines.CUTAWAY_LINE == "Drag a module onto an empty slot to install it. Drag it off the ship into the hold to remove it.")
+	# THE KEYS UNDER IT (Jon, Oct 21, 0.3.0): shown on a line of their own, as
+	# bound, and never said: her take is still the one of his words alone
+	var keys_shown := AshTutorLines.fill(&"cutaway", {turn = "R", flip = "F"})
+	_ok("the cutaway shows its keys on a line under her words (\"%s\")" % keys_shown.c_escape(),
+		AshTutorLines.LINES[&"cutaway"] == AshTutorLines.CUTAWAY_LINE + "\n{turn} turns a part. {flip} flips it."
+		and keys_shown == AshTutorLines.CUTAWAY_LINE + "\nR turns a part. F flips it.")
+	_ok("and says only the take's words, no key (\"%s\")" % AshTutorLines.spoken(&"cutaway"),
+		AshTutorLines.spoken(&"cutaway") == AshTutorLines.CUTAWAY_LINE)
+	_ok("the cutaway with its keys is %d lines in her column (at most five)" % AshPortrait.lines_for(keys_shown),
+		AshPortrait.lines_for(keys_shown) <= 5 and AshPortrait.lines_for(keys_shown) == AshPortrait.lines_for(AshTutorLines.CUTAWAY_LINE) + 1)
 	# ITS TAKE is Jon's pick for the new words (take:1, Oct 20)
 	_ok("the cutaway line is said in its own take (voice \"%s\")" % AshTutorLines.voice_path(&"cutaway"),
 		AshTutorLines.voice_path(&"cutaway") == AshTutorLines.VOICE_DIR + "tut_cutaway.ogg" and not AshTutorLines.SILENT.has(&"cutaway"))
@@ -1059,6 +1068,13 @@ func _cutaway_once() -> void:
 				n += 1
 		return n
 	var before: int = said.call()
+	# THE KEYS AS BOUND (Jon, Oct 21): TURN PART and FLIP PART rebound, and her
+	# box shows the new keys while her take and her script stay the same
+	Keys.set_key(&"hold_turn", 0, KEY_T)
+	Keys.set_key(&"part_flip", 0, KEY_G)
+	var shown_line := ""
+	var shown_spoken := ""
+	var shown_voice := ""
 	for i in 3:
 		var cut := sc.open_cutaway()
 		if not _ok("open %d: the cutaway opens" % (i + 1), cut != null):
@@ -1067,10 +1083,21 @@ func _cutaway_once() -> void:
 		for f in 60:
 			Hints.poll(0.1)
 			await _tree.process_frame
+			if Ash.lesson == &"cutaway" and shown_line == "":
+				shown_line = Ash.portrait.line
+				shown_spoken = Ash.portrait.spoken
+				shown_voice = Ash.portrait.voice
 		cut.close_now()
 		await _frames(10)
 		Hints.poll(Hints.GAP_S + 0.1)
 	_ok("opened and shut three times: she says it once (%d)" % (said.call() - before), said.call() - before == 1)
+	_ok("TURN PART on T and FLIP PART on G: her box shows them (\"%s\")" % shown_line.c_escape(),
+		shown_line == AshTutorLines.CUTAWAY_LINE + "\nT turns a part. G flips it.")
+	_ok("and she says only the take's words, in the cutaway's take (\"%s\", %s)" % [shown_spoken, shown_voice],
+		shown_spoken == AshTutorLines.CUTAWAY_LINE and shown_voice == AshTutorLines.voice_path(&"cutaway")
+		and not shown_spoken.contains("T turns") and not shown_spoken.contains("flips"))
+	Keys.reset(&"hold_turn")
+	Keys.reset(&"part_flip")
 	var cfg := ConfigFile.new()
 	_ok("and it is kept seen in the hints file", cfg.load(Hints.store_path()) == OK and bool(cfg.get_value("hints", "cutaway", false)))
 	Hints.reset()
