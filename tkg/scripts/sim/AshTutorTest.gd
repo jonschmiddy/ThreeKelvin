@@ -549,17 +549,17 @@ func _lines() -> void:
 	_ok("the fuel hint picks its line by the dock: in reach, none, here",
 		AshTutorLines.line_id(&"fuel", {jumps = 2}) == &"fuel_dock" and AshTutorLines.line_id(&"fuel", {}) == &"fuel_none"
 		and AshTutorLines.line_id(&"fuel", {jumps = 0}) == &"fuel_here")
-	# THE DECKS' DRAFTS: option A in the game, a hint each with a two-line card,
-	# spent as it shows; never a retired word (house, maker, man, brand, marque)
+	# THE DECKS' LINES: Jon's picks in the game, a hint each with a two-line card,
+	# spent as it shows. (The gate's vocabulary step reads AshTutorLines and
+	# Hints for the retired words, so this test does not spell them out.)
 	var deck_bad: Array[String] = []
-	var retired := RegEx.create_from_string("(?i)\\b(house|maker|man|brand|marque)s?\\b")
 	for k: StringName in DECKS:
 		var words := String(AshTutorLines.LINES.get(k, ""))
 		var card := Hints.lines(k)
 		if words != String(DECK_A[k]) or card.size() != 2 or not Hints.ORDER.has(k) or not Hints.SPENT_ON_SHOW.has(k) \
-				or retired.search(words + " " + " ".join(card)) != null or AshTutorLines.SPOKEN.has(k):
+				or AshTutorLines.SPOKEN.has(k):
 			deck_bad.append(String(k))
-	_ok("the decks' lines are Jon's picks (B, B, B, A, A), each a hint with a two-line card, spent as it shows, no retired word (%s)" % [
+	_ok("the decks' lines are Jon's picks (B, B, B, A, A), each a hint with a two-line card, spent as it shows (%s)" % [
 		"all %d" % DECKS.size() if deck_bad.is_empty() else "NOT " + ", ".join(deck_bad)], deck_bad.is_empty())
 	_ok("the decks' hints come after the dock's", DECKS.all(func(k: StringName) -> bool:
 		return Hints.ORDER.find(k) > Hints.ORDER.find(&"dock")))
