@@ -1,7 +1,7 @@
 # Three Kelvin: handoff
 
-For a new person or a new session picking up the project. Written 2026-10-20, the
-day the first alpha, **0.1.0-alpha.1**, goes to a playtester. If something here
+For a new person or a new session picking up the project. Written 2026-10-20 and brought up
+to 2026-10-21, when the first alpha sent out, **0.2.0-alpha.1**, goes to a playtester. If something here
 disagrees with the code, the code is right; fix this file.
 
 The writing guide for encounters that used to live in this file is now
@@ -135,7 +135,7 @@ for encounter prose are [`docs/briefs/ENCOUNTER_COMMISSION.md`](docs/briefs/ENCO
 
 ---
 
-## What is in 0.1.0-alpha.1
+## What is in 0.2.0-alpha.1
 
 See [`CHANGELOG.md`](CHANGELOG.md). In short: a full run from rim to core, card
 fights, 135 encounters, 24 hulls, 95 modules, stations, A.S.H. and the tutorial,
@@ -188,9 +188,9 @@ tags. `git show archive/<name>` says what each was.
 
 ## What is next
 
-1. The first playtest of 0.1.0-alpha.1. Ask for the zip from SAVE MY LOGS with
-   every report.
-2. **0.2.0-alpha.1:** the fixes from that playtest. Add them under
+1. The first outside playtest, of 0.2.0-alpha.1 (0.1.0-alpha.1 was built and
+   tagged but never sent). Ask for the zip from SAVE MY LOGS with every report.
+2. **0.3.0-alpha.1:** the fixes from that playtest. Add them under
    `[Unreleased]` in `CHANGELOG.md` as they land, then cut the version by changing
    `config/version` in `tkg/project.godot` and building with `build_alpha.sh`.
 3. After that: the parked items above, and the five manufacturers still to write

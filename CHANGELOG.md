@@ -6,7 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Fixed
+### Roadmap
+
+The next build is **0.3.0-alpha.1**, with the fixes from the first outside playtest. See
+[`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
+
+## 2026-10-21
+
+### [0.2.0-alpha.1]
+
+The first build sent to playtesters: 0.1.0-alpha.1 with the fixes from Jon's own playthrough of
+it. The Windows and Mac builds come from the same commit.
 
 - **Fixed** — the game froze while A.S.H. taught the star chart's list on a first run. Each
   check that her box covers no system asked the whole galaxy at every few pixels: about a
@@ -16,9 +26,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Fixed** — two copies of the same build could refuse to party ("Your content does not match
   the host's"), depending on how each one started. The check that both players have the same game
   now reads the same way in every copy.
-
-### Changed
-
+- **Fixed** — the welcome note's dark backdrop missed the edges of the screen, so the title showed
+  through as a lit frame around the corners and sides. It covers the whole picture now, and so do the
+  title's other popups and the Settings drawer.
+- **Fixed** — text on the sector map's side panel ran up against its scroll bar. Every scroll bar
+  in the game keeps a 4 px gap now.
 - **Changed** — a manufacturer you have not unlocked appears nowhere. On a new profile, wrecks,
   shelves, the yard, derelicts, rewards, contracts and the Custodian hold Korvan and unbranded
   parts and hulls only. Win with Korvan and Solari's join them from the next run. In co-op, the
@@ -32,9 +44,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Changed** — the station's left column of decks slides in like the other panels once your ship is on
   its stands, with its dark ground under it. It used to slide in see-through over the hangar and
   then pop to its dark column when it landed.
-
-### Added
-
+- **Added** — a launch screen in place of Godot's logo. The game opens in a small window in the
+  middle of your main screen, showing the galaxy icon and LOADING, then switches to your own window
+  when it is ready.
 - **Added** — a first-visit tip for each station deck: the Shipyard, the Promenade, the Exchange, the
   Hiring Board and the Laboratory. Each shows the first time you open that deck, after the
   station's own tip, and outlines the deck's main thing: the drones, the shelf, the sell
@@ -42,11 +54,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   it, or it shows as a card with her off. Her lines are text alone for now, with no recording.
 - **Added** — README-ALPHA.txt explains FLY TOGETHER: HOST PARTY and a code, the same build for
   everyone, and the firewall prompt for HOST DIRECT.
-
-### Roadmap
-
-The next build is **0.2.0-alpha.1**, with the fixes from the first playtest. See
-[`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
 ## 2026-10-20
 
