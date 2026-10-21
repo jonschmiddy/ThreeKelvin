@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Docking** opens with a new system's arrival, exactly: LOCAL cuts to black, then your ship
   flies in from off screen to its mooring as it does in the first system, on the same path, with the
   same burn sputtering down to idle. Then a beat, the station's lights come on, and the ship lights
-  its engines and flies in. The camera stays still throughout: only the ship moves. Docking from the
+  its engines and flies in. The camera, the sky and the dust stay still throughout: only the ship moves. Docking from the
   sector map now fades to black and opens on LOCAL with the ship still off screen, so it is never seen
   at its mooring first. A key or click during it still docks at once.
 - **The station's left column of decks** slides in like the other panels once your ship is on

@@ -151,6 +151,14 @@ func _hull_flies_in(dock_b: Button) -> void:
 	# the dock's first frame to the dip to black, everything LOCAL draws but your
 	# ship -- the station's plate and front and their layers, the wreck row, the
 	# dust, the effects, the subject, the sky -- where it was, each frame
+	# THE DUST AT ITS IDLE (Jon, Oct 20: "The dust move too much"): every mote,
+	# through its place as drawn (`LocalDust._rest_at`), each frame of the dock
+	# up to the dip, moving by its own drift and bob and nothing more
+	var dust_prev := {}
+	var dust_frames := 0
+	var dust_over := 0
+	var dust_worst := 0.0
+	var dust_cam := {}
 	var bg0: Array = []
 	var bg_frames := 0
 	var bg_moved := 0
@@ -188,6 +196,27 @@ func _hull_flies_in(dock_b: Button) -> void:
 			var hd: Dictionary = loc0._lad.get("hall", {})
 			var art_d := loc0._view.ship_view()
 			var th := art_d._thrust_now() if art_d != null else -9
+			if beat != &"" and not dip_seen and loc0._view.dust != null and not loc0._view.dust._motes.is_empty():
+				var du: LocalDust = loc0._view.dust
+				var dx := du.get_global_transform()
+				var moved := false
+				dust_cam[du.sky.cam_follow.x] = true
+				for mi in du._motes.size():
+					var mo: Dictionary = du._motes[mi]
+					var gp := dx * du._rest_at(mo, du._t)
+					if dust_prev.has(mi):
+						var pv: Array = dust_prev[mi]
+						var ddt := du._t - float(pv[1])
+						var dd: Vector2 = gp - (pv[0] as Vector2)
+						if absf(dd.x) < 200.0:
+							moved = true
+							var over := maxf(absf(dd.x - float(mo.vx) * ddt), absf(dd.y) - 0.15 * float(mo.bob) * ddt)
+							dust_worst = maxf(dust_worst, over)
+					dust_prev[mi] = [gp, du._t]
+				if moved:
+					dust_frames += 1
+					if dust_worst > 0.01:
+						dust_over += 1
 			if beat != &"" and not dip_seen:
 				var bg := _bg_state(loc0)
 				if bg0.is_empty():
@@ -301,6 +330,8 @@ func _hull_flies_in(dock_b: Button) -> void:
 			beats == [&"cut", &"arrive", &"beat", &"power", &"enter"])
 		_ok("3B: THE CAMERA STILL -- nothing but your ship moves on LOCAL from the dock's first frame to the dip to black (%d frames; %d with anything else off where it was, at most %.2f px%s)" % [
 			bg_frames, bg_moved, bg_worst, ", at " + bg_at if bg_at != "" else ""], bg_frames > 200 and bg_moved == 0)
+		_ok("3B: THE DUST AT ITS IDLE -- every mote moves by its own drift and bob alone through the dock (%d frames; beyond them at most %.3f px, %d frames over), the sky's camera held (%s)" % [
+			dust_frames, dust_worst, dust_over, dust_cam.keys()], dust_frames > 200 and dust_over == 0 and dust_cam.size() == 1)
 		_ok("3B CUT: LOCAL goes all the way to black, your ship taken off its mooring in it (%.2f)" % cut_black, cut_black >= 0.99)
 		# THE ENTRANCE IS THE ARRIVAL (Jon, Oct 20: "I want the ship to enter the
 		# screen like it does for the first sector")

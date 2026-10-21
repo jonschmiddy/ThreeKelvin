@@ -2783,6 +2783,18 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 				var f_in := clampf((StationFace.RECESS.end.x + 2.0 - start.x + dl) / din, hold, 1.0)
 				var ue_in := sqrt(clampf((f_in - hold) / maxf(1.0 - hold, 0.001), 0.0, 1.0))
 				dip_s = clampf(ZoomLadder.DOCK_ENTER_S * (1.0 - ue_in), 0.1, ZoomLadder.DOCK_DIP_S)
+		# THE SKY AND THE DUST HOLD STILL WHILE IT DOCKS (Jon, Oct 20: "The dust
+		# move too much"): LOCAL's sky camera follows your ship's own travel
+		# (`LocalSky.cam_follow`, `CAM_FOLLOW` of it), and the dust slides with
+		# it at its depth (`LocalDust._rest_at`) -- 209 px in one frame as the
+		# arrival takes the hull off the left edge, then back over its approach,
+		# and up to 515 px on with it as it goes in. Docking, the station stands
+		# still and so does all of it: held where it is (`cam_hold`), the dust
+		# left its own slow drift. Given back at the end (`ladder_cam_end`).
+		var skyc: LocalSky = _view.backdrop
+		if inward and skyc != null and is_instance_valid(skyc):
+			_lad["sky_hold0"] = skyc.cam_hold
+			skyc.cam_hold = skyc.cam_follow
 		_lad["hall"] = {"xf": xf0, "o": _face.origin(),
 			"right": _view.get_global_rect().end.x, "vc": _view.get_global_rect().get_center(), "s_end": s_end,
 			"berth": berth, "start": start, "path": absf(berth.x - start.x), "inward": inward, "beat": &"",
@@ -3147,6 +3159,8 @@ func ladder_cam_end() -> void:
 	# (a dock ended before its arrival had -- a press, or the berth taken some
 	# other way -- takes the arrival's clip with it: the sound follows the
 	# picture, and the picture has gone)
+	if _lad.has("sky_hold0") and _view.backdrop != null and is_instance_valid(_view.backdrop):
+		_view.backdrop.cam_hold = _lad.sky_hold0
 	var hall_e: Dictionary = _lad.get("hall", {})
 	if hall_e.has("clip") and float(hall_e.get("t", 0.0)) < ZoomLadder.dock_step_from(2):
 		var hn: Array[StringName] = [hall_e.clip as StringName]

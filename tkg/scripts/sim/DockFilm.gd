@@ -64,6 +64,14 @@ func _run() -> void:
 	SectorScreen._approached_at = st
 	Router.park_at_station()
 	var route := _arg("route", "local")
+	if route == "parked":
+		# (LOCAL at the station, nothing happening: the dust's idle rate)
+		Router.show_local()
+		for i in 240:
+			await _tree.process_frame
+			_log_dust(&"parked")
+		_tree.quit()
+		return
 	if route == "first":
 		# (LOCAL at the station, and on it the arrival a run's first system
 		# plays, `_begin_arrive`, name card and all -- the dock's, five seconds
@@ -74,6 +82,7 @@ func _run() -> void:
 		for i in 330:
 			await _tree.process_frame
 			_log_ship()
+			_log_dust(&"first")
 		_tree.quit()
 		return
 	if route == "map":
@@ -97,6 +106,9 @@ func _run() -> void:
 	for i in 1500:
 		await _tree.process_frame
 		_log_ship()
+		var lcb := Router.current as SectorScreen
+		if lcb != null and not lcb._lad.is_empty():
+			_log_dust((lcb._lad.get("hall", {}) as Dictionary).get("beat", &""))
 		var lc := Router.current as SectorScreen
 		if lc != null and not lc._lad.is_empty():
 			var b: StringName = (lc._lad.get("hall", {}) as Dictionary).get("beat", &"")
@@ -129,3 +141,42 @@ func _log_ship() -> void:
 		var r := art.fitted_rect_global()
 		print("  [ship] drawn %d x %.1f rect %.1f %.1f %.1f %.1f scale %.3f thrust %d" % [Engine.get_frames_drawn(), art.position.x,
 			r.position.x, r.position.y, r.size.x, r.size.y, art.scale.x, art._thrust_now()])
+
+
+## LOCAL's dust this frame (`LocalDust`, through its motes' places as drawn,
+## `_rest_at` and the scene's transform): each mote's speed, px a second, and
+## what is left of it once its own drift is taken out -- the median and the
+## most, and the sky's camera (`LocalSky.cam_follow`) it slides with.
+var _dust_prev := {}
+
+
+func _log_dust(tag: StringName) -> void:
+	var lc := Router.current as SectorScreen
+	if lc == null or lc._view == null or lc._view.dust == null:
+		return
+	var d: LocalDust = lc._view.dust
+	if d.sky == null or d._motes.is_empty():
+		return
+	var X := d.get_global_transform()
+	var sp: Array[float] = []
+	var rs: Array[float] = []
+	var now := {}
+	for i in d._motes.size():
+		var m: Dictionary = d._motes[i]
+		var g := X * d._rest_at(m, d._t)
+		now[i] = [g, d._t]
+		if _dust_prev.has(i):
+			var pv: Array = _dust_prev[i]
+			var dt := maxf(d._t - float(pv[1]), 1.0 / 30.0)
+			var dv: Vector2 = g - (pv[0] as Vector2)
+			if dv.length() > 200.0:
+				continue
+			sp.append(dv.length() / dt)
+			rs.append(absf(dv.x - float(m.vx) * (d._t - float(pv[1]))) / dt)
+	_dust_prev = now
+	if sp.is_empty():
+		return
+	sp.sort()
+	rs.sort()
+	print("  [dust] drawn %d %s speed med %.1f max %.1f px/s; beyond its own drift med %.1f max %.1f px/s; cam %.0f" % [
+		Engine.get_frames_drawn(), tag, sp[sp.size() / 2], sp[-1], rs[rs.size() / 2], rs[-1], d.sky.cam_follow.x])
