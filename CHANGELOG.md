@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Added** — A.S.H. now says her five station deck tips out loud, in her warm voice, like her other
+  tutorial lines.
+
 ### Roadmap
 
 The next build is **0.3.0-alpha.1**, with the fixes from the first outside playtest. See
