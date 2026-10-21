@@ -73,33 +73,32 @@ const UI_IN_S := 0.4
 const SEAM1_S := 1.7
 const SEAM2_S := 1.8
 const DIVE_S := 1.9
-## 3B AT A STATION: THE DOCK IN FIVE STEPS, in seconds (Jon, Oct 20: "I want
-## the ship to enter the screen like it does for the first sector"; before that,
-## "...have the thrusters fizzle to a low burn... then the station turns on, then
-## the ship flies in", and "Let's have the station turn on BEFORE the ship moves
-## in"). In order, never two at once (`SectorScreen.ladder_cam`):
+## 3B AT A STATION: THE DOCK IN FIVE STEPS, in seconds (Jon, Oct 20: "Why
+## doesn't the ship enter like the first local?" -- so it does, exactly; before
+## that, "...the station turns on, then the ship flies in", and "Let's have the
+## station turn on BEFORE the ship moves in"). In order, never two at once
+## (`SectorScreen.ladder_cam`):
 ##   1. CUT: LOCAL down to black (`FADE_OUT_S`, the game's fade), your ship
 ##      taken off its mooring in the black;
 ##   2. ARRIVE: up from black (`FADE_IN_S`) on the dark station with your ship
-##      off screen, and in it comes -- THE ARRIVAL ITSELF (`ShipView.arrive`,
-##      stepped on this clock): its drive heard `ShipView.ARRIVE_LEAD_S` first,
-##      the same approach from off the left edge over `ShipView.ARRIVE_MS`, the
-##      same flameout sputtering down to the idle and the same drift, its clip
-##      under it -- ending in front of the station's mouth, `DOCK_HOLD_PX` short
-##      of the lips, instead of at its mooring;
-##   3. BEAT: it idles at the dark station;
+##      off screen, and in it comes -- A NEW SYSTEM'S ARRIVAL, the very call
+##      (`SectorScreen._ship_arrives`): its drive heard `ShipView.ARRIVE_LEAD_S`
+##      first, the approach from off the left edge over `ShipView.ARRIVE_MS`,
+##      the flameout sputtering down to the idle and the drift to its mooring,
+##      its clip under it, its bob;
+##   3. BEAT: it idles at its mooring by the dark station;
 ##   4. POWER: the station's lights come on (`StationFace.power`), the warning
 ##      lights at the mouth flashing and then green;
-##   5. ENTER: your ship from the mouth on into the hull in one move, the camera
-##      after it, at the idle burn.
+##   5. ENTER: its engines lit, your ship from its mooring on into the hull in
+##      one move along the approved dock's path and its shrink with depth (so
+##      the mouth fits every hull), the camera after it -- the dock approved at
+##      this length.
 ## LOCAL's whole pre-roll is the five (`dock_approach_s`); the yard after it is
 ## its own (`YARD_FADE_S`, `YARD_BEAT_S`, `DOCK_YARD_S`). Reduced motion never
 ## animates a dock (`Router.animating`), and a press mid-dock ends it at once.
 const DOCK_BEAT_S := 0.3
 const DOCK_POWER_S := 1.3
-const DOCK_ENTER_S := 1.3
-## where the ARRIVE ends: your ship's nose this many plate px short of the lips
-const DOCK_HOLD_PX := 14.0
+const DOCK_ENTER_S := 4.0
 ## how fast the warning lights at the mouth flash while your ship waits (a second)
 const DOCK_WARN_HZ := 1.6
 ## the dip to black at the end of the dock, your ship already out of sight (s)

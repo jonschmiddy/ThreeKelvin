@@ -136,15 +136,15 @@ func _hull_flies_in(dock_b: Button) -> void:
 	# `_flame_window`, `arrive_thrust`) at the arrival's time; off the left edge
 	# on its first frame; the thrusts seen; and its clip
 	var arr_frames := 0
-	var arr_bad := 0
-	var arr_bad_at := ""
-	var arr_span := 0
 	var arr_first_off := false
+	_dock_rec = []
 	var arr_thr := {}
 	var arr_end := Rect2()
 	var arr_frame0 := -1
 	var arr_clip := &""
 	var thr_after := {}
+	var thr_enter := {}
+	var moor := Rect2()
 	var idle_bed := false
 	Audio.taping = true
 	Audio.tape.clear()
@@ -180,38 +180,27 @@ func _hull_flies_in(dock_b: Button) -> void:
 			var th := art_d._thrust_now() if art_d != null else -9
 			if beat == &"cut":
 				cut_black = maxf(cut_black, float(hd.get("black", 0.0)))
+				if moor.size.x <= 0.0:
+					moor = last
 			if beat == &"arrive" and art_d != null:
 				arr_frames += 1
 				if arr_frame0 < 0:
 					arr_frame0 = Engine.get_process_frames()
-					arr_span = art_d._arrive_span
 					arr_clip = hd.get("clip", &"")
 					# (all of it off the view's left edge)
 					arr_first_off = art_d.fitted_rect_global().end.x <= loc0._view.get_global_rect().position.x + 0.5
-				var now := art_d._arrive_from + int(roundf(maxf(0.0, float(hd.get("t_arrive", 0.0))) * 1000.0))
-				var want_x := 0.0
-				var want_th := ThrusterFx.Thrust.IDLE
-				var to_x := float(hd.get("to_x", 0))
-				if art_d._arrive_at >= 0 and now < art_d._arrive_at:
-					want_x = -float(arr_span)
-					want_th = ThrusterFx.Thrust.FULL
-				elif art_d._arrive_at >= 0:
-					var e := float(now - art_d._arrive_at) / ShipView.ARRIVE_MS
-					var pe := 1.0 - pow(1.0 - e, 3.0)
-					want_x = roundf(lerpf(-float(arr_span), to_x, pe))
-					want_th = ShipView.arrive_thrust(art_d._flame_window(e))
-				else:
-					want_x = to_x
+				# (each frame as drawn, for the first LOCAL's arrival to be laid
+				# over: `_arrival_is_first_locals`)
+				_dock_rec.append([float(hd.get("t_arrive", 0.0)) - float(hd.get("t_called", 0.0)), art_d.position, art_d.scale, art_d.get_global_rect(),
+					art_d.fitted_rect_global(), th, art_d._flameout, art_d.is_visible_in_tree(), art_d._arrive_at >= 0])
 				arr_thr[th] = true
-				if absf(art_d.position.x - want_x) > 0.01 or th != want_th:
-					arr_bad += 1
-					if arr_bad_at == "":
-						arr_bad_at = "frame %d: x %.1f (want %.1f), thrust %d (want %d)" % [arr_frames, art_d.position.x, want_x, th, want_th]
 				arr_end = last
 			if loc0._face.power > 0.0 and (beat == &"cut" or beat == &"arrive" or beat == &"beat"):
 				lit_early = maxf(lit_early, loc0._face.power)
-			if beat == &"beat" or beat == &"power" or beat == &"enter":
+			if beat == &"beat" or beat == &"power":
 				thr_after[th] = true
+			if beat == &"enter" and art_d != null and art_d.is_visible_in_tree():
+				thr_enter[th] = true
 			if beat == &"beat" or beat == &"power":
 				wait_x.append(cx)
 				idle_bed = idle_bed or Audio.idle_want
@@ -294,13 +283,13 @@ func _hull_flies_in(dock_b: Button) -> void:
 		var arr_s := ShipView.ARRIVE_LEAD_S + ShipView.ARRIVE_MS / 1000.0
 		_ok("3B ARRIVE: your ship starts all off the view's left edge (%s) and the arrival is all there (%d frames, %.1f s; the arrival's lead and approach %.1f s)" % [
 			arr_first_off, arr_frames, arr_frames / 30.0, arr_s], arr_first_off and arr_frames >= int(arr_s * 30.0) - 1)
-		_ok("3B ARRIVE: on every frame your ship is where the arrival's own approach puts it and its flame is the arrival's, on its own row (%d of %d off%s)" % [
-			arr_bad, arr_frames, "; first " + arr_bad_at if arr_bad_at != "" else ""], arr_bad == 0 and arr_frames > 0)
-		_ok("3B ARRIVE: the flameout sputters down to the idle -- FULL, the coughs, then only the idle from the beat on (%s; after %s)" % [arr_thr.keys(), thr_after.keys()],
+		_ok("3B ARRIVE: the flameout sputters down to the idle -- FULL, the coughs, then only the idle from the beat on (%s; through the beat and power-on %s)" % [arr_thr.keys(), thr_after.keys()],
 			arr_thr.has(ThrusterFx.Thrust.FULL) and arr_thr.has(ThrusterFx.Thrust.CRUISE) and arr_thr.has(ThrusterFx.Thrust.IDLE)
 				and thr_after.keys() == [ThrusterFx.Thrust.IDLE])
-		_ok("3B ARRIVE: it comes to rest in front of the station's mouth, its nose short of the lips (plate x %.1f; lips %.0f, about %.0f short)" % [
-			arr_end.end.x, StationFace.LIP_X, ZoomLadder.DOCK_HOLD_PX], arr_end.end.x <= StationFace.LIP_X and arr_end.end.x >= StationFace.LIP_X - ZoomLadder.DOCK_HOLD_PX - 4.0)
+		_ok("3B ENTER: its engines lit for the move in (%s, CRUISE %d)" % [thr_enter.keys(), ThrusterFx.Thrust.CRUISE],
+			thr_enter.has(ThrusterFx.Thrust.CRUISE))
+		_ok("3B ARRIVE: it comes to rest at its mooring, where it sat (plate x %.1f..%.1f; it sat at %.1f..%.1f)" % [
+			arr_end.position.x, arr_end.end.x, moor.position.x, moor.end.x], moor.size.x > 1.0 and absf(arr_end.position.x - moor.position.x) < 0.01 and arr_end.size.is_equal_approx(moor.size))
 		var wx := 0.0
 		if not wait_x.is_empty():
 			wx = wait_x.max() - wait_x.min()
@@ -375,6 +364,88 @@ func _hull_flies_in(dock_b: Button) -> void:
 	_ok("3B: the landed hull's rect is the yard's own seat (%s, the yard %s)" % [landed, seat],
 		seat.size.x > 1.0 and landed.position.is_equal_approx(seat.position) and landed.size.is_equal_approx(seat.size))
 	_clean("3B dock")
+
+
+## THE DOCK'S ARRIVAL, frame by frame as `_hull_flies_in` saw it: [its time,
+## position, scale, rect, everything bolted on, flame, flameout row, shown,
+## still arriving].
+var _dock_rec: Array = []
+## THE FIRST LOCAL'S ARRIVAL on the same LOCAL, by frame (`_first_locals`):
+## [position, scale, rect, everything bolted on, shown, still arriving, the
+## flame on each flameout row].
+var _first_rec: Array = []
+
+
+## THE FIRST LOCAL'S ARRIVAL, recorded where the dock will start (Jon, Oct 20:
+## "Why doesn't the ship enter like the first local?"): on LOCAL at the
+## station, the arrival a run's first system plays (`SectorScreen._begin_arrive`,
+## name card and all), stepped (`arrive_step`) to every 1/30 s after its card,
+## the flame read on every flameout row; then put away, the ship at rest.
+func _first_locals() -> void:
+	_first_rec = []
+	var loc := Router.current as SectorScreen
+	if loc == null:
+		return
+	var art := loc._view.ship_view()
+	loc._begin_arrive()
+	art.arrive_driven = true
+	var n := int(ceilf((ShipView.ARRIVE_LEAD_S + ShipView.ARRIVE_MS / 1000.0) * 30.0)) + 4
+	for k in n:
+		var t := float(k) / 30.0 + SectorScreen.CARD_TOTAL
+		var thr: Array = []
+		var still := false
+		var rec: Array = []
+		for row in ShipView.FLAMEOUTS.size():
+			if art._arrive_at < 0:
+				thr.append(art._thrust_now())
+				continue
+			art._flameout = row
+			art.arrive_step(t)
+			thr.append(art._thrust_now())
+			if rec.is_empty():
+				still = art._arrive_at >= 0
+				rec = [art.position, art.scale, art.get_global_rect(), art.fitted_rect_global(), art.is_visible_in_tree(), still]
+		if rec.is_empty():
+			rec = [art.position, art.scale, art.get_global_rect(), art.fitted_rect_global(), art.is_visible_in_tree(), false]
+		rec.append(thr)
+		_first_rec.append(rec)
+	if loc._cine != null and loc._cine.is_valid():
+		loc._cine.kill()
+	loc._drop_card()
+	loc._phase = SectorScreen.Phase.NONE
+	loc._open_drawer(true)
+	art.park()
+	art.refresh()
+	await _frames(3)
+
+
+## THE DOCK'S ARRIVAL IS THE FIRST LOCAL'S: laid over it frame by frame -- your
+## ship in the same place, at the same size, with the same flame on its row,
+## shown alike, on every one of the dock's arrival frames (once it rests, its
+## idle bob runs on the game's clock: its place and size then, the phase aside).
+func _arrival_is_first_locals() -> void:
+	if not _ok("first LOCAL's arrival recorded (%d frames) and the dock's (%d)" % [_first_rec.size(), _dock_rec.size()],
+			not _first_rec.is_empty() and not _dock_rec.is_empty()):
+		return
+	var bad := 0
+	var at := ""
+	for r: Array in _dock_rec:
+		var k := int(roundf(float(r[0]) * 30.0))
+		if k < 0 or k >= _first_rec.size():
+			bad += 1
+			continue
+		var f: Array = _first_rec[k]
+		var fr: Rect2 = f[3]
+		var fr0: Rect2 = r[4]
+		var fit_same := fr.is_equal_approx(fr0) if bool(r[8]) else (is_equal_approx(fr.position.x, fr0.position.x) and fr.size.is_equal_approx(fr0.size))
+		var thr := int((f[6] as Array)[int(r[6])])
+		var same: bool = f[0] == r[1] and f[1] == r[2] and (f[2] as Rect2).position.x == (r[3] as Rect2).position.x 			and (f[2] as Rect2).size == (r[3] as Rect2).size and fit_same and thr == int(r[5]) and bool(f[4]) == bool(r[7])
+		if not same:
+			bad += 1
+			if at == "":
+				at = "frame %d: %s %s %s thrust %d (the dock's %s %s %s thrust %d)" % [k, f[0], f[1], fr, thr, r[1], r[2], fr0, int(r[5])]
+	_ok("3B ARRIVE IS THE FIRST LOCAL'S: your ship in the same place, at the same size, with the same flame on every one of the dock's %d arrival frames (%d differ%s)" % [
+		_dock_rec.size(), bad, "; first " + at if at != "" else ""], bad == 0)
 
 
 ## A PRESS MID-DOCK, the plain version (`ZoomLadder.finish_now`): a key mid-
@@ -1310,7 +1381,12 @@ func _run() -> void:
 		_front_is_plate_less_recess()
 		_station_picks()
 		if dock_b != null:
+			await _first_locals()
+			# (LOCAL's bar built again after its arrival: its DOCK anew)
+			loc = Router.current as SectorScreen
+			dock_b = loc.find_child("Dock", true, false) as Button if loc != null else null
 			await _hull_flies_in(dock_b)
+			_arrival_is_first_locals()
 			await _hull_flies_out()
 			loc = Router.current as SectorScreen
 			dock_b = loc.find_child("Dock", true, false) as Button if loc != null else null

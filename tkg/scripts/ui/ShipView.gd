@@ -256,10 +256,13 @@ var _arrive_bob: int = 2
 ## How far left of its resting place the ship starts, in screen pixels. Measured
 ## on the first tick, once layout has actually happened.
 var _arrive_span: int = 0
-## Where the approach comes to rest (`arrive`'s `to_x`), and when it was asked
-## for (ms, the arrival's own clock).
-var _arrive_to: int = 0
+## When the approach was asked for (ms), and it and its start in seconds: the
+## approach is timed in seconds, not whole ms, so an arrival is the same
+## pictures whatever moment of the game's clock it starts on (the dock's lays
+## over a system's frame for frame, `LadderTest`).
 var _arrive_from: int = 0
+var _arrive_from_s := 0.0
+var _arrive_at_s := 0.0
 ## THE APPROACH STEPPED BY ITS OWNER (the dock, on the ladder's clock: a film or
 ## a harness steps that clock, and the two must not drift apart): `_process`
 ## leaves it alone, and `arrive_step` runs the very same tick.
@@ -275,16 +278,13 @@ var arrive_driven := false
 ## the drive plays the one cut from this row at this hull's weight. A caller
 ## with no sound to play ignores it — and a convoy still gets four different
 ## patterns, which is the one place the variation is free.
-##
-## `to_x` is where it comes to rest, its own `position.x` (0, its mooring, for
-## every arrival but the dock's: `SectorScreen.ladder_cam` sends it to the
-## station's mouth -- the same approach, flameout and drift, ending there).
-func arrive(bob_amp: int = 2, delay: float = 0.0, to_x: int = 0) -> StringName:
+func arrive(bob_amp: int = 2, delay: float = 0.0) -> StringName:
 	_flameout = randi() % FLAMEOUTS.size()
 	_arrive_bob = maxi(0, bob_amp)
-	_arrive_from = GameClock.now_ms()
-	_arrive_at = _arrive_from + int(maxf(0.0, delay) * 1000.0)
-	_arrive_to = to_x
+	_arrive_from_s = GameClock.now()
+	_arrive_at_s = _arrive_from_s + maxf(0.0, delay)
+	_arrive_from = int(_arrive_from_s * 1000.0)
+	_arrive_at = int(_arrive_at_s * 1000.0)
 	_arrive_dx = 0
 	_arrive_span = 0
 	_bob_amp = 0
@@ -837,13 +837,13 @@ func refresh() -> void:
 ## The approach `t` s after `arrive` was called, on the caller's clock (with
 ## `arrive_driven`): the same tick as every arrival's.
 func arrive_step(t: float) -> void:
-	if _arrive_at >= 0 and _tick_arrival(_arrive_from + int(roundf(maxf(0.0, t) * 1000.0))):
+	if _arrive_at >= 0 and _tick_arrival(_arrive_from_s + maxf(0.0, t)):
 		refresh()
 
 
-func _tick_arrival(now: int = -1) -> bool:
-	if now < 0:
-		now = GameClock.now_ms()
+func _tick_arrival(now: float = -1.0) -> bool:
+	if now < 0.0:
+		now = GameClock.now()
 	# The span is taken once, on the first tick that has a real layout: far
 	# enough left that the ship's trailing edge starts off the SCREEN, not off
 	# its own texture. Sliding inside the canvas was the bug — the canvas is only
@@ -858,20 +858,18 @@ func _tick_arrival(now: int = -1) -> bool:
 	# Still waiting its turn. Held off screen rather than parked at rest, so a
 	# staggered convoy does not show three ships standing still while the first
 	# one flies in.
-	if now < _arrive_at:
+	if now < _arrive_at_s:
 		return false
 
-	var e := float(now - _arrive_at) / ARRIVE_MS
+	var e := (now - _arrive_at_s) * 1000.0 / ARRIVE_MS
 	if e >= 1.0:
-		var to := _arrive_to
 		park()
-		position.x = float(to)
 		return true
 
 	var dirty := false
 	# Ease-out cubic: it arrives with speed and gives it all up to the drift.
 	var p := 1.0 - pow(1.0 - e, 3.0)
-	var dx := int(round(lerpf(float(-_arrive_span), float(_arrive_to), p)))
+	var dx := int(round(lerpf(float(-_arrive_span), 0.0, p)))
 	if dx != _arrive_dx:
 		_arrive_dx = dx
 		position.x = float(dx)
@@ -1225,7 +1223,6 @@ func _unhide_arrival() -> void:
 func park() -> void:
 	_unhide_arrival()
 	_arrive_at = -1
-	_arrive_to = 0
 	arrive_driven = false
 	_arrive_dx = 0
 	_arrive_span = 0

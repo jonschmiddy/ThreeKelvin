@@ -8,10 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- **Docking** opens the way a new system does: LOCAL cuts to black, then your ship flies in
-  from off screen on its arrival burn, sputters down to the idle burn and drifts to a stop in
-  front of the station's mouth. Then a beat, the station's lights come on, and the ship goes in.
-  A key or click during it still docks at once.
+- **Docking** opens with a new system's arrival, exactly: LOCAL cuts to black, then your ship
+  flies in from off screen to its mooring as it does in the first system, on the same path, with the
+  same burn sputtering down to idle. Then a beat, the station's lights come on, and the ship lights
+  its engines and flies in. A key or click during it still docks at once.
 - **The station's left column of decks** slides in like the other panels once your ship is on
   its stands, with its dark ground under it. It used to slide in see-through over the hangar and
   then pop to its dark column when it landed.

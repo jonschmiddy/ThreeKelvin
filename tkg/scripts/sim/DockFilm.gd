@@ -3,13 +3,16 @@ extends Node
 ## THE DOCK, FILMED WITH ITS SOUND (`ZoomLadder` 3B, `SectorScreen.ladder_cam`,
 ## the station's elevator after it):
 ##   godot --path . --windowed --resolution 1920x1080 --fixed-fps 30
-##       --write-movie <dir>/dock.avi -- sheet=DockFilm [route=local|map]
+##       --write-movie <dir>/dock.avi -- sheet=DockFilm [route=local|map|first]
 ##       [seed=N] [weight=light|medium|heavy] [rm]
 ## A run beside a station, the ladder on, its clock stepped by the game's own
 ## (`GameClock` through `--fixed-fps`, never the wall's): LOCAL beside the
 ## station (`route=local`, the default: DOCK pressed on LOCAL's bar) or the map
 ## parked at the station (`route=map`: the map's DOCK card, down to LOCAL and on
 ## in), then the dock through to the berth and two seconds of it at rest, and
+## quit; `route=first` films instead the arrival a run's first system plays,
+## at the same station, for laying the dock's beside (`[ship]` lines: every
+## frame of an arrival, your ship's place and size; the AVI's frame is `drawn`),
 ## quit. `rm` docks under reduced motion. A half-speed film is this one slowed
 ## by the encoder, so its sound stays on its pictures. Prints the frame each
 ## step began on. Needs a window.
@@ -61,11 +64,23 @@ func _run() -> void:
 	SectorScreen._approached_at = st
 	Router.park_at_station()
 	var route := _arg("route", "local")
+	if route == "first":
+		# (LOCAL at the station, and on it the arrival a run's first system
+		# plays, `_begin_arrive`, name card and all -- the dock's, five seconds
+		# into the film like it, so the screen has long settled for both)
+		Router.show_local()
+		await _frames(150)
+		(Router.current as SectorScreen)._begin_arrive()
+		for i in 330:
+			await _tree.process_frame
+			_log_ship()
+		_tree.quit()
+		return
 	if route == "map":
 		Router.show_system()
 	else:
 		Router.show_local()
-	await _frames(45)
+	await _frames(150)
 	var f0 := Engine.get_frames_drawn()
 	if route == "map":
 		var m := Router.current as SystemMapScreen
@@ -81,6 +96,7 @@ func _run() -> void:
 	var in_station := -1
 	for i in 1500:
 		await _tree.process_frame
+		_log_ship()
 		var lc := Router.current as SectorScreen
 		if lc != null and not lc._lad.is_empty():
 			var b: StringName = (lc._lad.get("hall", {}) as Dictionary).get("beat", &"")
@@ -95,3 +111,21 @@ func _run() -> void:
 			break
 	await _frames(75)
 	_tree.quit()
+
+
+## Your ship on LOCAL this frame, while an arrival has it: its place and size.
+var _called := -1
+
+
+func _log_ship() -> void:
+	var lc := Router.current as SectorScreen
+	var art := lc._view.ship_view() if lc != null and lc._view != null else null
+	if art == null:
+		return
+	if art._arrive_at >= 0 and _called < 0:
+		_called = Engine.get_frames_drawn()
+		print("  [dockfilm] drawn %d: the arrival called, held %.2f s" % [_called, (art._arrive_at - art._arrive_from) / 1000.0])
+	if art._arrive_at >= 0 or (_called >= 0 and Engine.get_frames_drawn() - _called < 200):
+		var r := art.fitted_rect_global()
+		print("  [ship] drawn %d x %.1f rect %.1f %.1f %.1f %.1f scale %.3f thrust %d" % [Engine.get_frames_drawn(), art.position.x,
+			r.position.x, r.position.y, r.size.x, r.size.y, art.scale.x, art._thrust_now()])
