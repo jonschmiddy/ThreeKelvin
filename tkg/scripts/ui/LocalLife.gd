@@ -241,8 +241,11 @@ func _choose() -> void:
 				[1.25 + 0.2 * float(k), 0.16, 0.0], [1.6 + 0.4 * float(k), 0.5, 0.12], [1.2 + 0.15 * float(k), 0.34, -0.12]]:
 			var o := {"a": R * float(cand[0]), "incl": float(cand[1]), "roll": float(cand[2])}
 			var ok := true
-			for s in 720:
-				var oa := orbit_at(o, TAU * float(s) / 720.0)
+			# (a step of a pixel or less round it: a big world close by has orbits
+			# long enough that 720 steps left gaps a moon crossed a rect through)
+			var steps := maxi(720, ceili(TAU * float(o.a)))
+			for s in steps:
+				var oa := orbit_at(o, TAU * float(s) / float(steps))
 				if not clear_at(c, oa[0], oa[1], R, float(mm.r), rects):
 					ok = false
 					break

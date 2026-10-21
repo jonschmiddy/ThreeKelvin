@@ -444,6 +444,28 @@ else
 fi
 }
 
+unit_orbitworldtest() {
+step "LOCAL draws the world you orbit, close, from its first frame"
+# Jon, Oct 21: "I want the planet you are orbiting to be large in the
+# background (you are close to it)." Four seeds through the real doors with the
+# ladder on: launch, every world of the start system, a jump on and a station's
+# system flown to for the first time (FLY HERE, GO), LOCAL by the HUD's tab, by
+# Tab and by GO, and CONTINUE: the sky's world on LOCAL's first frame is the one
+# the ship orbits, at least the look's size, under your ship and clear of the
+# HUD and the goal line; LOCAL pressed mid-arrival draws that world too.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot orbitworldtest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=OrbitWorldTest; then
+	if grep -qE '^orbitworldtest: PASS' "$LOG_DIR/orbitworldtest.log"; then
+		ok "LOCAL draws the world you orbit, close"
+	else
+		bad "LOCAL drew the wrong world, none, or too small"
+		grep -E 'FAIL|^orbitworldtest' "$LOG_DIR/orbitworldtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "orbitworldtest did not finish"
+fi
+}
+
 unit_fightlogtest() {
 step "The fight log is hidden until LOG is pressed, and records all the same"
 # Jon, Oct 18, "fightlog:hidden". From a used settings file: hidden by default,
@@ -2055,7 +2077,7 @@ gate_weight() {
 	case "$1" in
 		packlayouttest) echo 225 ;; laddertest) echo 170 ;; fightcounttest) echo 166 ;;
 		ashtest) echo 133 ;; localeventtest) echo 109 ;; ashtutortest) echo 104 ;;
-		enemyarttest) echo 95 ;; wrecksitetest) echo 80 ;; dockflytest) echo 62 ;;
+		enemyarttest) echo 95 ;; wrecksitetest) echo 80 ;; orbitworldtest) echo 70 ;; dockflytest) echo 62 ;;
 		subjecttest) echo 61 ;; outcometest) echo 58 ;; soundmomenttest) echo 57 ;;
 		maptest) echo 53 ;; sidebartest) echo 50 ;; popplacetest) echo 45 ;;
 		cutawaytest) echo 44 ;; gradesheet) echo 44 ;; moontest) echo 40 ;;

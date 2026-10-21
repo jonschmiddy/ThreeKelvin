@@ -1501,8 +1501,10 @@ static func _anchor_pt(p: Dictionary, v: Variant, off: Variant = null) -> Vector
 
 
 ## The radius LOCAL draws a giant you orbit at, near enough (`LocalSky`
-## NEAR_GIANT_R), to plan a stage stood on it before it is drawn.
-const NEAR_R := 150.0
+## `near_size`'s giant, at a giant's usual size), to plan a stage stood on it
+## before it is drawn.
+static func near_r() -> float:
+	return float((LocalSky.NEAR_SIZES.get(LocalSky.near_size, LocalSky.NEAR_SIZES[&"large"]) as Dictionary).giant) * 0.86
 
 
 ## IN THE RINGS OF THE WORLD YOU ORBIT (`ring_arc`): each piece on the ring's
@@ -1520,7 +1522,7 @@ static func _stage_ring_arc(st: Dictionary) -> Array:
 	for i in us.size():
 		var u := float(us[i])
 		var lift := float(lifts[i % lifts.size()])
-		var m := _m(_piece(st, i), ring_point(u, lift, NEAR_R, 1.5, 2.2, 0.28).round(), sc, float(st.get("far", 0.3)),
+		var m := _m(_piece(st, i), ring_point(u, lift, near_r(), 1.5, 2.2, 0.28).round(), sc, float(st.get("far", 0.3)),
 			{z = i, flip = u > 0.0 if not st.has("flip") else bool(st.flip), ring_u = u, ring_lift = lift})
 		out.append(m)
 	return out

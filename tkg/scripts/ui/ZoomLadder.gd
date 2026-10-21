@@ -604,10 +604,13 @@ static func rest_world(node_index: int, body: SystemLayout.Body) -> Dictionary:
 	var key := "%d:%d" % [node_index, body.index]
 	if world_rest.has(key):
 		return world_rest[key]
-	var giant := body.kind == &"giant"
-	var R := roundf((LocalSky.NEAR_GIANT_R if giant else LocalSky.NEAR_WORLD_R) \
-		* clampf(body.r / (22.0 if giant else 12.0), 0.8, 1.25) / 2.0) * 2.0
-	return {"c": Vector2(698.0, 339.0 + 0.2 * R), "r": R}
+	# (LocalSky's own rule, on the side it draws the world before an event asks)
+	var R := LocalSky.near_r(body)
+	if node_index < 0 or node_index >= Run.map.size():
+		return {"c": Vector2(698.0, 339.0 + 0.2 * R), "r": R}
+	var n: MapGen.MapNode = Run.map[node_index]
+	var pl := LocalSky.near_place(n, body, LocalSky.near_side(n))
+	return {"c": pl.at, "r": R}
 
 
 static func busy() -> bool:

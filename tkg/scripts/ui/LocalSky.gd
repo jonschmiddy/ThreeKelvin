@@ -38,7 +38,7 @@ extends Control
 ## plane), or, with none, at the edge where a ship warps in:
 ##   * ORBITING A WORLD: that world close and huge, rising from below behind the
 ##     fight, its rings across it and its moons above, lit from the star; the
-##     star smaller beyond, at the world's own distance;
+##     star smaller beyond, at the world's own distance (how big: `near_size`);
 ##   * ORBITING THE STAR: the star large and blazing, cut by the top of the
 ##     view, the worlds small along the band;
 ##   * HOW FAR OUT: the star's size, and how far its light reaches into the gas,
@@ -131,10 +131,28 @@ const REF_K := 0.45
 const SIZE_POW := 0.85
 const SIZE_LO := 0.4
 const SIZE_HI := 4.0
-## THE WORLD IT ORBITS: its radius on screen (a giant's, a planet's), and how far
-## it slides for a pixel of the camera's travel (it is near)
-const NEAR_GIANT_R := 175.0
-const NEAR_WORLD_R := 125.0
+## THE WORLD IT ORBITS, CLOSE (Jon, Oct 21: "I want the planet you are orbiting
+## to be large in the background (you are close to it)"). Its radius on screen
+## (a giant's, a planet's, before its own size nudges it, x0.8 to x1.25 by the
+## body's map radius) and where its middle sits under the band (y0 + dy * R),
+## by look -- `near_size`, one line to switch:
+##   before  as it was to Oct 21: a planet 100 px, a giant 140-148, its middle
+##           at y 360, wholly inside the view (6% / 13% of the frame);
+##   medium  a planet 160, a giant ~210, its lower limb at the bottom bar;
+##   large   a planet 220, a giant ~280, its lower limb off the bottom: close;
+##   huge    a planet 300, a giant ~380, a wall of it, off the bottom and a side.
+## Each is the world's own painter drawing it at that radius on the 2x2 block
+## grid (never a picture scaled), lit from the star, behind your ship.
+static var near_size := &"large"
+const NEAR_SIZES := {
+	&"before": {"planet": 125.0, "giant": 175.0, "y0": 339.0, "dy": 0.2},
+	&"medium": {"planet": 200.0, "giant": 260.0, "y0": 330.0, "dy": 0.35},
+	&"large": {"planet": 275.0, "giant": 350.0, "y0": 310.0, "dy": 0.55},
+	&"huge": {"planet": 375.0, "giant": 475.0, "y0": 300.0, "dy": 0.65},
+}
+## its moons at rest no higher than this (game px: under the HUD and the goal line)
+const MOON_TOP := 56.0
+## and how far it slides for a pixel of the camera's travel (it is near)
 const F_NEAR := 0.3
 const NEAR := preload("res://shaders/local_near.gdshader")
 const HAND := preload("res://shaders/ladder_world.gdshader")
@@ -1619,14 +1637,13 @@ func near_plan() -> Dictionary:
 	var tgt: SystemLayout.Body = layout.bodies[orbit_target]
 	if tgt.world == &"":
 		return {}
-	var h := SkyBakeS.hash2(node.index, 811 + orbit_target)
 	var side := 1.0 if _sun.x < 480.0 else -1.0
 	var wants := _near_wants()
 	if not wants.is_empty():
 		side = 1.0
-	var giant := tgt.kind == &"giant"
-	var R := roundf((NEAR_GIANT_R if giant else NEAR_WORLD_R) * clampf(tgt.r / (22.0 if giant else 12.0), 0.8, 1.25) / 2.0) * 2.0
-	var at := _block_round(Vector2(480.0 + side * (190.0 + 60.0 * h), 339.0 + 0.2 * R))
+	var place := near_place(node, tgt, side)
+	var R := float(place.R)
+	var at: Vector2 = place.at
 	var over := {}
 	if bool(wants.get("ring", false)):
 		over.ring = true
@@ -1638,9 +1655,41 @@ func near_plan() -> Dictionary:
 		var hk := SkyBakeS.hash2(tgt.seed, 41 + k)
 		var a := -PI * (0.2 + 0.6 * (float(k) + hk) / float(maxi(nm, 1)))
 		var mr := roundf((5.0 + 6.0 * SkyBakeS.hash2(tgt.seed, 61 + k)) / 2.0) * 2.0
-		var mp := _block_round(at + Vector2(cos(a) * R * (1.3 + 0.3 * hk), sin(a) * R * (1.15 + 0.25 * hk)))
+		var mp := at + Vector2(cos(a) * R * (1.3 + 0.3 * hk), sin(a) * R * (1.15 + 0.25 * hk))
+		# (a big world close by puts them far out: kept in the view, under the HUD)
+		mp = _block_round(Vector2(clampf(mp.x, 24.0, 936.0), maxf(mp.y, MOON_TOP)))
 		moons.append({"at": mp, "r": mr, "seed": tgt.seed + 17 * (k + 1)})
 	return {"world": tgt.world, "seed": tgt.seed, "R": R, "at": at, "over": over, "moons": moons, "spec": spec}
+
+
+## WHERE AND HOW BIG THE WORLD YOU ORBIT IS DRAWN AT REST, from the system and the
+## body alone (`near_plan` draws it there; the map's 2C aims at it before LOCAL
+## is first seen, `ZoomLadder.rest_world`): {R (its radius, this sky's 960x540
+## px), at (its middle)}, on `side` of the view (1 right, -1 left).
+static func near_place(n: MapGen.MapNode, b: SystemLayout.Body, side: float) -> Dictionary:
+	var h := SkyBakeS.hash2(n.index, 811 + b.index)
+	var R := near_r(b)
+	var look: Dictionary = NEAR_SIZES.get(near_size, NEAR_SIZES[&"large"])
+	return {"R": R, "at": _block_round(Vector2(480.0 + side * (190.0 + 60.0 * h), float(look.y0) + float(look.dy) * R))}
+
+
+## The side of the view the world you orbit is drawn on before any event asks:
+## across the view from the star (`_build`'s `_sun`).
+static func near_side(n: MapGen.MapNode) -> float:
+	return 1.0 if roundf(lerpf(SUN_X.x, SUN_X.y, SkyBakeS.hash2(n.index, 401)) / 2.0) * 2.0 < 480.0 else -1.0
+
+
+## The radius world `b` is drawn at while you orbit it, in the look chosen.
+static func near_r(b: SystemLayout.Body) -> float:
+	var look: Dictionary = NEAR_SIZES.get(near_size, NEAR_SIZES[&"large"])
+	var giant := b.kind == &"giant"
+	return roundf(float(look.giant if giant else look.planet) * clampf(b.r / (22.0 if giant else 12.0), 0.8, 1.25) / 2.0) * 2.0
+
+
+## The least radius a world of `kind` is drawn at in the look chosen.
+static func near_r_min(kind: StringName) -> float:
+	var look: Dictionary = NEAR_SIZES.get(near_size, NEAR_SIZES[&"large"])
+	return roundf(float(look.giant if kind == &"giant" else look.planet) * 0.8 / 2.0) * 2.0
 
 
 ## WHAT AN EVENT ON THE WORLD YOU ORBIT ASKS OF IT: only an event sited there by

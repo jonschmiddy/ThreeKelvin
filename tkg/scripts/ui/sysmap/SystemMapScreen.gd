@@ -380,6 +380,15 @@ func _keep_ship() -> void:
 	if view.node.index >= Run.map.size() or Run.map[view.node.index] != view.node:
 		return
 	var at: int = flight.reached()
+	# BURNING ONTO AN ORBIT IS BEING AT THE WORLD, and riding out of one to
+	# leave it is still being at the old one (Jon, Oct 21: "Does the local view
+	# show the planet you are orbiting the first time you go to a planet?"). Kept
+	# as `reached`, which is neither until the burn is over, LOCAL opened as
+	# the ship came in drew open space with the world right there on the map,
+	# and the map, back, dropped the ship off its orbit. Put back, it is on that
+	# orbit (`_restore_ship`); a flight it was waiting to start is let go.
+	if at < -1 and (flight.mode == &"rail" or flight.mode == &"keep"):
+		at = flight.orbit_body()
 	_parked[view.node.index] = {"at": at, "p": flight.f.p, "v": flight.f.v, "head": flight.f.head, "mode": flight.mode}
 
 

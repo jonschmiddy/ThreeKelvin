@@ -11,8 +11,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 The next build is **0.4.0-alpha.1**, with the fixes from the first outside playtest. See
 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
+### Changed
+
+- **Changed** — on LOCAL, the world you orbit is now drawn large behind your ship, as if you were
+  close to it. Planets and gas giants are about twice as wide as before, and their lower edge runs
+  off the bottom of the view.
+
 ### Fixed
 
+- **Fixed** — LOCAL now shows the world you just flew to even if you open it while your ship is
+  still burning into orbit. Before, LOCAL showed empty space for that second or so, and the sector
+  map then dropped your ship out of its orbit. The same happened if you opened LOCAL just after
+  sending the ship somewhere else, before it had left.
 - **Fixed** — after you dock, pointing at your own ship in the shipyard shows its stats box at
   the right size. Before, the box was 9 pixels too tall, with an empty strip along its bottom, and
   sat 9 pixels too high. It was only right when the station opened without the docking animation.
