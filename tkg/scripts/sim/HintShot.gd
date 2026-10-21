@@ -14,7 +14,8 @@ extends Node
 ##   - a wreck's window (salvage);
 ##   - a fight: the hand, the intent after the first card, END TURN with nothing
 ##     left to play, brace held over the turn, heat;
-##   - a station (dock), the shipyard's ship; the chart with the tank short (fuel).
+##   - a station (dock), its decks the first time each is open, the shipyard's ship;
+##     the chart with the tank short (fuel).
 ## Each still is the whole window (`<n>_<id>.png`, so 1080p at that resolution),
 ## taken `HINT_S` after the hint shows, then it is dismissed with a click as a
 ## player would. A hint that never shows is printed as `[hintshot] MISSING <id>`.
@@ -201,11 +202,23 @@ func _run() -> void:
 			break
 	Run.jumps = 1
 	Hints.mark_seen(&"ship", false)
+	# (flown in: hull and fuel spent, so the yard's drones have work)
+	Run.hp = maxi(1, Run.max_hp() - 12)
+	Run.fuel = maxi(1, Run.fuel - 4)
 	Router.park_at_station()
 	Router.show_station()
 	await _secs(3.0)
 	await _hint(&"dock", 10.0)
+	# the decks, each the first time it is open (the yard's first: your ship's
+	# follows it)
+	await _hint(&"shipyard", 15.0)
 	await _hint(&"ship", 10.0)
+	var st := Router.current as StationScreen
+	for id: StringName in [&"promenade", &"exchange", &"hiring_board", &"laboratory"]:
+		var tab: StringName = Hints.DECK_HINTS[id]
+		if st != null and st._tabs_on.get(tab, true):
+			(st._tabs[tab] as Button).pressed.emit()
+			await _hint(id, 15.0)
 	# fuel: the chart with the tank short
 	_system()
 	Run.fuel = 3

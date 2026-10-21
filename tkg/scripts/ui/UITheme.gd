@@ -241,13 +241,18 @@ static func build() -> Theme:
 	# Six pixels. Wide enough to see and to grab, narrow enough that it reads as
 	# an edge treatment rather than as a control — the panels it lives in are
 	# 268 across and a chunky bar would be a tenth of one.
-	const BAR_PAD := 3
-	t.set_stylebox("scroll", "VScrollBar",
-		flat(Color("#0c1219"), Color(0, 0, 0, 0), 0, 0, BAR_PAD))
-	t.set_stylebox("grabber", "VScrollBar",
-		flat(LINE, Color(0, 0, 0, 0), 0, 0, BAR_PAD))
-	t.set_stylebox("grabber_highlight", "VScrollBar",
-		flat(COLD, Color(0, 0, 0, 0), 0, 0, BAR_PAD))
+	#
+	# AND A GUTTER BEFORE IT (Jon, Oct 20, on the sector map's WORLD card: "the
+	# scroll bar covers up text"). A ScrollContainer gives its content its width
+	# less the bar's minimum width, so right-aligned values ended on the bar's
+	# first pixel and read as running under it. Every piece of the bar is now
+	# BAR_GAP px wider on its left, and that strip is drawn clear: the
+	# container keeps it out of the content and nothing is painted in it. The
+	# pressed grabber is the lit one, so dragging keeps the gutter clear too.
+	t.set_stylebox("scroll", "VScrollBar", bar_box(Color("#0c1219")))
+	t.set_stylebox("grabber", "VScrollBar", bar_box(LINE))
+	t.set_stylebox("grabber_highlight", "VScrollBar", bar_box(COLD))
+	t.set_stylebox("grabber_pressed", "VScrollBar", bar_box(COLD))
 
 	# Progress bars (hull, heat, enemy)
 	t.set_stylebox("background", "ProgressBar", bevel_in(Color("#0c1219"), 0, 0))
@@ -349,6 +354,23 @@ static func flat(bg: Color, border: Color, radius: int = 0,
 	sb.content_margin_left = pad_h
 	sb.content_margin_right = pad_h
 	return sb
+
+## The vertical scroll bar's drawn width (a 3 px pad either side of nothing) and
+## the clear gutter on its left; a ScrollContainer reserves both.
+const BAR_PAD := 3
+const BAR_GAP := 4
+const BAR_W := BAR_PAD * 2 + BAR_GAP
+
+
+## A piece of the scroll bar: its colour on the right BAR_PAD * 2 px, the
+## BAR_GAP px on its left a transparent border, which StyleBoxFlat leaves out
+## of its fill.
+static func bar_box(c: Color) -> StyleBoxFlat:
+	var sb := flat(c, Color(0, 0, 0, 0), 0, 0, BAR_PAD)
+	sb.border_width_left = BAR_GAP
+	sb.content_margin_left = BAR_PAD + BAR_GAP
+	return sb
+
 
 static func empty() -> StyleBoxEmpty:
 	return StyleBoxEmpty.new()

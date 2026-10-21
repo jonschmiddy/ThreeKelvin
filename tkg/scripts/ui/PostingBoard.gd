@@ -668,8 +668,17 @@ func _ticker(w: float, h: float) -> void:
 	var tw := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 	var x := r.position.x + 36.0 - fposmod(_t() * 32.0, tw)
 	while x < r.end.x:
-		draw_string(f, Vector2(floorf(x), r.position.y + 10.0), text,
-			HORIZONTAL_ALIGNMENT_LEFT, r.end.x - x, UITheme.FS_SMALL, Color("#c8f0ff"))
+		# NOT LEFT OF THE LIVE BADGE: what starts left of the board was drawn on
+		# over the deck rail beside it. The letters that would be under the badge
+		# are skipped, and the rest drawn from where they fall.
+		var at := x
+		var k := 0
+		while k < text.length() and at < r.position.x + 30.0:
+			at += f.get_char_size(text.unicode_at(k), UITheme.FS_SMALL).x
+			k += 1
+		if k < text.length():
+			draw_string(f, Vector2(floorf(at), r.position.y + 10.0), text.substr(k),
+				HORIZONTAL_ALIGNMENT_LEFT, r.end.x - at, UITheme.FS_SMALL, Color("#c8f0ff"))
 		x += tw
 	draw_rect(Rect2(r.position.x, r.position.y + 1.0, 30.0, TICKER - 1.0), Color("#c83a3a"))
 	_text("LIVE", r.position.x + 4.0, r.position.y + 10.0, UITheme.FS_SMALL, Color.WHITE)
@@ -725,6 +734,20 @@ func _app_bar(w: float) -> void:
 
 
 ## The side of the marketplace: featured, an ad, the sponsored, a popup.
+## The screen's side column, local: the town's own, right of the work.
+func _side_rect() -> Rect2:
+	var w := size.x
+	var h := size.y
+	return Rect2(w * NOTICE_SHARE + 8.0, FRAME_W + HEADER + 6.0,
+		w * (1.0 - NOTICE_SHARE) - FRAME_W - 16.0, h - FRAME_W * 2.0 - HEADER - TICKER - 14.0)
+
+
+## The FEATURED listing's sheet in the side column, and its tag over it, local.
+func _featured_rect(col: Rect2) -> Rect2:
+	var poster := Vector2(minf(136.0, col.size.x * 0.56), 170.0)
+	return Rect2(Vector2(col.position.x + 4.0, col.position.y + 4.0), poster + Vector2(0.0, 10.0))
+
+
 func _side(col: Rect2) -> void:
 	var x := col.position.x
 	var y := col.position.y + 4.0
@@ -770,9 +793,11 @@ func _side(col: Rect2) -> void:
 	# a popup, now and then, over the side only, up until it is shut
 	pop_x = Rect2()
 	pop_btn = Rect2()
+	pop_rect = Rect2()
 	if _pop_next < 0.0:
 		_pop_next = _t() + POP_FIRST
-	if _pop_at < 0.0 and _t() >= _pop_next:
+	# (none comes up while A.S.H. is teaching: she stands over the side)
+	if _pop_at < 0.0 and _t() >= _pop_next and not Ash.lesson_up():
 		_pop_at = _t()
 		_pops += 1
 		# Jon's picks on Hiring Board, Heard: a soft chime chord to open, a
@@ -886,6 +911,8 @@ func _commercial(sz: Vector2, i: int, t: float) -> void:
 func _popup(P: Dictionary, r: Rect2, age: float) -> void:
 	var grow := clampf(age / 0.12, 0.3, 1.0)
 	var rr := Rect2((r.get_center() - r.size * grow * 0.5).round(), (r.size * grow).round())
+	if gallery_from < 0:
+		pop_rect = Rect2(rr.position, rr.size + Vector2(3, 3))
 	draw_rect(Rect2(rr.position + Vector2(3, 3), rr.size), Color(0, 0, 0, 0.45))
 	draw_rect(rr, Color("#d8dce4"))
 	draw_rect(rr, Color("#1a1e28"), false, 1.0)
@@ -971,6 +998,49 @@ var pop_x := Rect2()
 ## looks pressable on this board can be pressed (Jon: "Clicking claim/scan now
 ## or whatever button on the popup just closes them lol").
 var pop_btn := Rect2()
+
+
+## The open popup's box and its shadow, local; empty when none is up.
+var pop_rect := Rect2()
+
+
+## WHERE A.S.H. MAY TEACH ON THIS BOARD, local (Jon, Oct 20, the decks' hints):
+## the town's own side, right of the work's share, inside the frame, and on a
+## screen under its app bar and over its ticker. She stands over the town's ads
+## and paper, never over the work, the tabs or the ticker.
+func town_rect() -> Rect2:
+	var top := FRAME_W + (HEADER + 6.0 if screen() else 0.0)
+	var bottom := size.y - FRAME_W - (TICKER + 8.0 if screen() else 0.0)
+	var x0 := size.x * NOTICE_SHARE
+	return Rect2(x0, top, size.x - FRAME_W - x0, bottom - top)
+
+
+## EVERY JOB NOTE ON THE BOARD, local, whole (Oct 20: a job note is a thing you
+## press, even where it has no words, so A.S.H. never stands on any of one): the
+## real notices, and what is drawn as one: on a screen the other people's
+## listings in the work's free slots and the FEATURED bounty, on a board the
+## WANTED bounty poster. The town's ads and paper are not jobs.
+func job_rects() -> Array[Rect2]:
+	var out: Array[Rect2] = _work_rects()
+	if size.x <= 60.0 or size.y <= 60.0 or gallery_from >= 0 or reel >= 0 or piece.is_valid():
+		return out
+	if screen():
+		out.append_array(_free_slots(size.y))
+		out.append(_featured_rect(_side_rect()))
+	else:
+		for p: Dictionary in _lay_out(size.x, size.y):
+			if String(p["what"]) == "wanted":
+				out.append(Rect2(p["at"], p["size"]))
+	return out
+
+
+## The screen's app bar (its tabs take clicks) and its ticker, local; empty on a
+## board, which has neither.
+func chrome_rects() -> Array[Rect2]:
+	if not screen():
+		return []
+	return [Rect2(FRAME_W, FRAME_W, size.x - FRAME_W * 2.0, HEADER),
+		Rect2(FRAME_W, size.y - FRAME_W - TICKER, size.x - FRAME_W * 2.0, TICKER)]
 
 
 ## Whether `at` is on the open popup's X or its button.
@@ -1085,8 +1155,7 @@ func _draw() -> void:
 	# column. (On a board the town's paper is scattered with the rest, above.)
 	if screen() and gallery_from < 0 and reel < 0 and not piece.is_valid():
 		_app_bar(w)
-		_side(Rect2(w * NOTICE_SHARE + 8.0, FRAME_W + HEADER + 6.0,
-			w * (1.0 - NOTICE_SHARE) - FRAME_W - 16.0, h - FRAME_W * 2.0 - HEADER - TICKER - 14.0))
+		_side(_side_rect())
 
 	# --- THE SHADOWS THE REAL NOTICES CAST, down and right of each, which is what
 	# makes a notice sit ON the board rather than printed into it.

@@ -209,6 +209,11 @@ func tube(k: int) -> float:
 	return YardLight.stutter(_now(), 0.7 + float(k) * 2.3, float(_bars()["per"]))
 
 
+## The power-on is over: every tube has struck (it may still stutter after).
+func lit() -> bool:
+	return _now() - _boot_at >= WAIT + float(int(_bars()["n"]) - 1) * GAP + STRIKE
+
+
 ## The room's light: the tubes together.
 func level() -> float:
 	var n := int(_bars()["n"])

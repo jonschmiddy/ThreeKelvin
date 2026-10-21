@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fixed** — the game froze while A.S.H. taught the star chart's list on a first run. Each
+  check that her box covers no system asked the whole galaxy at every few pixels: about a
+  second a frame. It asks only the systems near her box now.
+- **Fixed** — LOCAL REGION (L, or the key it is bound to) pressed while the chart was still
+  coming on was lost. It is kept and given to the chart when it lands.
+- **Fixed** — two copies of the same build could refuse to party ("Your content does not match
+  the host's"), depending on how each one started. The check that both players have the same game
+  now reads the same way in every copy.
+
+### Changed
+
+- **Changed** — a manufacturer you have not unlocked appears nowhere. On a new profile, wrecks,
+  shelves, the yard, derelicts, rewards, contracts and the Custodian hold Korvan and unbranded
+  parts and hulls only. Win with Korvan and Solari's join them from the next run. In co-op, the
+  host's unlocks decide what the galaxy holds.
+
+### Added
+
+- **Added** — a first-visit tip for each station deck: the Shipyard, the Promenade, the Exchange, the
+  Hiring Board and the Laboratory. Each shows the first time you open that deck, after the
+  station's own tip, and outlines the deck's main thing: the drones, the shelf, the sell
+  counter, the job notes, the fabricator. It counts as seen as soon as it shows. A.S.H. says
+  it, or it shows as a card with her off. Her lines are text alone for now, with no recording.
+- **Added** — README-ALPHA.txt explains FLY TOGETHER: HOST PARTY and a code, the same build for
+  everyone, and the firewall prompt for HOST DIRECT.
+
 ### Roadmap
 
 The next build is **0.2.0-alpha.1**, with the fixes from the first playtest. See

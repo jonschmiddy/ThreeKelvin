@@ -332,6 +332,13 @@ var found_hull: HullData = null:
 ## it against her own count from the run's start or load.
 var hulls_bought: int = 0
 var whale_boon: bool = false
+## THE MANUFACTURERS THIS RUN'S WORLD MAY HOLD, read off the flight record once
+## at run start (`Unlocks.for_new_run`) and kept: what drops, sells and comes
+## off a derelict is these, within `DB.ACTIVE_MANUFACTURERS`, plus unbranded
+## (`LootGen.can_appear`). Saved (SaveGame VERSION 34), so CONTINUE finds the
+## world it left even if the record has moved on since. Korvan before any run
+## has started, which is what a fresh profile has.
+var unlocked_manufacturers: Array[StringName] = [&"korvan"]
 
 const MAP_CANVAS := Rect2(60, 50, 900, 430)
 
@@ -382,6 +389,8 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	# machines one galaxy, which is the point; it must not also give them one
 	# hold. See Rng.seat.
 	Rng.reseed(galaxy_seed, Net.seat())
+	# What this run's world may hold. Before anything is rolled, and once.
+	unlocked_manufacturers = Unlocks.for_new_run()
 
 	# A weight of -1 rolls one, for the same reason an empty manufacturer does:
 	# HeadlessSim calls this directly, and a fixed default would report a win

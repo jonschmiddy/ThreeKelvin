@@ -1061,7 +1061,7 @@ static func tut_spot(cur: Control, text: String, subject: Rect2 = Rect2()) -> Di
 ## The view she may teach in on `cur`, global. LOCAL and a fight: hers
 ## (`view_rect`), right of the cutaway's panel while it is open. The chart and
 ## the map: their picture inside its frame. The station: the deck's picture,
-## right of the decks.
+## right of the decks; on the Hiring Board, the town's side of it.
 static func tut_view_rect(cur: Control) -> Rect2:
 	if cur == null or not is_instance_valid(cur) or Router.hud == null:
 		return Rect2()
@@ -1092,6 +1092,10 @@ static func tut_view_rect(cur: Control) -> Rect2:
 			var cr := cut.get_global_rect()
 			var left := cut._hold_panel.get_global_rect().end.x
 			p = Rect2(Vector2(left, cr.position.y), Vector2(cr.end.x - left, cr.size.y))
+		elif st._tab == &"work" and st._board != null and is_instance_valid(st._board):
+			# THE HIRING BOARD fills its deck edge to edge, the work down its left:
+			# she teaches over the town's own side (`PostingBoard.town_rect`)
+			p = p.intersection(st._board.get_global_transform() * st._board.town_rect())
 		var top := maxf(p.position.y, hud.end.y)
 		return Rect2(Vector2(p.position.x, top), Vector2(p.size.x, p.end.y - top))
 	return Rect2()
@@ -1276,6 +1280,15 @@ static func _station_rects(st: StationScreen, out: Array) -> void:
 		if c != null and is_instance_valid(c) and c.is_visible_in_tree():
 			out.append(c.get_global_rect())
 	_cutaway_rects(st._cutaway, out)
+	# the board's app bar (its tabs), its ticker, a popup up on it, and every job
+	# note on it whole, real or drawn (`PostingBoard.job_rects`)
+	var bd := st._board
+	if bd != null and is_instance_valid(bd) and bd.is_visible_in_tree():
+		var bg := bd.get_global_transform()
+		for r: Rect2 in bd.chrome_rects() + bd.job_rects():
+			out.append(bg * r)
+		if bd.pop_rect.has_area():
+			out.append(bg * bd.pop_rect)
 	var ys := st._scene
 	if ys == null or not is_instance_valid(ys) or not ys.is_visible_in_tree():
 		return
@@ -1309,11 +1322,16 @@ static func covers(cur: Control, r: Rect2) -> String:
 		if mc == null or not is_instance_valid(mc):
 			return ""
 		var inv := mc.get_global_transform().affine_inverse()
+		# (the systems near her box asked for once, not the whole map at every
+		# point: 1.2 s a check on a 410-system chart, `MapChart.nodes_near`)
+		var near: Dictionary = mc.nodes_near(inv * r)
+		if (near.nodes as Array).is_empty():
+			return ""
 		var y := r.position.y
 		while y <= r.end.y:
 			var x := r.position.x
 			while x <= r.end.x:
-				var hit: int = mc._node_at(inv * Vector2(x, y))
+				var hit: int = StarchartScreen.MapChart.node_among(inv * Vector2(x, y), near)
 				if hit >= 0:
 					return "a system (%s)" % MapGen.star_name(Run.map[hit])
 				x += 3.0

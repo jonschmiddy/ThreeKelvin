@@ -19,6 +19,11 @@ extends Node
 ## introduction, the beat, the goal's first step, its line coming back; it
 ## quits a second after. Run with `--write-movie <dir>/film.avi --fixed-fps 30`.
 ## mode=settings: Settings over the run, scrolled to HINTS (`settings.png`).
+## mode=decks: a station with all five decks, each opened by its button the
+## first time: her line on it, holding, with its outline (`deck_<id>_ash.png`),
+## then the same with her off, the card (`deck_<id>_card.png`); prints her box
+## or the card's and the outline's. `pick=low`: a station under a city, the
+## decks it has (`deck_low_<id>_...`).
 ## Each still is the whole window and a 2x crop of its top left (`_tl.png`, the
 ## first 480x270 game pixels). Prints her box, the goal's and the step's. Needs
 ## a window.
@@ -148,6 +153,8 @@ func _run() -> void:
 			await _introfilm()
 		"settings":
 			await _settings()
+		"decks":
+			await _decks()
 		_:
 			await _stills()
 	Ash.forced = false
@@ -330,3 +337,64 @@ func _settings() -> void:
 		sc.scroll_vertical = int(sc.scroll_vertical + lab.get_global_rect().position.y - sc.get_global_rect().position.y - 40.0)
 	await _secs(0.5)
 	await _shot("settings")
+
+
+## THE DECKS' FIRST-VISIT HINTS, as drawn: each deck opened by its button with
+## her on (her line holding, its outline), then again with her off (the card).
+func _decks() -> void:
+	await _start(true)
+	Run.jumps = 1
+	for id in Hints.ORDER:
+		if not Hints.DECK_HINTS.has(id):
+			Hints.mark_seen(id)
+	for id in Hints.STEP_LINES:
+		Hints.mark_seen(StringName("said_" + String(id)))
+	# (`pick=low`: a station under a city instead, its board a board, no lab)
+	var low := _arg("pick", "") == "low"
+	for raw in Run.map:
+		var m: MapGen.MapNode = raw
+		if m.type == MapGen.NodeType.STATION and not Contracts.board(m).is_empty() 				and (Fabricator.has_bench(m) if not low else int(m.development) < 3):
+			Run.at = m.index
+			m.visited = true
+			print("[ashgoalshot] decks at %s (development %d)" % [MapGen.star_name(m), int(m.development)])
+			break
+	# (flown in: hull and fuel spent, so the yard's drones have work)
+	Run.hp = maxi(1, Run.max_hp() - 12)
+	Run.fuel = maxi(1, Run.fuel - 4)
+	Router.docked = false
+	Router.park_at_station()
+	Router.show_station()
+	await _secs(2.0)
+	var st := Router.current as StationScreen
+	if st == null:
+		return
+	for ash_on: bool in [true, false]:
+		Ash.set_on(ash_on)
+		for id in Hints.DECK_HINTS:
+			Hints.mark_seen(id, false)
+		for id: StringName in [&"shipyard", &"promenade", &"exchange", &"hiring_board", &"laboratory"]:
+			var tab: StringName = Hints.DECK_HINTS[id]
+			if not st._tabs_on.get(tab, true):
+				continue
+			(st._tabs[tab] as Button).pressed.emit()
+			var t0 := GameClock.now()
+			var up := false
+			while GameClock.now() - t0 < 25.0 and not up:
+				await _tree.process_frame
+				if ash_on:
+					up = Ash.lesson == id and Ash.portrait != null and Ash.portrait.phase == AshPortrait.Phase.HOLDING
+				else:
+					up = Hints.card != null and is_instance_valid(Hints.card) and Hints.card.id == id
+			if not up:
+				print("[ashgoalshot] MISSING %s (%s)" % [id, "ash" if ash_on else "card"])
+				continue
+			await _secs(0.6)
+			var name := "deck_%s%s_%s" % ["low_" if low else "", id, "ash" if ash_on else "card"]
+			await RenderingServer.frame_post_draw
+			_tree.root.get_texture().get_image().save_png("%s/%s.png" % [_out, name])
+			print("[ashgoalshot] %s: %s %s, outline %s, subject %s" % [name, "her box" if ash_on else "card",
+				Ash.portrait.rect() if ash_on else Hints.card.card_rect(), Ash.outline_rect(),
+				st.deck_subject(tab)])
+			Hints.click(_press())
+			await _secs(Hints.GAP_S + 0.4)
+	Ash.set_on(true)
