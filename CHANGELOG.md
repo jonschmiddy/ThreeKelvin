@@ -6,17 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Added
-
-- **Added** — A.S.H. now says her five station deck tips out loud, in her warm voice, like her other
-  tutorial lines.
-
 ### Roadmap
 
-The next build is **0.3.0-alpha.1**, with the fixes from the first outside playtest. See
+The next build is **0.4.0-alpha.1**, with the fixes from the first outside playtest. See
 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
-### Changed
+## 2026-10-21
+
+### [0.3.0-alpha.1]
+
+Jon's own polish on top of 0.2.0-alpha.1, made the same day. The Windows and Mac builds come from
+the same commit.
 
 - **Changed** — when A.S.H. explains your ship's cutaway, her box now also shows the keys under
   her words: "R turns a part. F flips it." It shows the keys as you have them bound in Settings.
@@ -31,8 +31,8 @@ The next build is **0.3.0-alpha.1**, with the fixes from the first outside playt
   mouth the way it went in, engines burning, and slows to its mooring as they sputter down to idle.
   The dust, the sun and the worlds stay put, and the station stays lit. A key or click during it
   puts your ship at its mooring at once.
-
-## 2026-10-21
+- **Added** — A.S.H. now says her five station deck tips out loud, in her warm voice, like her other
+  tutorial lines.
 
 ### [0.2.0-alpha.1]
 

@@ -190,9 +190,11 @@ tags. `git show archive/<name>` says what each was.
 
 1. The first outside playtest, of 0.2.0-alpha.1 (0.1.0-alpha.1 was built and
    tagged but never sent). Ask for the zip from SAVE MY LOGS with every report.
-2. **0.3.0-alpha.1:** the fixes from that playtest. Add them under
+2. **0.3.0-alpha.1** (built Oct 21): Jon's own polish on top of 0.2.0-alpha.1; see
+   `CHANGELOG.md`.
+3. **0.4.0-alpha.1:** the fixes from that playtest. Add them under
    `[Unreleased]` in `CHANGELOG.md` as they land, then cut the version by changing
    `config/version` in `tkg/project.godot` and building with `build_alpha.sh`.
-3. After that: the parked items above, and the five manufacturers still to write
+4. After that: the parked items above, and the five manufacturers still to write
    (`docs/catalogue.md` §17 has the count; `docs/building-a-manufacturer.md` the
    method).
