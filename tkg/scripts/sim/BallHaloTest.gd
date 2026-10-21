@@ -35,9 +35,11 @@ extends Node
 ## LEGACY too (Jon, Oct 18, "legacy:A"): its balls were read on the disc's plane
 ## like the others' (0.27 gu above the core, 0.46 below on PGC 6236) and are
 ## drawn round their core now (`chart_l_field`'s `ball_core`); judged by reach.
-## AND THE FRAME (Jon, "frame:A"): LOCAL REGION's frame of a ball galaxy
-## (`MapChart.frame_region`) has the whole ball in view, its core and its lit
-## radius (`ChartSky.ball_lit_gu`) inside the chart, wherever YOU are.
+## AND THE FRAME: LOCAL REGION's frame (`MapChart.frame_region`) of every galaxy, a
+## ball's as a spiral's, is the systems near you (Jon, Oct 21, for 0.3.0; his
+## "frame:A" of Oct 18 framed a ball whole, its core and lit radius, so L went from
+## 0.42 to about 0.55 and read as doing nothing): from YOU and from the rim, every
+## system within the region's span and YOU in view, the zoom at least REGION_ZOOM.
 ## A ball's depth (`ChartSky.ball_depth`): the game's look C unless `balllook=0|A|B`:
 ## lit as a ball it is brighter on its upper left, but it must still END as far out
 ## on its shaded side as on its lit one, so every look passes this as today's does.
@@ -62,6 +64,9 @@ const MARK_LUMA := 110.0
 ## the chart) at most this
 const STORY_MEAN_RISE := 8.0
 const STORY_CREAM_RISE := 0.3
+## LOCAL REGION zooms in at least this far (the chart opens at about 0.42; a ball
+## framed whole was 0.53 to 0.60)
+const REGION_ZOOM := 1.0
 const BALL_KINDS := [8, 9, 10, 13, 14, 15]
 const DISC_KINDS := [0, 6]
 ## Jon's run: PGC 6236, The Drowned Coil, a giant elliptical
@@ -160,23 +165,42 @@ func _case(st: StringName, seed_v: int, kind: int) -> void:
 	print("  %-10s %-34s reach above %.2f%s below %.2f%s gu (x%.2f)  asym %+.2f  fade %.2f%s  %s" % [
 		String(st).to_upper(), name, m.up, " edge" if m.up_edge else "", m.down, " edge" if m.down_edge else "",
 		ratio, m.asym, m.fade, " (a hard rim)" if hard else "", ("FAIL" if bad else "ok") if ball else "(a disc: not judged)"])
-	if ball and st == _first:
-		# the region's frame (the marks', the same in every style: measured in the first), from YOU and from the system farthest out: the whole ball in view
+	if st == _first:
+		# THE REGION'S FRAME (the marks', the same in every style: measured in the first),
+		# from YOU and from the system farthest out: the systems near you, a ball's as a
+		# spiral's (Jon, Oct 21, for 0.3.0: frame:A framed the whole ball and L barely
+		# zoomed), every one of them and YOU in view, zoomed in past REGION_ZOOM
 		var far := Run.node_at()
 		for raw in Run.map:
 			if (raw as MapGen.MapNode).gal.length() > far.gal.length():
 				far = raw
+		var view := Rect2(Vector2(-2.0, -2.0), chart.size + Vector2(4.0, 4.0))
+		# (`shots=`: Jon's galaxy and the grand-design spiral as the window shows them,
+		# at the opening and framed from YOU, `<seed>_<kind>_open.png` / `_region.png`)
+		var film := _shots != "" and (kind == -1 or kind == 0)
+		if film:
+			await _window_shot("%d_%s_open" % [seed_v, str(kind) if kind >= 0 else "rolled"])
 		for here: MapGen.MapNode in [Run.node_at(), far]:
+			var z0 := chart.zoom
 			chart.frame_region(here, 0.24, false)
-			var bl := ChartSky.ball_of(Run.galaxy_kind, Run.galaxy)
-			var rr: float = ChartSky.ball_lit_gu(bl) * chart._radius() * StarchartScreen.MapChart.DISC * chart.zoom
-			var cs: Vector2 = chart.centre_px() + chart._proj(Vector2.ZERO, chart._drawn_turn)
-			var box := Rect2(cs - Vector2(rr, rr * bl.y), Vector2(rr, rr * bl.y) * 2.0)
-			var inside := Rect2(Vector2(-2.0, -2.0), chart.size + Vector2(4.0, 4.0)).encloses(box)
-			if not inside:
+			if film and here == Run.node_at():
+				await _window_shot("%d_%s_region" % [seed_v, str(kind) if kind >= 0 else "rolled"])
+			var near := 0
+			var out := 0
+			for raw in Run.map:
+				var mn: MapGen.MapNode = raw
+				if MapGen.hop_distance(here, mn) > 0.24:
+					continue
+				near += 1
+				if not view.has_point(chart._screen_pos(mn)):
+					out += 1
+			var you_in := view.has_point(chart._screen_pos(here))
+			var good := you_in and out == 0 and chart.zoom >= REGION_ZOOM
+			if not good:
 				_fails += 1
-			print("  %-10s %-34s frame from %s: the ball %s in view  %s" % [String(st).to_upper(), name,
-				"YOU" if here == Run.node_at() else "the rim", box, "ok" if inside else "FAIL"])
+			print("  %-10s %-34s frame from %s: zoom %.3f -> %.3f, %d systems near, %d out of view, YOU %s  %s" % [
+				String(st).to_upper(), name, "YOU" if here == Run.node_at() else "the rim", z0, chart.zoom,
+				near, out, "in view" if you_in else "OUT OF VIEW", "ok" if good else "FAIL"])
 		chart._go_to(0.42 * ChartSky.K0 / k, Vector2.ZERO, false)
 	# THE CHART'S CLICKABLES STAY LEGIBLE under a ball's story (`ChartSky.ball_story`,
 	# `balllook2=`): the sky under every system's mark and under YOU's, against the same
@@ -284,6 +308,15 @@ func _row(img: Image, y: int, x0: int, x1: int) -> float:
 ## The chart opened on the run's galaxy at the opening zoom, the core in the middle, and
 ## its sky alone (the chart's rect). `fresh`: baked afresh, palette and all (a style
 ## keeps its galaxy's bake, and the bake holds what was drawn for it the first time).
+## The whole window as it is drawn now, at 2x (nearest), into `shots=`.
+func _window_shot(name: String) -> void:
+	for _i in 8:
+		await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	img.resize(img.get_width() * 2, img.get_height() * 2, Image.INTERPOLATE_NEAREST)
+	img.save_png(_shots.path_join(name + ".png"))
+
+
 func _open(fresh: bool = false) -> Dictionary:
 	if fresh:
 		ChartSky._baked.clear()

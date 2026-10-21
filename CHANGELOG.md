@@ -19,6 +19,8 @@ The next build is **0.3.0-alpha.1**, with the fixes from the first outside playt
 - **Changed** — when your ship flies into a system on LOCAL, the dust and the sky now stay still
   and only the ship moves, as they already do when you dock. Before, the dust jumped sideways as the
   ship appeared and then slid back while it flew in.
+- **Changed** — LOCAL REGION (L) on an elliptical or dwarf galaxy now zooms in on the systems near
+  you, as it does on a spiral. Before, it framed the whole galaxy and barely zoomed at all.
 
 ## 2026-10-21
 

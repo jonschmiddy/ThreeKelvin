@@ -3544,19 +3544,13 @@ class MapChart extends Control:
 			lo = lo.min(p)
 			hi = hi.max(p)
 			n += 1
-		# A BALL IS FRAMED WHOLE (Jon, Oct 18, "frame:A"): a ball galaxy is drawn round its
-		# core, but its systems lie on the disc's plane, which the camera draws mostly
-		# below the core (the disc's rim at 0.27 gu above it and 0.66 below), so a frame of
-		# the systems alone put the core near the top and cut the ball off there. The
-		# box takes in the core and the ball's lit radius too (`ChartSky.ball_lit_gu`).
-		# A spiral's frame is the systems' alone, as it always was.
-		if run_galaxy and ChartSky.form_of(Run.galaxy_kind) == 1:
-			var bl := ChartSky.ball_of(Run.galaxy_kind, Run.galaxy)
-			var rr := ChartSky.ball_lit_gu(bl) * _radius() * DISC
-			var cb := _proj_unit(Vector2.ZERO)
-			lo = lo.min(cb - Vector2(rr, rr * bl.y))
-			hi = hi.max(cb + Vector2(rr, rr * bl.y))
-			n = maxi(n, 2)
+		# EVERY GALAXY'S FRAME IS THE SYSTEMS NEAR YOU, a ball's as a spiral's (Jon,
+		# Oct 21, for 0.3.0). His "frame:A" of Oct 18 framed a ball whole -- the box took
+		# in the core and the ball's lit radius (`ChartSky.ball_lit_gu`), because its
+		# systems lie on the disc's plane, drawn mostly below the core, and a frame of
+		# them alone cut the ball off at the top -- so L took a ball from 0.42 to 0.54-0.84
+		# (PGC 6236 0.58) against a spiral's 1.8, and read as doing nothing. The ball is
+		# out of the frame now, as a spiral's arms are; L is for the systems in reach.
 		if n <= 1:
 			# Nothing near you but you. Centre on the ship at a readable zoom
 		# rather than dividing by a span of nothing.
