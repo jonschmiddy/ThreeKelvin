@@ -86,7 +86,14 @@ extends Node
 ##    between two builds (combat, flight, UI) left the protocol and the content
 ##    tables alone, so they connected silently and disagreed later. A version 8
 ##    partner sends a hello one argument short, which this one cannot read.
-const PROTOCOL: int = 9
+## 10: the dive carries the HOST'S UNLOCKS (`_begin_dive`'s second argument,
+##    `dive_unlocked`). What a wreck, a shelf or a derelict can hold is drawn
+##    from the manufacturers the run has unlocked (`LootGen.can_appear`), and a
+##    party's world is one world, so every machine rolls it from the host's
+##    list. A version 9 partner receives a dive one argument long and would
+##    roll from its own profile instead: two ships at one derelict opening two
+##    different hulls, with nothing on either screen saying why.
+const PROTOCOL: int = 10
 
 ## How long a contested option waits for the host to say who got it.
 ##
@@ -122,6 +129,10 @@ var transport: NetTransport = null
 var roster: Dictionary = {}
 ## What the host rolled for this dive. Zero until launch.
 var dive_seed: int = 0
+## The host's unlocked manufacturers, sent with the seed: the pool every
+## machine's world draws its parts and hulls from (`Unlocks.for_new_run`).
+## Empty until launch.
+var dive_unlocked: Array[StringName] = []
 
 var _error: String = ""
 var _local_name: String = "Pilot"
@@ -313,6 +324,7 @@ func leave_party() -> void:
 	fights.clear()
 	transport = null
 	dive_seed = 0
+	dive_unlocked.clear()
 	_set_state(State.OFFLINE)
 	Sig.party_changed.emit()
 
@@ -347,8 +359,12 @@ func launch_dive() -> bool:
 	# time; being able to hand back the number that produced it is worth more
 	# here than it is solo.
 	var seed_value := Rng.roll_master()
-	_begin_dive.rpc(seed_value)
-	_apply_dive(seed_value)
+	# AND WHAT THE WORLD MAY HOLD, which is the host's to say for the same
+	# reason the seed is. Strings on the wire, the way a build's ids travel.
+	var open: Array = Array(Unlocks.open_now()).map(
+		func(m: StringName) -> String: return String(m))
+	_begin_dive.rpc(seed_value, open)
+	_apply_dive(seed_value, open)
 	return true
 
 
@@ -679,8 +695,8 @@ func _enemy_swings(at: int, which: int, kind: int, pick: int) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _begin_dive(seed_value: int) -> void:
-	_apply_dive(seed_value)
+func _begin_dive(seed_value: int, unlocked: Array) -> void:
+	_apply_dive(seed_value, unlocked)
 
 
 # --- plumbing -------------------------------------------------------------
@@ -1234,8 +1250,13 @@ func _apply_hull(id: int, hull_id: StringName) -> void:
 	Sig.party_changed.emit()
 
 
-func _apply_dive(seed_value: int) -> void:
+func _apply_dive(seed_value: int, unlocked: Array = []) -> void:
 	dive_seed = seed_value
+	dive_unlocked.clear()
+	for m in unlocked:
+		var id := StringName(str(m))
+		if Unlocks.CHAIN.has(id) and not dive_unlocked.has(id):
+			dive_unlocked.append(id)
 	_set_state(State.DIVING)
 	Sig.party_launched.emit(seed_value)
 

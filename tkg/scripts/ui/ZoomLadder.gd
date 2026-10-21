@@ -1154,6 +1154,13 @@ func _input(e: InputEvent) -> void:
 	if _calm:
 		var eat_c := _calm_eats(e)
 		hurry()
+		# THE ARRIVING SCREEN'S OWN KEY, carried to it: until the camera lands
+		# the screen left is still the current one, so L pressed as the chart
+		# came on went to LOCAL and was lost (Jon, Oct 20: "L doesn't work to
+		# bring you to the local region"). Taken here, so the screen left does
+		# not act on it too, and given to the screen arrived at once it is up.
+		if e is InputEventKey and _carry(e as InputEventKey):
+			eat_c = true
 		if eat_c and get_viewport() != null:
 			get_viewport().set_input_as_handled()
 		return
@@ -1164,6 +1171,27 @@ func _input(e: InputEvent) -> void:
 	finish_now()
 	if eat and get_viewport() != null:
 		get_viewport().set_input_as_handled()
+
+
+## The keys a screen has that are a press, not a hold, by the rank it is at:
+## what a calm move carries to the screen it is going to (`_carry`). The held
+## ones (a pan, a thrust) are not: their release comes during the move, and a
+## press given after it would never be let go.
+const CARRIED := {CHART: [&"chart_region"], MAP: [&"map_location"]}
+
+## `k` is a key of the screen this move is going to (`CARRIED`): kept, and
+## given to that screen once the move has landed. True if kept.
+func _carry(k: InputEventKey) -> bool:
+	for a: StringName in CARRIED.get(r_new, []):
+		if k.is_action_pressed(a):
+			var copy := k.duplicate() as InputEventKey
+			# (deferred: given after the landing's own work, the camera at rest)
+			var give := func() -> void:
+				(func() -> void: Input.parse_input_event(copy)).call_deferred()
+			if not when_landed(give):
+				give.call()
+			return true
+	return false
 
 
 ## A screen's UI, `k` of the way gone (0 all there, 1 all away).
