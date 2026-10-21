@@ -1160,6 +1160,8 @@ func show_station() -> void:
 	if current is SystemMapScreen and ZoomLadder.enabled() and ZoomLadder.design_for(3) in ["B", "D"] \
 			and Run.node_at() != null and Run.node_at().type == MapGen.NodeType.STATION:
 		ZoomLadder.chain = &"station"
+		# (LOCAL built with your ship off it: the dock's arrival brings it)
+		SectorScreen.dock_hidden = true
 		show_local()
 		return
 	if not (dock != null and is_instance_valid(dock)) and ZoomLadder.preroll(ZoomLadder.STATION, show_station):

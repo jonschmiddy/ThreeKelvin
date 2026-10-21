@@ -222,10 +222,23 @@ var _overlay: PanelContainer
 var _overlay_title: Label
 var _overlay_body: Label
 
+## THE MAP'S DOCK (`Router.show_station`, `ZoomLadder`'s fade): the LOCAL it
+## builds keeps your ship off itself until the dock's arrival brings it in, so
+## its first sight on LOCAL is that arrival's first frame (Jon, Oct 20).
+static var dock_hidden := false
+var _dock_hidden := false
+
+
 func setup(c: Combat = null) -> void:
 	combat = c
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
+	if dock_hidden:
+		dock_hidden = false
+		_dock_hidden = true
+		var dh := _view.ship_view()
+		if dh != null:
+			dh.visible = false
 	# A FIGHT ABOUT TO OPEN (built, not begun: `Router.start_combat`) is drawn
 	# as LOCAL first, row and all, and opened by `_raise_band`.
 	if c != null and not fighting() and Router.animating():
@@ -2773,7 +2786,7 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 		_lad["hall"] = {"xf": xf0, "o": _face.origin(),
 			"right": _view.get_global_rect().end.x, "vc": _view.get_global_rect().get_center(), "s_end": s_end,
 			"berth": berth, "start": start, "path": absf(berth.x - start.x), "inward": inward, "beat": &"",
-			"hold": hold, "dip_s": dip_s, "heard": false}
+			"hold": hold, "dip_s": dip_s, "heard": false, "hidden": _dock_hidden and inward}
 	# 2C, LEAVING for the map (no meeting point: this is the screen being left):
 	# the world you orbit carried in its own picture, as the map's is carried in
 	if smooth and meet.is_empty() and other == ZoomLadder.MAP and sky != null and is_instance_valid(sky) \
@@ -2810,8 +2823,10 @@ func ladder_cam(k: float) -> void:
 	if not hall.is_empty() and bool(hall.get("inward", true)):
 		# DOCKING, IN FIVE STEPS (`ZoomLadder.dock_steps`; Jon, Oct 20: "I want
 		# the ship to enter the screen like it does for the first sector"): k is
-		# the whole approach's clock, linear. The camera holds still until the
-		# ENTER; your ship's own arrival is stepped on this clock (below).
+		# the whole approach's clock, linear. The camera holds still through the
+		# whole dock -- the cut, the arrival, the beat, the power-on and the way
+		# in -- with nothing but your ship moving; its arrival is stepped on
+		# this clock (below).
 		var t := hk * ZoomLadder.dock_approach_s()
 		var su := ZoomLadder.dock_step_at(t)
 		var step := int(su.x)
@@ -2837,18 +2852,20 @@ func ladder_cam(k: float) -> void:
 		else:
 			# 5. THEN IN, ONE MOVE: from its mooring, slowly at first, gathering
 			# speed down the hallway and on into the hull, still at speed as it
-			# goes in; the camera setting off after it and coming round to follow
+			# goes in. THE CAMERA STAYS WHERE IT IS (Jon, Oct 20: "Why is there so
+			# much parallax? The dust shouldn't move as the ship comes in. The
+			# station is stationary."): only your ship moves
 			beat = &"enter"
 			ue = u
 			hall_fly = hold + (1.0 - hold) * ue * ue
-			kc = clampf((ue - HALL_CAM_FROM) / (1.0 - HALL_CAM_FROM), 0.0, 1.0)
-			kc = kc * kc * (3.0 - 2.0 * kc)
-			follow = clampf((ue - HALL_FOLLOW) / (1.0 - HALL_FOLLOW), 0.0, 1.0)
-			follow = follow * follow * (3.0 - 2.0 * follow)
 		hall["beat"] = beat
 		hall["step"] = step
 		hall["t"] = t
 		hall["t_arrive"] = t - ZoomLadder.dock_step_from(1)
+		# (the map's DOCK came up on LOCAL from its own black, your ship already
+		# off it: no cut of its own)
+		if bool(hall.get("hidden", false)):
+			blk = 0.0
 		hall["black"] = clampf(blk, 0.0, 1.0)
 		hall["u_power"] = 0.0 if step < 3 else (u if step == 3 else 1.0)
 		hall["u_enter"] = ue
@@ -2936,6 +2953,9 @@ func ladder_cam(k: float) -> void:
 			art.position = (ship.pos as Vector2).lerp(ring - (ship.mid as Vector2) + (Vector2(24, 0) if deep else Vector2.ZERO), fly)
 			art.scale = (ship.scale as Vector2) * lerpf(1.0, 0.62 if deep else 0.2, fly)
 		art.visible = deep or eq < 0.9
+		# (the map's DOCK: kept off LOCAL until its arrival, `dock_hidden`)
+		if deep and not hall.is_empty() and bool(hall.get("hidden", false)) and int(hall.get("step", 0)) == 0:
+			art.visible = false
 	# (the bar along the bottom is the screen's, not the scene's: it leaves before
 	# the camera moves and comes back after it lands, `ladder_chrome`)
 
@@ -2947,6 +2967,17 @@ func ladder_dip_s() -> float:
 	if hall.is_empty() or not bool(hall.get("inward", true)):
 		return -1.0
 	return float(hall.get("dip_s", ZoomLadder.DOCK_DIP_S))
+
+
+## The map's DOCK that did not dock after all (`ZoomLadder._chain_go`): your ship
+## back on LOCAL where it sits.
+func dock_unhide() -> void:
+	if not _dock_hidden:
+		return
+	_dock_hidden = false
+	var art := _view.ship_view() if _view != null else null
+	if art != null:
+		art.visible = true
 
 
 ## Docking: LOCAL's own black for the CUT (0 none, 1 all), which the ladder
@@ -3112,6 +3143,7 @@ func ladder_cam_end() -> void:
 		art.position = ship.pos
 		art.scale = ship.scale
 		art.visible = true
+		_dock_hidden = false
 	# (a dock ended before its arrival had -- a press, or the berth taken some
 	# other way -- takes the arrival's clip with it: the sound follows the
 	# picture, and the picture has gone)

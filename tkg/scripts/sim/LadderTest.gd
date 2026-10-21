@@ -146,6 +146,16 @@ func _hull_flies_in(dock_b: Button) -> void:
 	var thr_enter := {}
 	var moor := Rect2()
 	var idle_bed := false
+	# THE CAMERA STILL (Jon, Oct 20: "Why is there so much parallax? The dust
+	# shouldn't move as the ship comes in. The station is stationary."): from
+	# the dock's first frame to the dip to black, everything LOCAL draws but your
+	# ship -- the station's plate and front and their layers, the wreck row, the
+	# dust, the effects, the subject, the sky -- where it was, each frame
+	var bg0: Array = []
+	var bg_frames := 0
+	var bg_moved := 0
+	var bg_worst := 0.0
+	var bg_at := ""
 	Audio.taping = true
 	Audio.tape.clear()
 	var rail_s := {}
@@ -178,6 +188,18 @@ func _hull_flies_in(dock_b: Button) -> void:
 			var hd: Dictionary = loc0._lad.get("hall", {})
 			var art_d := loc0._view.ship_view()
 			var th := art_d._thrust_now() if art_d != null else -9
+			if beat != &"" and not dip_seen:
+				var bg := _bg_state(loc0)
+				if bg0.is_empty():
+					bg0 = bg
+				else:
+					bg_frames += 1
+					var off := _bg_off(bg0, bg)
+					if off > 0.0:
+						bg_moved += 1
+						if off > bg_worst:
+							bg_worst = off
+							bg_at = "%s frame %d" % [beat, bg_frames]
 			if beat == &"cut":
 				cut_black = maxf(cut_black, float(hd.get("black", 0.0)))
 				if moor.size.x <= 0.0:
@@ -277,6 +299,8 @@ func _hull_flies_in(dock_b: Button) -> void:
 		_ok("3B: the station's lights are all on before the pan (power %.2f)" % power, power >= 0.999)
 		_ok("3B: the dock comes in five steps, in order -- the cut to black, your ship's arrival, a beat, the station powers on, your ship goes in: %s" % [beats],
 			beats == [&"cut", &"arrive", &"beat", &"power", &"enter"])
+		_ok("3B: THE CAMERA STILL -- nothing but your ship moves on LOCAL from the dock's first frame to the dip to black (%d frames; %d with anything else off where it was, at most %.2f px%s)" % [
+			bg_frames, bg_moved, bg_worst, ", at " + bg_at if bg_at != "" else ""], bg_frames > 200 and bg_moved == 0)
 		_ok("3B CUT: LOCAL goes all the way to black, your ship taken off its mooring in it (%.2f)" % cut_black, cut_black >= 0.99)
 		# THE ENTRANCE IS THE ARRIVAL (Jon, Oct 20: "I want the ship to enter the
 		# screen like it does for the first sector")
@@ -364,6 +388,47 @@ func _hull_flies_in(dock_b: Button) -> void:
 	_ok("3B: the landed hull's rect is the yard's own seat (%s, the yard %s)" % [landed, seat],
 		seat.size.x > 1.0 and landed.position.is_equal_approx(seat.position) and landed.size.is_equal_approx(seat.size))
 	_clean("3B dock")
+
+
+## What LOCAL draws besides your ship, where it is: the station's plate and
+## front (their place, size and layers' parallax), the wreck row, the dust, the
+## effects, the subject (place and size), the sky's zoom and the scene's.
+func _bg_state(lc: SectorScreen) -> Array:
+	var out: Array = []
+	for c: Control in [lc._face, lc._face_front, lc._view._row, lc._view.dust, lc._view.fx, LocalSubject.of(lc._view)]:
+		if c != null and is_instance_valid(c):
+			out.append(c.get_global_transform())
+	for f: StationFace in [lc._face, lc._face_front]:
+		if f != null and is_instance_valid(f):
+			out.append(f.par.duplicate())
+			out.append(f.origin())
+	out.append(lc._view.backdrop.zoom if lc._view.backdrop != null else 1.0)
+	out.append(lc._lad_zs)
+	return out
+
+
+## How far the background in `b` stands from `a`, px (any parallax step or
+## zoom counted as its own size).
+func _bg_off(a: Array, b: Array) -> float:
+	if a.size() != b.size():
+		return 999.0
+	var worst := 0.0
+	for i in a.size():
+		var x: Variant = a[i]
+		var y: Variant = b[i]
+		if x is Transform2D:
+			var tx := x as Transform2D
+			var ty := y as Transform2D
+			worst = maxf(worst, tx.origin.distance_to(ty.origin))
+			worst = maxf(worst, absf(tx.get_scale().x - ty.get_scale().x) * 1000.0)
+		elif x is Vector2:
+			worst = maxf(worst, (x as Vector2).distance_to(y as Vector2))
+		elif x is Dictionary:
+			if x != y:
+				worst = maxf(worst, 1.0)
+		else:
+			worst = maxf(worst, absf(float(x) - float(y)) * 1000.0)
+	return worst
 
 
 ## THE DOCK'S ARRIVAL, frame by frame as `_hull_flies_in` saw it: [its time,
@@ -741,13 +806,23 @@ func _every_side_once() -> void:
 		var flips := 0
 		var top := 0
 		var whole := true
-		# (each face on its own, over its moving frames: the dock's, then the
-		# undock's; at rest it is none, checked below)
+		# (the dock's face is the first seen moving: its layers, the camera
+		# still, never move at all)
+		var dock_face: int = int(steps[0][0]) if not steps.is_empty() else -1
+		var dock_top := 0
+		for e: Array in steps:
+			if int(e[0]) == dock_face:
+				for p in far:
+					dock_top = maxi(dock_top, absi(int((e[1] as Dictionary).get(p, 0))))
+		# (each face on its own, over its moving frames: the undock's, the
+		# camera following your ship back out; at rest it is none, checked below)
 		for p in far:
 			var last := 0
 			var dir := 0
 			var who := -1
 			for e: Array in steps:
+				if int(e[0]) == dock_face:
+					continue
 				var v: Variant = (e[1] as Dictionary).get(p, 0)
 				if e[0] != who:
 					who = e[0]
@@ -769,7 +844,11 @@ func _every_side_once() -> void:
 				seq += "%d:%d " % [int(e[0]) % 1000, int((e[1] as Dictionary).get(far[0], 0))]
 			print("    parallax steps (%s): %s" % [far[0], seq])
 		var lc := Router.current as SectorScreen
-		_ok("%s: its far layers move in whole pixels, at most %d (no more than 8), never turning back mid-move (%d times)" % [id, top, flips],
+		# (docking the camera stays where it is -- Jon, Oct 20: "The station is
+		# stationary" -- so its layers have no parallax to show: none at all)
+		_ok("%s: its far layers stand still while your ship docks, the camera still (at most %d px)" % [id, dock_top],
+			dock_face >= 0 and dock_top == 0)
+		_ok("%s: undocking, its far layers move in whole pixels, at most %d (no more than 8), never turning back mid-move (%d times)" % [id, top, flips],
 			whole and top > 0 and top <= 8 and flips == 0)
 		_ok("%s: and none at rest" % id, lc != null and lc._face_front != null and lc._face_front.par.is_empty())
 	StationSides.force_side = &""
@@ -1422,13 +1501,30 @@ func _run() -> void:
 			# and on into the hangar, one call
 			Router.show_station()
 			var saw_local := false
+			# (Jon, Oct 20: "there is a frame where the ship is there? then it
+			# goes away? and then it comes back in?": LOCAL is never drawn with
+			# your ship on it before the dock's arrival brings it in)
+			var arrived := false
+			var shown_early := 0
+			var calm_seen := false
 			for i in 900:
 				await _tree.process_frame
-				if Router.current is SectorScreen:
+				if ZoomLadder.busy() and ZoomLadder.active._calm:
+					calm_seen = true
+				var lm := Router.current as SectorScreen
+				if lm != null:
 					saw_local = true
+					var hb: StringName = (lm._lad.get("hall", {}) as Dictionary).get("beat", &"")
+					if hb in [&"arrive", &"beat", &"power", &"enter"]:
+						arrived = true
+					var sv := lm._view.ship_view() if lm._view != null else null
+					if not arrived and sv != null and sv.is_visible_in_tree():
+						shown_early += 1
 				if Router.current is StationScreen and not ZoomLadder.busy() and ZoomLadder.chain == &"":
 					break
 			_ok("the map's DOCK goes by LOCAL (%s) into the berth" % saw_local, saw_local and Router.current is StationScreen and Router.docked)
+			_ok("the map's DOCK: down to black and up on LOCAL with your ship off it, no calm move (%s), and no LOCAL frame shows your ship before its arrival (%d frames, arrived %s)" % [
+				calm_seen, shown_early, arrived], arrived and shown_early == 0 and not calm_seen)
 			_clean("map dock")
 			Router.show_sector()
 			await _idle()

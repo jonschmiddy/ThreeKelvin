@@ -91,8 +91,11 @@ const DIVE_S := 1.9
 ##      lights at the mouth flashing and then green;
 ##   5. ENTER: its engines lit, your ship from its mooring on into the hull in
 ##      one move along the approved dock's path and its shrink with depth (so
-##      the mouth fits every hull), the camera after it -- the dock approved at
-##      this length.
+##      the mouth fits every hull) -- the dock approved at this length.
+## THE CAMERA DOES NOT MOVE in any of the five (Jon, Oct 20: "Why is there so
+## much parallax? ... The station is stationary."): only your ship does. The
+## map's DOCK comes to LOCAL through black (`preroll`'s `dock_fade`), your ship
+## kept off it, so the arrival is the first of it seen there.
 ## LOCAL's whole pre-roll is the five (`dock_approach_s`); the yard after it is
 ## its own (`YARD_FADE_S`, `YARD_BEAT_S`, `DOCK_YARD_S`). Reduced motion never
 ## animates a dock (`Router.animating`), and a press mid-dock ends it at once.
@@ -688,7 +691,13 @@ static func preroll(target: int, then: Callable) -> bool:
 		return false
 	if busy():
 		active.finish_now()
-	if calm_hop(r, target):
+	# THE MAP'S DOCK GOES BY BLACK, NOT THE CALM MOVE (Jon, Oct 20: "there is a
+	# frame where the ship is there? then it goes away? and then it comes back
+	# in?"): LOCAL is built in the black with your ship kept off it
+	# (`SectorScreen.dock_hidden`), comes up empty beside the station, and the
+	# dock's arrival is the first your ship is seen of it
+	var dock_fade := chain == &"station" and r == MAP and target == LOCAL
+	if calm_hop(r, target) and not dock_fade:
 		_calm_preroll(cur, r, target, then)
 		return true
 	var lad := _make()
@@ -700,7 +709,7 @@ static func preroll(target: int, then: Callable) -> bool:
 	lad._then = then
 	# THE CHART AND LOCAL (or the berth) ARE A FADE, NOT A MOVE: nothing built
 	# ahead (it is built in the black), no camera, no UI beats of their own
-	if lad.seam == 0 and is_fade(r, target):
+	if (lad.seam == 0 and is_fade(r, target)) or dock_fade:
 		lad._fade = true
 		lad.phase = Phase.FADE_OUT
 		_hud_refresh()
@@ -1024,6 +1033,7 @@ func _process_move(delta: float) -> void:
 			return
 		Phase.FADE_HOLD:
 			_black_at(1.0)
+			_chain_chrome()
 			_held_frames += 1
 			_waited += dt
 			if not is_instance_valid(new):
@@ -1041,6 +1051,7 @@ func _process_move(delta: float) -> void:
 				return
 			_ui_u += dt
 			_black_at(1.0 - _ease(_ui_u / maxf(FADE_IN_S, 0.001)))
+			_chain_chrome()
 			if _ui_u >= FADE_IN_S:
 				if _slide_way == &"on":
 					_decode_after_dive()
@@ -2150,11 +2161,20 @@ static func take_prebuilt(kind: int) -> Control:
 
 ## The map's DOCK goes on into the hangar from LOCAL (`chain`); if that door
 ## does not open a move from LOCAL, LOCAL's UI comes back.
+## (the map's DOCK, coming up on LOCAL: its UI stays away, the hangar is next)
+func _chain_chrome() -> void:
+	if chain == &"station" and new is SectorScreen and is_instance_valid(new):
+		_chrome(new, 1.0)
+
+
 static func _chain_go(s: Control) -> void:
 	if not is_instance_valid(s):
 		chrome_hidden = null
 		return
 	Router.show_station()
+	# (a dock that did not start after all: your ship back where it is)
+	if not (busy() and active.old == s) and is_instance_valid(s) and s.has_method(&"dock_unhide"):
+		s.call(&"dock_unhide")
 	if not (busy() and active.old == s) and is_instance_valid(s) and Router.current == s:
 		if s.has_method(&"ladder_chrome"):
 			s.call(&"ladder_chrome", 0.0)
@@ -2206,7 +2226,7 @@ func _end() -> void:
 	if phase == Phase.MOVE:
 		_land(false)
 	var chained := false
-	if chain == &"station" and phase == Phase.UI_IN and new is SectorScreen and is_instance_valid(new):
+	if chain == &"station" and (phase == Phase.UI_IN or (_fade and phase == Phase.FADE_IN)) and new is SectorScreen and is_instance_valid(new):
 		chain = &""
 		chained = true
 		# (LOCAL's UI stays away: the hangar is the next move, at once)
