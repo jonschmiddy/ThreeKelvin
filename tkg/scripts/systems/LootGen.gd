@@ -11,10 +11,12 @@ static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
 	# Every threshold below was tuned against the five-tier ladder. Read the
 	# wider scale through tier() rather than restating all of them.
 	var danger := MapGen.tier(danger_in)
-	# A Territory region can force a manufacturer that the active-manufacturer gate has switched
-	# off. Honouring that would empty the pool and collapse every drop in the
-	# region to the fallback, so treat it as an unbranded roll instead.
-	if force_manufacturer != &"" and not _manufacturer_active(force_manufacturer):
+	# A Territory region can force a manufacturer that cannot appear -- switched
+	# off by the active-manufacturer gate, or not unlocked on this profile.
+	# Honouring that would empty the pool and collapse every drop in the region
+	# to the fallback, so roll it as an open one instead: Solari space on a
+	# fresh profile drops Korvan and unbranded parts like anywhere else.
+	if force_manufacturer != &"" and not can_appear(force_manufacturer):
 		force_manufacturer = &""
 
 	var pool: Array[StringName] = []
@@ -28,7 +30,7 @@ static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
 			continue
 		if m.rarity >= ModuleData.Rarity.EXOTIC and not allow_unbranded:
 			continue
-		if not _manufacturer_active(m.manufacturer):
+		if not can_appear(m.manufacturer):
 			continue
 		if force_manufacturer != &"" and m.manufacturer != force_manufacturer:
 			continue
@@ -52,10 +54,21 @@ static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
 	m.scrap_value = int(round(ModuleData.SCRAP_VALUE[m.rarity] * r.randf_range(0.8, 1.3)))
 	return m
 
-## True when a manufacturer may drop. Manufacturer-agnostic modules (manufacturer &"") always
-## pass — see DB.ACTIVE_MANUFACTURERS.
-static func _manufacturer_active(manufacturer: StringName) -> bool:
-	return manufacturer == &"" or DB.ACTIVE_MANUFACTURERS.is_empty() or DB.ACTIVE_MANUFACTURERS.has(manufacturer)
+## True when a manufacturer's parts and hulls may appear in this run: it is
+## switched on (`DB.ACTIVE_MANUFACTURERS`) AND this run has it unlocked
+## (`Run.unlocked_manufacturers`, read off the flight record at run start --
+## see `Unlocks.open_now`). Unbranded (manufacturer &"") always passes, so a
+## fresh profile's pool is Korvan plus unbranded and is never empty.
+##
+## THE ONE GATE. Every drop, shelf, yard hull, derelict hull, reward and the
+## custodian's body is rolled through `roll_module` or `roll_hull`, and both ask
+## this; a new way to hand the player a part should too.
+static func can_appear(manufacturer: StringName) -> bool:
+	if manufacturer == &"":
+		return true
+	if not DB.ACTIVE_MANUFACTURERS.is_empty() and not DB.ACTIVE_MANUFACTURERS.has(manufacturer):
+		return false
+	return Run.unlocked_manufacturers.has(manufacturer)
 
 ## EIGHT ENTRIES FOR AN EIGHT-VALUE ENUM. This was seven long against a Rarity
 ## that ends at CONTRABAND, so `_affix_count(CONTRABAND)` indexed past the end.
@@ -91,7 +104,20 @@ static func _roll_affixes(n: int, danger: int, r: RandomNumberGenerator) -> Arra
 		out.append(pick)
 	return out
 
-## A hull off a wreck. Draws from all ten frames, so a derelict can offer either
+## The frames a derelict or a yard can offer in this run: the three unbranded
+## salvage frames always, and every manufacturer's three that `can_appear`.
+## It drew from all of `DB.hull_frames` -- every manufacturer's, whatever was
+## switched on or unlocked -- so a fresh profile met Solari, Probate and Calyx
+## chassis on the blocks before it could fly any of them. Never empty: the
+## salvage frames carry no manufacturer.
+static func hull_pool() -> Array[HullData]:
+	var out: Array[HullData] = []
+	for h in DB.hull_frames:
+		if can_appear(h.manufacturer):
+			out.append(h)
+	return out
+
+## A hull off a wreck. Draws from `hull_pool()`, so a derelict can offer either
 ## an unbranded salvage frame or somebody's chassis — and a found chassis moves
 ## your set count, which is what makes "should I take it" a question with more
 ## than one number in it.
@@ -125,7 +151,7 @@ const GRADES_AT := {
 
 static func roll_hull(danger_in: int, r: RandomNumberGenerator = Rng.loot) -> HullData:
 	var danger := MapGen.tier(danger_in)
-	var base: HullData = Rng.pick(r, DB.hull_frames)
+	var base: HullData = Rng.pick(r, hull_pool())
 	var t: int = Rng.pick(r, GRADES_AT[danger])
 	# The grade itself is AUTHORED now — see DB.TIER_DELTA. What used to happen
 	# here was the whole tier system: a bag of bumps with a hardpoint on a coin

@@ -42,6 +42,19 @@ MAC
 It runs on both Apple Silicon and Intel Macs.
 
 
+PLAYING WITH FRIENDS
+--------------------
+Choose FLY TOGETHER on the title screen. One player presses HOST PARTY and
+sends the code it shows to the others. Each of them types that code under JOIN.
+
+Everyone needs the same build. The version on the title screen must match
+exactly, or the game will not let you join.
+
+HOST PARTY works over the internet and needs no setup. HOST DIRECT is for
+players on the same network. The first time you use it, Windows asks whether to
+let the game through its firewall.
+
+
 WHEN SOMETHING GOES WRONG
 -------------------------
 Open the menu (Escape) > Settings > PLAYTEST > SAVE MY LOGS. It puts one zip on

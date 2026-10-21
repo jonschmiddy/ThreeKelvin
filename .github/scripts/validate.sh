@@ -656,6 +656,25 @@ else
 fi
 }
 
+unit_ashteachcosttest() {
+step "A.S.H. teaching the chart costs a frame nothing"
+# Jon, Oct 20: the chart "SUPER laggy and unresponsive" while she taught its
+# list -- 840 ms a frame, her box's check asking every system at every 3 px.
+# Every frame timed while she says the list's line and the step's on a
+# 410-system chart, against the chart with her silent; and her check finds what
+# the old point-by-point scan found. Times frames: one of SOLO_UNITS.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot ashteachcosttest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=AshTeachCostTest; then
+	if grep -qE '^AshTeachCostTest: PASS' "$LOG_DIR/ashteachcosttest.log"; then
+		ok "her teaching on the chart costs a frame nothing"
+	else
+		bad "her teaching on the chart lags the game"
+		grep -E 'FAIL|^AshTeachCostTest' "$LOG_DIR/ashteachcosttest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "ashteachcosttest did not finish"
+fi
+}
+
 unit_maplagtest() {
 step "The sector map's worlds keep up with a pan"
 # Each world's picture sits on its place (its ring, label and beacons) on every
@@ -926,6 +945,26 @@ else
 fi
 }
 
+unit_lockedpooltest() {
+step "A locked manufacturer appears nowhere"
+# Jon, Oct 20: "Solari things should NOT show up in the game until Solari is
+# unlocked (win the game once)." Over seeded galaxies, every wreck, kill bag,
+# shelf, yard hull, derelict hull, event part, relic analysis, contract item
+# and the custodian's body: a fresh profile finds Korvan and unbranded only and
+# every roll still rolls something; a Korvan win finds Solari too; developer
+# mode finds it; a save keeps its pool across CONTINUE; a party rolls the host's.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot lockedpooltest 240 --headless --path "$PROJECT" -- sheet=LockedPoolTest; then
+	if grep -qE '^lockedpooltest: PASS' "$LOG_DIR/lockedpooltest.log"; then
+		ok "a manufacturer appears only once it is unlocked"
+	else
+		bad "a locked manufacturer's part or hull reached a player, or a pool ran dry"
+		grep -E 'FAIL|^lockedpooltest' "$LOG_DIR/lockedpooltest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "lockedpooltest did not finish"
+fi
+}
+
 unit_wrecksitetest() {
 step "Each place in a system keeps its own wrecks"
 # Jon, Oct 14: "each planet or POI you can visit should contain its own
@@ -1087,6 +1126,24 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 else
 	bad "welcometest did not finish"
+fi
+}
+
+unit_scrollcheck() {
+step "No scroll bar on the sector map's panel covers a word"
+# Jon, Oct 20, on the WORLD card: "the scroll bar covers up text". Over the
+# run's first 40 systems, the sector's list and every world's page, unscrolled
+# and scrolled to the end: no text and nothing that takes the mouse within
+# UITheme.BAR_GAP of the bar as drawn. It fails if no page scrolled at all.
+if run_godot scrollcheck 240 --headless --path "$PROJECT" -- sheet=SystemShot scrollcheck; then
+	if grep -qE '^scrollcheck: PASS' "$LOG_DIR/scrollcheck.log"; then
+		ok "the sector panel's words stay clear of its scroll bar"
+	else
+		bad "something on the sector panel sits under its scroll bar"
+		grep -E 'FAIL|^scrollcheck|  scrollcheck' "$LOG_DIR/scrollcheck.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "scrollcheck did not finish"
 fi
 }
 
@@ -1981,9 +2038,12 @@ fi
 #                    thread race)
 #   threadstress     workers racing the main thread for 20 s, each take timed in
 #                    microseconds
+#   ashteachcosttest every frame's wall time while A.S.H. teaches the chart,
+#                    none over 100 ms (fixed fps, but a starved CPU is a slow
+#                    frame all the same)
 #   sim              forty whole runs, the regression test of last resort; run
 #                    alone so its limit is never spent waiting for a CPU
-SOLO_UNITS="maplagtest gameclocktest playerdeathtest faunatest threadstress lowhulltest sim"
+SOLO_UNITS="maplagtest gameclocktest playerdeathtest faunatest threadstress lowhulltest ashteachcosttest sim"
 # Run first and alone, because every other unit needs what it writes: the class
 # cache in .godot/, without which nothing compiles.
 FIRST_UNITS="import"
@@ -2003,6 +2063,7 @@ gate_weight() {
 		hinttest) echo 28 ;; calmladdertest) echo 28 ;; foetagtest) echo 28 ;;
 		menutest) echo 25 ;; market) echo 24 ;; parseall) echo 24 ;;
 		devtest) echo 22 ;; hulldamagetest) echo 22 ;; fightopentest) echo 22 ;;
+		lockedpooltest) echo 41 ;;
 		*) echo 15 ;;
 	esac
 }

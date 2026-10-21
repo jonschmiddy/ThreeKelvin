@@ -54,9 +54,10 @@ func build() -> void:
 	_scroll = scroll
 	# ROOM FOR THE BAR. A ScrollContainer draws its scrollbar over the right
 	# edge of its content, so every value on the right -- 1920 x 1080, OFF, the
-	# last chip in a row -- sat under it (Jon).
+	# last chip in a row -- sat under it (Jon). The bar keeps a gutter of its own
+	# now (`UITheme.BAR_GAP`, Oct 20), so this is the rest of the 10 px it had.
 	var inset := MarginContainer.new()
-	inset.add_theme_constant_override("margin_right", 10)
+	inset.add_theme_constant_override("margin_right", 10 - UITheme.BAR_GAP)
 	inset.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(inset)
 	_body = VBoxContainer.new()

@@ -51,8 +51,11 @@ func build(title: String, text: String, dim: float = 1.0) -> void:
 	full_text = text
 	_split(text)
 
+	# OVER THE WHOLE PICTURE, not this card's rect: a screen stops short of the
+	# glass by Main's margin, and the title's galaxy showed through it undimmed
+	# as a frame round the note (`Widgets.cover_picture`)
 	var shade := ColorRect.new()
-	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	Widgets.cover_picture(shade)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	shade.color = Color(DIM, DIM.a * dim)
 	add_child(shade)

@@ -146,9 +146,11 @@ SAVE MY LOGS for reports.
 
 ## Known issues
 
-- **Only Korvan, Solari and unbranded parts drop** (`Database.ACTIVE_MANUFACTURERS`).
-  The other five manufacturers can be unlocked and flown, but have 4 to 7 parts
-  each, use Korvan's hull art, and their set bonuses cannot be completed.
+- **Only Korvan, Solari and unbranded parts drop** (`Database.ACTIVE_MANUFACTURERS`),
+  and Solari's only once a Korvan win has unlocked it (`LootGen.can_appear`; a
+  locked manufacturer's parts and hulls appear nowhere). The other five
+  manufacturers can be unlocked and flown, but have 4 to 7 parts each, use
+  Korvan's hull art, and their set bonuses cannot be completed.
 - **Three set bonus texts are wrong** (Cygnet 5, Korvan 3, Solari 3; listed in
   `CHANGELOG.md`). Parked until after the alpha.
 - **A fight is not saved.** Quitting mid-fight starts the fight again on CONTINUE.
