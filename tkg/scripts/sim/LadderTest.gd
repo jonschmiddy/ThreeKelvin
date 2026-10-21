@@ -895,6 +895,67 @@ func _hull_flies_out() -> void:
 	_clean("3B undock")
 
 
+## THE BERTH AS A DOCK LEAVES IT: the station's screen once its elevator has
+## landed (`_rail_slide` gone) and a few frames more.
+func _station_settled() -> StationScreen:
+	for i in 240:
+		var st := Router.current as StationScreen
+		if st != null and st._rail_slide == null and not ZoomLadder.busy():
+			break
+		await _tree.process_frame
+	await _frames(6)
+	return Router.current as StationScreen
+
+
+## THE STATION'S LAYOUT, by part: the column (its header, the shaft, every
+## deck's cell, title and note, UNDOCK), the yard, every page, and the figures
+## that float over each ship in the yard -- each part's rect on screen and its
+## minimum size, and each deck title's font size.
+func _station_layout(st: StationScreen) -> Dictionary:
+	var d := {}
+	if st == null:
+		return d
+	var parts := {"column": st._rail, "header": st._header, "building": st._building, "undock": st._undock,
+		"yard": st._scene, "your ship's figures": st._mine_slab, "the offer's figures": st._scene_slab}
+	if st._building != null:
+		parts["shaft"] = st._building.get_parent()
+	for id in st._tabs:
+		var b: Button = st._tabs[id]
+		parts["deck %s" % id] = b
+		parts["deck %s title" % id] = b.get_meta(&"title", null)
+		parts["deck %s note" % id] = st._deck_note.get(id)
+	for id in st._pages:
+		parts["page %s" % id] = st._pages[id]
+	for k in parts:
+		var c := parts[k] as Control
+		if c == null or not is_instance_valid(c):
+			continue
+		d[k] = [c.get_global_rect(), c.get_combined_minimum_size()]
+		if c is Label:
+			d[k].append(c.get_theme_font_size(&"font_size"))
+	return d
+
+
+## The station's layouts each dock left (`_station_layout`), by route.
+var _station_rects := {}
+
+
+## DOCKED BY A MOVE OR OPENED AT ONCE, THE SAME STATION (Oct 21: built ahead at
+## DOCK under the ladder, in the engine's theme, it kept that theme's sizes --
+## your ship's figures in the yard 153 px tall for 144 and hung 9 px high):
+## every part of `route`'s layout exactly where the station opened at once has
+## it, at the same size and minimum size.
+func _station_same(route: String, at_once: Dictionary) -> void:
+	var docked: Dictionary = _station_rects.get(route, {})
+	var off: Array[String] = []
+	for k in at_once:
+		if str(docked.get(k)) != str(at_once[k]):
+			off.append("%s %s (at once %s)" % [k, docked.get(k), at_once[k]])
+	_ok("%s: the station laid out as one opened at once, its column, every deck and the yard's figures (%d parts; off: %s)" % [
+		route, at_once.size(), ", ".join(off) if not off.is_empty() else "none"],
+		at_once.size() > 15 and docked.size() == at_once.size() and off.is_empty())
+
+
 ## A PRESS MID-UNDOCK (`ZoomLadder.finish_now`): docked, UNDOCK, and a key once
 ## your ship is out of the hull and burning -- the move ends within a frame or
 ## two, your ship parked at its mooring at its own size, its engines at the
@@ -956,6 +1017,9 @@ func _undock_skipped() -> void:
 	Router.show_station()
 	await _frames(3)
 	var docked := Router.current is StationScreen and Router.docked and not ZoomLadder.busy()
+	# (and the berth LOCAL's DOCK left, `_hull_flies_in`, laid out as this one)
+	if docked:
+		_station_same("LOCAL's DOCK", _station_layout(await _station_settled()))
 	Router.show_sector()
 	await _frames(3)
 	var lr := Router.current as SectorScreen
@@ -1745,6 +1809,7 @@ func _run() -> void:
 			loc = Router.current as SectorScreen
 			dock_b = loc.find_child("Dock", true, false) as Button if loc != null else null
 			await _hull_flies_in(dock_b)
+			_station_rects["LOCAL's DOCK"] = _station_layout(await _station_settled())
 			_arrival_is_first_locals()
 			await _hull_flies_out()
 			loc = Router.current as SectorScreen
@@ -1807,6 +1872,15 @@ func _run() -> void:
 			_ok("the map's DOCK: down to black and up on LOCAL with your ship off it, no calm move (%s), and no LOCAL frame shows your ship before its arrival (%d frames, arrived %s)" % [
 				calm_seen, shown_early, arrived], arrived and shown_early == 0 and not calm_seen)
 			_clean("map dock")
+			# (laid out as the same station opened at once: off and on again,
+			# under reduced motion, then out as before)
+			_station_rects["the map's DOCK"] = _station_layout(await _station_settled())
+			DisplaySettings.reduced_motion = true
+			Router.show_sector()
+			await _frames(3)
+			Router.show_station()
+			_station_same("the map's DOCK", _station_layout(await _station_settled()))
+			DisplaySettings.reduced_motion = false
 			Router.show_sector()
 			await _idle()
 

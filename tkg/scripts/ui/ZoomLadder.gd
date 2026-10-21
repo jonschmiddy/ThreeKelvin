@@ -820,9 +820,13 @@ static func preroll(target: int, then: Callable) -> bool:
 		var ss := StationScreen.new()
 		ss.modulate.a = 0.0
 		ss.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		lad._fit()
-		lad.add_child(ss)
-		lad.move_child(ss, 0)
+		# BUILT WHERE IT WILL STAND, as LOCAL is at UNDOCK (below): in the
+		# screens' area behind LOCAL, laid out by the game's own theme. Under the
+		# ladder it took the engine's, and the figures over your ship in the yard
+		# kept it after the swap: 153 px tall for 144, hung 9 px high (Oct 21)
+		Router.content.add_child(ss)
+		Router.content.move_child(ss, 0)
+		ss.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		ss.setup()
 		ss.process_mode = Node.PROCESS_MODE_DISABLED
 		ss.set_meta(&"ladder_at", Run.at)
