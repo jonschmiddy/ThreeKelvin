@@ -729,6 +729,8 @@ func show_local() -> void:
 		(current as SystemMapScreen)._keep_ship()
 	if ZoomLadder.preroll(ZoomLadder.LOCAL, show_local):
 		return
+	# (undocking: the station left lit on the LOCAL it lands on, `station_awake`)
+	var undocking := docked
 	# Before the swap, not after: `_swap` emits screen_changed, and the HUD reads
 	# this flag inside the refresh that signal triggers.
 	# UNDOCKING IS NOT A PAGE CHANGE either: leaving the berth is the ship
@@ -754,6 +756,8 @@ func show_local() -> void:
 	var pre: Control = ZoomLadder.take_prebuilt(ZoomLadder.LOCAL)
 	if pre != null:
 		_swap(pre)
+		if undocking and pre is SectorScreen:
+			(pre as SectorScreen).station_awake()
 		return
 	var s := SectorScreen.new()
 	_swap(s)
@@ -763,6 +767,9 @@ func show_local() -> void:
 	# card catalog mid-fight and pressing SECTOR returned you to an empty sector
 	# with `combat` still running behind it, which is unwinnable and unloseable.
 	s.setup(combat if in_combat() else null)
+	# (a working station: lit as your ship leaves it, Jon, Oct 21)
+	if undocking:
+		s.station_awake()
 
 ## Refit screen. Reachable from the HUD any time you are not in a fight.
 ## Development only: every card in the game on one page. See CardGalleryScreen.

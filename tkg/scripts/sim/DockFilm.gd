@@ -3,7 +3,7 @@ extends Node
 ## THE DOCK, FILMED WITH ITS SOUND (`ZoomLadder` 3B, `SectorScreen.ladder_cam`,
 ## the station's elevator after it):
 ##   godot --path . --windowed --resolution 1920x1080 --fixed-fps 30
-##       --write-movie <dir>/dock.avi -- sheet=DockFilm [route=local|map|first]
+##       --write-movie <dir>/dock.avi -- sheet=DockFilm [route=local|map|first|undock]
 ##       [seed=N] [weight=light|medium|heavy] [rm]
 ## A run beside a station, the ladder on, its clock stepped by the game's own
 ## (`GameClock` through `--fixed-fps`, never the wall's): LOCAL beside the
@@ -15,7 +15,9 @@ extends Node
 ## frame of an arrival, your ship's place and size; the AVI's frame is `drawn`),
 ## quit (`stills=<dir>`: the frame before it and 0.5 s and 1 s into it, at
 ## 2x). `undock` then undocks (`stills=` 0.5 s, 1 s and 1.5 s after LOCAL
-## comes up, at 2x). `rm` docks under reduced motion. A half-speed film is this one slowed
+## comes up, at 2x); `route=undock` films the undock alone: docked at once (no
+## dock played), four seconds of the berth, then UNDOCK. `rm` docks under
+## reduced motion. A half-speed film is this one slowed
 ## by the encoder, so its sound stays on its pictures. Prints the frame each
 ## step began on. Needs a window.
 
@@ -95,6 +97,16 @@ func _run() -> void:
 				await _still(stills, "arrive_%.1fs" % ((i + 1) / 30.0))
 		_tree.quit()
 		return
+	if route == "undock":
+		# (docked at once, no dock played, and the berth settled -- its decks'
+		# power-ons done -- then UNDOCK)
+		ZoomLadder.force = 0
+		Router.show_station()
+		ZoomLadder.force = 1
+		await _frames(120)
+		await _undock()
+		_tree.quit()
+		return
 	if route == "map":
 		Router.show_system()
 	else:
@@ -132,33 +144,45 @@ func _run() -> void:
 			print("  [dockfilm] frame %d: the move done" % (Engine.get_frames_drawn() - f0))
 			break
 	await _frames(75)
-	# (`undock`: and out again, UNDOCK as the station's screen does it, the dust
-	# logged; with `stills=<dir>`, 0.5 s, 1 s and 1.5 s after LOCAL comes up)
+	# (`undock`: and out again)
 	if "undock" in _args:
-		var stills := _arg("stills", "")
-		if stills != "":
-			DirAccess.make_dir_recursive_absolute(stills)
-		Router.show_sector()
-		var l0 := -1
-		var done := -1
-		for i in 900:
-			await _tree.process_frame
-			var lu := Router.current as SectorScreen
-			if lu == null:
-				continue
-			_log_dust(&"undock")
-			if l0 < 0:
-				l0 = i
-				print("  [dockfilm] undock: LOCAL up at frame %d" % i)
-			var k := i - l0
-			if stills != "" and (k == 15 or k == 30 or k == 45):
-				await _still(stills, "undock_%.1fs" % (k / 30.0))
-			if done < 0 and not ZoomLadder.busy():
-				done = i
-				print("  [dockfilm] undock: the move done at frame %d" % i)
-			if done >= 0 and i > done + 30 and k > 30:
-				break
+		await _undock()
 	_tree.quit()
+
+
+## UNDOCK as the station's screen does it, through to LOCAL at rest and a second
+## of it, the dust logged and your ship's place and size every frame on LOCAL
+## (`[undock]` lines, by `drawn`, the AVI's frame); with `stills=<dir>`, 0.5 s,
+## 1 s and 1.5 s after LOCAL comes up, at 2x.
+func _undock() -> void:
+	var stills := _arg("stills", "")
+	if stills != "":
+		DirAccess.make_dir_recursive_absolute(stills)
+	print("  [dockfilm] undock: UNDOCK at drawn %d" % Engine.get_frames_drawn())
+	Router.show_sector()
+	var l0 := -1
+	var done := -1
+	for i in 900:
+		await _tree.process_frame
+		var lu := Router.current as SectorScreen
+		if lu == null:
+			continue
+		_log_dust(&"undock")
+		var art := lu._view.ship_view() if lu._view != null else null
+		if art != null:
+			print("  [undock] drawn %d x %.2f scale %.4f thrust %d power %.2f zoom %.3f" % [Engine.get_frames_drawn(), art.position.x,
+				art.scale.x, art._thrust_now(), lu._face.power if lu._face != null else -1.0, lu._lad_zs])
+		if l0 < 0:
+			l0 = i
+			print("  [dockfilm] undock: LOCAL up at drawn %d" % Engine.get_frames_drawn())
+		var k := i - l0
+		if stills != "" and (k == 15 or k == 30 or k == 45):
+			await _still(stills, "undock_%.1fs" % (k / 30.0))
+		if done < 0 and not ZoomLadder.busy():
+			done = i
+			print("  [dockfilm] undock: the move done at drawn %d" % Engine.get_frames_drawn())
+		if done >= 0 and i > done + 30 and k > 30:
+			break
 
 
 ## Your ship on LOCAL this frame, while an arrival has it: its place and size.

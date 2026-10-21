@@ -99,6 +99,15 @@ const DIVE_S := 1.9
 ## LOCAL's whole pre-roll is the five (`dock_approach_s`); the yard after it is
 ## its own (`YARD_FADE_S`, `YARD_BEAT_S`, `DOCK_YARD_S`). Reduced motion never
 ## animates a dock (`Router.animating`), and a press mid-dock ends it at once.
+## UNDOCKING IS THE DOCK PLAYED BACKWARDS (Jon, Oct 21: "the background stays
+## put as your ship flies out, matching docking"): the yard as it was -- the
+## elevator out, your ship off its stands and away, the empty yard down to
+## black -- then LOCAL up from the black over the dock's dip backwards with
+## your ship still in the hull, and the ENTER run back (`DOCK_ENTER_S`): out of
+## the mouth growing back to its size, its engines at the cruise burn, slowing
+## to rest at its mooring as they sputter down to the idle. The camera does not
+## move on LOCAL and the station stays lit (`SectorScreen.ladder_cam`). A press
+## mid-undock parks your ship at its mooring at once, its sounds hushed.
 const DOCK_BEAT_S := 0.3
 const DOCK_POWER_S := 1.3
 const DOCK_ENTER_S := 4.0
@@ -121,10 +130,8 @@ const DOCK_PAN_S := 1.4
 ## `ELEVATOR_S`)
 const DOCK_YARD_S := 2.2
 ## undocking: the elevator out, your ship off its stands and away to the left
+## (and on LOCAL the ENTER backwards, `DOCK_ENTER_S`)
 const UNDOCK_YARD_S := 2.0
-## and LOCAL: your ship backing out of the hallway to where it sat, the lights
-## going down behind it (after the same pan the other way)
-const UNDOCK_LOCAL_S := 3.4
 ## the elevator sliding back in once your ship is down (and out, undocking)
 const ELEVATOR_S := 0.8
 ## THE CHART TO LOCAL OR THE BERTH, AND BACK (Jon, Oct 10: "Chart straight to
@@ -168,13 +175,15 @@ const PAN_HULL_W := 520.0
 ## ship -- travelling all along, off the picture -- comes in from the left and
 ## lands; then the elevator. Undocking: the elevator out, your ship off its
 ## stands and away to the left, a beat of the empty yard, the yard slowly down
-## to black, and up on LOCAL with your ship coming out of the hull. "P", kept
-## as the alternative: the pan through the hull, a harness's `seam3_fade=P`.
+## to black, and up on LOCAL, the camera still, with your ship coming out of the
+## hull the way the dock took it in. "P", kept as the alternative: the pan
+## through the hull, a harness's `seam3_fade=P`.
 const FADES := ["F", "P"]
 static var force_fade := ""
 ## F: the dip to black over the approach's last tenth (your ship already in
 ## behind the lips); the empty yard up from black, and its beat before your
-## ship comes in; LOCAL up from black undocking
+## ship comes in; LOCAL up from black undocking, where LOCAL has no measure of
+## its own (`SectorScreen.ladder_up_s`, the dock's dip backwards)
 const FADE_DOWN := 0.1
 const YARD_FADE_S := 1.2
 const YARD_BEAT_S := 0.5
@@ -828,9 +837,15 @@ static func preroll(target: int, then: Callable) -> bool:
 		var pl := SectorScreen.new()
 		pl.modulate.a = 0.0
 		pl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		lad._fit()
-		lad.add_child(pl)
-		lad.move_child(pl, 0)
+		# BUILT WHERE IT WILL STAND, as the calm move builds its screens
+		# (`_calm_prebuild`): in the screens' area behind the berth, laid out by
+		# the game's own theme. Under the ladder it took the engine's, and kept
+		# it after the swap: its bar 43 px tall for 32, its arena 11 px short,
+		# your ship 5 px high on it and the station placed for neither (Oct 21,
+		# found laying the undock over the dock's ENTER backwards)
+		Router.content.add_child(pl)
+		Router.content.move_child(pl, 0)
+		pl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		pl.setup(null)
 		prebuilt = pl
 	# the motion's split, from how far each half travels (log scale), so the
@@ -1692,10 +1707,11 @@ func _style_for() -> Dictionary:
 				s.fade = seam3_fade()
 				var f := String(s.fade) == "F"
 				s.pre_s = dock_approach_s() if inward else UNDOCK_YARD_S + (YARD_BEAT_S + YARD_FADE_S if f else 0.0)
+				# (undocking, LOCAL's part is the dock's ENTER run back)
 				if f:
-					s.move_s = YARD_FADE_S + YARD_BEAT_S + DOCK_YARD_S if inward else UNDOCK_LOCAL_S
+					s.move_s = YARD_FADE_S + YARD_BEAT_S + DOCK_YARD_S if inward else DOCK_ENTER_S
 				else:
-					s.move_s = DOCK_PAN_S + (DOCK_YARD_S if inward else UNDOCK_LOCAL_S)
+					s.move_s = DOCK_PAN_S + (DOCK_YARD_S if inward else DOCK_ENTER_S)
 			else:
 				s.pre_s = 0.75 if inward else 0.85
 				s.move_s = 1.4 if inward else 0.8
@@ -1861,7 +1877,7 @@ func _start_pan() -> void:
 	_pan_vr = clampf(pic.end.x - position.x, 0.0, size.x)
 	# the speeds at the seam: what LOCAL's approach (or the yard's flight out)
 	# ended on, and what the yard's flight in (or LOCAL's flight out) starts on
-	var rest_s := DOCK_YARD_S if inward else UNDOCK_LOCAL_S
+	var rest_s := DOCK_YARD_S if inward else DOCK_ENTER_S
 	if new.has_method(&"ladder_track_speed"):
 		_v_new = float(new.call(&"ladder_track_speed", rest_s))
 	# the hull's tiling, carried on from LOCAL's drum
@@ -1901,8 +1917,9 @@ func _step_pan(t: float) -> void:
 	if String(_style.get("fade", "")) == "F":
 		# F: no pan. Docking: the empty yard up from black slowly, a beat of it
 		# empty, then your ship in from the left -- off the picture till then --
-		# slowing once onto its stands. Undocking: up on LOCAL, your ship already
-		# coming out of the hull.
+		# slowing once onto its stands. Undocking: up on LOCAL over the dock's dip
+		# backwards (LOCAL's own measure, your ship still in the hull through it),
+		# and the ENTER run back, the camera still.
 		_pan_view.visible = false
 		new.position.x = _pan_x0
 		if inward:
@@ -1914,8 +1931,11 @@ func _step_pan(t: float) -> void:
 			var rest := clampf((t - YARD_FADE_S - YARD_BEAT_S) / DOCK_YARD_S, 0.0, 1.0)
 			new.call(&"ladder_cam", 1.0 - herm(rest, m0, 0.0))
 		else:
-			_black_at(1.0 - _ease(clampf(t / LOCAL_FADE_S, 0.0, 1.0)))
-			new.call(&"ladder_cam", 1.0 - clampf(t / UNDOCK_LOCAL_S, 0.0, 1.0))
+			var up := float(new.call(&"ladder_up_s")) if new.has_method(&"ladder_up_s") else -1.0
+			if up <= 0.0:
+				up = LOCAL_FADE_S
+			_black_at(1.0 - _ease(clampf(t / up, 0.0, 1.0)))
+			new.call(&"ladder_cam", 1.0 - clampf(t / maxf(_move_s, 0.001), 0.0, 1.0))
 		return
 	var P := DOCK_PAN_S
 	var W := _pan_vr if _pan_vr > 0.0 else size.x

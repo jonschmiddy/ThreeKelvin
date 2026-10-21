@@ -2593,6 +2593,14 @@ func _attach_station_face() -> void:
 	# (the ring stands down: the station is its side now)
 	_view._area.modulate.a = 0.0
 	_view.resized.connect(_place_face)
+	# (and when your ship's own place moves with the screen's layout -- its slot
+	# taller or shorter as the bar along the bottom settles, the view itself the
+	# same size -- the hallway stays level with it: LOCAL built ahead at UNDOCK
+	# was placed for a slot 8 px taller than the one it stood in, the station 4
+	# px low)
+	var art := _view.ship_view()
+	if art != null:
+		art.resized.connect(_place_face)
 	_place_face.call_deferred()
 
 
@@ -2603,8 +2611,15 @@ func _place_face() -> void:
 	var tint := Color(1, 1, 1)
 	if sky != null:
 		tint = Color(sky._tint.x, sky._tint.y, sky._tint.z)
+	# (level with your ship's middle with its idle bob left out, as `calm_begin`
+	# takes it: the station stands in one place whatever moment of the bob LOCAL
+	# was built on -- the dock's LOCAL and the undock's alike)
+	var mid := _ladder_ship()
+	var art := _view.ship_view() if _view != null else null
+	if art != null:
+		mid -= art.get_global_transform().basis_xform(Vector2(0.0, float(art.bob_offset()) * float(art._k)))
 	for f: StationFace in [_face, _face_front]:
-		f.ship_y = (f.get_global_transform().affine_inverse() * _ladder_ship()).y
+		f.ship_y = (f.get_global_transform().affine_inverse() * mid).y
 		f.tint = tint
 		f.queue_redraw()
 
@@ -2736,8 +2751,12 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 	var art := _view.ship_view()
 	if hull_flies and art != null:
 		var ink := Rect2(art.ink_rect())
+		# (its middle with its idle bob left out, as `calm_begin` takes it: the
+		# move aims at the place and the hull bobs about it on the way, so the
+		# path is the same whatever moment of the bob it set off on -- the
+		# dock's ENTER and the undock's, laid over each other backwards)
 		ship = {"art": art, "pos": art.position, "scale": art.scale, "pivot": art.pivot_offset,
-			"mid": art.canvas_to_local(ink.get_center())}
+			"mid": art.canvas_to_local(ink.get_center()) - Vector2(0.0, float(art.bob_offset()) * float(art._k))}
 		art.pivot_offset = ship.mid
 	_lad = {"fixed": fixed, "to1": to1, "zs1": zs1, "scenes": scenes, "smooth": smooth, "ship": ship,
 		"sky_fixed": _sky_pt(sky, fixed) if sky != null else Vector2.ZERO,
@@ -2766,7 +2785,10 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 		# way in -- `hold` is the fraction of the path the ENTER sets off from)
 		var hold := 0.0
 		var dip_s := ZoomLadder.DOCK_DIP_S
-		if inward and art2 != null:
+		# (measured both ways: undocking is the ENTER backwards, so this is also
+		# how long after LOCAL comes up before any of your ship can be seen,
+		# `ladder_up_s`)
+		if art2 != null:
 			var ink3 := Rect2(art2.ink_rect())
 			var to_plate := xf0.affine_inverse()
 			var a3 := to_plate * (art2.get_global_transform() * art2.canvas_to_local(ink3.position))
@@ -2795,7 +2817,8 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 		# out of the bay to its mooring and the dust, the sun and the world stay
 		# put. Held at the camera of the ship at its mooring (`ship.pos`, where
 		# `ladder_cam_end` puts it back), so it is the camera the move hands back
-		# and nothing steps when the hold is let go.
+		# and nothing steps when the hold is let go. (With the ladder's own camera
+		# still too: `ladder_cam`.)
 		var skyc: LocalSky = _view.backdrop
 		if skyc != null and is_instance_valid(skyc):
 			_lad["sky_hold0"] = skyc.cam_hold
@@ -2804,10 +2827,15 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 			else:
 				var rest_x := float((ship.pos as Vector2).x) if not ship.is_empty() else 0.0
 				skyc.cam_hold = Vector2(roundf(rest_x * LocalSky.CAM_FOLLOW), 0.0)
+		# (and the station's lights as the move found them: after an undock a
+		# dock's CUT goes down to black over them lit; undocking, which of the
+		# arrival's flameouts its engines will sputter out on, picked as an
+		# arrival picks one)
 		_lad["hall"] = {"xf": xf0, "o": _face.origin(),
 			"right": _view.get_global_rect().end.x, "vc": _view.get_global_rect().get_center(), "s_end": s_end,
 			"berth": berth, "start": start, "path": absf(berth.x - start.x), "inward": inward, "beat": &"",
-			"hold": hold, "dip_s": dip_s, "heard": false, "hidden": _dock_hidden and inward}
+			"hold": hold, "dip_s": dip_s, "heard": false, "hidden": _dock_hidden and inward,
+			"power0": _face.power, "row": randi() % ShipView.FLAMEOUTS.size()}
 	# 2C, LEAVING for the map (no meeting point: this is the screen being left):
 	# the world you orbit carried in its own picture, as the map's is carried in
 	if smooth and meet.is_empty() and other == ZoomLadder.MAP and sky != null and is_instance_valid(sky) \
@@ -2828,18 +2856,12 @@ func ladder_cam(k: float) -> void:
 	if _lad.is_empty():
 		return
 	var hall: Dictionary = _lad.get("hall", {})
-	# (the hallway: k is the approach's own clock, linear; the camera sets off
-	# after your ship does and settles as it does)
+	# (the camera's place along the move: with the station's hallway, docking
+	# and undocking, it stays where it is, below)
 	var kc := k
-	if not hall.is_empty():
-		kc = clampf((k - HALL_CAM_FROM) / (1.0 - HALL_CAM_FROM), 0.0, 1.0)
-		kc = kc * kc * (3.0 - 2.0 * kc)
-	# (UNDOCKING, ONE SMOOTH MOTION, Jon: your ship from inside the hull back out
-	# to where it sat on one curve, k squared, the camera following it out)
 	var hk := clampf(k, 0.0, 1.0)
 	var hall_fly := hk * hk
-	var follow := clampf((hk - HALL_FOLLOW) / (1.0 - HALL_FOLLOW), 0.0, 1.0)
-	follow = follow * follow * (3.0 - 2.0 * follow)
+	var follow := 0.0
 	var beat := &""
 	if not hall.is_empty() and bool(hall.get("inward", true)):
 		# DOCKING, IN FIVE STEPS (`ZoomLadder.dock_steps`; Jon, Oct 20: "I want
@@ -2890,6 +2912,24 @@ func ladder_cam(k: float) -> void:
 		hall["black"] = clampf(blk, 0.0, 1.0)
 		hall["u_power"] = 0.0 if step < 3 else (u if step == 3 else 1.0)
 		hall["u_enter"] = ue
+	elif not hall.is_empty():
+		# UNDOCKING IS THE DOCK PLAYED BACKWARDS (Jon, Oct 21: "the background
+		# stays put as your ship flies out, matching docking"). k runs from 1 to
+		# 0 over the dock's own ENTER (`ZoomLadder.DOCK_ENTER_S`), and on every
+		# frame your ship is where the ENTER had it as far from its end: in the
+		# hull at its berth while LOCAL comes up from the yard's black (the dock's
+		# dip backwards, `ladder_up_s`), then out through the mouth, growing back
+		# to its own size, fastest first and slowing all the way to rest at its
+		# mooring (fly = k squared, the ENTER's ue squared run back). Its engines
+		# burn as the ENTER's did and sputter out as it settles
+		# (`_undock_engines`). THE CAMERA DOES NOT MOVE -- no pan, no zoom out of
+		# the mouth: the station, its layers, the wrecks, the dust, the sky and
+		# its worlds stand where they are, as they do docking (4e6d1fcc) -- and
+		# the station stays lit, a working station (Jon).
+		kc = 0.0
+		beat = &"out"
+		hall["beat"] = beat
+		hall["t"] = (1.0 - hk) * ZoomLadder.DOCK_ENTER_S
 	var zs := pow(float(_lad.zs1), kc)
 	_lad_zs = zs
 	var to_g: Vector2 = (_lad.fixed as Vector2).lerp(_lad.to1, kc)
@@ -2916,19 +2956,24 @@ func ladder_cam(k: float) -> void:
 		# THE STATION WAKES while your ship waits at its mouth (docking): the
 		# power-on over the wake, the warning lights flashing while it waits and
 		# going green as it is cleared to come in; UNDOCKING, the station stays
-		# lit as your ship backs out and goes to sleep once it is clear
+		# lit, before your ship is out and after (Jon, Oct 21: a working station)
 		var pw := 0.0
 		var warn := 0.0
 		if bool(hall.get("inward", true)):
-			# (dark and asleep until the POWER step: only its always-on beacons)
+			# (dark and asleep until the POWER step: only its always-on beacons;
+			# lit through the CUT if it was lit, as after an undock, and asleep
+			# under the black)
 			var up := float(hall.get("u_power", 0.0))
 			pw = clampf(up / WAKE_POWER_BY, 0.0, 1.0)
+			if beat == &"cut":
+				pw = float(hall.get("power0", 0.0))
 			if beat == &"power":
 				warn = 1.0 if up < WARN_CLEAR else 2.0
 			elif beat == &"enter":
 				warn = 2.0 + clampf(float(hall.get("u_enter", 0.0)) / 0.6, 0.0, 1.0)
 		else:
-			pw = clampf(k / UNDOCK_LIT_TO, 0.0, 1.0)
+			# (undocking: all on, and left on)
+			pw = 1.0
 		for f: StationFace in [_face, _face_front]:
 			if f != null and is_instance_valid(f):
 				f.dock_k = clampf(k, 0.0, 1.0)
@@ -2970,6 +3015,8 @@ func ladder_cam(k: float) -> void:
 				art.scale = (ship.scale as Vector2) * lerpf(1.0, float(hall.s_end), fly)
 			if docking:
 				_dock_burn(art, hall, step == 4 and float(hall.get("t", 0.0)) < ZoomLadder.dock_approach_s() - ladder_dip_s())
+			else:
+				_undock_engines(art, hall)
 		else:
 			art.position = (ship.pos as Vector2).lerp(ring - (ship.mid as Vector2) + (Vector2(24, 0) if deep else Vector2.ZERO), fly)
 			art.scale = (ship.scale as Vector2) * lerpf(1.0, 0.62 if deep else 0.2, fly)
@@ -2988,6 +3035,26 @@ func ladder_dip_s() -> float:
 	if hall.is_empty() or not bool(hall.get("inward", true)):
 		return -1.0
 	return float(hall.get("dip_s", ZoomLadder.DOCK_DIP_S))
+
+
+## Undocking: how long LOCAL takes to come up from the yard's black, s -- the
+## dock's dip run backwards (`dip_s`: your ship still all in the hull through
+## it) -- or -1 where this is no undock.
+func ladder_up_s() -> float:
+	var hall: Dictionary = _lad.get("hall", {})
+	if hall.is_empty() or bool(hall.get("inward", true)):
+		return -1.0
+	return float(hall.get("dip_s", ZoomLadder.DOCK_DIP_S))
+
+
+## THE STATION AWAKE: LOCAL arrived on by undocking (`Router.show_local`), the
+## station's lights on as the undock leaves them (a working station, Jon, Oct
+## 21), whether the undock was played (`ladder_cam` keeps them on) or not
+## (reduced motion, a harness).
+func station_awake() -> void:
+	for f: StationFace in [_face, _face_front]:
+		if f != null and is_instance_valid(f):
+			f.power = 1.0
 
 
 ## The map's DOCK that did not dock after all (`ZoomLadder._chain_go`): your ship
@@ -3070,19 +3137,41 @@ func _dock_burn(art: ShipView, hall: Dictionary, on: bool) -> void:
 		Audio.ship_thrust_off()
 
 
-## THE HALLWAY'S TIMING, as fractions of the approach (`ZoomLadder.DOCK_APPROACH_S`):
-## the camera sets off at `HALL_CAM_FROM`, the lights are all on by
-## (docking: see the beats below), and from `HALL_FOLLOW`
-## the camera comes round to follow your ship
-const HALL_CAM_FROM := 0.12
-const HALL_FOLLOW := 0.5
+## UNDOCKING'S ENGINES, the ENTER's backwards: lit at the cruise burn (the
+## dock's entry burn, `_dock_burn`, seen and heard) from the moment any of your
+## ship can be seen coming out -- `dip_s` after LOCAL comes up, where the dock's
+## burn went out -- until the arrival's own flameout takes over
+## (`ShipView.sputter`), timed so that its last cough comes `UNDOCK_COAST_S`
+## before your ship comes to rest at its mooring -- the last of the way coasted
+## at the idle, as an arrival's is -- then the idle it keeps. The flameout's clip from its
+## first cough, at the burn's level so the two are one engine, from where the
+## coughs are -- and never on a press that ended the move at once
+## (`ZoomLadder.finish_now`): your ship is parked then, and nothing is heard.
+func _undock_engines(art: ShipView, hall: Dictionary) -> void:
+	var t := float(hall.get("t", 0.0))
+	var row := int(hall.get("row", 0))
+	var cough_at := ZoomLadder.DOCK_ENTER_S - UNDOCK_COAST_S - ShipView.sputter_s(row)
+	if t < cough_at:
+		_dock_burn(art, hall, t >= float(hall.get("dip_s", 0.0)))
+		return
+	if not hall.has("cough_clip"):
+		_dock_burn(art, hall, false)
+		hall["cough_clip"] = art.sputter(row)
+		hall["cough_at"] = cough_at
+		if not (ZoomLadder.active != null and ZoomLadder.active._cut):
+			Audio.play(hall.cough_clip as StringName, 0.0, 0, Audio.SHIP_DB + linear_to_db(DOCK_BURN_LEVEL), 1.0,
+				ShipView.sputter_from_s(row) + (t - cough_at))
+	art.sputter_step(t - cough_at)
+
+
+## Undocking: the last of the way to the mooring coasted at the idle, s, after
+## the flameout's last cough.
+const UNDOCK_COAST_S := 0.4
 ## THE DOCK'S STEPS (`ZoomLadder.dock_steps`): the lights are all on by
 ## `WAKE_POWER_BY` of the POWER step, and the warning lights go green at
-## `WARN_CLEAR` of it. Undocking, the station stays lit until your ship is `UNDOCK_LIT_TO` of
-## its way back out.
+## `WARN_CLEAR` of it. Undocking, the station is lit all the way.
 const WAKE_POWER_BY := 0.85
 const WARN_CLEAR := 0.86
-const UNDOCK_LIT_TO := 0.35
 
 
 
@@ -3097,7 +3186,9 @@ func ladder_track_speed(dur: float) -> float:
 	if bool(hall.get("inward", true)):
 		# (docking: the end of the move in, fly = hold + (1 - hold) u^2)
 		return 2.0 * (1.0 - float(hall.get("hold", 0.0))) * float(hall.path) * float(_lad.zs1) / maxf(ZoomLadder.DOCK_ENTER_S, 0.001)
-	return 2.0 * float(hall.path) * float(_lad.zs1) / maxf(dur, 0.001)
+	# (undocking the camera stays at the scene's own size: its speed out of the
+	# berth, fly = k squared run back over `dur`)
+	return 2.0 * float(hall.path) / maxf(dur, 0.001)
 
 
 ## Where the drum's panels tile on screen now (the plate's seam at `HULL_X0`)
@@ -3130,6 +3221,10 @@ func _hall_anchor(hall: Dictionary, kc: float, w: float, fly: float) -> Vector2:
 func ladder_cam_end() -> void:
 	if _lad.is_empty():
 		return
+	var hall_x: Dictionary = _lad.get("hall", {})
+	var undocked := not hall_x.is_empty() and not bool(hall_x.get("inward", true))
+	# (a press that ended the move at once: `ZoomLadder.finish_now`)
+	var cut := ZoomLadder.active != null and ZoomLadder.active._cut
 	for w: Array in _lad.scenes:
 		var sc: Control = w[0]
 		if not is_instance_valid(sc):
@@ -3146,7 +3241,8 @@ func ladder_cam_end() -> void:
 	for f: StationFace in [_face, _face_front]:
 		if f != null and is_instance_valid(f):
 			f.dock_k = 0.0
-			f.power = 0.0
+			# (undocked, the station stays lit: a working station)
+			f.power = 1.0 if undocked else 0.0
 			f.warn = 0.0
 	var ship: Dictionary = _lad.ship
 	if not ship.is_empty() and is_instance_valid(ship.art):
@@ -3161,6 +3257,8 @@ func ladder_cam_end() -> void:
 		if bool((_lad.get("hall", {}) as Dictionary).get("burning", false)):
 			art.burn(false)
 			Audio.ship_thrust_off()
+		# (undocking's flameout: over, or cut short by a press, the idle it ends on)
+		art.sputter_stop()
 		art.position = ship.pos
 		art.scale = ship.scale
 		art.visible = true
@@ -3174,6 +3272,10 @@ func ladder_cam_end() -> void:
 	if hall_e.has("clip") and float(hall_e.get("t", 0.0)) < ZoomLadder.dock_step_from(2):
 		var hn: Array[StringName] = [hall_e.clip as StringName]
 		Audio.hush(hn)
+	# (and an undock cut short takes its coughs with it)
+	if undocked and cut and hall_e.has("cough_clip"):
+		var hc: Array[StringName] = [hall_e.cough_clip as StringName]
+		Audio.hush(hc)
 	_lad = {}
 	# where the world you orbit sits at rest, for the next move in (`ZoomLadder`)
 	var w := ladder_world()

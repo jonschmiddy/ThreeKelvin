@@ -21,8 +21,11 @@ The next build is **0.3.0-alpha.1**, with the fixes from the first outside playt
   ship appeared and then slid back while it flew in.
 - **Changed** — LOCAL REGION (L) on an elliptical or dwarf galaxy now zooms in on the systems near
   you, as it does on a spiral. Before, it framed the whole galaxy and barely zoomed at all.
-- **Changed** — undocking no longer slides the dust and the sky after your ship as it leaves the
-  station. They still move with the view as it zooms out from the station.
+- **Changed** — undocking is the dock played backwards. After the shipyard goes dark, LOCAL comes
+  up with the view held still and the station's lights on. Your ship flies back out of the station's
+  mouth the way it went in, engines burning, and slows to its mooring as they sputter down to idle.
+  The dust, the sun and the worlds stay put, and the station stays lit. A key or click during it
+  puts your ship at its mooring at once.
 
 ## 2026-10-21
 

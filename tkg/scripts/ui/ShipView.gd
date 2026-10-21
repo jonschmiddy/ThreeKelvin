@@ -302,13 +302,72 @@ func arrive(bob_amp: int = 2, delay: float = 0.0) -> StringName:
 	_arrive_window = 0
 	set_process(true)
 	refresh()
-	# THE WEIGHT IS THE HULL'S, NOT THE SCREEN'S. A convoy is four ships of
-	# whatever their pilots are flying, and a showroom view has no hull at all
-	# until one is picked — so it is read here, per view, and falls back to
-	# MEDIUM, which is the enum's own default and the unshifted recording.
+	return _flameout_clip()
+
+
+## The clip cut from this view's flameout row (`_flameout`), at its hull's weight.
+## THE WEIGHT IS THE HULL'S, NOT THE SCREEN'S. A convoy is four ships of
+## whatever their pilots are flying, and a showroom view has no hull at all
+## until one is picked — so it is read here, per view, and falls back to
+## MEDIUM, which is the enum's own default and the unshifted recording.
+func _flameout_clip() -> StringName:
 	var hull := _hull()
 	var w := int(hull.weight) if hull != null else int(HullData.Weight.MEDIUM)
 	return (FLAMEOUT_SFX[w] as Array)[_flameout]
+
+
+## THE FLAMEOUT ON ITS OWN (Jon, Oct 21, undocking: "its flame sputters down to
+## idle"): the arrival's own flameout from its first cough on -- the end of its
+## clean burn -- on a ship that is not arriving: the coughs of a FLAMEOUTS row
+## (`arrive_thrust` of its windows, over the idle), then the idle it keeps. Its
+## owner steps it (`sputter_step`, seconds since the first cough) and hears the
+## same row's clip from the same place (`sputter_from_s`), so the coughs seen
+## are the coughs heard, as on an arrival. The arrival's flameout as a progress
+## through its row, or -1 when not sputtering.
+var _sputter_e := -1.0
+
+
+## Start the flameout of `row` (-1: one at random, as `arrive` picks): the
+## engines' burn gone over to the coughs. Returns that row's clip.
+func sputter(row: int = -1) -> StringName:
+	_flameout = row if row >= 0 and row < FLAMEOUTS.size() else randi() % FLAMEOUTS.size()
+	_burning = false
+	_engines_off = false
+	_sputter_e = (FLAMEOUTS[_flameout][0] as Vector2).y
+	set_process(true)
+	return _flameout_clip()
+
+
+## The coughs `t` s after the first; past the last of them the idle, and done.
+func sputter_step(t: float) -> void:
+	if _sputter_e < 0.0:
+		return
+	var spans: Array = FLAMEOUTS[_flameout]
+	var e := (spans[0] as Vector2).y + maxf(t, 0.0) * 1000.0 / ARRIVE_MS
+	# (a hair short of the last cough's end is its end: the clock that steps it
+	# lands there in floats)
+	_sputter_e = e if e < (spans[-1] as Vector2).y - 0.0001 else -1.0
+
+
+func sputtering() -> bool:
+	return _sputter_e >= 0.0
+
+
+## The flameout over now (its owner's move ended): the idle.
+func sputter_stop() -> void:
+	_sputter_e = -1.0
+
+
+## How long `row`'s coughs last, s: from the end of its clean burn to the end of
+## its last cough.
+static func sputter_s(row: int) -> float:
+	var spans: Array = FLAMEOUTS[row]
+	return ((spans[-1] as Vector2).y - (spans[0] as Vector2).y) * ARRIVE_MS / 1000.0
+
+
+## Where in `row`'s clip its first cough is, s (its lead, then its clean burn).
+static func sputter_from_s(row: int) -> float:
+	return ARRIVE_LEAD_S + (FLAMEOUTS[row][0] as Vector2).y * ARRIVE_MS / 1000.0
 
 ## Light the engines. Chassis select only; see _burning.
 func burn(on: bool = true) -> void:
@@ -1242,6 +1301,7 @@ func park() -> void:
 	_lace_off()
 	_burning = false
 	_arrive_window = -1
+	_sputter_e = -1.0
 	_engines_off = false
 	_bob_amp = _arrive_bob
 
@@ -1749,6 +1809,8 @@ func _thrust_now() -> int:
 		return -1
 	if _arrive_at >= 0:
 		return arrive_thrust(_arrive_window if _burning else -1)
+	if _sputter_e >= 0.0:
+		return arrive_thrust(_flame_window(_sputter_e))
 	if _burning:
 		return _burn_thrust
 	return ThrusterFx.Thrust.IDLE
@@ -1780,7 +1842,7 @@ func idle_heard() -> bool:
 	if not hums or not is_inside_tree() or not is_visible_in_tree():
 		return false
 	var th := _thrust_now()
-	var settling := _arrive_at >= 0 and _arrive_window >= 1 and th >= 0
+	var settling := ((_arrive_at >= 0 and _arrive_window >= 1) or _sputter_e >= 0.0) and th >= 0
 	if th != ThrusterFx.Thrust.IDLE and not settling:
 		return false
 	var h := hull_rect()
