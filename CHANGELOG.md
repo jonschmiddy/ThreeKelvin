@@ -21,6 +21,8 @@ The next build is **0.3.0-alpha.1**, with the fixes from the first outside playt
   ship appeared and then slid back while it flew in.
 - **Changed** — LOCAL REGION (L) on an elliptical or dwarf galaxy now zooms in on the systems near
   you, as it does on a spiral. Before, it framed the whole galaxy and barely zoomed at all.
+- **Changed** — undocking no longer slides the dust and the sky after your ship as it leaves the
+  station. They still move with the view as it zooms out from the station.
 
 ## 2026-10-21
 

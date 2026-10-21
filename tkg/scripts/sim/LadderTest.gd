@@ -643,6 +643,40 @@ func _rail_sample(st: StationScreen, rs: Dictionary) -> void:
 		rs.blocked = false
 
 
+## One frame of LOCAL's dust in its own px (`LocalDust._rest_at`): each mote
+## against the frame before, less its own drift and the most its bob can move
+## it, a wrap round its strip taken back by the strip's width.
+func _dust_own(c: SectorScreen, d: Dictionary) -> void:
+	if c == null or c._view == null or c._view.dust == null:
+		return
+	var du: LocalDust = c._view.dust
+	if du._motes.is_empty() or du.sky == null:
+		return
+	var strip := du.size.x + LocalDust.WRAP * 2.0
+	var prev: Dictionary = d.prev
+	var seen := false
+	var over_any := false
+	d.cam[du.sky.cam_follow.x] = true
+	for mi in du._motes.size():
+		var mo: Dictionary = du._motes[mi]
+		var lp := du._rest_at(mo, du._t)
+		if prev.has(mi):
+			var pv: Array = prev[mi]
+			var ddt := du._t - float(pv[1])
+			var dd: Vector2 = lp - (pv[0] as Vector2)
+			var ex := fposmod(dd.x - float(mo.vx) * ddt + strip * 0.5, strip) - strip * 0.5
+			var over := maxf(absf(ex), absf(dd.y) - 0.15 * float(mo.bob) * ddt)
+			seen = true
+			d.worst = maxf(float(d.worst), over)
+			if over > 0.01:
+				over_any = true
+		prev[mi] = [lp, du._t]
+	if seen:
+		d.frames += 1
+		if over_any:
+			d.over += 1
+
+
 ## 3B, UNDOCKING: the elevator out first, then the hull off to the left; the pan
 ## the other way, LOCAL coming in from the left; your ship from the bay back out
 ## of the hallway, never back in, and the station's lights down behind it.
@@ -663,8 +697,16 @@ func _hull_flies_out() -> void:
 	var fmode := ZoomLadder.seam3_fade() == "F"
 	var empty_down := 0
 	var black_last := 0.0
+	# THE SKY'S CAMERA HELD UNDOCKING (Jon, Oct 21: "Undocking holds still too"):
+	# every mote on LOCAL, by its place in the dust's own px (`_rest_at`: the
+	# ladder's own pan and zoom of the whole scene left out), moving by its own
+	# drift and bob alone through the undock and a second after it lands. This
+	# sees the sky's camera, not the screen: the ladder's pan in from the left and
+	# its zoom out from the mouth still carry the dust and the sky on screen.
+	var dust := {prev = {}, frames = 0, over = 0, worst = 0.0, cam = {}}
 	for i in 600:
 		await _tree.process_frame
+		_dust_own(Router.current as SectorScreen, dust)
 		var blk := _black_a()
 		if Router.current == st and is_instance_valid(st):
 			last_seen = _elevator_seen(st)
@@ -716,6 +758,14 @@ func _hull_flies_out() -> void:
 		_ok("3B UNDOCK: your ship starts inside the hull (tail at plate x %.0f) and flies out through the lips (nose to %.0f), never back in" % [
 			tails0, noses[-1]], tails0 >= StationFace.RECESS.end.x and noses[-1] < StationFace.SLOT.position.x and not back_in)
 	_ok("3B UNDOCK lands on LOCAL, undocked", Router.current is SectorScreen and not Router.docked)
+	for i in 30:
+		await _tree.process_frame
+		_dust_own(Router.current as SectorScreen, dust)
+	var cams: Array = dust.cam.keys()
+	cams.sort()
+	_ok("3B UNDOCK: THE SKY'S CAMERA HELD -- every mote, in the dust's own px (the ladder's pan and zoom of the whole picture left out), moves by its own drift and bob alone, through the undock and after it lands (%d frames; beyond them at most %.3f px, %d frames over), the sky's camera in one place (%d, %s)" % [
+		dust.frames, dust.worst, dust.over, cams.size(), str(cams) if cams.size() <= 3 else "%.0f to %.0f" % [cams[0], cams[-1]]],
+		dust.frames > 30 and dust.over == 0 and cams.size() == 1)
 	var lc2 := Router.current as SectorScreen
 	if lc2 != null and lc2._face != null:
 		_ok("3B UNDOCK: the station's lights are back on standby (power %.2f)" % lc2._face.power, lc2._face.power <= 0.001)

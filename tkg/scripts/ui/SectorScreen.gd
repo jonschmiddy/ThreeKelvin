@@ -2791,10 +2791,19 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 		# and up to 515 px on with it as it goes in. Docking, the station stands
 		# still and so does all of it: held where it is (`cam_hold`), the dust
 		# left its own slow drift. Given back at the end (`ladder_cam_end`).
+		# UNDOCKING TOO (Jon, Oct 21: "Undocking holds still too"): the ship flies
+		# out of the bay to its mooring and the dust, the sun and the world stay
+		# put. Held at the camera of the ship at its mooring (`ship.pos`, where
+		# `ladder_cam_end` puts it back), so it is the camera the move hands back
+		# and nothing steps when the hold is let go.
 		var skyc: LocalSky = _view.backdrop
-		if inward and skyc != null and is_instance_valid(skyc):
+		if skyc != null and is_instance_valid(skyc):
 			_lad["sky_hold0"] = skyc.cam_hold
-			skyc.cam_hold = skyc.cam_follow
+			if inward:
+				skyc.cam_hold = skyc.cam_follow
+			else:
+				var rest_x := float((ship.pos as Vector2).x) if not ship.is_empty() else 0.0
+				skyc.cam_hold = Vector2(roundf(rest_x * LocalSky.CAM_FOLLOW), 0.0)
 		_lad["hall"] = {"xf": xf0, "o": _face.origin(),
 			"right": _view.get_global_rect().end.x, "vc": _view.get_global_rect().get_center(), "s_end": s_end,
 			"berth": berth, "start": start, "path": absf(berth.x - start.x), "inward": inward, "beat": &"",

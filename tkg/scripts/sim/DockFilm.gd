@@ -14,7 +14,8 @@ extends Node
 ## at the same station, for laying the dock's beside (`[ship]` lines: every
 ## frame of an arrival, your ship's place and size; the AVI's frame is `drawn`),
 ## quit (`stills=<dir>`: the frame before it and 0.5 s and 1 s into it, at
-## 2x). `rm` docks under reduced motion. A half-speed film is this one slowed
+## 2x). `undock` then undocks (`stills=` 0.5 s, 1 s and 1.5 s after LOCAL
+## comes up, at 2x). `rm` docks under reduced motion. A half-speed film is this one slowed
 ## by the encoder, so its sound stays on its pictures. Prints the frame each
 ## step began on. Needs a window.
 
@@ -131,6 +132,32 @@ func _run() -> void:
 			print("  [dockfilm] frame %d: the move done" % (Engine.get_frames_drawn() - f0))
 			break
 	await _frames(75)
+	# (`undock`: and out again, UNDOCK as the station's screen does it, the dust
+	# logged; with `stills=<dir>`, 0.5 s, 1 s and 1.5 s after LOCAL comes up)
+	if "undock" in _args:
+		var stills := _arg("stills", "")
+		if stills != "":
+			DirAccess.make_dir_recursive_absolute(stills)
+		Router.show_sector()
+		var l0 := -1
+		var done := -1
+		for i in 900:
+			await _tree.process_frame
+			var lu := Router.current as SectorScreen
+			if lu == null:
+				continue
+			_log_dust(&"undock")
+			if l0 < 0:
+				l0 = i
+				print("  [dockfilm] undock: LOCAL up at frame %d" % i)
+			var k := i - l0
+			if stills != "" and (k == 15 or k == 30 or k == 45):
+				await _still(stills, "undock_%.1fs" % (k / 30.0))
+			if done < 0 and not ZoomLadder.busy():
+				done = i
+				print("  [dockfilm] undock: the move done at frame %d" % i)
+			if done >= 0 and i > done + 30 and k > 30:
+				break
 	_tree.quit()
 
 
