@@ -364,8 +364,20 @@ func show_launcher() -> void:
 	# sector arrangement was both the wrong music and the only state in the
 	# table nothing ever asked for.
 	Audio.music_state(&"menu")
+	# THE FIRST TITLE OF THE PROCESS COMES OUT OF THE BOOT SPLASH, and the
+	# splash is this screen's own first frame: the wordmark where the title draws
+	# it (`assets/splash/`, project.godot's boot_splash). The usual screen fade
+	# would take the wordmark down to nothing and back up in the first eighth of
+	# a second, a blink right at the handover. So the screen arrives as it is and
+	# everything the splash did not hold fades up around the wordmark
+	# (`LauncherScreen.fade_up_around_title`). Later visits fade as before.
+	var boot := current == null
+	if boot:
+		seamless_next = true
 	_swap(LauncherScreen.new(), false)
 	(current as LauncherScreen).setup()
+	if boot:
+		(current as LauncherScreen).fade_up_around_title()
 
 ## A run beginning — started fresh or restored from the suspend save — cannot
 ## inherit the last one's fight. Nothing in RunState touches `combat`, so

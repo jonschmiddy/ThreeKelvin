@@ -80,6 +80,10 @@ var _sky: StarchartScreen.MapChart = null
 ## forever, which is exactly the shape of a race.
 var _fitted: bool = false
 var _warmup: int = WARMUP_FRAMES
+## The margin holding the title and its menu, and the menu inside it, kept so
+## the boot can fade up everything but the wordmark (`fade_up_around_title`).
+var _holder: Control = null
+var _menu_box: Control = null
 
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -99,6 +103,7 @@ func setup() -> void:
 	holder.add_theme_constant_override("margin_bottom", 24)
 	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(holder)
+	_holder = holder
 	# Not built at all where developer mode does not exist: an exported game
 	# has no workshop, so it has no switch for one. See DevMode.available.
 	if DevMode.available:
@@ -134,7 +139,8 @@ func setup() -> void:
 	var menu := VBoxContainer.new()
 	menu.add_theme_constant_override("separation", 2)
 	menu.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	col.add_child(_indent(menu))
+	_menu_box = _indent(menu)
+	col.add_child(_menu_box)
 
 	var save := SaveGame.summary()
 	if not save.is_empty():
@@ -182,6 +188,23 @@ func setup() -> void:
 	# THE FIRST TIME, the welcome note over the title (once per profile).
 	if WelcomePopup.due():
 		open_welcome(true)
+
+
+## Out of the boot splash (`Router.show_launcher`): the wordmark is already on
+## the screen, so it stays put and the galaxy, the menu, the corner stamps and a
+## first-time welcome note fade up around it, at the screen fade's length.
+func fade_up_around_title() -> void:
+	if not Router.animating():
+		return
+	var parts: Array[Node] = get_children()
+	parts.append(_menu_box)
+	var tw := create_tween().set_parallel()
+	for c in parts:
+		if c == _holder or not c is CanvasItem:
+			continue
+		(c as CanvasItem).modulate.a = 0.0
+		tw.tween_property(c, "modulate:a", 1.0, Router.FADE_S) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
 
 ## Jon's welcome note over the title, in the popup slot so nothing else opens
@@ -328,14 +351,24 @@ const POPUP_PROMPT_W := 356
 func _open_popup(inner: Control, compact: bool = false) -> void:
 	if _popup != null or _settings != null:
 		return
+	# The shade lays the popup out and takes the clicks, over this screen's rect
+	# as it always has; the dim it draws is its first child, over the whole
+	# picture (`Widgets.cover_picture`): this screen stops short of the glass by
+	# Main's margin, and the galaxy, which does not, showed through it undimmed
 	var shade := ColorRect.new()
-	shade.color = Color(0.02, 0.03, 0.05, 0.80)
+	shade.color = Color(0, 0, 0, 0)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_STOP
 	shade.gui_input.connect(func(e: InputEvent) -> void:
 		var mb := e as InputEventMouseButton
 		if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 			_close_popup())
+	var dim := ColorRect.new()
+	dim.name = "Dim"
+	dim.color = NoteCard.DIM
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	Widgets.cover_picture(dim)
+	shade.add_child(dim)
 	add_child(shade)
 	_popup = shade
 

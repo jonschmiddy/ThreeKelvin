@@ -322,6 +322,10 @@ func _ready() -> void:
 		print("  systemshot: saved and reloaded: %s" % loaded)
 	# the list again, wearing whatever was taken above
 	scr.panel.show_system()
+	if "scrollcheck" in OS.get_cmdline_user_args():
+		await _scroll_check(scr)
+		get_tree().quit()
+		return
 	if select >= -1:
 		scr.select_body(select)
 	if open >= 0:
@@ -1269,6 +1273,194 @@ func _wrun(scr: Control, secs: float) -> void:
 			shown += 1
 		last = key
 	print("  systemshot: wrun overlaps %d frames" % bad.size())
+
+
+## THE SCROLL BAR COVERS NOTHING (`scrollcheck`, headless, in the gate). Jon,
+## Oct 20, on the WORLD card: "the scroll bar covers up text" -- "3.54 G",
+## "FROZEN", "H2 HE" and "NONE" ran under the bar, because the page's own
+## pieces asked for more width than the panel has once the bar takes its share,
+## and a ScrollContainer that cannot scroll sideways lays its content out at
+## that width anyway and clips it under the bar.
+##
+## Over the run's first `scrollsystems=` systems (40), the sector's list and
+## every world's page, each unscrolled and scrolled to the end: no text and
+## nothing that takes the mouse, where it shows in the panel, may meet the
+## bar's rect. Prints the world with the widest row of facts (label and value,
+## in the panel's type), which is among them. A pass that never saw a bar has
+## measured nothing, so pages must scroll.
+func _scroll_check(first) -> void:
+	var content: Control = first.get_parent()
+	first.queue_free()
+	var scr = null
+	var font := UITheme.pixel_font()
+	var limit := 40
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("scrollsystems="):
+			limit = int((a as String).substr(14))
+	var best_w := 0.0
+	var best_row := ""
+	var best_at: Array = []
+	var shots := ""
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("scrollshots="):
+			shots = (a as String).substr(12)
+	var swept := 0
+	var widest_page := 0.0
+	var widest_what := ""
+	var fails := 0
+	var barred := 0
+	var looked := 0
+	for raw in Run.map:
+		var m: MapGen.MapNode = raw
+		if m.type != MapGen.NodeType.SYSTEM:
+			continue
+		OptionTable.ensure(m)
+		Run.at = m.index
+		# a screen of its own, as a jump builds one: a system shown over another
+		# on the same screen carries the last one's flight into the new layout
+		if scr != null:
+			scr.queue_free()
+		scr = ScreenS.new()
+		content.add_child(scr)
+		scr.frozen = true
+		await scr.show_system(m, 30.0)
+		scr.overlay.ship_park = 0
+		scr._was_at = scr.flight.reached()
+		swept += 1
+		var pages: Array = [-2]
+		for bi in scr.view.layout.bodies.size():
+			var b: SystemLayout.Body = scr.view.layout.bodies[bi]
+			if b.world == &"":
+				continue
+			pages.append(bi)
+			for f in scr.view.facts(b):
+				var w := font.get_string_size(String(f[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x \
+					+ font.get_string_size(String(f[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+				if w > best_w:
+					best_w = w
+					best_row = "%s %s (%s)" % [f[0], f[1], b.name]
+					best_at = [m, bi]
+		for p: int in pages:
+			if p == -2:
+				scr.panel.show_system()
+			else:
+				scr.select_body(p)
+			for _f in 3:
+				await get_tree().process_frame
+			var sc: ScrollContainer = scr.panel._scroll
+			var bar := sc.get_v_scroll_bar()
+			var page: String = "%s's list" % MapGen.star_name(m) if p == -2 else "world %s" % (scr.view.layout.bodies[p] as SystemLayout.Body).name
+			for end in [false, true]:
+				sc.scroll_vertical = int(bar.max_value) if end else 0
+				for _f in 2:
+					await get_tree().process_frame
+				looked += 1
+				var mw: float = scr.panel._box.get_combined_minimum_size().x
+				if mw > widest_page:
+					widest_page = mw
+					widest_what = page
+				if not bar.is_visible_in_tree():
+					continue
+				barred += 1
+				# THE BAR AS DRAWN (its track, right of any clear gutter the
+				# theme gives it) and UITheme.BAR_GAP of air before it
+				var br := bar.get_global_rect()
+				var sb := bar.get_theme_stylebox(&"scroll") as StyleBoxFlat
+				var inset: float = sb.border_width_left if sb != null and sb.border_color.a == 0.0 else 0.0
+				var zone := Rect2(br.position.x + inset - UITheme.BAR_GAP, br.position.y,
+					br.size.x - inset + UITheme.BAR_GAP, br.size.y)
+				var view := sc.get_global_rect()
+				for e: Array in _scroll_leaves(scr.panel._box, []):
+					var c: Control = e[0]
+					var r: Rect2 = (e[1] as Rect2).intersection(view)
+					if r.has_area() and r.intersects(zone):
+						fails += 1
+						if fails <= 20:
+							var t: String = str(c.get("text")) if c.get("text") != null else c.get_class()
+							print("  FAIL scrollcheck: %s %s: \"%s\" %s is within %d px of the bar %s" % [page, "scrolled" if end else "unscrolled", t.substr(0, 30), e[1], UITheme.BAR_GAP, br])
+		if swept >= limit:
+			break
+	print("  scrollcheck: %d systems, %d pages measured, %d with the bar up; widest row %.0f px: %s" % [swept, looked, barred, best_w, best_row])
+	print("  scrollcheck: the widest page asks for %.0f px (%s)" % [widest_page, widest_what])
+	if barred == 0:
+		fails += 1
+		print("  FAIL scrollcheck: no page scrolled, so the bar was never measured")
+	# `scrollshots=<dir>` (windowed): the widest world's page, unscrolled and
+	# scrolled to the end, whole and the panel at 3x
+	if shots != "" and not best_at.is_empty():
+		DirAccess.make_dir_recursive_absolute(shots)
+		var bm: MapGen.MapNode = best_at[0]
+		Run.at = bm.index
+		scr.queue_free()
+		scr = ScreenS.new()
+		content.add_child(scr)
+		scr.frozen = true
+		await scr.show_system(bm, 30.0)
+		scr.overlay.ship_park = 0
+		scr._was_at = scr.flight.reached()
+		scr.select_body(int(best_at[1]))
+		for end in [false, true]:
+			for _f in 4:
+				await get_tree().process_frame
+			var sc2: ScrollContainer = scr.panel._scroll
+			sc2.scroll_vertical = int(sc2.get_v_scroll_bar().max_value) if end else 0
+			for _f in 4:
+				await get_tree().process_frame
+			await RenderingServer.frame_post_draw
+			var img := get_viewport().get_texture().get_image()
+			var tag := "scrolled" if end else "unscrolled"
+			img.save_png(shots.path_join("world_%s.png" % tag))
+			var pr := Rect2i(scr.panel.get_global_rect().grow(4))
+			var crop := img.get_region(pr)
+			crop.resize(crop.get_width() * 3, crop.get_height() * 3, Image.INTERPOLATE_NEAREST)
+			crop.save_png(shots.path_join("world_%s_panel3x.png" % tag))
+		print("  scrollcheck: stills of %s in %s" % [best_row, shots])
+	print("scrollcheck: %s" % ("PASS" if fails == 0 else "FAIL (%d)" % fails))
+
+
+## Every text and every mouse-taking control under `root` that is showing, as
+## [control, the rect it puts its words or itself in].
+##
+## A one-line label's words are only as wide as they are, set by its alignment
+## (an eyebrow's rect runs the panel's width with its words at the left); a
+## wrapped label or a rich one can reach its whole width, and so can a button or
+## a card that answers the pointer.
+func _scroll_leaves(root: Node, out: Array) -> Array:
+	for c in root.get_children():
+		if not c is Control or not (c as Control).is_visible_in_tree():
+			continue
+		var k := c as Control
+		var r := k.get_global_rect()
+		if k is Label and (k as Label).autowrap_mode == TextServer.AUTOWRAP_OFF and (k as Label).text != "":
+			var l := k as Label
+			var w := l.get_theme_font(&"font").get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1,
+				l.get_theme_font_size(&"font_size")).x
+			w = minf(w, r.size.x)
+			var x := r.position.x
+			if l.horizontal_alignment == HORIZONTAL_ALIGNMENT_RIGHT:
+				x = r.end.x - w
+			elif l.horizontal_alignment == HORIZONTAL_ALIGNMENT_CENTER:
+				x = r.position.x + (r.size.x - w) * 0.5
+			out.append([k, Rect2(x, r.position.y, w, r.size.y)])
+		elif k is Label or k is RichTextLabel or k is BaseButton or k is LineEdit or _answers(k):
+			out.append([k, r])
+		_scroll_leaves(k, out)
+	return out
+
+
+## A card or a plate that takes the pointer (a plain Control stops the mouse by
+## default and does nothing with it, so that alone does not count).
+func _answers(k: Control) -> bool:
+	if k.mouse_filter != Control.MOUSE_FILTER_STOP:
+		return false
+	if not k.gui_input.get_connections().is_empty() or not k.mouse_entered.get_connections().is_empty():
+		return true
+	var sc: Script = k.get_script()
+	if sc != null:
+		for m: Dictionary in sc.get_script_method_list():
+			if m.name == "_gui_input":
+				return true
+	return false
 
 
 ## The weather's ported points, marked over the map (`wprobe`).

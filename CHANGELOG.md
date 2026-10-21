@@ -6,17 +6,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fixed** — the game froze while A.S.H. taught the star chart's list on a first run. Each
+  check that her box covers no system asked the whole galaxy at every few pixels: about a
+  second a frame. It asks only the systems near her box now.
+- **Fixed** — LOCAL REGION (L, or the key it is bound to) pressed while the chart was still
+  coming on was lost. It is kept and given to the chart when it lands.
+- **Fixed** — two copies of the same build could refuse to party ("Your content does not match
+  the host's"), depending on how each one started. The check that both players have the same game
+  now reads the same way in every copy.
+
 ### Changed
 
-- **Docking** opens with a new system's arrival, exactly: LOCAL cuts to black, then your ship
+- **Changed** — a manufacturer you have not unlocked appears nowhere. On a new profile, wrecks,
+  shelves, the yard, derelicts, rewards, contracts and the Custodian hold Korvan and unbranded
+  parts and hulls only. Win with Korvan and Solari's join them from the next run. In co-op, the
+  host's unlocks decide what the galaxy holds.
+- **Changed** — docking opens with a new system's arrival, exactly: LOCAL cuts to black, then your ship
   flies in from off screen to its mooring as it does in the first system, on the same path, with the
   same burn sputtering down to idle. Then a beat, the station's lights come on, and the ship lights
   its engines and flies in. The camera, the sky and the dust stay still throughout: only the ship moves. Docking from the
   sector map now fades to black and opens on LOCAL with the ship still off screen, so it is never seen
   at its mooring first. A key or click during it still docks at once.
-- **The station's left column of decks** slides in like the other panels once your ship is on
+- **Changed** — the station's left column of decks slides in like the other panels once your ship is on
   its stands, with its dark ground under it. It used to slide in see-through over the hangar and
   then pop to its dark column when it landed.
+
+### Added
+
+- **Added** — a first-visit tip for each station deck: the Shipyard, the Promenade, the Exchange, the
+  Hiring Board and the Laboratory. Each shows the first time you open that deck, after the
+  station's own tip, and outlines the deck's main thing: the drones, the shelf, the sell
+  counter, the job notes, the fabricator. It counts as seen as soon as it shows. A.S.H. says
+  it, or it shows as a card with her off. Her lines are text alone for now, with no recording.
+- **Added** — README-ALPHA.txt explains FLY TOGETHER: HOST PARTY and a code, the same build for
+  everyone, and the firewall prompt for HOST DIRECT.
 
 ### Roadmap
 

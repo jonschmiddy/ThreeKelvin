@@ -153,7 +153,7 @@ A hull is a chassis defined by two axes plus its manufacturer:
 **Manufacturers make modules and hulls** (see Hulls: Size & Tier above; the hull counts as one toward its own set). Your build identity comes mostly from the parts you find and install, assembled mid-run rather than chosen at the start.
 
 - **Set bonuses are the class mechanic.** 3+ modules from one manufacturer unlocks a tier-1 bonus; 5+ unlocks tier-2 (e.g. Korvan: charge weapons charge one turn faster). Committing sharpens your build; mixing stays viable but generalist. Every drop becomes a question about commitment vs. flexibility.
-- **Runs start with a loadout, not a class.** Your starting chassis is the choice that replaces class selection: a run starts on a manufacturer's chassis with one of its weapons and generic yard stock (`Database.starter_kit`). Unlocking a manufacturer unlocks its chassis and kit; its parts drop only once it is in `Database.ACTIVE_MANUFACTURERS` (Korvan and Solari today).
+- **Runs start with a loadout, not a class.** Your starting chassis is the choice that replaces class selection: a run starts on a manufacturer's chassis with one of its weapons and generic yard stock (`Database.starter_kit`). Unlocking a manufacturer unlocks its chassis and kit; its parts and hulls appear only once it is BOTH unlocked on this profile and in `Database.ACTIVE_MANUFACTURERS` (Korvan and Solari today), so a fresh profile's world holds Korvan and unbranded parts and nothing else (Jon, Oct 20; `LootGen.can_appear`).
 
 The roster of seven:
 
@@ -196,7 +196,7 @@ The roster of seven:
 
 ## Meta-Progression
 
-- **Unlock manufacturers** — each unlock adds that manufacturer's chassis and starting kit to run start (its parts drop only while it is in `ACTIVE_MANUFACTURERS`). The flight record unlocks manufacturers and nothing else (the unlock ruling in `tkg/CLAUDE.md`; `Unlocks.CHAIN`). Unlocking hull tiers or starting regions was considered and is not built.
+- **Unlock manufacturers** — each unlock adds that manufacturer's chassis and starting kit to run start, and its parts and hulls to the world (while it is in `ACTIVE_MANUFACTURERS`; a locked manufacturer appears nowhere, and in a party the host's unlocks decide). The flight record unlocks manufacturers and nothing else (the unlock ruling in `tkg/CLAUDE.md`; `Unlocks.CHAIN`). Unlocking hull tiers or starting regions was considered and is not built.
 - Possibly a light permanent-upgrade layer (starting resources, reroll tokens) — kept restrained to protect run integrity. **Avoid** numeric power creep that trivializes early game.
 - Death feeds knowledge + unlocks, not raw stats (lean toward StS/FTL-style unlock meta over Rogue Legacy–style stat meta). *Open question — revisit.*
 

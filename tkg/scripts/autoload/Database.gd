@@ -35,6 +35,14 @@ extends Node
 ## reachable, and a Solari Territory rolls Solari rather than falling back to
 ## unbranded. The cost is Korvan's: a Korvan run's branded drops are now split
 ## two ways. `-- sim runs=200 seed=777` before and after is in the commit.
+##
+## AND ONLY ONCE UNLOCKED (Jon, Oct 20: "Solari things should NOT show up in the
+## game until Solari is unlocked (win the game once)"). This list says what MAY
+## drop; the run's `Run.unlocked_manufacturers` says what this profile has
+## earned, and a part or hull appears only where both agree
+## (`LootGen.can_appear`). A fresh profile's world is Korvan plus unbranded;
+## a Korvan win adds Solari. Putting Probate on this list later works the same
+## way: it appears once a Solari win has unlocked it.
 const ACTIVE_MANUFACTURERS: Array[StringName] = [&"korvan", &"solari"]
 
 var manufacturers: Dictionary = {}      ## StringName -> ManufacturerData

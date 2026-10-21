@@ -284,6 +284,21 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
   DONE, Escape or a key as often as with a click, so it went unspent and came back at every
   opening. It is spent as it shows (`Hints.SPENT_ON_SHOW`), kept seen, and REPLAY TUTORIAL
   brings it back.
+- **The decks' lines** (Jon, Oct 20, playing the alpha: "There is no tutorial tip for the
+  promenade, exchange, shipyard, laboratory, or hiring board"): one first-visit hint a deck
+  (`Hints.DECK_HINTS`), after the station's own `dock`. Each shows the first time its deck is
+  open and still, on the deck's main thing (`StationScreen.deck_subject`): the yard's drones
+  once all that came have flown in (a box that takes in their bob, `YardDrones.services_rect`),
+  the shelf, the sell counter, the notes on the board once its lamp is lit, the fabricator's
+  screen once its scan has passed. Spent as it shows, like the cutaway's: people leave a deck by
+  clicking another without clicking her line. The yard's ship hint follows the yard's. On the
+  Hiring Board she stands over the town's side (`PostingBoard.town_rect`), never the app bar's
+  tabs, the ticker, a popup or any part of a job note, real or drawn (the other listings, the
+  FEATURED or WANTED bounty: `PostingBoard.job_rects`; Oct 20, "a job note is a pressable
+  thing even where it has no words"), and no popup comes up while she teaches. Ads and
+  scenery she may cover. The words are Jon's picks of two drafts each (Oct 20,
+  "promenade:B shipyard:B exchange:B hiring_board:A laboratory:A"); the cards stay as
+  drafted. Text alone until a take is recorded.
 - **Held until a click** for a hint (Jon's rule: hints advance with a click); a goal
   step's line types, holds its reading time on `GameClock` and goes.
 - **Exceptions to her bark rules, for teaching only:** she may stand over the cutaway, a

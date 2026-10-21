@@ -255,7 +255,15 @@ static var restoring := false
 ## at every place in the system -- what a 32 build drew. And `opened` (a wreck
 ## you have looked in, whose leftovers SECTOR LOOT shows too); missing means
 ## the wreck's `scanned`, the nearest thing a 32 save kept. OLDEST_READ stays at 29.
-const VERSION := 33
+## 34: WHAT THIS RUN'S WORLD MAY HOLD (`unlocked`, `Run.unlocked_manufacturers`;
+## Jon, Oct 20: "Solari things should NOT show up in the game until Solari is
+## unlocked"). Read off the flight record once at run start and kept, so a
+## CONTINUE rolls the shelves and wrecks it has not opened yet from the same
+## pool as the ones it has, whatever the record says now. Read the way 33 reads
+## 32: a 33 save has no `unlocked`, and missing means every manufacturer -- a 33
+## build gated drops on `DB.ACTIVE_MANUFACTURERS` alone, so that is the world it
+## was already rolling. OLDEST_READ stays at 29.
+const VERSION := 34
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
 const OLDEST_READ := 29
@@ -390,6 +398,9 @@ static func _snapshot() -> Dictionary:
 		galaxy_kind = Run.galaxy_kind,
 		galaxy = Run.galaxy,
 		galaxy_seed = Run.galaxy_seed,
+		# What the world may hold (VERSION 34).
+		unlocked = Array(Run.unlocked_manufacturers).map(
+			func(m: StringName) -> String: return String(m)),
 		# Where every roll stream had got to. Without this, loading a run
 		# rewinds them all to the start of the run, and the next module you
 		# find is the first module you found. See Rng.state().
@@ -487,6 +498,7 @@ static func load_into_run() -> bool:
 	Run.galaxy = _galaxy_from(Run.galaxy_kind, d.get("galaxy", {}))
 	Run.galaxy_seed = int(d.get("galaxy_seed", 0))
 	Rng.restore(d.get("rng", {"master": Run.galaxy_seed}))
+	Run.unlocked_manufacturers = _unlocked_from(d.get("unlocked", null))
 	Run.galaxy_spin = float(d.get("galaxy_spin", 0.0))
 	Run.galaxy_name = str(d.get("galaxy_name", ""))
 	Run.galaxy_title = str(d.get("galaxy_title", ""))
@@ -873,6 +885,22 @@ static func _contracts_from(raw: Variant) -> Array:
 			out.append(ContractData.from_wire(e))
 	return out
 
+
+## The run's unlocked manufacturers, as saved. Missing (a 33 save) is every
+## manufacturer in the chain -- see VERSION 34. An id this build does not know
+## is dropped; an empty list cannot happen, because Korvan is always first.
+static func _unlocked_from(raw: Variant) -> Array[StringName]:
+	var out: Array[StringName] = []
+	if typeof(raw) != TYPE_ARRAY:
+		out.assign(Unlocks.CHAIN)
+		return out
+	for e in raw:
+		var id := StringName(str(e))
+		if Unlocks.CHAIN.has(id) and not out.has(id):
+			out.append(id)
+	if out.is_empty():
+		out.append(Unlocks.CHAIN[0])
+	return out
 
 static func _standing_to() -> Dictionary:
 	var out: Dictionary = {}

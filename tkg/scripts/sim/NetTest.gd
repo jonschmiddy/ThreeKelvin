@@ -62,6 +62,8 @@ func run(tree: SceneTree) -> void:
 	await tree.process_frame
 	print("\n=== lobby codes ===")
 	_code_tests()
+	print("\n=== the content check is the same in every process ===")
+	_fingerprint_order_tests()
 	print("\n=== a party forms ===")
 	await _party_test()
 	print("\n=== refusals ===")
@@ -86,6 +88,28 @@ func run(tree: SceneTree) -> void:
 	else:
 		print("nettest: %d FAILURES" % fails)
 	tree.quit(1 if fails > 0 else 0)
+
+
+# --- the content check's order ----------------------------------------------
+
+## THE FINGERPRINT MUST NOT DEPEND ON HOW A PROCESS STARTED. Two exports of one
+## commit refused each other (Oct 20) because the ids were sorted as StringNames,
+## whose order is not their text. One process cannot see two orders, so this
+## holds the ids to the text: alphabetical, whatever order the table was built
+## in, and the module and enemy tables read that way.
+func _fingerprint_order_tests() -> void:
+	var a := {&"zebra": 1, &"apple": 2, &"mango": 3, &"banana": 4}
+	var b := {&"banana": 4, &"mango": 3, &"zebra": 1, &"apple": 2}
+	check("ids sort by their text", NetSession.sorted_ids(a), PackedStringArray(["apple", "banana", "mango", "zebra"]))
+	check("whatever order the table was built in", NetSession.sorted_ids(b), NetSession.sorted_ids(a))
+	for t in [["modules", DB.modules], ["enemies", DB.enemies]]:
+		var ids := NetSession.sorted_ids(t[1])
+		var in_order := true
+		for i in range(1, ids.size()):
+			if ids[i - 1] > ids[i]:
+				in_order = false
+				break
+		ok("the %s ids are alphabetical (%d)" % [t[0], ids.size()], in_order and ids.size() == (t[1] as Dictionary).size())
 
 
 # --- codes ----------------------------------------------------------------
@@ -236,7 +260,11 @@ func _party_test() -> void:
 	ok("the launch reached every client", launched)
 	for i in clients.size():
 		check("client %d dives on the host's seed" % i, clients[i].dive_seed, host.dive_seed)
+		# And on the host's unlocks (PROTOCOL 10): one world, one pool of parts.
+		check("client %d rolls from the host's unlocks" % i, str(clients[i].dive_unlocked),
+			str(host.dive_unlocked))
 	ok("the seed is not zero", host.dive_seed != 0)
+	ok("the host's unlocks went with it", host.dive_unlocked.has(&"korvan"))
 
 	# One ship past the last seat.
 	var extra := _make_peer("gatecrash")
