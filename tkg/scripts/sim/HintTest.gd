@@ -78,6 +78,11 @@ func run(tree: SceneTree) -> void:
 	var oi := n.options.size()
 	n.options.append(&"first_on_the_wreck")
 	LocalEventDrawer.last = [n.index, oi]
+	# (LOCAL opens the event at the place the ship is, as GO does, Jon Oct 21;
+	# here, as after NOT NOW, it has been put off this visit, so the scene's own
+	# hints are what is seen: the band's own hint has its own check below, and
+	# AshTutorTest teaches them in the auto-opened order)
+	_put_off(n)
 	var sc := await _local()
 	# parked at the event's own place, as GO leaves the ship (`here_now`): the
 	# map wrote where it left the ship as it went. The wreck lies there too.
@@ -85,6 +90,7 @@ func run(tree: SceneTree) -> void:
 	var wreck := Run.new_wreck(n, DB.enemies[&"cutter"])
 	wreck.items.append(CreditChit.of(40))
 	Run.sector_jetsam(n).items.append(CreditChit.of(25))
+	_put_off(n)
 	sc = await _local()
 	if not _ok("LOCAL is up", sc != null):
 		return _end()
@@ -109,6 +115,7 @@ func run(tree: SceneTree) -> void:
 	await _expect(&"loot")
 	await _expect(&"ship")
 	await _none("with all three dismissed, nothing more shows on LOCAL")
+	_put_off(n)
 	sc = await _local()
 	await _none("back on LOCAL again, none of them shows a second time")
 	LocalEventDrawer.last = []
@@ -116,6 +123,7 @@ func run(tree: SceneTree) -> void:
 	# THE SHIP HINT WAITS FOR AN IDLE LOCAL: not while an event's band is on its
 	# way up (GO landing), nor while it is up; then it shows and stays
 	Hints.mark_seen(&"ship", false)
+	_put_off(n)
 	sc = await _local()
 	LocalEventDrawer.pending = [n.index, 0]
 	_ok("an event waiting to come up on LOCAL: the ship's hint has no subject", Hints.probe(&"ship").is_empty())
@@ -801,6 +809,12 @@ func _system() -> MapGen.MapNode:
 
 
 ## An event with choices planted here; its option index.
+## The event at the place the ship is put off for this visit, as after NOT NOW:
+## LOCAL opens none of its own (`LocalEventDrawer.auto_open`).
+func _put_off(n: MapGen.MapNode) -> void:
+	LocalEventDrawer._auto[n.index] = LocalEventDrawer.visit_key(n)
+
+
 func _plant_event(n: MapGen.MapNode) -> int:
 	for o in OptionTable.all():
 		if (o.get("choices", []) as Array).size() >= 2 and not (o.get("tags", []) as Array).has(&"fight"):

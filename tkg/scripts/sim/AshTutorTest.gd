@@ -140,6 +140,11 @@ func _press() -> InputEventMouseButton:
 
 func _local() -> SectorScreen:
 	Router.show_local()
+	# (from the map the ladder's move down takes longer than the 40 frames)
+	for i in 600:
+		if Router.current is SectorScreen and not ZoomLadder.busy():
+			break
+		await _tree.process_frame
 	await _frames(40)
 	return Router.current as SectorScreen
 
@@ -644,19 +649,50 @@ func _flow() -> void:
 	Hints.mark_seen(&"events", false)
 	await _expect(&"events")
 
-	# LOCAL WITH A DERELICT, A WRECK THAT HOLDS SOMETHING, A PILE
-	var oi := n.options.size()
-	n.options.append(&"first_on_the_wreck")
-	LocalEventDrawer.last = [n.index, oi]
+	# LOCAL AT AN EVENT'S OWN PLACE, WITH A WRECK THAT HOLDS SOMETHING AND A PILE.
+	# LOCAL opens the event there as GO does (Jon, Oct 21: "Clicking GO or
+	# clicking LOCAL should have the same result"), so its band comes first and
+	# she teaches it; the scene's own lessons -- the wreck, the loot, your ship --
+	# wait behind the band and come, each once, as soon as it is down. The step
+	# ("click an event, then GO") is done by the event opening: never said over it.
+	# (an event the system already has, at a world: one planted now stands
+	# nowhere, `SystemLayout.place_of`, and LOCAL opens only the place's own)
+	var oi := -1
+	var lay := SystemLayout.of(n)
+	for i in n.options.size():
+		var k: StringName = EncounterDrawer.option_state(n, i).kind
+		if lay.place_of(i) >= 0 and (k == &"open" or k == &"left") and not OptionTable.by_id(n.options[i]).has("fight"):
+			oi = i
+			break
+	if not _ok("an open event at a world of the system (%d)" % oi, oi >= 0):
+		return
+	# (LOCAL first: the map, put away, writes where its own ship is)
+	LocalEventDrawer.forget_auto()
 	sc = await _local()
-	SystemMapScreen._parked[n.index] = {at = LocalEventDrawer.body_of(n, oi)}
+	if sc != null and sc._events.page != &"":
+		sc._events.not_now()
+	SystemMapScreen._parked[n.index] = {at = lay.place_of(oi)}
 	var wreck := Run.new_wreck(n, DB.enemies[&"cutter"])
 	wreck.items.append(CreditChit.of(40))
 	Run.sector_jetsam(n).items.append(CreditChit.of(25))
+	LocalEventDrawer.forget_auto()
 	sc = await _local()
+	_ok("LOCAL at the event's own place opens it, as GO does (%s, event %d)" % [sc._events.page if sc != null else &"", sc._events.opt if sc != null else -1],
+		sc != null and sc._events.page == &"event" and lay.place_of(sc._events.opt) == lay.place_of(oi))
+	await _expect(&"drawer")
+	await _never(&"wreck", "not the wreck's line over the event's band")
+	_ok("the step is done by the event opening, not said over it", Hints.seen(&"step_event"))
+	sc._events.not_now()
+	await _frames(20)
 	await _expect(&"wreck")
 	await _expect(&"loot")
 	await _expect(&"ship")
+	# THE STEP ITSELF, where it is still a thing to do: LOCAL at the edge, the
+	# event still open at its world
+	Hints.mark_seen(&"step_event", false)
+	SystemMapScreen._parked[n.index] = {at = -9}
+	sc = await _local()
+	_ok("LOCAL at the edge opens no event (%s)" % sc._events.page, sc != null and sc._events.page == &"")
 	await _expect_step(&"step_event")
 	LocalEventDrawer.last = []
 	# OVER THE CUTAWAY (her bark rules keep her off it; a lesson may)
@@ -672,7 +708,8 @@ func _flow() -> void:
 	var pe := _plant_event(n)
 	sc._events.open(pe)
 	await _frames(30)
-	await _expect(&"drawer")
+	# (said once, at the event's own place above: not again)
+	await _never(&"drawer", "the event band's line, said once already, is not said again")
 	sc._events.not_now()
 	await _frames(20)
 	# OVER A WRECK'S WINDOW
