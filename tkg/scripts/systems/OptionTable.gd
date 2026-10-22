@@ -366,12 +366,6 @@ static func pay(res: Dictionary, n: MapGen.MapNode) -> String:
 		# ledger is what exotic currently means. It becomes a hold search when
 		# materials become items, in this function and nowhere else.
 		Run.spend_material_tier(StringName(res.consume_material_tier))
-	if bool(res.get("archive_recover", false)):
-		# THIS SYSTEM'S DOCUMENT OR NONE. `Archive.at_node` derives from the
-		# node's own index, so an option cannot conjure a document -- most systems
-		# hold nothing, and the options that offer this pay credits regardless so
-		# they stay honest on one that does.
-		Archive.recover_at(n, "recovered here")
 	got.erase("")
 	return ", ".join(got)
 
@@ -384,9 +378,10 @@ static func pay(res: Dictionary, n: MapGen.MapNode) -> String:
 static func system_has_tag(n: MapGen.MapNode, tag: StringName) -> bool:
 	if n == null:
 		return false
-	# ROLLS THE SYSTEM IF IT HAS NOT BEEN ROLLED, and both callers need that:
-	# a contract board looks three layers ahead and the hellbender scans the whole
-	# map, so every system either of them cares about is one nobody has flown to.
+	# ROLLS THE SYSTEM IF IT HAS NOT BEEN ROLLED, and the hellbender needs that:
+	# it scans the whole map, so most systems it cares about are ones nobody has
+	# flown to. (A contract board asked too, for a hunt's fight, until a hunt
+	# brought its own target -- `Contracts.post_goal`.)
 	# Reading `n.options` raw would have answered "no fight anywhere", which is
 	# how the hunt contract stopped being findable.
 	#
@@ -498,9 +493,20 @@ static var _placed: Dictionary = {}
 static func placed_ids() -> Dictionary:
 	if _placed.is_empty():
 		for o in all():
-			if bool(o.get("placed", false)):
+			# A CONTRACT'S EVENT IS NOT A THREAD. It is placed, never rolled,
+			# but the chart already marks a signed job's system by the job
+			# (`Run.contract_at`), and a second marker by the event's title
+			# would say the one thing twice.
+			if bool(o.get("placed", false)) and not bool(o.get("job", false)):
 				_placed[StringName(o.id)] = true
 	return _placed
+
+
+## Whether this option is a signed contract's work (`Contracts.post_goal`):
+## placed on one ship's map for that ship's contract, laid out past the
+## system's own worlds (`SystemLayout`), and never raced for over the wire.
+static func is_job(id: StringName) -> bool:
+	return bool(by_id(id).get("job", false))
 
 
 static func holds_quest(n: MapGen.MapNode) -> bool:
@@ -855,7 +861,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Sweep the shadow side", effect = func() -> Dictionary:
 					return {text = "You put the nearest rock between you and the star and read the sliver of sky in its shadow. The contact is not there, but something smaller has been drifting there for a while.", material = &"wreck"}},
 				{label = "Log the bearing and go", stay = true, effect = func() -> Dictionary:
-					return {text = "You log the bearing and the time in the archive. Then you turn out of the glare and take the long way in. The dish stays white for another hour."}},
+					return {text = "You log the bearing and the time. Then you turn out of the glare and take the long way in. The dish stays white for another hour."}},
 			],
 		},
 		{
@@ -945,6 +951,49 @@ static func _authored() -> Array[Dictionary]:
 			],
 		},
 		{
+			# A SIGNED FETCH'S PICKUP, put on the named system by
+			# `Contracts.post_goal` -- never rolled (`placed`), and per ship
+			# (`job`). Taking it readies every fetch pointed here; the thing is
+			# named and not carried (`RunState.reach_contract_target`).
+			id = &"job_pickup",
+			title = "Contract pickup",
+			subject = {stage = &"single", pieces = [&"r4_pod_cargo_pod_1"], tumble = 2.0},
+			body = "A cargo pod is parked in orbit here. Its beacon sends the code from your contract. This is the pickup you signed for. The seals are still on it, and the job says to leave them on.",
+			tags = [&"quest"],
+			group = &"",
+			placed = true,
+			job = true,
+			weight = 0,
+			choices = [
+				{label = "Bring it aboard", effect = func() -> Dictionary:
+					var who := Contracts.payer_here(ContractData.Kind.FETCH)
+					Run.reach_contract_target(Run.at)
+					return {text = "The grapple pulls the pod in and locks it to the frame. It takes no room in the hold. Take it to any %s yard to be paid." % who}},
+				{label = "Leave it for now", stay = true, effect = func() -> Dictionary:
+					return {text = "You leave the pod where it is. The beacon keeps sending, and the job stays open."}},
+			],
+		},
+		{
+			# A SIGNED HUNT'S TARGET, the same way. The kill is what readies the
+			# hunt (`Combat._victory` -> `RunState.clear_contract_target`); flee
+			# and the next arrival posts it again.
+			id = &"job_target",
+			title = "Contract target",
+			subject = {stage = &"single", pieces = [&"ship_gunboat"], dark = 0.85},
+			body = "A ship sits here with its running lights off. Its transponder matches the one on your contract. It has seen you. It turns its bow toward you and holds there.",
+			tags = [&"quest", &"fight"],
+			group = &"",
+			placed = true,
+			job = true,
+			weight = 0,
+			choices = [
+				{label = "Engage", fight = true, effect = func() -> Dictionary:
+					return {text = "You close on it and open fire.", fight = true}},
+				{label = "Leave it for now", stay = true, effect = func() -> Dictionary:
+					return {text = "You keep your distance. It stays where it is, and the job stays open."}},
+			],
+		},
+		{
 			id = &"ghost_signal",
 			subject = {stage = &"none"},
 			title = "Ghost signal",
@@ -973,7 +1022,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"customs_cordon",
 			title = "Customs cordon",
-			subject = {stage = &"group", ships = [{piece = &"role:hauler", dark = 0.7, at = Vector2(10.0, 50.0), z = 0}, {piece = &"ship_catamaran", lights = &"patrol", at = Vector2(-5.0, -45.0), z = 1}, {piece = &"role:armed", size = 0.5, dark = 0.6, at = Vector2(-168.0, -40.0), z = 1}, {piece = &"role:armed", size = 0.5, dark = 0.6, at = Vector2(165.0, -48.0), z = 1}]},
+			subject = {stage = &"group", ships = [{piece = &"role:hauler", dark = 0.7, at = Vector2(10.0, 50.0), z = 0}, {piece = &"ship_catamaran", fights = true, lights = &"patrol", at = Vector2(-5.0, -45.0), z = 1}, {piece = &"role:armed", fights = true, size = 0.5, dark = 0.6, at = Vector2(-168.0, -40.0), z = 1}, {piece = &"role:armed", fights = true, size = 0.5, dark = 0.6, at = Vector2(165.0, -48.0), z = 1}]},
 			body = "A revenue cutter holds station over a seized hull, with two cold escorts off its flanks. Its crew seized that hull nine days ago. The impound paperwork is still not done. Until the paperwork clears, the manifest is public, and it lists what is still aboard. The cutter lets traffic through. It is here to guard the cargo.",
 			tags = [&"signal", &"fight"],
 			group = &"",
@@ -1580,7 +1629,7 @@ static func _authored() -> Array[Dictionary]:
 					return {text = "The rate is on a sheet she cannot change and has no reason to doubt. She stamps the receipt twice, once for you and once for a copy no one has collected in eleven years."}},
 				{label = "Stay and copy the folder", effect = func() -> Dictionary:
 					Run.drain_fuel(1)
-					return {text = "Copying it takes most of a shift, with the reactor idling. It is other crews' paperwork about the thing at the core. There are transit logs that stop mid line and a mass estimate crossed out four times. There is an order for instruments that were never sent and never cancelled. She reads along with you in silence. In eleven years, no one else has asked to see it.", archive_recover = true, material_id = &"survey_film", material = &"event"}},
+					return {text = "Copying it takes most of a shift, with the reactor idling. It is other crews' paperwork about the thing at the core. There are transit logs that stop mid line and a mass estimate crossed out four times. There is an order for instruments that were never sent and never cancelled. She reads along with you in silence. In eleven years, no one else has asked to see it.", material_id = &"survey_film", material = &"event"}},
 				{label = "Leave her be", stay = true, effect = func() -> Dictionary:
 					return {text = "Yours is the first arrival she has logged in a long while. She logs it carefully, down to the minute."}},
 			],
@@ -1589,7 +1638,7 @@ static func _authored() -> Array[Dictionary]:
 			id = &"counting_backwards",
 			title = "Counting backwards",
 			subject = {stage = &"single", pick = true, pieces = [&"t3_counting_backwards_a_2", &"t3_counting_backwards_b_1", &"t3_counting_backwards_b_2"], tumble = 2.0},
-			body = "A dead relay hangs on the approach with its transponder still working. It sends one number every forty-one years, and each is lower than the last. Your archive holds three of them, logged by three ships across two centuries. The next number it sends will be zero. The relay is precursor work, older than any name anyone has for it. The dish puts that broadcast four days out.",
+			body = "A dead relay hangs on the approach with its transponder still working. It sends one number every forty-one years, and each is lower than the last. Your charts hold three of them, logged by three ships across two centuries. The next number it sends will be zero. The relay is precursor work, older than any name anyone has for it. The dish puts that broadcast four days out.",
 			tags = [&"signal"],
 			group = &"",
 			weight = 7,
@@ -1649,7 +1698,7 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"sensors", need = 7},
 					met = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(20))
-						return {text = "All six codes come from one issuer, a vault. Their holds read empty, so they have delivered and are waiting to be paid. The oldest code is forty years old. You copy all six to sell further out.", archive_recover = true},
+						return {text = "All six codes come from one issuer, a vault. Their holds read empty, so they have delivered and are waiting to be paid. The oldest code is forty years old. You copy all six to sell further out."},
 					clean = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(10))
 						return {text = "The codes are vault-issued and run in sequence, so this is an old, orderly queue that someone set up."},
@@ -1857,7 +1906,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"hostile_contact",
 			title = "Hostile contact",
-			subject = {stage = &"single", pieces = [&"ship_gunboat"], dark = 0.85},
+			subject = {stage = &"single", pieces = [&"ship_gunboat"], dark = 0.85, fights = true},
 			body = "A hull sits dead ahead of you where the chart shows nothing. Its engines are cold and its running lights are off. It already has your registry, queried before your dish finished resolving its shape. No hail follows, and no demand. It turns slowly until its bow points at you, then holds there and waits for you to act.",
 			tags = [&"fight"],
 			group = &"",
@@ -1911,7 +1960,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"cordon",
 			title = "The cordon",
-			subject = {stage = &"group", strobe = true, lights = &"run", ships = [{piece = &"ship_gunboat", far = true, at = Vector2(-160.0, -10.0)}, {piece = &"ship_armedtrader", at = Vector2(0.0, 0.0), z = 1}, {piece = &"ship_dropship", far = true, at = Vector2(160.0, -10.0)}]},
+			subject = {stage = &"group", fights = true, strobe = true, lights = &"run", ships = [{piece = &"ship_gunboat", far = true, at = Vector2(-160.0, -10.0)}, {piece = &"ship_armedtrader", at = Vector2(0.0, 0.0), z = 1}, {piece = &"ship_dropship", far = true, at = Vector2(160.0, -10.0)}]},
 			body = "Three ships hold a line across the lane with their weapons live. A strobe runs the width of it. It is a toll. The hail is polite and carries a rate card: one rate for every hull, payable now. Out here there is no one to complain to. The ships on the line know to the hour how far away the nearest help is.",
 			tags = [&"fight", &"signal"],
 			group = &"",
@@ -2203,7 +2252,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Take the readings off it",
 					check = {attr = &"sensors", need = 7},
 					met = func() -> Dictionary:
-						return {text = "You match its roll, put the dish on it, and pull down the whole hundred years in one pass. The grapple also takes the instrument head off its mount, still cold and still good.", module = true, material_id = &"survey_film", archive_recover = true},
+						return {text = "You match its roll, put the dish on it, and pull down the whole hundred years in one pass. The grapple also takes the instrument head off its mount, still cold and still good.", module = true, material_id = &"survey_film"},
 					clean = func() -> Dictionary:
 						Run.heat += 10
 						return {text = "You get the link and about forty years of readings before the working half rolls away from you. The grapple takes a panel off the housing as you pass.", material_id = &"survey_film", material = &"wreck"},
@@ -2216,7 +2265,7 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "You misjudge the roll and come around on the lit side, with nothing between you and the star for a few seconds."}},
 				{label = "Answer it", effect = func() -> Dictionary:
 					Run.drain_fuel(2)
-					return {text = "Its summaries carry the return frequency. You send a receipt on it in the format the machine expects, and it treats the job as finished. It sends you everything it has, which takes eleven hours with the reactor idling. Then it stops transmitting.", archive_recover = true, material_id = &"survey_film", material = &"event"}},
+					return {text = "Its summaries carry the return frequency. You send a receipt on it in the format the machine expects, and it treats the job as finished. It sends you everything it has, which takes eleven hours with the reactor idling. Then it stops transmitting.", material_id = &"survey_film", material = &"event"}},
 				{label = "Leave it", stay = true, effect = func() -> Dictionary:
 					return {text = "You log where it is and go. It keeps taking readings while you are in range."}},
 			],
@@ -3264,10 +3313,10 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"sensors", need = 7},
 					met = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(30))
-						return {text = "You find the fault in forty minutes: a board that died two years ago. The receiver comes back with two years of messages at once. The company folded eighteen months ago. They pay you from the ship's account, which is now theirs, and give you the three years of measurements.", archive_recover = true},
+						return {text = "You find the fault in forty minutes: a board that died two years ago. The receiver comes back with two years of messages at once. The company folded eighteen months ago. They pay you from the ship's account, which is now theirs, and give you the three years of measurements."},
 					clean = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(18))
-						return {text = "It takes half a day to find the fault. The receiver comes back. It brings eighteen months of messages and then stops. That is enough. They pay you what they can spare. They give you the measurements.", archive_recover = true},
+						return {text = "It takes half a day to find the fault. The receiver comes back. It brings eighteen months of messages and then stops. That is enough. They pay you what they can spare. They give you the measurements."},
 					partial = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(6))
 						Run.heat += 10
@@ -3278,7 +3327,7 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "You trace the fault into their power bus, and the bus fails. Their ship is dark for an hour, and the jolt through the connecting line scorches a metre of your plating. Their receiver is no better, and no one pays."}},
 				{label = "Trade fuel for the measurements", effect = func() -> Dictionary:
 					Run.drain_fuel(2)
-					return {text = "You give them two units. They give you three years of the approach: every hull that went inward or came back, on film and in the log. They add a case of the company's rations, which they have in plenty. You give them what little news you have.", archive_recover = true, material_id = &"survey_film", material = &"event"}},
+					return {text = "You give them two units. They give you three years of the approach: every hull that went inward or came back, on film and in the log. They add a case of the company's rations, which they have in plenty. You give them what little news you have.", material_id = &"survey_film", material = &"event"}},
 				{label = "Leave them", stay = true, effect = func() -> Dictionary:
 					return {text = "You give them what news you have on the channel and go. They thank you and go back to their instruments."}},
 			],
@@ -3363,10 +3412,10 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"maneuver", need = 8},
 					met = func() -> Dictionary:
 						Run.drain_fuel(2)
-						return {text = "You match the ship close enough to pass a line and hold there for six minutes. Two units go across, and a sealed case comes back with equipment from beyond the chart. The voice tells you three things about the core before the ship is gone.", module = true, archive_recover = true},
+						return {text = "You match the ship close enough to pass a line and hold there for six minutes. Two units go across, and a sealed case comes back with equipment from beyond the chart. The voice tells you three things about the core before the ship is gone.", module = true},
 					clean = func() -> Dictionary:
 						Run.drain_fuel(2)
-						return {text = "You hold the match for four minutes. That is long enough for the fuel. It is not quite long enough for what they meant to send. Something smaller comes across instead. The voice says one thing about the core, and it is gone.", archive_recover = true, material = &"event"},
+						return {text = "You hold the match for four minutes. That is long enough for the fuel. It is not quite long enough for what they meant to send. Something smaller comes across instead. The voice says one thing about the core, and it is gone.", material = &"event"},
 					partial = func() -> Dictionary:
 						Run.drain_fuel(2)
 						Run.heat += 14
@@ -3377,7 +3426,8 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "You get the match wrong, and the hulls touch at a dangerous speed. They keep going. You spend unplanned fuel stopping your drift, and drift a while longer before your systems come back."}},
 				{label = "Give them fuel and ask nothing", effect = func() -> Dictionary:
 					Run.drain_fuel(2)
-					return {text = "You put two units into a drop tank and leave it on their line. They take it at speed without stopping. The voice talks the whole time it is in range. What it says about the core goes in your archive.", archive_recover = true}},
+					Run.add_credits(OptionTable.purse(14))
+					return {text = "You put two units into a drop tank and leave it on their line. They take it at speed without stopping. The voice talks the whole time it is in range. A payment for the fuel clears an hour later, though you asked for nothing."}},
 				{label = "Let it go", stay = true, effect = func() -> Dictionary:
 					return {text = "You let it go. It is out of range in an hour, still running hot on one drive."}},
 			],
@@ -3427,7 +3477,7 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"thrust", need = 7},
 					met = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(34))
-						return {text = "You tow them a day outward to the traffic route and leave them there with their transponder loud. The ship pays the bounty for the leg and copies you its log. They are still asleep, a day nearer to help.", archive_recover = true},
+						return {text = "You tow them a day outward to the traffic route and leave them there with their transponder loud. The ship pays the bounty for the leg and copies you its log. They are still asleep, a day nearer to help."},
 					clean = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(20))
 						Run.heat += 10
@@ -3478,7 +3528,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_wrong_writ",
 			title = "The wrong writ",
-			subject = {stage = &"single", pieces = [&"ship_courier2"], lights = &"patrol"},
+			subject = {stage = &"single", pieces = [&"ship_courier2"], lights = &"patrol", fights = true},
 			body = "A patrol boat comes up on your quarter with its lights going. It puts a stop order across the channel. The writ carries a registry prefix that matches yours. The hull number on it does not, and it is off by one digit. An office four rings inward issued it, and that office stopped answering queries in the spring. The pilot reads the order out twice. She is young and she means to do this properly. The ship the writ wants came through this ring an hour ahead of you.",
 			tags = [&"fight", &"contract"],
 			group = &"",
@@ -3509,7 +3559,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_far_side",
 			title = "The far side",
-			subject = {stage = &"group", ships = [{piece = &"role:passenger", dark = 0.55, lights = &"battery", at = Vector2(85.0, 20.0), z = 0}, {piece = &"ship_gunboat", size = 0.5, dock = {to = 0}, at = Vector2(75.0, 0.0), z = 1}, {piece = &"role:small", turn = 6.0, lights = &"run", at = Vector2(-118.0, 82.0), z = 2}, {piece = &"role:small", far = true, turn = -5.0, lights = &"run", at = Vector2(-150.0, -68.0), z = -1}]},
+			subject = {stage = &"group", ships = [{piece = &"role:passenger", dark = 0.55, lights = &"battery", at = Vector2(85.0, 20.0), z = 0}, {piece = &"ship_gunboat", fights = true, size = 0.5, dock = {to = 0}, at = Vector2(75.0, 0.0), z = 1}, {piece = &"role:small", fights = true, turn = 6.0, lights = &"run", at = Vector2(-118.0, 82.0), z = 2}, {piece = &"role:small", fights = true, far = true, turn = -5.0, lights = &"run", at = Vector2(-150.0, -68.0), z = -1}]},
 			body = "A scavenger crew has a cutter ship anchored amidships on a passenger hull. Floods run the length of it and half the racks are already out. They watched you come in. Nobody hails and nobody stops working. Their two smallest ships have drifted out to sit between you and the wreck. Neither one quite points at you. The stern of the hull is dark, and nothing at all has come off it yet. They will get to it in a day or two.",
 			tags = [&"fight", &"salvage"],
 			group = &"",
@@ -3571,7 +3621,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"nothing_taken",
 			title = "Nothing taken",
-			subject = {stage = &"group", flood = true, ships = [{piece = &"role:hauler", far = true, at = Vector2(-120.0, -60.0)}, {piece = &"role:hauler", far = true, at = Vector2(140.0, -55.0)}, {piece = &"ship_armedtrader", at = Vector2(10.0, 35.0), z = 1}]},
+			subject = {stage = &"group", fights = true, flood = true, ships = [{piece = &"role:hauler", far = true, at = Vector2(-120.0, -60.0)}, {piece = &"role:hauler", far = true, at = Vector2(140.0, -55.0)}, {piece = &"ship_armedtrader", at = Vector2(10.0, 35.0), z = 1}]},
 			body = "Three haulers come out of the ring together and put their lights on you. Someone took eleven containers off the second of them four days ago. The ship that did it was the same class as yours, with the same drive signature. They have stopped every ship of that class since. The woman speaking for them is tired and polite, and she is sure of what she is looking at. They will not shoot first, but they will not stand aside either.",
 			tags = [&"fight", &"contract"],
 			group = &"",
@@ -3663,7 +3713,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_hunting_ship",
 			title = "The hunting ship",
-			subject = {stage = &"single", pieces = [&"ship_scoop"], lights = &"run"},
+			subject = {stage = &"single", pieces = [&"ship_scoop"], lights = &"run", fights = true},
 			body = "A ship rigged for a hunt is coming across the system at you. It has wide holds and a frame on the bow for taking something aboard whole. There is nothing in any of it. The people flying it have been out five months. What they came for has not been where the charts put it since spring. They have said so on the open channel to nobody in particular. They read your mass at a hundred thousand kilometres and turn toward it. The hail is friendly and it asks twice what you are carrying.",
 			tags = [&"fight", &"contract"],
 			group = &"",
@@ -3695,7 +3745,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_long_crew",
 			title = "The long crew",
-			subject = {stage = &"single", pieces = [&"ship_ringdrive"], lights = &"battery"},
+			subject = {stage = &"single", pieces = [&"ship_ringdrive"], lights = &"battery", fights = true},
 			body = "A ship hails you. It stopped being a business a long time ago. They have been out here nineteen years. The registry ran out twelve years back, and the manufacturer that built the ship is gone too. The same people have been aboard the whole time. They do not call it a raid. They read you a list of what they need, in order, and they stay armed while they read it. There are forty items on the list. The first one is fuel.",
 			tags = [&"fight"],
 			group = &"",
@@ -3726,7 +3776,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"six_years_waiting",
 			title = "Six years waiting",
-			subject = {stage = &"single", pieces = [&"ship_forked"], dark = 0.3, lights = &"run"},
+			subject = {stage = &"single", pieces = [&"ship_forked"], dark = 0.3, lights = &"run", fights = true},
 			body = "A ship has been holding this crossing for six years. What it is waiting for is a registry. It sends that registry out on a loop, one line, over and over. The number is two digits off yours. The voice under the loop is not angry about anything. She asks you to hold still and let her instruments read your drive. A drive signature is the one thing on a ship that cannot be repainted. She has been almost sure for six years.",
 			tags = [&"fight", &"contract"],
 			group = &"",
@@ -3737,7 +3787,8 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"thermal", need = 7},
 					met = func() -> Dictionary:
 						Run.heat += 12
-						return {text = "You push the reactor outside the envelope it was built for. You hold it there while her instruments work. What comes back matches nothing anybody has a file on. She says sorry, plainly and once. Then she sends you her own file on the ship she is waiting for. It is six years of bearings and dates, in case you ever cross it.", archive_recover = true},
+						Run.add_credits(OptionTable.purse(14))
+						return {text = "You push the reactor outside the envelope it was built for. You hold it there while her instruments work. What comes back matches nothing anybody has a file on. She says sorry, plainly and once. Then she pays you for the hour your reactor ran hot."},
 					clean = func() -> Dictionary:
 						Run.heat += 16
 						return {text = "You hold the reactor off its profile long enough for the reading to come back wrong. The loop stops. She tells you to go on through the crossing. The reactor takes an hour to come back down to where it belongs."},
@@ -4251,7 +4302,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Copy the log before it wraps",
 					check = {attr = &"sensors", need = 4},
 					met = func() -> Dictionary:
-						return {text = "The dish reads it off in an hour and forty minutes, first entry to last. The first entry is older than the outfit that ordered it. Eleven numbers an hour for four years. Then one an hour ever since. The cells have been going flat that whole time. You clip the spares box off the frame: cable, two cells, a lens the aperture never needed.", archive_recover = true, material = &"event"},
+						return {text = "The dish reads it off in an hour and forty minutes, first entry to last. The first entry is older than the outfit that ordered it. Eleven numbers an hour for four years. Then one an hour ever since. The cells have been going flat that whole time. You clip the spares box off the frame: cable, two cells, a lens the aperture never needed.", material = &"event"},
 					clean = func() -> Dictionary:
 						return {text = "The copy comes off clean for the last four years. Then it hits the wrap. The new numbers are written on top of the old ones, and neither one survives. You take the spares box off the frame and leave the instrument counting.", material = &"event"},
 					partial = func() -> Dictionary:
@@ -4403,7 +4454,7 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"sensors", need = 5},
 					met = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(28))
-						return {text = "Eleven crates. The mass sits within a point of what eleven crates of drive parts should read. The second receipt was written against a load that was never on any ship. The station that wrote it is four crossings behind you and does not know yet. She pays the reading fee and the correction fee together. She copies the filing across to you as well. She wants it stored somewhere that is not her own drive.", archive_recover = true},
+						return {text = "Eleven crates. The mass sits within a point of what eleven crates of drive parts should read. The second receipt was written against a load that was never on any ship. The station that wrote it is four crossings behind you and does not know yet. She pays the reading fee and the correction fee together. She copies the filing across to you as well. She wants it stored somewhere that is not her own drive."},
 					clean = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(12))
 						return {text = "The mass reads high by enough to matter. It reads low by enough to argue about. You log what the dish says and sign that figure. She takes it away to whoever has to decide what it means. She pays the reading fee without a word."},
@@ -4415,7 +4466,8 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "Your figure is off by a whole crate. The file goes inward with your registry on the reading. Nobody is angry about it. The station at the far end holds the shipment eleven more days. A third instrument settles the argument. The cost of those eleven days goes against your reading."}},
 				{label = "Sit with her and copy the filing across", effect = func() -> Dictionary:
 					Run.drain_fuel(1)
-					return {text = "Most of a shift with the reactor idling. The dish points at her ship instead of the shipment. Eight days of receipts and two stamps from two stations. There is a transfer note with the wrong registry typed in twice. You take a copy of all of it. She talks the whole time, and about half of it is about the paperwork.", archive_recover = true}},
+					Run.add_credits(OptionTable.purse(8))
+					return {text = "Most of a shift with the reactor idling. The dish points at her ship instead of the shipment. Eight days of receipts and two stamps from two stations. There is a transfer note with the wrong registry typed in twice. You take a copy of all of it. She pays you a clerk's fee for the shift. She talks the whole time, and about half of it is about the paperwork."}},
 				{label = "Stay out of the file", stay = true, effect = func() -> Dictionary:
 					return {text = "She is still on the channel asking when you pass out of range."}},
 			],
@@ -4587,7 +4639,7 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"sensors", need = 6},
 					met = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(30))
-						return {text = "The seals answer a current reader in about a minute. They match the order in every line but one: the collector is on no registry you can reach. That lets her close the order out. She pays the reading fee from the depot account and sends over the file. It holds the order, the route it was meant to take, and nineteen years of holding notes.", archive_recover = true},
+						return {text = "The seals answer a current reader in about a minute. They match the order in every line but one: the collector is on no registry you can reach. That lets her close the order out. She pays the reading fee from the depot account and sends over the file. It holds the order, the route it was meant to take, and nineteen years of holding notes."},
 					clean = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(18))
 						return {text = "Your reader gets four seals out of six. Four is what the depot rules ask for. She closes the order on that. She pays the fee at the reduced rate her sheet allows for a partial reading. Then she puts the file back in the drawer it came out of."},
@@ -4681,7 +4733,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Open the load and read the list",
 					check = {attr = &"sensors", need = 7},
 					met = func() -> Dictionary:
-						return {text = "The list reads clean once you have the cell voltage right. It says what is in every case, and which of them still hold a charge. One does. You take that one off the tether. The order's own file comes with it: the posting, the address, and the name of whoever signed the job out.", module = true, archive_recover = true},
+						return {text = "The list reads clean once you have the cell voltage right. It says what is in every case, and which of them still hold a charge. One does. You take that one off the tether. The order's own file comes with it: the posting, the address, and the name of whoever signed the job out.", module = true},
 					clean = func() -> Dictionary:
 						return {text = "Half the list reads and the other half went with the cells. You open the cases that answer and find one sealed unit still holding. You take it off the tether. The rest stay counted and sealed, where the order says they are.", module = true},
 					partial = func() -> Dictionary:
@@ -4693,7 +4745,7 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "The case you pick is under pressure. It has been since the day it was packed. It opens along the seam the cutter made. What was in it goes through your bow at speed. The rest of the load hangs on the tether, counted and sealed."}},
 				{label = "Record the beacon through a full cycle", effect = func() -> Dictionary:
 					Run.drain_fuel(2)
-					return {text = "The order repeats hourly, and the long version runs once a day. That one carries the schedule, the routing, and every amendment made to either. You hold station a full day to get the whole of it. Burning to stay put costs you a day of fuel. You take the recording with you.", archive_recover = true}},
+					return {text = "The order repeats hourly, and the long version runs once a day. That one carries the schedule, the routing, and every amendment made to either. You hold station a full day to get the whole of it. Burning to stay put costs you a day of fuel. You take the recording with you, and a coil of spare line off the tether.", material_id = &"frayed_line"}},
 				{label = "Leave the order standing", stay = true, effect = func() -> Dictionary:
 					return {text = "You log the bearing and go on. The beacon puts the order out again on the hour. The strength is the same. The address it names has not been there for a long time."}},
 			],
@@ -4712,7 +4764,7 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"thrust", need = 6},
 					met = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(34))
-						return {text = "You get your bow on the carrier's stern plate. You push for nine hours. It comes up to a speed the other four can hold without extra burn. They pay the figure she named, out of five accounts. They send over their run inward as well. It has every bearing they took, every place they stopped, and the day they turned around.", archive_recover = true},
+						return {text = "You get your bow on the carrier's stern plate. You push for nine hours. It comes up to a speed the other four can hold without extra burn. They pay the figure she named, out of five accounts. They send over their run inward as well. It has every bearing they took, every place they stopped, and the day they turned around."},
 					clean = func() -> Dictionary:
 						Run.heat += 12
 						Run.add_credits(OptionTable.purse(20))
@@ -4744,7 +4796,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Cut a clamp warm and take the container",
 					check = {attr = &"thermal", need = 7},
 					met = func() -> Dictionary:
-						return {text = "You run the cutter in long passes with the radiators wide. The clamp lets go in about an hour. Not much heat comes back into the ship. The container comes across whole. The consignment papers are in a sleeve on the door. They are printed, stamped twice, and readable from the first line to the last.", material = &"event", archive_recover = true},
+						return {text = "You run the cutter in long passes with the radiators wide. The clamp lets go in about an hour. Not much heat comes back into the ship. The container comes across whole. The consignment papers are in a sleeve on the door. They are printed, stamped twice, and readable from the first line to the last.", material = &"event"},
 					clean = func() -> Dictionary:
 						Run.heat += 14
 						return {text = "The clamp takes two hours. Most of those hours come back as heat down the grapple. You get the container off the rail. Then you sit a while with the drive cold, shedding what the job put into you.", material = &"event"},
@@ -4770,7 +4822,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"in_the_wake",
 			title = "In the wake",
-			subject = {stage = &"single", pieces = [&"pool_fan"]},
+			subject = {stage = &"single", pieces = [&"pool_fan"], fights = true},
 			body = "A voidwhale calf has followed your ship since the edge of the system. It is pale and long, with thin spines down its back that fan out when it turns. Your drive is the warmest thing it has found out here. Every few minutes it swings around from the bow to push its nose into the plume. Twice it has bumped the stern hard enough to show on the hull sensors. There is no pod on the dish. A calf this young sheds as it grows, and loose hide is drifting in your wake.",
 			tags = [&"fight", &"hazard"],
 			group = &"",
@@ -4801,7 +4853,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_tow_cable",
 			title = "The tow cable",
-			subject = {layers = [{stage = &"single", pieces = [&"role:barge"], dark = 0.7, at = Vector2(90.0, -40.0)}, {stage = &"single", pieces = [&"pool_fan"], at = Vector2(-90.0, 50.0)}]},
+			subject = {layers = [{stage = &"single", pieces = [&"role:barge"], dark = 0.7, at = Vector2(90.0, -40.0)}, {stage = &"single", fights = true, pieces = [&"pool_fan"], at = Vector2(-90.0, 50.0)}]},
 			body = "A dead ore barge drifts at the edge of the system with its tow cable still trailing from the stern. A voidwhale calf has wound itself into the cable. It is pale, with thin spines along its back. Every time it pulls, the cable cuts in deeper between the spines. The dish picked up its calls for a while. They have stopped. The barge's forward hold reads full of ore. There is no claim filed on the barge, and the dish shows no other ship in the system.",
 			tags = [&"fight", &"salvage"],
 			group = &"",
@@ -4832,7 +4884,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_harpoon_line",
 			title = "The harpoon line",
-			subject = {layers = [{stage = &"single", pieces = [&"ship_scoop"], lights = &"run", at = Vector2(110.0, -55.0)}, {stage = &"single", pieces = [&"pool_lev_spine"], at = Vector2(-80.0, 45.0)}]},
+			subject = {layers = [{stage = &"single", pieces = [&"ship_scoop"], lights = &"run", at = Vector2(110.0, -55.0)}, {stage = &"single", fights = true, pieces = [&"pool_lev_spine"], at = Vector2(-80.0, 45.0)}]},
 			body = "A hunting ship has a harpoon line in a void leviathan, and the leviathan is towing the ship. It is dark blue and plated like a hull, with a ridge of pale crystal down its back. It is longer than the hunting ship. The crew cannot reel it in, and they will not cut the line. Their pilot is on the open channel. She asks for a ship with guns to finish it while she holds on. She will pay as soon as you agree.",
 			tags = [&"fight", &"contract"],
 			group = &"",
@@ -4864,7 +4916,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_grown_plate",
 			title = "The grown plate",
-			subject = {stage = &"single", pieces = [&"pool_lev_spine"]},
+			subject = {stage = &"single", pieces = [&"pool_lev_spine"], fights = true},
 			body = "A void leviathan is resting in the shadow of a cold world. It is dark blue and plated like a hull, with pale crystal down its back. One plate on its flank came off a ship. It has grown in at the edges, and a registry number is still painted on it. The registry office at Harl Station lists that number as missing. The clerk there pays for proof of what became of a ship. The leviathan has not moved in a day.",
 			tags = [&"fight", &"contract"],
 			group = &"",
@@ -4897,7 +4949,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_warm_reactor",
 			title = "The warm reactor",
-			subject = {layers = [{stage = &"single", pieces = [&"role:hauler"], dark = 0.8, at = Vector2(40.0, -60.0)}, {stage = &"single", flip = true, pieces = [&"pool_lev_spine"], at = Vector2(80.0, 55.0)}]},
+			subject = {layers = [{stage = &"single", pieces = [&"role:hauler"], dark = 0.8, at = Vector2(40.0, -60.0)}, {stage = &"single", fights = true, flip = true, pieces = [&"pool_lev_spine"], at = Vector2(80.0, 55.0)}]},
 			body = "A dead freighter hangs off the star with its reactor still warm. A void leviathan stays close to the stern to feed on the heat. It is dark blue and plated, and the pale crystal on its back glows in the reactor's light. The freighter's forward holds are sealed and read full. They are at the bow, the far end from the leviathan. The transponder is dead. The leviathan moves only to press closer to the reactor.",
 			tags = [&"fight", &"salvage"],
 			group = &"",

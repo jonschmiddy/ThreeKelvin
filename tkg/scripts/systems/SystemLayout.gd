@@ -172,7 +172,13 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 	var on_giant: Array[int] = []
 	var giant_here := n.gas_giant and L.star != StarKind.PULSAR
 	var hot_star := L.star == StarKind.RED or L.star == StarKind.BLUE
+	# A SIGNED JOB'S EVENT (`OptionTable.is_job`) is laid out after everything
+	# else, past the last orbit, so posting it moves nothing already there
+	var jobs: Array[int] = []
 	for i in n.options.size():
+		if OptionTable.is_job(n.options[i]):
+			jobs.append(i)
+			continue
 		var site := StringName(OptionTable.by_id(n.options[i]).get("site", &""))
 		if site == &"giant" and giant_here and on_giant.is_empty():
 			on_giant.append(i)
@@ -343,6 +349,45 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 		last = b.orbit
 		last_reach = reach
 	L.edge = maxf(HI, last + last_reach) + 30.0
+	# A SIGNED CONTRACT'S WORK, each on a place of its own past every orbit
+	# (`Contracts.post_goal`): a hunt's target is a contact, a fetch's pickup a
+	# world. Drawn off its own stream and added after the system's own bodies,
+	# like the Hellbender below, so the worlds you saw before you signed are
+	# the worlds you see after.
+	for k in jobs.size():
+		var i: int = jobs[k]
+		var jr := Rng.derive(&"job_place", n.index * 8 + k)
+		var jb := Body.new()
+		var tags: Array = OptionTable.by_id(n.options[i]).get("tags", [])
+		jb.kind = &"contact" if tags.has(&"fight") else &"planet"
+		var bj := Beacon.new()
+		bj.opt = i
+		jb.beacons.append(bj)
+		jb.index = L.bodies.size()
+		jb.zone = 2
+		jb.seed = n.index * 31 + jb.index * 7 + 1
+		if jb.kind == &"planet":
+			if L.star == StarKind.PULSAR:
+				jb.world = PULSAR_WORLDS[int(jr.randf() * PULSAR_WORLDS.size())]
+				jb.scorched = true
+				jb.r = 3.5 + jr.randf() * 2.5
+			else:
+				var pool: Array = POOLS[2]
+				jb.world = pool[int(jr.randf() * pool.size())]
+				jb.r = 5.0 + jr.randf() * 3.0
+			jb.mass = 3.0 + jb.r * 0.9
+			jb.well_w = 14.0 + jb.r * 1.6
+		var at := maxf(HI, last + last_reach) + reach_of(jb) + GAP + 24.0
+		if jb.world != &"":
+			at += soi_of(jb)
+		jb.orbit = at
+		jb.period = 800.0 * pow(jb.orbit / 100.0, 1.5) * (0.95 + jr.randf() * 0.1)
+		jb.phase = jr.randf() * TAU
+		jb.name = "%s %s" % [short, ROMAN[mini(jb.index, ROMAN.size() - 1)]]
+		L.bodies.append(jb)
+		last = jb.orbit
+		last_reach = reach_of(jb) + (soi_of(jb) if jb.world != &"" else 0.0)
+		L.edge = jb.orbit + last_reach + 30.0
 	# THE HELLBENDER'S OWN PLACE, past every orbit and last in the list, so
 	# nothing else moves when it comes or goes
 	if hellbender_here(n):

@@ -17,8 +17,8 @@ extends Harness
 ##
 ## And WHAT YOU END UP WITH, in every look (`OutcomeRow`): each result drawn
 ## again as today, A, B and C and held to what the run actually moved
-## (`OutcomeCheck`: the ledger, the system's pile, the hold, the frame, the
-## archive, diffed), with the box test. Every choice in the column layout,
+## (`OutcomeCheck`: the ledger, the system's pile, the hold and the frame,
+## diffed), with the box test. Every choice in the column layout,
 ## every fifth option in the other two.
 
 var _tree: SceneTree
@@ -41,10 +41,10 @@ func _tally(want: Dictionary) -> void:
 			any = true
 			var key2: String = "%s%s" % [want.kind.get(nm, "item"), pair[1]]
 			_kinds_seen[key2] = int(_kinds_seen.get(key2, 0)) + 1
-	for k2 in ["frame", "doc", "place"]:
+	for k2 in ["frame", "place"]:
 		if want[k2]:
 			any = true
-			var key3: String = ("document" if k2 == "doc" else String(k2)) + "+"
+			var key3: String = String(k2) + "+"
 			_kinds_seen[key3] = int(_kinds_seen.get(key3, 0)) + 1
 	if not any:
 		_kinds_seen["nothing"] = int(_kinds_seen.get("nothing", 0)) + 1

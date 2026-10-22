@@ -7,8 +7,8 @@ extends RefCounted
 ## outcomes on the real LOCAL, with the HUD).
 ##
 ## The expectation is read off the RUN, not off `OutcomeRow`: the ledger either
-## side of the choice, the system's pile, the hold, the found frame and the
-## archive, diffed here. A look that drew what `OutcomeRow.changes` said would
+## side of the choice, the system's pile, the hold and the found frame, diffed
+## here. A look that drew what `OutcomeRow.changes` said would
 ## agree with itself whatever the run did.
 ##
 ## THE NUMBERS: today's four pairs ("HULL -5", "CREDITS —"); A and C one entry
@@ -35,12 +35,11 @@ static func snapshot(n: MapGen.MapNode) -> Dictionary:
 		pile = (pile.items as Array).duplicate() if pile != null else [],
 		hold = Run.cargo.duplicate(),
 		frame = Run.found_hull,
-		docs = Archive.count(),
 	}
 
 
 ## What it did move: {stats: {key: [n, was, now]}, gained: {name: count},
-## lost: {name: count}, frame, doc, place}.
+## lost: {name: count}, frame, place}.
 static func expect(n: MapGen.MapNode, before: Dictionary, res: Dictionary) -> Dictionary:
 	var now := Run.ledger()
 	var stats := {}
@@ -64,7 +63,6 @@ static func expect(n: MapGen.MapNode, before: Dictionary, res: Dictionary) -> Di
 	return {
 		stats = stats, gained = gained, lost = lost, kind = kind,
 		frame = Run.found_hull != null and Run.found_hull != before.frame,
-		doc = Archive.count() > int(before.docs),
 		place = res.has("place"),
 	}
 
@@ -94,7 +92,7 @@ static func check(d: LocalEventDrawer, look: StringName, want: Dictionary) -> Ar
 		if int(s[0]) != 0:
 			changed += 1
 	var things := (want.gained as Dictionary).size() + (want.lost as Dictionary).size() \
-		+ (1 if want.frame else 0) + (1 if want.doc else 0) + (1 if want.place else 0)
+		+ (1 if want.frame else 0) + (1 if want.place else 0)
 	match look:
 		&"today":
 			for k in WORDS:
@@ -140,8 +138,6 @@ static func check(d: LocalEventDrawer, look: StringName, want: Dictionary) -> Ar
 					bad.append("%s: lost %d %s not said in [%s]" % [look, c2, nm, said])
 			if want.frame and not texts.any(func(t: String) -> bool: return t.begins_with("+1 HULL FRAME")):
 				bad.append("%s: the hull frame not said in [%s]" % [look, said])
-			if want.doc and not texts.any(func(t: String) -> bool: return t.begins_with("+1 DOCUMENT")):
-				bad.append("%s: the document not said in [%s]" % [look, said])
 			if want.place and not texts.any(func(t: String) -> bool: return t.begins_with("MARKED")):
 				bad.append("%s: the marked place not said in [%s]" % [look, said])
 			if said.contains("—"):
@@ -471,8 +467,6 @@ static func sig(want: Dictionary) -> Array:
 	outs.append_array(g.keys())
 	if want.frame:
 		outs.append("frame+")
-	if want.doc:
-		outs.append("document+")
 	if want.place:
 		outs.append("place+")
 	return outs

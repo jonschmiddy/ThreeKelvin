@@ -29,7 +29,6 @@ the constraints are.
 | Material flavour text | `tkg/scripts/systems/MaterialTable.gd` |
 | Card and module text | `tkg/scripts/autoload/Database.gd` |
 | Enemy names and intents | `Database.enemies` |
-| Archive documents (in-world found text) | `Database._seed_documents()` |
 | The chart primer card | `StarchartScreen.PRIMER_LEGEND` and `_primer_cost()` |
 
 Encounters are the big one and the rest are small. Everything below is about

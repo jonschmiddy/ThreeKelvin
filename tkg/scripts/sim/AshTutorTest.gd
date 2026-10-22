@@ -21,8 +21,20 @@ extends Node
 ## the Promenade, the Exchange, the Hiring Board, the Laboratory), its yard's
 ## ship and its cutaway; fuel low with a
 ## dock in reach, none, and here. Each is her line with the right words, in her
-## corner and not a card, the outline on the hint's own subject, held until a
-## click (a goal step goes after its reading time), and the click spends it.
+## corner and not a card, the outline on the hint's own subject.
+##
+## NO CLICK DISMISSES HER (Jon, Oct 22, the first outside playtest: "Can we soft
+## lock the screen so A.S.H. can't be dismissed?"). Real clicks, through the
+## viewport, on her box (where Kevin clicked) and at seeded points in it, on
+## every line of that first run: each stays up and unspent until the player
+## DOES what it teaches (`HintActs`: the row, the card, END TURN, the deck's own
+## handler), and that spends it; an information line (`Hints.INFO`) goes by
+## itself after its reading time, spent; a goal step after its reading time.
+## Every hint is taught exactly once each time it is armed, and the run finishes
+## it. NEVER STUCK: a line said whole with another waiting gives way unspent and
+## comes back; a hand with nothing playable has no hand line, and END TURN's
+## comes instead. THE SOFT LOCK (option b, off): while she speaks, the gate takes
+## every click but where she points, and none after.
 ##
 ## THE BOX TEST on every screen she speaks on: her box inside the view and clear
 ## of a list gathered HERE, apart from `Ash.tut_avoid_rects`, so she cannot pass
@@ -33,22 +45,32 @@ extends Node
 ## the yard's drones and its TAKE IT), each asked of the picture's own hit test
 ## at every 2 px.
 ##
-## A BARK NEVER INTERRUPTS A TEACHING LINE, and a teaching line cuts a bark.
+## A BARK NEVER INTERRUPTS A TEACHING LINE, and a teaching line due waits for a
+## bark already under way to end of itself (Jon, Oct 22: a quip "plays out").
 ## HER INTRODUCTION (intro:A) is the exception: a fresh profile's first launch
 ## says launch_04 first, the step waits for it and follows; never forced again.
 ## HER VOICE: no take is silence and the words alone at her text pace; a take
 ## types at its pace, and the shown words (numbers and names in them) end when
 ## she stops; what she says has no field and no live number. OFF: her switch
 ## off brings back today's cards, exactly, mid-lesson too; and in a party there
-## is no teaching at all. THE DECKS (Jon, Oct 20): each deck's line once, spent
-## as it shows, so leaving the deck without a click does not bring it back;
-## queued behind the dock's; off with TUTORIAL OFF, back with REPLAY TUTORIAL,
-## a card with her off, nothing in a party; her box clear on each deck.
+## is no teaching at all. THE DECKS (Jon, Oct 20): each deck's line up until the
+## deck is used, or said whole and left (then spent: said once); left mid-line,
+## it comes back; queued behind the dock's (picking a deck is the dock's
+## action); off with TUTORIAL OFF, back with REPLAY TUTORIAL, a card with her
+## off, nothing in a party; her box clear on each deck.
+
+const HintActs := preload("res://scripts/sim/HintActs.gd")
 
 var _tree: SceneTree
 var _fails := 0
 var _checks := 0
 var _screens: Dictionary = {}
+## Seeded, for the clicks on her box.
+var _rng := RandomNumberGenerator.new()
+var _clicks := 0
+## THE FIRST RUN'S COUNT: how many times the flow armed each hint (once, plus
+## every time it set one unseen again on purpose), against how often it showed.
+var _armed := {}
 
 ## Jon's picks, as he wrote them (the brief of Oct 17), to hold the game to.
 const JON := {
@@ -113,10 +135,12 @@ func _run() -> void:
 	Ash.reload()
 	Ash.set_on(true)
 	Hints.set_process(false)
-	Hints.set_process_input(false)
+	_rng.seed = 2210
 	_lines()
 	await _used_state()
 	await _flow()
+	await _never_stuck()
+	await _soft_lock()
 	await _bark_and_lesson()
 	await _voice()
 	await _switch()
@@ -182,7 +206,8 @@ func _until_said(lid: StringName, secs: float = 6.0) -> bool:
 
 ## Hint `id` comes as her line `lid`: the words, the corner not a card, the
 ## outline on its subject, the box test; held, then spent by a click.
-func _expect(id: StringName, lid: StringName = &"", words: String = "") -> void:
+func _expect(id: StringName, lid: StringName = &"", words: String = "", reopen: Callable = Callable(),
+		after: Callable = Callable()) -> void:
 	if lid == &"":
 		lid = id
 	var up: bool = await _until_said(lid)
@@ -198,18 +223,147 @@ func _expect(id: StringName, lid: StringName = &"", words: String = "") -> void:
 	_ok("%s: the outline is on its subject (%s, subject %s)" % [lid, Ash.outline_rect(), subj],
 		subj.size != Vector2.ZERO and Ash.outline_rect().is_equal_approx(want_o))
 	await _box(String(lid))
-	# HELD until a click: a while left alone, still up and unspent
-	for i in 30:
-		Hints.poll(0.2)
-		await _tree.process_frame
-	# (unspent, but the ones spent as they show: the cutaway's, Jon, Oct 20)
-	_ok("%s: left alone, it stays up and unspent" % lid, Ash.lesson == lid and Ash.lesson_up()
-		and (not Hints.seen(id) or Hints.SPENT_ON_SHOW.has(id)))
-	var took := Hints.click(_press())
-	await _tree.process_frame
-	_ok("%s: a click spends it and she goes" % lid, took and Hints.seen(id) and Hints.lesson == &""
-		and Ash.lesson == &"" and not Ash.portrait.speaking() and Ash.outline_rect() == Rect2())
+	# NO CLICK SENDS IT AWAY (Jon, Oct 22): real clicks on her box, as Kevin's
+	var c0 := _clicks
+	Hints.poll(0.0)
+	var heard := Hints._said
+	await _click_her()
+	if Hints.INFO.has(id):
+		# AN INFORMATION LINE: up through the clicks, then gone by itself after
+		# its reading time from her last word, spent
+		var t0 := GameClock.now()
+		var held_from := -1.0
+		var f := 0
+		while Ash.lesson == lid and Ash.lesson_up() and GameClock.now() - t0 < 25.0:
+			Hints.poll(1.0 / 60.0)
+			await _tree.process_frame
+			if held_from < 0.0 and p.phase == AshPortrait.Phase.HOLDING:
+				held_from = GameClock.now()
+			f += 1
+			if f % 40 == 0 and Ash.lesson_up():
+				await _click_her()
+		Hints.poll(1.0 / 60.0)
+		var held := GameClock.now() - held_from
+		var need := AshPortrait.HOLD_MIN_S + AshPortrait.HOLD_PER_CHAR_S * float(p.line.length())
+		_ok("%s: an information line: clicked %d times, it stayed, then went by itself %.2f s after it was out (reading time %.2f), spent" % [
+			lid, _clicks - c0, held, need], held_from > 0.0 and held >= need - 0.05 and Hints.seen(id)
+			and Hints.lesson == &"" and Ash.lesson != lid)
+	else:
+		# AN ACTION'S LINE: clicked and left alone, a while, up and unspent.
+		# (`reopen`: in the cutaway a click on her box lands on its sky, which
+		# shuts it, Jon's ruling: the click's own job. She goes with it, unspent,
+		# and is said again the next time it opens.)
+		var shut := false
+		if reopen.is_valid():
+			Hints.poll(0.3)
+			shut = Hints.lesson != id
+		if shut and heard:
+			# SAID WHOLE ALREADY: leaving it spends it (said once, Jon's Oct 20 ruling)
+			_ok("%s: a click on her box shut its screen (the click's own job) after she had said it whole: spent, said once" % lid,
+				Hints.seen(id))
+			Hints.poll(Hints.GAP_S + 0.1)
+			return
+		if shut:
+			_ok("%s: a click on her box shut its screen (the click's own job) while she was saying it: she went with it, unspent" % lid,
+				not Hints.seen(id))
+			# (so it is armed once more: it comes back unspent)
+			_armed[id] = int(_armed.get(id, 0)) + 1
+			reopen.call()
+			await _frames(30)
+			_ok("%s: opened again, she says it again" % lid, await _until_said(lid))
+		for i in 30:
+			Hints.poll(0.2)
+			await _tree.process_frame
+			if i % 10 == 9 and not shut:
+				await _click_her()
+		_ok("%s: clicked %d times and left alone, it stays up and unspent" % [lid, _clicks - c0],
+			Ash.lesson == lid and Ash.lesson_up() and Hints.lesson == id and not Hints.seen(id))
+		# THE PLAYER DOES IT: spent, and she goes
+		var did := HintActs.act(id)
+		for i in 6:
+			Hints.poll(1.0 / 60.0)
+			await _tree.process_frame
+		_ok("%s: done (%s): spent, and she goes" % [lid, did if did != "" else "NOTHING TO DO IT WITH"],
+			did != "" and Hints.seen(id) and Hints.lesson != id and Ash.lesson != lid
+			and (Ash.outline_rect() == Rect2() or Ash.lesson != &""))
+	# (what its action opened on LOCAL -- a wreck's window, the pile's, your
+	# ship -- put away again, as a player does, before the next line can come)
+	if id in [&"wreck", &"loot"] or (id == &"ship" and Router.current is SectorScreen):
+		var sc := Router.current as SectorScreen
+		if sc._cutaway != null and is_instance_valid(sc._cutaway):
+			sc._cutaway.close_now()
+		if sc._transfer != null:
+			sc._close_transfer()
+		await _frames(10)
+	if after.is_valid():
+		after.call()
+		await _frames(2)
 	Hints.poll(Hints.GAP_S + 0.1)
+
+
+## REAL CLICKS, as a hand makes them: through the viewport (`push_input`, so the
+## game's every input handler sees them) on her box's middle, where a player
+## clicks to send her away, and at two seeded points in it. Her spot is clear of
+## everything pressable, so they land on the picture under her.
+func _click_her() -> void:
+	var p := Ash.portrait
+	if p == null or not is_instance_valid(p) or not p.visible:
+		return
+	var r := p.rect()
+	var pts: Array[Vector2] = [r.get_center()]
+	for i in 2:
+		pts.append(r.position + Vector2(_rng.randf() * r.size.x, _rng.randf() * r.size.y))
+	for at in pts:
+		_push_click(at)
+		await _tree.process_frame
+
+
+func _push_click(at: Vector2) -> void:
+	var mm := InputEventMouseMotion.new()
+	mm.position = at
+	mm.global_position = at
+	get_viewport().push_input(mm, true)
+	for down: bool in [true, false]:
+		var ev := InputEventMouseButton.new()
+		ev.button_index = MOUSE_BUTTON_LEFT
+		ev.pressed = down
+		ev.position = at
+		ev.global_position = at
+		get_viewport().push_input(ev, true)
+	_clicks += 1
+
+
+## The player does what hint `id` teaches (`HintActs`), a few frames pass, and
+## what it opened (your ship, a window) is put away again. What it did.
+func _do(id: StringName) -> String:
+	var did := HintActs.act(id)
+	for i in 6:
+		Hints.poll(1.0 / 60.0)
+		await _tree.process_frame
+	var sc := Router.current as SectorScreen
+	if sc != null:
+		if sc._cutaway != null and is_instance_valid(sc._cutaway):
+			sc._cutaway.close_now()
+		if sc._transfer != null:
+			sc._close_transfer()
+	var st := Router.current as StationScreen
+	if st != null and st._cutaway != null and is_instance_valid(st._cutaway):
+		st._cutaway.close_now()
+	await _frames(10)
+	return did
+
+
+## The station's deck `tab` opened by its button, if it is not the one open.
+func _tab_to(tab: StringName) -> void:
+	var st := Router.current as StationScreen
+	if st != null and st._tab != tab:
+		(st._tabs[tab] as Button).pressed.emit()
+
+
+## Set hint `id` unseen again on purpose (the first run's count expects it once more).
+func _rearm(id: StringName) -> void:
+	Hints.mark_seen(id, false)
+	_armed[id] = int(_armed.get(id, 0)) + 1
 
 
 ## A goal step's line: said once as it starts, no outline of her own, and gone
@@ -228,6 +382,8 @@ func _expect_step(lid: StringName) -> void:
 	# on any frame she says it
 	var gl: GoalLine = Router.hud.goal
 	var shown := 0
+	var c0 := _clicks
+	var f := 0
 	while p.speaking() and GameClock.now() - t0 < 15.0:
 		Hints.poll(1.0 / 60.0)
 		await _tree.process_frame
@@ -235,10 +391,14 @@ func _expect_step(lid: StringName) -> void:
 			held_from = GameClock.now()
 		if p.speaking() and gl.step_rect() != Rect2():
 			shown += 1
+		# clicked as it is said: it used to go on any click
+		f += 1
+		if f % 45 == 1 and p.speaking():
+			await _click_her()
 	var held := GameClock.now() - held_from
 	var need := AshPortrait.HOLD_MIN_S + AshPortrait.HOLD_PER_CHAR_S * float(p.line.length())
-	_ok("%s: typed, held %.2f s to read (wants %.2f), then went on its own" % [lid, held, need],
-		held_from > 0.0 and held >= need - 0.05 and not p.speaking())
+	_ok("%s: typed, clicked %d times, held %.2f s to read (wants %.2f), then went on its own" % [lid, _clicks - c0, held, need],
+		held_from > 0.0 and held >= need - 0.05 and not p.speaking() and p._natural and _clicks > c0)
 	_ok("%s: said for good" % lid, Hints.said(lid))
 	_ok("%s: the goal line's step hidden on every frame she says it (%d frames shown)" % [lid, shown], shown == 0)
 	Hints.poll(0.1)
@@ -570,11 +730,24 @@ func _lines() -> void:
 	for k: StringName in DECKS:
 		var words := String(AshTutorLines.LINES.get(k, ""))
 		var card := Hints.lines(k)
-		if words != String(DECK_A[k]) or card.size() != 2 or not Hints.ORDER.has(k) or not Hints.SPENT_ON_SHOW.has(k) \
+		if words != String(DECK_A[k]) or card.size() != 2 or not Hints.ORDER.has(k) or not Hints.SPENT_ONCE_HEARD.has(k) \
 				or AshTutorLines.SPOKEN.has(k):
 			deck_bad.append(String(k))
-	_ok("the decks' lines are Jon's picks (B, B, B, A, A), each a hint with a two-line card, spent as it shows (%s)" % [
+	_ok("the decks' lines are Jon's picks (B, B, B, A, A), each a hint with a two-line card, said once (%s)" % [
 		"all %d" % DECKS.size() if deck_bad.is_empty() else "NOT " + ", ".join(deck_bad)], deck_bad.is_empty())
+	# EVERY HINT ENDS ON ITS OWN ACTION, or is an information line that goes after
+	# its reading time: one or the other, never neither, never both
+	var no_end: Array[String] = []
+	for k in Hints.ORDER:
+		if Hints.INFO.has(k) == Hints.DONE.has(k):
+			no_end.append(String(k))
+	_ok("every hint has its completion action or is an information line (%d actions, %d information%s)" % [
+		Hints.DONE.size(), Hints.INFO.size(), "" if no_end.is_empty() else "; NOT " + ", ".join(no_end)],
+		no_end.is_empty() and Hints.DONE.size() + Hints.INFO.size() == Hints.ORDER.size())
+	_ok("the soft lock (option b) is built and off by default", not Hints.SOFT_LOCK and not Hints.soft_lock)
+	print("    (each hint's action:)")
+	for k in Hints.ORDER:
+		print("      %-13s %s" % [k, Hints.DONE.get(k, "information: its reading time after her voice, then by itself")])
 	_ok("the decks' hints come after the dock's", DECKS.all(func(k: StringName) -> bool:
 		return Hints.ORDER.find(k) > Hints.ORDER.find(&"dock")))
 	var silent := 0
@@ -622,10 +795,17 @@ func _used_state() -> void:
 # ------------------------------------------------------------------ the flow
 
 func _flow() -> void:
-	print("each moment, in her corner")
+	print("each moment, in her corner: a first run through the real screens, clicked on throughout")
 	var n := Run.node_at()
 	Run.jumps = 0
 	Ash._last_end = Ash.now
+	# THE FIRST RUN'S COUNT: each hint once from here (the ones already seen in
+	# the used state, none), plus each time the flow arms one again on purpose
+	var flow_from := Hints.shown_log.size()
+	var clicks_from := _clicks
+	_armed.clear()
+	for id in Hints.ORDER:
+		_armed[id] = 0 if Hints.seen(id) else 1
 	# THE FIRST LOCAL: the goal's first step, and not the ship's hint yet
 	var sc := await _local()
 	await _expect_step(&"step_jump")
@@ -646,7 +826,7 @@ func _flow() -> void:
 	await _frames(40)
 	await _expect_step(&"step_event_map")
 	await _never(&"events", "the map's events were seen before: not said")
-	Hints.mark_seen(&"events", false)
+	_rearm(&"events")
 	await _expect(&"events")
 
 	# LOCAL AT AN EVENT'S OWN PLACE, WITH A WRECK THAT HOLDS SOMETHING AND A PILE.
@@ -680,13 +860,22 @@ func _flow() -> void:
 	_ok("LOCAL at the event's own place opens it, as GO does (%s, event %d)" % [sc._events.page if sc != null else &"", sc._events.opt if sc != null else -1],
 		sc != null and sc._events.page == &"event" and lay.place_of(sc._events.opt) == lay.place_of(oi))
 	await _expect(&"drawer")
+	_ok("drawer: the choice taken, the band on its result (%s)" % sc._events.page, sc._events.page == &"result")
 	await _never(&"wreck", "not the wreck's line over the event's band")
 	_ok("the step is done by the event opening, not said over it", Hints.seen(&"step_event"))
 	sc._events.not_now()
 	await _frames(20)
+	# (each of these opens what it is about: put away again, as a player does)
 	await _expect(&"wreck")
+	sc._close_transfer()
+	await _frames(10)
 	await _expect(&"loot")
+	sc._close_transfer()
+	await _frames(10)
 	await _expect(&"ship")
+	if sc._cutaway != null:
+		sc._cutaway.close_now()
+	await _frames(10)
 	# THE STEP ITSELF, where it is still a thing to do: LOCAL at the edge, the
 	# event still open at its world
 	Hints.mark_seen(&"step_event", false)
@@ -701,8 +890,9 @@ func _flow() -> void:
 		await _frames(30)
 		print("    (cutaway: open %s, its rect %s, panel %s %s, pic %s, view %s)" % [cut.is_open(), cut.get_global_rect(),
 			cut._panel.get_global_rect(), cut._panel.is_visible_in_tree(), cut.get_global_transform() * cut._pic, Ash.tut_view_rect(sc)])
-		await _expect(&"cutaway")
-		cut.close_now()
+		await _expect(&"cutaway", &"", "", func() -> void: sc.open_cutaway())
+		if sc._cutaway != null and is_instance_valid(sc._cutaway):
+			sc._cutaway.close_now()
 		await _frames(10)
 	# OVER THE EVENT BAND
 	var pe := _plant_event(n)
@@ -733,15 +923,16 @@ func _flow() -> void:
 		for e in cb.enemies:
 			(e as Combat.EnemyState).max_hp = 999
 			(e as Combat.EnemyState).hp = 999
+		# (the hand's action is a card played: its line plays one)
 		await _expect(&"hand")
-		await _play_one(cb)
+		await _frames(6)
 		await _expect(&"intent")
 		while await _play_one(cb):
 			pass
-		await _expect(&"endturn", &"endturn", JON[&"endturn"].replace("{hand}", str(Run.hand_size())))
 		cb.brace = 60
 		fs._refresh_player()
-		fs._on_end_turn()
+		# (END TURN's action is END TURN: its line presses it)
+		await _expect(&"endturn", &"endturn", JON[&"endturn"].replace("{hand}", str(Run.hand_size())))
 		_ok("the next turn comes up", await _settle_turn(fs))
 		await _expect(&"brace")
 		await _expect(&"heat", &"heat", JON[&"heat"].replace("{cap}", str(Run.heat_cap())))
@@ -766,20 +957,25 @@ func _flow() -> void:
 	Router.park_at_station()
 	Router.show_station()
 	await _frames(90)
-	await _expect(&"dock")
+	# (what the decks need to be used: credits, a part to sell, the lab's stuff)
+	HintActs.stock_up()
+	# (a deck picked is the dock's action; then on to the yard, its first deck)
+	await _expect(&"dock", &"", "", Callable(), func() -> void: _tab_to(&"services"))
 	var st := Router.current as StationScreen
 	_ok("the yard's drones flown in", await _visit(st, &"shipyard"))
 	await _expect(&"shipyard")
-	Hints.mark_seen(&"ship", false)
+	_rearm(&"ship")
+	_rearm(&"cutaway")
+	# (the ship's action opens it up: the cutaway's line is said there)
 	await _expect(&"ship")
-	Hints.mark_seen(&"cutaway", false)
-	if st != null and st.open_cutaway() != null:
+	if st != null and st._cutaway != null:
 		await _frames(30)
 		var sct := st._cutaway
 		print("    (station cutaway: its rect %s xform %s, panel %s, pic %s, view %s)" % [sct.get_global_rect(), sct.get_global_transform(),
 			sct._panel.get_global_rect(), sct.get_global_transform() * sct._pic, Ash.tut_view_rect(st)])
-		await _expect(&"cutaway")
-		st._cutaway.close_now()
+		await _expect(&"cutaway", &"", "", func() -> void: st.open_cutaway())
+		if st._cutaway != null and is_instance_valid(st._cutaway):
+			st._cutaway.close_now()
 		await _frames(10)
 	if st != null:
 		for id: StringName in DECKS.slice(1):
@@ -817,7 +1013,7 @@ func _flow() -> void:
 	await _fuel_unflyable()
 	# the other two, through the same hint
 	for want: StringName in [&"fuel_none", &"fuel_here"]:
-		Hints.mark_seen(&"fuel", false)
+		_rearm(&"fuel")
 		Hints._dock_key = Vector2i(-2, -2)
 		if want == &"fuel_none":
 			Run.fuel = 1
@@ -836,6 +1032,27 @@ func _flow() -> void:
 		await _expect(&"fuel", want)
 	Run.fuel = was
 	_ok("she found room on every screen: no hint came as a card (%s)" % str(Hints.fallback_log), Hints.fallback_log.is_empty())
+	# EVERY HINT TAUGHT EXACTLY ONCE EACH TIME IT WAS ARMED, clicked on throughout,
+	# and the run finishes the tutorial: every hint spent
+	var said := {}
+	for id: StringName in Hints.shown_log.slice(flow_from):
+		said[id] = int(said.get(id, 0)) + 1
+	var off: Array[String] = []
+	for id in Hints.ORDER:
+		if int(said.get(id, 0)) != int(_armed.get(id, 0)):
+			off.append("%s %d of %d" % [id, int(said.get(id, 0)), int(_armed.get(id, 0))])
+	_ok("the first run, %d clicks on her: every hint taught exactly once each time it was armed (%s)" % [
+		_clicks - clicks_from, "all %d" % Hints.ORDER.size() if off.is_empty() else ", ".join(off)], off.is_empty() and _clicks - clicks_from > 50)
+	var open: Array[String] = []
+	for id in Hints.ORDER:
+		if not Hints.seen(id):
+			open.append(String(id))
+	_ok("and the run finishes it: every hint spent (%s)" % ("all" if open.is_empty() else "NOT " + ", ".join(open)), open.is_empty())
+	var steps_said: Array[String] = []
+	for id in Hints.STEP_LINES:
+		if not Hints.said(id):
+			steps_said.append(String(id))
+	_ok("and every goal step said (%s)" % ("all" if steps_said.is_empty() else "NOT " + ", ".join(steps_said)), steps_said.is_empty())
 	print("    where she stood:")
 	for k in _screens:
 		print("      %-16s %s" % [k, _screens[k]])
@@ -875,7 +1092,7 @@ func _fuel_unflyable() -> void:
 			break
 	if _ok("fuel, the chart's dock: %s, one jump on the chart, which the ship cannot fly to"
 			% (MapGen.star_name(bad) if bad != null else "none found"), bad != null and not Run.can_jump_to(bad)):
-		Hints.mark_seen(&"fuel", false)
+		_rearm(&"fuel")
 		Hints._dock_key = Vector2i(-2, -2)
 		Router.show_starchart()
 		await _frames(40)
@@ -913,6 +1130,183 @@ func _settle_turn(sc: SectorScreen) -> bool:
 
 # ------------------------------------------------------------------ barks
 
+## NEVER STUCK: no line holds the goal or another hint for good. LOCAL with the
+## pile's line (SECTOR LOOT) and your ship's both due: the loot's, higher, is
+## said, clicked on and left; said whole and up YIELD_S with the ship's waiting,
+## it gives way unspent and rests; the ship's is said; when the loot's rest is
+## over the ship's gives way back and the loot's returns, still unspent. And a
+## line whose action cannot be done does not stand: a hand with nothing
+## playable has no hand line, END TURN's comes instead, and the next turn,
+## playable, the hand's.
+func _never_stuck() -> void:
+	print("never stuck")
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var n := _system()
+	Run.jumps = 1
+	Hints.reset()
+	for id in Hints.ORDER:
+		if id != &"loot" and id != &"ship":
+			Hints.mark_seen(id)
+	for id in Hints.STEP_LINES:
+		Hints.mark_seen(StringName("said_" + String(id)))
+	Run.sector_jetsam(n).items.append(CreditChit.of(25))
+	await _local()
+	var loot_up: bool = await _until_said(&"loot")
+	if not _ok("stuck: the loot's line is up, the ship's waiting behind it", loot_up and not Hints.probe(&"ship").is_empty()):
+		return
+	var t0 := GameClock.now()
+	while not Hints._said and GameClock.now() - t0 < 12.0:
+		Hints.poll(1.0 / 60.0)
+		await _tree.process_frame
+	var said_at := Hints._clock
+	var gave := false
+	for i in 400:
+		Hints.poll(0.1)
+		await _tree.process_frame
+		if i % 50 == 0 and Hints.lesson == &"loot":
+			await _click_her()
+		if Hints.lesson != &"loot":
+			gave = true
+			break
+	_ok("stuck: the loot's, said whole, clicked and left, gives way after %.0f s (YIELD_S %.0f) with the ship's waiting: unspent, resting" % [
+		Hints._clock - said_at, Hints.YIELD_S], gave and Hints._clock - said_at >= Hints.YIELD_S - 0.2
+		and not Hints.seen(&"loot") and Hints.resting(&"loot"))
+	_ok("stuck: the ship's line, waiting, is said", await _until_said(&"ship"))
+	t0 = GameClock.now()
+	while not Hints._said and GameClock.now() - t0 < 12.0:
+		Hints.poll(1.0 / 60.0)
+		await _tree.process_frame
+	var back := false
+	for i in 900:
+		Hints.poll(0.1)
+		await _tree.process_frame
+		if Ash.lesson == &"loot" and Ash.lesson_up():
+			back = true
+			break
+	_ok("stuck: once its rest is over the loot's comes back, both still unspent (nothing held for good)",
+		back and not Hints.seen(&"ship") and not Hints.seen(&"loot"))
+	var did: String = await _do(&"loot")
+	_ok("stuck: then its action spends it (%s)" % did, Hints.seen(&"loot"))
+	Hints.poll(Hints.GAP_S + 0.1)
+	_ok("stuck: and the ship's is said again", await _until_said(&"ship", 60.0))
+	await _do(&"ship")
+	Hints.poll(Hints.GAP_S + 0.1)
+
+	# A HAND WITH NOTHING PLAYABLE: no hand line; END TURN's instead
+	for id in Hints.ORDER:
+		Hints.mark_seen(id, id == &"intent" or not (id in [&"hand", &"endturn"]))
+	Run.heat = 0
+	Router.start_combat(DB.enemies[&"cutter"], [], false, false)
+	await _frames(40)
+	var fs := Router.current as SectorScreen
+	var cb: Combat = Router.combat
+	if not _ok("stuck: a fight is up", fs != null and cb != null and fs.fighting()):
+		return
+	for e in cb.enemies:
+		(e as Combat.EnemyState).max_hp = 999
+		(e as Combat.EnemyState).hp = 999
+	var en := cb.energy
+	# (below every card's cost, a 0 too: nothing in the hand can be played)
+	cb.energy = -1
+	fs._refresh_player()
+	var hand_said := false
+	var end_said := false
+	for i in 40:
+		Hints.poll(0.1)
+		await _tree.process_frame
+		hand_said = hand_said or Ash.lesson == &"hand"
+		if Ash.lesson == &"endturn":
+			end_said = true
+			break
+	_ok("stuck: nothing playable: no hand line (its action cannot be done), END TURN's instead", end_said and not hand_said)
+	await _do(&"endturn")
+	cb.energy = en
+	_ok("stuck: END TURN pressed spends it", Hints.seen(&"endturn"))
+	_ok("stuck: the next turn comes up", await _settle_turn(fs))
+	var unspent := not Hints.seen(&"hand")
+	var hand_up: bool = await _until_said(&"hand")
+	_ok("stuck: playable again: the hand's line, unspent all this while", unspent and hand_up)
+	await _do(&"hand")
+	_ok("stuck: a card played spends it", Hints.seen(&"hand"))
+	Hints.poll(Hints.GAP_S + 0.1)
+	await _local()
+
+
+## THE SOFT LOCK, option (b) of Jon's "soft lock the screen" (Oct 22), built
+## behind `Hints.SOFT_LOCK` and off: off, no gate while she speaks; switched on,
+## while she is SPEAKING a hint's line the gate takes the mouse everywhere but
+## where she points (the GUI's own pick: `gui_get_hovered_control`), and once
+## her words are out it is down.
+func _soft_lock() -> void:
+	print("the soft lock (option b), off, and switched on to try")
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	_system()
+	Hints.reset()
+	for id in Hints.ORDER:
+		Hints.mark_seen(id, id != &"ship")
+	for id in Hints.STEP_LINES:
+		Hints.mark_seen(StringName("said_" + String(id)))
+	Run.jumps = 1
+	await _local()
+	await _until_said(&"ship")
+	Hints.poll(0.01)
+	_ok("soft lock off (the default): no gate while she speaks", Ash.lesson_speaking() and Hints._gate == null)
+	await _do(&"ship")
+	Hints.poll(Hints.GAP_S + 0.1)
+	Hints.mark_seen(&"ship", false)
+	Hints.soft_lock = true
+	var up: bool = await _until_said(&"ship")
+	Hints.poll(0.01)
+	var g: Control = Hints._gate
+	_ok("soft lock on: while she speaks, the gate is over the game", up and Ash.lesson_speaking() and g != null and g.is_inside_tree())
+	if g != null:
+		var hole := Ash.outline_rect()
+		var vs := get_viewport().get_visible_rect().size
+		var outside := Vector2(vs.x * 0.5, vs.y - 12.0)
+		if hole.has_point(outside):
+			outside = Vector2(12.0, vs.y - 12.0)
+		_push_click(outside)
+		await _tree.process_frame
+		Hints.poll(0.01)
+		var taken := int(g.get("taken")) if is_instance_valid(g) else -1
+		_ok("soft lock on: a click away from where she points is taken by the gate (%d), her line still up" % taken,
+			taken == 1 and Hints.lesson == &"ship")
+	var t0 := GameClock.now()
+	while Ash.lesson_speaking() and GameClock.now() - t0 < 12.0:
+		Hints.poll(1.0 / 60.0)
+		await _tree.process_frame
+	Hints.poll(1.0 / 60.0)
+	_ok("soft lock on: once her words are out the gate is down, her line still up", Hints._gate == null and Hints.lesson == &"ship")
+	# and where she points, a click always goes through: on the ship, which opens
+	# it up, its action
+	Hints.mark_seen(&"ship", false)
+	if Hints.lesson == &"ship":
+		Hints.spend()
+		Hints.mark_seen(&"ship", false)
+	Hints.poll(Hints.GAP_S + 0.1)
+	up = await _until_said(&"ship")
+	Hints.poll(0.01)
+	var g2 := Hints._gate
+	var hole2 := Ash.outline_rect()
+	if up and g2 != null:
+		_push_click(hole2.get_center())
+		await _tree.process_frame
+		var taken2 := int(g2.get("taken")) if is_instance_valid(g2) else -1
+		for i in 6:
+			Hints.poll(1.0 / 60.0)
+			await _tree.process_frame
+		var sc := Router.current as SectorScreen
+		_ok("soft lock on: a click where she points goes through the gate (%d taken): the ship opens up, and that spends her line" % taken2,
+			taken2 == 0 and Hints.seen(&"ship") and sc != null and sc._cutaway != null)
+	else:
+		_ok("soft lock on: her line again, the gate up", false)
+	Hints.soft_lock = false
+	await _do(&"ship")
+	Hints.poll(Hints.GAP_S + 0.1)
+
+
 func _bark_and_lesson() -> void:
 	print("a bark never interrupts a teaching line")
 	Rng.forced = 4242
@@ -937,8 +1331,7 @@ func _bark_and_lesson() -> void:
 	var barks := Ash.said_log.slice(n0).filter(func(d: Dictionary) -> bool: return not d.get("tutorial", false))
 	_ok("a big bark and an ordinary one waiting: neither starts over her line (held by %s, %d said)" % [Ash.held_by, barks.size()],
 		barks.is_empty() and Ash.lesson == &"ship" and Ash.lesson_up())
-	Hints.poll(0.3)
-	Hints.click(_press())
+	await _do(&"ship")
 	Hints.poll(Hints.GAP_S + 0.1)
 	await _frames(2)
 	Ash._last_end = -INF
@@ -951,20 +1344,34 @@ func _bark_and_lesson() -> void:
 			break
 	_ok("once it is spent, the bark is said (%s)" % (Ash.said_log.back().kind if said_bark else "none"), said_bark)
 	Run.hp = Run.max_hp()
-	# A TEACHING LINE CUTS A BARK
-	_ok("a bark is up", Ash.portrait.speaking() and not Ash.portrait.kind.begins_with("tut_"))
+	# A TEACHING LINE DUE WAITS FOR A BARK UNDER WAY (Jon, Oct 22: a quip "plays
+	# out and ends on its own"; it used to be cut)
+	var bark: AshPortrait = Ash.portrait
+	var bark_kind := bark.kind
+	_ok("a bark is up", bark.speaking() and not bark.kind.begins_with("tut_"))
 	Hints.mark_seen(&"ship", false)
 	Hints._quiet = 0.0
-	var cut_it := false
-	for i in 40:
-		Hints.poll(0.1)
+	var over := 0
+	var said_after := false
+	var natural := false
+	var ended := false
+	var c0 := _clicks
+	for i in 1200:
+		Hints.poll(1.0 / 60.0)
 		await _tree.process_frame
+		if not ended and (not bark.speaking() or bark.kind != bark_kind):
+			ended = true
+			natural = bark.kind == bark_kind and bark._natural
+		if i % 60 == 0 and bark.speaking() and bark.kind == bark_kind:
+			await _click_her()
 		if Ash.lesson == &"ship" and Ash.lesson_up():
-			cut_it = true
+			said_after = true
 			break
-	_ok("a teaching line due cuts the bark and is said", cut_it and Ash.portrait.kind == &"tut_ship")
-	Hints.poll(0.3)
-	Hints.click(_press())
+		if bark.speaking() and bark.kind == bark_kind and Ash.lesson != &"":
+			over += 1
+	_ok("a teaching line due waits for the bark (clicked %d times) to end of itself, then is said (%s, %d frames over it)" % [
+		_clicks - c0, "said" if said_after else "never said", over], said_after and over == 0 and natural)
+	await _do(&"ship")
 	Hints.poll(Hints.GAP_S + 0.1)
 	Ash.waiting.clear()
 
@@ -986,8 +1393,7 @@ func _voice() -> void:
 	_ok("no take: nothing taped, the words typed at once at her text pace", up and p.voice == ""
 		and Audio.tape.filter(func(r: Array) -> bool: return String(r[0]).begins_with("ash/tut")).is_empty()
 		and p.typed_at >= 0.0)
-	Hints.poll(0.3)
-	Hints.click(_press())
+	Hints.spend()
 	Hints.poll(Hints.GAP_S + 0.1)
 	# A TAKE (a stand-in: one of her recorded lines)
 	AshTutorLines.stand_in = {"tut_ship": "res://assets/audio/voice/ash/haul_04.ogg"}
@@ -997,8 +1403,15 @@ func _voice() -> void:
 	await _until_said(&"ship")
 	p = Ash.portrait
 	var t0 := GameClock.now()
+	var clicked_through := true
+	var c0 := _clicks
 	while p.phase != AshPortrait.Phase.HOLDING and GameClock.now() - t0 < 10.0:
 		await _tree.process_frame
+		# A CLICK DOES NOT STOP HER VOICE (it used to: it spent the line)
+		if p.phase == AshPortrait.Phase.TYPING and _clicks == c0:
+			await _click_her()
+			clicked_through = Audio.voice_now != "" and p.speaking() and Ash.lesson == &"ship"
+	_ok("a click while she speaks: her voice and her words go on (%d clicks)" % (_clicks - c0), _clicks > c0 and clicked_through)
 	var said := p.voice_secs - AshPortrait.VOICE_TAIL_S
 	var off := absf(p.typed_for - said) / maxf(said, 0.001)
 	_ok("a take: played once (%s), the words typed as long as she speaks (%.2f s against %.2f, %.0f%%)" % [
@@ -1006,8 +1419,8 @@ func _voice() -> void:
 		p.voice.ends_with("haul_04.ogg") and off <= 0.10)
 	Audio.tape.clear()
 	Hints.poll(0.3)
-	Hints.click(_press())
-	_ok("a click stops her voice", Audio.voice_now == "")
+	Hints.spend()
+	_ok("the line let go (its action done) stops her voice", Audio.voice_now == "")
 	# THE SHOWN WORDS, NUMBERS AND NAMES IN THEM, END WHEN SHE STOPS, whether her
 	# take (from the SPOKEN script) is shorter or longer than they are: a short
 	# take under the long dock line, a long one under the END TURN line
@@ -1057,9 +1470,15 @@ func _switch() -> void:
 			labels.append((l as Label).text)
 		_ok("the card's words are today's (%s)" % " / ".join(labels), str(labels) == str(Hints.lines(&"ship")))
 		_ok("no outline of hers on it", Ash.outline_rect() == Rect2())
+		# (the cards too: no click sends one away, its action does)
 		Hints.poll(0.3)
-		Hints.click(_press())
-		_ok("and its click spends it, as before", Hints.seen(&"ship") and Hints.card == null)
+		for i in 3:
+			_push_click(Hints.card.card_rect().get_center())
+			await _tree.process_frame
+		Hints.poll(0.3)
+		_ok("clicked: the card stays, unspent", Hints.card != null and Hints.card.id == &"ship" and not Hints.seen(&"ship"))
+		var did: String = await _do(&"ship")
+		_ok("and its action spends it (%s)" % did, Hints.seen(&"ship") and Hints.card == null)
 	Hints.poll(Hints.GAP_S + 0.1)
 	# off from the start: every hint a card, nothing of hers
 	Hints.mark_seen(&"wreck", false)
@@ -1076,7 +1495,7 @@ func _switch() -> void:
 		await _tree.process_frame
 		if Hints.card != null and Hints._up_t > 0.3:
 			cards.append(String(Hints.card.id))
-			Hints.click(_press())
+			await _do(Hints.card.id)
 			Hints.poll(Hints.GAP_S + 0.1)
 	_ok("off: the hints are cards (%s) and she says nothing" % ", ".join(cards),
 		cards.size() >= 2 and Ash.said_log.size() == said)
@@ -1087,10 +1506,11 @@ func _switch() -> void:
 
 ## THE CUTAWAY'S LINE ONCE (Jon, Oct 20: "when I enter the ship editor, A.S.H.
 ## keeps saying the tutorial line every time I enter. It should only be the
-## first time"): your ship opened up three times, shut each time without a
-## click on her line, and she says it the first time only; it is kept seen in
-## the hints file; REPLAY TUTORIAL brings it back once more; with the tutorial
-## off it does not come at all.
+## first time"): your ship opened up and shut while she is still saying it, so
+## it comes again; then opened three times, shut each time with no module moved
+## once she has said it whole, and she says it the first of those only; it is
+## kept seen in the hints file; REPLAY TUTORIAL brings it back once more; with
+## the tutorial off it does not come at all.
 func _cutaway_once() -> void:
 	print("the cutaway's line, once")
 	var sc := await _local()
@@ -1112,22 +1532,39 @@ func _cutaway_once() -> void:
 	var shown_line := ""
 	var shown_spoken := ""
 	var shown_voice := ""
+	# SHUT WHILE SHE IS STILL SAYING IT: unspent, it comes again
+	var c1 := sc.open_cutaway()
+	await _frames(30)
+	var mid: bool = await _until_said(&"cutaway")
+	if c1 != null:
+		c1.close_now()
+	await _frames(10)
+	Hints.poll(Hints.GAP_S + 0.1)
+	_ok("shut while she is still saying it: unspent (said %s)" % mid, mid and not Hints.seen(&"cutaway"))
+	before = said.call()
 	for i in 3:
 		var cut := sc.open_cutaway()
 		if not _ok("open %d: the cutaway opens" % (i + 1), cut != null):
 			break
 		await _frames(30)
-		for f in 60:
-			Hints.poll(0.1)
+		# held as long as it takes her to say it whole (her take is 6.7 s), and
+		# a little more; no module moved
+		for f in (600 if i == 0 else 120):
+			Hints.poll(1.0 / 60.0)
 			await _tree.process_frame
 			if Ash.lesson == &"cutaway" and shown_line == "":
 				shown_line = Ash.portrait.line
 				shown_spoken = Ash.portrait.spoken
 				shown_voice = Ash.portrait.voice
+			if Hints._said and Hints.lesson == &"cutaway" and f % 60 == 0:
+				break
+		_ok("open %d: no module moved, her line %s" % [i + 1, "up, unspent" if i == 0 else "not said"],
+			(i == 0 and Hints.lesson == &"cutaway" and not Hints.seen(&"cutaway")) or (i > 0 and Hints.lesson == &""))
 		cut.close_now()
 		await _frames(10)
 		Hints.poll(Hints.GAP_S + 0.1)
-	_ok("opened and shut three times: she says it once (%d)" % (said.call() - before), said.call() - before == 1)
+	_ok("said whole, then shut: spent; opened and shut three times, she says it once (%d)" % (said.call() - before),
+		said.call() - before == 1 and Hints.seen(&"cutaway"))
 	_ok("TURN PART on T and FLIP PART on G: her box shows them (\"%s\")" % shown_line.c_escape(),
 		shown_line == AshTutorLines.CUTAWAY_LINE + "\nT turns a part. G flips it.")
 	_ok("and she says only the take's words, in the cutaway's take (\"%s\", %s)" % [shown_spoken, shown_voice],
@@ -1145,14 +1582,18 @@ func _cutaway_once() -> void:
 	for i in 2:
 		var cut := sc.open_cutaway()
 		await _frames(30)
-		for f in 60:
+		for f in 120:
 			Hints.poll(0.1)
 			await _tree.process_frame
+			# (this time a module is moved: its action spends it)
+			if Hints.lesson == &"cutaway" and Hints._up_t > 1.0:
+				HintActs.act(&"cutaway")
 		if cut != null:
 			cut.close_now()
 		await _frames(10)
 		Hints.poll(Hints.GAP_S + 0.1)
-	_ok("REPLAY TUTORIAL: once more, and once only (%d)" % (said.call() - before), said.call() - before == 1)
+	_ok("REPLAY TUTORIAL: once more, a module moved spends it, and once only (%d)" % (said.call() - before),
+		said.call() - before == 1 and Hints.seen(&"cutaway"))
 	Hints.mark_seen(&"cutaway", false)
 	Hints.set_tutorial(false)
 	before = said.call()
@@ -1203,11 +1644,13 @@ func _visit(st: StationScreen, id: StringName) -> bool:
 
 ## THE DECKS' LINES (Jon, Oct 20: "There is no tutorial tip for the promenade,
 ## exchange, shipyard, laboratory, or hiring board"), through the real station
-## and its deck buttons: each said the first time its deck is open and SPENT AS
-## IT SHOWS, so leaving the deck by another deck's button, no click on her line,
-## takes her off and it never comes back; queued behind the dock's line (another
-## deck opened under it waits); TUTORIAL OFF: none, and REPLAY TUTORIAL brings
-## each back; her switch off: today's card; in a party: nothing.
+## and its deck buttons: each said the first time its deck is open, clicked on
+## and still up, unspent, until the deck is used (`HintActs`: a drone's job, the
+## till, the counter, SIGN, the fabricator), or until she has said it whole and
+## the deck is left by another deck's button (then spent: said once, Jon's Oct
+## 20 ruling); left while she is still saying it, it comes back. Picking a deck
+## is the dock's own action. TUTORIAL OFF: none, and REPLAY TUTORIAL brings each
+## back; her switch off: today's card; in a party: nothing.
 func _decks() -> void:
 	print("the decks, each the first time it is open")
 	Hints.reset()
@@ -1225,6 +1668,7 @@ func _decks() -> void:
 	Router.park_at_station()
 	Router.show_station()
 	await _frames(60)
+	HintActs.stock_up()
 	var st := Router.current as StationScreen
 	if not _ok("decks: a station with all five up (%s)" % (MapGen.star_name(full) if full != null else "none"), full != null and st != null):
 		return
@@ -1237,7 +1681,8 @@ func _decks() -> void:
 	var before := {}
 	for id in DECKS:
 		before[id] = said.call(id)
-	# each, then left by the next deck's button with no click on her line
+	# each: clicked, still up and unspent; then every other one used, and the
+	# rest said whole and left by the next deck's button
 	for i in DECKS.size():
 		var id: StringName = DECKS[i]
 		if not _ok("%s: its deck open, its main thing up" % id, await _visit(st, id)):
@@ -1245,14 +1690,32 @@ func _decks() -> void:
 		var up: bool = await _until_said(id)
 		if not _ok("%s: she says it on the first visit (got %s)" % [id, Ash.lesson], up):
 			continue
-		_ok("%s: spent as it shows, before any click" % id, Hints.seen(id))
-		var next: StringName = DECKS[(i + 1) % DECKS.size()]
-		(st._tabs[Hints.DECK_HINTS[next]] as Button).pressed.emit()
-		for f in 6:
+		var c0 := _clicks
+		await _click_her()
+		for f in 10:
 			Hints.poll(0.1)
 			await _tree.process_frame
-		_ok("%s: left by another deck's button, no click: she goes, and it stays spent" % id,
-			Ash.lesson != id and Hints.lesson != id and Hints.seen(id) and Hints.card == null)
+		_ok("%s: clicked %d times: up and unspent" % [id, _clicks - c0], Hints.lesson == id and Ash.lesson == id and not Hints.seen(id))
+		if i % 2 == 0:
+			var did := HintActs.act(id)
+			for f in 6:
+				Hints.poll(1.0 / 60.0)
+				await _tree.process_frame
+			_ok("%s: the deck used (%s): spent with the deck still open, and she goes" % [id, did if did != "" else "NOTHING TO USE IT WITH"],
+				did != "" and Hints.seen(id) and Hints.lesson != id and Ash.lesson != id)
+		else:
+			var t0 := GameClock.now()
+			while not Hints._said and Hints.lesson == id and GameClock.now() - t0 < 14.0:
+				Hints.poll(1.0 / 60.0)
+				await _tree.process_frame
+			var whole := Hints._said and Hints.lesson == id and not Hints.seen(id)
+			var next: StringName = DECKS[(i + 1) % DECKS.size()]
+			(st._tabs[Hints.DECK_HINTS[next]] as Button).pressed.emit()
+			for f in 6:
+				Hints.poll(0.1)
+				await _tree.process_frame
+			_ok("%s: said whole and still unspent, then left by another deck's button: she goes, and it is spent (said once)" % id,
+				whole and Ash.lesson != id and Hints.lesson != id and Hints.seen(id) and Hints.card == null)
 		Hints.poll(Hints.GAP_S + 0.1)
 	# every deck again: none of them a second time
 	for id in DECKS:
@@ -1260,31 +1723,42 @@ func _decks() -> void:
 		await _never(id, "%s again: not said a second time" % id)
 	var counts: Array = DECKS.map(func(id: StringName) -> int: return said.call(id) - int(before[id]))
 	_ok("each deck's line said once over two visits (%s)" % str(counts), counts.all(func(k: int) -> bool: return k == 1))
+	# LEFT WHILE SHE IS STILL SAYING IT: unspent, and it comes back next time
+	Hints.mark_seen(&"promenade", false)
+	await _visit(st, &"promenade")
+	var mid: bool = await _until_said(&"promenade")
+	(st._tabs[Hints.DECK_HINTS[&"exchange"]] as Button).pressed.emit()
+	for f in 6:
+		Hints.poll(0.1)
+		await _tree.process_frame
+	_ok("left while she is still saying it: she goes, unspent", mid and Ash.lesson != &"promenade" and not Hints.seen(&"promenade"))
+	Hints.poll(Hints.GAP_S + 0.1)
+	await _visit(st, &"promenade")
+	_ok("and it comes back on the next visit", await _until_said(&"promenade"))
+	HintActs.act(&"promenade")
+	Hints.poll(0.1)
+	Hints.poll(Hints.GAP_S + 0.1)
 
-	# QUEUED BEHIND ANOTHER LINE: the dock's up, unclicked, and the Promenade
-	# opened under it
+	# THE DOCK'S, UP, AND A DECK PICKED: that is its action, and the deck's own
+	# line follows it
 	Hints.mark_seen(&"dock", false)
 	Hints.mark_seen(&"promenade", false)
 	await _visit(st, &"shipyard")
 	Hints._quiet = 0.0
 	if _ok("queue: the dock's line is up", await _until_said(&"dock")):
 		await _visit(st, &"promenade")
-		var jumped := false
-		for i in 40:
+		for f in 3:
 			Hints.poll(0.1)
 			await _tree.process_frame
-			if Ash.lesson == &"promenade" or Hints.card != null:
-				jumped = true
-		_ok("queue: the Promenade's waits behind the dock's (4 s; never said, no card)", not jumped and not Hints.seen(&"promenade"))
-		Hints.poll(0.3)
-		Hints.click(_press())
+		_ok("queue: a deck picked is the dock's action: spent", Hints.seen(&"dock") and Hints.lesson != &"dock")
 		Hints.poll(Hints.GAP_S + 0.1)
-		_ok("queue: once the dock's is spent, the Promenade's is said", await _until_said(&"promenade"))
-		Hints.poll(0.3)
-		Hints.click(_press())
+		_ok("queue: then the Promenade's is said", await _until_said(&"promenade"))
+		HintActs.act(&"promenade")
+		Hints.poll(0.1)
 		Hints.poll(Hints.GAP_S + 0.1)
 
-	# HER SWITCH OFF: each deck's hint is today's card, with the card's words
+	# HER SWITCH OFF: each deck's hint is today's card, with the card's words; a
+	# card is read as it shows, so leaving the deck spends it
 	Ash.set_on(false)
 	for id in DECKS:
 		Hints.mark_seen(id, false)
@@ -1302,13 +1776,15 @@ func _decks() -> void:
 		if card:
 			for l in Hints.card.find_children("*", "Label", true, false):
 				words.append((l as Label).text)
-		if card and words == Hints.lines(id) and Ash.lesson == &"" and Hints.seen(id):
+		if card and words == Hints.lines(id) and Ash.lesson == &"" and not Hints.seen(id):
 			cards.append(String(id))
-		Hints.poll(0.3)
-		Hints.click(_press())
-		Hints.poll(Hints.GAP_S + 0.1)
-	_ok("her switch off: each deck's hint is today's card, its words, spent as it shows, nothing of hers (%s)" % ", ".join(cards),
-		cards.size() == DECKS.size())
+	await _visit(st, &"shipyard")
+	for f in 6:
+		Hints.poll(0.1)
+		await _tree.process_frame
+	Hints.poll(Hints.GAP_S + 0.1)
+	_ok("her switch off: each deck's hint is today's card, its words, nothing of hers, spent once left (%s)" % ", ".join(cards),
+		cards.size() == DECKS.size() and DECKS.all(func(id: StringName) -> bool: return Hints.seen(id)))
 	Ash.set_on(true)
 
 	# TUTORIAL OFF: nothing on any deck; REPLAY TUTORIAL, then ON: each back, once
@@ -1331,7 +1807,7 @@ func _decks() -> void:
 	for id in DECKS:
 		await _visit(st, id)
 		var back: bool = await _until_said(id)
-		_ok("REPLAY TUTORIAL, then ON: the %s's line is said again" % id, back and Hints.seen(id))
+		_ok("REPLAY TUTORIAL, then ON: the %s's line is said again" % id, back)
 		await _visit(st, DECKS[(DECKS.find(id) + 1) % DECKS.size()])
 		Hints.poll(Hints.GAP_S + 0.1)
 
@@ -1421,7 +1897,7 @@ func _tutorial_switch() -> void:
 	Hints.set_tutorial(true)
 	_ok("tutorial ON: the goal's first step said", await _until_said(&"step_jump", 8.0))
 	Hints.poll(0.3)
-	Hints.click(_press())
+	Hints.spend()
 	Hints.poll(Hints.GAP_S + 0.1)
 	if Ash.portrait != null:
 		Ash.portrait.cut()
@@ -1554,7 +2030,7 @@ func _watch_launch(n0: int, step: StringName) -> Dictionary:
 			out.natural = p != null and p._natural and p.kind == &"launch"
 		if Hints.lesson != &"" and Hints._up_t > 0.5:
 			(out.between as Array).append(String(Hints.lesson))
-			Hints.click(_press())
+			Hints.spend()
 		if Ash.lesson == step and Ash.lesson_up():
 			out.step_at = GameClock.now()
 			break
@@ -1660,7 +2136,7 @@ func _first_launch() -> void:
 				flick += 1
 			was_vis = vis
 			if Hints.lesson != &"" and Hints._up_t > 0.5:
-				Hints.click(_press())
+				Hints.spend()
 			if Ash.said_log.size() >= n0 + 2 and now_kind == &"" and back_a.size() >= 40:
 				break
 		var order: Array[String] = []

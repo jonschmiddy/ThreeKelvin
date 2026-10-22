@@ -23,6 +23,9 @@ func run() -> void:
 	_heat()
 	_standing()
 	_salvage_hush()
+	# LAST, because it starts runs of its own on other seeds. Nothing in it
+	# waits on a signal, so it finishes before `run` returns.
+	await _every_job_lands()
 
 	print("")
 	verdict("contracttest")
@@ -63,13 +66,13 @@ func _fetch() -> void:
 	_ok("and signing it twice is refused", Run.holds_contract(job))
 
 	var before := Run.credits
-	# Somewhere else entirely: the contract must not close for arriving anywhere.
+	# Somewhere else entirely: the contract must not close for a pickup anywhere.
 	Run.reach_contract_target(_other_than(mine.at))
-	_ok("arriving somewhere else does nothing",
+	_ok("a pickup somewhere else does nothing",
 		mine.state == ContractData.State.TAKEN)
 
 	Run.reach_contract_target(mine.at)
-	_ok("arriving at the target recovers it",
+	_ok("the pickup at the target recovers it",
 		mine.state == ContractData.State.READY)
 	# THE HOLD IS NOT TOUCHED. A recovered item is named and not carried — a
 	# contract that can be soft-locked by a full hold, or completed and then
@@ -224,6 +227,342 @@ func _salvage_hush() -> void:
 	Run.find_hull(LootGen.roll_hull(3))
 	_ok("and claiming a hull opens it", not Run.salvage_hushed(-1))
 	Run.found_hull = null
+
+
+## THE WORK IS WHERE THE NOTE SAYS IT IS, flown end to end on many galaxies.
+##
+## Jon, Oct 22: "Quests don't show up in the sectors they say they are." Three
+## things were wrong and the checks above could see none of them, because they
+## called `reach_contract_target(mine.at)` on the index and never read the note:
+##
+## - THE NAME MEANT TWO PLACES. `MapGen.star_name` hashed the index and gave
+##   38% of systems a name another system also had, so a note naming "OMEGA
+##   THORN REACH" sent the reader to whichever one they found;
+## - THE LAYER WAS ONE SHORT. The note printed `layer` from zero; the chart and
+##   the sector count from one;
+## - NOTHING WAS THERE. No contract put anything on the named system's map: a
+##   fetch closed itself on arrival with one log line (a quarter of them at a
+##   station), and a hunt waited for a fight that was gone if you had won it
+##   before you signed.
+##
+## So for every kind, on every seed: sign at a station, read the note, find the
+## one system it names, fly there hop by hop through `Run.jump_to` and the
+## arrival door (`Router.settle_arrival`), see the work on that system's map,
+## do it, fly to a yard and DELIVER. A third of the targets are emptied before
+## signing and a third after (a cleared system refuses every event), and every
+## other hunt is fled and found again on the next arrival.
+const JOB_SEEDS := [11, 23, 47, 101, 233, 512, 777, 1009, 2048, 4099, 31337, 65521]
+const JOBS_PER_KIND := 4
+
+
+func _every_job_lands() -> void:
+	var flown := {ContractData.Kind.FETCH: 0, ContractData.Kind.HUNT: 0, ContractData.Kind.HEAT: 0}
+	var wrong: Dictionary = {}
+	var count := 0
+	for sd in JOB_SEEDS:
+		Rng.forced = sd
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		var names := {}
+		for raw in Run.map:
+			var nm := MapGen.star_name(raw as MapGen.MapNode)
+			if names.has(nm):
+				_note(wrong, "two systems share a name", "seed %d: %s" % [sd, nm])
+			names[nm] = true
+		var links := _links()
+		for kind in [ContractData.Kind.FETCH, ContractData.Kind.HUNT, ContractData.Kind.HEAT]:
+			var got := 0
+			for raw in Run.map:
+				if got >= JOBS_PER_KIND:
+					break
+				var st: MapGen.MapNode = raw
+				for c in Contracts.board(st):
+					var job: ContractData = c
+					if job.kind != kind or Run.holds_contract(job):
+						continue
+					count += 1
+					var why: String = await _fly_job(st, job, links, count)
+					if why != "":
+						_note(wrong, why, "seed %d, %s posted at %s" % [sd,
+							ContractData.Kind.keys()[kind], MapGen.star_name(st)])
+					else:
+						flown[kind] += 1
+					got += 1
+					break
+	print("  flown end to end on %d seeds: %d fetch, %d hunt, %d heat" % [JOB_SEEDS.size(),
+		flown[ContractData.Kind.FETCH], flown[ContractData.Kind.HUNT], flown[ContractData.Kind.HEAT]])
+	for why in wrong:
+		print("    %s (%d), first: %s" % [why, int(wrong[why][0]), String(wrong[why][1])])
+	_ok("every system's name is its own", not wrong.has("two systems share a name"))
+	for kind in flown:
+		_ok("every %s signed was found where its note says, done and delivered (%d of %d)"
+			% [String(ContractData.Kind.keys()[kind]).to_lower(), int(flown[kind]),
+				JOB_SEEDS.size() * JOBS_PER_KIND],
+			int(flown[kind]) == JOB_SEEDS.size() * JOBS_PER_KIND)
+	_ok("and nothing went wrong on the way", wrong.is_empty())
+
+
+## One signed job, flown. "" when it all held, or what did not.
+func _fly_job(st: MapGen.MapNode, offer: ContractData, links: Dictionary, nth: int) -> String:
+	Run.at = st.index
+	st.visited = true
+	if offer.kind == ContractData.Kind.HEAT:
+		return _fly_heat(st, Run.take_contract(offer), links)
+	var target: MapGen.MapNode = Run.map[offer.at]
+	# the third of the work that names a place you had already emptied
+	if nth % 3 == 1:
+		_empty(target)
+	var was := _worlds(target)
+	var mine := Run.take_contract(offer)
+	# POSTING MOVES NOTHING: the worlds you saw before you signed are the
+	# worlds you see after, and the job's place is clear of all of them.
+	if _worlds(target) != was:
+		return "posting the work moved the system's own worlds"
+	var lay := SystemLayout.of(target)
+	var gi := _goal_at(target, Contracts.GOAL[offer.kind])
+	var gb := lay.place_of(gi) if gi >= 0 else -2
+	if gb >= 0:
+		var jb := lay.bodies[gb]
+		for b in lay.bodies:
+			if b == jb or _is_job_body(target, b):
+				continue
+			if b.orbit + SystemLayout.reach_of(b) >= jb.orbit - SystemLayout.reach_of(jb):
+				return "the job's place overlaps a world's orbit"
+		if jb.kind != (&"contact" if offer.kind == ContractData.Kind.HUNT else &"planet"):
+			return "the job's place is the wrong kind of place"
+
+	# THE NOTE: its name is one system's and that system is the target, and the
+	# layer it prints is the one the chart prints.
+	var called := MapGen.star_name(target)
+	var same := 0
+	for raw in Run.map:
+		if MapGen.star_name(raw as MapGen.MapNode) == called:
+			same += 1
+	if same != 1:
+		return "the note's name is %d systems'" % same
+	if mine.text.find(called) < 0:
+		return "the note does not name its target"
+	if mine.status_line().find("layer %d" % (target.layer + 1)) < 0:
+		return "the note's layer is not the chart's"
+	if not Contracts.holds_goal(target):
+		return "the target cannot hold the work"
+	if Run.contract_at(target.index) != mine:
+		return "the chart does not mark the target"
+	if _goal_at(target, Contracts.GOAL[mine.kind]) < 0:
+		return "signing put nothing on the target's map"
+	# and the third whose place is emptied after you sign (the Hellbender ate it)
+	if nth % 3 == 2:
+		_empty(target)
+
+	# THERE, through the arrival door
+	var why := _fly(target.index, links)
+	if why != "":
+		return why
+	if target.cleared:
+		return "the target is still cleared on arrival"
+	var i := _goal_at(target, Contracts.GOAL[mine.kind])
+	if i < 0:
+		return "nothing on the target's map for the job"
+	if SystemLayout.of(target).place_of(i) < 0:
+		return "the job's event has no place on the system map"
+
+	if mine.kind == ContractData.Kind.HUNT:
+		var out: Dictionary = await OptionResolve.take(target, i, 0)
+		if not bool(out.get("ok", false)) or not bool((out.get("res", {}) as Dictionary).get("fight", false)):
+			return "engaging the hunt's target starts no fight"
+		if Router.no_fights_at(target) or Router.option_foe(target, StringName(out.get("foe", &""))) == null:
+			return "the hunt's fight has nobody to fight"
+		# FLED: the event is spent and the job is not, so leaving and coming
+		# back has to post the target again.
+		if nth % 2 == 0:
+			if mine.state != ContractData.State.TAKEN:
+				return "fleeing the hunt closed it"
+			why = _fly(_neighbour(target.index, links), links)
+			if why != "":
+				return why
+			why = _fly(target.index, links)
+			if why != "":
+				return why
+			i = _goal_at(target, Contracts.GOAL[mine.kind])
+			if i < 0:
+				return "a fled hunt's target is not there on the way back"
+			out = await OptionResolve.take(target, i, 0)
+		# what `Combat._victory` calls when the fight is won here
+		Run.clear_contract_target(target.index)
+	else:
+		var _taken: Dictionary = await OptionResolve.take(target, i, 0)
+	if mine.state != ContractData.State.READY:
+		return "doing the job did not ready it"
+	return _deliver(mine, links)
+
+
+## A heat job: it needs heat on the hull at one of their yards, within the cap.
+func _fly_heat(st: MapGen.MapNode, mine: ContractData, links: Dictionary) -> String:
+	if mine.amount > Run.heat_cap():
+		return "the heat asked for is over the hull's cap"
+	var yard := _yard(mine.manufacturer, st.index, links)
+	if yard < 0:
+		return "no yard of theirs can be reached"
+	var why := _fly(yard, links)
+	if why != "":
+		return why
+	Run.heat = mine.amount
+	var n: MapGen.MapNode = Run.map[yard]
+	if not Run.heat_deliverable_at(n).has(mine):
+		return "docking hot at their yard does not offer the job"
+	var before := Run.credits
+	Run.deliver_contract(mine)
+	if mine.state != ContractData.State.CLOSED or Run.credits != before + mine.pay:
+		return "delivering the heat did not pay"
+	return ""
+
+
+## Fly to the nearest of their yards and DELIVER.
+func _deliver(mine: ContractData, links: Dictionary) -> String:
+	var yard := _yard(mine.manufacturer, Run.at, links)
+	if yard < 0:
+		return "no yard of theirs can be reached from the target"
+	var why := _fly(yard, links)
+	if why != "":
+		return why
+	var n: MapGen.MapNode = Run.map[yard]
+	if not Run.deliverable_at(n).has(mine):
+		return "their yard does not offer DELIVER"
+	var before := Run.credits
+	Run.deliver_contract(mine)
+	if mine.state != ContractData.State.CLOSED or Run.credits != before + mine.pay:
+		return "DELIVER did not pay"
+	return ""
+
+
+## Hop by hop along the shortest route, through `Run.jump_to` and the arrival
+## door, with the tank topped up so the trip is never the thing measured.
+func _fly(to: int, links: Dictionary) -> String:
+	if to < 0:
+		return "nowhere to fly"
+	if to == Run.at:
+		return ""
+	var route := _route(Run.at, to, links)
+	if route.is_empty():
+		return "no route to the place"
+	for next in route:
+		var t: MapGen.MapNode = Run.map[next]
+		Run.fuel = Run.fuel_cap()
+		t.sensed = true
+		Run.jump_to(next)
+		if Run.at != next:
+			return "a jump on the way was refused"
+		Router.settle_arrival(t)
+	return ""
+
+
+## Who reaches whom for this ship, once a galaxy: the chart's own rule.
+func _links() -> Dictionary:
+	var out := {}
+	for a in Run.map:
+		var na: MapGen.MapNode = a
+		var to: Array[int] = []
+		for b in Run.map:
+			var nb: MapGen.MapNode = b
+			if nb.type == MapGen.NodeType.CORE:
+				continue
+			if Run.reachable_from(na, nb):
+				to.append(nb.index)
+		out[na.index] = to
+	return out
+
+
+func _route(from: int, to: int, links: Dictionary) -> Array[int]:
+	var out: Array[int] = []
+	if from == to:
+		return out
+	var back := {from: -1}
+	var queue: Array[int] = [from]
+	while not queue.is_empty():
+		var i: int = queue.pop_front()
+		if i == to:
+			break
+		for j in links.get(i, []):
+			if not back.has(j):
+				back[j] = i
+				queue.append(j)
+	if not back.has(to):
+		return out
+	var k := to
+	while k != from:
+		out.push_front(k)
+		k = int(back[k])
+	return out
+
+
+## The nearest of a manufacturer's yards by hops, or -1.
+func _yard(manufacturer: StringName, from: int, links: Dictionary) -> int:
+	if ContractData.berth_of(Run.map[from], manufacturer):
+		return from
+	var best := -1
+	var hops := 1 << 30
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		if not ContractData.berth_of(n, manufacturer):
+			continue
+		var r := _route(from, n.index, links)
+		if not r.is_empty() and r.size() < hops:
+			hops = r.size()
+			best = n.index
+	return best
+
+
+func _neighbour(i: int, links: Dictionary) -> int:
+	for j in links.get(i, []):
+		if (Run.map[j] as MapGen.MapNode).type != MapGen.NodeType.CORE:
+			return int(j)
+	return -1
+
+
+## The untaken event `id` on this system, or -1.
+func _goal_at(n: MapGen.MapNode, id: StringName) -> int:
+	for i in n.options.size():
+		if n.options[i] == id and not n.taken.has(MapGen.OPTION_SITE + i):
+			return i
+	return -1
+
+
+## A system with everything in it spent, as a visit before or the Hellbender
+## after would leave it.
+func _empty(n: MapGen.MapNode) -> void:
+	OptionTable.ensure(n)
+	n.visited = true
+	for i in n.options.size():
+		if not n.taken.has(MapGen.OPTION_SITE + i):
+			n.taken.append(MapGen.OPTION_SITE + i)
+	n.cleared = true
+
+
+## The system's own worlds -- every body but a job's and the Hellbender's -- as
+## kind, world and orbit, to compare before and after a posting.
+func _worlds(n: MapGen.MapNode) -> Array:
+	var out: Array = []
+	for b in SystemLayout.of(n).bodies:
+		if _is_job_body(n, b):
+			continue
+		var hb := false
+		for bc in b.beacons:
+			hb = hb or bc.hellbender
+		if not hb:
+			out.append([b.kind, b.world, snappedf(b.orbit, 0.01)])
+	return out
+
+
+func _is_job_body(n: MapGen.MapNode, b: SystemLayout.Body) -> bool:
+	for bc in b.beacons:
+		if bc.opt >= 0 and bc.opt < n.options.size() and OptionTable.is_job(n.options[bc.opt]):
+			return true
+	return false
+
+
+func _note(wrong: Dictionary, why: String, where: String) -> void:
+	if not wrong.has(why):
+		wrong[why] = [0, where]
+	wrong[why][0] = int(wrong[why][0]) + 1
 
 
 # --- helpers ---------------------------------------------------------------

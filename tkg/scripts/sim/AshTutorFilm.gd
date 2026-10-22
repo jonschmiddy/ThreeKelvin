@@ -69,7 +69,7 @@ func _hear(lid: StringName, limit: float = 12.0) -> void:
 			await _tree.process_frame
 	else:
 		await _wait(AshPortrait.HOLD_MIN_S + AshPortrait.HOLD_PER_CHAR_S * float(p.line.length()))
-		Hints.click(_press())
+		Hints.spend()
 		await _frames(1)
 	m["end"] = _secs()
 	_marks.append(m)

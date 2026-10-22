@@ -15,6 +15,8 @@ extends Node
 ##   `hoverbeacon=K`  points at the K-th beacon on the map
 ##   `hoverchoice=J`  with `open=`, points at choice J on the event page
 ## `take=J` parks the ship at the event's world first, so the clock need not run.
+## `job=fetch|hunt` signs the first such contract and shows its target, with
+## the work on the map.
 ## THE WEATHER (`SkyWeather`), filmed with `wclip=<dir>` (see `_wclip`):
 ##   `sky=<key>`      the first system whose sky is emission, reflection,
 ##                    planetary, remnant, dark, calm, pulsar or core; `shape=0..3`
@@ -126,6 +128,18 @@ func _ready() -> void:
 			get_tree().quit()
 			return
 		print("  systemshot: sky %s: system %d" % [sky_key, n.index])
+	elif "job=fetch" in OS.get_cmdline_user_args() or "job=hunt" in OS.get_cmdline_user_args():
+		# `job=fetch|hunt`: the first such contract on any board, signed, and
+		# its target -- where the work has to be on the map (`Contracts.post_goal`)
+		var want := ContractData.Kind.FETCH if "job=fetch" in OS.get_cmdline_user_args() else ContractData.Kind.HUNT
+		for raw in Run.map:
+			for c in Contracts.board(raw as MapGen.MapNode):
+				if n == null and (c as ContractData).kind == want:
+					var mine := Run.take_contract(c as ContractData)
+					n = Run.map[mine.at]
+					print("  systemshot: job %s at node %d" % [mine.status_line(), n.index])
+			if n != null:
+				break
 	elif "belt" in OS.get_cmdline_user_args():
 		# `belt`: the first system with an asteroid belt (for `hoverbelt`)
 		for raw in Run.map:

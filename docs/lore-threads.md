@@ -1,4 +1,7 @@
 # THREE KELVIN — Threads
+
+> **The archive entries this describes are cut (Oct 22),** with the ARCHIVE screen; see `lore.md` §5. Kept as the record of the motifs and the voice, which still apply to contract asks and to the paperwork events describe. The code hooks it names (`Archive.recover_at` and the rest) no longer exist.
+
 *Companion to `lore.md`, which said what the world is and how it must be told. This says how it deepens: the motifs already humming in the sixteen entries that existed when it was written (there are 41 now), the craft techniques the next shelf of paperwork should be written with, the threads that stay open, the story arcs that close, and a drafted batch of twenty entries that tie all of it together without answering anything. Draft v0.1.*
 
 ---

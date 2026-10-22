@@ -128,11 +128,20 @@ frame on the main screen. It reacts to the ship, not to the script:
   an epic part taken aboard; the third wreck opened since the last dock; and, from jump 6, a
   three-in-ten chance on arrival at least ten jumps after the last doubt.
 - **Limits:** one line at a time; 40 s of quiet after a line (6 s before the hull failing or a
-  new hull); one line a fight unless the hull starts failing in it; never during a card drag
-  or the enemy's turn (END TURN takes her off that frame); nothing over a jump, an arrival, the
-  camera moving, the cutaway, a wreck's window, the event band or the escape menu; a moment
-  that cannot be said in time is dropped. **Nothing after the ship is lost**: up when it goes,
-  she cuts with it. **Hints win**: she waits while a hint is up, settling or due on the screen.
+  new hull); one line a fight unless the hull starts failing in it; never started during a card
+  drag or the enemy's turn (END TURN takes her off that frame); never started over a jump, an
+  arrival, the camera moving, the cutaway, a wreck's window, the event band or the escape menu;
+  a moment that cannot be said in time is dropped. **Nothing after the ship is lost**: up when
+  it goes, she cuts with it. **Hints win**: she waits while a hint is up, settling or due on the
+  screen.
+- **A quip plays out** (Jon, Oct 22, after the first outside playtest: "He also clicked to make
+  her shut up when she was giving her quips"). Once she has started, nothing the player clicks
+  cuts her: not a click on her box, not a card picked up or dragged, not a wreck's window, the
+  pile, SECTOR LOOT or the event band opened (unless what opens covers her box). A hint that
+  comes due while she talks waits for her to finish (`Ash.bark_up`; it used to cut her). What
+  still takes her off: the screen going (a jump, the camera moving, another screen, the escape
+  menu), END TURN and the enemy's turn (their numbers land where she stands), something coming
+  into her box, the ship lost, her switch, a new run. `Ash._must_go`.
 - **She introduces herself every new run** (Jon, Oct 18, intro:A; Oct 20: "On the first LOCAL
   section you load into on a new game, A.S.H. should introduce herself. Short beat. THEN the
   first tutorial hint", every run, not once a profile). A new run's launch line is launch_04,
@@ -230,9 +239,10 @@ fades. Fixed with the rooms: PCM, and looped a frame short.
 - **The duck:** the music steps down 4 dB while she speaks (`Audio.VOICE_DUCK_DB`),
   on the station PA's own duck (asked every frame off her player). Measured in the
   film: down in 0.13 s, back up over 0.43 s once she stops.
-- **Cut short:** wherever her words go before their time (END TURN, a card picked up,
-  a hint settling, something coming into her box, the ship lost, Settings' switch, a
-  new run) her voice stops too, faded over 60 ms (`Audio.ash_voice_stop`).
+- **Cut short:** wherever her words go before their time (END TURN, something coming into
+  her box, the screen going, the ship lost, Settings' switch, a new run) her voice stops too,
+  faded over 60 ms (`Audio.ash_voice_stop`). A card picked up and a hint coming due no longer
+  cut her (Oct 22).
 - **Off** with Settings' switch, and under harnesses that do not ask, like the words.
   Headless and in harnesses nothing plays, but `Audio.tape` records each take
   (`ash/<id>`) and each cut (`ash/stop`); `-- sheet=AshTest` reads it.
@@ -264,7 +274,7 @@ each first-run hint is said in her corner in Jon's words (`tkg/scripts/data/AshT
 and the thing it is about gets a 1 px ice outline, as the goal line outlines a tab. No card.
 
 - **Same hints, new delivery.** `Hints` still decides everything: the same triggers, the
-  same order, the same subjects, settle time, the click that spends one, hiding unspent
+  same order, the same subjects, settle time, what spends one, hiding unspent
   when the subject goes, REPLAY TUTORIAL. Only `_show` changed: it asks `Ash.teach`, and
   only if she has nowhere clear to stand on that screen does the card come instead (so a
   lesson never waits for room).
@@ -282,7 +292,9 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
   with the turn and flip keys under it. **Said once** (Jon: "A.S.H. keeps saying the tutorial line every time I enter. It
   should only be the first time"): a hint is spent by a click, and the cutaway is shut with
   DONE, Escape or a key as often as with a click, so it went unspent and came back at every
-  opening. It is spent as it shows (`Hints.SPENT_ON_SHOW`), kept seen, and REPLAY TUTORIAL
+  opening. It was spent as it showed; since Oct 22 it stays until a module is moved, and
+  leaving the cutaway once she has said it whole spends it too (`Hints.SPENT_ONCE_HEARD`), so
+  it is still said once. Shut while she is still saying it, it comes again. REPLAY TUTORIAL
   brings it back.
 - **The decks' lines** (Jon, Oct 20, playing the alpha: "There is no tutorial tip for the
   promenade, exchange, shipyard, laboratory, or hiring board"): one first-visit hint a deck
@@ -290,8 +302,8 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
   open and still, on the deck's main thing (`StationScreen.deck_subject`): the yard's drones
   once all that came have flown in (a box that takes in their bob, `YardDrones.services_rect`),
   the shelf, the sell counter, the notes on the board once its lamp is lit, the fabricator's
-  screen once its scan has passed. Spent as it shows, like the cutaway's: people leave a deck by
-  clicking another without clicking her line. The yard's ship hint follows the yard's. On the
+  screen once its scan has passed. Each stays until its deck is used; leaving the deck once she
+  has said it whole spends it too, like the cutaway's (people leave a deck by clicking another). The yard's ship hint follows the yard's. On the
   Hiring Board she stands over the town's side (`PostingBoard.town_rect`), never the app bar's
   tabs, the ticker, a popup or any part of a job note, real or drawn (the other listings, the
   FEATURED or WANTED bounty: `PostingBoard.job_rects`; Oct 20, "a job note is a pressable
@@ -299,12 +311,62 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
   scenery she may cover. The words are Jon's picks of two drafts each (Oct 20,
   "promenade:B shipyard:B exchange:B hiring_board:A laboratory:A"); the cards stay as
   drafted. Text alone until a take is recorded.
-- **Held until a click** for a hint (Jon's rule: hints advance with a click); a goal
-  step's line types, holds its reading time on `GameClock` and goes.
+- **Never dismissed by a click** (Jon, Oct 22, after the first outside playtest: "Kevin also
+  clicked away the tutorial and subsequently had no idea what he was doing. Can we soft lock
+  the screen so A.S.H. can't be dismissed?"). It replaces his earlier rule, "let's have them
+  advance with a click". A hint's line stays until the player has done what it teaches
+  (`Hints.DONE`, below); a line that only tells you something (`Hints.INFO`) stays its reading
+  time after her voice ends (her floor of 2.6 s plus 0.035 s a letter, and at least 1 s past her
+  last word) and goes by itself, spent; a goal step's line types, holds its reading time on
+  `GameClock` and goes. A click lands on whatever is under her and does that thing's job. The
+  cards, with her off, follow the same rules (an information card goes after the same reading
+  time from when it shows).
+- **What spends each hint** (`Hints._done`, read off the screens and the run like the subjects):
+
+  | Hint | Spent when |
+  | --- | --- |
+  | chart | a star picked on the chart, or a jump made |
+  | events | an event opened from the map's list (its page), or GO |
+  | drawer | a choice taken in the event band |
+  | hand | a card played |
+  | intent | information: its reading time (or END TURN pressed, which is what it is about) |
+  | endturn | END TURN pressed |
+  | brace | information: its reading time |
+  | heat | information: its reading time |
+  | salvage | a part or a chit taken aboard from the window |
+  | cutaway | a module moved (installed, removed or moved on the ship); or said whole and the cutaway left |
+  | wreck | a wreck opened |
+  | loot | SECTOR LOOT pressed (the pile's window open) |
+  | dock | a deck picked on the left |
+  | shipyard | the yard used: a drone's job paid, or a hull taken; or said whole and the deck left |
+  | promenade | a part bought; or said whole and the deck left |
+  | exchange | a part sold; or said whole and the deck left |
+  | hiring_board | a job signed; or said whole and the deck left |
+  | laboratory | something made at the fabricator; or said whole and the deck left |
+  | fuel | information: its reading time |
+  | ship | your ship opened up |
+  | the goal steps | their reading time (the goal line keeps the step as the reminder) |
+
+- **Never stuck.** A line whose action cannot be done has no subject, so it does not stand: the
+  hand's line wants a card you can play (with none, END TURN's comes instead), the events' an
+  open event in the list, the salvage's a part in the window. Its subject leaving (the screen
+  changed, the window shut) takes her off, unspent, and the line comes again the next time it
+  is possible. A line said whole and up `Hints.YIELD_S` (20 s, the hints' clock) while another
+  is waiting here (an unseen hint with its subject up, or a goal step to say) gives way, unspent,
+  and rests `Hints.REST_S` (45 s) so the waiting one goes first; then it comes back. So no line
+  holds the goal or another hint for good; with nothing waiting, it simply stays.
+- **The soft lock (option b), off.** Jon asked to "soft lock the screen". Built as (a): she
+  cannot be dismissed, and the game is still the player's to click, since they have to click to
+  do the step, and a screen that refuses clicks reads as a bug. Option (b) is built behind
+  `Hints.SOFT_LOCK` (false): while she is SPEAKING a hint's line (coming up and typing, not
+  after), a gate over the picture takes every click but those on the thing she points at
+  (`Hints.ClickGate`, under the escape menu); once her words are out it is gone. Set the
+  constant to try it. `-- sheet=AshTutorTest` holds both.
 - **Exceptions to her bark rules, for teaching only:** she may stand over the cutaway, a
   wreck's window and the event band; no quiet before one; any number a fight. A teaching
-  line outranks a bark (a bark up is cut), and no bark starts while one is up, settling
-  or due, but her introduction, which goes first ("Her first line introduces her", above).
+  line outranks a bark: no bark starts while one is up, settling or due, but her
+  introduction, which goes first ("Her first line introduces her", above). A bark already
+  under way plays out first (Oct 22; it used to be cut).
 - **New screens:** the STARCHART and the SECTOR map (inside the picture's frame) and the
   station (the deck's picture). Her spot is the first of her corners, then the middles,
   clear of everything (`Ash.tut_avoid_rects`) and of anything a click picks in the

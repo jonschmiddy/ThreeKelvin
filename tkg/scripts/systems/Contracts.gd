@@ -10,8 +10,7 @@ extends RefCounted
 ##
 ## NOT CONTESTED, unlike the shelf. Two ships can both take the same contract and
 ## both deliver it. A shelf holds one Legendary and a job holds as many hands as
-## want it; the thing being paid for is the flying, and both of them flew. This
-## is the same reasoning that makes the archive uncontested — see
+## want it; the thing being paid for is the flying, and both of them flew. See
 ## `netcode.md` "One kill, one bag" for the shape it is deliberately NOT.
 ##
 ## Nothing here expires. See ContractData's header for why that is a rule rather
@@ -56,7 +55,7 @@ static func board(n: MapGen.MapNode) -> Array:
 	if manufacturers.is_empty():
 		return out
 	var r := Rng.derive(&"work", n.index)
-	# Both offers are rolled against the same map, so the two candidate pools are
+	# Both offers are rolled against the same map, so the candidate pool is
 	# built once here and handed down rather than rebuilt inside each `_target`.
 	# `board()` is called on every station refresh and the scan is the whole map.
 	var pools: Dictionary = {}
@@ -101,7 +100,7 @@ static func _roll(n: MapGen.MapNode, manufacturer: StringName,
 			c.standing = 1
 			c.text = _voice(manufacturer, c.kind, "", c.amount, r)
 		ContractData.Kind.HUNT:
-			var target := _target(n, r, true, pools)
+			var target := _target(n, r, pools)
 			if target < 0:
 				return null
 			c.at = target
@@ -109,7 +108,7 @@ static func _roll(n: MapGen.MapNode, manufacturer: StringName,
 			c.standing = 1
 			c.text = _voice(manufacturer, c.kind, MapGen.star_name(Run.map[target]), 0, r)
 		_:
-			var target2 := _target(n, r, false, pools)
+			var target2 := _target(n, r, pools)
 			if target2 < 0:
 				return null
 			c.at = target2
@@ -131,32 +130,125 @@ static func _roll(n: MapGen.MapNode, manufacturer: StringName,
 ## coreward is a board that is spending the player's fuel on the manufacturer's behalf,
 ## which is the "somebody else's schedule" §6 was worried about. About a third of
 ## the work sits shallower than the station posting it.
+##
+## ONLY AN ORDINARY SYSTEM, because the work is put there as an event on its
+## map (`post_goal`) and only an ordinary system holds events: a station IS its
+## shelf, a pulsar's one thing is its beam, the start is quiet on purpose and
+## the core is a boss. A fetch used to land on a station a quarter of the time,
+## where there was nothing to see, and a hunt needed a fight already rolled
+## there -- which was gone if you had won it before you signed.
 static func _target(n: MapGen.MapNode, r: RandomNumberGenerator,
-		want_fight: bool, pools: Dictionary) -> int:
+		pools: Dictionary) -> int:
 	if Run.map.is_empty():
 		return -1
-	if pools.has(want_fight):
-		var cached: Array = pools[want_fight]
+	if pools.has(&"to"):
+		var cached: Array = pools[&"to"]
 		if cached.is_empty():
 			return -1
 		return int(cached[r.randi() % cached.size()])
 	var pool: Array = []
 	for other in Run.map:
 		var o: MapGen.MapNode = other
-		if o.index == n.index or o.type == MapGen.NodeType.CORE:
-			continue
-		if o.type == MapGen.NodeType.START:
-			continue
-		if want_fight and not OptionTable.system_has_tag(o, &"fight"):
+		if o.index == n.index or not holds_goal(o):
 			continue
 		var reach := absi(o.layer - n.layer)
 		if reach > 3:
 			continue
 		pool.append(o.index)
-	pools[want_fight] = pool
+	pools[&"to"] = pool
 	if pool.is_empty():
 		return -1
 	return int(pool[r.randi() % pool.size()])
+
+
+## Whether a contract's work can be put on this system's map.
+static func holds_goal(n: MapGen.MapNode) -> bool:
+	return n != null and n.type == MapGen.NodeType.SYSTEM \
+		and not Router.no_fights_at(n)
+
+
+# --- the work, out there -----------------------------------------------------
+
+## The event each kind of work is, on the target's map (`OptionTable`).
+const GOAL := {
+	ContractData.Kind.FETCH: &"job_pickup",
+	ContractData.Kind.HUNT: &"job_target",
+}
+
+
+## PUT THE WORK WHERE THE NOTE SAYS IT IS. A signed fetch or hunt is an event
+## on the named system's map -- a pod in orbit of a world, or a contact past the
+## last orbit -- so the system map, LOCAL and the panel all show it, and doing
+## it is what readies the contract. Before this nothing was ever put there: a
+## fetch closed itself on arrival with one log line, and a hunt waited for any
+## fight you happened to win, so a player who flew to the place found nothing
+## that said the job was there.
+##
+## IDEMPOTENT, and called from both doors: signing (`RunState.take_contract`)
+## and arriving (`Router.settle_arrival`). One untaken event per kind per
+## system serves every open job of that kind there. A hunt whose event was spent
+## without the kill -- you fled the fight -- gets a new one on the next arrival.
+##
+## PER SHIP. The event is written onto this machine's node only, because the
+## contract is this ship's alone (see the header: not contested); the claim
+## that would race a partner for it is skipped (`OptionTable.is_job`).
+static func post_goal(job: ContractData) -> void:
+	if job == null or job.state != ContractData.State.TAKEN or not GOAL.has(job.kind):
+		return
+	if job.at < 0 or job.at >= Run.map.size():
+		return
+	var n: MapGen.MapNode = Run.map[job.at]
+	if not holds_goal(n):
+		return
+	var id: StringName = GOAL[job.kind]
+	OptionTable.ensure(n)
+	for i in n.options.size():
+		if n.options[i] == id and not n.taken.has(MapGen.OPTION_SITE + i):
+			_reopen(n)
+			return
+	# NO `map_changed`: signing happens at a station, whose screen rebuilds the
+	# whole board on that signal (`StationScreen`, `-- sheet=BoardSignTest`), and
+	# the target's map is drawn fresh when it is next opened. The chart's mark
+	# rides on `contracts_changed`, which signing already sends.
+	n.options.append(id)
+	_reopen(n)
+
+
+## Who is paying for the open job of this kind where the ship is, as the
+## short name a yard goes by ("Korvan"), for the event's own words.
+static func payer_here(kind: ContractData.Kind) -> String:
+	for c in Run.contracts:
+		var job: ContractData = c
+		if job.kind == kind and job.state == ContractData.State.TAKEN and job.at == Run.at:
+			return DB.short_name(DB.manufacturer_name(job.manufacturer))
+	return "of their"
+
+
+## Every open job pointing at this system, posted.
+static func post_goals_at(n: MapGen.MapNode) -> void:
+	if n == null:
+		return
+	for c in Run.contracts:
+		var job: ContractData = c
+		if job.at == n.index:
+			post_goal(job)
+
+
+## A SYSTEM ALREADY FINISHED IS OPENED AGAIN FOR THE JOB, and only for it. A
+## cleared node refuses every event (`Router.show_option_at`), so a contract
+## naming a system you had emptied -- or one the Hellbender ate after you
+## signed -- had nowhere to be. What was left unspent there is marked gone, as
+## the clearing meant it to be, and the job's event is the one thing open.
+static func _reopen(n: MapGen.MapNode) -> void:
+	if not n.cleared:
+		return
+	for i in n.options.size():
+		var site := MapGen.OPTION_SITE + i
+		if OptionTable.is_job(n.options[i]) or n.taken.has(site):
+			continue
+		n.taken.append(site)
+		n.results[i] = MapGen.R_GONE
+	n.cleared = false
 
 
 static func _trip_pay(from: MapGen.MapNode, to: MapGen.MapNode) -> int:
@@ -187,8 +279,8 @@ static func _item(manufacturer: StringName, r: RandomNumberGenerator) -> String:
 
 ## The ask, in the manufacturer's own register.
 ##
-## Every one of these is a person at a desk with a job, in the same voice the
-## archive is written in — see `docs/lore.md` §5. Nobody explains anything,
+## Every one of these is a person at a desk with a job, in the primary-source
+## voice of `docs/lore.md` §5. Nobody explains anything,
 ## nobody is grateful, and nobody says what the heat is for.
 static func _voice(manufacturer: StringName, kind: ContractData.Kind, place: String,
 		amount: int, r: RandomNumberGenerator) -> String:

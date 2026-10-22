@@ -7,8 +7,9 @@ extends Control
 ##
 ## IT IS NOT A BUTTON, and it does not look like one. It has no hover, no hand
 ## cursor and no edge that lights, and it ignores the mouse, so a click lands on
-## whatever is under it. Any click anywhere dismisses it (`Hints`), and that click
-## still does its own job. It never covers what it points at: it is placed on
+## whatever is under it. No click dismisses it: it goes when the player has done
+## what it teaches (`Hints.DONE`; Jon, Oct 22). It never covers what it points
+## at: it is placed on
 ## whichever side of its subject is clear of the subject, the things listed to
 ## avoid, and the screen's edge.
 

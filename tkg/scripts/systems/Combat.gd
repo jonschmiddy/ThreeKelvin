@@ -1431,10 +1431,6 @@ func _victory() -> void:
 	var bits: PackedStringArray = [wreck_line(credits, parts, exotic, enemies.size(), empty)]
 	if new_dross > 0:
 		bits.append("%d Dross" % new_dross)
-	# What was aboard the thing you just killed. Not part of the bag and not
-	# claimed: knowledge is the one thing here nobody has to race for, so in a
-	# party every ship in the fight reads the same page. See Archive.
-	Archive.recover_at(node, "cut out of a wreck you made")
 	_finish(&"victory", " · ".join(bits))
 
 ## The victory line: what the wrecks hold, said plainly. The money is in them,
@@ -1472,9 +1468,6 @@ func _pacify() -> void:
 	Run.whale_boon = true
 	if Run.has_set(&"calyx", 3):
 		Run.heal(3)
-	# The quiet route reads. Nothing is taken from the animal — found_at only
-	# says where you were. Fifth door, same hinge; see Archive.recover_at.
-	Archive.recover_at(node, "left alongside")
 	_finish(&"pacified",
 		"It stops circling and drifts off, singing. You get 1 exotic material.")
 

@@ -164,14 +164,9 @@ func setup() -> void:
 		var hist := HistoryScreen.new()
 		_open_popup(hist)
 		hist.setup(_close_popup)))
-	# On the title screen as well as on the HUD, because what you have read
-	# survives the ship. The archive is the one thing here that is not about a
-	# run — it is about the runs, plural, and the place to read it is the place
-	# you are between them.
-	menu.add_child(_option("THE ARCHIVE", func() -> void:
-		var arc := ArchiveScreen.new()
-		_open_popup(arc)
-		arc.setup(_close_popup)))
+	# (THE ARCHIVE stood here, a reading room of recovered documents. Jon, Oct
+	# 22: "It was a cool idea, but not for a procedural game." Gone from the
+	# HUD as well.)
 	menu.add_child(_option("SETTINGS", _open_settings))
 	# JON'S WELCOME NOTE, again, whenever it is wanted (Jon, Oct 13): the line
 	# above QUIT. It opens by itself the first time this screen does (`WelcomePopup`).

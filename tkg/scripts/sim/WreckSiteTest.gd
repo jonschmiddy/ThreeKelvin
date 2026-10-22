@@ -113,6 +113,7 @@ func _run() -> void:
 	Run.map[n.index] = n
 	await _sector_loot()
 	await _one_place()
+	await _hellbender_doors()
 	await _round_trips()
 	await _other_systems()
 	await _off_the_world()
@@ -237,6 +238,9 @@ func _one_place() -> void:
 	for i in 4:
 		await get_tree().process_frame
 	h._ok("and pressing it starts no fight", not Router.in_combat())
+	# (the map, where its place is: the Hellbender anchored here held it shut
+	# and sent this button back to LOCAL, Jon, Oct 22)
+	h._ok("but opens the map (%s)" % _kind(Router.current), Router.current is SystemMapScreen)
 	parked[n.index] = {"at": hp}
 	var there: Array = EncounterDrawer.quiet_lines(n)
 	h._ok("at its place, ENGAGE THE HELLBENDER (%s)" % there[1], String(there[1]) == "ENGAGE THE HELLBENDER" and Router.at_hellbender(n))
@@ -266,6 +270,170 @@ func _one_place() -> void:
 	for i in 4:
 		await get_tree().process_frame
 	h._ok("a jump arrives at the edge, not where the ship was left (%d)" % Run.site_here(m), Run.site_here(m) == -9)
+
+
+## AFTER THE HELLBENDER, EVERY DOOR STILL OPENS (Jon, Oct 22: "Fighting the
+## Hellbender totally breaks the sector and local buttons. You are able to click
+## starchart."). The map was held shut while it was anchored in the system
+## (`Router.show_sector` / `show_system` sent every way to it back to LOCAL),
+## from before it had a place of its own on the map, the one way to that place.
+## Each ending through the real fight and its panels: killed, its escape burn
+## (gone from the system, not hopped straight back in), and you breaking contact
+## (it stays anchored). Then where the fight left you, and the HUD's LOCAL,
+## SECTOR and STARCHART and Tab each opening their own screen. The gate fails
+## on any script error in the log.
+func _hellbender_doors() -> void:
+	for ending in [&"won", &"escaped", &"fled"]:
+		Rng.forced = 4242
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		if not Run.hellbender_alive():
+			h._fail("no Hellbender in this run")
+			return
+		var n: MapGen.MapNode = Run.map[Run.hellbender_at]
+		Run.at = n.index
+		n.visited = true
+		SectorScreen._approached_at = n.index
+		SystemMapScreen._parked[n.index] = {"at": SystemLayout.of(n).hellbender_place(), "mode": &"rail"}
+		Router.show_local()
+		await _frames(4)
+		var sc := Router.current as SectorScreen
+		if sc == null:
+			h._fail("%s: LOCAL at the Hellbender's place did not come up" % ending)
+			continue
+		sc._on_action()
+		await _frames(4)
+		var cb: Combat = Router.combat
+		if not h._ok("%s: ENGAGE THE HELLBENDER opens its fight" % ending,
+				cb != null and not cb.enemies.is_empty() and cb.enemies[0].template.id == &"hellbender"):
+			continue
+		await _frames(6)
+		for tries in 12:
+			if cb.finished:
+				break
+			Run.hp = Run.max_hp()
+			var e: Combat.EnemyState = cb.enemies[0]
+			match ending:
+				&"won":
+					# killed this turn: a turn ended under its break-off line
+					# is its escape burn
+					e.hp = 1
+					e.block = 0
+					for i in cb.hand.size():
+						if cb.can_play(cb.hand[i]):
+							cb.play(i, 0)
+							break
+					if not cb.finished:
+						cb.damage_enemy(9999, 1, "test", e)
+				&"escaped":
+					# under its break-off line, so its next move is the escape burn
+					e.hp = int(e.max_hp * Combat.MINIBOSS_BREAKS_AT) - 1
+					e.block = 99
+					e.pick_intent()
+					cb.end_turn()
+				&"fled":
+					# FLEE, then BREAK CONTACT on its panel; a botched burn is
+					# shut and tried again
+					cb.flee_failed = false
+					var s := Router.current as SectorScreen
+					s._close_exit_ask()
+					s._on_flee()
+					await _frames(2)
+					var go := _named_button(s, "BREAK CONTACT")
+					if go != null:
+						go.pressed.emit()
+			await _frames(4)
+		var ended: StringName = {&"won": &"victory", &"escaped": &"broke_off", &"fled": &"fled"}[ending]
+		h._ok("%s: the fight ends %s (%s)" % [ending, ended, cb.result], cb.finished and cb.result == ended)
+		await _frames(4)
+		# IT GOT AWAY / DISENGAGED: the panel's CONTINUE, as the player presses it
+		var cont := _named_button(Router.current, "CONTINUE")
+		if cont != null:
+			cont.pressed.emit()
+		await _frames(6)
+		h._ok("%s: the fight has handed over (no fight up)" % ending,
+			Router.combat == null and not Router.fight_up())
+		match ending:
+			&"won":
+				h._ok("won: dead, and LOCAL by its wreck (%s)" % _kind(Router.current),
+					not Run.hellbender_alive() and Router.current is SectorScreen)
+			&"escaped":
+				h._ok("escaped: gone from the system (now at #%d, was #%d)" % [Run.hellbender_at, n.index],
+					Run.hellbender_alive() and Run.hellbender_at != n.index)
+				h._ok("escaped: and the map, as any fight not won (%s)" % _kind(Router.current),
+					Router.current is SystemMapScreen)
+			&"fled":
+				h._ok("fled: still anchored here (#%d)" % Run.hellbender_at, Run.hellbender_at == n.index)
+				h._ok("fled: and the map, as any fight not won (%s)" % _kind(Router.current),
+					Router.current is SystemMapScreen)
+		var hud: HudBar = Router.hud
+		var doors := [["LOCAL", hud._tab_sector, &"SectorScreen"], ["SECTOR", hud._tab_system, &"SystemMapScreen"],
+			["STARCHART", hud._tab_chart, &"StarchartScreen"], ["LOCAL", hud._tab_sector, &"SectorScreen"],
+			["SECTOR", hud._tab_system, &"SystemMapScreen"], ["LOCAL", hud._tab_sector, &"SectorScreen"]]
+		for d in doors:
+			var b := d[1] as Button
+			var was := _kind(Router.current)
+			if was == String(d[2]):
+				continue
+			var open := b != null and not b.disabled
+			if open:
+				b.pressed.emit()
+				await _frames(6)
+			h._ok("%s: from %s the HUD's %s opens %s (%s%s)" % [ending, was, d[0], d[2], _kind(Router.current),
+				"" if open else ", the tab greyed"], open and _kind(Router.current) == String(d[2]))
+		# Tab from LOCAL: LOCAL, the map, the chart, round
+		for want in [&"SystemMapScreen", &"StarchartScreen", &"SectorScreen"]:
+			var was := _kind(Router.current)
+			_press(KEY_TAB)
+			await _frames(6)
+			h._ok("%s: Tab from %s opens %s (%s)" % [ending, was, want, _kind(Router.current)],
+				_kind(Router.current) == String(want))
+
+
+	# THE ESCAPE BURN LEAVES THE SYSTEM from every system it can anchor in: its
+	# two hops were free to go out and straight back
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var back := 0
+	var tried := 0
+	for raw in Run.map:
+		var c: MapGen.MapNode = raw
+		if c.type != MapGen.NodeType.SYSTEM:
+			continue
+		Run.hellbender_at = c.index
+		Run.hellbender_hp = Run.hellbender_max
+		Run.hellbender_breaks_off(1)
+		tried += 1
+		if Run.hellbender_at == c.index:
+			back += 1
+	h._ok("its escape burn never lands where it ran from (%d of %d systems)" % [back, tried], tried > 0 and back == 0)
+
+
+func _kind(c: Node) -> String:
+	if c == null or not is_instance_valid(c):
+		return "nothing"
+	var sc: Script = c.get_script()
+	return String(sc.get_global_name()) if sc != null else c.get_class()
+
+
+func _named_button(root: Node, text: String) -> Button:
+	if root == null or not is_instance_valid(root):
+		return null
+	if root is Button and (root as Button).text == text and (root as Button).is_visible_in_tree():
+		return root
+	for c in root.get_children():
+		var b := _named_button(c, text)
+		if b != null:
+			return b
+	return null
+
+
+func _press(code: Key) -> void:
+	for down in [true, false]:
+		var k := InputEventKey.new()
+		k.keycode = code
+		k.physical_keycode = code
+		k.pressed = down
+		Input.parse_input_event(k)
 
 
 ## THE WRECKS STAY CLEAR OF YOU, WHEREVER YOU HAVE BEEN (Jon, Oct 17: "fix

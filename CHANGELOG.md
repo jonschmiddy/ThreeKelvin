@@ -6,10 +6,91 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Added** — a QUESTS tab on the bar at the top, after STARCHART. It opens a table of every
+  quest you have signed, over LOCAL, the sector map, the chart or a station: what to do, its
+  state (SIGNED, READY, or how much of its heat you carry), where it is (the system and its
+  layer, or any yard of the one who posted it and the nearest), how many jumps away, the pay,
+  and who posted it. Click a row to read the note and use SHOW ON STARCHART, which opens the
+  chart on that place with the quest's tag, or PLOT ROUTE, which also draws the route there
+  from YOU. With none signed, the table says where to get one.
+
+### Fixed
+
+- **Fixed** — arriving on LOCAL no longer shows the thin bar at the bottom while your ship flies
+  in. Before, the bar was already up as you arrived, and then the event's text and choices rose
+  out of it. Now the bottom of the screen stays empty until your ship settles. Then the event
+  rises from below the screen, or the thin bar slides in if there is no event.
+- **Fixed** — engaging the Custodian from the system map no longer leaves your ship sitting low in
+  the fight for the whole battle, half hidden behind your hand with its name, hull bar and status
+  icons out of sight. Your hand now comes up after the camera has finished moving in from the map.
+- **Fixed** — in a system where the Hellbender is anchored, the SECTOR tab, Tab and LOCAL's
+  button to the map now open the system map. Before, they all sent you back to LOCAL, so the
+  only way off LOCAL was the STARCHART. This was worst after a fight with it: if you broke
+  contact, or it ran on its escape burn and came straight back into your system, SECTOR and
+  LOCAL stopped working for as long as you stayed. The map is also the way to the Hellbender's
+  own place, where you fight it. Its escape burn now always takes it out of the system it ran from.
+- **Fixed** — after you win an event's fight, LOCAL no longer shows a whole enemy ship beside the
+  wreck of the one you shot. The event's own picture of what you were fighting came back once the
+  fight ended, so a second ship seemed to appear out of nowhere. Now only what you fought is gone:
+  the rest of the scene stays, such as the fuel depot, the seized hull or the hunting ship on the
+  harpoon line. An event you flew past without fighting still shows its ship.
+- **Fixed** — signing a job on the Hiring Board no longer reshuffles the board. Before, the job
+  you signed came down and every other note slid along a place, and everything else on the
+  board jumped to a new spot: the WANTED poster, the other notices and paper on a cork board or
+  whiteboard, and the other listings on a city's screen. Now the job stays where it was, stamped
+  SIGNED, and nothing else moves. The picked tab, the ads, the ticker and any open popup stay as
+  they were. If you already carry the heat a heat job asks for, its note shows OFFLOAD where SIGN
+  was, so you can hand the heat in from the same note.
+
+### Changed
+
+- **Changed** — A.S.H. can no longer be clicked away. A tutorial line stays until you do what it
+  teaches: pick a star on the chart, open an event, play a card, press END TURN, move a module, use a
+  deck. Lines that only tell you something (enemy intent, brace, heat, low fuel) stay for their
+  reading time after she stops talking, then go by themselves. If you leave the screen, the line goes
+  and comes back next time, except the ship view's and each deck's, which count as said once you have
+  heard them through. If another line is waiting, a line that has been up 20 seconds gives way
+  and comes back later. Her quips play to the end: clicking her, picking up or dragging a card, or
+  opening a wreck no longer cuts her off. END TURN still does. A tutorial line that comes due while
+  she is talking waits for her to finish.
+- **Changed** — while you drag a module in the ship view, every fitted module it can swap with gets a
+  teal frame, next to the teal rings on the empty mounts it fits. A fitted module with no frame cannot
+  swap with it, usually because the hold has no room for the module coming off. A module dragged out
+  of SECTOR LOOT goes into the hold first, so with no room for it there nothing lights. The frames
+  come up when you pick the module up and go when you drop it or let go anywhere else. Moving a fitted
+  module onto another fitted one now works with a full hold too, since the two just trade places.
+
+### Removed
+
+- **Removed** — the ARCHIVE. Its tab on the HUD and THE ARCHIVE on the title screen are gone,
+  and so are the 41 documents it held. Wrecks, fights, pulsars and contract cargo no longer turn
+  up a document. Four event choices gave you a document and nothing else; they now pay a few
+  credits, or give a used tow line, instead. Documents you found in earlier builds are no longer
+  shown anywhere, and your saved runs load as before.
+
 ### Roadmap
 
 The next build is **0.4.0-alpha.1**, with the fixes from the first outside playtest. See
 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
+
+### Fixed
+
+- **Fixed** — a signed contract's work is now in the system its note names. A fetch puts a
+  CONTRACT PICKUP event on a world in that system, and a hunt puts a CONTRACT TARGET contact
+  there. Both show on the system map with the quest mark and in its event list, and open on
+  LOCAL like any event. Taking the pickup or winning the fight readies the job to DELIVER at
+  any of the poster's yards. Before, nothing was ever put there: a fetch finished on arrival
+  with one log line, and a hunt waited for any fight you happened to win, which was gone if
+  you had cleared the system before signing. A system you had already emptied opens again
+  for the job, and a hunt you flee is there again the next time you arrive. Contracts now
+  name ordinary systems only, never a station or a pulsar.
+- **Fixed** — no two systems share a name. About a third of every galaxy had a name another
+  system also had, so a contract naming one could send you to the wrong place. The later
+  system of each pair now takes the next free name, and every other name is unchanged.
+- **Fixed** — a contract's layer now matches the chart's. It printed one less (LAYER 6 for a
+  system the chart calls LAYER 7).
 
 ## 2026-10-21
 

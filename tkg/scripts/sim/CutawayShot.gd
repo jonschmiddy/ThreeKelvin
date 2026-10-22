@@ -5,7 +5,7 @@ extends Node
 ##   godot --path . --windowed --position 3840,0 -- sheet=CutawayShot keepwindow
 ##       clip=<dir> [weight=light|medium|heavy] [loot=no] [style=...] [seed=N]
 ##       [every=1] [nopause] [nofight] [yard] [bobcheck] [skyclip=<dir>] [orbit]
-##       [manufacturer=solari] [grade=0..3] [fit=full] [carry=utility]
+##       [manufacturer=solari] [grade=0..3] [fit=full] [carry=utility] [swaps]
 ## A run at a system with a wreck you killed, parts in the hold and (unless
 ## `loot=no`) something loose in the system. Saves the game's picture every
 ## `every` frames through: the hover outline on your ship, the push-in (backdrop
@@ -21,7 +21,9 @@ extends Node
 ## close back to the yard. Prints the push-in scale and what 2x needs against
 ## the room. Needs a window. `carry=weapon|system|utility` carries a part of
 ## that slot for the carrying still (its empty mounts' rings and words) and
-## stops there.
+## stops there. `swaps` sets the ship up for the swap marks (`_swap_ship`) and
+## photographs a part of each slot carried from the hold in both looks, then
+## one that can go nowhere (`_swaps`), and stops.
 ## THE CUTAWAY'S CLOCK IS STEPPED 1/30 s A FRAME (`CutawayView.fixed_step`), so
 ## the frames, encoded at 30 a second (every=1), show the real 0.4 s push-in
 ## however slowly the window drew them; nothing is saved before the hover.
@@ -174,6 +176,8 @@ func _run() -> void:
 				SystemMapScreen._parked[idx] = {"at": bi, "p": Vector2(Lo.edge * 1.02, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 				print("cutawayshot: in orbit of body %d" % bi)
 				break
+	if "swaps" in _args:
+		_swap_ship()
 	Router.show_local()
 	await _frames(60)
 	var sc := Router.current as SectorScreen
@@ -223,6 +227,10 @@ func _run() -> void:
 		tree.quit()
 		return
 	print("cutawayshot: push-in %dx, left panel %dx%d, hull %s" % [cut.k, cut._hold_w, cut.size.y, Run.hull.display_name()])
+	if "swaps" in _args:
+		await _swaps(cut)
+		tree.quit()
+		return
 	_report_fit(cut)
 	print("cutawayshot: %s" % cut.fit_note)
 	# THE ZOOMED SKY, held, for `frames.py` (`skyclip=<dir>`): the cutaway open,
@@ -530,3 +538,118 @@ func _fit_full() -> void:
 			if Run.slots_used(m.slot) < Run.slots_for(m.slot) and Run.can_power(m):
 				Run.install_module(m.duplicate(true) as ModuleData)
 	print("cutawayshot: fit=full, %d parts on %s" % [Run.installed.size(), Run.hull.display_name()])
+
+
+## `swaps`: the ship as `-- cutawaytest`'s swap marks set it, to see them. Each
+## slot's mounts fitted with parts of every size the slot comes in, smallest
+## first, and its last mount left empty; the smallest part of each slot in the
+## hold, and the rest of the hold packed with one-cell crates -- so a part
+## carried from it trades only with a part no bigger than the cells it leaves.
+func _swap_ship() -> void:
+	Run.cargo.clear()
+	for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
+		var sizes := _swap_sizes(slot)
+		var n := Run.slots_for(slot)
+		for i in n:
+			var was := Run.module_at(slot, i)
+			if was != null:
+				Run.installed.erase(was)
+				was.mount = -1
+			if n >= 2 and i == n - 1:
+				continue
+			var p := _swap_part(slot, sizes[i % sizes.size()])
+			p.mount = i
+			Run.installed.append(p)
+		Run.place_in_hold(_swap_part(slot, sizes[0]))
+	_pack_hold()
+	Sig.ship_changed.emit()
+
+
+func _pack_hold() -> void:
+	for row in MaterialTable.all():
+		if MaterialData.of(row).size == Vector2i.ONE:
+			for i in 200:
+				if not Run.place_in_hold(MaterialData.of(row)):
+					break
+			return
+
+
+func _swap_sizes(s: ModuleData.Slot) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for id in DB.modules:
+		var m: ModuleData = DB.modules[id]
+		if m.slot == s and not m.starter_only and not out.has(m.size):
+			out.append(m.size)
+	out.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return a.x * a.y < b.x * b.y or (a.x * a.y == b.x * b.y and a.x < b.x))
+	return out
+
+
+func _swap_part(s: ModuleData.Slot, size: Vector2i) -> ModuleData:
+	for id in DB.modules:
+		var m: ModuleData = DB.modules[id]
+		if m.slot == s and not m.starter_only and m.size == size:
+			return m.duplicate(true) as ModuleData
+	return null
+
+
+## The marks, through a real drag from the hold (the viewport's own: every
+## control told it began, the hold's icon hidden as a lift hides it), in both
+## looks (`MountPoints.swap_look`): a part of each slot, then a weapon that can
+## go nowhere -- every weapon mount holding a part bigger than the cells it
+## leaves in the packed hold. `swap_<slot>_<look>.png`; prints what was marked
+## and where the exploded ship is in the window's px, for crops.
+func _swaps(cut: CutawayView) -> void:
+	var shell := GameShell.instance
+	var kk := float(shell._frame.stretch_shrink) if shell != null and shell._frame != null else 1.0
+	var home: Vector2 = shell._home if shell != null else Vector2.ZERO
+	var pic: Rect2 = cut.get_global_transform() * cut._pic
+	print("cutawayshot: picture at %d,%d %dx%d in the window (x%d, home %d,%d)" % [
+		home.x + pic.position.x * kk, home.y + pic.position.y * kk, pic.size.x * kk, pic.size.y * kk, kk, home.x, home.y])
+	var cases := [["weapon", ModuleData.Slot.WEAPON], ["system", ModuleData.Slot.SYSTEM], ["utility", ModuleData.Slot.UTILITY]]
+	for look in [0, 1]:
+		MountPoints.swap_look = look
+		for c in cases:
+			await _swap_still(cut, c[1], "swap_%s_%s" % [c[0], ["frame", "corners"][look]])
+	# NOTHING TO TRADE WITH: every weapon mount, the empty one too, holds the
+	# biggest weapon there is; the smallest carried from the packed hold
+	var sizes := _swap_sizes(ModuleData.Slot.WEAPON)
+	for i in Run.slots_for(ModuleData.Slot.WEAPON):
+		var was := Run.module_at(ModuleData.Slot.WEAPON, i)
+		if was != null:
+			Run.installed.erase(was)
+			was.mount = -1
+		var p := _swap_part(ModuleData.Slot.WEAPON, sizes[sizes.size() - 1])
+		p.mount = i
+		Run.installed.append(p)
+	Sig.ship_changed.emit()
+	await _frames(10)
+	pic = cut.get_global_transform() * cut._pic
+	print("cutawayshot: picture at %d,%d %dx%d in the window (nothing case)" % [
+		home.x + pic.position.x * kk, home.y + pic.position.y * kk, pic.size.x * kk, pic.size.y * kk])
+	for look in [0, 1]:
+		MountPoints.swap_look = look
+		await _swap_still(cut, ModuleData.Slot.WEAPON, "swap_nothing_%s" % ["frame", "corners"][look])
+	MountPoints.swap_look = 0
+
+
+func _swap_still(cut: CutawayView, slot: ModuleData.Slot, name: String) -> void:
+	var mp := cut._mounts
+	var m: ModuleData = null
+	var icon: Control = null
+	for ic in cut._hold.get_children():
+		if ic is ItemIcon and (ic as ItemIcon).held_item() is ModuleData and ((ic as ItemIcon).held_item() as ModuleData).slot == slot:
+			icon = ic
+			m = (ic as ItemIcon).held_item()
+			break
+	if m == null:
+		print("cutawayshot: no %s in the hold" % name)
+		return
+	icon.visible = false
+	cut._hold.force_drag({module = m, origin = &"cargo"}, null)
+	await _frames(24)
+	_still(name)
+	print("cutawayshot: %s carried %s (%dx%d): marked %s, %d framed, %d pinged" % [name, m.name, m.size.x, m.size.y,
+		",".join(mp.marked), mp.swapped, mp.pinged])
+	cut.get_viewport().gui_cancel_drag()
+	await _frames(6)
+	print("cutawayshot: %s after the cancel: %d marked" % [name, mp.marked.size()])

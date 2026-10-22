@@ -229,7 +229,7 @@ one and flatten the choice the exclusivity dial exists to create. Instead the
 | --- | --- |
 | `fight` | modules, and the only reliable access to the top of the rarity ladder |
 | `salvage` | modules at lower rarity; hulls; relic fragments deep |
-| `signal`, `claim`, `contract` | credits, fuel, materials, archive entries, standing — rarely a module, never a good one |
+| `signal`, `claim`, `contract` | credits, fuel, materials, standing — rarely a module, never a good one |
 
 This mostly **formalises what already happens** rather than inventing a rule.
 `LootGen.roll_module()` is the fight and derelict payout, `Market` is the station

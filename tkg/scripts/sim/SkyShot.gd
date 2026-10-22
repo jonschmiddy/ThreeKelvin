@@ -25,7 +25,6 @@ const SHOTS := [
 	[&"transfer", &"show_transfer"],
 	[&"cards", &"show_cards"],
 	[&"modules", &"show_modules"],
-	[&"archive", &"show_archive"],
 	[&"history", &"show_history"],
 	[&"station", &"show_station"],
 	[&"chart", &"show_starchart"],

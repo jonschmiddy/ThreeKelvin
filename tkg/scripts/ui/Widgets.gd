@@ -528,7 +528,7 @@ static func pad(child: Control = null, h: int = 8, v: int = 6) -> MarginContaine
 ##
 ## THE ALPHA IS LOAD-BEARING, and it is here rather than in the theme because
 ## this override is what the theme's own panel stylebox never gets to answer.
-## The refit bay, the hold, both galleries and the archive all come through this
+## The refit bay, the hold and both galleries all come through this
 ## function, and while the fill was solid they covered every pixel of the sky
 ## `SpaceLayer` draws behind them. See UITheme.PANEL_A for why the number is
 ## high.

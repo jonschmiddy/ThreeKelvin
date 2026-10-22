@@ -2256,12 +2256,15 @@ func _refresh_work(n: MapGen.MapNode) -> void:
 		_board.dev = int(n.development)
 		_board.station_seed = hash([n.layer, n.row, n.index])
 		_board.queue_redraw()
-	if _board_lamp != null:
+	if _board_lamp != null and _board_lamp.dev != int(n.development):
+		# (its setter throws away the whole light map, a per-pixel build)
 		_board_lamp.dev = int(n.development)
 	if _work != null:
 		_work.offset_top = PostingBoard.FRAME_W + 10.0 + (PostingBoard.HEADER if _on_screen() else 0.0)
 		_work.offset_bottom = -(PostingBoard.FRAME_W + 8.0 + (PostingBoard.TICKER if _on_screen() else 0.0))
-	Widgets.clear(_work)
+	if _signed_at != n.index:
+		_signed_at = n.index
+		_signed_here.clear()
 	var offers := Contracts.board(n)
 	var ready := Run.deliverable_at(n)
 	var hot := Run.heat_deliverable_at(n)
@@ -2273,36 +2276,50 @@ func _refresh_work(n: MapGen.MapNode) -> void:
 	_enable_tab(&"work", not (offers.is_empty() and ready.is_empty()
 		and hot.is_empty() and mine.is_empty()))
 	if not _tabs_on.get(&"work", true):
+		Widgets.clear(_work)
 		return
 
+	# WHAT IS ON THE BOARD, as [what it says, how to make it], in order; laid
+	# over what is up by `_sync_notes`, which leaves every note that says the
+	# same alone.
+	var want: Array = []
+	# A job signed on this visit and payable here at once (heat already on the
+	# hull) is paid off its own note, where it hangs, rather than off a sticky
+	# that would push the board along by one.
+	var pay_here := {}
 	for job in ready:
-		_work.add_child(_deliver_row(job as ContractData, "DELIVER"))
+		var c0: ContractData = job
+		if _signed_here.has(_offer_key(c0)):
+			pay_here[_offer_key(c0)] = [c0, "DELIVER"]
+			continue
+		want.append(["deliver|%d|%d|%s" % [c0.id, c0.pay, _on_screen()],
+			_deliver_row.bind(c0, "DELIVER")])
 	for job in hot:
 		# Said with the number, because the heat on your hull is falling every
 		# time you jump and the player is being asked to notice it.
-		_work.add_child(_deliver_row(job as ContractData,
-			"OFFLOAD %d HEAT" % (job as ContractData).amount))
+		var c1: ContractData = job
+		var say := "OFFLOAD %d HEAT" % c1.amount
+		if _signed_here.has(_offer_key(c1)):
+			pay_here[_offer_key(c1)] = [c1, say]
+			continue
+		want.append(["hot|%d|%d|%s" % [c1.id, c1.amount, _on_screen()],
+			_deliver_row.bind(c1, say)])
 
-	if not mine.is_empty():
-		# ONE CARD, NOT A HEADING AND A LIST. On a board every child is a notice
-		# somebody pinned up, and a loose heading with its rows under it would
-		# have been pinned as separate scraps and tilted apart.
-		var card := VBoxContainer.new()
-		card.add_theme_constant_override("separation", 3)
-		card.add_child(UITheme.body("SIGNED, ELSEWHERE", _ink(&"head"), UITheme.FS_SMALL))
-		for job in mine:
-			var c: ContractData = job
-			var row := UITheme.body("· %s" % c.status_line(), _ink(&"ink"), UITheme.FS_SMALL)
-			row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			card.add_child(row)
-		_work.add_child(_note(PostingBoard.INDEX, card))
+	var elsewhere: Array[String] = []
+	for job in mine:
+		var c4: ContractData = job
+		if not _signed_here.has(_offer_key(c4)):
+			elsewhere.append(c4.status_line())
+	if not elsewhere.is_empty():
+		want.append(["mine|%s|%s" % [" / ".join(elsewhere), _on_screen()], _elsewhere_note.bind(elsewhere)])
 
 	# On a screen the tabs count the work by kind and show only the one picked;
-	# your own deliveries stay up whichever is.
+	# your own deliveries stay up whichever is. A job signed here still counts:
+	# it is still on the board, stamped.
 	var counts: Array[int] = [0, 0, 0, 0]
 	for job in offers:
 		var c3: ContractData = job
-		if Run.holds_contract(c3):
+		if Run.holds_contract(c3) and not _signed_here.has(_offer_key(c3)):
 			continue
 		counts[0] += 1
 		var at := PostingBoard.TAB_KINDS.find(int(c3.kind))
@@ -2315,11 +2332,83 @@ func _refresh_work(n: MapGen.MapNode) -> void:
 		only = int(PostingBoard.TAB_KINDS[_board.tab])
 	for job in offers:
 		var c2: ContractData = job
-		if Run.holds_contract(c2):
+		var key := _offer_key(c2)
+		var held := Run.holds_contract(c2)
+		# SIGNED ELSEWHERE, on an earlier visit: it is on the card above, not here
+		if held and not _signed_here.has(key):
 			continue
 		if only >= 0 and int(c2.kind) != only:
 			continue
-		_work.add_child(_offer_row(c2))
+		var state := "open"
+		if held:
+			state = "signed"
+			if pay_here.has(key):
+				state = "pay|%d|%s" % [(pay_here[key][0] as ContractData).id, pay_here[key][1]]
+		want.append(["offer|%s|%s|%s" % [key, state, _on_screen()],
+			_offer_row.bind(c2, state, pay_here.get(key, []))])
+	_sync_notes(want)
+
+
+## THE OFFERS SIGNED ON THIS VISIT, by `_offer_key`. Each stays on the board
+## where it hung, stamped SIGNED, rather than coming down and going onto the
+## SIGNED, ELSEWHERE card at the front -- which moved every note on the board
+## along by one, and with them everything the board scatters round the work
+## (Jon, Oct 22: "When you pick a quest from the hiring board... the whole
+## hiring board resets"). Next visit it is on the card, as before.
+var _signed_here := {}
+## The station `_signed_here` is for.
+var _signed_at := -1
+
+
+## A piece of work by what it is: the offer on the board and the job in your
+## ledger made from it say the same (`Run.holds_contract` compares the same).
+static func _offer_key(c: ContractData) -> String:
+	return "%s|%d|%d|%d|%d" % [c.manufacturer, int(c.kind), c.at, c.amount, c.posted_at]
+
+
+## THE BOARD UPDATES IN PLACE. `want` is the notes in order, each [what it
+## says, a callable that makes it]; a note already up that says the same stays
+## up, the same node in the same place, and only one that changed is made
+## again, in its own slot. Clearing and rebuilding the column on every refresh
+## put new paper up for a frame and moved whatever had changed size, and a
+## board laid out round its notes laid itself out again.
+func _sync_notes(want: Array) -> void:
+	if _work == null:
+		return
+	var have := _work.get_children()
+	for i in want.size():
+		var say: String = want[i][0]
+		if i < have.size() and String((have[i] as Node).get_meta(&"note", "")) == say:
+			continue
+		var note: Control = (want[i][1] as Callable).call()
+		note.set_meta(&"note", say)
+		if i < have.size():
+			var old: Node = have[i]
+			_work.remove_child(old)
+			old.queue_free()
+		_work.add_child(note)
+		_work.move_child(note, i)
+		have = _work.get_children()
+	for j in range(_work.get_child_count() - 1, want.size() - 1, -1):
+		var extra := _work.get_child(j)
+		_work.remove_child(extra)
+		extra.queue_free()
+
+
+## The SIGNED, ELSEWHERE card: everything open that this desk cannot pay for.
+##
+## ONE CARD, NOT A HEADING AND A LIST. On a board every child is a notice
+## somebody pinned up, and a loose heading with its rows under it would have
+## been pinned as separate scraps and tilted apart.
+func _elsewhere_note(lines: Array[String]) -> Control:
+	var card := VBoxContainer.new()
+	card.add_theme_constant_override("separation", 3)
+	card.add_child(UITheme.body("SIGNED, ELSEWHERE", _ink(&"head"), UITheme.FS_SMALL))
+	for line in lines:
+		var row := UITheme.body("· %s" % line, _ink(&"ink"), UITheme.FS_SMALL)
+		row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		card.add_child(row)
+	return _note(PostingBoard.INDEX, card)
 
 
 ## Everything open that this desk cannot pay for. Named rather than listed in
@@ -2387,9 +2476,9 @@ func _manufacturer_ink(m: StringName, dark: float) -> Color:
 	return c if _on_screen() else c.darkened(dark)
 
 
-func _offer_row(c: ContractData) -> Control:
+func _offer_row(c: ContractData, state: String = "open", pay: Array = []) -> Control:
 	if _on_screen():
-		return _listing(c)
+		return _listing(c, state, pay)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 3)
 
@@ -2434,14 +2523,14 @@ func _offer_row(c: ContractData) -> Control:
 	var where := UITheme.body(c.status_line(), _ink(&"soft"), UITheme.FS_SMALL)
 	where.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(where)
-	box.add_child(_sign_button(c))
+	box.add_child(_offer_foot(c, state, pay))
 	return _note(NOTE_PAPER, box)
 
 
 ## A contract as a marketplace listing, on a city's or a capital's screen:
 ## the manufacturer's emblem for its photo, the pay for its price, the ask for
 ## its description, where it is, and SIGN for "message seller".
-func _listing(c: ContractData) -> Control:
+func _listing(c: ContractData, state: String = "open", pay: Array = []) -> Control:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 3)
 	var mk: ManufacturerData = DB.manufacturers.get(c.manufacturer)
@@ -2472,7 +2561,7 @@ func _listing(c: ContractData) -> Control:
 	var hh := absi(hash(c.text))
 	box.add_child(UITheme.body("%d WATCHING, %dH AGO" % [2 + hh % 11, 1 + (hh / 11) % 20],
 		Color("#4a7a96"), UITheme.FS_SMALL))
-	box.add_child(_sign_button(c))
+	box.add_child(_offer_foot(c, state, pay))
 	return _note(NOTE_PAPER, box)
 
 
@@ -2483,12 +2572,78 @@ func _listing(c: ContractData) -> Control:
 func _sign_button(c: ContractData) -> Button:
 	var take := Widgets.button("SIGN", func() -> void:
 		Run.take_contract(c)
+		# kept where it hangs, stamped (`_signed_here`), and the board updated
+		# in place round it (`_sync_notes`)
+		_signed_here[_offer_key(c)] = true
 		_refresh())
 	take.tooltip_text = Widgets.tip("Nothing here expires. You can sign it now, later or never.")
 	take.add_theme_font_size_override("font_size", UITheme.FS_HEAD)
 	take.custom_minimum_size = Vector2(72, 26)
 	take.size_flags_horizontal = Control.SIZE_SHRINK_END
 	return take
+
+
+## The foot of an offer's note: SIGN; once signed on this visit the board's
+## stamp for it in the same place, SIGNED; and if it can be paid off here at
+## once, its DELIVER or OFFLOAD button (`pay`: the job in your ledger, and the
+## button's word).
+func _offer_foot(c: ContractData, state: String, pay: Array) -> Control:
+	if state == "open":
+		return _sign_button(c)
+	if pay.size() == 2:
+		var job: ContractData = pay[0]
+		var go := Widgets.button(String(pay[1]), func() -> void:
+			Run.deliver_contract(job)
+			_refresh())
+		go.size_flags_horizontal = Control.SIZE_SHRINK_END
+		# SIGN's height, so the note keeps its own
+		go.custom_minimum_size = Vector2(0.0, _sign_size().y)
+		return go
+	var stamp := _SignedStamp.new()
+	stamp.screen = _on_screen()
+	var room := _sign_size()
+	var word := UITheme.pixel_font().get_string_size("SIGNED", HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_HEAD).x
+	stamp.custom_minimum_size = Vector2(maxf(room.x, ceilf(word) + 12.0), room.y)
+	stamp.size_flags_horizontal = Control.SIZE_SHRINK_END
+	return stamp
+
+
+## How big SIGN is, as laid out in this screen's theme, so the stamp that takes
+## its place takes exactly its room and the note keeps its height. Measured once.
+var _sign_measured := Vector2.ZERO
+func _sign_size() -> Vector2:
+	if _sign_measured == Vector2.ZERO:
+		var probe := _sign_button(ContractData.new())
+		probe.visible = false
+		add_child(probe)
+		_sign_measured = probe.get_combined_minimum_size()
+		remove_child(probe)
+		probe.free()
+	return _sign_measured
+
+
+## SIGNED, in the board's own stamp: the box and the word the old jobs on the
+## cork are stamped FILLED with (`BoardCork`), and on a screen the stamp the
+## other people's listings carry (`PostingBoard._decoy_listing`). Not a
+## button, and drawn not to look like one: an outline in ink, nothing to press.
+class _SignedStamp extends Control:
+	var screen := false
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		var col := Color("#ff7a66") if screen else PostingBoard.RED
+		var r := Rect2(Vector2(1.0, 1.0), size - Vector2(2.0, 2.0))
+		if screen:
+			draw_rect(r, Color(0, 0, 0, 0.5))
+		draw_rect(r, Color(col.r, col.g, col.b, 0.85), false, 2.0)
+		var f := UITheme.pixel_font()
+		var t := "SIGNED"
+		var w := f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_HEAD).x
+		var base := floorf((size.y + f.get_ascent(UITheme.FS_HEAD) - f.get_descent(UITheme.FS_HEAD)) * 0.5)
+		draw_string(f, Vector2(floorf((size.x - w) * 0.5), base), t, HORIZONTAL_ALIGNMENT_LEFT, -1,
+			UITheme.FS_HEAD, Color(col.r, col.g, col.b, 0.85))
 
 
 ## Work done and ready to hand in: a yellow sticky note, because it is the one

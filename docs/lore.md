@@ -101,6 +101,8 @@ The texture. None of this is explained in play; all of it is encountered.
 
 ## 5. The Archive: how the world is told
 
+> **The ARCHIVE is cut (Oct 22).** Jon: "Let's also get rid of the ARCHIVE. From both the top left and the main menu. It was a cool idea, but not for a procedural game." The reading room, its 41 documents (`Database._seed_documents`) and every way of recovering one are gone; they are in git history before the commit that removed them. The rules below stay, because they still govern every piece of paperwork the game shows: a contract's ask, the receipts and logs an event describes, a module's flavour. Read "entry" as "any document the player sees".
+
 **The rule: primary sources, never exposition.** The player does not read *about* the world. The player reads the world's paperwork.
 
 An archive entry is a document that existed for a reason that was not the player's benefit — a manifest, a contract rider, an inspection note, an invoice, a transponder transcript, a survey log. It was written by somebody with a job to do and an audience who already knew the context, which is exactly why it is worth reading and exactly why it cannot explain anything.
@@ -191,6 +193,6 @@ The heat contract is the one worth watching in play. `cool_in_transit()` sheds h
 2. **Log lines.** `Run.log_line` is the most-read prose in the game by an enormous margin.
 3. **Module and hull flavour.** Already written, already good, already carrying it.
 4. **Sector descriptions.** Where you are, said in one line.
-5. **The archive.** Deepest, most optional, least often read. Correct in that order.
+5. **The archive.** Deepest, most optional, least often read. Correct in that order. *(Cut, Oct 22, as the paragraph below said it might be.)*
 
 A player who never opens the archive should still be able to tell you what this world is like. If that stops being true, the archive has become the setting rather than a corner of it, and the fix is to cut the archive rather than to promote it.

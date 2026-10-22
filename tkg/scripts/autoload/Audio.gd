@@ -335,8 +335,6 @@ func _connect_signals() -> void:
 	# figure the score's stamp lanes carry.
 	Sig.contracts_changed.connect(func() -> void:
 		play(&"contract_stamp", 0.04, 250))
-	Sig.archive_changed.connect(func() -> void:
-		play(&"archive_found", 0.05, 400))
 	# Every screen change is the same pressure door -- _swap() is the one
 	# chokepoint, so the sound is right by construction, like the resource
 	# poll. limit_ms soaks the double-swap paths (flee already stings, and
@@ -449,7 +447,7 @@ func music_state(state: StringName) -> void:
 		return
 	# A PANEL ASKS FOR NOTHING, and that ruling outlived the system it was written
 	# for. Jon: "I don't really want the music to change when I change panels. At
-	# all." The new set has no cue for a station, a chart, a hold or the archive
+	# all." The new set has no cue for a station, a chart or a hold
 	# either, so the rule now covers all of them: whatever the place put on keeps
 	# playing, and only leaving the run changes it.
 	match state:

@@ -208,6 +208,24 @@ if grep -qE '^=== FAIL' "$LOG_DIR/market.log" 2>/dev/null; then
 fi
 }
 
+unit_boardsigntest() {
+step "SIGN on the Hiring Board changes its one note"
+# Jon, Oct 22: "When you pick a quest from the hiring board... the whole hiring
+# board resets." On the cork, the whiteboard and the screen: the signed note
+# stays in place stamped SIGNED, every other note, the tab, the scatter, the
+# listings, the popup and the lamp stay as they were, and no offer re-rolls.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot boardsigntest 120 --headless --path "$PROJECT" -- sheet=BoardSignTest; then
+	if grep -qE '^boardsigntest: PASS' "$LOG_DIR/boardsigntest.log"; then
+		ok "SIGN stamps its note in place and nothing else on the board moves"
+	else
+		bad "SIGN moved the Hiring Board's other notes or its scatter, or did not sign"
+		grep -E 'FAIL|^boardsigntest' "$LOG_DIR/boardsigntest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "boardsigntest did not finish"
+fi
+}
+
 unit_contracttest() {
 step "Contracts, standing, and the salvage rail's dismissal rule"
 # Three claims, and the middle one is the one no other step can make. `-- market`
@@ -611,6 +629,26 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 else
 	bad "goaltest did not finish"
+fi
+}
+
+unit_questlogtest() {
+step "The QUESTS tab: its table, SHOW ON STARCHART, PLOT ROUTE, nothing covered"
+# Jon's design A (Oct 22): a QUESTS tab after STARCHART opens a table of the
+# quests you hold; a row's SHOW ON STARCHART and PLOT ROUTE open the chart on
+# its place, tagged, with its route. Three galaxies, the real screens: the tab's
+# rect the same with 0, 1 and 5 held, the HUD row fitting with and without
+# ARCHIVE, a row per quest with its fields, the chart's destination, tag and
+# legal route, and the table and the tag box-tested.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot questlogtest 180 --headless --path "$PROJECT" -- sheet=QuestLogTest; then
+	if grep -qE '^questlogtest: PASS' "$LOG_DIR/questlogtest.log"; then
+		ok "the quests table: every quest, shown and routed on the chart, nothing covered"
+	else
+		bad "the quests table or its chart tag is wrong or covers something"
+		grep -E 'FAIL|^questlogtest|^    ' "$LOG_DIR/questlogtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "questlogtest did not finish"
 fi
 }
 
@@ -1665,23 +1703,6 @@ if run_godot parseall 180 --headless --path "$PROJECT" -- parseall; then
 fi
 }
 
-unit_archivetest() {
-step "The archive round-trips, and none of it has become an essay"
-# Half machinery and half STYLE GATE. `docs/lore.md` §5 says an entry is a
-# primary source that fits on one screen, and that is prose — it rots, and its
-# failure mode is not a crash but an archive that has quietly turned into a
-# wiki. This is the only thing that reads every entry on every commit.
-if run_godot archivetest 120 --headless --path "$PROJECT" -- archivetest; then
-	if grep -qE '^archivetest: PASS' "$LOG_DIR/archivetest.log"; then
-		ok "archive"
-	else
-		bad "archive test failed"
-		grep -E '^  FAIL|^archivetest' "$LOG_DIR/archivetest.log" | head -n 20 \
-			| sed 's/^/        /'
-	fi
-fi
-}
-
 unit_rngtest() {
 step "Seeded RNG replays, and four machines agree"
 # Neither of these was in the gate, and both guard a rule the codebase leans on
@@ -1931,15 +1952,6 @@ step "One word for the thing: manufacturer"
 # straight past a guard whose whole job was to catch them. A vocabulary check
 # that only sees one casing is a vocabulary check that lies.
 #
-# The archive prose in `Database._seed_documents` used to be exempt as a whole
-# function. It is not any more: the entries were rewritten, and the four
-# "house not stated" bylines now read "manufacturer not stated" -- which sits
-# fine beside their siblings "name torn off" and "station unnamed", because
-# that field is the archive's annotation and not the clerk's own sentence.
-# Where a literal swap would have broken a voice it was not taken: the examiner
-# complaining about the stove says "the trouble with this COMPANY", because
-# nobody says "manufacturer" about their own employer while cold.
-#
 # Three exemptions, all deliberate, all narrow:
 #
 #   1. The LAN idiom -- "friends in the house", "outside the house" -- is
@@ -1986,20 +1998,15 @@ step "One word for the thing: manufacturer"
 # is alphanumeric and there is no boundary to match.
 #
 # If you are adding a sixth, the bar is: would a person say this out loud?
-# Two passes, because `man` needs one exemption the other words do not: the
-# archive is full of people, and "a man paying a toll" is not a schema word.
-# That skip is scoped to `man` alone -- `house` and `maker` are checked inside
-# the prose too, which is how the four bylines got found and rewritten.
+# Two passes once, while the archive's prose needed a skip for the short
+# word. That prose went with the ARCHIVE (Oct 22), and both passes now run
+# everywhere.
 VOCAB=$(
 	{
 		# Pass A -- house/maker, everywhere, no prose exemption.
 		grep -rniE '(^|[^A-Za-z0-9])(house|houses|maker|makers|brand|brands|marque|marques)([^A-Za-z0-9]|$)' "$PROJECT/scripts" --include='*.gd' 2>/dev/null
-		# Pass B -- man/hull_man, everywhere except the archive's own prose.
-		awk '/^func _seed_documents/{skip=1} /^func /&&!/_seed_documents/{skip=0} !skip{print FILENAME":"FNR": "$0}' \
-			"$PROJECT/scripts/autoload/Database.gd" 2>/dev/null \
-			| grep -wiE 'man|hull_man'
-		grep -rnwiE 'man|hull_man' "$PROJECT/scripts" --include='*.gd' 2>/dev/null \
-			| grep -v "^$PROJECT/scripts/autoload/Database.gd:"
+		# Pass B -- the short word, everywhere.
+		grep -rnwiE 'man|hull_man' "$PROJECT/scripts" --include='*.gd' 2>/dev/null
 	} | grep -viE 'widowmaker|gatehouse' \
 	  | grep -v "maker's mark" \
 	  | grep -v 'friends in the house' \

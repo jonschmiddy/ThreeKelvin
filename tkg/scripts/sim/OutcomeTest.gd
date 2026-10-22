@@ -258,7 +258,6 @@ func _watch(hud: HudBar, d: LocalEventDrawer) -> Array:
 	var watch: Array = []
 	for k in ["hp", "heat", "credits", "fuel"]:
 		watch.append_array(hud.stat_nodes(k))
-	watch.append_array(hud.tab_nodes(&"archive"))
 	watch.append_array(hud.tab_nodes(&"chart"))
 	for nm in ["Continue", "Reward"]:
 		var b := d.panel.find_child(nm, true, false)

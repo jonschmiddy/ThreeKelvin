@@ -52,6 +52,11 @@ var _view: ShipView = null
 var _spots: Array[Dictionary] = []
 var _phase: float = 0.0
 var _lit: ModuleData = null
+## Where `_lit` was picked up from: the drag's own `origin` (`&"cargo"` the
+## hold, `&"hull"` lifted off this ship, `&"bag"` a loot pile, `&"pad"` the
+## dock), or `&""` when a harness lights a part by hand. It decides the answer:
+## see `takes`.
+var _lit_origin: StringName = &""
 
 ## THE PART BEING POINTED AT FROM SOMEWHERE ELSE.
 ##
@@ -96,6 +101,18 @@ var pinged: int = 0
 ## a hint and a ping are never both on screen, and only a count of what was
 ## drawn can tell.
 var hinted: int = 0
+
+## How many FITTED parts the last redraw marked as ones the carried part would
+## trade with (`_swap_mark`), and every mount it marked either way -- a fitted
+## part framed or an empty mount pinged -- as `spot_key`s. Counted for the same
+## reason as `pinged`: what the hull SAYS a drop does is only checkable off what
+## was drawn, and `-- cutawaytest` holds it to what the drop really does.
+var swapped: int = 0
+var marked: Array[String] = []
+
+## WHICH LOOK THE SWAP MARK WEARS: 0 a frame round the part, 1 its four
+## corners. For the stills that put the two side by side; play uses 0.
+static var swap_look := 0
 
 ## Where the pointer is over the hull, or INF. Drives the hover highlight.
 var _hover: Vector2 = Vector2.INF
@@ -323,6 +340,8 @@ func _draw() -> void:
 	drawn = 0
 	pinged = 0
 	hinted = 0
+	swapped = 0
+	marked.clear()
 	var pulse := 0.62 + 0.38 * sin(_phase)
 	# EVERY size below is in art pixels times this. The hull is magnified and
 	# the things bolted to it were not, so a gun came out a sixth of the length
@@ -335,6 +354,9 @@ func _draw() -> void:
 	for spot in _spots:
 		var at: Vector2 = _part_at(spot)
 		var m: ModuleData = spot.held
+		# THE DROP'S OWN ANSWER for this mount, while a part is carried: the one
+		# `_can_drop_data` gives and `RunState.fit_at_mount` acts on (`takes`)
+		var ok := _takes_spot(spot)
 		if m != null and explode > 0.0 and at != (spot.at as Vector2):
 			_leader(spot.at, at, m, spot.slot as ModuleData.Slot, k)
 		# IN THE CUTAWAY AN EMPTY MOUNT SHOWS ONLY WHILE A PART THAT FITS IT IS
@@ -375,6 +397,18 @@ func _draw() -> void:
 				var pl := 0.5 + 0.5 * sin(_phase * 3.0)
 				draw_rect(r, Color(UITheme.HOT, 0.18 + 0.15 * pl))
 				draw_rect(r.grow(2.0), UITheme.HOT, false, 1.0)
+			# WHAT THE CARRIED PART WOULD TRADE PLACES WITH (Jon: "can the
+			# swappable modules already installed get highlighted? Just so you
+			# know what can or cannot be swapped with that part"): the ping's
+			# teal, as a still frame round the part rather than rings at a point
+			# -- the same "your part goes here", told apart by its shape. A part
+			# it would NOT trade with is left as it is, never dimmed: you are
+			# looking at the hull while you carry, and a part greyed out reads as
+			# one gone (see "WHAT IS THERE, FIRST AND ALWAYS" above).
+			if ok:
+				_swap_mark(r, k)
+				swapped += 1
+				marked.append(spot_key(int(spot.slot), int(spot.index)))
 			if tags and explode > 0.85:
 				_tag(m, r, spot)
 			continue
@@ -390,7 +424,8 @@ func _draw() -> void:
 		# installed part it swamped the thing it was pointing at — 27px of
 		# rings over a gun 30px tall — which is what made a whole slot look
 		# like it had emptied the moment you picked something up. An occupied
-		# mount will still take a swap; it does not need to shout about it.
+		# mount that will take a swap says so with a still frame round its part
+		# instead (`_swap_mark`, above), which leaves the part in plain view.
 		# HOVERING WITH EMPTY HANDS ANSWERS "WHERE ARE THE GAPS" TOO.
 		#
 		# The note above rules out drawing empty mounts UNPROMPTED, and that
@@ -433,15 +468,41 @@ func _draw() -> void:
 			var b := UITheme.ICE
 			_ring(at, (R + 1.0) * k, Color(b.r, b.g, b.b, 0.95 * pulse))
 
-		if _passive or _lit == null or _lit.slot != spot.slot:
+		if not ok:
 			continue
 		pinged += 1
+		marked.append(spot_key(int(spot.slot), int(spot.index)))
 		var c := UITheme.TRACTOR
 		for i in RINGS:
 			var t := fmod(_phase / TAU + float(i) / float(RINGS), 1.0)
 			_ring(at, lerpf(R * 0.7, REACH, t) * k,
 				Color(c.r, c.g, c.b, (1.0 - t) * 0.8 * pulse))
 		_ring(at, (R + 1.0) * k, Color(c.r, c.g, c.b, 0.95 * pulse))
+
+## THE SWAP MARK round a fitted part drawn at `r`: one art pixel thick (whole
+## px of this control, so it keeps the hull's own pixel at any push-in), one px
+## of air off the part, in the ping's TRACTOR, held still -- filled rects, not a
+## stroked outline, so no edge is ever half a pixel. Drawn only: nothing is hit
+## by it, and no rect anything is hit by changes.
+func _swap_mark(r: Rect2, k: float) -> void:
+	var t := maxf(1.0, roundf(k))
+	var g := 1.0 + t
+	var f := Rect2((r.position - Vector2(g, g)).round(), (r.size + Vector2(g, g) * 2.0).round())
+	var c := UITheme.TRACTOR
+	if swap_look == 1:
+		var arm := minf(t * 3.0, floorf(minf(f.size.x, f.size.y) * 0.5))
+		for x: float in [f.position.x, f.end.x - arm]:
+			for y: float in [f.position.y, f.end.y - t]:
+				draw_rect(Rect2(x, y, arm, t), c)
+		for x: float in [f.position.x, f.end.x - t]:
+			for y: float in [f.position.y, f.end.y - arm]:
+				draw_rect(Rect2(x, y, t, arm), c)
+		return
+	draw_rect(Rect2(f.position.x, f.position.y, f.size.x, t), c)
+	draw_rect(Rect2(f.position.x, f.end.y - t, f.size.x, t), c)
+	draw_rect(Rect2(f.position.x, f.position.y + t, t, f.size.y - t * 2.0), c)
+	draw_rect(Rect2(f.end.x - t, f.position.y + t, t, f.size.y - t * 2.0), c)
+
 
 ## WHERE A PART IS DRAWN, as a rectangle. One function, because three things
 ## need it: the drawing, the hover test, and picking one up. A gun you can only
@@ -692,7 +753,32 @@ func hit_drawn(p: Vector2) -> bool:
 ## Whether the cutaway shows this empty mount now: only while a part that fits
 ## it is carried.
 func _shows_empty(s: Dictionary) -> bool:
-	return tags and explode > 0.5 and _lit != null and not _passive and _lit.slot == (s.slot as ModuleData.Slot)
+	return tags and explode > 0.5 and _takes_spot(s)
+
+
+## WHETHER A DROP OF `m` ON MOUNT `index` OF `slot` WOULD LAND -- fit it, or
+## trade it with what is there -- for a part picked up from `origin`. THE ONE
+## ANSWER: `_can_drop_data` gives it to the cursor, `_draw` marks the mounts
+## with it, and it is `RunState.refit_allowed`, the gate `fit_at_mount` itself
+## goes through, with what the screens do before that call:
+##  - off this ship (`&"hull"`), the part is in the hand (`lift_part`), so it
+##    trades with any part of its kind;
+##  - off a loot pile (`&"bag"`), the cutaway claims it into the hold first
+##    (`Run.take_item`), so the hold has to have room for it -- on an empty
+##    mount too -- and then the resident goes in the cells it leaves;
+##  - anything else, from the hold or the dock: the resident goes to the hold.
+## Never on a ship you are leaving (`ship`), nor on a picture (`passive`).
+func takes(m: ModuleData, origin: StringName, slot: ModuleData.Slot, index: int) -> bool:
+	if m == null or ship != null or _passive:
+		return false
+	if origin == &"bag" and not Run.has_room_for(m):
+		return false
+	var lifted_from := 0 if origin == &"hull" and not Run.installed.has(m) else -1
+	return Run.refit_allowed(m, slot, index, lifted_from)
+
+
+func _takes_spot(s: Dictionary) -> bool:
+	return _lit != null and takes(_lit, _lit_origin, s.slot as ModuleData.Slot, int(s.index))
 
 
 ## THE CUTAWAY LIFTS PARTS OUT PAST THIS WIDGET'S OWN RECT (it is the hull's
@@ -866,8 +952,10 @@ func _can_drop_data(at: Vector2, data: Variant) -> bool:
 	# hull that is about to stop being yours.
 	if ship != null:
 		return false
-	if _lit != m:
+	var origin := StringName((data as Dictionary).get("origin", &""))
+	if _lit != m or _lit_origin != origin:
 		_lit = m
+		_lit_origin = origin
 		queue_redraw()
 	var i := spot_at(at)
 	if i < 0 or (_spots[i].slot as ModuleData.Slot) != m.slot:
@@ -882,12 +970,12 @@ func _can_drop_data(at: Vector2, data: Variant) -> bool:
 	#
 	# Answering it here instead means the cursor says no while you are still
 	# holding the thing, which is where a refusal belongs.
-	var resident := Run.module_at(_spots[i].slot as ModuleData.Slot,
-		int(_spots[i].index))
-	if resident != null and resident != m and not Run.installed.has(m) \
-			and not Run.has_room_for(resident, m):
-		return false
-	return true
+	#
+	# `takes`, which is the refit rule's own gate: this used to ask the hold for
+	# the resident's room whenever the part was not on the ship, which a part
+	# lifted OFF the ship never is -- so on a full hold the cursor refused two
+	# fitted parts trading, a move `fit_at_mount` makes without the hold at all.
+	return takes(m, origin, _spots[i].slot as ModuleData.Slot, int(_spots[i].index))
 
 func _drop_data(at: Vector2, data: Variant) -> void:
 	var m := Widgets.dragged_module(data)
@@ -900,6 +988,7 @@ func _drop_data(at: Vector2, data: Variant) -> void:
 	dropped.emit(data as Dictionary, _spots[i].slot, _spots[i].index)
 
 func _unlight() -> void:
+	_lit_origin = &""
 	if _lit == null:
 		return
 	_lit = null
@@ -911,7 +1000,11 @@ func _notification(what: int) -> void:
 	# the hull stays lit after a drop that landed in the hold.
 	if what == NOTIFICATION_MOUSE_EXIT or what == NOTIFICATION_DRAG_END:
 		_hover = Vector2.INF
-		_unlight()
+		# THE MARKS LAST THE WHOLE DRAG, from its start to its drop or cancel,
+		# not only while the pointer is over the hull: carried across the hold,
+		# the hull still says where the part goes. Out on the drag's end alone.
+		if what == NOTIFICATION_DRAG_END or not (is_inside_tree() and get_viewport().gui_is_dragging()):
+			_unlight()
 		# AND REPAINT WHETHER OR NOT ANYTHING WAS LIT. `_unlight` returns early
 		# when `_lit` is null, which is exactly the case here: pointing at a hull
 		# with empty hands raises the hover HINTS, and those are drawn off
@@ -934,7 +1027,7 @@ func _notification(what: int) -> void:
 		var data: Variant = get_viewport().gui_get_drag_data()
 		# Cargo rides the same "module" key, and a material has no mount to light.
 		if typeof(data) == TYPE_DICTIONARY and (data as Dictionary).get("module") is ModuleData:
-			light((data as Dictionary).module)
+			light((data as Dictionary).module, StringName((data as Dictionary).get("origin", &"")))
 
 ## Follow the pointer over the hull, so `_draw` can say what is bolted on.
 ##
@@ -966,6 +1059,7 @@ func focus(m: ModuleData) -> void:
 	_focus = m
 	queue_redraw()
 
-func light(m: ModuleData) -> void:
+func light(m: ModuleData, origin: StringName = &"") -> void:
 	_lit = m
+	_lit_origin = origin if m != null else &""
 	queue_redraw()

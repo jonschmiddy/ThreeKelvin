@@ -56,7 +56,7 @@ tools/               repo tools: encounter_lint.py, prose_grade.py, prose_tells.
 
 The ten autoloads are listed in `project.godot` and described in `tkg/CLAUDE.md`
 ("The shape of the code"). Content (modules, cards, hulls, enemies, affixes,
-manufacturers, archive documents) is data in `tkg/scripts/autoload/Database.gd`.
+manufacturers) is data in `tkg/scripts/autoload/Database.gd`.
 Encounters are data in `tkg/scripts/systems/OptionTable.gd`.
 
 ---

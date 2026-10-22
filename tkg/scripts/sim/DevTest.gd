@@ -151,6 +151,9 @@ func _launcher(dev: bool) -> void:
 		_ok("and no button is wired to the switch", wired == 0)
 		_ok("and nothing describes what it did", _with_text(l, "Card gallery") == 0)
 	_ok("the menu is all there", _buttons(l, ["NEW RUN", "SETTINGS", "QUIT"]) == 3)
+	# NO ARCHIVE (Jon, Oct 22: "get rid of the ARCHIVE. From both the top left
+	# and the main menu."): no option, label or tooltip on the title names it.
+	_ok("the title has no ARCHIVE", _with_text(l, "ARCHIVE") + _with_text(l, "rchive") == 0)
 	await _drop(l)
 
 
@@ -210,8 +213,20 @@ func _screens(dev: bool) -> void:
 		_ok("the HUD builds CARDS and MODULES", tabs == 2)
 	else:
 		_ok("the HUD builds no CARDS or MODULES", tabs == 0)
-	_ok("and the rest of the bar", _buttons(hud, ["STARCHART", "ARCHIVE"]) == 2)
+	_ok("and the rest of the bar", _buttons(hud, ["STARCHART"]) == 1)
 	_ok("and no SHIP tab (your ship opens where it is drawn)", _buttons(hud, ["SHIP"]) == 0)
+	_ok("and no ARCHIVE tab, label or tooltip (Jon, Oct 22)",
+		_with_text(hud, "ARCHIVE") + _with_text(hud, "rchive") == 0)
+	# NOR ANY DOOR TO ONE. Tab's cycle, the HUD and the title all open pages
+	# through Router's `show_` calls; with no `show_archive` and no reading-room
+	# class in the project, no key, tab or menu can reach an archive.
+	_ok("and no door to an archive anywhere: no Router.show_archive",
+		not Router.has_method(&"show_archive"))
+	var classes: Array = []
+	for c: Dictionary in ProjectSettings.get_global_class_list():
+		classes.append(String(c.get("class", "")))
+	_ok("and no Archive, ArchiveScreen or DocumentData class",
+		not ("Archive" in classes or "ArchiveScreen" in classes or "DocumentData" in classes))
 	await _drop(hud)
 
 	var pick := ChassisSelect.new()

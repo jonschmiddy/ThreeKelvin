@@ -668,7 +668,7 @@ func place_in_hold(m: HoldItem, at: Vector2i = -Vector2i.ONE) -> bool:
 ## hands back prose. There are a hundred and sixty-seven direct mutations in
 ## `OptionTable` (`add_credits(-70)`, `heat += 20`, `take_hull_damage(8)`) and
 ## the returned dictionary carries none of them: it has `text`, `module`,
-## `material`, `material_id`, `fight`, `archive_recover` and
+## `material`, `material_id`, `fight` and
 ## `consume_material_tier`, and nothing else.
 ##
 ## SNAPSHOT AND DIFF, rather than a reward field on each outcome. Two hundred and
@@ -2304,13 +2304,14 @@ func unlift_part(m: ModuleData, mount: int) -> void:
 ## The mount is a PLACE, so `index` is carried through to the part rather than
 ## derived from the order of `installed`.
 func fit_at_mount(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from: int = -1) -> Refit:
-	# STAYS a ModuleData, and that is the guard. A mount is a hardpoint on the
-	# hull; a crate of ore has no slot to match and no power to draw.
-	if m == null or m.slot != slot:
+	# THE GATE IS `refit_allowed`, the one the hull asks while a part is carried
+	# (`MountPoints.takes`): what it lights is what this does, by construction.
+	if not refit_allowed(m, slot, index, lifted_from):
+		var was := module_at(slot, index) if m != null and m.slot == slot else null
+		if was != null and was != m:
+			log_line("No room in the hold for %s." % was.name, &"them")
 		return Refit.REFUSED
 	var resident := module_at(slot, index)
-	if resident == m:
-		return Refit.REFUSED
 	# Two fitted parts trading mounts EXCHANGE places rather than sending one to
 	# the hold -- the mounts are visibly different positions on the ship.
 	#
@@ -2334,10 +2335,7 @@ func fit_at_mount(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from:
 	# `m` IS LEAVING: it is in the hold this instant and on the hull the next, so
 	# the cells it occupies are exactly where the resident is going. Without
 	# saying so, a full hold refused every swap -- including a part for one the
-	# same size, which is a move that cannot fail.
-	if resident != null and not has_room_for(resident, m):
-		log_line("No room in the hold for %s." % resident.name, &"them")
-		return Refit.REFUSED
+	# same size, which is a move that cannot fail. (`refit_allowed` asked it.)
 	var was_at := m.hold_at
 	if cargo.has(m):
 		take_from_hold(m)
@@ -2359,6 +2357,32 @@ func fit_at_mount(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from:
 	Sig.ship_changed.emit()
 	log_line("Fitted %s." % m.name, &"good")
 	return Refit.FITTED
+
+
+## WHETHER `fit_at_mount` WITH THESE ARGUMENTS WOULD FIT OR TRADE, moving
+## nothing: the refit rule's yes or no, and `fit_at_mount`'s own gate. Three
+## parts to it:
+##  - the mount's kind is the part's (a weapon on a weapon mount);
+##  - a part fitted or in the hand (`lifted_from` >= 0) TRADES with the one on
+##    the mount, always -- the resident goes where it came from, not the hold;
+##  - any other part (the hold, the dock) puts the resident in the hold, so the
+##    resident must fit there with the part's own cells counted free.
+## An empty mount of the right kind always says yes. Nothing about the size or
+## shape of the part decides a mount: only the hold's room for the resident.
+func refit_allowed(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from: int = -1) -> bool:
+	# STAYS a ModuleData, and that is the guard. A mount is a hardpoint on the
+	# hull; a crate of ore has no slot to match and no power to draw.
+	if m == null or m.slot != slot:
+		return false
+	var resident := module_at(slot, index)
+	if resident == null:
+		return true
+	if resident == m:
+		return false
+	var lifted := lifted_from >= 0 and not installed.has(m)
+	if installed.has(m) or lifted:
+		return true
+	return has_room_for(resident, m)
 
 
 ## A part (or any hold item) dropped onto CELL `at` of the hold: from the hold
@@ -3579,7 +3603,10 @@ func hellbender_jumped() -> void:
 ## One hop. `feeding` is false on a flee hop — a ship running for its life is
 ## not stopping to cut salvage, and the client applying the pushed position
 ## must agree about which kind of landing it was. See hellbender_land().
-func _hellbender_step(feeding: bool) -> void:
+## `away_from` is a system a flee hop never lands in: the one it ran from. Two
+## hops out could be A to B and straight back to A, so its escape burn put it
+## at anchor where you had just watched it go (`hellbender_breaks_off`).
+func _hellbender_step(feeding: bool, away_from: int = -1) -> void:
 	if not hellbender_alive():
 		return
 	hellbender_moves += 1
@@ -3588,6 +3615,8 @@ func _hellbender_step(feeding: bool) -> void:
 	var options: Array = []
 	var food: Array = []
 	for i in here_n.links:
+		if i == away_from:
+			continue
 		var n: MapGen.MapNode = map[i]
 		# Not the rim's first system and not the core: one is the front door,
 		# and the other already has a custodian in it.
@@ -3649,8 +3678,9 @@ func hellbender_breaks_off(hp: int) -> void:
 	if not hellbender_alive() or not _hellbender_authority():
 		return
 	hellbender_hp = clampi(hp, 1, hellbender_max)
+	var fled_from := hellbender_at
 	for i in HELLBENDER_FLEE_HOPS:
-		_hellbender_step(false)
+		_hellbender_step(false, fled_from)
 	Net.push_hellbender(false)
 
 ## The kill. Called wherever the last hull point comes off — Combat._victory()
@@ -3699,6 +3729,9 @@ func take_contract(c: ContractData) -> ContractData:
 	next_contract_id += 1
 	mine.state = ContractData.State.TAKEN
 	contracts.append(mine)
+	# The work goes on the named system's map now, so it is there to find
+	# however you get there (`Contracts.post_goal`).
+	Contracts.post_goal(mine)
 	log_line("Signed: %s. It pays %d credits on delivery." % [
 		_contract_short(mine), mine.pay], &"sys")
 	Sig.contracts_changed.emit()
@@ -3765,9 +3798,12 @@ func deliver_contract(job: ContractData) -> void:
 	Sig.contracts_changed.emit()
 	Sig.resources_changed.emit()
 
-## Arriving somewhere finishes any FETCH pointed at it.
+## Taking the pickup finishes any FETCH pointed at this system.
 ##
-## Called from the one door every arrival goes through. A recovered item is
+## Called by the pickup's own event (`OptionTable` `job_pickup`), which
+## `Contracts.post_goal` puts on the named system's map; and on arrival
+## (`Router.settle_arrival`) only for a fetch naming a place that cannot hold
+## an event, which nothing signed now does. A recovered item is
 ## NAMED AND NOT CARRIED: it does not take a hold slot, cannot be scrapped by
 ## accident and cannot be lost to a full hold. A contract that soft-locks on
 ## inventory is a bug wearing a decision's clothes, and there is no version of
@@ -3785,10 +3821,6 @@ func reach_contract_target(index: int) -> void:
 		log_line("Recovered: %s. Strapped to the frame until you deliver it." % job.item,
 			&"good")
 	if moved:
-		# The paperwork rides with the thing the manufacturer wanted back, and the
-		# manufacturer never asks what you read on the way. Fourth door, same hinge —
-		# see Archive.recover_at.
-		Archive.recover_at(map[index], "folded in with the contract cargo")
 		Sig.contracts_changed.emit()
 
 ## Winning a fight here finishes any HUNT pointed at it.

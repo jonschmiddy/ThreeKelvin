@@ -72,6 +72,15 @@ var _hint: Label
 var _neigh: VBoxContainer
 ## The box holding it, resized to the list.
 var _neigh_scroll: ScrollContainer
+## A QUEST SHOWN FROM THE QUESTS TABLE (`QuestPanel`: SHOW ON STARCHART, PLOT
+## ROUTE): {id, route}, set before the chart is opened and taken up by the
+## chart that opens (`apply_focus`). Its place becomes the destination and only
+## its tag is drawn, with its route from YOU for PLOT ROUTE; picking another
+## star drops both.
+static var focus: Dictionary = {}
+## The quest shown (its contract id), -1 for none, and whether its route is up.
+var _picked_quest: int = -1
+var _plot := false
 
 ## One row plus its separation, for sizing the box to the list.
 const NEIGH_ROW := 16.0
@@ -153,7 +162,40 @@ func setup() -> void:
 	# the case a redraw-on-input would miss.
 	Sig.party_changed.connect(_refresh)
 	Sig.party_map_changed.connect(_refresh)
+	apply_focus()
 	_refresh()
+
+
+## Take up a quest the QUESTS table asked to be shown (`focus`), if any.
+func apply_focus() -> void:
+	if focus.is_empty():
+		return
+	var id := int(focus.get("id", -1))
+	_plot = bool(focus.get("route", false))
+	focus = {}
+	var place := _quest_place(id)
+	if place < 0:
+		return
+	_picked_quest = id
+	_selected = place
+	if is_inside_tree():
+		_refresh()
+	_frame_focus(place)
+
+
+## Frame the chart on YOU and the shown quest's place, so its tag and route
+## are in view: once the chart has its size and has put back its remembered
+## view (a frame or two after it is built), not before.
+func _frame_focus(place: int) -> void:
+	if not is_inside_tree():
+		await tree_entered
+	for i in 2:
+		await get_tree().process_frame
+	if not is_instance_valid(_chart) or _selected != place:
+		return
+	var here := Run.node_at()
+	_chart.frame_region(here, maxf(0.12, MapGen.hop_distance(here, Run.map[place]) + 0.03), false)
+	_chart.queue_redraw()
 
 func _build() -> void:
 	var root := VBoxContainer.new()
@@ -227,6 +269,7 @@ func _build() -> void:
 	_chart.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_chart.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_chart.node_picked.connect(_on_node_picked)
+	_chart.quest_avoid = _quest_avoid
 	_chart.cleared.connect(_on_chart_cleared)
 	_chart.view_dragged.connect(_on_view_dragged)
 	var chart_wrap := Widgets.panel_with(_chart)
@@ -662,6 +705,10 @@ func _on_node_picked(index: int) -> void:
 	if index != _selected and ResourceLoader.exists(Audio.SFX_PATH % &"chart_select"):
 		Audio.play(&"chart_select", 0.04, 60)
 	_selected = index
+	# a star picked off the chart is not the quest shown from the table
+	if _picked_quest >= 0 and _quest_place(_picked_quest) != index:
+		_picked_quest = -1
+		_plot = false
 	_refresh()
 
 ## How long the readings take to resolve. A sensor return, not a transition:
@@ -717,6 +764,7 @@ func _refresh() -> void:
 
 	_clear(_rows)
 	_settle()
+	_quest_marks()
 
 	if _selected < 0:
 		_fill_neighbours(here)
@@ -1016,6 +1064,51 @@ func _fill_neighbours(here: MapGen.MapNode) -> void:
 ##
 ## Cleared last, and still listed: knowing the nearby ground is already stripped
 ## is what decides whether you farm on or dive.
+## The shown quest's tag and, for PLOT ROUTE, its route: nothing otherwise.
+func _quest_marks() -> void:
+	var tags: Array = []
+	var r: Array[int] = []
+	if _picked_quest >= 0:
+		for raw in QuestLog.entries():
+			var e: Dictionary = raw
+			if (e.job as ContractData).id != _picked_quest or int(e.place) < 0:
+				continue
+			if int(e.place) == _selected:
+				tags.append({index = int(e.place), text = String(e.tag), picked = true})
+				if _plot:
+					r = QuestLog.route(int(e.place))
+	_chart.quest_tags = tags
+	_chart.quest_route = r
+	_chart.queue_redraw()
+
+
+## The system quest `id`'s tag stands on, or -1.
+func _quest_place(id: int) -> int:
+	for e in QuestLog.entries():
+		if ((e as Dictionary).job as ContractData).id == id:
+			return int((e as Dictionary).place)
+	return -1
+
+
+## What a quest's tag must keep off, global: the HUD, the goal line's room,
+## A.S.H. where she is and where she would first stand, and the chart's own
+## words (its corner toggles, YOU, the picked star's name, the scale).
+func _quest_avoid() -> Array:
+	var out: Array = []
+	if Router.hud != null and is_instance_valid(Router.hud) and Router.hud.is_visible_in_tree():
+		out.append(Router.hud.get_global_rect())
+	var st := GoalLine.stack_rect(self)
+	if st.size != Vector2.ZERO:
+		out.append(st)
+	if Ash.portrait != null and is_instance_valid(Ash.portrait) and Ash.portrait.visible:
+		out.append(Ash.portrait.rect())
+	var spots := Ash.tut_spot_boxes(self, Vector2(AshPortrait.W, AshPortrait.H))
+	if not spots.is_empty():
+		out.append((spots[0] as Dictionary).rect)
+	Ash._chart_rects(self, out, false)
+	return out
+
+
 func _notable(n: MapGen.MapNode) -> int:
 	if n.cleared and n.type != MapGen.NodeType.CORE:
 		return 5
@@ -2159,6 +2252,20 @@ class MapChart extends Control:
 	## chart is a field of near-identical points, and a tooltip that snaps
 	## between them reads as flicker.
 	var _hover_t: float = 0.0
+	## THE QUESTS ON THE CHART (`StarchartScreen.apply_focus`): a numbered tag
+	## at each one's place, {index, text, picked}, laid out clear of what must
+	## not be covered (`place_quest_tags`); the picked one's route, YOU first.
+	var quest_tags: Array = []
+	var quest_route: Array[int] = []
+	## Where each tag was laid, local, in `quest_tags` order: what A.S.H. keeps
+	## off and the tests read.
+	var quest_rects: Array = []
+	## The global rects a tag must keep off (`StarchartScreen._quest_avoid`),
+	## asked each time the tags are laid: A.S.H. comes and goes.
+	var quest_avoid: Callable
+	## Every star a click could pick, as last drawn (screen positions), for the
+	## tags to keep off.
+	var _pickable: PackedVector2Array = PackedVector2Array()
 
 	# ---- the instrument: reticle, scan and zoom tick. The navigated chart only
 	# (`remembers_view`): the launcher's backdrop is the same class and must stay
@@ -3299,10 +3406,13 @@ class MapChart extends Control:
 		# regular. Zoomed out, a system is a point of light; the glyph is detail
 		# you zoom in for.
 		var tiny := zoom < 0.78
+		_pickable = PackedVector2Array()
 		for n in Run.map:
 			var node2: MapGen.MapNode = n
 			if not show_icons:
 				continue
+			if visible.has(node2.index):
+				_pickable.append(_screen_pos(node2))
 			# The chart is a record and a choice, not an atlas. A system you have
 			# never been to and cannot currently reach is not information you can
 			# act on — it was 190 icons of noise over the galaxy, and hiding it
@@ -3387,6 +3497,8 @@ class MapChart extends Control:
 		_draw_hellbender()
 		_draw_quests()
 		_draw_work()
+		_draw_quest_route()
+		_draw_quest_tags()
 		_draw_neb_edges()
 
 		if hovered >= 0 and hovered < Run.map.size() and _hover_t > 0.01:
@@ -4036,6 +4148,93 @@ class MapChart extends Control:
 			draw_string(UITheme.pixel_font(), c + Vector2(-46, -13), said,
 				HORIZONTAL_ALIGNMENT_CENTER, 92, 8, gold)
 
+
+	## THE PICKED QUEST'S ROUTE, hop by hop from YOU: the chart's dotted line
+	## (`_dotted`) in the quest's gold, a jump to a hop.
+	func _draw_quest_route() -> void:
+		if not show_icons or quest_route.size() < 2:
+			return
+		var gold := EncounterDrawer.TAG_QUEST
+		for i in range(quest_route.size() - 1):
+			var a := _screen_pos(Run.map[quest_route[i]])
+			var b := _screen_pos(Run.map[quest_route[i + 1]])
+			var d := a.distance_to(b)
+			var steps := int(d / 4.0)
+			for k in range(1, steps):
+				if k % 2 == 0:
+					continue
+				var q := a.lerp(b, float(k) / float(steps)).round()
+				draw_rect(Rect2(q - Vector2(1, 1), Vector2(4, 4)), _UNDER, true)
+				draw_rect(Rect2(q, Vector2(2, 2)), gold, true)
+
+	## Where every quest's tag goes, local, in `quest_tags` order: beside its
+	## star on the first side that keeps clear of every star a click could pick,
+	## of the HUD, the goal line and A.S.H. (`quest_avoid`), of the chart's own
+	## words and of the tags already laid -- nearer first, then further out.
+	## Where nothing is clear, the side that covers least.
+	func place_quest_tags() -> Array:
+		var out: Array = []
+		if quest_tags.is_empty():
+			return out
+		var f := UITheme.pixel_font()
+		var inv := get_global_transform().affine_inverse()
+		var avoid: Array = []
+		if quest_avoid.is_valid():
+			for g in quest_avoid.call():
+				avoid.append(inv * (g as Rect2))
+		var rad := maxf(5.0, 12.0 * zoom)
+		var frame := Rect2(Vector2(2, 2), size - Vector2(4, 4))
+		for t in quest_tags:
+			var at := _screen_pos(Run.map[int(t.index)]).round()
+			var w := ceilf(f.get_string_size(String(t.text), HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x) + 8.0
+			var best := Rect2()
+			var best_hits := 1 << 30
+			for d: float in [rad + 2.0, rad + 12.0, rad + 26.0, rad + 44.0]:
+				for o: Vector2 in [Vector2(d, -d * 0.6 - 11.0), Vector2(d, d * 0.6),
+						Vector2(-w - d, -d * 0.6 - 11.0), Vector2(-w - d, d * 0.6),
+						Vector2(-w * 0.5, -d - 11.0), Vector2(-w * 0.5, d)]:
+					var r := Rect2((at + o).round(), Vector2(w, 11))
+					var hits := 0 if frame.encloses(r) else 100
+					for a in avoid + out:
+						if r.grow(1.0).intersects(a as Rect2):
+							hits += 10
+					var near := r.grow(rad)
+					for sp in _pickable:
+						if near.has_point(sp) and _rect_dist(r, sp) < rad:
+							hits += 1
+					if hits < best_hits:
+						best_hits = hits
+						best = r
+					if hits == 0:
+						break
+				if best_hits == 0:
+					break
+			out.append(best)
+		return out
+
+	static func _rect_dist(r: Rect2, p: Vector2) -> float:
+		var q := Vector2(clampf(p.x, r.position.x, r.end.x), clampf(p.y, r.position.y, r.end.y))
+		return q.distance_to(p)
+
+	## Each quest's number and word in a box, a leader to its star; the picked
+	## one in the quest's gold, the rest in the chart's own cold ink.
+	func _draw_quest_tags() -> void:
+		quest_rects = []
+		if not show_icons or quest_tags.is_empty() or ladder_hush:
+			return
+		quest_rects = place_quest_tags()
+		var f := UITheme.pixel_font()
+		for i in quest_tags.size():
+			var t: Dictionary = quest_tags[i]
+			var r: Rect2 = quest_rects[i]
+			var col: Color = EncounterDrawer.TAG_QUEST if bool(t.get("picked", false)) else UITheme.CHILL
+			var at := _screen_pos(Run.map[int(t.index)]).round()
+			var lead := Vector2(clampf(at.x, r.position.x, r.end.x), clampf(at.y, r.position.y, r.end.y))
+			draw_line(at, lead, _UNDER, 3.0)
+			draw_line(at, lead, col, 1.0)
+			draw_rect(r, Color(0.04, 0.055, 0.08, 0.92), true)
+			draw_rect(r, col, false, 1.0)
+			draw_string(f, r.position + Vector2(4, 9), String(t.text), HORIZONTAL_ALIGNMENT_LEFT, -1, 8, col)
 
 	func _draw_work() -> void:
 		if not show_icons or Run.map.is_empty():

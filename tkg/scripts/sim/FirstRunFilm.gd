@@ -132,7 +132,7 @@ func _push(at: Vector2, down: bool, button: bool) -> void:
 		vp.push_input(mb)
 		# a real click reaches the root too, where the hints listen
 		if down:
-			Hints.click(mb)
+			Hints.spend()
 		_ptr_down = down
 	else:
 		var mm := InputEventMouseMotion.new()

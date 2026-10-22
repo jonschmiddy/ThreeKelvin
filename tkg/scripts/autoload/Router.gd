@@ -322,8 +322,7 @@ func _room_for(screen: Control) -> Variant:
 		return &"amb_station" if docked else _star_room()
 	if screen is CardGalleryScreen \
 			or screen is ModuleGalleryScreen or screen is TransferScreen \
-			or screen is StarchartScreen or screen is ArchiveScreen \
-			or screen is HistoryScreen:
+			or screen is StarchartScreen or screen is HistoryScreen:
 		return null
 	return &""
 
@@ -507,17 +506,6 @@ func show_party() -> void:
 	s.setup((show_station if docked else show_local) if here is ShipScreen else (
 		show_starchart if here is StarchartScreen else show_sector))
 
-## Somebody else's paperwork. `from_launcher` sends LEAVE back to the title
-## screen, because the archive is readable out of a run as well as in one — what
-## you have read survives the ship. See Archive.
-func show_archive(from_launcher: bool = false) -> void:
-	# From the launcher the archive is somewhere you went; from inside a run it
-	# is a panel you opened, and a panel never touches the music.
-	Audio.music_state(&"records" if from_launcher else &"archive")
-	var s := ArchiveScreen.new()
-	_swap(s, not from_launcher)
-	s.setup(show_launcher if from_launcher else show_sector)
-
 ## Re-scan before drawing, because SIGHT IS A SNAPSHOT AND REACH IS LIVE.
 ##
 ## `chart_from` runs on arrival and `sensed` keeps that answer until the next
@@ -567,15 +555,21 @@ func _show_starchart() -> void:
 ## means "back to the place" comes through here -- UNDOCK, the HUD tab, the
 ## galleries' BACK, the end of a fight -- so they all land on the map.
 func show_sector() -> void:
-	# A HELLBENDER AT ANCHOR is the one thing this system offers until it is
-	# dealt with; the map would let you walk round it.
-	var held := Run.hellbender_alive() and Run.hellbender_at == Run.at
+	# A HELLBENDER AT ANCHOR DOES NOT SHUT THE MAP. It did (Oct 2: "the map would
+	# let you walk round it"), from when it was fought from anywhere in the
+	# system. Since it has a place of its own on the map (Jon, Oct 15: one place,
+	# one fight) the map is the only way TO it -- LOCAL elsewhere says "Fly out
+	# to it" and its button is this door -- so with the old hold kept, SECTOR,
+	# that button, Tab and the end of a fight it was still here after (fled, or
+	# its escape burn hopping back) all came back to LOCAL, and only STARCHART
+	# left (Jon, Oct 22: "Fighting the Hellbender totally breaks the sector and
+	# local buttons. You are able to click starchart.").
 	# UNDOCKING IS ONE DISTANCE OUT (`ZoomLadder`): the station's berth to LOCAL,
 	# beside the station, where DOCK takes you back in and the map is a Tab away
 	if docked and current is StationScreen and ZoomLadder.chosen():
 		show_local()
 		return
-	if in_combat() or fight_up() or _post_depart >= 0 or held:
+	if in_combat() or fight_up() or _post_depart >= 0:
 		show_local()
 	else:
 		_undock()
@@ -590,7 +584,9 @@ func show_system() -> void:
 	if Run.dead:
 		show_game_over()
 		return
-	if in_combat() or fight_up() or (Run.hellbender_alive() and Run.hellbender_at == Run.at):
+	# (and open with the Hellbender anchored here: its place is on the map, the
+	# one way to it -- see `show_sector`)
+	if in_combat() or fight_up():
 		show_local()
 		return
 	if ZoomLadder.preroll(ZoomLadder.MAP, show_system):
@@ -1028,10 +1024,7 @@ func resolve_current_node() -> void:
 	# it is shown. Arriving is the safe point; everything past it is a thing you
 	# chose to do here, and a suspend save is a bookmark rather than a way to
 	# reject a draw. See _roll_here().
-	_roll_here(n)
-	# Anything you were paid to come and get is got. Before the autosave, so a
-	# force-quit on arrival does not lose the trip you just made.
-	Run.reach_contract_target(n.index)
+	settle_arrival(n)
 	# The save the SaveGame header promises: on the sector, at the node you flew
 	# to, with the contact still there. Until this line the last write predated
 	# the JUMP — start_combat() assigns `combat` before it swaps, so the fight's
@@ -1101,6 +1094,23 @@ func resolve_current_node() -> void:
 			show_sector()
 		_:
 			show_sector()
+
+## WHAT ARRIVING CHANGES ABOUT THE PLACE, before anything is shown or saved:
+## what the system holds is rolled, and the work you signed for here is put
+## on its map (`Contracts.post_goals_at`). Its own function so `-- contracttest`
+## arrives through the same door the game does.
+func settle_arrival(n: MapGen.MapNode) -> void:
+	_roll_here(n)
+	# THE WORK IS AN EVENT HERE, NOT A THING THAT HAPPENS ON ARRIVAL: a fetch's
+	# pickup and a hunt's target are on the map to fly to (`Contracts.post_goal`),
+	# posted at signing and again here in case the place was emptied since.
+	Contracts.post_goals_at(n)
+	# A fetch signed before the work was put on a map can still name a place that
+	# holds no events (a station): there, as before, arriving is the pickup.
+	# Before the autosave, so a force-quit on arrival does not lose the trip.
+	if not Contracts.holds_goal(n):
+		Run.reach_contract_target(n.index)
+
 
 ## Decide what is waiting at a system, once, and leave it on the node so the
 ## save carries it. Cleared nodes are left alone — whatever was here is resolved
@@ -1302,6 +1312,9 @@ func claim_open_option() -> bool:
 	var n: MapGen.MapNode = Run.node_at()
 	if n == null or _open_option < 0:
 		return false
+	# a signed job's event is this ship's alone (`OptionResolve.take`)
+	if _open_option < n.options.size() and OptionTable.is_job(n.options[_open_option]):
+		return not n.taken.has(MapGen.OPTION_SITE + _open_option)
 	return await Run.take_option(n, MapGen.OPTION_SITE + _open_option)
 
 
@@ -1338,14 +1351,10 @@ func event_resolved(result: StringName = &"done") -> void:
 ## tank and exotic matter worth studying, and you pay for it in the only
 ## currency the ship cannot buy back cheaply.
 func harvest_pulsar() -> void:
-	var n: MapGen.MapNode = Run.node_at()
 	Run.harvest_pulsar()
 	if Run.dead:
 		show_game_over()
 		return
-	# A beam that has been sweeping this long has swept other people. Read before
-	# the screen swaps, so the line lands in the log the sector is about to draw.
-	Archive.recover_at(n, "pulled out of a pulsar's sweep")
 	show_sector()
 
 ## Strip the wreck, then stay where you are: the salvage rail on the sector
@@ -1392,7 +1401,6 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 		Run.log_line("A flyable hull is still attached: %s" % Run.found_hull.display_name(), &"good")
 	Run.log_line("You strip %d module%s from the derelict." % [
 		count, "" if count == 1 else "s"], &"good")
-	Archive.recover_at(n, "stripped out of a derelict")
 	show_sector()
 
 ## `extras` is what the node already rolled. It is a parameter rather than
@@ -1614,7 +1622,7 @@ func in_combat() -> bool:
 ## and the chart lead back to the fight, and `show_local` stops there. It did not: Tab in a fight went `show_system` -> `show_local` and
 ## built the fight's screen again over itself, so the picture dimmed and came
 ## back, the hand was dealt again and the enemy flew in a second time (nav
-## audit, Oct 17). From a page opened OVER the fight (CARDS, the archive) the
+## audit, Oct 17). From a page opened OVER the fight (CARDS) the
 ## same doors are still the way back to it.
 ##
 ## AND UNTIL THE FIGHT HAS HANDED OVER. From the last kill to `after_combat` --

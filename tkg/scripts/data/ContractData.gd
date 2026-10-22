@@ -119,7 +119,10 @@ func _where() -> String:
 	if at < 0 or Run.map.is_empty() or at >= Run.map.size():
 		return "somewhere out there"
 	var n: MapGen.MapNode = Run.map[at]
-	return "%s · layer %d" % [MapGen.star_name(n), n.layer]
+	# COUNTED FROM ONE, as the chart and the sector count it ("LAYER 7/15").
+	# `n.layer` is from zero, and printing it raw sent every contract's reader
+	# one layer short of where the work was.
+	return "%s · layer %d" % [MapGen.star_name(n), n.layer + 1]
 
 
 func to_wire() -> Dictionary:

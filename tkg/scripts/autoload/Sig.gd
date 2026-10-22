@@ -24,10 +24,6 @@ signal fps_meter_changed(on: bool)
 ## The rendering style was changed in Settings (`DisplaySettings.render_style`).
 ## The star chart and the sector map rebuild their pictures on it.
 signal render_style_changed()
-## A page was recovered out of a system. The archive tab counts, and the HUD
-## shows the count, so both have to hear it — and it fires from the one door in
-## Archive rather than from the three encounters that go through that door.
-signal archive_changed()
 ## A contract was taken, finished or paid. The station board and the ledger both
 ## read it, and it fires from RunState rather than from the four places that can
 ## move a contract.
