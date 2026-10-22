@@ -28,7 +28,11 @@ extends Harness
 ## between the encounters that share a role. LOCAL NEVER DRAWS THE FIGHT'S CODED
 ## SHIP (Jon picked kept pool ships on LOCAL only): no subject names `foe`, and
 ## an armed encounter's scene shows pool ships, then goes the moment its fight
-## opens, so the fight's own ship (`EnemyArt`) flies in alone.
+## opens, so the fight's own ship (`EnemyArt`) flies in alone. AND IT DOES NOT
+## COME BACK (Jon, Oct 22: "When you destroy a ship in combat, sometimes another
+## ship randomly pops up?"): the fight won, LOCAL draws its wreck and no whole
+## ship of the event beside it, then and on LOCAL again; every fight's scene
+## keeps all but what it marks `fights` (`LocalSubject.without_foes`).
 
 ##
 ## A BIG STRUCTURE (`structure`, Jon's "Pulling up to it"): pinned to the view's
@@ -1315,6 +1319,8 @@ func _handover(oid: StringName) -> void:
 				pool += 1
 	_ok("%s shows kept pool ships, never the fight's coded ship (%d pool, %s)" % [oid, pool, ", ".join(coded) if not coded.is_empty() else "none coded"],
 		sub != null and pool > 0 and coded.is_empty())
+	# the event's own ENGAGE, taken as the drawer takes it, then its fight
+	await OptionResolve.take(n, 0, 0)
 	Router.start_ambush()
 	await _tree.process_frame
 	var sc1 := Router.current as SectorScreen
@@ -1334,7 +1340,61 @@ func _handover(oid: StringName) -> void:
 	_ok("  and the fight brings its own ship (%s), drawn by EnemyArt" % brought, brought != &"")
 	var sc2 := Router.current as SectorScreen
 	_ok("  and the scene's own stays gone in the fight", sc2 != null and LocalSubject.of(sc2._view) == null)
+	# AND AFTER THE KILL IT DOES NOT COME BACK (Jon, Oct 22: "When you destroy a
+	# ship in combat, sometimes another ship randomly pops up?"): the bar's event
+	# is still the fight, RESOLVED, and LOCAL drew its subject -- the pool ship --
+	# whole beside the wreck of the ship you shot. Won as play wins it (the
+	# breakup, the hand lowered, `Router.after_combat` to LOCAL), then LOCAL again.
+	if Router.combat != null:
+		for e in Router.combat.enemies:
+			Router.combat.damage_enemy(9999, 1, "test", e)
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < WAIT_MS and (Router.combat != null or not (Router.current is SectorScreen) \
+			or (Router.current as SectorScreen).fighting()):
+		await _tree.process_frame
+	for pass_: String in ["after the kill", "and LOCAL opened again"]:
+		if pass_ != "after the kill":
+			Router.show_local()
+		for i in 30:
+			await _tree.process_frame
+		var sc3 := Router.current as SectorScreen
+		var wrecks := 0
+		if sc3 != null:
+			for e: Variant in sc3._view.get("_made"):
+				if e is EnemySlot and (e as EnemySlot).is_visible_in_tree():
+					wrecks += 1
+		var sub3 := LocalSubject.of(sc3._view) if sc3 != null else null
+		_ok("  %s: its wreck drawn (%d of %d here), no whole ship beside it (%s; bar '%s')" % [pass_, wrecks, Run.wrecks_here(n).size(),
+			str(sub3.cast) if sub3 != null else "no subject", LocalEventDrawer.bar_line(n)],
+			sc3 != null and not Router.in_combat() and sc3._view.get("_slots_mode") == &"wrecks"
+				and wrecks >= 1 and wrecks == Run.wrecks_here(n).size()
+				and LocalEventDrawer.bar_option(n) == 0 and sub3 == null)
 	LocalEventDrawer.quiet = false
+	# THE REST OF A FIGHT'S SCENE STAYS (`LocalSubject.without_foes`): only what a
+	# subject marks `fights` goes. Every subject after its fight draws nothing it
+	# did not draw before; the ones that are all foe draw nothing; the seized
+	# hull, the passenger wreck, the hunting ship on the line, the barge and the
+	# depot are still there.
+	var bad: Array[String] = []
+	for o: Dictionary in OptionTable.all():
+		if not o.has("subject"):
+			continue
+		var was: Array = LocalSubject.plan(o.subject, o.id, 3, 5).map(func(m: Dictionary) -> String: return String(m.id))
+		var left: Variant = LocalSubject.without_foes(LocalSubject.resolve(o.subject, o.id, 3, 5))
+		var now: Array = LocalSubject.plan(left, o.id, 3, 5).map(func(m: Dictionary) -> String: return String(m.id)) if left != null else []
+		for id: String in now:
+			if was.count(id) < now.count(id):
+				bad.append("%s drew %s after its fight" % [o.id, id])
+				break
+	for pair: Array in [[&"hostile_contact", 0], [&"cordon", 0], [&"nothing_taken", 0], [&"in_the_wake", 0],
+			[&"the_far_side", 1], [&"customs_cordon", 1], [&"the_harpoon_line", 1], [&"the_tow_cable", 1],
+			[&"the_warm_reactor", 1], [&"standing_orders", 1], [&"escort", 4]]:
+		var fid: StringName = pair[0]
+		var left: Variant = LocalSubject.without_foes(LocalSubject.resolve(OptionTable.by_id(fid).subject, fid, 3, 5))
+		var k := LocalSubject.plan(left, fid, 3, 5).size() if left != null else 0
+		if k != int(pair[1]):
+			bad.append("%s keeps %d after its fight, not %d" % [fid, k, pair[1]])
+	_ok("  and every fight's scene keeps all but what it fought (%s)" % (", ".join(bad) if not bad.is_empty() else "all"), bad.is_empty())
 
 
 ## LOCAL SHOWS THE WORLD YOU ORBIT NOW (Jon: "when transitioning from one planet
