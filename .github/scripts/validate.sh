@@ -632,6 +632,27 @@ else
 fi
 }
 
+unit_questlogtest() {
+step "The star chart's QUESTS: a card and a tag for each, the route when picked, nothing covered"
+# Jon's design B (Oct 22): the chart's side panel lists the quests you hold
+# under QUESTS, the chart tags each one's place, and picking one makes it the
+# destination with its route from YOU. Three galaxies, the real screen: the
+# tab's rect the same with 0, 1 and 5 held, every card and tag at its place
+# (READY and heat: the nearest paying yard), the route a chain of legal jumps,
+# and every tag box-tested against the HUD, the goal line, A.S.H., the chart's
+# words, every pickable star and each other.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot questlogtest 180 --headless --path "$PROJECT" -- sheet=QuestLogTest; then
+	if grep -qE '^questlogtest: PASS' "$LOG_DIR/questlogtest.log"; then
+		ok "the chart's quests: listed, tagged, routed, nothing covered"
+	else
+		bad "the chart's quest list or tags are wrong or cover something"
+		grep -E 'FAIL|^questlogtest|^    ' "$LOG_DIR/questlogtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "questlogtest did not finish"
+fi
+}
+
 unit_fueltest() {
 # The 45 tank (Jon, Oct 17: "fuel:A warn:A events:A"): the cap on every write
 # and a refuel's top-up, the event floor and the 45-scale events, the fuel hint

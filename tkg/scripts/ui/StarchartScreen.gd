@@ -72,6 +72,19 @@ var _hint: Label
 var _neigh: VBoxContainer
 ## The box holding it, resized to the list.
 var _neigh_scroll: ScrollContainer
+## THE SIDE PANEL'S TWO LISTS, NEARBY (the systems in range) and QUESTS (the
+## work you hold, `QuestLog`), on two tabs over the list (Jon, Oct 22, design
+## B: "let's call it quests ... no number after quests in the tab (so it doesn't
+## change size)"). The tabs share the row's width, so neither moves whatever
+## you hold. Which one is up is kept across visits.
+static var _side_quests := false
+var _tab_near: Button
+var _tab_quests: Button
+var _quests: VBoxContainer
+var _quest_scroll: ScrollContainer
+## The quest last picked off the list (its contract id), whose route is drawn
+## while its place is the destination; -1 for none.
+var _picked_quest: int = -1
 
 ## One row plus its separation, for sizing the box to the list.
 const NEIGH_ROW := 16.0
@@ -227,6 +240,7 @@ func _build() -> void:
 	_chart.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_chart.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_chart.node_picked.connect(_on_node_picked)
+	_chart.quest_avoid = _quest_avoid
 	_chart.cleared.connect(_on_chart_cleared)
 	_chart.view_dragged.connect(_on_view_dragged)
 	var chart_wrap := Widgets.panel_with(_chart)
@@ -334,6 +348,17 @@ func _build() -> void:
 	# slack: it swells when there is little above it and shrinks when there is
 	# much, and either way the thing below it stays on the screen.
 
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 4)
+	_tab_near = Widgets.button("NEARBY", func() -> void: _show_side(false))
+	_tab_quests = Widgets.button("QUESTS", func() -> void: _show_side(true))
+	for tb: Button in [_tab_near, _tab_quests]:
+		# THE ROW'S WIDTH, SPLIT: what a tab says never sizes it
+		tb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tb.focus_mode = Control.FOCUS_NONE
+		tabs.add_child(tb)
+	right.add_child(tabs)
+
 	_hint = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_hint.custom_minimum_size = Vector2(228, 0)
@@ -365,6 +390,17 @@ func _build() -> void:
 	_neigh.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_neigh_scroll.add_child(_neigh)
 	right.add_child(_neigh_scroll)
+	# QUESTS, in the same slack the neighbours fill (one is up at a time)
+	_quests = VBoxContainer.new()
+	_quests.add_theme_constant_override("separation", 3)
+	_quests.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_quest_scroll = ScrollContainer.new()
+	_quest_scroll.custom_minimum_size = Vector2(0, NEIGH_ROW)
+	_quest_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_quest_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_quest_scroll.add_child(_quests)
+	_quest_scroll.visible = false
+	right.add_child(_quest_scroll)
 	_jump = Widgets.button("JUMP", _on_jump)
 	_jump.custom_minimum_size = Vector2(0, 24)
 	right.add_child(_jump)
@@ -662,6 +698,9 @@ func _on_node_picked(index: int) -> void:
 	if index != _selected and ResourceLoader.exists(Audio.SFX_PATH % &"chart_select"):
 		Audio.play(&"chart_select", 0.04, 60)
 	_selected = index
+	# a star picked off the chart is not the quest picked off the list
+	if _picked_quest >= 0 and _quest_place(_picked_quest) != index:
+		_picked_quest = -1
 	_refresh()
 
 ## How long the readings take to resolve. A sensor return, not a transition:
@@ -719,7 +758,7 @@ func _refresh() -> void:
 	_settle()
 
 	if _selected < 0:
-		_fill_neighbours(here)
+		_fill_side(here)
 		# Two different nothings: nothing chosen, versus nothing possible.
 		if _anywhere_to_go():
 			# With nothing selected the panel describes the galaxy itself. It is
@@ -742,7 +781,8 @@ func _refresh() -> void:
 			# Except here, where the header has already said it. "Nothing in
 			# range" above an empty list under "No jump you can afford" is the
 			# same sentence twice, and this panel has been shedding those.
-			_hint.text = ""
+			if not _side_quests:
+				_hint.text = ""
 		_jump.disabled = true
 		return
 
@@ -771,7 +811,9 @@ func _refresh() -> void:
 		# Said plainly rather than left as four blank rows. An absence the player
 		# can read is information; an absence they have to notice is a bug.
 		_rows.add_child(_row("SURVEY", "NONE"))
-		_hint.text = "They gave you a position and nothing else."
+		_fill_side(here)
+		if not _side_quests:
+			_hint.text = "They gave you a position and nothing else."
 		_jump.disabled = not Run.can_jump_to(t) or not Router.may_cast_off()
 		return
 
@@ -916,7 +958,7 @@ func _refresh() -> void:
 	# was a true sentence about a fact nobody can act on — it named a count
 	# without naming the places, so you still had to go hunting on the chart for
 	# them. The list is the same information you can click.
-	_fill_neighbours(here)
+	_fill_side(here)
 
 	# Two different reasons a jump is impossible, and they need different words:
 	# no route at all, versus a route you cannot currently pay for.
@@ -1016,6 +1058,155 @@ func _fill_neighbours(here: MapGen.MapNode) -> void:
 ##
 ## Cleared last, and still listed: knowing the nearby ground is already stripped
 ## is what decides whether you farm on or dive.
+## The side panel's list: NEARBY or QUESTS, its tab lit, and the chart's
+## quest tags and route with it.
+func _fill_side(here: MapGen.MapNode) -> void:
+	_tab_state(_tab_near, not _side_quests)
+	_tab_state(_tab_quests, _side_quests)
+	_neigh_scroll.visible = not _side_quests
+	_quest_scroll.visible = _side_quests
+	if _side_quests:
+		_fill_quests()
+	else:
+		_fill_neighbours(here)
+		_chart.quest_tags = []
+	# THE PICKED QUEST'S ROUTE, hop by hop from YOU, while its place is the
+	# destination (on either tab: you picked it, it stays plotted)
+	var place := _quest_place(_picked_quest) if _picked_quest >= 0 else -1
+	var r: Array[int] = []
+	if place >= 0 and place == _selected:
+		r = QuestLog.route(place)
+	_chart.quest_route = r
+	_chart.queue_redraw()
+
+
+func _show_side(quests: bool) -> void:
+	if _side_quests == quests:
+		return
+	_side_quests = quests
+	_refresh()
+
+
+## A tab lit as the HUD lights the page you are on (`HudBar._state`): the
+## active one is a statement, not a button to press again.
+func _tab_state(b: Button, active: bool) -> void:
+	b.disabled = active
+	if active:
+		b.add_theme_stylebox_override("normal", UITheme.bevel(Color("#4a2a0c"), 3, 5))
+		b.add_theme_stylebox_override("disabled", UITheme.bevel(Color("#4a2a0c"), 3, 5))
+		b.add_theme_color_override("font_disabled_color", UITheme.HOT)
+	else:
+		b.remove_theme_stylebox_override("normal")
+		b.remove_theme_stylebox_override("disabled")
+		b.remove_theme_color_override("font_disabled_color")
+
+
+## The system quest `id`'s tag stands on, or -1.
+func _quest_place(id: int) -> int:
+	for e in QuestLog.entries():
+		if ((e as Dictionary).job as ContractData).id == id:
+			return int((e as Dictionary).place)
+	return -1
+
+
+## QUESTS: a card for each, the chart's numbered tags, or the plain line that
+## says there are none.
+func _fill_quests() -> void:
+	_clear(_quests)
+	var list := QuestLog.entries()
+	var tags: Array = []
+	_hint.text = QuestLog.EMPTY if list.is_empty() else "Pick a quest to plot its route."
+	for raw in list:
+		var e: Dictionary = raw
+		_quests.add_child(_quest_card(e))
+		if int(e.place) >= 0:
+			tags.append({index = int(e.place), text = String(e.tag),
+				picked = (e.job as ContractData).id == _picked_quest})
+	_chart.quest_tags = tags
+
+
+## One quest, two lines: its mark, what to do and the pay; where (the system
+## and its layer, or the nearest yard that pays it), the jumps from you and its
+## state. A button: picking it makes its place the destination.
+func _quest_card(e: Dictionary) -> Control:
+	var job: ContractData = e.job
+	var picked := job.id == _picked_quest
+	var b := Button.new()
+	b.set_meta(&"quest", job.id)
+	Widgets.wear_pointer(b)
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(0, 27)
+	b.tooltip_text = Widgets.tip(String(e.tip))
+	if picked:
+		b.add_theme_stylebox_override("normal", UITheme.flat(Color("#1a2534"), EncounterDrawer.TAG_QUEST, 0, 3, 4))
+		b.add_theme_stylebox_override("hover", UITheme.flat(Color("#1f2c3e"), EncounterDrawer.TAG_QUEST, 0, 3, 4))
+	var place := int(e.place)
+	b.pressed.connect(func() -> void: _pick_quest(job.id, place))
+	var col := VBoxContainer.new()
+	col.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	col.offset_left = 4
+	col.offset_right = -4
+	col.offset_top = 3
+	col.add_theme_constant_override("separation", 1)
+	b.add_child(col)
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 4)
+	var mark := Control.new()
+	mark.custom_minimum_size = Vector2(10, 10)
+	var kind := int(e.kind)
+	mark.draw.connect(func() -> void: QuestLog.draw_mark(mark, kind, Vector2.ZERO))
+	top.add_child(mark)
+	var what := UITheme.body(String(e.what).to_upper(), UITheme.FLARE if picked else UITheme.ICE, UITheme.FS_SMALL)
+	what.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	what.clip_text = true
+	top.add_child(what)
+	top.add_child(UITheme.body(String(e.pay), UITheme.EMBER, UITheme.FS_SMALL))
+	col.add_child(top)
+	var bot := HBoxContainer.new()
+	bot.add_theme_constant_override("separation", 4)
+	var where := UITheme.body(String(e.where), UITheme.CHILL, UITheme.FS_SMALL)
+	where.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	where.clip_text = true
+	bot.add_child(where)
+	if String(e.jumps) != "":
+		bot.add_child(UITheme.body(String(e.jumps), EncounterDrawer.TAG_QUEST, UITheme.FS_SMALL))
+	bot.add_child(UITheme.body(String(e.state), e.state_colour as Color, UITheme.FS_SMALL))
+	col.add_child(bot)
+	# the card's words are decoration over the button; they must not eat the click
+	for c: Control in [col, top, bot] + top.get_children() + bot.get_children():
+		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return b
+
+
+## A quest picked off the list: its place becomes the destination, as a star
+## picked off the chart does, and its route is drawn from YOU.
+func _pick_quest(id: int, place: int) -> void:
+	_picked_quest = id
+	if place < 0:
+		_refresh()
+		return
+	_on_node_picked(place)
+
+
+## What a quest's tag must keep off, global: the HUD, the goal line's room,
+## A.S.H. where she is and where she would first stand, and the chart's own
+## words (its corner toggles, YOU, the picked star's name, the scale).
+func _quest_avoid() -> Array:
+	var out: Array = []
+	if Router.hud != null and is_instance_valid(Router.hud) and Router.hud.is_visible_in_tree():
+		out.append(Router.hud.get_global_rect())
+	var st := GoalLine.stack_rect(self)
+	if st.size != Vector2.ZERO:
+		out.append(st)
+	if Ash.portrait != null and is_instance_valid(Ash.portrait) and Ash.portrait.visible:
+		out.append(Ash.portrait.rect())
+	var spots := Ash.tut_spot_boxes(self, Vector2(AshPortrait.W, AshPortrait.H))
+	if not spots.is_empty():
+		out.append((spots[0] as Dictionary).rect)
+	Ash._chart_rects(self, out, false)
+	return out
+
+
 func _notable(n: MapGen.MapNode) -> int:
 	if n.cleared and n.type != MapGen.NodeType.CORE:
 		return 5
@@ -2159,6 +2350,20 @@ class MapChart extends Control:
 	## chart is a field of near-identical points, and a tooltip that snaps
 	## between them reads as flicker.
 	var _hover_t: float = 0.0
+	## THE QUESTS ON THE CHART (`StarchartScreen._fill_quests`): a numbered tag
+	## at each one's place, {index, text, picked}, laid out clear of what must
+	## not be covered (`place_quest_tags`); the picked one's route, YOU first.
+	var quest_tags: Array = []
+	var quest_route: Array[int] = []
+	## Where each tag was laid, local, in `quest_tags` order: what A.S.H. keeps
+	## off and the tests read.
+	var quest_rects: Array = []
+	## The global rects a tag must keep off (`StarchartScreen._quest_avoid`),
+	## asked each time the tags are laid: A.S.H. comes and goes.
+	var quest_avoid: Callable
+	## Every star a click could pick, as last drawn (screen positions), for the
+	## tags to keep off.
+	var _pickable: PackedVector2Array = PackedVector2Array()
 
 	# ---- the instrument: reticle, scan and zoom tick. The navigated chart only
 	# (`remembers_view`): the launcher's backdrop is the same class and must stay
@@ -3299,10 +3504,13 @@ class MapChart extends Control:
 		# regular. Zoomed out, a system is a point of light; the glyph is detail
 		# you zoom in for.
 		var tiny := zoom < 0.78
+		_pickable = PackedVector2Array()
 		for n in Run.map:
 			var node2: MapGen.MapNode = n
 			if not show_icons:
 				continue
+			if visible.has(node2.index):
+				_pickable.append(_screen_pos(node2))
 			# The chart is a record and a choice, not an atlas. A system you have
 			# never been to and cannot currently reach is not information you can
 			# act on — it was 190 icons of noise over the galaxy, and hiding it
@@ -3387,6 +3595,8 @@ class MapChart extends Control:
 		_draw_hellbender()
 		_draw_quests()
 		_draw_work()
+		_draw_quest_route()
+		_draw_quest_tags()
 		_draw_neb_edges()
 
 		if hovered >= 0 and hovered < Run.map.size() and _hover_t > 0.01:
@@ -4036,6 +4246,93 @@ class MapChart extends Control:
 			draw_string(UITheme.pixel_font(), c + Vector2(-46, -13), said,
 				HORIZONTAL_ALIGNMENT_CENTER, 92, 8, gold)
 
+
+	## THE PICKED QUEST'S ROUTE, hop by hop from YOU: the chart's dotted line
+	## (`_dotted`) in the quest's gold, a jump to a hop.
+	func _draw_quest_route() -> void:
+		if not show_icons or quest_route.size() < 2:
+			return
+		var gold := EncounterDrawer.TAG_QUEST
+		for i in range(quest_route.size() - 1):
+			var a := _screen_pos(Run.map[quest_route[i]])
+			var b := _screen_pos(Run.map[quest_route[i + 1]])
+			var d := a.distance_to(b)
+			var steps := int(d / 4.0)
+			for k in range(1, steps):
+				if k % 2 == 0:
+					continue
+				var q := a.lerp(b, float(k) / float(steps)).round()
+				draw_rect(Rect2(q - Vector2(1, 1), Vector2(4, 4)), _UNDER, true)
+				draw_rect(Rect2(q, Vector2(2, 2)), gold, true)
+
+	## Where every quest's tag goes, local, in `quest_tags` order: beside its
+	## star on the first side that keeps clear of every star a click could pick,
+	## of the HUD, the goal line and A.S.H. (`quest_avoid`), of the chart's own
+	## words and of the tags already laid -- nearer first, then further out.
+	## Where nothing is clear, the side that covers least.
+	func place_quest_tags() -> Array:
+		var out: Array = []
+		if quest_tags.is_empty():
+			return out
+		var f := UITheme.pixel_font()
+		var inv := get_global_transform().affine_inverse()
+		var avoid: Array = []
+		if quest_avoid.is_valid():
+			for g in quest_avoid.call():
+				avoid.append(inv * (g as Rect2))
+		var rad := maxf(5.0, 12.0 * zoom)
+		var frame := Rect2(Vector2(2, 2), size - Vector2(4, 4))
+		for t in quest_tags:
+			var at := _screen_pos(Run.map[int(t.index)]).round()
+			var w := ceilf(f.get_string_size(String(t.text), HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x) + 8.0
+			var best := Rect2()
+			var best_hits := 1 << 30
+			for d: float in [rad + 2.0, rad + 12.0, rad + 26.0, rad + 44.0]:
+				for o: Vector2 in [Vector2(d, -d * 0.6 - 11.0), Vector2(d, d * 0.6),
+						Vector2(-w - d, -d * 0.6 - 11.0), Vector2(-w - d, d * 0.6),
+						Vector2(-w * 0.5, -d - 11.0), Vector2(-w * 0.5, d)]:
+					var r := Rect2((at + o).round(), Vector2(w, 11))
+					var hits := 0 if frame.encloses(r) else 100
+					for a in avoid + out:
+						if r.grow(1.0).intersects(a as Rect2):
+							hits += 10
+					var near := r.grow(rad)
+					for sp in _pickable:
+						if near.has_point(sp) and _rect_dist(r, sp) < rad:
+							hits += 1
+					if hits < best_hits:
+						best_hits = hits
+						best = r
+					if hits == 0:
+						break
+				if best_hits == 0:
+					break
+			out.append(best)
+		return out
+
+	static func _rect_dist(r: Rect2, p: Vector2) -> float:
+		var q := Vector2(clampf(p.x, r.position.x, r.end.x), clampf(p.y, r.position.y, r.end.y))
+		return q.distance_to(p)
+
+	## Each quest's number and word in a box, a leader to its star; the picked
+	## one in the quest's gold, the rest in the chart's own cold ink.
+	func _draw_quest_tags() -> void:
+		quest_rects = []
+		if not show_icons or quest_tags.is_empty() or ladder_hush:
+			return
+		quest_rects = place_quest_tags()
+		var f := UITheme.pixel_font()
+		for i in quest_tags.size():
+			var t: Dictionary = quest_tags[i]
+			var r: Rect2 = quest_rects[i]
+			var col: Color = EncounterDrawer.TAG_QUEST if bool(t.get("picked", false)) else UITheme.CHILL
+			var at := _screen_pos(Run.map[int(t.index)]).round()
+			var lead := Vector2(clampf(at.x, r.position.x, r.end.x), clampf(at.y, r.position.y, r.end.y))
+			draw_line(at, lead, _UNDER, 3.0)
+			draw_line(at, lead, col, 1.0)
+			draw_rect(r, Color(0.04, 0.055, 0.08, 0.92), true)
+			draw_rect(r, col, false, 1.0)
+			draw_string(f, r.position + Vector2(4, 9), String(t.text), HORIZONTAL_ALIGNMENT_LEFT, -1, 8, col)
 
 	func _draw_work() -> void:
 		if not show_icons or Run.map.is_empty():

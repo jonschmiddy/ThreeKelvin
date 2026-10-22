@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Added** — the star chart's side panel has two tabs, NEARBY and QUESTS. QUESTS lists every
+  quest you have signed, one card each: what to do, where (the system and its layer, or the
+  nearest yard that pays it), how many jumps away, the pay, and whether it is SIGNED, READY or
+  carrying part of its heat. The chart tags each quest's place with its number (PICK UP,
+  TARGET, HEAT, HAND IN), clear of the stars and the goal line. Picking a card makes its
+  place your destination and draws the route there from YOU. With none signed, the list says
+  where to get one.
+
 ### Fixed
 
 - **Fixed** — engaging the Custodian from the system map no longer leaves your ship sitting low in
