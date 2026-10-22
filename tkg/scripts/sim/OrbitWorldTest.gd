@@ -15,7 +15,11 @@ extends Node
 ## star and a station keep no world. After SAVE & EXIT and CONTINUE, still it.
 ## Every world drawn at least `LocalSky.near_r_min()` across its radius,
 ## behind your ship (the sky under the scene), and clear of the HUD and the
-## goal line.
+## goal line. And on every one of those LOCALs, what stands beside your ship is
+## what is at that place (`_scene_check`): the place picture and an event's
+## subject only where the event stands (an event taken keeps its subject while
+## you stay), and a station's side, ring and bar only at the station, also when
+## LOCAL is pressed as the ship burns onto its orbit.
 
 var _fails := 0
 var _tree: SceneTree
@@ -201,6 +205,7 @@ func _check(what: String) -> void:
 		var good: bool = int(s.node) == n.index and int(s.at) == int(w.at) and StringName(s.world) == StringName(w.world) \
 			and (w.world == &"" or int(s.seed) == int(w.seed))
 		_ok("%s: %s draws %s (sky: node %d, body %d, %s seed %d, R %.0f)" % [what, pair[0], tag, s.node, s.at, s.world, s.seed, s.R], good)
+	_scene_check(what, sc)
 	if w.world == &"":
 		return
 	_kinds[w.world] = int(_kinds.get(w.world, 0)) + 1
@@ -228,6 +233,134 @@ func _check(what: String) -> void:
 	_ok("%s: clear of the HUD (%s vs %s)" % [what, disc, hud], not _disc_hits(info, hud))
 	if goal.size != Vector2.ZERO:
 		_ok("%s: clear of the goal line (%s)" % [what, goal], not _disc_hits(info, goal))
+
+
+## WHAT STANDS BESIDE YOUR SHIP IS WHAT IS AT THAT PLACE (Jon, Oct 21: "This
+## planet has no events here, but when I orbit the planet and click LOCAL, it
+## has this weird signal model... Every planet in this sector has this signal"):
+##  - the place picture (`EncounterView.AreaView`: the beacon, the derelict, the
+##    battlefield) only where one of the system's events stands, and none at a
+##    world, the star or the edge with none;
+##  - the event's subject (`LocalSubject`) only at that event's own place, and
+##    an event over keeps its subject while you are still parked at it (the bar
+##    says how it went: `LocalEventDrawer.bar_option`);
+##  - in a station's system, the station's side, its ring and the bar's "A
+##    STATION HERE" all together where the ship is at the station (`Router.
+##    at_station`, as the map kept it), none of them anywhere else -- also when
+##    LOCAL was opened as the ship burned onto the station's orbit.
+func _scene_check(what: String, sc: SectorScreen) -> void:
+	var n := Run.node_at()
+	var L := SystemLayout.of(n)
+	var site := Run.site_here(n)
+	var here: Array = []
+	for i in n.options.size():
+		if L.place_of(i) == site and site >= -1:
+			here.append(i)
+	var pic: StringName = sc._view._area._place_name()
+	if n.type == MapGen.NodeType.SYSTEM:
+		_ok("%s: the place picture is this place's (%s; %d event%s here at %d)" % [what, pic if pic != &"" else "none",
+			here.size(), "" if here.size() == 1 else "s", site], (pic != &"") != here.is_empty())
+	var sub := LocalSubject.of(sc._view)
+	if sub != null:
+		var oi := n.options.find(sub.oid)
+		_ok("%s: the subject %s is this place's own event's (it stands at %d, the ship at %d)" % [what, sub.oid,
+			L.place_of(oi) if oi >= 0 else -9, site], oi >= 0 and here.has(oi))
+	if n.type == MapGen.NodeType.STATION:
+		var at := site == L.dock_place() and site >= 0
+		var face := sc._face != null and is_instance_valid(sc._face)
+		var bar := _bar_line(sc)
+		_ok("%s: the station's side %s, its ring %s (the ship at %d, the station %d)" % [what,
+			"drawn" if face else "none", pic if pic != &"" else "none", site, L.dock_place()],
+			face == at and Router.at_station(n) == at and (pic == &"station") == at)
+		if bar.contains("SEE SECTOR"):
+			_ok("%s: the bar says \"%s\"" % [what, bar], bar.begins_with("A STATION HERE") == at)
+
+
+## The line along LOCAL's bottom bar.
+func _bar_line(sc: SectorScreen) -> String:
+	var stack: Array[Node] = [sc]
+	while not stack.is_empty():
+		var x: Node = stack.pop_back()
+		if x is Label and (x as Label).is_visible_in_tree() and (x as Label).text.contains("SEE SECTOR"):
+			return (x as Label).text
+		stack.append_array(x.get_children())
+	return ""
+
+
+## AN EVENT OVER, AND STILL HERE: the event GO opened on LOCAL taken, then the
+## map and LOCAL again with the ship where it was: its subject still drawn (the
+## bar's event, `LocalEventDrawer.bar_option`), and the place picture still
+## this place's. The next world along shows neither (`_scene_check`).
+func _resolved_stays(sd: int, label: String) -> void:
+	var n := Run.node_at()
+	var sc := Router.current as SectorScreen
+	if sc == null or LocalEventDrawer.last.size() < 2 or int(LocalEventDrawer.last[0]) != n.index:
+		return
+	var i := int(LocalEventDrawer.last[1])
+	if not n.taken.has(MapGen.OPTION_SITE + i):
+		n.taken.append(MapGen.OPTION_SITE + i)
+	n.results[i] = MapGen.R_DONE
+	var had := LocalSubject.of(sc._view) != null
+	await _tab()
+	if not (Router.current is SystemMapScreen):
+		Router.show_system()
+		await _idle()
+	await _here_tab()
+	await _frames(4)
+	sc = Router.current as SectorScreen
+	if not _ok("seed %d %s: LOCAL again after the event was taken" % [sd, label], sc != null):
+		return
+	var sub := LocalSubject.of(sc._view)
+	if had:
+		_ok("seed %d %s: %s, taken, keeps its subject at its place (%s)" % [sd, label, n.options[i], sub.oid if sub != null else &"none"],
+			sub != null and sub.oid == n.options[i])
+	_scene_check("seed %d %s: %s taken" % [sd, label, n.options[i]], sc)
+
+
+## LOCAL PRESSED AS THE SHIP BURNS ONTO THE STATION'S ORBIT (from a world of its
+## system): the station's side, its ring and its bar all at the station, as
+## the sky already was (`_scene_check`). LOCAL built ahead of the swap read the
+## map's `reached` (none, mid-burn) and the swapped one the kept place.
+func _station_burn(sd: int) -> void:
+	var n := Run.node_at()
+	var L := SystemLayout.of(n)
+	var st := L.dock_place()
+	var from := -1
+	for b: int in _worlds(n):
+		if b != st:
+			from = b
+	if st < 0 or from < 0:
+		print("  (no station and world to fly between)")
+		return
+	await _tab()
+	if not (Router.current is SystemMapScreen):
+		Router.show_system()
+		await _idle()
+	var m := Router.current as SystemMapScreen
+	if not _ok("seed %d station burn: on the map" % sd, m != null and await _fly(from)):
+		return
+	m.fly_to_body(st)
+	var seen := false
+	for i in 3600:
+		await _tree.process_frame
+		if m.flight.orbit_body() == st and m.flight.inserting():
+			seen = true
+			break
+	if not _ok("seed %d station burn: caught the ship burning onto the station's orbit" % sd, seen):
+		return
+	_label = "s%d_station_burn" % sd
+	_here_tab.call()
+	for i in 600:
+		await _tree.process_frame
+		if Router.current is SectorScreen and not ZoomLadder.busy():
+			break
+	await _idle()
+	await _frames(4)
+	var sc := Router.current as SectorScreen
+	if _ok("seed %d station burn: on LOCAL" % sd, sc != null):
+		if _shots != "":
+			await _shot("rest")
+		_scene_check("seed %d station burn" % sd, sc)
 
 
 func _disc_hits(info: Dictionary, r: Rect2) -> bool:
@@ -316,6 +449,7 @@ func _tour(sd: int, label: String) -> void:
 	var ws := _worlds(n)
 	print("  %s: system %d (%s), worlds %s" % [label, n.index, MapGen.star_name(n), ws])
 	var doors := ["hud", "tab", "go"]
+	var resolved := false
 	var k := 0
 	var L := SystemLayout.of(n)
 	for b: int in ws:
@@ -365,6 +499,10 @@ func _tour(sd: int, label: String) -> void:
 		await _check("seed %d %s: %s %s by %s" % [sd, label, L.bodies[b].kind, L.bodies[b].world, door])
 		_filming = ""
 		LocalEventDrawer.quiet = false
+		# (once a tour: the event GO opened, taken, its subject still there)
+		if door == "go" and not resolved:
+			resolved = true
+			await _resolved_stays(sd, label)
 		if _quick:
 			break
 
@@ -434,6 +572,7 @@ func _early(sd: int, label: String, when: String) -> void:
 		_ok("seed %d %s %s: %s draws body %d %s (sky: body %d, %s; site %d, the map's ship on %d)" % [sd, label, when, pair[0], want, wn,
 			sky_d.get("at", -99), sky_d.get("world", &""), Run.site_here(), onto],
 			not sky_d.is_empty() and int(sky_d.at) == want and StringName(sky_d.world) == wn)
+	_scene_check("seed %d %s %s" % [sd, label, when], sc)
 	if _shots != "":
 		await _shot("rest")
 	# and the map again: the ship where it was going, not at the edge
@@ -562,6 +701,8 @@ func _run() -> void:
 			await _tour(sd, label)
 			await _early(sd, label, "phase")
 			await _early(sd, label, "insert")
+			if station:
+				await _station_burn(sd)
 		await _reload(sd)
 		if _quick:
 			break

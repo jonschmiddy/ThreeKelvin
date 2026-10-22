@@ -403,6 +403,10 @@ func _on_run_started() -> void:
 	# (or a load) would otherwise open LOCAL in orbit of whatever world the last
 	# run parked at in the system of the same number
 	SystemMapScreen._parked.clear()
+	# ...and so is the event last opened on LOCAL (`LocalEventDrawer.last`, kept
+	# by system index too): the last run's drew its subject at the edge of this
+	# run's system of the same number, an option of another event entirely
+	LocalEventDrawer.last = []
 
 ## A run starts by choosing a chassis, then opens on the sector rather than the
 ## chart: your ship in open space, not a graph of places you have not been yet.
@@ -686,7 +690,9 @@ func at_station(n: MapGen.MapNode = null) -> bool:
 		return false
 	var m := current as SystemMapScreen
 	if m != null and is_instance_valid(m) and m.view != null and m.view.node == n and m.flight != null:
-		return m.flight.reached() == place
+		# (what the map keeps for LOCAL, so a LOCAL built ahead of the swap and
+		# the one swapped in agree: `SystemMapScreen.ship_place`)
+		return m.ship_place() == place
 	return Run.site_here(n) == place
 
 
@@ -992,6 +998,10 @@ func _on_jumped(_index: int) -> void:
 	# edge and leaves its wrecks there -- not on a world whose own fight's hulls
 	# are already lying round it (Jon, Oct 15: one place, one fight).
 	SystemMapScreen._parked.erase(_index)
+	# (and the event last opened on LOCAL is left behind with the place it stands
+	# at: kept, the edge of a system flown back into drew its subject, as no
+	# record of where the ship is reads as being at every event, `here_now`)
+	LocalEventDrawer.last = []
 	# ...BUT AT A STATION, AT THE STATION (Jon, Oct 18, "arrive:B"): a jump into
 	# a system with a station brings the ship in alongside it, so DOCK is there
 	# on arrival and LOCAL has the station's side; a jump anywhere else arrives

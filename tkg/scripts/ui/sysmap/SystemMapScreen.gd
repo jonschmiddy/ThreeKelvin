@@ -379,6 +379,18 @@ func _keep_ship() -> void:
 	# nothing: its system is the last run's)
 	if view.node.index >= Run.map.size() or Run.map[view.node.index] != view.node:
 		return
+	_parked[view.node.index] = {"at": ship_place(), "p": flight.f.p, "v": flight.f.v, "head": flight.f.head, "mode": flight.mode}
+
+
+## WHERE THE SHIP IS, as LOCAL is told it: a body, -1 the star's close orbit,
+## -9 none. Also what `Router.at_station` reads off the map while LOCAL is built
+## ahead of the swap: it read `reached` there, so LOCAL opened as the ship burned
+## onto the station's orbit drew the station's world (this) with no station's
+## side and a bar saying to fly to the station (that), and the hab ring's picture
+## once the swap had made the two agree.
+func ship_place() -> int:
+	if flight == null:
+		return -9
 	var at: int = flight.reached()
 	# BURNING ONTO AN ORBIT IS BEING AT THE WORLD, and riding out of one to
 	# leave it is still being at the old one (Jon, Oct 21: "Does the local view
@@ -389,7 +401,7 @@ func _keep_ship() -> void:
 	# orbit (`_restore_ship`); a flight it was waiting to start is let go.
 	if at < -1 and (flight.mode == &"rail" or flight.mode == &"keep"):
 		at = flight.orbit_body()
-	_parked[view.node.index] = {"at": at, "p": flight.f.p, "v": flight.f.v, "head": flight.f.head, "mode": flight.mode}
+	return at
 
 
 func _restore_ship(d: Dictionary) -> void:

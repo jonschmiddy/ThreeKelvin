@@ -460,6 +460,8 @@ func show_wrecks(wrecks: Array, on_open: Callable) -> void:
 
 
 func show_area(n: MapGen.MapNode) -> void:
+	# (at the place in the system the ship is: the picture is its events')
+	_area.site = Run.site_here(n) if n != null and n == Run.node_at() else AreaView.ANY
 	_area.setup(n)
 	# (not while an event's subject stands in its place: `LocalSubject`)
 	_area.visible = LocalSubject.of(self) == null
@@ -751,6 +753,7 @@ func _area_fade_out() -> void:
 	ghost.offset_top = 0.0
 	ghost.offset_bottom = _row.offset_bottom
 	ghost._clock = _area._clock
+	ghost.site = _area.site
 	add_child(ghost)
 	move_child(ghost, _row.get_index())
 	ghost.setup(_area.node)
@@ -1775,6 +1778,11 @@ func _draw() -> void:
 ## LIT rectangles is a place with a near side and a far side.
 class AreaView extends Control:
 	var node: MapGen.MapNode
+	## WHERE IN ITS SYSTEM this picture stands: a body, -1 the star, -9 open
+	## space or the edge (`Run.site_here`, set by `show_area` on LOCAL); `ANY`
+	## the whole system, as the sheets draw it.
+	var site := ANY
+	const ANY := -99
 
 	## Six value stops, darkest first: shadow, wall, lit wall, deck, lit deck,
 	## rim. Same shape as EnemyArt's ramps and sampled from the same table in
@@ -1825,13 +1833,8 @@ class AreaView extends Control:
 	## other sector pays nothing at all for this: a wreck is a wreck, and a
 	## `_process` on it would be a timer running to redraw an identical picture.
 	func _moves() -> bool:
-		if node == null:
-			return false
-		if node.type == MapGen.NodeType.STATION:
-			return true
-		return (node.type == MapGen.NodeType.SYSTEM
-			and not OptionTable.system_has_tag(node, &"fight")
-			and not OptionTable.system_has_tag(node, &"salvage"))
+		var what := _place_name()
+		return what == &"station" or what == &"beacon"
 
 	func _process(delta: float) -> void:
 		_clock += delta
@@ -1887,10 +1890,22 @@ class AreaView extends Control:
 			# READ WHAT IS HERE. The three types this replaced each had their own
 			# picture, and the picture is still worth having -- it just comes off
 			# the options now instead of a label chosen before anything rolled.
+			#
+			# AND ONLY AT THE EVENTS' OWN PLACE (Jon, Oct 21: "This planet has no
+			# events here, but when I orbit the planet and click LOCAL, it has this
+			# weird signal model... Every planet in this sector has this signal").
+			# The picture was the whole system's, read off every option it has, so
+			# a system with a signal anywhere drew the beacon beside your ship at
+			# every world, the star and the edge. Since events stand at a body (or
+			# the star: `SystemLayout.place_of`) it is read off the events at the
+			# place the ship is (`site`), and a place with none draws nothing. An
+			# event over stays there, as a cleared battlefield always has.
 			MapGen.NodeType.SYSTEM:
-				if OptionTable.system_has_tag(node, &"fight"):
+				if site != ANY and not _events_here():
+					return &""
+				if _tag_here(&"fight"):
 					return &"battlefield_cleared" if node.cleared else &"battlefield"
-				if OptionTable.system_has_tag(node, &"salvage"):
+				if _tag_here(&"salvage"):
 					return &"derelict"
 				return &"beacon"
 			# THE CORE AND A PULSAR ARE THE SYSTEM'S OWN STAR, and LOCAL's sky
@@ -1906,6 +1921,30 @@ class AreaView extends Control:
 			MapGen.NodeType.START:
 				return &""
 		return &"unknown"
+
+	## Whether option i stands where this picture does (anywhere, for `ANY`).
+	func _option_here(i: int) -> bool:
+		return site == ANY or SystemLayout.of(node).place_of(i) == site
+
+	func _events_here() -> bool:
+		OptionTable.ensure(node)
+		for i in node.options.size():
+			if _option_here(i):
+				return true
+		return false
+
+	## Whether an event here carries `tag` (`OptionTable.system_has_tag`, for
+	## the place the ship is at).
+	func _tag_here(tag: StringName) -> bool:
+		if site == ANY:
+			return OptionTable.system_has_tag(node, tag)
+		for i in node.options.size():
+			if not _option_here(i):
+				continue
+			for t in OptionTable.by_id(node.options[i]).get("tags", []):
+				if StringName(t) == tag:
+					return true
+		return false
 
 	func _draw() -> void:
 		if node == null or not SHOW_PLACES:

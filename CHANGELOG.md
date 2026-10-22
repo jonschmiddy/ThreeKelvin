@@ -18,6 +18,17 @@ The next build is **0.4.0-alpha.1**, with the fixes from the first outside playt
   came in without a sound. Pressing a key stops it all at once, and with reduced motion on you
   hear only the clamps.
 
+### Fixed
+
+- **Fixed** — on LOCAL, the signal beacon (and the wreck or battlefield picture) now stands only
+  at a world or star that has an event. Before, a system with an event anywhere showed it beside
+  your ship at every world, at the star and at the system's edge.
+- **Fixed** — LOCAL no longer shows an old event's ship or object at the edge of a system. After a
+  new run, or after jumping back into a system, the last event you opened could appear there.
+- **Fixed** — if you open LOCAL while your ship is still moving into orbit beside a station, LOCAL
+  now shows the station, the DOCK button and "A STATION HERE". Before, it showed a small
+  stand-in ring and told you to fly to the station you were already reaching.
+
 ## 2026-10-21
 
 ### [0.3.1-alpha.1]
