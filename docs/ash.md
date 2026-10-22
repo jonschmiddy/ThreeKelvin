@@ -289,7 +289,7 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
   grade 3.7). Its take is the first of three recorded for these words in her warm voice
   (Jon, Oct 20, "take:1"; 6.7 s). `AshTutorLines.SILENT` is empty again, kept for the next
   line whose words change after its take. The card, with her off, says the same (Jon, merge:A),
-  with the turn and flip keys under it. **Said once** (Jon: "A.S.H. keeps saying the tutorial line every time I enter. It
+  with the turn key under it (the flip key's half went Oct 22: a flip is drawing only). **Said once** (Jon: "A.S.H. keeps saying the tutorial line every time I enter. It
   should only be the first time"): a hint is spent by a click, and the cutaway is shut with
   DONE, Escape or a key as often as with a click, so it went unspent and came back at every
   opening. It was spent as it showed; since Oct 22 it stays until a module is moved, and
@@ -327,13 +327,13 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
   | --- | --- |
   | chart | a star picked on the chart, or a jump made |
   | events | an event opened from the map's list (its page), or GO |
-  | drawer | a choice taken in the event band |
+  | drawer | a choice taken in the event band, or NOT NOW |
   | hand | a card played |
-  | intent | information: its reading time (or END TURN pressed, which is what it is about) |
+  | intent | a card played, or END TURN pressed (Oct 22: it was information) |
   | endturn | END TURN pressed |
-  | brace | information: its reading time |
-  | heat | information: its reading time |
-  | salvage | a part or a chit taken aboard from the window |
+  | brace | END TURN pressed (Oct 22: it was information) |
+  | heat | END TURN pressed (Oct 22: it was information) |
+  | salvage | a part or a chit taken aboard from a wreck's window, or DONE |
   | cutaway | a module moved (installed, removed or moved on the ship); or said whole and the cutaway left |
   | wreck | a wreck opened |
   | loot | SECTOR LOOT pressed (the pile's window open) |
@@ -345,6 +345,7 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
   | laboratory | something made at the fabricator; or said whole and the deck left |
   | fuel | information: its reading time |
   | ship | your ship opened up |
+  | the deep tutorial's | as in its table below |
   | the goal steps | their reading time (the goal line keeps the step as the reminder) |
 
 - **Never stuck.** A line whose action cannot be done has no subject, so it does not stand: the
@@ -387,3 +388,106 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
   was seen stays seen). REPLAY TUTORIAL works either way.
 - **Off:** her switch off brings today's cards back exactly; off in a party (hints are).
   `-- sheet=AshTutorTest` holds all of it, in the merge gate.
+
+## The deep tutorial (Oct 22)
+
+Jon, after the first outside playtest: "Tutorial: scope:all voice:record bugs:fix". Kevin
+clicked the tutorial away (it can no longer be, above) and did not know the energy meter or
+when to loot a dead ship. The tutorial audit wrote 35 rows; all of them are built
+(`Hints.ORDER`, words in `AshTutorLines`, cards in `Hints.lines`, actions in `Hints.DONE`,
+done for the harnesses by `sim/HintActs.gd`). Every line was checked against the code before it
+shipped; where a draft said something the code does not do, the words follow the code.
+
+| # | Lesson | First time | A.S.H. says | Outline | Ends when |
+| --- | --- | --- | --- | --- | --- |
+| 1 | hand | a fight, turn 1, the hand settled | Drag a card onto an enemy to fire it. Cards that help us go on our own ship. | the hand | a card played |
+| 2 | energy | right after the first card, a card still playable | That card cost energy. This box is what's left. It fills back up every turn. | the ENERGY box | the next card, or END TURN |
+| 3 | endturn | nothing left to play | (as before) | END TURN | END TURN |
+| 4 | intent | the start of turn 2 | (as before) | the intent | a card, or END TURN |
+| 5 | heat_corner | a turn's start with a card that adds heat | Top right is heat. Playing the card adds that much. A green minus cools us down. | that card's corner | a card, or END TURN |
+| 6 | heat | heat above 0 at a turn's start | This is heat. Past {cap}, every point over costs us hull at the end of the turn. (said: "Past the limit") | the HUD's heat | END TURN |
+| 7 | brace | brace held over an end of turn | Brace stops damage until it's used up. It stays up, but holding it warms us every turn. | the brace chip | END TURN |
+| 8 | keywords | a turn's start with an underlined word in the hand | Underlined words have rules. Rest the pointer on a card to read them. | the card | a card's readout open |
+| 9 | discard_pick | a card asks for a discard | That card wants a discard. Click a card in your hand to put it in the discard pile. | the hand | a card picked |
+| 10 | malfunction | a turn's start with a malfunction in the hand | That's a malfunction. It clogs the deck. Play it to clear it for this fight. A shipyard clears it for good. | the card | it played, or END TURN |
+| 11 | flee_hail | a turn's start with the hull at half or less | FLEE and HAIL end a fight early. Each one is a check, and a miss costs us. | both buttons | a card, END TURN, FLEE or HAIL |
+| 12 | wreck | LOCAL still, a wreck with something in it | We broke it, so now it's a wreck. Click it to see what we can take. It stays here if we go. | the wreck | it opened |
+| 13 | salvage | a wreck's window open (not an event's REWARD) | Drag parts into the hold, or double-click them. What we leave stays in the wreck. Press DONE when we're through. | its grid | a thing taken, or DONE |
+| 14 | loot | SECTOR LOOT up | SECTOR LOOT is everything loose here, like what we left in wrecks. It waits for us. Click it to look. | SECTOR LOOT | its window open |
+| 15 | drawer | the first event's choices | Pick a choice. Some show the odds. The rest are a surprise. NOT NOW saves it for later. | the choices | a choice, or NOT NOW |
+| 16 | odds | a choice with a check | This one tests the ship. It shows the stat, what we have, and the odds. Meet it and it can't fail. | that choice | a choice, or NOT NOW |
+| 17 | result | a result with REWARD to open | Here's what it cost and what we got. REWARD opens anything we found. Then press CONTINUE. | REWARD, CONTINUE, the table | REWARD or CONTINUE |
+| 18 | fuel_first | the first arrival after a jump (the map), before the event step | Each jump burns fuel. Run dry between stars and the run ends. Stations sell more. | the HUD's fuel | information: its reading time |
+| 19 | hull | LOCAL still, the hull short of full | That's our hull. At zero, the ship is lost. A shipyard can patch it. | the HUD's hull | said whole and the screen left |
+| 20 | layers | a chart other than the first | This strip is how deep we are. Each ring in means more danger and better pay. The core is at the end. | the LAYER strip | a star picked |
+| 21 | cutaway | (as before) | (as before; the keys line is the turn key alone) | the ship | a module moved, or said whole and left |
+| 22 | mounts | a part in hand in the cutaway | Each slot takes one kind of part. The slots that light up will take this one. | the mounts that take it | the part put down, or said whole and left |
+| 23 | cards_from_parts | a part fitted, after the mounts' line | Every part brings its own cards. Fit it, and they join the deck. Point at a part to see them. | the mounts and cards line | a part pointed at, or said whole and left |
+| 24 | attributes | a cutaway after the odds lesson | These are the ship's stats. Event checks test most of them. Fitting parts moves them up or down. | the stats | a module moved, or said whole and left |
+| 25 | contract_track | a chart with a signed job's ring in sight | That ring on the chart is the job. Do it there, then press DELIVER at any of their docks. | the ring | a star picked, or said whole and left |
+| 26 | the five decks | (as before) | (as before; recorded Oct 21) | (as before) | (as before) |
+| 27 | piles | a later fight, turn 2 or after | Played cards go to the discard. When the draw pile runs out, they shuffle back in at the next turn. | the DISCARD pile | a card, or END TURN |
+| 28 | map_fly | the map, the ship on no world's orbit | Click a world twice and we fly there. Or fly us by hand. / {thrust} pushes. {left} and {right} turn. | the ship | a key held, or a world flown to |
+| 29 | faults | the yard, a malfunction aboard | FAULTS clears a malfunction out of the deck, for a price. | the FAULTS drone | it clicked, or said whole and left |
+| 30 | undock | the station, after the first deck's line (not before this deck's own) | UNDOCK takes us back out when we're done here. | UNDOCK | UNDOCK, or another deck |
+| 31 | quest | a chart with an event's mark in sight | Something is marked on the chart now. Fly there to follow it up. | the mark | a star picked |
+| 32 | jump_blocked | a star picked that JUMP cannot go to | We can't jump there yet. The button says why. | JUMP | another star picked |
+| 33 | hull_sale | the yard with a ship for sale, its deal on the TV | That ship is for sale. TAKE IT trades ours in. It comes empty, so we move everything over. | the TV | the ship taken, or said whole and left |
+| 34 | save | the escape menu | SAVE AND EXIT keeps the run. CONTINUE on the title picks it back up. | SAVE & EXIT | the menu shut |
+| 35 | chassis_card | the chassis select (a card only) | (card) Pick a ship, then press LAUNCH. / Point at a line or a card to read more. | LAUNCH | LAUNCH |
+
+**Changed to match the code** (each draft line was checked):
+
+- heat_corner: "Most guns warm us up" was not true (the two Snap Shots every deck starts with,
+  the Slug and the salvo guns add none), so: "Playing the card adds that much."
+- keywords: the readout opens after the pointer rests a second on the card, whatever it does
+  inside it: "Rest the pointer on a card", not "hold still".
+- discard_pick: the card goes to the discard pile, and back on a reshuffle, so not "throw it
+  away". Taught for discards only (a decommission is another verb).
+- wreck: a wreck pays credits only sometimes, and can be empty: "see what we can take", not
+  "its parts and credits".
+- drawer: some choices show a price or a contact reading rather than odds: "Some show the odds.
+  The rest are a surprise."
+- piles: the discard shuffles back in when the next turn's hand is drawn, never mid-turn: "at
+  the next turn".
+- mounts: an empty mount that takes the part pulses a ring, a filled one gets a frame: "The
+  slots that light up", not "the rings".
+- attributes: the reactor is on the block and no event checks it: "test most of them".
+- contract_track: no player text spells colour either way here, and pay is not automatic (the
+  DELIVER button on any of their boards): "That ring on the chart is the job. Do it there, then
+  press DELIVER at any of their docks."
+- hull_sale: the hold comes off too (all to the pad): "we move everything over".
+- quest: the event's mark is not in the QUESTS table (it lists signed jobs), so the line does not
+  send the player there.
+- heat's spoken script says "Past the limit" (the gauge has no line on it).
+- chassis_card: not everything has a readout (rows and cards do): "Point at a line or a card".
+- fuel_first: a jump lands on the map, not LOCAL, so it teaches there, as information.
+
+**Pacing** (the audit's, binding; `Hints._pace_ok`). One lesson at a time; each starts once its
+screen has held still and ends when the player does what it teaches; none can be clicked away;
+a subject gone ends it unspent and it comes back. In a fight: only while the hand is settled and
+no card is held, never during END TURN's playback or the enemy's turn; only the hand's, energy,
+END TURN's and a discard's start after a card this turn (`MID_TURN`); turn 1 of the first fight
+teaches the hand, energy and END TURN alone (`TURN_ONE`); flee_hail, malfunction and piles are
+one a fight (`ONE_A_FIGHT`), piles never in the first fight. Outside fights the gap after a
+lesson is 3 s (`GAP_S`; 1.2 in a fight, `GAP_FIGHT_S`), and a screen as it stands (`_front`: the
+screen, its station deck, an open cutaway, window, event or the menu) teaches one new lesson a
+visit, but for the chains (`CHAINS`: wreck, salvage, loot; shipyard, ship, cutaway, mounts,
+cards_from_parts; drawer, odds, result; fuel_first, events; chart or layers, jump_blocked). The
+goal steps still yield to lessons. A line that gives way to a waiting one (`YIELD_S`) lets that
+one start on the same visit.
+
+**Over the escape menu** (`save`): the one lesson said there. Her box and the outline go on the
+menu's own layer, above it (`Ash.teach`'s `host`), right of its drawer (`Ash.menu_spot`); she
+stays while the menu is up and goes with it. **The chassis select** is a card only
+(`Hints.CARD_ONLY`): she has not introduced herself yet.
+
+**Her voice for them:** recorded after Jon OKs the spend, from the scratchpad's
+`tutorial-deep-voice.json` (each line's shown words, its spoken script and its take's path; 23
+new lines and 7 rewritten). A new line plays `tut_<id>.ogg` once installed; a rewritten one plays
+the take named in `AshTutorLines.RETAKE` (`tut_<id>_2.ogg`), never its old take under the new
+words; each is text alone until then.
+
+**Harnesses:** `-- sheet=AshTutorTest` walks every lesson through a first run on the real
+screens (each taught exactly once, clicked on and never dismissed, never stuck);
+`-- hinttest` holds the first set's triggers and parks the deep ones (`Hints.DEEP`).

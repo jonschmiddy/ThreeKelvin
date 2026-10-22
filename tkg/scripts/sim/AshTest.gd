@@ -1215,8 +1215,10 @@ func _hints() -> void:
 			Hints.spend()
 		if up and not said:
 			said = true
+			# (due: one the pacing would start now; the rest of a visit's
+			# lessons wait for the next visit, and her lines need not)
 			for id in Hints.ORDER:
-				if not Hints.seen(id) and not Hints.probe(id).is_empty():
+				if not Hints.seen(id) and Hints._pace_ok(id) and not Hints.probe(id).is_empty():
 					said_with_due = true
 			break
 	_ok("hints came first on a fresh LOCAL (%s)" % ", ".join(shown), shown.size() > 0)
@@ -1227,8 +1229,12 @@ func _hints() -> void:
 	if said:
 		var p := Ash.portrait
 		var k := p.kind
-		# (your ship's, whose subject is up here: due at once)
-		Hints.mark_seen(&"ship", false)
+		# (your ship's, whose subject is up here: due at once, the only one
+		# unseen, on a visit that has taught nothing yet: one new lesson a
+		# visit, `Hints._pace_ok`)
+		for id in Hints.ORDER:
+			Hints.mark_seen(id, id != &"ship")
+		Hints._front_last = &""
 		_ok("a hint is due here while she talks", not Hints.probe(&"ship").is_empty() and p.speaking())
 		var under := 0
 		var natural := false

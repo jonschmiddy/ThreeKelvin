@@ -19,6 +19,12 @@ extends Harness
 ## the player's. What is checked is the card in the tree, not only the flag, so
 ## this cannot pass while nothing draws. The clock is stepped by hand
 ## (`Hints.poll`).
+##
+## THE FIRST SET, NOT THE DEEP TUTORIAL'S: the lessons added Oct 22
+## (`Hints.DEEP`) are parked (marked seen) after every reset here, so this holds
+## the first set's triggers and order as they were; `-- sheet=AshTutorTest`
+## walks every lesson, the deep ones too, through a first run. The intent's line
+## now comes at the start of turn 2, and brace's and heat's end on END TURN.
 
 const HintActs := preload("res://scripts/sim/HintActs.gd")
 
@@ -43,6 +49,7 @@ func run(tree: SceneTree) -> void:
 	Hints.reset()
 	Hints.mark_seen(&"events")
 	Hints.reload()
+	_park_deep()
 	_ok("after a reset, the hints and the goal's steps are unseen, and one seen since stays seen",
 		not Hints.seen(&"ship") and not Hints.seen(&"wreck") and not Hints.seen(&"step_jump")
 		and Hints.seen(&"events"))
@@ -142,8 +149,15 @@ func run(tree: SceneTree) -> void:
 	sc._events.open(pe)
 	await _frames(10)
 	await _never(&"ship", "the event band is up: the ship's hint waits")
+	var band_card := Hints.card != null and Hints.card.id == &"drawer"
 	sc._events.not_now()
 	await _frames(20)
+	Hints.poll(0.05)
+	# NOT NOW is one of the band's two answers (the deep tutorial's line says so):
+	# it spends the band's card, as a choice does
+	_ok("the band's card was up, and NOT NOW spent it", band_card and Hints.seen(&"drawer"))
+	Hints.mark_seen(&"drawer", false)
+	Hints.poll(Hints.GAP_S + 0.1)
 	await _expect(&"ship")
 
 	# inside your ship
@@ -197,13 +211,11 @@ func run(tree: SceneTree) -> void:
 		for e in cb.enemies:
 			(e as Combat.EnemyState).max_hp = 999
 			(e as Combat.EnemyState).hp = 999
-		_ok("hand: its second line names the cost corner", "energy cost" in _line(&"hand", 1))
-		await _never(&"intent", "cards in hand, none played: no intent yet (the hand's card up)")
-		# (the hand's action is the first card: then the intent)
+		_ok("hand: its second line says where the cards that help go", "own ship" in _line(&"hand", 1))
+		await _never(&"intent", "turn 1: no intent (it is turn 2's, the deep tutorial's pacing)")
+		# (the hand's action is the first card)
 		await _expect(&"hand")
-		await _expect(&"intent")
-		var ic: Array = Hints.shown_log.slice(-1)
-		_ok("intent: it showed after the first card", ic == [&"intent"])
+		await _never(&"intent", "turn 1, a card played: still no intent")
 		# play out the hand: then END TURN
 		await _none("a card left to play: END TURN's hint waits", [], true)
 		while await _play_one(cb):
@@ -220,10 +232,20 @@ func run(tree: SceneTree) -> void:
 		_ok("the next turn comes up", settled)
 		_ok("brace was held over the end of turn, and charged its heat (%d heat)" % Run.heat,
 			cb.brace_held >= 1 and Run.heat >= 1)
-		await _expect(&"brace")
-		await _expect(&"heat")
+		# TURN 2: the intent at its start (its action, END TURN here), then a turn
+		# each for brace and heat (each at a turn's start, ended by END TURN)
+		var turn_was := cb.turn
+		await _expect(&"intent")
+		_ok("intent: it showed at the start of turn 2 (turn %d)" % turn_was, turn_was == 2 and Hints.seen(&"intent"))
+		await _settle(fs)
 		_ok("heat: it reads the live cap (%d), not a number written down" % Run.heat_cap(),
 			("Past %d" % Run.heat_cap()) in _line(&"heat", 0))
+		await _expect(&"heat")
+		await _settle(fs)
+		cb.brace = 60
+		fs._refresh_player()
+		await _expect(&"brace")
+		await _settle(fs)
 		await _none("every fight hint spent: none comes back this turn")
 	# a second fight: none of them again
 	Router.start_combat(DB.enemies[&"cutter"], [], false, false)
@@ -291,6 +313,7 @@ func run(tree: SceneTree) -> void:
 	# (nothing else waiting here, so it gives way to nothing); its subject
 	# leaving hides it unspent
 	Hints.reset()
+	_park_deep()
 	for id in Hints.ORDER:
 		if id != &"ship":
 			Hints.mark_seen(id)
@@ -326,6 +349,7 @@ func run(tree: SceneTree) -> void:
 	Hints.reset()
 	_ok("REPLAY TUTORIAL clears every hint and the goal line's steps",
 		(Hints.ORDER + Hints.STEPS).all(func(id: StringName) -> bool: return not Hints.seen(id)))
+	_park_deep()
 	sc = await _local()
 	if sc != null:
 		await _expect(&"ship")
@@ -335,6 +359,7 @@ func run(tree: SceneTree) -> void:
 	# switch is kept in the settings file; ON again, the hints pick up where the
 	# player is (what was seen stays seen)
 	Hints.reset()
+	_park_deep()
 	Hints.mark_seen(&"events")
 	sc = await _local()
 	Hints.mark_seen(&"ship", false)
@@ -370,8 +395,10 @@ func run(tree: SceneTree) -> void:
 		await _expect(was_id)
 		await _put_away()
 
-	# nothing over the escape menu
+	# nothing over the escape menu (but its own SAVE & EXIT lesson, parked here:
+	# AshTutorTest holds that one)
 	Hints.reset()
+	_park_deep()
 	sc = await _local()
 	var main: Node = Router.content
 	while main != null and not main.has_method("toggle_menu"):
@@ -528,6 +555,7 @@ func _decks() -> void:
 		was_seen[id] = Hints.seen(id)
 	Hints.set_tutorial(false)
 	Hints.reset()
+	_park_deep()
 	for id in Hints.ORDER:
 		if not DECKS.has(id):
 			Hints.mark_seen(id)
@@ -913,5 +941,11 @@ func _map_list(n: MapGen.MapNode) -> SystemMapScreen:
 
 ## A hint's lines: two, but the cutaway's three (A.S.H.'s words on the card, and
 ## the turn and flip keys under them: Jon, merge:A, Oct 20).
+## The deep tutorial's lessons, marked seen (see the header).
+func _park_deep() -> void:
+	for id in Hints.DEEP:
+		Hints.mark_seen(id)
+
+
 static func _lines_for(id: StringName) -> int:
 	return 3 if id == &"cutaway" else 2

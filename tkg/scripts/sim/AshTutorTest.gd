@@ -23,6 +23,17 @@ extends Node
 ## dock in reach, none, and here. Each is her line with the right words, in her
 ## corner and not a card, the outline on the hint's own subject.
 ##
+## THE DEEP TUTORIAL (Jon, Oct 22: "Tutorial: scope:all"), in the same walk: the
+## map's fuel on the first arrival and flying by hand; the chart's layer strip,
+## a JUMP that cannot go, a signed job's ring and a mark; LOCAL's hull; the
+## band's odds and a result with REWARD; the cutaway's mounts, its cards from a
+## fitted part and the ship's stats; a first fight taught over its turns (the
+## hand, energy and END TURN on turn 1, then a lesson at each turn's start: the
+## intent, a card's heat corner, heat, brace, underlined words; a discard asked
+## for mid-turn; a malfunction), a second (FLEE and HAIL, the hull at half) and a
+## third (the piles, turn 2); the yard's FAULTS, a ship for sale and UNDOCK; the
+## escape menu's SAVE & EXIT (said over the menu); the chassis select's card.
+##
 ## NO CLICK DISMISSES HER (Jon, Oct 22, the first outside playtest: "Can we soft
 ## lock the screen so A.S.H. can't be dismissed?"). Real clicks, through the
 ## viewport, on her box (where Kevin clicked) and at seeded points in it, on
@@ -76,15 +87,15 @@ var _armed := {}
 const JON := {
 	&"chart": "These stars are in reach. Left bar is danger. Right bar is fuel.",
 	&"events": "Click an event to read it. GO flies us there.",
-	&"drawer": "Pick one. Some choices show the odds. The rest are a surprise.",
-	&"hand": "Drag a card onto an enemy to fire. Top left is its energy cost.",
+	&"drawer": "Pick a choice. Some show the odds. The rest are a surprise. NOT NOW saves it for later.",
+	&"hand": "Drag a card onto an enemy to fire it. Cards that help us go on our own ship.",
 	&"intent": "That's what it will do when you press END TURN.",
 	&"endturn": "Out of energy. Press END TURN. They act, then you draw {hand} cards.",
-	&"brace": "Brace stops damage till gone. Holding it costs 1 heat a turn.",
-	&"heat": "Heat. Past {cap}, we lose 1 hull per point over, at end of turn.",
-	&"salvage": "Drag a part into the hold. Double-click works too.",
-	&"wreck": "Click a wreck to loot it. Its parts and credits are ours.",
-	&"loot": "SECTOR LOOT is what's loose here. It stays until you take it.",
+	&"brace": "Brace stops damage until it's used up. It stays up, but holding it warms us every turn.",
+	&"heat": "This is heat. Past {cap}, every point over costs us hull at the end of the turn.",
+	&"salvage": "Drag parts into the hold, or double-click them. What we leave stays in the wreck. Press DONE when we're through.",
+	&"wreck": "We broke it, so now it's a wreck. Click it to see what we can take. It stays here if we go.",
+	&"loot": "SECTOR LOOT is everything loose here, like what we left in wrecks. It waits for us. Click it to look.",
 	&"dock": "Stations repair, refuel and trade. Pick a deck on the left.",
 	&"fuel_dock": "Fuel is low. Run dry and the run ends. Nearest dock is {jumps} jumps: {name}.",
 	&"fuel_none": "Fuel is low, and empty ends the run. No dock in reach. Jump short and look.",
@@ -94,6 +105,31 @@ const JON := {
 	&"step_jump_chart": "Pick a star in range, then press JUMP.",
 	&"step_event": "Open SECTOR. Click an event, then press GO.",
 	&"step_event_map": "Click an event, then press GO.",
+	# THE DEEP TUTORIAL'S (the audit's rows, Jon's "scope:all", Oct 22; where the
+	# code disagreed with a draft, the words follow the code)
+	&"energy": "That card cost energy. This box is what's left. It fills back up every turn.",
+	&"heat_corner": "Top right is heat. Playing the card adds that much. A green minus cools us down.",
+	&"keywords": "Underlined words have rules. Rest the pointer on a card to read them.",
+	&"discard_pick": "That card wants a discard. Click a card in your hand to put it in the discard pile.",
+	&"malfunction": "That's a malfunction. It clogs the deck. Play it to clear it for this fight. A shipyard clears it for good.",
+	&"flee_hail": "FLEE and HAIL end a fight early. Each one is a check, and a miss costs us.",
+	&"piles": "Played cards go to the discard. When the draw pile runs out, they shuffle back in at the next turn.",
+	&"odds": "This one tests the ship. It shows the stat, what we have, and the odds. Meet it and it can't fail.",
+	&"result": "Here's what it cost and what we got. REWARD opens anything we found. Then press CONTINUE.",
+	&"fuel_first": "Each jump burns fuel. Run dry between stars and the run ends. Stations sell more.",
+	&"hull": "That's our hull. At zero, the ship is lost. A shipyard can patch it.",
+	&"map_fly": "Click a world twice and we fly there. Or fly us by hand.\n{thrust} pushes. {left} and {right} turn.",
+	&"layers": "This strip is how deep we are. Each ring in means more danger and better pay. The core is at the end.",
+	&"contract_track": "That ring on the chart is the job. Do it there, then press DELIVER at any of their docks.",
+	&"quest": "Something is marked on the chart now. Fly there to follow it up.",
+	&"jump_blocked": "We can't jump there yet. The button says why.",
+	&"mounts": "Each slot takes one kind of part. The slots that light up will take this one.",
+	&"cards_from_parts": "Every part brings its own cards. Fit it, and they join the deck. Point at a part to see them.",
+	&"attributes": "These are the ship's stats. Event checks test most of them. Fitting parts moves them up or down.",
+	&"faults": "FAULTS clears a malfunction out of the deck, for a price.",
+	&"hull_sale": "That ship is for sale. TAKE IT trades ours in. It comes empty, so we move everything over.",
+	&"undock": "UNDOCK takes us back out when we're done here.",
+	&"save": "SAVE AND EXIT keeps the run. CONTINUE on the title picks it back up.",
 }
 
 ## THE DECKS' LINES, Jon's picks of two drafts each (Oct 20, "promenade:B
@@ -207,12 +243,14 @@ func _until_said(lid: StringName, secs: float = 6.0) -> bool:
 ## Hint `id` comes as her line `lid`: the words, the corner not a card, the
 ## outline on its subject, the box test; held, then spent by a click.
 func _expect(id: StringName, lid: StringName = &"", words: String = "", reopen: Callable = Callable(),
-		after: Callable = Callable()) -> void:
+		after: Callable = Callable(), leave: Callable = Callable()) -> void:
 	if lid == &"":
 		lid = id
 	var up: bool = await _until_said(lid)
 	var got := "%s / card %s" % [Ash.lesson, Hints.card.id if Hints.card != null else &"none"]
 	if not _ok("%s: she says it (got %s)" % [lid, got], up):
+		print("    (%s: seen %s, resting %s, paced %s, subject %s, quiet %.1f, front last %s)" % [id, Hints.seen(id),
+			Hints.resting(id), Hints._pace_ok(id), Hints.probe(id).get("subject", "none"), Hints._quiet, Hints._front_last])
 		return
 	var want := words if words != "" else AshTutorLines.fill(lid, Hints.values(id))
 	var p := Ash.portrait
@@ -222,7 +260,10 @@ func _expect(id: StringName, lid: StringName = &"", words: String = "", reopen: 
 	var want_o := Rect2(subj.position.round(), subj.size.round()).grow(1.0)
 	_ok("%s: the outline is on its subject (%s, subject %s)" % [lid, Ash.outline_rect(), subj],
 		subj.size != Vector2.ZERO and Ash.outline_rect().is_equal_approx(want_o))
-	await _box(String(lid))
+	if id == &"save":
+		_menu_box()
+	else:
+		await _box(String(lid))
 	# NO CLICK SENDS IT AWAY (Jon, Oct 22): real clicks on her box, as Kevin's
 	var c0 := _clicks
 	Hints.poll(0.0)
@@ -245,8 +286,10 @@ func _expect(id: StringName, lid: StringName = &"", words: String = "", reopen: 
 		Hints.poll(1.0 / 60.0)
 		var held := GameClock.now() - held_from
 		var need := AshPortrait.HOLD_MIN_S + AshPortrait.HOLD_PER_CHAR_S * float(p.line.length())
+		# (held measured from the first frame this loop sees her holding: its
+		# clicks take three frames, so up to 0.1 s late)
 		_ok("%s: an information line: clicked %d times, it stayed, then went by itself %.2f s after it was out (reading time %.2f), spent" % [
-			lid, _clicks - c0, held, need], held_from > 0.0 and held >= need - 0.05 and Hints.seen(id)
+			lid, _clicks - c0, held, need], held_from > 0.0 and held >= need - 0.1 and Hints.seen(id)
 			and Hints.lesson == &"" and Ash.lesson != lid)
 	else:
 		# AN ACTION'S LINE: clicked and left alone, a while, up and unspent.
@@ -261,6 +304,9 @@ func _expect(id: StringName, lid: StringName = &"", words: String = "", reopen: 
 			# SAID WHOLE ALREADY: leaving it spends it (said once, Jon's Oct 20 ruling)
 			_ok("%s: a click on her box shut its screen (the click's own job) after she had said it whole: spent, said once" % lid,
 				Hints.seen(id))
+			if after.is_valid():
+				after.call()
+				await _frames(2)
 			Hints.poll(Hints.GAP_S + 0.1)
 			return
 		if shut:
@@ -278,11 +324,24 @@ func _expect(id: StringName, lid: StringName = &"", words: String = "", reopen: 
 				await _click_her()
 		_ok("%s: clicked %d times and left alone, it stays up and unspent" % [lid, _clicks - c0],
 			Ash.lesson == lid and Ash.lesson_up() and Hints.lesson == id and not Hints.seen(id))
-		# THE PLAYER DOES IT: spent, and she goes
-		var did := HintActs.act(id)
-		for i in 6:
+		# THE PLAYER DOES IT: spent, and she goes. (`leave`: one said whole and
+		# its screen left instead, which spends it too: `SPENT_ONCE_HEARD`)
+		var did := ""
+		if leave.is_valid():
+			var t1 := GameClock.now()
+			while not Hints._said and GameClock.now() - t1 < 15.0:
+				Hints.poll(1.0 / 60.0)
+				await _tree.process_frame
+			leave.call()
+			did = "said whole, and left"
+		else:
+			did = HintActs.act(id)
+		# (a readout opens after the pointer has rested a second)
+		for i in 120:
 			Hints.poll(1.0 / 60.0)
 			await _tree.process_frame
+			if i >= 5 and Hints.seen(id):
+				break
 		_ok("%s: done (%s): spent, and she goes" % [lid, did if did != "" else "NOTHING TO DO IT WITH"],
 			did != "" and Hints.seen(id) and Hints.lesson != id and Ash.lesson != lid
 			and (Ash.outline_rect() == Rect2() or Ash.lesson != &""))
@@ -678,9 +737,10 @@ func _lines() -> void:
 	# THE KEYS UNDER IT (Jon, Oct 21, 0.3.0): shown on a line of their own, as
 	# bound, and never said: her take is still the one of his words alone
 	var keys_shown := AshTutorLines.fill(&"cutaway", {turn = "R", flip = "F"})
-	_ok("the cutaway shows its keys on a line under her words (\"%s\")" % keys_shown.c_escape(),
-		AshTutorLines.LINES[&"cutaway"] == AshTutorLines.CUTAWAY_LINE + "\n{turn} turns a part. {flip} flips it."
-		and keys_shown == AshTutorLines.CUTAWAY_LINE + "\nR turns a part. F flips it.")
+	# (the flip key went Oct 22: a flip is drawing only, `ModuleData.flipped`)
+	_ok("the cutaway shows its turn key on a line under her words, no flip (\"%s\")" % keys_shown.c_escape(),
+		AshTutorLines.LINES[&"cutaway"] == AshTutorLines.CUTAWAY_LINE + "\n{turn} turns a part."
+		and keys_shown == AshTutorLines.CUTAWAY_LINE + "\nR turns a part.")
 	_ok("and says only the take's words, no key (\"%s\")" % AshTutorLines.spoken(&"cutaway"),
 		AshTutorLines.spoken(&"cutaway") == AshTutorLines.CUTAWAY_LINE)
 	_ok("the cutaway with its keys is %d lines in her column (at most five)" % AshPortrait.lines_for(keys_shown),
@@ -688,7 +748,8 @@ func _lines() -> void:
 	# ITS TAKE is Jon's pick for the new words (take:1, Oct 20)
 	_ok("the cutaway line is said in its own take (voice \"%s\")" % AshTutorLines.voice_path(&"cutaway"),
 		AshTutorLines.voice_path(&"cutaway") == AshTutorLines.VOICE_DIR + "tut_cutaway.ogg" and not AshTutorLines.SILENT.has(&"cutaway"))
-	var vals := {hand = 5, cap = 14, jumps = 2, name = "GAMMA KESTREL REACH", turn = "R", flip = "F"}
+	var vals := {hand = 5, cap = 14, jumps = 2, name = "GAMMA KESTREL REACH", turn = "R", flip = "F",
+		thrust = "W", left = "A", right = "D"}
 	var left: Array[String] = []
 	var tallest := 0.0
 	for k in AshTutorLines.LINES:
@@ -716,8 +777,9 @@ func _lines() -> void:
 			said_bad.append("%s has a digit" % k)
 	_ok("what she says has no field and no live number; every line with a field has a script (%s)" % [
 		"all %d" % AshTutorLines.LINES.size() if said_bad.is_empty() else "NOT " + ", ".join(said_bad)], said_bad.is_empty())
-	_ok("the three scripts are Jon's", AshTutorLines.spoken(&"endturn") == "Out of energy. Press END TURN. They act, then you draw new cards."
-		and AshTutorLines.spoken(&"heat") == "Heat. Past the limit, we lose 1 hull per point over, at end of turn."
+	_ok("the scripts are Jon's and the deep tutorial's", AshTutorLines.spoken(&"endturn") == "Out of energy. Press END TURN. They act, then you draw new cards."
+		and AshTutorLines.spoken(&"heat") == "This is heat. Past the limit, every point over costs us hull at the end of the turn."
+		and AshTutorLines.spoken(&"map_fly") == "Click a world twice and we fly there. Or fly us by hand."
 		and AshTutorLines.spoken(&"fuel_dock") == "Fuel is low. Run dry and the run ends. Here's the nearest dock."
 		and AshTutorLines.spoken(&"cutaway") == AshTutorLines.CUTAWAY_LINE)
 	_ok("the fuel hint picks its line by the dock: in reach, none, here",
@@ -745,6 +807,23 @@ func _lines() -> void:
 		Hints.DONE.size(), Hints.INFO.size(), "" if no_end.is_empty() else "; NOT " + ", ".join(no_end)],
 		no_end.is_empty() and Hints.DONE.size() + Hints.INFO.size() == Hints.ORDER.size())
 	_ok("the soft lock (option b) is built and off by default", not Hints.SOFT_LOCK and not Hints.soft_lock)
+	# THE DEEP TUTORIAL: every lesson has her line (but the card-only one), and
+	# a line whose words changed after its take plays its new take's name, never
+	# the old take under new words
+	var no_line: Array[String] = []
+	for k in Hints.ORDER:
+		var lid := AshTutorLines.line_id(k, {jumps = 2})
+		if Hints.CARD_ONLY.has(k) != not AshTutorLines.LINES.has(lid) or Hints.lines(k).size() < 2:
+			no_line.append(String(k))
+	_ok("every lesson has her line and a card (the chassis select's a card only) (%s)" % ("all %d" % Hints.ORDER.size() if no_line.is_empty() else "NOT " + ", ".join(no_line)),
+		no_line.is_empty() and Hints.DEEP.all(func(k: StringName) -> bool: return Hints.ORDER.has(k)))
+	var stale: Array[String] = []
+	for k in AshTutorLines.RETAKE:
+		var vp := AshTutorLines.voice_path(k)
+		if vp.ends_with("/tut_%s.ogg" % k) or (vp != "" and not vp.ends_with("/%s.ogg" % AshTutorLines.RETAKE[k])):
+			stale.append(String(k))
+	_ok("the %d rewritten lines never play their old take (%s)" % [AshTutorLines.RETAKE.size(), "none do" if stale.is_empty() else "NOT " + ", ".join(stale)],
+		stale.is_empty())
 	print("    (each hint's action:)")
 	for k in Hints.ORDER:
 		print("      %-13s %s" % [k, Hints.DONE.get(k, "information: its reading time after her voice, then by itself")])
@@ -818,16 +897,48 @@ func _flow() -> void:
 	Router.show_starchart()
 	await _frames(40)
 	await _never(&"chart", "the chart again: its line does not come back")
+	# THE SECOND CHART: its layer strip
+	await _expect(&"layers")
+	# A STAR THE SHIP CANNOT JUMP TO, picked on a chart of its own: JUMP says why
+	Router.show_starchart()
+	await _frames(40)
+	var chb := Router.current as StarchartScreen
+	var far := -1
+	for raw in Run.map:
+		var m: MapGen.MapNode = raw
+		if m.index != Run.at and Run.charted(m) and not Run.can_jump_to(m):
+			far = m.index
+			break
+	if _ok("a charted star out of reach to pick (%d)" % far, far >= 0 and chb != null):
+		chb._on_node_picked(far)
+		await _frames(5)
+		_ok("its JUMP is off and says why (\"%s\")" % chb._jump.text, chb._jump.disabled and chb._jump.text != "JUMP")
+		# (a click on her box lands on the chart's sky, which drops the pick: the
+		# click's own job; the star picked again)
+		await _expect(&"jump_blocked", &"", "", func() -> void: chb._on_node_picked(far))
 	Run.jumps = 1
 	# THE MAP: the events were seen since the reset, so the step first
 	if n.options.is_empty():
 		_plant_event(n)
 	Router.show_system()
 	await _frames(40)
+	# THE FIRST ARRIVAL: the tank, before the step (information: it goes by itself)
+	await _expect(&"fuel_first")
 	await _expect_step(&"step_event_map")
 	await _never(&"events", "the map's events were seen before: not said")
 	_rearm(&"events")
+	# (its line follows the fuel's on the same visit: a chain)
 	await _expect(&"events")
+	# THE MAP AGAIN, the ship on no orbit (circling the star as it arrived):
+	# flying it by hand, the keys as bound on a line of their own
+	Router.show_system()
+	await _frames(40)
+	var mpf := Router.current as SystemMapScreen
+	_ok("the map: the ship on no world's orbit (%s)" % (mpf.flight.mode if mpf != null else &"?"),
+		mpf != null and int(mpf.flight.reached()) == -9)
+	await _expect(&"map_fly")
+	if mpf != null and is_instance_valid(mpf):
+		mpf._wasd["w"] = false
 
 	# LOCAL AT AN EVENT'S OWN PLACE, WITH A WRECK THAT HOLDS SOMETHING AND A PILE.
 	# LOCAL opens the event there as GO does (Jon, Oct 21: "Clicking GO or
@@ -876,6 +987,12 @@ func _flow() -> void:
 	if sc._cutaway != null:
 		sc._cutaway.close_now()
 	await _frames(10)
+	# THE HULL SHORT OF FULL, on a LOCAL of its own (one new lesson a visit):
+	# said whole and LOCAL left, it is spent
+	Run.hp = Run.max_hp() - 5
+	sc = await _local()
+	await _expect(&"hull")
+	Run.hp = Run.max_hp()
 	# THE STEP ITSELF, where it is still a thing to do: LOCAL at the edge, the
 	# event still open at its world
 	Hints.mark_seen(&"step_event", false)
@@ -890,18 +1007,22 @@ func _flow() -> void:
 		await _frames(30)
 		print("    (cutaway: open %s, its rect %s, panel %s %s, pic %s, view %s)" % [cut.is_open(), cut.get_global_rect(),
 			cut._panel.get_global_rect(), cut._panel.is_visible_in_tree(), cut.get_global_transform() * cut._pic, Ash.tut_view_rect(sc)])
-		await _expect(&"cutaway", &"", "", func() -> void: sc.open_cutaway())
+		# (after it, a part picked up: the mounts that take it light)
+		await _expect(&"cutaway", &"", "", func() -> void: sc.open_cutaway(), func() -> void: _lift(sc._cutaway))
+		if sc._cutaway != null and is_instance_valid(sc._cutaway):
+			await _expect(&"mounts", &"", "", func() -> void: _lift(sc.open_cutaway()), func() -> void: _unfit_one())
+			# (a part off the ship: the fit changed since it was first opened up)
+			if sc._cutaway == null or not is_instance_valid(sc._cutaway):
+				sc.open_cutaway()
+				await _frames(30)
+			await _expect(&"cards_from_parts", &"", "", func() -> void: sc.open_cutaway())
 		if sc._cutaway != null and is_instance_valid(sc._cutaway):
 			sc._cutaway.close_now()
+		_refit()
 		await _frames(10)
-	# OVER THE EVENT BAND
-	var pe := _plant_event(n)
-	sc._events.open(pe)
-	await _frames(30)
-	# (said once, at the event's own place above: not again)
-	await _never(&"drawer", "the event band's line, said once already, is not said again")
-	sc._events.not_now()
-	await _frames(20)
+	# OVER THE EVENT BAND AGAIN: a choice that tests the ship, then the result
+	# with a REWARD (the band's line, said once above, not again)
+	await _band_deep(sc, n)
 	# OVER A WRECK'S WINDOW
 	var loaded := Run.new_wreck(n, DB.enemies[&"cutter"])
 	loaded.items.append(CreditChit.of(30))
@@ -911,6 +1032,14 @@ func _flow() -> void:
 	await _expect(&"salvage")
 	sc._close_transfer()
 	await _frames(10)
+	# THE CUTAWAY AGAIN, after a check was taught: the ship's stats
+	var cut2 := sc.open_cutaway()
+	if _ok("the cutaway opens again", cut2 != null):
+		await _frames(30)
+		await _expect(&"attributes", &"", "", func() -> void: sc.open_cutaway())
+		if sc._cutaway != null and is_instance_valid(sc._cutaway):
+			sc._cutaway.close_now()
+		await _frames(10)
 
 	# A FIGHT: five lines in one fight, her one-line limit is for barks
 	Run.heat = 0
@@ -923,10 +1052,12 @@ func _flow() -> void:
 		for e in cb.enemies:
 			(e as Combat.EnemyState).max_hp = 999
 			(e as Combat.EnemyState).hp = 999
-		# (the hand's action is a card played: its line plays one)
+		# TURN 1: the hand (its action a card played), the energy after it, END
+		# TURN with nothing left; nothing else
 		await _expect(&"hand")
 		await _frames(6)
-		await _expect(&"intent")
+		await _expect(&"energy")
+		_ok("turn 1 teaches the hand, energy and END TURN alone (no intent yet)", not Hints.seen(&"intent"))
 		while await _play_one(cb):
 			pass
 		cb.brace = 60
@@ -934,13 +1065,72 @@ func _flow() -> void:
 		# (END TURN's action is END TURN: its line presses it)
 		await _expect(&"endturn", &"endturn", JON[&"endturn"].replace("{hand}", str(Run.hand_size())))
 		_ok("the next turn comes up", await _settle_turn(fs))
-		await _expect(&"brace")
+		# A LESSON AT EACH TURN'S START from turn 2, each ended by its action
+		var t2 := cb.turn
+		# (a card that adds heat on top of the deck: turn 3's hand draws it, and
+		# its corner is that turn's lesson; in a harness the enemy's turn plays
+		# at once, so the next turn's lesson can start as this one is spent)
+		cb.deck.append(_with(cb, {heat = 2, vent = 0, energy = 0}))
+		await _expect(&"intent")
+		_ok("the intent at the start of turn 2 (turn %d)" % t2, t2 == 2)
+		await _settle_turn(fs)
+		await _expect(&"heat_corner")
+		await _next_turn(fs)
 		await _expect(&"heat", &"heat", JON[&"heat"].replace("{cap}", str(Run.heat_cap())))
-		var in_fight := 0
+		await _settle_turn(fs)
+		cb.brace = 60
+		fs._refresh_player()
+		await _frames(10)
+		await _expect(&"brace")
+		await _settle_turn(fs)
+		await _give(cb, fs, _with(cb, {brace = 3, damage = 0, energy = 0}))
+		await _expect(&"keywords")
+		await _next_turn(fs)
+		# A DISCARD ASKED FOR, mid-turn: the pick is the thing to do (and no END
+		# TURN line while it waits)
+		await _give(cb, fs, _with(cb, {discard = 1, damage = 0, energy = 0, name = "Sort"}))
+		cb.play(cb.hand.size() - 1, -1)
+		fs._refresh_hand()
+		await _frames(10)
+		_ok("a discard asked for (%d to pick)" % cb.choosing, cb.choosing > 0)
+		await _expect(&"discard_pick")
+		await _next_turn(fs)
+		# A MALFUNCTION in the hand at a turn's start
+		await _give(cb, fs, DB.malfunction(&"dross"))
+		await _expect(&"malfunction")
+		var in_fight: Array[String] = []
 		for d: Dictionary in Ash.said_log.slice(f0):
-			if d.get("tutorial", false) and String(d.kind) in ["tut_hand", "tut_intent", "tut_endturn", "tut_brace", "tut_heat"]:
-				in_fight += 1
-		_ok("five teaching lines in one fight (%d)" % in_fight, in_fight == 5)
+			if d.get("tutorial", false):
+				in_fight.append(String(d.kind).trim_prefix("tut_"))
+		_ok("the first fight taught over its turns (%s)" % ", ".join(in_fight),
+			in_fight == ["hand", "energy", "endturn", "intent", "heat_corner", "heat", "brace", "keywords", "discard_pick", "malfunction"])
+		Run.hp = Run.max_hp()
+		# A SECOND FIGHT, the hull at half: FLEE and HAIL (one of these a fight)
+		Router.start_combat(DB.enemies[&"cutter"], [], false, false)
+		await _frames(40)
+		fs = Router.current as SectorScreen
+		cb = Router.combat
+		for e in cb.enemies:
+			(e as Combat.EnemyState).max_hp = 999
+			(e as Combat.EnemyState).hp = 999
+		Run.hp = Run.max_hp() / 2
+		fs._refresh_player()
+		await _expect(&"flee_hail")
+		if fs._exit_ask != null:
+			fs._close_exit_ask()
+		Run.hp = Run.max_hp()
+		await _frames(4)
+		# A THIRD, turn 2: the piles
+		Router.start_combat(DB.enemies[&"cutter"], [], false, false)
+		await _frames(40)
+		fs = Router.current as SectorScreen
+		cb = Router.combat
+		for e in cb.enemies:
+			(e as Combat.EnemyState).max_hp = 999
+			(e as Combat.EnemyState).hp = 999
+		await _never(&"piles", "turn 1 of a later fight: no piles yet")
+		await _next_turn(fs)
+		await _expect(&"piles")
 	Run.heat = 0
 
 	# THE STATION: its decks, the yard's own, its yard's ship, its cutaway, then
@@ -952,6 +1142,10 @@ func _flow() -> void:
 	# (flown in: hull and fuel spent, so the yard's drones have work and come)
 	Run.hp = maxi(1, Run.max_hp() - 12)
 	Run.fuel = maxi(1, Run.fuel - 4)
+	# (a malfunction aboard, so the FAULTS drone comes; a ship for sale)
+	Run.add_dross(1, &"dross")
+	if full != null:
+		full.shop_hull = LootGen.roll_hull(3)
 	Router.docked = false
 	# (DOCK only at the station itself, Jon's dock:A: park there first)
 	Router.park_at_station()
@@ -978,15 +1172,37 @@ func _flow() -> void:
 			st._cutaway.close_now()
 		await _frames(10)
 	if st != null:
+		# THE YARD AGAIN: the FAULTS drone (its picker its action), then the
+		# ship for sale (said whole and the deck left: TAKE IT is not pressed)
+		await _revisit(st)
+		await _expect(&"faults")
+		st._close_purge()
+		await _frames(5)
+		await _revisit(st)
+		_ok("the deal on the TV", await _deal_up(st))
+		await _expect(&"hull_sale", &"", "", Callable(), Callable(), func() -> void: _tab_to(&"stock"))
 		for id: StringName in DECKS.slice(1):
 			if _ok("%s: its deck open, its main thing up" % id, await _visit(st, id)):
 				await _expect(id)
+		# BACK IN THE YARD, every deck's line said: UNDOCK
+		await _visit(st, &"shipyard")
+		await _expect(&"undock")
 		await _visit(st, &"shipyard")
 	Run.hp = Run.max_hp()
 
-	# FUEL LOW: on the chart, by where the nearest dock is
+	# THE CHART AFTER SIGN: the job's ring; then a mark of an event's
 	n = _system()
 	Run.jumps = 1
+	Router.show_starchart()
+	await _frames(40)
+	var signed := Run.contracts.any(func(j: ContractData) -> bool: return j.state == ContractData.State.TAKEN and j.at >= 0)
+	if _ok("a job signed at the board, with a target", signed):
+		await _expect(&"contract_track")
+	if _ok("a mark planted in sight on the chart", _plant_quest()):
+		Router.show_starchart()
+		await _frames(40)
+		await _expect(&"quest")
+	# FUEL LOW: on the chart, by where the nearest dock is
 	Router.show_starchart()
 	await _frames(40)
 	var was := Run.fuel
@@ -1031,6 +1247,15 @@ func _flow() -> void:
 		await _frames(40)
 		await _expect(&"fuel", want)
 	Run.fuel = was
+	# THE ESCAPE MENU: SAVE & EXIT, said over the menu
+	await _local()
+	var main := _main()
+	if _ok("the escape menu's owner", main != null):
+		main.toggle_menu()
+		await _frames(20)
+		await _expect(&"save")
+		_ok("save: the menu shut, she goes with it", not Hints.menu_up() and Ash.lesson != &"save")
+	await _chassis_card()
 	_ok("she found room on every screen: no hint came as a card (%s)" % str(Hints.fallback_log), Hints.fallback_log.is_empty())
 	# EVERY HINT TAUGHT EXACTLY ONCE EACH TIME IT WAS ARMED, clicked on throughout,
 	# and the run finishes the tutorial: every hint spent
@@ -1106,6 +1331,203 @@ func _fuel_unflyable() -> void:
 	Run.fit_chassis(mfr, weight)
 	Run.at = at0
 	Run.chart_from(Run.node_at())
+
+
+## THE BAND'S DEEP LESSONS: an event with a choice that tests the ship (odds;
+## its action a choice), and its result with a REWARD to open. The event's own
+## payout may not be a part; the harness stands in for one that was (a part on
+## the system's pile and the result marked as paying one), which is what shows
+## REWARD.
+func _band_deep(sc: SectorScreen, n: MapGen.MapNode) -> void:
+	var po := -1
+	for o in OptionTable.all():
+		if (o.get("tags", []) as Array).has(&"fight") or bool(o.get("placed", false)):
+			continue
+		for c: Dictionary in o.get("choices", []):
+			if c.has("check") and not bool(c.get("stay", false)):
+				n.options.append(StringName(o.id))
+				po = n.options.size() - 1
+				break
+		if po >= 0:
+			break
+	if not _ok("an event with a check to plant (%d)" % po, po >= 0):
+		return
+	var drawn := Ash.said_log.filter(func(d: Dictionary) -> bool: return d.kind == &"tut_drawer").size()
+	sc._events.open(po)
+	await _frames(30)
+	await _expect(&"odds")
+	_ok("the event band's line, said once already, is not said again",
+		Ash.said_log.filter(func(d: Dictionary) -> bool: return d.kind == &"tut_drawer").size() == drawn)
+	await _frames(30)
+	var d := sc._events
+	if d.page == &"result" and d.find_child("Reward", true, false) == null:
+		(d.out.get("res", {}) as Dictionary)["module"] = true
+		if not d.out.has("res"):
+			d.out["res"] = {module = true}
+		Run.sector_jetsam(n).items.append(LootGen.roll_module(2, &"", false))
+		d._result()
+		await _frames(20)
+	_ok("the result page with REWARD (%s)" % d.page, d.page == &"result" and d.find_child("Reward", true, false) != null)
+	await _expect(&"result")
+	if d.page == &"event":
+		d.not_now()
+	elif d.page != &"":
+		d.continue_on()
+	await _frames(20)
+
+
+## A card like the first in the hand, with `props` set (a test's own card).
+func _with(cb: Combat, props: Dictionary) -> CardData:
+	var c: CardData = (cb.hand[0] if not cb.hand.is_empty() else cb.discard[0]).duplicate()
+	for k in props:
+		c.set(k, props[k])
+	return c
+
+
+## Card `c` put in the hand, drawn by the screen (asked again until its view is
+## up: a refresh asked while the turn's band is still settling is put off).
+func _give(cb: Combat, fs: SectorScreen, c: CardData) -> void:
+	cb.hand.append(c)
+	if cb.energy < 1:
+		cb.energy = 1
+	for i in 120:
+		if i % 10 == 0:
+			fs._refresh_hand()
+			fs._refresh_player()
+		await _tree.process_frame
+		if fs._hand._views.any(func(v: CardView) -> bool: return v != null and is_instance_valid(v) and v.card == c):
+			break
+	await _frames(20)
+
+
+## END TURN (unless it is already ending) and the next turn up.
+func _next_turn(fs: SectorScreen) -> void:
+	Run.hp = Run.max_hp()
+	if not fs._hold and not fs._playing:
+		fs._on_end_turn()
+	await _settle_turn(fs)
+
+
+## A part picked up in the cutaway: the mounts that take it light.
+func _lift(cut: CutawayView) -> void:
+	if cut == null or not is_instance_valid(cut) or Run.installed.is_empty():
+		return
+	cut._mounts.light(Run.installed[0] as ModuleData, &"hull")
+
+
+## A part taken off the ship (the fit changed: its cards gone from the deck), and
+## put back after.
+var _off: ModuleData = null
+
+func _unfit_one() -> void:
+	for m: ModuleData in Run.installed.duplicate():
+		if Run.uninstall_module(m):
+			_off = m
+			return
+
+
+func _refit() -> void:
+	if _off != null:
+		Run.install_module(_off)
+		_off = null
+
+
+## The yard again by the rail (another deck, then back): a new visit.
+func _revisit(st: StationScreen) -> void:
+	_tab_to(&"stock")
+	await _frames(2)
+	# (the hints see the deck change, as they do every frame in play)
+	Hints.poll(0.01)
+	await _visit(st, &"shipyard")
+	Hints.poll(Hints.GAP_S + 0.1)
+
+
+## The yard's deal on its TV, scanned in.
+func _deal_up(st: StationScreen) -> bool:
+	for i in 600:
+		if st._scene != null and st._scene.deal_tv != null and st._scene.deal_tv.reveal >= 1.0 and st._yard_hull != null:
+			return true
+		await _tree.process_frame
+	return false
+
+
+## An event's mark on a system in sight on the chart up now (a placed thread).
+func _plant_quest() -> bool:
+	var ch := Router.current as StarchartScreen
+	var ids: Array = OptionTable.placed_ids().keys()
+	if ch == null or ids.is_empty():
+		return false
+	var view := ch._chart.get_global_rect().grow(-40.0)
+	var g := ch._chart.get_global_transform()
+	for raw in Run.map:
+		var m: MapGen.MapNode = raw
+		if m.index == Run.at or m.type != MapGen.NodeType.SYSTEM:
+			continue
+		var c: Vector2 = ch._chart._screen_pos(m)
+		if view.has_point(g * c):
+			OptionTable.ensure(m)
+			m.options.append(StringName(ids[0]))
+			return OptionTable.holds_quest(m)
+	return false
+
+
+func _main() -> Node:
+	var n: Node = Router.content
+	while n != null and not n.has_method("toggle_menu"):
+		n = n.get_parent()
+	return n
+
+
+## Her box over the escape menu: on the menu's own layer, above it, clear of
+## its drawer and of what she points at, inside the picture.
+func _menu_box() -> void:
+	var m := Hints._menu()
+	var p := Ash.portrait
+	if not _ok("save: the menu is up", m != null and p != null):
+		return
+	var r := p.rect()
+	var vs := m.get_viewport_rect().size
+	_ok("save: her box on the menu's layer, above it (%s)" % p.get_parent(), p.get_parent() == m.get_parent()
+		and p.get_index() > m.get_index())
+	_ok("save: her box %s inside the picture, clear of the drawer %s and the SAVE plate" % [r, m._drawer.get_global_rect()],
+		Rect2(Vector2.ZERO, vs).encloses(r) and not r.intersects(m._drawer.get_global_rect())
+		and not r.intersects(Hints.probe(&"save").get("subject", Rect2())))
+	_screens["save (escape menu)"] = r
+
+
+## THE CHASSIS SELECT: its card (she has not introduced herself), on LAUNCH,
+## clicked on and still up, spent by LAUNCH.
+func _chassis_card() -> void:
+	Router.show_chassis_select()
+	await _frames(40)
+	var up := false
+	for i in 80:
+		Hints.poll(0.1)
+		await _tree.process_frame
+		if Hints.card != null and Hints.card.id == &"chassis_card":
+			up = true
+			break
+	if not _ok("chassis select: its card (got %s; she says nothing: %s)" % [Hints.card.id if Hints.card != null else &"none", Ash.lesson],
+			up and Ash.lesson == &""):
+		return
+	var c: HintCard = Hints.card
+	var words: Array = []
+	for l in c.find_children("*", "Label", true, false):
+		words.append((l as Label).text)
+	_ok("chassis select: the card's words (%s)" % " / ".join(words), words == Hints.lines(&"chassis_card"))
+	_ok("chassis select: on screen, clear of LAUNCH (%s by %s)" % [c.card_rect(), c.subject],
+		c.get_viewport_rect().encloses(c.card_rect()) and not c.card_rect().intersects(c.subject))
+	for i in 3:
+		_push_click(c.card_rect().get_center())
+		await _tree.process_frame
+	Hints.poll(0.3)
+	_ok("chassis select: clicked, the card stays, unspent", Hints.card == c and not Hints.seen(&"chassis_card"))
+	var did := HintActs.act(&"chassis_card")
+	for i in 30:
+		Hints.poll(1.0 / 60.0)
+		await _tree.process_frame
+	_ok("chassis select: LAUNCH (%s) spends it" % did, did != "" and Hints.seen(&"chassis_card") and Hints.card == null)
+	Hints.poll(Hints.GAP_S + 0.1)
 
 
 func _play_one(cb: Combat) -> bool:
@@ -1565,8 +1987,8 @@ func _cutaway_once() -> void:
 		Hints.poll(Hints.GAP_S + 0.1)
 	_ok("said whole, then shut: spent; opened and shut three times, she says it once (%d)" % (said.call() - before),
 		said.call() - before == 1 and Hints.seen(&"cutaway"))
-	_ok("TURN PART on T and FLIP PART on G: her box shows them (\"%s\")" % shown_line.c_escape(),
-		shown_line == AshTutorLines.CUTAWAY_LINE + "\nT turns a part. G flips it.")
+	_ok("TURN PART on T: her box shows it, and no flip key (\"%s\")" % shown_line.c_escape(),
+		shown_line == AshTutorLines.CUTAWAY_LINE + "\nT turns a part.")
 	_ok("and she says only the take's words, in the cutaway's take (\"%s\", %s)" % [shown_spoken, shown_voice],
 		shown_spoken == AshTutorLines.CUTAWAY_LINE and shown_voice == AshTutorLines.voice_path(&"cutaway")
 		and not shown_spoken.contains("T turns") and not shown_spoken.contains("flips"))

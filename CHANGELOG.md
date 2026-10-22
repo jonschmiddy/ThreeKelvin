@@ -16,6 +16,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   chart on that place with the quest's tag, or PLOT ROUTE, which also draws the route there
   from YOU. With none signed, the table says where to get one.
 
+- **Added** — a much deeper tutorial. A.S.H. now teaches 23 more things, each the first time it
+  matters and each until you have done it. In a fight: the ENERGY box after your first card, a
+  card's heat corner, underlined words and how to read them, picking a card to discard,
+  malfunctions, FLEE and HAIL when the hull is at half, and the draw and discard piles. In an
+  event: a choice that tests your ship and its odds, and the result with its REWARD. Elsewhere:
+  fuel on your first arrival, the hull, flying by hand on the sector map, the starchart's layer
+  strip, a signed job's ring, a marked system, a JUMP that cannot go, the slots that take the
+  part in your hand, the cards each part brings, your ship's stats, the yard's FAULTS drone, a
+  ship for sale, UNDOCK, and SAVE & EXIT in the escape menu. The chassis select has a card too.
+
 ### Fixed
 
 - **Fixed** — arriving on LOCAL no longer shows the thin bar at the bottom while your ship flies
@@ -46,6 +56,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **Changed** — the tutorial is paced by the game. In a fight a new line only starts with your
+  hand settled and no card held, and most wait for the start of a turn: your first turn teaches
+  the hand, energy and END TURN, and the rest come one turn at a time after that. Outside a fight
+  there is a 3 second gap between lines, and one new line per screen. The line about what an
+  enemy will do now comes at the start of turn 2, and the brace and heat lines stay until you
+  press END TURN.
+- **Changed** — A.S.H.'s lines about the hand, heat, brace, wrecks, salvage, SECTOR LOOT and the
+  event band say more: support cards go on your own ship, what a wreck keeps if you leave, and
+  that NOT NOW saves an event for later. The ship editor's line no longer mentions flipping a
+  part, which only changes how it looks. Her voice for the new and rewritten lines comes later;
+  until then they show as text.
 - **Changed** — A.S.H. can no longer be clicked away. A tutorial line stays until you do what it
   teaches: pick a star on the chart, open an event, play a card, press END TURN, move a module, use a
   deck. Lines that only tell you something (enemy intent, brace, heat, low fuel) stay for their

@@ -113,9 +113,12 @@ func _run() -> void:
 	await _frames(4)
 	_ok("on: she teaches, the hints are on", Ash.teaches() and Hints.enabled() and Hints.by_ash())
 
-	# THE CHART WITH NOTHING LEFT TO TEACH THERE
+	# THE CHART WITH NOTHING LEFT TO TEACH THERE (the deep tutorial's chart
+	# lessons too: its strip, a job's ring, a mark, a blocked JUMP)
 	Hints.mark_seen(&"chart")
 	Hints.mark_seen(&"said_step_jump_chart")
+	for id: StringName in [&"layers", &"contract_track", &"quest", &"jump_blocked"]:
+		Hints.mark_seen(id)
 	Router.show_starchart()
 	await _frames(40)
 	var quiet := await _time(240, func() -> bool: return true)

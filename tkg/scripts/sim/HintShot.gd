@@ -9,16 +9,18 @@ extends Node
 ##   - LOCAL as a new run hands it over: the goal line and its first step;
 ##   - the chart: its hint, and the step as it reads there;
 ##   - the sector map after a jump, with events: its hint, and the next step;
-##   - LOCAL with an event's derelict, a loaded wreck and a pile: wreck, loot, ship;
-##   - the cutaway; the event band, its text arrived and its choices up;
+##   - LOCAL at an event's derelict, a loaded wreck and a pile: the band LOCAL
+##     opens there (as GO does, Jon Oct 21) first, then NOT NOW, wreck, loot;
+##   - the cutaway; the event band again, its text arrived and its choices up;
 ##   - a wreck's window (salvage);
-##   - a fight: the hand, the intent after the first card, END TURN with nothing
-##     left to play, brace held over the turn, heat;
+##   - a fight: the hand, END TURN with nothing left to play, then turn 2's
+##     intent, heat and brace (held over the turn);
 ##   - a station (dock), its decks the first time each is open, the shipyard's ship;
 ##     the chart with the tank short (fuel).
 ## Each still is the whole window (`<n>_<id>.png`, so 1080p at that resolution),
 ## taken `HINT_S` after the hint shows, then it is dismissed with a click as a
 ## player would. A hint that never shows is printed as `[hintshot] MISSING <id>`.
+## The deep tutorial's lessons (Oct 22) come up on the way and are passed.
 ## Needs a window.
 
 const HINT_S := 0.5
@@ -78,6 +80,10 @@ func _click() -> void:
 	ev.button_index = MOUSE_BUTTON_LEFT
 	ev.pressed = true
 	Hints.spend()
+	# (spent without being done, so the screen stays as it was: each still
+	# counts as a visit of its own, or the one-new-lesson-a-visit pacing would
+	# hold the next back, `Hints._pace_ok`)
+	Hints._front_last = &""
 
 
 ## The goal line as it stands, photographed with nothing else asked of the screen.
@@ -147,9 +153,17 @@ func _run() -> void:
 	Run.sector_jetsam(n).items.append(CreditChit.of(25))
 	Router.show_local()
 	await _secs(2.5)
+	# (LOCAL at the event's own place opens it, as GO does: its band first, then
+	# NOT NOW puts it down and the scene's own come; it used to wait on the band
+	# and print MISSING for the wreck and the loot)
+	var sc := Router.current as SectorScreen
+	if sc != null and sc._events != null and sc._events.page == &"event":
+		await _hint(&"drawer", 25.0)
+		sc._events.not_now()
+		await _secs(1.0)
 	await _hint(&"wreck")
 	await _hint(&"loot")
-	var sc := Router.current as SectorScreen
+	sc = Router.current as SectorScreen
 	if sc != null:
 		sc.open_cutaway()
 		await _hint(&"cutaway")
@@ -167,6 +181,8 @@ func _run() -> void:
 		all.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 			return String(a.get("body", "")).length() < String(b.get("body", "")).length())
 		n.options.append(StringName(all[all.size() / 2].id))
+		# (said at the event's place above: shown again here for its look)
+		Hints.mark_seen(&"drawer", false)
 		sc._events.open(n.options.size() - 1)
 		await _hint(&"drawer", 25.0)
 		sc._events.not_now()
@@ -181,7 +197,6 @@ func _run() -> void:
 		(e as Combat.EnemyState).hp = 999
 	await _hint(&"hand", 12.0)
 	await _play_one(cb)
-	await _hint(&"intent")
 	while await _play_one(cb):
 		pass
 	await _hint(&"endturn")
@@ -190,8 +205,10 @@ func _run() -> void:
 	var fs := Router.current as SectorScreen
 	fs._refresh_player()
 	fs._on_end_turn()
-	await _hint(&"brace", 15.0)
+	# (turn 2: the intent at its start, then heat and brace, held over the turn)
+	await _hint(&"intent", 15.0)
 	await _hint(&"heat")
+	await _hint(&"brace")
 	# a station: its decks, then your ship at the yard
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	for raw in Run.map:

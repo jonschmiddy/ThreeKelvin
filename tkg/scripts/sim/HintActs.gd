@@ -5,8 +5,12 @@ extends RefCounted
 ## it -- the chart's row pressed, an event's row in the map's list, a choice in
 ## the band, a card played, END TURN, a part out of a wreck's window, a module
 ## off your ship and back on, a wreck's own click, SECTOR LOOT, a deck's button,
-## a drone's job, the till, the counter, SIGN, the fabricator. Not `Hints`: what
-## the game does when the player does it, and `Hints` has to notice.
+## a drone's job, the till, the counter, SIGN, the fabricator; and the deep
+## tutorial's (Oct 22): a discard picked, the pointer rested on a card, a
+## malfunction purged, FLEE pressed, CONTINUE, THRUST held, a part put down or
+## pointed at in the cutaway, the FAULTS drone, TAKE IT, another deck, the escape
+## menu shut, LAUNCH. Not `Hints`: what the game does when the player does it,
+## and `Hints` has to notice.
 ##
 ## `act(id)` returns what it did, or "" if the screen had nothing to do it with.
 
@@ -36,7 +40,7 @@ static func act(id: StringName) -> String:
 						and (c.get("press") as Callable).is_valid() and (c as Control).is_visible_in_tree():
 					(c.get("press") as Callable).call()
 					return "pressed an event's row in the map's list"
-		&"drawer":
+		&"drawer", &"odds":
 			if sc == null or sc._events == null:
 				return ""
 			var d := sc._events
@@ -51,19 +55,121 @@ static func act(id: StringName) -> String:
 				return ""
 			d.choose(pick)
 			return "took choice %d in the band" % pick
-		&"hand":
+		&"hand", &"energy", &"heat_corner", &"piles":
 			var cb: Combat = Router.combat
 			if cb == null:
 				return ""
 			for i in cb.hand.size():
-				if cb.can_play(cb.hand[i] as CardData):
+				if cb.can_play(cb.hand[i] as CardData) and not (cb.hand[i] as CardData).unplayable:
 					cb.play(i, 0)
 					return "played a card"
-		&"endturn", &"intent":
+		&"discard_pick":
+			var cb: Combat = Router.combat
+			if sc == null or cb == null or cb.choosing <= 0 or cb.hand.is_empty():
+				return ""
+			sc._on_card_picked(cb.hand[0])
+			return "picked a card from the hand to discard"
+		&"keywords":
+			# the pointer rests on the card: its readout after the screen's delay
+			if sc == null or sc._hand == null:
+				return ""
+			for v in sc._hand._views:
+				if v != null and is_instance_valid(v) and v._body != null and v._body.text.contains("[u]"):
+					sc._on_card_hovered(v, true)
+					return "rested the pointer on %s" % v.card.name
+		&"malfunction":
+			var cb: Combat = Router.combat
+			if cb == null:
+				return ""
+			for i in cb.hand.size():
+				if (cb.hand[i] as CardData).unplayable and cb.can_play(cb.hand[i] as CardData):
+					var nm := (cb.hand[i] as CardData).name
+					cb.play(i, -1)
+					if sc != null:
+						sc._refresh_player()
+					return "played (purged) %s" % nm
+		&"flee_hail":
+			if sc == null or not sc.fighting():
+				return ""
+			sc._on_flee()
+			if sc._exit_ask != null:
+				return "pressed FLEE (its question up)"
+			sc._on_hail()
+			if sc._exit_ask != null:
+				return "pressed HAIL (its question up)"
+		&"endturn", &"brace", &"heat", &"intent":
 			if sc == null or not sc.fighting():
 				return ""
 			sc._on_end_turn()
 			return "pressed END TURN"
+		&"result":
+			if sc == null or sc._events == null or sc._events.page != &"result":
+				return ""
+			sc._events.continue_on()
+			return "pressed CONTINUE"
+		&"hull":
+			# (no action: the screen left once she has said it)
+			Router.show_starchart()
+			return "left LOCAL for the chart"
+		&"map_fly":
+			var map := cur as SystemMapScreen
+			if map == null:
+				return ""
+			map._wasd["w"] = true
+			return "held THRUST (the harness lets go after)"
+		&"layers", &"contract_track", &"quest", &"jump_blocked":
+			return act(&"chart")
+		&"mounts":
+			var cut := Hints._cut_of(cur)
+			if cut == null or cut._mounts == null or cut._mounts._lit == null:
+				return ""
+			cut._mounts._unlight()
+			return "put the part down"
+		&"cards_from_parts":
+			var cut := Hints._cut_of(cur)
+			if cut == null or Run.installed.is_empty():
+				return ""
+			cut._show(Run.installed[0], cut._mount_line.get_global_rect() if cut._mount_line != null else Rect2())
+			return "pointed at %s" % (Run.installed[0] as ModuleData).name
+		&"attributes":
+			return act(&"cutaway")
+		&"faults":
+			if st == null:
+				return ""
+			st._on_yard_service(3)
+			if st._purge_prompt != null:
+				return "clicked the FAULTS drone (its picker up)"
+		&"hull_sale":
+			if st == null:
+				return ""
+			var h0 := Run.hull
+			st._on_yard_take()
+			if Run.hull != h0:
+				return "pressed TAKE IT"
+		&"undock":
+			if st == null:
+				return ""
+			for tab in [&"stock", &"hold", &"services"]:
+				if st._tab != tab and st._tabs.has(tab) and st._tabs_on.get(tab, true):
+					(st._tabs[tab] as Button).pressed.emit()
+					return "picked the %s deck (another deck: UNDOCK's line goes)" % tab
+		&"save":
+			if not Hints.menu_up():
+				return ""
+			var n: Node = Router.content
+			while n != null:
+				if n.has_method("toggle_menu"):
+					n.call("toggle_menu", false)
+					return "shut the escape menu"
+				n = n.get_parent()
+		&"chassis_card":
+			var cs := cur as ChassisSelect
+			if cs == null:
+				return ""
+			for b in cs.find_children("*", "Button", true, false):
+				if (b as Button).text == "LAUNCH":
+					(b as Button).pressed.emit()
+					return "pressed LAUNCH"
 		&"salvage":
 			var tv := Hints._transfer(sc)
 			if tv == null or tv._jetsam == null or tv._jetsam.items.is_empty():

@@ -26,6 +26,37 @@ extends Node
 ##            nearest dock in reach by name (or what to do with none)
 ##   ship     click your ship (LOCAL or the shipyard) to open it up
 ##
+## THE DEEP TUTORIAL (Jon, Oct 22: "Tutorial: scope:all voice:record bugs:fix",
+## after Kevin's playtest: he clicked the tutorial away and did not know the
+## energy meter or when to loot a dead ship). The audit's 35 rows, each a
+## lesson with its trigger, subject, end and pacing (`docs/ash.md`):
+##
+##   in a fight   energy (after the first card), heat_corner, keywords,
+##                discard_pick, malfunction, flee_hail, piles; intent moved to
+##                the start of turn 2; heat, brace and intent end on their
+##                action (a card or END TURN), not on a reading time
+##   the band     odds (a choice with a check), result (REWARD, CONTINUE)
+##   LOCAL        hull; the wreck, salvage and loot lines say more
+##   the map      fuel_first (the first arrival), map_fly (flying by hand)
+##   the chart    layers, contract_track, quest, jump_blocked
+##   the cutaway  mounts, cards_from_parts, attributes (the flip key dropped)
+##   the station  faults, hull_sale, undock
+##   the menu     save (over the escape menu: the one lesson said there)
+##   the title    chassis_card (a card only: she has not introduced herself)
+##
+## PACING (the audit's, binding). One lesson at a time; each starts only when its
+## screen has held still (SETTLE_S) and ends when the player does what it
+## teaches. IN A FIGHT (`_pace_ok`) a lesson starts only while the hand is
+## settled and no card is held; only the hand's, energy, discard_pick and END
+## TURN's start after a card this turn (`MID_TURN`), the rest at a turn's start.
+## Turn 1 of the first fight teaches the hand, energy and END TURN alone
+## (`TURN_ONE`); flee_hail, malfunction and piles are one a fight
+## (`ONE_A_FIGHT`), piles not in the first. OUTSIDE A FIGHT the gap after a
+## lesson is GAP_S (3 s; 1.2 in a fight, `GAP_FIGHT_S`), and a screen as it
+## stands (`_front`: the screen, its station deck, an open cutaway, window or
+## event) teaches one new lesson, but for the chains (`CHAINS`). The goal
+## steps still yield to lessons.
+##
 ## ONE AT A TIME, a `HintCard` beside its subject. Its subject has to hold still
 ## for SETTLE_S first, so nothing shows mid-transition.
 ##
@@ -79,9 +110,36 @@ extends Node
 
 const SECTION := "hints"
 ## Highest first: when two could show, this one does.
-const ORDER: Array[StringName] = [&"hand", &"endturn", &"intent", &"brace", &"heat",
-	&"drawer", &"events", &"chart", &"salvage", &"cutaway", &"wreck", &"loot", &"dock",
-	&"shipyard", &"promenade", &"exchange", &"hiring_board", &"laboratory", &"fuel", &"ship"]
+const ORDER: Array[StringName] = [&"hand", &"energy", &"discard_pick", &"endturn", &"intent",
+	&"heat_corner", &"heat", &"brace", &"keywords", &"malfunction", &"flee_hail", &"piles",
+	&"drawer", &"odds", &"result", &"fuel_first", &"events", &"map_fly", &"chart", &"jump_blocked",
+	&"layers", &"contract_track", &"quest", &"salvage", &"cutaway", &"mounts", &"cards_from_parts",
+	&"attributes", &"wreck", &"loot", &"hull", &"dock", &"shipyard", &"faults", &"hull_sale",
+	&"promenade", &"exchange", &"hiring_board", &"laboratory", &"undock", &"fuel", &"ship", &"save",
+	&"chassis_card"]
+## THE FIGHT'S LESSONS, paced by the turn (`_pace_ok`).
+const FIGHT: Array[StringName] = [&"hand", &"energy", &"discard_pick", &"endturn", &"intent",
+	&"heat_corner", &"heat", &"brace", &"keywords", &"malfunction", &"flee_hail", &"piles"]
+## The only ones turn 1 of the first fight teaches (the audit: "Turn 1: hand,
+## energy, endturn"; a discard asked for is a thing to do now).
+const TURN_ONE: Array[StringName] = [&"hand", &"energy", &"endturn", &"discard_pick"]
+## The only ones that start after a card this turn: the rest wait for a turn's
+## start, so nothing new comes up between two cards.
+const MID_TURN: Array[StringName] = [&"hand", &"energy", &"endturn", &"discard_pick"]
+## One of these a fight, at most.
+const ONE_A_FIGHT: Array[StringName] = [&"malfunction", &"flee_hail", &"piles"]
+## A screen as it stands teaches one new lesson; a chain's next follows it there.
+const CHAINS: Array = [[&"wreck", &"salvage", &"loot"], [&"shipyard", &"ship", &"cutaway", &"mounts", &"cards_from_parts"],
+	[&"drawer", &"odds", &"result"], [&"fuel_first", &"events"], [&"chart", &"jump_blocked"],
+	[&"layers", &"jump_blocked"]]
+## A CARD ONLY: the chassis select, before her introduction.
+const CARD_ONLY: Array[StringName] = [&"chassis_card"]
+## THE DEEP TUTORIAL'S NEW LESSONS (Oct 22), for the harnesses that hold the
+## first set alone (`-- hinttest` parks these).
+const DEEP: Array[StringName] = [&"energy", &"discard_pick", &"heat_corner", &"keywords",
+	&"malfunction", &"flee_hail", &"piles", &"odds", &"result", &"fuel_first", &"map_fly", &"layers",
+	&"contract_track", &"quest", &"jump_blocked", &"mounts", &"cards_from_parts", &"attributes",
+	&"hull", &"faults", &"hull_sale", &"undock", &"save", &"chassis_card"]
 ## ONE HINT A DECK, the first time it is open (Jon, Oct 20, playing the alpha:
 ## "There is no tutorial tip for the promenade, exchange, shipyard, laboratory,
 ## or hiring board"): hint id -> the station's page (`StationScreen.DECKS`). Each
@@ -105,19 +163,47 @@ const STEP_LINES: Array[StringName] = [&"step_jump", &"step_jump_chart", &"step_
 ## were spent as they showed while a click was what spent the rest.) A card is
 ## read whole as it shows. SHOW HINTS AGAIN brings them back.
 const SPENT_ONCE_HEARD: Array[StringName] = [&"cutaway", &"shipyard", &"promenade", &"exchange",
-	&"hiring_board", &"laboratory"]
+	&"hiring_board", &"laboratory", &"energy", &"hull", &"map_fly", &"layers", &"contract_track", &"mounts",
+	&"quest", &"jump_blocked", &"cards_from_parts", &"attributes", &"faults", &"hull_sale", &"undock",
+	&"chassis_card"]
 ## THE LINES THAT ONLY TELL YOU SOMETHING: no action to wait for, so each stays
 ## its reading time after her voice ends (`AshPortrait`'s own hold) and goes by
 ## itself, spent; as a card, `info_s`.
-const INFO: Array[StringName] = [&"intent", &"brace", &"heat", &"fuel"]
+const INFO: Array[StringName] = [&"fuel", &"fuel_first"]
 ## EVERY OTHER HINT'S ACTION, what spends it (`_done`; `-- sheet=AshTutorTest`
 ## holds every hint in ORDER to being in one of these two lists):
 const DONE := {
 	&"chart": "a star picked on the chart, or a jump made",
 	&"events": "an event opened from the map's list (its page, or GO)",
-	&"drawer": "a choice taken in the event band",
+	&"drawer": "a choice taken in the event band, or NOT NOW",
+	&"odds": "a choice taken in the event band, or NOT NOW",
+	&"result": "REWARD opened, or CONTINUE pressed",
 	&"hand": "a card played",
+	&"energy": "the next card played, or END TURN pressed",
+	&"discard_pick": "a card picked from the hand",
 	&"endturn": "END TURN pressed",
+	&"intent": "a card played, or END TURN pressed",
+	&"heat_corner": "a card played, or END TURN pressed",
+	&"heat": "END TURN pressed",
+	&"brace": "END TURN pressed",
+	&"keywords": "a card's readout opened (the pointer rested on a card)",
+	&"malfunction": "the malfunction played (purged), or END TURN pressed",
+	&"flee_hail": "a card played, END TURN, FLEE or HAIL pressed",
+	&"piles": "a card played, or END TURN pressed",
+	&"map_fly": "the ship flown: a key held, or a world flown to",
+	&"layers": "a star picked on the chart",
+	&"contract_track": "a star picked on the chart; or said whole and the chart left",
+	&"quest": "a star picked on the chart",
+	&"jump_blocked": "another star picked",
+	&"mounts": "the part put down; or said whole and the cutaway left",
+	&"cards_from_parts": "a part pointed at; or said whole and the cutaway left",
+	&"attributes": "a module moved; or said whole and the cutaway left",
+	&"hull": "said whole and the screen left",
+	&"faults": "the FAULTS drone clicked; or said whole and the deck left",
+	&"hull_sale": "the ship taken; or said whole and the deck left",
+	&"undock": "UNDOCK pressed or another deck picked",
+	&"save": "the escape menu shut (SAVE & EXIT, or back to the game)",
+	&"chassis_card": "LAUNCH pressed",
 	&"salvage": "a part or a chit taken aboard from the window",
 	&"cutaway": "a module moved: installed, removed or moved on the ship",
 	&"wreck": "a wreck opened",
@@ -132,8 +218,10 @@ const DONE := {
 }
 ## How long a subject must hold before its hint shows, s.
 const SETTLE_S := 0.6
-## Quiet after one hint before the next may show, s.
-const GAP_S := 1.2
+## Quiet after one hint before the next may show, s: outside a fight (raised from
+## 1.2 by the deep tutorial's pacing), and in one.
+const GAP_S := 3.0
+const GAP_FIGHT_S := 1.2
 ## NEVER STUCK: a line said whole and up this long while another line is waiting
 ## here gives way to it, unspent, s; and rests this long before it may come
 ## again, so the one waiting goes first, s (the hints' own clock).
@@ -187,6 +275,25 @@ var _wait_look := 0.0
 var _rest := {}
 ## Counted off the game's own signal, for the hand's action: cards played.
 var _cards_played := 0
+## FIGHT PACING: the fight and turn the count below is for, cards played this
+## turn, fights seen since launch, the fight the hand was taught in (its turn 1
+## is the hand's, energy's and END TURN's), and the fight one of `ONE_A_FIGHT`
+## was taught in.
+var _turn_of: Array = []
+var _turn_cards := 0
+var _fights_seen := 0
+var _last_fight: Object = null
+var _first_fight: Object = null
+var _extra_fight: Object = null
+## A SCREEN AS IT STANDS (`_front`) and the lesson last taught there.
+var _front_key := ""
+var _front_last: StringName = &""
+## The chart the chart's own line was taught on (layers waits for another).
+var _chart_taught_on := 0
+## The cutaway first seen open since launch, and the fit it opened on
+## (cards_from_parts waits for a part fitted since).
+var _cut_seen := 0
+var _cut_fit: Array = []
 ## The soft lock's gate, while one is up (`soft_lock`).
 var _gate: ClickGate = null
 
@@ -194,7 +301,9 @@ var _gate: ClickGate = null
 func _ready() -> void:
 	Sig.card_played.connect(func(_c: CardData) -> void:
 		_played_in = Router.combat
-		_cards_played += 1)
+		_cards_played += 1
+		_sync_turn(Router.combat)
+		_turn_cards += 1)
 
 
 ## The two lines of each hint. Graded with `tools/prose_grade.py` (grade 7.0 or
@@ -208,9 +317,58 @@ func lines(id: StringName) -> Array:
 		&"events":
 			return ["Click an event to read it.", "GO flies you to it."]
 		&"drawer":
-			return ["Pick what to do.", "Some choices show your odds."]
+			return ["Pick what to do. Some choices show your odds.", "NOT NOW saves it for later."]
 		&"hand":
-			return ["Drag a card onto an enemy to fire it.", "The top left number is its energy cost."]
+			return ["Drag a card onto an enemy to fire it.", "Cards that help you go on your own ship."]
+		&"energy":
+			return ["That card cost energy. This box counts what you have left.", "It fills back up every turn."]
+		&"discard_pick":
+			return ["That card wants a discard.", "Click a card in your hand to discard it."]
+		&"heat_corner":
+			return ["Top right is heat: playing it adds that much.", "A green minus cools you down."]
+		&"keywords":
+			return ["Underlined words have rules.", "Rest the pointer on a card to read them."]
+		&"malfunction":
+			return ["A malfunction. Play it to clear it for this fight.", "A shipyard clears it for good."]
+		&"flee_hail":
+			return ["FLEE and HAIL end a fight early.", "Each is a check, and a miss costs you."]
+		&"piles":
+			return ["Played cards go to the discard.", "When the draw pile runs out, they shuffle back in."]
+		&"odds":
+			return ["This choice tests your ship.", "Meet the number and it cannot fail."]
+		&"result":
+			return ["What it cost and what you got.", "REWARD opens what you found. Then CONTINUE."]
+		&"fuel_first":
+			return ["Each jump burns fuel. Run dry and the run ends.", "Stations sell more."]
+		&"hull":
+			return ["Your hull. At zero, the ship is lost.", "A shipyard can patch it."]
+		&"map_fly":
+			return ["Click a world twice to fly there.", "%s pushes. %s and %s turn." % [Keys.describe(&"ship_thrust"),
+				Keys.describe(&"ship_left"), Keys.describe(&"ship_right")]]
+		&"layers":
+			return ["This strip is how deep you are.", "Deeper means more danger and better pay."]
+		&"contract_track":
+			return ["The ring on the chart is the job. Do it there.", "Then press DELIVER at any of their docks."]
+		&"quest":
+			return ["Something is marked on the chart now.", "Fly there to follow it up."]
+		&"jump_blocked":
+			return ["You cannot jump there yet.", "The button says why."]
+		&"mounts":
+			return ["Each slot takes one kind of part.", "The slots that light up will take this one."]
+		&"cards_from_parts":
+			return ["Every part brings its own cards to the deck.", "Point at a part to see them."]
+		&"attributes":
+			return ["These are your ship's stats.", "Event checks test them. Parts move them."]
+		&"faults":
+			return ["FAULTS clears a malfunction from your deck.", "Each one costs credits."]
+		&"hull_sale":
+			return ["That ship is for sale. TAKE IT trades yours in.", "It comes empty, so move everything over."]
+		&"undock":
+			return ["UNDOCK takes you back out.", "Press it when you are done here."]
+		&"save":
+			return ["SAVE & EXIT keeps the run.", "CONTINUE on the title picks it back up."]
+		&"chassis_card":
+			return ["Pick a ship, then press LAUNCH.", "Point at a line or a card to read more."]
 		&"intent":
 			return ["This is what it will do", "when you press END TURN."]
 		&"endturn":
@@ -221,16 +379,16 @@ func lines(id: StringName) -> Array:
 		&"heat":
 			return ["Heat. Past %d you lose 1 hull" % _heat_cap(), "for each point over, at end of turn."]
 		&"salvage":
-			return ["Drag a part into your hold.", "Double-click works too."]
+			return ["Drag parts into your hold, or double-click them.", "What you leave stays. DONE closes it."]
 		&"cutaway":
 			# (her words, Jon's of Oct 20, "merge:A": the card says what she says)
 			return ["Drag a module onto an empty slot to install it.",
 				"Drag it off the ship into the hold to remove it.",
-				"%s turns it. %s flips it." % [Keys.describe(&"hold_turn"), Keys.describe(&"part_flip")]]
+				"%s turns it." % Keys.describe(&"hold_turn")]
 		&"wreck":
-			return ["Click a wreck to loot it.", "Its parts and credits are yours."]
+			return ["Click a wreck to see what you can take.", "It stays here if you leave."]
 		&"loot":
-			return ["SECTOR LOOT is what lies loose here.", "It stays until you take it."]
+			return ["SECTOR LOOT is everything loose here.", "It waits for you. Click it to look."]
 		&"dock":
 			# ON THE LEFT, not "at the top" as the brief had it: the decks are the
 			# station's section, a column down the left side (`StationScreen.DECKS`)
@@ -284,7 +442,9 @@ func fuel_dock_line() -> String:
 ## the hand, the heat cap, the dock in reach and the jumps to it, the keys.
 func values(id: StringName = &"") -> Dictionary:
 	var out := {hand = _hand_size(), cap = _heat_cap(),
-		turn = Keys.describe(&"hold_turn"), flip = Keys.describe(&"part_flip")}
+		turn = Keys.describe(&"hold_turn"), flip = Keys.describe(&"part_flip"),
+		thrust = Keys.describe(&"ship_thrust"), left = Keys.describe(&"ship_left"),
+		right = Keys.describe(&"ship_right")}
 	if id == &"fuel" and _fuel_low():
 		var d := _dock_cached()
 		if not d.is_empty():
@@ -296,6 +456,11 @@ func values(id: StringName = &"") -> Dictionary:
 ## Whether she says the hints (her switch, a harness that asked); else cards.
 func by_ash() -> bool:
 	return Ash.teaches()
+
+
+## Whether hint `id` is said by her now: a card-only one never is.
+func _ash_for(id: StringName) -> bool:
+	return by_ash() and not CARD_ONLY.has(id)
 
 
 func _hand_size() -> int:
@@ -469,11 +634,16 @@ func poll(delta: float) -> void:
 		_cand = &""
 		_step_cand = &""
 		return
-	if _quiet > 0.0 or _blocked():
+	# A NEW VISIT when the screen as it stands changes (`_front`)
+	var fk := _front()
+	if fk != _front_key:
+		_front_key = fk
+		_front_last = &""
+	if _quiet > 0.0 or _blocked(&"save"):
 		_cand = &""
 		return
 	for id in ORDER:
-		if seen(id) or resting(id):
+		if seen(id) or resting(id) or _blocked(id) or not _pace_ok(id):
 			continue
 		var p := probe(id)
 		if p.is_empty():
@@ -509,7 +679,7 @@ func _poll_lesson(delta: float) -> void:
 	if not by_ash() or not Ash.lesson_up() or Ash.lesson_hint != lesson:
 		_close_lesson((INFO.has(lesson) and Ash.ended_of_itself(_lesson_lid)) or _left_heard())
 		return
-	var lp := probe(lesson) if not _blocked() else {}
+	var lp := probe(lesson) if not _blocked(lesson) else {}
 	if lp.is_empty():
 		_gone_t += delta
 		if _gone_t > 0.25:
@@ -527,7 +697,7 @@ func _poll_card(delta: float) -> void:
 	if _done(card.id) or (INFO.has(card.id) and _up_t >= info_s(card.id)):
 		_close(true)
 		return
-	var p := probe(card.id) if not _blocked() else {}
+	var p := probe(card.id) if not _blocked(card.id) else {}
 	if p.is_empty():
 		_gone_t += delta
 		if _gone_t > 0.25:
@@ -571,6 +741,10 @@ func _waiting_other(than: StringName) -> bool:
 	for id in ORDER:
 		if id == than or seen(id) or resting(id):
 			continue
+		# (a fight's lesson the turn holds back is not waiting; one a visit has
+		# held back is: giving way lets it start, `_yield`)
+		if FIGHT.has(id) and not _pace_ok(id):
+			continue
 		if not probe(id).is_empty():
 			return true
 	return false
@@ -580,6 +754,8 @@ func _waiting_other(than: StringName) -> bool:
 func _yield(id: StringName) -> void:
 	print("[hints] %s: up %.0f s with another line waiting; it gives way, unspent, for %.0f s" % [id, _clock - _said_at, REST_S])
 	_rest[id] = _clock + REST_S
+	# (the one it gives way to may start on this same visit: `_pace_ok`)
+	_front_last = &""
 	if card != null and is_instance_valid(card) and card.id == id:
 		_close(false)
 	else:
@@ -591,6 +767,118 @@ func resting(id: StringName) -> bool:
 	return float(_rest.get(id, -1.0)) > _clock
 
 
+# ------------------------------------------------------------------ pacing
+
+## The quiet after a lesson: GAP_S outside a fight, GAP_FIGHT_S in one.
+func _gap() -> float:
+	var sc := Router.current as SectorScreen
+	return GAP_FIGHT_S if sc != null and is_instance_valid(sc) and sc.fighting() else GAP_S
+
+
+## Keep the turn's count on the fight and turn up now.
+func _sync_turn(cb: Combat) -> void:
+	if cb == null:
+		return
+	if cb != _last_fight:
+		_last_fight = cb
+		_fights_seen += 1
+	var k := [cb.get_instance_id(), cb.turn]
+	if k != _turn_of:
+		_turn_of = k
+		_turn_cards = 0
+
+
+## Lesson `id` shows: what pacing remembers of it.
+func _taught(id: StringName) -> void:
+	var cb: Combat = Router.combat
+	if FIGHT.has(id):
+		if id == &"hand":
+			_first_fight = cb
+		if ONE_A_FIGHT.has(id):
+			_extra_fight = cb
+		return
+	_front_key = _front()
+	_front_last = id
+	if id == &"chart" and Router.current != null:
+		_chart_taught_on = Router.current.get_instance_id()
+	if id == &"cutaway":
+		_cut_seen = 1
+		_cut_fit = _fit_sig()
+
+
+## THE AUDIT'S PACING: whether lesson `id` may START now (not whether it may
+## stay: that is its subject's). In a fight: no card held; after a card this
+## turn only `MID_TURN`; turn 1 of the first fight only `TURN_ONE`; one of
+## `ONE_A_FIGHT` a fight, and piles not in the first fight nor on turn 1.
+## Outside one: a screen as it stands teaches one new lesson, or the next of a
+## chain.
+func _pace_ok(id: StringName) -> bool:
+	if FIGHT.has(id):
+		var sc := Router.current as SectorScreen
+		var cb: Combat = Router.combat
+		if sc == null or cb == null or not sc.fighting():
+			return true
+		_sync_turn(cb)
+		if sc._grab_view != null or sc._aim_view != null:
+			return false
+		if not MID_TURN.has(id) and _turn_cards > 0:
+			return false
+		if not TURN_ONE.has(id) and cb.turn < 2 and (cb == _first_fight
+				or not (seen(&"hand") and seen(&"energy") and seen(&"endturn"))):
+			return false
+		if ONE_A_FIGHT.has(id) and cb == _extra_fight:
+			return false
+		if id == &"piles" and (cb.turn < 2 or cb == _first_fight or not seen(&"hand")):
+			return false
+		return true
+	if _front() != _front_key or _front_last == &"" or _front_last == id:
+		return true
+	for ch: Array in CHAINS:
+		if ch.has(_front_last) and ch.has(id) and ch.find(id) > ch.find(_front_last):
+			return true
+	return false
+
+
+## A SCREEN AS IT STANDS: the screen, the fights seen, and what is open on it
+## (the station's deck, the cutaway, a window, an event in the band, the menu).
+## A new one is a new visit.
+func _front() -> String:
+	var cur = Router.current
+	if cur == null or not is_instance_valid(cur):
+		return ""
+	var k := "%d|%d" % [cur.get_instance_id(), _fights_seen]
+	var sc := cur as SectorScreen
+	if sc != null:
+		if sc._cutaway != null and is_instance_valid(sc._cutaway):
+			k += "|cut%d" % sc._cutaway.get_instance_id()
+		var tv := _transfer(sc)
+		if tv != null:
+			k += "|tv%d" % tv.get_instance_id()
+		var d := sc._events
+		if d != null and is_instance_valid(d) and d.page != &"":
+			k += "|ev%d" % d.opt
+	var st := cur as StationScreen
+	if st != null:
+		k += "|" + String(st._tab)
+		if st._cutaway != null and is_instance_valid(st._cutaway):
+			k += "|cut%d" % st._cutaway.get_instance_id()
+	if menu_up():
+		k += "|menu"
+	return k
+
+
+## Malfunctions in this fight's deck, hand and discard (a purge takes one out).
+func _junk(cb: Combat) -> int:
+	if cb == null:
+		return 0
+	var k := 0
+	for pile: Array in [cb.hand, cb.deck, cb.discard]:
+		for c in pile:
+			if (c as CardData).unplayable:
+				k += 1
+	return k
+
+
 # ------------------------------------------------------------------ the actions
 
 ## THE STATE AN ACTION IS MEASURED FROM, taken as hint `id` shows.
@@ -600,10 +888,28 @@ func _snapshot(id: StringName) -> Dictionary:
 	match id:
 		&"hand":
 			return {played = _cards_played}
-		&"endturn", &"intent":
+		&"endturn", &"heat", &"brace":
 			return {combat = cb, turn = cb.turn if cb != null else 0}
-		&"drawer":
+		&"intent", &"energy", &"heat_corner", &"piles", &"flee_hail", &"keywords":
+			return {combat = cb, turn = cb.turn if cb != null else 0, played = _cards_played}
+		&"malfunction":
+			return {combat = cb, turn = cb.turn if cb != null else 0, junk = _junk(cb)}
+		&"discard_pick":
+			return {combat = cb, turn = cb.turn if cb != null else 0, choosing = cb.choosing if cb != null else 0}
+		&"drawer", &"odds":
 			return {fight = sc != null and sc.fighting()}
+		&"map_fly":
+			return {flights = SystemMapScreen.flights}
+		&"layers", &"contract_track", &"quest", &"jump_blocked":
+			var chs := Router.current as StarchartScreen
+			return {sel = chs._selected if chs != null else -1, jumps = Run.jumps}
+		&"attributes":
+			return {fit = _fit_sig()}
+		&"hull_sale":
+			return {hull = Run.hull}
+		&"undock":
+			var stu := Router.current as StationScreen
+			return {tab = stu._tab if stu != null else &""}
 		&"events":
 			return {pending = LocalEventDrawer.pending.duplicate()}
 		&"chart":
@@ -635,7 +941,66 @@ func _done(id: StringName) -> bool:
 	match id:
 		&"hand":
 			return _cards_played > int(_base.get("played", 1 << 30))
-		&"endturn", &"intent":
+		&"intent", &"energy", &"heat_corner", &"piles", &"flee_hail":
+			# A CARD PLAYED OR END TURN (and FLEE or HAIL pressed, for theirs)
+			if _cards_played > int(_base.get("played", 1 << 30)):
+				return true
+			if id == &"flee_hail" and sc != null and sc._exit_ask != null:
+				return true
+			return _turn_over(sc)
+		&"keywords":
+			return sc != null and sc.fighting() and sc._readout != null and is_instance_valid(sc._readout) \
+				and sc._readout_for != null
+		&"malfunction":
+			return _junk(Router.combat) < int(_base.get("junk", -1)) or _turn_over(sc)
+		&"discard_pick":
+			var cbp: Combat = Router.combat
+			return cbp == null or cbp != _base.get("combat") or cbp.choosing < int(_base.get("choosing", 0)) \
+				or _turn_over(sc)
+		&"odds":
+			if sc == null or sc._events == null or not is_instance_valid(sc._events):
+				return false
+			var od := sc._events
+			return od.page != &"event" or od._busy or (sc.fighting() and not bool(_base.get("fight", true)))
+		&"result":
+			if sc == null or sc._events == null or not is_instance_valid(sc._events):
+				return false
+			var rd := sc._events
+			return rd.page != &"result" or (rd._transfer != null and is_instance_valid(rd._transfer))
+		&"map_fly":
+			var mf := cur as SystemMapScreen
+			if SystemMapScreen.flights > int(_base.get("flights", 1 << 30)):
+				return true
+			return mf != null and (mf._wasd as Dictionary).values().has(true)
+		&"layers", &"contract_track", &"quest", &"jump_blocked":
+			if Run.jumps > int(_base.get("jumps", 1 << 30)):
+				return true
+			var chd := cur as StarchartScreen
+			return chd != null and chd._selected >= 0 and chd._selected != int(_base.get("sel", -1))
+		&"mounts":
+			var mc := _cut_of(cur)
+			return mc != null and mc._mounts != null and mc._mounts._lit == null
+		&"cards_from_parts":
+			var cc := _cut_of(cur)
+			return cc != null and cc._shown is ModuleData and cc._panel != null and cc._panel.visible
+		&"attributes":
+			return _base.has("fit") and _fit_sig() != _base.fit
+		&"hull":
+			# (no action: said whole and the screen left, `SPENT_ONCE_HEARD`)
+			return false
+		&"faults":
+			var sf := cur as StationScreen
+			return sf != null and sf._purge_prompt != null
+		&"hull_sale":
+			return (Router.dock != null and is_instance_valid(Router.dock)) or Run.hull != _base.get("hull")
+		&"undock":
+			var su := cur as StationScreen
+			return not Router.docked or (su != null and su._tab != StringName(_base.get("tab", &"")))
+		&"save":
+			return not menu_up()
+		&"chassis_card":
+			return not (cur is ChassisSelect)
+		&"endturn", &"heat", &"brace":
 			# (the intent's line is about END TURN: pressed, it has been read)
 			var cb: Combat = Router.combat
 			if cb == null or cb != _base.get("combat"):
@@ -645,7 +1010,9 @@ func _done(id: StringName) -> bool:
 			if sc == null or sc._events == null or not is_instance_valid(sc._events):
 				return false
 			var d := sc._events
-			return d.page == &"result" or d._busy or (sc.fighting() and not bool(_base.get("fight", true)))
+			# (a choice, or NOT NOW: the band down with the event still open)
+			return d.page == &"result" or d.page == &"" or d._busy \
+				or (sc.fighting() and not bool(_base.get("fight", true)))
 		&"events":
 			var map := cur as SystemMapScreen
 			if map != null and map.panel != null and is_instance_valid(map.panel) and map.panel.mode == &"event":
@@ -660,7 +1027,8 @@ func _done(id: StringName) -> bool:
 				return false
 			return ch._selected >= 0 and ch._selected != int(_base.get("sel", -1))
 		&"salvage":
-			return Run.hauls > int(_base.get("hauls", 1 << 30))
+			# a part taken, or DONE: the window shut
+			return Run.hauls > int(_base.get("hauls", 1 << 30)) or _transfer(sc) == null
 		&"cutaway":
 			# (not while a part is in the hand: picked up and put back where it
 			# was is nothing moved)
@@ -686,13 +1054,35 @@ func _done(id: StringName) -> bool:
 	return false
 
 
+## END TURN pressed since the line showed: the turn on, or its playback under way.
+func _turn_over(sc: SectorScreen) -> bool:
+	var cb: Combat = Router.combat
+	if cb == null or cb != _base.get("combat"):
+		return false
+	return cb.turn > int(_base.get("turn", 0)) or (sc != null and (sc._hold or sc._playing))
+
+
+## The cutaway open on `cur` (LOCAL's or the station's), or null.
+func _cut_of(cur) -> CutawayView:
+	var cut: CutawayView = null
+	if cur is SectorScreen:
+		cut = (cur as SectorScreen)._cutaway
+	elif cur is StationScreen:
+		cut = (cur as StationScreen)._cutaway
+	if cut == null or not is_instance_valid(cut) or not cut.is_open():
+		return null
+	return cut
+
+
 ## What is fitted and where: each module on the ship, its mount and its flip, in
 ## no order (a part put back goes to the end of the list). A module installed,
 ## removed, moved to another mount or flipped changes it.
 func _fit_sig() -> Array:
 	var out: Array = []
+	# (not its flip: drawing only, `ModuleData.flipped`, and not what the
+	# cutaway's line teaches since Oct 22)
 	for m in Run.installed:
-		out.append([m.get_instance_id(), m.mount, m.flipped])
+		out.append([m.get_instance_id(), m.mount])
 	out.sort_custom(func(a: Array, b: Array) -> bool: return int(a[0]) < int(b[0]))
 	return out
 
@@ -720,6 +1110,9 @@ func _opened_here() -> int:
 ## SETTLE_S, and no hint is due, she says its line, once ever (until SHOW HINTS
 ## AGAIN). No outline of her own: the goal line outlines the tab it names.
 func _poll_step(delta: float) -> void:
+	if menu_up():
+		_step_cand = &""
+		return
 	var id := _step_now()
 	if id == &"":
 		_step_cand = &""
@@ -796,13 +1189,22 @@ func _show(id: StringName, p: Dictionary) -> void:
 	_base = _snapshot(id)
 	_said = false
 	_wait_look = 0.0
-	if by_ash():
+	_taught(id)
+	if _ash_for(id):
 		var lid := AshTutorLines.line_id(id, _dock_cached() if id == &"fuel" else {})
 		var vals := values(id)
+		var text := AshTutorLines.fill(lid, vals)
 		# (an information line goes by itself after its reading time: not held)
-		if Ash.teach(lid, AshTutorLines.fill(lid, vals), id, p.subject,
-				{voice = AshTutorLines.voice_path(lid), spoken = AshTutorLines.spoken(lid),
-				held = not INFO.has(id)}):
+		var opts := {voice = AshTutorLines.voice_path(lid), spoken = AshTutorLines.spoken(lid),
+			held = not INFO.has(id)}
+		# OVER THE ESCAPE MENU: on the menu's own layer, clear of its drawer
+		if id == &"save":
+			var m := _menu()
+			if m != null:
+				opts["host"] = m.get_parent()
+				opts["spot"] = Ash.menu_spot(text, m._drawer.get_global_rect(), p.subject,
+					m.get_viewport_rect().size)
+		if Ash.teach(lid, text, id, p.subject, opts):
 			lesson = id
 			_lesson_lid = lid
 			_up_t = 0.0
@@ -816,7 +1218,12 @@ func _show(id: StringName, p: Dictionary) -> void:
 		print("[hints] %s: no clear spot for A.S.H. (%s), as a card" % [id, Ash.held_by])
 	card = HintCard.new(id, lines(id))
 	card.theme = _theme()
-	host.add_child(card)
+	# (over the escape menu: on its layer, above it)
+	var mh := _menu()
+	if id == &"save" and mh != null:
+		mh.get_parent().add_child(card)
+	else:
+		host.add_child(card)
 	card.aim(p.subject, _with_goal(p.get("avoid", [])))
 	_up_t = 0.0
 	_gone_t = 0.0
@@ -856,7 +1263,7 @@ func _close(read: bool) -> void:
 		if card.get_parent() != null:
 			card.get_parent().remove_child(card)
 	card = null
-	_quiet = GAP_S
+	_quiet = _gap()
 
 
 ## Her lesson goes: spent (`read`: its action done, read to its end, or said
@@ -870,7 +1277,7 @@ func _close_lesson(read: bool) -> void:
 		Ash.end_lesson(true)
 	lesson = &""
 	_lesson_lid = &""
-	_quiet = GAP_S
+	_quiet = _gap()
 	_gate_to(false)
 
 
@@ -948,11 +1355,23 @@ func _theme() -> Theme:
 	return null
 
 
-## Nothing shows over the escape menu, or in a run that has ended.
-func _blocked() -> bool:
+## Nothing shows in a run that has ended, nor over the escape menu but its own
+## lesson (`save`, the one asked for there: Oct 22).
+func _blocked(id: StringName = &"") -> bool:
 	if Run.dead or Run.hull == null:
 		return true
-	return menu_up()
+	return menu_up() and id != &"save"
+
+
+## The escape menu, if it is up.
+func _menu() -> PauseMenu:
+	var n: Node = Router.content
+	while n != null:
+		if n.get_script() != null and "_menu" in n:
+			var m = n.get("_menu")
+			return m as PauseMenu if m != null and is_instance_valid(m) else null
+		n = n.get_parent()
+	return null
 
 
 ## The escape menu is up. It is Main's (`Main.toggle_menu`), and Main sits above
@@ -1035,9 +1454,10 @@ func probe(id: StringName) -> Dictionary:
 				return {}
 			return {subject = r, avoid = _fight_avoid(sc, hud)}
 		&"intent":
-			# AFTER THE FIRST CARD, the words over an enemy: what it does when you
-			# end the turn
-			if not _hand_settled(sc) or _played_in == null or _played_in != Router.combat:
+			# THE WORDS OVER AN ENEMY, what it does when you end the turn: at the
+			# start of turn 2 (the deep tutorial's pacing, `_pace_ok`; it came
+			# after the first card, in the hand's turn)
+			if not _hand_settled(sc):
 				return {}
 			for i in 8:
 				var sl := sc._view.slot(i)
@@ -1052,7 +1472,9 @@ func probe(id: StringName) -> Dictionary:
 			if not _hand_settled(sc):
 				return {}
 			var cb: Combat = Router.combat
-			if cb == null:
+			# (nor while a discard is being picked: nothing is playable then, and
+			# the pick is the thing to do)
+			if cb == null or cb.choosing > 0:
 				return {}
 			for c in cb.hand:
 				if cb.can_play(c as CardData):
@@ -1083,9 +1505,12 @@ func probe(id: StringName) -> Dictionary:
 			hav.append_array(GoalLine.avoid_rects(cur))
 			return {subject = hr, avoid = hav}
 		&"salvage":
-			# a wreck's window open with something in it
+			# A WRECK'S window open with something in it (its words say "the
+			# wreck": not an event's REWARD window)
 			var tv := _transfer(sc)
 			if tv == null or tv._loose == null or not tv._loose.is_visible_in_tree():
+				return {}
+			if tv._jetsam == null or not tv._jetsam.is_wreck():
 				return {}
 			if tv._loose.find_children("*", "ItemIcon", true, false).is_empty():
 				return {}
@@ -1199,6 +1624,57 @@ func probe(id: StringName) -> Dictionary:
 		&"shipyard", &"promenade", &"exchange", &"hiring_board", &"laboratory":
 			# THE DECK OPEN FOR THE FIRST TIME: its main thing
 			return _deck_probe(cur as StationScreen, id)
+		&"energy", &"discard_pick", &"heat_corner", &"keywords", &"malfunction", &"flee_hail", &"piles":
+			return _fight_probe(sc, id, hud)
+		&"odds", &"result":
+			return _band_probe(sc, id, hud)
+		&"fuel_first":
+			# THE FIRST ARRIVAL AFTER A JUMP (the map it lands on, or LOCAL): the
+			# tank on the HUD, before the event step
+			if Router.hud == null or ZoomLadder.busy() or Run.jumps < 1:
+				return {}
+			if not (cur is SystemMapScreen or _local_idle(sc)):
+				return {}
+			var ffr: Rect2 = Router.hud.fuel_rect()
+			if ffr.size == Vector2.ZERO:
+				return {}
+			return {subject = ffr, avoid = GoalLine.avoid_rects(cur)}
+		&"hull":
+			# LOCAL, still, the hull short of full
+			if not _local_idle(sc) or Run.hp >= Run.max_hp() or Router.hud == null:
+				return {}
+			var hhr: Rect2 = Router.hud.hull_rect()
+			if hhr.size == Vector2.ZERO:
+				return {}
+			return {subject = hhr, avoid = GoalLine.avoid_rects(cur)}
+		&"map_fly":
+			return _map_fly_probe(cur as SystemMapScreen, hud)
+		&"layers", &"contract_track", &"quest", &"jump_blocked":
+			return _chart_probe(cur as StarchartScreen, id, hud)
+		&"mounts", &"cards_from_parts", &"attributes":
+			return _cut_probe(_cut_of(cur), id, hud)
+		&"faults", &"hull_sale", &"undock":
+			return _station_probe(cur as StationScreen, id, hud)
+		&"save":
+			# THE ESCAPE MENU, its SAVE & EXIT plate (not Settings, not the confirm)
+			var m := _menu()
+			if m == null or m._closing or m._exits == null or not m._exits.is_visible_in_tree():
+				return {}
+			if m._settings != null and is_instance_valid(m._settings) and m._settings.visible:
+				return {}
+			var plate := m._exits.get_child(0) as DrawerPlate if m._exits.get_child_count() > 0 else null
+			if plate == null or not plate.is_visible_in_tree() or not plate.title.begins_with("SAVE"):
+				return {}
+			return {subject = plate.get_global_rect(), avoid = [m._drawer.get_global_rect()]}
+		&"chassis_card":
+			# THE CHASSIS SELECT, its LAUNCH (a card only)
+			if not (cur is ChassisSelect) or ZoomLadder.busy():
+				return {}
+			for b in (cur as Node).find_children("*", "Button", true, false):
+				var lb := b as Button
+				if lb.text == "LAUNCH" and lb.is_visible_in_tree():
+					return {subject = lb.get_global_rect(), avoid = [hud]}
+			return {}
 		&"ship":
 			if cur is StationScreen:
 				var st := cur as StationScreen
@@ -1218,6 +1694,275 @@ func probe(id: StringName) -> Dictionary:
 			if ship == null or not ship.is_visible_in_tree():
 				return {}
 			return {subject = _ship_box(ship), avoid = [hud]}
+	return {}
+
+
+## THE FIGHT'S NEW LESSONS (the deep tutorial), each on a settled hand.
+func _fight_probe(sc: SectorScreen, id: StringName, hud: Rect2) -> Dictionary:
+	if not _hand_settled(sc):
+		return {}
+	var cb: Combat = Router.combat
+	if cb == null:
+		return {}
+	var av := _fight_avoid(sc, hud)
+	match id:
+		&"energy":
+			# RIGHT AFTER THE FIRST CARD of a fight (the hand's lesson taught), with
+			# a card still to play: the ENERGY box
+			if _played_in != cb or not seen(&"hand") or cb.choosing > 0:
+				return {}
+			if not cb.hand.any(func(c: CardData) -> bool: return cb.can_play(c)):
+				return {}
+			var box := sc._energy.get_parent().get_parent() as Control if sc._energy != null else null
+			if box == null or not box.is_visible_in_tree():
+				return {}
+			return {subject = box.get_global_rect(), avoid = av}
+		&"discard_pick":
+			# A CARD ASKED FOR A DISCARD: the hand, to pick from
+			if cb.choosing <= 0 or cb.choose_kind != &"discard":
+				return {}
+			var hr := _hand_rect(sc)
+			return {} if hr.size == Vector2.ZERO else {subject = hr, avoid = av}
+		&"heat_corner":
+			# A CARD THAT ADDS HEAT in the hand: its top right corner
+			for v in sc._hand._views:
+				if v != null and is_instance_valid(v) and v.is_visible_in_tree() and not v.card.unplayable \
+						and v.card.net_heat() > 0:
+					return {subject = v.get_global_transform() * v._z(CardView.Z_HEAT), avoid = av}
+			return {}
+		&"keywords":
+			# A CARD WITH AN UNDERLINED WORD (`CardData.describe_rich`) in the hand
+			for v in sc._hand._views:
+				if v != null and is_instance_valid(v) and v.is_visible_in_tree() and v._body != null \
+						and v._body.text.contains("[u]"):
+					return {subject = v.get_global_rect(), avoid = av}
+			return {}
+		&"malfunction":
+			for v in sc._hand._views:
+				if v != null and is_instance_valid(v) and v.is_visible_in_tree() and v.card.unplayable:
+					return {subject = v.get_global_rect(), avoid = av}
+			return {}
+		&"flee_hail":
+			# HALF THE HULL GONE, and a way out to take
+			if Run.hp * 2 > Run.max_hp():
+				return {}
+			var outs: Array = []
+			for b: Button in [sc._flee_button, sc._hail_button]:
+				if b != null and b.is_visible_in_tree() and not b.disabled:
+					outs.append(b)
+			var r := _union(outs)
+			return {} if r.size == Vector2.ZERO else {subject = r, avoid = av}
+		&"piles":
+			# THE DISCARD, where played cards go
+			if sc._discard_pile == null or not sc._discard_pile.is_visible_in_tree():
+				return {}
+			return {subject = sc._discard_pile.get_global_rect(), avoid = av}
+	return {}
+
+
+func _hand_rect(sc: SectorScreen) -> Rect2:
+	var r := Rect2()
+	for v in sc._hand._views:
+		if v != null and is_instance_valid(v) and v.is_visible_in_tree():
+			r = v.get_global_rect() if r.size == Vector2.ZERO else r.merge(v.get_global_rect())
+	return r
+
+
+## THE EVENT BAND'S: a choice that tests the ship (its plate), and the result
+## with a REWARD to open (its buttons and table).
+func _band_probe(sc: SectorScreen, id: StringName, hud: Rect2) -> Dictionary:
+	if sc == null or sc._events == null or not is_instance_valid(sc._events) or sc.fighting():
+		return {}
+	var d := sc._events
+	if d._choices == null or not is_instance_valid(d._choices) or not d._choices.is_visible_in_tree() \
+			or d._choices.modulate.a < 0.99 or (d.text != null and not d.text.done) or d._busy:
+		return {}
+	if id == &"odds":
+		if d.page != &"event" or d.node == null:
+			return {}
+		var choices: Array = OptionTable.by_id(d.node.options[d.opt]).get("choices", [])
+		for j in choices.size():
+			if (choices[j] as Dictionary).has("check"):
+				var c := d._choices.find_child("Choice%d" % j, true, false) as Control
+				if c != null and c.is_visible_in_tree():
+					return {subject = c.get_global_rect(), avoid = [d.get_global_rect(), hud]}
+		return {}
+	if d.page != &"result" or (d._transfer != null and is_instance_valid(d._transfer)):
+		return {}
+	var reward := d.find_child("Reward", true, false) as Button
+	if reward == null or not reward.is_visible_in_tree() or reward.disabled:
+		return {}
+	var parts: Array = [reward]
+	for nm in ["Continue", "OutcomeTable"]:
+		var c := d.find_child(nm, true, false) as Control
+		if c != null:
+			parts.append(c)
+	return {subject = _union(parts), avoid = [hud]}
+
+
+## THE MAP, the ship not in an orbit: flying it by hand.
+func _map_fly_probe(map: SystemMapScreen, hud: Rect2) -> Dictionary:
+	if map == null or ZoomLadder.busy() or map.flight == null or map.overlay == null or map._box == null:
+		return {}
+	if int(map.flight.reached()) != -9:
+		return {}
+	var at: Vector2 = map.overlay._ship_at
+	var r := map._box.get_global_transform() * Rect2(at - Vector2(12, 12), Vector2(24, 24))
+	if not map._box.get_global_rect().encloses(r):
+		return {}
+	var avoid: Array = [hud]
+	var side := map.ladder_side()
+	if side != null and side.is_visible_in_tree():
+		avoid.append(side.get_global_rect())
+	return {subject = r, avoid = avoid}
+
+
+## THE CHART'S: its layer strip (from the second chart), a job's ring, a mark,
+## a JUMP that cannot go.
+func _chart_probe(ch: StarchartScreen, id: StringName, hud: Rect2) -> Dictionary:
+	if ch == null or ZoomLadder.busy() or ch._chart == null or not ch._chart.is_visible_in_tree():
+		return {}
+	var avoid: Array = [hud]
+	var side := ch.ladder_side()
+	if side != null and side.is_visible_in_tree():
+		avoid.append(side.get_global_rect())
+	var view := ch._chart.get_global_rect()
+	var g := ch._chart.get_global_transform()
+	match id:
+		&"layers":
+			# (another chart than the one its own line was taught on)
+			if not seen(&"chart") or ch.get_instance_id() == _chart_taught_on:
+				return {}
+			var parts: Array = [ch._layer_text, ch._layer_cells]
+			if ch._strip_row != null and ch._strip_row.get_child_count() > 2:
+				parts.append(ch._strip_row.get_child(2))
+			var r := _union(parts)
+			return {} if r.size == Vector2.ZERO else {subject = r, avoid = avoid}
+		&"contract_track":
+			if not ch._chart.show_icons:
+				return {}
+			for raw in Run.contracts:
+				var job: ContractData = raw
+				if job.state != ContractData.State.TAKEN or job.at < 0 or job.at >= Run.map.size():
+					continue
+				var c: Vector2 = ch._chart._screen_pos(Run.map[job.at])
+				var r := g * Rect2(c - Vector2(10, 10), Vector2(20, 20))
+				if view.encloses(r):
+					return {subject = r, avoid = avoid}
+			return {}
+		&"quest":
+			if not ch._chart.show_icons:
+				return {}
+			for raw in Run.map:
+				var n: MapGen.MapNode = raw
+				if not OptionTable.holds_quest(n):
+					continue
+				var c: Vector2 = ch._chart._screen_pos(n)
+				var r := g * Rect2(c + Vector2(-46, -21), Vector2(92, 29))
+				if view.encloses(r):
+					return {subject = r, avoid = avoid}
+			return {}
+		&"jump_blocked":
+			var j := ch._jump
+			if j == null or not j.is_visible_in_tree() or ch._selected < 0 or not j.disabled or j.text == "JUMP":
+				return {}
+			return {subject = j.get_global_rect(), avoid = avoid}
+	return {}
+
+
+## INSIDE YOUR SHIP: the mounts that take the part in hand, the deck's line
+## after a part is fitted, and the ship's stats.
+func _cut_probe(cut: CutawayView, id: StringName, hud: Rect2) -> Dictionary:
+	if cut == null or cut.popup_open() or cut.t < 0.98:
+		return {}
+	var avoid: Array = [hud]
+	if cut._panel != null and cut._panel.is_visible_in_tree():
+		avoid.append(cut._panel.get_global_rect())
+	match id:
+		&"mounts":
+			var mp := cut._mounts
+			if mp == null or mp._lit == null:
+				return {}
+			var rr := MountPoints.REACH * mp._mag()
+			var gt := mp.get_global_transform()
+			var r := Rect2()
+			for sp: Dictionary in mp.spots():
+				if not mp._takes_spot(sp):
+					continue
+				var at: Vector2 = sp.at
+				var box := Rect2(gt * (at - Vector2.ONE * rr), Vector2.ONE * 2.0 * rr * gt.get_scale())
+				r = box if r.size == Vector2.ZERO else r.merge(box)
+			return {} if r.size == Vector2.ZERO else {subject = r, avoid = [hud]}
+		&"cards_from_parts":
+			# A PART FITTED (after the mounts' line) since the cutaway's own line
+			# showed, or since your ship was first seen opened up this launch:
+			# its fit changed since then
+			if _cut_seen == 0:
+				_cut_seen = cut.get_instance_id()
+				_cut_fit = _fit_sig()
+			if not seen(&"mounts"):
+				return {}
+			if _fit_sig() == _cut_fit or (cut._mounts != null and cut._mounts._lit != null):
+				return {}
+			var ml := cut._mount_line
+			if ml == null or not ml.is_visible_in_tree():
+				return {}
+			return {subject = ml.get_global_rect(), avoid = avoid}
+		&"attributes":
+			# (after a check has been taught: what the checks test)
+			if not seen(&"odds") or cut._attrs == null or not cut._attrs.is_visible_in_tree():
+				return {}
+			if cut._mounts != null and cut._mounts._lit != null:
+				return {}
+			return {subject = cut._attrs.get_global_rect(), avoid = avoid}
+	return {}
+
+
+## THE STATION'S: the FAULTS drone, a ship for sale, UNDOCK.
+func _station_probe(st: StationScreen, id: StringName, hud: Rect2) -> Dictionary:
+	if st == null or ZoomLadder.busy() or st._cutaway != null or st._purge_prompt != null:
+		return {}
+	if Router.dock != null and is_instance_valid(Router.dock):
+		return {}
+	var avoid := Ash.tut_avoid_rects(st)
+	match id:
+		&"faults":
+			if st._tab != &"services" or Run.dross_count() <= 0 or st._scene == null or st._scene.drones == null:
+				return {}
+			var dr: Array = st._scene.drones.D
+			if dr.size() < 4:
+				return {}
+			var d: Dictionary = dr[3]
+			var mode := String(d.get("mode", ""))
+			if d.get("away", false) or not (mode == "hover" or mode == "dip" or mode == "tell") or not d.has("r"):
+				return {}
+			var r: Dictionary = d["r"]
+			var dx := float(d["x"]) - float(d["hx"])
+			var dy := float(d["y"]) - float(d["hy"])
+			var x0 := minf(float(r["fx0"]), float(r["sx"])) - dx
+			var x1 := maxf(float(r["fx0"]) + float(r["fw"]), float(r["sx"]) + float(r["w"])) - dx
+			var y0 := float(r["fy0"]) - dy
+			var y1 := float(r["sy"]) + float(r["h"]) - dy
+			var box := Rect2(x0, y0, x1 - x0, y1 - y0).grow_individual(3.0, 6.0, 3.0, 6.0)
+			return {subject = st._scene.get_global_transform() * box, avoid = avoid}
+		&"hull_sale":
+			if st._tab != &"services" or st._yard_hull == null or st._scene == null or st._scene.deal.is_empty():
+				return {}
+			var dt: YardDeal = st._scene.deal_tv
+			if dt == null or dt.reveal < 1.0:
+				return {}
+			var tv := Rect2(dt.X, dt.Y - YardDeal.LID, dt.IW, dt.IH + YardDeal.LID)
+			return {subject = st._scene.get_global_transform() * tv, avoid = avoid}
+		&"undock":
+			# AFTER THE FIRST DECK'S LESSON, and not before this deck's own
+			if not DECK_HINTS.keys().any(func(k: StringName) -> bool: return seen(k)):
+				return {}
+			for k: StringName in DECK_HINTS:
+				if DECK_HINTS[k] == st._tab and not seen(k):
+					return {}
+			if st._undock == null or not st._undock.is_visible_in_tree() or st._undock.disabled:
+				return {}
+			return {subject = st._undock.get_global_rect(), avoid = [hud]}
 	return {}
 
 

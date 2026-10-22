@@ -590,6 +590,11 @@ func fuel_rect() -> Rect2:
 	return _merged([_fuel])
 
 
+## The hull gauge with its word and number (the hull lesson's subject).
+func hull_rect() -> Rect2:
+	return _merged([_hull_label, _hull, _hull_text])
+
+
 ## The fuel readout's pieces, for the box test: the word, the bar, the figure.
 func fuel_parts() -> Array:
 	return _fuel.get_children() if _fuel != null else []

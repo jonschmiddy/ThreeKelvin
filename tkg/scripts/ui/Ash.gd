@@ -198,6 +198,12 @@ var lesson: StringName = &""
 var lesson_hint: StringName = &""
 var lesson_subject := Rect2()
 var _lesson_on: Object = null
+## OVER THE ESCAPE MENU (Oct 22, the deep tutorial's SAVE & EXIT line, `Hints`
+## `save`): the one lesson she says with the menu up. Her box and the outline go
+## on the menu's own layer (`opts.host`), above it, at the spot `Hints` worked
+## out clear of the drawer (`opts.spot`); she stays while the menu is up.
+var _lesson_menu := false
+var _lesson_host: Node = null
 var _lesson_check := 0.0
 var _outline: Outline = null
 
@@ -702,8 +708,9 @@ func _hint_up(starting: bool = true) -> bool:
 		return false
 	if Hints._quiet > 0.0:
 		return true
+	# (one the pacing holds back is not due: her lines need not wait for it)
 	for id in Hints.ORDER:
-		if not Hints.seen(id) and not Hints.resting(id) and not Hints.probe(id).is_empty():
+		if not Hints.seen(id) and not Hints.resting(id) and Hints._pace_ok(id) and not Hints.probe(id).is_empty():
 			return true
 	return false
 
@@ -1006,12 +1013,13 @@ func teach(lid: StringName, text: String, hint: StringName, subject: Rect2, opts
 	var cur := Router.current
 	if cur == null or not is_instance_valid(cur):
 		return false
-	var spot := tut_spot(cur, text, subject)
+	var over_menu := opts.has("host")
+	var spot: Dictionary = opts.get("spot", {}) if over_menu else tut_spot(cur, text, subject)
 	if spot.is_empty():
 		held_by = "room"
 		return false
-	var host := _host()
-	if host == null:
+	var host: Node = opts.get("host") if over_menu else _host()
+	if host == null or not is_instance_valid(host):
 		return false
 	# A TEACHING LINE OUTRANKS A BARK: whatever she was saying, she is not now
 	if portrait != null and is_instance_valid(portrait) and portrait.phase != AshPortrait.Phase.GONE:
@@ -1038,6 +1046,8 @@ func teach(lid: StringName, text: String, hint: StringName, subject: Rect2, opts
 	lesson_subject = subject
 	_lesson_on = cur
 	_lesson_check = LESSON_CHECK_S
+	_lesson_menu = over_menu
+	_lesson_host = host if over_menu else null
 	_outline_to(subject)
 	said_log.append({kind = StringName("tut_" + String(lid)), line = text, at = now, spot = spot.name,
 		rect = spot.rect, tutorial = true, hint = hint, subject = subject})
@@ -1085,6 +1095,8 @@ func _clear_lesson() -> void:
 	lesson_subject = Rect2()
 	_lesson_on = null
 	_outline_to(Rect2())
+	_lesson_menu = false
+	_lesson_host = null
 
 
 ## Why a teaching line must go now; "" to stay. Not her bark rules: it may stand
@@ -1093,6 +1105,9 @@ func _clear_lesson() -> void:
 ## a jump, the escape menu), on the enemy's turn, or when something comes into
 ## its box.
 func _lesson_must_go() -> String:
+	# (over the escape menu: up while the menu is, gone with it)
+	if _lesson_menu:
+		return "" if Hints.menu_up() else "screen"
 	var cur := Router.current
 	if cur == null or not is_instance_valid(cur) or cur != _lesson_on or not cur.is_visible_in_tree():
 		return "screen"
@@ -1133,6 +1148,21 @@ static func tut_spot(cur: Control, text: String, subject: Rect2 = Rect2()) -> Di
 	for s: Dictionary in tut_spot_boxes(cur, AshPortrait.size_for(text)):
 		if clear(s.rect, avoid, v) and covers(cur, s.rect) == "":
 			return s
+	return {}
+
+
+## WHERE SHE STANDS OVER THE ESCAPE MENU (the `save` lesson): the first of the
+## picture's corners, right of the menu's drawer, clear of the drawer and of
+## `subject`; {} if none is. Named "menu", so it never follows the goal line.
+static func menu_spot(text: String, drawer: Rect2, subject: Rect2, vs: Vector2) -> Dictionary:
+	var sz := AshPortrait.size_for(text)
+	var left := maxf(drawer.end.x + EDGE * 2.0, EDGE)
+	var view := Rect2(Vector2(left, EDGE), Vector2(vs.x - left - EDGE, vs.y - EDGE * 2.0))
+	for at: Vector2 in [view.position, Vector2(view.end.x - sz.x, view.position.y),
+			Vector2(view.position.x, view.end.y - sz.y), Vector2(view.end.x - sz.x, view.end.y - sz.y)]:
+		var r := Rect2(at.round(), sz)
+		if view.encloses(r) and not r.intersects(drawer) and not r.intersects(subject):
+			return {name = &"menu", rect = r, mirrored = false}
 	return {}
 
 
@@ -1463,7 +1493,7 @@ func _outline_to(r: Rect2) -> void:
 			_outline.subject = Rect2()
 			_outline.visible = false
 		return
-	var host := _host()
+	var host: Node = _lesson_host if _lesson_host != null and is_instance_valid(_lesson_host) else _host()
 	if host == null:
 		return
 	if _outline == null or not is_instance_valid(_outline):
