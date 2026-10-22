@@ -21,7 +21,6 @@ var _view: EncounterView
 var _title: Label
 var _sub: Label
 var _blurb: Label
-var _facts: Label
 var _state: Label
 var _hull: Label
 
@@ -1011,7 +1010,7 @@ func _build() -> void:
 	# composition, and the frame is doing that work.
 	#
 	# `_title`, `_sub` and `_blurb` are all BUILT AND NOT ADDED now, following
-	# the note below about `_hull` and `_facts`: the refresh writes to them every
+	# the note below about `_hull`: the refresh writes to them every
 	# frame and would have to grow a null check for each one otherwise.
 	_title = UITheme.body("", UITheme.ICE, UITheme.FS_PLACE)
 	_sub = UITheme.body("", UITheme.THEM, UITheme.FS_SMALL)
@@ -1025,9 +1024,10 @@ func _build() -> void:
 	# every one of them is already on screen: hull and heat in the HUD along the
 	# top, the sector's name and class in the header above this, and the count
 	# of hostiles is the number of ships you can see. Built but not added, so
-	# the refresh code that writes to them keeps working.
+	# the refresh code that writes to them keeps working. (The danger and layer
+	# line, `_facts`, was cut outright on Oct 22: nothing read it, and danger and
+	# layer are on the sector map, the chart and the escape menu's ladder.)
 	_hull = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
-	_facts = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	_state = UITheme.body("", UITheme.FLARE, UITheme.FS_SMALL)
 
 	arena.add_child(_build_salvage_rail())
@@ -2225,15 +2225,6 @@ func _refresh() -> void:
 
 	_hull.text = "HULL %d/%d - HEAT %d/%d" % [
 		Run.hp, Run.max_hp(), Run.heat, Run.heat_cap()]
-	_facts.text = "%s - DANGER %d - LAYER %d OF %d" % [
-		MapGen.type_label(n.type), n.danger, n.layer + 1, MapGen.LAYERS]
-	if n.in_nebula:
-		# Named, not just described. "Inside a nebula" is a fact about the sky;
-		# "inside The Drowned Veil" is a fact about where you are, and it is the
-		# same name written across the cloud on the chart.
-		var cloud := NebulaField.at(n.gal)
-		if cloud != null:
-			_facts.text += "  -  INSIDE %s" % cloud.name.to_upper()
 	_blurb.text = MapGen.place_blurb(n)
 
 	if not at_war:

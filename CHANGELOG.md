@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Removed
+
+- **Removed** — a hidden line on LOCAL that spelled out the system's danger and layer. It was
+  built every frame but never shown; danger and layer are on the sector map, the chart and the
+  escape menu. Nothing on screen changes.
+
 ### Roadmap
 
 The next build follows the friends' playtest of 0.4.0-alpha.1 (Oct 23). See
