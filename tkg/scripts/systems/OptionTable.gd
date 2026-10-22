@@ -973,7 +973,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"customs_cordon",
 			title = "Customs cordon",
-			subject = {stage = &"group", ships = [{piece = &"role:hauler", dark = 0.7, at = Vector2(10.0, 50.0), z = 0}, {piece = &"ship_catamaran", lights = &"patrol", at = Vector2(-5.0, -45.0), z = 1}, {piece = &"role:armed", size = 0.5, dark = 0.6, at = Vector2(-168.0, -40.0), z = 1}, {piece = &"role:armed", size = 0.5, dark = 0.6, at = Vector2(165.0, -48.0), z = 1}]},
+			subject = {stage = &"group", ships = [{piece = &"role:hauler", dark = 0.7, at = Vector2(10.0, 50.0), z = 0}, {piece = &"ship_catamaran", fights = true, lights = &"patrol", at = Vector2(-5.0, -45.0), z = 1}, {piece = &"role:armed", fights = true, size = 0.5, dark = 0.6, at = Vector2(-168.0, -40.0), z = 1}, {piece = &"role:armed", fights = true, size = 0.5, dark = 0.6, at = Vector2(165.0, -48.0), z = 1}]},
 			body = "A revenue cutter holds station over a seized hull, with two cold escorts off its flanks. Its crew seized that hull nine days ago. The impound paperwork is still not done. Until the paperwork clears, the manifest is public, and it lists what is still aboard. The cutter lets traffic through. It is here to guard the cargo.",
 			tags = [&"signal", &"fight"],
 			group = &"",
@@ -1857,7 +1857,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"hostile_contact",
 			title = "Hostile contact",
-			subject = {stage = &"single", pieces = [&"ship_gunboat"], dark = 0.85},
+			subject = {stage = &"single", pieces = [&"ship_gunboat"], dark = 0.85, fights = true},
 			body = "A hull sits dead ahead of you where the chart shows nothing. Its engines are cold and its running lights are off. It already has your registry, queried before your dish finished resolving its shape. No hail follows, and no demand. It turns slowly until its bow points at you, then holds there and waits for you to act.",
 			tags = [&"fight"],
 			group = &"",
@@ -1911,7 +1911,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"cordon",
 			title = "The cordon",
-			subject = {stage = &"group", strobe = true, lights = &"run", ships = [{piece = &"ship_gunboat", far = true, at = Vector2(-160.0, -10.0)}, {piece = &"ship_armedtrader", at = Vector2(0.0, 0.0), z = 1}, {piece = &"ship_dropship", far = true, at = Vector2(160.0, -10.0)}]},
+			subject = {stage = &"group", fights = true, strobe = true, lights = &"run", ships = [{piece = &"ship_gunboat", far = true, at = Vector2(-160.0, -10.0)}, {piece = &"ship_armedtrader", at = Vector2(0.0, 0.0), z = 1}, {piece = &"ship_dropship", far = true, at = Vector2(160.0, -10.0)}]},
 			body = "Three ships hold a line across the lane with their weapons live. A strobe runs the width of it. It is a toll. The hail is polite and carries a rate card: one rate for every hull, payable now. Out here there is no one to complain to. The ships on the line know to the hour how far away the nearest help is.",
 			tags = [&"fight", &"signal"],
 			group = &"",
@@ -3478,7 +3478,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_wrong_writ",
 			title = "The wrong writ",
-			subject = {stage = &"single", pieces = [&"ship_courier2"], lights = &"patrol"},
+			subject = {stage = &"single", pieces = [&"ship_courier2"], lights = &"patrol", fights = true},
 			body = "A patrol boat comes up on your quarter with its lights going. It puts a stop order across the channel. The writ carries a registry prefix that matches yours. The hull number on it does not, and it is off by one digit. An office four rings inward issued it, and that office stopped answering queries in the spring. The pilot reads the order out twice. She is young and she means to do this properly. The ship the writ wants came through this ring an hour ahead of you.",
 			tags = [&"fight", &"contract"],
 			group = &"",
@@ -3509,7 +3509,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_far_side",
 			title = "The far side",
-			subject = {stage = &"group", ships = [{piece = &"role:passenger", dark = 0.55, lights = &"battery", at = Vector2(85.0, 20.0), z = 0}, {piece = &"ship_gunboat", size = 0.5, dock = {to = 0}, at = Vector2(75.0, 0.0), z = 1}, {piece = &"role:small", turn = 6.0, lights = &"run", at = Vector2(-118.0, 82.0), z = 2}, {piece = &"role:small", far = true, turn = -5.0, lights = &"run", at = Vector2(-150.0, -68.0), z = -1}]},
+			subject = {stage = &"group", ships = [{piece = &"role:passenger", dark = 0.55, lights = &"battery", at = Vector2(85.0, 20.0), z = 0}, {piece = &"ship_gunboat", fights = true, size = 0.5, dock = {to = 0}, at = Vector2(75.0, 0.0), z = 1}, {piece = &"role:small", fights = true, turn = 6.0, lights = &"run", at = Vector2(-118.0, 82.0), z = 2}, {piece = &"role:small", fights = true, far = true, turn = -5.0, lights = &"run", at = Vector2(-150.0, -68.0), z = -1}]},
 			body = "A scavenger crew has a cutter ship anchored amidships on a passenger hull. Floods run the length of it and half the racks are already out. They watched you come in. Nobody hails and nobody stops working. Their two smallest ships have drifted out to sit between you and the wreck. Neither one quite points at you. The stern of the hull is dark, and nothing at all has come off it yet. They will get to it in a day or two.",
 			tags = [&"fight", &"salvage"],
 			group = &"",
@@ -3571,7 +3571,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"nothing_taken",
 			title = "Nothing taken",
-			subject = {stage = &"group", flood = true, ships = [{piece = &"role:hauler", far = true, at = Vector2(-120.0, -60.0)}, {piece = &"role:hauler", far = true, at = Vector2(140.0, -55.0)}, {piece = &"ship_armedtrader", at = Vector2(10.0, 35.0), z = 1}]},
+			subject = {stage = &"group", fights = true, flood = true, ships = [{piece = &"role:hauler", far = true, at = Vector2(-120.0, -60.0)}, {piece = &"role:hauler", far = true, at = Vector2(140.0, -55.0)}, {piece = &"ship_armedtrader", at = Vector2(10.0, 35.0), z = 1}]},
 			body = "Three haulers come out of the ring together and put their lights on you. Someone took eleven containers off the second of them four days ago. The ship that did it was the same class as yours, with the same drive signature. They have stopped every ship of that class since. The woman speaking for them is tired and polite, and she is sure of what she is looking at. They will not shoot first, but they will not stand aside either.",
 			tags = [&"fight", &"contract"],
 			group = &"",
@@ -3663,7 +3663,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_hunting_ship",
 			title = "The hunting ship",
-			subject = {stage = &"single", pieces = [&"ship_scoop"], lights = &"run"},
+			subject = {stage = &"single", pieces = [&"ship_scoop"], lights = &"run", fights = true},
 			body = "A ship rigged for a hunt is coming across the system at you. It has wide holds and a frame on the bow for taking something aboard whole. There is nothing in any of it. The people flying it have been out five months. What they came for has not been where the charts put it since spring. They have said so on the open channel to nobody in particular. They read your mass at a hundred thousand kilometres and turn toward it. The hail is friendly and it asks twice what you are carrying.",
 			tags = [&"fight", &"contract"],
 			group = &"",
@@ -3695,7 +3695,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_long_crew",
 			title = "The long crew",
-			subject = {stage = &"single", pieces = [&"ship_ringdrive"], lights = &"battery"},
+			subject = {stage = &"single", pieces = [&"ship_ringdrive"], lights = &"battery", fights = true},
 			body = "A ship hails you. It stopped being a business a long time ago. They have been out here nineteen years. The registry ran out twelve years back, and the manufacturer that built the ship is gone too. The same people have been aboard the whole time. They do not call it a raid. They read you a list of what they need, in order, and they stay armed while they read it. There are forty items on the list. The first one is fuel.",
 			tags = [&"fight"],
 			group = &"",
@@ -3726,7 +3726,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"six_years_waiting",
 			title = "Six years waiting",
-			subject = {stage = &"single", pieces = [&"ship_forked"], dark = 0.3, lights = &"run"},
+			subject = {stage = &"single", pieces = [&"ship_forked"], dark = 0.3, lights = &"run", fights = true},
 			body = "A ship has been holding this crossing for six years. What it is waiting for is a registry. It sends that registry out on a loop, one line, over and over. The number is two digits off yours. The voice under the loop is not angry about anything. She asks you to hold still and let her instruments read your drive. A drive signature is the one thing on a ship that cannot be repainted. She has been almost sure for six years.",
 			tags = [&"fight", &"contract"],
 			group = &"",
@@ -4770,7 +4770,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"in_the_wake",
 			title = "In the wake",
-			subject = {stage = &"single", pieces = [&"pool_fan"]},
+			subject = {stage = &"single", pieces = [&"pool_fan"], fights = true},
 			body = "A voidwhale calf has followed your ship since the edge of the system. It is pale and long, with thin spines down its back that fan out when it turns. Your drive is the warmest thing it has found out here. Every few minutes it swings around from the bow to push its nose into the plume. Twice it has bumped the stern hard enough to show on the hull sensors. There is no pod on the dish. A calf this young sheds as it grows, and loose hide is drifting in your wake.",
 			tags = [&"fight", &"hazard"],
 			group = &"",
@@ -4801,7 +4801,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_tow_cable",
 			title = "The tow cable",
-			subject = {layers = [{stage = &"single", pieces = [&"role:barge"], dark = 0.7, at = Vector2(90.0, -40.0)}, {stage = &"single", pieces = [&"pool_fan"], at = Vector2(-90.0, 50.0)}]},
+			subject = {layers = [{stage = &"single", pieces = [&"role:barge"], dark = 0.7, at = Vector2(90.0, -40.0)}, {stage = &"single", fights = true, pieces = [&"pool_fan"], at = Vector2(-90.0, 50.0)}]},
 			body = "A dead ore barge drifts at the edge of the system with its tow cable still trailing from the stern. A voidwhale calf has wound itself into the cable. It is pale, with thin spines along its back. Every time it pulls, the cable cuts in deeper between the spines. The dish picked up its calls for a while. They have stopped. The barge's forward hold reads full of ore. There is no claim filed on the barge, and the dish shows no other ship in the system.",
 			tags = [&"fight", &"salvage"],
 			group = &"",
@@ -4832,7 +4832,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_harpoon_line",
 			title = "The harpoon line",
-			subject = {layers = [{stage = &"single", pieces = [&"ship_scoop"], lights = &"run", at = Vector2(110.0, -55.0)}, {stage = &"single", pieces = [&"pool_lev_spine"], at = Vector2(-80.0, 45.0)}]},
+			subject = {layers = [{stage = &"single", pieces = [&"ship_scoop"], lights = &"run", at = Vector2(110.0, -55.0)}, {stage = &"single", fights = true, pieces = [&"pool_lev_spine"], at = Vector2(-80.0, 45.0)}]},
 			body = "A hunting ship has a harpoon line in a void leviathan, and the leviathan is towing the ship. It is dark blue and plated like a hull, with a ridge of pale crystal down its back. It is longer than the hunting ship. The crew cannot reel it in, and they will not cut the line. Their pilot is on the open channel. She asks for a ship with guns to finish it while she holds on. She will pay as soon as you agree.",
 			tags = [&"fight", &"contract"],
 			group = &"",
@@ -4864,7 +4864,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_grown_plate",
 			title = "The grown plate",
-			subject = {stage = &"single", pieces = [&"pool_lev_spine"]},
+			subject = {stage = &"single", pieces = [&"pool_lev_spine"], fights = true},
 			body = "A void leviathan is resting in the shadow of a cold world. It is dark blue and plated like a hull, with pale crystal down its back. One plate on its flank came off a ship. It has grown in at the edges, and a registry number is still painted on it. The registry office at Harl Station lists that number as missing. The clerk there pays for proof of what became of a ship. The leviathan has not moved in a day.",
 			tags = [&"fight", &"contract"],
 			group = &"",
@@ -4897,7 +4897,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_warm_reactor",
 			title = "The warm reactor",
-			subject = {layers = [{stage = &"single", pieces = [&"role:hauler"], dark = 0.8, at = Vector2(40.0, -60.0)}, {stage = &"single", flip = true, pieces = [&"pool_lev_spine"], at = Vector2(80.0, 55.0)}]},
+			subject = {layers = [{stage = &"single", pieces = [&"role:hauler"], dark = 0.8, at = Vector2(40.0, -60.0)}, {stage = &"single", fights = true, flip = true, pieces = [&"pool_lev_spine"], at = Vector2(80.0, 55.0)}]},
 			body = "A dead freighter hangs off the star with its reactor still warm. A void leviathan stays close to the stern to feed on the heat. It is dark blue and plated, and the pale crystal on its back glows in the reactor's light. The freighter's forward holds are sealed and read full. They are at the bow, the far end from the leviathan. The transponder is dead. The leviathan moves only to press closer to the reactor.",
 			tags = [&"fight", &"salvage"],
 			group = &"",

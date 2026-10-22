@@ -76,6 +76,9 @@ extends Control
 ##           that one -- set down on its top edge, touching it and not crossing
 ##           it, clamped there (two clamps drawn over the seam), moving with it
 ## And on a stage: `strobe` (a light run along the line of its ships).
+## `fights = true`, on a stage, a layer or one ship of a group: this is what the
+## event's fight is with. Once that fight has left its wreck here it is not drawn
+## again (`fought_out`, `without_foes`); the rest of the scene stays.
 ##
 ## A BIG STRUCTURE YOU ARE PULLING UP TO (`structure`; Jon's "Pulling up to it"
 ## page: a breaking frame, a repair yard, a clamp tower, a dead yard's cradle, a
@@ -1682,9 +1685,16 @@ static func sync(view: Control, n: MapGen.MapNode, fighting: bool) -> LocalSubje
 	if n != null and not fighting:
 		opt = LocalEventDrawer.bar_option(n)
 	var s: Variant = null
+	var after := false
 	if opt >= 0:
 		s = OptionTable.by_id(n.options[opt]).get("subject", null)
-	var want := ("%d:%d" % [n.index, opt]) if s != null else ""
+		# WHAT YOU FOUGHT IS A WRECK NOW, not drawn whole beside its own wreck
+		# (`fought_out`); the rest of the scene -- the depot, the seized hull,
+		# the convoy you flew with -- stays where it stands
+		if s != null and fought_out(n, opt):
+			s = without_foes(resolve(s, n.options[opt], n.danger, n.index))
+			after = true
+	var want := ("%d:%d%s" % [n.index, opt, ":after" if after else ""]) if s != null else ""
 	# THE SUBJECT TAKES THE PLACE'S STAND-IN: LOCAL's drawn place (its beacon,
 	# its plate) stands where the subject goes, and two things in one spot is a
 	# muddle; without a subject the view shows it as it always has
@@ -1720,6 +1730,80 @@ static func sync(view: Control, n: MapGen.MapNode, fighting: bool) -> LocalSubje
 	view.move_child(cur, at)
 	cur._build()
 	return cur
+
+
+## WHETHER OPTION `i` AT `n` WAS A FIGHT THAT HAS BEEN FOUGHT HERE (Jon, Oct 22:
+## "When you destroy a ship in combat, sometimes another ship randomly pops
+## up?"). A fight's subject is the ship it is about (`hostile_contact`'s
+## gunboat), but the fight flies in its own ship (`EnemyArt`) and leaves that
+## one's wreck. So after the kill the bar's event (still the fight, RESOLVED)
+## drew its subject again, whole and beside the wreck of what you shot: a
+## second enemy out of nowhere. True when the option leads to a fight (tagged
+## `fight`, or a choice declares one), someone has taken it, and a wreck lies at
+## this place. A fight walked away from (BURN PAST) leaves no wreck, and its
+## ship is still there to draw; a fight fled leaves none either. Then only what
+## the subject marks `fights` goes (`without_foes`).
+static func fought_out(n: MapGen.MapNode, i: int) -> bool:
+	if n == null or i < 0 or i >= n.options.size():
+		return false
+	if not n.taken.has(MapGen.OPTION_SITE + i):
+		return false
+	var o := OptionTable.by_id(n.options[i])
+	var fight := (o.get("tags", []) as Array).has(&"fight")
+	for c: Dictionary in o.get("choices", []):
+		fight = fight or EncounterDrawer.opens_fight(c)
+	return fight and not Run.wrecks_here(n).is_empty()
+
+
+## A RESOLVED subject (`resolve`: its cast already picked, so what stays is the
+## same ships it was) without what the fight was with: every stage, layer or
+## group ship marked `fights = true`. A group's `dock` is renumbered to the ships
+## left (one docked on a ship that went goes too). Null when nothing is left.
+static func without_foes(s: Variant) -> Variant:
+	var kept: Array = []
+	for st: Dictionary in stages_of(s):
+		if bool(st.get("fights", false)):
+			continue
+		if not st.has("ships"):
+			kept.append(st)
+			continue
+		var ships: Array = st.ships
+		var gone := {}
+		for k in ships.size():
+			if bool((ships[k] as Dictionary).get("fights", false)):
+				gone[k] = true
+		var more := true
+		while more:
+			more = false
+			for k in ships.size():
+				var sh: Dictionary = ships[k]
+				if not gone.has(k) and sh.has("dock") and gone.has(int(sh.dock.get("to", 0))):
+					gone[k] = true
+					more = true
+		var new_at := {}
+		for k in ships.size():
+			if not gone.has(k):
+				new_at[k] = new_at.size()
+		if new_at.is_empty():
+			continue
+		var st2: Dictionary = st.duplicate(true)
+		var left: Array = []
+		for k in ships.size():
+			if not new_at.has(k):
+				continue
+			var sh2: Dictionary = (ships[k] as Dictionary).duplicate(true)
+			# its place in the back-to-front order stays its own
+			sh2.z = int(sh2.get("z", k))
+			if sh2.has("dock"):
+				sh2.dock.to = new_at[int(sh2.dock.get("to", 0))]
+			left.append(sh2)
+		st2.ships = left
+		kept.append(st2)
+	if kept.is_empty():
+		return null
+	if s is Dictionary and (s as Dictionary).has("layers"):
+		return {layers = kept}
+	return kept[0]
 
 
 ## The subject on a view, if one is drawn there (one fading out is not).

@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fixed** — after you win an event's fight, LOCAL no longer shows a whole enemy ship beside the
+  wreck of the one you shot. The event's own picture of what you were fighting came back once the
+  fight ended, so a second ship seemed to appear out of nowhere. Now only what you fought is gone:
+  the rest of the scene stays, such as the fuel depot, the seized hull or the hunting ship on the
+  harpoon line. An event you flew past without fighting still shows its ship.
+
 ### Roadmap
 
 The next build is **0.4.0-alpha.1**, with the fixes from the first outside playtest. See
