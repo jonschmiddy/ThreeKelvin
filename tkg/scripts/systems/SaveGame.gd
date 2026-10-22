@@ -263,7 +263,16 @@ static var restoring := false
 ## 32: a 33 save has no `unlocked`, and missing means every manufacturer -- a 33
 ## build gated drops on `DB.ACTIVE_MANUFACTURERS` alone, so that is the world it
 ## was already rolling. OLDEST_READ stays at 29.
-const VERSION := 34
+## 35: THE QUESTS AN EVENT GAVE YOU, AND WHAT EVERY QUEST PAID (`event_quests`,
+## `quests_done`; Jon, Oct 22: an event that plants a follow-up "is essentially
+## a quest", and finished quests go under COMPLETED, not away). Read the way 34
+## reads 33: a 34 save has neither, and missing loses only what the map cannot
+## say. Its open event quests still list, read off the map (the placed option
+## on its system, not taken), with the giver the option itself names
+## (`quest.from`); one taken lists under COMPLETED without its pay; and its
+## delivered contracts list there too, after any finished since, with the pay
+## each one carries. OLDEST_READ stays at 29.
+const VERSION := 35
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
 const OLDEST_READ := 29
@@ -431,6 +440,9 @@ static func _snapshot() -> Dictionary:
 		# both belong here and neither survives the dive ending.
 		contracts = _contracts_to(),
 		next_contract_id = Run.next_contract_id,
+		# The event quests and the finished order (VERSION 35).
+		event_quests = _event_quests_to(),
+		quests_done = Array(Run.quests_done),
 		standing = _standing_to(),
 
 		map = nodes,
@@ -585,6 +597,13 @@ static func load_into_run() -> bool:
 	Run.whale_boon = bool(d.get("whale_boon", false))
 	Run.contracts = _contracts_from(d.get("contracts", []))
 	Run.next_contract_id = maxi(1, int(d.get("next_contract_id", 1)))
+	# VERSION 35; missing (a 34 save) is none, and `QuestLog` reads the map
+	Run.event_quests = _event_quests_from(d.get("event_quests", []))
+	Run.quests_done.clear()
+	var done_raw: Variant = d.get("quests_done", [])
+	if typeof(done_raw) == TYPE_ARRAY:
+		for k in (done_raw as Array):
+			Run.quests_done.append(str(k))
 	# ZEROED, not restored — these two are deliberately outside the save, so a
 	# load has to clear them the way `start_new_run()` does. Without it, SAVE &
 	# QUIT to the launcher and CONTINUE inside the same process carries the
@@ -883,6 +902,38 @@ static func _contracts_from(raw: Variant) -> Array:
 	for e in (raw as Array):
 		if typeof(e) == TYPE_DICTIONARY:
 			out.append(ContractData.from_wire(e))
+	return out
+
+
+## The event quests (`Run.event_quests`), one row each: `at`, `id`, `from`, and
+## once taken `credits` and `got`. Rows, for the reason 23 gives.
+static func _event_quests_to() -> Array:
+	var out: Array = []
+	for raw in Run.event_quests:
+		var r: Dictionary = raw
+		var row := {at = int(r.get("at", -1)), id = String(r.get("id", &"")),
+			from = String(r.get("from", &""))}
+		if r.has("credits"):
+			row["credits"] = int(r.credits)
+			row["got"] = Array(r.get("got", [])).map(func(x: Variant) -> String: return str(x))
+		out.append(row)
+	return out
+
+
+static func _event_quests_from(raw: Variant) -> Array:
+	var out: Array = []
+	if typeof(raw) != TYPE_ARRAY:
+		return out
+	for e in (raw as Array):
+		if typeof(e) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = e
+		var r := {at = int(d.get("at", -1)), id = StringName(str(d.get("id", ""))),
+			from = StringName(str(d.get("from", "")))}
+		if d.has("credits"):
+			r["credits"] = int(d.get("credits", 0))
+			r["got"] = Array(d.get("got", [])).map(func(x: Variant) -> String: return str(x))
+		out.append(r)
 	return out
 
 

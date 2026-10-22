@@ -16,15 +16,26 @@ extends PanelContainer
 ## the escape menu opening over it.
 ##
 ## Only this ship's quests: `Run` is one ship, and a partner's are on theirs.
+##
+## AN EVENT QUEST IS A ROW TOO (Jon, Oct 22): what an event planted ahead of
+## you (`OptionTable.place`), MARKED, its pay ON ARRIVAL, from the event that
+## gave it. And FINISHED QUESTS STAY, under a plain COMPLETED heading below the
+## open ones, newest first, greyed a little, each with what it paid; a finished
+## row still opens its note and SHOW ON STARCHART, and has no PLOT ROUTE. No
+## heading when nothing is finished.
 
 static var _open: QuestPanel = null
-## The quest whose row is open, by contract id; -1 for none. Kept while the
-## table is shut, so opening it again opens the same row.
+## The quest whose row is open, by its id (`QuestLog.entries`: a contract's id,
+## or an event quest's); -1 for none. Kept while the table is shut, so opening
+## it again opens the same row.
 static var picked: int = -1
 
-## The table's columns, px: mark, state, quest, where, jumps, pay, from.
-const COLS := [10.0, 74.0, 168.0, 150.0, 52.0, 48.0, 76.0]
+## The table's columns, px: mark, state, quest, where, jumps, pay, from. PAY
+## holds ON ARRIVAL and a finished job's +1 STANDING.
+const COLS := [10.0, 74.0, 160.0, 142.0, 52.0, 64.0, 76.0]
 const GAP := 8
+## A finished row's words, greyed a little so it reads as done.
+const DONE_TINT := Color(0.66, 0.68, 0.72, 0.85)
 
 ## One quest's row: laid out by its own container (a Button lays nothing out,
 ## and its words piled on each other), pressed like a button, lit under the
@@ -173,18 +184,46 @@ func fill() -> void:
 		_rows.remove_child(c)
 		c.queue_free()
 	var list := QuestLog.entries()
+	var done := QuestLog.done_entries()
+	var signed := 0
 	var ready := 0
-	for e in list:
-		if ((e as Dictionary).job as ContractData).state == ContractData.State.READY:
+	var marked := 0
+	for raw in list:
+		var e: Dictionary = raw
+		if bool(e.event):
+			marked += 1
+			continue
+		signed += 1
+		if (e.job as ContractData).state == ContractData.State.READY:
 			ready += 1
-	_sub.text = "" if list.is_empty() else ("%d SIGNED" % list.size()
-		+ (" · %d READY TO HAND IN" % ready if ready > 0 else ""))
-	if list.is_empty():
+	var say: Array[String] = []
+	if signed > 0:
+		say.append("%d SIGNED" % signed)
+	if ready > 0:
+		say.append("%d READY TO HAND IN" % ready)
+	if marked > 0:
+		say.append("%d MARKED" % marked)
+	_sub.text = " · ".join(say)
+	if list.is_empty() and done.is_empty():
 		var none := UITheme.body(QuestLog.EMPTY, UITheme.CHILL, UITheme.FS_SMALL)
 		none.name = "Empty"
 		_rows.add_child(none)
 	for raw in list:
 		_rows.add_child(_row(raw as Dictionary))
+	# FINISHED, under their own plain heading, and none at all without one
+	if not done.is_empty():
+		var gap := Control.new()
+		gap.custom_minimum_size = Vector2(0, 4)
+		gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_rows.add_child(gap)
+		var head := UITheme.body("COMPLETED", UITheme.COLD, UITheme.FS_SMALL)
+		head.name = "Completed"
+		_rows.add_child(head)
+		var line := UITheme.hsep()
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_rows.add_child(line)
+		for raw in done:
+			_rows.add_child(_row(raw as Dictionary))
 	_place()
 	# and again once the rows have measured themselves in the tree
 	_place.call_deferred()
@@ -208,15 +247,17 @@ func _place() -> void:
 
 
 func _row(e: Dictionary) -> Control:
-	var job: ContractData = e.job
-	var open_row := job.id == picked
+	var id := int(e.id)
+	var done := bool(e.done)
+	var open_row := id == picked
 	var b := Row.new()
 	b.open_row = open_row
-	b.set_meta(&"quest", job.id)
-	b.name = "Quest%d" % job.id
+	b.set_meta(&"quest", id)
+	b.set_meta(&"done", done)
+	b.name = "Quest%d" % id
 	b.tooltip_text = Widgets.tip(String(e.tip))
 	b.pressed.connect(func() -> void:
-		picked = -1 if picked == job.id else job.id
+		picked = -1 if picked == id else id
 		fill())
 	var inner := VBoxContainer.new()
 	inner.add_theme_constant_override("separation", 4)
@@ -251,34 +292,66 @@ func _row(e: Dictionary) -> Control:
 		where.add_child(_cell(String(e.layer), UITheme.COLD, COLS[3]))
 	line.add_child(where)
 	line.add_child(_cell(String(e.jumps), EncounterDrawer.TAG_QUEST, COLS[4]))
-	line.add_child(_cell(String(e.pay), UITheme.EMBER, COLS[5]))
+	var pay := VBoxContainer.new()
+	pay.add_theme_constant_override("separation", 0)
+	pay.custom_minimum_size = Vector2(COLS[5], 0)
+	pay.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	pay.add_child(_cell(String(e.pay), UITheme.EMBER, COLS[5]))
+	if String(e.pay2) != "":
+		pay.add_child(_cell(String(e.pay2), UITheme.COLD, COLS[5]))
+	line.add_child(pay)
 	var from := HBoxContainer.new()
 	from.add_theme_constant_override("separation", 4)
 	from.custom_minimum_size = Vector2(COLS[6], 0)
-	from.add_child(_flag(job.manufacturer))
-	var who := UITheme.body(String(e.who).to_upper(), DB.manufacturer_colour(job.manufacturer).lightened(0.2), UITheme.FS_SMALL)
+	var m: StringName = e.manufacturer
+	# an event quest has no poster's flag: the event's own name stands alone
+	if m != &"":
+		from.add_child(_flag(m))
+	var ink := DB.manufacturer_colour(m).lightened(0.2) if m != &"" else UITheme.ICE
+	var who := UITheme.body(String(e.who).to_upper(), ink, UITheme.FS_SMALL)
 	who.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	from.add_child(who)
 	line.add_child(from)
+	line.name = "Line"
 	inner.add_child(line)
+	if done:
+		line.modulate = DONE_TINT
 
 	if open_row:
-		var note := UITheme.body("\"%s\"" % job.text, UITheme.QUOTE, UITheme.FS_SMALL)
+		var note := UITheme.body("\"%s\"" % String(e.note), UITheme.QUOTE, UITheme.FS_SMALL)
+		note.name = "Note"
 		note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		note.custom_minimum_size = Vector2(_row_w() - 16.0, 0)
 		inner.add_child(note)
+		if done:
+			note.modulate = DONE_TINT
+			if String(e.paid) != "":
+				var paid := UITheme.body(String(e.paid), UITheme.CHILL, UITheme.FS_SMALL)
+				paid.name = "Paid"
+				paid.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				paid.custom_minimum_size = Vector2(_row_w() - 16.0, 0)
+				inner.add_child(paid)
 		var acts := HBoxContainer.new()
 		acts.add_theme_constant_override("separation", 6)
 		var place := int(e.place)
 		var can := place >= 0 and not (Router.in_combat() or Router.fight_up())
-		var show := Widgets.button("SHOW ON STARCHART", func() -> void: QuestPanel.show_on_chart(job.id, false))
+		var show := Widgets.button("SHOW ON STARCHART", func() -> void: QuestPanel.show_on_chart(id, false))
 		show.name = "ShowOnStarchart"
-		var plot := Widgets.button("PLOT ROUTE", func() -> void: QuestPanel.show_on_chart(job.id, true))
-		plot.name = "PlotRoute"
-		for a: Button in [show, plot]:
+		var acting: Array[Button] = [show]
+		# DONE, THERE IS NOWHERE TO GO: the place can still be shown, not routed to
+		if not done:
+			var plot := Widgets.button("PLOT ROUTE", func() -> void: QuestPanel.show_on_chart(id, true))
+			plot.name = "PlotRoute"
+			acting.append(plot)
+		for a: Button in acting:
 			a.disabled = not can
 			if not can:
-				a.tooltip_text = Widgets.tip("Not during a fight." if place >= 0 else "No yard of theirs is in reach.")
+				var why := "No yard of theirs is in reach."
+				if place >= 0:
+					why = "Not during a fight."
+				elif done:
+					why = "Handed in at one of their yards. Which one was not kept."
+				a.tooltip_text = Widgets.tip(why)
 			acts.add_child(a)
 		inner.add_child(acts)
 	# the row's words are the row's, not things to press: the click goes to it

@@ -310,7 +310,9 @@ static func pays_item(res: Dictionary) -> bool:
 	return bool(res.get("module", false))
 
 
-static func pay(res: Dictionary, n: MapGen.MapNode) -> String:
+## `src` is the option whose outcome this is: an outcome that places a quest
+## (`place`) records it as the quest's giver, which the QUESTS table names.
+static func pay(res: Dictionary, n: MapGen.MapNode, src: StringName = &"") -> String:
 	if res.is_empty() or n == null:
 		return ""
 	var got: Array[String] = []
@@ -340,7 +342,7 @@ static func pay(res: Dictionary, n: MapGen.MapNode) -> String:
 	# WHAT THIS PUTS SOMEWHERE ELSE. The reward for some options is not a number
 	# and not an object -- it is the encounter this plants four jumps deeper.
 	if res.has("place"):
-		var at := place(n, StringName(res.place))
+		var at := place(n, StringName(res.place), src)
 		if at >= 0:
 			got.append("%s MARKED" % quest_name(Run.map[at]))
 	if res.has("material"):
@@ -433,9 +435,14 @@ static func system_has_tag(n: MapGen.MapNode, tag: StringName) -> bool:
 ## Returns the node index it landed on, or -1 if there was nowhere: near the
 ## core there may be no unvisited system deep enough, and a thread that never
 ## pays off is better than one that pays off in the wrong place.
+##
+## AND IT IS WRITTEN DOWN (`Run.note_placed`): the system, the option and `src`,
+## the option that placed it, so the QUESTS table can say who gave it. Only on
+## the machine that took the event, which is the ship it belongs to: nothing
+## here goes to the party.
 const PLACE_DEPTH := 3
 
-static func place(from: MapGen.MapNode, id: StringName) -> int:
+static func place(from: MapGen.MapNode, id: StringName, src: StringName = &"") -> int:
 	if from == null:
 		return -1
 	var what := by_id(id)
@@ -477,6 +484,7 @@ static func place(from: MapGen.MapNode, id: StringName) -> int:
 	var node: MapGen.MapNode = Run.map[at]
 	ensure(node)
 	node.options.append(id)
+	Run.note_placed(at, id, src)
 	Sig.map_changed.emit()
 	return at
 
@@ -511,6 +519,21 @@ static func placed_ids() -> Dictionary:
 ## system's own worlds (`SystemLayout`), and never raced for over the wire.
 static func is_job(id: StringName) -> bool:
 	return bool(by_id(id).get("job", false))
+
+
+## WHETHER THIS OPTION IS ONE SHIP'S OWN: a signed contract's work (`is_job`)
+## or an event quest (`placed_ids`, what `place` put on this ship's map for
+## what this ship did). Neither is on a partner's map, so neither is raced for
+## over the wire (`OptionResolve.take`, `Router.claim_open_option`), and a
+## partner's claim on the same slot index never closes it
+## (`RunState.adopt_party_claims`): the slot is theirs, not this.
+##
+## It was jobs only, and a taken PAID IN FULL went to the party as a claim on
+## (system, slot), which a partner's machine wrote into its own copy of that
+## system whatever sat there: their contract pickup or their own quest at the
+## same index came up already taken (Oct 22).
+static func is_mine(id: StringName) -> bool:
+	return is_job(id) or placed_ids().has(id)
 
 
 static func holds_quest(n: MapGen.MapNode) -> bool:
@@ -628,6 +651,18 @@ static func ensure(n: MapGen.MapNode) -> bool:
 			var i := int(t) - MapGen.OPTION_SITE
 			if i >= 0 and i < n.options.size():
 				foreclose(n, i)
+		# AND A CLAIM PAST THE ROLLED LIST IS A PARTNER'S OWN OPTION (a job or
+		# an event quest on their map, `is_mine`), adopted before this list
+		# existed. Dropped, so what this ship's own `place` or `post_goal`
+		# appends at that index next is not born taken.
+		var keep := PackedInt32Array()
+		for t in n.taken:
+			var k := int(t)
+			if k >= MapGen.OPTION_SITE and k < MapGen.OPTION_JETSAM \
+					and k - MapGen.OPTION_SITE >= n.options.size():
+				continue
+			keep.append(k)
+		n.taken = keep
 	return not n.options.is_empty()
 
 
@@ -941,6 +976,14 @@ static func _authored() -> Array[Dictionary]:
 			tags = [&"quest"],
 			group = &"",
 			placed = true,
+			# ITS ROW IN THE QUESTS TABLE (`QuestLog`): the task beside the
+			# signed jobs' tasks, the chart tag's word, and the note, which is
+			# the runner's own line from `the_runner`'s body, word for word
+			# (`-- sheet=QuestLogTest` holds it there). `from` is the event that
+			# places it, for a save written before the run kept that
+			# (`Run.event_quests`).
+			quest = {task = "Deliver the runner's parcel", tag = "DELIVER", from = &"the_runner",
+				note = "She says the person it goes to will pay properly on delivery, but she is only repeating what she was told."},
 			weight = 0,
 			choices = [
 				# NO FAILING BAND AND NOTHING TO DECLINE. `batch-03`: taxing a

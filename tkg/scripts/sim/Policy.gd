@@ -598,7 +598,7 @@ func take_options(n: MapGen.MapNode) -> Dictionary:
 		var line: Dictionary = (opt.choices as Array)[pick]
 		if line.has("cost_credits"):
 			spend.options += int(line.cost_credits)
-		var res := _resolve_line(n, line)
+		var res := _resolve_line(n, line, n.options[i])
 		n.taken.append(oid)
 		# THE SAME RULE THE GAME PLAYS. This loop has always honoured exclusive
 		# sets through its own `spent` dictionary and never wrote the decision
@@ -660,7 +660,7 @@ func _choose_line(opt: Dictionary) -> int:
 ## The reward class is §5's: an option that says `module` pays one rolled at the
 ## system's own danger, which is where `LootGen`'s rarity floors do the
 ## high-risk half by themselves.
-func _resolve_line(n: MapGen.MapNode, line: Dictionary) -> Dictionary:
+func _resolve_line(n: MapGen.MapNode, line: Dictionary, src: StringName = &"") -> Dictionary:
 	var res: Dictionary = {}
 	if line.has("check"):
 		var band := SkillCheck.roll(line.check)
@@ -673,7 +673,7 @@ func _resolve_line(n: MapGen.MapNode, line: Dictionary) -> Dictionary:
 			res = cb2.call()
 	if typeof(res) != TYPE_DICTIONARY:
 		return {}
-	OptionTable.pay(res, n)
+	OptionTable.pay(res, n, src)
 	# Handed back rather than consumed here, because `fight` is the caller's
 	# business: this function grants rewards, it does not start battles.
 	return res

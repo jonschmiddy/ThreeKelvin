@@ -1289,7 +1289,7 @@ func show_option_at(index: int) -> void:
 	Audio.music_state(&"event")
 	var e := EventScreen.new()
 	_swap(e)
-	e.setup({title = opt.get("title", ""), body = opt.get("body", ""),
+	e.setup({id = opt.get("id", &""), title = opt.get("title", ""), body = opt.get("body", ""),
 		options = opt.get("choices", []), foe = opt.get("foe", &"")})
 
 
@@ -1314,8 +1314,9 @@ func claim_open_option() -> bool:
 	var n: MapGen.MapNode = Run.node_at()
 	if n == null or _open_option < 0:
 		return false
-	# a signed job's event is this ship's alone (`OptionResolve.take`)
-	if _open_option < n.options.size() and OptionTable.is_job(n.options[_open_option]):
+	# a signed job's event, or an event quest, is this ship's alone
+	# (`OptionResolve.take`, `OptionTable.is_mine`)
+	if _open_option < n.options.size() and OptionTable.is_mine(n.options[_open_option]):
 		return not n.taken.has(MapGen.OPTION_SITE + _open_option)
 	return await Run.take_option(n, MapGen.OPTION_SITE + _open_option)
 

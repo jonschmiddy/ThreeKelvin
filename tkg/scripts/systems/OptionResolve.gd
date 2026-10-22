@@ -101,8 +101,9 @@ static func take(n: MapGen.MapNode, i: int, j: int) -> Dictionary:
 	# A SIGNED JOB'S EVENT IS NOT RACED FOR: it is on this ship's map for this
 	# ship's contract and nobody else's (`Contracts.post_goal`), so it is not
 	# put to the party -- a claim on its slot would land on whatever a
-	# partner's map holds at that index.
-	if not out.stay and not OptionTable.is_job(n.options[i]):
+	# partner's map holds at that index. AN EVENT QUEST IS THE SAME
+	# (`OptionTable.is_mine`): on this ship's map for what this ship did.
+	if not out.stay and not OptionTable.is_mine(n.options[i]):
 		var won_it: bool = await Run.take_option(n, MapGen.OPTION_SITE + i)
 		if not won_it:
 			return {"ok": false, "why": "too_late", "who": Net.taker_name(n.index, MapGen.OPTION_SITE + i)}
@@ -134,10 +135,14 @@ static func take(n: MapGen.MapNode, i: int, j: int) -> Dictionary:
 	# AND AFTER `pay`, WHICH CAN STILL MOVE THE LEDGER. It is the one call that
 	# turns a payload into what the payload promised, so the books close on the
 	# far side of it or they close early.
-	var paid := OptionTable.pay(res, n)
+	var paid := OptionTable.pay(res, n, n.options[i])
 	out.bill = EncounterDrawer.bill_rows(was, Run.ledger())
 	out.got = _things_after(n, things, paid)
 	out.loot = pile_gained(n, things.pile)
+	# AN EVENT QUEST TAKEN: what it paid goes on its record, for the QUESTS
+	# table's COMPLETED rows (`Run.finish_event_quest` asks whether it is one)
+	if not out.stay:
+		Run.finish_event_quest(n, i, int(Run.credits) - int(was.credits), gained_names(out.got))
 	# SPENT NOW, NOT ON CONTINUE. The result is already applied -- credits moved,
 	# hull taken, a module in the hold -- so a player who closed the game on the
 	# result screen must not come back to an option they have already been paid
@@ -200,6 +205,18 @@ static func _things_after(n: MapGen.MapNode, was: Dictionary, paid: String) -> A
 		if not Run.cargo.has(it):
 			got.append(_thing(it, false))
 	return got
+
+
+## The names of the things a choice handed over (`_things_after`'s gains: a
+## part, a material, a frame), as the result showed them. Not a place marked:
+## that is a quest, not a payment.
+static func gained_names(got: Array) -> Array:
+	var out: Array = []
+	for raw in got:
+		var g: Dictionary = raw
+		if bool(g.get("gain", false)) and StringName(g.get("kind", &"")) != &"place":
+			out.append(String(g.get("name", "")))
+	return out
 
 
 static func _thing(it: Variant, gain: bool) -> Dictionary:

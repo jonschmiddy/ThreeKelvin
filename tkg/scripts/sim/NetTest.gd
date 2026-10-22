@@ -74,6 +74,7 @@ func run(tree: SceneTree) -> void:
 	await _build_test()
 	print("\n=== one map, not four ===")
 	_consume_tests()
+	_per_ship_claim_tests()
 	await _solo_take_test()
 	await _map_test()
 	print("\n=== one enemy, several ships ===")
@@ -527,6 +528,54 @@ func _consume_tests() -> void:
 	# shared seed. They are checked because the alternative is an index error
 	# taking the chart down on whoever receives it.
 	ok("an index off the end of the map is ignored, not fatal", true)
+	Net.claims = {}
+
+
+## A PARTNER'S CLAIM NEVER CLOSES THIS SHIP'S OWN OPTIONS (Oct 22). A placed
+## event quest and a contract pickup are each one ship's (`OptionTable.is_mine`):
+## taking one asks nobody, and a claim on the same system and slot index, which
+## on the partner's map is their own quest or pickup, leaves mine open. Before
+## my list is rolled the claim is kept, and the roll drops it if it lands past
+## the rolled list, so what I append there next is not born taken.
+func _per_ship_claim_tests() -> void:
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	ok("an event quest and a contract pickup are per ship, a rolled event is not",
+		OptionTable.is_mine(&"paid_in_full") and OptionTable.is_mine(&"job_pickup")
+		and OptionTable.is_mine(&"job_target") and not OptionTable.is_mine(&"the_runner"))
+	# two unvisited systems: one rolled before the claims, one after
+	var picks: Array[MapGen.MapNode] = []
+	for raw in Run.map:
+		var c: MapGen.MapNode = raw
+		if c.type == MapGen.NodeType.SYSTEM and not c.visited and c.layer >= 4 and c.options.is_empty():
+			picks.append(c)
+		if picks.size() == 2:
+			break
+	if picks.size() < 2:
+		ok("two unrolled systems to test on", false)
+		return
+	var n := picks[0]
+	OptionTable.ensure(n)
+	var rolled := n.options.size()
+	n.options.append(&"paid_in_full")
+	n.options.append(&"job_pickup")
+	var q := MapGen.OPTION_SITE + rolled
+	var p := MapGen.OPTION_SITE + rolled + 1
+	Net.claims = {n.index: {q: 2, p: 2, MapGen.OPTION_SITE: 2}}
+	Run.adopt_party_claims()
+	ok("a partner's claim at the same system and slot leaves my placed quest open",
+		not n.taken.has(q) and OptionTable.holds_quest(n))
+	ok("and my contract pickup open", not n.taken.has(p))
+	ok("while their claim on a rolled option still closes it here", n.taken.has(MapGen.OPTION_SITE))
+	# a claim past the list on a system not rolled yet
+	var m := picks[1]
+	var past := MapGen.OPTION_SITE + OptionTable.roll_for(m).size()
+	Net.claims = {m.index: {past: 2}}
+	Run.adopt_party_claims()
+	OptionTable.ensure(m)
+	m.options.append(&"paid_in_full")
+	Run.adopt_party_claims()
+	ok("a claim past an unrolled list does not close what I place there after",
+		not m.taken.has(past) and OptionTable.holds_quest(m))
 	Net.claims = {}
 
 
