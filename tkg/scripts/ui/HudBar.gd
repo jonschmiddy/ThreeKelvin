@@ -56,6 +56,10 @@ var _tab_parts: Button
 ## state to keep in step, and rebuilding the bar when somebody joins is a whole
 ## screen redrawn for one tab.
 var _tab_party: Button
+## QUESTS (Jon, Oct 22, design A): the quests you hold, as a table over the
+## screen (`QuestPanel`). After STARCHART, and no count on it ever, so it never
+## changes size; lit while the table is open.
+var _tab_quests: Button
 
 var _hull_label: Label
 var _hull: BoxGauge
@@ -201,6 +205,8 @@ func _build() -> void:
 	_row.add_child(_tab_system)
 	_tab_chart = _tab("STARCHART", func() -> void: Router.show_starchart())
 	_row.add_child(_tab_chart)
+	_tab_quests = _tab("QUESTS", func() -> void: QuestPanel.toggle())
+	_row.add_child(_tab_quests)
 	# Hidden entirely when there is no party — a tab that is permanently greyed
 	# out in the solo game is a tab that teaches the player to ignore it. Built
 	# unconditionally, because a party can form before the HUD exists and can
@@ -422,6 +428,10 @@ func refresh() -> void:
 	_state(_tab_system, lit == ZoomLadder.MAP, lock,
 		"This system's star, what orbits it, and any threats nearby.")
 	_state(_tab_chart, lit == ZoomLadder.CHART, lock, "Where to go next.")
+	# (open mid-fight: reading changes nothing out there; its SHOW ON STARCHART
+	# waits for the fight to end)
+	_state_toggle(_tab_quests, QuestPanel.is_open(), choose_lock,
+		"The quests you have signed, where they are and what they pay.")
 	_state(_tab_parts, Router.current is ModuleGalleryScreen, choose_lock,
 		"Every part in the game. Dev only.")
 	_state(_tab_cards, Router.current is CardGalleryScreen, choose_lock,
@@ -634,6 +644,24 @@ func _merged(cs: Array) -> Rect2:
 			var g := (c as Control).get_global_rect()
 			r = g if r.size == Vector2.ZERO else r.merge(g)
 	return r
+
+
+## `_state` for a tab that opens and shuts something over the screen: lit
+## while it is open, and still pressable then, to shut it.
+func _state_toggle(b: Button, active: bool, lock: String, hint: String) -> void:
+	_state(b, active, lock, hint)
+	if active and lock == "":
+		b.disabled = false
+		b.add_theme_color_override("font_color", UITheme.HOT)
+		b.add_theme_stylebox_override("hover", UITheme.bevel(Color("#5a3410"), 3, 5))
+	else:
+		b.remove_theme_color_override("font_color")
+		b.remove_theme_stylebox_override("hover")
+
+
+## Where the QUESTS tab is, global (for the tests and the table).
+func quests_tab_rect() -> Rect2:
+	return _merged([_tab_quests])
 
 
 func _tab(label: String, action: Callable) -> Button:

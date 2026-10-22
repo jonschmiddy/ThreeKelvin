@@ -632,6 +632,26 @@ else
 fi
 }
 
+unit_questlogtest() {
+step "The QUESTS tab: its table, SHOW ON STARCHART, PLOT ROUTE, nothing covered"
+# Jon's design A (Oct 22): a QUESTS tab after STARCHART opens a table of the
+# quests you hold; a row's SHOW ON STARCHART and PLOT ROUTE open the chart on
+# its place, tagged, with its route. Three galaxies, the real screens: the tab's
+# rect the same with 0, 1 and 5 held, the HUD row fitting with and without
+# ARCHIVE, a row per quest with its fields, the chart's destination, tag and
+# legal route, and the table and the tag box-tested.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot questlogtest 180 --headless --path "$PROJECT" -- sheet=QuestLogTest; then
+	if grep -qE '^questlogtest: PASS' "$LOG_DIR/questlogtest.log"; then
+		ok "the quests table: every quest, shown and routed on the chart, nothing covered"
+	else
+		bad "the quests table or its chart tag is wrong or covers something"
+		grep -E 'FAIL|^questlogtest|^    ' "$LOG_DIR/questlogtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "questlogtest did not finish"
+fi
+}
+
 unit_fueltest() {
 # The 45 tank (Jon, Oct 17: "fuel:A warn:A events:A"): the cap on every write
 # and a refuel's top-up, the event floor and the 45-scale events, the fuel hint

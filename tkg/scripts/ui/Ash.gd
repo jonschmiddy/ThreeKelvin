@@ -1202,11 +1202,16 @@ static func _cutaway_rects(cut: CutawayView, out: Array) -> void:
 
 ## The chart's own: its corner toggles and labels (children of the picture),
 ## YOU and the selected star's name, the Hellbender's, the scale in its corner.
-static func _chart_rects(ch: StarchartScreen, out: Array) -> void:
+static func _chart_rects(ch: StarchartScreen, out: Array, quests: bool = true) -> void:
 	var mc := ch._chart
 	if mc == null or not is_instance_valid(mc) or not mc.is_visible_in_tree():
 		return
 	var g := mc.get_global_transform()
+	# the quests' tags (`MapChart.place_quest_tags`), which keep off her in turn
+	if quests:
+		for r in mc.quest_rects:
+			if (r as Rect2).size != Vector2.ZERO:
+				out.append(g * (r as Rect2))
 	for c in mc.find_children("*", "Control", true, false):
 		var k := c as Control
 		if k != null and k.is_visible_in_tree() and k.size.x > 0.0 and (k is BaseButton or k is Label):

@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Added** — a QUESTS tab on the bar at the top, after STARCHART. It opens a table of every
+  quest you have signed, over LOCAL, the sector map, the chart or a station: what to do, its
+  state (SIGNED, READY, or how much of its heat you carry), where it is (the system and its
+  layer, or any yard of the one who posted it and the nearest), how many jumps away, the pay,
+  and who posted it. Click a row to read the note and use SHOW ON STARCHART, which opens the
+  chart on that place with the quest's tag, or PLOT ROUTE, which also draws the route there
+  from YOU. With none signed, the table says where to get one.
+
 ### Fixed
 
 - **Fixed** — engaging the Custodian from the system map no longer leaves your ship sitting low in
