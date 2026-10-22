@@ -18,6 +18,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Fixed** — an event that gives you something to take now always shows REWARD on its result.
+  Before, only an event that gave a part did. One that gave only materials showed CONTINUE,
+  the drawer dropped, and the materials sat under SECTOR LOOT with nothing to say they were
+  there. This hit 82 events, 24 of them job events such as the dropped load, the long claim
+  and the auction. CONTINUE still leaves anything you did not take under SECTOR LOOT. Credits
+  are still paid straight to you and shown in the result's table.
 - **Fixed** — arriving on LOCAL no longer shows the thin bar at the bottom while your ship flies
   in. Before, the bar was already up as you arrived, and then the event's text and choices rose
   out of it. Now the bottom of the screen stays empty until your ship settles. Then the event
