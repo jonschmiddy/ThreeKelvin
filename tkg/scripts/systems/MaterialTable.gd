@@ -34,11 +34,11 @@ class_name MaterialTable
 ##
 ## WHAT LEAVING COSTS THE TABLES, because it is a real thinning at the top and
 ## not only tidiness: `event` loses its only ARTIFACT and `wreck` both of its
-## EXOTICS. Nothing can roll empty -- every table keeps ungated commons and
-## rares, and `admits` is a floor rather than a band -- but a deep-galaxy event
-## can no longer pay out a hundred and ninety credits in one row. If it should,
-## the answer is a generic artifact authored for the table, not a story item
-## borrowed back into it.
+## EXOTICS. Nothing can roll empty -- every table keeps a grade open at every
+## depth, and its commons stand in when nothing else is (see `roll`) -- but a
+## deep-galaxy event can no longer pay out a hundred and ninety credits in one
+## row. If it should, the answer is a generic artifact authored for the table,
+## not a story item borrowed back into it.
 ##
 ## MINING IS THE THIN TABLE and is known to be -- the mining-flavoured options
 ## are where its rolls come from, and the next materials batch should feed it.
@@ -55,36 +55,66 @@ class_name MaterialTable
 ## written to be reached.
 const NAMED := &"named"
 
-## Which tiers a system of this danger may roll.
+## The lowest TIER (`MapGen.tier`, 1-5) each grade may roll at.
 ##
-## THE SAME SHAPE `LootGen` USES FOR MODULES, deliberately: rarity is a property
-## of where you are standing, so a rim system cannot hand out the good stuff and
-## the deep galaxy is worth the trip.
+## THE SAME GATES `LootGen` USES FOR MODULES, deliberately and by reference:
+## rarity is a property of where you are standing, so a rim system cannot hand
+## out the good stuff and the deep galaxy is worth the trip. Artifact opens with
+## Legendary, the top of the manufactured ladder.
+##
+## THEY WERE DANGER, AND THAT WAS THE BUG. Authored as 3 / 4 / 4 against RAW
+## danger (742bb953, Aug 27), nine days after danger widened to 1-10 and
+## `roll_module` began reading it through `tier()` (6226d1d0, Aug 18). Same
+## numbers, different scale: Epic materials opened at danger 3 and Legendary
+## and Artifact at 4, against Epic and Legendary modules at 5 and 7.
 ##
 ## Two exceptions, both from `MATERIALS_NOTE`. CONTRABAND is ungated because its
 ## gate IS the risk -- security scans care what you are carrying, so a rim run
 ## with contraband aboard is already paying for it. EXOTIC is ungated because it
 ## is live today and gating it would be a migration.
-const TIER_MIN_DANGER: Dictionary = {
-	&"epic": 3,
-	&"legendary": 4,
-	&"artifact": 4,
+const TIER_MIN: Dictionary = {
+	&"epic": LootGen.EPIC_TIER,
+	&"legendary": LootGen.LEGENDARY_TIER,
+	&"artifact": LootGen.LEGENDARY_TIER,
 }
 
+## Whether a system of this danger rolls this grade: its gate is open, and it is
+## not a common from halfway in (`LootGen.NO_COMMON_TIER`, the module rule).
 static func admits(tier: StringName, danger: int) -> bool:
-	return danger >= int(TIER_MIN_DANGER.get(tier, 1))
+	# Every threshold here is a tier, as in LootGen. Read the wider scale
+	# through tier() rather than restating them in danger.
+	var t := MapGen.tier(danger)
+	if tier == &"common" and t >= LootGen.NO_COMMON_TIER:
+		return false
+	return _opens(tier, t)
+
+
+static func _opens(tier: StringName, t: int) -> bool:
+	return t >= int(TIER_MIN.get(tier, 1))
 
 
 ## One row from `table`, respecting `danger`. Empty if the table has nothing legal.
+##
+## A table with nothing but commons open this deep pays one of its commons
+## rather than nothing, as `LootGen.roll_module` does: the no-common rule thins a
+## pool, it never empties one.
 static func roll(table: StringName, danger: int,
 		r: RandomNumberGenerator) -> Dictionary:
+	var t := MapGen.tier(danger)
 	var pool: Array[Dictionary] = []
+	var commons: Array[Dictionary] = []
 	for row in all():
 		if StringName(row.drops) != table:
 			continue
-		if not admits(StringName(row.tier), danger):
+		var tier := StringName(row.tier)
+		if not _opens(tier, t):
 			continue
-		pool.append(row)
+		if admits(tier, danger):
+			pool.append(row)
+		else:
+			commons.append(row)
+	if pool.is_empty():
+		pool = commons
 	if pool.is_empty():
 		return {}
 	return pool[r.randi() % pool.size()]

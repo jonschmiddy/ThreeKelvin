@@ -1025,6 +1025,26 @@ else
 fi
 }
 
+unit_deeploottest() {
+step "Going deep pays: material gates are module gates, no commons past halfway"
+# Jon, Oct 22: a hard game where going deep is worth it. Materials read danger
+# through MapGen.tier with LootGen's own gates (they compared tier numbers to
+# raw danger and opened Epic, Legendary and Artifact twice as shallow), and from
+# tier 3 no source rolls a COMMON module or material -- wrecks, bags, derelicts,
+# event parts, relic analysis, shelves, the custodian, every material table --
+# while a pool the rule would empty falls back to its own commons.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot deeploottest 240 --headless --path "$PROJECT" -- sheet=DeepLootTest; then
+	if grep -qE '^deeploottest: PASS' "$LOG_DIR/deeploottest.log"; then
+		ok "materials gate like modules, and nothing common rolls deep"
+	else
+		bad "a material opens shallower than its module, or a common rolled deep"
+		grep -E 'FAIL|^deeploottest' "$LOG_DIR/deeploottest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "deeploottest did not finish"
+fi
+}
+
 unit_wrecksitetest() {
 step "Each place in a system keeps its own wrecks"
 # Jon, Oct 14: "each planet or POI you can visit should contain its own

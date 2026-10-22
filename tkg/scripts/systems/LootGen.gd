@@ -5,6 +5,12 @@ extends RefCounted
 ## Exotic is grown/harvested, Artifact is precursor. Region biasing is what
 ## makes set bonuses reachable by route choice rather than luck.
 
+## THE RARITY GATES, IN TIERS (`MapGen.tier`, 1-5), not in danger. Materials read
+## the same numbers (`MaterialTable.TIER_MIN`), so the two ladders cannot drift.
+const EPIC_TIER := 3
+const LEGENDARY_TIER := 4
+const NO_COMMON_TIER := 3
+
 static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
 		allow_unbranded: bool = false,
 		r: RandomNumberGenerator = Rng.loot) -> ModuleData:
@@ -35,11 +41,25 @@ static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
 		if force_manufacturer != &"" and m.manufacturer != force_manufacturer:
 			continue
 		# Deep loot appears deeper.
-		if m.rarity == ModuleData.Rarity.EPIC and danger < 3:
+		if m.rarity == ModuleData.Rarity.EPIC and danger < EPIC_TIER:
 			continue
-		if m.rarity == ModuleData.Rarity.LEGENDARY and danger < 4:
+		if m.rarity == ModuleData.Rarity.LEGENDARY and danger < LEGENDARY_TIER:
 			continue
 		pool.append(id)
+	# AND SHALLOW LOOT STAYS SHALLOW (Jon, Oct 22: a hard game, where going deep
+	# is worth it). From halfway in -- tier 3, danger 5 -- no COMMON is rolled,
+	# by any source: wreck, bag, derelict, event, relic analysis, shelf, the
+	# custodian. Taken out of the pool built above rather than skipped inside
+	# the loop, so a pool this would empty (a Territory forcing a manufacturer
+	# with nothing above Common here) keeps its commons instead of collapsing to
+	# the one hard-coded part below.
+	if danger >= NO_COMMON_TIER:
+		var deep: Array[StringName] = []
+		for id in pool:
+			if (DB.modules[id] as ModuleData).rarity != ModuleData.Rarity.COMMON:
+				deep.append(id)
+		if not deep.is_empty():
+			pool = deep
 	if pool.is_empty():
 		pool = [&"kh20"]
 

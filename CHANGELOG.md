@@ -18,6 +18,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Fixed** — epic, legendary and artifact materials now turn up at the same depth as epic and
+  legendary parts: epic from danger 5, legendary and artifact from danger 7. Before, they turned
+  up from danger 3 and 4, so the best materials were found about twice as close to the rim as
+  the parts of the same grade.
 - **Fixed** — arriving on LOCAL no longer shows the thin bar at the bottom while your ship flies
   in. Before, the bar was already up as you arrived, and then the event's text and choices rose
   out of it. Now the bottom of the screen stays empty until your ship settles. Then the event
@@ -46,6 +50,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **Changed** — from danger 5 in, there are no common parts or materials. Wrecks, kill bags,
+  derelicts, event finds, relic analysis and station shelves no longer offer COMMON parts there,
+  and wrecks, events and mining no longer give common materials. The grades above take their
+  place, so a deep wreck is worth more than a rim one. Nearer the rim, commons drop as before.
 - **Changed** — A.S.H. can no longer be clicked away. A tutorial line stays until you do what it
   teaches: pick a star on the chart, open an event, play a card, press END TURN, move a module, use a
   deck. Lines that only tell you something (enemy intent, brace, heat, low fuel) stay for their

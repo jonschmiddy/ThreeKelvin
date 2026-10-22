@@ -144,6 +144,25 @@ var fight_modules := 0
 var credits_taken := 0
 var modules_taken := 0
 
+## WHAT GOING DEEP PAYS (Jon, Oct 22: a hard game where going deep is worth it).
+## `loot_mix` is every part and material lying in the run's systems when it
+## ends -- wrecks, floor piles, bags, taken or not -- by the tier of the system
+## it lay in (`MapGen.tier`), so the rarity ladder can be read against depth.
+## The core is left out: the custodian's body is authored, not rolled by tier.
+## `looted_scrap` is what the parts the pilot took would melt for and
+## `looted_mat_value` what its materials list at; `credits_in` is every credit
+## the run gained, from any source, read off `Sig.resources_changed` (every
+## change to `Run.credits` goes through `add_credits`, which emits it).
+## `core_fights` / `core_wins`: the ship the run built, against the custodian.
+## Read-only, like `_tally`: nothing here draws from any stream.
+var loot_mix: Dictionary = {}
+var looted_scrap := 0
+var looted_mat_value := 0
+var credits_in := 0
+var _credits_seen := 0
+var core_fights := 0
+var core_wins := 0
+
 ## Per galaxy kind: name -> {runs, wins, jumps, kills, systems}.
 ##
 ## NOT cleared by `_reset()`. That is called once per batch in the by-chassis
@@ -240,6 +259,11 @@ func run_sim() -> void:
 	Sig.log_line.connect(func(text: String, _kind: StringName) -> void:
 		if text.begins_with("  flashpoint +"):
 			flash_fired += 1)
+	Sig.resources_changed.connect(func() -> void:
+		var d := Run.credits - _credits_seen
+		if d > 0:
+			credits_in += d
+		_credits_seen = Run.credits)
 	hot = "hot" in OS.get_cmdline_user_args()
 	# The control cell. Comparing `nohellbender` against the default on one build
 	# is what says what the roamer costs, without keeping a second checkout.
@@ -351,6 +375,12 @@ func _reset() -> void:
 	fight_modules = 0
 	credits_taken = 0
 	modules_taken = 0
+	loot_mix = {}
+	looted_scrap = 0
+	looted_mat_value = 0
+	credits_in = 0
+	core_fights = 0
+	core_wins = 0
 
 ## `index` exists so that `-- sim seed=N` gives every run its own reproducible
 ## seed rather than playing one run a thousand times. A sim that reports "40% of
@@ -363,6 +393,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 	# and no shelf, wreck or derelict is filled until it is reached.
 	if not pin_unlocked.is_empty():
 		Run.unlocked_manufacturers = pin_unlocked.duplicate()
+	_credits_seen = Run.credits
 	var started_as := Run.hull.manufacturer
 	# The simulated pilot's own generator: one per run, seeded from the run's
 	# master seed. The model is a player, not a place — so its choices replay
@@ -450,7 +481,10 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		if blockaded:
 			pass
 		elif node.type == MapGen.NodeType.CORE:
+			core_fights += 1
 			_fight(DB.enemies[&"custodian"])
+			if Run.won:
+				core_wins += 1
 			break
 		elif node.type == MapGen.NodeType.STATION:
 			stations_visited += 1
@@ -551,6 +585,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 
 	if jumped_hot:
 		runs_ambushed += 1
+	_mix_run()
 	for n in Run.map:
 		var mn := n as MapGen.MapNode
 		if mn.eaten:
@@ -712,11 +747,51 @@ func _play_out(cb: Combat) -> int:
 
 ## The pilot reaches into the system's containers, and what it took is counted.
 func _loot() -> void:
-	var mods0 := _modules_left(Run.node_at())
+	var n: MapGen.MapNode = Run.node_at()
+	var mods0 := _modules_left(n)
 	var cr1 := Run.credits
-	looted += Policy.loot(Run.node_at())
-	modules_taken += mods0 - _modules_left(Run.node_at())
+	# What was on offer, by option key, so what the pilot took can be priced.
+	var offered: Dictionary = {}
+	if n != null:
+		for raw in n.jetsam:
+			var h: MapGen.Jetsam = raw
+			for i in h.items.size():
+				if not n.taken.has(h.option(i)):
+					offered[h.option(i)] = h.items[i]
+	looted += Policy.loot(n)
+	modules_taken += mods0 - _modules_left(n)
 	credits_taken += Run.credits - cr1
+	for key in offered:
+		if not n.taken.has(key):
+			continue
+		var it: HoldItem = offered[key]
+		if it is ModuleData:
+			looted_scrap += Run.scrap_value_of(it as ModuleData)
+		elif it is MaterialData:
+			looted_mat_value += (it as MaterialData).value
+
+
+## Every part and material lying in this run's systems, by the system's tier.
+func _mix_run() -> void:
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		if n.type == MapGen.NodeType.CORE:
+			continue
+		var t := MapGen.tier(n.danger)
+		var items: Array = n.bag.duplicate()
+		for jraw in n.jetsam:
+			items.append_array((jraw as MapGen.Jetsam).items)
+		for it in items:
+			var key := ""
+			if it is ModuleData:
+				key = ModuleData.rarity_name((it as ModuleData).rarity)
+			elif it is MaterialData:
+				key = "mat " + String((it as MaterialData).tier)
+			else:
+				continue
+			if not loot_mix.has(t):
+				loot_mix[t] = {}
+			loot_mix[t][key] = int(loot_mix[t].get(key, 0)) + 1
 
 
 ## How many wrecks a system holds, so a fight's own can be told from older ones.
@@ -877,6 +952,7 @@ func _report() -> void:
 		option_fights, float(option_fights) / maxi(1, runs), creatures,
 		100.0 * creatures / maxi(1, option_fights), str(option_creatures)])
 	_report_economy()
+	_report_deep()
 	_report_kinds()
 	_report_manufacturers()
 	print("---")
@@ -986,6 +1062,39 @@ func _report_economy() -> void:
 		var w := float(maxi(1, int(won_by_pack[k])))
 		print("  won %d-ship fights: %d · %.1f credits a fight · %.2f modules a fight"
 			% [k, int(won_by_pack[k]), float(credits_by_pack[k]) / w, float(modules_by_pack[k]) / w])
+
+
+## The rarity ladder against depth, what the pilot's haul was worth, and the
+## custodian fight. See `loot_mix`.
+func _report_deep() -> void:
+	var r := float(maxi(1, runs))
+	print("---")
+	print("deep loot per run: %.0f credits gained (all sources) · looted parts melt for %.0f · looted materials list at %.0f"
+		% [float(credits_in) / r, float(looted_scrap) / r, float(looted_mat_value) / r])
+	print("  custodian: reached %d · beaten %d (%.0f%% of those reached)"
+		% [core_fights, core_wins, 100.0 * core_wins / maxi(1, core_fights)])
+	var mods := ["Common", "Uncommon", "Rare", "Epic", "Legendary", "Exotic", "Artifact", "Contraband"]
+	var mats := ["mat common", "mat rare", "mat epic", "mat legendary", "mat exotic", "mat artifact", "mat contraband"]
+	print("  parts lying in the run's systems at its end, by tier (%):")
+	_mix_table(mods, 0)
+	print("  materials lying there, by tier (%):")
+	_mix_table(mats, 4)
+
+
+func _mix_table(keys: Array, cut: int) -> void:
+	var head := "    tier %6s" % "n"
+	for k in keys:
+		head += "  %5s" % String(k).substr(cut, 5)
+	print(head)
+	for t in [1, 2, 3, 4, 5]:
+		var row: Dictionary = loot_mix.get(t, {})
+		var total := 0
+		for k in keys:
+			total += int(row.get(k, 0))
+		var line := "    %4d %6d" % [t, total]
+		for k in keys:
+			line += "  %5.1f" % (100.0 * int(row.get(k, 0)) / maxi(1, total))
+		print(line)
 
 
 ## Before every jump: did fuel narrow the choice, and would the fuel hint be up?

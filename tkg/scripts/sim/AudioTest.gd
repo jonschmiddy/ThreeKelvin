@@ -214,7 +214,8 @@ func run(tree: SceneTree) -> void:
 	var wreck := Run.new_wreck(node, DB.enemies[&"cutter"])
 	for want in [ModuleData.Rarity.COMMON, ModuleData.Rarity.LEGENDARY]:
 		for _i in 400:
-			var m := LootGen.roll_module(5)
+			# Commons drop shallower than tier 3 only (`LootGen.NO_COMMON_TIER`).
+			var m := LootGen.roll_module(1 if want == ModuleData.Rarity.COMMON else 5)
 			if m != null and m.rarity == want:
 				wreck.items.append(m)
 				break
