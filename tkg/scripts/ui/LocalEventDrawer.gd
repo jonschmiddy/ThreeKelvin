@@ -161,14 +161,31 @@ static func can_reopen(n: MapGen.MapNode) -> bool:
 
 ## Put a drawer on LOCAL's screen, and open the event the map asked for. Not
 ## during a fight (the hand has the band), and not for another system.
-static func attach(on: Control, fighting: bool) -> LocalEventDrawer:
+##
+## LOCAL IS GO (Jon, Oct 21: "I want to see the actual event of that
+## planet/POI... Clicking GO or clicking LOCAL should have the same result"):
+## with nothing asked for, `auto` (LOCAL's own doors: the HUD's tab, Tab, the
+## fly-in's landing) opens the event at the place the ship is as GO would
+## (`auto_open`). `held`: LOCAL's own arrival is under way, and the band waits
+## for it to settle (`open_held`), as GO's waits for the move down to land.
+static func attach(on: Control, fighting: bool, auto: bool = false, held: bool = false) -> LocalEventDrawer:
 	var d := LocalEventDrawer.new()
 	d.screen = on
 	d.node = Run.node_at()
 	on.add_child(d)
+	var want: Array = []
 	if not pending.is_empty():
-		var want: Array = pending
+		want = pending
 		pending = []
+		# (GO, pressed: this visit's event opened, so LOCAL again after NOT NOW
+		# leaves it closed, `auto_open`)
+		if not fighting and d.node != null and int(want[0]) == d.node.index:
+			_auto[d.node.index] = visit_key(d.node)
+	elif auto and not fighting and d.node != null:
+		var i := auto_open(d.node)
+		if i >= 0:
+			want = [d.node.index, i]
+	if not want.is_empty():
 		if not fighting and d.node != null and int(want[0]) == d.node.index:
 			# ON THE ONE CAMERA THE BAND IS UI: it lifts once the move down to
 			# LOCAL has landed, never while the camera is still moving (and with
@@ -177,6 +194,8 @@ static func attach(on: Control, fighting: bool) -> LocalEventDrawer:
 			# (what LOCAL composes its scene for -- the event's subject, its sky -- is
 			# this event from the first frame, as it was when the band opened at once)
 			last = [d.node.index, int(want[1])]
+			if held:
+				return d
 			var go := func() -> void:
 				if is_instance_valid(d) and d.is_inside_tree() and not d.deferred.is_empty():
 					d.deferred = []
@@ -186,6 +205,60 @@ static func attach(on: Control, fighting: bool) -> LocalEventDrawer:
 				d._fade_in()
 				d.open(int(want[1]))
 	return d
+
+
+## The event held for LOCAL's own arrival, opened now it has settled (or been
+## pressed through).
+func open_held() -> void:
+	if deferred.size() < 2 or not is_inside_tree():
+		return
+	var i := int(deferred[1])
+	deferred = []
+	_fade_in()
+	open(i)
+
+
+## Which visit's event LOCAL has opened, by system: `visit_key` (GO's press or
+## LOCAL's own door).
+static var _auto := {}
+
+
+## The place the ship is and the visit it is on (`SectorScreen._visit`).
+static func visit_key(n: MapGen.MapNode) -> String:
+	return "%d:%d" % [Run.site_here(n), SectorScreen._visit(n)]
+
+
+## THE EVENT AT THE PLACE THE SHIP IS, as GO would open it: the first still open
+## (never taken, or walked away from) in the map's list order there
+## (`SystemLayout.beacons_at`, `SystemPanel._events`), once a visit -- NOT NOW
+## leaves it closed until the ship flies away and back (or a jump, a run). An
+## event over, or none here: nothing. Opening it is GO's own door, `attach`.
+static func auto_open(n: MapGen.MapNode) -> int:
+	if n == null:
+		return -1
+	var site := Run.site_here(n)
+	if site < -1:
+		return -1
+	var key := visit_key(n)
+	if str(_auto.get(n.index, "")) == key:
+		return -1
+	for bc in SystemLayout.of(n).beacons_at(site):
+		var i := int(bc.opt)
+		if i < 0 or i >= n.options.size() or OptionTable.by_id(n.options[i]).is_empty():
+			continue
+		var k: StringName = EncounterDrawer.option_state(n, i).kind
+		if k == &"open" or k == &"left":
+			_auto[n.index] = key
+			return i
+	return -1
+
+
+## Forget which visits' events were opened: one system (a jump in) or all.
+static func forget_auto(index: int = -1) -> void:
+	if index < 0:
+		_auto.clear()
+	else:
+		_auto.erase(index)
 
 
 ## An event asked for here, waiting for the move to land (`attach`): handed

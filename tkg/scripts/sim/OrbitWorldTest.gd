@@ -257,10 +257,16 @@ func _scene_check(what: String, sc: SectorScreen) -> void:
 		if L.place_of(i) == site and site >= -1:
 			here.append(i)
 	var pic: StringName = sc._view._area._place_name()
+	# NO STAND-IN ON LOCAL (Jon, Oct 21: "I don't want the beacon to show up at
+	# all"): no beacon, derelict or battlefield picked from tags, anywhere
 	if n.type == MapGen.NodeType.SYSTEM:
-		_ok("%s: the place picture is this place's (%s; %d event%s here at %d)" % [what, pic if pic != &"" else "none",
-			here.size(), "" if here.size() == 1 else "s", site], (pic != &"") != here.is_empty())
+		_ok("%s: no stand-in place picture (%s; %d event%s here at %d)" % [what, pic if pic != &"" else "none",
+			here.size(), "" if here.size() == 1 else "s", site], pic == &"")
 	var sub := LocalSubject.of(sc._view)
+	# (a place with no event shows none)
+	if here.is_empty():
+		_ok("%s: no event here, no subject and no event open (%s, %s)" % [what, sub.oid if sub != null else &"none", sc._events.page],
+			sub == null and sc._events.page == &"")
 	if sub != null:
 		var oi := n.options.find(sub.oid)
 		_ok("%s: the subject %s is this place's own event's (it stands at %d, the ship at %d)" % [what, sub.oid,
@@ -366,6 +372,8 @@ func _bar_here(sd: int, label: String) -> void:
 	var last := LocalEventDrawer.last
 	LocalEventDrawer.last = []
 	SystemMapScreen._parked[n.index] = {"at": at, "mode": &"rail"}
+	# (its event already opened this visit, as after NOT NOW: the bar, not the band)
+	LocalEventDrawer._auto[n.index] = LocalEventDrawer.visit_key(n)
 	Router.show_local()
 	await _idle()
 	await _frames(4)
@@ -384,6 +392,127 @@ func _bar_here(sd: int, label: String) -> void:
 		SystemMapScreen._parked[n.index] = kept
 	Router.show_local()
 	await _idle()
+
+
+## LOCAL until its own arrival is over and any event it opens is up.
+func _settled() -> SectorScreen:
+	var sc: SectorScreen = null
+	# (GO flies the map's ship there first: a flight across the system, then the
+	# move down and LOCAL's own arrival)
+	for i in 3600:
+		await _tree.process_frame
+		sc = Router.current as SectorScreen
+		if sc == null or ZoomLadder.busy():
+			continue
+		if not sc._flyin and not sc._flyin_wait and sc._phase == SectorScreen.Phase.NONE and sc._events.deferred.is_empty():
+			break
+	await _frames(20)
+	return Router.current as SectorScreen
+
+
+## What LOCAL shows of the event here: the band's page and event, the subject.
+func _ev_state(sc: SectorScreen) -> Dictionary:
+	if sc == null:
+		return {}
+	var sub := LocalSubject.of(sc._view)
+	return {"page": sc._events.page, "opt": sc._events.opt if sc._events.page != &"" else -1,
+		"subject": sub.oid if sub != null else &""}
+
+
+## LOCAL IS GO (Jon, Oct 21: "I want to see the actual event of that
+## planet/POI... Clicking GO or clicking LOCAL should have the same result"): at
+## a world with an open event (the first open there in the map's list order),
+## GO from another world, then FLY HERE and the HUD's LOCAL, then FLY HERE and
+## Tab round the chart -- each with LOCAL's own arrival -- all end the same: that
+## event's band up on it, its subject drawn. NOT NOW, and LOCAL again with no
+## flight between leaves it closed (its subject still there); GO, pressed,
+## opens it again (GO's own rule: a press is a press).
+func _local_is_go(sd: int, label: String) -> void:
+	var n := Run.node_at()
+	var L := SystemLayout.of(n)
+	var b := -9
+	var ev := -1
+	for w: int in _worlds(n):
+		for bc in L.beacons_at(w):
+			var i := int(bc.opt)
+			if i < 0 or OptionTable.by_id(n.options[i]).is_empty():
+				continue
+			var k: StringName = EncounterDrawer.option_state(n, i).kind
+			if k == &"open" or k == &"left":
+				ev = i
+				break
+		if ev >= 0:
+			b = w
+			break
+	var w2 := -9
+	for w: int in _worlds(n):
+		if w != b:
+			w2 = w
+	if ev < 0 or w2 < 0:
+		print("  (%s: no world with an open event and another to fly from)" % label)
+		return
+	LocalEventDrawer.quiet = true
+	var what := "seed %d %s: %s at body %d" % [sd, label, n.options[ev], b]
+	# GO, from another world
+	var m := await _map_now()
+	if not _ok("%s: GO from body %d" % [what, w2], m != null and await _fly(w2)):
+		LocalEventDrawer.quiet = false
+		return
+	m = Router.current as SystemMapScreen
+	for i in 600:
+		if m.flight.can_fly():
+			break
+		await _tree.process_frame
+	m.go_event(ev)
+	var go := _ev_state(await _settled())
+	_ok("%s: GO opens it (%s)" % [what, go], go.get("page", &"") == &"event" and int(go.get("opt", -1)) == ev)
+	for door in ["hud", "tab"]:
+		m = await _map_now()
+		if m == null or not await _fly(w2) or not await _fly(b):
+			_ok("%s by %s: flown away and back" % [what, door], false)
+			continue
+		var fi0 := SectorScreen.flyins
+		if door == "hud":
+			await _here_tab()
+		else:
+			await _tab()
+			await _tab()
+		var st := _ev_state(await _settled())
+		_ok("%s by %s: its own arrival (%d), then the same as GO (%s; GO %s)" % [what, door, SectorScreen.flyins - fi0, st, go],
+			SectorScreen.flyins == fi0 + 1 and st == go)
+	# NOT NOW, and LOCAL again: closed until the ship leaves and comes back
+	var sc := Router.current as SectorScreen
+	if sc != null and sc._events.page != &"":
+		sc._events.not_now()
+		await _frames(30)
+	m = await _map_now()
+	await _here_tab()
+	var again := _ev_state(await _settled())
+	_ok("%s: NOT NOW, then LOCAL again with no flight between: closed, its subject still there (%s)" % [what, again],
+		again.get("page", &"x") == &"" and again.get("subject", &"") == go.get("subject", &""))
+	m = await _map_now()
+	if m != null:
+		for i in 600:
+			if m.flight.can_fly():
+				break
+			await _tree.process_frame
+		m.go_event(ev)
+		var go2 := _ev_state(await _settled())
+		_ok("%s: GO pressed again opens it again (%s)" % [what, go2], go2.get("page", &"") == &"event" and int(go2.get("opt", -1)) == ev)
+		var sc2 := Router.current as SectorScreen
+		if sc2 != null and sc2._events.page != &"":
+			sc2._events.not_now()
+			await _frames(30)
+	LocalEventDrawer.quiet = false
+
+
+## The map, by Tab (or at once if the Tab went to something else).
+func _map_now() -> SystemMapScreen:
+	await _tab()
+	if not (Router.current is SystemMapScreen):
+		Router.show_system()
+		await _idle()
+	return Router.current as SystemMapScreen
 
 
 ## The line along LOCAL's bottom bar.
@@ -616,11 +745,11 @@ func _tour(sd: int, label: String) -> void:
 			await _frames(4)
 		await _check("seed %d %s: %s %s by %s" % [sd, label, L.bodies[b].kind, L.bodies[b].world, door])
 		# LOCAL'S OWN ARRIVAL (Jon, Oct 21, "station:BC"): the first LOCAL at a
-		# world the map flew the ship to flies it in, with no name card; GO's
-		# LOCAL opens its event instead
+		# world the map flew the ship to flies it in, with no name card -- GO's
+		# too, its event opening once the ship has settled (one result)
 		var flew := int((SystemMapScreen.flown_to.get(n.index, {}) as Dictionary).get("n", -1)) != f0
 		var sc := Router.current as SectorScreen
-		var want_in := flew and door != "go"
+		var want_in := flew
 		_ok("seed %d %s: %s by %s: LOCAL's own arrival %s (%d; flown %s), no name card" % [sd, label, L.bodies[b].world, door,
 			"plays" if want_in else "does not play", SectorScreen.flyins - fi0, flew],
 			SectorScreen.flyins - fi0 == (1 if want_in else 0) and sc != null and sc._card == null)
@@ -818,6 +947,7 @@ func _run() -> void:
 		# (the first system has its own arrival, never LOCAL's fly-in)
 		_ok("seed %d start: no fly-in at the launch (%d)" % [sd, SectorScreen.flyins - fl0], SectorScreen.flyins == fl0)
 		await _tour(sd, "start")
+		await _local_is_go(sd, "start")
 		# a jump on, and the station's system
 		for station in [false, true]:
 			Run.chart_from(Run.node_at())
@@ -839,6 +969,8 @@ func _run() -> void:
 			await _tour(sd, label)
 			await _early(sd, label, "phase")
 			await _early(sd, label, "insert")
+			if not station:
+				await _local_is_go(sd, label)
 			if station:
 				await _station_burn(sd)
 				await _station_dock(sd)

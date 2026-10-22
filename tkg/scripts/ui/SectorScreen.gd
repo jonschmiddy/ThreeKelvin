@@ -276,9 +276,16 @@ func setup(c: Combat = null) -> void:
 	Sig.hull_burned.connect(_on_burn)
 	Sig.enemy_destroyed.connect(_on_enemy_destroyed)
 
+	# (whether LOCAL plays its own arrival, decided before the event's band: the
+	# band waits for it to settle, as GO's waits for the move down to land)
+	_depart_to = Router.take_depart()
+	var handoff := Router.take_arrival()
+	var flyin := _depart_to < 0 and not fighting() and _approached_at == Run.at and _flyin_due()
 	# THE EVENT THE MAP SENT YOU TO, lifting from the bottom of the view (before
-	# the first refresh, so the bar can offer OPEN IT)
-	_events = LocalEventDrawer.attach(self, fighting())
+	# the first refresh, so the bar can offer OPEN IT) -- or, by LOCAL's own
+	# doors, the event at the place the ship is, as GO opens it (Jon, Oct 21:
+	# "Clicking GO or clicking LOCAL should have the same result")
+	_events = LocalEventDrawer.attach(self, fighting(), c == null and not _dock_hidden and not Router.docked, flyin)
 	_events.changed.connect(_refresh)
 	_refresh()
 	_attach_station_face()
@@ -302,8 +309,6 @@ func setup(c: Combat = null) -> void:
 	# and the jump is committed at the flare's peak, when the ship is gone. So
 	# the two halves of a jump are two screens, and the seam between them is a
 	# frame with nothing on it.
-	_depart_to = Router.take_depart()
-	var handoff := Router.take_arrival()
 	# An ambush builds its own copy of this screen, so the arrival message has
 	# to be CONSUMED AND DISCARDED there rather than left for the next screen to
 	# find and play over a fight that has already started.
@@ -355,7 +360,7 @@ func setup(c: Combat = null) -> void:
 			# The ship waits out the drive's lead-in here too, or the clip's coughs
 			# would land ARRIVE_LEAD_S after the flame's.
 			Audio.play(_ship_arrives(art, 0.0), 0.0)
-	elif _flyin_due():
+	elif flyin:
 		_flyin_hold()
 	# THE STATION, ASLEEP OR AWAKE (Jon, Oct 21, "station:BC")
 	_station_here()
@@ -410,9 +415,11 @@ static func forget_places(index: int = -1) -> void:
 		SystemMapScreen.flown_to.clear()
 		_lit.clear()
 		_flyin_seen = -1
+		LocalEventDrawer.forget_auto()
 		return
 	SystemMapScreen.flown_to.erase(index)
 	_lit.erase(index)
+	LocalEventDrawer.forget_auto(index)
 
 
 ## The visit the ship is on at its place in `n`: the map's flight that brought
@@ -455,8 +462,8 @@ func _flyin_due() -> bool:
 	# (the map's DOCK: the dock's own arrival is this visit's)
 	if _dock_hidden or Router.docked:
 		return false
-	if _events != null and (not _events.deferred.is_empty() or _events.page != &""):
-		return false
+	# (GO's LOCAL too: the event opens once the ship has settled, as LOCAL's own
+	# door opens it -- one result, Jon, Oct 21)
 	return Router.animating() and _view.ship_view() != null
 
 
@@ -489,6 +496,8 @@ func _begin_flyin() -> void:
 		if art != null:
 			art.visible = true
 		_open_drawer(true)
+		if _events != null and is_instance_valid(_events):
+			_events.open_held()
 		return
 	_phase = Phase.ARRIVE
 	_flyin = true
@@ -510,6 +519,9 @@ func _begin_flyin() -> void:
 func _flyin_end() -> void:
 	_phase = Phase.NONE
 	_flyin = false
+	# (the event here, held for the ship to settle: GO's band, now)
+	if _events != null and is_instance_valid(_events):
+		_events.open_held()
 	if _wake_owed:
 		_wake_owed = false
 		_wake()
@@ -884,6 +896,9 @@ func _skip() -> void:
 		art.refresh()
 	_open_drawer(true)
 	_refresh()
+	# (and the event held for it, as it would have opened on settling)
+	if _events != null and is_instance_valid(_events):
+		_events.open_held()
 	# a fight that met you here comes up now, not after the approach
 	if _ambushed and _opening:
 		_arrival_drawer()
@@ -3211,9 +3226,11 @@ func ladder_cam(k: float) -> void:
 		fixed_g = a
 		to_g = a.lerp(hall.vc, kc)
 	for w: Array in _lad.scenes:
-		var sc: Control = w[0]
-		if not is_instance_valid(sc):
+		# (a piece freed mid-move -- the event's subject, changed -- is let go:
+		# checked before it is typed, or the assignment itself is the error)
+		if not is_instance_valid(w[0]):
 			continue
+		var sc: Control = w[0]
 		sc.scale = (w[1] as Vector2) * zs
 		# (the screen itself may be carried sideways -- 3B's pan -- and the scene
 		# with it)
@@ -3513,9 +3530,11 @@ func ladder_cam_end() -> void:
 	# (a press that ended the move at once: `ZoomLadder.finish_now`)
 	var cut := ZoomLadder.active != null and ZoomLadder.active._cut
 	for w: Array in _lad.scenes:
-		var sc: Control = w[0]
-		if not is_instance_valid(sc):
+		# (a piece freed mid-move -- the event's subject, changed -- is let go:
+		# checked before it is typed, or the assignment itself is the error)
+		if not is_instance_valid(w[0]):
 			continue
+		var sc: Control = w[0]
 		sc.scale = w[1]
 		sc.offset_left = w[2]
 		sc.offset_top = w[3]
@@ -3626,9 +3645,11 @@ func calm_at(p: Vector2, s: float) -> void:
 		return
 	_lad_zs = s
 	for w: Array in _lad.scenes:
-		var sc: Control = w[0]
-		if not is_instance_valid(sc):
+		# (a piece freed mid-move -- the event's subject, changed -- is let go:
+		# checked before it is typed, or the assignment itself is the error)
+		if not is_instance_valid(w[0]):
 			continue
+		var sc: Control = w[0]
 		sc.scale = (w[1] as Vector2) * s
 		var to := (sc.get_parent() as CanvasItem).get_global_transform().affine_inverse() * p
 		sc.position = to - (w[7] as Vector2) * sc.scale

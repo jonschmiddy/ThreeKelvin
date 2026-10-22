@@ -11,6 +11,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 The next build is **0.4.0-alpha.1**, with the fixes from the first outside playtest. See
 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
+### Changed
+
+- **Changed** — opening LOCAL at a world or station with an open event now opens that event,
+  the same as pressing GO on it: you see the event's own ship or object, and the event's text
+  and choices come up once your ship has settled. If you close it with NOT NOW, it stays closed
+  until you fly away and come back. LOCAL no longer shows the generic signal beacon, wreck or
+  battlefield picture anywhere. A place with no event shows nothing.
 - **Changed** — when you dock, your ship's engines are heard as it flies into the shipyard. They
   roar as it comes in over the floor, then sputter out, and the flame you see sputters with them.
   The engines are quiet before the ship settles on its stands, and the docking clamps now sound

@@ -1891,21 +1891,21 @@ class AreaView extends Control:
 			# picture, and the picture is still worth having -- it just comes off
 			# the options now instead of a label chosen before anything rolled.
 			#
-			# AND ONLY AT THE EVENTS' OWN PLACE (Jon, Oct 21: "This planet has no
-			# events here, but when I orbit the planet and click LOCAL, it has this
-			# weird signal model... Every planet in this sector has this signal").
-			# The picture was the whole system's, read off every option it has, so
-			# a system with a signal anywhere drew the beacon beside your ship at
-			# every world, the star and the edge. Since events stand at a body (or
-			# the star: `SystemLayout.place_of`) it is read off the events at the
-			# place the ship is (`site`), and a place with none draws nothing. An
-			# event over stays there, as a cleared battlefield always has.
+			# NONE OF THEM ON LOCAL (Jon, Oct 21: "I don't want the beacon to show up
+			# at all. I want to see the actual event of that planet/POI"). The
+			# beacon, the derelict and the battlefield were pictures picked from the
+			# options' tags, standing in for events that LOCAL now shows as
+			# themselves: the event at the place the ship is, opened as GO opens it,
+			# its own subject drawn (`LocalEventDrawer.auto_open`, `LocalSubject`),
+			# and the hulls of the fights fought there (`show_wrecks`). On LOCAL
+			# (`site` set) a system draws no place picture; the sheets (`ANY`) still
+			# draw every one of them.
 			MapGen.NodeType.SYSTEM:
-				if site != ANY and not _events_here():
+				if site != ANY:
 					return &""
-				if _tag_here(&"fight"):
+				if OptionTable.system_has_tag(node, &"fight"):
 					return &"battlefield_cleared" if node.cleared else &"battlefield"
-				if _tag_here(&"salvage"):
+				if OptionTable.system_has_tag(node, &"salvage"):
 					return &"derelict"
 				return &"beacon"
 			# THE CORE AND A PULSAR ARE THE SYSTEM'S OWN STAR, and LOCAL's sky
@@ -1920,31 +1920,8 @@ class AreaView extends Control:
 			# object in the one sector that is meant to have nothing in it.
 			MapGen.NodeType.START:
 				return &""
-		return &"unknown"
-
-	## Whether option i stands where this picture does (anywhere, for `ANY`).
-	func _option_here(i: int) -> bool:
-		return site == ANY or SystemLayout.of(node).place_of(i) == site
-
-	func _events_here() -> bool:
-		OptionTable.ensure(node)
-		for i in node.options.size():
-			if _option_here(i):
-				return true
-		return false
-
-	## Whether an event here carries `tag` (`OptionTable.system_has_tag`, for
-	## the place the ship is at).
-	func _tag_here(tag: StringName) -> bool:
-		if site == ANY:
-			return OptionTable.system_has_tag(node, tag)
-		for i in node.options.size():
-			if not _option_here(i):
-				continue
-			for t in OptionTable.by_id(node.options[i]).get("tags", []):
-				if StringName(t) == tag:
-					return true
-		return false
+		# (nor a stand-in for a type that has no picture of its own)
+		return &"" if site != ANY else &"unknown"
 
 	func _draw() -> void:
 		if node == null or not SHOW_PLACES:

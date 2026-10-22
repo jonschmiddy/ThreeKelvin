@@ -1861,6 +1861,40 @@ func _dock_lit() -> void:
 	SystemMapScreen.flown_to.erase(st.index)
 
 
+## NO STAND-IN PLACE PICTURE ON LOCAL (Jon, Oct 21: "I don't want the beacon to
+## show up at all. I want to see the actual event of that planet/POI"): at every
+## place of every system of the run -- each world, the star, the edge -- LOCAL's
+## place picture (`EncounterView.AreaView`, `site` as LOCAL sets it) is none; a
+## station's is the station itself, and only where it is. The sheets (`ANY`)
+## still draw each picture.
+func _no_stand_ins() -> void:
+	var area := EncounterView.AreaView.new()
+	var bad: Array = []
+	var seen := 0
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		area.node = n
+		var L := SystemLayout.of(n)
+		for site in range(-9, L.bodies.size()):
+			if site < -1 and site != -9:
+				continue
+			area.site = site
+			var what := area._place_name()
+			seen += 1
+			var ok := what == &"" or (what == &"station" and n.type == MapGen.NodeType.STATION)
+			if not ok:
+				bad.append("%d@%d %s" % [n.index, site, what])
+	area.site = EncounterView.AreaView.ANY
+	var any_beacon := false
+	for raw in Run.map:
+		area.node = raw
+		if area._place_name() == &"beacon":
+			any_beacon = true
+	area.free()
+	_ok("no stand-in place picture at any of %d places on LOCAL (%s)" % [seen, bad], bad.is_empty() and seen > 0)
+	_ok("the sheets still draw the beacon somewhere (whole system)", any_beacon)
+
+
 func _run() -> void:
 	_tree = get_tree()
 	await _tree.process_frame
@@ -2244,6 +2278,7 @@ func _run() -> void:
 		_no_fights_at_stations(st)
 		_front_is_plate_less_recess()
 		_station_picks()
+		_no_stand_ins()
 		if dock_b != null:
 			await _first_locals()
 			# (LOCAL's bar built again after its arrival: its DOCK anew)
