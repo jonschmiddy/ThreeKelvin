@@ -1,12 +1,11 @@
 class_name QuestLog
 extends RefCounted
 
-## THE QUESTS YOU HOLD, as the star chart lists and tags them (Jon, Oct 22,
-## design B of the quest log, after Kevin's playtest: "I needed a quest menu or
-## some type of quest [log]"). The chart's side panel lists them under QUESTS
-## (`StarchartScreen._fill_quests`), the chart tags each one's place with its
-## number (`StarchartScreen.MapChart.place_quest_tags`), and picking one makes it
-## the destination with its route drawn from YOU.
+## THE QUESTS YOU HOLD (Jon, Oct 22, design A of the quest log, after Kevin's
+## playtest: "I needed a quest menu or some type of quest [log]"). The HUD's
+## QUESTS tab opens them as a table (`QuestPanel`), and a row's SHOW ON STARCHART
+## and PLOT ROUTE open the chart on the quest's place, tagged with its number
+## (`StarchartScreen.MapChart.place_quest_tags`), with its route from YOU.
 ##
 ## A QUEST IS A SIGNED CONTRACT, `Run.contracts` less the closed ones, in the
 ## order you signed them, and nothing here is saved: every line is read off the
@@ -142,10 +141,12 @@ static func nearest_yard(manufacturer: StringName) -> int:
 # --- the list ----------------------------------------------------------------
 
 ## Every quest you hold, numbered from 1 in the order you signed them, as the
-## panel's cards and the chart's tags read them:
+## table's rows and the chart's tags read them:
 ##   n, job, kind, what, where, jumps (words), pay, state, state_colour,
 ##   place (the system its tag stands on: the target, or for a heat quest and
-##   a READY one the nearest yard that pays it; -1 if none), tag, tip.
+##   a READY one the nearest yard that pays it; -1 if none), tag, tip,
+##   who (the poster's short name), manufacturer, yard (whether `place` is the
+##   nearest of any of its yards), place_name, layer ("LAYER 7", from 1).
 static func entries() -> Array:
 	var out: Array = []
 	var n := 0
@@ -164,7 +165,8 @@ static func _entry(job: ContractData, n: int) -> Dictionary:
 	if item == "" or item.begins_with("a crate"):
 		item = "an unmarked crate"
 	var e := {n = n, job = job, kind = int(job.kind), pay = "%d CR" % job.pay,
-		tag = "%d %s" % [n, TAG_WORD.get(job.kind, "QUEST")]}
+		tag = "%d %s" % [n, TAG_WORD.get(job.kind, "QUEST")], who = who,
+		manufacturer = job.manufacturer, place_name = "", layer = ""}
 	var yard := false
 	if job.state == ContractData.State.READY:
 		e.what = "Hand in at any %s yard" % who
@@ -185,12 +187,15 @@ static func _entry(job: ContractData, n: int) -> Dictionary:
 	if place >= Run.map.size():
 		place = -1
 	e.place = place
+	e.yard = yard
 	if place < 0:
 		e.where = "NO %s YARD IN REACH" % who.to_upper() if yard else "OUT OF REACH"
 		e.jumps = ""
 	else:
 		var p: MapGen.MapNode = Run.map[place]
 		var j := jumps(place)
+		e.place_name = MapGen.star_name(p)
+		e.layer = "LAYER %d" % (p.layer + 1)
 		# COUNTED FROM ONE, as the chart's LAYER and its COREWARD L7 count it
 		e.where = "%s · L%d" % [MapGen.star_name(p), p.layer + 1]
 		e.jumps = "HERE" if j == 0 else ("1 JUMP" if j == 1 else ("%d JUMPS" % j if j > 0 else "NO ROUTE"))

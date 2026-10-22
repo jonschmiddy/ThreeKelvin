@@ -633,19 +633,18 @@ fi
 }
 
 unit_questlogtest() {
-step "The star chart's QUESTS: a card and a tag for each, the route when picked, nothing covered"
-# Jon's design B (Oct 22): the chart's side panel lists the quests you hold
-# under QUESTS, the chart tags each one's place, and picking one makes it the
-# destination with its route from YOU. Three galaxies, the real screen: the
-# tab's rect the same with 0, 1 and 5 held, every card and tag at its place
-# (READY and heat: the nearest paying yard), the route a chain of legal jumps,
-# and every tag box-tested against the HUD, the goal line, A.S.H., the chart's
-# words, every pickable star and each other.
+step "The QUESTS tab: its table, SHOW ON STARCHART, PLOT ROUTE, nothing covered"
+# Jon's design A (Oct 22): a QUESTS tab after STARCHART opens a table of the
+# quests you hold; a row's SHOW ON STARCHART and PLOT ROUTE open the chart on
+# its place, tagged, with its route. Three galaxies, the real screens: the tab's
+# rect the same with 0, 1 and 5 held, the HUD row fitting with and without
+# ARCHIVE, a row per quest with its fields, the chart's destination, tag and
+# legal route, and the table and the tag box-tested.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot questlogtest 180 --headless --path "$PROJECT" -- sheet=QuestLogTest; then
 	if grep -qE '^questlogtest: PASS' "$LOG_DIR/questlogtest.log"; then
-		ok "the chart's quests: listed, tagged, routed, nothing covered"
+		ok "the quests table: every quest, shown and routed on the chart, nothing covered"
 	else
-		bad "the chart's quest list or tags are wrong or cover something"
+		bad "the quests table or its chart tag is wrong or covers something"
 		grep -E 'FAIL|^questlogtest|^    ' "$LOG_DIR/questlogtest.log" | head -n 12 | sed 's/^/        /'
 	fi
 else

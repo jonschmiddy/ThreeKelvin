@@ -1,26 +1,29 @@
 extends Node
 
-## THE QUESTS ON THE STAR CHART, headless:
+## THE QUESTS TAB AND ITS TABLE, headless:
 ##   godot --headless --path . -- sheet=QuestLogTest
 ##
-## The chart's side panel lists every quest you hold under QUESTS (`QuestLog`,
-## Jon's design B, Oct 22), the chart tags each one's place, and picking one
-## makes it the destination with its route drawn from YOU. On three galaxies,
-## through the real screen:
+## Jon's design A (Oct 22): a QUESTS tab on the HUD after STARCHART opens a
+## table of the quests you hold (`QuestPanel`, read off `QuestLog`); a row
+## picked shows the note, SHOW ON STARCHART and PLOT ROUTE, which open the chart
+## on the quest's place with its tag, and for PLOT ROUTE its route from YOU. On
+## three galaxies, through the real screens:
 ##
 ## - the QUESTS tab is the same rect with none, one and five quests held (Jon:
-##   "no number after quests in the tab (so it doesn't change size)"), and so
-##   is NEARBY;
-## - with none, the list says so in a plain line and the chart has no tag;
-## - every quest held has a card and a tag, and the tag stands on the right
-##   system: a signed fetch's or hunt's target, and for a READY quest or a heat
-##   quest the yard that pays it fewest jumps away;
-## - picking a card sets the destination to its place and the route to a
-##   chain of legal jumps from YOU to it; picking a star off the chart clears it;
-## - FIT MEANS NOTHING OVERLAPS: every tag clear of the HUD, the goal line,
-##   A.S.H.'s first place, the chart's own words, every star a click could pick
-##   and every other tag, inside the chart, at the opening view and framed on
-##   the quests.
+##   "no number after quests", so it never changes size), and the HUD's row
+##   fits with it, with the ARCHIVE tab and without it (that tab is going);
+## - with none, the table says so in a plain line;
+## - a row for every quest, with its mark, state, task, where (the system and
+##   its layer from 1, or any of the poster's yards and the nearest), jumps,
+##   pay and the poster; READY and heat quests stand on the nearest paying yard;
+## - a picked row shows the note and its two buttons; PLOT ROUTE opens the
+##   chart, the quest's place the destination, its one tag and its route a
+##   chain of legal jumps from YOU; SHOW ON STARCHART does the same without the
+##   route; a star picked off the chart drops both;
+## - FIT MEANS NOTHING OVERLAPS: the table clear of the HUD, the goal line and
+##   A.S.H., on LOCAL, the sector map, the chart and a station; the chart's tag
+##   clear of them, of the chart's words and of every star a click could pick;
+## - the escape menu, and any change of screen, shut the table.
 
 var _fails := 0
 var _tree: SceneTree
@@ -54,7 +57,6 @@ func _run() -> void:
 	_tree.quit(1 if _fails > 0 else 0)
 
 
-## A ship three layers in at an ordinary system, the chart up on QUESTS.
 func _galaxy(sd: int) -> void:
 	Rng.forced = sd
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -66,25 +68,30 @@ func _galaxy(sd: int) -> void:
 			break
 	Run.chart_from(Run.node_at())
 	QuestLog.forget()
-	StarchartScreen._side_quests = true
-	Router.show_starchart()
+	QuestPanel.picked = -1
+	Router.show_local()
 	await _frames(4)
-	var ch := Router.current as StarchartScreen
-	if not _ok("the chart is up", ch != null):
-		return
+	var hud := Router.hud
+	var tab: Button = hud._tab_quests
+	var tab0 := hud.quests_tab_rect()
+	_ok("the HUD has a QUESTS tab after STARCHART", tab != null and tab.text == "QUESTS"
+		and tab.get_index() == hud._tab_chart.get_index() + 1)
+	_hud_fits("none held")
 
 	# NONE
-	ch._refresh()
+	tab.pressed.emit()
 	await _frames(2)
-	var tab0 := ch._tab_quests.get_global_rect()
-	var near0 := ch._tab_near.get_global_rect()
-	_ok("the tab reads QUESTS", ch._tab_quests.text == "QUESTS")
-	_ok("with no quest the list says so: \"%s\"" % ch._hint.text, ch._hint.text == QuestLog.EMPTY)
-	_ok("and holds no card", _cards(ch).is_empty())
-	_ok("and the chart no tag", ch._chart.quest_tags.is_empty())
+	if _ok("the tab opens the table", QuestPanel.is_open()):
+		var p := QuestPanel._open
+		var empty := p.find_child("Empty", true, false) as Label
+		_ok("with no quest it says so: \"%s\"" % (empty.text if empty != null else ""),
+			empty != null and empty.text == QuestLog.EMPTY and _rows(p).is_empty())
+		_fit("LOCAL, none held")
+	tab.pressed.emit()
+	await _frames(2)
+	_ok("and the tab shuts it", not QuestPanel.is_open())
 
-	# ONE, then FIVE: a fetch, a hunt, a heat job, a fetch and a hunt, the
-	# first fetch done (READY), some heat on the hull
+	# ONE, then FIVE
 	var want := [ContractData.Kind.FETCH, ContractData.Kind.HUNT, ContractData.Kind.HEAT,
 		ContractData.Kind.FETCH, ContractData.Kind.HUNT]
 	var held: Array = []
@@ -95,77 +102,106 @@ func _galaxy(sd: int) -> void:
 			continue
 		held.append(Run.take_contract(job))
 		if held.size() == 1:
-			ch._refresh()
+			hud.refresh()
 			await _frames(2)
-			_ok("one quest: the QUESTS tab has not moved or changed size",
-				ch._tab_quests.get_global_rect() == tab0 and ch._tab_near.get_global_rect() == near0)
-			_ok("and the tab still reads QUESTS", ch._tab_quests.text == "QUESTS")
+			_ok("one quest: the QUESTS tab has not moved or changed size, and reads QUESTS",
+				hud.quests_tab_rect() == tab0 and tab.text == "QUESTS")
+	if held.size() < 2:
+		return
 	Run.reach_contract_target((held[0] as ContractData).at)
 	Run.heat = 3
-	ch._refresh()
+	hud.refresh()
 	await _frames(2)
-	_ok("five quests: the QUESTS tab has not moved or changed size (%s / %s)"
-		% [ch._tab_quests.get_global_rect(), tab0],
-		ch._tab_quests.get_global_rect() == tab0 and ch._tab_near.get_global_rect() == near0)
+	_ok("five quests: the QUESTS tab has not moved or changed size (%s / %s)" % [hud.quests_tab_rect(), tab0],
+		hud.quests_tab_rect() == tab0 and tab.text == "QUESTS")
+	_hud_fits("five held")
+	hud._tab_archive.visible = false
+	await _frames(2)
+	_hud_fits("five held, no ARCHIVE tab")
+	hud._tab_archive.visible = true
+	await _frames(2)
 
-	# A CARD AND A TAG EACH, AT THE RIGHT PLACE
-	var cards := _cards(ch)
+	# THE TABLE
+	tab.pressed.emit()
+	await _frames(2)
+	var p2 := QuestPanel._open
+	if not _ok("the table is open again", p2 != null):
+		return
+	var rows := _rows(p2)
 	var list := QuestLog.entries()
-	_ok("a card for every quest held (%d of %d)" % [cards.size(), held.size()], cards.size() == held.size())
-	_ok("a tag for every quest held (%d)" % ch._chart.quest_tags.size(), ch._chart.quest_tags.size() == held.size())
+	_ok("a row for every quest held (%d of %d)" % [rows.size(), held.size()], rows.size() == held.size())
 	var right := true
-	for i in list.size():
+	for i in mini(rows.size(), list.size()):
 		var e: Dictionary = list[i]
 		var job: ContractData = e.job
-		var place := int(e.place)
-		var ok_place := false
+		var words := _words(rows[i])
+		var need: Array = [String(e.what).to_upper(), String(e.state), String(e.jumps), String(e.pay),
+			String(e.who).to_upper()]
+		if bool(e.yard):
+			need.append("ANY %s YARD" % String(e.who).to_upper())
+			need.append("NEAREST %s" % String(e.place_name))
+		else:
+			need.append(String(e.place_name))
+			need.append("LAYER %d" % ((Run.map[job.at] as MapGen.MapNode).layer + 1))
+		var place_ok := true
 		if job.state == ContractData.State.READY or job.kind == ContractData.Kind.HEAT:
-			ok_place = place >= 0 and ContractData.berth_of(Run.map[place], job.manufacturer)
+			var place := int(e.place)
+			place_ok = place >= 0 and ContractData.berth_of(Run.map[place], job.manufacturer)
 			for raw in Run.map:
 				var n: MapGen.MapNode = raw
-				if ContractData.berth_of(n, job.manufacturer) and QuestLog.jumps(n.index) >= 0 \
+				if place_ok and ContractData.berth_of(n, job.manufacturer) and QuestLog.jumps(n.index) >= 0 \
 						and QuestLog.jumps(n.index) < QuestLog.jumps(place):
-					ok_place = false
+					place_ok = false
 		else:
-			ok_place = place == job.at
-		var tag_ok := i < ch._chart.quest_tags.size() and int(ch._chart.quest_tags[i].index) == place \
-			and String(ch._chart.quest_tags[i].text).begins_with("%d " % (i + 1))
-		var card_ok := i < cards.size() and int(cards[i].get_meta(&"quest")) == job.id
-		if not (ok_place and tag_ok and card_ok):
+			place_ok = int(e.place) == job.at
+		var missing: Array = []
+		for w in need:
+			if not words.has(w):
+				missing.append(w)
+		if int(rows[i].get_meta(&"quest")) != job.id or not missing.is_empty() or not place_ok:
 			right = false
-			print("    quest %d (%s, %s): place %d ok %s, tag %s, card %s" % [i + 1,
-				ContractData.Kind.keys()[job.kind], ContractData.State.keys()[job.state], place, ok_place, tag_ok, card_ok])
-	_ok("each card is its quest and each tag stands on its place (READY and heat: the nearest paying yard)", right)
-	var ready_tag := String(ch._chart.quest_tags[0].text) if not ch._chart.quest_tags.is_empty() else ""
-	_ok("the READY quest's tag says HAND IN (%s)" % ready_tag, ready_tag == "1 HAND IN")
+			print("    row %d (%s): missing %s, place ok %s" % [i + 1, ContractData.Kind.keys()[job.kind], missing, place_ok])
+	_ok("each row is its quest: mark, state, task, where, jumps, pay and poster; READY and heat on the nearest paying yard", right)
+	_ok("the table's head counts them (%s)" % p2._sub.text, p2._sub.text == "%d SIGNED · 1 READY TO HAND IN" % held.size())
 
-	# PICKING ONE
+	# A ROW PICKED
 	var hunt: ContractData = held[1]
-	var card: Button = null
-	for c in _cards(ch):
-		if int(c.get_meta(&"quest")) == hunt.id:
-			card = c
-	if _ok("the hunt has a card to press", card != null):
-		card.pressed.emit()
-		await _frames(2)
-		_ok("picking it makes its target the destination", ch._selected == hunt.at and ch._chart.selected == hunt.at)
-		_ok("and the panel names it", ch._dest_name.text == MapGen.star_name(Run.map[hunt.at]))
+	_row_of(p2, hunt.id).pressed.emit()
+	await _frames(2)
+	var hrow := _row_of(p2, hunt.id)
+	var show: Button = null
+	var plot: Button = null
+	if hrow != null:
+		show = hrow.find_child("ShowOnStarchart", true, false) as Button
+		plot = hrow.find_child("PlotRoute", true, false) as Button
+	_ok("a picked row shows the note and SHOW ON STARCHART and PLOT ROUTE",
+		hrow != null and _words(hrow).has("\"%s\"" % hunt.text) and show != null and plot != null
+		and not show.disabled and not plot.disabled)
+	_fit("LOCAL, five held, a row open")
+	if plot == null:
+		return
+
+	# PLOT ROUTE
+	plot.pressed.emit()
+	await _frames(4)
+	var ch := Router.current as StarchartScreen
+	if _ok("PLOT ROUTE opens the chart and shuts the table", ch != null and not QuestPanel.is_open()):
+		_ok("with the quest's target the destination", ch._selected == hunt.at and ch._chart.selected == hunt.at
+			and ch._dest_name.text == MapGen.star_name(Run.map[hunt.at]))
 		var r: Array[int] = ch._chart.quest_route
 		var legal := r.size() >= 2 and r[0] == Run.at and r[r.size() - 1] == hunt.at
 		for k in range(1, r.size()):
 			legal = legal and Run.reachable_from(Run.map[r[k - 1]], Run.map[r[k]])
-		_ok("and its route runs from YOU to it, a legal jump a hop (%d hops)" % maxi(0, r.size() - 1), legal)
-		_ok("its tag is the picked one", bool(ch._chart.quest_tags[1].picked))
-		await _boxes(ch, "picked")
-		# framed on every quest's place, as a player zooms out to see them
-		var span := 0.1
-		for e2 in list:
-			if int((e2 as Dictionary).place) >= 0:
-				span = maxf(span, MapGen.hop_distance(Run.node_at(), Run.map[int((e2 as Dictionary).place)]) + 0.03)
-		ch._chart.frame_region(Run.node_at(), span, false)
+		_ok("and its route from YOU, a legal jump a hop (%d hops)" % maxi(0, r.size() - 1), legal)
+		_ok("and its one tag, on its target", ch._chart.quest_tags.size() == 1
+			and int(ch._chart.quest_tags[0].index) == hunt.at and String(ch._chart.quest_tags[0].text) == "2 TARGET")
+		await _tags(ch, "PLOT ROUTE")
+		# the table from the chart
+		Router.hud._tab_quests.pressed.emit()
 		await _frames(2)
-		await _boxes(ch, "framed on the quests")
-		# a star picked off the chart is not the quest
+		_fit("the chart")
+		QuestPanel.close()
+		# another star drops the quest
 		var other := -1
 		for raw in Run.in_range():
 			var n2: MapGen.MapNode = raw
@@ -175,9 +211,60 @@ func _galaxy(sd: int) -> void:
 		if other >= 0:
 			ch._on_node_picked(other)
 			await _frames(1)
-			_ok("picking another star drops the quest's route", ch._chart.quest_route.is_empty() and ch._picked_quest == -1)
+			_ok("picking another star drops the quest's tag and route",
+				ch._chart.quest_route.is_empty() and ch._chart.quest_tags.is_empty())
 
-	StarchartScreen._side_quests = false
+	# SHOW ON STARCHART, for the READY one: its yard, no route
+	Router.show_local()
+	await _frames(3)
+	QuestPanel.open()
+	await _frames(1)
+	var ready: ContractData = held[0]
+	_row_of(QuestPanel._open, ready.id).pressed.emit()
+	await _frames(2)
+	var srow := _row_of(QuestPanel._open, ready.id)
+	(srow.find_child("ShowOnStarchart", true, false) as Button).pressed.emit()
+	await _frames(4)
+	var ch2 := Router.current as StarchartScreen
+	var yard := QuestLog.nearest_yard(ready.manufacturer)
+	if _ok("SHOW ON STARCHART opens the chart", ch2 != null):
+		_ok("on the READY quest's nearest paying yard, tagged HAND IN, no route",
+			ch2._selected == yard and ch2._chart.quest_route.is_empty() and ch2._chart.quest_tags.size() == 1
+			and String(ch2._chart.quest_tags[0].text) == "1 HAND IN" and int(ch2._chart.quest_tags[0].index) == yard)
+		await _tags(ch2, "SHOW ON STARCHART")
+
+	# THE SECTOR MAP, and the escape menu
+	Router.show_system()
+	await _frames(4)
+	QuestPanel.open()
+	await _frames(2)
+	_fit("the sector map")
+	get_parent().toggle_menu(false)
+	await _frames(2)
+	_ok("the escape menu shuts the table", not QuestPanel.is_open())
+	get_parent().toggle_menu(false)
+	await _frames(2)
+	QuestPanel.open()
+	await _frames(1)
+	Router.show_local()
+	await _frames(3)
+	_ok("and so does another screen", not QuestPanel.is_open())
+
+	# A STATION
+	var here := Run.node_at()
+	here.type = MapGen.NodeType.STATION
+	here.manufacturer = &"korvan"
+	here.berths.clear()
+	here.berths.append(&"korvan")
+	Router.park_at_station(here)
+	Router.show_station()
+	await _frames(20)
+	if _ok("a station is up", Router.current is StationScreen):
+		Router.hud._tab_quests.pressed.emit()
+		await _frames(2)
+		_ok("the tab opens the table at a station", QuestPanel.is_open())
+		_fit("a station")
+		QuestPanel.close()
 
 
 func _offer(kind: int) -> ContractData:
@@ -192,16 +279,93 @@ func _offer(kind: int) -> ContractData:
 	return null
 
 
-func _cards(ch: StarchartScreen) -> Array:
+func _rows(p: QuestPanel) -> Array:
 	var out: Array = []
-	for c in ch._quests.get_children():
-		if c is Button and c.has_meta(&"quest"):
+	for c in p._rows.get_children():
+		if c is Control and c.has_meta(&"quest"):
 			out.append(c)
 	return out
 
 
-## Every tag against everything it must keep off, global.
-func _boxes(ch: StarchartScreen, when: String) -> void:
+func _row_of(p: QuestPanel, id: int) -> QuestPanel.Row:
+	for c in _rows(p):
+		if int((c as Control).get_meta(&"quest")) == id:
+			return c as QuestPanel.Row
+	return null
+
+
+func _words(n: Node) -> Array:
+	var out: Array = []
+	for c in n.find_children("*", "Label", true, false):
+		out.append((c as Label).text)
+	return out
+
+
+## The HUD's row: every piece inside the bar, none over another.
+func _hud_fits(when: String) -> void:
+	var hud := Router.hud
+	var bar := hud.get_global_rect()
+	var pieces: Array = []
+	for c in hud._row.get_children():
+		var k := c as Control
+		if k != null and k.is_visible_in_tree() and k.size.x > 0.0:
+			pieces.append(k)
+	var bad: Array[String] = []
+	for i in pieces.size():
+		var r: Rect2 = (pieces[i] as Control).get_global_rect()
+		if not bar.encloses(r):
+			bad.append("%s leaves the bar" % (pieces[i] as Control).name)
+		for j in range(i + 1, pieces.size()):
+			if r.intersects((pieces[j] as Control).get_global_rect()):
+				bad.append("%s over %s" % [(pieces[i] as Control).name, (pieces[j] as Control).name])
+	var need := hud._row.get_combined_minimum_size().x
+	for b in bad:
+		print("    %s" % b)
+	_ok("%s: the HUD's row fits with QUESTS (needs %.0f of %.0f px), nothing over anything" % [when, need, bar.size.x],
+		bad.is_empty() and need <= bar.size.x)
+
+
+## The table against the HUD, the goal line and A.S.H., inside the screen.
+func _fit(where: String) -> void:
+	var p := QuestPanel._open
+	if p == null:
+		_ok("%s: the table is open" % where, false)
+		return
+	var r := p.get_global_rect()
+	var bad: Array[String] = []
+	if r.intersects(Router.hud.get_global_rect()):
+		bad.append("over the HUD")
+	for k in QuestPanel.keep_off():
+		if r.intersects(k as Rect2):
+			bad.append("over %s" % k)
+	if not Rect2(Vector2.ZERO, Vector2(960, 540)).encloses(r):
+		bad.append("off the screen %s" % r)
+	# and inside it, every row whole and none over another (a row's words were
+	# once piled on each other in a Button that lays nothing out)
+	var rows := _rows(p)
+	var view := p._scroll.get_global_rect()
+	for i in rows.size():
+		var a: Rect2 = (rows[i] as Control).get_global_rect()
+		if a.size.y < 14.0:
+			bad.append("row %d is %.0f px tall" % [i + 1, a.size.y])
+		if not view.grow(0.5).encloses(a):
+			bad.append("row %d %s not wholly shown in %s" % [i + 1, a, view])
+		for j in range(i + 1, rows.size()):
+			if a.intersects((rows[j] as Control).get_global_rect()):
+				bad.append("row %d over row %d" % [i + 1, j + 1])
+		for l in (rows[i] as Control).find_children("*", "Label", true, false):
+			var lr := (l as Control).get_global_rect()
+			for l2 in (rows[i] as Control).find_children("*", "Label", true, false):
+				if l2 != l and lr.intersects((l2 as Control).get_global_rect()) and not lr.encloses((l2 as Control).get_global_rect()) and not (l2 as Control).get_global_rect().encloses(lr):
+					bad.append("row %d: \"%s\" over \"%s\"" % [i + 1, (l as Label).text, (l2 as Label).text])
+					break
+	for b in bad:
+		print("    %s" % b)
+	_ok("%s: the table %s clear of the HUD, the goal line and A.S.H., %d rows whole and apart" % [where, r, rows.size()], bad.is_empty())
+
+
+## The chart's tag against everything it must keep off, global.
+func _tags(ch: StarchartScreen, when: String) -> void:
 	var mc := ch._chart
 	var near: Dictionary = mc.nodes_near(Rect2(Vector2.ZERO, mc.size))
 	var pts := PackedVector2Array()
@@ -211,33 +375,22 @@ func _boxes(ch: StarchartScreen, when: String) -> void:
 	var rects: Array = mc.place_quest_tags()
 	var g := mc.get_global_transform()
 	var avoid: Array = ch._quest_avoid()
-	var bad: Array[String] = []
 	var rad: float = near.rad
+	var bad: Array[String] = []
 	for i in rects.size():
 		var r: Rect2 = rects[i]
-		if r.size == Vector2.ZERO:
-			bad.append("tag %d not laid" % (i + 1))
+		if r.size == Vector2.ZERO or not Rect2(Vector2.ZERO, mc.size).encloses(r):
+			bad.append("tag %d not laid inside the chart" % (i + 1))
 			continue
-		if not Rect2(Vector2.ZERO, mc.size).encloses(r):
-			bad.append("tag %d leaves the chart" % (i + 1))
-		var gr := g * r
 		for a in avoid:
-			if gr.intersects(a as Rect2):
-				bad.append("tag %d %s over %s" % [i + 1, gr, a])
-		for j in range(i + 1, rects.size()):
-			if r.intersects(rects[j] as Rect2):
-				bad.append("tag %d over tag %d" % [i + 1, j + 1])
+			if (g * r).intersects(a as Rect2):
+				bad.append("tag over %s" % a)
 		for sp in pts:
-			if MapChartDist.d(r, sp) < rad:
-				bad.append("tag %d over a star a click could pick at %s" % [i + 1, sp])
+			var q := Vector2(clampf(sp.x, r.position.x, r.end.x), clampf(sp.y, r.position.y, r.end.y))
+			if q.distance_to(sp) < rad:
+				bad.append("tag over a star a click could pick at %s" % sp)
 				break
-	print("    %s: %d stars a click could pick (radius %.0f), %d rects to keep off" % [when, pts.size(), rad, avoid.size()])
 	for b in bad:
 		print("    %s" % b)
-	_ok("%s: every tag clear of the HUD, the goal line, A.S.H., the chart's words, every pickable star and each other (%d tags)" % [when, rects.size()], bad.is_empty())
-
-
-class MapChartDist:
-	static func d(r: Rect2, p: Vector2) -> float:
-		var q := Vector2(clampf(p.x, r.position.x, r.end.x), clampf(p.y, r.position.y, r.end.y))
-		return q.distance_to(p)
+	_ok("%s: the tag clear of the HUD, the goal line, A.S.H., the chart's words and %d pickable stars" % [when, pts.size()],
+		bad.is_empty() and rects.size() == 1)

@@ -8,13 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- **Added** — the star chart's side panel has two tabs, NEARBY and QUESTS. QUESTS lists every
-  quest you have signed, one card each: what to do, where (the system and its layer, or the
-  nearest yard that pays it), how many jumps away, the pay, and whether it is SIGNED, READY or
-  carrying part of its heat. The chart tags each quest's place with its number (PICK UP,
-  TARGET, HEAT, HAND IN), clear of the stars and the goal line. Picking a card makes its
-  place your destination and draws the route there from YOU. With none signed, the list says
-  where to get one.
+- **Added** — a QUESTS tab on the bar at the top, after STARCHART. It opens a table of every
+  quest you have signed, over LOCAL, the sector map, the chart or a station: what to do, its
+  state (SIGNED, READY, or how much of its heat you carry), where it is (the system and its
+  layer, or any yard of the one who posted it and the nearest), how many jumps away, the pay,
+  and who posted it. Click a row to read the note and use SHOW ON STARCHART, which opens the
+  chart on that place with the quest's tag, or PLOT ROUTE, which also draws the route there
+  from YOU. With none signed, the table says where to get one.
 
 ### Fixed
 
