@@ -11,6 +11,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 The next build is **0.4.0-alpha.1**, with the fixes from the first outside playtest. See
 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
+### Fixed
+
+- **Fixed** — a signed contract's work is now in the system its note names. A fetch puts a
+  CONTRACT PICKUP event on a world in that system, and a hunt puts a CONTRACT TARGET contact
+  there. Both show on the system map with the quest mark and in its event list, and open on
+  LOCAL like any event. Taking the pickup or winning the fight readies the job to DELIVER at
+  any of the poster's yards. Before, nothing was ever put there: a fetch finished on arrival
+  with one log line, and a hunt waited for any fight you happened to win, which was gone if
+  you had cleared the system before signing. A system you had already emptied opens again
+  for the job, and a hunt you flee is there again the next time you arrive. Contracts now
+  name ordinary systems only, never a station or a pulsar.
+- **Fixed** — no two systems share a name. About a third of every galaxy had a name another
+  system also had, so a contract naming one could send you to the wrong place. The later
+  system of each pair now takes the next free name, and every other name is unchanged.
+- **Fixed** — a contract's layer now matches the chart's. It printed one less (LAYER 6 for a
+  system the chart calls LAYER 7).
+
 ## 2026-10-21
 
 ### [0.3.2-alpha.1]

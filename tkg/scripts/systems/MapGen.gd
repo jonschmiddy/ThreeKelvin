@@ -752,16 +752,49 @@ const _SUFFIX := [" PRIME", " SECUNDUS", "-9", "-4", " V", " IX", " MINOR",
 
 ## A name, fixed for the life of the run. Hashed from the index rather than
 ## rolled, so the same system is called the same thing every time you look.
+##
+## AND NEVER TWO SYSTEMS TO ONE NAME. The hash alone gave the same name to
+## index 9 and 155, 10 and 122, and fifty other pairs below 300 -- every
+## galaxy had a dozen or more names that meant two places. A contract names its
+## system by name, so "OMEGA THORN REACH" sent the player to whichever of the
+## two they found first, and the work was not there (Jon, Oct 22: "Quests don't
+## show up in the sectors they say they are"). `_combo` keeps the hashed name
+## for the lower index and moves a later one to the next free suffix, so most
+## names are what they were and none is shared.
 static func star_name(n: MapNode) -> String:
 	if n.type == NodeType.CORE:
 		return "THE CORE"
-	var h := (n.index + 1) * 2654435761
-	var a := (h >> 3) % _BAYER.size()
-	var b := (h >> 11) % _STEM.size()
-	var c := (h >> 19) % _SUFFIX.size()
+	var code := _combo(n.index)
+	var c := code % _SUFFIX.size()
+	var b := (code / _SUFFIX.size()) % _STEM.size()
+	var a := code / (_SUFFIX.size() * _STEM.size())
 	if n.type == NodeType.START:
 		return "%s %s" % [_BAYER[a], _STEM[b]]
 	return "%s %s%s" % [_BAYER[a], _STEM[b], _SUFFIX[c]]
+
+## Which name each index has, as a*STEMS*SUFFIXES + b*SUFFIXES + c, built in
+## index order the first time an index is asked for. Depends on the index alone,
+## like the hash it starts from, so every machine and every save agree.
+static var _names: PackedInt32Array = PackedInt32Array()
+static var _used: Dictionary = {}
+
+static func _combo(index: int) -> int:
+	var total := _BAYER.size() * _STEM.size() * _SUFFIX.size()
+	while _names.size() <= index:
+		var i := _names.size()
+		var h := (i + 1) * 2654435761
+		var a := (h >> 3) % _BAYER.size()
+		var b := (h >> 11) % _STEM.size()
+		var c := (h >> 19) % _SUFFIX.size()
+		var code := (a * _STEM.size() + b) * _SUFFIX.size() + c
+		# The next suffix on the same two words, then onward. Only past `total`
+		# systems (3024) does a name have to repeat, and no galaxy is that big.
+		if _used.size() < total:
+			while _used.has(code):
+				code = (code + 1) % total
+		_used[code] = true
+		_names.append(code)
+	return _names[index]
 
 ## PROSE, NOT KEYS, which is why this cannot read `Region.keys()` the way
 ## `type_label` does: FAUNA is "Migration Route" and CORE is "Precursor Ruins".

@@ -261,6 +261,10 @@ func _gates_are_real() -> void:
 		# from silently doing nothing -- which is the failure the `admits`
 		# header describes, and which this test exists to catch.
 		&"placed": true,
+		# A SIGNED CONTRACT'S WORK (`Contracts.post_goal`): placed for one
+		# ship's job, laid out past the system's own worlds, never claimed over
+		# the wire. Read by `OptionTable.is_job`.
+		&"job": true,
 		# STAR FEATURES: what is in the sky at a system, gated the way
 		# `needs_fauna` is. See `OptionTable.admits`.
 		&"needs_star": true, &"needs_giant": true, &"needs_pulsar": true,

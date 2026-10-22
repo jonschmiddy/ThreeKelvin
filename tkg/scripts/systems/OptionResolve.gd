@@ -62,7 +62,11 @@ static func take(n: MapGen.MapNode, i: int, j: int) -> Dictionary:
 	# anything is rolled or paid: assume you won and both players pocket the
 	# payout, and the flag agreeing afterwards does not take it back. Walking
 	# away (`stay`) consumes nothing, so it does not ask.
-	if not out.stay:
+	# A SIGNED JOB'S EVENT IS NOT RACED FOR: it is on this ship's map for this
+	# ship's contract and nobody else's (`Contracts.post_goal`), so it is not
+	# put to the party -- a claim on its slot would land on whatever a
+	# partner's map holds at that index.
+	if not out.stay and not OptionTable.is_job(n.options[i]):
 		var won_it: bool = await Run.take_option(n, MapGen.OPTION_SITE + i)
 		if not won_it:
 			return {"ok": false, "why": "too_late", "who": Net.taker_name(n.index, MapGen.OPTION_SITE + i)}

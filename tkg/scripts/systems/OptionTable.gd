@@ -384,9 +384,10 @@ static func pay(res: Dictionary, n: MapGen.MapNode) -> String:
 static func system_has_tag(n: MapGen.MapNode, tag: StringName) -> bool:
 	if n == null:
 		return false
-	# ROLLS THE SYSTEM IF IT HAS NOT BEEN ROLLED, and both callers need that:
-	# a contract board looks three layers ahead and the hellbender scans the whole
-	# map, so every system either of them cares about is one nobody has flown to.
+	# ROLLS THE SYSTEM IF IT HAS NOT BEEN ROLLED, and the hellbender needs that:
+	# it scans the whole map, so most systems it cares about are ones nobody has
+	# flown to. (A contract board asked too, for a hunt's fight, until a hunt
+	# brought its own target -- `Contracts.post_goal`.)
 	# Reading `n.options` raw would have answered "no fight anywhere", which is
 	# how the hunt contract stopped being findable.
 	#
@@ -498,9 +499,20 @@ static var _placed: Dictionary = {}
 static func placed_ids() -> Dictionary:
 	if _placed.is_empty():
 		for o in all():
-			if bool(o.get("placed", false)):
+			# A CONTRACT'S EVENT IS NOT A THREAD. It is placed, never rolled,
+			# but the chart already marks a signed job's system by the job
+			# (`Run.contract_at`), and a second marker by the event's title
+			# would say the one thing twice.
+			if bool(o.get("placed", false)) and not bool(o.get("job", false)):
 				_placed[StringName(o.id)] = true
 	return _placed
+
+
+## Whether this option is a signed contract's work (`Contracts.post_goal`):
+## placed on one ship's map for that ship's contract, laid out past the
+## system's own worlds (`SystemLayout`), and never raced for over the wire.
+static func is_job(id: StringName) -> bool:
+	return bool(by_id(id).get("job", false))
 
 
 static func holds_quest(n: MapGen.MapNode) -> bool:
@@ -942,6 +954,49 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Tell him she looked tired", effect = func() -> Dictionary:
 					Run.add_credits(OptionTable.purse(36))
 					return {text = "He nods for a long time and pays more than the agreed rate. He also names a yard two shells in that will fit you something at cost.", module = true}},
+			],
+		},
+		{
+			# A SIGNED FETCH'S PICKUP, put on the named system by
+			# `Contracts.post_goal` -- never rolled (`placed`), and per ship
+			# (`job`). Taking it readies every fetch pointed here; the thing is
+			# named and not carried (`RunState.reach_contract_target`).
+			id = &"job_pickup",
+			title = "Contract pickup",
+			subject = {stage = &"single", pieces = [&"r4_pod_cargo_pod_1"], tumble = 2.0},
+			body = "A cargo pod is parked in orbit here. Its beacon sends the code from your contract. This is the pickup you signed for. The seals are still on it, and the job says to leave them on.",
+			tags = [&"quest"],
+			group = &"",
+			placed = true,
+			job = true,
+			weight = 0,
+			choices = [
+				{label = "Bring it aboard", effect = func() -> Dictionary:
+					var who := Contracts.payer_here(ContractData.Kind.FETCH)
+					Run.reach_contract_target(Run.at)
+					return {text = "The grapple pulls the pod in and locks it to the frame. It takes no room in the hold. Take it to any %s yard to be paid." % who}},
+				{label = "Leave it for now", stay = true, effect = func() -> Dictionary:
+					return {text = "You leave the pod where it is. The beacon keeps sending, and the job stays open."}},
+			],
+		},
+		{
+			# A SIGNED HUNT'S TARGET, the same way. The kill is what readies the
+			# hunt (`Combat._victory` -> `RunState.clear_contract_target`); flee
+			# and the next arrival posts it again.
+			id = &"job_target",
+			title = "Contract target",
+			subject = {stage = &"single", pieces = [&"ship_gunboat"], dark = 0.85},
+			body = "A ship sits here with its running lights off. Its transponder matches the one on your contract. It has seen you. It turns its bow toward you and holds there.",
+			tags = [&"quest", &"fight"],
+			group = &"",
+			placed = true,
+			job = true,
+			weight = 0,
+			choices = [
+				{label = "Engage", fight = true, effect = func() -> Dictionary:
+					return {text = "You close on it and open fire.", fight = true}},
+				{label = "Leave it for now", stay = true, effect = func() -> Dictionary:
+					return {text = "You keep your distance. It stays where it is, and the job stays open."}},
 			],
 		},
 		{

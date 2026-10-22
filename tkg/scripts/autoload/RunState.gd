@@ -3656,6 +3656,9 @@ func take_contract(c: ContractData) -> ContractData:
 	next_contract_id += 1
 	mine.state = ContractData.State.TAKEN
 	contracts.append(mine)
+	# The work goes on the named system's map now, so it is there to find
+	# however you get there (`Contracts.post_goal`).
+	Contracts.post_goal(mine)
 	log_line("Signed: %s. It pays %d credits on delivery." % [
 		_contract_short(mine), mine.pay], &"sys")
 	Sig.contracts_changed.emit()
@@ -3722,9 +3725,12 @@ func deliver_contract(job: ContractData) -> void:
 	Sig.contracts_changed.emit()
 	Sig.resources_changed.emit()
 
-## Arriving somewhere finishes any FETCH pointed at it.
+## Taking the pickup finishes any FETCH pointed at this system.
 ##
-## Called from the one door every arrival goes through. A recovered item is
+## Called by the pickup's own event (`OptionTable` `job_pickup`), which
+## `Contracts.post_goal` puts on the named system's map; and on arrival
+## (`Router.settle_arrival`) only for a fetch naming a place that cannot hold
+## an event, which nothing signed now does. A recovered item is
 ## NAMED AND NOT CARRIED: it does not take a hold slot, cannot be scrapped by
 ## accident and cannot be lost to a full hold. A contract that soft-locks on
 ## inventory is a bug wearing a decision's clothes, and there is no version of

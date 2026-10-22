@@ -1028,10 +1028,7 @@ func resolve_current_node() -> void:
 	# it is shown. Arriving is the safe point; everything past it is a thing you
 	# chose to do here, and a suspend save is a bookmark rather than a way to
 	# reject a draw. See _roll_here().
-	_roll_here(n)
-	# Anything you were paid to come and get is got. Before the autosave, so a
-	# force-quit on arrival does not lose the trip you just made.
-	Run.reach_contract_target(n.index)
+	settle_arrival(n)
 	# The save the SaveGame header promises: on the sector, at the node you flew
 	# to, with the contact still there. Until this line the last write predated
 	# the JUMP — start_combat() assigns `combat` before it swaps, so the fight's
@@ -1112,6 +1109,23 @@ func resolve_current_node() -> void:
 ## door, and it defeats "every death is self-authored" without touching a
 ## number. Idempotent by design — it is also the lazy path for saves written
 ## before the node carried these.
+## WHAT ARRIVING CHANGES ABOUT THE PLACE, before anything is shown or saved:
+## what the system holds is rolled, and the work you signed for here is put
+## on its map (`Contracts.post_goals_at`). Its own function so `-- contracttest`
+## arrives through the same door the game does.
+func settle_arrival(n: MapGen.MapNode) -> void:
+	_roll_here(n)
+	# THE WORK IS AN EVENT HERE, NOT A THING THAT HAPPENS ON ARRIVAL: a fetch's
+	# pickup and a hunt's target are on the map to fly to (`Contracts.post_goal`),
+	# posted at signing and again here in case the place was emptied since.
+	Contracts.post_goals_at(n)
+	# A fetch signed before the work was put on a map can still name a place that
+	# holds no events (a station): there, as before, arriving is the pickup.
+	# Before the autosave, so a force-quit on arrival does not lose the trip.
+	if not Contracts.holds_goal(n):
+		Run.reach_contract_target(n.index)
+
+
 func _roll_here(n: MapGen.MapNode) -> void:
 	if n.cleared:
 		return
@@ -1302,6 +1316,9 @@ func claim_open_option() -> bool:
 	var n: MapGen.MapNode = Run.node_at()
 	if n == null or _open_option < 0:
 		return false
+	# a signed job's event is this ship's alone (`OptionResolve.take`)
+	if _open_option < n.options.size() and OptionTable.is_job(n.options[_open_option]):
+		return not n.taken.has(MapGen.OPTION_SITE + _open_option)
 	return await Run.take_option(n, MapGen.OPTION_SITE + _open_option)
 
 
