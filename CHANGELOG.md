@@ -22,6 +22,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   fight ended, so a second ship seemed to appear out of nowhere. Now only what you fought is gone:
   the rest of the scene stays, such as the fuel depot, the seized hull or the hunting ship on the
   harpoon line. An event you flew past without fighting still shows its ship.
+- **Fixed** — signing a job on the Hiring Board no longer reshuffles the board. Before, the job
+  you signed came down and every other note slid along a place, and everything else on the
+  board jumped to a new spot: the WANTED poster, the other notices and paper on a cork board or
+  whiteboard, and the other listings on a city's screen. Now the job stays where it was, stamped
+  SIGNED, and nothing else moves. The picked tab, the ads, the ticker and any open popup stay as
+  they were. If you already carry the heat a heat job asks for, its note shows OFFLOAD where SIGN
+  was, so you can hand the heat in from the same note.
 
 ### Changed
 
