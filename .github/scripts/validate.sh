@@ -208,6 +208,24 @@ if grep -qE '^=== FAIL' "$LOG_DIR/market.log" 2>/dev/null; then
 fi
 }
 
+unit_boardsigntest() {
+step "SIGN on the Hiring Board changes its one note"
+# Jon, Oct 22: "When you pick a quest from the hiring board... the whole hiring
+# board resets." On the cork, the whiteboard and the screen: the signed note
+# stays in place stamped SIGNED, every other note, the tab, the scatter, the
+# listings, the popup and the lamp stay as they were, and no offer re-rolls.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot boardsigntest 120 --headless --path "$PROJECT" -- sheet=BoardSignTest; then
+	if grep -qE '^boardsigntest: PASS' "$LOG_DIR/boardsigntest.log"; then
+		ok "SIGN stamps its note in place and nothing else on the board moves"
+	else
+		bad "SIGN moved the Hiring Board's other notes or its scatter, or did not sign"
+		grep -E 'FAIL|^boardsigntest' "$LOG_DIR/boardsigntest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "boardsigntest did not finish"
+fi
+}
+
 unit_contracttest() {
 step "Contracts, standing, and the salvage rail's dismissal rule"
 # Three claims, and the middle one is the one no other step can make. `-- market`

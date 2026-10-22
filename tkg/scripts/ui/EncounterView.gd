@@ -1750,6 +1750,17 @@ func set_bleed(px: float) -> void:
 		_row.offset_bottom = -want
 	queue_redraw()
 
+## The row put back on the band as it stands now. A camera move keeps the row's
+## offsets from the moment it began and puts them back when it lands
+## (`SectorScreen.ladder_cam_end`), and `set_bleed` does not repeat a value it
+## already holds, so a band that changed under the move left the row reaching
+## down behind it: your ship half the band's height low and its plate hidden
+## under the hand (Jon, Oct 22, the Custodian fight: "Glitch on boss fight?").
+func reapply_bleed() -> void:
+	offset_bottom = _bleed
+	if _row != null:
+		_row.offset_bottom = -_bleed
+
 func _draw() -> void:
 	# The void is never flat black: a wash tinted by region gives each place a
 	# colour signature for free, which is the cheapest richness available.

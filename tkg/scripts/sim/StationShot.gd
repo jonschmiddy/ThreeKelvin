@@ -1209,6 +1209,74 @@ func run(tree: SceneTree) -> void:
 				scr20._board_lamp.get_viewport().get_texture().get_image().get_region(box20).save_png((b20 as String).substr(8))
 		break
 
+	# `boardsign=<dir>`: on the Hiring Board, once its lamp is lit, SIGN the
+	# first job as a player does, and photograph the whole screen just before
+	# (`<dir>/before.png`) and after (`after.png`). SIGN changes that one note
+	# (Jon, Oct 22: "the whole hiring board resets"; `-- sheet=BoardSignTest`).
+	for a25 in OS.get_cmdline_user_args():
+		if not (a25 as String).begins_with("boardsign="):
+			continue
+		var dir25 := (a25 as String).substr(10)
+		DirAccess.make_dir_recursive_absolute(dir25)
+		var scr25 := Router.current as StationScreen
+		if scr25 == null or scr25._work == null:
+			print("  boardsign: no Hiring Board")
+			break
+		var t25 := Time.get_ticks_msec()
+		while Time.get_ticks_msec() - t25 < 20000 and not scr25.deck_subject(&"work").has_area():
+			await tree.process_frame
+		await tree.create_timer(1.0).timeout
+		var sign25: Button = null
+		for note25 in scr25._work.get_children():
+			for b25 in (note25 as Node).find_children("*", "Button", true, false):
+				if (b25 as Button).text == "SIGN":
+					sign25 = b25
+					break
+			if sign25 != null:
+				break
+		if sign25 == null:
+			print("  boardsign: no job to sign on this board")
+			break
+		var rects25: Array[Rect2] = []
+		for n25 in scr25._work.get_children():
+			rects25.append((n25 as Control).get_global_rect())
+		await RenderingServer.frame_post_draw
+		tree.root.get_texture().get_image().save_png("%s/before.png" % dir25)
+		var at25 := sign25.get_global_rect().get_center()
+		var target25 := GameShell.input_target(tree)
+		var mv25 := InputEventMouseMotion.new()
+		mv25.position = at25
+		mv25.global_position = at25
+		target25.push_input(mv25)
+		await tree.process_frame
+		# (on the hidden desktop the window may never have the pointer in it, and
+		# a button takes a press only while hovered)
+		sign25.notification(Control.NOTIFICATION_MOUSE_ENTER)
+		var had25 := Run.contracts.size()
+		for pressed25 in [true, false]:
+			var mb25 := InputEventMouseButton.new()
+			mb25.button_index = MOUSE_BUTTON_LEFT
+			mb25.pressed = pressed25
+			mb25.button_mask = MOUSE_BUTTON_MASK_LEFT if pressed25 else 0
+			mb25.position = at25
+			mb25.global_position = at25
+			target25.push_input(mb25)
+			await tree.process_frame
+		for i25 in 10:
+			await tree.process_frame
+		await RenderingServer.frame_post_draw
+		tree.root.get_texture().get_image().save_png("%s/after.png" % dir25)
+		var moved25 := 0
+		var kids25 := scr25._work.get_children()
+		for j25 in mini(kids25.size(), rects25.size()):
+			if (kids25[j25] as Control).get_global_rect() != rects25[j25]:
+				moved25 += 1
+		print("  boardsign: %s -- %d jobs in the ledger (%d before), %d notes (%d before), %d moved" % [
+			"signed" if Run.contracts.size() == had25 + 1 else "NOT signed", Run.contracts.size(), had25,
+			kids25.size(), rects25.size(), moved25])
+		tree.quit()
+		return
+
 	# `reelclip=<dir>`: each of the screen's commercials alone, from its first
 	# moment to its last, a frame every 33 ms, in `<dir>/<i>/`, cropped to it.
 	for a21 in OS.get_cmdline_user_args():
