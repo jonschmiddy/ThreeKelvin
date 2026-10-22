@@ -154,7 +154,7 @@ const QUOTE := Color("#5a6470")
 ## NOT QUITE OPAQUE, and that is the whole of what makes the sky worth drawing.
 ## `SpaceLayer` puts a world behind every screen that is not an interior, and a
 ## panel filled with solid PANEL covers all of it — the refit bay and the
-## archive are rectangles that between them leave a few pixels of gutter, so a
+## galleries are rectangles that leave a few pixels of gutter, so a
 ## sky behind them was a sky nobody would ever see.
 ##
 ## Held high on purpose. This is depth, not a window: the stars must never

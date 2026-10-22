@@ -186,15 +186,13 @@ static func depth_for(share: float) -> float:
 	return clampf((TIER1_AT - share) / TIER1_AT, 0.0, 1.0)
 
 
-## A run is up and on screen: not the title, the lobby, the hull pick, RUN
-## ENDED, or the records room opened from the title.
+## A run is up and on screen: not the title, the lobby, the hull pick or RUN
+## ENDED.
 static func in_run() -> bool:
 	var cur := Router.current
 	if cur == null or not is_instance_valid(cur) or Run.hull == null:
 		return false
 	if Router.is_front_door(cur) or cur is GameOverScreen:
-		return false
-	if cur is ArchiveScreen and Router.hud != null and not Router.hud.visible:
 		return false
 	return true
 

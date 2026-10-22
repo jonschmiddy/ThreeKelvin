@@ -53,8 +53,6 @@ def ledger(chunk, t):
 		out.append(["item", m.group(1), "rolled"])
 	if "module = true" in chunk:
 		out.append(["item", "module", "rolled"])
-	if "archive_recover = true" in chunk:
-		out.append(["item", "archive", "found"])
 	if "fight = true" in chunk:
 		out.append(["cost", "a fight", "starts"])
 	if "place = " in chunk:

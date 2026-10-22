@@ -20,8 +20,8 @@ extends RefCounted
 ##   bill       `EncounterDrawer.bill_rows` from before the choice to after `pay`
 ##   got        the THINGS it moved, which the bill's four numbers cannot say:
 ##              a part or a material put on the system's pile (REWARD), a hull
-##              frame found, a document recovered, a place marked, an item
-##              taken out of your hold (`_things_after`)
+##              frame found, a place marked, an item taken out of your hold
+##              (`_things_after`)
 ##   dead       the ship died of it: show the game over
 ##   fight_now  a fight the player chose with nothing to read: start it, no panel
 ##   foe        what that fight brings: the event's creature tag, or &"" for a
@@ -30,7 +30,7 @@ extends RefCounted
 ## Whether an outcome handed over any of the things the result panel exists to
 ## show. The ledger covers credits, fuel, heat and hull; this covers the rest.
 static func pays_anything(res: Dictionary) -> bool:
-	for k in ["module", "material", "material_id", "archive_recover", "place"]:
+	for k in ["module", "material", "material_id", "place"]:
 		if res.has(k):
 			return true
 	return false
@@ -134,18 +134,16 @@ static func take(n: MapGen.MapNode, i: int, j: int) -> Dictionary:
 ## crate is on the pile all the same.
 static func _things_before(n: MapGen.MapNode) -> Dictionary:
 	var pile := Run.sector_jetsam(n, false)
-	var doc := Archive.at_node(n)
 	return {
 		pile = (pile.items as Array).duplicate() if pile != null else [],
 		hold = Run.cargo.duplicate(),
-		doc = doc if doc != &"" and not Archive.has(doc) else &"",
 		frame = Run.found_hull,
 	}
 
 
 ## Every thing the choice moved, gains first, as rows the result's outcome line
 ## draws (`OutcomeRow`): {kind, name, gain, tone, cards, item}. `kind` is part,
-## material, frame, document or place. A part names the cards it would add to
+## material, frame or place. A part names the cards it would add to
 ## your deck, which is the only way an event ever hands you a card. `item` is
 ## the part or the material itself, for a look that draws it (E).
 static func _things_after(n: MapGen.MapNode, was: Dictionary, paid: String) -> Array:
@@ -158,10 +156,6 @@ static func _things_after(n: MapGen.MapNode, was: Dictionary, paid: String) -> A
 	if Run.found_hull != null and Run.found_hull != was.frame:
 		got.append({kind = &"frame", name = Run.found_hull.display_name().to_upper(),
 			gain = true, tone = UITheme.GOOD, cards = []})
-	if StringName(was.doc) != &"" and Archive.has(StringName(was.doc)):
-		var d: DocumentData = DB.documents[StringName(was.doc)]
-		got.append({kind = &"document", name = d.title.to_upper(), gain = true,
-			tone = UITheme.ICE, cards = []})
 	for bit in paid.split(", ", false):
 		if bit.ends_with(" MARKED"):
 			got.append({kind = &"place", name = bit.trim_suffix(" MARKED").to_upper(),

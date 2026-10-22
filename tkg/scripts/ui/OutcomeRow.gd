@@ -33,8 +33,8 @@ extends RefCounted
 ##      "let's only show CREDITS, FUEL, HULL, HEAT on the right"). REWARD and
 ##      CONTINUE stand at the band's top right, level with the title, and the
 ##      table is centred in the right column under them. It lists only the
-##      four stats, each only when it moved: a part, a material, a frame, a
-##      document or a place is collected through REWARD and is not listed,
+##      four stats, each only when it moved: a part, a material, a frame or
+##      a place is collected through REWARD and is not listed,
 ##      and a result that moved none of the four has no table at all (the
 ##      buttons alone). Its size is `D_FS`: he tried the next crisp size up,
 ##      16, and kept 8 ("size 8"). The title, YOU CHOSE and the text are a
@@ -56,8 +56,7 @@ extends RefCounted
 ##      band grows upward if the plates stand taller than the table.
 ##   C  SHOW IT. Today's size, only what changed, each with its mark; once the
 ##      text is in, each change flies from the band to the HUD readout it moves
-##      (the hull gauge, credits, fuel, heat; a document to ARCHIVE, a place to
-##      STARCHART) and that readout flickers as it lands -- and only then does
+##      (the hull gauge, credits, fuel, heat; a place to STARCHART) and that readout flickers as it lands -- and only then does
 ##      the HUD number change (`held`). A part or a crate makes REWARD flicker
 ##      on its turn instead: it is on the band already, and a copy sliding
 ##      along the row would cross the other entries. Nothing that takes a click
@@ -65,8 +64,7 @@ extends RefCounted
 ##
 ## WHAT AN EVENT CAN HAND YOU, all of it read off `OptionResolve.take`: the four
 ## ledger stats (`bill`), and the things (`got`) -- a part or a material put on
-## the system's pile, a hull frame found, a document recovered, a place marked
-## on the chart, an item taken out of your hold. No event gives or takes a card
+## the system's pile, a hull frame found, a place marked on the chart, an item taken out of your hold. No event gives or takes a card
 ## or a malfunction directly (malfunctions come from fights); a part's cards are
 ## the only cards an event ever offers, so a part names them.
 
@@ -85,7 +83,7 @@ static var held: Dictionary = {}
 const ORDER: Array[String] = ["hp", "fuel", "credits", "heat"]
 const WORDS := {"hp": "HULL", "fuel": "FUEL", "credits": "CREDITS", "heat": "HEAT"}
 ## The words a thing goes by, ahead of its name.
-const THING_WORDS := {&"part": "PART", &"frame": "HULL FRAME", &"document": "DOCUMENT",
+const THING_WORDS := {&"part": "PART", &"frame": "HULL FRAME",
 	&"place": "MARKED", &"material": "", &"item": ""}
 
 ## C's flight: how long one takes, the gap between two, the flicker on landing.
@@ -98,7 +96,7 @@ const FLICKER := [0.07, 0.06, 0.07]
 
 ## Every change one result made, in the order it matters, as entries:
 ##   key    "hp" "fuel" "credits" "heat", or the thing's kind
-##   kind   &"stat" or the thing's kind (part, material, frame, document, place, item)
+##   kind   &"stat" or the thing's kind (part, material, frame, place, item)
 ##   n      the move (a stat), or the count (a thing; negative when taken)
 ##   was    now   a stat's totals either side
 ##   good   whether it went your way; tone  its colour
@@ -141,7 +139,7 @@ static func changes(out: Dictionary) -> Array:
 		by[id] = e
 		things.append(e)
 	# gains before losses, and in the stats' spirit: a part first
-	var rank := {&"part": 0, &"frame": 1, &"material": 2, &"document": 3, &"place": 4, &"item": 5}
+	var rank := {&"part": 0, &"frame": 1, &"material": 2, &"place": 3, &"item": 4}
 	things.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		if bool(a.good) != bool(b.good):
 			return bool(a.good)
@@ -319,10 +317,6 @@ static func draw_mark(ci: CanvasItem, at: Vector2, e: Dictionary, px: int = 1) -
 			r.call(0, 1, 7, 6, t2.darkened(0.3))
 			r.call(0, 1, 7, 1, t2)
 			r.call(3, 1, 1, 6, t2.darkened(0.6))
-		"document":
-			r.call(1, 0, 5, 7, UITheme.ICE)
-			r.call(2, 2, 3, 1, UITheme.COLD)
-			r.call(2, 4, 3, 1, UITheme.COLD)
 		"place":
 			r.call(3, 0, 1, 7, UITheme.ICE)
 			r.call(1, 3, 5, 1, UITheme.ICE)
@@ -920,7 +914,7 @@ static func _hud_refresh() -> void:
 
 
 ## What a change flies to: the HUD readout for a stat, REWARD for what is on
-## the pile, ARCHIVE for a document, STARCHART for a marked place.
+## the pile, STARCHART for a marked place.
 static func _targets(d: LocalEventDrawer, e: Dictionary) -> Array:
 	var hud: HudBar = Router.hud if Router.hud != null and is_instance_valid(Router.hud) and Router.hud.is_visible_in_tree() else null
 	match String(e.key):
@@ -930,8 +924,6 @@ static func _targets(d: LocalEventDrawer, e: Dictionary) -> Array:
 			if int(e.n) > 0:
 				var rw := d.find_child("Reward", true, false)
 				return [rw] if rw != null else []
-		"document":
-			return hud.tab_nodes(&"archive") if hud != null else []
 		"place":
 			return hud.tab_nodes(&"chart") if hud != null else []
 	return []

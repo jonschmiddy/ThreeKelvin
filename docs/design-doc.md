@@ -49,7 +49,7 @@ No prophecy, no chosen crew, no faction explaining the cosmology in a text box. 
 
 `docs/lore.md`, added later, answers the question this section left open — who buys the heat and why anybody would fit out a stranger to go and get it — **without** repealing the paragraph above. Its one idea: *corporations are eternal and they are buying heat; people are temporary and they want scrap and credits; you are a person, and the eternal things will not tell you what the heat is for.*
 
-That frame is what lets the game have lore at all under this ruling. Nobody explains the cosmology because the people who could are not talking and the things that are talking are not people — so the silence stops being an authorial choice the player has to tolerate and becomes a fact about the world they can be angry at. The archive that carries it is primary sources only: manifests, riders, receipts, transponder loops. Never a narrator.
+That frame is what lets the game have lore at all under this ruling. Nobody explains the cosmology because the people who could are not talking and the things that are talking are not people — so the silence stops being an authorial choice the player has to tolerate and becomes a fact about the world they can be angry at. The paperwork that carries it is primary sources only: manifests, riders, receipts, transponder loops. Never a narrator. (It was carried by an ARCHIVE of recovered documents until Oct 22, when that was cut as "not for a procedural game"; contract asks and event text carry it now.)
 
 ---
 

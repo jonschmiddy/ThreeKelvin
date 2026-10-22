@@ -33,12 +33,12 @@ Still in place, deliberately:
 | [design-doc.md](design-doc.md) | The game: what it is, the setting, what the run is shaped like. Start here. |
 | [coop-design.md](coop-design.md) | Four ships in one galaxy — the design questions and the rulings that answered them. |
 | [netcode.md](netcode.md) | How the party actually talks. Transports, the relay, and what crosses the wire. |
-| [lore.md](lore.md) | Who is paying for all this, and why nobody will say what the heat is for. The archive's writing rules live here. |
+| [lore.md](lore.md) | Who is paying for all this, and why nobody will say what the heat is for. The rules for in-world paperwork live here (§5, written for the ARCHIVE, cut Oct 22). |
 | [building-a-manufacturer.md](building-a-manufacturer.md) | **The method.** How a manufacturer's parts and cards get written, in the order it happened, with the checks at each step and the traps. Read with catalogue.md — that one is the rules, this one is the sequence. |
 | [catalogue.md](catalogue.md) | Every rule that decides what a module is, what cards it grants, and what they may be called. Read before writing a part. |
 | [handbook.md](handbook.md) | The long half of `tkg/CLAUDE.md`: screen layout, art direction and generation, audio, the economy's internals, the two procedural engines. Reference, not context — you open it on the day you need it. |
 | [ash.md](ash.md) | A.S.H., the ship's AI: her lines, her voice, her face, the tutorial she speaks. |
-| [lore-threads.md](lore-threads.md) | Companion to lore.md: the motifs in the archive entries and how the next ones should deepen them. |
+| [lore-threads.md](lore-threads.md) | Companion to lore.md: the motifs in the archive entries (cut Oct 22 with the ARCHIVE) and the voice they were written in. |
 | [sim-baselines.md](sim-baselines.md) | Recorded `-- sim` readings before and after each numbered roadmap phase, up to Aug 26. |
 | [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) | The build order, and how much of it is done. |
 | [briefs/](briefs/) | Work briefs. `briefs/ROADMAP.md` indexes them; `ENCOUNTER_COMMISSION.md` and `ENCOUNTER_PROSE.md` are the live rules for writing encounters, and `ENCOUNTER_OPTIONS_GUIDE.md` is the field-by-field guide to an `OptionTable` entry. Most of the rest are done and kept as history. |

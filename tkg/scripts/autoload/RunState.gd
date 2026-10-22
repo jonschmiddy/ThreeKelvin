@@ -668,7 +668,7 @@ func place_in_hold(m: HoldItem, at: Vector2i = -Vector2i.ONE) -> bool:
 ## hands back prose. There are a hundred and sixty-seven direct mutations in
 ## `OptionTable` (`add_credits(-70)`, `heat += 20`, `take_hull_damage(8)`) and
 ## the returned dictionary carries none of them: it has `text`, `module`,
-## `material`, `material_id`, `fight`, `archive_recover` and
+## `material`, `material_id`, `fight` and
 ## `consume_material_tier`, and nothing else.
 ##
 ## SNAPSHOT AND DIFF, rather than a reward field on each outcome. Two hundred and
@@ -3778,10 +3778,6 @@ func reach_contract_target(index: int) -> void:
 		log_line("Recovered: %s. Strapped to the frame until you deliver it." % job.item,
 			&"good")
 	if moved:
-		# The paperwork rides with the thing the manufacturer wanted back, and the
-		# manufacturer never asks what you read on the way. Fourth door, same hinge —
-		# see Archive.recover_at.
-		Archive.recover_at(map[index], "folded in with the contract cargo")
 		Sig.contracts_changed.emit()
 
 ## Winning a fight here finishes any HUNT pointed at it.

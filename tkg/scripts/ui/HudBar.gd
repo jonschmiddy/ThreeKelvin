@@ -56,10 +56,6 @@ var _tab_parts: Button
 ## state to keep in step, and rebuilding the bar when somebody joins is a whole
 ## screen redrawn for one tab.
 var _tab_party: Button
-## The archive. Always built and always available: what you have read survives
-## the ship, so unlike SHIP and PARTY there is no run state that makes reading a
-## page wrong. It does NOT grey during a fight — see refresh().
-var _tab_archive: Button
 
 var _hull_label: Label
 var _hull: BoxGauge
@@ -161,7 +157,7 @@ func _build() -> void:
 	# correct values; the throw waited for the NEXT refresh a frame later. That
 	# is why turning dev off ON THE LAUNCHER -- where there is no run and refresh
 	# returns early -- gave a bar that only broke once a run started: every tab
-	# and gauge built, SHIP through ARCHIVE lit correctly, and then nothing.
+	# and gauge built, every tab lit correctly, and then nothing.
 	# PARTY still showing, both gauges empty, no credits and no fuel, because the
 	# throw landed between the tab states and the values.
 	_tab_cards = null
@@ -169,7 +165,7 @@ func _build() -> void:
 
 	# --- LEFT: where you can go.
 	#
-	# Local | Sector | Starchart | Archive. The page you are on is lit rather than
+	# Local | Sector | Starchart. The page you are on is lit rather than
 	# merely disabled, so the nav says where you are as well as where you can go.
 	# (NO SHIP TAB. Jon: "I guess you can also remove the SHIP tab on the left."
 	# Your ship opens where it is drawn -- click it on LOCAL, or in the
@@ -178,8 +174,11 @@ func _build() -> void:
 	# ONE TAB, TWO NAMES. Docked, this reads STATION and goes to the station;
 	# flying, it reads SECTOR and goes to the sector. It is the same slot either
 	# way because it is the same idea -- "the place I am parked" -- and a second
-	# tab that appears and disappears at a station would move STARCHART and
-	# ARCHIVE sideways every time you tied up.
+	# tab that appears and disappears at a station would move STARCHART
+	# sideways every time you tied up.
+	# (NO ARCHIVE TAB either. Jon, Oct 22: "Let's also get rid of the ARCHIVE.
+	# From both the top left and the main menu. It was a cool idea, but not
+	# for a procedural game.")
 	#
 	# The action dispatches at CLICK time rather than being rebound on docking:
 	# nothing on this bar is constructed after _ready, and swapping a Callable
@@ -202,12 +201,6 @@ func _build() -> void:
 	_row.add_child(_tab_system)
 	_tab_chart = _tab("STARCHART", func() -> void: Router.show_starchart())
 	_row.add_child(_tab_chart)
-	# The archive joined the nav rather than sitting off at the right-hand end
-	# with the catalogues. It is a place in the game — a thing the run gives you
-	# and you go and read — where CARDS and MODULES are authoring views, and the
-	# bar now separates those two ideas by position instead of by nothing.
-	_tab_archive = _tab("ARCHIVE", func() -> void: Router.show_archive())
-	_row.add_child(_tab_archive)
 	# Hidden entirely when there is no party — a tab that is permanently greyed
 	# out in the solo game is a tab that teaches the player to ignore it. Built
 	# unconditionally, because a party can form before the HUD exists and can
@@ -433,12 +426,6 @@ func refresh() -> void:
 		"Every part in the game. Dev only.")
 	_state(_tab_cards, Router.current is CardGalleryScreen, choose_lock,
 		"Every card in the game.")
-	# Greys while choosing a chassis for the same reason CARDS does — there is no
-	# run to come back to — but NOT during a fight. Mid-fight is exactly when a
-	# player looks something up, and reading a fifty-year-old manifest changes
-	# nothing about the frigate in front of them.
-	_state(_tab_archive, Router.current is ArchiveScreen, choose_lock,
-		"Lore you have recovered.")
 	_tab_party.visible = Net.is_networked()
 	_state(_tab_party, Router.current is PartyScreen, lock,
 		"Everyone you are flying with.")
@@ -628,8 +615,6 @@ func stat_nodes(key: String) -> Array:
 ## A tab, for the same: flickered, never moved.
 func tab_nodes(which: StringName) -> Array:
 	match which:
-		&"archive":
-			return [_tab_archive]
 		&"chart":
 			return [_tab_chart]
 	return []

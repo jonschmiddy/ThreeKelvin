@@ -366,12 +366,6 @@ static func pay(res: Dictionary, n: MapGen.MapNode) -> String:
 		# ledger is what exotic currently means. It becomes a hold search when
 		# materials become items, in this function and nowhere else.
 		Run.spend_material_tier(StringName(res.consume_material_tier))
-	if bool(res.get("archive_recover", false)):
-		# THIS SYSTEM'S DOCUMENT OR NONE. `Archive.at_node` derives from the
-		# node's own index, so an option cannot conjure a document -- most systems
-		# hold nothing, and the options that offer this pay credits regardless so
-		# they stay honest on one that does.
-		Archive.recover_at(n, "recovered here")
 	got.erase("")
 	return ", ".join(got)
 
@@ -867,7 +861,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Sweep the shadow side", effect = func() -> Dictionary:
 					return {text = "You put the nearest rock between you and the star and read the sliver of sky in its shadow. The contact is not there, but something smaller has been drifting there for a while.", material = &"wreck"}},
 				{label = "Log the bearing and go", stay = true, effect = func() -> Dictionary:
-					return {text = "You log the bearing and the time in the archive. Then you turn out of the glare and take the long way in. The dish stays white for another hour."}},
+					return {text = "You log the bearing and the time. Then you turn out of the glare and take the long way in. The dish stays white for another hour."}},
 			],
 		},
 		{
@@ -1635,7 +1629,7 @@ static func _authored() -> Array[Dictionary]:
 					return {text = "The rate is on a sheet she cannot change and has no reason to doubt. She stamps the receipt twice, once for you and once for a copy no one has collected in eleven years."}},
 				{label = "Stay and copy the folder", effect = func() -> Dictionary:
 					Run.drain_fuel(1)
-					return {text = "Copying it takes most of a shift, with the reactor idling. It is other crews' paperwork about the thing at the core. There are transit logs that stop mid line and a mass estimate crossed out four times. There is an order for instruments that were never sent and never cancelled. She reads along with you in silence. In eleven years, no one else has asked to see it.", archive_recover = true, material_id = &"survey_film", material = &"event"}},
+					return {text = "Copying it takes most of a shift, with the reactor idling. It is other crews' paperwork about the thing at the core. There are transit logs that stop mid line and a mass estimate crossed out four times. There is an order for instruments that were never sent and never cancelled. She reads along with you in silence. In eleven years, no one else has asked to see it.", material_id = &"survey_film", material = &"event"}},
 				{label = "Leave her be", stay = true, effect = func() -> Dictionary:
 					return {text = "Yours is the first arrival she has logged in a long while. She logs it carefully, down to the minute."}},
 			],
@@ -1644,7 +1638,7 @@ static func _authored() -> Array[Dictionary]:
 			id = &"counting_backwards",
 			title = "Counting backwards",
 			subject = {stage = &"single", pick = true, pieces = [&"t3_counting_backwards_a_2", &"t3_counting_backwards_b_1", &"t3_counting_backwards_b_2"], tumble = 2.0},
-			body = "A dead relay hangs on the approach with its transponder still working. It sends one number every forty-one years, and each is lower than the last. Your archive holds three of them, logged by three ships across two centuries. The next number it sends will be zero. The relay is precursor work, older than any name anyone has for it. The dish puts that broadcast four days out.",
+			body = "A dead relay hangs on the approach with its transponder still working. It sends one number every forty-one years, and each is lower than the last. Your charts hold three of them, logged by three ships across two centuries. The next number it sends will be zero. The relay is precursor work, older than any name anyone has for it. The dish puts that broadcast four days out.",
 			tags = [&"signal"],
 			group = &"",
 			weight = 7,
@@ -1704,7 +1698,7 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"sensors", need = 7},
 					met = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(20))
-						return {text = "All six codes come from one issuer, a vault. Their holds read empty, so they have delivered and are waiting to be paid. The oldest code is forty years old. You copy all six to sell further out.", archive_recover = true},
+						return {text = "All six codes come from one issuer, a vault. Their holds read empty, so they have delivered and are waiting to be paid. The oldest code is forty years old. You copy all six to sell further out."},
 					clean = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(10))
 						return {text = "The codes are vault-issued and run in sequence, so this is an old, orderly queue that someone set up."},
@@ -2258,7 +2252,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Take the readings off it",
 					check = {attr = &"sensors", need = 7},
 					met = func() -> Dictionary:
-						return {text = "You match its roll, put the dish on it, and pull down the whole hundred years in one pass. The grapple also takes the instrument head off its mount, still cold and still good.", module = true, material_id = &"survey_film", archive_recover = true},
+						return {text = "You match its roll, put the dish on it, and pull down the whole hundred years in one pass. The grapple also takes the instrument head off its mount, still cold and still good.", module = true, material_id = &"survey_film"},
 					clean = func() -> Dictionary:
 						Run.heat += 10
 						return {text = "You get the link and about forty years of readings before the working half rolls away from you. The grapple takes a panel off the housing as you pass.", material_id = &"survey_film", material = &"wreck"},
@@ -2271,7 +2265,7 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "You misjudge the roll and come around on the lit side, with nothing between you and the star for a few seconds."}},
 				{label = "Answer it", effect = func() -> Dictionary:
 					Run.drain_fuel(2)
-					return {text = "Its summaries carry the return frequency. You send a receipt on it in the format the machine expects, and it treats the job as finished. It sends you everything it has, which takes eleven hours with the reactor idling. Then it stops transmitting.", archive_recover = true, material_id = &"survey_film", material = &"event"}},
+					return {text = "Its summaries carry the return frequency. You send a receipt on it in the format the machine expects, and it treats the job as finished. It sends you everything it has, which takes eleven hours with the reactor idling. Then it stops transmitting.", material_id = &"survey_film", material = &"event"}},
 				{label = "Leave it", stay = true, effect = func() -> Dictionary:
 					return {text = "You log where it is and go. It keeps taking readings while you are in range."}},
 			],
@@ -3319,10 +3313,10 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"sensors", need = 7},
 					met = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(30))
-						return {text = "You find the fault in forty minutes: a board that died two years ago. The receiver comes back with two years of messages at once. The company folded eighteen months ago. They pay you from the ship's account, which is now theirs, and give you the three years of measurements.", archive_recover = true},
+						return {text = "You find the fault in forty minutes: a board that died two years ago. The receiver comes back with two years of messages at once. The company folded eighteen months ago. They pay you from the ship's account, which is now theirs, and give you the three years of measurements."},
 					clean = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(18))
-						return {text = "It takes half a day to find the fault. The receiver comes back. It brings eighteen months of messages and then stops. That is enough. They pay you what they can spare. They give you the measurements.", archive_recover = true},
+						return {text = "It takes half a day to find the fault. The receiver comes back. It brings eighteen months of messages and then stops. That is enough. They pay you what they can spare. They give you the measurements."},
 					partial = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(6))
 						Run.heat += 10
@@ -3333,7 +3327,7 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "You trace the fault into their power bus, and the bus fails. Their ship is dark for an hour, and the jolt through the connecting line scorches a metre of your plating. Their receiver is no better, and no one pays."}},
 				{label = "Trade fuel for the measurements", effect = func() -> Dictionary:
 					Run.drain_fuel(2)
-					return {text = "You give them two units. They give you three years of the approach: every hull that went inward or came back, on film and in the log. They add a case of the company's rations, which they have in plenty. You give them what little news you have.", archive_recover = true, material_id = &"survey_film", material = &"event"}},
+					return {text = "You give them two units. They give you three years of the approach: every hull that went inward or came back, on film and in the log. They add a case of the company's rations, which they have in plenty. You give them what little news you have.", material_id = &"survey_film", material = &"event"}},
 				{label = "Leave them", stay = true, effect = func() -> Dictionary:
 					return {text = "You give them what news you have on the channel and go. They thank you and go back to their instruments."}},
 			],
@@ -3418,10 +3412,10 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"maneuver", need = 8},
 					met = func() -> Dictionary:
 						Run.drain_fuel(2)
-						return {text = "You match the ship close enough to pass a line and hold there for six minutes. Two units go across, and a sealed case comes back with equipment from beyond the chart. The voice tells you three things about the core before the ship is gone.", module = true, archive_recover = true},
+						return {text = "You match the ship close enough to pass a line and hold there for six minutes. Two units go across, and a sealed case comes back with equipment from beyond the chart. The voice tells you three things about the core before the ship is gone.", module = true},
 					clean = func() -> Dictionary:
 						Run.drain_fuel(2)
-						return {text = "You hold the match for four minutes. That is long enough for the fuel. It is not quite long enough for what they meant to send. Something smaller comes across instead. The voice says one thing about the core, and it is gone.", archive_recover = true, material = &"event"},
+						return {text = "You hold the match for four minutes. That is long enough for the fuel. It is not quite long enough for what they meant to send. Something smaller comes across instead. The voice says one thing about the core, and it is gone.", material = &"event"},
 					partial = func() -> Dictionary:
 						Run.drain_fuel(2)
 						Run.heat += 14
@@ -3432,7 +3426,8 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "You get the match wrong, and the hulls touch at a dangerous speed. They keep going. You spend unplanned fuel stopping your drift, and drift a while longer before your systems come back."}},
 				{label = "Give them fuel and ask nothing", effect = func() -> Dictionary:
 					Run.drain_fuel(2)
-					return {text = "You put two units into a drop tank and leave it on their line. They take it at speed without stopping. The voice talks the whole time it is in range. What it says about the core goes in your archive.", archive_recover = true}},
+					Run.add_credits(OptionTable.purse(14))
+					return {text = "You put two units into a drop tank and leave it on their line. They take it at speed without stopping. The voice talks the whole time it is in range. A payment for the fuel clears an hour later, though you asked for nothing."}},
 				{label = "Let it go", stay = true, effect = func() -> Dictionary:
 					return {text = "You let it go. It is out of range in an hour, still running hot on one drive."}},
 			],
@@ -3482,7 +3477,7 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"thrust", need = 7},
 					met = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(34))
-						return {text = "You tow them a day outward to the traffic route and leave them there with their transponder loud. The ship pays the bounty for the leg and copies you its log. They are still asleep, a day nearer to help.", archive_recover = true},
+						return {text = "You tow them a day outward to the traffic route and leave them there with their transponder loud. The ship pays the bounty for the leg and copies you its log. They are still asleep, a day nearer to help."},
 					clean = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(20))
 						Run.heat += 10
@@ -3792,7 +3787,8 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"thermal", need = 7},
 					met = func() -> Dictionary:
 						Run.heat += 12
-						return {text = "You push the reactor outside the envelope it was built for. You hold it there while her instruments work. What comes back matches nothing anybody has a file on. She says sorry, plainly and once. Then she sends you her own file on the ship she is waiting for. It is six years of bearings and dates, in case you ever cross it.", archive_recover = true},
+						Run.add_credits(OptionTable.purse(14))
+						return {text = "You push the reactor outside the envelope it was built for. You hold it there while her instruments work. What comes back matches nothing anybody has a file on. She says sorry, plainly and once. Then she pays you for the hour your reactor ran hot."},
 					clean = func() -> Dictionary:
 						Run.heat += 16
 						return {text = "You hold the reactor off its profile long enough for the reading to come back wrong. The loop stops. She tells you to go on through the crossing. The reactor takes an hour to come back down to where it belongs."},
@@ -4306,7 +4302,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Copy the log before it wraps",
 					check = {attr = &"sensors", need = 4},
 					met = func() -> Dictionary:
-						return {text = "The dish reads it off in an hour and forty minutes, first entry to last. The first entry is older than the outfit that ordered it. Eleven numbers an hour for four years. Then one an hour ever since. The cells have been going flat that whole time. You clip the spares box off the frame: cable, two cells, a lens the aperture never needed.", archive_recover = true, material = &"event"},
+						return {text = "The dish reads it off in an hour and forty minutes, first entry to last. The first entry is older than the outfit that ordered it. Eleven numbers an hour for four years. Then one an hour ever since. The cells have been going flat that whole time. You clip the spares box off the frame: cable, two cells, a lens the aperture never needed.", material = &"event"},
 					clean = func() -> Dictionary:
 						return {text = "The copy comes off clean for the last four years. Then it hits the wrap. The new numbers are written on top of the old ones, and neither one survives. You take the spares box off the frame and leave the instrument counting.", material = &"event"},
 					partial = func() -> Dictionary:
@@ -4458,7 +4454,7 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"sensors", need = 5},
 					met = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(28))
-						return {text = "Eleven crates. The mass sits within a point of what eleven crates of drive parts should read. The second receipt was written against a load that was never on any ship. The station that wrote it is four crossings behind you and does not know yet. She pays the reading fee and the correction fee together. She copies the filing across to you as well. She wants it stored somewhere that is not her own drive.", archive_recover = true},
+						return {text = "Eleven crates. The mass sits within a point of what eleven crates of drive parts should read. The second receipt was written against a load that was never on any ship. The station that wrote it is four crossings behind you and does not know yet. She pays the reading fee and the correction fee together. She copies the filing across to you as well. She wants it stored somewhere that is not her own drive."},
 					clean = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(12))
 						return {text = "The mass reads high by enough to matter. It reads low by enough to argue about. You log what the dish says and sign that figure. She takes it away to whoever has to decide what it means. She pays the reading fee without a word."},
@@ -4470,7 +4466,8 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "Your figure is off by a whole crate. The file goes inward with your registry on the reading. Nobody is angry about it. The station at the far end holds the shipment eleven more days. A third instrument settles the argument. The cost of those eleven days goes against your reading."}},
 				{label = "Sit with her and copy the filing across", effect = func() -> Dictionary:
 					Run.drain_fuel(1)
-					return {text = "Most of a shift with the reactor idling. The dish points at her ship instead of the shipment. Eight days of receipts and two stamps from two stations. There is a transfer note with the wrong registry typed in twice. You take a copy of all of it. She talks the whole time, and about half of it is about the paperwork.", archive_recover = true}},
+					Run.add_credits(OptionTable.purse(8))
+					return {text = "Most of a shift with the reactor idling. The dish points at her ship instead of the shipment. Eight days of receipts and two stamps from two stations. There is a transfer note with the wrong registry typed in twice. You take a copy of all of it. She pays you a clerk's fee for the shift. She talks the whole time, and about half of it is about the paperwork."}},
 				{label = "Stay out of the file", stay = true, effect = func() -> Dictionary:
 					return {text = "She is still on the channel asking when you pass out of range."}},
 			],
@@ -4642,7 +4639,7 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"sensors", need = 6},
 					met = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(30))
-						return {text = "The seals answer a current reader in about a minute. They match the order in every line but one: the collector is on no registry you can reach. That lets her close the order out. She pays the reading fee from the depot account and sends over the file. It holds the order, the route it was meant to take, and nineteen years of holding notes.", archive_recover = true},
+						return {text = "The seals answer a current reader in about a minute. They match the order in every line but one: the collector is on no registry you can reach. That lets her close the order out. She pays the reading fee from the depot account and sends over the file. It holds the order, the route it was meant to take, and nineteen years of holding notes."},
 					clean = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(18))
 						return {text = "Your reader gets four seals out of six. Four is what the depot rules ask for. She closes the order on that. She pays the fee at the reduced rate her sheet allows for a partial reading. Then she puts the file back in the drawer it came out of."},
@@ -4736,7 +4733,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Open the load and read the list",
 					check = {attr = &"sensors", need = 7},
 					met = func() -> Dictionary:
-						return {text = "The list reads clean once you have the cell voltage right. It says what is in every case, and which of them still hold a charge. One does. You take that one off the tether. The order's own file comes with it: the posting, the address, and the name of whoever signed the job out.", module = true, archive_recover = true},
+						return {text = "The list reads clean once you have the cell voltage right. It says what is in every case, and which of them still hold a charge. One does. You take that one off the tether. The order's own file comes with it: the posting, the address, and the name of whoever signed the job out.", module = true},
 					clean = func() -> Dictionary:
 						return {text = "Half the list reads and the other half went with the cells. You open the cases that answer and find one sealed unit still holding. You take it off the tether. The rest stay counted and sealed, where the order says they are.", module = true},
 					partial = func() -> Dictionary:
@@ -4748,7 +4745,7 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "The case you pick is under pressure. It has been since the day it was packed. It opens along the seam the cutter made. What was in it goes through your bow at speed. The rest of the load hangs on the tether, counted and sealed."}},
 				{label = "Record the beacon through a full cycle", effect = func() -> Dictionary:
 					Run.drain_fuel(2)
-					return {text = "The order repeats hourly, and the long version runs once a day. That one carries the schedule, the routing, and every amendment made to either. You hold station a full day to get the whole of it. Burning to stay put costs you a day of fuel. You take the recording with you.", archive_recover = true}},
+					return {text = "The order repeats hourly, and the long version runs once a day. That one carries the schedule, the routing, and every amendment made to either. You hold station a full day to get the whole of it. Burning to stay put costs you a day of fuel. You take the recording with you, and a coil of spare line off the tether.", material_id = &"frayed_line"}},
 				{label = "Leave the order standing", stay = true, effect = func() -> Dictionary:
 					return {text = "You log the bearing and go on. The beacon puts the order out again on the hour. The strength is the same. The address it names has not been there for a long time."}},
 			],
@@ -4767,7 +4764,7 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"thrust", need = 6},
 					met = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(34))
-						return {text = "You get your bow on the carrier's stern plate. You push for nine hours. It comes up to a speed the other four can hold without extra burn. They pay the figure she named, out of five accounts. They send over their run inward as well. It has every bearing they took, every place they stopped, and the day they turned around.", archive_recover = true},
+						return {text = "You get your bow on the carrier's stern plate. You push for nine hours. It comes up to a speed the other four can hold without extra burn. They pay the figure she named, out of five accounts. They send over their run inward as well. It has every bearing they took, every place they stopped, and the day they turned around."},
 					clean = func() -> Dictionary:
 						Run.heat += 12
 						Run.add_credits(OptionTable.purse(20))
@@ -4799,7 +4796,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Cut a clamp warm and take the container",
 					check = {attr = &"thermal", need = 7},
 					met = func() -> Dictionary:
-						return {text = "You run the cutter in long passes with the radiators wide. The clamp lets go in about an hour. Not much heat comes back into the ship. The container comes across whole. The consignment papers are in a sleeve on the door. They are printed, stamped twice, and readable from the first line to the last.", material = &"event", archive_recover = true},
+						return {text = "You run the cutter in long passes with the radiators wide. The clamp lets go in about an hour. Not much heat comes back into the ship. The container comes across whole. The consignment papers are in a sleeve on the door. They are printed, stamped twice, and readable from the first line to the last.", material = &"event"},
 					clean = func() -> Dictionary:
 						Run.heat += 14
 						return {text = "The clamp takes two hours. Most of those hours come back as heat down the grapple. You get the container off the rail. Then you sit a while with the drive cold, shedding what the job put into you.", material = &"event"},

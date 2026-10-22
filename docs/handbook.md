@@ -465,8 +465,8 @@ Decided, do not silently reverse:
   gauge changes what a cell MEANS, which is why it stays a break and not a tick.
 - **Map nodes are icons plus region colour**, name in the detail panel. Labels
   under every node are why the build currently truncates `STATION` to `STATIO`.
-- **The HUD's tabs on every screen:** LOCAL, SECTOR, STARCHART and ARCHIVE (plus CARDS
-  and MODULES in developer mode).
+- **The HUD's tabs on every screen:** LOCAL, SECTOR and STARCHART (plus CARDS
+  and MODULES in developer mode). ARCHIVE was cut on Oct 22.
 
 Two other structures — a diegetic cockpit and a chart-primary layout — were
 explored and rejected. Nothing was taken from them.

@@ -1271,8 +1271,8 @@ The Warm Things → The Last Warm Place → No Fault Found → Five Ways Home.
 
 Wiring: `nofault` is the natural `gameover` cue (currently `theme` rung 0);
 `fauna` wants `Combat.pacify` or a fauna encounter; `core` waits for the core
-arrival; `perpetuity` belongs in the archive reading room, which currently
-sets no music state. All four are rendered and registered in `build.py`;
+arrival; `perpetuity` was written for the archive reading room, which was cut
+on Oct 22, so it has no home now. All four are rendered and registered in `build.py`;
 none is wired into `Audio.gd` yet.
 
 

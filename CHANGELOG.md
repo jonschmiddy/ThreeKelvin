@@ -39,6 +39,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   come up when you pick the module up and go when you drop it or let go anywhere else. Moving a fitted
   module onto another fitted one now works with a full hold too, since the two just trade places.
 
+### Removed
+
+- **Removed** — the ARCHIVE. Its tab on the HUD and THE ARCHIVE on the title screen are gone,
+  and so are the 41 documents it held. Wrecks, fights, pulsars and contract cargo no longer turn
+  up a document. Four event choices gave you a document and nothing else; they now pay a few
+  credits, or give a used tow line, instead. Documents you found in earlier builds are no longer
+  shown anywhere, and your saved runs load as before.
+
 ### Roadmap
 
 The next build is **0.4.0-alpha.1**, with the fixes from the first outside playtest. See

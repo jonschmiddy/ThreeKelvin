@@ -10,8 +10,7 @@ extends RefCounted
 ##
 ## NOT CONTESTED, unlike the shelf. Two ships can both take the same contract and
 ## both deliver it. A shelf holds one Legendary and a job holds as many hands as
-## want it; the thing being paid for is the flying, and both of them flew. This
-## is the same reasoning that makes the archive uncontested — see
+## want it; the thing being paid for is the flying, and both of them flew. See
 ## `netcode.md` "One kill, one bag" for the shape it is deliberately NOT.
 ##
 ## Nothing here expires. See ContractData's header for why that is a rule rather
@@ -280,8 +279,8 @@ static func _item(manufacturer: StringName, r: RandomNumberGenerator) -> String:
 
 ## The ask, in the manufacturer's own register.
 ##
-## Every one of these is a person at a desk with a job, in the same voice the
-## archive is written in — see `docs/lore.md` §5. Nobody explains anything,
+## Every one of these is a person at a desk with a job, in the primary-source
+## voice of `docs/lore.md` §5. Nobody explains anything,
 ## nobody is grateful, and nobody says what the heat is for.
 static func _voice(manufacturer: StringName, kind: ContractData.Kind, place: String,
 		amount: int, r: RandomNumberGenerator) -> String:

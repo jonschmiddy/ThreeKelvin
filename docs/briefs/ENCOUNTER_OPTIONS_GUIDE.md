@@ -174,9 +174,8 @@ how rarity stays tied to where you are.
 
 **Standing is out.** Contracts and the market use it; no option touches it.
 
-**Archive documents cannot be granted.** A system either holds one or it does
-not — it is derived from the system's position. An option can only recover the
-one that is already here.
+**No archive documents.** `archive_recover` is gone with the ARCHIVE (cut Oct
+22). A choice that hands over paperwork pays for it in credits or a material.
 
 ### Three rules on failure
 

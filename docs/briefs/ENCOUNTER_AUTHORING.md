@@ -164,16 +164,14 @@ floor means **a desperate option is never a disabled button with extra steps**.
 ## 5. Reward classes
 
 `ENCOUNTER_REBUILD.md` §5. Modules and rarity come from **fights and the wrecks
-fights leave**. Everything else pays in credits, fuel, materials, archive
-entries.
+fights leave**. Everything else pays in credits, fuel and materials. (Archive
+entries were a fourth, until the ARCHIVE was cut on Oct 22.)
 
 The rarity ladder already does the high-risk half by itself —
 `LootGen.roll_module()` refuses EPIC below danger 3 and LEGENDARY below danger 4.
 **Do not duplicate that elsewhere**, or the ladder leaks.
 
-Only two materials exist: `exotic` and `relic`. The archive is **positional** —
-`Archive.at_node()` derives from the node index, so an option can only recover
-the document that is already here, never conjure one.
+Only two materials exist: `exotic` and `relic`.
 
 **Standing is not a reward.** It exists, but contracts are its only writer, it
 has one effect capped at 20% on the bid, and it is never displayed. A

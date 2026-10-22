@@ -167,15 +167,14 @@ Suggested starting set, each mapping to a reward class:
 | --- | --- | --- | --- |
 | Strip the wreck | `salvage` | low-rarity modules, hulls, fragments | any; more deep |
 | Work the claim | `claim` | materials, credits | low development |
-| Answer the signal | `signal` | credits, archive, standing | any |
+| Answer the signal | `signal` | credits, standing | any |
 | Take the contract | `contract` | credits, standing | berths ≥ 1 |
 | Pick the fight | `fight` | **modules and rarity** | any |
 | Pay the toll | `contract` | costs credits, buys passage | security ≥ 3 |
-| Read the archive | `signal` | archive entries | berths ≥ 1 |
 | Run the blockade | `fight`/`signal` | passage, standing loss | LAWLESS |
 
 **The variety comes from voice, and your setting is unusually well suited to
-it.** `lore.md` §5 rules the archive primary sources with no narrator, so the
+it.** `lore.md` §5 rules in-world paperwork primary sources with no narrator, so the
 same mechanical option reads completely differently as a Probate filing, a
 Redline scrawl, and a Verity warranty notice. One archetype × seven
 manufacturers × a register each is a lot of apparent content for one mechanic —

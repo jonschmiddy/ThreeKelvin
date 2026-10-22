@@ -82,7 +82,7 @@ func _process(delta: float) -> void:
 	# the width changes when the reading goes from two digits to three.
 	#
 	# BOTTOM RIGHT, the one corner with nothing in it. The top right is the HUD
-	# row: CARDS, MODULES, ARCHIVE and HISTORY run to within a few pixels of the
+	# row: CARDS, MODULES and HISTORY run to within a few pixels of the
 	# edge, and that crowding is precisely what got the last frame counter
 	# deleted. Down here it overlaps nothing on any screen.
 	var vp := get_viewport_rect().size

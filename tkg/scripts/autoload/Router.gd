@@ -322,8 +322,7 @@ func _room_for(screen: Control) -> Variant:
 		return &"amb_station" if docked else _star_room()
 	if screen is CardGalleryScreen \
 			or screen is ModuleGalleryScreen or screen is TransferScreen \
-			or screen is StarchartScreen or screen is ArchiveScreen \
-			or screen is HistoryScreen:
+			or screen is StarchartScreen or screen is HistoryScreen:
 		return null
 	return &""
 
@@ -506,17 +505,6 @@ func show_party() -> void:
 	_swap(s)
 	s.setup((show_station if docked else show_local) if here is ShipScreen else (
 		show_starchart if here is StarchartScreen else show_sector))
-
-## Somebody else's paperwork. `from_launcher` sends LEAVE back to the title
-## screen, because the archive is readable out of a run as well as in one — what
-## you have read survives the ship. See Archive.
-func show_archive(from_launcher: bool = false) -> void:
-	# From the launcher the archive is somewhere you went; from inside a run it
-	# is a panel you opened, and a panel never touches the music.
-	Audio.music_state(&"records" if from_launcher else &"archive")
-	var s := ArchiveScreen.new()
-	_swap(s, not from_launcher)
-	s.setup(show_launcher if from_launcher else show_sector)
 
 ## Re-scan before drawing, because SIGHT IS A SNAPSHOT AND REACH IS LIVE.
 ##
@@ -1363,14 +1351,10 @@ func event_resolved(result: StringName = &"done") -> void:
 ## tank and exotic matter worth studying, and you pay for it in the only
 ## currency the ship cannot buy back cheaply.
 func harvest_pulsar() -> void:
-	var n: MapGen.MapNode = Run.node_at()
 	Run.harvest_pulsar()
 	if Run.dead:
 		show_game_over()
 		return
-	# A beam that has been sweeping this long has swept other people. Read before
-	# the screen swaps, so the line lands in the log the sector is about to draw.
-	Archive.recover_at(n, "pulled out of a pulsar's sweep")
 	show_sector()
 
 ## Strip the wreck, then stay where you are: the salvage rail on the sector
@@ -1417,7 +1401,6 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 		Run.log_line("A flyable hull is still attached: %s" % Run.found_hull.display_name(), &"good")
 	Run.log_line("You strip %d module%s from the derelict." % [
 		count, "" if count == 1 else "s"], &"good")
-	Archive.recover_at(n, "stripped out of a derelict")
 	show_sector()
 
 ## `extras` is what the node already rolled. It is a parameter rather than
@@ -1639,7 +1622,7 @@ func in_combat() -> bool:
 ## and the chart lead back to the fight, and `show_local` stops there. It did not: Tab in a fight went `show_system` -> `show_local` and
 ## built the fight's screen again over itself, so the picture dimmed and came
 ## back, the hand was dealt again and the enemy flew in a second time (nav
-## audit, Oct 17). From a page opened OVER the fight (CARDS, the archive) the
+## audit, Oct 17). From a page opened OVER the fight (CARDS) the
 ## same doors are still the way back to it.
 ##
 ## AND UNTIL THE FIGHT HAS HANDED OVER. From the last kill to `after_combat` --

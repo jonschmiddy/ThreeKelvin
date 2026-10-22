@@ -4,8 +4,8 @@ extends Control
 ##
 ## `SpaceBackdrop` and `NebulaWeather` were built for the encounter view and
 ## constructed inside it, so the one screen that fights had a world behind it
-## and the nine that do not — the refit bay, the hold, both galleries, the
-## archive, the record, chassis select, the party, the lobby — were panels on
+## and the ones that do not — the refit bay, the hold, both galleries, the
+## record, chassis select, the party, the lobby — were panels on
 ## the clear colour. The generator was never the problem. Its only consumer was.
 ##
 ## So the pair moves up to `Router`, above the screen that happens to be open,

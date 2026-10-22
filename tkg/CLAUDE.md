@@ -17,7 +17,7 @@ split.
 |---|---|
 | `docs/handbook.md` | Screen layout, art direction and generation, audio, the economy's internals, the two procedural engines, the manufacturer table, dev mode |
 | `docs/design-doc.md` | What the game IS. Pillars, core loop, combat, loot, the setting |
-| `docs/lore.md` | Who pays for all this, the archive's writing rules, contracts |
+| `docs/lore.md` | Who pays for all this, the rules for in-world paperwork, contracts |
 | `docs/coop-design.md` | What four players do to each other |
 | `docs/netcode.md` | How four machines are joined, and what each protocol bump bought |
 | `docs/design-doc.md` §Pillar 5 | **Before calling a win-rate rise a regression.** The ceiling is meant to break; watch the death causes, not the win rate |
@@ -47,8 +47,8 @@ split.
 - **UI is built in code**, not scenes. There are two scenes: `scenes/Shell.tscn`, the
   main scene (`ui/GameShell.gd`), and `scenes/Main.tscn`. Screens are `Control` subclasses that construct their own children against `UITheme`
   and `Widgets`.
-- **Content is data, not code.** New modules, cards, enemies, hulls, affixes and archive
-  entries go in `scripts/autoload/Database.gd` as dictionary entries. `CardResolver`
+- **Content is data, not code.** New modules, cards, enemies, hulls and affixes
+  go in `scripts/autoload/Database.gd` as dictionary entries. `CardResolver`
   already handles every effect field on `CardData`, so a new card should require zero new
   logic. If you find yourself adding a `match` on card name, stop — add a field to
   `CardData` instead.
@@ -80,7 +80,7 @@ were the first six below plus `Combat`, `MapGen`, `Widgets` and `ShipView`:
 | Autoload | Holds |
 |---|---|
 | `Run` (`RunState`) | The run. Hull, hold, credits, heat, fuel, map, position, contracts, standing. A SINGLETON, so one process holds exactly one ship — which is why a co-op partner is a second process and why `Net` exists |
-| `DB` (`Database`) | Every content table, seeded at boot. Modules, cards, hulls, enemies, affixes, manufacturers, archive documents |
+| `DB` (`Database`) | Every content table, seeded at boot. Modules, cards, hulls, enemies, affixes, manufacturers |
 | `Rng` | Five named streams plus `derive()`. See the rule above |
 | `Router` | Which screen is up, and what an arrival at a node means |
 | `Sig` | The signal bus. Systems emit, UI listens |
@@ -95,7 +95,7 @@ scripts/
   autoload/   Run, DB, Rng, Router, Sig, Audio, Keys  (Net is in net/, Hints and Ash in ui/)
   data/       plain resources — CardData, ModuleData, HullData, ShipBuild, ContractData
   systems/    rules, no UI — Combat, CardResolver, MapGen, Market, LootGen, SaveGame,
-              Contracts, Archive, Unlocks
+              Contracts, Unlocks
   net/        the party — NetSession, SharedFight, the transports, the bot
   ui/         one Control subclass per screen, built in code
   sim/        headless harnesses and contact sheets. Everything under `-- flag`
@@ -140,12 +140,11 @@ goes in `SOLO_UNITS`.
 | `-- parts` | touching modules, `ModuleIcon` or the hold's cell size. Every module in the game at its own footprint, grouped by manufacturer. The sibling of `-- cards`, and dev-only for the same reason |
 | `-- glyphs` | adding a card or changing `CardData.glyph_kind()`. Distribution over every card (the sheet prints the count), so no picture becomes a catch-all |
 | `-- stowtest` | touching the salvage rail or `SectorScreen`'s lifetime. Drives the real screen through a real jump — the rail's dismissal has been wrong three times and the first was invisible to any assertion on the rule itself |
-| `-- archivetest` | adding an archive document. Machinery AND a style gate over the prose — see `docs/lore.md` §5 |
 | `-- savetest` | touching `SaveGame` or `RunHistory` |
 | `-- rngtest` | touching `Rng` or any generator. **In the merge gate** |
 | `-- menutest` | touching `PauseMenu`, `SettingsMenu`, `SettingsPanel` or anything `Router.animating` decides. **In the merge gate.** Opens the escape menu with Escape, goes into Settings, turns reduced motion and skip jump on, off and both, and checks Escape and BACK leave Settings, Escape shuts the menu and it is GONE, and the ship takes its keys again; the title-style drawer too. Settings' TUTORIAL row: ON on a fresh file, OFF kept and read back (a scratch file), ON again, and REPLAY TUTORIAL does not move it. Headless never animates, so it sets `Router.animate_in_harness` -- the lock-up it guards (a menu opened under reduced motion threw on the animated close and stayed up, eating clicks) lived only on the animated path. Settings changed in memory, never saved |
 | `-- bindtest` | touching `Keys`, Settings' CONTROLS (`KeyBindings`) or any screen's key handling. **In the merge gate.** Every default is the key the game always had; a key rebound through Settings with real key events (Escape cancelling, not closing the menu) works on the ship screen, the star chart and Main's Tab, and the old key stops; LOCAL REGION (L, and rebound) frames the chart on the local region (`frame_region`'s own frame, YOU in view) and off again on the whole galaxy, and pressed while the calm move from LOCAL is under way it is carried to the chart and lands framed (`ZoomLadder.CARRIED`: it went to LOCAL and was lost, Jon's "L doesn't work", Oct 20); the binding survives a reload of the settings file beside its display section; clashes are caught where two screens are up together and not where they never meet. Runs in a scratch settings file, never the player's. New keys are added to `Keys.ACTIONS` and read as `event.is_action_pressed(&"id")`; held keys settle with `Keys.held(&"id")`. `-- ship menu settings=controls shot=<png>` photographs CONTROLS (`bindshot=listen\|clash\|reset` for its states; add `keepwindow` with `--windowed --position x,y` to leave the window where the command line put it) |
-| `-- devtest [asrelease]` | touching `DevMode`, anything built `if DevMode.enabled`, the title screen's corner or `Unlocks`. **In the merge gate**, both ways. Developer mode exists only in the editor (`DevMode.available` is `OS.has_feature("editor")`): from one scratch settings file that says `[dev] enabled=true`, the editor side gets the switch, CARDS and MODULES, the tier row, the chart's four dev buttons and every manufacturer, and the released side gets none of it, writes nothing, and a fresh profile flies Korvan alone. `asrelease` also boots as released; `godot --path . -- asrelease` plays without developer mode, but on your own profile and with files an export leaves out, so it is not the game a friend gets (launch the export from a clean profile for that). The editor binary cannot see the export side of `_detect`, so the export's own smoke test should run `-- devtest` too. Never the player's files: `DevMode.path` and `RunHistory.path` point at scratch ones |
+| `-- devtest [asrelease]` | touching `DevMode`, anything built `if DevMode.enabled`, the title screen's corner or menu, the HUD's tabs, or `Unlocks`. **In the merge gate**, both ways. Developer mode exists only in the editor (`DevMode.available` is `OS.has_feature("editor")`): from one scratch settings file that says `[dev] enabled=true`, the editor side gets the switch, CARDS and MODULES, the tier row, the chart's four dev buttons and every manufacturer, and the released side gets none of it, writes nothing, and a fresh profile flies Korvan alone. `asrelease` also boots as released; `godot --path . -- asrelease` plays without developer mode, but on your own profile and with files an export leaves out, so it is not the game a friend gets (launch the export from a clean profile for that). The editor binary cannot see the export side of `_detect`, so the export's own smoke test should run `-- devtest` too. Also, both ways: no ARCHIVE on the HUD or the title (no button, label or tooltip names it), no `Router.show_archive` for Tab, a tab or a menu to reach, and no `Archive`, `ArchiveScreen` or `DocumentData` class (Jon, Oct 22: cut). Never the player's files: `DevMode.path` and `RunHistory.path` point at scratch ones |
 | `-- nettest` | touching anything in `scripts/net/`. A full party in one process. **In the merge gate**. Holds the content fingerprint's ids to their TEXT order (`NetSession.sorted_ids`): sorted as StringNames, two exports of one commit refused each other (Oct 20), which one process can never show — it was not, and the cap going 4→8 left it asserting four seats in nine places for a whole day before anything said so |
 | `tools/cofight.sh` | touching `Combat`'s shared path, `SharedFight` or `Router.start_combat`. `boss` for the core, `late` for joining a fight already open. **`nettest` cannot reach any of it** — `Run` is a singleton, so one process holds one ship |
 | `tools/export.sh [all\|windows\|mac]` | making a build for friends. Release exports of both presets in `export_presets.cfg` (Windows x86_64 as ONE exe with the pack embedded, so it runs even double-clicked inside the zip, plus a console exe beside it; macOS universal, ad-hoc signed, zipped by Godot -- push that zip as written) into the repo's gitignored `builds/<version>-<commit>/`. Writes `build.json` (project.godot's `config/version` + short hash, `+dirty` if tkg/ has changes) for the length of the export, so the game's stamp (`BuildInfo`: title corner, pause menu, `[build]` line in godot.log, flight records) says what was played; from source it says "dev". FAILS on any ERROR/WARNING in an export log, on any runtime file missing from the pack (read off the log's "Storing File" lines -- a new file type read by `FileAccess`, like the `.lmap`s, needs the presets' `include_filter`), and on the smoke test: the Windows export run headless with `rngtest`, `devtest asrelease` and `parseall`, its user folder pointed at a scratch `APPDATA` (Godot reads the env var), so a build never writes into this machine's `ThreeKelvinAlpha`. `GODOT=<godot_console.exe>`. Needs the 4.7.1 export templates; prints the install step if they are missing. A cold launch of an export from an empty profile: point `APPDATA` at an empty folder for that process -- but keep its path SHORT (a ~170-character one broke Godot's shader cache on the second launch and drew the map and LOCAL white, editor and export alike). Developer mode cannot exist in what it makes (`DevMode.available` needs the editor) |
@@ -256,7 +255,6 @@ skips part of the run the balance depends on.
 godot --path . -- nolauncher | resume | seed 12345
 godot --path . -- ship | station | cards | fight 10 | fight foes=3
 godot --path . -- salvage 8 [bag=4]            # the sector with a full hold, or a loot bag
-godot --path . -- archive [all|5] [open=<id>]  # the reading room
 godot --path . -- party 6                      # the party page against a fake roster
 godot --path . -- quest                        # signs work and opens the chart on it
 godot --path . -- lobby [host|join CODE] [auto] [relay ws://localhost:8787]
@@ -306,7 +304,7 @@ say so and ask rather than quietly working around it.
 | **THE CARD RARITY LAW: cells decide what grades a module may grant** | 1-2 cells is one card at the part's own rarity and one BELOW it; 3-4 cells is two at the part's rarity. So a legendary 4x1 does grant two legendary cards, and that is fine because it costs a whole row of a light hull's twelve — the power is bought with hold space rather than handed over, and a legendary 1x1 could not be allowed the same thing. "Below it" and not "one step below", which is what lets the shared commons sit under anything without a special case. A function of the part like `grant_count`, so "a small part never grants two top-grade cards" is true by construction; `-- holdtest` holds the line for the cards that DECLARE a rarity, which is the only path that can get it wrong |
 | **Charge fires automatically** when ready | Tension belongs in *when you start* charging, not in a release button |
 | **Overheat = predictable self-damage.** 1 hull per point over cap, at end of turn. No cliff, no shutdowns, no cap on heat | Heat becomes a second health bar you can choose to spend. Repairs cost scrap, so overheating burns money |
-| **The archive is PRIMARY SOURCES, never exposition** — manifests, riders, receipts, transponder loops, and never a narrator | `docs/design-doc.md` rules that no faction explains the cosmology in a text box, and the obvious way to add lore breaks that. `docs/lore.md`'s frame is what makes lore possible under it: *corporations are eternal and buying heat, people are temporary and want scrap and credits, and the eternal things will not say what the heat is for.* Nobody explains the world because the people who could are not talking. **There is no answer written down anywhere**, including in the design docs — that is a commitment, not a gap, because the moment one exists somebody will put it in an entry. `-- archivetest` is a style gate as well as a machinery one and runs in the merge gate |
+| **In-world paperwork is PRIMARY SOURCES, never exposition** — manifests, riders, receipts, transponder loops, and never a narrator | `docs/design-doc.md` rules that no faction explains the cosmology in a text box, and the obvious way to add lore breaks that. `docs/lore.md`'s frame is what makes lore possible under it: *corporations are eternal and buying heat, people are temporary and want scrap and credits, and the eternal things will not say what the heat is for.* Nobody explains the world because the people who could are not talking. **There is no answer written down anywhere**, including in the design docs — that is a commitment, not a gap, because the moment one exists somebody will put it in an entry. Written for the ARCHIVE, a reading room of 41 recovered documents, which was cut (Jon, Oct 22: "It was a cool idea, but not for a procedural game"); the rule now governs contract asks and the paperwork events describe. `-- devtest` checks no ARCHIVE is left on the HUD or the title and no door leads to one |
 | **Heat does NOT gate loot.** Winning a fight pays the loot. Fleeing pays nothing. Heat's only job on the map is the residual you carry into the next jump — the ambush mechanic | REVERSES `docs/coop-design.md` §0's own conclusion, which proposed that heat must gate reward, and kills §6's "two doors" with it. The measurement behind that proposal still stands: 1,000 runs a cell say heat does not move the win rate, and under this ruling it is not going to. That is accepted. **Difficulty lives in the economy**, which is what the tuning rule below has said all along and what the enemy-scaling change actually moved. `docs/coop-design.md` §0 has the full record |
 | **The deck only reshuffles at the start of your turn** | Without this, zero-cost draw cards (Emergency Vent, Jury-Rig, Foresight) loop forever once the discard recycles. Also makes deck size strategically meaningful |
 | **Player attacks never miss. Only enemies miss** (light hulls dodge incoming fire) | Player-side miss RNG feels terrible in a game built on perfect information |
@@ -382,9 +380,10 @@ reach for the current number.
 
 ## Priorities
 
-The flight record and the archive are the only two things that survive a dive, and
-neither grants power — that is the shape meta-progression is allowed to take here and
-the reason both were safe to build. See `Unlocks.gd` and `Archive.gd`.
+The flight record is the one thing that survives a dive, and it grants no power —
+that is the shape meta-progression is allowed to take here and the reason it was safe
+to build. See `Unlocks.gd`. (The archive of recovered documents was the second, until
+it was cut on Oct 22.)
 
 Open, in rough order: the `Run` singleton is still the largest single obstacle to
 anything the host has to hold four of (`docs/netcode.md` §5); `CREW_SHARE` is linear
