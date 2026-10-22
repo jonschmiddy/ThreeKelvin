@@ -2297,13 +2297,14 @@ func unlift_part(m: ModuleData, mount: int) -> void:
 ## The mount is a PLACE, so `index` is carried through to the part rather than
 ## derived from the order of `installed`.
 func fit_at_mount(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from: int = -1) -> Refit:
-	# STAYS a ModuleData, and that is the guard. A mount is a hardpoint on the
-	# hull; a crate of ore has no slot to match and no power to draw.
-	if m == null or m.slot != slot:
+	# THE GATE IS `refit_allowed`, the one the hull asks while a part is carried
+	# (`MountPoints.takes`): what it lights is what this does, by construction.
+	if not refit_allowed(m, slot, index, lifted_from):
+		var was := module_at(slot, index) if m != null and m.slot == slot else null
+		if was != null and was != m:
+			log_line("No room in the hold for %s." % was.name, &"them")
 		return Refit.REFUSED
 	var resident := module_at(slot, index)
-	if resident == m:
-		return Refit.REFUSED
 	# Two fitted parts trading mounts EXCHANGE places rather than sending one to
 	# the hold -- the mounts are visibly different positions on the ship.
 	#
@@ -2327,10 +2328,7 @@ func fit_at_mount(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from:
 	# `m` IS LEAVING: it is in the hold this instant and on the hull the next, so
 	# the cells it occupies are exactly where the resident is going. Without
 	# saying so, a full hold refused every swap -- including a part for one the
-	# same size, which is a move that cannot fail.
-	if resident != null and not has_room_for(resident, m):
-		log_line("No room in the hold for %s." % resident.name, &"them")
-		return Refit.REFUSED
+	# same size, which is a move that cannot fail. (`refit_allowed` asked it.)
 	var was_at := m.hold_at
 	if cargo.has(m):
 		take_from_hold(m)
@@ -2352,6 +2350,32 @@ func fit_at_mount(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from:
 	Sig.ship_changed.emit()
 	log_line("Fitted %s." % m.name, &"good")
 	return Refit.FITTED
+
+
+## WHETHER `fit_at_mount` WITH THESE ARGUMENTS WOULD FIT OR TRADE, moving
+## nothing: the refit rule's yes or no, and `fit_at_mount`'s own gate. Three
+## parts to it:
+##  - the mount's kind is the part's (a weapon on a weapon mount);
+##  - a part fitted or in the hand (`lifted_from` >= 0) TRADES with the one on
+##    the mount, always -- the resident goes where it came from, not the hold;
+##  - any other part (the hold, the dock) puts the resident in the hold, so the
+##    resident must fit there with the part's own cells counted free.
+## An empty mount of the right kind always says yes. Nothing about the size or
+## shape of the part decides a mount: only the hold's room for the resident.
+func refit_allowed(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from: int = -1) -> bool:
+	# STAYS a ModuleData, and that is the guard. A mount is a hardpoint on the
+	# hull; a crate of ore has no slot to match and no power to draw.
+	if m == null or m.slot != slot:
+		return false
+	var resident := module_at(slot, index)
+	if resident == null:
+		return true
+	if resident == m:
+		return false
+	var lifted := lifted_from >= 0 and not installed.has(m)
+	if installed.has(m) or lifted:
+		return true
+	return has_room_for(resident, m)
 
 
 ## A part (or any hold item) dropped onto CELL `at` of the hold: from the hold

@@ -23,6 +23,10 @@ var _node: MapGen.MapNode
 func run(tree: SceneTree) -> void:
 	_tree = tree
 	await tree.process_frame
+	# `-- cutawaytest swaps`: the swap marks alone (10c)
+	if "swaps" in OS.get_cmdline_user_args():
+		await _check_swap_marks()
+		return _finish()
 	seed_run(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	_node = Run.node_at()
@@ -256,6 +260,8 @@ func run(tree: SceneTree) -> void:
 	await _check_layouts()
 	# 10b. every empty mount's words, on every startable hull
 	await _check_empty_words()
+	# 10c. what a carried part can go on: every mount marked is a drop that lands
+	await _check_swap_marks()
 	# 11. the real LOCAL: a wreck in the sky behind is not opened from in here,
 	# and outside it opens its own screen; in a fight your ship is a dead button
 	await _check_local()
@@ -665,6 +671,276 @@ func _empty_words_on(cut: CutawayView, wname: String) -> void:
 		mp._unlight()
 	mp.queue_redraw()
 	await _tree.process_frame
+
+
+## THE SWAP MARKS (Jon: "When you are swapping modules on the ship... can the
+## swappable modules already installed get highlighted? Just so you know what
+## can or cannot be swapped with that part."). On three hulls -- Korvan's light,
+## Solari's medium, Redline's heavy -- each slot's mounts fitted with parts of
+## different sizes and its last mount left empty, a part of each slot in the
+## hold and another in this system's pile; once with room in the hold and once
+## with it packed with crates. For each slot, a part carried from the hold, lifted off
+## the hull and taken from the pile, through a real drag (`force_drag`, the
+## viewport's own drag): the mounts the hull marks while it is carried -- fitted
+## parts framed, empty mounts pinged (`MountPoints.marked`) -- are EXACTLY the
+## mounts a drop lands on, found by dropping it on every mount of the hull in
+## turn (at the part's middle or the ring, `_can_drop_data` then `_drop_data` as
+## the viewport calls them, the cutaway's own handler and Run's rule doing the
+## rest; the state put back after each). Each drop and a cancel leave nothing
+## marked; starting
+## the drag changes no rect of anything drawn or pressed. And a crate carried
+## marks nothing. Some drop must have been refused on a fitted part of the
+## carried part's own kind, and some swap marked, or the check proved nothing.
+func _check_swap_marks() -> void:
+	if _tree.root.size.x < 1000:
+		_tree.root.size = Vector2i(1920, 1080)
+		await _settle()
+	var swaps_marked := 0
+	var swaps_refused := 0
+	var drops := 0
+	for hull in [[&"korvan", HullData.Weight.LIGHT], [&"solari", HullData.Weight.MEDIUM], [&"redline", HullData.Weight.HEAVY]]:
+		for state in ["roomy", "packed"]:
+			var wname := "%s %s %s" % [hull[0], HullData.weight_name(hull[1]).to_lower(), state]
+			seed_run(4242)
+			Run.start_new_run(hull[0], int(hull[1]))
+			var node := Run.node_at()
+			node.jetsam.clear()
+			node.taken.clear()
+			Run.cargo.clear()
+			var pile := Run.sector_jetsam(node, true)
+			var in_hold := {}
+			var in_pile := {}
+			for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
+				var sizes := _sizes_of(slot)
+				var n := Run.slots_for(slot)
+				for i in n:
+					var was := Run.module_at(slot, i)
+					if was != null:
+						Run.installed.erase(was)
+						was.mount = -1
+					if n >= 2 and i == n - 1:
+						continue
+					var p := _module_of(slot, sizes[i % sizes.size()])
+					p.mount = i
+					Run.installed.append(p)
+				in_hold[slot] = _module_of(slot, sizes[0])
+				Run.place_in_hold(in_hold[slot])
+				in_pile[slot] = _module_of(slot, sizes[0])
+				pile.items.append(in_pile[slot])
+			var crate := MaterialData.of(MaterialTable.all()[0])
+			Run.place_in_hold(crate)
+			if state == "packed":
+				for i in 60:
+					if not Run.place_in_hold(MaterialData.of(MaterialTable.all()[0])):
+						break
+			Sig.ship_changed.emit()
+			var host := Control.new()
+			host.size = Vector2(960, 459)
+			_tree.root.add_child(host)
+			var cut := CutawayView.open_over(host, null)
+			for i in 4:
+				await _tree.process_frame
+			var mp := cut._mounts
+			for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
+				var fitted: ModuleData = null
+				for i in Run.slots_for(slot):
+					if Run.module_at(slot, i) != null:
+						fitted = Run.module_at(slot, i)
+						break
+				for c in [[in_hold[slot], &"cargo"], [fitted, &"hull"], [in_pile[slot], &"bag"]]:
+					var m: ModuleData = c[0]
+					var origin: StringName = c[1]
+					if m == null:
+						continue
+					var what := "%s: a %s from the %s" % [wname, ModuleData.Slot.keys()[slot].to_lower(),
+						{&"cargo": "hold", &"hull": "hull", &"bag": "pile"}[origin]]
+					var snap := _snap(node)
+					# what the hull marks while it is carried, and no rect moved by it
+					await _lift(cut, m, origin)
+					var before := _pressables(cut)
+					await _drag(cut, m, origin)
+					mp.queue_redraw()
+					await _tree.process_frame
+					var marked: Array[String] = mp.marked.duplicate()
+					var framed := mp.swapped
+					var moved := _rects_differ(before, _pressables(cut))
+					_tree.root.gui_cancel_drag()
+					await _settle()
+					mp.queue_redraw()
+					await _tree.process_frame
+					var after_cancel := mp.marked.size() + mp.swapped + mp.pinged
+					_restore(node, snap)
+					await _settle()
+					# where it really lands: dropped on every mount, one at a time
+					var lands: Array[String] = []
+					var left_lit: Array[String] = []
+					var missed: Array[String] = []
+					# (a drop delivered to the hull AND the part on that mount after it:
+					# a part lifted and let go of anywhere also goes back on its own)
+					var hit := [false]
+					var on_drop := func(_p: Dictionary, _s: ModuleData.Slot, _i: int) -> void: hit[0] = true
+					mp.dropped.connect(on_drop)
+					for sp in mp.spots().duplicate():
+						var key := MountPoints.spot_key(int(sp.slot), int(sp.index))
+						hit[0] = false
+						await _lift(cut, m, origin)
+						await _drag(cut, m, origin)
+						var at := _spot_point(mp, int(sp.slot), int(sp.index))
+						if at.x == INF:
+							missed.append(key)
+							_tree.root.gui_cancel_drag()
+						else:
+							await _drop_on(mp, at, {module = m, origin = origin})
+						drops += 1
+						if hit[0] and Run.module_at(sp.slot as ModuleData.Slot, int(sp.index)) == m:
+							lands.append(key)
+						mp.queue_redraw()
+						await _tree.process_frame
+						if mp._lit != null or not mp.marked.is_empty() or mp.swapped > 0 or mp.pinged > 0:
+							left_lit.append(key)
+						_restore(node, snap)
+						await _settle()
+					mp.dropped.disconnect(on_drop)
+					var want := lands.duplicate()
+					want.sort()
+					var got := marked.duplicate()
+					got.sort()
+					for sp in mp.spots():
+						if sp.held != null and sp.held != m and (sp.slot as ModuleData.Slot) == slot:
+							if marked.has(MountPoints.spot_key(int(sp.slot), int(sp.index))):
+								swaps_marked += 1
+							else:
+								swaps_refused += 1
+					_ok("%s: the mounts marked while it is carried are the ones a drop lands on (marked %s, %d framed; lands %s)%s" % [
+						what, ",".join(got), framed, ",".join(want), (" (no point to drop on: %s)" % ",".join(missed)) if not missed.is_empty() else ""],
+						got == want and missed.is_empty())
+					_ok("%s: nothing is marked after any drop or a cancel (%s; %d after the cancel)" % [what,
+						",".join(left_lit) if not left_lit.is_empty() else "clear", after_cancel],
+						left_lit.is_empty() and after_cancel == 0)
+					_ok("%s: the marks move or resize nothing drawn or pressed (%s)" % [what, moved if moved != "" else "same"], moved == "")
+				# a crate carried: nothing marked, anywhere
+			await _drag(cut, null, &"cargo", crate)
+			mp.queue_redraw()
+			await _tree.process_frame
+			_ok("%s: a crate carried marks nothing (%d)" % [wname, mp.marked.size()], mp.marked.is_empty() and mp.swapped == 0)
+			_tree.root.gui_cancel_drag()
+			await _settle()
+			cut.queue_free()
+			host.queue_free()
+			await _settle()
+	_ok("the marks were tested both ways: %d fitted parts marked, %d left unmarked, %d drops" % [swaps_marked, swaps_refused, drops],
+		swaps_marked > 0 and swaps_refused > 0)
+
+
+## Every size of part a slot comes in, smallest first.
+func _sizes_of(s: ModuleData.Slot) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for id in DB.modules:
+		var m: ModuleData = DB.modules[id]
+		if m.slot == s and not m.starter_only and not out.has(m.size):
+			out.append(m.size)
+	out.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return a.x * a.y < b.x * b.y or (a.x * a.y == b.x * b.y and a.x < b.x))
+	return out
+
+
+## The ship, the hold and the pile as they are, to put back after a drop.
+func _snap(node: MapGen.MapNode) -> Dictionary:
+	var fit := []
+	for m in Run.installed:
+		fit.append([m, m.mount])
+	var hold := []
+	for m in Run.cargo:
+		hold.append([m, m.hold_at, m.turned])
+	return {fit = fit, hold = hold, taken = node.taken.duplicate()}
+
+
+func _restore(node: MapGen.MapNode, s: Dictionary) -> void:
+	for m in Run.installed:
+		m.mount = -1
+	for m in Run.cargo:
+		m.hold_at = -Vector2i.ONE
+	Run.installed.clear()
+	for p in s.fit:
+		(p[0] as ModuleData).mount = p[1]
+		Run.installed.append(p[0])
+	Run.cargo.clear()
+	for p in s.hold:
+		(p[0] as HoldItem).hold_at = p[1]
+		(p[0] as HoldItem).turned = p[2]
+		Run.cargo.append(p[0])
+	node.taken = (s.taken as PackedInt32Array).duplicate()
+	Sig.ship_changed.emit()
+
+
+## Off the hull into the hand, as `MountPoints._get_drag_data` does it.
+func _lift(cut: CutawayView, m: ModuleData, origin: StringName) -> void:
+	if origin == &"hull" and Run.installed.has(m):
+		cut._mounts.lifted.emit(m)
+		await _settle()
+
+
+## A REAL DRAG, the viewport's own: the payload every source hands over, from
+## the place it comes from; Godot tells every control it began.
+func _drag(cut: CutawayView, m: ModuleData, origin: StringName, item: HoldItem = null) -> void:
+	var src: Control = cut._mounts if origin == &"hull" else cut._hold
+	src.force_drag({module = item if item != null else m, origin = origin}, null)
+	await _settle()
+
+
+## Where a drop on this mount is aimed, in the hull's own px: the part's middle
+## as drawn, or the ring's. INF if the pointer there would find another mount.
+func _spot_point(mp: MountPoints, slot: int, index: int) -> Vector2:
+	for sp in mp.spots():
+		if int(sp.slot) != slot or int(sp.index) != index:
+			continue
+		var p: Vector2 = sp.at
+		if sp.held != null:
+			p = mp.part_rect(sp.held, sp.slot, mp._part_at(sp), mp._mag()).get_center()
+		var i := mp.spot_at(p)
+		if i < 0 or int(mp.spots()[i].slot) != slot or int(mp.spots()[i].index) != index:
+			return Vector2.INF
+		return p
+	return Vector2.INF
+
+
+## LET GO OVER THE HULL at `p` (its own px): what the viewport does with a
+## drop (`Viewport._perform_drop`) -- ask the control under the pointer
+## `_can_drop_data`, and only on a yes hand it `_drop_data` -- and then end the
+## drag, which every control hears. (Headless, a pushed pointer never finds the
+## hull under a forced drag, so the two calls are made here as Godot makes them.)
+func _drop_on(mp: MountPoints, p: Vector2, data: Dictionary) -> void:
+	if mp._can_drop_data(p, data):
+		mp._drop_data(p, data)
+	_tree.root.gui_cancel_drag()
+	for i in 5:
+		await _tree.process_frame
+
+
+## Everything the cutaway draws or takes a click on, and where: the lifted
+## parts and their tags, the mounts' own control, every hold cell's icon, the
+## left panel. (Not the empty mounts' words: those are the carrying's own,
+## shown since before the marks.)
+func _pressables(cut: CutawayView) -> Array:
+	var out := []
+	for d in cut._mounts.drawn_rects():
+		if d.kind != "label":
+			out.append(["%s %s" % [d.kind, d.text], cut._mounts.get_global_transform() * (d.rect as Rect2)])
+	out.append(["the hull's control", cut._mounts.get_global_rect()])
+	for c in cut._hold.get_children():
+		if c is Control:
+			out.append(["a hold icon", (c as Control).get_global_rect()])
+	out.append(["the left panel", cut._hold_panel.get_global_rect()])
+	out.append(["DONE", cut._done.get_global_rect()])
+	return out
+
+
+func _rects_differ(a: Array, b: Array) -> String:
+	if a.size() != b.size():
+		return "%d things, then %d" % [a.size(), b.size()]
+	for i in a.size():
+		if a[i][0] != b[i][0] or not (a[i][1] as Rect2).is_equal_approx(b[i][1]):
+			return "%s %s -> %s %s" % [a[i][0], a[i][1], b[i][0], b[i][1]]
+	return ""
 
 
 func _point_at(cut: CutawayView, wname: String, where: String, want: ModuleData, icon: Control) -> void:
