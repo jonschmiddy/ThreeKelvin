@@ -70,6 +70,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **Changed** — The Hellbender's posters just say WANTED. The bounty they promised (2500 CR on the
+  WANTED sheet and the screen's FEATURED listing, 500 CR on a whiteboard note) was never paid, so the
+  sums are gone, and so are the screen's "bounty raised" and "bounty desk" lines about it. Once it is
+  dead the two posters are stamped DESTROYED, not CLAIMED. What its wreck pays is the same.
 - **Changed** — A.S.H. can no longer be clicked away. A tutorial line stays until you do what it
   teaches: pick a star on the chart, open an event, play a card, press END TURN, move a module, use a
   deck. Lines that only tell you something (enemy intent, brace, heat, low fuel) stay for their
