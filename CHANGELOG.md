@@ -11,7 +11,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 The next build is **0.4.0-alpha.1**, with the fixes from the first outside playtest. See
 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
-### Changed
+## 2026-10-21
+
+### [0.3.2-alpha.1]
+
+Fixes and changes on top of 0.3.1-alpha.1, from Jon's play that night. The Windows and Mac builds
+come from the same commit.
 
 - **Changed** — opening LOCAL at a world or station with an open event now opens that event,
   the same as pressing GO on it: you see the event's own ship or object, and the event's text
@@ -39,19 +44,14 @@ The next build is **0.4.0-alpha.1**, with the fixes from the first outside playt
 - **Changed** — LOCAL's bottom bar counts only the things at the world or star you are at, such as
   "1 THING HERE". Before, it counted every event in the system, so it could say "3 THINGS HERE"
   beside a planet with nothing at it.
-
-### Fixed
-
-- **Fixed** — on LOCAL, the signal beacon (and the wreck or battlefield picture) now stands only
-  at a world or star that has an event. Before, a system with an event anywhere showed it beside
-  your ship at every world, at the star and at the system's edge.
+- **Fixed** — LOCAL no longer shows a stand-in beacon, wreck or battlefield picture. Before, a
+  system with an event anywhere showed one beside your ship at every world, at the star and at
+  the system's edge.
 - **Fixed** — LOCAL no longer shows an old event's ship or object at the edge of a system. After a
   new run, or after jumping back into a system, the last event you opened could appear there.
 - **Fixed** — if you open LOCAL while your ship is still moving into orbit beside a station, LOCAL
   now shows the station, the DOCK button and "A STATION HERE". Before, it showed a small
   stand-in ring and told you to fly to the station you were already reaching.
-
-## 2026-10-21
 
 ### [0.3.1-alpha.1]
 

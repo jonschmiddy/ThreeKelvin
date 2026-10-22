@@ -192,7 +192,9 @@ tags. `git show archive/<name>` says what each was.
    tagged but never sent). Ask for the zip from SAVE MY LOGS with every report.
 2. **0.3.0-alpha.1** (built Oct 21): Jon's own polish on top of 0.2.0-alpha.1; see
    `CHANGELOG.md`. **0.3.1-alpha.1** the same night: the world you orbit drawn large,
-   and two fixes.
+   and two fixes. **0.3.2-alpha.1** after it: LOCAL does what GO does (no stand-in
+   pictures), the LOCAL fly-in, the station waking with its power-on sound, and the hangar
+   landing sound.
 3. **0.4.0-alpha.1:** the fixes from that playtest. Add them under
    `[Unreleased]` in `CHANGELOG.md` as they land, then cut the version by changing
    `config/version` in `tkg/project.godot` and building with `build_alpha.sh`.
