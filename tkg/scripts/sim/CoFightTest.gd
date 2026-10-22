@@ -90,6 +90,10 @@ func run(tree: SceneTree) -> void:
 		await _join(argv)
 	if _fails == 0:
 		await _fly()
+	# THE OTHER SHIP MAY STILL BE READING. A host that quits the moment it has
+	# printed takes the party down under a guest still waiting on the last claim
+	# push, and the guest's table is cleared with it ("buyer nobody").
+	await _until(func() -> bool: return false, 3.0)
 
 	print("")
 	verdict("cofight[%s]" % _me)
@@ -312,7 +316,7 @@ func _play(cb: Combat) -> void:
 		# contact still has to consume its node.
 		if not _hellbender:
 			_ok("and consumed the system for the party", Run.map[_at].cleared)
-		await _bag()
+		await _bag(cb)
 
 
 ## One kill, one set of wrecks, and one hand on each part.
@@ -333,7 +337,7 @@ func _play(cb: Combat) -> void:
 ##   exactly ONE ship walks away with the part both reached for (`took`);
 ##   and both machines agree WHO has it (`taker`), which is what the sector's
 ##     "X took it" line and a later reach are built on.
-func _bag() -> void:
+func _bag(cb: Combat) -> void:
 	var n: MapGen.MapNode = Run.map[_at]
 	var wrecks: Array = []
 	for raw in n.jetsam:
@@ -350,7 +354,7 @@ func _bag() -> void:
 	print("[cofight] outcome %s" % _outcome)
 	if not _ok("the kill left a wreck in the system", wrecks.size() > 0):
 		return
-	_ok("one wreck per hull killed", wrecks.size() == Router.combat.enemies.size())
+	_ok("one wreck per hull killed", wrecks.size() == cb.enemies.size())
 	_ok("and paid nothing straight into either hold", Run.cargo.is_empty())
 	# The first module in the first wreck: the part both ships reach for.
 	var h0: MapGen.Jetsam = null
@@ -369,7 +373,7 @@ func _bag() -> void:
 	# and not a floor. What it must be is exactly the roll for this crew: both
 	# machines have to agree on that number or they are not looking at the same
 	# pile -- see SharedFight.paid.
-	var hands := Router.combat.wreck_hands
+	var hands := cb.wreck_hands
 	var expect := 0
 	for i in wrecks.size():
 		var w: MapGen.Jetsam = wrecks[i]

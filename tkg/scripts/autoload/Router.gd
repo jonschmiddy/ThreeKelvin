@@ -1052,7 +1052,9 @@ func resolve_current_node() -> void:
 		if pack.is_empty():
 			n.ambush_pending = false
 		else:
-			start_combat(pack[0], pack.slice(1), false, false)
+			# SHARED, like every fight at a place (Oct 22): a partner landing
+			# here while you are still in it can JOIN rather than watch.
+			start_combat(pack[0], pack.slice(1), false, true)
 			return
 
 	# The hellbender holds this system. Nothing here is reachable past it — not the
@@ -1454,6 +1456,18 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 	# already left.
 	docked = false
 	Run.node_at().fled = false
+	# SOMEBODY IS ALREADY SHOOTING HERE: you are in THEIR fight, whatever brought
+	# you to it -- the JOIN button, an option's hostiles, an ambush on arrival.
+	# The party keeps one fight per system (`NetSession.fights`, keyed by the
+	# node) and the host joins whoever asks into the one that is open, so a ship
+	# that planned a different enemy here would hold the party's numbers on the
+	# wrong hulls. Built from the fight's own ids instead, the same on every
+	# machine (Oct 22 playtest: "couldn't join his fight").
+	if share:
+		var open := party_fight_here()
+		if not open.is_empty():
+			template = open[0]
+			extras = open.slice(1)
 	combat = Combat.new()
 	combat.clears_node = clears_node
 	var s := SectorScreen.new()
@@ -1578,8 +1592,66 @@ func engage_hellbender() -> void:
 ##
 ## `foe` is the event's tag (`OptionTable.fight_foe`): the creature its text set
 ## up, or `&""` for a ship.
+##
+## SHARED SINCE OCT 22. It was private ("the event that produced it was a
+## private conversation"), which was harmless while a system HELD its fight and
+## arriving at it was the shared door. The type collapse moved every ordinary
+## fight behind an option, so every ordinary fight became private and nobody in
+## a party could ever join anybody's: Jon flew into Kevin's system and could
+## only watch. Which enemy the opener fields is still theirs (`Rng.foe`); a
+## partner joining is handed the opener's ids (`join_fight`), so the two
+## machines agree without the roll being positional.
 func start_ambush(foe: StringName = &"") -> void:
-	start_combat(option_foe(Run.node_at(), foe), [], false, false)
+	start_combat(option_foe(Run.node_at(), foe), [], false, true)
+
+
+## The party's fight open at this system that this ship is not in, as
+## templates lead first -- or empty: none open, already in it, or no party.
+func party_fight_here() -> Array:
+	var out: Array = []
+	if Run.map.is_empty() or not Net.is_networked():
+		return out
+	var f := Net.fight_at(Run.at)
+	if f == null or f.over or f.crew.has(Net.local_id()):
+		return out
+	for id in f.foe_ids:
+		var t: EnemyTemplate = DB.enemies.get(StringName(id))
+		if t == null:
+			return []
+		out.append(t)
+	return out
+
+
+## Whether there is a partner's fight HERE to join, now.
+func can_join_fight() -> bool:
+	if Run.dead or in_combat() or fight_up() or no_fights_at(Run.node_at()):
+		return false
+	return not party_fight_here().is_empty()
+
+
+## Who is in the fight here, by name, for the button's line.
+func join_fight_names() -> String:
+	return ", ".join(Net.fight_crew_names(Run.at)).to_upper()
+
+
+## JOIN: into the fight a partner opened at this system.
+##
+## The set pieces go through their own doors, which already join an open fight
+## (the core clears its node on a win, the hellbender writes its hull back);
+## anything else is a contact that does not consume the system, as every fight
+## opened by an option or an arrival is.
+func join_fight() -> void:
+	if not can_join_fight():
+		return
+	var open := party_fight_here()
+	var lead: EnemyTemplate = open[0]
+	var n: MapGen.MapNode = Run.node_at()
+	if lead.miniboss:
+		engage_hellbender()
+	elif n.type == MapGen.NodeType.CORE and not n.cleared:
+		engage_here()
+	else:
+		start_combat(lead, open.slice(1), false, true)
 
 ## What an option's fight brings at `n`. With no `foe`, a ship: one, off
 ## `Rng.foe`, from the ordinary pool -- never fauna, even in a fauna region,

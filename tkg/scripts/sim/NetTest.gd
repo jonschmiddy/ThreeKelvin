@@ -79,6 +79,8 @@ func run(tree: SceneTree) -> void:
 	print("\n=== one enemy, several ships ===")
 	_fight_rules_test()
 	await _fight_net_test()
+	print("\n=== joining a dive under way, and where a ship is in its system ===")
+	await _late_join_test()
 	print("\n=== the host leaves ===")
 	await _host_loss_test()
 
@@ -875,6 +877,70 @@ func _targeting_test(host: NetSession) -> void:
 
 
 # --- one process, four multiplayer roots ----------------------------------
+
+## A FRIEND WHO JOINS AFTER LAUNCH IS IN THE DIVE. The seed went out once, at
+## LAUNCH, so a late joiner (or a friend whose game fell over and who typed the
+## code back in) was accepted, seated, and left in the lobby for good -- the
+## Oct 22 playtest's "kinda a mess". `-- cojoin late` flies it in two processes;
+## this holds the wire: the seed, the unlocks, what the party has used up, and
+## the fight open, all handed to the late ship at the door.
+##
+## And THE SPOT (PROTOCOL 11): where a ship is inside its system, relayed by the
+## host to everybody else, so the SECTOR map can draw partners flying round it.
+## Answered only for the system it was said about.
+func _late_join_test() -> void:
+	var port := PORT_BASE + 8
+	var host := _make_peer("host")
+	var t := DirectTransport.new()
+	t.port = port
+	t.advertise = "127.0.0.1"
+	var code := host.host_party("Kevin", &"", t)
+	var early := _make_peer("early")
+	early.join_party(code, "Mercer", &"", DirectTransport.new())
+	var formed := await _wait_until(func() -> bool:
+		return host.party_size() == 2 and early.party_size() == 2, 5.0)
+	ok("two ships form a party", formed)
+	host.set_ready(true)
+	early.set_ready(true)
+	await _wait_until(func() -> bool: return host.everyone_ready(), 3.0)
+	ok("and the host launches", host.launch_dive())
+	await _wait_until(func() -> bool: return early.state == NetSession.State.DIVING, 3.0)
+	# Something used up and a fight open before the late ship arrives.
+	host.claim(77, MapGen.OPTION_WHOLE)
+	host.open_fight(88, PackedStringArray(["cutter"]), PackedInt32Array([40]),
+		PackedInt32Array([0]), PackedInt32Array([40]))
+
+	var late := _make_peer("late")
+	late.join_party(code, "Jon", &"", DirectTransport.new())
+	var dived := await _wait_until(func() -> bool: return late.state == NetSession.State.DIVING, 5.0)
+	ok("a ship joining after launch is put in the dive", dived)
+	check("on the host's seed", late.dive_seed, host.dive_seed)
+	check("and the host's unlocks", str(late.dive_unlocked), str(host.dive_unlocked))
+	check("knowing what the party has used up", late.who_took(77), 1)
+	ok("and the fight open at the time", late.fight_open_at(88))
+	check("in the party everybody sees", early.party_size(), 3)
+	ok("seated after the others, so its loot is its own",
+		late.seat() > early.seat())
+
+	# The spot: said by one client, seen by the other and by the host.
+	var id := early.local_id()
+	early.report_spot(12, 3, Vector2(10.5, -4.0), 1.25, true)
+	var seen := await _wait_until(func() -> bool:
+		return not late.spot_of(id, 12).is_empty() and not host.spot_of(id, 12).is_empty(), 3.0)
+	ok("a ship's place in its system reaches the others", seen)
+	var sp := late.spot_of(id, 12)
+	check("the world it is at", int(sp.get("body", -99)), 3)
+	check("and where, off that world", Vector2(float(sp.get("x", 0.0)), float(sp.get("z", 0.0))), Vector2(10.5, -4.0))
+	ok("and it is not said about any other system", late.spot_of(id, 13).is_empty())
+	ok("nor about yourself", early.spot_of(id, 12).is_empty())
+	# Throttled: an unchanged place is not sent again, a changed one is.
+	early.report_spot(12, 3, Vector2(10.5, -4.0), 1.25)
+	early.report_spot(12, -9, Vector2(200.0, 0.0), 0.0, true)
+	var moved := await _wait_until(func() -> bool:
+		return int(late.spot_of(id, 12).get("body", 3)) == -9, 3.0)
+	ok("and a ship that flies on is seen to", moved)
+	await _teardown()
+
 
 func _make_peer(peer_name: String) -> NetSession:
 	_peer_serial += 1

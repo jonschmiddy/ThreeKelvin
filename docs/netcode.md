@@ -473,6 +473,12 @@ Three smaller things ride the same bump:
 **Protocol 7** is these changes. Save version 8 carries the hellbender and
 `MapNode.eaten`.
 
+### Protocol 11: every fight at a place is the party's, and the map shows where everybody is
+
+The Oct 22 playtest (Jon and Kevin, over the relay) found three things, and none of them was in the wire layer. **Nobody could join anybody's fight**: since the three node types became one, an ordinary fight comes from a system's option or an arrival ambush, and both opened it with `share = false` -- a rule written when the system itself held the fight and arriving was the shared door. They are shared now; a ship that starts a fight where one is already open is put into THAT one, built from its ids (`Router.party_fight_here`), and LOCAL's bar and the SECTOR map's panel say JOIN FIGHT (`Router.join_fight`). **Partners were never drawn on the SECTOR map**: the roster says which system, nothing said where in it. `report_spot` does, a few times a second while the map is up, unreliable and relayed by the host, and it is said relative to the world a ship orbits because each machine's worlds turn on its own clock. **A friend joining after LAUNCH was seated and never told the seed**; `_hello` now sends the running dive, the claims, the hellbender and the open fights at the door.
+
+`tools/cojoin.sh` flies all of it in two processes through the real screens, and failed every one of these before the fix (the chart check was added with its fix: the diamond sat on YOU, 0 px apart).
+
 ### Eight seats, flown before the number was raised
 
 `NetTransport.MAX_PLAYERS` is eight. It was four, and the way it was raised is

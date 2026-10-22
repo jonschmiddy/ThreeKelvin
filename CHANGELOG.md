@@ -18,6 +18,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Fixed** — in co-op you can now join a friend's fight. When a partner is fighting in the system
+  you are in, LOCAL's bottom bar says who and has a JOIN FIGHT button, and so does the sector
+  map's panel. Before, there was no way in: every ordinary fight comes from a system's event or
+  from something jumping you on arrival, and those fights were private, so you could only watch.
+  The enemy grows for the second ship and the turn waits for both of you, as at the core.
+- **Fixed** — in co-op the sector map now draws your partners' ships, in green with their names,
+  and you can watch them fly between worlds. Before, a partner in your system was not on the
+  map at all. Two ships in the same spot, like two that just jumped in together, sit side by
+  side instead of one on top of the other.
+- **Fixed** — on the star chart, a partner in the same system as you is now marked beside your
+  YOU marker instead of exactly on top of it.
+- **Fixed** — in co-op a friend who joins after the host has started the dive, or who rejoins
+  with the code after their game closed, now lands in the same galaxy. Before, they got into the
+  party and then sat on "The host starts the dive." for good. Both of you need this build.
 - **Fixed** — arriving on LOCAL no longer shows the thin bar at the bottom while your ship flies
   in. Before, the bar was already up as you arrived, and then the event's text and choices rose
   out of it. Now the bottom of the screen stays empty until your ship settles. Then the event

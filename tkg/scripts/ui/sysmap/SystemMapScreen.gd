@@ -384,6 +384,72 @@ func _fit_zoom() -> float:
 	return clampf(minf(fs.x / (2.0 * (L.edge + 20.0)), fs.y / (2.0 * (L.edge + 20.0) * view.TILT + 60.0)), 0.1, 1.0)
 
 
+# ---------------------------------------------------------------- the party
+## Where this ship is in the system, told to the party (`Net.report_spot`,
+## throttled there), so a partner's map draws it flying (Oct 22 playtest: "we
+## could not see each other flying around on the sector map"). In orbit of or
+## alongside a world it is said as the offset from that world: the world's
+## place on its orbit is each machine's own clock.
+func _report_spot() -> void:
+	if flight == null or view.node == null or view.layout == null or not Net.is_networked():
+		return
+	if view.node.index != Run.at:
+		return
+	var p3: Vector3 = flight.where3()
+	var body: int = flight.orbit_body()
+	var p := Vector2(p3.x, p3.z)
+	if body >= 0:
+		var c: Vector3 = flight.center(body, view.t)
+		p -= Vector2(c.x, c.z)
+	Net.report_spot(Run.at, body, p, float(flight.ang))
+
+
+## Where each partner in this system is on the plane, at this machine's clock:
+## `[[peer id, Vector2 plane point, angle, name], ...]`. What the overlay draws
+## and what `-- cojoin` reads.
+func partner_points() -> Array:
+	var out: Array = []
+	if view == null or view.node == null or view.layout == null or flight == null:
+		return out
+	var at: int = view.node.index
+	for s in Net.partners():
+		var id := int(s.id)
+		if Net.where_is(id) != at:
+			continue
+		var sp := Net.spot_of(id, at)
+		var body := int(sp.get("body", -10))
+		var q: Vector2
+		if sp.is_empty() or body == -10:
+			# JUST ARRIVED: where a jump into this system puts a ship -- by the
+			# station in a station's system, else the frame's edge (`show_system`)
+			var dp: int = view.layout.dock_place() if view.node.type == MapGen.NodeType.STATION else -1
+			if dp >= 0:
+				var c0: Vector3 = flight.center(dp, view.t)
+				q = Vector2(c0.x, c0.z) + Vector2(14.0, 0.0)
+			else:
+				q = Vector2(view.layout.edge, -210.0)
+		else:
+			q = Vector2(float(sp.x), float(sp.z))
+			if body >= 0 and body < view.layout.bodies.size():
+				var c: Vector3 = flight.center(body, view.t)
+				q += Vector2(c.x, c.z)
+		out.append([id, q, float(sp.get("ang", PI)), String(s.get("name", "")).to_upper()])
+	return out
+
+
+## The partners' ships on screen, as drawn. For `-- cojoin`.
+func partner_marks() -> Array:
+	var out: Array = []
+	for e in overlay.partner_at:
+		out.append(e[1])
+	return out
+
+
+## Your ship on screen, as drawn. For `-- cojoin`.
+func own_mark() -> Vector2:
+	return overlay._ship_at
+
+
 ## Where the ship is, kept for the session when the screen leaves this system.
 func _keep_ship() -> void:
 	if flight == null or view.node == null:
@@ -518,6 +584,7 @@ func _process(delta: float) -> void:
 	if not frozen:
 		view.t += delta
 	_step_ship(delta)
+	_report_spot()
 	_step_camera(delta)
 	# THE BELT POINTED AT (or selected) brightens, eased in with the hover
 	var lit := -1

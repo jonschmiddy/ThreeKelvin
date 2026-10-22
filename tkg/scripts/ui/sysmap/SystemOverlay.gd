@@ -452,6 +452,7 @@ func _draw() -> void:
 	view.tick("overlay paths", t_paths)
 	var t_ship := Time.get_ticks_usec()
 	_draw_ship(t)
+	_draw_partners(t)
 	view.tick("overlay ship", t_ship)
 	_place_labels()
 	# WHAT THE SHIP IS DOING, top left of the frame, under the goal and its step
@@ -994,8 +995,61 @@ func _label_clear(tag: String, at: Vector2, half: float, path: PackedVector2Arra
 	_name_label(pick, tag, Color(UITheme.HOT, minf(1.0, a * 1.8)), 3, true)
 
 
+# ---------------------------------------------------------------- the party
+## Each partner's ship as last drawn: `[[peer id, screen point], ...]`.
+var partner_at: Array = []
+## Where each partner is drawn on the plane, eased toward its last report so a
+## ship reported six times a second flies rather than steps.
+var _partner_plane: Dictionary = {}
+var _partner_ms: int = 0
+
+## THE PARTY ON THE MAP: the same small ship yours is, in the party's colour,
+## with its pilot's name (Oct 22 playtest: partners were never drawn here).
+## A partner sitting where you are -- two ships that jumped in together arrive
+## on the same point -- is drawn a ship's length off, in formation, never on
+## top of you.
+func _draw_partners(_t: float) -> void:
+	partner_at.clear()
+	var scr = get_parent()
+	while scr != null and not scr.has_method("partner_points"):
+		scr = scr.get_parent()
+	if scr == null:
+		return
+	var now := Time.get_ticks_msec()
+	var dt := clampf(float(now - _partner_ms) / 1000.0, 0.0, 0.25)
+	_partner_ms = now
+	var k := 1.0 - exp(-dt * 8.0)
+	var row := 0
+	for e: Array in scr.partner_points():
+		var id: int = e[0]
+		var want: Vector2 = e[1]
+		var q: Vector2 = _partner_plane.get(id, want)
+		# a jump across the system is a new place, not a flight to it
+		q = want if q.distance_to(want) > 400.0 else q.lerp(want, k)
+		_partner_plane[id] = q
+		var x := _scr(q.x, q.y).round()
+		if x.distance_to(_ship_at) < 14.0:
+			row += 1
+			x = _ship_at + Vector2(-6.0, 12.0 * row)
+		partner_at.append([id, x])
+		var ang: float = e[2]
+		var c := cos(ang)
+		var s := sin(ang)
+		var in_hull := func(u: int, v: int) -> bool:
+			return u >= -3 and u <= 6 and absf(v) <= (6 - u) * 0.5
+		for u in range(-4, 8):
+			for v in range(-4, 5):
+				var q2 := (x + Vector2(u * c - v * s, u * s + v * c)).round()
+				if in_hull.call(u, v):
+					_px(q2, UITheme.GOOD if u > 3 or absi(v) < 2 else UITheme.GOOD.darkened(0.3))
+				elif in_hull.call(u - 1, v) or in_hull.call(u + 1, v) or in_hull.call(u, v - 1) or in_hull.call(u, v + 1):
+					_px(q2, Color("#05070b"))
+		_label(x + Vector2(-8, -13), String(e[3]), UITheme.GOOD, 1, true)
+
+
 # ---------------------------------------------------------------- the ship
 ## Where the ship is relative to the star on screen: LOCATION follows exactly this.
+
 func ship_rel() -> Vector2:
 	if flight == null:
 		return Vector2.ZERO
