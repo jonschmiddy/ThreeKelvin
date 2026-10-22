@@ -218,7 +218,6 @@ var st_reached := 0
 var st_core_wins := 0
 var st_rows: Array = []
 var _fights_at_start := 0
-var _credits_seen := 0
 var _modules0 := 0
 var _trace_path := ""
 var _trace_file: FileAccess = null
