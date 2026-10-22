@@ -227,9 +227,11 @@ func run_sim() -> void:
 		elif arg.begins_with("fueltrace="):
 			_trace_path = arg.split("=")[1]
 		# THE RUN-LENGTH STUDY'S FLAGS (balance/run-length, Oct 22). Off unless
-		# given; see RunState.study_depth_cap and `_study_custodian`.
+		# given; see RunState.study_radius_scale and `_study_custodian`.
+		# `depthcap=N` flies another depth rule than the game's one ring a jump
+		# (RunState.DEPTH_STEP; 0 is August's, no cap), for comparison only.
 		elif arg.begins_with("depthcap="):
-			Run.study_depth_cap = int(arg.split("=")[1])
+			Run.depth_step = int(arg.split("=")[1])
 		elif arg.begins_with("ambushdeep="):
 			Run.study_ambush_deep = float(arg.split("=")[1])
 		elif arg.begins_with("radrim="):
@@ -249,9 +251,9 @@ func run_sim() -> void:
 	if policy.beeline:
 		print("BEELINE policy: the deepest star it can afford, every jump%s." % [
 			" (and no options taken)" if policy.dash else ""])
-	if Run.study_depth_cap > 0 or Run.study_radius_rim != 1.0 or Run.study_radius_deep != 1.0:
+	if Run.depth_step != Run.DEPTH_STEP or Run.study_radius_rim != 1.0 or Run.study_radius_deep != 1.0:
 		print("STUDY: depth cap %d · radius x%.2f at the rim, x%.2f at the last ring" % [
-			Run.study_depth_cap, Run.study_radius_rim, Run.study_radius_deep])
+			Run.depth_step, Run.study_radius_rim, Run.study_radius_deep])
 	_study_custodian()
 	if "bossonly" in OS.get_cmdline_user_args():
 		_boss_only()
@@ -989,6 +991,7 @@ func _study_arrival() -> Dictionary:
 		rarity = rar,
 		grade = Run.hull.tier,
 		hp = Run.hp,
+		fuel = Run.fuel,
 		max_hp = Run.max_hp(),
 		reactor = Run.reactor(),
 		deck = DeckBuilder.build().size(),
@@ -1016,7 +1019,9 @@ func _report_study() -> void:
 	var maxhp: Array = []
 	var grades := {}
 	var turns: Array = []
+	var fuel: Array = []
 	for r in st_rows:
+		fuel.append(r.fuel)
 		jumps.append(r.jumps)
 		fights.append(r.fights)
 		earned.append(r.earned)
@@ -1038,6 +1043,10 @@ func _report_study() -> void:
 		_median(jumps), jmin, _median(fights), _median(earned), _median(looted)])
 	print("STUDY at arrival: modules fitted median %.1f · hull %.0f%% of max (max hull median %.0f) · grades %s · custodian fight turns median %.1f" % [
 		_median(mods), 100.0 * _median(hpf), _median(maxhp), str(grades), _median(turns)])
+	var fmin := 999
+	for f in fuel:
+		fmin = mini(fmin, int(f))
+	print("STUDY at arrival: fuel in the tank median %.1f min %d" % [_median(fuel), fmin])
 
 
 ## THE CUSTODIAN AGAINST A FRESH SHIP (`-- sim bossonly`): each Korvan weight

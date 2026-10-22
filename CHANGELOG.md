@@ -46,6 +46,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **Changed** — a jump now goes at most one ring deeper than the ring you are in. Jumps outward or
+  along your ring reach as far as before. The quickest way to the core is now 14 jumps, one for each
+  ring, where it was as few as 4. A star inside your reach ring that is two rings deeper or more
+  says TOO DEEP when you point at it. Its fuel row reads ONE RING AT A TIME, and the JUMP button
+  reads TOO DEEP. Every galaxy still has a way into each ring, and the core is reached from the
+  last ring. The HEADING row now says OUTWARD for a star further out, where it said COREWARD.
+- **Changed** — the Custodian has 200 hull, up from 120.
 - **Changed** — A.S.H. can no longer be clicked away. A tutorial line stays until you do what it
   teaches: pick a star on the chart, open an event, play a card, press END TURN, move a module, use a
   deck. Lines that only tell you something (enemy intent, brace, heat, low fuel) stay for their

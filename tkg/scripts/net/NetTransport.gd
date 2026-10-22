@@ -51,7 +51,7 @@ enum Kind { DIRECT, ROOM, PLATFORM }
 ## and EncounterView.CONVOY_MAX.
 ##
 ## What is still only argued: `SharedFight.CREW_SHARE` is linear with no ceiling
-## and has been flown at two. An eight-ship custodian is 120 + 7x72 hull against
+## and has been flown at two. An eight-ship custodian is 200 + 7x120 hull against
 ## eight hands of cards, and nobody has played that. The cap allows it; the
 ## tuning has not been done.
 const MAX_PLAYERS: int = 8

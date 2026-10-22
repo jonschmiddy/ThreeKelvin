@@ -563,7 +563,7 @@ const PRIMER_W := 460
 ## awful. This was a paraphrase of that comment that inverted it.
 const PRIMER_LEGEND: Array[String] = [
 	"A system's colour is its star: pale is ordinary, red and blue are rarer.",
-	"You fly as far as THRUSTER REACH and see as far as SENSOR RANGE. Past your sight a jump is priced and then refused: NOT SCANNED.",
+	"You fly as far as THRUSTER REACH, and one ring deeper a jump at most. You see as far as SENSOR RANGE. Past your sight a jump is refused: NOT SCANNED.",
 	"Each row shows danger, then fuel. Full danger beside empty fuel is a cheap, deadly jump.",
 	"Danger has five steps: EASY, ROUGH, HARD, BRUTAL and LETHAL. A more dangerous system offers more.",
 ]
@@ -940,7 +940,12 @@ func _refresh() -> void:
 		# to read, and a heading to where you already are is no better.
 		_rows.add_child(_row("FUEL", "YOU ARE HERE", UITheme.FLARE))
 	else:
-		if not Run.reachable(t):
+		if Run.too_deep_only(here, t):
+			# IN THE RING AND STILL REFUSED, which is the one refusal the picture
+			# cannot explain by itself: it is two rings in or more, and a jump
+			# goes one ring deeper at most (`RunState.DEPTH_STEP`).
+			_rows.add_child(_row("FUEL", "ONE RING AT A TIME", Color("#7c6a58")))
+		elif not Run.reachable(t):
 			_rows.add_child(_row("FUEL", "OUT OF RANGE", Color("#7c6a58")))
 		elif not t.sensed:
 			# Quoting a price for a system the dish has not resolved is the same
@@ -950,7 +955,10 @@ func _refresh() -> void:
 		else:
 			var cost := Run.fuel_cost_to(t)
 			_rows.add_child(_fuel_row(cost, cost <= Run.fuel))
-		var heading := "LATERAL" if t.layer == here.layer else "COREWARD  L%d" % (t.layer + 1)
+		# OUTWARD is its own word: it read COREWARD, which was wrong and, now
+		# that only the way in is limited, also the wrong advice.
+		var heading := "LATERAL" if t.layer == here.layer \
+			else ("COREWARD  L%d" if t.layer > here.layer else "OUTWARD  L%d") % (t.layer + 1)
 		_rows.add_child(_row("HEADING", heading, UITheme.FLARE if t.layer > here.layer else UITheme.CHILL))
 
 	# Hazards last, so the thing that might kill you is the thing your eye
@@ -973,6 +981,9 @@ func _refresh() -> void:
 		_jump.text = "JUMP"
 	elif t.index == here.index:
 		_jump.text = "YOU ARE HERE"
+	elif Run.too_deep_only(here, t):
+		# A FOURTH REASON (Oct 22): near enough, but two rings in or more.
+		_jump.text = "TOO DEEP"
 	elif not Run.reachable(t):
 		_jump.text = "TOO FAR TO REACH"
 	elif not t.sensed:
@@ -3945,7 +3956,11 @@ class MapChart extends Control:
 			l2 = "CLEARED · " + l2
 		var l3 := MapGen.place_line(n)
 		var l4 := "DANGER %d/10" % n.danger
-		if here.links.has(n.index):
+		# (a star inside the reach ring that a jump cannot take says why on
+		# hover, before it is clicked: see `RunState.DEPTH_STEP`)
+		if Run.too_deep_only(here, n):
+			l4 += "   TOO DEEP"
+		elif here.links.has(n.index):
 			l4 += "   %d FUEL" % Run.fuel_cost_to(n)
 
 		# THE SAME REFUSAL THE PANEL MAKES, and it has to be made twice or it is

@@ -3,6 +3,7 @@ extends Node
 ## THE SHORTEST WAY IN (balance/run-length, Oct 22):
 ##   godot --headless --path . -- sheet=RunLengthStudy [seeds=12] [depthcap=N]
 ##       [radrim=X raddeep=Y] [dump=<dir>]
+## (`depthcap=` is the game's one ring a jump unless given; 0 is no cap)
 ##
 ## Kevin, the first outside playtester, reached the core in seven jumps. This
 ## measures what the galaxy allows: for `seeds` galaxies of every kind
@@ -40,11 +41,11 @@ func _arg(k: String, d: String) -> String:
 func _run() -> void:
 	_seeds = int(_arg("seeds", "12"))
 	_dump = _arg("dump", "")
-	Run.study_depth_cap = int(_arg("depthcap", "0"))
+	Run.depth_step = int(_arg("depthcap", str(Run.DEPTH_STEP)))
 	Run.study_radius_rim = float(_arg("radrim", "1.0"))
 	Run.study_radius_deep = float(_arg("raddeep", "1.0"))
 	print("RunLengthStudy: %d galaxies a kind, %d kinds · depth cap %d · radius x%.2f rim, x%.2f last ring" % [
-		_seeds, GalaxyGen.count(), Run.study_depth_cap, Run.study_radius_rim, Run.study_radius_deep])
+		_seeds, GalaxyGen.count(), Run.depth_step, Run.study_radius_rim, Run.study_radius_deep])
 	var weights := [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]
 	# per weight: arrays across every galaxy
 	var all := {}
@@ -263,7 +264,7 @@ func _write_dump(kind: int, seed: int, adj: Array, core: int) -> void:
 			danger = n.danger, hops = int(lvl.get(n.index, -1))})
 	var f := FileAccess.open("%s/k%02d.json" % [_dump, kind], FileAccess.WRITE)
 	f.store_string(JSON.stringify({kind = GalaxyGen.type_name(kind), seed = seed, core = core,
-		radius = Run.JUMP_RADIUS, cap = Run.study_depth_cap, radrim = Run.study_radius_rim,
+		radius = Run.JUMP_RADIUS, cap = Run.depth_step, radrim = Run.study_radius_rim,
 		raddeep = Run.study_radius_deep, nodes = nodes}))
 	f.close()
 

@@ -1032,8 +1032,9 @@ static func generate(canvas: Rect2) -> Array:
 ## rolling 120 fresh galaxies each time; the seed is pinned there now.
 ##
 ## So after placement, walk the galaxy the way a ship with no thrust bonus flies
-## it (`Run.JUMP_RADIUS`, a little under, and the last ring's free approach to
-## the core, `RunState.reachable_from`). If the core is out of reach:
+## it (`Run.JUMP_RADIUS`, a little under, one ring deeper a jump at most, and
+## the last ring's free approach to the core, `RunState.reachable_from`). If the
+## core is out of reach:
 ##   1. a start with no neighbour trades places with the rim system that has
 ##      the most -- the start is just where the run begins, so this moves the
 ##      ship and nothing else;
@@ -1140,9 +1141,9 @@ static func _flown(nodes: Array, r: float, core: int) -> Dictionary:
 					if cell == null:
 						continue
 					for j: int in cell:
+						# (and one ring deeper at most, `RunState.too_deep`)
 						if not seen.has(j) and q[i].distance_to(q[j]) <= r \
-								and (Run.study_depth_cap <= 0 or (j != core \
-									and (nodes[j] as MapNode).layer - a.layer <= Run.study_depth_cap)):
+								and not Run.too_deep(a, nodes[j]):
 							seen[j] = true
 							next.append(j)
 		frontier = next

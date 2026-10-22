@@ -505,7 +505,7 @@ so a mismatch is a player the relay admits and the host then turns away, which
 reads to them as a random disconnect.
 
 **What is allowed and not tuned:** `SharedFight.CREW_SHARE` is linear with no
-ceiling and has been flown at two. An eight-ship custodian is 120 + 7×72 hull
+ceiling and has been flown at two. An eight-ship custodian is 200 + 7×120 hull
 against eight hands of cards. The cap permits that fight; nobody has played it.
 
 And one cost worth naming before it is discovered on a bill: `_push_roster_to`

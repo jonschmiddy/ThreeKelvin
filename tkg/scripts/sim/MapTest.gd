@@ -170,9 +170,154 @@ func run() -> void:
 	_ok("the core can be FLOWN to in every galaxy", unflyable.is_empty())
 	for u in unflyable:
 		_fail(u)
+	# ONE JUMP A RING AT BEST (RunState.DEPTH_STEP): there are LAYERS - 1 steps
+	# from the rim ring to the core, so nothing may be shorter. Before the rule
+	# came back the shortest way in was six.
+	if flown > 0:
+		_ok("no galaxy is flown in fewer than one jump a ring (%d, at least %d)"
+			% [fly_best, MapGen.LAYERS - 1], fly_best >= MapGen.LAYERS - 1)
+	if list.size() > 0:
+		Rng.forced = list[0]
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		_one_ring_rule(Run.map)
+	if not "nokinds" in OS.get_cmdline_user_args():
+		_every_kind(int(_arg_of("kindseeds", str(KIND_SEEDS))))
 	Rng.forced = 0
 	_labels()
 	verdict("maptest")
+
+
+## THE ONE-RING RULE, asked of every pair in one galaxy (`RunState.too_deep`,
+## Jon, Oct 22: "A1D"). A jump goes at most one ring deeper; outward and along
+## a ring it goes as far as the drive reaches; the core only from the last
+## ring. And a star the rule refuses from inside the reach ring is the case the
+## chart has to name (`too_deep_only`, TOO DEEP), so it has to say so.
+func _one_ring_rule(map: Array) -> void:
+	var deeper := 0
+	var outward := 0
+	var broke: Array[String] = []
+	var named := 0
+	var unnamed := 0
+	var core := _goal(map)
+	for ra in map:
+		var a: MapGen.MapNode = ra
+		for rb in map:
+			var b: MapGen.MapNode = rb
+			if a.index == b.index:
+				continue
+			var ok := Run.reachable_from(a, b)
+			var step := b.layer - a.layer
+			if ok and step > 1:
+				broke.append("%d (ring %d) -> %d (ring %d)" % [a.index, a.layer, b.index, b.layer])
+			if ok and step == 1:
+				deeper += 1
+			if ok and step < -1:
+				outward += 1
+			if step > 1 and b.type != MapGen.NodeType.CORE \
+					and MapGen.hop_distance(a, b) <= Run.range_from(a):
+				if Run.too_deep_only(a, b):
+					named += 1
+				else:
+					unnamed += 1
+	_ok("no jump goes two rings deeper or more (%d broke it)%s" % [broke.size(),
+		"" if broke.is_empty() else ": " + ", ".join(broke.slice(0, 4))], broke.is_empty())
+	_ok("a jump one ring deeper is allowed (%d pairs)" % deeper, deeper > 0)
+	_ok("a jump more than one ring OUTWARD is still allowed (%d pairs)" % outward, outward > 0)
+	_ok("a star in reach but two rings in reads TOO DEEP (%d named, %d not)" % [named, unnamed],
+		named > 0 and unnamed == 0)
+	var from_last := 0
+	var from_before := 0
+	for ra in map:
+		var a: MapGen.MapNode = ra
+		if a.type == MapGen.NodeType.CORE:
+			continue
+		if Run.reachable_from(a, map[core]):
+			if a.layer == MapGen.LAYERS - 2:
+				from_last += 1
+			else:
+				from_before += 1
+	_ok("the core is flown to from the last ring and only from there (%d from it, %d from before it)"
+		% [from_last, from_before], from_last > 0 and from_before == 0)
+
+
+## EVERY GALAXY KIND IS COMPLETABLE UNDER THE ONE-RING RULE, for the slowest
+## ship (thrust adds nothing, so the base `JUMP_RADIUS`): `seeds` galaxies of
+## each `GalaxyGen` kind (15 each of 17 kinds, 255 galaxies), laid out the way
+## the run-length study laid them out (seeds 900001 + kind * 1000 + i). The
+## study found a few that one ring a jump could not finish;
+## `MapGen._ensure_flyable` walks by the rule now and bridges the gap, and this
+## is the sweep that says it did.
+const KIND_SEEDS := 15
+
+func _every_kind(seeds: int) -> void:
+	var stuck: Array[String] = []
+	var best := 999
+	var worst := 0
+	var total := 0
+	var flown := 0
+	for k in GalaxyGen.count():
+		for s in seeds:
+			var sd := 900001 + k * 1000 + s
+			Rng.forced = sd
+			Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+			Rng.reseed(sd, 0)
+			Run.galaxy_kind = k
+			Run.galaxy = GalaxyGen.roll(k)
+			Run.galaxy_spin = Rng.world.randf() * TAU
+			Run.map = MapGen.generate(Run.MAP_CANVAS)
+			var hops := _slowest_path(Run.map)
+			if hops < 0:
+				stuck.append("%s seed %d" % [GalaxyGen.type_name(k), sd])
+				continue
+			flown += 1
+			total += hops
+			best = mini(best, hops)
+			worst = maxi(worst, hops)
+	print("  EVERY KIND, the slowest ship, one ring a jump: %d galaxies, %d flown · %d shortest · %.1f mean · %d longest"
+		% [GalaxyGen.count() * seeds, flown, best, float(total) / maxf(1.0, float(flown)), worst])
+	_ok("every galaxy of every kind (%d) can be flown to the core one ring at a time by the slowest ship"
+		% (GalaxyGen.count() * seeds), stuck.is_empty())
+	for u in stuck:
+		_fail("cannot reach the core: " + u)
+
+
+## Fewest jumps start to core for a ship with no thrust bonus: the game's own
+## rule (`reachable_from`, so the one-ring cap and the core's approach) and no
+## hop longer than the base radius; -1 if there is no way in.
+func _slowest_path(map: Array) -> int:
+	var start := _start(map)
+	var goal := _goal(map)
+	if start < 0 or goal < 0:
+		return -1
+	var by_layer: Array = []
+	for l in MapGen.LAYERS:
+		by_layer.append([])
+	for raw in map:
+		(by_layer[(raw as MapGen.MapNode).layer] as Array).append(raw)
+	var seen := {start: true}
+	var frontier: Array[int] = [start]
+	var depth := 0
+	while not frontier.is_empty():
+		if seen.has(goal):
+			return depth
+		var next: Array[int] = []
+		for i in frontier:
+			var a: MapGen.MapNode = map[i]
+			# (nothing two rings in or more is ever a jump)
+			for l in mini(MapGen.LAYERS, a.layer + 2):
+				for raw in by_layer[l]:
+					var b: MapGen.MapNode = raw
+					if seen.has(b.index):
+						continue
+					if b.type != MapGen.NodeType.CORE \
+							and MapGen.hop_distance(a, b) > Run.JUMP_RADIUS:
+						continue
+					if Run.reachable_from(a, b):
+						seen[b.index] = true
+						next.append(b.index)
+		frontier = next
+		depth += 1
+	return depth if seen.has(goal) else -1
 
 
 ## Every enum value still has a name, and the name still belongs to it.
