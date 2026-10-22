@@ -5,6 +5,7 @@
 #                              apart and together again
 #   tools/cojoin.sh relay      the same through the relay (HOST PARTY)
 #   tools/cojoin.sh late       the guest joins a dive already under way
+#   tools/cojoin.sh skew       the guest claims a different galaxy: both must say so
 #
 # Each process gets its own user folder (APPDATA on Windows, XDG_DATA_HOME and
 # HOME elsewhere), so neither touches the player's profile or the other's.
@@ -72,9 +73,17 @@ one_of() {
 }
 
 echo; echo "--- across both ---"
-same "one galaxy on both machines" "galaxy"
 case " $MODE " in
-*" late "*) ;;
+*" skew "*)
+	# Forced: both logs must carry the mismatch line with both fingerprints.
+	for who in host guest; do
+		if grep -q "GALAXY MISMATCH seed" "$OUT/$who.log"; then echo "  ok   the $who's godot.log names the mismatch"
+		else echo "  FAIL the $who's log has no mismatch line"; RC=1; fi
+	done ;;
+*) same "one galaxy on both machines" "galaxy" ;;
+esac
+case " $MODE " in
+*" late "*|*" skew "*) ;;
 *)
 	same "one system both ships flew to" "target"
 	same "one fight, ended the same way" "outcome"

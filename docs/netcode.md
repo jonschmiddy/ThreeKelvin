@@ -479,6 +479,10 @@ The Oct 22 playtest (Jon and Kevin, over the relay) found three things, and none
 
 `tools/cojoin.sh` flies all of it in two processes through the real screens, and failed every one of these before the fix (the chart check was added with its fix: the diamond sat on YOU, 0 px apart).
 
+### Protocol 12: the galaxy each machine built, compared
+
+Only the seed crosses the wire, so two machines that build different galaxies from it -- a sine a bit apart on a Mac and a PC -- agree on every index and disagree on what is at it, and no other message can see that. Each guest now sends `galaxy_print` of what it built (every system's type, layer, danger, region, sky facts, position to a tenth, links, and the galaxy's name) and the host compares. A match is a log line; a mismatch is a `GALAXY MISMATCH` warning in godot.log on every machine, with the seed and both fingerprints, and a line on every screen (`PartyNotice`) asking for that log. `tools/cojoin.sh skew` forces one.
+
 ### Eight seats, flown before the number was raised
 
 `NetTransport.MAX_PLAYERS` is eight. It was four, and the way it was raised is

@@ -327,6 +327,9 @@ func _ready() -> void:
 	# THE HULL FAILING (`LowHull`): a faint red at the edges and the odd glitch
 	# in the words, on a layer of its own over the game and under the menu.
 	add_child(LowHull.new())
+	# A LINE FROM THE PARTY that every screen shows until clicked: the galaxies
+	# of two machines in one party do not match (`NetSession._galaxy_differs_here`).
+	add_child(PartyNotice.new())
 
 	Router.register(content, hud)
 	# THE VIEW KICKS WHEN YOUR HULL IS HIT. Connected here rather than in Audio

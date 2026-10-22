@@ -30,6 +30,7 @@ var _tree: SceneTree
 var _me: String = ""
 var _late: bool = false
 var _relay: bool = false
+var _skew: bool = false
 
 
 func run(tree: SceneTree) -> void:
@@ -39,6 +40,11 @@ func run(tree: SceneTree) -> void:
 	var hosting := "host" in argv
 	_late = "late" in argv
 	_relay = "relay" in argv
+	_skew = "skew" in argv
+	# THE GUEST CLAIMS A DIFFERENT GALAXY, so the mismatch guard is flown for
+	# real: both machines must log it and put it on screen.
+	if _skew and not hosting:
+		Net.forced_galaxy = 777
 	_me = "HOST" if hosting else "GUEST"
 	if hosting:
 		await _host()
@@ -125,6 +131,19 @@ func _fly() -> void:
 	if _late:
 		await _late_leg()
 		return
+	if _skew:
+		var warned := await _until(func() -> bool: return Net.galaxy_warning != "", 15.0)
+		_ok("%s is told the galaxies differ" % _me, warned)
+		var notice: PartyNotice = null
+		for c in _tree.root.find_children("*", "PartyNotice", true, false):
+			notice = c
+		_ok("and it is on %s's screen" % _me, notice != null and notice.visible)
+		print("  %s: %s" % [_me, Net.galaxy_warning])
+		await _wait(1.0)
+		return
+	# Everybody built the same galaxy, and nobody was told otherwise.
+	await _wait(1.0)
+	_ok("%s was not warned about the galaxy" % _me, Net.galaxy_warning == "")
 
 	var other := _other_id()
 	if not _ok("the partner is in the roster", other != 0):

@@ -81,6 +81,8 @@ func run(tree: SceneTree) -> void:
 	await _fight_net_test()
 	print("\n=== joining a dive under way, and where a ship is in its system ===")
 	await _late_join_test()
+	print("\n=== two machines that built different galaxies are told ===")
+	await _galaxy_test()
 	print("\n=== the host leaves ===")
 	await _host_loss_test()
 
@@ -939,6 +941,48 @@ func _late_join_test() -> void:
 	var moved := await _wait_until(func() -> bool:
 		return int(late.spot_of(id, 12).get("body", 3)) == -9, 3.0)
 	ok("and a ship that flies on is seen to", moved)
+	await _teardown()
+
+
+## ONE SEED, TWO GALAXIES, AND BOTH SCREENS SAY SO (PROTOCOL 12). Only the seed
+## crosses the wire; a Mac and a PC whose sines differ in the last bit can build
+## different maps from it and agree on every index. The guests say what they
+## built, the host compares, and everybody is told on a mismatch -- matching
+## guests stay quiet. Forced here by reporting a different fingerprint, which
+## is what `-- cojoin join CODE skew` does across two processes.
+func _galaxy_test() -> void:
+	var port := PORT_BASE + 9
+	var host := _make_peer("host")
+	var t := DirectTransport.new()
+	t.port = port
+	t.advertise = "127.0.0.1"
+	var code := host.host_party("Kevin", &"", t)
+	var same := _make_peer("same")
+	same.join_party(code, "Mercer", &"", DirectTransport.new())
+	var odd := _make_peer("odd")
+	odd.join_party(code, "Jon", &"", DirectTransport.new())
+	await _wait_until(func() -> bool:
+		return host.party_size() == 3 and same.party_size() == 3 and odd.party_size() == 3, 5.0)
+	host.set_ready(true)
+	same.set_ready(true)
+	odd.set_ready(true)
+	await _wait_until(func() -> bool: return host.everyone_ready(), 3.0)
+	host.launch_dive()
+	await _wait_until(func() -> bool:
+		return same.state == NetSession.State.DIVING and odd.state == NetSession.State.DIVING, 3.0)
+	var sd := host.dive_seed
+	# A guest reporting before the host has built its own is compared later.
+	same.report_galaxy(sd, 300, 4242)
+	await _wait_frames(10)
+	host.report_galaxy(sd, 300, 4242)
+	await _wait_frames(10)
+	check("a guest whose galaxy matches is not warned about", host.galaxy_warning, "")
+	odd.report_galaxy(sd, 301, 9999)
+	var told := await _wait_until(func() -> bool:
+		return host.galaxy_warning != "" and odd.galaxy_warning != "" and same.galaxy_warning != "", 3.0)
+	ok("a galaxy that differs is said on every machine", told)
+	ok("naming whose", odd.galaxy_warning.contains("Jon"))
+	ok("and asking for the log", odd.galaxy_warning.contains("godot.log"))
 	await _teardown()
 
 

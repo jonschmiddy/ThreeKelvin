@@ -29,6 +29,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   side instead of one on top of the other.
 - **Fixed** — on the star chart, a partner in the same system as you is now marked beside your
   YOU marker instead of exactly on top of it.
+- **Fixed** — in co-op, if two players' games build different galaxies from the same dive (which
+  could happen between a Windows PC and a Mac), both screens now say so in a line at the top
+  and ask you to send godot.log. Before, the party played on with every place in the wrong spot
+  and nothing said why. Both galaxies and the seed are written to godot.log either way.
 - **Fixed** — in co-op a friend who joins after the host has started the dive, or who rejoins
   with the code after their game closed, now lands in the same galaxy. Before, they got into the
   party and then sat on "The host starts the dive." for good. Both of you need this build.
