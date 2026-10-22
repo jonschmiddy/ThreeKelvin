@@ -157,7 +157,9 @@ def main():
 				continue
 			moves = re.search(
 				r"add_credits|take_hull_damage|heat \+=|Run\.fuel|Run\.drain_fuel|material|"
-				r"archive_recover|module = true|fight = true|place =|find_hull", chunk)
+				r"archive_recover|module = true|fight = true|place =|find_hull|"
+				# readying a signed contract is the gain a job's pickup exists for
+				r"reach_contract_target", chunk)
 			if not moves and "check" not in chunk:
 				err('choice "%s" costs nothing and gives nothing, and is not a '
 					"tagged walk-away" % label)
