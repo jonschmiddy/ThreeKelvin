@@ -2795,10 +2795,123 @@ func ladder_cam(k: float) -> void:
 		_edge._process(0.0)
 
 
+## THE LANDING, HEARD (Jon, Oct 21: "as the ship enters the station and lands on
+## the holds... there is no thruster sound. Can't we have it have the roar of
+## the thruster and then putter out to nothing before it lands?"). The yard's
+## flight in, on the ladder's clock (`ZoomLadder._step_pan` hands it `t`, s since
+## your ship started in from off the left, and `dur`, the flight's length, at
+## whose end it is on its stands):
+##   1. THE ROAR from `YARD_ROAR_FROM_S`: the engines lit at the cruise burn
+##      (`ShipView.burn`, the flame LOCAL's ENTER draws) and heard as that burn
+##      is (`Audio.ship_thrust` at `SectorScreen.DOCK_BURN_LEVEL`);
+##   2. THE PUTTER from `YARD_COUGH_AT_S`: the burn out and the arrival's own
+##      flameout (`ShipView.sputter`, a FLAMEOUTS row), its clip for that row
+##      at this hull's weight heard from its first cough, at the burn's level
+##      so the two are one engine (as undocking plays it), the coughs drawn
+##      being the coughs heard;
+##   3. NOTHING for at least `YARD_QUIET_S` before touchdown: the last cough
+##      over and the clip done (it is silent past its last cough), the flame at
+##      the idle, only the yard's own sounds;
+##   4. THE CLAMPS as it touches down (`Router.pay_dock_clamps`).
+## The row is picked at random from those whose coughs fit between 2 and 3; if
+## none does, the shortest, begun early enough to end in time. A press mid-dock
+## (`ZoomLadder.finish_now`) parks your ship on its stands with all of it
+## hushed (`ladder_cam_end`); reduced motion never flies it in, so it is never
+## heard. The path and its timing are the flight's own, untouched.
+## s after the flight starts: negative is heard over the empty yard first, as an
+## arrival's drive is heard before the ship is seen (its flame lit off the
+## picture)
+const YARD_ROAR_FROM_S := -0.2
+## s after the flight starts that the roar gives way to the coughs
+const YARD_COUGH_AT_S := 0.75
+## s, at least, between the last cough and touchdown
+const YARD_QUIET_S := 0.35
+
+
+## The flameout row for a landing of `dur` s: one whose coughs fit between
+## `YARD_COUGH_AT_S` and `YARD_QUIET_S` before touchdown, at random; failing
+## that, the shortest. [row, s its first cough comes at].
+static func yard_flameout(dur: float) -> Array:
+	var room := dur - YARD_QUIET_S - YARD_COUGH_AT_S
+	var fit: Array[int] = []
+	var short := 0
+	for r in ShipView.FLAMEOUTS.size():
+		if ShipView.sputter_s(r) <= room + 0.0001:
+			fit.append(r)
+		if ShipView.sputter_s(r) < ShipView.sputter_s(short):
+			short = r
+	if not fit.is_empty():
+		return [fit[randi() % fit.size()], YARD_COUGH_AT_S]
+	return [short, maxf(dur - YARD_QUIET_S - ShipView.sputter_s(short), 0.0)]
+
+
+func ladder_yard_t(t: float, dur: float) -> void:
+	if _lad.is_empty() or bool(_lad.out) or not is_instance_valid(_mine_view):
+		return
+	# (a press that ended the move at once: on its stands, nothing heard --
+	# `ladder_cam_end` hushes whatever had begun)
+	if ZoomLadder.active != null and ZoomLadder.active._cut:
+		return
+	# (the ladder steps the pan twice on its first frame: one step a time)
+	if is_equal_approx(t, float(_lad.get("yard_t", NAN))):
+		return
+	_lad["yard_t"] = t
+	_lad["yard_dur"] = dur
+	if not _lad.has("row"):
+		var pick := yard_flameout(dur)
+		_lad["row"] = pick[0]
+		_lad["cough_at"] = pick[1]
+	var row := int(_lad.row)
+	var cough_at := float(_lad.cough_at)
+	if t >= dur:
+		_yard_engines_out()
+		Router.pay_dock_clamps()
+		return
+	if t < YARD_ROAR_FROM_S:
+		return
+	if t < cough_at:
+		if not bool(_lad.get("burning", false)):
+			_lad["burning"] = true
+			_mine_view.burn(true)
+		Audio.ship_thrust(SectorScreen.DOCK_BURN_LEVEL)
+		return
+	if not _lad.has("cough_clip"):
+		_lad["burning"] = false
+		_mine_view.burn(false)
+		Audio.ship_thrust_off()
+		_lad["cough_clip"] = _mine_view.sputter(row)
+		Audio.play(_lad.cough_clip as StringName, 0.0, 0, Audio.SHIP_DB + linear_to_db(SectorScreen.DOCK_BURN_LEVEL), 1.0,
+			ShipView.sputter_from_s(row) + (t - cough_at))
+	_mine_view.sputter_step(t - cough_at)
+
+
+## The landing's engines out: the burn and the coughs over, the idle drawn
+## (`hush`: and whatever of them is still in the air faded out, a press).
+func _yard_engines_out(hush: bool = false) -> void:
+	if not is_instance_valid(_mine_view):
+		return
+	if bool(_lad.get("burning", false)):
+		_lad["burning"] = false
+		_mine_view.burn(false)
+		Audio.ship_thrust_off()
+	_mine_view.sputter_stop()
+	if hush:
+		Audio.ship_thrust_off()
+		if _lad.has("cough_clip"):
+			var hc: Array[StringName] = [_lad.cough_clip as StringName]
+			Audio.hush(hc)
+
+
 func ladder_cam_end() -> void:
 	ladder_hide_hull(false)
+	# (the clamps, if the landing did not get to them: a press, or a dock that
+	# flew no hull in)
+	Router.pay_dock_clamps()
 	if _lad.is_empty():
 		return
+	# (a press mid-dock: the landing's roar and coughs hushed at once)
+	if not bool(_lad.get("out", false)):
+		_yard_engines_out(ZoomLadder.active != null and ZoomLadder.active._cut)
 	if is_instance_valid(_mine_view):
 		_mine_view.position = _lad.pos
 	if _scene != null and is_instance_valid(_scene):

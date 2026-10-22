@@ -85,6 +85,8 @@ var _variants: Dictionary = {}  ## name -> [name, name_2, ...] round robins
 ## harness expected it to make. Off in play; nothing reads it but a harness.
 var taping: bool = false
 var tape: Array = []
+## Every `hush` asked for while taping: [the names, the process frame].
+var hushed: Array = []
 var _last: Dictionary = {}          ## sfx name -> msec, for rate limiting
 var _enabled: bool = true
 var _last_credits: int = -1
@@ -1179,6 +1181,9 @@ func suppress(name: StringName, ms: int = 400) -> void:
 ## chose, so a caller hushes `thruster_arrive` without knowing which of the eight
 ## it got.
 func hush(names: Array[StringName], fade_ms: int = 120) -> void:
+	# (taped as asked, so a headless test sees what would be cut: `hushed`)
+	if taping:
+		hushed.append([names.duplicate(), Engine.get_process_frames()])
 	if not _enabled:
 		return
 	for i in _sfx.size():
@@ -1873,6 +1878,8 @@ const SHIP_DB := -8.0
 const SHIP_LOOP := &"ship_thrust_loop"
 var _ship_loop: AudioStreamPlayer = null
 var _ship_level := 0.0
+## The level the burn was last asked for (0 once it is off).
+var ship_want := 0.0
 var _ship_depart: AudioStreamPlayer = null
 var _ship_arrive: AudioStreamPlayer = null
 
@@ -1880,6 +1887,12 @@ var _ship_arrive: AudioStreamPlayer = null
 ## The loop's level, every frame the map runs: 0.7 thrusting, 0.45 braking, 0.32
 ## turning or nudging an orbit, 0 for nothing. Fades in fast and out slower.
 func ship_thrust(level: float) -> void:
+	# (the level is kept headless too, where nothing sounds, so a test reads
+	# what was asked for and what would be heard: `ship_want`, `_ship_level`)
+	ship_want = level
+	var dt := get_process_delta_time()
+	var tc := 0.03 if level > _ship_level else 0.08
+	_ship_level += (level - _ship_level) * (1.0 - exp(-dt / tc))
 	if not _enabled:
 		return
 	if _ship_loop == null:
@@ -1893,15 +1906,13 @@ func ship_thrust(level: float) -> void:
 		_ship_loop.volume_db = -80.0
 		add_child(_ship_loop)
 		_ship_loop.play()
-	var dt := get_process_delta_time()
-	var tc := 0.03 if level > _ship_level else 0.08
-	_ship_level += (level - _ship_level) * (1.0 - exp(-dt / tc))
 	_ship_loop.volume_db = -80.0 if _ship_level < 0.002 else SHIP_DB + linear_to_db(_ship_level)
 
 
 ## THE MAP LEFT: the burn faded out in a tenth of a second (a frame of
 ## `ship_thrust(0)` only eases it, and no frame follows).
 func ship_thrust_off() -> void:
+	ship_want = 0.0
 	_ship_level = 0.0
 	if _ship_loop != null and _ship_loop.volume_db > -79.0:
 		create_tween().tween_property(_ship_loop, "volume_db", -80.0, 0.1)

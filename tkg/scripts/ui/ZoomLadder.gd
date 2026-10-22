@@ -1937,6 +1937,10 @@ func _step_pan(t: float) -> void:
 			var m0 := clampf(_v_old * DOCK_YARD_S / off, 1.5, 3.0)
 			var rest := clampf((t - YARD_FADE_S - YARD_BEAT_S) / DOCK_YARD_S, 0.0, 1.0)
 			new.call(&"ladder_cam", 1.0 - herm(rest, m0, 0.0))
+			# (and its engines and their sound on the same clock: the roar, the
+			# coughs, nothing, the clamps -- `StationScreen.ladder_yard_t`)
+			if new.has_method(&"ladder_yard_t"):
+				new.call(&"ladder_yard_t", t - YARD_FADE_S - YARD_BEAT_S, DOCK_YARD_S)
 		else:
 			var up := float(new.call(&"ladder_up_s")) if new.has_method(&"ladder_up_s") else -1.0
 			if up <= 0.0:
@@ -1964,6 +1968,8 @@ func _step_pan(t: float) -> void:
 	var rest2 := clampf((t - P) / maxf(_move_s - P, 0.001), 0.0, 1.0)
 	if inward:
 		new.call(&"ladder_cam", 1.0 - herm(rest2, YARD_M_IN, 0.0))
+		if new.has_method(&"ladder_yard_t"):
+			new.call(&"ladder_yard_t", t - P, _move_s - P)
 	else:
 		new.call(&"ladder_cam", 1.0 - rest2)
 

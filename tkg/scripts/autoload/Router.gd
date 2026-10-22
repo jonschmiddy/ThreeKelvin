@@ -1190,7 +1190,15 @@ func show_station() -> void:
 	Audio.music_state(&"station")
 	if arriving:
 		Audio.suppress(&"ui_tab", 200)
-		play_dock()
+		# THE CLAMPS AS IT LANDS (Jon, Oct 21: the roar, "then putter out to
+		# nothing before it lands"): a dock that flies your ship into the yard
+		# (3B, 3D) owes them until it is on its stands
+		# (`StationScreen.ladder_yard_t`, or the move's end); any other plays
+		# them now, as the berth opens
+		if animating() and ZoomLadder.busy() and not ZoomLadder.active._cut 				and ZoomLadder.active.r_new == ZoomLadder.STATION and ZoomLadder.active.seam == 3 				and ZoomLadder.active.design in ["B", "D"]:
+			dock_clamps_owed = true
+		else:
+			play_dock()
 	# (built ahead, at DOCK, while LOCAL moved: shown as it is)
 	var pre: Control = ZoomLadder.take_prebuilt(ZoomLadder.STATION)
 	if pre != null:
@@ -1726,4 +1734,16 @@ func _on_run_ended(won: bool, reason: String) -> void:
 ## Docking clamps. Sig has no "you docked" signal and adding one for a single
 ## sound would be noise in the bus, so the screen that opens plays it.
 func play_dock() -> void:
+	dock_clamps_owed = false
 	Audio.play(&"station_dock", 0.03)
+
+
+## The clamps not yet heard on a dock whose yard landing is still to come
+## (`show_station`).
+var dock_clamps_owed := false
+
+
+## Your ship is on its stands: the clamps, if they are owed.
+func pay_dock_clamps() -> void:
+	if dock_clamps_owed:
+		play_dock()

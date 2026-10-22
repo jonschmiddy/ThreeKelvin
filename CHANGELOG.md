@@ -11,6 +11,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 The next build is **0.4.0-alpha.1**, with the fixes from the first outside playtest. See
 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
+- **Changed** — when you dock, your ship's engines are heard as it flies into the shipyard. They
+  roar as it comes in over the floor, then sputter out, and the flame you see sputters with them.
+  The engines are quiet before the ship settles on its stands, and the docking clamps now sound
+  as it touches down. Before, the clamps sounded while the screen was still dark and the ship
+  came in without a sound. Pressing a key stops it all at once, and with reduced motion on you
+  hear only the clamps.
+
 ## 2026-10-21
 
 ### [0.3.1-alpha.1]

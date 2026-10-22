@@ -181,8 +181,13 @@ func _hull_flies_in(dock_b: Button) -> void:
 	var dip_at := Rect2()
 	var black_top := 0.0
 	var empty_up := 0
+	# THE LANDING, HEARD: the yard's flight in, frame by frame (`_yard_sample`)
+	var yr := {}
+	var station_frame := -1
 	for i in 600:
 		await _tree.process_frame
+		if station_frame < 0 and Router.current is StationScreen:
+			station_frame = Engine.get_process_frames()
 		var blk := _black_a()
 		black_top = maxf(black_top, blk)
 		if hall and Router.current == loc0 and is_instance_valid(loc0):
@@ -320,12 +325,14 @@ func _hull_flies_in(dock_b: Button) -> void:
 		# (the elevator's slide, from its first frame: it starts as the yard's
 		# flight lands, while the berth's UI is still arriving)
 		_rail_sample(Router.current as StationScreen, rail_s)
+		_yard_sample(Router.current as StationScreen, yr)
 		if not ZoomLadder.busy() and Router.current is StationScreen:
 			break
 	Audio.taping = false
 	st = Router.current as StationScreen
 	if not _ok("3B DOCK lands in the station", st != null and Router.docked):
 		return
+	_yard_heard("3B DOCK (LOCAL's)", yr)
 	if hall:
 		var right := true
 		for i in range(1, tails.size()):
@@ -367,11 +374,12 @@ func _hull_flies_in(dock_b: Button) -> void:
 		# handed back for its row at this hull's weight, from its start on the
 		# ARRIVE's first frame (its lead is the drive before the ship moves), and
 		# no other thruster sound
+		# (on LOCAL: the yard's landing has its own, `_yard_heard`)
 		var clips: Array = []
 		for tp: Array in Audio.tape:
-			if String(tp[6]).begins_with("thruster_"):
+			if String(tp[6]).begins_with("thruster_") and (station_frame < 0 or int(tp[5]) < station_frame):
 				clips.append([tp[6], int(tp[5]) - arr_frame0, float(tp[7])])
-		_ok("3B: the arrival's clip (%s) is heard once, from its start, as the arrival begins (%s)" % [arr_clip, clips],
+		_ok("3B: the arrival's clip (%s) is heard once on LOCAL, from its start, as the arrival begins (%s)" % [arr_clip, clips],
 			arr_clip != &"" and clips.size() == 1 and StringName(clips[0][0]) == arr_clip and absi(int(clips[0][1])) <= 1 and float(clips[0][2]) == 0.0)
 		# (seen only in the recess: wholly past its end, inside the hull's rows --
 		# the lips' outer rows, solid on every side, `_front_is_plate_less_recess`
@@ -590,6 +598,202 @@ func _dock_skipped(dock_b: Button) -> void:
 	Router.show_sector()
 	await _idle()
 	_ok("3B: UNDOCK after the skipped dock lands on LOCAL", Router.current is SectorScreen and not Router.docked)
+
+
+## THE LANDING, HEARD (Jon, Oct 21: "the roar of the thruster and then putter
+## out to nothing before it lands"): one frame of the yard's flight in, into
+## `yr` -- its clock (`StationScreen.ladder_yard_t`'s `t`, INF once landed),
+## your ship's place, its flame as drawn, the thrust loop's level as it would
+## be heard (`Audio._ship_level`), and the flameout row picked.
+func _yard_sample(st: StationScreen, yr: Dictionary) -> void:
+	if st == null or not is_instance_valid(st) or st._mine_view == null or not is_instance_valid(st._mine_view):
+		return
+	var lad := st._lad
+	if not lad.is_empty() and bool(lad.get("out", false)):
+		return
+	if not yr.has("f"):
+		yr.f = []
+	var v := st._mine_view
+	if not lad.is_empty():
+		yr.row = int(lad.get("row", -1))
+		yr.cough_at = float(lad.get("cough_at", -1.0))
+		yr.dur = float(lad.get("yard_dur", ZoomLadder.DOCK_YARD_S))
+		yr.berth = lad.pos
+		if lad.has("cough_clip"):
+			yr.clip = lad.cough_clip
+	(yr.f as Array).append({"frame": Engine.get_process_frames(),
+		"t": float(lad.get("yard_t", -INF)) if not lad.is_empty() else INF, "pos": v.position,
+		"th": v._thrust_now(), "level": Audio._ship_level, "want": Audio.ship_want, "sputter": v.sputtering()})
+
+
+## The landing as `_yard_sample` saw it, and the tape under it: THE ROAR (the
+## cruise flame drawn and the thrust loop at the dock's burn level while your
+## ship flies in, nothing before `YARD_ROAR_FROM_S`); THE PUTTER (the clip for
+## the row picked, at this hull's weight, once, from the flame's first cough,
+## at the burn's level, the flame drawn on that row's coughs frame for frame);
+## NOTHING before touchdown (the loop out from the first cough, the last cough
+## `YARD_QUIET_S` or more before it, the flame at the idle); THE CLAMPS as it
+## touches down, once.
+func _yard_heard(label: String, yr: Dictionary) -> void:
+	var fr: Array = yr.get("f", [])
+	var row := int(yr.get("row", -1))
+	if not _ok("%s: the landing sampled (%d frames, flameout row %d)" % [label, fr.size(), row], fr.size() > 30 and row >= 0):
+		return
+	var cough_at := float(yr.cough_at)
+	var dur := float(yr.dur)
+	var sp := ShipView.sputter_s(row)
+	var spans: Array = ShipView.FLAMEOUTS[row]
+	var early := 0
+	var roar_n := 0
+	var roar_bad := 0
+	var roar_moved := 0
+	var roar_at := ""
+	var after_loud := 0
+	var cough_n := 0
+	var cough_bad := 0
+	var cough_at_bad := ""
+	var first_cough := -1
+	var first_cough_t := 0.0
+	var quiet_n := 0
+	var quiet_bad := 0
+	var touch := -1
+	var touch_pos := Vector2.INF
+	var f0 := int((fr[0] as Dictionary).frame)
+	for i in fr.size():
+		var e: Dictionary = fr[i]
+		var t := float(e.t)
+		if t == INF:
+			if touch < 0:
+				touch = int(e.frame)
+				touch_pos = e.pos
+			continue
+		# (the landing's own comparisons, so a frame on the line is read alike)
+		if t < StationScreen.YARD_ROAR_FROM_S:
+			if float(e.level) > 0.001 or float(e.want) > 0.0 or int(e.th) != ThrusterFx.Thrust.IDLE:
+				early += 1
+			continue
+		if t < cough_at:
+			roar_n += 1
+			# (asked for at the burn's level, and coming up toward it: how fast is
+			# the loop's own fade, on the frame's real length, which headless is
+			# whatever the machine makes it)
+			if int(e.th) != ThrusterFx.Thrust.CRUISE or not is_equal_approx(float(e.want), SectorScreen.DOCK_BURN_LEVEL) 					or float(e.level) <= 0.0:
+				roar_bad += 1
+				if roar_at == "":
+					roar_at = "%.3f s: drawn %d, asked %.2f, at %.3f" % [t, int(e.th), float(e.want), float(e.level)]
+			if i > 0 and float(e.want) > 0.0 and float(e.level) > 0.0 and (e.pos as Vector2).distance_to((fr[i - 1] as Dictionary).pos) > 0.01:
+				roar_moved += 1
+			continue
+		if float(e.level) > 0.0 or float(e.want) > 0.0:
+			after_loud += 1
+		var dt := t - cough_at
+		if dt < sp - 0.0001:
+			cough_n += 1
+			if first_cough < 0:
+				first_cough = int(e.frame)
+				first_cough_t = t
+			var ee := (spans[0] as Vector2).y + dt * 1000.0 / ShipView.ARRIVE_MS
+			var win := -1
+			for k in spans.size():
+				if ee >= (spans[k] as Vector2).x and ee < (spans[k] as Vector2).y:
+					win = k
+			if int(e.th) != ShipView.arrive_thrust(win) or not bool(e.sputter):
+				cough_bad += 1
+				if cough_at_bad == "":
+					cough_at_bad = "%.3f s: drawn %d, the row %d" % [dt, int(e.th), ShipView.arrive_thrust(win)]
+		else:
+			quiet_n += 1
+			if int(e.th) != ThrusterFx.Thrust.IDLE or bool(e.sputter):
+				quiet_bad += 1
+	_ok("%s: THE ROAR -- the cruise flame drawn and the thrust loop asked for at the dock's burn level (%.1f) while your ship flies in, from %.2f s to the coughs at %.2f s (%d frames, %d moving with it heard; %d off%s), nothing before (%d)" % [
+		label, SectorScreen.DOCK_BURN_LEVEL, StationScreen.YARD_ROAR_FROM_S, cough_at, roar_n, roar_moved, roar_bad,
+		"; first " + roar_at if roar_at != "" else "", early],
+		roar_n >= int((cough_at - maxf(StationScreen.YARD_ROAR_FROM_S, 0.0)) * 30.0) - 1 and roar_moved >= 10 and roar_bad == 0 and early == 0)
+	var weight := int(Run.hull.weight) if Run.hull != null else int(HullData.Weight.MEDIUM)
+	var want_clip: StringName = (ShipView.FLAMEOUT_SFX[weight] as Array)[row]
+	var heard: Array = []
+	var clamps: Array = []
+	for tp: Array in Audio.tape:
+		if String(tp[6]).begins_with("thruster_") and int(tp[5]) >= f0 - 1:
+			heard.append([tp[6], int(tp[5]), float(tp[7]), float(tp[2])])
+		if String(tp[6]) == "station_dock":
+			clamps.append(int(tp[5]))
+	var from_want := ShipView.sputter_from_s(row) + (first_cough_t - cough_at)
+	_ok("%s: THE PUTTER -- the flameout's clip for its row at this hull's weight (%s), once, from the flame's first cough (frame %d, %.3f s into it; heard %s)" % [
+		label, want_clip, first_cough, from_want, heard],
+		heard.size() == 1 and StringName(heard[0][0]) == want_clip and yr.get("clip", &"") == want_clip
+			and absi(int(heard[0][1]) - first_cough) <= 1 and absf(float(heard[0][2]) - from_want) < 0.001
+			and is_equal_approx(float(heard[0][3]), Audio.SHIP_DB + linear_to_db(SectorScreen.DOCK_BURN_LEVEL)))
+	_ok("%s: the coughs drawn are the coughs heard -- the flame on its row's coughs every frame of them (%d frames, %d off%s)" % [
+		label, cough_n, cough_bad, "; first " + cough_at_bad if cough_at_bad != "" else ""],
+		cough_n >= int(sp * 30.0) - 1 and cough_bad == 0)
+	_ok("%s: SILENT BEFORE TOUCHDOWN -- the loop out from the first cough (%d frames loud), the last cough at %.2f s, %.2f s before it lands at %.2f (at least %.2f), the flame at the idle after (%d frames, %d off)" % [
+		label, after_loud, cough_at + sp, dur - cough_at - sp, dur, StationScreen.YARD_QUIET_S, quiet_n, quiet_bad],
+		after_loud == 0 and cough_at + sp <= dur - StationScreen.YARD_QUIET_S + 0.0001
+			and quiet_n >= int(StationScreen.YARD_QUIET_S * 30.0) - 1 and quiet_bad == 0)
+	_ok("%s: THE CLAMPS as it touches down, once (heard at frames %s; on its stands from frame %d, at %s, its berth %s)" % [
+		label, clamps, touch, touch_pos, yr.get("berth", Vector2.INF)],
+		clamps.size() == 1 and touch >= 0 and int(clamps[0]) >= touch - 2 and int(clamps[0]) <= touch
+			and touch_pos.is_equal_approx(yr.get("berth", Vector2.INF)) and not Router.dock_clamps_owed)
+
+
+## A KEY MID-LANDING HUSHES IT (`ZoomLadder.finish_now`): DOCK on LOCAL, and in
+## the yard `at` s into your ship's flight in (mid-roar, or mid-coughs) a key:
+## the berth at once, your ship on its stands with its engines at the idle, the
+## loop out, the coughs (if begun) hushed, nothing of the landing heard after
+## the press, the clamps once.
+func _yard_skipped(dock_b: Button, at: float) -> void:
+	dock_b.pressed.emit()
+	Audio.taping = true
+	Audio.tape.clear()
+	Audio.hushed.clear()
+	var st: StationScreen = null
+	var t := -INF
+	for i in 900:
+		await _tree.process_frame
+		st = Router.current as StationScreen
+		if st != null and not st._lad.is_empty() and float(st._lad.get("yard_t", -INF)) >= at:
+			t = float(st._lad.yard_t)
+			break
+	var coughing := st != null and st._lad.has("cough_clip")
+	var clip: StringName = st._lad.get("cough_clip", &"") if st != null else &""
+	var roaring := Audio.ship_want > 0.0 and Audio._ship_level > 0.0
+	var k := InputEventKey.new()
+	k.keycode = KEY_SHIFT
+	k.physical_keycode = KEY_SHIFT
+	k.pressed = true
+	Input.parse_input_event(k)
+	var press := Engine.get_process_frames()
+	await _frames(1)
+	var u := k.duplicate() as InputEventKey
+	u.pressed = false
+	Input.parse_input_event(u)
+	var n := await _idle()
+	var level := maxf(Audio._ship_level, Audio.ship_want)
+	await _frames(2)
+	st = Router.current as StationScreen
+	var v := st._mine_view if st != null else null
+	var after: Array = []
+	var clamps := 0
+	for tp: Array in Audio.tape:
+		if String(tp[6]).begins_with("thruster_") and int(tp[5]) > press:
+			after.append(tp[6])
+		if String(tp[6]) == "station_dock":
+			clamps += 1
+	var hushed := false
+	for h: Array in Audio.hushed:
+		if (h[0] as Array).has(clip):
+			hushed = true
+	Audio.taping = false
+	var what := "mid-coughs" if coughing else "mid-roar"
+	_ok("3B: a key %s in the yard (%.2f s into the flight; roaring %s, coughing %s) lands at once (%d frames): your ship on its stands at the idle, the loop out (%.2f), %s, nothing of the landing heard after (%s), the clamps once (%d)" % [
+		what, t, roaring, coughing, n, level, "its coughs hushed" if coughing else "no coughs begun", after, clamps],
+		t > -INF and (roaring or coughing) and n >= 0 and n <= 3 and st != null and Router.docked and v != null
+			and v.position.is_equal_approx(_yard_seat(st).position) and not v._burning and not v.sputtering()
+			and v._thrust_now() == ThrusterFx.Thrust.IDLE and level == 0.0 and after.is_empty()
+			and (hushed if coughing else clip == &"") and clamps == 1 and not Router.dock_clamps_owed)
+	Router.show_sector()
+	await _idle()
 
 
 ## THE ELEVATOR, AFTER YOUR SHIP IS IN, LIKE THE GAME'S OTHER PANELS (Jon, Oct
@@ -1817,6 +2021,12 @@ func _run() -> void:
 			if dock_b != null:
 				await _dock_skipped(dock_b)
 				await _undock_skipped()
+				# (a key in the yard, mid-roar and mid-coughs)
+				for at: float in [0.3, StationScreen.YARD_COUGH_AT_S + 0.2]:
+					loc = Router.current as SectorScreen
+					dock_b = loc.find_child("Dock", true, false) as Button if loc != null else null
+					if dock_b != null:
+						await _yard_skipped(dock_b, at)
 				loc = Router.current as SectorScreen
 				dock_b = loc.find_child("Dock", true, false) as Button if loc != null else null
 		await _every_side()
@@ -1846,6 +2056,9 @@ func _run() -> void:
 			# THE MAP'S DOCK ON THE LADDER (3B): down to LOCAL by the station's side,
 			# and on into the hangar, one call
 			Router.show_station()
+			Audio.taping = true
+			Audio.tape.clear()
+			var myr := {}
 			var saw_local := false
 			# (Jon, Oct 20: "there is a frame where the ship is there? then it
 			# goes away? and then it comes back in?": LOCAL is never drawn with
@@ -1866,9 +2079,12 @@ func _run() -> void:
 					var sv := lm._view.ship_view() if lm._view != null else null
 					if not arrived and sv != null and sv.is_visible_in_tree():
 						shown_early += 1
+				_yard_sample(Router.current as StationScreen, myr)
 				if Router.current is StationScreen and not ZoomLadder.busy() and ZoomLadder.chain == &"":
 					break
+			Audio.taping = false
 			_ok("the map's DOCK goes by LOCAL (%s) into the berth" % saw_local, saw_local and Router.current is StationScreen and Router.docked)
+			_yard_heard("the map's DOCK", myr)
 			_ok("the map's DOCK: down to black and up on LOCAL with your ship off it, no calm move (%s), and no LOCAL frame shows your ship before its arrival (%d frames, arrived %s)" % [
 				calm_seen, shown_early, arrived], arrived and shown_early == 0 and not calm_seen)
 			_clean("map dock")
@@ -1878,8 +2094,25 @@ func _run() -> void:
 			DisplaySettings.reduced_motion = true
 			Router.show_sector()
 			await _frames(3)
+			Audio.taping = true
+			Audio.tape.clear()
+			var rm_level := 0.0
 			Router.show_station()
-			_station_same("the map's DOCK", _station_layout(await _station_settled()))
+			var rm_f := Engine.get_process_frames()
+			var rm_st := await _station_settled()
+			_station_same("the map's DOCK", _station_layout(rm_st))
+			for i in 90:
+				rm_level = maxf(rm_level, Audio._ship_level)
+				await _tree.process_frame
+			var rm_heard: Array = []
+			for tp: Array in Audio.tape:
+				if String(tp[6]).begins_with("thruster_") or String(tp[6]) == "station_dock":
+					rm_heard.append([tp[6], int(tp[5]) - rm_f])
+			Audio.taping = false
+			var rm_v := rm_st._mine_view if rm_st != null else null
+			_ok("reduced motion: no landing heard -- no roar (%.2f), no coughs, the flame at the idle; only the clamps, as the berth opens (%s)" % [rm_level, rm_heard],
+				rm_level == 0.0 and rm_heard.size() == 1 and String(rm_heard[0][0]) == "station_dock" and int(rm_heard[0][1]) <= 0
+					and rm_v != null and rm_v._thrust_now() == ThrusterFx.Thrust.IDLE and not Router.dock_clamps_owed)
 			DisplaySettings.reduced_motion = false
 			Router.show_sector()
 			await _idle()
