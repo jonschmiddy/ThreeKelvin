@@ -89,9 +89,13 @@ func _draw() -> void:
 	# as cargo, and a spool of wire does not need a portrait. What it did not
 	# cover is the ARTIFACT tier, where the object IS the reason it is aboard.
 	# Those get a picture; everything else keeps the container.
+	# STOOD ON END WHEN IT IS TURNED, as a module's art is (`sprite_turn`), or
+	# a turned 2x1 would draw its picture lying across the 1x2 box it occupies.
+	# Both pictures tonight are 2x2, so this is for the next one.
 	if item.sprite != null:
 		ModuleIcon.draw_sprite(self, item.sprite,
-			Rect2(Vector2.ZERO, size), false, plate_scale)
+			Rect2(Vector2.ZERO, size), false, plate_scale,
+			ModuleIcon.sprite_turn(item.sprite, item.footprint()))
 		return
 	# THE TIER IS AN ACCENT HERE, NOT THE WALL.
 	#

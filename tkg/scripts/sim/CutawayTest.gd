@@ -232,6 +232,8 @@ func run(tree: SceneTree) -> void:
 		if ic != null:
 			ShipScreen.turn_in_hold(_cut._hold, ic.get_global_rect().get_center())
 		_ok("R turns a part in the cutaway's hold (%s)" % long.name, long.turned != was_turned and Run.cargo.has(long))
+	# 8c. AND A MATERIAL, in the hold and in the hand off the loot popup
+	await _check_turn_material()
 	var fitted := Run.installed[0]
 	var was_flipped := fitted.flipped
 	for sp in _cut._mounts.spots():
@@ -1281,6 +1283,68 @@ func _icons(g: Control) -> int:
 		if c is ItemIcon and (c as Control).visible:
 			n += 1
 	return n
+
+
+## R TURNS A MATERIAL, as it turns a module. It turned module plates only: the
+## hold asked `HoldGrid.icon_at`, which finds nothing but modules, so a 2x1 crate
+## under the pointer stayed lying down. Here in the hold (the refit screen's own
+## call) and in the hand off the loot popup (the cutaway's own R, a real drag).
+func _check_turn_material() -> void:
+	var crate := _material_shaped(Vector2i(2, 1))
+	if not _ok("a 2x1 material to turn (%s)" % (crate.name if crate != null else "none"),
+			crate != null and Run.place_in_hold(crate)):
+		return
+	_cut._refresh()
+	await _settle()
+	var ic := _icon_for(_cut._hold, crate)
+	# (the icon is freed by the refresh the turn makes, so ask before it)
+	var found := ic != null
+	if found:
+		ShipScreen.turn_in_hold(_cut._hold, ic.get_global_rect().get_center())
+	await _settle()
+	var now := _icon_for(_cut._hold, crate)
+	_ok("R turns a material in the cutaway's hold (%s, 2x1 -> %dx%d, drawn %s)" % [crate.name,
+		crate.footprint().x, crate.footprint().y, str(now.size) if now != null else "nowhere"],
+		found and crate.turned and crate.footprint() == Vector2i(1, 2) and Run.cargo.has(crate)
+		and now != null and now.size.round() == ModuleIcon.footprint_box(crate))
+	Run.take_from_hold(crate)
+	_cut._refresh()
+
+	var pile := Run.sector_jetsam(_node, true)
+	var loose := _material_shaped(Vector2i(3, 1))
+	pile.items.append(loose)
+	_cut.open_popup(pile, BAR_BUTTON)
+	await _settle()
+	var pic := _icon_for(_cut._pop_grid, loose) as ItemIcon
+	if _ok("the loot popup draws a 3x1 material (%s)" % loose.name, pic != null):
+		pic.force_drag({module = loose, origin = &"bag"}, pic._ghost())
+		await _settle()
+		var r := InputEventKey.new()
+		r.keycode = KEY_R
+		r.pressed = true
+		_cut._input(r)
+		var held := ItemIcon.carried
+		# (sizes rounded: the quarter-turn tween leaves one off by 1e-5 now and then)
+		_ok("R turns a material carried off the loot popup (%s, %dx%d in the hand, %s drawn)" % [loose.name,
+			loose.footprint().x, loose.footprint().y,
+			str(held.size) if held != null and is_instance_valid(held) else "nothing"],
+			loose.turned and loose.footprint() == Vector2i(1, 3)
+			and held != null and is_instance_valid(held) and held.size.round() == ModuleIcon.footprint_box(loose))
+		_tree.root.gui_cancel_drag()
+		await _settle()
+	loose.turned = false
+	pile.items.erase(loose)
+	_cut.close_popup()
+	await _settle()
+
+
+## A fresh material of this authored shape from the catalogue, or null.
+func _material_shaped(want: Vector2i) -> MaterialData:
+	for row in MaterialTable.all():
+		var m := MaterialData.of(row)
+		if m != null and m.size == want:
+			return m
+	return null
 
 
 func _free_cell(m: HoldItem) -> Vector2i:

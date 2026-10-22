@@ -115,8 +115,8 @@ func _origin(cell: Vector2i) -> Vector2:
 func _footprint(m: HoldItem) -> Vector2:
 	return ModuleIcon.footprint_box(m)
 
-## The plate under a point in SCREEN coordinates, or null. What R turns when
-## nothing is being carried.
+## The MODULE plate under a point in SCREEN coordinates, or null. R used to
+## turn through this and so never turned a material; it asks `item_at` now.
 func icon_at(p: Vector2) -> ModuleIcon:
 	for c in get_children():
 		if c is ModuleIcon and (c as Control).get_global_rect().has_point(p):
@@ -124,8 +124,9 @@ func icon_at(p: Vector2) -> ModuleIcon:
 	return null
 
 ## Any hold item's icon under a point in SCREEN coordinates (a module, a
-## material, a chit), or null. What LOCAL's cutaway shows the card for: asked
-## with `icon_at`, a material under the pointer was nothing at all.
+## material, a chit), or null. What LOCAL's cutaway shows the card for, and
+## what R turns when nothing is being carried: asked with `icon_at`, a material
+## under the pointer was nothing at all.
 func item_at(p: Vector2) -> ItemIcon:
 	for c in get_children():
 		if c is ItemIcon and (c as Control).get_global_rect().has_point(p):

@@ -585,10 +585,11 @@ func _turn_carried() -> bool:
 func _turn_in_new_hold() -> bool:
 	if _new == null:
 		return false
-	var icon := _new.icon_at(_new.get_global_mouse_position())
-	if icon == null or icon.module == null:
+	# `item_at`, not `icon_at`: a crate in the hold turns the way a gun does.
+	var icon := _new.item_at(_new.get_global_mouse_position())
+	if icon == null or icon.held_item() == null:
 		return false
-	var m: HoldItem = icon.module
+	var m: HoldItem = icon.held_item()
 	if m.footprint().x == m.footprint().y:
 		# Square. Turning it changes nothing, and playing the animation would
 		# say something happened that did not.
