@@ -336,6 +336,12 @@ var source_rarity: int = 0
 ##
 ## Only the words that need explaining. "Deal 6" explains itself; Salvo does
 ## not.
+##
+## Two of them are also the names of what they leave on your ship, the fight's
+## status chips (`SectorScreen._refresh_player`), which read them from here.
+const KW_NEGATE := "Negate"
+const KW_GROWS := "Grows"
+
 func keywords() -> Array:
 	var out: Array = []
 	if block > 0:
@@ -351,13 +357,13 @@ func keywords() -> Array:
 	if feedback > 0:
 		out.append(["Feedback", "Deals this straight back to any enemy that attacks you."])
 	if negate_next:
-		out.append(["Negate", "Cancels the next attack against you outright, whatever its size."])
+		out.append([KW_NEGATE, "Cancels the next attack against you outright, whatever its size."])
 	if salvo > 0:
 		out.append(["Salvo", "Adds this to every hit, but only if you have already attacked this turn."])
 	if charge_turns > 0:
 		out.append(["Charge", "Fires on its own after this many turns instead of when you play it."])
 	if adapt > 0:
-		out.append(["Grows", "Gains this permanently every time you play it, for the rest of the fight."])
+		out.append([KW_GROWS, "Gains this permanently every time you play it, for the rest of the fight."])
 	if heat_scale > 0:
 		out.append(["Heat scaling", "One more damage for every %d heat you are carrying." % heat_scale])
 	if heal_scale > 0:

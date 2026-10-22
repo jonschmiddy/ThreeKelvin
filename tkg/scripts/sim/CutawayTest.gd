@@ -27,6 +27,10 @@ func run(tree: SceneTree) -> void:
 	if "swaps" in OS.get_cmdline_user_args():
 		await _check_swap_marks()
 		return _finish()
+	# `-- cutawaytest power`: the reactor's rule alone (9b)
+	if "power" in OS.get_cmdline_user_args():
+		await _check_power()
+		return _finish()
 	seed_run(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	_node = Run.node_at()
@@ -256,6 +260,8 @@ func run(tree: SceneTree) -> void:
 		Run.installed.size() + Run.cargo.size() == n_before)
 	host.queue_free()
 
+	# 9b. the reactor's rule on a mount, as the transfer screen keeps it
+	await _check_power()
 	# 10. the picture itself, on every hull
 	await _check_layouts()
 	# 10b. every empty mount's words, on every startable hull
@@ -319,6 +325,12 @@ func _check_layouts() -> void:
 		Run.place_in_hold(in_hold)
 		var in_loot := _module_of(ModuleData.Slot.WEAPON)
 		Run.sector_jetsam(node, true).items.append(in_loot)
+		# and a material in each of the hold and the pile, whose card is its own
+		# tooltip (Jon, Oct 22: a material's tooltip did not show in here)
+		var mat_hold := MaterialData.of(MaterialTable.all()[0])
+		Run.place_in_hold(mat_hold)
+		var mat_loot := MaterialData.of(MaterialTable.all()[1])
+		Run.sector_jetsam(node, true).items.append(mat_loot)
 		# and two malfunctions in the deck, so their line is there to be measured
 		var junk: Array[StringName] = [DB.MALFUNCTIONS[0][0], DB.MALFUNCTIONS[0][0]]
 		Run.dross = junk
@@ -466,6 +478,7 @@ func _check_layouts() -> void:
 				ship_at = mp.get_global_transform() * pr.get_center()
 				break
 		await _point_gp(cut, wname, "hull", on_ship, ship_at)
+		await _point_material(cut, wname, "hold", mat_hold, _icon_for(cut._hold, mat_hold))
 
 		# EACH POPUP over this hull, and a module in it pointed at
 		for which in ["loose"]:
@@ -483,6 +496,7 @@ func _check_layouts() -> void:
 				cut.popup_open() and view.encloses(pop) and not pop.intersects(left) and bad == 0 and pop.encloses(tr) and _popups_of(cut) == 1)
 			var want: ModuleData = in_loot
 			await _point_at(cut, wname, which, want, _icon_for(cut._pop_grid, want))
+			await _point_material(cut, wname, which, mat_loot, _icon_for(cut._pop_grid, mat_loot))
 			_ok("%s: nothing in the hold or the popup carries Godot's own tooltip (one hover, one popup)" % wname,
 				_tipless(cut._hold) and _tipless(cut._pop_grid))
 			cut.close_popup()
@@ -606,6 +620,10 @@ func _empty_words_on(cut: CutawayView, wname: String) -> void:
 		if empties == 0:
 			continue
 		var carried := _module_of(slot)
+		# ONE THE REACTOR CAN CARRY: a mount is lit only for a part the reactor
+		# can run (`refit_allowed`), many frames launch at their cells, and the
+		# crowded ones are filled past them by hand. The words are the subject.
+		carried.reactor = 40
 		mp.light(carried)
 		mp.queue_redraw()
 		await _tree.process_frame
@@ -971,6 +989,29 @@ func _point_gp(cut: CutawayView, wname: String, where: String, want: ModuleData,
 	cut._show(null)
 
 
+## A MATERIAL POINTED AT shows its own tooltip on the card's plate, the words its
+## icon carries everywhere else (`MaterialIcon.tip_text`). Jon, Oct 22: "the
+## tooltips for non-module items ... don't show up when you drag them onto your
+## ship" -- in here `_quiet` took the icon's tooltip away for a card that only
+## ever showed a module.
+func _point_material(cut: CutawayView, wname: String, where: String, want: MaterialData, icon: Control) -> void:
+	if icon == null:
+		_ok("%s: a material is there to point at in the %s" % [wname, where], false)
+		return
+	cut._show(null)
+	cut._point(icon.get_global_rect().get_center())
+	await _tree.process_frame
+	var tip: Node = cut._panel_box.get_child(0) if cut._panel_box.get_child_count() == 1 else null
+	var card := cut._panel.get_global_rect()
+	_ok("%s: pointing at a material in the %s shows its tooltip on the card (%s)" % [wname, where,
+		want.name],
+		cut._shown == want and cut._panel.visible and tip is Label
+		and tip.get_meta(&"item", null) == want and (tip as Label).text == MaterialIcon.tip_text(want))
+	_ok("%s: and that card is clear of the left panel and the material" % wname,
+		not card.intersects(cut._hold_panel.get_global_rect()) and not card.intersects(icon.get_global_rect()))
+	cut._show(null)
+
+
 ## A left click at a point on screen, pressed and let go, as the pointer would.
 ## Pushed into the viewport `on` is drawn in -- the game's own, under Main's
 ## screen effect, for a screen; the root for a bare host.
@@ -1252,6 +1293,71 @@ func _free_cell(m: HoldItem) -> Vector2i:
 
 
 ## A module of this slot from the catalogue (of this size, if asked), a copy.
+## THE REACTOR'S RULE ON A MOUNT (the tutorial audit, Oct 22): a part coming
+## aboard the reactor cannot carry is refused in the cutaway, as the transfer
+## screen refuses it (`pad_to_mount`, its hold drop), and the mount is not lit
+## for it while it is carried. It used to be bolted on past the cap. A part the
+## reactor can carry, on the same mount, still lands; a fitted part still moves.
+func _check_power() -> void:
+	seed_run(4242)
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	Run.cargo.clear()
+	var host := Control.new()
+	host.size = Vector2(960, 459)
+	_tree.root.add_child(host)
+	var cut := CutawayView.open_over(host, null)
+	for i in 4:
+		await _tree.process_frame
+	var w := ModuleData.Slot.WEAPON
+	# an empty weapon mount: the first one's part taken off the ship altogether
+	var off := Run.module_at(w, 0)
+	if off != null:
+		Run.installed.erase(off)
+		off.mount = -1
+	var free := Run.power_cap() - Run.power_draw()
+	# a weapon the reactor cannot carry: a real one, drawn a cell longer than
+	# the room left (it raises no reactor of its own)
+	var heavy := _module_of(w)
+	heavy.reactor = 0
+	heavy.affixes.clear()
+	heavy.size = Vector2i(1, maxi(1, free + 1))
+	heavy.hold_at = -Vector2i.ONE
+	_ok("a weapon of %d cells is past the reactor's %d free" % [heavy.cells(), free],
+		not Run.can_power(heavy) and Run.module_at(w, 0) == null)
+	var said: Array[String] = []
+	var hear := func(t: String, _k: StringName) -> void: said.append(t)
+	Sig.log_line.connect(hear)
+	_ok("its mount is not lit for it while it is carried",
+		not cut._mounts.takes(heavy, &"cargo", w, 0))
+	var before := Run.installed.duplicate()
+	await cut._on_mount_drop({module = heavy, origin = &"cargo"}, w, 0)
+	await _settle()
+	_ok("dropped there, it is refused and nothing moves", Run.installed == before and Run.module_at(w, 0) == null)
+	_ok("and the log says why (%s)" % ", ".join(said),
+		said.has("The reactor cannot carry %s." % heavy.name))
+	Sig.log_line.disconnect(hear)
+	# the same refusal through the ship's other door: off the dock
+	Run.pad.append(heavy)
+	_ok("the transfer screen's rule agrees: off the dock it is refused too",
+		not Run.pad_to_mount(heavy, w, 0) and Run.module_at(w, 0) == null)
+	Run.pad.erase(heavy)
+	# a part it can carry, on the same mount
+	var light := _module_of(w)
+	light.reactor = 0
+	light.affixes.clear()
+	light.size = Vector2i.ONE
+	light.hold_at = -Vector2i.ONE
+	if free >= 1:
+		_ok("a one-cell weapon is lit for the same mount", cut._mounts.takes(light, &"cargo", w, 0))
+		await cut._on_mount_drop({module = light, origin = &"cargo"}, w, 0)
+		await _settle()
+		_ok("and fitted there", Run.module_at(w, 0) == light)
+	cut.close()
+	host.queue_free()
+	for i in 3:
+		await _tree.process_frame
+
+
 func _module_of(s: ModuleData.Slot, want: Vector2i = Vector2i.ZERO) -> ModuleData:
 	for id in DB.modules:
 		var m: ModuleData = DB.modules[id]

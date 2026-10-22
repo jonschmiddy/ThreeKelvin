@@ -1591,6 +1591,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			# Nothing to pause: the launcher IS the menu. Its Settings drawer is
 			# the one thing Esc can close there.
 			(Router.current as LauncherScreen).close_settings()
+		elif Router.current is ChassisSelect and _menu == null:
+			# Before the run: no escape menu, whose ABANDON would record a run
+			# that never launched. The deck's popup, then the title.
+			(Router.current as ChassisSelect).escape()
 		else:
 			toggle_menu()
 	elif k.is_action_pressed(&"fullscreen"):

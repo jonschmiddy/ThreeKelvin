@@ -502,6 +502,23 @@ else
 fi
 }
 
+unit_fightwordstest() {
+step "The fight's and LOCAL's words say what the rules do"
+# The tutorial audit, Oct 22: the status chips named by the card's keyword
+# (NEGATE, GROWS, not SLIP and ADAPT), the DISCARD's tooltip naming the hand
+# swept in at END TURN, and no dash in LOCAL's bar line anywhere in the galaxy.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot fightwordstest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=FightWordsTest; then
+	if grep -qE '^fightwordstest: PASS' "$LOG_DIR/fightwordstest.log"; then
+		ok "the chips, the discard and the bar line say what the rules do"
+	else
+		bad "a chip, the discard's tooltip or the bar line says something the rules do not"
+		grep -E 'FAIL|^fightwordstest' "$LOG_DIR/fightwordstest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "fightwordstest did not finish"
+fi
+}
+
 unit_materialtest() {
 step "Every material is a thing the hold can actually hold"
 # `MaterialTable` authored 64 rows a day before anything could carry one, so its

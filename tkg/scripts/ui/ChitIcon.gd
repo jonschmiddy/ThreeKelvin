@@ -18,10 +18,15 @@ var chit: CreditChit = null
 func setup(c: CreditChit, from: StringName) -> void:
 	chit = c
 	origin = from
-	# The same rule the top bar states, plus the two facts only the object has.
-	tooltip_text = Widgets.tip("%d CREDITS\n\n%s\n\nTakes no room in your hold."
-		% [c.amount, CreditChit.WHAT_MONEY_IS])
+	tooltip_text = tip_text(c)
 	queue_redraw()
+
+
+## The tooltip's words: the same rule the top bar states, plus the two facts
+## only the object has. Also the cutaway's card for it (`MaterialIcon.tip_for`).
+static func tip_text(c: CreditChit) -> String:
+	return Widgets.tip("%d CREDITS\n\n%s\n\nTakes no room in your hold."
+		% [c.amount, CreditChit.WHAT_MONEY_IS])
 
 
 func held_item() -> HoldItem:
