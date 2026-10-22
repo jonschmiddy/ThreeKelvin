@@ -71,6 +71,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   record.
 - **Fixed** — the line at the bottom of LOCAL no longer has a dash in it. It reads NOTHING ELSE
   HERE · SEE SECTOR, like the event's own line.
+- **Fixed** — epic, legendary and artifact materials now turn up at the same depth as epic and
+  legendary parts: epic from danger 5, legendary and artifact from danger 7. Before, they turned
+  up from danger 3 and 4, so the best materials were found about twice as close to the rim as
+  the parts of the same grade.
 
 - **Fixed** — arriving on LOCAL no longer shows the thin bar at the bottom while your ship flies
   in. Before, the bar was already up as you arrived, and then the event's text and choices rose
@@ -104,6 +108,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   WANTED sheet and the screen's FEATURED listing, 500 CR on a whiteboard note) was never paid, so the
   sums are gone, and so are the screen's "bounty raised" and "bounty desk" lines about it. Once it is
   dead the two posters are stamped DESTROYED, not CLAIMED. What its wreck pays is the same.
+- **Changed** — from danger 5 in, there are no common parts or materials. Wrecks, kill bags,
+  derelicts, event finds, relic analysis and station shelves no longer offer COMMON parts there,
+  and wrecks, events and mining no longer give common materials. The grades above take their
+  place, so a deep wreck is worth more than a rim one. Nearer the rim, commons drop as before.
 - **Changed** — a jump now goes at most one ring deeper than the ring you are in. Jumps outward or
   along your ring reach as far as before. The quickest way to the core is now 14 jumps, one for each
   ring, where it was as few as 4. A star inside your reach ring that is two rings deeper or more

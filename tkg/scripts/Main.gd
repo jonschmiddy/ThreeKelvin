@@ -1635,7 +1635,8 @@ func _open_test_salvage() -> void:
 		ModuleData.Rarity.EPIC, ModuleData.Rarity.LEGENDARY]
 	for r in want:
 		for i in 400:
-			var m := LootGen.roll_module(5)
+			# Commons drop shallower than tier 3 only (`LootGen.NO_COMMON_TIER`).
+			var m := LootGen.roll_module(1 if r == ModuleData.Rarity.COMMON else 5)
 			if m != null and m.rarity == r:
 				wreck.items.append(m)
 				break
