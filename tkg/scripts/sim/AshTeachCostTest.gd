@@ -153,9 +153,10 @@ func _run() -> void:
 	_judge("her line on the chart's list", list, base)
 	_ok("  and it typed out and held while timed", typed.at > 0 and Ash.lesson == &"chart")
 	_same_answer()
-	# A CLICK SPENDS IT: then the goal's step in her voice, no subject of its own
-	await _frames(int(Hints.GRACE_S * 60.0) + 2)
-	Hints.click(_press())
+	# ITS ACTION DONE (stood in for: `Hints.spend`): then the goal's step in her
+	# voice, no subject of its own
+	await _frames(2)
+	Hints.spend()
 	waited = 0
 	while Ash.lesson != &"step_jump_chart" and waited < 400:
 		await _tree.process_frame

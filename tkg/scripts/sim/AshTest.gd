@@ -15,14 +15,21 @@ extends Node
 ##
 ## THE RATE LIMITS HOLD: one at a time; COOLDOWN_S of quiet before an ordinary
 ## line and only BIG_GAP_S before a big one; one line a fight, a second only for
-## the hull failing; never during a card drag, and a drag starting sends her off;
-## never on the enemy's turn; a moment past its wait is dropped.
+## the hull failing; never started during a card drag; never on the enemy's
+## turn; a moment past its wait is dropped.
+##
+## A CLICK NEVER CUTS HER (Jon, Oct 22: "He also clicked to make her shut up
+## when she was giving her quips"; a quip "plays out and ends on its own"): real
+## clicks through the viewport on her box and on the picture, a card picked up
+## and dragged, a wreck's window opened clear of her: she is still saying it,
+## and ends of herself with her power-down.
 ##
 ## NOTHING AFTER LOSS: the hull at 0 or the run over, nothing is said whatever is
 ## waiting, and a line up when the ship goes is gone that frame.
 ##
 ## HINTS WIN: with the hints on, she does not start while a hint card is up or a
-## hint is settling, she goes when one starts, and she speaks after it is clicked.
+## hint is settling, a hint coming due while she talks waits for her to end, and
+## she speaks after the hint is done.
 ##
 ## THE BOX TEST, on every screen she speaks on -- LOCAL fresh in each weight,
 ## LOCAL with one to six wrecks, LOCAL with an event's subject, a fight against
@@ -45,14 +52,16 @@ extends Node
 ## own take exactly once, VOICE_AT after she appears (after the chirp) on the
 ## frame its words start, and the words type for as long as the take within
 ## 10%; the lines with no take yet are text alone, at once, with nothing taped;
-## END TURN, a card picked up, a hint settling, the ship lost and Settings'
-## switch each stop the voice where they cut the words; switched off, no voice.
+## END TURN, the ship lost and Settings' switch each stop the voice where they
+## cut the words (a card picked up and a hint settling no longer cut her);
+## switched off, no voice.
 ##
 ## HER POWER-DOWN AND NO CLICK AS SHE GOES: a line that ends of itself plays the
 ## power-on's two blips reversed (`text_blip_rev`), the higher first, the last
 ## ending on the frame the projection goes and the first CHIRP_GAP before it
-## (one blip in reduced motion); END TURN, a hint, a card picked up, the ship
-## lost and Settings play none, and a cut during it hushes it. Every take,
+## (one blip in reduced motion), and so does one a card dragged or a hint
+## coming due let play out; END TURN, the ship lost and Settings play none, and
+## a cut during it hushes it. Every take,
 ## rendered through Godot's own decoder (`AudioStreamPlayback.mix_audio`), stops
 ## at the end of her last word without a step: the sharpest sample jump within
 ## 30 ms of it under CLICK_MAX times the jumps round it (the takes as first made
@@ -100,6 +109,7 @@ func _run() -> void:
 	await _talk()
 	await _voice()
 	await _exits()
+	await _clicks()
 	await _moments()
 	await _limits()
 	await _loss()
@@ -462,20 +472,24 @@ func _voice() -> void:
 		bad.append("END TURN (never spoke)")
 	Run.heat = 0
 	await _frames(30)
-	# a card picked up, in a fight
+	# A CARD DRAGGED AND A HINT COMING DUE NO LONGER CUT HER (Jon, Oct 22): her
+	# voice goes on
+	var kept: Array[String] = []
 	sc = await _fight(HullData.Weight.MEDIUM, &"cutter")
 	Run.heat = Run.heat_cap() + 2
 	await _said_after()
 	if await _voice_up():
 		Audio.tape.clear()
 		sc._grab_view = sc._hand._views[0] if sc._hand._views.size() > 0 else null
+		sc._grab_mode = 2
 		Ash.poll(0.0)
-		(cuts if Audio.voice_now == "" and _taped("ash/stop").size() == 1 else bad).append("a drag")
+		await _frames(3)
+		(kept if Audio.voice_now != "" and _taped("ash/stop").is_empty() else bad).append("a drag")
 		sc._grab_view = null
+		sc._grab_mode = 0
 	else:
 		bad.append("a drag (never spoke)")
 	Run.heat = 0
-	# a hint starting to settle, on LOCAL
 	sc = await _local()
 	Ash.arm(&"launch")
 	await _said_after()
@@ -483,8 +497,9 @@ func _voice() -> void:
 		Audio.tape.clear()
 		Hints._cand = &"wreck"
 		Ash.poll(0.0)
+		await _frames(3)
 		Hints._cand = &""
-		(cuts if Audio.voice_now == "" and _taped("ash/stop").size() == 1 else bad).append("a hint")
+		(kept if Audio.voice_now != "" and _taped("ash/stop").is_empty() else bad).append("a hint coming due")
 	else:
 		bad.append("a hint (never spoke)")
 	# the ship lost
@@ -510,8 +525,8 @@ func _voice() -> void:
 		(cuts if Audio.voice_now == "" and _taped("ash/stop").size() == 1 else bad).append("Settings off")
 	else:
 		bad.append("Settings off (never spoke)")
-	_ok("a cut stops her voice, faded over %d ms (%s%s)" % [Audio.VOICE_CUT_MS, ", ".join(cuts),
-		"" if bad.is_empty() else "; NOT " + ", ".join(bad)], bad.is_empty() and cuts.size() == 5)
+	_ok("a cut stops her voice, faded over %d ms (%s; and goes on through %s%s)" % [Audio.VOICE_CUT_MS, ", ".join(cuts),
+		", ".join(kept), "" if bad.is_empty() else "; NOT " + ", ".join(bad)], bad.is_empty() and cuts.size() == 3 and kept.size() == 2)
 	# SETTINGS OFF: no voice at all
 	Audio.tape.clear()
 	sc = await _local()
@@ -639,23 +654,32 @@ func _exits() -> void:
 	(none if Ash.portrait.rev_log.is_empty() else some).append("END TURN")
 	Run.heat = 0
 	await _frames(30)
+	# A CARD DRAGGED, A HINT COMING DUE: she plays out, and powers down of herself
+	var played: Array[String] = []
+	var cut_short: Array[String] = []
 	sc = await _fight(HullData.Weight.MEDIUM, &"cutter")
 	Run.heat = Run.heat_cap() + 2
 	await _said_after()
 	await _voice_up()
 	sc._grab_view = sc._hand._views[0] if sc._hand._views.size() > 0 else null
-	await _frames(40)
-	(none if Ash.portrait.rev_log.is_empty() else some).append("a drag")
+	sc._grab_mode = 2
+	p = Ash.portrait
+	await _until_gone(p)
+	(played if p._natural and not p.rev_log.is_empty() else cut_short).append("a drag")
 	sc._grab_view = null
+	sc._grab_mode = 0
 	Run.heat = 0
 	sc = await _local()
 	Ash.arm(&"launch")
 	await _said_after()
 	await _voice_up()
 	Hints._cand = &"wreck"
-	await _frames(40)
+	p = Ash.portrait
+	await _until_gone(p)
 	Hints._cand = &""
-	(none if Ash.portrait.rev_log.is_empty() else some).append("a hint")
+	(played if p._natural and not p.rev_log.is_empty() else cut_short).append("a hint coming due")
+	_ok("through a drag and a hint coming due she plays out and powers down of herself (%s%s)" % [", ".join(played),
+		"" if cut_short.is_empty() else "; CUT: " + ", ".join(cut_short)], cut_short.is_empty() and played.size() == 2)
 	sc = await _local()
 	Ash.arm(&"launch")
 	await _said_after()
@@ -673,7 +697,7 @@ func _exits() -> void:
 	(none if Ash.portrait.rev_log.is_empty() else some).append("Settings off")
 	Ash.set_on(true)
 	_ok("no power-down when she is sent off (%s%s)" % [", ".join(none), "" if some.is_empty() else "; BUT " + ", ".join(some)],
-		some.is_empty() and none.size() == 5)
+		some.is_empty() and none.size() == 3)
 	# the ship lost DURING the power-down: hushed, she goes with the ship
 	sc = await _local()
 	Router.animate_in_harness = true
@@ -939,6 +963,96 @@ func _moments() -> void:
 	Run.jumps = 0
 
 
+# ------------------------------------------------------------------ a click
+
+## A REAL CLICK, as a hand makes it: through the viewport (`push_input`), so
+## every input handler in the game sees it.
+func _push_click(at: Vector2) -> void:
+	var mm := InputEventMouseMotion.new()
+	mm.position = at
+	mm.global_position = at
+	get_viewport().push_input(mm, true)
+	for down: bool in [true, false]:
+		var ev := InputEventMouseButton.new()
+		ev.button_index = MOUSE_BUTTON_LEFT
+		ev.pressed = down
+		ev.position = at
+		ev.global_position = at
+		get_viewport().push_input(ev, true)
+
+
+## A CLICK NEVER CUTS HER (Jon, Oct 22: "He also clicked to make her shut up
+## when she was giving her quips"; a quip "plays out and ends on its own"). On
+## LOCAL, real clicks on her box (where a player clicks to send her away); in a
+## fight a card pressed and let go, and a card pressed and dragged out to aim;
+## on LOCAL a wreck's window opened while she talks (she stays if it is clear
+## of her box, as it is in her corner). Each time she is still saying it, and
+## it ends of itself with her power-down.
+func _clicks() -> void:
+	print("a click never cuts her")
+	var played: Array[String] = []
+	var cut: Array[String] = []
+	# CLICKS ON HER BOX, on LOCAL
+	var sc := await _local()
+	Ash.arm(&"launch")
+	await _said_after()
+	var p := Ash.portrait
+	if p != null and p.speaking():
+		var r := p.rect()
+		for at: Vector2 in [r.get_center(), r.position + Vector2(4, 4), r.end - Vector2(4, 4), r.position + Vector2(r.size.x * 0.7, 10)]:
+			_push_click(at)
+			await _tree.process_frame
+		var still := p.speaking() and p.kind == &"launch"
+		await _until_gone(p)
+		(played if still and p._natural else cut).append("four clicks on her box")
+	else:
+		cut.append("clicks (never spoke)")
+	# A CARD PRESSED AND LET GO, AND A CARD DRAGGED OUT TO AIM, in a fight
+	sc = await _fight(HullData.Weight.MEDIUM, &"cutter")
+	Run.heat = Run.heat_cap() + 2
+	await _said_after()
+	p = Ash.portrait
+	var v: CardView = sc._hand._views[0] if sc._hand._views.size() > 0 else null
+	if p != null and p.speaking() and v != null:
+		var at := v.get_global_rect().get_center()
+		sc._on_card_grabbed(v, at)
+		await _frames(3)
+		var held := p.speaking()
+		sc._end_reorder(false)
+		sc._on_card_grabbed(v, at)
+		sc._grab_decide(Vector2(at.x, sc._hand.get_global_rect().position.y - 120.0))
+		await _frames(3)
+		var dragged := p.speaking() and (sc._aim_view != null or sc._grab_mode != 0)
+		sc._end_aim(false)
+		await _until_gone(p)
+		(played if held and dragged and p._natural else cut).append("a card pressed, and one dragged out to aim (pressed %s, dragged %s)" % [held, dragged])
+	else:
+		cut.append("a card (never spoke)")
+	Run.heat = 0
+	# A WRECK'S WINDOW OPENED BY ITS CLICK, on LOCAL
+	sc = await _local(HullData.Weight.MEDIUM, [[&"cutter", 0]])
+	Ash.arm(&"launch")
+	await _said_after()
+	p = Ash.portrait
+	var sl := sc._view.slot(0)
+	if p != null and p.speaking() and sl != null and sl.opened.is_valid():
+		sl.opened.call()
+		await _frames(3)
+		var tv: TransferView = sc._transfer
+		var covers := tv != null and tv.window_rect().intersects(p.rect())
+		var still := p.speaking()
+		sc._close_transfer()
+		await _until_gone(p)
+		if covers:
+			(cut if still else played).append("a wreck's window over her box (she goes, as anything covering her)")
+		else:
+			(played if still and p._natural else cut).append("a wreck's window opened clear of her")
+	else:
+		cut.append("a wreck's window (never spoke)")
+	_ok("a click never cuts a quip: it plays out and powers down of itself (%s%s)" % [", ".join(played),
+		"" if cut.is_empty() else "; CUT: " + ", ".join(cut)], cut.is_empty() and played.size() == 3)
+
+
 # ------------------------------------------------------------------ the limits
 
 func _limits() -> void:
@@ -1006,9 +1120,13 @@ func _limits() -> void:
 	k = await _said_after()
 	_ok("drag: said once it is let go (%s)" % k, k == &"hot")
 	sc._grab_view = view
+	sc._grab_mode = 2
 	await _said_after(2)
-	_ok("drag: a drag starting sends her off (%s)" % AshPortrait.Phase.keys()[Ash.portrait.phase], not Ash.portrait.speaking())
+	_ok("drag: a drag starting no longer sends her off: she plays out (%s)" % AshPortrait.Phase.keys()[Ash.portrait.phase],
+		Ash.portrait.speaking() and Ash.portrait.kind == &"hot")
 	sc._grab_view = null
+	sc._grab_mode = 0
+	Ash.portrait.cut()
 	Run.heat = 0
 	sc = await _fight(HullData.Weight.MEDIUM, &"cutter")
 	sc._playing = true
@@ -1093,7 +1211,8 @@ func _hints() -> void:
 			over += 1
 		if card_up and Hints._up_t > 0.5:
 			shown.append(String(Hints.card.id) if Hints.card != null else String(Hints.lesson))
-			Hints.click(press)
+			# (its action, stood in for: no click spends it now)
+			Hints.spend()
 		if up and not said:
 			said = true
 			for id in Hints.ORDER:
@@ -1103,12 +1222,35 @@ func _hints() -> void:
 	_ok("hints came first on a fresh LOCAL (%s)" % ", ".join(shown), shown.size() > 0)
 	_ok("never up with a hint card on screen (%d frames)" % over, over == 0)
 	_ok("she speaks once the hints here are done (%s)" % ("up" if said else "no"), said and not said_with_due)
-	# a hint starting to settle while she talks sends her off
+	# A HINT COMING DUE WHILE SHE TALKS WAITS FOR HER (Jon, Oct 22: a quip
+	# "plays out and ends on its own"; it used to send her off)
 	if said:
-		Hints._cand = &"wreck"
-		await _frames(2)
-		_ok("a hint settling sends her off at once", not Ash.portrait.speaking())
-		Hints._cand = &""
+		var p := Ash.portrait
+		var k := p.kind
+		# (your ship's, whose subject is up here: due at once)
+		Hints.mark_seen(&"ship", false)
+		_ok("a hint is due here while she talks", not Hints.probe(&"ship").is_empty() and p.speaking())
+		var under := 0
+		var natural := false
+		for i in 900:
+			Hints.poll(1.0 / 60.0)
+			await _tree.process_frame
+			if p.speaking() and p.kind == k and Hints.lesson != &"":
+				under += 1
+			if not p.speaking() or p.kind != k:
+				natural = p._natural or p.kind != k
+				break
+		_ok("a hint coming due while she talks waits: she ends of herself (%s), never under a lesson (%d frames)" % [natural, under],
+			natural and under == 0 and not (p.speaking() and p.kind == k))
+		var next := false
+		for i in 120:
+			Hints.poll(1.0 / 60.0)
+			await _tree.process_frame
+			if Hints.lesson == &"ship" or (Hints.card != null and Hints.card.id == &"ship"):
+				next = true
+				break
+		_ok("then the hint is said", next)
+		Hints.spend()
 	Run.jumps = 0
 	# and in a fight: the hand's hints come before her heat line
 	sc = await _fight(HullData.Weight.MEDIUM, &"cutter")

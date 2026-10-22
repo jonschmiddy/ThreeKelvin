@@ -113,8 +113,9 @@ const VOICE_HOLD_S := 1.0
 var line := ""
 var kind: StringName = &""
 ## A TEACHING LINE (`Ash.teach`): held once it is out until it is let go (the
-## click that dismisses it, its subject gone), never on a timer: Jon's hint rule,
-## "let's have them advance with a click".
+## player has done what it teaches, or its subject has gone), never on a timer
+## and never by a click (Jon, Oct 22: "soft lock the screen so A.S.H. can't be
+## dismissed"). An information line is not held: it goes after its reading time.
 var held := false
 ## What she says, where a teaching line's take was recorded from a script that
 ## differs from the words shown (`AshTutorLines.SPOKEN`: no numbers, no names);

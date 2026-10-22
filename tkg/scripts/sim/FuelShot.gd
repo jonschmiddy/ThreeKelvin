@@ -58,7 +58,7 @@ func _hint(name: String) -> void:
 			var ev := InputEventMouseButton.new()
 			ev.button_index = MOUSE_BUTTON_LEFT
 			ev.pressed = true
-			Hints.click(ev)
+			Hints.spend()
 			await _secs(Hints.GAP_S + 0.3)
 			return
 	print("  [fuelshot] MISSING %s" % name)

@@ -222,7 +222,7 @@ func _fight() -> void:
 	Router.start_combat(DB.enemies[&"cutter"], [], false, false)
 	if await _holding(&"hand", 15.0):
 		await _shot("fight_teach_first")
-	Hints.click(_press())
+	Hints.spend()
 	await _secs(1.5)
 	# a card played: the enemy's intent is the next lesson
 	var cb := Router.combat
@@ -232,7 +232,7 @@ func _fight() -> void:
 			break
 	if await _holding(&"", 15.0):
 		await _shot("fight_teach_mid")
-	Hints.click(_press())
+	Hints.spend()
 	await _secs(1.0)
 	for id in Hints.ORDER:
 		Hints.mark_seen(id)
@@ -401,7 +401,7 @@ func _decks() -> void:
 			print("[ashgoalshot] %s: %s %s, outline %s, subject %s" % [name, "her box" if ash_on else "card",
 				Ash.portrait.rect() if ash_on else Hints.card.card_rect(), Ash.outline_rect(),
 				st.deck_subject(tab)])
-			Hints.click(_press())
+			Hints.spend()
 			await _secs(Hints.GAP_S + 0.4)
 	Ash.set_on(true)
 
@@ -443,7 +443,7 @@ func _cutaway() -> void:
 			img.get_region(Rect2i(Vector2i(r.position * k), Vector2i(r.size * k))).save_png("%s/%s_box.png" % [_out, name])
 		else:
 			print("[ashgoalshot] MISSING her cutaway line")
-		Hints.click(_press())
+		Hints.spend()
 		cut.close_now()
 		await _secs(1.5)
 	Keys.reset(&"hold_turn")
