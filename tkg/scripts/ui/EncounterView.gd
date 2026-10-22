@@ -95,10 +95,15 @@ func _ready() -> void:
 	_convoy.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_convoy.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_convoy_pad.add_child(_convoy)
-	Sig.party_changed.connect(refresh_convoy)
+	# DEFERRED. A roster push lands from the network poll at any point in the
+	# frame -- including while a jump's new screen is being added to the tree,
+	# where add_child() on the column fails ("Parent node is busy setting up
+	# children") and the partner's slot is remembered but never drawn. Found
+	# flying two instances into one system (`-- cojoin`, Oct 22).
+	Sig.party_changed.connect(refresh_convoy, CONNECT_DEFERRED)
 	# And when a fight does. Which of your partners is in the room with you is a
 	# fact about the fight, not about the party — see ConvoySlot._engaged.
-	Sig.party_fight_changed.connect(func(_at: int) -> void: refresh_convoy())
+	Sig.party_fight_changed.connect(func(_at: int) -> void: refresh_convoy(), CONNECT_DEFERRED)
 
 	# Your hull is itself a target: defensive and utility cards are played by
 	# dropping them here, so every card is aimed at something.
@@ -2715,6 +2720,12 @@ class ConvoySlot extends Control:
 		art.show_behind_parent = true
 		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		art.follow_peer(id)
+		# THE NAME AND GAUGES COME BACK WITH THE HULL. `_draw` paints nothing
+		# while the hull is hidden, and `ShipView.arrive` hides it for its first
+		# tick after the flare has already asked for a redraw -- so the slot
+		# drew once, empty, and nothing asked again: the partner flew in with no
+		# name over it (seen in the Oct 22 stills, LOCAL and the fight alike).
+		art.visibility_changed.connect(queue_redraw)
 		# Always the half sheet. A convoy slot only exists when there IS a party,
 		# which is exactly the condition the reduced set is for.
 		art.use_half(true)

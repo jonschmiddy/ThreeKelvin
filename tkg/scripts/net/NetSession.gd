@@ -93,7 +93,15 @@ extends Node
 ##    list. A version 9 partner receives a dive one argument long and would
 ##    roll from its own profile instead: two ships at one derelict opening two
 ##    different hulls, with nothing on either screen saying why.
-const PROTOCOL: int = 10
+## 11: fights opened by an option or an arrival are SHARED (Router.start_ambush),
+##    and a ship says where it is INSIDE its system (`report_spot`, pushed as
+##    `_spot_to`), so the SECTOR map draws partners flying round it. A version
+##    10 partner opens its option fights privately -- a JOIN that can never
+##    find them -- and sends no spot, so it is never drawn on the map.
+## 12: a guest tells the host the galaxy it built (`_galaxy_at_host`), and a
+##    galaxy that differs from the host's is said on every screen
+##    (`_galaxy_differs`). A version 11 partner sends neither.
+const PROTOCOL: int = 12
 
 ## How long a contested option waits for the host to say who got it.
 ##
@@ -226,6 +234,42 @@ var claims: Dictionary = {}
 ## cleared with the rest of the session.
 var fights: Dictionary = {}
 
+## Where each ship is INSIDE its system, for the SECTOR map: `{peer id: {at,
+## body, x, z, ang}}`. The roster's `at` says which system; this says where in
+## it. A body >= 0 means "in orbit of / alongside that world" and (x, z) is the
+## offset from the world's centre, because a world's place on its orbit is this
+## machine's clock and not the sender's -- an absolute position would put a
+## partner in orbit of nothing. Body -1 is the star and -9 open space, both
+## absolute (the star does not move). An empty entry: arrived, at the edge.
+##
+## NOT on the roster. It changes several times a second while a ship flies,
+## and the roster is whole, reliable and rebuilt on every machine per change;
+## this is one small unreliable message, relayed by the host, last one wins.
+var spots: Dictionary = {}
+## THE GALAXY EACH MACHINE BUILT, as `[seed, systems, fingerprint]`.
+##
+## The seed is the only thing about the galaxy that crosses the wire; every
+## machine builds the rest itself. Two machines that build DIFFERENT galaxies
+## from one seed -- a sine one bit apart on a Mac and a PC, a table a mod
+## changed -- agree on every index and disagree on what is at it, and nothing
+## else in the session can see that: a partner's `at` is a number that means a
+## different star. So each guest says what it built, the host compares it with
+## its own, and a mismatch is written to godot.log on both machines and said on
+## both screens (`PartyNotice`). Written before the Win<->Mac playtest of Oct 23,
+## when it was the only way to tell this apart from a network bug.
+var galaxy_mine: Array = []
+var _galaxy_theirs: Dictionary = {}
+## What the screens were told, or "" while every galaxy matches.
+var galaxy_warning: String = ""
+## Test seam: a fingerprint to claim instead of the one built. Never set from
+## game code. `-- cojoin join CODE skew` sets it to force the mismatch.
+var forced_galaxy: int = 0
+
+## Throttle for `report_spot`: what was last sent and when.
+var _spot_sent: Array = []
+var _spot_ms: int = 0
+const SPOT_EVERY_MS := 150
+
 
 func _ready() -> void:
 	# Only the autoload copy should be reachable by name. The headless test
@@ -249,7 +293,12 @@ func _ready() -> void:
 	Sig.player_combat_state_changed.connect(_mark_presence)
 	# And where you are. A jump is the one thing in this game that moves a ship
 	# between systems, so it is the only event that can change the answer.
-	Sig.jumped.connect(func(_index: int) -> void: _mark_presence())
+	# The galaxy this machine built, the moment it exists (see `galaxy_mine`).
+	Sig.run_started.connect(_on_run_started)
+	Sig.jumped.connect(func(index: int) -> void:
+		_mark_presence()
+		# and, inside the new system, at its edge (see `spots`)
+		report_arrival(index))
 
 
 # --- what a screen calls -------------------------------------------------
@@ -272,6 +321,10 @@ func host_party(player_name: String, hull_id: StringName, t: NetTransport = null
 	_builds.clear()
 	claims.clear()
 	fights.clear()
+	spots.clear()
+	_galaxy_theirs.clear()
+	galaxy_mine.clear()
+	galaxy_warning = ""
 	_said_hello = false
 	_join_serial = 0
 	_presence_sent = 0
@@ -301,6 +354,10 @@ func join_party(code: String, player_name: String, hull_id: StringName, t: NetTr
 	_builds.clear()
 	claims.clear()
 	fights.clear()
+	spots.clear()
+	_galaxy_theirs.clear()
+	galaxy_mine.clear()
+	galaxy_warning = ""
 	_said_hello = false
 	_presence_sent = 0
 	_presence_dirty = true
@@ -322,6 +379,10 @@ func leave_party() -> void:
 	_builds.clear()
 	claims.clear()
 	fights.clear()
+	spots.clear()
+	_galaxy_theirs.clear()
+	galaxy_mine.clear()
+	galaxy_warning = ""
 	transport = null
 	dive_seed = 0
 	dive_unlocked.clear()
@@ -374,12 +435,15 @@ func is_networked() -> bool:
 	return state != State.OFFLINE and state != State.FAILED
 
 
+## Both guarded on `multiplayer` itself: it is null while this node is out of
+## the tree, which is the frames a quitting game spends tearing its screens
+## down -- and a screen asking who it is then threw (`-- cojoin`, Oct 22).
 func is_host() -> bool:
-	return multiplayer.multiplayer_peer != null and multiplayer.is_server()
+	return multiplayer != null and multiplayer.multiplayer_peer != null and multiplayer.is_server()
 
 
 func local_id() -> int:
-	if multiplayer.multiplayer_peer == null:
+	if multiplayer == null or multiplayer.multiplayer_peer == null:
 		return 1
 	return multiplayer.get_unique_id()
 
@@ -561,6 +625,21 @@ func _hello(protocol: int, fingerprint: int, player_name: String, hull_id: Strin
 	_accept.rpc_id(who)
 	_push_roster()
 	Sig.party_changed.emit()
+	# INTO A DIVE ALREADY UNDER WAY. The seed went out once, at LAUNCH, to
+	# whoever was here then -- so a friend who joined after it (or whose game
+	# fell over and who typed the code back in) was accepted, seated, and left
+	# on "The host starts the dive." for good (`-- cojoin late`, Oct 22). Told
+	# now, with everything else a seed cannot say: what the party has used up,
+	# where the hellbender is, and the fights open.
+	if state == State.DIVING and dive_seed != 0:
+		var open: Array = Array(dive_unlocked).map(
+			func(m: StringName) -> String: return String(m))
+		_begin_dive.rpc_id(who, dive_seed, open)
+		_push_claims_to.rpc_id(who, claims)
+		_push_hellbender_to.rpc_id(who, Run.hellbender_at, Run.hellbender_hp, Run.hellbender_moves, false)
+		for f: SharedFight in fights.values():
+			if not f.over:
+				_push_fight_to.rpc_id(who, f.to_wire())
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -694,6 +773,21 @@ func _enemy_swings(at: int, which: int, kind: int, pick: int) -> void:
 	Sig.party_fight_swing.emit(at, which, kind, pick)
 
 
+## "This is where I am in my system." Unreliable: a dropped one is replaced by
+## the next a sixth of a second later, and a stale one queued behind a lost
+## packet is worse than none.
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func _spot_at_host(at: int, body: int, x: float, z: float, ang: float) -> void:
+	if is_host():
+		_apply_spot(multiplayer.get_remote_sender_id(), at, body, x, z, ang)
+
+
+@rpc("authority", "call_remote", "unreliable_ordered")
+func _spot_to(id: int, at: int, body: int, x: float, z: float, ang: float) -> void:
+	if id != local_id():
+		spots[id] = {"at": at, "body": body, "x": x, "z": z, "ang": ang}
+
+
 @rpc("authority", "call_remote", "reliable")
 func _begin_dive(seed_value: int, unlocked: Array) -> void:
 	_apply_dive(seed_value, unlocked)
@@ -759,6 +853,7 @@ func _on_peer_disconnected(id: int) -> void:
 		var f: SharedFight = fights[index]
 		if f.crew.has(id):
 			_apply_leave(int(index), id)
+	spots.erase(id)
 	if roster.erase(id):
 		_builds.erase(id)
 		_push_roster()
@@ -825,6 +920,132 @@ func _apply_presence(id: int, wire: Dictionary, at: int) -> void:
 		Run.hellbender_jumped()
 	_push_roster()
 	Sig.party_changed.emit()
+
+
+## A galaxy as a number: every system's index, type, layer, danger, region,
+## star, sky facts and position (to a tenth of a chart unit), its links, and the
+## galaxy's name. Coarse on purpose about position, exact about everything a
+## player can act on.
+static func galaxy_print(map: Array, galaxy_name: String) -> int:
+	var parts := PackedStringArray([galaxy_name, str(map.size())])
+	for raw in map:
+		var n: MapGen.MapNode = raw
+		var links := PackedStringArray()
+		for l in n.links:
+			links.append(str(l))
+		parts.append("%d:%d:%d:%d:%d:%d:%d%d%d:%d,%d:%s" % [n.index, int(n.type), n.layer,
+			n.danger, int(n.region), int(n.star), int(n.gas_giant), int(n.near_pulsar),
+			int(n.in_nebula), roundi(n.gal.x * 10.0), roundi(n.gal.y * 10.0), "-".join(links)])
+	return hash("|".join(parts))
+
+
+func _on_run_started() -> void:
+	if state != State.DIVING or dive_seed == 0 or Rng.master != dive_seed:
+		return
+	var fp := forced_galaxy if forced_galaxy != 0 else galaxy_print(Run.map, Run.galaxy_name)
+	report_galaxy(dive_seed, Run.map.size(), fp)
+
+
+## This machine built galaxy `fp` (`systems` of them) from `seed_value`. The
+## host keeps its own and compares; a guest sends it to the host.
+func report_galaxy(seed_value: int, systems: int, fp: int) -> void:
+	galaxy_mine = [seed_value, systems, fp]
+	print("[party] galaxy seed %d: %d systems, fingerprint %d (%s, build %s)" % [
+		seed_value, systems, fp, OS.get_name(), local_build()])
+	if not _can_talk():
+		return
+	if is_host():
+		_check_galaxies()
+	else:
+		_galaxy_at_host.rpc_id(1, seed_value, systems, fp)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _galaxy_at_host(seed_value: int, systems: int, fp: int) -> void:
+	if not is_host():
+		return
+	var who := multiplayer.get_remote_sender_id()
+	_galaxy_theirs[who] = [seed_value, systems, fp]
+	print("[party] %s built galaxy seed %d: %d systems, fingerprint %d" % [
+		name_of(who), seed_value, systems, fp])
+	_check_galaxies()
+
+
+## Host only: every guest's galaxy against this one's, once both are known.
+func _check_galaxies() -> void:
+	if galaxy_mine.size() != 3:
+		return
+	for id in _galaxy_theirs.keys():
+		var g: Array = _galaxy_theirs[id]
+		if int(g[0]) != int(galaxy_mine[0]):
+			continue
+		_galaxy_theirs.erase(id)
+		if int(g[1]) == int(galaxy_mine[1]) and int(g[2]) == int(galaxy_mine[2]):
+			print("[party] %s's galaxy matches this one" % name_of(id))
+			continue
+		var args := [name_of(id), int(galaxy_mine[0]), int(galaxy_mine[1]), int(galaxy_mine[2]),
+			int(g[1]), int(g[2])]
+		if multiplayer.get_peers().has(int(id)):
+			_galaxy_differs.rpc(args[0], args[1], args[2], args[3], args[4], args[5])
+		_galaxy_differs_here(args[0], args[1], args[2], args[3], args[4], args[5])
+
+
+@rpc("authority", "call_remote", "reliable")
+func _galaxy_differs(guest: String, seed_value: int, host_n: int, host_fp: int,
+		guest_n: int, guest_fp: int) -> void:
+	_galaxy_differs_here(guest, seed_value, host_n, host_fp, guest_n, guest_fp)
+
+
+func _galaxy_differs_here(guest: String, seed_value: int, host_n: int, host_fp: int,
+		guest_n: int, guest_fp: int) -> void:
+	# The log line is the diagnosis: both fingerprints, both counts, the seed.
+	push_warning("[party] GALAXY MISMATCH seed %d: host %s has %d systems, fingerprint %d; %s has %d systems, fingerprint %d (this machine: %s, build %s)" % [
+		seed_value, name_of(1), host_n, host_fp, guest, guest_n, guest_fp, OS.get_name(), local_build()])
+	galaxy_warning = "Your galaxies do not match (%s's and the host's). Places will not line up. Tell the developer and send godot.log." % guest
+	Sig.party_notice.emit(galaxy_warning)
+
+
+## Where this ship is in its system, from the SECTOR map. Throttled here, so
+## the map can call it every frame: sent when it moved and SPOT_EVERY_MS has
+## passed, or at once when the system or the body changed. `body` as in `spots`.
+func report_spot(at: int, body: int, p: Vector2, ang: float, force: bool = false) -> void:
+	if not _can_talk() or state != State.DIVING:
+		return
+	var now := Time.get_ticks_msec()
+	var same_place := _spot_sent.size() == 5 and int(_spot_sent[0]) == at and int(_spot_sent[1]) == body
+	if same_place and not force:
+		if now - _spot_ms < SPOT_EVERY_MS:
+			return
+		if Vector2(_spot_sent[2], _spot_sent[3]).distance_to(p) < 0.5 				and absf(angle_difference(float(_spot_sent[4]), ang)) < 0.05:
+			return
+	_spot_sent = [at, body, p.x, p.y, ang]
+	_spot_ms = now
+	if is_host():
+		_apply_spot(1, at, body, p.x, p.y, ang)
+	else:
+		_spot_at_host.rpc_id(1, at, body, p.x, p.y, ang)
+
+
+## Arrived in a system: at its edge until the map says otherwise. An empty spot
+## is what a partner's map draws at the arrival point.
+func report_arrival(at: int) -> void:
+	report_spot(at, -10, Vector2.ZERO, 0.0, true)
+
+
+## Where a partner is inside the system `at`, or {} if this machine does not
+## know (never reported, or the report is about another system).
+func spot_of(id: int, at: int) -> Dictionary:
+	var sp: Dictionary = spots.get(id, {})
+	if sp.is_empty() or int(sp.get("at", -1)) != at:
+		return {}
+	return sp
+
+
+func _apply_spot(id: int, at: int, body: int, x: float, z: float, ang: float) -> void:
+	if id != 1:
+		spots[id] = {"at": at, "body": body, "x": x, "z": z, "ang": ang}
+	if not multiplayer.get_peers().is_empty():
+		_spot_to.rpc(id, at, body, x, z, ang)
 
 
 ## Broadcast the hellbender, host only. RunState calls this after every authority
@@ -1316,6 +1537,10 @@ func _drop(message: String) -> void:
 	_builds.clear()
 	claims.clear()
 	fights.clear()
+	spots.clear()
+	_galaxy_theirs.clear()
+	galaxy_mine.clear()
+	galaxy_warning = ""
 	_set_state(State.FAILED)
 	Sig.party_failed.emit(message)
 

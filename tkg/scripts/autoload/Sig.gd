@@ -69,6 +69,7 @@ signal party_state_changed(state: int)   ## NetSession.State as an int
 signal party_changed()                   ## somebody joined, left, or readied
 signal party_launched(seed_value: int)   ## the host started the dive
 signal party_failed(reason: String)      ## refused, dropped, or never reached
+signal party_notice(text: String)        ## a line every screen shows (`PartyNotice`)
 ## The party consumed a system — somebody stripped a wreck, won a fight or
 ## answered a hail. RunState listens and marks its own copy of the map.
 ##

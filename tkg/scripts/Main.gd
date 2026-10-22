@@ -126,19 +126,6 @@ func _ready() -> void:
 		_net_test.run(get_tree())
 		return
 
-	# Two processes, one enemy:
-	#   godot --headless --path . -- cofight host
-	#   godot --headless --path . -- cofight join CODE
-	#   tools/cofight.sh                    (both, paired by the printed code)
-	# RUN THIS AFTER TOUCHING Combat's shared path. nettest cannot reach it:
-	# `Run` is a singleton, so one process holds one ship, and every line in
-	# Combat that talks to the party needs a second one. Held in a member for
-	# the same reason nettest is.
-	if "cofight" in OS.get_cmdline_user_args():
-		_co_fight = load("res://scripts/sim/CoFightTest.gd").new()
-		_co_fight.run(get_tree())
-		return
-
 	# Every authored option opened and resolved through LOCAL's event band
 	# (`LocalEventDrawer`), the one place a choice is taken:
 	#   godot --headless --path . -- localeventtest
@@ -340,6 +327,9 @@ func _ready() -> void:
 	# THE HULL FAILING (`LowHull`): a faint red at the edges and the odd glitch
 	# in the words, on a layer of its own over the game and under the menu.
 	add_child(LowHull.new())
+	# A LINE FROM THE PARTY that every screen shows until clicked: the galaxies
+	# of two machines in one party do not match (`NetSession._galaxy_differs_here`).
+	add_child(PartyNotice.new())
 
 	Router.register(content, hud)
 	# THE VIEW KICKS WHEN YOUR HULL IS HIT. Connected here rather than in Audio
@@ -351,6 +341,34 @@ func _ready() -> void:
 	Sig.hit_landed.connect(func(amount: int, to_player: bool, _who: int, _ab: int) -> void:
 		if to_player and amount > 0:
 			_kick(amount))
+
+	# Two processes, one enemy:
+	#   godot --headless --path . -- cofight host
+	#   godot --headless --path . -- cofight join CODE
+	#   tools/cofight.sh                    (both, paired by the printed code)
+	# RUN THIS AFTER TOUCHING Combat's shared path. nettest cannot reach it:
+	# `Run` is a singleton, so one process holds one ship, and every line in
+	# Combat that talks to the party needs a second one. Held in a member for
+	# the same reason nettest is. AFTER `Router.register` (moved Oct 22): it
+	# starts runs and fights through Router, whose screens need a holder, and
+	# before it every swap threw ("Cannot call method 'add_child' on a null
+	# value", a hundred times a run) while the verdict still said PASS.
+	if "cofight" in OS.get_cmdline_user_args():
+		_co_fight = load("res://scripts/sim/CoFightTest.gd").new()
+		_co_fight.run(get_tree())
+		return
+
+	# Two processes flown the way two friends fly -- one system, one fight,
+	# apart and together again -- through the real screens:
+	#   godot --headless --path . -- cojoin host
+	#   godot --headless --path . -- cojoin join CODE
+	#   tools/cojoin.sh [relay] [late]
+	# AFTER `Router.register`, unlike cofight: LOCAL and the SECTOR map are
+	# what it checks. See scripts/sim/CoJoinTest.gd.
+	if "cojoin" in OS.get_cmdline_user_args():
+		_co_fight = load("res://scripts/sim/CoJoinTest.gd").new()
+		_co_fight.run(get_tree())
+		return
 
 	# Real galaxy data for the sensor-ladder study:
 	#   godot --headless --path . -- sensordump

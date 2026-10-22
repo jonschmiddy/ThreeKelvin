@@ -4041,12 +4041,10 @@ class MapChart extends Control:
 	func _draw_party() -> void:
 		if not show_icons or Net.party_size() < 2:
 			return
-		var seen: Dictionary = {}
-		for slot in Net.partners():
-			var at := int(slot.get("at", -1))
-			if at < 0 or at >= Run.map.size():
-				continue
-			var c := _screen_pos(Run.map[at])
+		for e: Array in party_marks():
+			var slot: Dictionary = e[0]
+			var c: Vector2 = e[1]
+			var row: int = e[2]
 			# Backed in ink, and the name shadowed with it.
 			#
 			# Not a polish pass. The deepest ship is the one this marker exists
@@ -4059,14 +4057,42 @@ class MapChart extends Control:
 			# Stacked when two ships are in the same system, which is the whole
 			# point of flying together and would otherwise print one name on top
 			# of another.
+			var label := String(slot.get("name", "")).to_upper()
+			var at_text := c + Vector2(-46, -12 - row * 10) if row >= 0 else c + Vector2(8, 3)
+			var align := HORIZONTAL_ALIGNMENT_CENTER if row >= 0 else HORIZONTAL_ALIGNMENT_LEFT
+			draw_string(UITheme.pixel_font(), at_text + Vector2(1, 1), label,
+				align, 92, 8, Color(0, 0, 0, 0.85))
+			draw_string(UITheme.pixel_font(), at_text, label,
+				align, 92, 8, UITheme.GOOD)
+
+	## Where each partner's diamond goes: `[[slot, screen point, label row], ...]`.
+	##
+	## OFF YOUR OWN SYSTEM, NOT ON IT. A partner in the system you are in was
+	## drawn on its centre -- the glyph your ship is marked on -- so the two of
+	## you were one picture "totally on top of each other" (Oct 22 playtest).
+	## There the diamonds stand to the upper right of your marker, one under
+	## another, each with its name beside it (row -1 says "name beside");
+	## elsewhere a diamond is on its system and names stack above it.
+	func party_marks() -> Array:
+		var out: Array = []
+		if Net.party_size() < 2 or Run.map.is_empty():
+			return out
+		var seen: Dictionary = {}
+		var with_me := 0
+		for slot in Net.partners():
+			var at := int(slot.get("at", -1))
+			if at < 0 or at >= Run.map.size():
+				continue
+			var c := _screen_pos(Run.map[at])
+			if at == Run.at:
+				# clear of YOU's brackets, whose corner reaches 17 px right
+				out.append([slot, c + Vector2(26, -8 + with_me * 11), -1])
+				with_me += 1
+				continue
 			var row := int(seen.get(at, 0))
 			seen[at] = row + 1
-			var label := String(slot.get("name", "")).to_upper()
-			var at_text := c + Vector2(-46, -12 - row * 10)
-			draw_string(UITheme.pixel_font(), at_text + Vector2(1, 1), label,
-				HORIZONTAL_ALIGNMENT_CENTER, 92, 8, Color(0, 0, 0, 0.85))
-			draw_string(UITheme.pixel_font(), at_text, label,
-				HORIZONTAL_ALIGNMENT_CENTER, 92, 8, UITheme.GOOD)
+			out.append([slot, c, row])
+		return out
 
 	## The galaxy's other harvester, drawn wherever the host last said it was.
 	##

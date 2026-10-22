@@ -95,6 +95,16 @@ func _init() -> void:
 	_foot = HBoxContainer.new()
 	_foot.add_theme_constant_override("separation", 4)
 	add_child(_foot)
+	Sig.party_fight_changed.connect(_on_party_fight)
+
+
+## Whether the list's foot is offering JOIN FIGHT. A partner's fight opening or
+## ending here rebuilds the list; a push about one three systems away does not.
+var _join_shown := false
+
+func _on_party_fight(_at: int) -> void:
+	if mode == &"list" and is_inside_tree() and Router.can_join_fight() != _join_shown:
+		_list()
 
 
 func _clear() -> void:
@@ -488,6 +498,13 @@ func _list() -> void:
 	var n_loot: MapGen.MapNode = screen.view.node
 	if Run.jetsam_left(n_loot, Run.sector_loot(n_loot)) > 0:
 		_act("SECTOR LOOT", func() -> void: screen.open_sector_loot())
+	# A PARTNER IS FIGHTING IN THIS SYSTEM: the way in, from wherever you are in
+	# it (Oct 22 playtest: there was no way into a partner's fight at all)
+	_join_shown = Router.can_join_fight()
+	if _join_shown:
+		var jb := _act("JOIN FIGHT", Router.join_fight)
+		jb.name = "JoinFight"
+		jb.tooltip_text = Widgets.tip("%s is fighting in this system. Join them: the enemy grows for two, and the turn waits for both of you." % Router.join_fight_names())
 	_act("PLOT NEXT JUMP", func() -> void: screen.plot_next_jump(), false)
 
 

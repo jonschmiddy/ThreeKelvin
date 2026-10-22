@@ -270,7 +270,12 @@ func setup(c: Combat = null) -> void:
 	Sig.party_fight_changed.connect(func(_at: int) -> void:
 		if fighting():
 			_refresh_hand()
-			_refresh_enemy())
+			_refresh_enemy()
+		# Out of one, the bar's JOIN FIGHT comes and goes with a partner's
+		# fight here -- rebuilt only when that answer changes, not on every
+		# push of somebody's turn three systems away.
+		elif Router.can_join_fight() != _join_shown:
+			_refresh())
 	Sig.turn_started.connect(func(_t): _refresh())
 	Sig.combat_ended.connect(_on_combat_ended)
 	# EVERY ATTACK, drawn over time: `combat_hit` carries what reached the hull,
@@ -1450,6 +1455,10 @@ static func things_here(n: MapGen.MapNode) -> Array:
 	return out
 
 
+## Whether the bar is offering JOIN FIGHT, so a fight push rebuilds it only
+## when that changes.
+var _join_shown := false
+
 ## WHAT IS HERE, IN ONE LINE, and the sector map to see it on. The parts joined
 ## with a dot, as the event's own line is (`LocalEventDrawer.bar_line`): they
 ## were joined with a dash, and a player-facing line has none (the tutorial
@@ -1472,6 +1481,11 @@ static func here_line(n: MapGen.MapNode) -> String:
 
 func _drawer_here(n: MapGen.MapNode) -> void:
 	var line := here_line(n)
+	# A PARTNER IS FIGHTING HERE, and the way in is on this bar (Oct 22
+	# playtest: there was no way into a partner's fight at all).
+	_join_shown = Router.can_join_fight()
+	if _join_shown:
+		line = "%s IS FIGHTING HERE" % Router.join_fight_names()
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1484,6 +1498,12 @@ func _drawer_here(n: MapGen.MapNode) -> void:
 	# loot"), only while there is something on it, as the map's SECTOR LOOT is:
 	# a popup in the cutaway, the two-grid screen with your hold beside it
 	# anywhere else
+	if _join_shown:
+		var jf := Widgets.button("JOIN FIGHT", Router.join_fight)
+		jf.name = "JoinFight"
+		jf.custom_minimum_size = EncounterDrawer.BTN
+		jf.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(jf)
 	# OPEN IT: the event the band was dropped on (NOT NOW), or walked away from
 	if LocalEventDrawer.can_reopen(n) and _events != null and _events.page == &"":
 		var oi := Widgets.button("OPEN IT", func() -> void: _events.open(LocalEventDrawer.bar_option(n)))

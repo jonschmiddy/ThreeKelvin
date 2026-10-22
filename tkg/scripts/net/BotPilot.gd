@@ -296,8 +296,8 @@ func _fly() -> void:
 		# Somebody else opened a fight in the system this ship is sitting in.
 		# Getting into it is the entire reason a wingman holds position, and it
 		# is not automatic: a fight is joined by ENGAGING, not by being present.
-		if Net.fight_open_at(Run.at) and not n.cleared:
-			Router.engage_here()
+		if Router.can_join_fight():
+			Router.join_fight()
 			continue
 
 		var pick := await _next_system(n)
