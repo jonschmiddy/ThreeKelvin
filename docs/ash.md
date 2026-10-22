@@ -306,7 +306,7 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
   has said it whole spends it too, like the cutaway's (people leave a deck by clicking another). The yard's ship hint follows the yard's. On the
   Hiring Board she stands over the town's side (`PostingBoard.town_rect`), never the app bar's
   tabs, the ticker, a popup or any part of a job note, real or drawn (the other listings, the
-  FEATURED or WANTED bounty: `PostingBoard.job_rects`; Oct 20, "a job note is a pressable
+  FEATURED listing or WANTED poster: `PostingBoard.job_rects`; Oct 20, "a job note is a pressable
   thing even where it has no words"), and no popup comes up while she teaches. Ads and
   scenery she may cover. The words are Jon's picks of two drafts each (Oct 20,
   "promenade:B shipyard:B exchange:B hiring_board:A laboratory:A"); the cards stay as

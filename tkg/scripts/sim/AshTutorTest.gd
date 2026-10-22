@@ -629,7 +629,7 @@ func _gather(cur: Control, v: Rect2) -> Array:
 		if st._board != null and st._board.is_visible_in_tree():
 			for r: Rect2 in st._board.chrome_rects():
 				out.append(["the board's app bar or ticker", st._board.get_global_transform() * r])
-			# every job note whole, real or drawn: the listings, the FEATURED or WANTED bounty
+			# every job note whole, real or drawn: the listings, the FEATURED listing or the WANTED poster
 			for r: Rect2 in st._board.job_rects():
 				out.append(["a job note on the board", st._board.get_global_transform() * r])
 			if st._board.pop_rect.has_area():

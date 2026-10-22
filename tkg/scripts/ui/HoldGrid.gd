@@ -123,6 +123,15 @@ func icon_at(p: Vector2) -> ModuleIcon:
 			return c
 	return null
 
+## Any hold item's icon under a point in SCREEN coordinates (a module, a
+## material, a chit), or null. What LOCAL's cutaway shows the card for: asked
+## with `icon_at`, a material under the pointer was nothing at all.
+func item_at(p: Vector2) -> ItemIcon:
+	for c in get_children():
+		if c is ItemIcon and (c as Control).get_global_rect().has_point(p):
+			return c
+	return null
+
 ## Which cell a point falls in. Outside the grid returns (-1,-1).
 func cell_at(p: Vector2) -> Vector2i:
 	var c := Vector2i(int(floor(p.x / float(CELL + GAP))),

@@ -710,6 +710,19 @@ func _close_deck() -> void:
 	_deck_pop.queue_free()
 	_deck_pop = null
 
+
+## ESC HERE (Main): the opening deck's popup first, then back to the title. Not
+## the escape menu (the tutorial audit, Oct 22): nothing has launched, and its
+## ABANDON put a run that never started on the record. Left the way the menu's
+## quit leaves, with no ship, the state the title expects; the save was cleared
+## by NEW RUN already, and a cold arrival here is left its save.
+func escape() -> void:
+	if _deck_pop != null:
+		_close_deck()
+		return
+	Run.hull = null
+	Router.show_launcher()
+
 var _deck_pop: Control = null
 
 func _gap(h: int) -> Control:

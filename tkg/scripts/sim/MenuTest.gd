@@ -68,6 +68,10 @@ func run(tree: SceneTree) -> void:
 			await _first_window_case()
 			print("MOTION in dev mode: the player's rows only")
 			await _dev_motion_case()
+			print("RUN ENDED: TITLE")
+			await _run_ended_case()
+			print("Esc on the hull pick")
+			await _chassis_case()
 	DisplaySettings.reduced_motion = was_reduced
 	DisplaySettings.skip_jump = was_skip
 	Router.animate_in_harness = false
@@ -457,6 +461,57 @@ func _dev_motion_case() -> void:
 	DisplaySettings.load_and_apply()
 	DevMode.enabled = was_dev
 	await _tree.process_frame
+
+
+## RUN ENDED HAS A WAY BACK TO THE TITLE (the tutorial audit, Oct 22): the only
+## one was Esc and then ABANDON. Its TITLE leaves as the win's does: the title
+## up, no ship.
+func _run_ended_case() -> void:
+	seed_run(4471)
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	Run.dead = true
+	Run.death_reason = "The hull gave out."
+	Router.show_game_over()
+	if not _ok("  RUN ENDED is up", await _wait_for(func() -> bool:
+			return Router.current is GameOverScreen)):
+		return
+	await _secs(0.3)
+	var title := first(Router.current, func(n: Node) -> bool:
+		return n is Button and (n as Button).text == "TITLE") as Button
+	if not _ok("  it has a TITLE button, live", title != null and not title.disabled
+			and title.is_visible_in_tree()):
+		return
+	title.pressed.emit()
+	_ok("  TITLE goes back to the title with no ship", await _wait_for(func() -> bool:
+		return Router.current is LauncherScreen) and Run.hull == null)
+	Run.dead = false
+
+
+## ESC ON THE HULL PICK (the tutorial audit, Oct 22): before a run launches
+## there is no escape menu, whose ABANDON put a run that never started on the
+## record. Esc shuts the opening deck's popup first, then goes back to the
+## title, and nothing is recorded.
+func _chassis_case() -> void:
+	Router.new_run()
+	if not _ok("  NEW RUN opens the hull pick", await _wait_for(func() -> bool:
+			return Router.current is ChassisSelect)):
+		return
+	await _secs(0.3)
+	var pick := Router.current as ChassisSelect
+	var runs := RunHistory.load_all().size()
+	pick._show_deck()
+	await _press(KEY_ESCAPE)
+	await _secs(0.3)
+	_ok("  Escape shuts the opening deck's popup and stays on the hull pick",
+		pick._deck_pop == null and Router.current == pick
+		and _main.get("_menu") == null and _pause_menus() == 0)
+	await _press(KEY_ESCAPE)
+	await _secs(0.4)
+	_ok("  Escape again goes back to the title, and no escape menu opens",
+		Router.current is LauncherScreen and _main.get("_menu") == null and _pause_menus() == 0)
+	var after := RunHistory.load_all().size()
+	_ok("  and nothing goes on the record (%d runs before, %d after), no ship" % [runs, after],
+		after == runs and Run.hull == null)
 
 
 func _labels_in(n: Node, out: Array[String]) -> void:

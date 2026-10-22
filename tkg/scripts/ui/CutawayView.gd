@@ -812,6 +812,12 @@ func _show(m: Variant, at: Rect2 = Rect2()) -> void:
 		Widgets.clear(_panel_box)
 		if m is ModuleData:
 			_panel_box.add_child(ModuleIcon.tip_for(m as ModuleData))
+		elif m is MaterialData or m is CreditChit:
+			# A MATERIAL'S OWN TOOLTIP, on the same plate (Jon, Oct 22: "sometimes
+			# the tooltips for non-module items ... don't show up"). They did
+			# everywhere else, and in here `_quiet` takes every icon's Godot
+			# tooltip away for this card, which only ever had a module's to show.
+			_panel_box.add_child(MaterialIcon.tip_for(m as HoldItem))
 		elif typeof(m) == TYPE_STRING_NAME and m == &"dross":
 			_panel_box.add_child(_dross_tip())
 	if fresh and m != null and at.has_area():
@@ -1305,7 +1311,8 @@ func _point(gp: Vector2) -> void:
 				# (beside the whole popup, so the card covers none of it)
 				at = _popup.get_global_rect()
 	if m == null:
-		var ic := _hold.icon_at(gp)
+		# (any item, not only a module: `icon_at` is R's, which turns parts)
+		var ic := _hold.item_at(gp)
 		if ic != null:
 			m = ic.held_item()
 			at = ic.get_global_rect()
@@ -1319,7 +1326,7 @@ func _point(gp: Vector2) -> void:
 				if s.held == part:
 					var r := _mounts.part_rect(part, s.slot, _mounts._part_at(s), _mounts._mag())
 					at = Rect2(_mounts.get_global_transform() * r.position, r.size * _mounts.get_global_transform().get_scale())
-	if not m is ModuleData:
+	if not (m is ModuleData or m is MaterialData or m is CreditChit):
 		m = null
 	if m == null and _dross.is_visible_in_tree() and _dross.get_global_rect().has_point(gp):
 		_show(&"dross", _dross.get_global_rect())

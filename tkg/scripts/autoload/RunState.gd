@@ -1550,7 +1550,8 @@ func can_power(m: ModuleData, replacing: ModuleData = null) -> bool:
 	var level := reactor_level() + m.reactor + m.affix_int(&"reactor")
 	if replacing != null:
 		draw -= replacing.cells()
-		level -= replacing.reactor
+		# (its affix's share too, as `reactor_level` counts it)
+		level -= replacing.reactor + replacing.affix_int(&"reactor")
 	var cap := maxi(0, level) * CELLS_PER_LEVEL
 	return draw <= cap
 
@@ -2308,7 +2309,11 @@ func fit_at_mount(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from:
 	# (`MountPoints.takes`): what it lights is what this does, by construction.
 	if not refit_allowed(m, slot, index, lifted_from):
 		var was := module_at(slot, index) if m != null and m.slot == slot else null
-		if was != null and was != m:
+		if was != null and was == m:
+			return Refit.REFUSED
+		if m != null and m.slot == slot and not _refit_powered(m, was, lifted_from):
+			log_line("The reactor cannot carry %s." % m.name, &"them")
+		elif was != null:
 			log_line("No room in the hold for %s." % was.name, &"them")
 		return Refit.REFUSED
 	var resident := module_at(slot, index)
@@ -2366,23 +2371,41 @@ func fit_at_mount(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from:
 ##  - a part fitted or in the hand (`lifted_from` >= 0) TRADES with the one on
 ##    the mount, always -- the resident goes where it came from, not the hold;
 ##  - any other part (the hold, the dock) puts the resident in the hold, so the
-##    resident must fit there with the part's own cells counted free.
-## An empty mount of the right kind always says yes. Nothing about the size or
-## shape of the part decides a mount: only the hold's room for the resident.
+##    resident must fit there with the part's own cells counted free;
+##  - and that part, coming aboard, must be one the reactor can carry with the
+##    resident's draw freed (`can_power`), the rule the transfer screen's
+##    `pad_to_mount` and its hold-to-mount drop already kept. It was missing
+##    here, so the refit screen and the cutaway bolted on a part past the
+##    reactor's cells that every other way onto a mount refused.
+## An empty mount of the right kind says yes to a part the reactor can carry.
+## Nothing about the size or shape of the part decides a mount: only the
+## reactor, and the hold's room for the resident.
 func refit_allowed(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from: int = -1) -> bool:
 	# STAYS a ModuleData, and that is the guard. A mount is a hardpoint on the
 	# hull; a crate of ore has no slot to match and no power to draw.
 	if m == null or m.slot != slot:
 		return false
 	var resident := module_at(slot, index)
+	if resident != null and resident == m:
+		return false
+	if not _refit_powered(m, resident, lifted_from):
+		return false
 	if resident == null:
 		return true
-	if resident == m:
-		return false
 	var lifted := lifted_from >= 0 and not installed.has(m)
 	if installed.has(m) or lifted:
 		return true
 	return has_room_for(resident, m)
+
+
+## The reactor's half of `refit_allowed`. A part already on the ship, or lifted
+## off it into the hand, draws nothing new wherever it goes (a move, or a trade
+## with another fitted part). Anything else comes aboard, and `resident`, if
+## there is one, goes to the hold and frees its draw.
+func _refit_powered(m: ModuleData, resident: ModuleData, lifted_from: int) -> bool:
+	if installed.has(m) or lifted_from >= 0:
+		return true
+	return can_power(m, resident)
 
 
 ## A part (or any hold item) dropped onto CELL `at` of the hold: from the hold

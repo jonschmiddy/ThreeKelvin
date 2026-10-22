@@ -28,6 +28,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Fixed** — an event that gives you something to take now always shows REWARD on its result.
+  Before, only an event that gave a part did. One that gave only materials showed CONTINUE,
+  the drawer dropped, and the materials sat under SECTOR LOOT with nothing to say they were
+  there. This hit 82 events, 24 of them job events such as the dropped load, the long claim
+  and the auction. CONTINUE still leaves anything you did not take under SECTOR LOOT. Credits
+  are still paid straight to you and shown in the result's table.
+- **Fixed** — pointing at a material or a credit chit in the ship view on LOCAL now shows its
+  tooltip, in the hold and in a wreck's or the sector's loot. Before, only modules showed one
+  there, so a material you were about to drag aboard said nothing.
+- **Fixed** — the ship view on LOCAL and the SHIP screen no longer let you fit a part the reactor
+  cannot run. The mount does not light up for it, and the log says the reactor cannot carry it.
+  Moving parts across to a new ship at the yard already refused it.
+- **Fixed** — the DISCARD pile's tooltip now says what goes there: the cards you played or
+  discarded, and the rest of your hand at END TURN. It used to say only the cards you played.
+- **Fixed** — the status icons in a fight now use the card's own word. NEGATE was called SLIP, and
+  GROWS was called ADAPT.
+- **Fixed** — RUN ENDED has a TITLE button. Before, the only way back to the title was Esc and
+  then ABANDON.
+- **Fixed** — Esc on CHOOSE A CHASSIS goes back to the title, after closing the opening deck if it
+  is open. It used to open the pause menu, whose ABANDON put a run you never launched on your
+  record.
+- **Fixed** — the line at the bottom of LOCAL no longer has a dash in it. It reads NOTHING ELSE
+  HERE · SEE SECTOR, like the event's own line.
+
 - **Fixed** — arriving on LOCAL no longer shows the thin bar at the bottom while your ship flies
   in. Before, the bar was already up as you arrived, and then the event's text and choices rose
   out of it. Now the bottom of the screen stays empty until your ship settles. Then the event
@@ -56,6 +80,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **Changed** — The Hellbender's posters just say WANTED. The bounty they promised (2500 CR on the
+  WANTED sheet and the screen's FEATURED listing, 500 CR on a whiteboard note) was never paid, so the
+  sums are gone, and so are the screen's "bounty raised" and "bounty desk" lines about it. Once it is
+  dead the two posters are stamped DESTROYED, not CLAIMED. What its wreck pays is the same.
 - **Changed** — a jump now goes at most one ring deeper than the ring you are in. Jumps outward or
   along your ring reach as far as before. The quickest way to the core is now 14 jumps, one for each
   ring, where it was as few as 4. A star inside your reach ring that is two rings deeper or more

@@ -44,11 +44,82 @@ func _frames(n: int) -> void:
 
 func _run() -> void:
 	await _tree.process_frame
+	_no_bounty()
 	for dev: int in [MapGen.Development.OUTPOST, MapGen.Development.SETTLEMENT, MapGen.Development.CITY]:
 		await _board(dev, false)
 	await _board(MapGen.Development.OUTPOST, true)
 	print("boardsigntest: %s (%d failed)" % ["PASS" if _fails == 0 else "FAIL", _fails])
 	_tree.quit(1 if _fails > 0 else 0)
+
+
+## NO BOARD PROMISES A BOUNTY FOR THE HELLBENDER (Jon, Oct 22: the bounty was
+## promised and never paid, so the posters just say WANTED). Every piece of
+## paper, ad, popup and ticker line that names the Hellbender, on every kind of
+## board, says nothing of a bounty, a reward, a sum or a claim. The two posters
+## drawn in code, the WANTED sheet and the screen's FEATURED listing, say
+## WANTED and nothing of the sort, and are stamped DESTROYED after the kill,
+## never CLAIMED: CLAIMED says somebody was paid.
+const PROMISE := "BOUNTY|REWARD|WORTH|CLAIM|PAID|PAYS|\\d+ ?CR\\b|CREDITS"
+
+
+func _no_bounty() -> void:
+	var promise := RegEx.create_from_string(PROMISE)
+	var tables := {"BoardScreen.ADS": BoardScreen.ADS, "BoardScreen.STRIPS": BoardScreen.STRIPS,
+		"BoardScreen.POPUPS": BoardScreen.POPUPS, "BoardScreen.TICKER": BoardScreen.TICKER,
+		"BoardScreen.DECOYS": BoardScreen.DECOYS, "BoardWhite.MORE": BoardWhite.MORE,
+		"BoardCork.POOL": BoardCork.POOL, "PostingBoard.POSTS": PostingBoard.POSTS}
+	var named := 0
+	var bad: Array[String] = []
+	for t: String in tables:
+		var rows: Array = tables[t].values() if tables[t] is Dictionary else tables[t]
+		for row: Variant in rows:
+			var words := " / ".join(_words(row)).to_upper()
+			if not words.contains("HELLBENDER"):
+				continue
+			named += 1
+			if promise.search(words) != null:
+				bad.append("%s: %s" % [t, words])
+	_ok("the boards' own paper names the Hellbender (%d pieces)" % named, named > 0)
+	_ok("none of it promises a bounty for it (%s)" % ("; ".join(bad) if not bad.is_empty() else "none"), bad.is_empty())
+	var src: String = (load("res://scripts/ui/PostingBoard.gd") as GDScript).source_code
+	for f: String in ["_wanted", "_featured"]:
+		var body := _body(src, f)
+		var said: Array[String] = []
+		for m in RegEx.create_from_string("\"([^\"]*)\"").search_all(body):
+			if not m.get_string(1).begins_with("#"):
+				said.append(m.get_string(1))
+		var promised := said.filter(func(s: String) -> bool: return promise.search(s.to_upper()) != null)
+		_ok("PostingBoard.%s says WANTED and no bounty (%s)" % [f, ", ".join(said)],
+			not body.is_empty() and said.has("WANTED") and promised.is_empty())
+		_ok("PostingBoard.%s is stamped %s after the kill" % [f, PostingBoard.DEAD_STAMP],
+			body.contains("_stamp(DEAD_STAMP"))
+	_ok("the stamp is DESTROYED, not CLAIMED", PostingBoard.DEAD_STAMP == "DESTROYED")
+
+
+## Every string in a board's table row, however deep, but its "k": that names
+## which drawing paints it (the whiteboard's Hellbender note is drawn by
+## `_p_bounty`) and is never written on the board.
+func _words(v: Variant) -> Array[String]:
+	var out: Array[String] = []
+	if v is String or v is StringName:
+		out.append(String(v))
+	elif v is Array:
+		for x: Variant in v:
+			out.append_array(_words(x))
+	elif v is Dictionary:
+		for k: Variant in v:
+			if String(k) != "k":
+				out.append_array(_words(v[k]))
+	return out
+
+
+## A function's body in a script's source: from its `func` line to the next.
+func _body(src: String, f: String) -> String:
+	var a := src.find("\nfunc %s(" % f)
+	if a < 0:
+		return ""
+	var b := src.find("\nfunc ", a + 1)
+	return src.substr(a, (b if b >= 0 else src.length()) - a)
 
 
 ## The station you are at, set up as `-- stationshot` sets it: two

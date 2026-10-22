@@ -53,6 +53,9 @@ func setup(still: Texture2D = null, look: StringName = &"") -> void:
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_child(Widgets.button("NEW RUN", func(): Router.new_run()))
+	# A PLAIN WAY BACK TO THE TITLE (the tutorial audit, Oct 22): the only one
+	# was Esc and then ABANDON, on a run already over. The win's TITLE does it.
+	row.add_child(Widgets.button("TITLE", to_title))
 	var said := _said()
 	row.add_child(_logs_button(said))
 	box.add_child(row)
@@ -136,22 +139,26 @@ func _win() -> void:
 	card.build(WIN_TITLE, ALPHA_THANKS, 0.5)
 	add_child(card)
 	card.add_section(_stats())
-	# BACK TO THE TITLE: the alpha ends here. Left the way the escape menu's
-	# quit leaves a run -- no ship, the state the title expects. The run is
-	# already in the record and its save already gone (`Router._on_run_ended`).
+	# BACK TO THE TITLE: the alpha ends here (`to_title`).
 	#
 	# TITLE IS THE PRIMARY, the welcome note's amber plate: the alpha ends at the
 	# core, so the way on is back to the title. NEW RUN and SAVE MY LOGS stay the
 	# game's own buttons beside it.
 	var said := _said()
 	card.add_buttons([
-		NoteCard.primary("TITLE", func() -> void:
-			Run.hull = null
-			Router.show_launcher()),
+		NoteCard.primary("TITLE", to_title),
 		Widgets.button("NEW RUN", func(): Router.new_run()),
 		_logs_button(said),
 	])
 	card.add_footer(said)
+
+
+## BACK TO THE TITLE, from either ending. Left the way the escape menu's quit
+## leaves a run -- no ship, the state the title expects. The run is already in
+## the record and its save already gone (`Router._on_run_ended`).
+static func to_title() -> void:
+	Run.hull = null
+	Router.show_launcher()
 
 
 func _stats() -> Label:

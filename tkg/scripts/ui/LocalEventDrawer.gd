@@ -840,7 +840,9 @@ func _result() -> void:
 		var again := Widgets.button("CHOOSE AGAIN", func() -> void: open(opt))
 		again.name = "ChooseAgain"
 		buttons.add_child(again)
-	if OptionTable.pays_item(res) and not Run.dead:
+	# WHEN ANYTHING LANDED ON THE PILE, read off the pile (`shows_reward`): a
+	# crate of material said CONTINUE here and was left under SECTOR LOOT
+	if OptionResolve.shows_reward(out) and not Run.dead:
 		var claim := Widgets.button("REWARD", open_reward)
 		claim.name = "Reward"
 		claim.disabled = Run.jetsam_left(node, Run.sector_jetsam(node, false)) <= 0

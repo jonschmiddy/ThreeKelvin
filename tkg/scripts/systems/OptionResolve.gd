@@ -22,6 +22,8 @@ extends RefCounted
 ##              a part or a material put on the system's pile (REWARD), a hull
 ##              frame found, a place marked, an item taken out of your hold
 ##              (`_things_after`)
+##   loot       how many things it put on the system's pile: what REWARD opens
+##              (`shows_reward`)
 ##   dead       the ship died of it: show the game over
 ##   fight_now  a fight the player chose with nothing to read: start it, no panel
 ##   foe        what that fight brings: the event's creature tag, or &"" for a
@@ -34,6 +36,40 @@ static func pays_anything(res: Dictionary) -> bool:
 		if res.has(k):
 			return true
 	return false
+
+
+## WHETHER THE RESULT SHOWS REWARD: the choice put something on the system's
+## pile, read off the pile (`loot`, counted by `_things_after`) and not off the
+## outcome's keys.
+##
+## THE KEYS WERE THE BUG. REWARD was `OptionTable.pays_item`, which is
+## `res.module` and nothing else, while three other ways onto the same pile
+## went unseen: `material`, `material_id`, and an effect calling
+## `Run.add_material` itself. Each of those said CONTINUE and dropped, the crate
+## sitting under SECTOR LOOT with nothing on the result to say it was there
+## (Jon, Oct 22). Counting what arrived cannot miss a payload form written
+## next month. Credits are not here: an event pays them straight to the wallet
+## and the result's table says so; there is nothing to take.
+static func shows_reward(out: Dictionary) -> bool:
+	return int(out.get("loot", 0)) > 0 and not bool(out.get("stay", false))
+
+
+## What is on the system's pile now, to diff against after (`pile_gained`).
+static func pile_now(n: MapGen.MapNode) -> Array:
+	var pile := Run.sector_jetsam(n, false) if n != null else null
+	return (pile.items as Array).duplicate() if pile != null else []
+
+
+## How many things are on the system's pile that were not in `was`.
+static func pile_gained(n: MapGen.MapNode, was: Array) -> int:
+	var pile := Run.sector_jetsam(n, false) if n != null else null
+	if pile == null:
+		return 0
+	var k := 0
+	for it in pile.items:
+		if not was.has(it):
+			k += 1
+	return k
 
 
 ## Whether choice `c` can be attempted right now: its price and its material.
@@ -101,6 +137,7 @@ static func take(n: MapGen.MapNode, i: int, j: int) -> Dictionary:
 	var paid := OptionTable.pay(res, n)
 	out.bill = EncounterDrawer.bill_rows(was, Run.ledger())
 	out.got = _things_after(n, things, paid)
+	out.loot = pile_gained(n, things.pile)
 	# SPENT NOW, NOT ON CONTINUE. The result is already applied -- credits moved,
 	# hull taken, a module in the hold -- so a player who closed the game on the
 	# result screen must not come back to an option they have already been paid
@@ -120,7 +157,7 @@ static func take(n: MapGen.MapNode, i: int, j: int) -> Dictionary:
 	# exactly the case where the panel is the point. The line is logged either
 	# way, so nothing written for the moment is lost.
 	out.fight_now = not out.dead and not out.checked and bool((res as Dictionary).get("fight", false)) \
-		and Run.ledger() == was and not pays_anything(res)
+		and Run.ledger() == was and not pays_anything(res) and int(out.loot) == 0
 	if out.fight_now:
 		var line := String((res as Dictionary).get("text", ""))
 		if line != "":
@@ -133,9 +170,8 @@ static func take(n: MapGen.MapNode, i: int, j: int) -> Dictionary:
 ## an effect that calls `Run.add_material` itself reports nothing, and that
 ## crate is on the pile all the same.
 static func _things_before(n: MapGen.MapNode) -> Dictionary:
-	var pile := Run.sector_jetsam(n, false)
 	return {
-		pile = (pile.items as Array).duplicate() if pile != null else [],
+		pile = pile_now(n),
 		hold = Run.cargo.duplicate(),
 		frame = Run.found_hull,
 	}

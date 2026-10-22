@@ -364,7 +364,7 @@ const MORE := [
 	{"k": "quiz", "t": "CARD NIGHT", "r": [["JO", "40"], ["REN", "35"], ["TIK", "-6"]]},
 
 	# -- the Hellbender
-	{"k": "bounty", "t": "HELLBENDER", "l": "BOUNTY 500 CR"},
+	{"k": "bounty", "t": "HELLBENDER", "l": "WANTED"},
 	{"k": "bounty", "t": "SEEN IT?", "l": "TELL DOCK 3"},
 
 	# -- odds and ends, one or two of each
