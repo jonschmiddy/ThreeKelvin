@@ -179,9 +179,11 @@ func _run() -> void:
 	await _frames(2)
 	_ok("the death screen asks for &\"gameover\" too", Audio.music_asked == &"gameover")
 	var go := Router.current as GameOverScreen
-	_ok("and has no note and no TITLE button", go != null
+	# A TITLE button since Oct 22 (the audit: RUN ENDED's only way back was Esc,
+	# then ABANDON); still no note
+	_ok("and has no note, and a TITLE button", go != null
 		and go.card == null and _find(go, func(n: Node) -> bool: return n is NoteCard) == null
-		and _button(go, "TITLE") == null)
+		and _button(go, "TITLE") != null)
 	_ok("the cue both screens ask for is Lights Out, played once",
 		Audio.DEATH_CUE == &"lightsout" and Audio.DEATH_CUE in Audio.ONE_SHOT)
 	_finish()

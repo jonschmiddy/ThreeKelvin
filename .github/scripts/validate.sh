@@ -502,6 +502,23 @@ else
 fi
 }
 
+unit_fightwordstest() {
+step "The fight's and LOCAL's words say what the rules do"
+# The tutorial audit, Oct 22: the status chips named by the card's keyword
+# (NEGATE, GROWS, not SLIP and ADAPT), the DISCARD's tooltip naming the hand
+# swept in at END TURN, and no dash in LOCAL's bar line anywhere in the galaxy.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot fightwordstest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=FightWordsTest; then
+	if grep -qE '^fightwordstest: PASS' "$LOG_DIR/fightwordstest.log"; then
+		ok "the chips, the discard and the bar line say what the rules do"
+	else
+		bad "a chip, the discard's tooltip or the bar line says something the rules do not"
+		grep -E 'FAIL|^fightwordstest' "$LOG_DIR/fightwordstest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "fightwordstest did not finish"
+fi
+}
+
 unit_materialtest() {
 step "Every material is a thing the hold can actually hold"
 # `MaterialTable` authored 64 rows a day before anything could carry one, so its
@@ -1123,6 +1140,24 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	else
 		bad "an event's result misstates or overlaps what you end up with"
 		grep -E 'FAIL' "$LOG_DIR/outcometest.log" | head -n 12 | sed 's/^/        /'
+	fi
+fi
+}
+
+unit_rewardshowntest() {
+step "A result that gave you something to take shows REWARD"
+# Every option, every choice, every band of a checked one (SkillCheck.forced),
+# through LOCAL's event band: what landed on the system's pile, read off the
+# run, has REWARD on the result, and nothing else does; nothing that paid out
+# skips its result; CONTINUE past an unopened REWARD leaves it under SECTOR
+# LOOT; the quest events are in the sweep. REWARD was keyed on `module` alone
+# and 160 material outcomes said CONTINUE (Jon, Oct 22).
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot rewardshowntest 300 --headless --path "$PROJECT" -- sheet=RewardShownTest; then
+	if grep -qE '^rewardshowntest: PASS' "$LOG_DIR/rewardshowntest.log"; then
+		ok "every outcome that put something on the pile shows REWARD"
+	else
+		bad "an event paid into SECTOR LOOT with no REWARD on its result"
+		grep -E 'FAIL' "$LOG_DIR/rewardshowntest.log" | head -n 12 | sed 's/^/        /'
 	fi
 fi
 }
@@ -2112,7 +2147,7 @@ gate_weight() {
 		hinttest) echo 28 ;; calmladdertest) echo 28 ;; foetagtest) echo 28 ;;
 		menutest) echo 25 ;; market) echo 24 ;; parseall) echo 24 ;;
 		devtest) echo 22 ;; hulldamagetest) echo 22 ;; fightopentest) echo 22 ;;
-		lockedpooltest) echo 41 ;;
+		lockedpooltest) echo 41 ;; rewardshowntest) echo 33 ;;
 		*) echo 15 ;;
 	esac
 }

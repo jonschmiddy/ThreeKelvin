@@ -68,7 +68,7 @@ const WHITE := Color("#e2e6e8")
 ## LCD screens ... or we can make it look like a craigslist / facebook
 ## marketplace", then "Both"). An app bar across the top -- a title, a search
 ## box, category tabs -- the work as listings under it, and down the side the
-## town's bounty as the featured listing, a rotating ad, the manufacturers'
+## town's WANTED Hellbender as the featured listing, a rotating ad, the manufacturers'
 ## sponsored posts, and now and then a popup that opens over the side and
 ## closes itself. Popups never cover the work: nothing moves over what you can
 ## click.
@@ -813,8 +813,10 @@ func _side(col: Rect2) -> void:
 
 ## THE FEATURED LISTING, a marketplace's, not a poster (Jon: "let's have the
 ## sponsered and featured different from the corkboard and whiteboard"): a
-## photo of the Hellbender across the top with a gold star on its corner, the
-## bounty as the price, what it is and what for. No VIEW chip: it is an ad,
+## photo of the Hellbender across the top with a gold star on its corner,
+## WANTED where a price would go, what it is and what for. No bounty and no
+## sum (Jon, Oct 22: the bounty was promised and never paid, so the posters
+## just say WANTED). No VIEW chip: it is an ad,
 ## and nothing that cannot be pressed may look as if it can (Jon: "just remove
 ## the view and more buttons entirely. Just have it be an ad").
 func _featured(sz: Vector2) -> void:
@@ -843,13 +845,12 @@ func _featured(sz: Vector2) -> void:
 	draw_rect(Rect2(st.x + 5.0, st.y + 2.0, 3.0, 9.0), Color("#7a5a10"))
 	draw_rect(Rect2(st.x + 2.0, st.y + 5.0, 9.0, 3.0), Color("#7a5a10"))
 	draw_rect(Rect2(0.0, ph.end.y, sz.x, 1.0), Color("#3ec8e0"))
-	_text("2500 CR", 6.0, 92.0, UITheme.FS_HEAD, UITheme.EMBER)
-	_text("BOUNTY: THE HELLBENDER", 6.0, 108.0, UITheme.FS_SMALL, Color("#c8f0ff"))
+	_text("WANTED", 6.0, 92.0, UITheme.FS_HEAD, UITheme.EMBER)
+	_text("THE HELLBENDER", 6.0, 108.0, UITheme.FS_SMALL, Color("#c8f0ff"))
 	_text("RIVAL HARVESTER", 6.0, 121.0, UITheme.FS_SMALL, Color("#6fa8c4"))
 	_text("FOR STOLEN HEAT", 6.0, 132.0, UITheme.FS_SMALL, Color("#6fa8c4"))
 	if not Run.hellbender_alive():
-		draw_rect(Rect2(6.0, 18.0, sz.x - 12.0, 24.0), Color("#ff7a66"), false, 2.0)
-		_centre("CLAIMED", 36.0, sz.x, UITheme.FS_HEAD, Color("#ff7a66"))
+		_stamp(DEAD_STAMP, 18.0, sz.x, Color("#ff7a66"))
 	draw_rect(Rect2(Vector2.ZERO, sz), Color("#f0c040"), false, 1.0)
 
 
@@ -1526,8 +1527,9 @@ func _centre(s: String, baseline: float, width: float, fs: int, col: Color) -> v
 
 ## WANTED: THE HELLBENDER. The rival harvester every run shares its galaxy with,
 ## drawn as the salamander of a hull the log describes, its holds glowing.
-## Stamped CLAIMED once somebody has actually killed it, so the board keeps up
-## with the run it is in.
+## Stamped DESTROYED once somebody has actually killed it, so the board keeps
+## up with the run it is in. No bounty and no sum under it (Jon, Oct 22: the
+## bounty was promised and never paid); the wreck's chit is what it pays.
 func _wanted(sz: Vector2) -> void:
 	draw_rect(Rect2(Vector2.ZERO, sz), _pal(PAPER))
 	draw_rect(Rect2(Vector2.ZERO, sz), _pal(PAPER).darkened(0.3), false, 1.0)
@@ -1550,12 +1552,23 @@ func _wanted(sz: Vector2) -> void:
 	_centre("THE HELLBENDER", 102.0, sz.x, UITheme.FS_SMALL, _pal(INK))
 	_centre("RIVAL HARVESTER", 113.0, sz.x, UITheme.FS_SMALL, _pal(INK_SOFT))
 	_centre("FOR STOLEN HEAT", 124.0, sz.x, UITheme.FS_SMALL, _pal(INK_SOFT))
-	draw_rect(Rect2(8.0, 131.0, sz.x - 16.0, 1.0), _pal(INK_SOFT))
-	_centre("BOUNTY", 145.0, sz.x, UITheme.FS_SMALL, _pal(INK))
-	_centre("2500 CR", 164.0, sz.x, UITheme.FS_HEAD, _pal(RED))
 	if not Run.hellbender_alive():
-		draw_rect(Rect2(14.0, 48.0, sz.x - 28.0, 24.0), _pal(RED), false, 2.0)
-		_centre("CLAIMED", 66.0, sz.x, UITheme.FS_HEAD, _pal(RED))
+		_stamp(DEAD_STAMP, 48.0, sz.x, _pal(RED))
+
+
+## What the two Hellbender posters are stamped once it is dead. Not CLAIMED:
+## that says somebody was paid, and nobody is (Jon, Oct 22).
+const DEAD_STAMP := "DESTROYED"
+
+
+## A stamp across a poster: the word in the heading size, centred, in a 2px
+## box 24px tall from `top` that is as wide as the word plus a margin, so a
+## long word never runs into its own border.
+func _stamp(word: String, top: float, width: float, col: Color) -> void:
+	var tw := UITheme.pixel_font().get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_HEAD).x
+	var bw := minf(tw + 12.0, width - 4.0)
+	draw_rect(Rect2(floorf((width - bw) * 0.5), top, bw, 24.0), col, false, 2.0)
+	_centre(word, top + 18.0, width, UITheme.FS_HEAD, col)
 
 
 ## A clipping from the station's sheet, cut out along a ragged bottom edge.

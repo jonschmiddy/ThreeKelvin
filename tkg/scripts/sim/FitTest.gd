@@ -100,7 +100,7 @@ func _pass(s: int) -> void:
 
 ## Hold to hull: pick a part out of the grid and bolt it to a free mount.
 func _to_hull(grid: HoldGrid, mounts: MountPoints) -> void:
-	var m := _stow(ModuleData.Slot.WEAPON)
+	var m := _stow(ModuleData.Slot.WEAPON, true)
 	if m == null:
 		_fail("nothing in the catalogue fits a weapon mount")
 		return
@@ -181,7 +181,7 @@ func _wrong_slot(grid: HoldGrid, mounts: MountPoints) -> void:
 func _stripping(grid: HoldGrid, mounts: MountPoints) -> void:
 	# Two weapons on the hull, fitted through the real drop handler.
 	for i in 2:
-		var w := _stow(ModuleData.Slot.WEAPON)
+		var w := _stow(ModuleData.Slot.WEAPON, true)
 		if w == null:
 			break
 		await _settle(grid)
@@ -866,9 +866,14 @@ func _press(at: Vector2, down: bool) -> void:
 # -------------------------------------------------------------------- fixtures
 
 ## Put a part of `slot` in the hold and hand it back.
-func _stow(slot: ModuleData.Slot) -> ModuleData:
+## `powered`: only a part the reactor can run, for a check that bolts it on --
+## the refit rule refuses any other (`RunState.refit_allowed`, the tutorial
+## audit, Oct 22).
+func _stow(slot: ModuleData.Slot, powered: bool = false) -> ModuleData:
 	for i in 40:
 		var m := LootGen.roll_module(3 + (i % 5), &"", true)
+		if powered and not Run.can_power(m):
+			continue
 		if m.slot == slot and Run.place_in_hold(m):
 			Sig.ship_changed.emit()
 			return m

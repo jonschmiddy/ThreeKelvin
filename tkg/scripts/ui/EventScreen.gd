@@ -101,6 +101,8 @@ func _choose(index: int) -> void:
 	if opt.has("check"):
 		band = SkillCheck.roll(opt.check)
 		call = SkillCheck.pick_outcome(opt, band)
+	# what is on the pile before the choice runs, so REWARD can ask what arrived
+	var pile_was := OptionResolve.pile_now(Run.node_at())
 	var outcome: Dictionary = call.call() if call.is_valid() else {}
 	# The node is consumed here rather than when the hail opened, so that
 	# quitting at the options costs nothing and cannot be quit into a cleared
@@ -162,7 +164,8 @@ func _choose(index: int) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 7)
 	# One count drives both buttons: REWARD greys on it, CONTINUE holds on it.
-	var pays := OptionTable.pays_item(outcome)
+	# Anything that landed on the pile, not `module` alone (`OptionResolve.shows_reward`).
+	var pays := OptionResolve.pile_gained(Run.node_at(), pile_was) > 0
 	var left := 0
 	if pays:
 		var n2: MapGen.MapNode = Run.node_at()

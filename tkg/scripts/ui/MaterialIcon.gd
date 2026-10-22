@@ -37,10 +37,34 @@ func setup(m: MaterialData, from: StringName) -> void:
 	# The facts line carries what the crate cannot say by looking. Its tier is in
 	# the colour and its footprint is in the shape, but what a station will PAY is
 	# nowhere on the icon, and that is the number a packing decision turns on.
-	var shape := "%d x %d" % [m.size.x, m.size.y]
-	tooltip_text = Widgets.tip("%s\n%s \u00b7 %s \u00b7 SELLS FOR %d\n\n%s" % [
-		m.name.to_upper(), String(m.tier).to_upper(), shape, m.value, m.text])
+	tooltip_text = tip_text(m)
 	queue_redraw()
+
+
+## The tooltip's words, wrapped. One place for them, because LOCAL's cutaway
+## shows what is pointed at as a card of its own rather than as Godot's tooltip
+## (`tip_for`), and the two must say the same thing.
+static func tip_text(m: MaterialData) -> String:
+	var shape := "%d x %d" % [m.size.x, m.size.y]
+	return Widgets.tip("%s\n%s \u00b7 %s \u00b7 SELLS FOR %d\n\n%s" % [
+		m.name.to_upper(), String(m.tier).to_upper(), shape, m.value, m.text])
+
+
+## A HOLD ITEM THAT IS NOT A MODULE, AS A CONTROL, for the cutaway's card
+## (`CutawayView._show`), which already stands on the theme's tooltip plate: the
+## icon's own tooltip words in Godot's own tooltip label. A material or a credit
+## chit; tagged with the item (`get_meta(&"item")`), as `ModuleIcon.tip_for`
+## tags its module.
+static func tip_for(m: HoldItem) -> Control:
+	var l := Label.new()
+	l.theme_type_variation = &"TooltipLabel"
+	if m is MaterialData:
+		l.text = tip_text(m as MaterialData)
+	elif m is CreditChit:
+		l.text = ChitIcon.tip_text(m as CreditChit)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.set_meta(&"item", m)
+	return l
 
 
 func held_item() -> HoldItem:

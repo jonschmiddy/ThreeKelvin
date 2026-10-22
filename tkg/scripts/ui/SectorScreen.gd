@@ -175,6 +175,11 @@ var _transfer: TransferView = null
 ## The event band (`LocalEventDrawer`): an event from the map resolves here.
 var _events: LocalEventDrawer = null
 var _discard_pile: PileView
+## WHAT THE DISCARD HOLDS, as `Combat` fills it: every card played or picked to
+## discard, and at END TURN the rest of the hand (`Combat.end_turn`). It said
+## "What you have played so far", and half the pile is cards never played (the
+## tutorial audit, Oct 22).
+const DISCARD_TIP := "DISCARD\n\nCards you played or discarded, and the rest of your hand at END TURN.\nClick to look."
 var _end_button: Button
 var _hail_button: Button
 var _flee_button: Button
@@ -1445,20 +1450,28 @@ static func things_here(n: MapGen.MapNode) -> Array:
 	return out
 
 
-## WHAT IS HERE, IN ONE LINE, and the sector map to see it on.
-func _drawer_here(n: MapGen.MapNode) -> void:
+## WHAT IS HERE, IN ONE LINE, and the sector map to see it on. The parts joined
+## with a dot, as the event's own line is (`LocalEventDrawer.bar_line`): they
+## were joined with a dash, and a player-facing line has none (the tutorial
+## audit, Oct 22).
+static func here_line(n: MapGen.MapNode) -> String:
 	var left := things_here(n).size() if n.type == MapGen.NodeType.SYSTEM else 0
-	var line := "NOTHING ELSE HERE - SEE SECTOR"
+	var line := "NOTHING ELSE HERE · SEE SECTOR"
 	if n.type == MapGen.NodeType.STATION:
 		# (the berth is at the station's own body: anywhere else in its system
 		# the way to it is the map -- dock:A)
-		line = "A STATION HERE - SEE SECTOR" if Router.at_station(n) else "FLY TO THE STATION TO DOCK - SEE SECTOR"
+		line = "A STATION HERE · SEE SECTOR" if Router.at_station(n) else "FLY TO THE STATION TO DOCK · SEE SECTOR"
 	elif left > 0:
-		line = "%d THING%s HERE - SEE SECTOR" % [left, "" if left == 1 else "S"]
+		line = "%d THING%s HERE · SEE SECTOR" % [left, "" if left == 1 else "S"]
 	# THE EVENT YOU CAME FOR, how it went and what is left (`LocalEventDrawer`)
 	var ev := LocalEventDrawer.bar_line(n)
 	if ev != "":
 		line = ev
+	return line
+
+
+func _drawer_here(n: MapGen.MapNode) -> void:
+	var line := here_line(n)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1972,7 +1985,7 @@ func _build_hand() -> Control:
 	_discard_pile = PileView.new()
 	_discard_pile.opened = func() -> void:
 		_show_pile("DISCARD PILE", combat.discard, false)
-	_discard_pile.tooltip_text = Widgets.tip("DISCARD\n\nWhat you have played so far.\nClick to look.")
+	_discard_pile.tooltip_text = Widgets.tip(DISCARD_TIP)
 	right.add_child(_discard_pile)
 	hand_row.add_child(right)
 	_hand_wrap = Widgets.panel_with(hand_row)
@@ -2387,9 +2400,12 @@ func _refresh_player() -> void:
 		_player_chips.add_child(StatusChip.make(&"lock", "+%d" % combat.lock_on,
 			Color("#6e5a3a"), "LOCK ON\n\nYour next attack deals %d more."
 				% combat.lock_on))
+	# NAMED BY THE CARD'S OWN KEYWORD (`CardData.KW_NEGATE`, `KW_GROWS`): these
+	# two said SLIP and ADAPT while the cards that set them say Negate and Grows
+	# (the tutorial audit, Oct 22).
 	if combat.negate_next:
 		_player_chips.add_child(StatusChip.make(&"slip", "", UITheme.GOOD,
-			"SLIP\n\nThe next hit on you misses."))
+			"%s\n\nThe next attack on you misses." % CardData.KW_NEGATE.to_upper()))
 	# NO SALVO CHIP, AND LIVE_CARD_NUMBERS SECTION 3 IS WHY IT IS GONE.
 	#
 	# It never was a status. Its own note said so -- "SALVO IS NOT A STATUS, BUT
@@ -2411,8 +2427,8 @@ func _refresh_player() -> void:
 			Color("#6e3a4a"), "FEEDBACK\n\nAttackers take %d back." % combat.feedback))
 	if combat.adapt_bonus > 0:
 		_player_chips.add_child(StatusChip.make(&"adapt", "+%d" % combat.adapt_bonus,
-			Color("#4a6e3a"), "ADAPT\n\nAdapting cards deal %d more."
-				% combat.adapt_bonus))
+			Color("#4a6e3a"), "%s\n\nCards that grow deal %d more."
+				% [CardData.KW_GROWS.to_upper(), combat.adapt_bonus]))
 	for d2 in combat.drones:
 		_player_chips.add_child(StatusChip.make(&"drone", str(d2.damage),
 			Color("#5a7a94"), "DRONE\n\nAttacks for %d at the end of your turn."
