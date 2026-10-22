@@ -164,7 +164,8 @@ static func _target(n: MapGen.MapNode, r: RandomNumberGenerator,
 
 ## Whether a contract's work can be put on this system's map.
 static func holds_goal(n: MapGen.MapNode) -> bool:
-	return n != null and n.type == MapGen.NodeType.SYSTEM 		and not Router.no_fights_at(n)
+	return n != null and n.type == MapGen.NodeType.SYSTEM \
+		and not Router.no_fights_at(n)
 
 
 # --- the work, out there -----------------------------------------------------

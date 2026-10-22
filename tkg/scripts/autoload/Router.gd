@@ -1099,16 +1099,6 @@ func resolve_current_node() -> void:
 		_:
 			show_sector()
 
-## Decide what is waiting at a system, once, and leave it on the node so the
-## save carries it. Cleared nodes are left alone — whatever was here is resolved
-## and re-rolling it would put it back.
-##
-## Both of these used to be rolled at the moment the screen opened, which meant
-## quitting and resuming rolled them again: a bad enemy draw or a hail with two
-## bad options cost nothing to refuse. That is save-scumming through the front
-## door, and it defeats "every death is self-authored" without touching a
-## number. Idempotent by design — it is also the lazy path for saves written
-## before the node carried these.
 ## WHAT ARRIVING CHANGES ABOUT THE PLACE, before anything is shown or saved:
 ## what the system holds is rolled, and the work you signed for here is put
 ## on its map (`Contracts.post_goals_at`). Its own function so `-- contracttest`
@@ -1126,6 +1116,16 @@ func settle_arrival(n: MapGen.MapNode) -> void:
 		Run.reach_contract_target(n.index)
 
 
+## Decide what is waiting at a system, once, and leave it on the node so the
+## save carries it. Cleared nodes are left alone — whatever was here is resolved
+## and re-rolling it would put it back.
+##
+## Both of these used to be rolled at the moment the screen opened, which meant
+## quitting and resuming rolled them again: a bad enemy draw or a hail with two
+## bad options cost nothing to refuse. That is save-scumming through the front
+## door, and it defeats "every death is self-authored" without touching a
+## number. Idempotent by design — it is also the lazy path for saves written
+## before the node carried these.
 func _roll_here(n: MapGen.MapNode) -> void:
 	if n.cleared:
 		return
