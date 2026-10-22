@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **Added** — A.S.H. speaks the deep tutorial's new and rewritten lines: Jon picked one of three takes for each (Oct 22).
 
 - **Added** — a QUESTS tab on the bar at the top, after STARCHART. It opens a table of every
   quest you have signed, over LOCAL, the sector map, the chart or a station: what to do, its
