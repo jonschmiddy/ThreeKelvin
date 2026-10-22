@@ -1334,10 +1334,10 @@ func _fuel_unflyable() -> void:
 
 
 ## THE BAND'S DEEP LESSONS: an event with a choice that tests the ship (odds;
-## its action a choice), and its result with a REWARD to open. The event's own
-## payout may not be a part; the harness stands in for one that was (a part on
-## the system's pile and the result marked as paying one), which is what shows
-## REWARD.
+## its action a choice), and then a result with a REWARD to open: events from
+## the table taken one choice at a time (no check, no fight, not walking away)
+## until one lands something on the system's pile, which is what shows REWARD
+## (`OptionResolve.shows_reward`, read off `out.loot`). Nothing stood in for.
 func _band_deep(sc: SectorScreen, n: MapGen.MapNode) -> void:
 	var po := -1
 	for o in OptionTable.all():
@@ -1360,20 +1360,71 @@ func _band_deep(sc: SectorScreen, n: MapGen.MapNode) -> void:
 		Ash.said_log.filter(func(d: Dictionary) -> bool: return d.kind == &"tut_drawer").size() == drawn)
 	await _frames(30)
 	var d := sc._events
-	if d.page == &"result" and d.find_child("Reward", true, false) == null:
-		(d.out.get("res", {}) as Dictionary)["module"] = true
-		if not d.out.has("res"):
-			d.out["res"] = {module = true}
-		Run.sector_jetsam(n).items.append(LootGen.roll_module(2, &"", false))
-		d._result()
-		await _frames(20)
-	_ok("the result page with REWARD (%s)" % d.page, d.page == &"result" and d.find_child("Reward", true, false) != null)
+	await _band_down(d)
+	# A RESULT WITH REWARD, from the table as played
+	Run.add_credits(500)
+	var tried := 0
+	var found := ""
+	for o in OptionTable.all():
+		if found != "" or tried >= 60:
+			break
+		if (o.get("tags", []) as Array).has(&"fight") or bool(o.get("placed", false)) or bool(o.get("job", false)):
+			continue
+		var choices: Array = o.get("choices", [])
+		for j in choices.size():
+			var c: Dictionary = choices[j]
+			if c.has("check") or bool(c.get("stay", false)) or bool(c.get("fight", false)) \
+					or EncounterDrawer.opens_fight(c) or not OptionResolve.affordable(c):
+				continue
+			tried += 1
+			n.options.append(StringName(o.id))
+			d.open(n.options.size() - 1)
+			for f in 60:
+				await _tree.process_frame
+				if d.text == null or d.text.done:
+					break
+			Run.hp = Run.max_hp()
+			if d.text != null and not d.text.done:
+				d.text.skip()
+			d.choose(j)
+			for f in 120:
+				await _tree.process_frame
+				if d.page == &"result" and not d._busy:
+					break
+			await _frames(10)
+			var rw := d.find_child("Reward", true, false) as Button
+			if d.page == &"result" and OptionResolve.shows_reward(d.out) and rw != null and not rw.disabled:
+				found = "%s, choice %d (%d on the pile)" % [o.id, j, int(d.out.get("loot", 0))]
+				break
+			await _band_down(d)
+			if sc.fighting():
+				tried = 1 << 20
+			break
+	_ok("a result with REWARD, the event as played (%s; %d tried)" % [found if found != "" else "none", tried],
+		found != "" and d.page == &"result" and d.find_child("Reward", true, false) != null)
 	await _expect(&"result")
 	if d.page == &"event":
 		d.not_now()
 	elif d.page != &"":
 		d.continue_on()
 	await _frames(20)
+
+
+## The band put down, whatever page it is on (a result's CONTINUE, an event's
+## NOT NOW, a fight's band dropped).
+func _band_down(d: LocalEventDrawer) -> void:
+	for k in 3:
+		if d.page == &"":
+			break
+		if d.text != null and not d.text.done:
+			d.text.skip()
+		if d.page == &"event":
+			d.not_now()
+		elif d.find_child("Continue", true, false) != null:
+			d.continue_on()
+		else:
+			d._drop()
+		await _frames(20)
 
 
 ## A card like the first in the hand, with `props` set (a test's own card).
