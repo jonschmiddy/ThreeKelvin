@@ -568,6 +568,9 @@ var fight_cb: Callable = Callable()
 ## that, and it is the number §8 says the model must be able to report.
 func take_options(n: MapGen.MapNode) -> Dictionary:
 	var out := {"taken": 0, "declined": 0, "forgone": 0, "fights": 0}
+	# `-- sim dash`: the beeline pilot that opens nothing on the way in.
+	if dash:
+		return out
 	if n == null or not OptionTable.ensure(n):
 		return out
 	var spent: Dictionary = {}
@@ -686,6 +689,8 @@ func choose_jump(node: MapGen.MapNode) -> int:
 	# ships, and it showed: the policy running out of charted options was being
 	# counted as the run ending, and 46% of those ships could still fly.
 	limited = false
+	if beeline:
+		return _beeline_jump(node)
 	if human:
 		return _human_jump(node)
 	var options: Array[int] = []
@@ -756,6 +761,40 @@ func choose_jump(node: MapGen.MapNode) -> int:
 			return Rng.pick(pilot, doors)
 		return Rng.pick(pilot, sideways)
 	return Rng.pick(pilot, options)
+
+
+## THE BEELINE PILOT (`-- sim beeline`, balance/run-length, Oct 22). Kevin, the
+## first outside playtester, reached the core in seven jumps; the gate's pilot
+## farms rings on a coin and never does. This one always flies the deepest star
+## it can see, reach and afford (the core above everything), the cheaper of two
+## equally deep. Its one concession to fuel: below a third of the tank it flies
+## to the deepest dock in reach instead, if one is, and tops up there (`shop`).
+## `dash` (with `-- sim dash`) also walks past every option on the way in.
+var beeline: bool = false
+var dash: bool = false
+
+func _beeline_jump(node: MapGen.MapNode) -> int:
+	var best := -1
+	var best_k := -INF
+	var dock := -1
+	var dock_k := -INF
+	for raw in Run.in_range_of(node):
+		var t: MapGen.MapNode = raw
+		if not Run.can_jump_to(t):
+			continue
+		var depth := 100.0 if t.type == MapGen.NodeType.CORE else float(t.layer)
+		var k := depth * 10.0 - float(Run.fuel_cost_to(t)) + pilot.randf() * 0.5
+		if k > best_k:
+			best_k = k
+			best = t.index
+		if t.type == MapGen.NodeType.STATION and t.index != node.index and k > dock_k:
+			dock_k = k
+			dock = t.index
+	if best >= 0 and (Run.map[best] as MapGen.MapNode).type == MapGen.NodeType.CORE:
+		return best
+	if Run.fuel_low() and node.type != MapGen.NodeType.STATION and dock >= 0:
+		return dock
+	return best
 
 
 ## The human pilot's jump: score every star it can SEE and REACH, fuel aside,

@@ -1449,6 +1449,11 @@ const AMBUSH_AT_CAP := 0.30
 ## are the answer to a problem your own throttle created.
 func ambush_chance(n: MapGen.MapNode) -> float:
 	var sig := signature()
+	# STUDY ONLY (`study_ambush_deep`, balance/run-length): off unless set.
+	if study_ambush_deep > 0.0 and n.danger > 6:
+		var floor_p := study_ambush_deep * float(n.danger - 6)
+		if sig <= SIGNATURE_FLOOR:
+			return clampf(floor_p, 0.0, 0.6)
 	if sig <= SIGNATURE_FLOOR:
 		return 0.0
 	var p := AMBUSH_AT_CAP * (sig - SIGNATURE_FLOOR) / (1.0 - SIGNATURE_FLOOR)
@@ -1458,6 +1463,8 @@ func ambush_chance(n: MapGen.MapNode) -> float:
 	# that is ambushed a negative amount of the time. Sixty per cent off is the
 	# most stealth can buy, however much of it you have.
 	p *= 1.0 - minf(1.0, float(attr_stealth()) / float(ATTR_MAX)) * AMBUSH_RELIEF
+	if study_ambush_deep > 0.0 and n.danger > 6:
+		p = maxf(p, study_ambush_deep * float(n.danger - 6))
 	return clampf(p, 0.0, 0.6)
 
 ## WHAT A REACTOR LEVEL IS. Three cells of hardware, and a step of energy
@@ -3276,8 +3283,38 @@ func range_from(here: MapGen.MapNode) -> float:
 ## never changes within a run; the engine's multiplier is a property of the ship
 ## and moves the moment a part is fitted. Keeping them apart means bolting on a
 ## thruster does not have to invalidate anything.
-func _map_range_from(_here: MapGen.MapNode) -> float:
-	return JUMP_RADIUS
+func _map_range_from(here: MapGen.MapNode) -> float:
+	return JUMP_RADIUS * study_radius_scale(here)
+
+
+## BALANCE STUDY FLAGS (balance/run-length, Oct 22: Kevin reached the core in
+## seven jumps). Every one is OFF by default and only `-- sim` /
+## `-- sheet=RunLengthStudy` set them, from the command line; with them off the
+## game is what it was. They exist so the options Jon is choosing between can
+## be flown, not so any of them ships.
+##   study_depth_cap  N > 0: a hop may not land more than N shells deeper than
+##                    it starts, and the core needs the last ring.
+##   study_radius_rim / study_radius_deep: the jump (and dish) radius as a
+##                    multiple of JUMP_RADIUS at the rim ring and at the last
+##                    ring, lerped by the ring the hop is measured from.
+var study_depth_cap := 0
+## study_ambush_deep  p > 0: arriving in a system of danger 7+ is an ambush
+##                    roll of at least p per point over 6 (danger 10: 4p),
+##                    whatever the ship's heat -- deep space bites on arrival.
+var study_ambush_deep := 0.0
+var study_radius_rim := 1.0
+var study_radius_deep := 1.0
+
+func study_radius_scale(here: MapGen.MapNode) -> float:
+	if study_radius_rim == 1.0 and study_radius_deep == 1.0:
+		return 1.0
+	var layer := 0 if here == null else here.layer
+	var t := clampf(float(layer) / float(maxi(1, MapGen.LAYERS - 2)), 0.0, 1.0)
+	return lerpf(study_radius_rim, study_radius_deep, t)
+
+## The smallest radius scale anywhere, for the generator's flyability walk.
+func study_radius_min() -> float:
+	return minf(study_radius_rim, study_radius_deep)
 
 ## Close enough to fly to. Pure distance, nothing else.
 ##
@@ -3327,6 +3364,12 @@ func reachable_from(here: MapGen.MapNode, n: MapGen.MapNode) -> bool:
 	# you there, never the geometry.
 	if n.type == MapGen.NodeType.CORE and here.layer >= MapGen.LAYERS - 2:
 		return true
+	# STUDY ONLY (see `study_depth_cap`): off unless a harness sets it.
+	if study_depth_cap > 0:
+		if n.type == MapGen.NodeType.CORE:
+			return false
+		if n.layer - here.layer > study_depth_cap:
+			return false
 	var d := MapGen.hop_distance(here, n)
 	return d <= range_from(here) or d <= range_from(n)
 

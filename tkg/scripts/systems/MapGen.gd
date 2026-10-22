@@ -1018,7 +1018,7 @@ static var test_stretch := 1.0
 static func _ensure_flyable(nodes: Array) -> void:
 	if not flyable_repair:
 		return
-	var r: float = Run.JUMP_RADIUS * FLY_MARGIN
+	var r: float = Run.JUMP_RADIUS * Run.study_radius_min() * FLY_MARGIN
 	var core := -1
 	for n in nodes:
 		if (n as MapNode).type == NodeType.CORE:
@@ -1107,7 +1107,9 @@ static func _flown(nodes: Array, r: float, core: int) -> Dictionary:
 					if cell == null:
 						continue
 					for j: int in cell:
-						if not seen.has(j) and q[i].distance_to(q[j]) <= r:
+						if not seen.has(j) and q[i].distance_to(q[j]) <= r \
+								and (Run.study_depth_cap <= 0 or (j != core \
+									and (nodes[j] as MapNode).layer - a.layer <= Run.study_depth_cap)):
 							seen[j] = true
 							next.append(j)
 		frontier = next
