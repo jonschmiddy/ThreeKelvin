@@ -207,9 +207,12 @@ static func post_goal(job: ContractData) -> void:
 		if n.options[i] == id and not n.taken.has(MapGen.OPTION_SITE + i):
 			_reopen(n)
 			return
+	# NO `map_changed`: signing happens at a station, whose screen rebuilds the
+	# whole board on that signal (`StationScreen`, `-- sheet=BoardSignTest`), and
+	# the target's map is drawn fresh when it is next opened. The chart's mark
+	# rides on `contracts_changed`, which signing already sends.
 	n.options.append(id)
 	_reopen(n)
-	Sig.map_changed.emit()
 
 
 ## Who is paying for the open job of this kind where the ship is, as the
