@@ -6,7 +6,9 @@ extends Node
 ## plain line; `quests_1.png` one, its row open; `quests_4.png` four (a fetch
 ## READY to hand in, a hunt, a heat quest part carried, a fetch), the hunt's
 ## row open. Then `chart_show.png`: the chart after the hunt's SHOW ON
-## STARCHART, and `chart_route.png` after its PLOT ROUTE. Each is the whole
+## STARCHART, and `chart_route.png` after its PLOT ROUTE. With `events=1`,
+## only `event_quests.png`: an event quest beside a job, and COMPLETED
+## (`_events`). Each is the whole
 ## window, scaled to 1920x1080 where the window could not be made that big (the
 ## game is a 960x540 canvas drawn at 2x). Needs a window, and a fresh APPDATA:
 ## a stale shader cache whitens the sky.
@@ -57,6 +59,10 @@ func _run() -> void:
 	Run.chart_from(Run.node_at())
 	QuestLog.forget()
 	QuestPanel.picked = -1
+	if _arg("events") != "":
+		await _events()
+		_tree.quit(0)
+		return
 
 	await _table("quests_0")
 	var hunt := _sign([ContractData.Kind.HUNT])
@@ -80,6 +86,29 @@ func _run() -> void:
 	await _secs(2.5)
 	await _shot("chart_route")
 	_tree.quit(0)
+
+
+## `events=1`: `event_quests.png`, the table with both sections. Open: a
+## signed hunt and the runner's parcel (its row open); COMPLETED: a fetch
+## handed in.
+func _events() -> void:
+	var fetch := _sign([ContractData.Kind.FETCH])
+	var hunt := _sign([ContractData.Kind.HUNT])
+	if fetch != null:
+		fetch.state = ContractData.State.READY
+		Run.deliver_contract(fetch)
+	var here := Run.node_at()
+	OptionTable.ensure(here)
+	here.options.append(&"the_runner")
+	SkillCheck.forced = SkillCheck.Band.CLEAN
+	await OptionResolve.take(here, here.options.size() - 1, 0)
+	SkillCheck.forced = -1
+	QuestLog.forget()
+	for e in QuestLog.entries():
+		if bool((e as Dictionary).event):
+			QuestPanel.picked = int((e as Dictionary).id)
+	print("[questlogshot] hunt %s, picked %d" % [hunt != null, QuestPanel.picked])
+	await _table("event_quests")
 
 
 func _sign(kinds: Array) -> ContractData:

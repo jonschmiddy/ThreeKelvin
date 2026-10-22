@@ -103,6 +103,8 @@ func _choose(index: int) -> void:
 		call = SkillCheck.pick_outcome(opt, band)
 	# what is on the pile before the choice runs, so REWARD can ask what arrived
 	var pile_was := OptionResolve.pile_now(Run.node_at())
+	var ledger_was := Run.ledger()
+	var slot := Router._open_option
 	var outcome: Dictionary = call.call() if call.is_valid() else {}
 	# The node is consumed here rather than when the hail opened, so that
 	# quitting at the options costs nothing and cannot be quit into a cleared
@@ -122,7 +124,14 @@ func _choose(index: int) -> void:
 	# and paid nothing through here.
 	#
 	# No EventTable event grants one, which is why nothing caught it earlier.
-	OptionTable.pay(outcome, Run.node_at())
+	OptionTable.pay(outcome, Run.node_at(), StringName(_event.get("id", &"")))
+	# an event quest taken: what it paid, for the QUESTS table (`OptionResolve.take`)
+	var here := Run.node_at()
+	var names: Array = []
+	for it in OptionResolve.pile_now(here):
+		if not pile_was.has(it):
+			names.append(String(OptionResolve._thing(it, true).name))
+	Run.finish_event_quest(here, slot, int(Run.credits) - int(ledger_was.credits), names)
 	_then_fight = bool(outcome.get("fight", false))
 	# the option's tag rides in on `setup` (`Router.show_option_at`); a choice's own wins
 	_then_foe = OptionTable.fight_foe(_event, opt)

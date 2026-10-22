@@ -1080,14 +1080,13 @@ func _quest_marks() -> void:
 	var tags: Array = []
 	var r: Array[int] = []
 	if _picked_quest >= 0:
-		for raw in QuestLog.entries():
-			var e: Dictionary = raw
-			if (e.job as ContractData).id != _picked_quest or int(e.place) < 0:
-				continue
-			if int(e.place) == _selected:
-				tags.append({index = int(e.place), text = String(e.tag), picked = true})
-				if _plot:
-					r = QuestLog.route(int(e.place))
+		# a contract or an event quest, open or finished (`QuestLog.find`)
+		var e := QuestLog.find(_picked_quest)
+		if not e.is_empty() and int(e.place) >= 0 and int(e.place) == _selected:
+			tags.append({index = int(e.place), text = String(e.tag), picked = true})
+			# a finished one has nowhere to go (its row has no PLOT ROUTE)
+			if _plot and not bool(e.done):
+				r = QuestLog.route(int(e.place))
 	_chart.quest_tags = tags
 	_chart.quest_route = r
 	_chart.queue_redraw()
@@ -1095,10 +1094,7 @@ func _quest_marks() -> void:
 
 ## The system quest `id`'s tag stands on, or -1.
 func _quest_place(id: int) -> int:
-	for e in QuestLog.entries():
-		if ((e as Dictionary).job as ContractData).id == id:
-			return int((e as Dictionary).place)
-	return -1
+	return int(QuestLog.find(id).get("place", -1))
 
 
 ## What a quest's tag must keep off, global: the HUD, the goal line's room,
@@ -4223,6 +4219,15 @@ class MapChart extends Control:
 		if quest_avoid.is_valid():
 			for g in quest_avoid.call():
 				avoid.append(inv * (g as Rect2))
+		# AN EVENT QUEST'S OWN NAME, which `_draw_quests` prints above its star:
+		# the tag beside it must not sit on it
+		for t in quest_tags:
+			var qn: MapGen.MapNode = Run.map[int(t.index)]
+			if show_icons and OptionTable.holds_quest(qn):
+				var said := OptionTable.quest_name(qn)
+				var sw := f.get_string_size(said, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
+				var c := _screen_pos(qn)
+				avoid.append(Rect2(c + Vector2(-sw * 0.5, -21), Vector2(sw, 10)))
 		var rad := maxf(5.0, 12.0 * zoom)
 		var frame := Rect2(Vector2(2, 2), size - Vector2(4, 4))
 		for t in quest_tags:

@@ -1289,7 +1289,7 @@ func show_option_at(index: int) -> void:
 	Audio.music_state(&"event")
 	var e := EventScreen.new()
 	_swap(e)
-	e.setup({title = opt.get("title", ""), body = opt.get("body", ""),
+	e.setup({id = opt.get("id", &""), title = opt.get("title", ""), body = opt.get("body", ""),
 		options = opt.get("choices", []), foe = opt.get("foe", &"")})
 
 

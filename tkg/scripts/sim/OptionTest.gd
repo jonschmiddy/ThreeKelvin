@@ -265,6 +265,9 @@ func _gates_are_real() -> void:
 		# ship's job, laid out past the system's own worlds, never claimed over
 		# the wire. Read by `OptionTable.is_job`.
 		&"job": true,
+		# A PLACED OPTION'S ROW IN THE QUESTS TABLE: its task, its chart tag's
+		# word, its note and the event that places it. Read by `QuestLog`.
+		&"quest": true,
 		# STAR FEATURES: what is in the sky at a system, gated the way
 		# `needs_fauna` is. See `OptionTable.admits`.
 		&"needs_star": true, &"needs_giant": true, &"needs_pulsar": true,

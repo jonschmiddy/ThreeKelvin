@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Event quests in the QUESTS table.** When an event plants a follow-up further in, like the
+  runner's parcel, the QUESTS table lists it with the jobs you signed: MARKED, what to do, where
+  it is and how many jumps away, ON ARRIVAL for the pay, and the event that gave it. Its note is
+  the event's own words, and SHOW ON STARCHART and PLOT ROUTE work as they do for a job. A run
+  saved before this still lists the ones it has open.
+
+- **Finished quests stay in the QUESTS table.** Jobs you have handed in and event quests you have
+  finished go under a COMPLETED heading below the open ones, newest first and greyed a little,
+  with what each paid: a job's credits and standing, and an event quest's credits and the things
+  it gave you. A finished row still opens its note and SHOW ON STARCHART.
+
 ### Roadmap
 
 The next build follows the friends' playtest of 0.4.0-alpha.1 (Oct 23). See

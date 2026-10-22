@@ -303,6 +303,28 @@ var contracts: Array = []
 ## Handed out on acceptance so a contract can be referred to after it is closed.
 var next_contract_id: int = 1
 
+## THE QUESTS AN EVENT GAVE YOU (Jon, Oct 22: an event that plants a follow-up
+## "is essentially a quest", so the QUESTS table lists it beside the signed
+## jobs). One record per option `OptionTable.place` put on a system, in the
+## order placed, written at `place` time:
+##   at       the system it went on
+##   id       the placed option (`paid_in_full`)
+##   from     the option that placed it (`the_runner`), whose title the table
+##            names as who gave it; &"" when the placer did not say
+##   credits  what taking it paid, and `got` the names of the things it put on
+##            the pile (`finish_event_quest`); both absent until it is taken
+##
+## THE MAP STAYS THE TRUTH of whether a quest is open: the option on its system
+## and not taken. This only says where it came from and what it paid, so a save
+## from before it (VERSION 34) still lists every open one (`QuestLog`). Saved
+## (VERSION 35).
+var event_quests: Array = []
+## FINISHED QUESTS IN THE ORDER FINISHED, for the table's COMPLETED rows (newest
+## first): "c<id>" for a contract delivered, "e<at>" for an event quest taken.
+## Saved (VERSION 35); a contract closed under an older save is not in it and
+## is listed after the ones that are.
+var quests_done: Array[String] = []
+
 ## What each manufacturer thinks of you, by id. Higher is better and it only goes up.
 ##
 ## GOODS, NEVER SECRETS. `docs/lore.md` §2 rules that there is no promotion — no
@@ -421,6 +443,8 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	hauls = 0
 	contracts.clear()
 	next_contract_id = 1
+	event_quests = []
+	quests_done.clear()
 	salvage_hushed_hauls = -1
 	salvage_hushed_bag = -1
 	# Standing is a RUN thing, not a career. It buys prices and stock inside one
@@ -480,6 +504,8 @@ func dev_regenerate_galaxy() -> bool:
 	galaxy_title = GalaxyGen.roll_title()
 	map = MapGen.generate(MAP_CANVAS)
 	contracts.clear()
+	event_quests = []
+	quests_done.clear()
 	_undo_move = {}
 	_spawn_hellbender()
 	at = 0
@@ -3848,12 +3874,56 @@ func deliver_contract(job: ContractData) -> void:
 		heat -= job.amount
 		log_line("Offloaded %d heat." % job.amount, &"heat")
 	job.state = ContractData.State.CLOSED
+	quests_done.append("c%d" % job.id)
 	add_credits(job.pay)
 	standing[job.manufacturer] = int(standing.get(job.manufacturer, 0)) + job.standing
 	log_line("Delivered. %d credits. %s account in good order." % [
 		job.pay, DB.short_name(DB.manufacturer_name(job.manufacturer))], &"good")
 	Sig.contracts_changed.emit()
 	Sig.resources_changed.emit()
+
+## An event placed option `id` on system `at` (`OptionTable.place`), and
+## `from` is the option that did it. One record a system: a second placement
+## there replaces the first, as the chart can mark a system only once.
+func note_placed(at: int, id: StringName, from: StringName) -> void:
+	for i in range(event_quests.size() - 1, -1, -1):
+		if int((event_quests[i] as Dictionary).get("at", -1)) == at:
+			event_quests.remove_at(i)
+	event_quests.append({at = at, id = id, from = from})
+
+
+## The record of the event quest on system `at`, or {} (a save from before
+## the records, or nothing placed there).
+func event_quest_at(at: int) -> Dictionary:
+	for raw in event_quests:
+		var r: Dictionary = raw
+		if int(r.get("at", -1)) == at:
+			return r
+	return {}
+
+
+## Option `slot` at `n` was just taken. If it is an event quest, write down what
+## it paid (`credits`, and `got`, the names of the things it put on the pile)
+## and that it is finished, for the QUESTS table's COMPLETED rows. A signed
+## job's event is not one: its contract is the quest.
+func finish_event_quest(n: MapGen.MapNode, slot: int, paid: int, got: Array) -> void:
+	if n == null or slot < 0 or slot >= n.options.size():
+		return
+	var id: StringName = n.options[slot]
+	if not OptionTable.placed_ids().has(id):
+		return
+	var r := event_quest_at(n.index)
+	if r.is_empty() or StringName(r.get("id", &"")) != id:
+		# placed under a save from before the records: what is known now
+		note_placed(n.index, id, &"")
+		r = event_quest_at(n.index)
+	r["credits"] = paid
+	r["got"] = got.duplicate()
+	var key := "e%d" % n.index
+	quests_done.erase(key)
+	quests_done.append(key)
+	Sig.contracts_changed.emit()
+
 
 ## Taking the pickup finishes any FETCH pointed at this system.
 ##
