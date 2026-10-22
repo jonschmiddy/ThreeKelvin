@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Fixed** — arriving on LOCAL no longer shows the thin bar at the bottom while your ship flies
+  in. Before, the bar was already up as you arrived, and then the event's text and choices rose
+  out of it. Now the bottom of the screen stays empty until your ship settles. Then the event
+  rises from below the screen, or the thin bar slides in if there is no event.
 - **Fixed** — engaging the Custodian from the system map no longer leaves your ship sitting low in
   the fight for the whole battle, half hidden behind your hand with its name, hull bar and status
   icons out of sight. Your hand now comes up after the camera has finished moving in from the map.

@@ -40,6 +40,9 @@ var _first := {}
 var _watch := false
 var _kinds := {}
 var _sizes: Array = []
+## THE BOTTOM OF THE SCREEN AS EACH LOCAL ENTERS, frame by frame, by instance:
+## [frame, the thin bar's seen height, the event band's, arriving]
+var _bars := {}
 
 
 func _ok(what: String, c: bool) -> bool:
@@ -107,6 +110,12 @@ func _process(_d: float) -> void:
 		return
 	if _filming != "":
 		_film_frame()
+	var cur := Router.current as SectorScreen
+	if cur != null and is_instance_valid(cur) and cur._quiet_holder != null:
+		var log: Array = _bars.get(cur.get_instance_id(), [])
+		if log.size() < 2400:
+			log.append([Engine.get_process_frames(), _bar_h(cur), _band_h(cur), _arriving(cur)])
+			_bars[cur.get_instance_id()] = log
 	for c: Variant in [Router.current, ZoomLadder.prebuilt]:
 		if c == null or not is_instance_valid(c) or not (c is SectorScreen):
 			continue
@@ -351,6 +360,7 @@ func _station_dock(sd: int) -> void:
 	await _idle()
 	await _frames(10)
 	_ok("seed %d station: UNDOCK back on LOCAL" % sd, Router.current is SectorScreen and not Router.docked)
+	await _entry_check("seed %d station: undock" % sd)
 
 
 ## THE BAR WHERE THERE IS SOMETHING (`_scene_check` sees the rest): LOCAL at a
@@ -465,6 +475,7 @@ func _local_is_go(sd: int, label: String) -> void:
 		await _tree.process_frame
 	m.go_event(ev)
 	var go := _ev_state(await _settled())
+	await _entry_check("%s: GO" % what)
 	_ok("%s: GO opens it (%s)" % [what, go], go.get("page", &"") == &"event" and int(go.get("opt", -1)) == ev)
 	for door in ["hud", "tab"]:
 		m = await _map_now()
@@ -478,6 +489,7 @@ func _local_is_go(sd: int, label: String) -> void:
 			await _tab()
 			await _tab()
 		var st := _ev_state(await _settled())
+		await _entry_check("%s by %s" % [what, door])
 		_ok("%s by %s: its own arrival (%d), then the same as GO (%s; GO %s)" % [what, door, SectorScreen.flyins - fi0, st, go],
 			SectorScreen.flyins == fi0 + 1 and st == go)
 	# NOT NOW, and LOCAL again: closed until the ship leaves and comes back
@@ -513,6 +525,79 @@ func _map_now() -> SystemMapScreen:
 		Router.show_system()
 		await _idle()
 	return Router.current as SystemMapScreen
+
+
+## How much of `c` is seen: its alpha down the tree from the screen.
+func _alpha(c: CanvasItem) -> float:
+	var a := 1.0
+	var n: Node = c
+	while n != null and n is CanvasItem:
+		a *= (n as CanvasItem).modulate.a
+		n = n.get_parent()
+	return a
+
+
+## The thin bar under the view, as seen: its rows inside its clipping holder.
+func _bar_h(sc: SectorScreen) -> float:
+	var h := sc._quiet_holder
+	if h == null or not h.is_visible_in_tree() or _alpha(h) < 0.02:
+		return 0.0
+	var r := h.get_global_rect()
+	var w := sc._quiet_wrap.get_global_rect()
+	return maxf(0.0, minf(r.end.y, w.end.y) - maxf(r.position.y, w.position.y))
+
+
+## The event band, as seen: its rows above the screen's bottom edge.
+func _band_h(sc: SectorScreen) -> float:
+	var d := sc._events
+	if d == null or not is_instance_valid(d) or not d.is_visible_in_tree() or _alpha(d) < 0.02:
+		return 0.0
+	var dr := d.get_global_rect()
+	return maxf(0.0, minf(sc.get_global_rect().end.y, dr.end.y) - dr.position.y)
+
+
+func _arriving(sc: SectorScreen) -> bool:
+	# (a move whose camera has landed is bringing the UI in: that is after it)
+	var moving := ZoomLadder.busy() and not (ZoomLadder.active.phase in [ZoomLadder.Phase.UI_IN, ZoomLadder.Phase.C_POST, ZoomLadder.Phase.C_IN])
+	return Router.current != sc or moving or sc._flyin_wait or sc._flyin or sc._phase == SectorScreen.Phase.ARRIVE
+
+
+## ENTERING LOCAL WITH NO BAR (Jon, Oct 22: "You should enter the sector with NO
+## bottom drawer shown"): this LOCAL, once it has settled, frame by frame from
+## its first: nothing at the bottom while the ship arrives; an event's band
+## rising from below the screen, never from the thin bar; the thin bar only once
+## the arrival has settled, when no event came.
+func _entry_check(what: String) -> void:
+	var sc := Router.current as SectorScreen
+	if sc == null:
+		return
+	for i in 1200:
+		if not is_instance_valid(sc) or Router.current != sc:
+			return
+		if not _arriving(sc) and sc._events.deferred.is_empty():
+			break
+		await _tree.process_frame
+	await _frames(40)
+	if not is_instance_valid(sc):
+		return
+	var log: Array = _bars.get(sc.get_instance_id(), [])
+	var bar_arriving := 0
+	var bar_before_band := 0
+	var first_band := -1.0
+	var band_full := 0.0
+	for s: Array in log:
+		band_full = maxf(band_full, float(s[2]))
+	for s: Array in log:
+		if bool(s[3]) and float(s[1]) > 0.5:
+			bar_arriving += 1
+		if first_band < 0.0 and float(s[2]) > 0.5:
+			first_band = float(s[2])
+		if first_band < 0.0 and float(s[1]) > 0.5:
+			bar_before_band += 1
+	var band_came := first_band >= 0.0
+	_ok("%s: entered with nothing at the bottom -- no thin bar while arriving (%d frames)%s" % [what, bar_arriving,
+		(", the event's band up from below the screen (first seen %.0f of %.0f px), no thin bar before it (%d frames)" % [first_band, band_full, bar_before_band]) if band_came else ""],
+		bar_arriving == 0 and (not band_came or (bar_before_band == 0 and (first_band < band_full - 0.5 or not Router.animating()))))
 
 
 ## The line along LOCAL's bottom bar.
@@ -756,6 +841,8 @@ func _tour(sd: int, label: String) -> void:
 		if want_in and not skipped:
 			skipped = true
 			await _flyin_again(sd, label)
+		else:
+			await _entry_check("seed %d %s: %s by %s" % [sd, label, L.bodies[b].world, door])
 		_filming = ""
 		LocalEventDrawer.quiet = false
 		# (once a tour: the event GO opened, taken, its subject still there)
@@ -894,6 +981,7 @@ func _arrival(sd: int, label: String) -> void:
 	await _frames(4)
 	_label = "s%d_%s_arrival" % [sd, label]
 	await _check("seed %d %s: arrival" % [sd, label])
+	await _entry_check("seed %d %s: arrival, LOCAL opened" % [sd, label])
 
 
 ## SAVE & EXIT, then CONTINUE, as a player does, then LOCAL.
@@ -944,6 +1032,7 @@ func _run() -> void:
 		await _idle()
 		await _frames(6)
 		await _check("seed %d start: launch" % sd)
+		await _entry_check("seed %d start: launch" % sd)
 		# (the first system has its own arrival, never LOCAL's fly-in)
 		_ok("seed %d start: no fly-in at the launch (%d)" % [sd, SectorScreen.flyins - fl0], SectorScreen.flyins == fl0)
 		await _tour(sd, "start")
