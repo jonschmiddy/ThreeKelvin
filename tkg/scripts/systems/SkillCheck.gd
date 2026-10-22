@@ -46,6 +46,10 @@ static func value_of(check: Dictionary) -> int:
 static func odds(check: Dictionary) -> float:
 	return ODDS[mini(shortfall(check), ODDS.size() - 1)]
 
+## A harness's band: every check lands here when it is 0 or more, so
+## `-- sheet=RewardShownTest` can reach every outcome of every choice. -1 rolls.
+static var forced := -1
+
 ## Roll it.
 ##
 ## On a shortfall, failure splits evenly between PARTIAL and BOTCHED rather than
@@ -53,6 +57,8 @@ static func odds(check: Dictionary) -> float:
 ## it is the outcome that has to be interesting rather than merely bad, because
 ## it is the one a marginal attempt produces most often.
 static func roll(check: Dictionary) -> Band:
+	if forced >= 0:
+		return forced as Band
 	if shortfall(check) <= 0:
 		return Band.MET
 	var p := odds(check)

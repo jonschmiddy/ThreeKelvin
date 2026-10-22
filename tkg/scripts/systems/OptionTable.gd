@@ -272,14 +272,6 @@ const TIER_PLAN := {
 ## `fight` is deliberately NOT handled here: it is the CALLER's business, because
 ## starting a battle means something different in a sim than on a screen. This
 ## function grants; it does not decide what happens next.
-## Whether resolving this puts a THING in the system, as opposed to moving
-## numbers around on your ship.
-##
-## One definition, because three places ask: `pay` to do it, and the two screens
-## that resolve an option to decide whether there is a prize to open. It was
-## `res.module` read separately in each, which is a fact about the reward model
-## living in the UI -- and the moment a second kind of physical payout exists,
-## two of the three would go on being right by accident.
 ## Close everything the option at `i` shares a group with.
 ##
 ## RULING 1's other half. The list shows what a choice forecloses; this is the
@@ -302,6 +294,18 @@ static func foreclose(n: MapGen.MapNode, i: int) -> void:
 		n.results[j] = MapGen.R_GONE
 
 
+## Whether this outcome's payload asks for a rolled MODULE (`module = true`),
+## which `pay` puts on the system's pile.
+##
+## NOT WHETHER THE RESULT SHOWS REWARD, though it used to be. It was the one
+## question the screens asked, and a part is not the only thing that lands on
+## the pile: `material` and `material_id` are put there by `MaterialTable.grant`,
+## and an effect that calls `Run.add_material` itself (`whale_fall`) puts them
+## there with no key at all. Every one of those results said CONTINUE, dropped,
+## and left the crate under SECTOR LOOT with nothing on the result to say so
+## (Jon, Oct 22: "some quests don't show REWARD... that's super NOT
+## intuitive"). The screens now ask what actually arrived on the pile
+## (`OptionResolve.shows_reward`), which no payload form can slip past.
 static func pays_item(res: Dictionary) -> bool:
 	return bool(res.get("module", false))
 

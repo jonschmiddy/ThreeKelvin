@@ -1124,6 +1124,24 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 fi
 }
 
+unit_rewardshowntest() {
+step "A result that gave you something to take shows REWARD"
+# Every option, every choice, every band of a checked one (SkillCheck.forced),
+# through LOCAL's event band: what landed on the system's pile, read off the
+# run, has REWARD on the result, and nothing else does; nothing that paid out
+# skips its result; CONTINUE past an unopened REWARD leaves it under SECTOR
+# LOOT; the quest events are in the sweep. REWARD was keyed on `module` alone
+# and 160 material outcomes said CONTINUE (Jon, Oct 22).
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot rewardshowntest 300 --headless --path "$PROJECT" -- sheet=RewardShownTest; then
+	if grep -qE '^rewardshowntest: PASS' "$LOG_DIR/rewardshowntest.log"; then
+		ok "every outcome that put something on the pile shows REWARD"
+	else
+		bad "an event paid into SECTOR LOOT with no REWARD on its result"
+		grep -E 'FAIL' "$LOG_DIR/rewardshowntest.log" | head -n 12 | sed 's/^/        /'
+	fi
+fi
+}
+
 unit_gradesheet() {
 step "A graded hull keeps its palette"
 # HullGrade bakes each weight's one hull at C, B, A and S (Jon's AB+DEF) and
@@ -2109,7 +2127,7 @@ gate_weight() {
 		hinttest) echo 28 ;; calmladdertest) echo 28 ;; foetagtest) echo 28 ;;
 		menutest) echo 25 ;; market) echo 24 ;; parseall) echo 24 ;;
 		devtest) echo 22 ;; hulldamagetest) echo 22 ;; fightopentest) echo 22 ;;
-		lockedpooltest) echo 41 ;;
+		lockedpooltest) echo 41 ;; rewardshowntest) echo 33 ;;
 		*) echo 15 ;;
 	esac
 }
