@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fixed** — R turns materials in the hold, as it turns modules. Point at a long crate in the
+  hold on the refit screen, in LOCAL's cutaway or on the hull swap screen and R stands it on end,
+  if it fits that way. Before, R only turned a material you were carrying.
+
 ### Roadmap
 
 The next build follows the friends' playtest of 0.4.0-alpha.1 (Oct 23). See

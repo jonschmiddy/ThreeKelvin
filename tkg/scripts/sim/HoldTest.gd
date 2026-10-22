@@ -20,6 +20,7 @@ func run() -> void:
 		_fill(w)
 	_shapes()
 	_swaps()
+	_turn_materials()
 	_moving_day()
 	_changed_your_mind()
 	_legible()
@@ -235,6 +236,90 @@ func _swaps() -> void:
 	var other: ModuleData = Run.cargo[1] if Run.cargo[1] != m else Run.cargo[0]
 	_ok("a cell already claimed is refused",
 		other == m or not Run.can_place(m, other.hold_at))
+
+
+## R TURNS A MATERIAL IN THE HOLD BY THE MODULE'S RULES.
+##
+## It turned module plates only: `ShipScreen.turn_in_hold` asked
+## `HoldGrid.icon_at`, which finds nothing but modules, so a 4x1 crate under
+## the pointer did nothing. A real `HoldGrid`, pointed at the crate's middle,
+## the call R makes on the refit screen and in LOCAL's cutaway. The same rules
+## as a part: it turns when the turned shape fits, stays put and unturned when
+## it does not, and a square one is left alone.
+func _turn_materials() -> void:
+	seed_run(77)
+	# A HEAVY: a light's hold can be three rows deep, and a 4x1 stood on end
+	# needs four.
+	Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
+	Run.cargo.clear()
+	var g := Run.hold_grid()
+	var long := _material_shaped(Vector2i(4, 1))
+	var block := _material_shaped(Vector2i(2, 2))
+	if not _ok("turn: a 4x1 and a 2x2 material in the catalogue, a hold %dx%d" % [g.x, g.y],
+			long != null and block != null and g.x >= 4 and g.y >= 4):
+		return
+	# Out of the tree: this runs inside Main's `_ready`, when the root takes no
+	# children, and a grid at the origin measures the same either way.
+	var grid := HoldGrid.new()
+
+	Run.place_in_hold(long, Vector2i.ZERO)
+	grid.refresh()
+	var mid := _middle(grid, long)
+	ShipScreen.turn_in_hold(grid, mid)
+	_ok("turn: R turns a 4x1 material in the hold (%s, now %dx%d at %s)" % [long.name,
+		long.footprint().x, long.footprint().y, str(long.hold_at)],
+		long.turned and long.footprint() == Vector2i(1, 4) and Run.cargo.has(long)
+		and Run.can_place(long, long.hold_at))
+	var drawn := _icon_of(grid, long)
+	_ok("turn: and the hold draws it standing (%s)" % (str(drawn.size) if drawn != null else "nowhere"),
+		drawn != null and drawn.size == ModuleIcon.footprint_box(long))
+	ShipScreen.turn_in_hold(grid, _middle(grid, long))
+	_ok("turn: R again lays it back down", not long.turned and Run.cargo.has(long))
+
+	# NO ROOM: every other row full of 1x1 crates, so a 1x4 fits no column
+	Run.cargo.clear()
+	long.turned = false
+	Run.place_in_hold(long, Vector2i.ZERO)
+	for y in range(1, g.y):
+		for x in g.x:
+			Run.place_in_hold(_material_shaped(Vector2i.ONE), Vector2i(x, y))
+	grid.refresh()
+	var home := long.hold_at
+	ShipScreen.turn_in_hold(grid, _middle(grid, long))
+	_ok("turn: with no room to stand it up, it stays where it was, lying down",
+		not long.turned and long.hold_at == home and Run.cargo.has(long))
+
+	# SQUARE: turning it would change nothing, so nothing is changed
+	Run.cargo.clear()
+	Run.place_in_hold(block, Vector2i.ZERO)
+	grid.refresh()
+	ShipScreen.turn_in_hold(grid, _middle(grid, block))
+	_ok("turn: a 2x2 material is left as it is", not block.turned and block.hold_at == Vector2i.ZERO)
+
+	grid.free()
+	Run.cargo.clear()
+
+
+## A fresh material of this authored shape from the catalogue, or null.
+func _material_shaped(want: Vector2i) -> MaterialData:
+	for row in MaterialTable.all():
+		var m := MaterialData.of(row)
+		if m != null and m.size == want:
+			return m
+	return null
+
+
+func _icon_of(grid: HoldGrid, m: HoldItem) -> ItemIcon:
+	for c in grid.get_children():
+		if c is ItemIcon and (c as ItemIcon).held_item() == m:
+			return c
+	return null
+
+
+## The middle of an item's icon on screen, where R is pressed.
+func _middle(grid: HoldGrid, m: HoldItem) -> Vector2:
+	var ic := _icon_of(grid, m)
+	return ic.get_global_rect().get_center() if ic != null else Vector2(-1, -1)
 
 
 ## MOVING SHIP CONSERVES OBJECTS, AND MOVES NOTHING BY ITSELF.

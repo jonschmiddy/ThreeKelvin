@@ -1179,11 +1179,17 @@ func _turn_in_hold(at: Vector2) -> bool:
 
 
 ## R on a part sitting in a hold grid, shared with LOCAL's cutaway: see above.
+##
+## ANY HOLD ITEM, NOT ONLY A MODULE. This asked `icon_at`, which finds module
+## plates and nothing else, so R over a 2x1 crate of deck plate did nothing
+## while the same crate in the hand turned. `item_at` is the one that sees a
+## material; the rules are the module's own -- a square shape is a no-op, and a
+## turn that does not fit puts the item back where it was.
 static func turn_in_hold(grid: HoldGrid, at: Vector2) -> bool:
-	var icon := grid.icon_at(at)
-	if icon == null or icon.module == null:
+	var icon := grid.item_at(at)
+	if icon == null or icon.held_item() == null:
 		return false
-	var m := icon.module
+	var m := icon.held_item()
 	if m.footprint().x == m.footprint().y:
 		# Square. Turning it is a no-op, and playing the animation for one would
 		# say something happened that did not.
@@ -1198,7 +1204,7 @@ static func turn_in_hold(grid: HoldGrid, at: Vector2) -> bool:
 		return true
 	Audio.play(&"hold_turn", 0.10)
 	grid.refresh()
-	var now := grid.icon_at(at)
+	var now := grid.item_at(at)
 	if now != null:
 		now.spin()
 	return true
