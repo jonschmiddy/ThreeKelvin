@@ -6,36 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Fixed
+### Roadmap
 
-- **Fixed** — R turns materials in the hold, as it turns modules. Point at a long crate in the
-  hold on the refit screen, in LOCAL's cutaway or on the hull swap screen and R stands it on end,
-  if it fits that way. Before, R only turned a material you were carrying.
+The next build follows the friends' playtest of 0.4.1-alpha.1 (Oct 23). See
+[`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
-### Added
+## 2026-10-22
 
-- **Event quests in the QUESTS table.** When an event plants a follow-up further in, like the
+### [0.4.1-alpha.1]
+
+For the friends' alpha (Oct 23): 0.4.0-alpha.1 plus event quests and finished quests in the
+QUESTS table, and R turning materials. Saves from 0.4.0-alpha.1 load as they are. The Windows and
+Mac builds come from the same commit.
+
+- **Added** — event quests in the QUESTS table. When an event plants a follow-up further in, like the
   runner's parcel, the QUESTS table lists it with the jobs you signed: MARKED, what to do, where
   it is and how many jumps away, ON ARRIVAL for the pay, and the event that gave it. Its note is
   the event's own words, and SHOW ON STARCHART and PLOT ROUTE work as they do for a job. A run
   saved before this still lists the ones it has open.
-- **Finished quests stay in the QUESTS table.** Jobs you have handed in and event quests you have
+- **Added** — finished quests stay in the QUESTS table. Jobs you have handed in and event quests you have
   finished go under a COMPLETED heading below the open ones, newest first and greyed a little,
   with what each paid: a job's credits and standing, and an event quest's credits and the things
   it gave you. A finished row still opens its note and SHOW ON STARCHART.
-
-### Removed
-
+- **Fixed** — R turns materials in the hold, as it turns modules. Point at a long crate in the
+  hold on the refit screen, in LOCAL's cutaway or on the hull swap screen and R stands it on end,
+  if it fits that way. Before, R only turned a material you were carrying.
+- **Fixed** — in co-op, a partner taking an event can no longer close your quest or your job's
+  pickup. An event quest and a contract's work are yours alone, and a partner's claim on the same
+  spot in the same system now leaves them open.
 - **Removed** — a hidden line on LOCAL that spelled out the system's danger and layer. It was
   built every frame but never shown; danger and layer are on the sector map, the chart and the
   escape menu. Nothing on screen changes.
-
-### Roadmap
-
-The next build follows the friends' playtest of 0.4.0-alpha.1 (Oct 23). See
-[`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
-
-## 2026-10-22
 
 ### [0.4.0-alpha.1]
 
