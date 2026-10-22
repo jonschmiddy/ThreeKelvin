@@ -2720,6 +2720,12 @@ class ConvoySlot extends Control:
 		art.show_behind_parent = true
 		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		art.follow_peer(id)
+		# THE NAME AND GAUGES COME BACK WITH THE HULL. `_draw` paints nothing
+		# while the hull is hidden, and `ShipView.arrive` hides it for its first
+		# tick after the flare has already asked for a redraw -- so the slot
+		# drew once, empty, and nothing asked again: the partner flew in with no
+		# name over it (seen in the Oct 22 stills, LOCAL and the fight alike).
+		art.visibility_changed.connect(queue_redraw)
 		# Always the half sheet. A convoy slot only exists when there IS a party,
 		# which is exactly the condition the reduced set is for.
 		art.use_half(true)

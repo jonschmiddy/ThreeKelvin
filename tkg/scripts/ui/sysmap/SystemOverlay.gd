@@ -1032,19 +1032,45 @@ func _draw_partners(_t: float) -> void:
 			row += 1
 			x = _ship_at + Vector2(-6.0, 12.0 * row)
 		partner_at.append([id, x])
+		# HIDDEN BEHIND what stands in front of it, as your own ship is: the
+		# star's disc, a nearer world's (the first stills had a partner in close
+		# orbit drawn across the face of the star)
+		var occ: Array = []
+		var depth: float = view.depth(q)
+		if depth < 0.0:
+			occ.append([view.origin(), view.layout.star_r * view.star_k()])
+		for i: int in view._views:
+			if view.depth(view.pos[i]) > depth:
+				occ.append([view.at[i], view.draw_r(view.layout.bodies[i])])
 		var ang: float = e[2]
 		var c := cos(ang)
 		var s := sin(ang)
 		var in_hull := func(u: int, v: int) -> bool:
 			return u >= -3 and u <= 6 and absf(v) <= (6 - u) * 0.5
+		var shown := 0
 		for u in range(-4, 8):
 			for v in range(-4, 5):
 				var q2 := (x + Vector2(u * c - v * s, u * s + v * c)).round()
+				var hid := false
+				for o: Array in occ:
+					if q2.distance_to(o[0]) < float(o[1]):
+						hid = true
+						break
+				if hid:
+					continue
 				if in_hull.call(u, v):
+					shown += 1
 					_px(q2, UITheme.GOOD if u > 3 or absi(v) < 2 else UITheme.GOOD.darkened(0.3))
 				elif in_hull.call(u - 1, v) or in_hull.call(u + 1, v) or in_hull.call(u, v - 1) or in_hull.call(u, v + 1):
 					_px(q2, Color("#05070b"))
-		_label(x + Vector2(-8, -13), String(e[3]), UITheme.GOOD, 1, true)
+		# The name UNDER the ship, where YOU (over yours) cannot meet it when
+		# the two sit side by side, and at priority 0: placed last, so it gives
+		# way to every word the map already had, and outside YOU's own rule
+		# (priority 1, dropped near your orbit's words), under which every
+		# partner's name went whenever you were in orbit. Not for a ship wholly
+		# behind the star.
+		if shown > 0:
+			_label(x + Vector2(-8, 17), String(e[3]), UITheme.GOOD, 0, true)
 
 
 # ---------------------------------------------------------------- the ship

@@ -4070,7 +4070,8 @@ class MapChart extends Control:
 				continue
 			var c := _screen_pos(Run.map[at])
 			if at == Run.at:
-				out.append([slot, c + Vector2(16, -10 + with_me * 11), -1])
+				# clear of YOU's brackets, whose corner reaches 17 px right
+				out.append([slot, c + Vector2(26, -8 + with_me * 11), -1])
 				with_me += 1
 				continue
 			var row := int(seen.get(at, 0))

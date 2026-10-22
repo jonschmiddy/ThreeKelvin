@@ -29,6 +29,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   side instead of one on top of the other.
 - **Fixed** — on the star chart, a partner in the same system as you is now marked beside your
   YOU marker instead of exactly on top of it.
+- **Fixed** — in co-op, a partner's ship on LOCAL and in a fight shows its pilot's name, hull bar
+  and heat bar again. Before, the ship flew in with nothing over it.
 - **Fixed** — in co-op, if two players' games build different galaxies from the same dive (which
   could happen between a Windows PC and a Mac), both screens now say so in a line at the top
   and ask you to send godot.log. Before, the party played on with every place in the wrong spot

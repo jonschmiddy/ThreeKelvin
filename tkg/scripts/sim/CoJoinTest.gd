@@ -31,6 +31,13 @@ var _me: String = ""
 var _late: bool = false
 var _relay: bool = false
 var _skew: bool = false
+## `shots=<dir>`: a still of each moment Jon asked to look at, from this
+## machine's side, as `<dir>/<nn>_<what>_<host|guest>.png`. Needs a window (run
+## through render_slot.sh); headless has no pixels and saves nothing.
+var _shots: String = ""
+## `hold=<seconds>`: how long a host waits before each move, so a partner in a
+## window (slower: it animates) is still beside it when it takes its stills.
+var _hold: float = 0.0
 
 
 func run(tree: SceneTree) -> void:
@@ -41,6 +48,13 @@ func run(tree: SceneTree) -> void:
 	_late = "late" in argv
 	_relay = "relay" in argv
 	_skew = "skew" in argv
+	for a in argv:
+		if a.begins_with("shots="):
+			_shots = a.substr(6)
+		if a.begins_with("hold="):
+			_hold = float(a.substr(5))
+	if _shots != "" and DisplayServer.get_name() == "headless":
+		_shots = ""
 	# THE GUEST CLAIMS A DIFFERENT GALAXY, so the mismatch guard is flown for
 	# real: both machines must log it and put it on screen.
 	if _skew and not hosting:
@@ -153,16 +167,20 @@ func _fly() -> void:
 	_ok("both ships start in one system, and each knows it", both)
 	await _wait(0.5)
 	await _check_local_together("at the start")
+	if _shots != "":
+		# the run's opening fly-in and the partner's own arrival, played out
+		await _wait(5.0)
+	await _shot("01_local_start")
 	await _check_sector_map("at the start")
 
 	# --- the host jumps, the guest follows ----------------------------------
 	var target := -1
 	if _me == "HOST":
+		await _wait(_hold)
 		target = _pick_jump()
 		if not _ok("there is a system to jump to", target >= 0):
 			return
-		Router.begin_jump(target)
-		await _wait(0.3)
+		await _jump(target)
 		_ok("the host jumped", Run.at == target)
 	else:
 		var moved := await _until(func() -> bool:
@@ -172,8 +190,7 @@ func _fly() -> void:
 			return
 		target = Net.where_is(other)
 		_ok("and can follow it there", Run.can_jump_to(Run.map[target]))
-		Router.begin_jump(target)
-		await _wait(0.3)
+		await _jump(target)
 		_ok("the guest followed into the host's system", Run.at == target)
 	print("[cojoin] target %d %s" % [target, MapGen.star_name(Run.map[target])])
 	var met := await _until(func() -> bool: return Net.where_is(other) == Run.at, PARTNER_TIMEOUT)
@@ -197,12 +214,13 @@ func _fight_leg(at: int, other: int) -> void:
 	if Router.current is SectorScreen and Router.combat == null:
 		pass
 	if _me == "HOST":
+		await _wait(_hold * 0.5)
 		Router.start_ambush()
 		var up := await _until(func() -> bool: return Router.combat != null, 5.0)
 		if not _ok("the host's option opened a fight", up):
 			return
 	else:
-		var open := await _until(func() -> bool: return Net.fight_open_at(at), 10.0)
+		var open := await _until(func() -> bool: return Net.fight_open_at(at), 30.0)
 		if not _ok("the guest can see the host's fight is open here", open):
 			# What the game offered the guest before this fix: engage_here on a
 			# node that has no fight of its own (BotPilot's door).
@@ -210,6 +228,15 @@ func _fight_leg(at: int, other: int) -> void:
 			return
 		var can := Router.has_method("can_join_fight") and bool(Router.call("can_join_fight"))
 		_ok("and the screen offers to join it", can)
+		if _shots != "":
+			if not Router.current is SectorScreen:
+				Router.show_local()
+			await _wait(2.0)
+			await _shot("05_local_join_fight_bar")
+			Router.show_system()
+			await _until(func() -> bool: return Router.current is SystemMapScreen, 6.0)
+			await _wait(1.5)
+			await _shot("06_map_panel_join_fight")
 		if Router.has_method("join_fight"):
 			Router.call("join_fight")
 		else:
@@ -229,6 +256,9 @@ func _fight_leg(at: int, other: int) -> void:
 	if not _ok("both ships are in one fight", together):
 		await _play(cb)
 		return
+	if _shots != "":
+		await _wait(3.0)
+		await _shot("07_shared_fight")
 	var f0 := Net.fight_at(at)
 	_ok("against the same enemy on both machines (%s)" % f0.foe_ids[0],
 		String(cb.enemies[0].template.id) == f0.foe_ids[0])
@@ -286,8 +316,7 @@ func _apart_leg(other: int) -> void:
 		var y := _pick_jump([from])
 		if not _ok("the guest has somewhere else to go", y >= 0):
 			return
-		Router.begin_jump(y)
-		await _wait(0.3)
+		await _jump(y)
 		print("[cojoin] apart guest %d" % Run.at)
 		# The host must see it, on the chart's data, without anybody doing anything.
 		await _until(func() -> bool: return Net.where_is(other) == Run.at, PARTNER_TIMEOUT)
@@ -304,11 +333,9 @@ func _apart_leg(other: int) -> void:
 		if not Run.can_jump_to(Run.map[y]):
 			var mid := _pick_jump([], y)
 			if mid >= 0:
-				Router.begin_jump(mid)
-				await _wait(0.3)
+				await _jump(mid)
 		if _ok("the host can reach the guest's system", Run.can_jump_to(Run.map[y])):
-			Router.begin_jump(y)
-			await _wait(0.3)
+			await _jump(y)
 			_ok("and is there", Run.at == y)
 	await _wait(0.8)
 	await _check_local_together("after meeting again")
@@ -350,12 +377,14 @@ func _check_local_together(when: String) -> void:
 	# about four seconds, and a hull measured mid-flight is in no place at all.
 	var last := Rect2()
 	var still := 0
-	for i in 90:
+	for i in 120:
 		await _wait(0.1)
 		var now: Rect2 = view.player_boxes()[0] if not view.player_boxes().is_empty() else Rect2()
 		still = still + 1 if now.position.distance_to(last.position) < 0.5 else 0
 		last = now
-		if still >= 8:
+		# (and on screen: in a window a run opens with the ship held off the
+		# left edge before its fly-in, which is still and in no place either)
+		if still >= 8 and now.position.x >= 0.0:
 			break
 	var slots: Array = view.get("_made_convoy")
 	if not _ok("LOCAL draws the partner %s" % when, slots.size() >= 1):
@@ -377,8 +406,14 @@ func _check_local_together(when: String) -> void:
 ## `fly` -- the host flying to a world while the guest watches it go.
 func _check_sector_map(when: String, fly: bool = false) -> void:
 	Router.show_system()
-	await _wait(0.8)
+	await _until(func() -> bool: return Router.current is SystemMapScreen, 6.0)
+	await _wait(1.2 if _shots != "" else 0.8)
 	var sm := Router.current as SystemMapScreen
+	# In a window the map builds its system across frames (the sky is baked)
+	# and has no ship, yours or anybody's, until it has.
+	if sm != null:
+		await _until(func() -> bool: return sm.flight != null, 8.0)
+		await _wait(0.5)
 	if not _ok("the SECTOR map is up %s" % when, sm != null):
 		Router.show_local()
 		return
@@ -387,6 +422,7 @@ func _check_sector_map(when: String, fly: bool = false) -> void:
 		var own: Vector2 = sm.call("own_mark")
 		print("  %s SECTOR: own %s, partner %s" % [_me, own, marks[0]])
 		_ok("and not on top of your own %s" % when, (marks[0] as Vector2).distance_to(own) >= 8.0)
+	await _shot("02_map_both_jumped_in" if fly else "02a_map_start")
 	if fly:
 		if _me == "HOST":
 			var body := -1
@@ -394,16 +430,23 @@ func _check_sector_map(when: String, fly: bool = false) -> void:
 				if sm.view.layout.bodies[i].kind != &"belt":
 					body = i
 					break
+			await _wait(_hold * 0.5)
 			if body >= 0:
 				sm.call("_fly", body, func() -> void: pass)
 			print("  HOST flies to world %d on the map" % body)
-			await _wait(6.0)
+			await _wait(2.5)
+			await _shot("04_map_flying")
+			await _wait(3.5)
 		else:
 			var first: Vector2 = marks[0] if marks.size() >= 1 else Vector2.INF
 			var far := 0.0
 			var deadline := float(Time.get_ticks_msec()) / 1000.0 + 8.0
+			var shot_at := deadline - 5.0
 			while float(Time.get_ticks_msec()) / 1000.0 < deadline:
 				await _tree.process_frame
+				if shot_at > 0.0 and float(Time.get_ticks_msec()) / 1000.0 > shot_at:
+					shot_at = -1.0
+					await _shot("04_map_flying")
 				var m: Array = sm.call("partner_marks") if sm.has_method("partner_marks") else []
 				if m.size() >= 1 and first != Vector2.INF:
 					far = maxf(far, (m[0] as Vector2).distance_to(first))
@@ -417,6 +460,7 @@ func _check_sector_map(when: String, fly: bool = false) -> void:
 ## on it.
 func _check_chart(when: String) -> void:
 	Router.show_starchart()
+	await _until(func() -> bool: return Router.current is StarchartScreen, 6.0)
 	await _wait(0.6)
 	var sc := Router.current as StarchartScreen
 	if not _ok("the STAR CHART is up %s" % when, sc != null):
@@ -429,6 +473,8 @@ func _check_chart(when: String) -> void:
 		var theirs: Vector2 = marks[0][1] if marks.size() >= 1 else own
 		print("  %s CHART: own %s, partner %s" % [_me, own, theirs])
 		_ok("beside your own marker, not on top of it %s" % when, theirs.distance_to(own) >= 10.0)
+	await _wait(1.0)
+	await _shot("03_chart_partner_beside_you")
 	Router.show_local()
 	await _wait(0.4)
 
@@ -524,6 +570,26 @@ func _galaxy_print() -> String:
 		var m: MapGen.MapNode = n
 		parts.append("%d:%d:%d,%d" % [m.index, int(m.type), roundi(m.gal.x * 1000.0), roundi(m.gal.y * 1000.0)])
 	return "%d systems, hash %d" % [Run.map.size(), hash(",".join(parts))]
+
+
+## A jump, whole: in a window it is a departure, a flight and an arrival.
+func _jump(to: int) -> void:
+	Router.begin_jump(to)
+	await _until(func() -> bool: return Run.at == to, 25.0)
+	await _until(func() -> bool: return not Router.animating() or Router.current is SectorScreen, 5.0)
+	await _wait(0.3)
+
+
+## A still of what this machine shows now, when `shots=` was given.
+func _shot(what: String) -> void:
+	if _shots == "":
+		return
+	await RenderingServer.frame_post_draw
+	var img := _tree.root.get_texture().get_image()
+	DirAccess.make_dir_recursive_absolute(_shots)
+	var path := _shots.path_join("%s_%s.png" % [what, _me.to_lower()])
+	img.save_png(path)
+	print("[cojoin] shot %s" % path)
 
 
 func _wait(s: float) -> void:
