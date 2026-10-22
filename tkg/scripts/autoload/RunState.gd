@@ -3560,7 +3560,10 @@ func hellbender_jumped() -> void:
 ## One hop. `feeding` is false on a flee hop — a ship running for its life is
 ## not stopping to cut salvage, and the client applying the pushed position
 ## must agree about which kind of landing it was. See hellbender_land().
-func _hellbender_step(feeding: bool) -> void:
+## `away_from` is a system a flee hop never lands in: the one it ran from. Two
+## hops out could be A to B and straight back to A, so its escape burn put it
+## at anchor where you had just watched it go (`hellbender_breaks_off`).
+func _hellbender_step(feeding: bool, away_from: int = -1) -> void:
 	if not hellbender_alive():
 		return
 	hellbender_moves += 1
@@ -3569,6 +3572,8 @@ func _hellbender_step(feeding: bool) -> void:
 	var options: Array = []
 	var food: Array = []
 	for i in here_n.links:
+		if i == away_from:
+			continue
 		var n: MapGen.MapNode = map[i]
 		# Not the rim's first system and not the core: one is the front door,
 		# and the other already has a custodian in it.
@@ -3630,8 +3635,9 @@ func hellbender_breaks_off(hp: int) -> void:
 	if not hellbender_alive() or not _hellbender_authority():
 		return
 	hellbender_hp = clampi(hp, 1, hellbender_max)
+	var fled_from := hellbender_at
 	for i in HELLBENDER_FLEE_HOPS:
-		_hellbender_step(false)
+		_hellbender_step(false, fled_from)
 	Net.push_hellbender(false)
 
 ## The kill. Called wherever the last hull point comes off — Combat._victory()
