@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fixed** — signing a job on the Hiring Board no longer reshuffles the board. Before, the job
+  you signed came down and every other note slid along a place, and everything else on the
+  board jumped to a new spot: the WANTED poster, the other notices and paper on a cork board or
+  whiteboard, and the other listings on a city's screen. Now the job stays where it was, stamped
+  SIGNED, and nothing else moves. The picked tab, the ads, the ticker and any open popup stay as
+  they were. If you already carry the heat a heat job asks for, its note shows OFFLOAD where SIGN
+  was, so you can hand the heat in from the same note.
+
 ### Roadmap
 
 The next build is **0.4.0-alpha.1**, with the fixes from the first outside playtest. See
