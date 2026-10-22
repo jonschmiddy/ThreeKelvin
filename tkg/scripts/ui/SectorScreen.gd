@@ -287,6 +287,10 @@ func setup(c: Combat = null) -> void:
 	# "Clicking GO or clicking LOCAL should have the same result")
 	_events = LocalEventDrawer.attach(self, fighting(), c == null and not _dock_hidden and not Router.docked, flyin)
 	_events.changed.connect(_refresh)
+	# (an event coming up: the thin bar kept off, so the band rises from below
+	# the screen and not out of it; it comes once the band has gone)
+	if not _events.deferred.is_empty() or _events.page != &"":
+		_shut_drawer()
 	_refresh()
 	_attach_station_face()
 
@@ -495,9 +499,7 @@ func _begin_flyin() -> void:
 	if art == null or fighting() or _phase != Phase.NONE:
 		if art != null:
 			art.visible = true
-		_open_drawer(true)
-		if _events != null and is_instance_valid(_events):
-			_events.open_held()
+		_arrived_drawer()
 		return
 	_phase = Phase.ARRIVE
 	_flyin = true
@@ -519,12 +521,23 @@ func _begin_flyin() -> void:
 func _flyin_end() -> void:
 	_phase = Phase.NONE
 	_flyin = false
-	# (the event here, held for the ship to settle: GO's band, now)
-	if _events != null and is_instance_valid(_events):
-		_events.open_held()
+	_arrived_drawer()
 	if _wake_owed:
 		_wake_owed = false
 		_wake()
+
+
+## SETTLED: the event here, held for the ship to settle, rises from below the
+## screen (GO's band, as LOCAL's own doors open it); with none, the thin bar
+## slides in. Never the bar first and the band out of it.
+func _arrived_drawer() -> void:
+	if _events != null and is_instance_valid(_events) and not _events.deferred.is_empty():
+		_events.open_held()
+		return
+	if _events != null and is_instance_valid(_events) and _events.page != &"":
+		return
+	if not fighting():
+		_open_drawer(false)
 
 
 ## The station's side as this visit has it: lit if it woke (or an undock left
@@ -664,6 +677,9 @@ const ARRIVAL_GAP_S := 0.50
 ## nothing is happening in it, it is the ship losing its speed -- so the boards
 ## coming up through it reads as the system answering while you coast in, not as
 ## two animations talking over each other. 0.78 of 4.5 s is one second early.
+## NOW ONLY A FIGHT'S HAND (an ambush met on arrival): the thin bar waits for the
+## ship to settle, and an event's band rises then (Jon, Oct 22: "You should
+## enter the sector with NO bottom drawer shown", `_arrived_drawer`).
 const DRAWER_AT := 0.78
 const DRAWER_RISE := 0.28
 ## How much of the sky the drawer lets through. A shade under PANEL_A, because
@@ -894,11 +910,13 @@ func _skip() -> void:
 		art.visible = true
 		art.park()
 		art.refresh()
-	_open_drawer(true)
-	_refresh()
-	# (and the event held for it, as it would have opened on settling)
-	if _events != null and is_instance_valid(_events):
+	# (the event held for it up at once, as it would have opened on settling;
+	# else the thin bar, at once)
+	if _events != null and is_instance_valid(_events) and not _events.deferred.is_empty():
 		_events.open_held()
+	elif _events == null or not is_instance_valid(_events) or _events.page == &"":
+		_open_drawer(true)
+	_refresh()
 	# a fight that met you here comes up now, not after the approach
 	if _ambushed and _opening:
 		_arrival_drawer()
@@ -912,7 +930,11 @@ func _arrival_drawer() -> void:
 		_view.release_entrances()
 		_raise_band()
 		return
-	_open_drawer(false)
+	# NOTHING AT THE BOTTOM WHILE YOU ARRIVE (Jon, Oct 22: "You should enter the
+	# sector with NO bottom drawer shown"): the thin bar rose here, a second
+	# before the ship stopped, and an event's band then rose out of it. It comes
+	# once the ship has settled now, and only if no event's band is coming
+	# (`_arrived_drawer`).
 
 # ---------------------------------------------------------------------- build
 

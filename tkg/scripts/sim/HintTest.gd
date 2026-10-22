@@ -4,7 +4,10 @@ extends Harness
 ##   godot --headless --path . -- hinttest
 ##
 ## Each hint fires once at its trigger, as a `HintCard` in the game's picture,
-## never over what it points at, and never again once a click has dismissed it;
+## never over what it points at; NO CLICK DISMISSES IT (Jon, Oct 22: real clicks
+## through the viewport on the card leave it up and unspent), and it is spent
+## when the player does what it teaches (`HintActs`), or, for the ones that only
+## tell you something (`Hints.INFO`), after its reading time; never again after;
 ## the ones a moment decides (the intent after the first card, END TURN when
 ## nothing is playable, brace once held over an end of turn, heat once it rises,
 ## fuel at a third of the tank) are also shown NOT to fire before it. SHOW HINTS
@@ -17,7 +20,10 @@ extends Harness
 ## this cannot pass while nothing draws. The clock is stepped by hand
 ## (`Hints.poll`).
 
+const HintActs := preload("res://scripts/sim/HintActs.gd")
+
 var _tree: SceneTree
+var _rng := RandomNumberGenerator.new()
 
 
 func run(tree: SceneTree) -> void:
@@ -25,7 +31,7 @@ func run(tree: SceneTree) -> void:
 	await tree.process_frame
 	Hints.forced = true
 	Hints.set_process(false)
-	Hints.set_process_input(false)
+	_rng.seed = 2210
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	_ok("the flags go to the harness settings file (%s), not the player's" % Hints.store_path(),
@@ -112,6 +118,7 @@ func run(tree: SceneTree) -> void:
 					off = false
 		_ok("wreck: the card stands clear of the event's derelict (%s)" % c.card_rect(), off)
 		await _dismiss(&"wreck")
+		await _put_away()
 	await _expect(&"loot")
 	await _expect(&"ship")
 	await _none("with all three dismissed, nothing more shows on LOCAL")
@@ -190,11 +197,10 @@ func run(tree: SceneTree) -> void:
 		for e in cb.enemies:
 			(e as Combat.EnemyState).max_hp = 999
 			(e as Combat.EnemyState).hp = 999
-		await _expect(&"hand")
 		_ok("hand: its second line names the cost corner", "energy cost" in _line(&"hand", 1))
-		await _none("cards in hand, none played: no intent, no END TURN, no brace, no heat yet")
-		# the first card: then the intent
-		await _play_one(cb)
+		await _never(&"intent", "cards in hand, none played: no intent yet (the hand's card up)")
+		# (the hand's action is the first card: then the intent)
+		await _expect(&"hand")
 		await _expect(&"intent")
 		var ic: Array = Hints.shown_log.slice(-1)
 		_ok("intent: it showed after the first card", ic == [&"intent"])
@@ -202,14 +208,14 @@ func run(tree: SceneTree) -> void:
 		await _none("a card left to play: END TURN's hint waits", [], true)
 		while await _play_one(cb):
 			pass
-		await _expect(&"endturn")
-		_ok("endturn: it says the hand size the game deals (%d)" % Run.hand_size(),
-			("draw %d new cards" % Run.hand_size()) in _line(&"endturn", 1))
 		# brace up but not yet held over an end of turn: nothing
 		cb.brace = 60
 		fs._refresh_player()
-		await _none("brace up, the turn not ended: its hint waits")
-		fs._on_end_turn()
+		await _never(&"brace", "brace up, the turn not ended: its hint waits")
+		_ok("endturn: it says the hand size the game deals (%d)" % Run.hand_size(),
+			("draw %d new cards" % Run.hand_size()) in _line(&"endturn", 1))
+		# (END TURN's action is END TURN)
+		await _expect(&"endturn")
 		var settled: bool = await _settle(fs)
 		_ok("the next turn comes up", settled)
 		_ok("brace was held over the end of turn, and charged its heat (%d heat)" % Run.heat,
@@ -281,7 +287,8 @@ func run(tree: SceneTree) -> void:
 	# ship can fly to, or says none is in reach -- never that one.
 	await _fuel_unflyable()
 
-	# NO CLICK, NO ADVANCE: a hint left alone stays, however long; its subject
+	# NO CLICK ADVANCES IT: a hint clicked on and left alone stays, however long
+	# (nothing else waiting here, so it gives way to nothing); its subject
 	# leaving hides it unspent
 	Hints.reset()
 	for id in Hints.ORDER:
@@ -294,7 +301,9 @@ func run(tree: SceneTree) -> void:
 		var n_log := Hints.shown_log.size()
 		for i in 120:
 			Hints.poll(0.5)
-		_ok("a minute with no click: the same hint is still up, still unspent, and none came after it",
+			if i % 20 == 0 and Hints.card != null:
+				await _click_on(Hints.card.card_rect())
+		_ok("a minute, clicked on: the same hint is still up, still unspent, and none came after it",
 			card_was != null and Hints.card == card_was and is_instance_valid(card_was) and not Hints.seen(&"ship")
 			and Hints.shown_log.size() == n_log)
 		Router.show_system()
@@ -306,11 +315,10 @@ func run(tree: SceneTree) -> void:
 		var again: bool = await _step_until(&"ship")
 		_ok("back on LOCAL, the unspent hint shows again", again)
 		Hints.poll(0.3)
-		var ev := InputEventMouseButton.new()
-		ev.button_index = MOUSE_BUTTON_LEFT
-		ev.pressed = true
-		Hints.click(ev)
-		_ok("only the click spends it", Hints.seen(&"ship") and Hints.card == null)
+		var did := HintActs.act(&"ship")
+		Hints.poll(0.05)
+		_ok("only its action spends it (%s)" % did, Hints.seen(&"ship") and Hints.card == null)
+		await _put_away()
 
 	# REPLAY TUTORIAL
 	Hints.mark_seen(&"ship")
@@ -360,6 +368,7 @@ func run(tree: SceneTree) -> void:
 	_ok("tutorial ON: on again, and what was seen stays seen", Hints.enabled() and Hints.seen(&"events"))
 	if was_id != &"":
 		await _expect(was_id)
+		await _put_away()
 
 	# nothing over the escape menu
 	Hints.reset()
@@ -441,16 +450,20 @@ func _full_station() -> MapGen.MapNode:
 ## tutorial tip for the promenade, exchange, shipyard, laboratory, or hiring
 ## board"), through the real station screen and its deck buttons, from the dock
 ## just spent: each deck's hint shows the first time it is open, on its main
-## thing, spent as it shows (people leave a deck without clicking it), clear of
-## the decks, UNDOCK and everything on the deck; left by the next deck's button
-## with no click, it goes and stays spent; again, none comes back. Queued behind
-## another hint; off with TUTORIAL OFF, back with REPLAY TUTORIAL; off in a party.
+## thing, clear of the decks, UNDOCK and everything on the deck; clicked on, it
+## stays unspent; the deck used spends it (every other one), or it is left by
+## the next deck's button (a card is read as it shows, so that spends it too:
+## said once, Jon's Oct 20 ruling); again, none comes back. The dock's, with a
+## deck picked under it, is spent by that (its action); off with TUTORIAL OFF,
+## back with REPLAY TUTORIAL; off in a party.
 func _decks() -> void:
 	var st := Router.current as StationScreen
 	if not _ok("decks: the station is up, its five decks on (%s)" % (st._tabs_on if st != null else {}),
 			st != null and DECKS.all(func(id: StringName) -> bool: return st._tabs_on.get(Hints.DECK_HINTS[id], true))):
 		return
 	_ok("decks: none spent before the first visit", DECKS.all(func(id: StringName) -> bool: return not Hints.seen(id)))
+	# (what the decks need to be used: credits, a part to sell, the lab's stuff)
+	HintActs.stock_up()
 	for i in DECKS.size():
 		var id: StringName = DECKS[i]
 		var ready: bool = await _visit(st, id)
@@ -461,48 +474,50 @@ func _decks() -> void:
 		if not _ok("%s: its hint shows on the first visit (got %s)" % [id, got], up):
 			continue
 		var c: HintCard = Hints.card
-		_ok("%s: spent as it shows, before any click" % id, Hints.seen(id))
 		_ok("%s: the card's words (%s)" % [id, " / ".join(_card_words(c))], _card_words(c) == Hints.lines(id))
 		var subj := st.deck_subject(Hints.DECK_HINTS[id])
 		_ok("%s: it points at the deck's main thing (%s, the deck's %s)" % [id, c.subject, subj],
 			c.subject.grow(6.0).encloses(subj) and subj.grow(6.0).encloses(c.subject))
 		_deck_box(st, id, c.card_rect(), c.subject)
-		# LEFT WITHOUT A CLICK: the next deck's button (the last back to the yard)
-		var next: StringName = DECKS[(i + 1) % DECKS.size()]
-		(st._tabs[Hints.DECK_HINTS[next]] as Button).pressed.emit()
-		for f in 6:
-			Hints.poll(0.1)
-			await _tree.process_frame
-		_ok("%s: left by another deck's button, no click: the card goes, and it stays spent" % id,
-			(Hints.card == null or Hints.card.id != id) and Hints.seen(id))
-		if Hints.card != null and Hints.card.id != id:
-			# (the next deck's own, already: the loop's next turn takes it)
-			pass
+		var made: int = await _click_on(c.card_rect())
+		Hints.poll(0.3)
+		_ok("%s: clicked %d times: it stays, unspent" % [id, made], Hints.card == c and not Hints.seen(id))
+		if i % 2 == 0:
+			# USED: its action spends it, the deck still open
+			var did := HintActs.act(id)
+			Hints.poll(0.05)
+			_ok("%s: the deck used (%s): spent, the card gone" % [id, did if did != "" else "NOTHING TO USE IT WITH"],
+				did != "" and Hints.seen(id) and (Hints.card == null or Hints.card.id != id))
+		else:
+			# LEFT WITHOUT USING IT: the next deck's button (the last back to the yard)
+			var next: StringName = DECKS[(i + 1) % DECKS.size()]
+			(st._tabs[Hints.DECK_HINTS[next]] as Button).pressed.emit()
+			for f in 6:
+				Hints.poll(0.1)
+				await _tree.process_frame
+			_ok("%s: left by another deck's button, no click: the card goes, and it is spent (read as it showed)" % id,
+				(Hints.card == null or Hints.card.id != id) and Hints.seen(id))
 		Hints.poll(Hints.GAP_S + 0.1)
 	for id in DECKS:
 		await _visit(st, id)
 		await _none("%s again: its hint does not come back" % id, [&"ship"])
 
-	# QUEUED BEHIND ANOTHER HINT: the dock's up, unclicked, and the Promenade opened
-	# under it; the Promenade's waits, and shows once the dock's is spent
+	# THE DOCK'S UP AND A DECK PICKED UNDER IT: that is the dock's action, so it
+	# is spent, and the Promenade's shows after it
 	Hints.mark_seen(&"dock", false)
 	Hints.mark_seen(&"promenade", false)
 	await _visit(st, &"shipyard")
 	Hints._quiet = 0.0
 	if _ok("queue: the dock's hint is up", await _step_until(&"dock")):
 		await _visit(st, &"promenade")
-		var cut := false
-		for i in 40:
+		for i in 3:
 			Hints.poll(0.1)
 			await _tree.process_frame
-			if Hints.card == null or Hints.card.id != &"dock":
-				cut = true
-		_ok("queue: the Promenade's waits behind it (4 s; the dock's still up, the Promenade's unshown)",
-			not cut and not Hints.seen(&"promenade"))
-		Hints.poll(0.3)
-		Hints.click(_press())
+		_ok("queue: a deck picked is the dock's action: spent", Hints.seen(&"dock") and (Hints.card == null or Hints.card.id != &"dock"))
 		Hints.poll(Hints.GAP_S + 0.1)
-		_ok("queue: once the dock's is spent, the Promenade's shows", await _step_until(&"promenade"))
+		_ok("queue: then the Promenade's shows", await _step_until(&"promenade"))
+		HintActs.act(&"promenade")
+		Hints.poll(0.05)
 		Hints.poll(Hints.GAP_S + 0.1)
 
 	# TUTORIAL OFF: none on any deck; REPLAY TUTORIAL (pressed while off) and ON
@@ -523,7 +538,7 @@ func _decks() -> void:
 	for id in DECKS:
 		await _visit(st, id)
 		var back: bool = await _step_until(id)
-		_ok("REPLAY TUTORIAL, then ON: the %s's hint comes back" % id, back and Hints.seen(id))
+		_ok("REPLAY TUTORIAL, then ON: the %s's hint comes back" % id, back)
 		await _visit(st, DECKS[(DECKS.find(id) + 1) % DECKS.size()])
 		Hints.poll(Hints.GAP_S + 0.1)
 	for id in was_seen:
@@ -711,6 +726,50 @@ func _expect(id: StringName) -> void:
 	await _dismiss(id)
 
 
+## What an action opened on LOCAL or the station put away: your ship, a window.
+func _put_away() -> void:
+	var sc := Router.current as SectorScreen
+	if sc != null:
+		if sc._cutaway != null and is_instance_valid(sc._cutaway):
+			sc._cutaway.close_now()
+		if sc._transfer != null:
+			sc._close_transfer()
+	var st := Router.current as StationScreen
+	if st != null and st._cutaway != null and is_instance_valid(st._cutaway):
+		st._cutaway.close_now()
+	await _frames(10)
+
+
+## REAL CLICKS on `r` (a card), as a hand makes them: through the viewport
+## (`push_input`), at its middle and two seeded points in it. The card ignores
+## the mouse, so a click lands on what is under it; one that would land on a
+## button is not made (the card is kept clear of its subject, not of every
+## button, and what a button does is not the card's business).
+func _click_on(r: Rect2) -> int:
+	var made := 0
+	var pts: Array[Vector2] = [r.get_center()]
+	for i in 2:
+		pts.append(r.position + Vector2(_rng.randf() * r.size.x, _rng.randf() * r.size.y))
+	for at in pts:
+		var mm := InputEventMouseMotion.new()
+		mm.position = at
+		mm.global_position = at
+		_tree.root.push_input(mm, true)
+		await _tree.process_frame
+		if _tree.root.gui_get_hovered_control() is BaseButton:
+			continue
+		for down: bool in [true, false]:
+			var ev := InputEventMouseButton.new()
+			ev.button_index = MOUSE_BUTTON_LEFT
+			ev.pressed = down
+			ev.position = at
+			ev.global_position = at
+			_tree.root.push_input(ev, true)
+		made += 1
+		await _tree.process_frame
+	return made
+
+
 func _dismiss(id: StringName) -> void:
 	var c: HintCard = Hints.card
 	_ok("%s: the card is in the game's picture" % id, c.is_inside_tree() and c.is_visible_in_tree()
@@ -723,13 +782,36 @@ func _dismiss(id: StringName) -> void:
 	_ok("%s: two short lines, and it ignores the mouse" % id,
 		Hints.lines(id).size() == _lines_for(id) and c.mouse_filter == Control.MOUSE_FILTER_IGNORE)
 	Hints.poll(0.3)
-	var ev := InputEventMouseButton.new()
-	ev.button_index = MOUSE_BUTTON_LEFT
-	ev.pressed = true
-	var took: bool = Hints.click(ev)
-	await _tree.process_frame
-	_ok("%s: a click anywhere dismisses it, and it is seen" % id,
-		took and Hints.card == null and Hints.seen(id))
+	# NO CLICK SENDS IT AWAY (Jon, Oct 22): clicks on the card, where a player
+	# clicks to put it away
+	var made: int = await _click_on(c.card_rect())
+	Hints.poll(0.3)
+	_ok("%s: clicked %d times: it stays, unspent" % [id, made], made > 0 and Hints.card == c and not Hints.seen(id))
+	if Hints.INFO.has(id):
+		# only tells you something: gone by itself after its reading time, spent
+		var t := 0.6
+		while Hints.card == c and t < 30.0:
+			Hints.poll(0.1)
+			t += 0.1
+		_ok("%s: an information card: gone by itself after its reading time (%.1f s, wants %.1f), spent" % [id, t, Hints.info_s(id)],
+			Hints.card == null and Hints.seen(id) and t >= Hints.info_s(id) - 0.15)
+	else:
+		var did := HintActs.act(id)
+		for i in 4:
+			Hints.poll(1.0 / 60.0)
+			await _tree.process_frame
+		_ok("%s: its action done (%s): spent, and the card goes" % [id, did if did != "" else "NOTHING TO DO IT WITH"],
+			did != "" and Hints.seen(id) and (Hints.card == null or Hints.card.id != id))
+		# (what its action opened -- a wreck's window, the pile's, your ship on
+		# LOCAL -- put away again, as a player does, before the next card can
+		# come; the dock's picked a deck: back to the yard, where the decks are
+		# walked from)
+		if id in [&"wreck", &"loot"] or (id == &"ship" and Router.current is SectorScreen):
+			await _put_away()
+		var st := Router.current as StationScreen
+		if id == &"dock" and st != null and st._tab != &"services":
+			(st._tabs[&"services"] as Button).pressed.emit()
+			await _frames(2)
 	# past the quiet between two hints
 	Hints.poll(Hints.GAP_S + 0.1)
 
@@ -744,10 +826,7 @@ func _none(what: String, allowed: Array = [], _quiet: bool = false) -> void:
 		if Hints.card != null:
 			if Hints.card.id in allowed:
 				Hints.poll(0.3)
-				var ev := InputEventMouseButton.new()
-				ev.button_index = MOUSE_BUTTON_LEFT
-				ev.pressed = true
-				Hints.click(ev)
+				Hints.spend()
 				Hints.poll(Hints.GAP_S + 0.1)
 				continue
 			shown = String(Hints.card.id)

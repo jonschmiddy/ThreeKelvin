@@ -42,13 +42,22 @@ extends Node
 ##   - at most ONE line a fight, unless the hull starts failing in it;
 ##   - in a fight, only on your turn with the hand settled: never during a card
 ##     drag, the enemy's turn, a number in the air, the flee or hail question;
-##     a drag or END TURN mid-line sends her off at once;
-##   - nothing over a jump, an arrival, the camera moving between distances, the
-##     cutaway, a wreck's window, the event band, the escape menu.
+##     END TURN mid-line sends her off at once;
+##   - she does not start over a jump, an arrival, the camera moving between
+##     distances, the cutaway, a wreck's window, the event band, the escape menu.
+## ONCE STARTED, A LINE PLAYS OUT (Jon, Oct 22, after the first outside playtest:
+## "He also clicked to make her shut up when she was giving her quips"): nothing
+## the player clicks cuts it. A card picked up or dragged, a wreck's window, the
+## pile or SECTOR LOOT opened, the event band raised: she stays unless what came
+## up covers her box (`_must_go`). A hint coming due waits for her to finish
+## (`Hints`, `bark_up`). What still takes her off: the screen itself going (a
+## jump, the camera moving, another screen, the escape menu), END TURN and the
+## enemy's turn (their numbers land where she stands), something in her box,
+## the ship lost, her switch, a new run.
 ## NOTHING AFTER THE SHIP IS LOST (Jon: "No lines after the ship is lost. The ship
 ## has blown up."): she is the ship. Up when it goes, she cuts with it, no fade.
 ## HINTS WIN (`Hints`): she does not start while a hint is up, settling or due
-## on this screen, and goes the moment one starts to settle.
+## on this screen.
 ##
 ## SHE NEVER COVERS ANYTHING. She stands at the first of `SPOTS` that is clear of
 ## everything listed in `avoid_rects` (the HUD, the goal line's band, the event
@@ -70,18 +79,20 @@ extends Node
 ## hint cards"). While she is on, each first-run hint (`Hints`) comes in her
 ## corner in her words (`AshTutorLines`), the thing she means outlined, instead
 ## of a card; and each goal step (`GoalLine`) is said once as it starts. The
-## hints keep their triggers, their order, their subjects and their click
-## (`Hints` still decides all of it and calls `teach`). A teaching line:
-##   - outranks a bark: a bark up gives way at once, and none starts while a
-##     teaching line is up, settling or due (her "hints win", unchanged);
+## hints keep their triggers, their order and their subjects (`Hints` still
+## decides all of it and calls `teach`). A teaching line:
+##   - outranks a bark: none starts while a teaching line is up, settling or due
+##     (her "hints win"); one already under way plays out first (Oct 22);
 ##   - is not held to her quiet, her one line a fight, or her keeping off the
 ##     cutaway, a wreck's window and the event band;
 ##   - stands on the STARCHART, the SECTOR map and the station as well as LOCAL
 ##     and fights, at the first spot clear of everything there (`tut_avoid_rects`,
 ##     `covers`: every system and world a click picks, their words and orbits,
 ##     every button, the yard's ships, drones and screen);
-##   - a hint's holds once it is out until a click lets it go (Jon: "let's have
-##     them advance with a click"); a step's holds for its reading time and goes.
+##   - a hint's holds once it is out until the player has done what it teaches
+##     (`Hints.DONE`; Jon, Oct 22: "Can we soft lock the screen so A.S.H. can't
+##     be dismissed?"), never a click; an information line's (`Hints.INFO`) and
+##     a step's hold for their reading time and go.
 ## Off in a party, as the hints are (`Hints.enabled`, "coop:B"). Off with her
 ## switch, and the cards come back exactly as they were.
 
@@ -607,15 +618,61 @@ func _screen_only(starting: bool = true) -> String:
 	return ""
 
 
-## Why she must go now she is up; "" to stay.
+## Why she must go now she is up; "" to stay. NOT A CLICK (Jon, Oct 22: a quip
+## "plays out and ends on its own"): what a click opens over LOCAL or a fight (a
+## wreck's window, the pile, the cutaway, the event band, the flee question)
+## sends her off only if it covers her box, and a card picked up or dragged not
+## at all. The screen going, the enemy's turn and something in her box do.
 func _must_go(r: Rect2) -> String:
-	var why := _screen_block(false)
+	var why := _stay_block()
 	if why != "" or force_spot != &"":
 		return why
-	for a in avoid_rects(Router.current):
-		if (a as Rect2).size != Vector2.ZERO and r.intersects(a as Rect2):
+	var cur := Router.current
+	var a := avoid_rects(cur)
+	_opened_rects(cur as SectorScreen, a)
+	for x in a:
+		if (x as Rect2).size != Vector2.ZERO and r.intersects(x as Rect2):
 			return "covered"
 	return ""
+
+
+## Why the screen is not one she may stay up on; "" if it is. Not the hints
+## (one coming due waits for her: `Hints`), nor a drag, nor what a click opened
+## over it (`_must_go` asks whether it covers her).
+func _stay_block() -> String:
+	if lesson != &"" or Hints.lesson != &"":
+		return "hint"
+	if Hints.menu_up() or ZoomLadder.busy():
+		return "screen"
+	var sc := Router.current as SectorScreen
+	if sc == null or not is_instance_valid(sc) or not sc.is_visible_in_tree():
+		return "screen"
+	if Router.hud == null or not Router.hud.is_visible_in_tree():
+		return "screen"
+	if sc._phase != SectorScreen.Phase.NONE or sc._card != null:
+		return "screen"
+	if sc.fighting():
+		# the enemy's turn, from the click on END TURN (`_hold`) to the new hand
+		if sc._playing or sc._hold or sc._opening or sc._raising or not sc._breakups.is_empty() \
+				or not sc._dying.is_empty() or sc.combat.waiting or sc.combat.finished:
+			return "turn"
+		if sc._end_button == null or not sc._end_button.is_visible_in_tree() or sc._end_button.disabled:
+			return "turn"
+	return ""
+
+
+## What a click may have opened over LOCAL or a fight, global, into `out`: the
+## cutaway, a wreck's or a reward's window, the pile's panel, the flee question.
+static func _opened_rects(sc: SectorScreen, out: Array) -> void:
+	if sc == null or not is_instance_valid(sc):
+		return
+	_cutaway_rects(sc._cutaway, out)
+	var tv := Hints._transfer(sc)
+	if tv != null:
+		out.append(tv.window_rect())
+	for c: Control in [sc._pile_panel, sc._exit_ask]:
+		if c != null and is_instance_valid(c) and c.is_visible_in_tree():
+			out.append(c.get_global_rect())
 
 
 func _dragging(sc: SectorScreen) -> bool:
@@ -646,9 +703,16 @@ func _hint_up(starting: bool = true) -> bool:
 	if Hints._quiet > 0.0:
 		return true
 	for id in Hints.ORDER:
-		if not Hints.seen(id) and not Hints.probe(id).is_empty():
+		if not Hints.seen(id) and not Hints.resting(id) and not Hints.probe(id).is_empty():
 			return true
 	return false
+
+
+## A line of hers that is not a teaching line is up and saying (a quip, her
+## introduction): a hint coming due waits for it (`Hints`).
+func bark_up() -> bool:
+	return portrait != null and is_instance_valid(portrait) and portrait.speaking() \
+		and not String(portrait.kind).begins_with("tut_")
 
 
 # ------------------------------------------------------------------ the lines
@@ -933,7 +997,8 @@ func teaches() -> bool:
 ## Say teaching line `lid` (`AshTutorLines`) now, its words `text` (filled),
 ## pointing at `subject` (global; Rect2() for none). `hint`: the hint it says,
 ## held until let go; "" for a goal step, which goes after its reading time.
-## `opts`: `voice` and `spoken` (`AshTutorLines.voice_path` / `spoken`). False
+## `opts`: `voice` and `spoken` (`AshTutorLines.voice_path` / `spoken`), and
+## `held` (false: an information hint, gone after its reading time). False
 ## if she cannot: off, or nowhere on this screen clear for her (`tut_spot`).
 func teach(lid: StringName, text: String, hint: StringName, subject: Rect2, opts: Dictionary = {}) -> bool:
 	if not teaches():
@@ -965,7 +1030,7 @@ func teach(lid: StringName, text: String, hint: StringName, subject: Rect2, opts
 	_group_from(spot)
 	portrait.say(text, StringName("tut_" + String(lid)), {
 		voice = String(opts.get("voice", "")), spoken = String(opts.get("spoken", "")),
-		held = hint != &""})
+		held = bool(opts.get("held", hint != &""))})
 	# (not `_up`: a teaching line does not start her barks' quiet, so they keep
 	# the timing they had beside the cards)
 	lesson = lid
@@ -986,6 +1051,19 @@ func lesson_up() -> bool:
 		and portrait.kind == StringName("tut_" + String(lesson))
 
 
+## Her teaching line is up and still being SPOKEN: coming up or typing, not yet
+## holding (the soft lock's window, `Hints.soft_lock`).
+func lesson_speaking() -> bool:
+	return lesson_up() and (portrait.phase == AshPortrait.Phase.UP or portrait.phase == AshPortrait.Phase.TYPING)
+
+
+## Teaching line `lid` was the last she said and it ended of itself, after its
+## reading time (an information line, `Hints.INFO`), not sent off.
+func ended_of_itself(lid: StringName) -> bool:
+	return portrait != null and is_instance_valid(portrait) and portrait._natural \
+		and portrait.kind == StringName("tut_" + String(lid))
+
+
 ## The subject moved (`Hints` keeps it each frame): the outline goes with it.
 func aim_lesson(subject: Rect2) -> void:
 	if lesson == &"":
@@ -994,7 +1072,7 @@ func aim_lesson(subject: Rect2) -> void:
 	_outline_to(subject)
 
 
-## Let the teaching line go: a click spent it (`quick`), or its subject left.
+## Let the teaching line go: its action done (`quick`), or its subject left.
 func end_lesson(quick: bool = true) -> void:
 	if lesson_up():
 		portrait.leave(quick)

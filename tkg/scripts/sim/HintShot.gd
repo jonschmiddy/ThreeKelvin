@@ -77,7 +77,7 @@ func _click() -> void:
 	var ev := InputEventMouseButton.new()
 	ev.button_index = MOUSE_BUTTON_LEFT
 	ev.pressed = true
-	Hints.click(ev)
+	Hints.spend()
 
 
 ## The goal line as it stands, photographed with nothing else asked of the screen.

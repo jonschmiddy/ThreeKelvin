@@ -18,6 +18,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Fixed** — arriving on LOCAL no longer shows the thin bar at the bottom while your ship flies
+  in. Before, the bar was already up as you arrived, and then the event's text and choices rose
+  out of it. Now the bottom of the screen stays empty until your ship settles. Then the event
+  rises from below the screen, or the thin bar slides in if there is no event.
 - **Fixed** — engaging the Custodian from the system map no longer leaves your ship sitting low in
   the fight for the whole battle, half hidden behind your hand with its name, hull bar and status
   icons out of sight. Your hand now comes up after the camera has finished moving in from the map.
@@ -42,6 +46,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **Changed** — A.S.H. can no longer be clicked away. A tutorial line stays until you do what it
+  teaches: pick a star on the chart, open an event, play a card, press END TURN, move a module, use a
+  deck. Lines that only tell you something (enemy intent, brace, heat, low fuel) stay for their
+  reading time after she stops talking, then go by themselves. If you leave the screen, the line goes
+  and comes back next time, except the ship view's and each deck's, which count as said once you have
+  heard them through. If another line is waiting, a line that has been up 20 seconds gives way
+  and comes back later. Her quips play to the end: clicking her, picking up or dragging a card, or
+  opening a wreck no longer cuts her off. END TURN still does. A tutorial line that comes due while
+  she is talking waits for her to finish.
 - **Changed** — while you drag a module in the ship view, every fitted module it can swap with gets a
   teal frame, next to the teal rings on the empty mounts it fits. A fitted module with no frame cannot
   swap with it, usually because the hold has no room for the module coming off. A module dragged out
