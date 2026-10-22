@@ -521,6 +521,21 @@ static func is_job(id: StringName) -> bool:
 	return bool(by_id(id).get("job", false))
 
 
+## WHETHER THIS OPTION IS ONE SHIP'S OWN: a signed contract's work (`is_job`)
+## or an event quest (`placed_ids`, what `place` put on this ship's map for
+## what this ship did). Neither is on a partner's map, so neither is raced for
+## over the wire (`OptionResolve.take`, `Router.claim_open_option`), and a
+## partner's claim on the same slot index never closes it
+## (`RunState.adopt_party_claims`): the slot is theirs, not this.
+##
+## It was jobs only, and a taken PAID IN FULL went to the party as a claim on
+## (system, slot), which a partner's machine wrote into its own copy of that
+## system whatever sat there: their contract pickup or their own quest at the
+## same index came up already taken (Oct 22).
+static func is_mine(id: StringName) -> bool:
+	return is_job(id) or placed_ids().has(id)
+
+
 static func holds_quest(n: MapGen.MapNode) -> bool:
 	if n == null:
 		return false
@@ -636,6 +651,18 @@ static func ensure(n: MapGen.MapNode) -> bool:
 			var i := int(t) - MapGen.OPTION_SITE
 			if i >= 0 and i < n.options.size():
 				foreclose(n, i)
+		# AND A CLAIM PAST THE ROLLED LIST IS A PARTNER'S OWN OPTION (a job or
+		# an event quest on their map, `is_mine`), adopted before this list
+		# existed. Dropped, so what this ship's own `place` or `post_goal`
+		# appends at that index next is not born taken.
+		var keep := PackedInt32Array()
+		for t in n.taken:
+			var k := int(t)
+			if k >= MapGen.OPTION_SITE and k < MapGen.OPTION_JETSAM \
+					and k - MapGen.OPTION_SITE >= n.options.size():
+				continue
+			keep.append(k)
+		n.taken = keep
 	return not n.options.is_empty()
 
 

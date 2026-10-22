@@ -1213,6 +1213,18 @@ func adopt_party_claims() -> void:
 			var o := int(option)
 			if n.taken.has(o):
 				continue
+			# A PARTNER'S OWN OPTION IS NOT THIS SHIP'S. A claim names a slot
+			# index, and past the rolled list a slot holds whatever each ship's
+			# own `place` or `post_goal` appended there: their quest is not
+			# mine, and a claim on it must not close my pickup or my quest at
+			# the same index (`OptionTable.is_mine`). With the list rolled, a
+			# slot off its end or holding a per-ship option is skipped; before
+			# it is rolled the claim is kept, and `OptionTable.ensure` drops it
+			# if it lands past the list.
+			if o >= MapGen.OPTION_SITE and o < MapGen.OPTION_JETSAM and not n.options.is_empty():
+				var k := o - MapGen.OPTION_SITE
+				if k >= n.options.size() or OptionTable.is_mine(n.options[k]):
+					continue
 			n.taken.append(o)
 			moved = true
 			if o == MapGen.OPTION_WHOLE:
