@@ -3,7 +3,7 @@ config_version=5
 
 [application]
 config/name="Three Kelvin"
-config/version="0.3.2-alpha.1"
+config/version="0.4.0-alpha.1"
 ; EXPORTED BUILDS KEEP THEIR OWN FOLDER: %APPDATA%\ThreeKelvinAlpha on Windows,
 ; ~/Library/Application Support/ThreeKelvinAlpha on a Mac -- saves, settings,
 ; flight record and logs -- so an alpha build never reads or writes the dev

@@ -195,7 +195,11 @@ tags. `git show archive/<name>` says what each was.
    and two fixes. **0.3.2-alpha.1** after it: LOCAL does what GO does (no stand-in
    pictures), the LOCAL fly-in, the station waking with its power-on sound, and the hangar
    landing sound.
-3. **0.4.0-alpha.1:** the fixes from that playtest. Add them under
+3. **0.4.0-alpha.1** (built Oct 22): the fixes from Kevin's playtest (Oct 22): a deeper
+   tutorial (35 lessons, voiced, undismissable), a QUESTS tab, ARCHIVE removed, co-op fixed
+   (shared fights, partners on the map, a galaxy check), REWARD on every result with loot,
+   one ring per jump, deep loot, and a harder Custodian. See `CHANGELOG.md`.
+4. **Next:** the friends' playtest of 0.4.0-alpha.1 (Oct 23), on HOST PARTY. Add fixes under
    `[Unreleased]` in `CHANGELOG.md` as they land, then cut the version by changing
    `config/version` in `tkg/project.godot` and building with `build_alpha.sh`.
 4. After that: the parked items above, and the five manufacturers still to write

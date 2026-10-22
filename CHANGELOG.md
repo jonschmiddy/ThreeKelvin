@@ -6,7 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Added
+### Roadmap
+
+The next build follows the friends' playtest of 0.4.0-alpha.1 (Oct 23). See
+[`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
+
+## 2026-10-22
+
+### [0.4.0-alpha.1]
+
+The fixes from the first outside playtest (Kevin, Oct 22): a much deeper tutorial that A.S.H.
+speaks and nobody can click away, a QUESTS tab, co-op that works, REWARD on every result that
+gives loot, and a harder game. The Windows and Mac builds come from the same commit.
+
 - **Added** — A.S.H. speaks the deep tutorial's new and rewritten lines: Jon picked one of three takes for each (Oct 22).
 
 - **Added** — a QUESTS tab on the bar at the top, after STARCHART. It opens a table of every
@@ -26,9 +38,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   strip, a signed job's ring, a marked system, a JUMP that cannot go, the slots that take the
   part in your hand, the cards each part brings, your ship's stats, the yard's FAULTS drone, a
   ship for sale, UNDOCK, and SAVE & EXIT in the escape menu. The chassis select has a card too.
+- **Changed** — The Hellbender's posters just say WANTED. The bounty they promised (2500 CR on the
+  WANTED sheet and the screen's FEATURED listing, 500 CR on a whiteboard note) was never paid, so the
+  sums are gone, and so are the screen's "bounty raised" and "bounty desk" lines about it. Once it is
+  dead the two posters are stamped DESTROYED, not CLAIMED. What its wreck pays is the same.
+- **Changed** — from danger 5 in, there are no common parts or materials. Wrecks, kill bags,
+  derelicts, event finds, relic analysis and station shelves no longer offer COMMON parts there,
+  and wrecks, events and mining no longer give common materials. The grades above take their
+  place, so a deep wreck is worth more than a rim one. Nearer the rim, commons drop as before.
+- **Changed** — a jump now goes at most one ring deeper than the ring you are in. Jumps outward or
+  along your ring reach as far as before. The quickest way to the core is now 14 jumps, one for each
+  ring, where it was as few as 4. A star inside your reach ring that is two rings deeper or more
+  says TOO DEEP when you point at it. Its fuel row reads ONE RING AT A TIME, and the JUMP button
+  reads TOO DEEP. Every galaxy still has a way into each ring, and the core is reached from the
+  last ring. The HEADING row now says OUTWARD for a star further out, where it said COREWARD.
+- **Changed** — the Custodian has 200 hull, up from 120.
+- **Changed** — the tutorial is paced by the game. In a fight a new line only starts with your
+  hand settled and no card held, and most wait for the start of a turn: your first turn teaches
+  the hand, energy and END TURN, and the rest come one turn at a time after that. Outside a fight
+  there is a 3 second gap between lines, and one new line per screen. The line about what an
+  enemy will do now comes at the start of turn 2, and the brace and heat lines stay until you
+  press END TURN.
+- **Changed** — A.S.H.'s lines about the hand, heat, brace, wrecks, salvage, SECTOR LOOT and the
+  event band say more: support cards go on your own ship, what a wreck keeps if you leave, and
+  that NOT NOW saves an event for later. The ship editor's line no longer mentions flipping a
+  part, which only changes how it looks. Her voice for the new and rewritten lines comes later;
+  until then they show as text.
 
-### Fixed
-
+- **Changed** — A.S.H. can no longer be clicked away. A tutorial line stays until you do what it
+  teaches: pick a star on the chart, open an event, play a card, press END TURN, move a module, use a
+  deck. Lines that only tell you something (enemy intent, brace, heat, low fuel) stay for their
+  reading time after she stops talking, then go by themselves. If you leave the screen, the line goes
+  and comes back next time, except the ship view's and each deck's, which count as said once you have
+  heard them through. If another line is waiting, a line that has been up 20 seconds gives way
+  and comes back later. Her quips play to the end: clicking her, picking up or dragging a card, or
+  opening a wreck no longer cuts her off. END TURN still does. A tutorial line that comes due while
+  she is talking waits for her to finish.
+- **Changed** — while you drag a module in the ship view, every fitted module it can swap with gets a
+  teal frame, next to the teal rings on the empty mounts it fits. A fitted module with no frame cannot
+  swap with it, usually because the hold has no room for the module coming off. A module dragged out
+  of SECTOR LOOT goes into the hold first, so with no room for it there nothing lights. The frames
+  come up when you pick the module up and go when you drop it or let go anywhere else. Moving a fitted
+  module onto another fitted one now works with a full hold too, since the two just trade places.
+- **Changed** — the Custodian is harder. It dropped its block move (Plated Up), so Annihilate
+  now comes every third turn, and Annihilate deals 40 instead of 22. Its hull is 200. In the sim
+  a well-built ship now wins about half its fights with it, and a starter ship never does.
 - **Fixed** — in co-op you can now join a friend's fight. When a partner is fighting in the system
   you are in, LOCAL's bottom bar says who and has a JOIN FIGHT button, and so does the sector
   map's panel. Before, there was no way in: every ordinary fight comes from a system's event or
@@ -102,67 +156,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   SIGNED, and nothing else moves. The picked tab, the ads, the ticker and any open popup stay as
   they were. If you already carry the heat a heat job asks for, its note shows OFFLOAD where SIGN
   was, so you can hand the heat in from the same note.
-
-### Changed
-
-- **Changed** — The Hellbender's posters just say WANTED. The bounty they promised (2500 CR on the
-  WANTED sheet and the screen's FEATURED listing, 500 CR on a whiteboard note) was never paid, so the
-  sums are gone, and so are the screen's "bounty raised" and "bounty desk" lines about it. Once it is
-  dead the two posters are stamped DESTROYED, not CLAIMED. What its wreck pays is the same.
-- **Changed** — from danger 5 in, there are no common parts or materials. Wrecks, kill bags,
-  derelicts, event finds, relic analysis and station shelves no longer offer COMMON parts there,
-  and wrecks, events and mining no longer give common materials. The grades above take their
-  place, so a deep wreck is worth more than a rim one. Nearer the rim, commons drop as before.
-- **Changed** — a jump now goes at most one ring deeper than the ring you are in. Jumps outward or
-  along your ring reach as far as before. The quickest way to the core is now 14 jumps, one for each
-  ring, where it was as few as 4. A star inside your reach ring that is two rings deeper or more
-  says TOO DEEP when you point at it. Its fuel row reads ONE RING AT A TIME, and the JUMP button
-  reads TOO DEEP. Every galaxy still has a way into each ring, and the core is reached from the
-  last ring. The HEADING row now says OUTWARD for a star further out, where it said COREWARD.
-- **Changed** — the Custodian has 200 hull, up from 120.
-- **Changed** — the tutorial is paced by the game. In a fight a new line only starts with your
-  hand settled and no card held, and most wait for the start of a turn: your first turn teaches
-  the hand, energy and END TURN, and the rest come one turn at a time after that. Outside a fight
-  there is a 3 second gap between lines, and one new line per screen. The line about what an
-  enemy will do now comes at the start of turn 2, and the brace and heat lines stay until you
-  press END TURN.
-- **Changed** — A.S.H.'s lines about the hand, heat, brace, wrecks, salvage, SECTOR LOOT and the
-  event band say more: support cards go on your own ship, what a wreck keeps if you leave, and
-  that NOT NOW saves an event for later. The ship editor's line no longer mentions flipping a
-  part, which only changes how it looks. Her voice for the new and rewritten lines comes later;
-  until then they show as text.
-
-- **Changed** — A.S.H. can no longer be clicked away. A tutorial line stays until you do what it
-  teaches: pick a star on the chart, open an event, play a card, press END TURN, move a module, use a
-  deck. Lines that only tell you something (enemy intent, brace, heat, low fuel) stay for their
-  reading time after she stops talking, then go by themselves. If you leave the screen, the line goes
-  and comes back next time, except the ship view's and each deck's, which count as said once you have
-  heard them through. If another line is waiting, a line that has been up 20 seconds gives way
-  and comes back later. Her quips play to the end: clicking her, picking up or dragging a card, or
-  opening a wreck no longer cuts her off. END TURN still does. A tutorial line that comes due while
-  she is talking waits for her to finish.
-- **Changed** — while you drag a module in the ship view, every fitted module it can swap with gets a
-  teal frame, next to the teal rings on the empty mounts it fits. A fitted module with no frame cannot
-  swap with it, usually because the hold has no room for the module coming off. A module dragged out
-  of SECTOR LOOT goes into the hold first, so with no room for it there nothing lights. The frames
-  come up when you pick the module up and go when you drop it or let go anywhere else. Moving a fitted
-  module onto another fitted one now works with a full hold too, since the two just trade places.
-
-### Removed
-
-- **Removed** — the ARCHIVE. Its tab on the HUD and THE ARCHIVE on the title screen are gone,
-  and so are the 41 documents it held. Wrecks, fights, pulsars and contract cargo no longer turn
-  up a document. Four event choices gave you a document and nothing else; they now pay a few
-  credits, or give a used tow line, instead. Documents you found in earlier builds are no longer
-  shown anywhere, and your saved runs load as before.
-
-### Roadmap
-
-The next build is **0.4.0-alpha.1**, with the fixes from the first outside playtest. See
-[`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
-
-### Fixed
-
 - **Fixed** — a signed contract's work is now in the system its note names. A fetch puts a
   CONTRACT PICKUP event on a world in that system, and a hunt puts a CONTRACT TARGET contact
   there. Both show on the system map with the quest mark and in its event list, and open on
@@ -177,6 +170,11 @@ The next build is **0.4.0-alpha.1**, with the fixes from the first outside playt
   system of each pair now takes the next free name, and every other name is unchanged.
 - **Fixed** — a contract's layer now matches the chart's. It printed one less (LAYER 6 for a
   system the chart calls LAYER 7).
+- **Removed** — the ARCHIVE. Its tab on the HUD and THE ARCHIVE on the title screen are gone,
+  and so are the 41 documents it held. Wrecks, fights, pulsars and contract cargo no longer turn
+  up a document. Four event choices gave you a document and nothing else; they now pay a few
+  credits, or give a used tow line, instead. Documents you found in earlier builds are no longer
+  shown anywhere, and your saved runs load as before.
 
 ## 2026-10-21
 
