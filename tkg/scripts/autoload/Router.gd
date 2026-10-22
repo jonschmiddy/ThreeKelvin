@@ -567,15 +567,21 @@ func _show_starchart() -> void:
 ## means "back to the place" comes through here -- UNDOCK, the HUD tab, the
 ## galleries' BACK, the end of a fight -- so they all land on the map.
 func show_sector() -> void:
-	# A HELLBENDER AT ANCHOR is the one thing this system offers until it is
-	# dealt with; the map would let you walk round it.
-	var held := Run.hellbender_alive() and Run.hellbender_at == Run.at
+	# A HELLBENDER AT ANCHOR DOES NOT SHUT THE MAP. It did (Oct 2: "the map would
+	# let you walk round it"), from when it was fought from anywhere in the
+	# system. Since it has a place of its own on the map (Jon, Oct 15: one place,
+	# one fight) the map is the only way TO it -- LOCAL elsewhere says "Fly out
+	# to it" and its button is this door -- so with the old hold kept, SECTOR,
+	# that button, Tab and the end of a fight it was still here after (fled, or
+	# its escape burn hopping back) all came back to LOCAL, and only STARCHART
+	# left (Jon, Oct 22: "Fighting the Hellbender totally breaks the sector and
+	# local buttons. You are able to click starchart.").
 	# UNDOCKING IS ONE DISTANCE OUT (`ZoomLadder`): the station's berth to LOCAL,
 	# beside the station, where DOCK takes you back in and the map is a Tab away
 	if docked and current is StationScreen and ZoomLadder.chosen():
 		show_local()
 		return
-	if in_combat() or fight_up() or _post_depart >= 0 or held:
+	if in_combat() or fight_up() or _post_depart >= 0:
 		show_local()
 	else:
 		_undock()
@@ -590,7 +596,9 @@ func show_system() -> void:
 	if Run.dead:
 		show_game_over()
 		return
-	if in_combat() or fight_up() or (Run.hellbender_alive() and Run.hellbender_at == Run.at):
+	# (and open with the Hellbender anchored here: its place is on the map, the
+	# one way to it -- see `show_sector`)
+	if in_combat() or fight_up():
 		show_local()
 		return
 	if ZoomLadder.preroll(ZoomLadder.MAP, show_system):

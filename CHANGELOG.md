@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fixed** — in a system where the Hellbender is anchored, the SECTOR tab, Tab and LOCAL's
+  button to the map now open the system map. Before, they all sent you back to LOCAL, so the
+  only way off LOCAL was the STARCHART. This was worst after a fight with it: if you broke
+  contact, or it ran on its escape burn and came straight back into your system, SECTOR and
+  LOCAL stopped working for as long as you stayed. The map is also the way to the Hellbender's
+  own place, where you fight it. Its escape burn now always takes it out of the system it ran from.
+- **Fixed** — after you win an event's fight, LOCAL no longer shows a whole enemy ship beside the
+  wreck of the one you shot. The event's own picture of what you were fighting came back once the
+  fight ended, so a second ship seemed to appear out of nowhere. Now only what you fought is gone:
+  the rest of the scene stays, such as the fuel depot, the seized hull or the hunting ship on the
+  harpoon line. An event you flew past without fighting still shows its ship.
+
+### Changed
+
+- **Changed** — while you drag a module in the ship view, every fitted module it can swap with gets a
+  teal frame, next to the teal rings on the empty mounts it fits. A fitted module with no frame cannot
+  swap with it, usually because the hold has no room for the module coming off. A module dragged out
+  of SECTOR LOOT goes into the hold first, so with no room for it there nothing lights. The frames
+  come up when you pick the module up and go when you drop it or let go anywhere else. Moving a fitted
+  module onto another fitted one now works with a full hold too, since the two just trade places.
+
 ### Roadmap
 
 The next build is **0.4.0-alpha.1**, with the fixes from the first outside playtest. See
