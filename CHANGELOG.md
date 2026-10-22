@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Fixed** — engaging the Custodian from the system map no longer leaves your ship sitting low in
+  the fight for the whole battle, half hidden behind your hand with its name, hull bar and status
+  icons out of sight. Your hand now comes up after the camera has finished moving in from the map.
 - **Fixed** — in a system where the Hellbender is anchored, the SECTOR tab, Tab and LOCAL's
   button to the map now open the system map. Before, they all sent you back to LOCAL, so the
   only way off LOCAL was the STARCHART. This was worst after a fight with it: if you broke

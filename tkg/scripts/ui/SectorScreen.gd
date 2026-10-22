@@ -3540,6 +3540,10 @@ func ladder_cam_end() -> void:
 		sc.offset_top = w[3]
 		sc.offset_right = w[4]
 		sc.offset_bottom = w[5]
+	# THE ROW ON THE BAND AS IT IS NOW, not as it was when the camera was taken:
+	# its bottom offset is the band's height, and a band that moved under the
+	# camera left your ship low and its plate under the hand
+	_view.reapply_bleed()
 	var sky: LocalSky = _view.backdrop
 	if sky != null and is_instance_valid(sky):
 		sky.end_hand()
@@ -4732,6 +4736,9 @@ func _hold_for_arrival() -> void:
 	_view.hold_entrances()
 
 
+## The longest a fight's hand waits for a camera move to land (frames).
+const LADDER_WAIT_FRAMES := 600
+
 ## THE HAND COMES UP (Jon, Oct 13): "When the enemy ship enters.... the ships
 ## pop up and the drawer pops into view.... can we have the opposite of the
 ## fight ending screen where the drawer and ships would move up gently instead
@@ -4775,6 +4782,17 @@ func _raise_band() -> void:
 	await get_tree().process_frame
 	if not is_inside_tree() or not _raising:
 		return
+	# AND NOT UNDER A CAMERA MOVE. ENGAGE pressed on the system map (the core's
+	# guard) brings this screen in on the map-to-LOCAL zoom, which holds the row
+	# at the size it had when the move began; a band grown under it left your
+	# ship half the band low with its plate under the hand once the move landed
+	# (Jon, Oct 22: "Glitch on boss fight?"). The hand comes up once it has.
+	var waited := 0
+	while ZoomLadder.busy() and waited < LADDER_WAIT_FRAMES:
+		await get_tree().process_frame
+		waited += 1
+		if not is_inside_tree() or not _raising:
+			return
 	var from := minf(_quiet_holder.size.y, float(DRAWER_H))
 	if from <= 0.0:
 		from = minf(_one_line_height(), float(DRAWER_H))
