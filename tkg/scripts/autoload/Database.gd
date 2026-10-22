@@ -2587,8 +2587,10 @@ func _seed_enemies() -> void:
 		{name = "Ashplate", text = "Gain 5 block", block = 5},
 		{name = "Furnace Bleed", text = "Deal 7, +1 Dross", damage = 7, dross = 1},
 	], [], false, false, true)
-	# Boss: unscaled, tuned by hand.
-	_enemy(&"custodian", "The Custodian", "guardian of the light", 120, 8, 120, &"hulk", [
+	# Boss: unscaled, tuned by hand. HULL 200, up from 120 (Jon, Oct 22: "custodian
+	# health at 200. I want this to be a hard game"): a bare starter heavy beat
+	# the 120 one 49% of the time, and a built ship 86-100%.
+	_enemy(&"custodian", "The Custodian", "guardian of the light", 200, 8, 120, &"hulk", [
 		{name = "Plated Up", text = "Gain 6 block", block = 6},
 		{name = "Volley", text = "Deal 6 × 3", damage = 6, hits = 3},
 		{name = "Charging…", text = "Charging a heavy attack", telegraph = true},

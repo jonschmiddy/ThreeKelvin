@@ -187,6 +187,20 @@ var option_creatures: Dictionary = {}
 ## pilot) jumps where the star it wanted most was. Read by the scratchpad's
 ## fuel_report.py; nothing here changes how a run plays.
 var sturdy := false
+## The run-length study (balance/run-length, Oct 22). The Custodian's numbers
+## as multiples of its own (`custhp=`, `custdmg=`, `custblock=`), or a loop
+## swapped out (`custloop=`), applied to the template before any run; and what
+## a run carried when it reached the core.
+var _cust_hp := 1.0
+var _cust_dmg := 1.0
+var _cust_block := 1.0
+var _cust_loop := ""
+var st_reached := 0
+var st_core_wins := 0
+var st_rows: Array = []
+var _fights_at_start := 0
+var _credits_seen := 0
+var _modules0 := 0
 var _trace_path := ""
 var _trace_file: FileAccess = null
 var _tr: Dictionary = {}
@@ -212,6 +226,38 @@ func run_sim() -> void:
 			policy.vent_hot = float(arg.split("=")[1])
 		elif arg.begins_with("fueltrace="):
 			_trace_path = arg.split("=")[1]
+		# THE RUN-LENGTH STUDY'S FLAGS (balance/run-length, Oct 22). Off unless
+		# given; see RunState.study_radius_scale and `_study_custodian`.
+		# `depthcap=N` flies another depth rule than the game's one ring a jump
+		# (RunState.DEPTH_STEP; 0 is August's, no cap), for comparison only.
+		elif arg.begins_with("depthcap="):
+			Run.depth_step = int(arg.split("=")[1])
+		elif arg.begins_with("ambushdeep="):
+			Run.study_ambush_deep = float(arg.split("=")[1])
+		elif arg.begins_with("radrim="):
+			Run.study_radius_rim = float(arg.split("=")[1])
+		elif arg.begins_with("raddeep="):
+			Run.study_radius_deep = float(arg.split("=")[1])
+		elif arg.begins_with("custhp="):
+			_cust_hp = float(arg.split("=")[1])
+		elif arg.begins_with("custdmg="):
+			_cust_dmg = float(arg.split("=")[1])
+		elif arg.begins_with("custblock="):
+			_cust_block = float(arg.split("=")[1])
+		elif arg.begins_with("custloop="):
+			_cust_loop = arg.split("=")[1]
+	policy.dash = "dash" in OS.get_cmdline_user_args()
+	policy.beeline = policy.dash or "beeline" in OS.get_cmdline_user_args()
+	if policy.beeline:
+		print("BEELINE policy: the deepest star it can afford, every jump%s." % [
+			" (and no options taken)" if policy.dash else ""])
+	if Run.depth_step != Run.DEPTH_STEP or Run.study_radius_rim != 1.0 or Run.study_radius_deep != 1.0:
+		print("STUDY: depth cap %d · radius x%.2f at the rim, x%.2f at the last ring" % [
+			Run.depth_step, Run.study_radius_rim, Run.study_radius_deep])
+	_study_custodian()
+	if "bossonly" in OS.get_cmdline_user_args():
+		_boss_only()
+		return
 	policy.human = "human" in OS.get_cmdline_user_args()
 	# A LENS, NOT A PLAYER: hull and heat restored at every arrival, so runs
 	# live long enough for the fuel economy to be what is measured. Today's
@@ -378,6 +424,8 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 	pilot = Rng.derive(&"pilot", 0)
 	policy.pilot = pilot
 	policy.begin_run()
+	_fights_at_start = fights_n
+	_modules0 = modules_taken
 	_tr = {seed = Rng.forced, manufacturer = String(Run.hull.manufacturer), weight = int(Run.hull.weight),
 		ff = Run.fuel_factor(), start = Run.fuel, dep = [], arr = [], cost = [], layer = [],
 		dist = [], any_dear = 0, limited = 0, hint_at = -1, pulsar_fuel = 0, event_fuel = 0,
@@ -450,7 +498,14 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		if blockaded:
 			pass
 		elif node.type == MapGen.NodeType.CORE:
+			var row := _study_arrival()
+			var cf0 := fights_turns
 			_fight(DB.enemies[&"custodian"])
+			row.won = Run.won
+			row.turns = fights_turns - cf0
+			st_reached += 1
+			st_core_wins += 1 if row.won else 0
+			st_rows.append(row)
 			break
 		elif node.type == MapGen.NodeType.STATION:
 			stations_visited += 1
@@ -879,10 +934,159 @@ func _report() -> void:
 	_report_economy()
 	_report_kinds()
 	_report_manufacturers()
+	_report_study()
 	print("---")
 	print("Healthy target: 40-55% win rate for this competent-player model.")
 	print("Too easy? Raise station repair prices before touching enemy damage —")
 	print("this design's difficulty lives in the economy, not in single fights.")
+
+
+## THE RUN-LENGTH STUDY (balance/run-length, Oct 22). The Custodian's template
+## scaled before any run, so every fight with it -- the core's and `bossonly`'s
+## -- meets the same numbers. Nothing here is a ruling; with no flags it is a
+## no-op.
+func _study_custodian() -> void:
+	if _cust_hp == 1.0 and _cust_dmg == 1.0 and _cust_block == 1.0 and _cust_loop == "":
+		return
+	var t: EnemyTemplate = DB.enemies[&"custodian"]
+	t.max_hull = int(round(t.max_hull * _cust_hp))
+	t.brace = int(round(t.brace * _cust_block))
+	var loop: Array[IntentData] = []
+	if _cust_loop != "":
+		for s in _cust_loop.split(","):
+			loop.append((t.loop[int(s)] as IntentData).duplicate(true))
+	else:
+		for i in t.loop:
+			loop.append((i as IntentData).duplicate(true))
+	for c in loop:
+		c.damage = int(round(c.damage * _cust_dmg))
+		c.block = int(round(c.block * _cust_block))
+	t.loop = loop
+	var said: PackedStringArray = []
+	for c in loop:
+		said.append("%s %d%s%s" % [c.name, c.damage, ("x%d" % c.hits) if c.hits > 1 else "",
+			(" +%d block" % c.block) if c.block > 0 else ""])
+	print("STUDY custodian: hull %d · brace %d · loop %s" % [t.max_hull, t.brace, " / ".join(said)])
+
+
+## What a run carries the moment it reaches the core, before the fight.
+func _study_arrival() -> Dictionary:
+	var rar := 0
+	var mods := 0
+	for raw in Run.installed:
+		var m: ModuleData = raw
+		if m == null:
+			continue
+		mods += 1
+		rar += int(m.rarity)
+	var spent := int(policy.spend.fuel) + int(policy.spend.repair) + int(policy.spend.options)
+	return {
+		jumps = Run.jumps,
+		fights = fights_n - _fights_at_start,
+		kills = Run.kills,
+		credits = Run.credits,
+		earned = Run.credits + spent - 40,
+		looted = modules_taken - _modules0,
+		mods = mods,
+		rarity = rar,
+		grade = Run.hull.tier,
+		hp = Run.hp,
+		fuel = Run.fuel,
+		max_hp = Run.max_hp(),
+		reactor = Run.reactor(),
+		deck = DeckBuilder.build().size(),
+		weight = int(Run.hull.weight),
+		kind = GalaxyGen.type_name(Run.galaxy_kind),
+	}
+
+
+static func _median(a: Array) -> float:
+	if a.is_empty():
+		return 0.0
+	var s := a.duplicate()
+	s.sort()
+	var m := s.size() / 2
+	return float(s[m]) if s.size() % 2 == 1 else (float(s[m - 1]) + float(s[m])) * 0.5
+
+
+func _report_study() -> void:
+	var jumps: Array = []
+	var fights: Array = []
+	var earned: Array = []
+	var looted: Array = []
+	var mods: Array = []
+	var hpf: Array = []
+	var maxhp: Array = []
+	var grades := {}
+	var turns: Array = []
+	var fuel: Array = []
+	for r in st_rows:
+		fuel.append(r.fuel)
+		jumps.append(r.jumps)
+		fights.append(r.fights)
+		earned.append(r.earned)
+		looted.append(r.looted)
+		mods.append(r.mods)
+		hpf.append(float(r.hp) / float(maxi(1, r.max_hp)))
+		maxhp.append(r.max_hp)
+		grades[r.grade] = int(grades.get(r.grade, 0)) + 1
+		turns.append(r.turns)
+	print("STUDY reached core %d of %d (%.0f%%) · beat the custodian %d (%.0f%% of arrivals, %.1f%% of runs)" % [
+		st_reached, runs, 100.0 * st_reached / maxi(1, runs), st_core_wins,
+		100.0 * st_core_wins / maxi(1, st_reached), 100.0 * st_core_wins / maxi(1, runs)])
+	if st_rows.is_empty():
+		return
+	var jmin := 999
+	for j in jumps:
+		jmin = mini(jmin, int(j))
+	print("STUDY at arrival: jumps median %.1f min %d · fights median %.1f · credits earned median %.0f · parts looted median %.1f" % [
+		_median(jumps), jmin, _median(fights), _median(earned), _median(looted)])
+	print("STUDY at arrival: modules fitted median %.1f · hull %.0f%% of max (max hull median %.0f) · grades %s · custodian fight turns median %.1f" % [
+		_median(mods), 100.0 * _median(hpf), _median(maxhp), str(grades), _median(turns)])
+	var fmin := 999
+	for f in fuel:
+		fmin = mini(fmin, int(f))
+	print("STUDY at arrival: fuel in the tank median %.1f min %d" % [_median(fuel), fmin])
+
+
+## THE CUSTODIAN AGAINST A FRESH SHIP (`-- sim bossonly`): each Korvan weight
+## at grade C with its starter kit, flown straight to the core and into the
+## fight with nothing else done, `runs` times each.
+func _boss_only() -> void:
+	var weights := [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]
+	var manu: StringName = pin_manufacturer if pin_manufacturer != &"" else &"korvan"
+	print("BOSSONLY: %s, grade C, starter kit, %d fights a weight" % [manu, runs])
+	for w in weights:
+		var won := 0
+		var t_all := 0
+		var hp_left := 0
+		var boss_left := 0
+		var boss_left_n := 0
+		var hp0 := 0
+		for i in runs:
+			Rng.forced = (seed_base if seed_base != 0 else 4242) + i
+			Run.start_new_run(manu, int(w))
+			hp0 = Run.max_hp()
+			for raw in Run.map:
+				if (raw as MapGen.MapNode).type == MapGen.NodeType.CORE:
+					Run.at = (raw as MapGen.MapNode).index
+			var cb := Combat.new()
+			cb.clears_node = true
+			cb.start(DB.enemies[&"custodian"], Run.node_at().danger, [])
+			t_all += _play_out(cb)
+			if not (cb.result == &"won" or cb.result == &"victory"):
+				var left := 0
+				for e in cb.enemies:
+					left += maxi(0, (e as Combat.EnemyState).hp)
+				boss_left += left
+				boss_left_n += 1
+			else:
+				won += 1
+				hp_left += Run.hp
+		print("  %-8s max hull %3d · reactor %d · won %3d of %d (%.0f%%) · %.1f turns · hull left when won %.0f · custodian hull left when lost %.0f" % [
+			["light", "medium", "heavy"][int(w)], hp0, Run.reactor(), won, runs, 100.0 * won / maxi(1, runs),
+			float(t_all) / maxi(1, runs), float(hp_left) / maxi(1, won),
+			float(boss_left) / maxi(1, boss_left_n)])
 
 
 ## Win rate and how each run ended, by the manufacturer it launched as; then
