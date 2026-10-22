@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fixed** — in a system where the Hellbender is anchored, the SECTOR tab, Tab and LOCAL's
+  button to the map now open the system map. Before, they all sent you back to LOCAL, so the
+  only way off LOCAL was the STARCHART. This was worst after a fight with it: if you broke
+  contact, or it ran on its escape burn and came straight back into your system, SECTOR and
+  LOCAL stopped working for as long as you stayed. The map is also the way to the Hellbender's
+  own place, where you fight it. Its escape burn now always takes it out of the system it ran from.
+
 ### Roadmap
 
 The next build is **0.4.0-alpha.1**, with the fixes from the first outside playtest. See
