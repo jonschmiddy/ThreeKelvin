@@ -407,6 +407,9 @@ func _on_run_started() -> void:
 	# by system index too): the last run's drew its subject at the edge of this
 	# run's system of the same number, an option of another event entirely
 	LocalEventDrawer.last = []
+	# (and where the map flew it, which LOCAL arrived at and which station is
+	# lit: the last run's, by the same numbers)
+	SectorScreen.forget_places()
 
 ## A run starts by choosing a chassis, then opens on the sector rather than the
 ## chart: your ship in open space, not a graph of places you have not been yet.
@@ -756,6 +759,9 @@ func show_local() -> void:
 		# screen -- Jon: "You are already in the sector." Setting the latch here
 		# says what is true, that this system has been arrived at.
 		SectorScreen._approached_at = Run.at
+		# (and not at the station either: LOCAL's fly-in is for a place flown
+		# to on the map, and the undock is this one's arrival)
+		SectorScreen.arrived_here()
 	docked = false
 	Audio.music_state(&"sector")
 	# (built ahead, at the click, while the map moved: shown as it is)
@@ -1002,6 +1008,9 @@ func _on_jumped(_index: int) -> void:
 	# at: kept, the edge of a system flown back into drew its subject, as no
 	# record of where the ship is reads as being at every event, `here_now`)
 	LocalEventDrawer.last = []
+	# (a jump in is not a flight on the map, and the station it finds is asleep:
+	# LOCAL's fly-in and the station's wake are a visit's, `SectorScreen`)
+	SectorScreen.forget_places(_index)
 	# ...BUT AT A STATION, AT THE STATION (Jon, Oct 18, "arrive:B"): a jump into
 	# a system with a station brings the ship in alongside it, so DOCK is there
 	# on arrival and LOCAL has the station's side; a jump anywhere else arrives

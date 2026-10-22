@@ -344,6 +344,22 @@ ones the game already has a fitting file for, and spends nothing.
   runs its limits, suppression and pick and writes the result down
   (`_dry_play`), so `-- sheet=SoundMomentTest` checks every row against the
   picture's own moment, frame for frame.
+* **The station powering on is heard** (Jon, Oct 21: "Can we also get some
+  sounds for when the station turns on?"), built from sounds already here,
+  nothing generated. Each bank of lamps (the door, the side's own lamps, the
+  guide lights) plays `lab_outpost_lamp` at 0.85 pitch, -6 dB, as its first
+  lamp lights: a 1 s thunk with 79% of its energy under 300 Hz. It plays with
+  `lab_outpost_flicker` at +2 dB, a 0.48 s buzz, through the bank's stutter.
+  The warning lights going green play `lab_outpost_status` at -2 dB.
+  `lab_city_relay_click` was passed over: six high clicks over 1.5 s that
+  would not land on one bank. The sounds are played from `StationFace`'s own
+  `power` and `warn` as they are set (`_power_heard`), so the dock's POWER step
+  and LOCAL's wake are heard alike, each on the frame it is seen. Nothing plays
+  for a station already lit, an undock, a press that ends it, or reduced
+  motion. Levels: the clunk's loudest 100 ms comes out near -22 dBFS, against
+  the dock's entry burn at -21.6, the arrival's flameout at -10 to -18, the
+  clamps at -8.6 and the idle bed at -39.5. The constants are
+  `StationFace.POWER_*`; `-- sheet=LadderTest` checks the frames.
 
 ## Sizes
 

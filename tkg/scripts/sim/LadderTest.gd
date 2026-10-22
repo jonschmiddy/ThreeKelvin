@@ -100,6 +100,10 @@ func _go(label: String, call: Callable, want: Script) -> void:
 ## and only then does the elevator slide back in.
 func _hull_flies_in(dock_b: Button) -> void:
 	var loc0 := Router.current as SectorScreen
+	# (into a SLEEPING station, as the map's DOCK finds one: LOCAL wakes it as
+	# it comes up now, Jon, Oct 21, "station:BC" -- into one awake, `_dock_lit`)
+	if loc0 != null:
+		loc0.station_asleep()
 	dock_b.pressed.emit()
 	var xs: Array[float] = []
 	var rail_out := true
@@ -1624,6 +1628,239 @@ func _ship_on_plate(lc: SectorScreen) -> Rect2:
 	return Rect2(a, b - a).abs()
 
 
+## LOCAL'S OWN ARRIVAL IS THE FIRST LOCAL'S (Jon, Oct 21, "station:BC"): on
+## LOCAL at the station, the fly-in (`SectorScreen._begin_flyin`) stepped to
+## every 1/30 s from its start, laid over the first LOCAL's arrival after its
+## name card: your ship in the same place, at the same size, shown alike, with
+## the same flame on every flameout row, on every frame it is arriving -- and
+## no name card.
+func _flyin_is_first_locals() -> void:
+	var loc := Router.current as SectorScreen
+	if not _ok("fly-in: on LOCAL, the first LOCAL's arrival recorded (%d frames)" % _first_rec.size(),
+			loc != null and not _first_rec.is_empty()):
+		return
+	# (the first LOCAL's arrival recorded again on this very LOCAL, so the two
+	# are laid over on one layout)
+	await _first_locals()
+	var art := loc._view.ship_view()
+	var n0 := SectorScreen.flyins
+	loc._begin_flyin()
+	_ok("fly-in: begun as an arrival, with no name card", SectorScreen.flyins == n0 + 1 and loc._card == null
+		and loc._phase == SectorScreen.Phase.ARRIVE and loc._flyin)
+	art.arrive_driven = true
+	var bad := 0
+	var seen := 0
+	var at := ""
+	for k in _first_rec.size():
+		var f: Array = _first_rec[k]
+		if not bool(f[5]):
+			continue
+		var t := float(k) / 30.0
+		var thr: Array = []
+		var rec: Array = []
+		for row in ShipView.FLAMEOUTS.size():
+			art._flameout = row
+			art.arrive_step(t)
+			thr.append(art._thrust_now())
+			if rec.is_empty():
+				rec = [art.position, art.scale, art.get_global_rect(), art.is_visible_in_tree()]
+		seen += 1
+		var same: bool = f[0] == rec[0] and f[1] == rec[1] and (f[2] as Rect2).position.x == (rec[2] as Rect2).position.x \
+			and bool(f[4]) == bool(rec[3]) and str(f[6]) == str(thr)
+		if not same:
+			bad += 1
+			if at == "":
+				at = "frame %d: %s %s thrust %s (the first LOCAL's %s %s %s)" % [k, rec[0], rec[1], thr, f[0], f[1], f[6]]
+	_ok("fly-in IS THE FIRST LOCAL'S ARRIVAL: the same place, size and flame on all %d of its arriving frames (%d differ%s)" % [
+		seen, bad, "; first " + at if at != "" else ""], seen > 30 and bad == 0)
+	if loc._cine != null and loc._cine.is_valid():
+		loc._cine.kill()
+	loc._phase = SectorScreen.Phase.NONE
+	loc._flyin = false
+	loc._open_drawer(true)
+	art.park()
+	art.refresh()
+	await _frames(3)
+
+
+## The power-on's sounds on the tape since frame `f0`: name -> [frames].
+func _power_tape(f0: int) -> Dictionary:
+	var out := {}
+	for tp: Array in Audio.tape:
+		var nm := StringName(tp[6])
+		if nm in StationFace.power_sounds() and int(tp[5]) >= f0:
+			out[nm] = (out.get(nm, []) as Array) + [int(tp[5])]
+	return out
+
+
+## The frames each bank came on and the warning lights went green, from samples
+## [frame the face was set on, power, warn].
+func _power_seen(banks: Array, seen: Array) -> Dictionary:
+	var on: Array = []
+	for at: float in banks:
+		for s: Array in seen:
+			if float(s[1]) > at:
+				on.append(int(s[0]))
+				break
+	var green: Array = []
+	var was := 0.0
+	for s: Array in seen:
+		if was < 2.0 and float(s[2]) >= 2.0 and float(s[2]) < 3.0:
+			green.append(int(s[0]))
+		was = float(s[2])
+	on.sort()
+	return {"on": on, "green": green}
+
+
+func _sorted(a: Array) -> Array:
+	var b := a.duplicate()
+	b.sort()
+	return b
+
+
+## THE STATION WAKES ON LOCAL, HEARD (Jon, Oct 21: "Can we also get some sounds
+## for when the station turns on?"): asleep, then woken as LOCAL wakes it
+## (`SectorScreen._wake`), each frame's lights as set and the tape under them --
+## a clunk and a buzz on the frame each bank's first lamp lights, the chime on
+## the frame the warning lights go green, and lit and green-then-gone at the
+## end, lit for this visit. `press`: a key mid-wake lights it all at once, hushes
+## what was in the air, and nothing more is heard.
+func _wake_heard(press: bool) -> void:
+	var what := "wake%s" % (", a key mid-wake" if press else "")
+	var loc := Router.current as SectorScreen
+	if not _ok("%s: on LOCAL by the station's side" % what, loc != null and loc._face != null):
+		return
+	loc.station_asleep()
+	await _frames(2)
+	Audio.taping = true
+	Audio.tape.clear()
+	Audio.hushed.clear()
+	var f0 := Engine.get_process_frames()
+	loc._wake()
+	var seen: Array = []
+	var pressed := -1
+	for i in 300:
+		await _tree.process_frame
+		# (as set the frame before: this signal comes ahead of every _process)
+		seen.append([Engine.get_process_frames() - 1, loc._face.power, loc._face.warn])
+		if press and pressed < 0 and loc._face.power > 0.3:
+			for down in [true, false]:
+				var k := InputEventKey.new()
+				k.keycode = KEY_SPACE
+				k.physical_keycode = KEY_SPACE
+				k.pressed = down
+				Input.parse_input_event(k)
+			pressed = Engine.get_process_frames()
+		if loc._wake_t < 0.0:
+			break
+	await _frames(2)
+	Audio.taping = false
+	var heard := _power_tape(f0)
+	var lit := loc._face.power >= 0.999 and loc._face_front.power >= 0.999 and loc._face.warn == 0.0
+	if not press:
+		var want := _power_seen(loc._face.banks(), seen)
+		_ok("%s: a clunk on the frame each bank of lamps comes on (%s; banks lit on %s)" % [what, heard.get(StationFace.POWER_CLUNK, []), want.on],
+			_sorted(heard.get(StationFace.POWER_CLUNK, [])) == want.on and not (want.on as Array).is_empty())
+		_ok("%s: a buzz with each (%s)" % [what, heard.get(StationFace.POWER_FLICKER, [])],
+			_sorted(heard.get(StationFace.POWER_FLICKER, [])) == want.on)
+		_ok("%s: the chime on the frame the warning lights go green (%s; green on %s)" % [what, heard.get(StationFace.POWER_CHIME, []), want.green],
+			heard.get(StationFace.POWER_CHIME, []) == want.green and (want.green as Array).size() == 1)
+		_ok("%s: lit at the end (%.2f / %.2f), the warning lights gone (%.1f), lit for this visit (%s), over (%.2f s)" % [what, loc._face.power,
+			loc._face_front.power, loc._face.warn, SectorScreen._station_lit(Run.node_at()), loc._wake_t],
+			lit and SectorScreen._station_lit(Run.node_at()))
+	else:
+		var late := 0
+		for nm: StringName in heard:
+			for fr: int in heard[nm]:
+				if fr > pressed:
+					late += 1
+		var hushed := false
+		for h: Array in Audio.hushed:
+			if StationFace.POWER_CLUNK in (h[0] as Array):
+				hushed = true
+		_ok("%s: lit at once (power %.2f), what was in the air hushed (%s), nothing heard after (%d)" % [what, loc._face.power, hushed, late],
+			pressed >= 0 and lit and hushed and late == 0)
+
+
+## THE DOCK'S POWER-ON, HEARD: LOCAL's DOCK into a sleeping station, its POWER
+## step frame by frame, the tape under it: a clunk and a buzz on the frame each
+## bank comes on, the chime on the green.
+func _dock_heard() -> void:
+	var loc := Router.current as SectorScreen
+	var dock_b: Button = loc.find_child("Dock", true, false) as Button if loc != null else null
+	if not _ok("dock heard: DOCK on LOCAL at the station", dock_b != null and loc._face != null):
+		return
+	loc.station_asleep()
+	await _frames(2)
+	Audio.taping = true
+	Audio.tape.clear()
+	var f0 := Engine.get_process_frames()
+	var face: StationFace = loc._face
+	var banks := face.banks()
+	dock_b.pressed.emit()
+	var seen: Array = []
+	for i in 900:
+		await _tree.process_frame
+		if is_instance_valid(face) and face.is_inside_tree():
+			seen.append([Engine.get_process_frames() - 1, face.power, face.warn])
+		if Router.current is StationScreen and not ZoomLadder.busy() and ZoomLadder.chain == &"":
+			break
+	Audio.taping = false
+	var heard := _power_tape(f0)
+	var want := _power_seen(banks, seen)
+	_ok("dock heard: a clunk on the frame each bank comes on (%s; banks lit on %s)" % [heard.get(StationFace.POWER_CLUNK, []), want.on],
+		_sorted(heard.get(StationFace.POWER_CLUNK, [])) == want.on and not (want.on as Array).is_empty())
+	_ok("dock heard: a buzz with each (%s)" % [heard.get(StationFace.POWER_FLICKER, [])],
+		_sorted(heard.get(StationFace.POWER_FLICKER, [])) == want.on)
+	_ok("dock heard: the chime on the green (%s; green on %s)" % [heard.get(StationFace.POWER_CHIME, []), want.green],
+		heard.get(StationFace.POWER_CHIME, []) == want.green and (want.green as Array).size() == 1)
+	_ok("dock heard: docked", Router.current is StationScreen and Router.docked)
+	Router.show_sector()
+	await _idle()
+	await _frames(4)
+
+
+## LOCAL'S DOCK INTO A STATION ALREADY AWAKE (woken on LOCAL, or left lit by an
+## undock): lit on every frame of the dock, its power-on not played again and
+## nothing of it heard; docked. Then UNDOCK, and the station's place counted as
+## flown to: no fly-in on the LOCAL it lands on (the undock is its arrival).
+func _dock_lit() -> void:
+	var loc := Router.current as SectorScreen
+	var dock_b: Button = loc.find_child("Dock", true, false) as Button if loc != null else null
+	if not _ok("dock lit: DOCK on LOCAL at the station", dock_b != null and loc._face != null):
+		return
+	loc.station_awake()
+	await _frames(2)
+	Audio.taping = true
+	Audio.tape.clear()
+	var f0 := Engine.get_process_frames()
+	var face: StationFace = loc._face
+	var low := 1.0
+	dock_b.pressed.emit()
+	for i in 900:
+		await _tree.process_frame
+		if is_instance_valid(face) and face.is_inside_tree() and Router.current == loc:
+			low = minf(low, face.power)
+		if Router.current is StationScreen and not ZoomLadder.busy() and ZoomLadder.chain == &"":
+			break
+	Audio.taping = false
+	var heard := _power_tape(f0)
+	_ok("dock lit: the station lit on every frame (at least %.2f), nothing of a power-on heard (%s), docked" % [low, heard],
+		low >= 0.999 and heard.is_empty() and Router.current is StationScreen and Router.docked)
+	# (flown to, as far as LOCAL knows: the undock still plays no fly-in)
+	var st := Run.node_at()
+	SystemMapScreen.flights += 1
+	SystemMapScreen.flown_to[st.index] = {"at": SystemLayout.of(st).dock_place(), "n": SystemMapScreen.flights}
+	var n0 := SectorScreen.flyins
+	Router.show_sector()
+	await _idle()
+	await _frames(30)
+	var lu := Router.current as SectorScreen
+	_ok("undock: no fly-in on the LOCAL it lands on (%d), the station lit" % (SectorScreen.flyins - n0),
+		lu != null and SectorScreen.flyins == n0 and not lu._flyin and lu._face != null and lu._face.power >= 0.999)
+	SystemMapScreen.flown_to.erase(st.index)
+
+
 func _run() -> void:
 	_tree = get_tree()
 	await _tree.process_frame
@@ -2016,6 +2253,13 @@ func _run() -> void:
 			_station_rects["LOCAL's DOCK"] = _station_layout(await _station_settled())
 			_arrival_is_first_locals()
 			await _hull_flies_out()
+			# LOCAL'S OWN ARRIVAL, THE STATION'S WAKE AND ITS SOUND (Jon, Oct 21,
+			# "station:BC")
+			await _flyin_is_first_locals()
+			await _wake_heard(false)
+			await _wake_heard(true)
+			await _dock_heard()
+			await _dock_lit()
 			loc = Router.current as SectorScreen
 			dock_b = loc.find_child("Dock", true, false) as Button if loc != null else null
 			if dock_b != null:

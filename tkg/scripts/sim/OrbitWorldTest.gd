@@ -274,6 +274,116 @@ func _scene_check(what: String, sc: SectorScreen) -> void:
 			face == at and Router.at_station(n) == at and (pic == &"station") == at)
 		if bar.contains("SEE SECTOR"):
 			_ok("%s: the bar says \"%s\"" % [what, bar], bar.begins_with("A STATION HERE") == at)
+	# THE BAR COUNTS THIS PLACE (Jon, Oct 21, "bar:here"): the events not yet
+	# taken where the ship is, or nothing here; never the whole system's
+	if n.type == MapGen.NodeType.SYSTEM:
+		var left := 0
+		for i: int in here:
+			if not OptionTable.by_id(n.options[i]).is_empty() and not n.taken.has(MapGen.OPTION_SITE + i):
+				left += 1
+		var line := _bar_line(sc)
+		if line.contains("SEE SECTOR"):
+			var want := ("%d THING%s HERE" % [left, "" if left == 1 else "S"]) if left > 0 else "NOTHING ELSE HERE"
+			_ok("%s: the bar counts this place: \"%s\" (%d here, %d in the system)" % [what, line, left, EncounterDrawer.untaken(n).size()],
+				line.begins_with(want))
+
+
+## A KEY PARKS IT, AND IT IS NOT PLAYED AGAIN: LOCAL's own arrival under way,
+## a key -- your ship parked at its mooring at once, shown, the bar up -- then
+## the map and LOCAL again with the ship where it was: no fly-in.
+func _flyin_again(sd: int, label: String) -> void:
+	var sc := Router.current as SectorScreen
+	if not _ok("seed %d %s: LOCAL's own arrival under way for the key (%s)" % [sd, label, sc._phase if sc != null else -1],
+			sc != null and sc._flyin and sc._phase == SectorScreen.Phase.ARRIVE):
+		return
+	for down in [true, false]:
+		var k := InputEventKey.new()
+		k.keycode = KEY_SPACE
+		k.physical_keycode = KEY_SPACE
+		k.pressed = down
+		Input.parse_input_event(k)
+	await _frames(3)
+	var art := sc._view.ship_view()
+	_ok("seed %d %s: a key parks it at once (phase %d, arriving %s, shown %s)" % [sd, label, sc._phase, art.arriving(), art.visible],
+		sc._phase == SectorScreen.Phase.NONE and not sc._flyin and not art.arriving() and art.visible)
+	var fi0 := SectorScreen.flyins
+	await _tab()
+	if not (Router.current is SystemMapScreen):
+		Router.show_system()
+		await _idle()
+	await _here_tab()
+	await _frames(30)
+	sc = Router.current as SectorScreen
+	_ok("seed %d %s: LOCAL again, no flight between: parked, no fly-in (%d)" % [sd, label, SectorScreen.flyins - fi0],
+		sc != null and SectorScreen.flyins == fi0 and not sc._flyin and sc._view.ship_view().visible)
+
+
+## AT THE STATION, AWAKE, AND DOCK STILL DOCKS: LOCAL by the station's side
+## once its arrival and the station's wake are over -- lit, the warning lights
+## gone -- then DOCK into the berth, and UNDOCK back.
+func _station_dock(sd: int) -> void:
+	var sc := Router.current as SectorScreen
+	if sc == null or sc._face == null:
+		print("  (not at the station for the dock)")
+		return
+	for i in 900:
+		if not sc._flyin and sc._wake_t < 0.0 and not sc._wake_owed and sc._phase == SectorScreen.Phase.NONE:
+			break
+		await _tree.process_frame
+	_ok("seed %d station: woken by the time your ship has settled -- lit (%.2f), the warning lights gone, lit for this visit" % [sd, sc._face.power],
+		sc._face.power >= 0.999 and sc._face.warn == 0.0 and SectorScreen._station_lit(Run.node_at()))
+	var dock_b: Button = sc.find_child("Dock", true, false) as Button
+	if not _ok("seed %d station: DOCK on the bar" % sd, dock_b != null):
+		return
+	dock_b.pressed.emit()
+	for i in 1200:
+		await _tree.process_frame
+		if Router.current is StationScreen and not ZoomLadder.busy() and ZoomLadder.chain == &"":
+			break
+	_ok("seed %d station: DOCK docks" % sd, Router.current is StationScreen and Router.docked)
+	Router.show_sector()
+	await _idle()
+	await _frames(10)
+	_ok("seed %d station: UNDOCK back on LOCAL" % sd, Router.current is SectorScreen and not Router.docked)
+
+
+## THE BAR WHERE THERE IS SOMETHING (`_scene_check` sees the rest): LOCAL at a
+## world with an event not yet taken and no event opened, "N THING(S) HERE", N
+## that world's alone; then put back.
+func _bar_here(sd: int, label: String) -> void:
+	var n := Run.node_at()
+	var L := SystemLayout.of(n)
+	if n.type != MapGen.NodeType.SYSTEM:
+		return
+	var at := -9
+	for i: int in EncounterDrawer.untaken(n):
+		if L.place_of(i) >= -1:
+			at = L.place_of(i)
+			break
+	if at < -1:
+		return
+	var kept: Dictionary = SystemMapScreen._parked.get(n.index, {})
+	var last := LocalEventDrawer.last
+	LocalEventDrawer.last = []
+	SystemMapScreen._parked[n.index] = {"at": at, "mode": &"rail"}
+	Router.show_local()
+	await _idle()
+	await _frames(4)
+	var sc := Router.current as SectorScreen
+	var here := 0
+	for i: int in EncounterDrawer.untaken(n):
+		if L.place_of(i) == at:
+			here += 1
+	var line := _bar_line(sc) if sc != null else ""
+	_ok("seed %d %s: the bar at a place with %d of the system's %d: \"%s\"" % [sd, label, here, EncounterDrawer.untaken(n).size(), line],
+		here > 0 and line.begins_with("%d THING%s HERE" % [here, "" if here == 1 else "S"]))
+	LocalEventDrawer.last = last
+	if kept.is_empty():
+		SystemMapScreen._parked.erase(n.index)
+	else:
+		SystemMapScreen._parked[n.index] = kept
+	Router.show_local()
+	await _idle()
 
 
 ## The line along LOCAL's bottom bar.
@@ -349,6 +459,7 @@ func _station_burn(sd: int) -> void:
 	if not _ok("seed %d station burn: caught the ship burning onto the station's orbit" % sd, seen):
 		return
 	_label = "s%d_station_burn" % sd
+	var fi0 := SectorScreen.flyins
 	_here_tab.call()
 	for i in 600:
 		await _tree.process_frame
@@ -361,6 +472,10 @@ func _station_burn(sd: int) -> void:
 		if _shots != "":
 			await _shot("rest")
 		_scene_check("seed %d station burn" % sd, sc)
+		# (pressed as it burns in, it is arriving: LOCAL's own arrival plays,
+		# and the station wakes once it has settled)
+		_ok("seed %d station burn: LOCAL's own arrival plays (%d), the station's wake owed to it" % [sd, SectorScreen.flyins - fi0],
+			SectorScreen.flyins == fi0 + 1 and (sc._wake_owed or sc._wake_t >= 0.0 or sc._face.power >= 0.999))
 
 
 func _disc_hits(info: Dictionary, r: Rect2) -> bool:
@@ -450,6 +565,7 @@ func _tour(sd: int, label: String) -> void:
 	print("  %s: system %d (%s), worlds %s" % [label, n.index, MapGen.star_name(n), ws])
 	var doors := ["hud", "tab", "go"]
 	var resolved := false
+	var skipped := false
 	var k := 0
 	var L := SystemLayout.of(n)
 	for b: int in ws:
@@ -472,6 +588,8 @@ func _tour(sd: int, label: String) -> void:
 			door = "go"
 		elif door == "go":
 			door = "hud"
+		var f0 := int((SystemMapScreen.flown_to.get(n.index, {}) as Dictionary).get("n", -1))
+		var fi0 := SectorScreen.flyins
 		if door == "go":
 			for i in 600:
 				if m.flight != null and m.flight.can_fly():
@@ -497,6 +615,18 @@ func _tour(sd: int, label: String) -> void:
 				await _tab()
 			await _frames(4)
 		await _check("seed %d %s: %s %s by %s" % [sd, label, L.bodies[b].kind, L.bodies[b].world, door])
+		# LOCAL'S OWN ARRIVAL (Jon, Oct 21, "station:BC"): the first LOCAL at a
+		# world the map flew the ship to flies it in, with no name card; GO's
+		# LOCAL opens its event instead
+		var flew := int((SystemMapScreen.flown_to.get(n.index, {}) as Dictionary).get("n", -1)) != f0
+		var sc := Router.current as SectorScreen
+		var want_in := flew and door != "go"
+		_ok("seed %d %s: %s by %s: LOCAL's own arrival %s (%d; flown %s), no name card" % [sd, label, L.bodies[b].world, door,
+			"plays" if want_in else "does not play", SectorScreen.flyins - fi0, flew],
+			SectorScreen.flyins - fi0 == (1 if want_in else 0) and sc != null and sc._card == null)
+		if want_in and not skipped:
+			skipped = true
+			await _flyin_again(sd, label)
 		_filming = ""
 		LocalEventDrawer.quiet = false
 		# (once a tour: the event GO opened, taken, its subject still there)
@@ -680,10 +810,13 @@ func _run() -> void:
 		SystemMapScreen._parked.clear()
 		# LAUNCHED: a new run opens on LOCAL (`show_chassis_select`'s launched)
 		_label = "s%d_launch" % sd
+		var fl0 := SectorScreen.flyins
 		Router.show_local()
 		await _idle()
 		await _frames(6)
 		await _check("seed %d start: launch" % sd)
+		# (the first system has its own arrival, never LOCAL's fly-in)
+		_ok("seed %d start: no fly-in at the launch (%d)" % [sd, SectorScreen.flyins - fl0], SectorScreen.flyins == fl0)
 		await _tour(sd, "start")
 		# a jump on, and the station's system
 		for station in [false, true]:
@@ -693,16 +826,22 @@ func _run() -> void:
 				print("  (no %s in reach)" % ("station" if station else "system"))
 				continue
 			_label = "s%d_%s_arrival" % [sd, "station" if station else "jump"]
+			var fj0 := SectorScreen.flyins
 			if not _ok("seed %d: jumped to %d" % [sd, to], await _jump_to(to)):
 				continue
 			var label := "station" if station else "jump"
 			_label = "s%d_%s_arrival" % [sd, label]
 			await _arrival(sd, label)
+			# (a jump's arrival is the map's: no fly-in on the LOCAL after it)
+			_ok("seed %d %s: no fly-in after the jump (%d)" % [sd, label, SectorScreen.flyins - fj0], SectorScreen.flyins == fj0)
+			if not station:
+				await _bar_here(sd, label)
 			await _tour(sd, label)
 			await _early(sd, label, "phase")
 			await _early(sd, label, "insert")
 			if station:
 				await _station_burn(sd)
+				await _station_dock(sd)
 		await _reload(sd)
 		if _quick:
 			break

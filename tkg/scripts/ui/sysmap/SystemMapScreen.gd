@@ -69,6 +69,14 @@ const KEY := [[&"fight", "FIGHT"], [&"hazard", "HAZARD"], [&"salvage", "SALVAGE"
 ## orbit where you were, LOCAL included. Per player and local: it is not on the
 ## wire, as nobody else's map draws your ship in a system.
 static var _parked := {}
+## WHERE THE MAP LAST FLEW THE SHIP, by system: {at: the body (-1 the star),
+## n: which flight}, written as the ship turns onto an orbit by its own flight
+## (FLY HERE, GO, the keys), never as a visit puts it back where it was or a
+## jump brings it in. LOCAL plays its own arrival once a flight
+## (`SectorScreen._flyin_due`, Jon, Oct 21: "station:BC").
+static var flown_to := {}
+## the flights counted, this run (each flight's `n`)
+static var flights := 0
 ## LOCATION is held for the session, across screens and systems, like the
 ## chart's LOCAL REGION: on, every arrival zooms onto your ship.
 static var _location_on := false
@@ -132,6 +140,9 @@ var _arrows := Vector2.ZERO
 var _pan_v := Vector2.ZERO
 ## What the ship was in orbit of last frame, so the panel follows a change.
 var _was_at := -9
+## What the ship was on or turning onto last frame (`_orbit_now`): a change to
+## a place is a flight (`flown_to`).
+var _flown_ob := -9
 ## What LOCATION is holding: the ship, or the world it orbits.
 var _follow_key := ""
 ## The zoom that shows the whole system, worked out for its edge and the frame.
@@ -352,6 +363,8 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 		flight.place_at(view.layout.dock_place(), t0)
 	overlay.flight = flight
 	_was_at = flight.reached()
+	# (put back or brought in, not flown: `flown_to` is written by a flight)
+	_flown_ob = flight.orbit_body()
 	# THE WEATHER sees the ship, the labels and the panel; a fresh warp-in pushes
 	# a ring into the dust round the ship as the streak ends
 	if view._weather != null:
@@ -540,6 +553,14 @@ func _step_ship(delta: float) -> void:
 	var level: float = flight.step(delta, view.t, keys)
 	flight.predict(view.t, keys)
 	Audio.ship_thrust(level)
+	# A FLIGHT ONTO AN ORBIT, from the moment it turns onto it (burning in), as
+	# LOCAL already counts the ship there (`ship_place`)
+	var ob: int = flight.orbit_body()
+	if ob != _flown_ob:
+		_flown_ob = ob
+		if ob >= -1 and view.node != null:
+			flights += 1
+			flown_to[view.node.index] = {"at": ob, "n": flights}
 	# THE FLIGHT A SECOND CLICK WOULD FLY, drawn before you fly it
 	overlay.preview_to = overlay.selected if overlay.selected >= -1 else -9
 	# WHETHER A FLIGHT CAN START changed (settled into an orbit, or left one):

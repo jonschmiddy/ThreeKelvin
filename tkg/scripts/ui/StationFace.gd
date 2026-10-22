@@ -130,6 +130,28 @@ const FLICKER := 0.21
 ## where the other sides' lamps come on outward from (plate px): the hallway
 const ON_FROM := Vector2(160, 269)
 
+## THE POWER-ON, HEARD (Jon, Oct 21: "Can we also get some sounds for when the
+## station turns on?"), out of the game's own sounds, nothing generated. Each
+## bank of lamps (the door, the side's own lamps, the guide lights) clunks on
+## as its first lamp lights -- a breaker, the outpost's lamp a step down -- and
+## buzzes through its stutter (`FLICKER`); the warning lights going green
+## chime. On the frame each is seen, from `power` and `warn` as they are set,
+## so the dock's POWER step and LOCAL's wake are heard alike. Levels against
+## their neighbours: the clunk's loudest tenth of a second about -22 dBFS (the
+## dock's entry burn -21.6, the arrival's flameout -10 to -18, the clamps -8.6),
+## the buzz under it near the idle bed (-39.5), the chime between.
+const POWER_CLUNK := &"lab_outpost_lamp"
+const POWER_CLUNK_DB := -6.0
+const POWER_CLUNK_PITCH := 0.85
+const POWER_FLICKER := &"lab_outpost_flicker"
+const POWER_FLICKER_DB := 2.0
+const POWER_FLICKER_PITCH := 1.0
+const POWER_CHIME := &"lab_outpost_status"
+const POWER_CHIME_DB := -2.0
+const POWER_CHIME_PITCH := 1.0
+## each bank a little different, as three breakers would be
+const POWER_PITCH_VAR := 0.04
+
 ## THE PARALLAX (the other sides): a layer of parallax p is moved (1 - p) x
 ## `PAR_GAIN` of the camera's travel across the plate (its view's middle, in
 ## plate px, since it was at rest), in whole pixels, holding each step until the
@@ -152,11 +174,27 @@ var tint := Color(1, 1, 1)
 ## how far into the dock the camera is (0 at rest, 1 in the bay): the guide
 ## lights run in faster as it goes
 var dock_k := 0.0
-## the station's lights coming on to meet you, 0 (asleep) to 1 (all on)
-var power := 0.0
+## the station's lights coming on to meet you, 0 (asleep) to 1 (all on); heard
+## as it rises while `audible` (`_power_heard`)
+var power := 0.0:
+	set(v):
+		var was := power
+		power = v
+		if audible and not front and v > was:
+			_power_heard(was, v)
 ## the warning lights at the mouth: 0 off, 1 flashing (your ship waiting), 2
-## green (cleared to come in), on to 3 (gone)
-var warn := 0.0
+## green (cleared to come in), on to 3 (gone); the chime as they go green
+var warn := 0.0:
+	set(v):
+		var was := warn
+		warn = v
+		if audible and not front and was < 2.0 and v >= 2.0 and v < 3.0:
+			_heard(POWER_CHIME, POWER_CHIME_DB, POWER_CHIME_PITCH)
+## THE POWER-ON IS HEARD while this is on: set by whoever plays one (the dock's
+## POWER step, LOCAL's wake: `SectorScreen`), off for a station lit at once (an
+## undock, a station already awake, a press that ends it). The back face alone
+## speaks, so a pair is heard once.
+var audible := false
 ## the side drawn, and its interior's two pictures ([] for the side's own bay)
 var side: StationSides.SideArt = null
 var interior: Array = []
@@ -299,6 +337,39 @@ static func lamp_on(p: float, at: float) -> float:
 		return 1.0
 	# the stutter, in fifths of the flicker
 	return 1.0 if int(floorf(u * 5.0)) % 2 == 0 else 0.15
+
+
+## Where each bank's first lamp comes on, in `power`: the door, the side's own
+## lamps (when it has any that sleep), the guide lights.
+func banks() -> Array[float]:
+	var out: Array[float] = [_door_at(DOOR_SLICES - 1)]
+	if side != null:
+		var first := INF
+		for i in side.extra.size():
+			var at := _extra_at(i)
+			if at >= 0.0:
+				first = minf(first, at)
+		if first < INF:
+			out.append(first)
+	out.append(_guide_at(0, 2))
+	return out
+
+
+## Every sound the power-on plays (for a hush).
+static func power_sounds() -> Array[StringName]:
+	return [POWER_CLUNK, POWER_FLICKER, POWER_CHIME] as Array[StringName]
+
+
+## `power` risen from `was` to `now`: each bank whose first lamp lit on the way.
+func _power_heard(was: float, now: float) -> void:
+	for at: float in banks():
+		if was <= at and now > at:
+			_heard(POWER_CLUNK, POWER_CLUNK_DB, POWER_CLUNK_PITCH)
+			_heard(POWER_FLICKER, POWER_FLICKER_DB, POWER_FLICKER_PITCH)
+
+
+func _heard(name: StringName, db: float, pitch: float) -> void:
+	Audio.play(name, POWER_PITCH_VAR, 0, db, pitch)
 
 
 ## How lit one lamp is (0..1 of its full light), its turn `at`.

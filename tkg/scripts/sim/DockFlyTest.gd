@@ -96,6 +96,13 @@ func _here_tab() -> void:
 	Router.hud._tab_sector.pressed.emit()
 	await _frames(1)
 	await _idle()
+	# (LOCAL's own arrival at a place flown to, watched out as a player would:
+	# a key mid-way parks it, and is spent doing so, `SectorScreen._flyin`)
+	for i in 900:
+		await _tree.process_frame
+		var sc := Router.current as SectorScreen
+		if sc == null or (not sc._flyin and not sc._flyin_wait):
+			break
 
 
 func _count(cls: Script) -> int:

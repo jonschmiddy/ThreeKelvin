@@ -322,6 +322,7 @@ func setup(c: Combat = null) -> void:
 		# tells an ambush's screen to discard the message rather than play it.
 		if Router.animating() and not skipped:
 			_begin_arrive()
+			_station_here()
 			return
 		var art := _view.ship_view()
 		if art != null and skipped:
@@ -354,6 +355,248 @@ func setup(c: Combat = null) -> void:
 			# The ship waits out the drive's lead-in here too, or the clip's coughs
 			# would land ARRIVE_LEAD_S after the flame's.
 			Audio.play(_ship_arrives(art, 0.0), 0.0)
+	elif _flyin_due():
+		_flyin_hold()
+	# THE STATION, ASLEEP OR AWAKE (Jon, Oct 21, "station:BC")
+	_station_here()
+
+
+# ---------------------------------------------------- LOCAL's own arrival
+## AT A PLACE FLOWN TO (Jon, Oct 21, "station:BC": "In a sector with a dock, if I
+## click LOCAL the ship is just near the dock already, no animation happens"):
+## the first LOCAL at a world, the star or the station the map's ship flew to
+## plays a system's arrival -- the very call, `_ship_arrives`: off the left
+## edge on its drive, the flameout, the drift to its mooring, its bob, its clip,
+## the sky held still -- without the system's name (you are already in it).
+## Once a flight (`SystemMapScreen.flown_to`): LOCAL again there shows it
+## parked. Not after a jump (the map plays that), at a run's first system (it
+## has its own), at an undock or a dock (`arrived_here`), for an event GO opens
+## (the zoom down was the arrival), in a fight, or with reduced motion. LOCAL
+## pressed as the ship still burns onto the orbit plays it too: the ship was
+## arriving, and that is what LOCAL shows. A key or a click parks it at once.
+
+## the flight (`SystemMapScreen.flown_to` n) whose arrival LOCAL has had
+static var _flyin_seen := -1
+## fly-ins begun this session (for the harnesses)
+static var flyins := 0
+## THE STATION AWAKE while you are there: system -> the visit it woke for
+## (`_visit`), so LOCAL again shows it lit, and a later DOCK finds it lit
+static var _lit := {}
+## waiting for the move down to land before flying in (the ship off LOCAL)
+var _flyin_wait := false
+## LOCAL's own arrival under way
+var _flyin := false
+## THE WAKE ON LOCAL: seconds since it began, or -1
+var _wake_t := -1.0
+## after the fly-in (or as LOCAL comes up), the station's wake is owed
+var _wake_owed := false
+
+## THE STATION WAKES ON LOCAL as the dock wakes it: an idle beat, then its
+## lights on over the dock's own POWER step and curve (`WAKE_POWER_BY`), the
+## warning lights flashing and then green (`WARN_CLEAR`); held green a moment,
+## then gone. After your ship has settled at its mooring, as the dock's
+## ARRIVE, BEAT, POWER run: the station answering the ship that came alongside,
+## and the flameout and the breakers never over each other.
+const WAKE_BEAT_S := ZoomLadder.DOCK_BEAT_S
+const WAKE_S := ZoomLadder.DOCK_POWER_S
+const WAKE_GREEN_S := 0.6
+const WAKE_GREEN_OUT_S := 0.4
+
+
+## Forget where the map flew the ship, which LOCAL arrived at and which station
+## is lit: in one system (`index`, a jump in) or all (a run's start).
+static func forget_places(index: int = -1) -> void:
+	if index < 0:
+		SystemMapScreen.flown_to.clear()
+		_lit.clear()
+		_flyin_seen = -1
+		return
+	SystemMapScreen.flown_to.erase(index)
+	_lit.erase(index)
+
+
+## The visit the ship is on at its place in `n`: the map's flight that brought
+## it there, or -1 (it came in by a jump, a load, a harness).
+static func _visit(n: MapGen.MapNode) -> int:
+	if n == null:
+		return -1
+	var f: Dictionary = SystemMapScreen.flown_to.get(n.index, {})
+	if not f.is_empty() and int(f.at) == Run.site_here(n):
+		return int(f.n)
+	return -1
+
+
+## This visit's arrival is had another way (an undock, a dock): no fly-in.
+static func arrived_here() -> void:
+	var v := _visit(Run.node_at())
+	if v >= 0:
+		_flyin_seen = v
+
+
+static func _station_lit(n: MapGen.MapNode) -> bool:
+	return n != null and _lit.has(n.index) and int(_lit[n.index]) == _visit(n)
+
+
+static func _mark_lit() -> void:
+	var n := Run.node_at()
+	if n != null:
+		_lit[n.index] = _visit(n)
+
+
+## Whether this LOCAL plays its own arrival (and spends it either way).
+func _flyin_due() -> bool:
+	var n := Run.node_at()
+	if n == null or fighting() or combat != null:
+		return false
+	var v := _visit(n)
+	if v < 0 or v == _flyin_seen:
+		return false
+	_flyin_seen = v
+	# (the map's DOCK: the dock's own arrival is this visit's)
+	if _dock_hidden or Router.docked:
+		return false
+	if _events != null and (not _events.deferred.is_empty() or _events.page != &""):
+		return false
+	return Router.animating() and _view.ship_view() != null
+
+
+## Off LOCAL until the move down has landed, then in (`_begin_flyin`).
+func _flyin_hold() -> void:
+	_flyin_wait = true
+	var art := _view.ship_view()
+	if art != null:
+		art.visible = false
+	_shut_drawer()
+	_when_up(_begin_flyin)
+
+
+## `cb` once this LOCAL is the screen up and no move is under way.
+func _when_up(cb: Callable) -> void:
+	for i in 1800:
+		await get_tree().process_frame
+		if not is_inside_tree():
+			return
+		if Router.current == self and not ZoomLadder.busy():
+			break
+	if is_inside_tree():
+		cb.call()
+
+
+func _begin_flyin() -> void:
+	_flyin_wait = false
+	var art := _view.ship_view()
+	if art == null or fighting() or _phase != Phase.NONE:
+		if art != null:
+			art.visible = true
+		_open_drawer(true)
+		return
+	_phase = Phase.ARRIVE
+	_flyin = true
+	flyins += 1
+	_cine_sfx.clear()
+	_shut_drawer()
+	# (seen: `arrive` keeps it off LOCAL until it is off the left edge)
+	art.visible = true
+	var clip := _ship_arrives(art, 0.0)
+	_cine_sfx.append(clip)
+	Audio.play(clip, 0.0)
+	_cine = create_tween()
+	_cine.tween_interval(ShipView.ARRIVE_LEAD_S + ShipView.ARRIVE_MS / 1000.0 * DRAWER_AT)
+	_cine.tween_callback(_arrival_drawer)
+	_cine.tween_interval(ShipView.ARRIVE_MS / 1000.0 * (1.0 - DRAWER_AT))
+	_cine.tween_callback(_flyin_end)
+
+
+func _flyin_end() -> void:
+	_phase = Phase.NONE
+	_flyin = false
+	if _wake_owed:
+		_wake_owed = false
+		_wake()
+
+
+## The station's side as this visit has it: lit if it woke (or an undock left
+## it lit), else woken now -- after the fly-in if there is one, else once LOCAL
+## is up. A dock coming (the map's DOCK) wakes it itself.
+func _station_here() -> void:
+	if _face == null or not is_instance_valid(_face):
+		return
+	var n := Run.node_at()
+	if _station_lit(n):
+		_face_set(1.0, 0.0, false)
+		return
+	if _dock_hidden or Router.docked or fighting():
+		return
+	if _flyin_wait or _flyin or _phase == Phase.ARRIVE:
+		_wake_owed = true
+		return
+	_when_up(_wake)
+
+
+func _face_set(pw: float, warn: float, heard: bool) -> void:
+	for f: StationFace in [_face, _face_front]:
+		if f != null and is_instance_valid(f):
+			f.audible = heard
+			f.power = pw
+			f.warn = warn
+
+
+func _wake() -> void:
+	if _face == null or not is_instance_valid(_face) or fighting() or not _lad.is_empty():
+		return
+	var n := Run.node_at()
+	if _station_lit(n):
+		return
+	_mark_lit()
+	# (reduced motion: awake at once, and nothing heard)
+	if not Router.animating():
+		_face_set(1.0, 0.0, false)
+		return
+	_wake_t = 0.0
+
+
+## The wake a frame on, on the same curve and clock the dock's POWER step uses.
+func _wake_step(delta: float) -> void:
+	if _face == null or not is_instance_valid(_face) or not _lad.is_empty():
+		_wake_t = -1.0
+		return
+	# (the ladder's clock, as the dock's POWER step runs on: stepped in a harness)
+	_wake_t += ZoomLadder.fixed_dt if ZoomLadder.fixed_dt > 0.0 else delta
+	var u := (_wake_t - WAKE_BEAT_S) / WAKE_S
+	var pw := clampf(u / WAKE_POWER_BY, 0.0, 1.0)
+	var warn := 0.0
+	if u > 0.0:
+		warn = 1.0 if u < WARN_CLEAR else 2.0
+	var after := _wake_t - WAKE_BEAT_S - WAKE_S - WAKE_GREEN_S
+	if after > 0.0:
+		warn = 2.0 + clampf(after / WAKE_GREEN_OUT_S, 0.0, 1.0)
+	if warn >= 3.0:
+		_wake_t = -1.0
+		_face_set(1.0, 0.0, false)
+		return
+	_face_set(pw, warn, true)
+
+
+## THE STATION PUT BACK TO SLEEP, for a harness that docks into a sleeping
+## station from LOCAL's DOCK (`-- sheet=LadderTest`), as the map's DOCK finds it.
+func station_asleep() -> void:
+	_wake_t = -1.0
+	_wake_owed = false
+	var n := Run.node_at()
+	if n != null:
+		_lit.erase(n.index)
+	_face_set(0.0, 0.0, false)
+
+
+## A key or a click mid-wake: the station lit at once, its sounds hushed.
+func _wake_finish() -> void:
+	if _wake_t < 0.0 and not _wake_owed:
+		return
+	_wake_t = -1.0
+	_wake_owed = false
+	_mark_lit()
+	_face_set(1.0, 0.0, false)
+	Audio.hush(StationFace.power_sounds())
 
 
 func fighting() -> bool:
@@ -552,7 +795,8 @@ func _begin_arrive() -> void:
 	_cine.tween_interval(ShipView.ARRIVE_LEAD_S + ShipView.ARRIVE_MS / 1000.0 * DRAWER_AT)
 	_cine.tween_callback(_arrival_drawer)
 	_cine.tween_interval(ShipView.ARRIVE_MS / 1000.0 * (1.0 - DRAWER_AT))
-	_cine.tween_callback(func() -> void: _phase = Phase.NONE)
+	# (and a station alongside wakes once the ship has settled, as on a fly-in)
+	_cine.tween_callback(_flyin_end)
 
 ## Park the drawer below the floor. Not `visible = false`: the band still has to
 ## measure, or the arena grows into it and shrinks again when it slides back.
@@ -628,6 +872,11 @@ func _skip() -> void:
 		return
 	_phase = Phase.NONE
 	_drop_card()
+	# (LOCAL's own arrival pressed through: parked, and the station it came
+	# alongside lit at once, unheard)
+	_flyin = false
+	if _wake_owed:
+		_wake_finish()
 	var art := _view.ship_view()
 	if art != null:
 		art.visible = true
@@ -1141,9 +1390,27 @@ func _drawer_simple(line: String, label: String) -> void:
 	_drawer.add_child(row)
 
 
+## WHAT IS HERE (Jon, Oct 21, "bar:here"): the events not yet taken at the place
+## the ship is (`SystemLayout.place_of`, `Run.site_here`), not the whole
+## system's -- "3 THINGS HERE" stood beside a giant with nothing at it. At the
+## edge and in open space, none.
+static func things_here(n: MapGen.MapNode) -> Array:
+	var out: Array = []
+	if n == null:
+		return out
+	var site := Run.site_here(n)
+	if site < -1:
+		return out
+	var L := SystemLayout.of(n)
+	for i: int in EncounterDrawer.untaken(n):
+		if L.place_of(i) == site:
+			out.append(i)
+	return out
+
+
 ## WHAT IS HERE, IN ONE LINE, and the sector map to see it on.
 func _drawer_here(n: MapGen.MapNode) -> void:
-	var left := EncounterDrawer.untaken(n).size() if n.type == MapGen.NodeType.SYSTEM else 0
+	var left := things_here(n).size() if n.type == MapGen.NodeType.SYSTEM else 0
 	var line := "NOTHING ELSE HERE - SEE SECTOR"
 	if n.type == MapGen.NodeType.STATION:
 		# (the berth is at the station's own body: anywhere else in its system
@@ -2831,6 +3098,10 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 		# dock's CUT goes down to black over them lit; undocking, which of the
 		# arrival's flameouts its engines will sputter out on, picked as an
 		# arrival picks one)
+		# (a wake on LOCAL still under way is finished, lit: the dock finds the
+		# station awake and does not put it out again)
+		if inward and (_wake_t >= 0.0 or _wake_owed):
+			_wake_finish()
 		_lad["hall"] = {"xf": xf0, "o": _face.origin(),
 			"right": _view.get_global_rect().end.x, "vc": _view.get_global_rect().get_center(), "s_end": s_end,
 			"berth": berth, "start": start, "path": absf(berth.x - start.x), "inward": inward, "beat": &"",
@@ -2967,6 +3238,15 @@ func ladder_cam(k: float) -> void:
 			pw = clampf(up / WAKE_POWER_BY, 0.0, 1.0)
 			if beat == &"cut":
 				pw = float(hall.get("power0", 0.0))
+			# A STATION ALREADY AWAKE (woken on LOCAL as your ship came alongside,
+			# or left lit by an undock: `_station_lit`) stays lit through the whole
+			# dock, and its power-on is not played again or heard; the warning
+			# lights still ask and clear your ship in, silent
+			var lit0 := float(hall.get("power0", 0.0)) >= 1.0
+			if lit0:
+				pw = 1.0
+			if pw >= 1.0 and not lit0:
+				_mark_lit()
 			if beat == &"power":
 				warn = 1.0 if up < WARN_CLEAR else 2.0
 			elif beat == &"enter":
@@ -2974,8 +3254,13 @@ func ladder_cam(k: float) -> void:
 		else:
 			# (undocking: all on, and left on)
 			pw = 1.0
+		# (heard as it comes on, docking into a sleeping station; never for one
+		# already lit, an undock, or a press that ends the dock at once)
+		var heard := bool(hall.get("inward", true)) and float(hall.get("power0", 0.0)) < 1.0 \
+			and not (ZoomLadder.active != null and ZoomLadder.active._cut) and Router.animating()
 		for f: StationFace in [_face, _face_front]:
 			if f != null and is_instance_valid(f):
+				f.audible = heard
 				f.dock_k = clampf(k, 0.0, 1.0)
 				f.power = pw
 				f.warn = warn
@@ -3052,8 +3337,10 @@ func ladder_up_s() -> float:
 ## 21), whether the undock was played (`ladder_cam` keeps them on) or not
 ## (reduced motion, a harness).
 func station_awake() -> void:
+	_mark_lit()
 	for f: StationFace in [_face, _face_front]:
 		if f != null and is_instance_valid(f):
+			f.audible = false
 			f.power = 1.0
 
 
@@ -3240,10 +3527,15 @@ func ladder_cam_end() -> void:
 		sky.set_zoom(1.0, Vector2.ZERO, Vector2.ZERO)
 	for f: StationFace in [_face, _face_front]:
 		if f != null and is_instance_valid(f):
+			f.audible = false
 			f.dock_k = 0.0
-			# (undocked, the station stays lit: a working station)
-			f.power = 1.0 if undocked else 0.0
+			# (undocked, the station stays lit: a working station; and one woken
+			# for this visit stays lit, whatever became of the dock)
+			f.power = 1.0 if undocked or _station_lit(Run.node_at()) else 0.0
 			f.warn = 0.0
+	# (a dock cut short by a press takes its power-on's sounds with it)
+	if cut and not undocked and not hall_x.is_empty():
+		Audio.hush(StationFace.power_sounds())
 	var ship: Dictionary = _lad.ship
 	if not ship.is_empty() and is_instance_valid(ship.art):
 		var art: ShipView = ship.art
@@ -3384,7 +3676,8 @@ func ladder_hide_hull(on: bool) -> void:
 	if art == null or _cutaway != null or on == _lad_hid:
 		return
 	_lad_hid = on
-	art.visible = not on
+	# (kept off LOCAL while its own arrival waits for the move to land)
+	art.visible = not on and not _flyin_wait
 
 
 ## Open your ship up. Public for the harnesses (`sheet=CutawayShot`).
@@ -3633,9 +3926,18 @@ func _input(e: InputEvent) -> void:
 		var sk := e as InputEventKey
 		if (sb != null and sb.pressed) or (sk != null and sk.pressed 				and not sk.echo and sk.keycode != KEY_ESCAPE):
 			get_viewport().set_input_as_handled()
-			if DisplaySettings.skip_jump:
+			# (LOCAL's own arrival at a place flown to is always a press from
+			# parked: it plays at every new place, not once a jump)
+			if DisplaySettings.skip_jump or _flyin:
 				_skip()
 		return
+	# THE STATION'S WAKE, a press: lit at once, its sounds hushed (the press
+	# goes on to whatever it was for -- DOCK, a tab)
+	if _wake_t >= 0.0:
+		var wb := e as InputEventMouseButton
+		var wk := e as InputEventKey
+		if (wb != null and wb.pressed) or (wk != null and wk.pressed and not wk.echo):
+			_wake_finish()
 	if _grab_view == null and _aim_view == null:
 		return
 	var mm := e as InputEventMouseMotion
@@ -5556,6 +5858,8 @@ func _lose_ship() -> bool:
 
 func _process(_delta: float) -> void:
 	_shield_hum()
+	if _wake_t >= 0.0:
+		_wake_step(_delta)
 	# A breakup draws where the hull was; the hull's slot keeps its slow bob, so
 	# the breakup rides it, and the wreck it hands back to is where it ended.
 	for en in _breakups:

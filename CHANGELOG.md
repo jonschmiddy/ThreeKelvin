@@ -17,6 +17,21 @@ The next build is **0.4.0-alpha.1**, with the fixes from the first outside playt
   as it touches down. Before, the clamps sounded while the screen was still dark and the ship
   came in without a sound. Pressing a key stops it all at once, and with reduced motion on you
   hear only the clamps.
+- **Changed** — the first time you open LOCAL at a world or station you flew to on the sector map,
+  your ship flies in from the left and settles into orbit, the same way it arrives in a new
+  system but without the system's name. Opening LOCAL there again shows it already parked. A key
+  or click skips straight to parked.
+- **Changed** — a station now powers on when you arrive beside it on LOCAL, without docking. Once
+  your ship settles, its lamps flicker on bank by bank and its warning lights flash, then turn
+  green. It stays lit while you are there, and docking then keeps it lit instead of powering it
+  on again.
+- **Changed** — a station powering on now makes sound, both on LOCAL and when you dock. Each bank
+  of lamps clunks and buzzes as it lights, and a short tone plays when the warning lights turn
+  green. There is no sound for a station that is already lit, when you skip, or with reduced
+  motion on.
+- **Changed** — LOCAL's bottom bar counts only the things at the world or star you are at, such as
+  "1 THING HERE". Before, it counted every event in the system, so it could say "3 THINGS HERE"
+  beside a planet with nothing at it.
 
 ### Fixed
 
