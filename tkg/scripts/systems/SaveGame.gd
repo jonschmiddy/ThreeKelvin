@@ -279,7 +279,11 @@ static var restoring := false
 ## 23, 0.4.1-alpha.1). Read the way 35 reads 34: a 35 save has no `old_hull`, and
 ## missing means none -- the pad's parts forget the old hardpoints and are laid
 ## out in the old hold (`RunState.mend_loadout`, which every load runs, and which
-## also puts a fitted part on a hardpoint it can have). OLDEST_READ stays at 29.
+## also puts a fitted part on a hardpoint it can have). Also in 36, both
+## optional: A.S.H.'s COMMS log for the run (`ash_comms`; a 35 save starts it
+## empty), and the manufacturer the run launched as (`launched_as`; a 35 save
+## has none, and its win falls back to the hull it ends in, see Unlocks).
+## OLDEST_READ stays at 29.
 const VERSION := 36
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
