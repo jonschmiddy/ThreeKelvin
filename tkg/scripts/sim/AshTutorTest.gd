@@ -3101,7 +3101,11 @@ func _comms() -> void:
 	_ok("comms: CONTINUE puts it back, in order", loaded and JSON.stringify(Ash.comms_to()) == want)
 	SaveGame.save()
 	var old := SaveGame._read()
+	# A 0.4.1 save: version 35, with none of 36's keys.
 	old.erase("ash_comms")
+	old.erase("launched_as")
+	old.erase("old_hull")
+	old["version"] = 35
 	var f := FileAccess.open(SaveGame.path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(old, "", true, true))
 	f.close()
