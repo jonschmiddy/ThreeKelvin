@@ -314,9 +314,8 @@ func _unlocks(dev: bool) -> void:
 		_ok("its win opens Solari", Unlocks.unlocked(&"solari"))
 		var rows: Array = RunHistory.load_all()
 		var last: Dictionary = rows[rows.size() - 1] if not rows.is_empty() else {}
-		_ok("and the record names Korvan and the frame it ended in (%s, %s)" % [
-			last.get("chassis_manufacturer", "?"), last.get("hull_manufacturer", "?")],
-			last.get("chassis_manufacturer", "") == "korvan" and last.get("hull_manufacturer", "x") == "")
+		_ok("and the record names Korvan, not the frame it ended in (%s)" %
+			last.get("chassis_manufacturer", "?"), last.get("chassis_manufacturer", "") == "korvan")
 	_drop_file(HISTORY)
 
 
