@@ -21,6 +21,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   putting it back lands you where you started. Before, fitting raised only the maximum, so a
   full ship read 40/47 and the bar did not move until you repaired.
 
+### Changed
+
+- **Changed** — lock on stacks. Playing a second lock on card adds to the first instead of
+  replacing it, and your next attack spends all of it, on every hit.
+
 ### Roadmap
 
 The next build follows the friends' playtest of 0.4.1-alpha.1 (Oct 23). See

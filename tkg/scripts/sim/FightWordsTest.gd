@@ -170,6 +170,18 @@ func _run() -> void:
 		tip == Widgets.tip(SectorScreen.DISCARD_TIP) and SectorScreen.DISCARD_TIP.contains("played")
 		and SectorScreen.DISCARD_TIP.contains("rest of your hand at END TURN")
 		and not tip.contains("What you have played so far"))
+	# 4. LOCK-ON STACKS (Jon, Oct 23). Two sight cards add up, and the next
+	# attack spends the lot.
+	var sight := _card_where(func(c: CardData) -> bool: return c.lock_on > 0 and c.damage <= 0)
+	if _ok("a lock-on card exists (%s)" % (sight.name if sight else "none"), sight != null):
+		cb.lock_on = 0
+		CardResolver.resolve(sight, cb, false)
+		CardResolver.resolve(sight, cb, false)
+		_ok("two %s add up to lock-on +%d" % [sight.name, cb.lock_on], cb.lock_on == sight.lock_on * 2)
+		var gun := _card_where(func(c: CardData) -> bool: return c.damage > 0 and not c.damage_equals_heat)
+		if gun != null and not cb.alive().is_empty():
+			CardResolver.resolve(gun, cb, false)
+			_ok("the next attack spends it all (lock-on %d after %s)" % [cb.lock_on, gun.name], cb.lock_on == 0)
 	Run.hp = Run.max_hp()
 	_end()
 

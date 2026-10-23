@@ -139,9 +139,11 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		if healed > 0:
 			cb._log("Hull +%d." % healed, &"good")
 
+	# LOCK-ON STACKS (Jon, Oct 23: "Lock on should stack"). A second sight card
+	# adds to the first rather than replacing it; the next attack spends it all.
 	if c.lock_on > 0:
-		cb.lock_on = c.lock_on
-		cb._log("Lock-on engaged.", &"you")
+		cb.lock_on += c.lock_on
+		cb._log("Lock-on +%d. Next attack +%d a hit." % [c.lock_on, cb.lock_on], &"you")
 
 	if c.credit_gain > 0:
 		Run.add_credits(c.credit_gain)
