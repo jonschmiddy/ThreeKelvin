@@ -68,7 +68,9 @@ static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
 
 	# Small chance to upgrade rarity with depth.
 	if m.rarity < ModuleData.Rarity.LEGENDARY and r.randf() < 0.06 * danger:
-		m.rarity = int(m.rarity) + 1
+		# Through DB.regrade, so the pips the readout promises are the pips
+		# the gauge moves.
+		DB.regrade(m, int(m.rarity) + 1)
 
 	m.affixes = _roll_affixes(_affix_count(m.rarity), danger, r)
 	m.scrap_value = int(round(ModuleData.SCRAP_VALUE[m.rarity] * r.randf_range(0.8, 1.3)))

@@ -785,7 +785,10 @@ static func _module_from(e: Variant) -> ModuleData:
 		push_warning("SaveGame: dropped unknown module '%s'" % id)
 		return null
 	var m := (DB.modules[id] as ModuleData).duplicate(true) as ModuleData
-	m.rarity = int(d.get("rarity", int(m.rarity))) as ModuleData.Rarity
+	# Through DB.regrade: the duplicate carries the catalogue grade's pips, and a
+	# part saved a grade up needs that grade's (a Rare Ranging Optics read
+	# SENSORS +1 and moved nothing). Mends saves made before the fix as they load.
+	DB.regrade(m, int(d.get("rarity", int(m.rarity))))
 	m.scrap_value = int(d.get("scrap_value", m.scrap_value))
 	m.mount = int(d.get("mount", -1))
 	m.turned = bool(d.get("turned", false))

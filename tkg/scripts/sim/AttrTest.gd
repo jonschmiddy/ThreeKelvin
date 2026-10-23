@@ -69,8 +69,25 @@ func run() -> void:
 		print("  %-22s %-10s %-8s %6d %6d%s"
 			% [m.name, "cost", row[0], want, got, mark])
 
+	# A GRADE UP, from loot or from a save. The catalogue entry carries its own
+	# grade's pips; a copy rolled or saved a grade higher must carry the higher
+	# grade's, through the save too (Geno, Oct 22: a Rare Ranging Optics read
+	# SENSORS +1 and moved nothing).
+	print("")
+	for id in DB.PASSIVE_AXIS:
+		var base: ModuleData = DB.modules[id]
+		for r in range(int(base.rarity) + 1, int(ModuleData.Rarity.LEGENDARY) + 1):
+			for raw in DB.PASSIVE_AXIS[id]:
+				var axis: StringName = raw
+				var want: int = DB.ATTR_BUMP[r]
+				var got := _measure(id, ON[axis], &"", r)
+				var saved := _measure(id, ON[axis], &"", r, true)
+				if got != want or saved != want:
+					bad.append("%s graded %s (%s): promised %+d, moved %+d, after a save %+d"
+						% [base.name, ModuleData.rarity_name(r), axis, want, got, saved])
+
 	_floor()
-	_ok("every part moves its gauge by exactly what its grade promised",
+	_ok("every part moves its gauge by exactly what its grade promised, graded up and saved too",
 		bad.is_empty())
 	for b in bad:
 		_fail(b)
@@ -79,7 +96,8 @@ func run() -> void:
 
 
 ## The pip delta one part makes to one gauge, on a frame carrying nothing else.
-func _measure(id: StringName, key: StringName, with: StringName = &"") -> int:
+func _measure(id: StringName, key: StringName, with: StringName = &"",
+		grade: int = -1, through_save: bool = false) -> int:
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Run.installed.clear()
@@ -99,6 +117,10 @@ func _measure(id: StringName, key: StringName, with: StringName = &"") -> int:
 	Run.hp = Run.max_hp()
 	var before := _read(key)
 	var m := (DB.modules[id] as ModuleData).duplicate(true) as ModuleData
+	if grade >= 0:
+		DB.regrade(m, grade)
+	if through_save:
+		m = SaveGame._module_from(SaveGame._module_to(m))
 	Run.installed.append(m)
 	m.mount = 0
 	Run.hp = Run.max_hp()

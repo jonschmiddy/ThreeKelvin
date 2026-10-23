@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fixed** — a part found a grade higher than usual now gives the stats its readout shows. A
+  Ranging Optics that rolled Rare read SENSORS +1 but added nothing, and the same was true of
+  every part with a stat bonus that rolled a grade up. Parts in saved runs are mended when the
+  run loads.
+
 ### Roadmap
 
 The next build follows the friends' playtest of 0.4.1-alpha.1 (Oct 23). See

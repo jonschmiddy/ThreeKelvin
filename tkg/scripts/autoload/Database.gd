@@ -1302,6 +1302,24 @@ func _seed_module_passives() -> void:
 		_lay_pips(modules[id] as ModuleData, row[0], -int(row[1]))
 
 
+## A PART'S GRADE AND ITS PIPS MOVE TOGETHER. Every copy of a part starts as
+## a duplicate of its catalogue entry, whose pips were laid for the catalogue
+## grade (`_seed_module_passives`). Loot can roll a part a grade up
+## (`LootGen.roll_module`), and a save rebuilds a part from its entry plus the
+## grade it was saved at (`SaveGame._module_from`). Both used to set `rarity`
+## alone: the readout prints pips from the grade, the gauge reads the fields,
+## and an Uncommon Ranging Optics rolled Rare showed SENSORS +1 and moved
+## nothing (Geno, Oct 22). This lays the difference between the two grades.
+func regrade(m: ModuleData, rarity: int) -> void:
+	var was := int(m.rarity)
+	m.rarity = rarity as ModuleData.Rarity
+	var delta: int = ATTR_BUMP[rarity] - ATTR_BUMP[was]
+	if delta == 0:
+		return
+	for axis in PASSIVE_AXIS.get(m.id, []):
+		_lay_pips(m, axis, delta)
+
+
 ## Move one gauge by `pips`, through every field that gauge is made of.
 ##
 ## THERMAL and MANEUVER each have two, and BOTH move. That is the whole point
