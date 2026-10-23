@@ -1,5 +1,11 @@
 # Three Kelvin — Build Order
 
+**BROUGHT UP TO DATE 2026-10-23, after the alphas 0.1.0 to 0.4.2.** Each of
+phases 1 to 9 now says what is done, with the build or commit that did it, what
+is partly done, and what is left. Phases 10 to 14 are the work after the alpha,
+from the friends' playtest of Oct 22 and 23 (Kevin, Cody, Geno and Jeremy). The
+record behind every status line is `CHANGELOG.md`, `HANDOFF.md` and `git log`.
+
 **TRIMMED 2026-08-24 to the part that is still true.**
 
 This was a synthesis against five source documents, three of which
@@ -7,16 +13,15 @@ This was a synthesis against five source documents, three of which
 one directory (`events/`) were never landed in the repo and still are not. Most
 of what it asserted about the code was overtaken: Sensors and Stealth exist and
 are displayed, the card dimension question was settled at 112×160 in
-`CardView.gd`, card art shipped at 92×60 behind `ArtCheck.CARD_ART`, the grant
-count law was reversed, and B6's "3–5% win rate" is now 16% Korvan-only / 22%
-open pool at 500 runs.
+`CardView.gd`, card art shipped at 92×60 behind `ArtCheck.CARD_ART`, and the
+grant count law was reversed.
 
 **What survived is the argument about ORDER**, which no amount of drift makes
 wrong, plus the balance spine. The state table (§0), the blocker list (§1) and
-the file manifest (§5) were cut rather than corrected — they described a moment,
+the file manifest (§5) were cut rather than corrected. They described a moment,
 and `docs/archive/` is where moments are kept.
 
-**Open ruling #11 — "does the game become an extraction deckbuilder?" — moved
+**Open ruling #11, "does the game become an extraction deckbuilder?", moved
 to `coop-design.md` §16 ruling 1**, which is the same question, before this file
 was cut. It is still open and is not part of any doc pass.
 
@@ -27,17 +32,17 @@ and `.github/scripts/validate.sh`, none of which can go stale.
 
 ## 2. Phases
 
-> **Blocker legend.** §1 was cut, but the phases below cite B1–B6 throughout.
-> One line each, with what is true as of 2026-08-24:
+> **Blocker legend.** §1 was cut, but the phases below cite B1 to B6 throughout.
+> One line each, with what is true as of 2026-10-23:
 >
 > | | Was | Now |
 > |---|---|---|
-> | **B1** | batch-01 is built on run-state flags the whitelist defers | **Still open.** Events are still hardcoded lambdas — the single largest gap in the project |
+> | **B1** | batch-01 is built on run-state flags the whitelist defers | **Half answered.** The flag store was never built, because the option system carries run state instead: an option can place options elsewhere on the map (`docs/briefs/ENCOUNTER_GENERATION.md`), and since 0.4.1 such a follow-up is a row in QUESTS (`Run.event_quests`, ad962625). Events are still lambdas in `OptionTable`, which is the half Phase 7 still owes |
 > | **B2** | card dimensions frozen at a size the code contradicts | **Dead.** Settled at 112×160 in `CardView.gd`, with the reasoning in comments. Card art shipped at 92×60 per `ArtCheck.CARD_ART` |
 > | **B3** | two incompatible manufacturer palettes | **Dead.** `Database.gd`'s `_seed_manufacturers()` is the one palette, `colour` + `field` per manufacturer |
-> | **B4** | six of seven manufacturers are switched off | **Still true for five of seven.** `DB.ACTIVE_MANUFACTURERS` is `[korvan, solari]` (Solari since Oct 17). It is a balance event, not a data flip — the six-point win-rate gap is in `handbook.md` |
-> | **B5** | existing events would fail the whitelist they're about to be held to | **Still open**, and blocked behind B1 |
-> | **B6** | the economy is already lethal (3–5% win rate over 40 runs) | **Dead as stated.** 16% Korvan-only / 22% open pool at 500 runs. Read the current number off `-- sim`, never off this file |
+> | **B4** | six of seven manufacturers are switched off | **Still true for five of seven.** `DB.ACTIVE_MANUFACTURERS` is `[korvan, solari]`. Since 0.2.0 a manufacturer you have not unlocked appears nowhere (19903ad1), and since 0.4.2 a win unlocks by the manufacturer you launched with (674c314a). Writing the other five is after the alpha |
+> | **B5** | existing events would fail the whitelist they're about to be held to | **Mostly dead.** `tools/encounter_lint.py --strict` runs in the gate and fails on anything new. Fifteen findings that predate it are held in `tools/encounter_lint_baseline.txt` |
+> | **B6** | the economy is already lethal (3 to 5% win rate over 40 runs) | **Dead as stated.** The Oct 22 balance (Phase 5) moved every number. Read the current one off `-- sim`, never off this file |
 
 
 **The ship half first, the event half second.** These documents describe
@@ -49,7 +54,7 @@ that the verb model is about to reshape would mean building it twice.
 This ordering also resolves a dependency the docs half-state and this
 plan originally got wrong. **Sensors and Stealth are module-built from a
 baseline of zero.** With one manufacturer active and a thin catalog,
-there is nothing to build a Sensors 4 ship out of — so an event checking
+there is nothing to build a Sensors 4 ship out of, so an event checking
 Sensors 4 is unplayable no matter how well the schema works. Modules
 come before attributes, and attributes before checks.
 
@@ -65,14 +70,14 @@ Two consequences for the blockers:
 
 Each phase names the gate that says it's done.
 
-### Phase 1 — Card and module foundations
-*Implements `card-design.md` §13.1–4.*
+### Phase 1 — Card and module foundations — **done**
+*Implements `card-design.md` §13.1 to 4.*
 
 - Dimensions per B2, both scales, exact 2×. Settle this before any card
   art exists to be redone.
 - Zone map: corner grammar (energy left, heat right, **always printed**),
   panel insets, type line, provenance footer.
-- Verb/grant data model — verbs are shapes, modules are magnitudes.
+- Verb/grant data model: verbs are shapes, modules are magnitudes.
 - **Grant Count Law**: count fixed by module class, rarity upgrades
   rather than adds, uniques replace. Displayed as `Grants: 2`.
 - Install-time deck delta (`deck 14 → 15`).
@@ -80,13 +85,25 @@ Each phase names the gate that says it's done.
 **Gate:** a rarer module never produces a larger deck than its common
 sibling, and the ship screen shows the delta at the point of choice.
 
-### Phase 2 — The module catalog
+**Status, Oct 23: met, all of it in 0.1.0-alpha.1.**
+
+- Cards are 112×160 (`CardView.CARD_W`, `CARD_H`). Energy is top left and heat
+  top right on every card.
+- The provenance footer was cut on purpose. The text box runs to the bottom of
+  the card, and rarity is the colour of the name (`CardView.gd`).
+- The Grant Count Law was replaced by a stricter one: **every module grants
+  exactly two cards**, and Verity grants one (`docs/catalogue.md` §2,
+  `ModuleData.grant_count()`). Rarity can only make the cards better, so the
+  gate holds by construction.
+- The deck delta is drawn as `deck 14 → 15` (`Widgets.gd`).
+
+### Phase 2 — The module catalog — **partly done**
 *Implements B3, B4, and the half of `attributes-and-checks.md` §1.2 that
 has no code at all.*
 
 - **Modules that carry Sensors and Stealth.** These two attributes have
-  no existence outside modules, and the whole see/be-seen axis — §1.1's
-  structural spine — is currently a specification with nothing behind it.
+  no existence outside modules, and the whole see/be-seen axis, §1.1's
+  structural spine, is currently a specification with nothing behind it.
 - Enough catalog depth that reaching 4+ on either is a real build
   decision competing with weapons for slots, per §1.2.
 - **Rule B3 and adopt one canonical palette.** Modules are branded;
@@ -97,14 +114,26 @@ has no code at all.*
 **Gate:** a build can reach Sensors 4 and Stealth 4 by giving up
 something real, and all seven manufacturers have modules worth installing.
 
-### Phase 3 — Attributes exist and are visible
+**Status, Oct 23.**
+
+- **Done:** modules carry Sensors and Stealth, and both do work (Phase 6). The
+  palette is ruled (B3). Korvan and Solari are full manufacturers: 95 modules
+  in all at 0.1.0, Solari with 25 parts and 40 cards (`docs/catalogue.md`).
+- **Fixed since:** a part that rolled a grade up now gets that grade's pips. A
+  Rare Ranging Optics read SENSORS +1 and added nothing (5ec934e7, 0.4.2).
+- **Left:** the other five manufacturers. They can be unlocked and flown, but
+  have 4 to 7 parts each, use Korvan's hull art, and their set bonuses cannot be
+  completed (`HANDOFF.md`, Known issues). `docs/building-a-manufacturer.md` is
+  the method. The first half of the gate was not re-measured for this pass.
+
+### Phase 3 — Attributes exist and are visible — **done, less Notoriety**
 *Implements `attributes-and-checks.md` §10.1.*
 
 - Derive the four chassis attributes from the gauges that already exist.
-  **Read them — do not add parallel fields.**
-- Settle the Hull 0–6 mapping. Recommend `current_hp / (max_hp / 6)`
+  **Read them, do not add parallel fields.**
+- Settle the Hull 0 to 6 mapping. Recommend `current_hp / (max_hp / 6)`
   floored; percentage bands need a second authoring vocabulary for no gain.
-- Sum Sensors and Stealth from installed modules — now possible.
+- Sum Sensors and Stealth from installed modules, now possible.
 - `RunState.notoriety` plus its four sources: kills, contraband carried,
   wrecks looted, fights fled.
 - HUD: two visually separate clusters. Abbreviations live here and
@@ -113,7 +142,22 @@ something real, and all seven manufacturers have modules worth installing.
 **Gate:** six attributes and four meters on the HUD, all derived, and
 taking hull damage visibly lowers the Hull check value.
 
-### Phase 4 — Malfunctions
+**Status, Oct 23.**
+
+- **Done, in 0.1.0-alpha.1:** all six attributes are derived, never stored
+  (`RunState.attr_hull` to `attr_stealth`). They show on the ship screen, the
+  cutaway and the chassis select, with what the chassis gives drawn apart from
+  what the parts add. They are not on the HUD bar, which carries hull, heat,
+  credits and fuel.
+- **Corrected:** the Hull mapping is not 0 to 6. Every attribute is read on a
+  scale of 10 (`ATTR_MAX`) and can go past it, and Hull reads current hull
+  against a fixed 70 (`HULL_REF`),
+  not against your own maximum, so a bigger frame and damage both count. Taking
+  damage lowers it, which is the gate's second half.
+- **Done:** heat takes up to 4 off Stealth (`HEAT_STEALTH_COST`).
+- **Left:** Notoriety. Nothing in the code tracks it.
+
+### Phase 4 — Malfunctions — **partly done, built another way**
 *Implements `card-design.md` §11. Generalizes `dross`.*
 
 Belongs here rather than after events: it is a card and module system,
@@ -121,7 +165,7 @@ and `RunState.dross` already works. Events become one more source later.
 
 - Twelve-entry catalog; severity sets the removal price.
 - Inert and Patchable at minimum. **Active needs an on-draw hook and
-  "Jammed Feed" needs a retain hook** — if either misses, ship the other
+  "Jammed Feed" needs a retain hook.** If either misses, ship the other
   two and hold the marked entries, exactly as §11.3 says.
 - Origin strings replace the module in the footer.
 - Station junk-removal priced by severity.
@@ -129,28 +173,62 @@ and `RunState.dross` already works. Events become one more source later.
 **Gate:** a malfunction from any source shows its origin, and station
 removal prices by severity.
 
-### Phase 5 — Balance
-*Not in any document. Inserted because of B6, and now sitting where it
-belongs — after the systems that move the numbers.*
+**Status, Oct 23.**
 
-Phases 1–4 all push on the economy: six more manufacturers of loot, a deck-size
+- **Done, in 0.1.0-alpha.1, another way:** sixteen malfunctions
+  (`Database.MALFUNCTIONS`) built from three keywords, Corrode, Smoulder and
+  Fused, all charged at the end of your turn rather than on the draw
+  (`docs/catalogue.md` §10). Enemies put them in your deck.
+- **Done:** a shipyard's FAULTS drone clears one, and you pick which card.
+- **Not as specified:** removal is priced per removal by the station
+  (`Market.purge_price`), not by severity. There is no footer to carry an
+  origin; a malfunction wears its own banner with a break mark. Events are not
+  a source yet. The gate as written is not met, and nobody has asked for it
+  since.
+
+### Phase 5 — Balance — **partly done**
+*Not in any document. Inserted because of B6, and now sitting where it
+belongs, after the systems that move the numbers.*
+
+Phases 1 to 4 all push on the economy: six more manufacturers of loot, a deck-size
 law, malfunction pollution. Tune once, afterwards, rather than chasing
 it four times.
 
 Levers already identified: the range multiplier, the third-nearest
 floor, `FUEL_PER_DISC_RADIUS`, the pulsar trade, and station repair
-pricing — the main doc's stated first lever. Also fix the 22.5% stranded
+pricing, the main doc's stated first lever. Also fix the 22.5% stranded
 rate; pulsar nodes now sit off the layout grid `_link` builds from.
 
-**Gate:** 200 sim runs inside 40–55%, stranded under 10%, **and five
+**Gate:** 200 sim runs inside 40 to 55%, stranded under 10%, **and five
 full runs played by hand.** The sim models a competent player, not a
 new one.
 
-### Phase 6 — Attributes have consequences
-*Implements §10.5–7. Cheap once Phase 3 lands.*
+**Status, Oct 23.** Kevin, the first outside playtester, reached the core in
+seven jumps and nearly beat the Custodian in a starter ship (Oct 22). Jon ruled
+for a hard game, and 0.4.0-alpha.1 carries all of it:
 
-- MNV → combat entry state. **Failure changes terms, never outcome** —
-  the asymmetric miss rule holds.
+- **One ring deeper per jump, at most** (`RunState.DEPTH_STEP`, b28fdad6). The
+  shortest way to the core went from as few as 4 jumps to 14. The chart says
+  TOO DEEP and ONE RING AT A TIME, and every galaxy keeps a way into each ring.
+- **The Custodian:** hull 120 to 200 (b28fdad6), and it lost Plated Up, so
+  Annihilate lands every third turn for 40, up from 22 (7790b9f5). In the sim a
+  built ship wins 56% of arrivals, a human-like pilot 39%, and a starter never.
+- **Deep loot:** no common parts or materials from danger 5 in, and epic,
+  legendary and artifact materials as deep as the parts of the same grade
+  (27d7f6eb).
+- **Corrected:** jump reach is a fixed 0.18 (`JUMP_RADIUS`) again. The relative
+  range and the third-nearest floor now set sight, not reach.
+- **The run-length study** (577472bb) is how these were chosen: a beeline
+  pilot, a shortest-path harness, and study flags that are off unless given.
+- **Left:** the whole-run win rate and the stranded rate were not re-measured
+  for this pass. The 40 to 55% band was set before the Oct 22 ruling. Hand play
+  now comes from playtesters, and Phase 11 picks the fight half up.
+
+### Phase 6 — Attributes have consequences — **partly done**
+*Implements §10.5 to 7. Cheap once Phase 3 lands.*
+
+- MNV → combat entry state. **Failure changes terms, never outcome.**
+  The asymmetric miss rule holds.
 - SEN → the pre-jump reveal ladder. The starchart already filters
   visibility, so this is a depth parameter on existing machinery.
 - THM signature net of STL, plus Notoriety → encounter **composition**
@@ -160,8 +238,23 @@ new one.
 **Gate:** two builds with different Sensors values see measurably
 different pre-jump information on the same node.
 
-### Phase 7 — Events become data
-*Implements §10.2–4 and the events contract. Everything it checks now
+**Status, Oct 23.**
+
+- **Met, in 0.1.0-alpha.1: SEN.** Sight is a radius that grows a quarter per
+  pip (`SENSE_FLOOR`, `SENSE_REACH`). A star in thruster reach but out of sight
+  reads NOT SCANNED and cannot be jumped to. An event's fight reads "Fight."
+  under 3 sensors, a contact count from 3, and a word about the enemy from 6
+  (`EncounterDrawer.contact_reading`).
+- **Built, in a different form: STL.** Heat signature gates an ambush on
+  arrival, danger scales it, and Stealth takes up to 60% off
+  (`RunState.ambush_chance`). It moves how often, not what comes.
+- **Partly: MNV.** It is dodge in a fight and the FLEE check
+  (`Combat.FLEE_ATTR`). Combat entry state is not built; initiative is read
+  nowhere in a fight.
+- **Left:** Notoriety, and with it composition weighting.
+
+### Phase 7 — Events become data — **partly done**
+*Implements §10.2 to 4 and the events contract. Everything it checks now
 exists.*
 
 - **Rule B1 first.** By this point you will know how much run-scoped
@@ -178,25 +271,41 @@ exists.*
 **Gate:** batch-01 loads, every effect parses, zero violations, and a
 shortfall option reads `Hull 5 · you have 3 · 65%`.
 
-### Phase 8 — Event content
+**Status, Oct 23.**
+
+- **Done, in 0.1.0-alpha.1:** the odds ladder, checks on current values, and
+  four bands: MET (meeting a check is certain, no roll), CLEAN, PARTIAL and
+  BOTCHED (`SkillCheck`). The badge reads `HULL 5 · you have 3 · 65% · likely`,
+  the gate's line plus a word for the odds. The lint is in the gate (B5).
+- **Done since:** every result that gives loot shows REWARD (4d1cadfa, 0.4.0).
+  A signed contract puts its pickup or target in the system its note names
+  (c9173534, 0.4.0). An event's follow-up is a row in QUESTS (ad962625, 0.4.1).
+- **Left:** the schema. Every encounter is still a lambda in `OptionTable`.
+
+### Phase 8 — Event content — **done another way**
 *Implements the `EXPANSION.md` process.*
 
-90 active seeds, batches of ten, **human review between every batch**. (Done another way: 135 encounters are authored in `OptionTable`, the last 80 under `briefs/ENCOUNTER_COMMISSION.md`.)
+90 active seeds, batches of ten, **human review between every batch**.
 Skip `deferred` and `reserved`; EVT-101 is hand-authored. Region pools
 need a translation table from the CSV's manufacturer names to `MapGen.Region`.
 
 **Gate:** each batch reviewed and merged before the next begins.
 
+**Status, Oct 23.** 135 encounters are authored in `OptionTable`, the last 80
+under `briefs/ENCOUNTER_COMMISSION.md`, and about 43 weather events play on the
+sector map (0.1.0-alpha.1). The gate checks the prose with `prose_grade.py` and
+`prose_tells.py`. New event content after the alpha is Phase 12.
+
 ### Phase 9 — Identity art — **done**
 *The palette was ruled in Phase 2; this is the art that hangs off it. The
-citation to `manufacturer-identity.md` §2 is struck — see the footnote.*
+citation to `manufacturer-identity.md` §2 is struck. See the footnote.*
 
-Seven emblems at ≤4 primitives each, surviving a 16px crop — that crop
+Seven emblems at ≤4 primitives each, surviving a 16px crop. That crop
 *is* the HUD set-bonus chip, so it is a hard test. Banners across four
 surfaces. All seven names are locked in `Database.gd`; no mark is draft on that account any more.
 
 **Gate:** every emblem legible at 16px. **Met.** All seven read at 16 and at
-the 13 the badge actually draws, and — the harder half — read as seven
+the 13 the badge actually draws, and, the harder half, read as seven
 *different* things. `tools/` has no part in this: the marks are rectangles in
 `CardView.draw_emblem`, so the test is to render them and look.
 
@@ -206,7 +315,7 @@ finishing it actually took:
 - **The chip the gate is named after did not exist.** `Run.has_set` has been
   deciding whether Solari plasma gains damage and whether Cygnet drones act
   twice for as long as those bonuses have existed, and the player was told
-  nowhere — the only place a set bonus appeared was the chassis picker, which
+  nowhere. The only place a set bonus appeared was the chassis picker, which
   is the one screen you are not on while it matters. `HudBar`'s own header
   claimed "live set-bonus progress" and the file contained none. It does now,
   at exactly 16px, which is where the gate's number came from.
@@ -221,60 +330,212 @@ finishing it actually took:
   the chassis list badges seven you are choosing between, this is the one you
   are inside of. A station nobody holds hides it rather than flying a blank.
 - **Redline's hem was eating Redline's mark.** Its strips ran sixteen units up
-  a twenty-two unit flag, straight through the emblem at unit 11 — two bars of
+  a twenty-two unit flag, straight through the emblem at unit 11: two bars of
   the mark colour on a column of the mark colour. Replaced with a short hem and
   two threads pulled long; nothing in it now goes above eight.
 
-**Ruling — the primitive budget counts SHAPES, not draw calls.** A row of
+**Ruling: the primitive budget counts SHAPES, not draw calls.** A row of
 identical teeth drawn in a loop is one shape; a narrowing stack is one shape.
 Under draw calls `probate` is six rects and fails a budget of four, and it
 cannot come down without becoming a different mark. Under shapes it is a bucket
 and its teeth, and every emblem passes. The budget was only ever a proxy for
 legibility at 16px, and that is gated directly, so the proxy defers to it.
-`solari` came down 5 → 3 anyway — opposite rays are collinear and touch the
+`solari` came down 5 → 3 anyway. Opposite rays are collinear and touch the
 disc, so one bar through does the work of two stubs, and the render is byte
 identical.
+
+### What the alphas added that no phase named
+
+Built between Oct 20 and Oct 23, from Jon's play and the playtests. Listed so
+the phases above are not read as the whole of the game.
+
+- **A deep tutorial.** A.S.H. teaches the audit's 35 lessons, each the first
+  time it matters, paced by the game, voiced from Jon's picks of three takes
+  (5c221f81, 8e140bac, 0.4.0). She cannot be clicked away: a line stays until
+  you do what it teaches (b54214f1, 0.4.0). Since 0.4.2 she never says a line
+  aloud twice (9e1e58cf).
+- **QUESTS and COMMS.** QUESTS is a tab on the top bar with every signed job and
+  event quest, SHOW ON STARCHART and PLOT ROUTE (21017bc8, 0.4.0), and finished
+  ones under COMPLETED (ad962625, 0.4.1). COMMS lists everything A.S.H. has said
+  this run and plays it again (9e1e58cf, 0.4.2).
+- **Co-op fights are shared.** Every ordinary fight can be joined with JOIN
+  FIGHT, partners fly on the sector map, and a galaxy mismatch is said on screen
+  and in godot.log (851b2834, 65140cf1, 0.4.0). An event quest and a contract's
+  work are per ship (74a94c48, 0.4.1).
+- **The ARCHIVE is gone.** Its tab, its title entry and its 41 documents were
+  removed (551ef568, 0.4.0).
+- **LOCAL does what GO does.** Opening LOCAL at a place with an event opens that
+  event, and LOCAL draws no stand-in picture (1a16d049, 0.3.2).
+- **Docking and undocking** play as one arrival with the camera still, the
+  station powering on with sound (0.2.0 to 0.3.2).
+- **Ship pictures show weapons only.** Systems and utilities stay fitted and
+  still show in the cutaway and on the refit screen (2c75081b, 0.4.2).
+- **Lock on stacks**, and the next attack spends all of it (aecebc51, 0.4.2).
+- **A full ship stays full** when a part with hull is fitted (9bc71393, 0.4.2).
+
+### Post-alpha: phases 10 to 14
+
+From the friends' alpha feedback, Oct 22 and 23. The order is 10, 11, 12, then
+13 and 14. Phase 10 has no dependencies and can start at once. Phase 13 depends
+on nothing here and can move earlier if a slot opens. Phase 14 waits for the
+alpha to end.
+
+### Phase 10 — Small UX debts
+*About 1 to 2 days. No dependencies.*
+
+- **LOCAL lets you leave a station too easily** (Jeremy). While docked, only
+  UNDOCK should leave.
+- **The star chart does not mark stars inside THRUSTER REACH that are more than
+  one ring deeper.** Jon was shown two options, A dim them or B reshape the
+  ring, and parked it (open ruling 13).
+- **Chassis select hull numbers against pips** (Geno: 29, 40 and 57 hull against
+  4, 6 and 8 pips). Pending Jon's pick (open ruling 12).
+- **The sector map's ship should be the player's own ship** (Jeremy).
+- **Blue ion engine flames on the sector map** (Jeremy).
+
+**Gate:** each item closed or ruled out by Jon.
+
+### Phase 11 — Make combat matter
+*Jeremy: "combat doesn't feel important", "encounters are way too fast for how
+infrequent they are", "combats need to feel epic". Cody dove star to star.*
+
+1. **A sim study** of all ship health at 1.5×, 2× and 3×, plus a variant where
+   everything hits harder. Measure turns per fight, hull lost per fight, fights
+   lost and the run win rate. Machine time only, about 2 hours.
+2. **Pick and apply the health and damage change.** Hours. Depends on step 1.
+3. **A second combat resource** (Jeremy). A design project: a page of options
+   first, then a build of days to a week. Depends on step 2, since both change
+   how long a fight lasts.
+4. **Epic battle music and a "legendary" boss track.** Jeremy loves the flying
+   music. Pick reference tracks first, then generate. It costs ElevenLabs
+   credits, which need Jon's OK.
+5. **Re-run the Custodian balance** after steps 2 and 3. It was tuned on Oct 22
+   to a 56% win rate for a built ship.
+
+**Gate:** fights measurably longer and costlier per the step 1 study, the
+Custodian re-tuned, and Jon's pick on each step that needs one.
+
+### Phase 12 — Things to do between fights
+*Jeremy: science on barren planets, comet interception, explorable asteroids,
+colonisation; "make science and exploration offset the infrequentness of
+combats". About 1 to 2 weeks. Depends on Phase 11's decision on how rare and how
+long fights are.*
+
+- **One "science" event family** tied to places already on the map: barren
+  worlds, comets (intercept) and asteroid belts. New event types plus their
+  rewards.
+- The writing goes through the encounter-prose skill: the plain voice, grade 7.
+  The art goes through PixelLab within its allowance.
+- **Colonisation is later**, with its own design.
+
+**Gate:** the family is in `OptionTable`, passes the gate's lint and prose
+steps, and each batch is reviewed before the next.
+
+### Phase 13 — Flight feel
+*Jeremy, with an orbital-transfer PDF. A few days.*
+
+Smooth, time-scaled transfer arcs on the sector map: fast through the middle,
+slow at departure and capture. Mock 2 or 3 versions on a page before building.
+It touches `ShipFlight`, and co-op partner positions (`Net.report_spot`) must
+keep working.
+
+**Gate:** Jon picks a version from the page, and partners still fly where they
+are on a co-op map.
+
+### Phase 14 — Words that don't read as AI
+*Cody: "feels very AI", for example "We can't jump there yet. The button says
+why." Depends on the alpha ending, so the list is complete.*
+
+Collect the flagged lines during the alpha. Rewrite each to state the concrete
+fact, for example "Too deep. One ring at a time." Re-record the voiced ones, at
+about 0.4 credits a character.
+
+**Gate:** every flagged line rewritten, and every voiced one re-recorded or its
+text matched to its take.
+
+### Loose ends
+
+- **Set bonus texts that do not match the code.** Cygnet 5, Verity 5 and
+  Calyx 5 by the Oct 17 finding; `CHANGELOG.md`'s 0.1.0 known issues name
+  Cygnet 5, Korvan 3 and Solari 3. Parked until after the alpha (Jon, Oct 18).
+- **Co-op:** two ships starting different fights in one system in the same
+  second can mismatch. Rare; left as it is.
 
 ## 3. Running alongside
 
 **The balance spine.** `HeadlessSim` is the only thing in this project
 that answers "is this playable" without a human playing it. Every phase
-that touches the economy — 3, 5, 6 — re-runs it. It found the 22.5%
-stranded regression this session that no amount of reading would have.
+that touches the economy re-runs it: 3, 5 and 6 before, and 11 next. It once
+found a 22.5% stranded regression that no amount of reading would have. Since
+Oct 22 it also flies the run-length study and prints what going deep pays.
 
-**The measurement habit.** Four separate multi-round debugging loops this
-session were resolved by instrumenting and measuring, after reasoning had
-failed. Applies equally here: before tuning the economy, print the
-distributions.
+**The playtest is the other half.** The sim models a competent player.
+Kevin's run (Oct 22) and the friends' alpha (Oct 22 and 23) are where the
+balance, tutorial and co-op work of 0.4.0 to 0.4.2 came from. Ask for the zip
+from SAVE MY LOGS with every report.
+
+**The measurement habit.** Four separate multi-round debugging loops in the
+session that wrote this plan were resolved by instrumenting and measuring,
+after reasoning had failed. Applies equally here: before tuning the economy,
+print the distributions.
 
 ---
 
 ## 4. Open rulings
 
-Carried from the source documents, plus what this synthesis surfaced.
-Each needs a human decision.
+Each needs a human decision. Rows 1, 1b, 3, 7 and 8 are settled and were
+removed; see the footnote. Rows 12 and 13 came from the friends' alpha.
 
 | # | Ruling | From | Blocks |
 |---|---|---|---|
-| 1 | Promote run-state flags into MVP, or author batch-01 down | B1 | Phase 4 entirely |
-| 1b | EVT-092 opt 2 — §15 names content that does not exist | B1 | batch-02 |
-| 3 | Canonical manufacturer palette | B3 | Phase 8, chart tints |
-| 4 | Three reds — resolve centrally in `UITheme` | B3 | Badge + hazard UI |
-| 5 | When do the other five manufacturers switch on | B4 | Phases 4, 7, 8 |
-| 7 | The met-threshold outcome tier rolls can't reach | §4.2 | Phase 2 authoring |
-| 8 | Hard gate ratio — how many walls before walls stop mattering | §4.2 | Phase 4 |
-| 9 | Do unique cards earn unique art | card §14 | Phase 8 |
-| 10 | Do Criticals exist at MVP | card §14 | Phase 6 |
+| 4 | Three reds. `UITheme` now names `LEAVE` for exits and `WARN`/`BAD` for warnings; the older literal sites were left alone on purpose | B3 | Nothing now; a sweep of the literals |
+| 5 | When do the other five manufacturers switch on | B4 | Phase 2's last half; after the alpha |
+| 9 | Do unique cards earn unique art | card §14 | Nothing now |
+| 10 | Do Criticals exist. None are in the game | card §14 | Nothing now |
+| 12 | Chassis select hull against pips: A Korvan frames to 28/42/56; B every chassis exact, which flattens manufacturer differences; C show the real hull beside the pips (recommended) | Geno, friends' alpha | Phase 10 |
+| 13 | Stars in THRUSTER REACH but more than one ring deeper: A dim them, or B reshape the ring. Parked | friends' alpha | Phase 10 |
+| 14 | Which health and damage change, after the study | Phase 11 step 1 | Phase 11 steps 2 to 5, Phase 12 |
+
+### Ruled since Oct 20
+
+Jon's rulings since the last pass, with where each landed. Read them before
+changing how anything they touch plays.
+
+| Ruling | Jon's words | Where |
+|---|---|---|
+| A jump goes one ring deeper at most | "A1D ... I want this to be a hard game" (Oct 22) | b28fdad6, 0.4.0 |
+| The Custodian has 200 hull | "custodian health at 200" (Oct 22) | b28fdad6, 0.4.0 |
+| The Custodian loses Plated Up; Annihilate deals 40 | "Option 1" (Oct 22) | 7790b9f5, 0.4.0 |
+| No commons from danger 5 in | a hard game where going deep is worth it (Oct 22) | 27d7f6eb, 0.4.0 |
+| The ARCHIVE is removed | a cool idea, but not for a procedural game (Oct 22) | 551ef568, 0.4.0 |
+| A.S.H. cannot be clicked away | "Can we soft lock the screen so A.S.H. can't be dismissed?" (Oct 22) | b54214f1, 0.4.0 |
+| The deep tutorial, all of it, voiced | "Tutorial: scope:all voice:record bugs:fix" (Oct 22) | 5c221f81, 0.4.0 |
+| The quest log is a QUESTS tab, with no count on it | "I chose A, the JOBS tab" (Oct 22) | 21017bc8, 0.4.0 |
+| The Hellbender's posters carry no bounty | the bounty was promised and never paid (Oct 22) | 170bb67d, 0.4.0 |
+| LOCAL and GO open the same thing | "Clicking GO or clicking LOCAL should have the same result" (Oct 21) | 1a16d049, 0.3.2 |
+| A full ship stays full across a fit | "a full ship stays full" (Oct 22) | 9bc71393, 0.4.2 |
+| Ship pictures show weapons only | from Geno: a less messy ship (Oct 23) | 2c75081b, 0.4.2 |
+| Lock on stacks | Jon's own play, no words recorded (Oct 23) | aecebc51, 0.4.2 |
+| A.S.H. says a line aloud once; COMMS keeps them | from Jeremy: "Give me an option to revisit all communications" (Oct 23) | 9e1e58cf, 0.4.2 |
 
 ---
 
+*Rows 2 (card dimensions) and 6 (hull 0 to 6 mapping) were dropped on Aug 24:
+the first is settled in `CardView.gd`, the second cites a section of a document
+that was never landed. Row 11 moved to `coop-design.md` §16.*
 
-*Rows 2 (card dimensions) and 6 (hull 0–6 mapping) were dropped: the first is
-*settled in `CardView.gd`, the second cites a section of a document that was
-*never landed. Row 11 moved to `coop-design.md` §16.*
+*Rows dropped on Oct 23. Row 1 (run-state flags): the option system carries run
+state instead of a flag store, per `docs/briefs/ENCOUNTER_GENERATION.md`, and
+event quests are built on it (0.4.1). Row 1b (EVT-092): it was never authored,
+and the batch it blocked was written another way (Phase 8). Row 3 (the palette):
+B3 is dead. Row 7 (the met-threshold tier): meeting a check is its own band, MET,
+with no roll (`SkillCheck`). Row 8 (the hard gate ratio): hard gates are only for
+meter payments and physical impossibility (`docs/briefs/ENCOUNTER_AUTHORING.md`),
+and an unaffordable one greys and says by how much (`ENCOUNTER_FLOW.md`
+ruling 8).*
 
 *Phase 9's citation to `manufacturer-identity.md` §2 is struck. The header
-*already lists that file among the three source documents that were never
-*landed — the phase then cited a SECTION of it anyway, which is what made it
-*read as a spec somebody could go and consult. Phase 9's own paragraph carried
-*the whole spec, so nothing was lost with it.*
+already lists that file among the three source documents that were never
+landed. The phase then cited a SECTION of it anyway, which is what made it
+read as a spec somebody could go and consult. Phase 9's own paragraph carried
+the whole spec, so nothing was lost with it.*
