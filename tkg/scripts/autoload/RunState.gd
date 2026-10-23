@@ -382,13 +382,36 @@ func _ready() -> void:
 	# every call site is a rule that is one new call site away from being false.
 	Sig.ship_changed.connect(_clamp_hp)
 
+## MISSING HULL STAYS MISSING (Jon, Oct 22, "a full ship stays full"). Fitting
+## or removing a part with hull on it moves the maximum, and the damage the ship
+## carries goes across unchanged: 40/40 fits a +7 plate and reads 47/47, 33/40
+## reads 40/47, and taking the plate off again lands exactly where it started.
+## Before, fitting raised only the maximum, so a full ship read 40/47 and the
+## HULL gauge (which reads CURRENT hull) did not move for the "+1 HUL" the part
+## printed. Damage carried, not "full or nothing": a 45/47 ship that took a
+## plate off was clamped to 40/40, read as full, and got its 2 back for free.
+##
+## ONLY ON THE SAME HULL. A hull swap, a new run, a load and an undo set `hp`
+## themselves; the first change seen on a new hull is recorded, not acted on.
+## Never down to 0: taking plating off a nearly dead ship leaves it at 1.
+var _hull_seen: HullData = null
+var _max_seen := 0
+
 func _clamp_hp() -> void:
 	if hull == null:
 		return
 	var cap := max_hp()
-	if hp > cap:
+	if hull == _hull_seen and _max_seen > 0 and cap != _max_seen and hp > 0:
+		var missing := maxi(0, _max_seen - hp)
+		var want := clampi(cap - missing, 1, cap)
+		if want != hp:
+			hp = want
+			Sig.resources_changed.emit()
+	elif hp > cap:
 		hp = cap
 		Sig.resources_changed.emit()
+	_hull_seen = hull
+	_max_seen = cap
 
 ## Begin a run in a given manufacturer's chassis.
 ##

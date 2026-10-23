@@ -92,7 +92,47 @@ func run() -> void:
 	for b in bad:
 		_fail(b)
 	_affixes()
+	_hull_follows_fit()
 	verdict("attrtest")
+
+
+## MISSING HULL STAYS MISSING (Jon, Oct 22). A plate fitted to a full ship
+## leaves it full and moves the HULL gauge at once; damage carries across a
+## fit; unfitting and refitting lands where it started; a nearly dead ship that
+## sheds plating is left at 1, not killed.
+func _hull_follows_fit() -> void:
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	Run.installed.clear()
+	Sig.ship_changed.emit()
+	Run.hp = Run.max_hp()
+	Sig.ship_changed.emit()
+	var base := Run.max_hp()
+	var plate := (DB.modules[&"plating"] as ModuleData).duplicate(true) as ModuleData
+	DB.regrade(plate, int(ModuleData.Rarity.RARE))
+	var add := plate.max_hull
+	var gauge := Run.attr_hull()
+	plate.mount = 0
+	Run.installed.append(plate)
+	Sig.ship_changed.emit()
+	_ok("a full ship fits a +%d plate and stays full (%d/%d)" % [add, Run.hp, Run.max_hp()],
+		add > 0 and Run.max_hp() == base + add and Run.hp == Run.max_hp())
+	_ok("and its HULL gauge moves at once (%d -> %d)" % [gauge, Run.attr_hull()],
+		Run.attr_hull() == int(round(Run.ATTR_MAX * float(base + add) / Run.HULL_REF)))
+	Run.hp -= 2
+	var before := Run.hp
+	Run.installed.erase(plate)
+	Sig.ship_changed.emit()
+	_ok("taking it off a damaged ship keeps the damage (%d/%d)" % [Run.hp, Run.max_hp()],
+		Run.hp == Run.max_hp() - 2)
+	Run.installed.append(plate)
+	Sig.ship_changed.emit()
+	_ok("and fitting it again lands where it started (%d, was %d)" % [Run.hp, before],
+		Run.hp == before)
+	Run.hp = 3
+	Run.installed.erase(plate)
+	Sig.ship_changed.emit()
+	_ok("shedding plating near death leaves 1 hull, not 0 (%d)" % Run.hp, Run.hp == 1)
 
 
 ## The pip delta one part makes to one gauge, on a frame carrying nothing else.

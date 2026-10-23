@@ -13,6 +13,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   every part with a stat bonus that rolled a grade up. Parts in saved runs are mended when the
   run loads.
 
+### Changed
+
+- **Changed** — fitting a part with hull on it brings its hull with it. A full ship stays full
+  (40/40 fits a +7 plate and reads 47/47), so the HULL bar moves at once for the "+1 HUL" the
+  part shows. A damaged ship keeps the same damage across a fit, and taking a part off and
+  putting it back lands you where you started. Before, fitting raised only the maximum, so a
+  full ship read 40/47 and the bar did not move until you repaired.
+
 ### Roadmap
 
 The next build follows the friends' playtest of 0.4.1-alpha.1 (Oct 23). See
