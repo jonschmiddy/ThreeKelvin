@@ -122,6 +122,11 @@ var held := false
 ## "" when she says what shows. For the harnesses: the typing always spans the
 ## SHOWN words over her take, so they end when she stops whatever their length.
 var spoken := ""
+## QUIET (Oct 23, Jeremy: "it doesn't need to repeat everything"): a teaching
+## line she has said aloud already, back because its action is still not done.
+## Its words are out at once, held; no chirp, no voice, no power-on slip and no
+## power-down. Her face is up, her mouth shut.
+var quiet := false
 ## A LINE THAT GOES WITH HER VOICE (her introduction: Jon, Oct 20, "The delay
 ## between the intro and the first hint is WAY too long"): held `VOICE_HOLD_S`
 ## past her last word, without the reading allowance, so what comes next is not
@@ -217,7 +222,10 @@ func say(what: String, k: StringName, opts: Dictionary = {}) -> void:
 	held = bool(opts.get("held", false))
 	spoken = String(opts.get("spoken", ""))
 	quick = bool(opts.get("quick", false))
+	quiet = bool(opts.get("quiet", false))
 	voice =String(opts["voice"]) if opts.has("voice") else AshLines.voice_path(what)
+	if quiet:
+		voice = ""
 	voice_secs = 0.0
 	voice_started_at = -1.0
 	typed_at = -1.0
@@ -246,6 +254,17 @@ func say(what: String, k: StringName, opts: Dictionary = {}) -> void:
 	_next_blink = now + _rng.randf_range(1.2, 3.0)
 	phase = Phase.UP
 	visible = true
+	if quiet:
+		# BACK QUIETLY: up as it was left, the words out, nothing announced
+		modulate.a = 1.0
+		_slip_ticks = 0
+		_second_chirp = true
+		_next_slip = now + _slip_gap() if _moving() else INF
+		_start_words(now)
+		_text.skip()
+		_log_frame(now)
+		queue_redraw()
+		return
 	if _moving():
 		modulate.a = float(FADE_IN[0])
 		_slip_ticks = 2
@@ -429,6 +448,8 @@ static func blip_secs() -> float:
 ## there, and the second's, a minor third up, CHIRP_GAP before it. Reduced
 ## motion has no power-on slip and so no second blip, and none here either.
 func _power_down(now: float) -> void:
+	if quiet:
+		return
 	var fade := float(FADE_OUT.size()) * TICK_S if _moving() else 0.0
 	var gone := _hold_until + fade
 	var b := blip_secs()

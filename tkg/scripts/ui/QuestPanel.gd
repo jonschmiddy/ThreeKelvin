@@ -87,6 +87,9 @@ static func open() -> QuestPanel:
 		return _open
 	if Router.hud == null or not is_instance_valid(Router.hud) or Run.hull == null:
 		return null
+	# (one table over the picture at a time: COMMS stands where this does)
+	if CommsPanel.is_open():
+		CommsPanel.close()
 	var p := QuestPanel.new()
 	p.top_level = true
 	p.z_index = 45

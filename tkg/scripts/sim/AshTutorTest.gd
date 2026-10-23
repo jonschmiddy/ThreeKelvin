@@ -69,6 +69,14 @@ extends Node
 ## it comes back; queued behind the dock's (picking a deck is the dock's
 ## action); off with TUTORIAL OFF, back with REPLAY TUTORIAL, a card with her
 ## off, nothing in a party; her box clear on each deck.
+##
+## SAID ALOUD ONCE (Jeremy, a playtester, Oct 23; Jon's 0.4.1 log): over the
+## whole walk no take of hers plays twice, and a line set up again after she
+## said it whole is back as text only. At her real pace: heat across the turns
+## of one fight, the chart left and come back to, the hull's line cut off on
+## three visits, information spent as it shows (`_said_once`). COMMS (Jeremy's
+## ask): the log in order, PLAY, the tab and the table's fit, the save
+## (`_comms`).
 
 const HintActs := preload("res://scripts/sim/HintActs.gd")
 
@@ -185,6 +193,8 @@ func _run() -> void:
 	await _tutorial_switch()
 	await _intro()
 	await _first_launch()
+	await _said_once()
+	await _comms()
 	await _coop()
 	_finish()
 
@@ -882,6 +892,10 @@ func _flow() -> void:
 	# the used state, none), plus each time the flow arms one again on purpose
 	var flow_from := Hints.shown_log.size()
 	var clicks_from := _clicks
+	# HER VOICE ON TAPE for the whole walk: no line said aloud twice (below)
+	var said_from := Ash.said_log.size()
+	Audio.taping = true
+	Audio.tape.clear()
 	_armed.clear()
 	for id in Hints.ORDER:
 		_armed[id] = 0 if Hints.seen(id) else 1
@@ -1278,6 +1292,29 @@ func _flow() -> void:
 		if not Hints.said(id):
 			steps_said.append(String(id))
 	_ok("and every goal step said (%s)" % ("all" if steps_said.is_empty() else "NOT " + ", ".join(steps_said)), steps_said.is_empty())
+	# SHE NEVER SAYS A LINE ALOUD TWICE (Jeremy, a playtester, Oct 23; Jon's 0.4.1
+	# log). The walk comes back to every screen, shuts the cutaway and the chart's
+	# pick with clicks on her box and sets the ship's and the cutaway's lines up
+	# again on purpose: each take of hers on the tape at most once, and a line
+	# shown again after she said it whole is back as text only
+	var takes := {}
+	for r: Array in Audio.tape:
+		var nm := String(r[0])
+		if nm.begins_with("ash/tut_"):
+			takes[nm] = int(takes.get(nm, 0)) + 1
+	var twice: Array[String] = []
+	for nm: String in takes:
+		if int(takes[nm]) > 1:
+			twice.append("%s x%d" % [nm.trim_prefix("ash/"), int(takes[nm])])
+	var quiet: Array[String] = []
+	for sd: Dictionary in Ash.said_log.slice(said_from):
+		if sd.get("quiet", false):
+			quiet.append(String(sd.kind).trim_prefix("tut_"))
+	_ok("the walk: no line of hers said aloud twice (%d takes played%s; back as text only: %s)" % [takes.size(),
+		"" if twice.is_empty() else ", TWICE: " + ", ".join(twice), ", ".join(quiet) if not quiet.is_empty() else "none"],
+		twice.is_empty() and takes.size() >= 30 and quiet.has("ship") and quiet.has("cutaway"))
+	Audio.taping = false
+	Audio.tape.clear()
 	print("    where she stood:")
 	for k in _screens:
 		print("      %-16s %s" % [k, _screens[k]])
@@ -1728,7 +1765,7 @@ func _soft_lock() -> void:
 	_ok("soft lock off (the default): no gate while she speaks", Ash.lesson_speaking() and Hints._gate == null)
 	await _do(&"ship")
 	Hints.poll(Hints.GAP_S + 0.1)
-	Hints.mark_seen(&"ship", false)
+	_fresh(&"ship")
 	Hints.soft_lock = true
 	var up: bool = await _until_said(&"ship")
 	Hints.poll(0.01)
@@ -1754,10 +1791,10 @@ func _soft_lock() -> void:
 	_ok("soft lock on: once her words are out the gate is down, her line still up", Hints._gate == null and Hints.lesson == &"ship")
 	# and where she points, a click always goes through: on the ship, which opens
 	# it up, its action
-	Hints.mark_seen(&"ship", false)
+	_fresh(&"ship")
 	if Hints.lesson == &"ship":
 		Hints.spend()
-		Hints.mark_seen(&"ship", false)
+		_fresh(&"ship")
 	Hints.poll(Hints.GAP_S + 0.1)
 	up = await _until_said(&"ship")
 	Hints.poll(0.01)
@@ -1856,7 +1893,7 @@ func _voice() -> void:
 	Audio.taping = true
 	Audio.tape.clear()
 	await _local()
-	Hints.mark_seen(&"ship", false)
+	_fresh(&"ship")
 	Hints._quiet = 0.0
 	# NO TAKE: every line has one now (Jon's picks, Oct 18), so the silent path is
 	# held by a stand-in naming no file
@@ -1870,7 +1907,7 @@ func _voice() -> void:
 	Hints.poll(Hints.GAP_S + 0.1)
 	# A TAKE (a stand-in: one of her recorded lines)
 	AshTutorLines.stand_in = {"tut_ship": "res://assets/audio/voice/ash/haul_04.ogg"}
-	Hints.mark_seen(&"ship", false)
+	_fresh(&"ship")
 	Hints._quiet = 0.0
 	Router.animate_in_harness = true
 	await _until_said(&"ship")
@@ -2197,7 +2234,7 @@ func _decks() -> void:
 	var counts: Array = DECKS.map(func(id: StringName) -> int: return said.call(id) - int(before[id]))
 	_ok("each deck's line said once over two visits (%s)" % str(counts), counts.all(func(k: int) -> bool: return k == 1))
 	# LEFT WHILE SHE IS STILL SAYING IT: unspent, and it comes back next time
-	Hints.mark_seen(&"promenade", false)
+	_fresh(&"promenade")
 	await _visit(st, &"promenade")
 	var mid: bool = await _until_said(&"promenade")
 	(st._tabs[Hints.DECK_HINTS[&"exchange"]] as Button).pressed.emit()
@@ -2660,6 +2697,469 @@ func _coop() -> void:
 		Hints.card != null], not Hints.enabled() and _taught() == said and Hints.card == null
 		and Hints.lesson == &"" and Hints.step_up == &"")
 	Net.state = was_state
+
+
+# ------------------------------------------------------------------ said aloud once
+
+## SHE NEVER SAYS THE SAME LINE ALOUD TWICE (Jeremy, a playtester, Oct 23: "it
+## doesn't need to repeat everything when I jump out of a menu after it has
+## already said it"; Jon's 0.4.1-alpha.1 log: the hull's line five times, heat's
+## four times in one fight against the Dreg Hulk). At her real pace (the words
+## typed over her take, so "said whole" is her last word), her voice on tape:
+##   - HEAT ACROSS THE TURNS OF ONE FIGHT: said whole at turn 1, it stays up
+##     through the heat vented to nothing (it used to go unspent and come back at
+##     the next turn's start in full), END TURN spends it and the later turns say
+##     nothing; set up again and cut off mid-line (something came into her box),
+##     it is back at the next turn's start of the same fight as text only, and
+##     END TURN spends it. One take of it each time;
+##   - A SCREEN LEFT AND COME BACK TO after a line was said whole: the chart's
+##     (a star picked spends it) is back quietly, the words out at once, no chirp
+##     and no take, and held until a star is picked;
+##   - CUT OFF, SAID ONCE MORE: the hull's, LOCAL left before her last word on
+##     three visits, is said aloud, aloud once more, then as text only, which
+##     leaving spends;
+##   - INFORMATION, ONCE EVER: the first arrival's fuel line, the map left while
+##     she says it, is spent and never comes again.
+func _said_once() -> void:
+	print("said aloud once (Jeremy, Oct 23)")
+	Audio.taping = true
+	Audio.tape.clear()
+	Router.animate_in_harness = true
+	await _heat_turns()
+	await _screen_again()
+	await _cut_once()
+	await _info_once()
+	Router.animate_in_harness = false
+	Audio.taping = false
+	Audio.tape.clear()
+	Run.heat = 0
+	Run.hp = Run.max_hp()
+	Hints.reset()
+	Hints.poll(Hints.GAP_S + 0.1)
+
+
+## A new run at a system, a jump in, her introduction not due (it holds every
+## lesson until it is said).
+func _new_run() -> void:
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	_system()
+	Run.jumps = 1
+	Ash._intro_due = false
+	Ash.waiting.clear()
+
+
+## REPLAY TUTORIAL, then everything seen and every step said but `ids`.
+func _only(ids: Array) -> void:
+	Hints.reset()
+	for id in Hints.ORDER:
+		Hints.mark_seen(id, not ids.has(id))
+	for id in Hints.STEP_LINES:
+		Hints.mark_seen(StringName("said_" + String(id)))
+	Hints._quiet = 0.0
+
+
+## Hint `id` unseen again AND her line for it unheard, to be said aloud again
+## from the start (as REPLAY TUTORIAL does for all of them). Set unseen alone, a
+## line she has said whole comes back quietly (`Hints.may_say_aloud`).
+func _fresh(id: StringName) -> void:
+	Hints.mark_seen(id, false)
+	Hints.forget_heard(AshTutorLines.line_id(id))
+
+
+## `secs` of the game's clock, the hints stepped with it.
+func _tick(secs: float) -> void:
+	var t0 := GameClock.now()
+	while GameClock.now() - t0 < secs:
+		Hints.poll(1.0 / 60.0)
+		await _tree.process_frame
+
+
+## Up to `secs` of the game's clock, the hints stepped with it, until she is
+## saying line `lid`.
+func _said_in(lid: StringName, secs: float = 8.0) -> bool:
+	var t0 := GameClock.now()
+	while GameClock.now() - t0 < secs:
+		Hints.poll(1.0 / 60.0)
+		await _tree.process_frame
+		if Ash.lesson == lid and Ash.lesson_up():
+			return true
+	return false
+
+
+## Until her words are all out (said whole), up to 15 s of the game's clock.
+func _until_whole() -> bool:
+	var t0 := GameClock.now()
+	while not Hints._said and GameClock.now() - t0 < 15.0:
+		Hints.poll(1.0 / 60.0)
+		await _tree.process_frame
+	return Hints._said
+
+
+## Until her words have started and are not yet out, up to 5 s.
+func _until_speaking() -> bool:
+	var t0 := GameClock.now()
+	while GameClock.now() - t0 < 5.0:
+		Hints.poll(1.0 / 60.0)
+		await _tree.process_frame
+		var p := Ash.portrait
+		if p != null and p.phase == AshPortrait.Phase.TYPING and p.typed_at >= 0.0 and p.voice_started_at >= 0.0:
+			return true
+	return false
+
+
+## The tape's name for line `lid`'s take, and how often it has played.
+func _take_of(lid: StringName) -> String:
+	return "ash/" + AshTutorLines.voice_path(lid).get_file().get_basename()
+
+
+func _takes(take: String) -> int:
+	return Audio.tape.filter(func(r: Array) -> bool: return String(r[0]) == take).size()
+
+
+func _heat_turns() -> void:
+	_new_run()
+	_only([&"heat"])
+	await _local()
+	var take := _take_of(&"heat")
+	for part in 2:
+		if part == 1:
+			_fresh(&"heat")
+		Run.heat = 4
+		Router.start_combat(DB.enemies[&"hulk"], [], false, false)
+		await _frames(40)
+		var fs := Router.current as SectorScreen
+		var cb: Combat = Router.combat
+		if not _ok("heat: a fight with the Dreg Hulk is up", fs != null and fs.fighting() and cb != null):
+			return
+		for e in cb.enemies:
+			(e as Combat.EnemyState).max_hp = 999
+			(e as Combat.EnemyState).hp = 999
+		await _settle_turn(fs)
+		var n0 := _takes(take)
+		if not _ok("heat: said at a turn's start, heat %d" % Run.heat, await _said_in(&"heat")):
+			return
+		if part == 0:
+			_ok("heat: said whole, in her voice: heard", await _until_whole() and Hints.heard(&"heat"))
+			# BLEED HEAT'S VENT, to nothing (in every starting deck)
+			Run.heat = 0
+			fs._refresh_player()
+			await _tick(2.0)
+			_ok("heat: vented to nothing mid-turn, the line stays up, unspent (it used to go, and come back next turn in full)",
+				Hints.lesson == &"heat" and Ash.lesson_up() and not Hints.seen(&"heat"))
+			fs._on_end_turn()
+			await _tick(0.5)
+			_ok("heat: END TURN spends it", Hints.seen(&"heat") and Hints.lesson != &"heat")
+			var again := false
+			for t in 3:
+				await _settle_turn(fs)
+				Run.heat = 3
+				fs._refresh_player()
+				for i in 120:
+					Hints.poll(1.0 / 60.0)
+					await _tree.process_frame
+					again = again or Ash.lesson == &"heat"
+				await _next_turn(fs)
+			_ok("heat: three more turns with heat up: not said again", not again)
+		else:
+			_ok("heat: set up again, her words under way", await _until_speaking())
+			# SOMETHING CAME INTO HER BOX: she goes, as `Ash._lesson_must_go` sends her
+			Ash.end_lesson(true)
+			await _tick(0.5)
+			_ok("heat: cut off mid-line: unspent, not heard", not Hints.seen(&"heat") and not Hints.heard(&"heat")
+				and Hints.lesson != &"heat")
+			await _next_turn(fs)
+			Run.heat = 3
+			fs._refresh_player()
+			var back: bool = await _said_in(&"heat")
+			await _frames(2)
+			var p := Ash.portrait
+			_ok("heat: the next turn's start, the same fight: back as text only (quiet %s, %d chirps, voice \"%s\")" % [
+				p.quiet, p.chirps, p.voice], back and p.quiet and p.chirps == 0 and p.voice == "" and p._text.done)
+			fs._on_end_turn()
+			await _tick(0.5)
+			_ok("heat: END TURN spends it", Hints.seen(&"heat") and Hints.lesson != &"heat")
+		_ok("heat: one take of it in this fight (%d)" % (_takes(take) - n0), _takes(take) - n0 == 1)
+	Run.heat = 0
+
+
+func _screen_again() -> void:
+	_new_run()
+	_only([&"chart"])
+	await _local()
+	Router.show_starchart()
+	for i in 600:
+		if Router.current is StarchartScreen and not ZoomLadder.busy():
+			break
+		await _tree.process_frame
+	var take := _take_of(&"chart")
+	var n0 := _takes(take)
+	if not _ok("chart: she says it", await _said_in(&"chart")):
+		return
+	var whole: bool = await _until_whole()
+	_ok("chart: said whole, in her voice: heard (%d take), still unspent" % (_takes(take) - n0),
+		whole and Hints.heard(&"chart") and _takes(take) - n0 == 1 and not Hints.seen(&"chart"))
+	await _local()
+	await _tick(0.3)
+	_ok("chart: LOCAL, the chart left with no star picked: unspent", not Hints.seen(&"chart") and Hints.lesson != &"chart")
+	Router.show_starchart()
+	for i in 600:
+		if Router.current is StarchartScreen and not ZoomLadder.busy():
+			break
+		await _tree.process_frame
+	var back: bool = await _said_in(&"chart")
+	await _frames(2)
+	var p := Ash.portrait
+	_ok("chart: the chart again: back quietly, the words out at once, no chirp, no take (%d chirps, %d takes)" % [
+		p.chirps, _takes(take) - n0], back and p.quiet and p.chirps == 0 and p.voice == "" and p._text.done
+		and _takes(take) - n0 == 1)
+	await _tick(6.0)
+	_ok("chart: still up and unspent until its action, as every line is", Hints.lesson == &"chart" and Ash.lesson_up()
+		and not Hints.seen(&"chart"))
+	var did := HintActs.act(&"chart")
+	await _tick(0.5)
+	_ok("chart: done (%s): spent, and she goes" % did, Hints.seen(&"chart") and Hints.lesson != &"chart")
+
+
+func _cut_once() -> void:
+	_new_run()
+	_only([&"hull"])
+	Run.hp = Run.max_hp() - 5
+	var take := _take_of(&"hull")
+	var n0 := _takes(take)
+	var got: Array[String] = []
+	for k in 3:
+		await _local()
+		if not await _said_in(&"hull"):
+			got.append("none")
+			break
+		var p := Ash.portrait
+		got.append("quiet" if p.quiet else "aloud")
+		# (her words under way, not out: 1.5 s into a 5.6 s take)
+		await _tick(1.5)
+		if not p.quiet and p.phase != AshPortrait.Phase.TYPING:
+			got[k] += " (said whole)"
+		Router.show_system()
+		for i in 600:
+			if Router.current is SystemMapScreen and not ZoomLadder.busy():
+				break
+			await _tree.process_frame
+		await _tick(0.5)
+	_ok("hull: LOCAL left mid-line on three visits: aloud, aloud once more, then text only (%s; %d takes)" % [
+		", ".join(got), _takes(take) - n0], got == ["aloud", "aloud", "quiet"] and _takes(take) - n0 == 2)
+	_ok("hull: the third, shown whole and left, is spent", Hints.seen(&"hull"))
+	await _local()
+	await _never(&"hull", "hull: LOCAL again: never again")
+	Run.hp = Run.max_hp()
+
+
+func _info_once() -> void:
+	_new_run()
+	_only([&"fuel_first"])
+	await _local()
+	Router.show_system()
+	for i in 600:
+		if Router.current is SystemMapScreen and not ZoomLadder.busy():
+			break
+		await _tree.process_frame
+	var up: bool = await _said_in(&"fuel_first")
+	var mid: bool = await _until_speaking()
+	await _local()
+	await _tick(0.3)
+	_ok("fuel_first: information, the map left while she says it: spent all the same", up and mid
+		and Hints.seen(&"fuel_first") and Hints.lesson != &"fuel_first")
+	Router.show_system()
+	for i in 600:
+		if Router.current is SystemMapScreen and not ZoomLadder.busy():
+			break
+		await _tree.process_frame
+	await _never(&"fuel_first", "fuel_first: the map again: never said again")
+
+
+# ------------------------------------------------------------------ comms
+
+## COMMS (Jeremy, a playtester, Oct 23: "Give me an option to revisit all
+## communications"), through the HUD's COMMS tab: a new run's log is empty; her
+## teaching lines and a quip go in it as she says them, a line back quietly does
+## not; the tab is the same rect and the same word before and after (no count,
+## ever), and the HUD's row fits with it, nothing over anything; the table lists
+## the lines newest first, each with its words, and PLAY on every line with her
+## voice; PLAY says the take again, and waits while she is speaking; COMMS and
+## QUESTS take turns over the picture; the table clear of the HUD, the goal line
+## and her; the run's save keeps the log, CONTINUE puts it back in order, and a
+## save from before it (VERSION 35, no `ash_comms`) loads with an empty one.
+func _comms() -> void:
+	print("comms: what she said this run")
+	_new_run()
+	_ok("a new run: the log is empty", Ash.comms.is_empty())
+	_only([&"ship", &"hull"])
+	var hud: HudBar = Router.hud
+	var sc := await _local()
+	var tab0 := hud.comms_tab_rect()
+	Audio.taping = true
+	Audio.tape.clear()
+	# A TEACHING LINE, said, its action done
+	if _ok("comms: the ship's line is said", await _until_said(&"ship")):
+		await _until_whole()
+		await _do(&"ship")
+	Hints.poll(Hints.GAP_S + 0.1)
+	# ANOTHER, on a visit of its own
+	Run.hp = Run.max_hp() - 5
+	sc = await _local()
+	if _ok("comms: the hull's line is said", await _until_said(&"hull")):
+		await _until_whole()
+	Router.show_system()
+	await _frames(40)
+	Run.hp = Run.max_hp()
+	sc = await _local()
+	Hints.poll(Hints.GAP_S + 0.1)
+	# A QUIP
+	Ash._last_end = -INF
+	Ash.arm(&"haul")
+	var quip := false
+	for i in 240:
+		Hints.poll(1.0 / 60.0)
+		await _tree.process_frame
+		if not Ash.comms.is_empty() and StringName(Ash.comms.back().kind) == &"haul":
+			quip = true
+			break
+	_ok("comms: a quip is said (%s)" % (Ash.comms.back().line if quip else "none"), quip)
+	var kinds: Array[String] = []
+	for e: Dictionary in Ash.comms:
+		kinds.append(String(e.kind))
+	_ok("comms: the log holds what she said, in order (%s)" % ", ".join(kinds), kinds == ["tut_ship", "tut_hull", "haul"])
+	# A LINE BACK QUIETLY IS NOT SAID AGAIN, so not logged again (after the quip
+	# has played out: a lesson waits for it)
+	var q0 := GameClock.now()
+	while Ash.bark_up() and GameClock.now() - q0 < 12.0:
+		Hints.poll(1.0 / 60.0)
+		await _tree.process_frame
+	Hints.mark_seen(&"ship", false)
+	sc = await _local()
+	var quiet_up: bool = await _until_said(&"ship")
+	await _frames(4)
+	_ok("comms: the ship's line back quietly is not in it again (%d lines, quiet %s)" % [Ash.comms.size(),
+		Ash.portrait.quiet], quiet_up and Ash.portrait.quiet and Ash.comms.size() == 3)
+	await _do(&"ship")
+	Hints.poll(Hints.GAP_S + 0.1)
+	sc = await _local()
+	# THE TAB: no count, ever, and the row fits with it
+	_ok("comms: the tab is the same rect and the same word with three lines said (%s, \"%s\")" % [hud.comms_tab_rect(),
+		hud._tab_comms.text], hud.comms_tab_rect() == tab0 and hud._tab_comms.text == "COMMS" and tab0.size.x > 0.0)
+	_comms_row_fits(hud)
+	# THE TABLE, newest first
+	hud._tab_comms.pressed.emit()
+	await _frames(4)
+	var cp := CommsPanel._open
+	if not _ok("comms: the tab opens the table", CommsPanel.is_open() and cp != null):
+		return
+	var rows: Array = cp._rows.get_children().filter(func(c: Node) -> bool: return c.has_meta(&"comms"))
+	var order: Array = rows.map(func(c: Node) -> int: return int(c.get_meta(&"comms")))
+	var words_ok := true
+	for c: Node in rows:
+		var e: Dictionary = Ash.comms[int(c.get_meta(&"comms"))]
+		var w := c.get_node("Words") as Label
+		words_ok = words_ok and w != null and w.text == String(e.line) \
+			and (c.find_child("Play*", true, false) != null) == (String(e.voice) != "")
+	_ok("comms: a row a line, newest first (%s), each its words, PLAY on each with her voice" % str(order),
+		order == [2, 1, 0] and words_ok)
+	_comms_fit(cp)
+	# PLAY: her take again
+	var t0 := GameClock.now()
+	while not Ash.can_replay() and GameClock.now() - t0 < 12.0:
+		Hints.poll(1.0 / 60.0)
+		await _tree.process_frame
+	await _frames(2)
+	var play := cp.find_child("Play0", true, false) as Button
+	var take := "ash/" + String(Ash.comms[0].voice).get_file().get_basename()
+	Audio.tape.clear()
+	if _ok("comms: PLAY on the oldest line, pressable", play != null and not play.disabled):
+		play.pressed.emit()
+		await _frames(2)
+		_ok("comms: PLAY says it again in her voice (%s on the tape)" % take, _takes(take) == 1)
+		_ok("comms: and while she speaks, PLAY waits", play.disabled)
+		Audio.ash_voice_stop()
+		await _frames(2)
+		_ok("comms: done, PLAY again", not play.disabled)
+	# ONE TABLE AT A TIME
+	hud._tab_quests.pressed.emit()
+	await _frames(2)
+	_ok("comms: QUESTS opened, COMMS shut", QuestPanel.is_open() and not CommsPanel.is_open())
+	hud._tab_comms.pressed.emit()
+	await _frames(2)
+	_ok("comms: COMMS opened, QUESTS shut", CommsPanel.is_open() and not QuestPanel.is_open())
+	CommsPanel.close()
+	await _frames(2)
+	# THE RUN'S SAVE
+	var want := JSON.stringify(Ash.comms_to())
+	SaveGame.save()
+	var d := SaveGame._read()
+	_ok("comms: the run's save keeps the log (%d lines)" % (d.get("ash_comms", []) as Array).size(),
+		(d.get("ash_comms", []) as Array).size() == 3)
+	var loaded := SaveGame.load_into_run()
+	await _frames(4)
+	_ok("comms: CONTINUE puts it back, in order", loaded and JSON.stringify(Ash.comms_to()) == want)
+	SaveGame.save()
+	var old := SaveGame._read()
+	old.erase("ash_comms")
+	var f := FileAccess.open(SaveGame.path, FileAccess.WRITE)
+	f.store_string(JSON.stringify(old, "", true, true))
+	f.close()
+	loaded = SaveGame.load_into_run()
+	await _frames(4)
+	_ok("comms: a version %d save from before COMMS loads, its log empty" % int(old.get("version", -1)),
+		loaded and int(old.get("version", -1)) == 35 and Ash.comms.is_empty())
+	Audio.taping = false
+	Audio.tape.clear()
+	Hints.reset()
+
+
+## The HUD's row with COMMS: every piece inside the bar, none over another, and
+## its minimum within the bar (`QuestLogTest._hud_fits`, the same test).
+func _comms_row_fits(hud: HudBar) -> void:
+	var bar := hud.get_global_rect()
+	var pieces: Array = []
+	for c in hud._row.get_children():
+		var k := c as Control
+		if k != null and k.is_visible_in_tree() and k.size.x > 0.0:
+			pieces.append(k)
+	var bad: Array[String] = []
+	for i in pieces.size():
+		var r: Rect2 = (pieces[i] as Control).get_global_rect()
+		if not bar.encloses(r):
+			bad.append("%s leaves the bar" % (pieces[i] as Control).name)
+		for j in range(i + 1, pieces.size()):
+			if r.intersects((pieces[j] as Control).get_global_rect()):
+				bad.append("%s over %s" % [(pieces[i] as Control).name, (pieces[j] as Control).name])
+	var need := hud._row.get_combined_minimum_size().x
+	_ok("comms: the HUD's row fits with COMMS (needs %.0f of %.0f px, developer mode %s), nothing over anything%s" % [
+		need, bar.size.x, DevMode.enabled, "" if bad.is_empty() else ": " + ", ".join(bad)],
+		bad.is_empty() and need <= bar.size.x)
+
+
+## The table clear of the HUD, the goal line and A.S.H., inside the picture,
+## every row whole and none over another.
+func _comms_fit(p: CommsPanel) -> void:
+	var r := p.get_global_rect()
+	var bad: Array[String] = []
+	if r.intersects(Router.hud.get_global_rect()):
+		bad.append("over the HUD")
+	for k in QuestPanel.keep_off():
+		if r.intersects(k as Rect2):
+			bad.append("over %s" % k)
+	if not Rect2(Vector2.ZERO, Vector2(960, 540)).encloses(r):
+		bad.append("off the screen %s" % r)
+	var rows: Array = p._rows.get_children().filter(func(c: Node) -> bool: return c.has_meta(&"comms"))
+	var view := p._scroll.get_global_rect()
+	for i in rows.size():
+		var a: Rect2 = (rows[i] as Control).get_global_rect()
+		if not view.grow(0.5).encloses(a):
+			bad.append("row %d %s not wholly shown in %s" % [i + 1, a, view])
+		for j in range(i + 1, rows.size()):
+			if a.intersects((rows[j] as Control).get_global_rect()):
+				bad.append("row %d over row %d" % [i + 1, j + 1])
+	_ok("comms: the table %s clear of the HUD, the goal line and A.S.H., %d rows whole and apart%s" % [r, rows.size(),
+		"" if bad.is_empty() else ": " + ", ".join(bad)], bad.is_empty())
 
 
 func _taught() -> int:

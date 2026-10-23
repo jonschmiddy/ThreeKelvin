@@ -12,6 +12,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   Ranging Optics that rolled Rare read SENSORS +1 but added nothing, and the same was true of
   every part with a stat bonus that rolled a grade up. Parts in saved runs are mended when the
   run loads.
+- **Fixed** — A.S.H. no longer says a tutorial line aloud twice. A line she has said to its end
+  comes back, while you still have not done what it teaches, as words in her box with no voice
+  and no chirp. A line cut off because you left the screen is said aloud once more on a later
+  visit, never on the same screen or in the same fight, and after that only as words. Lines
+  that only tell you something, like the fuel line after your first jump, are said once and
+  never again. Her lines still stay up until you do what they teach. Jon's 0.4.1-alpha.1 log had
+  the hull line five times and the heat line four times in one fight.
+- **Fixed** — the heat lesson stays up until END TURN when a card like Bleed Heat cools the ship
+  to nothing. It used to go and come back at the start of every turn.
+- **Fixed** — pressing SAVE & EXIT counts as doing what the SAVE AND EXIT lesson teaches. Its
+  question hid the lesson, so A.S.H. said it again the next time you opened the menu.
+
+### Added
+
+- **Added** — COMMS on the top bar, beside QUESTS. It lists everything A.S.H. has said this run,
+  her quips and her tutorial lines, newest first, with the jump each was said on. PLAY on a line
+  says it again in her voice. The list is kept with the run's save, and older saves load with an
+  empty list. Jeremy asked for it: "Give me an option to revisit all communications."
 
 ### Changed
 

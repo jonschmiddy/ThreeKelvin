@@ -443,6 +443,10 @@ static func _snapshot() -> Dictionary:
 		# The event quests and the finished order (VERSION 35).
 		event_quests = _event_quests_to(),
 		quests_done = Array(Run.quests_done),
+		# What A.S.H. has said this run, for the HUD's COMMS (Oct 23). Optional:
+		# a save without it (a 35 written before it) loads with an empty log, so
+		# it did not need a VERSION of its own.
+		ash_comms = Ash.comms_to(),
 		standing = _standing_to(),
 
 		map = nodes,
@@ -657,6 +661,9 @@ static func load_into_run() -> bool:
 	restoring = true
 	Sig.run_started.emit()
 	restoring = false
+	# HER COMMS, after run_started (which empties them for a new run); none in a
+	# save from before them
+	Ash.comms_from(d.get("ash_comms", []))
 	# AFTER run_started, not before: the Router's listener clears the record (a
 	# new run, or a load, must not inherit the last run's orbits), so anything
 	# put there first would be wiped by the signal that announces it. A 29 save

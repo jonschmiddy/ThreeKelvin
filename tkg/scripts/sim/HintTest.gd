@@ -814,8 +814,11 @@ func _dismiss(id: StringName) -> void:
 	# clicks to put it away
 	var made: int = await _click_on(c.card_rect())
 	Hints.poll(0.3)
-	_ok("%s: clicked %d times: it stays, unspent" % [id, made], made > 0 and Hints.card == c and not Hints.seen(id))
-	if Hints.INFO.has(id):
+	# (an information card is spent as it shows, Oct 23: said once, ever)
+	var info := Hints.INFO.has(id)
+	_ok("%s: clicked %d times: it stays, %s" % [id, made, "spent as it showed (information)" if info else "unspent"],
+		made > 0 and Hints.card == c and Hints.seen(id) == info)
+	if info:
 		# only tells you something: gone by itself after its reading time, spent
 		var t := 0.6
 		while Hints.card == c and t < 30.0:
