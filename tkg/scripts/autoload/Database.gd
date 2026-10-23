@@ -618,7 +618,7 @@ func _seed_modules() -> void:
 	# The Flashpoint gun, for a build that lives over its cap on purpose.
 	# Ignition (5-set, overheat halved) is what makes that survivable.
 	_module(&"overpressure", "Overpressure Cannon", &"solari", W, C3,
-		"Rated for the pressure. The crew was not.",
+		"Fires over its rated pressure. It hits twice and runs hot.",
 		[{name = "Overpressure", energy = 2, heat = 5, damage = 9, hits = 2, flashpoint = 5},
 			{name = "Flashover", energy = 1, heat = 6, damage = 8, flashpoint = 8}])
 	# The capstone, four across, a full row of a light hull's hold. Sunburst is
@@ -635,11 +635,11 @@ func _seed_modules() -> void:
 		"Lined to the specification of a smelting floor.",
 		[{name = "Firebrick", energy = 1, heat = 2, brace = 6, copies = 2}])
 	_module(&"bellows", "Bellows Pump", &"solari", S, C0,
-		"It breathes for the furnace. Mind your hands.",
+		"A pump that feeds the furnace. It draws cards and makes heat.",
 		[{name = "Bellows", energy = 0, heat = 3, draw = 1, copies = 2}])
 	# Solari's only block: for the turn a Sunspot is charging.
 	_module(&"heathaze", "Heat Haze Projector", &"solari", S, C1,
-		"The air bends, and their gunners guess.",
+		"Heats the air around the hull until their gunners miss.",
 		[{name = "Heat Haze", energy = 1, heat = 2, block = 9},
 			{name = "Shimmer", energy = 0, heat = 3, block = 5}])
 	_module(&"heatbank", "Heat Bank", &"solari", S, C2,
@@ -653,7 +653,7 @@ func _seed_modules() -> void:
 	# Both read the gauge before their own heat lands. (Not "Prominence": that
 	# is the medium hull's name.)
 	_module(&"sunheart", "Sunheart Core", &"solari", S, C4,
-		"The floor calls it the heart. It is a reactor.",
+		"A reactor that turns your heat into brace and hits back.",
 		[{name = "Corona", energy = 1, heat = 3, brace_from_heat = true, feedback = 5},
 			{name = "Photosphere", energy = 2, heat = 4, damage_equals_heat = true,
 				brace_from_heat = true}])
@@ -679,7 +679,7 @@ func _seed_modules() -> void:
 	# A radiator pointed at the enemy. Radiate hits for your heat and sheds 6, so
 	# unlike Thermal Purge it leaves you warm enough to keep going.
 	_module(&"radiatorsail", "Radiator Sail", &"solari", U, C2,
-		"Every other yard points these at the dark.",
+		"A radiator pointed at the enemy. It hits for your heat and sheds it.",
 		[{name = "Radiate", energy = 2, damage_equals_heat = true, vent = 6, draw = 1},
 			{name = "Luff", energy = 1, vent = 3, draw = 2}])
 	_module(&"annealer", "Annealing Lamp", &"solari", U, C3,

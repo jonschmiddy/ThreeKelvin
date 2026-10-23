@@ -11,6 +11,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 The next build follows the friends' playtest of 0.4.1-alpha.1 (Oct 23). See
 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
+- **Changed** — the words, again. A pass over every player-facing string for the mannered moves
+  the plain-voice overhaul left behind in plain words: the outcome that ends on what is still
+  happening as you leave (49 of them), the clamp or the meter that "does not care", the pair that
+  winks ("they say they are happy to wait, and they are not"), "the best thing", "worth having",
+  "the digit is the digit". 103 lines changed in the encounters, five Solari part descriptions,
+  two materials, two choice labels. Every fact, number and effect stays. The rules are in
+  `tools/prose_tells.py` now, ported from the Meridian manuscript's style sheet, with Jon's
+  approved lines as a keep list; the log is `docs/briefs/PROSE_MANNER_PASS.md`.
+
 ## 2026-10-22
 
 ### [0.4.1-alpha.1]

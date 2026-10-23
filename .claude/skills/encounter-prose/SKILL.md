@@ -162,7 +162,8 @@ included. The list stays for recognising the same moves in new work.
 
 `python tools/prose_tells.py` finds the mechanical ones in every player-facing
 string, not only encounters: the reframe past one an encounter, the narrator
-stating the point, summing-up closers, dashes, "round", hands in an encounter.
+stating the point, summing-up closers, dashes, "round", hands in an encounter,
+and since 2026-10-23 the mannered-prose rules in §3d.
 The gate fails only on findings not in `tools/prose_tells_baseline.txt`. Its
 REVIEW list (cappers, runs of verbless fragments, soft words, reframes under the
 ceiling) is for reading, never for failing. Run it on a batch before the report.
@@ -256,6 +257,66 @@ The target for anything written or revised from now on:
 
 Plain does not mean thin. Every fact, name and number the dense version carried
 survives the rewrite; what goes is the clause chain and the closing aphorism.
+
+## 3d. Mannered prose in plain words (ported from Meridian, 2026-10-23)
+
+The plain-voice overhaul (§0) took out the slang and the epigrams. What it
+left behind was the same moves in plain words, and the Meridian manuscript's
+style sheet (§9.13 "Banished constructions", §9.18 "Mannered prose") has the
+names for them: figure standing in for a statement. Measured over the
+encounters before this pass, "still" ran 49 per 10k words against about 10 in
+a shelf of novels, and 49 strings ended on the same closer. The moves, with
+the rule in `prose_tells.py` that now catches each:
+
+- **The lingering camera** (`still-closer`, gated): a walk-away or an outcome
+  that ends on the thing still doing what it was doing as you go. "The rate
+  card is still repeating on the channel behind you." "She is still on the
+  channel asking when you pass out of range." "The light is still running when
+  your dish loses the rock." This is §0's quiet closing image in a plainer
+  coat. End on the last plain fact or the last action, and let one in fifty
+  keep the camera when the fact is that nothing changed.
+- **The personified machine** (`personified`, gated): a clamp, a meter, an arm
+  or a herd given a person's verb. "The arms do not care where you are." "It
+  takes you like it was expecting you." "Nothing on the board complains." "The
+  herd does not mind you there." Say what it did: the arms close on the same
+  cycle whether you are there or not.
+- **The wink** (`wink`, gated): the pair that lets the narrator smirk. "They say
+  they are happy to wait, and they are not." "It is uncomfortable and it is
+  free." "The repair is worth arguing about, and you argue about it." State
+  the fact once: they are lying; it costs nothing.
+- **The pronouncement closer** (`pronouncement`, review): a short abstract last
+  sentence doing the work an image should. "It is slow and safe." "It is not
+  the good one." "It was built to ignore a leak." Fold it into the sentence
+  before, or end on the concrete thing.
+- **Vague "thing"** (`vague-thing`, gated): "the best thing you were parked
+  next to", "the one thing it could reach", "the thing at the core". Name the
+  piece, the crate, the part, or say "whatever is at the core".
+- **Idiom stand-ins** (`idiom`, gated): "worth having", "the lane costs you
+  nothing", "the whole of it", "at leisure". Each has a plain phrase.
+- **Tautology** (`tautology`, gated): "the digit is the digit", "the order is
+  the order they arrived in".
+- **The bare flourish verb** (`flourish-verb`, review): "It holds." as a whole
+  sentence. Say what held. Jon's death line "The hull held." is on the keep
+  list and stays.
+- **Vague spans** (`span`, review): "a long time", "long ago", "a long while",
+  43 of them in the table. Name the span where the body has the number
+  (centuries, in the glass ring; years, for the automatic dock), and leave the
+  ones with no number to name.
+
+The approved lines in §0 are the keep list in `prose_tells.py` (`KEEP`): a
+string carrying one of them is skipped by every rule, so the rules can fire
+hard without re-litigating a decided line. Add a line there when Jon rules on
+one, with the ruling in the commit.
+
+What this pass did NOT touch, for Jon to rule on: the manufacturer taglines in
+`Database.gd` ("Everything is salvage. Even you." is the epigram §0 vetoed,
+but it is a company motto and the lore keeps one line per manufacturer); the
+contract postings in `Contracts.gd`, which are written in each manufacturer's
+own register; A.S.H.'s lines, whose dry voice is her design (`docs/ash.md`);
+and the material catalogue's wry pairs ("Owning them is legal, but reading
+them is not."), which are the catalogue's voice and read as facts. The pass log
+is `docs/briefs/PROSE_MANNER_PASS.md`, every change with its original, its
+replacement and its rule.
 
 ## 4. The report
 

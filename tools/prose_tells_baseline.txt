@@ -1,4 +1,5 @@
 # Tells that predate prose_tells.py. `--strict` ignores these and
 # fails on anything new. Whether to fix them is a ruling, not a lint.
 # Re-record with --baseline after a real fix.
-
+systems/OptionTable.gd still-closer It is out of range in an hour, still running hot on one drive.
+systems/OptionTable.gd still-closer The storm takes them down again, and by the time they call again, you are out of
