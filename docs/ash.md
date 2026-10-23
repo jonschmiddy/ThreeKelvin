@@ -343,7 +343,7 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
   | exchange | a part sold; or said whole and the deck left |
   | hiring_board | a job signed; or said whole and the deck left |
   | laboratory | something made at the fabricator; or said whole and the deck left |
-  | fuel | information: its reading time |
+  | fuel | information: spent as it shows, gone after its reading time |
   | ship | your ship opened up |
   | the deep tutorial's | as in its table below |
   | the goal steps | their reading time (the goal line keeps the step as the reminder) |
@@ -356,6 +356,29 @@ and the thing it is about gets a 1 px ice outline, as the goal line outlines a t
   is waiting here (an unseen hint with its subject up, or a goal step to say) gives way, unspent,
   and rests `Hints.REST_S` (45 s) so the waiting one goes first; then it comes back. So no line
   holds the goal or another hint for good; with nothing waiting, it simply stays.
+- **Said aloud once** (Oct 23; Jeremy, a playtester: "it doesn't need to repeat everything when I
+  jump out of a menu after it has already said it"). The come-back rules above said the whole line
+  again in her voice every time. Jon's 0.4.1-alpha.1 log had the hull's line five times (LOCAL left
+  for the map before her last word, each visit), heat's four times in one fight (Bleed Heat vented
+  the heat to nothing, the line hid unspent and came back at each turn's start), the ship for
+  sale's twice on one visit (a drone flew into her box 0.1 s in) and SAVE & EXIT's twice (its
+  question took the plate's place, so the line hid unspent). Now a line she has said to its end is
+  heard (`heard_<line>` in the hints file, cleared by REPLAY TUTORIAL). If its action is still not
+  done it comes back quietly: her box with the words already out, no chirp, no voice, no power-on
+  slip (`AshPortrait.quiet`), held as before. A line cut off after her words started may be said
+  aloud once more, on a later visit or fight (`Hints._visit`), never on the one it was cut on;
+  after that it is words only. An information line (`Hints.INFO`) is spent as it shows. Heat's
+  line stays up through the heat vented to nothing, and SAVE & EXIT pressed spends the menu's. The
+  log prints `[ash] tut <id> (back, text only)` for a quiet line and `[hints] <id>: she went (why),
+  unspent` when one goes unspent.
+- **COMMS** (Oct 23; Jeremy: "Give me an option to revisit all communications"). A tab on the HUD
+  after QUESTS (`CommsPanel`, `Ash.comms`): every line she said aloud this run, quips, lessons and
+  steps, newest first, each with its jump; PLAY says a voiced one again (not while she is
+  speaking). A line enters the log when her words start, so one cut before a word is not in it, and
+  a quiet return is not said again. No count on the tab. The bar had the room: on LOCAL its row
+  wants 702 of 932 px with COMMS, 832 in developer mode, so it is a tab and not a page of the
+  escape menu. Same place and rules as the QUESTS table, one of the two open at a time. Kept in the
+  run's save as `ash_comms`, optional, so a version 35 save without it loads with an empty log.
 - **The soft lock (option b), off.** Jon asked to "soft lock the screen". Built as (a): she
   cannot be dismissed, and the game is still the player's to click, since they have to click to
   do the step, and a screen that refuses clicks reads as a bug. Option (b) is built behind
@@ -433,7 +456,7 @@ shipped; where a draft said something the code does not do, the words follow the
 | 31 | quest | a chart with an event's mark in sight | Something is marked on the chart now. Fly there to follow it up. | the mark | a star picked |
 | 32 | jump_blocked | a star picked that JUMP cannot go to | We can't jump there yet. The button says why. | JUMP | another star picked |
 | 33 | hull_sale | the yard with a ship for sale, its deal on the TV | That ship is for sale. TAKE IT trades ours in. It comes empty, so we move everything over. | the TV | the ship taken, or said whole and left |
-| 34 | save | the escape menu | SAVE AND EXIT keeps the run. CONTINUE on the title picks it back up. | SAVE & EXIT | the menu shut |
+| 34 | save | the escape menu | SAVE AND EXIT keeps the run. CONTINUE on the title picks it back up. | SAVE & EXIT | the menu shut, or SAVE & EXIT pressed |
 | 35 | chassis_card | the chassis select (a card only) | (card) Pick a ship, then press LAUNCH. / Point at a line or a card to read more. | LAUNCH | LAUNCH |
 
 **Changed to match the code** (each draft line was checked):

@@ -54,9 +54,28 @@ static func won_with() -> Dictionary:
 		# A run flown in July is meant to keep counting.
 		var m := StringName(str(e.get("chassis_manufacturer",
 			e.get("chassis_maker", ""))))
+		# A WIN WITH NO MANUFACTURER IS STILL A WIN (Geno, Oct 23). Before
+		# `launched_as`, the record took the manufacturer of the hull flown at
+		# the end, and a run that swapped onto an unbranded derelict frame
+		# recorded "". It launched as someone the chain had opened, so it
+		# counts for the first opened manufacturer not yet won with: on a
+		# fresh profile, Korvan, which is the only possible launch.
+		if m == &"":
+			m = _first_unwon(out)
 		if m != &"":
 			out[m] = true
 	return out
+
+## The first manufacturer in the chain that is open (its prerequisite won, or
+## the first) and not yet won with, given the wins so far.
+static func _first_unwon(won: Dictionary) -> StringName:
+	for m in CHAIN:
+		if won.has(m):
+			continue
+		var need := prereq(m)
+		if need == &"" or won.has(need):
+			return m
+	return &""
 
 ## Can this manufacturer be flown?
 ##

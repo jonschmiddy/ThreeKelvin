@@ -6,25 +6,62 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Fixed
+### Roadmap
 
-- **Fixed** — a part found a grade higher than usual now gives the stats its readout shows. A
-  Ranging Optics that rolled Rare read SENSORS +1 but added nothing, and the same was true of
-  every part with a stat bonus that rolled a grade up. Parts in saved runs are mended when the
-  run loads.
+The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
+[`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
-### Changed
+## 2026-10-23
 
+### [0.4.2-alpha.1]
+
+Fixes from the friends' first night on 0.4.1-alpha.1, chiefly a hull swap that could strand
+your parts and keep you docked. Saves from 0.4.1-alpha.1 load, and a stranded one comes back
+playable. The Windows and Mac builds come from the same commit.
+
+- **Added** — COMMS on the top bar, beside QUESTS. It lists everything A.S.H. has said this run,
+  her quips and her tutorial lines, newest first, with the jump each was said on. PLAY on a line
+  says it again in her voice. The list is kept with the run's save, and older saves load with an
+  empty list. Jeremy asked for it: "Give me an option to revisit all communications."
+- **Changed** — your ship shows only its weapons on LOCAL, in a fight, in the station hall and
+  in the yard. Systems and utilities stay fitted but are no longer drawn on the hull, so the ship
+  looks less cluttered. Every part still shows in the cutaway, on the refit screen and when
+  moving to a new ship.
 - **Changed** — fitting a part with hull on it brings its hull with it. A full ship stays full
   (40/40 fits a +7 plate and reads 47/47), so the HULL bar moves at once for the "+1 HUL" the
   part shows. A damaged ship keeps the same damage across a fit, and taking a part off and
   putting it back lands you where you started. Before, fitting raised only the maximum, so a
   full ship read 40/47 and the bar did not move until you repaired.
-
-### Roadmap
-
-The next build follows the friends' playtest of 0.4.1-alpha.1 (Oct 23). See
-[`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
+- **Changed** — lock on stacks. Playing a second lock on card adds to the first instead of
+  replacing it, and your next attack spends all of it, on every hit.
+- **Fixed** — a part found a grade higher than usual now gives the stats its readout shows. A
+  Ranging Optics that rolled Rare read SENSORS +1 but added nothing, and the same was true of
+  every part with a stat bonus that rolled a grade up. Parts in saved runs are mended when the
+  run loads.
+- **Fixed** — after a hull swap you can always see your parts and leave. Taking a hull found in
+  space never opened the screen for moving your parts across, so the ship flew on with all of
+  them on the pad, out of sight, and the next station would not let you undock. Tab on that
+  screen at a shipyard closed it for good, and SAVE AND EXIT in the middle of a move lost the old
+  ship's picture. Now the move opens for a found hull, stays open until the pad is empty, opens
+  again whenever you dock with anything on the pad, and comes back after CONTINUE. BACK OUT on a
+  found hull puts the hull back where you found it. A stuck save opens on the move when it loads,
+  with every part shown, and nothing is lost.
+- **Fixed** — A.S.H. no longer says a tutorial line aloud twice. A line she has said to its end
+  comes back, while you still have not done what it teaches, as words in her box with no voice
+  and no chirp. A line cut off because you left the screen is said aloud once more on a later
+  visit, never on the same screen or in the same fight, and after that only as words. Lines
+  that only tell you something, like the fuel line after your first jump, are said once and
+  never again. Her lines still stay up until you do what they teach. Jon's 0.4.1-alpha.1 log had
+  the hull line five times and the heat line four times in one fight.
+- **Fixed** — the heat lesson stays up until END TURN when a card like Bleed Heat cools the ship
+  to nothing. It used to go and come back at the start of every turn.
+- **Fixed** — pressing SAVE & EXIT counts as doing what the SAVE AND EXIT lesson teaches. Its
+  question hid the lesson, so A.S.H. said it again the next time you opened the menu.
+- **Fixed** — winning a run unlocks the next manufacturer even if you finished in another ship.
+  A win counted for the manufacturer of the hull you ended in, so a Korvan run that swapped onto
+  an unbranded frame from a derelict unlocked nothing. A win now counts for the manufacturer you
+  launched with, and wins already recorded that way count too: on a profile with no other wins,
+  they unlock Solari.
 
 ## 2026-10-22
 

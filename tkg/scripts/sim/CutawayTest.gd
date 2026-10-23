@@ -31,6 +31,10 @@ func run(tree: SceneTree) -> void:
 	if "power" in OS.get_cmdline_user_args():
 		await _check_power()
 		return _finish()
+	# `-- cutawaytest local`: the real LOCAL and its fight alone (11)
+	if "local" in OS.get_cmdline_user_args():
+		await _check_local()
+		return _finish()
 	seed_run(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	_node = Run.node_at()
@@ -1104,6 +1108,9 @@ func _tipless(g: Control) -> bool:
 func _check_local() -> void:
 	seed_run(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	# A WEAPON, A SYSTEM AND A UTILITY FITTED, one apiece, so LOCAL and the fight
+	# have a part of every kind to leave off the hull (`_parts_on_hull`)
+	_one_of_each()
 	var idx := -1
 	for n: MapGen.MapNode in Run.map:
 		if n.type == MapGen.NodeType.SYSTEM and not n.cleared:
@@ -1165,6 +1172,10 @@ func _check_local() -> void:
 		and cut._panel.get_index() > scrim.get_index())
 	_ok("the scene's own ship is hidden under it, and the cutaway's hull drawn crisp in its place",
 		not own.visible and cut._ship.visible and is_equal_approx(cut._ship.self_modulate.a, 1.0))
+	# EVERY PART IN THE CUTAWAY: the weapon, the system and the utility alike
+	await _settle()
+	_ok("the cutaway draws every fitted part, systems and utilities too (%d of %d)" % [cut._mounts.drawn, Run.installed.size()],
+		cut._mounts.drawn == Run.installed.size() and Run.installed.size() == 3)
 	var slot := made[0] as EnemySlot
 	# THE SCENE ZOOMED WITH IT: the wreck is drawn bigger, round your ship
 	_ok("the wreck is zoomed with the scene (%.1fx)" % slot.get_global_transform().get_scale().x,
@@ -1230,8 +1241,18 @@ func _parts_on_hull(sc: SectorScreen, where: String) -> void:
 			mp = c
 	if not _ok("%s: your ship carries its parts' layer" % where, mp != null):
 		return
+	# ONLY THE GUNS ON THE HULL (Jon, Oct 23, from Geno): the system and the
+	# utility stay fitted and are not drawn; counted off the last redraw
+	mp.refresh()
+	await _settle()
+	var guns := 0
+	for m in Run.installed:
+		if m.slot == ModuleData.Slot.WEAPON:
+			guns += 1
+	_ok("%s: the hull draws its weapons alone (%d drawn, %d weapons of %d fitted)" % [where, mp.drawn, guns, Run.installed.size()],
+		mp.drawn == guns and guns == 1 and Run.installed.size() == 3)
 	var off := mp.strays()
-	_ok("%s: every fitted part is on the hull (%s)" % [where, ", ".join(off) if not off.is_empty() else "%d on" % Run.installed.size()], off.is_empty())
+	_ok("%s: every part drawn is on the hull (%s)" % [where, ", ".join(off) if not off.is_empty() else "%d on" % mp.drawn], off.is_empty())
 	var amp := art._bob_amp
 	var bob := art._bob_off
 	art._bob_amp = 0
@@ -1253,6 +1274,26 @@ func _parts_on_hull(sc: SectorScreen, where: String) -> void:
 	art._bob_off = bob
 	for i in 3:
 		await _tree.process_frame
+
+
+## The ship down to one weapon, one system and one utility, each on its first
+## mount: what it has of a kind kept, a catalogue part where it has none.
+func _one_of_each() -> void:
+	var keep: Array[ModuleData] = []
+	for s: ModuleData.Slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
+		var have: ModuleData = null
+		for m in Run.installed:
+			if m.slot == s:
+				have = m
+				break
+		if have == null:
+			have = _module_of(s)
+		if have == null:
+			continue
+		have.mount = 0
+		keep.append(have)
+	Run.installed.assign(keep)
+	Sig.ship_changed.emit()
 
 
 func _opaque_in(img: Image, r: Rect2) -> bool:

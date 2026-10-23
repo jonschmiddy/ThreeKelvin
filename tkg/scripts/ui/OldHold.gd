@@ -30,37 +30,82 @@ func refresh() -> void:
 	# anything that does not make the crossing, so the grid you are looking at
 	# is the hold you packed rather than a bin the leftovers were tipped into.
 	#
-	# The exception is a part that came off a HARDPOINT: it never had a cell, so
-	# `_seat_the_pad` finds it one -- and that can fail, because a hull's
-	# loadout does not have to fit inside that hull's hold. What has no cell
-	# after all that is stacked along the bottom edge rather than drawn at
-	# (0,0) on top of whatever is already there.
-	var spill := 0
+	# The exception is a thing with no cell of its own in this grid: a part that
+	# came off a HARDPOINT with no old ship to draw it on, or a cell outside the
+	# grid, or one something else already sits in. Each of those takes the first
+	# gap that fits, and below the lattice when the lattice is full -- never at
+	# a cell on top of something else, and never in one long row out past the
+	# edge of the column, which is how a pad of fourteen used to draw.
+	var taken := {}
+	var placed: Array = []
+	var loose: Array[HoldItem] = []
 	for m in Run.pad:
 		# WHAT IS BOLTED ON IS NOT IN THE HOLD. A pad module remembers the
 		# hardpoint it was fitted to, and the ship above this grid draws it
 		# there -- so listing it here as well put every gun on screen twice,
 		# once on the hull and once in a row of leftovers spilling out past the
-		# edge of a hold it was never in.
+		# edge of a hold it was never in. UNLESS THERE IS NO SHIP above it to
+		# draw it (`Run.old_hull` null): then here is the only place it shows.
 		var mod := m as ModuleData
-		if mod != null and mod.mount >= 0:
+		if mod != null and mod.mount >= 0 and Run.old_hull != null:
 			continue
+		if _fits(taken, m, m.hold_at, _rows):
+			_take(taken, m, m.hold_at)
+			placed.append([m, m.hold_at])
+		else:
+			loose.append(m)
+	var deep := _rows
+	for m in loose:
+		var at := _gap(taken, m)
+		_take(taken, m, at)
+		placed.append([m, at])
+		deep = maxi(deep, at.y + m.footprint().y)
+	var wide := _cols
+	for pm: Array in placed:
+		var m: HoldItem = pm[0]
+		var at: Vector2i = pm[1]
 		var icon := ItemIcon.make(m, &"pad")
 		icon.mouse_filter = Control.MOUSE_FILTER_PASS
 		add_child(icon)
 		icon.custom_minimum_size = Vector2.ZERO
 		var f := m.footprint()
-		var at := m.hold_at
-		if at.x < 0:
-			at = Vector2i(spill, _rows)
-			spill += f.x
+		wide = maxi(wide, at.x + f.x)
 		icon.position = Vector2(at.x * (CELL + GAP), at.y * (CELL + GAP))
 		icon.size = Vector2(f.x * CELL + (f.x - 1) * GAP,
 			f.y * CELL + (f.y - 1) * GAP)
-	var deep: int = _rows + (1 if spill > 0 else 0)
-	custom_minimum_size = Vector2(maxi(_cols, spill) * (CELL + GAP) - GAP,
+	custom_minimum_size = Vector2(wide * (CELL + GAP) - GAP,
 		deep * (CELL + GAP) - GAP)
 	queue_redraw()
+
+
+## Whether `m` sits at `at` inside the grid's width and `rows` rows, off `taken`.
+func _fits(taken: Dictionary, m: HoldItem, at: Vector2i, rows: int) -> bool:
+	var f := m.footprint()
+	if at.x < 0 or at.y < 0 or at.x + f.x > maxi(_cols, f.x) or at.y + f.y > rows:
+		return false
+	for dy in f.y:
+		for dx in f.x:
+			if taken.has(at + Vector2i(dx, dy)):
+				return false
+	return true
+
+
+func _take(taken: Dictionary, m: HoldItem, at: Vector2i) -> void:
+	var f := m.footprint()
+	for dy in f.y:
+		for dx in f.x:
+			taken[at + Vector2i(dx, dy)] = true
+
+
+## The first gap `m` fits, reading the grid row by row and carrying on below it.
+func _gap(taken: Dictionary, m: HoldItem) -> Vector2i:
+	var f := m.footprint()
+	for y in 256:
+		for x in maxi(1, _cols - f.x + 1):
+			var at := Vector2i(x, y)
+			if _fits(taken, m, at, 1 << 20):
+				return at
+	return Vector2i(0, 256)
 
 
 ## The lattice, in the ink the rest of the game uses for something being lost.

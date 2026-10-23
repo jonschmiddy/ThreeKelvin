@@ -2409,7 +2409,7 @@ func _refresh_player() -> void:
 			Color("#3a4a6e"), "BLOCK\n\nStops %d damage this turn." % combat.block))
 	if combat.lock_on > 0:
 		_player_chips.add_child(StatusChip.make(&"lock", "+%d" % combat.lock_on,
-			Color("#6e5a3a"), "LOCK ON\n\nYour next attack deals %d more."
+			Color("#6e5a3a"), "LOCK ON\n\nYour next attack deals %d more per hit."
 				% combat.lock_on))
 	# NAMED BY THE CARD'S OWN KEYWORD (`CardData.KW_NEGATE`, `KW_GROWS`): these
 	# two said SLIP and ADAPT while the cards that set them say Negate and Grows
@@ -2717,6 +2717,12 @@ func _on_salvage(action: String, thing: Variant) -> void:
 		"take_hull":
 			Audio.act(&"hull_transfer")
 			Run.transfer_to_hull(thing as HullData)
+			# STRAIGHT TO THE MOVE, as the yard's TAKE IT goes. Everything you own
+			# is on the pad now and this is the one screen that shows it; without
+			# it the ship flew on bare, its kit on a pad nobody could see, until a
+			# station's UNDOCK refused for good (Jon, Oct 23).
+			Router.show_transfer()
+			return
 		"leave_hull":
 			Run.found_hull = null
 	_refresh()

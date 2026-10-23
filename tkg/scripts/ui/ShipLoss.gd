@@ -80,7 +80,9 @@ static func _lay_parts(img: Image, mp: MountPoints, lo: Vector2, k: float) -> vo
 	var s := maxi(1, int(roundf(mag)))
 	for spot: Dictionary in mp.spots():
 		var m: ModuleData = spot.held
-		if m == null or m.sprite == null:
+		# (only what the hull showed: a picture of the ship carries its guns
+		# alone, `MountPoints.weapons_only`)
+		if not mp.shows(m) or m.sprite == null:
 			continue
 		var src := m.sprite.get_image()
 		if src == null:

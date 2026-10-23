@@ -200,7 +200,10 @@ tags. `git show archive/<name>` says what each was.
    (shared fights, partners on the map, a galaxy check), REWARD on every result with loot,
    one ring per jump, deep loot, and a harder Custodian. See `CHANGELOG.md`.
 4. **0.4.1-alpha.1** (built Oct 22 night): event quests and a COMPLETED section in QUESTS, R
-   turns materials, a co-op claim fix. **Next:** the friends' playtest of 0.4.1-alpha.1 (Oct 23), on HOST PARTY. Add fixes under
+   turns materials, a co-op claim fix. **0.4.2-alpha.1** (built Oct 23): the hull-swap softlock fixed and stuck saves
+   mended, Solari unlocking after a win in another hull, A.S.H. no longer repeating and a COMMS
+   log, weapons only on the ship, higher-grade loot giving its pips, full ships staying full,
+   lock-on stacking. **Next:** the friends' playtest of 0.4.2-alpha.1 (Oct 23), on HOST PARTY. Add fixes under
    `[Unreleased]` in `CHANGELOG.md` as they land, then cut the version by changing
    `config/version` in `tkg/project.godot` and building with `build_alpha.sh`.
 4. After that: the parked items above, and the five manufacturers still to write

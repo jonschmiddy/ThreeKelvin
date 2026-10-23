@@ -207,6 +207,19 @@ var _lesson_host: Node = null
 var _lesson_check := 0.0
 var _outline: Outline = null
 
+## HER COMMS (Jeremy, a playtester, Oct 23: "Give me an option to revisit all
+## communications"): every line she has said aloud this run, her quips and her
+## teaching lines and steps, oldest first, each {kind, line, voice, jump,
+## tutorial}. In the log once her words have started (a line cut before a word
+## is not in it); a line back quietly is not said again, so not again in it.
+## The HUD's COMMS tab lists it newest first (`CommsPanel`), with her voice to
+## play again. Kept with the run (`SaveGame`, `ash_comms`); a new run's starts
+## empty.
+var comms: Array = []
+const COMMS_MAX := 300
+## The line just started, until its words do.
+var _comms_next: Dictionary = {}
+
 
 func _ready() -> void:
 	Sig.run_started.connect(_on_run_started)
@@ -331,6 +344,10 @@ func _on_run_started() -> void:
 	_last_end = -INF
 	if portrait != null:
 		portrait.cut()
+	# A NEW RUN'S COMMS start empty (a run picked up with CONTINUE has its own
+	# put back by `SaveGame` after this)
+	comms.clear()
+	_comms_next = {}
 	# HER INTRODUCTION, a new run's: not a run picked up with CONTINUE
 	_intro_due = not SaveGame.restoring
 	_introducing = false
@@ -486,6 +503,7 @@ func _process(delta: float) -> void:
 ## One step. Public so `-- sheet=AshTest` can step her on its own clock.
 func poll(delta: float) -> void:
 	now += delta
+	_comms_tick()
 	if Run.hull == null or not _run_live:
 		return
 	if Run.dead or Run.hp <= 0:
@@ -750,6 +768,7 @@ func pick_line(kind: StringName) -> String:
 
 
 func _say(kind: StringName, line: String, spot: Dictionary) -> void:
+	_comms_tick()
 	waiting.erase(kind)
 	if portrait == null or not is_instance_valid(portrait):
 		portrait = AshPortrait.new()
@@ -781,6 +800,7 @@ func _say(kind: StringName, line: String, spot: Dictionary) -> void:
 			_fight_hurt = true
 	said_log.append({kind = kind, line = line, at = now, spot = spot.name, rect = spot.rect})
 	print("[ash] %s: %s" % [kind, line])
+	_comms_due(kind, line, portrait.voice, false)
 
 
 ## Where she goes: a column after the screens, beside the HUD, so she is over
@@ -989,6 +1009,85 @@ static func avoid_rects(cur: Control) -> Array:
 	return out
 
 
+# ------------------------------------------------------------------ the comms log
+
+## A line of hers has started: in the log once its words do (`_comms_tick`).
+func _comms_due(kind: StringName, line: String, voice: String, tutorial: bool) -> void:
+	_comms_next = {kind = kind, line = line, voice = voice, jump = Run.jumps, tutorial = tutorial}
+
+
+## The line started last: its words have started (in the log), or it went
+## before a word (dropped).
+func _comms_tick() -> void:
+	if _comms_next.is_empty():
+		return
+	var p := portrait
+	if p == null or not is_instance_valid(p) or p.kind != StringName(_comms_next.kind) or p.line != String(_comms_next.line):
+		_comms_next = {}
+		return
+	if p.typed_at >= 0.0:
+		comms.append(_comms_next)
+		while comms.size() > COMMS_MAX:
+			comms.pop_front()
+		_comms_next = {}
+	elif p.phase == AshPortrait.Phase.GOING or p.phase == AshPortrait.Phase.GONE:
+		_comms_next = {}
+
+
+## Play her voice for comms entry `i` again. Not while she is saying a line of
+## her own (she would talk over herself), and not a line said as text alone.
+## True if it plays.
+func replay(i: int) -> bool:
+	if i < 0 or i >= comms.size() or not can_replay():
+		return false
+	var v := String((comms[i] as Dictionary).get("voice", ""))
+	if v == "" or not ResourceLoader.exists(v):
+		return false
+	return Audio.ash_voice(v) > 0.0
+
+
+## Nothing of hers is speaking now: a line up and talking, or one replayed.
+func can_replay() -> bool:
+	if portrait != null and is_instance_valid(portrait) and (portrait.phase == AshPortrait.Phase.UP
+			or portrait.phase == AshPortrait.Phase.TYPING):
+		return false
+	return not Audio.ash_speaking()
+
+
+## The log for the run's save: the entries as plain values.
+func comms_to() -> Array:
+	var out: Array = []
+	for raw in comms:
+		var e: Dictionary = raw
+		out.append({kind = String(e.kind), line = String(e.line), voice = String(e.get("voice", "")),
+			jump = int(e.get("jump", 0)), tutorial = bool(e.get("tutorial", false))})
+	return out
+
+
+## The log from a save (`comms_to`); anything else, or none (a save from before
+## it), is an empty log.
+func comms_from(raw: Variant) -> void:
+	comms.clear()
+	_comms_next = {}
+	if typeof(raw) != TYPE_ARRAY:
+		return
+	for x in (raw as Array):
+		if typeof(x) != TYPE_DICTIONARY:
+			continue
+		var e: Dictionary = x
+		var line := str(e.get("line", ""))
+		if line == "":
+			continue
+		var v := str(e.get("voice", ""))
+		# (a take this build does not have is said as text alone)
+		if v != "" and not ResourceLoader.exists(v):
+			v = ""
+		comms.append({kind = StringName(str(e.get("kind", ""))), line = line, voice = v,
+			jump = int(e.get("jump", 0)), tutorial = bool(e.get("tutorial", false))})
+	while comms.size() > COMMS_MAX:
+		comms.pop_front()
+
+
 # ------------------------------------------------------------------ teaching
 
 ## How often a teaching line looks again at what may have come into its box, s.
@@ -1013,6 +1112,7 @@ func teach(lid: StringName, text: String, hint: StringName, subject: Rect2, opts
 	var cur := Router.current
 	if cur == null or not is_instance_valid(cur):
 		return false
+	_comms_tick()
 	var over_menu := opts.has("host")
 	var spot: Dictionary = opts.get("spot", {}) if over_menu else tut_spot(cur, text, subject)
 	if spot.is_empty():
@@ -1036,9 +1136,10 @@ func teach(lid: StringName, text: String, hint: StringName, subject: Rect2, opts
 	portrait.mirrored = bool(spot.mirrored)
 	portrait.position = (spot.rect as Rect2).position
 	_group_from(spot)
+	var quiet := bool(opts.get("quiet", false))
 	portrait.say(text, StringName("tut_" + String(lid)), {
 		voice = String(opts.get("voice", "")), spoken = String(opts.get("spoken", "")),
-		held = bool(opts.get("held", hint != &""))})
+		held = bool(opts.get("held", hint != &"")), quiet = quiet})
 	# (not `_up`: a teaching line does not start her barks' quiet, so they keep
 	# the timing they had beside the cards)
 	lesson = lid
@@ -1050,8 +1151,12 @@ func teach(lid: StringName, text: String, hint: StringName, subject: Rect2, opts
 	_lesson_host = host if over_menu else null
 	_outline_to(subject)
 	said_log.append({kind = StringName("tut_" + String(lid)), line = text, at = now, spot = spot.name,
-		rect = spot.rect, tutorial = true, hint = hint, subject = subject})
-	print("[ash] tut %s: %s" % [lid, text])
+		rect = spot.rect, tutorial = true, hint = hint, subject = subject, quiet = quiet})
+	if quiet:
+		print("[ash] tut %s (back, text only): %s" % [lid, text])
+	else:
+		print("[ash] tut %s: %s" % [lid, text])
+		_comms_due(StringName("tut_" + String(lid)), text, portrait.voice, true)
 	return true
 
 

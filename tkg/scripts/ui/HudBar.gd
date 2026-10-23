@@ -60,6 +60,11 @@ var _tab_party: Button
 ## screen (`QuestPanel`). After STARCHART, and no count on it ever, so it never
 ## changes size; lit while the table is open.
 var _tab_quests: Button
+## COMMS (Jeremy, a playtester, Oct 23: "Give me an option to revisit all
+## communications"): everything A.S.H. has said this run, newest first, her
+## voice to play again (`CommsPanel`). After QUESTS, and like it no count ever.
+## Measured: the row wants 702 of 932 px with it (832 in developer mode).
+var _tab_comms: Button
 
 var _hull_label: Label
 var _hull: BoxGauge
@@ -207,6 +212,9 @@ func _build() -> void:
 	_row.add_child(_tab_chart)
 	_tab_quests = _tab("QUESTS", func() -> void: QuestPanel.toggle())
 	_row.add_child(_tab_quests)
+	_tab_comms = _tab("COMMS", func() -> void: CommsPanel.toggle())
+	_tab_comms.name = "Comms"
+	_row.add_child(_tab_comms)
 	# Hidden entirely when there is no party — a tab that is permanently greyed
 	# out in the solo game is a tab that teaches the player to ignore it. Built
 	# unconditionally, because a party can form before the HUD exists and can
@@ -432,6 +440,8 @@ func refresh() -> void:
 	# waits for the fight to end)
 	_state_toggle(_tab_quests, QuestPanel.is_open(), choose_lock,
 		"The quests you have signed, where they are and what they pay.")
+	_state_toggle(_tab_comms, CommsPanel.is_open(), choose_lock,
+		"Everything A.S.H. has said this run. Play her lines again.")
 	_state(_tab_parts, Router.current is ModuleGalleryScreen, choose_lock,
 		"Every part in the game. Dev only.")
 	_state(_tab_cards, Router.current is CardGalleryScreen, choose_lock,
@@ -667,6 +677,11 @@ func _state_toggle(b: Button, active: bool, lock: String, hint: String) -> void:
 ## Where the QUESTS tab is, global (for the tests and the table).
 func quests_tab_rect() -> Rect2:
 	return _merged([_tab_quests])
+
+
+## Where the COMMS tab is, global (for the tests).
+func comms_tab_rect() -> Rect2:
+	return _merged([_tab_comms])
 
 
 func _tab(label: String, action: Callable) -> Button:

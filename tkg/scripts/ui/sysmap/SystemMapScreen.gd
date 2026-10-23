@@ -1252,6 +1252,9 @@ func on_hull(what: String, h: Variant) -> void:
 		"take_hull":
 			Audio.act(&"hull_transfer")
 			Run.transfer_to_hull(h as HullData)
+			# Straight to the move (`SectorScreen._on_salvage`).
+			Router.show_transfer()
+			return
 		"leave_hull":
 			Run.found_hull = null
 	panel.show_system()

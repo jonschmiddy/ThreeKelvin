@@ -107,6 +107,21 @@ extends Node
 ## each goal step (`GoalLine`) once as it starts (`said_<step>`), after any hint
 ## due on that screen; the goal line itself does not change. All of it is off in
 ## a party with the hints (`enabled`).
+##
+## SHE NEVER SAYS THE SAME LINE ALOUD TWICE (Jeremy, a playtester, Oct 23: "it
+## doesn't need to repeat everything when I jump out of a menu after it has
+## already said it"; Jon's log of 0.4.1-alpha.1 had the hull's line five times,
+## heat's four times in one fight, the ship for sale's and SAVE & EXIT's twice).
+## The come-back rules above (a line left unspent shows again, a line that gave
+## way returns) said the whole line again each time, in her voice. Now a line
+## she has said whole is HEARD (`heard_<line>` beside `seen`, cleared by REPLAY
+## TUTORIAL), and if it is still unspent because its action has not been done it
+## comes back QUIETLY: her box with the words already out, no chirp, no voice
+## (`AshPortrait`'s quiet), held as before until its action. A line cut off while
+## she was saying it may be said aloud once more, on a later visit or fight
+## (`_visit`), never on the one it was cut on; after that it is text only too. An
+## information line (`INFO`) is spent as it shows: said once, ever. The lines
+## stay undismissable: a quiet line still ends only by its action.
 
 const SECTION := "hints"
 ## Highest first: when two could show, this one does.
@@ -168,7 +183,8 @@ const SPENT_ONCE_HEARD: Array[StringName] = [&"cutaway", &"shipyard", &"promenad
 	&"chassis_card"]
 ## THE LINES THAT ONLY TELL YOU SOMETHING: no action to wait for, so each stays
 ## its reading time after her voice ends (`AshPortrait`'s own hold) and goes by
-## itself, spent; as a card, `info_s`.
+## itself; as a card, `info_s`. Spent as it shows (Oct 23): said once, ever,
+## however it goes.
 const INFO: Array[StringName] = [&"fuel", &"fuel_first"]
 ## EVERY OTHER HINT'S ACTION, what spends it (`_done`; `-- sheet=AshTutorTest`
 ## holds every hint in ORDER to being in one of these two lists):
@@ -202,7 +218,7 @@ const DONE := {
 	&"faults": "the FAULTS drone clicked; or said whole and the deck left",
 	&"hull_sale": "the ship taken; or said whole and the deck left",
 	&"undock": "UNDOCK pressed or another deck picked",
-	&"save": "the escape menu shut (SAVE & EXIT, or back to the game)",
+	&"save": "the escape menu shut, or SAVE & EXIT (or ABANDON) pressed: its question up",
 	&"chassis_card": "LAUNCH pressed",
 	&"salvage": "a part or a chit taken aboard from the window",
 	&"cutaway": "a module moved: installed, removed or moved on the ship",
@@ -296,6 +312,19 @@ var _cut_seen := 0
 var _cut_fit: Array = []
 ## The soft lock's gate, while one is up (`soft_lock`).
 var _gate: ClickGate = null
+## SAID ALOUD ONCE: line id -> the times she started saying it aloud and was cut
+## off before the end, and the visit (`_visit_n`) of the last of those. Heard
+## whole is `heard()`, kept in the hints file.
+var _tries := {}
+var _tried_in := {}
+## A VISIT, for "never again on the same one": the screen as it stands
+## (`_visit_key`, `_front` without the escape menu, and the fight), counted.
+var _visit_key := ""
+var _visit_n := 0
+## The line up came back quietly (no voice: heard, or cut off once already), and
+## the visit it was shown on.
+var _lesson_quiet := false
+var _lesson_visit := 0
 
 
 func _ready() -> void:
@@ -535,6 +564,8 @@ func _load() -> void:
 			_seen[id] = bool(cfg.get_value(SECTION, String(id), false))
 		for id in STEP_LINES:
 			_seen[_said_key(id)] = bool(cfg.get_value(SECTION, String(_said_key(id)), false))
+		for lid in AshTutorLines.all_ids():
+			_seen[_heard_key(lid)] = bool(cfg.get_value(SECTION, String(_heard_key(lid)), false))
 	_loaded = true
 
 
@@ -563,8 +594,36 @@ func _said_key(id: StringName) -> StringName:
 	return StringName("said_" + String(id))
 
 
-## REPLAY TUTORIAL: every hint and the goal line's steps, unseen, and her
-## steps' lines unsaid.
+## Whether she has said teaching line `lid` (`AshTutorLines`) aloud to its end,
+## ever (until REPLAY TUTORIAL). Then it is never said aloud again.
+func heard(lid: StringName) -> bool:
+	return seen(_heard_key(lid))
+
+
+func _heard_key(lid: StringName) -> StringName:
+	return StringName("heard_" + String(lid))
+
+
+## Whether line `lid` may be said in her voice now: never once heard whole; once
+## more after she was cut off saying it, but not on the visit (or fight) it was
+## cut on; never after two.
+func may_say_aloud(lid: StringName) -> bool:
+	if heard(lid):
+		return false
+	var n := int(_tries.get(lid, 0))
+	return n == 0 or (n == 1 and int(_tried_in.get(lid, -1)) != _visit_n)
+
+
+## FOR THE HARNESSES that set a line up again to hear it again (as REPLAY
+## TUTORIAL does for all of them): line `lid` unheard and never cut off.
+func forget_heard(lid: StringName) -> void:
+	mark_seen(_heard_key(lid), false)
+	_tries.erase(lid)
+	_tried_in.erase(lid)
+
+
+## REPLAY TUTORIAL: every hint and the goal line's steps, unseen, her steps'
+## lines unsaid, and every line of hers unheard.
 func reset() -> void:
 	var cfg := ConfigFile.new()
 	cfg.load(store_path())
@@ -572,7 +631,11 @@ func reset() -> void:
 		cfg.set_value(SECTION, String(id), false)
 	for id in STEP_LINES:
 		cfg.set_value(SECTION, String(_said_key(id)), false)
+	for lid in AshTutorLines.all_ids():
+		cfg.set_value(SECTION, String(_heard_key(lid)), false)
 	cfg.save(store_path())
+	_tries.clear()
+	_tried_in.clear()
 	_load()
 	_close(false)
 	_close_lesson(false)
@@ -608,6 +671,11 @@ func poll(delta: float) -> void:
 		_gate_to(false)
 		return
 	_quiet = maxf(0.0, _quiet - delta)
+	# A NEW VISIT (or fight): what "never on the same one" counts in
+	var vk := _visit()
+	if vk != _visit_key:
+		_visit_key = vk
+		_visit_n += 1
 	# HER LESSON: kept on its subject until the player has done what it teaches
 	# (`_done`), never by a click
 	if lesson != &"":
@@ -676,14 +744,23 @@ func _poll_lesson(delta: float) -> void:
 			and p.phase == AshPortrait.Phase.HOLDING:
 		_said = true
 		_said_at = _clock
+		# SAID WHOLE, ALOUD: heard, and never said aloud again
+		if not _lesson_quiet:
+			mark_seen(_heard_key(_lesson_lid))
 	if not by_ash() or not Ash.lesson_up() or Ash.lesson_hint != lesson:
-		_close_lesson((INFO.has(lesson) and Ash.ended_of_itself(_lesson_lid)) or _left_heard())
+		var read := (INFO.has(lesson) and Ash.ended_of_itself(_lesson_lid)) or _left_heard()
+		if not read:
+			print("[hints] %s: she went (%s), unspent" % [lesson, Ash.held_by if Ash.held_by != "" else "off"])
+		_close_lesson(read)
 		return
-	var lp := probe(lesson) if not _blocked(lesson) else {}
+	var lp := probe(lesson, true) if not _blocked(lesson) else {}
 	if lp.is_empty():
 		_gone_t += delta
 		if _gone_t > 0.25:
-			_close_lesson(_left_heard())
+			var read := _left_heard()
+			if not read:
+				print("[hints] %s: its subject went, unspent" % lesson)
+			_close_lesson(read)
 		return
 	_gone_t = 0.0
 	Ash.aim_lesson(lp.subject)
@@ -697,7 +774,7 @@ func _poll_card(delta: float) -> void:
 	if _done(card.id) or (INFO.has(card.id) and _up_t >= info_s(card.id)):
 		_close(true)
 		return
-	var p := probe(card.id) if not _blocked(card.id) else {}
+	var p := probe(card.id, true) if not _blocked(card.id) else {}
 	if p.is_empty():
 		_gone_t += delta
 		if _gone_t > 0.25:
@@ -717,11 +794,12 @@ func info_s(id: StringName) -> float:
 
 
 ## The line up was left (its subject or its screen gone) after it was said whole,
-## and it is one of the six said once (`SPENT_ONCE_HEARD`).
+## and it is one of those said once (`SPENT_ONCE_HEARD`); or it is information
+## (`INFO`), said once, ever, however it went.
 func _left_heard(id: StringName = &"") -> bool:
 	if id == &"":
 		id = lesson
-	return SPENT_ONCE_HEARD.has(id) and _said
+	return INFO.has(id) or (SPENT_ONCE_HEARD.has(id) and _said)
 
 
 ## NEVER STUCK: said whole, up YIELD_S since, and another line waiting here.
@@ -842,12 +920,18 @@ func _pace_ok(id: StringName) -> bool:
 ## A SCREEN AS IT STANDS: the screen, the fights seen, and what is open on it
 ## (the station's deck, the cutaway, a window, an event in the band, the menu).
 ## A new one is a new visit.
-func _front() -> String:
+func _front(for_voice: bool = false) -> String:
 	var cur = Router.current
 	if cur == null or not is_instance_valid(cur):
 		return ""
 	var k := "%d|%d" % [cur.get_instance_id(), _fights_seen]
 	var sc := cur as SectorScreen
+	# (for her voice, `_visit`: the fight itself, not the count of them, which
+	# moves on a poll after a fight starts; and not the escape menu)
+	if for_voice:
+		k = str(cur.get_instance_id())
+		if sc != null and sc.fighting() and Router.combat != null:
+			k += "|fight%d" % Router.combat.get_instance_id()
 	if sc != null:
 		if sc._cutaway != null and is_instance_valid(sc._cutaway):
 			k += "|cut%d" % sc._cutaway.get_instance_id()
@@ -862,9 +946,24 @@ func _front() -> String:
 		k += "|" + String(st._tab)
 		if st._cutaway != null and is_instance_valid(st._cutaway):
 			k += "|cut%d" % st._cutaway.get_instance_id()
-	if menu_up():
+	if menu_up() and not for_voice:
 		k += "|menu"
 	return k
+
+
+## A VISIT, for her voice (`may_say_aloud`): the screen as it stands (`_front`)
+## less the escape menu, so a line the menu took her off is not said aloud again
+## when it shuts, and the fight up, so a fight is one visit from its first turn
+## to its last.
+func _visit() -> String:
+	return _front(true)
+
+
+## Her words for teaching line `lid` had started (her voice, or the typing of a
+## line with no take) when she went.
+func _spoke_some(lid: StringName) -> bool:
+	var p := Ash.portrait
+	return p != null and is_instance_valid(p) and p.kind == StringName("tut_" + String(lid)) and p.typed_at >= 0.0
 
 
 ## Malfunctions in this fight's deck, hand and discard (a purge takes one out).
@@ -997,7 +1096,10 @@ func _done(id: StringName) -> bool:
 			var su := cur as StationScreen
 			return not Router.docked or (su != null and su._tab != StringName(_base.get("tab", &"")))
 		&"save":
-			return not menu_up()
+			# THE MENU SHUT, OR A WAY OUT PRESSED: its question ("SAVE AND LEAVE?")
+			# takes the plates' place, so the line's subject went with it and it
+			# came back in full at the next menu (Jon's 0.4.1 log, twice)
+			return not menu_up() or _exit_asked()
 		&"chassis_card":
 			return not (cur is ChassisSelect)
 		&"endturn", &"heat", &"brace":
@@ -1052,6 +1154,15 @@ func _done(id: StringName) -> bool:
 			var st := cur as StationScreen
 			return st != null and st._cutaway != null and is_instance_valid(st._cutaway)
 	return false
+
+
+## The escape menu asks its question in place of the two ways out: SAVE & EXIT
+## (or ABANDON) pressed.
+func _exit_asked() -> bool:
+	var m := _menu()
+	if m == null or m._exits == null or m._exits.get_child_count() == 0:
+		return false
+	return not (m._exits.get_child(0) is DrawerPlate)
 
 
 ## END TURN pressed since the line showed: the turn on, or its playback under way.
@@ -1195,8 +1306,11 @@ func _show(id: StringName, p: Dictionary) -> void:
 		var vals := values(id)
 		var text := AshTutorLines.fill(lid, vals)
 		# (an information line goes by itself after its reading time: not held)
+		# SAID ALOUD ONCE: heard already, or cut off once already on this visit or
+		# twice ever, it comes back quietly, text only
+		var aloud := may_say_aloud(lid)
 		var opts := {voice = AshTutorLines.voice_path(lid), spoken = AshTutorLines.spoken(lid),
-			held = not INFO.has(id)}
+			held = not INFO.has(id), quiet = not aloud}
 		# OVER THE ESCAPE MENU: on the menu's own layer, clear of its drawer
 		if id == &"save":
 			var m := _menu()
@@ -1207,10 +1321,19 @@ func _show(id: StringName, p: Dictionary) -> void:
 		if Ash.teach(lid, text, id, p.subject, opts):
 			lesson = id
 			_lesson_lid = lid
+			_lesson_quiet = not aloud
+			_lesson_visit = _visit_n
 			_up_t = 0.0
 			_gone_t = 0.0
 			_cand = &""
 			shown_log.append(id)
+			# (quiet, the words are out as it shows: read whole, as a card is)
+			if not aloud:
+				_said = true
+				_said_at = _clock
+			# INFORMATION IS SAID ONCE, EVER: spent as it shows
+			if INFO.has(id):
+				mark_seen(id)
 			return
 		# NOWHERE CLEAR FOR HER on this screen: the card, so the lesson is never
 		# held back waiting for room
@@ -1232,6 +1355,8 @@ func _show(id: StringName, p: Dictionary) -> void:
 	_said = true
 	_said_at = _clock
 	shown_log.append(id)
+	if INFO.has(id):
+		mark_seen(id)
 
 
 ## A card keeps off the goal line too (`GoalLine`), and the step's line under
@@ -1273,6 +1398,12 @@ func _close_lesson(read: bool) -> void:
 		return
 	if read:
 		mark_seen(lesson)
+	# CUT OFF WHILE SHE WAS SAYING IT (her words had started, not all out): one
+	# more time aloud, on another visit (`may_say_aloud`)
+	if not _lesson_quiet and not heard(_lesson_lid) and _spoke_some(_lesson_lid):
+		_tries[_lesson_lid] = int(_tries.get(_lesson_lid, 0)) + 1
+		_tried_in[_lesson_lid] = _lesson_visit
+	_lesson_quiet = false
 	if Ash.lesson_hint == lesson:
 		Ash.end_lesson(true)
 	lesson = &""
@@ -1389,7 +1520,9 @@ func menu_up() -> bool:
 
 ## Where hint `id`'s subject is now, if it is on screen and ready:
 ## {subject: Rect2, avoid: Array of Rect2}, global in the game's picture; or {}.
-func probe(id: StringName) -> Dictionary:
+## `staying`: asked of the line already up, not of one about to start (heat's
+## stays through the heat vented to nothing, below).
+func probe(id: StringName, staying: bool = false) -> Dictionary:
 	var cur = Router.current
 	if cur == null or not is_instance_valid(cur) or not (cur as Node).is_inside_tree():
 		return {}
@@ -1495,8 +1628,12 @@ func probe(id: StringName) -> Dictionary:
 			bav.append(sc._hand.get_global_rect())
 			return {subject = chip.get_global_rect(), avoid = bav}
 		&"heat":
-			# HEAT HAS RISEN, in a fight: the gauge, the cap and its price
-			if not _hand_settled(sc) or Run.heat <= 0 or Router.hud == null:
+			# HEAT HAS RISEN, in a fight: the gauge, the cap and its price. Up,
+			# it stays when the heat is vented to nothing (Bleed Heat is in every
+			# starting deck): the gauge is still there and its action is END TURN.
+			# It went, unspent, and came back at the next turn's start in full,
+			# four times in one fight in Jon's 0.4.1 log.
+			if not _hand_settled(sc) or (Run.heat <= 0 and not staying) or Router.hud == null:
 				return {}
 			var hr: Rect2 = Router.hud.heat_rect()
 			if hr.size == Vector2.ZERO:
