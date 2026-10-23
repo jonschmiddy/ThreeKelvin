@@ -1,0 +1,10 @@
+; A one-script project that only reports where user:// lands, named like the
+; game's so the custom folder rule is the same one. See tools/dev/env.sh tk_guard.
+
+config_version=5
+
+[application]
+
+config/name="TK Profile Probe"
+config/use_custom_user_dir=true
+config/custom_user_dir_name="ThreeKelvinAlpha"

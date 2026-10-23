@@ -4,6 +4,10 @@ For a new person or a new session picking up the project. Written 2026-10-20 and
 to 2026-10-21, when the first alpha sent out, **0.2.0-alpha.1**, goes to a playtester. If something here
 disagrees with the code, the code is right; fix this file.
 
+**Working from the Mac or the PC:** the scripts for testing, landing, releasing, rendering
+and recording are in [`tools/dev/`](tools/dev/README.md), which also carries the latest
+handoff (Oct 23: 0.4.2-alpha.1 with the friends' alpha).
+
 The writing guide for encounters that used to live in this file is now
 [`docs/briefs/ENCOUNTER_OPTIONS_GUIDE.md`](docs/briefs/ENCOUNTER_OPTIONS_GUIDE.md).
 
@@ -92,6 +96,9 @@ smoke test at a scratch one.
    (`.github/workflows/validate.yml`) runs the same file on every pull request
    into `main` and on `main` itself.
 4. On a pass, fast-forward `main` to the branch (`git merge --ff-only`) and push.
+
+`tools/dev/gate_land.sh <worktree> <branch> <label>` does steps 2 to 4 in one go, on
+Windows or the Mac.
 
 Run one gate at a time on a machine; two at once compete for the same resources
 and fail each other. The gate runs its steps side by side: `GATE_JOBS` at once
