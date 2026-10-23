@@ -1555,6 +1555,12 @@ func _input(event: InputEvent) -> void:
 	# the escape menu either: the page behind it would change while you read it.
 	if Run.hull == null or Router.is_front_door(Router.current) or _menu != null:
 		return
+	# NOR OFF THE MOVE (`TransferScreen`). It has no off while anything is on the
+	# pad -- that is why it hides the HUD -- and Tab was the door it forgot: over
+	# the yard it swapped the station out and the move with it, and the pad it
+	# was showing was never shown again (Jon, Oct 23).
+	if Router.move_open():
+		return
 	# Nor off the end of a run: the custodian's body, whose only way on is the
 	# win screen (`Router.final_loot`), and the run-end screen itself, which
 	# Tab would leave for LOCAL in a run that is already over.

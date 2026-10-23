@@ -92,7 +92,11 @@ var old_hull: HullData = null
 ##
 ## Cleared when the move commits, so it only ever describes a decision still
 ## being made. Not saved: quitting mid-move and reloading leaves you on the new
-## ship with your things on the pad, which is a finished purchase.
+## ship with your things on the pad, which is a finished purchase. And CLEARED BY
+## THE LOAD (`SaveGame.load_into_run`): SAVE AND EXIT then CONTINUE is one
+## process, and an undo left in memory names the objects the load replaced -- a
+## BACK OUT there refunded the old price and put back a frame from before the
+## save (Oct 23).
 var _undo_move: Dictionary = {}
 var credits: int = 40
 ## FUEL AND DROSS ANNOUNCE THEMSELVES. See the note below.
@@ -2646,6 +2650,10 @@ func transfer_to_hull(h: HullData, paid: int = 0,
 		paid = paid,
 		node = node,
 		places = places,
+		# A FOUND HULL GOES BACK ON THE RAIL if the move is called off. It was
+		# taken off it below and never put back, so BACKING OUT of a derelict's
+		# frame threw the frame away.
+		found = found_hull,
 	}
 
 	pad.clear()
@@ -2731,6 +2739,9 @@ func abandon_move() -> void:
 	var n: MapGen.MapNode = _undo_move.get("node", null)
 	if n != null:
 		n.taken.erase(MapGen.OPTION_SHOP_HULL)
+	var found: HullData = _undo_move.get("found", null)
+	if found != null:
+		found_hull = found
 	# `display_name`, because this is the player's own ship being named back to
 	# them -- a named ship that backs out of a purchase should not be told it is
 	# still flying its chassis.
@@ -2809,6 +2820,58 @@ func ready_to_fly() -> Array[String]:
 		why.append("deck of %d is smaller than a hand of %d"
 			% [deck_size(), hand_size()])
 	return why
+
+
+## A LOADED SHIP PUT RIGHT, for a save written by a build that could strand it
+## (0.4.1-alpha.1: Jon, Oct 23, "all the parts no longer appear for me to
+## transfer and now i can no longer undock from a station"). Run on every load,
+## and it changes nothing on a ship that is already right. NOTHING IS DROPPED:
+## every object goes somewhere you can see it and move it.
+##
+##  - A FITTED PART ON A HARDPOINT THE HULL DOES NOT HAVE, or on one another part
+##    already holds, goes to the first free hardpoint of its kind; failing that,
+##    into the hold; failing that, onto the pad.
+##  - THE PAD WITH NO OLD SHIP UNDER IT (a save from before `old_hull` was
+##    written, or a frame that is gone): a part on it still remembers the
+##    hardpoint of a hull that cannot be drawn, so it would be drawn nowhere
+##    (`OldHold` leaves fitted parts to the old ship's picture). It forgets the
+##    hardpoint and is laid out in the old hold with the rest.
+##  - AN EMPTY PAD has no old ship either, so a stale frame cannot outlive it.
+##
+## The pad itself stays a pad: what is on it is shown, by the move the station
+## opens whenever it is loaded (`Router.show_station`) and by the one a load in
+## space opens (`Router.resume_here`). Returns how many things it moved.
+func mend_loadout() -> int:
+	var moved := 0
+	var seen := {}
+	var astray: Array[ModuleData] = []
+	for m in installed:
+		var key := "%d:%d" % [int(m.slot), m.mount]
+		if m.mount < 0 or m.mount >= slots_for(m.slot) or seen.has(key):
+			astray.append(m)
+			continue
+		seen[key] = true
+	for m in astray:
+		installed.erase(m)
+		moved += 1
+		var free := free_mount(m.slot)
+		if free >= 0:
+			m.mount = free
+			installed.append(m)
+			continue
+		m.mount = -1
+		m.hold_at = -Vector2i.ONE
+		if not place_in_hold(m):
+			pad.append(m)
+	if pad.is_empty():
+		old_hull = null
+	elif old_hull == null:
+		for raw in pad:
+			var mod := raw as ModuleData
+			if mod != null and mod.mount >= 0:
+				mod.mount = -1
+				moved += 1
+	return moved
 
 
 # -------------------------------------------------------------------------- map

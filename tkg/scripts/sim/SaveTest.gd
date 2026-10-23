@@ -146,6 +146,12 @@ func fingerprint() -> Dictionary:
 		# exactly the field a round-trip is worth running against. Fixtured
 		# below, because an empty pad compares equal to a pad the writer forgot.
 		pad = mods.call(Run.pad),
+		# THE FRAME THE PAD CAME OFF (VERSION 36). The move draws its left half,
+		# and the parts still bolted to it, from this; a save without it came
+		# back with those parts drawn nowhere (Jon, Oct 23). Fixtured below by
+		# the `transfer_to_hull` that fills the pad.
+		old_hull = "%s|%d|%d|%s" % [Run.old_hull.name, Run.old_hull.tier,
+			Run.old_hull.max_hull, Run.old_hull.perk_id] if Run.old_hull != null else "",
 		econ = [Run.hp, Run.heat, Run.heat_cap_bonus, Run.credits,
 			Run.fuel, Run.dross_count(), Run.whale_boon],
 		# WHAT THE WORLD MAY HOLD (VERSION 34). Fixtured below to three, so a
@@ -447,6 +453,7 @@ func run() -> void:
 	Run.cargo = []
 	Run.hull = (DB.hull_frames[0] as HullData).duplicate(true) as HullData
 	Run.found_hull = null
+	Run.old_hull = (DB.hull_frames[2] as HullData).duplicate(true) as HullData
 	Run.galaxy_kind = 0
 	Run.galaxy = GalaxyGen.params(0).duplicate()
 	Run.galaxy_seed = 0

@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   Ranging Optics that rolled Rare read SENSORS +1 but added nothing, and the same was true of
   every part with a stat bonus that rolled a grade up. Parts in saved runs are mended when the
   run loads.
+- **Fixed** — after a hull swap you can always see your parts and leave. Taking a hull found in
+  space never opened the screen for moving your parts across, so the ship flew on with all of
+  them on the pad, out of sight, and the next station would not let you undock. Tab on that
+  screen at a shipyard closed it for good, and SAVE AND EXIT in the middle of a move lost the old
+  ship's picture. Now the move opens for a found hull, stays open until the pad is empty, opens
+  again whenever you dock with anything on the pad, and comes back after CONTINUE. BACK OUT on a
+  found hull puts the hull back where you found it. A stuck save opens on the move when it loads,
+  with every part shown, and nothing is lost.
 
 ### Changed
 

@@ -481,6 +481,11 @@ func resume_here() -> void:
 	var f := fight_on_resume
 	fight_on_resume = {}
 	show_sector()
+	# A RUN SAVED MID-MOVE comes back to the move: nothing else shows the pad,
+	# and nothing leaves while it is loaded. (Docked, the station opens it.)
+	if not Run.pad.is_empty() and not docked:
+		show_transfer()
+		return
 	# EXCEPT A FIGHT YOU SAVED OUT OF. SAVE & EXIT mid-fight leaves the save from
 	# before it on disk and notes which fight it was (SaveGame.mark_fight); that
 	# one starts again from its first turn, same enemies, as you went in.
@@ -641,9 +646,20 @@ func _undock() -> void:
 ## by: what UNDOCK refuses (`Run.ready_to_fly`: crates on the pad, a deck smaller
 ## than a hand) refuses the flight and the jump too, and says why.
 ## True when the ship is free to go (it was never docked, or now is not).
+##
+## THE PAD HOLDS THE SHIP IN SPACE TOO. A derelict's frame (TRANSFER on the rail)
+## moves you aboard where it was found, with no berth to refuse the jump -- and
+## 0.4.1 let the ship fly on with its whole kit on a pad no screen showed, to be
+## refused by the next station's UNDOCK for good (Jon, Oct 23). The move is up
+## while the pad is loaded (`show_transfer`), so this is the backstop.
 func cast_off() -> bool:
 	if not docked:
-		return true
+		if Run.pad.is_empty():
+			return true
+		Audio.denied()
+		Run.log_line("Cannot leave: %d thing%s still on the pad." % [Run.pad.size(),
+			"" if Run.pad.size() == 1 else "s"], &"them")
+		return false
 	var why := Run.ready_to_fly()
 	if not why.is_empty():
 		Audio.denied()
@@ -660,7 +676,9 @@ func cast_off() -> bool:
 ## Whether `cast_off` would let the ship go: what the map's FLY HERE and GO and
 ## the chart's JUMP read to say CANNOT UNDOCK before they are pressed.
 func may_cast_off() -> bool:
-	return not docked or Run.ready_to_fly().is_empty()
+	if not docked:
+		return Run.pad.is_empty()
+	return Run.ready_to_fly().is_empty()
 
 
 ## WHETHER THE SHIP IS AT THE STATION ITSELF, the one place DOCK is offered
@@ -838,6 +856,8 @@ func show_ship() -> void:
 ## (Jon: yes). Anything else that opens it -- a tool, a screen that is not the
 ## station -- still gets the page of its own.
 func show_transfer() -> void:
+	if move_open():
+		return
 	Audio.music_state(&"ship")
 	var s := TransferScreen.new()
 	if current is StationScreen and is_instance_valid(current):
@@ -845,6 +865,41 @@ func show_transfer() -> void:
 		return
 	_swap(s, false)
 	s.setup()
+
+
+## Whether the move (`TransferScreen`) is up: over the station, or a page of its
+## own after a hull found in space.
+func move_open() -> bool:
+	if dock != null and is_instance_valid(dock):
+		return true
+	return current is TransferScreen and is_instance_valid(current)
+
+
+## OFF THE MOVE, back where you were standing: the yard it opened over, the
+## berth, or LOCAL after a hull found in space. It used to be `show_station`
+## from everywhere, which from open space docked you at whatever station the
+## system had, or at none.
+func leave_transfer() -> void:
+	if dock != null and is_instance_valid(dock):
+		_close_dock()
+	elif docked:
+		show_station()
+	else:
+		show_local()
+
+
+## AT THE BERTH WITH THE PAD LOADED, the move is what you see. The pad is what
+## holds UNDOCK shut, and the move is the one screen that shows it -- so a berth
+## with a loaded pad and no move open was a station that refused to let you go
+## and could not say why (Jon, Oct 23: a hull found in space flew its kit here on
+## the pad; and Tab, or any door off the station, freed the yard's move with the
+## station, and docking again never brought it back). Deferred, so the station is
+## in the tree and set up first.
+func _reopen_move() -> void:
+	if Run.pad.is_empty() or move_open() or not docked:
+		return
+	if current is StationScreen:
+		show_transfer()
 
 
 ## The dock over the station, while it is open. It is the station's own child,
@@ -1189,7 +1244,9 @@ func show_station() -> void:
 	# BACK FROM THE DOCK: it was open over this station, so the station is
 	# still here -- close it and stand in the same yard.
 	if dock != null and is_instance_valid(dock) and current is StationScreen:
-		_close_dock()
+		# (not while anything is still on the pad: the move has no off it)
+		if Run.pad.is_empty():
+			_close_dock()
 		return
 	# ONLY AT THE STATION (dock:A): every DOCK is offered only there, and this is
 	# the door they all go through, so a dock from anywhere else in a station's
@@ -1234,10 +1291,12 @@ func show_station() -> void:
 	var pre: Control = ZoomLadder.take_prebuilt(ZoomLadder.STATION)
 	if pre != null:
 		_swap(pre)
+		_reopen_move.call_deferred()
 		return
 	var s := StationScreen.new()
 	_swap(s)
 	s.setup()
+	_reopen_move.call_deferred()
 
 ## Open the hail. The node is NOT consumed here — event_resolved() does that
 ## when the outcome actually lands. Marking it on open meant the swap below

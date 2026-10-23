@@ -1562,9 +1562,15 @@ func _refresh_undock() -> void:
 		_undock.tooltip_text = ""
 		return
 	_undock.text = "CANNOT UNDOCK"
+	# WHAT TO DO, said for the reason it is. The pad's line used to send you to
+	# the Shipyard's ship to stow things, and the cutaway that opens there never
+	# showed the pad (Jon, Oct 23): clicking your ship with the pad loaded opens
+	# the move now, which is the screen that does.
+	var how := "Click your ship in the Shipyard and fit parts from the hold."
+	if not Run.pad.is_empty():
+		how = "Click your ship in the Shipyard to carry your things aboard."
 	_undock.tooltip_text = Widgets.tip("%s.
-Click your ship in the Shipyard to stow it in the hold, or sell it at the Exchange."
-		% "; ".join(why).capitalize())
+%s" % ["; ".join(why).capitalize(), how])
 
 
 ## The banner, the trade line, and the two gauges on the hull panel.
@@ -2763,6 +2769,11 @@ func _on_mine_input(e: InputEvent) -> void:
 	if not ready:
 		denied_clicks += 1
 		Audio.denied()
+		return
+	# THE PAD LOADED: the move, not the cutaway. Your things on the pad are what
+	# holds UNDOCK shut and the cutaway cannot see them (`Router.show_transfer`).
+	if not Run.pad.is_empty():
+		Router.show_transfer()
 		return
 	open_cutaway()
 
