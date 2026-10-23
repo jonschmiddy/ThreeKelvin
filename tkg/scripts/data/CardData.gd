@@ -374,7 +374,7 @@ func keywords() -> Array:
 	if damage_equals_heat:
 		out.append(["Damage from heat", "Hits for exactly however much heat you are carrying."])
 	if lock_on > 0:
-		out.append(["Lock on", "Your next attack this turn deals this much more."])
+		out.append(["Lock on", "Your next attack this turn deals this much more per hit. Lock on from more cards adds up."])
 	if vent > 0 or vent_all:
 		out.append(["Vent", "Sheds heat. Its heat corner shows a minus number."])
 	if drone_damage > 0 or drone_brace > 0:
