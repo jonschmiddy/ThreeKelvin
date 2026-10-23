@@ -6,8 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Fixed
+### Roadmap
 
+The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
+[`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
+
+## 2026-10-23
+
+### [0.4.2-alpha.1]
+
+Fixes from the friends' first night on 0.4.1-alpha.1, chiefly a hull swap that could strand
+your parts and keep you docked. Saves from 0.4.1-alpha.1 load, and a stranded one comes back
+playable. The Windows and Mac builds come from the same commit.
+
+- **Added** — COMMS on the top bar, beside QUESTS. It lists everything A.S.H. has said this run,
+  her quips and her tutorial lines, newest first, with the jump each was said on. PLAY on a line
+  says it again in her voice. The list is kept with the run's save, and older saves load with an
+  empty list. Jeremy asked for it: "Give me an option to revisit all communications."
+- **Changed** — your ship shows only its weapons on LOCAL, in a fight, in the station hall and
+  in the yard. Systems and utilities stay fitted but are no longer drawn on the hull, so the ship
+  looks less cluttered. Every part still shows in the cutaway, on the refit screen and when
+  moving to a new ship.
+- **Changed** — fitting a part with hull on it brings its hull with it. A full ship stays full
+  (40/40 fits a +7 plate and reads 47/47), so the HULL bar moves at once for the "+1 HUL" the
+  part shows. A damaged ship keeps the same damage across a fit, and taking a part off and
+  putting it back lands you where you started. Before, fitting raised only the maximum, so a
+  full ship read 40/47 and the bar did not move until you repaired.
+- **Changed** — lock on stacks. Playing a second lock on card adds to the first instead of
+  replacing it, and your next attack spends all of it, on every hit.
 - **Fixed** — a part found a grade higher than usual now gives the stats its readout shows. A
   Ranging Optics that rolled Rare read SENSORS +1 but added nothing, and the same was true of
   every part with a stat bonus that rolled a grade up. Parts in saved runs are mended when the
@@ -31,43 +57,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   to nothing. It used to go and come back at the start of every turn.
 - **Fixed** — pressing SAVE & EXIT counts as doing what the SAVE AND EXIT lesson teaches. Its
   question hid the lesson, so A.S.H. said it again the next time you opened the menu.
-
-### Added
-
-- **Added** — COMMS on the top bar, beside QUESTS. It lists everything A.S.H. has said this run,
-  her quips and her tutorial lines, newest first, with the jump each was said on. PLAY on a line
-  says it again in her voice. The list is kept with the run's save, and older saves load with an
-  empty list. Jeremy asked for it: "Give me an option to revisit all communications."
-
-### Changed
-
-- **Changed** — your ship shows only its weapons on LOCAL, in a fight, in the station hall and
-  in the yard. Systems and utilities stay fitted but are no longer drawn on the hull, so the ship
-  looks less cluttered. Every part still shows in the cutaway, on the refit screen and when
-  moving to a new ship.
-- **Changed** — fitting a part with hull on it brings its hull with it. A full ship stays full
-  (40/40 fits a +7 plate and reads 47/47), so the HULL bar moves at once for the "+1 HUL" the
-  part shows. A damaged ship keeps the same damage across a fit, and taking a part off and
-  putting it back lands you where you started. Before, fitting raised only the maximum, so a
-  full ship read 40/47 and the bar did not move until you repaired.
-
-### Fixed
-
 - **Fixed** — winning a run unlocks the next manufacturer even if you finished in another ship.
   A win counted for the manufacturer of the hull you ended in, so a Korvan run that swapped onto
   an unbranded frame from a derelict unlocked nothing. A win now counts for the manufacturer you
   launched with, and wins already recorded that way count too: on a profile with no other wins,
   they unlock Solari.
-
-### Changed
-
-- **Changed** — lock on stacks. Playing a second lock on card adds to the first instead of
-  replacing it, and your next attack spends all of it, on every hit.
-
-### Roadmap
-
-The next build follows the friends' playtest of 0.4.1-alpha.1 (Oct 23). See
-[`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
 ## 2026-10-22
 
