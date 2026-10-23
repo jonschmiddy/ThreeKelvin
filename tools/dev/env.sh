@@ -31,6 +31,12 @@ TK_WT="${TK_WT:-$(dirname "$TK_REPO")/tk-wt}"
 TK_SCRATCH="${TK_SCRATCH:-$(dirname "$TK_REPO")/tk-scratch}"
 mkdir -p "$TK_WT" "$TK_SCRATCH/profiles" "$TK_SCRATCH/logs"
 
+# THE REAL BINARY, NEVER A WRAPPER. gate_land.sh hands validate.sh
+# GODOT=tools/dev/godot_quiet.sh, and godot_quiet.sh reads this file: taking
+# GODOT from the environment there made it exec itself forever (Oct 23, every
+# gate unit timed out). TK_GODOT_BIN carries the real one through.
+if [ -n "${TK_GODOT_BIN:-}" ]; then GODOT="$TK_GODOT_BIN"; fi
+case "${GODOT:-}" in *tools/dev/*) GODOT="" ;; esac
 if [ -z "${GODOT:-}" ]; then
 	if [ "$TK_OS" = mac ] && [ -x "/Applications/Godot.app/Contents/MacOS/Godot" ]; then
 		GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
@@ -45,7 +51,8 @@ if [ -z "${PY:-}" ]; then
 	if python3 -c "" >/dev/null 2>&1; then PY=python3; else PY=python; fi
 fi
 
-export TK_OS TK_REPO TK_WT TK_SCRATCH GODOT PY
+TK_GODOT_BIN="$GODOT"
+export TK_OS TK_REPO TK_WT TK_SCRATCH GODOT TK_GODOT_BIN PY
 
 # tk_timeout <seconds> <command...>
 # GNU `timeout` is not on a stock Mac; gtimeout is (Homebrew coreutils); perl always is.
