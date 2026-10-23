@@ -164,8 +164,25 @@ func attach(v: ShipView) -> void:
 ## screen cannot do, and a tractor beam has nothing to reach for.
 func passive() -> void:
 	_passive = true
+	weapons_only = true
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	queue_redraw()
+
+## ONLY THE GUNS ON A PICTURE OF THE SHIP (Jon, Oct 23, from Geno's playtest):
+## LOCAL, the fight, the station hall and the yard draw the WEAPON parts and
+## leave the systems and utilities off, which keeps the hull from reading as a
+## pile of boxes. Every part still shows wherever parts are fitted or moved --
+## the cutaway, the refit screen, moving day -- since those are not `passive`.
+##
+## The hull under a hidden part is the hull's own art: the parts are drawn over
+## the canvas, never cut out of it, so there is no hole to fill.
+var weapons_only: bool = false
+
+## Whether a fitted part is drawn on this hull (see `weapons_only`). Everything
+## that reads the parts AS DRAWN asks this: the drawing, the stands, the
+## breakup's picture, the ship's whole rect, the stray test.
+func shows(m: ModuleData) -> bool:
+	return m != null and (not weapons_only or m.slot == ModuleData.Slot.WEAPON)
 
 ## Recompute where every mount is. Cheap, and called whenever the ship changes.
 func refresh() -> void:
@@ -214,7 +231,7 @@ func strays() -> Array[String]:
 	var k := _mag()
 	for s in _spots:
 		var m: ModuleData = s.held
-		if m == null:
+		if not shows(m):
 			continue
 		var r := part_rect(m, s.slot, _part_at(s), k)
 		var cr := Rect2((r.position - c0) / px, r.size / px)
@@ -245,7 +262,7 @@ func part_rects_canvas() -> Array[Rect2]:
 	var k := _mag()
 	for s in _spots:
 		var m: ModuleData = s.held
-		if m == null:
+		if not shows(m):
 			continue
 		var r := part_rect(m, s.slot, s.at, k)
 		out.append(Rect2((r.position - c0) / px, r.size / px))
@@ -354,6 +371,10 @@ func _draw() -> void:
 	for spot in _spots:
 		var at: Vector2 = _part_at(spot)
 		var m: ModuleData = spot.held
+		# (a part this hull does not show is not drawn, and its mount is not
+		# empty either: no ping, no hint, nothing -- see `weapons_only`)
+		if m != null and not shows(m):
+			continue
 		# THE DROP'S OWN ANSWER for this mount, while a part is carried: the one
 		# `_can_drop_data` gives and `RunState.fit_at_mount` acts on (`takes`)
 		var ok := _takes_spot(spot)
@@ -682,7 +703,7 @@ func parts_rect() -> Rect2:
 	var k := _mag()
 	for s in _spots:
 		var m: ModuleData = s.held
-		if m == null:
+		if not shows(m):
 			continue
 		var r := part_rect(m, s.slot, s.at, k)
 		out = r if out.size.x <= 0.0 else out.merge(r)
@@ -838,7 +859,7 @@ func part_under(p: Vector2) -> ModuleData:
 	var k := _mag()
 	for i in _spots.size():
 		var m: ModuleData = _spots[i].held
-		if m == null:
+		if not shows(m):
 			continue
 		if part_rect(m, _spots[i].slot, _part_at(_spots[i]), k).grow(2.0).has_point(p):
 			return m
