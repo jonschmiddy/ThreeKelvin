@@ -30,6 +30,33 @@ Two levels, as in encounter_lint:
 
 Debug output (print, push_error, asserts) and comments are not player text and
 are skipped; so is scripts/sim/, which only the harness reads.
+
+The second set of rules (2026-10-23) is a port of the Meridian manuscript's
+mannered-prose pass (its style sheet §9.13 and §9.18, `tools/audit.py` there):
+figure standing in for a statement. The plain-voice overhaul of 2026-10-13 had
+already taken the slang and the epigrams out; what it left was the same moves
+in plain words. Measured before this pass, over the encounters: "still" ran 49
+per 10k words against 10 in a shelf of novels, and 49 strings ended on "X is
+still Y when you leave", the quiet closing image in a plainer coat. The rules:
+
+  still-closer   the lingering camera: a last sentence on "still ... when you
+                 leave / when the dish loses it / out of range"
+  personified    a clamp, a meter, an arm or a herd that does not care, does
+                 not notice, complains, decides or expects
+  wink           the pair that winks: "They say X, and they are not.", "It is
+                 uncomfortable and it is free."
+  vague-thing    "the best thing", "the one thing it could reach": name the
+                 piece, the crate, the part
+  idiom          "worth having", "costs you nothing", "the whole of it"
+  tautology      "the digit is the digit", "the order is the order"
+  pronouncement  (REVIEW) a short abstract last sentence: "It is slow and safe."
+  flourish-verb  (REVIEW) the one-word verb as a whole sentence: "It holds."
+  span           (REVIEW) "a long time", "long ago": name the span if the body has it
+  tricolon       (REVIEW) three sentences in a row opening on the same word
+
+A string that carries one of Jon's approved lines (SKILL.md §0, the KEEP list
+below) is skipped by every rule, so a rule can fire hard without re-litigating
+a decided line; that is Meridian's keep-list, in one tuple.
 """
 from __future__ import annotations
 
@@ -79,7 +106,52 @@ ERRORS = [
 	("round", 0,
 		r"\b(?:goes|go|went|come|came|turn|turned|turns|all) round\b",
 		'"round" for "around" (SKILL §3b)'),
+	# --- ported from Meridian's mannered-prose pass (2026-10-23), see the docstring ---
+	("personified", 0,
+		r"(?<!\bshe )(?<!\bhe )(?<!\bthey )(?<!\byou )(?<!\bwe )(?<!\bcrew )(?<!\bnobody )(?<!\bno one )"
+		r"(?<!\bpilot )(?<!\bwoman )(?<!\bman )(?<!\bforeman )(?<!\bclerk )(?<!\bpeople )(?<!\bthem )"
+		r"(?<!\bdockmaster )(?<!\bone )(?<!\banyone )(?<!\bsomeone )"
+		r"\b(?:does|do|did) not (?:care|mind|notice|complain)\b(?! to\b)"
+		r"|\bcomplains?\b(?! to\b)|\b(?:does|do) not ask who\b|\blike it was expecting\b|\bdecided (?:that )?you\b|\bkeeps its (?:fittings|secrets)\b",
+		"a machine or a herd doing a person's verb: say what it did (Meridian §9.18)"),
+	("wink", 0,
+		r", and (?:it|they|she|he) (?:is|are|was|were) not\.|(?:^|[.!?] )It is not\. |\band it is free\b",
+		'the pair that winks, "They say X, and they are not." (SKILL §0, no winking)'),
+	("vague-thing", 0,
+		r"\bthe (?:one|best|first|last|only|nearest|heaviest|warmest|hottest|coldest|biggest|smallest|worst) thing\b"
+		r"|\bthe thing (?:at|in|about|on)\b",
+		'"the best thing": name the piece, the crate, the part (Meridian §9.13)'),
+	("idiom", 0,
+		r"\bworth (?:having|knowing)\b|\bcosts? (?:you|them|him|her) nothing\b|\bthe whole of (?:it|what)\b"
+		r"|\bdid the work\b|\bearn(?:ed|s)? (?:its|their) keep\b|\bcarr(?:y|ies|ied) weight\b|\bat leisure\b",
+		"an idiom standing in for the plain phrase (Meridian §9.18)"),
+	("tautology", 0,
+		r"\b[Tt]he ([a-z]+) (?:is|was|are|were) the \1\b(?!\s+(?:of|the|that|which|who|whose|I|he|she|they|we|you)\b)",
+		'"the X is the X" (Meridian §9.13)'),
 ]
+
+# The lingering camera: a walk-away or an outcome that ends on the thing
+# still doing what it was doing as you go. One is a fact; forty-nine were the
+# house closer. Tested on the LAST sentence only.
+STILL_CLOSER = re.compile(
+	r"\bstill\b.*\b(?:when|as|while|until) (?:you|your dish|the dish)\b"
+	r"|\b(?:when|until) (?:you|your dish|the dish) (?:leave|lose|loses|pass|go)\b.*\bstill\b"
+	r"|\b(?:out of|past|leaves) (?:sensor )?range\b")
+
+# Jon's approved lines (SKILL.md §0, 2026-10-13). A string carrying one is
+# skipped by every rule: the keep-list, so rules can fire hard.
+KEEP = (
+	"A neutron star's beam killed the crew. The hull held.",
+	"Four million suns in one point. Ruins from whoever came first still orbit it.",
+	"Its density waves never settled into one pattern.",
+	"Their argument is still on the open channel",
+	"Korvan stamps parts to an old navy specification.",
+	"Charges for a turn, then hits hard.",
+	"Power cells with the serials ground off.",
+	"Removed for the rest of this fight. It does not return when the deck reshuffles.",
+	"Puts it in your hold. The first pilot to take it keeps it.",
+	"This system's star, what orbits it, and any threats nearby.",
+)
 
 # Hands are ruled out of ENCOUNTER prose (SKILL §3b, §3c). Elsewhere "hand" is
 # the card hand, which is a mechanic and not a body part.
@@ -109,7 +181,23 @@ REVIEW = [
 		r"|need|needs|pay|pays)\b"
 		r"|\bwhich\s+(?:is|was)\s+(?:all|the whole|exactly)\b",
 		"the narrator explaining what the line meant, \"X is what they leave behind\" (SKILL §0)"),
+	# --- ported from Meridian's mannered-prose pass (2026-10-23) ---
+	("flourish-verb",
+		r"(?:^|[.!?] )(?:It|That|This|They|The [a-z]+) (?:holds|held|lands|landed|settles|settled|stays|stayed)\.",
+		'the one-word verb as a whole sentence, "It holds." (Meridian §9.18)'),
+	("span",
+		r"\ba long (?:time|while)\b|\blong ago\b|\bfor some time\b",
+		"a vague span; name it if the body has the number (SKILL §2, name things)"),
+	("which-is",
+		r", which is (?:more|less|all|why|how|what|where|not)\b",
+		'", which is more than you expected": the narrator\'s aside (Meridian §9.18)'),
 ]
+
+# The pronouncement closer: a short abstract last sentence, "It is slow and
+# safe.", "It is not the good one." Meridian's aphorism-closer; REVIEW, because
+# "It is in the hold." is a status line and right.
+PRONOUNCEMENT = re.compile(r"^(?:It|That|This|There) (?:is|was|were|are|came|did)\b")
+TRICOLON_OK = set("the you it they a he she an your this that there then".split())
 
 # An epigram: two short sentences on one frame, the second answering the first.
 # "Nothing they build is clever. Everything they build still works." The capper
@@ -232,10 +320,20 @@ def main() -> int:
 	compiled = [(t, cap, re.compile(rx), why) for t, cap, rx, why in ERRORS]
 	compiled_review = [(t, re.compile(rx), why) for t, rx, why in REVIEW]
 
+	still_words = collections.Counter()
 	for rel, n, unit, text in player_strings():
 		scanned += 1
 		words[rel] += len(text.split())
+		still_words[rel] += len(re.findall(r"\bstill\b", text.lower()))
+		if any(k in text for k in KEEP):
+			continue
 		ukey = unit or (rel, n, text)
+		ss_all = sentences(text)
+		if len(ss_all) >= 2 and STILL_CLOSER.search(ss_all[-1]):
+			s = ss_all[-1]
+			density[rel] += 1
+			errors.append((_key(rel, "still-closer", text, s), rel, n, "still-closer",
+				"the lingering camera: ends on what is still happening as you leave (SKILL §0, Meridian §9.18)", s))
 		for tid, cap, rx, why in compiled:
 			for m in rx.finditer(text):
 				per_unit[(ukey, tid)] += 1
@@ -257,6 +355,19 @@ def main() -> int:
 				continue
 			if rx.search(text):
 				review.append((rel, n, tid, why, text))
+		if len(ss_all) >= 3:
+			last = ss_all[-1]
+			if 2 <= len(last.split()) <= 7 and PRONOUNCEMENT.match(last):
+				review.append((rel, n, "pronouncement",
+					"a short abstract last sentence; end on the concrete fact (Meridian §9.18)", text))
+			opens = [s.split(" ")[0].lower().rstrip(".,;:") for s in ss_all]
+			for i in range(len(opens) - 2):
+				if opens[i] and opens[i] == opens[i + 1] == opens[i + 2] and opens[i] not in TRICOLON_OK:
+					review.append((rel, n, "tricolon",
+						"three sentences in a row open on '%s'; keep two (Meridian)" % opens[i], text))
+					break
+			if len(re.findall(r"\bstill\b", text.lower())) >= 3:
+				review.append((rel, n, "stacked-still", "'still' three times in one string", text))
 		pair = epigram(text)
 		if pair:
 			review.append((rel, n, "epigram",
@@ -292,6 +403,9 @@ def main() -> int:
 		print()
 
 	print("%d player-facing strings checked" % scanned)
+	enc_w = max(1, words[ENCOUNTERS])
+	print("'still' in the encounters: %.0f per 10k words (a shelf of novels runs about 10; 49 before the 2026-10-23 pass)"
+		% (still_words[ENCOUNTERS] * 1e4 / enc_w))
 	print()
 	if errors:
 		print("ERRORS  (%d, of which %d are new since the baseline)" % (len(errors), len(fresh)))
