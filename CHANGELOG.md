@@ -15,6 +15,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **Changed** — your ship shows only its weapons on LOCAL, in a fight, in the station hall and
+  in the yard. Systems and utilities stay fitted but are no longer drawn on the hull, so the ship
+  looks less cluttered. Every part still shows in the cutaway, on the refit screen and when
+  moving to a new ship.
 - **Changed** — fitting a part with hull on it brings its hull with it. A full ship stays full
   (40/40 fits a +7 plate and reads 47/47), so the HULL bar moves at once for the "+1 HUL" the
   part shows. A damaged ship keeps the same damage across a fit, and taking a part off and
