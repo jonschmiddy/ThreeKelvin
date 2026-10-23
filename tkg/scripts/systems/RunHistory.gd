@@ -66,7 +66,9 @@ static func record(outcome: Outcome, reason: String) -> void:
 		# tally of the parts you ended up carrying; neither answers "which manufacturer
 		# did this player fly", which is the question the unlock chain asks. See
 		# Unlocks.
-		chassis_manufacturer = String(Run.hull.manufacturer),
+		chassis_manufacturer = String(Run.launched_as if Run.launched_as != &"" else Run.hull.manufacturer),
+		# The hull it ENDED in, which can be another manufacturer's or none.
+		hull_manufacturer = String(Run.hull.manufacturer),
 		perk = String(Run.hull.perk_id),
 		# THE GRADE'S PERKS TOO. `perk` alone answers "which manufacturer", which the
 		# line above already answers; what a record of a flight wants is what the

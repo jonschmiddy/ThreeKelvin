@@ -43,6 +43,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   putting it back lands you where you started. Before, fitting raised only the maximum, so a
   full ship read 40/47 and the bar did not move until you repaired.
 
+### Fixed
+
+- **Fixed** — winning a run unlocks the next manufacturer even if you finished in another ship.
+  A win counted for the manufacturer of the hull you ended in, so a Korvan run that swapped onto
+  an unbranded frame from a derelict unlocked nothing. A win now counts for the manufacturer you
+  launched with, and wins already recorded that way count too: on a profile with no other wins,
+  they unlock Solari.
+
 ### Changed
 
 - **Changed** — lock on stacks. Playing a second lock on card adds to the first instead of

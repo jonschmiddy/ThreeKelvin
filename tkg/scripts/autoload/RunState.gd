@@ -13,6 +13,13 @@ var hull: HullData
 ## they changed frames.
 var ship_name: String = ""
 
+## WHICH MANUFACTURER THIS RUN LAUNCHED AS, by id. The unlock chain asks "who
+## did you win with" (`Unlocks`), and the hull flown at the end does not answer
+## it: a run that swaps onto a derelict's unbranded frame ends with manufacturer
+## "" and its win unlocked nothing (Geno, Oct 23: beat the Custodian, no
+## Solari). Set at launch, saved with the run, never changed by a swap.
+var launched_as: StringName = &""
+
 ## WHAT TO PUT ON SCREEN when the player's ship is named. The pilot's name if
 ## there is one, the frame's own otherwise.
 ##
@@ -450,6 +457,7 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 		weight = Rng.pick(start_rng, [HullData.Weight.LIGHT,
 			HullData.Weight.MEDIUM, HullData.Weight.HEAVY])
 	fit_chassis(manufacturer, weight)
+	launched_as = hull.manufacturer
 	cargo.clear()
 	ship_name = ""
 	heat = 0
