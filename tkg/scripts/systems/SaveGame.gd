@@ -420,6 +420,7 @@ static func _snapshot() -> Dictionary:
 
 		hull = _hull_to(Run.hull),
 		ship_name = Run.ship_name,
+		launched_as = String(Run.launched_as),
 		installed = installed,
 		cargo = cargo,
 		pad = pad,
@@ -571,6 +572,9 @@ static func load_into_run() -> bool:
 	# A save written before ships could be named restores as unnamed, which is
 	# what it meant at the time.
 	Run.ship_name = str(d.get("ship_name", ""))
+	# Optional: a save from before it was kept says nothing, and the run's win
+	# then falls back to the hull it ends in (`RunHistory.record`).
+	Run.launched_as = StringName(str(d.get("launched_as", "")))
 
 	Run.hp = int(d.get("hp", 1))
 	Run.heat = int(d.get("heat", 0))

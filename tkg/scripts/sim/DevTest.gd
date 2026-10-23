@@ -287,6 +287,38 @@ func _unlocks(dev: bool) -> void:
 	_ok("and not the one after it", not Unlocks.unlocked(&"probate"))
 	_drop_file(HISTORY)
 
+	# GENO'S WIN (Oct 23): the record took the hull flown at the end, an
+	# unbranded derelict frame, so it said "" and opened nothing. A win with no
+	# manufacturer on a fresh profile counts as Korvan's.
+	f = FileAccess.open(HISTORY, FileAccess.WRITE)
+	f.store_string(JSON.stringify({version = RunHistory.VERSION, runs = [
+		{outcome = int(RunHistory.Outcome.WON), chassis_manufacturer = ""}]}))
+	f.close()
+	_ok("a win recorded with no manufacturer opens Solari", Unlocks.unlocked(&"solari"))
+	_ok("and still not the one after it", not Unlocks.unlocked(&"probate"))
+	_drop_file(HISTORY)
+
+	# AND A WIN NOW RECORDS WHO LAUNCHED. A Korvan run that ends in an
+	# unbranded frame is recorded as Korvan's.
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var frame: HullData = null
+	for h in DB.hull_frames:
+		if (h as HullData).manufacturer == &"":
+			frame = h
+			break
+	if _ok("an unbranded frame exists", frame != null):
+		Run.hull = frame.duplicate(true) as HullData
+		_ok("the run still launched as Korvan (%s)" % Run.launched_as, Run.launched_as == &"korvan")
+		RunHistory.record(RunHistory.Outcome.WON, "test")
+		_ok("its win opens Solari", Unlocks.unlocked(&"solari"))
+		var rows: Array = RunHistory.load_all()
+		var last: Dictionary = rows[rows.size() - 1] if not rows.is_empty() else {}
+		_ok("and the record names Korvan and the frame it ended in (%s, %s)" % [
+			last.get("chassis_manufacturer", "?"), last.get("hull_manufacturer", "?")],
+			last.get("chassis_manufacturer", "") == "korvan" and last.get("hull_manufacturer", "x") == "")
+	_drop_file(HISTORY)
+
 
 # ------------------------------------------------------------------- helpers
 
