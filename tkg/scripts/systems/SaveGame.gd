@@ -272,7 +272,15 @@ static var restoring := false
 ## (`quest.from`); one taken lists under COMPLETED without its pay; and its
 ## delivered contracts list there too, after any finished since, with the pay
 ## each one carries. OLDEST_READ stays at 29.
-const VERSION := 35
+## 36: THE FRAME YOU ARE MOVING OUT OF (`old_hull`), written while anything is
+## still on the pad. A 35 save quit mid-move came back with its parts on the pad
+## and no ship to draw the fitted ones on, and nothing showed the pad at all: the
+## station would not let you go and would not say what was holding it (Jon, Oct
+## 23, 0.4.1-alpha.1). Read the way 35 reads 34: a 35 save has no `old_hull`, and
+## missing means none -- the pad's parts forget the old hardpoints and are laid
+## out in the old hold (`RunState.mend_loadout`, which every load runs, and which
+## also puts a fitted part on a hardpoint it can have). OLDEST_READ stays at 29.
+const VERSION := 36
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
 const OLDEST_READ := 29
@@ -425,6 +433,9 @@ static func _snapshot() -> Dictionary:
 		cargo = cargo,
 		pad = pad,
 		found_hull = _hull_to(Run.found_hull) if Run.found_hull != null else null,
+		# The ship you are moving out of, while anything is still aboard it
+		# (VERSION 36): the move's left half is drawn from it.
+		old_hull = _hull_to(Run.old_hull) if Run.old_hull != null and not Run.pad.is_empty() else null,
 
 		hp = Run.hp,
 		heat = Run.heat,
@@ -572,6 +583,13 @@ static func load_into_run() -> bool:
 
 	var fh: Variant = d.get("found_hull", null)
 	Run.found_hull = _hull_from(fh) if typeof(fh) == TYPE_DICTIONARY else null
+	# THE MOVE IN PROGRESS, as far as a save can carry it (VERSION 36; a 35
+	# save has none). The undo is never saved, and it is CLEARED here rather than
+	# left: SAVE AND EXIT then CONTINUE is one process, and the undo and the old
+	# frame still in memory name the objects this load has just replaced.
+	var oh: Variant = d.get("old_hull", null)
+	Run.old_hull = _hull_from(oh) if typeof(oh) == TYPE_DICTIONARY else null
+	Run._undo_move = {}
 
 	# A save written before ships could be named restores as unnamed, which is
 	# what it meant at the time.
@@ -660,6 +678,13 @@ static func load_into_run() -> bool:
 	# Jump range is a pure function of a system and the galaxy, and both just
 	# changed underneath it.
 	Run._range_cache.clear()
+	# A SHIP A 0.4.1 BUILD COULD STRAND, PUT RIGHT (`RunState.mend_loadout`);
+	# nothing on a sound one moves. Last, once the map is back, because putting
+	# a part in the hold announces the ship changed and the listeners read it.
+	var mended := Run.mend_loadout()
+	if mended > 0:
+		Router.crumb("[save] mended %d part%s: off a hardpoint it could not have, or off a pad with no old ship"
+			% [mended, "" if mended == 1 else "s"])
 
 	clear()
 	restoring = true

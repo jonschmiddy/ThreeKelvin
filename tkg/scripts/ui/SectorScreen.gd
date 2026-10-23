@@ -2717,6 +2717,12 @@ func _on_salvage(action: String, thing: Variant) -> void:
 		"take_hull":
 			Audio.act(&"hull_transfer")
 			Run.transfer_to_hull(thing as HullData)
+			# STRAIGHT TO THE MOVE, as the yard's TAKE IT goes. Everything you own
+			# is on the pad now and this is the one screen that shows it; without
+			# it the ship flew on bare, its kit on a pad nobody could see, until a
+			# station's UNDOCK refused for good (Jon, Oct 23).
+			Router.show_transfer()
+			return
 		"leave_hull":
 			Run.found_hull = null
 	_refresh()

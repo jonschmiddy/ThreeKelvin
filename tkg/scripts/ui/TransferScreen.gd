@@ -92,8 +92,9 @@ func setup() -> void:
 
 	_oldhead = UITheme.body("", UITheme.LEAVE, UITheme.FS_SMALL)
 	_old = OldHold.new()
-	pair.add_child(_column(Run.old_hull, "THE SHIP YOU ARE LEAVING",
-		_oldhead, _old, true))
+	# (no old ship to draw: a save from before it was written, `RunState.mend_loadout`)
+	pair.add_child(_column(Run.old_hull, "THE SHIP YOU ARE LEAVING" if Run.old_hull != null
+		else "LEFT ON THE PAD", _oldhead, _old, true))
 
 	# THE ARROW IS THE INSTRUCTION, and it was set in body text at the size of a
 	# caption -- eleven pixels of punctuation carrying the only statement on the
@@ -158,6 +159,9 @@ ACROSS", UITheme.COLD, UITheme.FS_SMALL)
 	acts.add_child(bin)
 	acts.add_child(Widgets.button("TAKE WHAT FITS", _take_all))
 	_sell = Widgets.button("SELL THE REST", _sell_rest)
+	# A FOUND HULL IS TAKEN IN SPACE, where nobody is buying: the hatch and the
+	# two holds are the whole of it there.
+	_sell.visible = Router.docked
 	acts.add_child(_sell)
 	# THE WAY OUT, and it is the reason the old frame is still drawn rather than
 	# described. A purchase you cannot reverse has to be judged from the Yard,
@@ -449,6 +453,8 @@ func _refresh() -> void:
 			Run.hull.name, Run.old_hull.name]) if Run.can_abandon_move() else ""
 	if left == 0:
 		_money.text = "Everything is aboard."
+	elif not Router.docked:
+		_money.text = "%d left. Carry it across, or dump what you will not take." % left
 	elif refused > 0:
 		_money.text = "%d left · worth %d cr here · %d no one will buy, so you can only dump those." % [
 			left, worth, refused]
@@ -695,6 +701,8 @@ func _take_all() -> void:
 
 
 func _sell_rest() -> void:
+	if not Router.docked:
+		return
 	var n: MapGen.MapNode = Run.node_at()
 	var paid := 0
 	for m in Run.pad.duplicate():
@@ -716,7 +724,7 @@ func _back_out() -> void:
 		return
 	Audio.act(&"hull_transfer")
 	Run.abandon_move()
-	Router.show_station()
+	Router.leave_transfer()
 
 
 func _cast_off() -> void:
@@ -726,4 +734,4 @@ func _cast_off() -> void:
 	# this screen draws its left half from, so clearing it the moment the last
 	# crate crossed would blank the page you are still standing on.
 	Run.old_hull = null
-	Router.show_station()
+	Router.leave_transfer()

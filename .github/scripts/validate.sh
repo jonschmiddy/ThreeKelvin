@@ -462,6 +462,27 @@ else
 fi
 }
 
+unit_swaptest() {
+step "A hull swap never strands the pad or shuts the station door"
+# Jon, Oct 23, 0.4.1-alpha.1: "after swapping/upgrading my ship all the parts no
+# longer appear for me to transfer and now i can no longer undock from a
+# station". His own save (tools/fixtures/) loads with nothing lost and every
+# mount valid, docks onto the move with every pad item drawn, and undocks once
+# they are aboard. Then the yard's TAKE IT through Tab, another door and back,
+# and SAVE AND EXIT/CONTINUE in one process; then a hull found in space, which
+# opens the move, refuses Tab and the jump, and BACKs OUT onto the rail.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot swaptest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=SwapTest; then
+	if grep -qE '^swaptest: PASS' "$LOG_DIR/swaptest.log"; then
+		ok "the pad is always shown, and the ship always leaves once it is empty"
+	else
+		bad "a hull swap can strand the pad or hold the ship"
+		grep -E 'FAIL|^swaptest' "$LOG_DIR/swaptest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "swaptest did not finish"
+fi
+}
+
 unit_orbitworldtest() {
 step "LOCAL draws the world you orbit, close, from its first frame"
 # Jon, Oct 21: "I want the planet you are orbiting to be large in the
