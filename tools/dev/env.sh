@@ -54,6 +54,22 @@ fi
 TK_GODOT_BIN="$GODOT"
 export TK_OS TK_REPO TK_WT TK_SCRATCH GODOT TK_GODOT_BIN PY
 
+# Tools installed per user come first: uv in ~/.local/bin, and on the Mac a
+# current Node in ~/.local/node (the system one in /usr/local/bin is v4, too old
+# for the gate's manifest step).
+for _d in "$HOME/.local/node/bin" "$HOME/.local/bin"; do
+	case ":$PATH:" in *":$_d:"*) ;; *) [ -d "$_d" ] && PATH="$_d:$PATH" ;; esac
+done
+export PATH
+
+# THE GATE ON A SMALL MACHINE. Six steps at once ran several past their time
+# limits on Jon's Mac (Intel, 8 GB: 23 minutes and five timeouts, Oct 23). With
+# 8 GB or less, run three. GATE_JOBS set in the environment still wins.
+if [ -z "${GATE_JOBS:-}" ] && [ "$TK_OS" = mac ]; then
+	_mem=$(sysctl -n hw.memsize 2>/dev/null || echo 0)
+	[ "$_mem" -le 8589934592 ] && export GATE_JOBS=3
+fi
+
 # tk_timeout <seconds> <command...>
 # GNU `timeout` is not on a stock Mac; gtimeout is (Homebrew coreutils); perl always is.
 tk_timeout() {
