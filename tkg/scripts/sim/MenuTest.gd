@@ -509,14 +509,18 @@ func _retina_case() -> void:
 				bad.append("%s missing" % names[i])
 				continue
 			var ra := a.get_global_rect()
-			if not (picture.encloses(ra) and view.encloses(ra)):
+			# (a box with no size is inside everything and overlaps nothing)
+			if ra.size.x < 1.0 or ra.size.y < 1.0:
+				bad.append("%s has no size" % names[i])
+			elif not (picture.encloses(ra) and view.encloses(ra)):
 				bad.append("%s at %s outside %s" % [names[i], ra, view])
 			for j in range(i + 1, names.size()):
 				var b := boxes[names[j]] as Control
 				if b != null and ra.intersects(b.get_global_rect()):
 					bad.append("%s overlaps %s" % [names[i], names[j]])
-		_ok("  and the row fits the drawer at 960x540, nothing overlapping%s"
-			% ("" if bad.is_empty() else " (" + "; ".join(bad) + ")"), bad.is_empty())
+		_ok("  and the row fits the drawer at 960x540, nothing overlapping (the note %s in %s)%s"
+			% [note.get_global_rect() if note != null else Rect2(), view,
+			"" if bad.is_empty() else ": " + "; ".join(bad)], bad.is_empty())
 		_plate(drawer, "BACK").pressed.emit()
 		await _secs(0.5)
 	_set_motion([false, false])
