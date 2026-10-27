@@ -222,16 +222,24 @@ func _page_screen() -> void:
 	_body.add_child(_line("WINDOW SIZE",
 		"%d × %d" % [now.x, now.y] if windowed else "FILLS THE SCREEN"))
 	var top := DisplaySettings.max_window_scale()
+	# A RETINA MAC STOPS AT 2X (`DisplaySettings.RETINA_MAX_SCALE`, Oct 27):
+	# where 3X would fit, the row ends at 2X and that chip says why.
+	var capped := DisplaySettings.retina_capped()
 	var wrow := _chips()
 	for s in range(1, top + 1):
-		wrow.add_child(DrawerPlate.chip_for("%dX" % s, windowed and DisplaySettings.window_scale == s,
+		var wb := DrawerPlate.chip_for("%dX" % s, windowed and DisplaySettings.window_scale == s,
 			func() -> void:
 				DisplaySettings.set_scale(s)
-				_refresh()))
+				_refresh())
+		if capped and s == top:
+			wb.tooltip_text = Widgets.tip(
+				"The largest window on a Retina screen. A bigger one costs too much to draw. BORDERLESS fills the screen.")
+		wrow.add_child(wb)
 	_body.add_child(wrow)
 	# On a 1080p screen 2x is exactly the screen height, so the only windowed
 	# size that keeps its title bar is 1x. Say so rather than hiding the option.
-	if top == 1:
+	# The same on a Retina Mac, where the sizes past 2X are gone.
+	if top == 1 or capped:
 		_body.add_child(UITheme.body("LARGER SIZES NEED BORDERLESS", UITheme.QUOTE, UITheme.FS_SMALL))
 
 	_body.add_child(_gap(2))

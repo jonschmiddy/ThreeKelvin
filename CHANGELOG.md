@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Changed** — on a Mac with a Retina screen the game window now stops at 2X. A new player
+  starts in a 2X window, WINDOW SIZE offers 1X and 2X, and a saved 3X window opens at 2X. At
+  3X the game drew more than twice the pixels every frame, which costs a laptop's graphics chip
+  a lot. BORDERLESS and FULLSCREEN still fill the screen. Windows and Linux are unchanged.
+
 ### Roadmap
 
 The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See

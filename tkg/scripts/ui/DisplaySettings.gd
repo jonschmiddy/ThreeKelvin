@@ -283,13 +283,58 @@ static func screen_label(i: int) -> String:
 	var tag := " *" if i == DisplayServer.get_primary_screen() else ""
 	return "%d  %dx%d%s" % [i + 1, s.x, s.y, tag]
 
-## Largest whole-number scale that still leaves the window its chrome, measured
-## against the monitor it will actually open on.
-static func max_window_scale() -> int:
-	var size := DisplayServer.screen_get_size(safe_screen())
-	var by_w := int(floor(float(size.x) / float(BASE.x)))
-	var by_h := int(floor(float(size.y - CHROME_ALLOWANCE) / float(BASE.y)))
+## RETINA STOPS AT 2X (Jon, Oct 27, ruling C2). Godot counts a Mac's screen in
+## pixels, which on Retina are twice its points: the default "looks like
+## 1440x900" is 2880x1800, the largest window that fits is 3X (2880x1620), and
+## the shell drew about four full-window passes over those 4.7 million pixels
+## every frame (Oct 27). On an Intel MacBook's graphics that was estimated at
+## 3 to 5 ms a frame (never measured), against 1.5 to 2.5 at 2X: 1920x1080, 56%
+## fewer pixels, and a picture two thirds of the screen wide. So on a Retina Mac the
+## window stops at 2X: the first launch opens a 2X window, WINDOW SIZE offers
+## nothing bigger, and a saved 3X window opens at 2X (`apply` clamps it, and
+## saves it, because 3X is no longer a size the row offers). BORDERLESS and
+## FULLSCREEN still fill the screen (`GameShell._fit`). Windows and Linux are
+## untouched: only macOS is asked.
+const RETINA_MAX_SCALE := 2
+
+## THE SCREEN AS A TEST SEES IT (`-- menutest` only): a size in pixels and
+## whether it is a Retina Mac, so the cap is tested on machines that are
+## neither (headless has no screen at all). ZERO and -1 ask the real one.
+static var test_screen := Vector2i.ZERO
+static var test_retina := -1
+
+## A Mac drawing on a Retina screen. Godot's macOS pixels are points times the
+## LARGEST backing scale of any screen (`screen_get_max_scale`; 1.0 when no
+## screen is Retina or hidpi is off), whichever screen the window is on, so
+## that is the test rather than this screen's own scale. Never true off macOS.
+static func retina() -> bool:
+	if test_retina >= 0:
+		return test_retina == 1
+	return OS.get_name() == "macOS" and DisplayServer.screen_get_max_scale() > 1.0
+
+## The monitor the window opens on, in pixels.
+static func _screen_px() -> Vector2i:
+	if test_screen != Vector2i.ZERO:
+		return test_screen
+	return DisplayServer.screen_get_size(safe_screen())
+
+## Largest whole-number scale that still leaves a window on a screen of `px`
+## its chrome. No Retina cap: `max_window_scale` adds that.
+static func fit_scale(px: Vector2i) -> int:
+	var by_w := int(floor(float(px.x) / float(BASE.x)))
+	var by_h := int(floor(float(px.y - CHROME_ALLOWANCE) / float(BASE.y)))
 	return maxi(1, mini(by_w, by_h))
+
+## Largest window scale offered, measured against the monitor it will actually
+## open on: the biggest that fits, and never past 2X on a Retina Mac.
+static func max_window_scale() -> int:
+	var top := fit_scale(_screen_px())
+	return mini(top, RETINA_MAX_SCALE) if retina() else top
+
+## Whether the Retina cap took a window size away on this screen, for the note
+## under Settings' WINDOW SIZE.
+static func retina_capped() -> bool:
+	return retina() and fit_scale(_screen_px()) > RETINA_MAX_SCALE
 
 static func apply() -> void:
 	var idx := safe_screen()
@@ -383,7 +428,8 @@ static func save() -> void:
 ## size the game is drawn for. That was a fresh profile's first sight of the
 ## game (release check, Oct 18; Jon: "A"). So: BORDERLESS (the whole screen,
 ## 2x on 1080p) when a window could only be 1x there, otherwise a window at the
-## largest size that fits. Not under a harness (`TestRun`): its scratch
+## largest size offered (`max_window_scale`: 2X on a Retina Mac, Oct 27, where
+## 3X used to fit). Not under a harness (`TestRun`): its scratch
 ## settings file is always new, and its windows keep the size they had --
 ## unless it sets `first_launch_in_harness` to test this (`-- menutest`).
 ## `top` stands in for the screen's largest window scale in that test.
