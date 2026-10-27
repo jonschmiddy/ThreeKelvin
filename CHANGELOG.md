@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Changed** — the ship on the sector map is your own ship now, not a small arrow. It is drawn
+  from the same picture of your hull that LOCAL shows, shrunk to the map's size, so a heavy is
+  longer than a light and a new hull shows there after a swap. Jeremy asked for it. Partners in
+  your party are still green arrows with their names.
+- **Changed** — the engine flame on the sector map is blue now, an ion drive, so flying inside a
+  system no longer looks like a jump. LOCAL and fights keep their own flames.
+
 ### Roadmap
 
 The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
