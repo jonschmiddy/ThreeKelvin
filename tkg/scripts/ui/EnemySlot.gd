@@ -387,8 +387,9 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	var hull: int = e.hp if shown_hp < 0 else shown_hp
 	_dead = hull <= 0
 	# A LIVE SHIP IN A FIGHT carries its damage, block and brace on its picture
-	# (`HitLayers`); armed the first time it is bound alive with a place to lie.
-	if layers == null and not _dead and wreck_id >= 0:
+	# (`HitLayers`); armed the first time it is bound alive with a place to lie
+	# (in a pack of three or more, once the layout has set its size: `layers_wait`).
+	if layers == null and not _dead and wreck_id >= 0 and not layers_wait:
 		_arm(e)
 	art.wreck_id = wreck_id
 	_bound_e = e
@@ -679,9 +680,44 @@ func apply_scale(s: float) -> void:
 		art.marks = null
 		old.queue_free()
 		_arm(_last_e)
+	# or fitted to it for the first time, having waited for it
+	elif layers_wait:
+		_arm_waited()
 	if _last_e != null:
 		art.set_enemy(_last_e, _last_tele, shown_hp, true, death_style)
 	_fit_holder()
+
+
+## THE HIT LAYERS WAIT FOR THE PACK'S SIZE (perf, Oct 27). A pack of three or
+## more is drawn from half sheets, a size its layout sets after the bind
+## (`EncounterView._layout_pack`, through `apply_scale`). The layers are built
+## from the picture at the size it is drawn, so they were built at full size in
+## the bind and thrown away a moment later for the half sheet's: the full build
+## is the dearer of the two (on Jon's Mac 160-410 ms a ship, against 45-155 at
+## half), and a pack of three paid it three times as its fight opened. Set by
+## the view on a new slot before its first bind; the size changing builds them,
+## where the rebuild was, so everything after reads the same layers it did; or
+## `layers_sized`, if the layout leaves the size as it was.
+## `-- sheet=PackArmProf` times it.
+var layers_wait := false
+
+## Build the layers that waited, as the bind would have.
+func _arm_waited() -> void:
+	layers_wait = false
+	if layers == null and not _dead and wreck_id >= 0 and _last_e != null:
+		_arm(_last_e)
+		_baked = layers.hits.version
+
+
+## The layout has set this ship's size (`EncounterView._layout_pack`): layers
+## still waiting for it, the size having stayed as it was, are built now.
+func layers_sized() -> void:
+	if not layers_wait:
+		return
+	_arm_waited()
+	if layers != null:
+		art.set_enemy(_last_e, _last_tele, shown_hp, true, death_style)
+		_fit_holder()
 
 
 ## THE READOUT'S ROOM IS RESERVED FOR THE FIGHT. Whatever this kind can say --

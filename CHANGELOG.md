@@ -11,6 +11,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
+### Changed
+
+- **Changed** — a fight against three or more ships opens faster. Each enemy's hit marks, shield
+  and armour are now built once, at the size the pack draws the ship. Before, they were built at
+  full size and then again at half size, and the first build was thrown away. On Jon's Mac that
+  saves about half a second to a second as a pack's fight opens. Nothing looks different.
+
 ## 2026-10-23
 
 ### [0.4.2-alpha.1]
