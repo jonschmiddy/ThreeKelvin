@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   ring that is three rings deeper or more still says TOO DEEP. Its fuel row now reads TWO RINGS AT
   MOST. The chart's first survey says two rings as well. From the ring two out from the core, the
   core is a jump like any other when it is in reach. Every galaxy still has a way in.
+- **Added** — two test settings for the balance simulator, for the combat study. One makes every
+  enemy but the Custodian tougher, and one makes them hit harder. The game itself plays the same.
 
 ### Roadmap
 
