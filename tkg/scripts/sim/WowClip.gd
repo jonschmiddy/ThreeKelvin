@@ -253,14 +253,19 @@ func _film_ab(dir: String, t0: float, z0: float, z1: float, frames: int) -> void
 
 func _costs(t0: float, z0: float, n: int) -> void:
 	var rid: RID = _scr.view._scene.get_viewport_rid()
-	var root := get_viewport().get_viewport_rid()
+	# THE GAME VIEW, NOT THE WINDOW: this runs inside the game's SubViewport, so
+	# `get_viewport()` is the 960x540 frame. It printed as `window_gpu` until
+	# Oct 27; the window (`get_tree().root`, the shell's glass) is its own column.
+	var game := get_viewport().get_viewport_rid()
+	var root := get_tree().root.get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(rid, true)
+	RenderingServer.viewport_set_measure_render_time(game, true)
 	RenderingServer.viewport_set_measure_render_time(root, true)
 	# (the CPU side by the map's own profiler, `SystemView.tick`: the process
 	# monitor swings by tens of ms here while other renders share the machine)
 	var SV = _scr.view.get_script()
 	SV.prof_on = true
-	var sums := {"off": [0.0, 0.0, 0.0, 0], "on": [0.0, 0.0, 0.0, 0]}
+	var sums := {"off": [0.0, 0.0, 0.0, 0, 0.0], "on": [0.0, 0.0, 0.0, 0, 0.0]}
 	var tk := t0
 	for rep in 4:
 		for which: String in ["off", "on"]:
@@ -278,7 +283,8 @@ func _costs(t0: float, z0: float, n: int) -> void:
 				await RenderingServer.frame_post_draw
 				var s: Array = sums[which]
 				s[0] += RenderingServer.viewport_get_measured_render_time_gpu(rid)
-				s[1] += RenderingServer.viewport_get_measured_render_time_gpu(root)
+				s[1] += RenderingServer.viewport_get_measured_render_time_gpu(game)
+				s[4] += RenderingServer.viewport_get_measured_render_time_gpu(root)
 				var us := 0
 				for key: String in SV.prof:
 					# (the parts inside "step (all)" are counted by it)
@@ -290,7 +296,7 @@ func _costs(t0: float, z0: float, n: int) -> void:
 	for which: String in ["off", "on"]:
 		var s: Array = sums[which]
 		var c := float(s[3])
-		print("  wowclip cost %s: scene_gpu %.3f ms  window_gpu %.3f ms  map_cpu %.3f ms  (%d frames)" % [which, s[0] / c, s[1] / c, s[2] / c, s[3]])
+		print("  wowclip cost %s: scene_gpu %.3f ms  game_view_gpu %.3f ms  root_gpu %.3f ms  map_cpu %.3f ms  (%d frames)" % [which, s[0] / c, s[1] / c, s[4] / c, s[2] / c, s[3]])
 	var a: Array = sums.off
 	var b: Array = sums.on
-	print("  wowclip cost delta: gpu %+.3f ms  cpu %+.3f ms" % [(b[0] + b[1] - a[0] - a[1]) / float(a[3]), (b[2] - a[2]) / float(a[3])])
+	print("  wowclip cost delta: gpu (scene + game view) %+.3f ms  root %+.3f ms  cpu %+.3f ms" % [(b[0] + b[1] - a[0] - a[1]) / float(a[3]), (b[4] - a[4]) / float(a[3]), (b[2] - a[2]) / float(a[3])])

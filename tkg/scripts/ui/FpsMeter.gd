@@ -30,6 +30,16 @@ extends Label
 ##
 ## BUILT ALWAYS, SHOWN CONDITIONALLY, so the toggle takes effect immediately
 ## rather than at the next launch.
+##
+## TWO LINES, AND THE SECOND IS THE ONE THAT FINDS A HITCH. The first says the
+## rate and what an average frame took (`60 FPS  16.7 MS`); the second the
+## slowest single frame of the last second (`WORST 41.2 MS`). A rate is an
+## average, and an average hides the one long frame a player feels as a jolt:
+## a second of fifty-eight 16 ms frames and one of 70 ms reads 59 FPS. The
+## Mac investigation (Oct 27) asked a tester to read this meter and found it
+## could not show a spike at all, so it does now. Both are in milliseconds
+## because the thing a player is reporting is a cost: 60 to 40 FPS sounds like a
+## third gone and is 8 ms added to a 16 ms frame.
 
 ## How often the reading refreshes. Frames per second read every frame is a
 ## number that never settles long enough to be read; a quarter second was the
@@ -43,7 +53,20 @@ const BAD := 30
 ## Clearance from the corner, in viewport pixels.
 const INSET := Vector2(6.0, 4.0)
 
-var _t: float = 0.0
+## THE LAST SECOND, IN FOUR QUARTERS: each slot holds one tick's frames (their
+## slowest, their total and how many), so the worst and the mean of the last
+## second are four numbers away rather than a list of every frame.
+const SLOTS := 4
+var _worst := PackedFloat64Array([0.0, 0.0, 0.0, 0.0])
+var _sum := PackedFloat64Array([0.0, 0.0, 0.0, 0.0])
+var _count := PackedInt32Array([0, 0, 0, 0])
+var _slot := 0
+## When the last frame and the last tick ended, on the real clock (usec). A
+## frame is measured end to end on the wall clock rather than from `delta`,
+## which `Engine.time_scale` shrinks during a hit's slow motion. 0 is "not
+## counting": the meter was hidden, and a gap while it was is not a frame.
+var _last_us := 0
+var _tick_us := 0
 
 
 func _ready() -> void:
@@ -61,20 +84,42 @@ func _ready() -> void:
 	Sig.fps_meter_changed.connect(func(on: bool) -> void: visible = on)
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if not visible:
+		if _last_us != 0:
+			_reset()
 		return
-	_t += delta
-	if _t < TICK:
+	var now := Time.get_ticks_usec()
+	if _last_us == 0:
+		_last_us = now
+		_tick_us = now
 		return
-	_t = 0.0
+	var ms := float(now - _last_us) / 1000.0
+	_last_us = now
+	_worst[_slot] = maxf(_worst[_slot], ms)
+	_sum[_slot] += ms
+	_count[_slot] += 1
+	if now - _tick_us < int(TICK * 1000000.0):
+		return
+	_tick_us = now
+	var worst := 0.0
+	var total := 0.0
+	var frames := 0
+	for i in SLOTS:
+		worst = maxf(worst, _worst[i])
+		total += _sum[i]
+		frames += _count[i]
+	_slot = (_slot + 1) % SLOTS
+	_worst[_slot] = 0.0
+	_sum[_slot] = 0.0
+	_count[_slot] = 0
 	var f := Engine.get_frames_per_second()
 	var col := UITheme.COLD
 	if f < BAD:
 		col = UITheme.BAD
 	elif f < WARN:
 		col = UITheme.WARN
-	text = "%d FPS" % f
+	text = "%d FPS  %.1f MS\nWORST %.1f MS" % [f, total / float(maxi(frames, 1)), worst]
 	add_theme_color_override("font_color", col)
 	# PLACED EVERY TICK RATHER THAN ANCHORED. A top-level Control is excluded
 	# from its parent's layout, and that also means no anchor preset is applied
@@ -88,3 +133,14 @@ func _process(delta: float) -> void:
 	var vp := get_viewport_rect().size
 	size = get_combined_minimum_size()
 	position = vp - size - INSET
+
+
+## Hidden: the next reading starts from nothing, so a second spent hidden (or
+## the frames before it) never shows as the worst frame when it comes back.
+func _reset() -> void:
+	_last_us = 0
+	_tick_us = 0
+	for i in SLOTS:
+		_worst[i] = 0.0
+		_sum[i] = 0.0
+		_count[i] = 0

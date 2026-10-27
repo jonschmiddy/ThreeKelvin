@@ -9,6 +9,14 @@ extends Node
 ## `wev=<name>` (or `a+b`, a pair) holds that weather event at its height (`SkyWeather.PEAK`)
 ## through every test, after a still run with no weather at all, and prints
 ## what it added to the scene's GPU time.
+##
+## FOUR GPU COLUMNS, AND THE LAST TWO WERE ONE MISLABELLED ONE. The sheet runs
+## inside the game's SubViewport (`GameShell.view`), so `get_viewport()` here
+## is the game's 960x540 frame, not the window: the column printed as "window"
+## until Oct 27 was the game view. The window (`get_tree().root`, the shell's
+## glass and its passes at the window's own size) is read on its own now.
+## VSYNC OFF, as `chartbench` learned: with it on, every frame time is the
+## monitor's 16.7 and the frame columns measure nothing.
 
 const ScreenS := preload("res://scripts/ui/sysmap/SystemMapScreen.gd")
 
@@ -16,6 +24,8 @@ var _scr
 
 
 func _ready() -> void:
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	Engine.max_fps = 0
 	Rng.forced = 4242
 	var idx := -1
 	var wev := ""
@@ -54,6 +64,7 @@ func _ready() -> void:
 	for _i in 30:
 		await get_tree().process_frame
 	RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
+	RenderingServer.viewport_set_measure_render_time(get_tree().root.get_viewport_rid(), true)
 	RenderingServer.viewport_set_measure_render_time(_scr._vp.get_viewport_rid(), true)
 	RenderingServer.viewport_set_measure_render_time(_scr.view._scene.get_viewport_rid(), true)
 	# (PAINTED draws its far picture and its band memory in viewports of their
@@ -110,6 +121,7 @@ func _run(label: String, each: Callable) -> float:
 	var times: Array[float] = []
 	var gpu_scene := 0.0
 	var gpu_map := 0.0
+	var gpu_game := 0.0
 	var gpu_root := 0.0
 	var last := Time.get_ticks_usec()
 	for k in 240:
@@ -123,7 +135,8 @@ func _run(label: String, each: Callable) -> float:
 			if _scr.view._pt.has(kk):
 				gpu_scene += RenderingServer.viewport_get_measured_render_time_gpu((_scr.view._pt[kk] as SubViewport).get_viewport_rid())
 		gpu_map += RenderingServer.viewport_get_measured_render_time_gpu(_scr._vp.get_viewport_rid())
-		gpu_root += RenderingServer.viewport_get_measured_render_time_gpu(get_viewport().get_viewport_rid())
+		gpu_game += RenderingServer.viewport_get_measured_render_time_gpu(get_viewport().get_viewport_rid())
+		gpu_root += RenderingServer.viewport_get_measured_render_time_gpu(get_tree().root.get_viewport_rid())
 	SV.prof_on = false
 	var sorted := times.duplicate()
 	sorted.sort()
@@ -132,7 +145,7 @@ func _run(label: String, each: Callable) -> float:
 		mean += t
 	mean /= times.size()
 	var slow: float = sorted[int(sorted.size() * 0.9)]
-	print("  zoomprof: %s: frame %.1f ms mean, %.1f ms slowest tenth; GPU scene %.2f, map %.2f, window %.2f ms" % [label, mean, slow, gpu_scene / 240.0, gpu_map / 240.0, gpu_root / 240.0])
+	print("  zoomprof: %s: frame %.1f ms mean, %.1f ms slowest tenth; GPU scene %.2f, map %.2f, game view %.2f, window (root) %.2f ms" % [label, mean, slow, gpu_scene / 240.0, gpu_map / 240.0, gpu_game / 240.0, gpu_root / 240.0])
 	var parts: Dictionary = SV.prof
 	var keys := parts.keys()
 	keys.sort()
