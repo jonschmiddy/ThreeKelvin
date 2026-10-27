@@ -50,6 +50,8 @@ static var _vig_override: float = -1.0
 
 var view: SubViewport
 var _frame: SubViewportContainer
+## The black round the glass: above, below, left, right (`_fit_bands`).
+var _bands: Array[ColorRect] = []
 var _mat: ShaderMaterial
 ## WHAT THE GLASS IS DOING TO THE PICTURE RIGHT NOW, kept so the mouse can be
 ## put through the same bend. Zero curve means the two spaces agree and there
@@ -73,11 +75,20 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var back := ColorRect.new()
-	back.color = Color.BLACK
-	back.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(back)
+	# THE BLACK AROUND THE PICTURE, four bands that `_fit` lays round the glass.
+	# It was one black rect under the whole window, and at 3X the glass covers
+	# every pixel of that: 4.7 million pixels drawn a frame for nobody. UNTIL
+	# THE GLASS EXISTS the first band is the whole window, as that rect was:
+	# the game boots inside the `add_child` below, and `DisplaySettings.
+	# load_and_apply` force-draws a dark frame into the grown window from there.
+	for i in 4:
+		var band := ColorRect.new()
+		band.color = Color.BLACK
+		band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		band.visible = i == 0
+		add_child(band)
+		_bands.append(band)
+	_bands[0].set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	_mat = ShaderMaterial.new()
 	_mat.shader = FILTER
@@ -98,7 +109,12 @@ func _ready() -> void:
 	# with it -- a sliver of backdrop down one side and across the top whenever
 	# the pointer went near a corner (Jon: "the crt edge pulls inward on the
 	# sides and top"). The picture is drawn by `_glass`, which never moves.
-	_frame.self_modulate = Color(1, 1, 1, 0)
+	# MODULATE, NOT SELF_MODULATE: Godot skips drawing an item whose modulate is
+	# transparent, and still drew this one, a whole window of nothing, when only
+	# its self_modulate was. Not `visible = false` either: that takes it out of
+	# the input path and freezes the game's frame. Modulate does neither, and
+	# does not reach the game inside its SubViewport.
+	_frame.modulate = Color(1, 1, 1, 0)
 	add_child(_frame)
 
 	view = SubViewport.new()
@@ -391,9 +407,35 @@ func _fit() -> void:
 	if _glass != null:
 		_glass.size = px
 		_glass.position = _home
+		_fit_bands(win, px)
 	if _mat != null:
 		_mat.set_shader_parameter(&"out_scale", float(k))
 	refresh()
+
+## THE BLACK IS WHERE THE GLASS IS NOT: the rows above and below the picture,
+## then the columns either side of it, each hidden when it is empty. A window
+## that is a whole multiple of 960x540 has none at all; BORDERLESS on a 1080p
+## or Retina screen has a top and a bottom. The glass writes every pixel of its
+## own rect, the corners the curve leaves included, so nothing under it is
+## ever seen. The root's clear colour is the interface navy and stays so (the
+## game's own frame clears with it), which is why the bands are drawn at all.
+func _fit_bands(win: Vector2, px: Vector2) -> void:
+	var top := clampf(_home.y, 0.0, win.y)
+	var bottom := clampf(_home.y + px.y, top, win.y)
+	var left := clampf(_home.x, 0.0, win.x)
+	var right := clampf(_home.x + px.x, left, win.x)
+	var rects: Array[Rect2] = [
+		Rect2(0.0, 0.0, win.x, top),
+		Rect2(0.0, bottom, win.x, win.y - bottom),
+		Rect2(0.0, top, left, bottom - top),
+		Rect2(right, top, win.x - right, bottom - top)]
+	for i in _bands.size():
+		var band := _bands[i]
+		var r := rects[i]
+		band.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		band.position = r.position
+		band.size = r.size
+		band.visible = r.size.x > 0.0 and r.size.y > 0.0
 
 ## Read the display settings into the shader. Static so DisplaySettings can call
 ## it without knowing where the shell is.

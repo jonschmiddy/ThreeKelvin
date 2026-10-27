@@ -1,10 +1,15 @@
 shader_type canvas_item;
+// IT WRITES, IT DOES NOT BLEND. Every path below ends in alpha 1 -- the corners
+// off the glass and the set switched off included, both drawn black -- so a
+// blend could only give back what was written, after reading the whole window
+// under it first: about 37 MB a frame at 3X, for nothing.
+render_mode blend_disabled;
 
 // THE DISPLAY OPTIONS, in one pass over the finished frame.
 //
-// IT RUNS ON THE OUTPUT, NOT ON THE FRAME. This material lives on the
-// SubViewportContainer that draws the game's 960x540 render target to the
-// window (see GameShell), so every fragment here is a SCREEN pixel. That is
+// IT RUNS ON THE OUTPUT, NOT ON THE FRAME. This material lives on the shell's
+// glass (`GameShell._glass`), the rect that draws the game's 960x540 render
+// target to the window, so every fragment here is a SCREEN pixel. That is
 // what makes the curve possible: there is room between one game pixel and the
 // next to bend the picture through, which there was not when this ran inside
 // the frame -- there it could only blur the art or stagger it.
@@ -13,8 +18,10 @@ shader_type canvas_item;
 // gamma), then the tube's own marks (lines, mask, vignette), which must not be
 // re-graded by the grading above them.
 //
-// EVERY EFFECT IS OFF AT ZERO, and GameShell hides the whole thing when nothing
-// is on, so a player who touches nothing pays nothing.
+// EVERY EFFECT IS OFF AT ZERO, but the pass itself always runs, FLAT included:
+// it is also what scales the 960x540 frame up to the window, one game pixel to
+// a whole block of screen pixels (`sharp_uv`). So a player who touches nothing
+// still pays one pass over the window, and only one.
 
 // 0 none, 1 deuteranopia, 2 protanopia, 3 tritanopia. The three are the same
 // correction with a different matrix, so one branch covers them.

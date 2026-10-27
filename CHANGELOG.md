@@ -11,6 +11,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
+### Changed
+
+- **Changed** — the window around the game draws less each frame. The black edges are drawn
+  only where the picture does not reach, a hidden layer that covered the whole window is no
+  longer drawn, and the screen filter writes its pixels without reading the window first.
+  Nothing looks different. It helps most on a Mac, where the window is 3X: there the window
+  alone went from about 7.8 ms a frame to 5.6 ms.
+
 ## 2026-10-23
 
 ### [0.4.2-alpha.1]
