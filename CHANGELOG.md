@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Changed** — the star chart dims a star inside your reach ring that is too deep to jump to.
+  It is drawn in flat gray, its lights too, so it no longer looks like a place you can go. It
+  stays gray when you point at it or pick it. Its readout still ends TOO DEEP, and so does JUMP.
+  Geno met these near the top of the map, where the tilted chart puts rings close together.
+
 ### Roadmap
 
 The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See

@@ -58,6 +58,28 @@ func run(tree: SceneTree) -> void:
 					seen[j] = true
 					queue.append(j)
 		Run.chart_from(Run.node_at())
+	# `toodeep` parks the ship where stars in reach are too deep to jump to and
+	# others are not (`ChartDeepTest.park_spot`), to photograph them dimmed
+	# (ruling 13 A, Jon, Oct 27). With `zoom=N` it frames them; it points at the
+	# nearest of them whose readout keeps off YOU, so it shows TOO DEEP.
+	var deep: Array = []
+	if "toodeep" in OS.get_cmdline_user_args():
+		var deep_test: GDScript = load("res://scripts/sim/ChartDeepTest.gd")
+		var spot: int = deep_test.park_spot()
+		if spot < 0:
+			print("  no system with a star in reach that is too deep")
+		else:
+			deep_test.park(spot)
+			var here0: MapGen.MapNode = Run.node_at()
+			for raw in Run.map:
+				var nd: MapGen.MapNode = raw
+				# (on the chart only: reach can outrun sight)
+				if nd.type != MapGen.NodeType.CORE and Run.charted(nd) \
+						and Run.too_deep_only(here0, nd):
+					deep.append(nd)
+			deep.sort_custom(func(x, y): return MapGen.hop_distance(here0, x) < MapGen.hop_distance(here0, y))
+			print("  parked at %d (ring %d): %d stars on the chart in reach and too deep"
+				% [spot, here0.layer + 1, deep.size()])
 	# `quest` places one and photographs the marker.
 	#
 	# A PLACEMENT CANNOT BE SET UP ANY OTHER WAY. It is the consequence of an
@@ -201,6 +223,29 @@ func run(tree: SceneTree) -> void:
 			ch._radius() * StarchartScreen.MapChart.DISC * ch.zoom])
 		if ChartSky.form_of(Run.galaxy_kind) == 1:
 			print("chart ball depth %s" % [ChartSky.ball_depth(Run.galaxy_kind)])
+	var deep_at := -1
+	if not deep.is_empty() and sc != null and sc._chart != null:
+		# (the readout opens to the star's right, or its left at the edge, about
+		# 170 x 51: the first one that leaves YOU and its own star in sight)
+		var you: Vector2 = sc._chart._screen_pos(Run.node_at())
+		for nd in deep:
+			var at: Vector2 = sc._chart._screen_pos(nd)
+			var o := at + Vector2(14, -26)
+			if o.x + 170.0 > sc._chart.size.x - 2.0:
+				o.x = at.x - 184.0
+			if not Rect2(o, Vector2(170, 51)).grow(12).has_point(you) \
+					and Rect2(Vector2.ZERO, sc._chart.size).grow(-20).has_point(at):
+				deep_at = (nd as MapGen.MapNode).index
+				break
+	if deep_at >= 0:
+		sc._chart.hovered = deep_at
+		sc._chart._hover_t = 1.0
+		sc._chart.queue_redraw()
+		tag += "_toodeep"
+		print("  pointing at %s: %s" % [MapGen.star_name(Run.map[deep_at]),
+			" / ".join(sc._chart.tip_lines(Run.map[deep_at], Run.node_at()))])
+		for i in 6:
+			await RenderingServer.frame_post_draw
 	# `cursor`: a pointer parked mid-chart, so the reticle is in the picture.
 	# A shot has no mouse, and the reticle only draws where one is.
 	if "cursor" in OS.get_cmdline_user_args() and sc != null and sc._chart != null 			and sc._chart._cross != null:
