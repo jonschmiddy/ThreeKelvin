@@ -618,8 +618,8 @@ step "Every galaxy can be crossed, and every enum still has its labels"
 # checks that a core exists, is reachable, and can be FLOWN to in 120 rolled
 # galaxies -- three of the most expensive failures the generator can produce --
 # plus that no label array has drifted from its enum. Since Oct 22 also the
-# one-ring rule (`RunState.DEPTH_STEP`) and a sweep of 255 galaxies, 15 of every
-# kind, flown one ring at a time by the slowest ship: ~130s alone, so 300.
+# depth rule (`RunState.DEPTH_STEP`, two rings since Oct 27) and a sweep of 255
+# galaxies, 15 of every kind, flown by the slowest ship: ~130s alone, so 300.
 if run_godot maptest 300 --headless --path "$PROJECT" -- maptest; then
 	if grep -qE '^maptest: PASS' "$LOG_DIR/maptest.log"; then
 		ok "every galaxy is crossable"

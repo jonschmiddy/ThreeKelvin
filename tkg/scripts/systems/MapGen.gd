@@ -1032,7 +1032,7 @@ static func generate(canvas: Rect2) -> Array:
 ## rolling 120 fresh galaxies each time; the seed is pinned there now.
 ##
 ## So after placement, walk the galaxy the way a ship with no thrust bonus flies
-## it (`Run.JUMP_RADIUS`, a little under, one ring deeper a jump at most, and
+## it (`Run.JUMP_RADIUS`, a little under, two rings deeper a jump at most, and
 ## the last ring's free approach to the core, `RunState.reachable_from`). If the
 ## core is out of reach:
 ##   1. a start with no neighbour trades places with the rim system that has
@@ -1040,7 +1040,10 @@ static func generate(canvas: Rect2) -> Array:
 ##      ship and nothing else;
 ##   2. any wall left is bridged where it is narrowest: the nearest system
 ##      beyond it on a ring next to one already reached is moved round its own
-##      ring to beside that one, until the core is reached.
+##      ring to beside that one, until the core is reached. Still a NEXT ring
+##      under the two-ring rule (Oct 27): a hop one ring in is legal under any
+##      cap, and moved beside its partner it sits one ring gap off (0.062), well
+##      inside the radius, so a bridge always crosses.
 ## A galaxy that was already crossable is not touched (one walk, no moves).
 const FLY_MARGIN := 0.95
 ## (off only for `-- maptest norepair`, to count what the repair saves)
@@ -1141,7 +1144,7 @@ static func _flown(nodes: Array, r: float, core: int) -> Dictionary:
 					if cell == null:
 						continue
 					for j: int in cell:
-						# (and one ring deeper at most, `RunState.too_deep`)
+						# (and two rings deeper at most, `RunState.too_deep`)
 						if not seen.has(j) and q[i].distance_to(q[j]) <= r \
 								and not Run.too_deep(a, nodes[j]):
 							seen[j] = true

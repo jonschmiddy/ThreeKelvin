@@ -246,8 +246,9 @@ func run_sim() -> void:
 			_trace_path = arg.split("=")[1]
 		# THE RUN-LENGTH STUDY'S FLAGS (balance/run-length, Oct 22). Off unless
 		# given; see RunState.study_radius_scale and `_study_custodian`.
-		# `depthcap=N` flies another depth rule than the game's one ring a jump
-		# (RunState.DEPTH_STEP; 0 is August's, no cap), for comparison only.
+		# `depthcap=N` flies another depth rule than the game's two rings a jump
+		# (RunState.DEPTH_STEP; 0 is August's, no cap; 1 Oct 22's), for
+		# comparison only.
 		elif arg.begins_with("depthcap="):
 			Run.depth_step = int(arg.split("=")[1])
 		elif arg.begins_with("ambushdeep="):

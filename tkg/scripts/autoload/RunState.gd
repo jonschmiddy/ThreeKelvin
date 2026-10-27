@@ -3493,8 +3493,8 @@ func study_radius_scale(here: MapGen.MapNode) -> float:
 func study_radius_min() -> float:
 	return minf(study_radius_rim, study_radius_deep)
 
-## ONE RING DEEPER A JUMP, AT MOST (Jon, Oct 22: "A1D ... I want this to be a
-## hard game"). Outward and along a ring are as far as the drive reaches.
+## TWO RINGS DEEPER A JUMP, AT MOST (Jon, Oct 27: "Two rings now"). Outward
+## and along a ring are as far as the drive reaches.
 ##
 ## It was here once and was dropped in August, when range became relative to
 ## your nearest neighbour and was local by construction. Range went back to a
@@ -3502,20 +3502,25 @@ func study_radius_min() -> float:
 ## about three ring gaps (`MapGen.RING_GAP`, 0.062): Kevin, the first outside
 ## playtester, reached the core in seven jumps, and the run-length study
 ## measured six as the shortest way in and a straight dive winning 24% of runs.
-## With the cap the shortest way in is one jump a ring, fourteen.
+## The cap came back at ONE ring (Jon, Oct 22: "A1D ... I want this to be a
+## hard game"), and the shortest way in was one jump a ring, fourteen. At two
+## rings it is half that, seven (`-- maptest` measures it): the drive's reach
+## is three ring gaps and the cap now spends two of them, so a dive is still
+## held back, by a jump in three.
 ##
-## Its old cost was a system you could plainly see was nearer than one it
-## offered, refused because it lay two rings in. That is answered by SAYING so
+## Its cost is a system you can plainly see is nearer than one it offers,
+## refused because it lies three rings in. That is answered by SAYING so
 ## rather than by dropping the rule: the chart's JUMP button reads TOO DEEP,
-## the fuel row ONE RING AT A TIME, and the hover tag TOO DEEP
+## the fuel row `StarchartScreen.DEPTH_ROW`, and the hover tag TOO DEEP
 ## (`StarchartScreen`), so a refusal always has a reason on screen.
 ##
 ## `MapGen._ensure_flyable` walks the galaxy by the same rule, so every ring
-## has a way into the next one for the slowest ship (`-- maptest` sweeps it).
+## has a way in for the slowest ship (`-- maptest` sweeps it).
 ##
 ## A var, not a const, only so `-- sim depthcap=N` / `-- sheet=RunLengthStudy
-## depthcap=N` can fly another rule for comparison (0: no cap, August's).
-const DEPTH_STEP := 1
+## depthcap=N` can fly another rule for comparison (0: no cap, August's; 1:
+## Oct 22's one ring).
+const DEPTH_STEP := 2
 var depth_step := DEPTH_STEP
 
 
@@ -3527,7 +3532,7 @@ func too_deep(here: MapGen.MapNode, n: MapGen.MapNode) -> bool:
 
 
 ## Refused ONLY for depth: near enough that the drive would take it (or the
-## core, which is never a matter of distance) if it were not two rings in or
+## core, which is never a matter of distance) if it were not three rings in or
 ## more. The chart's word for it is TOO DEEP, and it is the case that needs one,
 ## because the star sits inside the reach ring it is refused from.
 func too_deep_only(here: MapGen.MapNode, n: MapGen.MapNode) -> bool:
@@ -3539,7 +3544,7 @@ func too_deep_only(here: MapGen.MapNode, n: MapGen.MapNode) -> bool:
 	return d <= range_from(here) or d <= range_from(n)
 
 
-## Close enough to fly to: within one ring deeper (`too_deep`), and then pure
+## Close enough to fly to: within two rings deeper (`too_deep`), and then pure
 ## distance.
 ##
 ## Charted links do not grant passage either: a link is how generation
@@ -3579,8 +3584,9 @@ func reachable_from(here: MapGen.MapNode, n: MapGen.MapNode) -> bool:
 	# you there, never the geometry.
 	if n.type == MapGen.NodeType.CORE and here.layer >= MapGen.LAYERS - 2:
 		return true
-	# ONE RING AT A TIME (DEPTH_STEP). The core is the ring after the last
-	# one, so this also leaves the last ring as the only way into it.
+	# TWO RINGS DEEPER AT MOST (DEPTH_STEP). The core is the ring after the
+	# last one, so this leaves the last two rings as the only ways into it: the
+	# last always (above), the one before it when the core is in reach.
 	if too_deep(here, n):
 		return false
 	var d := MapGen.hop_distance(here, n)

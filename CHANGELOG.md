@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Changed** — a jump now goes at most two rings deeper than the ring you are in, up from one
+  (Jon, Oct 27: "Two rings now"). Jumps outward or along your ring reach as far as before. The
+  quickest way to the core is now 7 jumps, where it was 14. A star inside your reach ring that is
+  three rings deeper or more still says TOO DEEP, and its fuel row now reads TWO RINGS AT MOST.
+  The chart's first survey says two rings as well. From the ring two out from the core, the core
+  is a jump like any other when it is in reach. Every galaxy still has a way in.
+
 ### Roadmap
 
 The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
