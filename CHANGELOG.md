@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Changed** — the chassis select shows each frame's real hull after its HULL pips, so a light
+  Korvan reads "4 29 hull". Geno read 4, 6 and 8 pips against 29, 40 and 57 hull as a mismatch.
+  The HULL tooltip no longer says a pip is exactly 7 hull. It says about 7, rounded, and works
+  the sum on your own ship ("29 hull is 4 pips"), on the refit screen and in the cutaway too.
+
 ### Roadmap
 
 The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
