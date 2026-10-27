@@ -2,7 +2,7 @@
 
 **BROUGHT UP TO DATE 2026-10-23, after the alphas 0.1.0 to 0.4.2.** Each of
 phases 1 to 9 now says what is done, with the build or commit that did it, what
-is partly done, and what is left. Phases 10 to 14 are the work after the alpha,
+is partly done, and what is left. Phases 10 to 15 are the work after the alpha,
 from the friends' playtest of Oct 22 and 23 (Kevin, Cody, Geno and Jeremy). The
 record behind every status line is `CHANGELOG.md`, `HANDOFF.md` and `git log`.
 
@@ -373,25 +373,46 @@ the phases above are not read as the whole of the game.
 - **Lock on stacks**, and the next attack spends all of it (aecebc51, 0.4.2).
 - **A full ship stays full** when a part with hull is fitted (9bc71393, 0.4.2).
 
-### Post-alpha: phases 10 to 14
+### Post-alpha: phases 10 to 15
 
-From the friends' alpha feedback, Oct 22 and 23. The order is 10, 11, 12, then
-13 and 14. Phase 10 has no dependencies and can start at once. Phase 13 depends
-on nothing here and can move earlier if a slot opens. Phase 14 waits for the
-alpha to end.
+From the friends' alpha (Cody, Geno, Jeremy, Kevin), Oct 22 to 27. Updated
+Oct 27 with Jeremy's orbital notes and Geno's later reports.
 
-### Phase 10 — Small UX debts
-*About 1 to 2 days. No dependencies.*
+**Order.** 10 first. Phase 11's study and Phase 13's mock page run alongside it
+(machine time and a page, not code). Then 11, 12 and 13's build. 14 waits for
+the alpha to end. 15 is design only.
 
+**Already fixed in 0.4.2** (Oct 23), not repeated below:
+- **Hull-swap softlock:** parts stranded on the pad, no UNDOCK (Geno).
+- **Solari unlock:** a win unlocks Solari even after ending in another hull (Geno).
+- **Grade pips:** higher-grade loot gives its pips (Geno).
+- **Hull gauge:** fitting hull plating moves the HULL gauge at once (Geno).
+- **A.S.H.:** no longer repeats herself, and COMMS lists what she said (Jeremy).
+- **Weapons only** are drawn on the ship (Geno).
+- **Lock on stacks** (Jon).
+
+### Phase 10 — Alpha bugs and small UX
+*About 2 to 3 days. No dependencies.*
+
+- **Derelict hauler hides what you are claiming** (Jeremy). "Claim the hull"
+  rolls the frame only after the choice, so a heavy pilot learned it was light,
+  declined, and lost the strip option with it. Fix: roll the frame from the
+  system's seed before the choice, and name its weight in the label ("Claim the
+  hull (a light frame)"). A found hull you decline can be scrapped for what
+  "Strip it" pays. Recommended; no ruling needed.
+- **"Too deep" beside you near the top of the map** (Geno; Jon's chart
+  screenshot). The chart is drawn tilted, so near its top and bottom edges two
+  stars side by side on screen can be rings apart, and the one-ring rule refuses
+  them with no warning before the click. Two parts:
+  (a) dim stars in reach that are too deep (open ruling 13, now recommended A);
+  (b) re-simulate two rings per jump against today's Custodian and decide
+  (open ruling 15). (b) runs in the background.
 - **LOCAL lets you leave a station too easily** (Jeremy). While docked, only
   UNDOCK should leave.
-- **The star chart does not mark stars inside THRUSTER REACH that are more than
-  one ring deeper.** Jon was shown two options, A dim them or B reshape the
-  ring, and parked it (open ruling 13).
-- **Chassis select hull numbers against pips** (Geno: 29, 40 and 57 hull against
-  4, 6 and 8 pips). Pending Jon's pick (open ruling 12).
+- **Chassis select hull against pips** (Geno, open ruling 12).
 - **The sector map's ship should be the player's own ship** (Jeremy).
-- **Blue ion engine flames on the sector map** (Jeremy).
+- **Blue ion engine flames on the sector map** (Jeremy). This is the first half
+  of Phase 13's "two engines".
 
 **Gate:** each item closed or ruled out by Jon.
 
@@ -401,8 +422,12 @@ infrequent they are", "combats need to feel epic". Cody dove star to star.*
 
 1. **A sim study** of all ship health at 1.5×, 2× and 3×, plus a variant where
    everything hits harder. Measure turns per fight, hull lost per fight, fights
-   lost and the run win rate. Machine time only, about 2 hours.
-2. **Pick and apply the health and damage change.** Hours. Depends on step 1.
+   lost, the run win rate and **credits at the end of a won run** (Geno won with
+   Solari holding about 5,900 credits; is the economy loose at the end?). Machine
+   time only: about 2 hours on the PC, about 4 on the Mac. It can start during
+   Phase 10.
+2. **Pick and apply the health and damage change** (open ruling 14). Hours.
+   Depends on step 1.
 3. **A second combat resource** (Jeremy). A design project: a page of options
    first, then a build of days to a week. Depends on step 2, since both change
    how long a fight lasts.
@@ -423,7 +448,8 @@ long fights are.*
 
 - **One "science" event family** tied to places already on the map: barren
   worlds, comets (intercept) and asteroid belts. New event types plus their
-  rewards.
+  rewards. A comet intercept pairs with Phase 13's flight: catching it is a
+  flight problem as well as an event.
 - The writing goes through the encounter-prose skill: the plain voice, grade 7.
   The art goes through PixelLab within its allowance.
 - **Colonisation is later**, with its own design.
@@ -431,16 +457,43 @@ long fights are.*
 **Gate:** the family is in `OptionTable`, passes the gate's lint and prose
 steps, and each batch is reviewed before the next.
 
-### Phase 13 — Flight feel
-*Jeremy, with an orbital-transfer PDF. A few days.*
+### Phase 13 — Flight and orbits
+*Jeremy, with references: the ASTE-589 optimal-transfer PDF and its MATLAB code
+(fuel-optimal low-thrust spiral, RK4), and
+github.com/rtfisher/circular_restricted_three_body_problem. Jon: "a fairly
+realistic attempt at representing this in a 2D flat plane". Built in steps, each
+seen on a page before it touches the game.*
 
-Smooth, time-scaled transfer arcs on the sector map: fast through the middle,
-slow at departure and capture. Mock 2 or 3 versions on a page before building.
-It touches `ShipFlight`, and co-op partner positions (`Net.report_spot`) must
-keep working.
+1. **A mock page** (alongside Phase 10). The same transfer drawn three ways:
+   - today's flight;
+   - a smooth arc, time-scaled so it is fast through the middle and slow at
+     departure and capture;
+   - the same arc arriving on a chosen side of the planet.
 
-**Gate:** Jon picks a version from the page, and partners still fly where they
-are on a co-op map.
+   Plus one gravity assist past a big planet. Jon picks what reads best in 2D.
+2. **Transfer arcs and arrival side** (days). The autopilot flies a real arc.
+   The ship can capture on the front, back, lit or dark side of a world, and
+   orbit with or against its spin, at about the same cost (Jeremy: "since
+   you're already in orbit the energy should be virtually the same").
+3. **Gravity assists** (days). Where a big planet lies along the route, the
+   autopilot may swing past it. In the planet's frame the ship leaves at the
+   speed it came in; in the system's frame it gains or loses speed and turns.
+   It pays in fuel or time, and the path shows the swing.
+4. **Two engine systems, visible.** An ion drive inside a system (blue flame,
+   Phase 10) and the jump drive between stars, which looks and sounds different
+   (Jeremy: "it only makes sense with two separate engine systems").
+5. **Prototype: two-star and big-Jovian systems** with restricted three-body
+   navigation: low-energy paths along the gravity of two bodies, tested in a
+   page first. The most distinctive and the riskiest step; it ships only if the
+   prototype reads well at the game's scale.
+
+Constraints: `ShipFlight` owns the flight; co-op partner positions
+(`Net.report_spot`, sent as offsets from the orbited world) must keep working;
+the path must stay smooth at the game's pixel scale.
+
+**Gate:** Jon picks each step from its page; partners still fly where they are
+on a co-op map; fuel per route is measured before and after, so assists do not
+quietly break the fuel economy.
 
 ### Phase 14 — Words that don't read as AI
 *Cody: "feels very AI", for example "We can't jump there yet. The button says
@@ -448,10 +501,25 @@ why." Depends on the alpha ending, so the list is complete.*
 
 Collect the flagged lines during the alpha. Rewrite each to state the concrete
 fact, for example "Too deep. One ring at a time." Re-record the voiced ones, at
-about 0.4 credits a character.
+about 0.4 credits a character. The recorder now refuses all-caps words in a
+spoken script, since eleven_v3 spells them out.
 
 **Gate:** every flagged line rewritten, and every voiced one re-recorded or its
 text matched to its take.
+
+### Phase 15 — Riding the galaxy (design only)
+*Jeremy: instead of a shrinking-ring kind of pressure, let the run ride the
+galaxy's rotation. "You're fighting the angular momentum of the galaxy spiral
+with your jump drive and then riding the currents of the solar system with your
+orbital mechanics."*
+
+A different answer to what pushes a run forward: jumps with the spiral's turn
+are cheap, jumps against it are dear, and the map slowly turns under the run.
+It reaches the jump rule, fuel, the chart and the core's place, so it is a
+design page of options first, decided after the alpha data and Phase 11. No
+build is planned yet.
+
+**Gate:** a page of options and Jon's ruling (open ruling 16).
 
 ### Loose ends
 
@@ -484,7 +552,7 @@ print the distributions.
 ## 4. Open rulings
 
 Each needs a human decision. Rows 1, 1b, 3, 7 and 8 are settled and were
-removed; see the footnote. Rows 12 and 13 came from the friends' alpha.
+removed; see the footnote. Rows 12, 13, 15 and 16 came from the friends' alpha.
 
 | # | Ruling | From | Blocks |
 |---|---|---|---|
@@ -493,8 +561,10 @@ removed; see the footnote. Rows 12 and 13 came from the friends' alpha.
 | 9 | Do unique cards earn unique art | card §14 | Nothing now |
 | 10 | Do Criticals exist. None are in the game | card §14 | Nothing now |
 | 12 | Chassis select hull against pips: A Korvan frames to 28/42/56; B every chassis exact, which flattens manufacturer differences; C show the real hull beside the pips (recommended) | Geno, friends' alpha | Phase 10 |
-| 13 | Stars in THRUSTER REACH but more than one ring deeper: A dim them, or B reshape the ring. Parked | friends' alpha | Phase 10 |
+| 13 | Stars in THRUSTER REACH but more than one ring deeper: A dim them (recommended since Geno's report, Oct 24), or B reshape the ring | Jon's chart, Geno | Phase 10 |
 | 14 | Which health and damage change, after the study | Phase 11 step 1 | Phase 11 steps 2 to 5, Phase 12 |
+| 15 | Jumps: keep one ring deeper per jump, or two. Two measured on Oct 22 at 8 jumps to the core against 14; re-simulate against today's Custodian first. Jon told Geno one ring "might be too aggressive" | Geno, Phase 10 | Phase 10 |
+| 16 | Riding the galaxy's rotation as the run's pressure: explore it or not | Jeremy, Phase 15 | Phase 15 |
 
 ### Ruled since Oct 20
 
