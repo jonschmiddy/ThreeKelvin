@@ -404,12 +404,12 @@ the alpha to end. 15 is design only.
   screenshot). The chart is drawn tilted, so near its top and bottom edges two
   stars side by side on screen can be rings apart, and the one-ring rule refuses
   them with no warning before the click. Two parts:
-  (a) dim stars in reach that are too deep (open ruling 13, now recommended A);
-  (b) re-simulate two rings per jump against today's Custodian and decide
-  (open ruling 15). (b) runs in the background.
-- **LOCAL lets you leave a station too easily** (Jeremy). While docked, only
-  UNDOCK should leave.
-- **Chassis select hull against pips** (Geno, open ruling 12).
+  (a) dim stars in reach that are too deep (ruled A, Oct 27);
+  (b) switch to two rings per jump (ruled Oct 27), then re-tune the Custodian
+  against it.
+- **LOCAL lets you leave a station too easily** (Jeremy). Ruled Oct 27: LOCAL is greyed out
+  while docked ("Docked. Press UNDOCK to leave."); UNDOCK is the only way out.
+- **Chassis select hull against pips** (Geno; ruled C, Oct 27: show the real hull beside the pips).
 - **The sector map's ship should be the player's own ship** (Jeremy).
 - **Blue ion engine flames on the sector map** (Jeremy). This is the first half
   of Phase 13's "two engines".
@@ -519,7 +519,7 @@ It reaches the jump rule, fuel, the chart and the core's place, so it is a
 design page of options first, decided after the alpha data and Phase 11. No
 build is planned yet.
 
-**Gate:** a page of options and Jon's ruling (open ruling 16).
+**Gate:** a page of options and Jon's ruling (ruled Oct 27: a design page later).
 
 ### Loose ends
 
@@ -552,19 +552,12 @@ print the distributions.
 ## 4. Open rulings
 
 Each needs a human decision. Rows 1, 1b, 3, 7 and 8 are settled and were
-removed; see the footnote. Rows 12, 13, 15 and 16 came from the friends' alpha.
+removed; see the footnote. Rows 5, 9, 10, 12, 13, 15 and 16 were ruled on Oct 27 and moved to the table below.
 
 | # | Ruling | From | Blocks |
 |---|---|---|---|
 | 4 | Three reds. `UITheme` now names `LEAVE` for exits and `WARN`/`BAD` for warnings; the older literal sites were left alone on purpose | B3 | Nothing now; a sweep of the literals |
-| 5 | When do the other five manufacturers switch on | B4 | Phase 2's last half; after the alpha |
-| 9 | Do unique cards earn unique art | card §14 | Nothing now |
-| 10 | Do Criticals exist. None are in the game | card §14 | Nothing now |
-| 12 | Chassis select hull against pips: A Korvan frames to 28/42/56; B every chassis exact, which flattens manufacturer differences; C show the real hull beside the pips (recommended) | Geno, friends' alpha | Phase 10 |
-| 13 | Stars in THRUSTER REACH but more than one ring deeper: A dim them (recommended since Geno's report, Oct 24), or B reshape the ring | Jon's chart, Geno | Phase 10 |
 | 14 | Which health and damage change, after the study | Phase 11 step 1 | Phase 11 steps 2 to 5, Phase 12 |
-| 15 | Jumps: keep one ring deeper per jump, or two. Two measured on Oct 22 at 8 jumps to the core against 14; re-simulate against today's Custodian first. Jon told Geno one ring "might be too aggressive" | Geno, Phase 10 | Phase 10 |
-| 16 | Riding the galaxy's rotation as the run's pressure: explore it or not | Jeremy, Phase 15 | Phase 15 |
 
 ### Ruled since Oct 20
 
@@ -573,6 +566,14 @@ changing how anything they touch plays.
 
 | Ruling | Jon's words | Where |
 |---|---|---|
+| Other five manufacturers (ruling 5) | After the alpha; the chain stays Korvan then Solari for the friends' alpha | Oct 27; the plan |
+| Unique art (ruling 9) | "Unique cards AND modules get their own art ALWAYS. I have a lot of PixelLab credits." No borrowed pictures | Oct 27; the plan |
+| Criticals (ruling 10) | No critical hits | Oct 27; the plan |
+| Chassis hull against pips (ruling 12) | C: show the real hull beside the pips; the tooltip says a pip is about 7 hull, rounded | Oct 27; Phase 10 |
+| Too-deep stars (ruling 13) | A: dim stars in reach that are too deep | Oct 27; Phase 10 |
+| Jump rule (ruling 15) | Two rings deeper per jump, now (was one). Re-tune after | Oct 27; Phase 10 |
+| Riding the galaxy (ruling 16) | A design page later, after the alpha data and the combat study | Oct 27; Phase 15 |
+| LOCAL while docked | Greyed out with "Docked. Press UNDOCK to leave."; UNDOCK is the only way out | Oct 27; Phase 10 |
 | A jump goes one ring deeper at most | "A1D ... I want this to be a hard game" (Oct 22) | b28fdad6, 0.4.0 |
 | The Custodian has 200 hull | "custodian health at 200" (Oct 22) | b28fdad6, 0.4.0 |
 | The Custodian loses Plated Up; Annihilate deals 40 | "Option 1" (Oct 22) | 7790b9f5, 0.4.0 |
