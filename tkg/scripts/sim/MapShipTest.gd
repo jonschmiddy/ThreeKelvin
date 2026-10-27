@@ -11,8 +11,9 @@ extends Node
 ##   - the ship is drawn from your hull's own picture, the one LOCAL draws (the
 ##     grade's bake, worked out here on its own, not asked of the code under
 ##     test), at the map's length for its weight: the picture's colours are that
-##     art's, and pointing straight along the map every hull pixel drawn is the
-##     picture's pixel for pixel;
+##     art's (a dark hull lifted to read, `MapHull.LIFT_TO`), and pointing
+##     straight along the map every hull pixel drawn is the picture's pixel for
+##     pixel;
 ##   - after a hull swap (`Run.transfer_to_hull`, a Solari heavy) the map draws
 ##     the new hull the same way, longer;
 ##   - W held through the real step: the flame lit, and every pixel of it and of
@@ -140,11 +141,16 @@ func _check_hull(map: SystemMapScreen, when: String) -> void:
 	# the ink, the outline either side, and a clear column where that is even
 	_ok("at the map's length for its weight, %s (%d px picture for %d px of hull)" % [when, img.get_width(), L],
 		img.get_width() == L + 2 + (1 - ((L + 2) & 1)))
+	# ITS COLOURS ARE THE ART'S, a dark hull lifted to read on the map
+	# (`MapHull.LIFT_TO`): the picture's mean over the lift is the art's
 	var a := _mean(want.get_image())
+	var gain: float = pic.get("gain", 1.0)
 	var m := _mean(img, pic.pm)
-	var dc := maxf(absf(a.r - m.r), maxf(absf(a.g - m.g), absf(a.b - m.b)))
-	print("  %s: the art's mean %s, the map picture's %s" % [when, a, m])
-	_ok("its colours are that art's, shrunk (mean off by %.3f)" % dc, dc < 0.05)
+	var dc := maxf(absf(a.r - m.r / gain), maxf(absf(a.g - m.g / gain), absf(a.b - m.b / gain)))
+	print("  %s: the art's mean %s, the map picture's %s, lifted %.2fx" % [when, a, m, gain])
+	_ok("its colours are that art's, shrunk (mean off by %.3f)" % dc, dc < 0.03)
+	_ok("lifted only if dark, and to the floor (%.2fx to brightness %.3f)" % [gain, m.get_luminance()],
+		gain >= 1.0 and gain <= 2.0 and (gain == 1.0 or m.get_luminance() > 0.18 or gain == 2.0))
 	# POINTING STRAIGHT ALONG THE MAP: the picture lands pixel for pixel
 	map.set_process(false)
 	map.flight.ang = 0.0

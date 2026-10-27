@@ -60,11 +60,11 @@ const MapHullS := preload("res://scripts/ui/sysmap/MapHull.gd")
 var hull_src: Texture2D = null
 var hull_pic: Dictionary = {}
 var _hull_key: Array = []
-## THE ION DRIVE'S COLOURS, the player's cold drive ramp (`ThrusterFx.COOL_RAMP`,
-## its middle three): the core, the flame's edges as it leaves the stern, and
-## the paler blue it fades to at the tip.
+## THE ION DRIVE'S COLOURS, two steps of the player's cold drive ramp
+## (`ThrusterFx.COOL_RAMP`): the cool blue the flame leaves the stern in, and
+## the paler blue it fades to at the tip. The ramp's deep blue was tried for
+## the flame's edges and vanished against the map's blue nebulae.
 const ION_CORE := Color("#5ea6ff")
-const ION_EDGE := Color("#2c58c8")
 const ION_TIP := Color("#bfe2ff")
 ## FOR THE HARNESSES (`-- sheet=MapShipTest`): every pixel of the ship drawn
 ## last frame, `[screen point, colour, &"hull" | &"outline" | &"glow" |
@@ -1264,11 +1264,11 @@ func _draw_ship(t: float) -> void:
 			var fade := 1.0 - float(k) / float(ln + 1)
 			var tip := float(k) / float(ln)
 			var al := minf(1.0, (0.35 + 0.45 * bk) * fade + (0.25 if k <= 2 else 0.0))
-			var side: Color = ION_EDGE.lerp(ION_TIP, tip)
-			P.call(o0 - k, ev - 1, Color(side, al), &"flame")
-			P.call(o2 - k, ev + 1, Color(side, al), &"flame")
+			var col: Color = ION_CORE.lerp(ION_TIP, tip)
+			P.call(o0 - k, ev - 1, Color(col, al), &"flame")
+			P.call(o2 - k, ev + 1, Color(col, al), &"flame")
 			if k <= 3 + int(bk * 3.0):
-				P.call(o1 - k, ev, Color(ION_CORE.lerp(ION_TIP, tip), minf(1.0, al * 1.1)), &"flame")
+				P.call(o1 - k, ev, Color(col, minf(1.0, al * 1.1)), &"flame")
 	if flight.rcs:
 		var fl := int(t * 20.0) % 2
 		var n0: int = 7 if pic.is_empty() else nose[0] + 1

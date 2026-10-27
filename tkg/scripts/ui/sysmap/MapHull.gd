@@ -32,6 +32,14 @@ const BINS := 256
 const SS := 4
 ## The dark rim round the hull, the old arrow's.
 const OUTLINE := Color("#05070b")
+## A DARK HULL STILL READS ON THE MAP: shrunk to a few pixels, Korvan's grey
+## averaged to about the brightness of the galaxy's band behind it (the first
+## still: a grey sliver you had to hunt for, where the old arrow was the
+## brightest thing on the map). A hull whose mean brightness (linear) is under
+## LIFT_TO is lifted to it, by at most LIFT_MAX, its own shading and hues kept:
+## Korvan's about 1.4x, Solari's tan not at all. 0 draws the art as it is.
+const LIFT_TO := 0.2
+const LIFT_MAX := 2.0
 
 static var _pics: Dictionary = {}
 static var _lin: PackedFloat32Array = PackedFloat32Array()
@@ -58,6 +66,7 @@ static func _lut() -> PackedFloat32Array:
 ##             drawn, from the middle column
 ##   nose      per row (-1 to +1 from the middle): the last column drawn
 ##   R         the farthest a turned picture's pixel can be from its middle
+##   gain      how much it was lifted (`LIFT_TO`), 1 for none
 static func picture(h: HullData, src: Texture2D) -> Dictionary:
 	if h == null or src == null:
 		return {}
@@ -137,6 +146,21 @@ static func picture(h: HullData, src: Texture2D) -> Dictionary:
 			if cnt[o] > 0 and a / cnt[o] >= INK:
 				kind[(y + 1) * W + x + 1] = 1
 				col[(y + 1) * W + x + 1] = Color(acc[o * 4] / a, acc[o * 4 + 1] / a, acc[o * 4 + 2] / a)
+	# THE LIFT (`LIFT_TO`), from the hull's mean brightness
+	var lum := 0.0
+	var nh := 0
+	for i in W * H:
+		if kind[i] == 1:
+			lum += col[i].get_luminance()
+			nh += 1
+	var gain := 1.0
+	if nh > 0 and lum > 0.0:
+		gain = clampf(LIFT_TO * nh / lum, 1.0, LIFT_MAX)
+	if gain > 1.0:
+		for i in W * H:
+			if kind[i] == 1:
+				var c := col[i]
+				col[i] = Color(minf(1.0, c.r * gain), minf(1.0, c.g * gain), minf(1.0, c.b * gain))
 	var ol := OUTLINE.srgb_to_linear()
 	for y in H:
 		for x in W:
@@ -192,7 +216,7 @@ static func picture(h: HullData, src: Texture2D) -> Dictionary:
 	for dv in [-1, 0, 1]:
 		stern.append(first.call(clampi(my + ev + dv, 0, H - 1)))
 		nose.append(last.call(clampi(my + dv, 0, H - 1)))
-	var pic := {"W": W, "H": H, "pm": pm, "img": small, "ev": ev, "stern": stern, "nose": nose,
+	var pic := {"W": W, "H": H, "pm": pm, "img": small, "ev": ev, "stern": stern, "nose": nose, "gain": gain,
 		"R": int(ceil(Vector2(W, H).length() * 0.5)), "turns": {}, "src": src}
 	_pics[key] = pic
 	return pic
