@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Changed** — UNDOCK is the only way out of a station. While you are docked, LOCAL on the top
+  bar is greyed out and says "Docked. Press UNDOCK to leave." The sector map and the star chart
+  still open from the berth so you can look around, but FLY HERE, GO, the flight keys and JUMP
+  read DOCKED and stay put until you undock. STATION on the top bar, the map's DOCK and LEAVE on
+  the party page take you straight back to the berth. Jeremy found it too easy to leave a
+  station without meaning to.
+
 ### Roadmap
 
 The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See

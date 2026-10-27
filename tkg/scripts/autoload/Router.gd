@@ -18,9 +18,10 @@ var field: NavField
 ## Not on Run and not a Sig signal: it is a fact about which side of the airlock
 ## you are on, and the two functions below are the only ways through it in
 ## either direction -- every arrival, every UNDOCK and every resume goes through
-## show_sector(). The HUD reads it to decide whether its second tab says SECTOR
-## or STATION, so that walking to SHIP from the berth and back does not make you
-## re-dock to return.
+## show_sector(). The HUD reads it to decide what its first tab says: LOCAL
+## greyed at the berth (UNDOCK is the only way out, Jon, Oct 27), STATION on a
+## page looked at from it (the map, the chart), so that looking round and coming
+## back does not make you re-dock to return.
 ##
 ## Leaving the berth ends the docking, and with it every deck's power-on.
 var docked: bool = false:
@@ -569,6 +570,13 @@ func show_sector() -> void:
 	# its escape burn hopping back) all came back to LOCAL, and only STARCHART
 	# left (Jon, Oct 22: "Fighting the Hellbender totally breaks the sector and
 	# local buttons. You are able to click starchart.").
+	# DOCKED, "BACK TO THE PLACE" IS THE BERTH (Jon, Oct 27: UNDOCK is the only
+	# way out). From a page looked at from it -- the map, the chart, PARTY's or a
+	# catalogue's LEAVE -- this went to the map and undocked on the way, so
+	# leaving a co-op party page walked you out of the station unasked.
+	if over_berth():
+		show_station()
+		return
 	# UNDOCKING IS ONE DISTANCE OUT (`ZoomLadder`): the station's berth to LOCAL,
 	# beside the station, where DOCK takes you back in and the map is a Tab away
 	if docked and current is StationScreen and ZoomLadder.chosen():
@@ -629,23 +637,17 @@ func _undock() -> void:
 	docked = false
 
 
-## CASTING OFF: THE SHIP MOVING IS THE SHIP UNDOCKING (Jon: "if you don't undock
-## from a station and then move to another planet.... it breaks the local view
-## weirdly"). The map and the chart are a VIEW from the berth (`show_system`),
-## so you can look round the system while still tied up -- but flying the map's
-## ship, or the chart's JUMP, is a move, and a move from the berth leaves it.
-## Before this the map flew your ship to another world with `docked` still set:
-## the HUD's tab still read STATION, and pressing it sent the map's DOCK down to
-## LOCAL at the world you had flown to and played the whole dock again into a
-## station that was not there, and UNDOCK flew you out of it beside that world.
+## UNDOCK IS THE ONLY WAY OUT (Jon, Oct 27, on Jeremy's "LOCAL lets you leave a
+## station too easily"). The map and the chart are a VIEW from the berth
+## (`show_system`), so you can look round the system and plan the next jump while
+## tied up -- but flying the map's ship, GO on an event, or the chart's JUMP is a
+## move, and a move from the berth is refused and says how to leave. It used to
+## cast off on the spot (the clamps, the decks' power-ons spent, no undock seen),
+## which is how a player left a station without meaning to.
 ##
-## The quick way out, not the undock move: the ship is on the map, flying, and
-## the move belongs to LOCAL's own picture. The clamps are heard, the system
-## counts as arrived at, the decks' power-ons are spent, and a berth built ahead
-## for the ladder goes. And the berth's own rule holds whichever door you leave
-## by: what UNDOCK refuses (`Run.ready_to_fly`: crates on the pad, a deck smaller
-## than a hand) refuses the flight and the jump too, and says why.
-## True when the ship is free to go (it was never docked, or now is not).
+## The words are the HUD's: LOCAL greyed at the berth says the same
+## (`DOCKED_LINE`), and so do the map's FLY HERE and GO and the chart's JUMP.
+## True when the ship is free to go (it is not docked, and nothing is on the pad).
 ##
 ## THE PAD HOLDS THE SHIP IN SPACE TOO. A derelict's frame (TRANSFER on the rail)
 ## moves you aboard where it was found, with no berth to refuse the jump -- and
@@ -653,32 +655,37 @@ func _undock() -> void:
 ## refused by the next station's UNDOCK for good (Jon, Oct 23). The move is up
 ## while the pad is loaded (`show_transfer`), so this is the backstop.
 func cast_off() -> bool:
-	if not docked:
-		if Run.pad.is_empty():
-			return true
+	if docked:
 		Audio.denied()
-		Run.log_line("Cannot leave: %d thing%s still on the pad." % [Run.pad.size(),
-			"" if Run.pad.size() == 1 else "s"], &"them")
+		Run.log_line(DOCKED_LINE, &"them")
 		return false
-	var why := Run.ready_to_fly()
-	if not why.is_empty():
-		Audio.denied()
-		Run.log_line("Cannot undock: %s." % "; ".join(why), &"them")
-		return false
-	_undock()
-	if ZoomLadder.prebuilt is StationScreen:
-		ZoomLadder.drop_prebuilt()
-	if hud != null and is_instance_valid(hud):
-		hud.refresh()
-	return true
+	if Run.pad.is_empty():
+		return true
+	Audio.denied()
+	Run.log_line("Cannot leave: %d thing%s still on the pad." % [Run.pad.size(),
+		"" if Run.pad.size() == 1 else "s"], &"them")
+	return false
 
 
 ## Whether `cast_off` would let the ship go: what the map's FLY HERE and GO and
-## the chart's JUMP read to say CANNOT UNDOCK before they are pressed.
+## the chart's JUMP read to say DOCKED (or CANNOT UNDOCK) before they are pressed.
 func may_cast_off() -> bool:
-	if not docked:
-		return Run.pad.is_empty()
-	return Run.ready_to_fly().is_empty()
+	return not docked and Run.pad.is_empty()
+
+
+## What every way off the berth but UNDOCK says (Jon, Oct 27): the HUD's LOCAL
+## greyed at the station, the map's FLY HERE and GO, the chart's JUMP.
+const DOCKED_LINE := "Docked. Press UNDOCK to leave."
+
+
+## A PAGE LOOKED AT FROM THE BERTH: docked, and the screen up is not the station
+## itself (the map, the chart, PARTY, a catalogue). "Back to the place" from one
+## of these is the station. Not the title, the lobby or the hull pick, which a
+## run left docked can still be on (`docked` is not saved, and quitting from the
+## berth does not clear it).
+func over_berth() -> bool:
+	return docked and current != null and is_instance_valid(current) \
+		and not (current is StationScreen) and not is_front_door(current)
 
 
 ## WHETHER THE SHIP IS AT THE STATION ITSELF, the one place DOCK is offered
@@ -740,6 +747,10 @@ func park_at_station(n: MapGen.MapNode = null) -> void:
 ## HUD disables the SECTOR tab during a fight, which is where that belongs.
 ## (after_combat clears `combat` first, so `fight_up` never swallows it: it
 ## stops only a rebuild of the fight's own screen while that is the one up.)
+## DOCKED, ONLY UNDOCK COMES HERE (`show_sector` from the berth; Jon, Oct 27).
+## The player's other doors stop short of it: the HUD's tab is greyed at the
+## berth and goes back to it from the map or the chart, Tab goes round by the
+## berth, and the map's GO refuses. A harness may still call it to leave by hand.
 func show_local() -> void:
 	if fight_up():
 		return
@@ -997,8 +1008,8 @@ func begin_jump(index: int) -> void:
 	# silently no-ops leaves a screen with no ship in it and no drawer.
 	if not Run.can_jump_to(Run.map[index]):
 		return
-	# FROM THE BERTH (the chart is a view from it): the jump casts off first, or
-	# is refused where UNDOCK would be (`cast_off`)
+	# FROM THE BERTH (the chart is a view from it): refused, and says to press
+	# UNDOCK; and in space, refused while anything is on the pad (`cast_off`)
 	if not cast_off():
 		return
 	# No animation, no journey. The sim, the headless harnesses and every shot
@@ -1263,8 +1274,12 @@ func show_station() -> void:
 	# is a page change. Only the first plays the clamps, and only the first
 	# swallows the page sound -- the rest are ordinary tabs (Jon).
 	# THE MAP'S DOCK, ON THE LADDER (3B, 3D): down to LOCAL first, beside the
-	# station's side, and on into its hangar from there (`ZoomLadder.chain`)
-	if current is SystemMapScreen and ZoomLadder.enabled() and ZoomLadder.design_for(3) in ["B", "D"] \
+	# station's side, and on into its hangar from there (`ZoomLadder.chain`).
+	# NOT FROM THE MAP LOOKED AT FROM THE BERTH: there the ship never left, and
+	# going by LOCAL undocked it, played the dock again and powered every deck on
+	# again (Jon, Oct 27: UNDOCK is the only way out). The HUD's STATION and the
+	# map's DOCK go straight back in, as Tab from the chart does.
+	if not docked and current is SystemMapScreen and ZoomLadder.enabled() and ZoomLadder.design_for(3) in ["B", "D"] \
 			and Run.node_at() != null and Run.node_at().type == MapGen.NodeType.STATION:
 		ZoomLadder.chain = &"station"
 		# (LOCAL built with your ship off it: the dock's arrival brings it)

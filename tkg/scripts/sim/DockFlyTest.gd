@@ -1,25 +1,28 @@
 extends Node
 
-## LEAVING A STATION WITHOUT UNDOCKING (Jon: "if you don't undock from a station
-## and then move to another planet.... it breaks the local view weirdly"):
-##   godot --headless --path . -- sheet=DockFlyTest
+## UNDOCK IS THE ONLY WAY OUT OF A STATION (Jon, Oct 27, on Jeremy's "LOCAL
+## lets you leave a station too easily"):
+##   godot --headless --fixed-fps 60 --path . -- sheet=DockFlyTest
 ## Headless, the ladder on and its clock stepped 1/30 s (`LadderTest`'s rig).
-## Docked in the berth, the ship is flown away by every route that does not
-## press UNDOCK -- the map (Tab from the berth) to another world, the star, a
-## belt or open space, then back to LOCAL by the HUD's tab or by Tab round the
-## chart; the chart's JUMP; a jump on to a system with an event and GO on it --
-## and the LOCAL it arrives on is measured against the same trip made with a
-## proper UNDOCK first: your ship's rect on screen, the scene's and the sky's
-## zoom, the place the sky composed for, the station's side (there or not, and
-## its lights), the wreck row, the subject; and nothing of the station left
-## (`Router.docked`, its powered decks, no StationScreen in the tree, the
-## ladder idle with nothing built ahead and no chain). The rule
-## (`Router.cast_off`): the ship moving is the ship undocking.
+## Docked in the berth (`route=berth`): the HUD's first tab reads LOCAL, greyed,
+## and says "Docked. Press UNDOCK to leave."; pressed anyway it goes nowhere.
+## Tab goes round the berth, the map and the chart and never lands on LOCAL; the
+## map and the chart are views: FLY HERE and GO read DOCKED with the same words,
+## and FLY HERE, WASD, GO and the chart's JUMP are refused; the HUD's STATION,
+## the map's DOCK and PARTY's LEAVE (co-op) go straight back in, docked
+## throughout and never by LOCAL. UNDOCK still leaves.
+## Then every route that used to leave without UNDOCK -- the map to another
+## world, the star, a belt or open space, then the HUD's tab or Tab round the
+## chart; the chart's JUMP; a jump on and GO -- is tried from the berth and
+## refused, back in the berth and never on LOCAL, and made again after UNDOCK:
+## LOCAL arrived on with nothing of the station left (`Router.docked`, its
+## powered decks, no StationScreen in the tree, the ladder idle with nothing
+## built ahead and no chain), the sky composed for where the ship is. The rule:
+## `Router.cast_off` refuses every move from the berth.
 ##
-## `shots=<dir>` (windowed) writes a still of each LOCAL arrived on, both ways,
-## and of the berth the old build sent you to. `route=<name>` runs one route
-## (with `--write-movie` and `--fixed-fps 30`: a film of it at true speed;
-## `proper` films its UNDOCK-first twin).
+## `shots=<dir>` (windowed) writes a still of each LOCAL arrived on.
+## `route=<name>` runs one route (with `--write-movie` and `--fixed-fps 30`: a
+## film of it at true speed; `proper` films its UNDOCK-first half alone).
 
 var _fails := 0
 var _tree: SceneTree
@@ -29,6 +32,39 @@ var _only := ""
 var _proper_only := false
 ## where each route leaves the ship (`Run.site_here`)
 var _want := {}
+## JON'S WORDS (Oct 27), held here rather than read off `Router.DOCKED_LINE`, so
+## the sheet says what the ruling says and runs on a build from before it
+const DOCKED_LINE := "Docked. Press UNDOCK to leave."
+## WHAT WAS SEEN WHILE WATCHING, frame by frame (`_watch_on`): the ship off the
+## berth ("undocked") or LOCAL up, either of which is the station left
+var _watching := false
+var _seen: Array[String] = []
+
+
+func _process(_d: float) -> void:
+	if not _watching:
+		return
+	if not Router.docked and not _seen.has("undocked"):
+		_seen.append("undocked")
+	if Router.current is SectorScreen and not _seen.has("LOCAL"):
+		_seen.append("LOCAL")
+
+
+func _watch_on() -> void:
+	_seen = []
+	_watching = true
+
+
+## What was seen since `_watch_on`: empty when the ship never left the berth.
+func _watch_off() -> Array[String]:
+	_watching = false
+	return _seen.duplicate()
+
+
+func _name_of(c: Control) -> String:
+	if c == null or not is_instance_valid(c):
+		return "null"
+	return c.get_script().get_global_name() if c.get_script() != null else c.get_class()
 
 
 func _ok(what: String, c: bool) -> bool:
@@ -237,22 +273,6 @@ func _local_now() -> Dictionary:
 	return d
 
 
-func _same(what: String, a: Dictionary, b: Dictionary) -> void:
-	var keys := ["screen", "docked", "powered", "dock", "stations", "ladder", "prebuilt", "chain", "site",
-		"at", "zs", "lad", "sky_zoom", "sky_place", "sky_node", "face", "face_power", "row", "subject",
-		"ship_vis", "ship_scale", "events", "hud"]
-	var off: Array = []
-	for k in keys:
-		if a.get(k) != b.get(k):
-			off.append("%s %s vs %s" % [k, a.get(k), b.get(k)])
-	# the ship's rect within a pixel (its bob is on the run's clock)
-	var ra: Rect2 = a.get("ship", Rect2())
-	var rb: Rect2 = b.get("ship", Rect2())
-	if ra.position.distance_to(rb.position) > 2.5 or ra.size.distance_to(rb.size) > 1.0:
-		off.append("ship %s vs %s" % [ra, rb])
-	_ok("%s: LOCAL as after a proper UNDOCK%s" % [what, "" if off.is_empty() else " (" + ", ".join(off) + ")"], off.is_empty())
-
-
 ## Nothing of the station left on the LOCAL arrived on.
 func _clean(what: String, d: Dictionary) -> void:
 	_ok("%s: lands on LOCAL (on %s)" % [what, d.screen], d.screen == "SectorScreen")
@@ -269,26 +289,26 @@ func _clean(what: String, d: Dictionary) -> void:
 		_ok("%s: the station's lights on standby (%.2f)" % [what, d.face_power], d.face_power <= 0.001)
 
 
-## One trip, both ways: `go` run from the berth as it stands (docked), and run
-## again from LOCAL after UNDOCK; LOCAL compared.
+## One trip, both ways: `go` tried from the berth as it stands (docked), where
+## it is refused and ends back in the berth, never on LOCAL; and made again from
+## LOCAL after UNDOCK, where it lands with nothing of the station left.
 func _route(name: String, go: Callable) -> void:
 	if _only != "" and _only != name:
 		return
 	print("route %s" % name)
-	var a := {}
 	if not _proper_only:
 		if not _ok("%s: docked in the berth" % name, await _to_berth()):
 			return
+		_watch_on()
 		await go.call(false)
 		await _frames(20)
-		a = await _local()
-		print("    as flown: %s" % a)
-		await _shot("%s_flown" % name)
-		_clean(name, a)
-		_ok("%s: flown, the ship where the map left it (site %d)" % [name, a.site], a.site == int(_want.get(name, a.site)))
+		var seen := _watch_off()
+		_ok("%s: from the berth, refused and back in the berth, docked throughout and never on LOCAL (seen: %s; on %s, at %d)" % [
+			name, "nothing" if seen.is_empty() else ", ".join(seen), _name_of(Router.current), Run.at],
+			seen.is_empty() and Router.current is StationScreen and Router.docked and Run.at == _st)
 	if _only != "" and not _proper_only:
 		return
-	if not _ok("%s: docked in the berth (for the proper trip)" % name, await _to_berth()):
+	if not _ok("%s: docked in the berth (for the trip after UNDOCK)" % name, await _to_berth()):
 		return
 	Router.show_sector()
 	await _idle()
@@ -297,44 +317,71 @@ func _route(name: String, go: Callable) -> void:
 	await go.call(true)
 	await _frames(20)
 	var b := await _local()
-	print("    proper:   %s" % b)
+	print("    after UNDOCK: %s" % b)
 	await _shot("%s_proper" % name)
-	if not _proper_only:
-		_same(name, a, b)
+	_clean(name, b)
+	_ok("%s: the ship where the map left it (site %d)" % [name, b.site], b.site == int(_want.get(name, b.site)))
 
 
-## Tab to the map (from the berth or LOCAL), fly to `p`, then back down to LOCAL
-## by `back` ("hud": the HUD's second tab; "tab": Tab round the chart).
+## Tab to the map (from the berth or LOCAL), fly to `p`, then back by `back`
+## ("hud": the HUD's first tab; "tab": Tab round the chart). From the berth the
+## flight is refused, and `back` goes back in: STATION, or the chart and on.
 func _map_trip(p: int, back: String) -> Callable:
-	return func(_proper: bool) -> void:
+	return func(proper: bool) -> void:
 		await _tab()
-		_ok("  Tab goes to the map", Router.current is SystemMapScreen)
-		_ok("  flown to %d" % p, await _fly(p))
-		_ok("  undocked as it left the berth (docked %s, tab %s)" % [Router.docked, Router.hud._tab_sector.text],
-			not Router.docked and Router.hud._tab_sector.text == "LOCAL")
+		var m := Router.current as SystemMapScreen
+		if not _ok("  Tab goes to the map", m != null):
+			return
+		if not proper:
+			for i in 300:
+				if m.flight != null and m.flight.can_fly():
+					break
+				await _tree.process_frame
+			var at0: int = m.flight.reached()
+			if p == -3:
+				m.harness_keys = true
+				m._wasd.w = true
+				await _frames(45)
+				m._wasd.w = false
+				m.harness_keys = false
+			else:
+				m.fly_to_body(p)
+			await _frames(30)
+			_ok("  from the berth the flight to %d is refused: still docked, the ship where it was (at %d, was %d)" % [p, m.flight.reached(), at0],
+				Router.docked and Router.current == m and m.flight.reached() == at0)
+		else:
+			_ok("  flown to %d" % p, await _fly(p))
+			_ok("  flying, the tab reads LOCAL (docked %s, tab %s)" % [Router.docked, Router.hud._tab_sector.text],
+				not Router.docked and Router.hud._tab_sector.text == "LOCAL")
 		if back == "hud":
 			await _here_tab()
 		else:
 			await _tab()
 			await _tab()
-		# (the old build: back in the berth of a station the ship has flown away
-		# from; a player presses UNDOCK there next)
-		if Router.current is StationScreen:
-			print("    -> the berth again (docked %s)" % Router.docked)
-			await _shot("%s_berth" % ("p%d_%s" % [p, back]))
-			Router.show_sector()
-			await _idle()
 
 
 ## The chart's JUMP from the berth (or LOCAL), then GO on an event at the
 ## system arrived at: LOCAL there, its subject up.
 func _jump_trip(go_event: bool) -> Callable:
-	return func(_proper: bool) -> void:
+	return func(proper: bool) -> void:
 		await _tab()
 		await _tab()
 		_ok("  Tab Tab goes to the chart", Router.current is StarchartScreen)
 		var to := _jump_target(go_event)
 		if not _ok("  a system in reach to jump to (%d)" % to, to >= 0):
+			return
+		if not proper:
+			var ch := Router.current as StarchartScreen
+			if ch != null:
+				ch._on_node_picked(to)
+				await _frames(2)
+				_ok("  from the berth JUMP reads DOCKED, greyed, and says \"%s\" (%s, %s)" % [DOCKED_LINE, ch._jump.text, ch._jump.tooltip_text.replace("\n", " ")],
+					ch._jump.disabled and ch._jump.text == "DOCKED" and ch._jump.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
+			Router.begin_jump(to)
+			await _frames(30)
+			_ok("  the jump refused: still at the station, docked, on the chart (at %d, on %s)" % [Run.at, _name_of(Router.current)],
+				Run.at == _st and Router.docked and Router.current is StarchartScreen)
+			await _tab()
 			return
 		Router.begin_jump(to)
 		for i in 1800:
@@ -368,46 +415,155 @@ func _jump_trip(go_event: bool) -> Callable:
 		await _frames(60)
 
 
-## WHERE UNDOCK REFUSES (`Run.ready_to_fly`: a crate on the pad), every other way
-## off the berth refuses too, and says so: FLY HERE, WASD, the chart's JUMP.
-func _held(p: int) -> void:
-	if _only != "" and _only != "held":
+## UNDOCK IS THE ONLY WAY OUT (Jon, Oct 27, on Jeremy's "LOCAL lets you leave a
+## station too easily"). Docked, every other door is shut and says how to leave,
+## or goes back in without leaving: the HUD's first tab, Tab round the screens,
+## the map's FLY HERE, WASD and GO, the chart's JUMP, the HUD's STATION and the
+## map's DOCK from the map, and PARTY's LEAVE (co-op). Then UNDOCK, which leaves.
+func _berth_shut(p: int) -> void:
+	if _only != "" and _only != "berth":
 		return
-	print("route held")
-	if not _ok("held: docked in the berth", await _to_berth()):
+	print("route berth")
+	if not _ok("berth: docked in the berth", await _to_berth()):
 		return
-	var crate: HoldItem = Run.installed[0].duplicate() as ModuleData
-	Run.pad.append(crate)
+	var tab: Button = Router.hud._tab_sector
+	Router.hud.refresh()
+	# THE HUD: LOCAL, greyed, and the words for the way out
+	_ok("berth: the HUD's first tab reads LOCAL, greyed (%s, disabled %s)" % [tab.text, tab.disabled],
+		tab.text == "LOCAL" and tab.disabled)
+	_ok("berth: its tooltip says \"%s\" (%s)" % [DOCKED_LINE, tab.tooltip_text.replace("\n", " ")],
+		tab.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
+	_ok("berth: greyed, not lit as the page you are on", not tab.has_theme_stylebox_override("disabled"))
+	var st := Router.current as StationScreen
+	_watch_on()
+	# (a press it will not take, sent by hand: the door behind it is shut too)
+	tab.pressed.emit()
+	await _frames(30)
+	await _idle()
+	var seen := _watch_off()
+	_ok("berth: LOCAL pressed anyway goes nowhere: the station still up, docked, never LOCAL (seen: %s)" % ", ".join(seen),
+		seen.is_empty() and Router.current == st and Router.docked)
+	# THE KEYBOARD: Tab round the berth, the map and the chart, never LOCAL
+	_watch_on()
 	await _tab()
 	var m := Router.current as SystemMapScreen
-	if _ok("held: Tab goes to the map", m != null):
+	if _ok("berth: Tab goes to the map, still docked", m != null and Router.docked):
+		Router.hud.refresh()
+		_ok("berth: on the map the tab reads STATION and can be pressed (%s, disabled %s)" % [tab.text, tab.disabled],
+			tab.text == "STATION" and not tab.disabled)
 		for i in 300:
 			if m.flight.can_fly():
 				break
 			await _tree.process_frame
 		var at0: int = m.flight.reached()
+		m.select_body(p)
+		await _frames(2)
+		var fly: Button = null
+		for b in m.panel.find_children("*", "Button", true, false):
+			if (b as Button).is_visible_in_tree() and (b as Button).text in ["DOCKED", "FLY HERE", "CANNOT UNDOCK"]:
+				fly = b as Button
+		_ok("berth: the world's page offers no flight: DOCKED, greyed, saying \"%s\" (%s)" % [DOCKED_LINE,
+			"none" if fly == null else "%s, disabled %s, %s" % [fly.text, fly.disabled, fly.tooltip_text.replace("\n", " ")]],
+			fly != null and fly.text == "DOCKED" and fly.disabled and fly.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
+		if fly != null:
+			_ok("berth: DOCKED sits whole inside the panel and the screen (%s in %s)" % [fly.get_global_rect(), (m.panel as Control).get_global_rect()],
+				(m.panel as Control).get_global_rect().encloses(fly.get_global_rect()) and get_viewport().get_visible_rect().encloses(fly.get_global_rect()))
 		m.fly_to_body(p)
 		await _frames(30)
-		_ok("held: FLY HERE refused, still docked, the ship where it was (%d)" % m.flight.reached(),
+		_ok("berth: FLY HERE refused, still docked, the ship where it was (%d)" % m.flight.reached(),
 			Router.docked and m.flight.reached() == at0 and m.flight.can_fly())
-		_ok("held: the panel says CANNOT UNDOCK, offers no flight", not m.panel._can_go() and m.panel.has_method(&"_held") and m.panel.call(&"_held"))
+		_ok("berth: the panel offers no flight", not m.panel._can_go() and m.panel._held())
 		m.harness_keys = true
 		m._wasd.w = true
 		await _frames(20)
 		m.harness_keys = false
-		_ok("held: WASD refused (still docked, at %d, keys let go)" % m.flight.reached(),
+		_ok("berth: WASD refused (still docked, at %d, keys let go)" % m.flight.reached(),
 			Router.docked and m.flight.reached() == at0 and not m._wasd.w)
+		# GO: an event here (planted, as a station rolls none), taken from the
+		# berth. It went down to LOCAL and undocked there, with no flight to refuse
+		var n: MapGen.MapNode = Run.map[_st]
+		var kept := n.options.duplicate()
+		var ev := _any_event()
+		if _ok("berth: an event to plant for GO (%s)" % ev, ev != &""):
+			n.options.append(ev)
+			m.go_event(n.options.size() - 1)
+			await _frames(30)
+			_ok("berth: GO refused: still docked, on the map, no event waiting for LOCAL (on %s)" % _name_of(Router.current),
+				Router.docked and Router.current == m and LocalEventDrawer.pending.is_empty())
+			n.options = kept
+			LocalEventDrawer.pending = []
 	await _tab()
 	var ch := Router.current as StarchartScreen
 	var to := _jump_target(false)
-	if _ok("held: Tab goes on to the chart", ch != null) and to >= 0:
+	if _ok("berth: Tab goes on to the chart, still docked", ch != null and Router.docked) and to >= 0:
+		ch._on_node_picked(to)
+		await _frames(2)
+		_ok("berth: JUMP reads DOCKED, greyed, saying \"%s\" (%s, %s)" % [DOCKED_LINE, ch._jump.text, ch._jump.tooltip_text.replace("\n", " ")],
+			ch._jump.disabled and ch._jump.text == "DOCKED" and ch._jump.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
+		_ok("berth: the chart's DOCKED button whole on screen (%s)" % ch._jump.get_global_rect(),
+			get_viewport().get_visible_rect().encloses(ch._jump.get_global_rect()))
 		Router.begin_jump(to)
 		await _frames(30)
-		_ok("held: the chart's JUMP refused (at %d, still docked, on %s)" % [Run.at, Router.current.get_script().get_global_name()],
+		_ok("berth: the chart's JUMP refused (at %d, still docked, on %s)" % [Run.at, _name_of(Router.current)],
 			Run.at == _st and Router.docked and Router.current is StarchartScreen)
-	Run.pad.erase(crate)
 	await _tab()
-	_ok("held: Tab from the chart goes back to the berth", Router.current is StationScreen and Router.docked)
+	seen = _watch_off()
+	_ok("berth: Tab from the chart goes back to the berth", Router.current is StationScreen and Router.docked)
+	_ok("berth: round the berth, the map and the chart by Tab: docked throughout, never LOCAL (seen: %s)" % ", ".join(seen), seen.is_empty())
+	# BACK IN FROM THE MAP: the HUD's STATION, then the map's DOCK. Both went
+	# down to LOCAL first (undocking) and played the dock again
+	for how in ["the HUD's STATION", "the map's DOCK"]:
+		await _tab()
+		m = Router.current as SystemMapScreen
+		if not _ok("berth: Tab to the map again (for %s)" % how, m != null and Router.docked):
+			continue
+		var powered := Router.powered.duplicate()
+		_watch_on()
+		if how == "the HUD's STATION":
+			tab.pressed.emit()
+		else:
+			var bc = null
+			for b in m.view.layout.bodies[_station_body()].beacons:
+				if b.dock:
+					bc = b
+			m.take_action(bc)
+		for i in 900:
+			await _tree.process_frame
+			if Router.current is StationScreen and not ZoomLadder.busy() and ZoomLadder.chain == &"":
+				break
+		await _frames(5)
+		seen = _watch_off()
+		_ok("berth: %s goes straight back in: docked throughout, never LOCAL (seen: %s; on %s)" % [how, ", ".join(seen), _name_of(Router.current)],
+			seen.is_empty() and Router.current is StationScreen and Router.docked)
+		_ok("berth: %s: the decks powered on stay on (%s, now %s)" % [how, powered.keys(), Router.powered.keys()],
+			powered.keys().all(func(k: Variant) -> bool: return Router.powered.has(k)))
+	# PARTY (co-op): its LEAVE went to the map, undocking on the way
+	_watch_on()
+	Router.show_party()
+	await _frames(5)
+	var leave: Button = null
+	if Router.current is PartyScreen:
+		for b in Router.current.find_children("*", "Button", true, false):
+			if (b as Button).text == "LEAVE":
+				leave = b as Button
+	if _ok("berth: PARTY opens from the berth, with LEAVE", leave != null):
+		leave.pressed.emit()
+		await _idle()
+		await _frames(10)
+		seen = _watch_off()
+		_ok("berth: PARTY's LEAVE goes back to the berth, docked throughout (seen: %s; on %s)" % [", ".join(seen), _name_of(Router.current)],
+			seen.is_empty() and Router.current is StationScreen and Router.docked)
+	_watching = false
+	# AND UNDOCK STILL LEAVES: the station's own button
+	st = Router.current as StationScreen
+	if _ok("berth: on the station, UNDOCK on its rail", st != null and st._undock != null and not st._undock.disabled):
+		st._undock.pressed.emit()
+		await _idle()
+		await _frames(10)
+		Router.hud.refresh()
+		_ok("berth: UNDOCK leaves: on LOCAL, undocked, the tab reads LOCAL, lit (on %s, docked %s, %s)" % [_name_of(Router.current), Router.docked, tab.text],
+			Router.current is SectorScreen and not Router.docked and tab.text == "LOCAL" and tab.disabled
+				and tab.has_theme_stylebox_override("disabled"))
 
 
 ## DOCK ONLY AT THE STATION (Jon, Oct 18, "dock:A"), AND A JUMP IN ARRIVES AT
@@ -417,8 +573,9 @@ func _held(p: int) -> void:
 ## to a world of the system, nothing offers DOCK -- LOCAL's bar, the station's
 ## side on LOCAL, the map's DOCK card (greyed, with the way to it on it) and its
 ## beacon, the fuel hint, `show_station` itself. Flown back to the station, DOCK
-## again, and pressed it docks; flown off to the world from the berth, the ship
-## undocks first (`cast_off`) and LOCAL there has no berth and no DOCK.
+## again, and pressed it docks; from the berth the map's FLY HERE to the world
+## is refused (UNDOCK is the only way out, Jon, Oct 27), and after UNDOCK the
+## flight there leaves LOCAL with no berth and no DOCK.
 func _only_at_station() -> void:
 	if _only != "" and _only != "dockplace":
 		return
@@ -478,16 +635,35 @@ func _only_at_station() -> void:
 	await _frames(10)
 	_ok("dockplace: DOCK docks (on %s, docked %s)" % [Router.current.get_script().get_global_name(), Router.docked],
 		Router.current is StationScreen and Router.docked)
-	# docked, the map, and away to the world: undocked first
+	# docked, the map is a view: away to the world refused, back in by the tab
 	await _tab()
 	m = Router.current as SystemMapScreen
 	if _ok("dockplace: Tab from the berth to the map", m != null):
-		_ok("dockplace: flown from the berth to the world", await _fly(world))
-		_ok("dockplace: undocked as it left (docked %s, tab %s)" % [Router.docked, Router.hud._tab_sector.text],
-			not Router.docked and Router.hud._tab_sector.text == "LOCAL")
-		await _map_dock("dockplace: at the world after the berth", m, false)
+		for i in 300:
+			if m.flight.can_fly():
+				break
+			await _tree.process_frame
+		var at0: int = m.flight.reached()
+		m.fly_to_body(world)
+		await _frames(30)
+		_ok("dockplace: from the berth, FLY HERE to the world refused (docked %s, at %d, was %d)" % [Router.docked, m.flight.reached(), at0],
+			Router.docked and m.flight.reached() == at0)
 	await _here_tab()
-	await _no_dock("dockplace: LOCAL at the world after the berth")
+	_ok("dockplace: the HUD's STATION goes back in (on %s, docked %s)" % [_name_of(Router.current), Router.docked],
+		Router.current is StationScreen and Router.docked)
+	# UNDOCK, then the world: no berth and no DOCK there
+	Router.show_sector()
+	await _idle()
+	_ok("dockplace: UNDOCK lands on LOCAL again", Router.current is SectorScreen and not Router.docked)
+	await _tab()
+	m = Router.current as SystemMapScreen
+	if _ok("dockplace: Tab from LOCAL to the map", m != null):
+		_ok("dockplace: flown after UNDOCK to the world", await _fly(world))
+		_ok("dockplace: flying, the tab reads LOCAL (docked %s, tab %s)" % [Router.docked, Router.hud._tab_sector.text],
+			not Router.docked and Router.hud._tab_sector.text == "LOCAL")
+		await _map_dock("dockplace: at the world after UNDOCK", m, false)
+	await _here_tab()
+	await _no_dock("dockplace: LOCAL at the world after UNDOCK")
 	_clean("dockplace", await _local())
 
 
@@ -586,6 +762,18 @@ func _jump_target(with_event: bool) -> int:
 	return best
 
 
+## Any open event of the galaxy, by its id, wherever it stands.
+func _any_event() -> StringName:
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		if n.type != MapGen.NodeType.SYSTEM:
+			continue
+		var k := _an_event(n)
+		if k >= 0:
+			return n.options[k]
+	return &""
+
+
 func _an_event(n: MapGen.MapNode) -> int:
 	OptionTable.ensure(n)
 	for i in n.options.size():
@@ -620,6 +808,7 @@ func _run() -> void:
 	var pl := _places()
 	print("station %d: its body %d, a world %d, a belt %d" % [_st, _station_body(), pl.world, pl.belt])
 	_want = {"world_hud": pl.world, "world_tab": pl.world, "star_hud": -1, "belt_hud": pl.belt, "open_tab": -9}
+	await _berth_shut(int(pl.world))
 	await _only_at_station()
 	await _route("world_hud", _map_trip(int(pl.world), "hud"))
 	await _route("world_tab", _map_trip(int(pl.world), "tab"))
@@ -627,7 +816,6 @@ func _run() -> void:
 	if int(pl.belt) >= 0:
 		await _route("belt_hud", _map_trip(int(pl.belt), "hud"))
 	await _route("open_tab", _map_trip(-3, "tab"))
-	await _held(int(pl.world))
 	await _route("jump", _jump_trip(false))
 	await _route("jump_go", _jump_trip(true))
 	_end()

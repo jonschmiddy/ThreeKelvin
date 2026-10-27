@@ -2332,8 +2332,25 @@ func _run() -> void:
 			Router.show_station()
 			await _idle()
 			await _go("the map from the berth (two distances)", Router.show_system, SystemMapScreen)
-			# THE MAP'S DOCK ON THE LADDER (3B): down to LOCAL by the station's side,
-			# and on into the hangar, one call
+			# DOCKED, THE MAP IS A VIEW (Jon, Oct 27: UNDOCK is the only way out):
+			# back in by the berth's own two-distance move, never by LOCAL, and
+			# docked throughout. It went down to LOCAL, undocking, and docked again
+			var by_local := false
+			Router.show_station()
+			for i in 900:
+				await _tree.process_frame
+				if Router.current is SectorScreen or not Router.docked:
+					by_local = true
+				if Router.current is StationScreen and not ZoomLadder.busy() and ZoomLadder.chain == &"":
+					break
+			_ok("the map from the berth goes back in without LOCAL, docked throughout",
+				not by_local and Router.current is StationScreen and Router.docked)
+			_clean("back in from the map")
+			# THE MAP'S DOCK ON THE LADDER (3B), the map reached after UNDOCK: down
+			# to LOCAL by the station's side, and on into the hangar, one call
+			Router.show_sector()
+			await _idle()
+			await _go("the map from LOCAL beside the station", Router.show_system, SystemMapScreen)
 			Router.show_station()
 			Audio.taping = true
 			Audio.tape.clear()
