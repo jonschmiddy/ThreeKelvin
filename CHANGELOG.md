@@ -11,6 +11,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
+- **Added** — FRAME CAP has a 30 setting, and Settings has a VSYNC row under it, ON by default.
+  A 30 cap gives a slow machine steadier frames and uses less power. VSYNC can only be off with
+  a cap: picking OFF with FRAME CAP at NONE sets the cap to 60, and setting the cap back to NONE
+  turns VSYNC on again. Both are opt-in. The defaults are unchanged, and older settings files
+  load with VSYNC ON and their own cap.
+
 ## 2026-10-23
 
 ### [0.4.2-alpha.1]

@@ -60,6 +60,10 @@ func run(tree: SceneTree) -> void:
 			await _style_case()
 			print("graphics LOW")
 			await _graphics_case()
+			print("FRAME CAP and VSYNC")
+			await _pacing_case()
+			print("FRAME CAP and VSYNC fit the escape drawer")
+			await _pacing_fit_case()
 			print("TUTORIAL ON / OFF")
 			await _tutorial_case()
 			print("SAVE MY LOGS")
@@ -237,6 +241,257 @@ func _graphics_case() -> void:
 	ChartRadiant.fell_back = was_fell
 
 
+## FRAME CAP AND VSYNC (Jon, Oct 27, perf C3: "yes"). FRAME CAP offers NONE,
+## 30, 60 and 120; VSYNC is ON or OFF, and OFF only with a cap: OFF with the
+## cap at NONE sets it to 60, and NONE turns VSYNC back on. Every value reaches
+## `Engine.max_fps` and the window's V-Sync (`applied_vsync`, which is what was
+## handed to `window_set_vsync_mode`, and the window's own reading when there
+## is a window to ask). A file from before VSYNC loads ON with its cap and
+## leaves the window's V-Sync alone; one that says OFF with no cap loads ON.
+## Pressed through the real chips, in a scratch settings file, never the
+## player's.
+func _pacing_case() -> void:
+	const SCRATCH := "user://pacingtest_settings.cfg"
+	var was_path := DisplaySettings.path
+	DisplaySettings.path = SCRATCH
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
+	var windowed := DisplayServer.get_name() != "headless"
+	_ok("  FRAME CAP's steps are NONE, 30, 60 and 120 (%s)" % [DisplaySettings.FRAME_CAPS],
+		str(DisplaySettings.FRAME_CAPS) == "[0, 30, 60, 120]")
+	# a settings file from before VSYNC (and before 30): no vsync key
+	var old := ConfigFile.new()
+	old.set_value("display", "mode", int(DisplaySettings.mode))
+	old.set_value("display", "window_scale", DisplaySettings.window_scale)
+	old.save(SCRATCH)
+	DisplaySettings.load_and_apply()
+	_ok("  an old file with neither key: no cap, VSYNC ON (max_fps %d)" % Engine.max_fps,
+		DisplaySettings.frame_cap == 0 and Engine.max_fps == 0 and DisplaySettings.vsync)
+	_ok("  and the window's V-Sync is left as Godot opened it (applied %d)" % DisplaySettings.applied_vsync,
+		DisplaySettings.applied_vsync == -1)
+	old.set_value("display", "frame_cap", 60)
+	old.save(SCRATCH)
+	DisplaySettings.load_and_apply()
+	_ok("  an old file capped at 60: 60 and VSYNC ON", DisplaySettings.frame_cap == 60
+		and Engine.max_fps == 60 and DisplaySettings.vsync and DisplaySettings.applied_vsync == -1)
+	DisplaySettings.set_frame_cap(0)
+
+	var panel := SettingsPanel.new()
+	_tree.root.add_child(panel)
+	panel.build()
+	await _tree.process_frame
+	var cap := _row_plates(panel, "FRAME CAP")
+	var vs := _row_plates(panel, "VSYNC")
+	_ok("  FRAME CAP's chips: %s, NONE picked" % _titles(cap),
+		_titles(cap) == "NONE 30 60 120" and _picked(cap) == "NONE")
+	_ok("  VSYNC's chips: %s, ON picked" % _titles(vs), _titles(vs) == "ON OFF" and _picked(vs) == "ON")
+	var tipped := cap.all(func(p: DrawerPlate) -> bool: return p.tooltip_text != "") \
+		and vs.all(func(p: DrawerPlate) -> bool: return p.tooltip_text != "")
+	_ok("  every chip in both rows says what it does", tipped and not cap.is_empty() and not vs.is_empty())
+	if vs.size() == 2 and cap.size() == 4:
+		var off_tip := (vs[1] as DrawerPlate).tooltip_text.replace("\n", " ")
+		var none_tip := (cap[0] as DrawerPlate).tooltip_text.replace("\n", " ")
+		_ok("  VSYNC OFF's says it needs a cap, what NONE does to it, and has no dash",
+			off_tip.contains("FRAME CAP at NONE") and off_tip.contains("60")
+			and off_tip.contains("back to NONE turns VSYNC on") and not off_tip.contains(" -"))
+		_ok("  FRAME CAP NONE's says it turns VSYNC back on", none_tip.contains("turns VSYNC back on"))
+
+	# 30, with VSYNC ON
+	await _press_chip(panel, "FRAME CAP", "30")
+	_ok("  pressing 30 caps at 30 (max_fps %d), VSYNC stays ON" % Engine.max_fps,
+		DisplaySettings.frame_cap == 30 and Engine.max_fps == 30 and DisplaySettings.vsync)
+	_ok("  and keeps it", _saved(SCRATCH, "frame_cap", -1) == 30)
+	# OFF, with a cap already set: the cap stays
+	await _press_chip(panel, "VSYNC", "OFF")
+	_ok("  VSYNC OFF at 30: OFF, the cap stays 30", not DisplaySettings.vsync
+		and DisplaySettings.frame_cap == 30 and Engine.max_fps == 30)
+	_ok("  and the window is told: V-Sync disabled (applied %d)" % DisplaySettings.applied_vsync,
+		DisplaySettings.applied_vsync == DisplayServer.VSYNC_DISABLED)
+	if windowed:
+		_ok("  the window reads it back (%d)" % DisplayServer.window_get_vsync_mode(),
+			DisplayServer.window_get_vsync_mode() == DisplayServer.VSYNC_DISABLED)
+	_ok("  and keeps it", _saved(SCRATCH, "vsync", true) == false)
+	# NONE while OFF: VSYNC comes back on
+	await _press_chip(panel, "FRAME CAP", "NONE")
+	_ok("  FRAME CAP NONE while VSYNC is OFF: no cap, VSYNC back ON",
+		DisplaySettings.frame_cap == 0 and Engine.max_fps == 0 and DisplaySettings.vsync)
+	_ok("  and the window is told: V-Sync enabled (applied %d)" % DisplaySettings.applied_vsync,
+		DisplaySettings.applied_vsync == DisplayServer.VSYNC_ENABLED)
+	if windowed:
+		_ok("  the window reads it back (%d)" % DisplayServer.window_get_vsync_mode(),
+			DisplayServer.window_get_vsync_mode() == DisplayServer.VSYNC_ENABLED)
+	_ok("  and the row shows ON", _picked(_row_plates(panel, "VSYNC")) == "ON")
+	_ok("  both kept", _saved(SCRATCH, "frame_cap", -1) == 0 and _saved(SCRATCH, "vsync", false) == true)
+	# OFF with no cap: the cap goes to 60
+	await _press_chip(panel, "VSYNC", "OFF")
+	_ok("  VSYNC OFF with no cap: OFF, and capped at 60 (max_fps %d)" % Engine.max_fps,
+		not DisplaySettings.vsync and DisplaySettings.frame_cap == 60 and Engine.max_fps == 60)
+	_ok("  the window is told (applied %d)" % DisplaySettings.applied_vsync,
+		DisplaySettings.applied_vsync == DisplayServer.VSYNC_DISABLED)
+	_ok("  and FRAME CAP shows 60, VSYNC OFF",
+		_picked(_row_plates(panel, "FRAME CAP")) == "60" and _picked(_row_plates(panel, "VSYNC")) == "OFF")
+	_ok("  both kept", _saved(SCRATCH, "frame_cap", -1) == 60 and _saved(SCRATCH, "vsync", true) == false)
+	# read back, from a cold start of the values
+	DisplaySettings.vsync = true
+	DisplaySettings.frame_cap = 0
+	Engine.max_fps = 0
+	DisplaySettings.load_and_apply()
+	_ok("  read back: OFF at 60, max_fps %d, the window told (applied %d)" % [Engine.max_fps, DisplaySettings.applied_vsync],
+		not DisplaySettings.vsync and DisplaySettings.frame_cap == 60 and Engine.max_fps == 60
+		and DisplaySettings.applied_vsync == DisplayServer.VSYNC_DISABLED)
+	# a file that says OFF with no cap is never unlimited
+	var bad := ConfigFile.new()
+	bad.load(SCRATCH)
+	bad.set_value("display", "frame_cap", 0)
+	bad.set_value("display", "vsync", false)
+	bad.save(SCRATCH)
+	DisplaySettings.load_and_apply()
+	_ok("  a file saying OFF with no cap loads ON, and the window gets V-Sync back (applied %d)" % DisplaySettings.applied_vsync,
+		DisplaySettings.vsync and DisplaySettings.frame_cap == 0 and Engine.max_fps == 0
+		and DisplaySettings.applied_vsync == DisplayServer.VSYNC_ENABLED)
+	# OFF at 120, then ON: the cap is the player's and stays
+	panel._refresh()
+	await _press_chip(panel, "FRAME CAP", "120")
+	await _press_chip(panel, "VSYNC", "OFF")
+	_ok("  VSYNC OFF at 120 keeps 120", not DisplaySettings.vsync and DisplaySettings.frame_cap == 120 and Engine.max_fps == 120)
+	await _press_chip(panel, "VSYNC", "ON")
+	_ok("  VSYNC ON again keeps 120 too", DisplaySettings.vsync and DisplaySettings.frame_cap == 120
+		and Engine.max_fps == 120 and DisplaySettings.applied_vsync == DisplayServer.VSYNC_ENABLED)
+	panel.queue_free()
+	await _tree.process_frame
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
+	DisplaySettings.path = was_path
+	DisplaySettings.load_and_apply()
+	_ok("  back on the harness's own settings: no cap, VSYNC ON", DisplaySettings.frame_cap == 0
+		and Engine.max_fps == 0 and DisplaySettings.vsync)
+	await _tree.process_frame
+
+
+## THE TWO ROWS FIT, in the escape drawer as it opens over the ship at
+## 960x540: the drawer keeps its width, every chip and label sits inside the
+## settings column and on screen, nothing in either row touches anything else
+## (each other, the rows above and below, the next section), and each chip's
+## word fits its chip.
+func _pacing_fit_case() -> void:
+	await _press(KEY_ESCAPE)
+	await _secs(0.4)
+	var menu: PauseMenu = _main.get("_menu")
+	if not _ok("  Escape opens the menu", menu != null):
+		return
+	_plate(menu, "SETTINGS").pressed.emit()
+	await _secs(0.4)
+	var panel := menu._settings as SettingsPanel
+	if _ok("  and Settings", panel != null):
+		panel.show_section(&"motion")
+		await _secs(0.1)
+		var screen := Rect2(Vector2.ZERO, Vector2(960, 540))
+		# (the menu sits in the game's own view, GameShell's 960x540, not
+		# the headless window's 64 px square)
+		print("  the menu's view: %s" % menu.get_viewport().get_visible_rect())
+		var drawer := menu._drawer.get_global_rect()
+		var least := menu._drawer.get_combined_minimum_size().x
+		_ok("  the drawer is still %d px wide (%s; its contents need %.0f)" % [int(PauseMenu.DRAWER_W), drawer, least],
+			is_equal_approx(drawer.size.x, PauseMenu.DRAWER_W) and least <= PauseMenu.DRAWER_W)
+		var column := panel._body.get_global_rect()
+		var shown := panel._scroll.get_global_rect()
+		_ok("  the settings column stays inside the scroll (%s in %s)" % [column, shown],
+			column.end.x <= shown.end.x + 0.5 and column.position.x >= shown.position.x - 0.5)
+		# every box in MOTION and the head after it, with its name
+		var boxes: Array = []
+		var inside := false
+		for c: Node in panel._body.get_children():
+			if c is SettingsPanel.Section:
+				if inside:
+					boxes.append(["section " + (c as SettingsPanel.Section).text, (c as Control).get_global_rect()])
+					break
+				inside = (c as SettingsPanel.Section).id == &"motion"
+				continue
+			if inside:
+				for k in (c as Node).find_children("*", "Control", true, false):
+					if k is Label:
+						boxes.append(["label " + (k as Label).text, (k as Control).get_global_rect()])
+					elif k is DrawerPlate:
+						boxes.append(["chip " + (k as DrawerPlate).title + " of " + _row_name(k), (k as Control).get_global_rect()])
+		var ours := boxes.filter(func(b: Array) -> bool:
+			return String(b[0]).ends_with("FRAME CAP") or String(b[0]).ends_with("VSYNC"))
+		_ok("  found FRAME CAP's 5 boxes and VSYNC's 3 (%d)" % ours.size(), ours.size() == 8)
+		var hits: Array = []
+		var outside: Array = []
+		for o: Array in ours:
+			var r: Rect2 = o[1]
+			if not (r.size.x > 0.0 and r.size.y > 0.0 and column.grow(0.5).encloses(r)
+					and shown.grow(0.5).encloses(r) and screen.encloses(r)):
+				outside.append("%s %s" % [o[0], r])
+			for b: Array in boxes:
+				if b[0] != o[0] and r.intersects(b[1] as Rect2):
+					hits.append("%s / %s" % [o[0], b[0]])
+		_ok("  each inside the column, the scroll's view and the 960x540 screen%s"
+			% ("" if outside.is_empty() else ": " + ", ".join(outside)), outside.is_empty() and not ours.is_empty())
+		_ok("  and touching nothing (%d boxes checked)%s" % [boxes.size(),
+			"" if hits.is_empty() else ": " + ", ".join(hits.slice(0, 6))], hits.is_empty())
+		var tight: Array = []
+		for name: String in ["FRAME CAP", "VSYNC"]:
+			for p: DrawerPlate in _row_plates(panel, name):
+				var font := p.get_theme_font("font", "Label")
+				var tw := font.get_string_size(p.title, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+				if tw + 4.0 > p.size.x:
+					tight.append("%s %.0f in %.0f" % [p.title, tw, p.size.x])
+		_ok("  each chip's word fits its chip%s" % ("" if tight.is_empty() else ": " + ", ".join(tight)), tight.is_empty())
+	await _press(KEY_ESCAPE)
+	await _secs(0.3)
+	await _press(KEY_ESCAPE)
+	await _secs(0.5)
+	_ok("  and the menu shuts again", _main.get("_menu") == null and _pause_menus() == 0)
+
+
+## The chips of the row named `label` in `panel`, in order.
+func _row_plates(panel: Node, label: String) -> Array:
+	var lab := first(panel, func(n: Node) -> bool:
+		return n is Label and (n as Label).text == label)
+	if lab == null:
+		return []
+	var out: Array = []
+	for n in lab.get_parent().find_children("*", "DrawerPlate", true, false):
+		out.append(n)
+	return out
+
+
+## The name of the `_row_chips` row a chip sits in (its label's text).
+func _row_name(chip: Node) -> String:
+	var row := chip.get_parent().get_parent() if chip.get_parent() != null else null
+	if row != null and row.get_child_count() > 0 and row.get_child(0) is Label:
+		return (row.get_child(0) as Label).text
+	return "?"
+
+
+func _titles(plates: Array) -> String:
+	return " ".join(PackedStringArray(plates.map(func(p: DrawerPlate) -> String: return p.title)))
+
+
+## The lit chip's word, or "" if none is lit.
+func _picked(plates: Array) -> String:
+	for p: DrawerPlate in plates:
+		if p.lead:
+			return p.title
+	return ""
+
+
+## Press the chip `title` in the row `label`, as a click does, and let the
+## panel rebuild.
+func _press_chip(panel: Node, label: String, title: String) -> void:
+	for p: DrawerPlate in _row_plates(panel, label):
+		if p.title == title:
+			p.pressed.emit()
+			break
+	await _tree.process_frame
+
+
+func _saved(file: String, key: String, fallback: Variant) -> Variant:
+	var cfg := ConfigFile.new()
+	if cfg.load(file) != OK:
+		return fallback
+	return cfg.get_value("display", key, fallback)
+
+
 ## TUTORIAL ON / OFF (Jon, Oct 20: "Have a setting in the options for tutorial
 ## on or tutorial off"): the row is in Settings' HINTS with ON picked on a fresh
 ## file, OFF is kept and read back (written to a scratch settings file, never
@@ -398,9 +653,9 @@ func _first_window_case() -> void:
 ## timings and the station lights -- were built there under `DevMode.enabled`
 ## until Jon had them out, Oct 19; what he had them on is `ZoomLadder`'s
 ## constants. So the section, built with dev mode on, names exactly ANIMATION,
-## CLICK TO SKIP JUMP, SCREEN SHAKE and FRAME CAP; and a settings file still
+## CLICK TO SKIP JUMP, SCREEN SHAKE, FRAME CAP and VSYNC (Oct 27); and a settings file still
 ## holding the old `[flow]` keys loads without a word and moves nothing.
-const PLAYER_MOTION := ["ANIMATION", "CLICK TO SKIP JUMP", "SCREEN SHAKE", "FRAME CAP"]
+const PLAYER_MOTION := ["ANIMATION", "CLICK TO SKIP JUMP", "SCREEN SHAKE", "FRAME CAP", "VSYNC"]
 const GONE_ROWS := ["ONE CAMERA", "CHART - MAP", "MAP - LOCAL", "LOCAL - STATION",
 	"3B INTO THE YARD", "MOVE TIMINGS", "STATION LIGHTS", "TIMINGS", "UI LEAVES",
 	"UI ARRIVES", "TWO AT ONCE", "DOCK: THE STATION WAKES", "HANDOFF DISC SIZE (PX)",

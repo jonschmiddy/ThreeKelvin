@@ -83,6 +83,27 @@ static var reduced_motion: bool = false
 static var skip_jump: bool = false
 ## 0 is uncapped. The game is turn-based; a laptop should not run its fan for it.
 static var frame_cap: int = 0
+## FRAME CAP's chips, in Settings' order. 30 joined NONE, 60 and 120 on Jon's
+## call (Oct 27, perf C3): on a slow machine whose frames take 20 to 33 ms,
+## V-Sync shows them at a jumpy mix of 60 and 30, and a 30 cap paces them
+## evenly and saves power. Opt-in; NONE stays the default.
+const FRAME_CAPS: Array[int] = [0, 30, 60, 120]
+## The cap VSYNC OFF brings with it when FRAME CAP is NONE.
+const VSYNC_OFF_CAP := 60
+## V-SYNC, ON by default (Godot's own, and project.godot never changes it).
+## OFF ONLY WITH A CAP (Jon, Oct 27, C3): with V-Sync off and no cap the game
+## draws as fast as it can, which on a turn-based screen is just heat. So OFF
+## with FRAME CAP at NONE sets the cap to `VSYNC_OFF_CAP`, and FRAME CAP set to
+## NONE turns V-Sync back on (`set_vsync`, `set_frame_cap`; a file that says
+## otherwise loads with V-Sync on). The window modes are left as they were:
+## FULLSCREEN is still exclusive, on Windows too.
+static var vsync: bool = true
+## The V-Sync mode this game last gave the window (`DisplayServer.VSYNC_*`),
+## or -1 if it never set one: then the window keeps what Godot opened it
+## with, so `--disable-vsync` and a bench's own VSYNC_DISABLED still hold
+## under a harness, whose scratch settings always say ON. Also what a
+## headless test reads, since a headless window has no V-Sync to ask.
+static var applied_vsync: int = -1
 
 ## HOW THE STAR CHART AND THE SECTOR MAP ARE RENDERED. Four styles, in the
 ## order Settings lists them (Jon, 2026-10-05, after the "Rendered Again"
@@ -250,10 +271,30 @@ static func set_reduced_motion(on: bool) -> void:
 	reduced_motion = on
 	save()
 
+## FRAME CAP from Settings. NONE while V-Sync is off turns V-Sync back on:
+## off is only ever allowed with a cap.
 static func set_frame_cap(fps: int) -> void:
-	frame_cap = fps
-	Engine.max_fps = fps
+	frame_cap = maxi(fps, 0)
+	Engine.max_fps = frame_cap
+	if frame_cap == 0 and not vsync:
+		vsync = true
+		_apply_vsync()
 	save()
+
+## VSYNC from Settings. OFF with FRAME CAP at NONE also sets the cap to
+## `VSYNC_OFF_CAP`, so the game is never left drawing unlimited.
+static func set_vsync(on: bool) -> void:
+	vsync = on
+	if not on and frame_cap == 0:
+		frame_cap = VSYNC_OFF_CAP
+		Engine.max_fps = frame_cap
+	_apply_vsync()
+	save()
+
+## Hand `vsync` to the window, and note it in `applied_vsync`.
+static func _apply_vsync() -> void:
+	applied_vsync = DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED
+	DisplayServer.window_set_vsync_mode(applied_vsync as DisplayServer.VSyncMode)
 
 static func set_screen_shake(on: bool) -> void:
 	screen_shake = on
@@ -372,6 +413,7 @@ static func save() -> void:
 	cfg.set_value("display", "reduced_motion", reduced_motion)
 	cfg.set_value("display", "skip_jump", skip_jump)
 	cfg.set_value("display", "frame_cap", frame_cap)
+	cfg.set_value("display", "vsync", vsync)
 	cfg.set_value("display", "render_style", String(_file_style if _harness_style else render_style))
 	cfg.set_value("display", "graphics_low", _file_low if _harness_low else graphics_low)
 	cfg.save(path)
@@ -416,12 +458,19 @@ static func load_and_apply() -> void:
 	screen_look = cfg.get_value("display", "screen_look", int(Look.CRT_GENTLE)) as Look
 	reduced_motion = bool(cfg.get_value("display", "reduced_motion", false))
 	skip_jump = bool(cfg.get_value("display", "skip_jump", false))
-	frame_cap = int(cfg.get_value("display", "frame_cap", 0))
+	frame_cap = maxi(int(cfg.get_value("display", "frame_cap", 0)), 0)
+	# A file from before VSYNC has no key: ON, as it always was. OFF with no
+	# cap is never kept: V-Sync comes back on.
+	vsync = bool(cfg.get_value("display", "vsync", true)) or frame_cap == 0
 	render_style = style_in(cfg)
 	graphics_low = bool(cfg.get_value("display", "graphics_low", false))
 	_file_style = render_style
 	_file_low = graphics_low
 	Engine.max_fps = frame_cap
+	# ON is what the window already has, so it is only handed over when it
+	# changes something: OFF, or ON again after this game turned it off.
+	if not vsync or applied_vsync == DisplayServer.VSYNC_DISABLED:
+		_apply_vsync()
 	# `-- style=painted` / `-- graphics=low`: a harness's shot in that style or at
 	# that setting, in memory only (nothing is saved). A style that is not built
 	# draws as LEGACY, and says so.

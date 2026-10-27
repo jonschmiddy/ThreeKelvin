@@ -370,12 +370,28 @@ func _page_motion() -> void:
 		func(i: int) -> void:
 			DisplaySettings.set_screen_shake(i == 0)
 			_refresh()))
-	var caps := [0, 60, 120]
-	_body.add_child(_row_chips("FRAME CAP", ["NONE", "60", "120"],
+	# FRAME CAP AND VSYNC, side by side because each can move the other: VSYNC
+	# is only OFF with a cap (Jon, Oct 27). Both chips say so.
+	var caps := DisplaySettings.FRAME_CAPS
+	var cap_tips := {
+		0: "No cap. Picking NONE also turns VSYNC back on, since VSYNC can only be off with a cap.",
+		30: "At most 30 frames a second. Steadier on a slow machine, and easier on the battery.",
+	}
+	_body.add_child(_row_chips("FRAME CAP",
+		caps.map(func(c: int) -> String: return "NONE" if c == 0 else str(c)),
 		maxi(caps.find(DisplaySettings.frame_cap), 0),
 		func(i: int) -> void:
 			DisplaySettings.set_frame_cap(caps[i])
-			_refresh()))
+			_refresh(),
+		caps.map(func(c: int) -> String: return cap_tips.get(c, "At most %d frames a second." % c)),
+		40.0))
+	_body.add_child(_row_chips("VSYNC", ["ON", "OFF"],
+		0 if DisplaySettings.vsync else 1,
+		func(i: int) -> void:
+			DisplaySettings.set_vsync(i == 0)
+			_refresh(),
+		["Each frame waits for the screen, so the picture never tears.",
+			"Frames go out as soon as they are drawn, and the picture can tear. OFF needs a frame cap: with FRAME CAP at NONE, OFF sets it to %d. Setting FRAME CAP back to NONE turns VSYNC on again." % DisplaySettings.VSYNC_OFF_CAP]))
 	# (THE ZOOM LADDER'S DEV ROWS -- ONE CAMERA, each seam's design, 3B into
 	# the yard, the move timings and the station lights -- were here in dev mode.
 	# Jon, Oct 19: remove them, even in dev mode. What he had set ships as
@@ -395,8 +411,12 @@ func _page_sound() -> void:
 		_body.add_child(_gap(3))
 
 ## A name on the left and its choices on the right, for the settings whose
-## options are short enough to sit beside their label.
-func _row_chips(key: String, names: Array, picked: int, on_pick: Callable) -> Control:
+## options are short enough to sit beside their label. `tips`, if given, is
+## each chip's tooltip, in the same order as `names`. `slot` is each chip's
+## share of the row: 46 px, but four at 46 next to FRAME CAP made the row 243
+## px wide and pushed the escape drawer 9 px past its 290 (`-- menutest` boxes
+## it), so that row's four take 40 each.
+func _row_chips(key: String, names: Array, picked: int, on_pick: Callable, tips: Array = [], slot: float = 46.0) -> Control:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 8)
 	var k := UITheme.body(key, UITheme.COLD, UITheme.FS_SMALL)
@@ -404,11 +424,13 @@ func _row_chips(key: String, names: Array, picked: int, on_pick: Callable) -> Co
 	k.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(k)
 	var row := _chips()
-	row.custom_minimum_size = Vector2(46.0 * names.size(), 0)
+	row.custom_minimum_size = Vector2(slot * names.size(), 0)
 	row.size_flags_horizontal = Control.SIZE_SHRINK_END
 	for i in names.size():
-		row.add_child(DrawerPlate.chip_for(String(names[i]), i == picked,
-			on_pick.bind(i)))
+		var chip := DrawerPlate.chip_for(String(names[i]), i == picked, on_pick.bind(i))
+		if i < tips.size():
+			chip.tooltip_text = Widgets.tip(String(tips[i]))
+		row.add_child(chip)
 	h.add_child(row)
 	return h
 
