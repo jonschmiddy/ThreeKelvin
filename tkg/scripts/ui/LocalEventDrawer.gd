@@ -727,7 +727,7 @@ func _result() -> void:
 	head.add_child(band)
 	head.name = "Head"
 	_box.add_child(head)
-	var chose := "YOU CHOSE: " + String((choices[choice] as Dictionary).get("label", "")).to_upper() \
+	var chose := "YOU CHOSE: " + OptionTable.label_of(choices[choice], node).to_upper() \
 		if choice >= 0 and choice < choices.size() else ""
 	if out.get("checked", false):
 		chose += " · " + String(out.get("odds", ""))

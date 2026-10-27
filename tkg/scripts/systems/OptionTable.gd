@@ -31,7 +31,7 @@ class_name OptionTable
 ##     group = &"wreck",                # &"" is independent
 ##     weight = 11,
 ##     regions = [MapGen.Region.LAWLESS], min_danger = 2,   # gating, all ANDed
-##     choices = [ {label, check?, stay?, effect|met/clean/partial/botched}, ... ],
+##     choices = [ {label, label_at?, check?, stay?, effect|met/clean/partial/botched}, ... ],
 ##     subject = {stage = &"tether", pieces = [&"...tank_1"], count = 6},   # optional
 ## }
 ## ```
@@ -230,6 +230,44 @@ static func admits(o: Dictionary, n: MapGen.MapNode) -> bool:
 	if o.has("berth") and not n.berths.has(StringName(o.berth)):
 		return false
 	return true
+
+
+## THE WORDS A CHOICE SHOWS AT SYSTEM `n`: its card, and YOU CHOSE on the
+## result. Almost always the `label` as written. A choice whose words name
+## something rolled at the system carries `label_at`, a function of the node,
+## and that is what prints; `label` stays the plain words for the tools that
+## read this file (`encounter_lint.py`, the prose tools, the dumps).
+static func label_of(c: Dictionary, n: MapGen.MapNode) -> String:
+	var f: Callable = c.get("label_at", Callable())
+	if f.is_valid() and n != null:
+		return String(f.call(n))
+	return String(c.get("label", ""))
+
+
+## THE DERELICT HAULER'S FRAME, rolled where it lies.
+##
+## It was rolled off the loot stream when you claimed it, so the choice could
+## not say what it was. Jeremy (friends' alpha) flew a heavy ship, claimed the
+## hull, got a light frame he did not want, and had given up "Strip it for
+## scrap" for it. Rolled from the system instead (`Rng.derive`), it is the same
+## frame on every visit and for every ship in a party, nothing else moves it,
+## and the label can name its weight before you choose (`derelict_hauler`).
+static func derelict_frame(n: MapGen.MapNode) -> HullData:
+	var at := -1 if n == null else n.index
+	var danger := 1 if n == null else n.danger
+	return LootGen.roll_hull(danger, Rng.derive(&"derelict_hull", at))
+
+
+## WHAT STRIPPING THE DERELICT PAYS HERE: `purse(base)` credits and the one
+## `wreck` material `pay` would roll for the strip at this system (the same
+## generator, `Rng.derive(&"material")`, and the same danger). The claimed frame
+## carries it (`Run.find_hull`), so a frame you do not fly cuts up for what the
+## strip would have paid, and the claim never costs you the strip.
+static func strip_pay(n: MapGen.MapNode, base: int) -> Dictionary:
+	var row: Dictionary = {}
+	if n != null:
+		row = MaterialTable.roll(&"wreck", n.danger, Rng.derive(&"material", n.index))
+	return {credits = purse(base), material = StringName(row.get("id", &""))}
 
 
 ## The creature a fight out of choice `c` of option `o` brings, or `&""` for a
@@ -1940,9 +1978,17 @@ static func _authored() -> Array[Dictionary]:
 			max_danger = 6,
 			min_danger = 2,
 			choices = [
-				{label = "Claim the hull", effect = func() -> Dictionary:
-					Run.find_hull(LootGen.roll_hull(Run.node_at().danger))
-					return {text = "The frame will fly. You prove it the slow way, with hours of passes and instrument work: %s." % Run.found_hull.display_name()}},
+				# THE FRAME IS NAMED BEFORE YOU CHOOSE (`derelict_frame`): its
+				# weight is on the card, and the frame claimed is the one named.
+				# It carries the strip's pay (`strip_pay`, the same 35 as the
+				# strip below), so a frame you do not fly still cuts up for it.
+				{label = "Claim the hull",
+					label_at = func(n: MapGen.MapNode) -> String:
+						return "Claim the %s frame" % HullData.weight_name(OptionTable.derelict_frame(n).weight).to_lower(),
+					effect = func() -> Dictionary:
+						var here: MapGen.MapNode = Run.node_at()
+						Run.find_hull(OptionTable.derelict_frame(here), OptionTable.strip_pay(here, 35))
+						return {text = "The frame will fly. You prove it the slow way, with hours of passes and instrument work: %s." % Run.found_hull.display_name()}},
 				{label = "Strip it for scrap", effect = func() -> Dictionary:
 					Run.add_credits(OptionTable.purse(35))
 					return {text = "Your cutter takes off plating and wire worth selling. You leave the frame a little more gutted than you found it.", material = &"wreck"}},

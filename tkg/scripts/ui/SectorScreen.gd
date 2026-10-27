@@ -2725,6 +2725,10 @@ func _on_salvage(action: String, thing: Variant) -> void:
 			return
 		"leave_hull":
 			Run.found_hull = null
+		"scrap_hull":
+			# The frame you did not fly, for what its strip paid (`Widgets.hull_row`).
+			Audio.act(&"module_scrap")
+			Run.scrap_found_hull()
 	_refresh()
 
 ## Hovering a card prices it against every enemy at once, so choosing a target

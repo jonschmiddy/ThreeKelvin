@@ -339,7 +339,9 @@ func _shed(it: HoldItem) -> void:
 	if Run.found_hull != null:
 		if Run.found_hull.max_hull > Run.max_hp() or Run.found_hull.tier > Run.hull.tier:
 			Run.transfer_to_hull(Run.found_hull)
-		else:
+		elif not Run.scrap_found_hull():
+			# Cut up when it carries a SCRAP (the derelict hauler's frame), as a
+			# player would; left when it does not.
 			Run.found_hull = null
 
 

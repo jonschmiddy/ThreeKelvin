@@ -396,7 +396,16 @@ static func hull_row(h: HullData, label: String, price: int,
 		take.disabled = Run.credits < price
 	buttons.add_child(take)
 	if price == 0:
-		buttons.add_child(_btn("LEAVE IT", on_action.bind("leave_hull", h)))
+		# A FRAME YOU GAVE THE STRIP UP FOR cuts up for what the strip paid
+		# (`Run.found_scrap`), in place of LEAVE IT, which would pay nothing.
+		var cut := Run.found_scrap_credits() if h == Run.found_hull else 0
+		if cut > 0:
+			var scrap := _btn("SCRAP +%d" % cut, on_action.bind("scrap_hull", h))
+			scrap.name = "ScrapHull"
+			scrap.tooltip_text = tip("Cuts it up for credits and one crate of scrap. The crate goes in SECTOR LOOT.")
+			buttons.add_child(scrap)
+		else:
+			buttons.add_child(_btn("LEAVE IT", on_action.bind("leave_hull", h)))
 	return panel
 
 static func _btn(text: String, action: Callable, click: bool = true) -> Button:

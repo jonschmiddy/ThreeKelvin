@@ -1257,6 +1257,9 @@ func on_hull(what: String, h: Variant) -> void:
 			return
 		"leave_hull":
 			Run.found_hull = null
+		"scrap_hull":
+			Audio.act(&"module_scrap")
+			Run.scrap_found_hull()
 	panel.show_system()
 
 

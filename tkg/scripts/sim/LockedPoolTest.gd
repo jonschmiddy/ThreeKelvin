@@ -10,7 +10,8 @@ extends Node
 ##     (`Combat.roll_wreck`, Territory space forcing its manufacturer included);
 ##   - every station's shelf and its yard hull (`StationScreen._stock_up`);
 ##   - a kill bag at every system (`Run.open_bag`), a derelict's hull and an
-##     event's hull (`LootGen.roll_hull` off the salvage stream), the relic
+##     event's hull (`LootGen.roll_hull` off the salvage stream), the derelict
+##     hauler's frame (`OptionTable.derelict_frame`, rolled where it lies), the relic
 ##     analysis and an event's floor part (`LootGen.roll_module`, both ways);
 ##   - the custodian's body at the core (`Combat.core_body`);
 ##   - every contract board's fetch item (`Contracts.board`).
@@ -167,6 +168,8 @@ func _roll_everything(seen: Dictionary, by_source: Dictionary, empty: Array[Stri
 				var r := Rng.derive(&"salvage", n.index)
 				for j in 3:
 					_count([LootGen.roll_hull(n.danger, r)], "derelict hulls", seen, by_source)
+				# The derelict hauler's frame, rolled where it lies.
+				_count([OptionTable.derelict_frame(n)], "derelict hauler frames", seen, by_source)
 				_count([LootGen.roll_module(n.danger)], "event floor parts", seen, by_source)
 				_count([LootGen.roll_module(n.danger, &"", true)], "relic analysis", seen, by_source)
 				# Territory space forcing each manufacturer in turn, which is the
