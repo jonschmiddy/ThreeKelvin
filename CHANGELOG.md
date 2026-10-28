@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Changed** — the chassis select shows each frame's real hull after its HULL pips, so a light
+  Korvan reads "4 29 hull". Geno read 4, 6 and 8 pips against 29, 40 and 57 hull as a mismatch.
+  The HULL tooltip no longer says a pip is exactly 7 hull. It says about 7, on the refit screen
+  and in the cutaway too. Then it does the sum on your own ship: "Your 29 hull rounds to 4 pips."
 - **Changed** — UNDOCK is the only way out of a station. While you are docked, LOCAL on the top
   bar is greyed out and says "Docked. Press UNDOCK to leave." The sector map and the star chart
   still open from the berth so you can look around, but FLY HERE, GO and JUMP read DOCKED and

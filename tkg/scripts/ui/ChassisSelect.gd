@@ -467,7 +467,10 @@ func _build_detail() -> void:
 	right.size_flags_horizontal = Control.SIZE_SHRINK_END
 	right.add_child(UITheme.body("ATTRIBUTES", UITheme.COLD, UITheme.FS_SMALL))
 	var block := AttrBlock.new()
-	block.setup(Run.attributes(), m.colour)
+	# WITH THE REAL HULL after HULL's pips, "4 29 hull" (ruling 12 C): the
+	# HUD's HULL 29/29 is at the top of the screen, too far from the pips to
+	# say what they were rounded from. See AttrBlock.setup.
+	block.setup(Run.attributes(), m.colour, true)
 	right.add_child(block)
 
 	# Hardpoints, in the same cells the refit screen uses. Slot pressure is the

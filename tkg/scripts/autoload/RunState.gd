@@ -2062,11 +2062,23 @@ func attributes() -> Array[Dictionary]:
 	out.assign([
 		{key = &"hull", label = ATTR_LABEL[&"hull"], short = ATTR_SHORT[&"hull"],
 			value = attr_hull(), base = attr_hull(true),
+			# THE HULL THE PIPS ARE ROUNDED FROM, for a block that prints it
+			# beside them (`AttrBlock.setup`'s `amounts`; ruling 12 C).
+			amount = "%d hull" % hp,
 			text = "Used for ramming, boarding and holding together under stress.",
 			# READS CURRENT HULL, not maximum, which is worth saying out loud:
 			# it is the one gauge that falls as you take damage, so a holed ship
 			# really does fail a check it would have passed intact.
-			effect = "A pip is 7 hull. This gauge reads CURRENT hull, so damage lowers it until you repair."},
+			#
+			# ABOUT 7, ROUNDED, AND THE SUM DONE ON YOUR OWN SHIP. It said "A
+			# pip is 7 hull", and Geno (friends' alpha) held that against
+			# Korvan's 29, 40 and 57 hull at 4, 6 and 8 pips: 6 x 7 is 42, not
+			# 40. The pips are hull over 7 rounded to the nearest, so the honest
+			# line says about 7 and then does the sum on the hull you have. The 7
+			# is HULL_REF over ATTR_MAX, not typed.
+			effect = "A pip is about %d hull. Your %d hull rounds to %d %s. This gauge reads CURRENT hull, so damage lowers it until you repair." % [
+				int(round(HULL_REF / ATTR_MAX)), hp, attr_hull(),
+				"pip" if attr_hull() == 1 else "pips"]},
 		{key = &"reactor", label = ATTR_LABEL[&"reactor"], short = ATTR_SHORT[&"reactor"],
 			value = attr_reactor(), base = attr_reactor(true),
 			text = "Energy to spend in a fight, and hardware the ship can run.",

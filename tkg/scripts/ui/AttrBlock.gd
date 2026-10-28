@@ -45,8 +45,12 @@ const LOSS := Color("#d4614f")
 
 var _rows: Array[Cells] = []
 var _values: Array[Label] = []
+## The readout after a row's number, by row index: only rows that carry an
+## `amount` (HULL, today) and only in a block set up with `amounts` on.
+var _amounts: Dictionary = {}
 var _accent: Color = UITheme.CHILL
 var _label_w: float = 0.0
+var _show_amounts := false
 
 ## Names are spelled out rather than abbreviated — HUL/THR/MNV is a code you
 ## have to learn, and seven rows leave room to just say what they are.
@@ -68,12 +72,31 @@ func _measure_labels(rows: Array[Dictionary]) -> float:
 ## colour, which is what makes a Solari attribute row read as Solari before you
 ## have read a word of it; the ship tab passes the hull's manufacturer for the same
 ## reason. Steel is the fallback for an unbranded frame.
-func setup(rows: Array[Dictionary], accent: Color = UITheme.CHILL) -> void:
+##
+## `amounts` prints a row's real quantity after its number: "29 hull" after
+## HULL's 4 (ruling 12 C, Jon, Oct 27). Geno read the chassis select's HULL as
+## 4, 6 and 8 pips against 29, 40 and 57 hull and took them for a mismatch;
+## the pips are that hull over 7, rounded, and the screen never said what they
+## were rounded FROM. The HUD's HULL 29/29 sat at the top of that screen the
+## whole time, a long way from the pips; the number has to be IN the row.
+##
+## ON ONLY WHERE THE COLUMN HAS THE WIDTH: the chassis select, where frames are
+## compared pip against pip and the question came up, has 264px for a row of
+## 230 (187 without it). The refit screen and the cutaway do not: STATS_W pins
+## the refit screen's hold at 220, 10 short, and the cutaway's panel is as wide
+## as its widest row, so a light's or a medium's (a hold 160 or 200 across)
+## would take 30px from the ship. The yard's slab already spends that width on
+## its change column. All of them get the honest tooltip, which does the sum
+## on the ship you have.
+func setup(rows: Array[Dictionary], accent: Color = UITheme.CHILL,
+		amounts: bool = false) -> void:
 	_accent = accent
+	_show_amounts = amounts
 	add_theme_constant_override("separation", 2)
 	Widgets.clear(self)
 	_rows.clear()
 	_values.clear()
+	_amounts.clear()
 	_label_w = _measure_labels(rows)
 	for a in rows:
 		add_child(_build_row(a))
@@ -111,6 +134,15 @@ func _build_row(a: Dictionary) -> Control:
 	num.custom_minimum_size = Vector2(9, 0)
 	row.add_child(num)
 	_values.append(num)
+
+	# THE REAL QUANTITY THE PIPS ARE ROUNDED FROM, where asked for (see setup).
+	# In the steel the column's other quantities wear ("6 cells", "8 slots"),
+	# so the bright number stays the one a check reads and this one reads as
+	# what it is made of.
+	if _show_amounts and a.has("amount"):
+		var amt := UITheme.body(String(a.amount), UITheme.CHILL, UITheme.FS_SMALL)
+		row.add_child(amt)
+		_amounts[_values.size() - 1] = amt
 
 	# AN OPTIONAL CHANGE COLUMN, for a block that is being read against another
 	# ship rather than on its own.
@@ -177,6 +209,8 @@ func set_values(rows: Array[Dictionary]) -> void:
 		_rows[i].base = int(rows[i].get("base", v))
 		_rows[i].queue_redraw()
 		_values[i].text = str(v)
+		if _amounts.has(i):
+			(_amounts[i] as Label).text = String(rows[i].get("amount", ""))
 
 
 class Cells extends Control:
