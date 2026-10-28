@@ -268,8 +268,11 @@ func _depth_rule(map: Array) -> void:
 			from_before += 1
 	_ok("the core is flown to from every system of the last ring (%d of %d)"
 		% [from_last, last_ring], last_ring > 0 and from_last == last_ring)
+	# SECOND_NEAR > 0, or the line passes on nothing: a galaxy with no system of
+	# that ring in reach of the core asks none of it.
 	_ok("from the ring before it when in reach (%d of %d in reach), and never from further out or out of reach (%d)"
-		% [from_second, second_near, from_before], from_before == 0 and from_second == second_near)
+		% [from_second, second_near, from_before],
+		second_near > 0 and from_before == 0 and from_second == second_near)
 
 
 ## THE CHART SAYS THE SAME RULE (`StarchartScreen.DEPTH_ROW`, the FUEL row of a

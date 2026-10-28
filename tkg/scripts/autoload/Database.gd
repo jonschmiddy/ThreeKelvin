@@ -2608,10 +2608,11 @@ func _seed_enemies() -> void:
 	# Boss: unscaled, tuned by hand. HULL 200, up from 120 (Jon, Oct 22: "custodian
 	# health at 200. I want this to be a hard game"): a bare starter heavy beat
 	# the 120 one 49% of the time, and a built ship 86-100%. Hull alone stopped
-	# starters (0%) but a built ship still won 81% under one ring per jump and
-	# deep loot, so (Jon, Oct 22, "Option 1") the loop lost Plated Up and
-	# Annihilate went 22 -> 40: it lands every third turn, and a built ship wins
-	# 56% of arrivals (sim, seeds 777 and 977), a human-like pilot 39%.
+	# starters (0%) but a built ship with deep loot still won 81%, so (Jon, Oct
+	# 22, "Option 1") the loop lost Plated Up and Annihilate went 22 -> 40: it
+	# lands every third turn, and a built ship wins 56% of arrivals (sim, seeds
+	# 777 and 977), a human-like pilot 39%. Those sims flew one ring deeper a
+	# jump at most; at two (Oct 27) they have not been run again.
 	_enemy(&"custodian", "The Custodian", "guardian of the light", 200, 8, 120, &"hulk", [
 		{name = "Volley", text = "Deal 6 × 3", damage = 6, hits = 3},
 		{name = "Charging…", text = "Charging a heavy attack", telegraph = true},
