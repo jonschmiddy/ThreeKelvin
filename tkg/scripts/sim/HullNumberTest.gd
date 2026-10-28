@@ -62,14 +62,14 @@ func _run() -> void:
 
 	var flown := 0
 	for i in DB.STARTABLE.size():
-		var maker: StringName = DB.STARTABLE[i]
-		if not _ok("%s is open to fly" % maker, Unlocks.unlocked(maker)):
+		var manufacturer: StringName = DB.STARTABLE[i]
+		if not _ok("%s is open to fly" % manufacturer, Unlocks.unlocked(manufacturer)):
 			continue
 		for w in ChassisSelect.WEIGHTS:
 			cs._select(i)
 			cs._pick_weight(w)
 			await _frames(3)
-			_check(cs, maker, w, screen)
+			_check(cs, manufacturer, w, screen)
 			flown += 1
 	var every := DB.STARTABLE.size() * ChassisSelect.WEIGHTS.size()
 	_ok("every startable manufacturer at every weight was checked (%d of %d frames)" % [flown, every],
@@ -104,9 +104,9 @@ func _tooltip_text() -> void:
 
 
 ## One frame on the real chassis select.
-func _check(cs: ChassisSelect, maker: StringName, w: HullData.Weight, screen: Rect2) -> void:
-	var tag := "%s %s" % [maker, HullData.weight_name(w)]
-	var frame := DB.hull_for(maker, w)
+func _check(cs: ChassisSelect, manufacturer: StringName, w: HullData.Weight, screen: Rect2) -> void:
+	var tag := "%s %s" % [manufacturer, HullData.weight_name(w)]
+	var frame := DB.hull_for(manufacturer, w)
 	var block := _find(cs, func(n: Node) -> bool:
 		return n is AttrBlock and (n as AttrBlock).is_visible_in_tree()) as AttrBlock
 	if not _ok("%s: the attribute block is up" % tag, block != null):
