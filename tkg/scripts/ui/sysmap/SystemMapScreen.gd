@@ -611,8 +611,8 @@ func _step_ship(delta: float) -> void:
 	if _pan_v.length() > 1.0:
 		_let_go_of_view()
 		view.pan += _pan_v * delta
-	# WASD FROM THE BERTH flies the ship out of it (`Router.cast_off`), or not at
-	# all where UNDOCK would refuse
+	# WASD FROM THE BERTH is refused, and says to press UNDOCK (`Router.cast_off`;
+	# Jon, Oct 27: UNDOCK is the only way out)
 	if Router.docked and free and not _taking and (_wasd.w or _wasd.a or _wasd.s or _wasd.d) 			and not Router.cast_off():
 		for k in _wasd:
 			_wasd[k] = false
@@ -1060,8 +1060,7 @@ func _go_then(body: int, then: Callable) -> void:
 	# to go to another planet"): anywhere else the panel says so and nothing flies
 	if not flight.can_fly():
 		return
-	# (from the berth: the ship leaves it, or stays if UNDOCK would refuse,
-	# `Router.cast_off`)
+	# (from the berth: refused, UNDOCK is the only way out, `Router.cast_off`)
 	if not Router.cast_off():
 		return
 	_taking = true
@@ -1120,7 +1119,7 @@ func _body_of_beacon(bc) -> int:
 func fly_to_body(i: int) -> void:
 	if _taking or not flight.can_fly():
 		return
-	# (from the berth: the ship leaves it, `Router.cast_off`)
+	# (from the berth: refused, UNDOCK is the only way out, `Router.cast_off`)
 	if not Router.cast_off():
 		return
 	_sound(&"chart_select", 0.04, 60)
@@ -1183,6 +1182,13 @@ func panel_back() -> void:
 ## that place, the event lifting from the bottom of it.
 func go_event(i: int) -> void:
 	if _taking:
+		return
+	# DOCKED, GO IS A WAY OUT, AND UNDOCK IS THE ONLY ONE (Jon, Oct 27). An event
+	# at the station's own body needs no flight, so nothing refused it: GO went
+	# straight down to LOCAL and undocked there. Refused, and it says how to
+	# leave (`Router.cast_off`, the same words as the HUD and the panel).
+	if Router.docked:
+		Router.cast_off()
 		return
 	var body := LocalEventDrawer.body_of(view.node, i)
 	overlay.link_on = false

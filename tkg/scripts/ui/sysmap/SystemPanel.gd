@@ -203,6 +203,23 @@ func _small(text: String, on: Callable, off := false) -> Button:
 	return b
 
 
+## DOCKED, A WAY OFF THE BERTH IS GREYED AND SAYS HOW TO LEAVE (Jon, Oct 27:
+## UNDOCK is the only way out): FLY HERE and GO read DOCKED. GO used to take an
+## event at the station's own body straight down to LOCAL, undocking there.
+func _docked_small(text: String) -> Button:
+	var b := _small(text, func() -> void: pass, true)
+	b.tooltip_text = Widgets.tip(Router.DOCKED_LINE)
+	return b
+
+
+func _docked_go(go: Button) -> void:
+	if not Router.docked:
+		return
+	go.text = "DOCKED"
+	go.disabled = true
+	go.tooltip_text = Widgets.tip(Router.DOCKED_LINE)
+
+
 ## A flat link in the eyebrow's type: < ALL EVENTS, SHOW ALL, < and >.
 func _link(text: String, on: Callable, tip := "") -> Button:
 	var b := Button.new()
@@ -305,16 +322,21 @@ func _can_go() -> bool:
 	return screen.flight != null and screen.flight.can_fly() and Router.may_cast_off()
 
 
-## Docked, and the berth will not let the ship go (`Router.cast_off`): crates on
-## the pad, or a deck smaller than a hand.
+## The ship may not leave where it is (`Router.cast_off`): docked, where UNDOCK
+## is the only way out (Jon, Oct 27), or crates still on the pad.
 func _held() -> bool:
 	return not Router.may_cast_off()
 
 
 const HELD_LINE := "CANNOT UNDOCK: SEE THE STATION"
+## Docked: the map is a view from the berth, and its flights and GO say how to
+## leave, in the HUD's words (`Router.DOCKED_LINE`).
+const DOCKED_LINE := "DOCKED. PRESS UNDOCK TO LEAVE"
 
 
 func _locked_line(body: int = -9) -> String:
+	if Router.docked:
+		return DOCKED_LINE
 	if _held():
 		return HELD_LINE
 	if _can_go():
@@ -540,6 +562,7 @@ func _go_button(i: int) -> void:
 	row.add_child(_spacer())
 	var go := _small("GO", func() -> void: screen.go_event(i), not (_ship_at(_body_of_opt(i)) or _can_go()))
 	go.name = "Go"
+	_docked_go(go)
 	var rivals := _rivals(i)
 	if not rivals.is_empty():
 		var names := ", ".join(rivals.map(func(j: int) -> String: return _title(j)))
@@ -616,7 +639,9 @@ func _way_there(i: int) -> void:
 		go.add_child(_small(_there_word(i), func() -> void: pass, true))
 	else:
 		go.add_child(_spacer())
-		if _held():
+		if Router.docked:
+			go.add_child(_docked_small("DOCKED"))
+		elif _held():
 			go.add_child(_small("CANNOT UNDOCK", func() -> void: pass, true))
 		elif _can_go():
 			go.add_child(_small("FLY HERE", func() -> void: screen.fly_to_body(i)))
@@ -832,6 +857,7 @@ func _event_page(out: Dictionary) -> void:
 		var go := _act("GO", func() -> void: screen.go_event(i))
 		go.name = "Go"
 		go.disabled = not (_ship_at(body) or _can_go())
+		_docked_go(go)
 		var rivals := _rivals(i)
 		if not rivals.is_empty():
 			var names := ", ".join(rivals.map(func(j: int) -> String: return _title(j)))

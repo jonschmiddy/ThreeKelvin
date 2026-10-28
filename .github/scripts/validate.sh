@@ -442,19 +442,20 @@ fi
 }
 
 unit_dockflytest() {
-step "Leaving a station without UNDOCK leaves nothing of it behind"
+step "UNDOCK is the only way out of a station"
 # DOCK only at the station itself (Jon, Oct 18, "dock:A"): at the system's edge
 # and at a world, no DOCK on LOCAL or the map, no station side, and the door
 # refuses; flown to the station, DOCK is offered and docks.
-# Docked, the ship flown off by the map (a world, the star, open space) and back
-# to LOCAL by the HUD's tab and by Tab, and by the chart's JUMP and GO beyond it:
-# LOCAL as after a proper UNDOCK (ship, zoom, the sky's place, no berth left,
-# the ladder idle), and where UNDOCK refuses, the flight and the jump refuse too.
+# Docked (Jon, Oct 27): LOCAL greyed on the HUD with "Docked. Press UNDOCK to
+# leave."; Tab never lands on LOCAL; the map's FLY HERE, WASD and GO and the
+# chart's JUMP refused and reading DOCKED; STATION, the map's DOCK and PARTY's
+# LEAVE go straight back in, never by LOCAL. Each old way off the berth is
+# refused, and made after UNDOCK leaves nothing of the berth behind.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot dockflytest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=DockFlyTest; then
 	if grep -qE '^dockflytest: PASS' "$LOG_DIR/dockflytest.log"; then
-		ok "every way off the berth undocks, or is refused"
+		ok "only UNDOCK leaves the berth, and leaves nothing of it behind"
 	else
-		bad "a way off the berth left the station behind"
+		bad "a way off the berth bypassed UNDOCK, or left the station behind"
 		grep -E 'FAIL|^dockflytest' "$LOG_DIR/dockflytest.log" | head -n 12 | sed 's/^/        /'
 	fi
 else

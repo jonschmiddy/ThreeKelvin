@@ -45,8 +45,9 @@ var _built: bool = false
 
 var _tab_sector: Button
 ## The sector map (Jon: "rename system to sector"). `_tab_sector` is LOCAL beside it: the side-on view, which
-## reads COMBAT in a fight and STATION at a berth (Jon: "local would become
-## combat and station").
+## reads COMBAT in a fight and STATION on the map or the chart looked at from a
+## berth (Jon: "local would become combat and station"); at the berth itself,
+## LOCAL greyed (Jon, Oct 27: UNDOCK is the only way out).
 var _tab_system: Button
 var _tab_chart: Button
 var _tab_cards: Button
@@ -180,8 +181,10 @@ func _build() -> void:
 	# Your ship opens where it is drawn -- click it on LOCAL, or in the
 	# Shipyard when docked -- and everything the refit page did is in that
 	# cutaway. `ShipScreen` stays for the harnesses that drive it.)
-	# ONE TAB, TWO NAMES. Docked, this reads STATION and goes to the station;
-	# flying, it reads SECTOR and goes to the sector. It is the same slot either
+	# ONE TAB, TWO NAMES. Docked, on the map or the chart, this reads STATION and
+	# goes back to the station (at the berth itself it reads LOCAL, greyed:
+	# UNDOCK is the only way out, Jon, Oct 27); flying, it reads LOCAL and goes
+	# to LOCAL. It is the same slot either
 	# way because it is the same idea -- "the place I am parked" -- and a second
 	# tab that appears and disappears at a station would move STARCHART
 	# sideways every time you tied up.
@@ -415,24 +418,34 @@ func refresh() -> void:
 	#
 	# All three fit the reserved width: STATION is the longest at seven, and the
 	# button was built with that word for exactly this reason.
+	#
+	# THE TAB YOU ASKED FOR LIGHTS AT THE CLICK (`ZoomLadder.lit_rank`): on the
+	# one camera the screen changes hands in the middle of the move, and the
+	# tab flipping there was one more thing changing while the camera moved
+	var lit := ZoomLadder.lit_rank()
+	# DOCKED, LOCAL IS SHUT (Jon, Oct 27, on Jeremy's "LOCAL lets you leave a
+	# station too easily"): at the berth this reads LOCAL, greyed, and says how
+	# to leave, because UNDOCK is the only way out. On a page looked at from the
+	# berth (the map, the chart) it reads STATION and goes back in, which leaves
+	# nothing. (UNDOCK pressed, the move is on its way to LOCAL: lit as LOCAL.)
+	var at_berth := Router.docked and not fighting and lit == ZoomLadder.STATION
+	var here_lock := choose_lock
+	if at_berth and here_lock == "":
+		here_lock = Router.DOCKED_LINE
 	if fighting:
 		_tab_sector.text = "COMBAT"
-	elif Router.docked:
+	elif Router.docked and lit != ZoomLadder.LOCAL and not at_berth:
 		_tab_sector.text = "STATION"
 	else:
 		_tab_sector.text = "LOCAL"
 	var here_hint := "Your ship, side on, where you are."
 	if fighting:
 		here_hint = "The fight you are in."
-	elif Router.docked:
+	elif _tab_sector.text == "STATION":
 		here_hint = "The station you are docked at."
-	# THE TAB YOU ASKED FOR LIGHTS AT THE CLICK (`ZoomLadder.lit_rank`): on the
-	# one camera the screen changes hands in the middle of the move, and the
-	# tab flipping there was one more thing changing while the camera moved
-	var lit := ZoomLadder.lit_rank()
 	_state(_tab_sector,
 		lit == ZoomLadder.LOCAL or lit == ZoomLadder.STATION or fighting,
-		choose_lock, here_hint)
+		here_lock, here_hint)
 	_state(_tab_system, lit == ZoomLadder.MAP, lock,
 		"This system's star, what orbits it, and any threats nearby.")
 	_state(_tab_chart, lit == ZoomLadder.CHART, lock, "Where to go next.")
@@ -530,11 +543,14 @@ static func fuel_state() -> int:
 ## The figure's colour in each state: the bar's own ice, amber, the hull's red.
 const FUEL_INK: Array[Color] = [UITheme.ICE, UITheme.WARN, Color("#d4614f")]
 
-## Where the second nav tab goes: the station if you are tied up at one, the
-## sector if you are flying it. Read at click time so the label and the
-## destination cannot disagree.
+## Where the first nav tab goes: back to the station from a page looked at from
+## the berth, LOCAL when flying, and nowhere at the berth itself, where it is
+## greyed (UNDOCK is the only way out, Jon, Oct 27). Read at click time so the
+## label and the destination cannot disagree.
 func _go_here() -> void:
-	if Router.docked:
+	if Router.docked and ZoomLadder.lit_rank() == ZoomLadder.STATION:
+		Audio.denied()
+	elif Router.docked:
 		Router.show_station()
 	else:
 		Router.show_local()

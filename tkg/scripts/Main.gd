@@ -1568,9 +1568,13 @@ func _input(event: InputEvent) -> void:
 		return
 	# LOCAL, SECTOR, STARCHART, round. The screens a run is actually played on,
 	# in the order you move between them: where you are side on, the sector
-	# round you, where you are going. LOCAL is the station while docked, as its
-	# tab is (Jon: "include local in the tabbable pages list"). SHIP is gone from
-	# the round with its tab: your ship opens from LOCAL or the Shipyard.
+	# round you, where you are going (Jon: "include local in the tabbable pages
+	# list"). DOCKED, THE BERTH TAKES LOCAL'S PLACE: Tab from the berth goes to
+	# the map, and from the chart back into the station, never out to LOCAL,
+	# because UNDOCK is the only way out (Jon, Oct 27). The HUD's first tab
+	# agrees: STATION on the map or the chart, LOCAL greyed at the berth. SHIP
+	# is gone from the round with its tab: your ship opens from LOCAL or the
+	# Shipyard.
 	#
 	# Each `show_` refuses on its own terms -- the map and the chart during a
 	# fight (`Router.fight_up`: Tab there rebuilt the fight over itself), the
