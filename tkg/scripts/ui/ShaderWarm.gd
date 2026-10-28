@@ -17,7 +17,10 @@ extends Node
 ## draws them -- a rect, and the fabric as a mesh, which is a program of its own
 ## (`draw_mesh` binds the attribute variant). Nothing drawn on screen changes.
 ## A compile is a frame the title does not answer in, so none is started within
-## QUIET_MS of the player moving the mouse or pressing anything, and only the
+## QUIET_MS of the player moving the mouse or pressing anything (`note_input`,
+## fed by the title's own `_input` from the moment it is up, so a hand already
+## moving when the warm begins holds back the first compile too; and never in
+## the first QUIET_MS after this node arrives), and only the
 ## cheap ones are here: each costs this Mac at most a frame as long as the
 ## title's own longest (0.4 s, `-- sheet=WarmCost`). Not on the hull pick,
 ## whose hull bobs and burns, so a held frame there would be seen; what is left
@@ -41,7 +44,9 @@ const SKY_DEPTH := preload("res://shaders/sky_depth.gdshader")
 const MAP_PALETTE := preload("res://shaders/map_palette.gdshader")
 const MAP_FABRIC := preload("res://shaders/map_fabric.gdshader")
 
-## Each shader with how the map draws it, the costliest first.
+## Each shader with how the map draws it, the costliest first. (GRAPHICS LOW
+## draws all four too: its map keeps the sky, the palette, the fabric and the
+## two fluffy depth sheets, `SystemView` `gfx_low`.)
 static func wanted() -> Array:
 	return [
 		[SKY, RECT],
@@ -58,6 +63,27 @@ static var _node: ShaderWarm = null
 ## Each shader drawn so far, with how long its frame took from this node's
 ## turn to the end of the draw, ms (for a harness: `LadderShot first`).
 static var costs: Array = []
+## No compile starts before this tick, ms: QUIET_MS past the last input seen
+## and past this node's arrival.
+static var _quiet_until := 0
+## How far a stick has to be pushed to count as the player's hand (a resting
+## pad's drift is not).
+const STICK := 0.2
+
+
+## The player touched something (`LauncherScreen._input`, and this node's own):
+## no compile for QUIET_MS. Every event a window gets -- mouse, keys, touch, a
+## trackpad's pan and pinch -- and a pad's buttons and sticks.
+static func note_input(event: InputEvent) -> void:
+	var stick := event as InputEventJoypadMotion
+	if event is InputEventFromWindow or event is InputEventJoypadButton \
+			or (stick != null and absf(stick.axis_value) > STICK):
+		_quiet_until = maxi(_quiet_until, Time.get_ticks_msec() + QUIET_MS)
+
+
+## Whether a compile would land too near the player's last input now.
+static func held() -> bool:
+	return Time.get_ticks_msec() < _quiet_until
 
 
 ## Begin, or go on from where the last visit to the title left off.
@@ -80,19 +106,18 @@ static func done() -> bool:
 
 
 var _drawn: Array[Node] = []
-var _quiet_at := 0
 var _t_draw := 0
 var _what := ""
 
 
 func _ready() -> void:
+	# (arrived: the first compile waits its QUIET_MS like the rest)
+	_quiet_until = maxi(_quiet_until, Time.get_ticks_msec() + QUIET_MS)
 	RenderingServer.frame_post_draw.connect(_after_draw)
 
 
 func _input(event: InputEvent) -> void:
-	if event is InputEventMouseMotion or event is InputEventMouseButton \
-			or event is InputEventKey or event is InputEventJoypadButton:
-		_quiet_at = Time.get_ticks_msec() + QUIET_MS
+	note_input(event)
 
 
 func _process(_delta: float) -> void:
@@ -103,7 +128,7 @@ func _process(_delta: float) -> void:
 	if _next >= _list.size() or not (Router.current is LauncherScreen):
 		queue_free()
 		return
-	if Time.get_ticks_msec() < _quiet_at:
+	if held():
 		return
 	var e: Array = _list[_next]
 	_next += 1

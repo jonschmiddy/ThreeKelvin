@@ -21,7 +21,9 @@ extends Node
 ##
 ## And the shaders the title compiles ahead (`ShaderWarm`) are the very ones the
 ## map and LOCAL draw with (the same resources, so the same programs), and none
-## of it starts headless.
+## of it starts headless; and no compile starts within its QUIET_MS of the
+## player's last input, the title's own included (seen before the warm began),
+## nor in the first QUIET_MS after it arrives.
 
 const SEEDS := [4242, 11, 777]
 
@@ -102,6 +104,7 @@ func _run() -> void:
 	print("  [isolation]")
 	await _isolation(31337)
 	_warm_list()
+	_warm_quiet()
 	StarchartScreen.MapChart.ahead_always = false
 	OS.remove_logger(_log)
 	for l in _log.first:
@@ -191,3 +194,62 @@ func _warm_list() -> void:
 			sh.get_mode() == Shader.MODE_CANVAS_ITEM and used.has(sh))
 	ShaderWarm.start()
 	_ok("nothing is compiled headless", _tree.root.get_node_or_null("ShaderWarm") == null)
+
+
+## THE WARM KEEPS CLEAR OF THE PLAYER'S HAND: a compile is a held title frame,
+## so none starts within QUIET_MS of any input -- the title's own `_input`
+## counts from its first frame, before the warm's node exists -- nor in the
+## first QUIET_MS after the node arrives.
+func _warm_quiet() -> void:
+	print("  [shader warm, quiet]")
+	var held_by := func(ev: InputEvent, through_title: bool) -> bool:
+		ShaderWarm._quiet_until = 0
+		if through_title:
+			var ls := LauncherScreen.new()
+			ls._input(ev)
+			ls.free()
+		else:
+			ShaderWarm.note_input(ev)
+		return ShaderWarm.held()
+	ShaderWarm._quiet_until = 0
+	_ok("nothing touched: not held", not ShaderWarm.held())
+	var mm := InputEventMouseMotion.new()
+	mm.relative = Vector2(3, 1)
+	_ok("the mouse moved on the title, before the warm began: held", held_by.call(mm, true))
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	_ok("a click on the title: held", held_by.call(click, true))
+	var key := InputEventKey.new()
+	key.keycode = KEY_ENTER
+	key.pressed = true
+	_ok("a key on the title: held", held_by.call(key, true))
+	var pan := InputEventPanGesture.new()
+	pan.delta = Vector2(0, 2)
+	_ok("a trackpad pan: held", held_by.call(pan, false))
+	var touch := InputEventScreenTouch.new()
+	touch.pressed = true
+	_ok("a touch: held", held_by.call(touch, false))
+	var pad := InputEventJoypadButton.new()
+	pad.pressed = true
+	_ok("a pad button: held", held_by.call(pad, false))
+	var stick := InputEventJoypadMotion.new()
+	stick.axis_value = 0.8
+	_ok("a stick pushed: held", held_by.call(stick, false))
+	stick.axis_value = 0.05
+	_ok("a resting stick's drift: not held", not held_by.call(stick, false))
+	ShaderWarm._quiet_until = 0
+	var t := Time.get_ticks_msec()
+	ShaderWarm.note_input(mm)
+	var left := ShaderWarm._quiet_until - t
+	_ok("held QUIET_MS after the input, no longer (%d ms)" % left,
+		left >= ShaderWarm.QUIET_MS and left <= ShaderWarm.QUIET_MS + 50)
+	# the node arriving starts a quiet window of its own
+	ShaderWarm._quiet_until = 0
+	var w := ShaderWarm.new()
+	add_child(w)
+	_ok("the warm's first compile waits QUIET_MS after it arrives", ShaderWarm.held())
+	w._input(mm)
+	_ok("and the node's own input holds it too", ShaderWarm._quiet_until >= Time.get_ticks_msec() + ShaderWarm.QUIET_MS - 1)
+	w.free()
+	ShaderWarm._quiet_until = 0

@@ -15,8 +15,9 @@ The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
 
 - **Changed** — the first star chart of a run opens without the pause it had while its
   stars were worked out. They are now worked out in the background while you pick your
-  hull. The sector map's drawing is also set up while the title menu sits idle, so the
-  first sector map holds still for less time on slower machines. Nothing looks different.
+  hull. The sector map's drawing is also set up while the title menu sits idle (never
+  while you are moving the mouse or pressing a key), so the first sector map holds still
+  for less time on slower machines. Nothing looks different.
 
 ## 2026-10-23
 

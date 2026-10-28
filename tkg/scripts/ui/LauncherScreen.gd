@@ -248,6 +248,9 @@ func open_welcome(first: bool = false) -> void:
 ## the title menu"). Left alone, Godot walks the keyboard focus round the menu's
 ## buttons with them; the menu is clicked. A typed seed keeps its caret.
 func _input(e: InputEvent) -> void:
+	# (every input, from the title's first frame: the shaders' warm keeps clear
+	# of a hand that is moving, `ShaderWarm.note_input`)
+	ShaderWarm.note_input(e)
 	var k := e as InputEventKey
 	if k == null:
 		return
@@ -691,8 +694,6 @@ func _process(_delta: float) -> void:
 	if _warmup > 0:
 		_warmup -= 1
 		return
-	# The galaxy turns by itself, as the chart's does (`MapChart.turn`), at
-	# TITLE_TURN times the chart's speed: once every five minutes.
 	# THE SECTOR MAP'S SHADERS, compiled behind the menu (`ShaderWarm`):
 	# once this sky is up, palette and all, so they never hold it back -- or
 	# after WARM_AFTER frames whatever it is doing
@@ -701,6 +702,9 @@ func _process(_delta: float) -> void:
 		if _sky.sky_drawn() or _warm_wait > WARM_AFTER:
 			_warm_wait = -1
 			ShaderWarm.start()
+	# (The galaxy turns by itself, as the chart's does (`MapChart.turn`), at
+	# TITLE_TURN times the chart's speed: once every five minutes. Nothing to
+	# do for it here.)
 
 ## A galaxy for the title screen, rolled once per process and kept.
 ##
