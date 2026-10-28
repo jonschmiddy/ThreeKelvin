@@ -66,7 +66,7 @@ func _run() -> void:
 
 ## Where to park the ship so the chart shows both kinds: a system with stars in
 ## reach that `Run.too_deep_only` refuses and stars a jump takes, all of them in
-## sight. The one with the most too-deep stars, or -1. (`-- chartshot deep`
+## sight. The one with the most too-deep stars, or -1. (`-- chartshot toodeep`
 ## parks there too, for the still.)
 static func park_spot() -> int:
 	var best := -1
