@@ -13,7 +13,7 @@ The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
 
 ### Changed
 
-- **Changed** — the frame counter (Settings, DISPLAY, FRAME COUNTER) shows more. Under the
+- **Changed** — the frame counter (Settings, DISPLAY, FRAME COUNTER) shows more. Beside the
   frames per second it gives the average frame time and the slowest frame of the last second,
   in milliseconds, so a short hitch shows even when the rate looks fine. SAVE MY LOGS also
   writes the look, the window size and how the screen scales it, the frame cap, vsync, the

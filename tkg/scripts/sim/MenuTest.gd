@@ -367,6 +367,8 @@ func _meter_case() -> void:
 	var worst := _meter_worst(m)
 	_ok("  it reads FPS, MS and WORST (%s)" % m.text.replace("\n", " / "),
 		m.text.contains(" FPS ") and m.text.contains(" MS") and m.text.contains("WORST "))
+	# (a second line rose into the bottom bar's buttons: SCAN SECTOR, DISCARD)
+	_ok("  on one line, the bottom row's", not m.text.contains("\n"))
 	_ok("  a 90 ms frame is the worst of its second (%.1f ms)" % worst, worst >= 85.0)
 	await _secs(1.6)
 	var later := _meter_worst(m)

@@ -31,15 +31,19 @@ extends Label
 ## BUILT ALWAYS, SHOWN CONDITIONALLY, so the toggle takes effect immediately
 ## rather than at the next launch.
 ##
-## TWO LINES, AND THE SECOND IS THE ONE THAT FINDS A HITCH. The first says the
-## rate and what an average frame took (`60 FPS  16.7 MS`); the second the
-## slowest single frame of the last second (`WORST 41.2 MS`). A rate is an
-## average, and an average hides the one long frame a player feels as a jolt:
-## a second of fifty-eight 16 ms frames and one of 70 ms reads 59 FPS. The
-## Mac investigation (Oct 27) asked a tester to read this meter and found it
-## could not show a spike at all, so it does now. Both are in milliseconds
-## because the thing a player is reporting is a cost: 60 to 40 FPS sounds like a
-## third gone and is 8 ms added to a 16 ms frame.
+## THREE READINGS, AND THE LAST IS THE ONE THAT FINDS A HITCH: the rate, what
+## an average frame took, and the slowest single frame of the last second
+## (`60 FPS  16.7 MS  WORST 41.2 MS`). A rate is an average, and an average
+## hides the one long frame a player feels as a jolt: a second of fifty-eight
+## 16 ms frames and one of 70 ms reads 59 FPS. The Mac investigation (Oct 27)
+## asked a tester to read this meter and found it could not show a spike at
+## all, so it does now. Both are in milliseconds because the thing a player is
+## reporting is a cost: 60 to 40 FPS sounds like a third gone and is 8 ms added
+## to a 16 ms frame.
+##
+## ONE LINE, wider to the left rather than taller: the row above the meter is
+## the bottom bar's buttons (SCAN SECTOR on LOCAL, DISCARD in a fight), and a
+## second line sat on them; the bottom row is clear for 400 px on every screen.
 
 ## How often the reading refreshes. Frames per second read every frame is a
 ## number that never settles long enough to be read; a quarter second was the
@@ -119,7 +123,7 @@ func _process(_delta: float) -> void:
 		col = UITheme.BAD
 	elif f < WARN:
 		col = UITheme.WARN
-	text = "%d FPS  %.1f MS\nWORST %.1f MS" % [f, total / float(maxi(frames, 1)), worst]
+	text = "%d FPS  %.1f MS  WORST %.1f MS" % [f, total / float(maxi(frames, 1)), worst]
 	add_theme_color_override("font_color", col)
 	# PLACED EVERY TICK RATHER THAN ANCHORED. A top-level Control is excluded
 	# from its parent's layout, and that also means no anchor preset is applied

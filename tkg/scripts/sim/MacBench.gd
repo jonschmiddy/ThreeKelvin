@@ -34,18 +34,30 @@ extends Node
 ##     one with the lift cars).
 ##   * AT LOOK FLAT AND CRT (the default, the gentle tube) x GRAPHICS HIGH and LOW.
 ##
-## AND FOR EACH, over `frames` frames after the screen has settled:
+## AND FOR EACH, over `frames` frames after the screen has settled (and at
+## least `MIN_SECS`, see TIME_PROCESS below):
 ##   frame time p50, p95 and the worst (ms, the real clock between presented
-##   frames), the CPU's `Performance.TIME_PROCESS` (mean, ms), the GPU time of
-##   the WINDOW (`get_tree().root`: the shell's black back, its hidden frame and
-##   the glass shader, all at the window's size), of the GAME VIEW
-##   (`GameShell.view`, the 960x540 frame) and of EVERY OTHER VIEWPORT drawn
-##   that frame (the chart's sky, LOCAL's sky and near world, the map's scene:
-##   each a pass of its own that the game view only samples), and draw calls.
-##
-##   And RENDER CPU: what the CPU spent handing those same passes to the driver
-##   (`viewport_get_measured_render_time_cpu`, every pass summed), which is not
-##   in `TIME_PROCESS`.
+##   frames);
+##   PROC and DRAW, each frame cut in two on the engine's own signals (means,
+##   ms): PROC from `process_frame` to `frame_pre_draw` (every `_process`, the
+##   `_draw` calls queued by `queue_redraw`, the deferred calls: the game's
+##   scripts), DRAW from `frame_pre_draw` to `frame_post_draw` (the engine
+##   handing every pass to the driver, the swap, and any wait on a GPU that has
+##   fallen behind: with vsync off a GPU-bound frame waits here). What a frame
+##   lasts beyond the two is physics, input, audio and this sheet's own reading;
+##   `TIME_PROCESS` as the engine reports it: the slowest frame's process AND
+##   draw in the last whole second (`main.cpp`: the max of a second, set once a
+##   second; not a mean, and not the scripts alone). Read once at the end of a
+##   sample of at least `MIN_SECS`, so the second it covers lies inside it;
+##   the GPU time of the WINDOW (`get_tree().root`: the shell's black back, its
+##   hidden frame and the glass shader, all at the window's size), of the GAME
+##   VIEW (`GameShell.view`, the 960x540 frame) and of EVERY OTHER VIEWPORT
+##   drawn that frame (the chart's sky, LOCAL's sky and near world, the map's
+##   scene: each a pass of its own that the game view only samples), and draw
+##   calls;
+##   and RENDER CPU: what the engine's own stamps put on handing those same
+##   passes to the driver (`viewport_get_measured_render_time_cpu`, every pass
+##   summed), the part of DRAW that is not the swap or a wait.
 ##
 ## A VIEWPORT NOT DRAWN THIS FRAME KEEPS ITS LAST READING (the engine only
 ## stamps a viewport when it draws it), so a sub-viewport's reading is counted
@@ -55,9 +67,13 @@ extends Node
 ## THE GPU COLUMNS READ 0 ON JON'S MAC (Oct 27: LocalShot's "game view gpu" and
 ## this sheet's, on Apple's OpenGL 4.1 with the Iris Plus 645). The engine asks
 ## GL for timestamps (`glQueryCounter`) and gets nothing back there, so the run
-## says so at the end. Then the frame time IS the measure: with vsync off a
-## frame lasts as long as its slowest side, and what it lasts beyond process
-## and render CPU is the GPU (or the driver) being waited on.
+## says so at the end. Then the frame time IS the measure, and DRAW is where
+## the GPU shows: with vsync off a frame lasts as long as its slowest side, and
+## a DRAW well over RENDER CPU is the driver waiting on the GPU.
+##
+## (`TIME_PROCESS` was read every frame and averaged until the first review,
+## Oct 27: that averaged a once-a-second worst which still held the previous
+## screen's switch, and printed 242 ms beside 16 ms frames.)
 ##
 ## It prints the machine first and last: the OS and CPU, the adapter and its
 ## API version, the driver, the screen's size and scale, the window, vsync,
@@ -66,6 +82,10 @@ extends Node
 ## empty throttles the CPU to half.
 
 const ALL_SCREENS := ["title", "chart", "map", "map2", "local", "fight", "yard"]
+## The shortest sample, in seconds: the engine sets `TIME_PROCESS` once a
+## second to that second's worst, so a sample this long ends with a reading
+## whose second began after the sample did (and after the look was switched).
+const MIN_SECS := 2.5
 
 var _args: PackedStringArray
 var _rows: Array = []
@@ -362,7 +382,7 @@ func _go(sc: String) -> bool:
 	return false
 
 
-## The screen as it stands, over n frames.
+## The screen as it stands, over n frames (and at least MIN_SECS).
 func _sample(n: int) -> Dictionary:
 	var subs: Array[RID] = []
 	for vp: Node in get_tree().root.find_children("*", "SubViewport", true, false):
@@ -371,6 +391,14 @@ func _sample(n: int) -> Dictionary:
 			continue
 		RenderingServer.viewport_set_measure_render_time(rid, true)
 		subs.append(rid)
+	# THE FRAME CUT IN TWO: when the scene's process began and when the draw
+	# began, on the real clock; the draw's end is when `await frame_post_draw`
+	# below resumes (it resumes inside that signal, after the swap)
+	var mark := {"proc": 0, "pre": 0}
+	var on_proc := func() -> void: mark.proc = Time.get_ticks_usec()
+	var on_pre := func() -> void: mark.pre = Time.get_ticks_usec()
+	get_tree().process_frame.connect(on_proc)
+	RenderingServer.frame_pre_draw.connect(on_pre)
 	for _i in 15:
 		await RenderingServer.frame_post_draw
 	var last := PackedFloat64Array()
@@ -378,6 +406,7 @@ func _sample(n: int) -> Dictionary:
 		last.append(RenderingServer.viewport_get_measured_render_time_gpu(rid))
 	var times: Array[float] = []
 	var proc := 0.0
+	var draw := 0.0
 	var root := 0.0
 	var game := 0.0
 	var sub := 0.0
@@ -388,12 +417,14 @@ func _sample(n: int) -> Dictionary:
 	for rid in subs:
 		last_cpu.append(RenderingServer.viewport_get_measured_render_time_cpu(rid))
 	var prev := Time.get_ticks_usec()
-	for _i in n:
+	var until := prev + int(MIN_SECS * 1000000.0)
+	while times.size() < n or Time.get_ticks_usec() < until:
 		await RenderingServer.frame_post_draw
 		var now := Time.get_ticks_usec()
 		times.append(float(now - prev) / 1000.0)
 		prev = now
-		proc += Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+		proc += float(int(mark.pre) - int(mark.proc)) / 1000.0
+		draw += float(now - int(mark.pre)) / 1000.0
 		root += RenderingServer.viewport_get_measured_render_time_gpu(_root_rid)
 		game += RenderingServer.viewport_get_measured_render_time_gpu(_game_rid)
 		rcpu += RenderingServer.viewport_get_measured_render_time_cpu(_root_rid)
@@ -409,6 +440,11 @@ func _sample(n: int) -> Dictionary:
 			last[j] = v
 			last_cpu[j] = c
 		calls += Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+	get_tree().process_frame.disconnect(on_proc)
+	RenderingServer.frame_pre_draw.disconnect(on_pre)
+	# (the engine's: the worst process + draw of the last whole second)
+	var tproc := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+	n = times.size()
 	var sorted := times.duplicate()
 	sorted.sort()
 	var mean := 0.0
@@ -417,11 +453,14 @@ func _sample(n: int) -> Dictionary:
 	mean /= float(n)
 	var f := float(n)
 	return {
+		"frames": n,
 		"frame_mean": snappedf(mean, 0.01),
 		"frame_p50": snappedf(sorted[n / 2], 0.01),
 		"frame_p95": snappedf(sorted[mini(n - 1, int(f * 0.95))], 0.01),
 		"frame_max": snappedf(sorted[n - 1], 0.01),
-		"process": snappedf(proc / f, 0.01),
+		"proc": snappedf(proc / f, 0.01),
+		"draw": snappedf(draw / f, 0.01),
+		"time_process": snappedf(tproc, 0.01),
 		"render_cpu": snappedf(rcpu / f, 0.01),
 		"gpu_root": snappedf(root / f, 0.01),
 		"gpu_game": snappedf(game / f, 0.01),
@@ -432,21 +471,22 @@ func _sample(n: int) -> Dictionary:
 
 
 func _line(r: Dictionary) -> String:
-	return "%dx %-4s %-4s %-6s frame p50 %6.2f p95 %6.2f max %6.2f ms (%.0f fps) | process %5.2f, render cpu %5.2f | GPU window %5.2f, game %5.2f, other %6.2f (%.1f vp) | %d draws" % [
-		r.scale, r.gfx, r.look, r.screen, r.frame_p50, r.frame_p95, r.frame_max, 1000.0 / maxf(0.01, r.frame_mean),
-		r.process, r.render_cpu, r.gpu_root, r.gpu_game, r.gpu_other, r.other_viewports, r.draw_calls]
+	return "%dx %-4s %-4s %-6s frame p50 %6.2f p95 %6.2f max %6.2f ms (%.0f fps, %d frames) | proc %5.2f, draw %5.2f (render cpu %5.2f), TIME_PROCESS %6.2f | GPU window %5.2f, game %5.2f, other %6.2f (%.1f vp) | %d draws" % [
+		r.scale, r.gfx, r.look, r.screen, r.frame_p50, r.frame_p95, r.frame_max, 1000.0 / maxf(0.01, r.frame_mean), r.frames,
+		r.proc, r.draw, r.render_cpu, r.time_process, r.gpu_root, r.gpu_game, r.gpu_other, r.other_viewports, r.draw_calls]
 
 
 func _table() -> void:
-	print("\n=== MACBENCH: every sample (ms; GPU per pass: the window's, the game view's, every other viewport drawn) ===")
-	print("  scale gfx  look screen   p50    p95    max   proc  rcpu   gpu-win gpu-game gpu-other draws")
+	print("\n=== MACBENCH: every sample (ms; proc and draw are means a frame, tproc the engine's TIME_PROCESS, the worst process + draw of a second; GPU per pass: the window's, the game view's, every other viewport drawn) ===")
+	print("  scale gfx  look screen   p50    p95    max   proc   draw  rcpu   tproc gpu-win gpu-game gpu-other draws")
 	var gpu_seen := false
 	for r: Dictionary in _rows:
-		print("  %dx    %-4s %-4s %-6s %6.2f %6.2f %6.2f %6.2f %5.2f %7.2f %8.2f %9.2f %5d" % [r.scale, r.gfx, r.look, r.screen,
-			r.frame_p50, r.frame_p95, r.frame_max, r.process, r.render_cpu, r.gpu_root, r.gpu_game, r.gpu_other, r.draw_calls])
+		print("  %dx    %-4s %-4s %-6s %6.2f %6.2f %6.2f %6.2f %6.2f %5.2f %7.2f %7.2f %8.2f %9.2f %5d" % [r.scale, r.gfx, r.look, r.screen,
+			r.frame_p50, r.frame_p95, r.frame_max, r.proc, r.draw, r.render_cpu, r.time_process,
+			r.gpu_root, r.gpu_game, r.gpu_other, r.draw_calls])
 		if float(r.gpu_root) + float(r.gpu_game) + float(r.gpu_other) > 0.0:
 			gpu_seen = true
 	if not _rows.is_empty() and not gpu_seen:
 		print("  NOTE: every GPU reading was 0: this driver (%s, API %s) gave the engine no GL timestamps." % [
 			RenderingServer.get_current_rendering_driver_name(), RenderingServer.get_video_adapter_api_version()])
-		print("  Read the frame times (vsync is off, so a frame lasts as long as its slowest side) against process + rcpu.")
+		print("  Read the frame times (vsync is off, so a frame lasts as long as its slowest side): a draw well over rcpu is the driver waiting on the GPU.")
