@@ -38,24 +38,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   Claim another hull or buy one at a yard while it is still on offer, and it is scrapped for you.
   The log names the crate and says it is in SECTOR LOOT. Saves from 0.4.2-alpha.1 load; a hull
   already on offer in one keeps LEAVE IT.
-
-### Changed
-
 - **Changed** — on a Mac with a Retina screen the game window now stops at 2X. A new player
   starts in a 2X window, WINDOW SIZE offers 1X and 2X, and a saved 3X window opens at 2X. At
   3X the game drew more than twice the pixels every frame, which costs a laptop's graphics chip
   a lot. BORDERLESS and FULLSCREEN still fill the screen. Windows and Linux are unchanged.
-
-### Roadmap
-
-The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
-[`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
-
 - **Added** — FRAME CAP has a 30 setting, and Settings has a VSYNC row under it, ON by default.
   A 30 cap gives a slow machine steadier frames and uses less power. VSYNC can only be off with
   a cap: picking OFF with FRAME CAP at NONE sets the cap to 60, and setting the cap back to NONE
   turns VSYNC on again. Both are opt-in. The defaults are unchanged, and older settings files
   load with VSYNC ON and their own cap.
+
+### Roadmap
+
+The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
+[`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
 ## 2026-10-23
 
