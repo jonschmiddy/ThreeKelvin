@@ -291,17 +291,33 @@ func _page_look() -> void:
 	var gchips := _chips()
 	gchips.custom_minimum_size = Vector2(96, 0)
 	gchips.size_flags_horizontal = Control.SIZE_SHRINK_END
+	# PICKED FOR THIS COMPUTER (Jon, Oct 27, C1: `GpuProbe` measured this machine
+	# on the title and set LOW): said here, where the row is, in plain words, for
+	# as long as the pick is the machine's. Pressing HIGH makes it the player's
+	# (and LOW after it: the marked chip cannot be pressed).
+	var by_machine := DisplaySettings.low_by_machine()
 	for low in [false, true]:
 		var gb := DrawerPlate.chip_for("LOW" if low else "HIGH", DisplaySettings.graphics_low == low,
 			func() -> void:
 				DisplaySettings.set_graphics_low(low)
 				_refresh())
 		gb.tooltip_text = Widgets.tip(
-			"A lighter sky in every style, for laptops and integrated graphics. It looks the same, but the gas moves a little less." if low
+			(("The game picked LOW for this computer. " if by_machine else "")
+				+ "A lighter sky in every style, for laptops and integrated graphics. It looks the same, but the gas moves a little less.") if low
 			else "The full sky. RADIANT drops to SIMPLIFIED by itself if the machine can't keep up; try LOW first.")
 		gchips.add_child(gb)
 	gfx.add_child(gchips)
 	_body.add_child(gfx)
+	if by_machine:
+		const PICKED := "The game picked LOW because this computer's graphics chip is slow. You can change it."
+		gk.tooltip_text = Widgets.tip(PICKED)
+		gk.mouse_filter = Control.MOUSE_FILTER_PASS
+		var note := UITheme.body("PICKED FOR THIS COMPUTER", UITheme.QUOTE, UITheme.FS_SMALL)
+		note.name = "GraphicsPicked"
+		note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		note.tooltip_text = Widgets.tip(PICKED)
+		note.mouse_filter = Control.MOUSE_FILTER_PASS
+		_body.add_child(note)
 	_body.add_child(_gap(2))
 
 	_body.add_child(_line("COLORBLINDNESS", DisplaySettings.colour_help_name(DisplaySettings.colour_help)))

@@ -106,6 +106,24 @@ static var render_style: StringName = DEFAULT_STYLE
 ## fewer depth sheets and no billow march, the sector map's one field read,
 ## LOCAL at half rate). Settings' GRAPHICS row (`set_graphics_low`).
 static var graphics_low: bool = false
+## WHO SET GRAPHICS (Jon, Oct 27, ruling C1: LOW picked for a weak machine).
+## settings.cfg could not tell a player who chose HIGH from one who never
+## looked: both saved `graphics_low = false`. Now it says. NOBODY: never set, so
+## the title's sky may measure this machine and pick (`GpuProbe`), once. MACHINE:
+## it did, and that is final; Settings says so beside the row until the player
+## picks. PLAYER: HIGH or LOW pressed in Settings, never touched again.
+## A FILE FROM BEFORE THIS KEY: LOW was the player's (HIGH was the default, so
+## LOW was pressed); HIGH cannot be told from never chosen and counts as NOBODY,
+## which is every alpha player on the default (`graphics_by_in`).
+const GFX_NOBODY := ""
+const GFX_MACHINE := "machine"
+const GFX_PLAYER := "player"
+static var graphics_by: String = GFX_NOBODY
+## THE MACHINE'S PICK CHANGED GRAPHICS UNDER A PICTURE THAT IS UP (the title's
+## sky, which measured it): that picture keeps the pass it was built with
+## (`ChartSky._push` does not swap it live) until it is built again. The player's
+## own press lets go of it.
+static var _low_held := false
 ## A HARNESS'S `style=` / `graphics=` live in memory only: what the file held is
 ## kept here and is what save() writes back, so a shot taken at a setting never
 ## changes the player's own settings.cfg (it did: apply() ends in save()).
@@ -185,20 +203,66 @@ static func harness_style() -> bool:
 	return _harness_style
 
 
+## A launch that forced the look with `style=` or `graphics=`: the machine's
+## pick neither measures it nor overrules it (`GpuProbe.wanted`).
+static func harness_forced() -> bool:
+	return _harness_style or _harness_low
+
+
 ## GRAPHICS LOW from Settings: kept, and applied at once -- the star chart, the
 ## sector map and LOCAL rebuild on `Sig.render_style_changed` and read this as
 ## they build (the chart also swaps its place pass live). Turning LOW ON lets
 ## RADIANT try again if its safety had dropped it to SIMPLIFIED: what was too
 ## heavy on HIGH may hold on LOW, and the safety measures the LOW path.
+## The player's own, from now on (`graphics_by`): the machine never picks
+## again. Pressing the chip already marked still counts as choosing it.
 static func set_graphics_low(on: bool) -> void:
-	if on == graphics_low and not _harness_low:
+	if on == graphics_low and not _harness_low and graphics_by == GFX_PLAYER and not _low_held:
 		return
 	graphics_low = on
+	graphics_by = GFX_PLAYER
+	_low_held = false
 	_harness_low = false  # the player chose it: it is theirs to keep
 	if on:
 		ChartRadiant.fell_back = false
 	save()
 	Sig.render_style_changed.emit()
+
+
+## THE MACHINE'S PICK (`GpuProbe.conclude`), once per profile and only while
+## nobody has set GRAPHICS: kept, but NOTHING IS REBUILT NOW, as RADIANT's
+## fall-back (`fall_back_style`) -- the picture up keeps its pass and the next
+## one built draws `low`.
+static func machine_pick(low: bool) -> void:
+	if graphics_by != GFX_NOBODY or harness_forced():
+		return
+	graphics_by = GFX_MACHINE
+	if low != graphics_low:
+		graphics_low = low
+		_low_held = true
+	save()
+
+
+## Whether a picture up should keep the pass it was built with (`_low_held`).
+static func low_held() -> bool:
+	return _low_held
+
+
+## The machine picked LOW (its measure, or the adapter's hint while that is
+## still to come), and the player has not picked since: what Settings says
+## beside the GRAPHICS row.
+static func low_by_machine() -> bool:
+	return graphics_low and graphics_by != GFX_PLAYER and not _harness_low
+
+
+## Who set GRAPHICS, as a settings file says (`graphics_by`). A file from before
+## the key: LOW was pressed, HIGH may never have been.
+static func graphics_by_in(cfg: ConfigFile) -> String:
+	if not cfg.has_section_key("display", "graphics_by"):
+		return GFX_PLAYER if bool(cfg.get_value("display", "graphics_low", false)) else GFX_NOBODY
+	var v := str(cfg.get_value("display", "graphics_by", GFX_NOBODY))
+	# (anything else is a hand-edited file: never overruled)
+	return v if v in [GFX_NOBODY, GFX_MACHINE, GFX_PLAYER] else GFX_PLAYER
 
 static func look_name(l: Look) -> String:
 	match l:
@@ -373,7 +437,11 @@ static func save() -> void:
 	cfg.set_value("display", "skip_jump", skip_jump)
 	cfg.set_value("display", "frame_cap", frame_cap)
 	cfg.set_value("display", "render_style", String(_file_style if _harness_style else render_style))
-	cfg.set_value("display", "graphics_low", _file_low if _harness_low else graphics_low)
+	# (nobody's yet: the file keeps the default, whatever the adapter's hint drew
+	# with this launch; the hint is asked again until the measure decides)
+	cfg.set_value("display", "graphics_low", _file_low if _harness_low
+		else (graphics_low if graphics_by != GFX_NOBODY else false))
+	cfg.set_value("display", "graphics_by", graphics_by)
 	cfg.save(path)
 
 ## THE FIRST LAUNCH'S WINDOW, when there is no settings file at all (an
@@ -419,6 +487,8 @@ static func load_and_apply() -> void:
 	frame_cap = int(cfg.get_value("display", "frame_cap", 0))
 	render_style = style_in(cfg)
 	graphics_low = bool(cfg.get_value("display", "graphics_low", false))
+	graphics_by = graphics_by_in(cfg)
+	_low_held = false
 	_file_style = render_style
 	_file_low = graphics_low
 	Engine.max_fps = frame_cap
@@ -435,6 +505,11 @@ static func load_and_apply() -> void:
 		elif arg.begins_with("graphics="):
 			_harness_low = true
 			graphics_low = arg.substr(9) == "low"
+	# THE ADAPTER'S HINT (`GpuProbe`), while nobody has set GRAPHICS: an Intel
+	# chip that is not an Arc draws LOW from this launch's first picture, in
+	# memory only, until the title's sky has measured it and the pick is kept.
+	if GpuProbe.wanted() and GpuProbe.hint_weak():
+		graphics_low = true
 	# `-- keepwindow` leaves the window where the command line put it
 	# (`--windowed --position x,y`), for a shot taken while somebody is playing
 	# on the monitor the saved mode would cover. Godot strips its own flags from

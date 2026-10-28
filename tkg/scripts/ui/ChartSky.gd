@@ -315,7 +315,13 @@ func settled() -> bool:
 var _hold_d := Vector2.ZERO
 var _hold_c := Vector2.ZERO
 ## RADIANT's safety: the sky's own GPU time over its first frames (`_radiant_safety`).
-var _radiant_probe: Dictionary = {}
+var _radiant_probe: GpuProbe = null
+## THE MACHINE'S PICK (`GpuProbe`): the title's sky, in any style, measured while
+## nobody has set GRAPHICS; the composite it was started on (a sky rebuilt
+## under it starts again) and whether it is LOW's pass being measured.
+var _gfx_probe: GpuProbe = null
+var _gfx_on := 0
+var _gfx_low := false
 ## The colour held (`chart_c_comp`'s `hyst`): where the blocks were anchored last frame.
 var _hold_b0 := Vector2(INF, INF)
 var _hold_z := -1.0
@@ -426,6 +432,97 @@ static func _warm(root: Node) -> void:
 		vp.add_child(r)
 	# gone once it has been drawn
 	root.get_tree().create_timer(1.0).timeout.connect(holder.queue_free)
+
+
+## THE PICKED PLACE PASS, COMPILED BEFORE IT IS NEEDED: the machine's pick
+## (`GpuProbe`) changed GRAPHICS after the boot's warm (`_warm`) had compiled the
+## other one (LOW over HIGH's, or HIGH back over the hint's LOW), so the next
+## chart built would stall on it. Drawn once off screen in the style's own
+## format, as `_warm` does. (LEGACY's chart has one pass for both.)
+static func warm_place(root: Node, low: bool) -> void:
+	var e: Array = [PLACE_LOW_SH if low else PLACE_SH, true]
+	if ChartRadiant.wanted():
+		e = [ChartRadiant.PLACE_LOW_SH if low else ChartRadiant.PLACE_SH, true]
+	elif ChartLegacy.wanted():
+		return
+	elif ChartPainted.wanted():
+		e = [ChartPainted.PLACE_LOW_SH if low else ChartPainted.PLACE_SH, false]
+	var vp := SubViewport.new()
+	vp.name = "ChartSkyWarmPick"
+	vp.size = Vector2i(4, 4)
+	vp.use_hdr_2d = bool(e[1])
+	vp.disable_3d = true
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var m := ShaderMaterial.new()
+	m.shader = e[0]
+	var r := _rect(m)
+	r.size = Vector2(4, 4)
+	vp.add_child(r)
+	root.add_child(vp)
+	root.get_tree().create_timer(1.0).timeout.connect(vp.queue_free)
+
+
+## The viewports the sky draws itself in, in any style: SIMPLIFIED's and
+## RADIANT's stars, place and composite, PAINTED's band memory besides, LEGACY's
+## picture and its copy. The composite (what is drawn, and sized to the screen's
+## share) last. Empty until they are built.
+func sky_viewports() -> Array[SubViewport]:
+	var out: Array[SubViewport] = []
+	if _legacy != null:
+		if _legacy._vp != null:
+			if _legacy._hvp != null:
+				out.append(_legacy._hvp)
+			out.append(_legacy._vp)
+		return out
+	if _vp == null:
+		return out
+	for v: SubViewport in [_svp, _pvp, _tvp]:
+		if v != null:
+			out.append(v)
+	out.append(_vp)
+	return out
+
+
+## THE MACHINE'S PICK, a frame of it: on the title (whose galaxy is not the
+## run's), while nobody has set GRAPHICS, its sky's GPU time over its first
+## seconds, scaled to a full screen's, and the frames' length on the wall clock
+## (where the GPU reads 0: a Mac); then the pick (`GpuProbe.conclude`), and the
+## picked pass compiled if it changed. Only frames drawn with the window in
+## front count on the wall clock (a covered window is slowed by the system, not
+## by the sky), and none under a frame cap that would hide the machine.
+func _gfx_step(delta: float) -> void:
+	if chart == null or chart.run_galaxy or not GpuProbe.wanted():
+		_gfx_probe = null
+		return
+	var vps := sky_viewports()
+	if vps.is_empty():
+		_gfx_probe = null
+		return
+	var comp: SubViewport = vps[-1]
+	if _gfx_probe == null or _gfx_on != comp.get_instance_id():
+		var rids: Array[RID] = []
+		for v in vps:
+			rids.append(v.get_viewport_rid())
+		_gfx_probe = GpuProbe.new(rids, ChartRadiant.PROBE_FRAMES)
+		_gfx_on = comp.get_instance_id()
+		# (LEGACY's chart is the same on LOW: measured as it is)
+		_gfx_low = _low_now and _legacy == null
+	var hidden := not get_window().has_focus() or (Engine.max_fps > 0 and Engine.max_fps < GpuProbe.CAP_HIDES)
+	if not _gfx_probe.step(GpuProbe.full_sky_scale(comp.size), -1.0 if hidden else delta):
+		return
+	var was_low := DisplaySettings.graphics_low
+	var p := _gfx_probe
+	# (nothing read, a window behind others the whole time: a fresh probe next
+	# frame, `GpuProbe.conclude`)
+	_gfx_probe = null
+	if GpuProbe.conclude(p.avg_ms, _gfx_low, p.frame_ms) and DisplaySettings.graphics_low != was_low:
+		warm_place(get_tree().root, DisplaySettings.graphics_low)
+	# (`-- gfxprobe` is a run to read that line: done once it is printed)
+	if GpuProbe.asked() != "":
+		print("gfxprobe: style %s, %d viewports, the composite %s (x%.2f to a full screen), GPU %.2f ms, frame %.2f ms, on %s, kept: %s" % [
+			style_now(), vps.size(), comp.size, GpuProbe.full_sky_scale(comp.size), p.avg_ms, p.frame_ms,
+			"LOW" if _gfx_low else "HIGH", DisplaySettings.graphics_by if DisplaySettings.graphics_by != "" else "nothing"])
+		get_tree().quit()
 
 
 func _exit_tree() -> void:
@@ -854,6 +951,7 @@ func _drop_job() -> void:
 func _process(delta: float) -> void:
 	if not _job.is_empty() and Engine.get_frames_drawn() > int(_job.frame):
 		_advance()
+	_gfx_step(delta)
 	if chart == null or _legacy != null:
 		return
 	if _vp == null and not _g_for().is_empty():
@@ -1708,7 +1806,8 @@ func _runtime() -> void:
 	_m_comp.set_shader_parameter("exposure", ChartRadiant.EXPOSURE if radiant else EXPOSURE)
 	_m_comp.set_shader_parameter("burn", ChartRadiant.BURN if radiant else BURN)
 	_m_comp.set_shader_parameter("vib", ChartRadiant.VIB if radiant else 0.0)
-	_radiant_probe = {"frames": 0, "gpu": 0.0, "n": 0} if radiant else {}
+	var probed: Array[RID] = [_svp.get_viewport_rid(), _pvp.get_viewport_rid(), _vp.get_viewport_rid()]
+	_radiant_probe = GpuProbe.new(probed, ChartRadiant.PROBE_FRAMES) if radiant else null
 	_comp = _rect(_m_comp)
 	_vp.add_child(_comp)
 	push()
@@ -2071,7 +2170,9 @@ func _push() -> void:
 	if chart.size.x <= 0.0 or chart.size.y <= 0.0:
 		return
 	var painted := g.has("painted")
-	if DisplaySettings.graphics_low != _low_now:
+	# (not the machine's pick under this picture: it keeps its pass until it is
+	# built again, `DisplaySettings.low_held`)
+	if DisplaySettings.graphics_low != _low_now and not DisplaySettings.low_held():
 		_low_now = DisplaySettings.graphics_low
 		if painted:
 			_m_place.shader = ChartPainted.PLACE_LOW_SH if _low_now else ChartPainted.PLACE_SH
@@ -2305,30 +2406,13 @@ func push_solid_stars(m: ShaderMaterial, sol: bool) -> void:
 ## this machine cannot hold it (`ChartRadiant.FALLBACK_MS`), the chart falls
 ## back to SIMPLIFIED from its next build (this one keeps its look), with one
 ## line in the log. A harness's `style=radiant` is never overruled (it is
-## measuring) unless it asks with `radiantprobe=MS`.
+## measuring) unless it asks with `radiantprobe=MS`. (The measure is every
+## style's now, `GpuProbe`: the same one picks GRAPHICS on the title.)
 func _radiant_safety() -> void:
-	if _radiant_probe.is_empty() or _radiant_probe.has("done"):
+	if _radiant_probe == null or not _radiant_probe.step():
 		return
-	var f: int = int(_radiant_probe.frames) + 1
-	_radiant_probe.frames = f
-	var rids: Array[RID] = [_svp.get_viewport_rid(), _pvp.get_viewport_rid(), _vp.get_viewport_rid()]
-	if f == 1:
-		for r in rids:
-			RenderingServer.viewport_set_measure_render_time(r, true)
-		return
-	if f < 12:
-		return
-	var ms := 0.0
-	for r in rids:
-		ms += RenderingServer.viewport_get_measured_render_time_gpu(r)
-	_radiant_probe.gpu = float(_radiant_probe.gpu) + ms
-	_radiant_probe.n = int(_radiant_probe.n) + 1
-	if int(_radiant_probe.n) < ChartRadiant.PROBE_FRAMES:
-		return
-	_radiant_probe["done"] = true
-	var avg := float(_radiant_probe.gpu) / float(_radiant_probe.n)
-	_radiant_probe["avg_ms"] = avg
-	print_verbose("RADIANT the sky's own GPU time: %.2f ms a frame over %d frames" % [avg, int(_radiant_probe.n)])
+	var avg := _radiant_probe.avg_ms
+	print_verbose("RADIANT the sky's own GPU time: %.2f ms a frame over %d frames" % [avg, _radiant_probe.n])
 	if avg > ChartRadiant.budget_ms() and ((DisplaySettings.render_style == &"radiant" and not DisplaySettings.harness_style()) 			or ChartRadiant.probe_forced()):
 		push_warning("RADIANT measured %.1f ms a frame on this machine; drawing SIMPLIFIED" % avg)
 		Run.log_line("RADIANT is too heavy for this machine, so the star chart is drawn SIMPLIFIED.", &"them")

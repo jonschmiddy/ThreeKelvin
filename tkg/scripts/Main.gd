@@ -1166,10 +1166,11 @@ func _ready() -> void:
 			_open_settings()
 			_show_keys.call_deferred()
 			break
-		# `-- settings=motion`: scrolled to MOTION, for a still of it
-		if a_k == "settings=motion":
+		# `-- settings=motion`: scrolled to MOTION, for a still of it; `settings=look`
+		# to THE LOOK (GRAPHICS, and with `gfxprobe` the machine's pick beside it)
+		if a_k == "settings=motion" or a_k == "settings=look":
 			_open_settings()
-			_show_section.call_deferred(&"motion")
+			_show_section.call_deferred(StringName((a_k as String).substr(9)))
 			break
 	if "confirm" in OS.get_cmdline_user_args() and _menu != null:
 		_menu.confirm(true)

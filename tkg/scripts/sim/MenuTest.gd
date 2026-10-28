@@ -60,6 +60,8 @@ func run(tree: SceneTree) -> void:
 			await _style_case()
 			print("graphics LOW")
 			await _graphics_case()
+			print("graphics picked for the machine")
+			await _auto_graphics_case()
 			print("TUTORIAL ON / OFF")
 			await _tutorial_case()
 			print("SAVE MY LOGS")
@@ -202,6 +204,7 @@ func _graphics_case() -> void:
 	const SCRATCH := "user://gfxtest_settings.cfg"
 	var was_path := DisplaySettings.path
 	var was_low := DisplaySettings.graphics_low
+	var was_by := DisplaySettings.graphics_by
 	var was_fell := ChartRadiant.fell_back
 	DisplaySettings.path = SCRATCH
 	var panel := SettingsPanel.new()
@@ -229,12 +232,246 @@ func _graphics_case() -> void:
 		and bool(saved.get_value("display", "graphics_low", false)))
 	_ok("  and the sky is told to rebuild", heard[0] >= 1)
 	_ok("  and RADIANT's safety may try again on LOW", not ChartRadiant.fell_back)
+	_ok("  and it is the player's now: the machine never picks again", DisplaySettings.graphics_by == DisplaySettings.GFX_PLAYER
+		and str(saved.get_value("display", "graphics_by", "")) == DisplaySettings.GFX_PLAYER)
 	panel.queue_free()
 	await _tree.process_frame
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
 	DisplaySettings.path = was_path
 	DisplaySettings.graphics_low = was_low
+	DisplaySettings.graphics_by = was_by
 	ChartRadiant.fell_back = was_fell
+
+
+## GRAPHICS PICKED FOR THE MACHINE (Jon, Oct 27, ruling C1; `GpuProbe`). The
+## adapter's name is a hint (Intel but not Arc is weak; Apple never), the
+## measure decides (a heavy HIGH sky is LOW, a sky measured on LOW is judged by
+## what HIGH would cost; a GPU that reads 0, as a Mac's does, by the title's
+## median frame; no reading leaves it to the hint). A settings file from
+## before `graphics_by` loads: HIGH as nobody's, LOW as the player's. Nobody's +
+## a heavy measure: LOW, kept once in the file, nothing rebuilt under the
+## picture (no `render_style_changed`), never decided again, and read back so.
+## Settings says it beside the GRAPHICS row (a line and its tooltips), clear of
+## the rows round it in the real drawer at 960x540, and HIGH pressed makes it
+## the player's. The player's HIGH is never touched, by the hint or a measure.
+## A forced `graphics=` / `style=` and an ordinary harness never measure or pick.
+## All in a scratch settings file, the hint's adapter stood in for.
+func _auto_graphics_case() -> void:
+	const SCRATCH := "user://autogfx_settings.cfg"
+	const INTEL := ["Intel Inc.", "Intel(R) Iris(TM) Plus Graphics 645"]
+	const RTX := ["NVIDIA Corporation", "NVIDIA GeForce RTX 3070/PCIe/SSE2"]
+	var was_path := DisplaySettings.path
+	var was_low := DisplaySettings.graphics_low
+	var was_by := DisplaySettings.graphics_by
+	var was_hl := DisplaySettings._harness_low
+	var was_hs := DisplaySettings._harness_style
+	var was_mode := DisplaySettings.mode
+	var was_scale := DisplaySettings.window_scale
+	DisplaySettings.path = SCRATCH
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
+
+	_ok("  an ordinary harness never measures for the pick", not GpuProbe.wanted())
+	GpuProbe.in_harness = true
+
+	# THE HINT
+	_ok("  the hint: Intel laptop chips are weak (Mac GL, Windows, ANGLE)",
+		GpuProbe.weak_by_name(INTEL[0], INTEL[1]) and GpuProbe.weak_by_name("Intel", "Intel(R) UHD Graphics 620")
+		and GpuProbe.weak_by_name("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)"))
+	_ok("  an Arc, an Apple chip, NVIDIA and AMD are not",
+		not GpuProbe.weak_by_name("Intel", "Intel(R) Arc(TM) A770 Graphics")
+		and not GpuProbe.weak_by_name("Apple", "Apple M1")
+		and not GpuProbe.weak_by_name(RTX[0], RTX[1])
+		and not GpuProbe.weak_by_name("ATI Technologies Inc.", "AMD Radeon Pro 5500M OpenGL Engine"))
+
+	# THE VERDICT
+	_ok("  the measure decides: a heavy HIGH sky is LOW, a light one HIGH, whatever the hint",
+		GpuProbe.verdict(GpuProbe.LOW_MS * 3.0, false, false) and not GpuProbe.verdict(GpuProbe.LOW_MS * 0.2, false, true))
+	_ok("  a sky measured on LOW is judged by what HIGH would cost",
+		GpuProbe.verdict(GpuProbe.LOW_MS * GpuProbe.LOW_SHARE * 1.5, true, true)
+		and not GpuProbe.verdict(GpuProbe.LOW_MS * GpuProbe.LOW_SHARE * 0.5, true, true))
+	_ok("  no reading leaves it to the hint", GpuProbe.verdict(0.0, false, true) and not GpuProbe.verdict(0.0, false, false))
+	_ok("  a GPU that reads 0 (a Mac): the title's frame decides, over the hint",
+		GpuProbe.verdict(0.0, false, false, 33.3) and not GpuProbe.verdict(0.0, false, true, 16.7))
+	_ok("  on LOW at 60 a second, HIGH is not shown to hold: LOW stays", GpuProbe.verdict(0.0, true, true, 16.7))
+	_ok("  the GPU's own time, where there is one, over the frame's", not GpuProbe.verdict(GpuProbe.LOW_MS * 0.5, false, true, 40.0))
+	# a real probe, stepped as the title steps it: the GPU reads 0 here as on a
+	# Mac; the frames' median, one stall among them
+	var vp := SubViewport.new()
+	vp.size = Vector2i(8, 8)
+	_tree.root.add_child(vp)
+	var rid: Array[RID] = [vp.get_viewport_rid()]
+	var p := GpuProbe.new(rid, 20)
+	var steps := 0
+	while not p.step(1.0, 0.5 if steps == GpuProbe.SETTLE + 3 else 1.0 / 30.0):
+		steps += 1
+	_ok("  a probe's frame is the median: %.1f ms at 30 a second, one half-second stall in it" % p.frame_ms,
+		absf(p.frame_ms - 33.33) < 0.1 and p.avg_ms == 0.0 and steps == GpuProbe.SETTLE - 1 + 19)
+	var hid := GpuProbe.new(rid, 20)
+	var k := 0
+	while not hid.step(1.0, 1.0 / 30.0 if k % 3 == 0 else -1.0):
+		k += 1
+	_ok("  a window behind others for most of it: no frame reading", hid.frame_ms == 0.0)
+	vp.queue_free()
+	_ok("  a full screen of sky is the unit: the title's bigger square is scaled down",
+		is_equal_approx(GpuProbe.full_sky_scale(GpuProbe.FULL_SKY), 1.0)
+		and GpuProbe.full_sky_scale(GpuProbe.FULL_SKY * 2) < 0.3)
+
+	# A SETTINGS FILE FROM BEFORE `graphics_by`, on the default HIGH
+	var old := ConfigFile.new()
+	old.set_value("display", "mode", int(DisplaySettings.Mode.WINDOWED))
+	old.set_value("display", "window_scale", 1)
+	old.set_value("display", "render_style", "simplified")
+	old.set_value("display", "graphics_low", false)
+	old.save(SCRATCH)
+	GpuProbe.adapter_override = PackedStringArray(RTX)
+	DisplaySettings.load_and_apply()
+	_ok("  an old settings file loads: HIGH, set by nobody", not DisplaySettings.graphics_low
+		and DisplaySettings.graphics_by == DisplaySettings.GFX_NOBODY and not DisplaySettings.low_by_machine())
+	_ok("  so this machine may measure it", GpuProbe.wanted())
+	# a measure that read nothing (a Mac's window behind others the whole time):
+	# the name alone is never kept, and the title measures again
+	_ok("  a measure that read nothing keeps nothing", not GpuProbe.conclude(0.0, false, 0.0)
+		and DisplaySettings.graphics_by == DisplaySettings.GFX_NOBODY and GpuProbe.wanted())
+
+	# NEVER CHOSEN + A WEAK MACHINE'S MEASURE
+	var heard := [0]
+	var on_change := func() -> void: heard[0] += 1
+	Sig.render_style_changed.connect(on_change)
+	_ok("  never chosen, a heavy sky: the machine picks", GpuProbe.conclude(GpuProbe.LOW_MS * 3.0, false))
+	_ok("  LOW, set by the machine", DisplaySettings.graphics_low and DisplaySettings.graphics_by == DisplaySettings.GFX_MACHINE)
+	var saved := ConfigFile.new()
+	_ok("  kept in the settings file", saved.load(SCRATCH) == OK
+		and bool(saved.get_value("display", "graphics_low", false))
+		and str(saved.get_value("display", "graphics_by", "")) == DisplaySettings.GFX_MACHINE)
+	_ok("  the old file's own keys kept beside it", int(saved.get_value("display", "window_scale", -1)) == 1
+		and str(saved.get_value("display", "render_style", "")) == "simplified")
+	_ok("  nothing rebuilt under the picture (no render_style_changed)", heard[0] == 0)
+	_ok("  and the picture up keeps its pass", DisplaySettings.low_held())
+	_ok("  decided once: a light measure later changes nothing",
+		not GpuProbe.conclude(GpuProbe.LOW_MS * 0.1, false) and DisplaySettings.graphics_low)
+	_ok("  and nothing measures again", not GpuProbe.wanted())
+	DisplaySettings.load_and_apply()
+	_ok("  read back next launch: LOW, the machine's, nothing held", DisplaySettings.graphics_low
+		and DisplaySettings.graphics_by == DisplaySettings.GFX_MACHINE and not DisplaySettings.low_held()
+		and not GpuProbe.wanted())
+
+	# SETTINGS SAYS SO, in the real drawer at 960x540
+	_main.call("_open_settings")
+	await _secs(0.3)
+	var drawer: SettingsMenu = _main.get("_settings")
+	if _ok("  the Settings drawer opens", drawer != null):
+		var panel := first(drawer, func(n: Node) -> bool: return n is SettingsPanel) as SettingsPanel
+		panel._refresh()
+		await _secs(0.2)
+		var note := first(panel, func(n: Node) -> bool:
+			return n is Label and n.name == &"GraphicsPicked") as Label
+		var key := first(panel, func(n: Node) -> bool:
+			return n is Label and (n as Label).text == "GRAPHICS") as Label
+		var low_chip := _plate(panel, "LOW")
+		var high_chip := _plate(panel, "HIGH")
+		_ok("  the row reads LOW", low_chip != null and low_chip.lead and high_chip != null and not high_chip.lead)
+		_ok("  a line under it says PICKED FOR THIS COMPUTER", note != null and key != null
+			and note.text == "PICKED FOR THIS COMPUTER"
+			and note.get_parent() == key.get_parent().get_parent()
+			and note.get_index() == key.get_parent().get_index() + 1)
+		_ok("  its tooltip, the row's and LOW's say why, in plain words", key != null and note != null
+			and low_chip != null and key.tooltip_text.replace("\n", " ").contains("picked LOW because this computer")
+			and note.tooltip_text == key.tooltip_text and key.mouse_filter != Control.MOUSE_FILTER_IGNORE
+			and low_chip.tooltip_text.replace("\n", " ").contains("picked LOW for this computer"))
+		if note != null and key != null:
+			var row := key.get_parent() as Control
+			var after := note.get_parent().get_child(note.get_index() + 1) as Control
+			var nb := note.get_global_rect()
+			var sb := (panel._scroll as Control).get_global_rect()
+			var below := first(panel, func(n: Node) -> bool:
+				return n is Label and (n as Label).text == "COLORBLINDNESS") as Label
+			_ok("  box test: the line is inside the drawer's width (%s in %s)" % [nb, sb],
+				nb.size.x > 0.0 and nb.position.x >= sb.position.x - 0.5 and nb.end.x <= sb.end.x + 0.5)
+			_ok("  clear of the GRAPHICS row above and the next row below",
+				not nb.intersects(row.get_global_rect()) and not nb.intersects(after.get_global_rect())
+				and below != null and not nb.intersects((below.get_parent() as Control).get_global_rect()))
+			_ok("  and every word of it shown (%d lines)" % note.get_line_count(),
+				note.get_visible_line_count() == note.get_line_count() and note.size.y >= note.get_minimum_size().y - 0.5)
+		heard[0] = 0
+		if high_chip != null:
+			high_chip.pressed.emit()
+		await _secs(0.2)
+		_ok("  HIGH pressed: HIGH, the player's, rebuilt at once", not DisplaySettings.graphics_low
+			and DisplaySettings.graphics_by == DisplaySettings.GFX_PLAYER and heard[0] >= 1 and not DisplaySettings.low_held())
+		_ok("  and the line is gone", first(panel, func(n: Node) -> bool:
+			return n is Label and n.name == &"GraphicsPicked") == null)
+		_plate(drawer, "BACK").pressed.emit()
+		await _secs(0.5)
+	Sig.render_style_changed.disconnect(on_change)
+
+	# THE PLAYER'S HIGH IS NEVER TOUCHED, on an Intel chip and a heavy measure
+	GpuProbe.adapter_override = PackedStringArray(INTEL)
+	DisplaySettings.load_and_apply()
+	_ok("  chose HIGH, on an Intel chip: no hint", not DisplaySettings.graphics_low
+		and DisplaySettings.graphics_by == DisplaySettings.GFX_PLAYER)
+	_ok("  and no measure, no pick", not GpuProbe.wanted() and not GpuProbe.conclude(GpuProbe.LOW_MS * 5.0, false)
+		and not DisplaySettings.graphics_low)
+	saved = ConfigFile.new()
+	_ok("  the file still says HIGH, the player's", saved.load(SCRATCH) == OK
+		and not bool(saved.get_value("display", "graphics_low", true))
+		and str(saved.get_value("display", "graphics_by", "")) == DisplaySettings.GFX_PLAYER)
+
+	# AN OLD FILE ON LOW: the player pressed it (HIGH was the default)
+	old.set_value("display", "graphics_low", true)
+	old.save(SCRATCH)
+	DisplaySettings.load_and_apply()
+	_ok("  an old file on LOW loads as the player's LOW", DisplaySettings.graphics_low
+		and DisplaySettings.graphics_by == DisplaySettings.GFX_PLAYER and not GpuProbe.wanted())
+
+	# THE HINT ON A LAUNCH NOBODY HAS DECIDED
+	old.set_value("display", "graphics_low", false)
+	old.save(SCRATCH)
+	DisplaySettings.load_and_apply()
+	_ok("  never chosen, an Intel chip: LOW from the first picture", DisplaySettings.graphics_low
+		and DisplaySettings.graphics_by == DisplaySettings.GFX_NOBODY and DisplaySettings.low_by_machine())
+	DisplaySettings.save()
+	saved = ConfigFile.new()
+	_ok("  in memory only: the file keeps the default until the measure", saved.load(SCRATCH) == OK
+		and not bool(saved.get_value("display", "graphics_low", true))
+		and str(saved.get_value("display", "graphics_by", "x")) == DisplaySettings.GFX_NOBODY)
+	_ok("  measured on LOW and light: HIGH is put back, from the next picture",
+		GpuProbe.conclude(GpuProbe.LOW_MS * GpuProbe.LOW_SHARE * 0.3, true) and not DisplaySettings.graphics_low
+		and DisplaySettings.graphics_by == DisplaySettings.GFX_MACHINE and DisplaySettings.low_held())
+	old.save(SCRATCH)
+	DisplaySettings.load_and_apply()
+	_ok("  measured on LOW and heavy: LOW kept, nothing to hold", GpuProbe.conclude(GpuProbe.LOW_MS, true)
+		and DisplaySettings.graphics_low and DisplaySettings.graphics_by == DisplaySettings.GFX_MACHINE
+		and not DisplaySettings.low_held())
+	old.save(SCRATCH)
+	GpuProbe.adapter_override = PackedStringArray(["Apple", "Apple M1"])
+	DisplaySettings.load_and_apply()
+	_ok("  an Apple chip never starts on LOW", not DisplaySettings.graphics_low and GpuProbe.wanted())
+
+	# A LAUNCH THAT FORCED THE LOOK (`graphics=`, `style=`): what it asked for
+	GpuProbe.adapter_override = PackedStringArray(INTEL)
+	DisplaySettings._harness_low = true
+	DisplaySettings.load_and_apply()
+	_ok("  graphics= forced: no hint over it", not DisplaySettings.graphics_low)
+	_ok("  no measure, no pick, and the file stays nobody's", not GpuProbe.wanted()
+		and not GpuProbe.conclude(GpuProbe.LOW_MS * 5.0, false) and not DisplaySettings.graphics_low
+		and DisplaySettings.graphics_by == DisplaySettings.GFX_NOBODY)
+	DisplaySettings._harness_low = false
+	DisplaySettings._harness_style = true
+	_ok("  style= forced: no measure, no pick", not GpuProbe.wanted()
+		and not GpuProbe.conclude(GpuProbe.LOW_MS * 5.0, false) and DisplaySettings.graphics_by == DisplaySettings.GFX_NOBODY)
+
+	GpuProbe.in_harness = false
+	GpuProbe.adapter_override = PackedStringArray()
+	DisplaySettings._harness_low = was_hl
+	DisplaySettings._harness_style = was_hs
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
+	DisplaySettings.path = was_path
+	DisplaySettings.mode = was_mode
+	DisplaySettings.window_scale = was_scale
+	DisplaySettings.load_and_apply()
+	DisplaySettings.graphics_low = was_low
+	DisplaySettings.graphics_by = was_by
+	await _tree.process_frame
 
 
 ## TUTORIAL ON / OFF (Jon, Oct 20: "Have a setting in the options for tutorial

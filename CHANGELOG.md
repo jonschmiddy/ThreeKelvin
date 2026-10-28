@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Added** — GRAPHICS can pick LOW by itself on a slow graphics chip. The first time the title
+  screen is up, the game times how long its galaxy takes to draw. If this computer can't keep
+  up, GRAPHICS goes to LOW from the next screen on. Settings then says PICKED FOR THIS COMPUTER
+  under the row. An Intel chip that is not an Arc starts on LOW while it is timed; an Apple chip
+  never does. This happens once, and only if you never set GRAPHICS yourself. Pick HIGH or LOW
+  in Settings and the game never changes it.
+
 ### Roadmap
 
 The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See

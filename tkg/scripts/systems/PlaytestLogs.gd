@@ -107,7 +107,8 @@ static func _build_txt() -> String:
 		"%s %s" % [OS.get_name(), OS.get_version()],
 		"graphics: %s (%s)" % [RenderingServer.get_video_adapter_name(), RenderingServer.get_video_adapter_vendor()],
 		"screen: %s, window %s" % [DisplayServer.screen_get_size(), DisplayServer.window_get_size()],
-		"settings: style %s, graphics %s" % [DisplaySettings.render_style, "LOW" if DisplaySettings.graphics_low else "HIGH"],
+		"settings: style %s, graphics %s (set by %s)" % [DisplaySettings.render_style, "LOW" if DisplaySettings.graphics_low else "HIGH",
+			DisplaySettings.graphics_by if DisplaySettings.graphics_by != DisplaySettings.GFX_NOBODY else "nobody yet"],
 	])
 	return "\n".join(lines) + "\n"
 
