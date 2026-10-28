@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Changed** — the ship on the sector map is your own ship now, not a small arrow. It is drawn
+  from the same picture of your hull that LOCAL shows, shrunk to the map's size, so a heavy is
+  longer than a light and a new hull shows there after a swap. A dark hull is drawn a little
+  brighter so you can find it against the stars. Jeremy asked for it. Partners in your party are
+  still green arrows with their names.
+- **Changed** — the engine flame on the sector map is blue now, an ion drive, so flying inside a
+  system no longer looks like a jump. LOCAL and fights keep their own flames.
 - **Changed** — the chassis select shows each frame's real hull after its HULL pips, so a light
   Korvan reads "4 29 hull". Geno read 4, 6 and 8 pips against 29, 40 and 57 hull as a mismatch.
   The HULL tooltip no longer says a pip is exactly 7 hull. It says about 7, on the refit screen

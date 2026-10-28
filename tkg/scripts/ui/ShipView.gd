@@ -1377,6 +1377,30 @@ func _paste(img: Image, dx: int, dy: int, blend: bool) -> void:
 	else:
 		_img.blit_rect(img, src, at)
 
+## THE PICTURE A HULL IS DRAWN FROM, before a fight marks it. One question
+## asked in one place, so the sector map's ship (`MapHull`) is always the hull
+## LOCAL draws.
+##
+## The half sheet when it is asked for and the hull has one. Falls through to
+## full art rather than refusing to draw, so a hull that has not been reduced
+## yet still appears — at the wrong size, which is visible, and not at all,
+## which is not.
+##
+## THE GRADE FIRST, THE FIGHTS ON TOP OF IT: a graded weight's one hull baked at
+## this ship's grade (HullGrade: wear, paint, markings, lights, kit), and its
+## registry the ship's own; `_blit_sprite` lays HullWear's damage over that, so
+## a beaten S still reads as a good ship that got shot.
+static func hull_art(h: HullData, pilot: String, half: bool) -> Texture2D:
+	if h == null:
+		return null
+	var src: Texture2D = h.sprite
+	if half and h.sprite_half != null:
+		src = h.sprite_half
+	if HullGrade.key_for(h) != "":
+		src = HullGrade.graded_tex(h, half and h.sprite_half != null, HullWear.seed_for(h, pilot, Rng.master))
+	return src
+
+
 func _blit_sprite() -> void:
 	# The hull BEATEN UP IN PROPORTION TO ITS HULL POINTS. This is the line that
 	# closes an old gap: everything the procedural path layers on — heat glow,
@@ -1399,19 +1423,7 @@ func _blit_sprite() -> void:
 	# this machine, and every one of those three is agreed between us, so their
 	# ship wears the same damage on both screens.
 	var wseed := HullWear.seed_for(h, b.pilot if b != null else "", Rng.master)
-	# The half sheet when this view asked for it and the hull has one. Falls
-	# through to full art rather than refusing to draw, so a hull that has not
-	# been reduced yet still appears — at the wrong size, which is visible, and
-	# not at all, which is not.
-	var src: Texture2D = h.sprite
-	if _half and h.sprite_half != null:
-		src = h.sprite_half
-	# THE GRADE FIRST, THE FIGHTS ON TOP OF IT: a graded weight's one hull baked
-	# at this ship's grade (HullGrade: wear, paint, markings, lights, kit), and
-	# its registry the ship's own; then HullWear's damage over that, so a beaten
-	# S still reads as a good ship that got shot.
-	if HullGrade.key_for(h) != "":
-		src = HullGrade.graded_tex(h, _half and h.sprite_half != null, wseed)
+	var src := hull_art(h, b.pilot if b != null else "", _half)
 	var img: Image = HullWear.worn_cached(src, band, wseed)
 	if img == null:
 		img = src.get_image()

@@ -53,6 +53,25 @@ var link_body := -2
 ## THE SHIP, flown (`ShipFlight`); the screen steps it, this draws it.
 var flight
 var _ship_at := Vector2.ZERO
+## YOUR OWN HULL, drawn at the map's scale (`MapHull`): the picture it is made
+## from (`ShipView.hull_art`, the one LOCAL draws) and the map's picture of it,
+## remade when the hull is swapped. {} (and the old arrow) with no hull art.
+const MapHullS := preload("res://scripts/ui/sysmap/MapHull.gd")
+var hull_src: Texture2D = null
+var hull_pic: Dictionary = {}
+var _hull_key: Array = []
+## THE ION DRIVE'S COLOURS, two steps of the player's cold drive ramp
+## (`ThrusterFx.COOL_RAMP`): the cool blue the flame leaves the stern in, and
+## the paler blue it fades to at the tip. The ramp's deep blue was tried for
+## the flame's edges and vanished against the map's blue nebulae.
+const ION_CORE := Color("#5ea6ff")
+const ION_TIP := Color("#bfe2ff")
+## FOR THE HARNESSES (`-- sheet=MapShipTest`): every pixel of the ship drawn
+## last frame, `[screen point, colour, &"hull" | &"outline" | &"glow" |
+## &"flame" | &"rcs"]`, kept while `record_px` is on (headless draws nothing
+## anyone can read back).
+var record_px := false
+var ship_px: Array = []
 var _last_rel := Vector2.INF
 ## The hover easing in, as the chart's `_hover_t` (move_toward at 9 a second),
 ## from nothing again for each new thing pointed at.
@@ -975,8 +994,9 @@ func _label_clear(tag: String, at: Vector2, half: float, path: PackedVector2Arra
 	]
 	# the ship and its YOU are in the way too (last frame's place)
 	var blocks := path.duplicate()
-	for sx in range(-10, 11, 3):
-		for sy in range(-16, 9, 3):
+	var sr := ship_r()
+	for sx in range(-sr - 3, sr + 4, 3):
+		for sy in range(-you_up() - 3, sr + 2, 3):
 			blocks.append(_ship_at + Vector2(sx, sy))
 	var pick: Vector2 = cands[0]
 	for cv: Vector2 in cands:
@@ -1003,11 +1023,12 @@ var partner_at: Array = []
 var _partner_plane: Dictionary = {}
 var _partner_ms: int = 0
 
-## THE PARTY ON THE MAP: the same small ship yours is, in the party's colour,
-## with its pilot's name (Oct 22 playtest: partners were never drawn here).
-## A partner sitting where you are -- two ships that jumped in together arrive
-## on the same point -- is drawn a ship's length off, in formation, never on
-## top of you.
+## THE PARTY ON THE MAP: the small arrow your own ship was before it was your
+## hull, in the party's colour, with its pilot's name (Oct 22 playtest:
+## partners were never drawn here). A partner sitting where you are -- two
+## ships that jumped in together arrive on the same point -- is drawn a ship's
+## length off, in formation, never on top of you: as far below as your hull
+## reaches (`ship_r`), and a row more for each partner after.
 func _draw_partners(_t: float) -> void:
 	partner_at.clear()
 	var scr = get_parent()
@@ -1028,9 +1049,9 @@ func _draw_partners(_t: float) -> void:
 		q = want if q.distance_to(want) > 400.0 else q.lerp(want, k)
 		_partner_plane[id] = q
 		var x := _scr(q.x, q.y).round()
-		if x.distance_to(_ship_at) < 14.0:
+		if x.distance_to(_ship_at) < ship_r() + 7.0:
 			row += 1
-			x = _ship_at + Vector2(-6.0, 12.0 * row)
+			x = _ship_at + Vector2(-6.0, ship_r() + 5.0 + 12.0 * (row - 1))
 		partner_at.append([id, x])
 		# HIDDEN BEHIND what stands in front of it, as your own ship is: the
 		# star's disc, a nearer world's (the first stills had a partner in close
@@ -1091,6 +1112,36 @@ func place_rel(body: int) -> Vector2:
 	return Vector2(c.x, c.z * view.TILT) * view.zoom
 
 
+## The map's picture of your hull, remade when the hull, its grade or the run
+## changes (a swap at a yard hands `Run` a new frame).
+func _hull_pic() -> Dictionary:
+	var h: HullData = Run.hull
+	if h == null or h.sprite == null:
+		hull_src = null
+		hull_pic = {}
+		_hull_key = []
+		return hull_pic
+	var key := [h, h.tier, Rng.master]
+	if key != _hull_key:
+		_hull_key = key
+		hull_src = ShipView.hull_art(h, "", false)
+		hull_pic = MapHullS.picture(h, hull_src)
+	return hull_pic
+
+
+## HOW FAR THE SHIP REACHES from its middle, whichever way it points (px): what
+## the words round it, the ring and a partner in formation keep clear of. The
+## old arrow's was 7.
+func ship_r() -> int:
+	return 7 if hull_pic.is_empty() else int(hull_pic.R)
+
+
+## How far over the ship YOU is written (its baseline): 13 over the old arrow,
+## and over a longer hull pointing straight up, clear of its nose.
+func you_up() -> int:
+	return maxi(13, ship_r() + 5)
+
+
 func _draw_ship(t: float) -> void:
 	if flight == null:
 		return
@@ -1120,44 +1171,89 @@ func _draw_ship(t: float) -> void:
 		var b: SystemLayout.Body = view.layout.bodies[i]
 		if view.depth(view.pos[i]) > my_depth:
 			occ.append([view.at[i], view.draw_r(b)])
-	var ang: float = flight.ang
+	var cf: float = float(catch_light.get("f", 0.0))
+	var cdir := Vector2.ZERO
+	if cf > 0.0:
+		cdir = ((catch_light.at as Vector2) - x).normalized()
+	if record_px:
+		ship_px = []
+	var pic := _hull_pic()
+	# YOUR HULL, turned to the step nearest the nose (`MapHull`), or the old
+	# arrow where there is no hull picture to draw
+	var ang: float = flight.ang if pic.is_empty() else MapHullS.bin_angle(MapHullS.bin_of(flight.ang))
 	var c := cos(ang)
 	var s := sin(ang)
-	var P := func(u: float, v: float, col: Color) -> void:
+	var P := func(u: float, v: float, col: Color, what: StringName) -> void:
 		var q := (x + Vector2(u * c - v * s, u * s + v * c)).round()
 		for o: Array in occ:
 			if q.distance_to(o[0]) < float(o[1]):
 				return
 		_px(q, col)
-	var in_hull := func(u: int, v: int) -> bool:
-		return u >= -3 and u <= 6 and absf(v) <= (6 - u) * 0.5
-	for u in range(-4, 8):
-		for v in range(-4, 5):
-			if not in_hull.call(u, v) and (in_hull.call(u - 1, v) or in_hull.call(u + 1, v) or in_hull.call(u, v - 1) or in_hull.call(u, v + 1)):
-				P.call(u, v, Color("#05070b"))
-	var cf: float = float(catch_light.get("f", 0.0))
-	var cdir := Vector2.ZERO
-	if cf > 0.0:
-		cdir = ((catch_light.at as Vector2) - x).normalized()
-	for u in range(-3, 7):
-		for v in range(-4, 5):
-			if in_hull.call(u, v):
-				var hc: Color = Color.WHITE if u > 3 else (UITheme.CHILL if absi(v) >= 2 else UITheme.ICE)
-				if cf > 0.0:
-					# the hull's edge facing the flash, lit toward its colour, never white
-					var nl := Vector2.ZERO
-					for o: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-						if not in_hull.call(u + o.x, v + o.y):
-							nl += Vector2(o)
-					if nl != Vector2.ZERO:
-						var ns := Vector2(nl.x * c - nl.y * s, nl.x * s + nl.y * c).normalized()
-						if ns.dot(cdir) > 0.5:
-							hc = hc.lerp(catch_light.col as Color, 0.5 * cf)
-				P.call(u, v, hc)
-	P.call(-4, -1, UITheme.HOT)
-	P.call(-4, 1, UITheme.HOT)
-	P.call(-5, -1, UITheme.FLARE if int(t * 20.0) % 2 == 1 else UITheme.HOT)
-	P.call(-5, 1, UITheme.FLARE if int(t * 20.0 + 1) % 2 == 1 else UITheme.HOT)
+		if record_px:
+			ship_px.append([q, col, what])
+	# where the engines burn from, the rows either side of their middle and the
+	# middle (the column of each that the hull's outline ends on), and the nose
+	var ev := 0
+	var stern: Array = [-4, -4, -4]
+	var nose: Array = [5, 5, 5]
+	if pic.is_empty():
+		var in_hull := func(u: int, v: int) -> bool:
+			return u >= -3 and u <= 6 and absf(v) <= (6 - u) * 0.5
+		for u in range(-4, 8):
+			for v in range(-4, 5):
+				if not in_hull.call(u, v) and (in_hull.call(u - 1, v) or in_hull.call(u + 1, v) or in_hull.call(u, v - 1) or in_hull.call(u, v + 1)):
+					P.call(u, v, MapHullS.OUTLINE, &"outline")
+		for u in range(-3, 7):
+			for v in range(-4, 5):
+				if in_hull.call(u, v):
+					var hc: Color = Color.WHITE if u > 3 else (UITheme.CHILL if absi(v) >= 2 else UITheme.ICE)
+					if cf > 0.0:
+						# the hull's edge facing the flash, lit toward its colour, never white
+						var nl := Vector2.ZERO
+						for o: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+							if not in_hull.call(u + o.x, v + o.y):
+								nl += Vector2(o)
+						if nl != Vector2.ZERO:
+							var ns := Vector2(nl.x * c - nl.y * s, nl.x * s + nl.y * c).normalized()
+							if ns.dot(cdir) > 0.5:
+								hc = hc.lerp(catch_light.col as Color, 0.5 * cf)
+					P.call(u, v, hc, &"hull")
+	else:
+		ev = int(pic.ev)
+		stern = pic.stern
+		nose = pic.nose
+		var tp: Dictionary = MapHullS.turned(pic, MapHullS.bin_of(flight.ang))
+		var offs: PackedVector2Array = tp.o
+		var cols: PackedColorArray = tp.c
+		var nrm: PackedVector2Array = tp.n
+		var hulls: PackedFloat32Array = tp.hull
+		for i in offs.size():
+			var q := x + offs[i]
+			var hid := false
+			for o: Array in occ:
+				if q.distance_to(o[0]) < float(o[1]):
+					hid = true
+					break
+			if hid:
+				continue
+			var hc := cols[i]
+			# the hull's edge facing the flash, lit toward its colour, never white
+			if cf > 0.0 and nrm[i] != Vector2.ZERO and nrm[i].dot(cdir) > 0.5:
+				hc = Color(hc.lerp(catch_light.col as Color, 0.5 * cf * hulls[i]), hc.a)
+			_px(q, hc)
+			if record_px:
+				ship_px.append([q, hc, &"hull" if hulls[i] > 0.0 else &"outline"])
+	# THE DRIVE, AN ION DRIVE (Jeremy: blue engines on the map, so flying in a
+	# system reads as the drive and not the warp): the old flame's shape and
+	# motion in the player's cold drive ramp (`ThrusterFx.COOL_RAMP`), a cool
+	# blue core and a paler tip. LOCAL's and the fight's flames are their own.
+	var o0: int = stern[0]
+	var o1: int = stern[1]
+	var o2: int = stern[2]
+	P.call(o0, ev - 1, ION_CORE, &"glow")
+	P.call(o2, ev + 1, ION_CORE, &"glow")
+	P.call(o0 - 1, ev - 1, ION_TIP if int(t * 20.0) % 2 == 1 else ION_CORE, &"glow")
+	P.call(o2 - 1, ev + 1, ION_TIP if int(t * 20.0 + 1) % 2 == 1 else ION_CORE, &"glow")
 	if flight.burn:
 		# THE FLAME, out of the back whichever way the nose points: as long and
 		# as bright as the burn (brighter as it lights), flickering a pixel or two
@@ -1166,20 +1262,23 @@ func _draw_ship(t: float) -> void:
 		var ln := int(4.0 + 8.0 * bk) + (fl2 - 1)
 		for k in range(1, ln + 1):
 			var fade := 1.0 - float(k) / float(ln + 1)
-			var col: Color = UITheme.FLARE.lerp(UITheme.EMBER, minf(1.0, float(k) / 3.0))
+			var tip := float(k) / float(ln)
 			var al := minf(1.0, (0.35 + 0.45 * bk) * fade + (0.25 if k <= 2 else 0.0))
-			P.call(-4 - k, -1, Color(col, al))
-			P.call(-4 - k, 1, Color(col, al))
+			var col: Color = ION_CORE.lerp(ION_TIP, tip)
+			P.call(o0 - k, ev - 1, Color(col, al), &"flame")
+			P.call(o2 - k, ev + 1, Color(col, al), &"flame")
 			if k <= 3 + int(bk * 3.0):
-				P.call(-4 - k, 0, Color(UITheme.HOT, minf(1.0, al * 1.1)))
+				P.call(o1 - k, ev, Color(col, minf(1.0, al * 1.1)), &"flame")
 	if flight.rcs:
 		var fl := int(t * 20.0) % 2
-		P.call(7 + fl, -1, Color(UITheme.HOT, 0.8))
-		P.call(7 + (1 - fl), 1, Color(UITheme.HOT, 0.8))
+		var n0: int = 7 if pic.is_empty() else nose[0] + 1
+		var n2: int = 7 if pic.is_empty() else nose[2] + 1
+		P.call(n0 + fl, -1, Color(UITheme.HOT, 0.8), &"rcs")
+		P.call(n2 + (1 - fl), 1, Color(UITheme.HOT, 0.8), &"rcs")
 	# THE RING when it is settled (arrived, or stopped); in orbit the orbit is it
 	var settled: bool = flight.mode == &"warp"
 	if settled:
-		var rr := 11.0 + sin(t * 2.4) * 1.5
+		var rr := float(ship_r()) + 4.0 + sin(t * 2.4) * 1.5
 		for k in range(0, 40, 2):
 			var an := float(k) / 40.0 * TAU
 			_px(x + Vector2(cos(an) * rr, sin(an) * rr * 0.8), Color(UITheme.FLARE, 0.75))
@@ -1197,11 +1296,11 @@ func _draw_ship(t: float) -> void:
 	elif flight.star_orbiting():
 		words = "ORBITING " + view.star_name()
 	if words == "":
-		_label(x + Vector2(-8, -13), "YOU", UITheme.FLARE, 1, false)
+		_label(x + Vector2(-8, -you_up()), "YOU", UITheme.FLARE, 1, false)
 	else:
 		var tw := _font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 		var lc := x
-		var ly := x.y + 17.0
+		var ly := x.y + maxf(17.0, ship_r() + 11.0)
 		if on >= -1:
 			# UNDER THE RING it names, centred on its place (under the ship it sat
 			# on the world when zoomed in)
@@ -1214,7 +1313,7 @@ func _draw_ship(t: float) -> void:
 		if names_on:
 			_label(Vector2(lx, ly), words, UITheme.FLARE, 4, true)
 		else:
-			_label(x + Vector2(-8, -13), "YOU", UITheme.FLARE, 1, false)
+			_label(x + Vector2(-8, -you_up()), "YOU", UITheme.FLARE, 1, false)
 
 
 ## Where the ship's status is written (its words' baseline) from the frame's top
