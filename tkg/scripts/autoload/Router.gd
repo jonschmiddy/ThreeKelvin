@@ -438,6 +438,9 @@ func new_run(seed_value: int = 0) -> void:
 		Rng.forced = seed_value
 	Run.start_new_run()
 	Rng.forced = was
+	# the run's star chart built on a worker while the hull is picked, not on
+	# the click that first opens it (`MapChart.build_ahead`)
+	StarchartScreen.MapChart.build_ahead()
 	show_chassis_select()
 
 func show_chassis_select() -> void:
@@ -464,6 +467,8 @@ func continue_run() -> void:
 		show_launcher()
 		return
 	crumb("[run] resumed, seed %d, jump %d, %s" % [Run.galaxy_seed, Run.jumps, BuildInfo.stamp()])
+	# (and its star chart, as a new run's: `MapChart.build_ahead`)
+	StarchartScreen.MapChart.build_ahead()
 	# QUIT BETWEEN THE CORE'S KILL AND ITS BODY: back to the body, to click.
 	if Run.won and core_body_here() != null:
 		await_core_body()

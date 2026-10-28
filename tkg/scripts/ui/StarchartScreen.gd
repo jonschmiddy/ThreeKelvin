@@ -2083,6 +2083,37 @@ class Crosshair extends Control:
 				draw_rect(Rect2(q, Vector2.ONE), ring)
 
 
+## A chart's star field being built on a worker (`MapChart.build_ahead`): the
+## chart it is built on (never in the tree), the worker, and once it is done the
+## field's lists, taken on the main thread. In the tree only so that quitting
+## waits for its worker: a task nobody waits for hangs the process at exit.
+class ChartAhead extends Node:
+	var chart: MapChart = null
+	var task := -1
+	var key := ""
+	var galaxy := ""
+	var snap: Dictionary = {}
+
+	func _process(_delta: float) -> void:
+		if task >= 0 and WorkerThreadPool.is_task_completed(task):
+			finish()
+
+	## On the main thread: the worker waited for (at once, if it is done), the
+	## field's lists taken, the chart it was built on freed.
+	func finish() -> void:
+		if task >= 0:
+			WorkerThreadPool.wait_for_task_completion(task)
+			task = -1
+		if chart != null:
+			snap = chart._snapshot_sky()
+			chart.free()
+			chart = null
+		set_process(false)
+
+	func _exit_tree() -> void:
+		finish()
+
+
 class MapChart extends Control:
 	## The galaxy from above. Layers are rings: you start on the rim and work in,
 	## and the core burns at the centre. Presentation only — MapGen still
@@ -2223,7 +2254,7 @@ class MapChart extends Control:
 	## Every shape parameter comes from GalaxyGen, so a new galaxy type is a
 	## dictionary entry rather than another branch in here.
 	func _g() -> Dictionary:
-		return Run.galaxy
+		return Run.galaxy if _ahead_src.is_empty() else _ahead_src.galaxy
 
 	func _squash() -> float:
 		return _g().squash
@@ -2234,7 +2265,25 @@ class MapChart extends Control:
 	## The spiral has one definition, in MapGen, because system placement is
 	## derived from it too and the two must not drift.
 	func _shape_angle(r_norm: float, arm: int, along: float) -> float:
-		return MapGen.shape_angle(r_norm, arm, along)
+		if _ahead_src.is_empty():
+			return MapGen.shape_angle(r_norm, arm, along)
+		return MapGen.shape_angle_in(_ahead_src.galaxy, float(_ahead_src.spin), r_norm, arm, along)
+
+	## WHAT THE STAR FIELD IS BUILT FROM when it is built off the main thread
+	## (`build_ahead`): the run's galaxy, seed and spin, its systems and its
+	## clouds, copied on the main thread before the worker starts, so the worker
+	## reads nothing a new run, the title's own galaxy or a load could change
+	## under it. Empty on every chart that is shown: those read Run, as always.
+	var _ahead_src: Dictionary = {}
+
+	func _gseed() -> int:
+		return Run.galaxy_seed if _ahead_src.is_empty() else int(_ahead_src.seed)
+
+	func _gmap() -> Array:
+		return Run.map if _ahead_src.is_empty() else _ahead_src.map
+
+	func _clouds() -> Array:
+		return NebulaField.clouds() if _ahead_src.is_empty() else (_ahead_src.clouds as Array).duplicate()
 
 	## When false the chart draws the galaxy and nothing else — no systems, no
 	## routes, no trail, no tooltip.
@@ -2589,6 +2638,88 @@ class MapChart extends Control:
 		_build_stars()
 		_ensure_gpu()
 
+	## Whether the sky is drawn as it is meant to be, palette and all.
+	func sky_drawn() -> bool:
+		return _sky != null and _sky.ready_to_draw()
+
+	## THE FIRST CHART OF A RUN, BUILT WHILE THE HULL IS PICKED (Oct 27, on
+	## Jon's Mac). The run's star field was built the first time its chart was
+	## drawn: the click on STARCHART, or Tab, held the old screen still for the
+	## whole build -- 350-420 ms on the PC, 300-560 ms on Jon's Mac -- before the move
+	## began. `Router.new_run` (and CONTINUE) start it here instead, on a worker,
+	## from a copy of the run's galaxy (`_ahead_src`), so it is done long before
+	## anyone opens the chart; the chart's own `_build_stars` finds it in the
+	## cache (`_take_ahead`) and draws the same stars it would have built.
+	##
+	## The field is laid out for the chart's size, which only the screen's
+	## layout decides: the size the last chart had this session, or the one it
+	## has had since the field went under the navigation screens (`CHART_AT`;
+	## `-- sheet=ChartAheadTest` fails if the layout moves it). Built for a size
+	## the chart turns out not to have, it is simply not used: the chart builds
+	## its own, as before.
+	##
+	## Not headless and not in the sim, which start runs by the hundred and never
+	## draw a chart (`ahead_always` for the test).
+	const CHART_AT := Vector2(655.0, 419.0)
+	## The navigated chart's size, the last time it built its field.
+	static var last_size := Vector2.ZERO
+	static var ahead_always := false
+	## How many fields a drawn chart built itself, on the main thread (a test's).
+	static var built_here := 0
+	static var _ahead: ChartAhead = null
+
+	static func build_ahead(at: Vector2 = Vector2.ZERO) -> void:
+		if not ahead_always and (DisplayServer.get_name() == "headless" \
+				or "sim" in OS.get_cmdline_user_args()):
+			return
+		_drop_ahead()
+		if Run.map.is_empty() or Run.galaxy.is_empty():
+			return
+		var sz := at
+		if sz == Vector2.ZERO:
+			sz = last_size if last_size != Vector2.ZERO else CHART_AT
+		var mc := MapChart.new()
+		mc.size = sz
+		var galaxy := "%d|%d" % [Run.galaxy_kind, Run.galaxy_seed]
+		var key := "%s|%.1f|%.2f" % [galaxy, mc._radius() * DISC, mc._squash()]
+		if galaxy == _sky_galaxy and _sky_cache.has(key):
+			mc.free()
+			return
+		# (copied here, on the main thread: the worker reads nothing else)
+		mc._ahead_src = {"galaxy": Run.galaxy.duplicate(true), "seed": Run.galaxy_seed,
+			"spin": Run.galaxy_spin, "map": Run.map.duplicate(), "clouds": NebulaField.clouds()}
+		var w := ChartAhead.new()
+		w.name = "ChartAhead"
+		w.chart = mc
+		w.key = key
+		w.galaxy = galaxy
+		w.task = WorkerThreadPool.add_task(mc._build_field, false, "chart star field ahead")
+		_ahead = w
+		# (deferred: NEW RUN can come from Main's own _ready, with `-- nolauncher`,
+		# while the root is still setting up its children)
+		(Engine.get_main_loop() as SceneTree).root.add_child.call_deferred(w)
+
+	## A field built ahead for the galaxy now being drawn, into the cache
+	## (waited for, if its worker is still going). One built for another galaxy
+	## -- a run left for the title, whose own sky is building -- is left be.
+	static func _take_ahead() -> void:
+		if _ahead == null or not is_instance_valid(_ahead):
+			_ahead = null
+			return
+		if _ahead.galaxy != _sky_galaxy:
+			return
+		_ahead.finish()
+		if not _ahead.snap.is_empty():
+			_sky_cache[_ahead.key] = _ahead.snap
+		_ahead.queue_free()
+		_ahead = null
+
+	static func _drop_ahead() -> void:
+		if _ahead != null and is_instance_valid(_ahead):
+			_ahead.finish()
+			_ahead.queue_free()
+		_ahead = null
+
 	## How often the sky's own motion -- the turn, the gas, the swirl -- is
 	## handed to it. 0 is every frame, which the chart wants; the title screen
 	## asks for a thirtieth (`LauncherScreen`), which is all a background needs.
@@ -2756,7 +2887,7 @@ class MapChart extends Control:
 	## The event horizon's shadow at build time, in drawn pixels: nothing is
 	## placed inside it. (The hole the chart DRAWS is bigger: `ChartSky.hole_r`.)
 	func _shadow_r() -> float:
-		return _radius() * float(Run.galaxy.get("hole", 0.034))
+		return _radius() * float(_g().get("hole", 0.034))
 
 	## The star field is built in two lists, the core's and the rest, split at
 	## this radius by `_own_at`: an old live layer's ownership rule, kept because
@@ -4529,7 +4660,6 @@ class MapChart extends Control:
 	## the burning core, all as positions in galaxy space with their colours.
 	## Nothing in here depends on pan or zoom, which is the entire point.
 	func _build_stars() -> void:
-		var g := _g()
 		var r_max := _radius() * DISC
 		# The seed is part of the key: a new run means a new sky, and the cache
 		# has to know that.
@@ -4542,11 +4672,27 @@ class MapChart extends Control:
 			_sky_cache.clear()
 			ChartSky.drop_others()
 			_sky_galaxy = galaxy
+		if remembers_view:
+			last_size = size
+		# the first chart of a run: its field built while the hull was picked
+		_take_ahead()
 		if _sky_cache.has(key):
 			_restore_sky(_sky_cache[key])
 			_star_key = key
 			return
 		_star_key = key
+		built_here += 1
+		_build_field()
+		_sky_cache[_star_key] = _snapshot_sky()
+
+	## The field itself, every list in SKY_FIELDS, from nothing: on the main
+	## thread for a chart being drawn, or on a worker for one built ahead
+	## (`build_ahead`), which reads its galaxy from `_ahead_src` instead of Run.
+	## Nothing in here may touch a node, the cache or anything another thread
+	## writes.
+	func _build_field() -> void:
+		var g := _g()
+		var r_max := _radius() * DISC
 		_star_pos = PackedVector2Array()
 		_star_col = PackedColorArray()
 		_star_big = PackedByteArray()
@@ -4565,7 +4711,7 @@ class MapChart extends Control:
 		# anything is placed, because everything placed has to ask.
 		_dark_c = PackedVector2Array()
 		_dark_r = PackedFloat32Array()
-		for raw_dark in NebulaField.clouds():
+		for raw_dark in _clouds():
 			var dc: NebulaField.Cloud = raw_dark
 			if dc.kind != NebulaField.Kind.DARK:
 				continue
@@ -4607,7 +4753,7 @@ class MapChart extends Control:
 		# --- the wash between the arms. The gaps are not empty space, they are
 		# unlit space, and painting them flat black makes the arms look like
 		# cutouts instead of the bright parts of something continuous.
-		var seed := (Run.galaxy_seed * 2654435761 + 24601) & 0x7fffffff
+		var seed := (_gseed() * 2654435761 + 24601) & 0x7fffffff
 		for i in 7000:
 			seed = (seed * 1103515245 + 12345) & 0x7fffffff
 			var t := float((seed >> 13) % 10000) / 10000.0
@@ -4643,7 +4789,7 @@ class MapChart extends Control:
 		_build_nebulae(r_max)
 
 		# --- the arms themselves
-		seed = (Run.galaxy_seed * 2654435761 + 1337) & 0x7fffffff
+		seed = (_gseed() * 2654435761 + 1337) & 0x7fffffff
 		for i in 30000:
 			seed = (seed * 1103515245 + 12345) & 0x7fffffff
 			var t := float((seed >> 13) % 10000) / 10000.0
@@ -4737,7 +4883,7 @@ class MapChart extends Control:
 
 		# --- a tidal stream, for galaxies that are losing
 		if g.tail:
-			seed = (Run.galaxy_seed * 2654435761 + 5150) & 0x7fffffff
+			seed = (_gseed() * 2654435761 + 5150) & 0x7fffffff
 			for i in 2600:
 				seed = (seed * 1103515245 + 12345) & 0x7fffffff
 				var t := float((seed >> 13) % 10000) / 10000.0
@@ -4775,7 +4921,7 @@ class MapChart extends Control:
 		# smooth-edged, which in a game with no anti-aliasing anywhere reads as a
 		# blurry sticker laid over the art.
 		var bulge := _radius() * float(g.bulge)
-		seed = (Run.galaxy_seed * 2654435761 + 4242) & 0x7fffffff
+		seed = (_gseed() * 2654435761 + 4242) & 0x7fffffff
 		for i in 600:
 			seed = (seed * 1103515245 + 12345) & 0x7fffffff
 			var u := float((seed >> 13) % 10000) / 10000.0
@@ -4814,8 +4960,6 @@ class MapChart extends Control:
 		_build_clusters(r_max)
 		_build_remnants(r_max)
 
-		_sky_cache[_star_key] = _snapshot_sky()
-
 	## The built sky, by field name. Taken after the last builder has run, so a
 	## builder added later is included the moment its output is listed in
 	## SKY_FIELDS — and omitted silently if it is not, which is the one way this
@@ -4831,7 +4975,7 @@ class MapChart extends Control:
 			set(f, snap[f])
 
 	func _seed_rng(salt: int) -> void:
-		_rng = (Run.galaxy_seed * 2654435761 + salt) & 0x7fffffff
+		_rng = (_gseed() * 2654435761 + salt) & 0x7fffffff
 
 	func _rnd() -> float:
 		_rng = (_rng * 1103515245 + 12345) & 0x7fffffff
@@ -4923,7 +5067,7 @@ class MapChart extends Control:
 	func _region_tint(at: Vector2) -> Color:
 		var best := INF
 		var col := Color("#3a4a5c")
-		for n in Run.map:
+		for n in _gmap():
 			var node: MapGen.MapNode = n
 			var d: float = (_polar(node) - at).length_squared()
 			if d < best:
@@ -5006,7 +5150,7 @@ class MapChart extends Control:
 		# sector screen has to know whether the system you are in sits inside
 		# one, and two copies of the placement would agree only until somebody
 		# adjusted one of them. How a cloud is drawn stays here.
-		var field := NebulaField.clouds()
+		var field := _clouds()
 		if field.is_empty():
 			return
 		for k in field.size():
@@ -5471,8 +5615,8 @@ class MapChart extends Control:
 	## So all that is left is the star itself, which `Flashes` lights.
 	func _build_remnants(r_max: float) -> void:
 		_pulsar = PackedVector2Array()
-		if not Run.map.is_empty():
-			for nd in Run.map:
+		if not _gmap().is_empty():
+			for nd in _gmap():
 				var node: MapGen.MapNode = nd
 				if node.type == MapGen.NodeType.PULSAR:
 					_pulsar.append(_polar(node))
@@ -5488,7 +5632,7 @@ class MapChart extends Control:
 		# is where the star that threw the shell has to be. Planetary nebulae get
 		# nothing, same as in a real run — they are low-mass envelopes and leave
 		# a white dwarf.
-		for raw in NebulaField.clouds():
+		for raw in _clouds():
 			var cloud: NebulaField.Cloud = raw
 			if cloud.kind == NebulaField.Kind.REMNANT:
 				_pulsar.append(cloud.pos * r_max)

@@ -80,6 +80,9 @@ var _sky: StarchartScreen.MapChart = null
 ## forever, which is exactly the shape of a race.
 var _fitted: bool = false
 var _warmup: int = WARMUP_FRAMES
+## Frames waited for the sky before the shaders' warm starts (-1: started).
+var _warm_wait := 0
+const WARM_AFTER := 180
 ## The margin holding the title and its menu, and the menu inside it, kept so
 ## the boot can fade up everything but the wordmark (`fade_up_around_title`).
 var _holder: Control = null
@@ -245,6 +248,9 @@ func open_welcome(first: bool = false) -> void:
 ## the title menu"). Left alone, Godot walks the keyboard focus round the menu's
 ## buttons with them; the menu is clicked. A typed seed keeps its caret.
 func _input(e: InputEvent) -> void:
+	# (every input, from the title's first frame: the shaders' warm keeps clear
+	# of a hand that is moving, `ShaderWarm.note_input`)
+	ShaderWarm.note_input(e)
 	var k := e as InputEventKey
 	if k == null:
 		return
@@ -687,8 +693,18 @@ func _process(_delta: float) -> void:
 		return
 	if _warmup > 0:
 		_warmup -= 1
-	# The galaxy turns by itself, as the chart's does (`MapChart.turn`), at
-	# TITLE_TURN times the chart's speed: once every five minutes.
+		return
+	# THE SECTOR MAP'S SHADERS, compiled behind the menu (`ShaderWarm`):
+	# once this sky is up, palette and all, so they never hold it back -- or
+	# after WARM_AFTER frames whatever it is doing
+	if _warm_wait >= 0:
+		_warm_wait += 1
+		if _sky.sky_drawn() or _warm_wait > WARM_AFTER:
+			_warm_wait = -1
+			ShaderWarm.start()
+	# (The galaxy turns by itself, as the chart's does (`MapChart.turn`), at
+	# TITLE_TURN times the chart's speed: once every five minutes. Nothing to
+	# do for it here.)
 
 ## A galaxy for the title screen, rolled once per process and kept.
 ##

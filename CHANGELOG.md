@@ -62,6 +62,11 @@ The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
 
 ### Changed
 
+- **Changed** — the first star chart of a run opens without the pause it had while its
+  stars were worked out. They are now worked out in the background while you pick your
+  hull. The sector map's drawing is also set up while the title menu sits idle (never
+  while you are moving the mouse or pressing a key), so the first sector map holds still
+  for less time on slower machines. Nothing looks different.
 - **Changed** — the sector map does less work each frame, and nothing on it looks different.
   In a clear sky it no longer draws seven layers of dust that were black and added nothing. The
   orbit lines and the asteroid belts skip what is off the screen. The dotted lines ahead of your

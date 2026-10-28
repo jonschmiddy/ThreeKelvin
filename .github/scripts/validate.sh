@@ -1485,6 +1485,28 @@ else
 fi
 }
 
+unit_chartaheadtest() {
+step "The run's star chart is built ahead, star for star"
+# A new run builds its chart's star field on a worker while the hull is
+# picked (`MapChart.build_ahead`): the first STARCHART or Tab used to stand
+# still for the build (350-420 ms on the PC, 300-560 ms on Jon's Mac).
+# Headless, three galaxies, the real doors: the chart stands at the size the
+# field is built for, opening it builds nothing, and the field is the one the
+# chart builds itself, list for list; built while other galaxies are written
+# over Run, it is still the run's. And the title's shader warm (`ShaderWarm`)
+# draws the shaders the map draws with.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' run_godot chartaheadtest 180 --headless --path "$PROJECT" -- sheet=ChartAheadTest; then
+	if grep -qE '^chartaheadtest: PASS' "$LOG_DIR/chartaheadtest.log"; then
+		ok "the first chart of a run is built ahead, the same field it would build"
+	else
+		bad "the chart's field built ahead is wrong, unused, or read what it should not"
+		grep -E 'FAIL|error:|^chartaheadtest' "$LOG_DIR/chartaheadtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "chartaheadtest did not finish"
+fi
+}
+
 unit_localeventtest() {
 step "Every event opens and resolves on LOCAL"
 # The one place a choice is taken now: LOCAL's event band. Every authored
