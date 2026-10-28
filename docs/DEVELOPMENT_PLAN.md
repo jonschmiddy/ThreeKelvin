@@ -598,6 +598,7 @@ changing how anything they touch plays.
 | Jump rule (ruling 15) | Two rings deeper per jump, now (was one). Re-tune after | Oct 27; Phase 10 |
 | Riding the galaxy (ruling 16) | A design page later, after the alpha data and the combat study | Oct 27; Phase 15 |
 | LOCAL while docked | Greyed out with "Docked. Press UNDOCK to leave."; UNDOCK is the only way out | Oct 27; Phase 10 |
+| The first LAUNCH's freeze stays | "C, leave it as it is. If it becomes a huge deal, we can address it then." On his Mac the planet's shader compiles in about 16 s the first time a session draws it, and the sun's and the nebula sky's in about 2 s each, so the first LAUNCH of a session stands still for 16 to 23 s. Compiling them behind the title froze the title for 13 s instead | Oct 28; `ShaderWarm` warms the four cheap shaders only |
 | A jump goes one ring deeper at most (replaced by ruling 15, Oct 27) | "A1D ... I want this to be a hard game" (Oct 22) | b28fdad6, 0.4.0 |
 | The Custodian has 200 hull | "custodian health at 200" (Oct 22) | b28fdad6, 0.4.0 |
 | The Custodian loses Plated Up; Annihilate deals 40 | "Option 1" (Oct 22) | 7790b9f5, 0.4.0 |
