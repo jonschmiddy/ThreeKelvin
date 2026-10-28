@@ -322,6 +322,11 @@ var _radiant_probe: GpuProbe = null
 var _gfx_probe: GpuProbe = null
 var _gfx_on := 0
 var _gfx_low := false
+## How many probes this sky has started for the pick, and the last one to
+## finish (`-- menutest` reads them: a probe that never finishes, or starts
+## over every frame, is a pick that never lands).
+var _gfx_tries := 0
+var _gfx_last: GpuProbe = null
 ## The colour held (`chart_c_comp`'s `hyst`): where the blocks were anchored last frame.
 var _hold_b0 := Vector2(INF, INF)
 var _hold_z := -1.0
@@ -492,19 +497,18 @@ func sky_viewports() -> Array[SubViewport]:
 ## by the sky), and none under a frame cap that would hide the machine.
 func _gfx_step(delta: float) -> void:
 	if chart == null or chart.run_galaxy or not GpuProbe.wanted():
-		_gfx_probe = null
+		_gfx_drop()
 		return
 	var vps := sky_viewports()
 	if vps.is_empty():
-		_gfx_probe = null
+		_gfx_drop()
 		return
 	var comp: SubViewport = vps[-1]
 	if _gfx_probe == null or _gfx_on != comp.get_instance_id():
-		var rids: Array[RID] = []
-		for v in vps:
-			rids.append(v.get_viewport_rid())
-		_gfx_probe = GpuProbe.new(rids, ChartRadiant.PROBE_FRAMES)
+		_gfx_drop()
+		_gfx_probe = GpuProbe.new(vps, ChartRadiant.PROBE_FRAMES)
 		_gfx_on = comp.get_instance_id()
+		_gfx_tries += 1
 		# (LEGACY's chart is the same on LOW: measured as it is)
 		_gfx_low = _low_now and _legacy == null
 	var hidden := not get_window().has_focus() or (Engine.max_fps > 0 and Engine.max_fps < GpuProbe.CAP_HIDES)
@@ -515,17 +519,30 @@ func _gfx_step(delta: float) -> void:
 	# (nothing read, a window behind others the whole time: a fresh probe next
 	# frame, `GpuProbe.conclude`)
 	_gfx_probe = null
+	_gfx_last = p
 	if GpuProbe.conclude(p.avg_ms, _gfx_low, p.frame_ms) and DisplaySettings.graphics_low != was_low:
 		warm_place(get_tree().root, DisplaySettings.graphics_low)
-	# (`-- gfxprobe` is a run to read that line: done once it is printed)
+	# (`-- gfxprobe` is a run to read that line: done once it is printed, unless
+	# a still of the pick is waiting for it, `Main._shoot`)
 	if GpuProbe.asked() != "":
 		print("gfxprobe: style %s, %d viewports, the composite %s (x%.2f to a full screen), GPU %.2f ms, frame %.2f ms, on %s, kept: %s" % [
 			style_now(), vps.size(), comp.size, GpuProbe.full_sky_scale(comp.size), p.avg_ms, p.frame_ms,
 			"LOW" if _gfx_low else "HIGH", DisplaySettings.graphics_by if DisplaySettings.graphics_by != "" else "nothing"])
-		get_tree().quit()
+		if not GpuProbe.shot_asked():
+			get_tree().quit()
+
+
+## The pick's probe let go of (its timers off, `GpuProbe.release`).
+func _gfx_drop() -> void:
+	if _gfx_probe != null:
+		_gfx_probe.release()
+		_gfx_probe = null
 
 
 func _exit_tree() -> void:
+	_gfx_drop()
+	if _radiant_probe != null:
+		_radiant_probe.release()
 	if _job.has("task"):
 		WorkerThreadPool.wait_for_task_completion(int(_job.task))
 
@@ -606,7 +623,7 @@ func setup(c: StarchartScreen.MapChart) -> void:
 ## Hand this galaxy to the baker, unless it is already on it.
 func _request_bake() -> void:
 	_bake_due = false
-	if _baked.has(_key) or chart == null or DisplayServer.get_name() == "headless":
+	if _baked.has(_key) or chart == null or (DisplayServer.get_name() == "headless" and not stand_in_bake):
 		return
 	if _baker == null or not is_instance_valid(_baker):
 		_baker = ChartSky.new()
@@ -920,6 +937,9 @@ func _begin_bake() -> void:
 		_job = {"stage": 20, "frame": Engine.get_frames_drawn(), "holder": holder, "g": g,
 			"bakes": ChartRadiant.begin_bake(self, g, holder), "key": _key, "t0": Time.get_ticks_msec()}
 		return
+	if stand_in_bake and DisplayServer.get_name() == "headless":
+		_stand_in(g, holder)
+		return
 	var vps: Array[SubViewport] = []
 	for mode in 2:
 		var n := NOISE_N if mode == 0 else (STRUCT_N if (int(p.arms) > 0 or float(p.bar) > 0.0) else 16)
@@ -936,6 +956,29 @@ func _begin_bake() -> void:
 		vps.append(_pass_vp(holder, Vector2i(n, n), _rect(m), false))
 	_job = {"stage": 1, "frame": Engine.get_frames_drawn(), "holder": holder, "g": g, "bakes": vps, "key": _key,
 		"t0": Time.get_ticks_msec()}
+
+
+## A HEADLESS HARNESS'S BAKE (`-- menutest`, the machine's pick on the real
+## title): headless never bakes, because the dummy renderer reads nothing back
+## and draws no frames to wait on, so the sky never built its viewports and the
+## title's pick could never be driven without a window. With this on, the CPU's
+## share is the real bake's and the GPU's four products (noise, structure,
+## palette, lookup) are blank stand-ins, ready at once; the sky then builds,
+## pushes and measures as it does in the game. SIMPLIFIED only. Never in the game.
+static var stand_in_bake := false
+
+
+func _stand_in(g: Dictionary, holder: Node) -> void:
+	holder.queue_free()
+	var blank := ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGBA8))
+	g["noise"] = blank
+	g["struct"] = blank
+	g["pal"] = ImageTexture.create_from_image(Image.create(128, 1, false, Image.FORMAT_RGBA8))
+	g["pal_cols"] = PackedColorArray([Color.BLACK])
+	g["lut"] = blank
+	g["ready"] = true
+	g["bake_ms"] = 0
+	_baked[_key] = g
 
 
 func _drop_job() -> void:
@@ -1806,7 +1849,9 @@ func _runtime() -> void:
 	_m_comp.set_shader_parameter("exposure", ChartRadiant.EXPOSURE if radiant else EXPOSURE)
 	_m_comp.set_shader_parameter("burn", ChartRadiant.BURN if radiant else BURN)
 	_m_comp.set_shader_parameter("vib", ChartRadiant.VIB if radiant else 0.0)
-	var probed: Array[RID] = [_svp.get_viewport_rid(), _pvp.get_viewport_rid(), _vp.get_viewport_rid()]
+	if _radiant_probe != null:
+		_radiant_probe.release()
+	var probed: Array[SubViewport] = [_svp, _pvp, _vp]
 	_radiant_probe = GpuProbe.new(probed, ChartRadiant.PROBE_FRAMES) if radiant else null
 	_comp = _rect(_m_comp)
 	_vp.add_child(_comp)
@@ -2408,8 +2453,19 @@ func push_solid_stars(m: ShaderMaterial, sol: bool) -> void:
 ## line in the log. A harness's `style=radiant` is never overruled (it is
 ## measuring) unless it asks with `radiantprobe=MS`. (The measure is every
 ## style's now, `GpuProbe`: the same one picks GRAPHICS on the title.)
+## NOT BEFORE THE MACHINE'S PICK. On a RADIANT profile where nobody set
+## GRAPHICS, the title's sky is measured for the pick too, and both read the same
+## HIGH frames: the safety gave up on RADIANT (SIMPLIFIED, saved) as the pick
+## turned LOW on, so the player lost RADIANT that LOW may have held. So the title
+## waits while the pick is to come, and no picture judges a pass it is only
+## holding (`DisplaySettings.low_held`): RADIANT is judged on the pass it will
+## be drawn with, at the next chart built.
 func _radiant_safety() -> void:
-	if _radiant_probe == null or not _radiant_probe.step():
+	if _radiant_probe == null:
+		return
+	if _low_now != DisplaySettings.graphics_low or (chart != null and not chart.run_galaxy and GpuProbe.wanted()):
+		return
+	if not _radiant_probe.step():
 		return
 	var avg := _radiant_probe.avg_ms
 	print_verbose("RADIANT the sky's own GPU time: %.2f ms a frame over %d frames" % [avg, _radiant_probe.n])

@@ -9,9 +9,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Added** — GRAPHICS can pick LOW by itself on a slow graphics chip. The first time the title
   screen is up, the game times how long its galaxy takes to draw. If this computer can't keep
   up, GRAPHICS goes to LOW from the next screen on. Settings then says PICKED FOR THIS COMPUTER
-  under the row. An Intel chip that is not an Arc starts on LOW while it is timed; an Apple chip
-  never does. This happens once, and only if you never set GRAPHICS yourself. Pick HIGH or LOW
-  in Settings and the game never changes it.
+  under the row, and shows the pick at once if it is open. An Intel chip that is not an Arc
+  starts on LOW. On Windows the timing can put HIGH back if the chip keeps up. A Mac can't time
+  its chip that closely, so an Intel Mac stays on LOW. An Apple chip never starts on it. On
+  RADIANT, LOW is tried before RADIANT gives way to SIMPLIFIED. This happens once. Pick HIGH or
+  LOW in Settings and the game never changes it again. A HIGH picked in an older build looks the
+  same as no pick, so the game may still pick once there.
 
 ### Roadmap
 

@@ -68,6 +68,9 @@ const FRAME_MS := 22.0
 const CAP_HIDES := 50
 
 var rids: Array[RID] = []
+## the viewports' instance ids, beside their RIDs: one freed under the probe
+## is only counted out (`release`)
+var _ids := PackedInt64Array()
 var want := 90
 var frames := 0
 var n := 0
@@ -79,30 +82,51 @@ var avg_ms := 0.0
 ## `ChartSky._gfx_step`), and their median, ms, once `done` (0: not measured)
 var gaps := PackedFloat32Array()
 var frame_ms := 0.0
+## Whether this probe has its viewports' GPU timers on (`release`).
+var _armed := false
+
+## THE GPU TIMER GOES OFF AGAIN. `viewport_set_measure_render_time` runs timer
+## queries every frame it is on, and a probe that turned it on and never off left
+## them running on the title's viewports for the rest of the screen, every launch
+## nobody had set GRAPHICS (and RADIANT's safety the same on RADIANT). Two probes
+## can read one viewport (the title's pick and RADIANT's safety share the sky), so
+## each viewport counts the unfinished probes reading it and the last one out
+## turns its timer off.
+static var _reading := {}
+
+## A HARNESS'S STAND-IN FOR THE GPU'S READING: ms a frame, the probed viewports'
+## sum before scaling, in place of what the timer says. `-- menutest` drives the
+## real title through its pick headless, where the dummy renderer reads 0. Below
+## 0: the timer's own reading. Never set by the game.
+static var force_ms := -1.0
 
 
-func _init(r: Array[RID] = [], frames_wanted: int = 90) -> void:
-	rids = r
+func _init(v: Array[SubViewport] = [], frames_wanted: int = 90) -> void:
+	for vp in v:
+		rids.append(vp.get_viewport_rid())
+		_ids.append(vp.get_instance_id())
 	want = frames_wanted
 
 
 ## One frame drawn. `scale` is what this frame's GPU reading is multiplied by
 ## (`full_sky_scale`: 1 for the raw time); `delta`, the frame's length in
 ## seconds when it is stepped every frame (below 0: not kept). True on the
-## frame the average is ready, once.
+## frame the average is ready, once; the timers are let go then (`release`).
 func step(scale: float = 1.0, delta: float = -1.0) -> bool:
 	if done or rids.is_empty():
 		return false
 	frames += 1
 	if frames == 1:
-		for r in rids:
-			RenderingServer.viewport_set_measure_render_time(r, true)
+		_arm()
 		return false
 	if frames < SETTLE:
 		return false
 	var ms := 0.0
-	for r in rids:
-		ms += RenderingServer.viewport_get_measured_render_time_gpu(r)
+	if force_ms >= 0.0:
+		ms = force_ms
+	else:
+		for r in rids:
+			ms += RenderingServer.viewport_get_measured_render_time_gpu(r)
 	gpu += ms * scale
 	if delta >= 0.0:
 		gaps.append(delta * 1000.0)
@@ -110,6 +134,7 @@ func step(scale: float = 1.0, delta: float = -1.0) -> bool:
 	if n < want:
 		return false
 	done = true
+	release()
 	avg_ms = gpu / float(n)
 	# (a median of most of the frames, or none: a window behind others for
 	# most of the measure says nothing)
@@ -118,6 +143,38 @@ func step(scale: float = 1.0, delta: float = -1.0) -> bool:
 		g.sort()
 		frame_ms = g[g.size() / 2]
 	return true
+
+
+func _arm() -> void:
+	if _armed:
+		return
+	_armed = true
+	for r in rids:
+		_reading[r] = int(_reading.get(r, 0)) + 1
+		RenderingServer.viewport_set_measure_render_time(r, true)
+
+
+## Finished or dropped: this probe stops reading its viewports, and a viewport no
+## other probe reads has its timer turned off (one already freed is only
+## counted out). Safe to call more than once.
+func release() -> void:
+	if not _armed:
+		return
+	_armed = false
+	for i in rids.size():
+		var r := rids[i]
+		var c := int(_reading.get(r, 0)) - 1
+		if c > 0:
+			_reading[r] = c
+			continue
+		_reading.erase(r)
+		if is_instance_id_valid(_ids[i]):
+			RenderingServer.viewport_set_measure_render_time(r, false)
+
+
+## How many unfinished probes are reading a viewport (`-- menutest`).
+static func reading(vp: SubViewport) -> int:
+	return int(_reading.get(vp.get_viewport_rid(), 0))
 
 
 ## What a reading over a viewport of `size` is multiplied by to be a full
@@ -180,11 +237,27 @@ static func asked() -> String:
 	return _asked
 
 
+## `-- gfxprobe ... shot=<png>`: the still waits for the pick (`Main._shoot`),
+## so the probe leaves the quitting to it.
+static func shot_asked() -> bool:
+	for a in OS.get_cmdline_user_args():
+		if a == "shot" or (a as String).begins_with("shot="):
+			return true
+	return false
+
+
 ## THE VERDICT: LOW or not, from the sky's full-screen GPU time and whether it
 ## was measured on LOW; where the GPU read 0 (a Mac), from the title's median
 ## frame on the wall clock; with neither (headless, a cap that hides it) the
 ## hint's, which `conclude` never keeps. Measured on LOW, a time is judged by
 ## what HIGH would have cost.
+## SO AN INTEL MAC KEEPS LOW. Its title is measured on the hint's LOW, on the
+## wall clock, under vsync: a frame is never under the refresh (16.7 ms at
+## 60 Hz), and 16.7 / LOW_SHARE is 34.8, over FRAME_MS. A LOW that holds 60 says
+## nothing about HIGH, so the measure can only put HIGH back where the GPU can be
+## timed (Windows) or the screen refreshes at 100 Hz or more. Jon's own Mac on
+## HIGH (12.88 ms, at 1x and vsync off) would pass FRAME_MS on the wall clock;
+## on his Mac the chip's name decides, not the measure.
 static func verdict(full_ms: float, measured_low: bool, weak_hint: bool, frame_ms: float = 0.0) -> bool:
 	var k := 1.0 / LOW_SHARE if measured_low else 1.0
 	if full_ms > 0.0:

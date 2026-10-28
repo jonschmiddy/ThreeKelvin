@@ -1209,6 +1209,16 @@ func _shoot() -> void:
 	get_window().size = base
 	for i in 8:
 		await get_tree().process_frame
+	# `-- gfxprobe settings=look shot=<png>`: the still is of the MEASURED pick,
+	# not the hint's: the title's sky needs about a hundred frames to decide, and
+	# the shot was taken at eight. Up to 30 s for it, then the Settings drawer's
+	# redraw (`Sig.graphics_picked`) a few frames to lay out.
+	if GpuProbe.asked() != "":
+		var until := Time.get_ticks_msec() + 30000
+		while DisplaySettings.graphics_by == DisplaySettings.GFX_NOBODY and Time.get_ticks_msec() < until:
+			await get_tree().process_frame
+		for i in 8:
+			await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
 	var out := "user://shot.png"

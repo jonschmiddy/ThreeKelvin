@@ -131,6 +131,10 @@ static var _harness_style := false
 static var _harness_low := false
 static var _file_style: StringName = DEFAULT_STYLE
 static var _file_low := false
+## A harness's stand-in for the command line's `style=` / `graphics=`, read by
+## `load_and_apply` in its place when set (`-- menutest`: a real `graphics=high`
+## on an Intel chip, through the real parse). Empty: the command line.
+static var harness_args := PackedStringArray()
 
 static func style_built(s: StringName) -> bool:
 	return BUILT.has(s)
@@ -232,7 +236,10 @@ static func set_graphics_low(on: bool) -> void:
 ## THE MACHINE'S PICK (`GpuProbe.conclude`), once per profile and only while
 ## nobody has set GRAPHICS: kept, but NOTHING IS REBUILT NOW, as RADIANT's
 ## fall-back (`fall_back_style`) -- the picture up keeps its pass and the next
-## one built draws `low`.
+## one built draws `low`. LOW picked lets RADIANT's safety try again, as the
+## player's LOW does (`set_graphics_low`). Settings, if it is open, redraws its
+## row (`Sig.graphics_picked`): a drawer left with HIGH marked over a LOW pick
+## could not be pressed back to HIGH until it was opened again.
 static func machine_pick(low: bool) -> void:
 	if graphics_by != GFX_NOBODY or harness_forced():
 		return
@@ -240,7 +247,17 @@ static func machine_pick(low: bool) -> void:
 	if low != graphics_low:
 		graphics_low = low
 		_low_held = true
+	if low:
+		ChartRadiant.fell_back = false
 	save()
+	Sig.graphics_picked.emit()
+
+
+## Whether the LOW in memory is still only the adapter's hint (nobody has set
+## GRAPHICS, the measure is to come): Settings says so in other words than for a
+## measured pick, since the chip's name alone is not a measure.
+static func low_by_hint() -> bool:
+	return graphics_low and graphics_by == GFX_NOBODY and not _harness_low
 
 
 ## Whether a picture up should keep the pass it was built with (`_low_held`).
@@ -495,7 +512,7 @@ static func load_and_apply() -> void:
 	# `-- style=painted` / `-- graphics=low`: a harness's shot in that style or at
 	# that setting, in memory only (nothing is saved). A style that is not built
 	# draws as LEGACY, and says so.
-	for a in OS.get_cmdline_user_args():
+	for a in (harness_args if not harness_args.is_empty() else OS.get_cmdline_user_args()):
 		var arg := a as String
 		if arg.begins_with("style="):
 			_harness_style = true
