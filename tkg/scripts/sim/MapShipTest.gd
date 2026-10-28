@@ -19,7 +19,13 @@ extends Node
 ##   - W held through the real step: the flame lit, and every pixel of it and of
 ##     the engine glow in the ion ramp (blue over red and green), none warm;
 ##   - fit means nothing overlaps: YOU clear of the hull pointing straight up,
-##     and a partner sitting where you are drawn in formation clear of it.
+##     and a partner sitting where you are drawn in formation clear of it;
+##   - AFTER THE MAP'S KEY: the map's picture is keyed onto the field
+##     (`nav_key.gdshader` on `SystemMapScreen._box`), so a colour can be drawn
+##     and still not be seen. Each solid pixel of the hull and its dark rim is
+##     put through the key's own rule, read off the screen's material, and must
+##     stand. The rim was the old arrow's #05070b, inside the key's band, and
+##     never showed; the colours recorded before the key could not tell.
 
 var _tree: SceneTree
 var _fails := 0
@@ -68,6 +74,38 @@ static func _mean(img: Image, pm: PackedFloat32Array = PackedFloat32Array()) -> 
 			b += l.b * c.a
 			w += c.a
 	return Color(r / w, g / w, b / w) if w > 0.0 else Color(0, 0, 0, 0)
+
+
+## THE MAP'S KEY as the screen has it: `nav_key.gdshader`'s band (`lo`, `hi`,
+## `dark`, `dark_w`) and whether it is on, each from the screen's material or,
+## left unset there, the shader's own default. {} when the map is not keyed
+## (`-- field=off`): every colour stands.
+static func key_of(map: SystemMapScreen) -> Dictionary:
+	var m := map._box.material as ShaderMaterial
+	if m == null or m.shader == null:
+		return {}
+	var code := m.shader.code
+	var k := {}
+	for nm: String in ["lo", "hi", "dark", "dark_w", "on"]:
+		var v: Variant = m.get_shader_parameter(nm)
+		if v == null:
+			var re := RegEx.create_from_string("uniform\\s+\\w+\\s+%s\\s*=\\s*([0-9.]+|true|false)" % nm)
+			var hit := re.search(code)
+			if hit == null:
+				return {}
+			var s := hit.get_string(1)
+			v = (s == "true") if nm == "on" else float(s)
+		k[nm] = v
+	return k if bool(k.on) else {}
+
+
+## How much of an opaque pixel of colour `c` (sRGB, as the map's viewport holds
+## it) the key leaves standing over the field, 0 to 1: the shader's own line.
+static func kept(k: Dictionary, c: Color) -> float:
+	if k.is_empty():
+		return 1.0
+	var L := c.r * 0.299 + c.g * 0.587 + c.b * 0.114
+	return maxf(smoothstep(float(k.lo), float(k.hi), L), 1.0 - smoothstep(float(k.dark) - float(k.dark_w), float(k.dark), L))
 
 
 func _run() -> void:
@@ -183,6 +221,29 @@ func _check_hull(map: SystemMapScreen, when: String) -> void:
 				same += 1
 	_ok("pointing along the map, the hull drawn is the picture pixel for pixel, %s (%d of %d drawn, %d in the picture)" % [when, same, n, ink],
 		n > 0 and same == n and n >= int(ink * 0.9))
+	# AFTER THE MAP'S KEY (pixel for pixel here, so each is all rim or all hull):
+	# every solid pixel of each as the field under the map sees it
+	var key := key_of(map)
+	var tally := {&"outline": [0, 0, ""], &"hull": [0, 0, ""]}
+	if px is Array:
+		for e: Array in px:
+			var c: Color = e[1]
+			if c.a < 0.99 or not tally.has(e[2]):
+				continue
+			var t: Array = tally[e[2]]
+			t[0] += 1
+			var ka := kept(key, c)
+			if ka >= 0.99:
+				t[1] += 1
+			elif t[2] == "":
+				t[2] = ", first %s kept %.2f" % [c.to_html(false), ka]
+	var rim: Array = tally[&"outline"]
+	var body: Array = tally[&"hull"]
+	_ok("the map is keyed onto the field, so the rule below is the screen's (%s)" % str(key), not key.is_empty())
+	_ok("the dark rim stands through the map's key, %s (%d of %d solid rim pixels kept%s)" % [when, rim[1], rim[0], rim[2]],
+		rim[0] > 0 and rim[1] == rim[0])
+	_ok("and so does every solid pixel of the hull, %s (%d of %d kept%s)" % [when, body[1], body[0], body[2]],
+		body[0] > 0 and body[1] == body[0])
 	map.flight.burn = burn
 	map.set_process(true)
 	await _frames(1)

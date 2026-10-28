@@ -30,14 +30,21 @@ const BINS := 256
 ## Points a side sampled across each pixel of a turned picture (PixelTurn's
 ## SOFT takes 16).
 const SS := 4
-## The dark rim round the hull, the old arrow's.
-const OUTLINE := Color("#05070b")
+## THE DARK RIM ROUND THE HULL, dark enough to be drawn at all. The map's
+## picture is keyed onto the field (`nav_key.gdshader`, `NavField`): a pixel
+## between the key's `dark` and `lo` is taken for empty sky and let through, so
+## the old arrow's #05070b (luma 0.027) was never seen -- the field's navy and
+## its stars showed where the rim was drawn. Under `dark - dark_w` (0.008) a
+## pixel is kept as the hole's black is, so the rim is black.
+## -- sheet=MapShipTest judges it after the key.
+const OUTLINE := Color("#000000")
 ## A DARK HULL STILL READS ON THE MAP: shrunk to a few pixels, Korvan's grey
 ## averaged to about the brightness of the galaxy's band behind it (the first
 ## still: a grey sliver you had to hunt for, where the old arrow was the
 ## brightest thing on the map). A hull whose mean brightness (linear) is under
 ## LIFT_TO is lifted to it, by at most LIFT_MAX, its own shading and hues kept:
-## Korvan's about 1.4x, Solari's tan not at all. 0 draws the art as it is.
+## Korvan's medium 1.74x and its heavy at the cap, Solari's tan not at all. 0
+## draws the art as it is.
 const LIFT_TO := 0.2
 const LIFT_MAX := 2.0
 

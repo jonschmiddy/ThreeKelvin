@@ -1202,7 +1202,7 @@ func _draw_ship(t: float) -> void:
 		for u in range(-4, 8):
 			for v in range(-4, 5):
 				if not in_hull.call(u, v) and (in_hull.call(u - 1, v) or in_hull.call(u + 1, v) or in_hull.call(u, v - 1) or in_hull.call(u, v + 1)):
-					P.call(u, v, Color("#05070b"), &"outline")
+					P.call(u, v, MapHullS.OUTLINE, &"outline")
 		for u in range(-3, 7):
 			for v in range(-4, 5):
 				if in_hull.call(u, v):
