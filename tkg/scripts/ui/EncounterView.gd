@@ -554,6 +554,9 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 			# A WRECK IS A CONTAINER. The screen decides what opening one means;
 			# the slot only knows it was clicked and that it is dead.
 			slot.opened = on_wreck
+			# a pack of three or more is drawn from half sheets, a size the layout
+			# sets after the bind: its hit layers are built once, at that size
+			slot.layers_wait = list.size() >= PACK_HALF_AT
 			slot.card_dropped.connect(on_drop)
 			slot.hovered.connect(on_hover)
 			_slots.add_child(slot)
@@ -933,6 +936,8 @@ func _layout_pack() -> void:
 		var u: Dictionary = plan[sl]
 		# the size steps at once, at the start of the move
 		sl.apply_scale(float(u.scale))
+		# and hit layers that waited for it are built at it (`EnemySlot.layers_wait`)
+		sl.layers_sized()
 		sl.set_side(bool(u.side))
 		sl.reserve_readout(u.rect.size)
 		var r: Rect2 = u.rect

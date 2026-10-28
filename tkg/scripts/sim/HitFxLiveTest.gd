@@ -49,8 +49,15 @@ func _run() -> void:
 	SectorScreen._approached_at = idx
 	Router.show_local()
 	await _frames(3)
+	# every enemy's layers as they are built (yours follow your ShipView)
+	var built: Array = []
+	var count := func(n: Node) -> void:
+		if n is HitLayers and (n as HitLayers).follow == null:
+			built.append(n)
+	_tree.node_added.connect(count)
 	Router.start_combat(DB.enemies[&"cutter"], [DB.enemies[&"lancer"], DB.enemies[&"cutter"]], false, false)
 	await _frames(4)
+	_tree.node_added.disconnect(count)
 	var sc := Router.current as SectorScreen
 	var cb: Combat = Router.combat
 	if not _ok("a fight of three on the real screen", sc != null and cb != null and cb.enemies.size() == 3):
@@ -70,6 +77,22 @@ func _run() -> void:
 			sl.layers.moment.connect(func(k: StringName, _s: float, _l: float) -> void:
 				_moments[String(k)] = int(_moments.get(String(k), 0)) + 1)
 	_ok("every enemy carries its hits, bubble and armour (%d of 3)" % armed, armed == 3)
+	# BUILT ONCE, AT THE PACK'S SIZE (perf, Oct 27): a pack of three is drawn
+	# from half sheets, and each ship's layers wait for that size
+	# (`EnemySlot.layers_wait`) rather than being built at full size in the bind
+	# and thrown away (six builds, three of them the dearer full-size ones)
+	var halves := 0
+	var kept := 0
+	for L0 in built:
+		if is_instance_valid(L0) and is_equal_approx((L0 as HitLayers).hits.mark_scale, 0.5):
+			halves += 1
+	for i in 3:
+		var sl := sc._view.slot(i)
+		if sl != null and sl.layers != null and is_equal_approx(sl.art.draw_scale, 0.5) \
+				and is_equal_approx(sl.layers.hits.mark_scale, 0.5):
+			kept += 1
+	_ok("each ship's layers built once, from its half sheet (%d built, %d at half; %d kept at half)"
+		% [built.size(), halves, kept], built.size() == 3 and halves == 3 and kept == 3)
 	_ok("so does your ship", sc._ship_fx != null and is_instance_valid(sc._ship_fx))
 	var L: HitLayers = sc._view.slot(0).layers
 	var e: Combat.EnemyState = cb.enemies[0]
