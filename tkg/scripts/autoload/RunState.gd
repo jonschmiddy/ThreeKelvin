@@ -2063,9 +2063,9 @@ func attributes() -> Array[Dictionary]:
 			# pip is 7 hull", and Geno (friends' alpha) held that against
 			# Korvan's 29, 40 and 57 hull at 4, 6 and 8 pips: 6 x 7 is 42, not
 			# 40. The pips are hull over 7 rounded to the nearest, so the honest
-			# line says so and then does the sum on the hull you have. The 7 is
-			# HULL_REF over ATTR_MAX, not typed.
-			effect = "A pip is about %d hull, rounded: %d hull is %d %s. This gauge reads CURRENT hull, so damage lowers it until you repair." % [
+			# line says about 7 and then does the sum on the hull you have. The 7
+			# is HULL_REF over ATTR_MAX, not typed.
+			effect = "A pip is about %d hull. Your %d hull rounds to %d %s. This gauge reads CURRENT hull, so damage lowers it until you repair." % [
 				int(round(HULL_REF / ATTR_MAX)), hp, attr_hull(),
 				"pip" if attr_hull() == 1 else "pips"]},
 		{key = &"reactor", label = ATTR_LABEL[&"reactor"], short = ATTR_SHORT[&"reactor"],

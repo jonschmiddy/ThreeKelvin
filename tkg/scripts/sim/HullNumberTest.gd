@@ -10,17 +10,22 @@ extends Node
 ##
 ## - the real chassis select, at the game's 960x540, prints every frame's real
 ##   hull ("29 hull") after HULL's number, for every manufacturer and weight,
-##   and that is the hull the run launches with (`Run.max_hp()`, full);
+##   and that is the hull the run launches with (`Run.max_hp()`, full). Every
+##   startable frame, for certain: a scratch flight record with a win for every
+##   manufacturer opens them all (`_unlock_all`), so the count does not hang on
+##   DevMode being on, and it must be all of them;
 ## - HULL is the only row that carries one;
 ## - it fits: no overlap with anything drawn on the screen, inside its column,
 ##   the column no wider than `ChassisSelect.SIDE_W`, inside the screen;
-## - the HULL tooltip says about 7, rounded, never an exact 7, and its sum is
-##   the ship's own (also on a damaged ship and at 1 pip);
+## - the HULL tooltip says about 7, never an exact 7, and its sum is the ship's
+##   own, "Your 29 hull rounds to 4 pips." (also on a damaged ship and at 1 pip);
 ## - a block set up without `amounts` (the refit screen, the cutaway, the yard)
 ##   prints no readout.
 
 var _tree: SceneTree
 var _fails := 0
+## The flight record's path before `_unlock_all` pointed it at a scratch file.
+var _history_was := ""
 
 
 func _ok(what: String, c: bool) -> bool:
@@ -44,6 +49,8 @@ func _run() -> void:
 	await _frames(2)
 	_tooltip_text()
 
+	# (before the screen is built, so it is built as a player with all seven sees it)
+	_unlock_all()
 	Router.new_run(4242)
 	await _frames(4)
 	var cs := Router.current as ChassisSelect
@@ -56,7 +63,7 @@ func _run() -> void:
 	var flown := 0
 	for i in DB.STARTABLE.size():
 		var maker: StringName = DB.STARTABLE[i]
-		if not Unlocks.unlocked(maker):
+		if not _ok("%s is open to fly" % maker, Unlocks.unlocked(maker)):
 			continue
 		for w in ChassisSelect.WEIGHTS:
 			cs._select(i)
@@ -64,14 +71,15 @@ func _run() -> void:
 			await _frames(3)
 			_check(cs, maker, w, screen)
 			flown += 1
-	_ok("every open manufacturer at every weight was checked (%d frames)" % flown,
-		flown >= ChassisSelect.WEIGHTS.size())
+	var every := DB.STARTABLE.size() * ChassisSelect.WEIGHTS.size()
+	_ok("every startable manufacturer at every weight was checked (%d of %d frames)" % [flown, every],
+		flown == every)
 
 	await _plain_blocks()
 	_finish()
 
 
-## THE TOOLTIP: about 7, rounded, and the sum on the ship you have.
+## THE TOOLTIP: about 7, and the sum on the ship you have.
 func _tooltip_text() -> void:
 	var per := int(round(Run.HULL_REF / Run.ATTR_MAX))
 	_ok("a pip is HULL_REF / ATTR_MAX = %d hull" % per, per == 7)
@@ -83,11 +91,11 @@ func _tooltip_text() -> void:
 			var row := _hull_row(Run.attributes())
 			var effect := String(row.effect)
 			var pips := Run.attr_hull()
-			var sum := "%d hull is %d %s" % [hp, pips, "pip" if pips == 1 else "pips"]
+			var sum := "Your %d hull rounds to %d %s." % [hp, pips, "pip" if pips == 1 else "pips"]
 			print("    %s %d/%d: %s" % [HullData.weight_name(w), hp, Run.max_hp(), effect])
-			_ok("  %s at %d hull: the tooltip says about %d, rounded, not an exact %d" % [
+			_ok("  %s at %d hull: the tooltip says about %d, not an exact %d" % [
 				HullData.weight_name(w), hp, per, per],
-				effect.contains("about %d hull, rounded" % per)
+				effect.begins_with("A pip is about %d hull. " % per)
 				and not effect.contains("A pip is %d hull." % per))
 			_ok("  and does the sum on this ship: \"%s\"" % sum, effect.contains(sum))
 			_ok("  and the row carries the hull it reads: %s" % row.get("amount", "none"),
@@ -163,7 +171,7 @@ func _check(cs: ChassisSelect, maker: StringName, w: HullData.Weight, screen: Re
 				clash = true
 	_ok("%s: HULL's label, pips, number and hull clear of each other" % tag, not clash)
 	_ok("%s: and the row's tooltip is the honest one" % tag,
-		row.tooltip_text.replace("\n", " ").contains("about 7 hull, rounded"))
+		row.tooltip_text.replace("\n", " ").contains("A pip is about 7 hull. Your %d hull rounds to" % Run.max_hp()))
 
 
 ## Every Control under `root` that puts ink on the screen.
@@ -230,6 +238,24 @@ func _find(root: Node, matches: Callable) -> Node:
 	return null
 
 
+## EVERY STARTABLE MANUFACTURER OPEN, whatever DevMode says. A locked one cannot
+## be picked (`ChassisSelect._select`), and the sheet skipped them, so it only
+## covered all seven because DevMode is on from the editor. A scratch flight
+## record with a win for each opens the chain the way a player opens it.
+func _unlock_all() -> void:
+	_history_was = RunHistory.path
+	RunHistory.path = TestRun.scratch("hullnumber_history", "json")
+	var runs: Array = []
+	for m in Unlocks.CHAIN:
+		runs.append({"outcome": int(RunHistory.Outcome.WON), "chassis_manufacturer": String(m)})
+	var f := FileAccess.open(RunHistory.path, FileAccess.WRITE)
+	f.store_string(JSON.stringify({"version": RunHistory.VERSION, "runs": runs}))
+	f.close()
+
+
 func _finish() -> void:
+	if _history_was != "":
+		RunHistory.clear()
+		RunHistory.path = _history_was
 	print("hullnumbertest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
 	_tree.quit(1 if _fails > 0 else 0)
