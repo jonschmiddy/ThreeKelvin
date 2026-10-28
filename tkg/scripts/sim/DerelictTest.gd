@@ -25,6 +25,16 @@ extends Node
 ##     and the same crate, once. SCRAP survives a backed-out TRANSFER and a save
 ##     and load, and the system map's hull row has it too. A wreck's hull, which
 ##     cost you nothing, keeps LEAVE IT.
+##  4. A frame still on offer is paid, never lost. Claiming a second derelict
+##     put the new frame over it, and buying a yard hull threw it away, its pay
+##     with it both times. Now each pays the strip's credits and crate first,
+##     and the log names the crate and says it is in SECTOR LOOT (Jon: a crate
+##     landing there with nothing on screen was "super NOT intuitive"). Backing
+##     out of the yard hull does not bring the paid frame back to pay twice.
+##  5. SCRAP at three digits (danger 5 or 6 pays 105): the box test on the rail
+##     and on the system map's row, its words inside the button.
+##  6. A 0.4.2-alpha.1 save (VERSION 36) holding a found hull loads it with
+##     LEAVE IT and no SCRAP, as that build had it.
 
 const ID := &"derelict_hauler"
 const VIEW := Rect2(0, 0, 960, 540)
@@ -32,6 +42,8 @@ const WEIGHTS: Array[String] = ["light", "medium", "heavy"]
 
 var h := Harness.new()
 var _tree: SceneTree
+## Every log line since the last clear, as the log panel is handed them.
+var _said: Array[String] = []
 
 
 func _ready() -> void:
@@ -61,6 +73,16 @@ func _run() -> void:
 	print("-- declining it pays the strip")
 	if not at.is_empty():
 		await _pays_the_strip(at.values()[0])
+	Sig.log_line.connect(func(text: String, _kind: StringName) -> void: _said.append(text))
+	print("-- a frame still on offer is paid, never lost")
+	if h._ok("two systems with a derelict", at.size() >= 2):
+		await _second_claim(_live(at.values()[0]), _live(at.values()[1]))
+		await _yard_hull(_live(at.values()[0]))
+	print("-- SCRAP at three digits fits")
+	await _three_digits()
+	print("-- a 0.4.2-alpha.1 save's frame keeps LEAVE IT")
+	if not at.is_empty():
+		await _old_save(_live(at.values()[0]))
 	LocalEventDrawer.quiet = false
 	LocalEventDrawer.layout = &"column"
 	print("")
@@ -71,7 +93,8 @@ func _run() -> void:
 # ------------------------------------------------------------------- helpers
 
 ## The system holding the derelict alone, untouched, the ship at it, whole.
-func _fresh(n: MapGen.MapNode) -> void:
+## `keep_hull` flies there with the hull on offer still on offer.
+func _fresh(n: MapGen.MapNode, keep_hull := false) -> void:
 	n.options.clear()
 	n.options.append(ID)
 	n.taken.clear()
@@ -83,10 +106,18 @@ func _fresh(n: MapGen.MapNode) -> void:
 	n.ambush_pending = false
 	Run.at = n.index
 	Run.dead = false
-	Run.found_hull = null
+	if not keep_hull:
+		Run.found_hull = null
 	Run.hp = Run.max_hp()
 	Run.heat = 0
 	Run.credits = 180
+
+
+## The map's own node at `n`'s index. A load (section 3 saves and loads) builds
+## Run.map anew, so a node held from before it is a copy the run no longer
+## reads: the page opens the live one, and `_fresh` on the old one resets nothing.
+func _live(n: MapGen.MapNode) -> MapGen.MapNode:
+	return Run.map[n.index]
 
 
 ## A hull, number for number.
@@ -131,8 +162,8 @@ func _systems_by_weight() -> Dictionary:
 
 
 ## The derelict's page up on the real LOCAL (as the map's GO opens it).
-func _open(n: MapGen.MapNode) -> LocalEventDrawer:
-	_fresh(n)
+func _open(n: MapGen.MapNode, keep_hull := false) -> LocalEventDrawer:
+	_fresh(n, keep_hull)
 	n.visited = true
 	SectorScreen._approached_at = n.index
 	SystemMapScreen._parked.erase(n.index)
@@ -421,3 +452,264 @@ func _pays_the_strip(n: MapGen.MapNode) -> void:
 	await _frames(3)
 	h._ok("SCRAP on the map pays the strip's credits too (%d of %d)" % [Run.credits - before, pay],
 		Run.credits - before == pay and Run.found_hull == null)
+
+
+# ------------------------------------------- 4. a frame on offer is never lost
+
+## What the strip pays at `n`: `{pay, crate}`, measured, the frame left alone.
+func _strip(n: MapGen.MapNode) -> Dictionary:
+	_fresh(n)
+	var c0 := Run.credits
+	await OptionResolve.take(n, 0, 1)
+	return {pay = Run.credits - c0, crate = _pile_ids(n)}
+
+
+## The crate's name, as the hold and the log print it.
+func _crate_name(crate: Array) -> String:
+	if crate.size() != 1:
+		return "?"
+	return String(MaterialTable.by_id(StringName(crate[0])).get("name", "?"))
+
+
+## The log said `x` was scrapped for `pay`, and named its crate in SECTOR LOOT.
+func _says_scrapped(what: String, x: HullData, pay: int, crate: Array) -> void:
+	var line := ""
+	for s in _said:
+		if s.begins_with("Scrapped"):
+			line = s
+	var want := "Scrapped the %s for %d credits. A crate of %s is in SECTOR LOOT." % [
+		x.display_name() if x != null else "?", pay, _crate_name(crate)]
+	h._ok("%s: the log says \"%s\"" % [what, line if line != "" else "nothing"], line == want)
+
+
+## The station nearest the start of the map, or null.
+func _station() -> MapGen.MapNode:
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		if n.type == MapGen.NodeType.STATION:
+			return n
+	return null
+
+
+func _station_body(at: int) -> int:
+	for b in SystemLayout.of(Run.map[at]).bodies:
+		if b.kind == &"station":
+			return b.index
+	return -9
+
+
+## Into the berth at the station the ship is at, the way a player docks: LOCAL
+## beside it, then DOCK (as SwapTest docks). LOCAL is built afresh for the
+## station's system, since the ship was on another system's LOCAL.
+func _dock() -> bool:
+	var at := Run.at
+	SystemMapScreen._parked[at] = {"at": _station_body(at), "mode": &"rail"}
+	SectorScreen._approached_at = at
+	Router.show_local()
+	for i in 60:
+		await _tree.process_frame
+		if Router.current is SectorScreen and not ZoomLadder.busy():
+			break
+	Router.show_station()
+	await _frames(6)
+	return Router.current is StationScreen and Router.docked
+
+
+func _transfer() -> TransferScreen:
+	return h.first(_tree.root, func(x: Node) -> bool:
+		return x is TransferScreen and (x as Control).is_visible_in_tree()) as TransferScreen
+
+
+## Claim A's frame and leave it on offer, fly to B and claim B's on its page:
+## A's frame is cut up for its pay first. The second claim used to put B's
+## frame over it, and the setter wiped A's pay.
+func _second_claim(a: MapGen.MapNode, b: MapGen.MapNode) -> void:
+	var strip: Dictionary = await _strip(a)
+	_fresh(a)
+	await OptionResolve.take(a, 0, 0)
+	var first := Run.found_hull
+	var d: LocalEventDrawer = await _open(b, true)
+	if not h._ok("flown to a second derelict with the first frame still on offer",
+			d != null and Run.found_hull == first and first != null):
+		return
+	var c0 := Run.credits
+	_said.clear()
+	var r: Dictionary = await d.choose(0)
+	await _frames(2)
+	h._ok("the second claim resolves on its page", r.get("ok", false))
+	var got := _pile_ids(b)
+	h._ok("claiming the second frame pays the first's strip credits (%d of %d)" % [
+		Run.credits - c0, strip.pay], Run.credits - c0 == int(strip.pay))
+	h._ok("and its crate, here under SECTOR LOOT (%s, the strip gave %s)" % [
+		",".join(got), ",".join(strip.crate)], got == strip.crate)
+	h._ok("and the second frame is the one on offer now",
+		Run.found_hull != null and Run.found_hull != first)
+	_says_scrapped("the second claim", first, int(strip.pay), strip.crate)
+	d.continue_on()
+	await _frames(2)
+
+
+## Claim A's frame and leave it on offer, dock at a station and take the yard's
+## hull: the frame is cut up for its pay first. TAKE IT used to throw it away.
+## Backing out of the yard hull refunds the yard and does not bring the paid
+## frame back to pay a second time.
+func _yard_hull(a: MapGen.MapNode) -> void:
+	var strip: Dictionary = await _strip(a)
+	var d: LocalEventDrawer = await _open(a)
+	if not h._ok("the derelict's page is up", d != null):
+		return
+	var r: Dictionary = await d.choose(0)
+	h._ok("the claim resolves on its page", r.get("ok", false))
+	var first := Run.found_hull
+	d.continue_on()
+	await _frames(2)
+	var st := _station()
+	if not h._ok("a station with a yard", st != null and first != null):
+		return
+	for raw in Run.map:
+		(raw as MapGen.MapNode).ambush_rolled = true
+		(raw as MapGen.MapNode).ambush_pending = false
+	Run.at = st.index
+	st.visited = true
+	st.jetsam.clear()
+	st.shop_hull = LootGen.roll_hull(st.danger)
+	st.taken.erase(MapGen.OPTION_SHOP_HULL)
+	Run.credits = 99999
+	var docked: bool = await _dock()
+	if not h._ok("docked at %s with the frame still on offer" % MapGen.star_name(st),
+			docked and Run.found_hull == first):
+		return
+	var c0 := Run.credits
+	_said.clear()
+	await (Router.current as StationScreen)._on_action("take_hull", st.shop_hull)
+	await _frames(4)
+	var paid := int(Run._undo_move.get("paid", 0))
+	var got := _pile_ids(st)
+	h._ok("TAKE IT on the yard's hull pays the frame's strip credits (%d of %d, %d paid for the hull)" % [
+		Run.credits - c0 + paid, strip.pay, paid], Run.credits - c0 + paid == int(strip.pay))
+	h._ok("and its crate, here under SECTOR LOOT (%s, the strip gave %s)" % [
+		",".join(got), ",".join(strip.crate)], got == strip.crate)
+	_says_scrapped("the yard's hull", first, int(strip.pay), strip.crate)
+	var t := _transfer()
+	if not h._ok("TAKE IT opens the move", t != null):
+		return
+	t._back_out()
+	await _frames(6)
+	h._ok("backed out: the yard refunded, the strip's pay kept (%d of %d)" % [
+		Run.credits - c0, strip.pay], Run.credits - c0 == int(strip.pay))
+	h._ok("and the paid frame is not back to pay twice", Run.found_hull == null
+		and Run.found_scrap_credits() == 0)
+	var sb := Router.current as StationScreen
+	if sb != null and sb._undock != null:
+		sb._undock.pressed.emit()
+		await _frames(20)
+	h._ok("and the ship undocks", not Router.docked)
+
+
+# --------------------------------------------- 5. SCRAP at three digits fits
+
+## A button's words at its font and size, plus its box's side margins, inside it.
+func _text_faults(b: Button) -> Array:
+	var font := b.get_theme_font(&"font")
+	var fs := b.get_theme_font_size(&"font_size")
+	var w := font.get_string_size(b.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x if font != null else 0.0
+	var sb := b.get_theme_stylebox(&"normal")
+	var pad := sb.get_margin(SIDE_LEFT) + sb.get_margin(SIDE_RIGHT) if sb != null else 0.0
+	if w + pad > b.size.x + 0.5:
+		return ["%s's words (%d, %d with its margins) spill out of it (%d)" % [b.text, w, w + pad, b.size.x]]
+	return []
+
+
+## `box` against the HUD along the top.
+func _hud_faults(box: Control) -> Array:
+	var hud := h.first(_tree.root, func(x: Node) -> bool:
+		return x is HudBar and (x as Control).is_visible_in_tree()) as Control
+	if hud != null and hud.get_global_rect().intersects(box.get_global_rect()):
+		return ["%s %s is over the HUD %s" % [box.name, box.get_global_rect(), hud.get_global_rect()]]
+	return []
+
+
+## The deepest system the derelict can be at (danger 5 or 6 pays 35 x 3.0).
+func _deep_system() -> MapGen.MapNode:
+	var band: Dictionary = OptionTable.by_id(ID)
+	var best: MapGen.MapNode = null
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		if n.type == MapGen.NodeType.SYSTEM and n.danger >= 5 \
+				and n.danger <= int(band.get("max_danger", 99)) \
+				and (best == null or n.danger > best.danger):
+			best = n
+	return best
+
+
+func _three_digits() -> void:
+	var n := _deep_system()
+	if not h._ok("a system at danger 5 or 6 (%s)" % (str(n.danger) if n != null else "none"), n != null):
+		return
+	var d: LocalEventDrawer = await _open(n)
+	if not h._ok("danger %d: the derelict's page is up" % n.danger, d != null):
+		return
+	await d.choose(0)
+	d.continue_on()
+	var sc := await _rail()
+	var scrap := _rail_button(sc, "SCRAP")
+	var cut := int(scrap.text.get_slice("+", 1)) if scrap != null else 0
+	if not h._ok("danger %d: the rail's SCRAP has three digits: %s" % [n.danger,
+			scrap.text if scrap != null else "none"], scrap != null and cut >= 100):
+		return
+	var said := scrap.text
+	var wrap: Control = sc.get("_salvage_wrap")
+	var faults := _button_faults(scrap, wrap) + _text_faults(scrap) + _hud_faults(wrap)
+	h._ok("SCRAP +%d fits the rail: inside it, off TRANSFER, its words inside it, the rail on screen and off the HUD%s" % [
+		cut, "" if faults.is_empty() else ": " + "; ".join(faults)], faults.is_empty())
+
+	# The system map's row, the other door to the same offer.
+	Router.show_system()
+	var map: SystemMapScreen = null
+	for i in 240:
+		await _tree.process_frame
+		map = Router.current as SystemMapScreen
+		if map != null and not ZoomLadder.busy() and map.get("panel") != null \
+				and _button(map.get("panel"), "SCRAP") != null:
+			break
+	var panel: Control = map.get("panel") if map != null else null
+	var ms := _button(panel, "SCRAP") if panel != null else null
+	if not h._ok("the system map's row has it too: %s" % (ms.text if ms != null else "none"),
+			ms != null and ms.text == said):
+		return
+	var pf := _button_faults(ms, panel) + _text_faults(ms) + _hud_faults(panel)
+	h._ok("SCRAP +%d fits the map's panel: inside it, off TRANSFER, its words inside it, the panel on screen and off the HUD%s" % [
+		cut, "" if pf.is_empty() else ": " + "; ".join(pf)], pf.is_empty())
+
+
+# ----------------------------------------- 6. a 0.4.2-alpha.1 save's frame
+
+## A VERSION 36 file has no `found_scrap`. Its hull on offer loads with LEAVE
+## IT, as the build that wrote it showed, and no SCRAP it never had.
+func _old_save(n: MapGen.MapNode) -> void:
+	var d: LocalEventDrawer = await _open(n)
+	if not h._ok("the derelict's page is up", d != null):
+		return
+	var r: Dictionary = await d.choose(0)
+	d.continue_on()
+	await _frames(2)
+	var claimed := _sig(Run.found_hull)
+	if not h._ok("the claim resolves on its page (%s)" % claimed, r.get("ok", false) and Run.found_hull != null):
+		return
+	SaveGame.save()
+	var raw := FileAccess.get_file_as_string(SaveGame.path)
+	var old: Variant = JSON.parse_string(raw)
+	if not h._ok("the save reads back as a file", typeof(old) == TYPE_DICTIONARY):
+		return
+	old["version"] = 36
+	old.erase("found_scrap")
+	var f := FileAccess.open(SaveGame.path, FileAccess.WRITE)
+	f.store_string(JSON.stringify(old, "", true, true))
+	f.close()
+	Run.found_hull = null
+	if not h._ok("a version 36 save with a found hull loads", SaveGame.load_into_run()):
+		return
+	var sc := await _rail()
+	h._ok("the hull on offer is the one saved (%s)" % _sig(Run.found_hull), _sig(Run.found_hull) == claimed)
+	h._ok("with LEAVE IT on the rail and no SCRAP",
+		_rail_button(sc, "LEAVE IT") != null and _rail_button(sc, "SCRAP") == null)

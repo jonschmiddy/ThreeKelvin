@@ -357,7 +357,9 @@ var found_hull: HullData = null:
 	set(v):
 		found_hull = v
 		# The pay belongs to the hull it came with, so any other hull (or none)
-		# clears it. `find_hull` and a backed-out move set it after.
+		# clears it. `find_hull` and a backed-out move set it after. The doors
+		# that put another hull over a frame with pay (`find_hull`,
+		# `transfer_to_hull`) pay it out first; this setter never pays.
 		found_scrap = {}
 		Sig.ship_changed.emit()
 ## WHAT CUTTING UP THE HULL ON OFFER PAYS, `{credits, material}`, or empty for a
@@ -2314,7 +2316,13 @@ func add_credits(n: int) -> void:
 ##
 ## `scrap` is what cutting it up pays instead (`found_scrap`): the derelict
 ## hauler passes its strip's pay; a wreck's hull passes nothing.
+##
+## A FRAME STILL ON OFFER WITH ITS PAY IS CUT UP FIRST (`scrap_found_hull`).
+## Claiming a second derelict used to put the new frame over it, and the setter
+## wiped the old frame's pay with it: the strip you gave up, lost after all.
 func find_hull(h: HullData, scrap: Dictionary = {}) -> void:
+	if h != found_hull:
+		scrap_found_hull()
 	found_hull = h
 	found_scrap = scrap.duplicate() if h != null else {}
 	salvage_hushed_hauls = -1
@@ -2332,6 +2340,10 @@ func found_scrap_credits() -> int:
 ## Cut up the hull on offer for what it carries (`found_scrap`): the credits,
 ## and its crate on this system's pile, under SECTOR LOOT. Once: the hull is
 ## gone after. False, and nothing moves, for a hull with nothing to pay.
+##
+## THE LOG SAYS WHERE THE CRATE WENT, by name. It lands in SECTOR LOOT and not
+## in the hold, and with nothing on screen saying so Jon called it "super NOT
+## intuitive".
 func scrap_found_hull() -> bool:
 	if found_scrap_credits() <= 0:
 		return false
@@ -2339,10 +2351,13 @@ func scrap_found_hull() -> bool:
 	var what := found_hull.display_name()
 	found_hull = null
 	add_credits(int(pay.get("credits", 0)))
+	var said := "Scrapped the %s for %d credits." % [what, int(pay.get("credits", 0))]
 	var mat := StringName(pay.get("material", &""))
 	if mat != &"":
-		add_material(mat, 1)
-	log_line("Scrapped the %s for %d credits." % [what, int(pay.get("credits", 0))], &"good")
+		var made := add_material(mat, 1)
+		if not made.is_empty() and node_at() != null:
+			said += " A crate of %s is in SECTOR LOOT." % made[0].name
+	log_line(said, &"good")
 	return true
 
 
@@ -2675,6 +2690,13 @@ func transfer_to_hull(h: HullData, paid: int = 0,
 	# possible -- a gun remembers its hardpoint and a crate remembers its cell,
 	# so the left-hand side of that screen is the ship you have been flying and
 	# not an inventory of it.
+	#
+	# A FOUND FRAME YOU ARE NOT MOVING INTO is cut up for its pay first
+	# (`scrap_found_hull`): buying a yard hull threw it away below, pay and all.
+	# Before the way back is taken, so backing out of the purchase does not
+	# bring back a frame that has already paid.
+	if h != found_hull:
+		scrap_found_hull()
 	old_hull = hull
 	# THE WAY BACK, TAKEN BEFORE ANYTHING MOVES. Every part's hardpoint and every
 	# crate's cell, plus the frame and the hull points they belonged to -- which

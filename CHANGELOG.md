@@ -13,8 +13,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Added** — SCRAP on a derelict hauler's frame you do not want, where LEAVE IT was, on LOCAL's
   rail and on the system map. It pays what "Strip it for scrap" pays, the same credits and the
   same crate, once. It is still there after you back out of TRANSFER, and after a save and load.
-  A hull cut out of a wreck keeps LEAVE IT. Saves from 0.4.2-alpha.1 load; a hull already on
-  offer in one keeps LEAVE IT.
+  Claim another hull or buy one at a yard while it is still on offer, and it is scrapped for you.
+  The log names the crate and says it is in SECTOR LOOT. Saves from 0.4.2-alpha.1 load; a hull
+  already on offer in one keeps LEAVE IT.
 
 ### Roadmap
 
