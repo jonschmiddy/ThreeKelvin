@@ -242,6 +242,112 @@ func _check(what: String) -> void:
 	_ok("%s: clear of the HUD (%s vs %s)" % [what, disc, hud], not _disc_hits(info, hud))
 	if goal.size != Vector2.ZERO:
 		_ok("%s: clear of the goal line (%s)" % [what, goal], not _disc_hits(info, goal))
+	_mem_check(what, sky)
+
+
+## ITS SURFACE'S MEMORY OVER ALL OF IT THAT CAN BE SEEN (`PlanetView.mem_clip`):
+## the world you orbit works its memory out only inside the near picture (much
+## of a giant runs off its bottom or side), so every block of the disc that
+## picture shows must lie inside the memory's window -- and the window must be
+## smaller than the whole memory when the disc runs well off the picture (past
+## its margin and, on the right, the lead a leaving ship's camera needs), or
+## the clip has stopped saving anything. Headless the sky builds no near world,
+## so one is stood in a near picture of its own as `_build_near` builds it, from
+## the same plan; the window is worked out as the frame before drawing would.
+func _mem_check(what: String, sky: LocalSky) -> void:
+	var pv := sky._near_world as PlanetView
+	var stand: SubViewport = null
+	if LocalSky.headless():
+		var plan := sky.near_plan()
+		if plan.is_empty() or plan.world == &"shattered":
+			return
+		stand = SubViewport.new()
+		stand.size = Vector2i(480, 270)
+		stand.size_2d_override = Vector2i(960, 540)
+		stand.size_2d_override_stretch = true
+		stand.disable_3d = true
+		add_child(stand)
+		pv = PlanetView.new()
+		pv.set_world(plan.world, int(plan.seed), float(plan.R), plan.over)
+		pv.mem_clip = true
+		pv.mem_clip_lead = LocalSky.near_lead()
+		pv.set_cell(2)
+		stand.add_child(pv)
+		# (at rest, as `_step_near` stands it)
+		pv.position = Vector2(plan.at) + Vector2.ONE * float(Worlds.half_size(plan.world, float(plan.R)) % 2)
+	if pv != null and pv._mem_vp != null:
+		_mem_cover(what, pv)
+	if stand != null:
+		stand.queue_free()
+
+
+func _mem_cover(what: String, pv: PlanetView) -> void:
+	if not _ok("%s: the world you orbit clips its memory to the picture" % what, pv.mem_clip):
+		return
+	pv._mem_window()
+	var win: Rect2i = pv._mem_win
+	var n := pv._mem_vp.size.x
+	# THE WINDOW IS THE SHADER'S ALONE, its pass drawn over the whole memory: a
+	# pass rect moved and sized to the window just before drawing took its new
+	# size a frame late, so on every frame the window moved (a push-in, a ship
+	# leaving) the memory was written a grid off from where the world read it
+	var pass_rect := pv._mem_vp.get_child(0) as ColorRect
+	var u: Vector4 = pv._mem_mat.get_shader_parameter("mem_win")
+	var u_want := Vector4.ZERO if win == Rect2i(0, 0, n, n) else Vector4(win.position.x, win.position.y, win.end.x, win.end.y)
+	_ok("%s: its memory's pass is drawn over all of it (%s of %d), its window the shader's (%s)" % [what, pass_rect.get_rect(), n, u],
+		pass_rect.position == Vector2.ZERO and pass_rect.size == Vector2(n, n) and u == u_want)
+	var cl := maxi(int(pv._mat.get_shader_parameter("cell")), 1)
+	var half := int(pv._mat.get_shader_parameter("mem_half"))
+	var r := float(pv._mat.get_shader_parameter("r"))
+	var at := pv.get_global_transform_with_canvas().origin
+	# the disc's box in the near picture's px, and the part of it the picture shows
+	var pic := pv.get_viewport().get_visible_rect()
+	var disc := Rect2(at - Vector2.ONE * (r + cl), Vector2.ONE * 2.0 * (r + cl))
+	var seen := disc.intersection(pic)
+	if seen.size.x <= 0.0 or seen.size.y <= 0.0:
+		return
+	# (those px as the screen's pass counts them into blocks: px from the view's middle)
+	var b0 := Vector2i(floori((seen.position.x - at.x) / cl) + half, floori((seen.position.y - at.y) / cl) + half)
+	var b1 := Vector2i(floori((ceilf(seen.end.x) - 1.0 - at.x) / cl) + half, floori((ceilf(seen.end.y) - 1.0 - at.y) / cl) + half)
+	var need := Rect2i(b0, b1 - b0 + Vector2i.ONE).intersection(Rect2i(0, 0, n, n))
+	_ok("%s: its memory covers every block the picture shows (window %s, needed %s)" % [what, win, need], win.encloses(need))
+	var m := float((PlanetView.MEM_MARGIN + 2) * cl)
+	if not pic.grow_individual(m, m, m + float(pv.mem_clip_lead * cl), m).encloses(disc):
+		_ok("%s: and less than the whole of it (%d of %d blocks)" % [what, win.get_area(), n * n], win.get_area() < n * n)
+
+
+## A WORLD THAT GIVES OFF LIGHT OF ITS OWN IS DRAWN FROM ITS OWN SAMPLES
+## (`planet.gdshader`, `own_light`): drawn from its memory, a world's screen pass
+## takes none of its four samples unless it is one of these -- so every kind
+## whose surface burns (`has_emit`), glows, glints or shows an oil slick's
+## colours must be on that list, or it would lose that light wherever the
+## memory holds it (LOCAL's world, the map's). Read off the shader's source.
+func _own_light_check() -> void:
+	var src := FileAccess.get_file_as_string("res://shaders/planet.gdshader")
+	var s0 := src.find("Surf surf(")
+	var s1 := src.find("\n}\n", s0)
+	var lit := RegEx.create_from_string("bool own_light = ([^;]*);")
+	var m := lit.search(src)
+	if not _ok("planet.gdshader: surf() and own_light found", s0 >= 0 and s1 > s0 and m != null):
+		return
+	var listed := {}
+	for w in RegEx.create_from_string("W_[A-Z]+").search_all(m.get_string(1)):
+		listed[w.get_string()] = true
+	var body := src.substr(s0, s1 - s0)
+	var heads := RegEx.create_from_string("if \\((world == W_[A-Z]+(?: \\|\\| world == W_[A-Z]+)*)\\) \\{").search_all(body)
+	var own := RegEx.create_from_string("has_emit = true|S\\.glow =|S\\.glint =|S\\.irid =")
+	var missing: Array = []
+	var gives := 0
+	for i in heads.size():
+		var to := heads[i + 1].get_start() if i + 1 < heads.size() else body.length()
+		if own.search(body.substr(heads[i].get_end(), to - heads[i].get_end())) == null:
+			continue
+		for w in RegEx.create_from_string("W_[A-Z]+").search_all(heads[i].get_string(1)):
+			gives += 1
+			if not listed.has(w.get_string()):
+				missing.append(w.get_string())
+	_ok("planet.gdshader: every kind that gives off light of its own (%d) is on own_light %s; missing %s" % [gives, listed.keys(), missing],
+		gives >= 9 and missing.is_empty())
 
 
 ## WHAT STANDS BESIDE YOUR SHIP IS WHAT IS AT THAT PLACE (Jon, Oct 21: "This
@@ -1016,6 +1122,7 @@ func _run() -> void:
 	ZoomLadder.force = 1
 	ZoomLadder.fixed_dt = 1.0 / 30.0
 	_watch = true
+	_own_light_check()
 	for sd in _seeds:
 		print("seed %d" % sd)
 		Rng.forced = sd

@@ -147,6 +147,13 @@ uniform bool mem_fresh = true;
 uniform float mem_ease = 0.35;
 uniform float mem_hyst = 0.085;
 uniform int mem_release = 40;
+// THE MEMORY ONLY WHERE IT CAN BE SEEN (`PlanetView.mem_clip`, LOCAL's near world,
+// which runs off the bottom and the side of its picture): the memory's pass works
+// out the blocks from (x, y) up to (z, w) alone and leaves the rest clear, as
+// nothing there (`PlanetView` keeps it wide enough that whatever comes into view
+// was worked out all along). z 0: the whole memory, as always. (The pass is still
+// drawn over all of it: a block outside stops at once.)
+uniform vec4 mem_win = vec4(0.0);
 
 // ---------------------------------------------------------------- the ramps and worlds, by number
 const int R_ROCK = 0; const int R_MOON = 1; const int R_DESERT = 2; const int R_IRON = 3; const int R_ICE = 4;
@@ -544,8 +551,12 @@ vec4 paint(vec2 uv) {
 	// (the block's place in the memory, `mem_mode`)
 	ivec2 mb = ivec2((cell > 1 ? floor(pix / float(cell)) : pix) + float(mem_half));
 	if (mem_mode == 1) {
-		// working out the memory: this pixel is a block of the world
+		// working out the memory: this pixel is a block of the world (only those in
+		// `mem_win` when that is set)
 		vec2 mt = floor(uv * float(mem_n));
+		if (mem_win.z > 0.0 && (mt.x < mem_win.x || mt.y < mem_win.y || mt.x >= mem_win.z || mt.y >= mem_win.w)) {
+			return vec4(0.0);
+		}
 		mb = ivec2(mt);
 		pix = (mt - float(mem_half)) * float(max(cell, 1));
 	}
@@ -659,69 +670,83 @@ vec4 paint(vec2 uv) {
 			float limb = pow(1.0 - nz, 2.5) * max(0.0, dot(normalize(vec2(nx, ny) + vec2(1e-5)), normalize(L.xy + vec2(1e-5))));
 			shade *= 1.0 + rich * 0.6 * limb;
 		}
-		// four samples a pixel; the commonest kind of ground wins
-		// (kept in plain arrays: some drivers cannot store a struct into an array at a varying index)
-		int a_ramp[4]; float a_v[4]; vec3 a_emit[4]; bool a_has[4]; float a_glow[4]; float a_glint[4]; float a_irid[4];
-		int ns = 0;
-		for (int i = 0; i < 4; i++) {
-			float ax = x + (i == 0 || i == 2 ? -0.25 : 0.25), ay = y + (i < 2 ? -0.25 : 0.25), q2 = (ax * ax + ay * ay) / (r * r);
-			if (q2 <= 1.0) {
-				Surf o = surf(vec3(ax / r, ay / r, sqrt(1.0 - q2)), x, y, lam, HV);
-				a_ramp[ns] = o.ramp; a_v[ns] = o.v; a_emit[ns] = o.emit; a_has[ns] = o.has_emit; a_glow[ns] = o.glow; a_glint[ns] = o.glint; a_irid[ns] = o.irid;
-				ns++;
-			}
-		}
-		if (ns == 0) {
-			Surf o = surf(nv, x, y, lam, HV);
-			a_ramp[0] = o.ramp; a_v[0] = o.v; a_emit[0] = o.emit; a_has[0] = o.has_emit; a_glow[0] = o.glow; a_glint[0] = o.glint; a_irid[0] = o.irid;
-			ns = 1;
-		}
-		int ramp = a_ramp[0], best = 0;
-		for (int i = 0; i < ns; i++) {
-			int c = 0;
-			for (int j = 0; j < ns; j++) if (a_ramp[j] == a_ramp[i]) c++;
-			if (c > best) { best = c; ramp = a_ramp[i]; }
-		}
+		// THE SCREEN'S PASS DRAWN FROM THE MEMORY (`mem_mode` 2) takes the ground and
+		// the shade the memory holds for the block; of its own four samples only what
+		// a world gives off of its own is kept (fire, a jungle's glow, a diamond's
+		// glint, an oil slick's colours). A world with none of those, on a block the
+		// memory holds, keeps nothing of them: they are not taken.
+		vec4 PM = mem_mode == 2 ? texture(mem_now, (vec2(mb) + 0.5) / float(mem_n)) : vec4(0.0);
+		bool own_light = world == W_LAVA || world == W_CRYSTAL || world == W_HOTJUP || world == W_CRACKED || world == W_VOLCANIC
+			|| world == W_BIOLUM || world == W_CARBONA || world == W_CARBONB || world == W_CARBONC;
+		bool held_all = mem_mode == 2 && PM.a > 0.0 && !own_light;
+		int ramp = base_ramp, ns = 1;
 		float v = 0.0, gv = 0.0, gl = 0.0, ir = 0.0;
-		int n = 0, emits = 0, irn = 0;
+		int irn = 0;
 		vec3 emit = vec3(0.0);
 		bool has_emit = false;
-		for (int i = 0; i < ns; i++) {
-			if (a_ramp[i] == ramp) { v += a_v[i]; n++; }
-			if (a_has[i]) { emits++; if (!has_emit) { emit = a_emit[i]; has_emit = true; } }
-			gv += a_glow[i]; gl += a_glint[i];
-			if (a_irid[i] >= 0.0) { ir += a_irid[i]; irn++; }
-		}
-		v /= float(n); gv /= float(ns); gl /= float(ns);
-		bool cloud = ramp == cloud_ramp || ramp == R_CLOUD;
-		if (emits * 2 < ns) has_emit = false;
+		bool cloud = false;
 		float sh = unlit ? 0.38 : shade;
-		if (mem_mode == 1) {
-			// THE GROUND HELD TOO: two kinds of ground half and half across a pixel
-			// tie, and which wins flipped back and forth as the points slid -- the
-			// one it showed keeps it while it still covers half the pixel
-			vec4 P0 = texture(mem_prev, (vec2(mb) + 0.5) / float(mem_n));
-			if (!mem_fresh && P0.a > 0.0) {
-				int psr = int(round(P0.b * 255.0)) & 31;
-				if (psr != ramp) {
-					float pv = 0.0;
-					int pn = 0;
-					for (int i = 0; i < ns; i++) if (a_ramp[i] == psr) { pv += a_v[i]; pn++; }
-					if (pn * 2 >= ns) { ramp = psr; v = pv / float(pn); cloud = ramp == cloud_ramp || ramp == R_CLOUD; }
+		if (!held_all) {
+			// four samples a pixel; the commonest kind of ground wins
+			// (kept in plain arrays: some drivers cannot store a struct into an array at a varying index)
+			int a_ramp[4]; float a_v[4]; vec3 a_emit[4]; bool a_has[4]; float a_glow[4]; float a_glint[4]; float a_irid[4];
+			ns = 0;
+			for (int i = 0; i < 4; i++) {
+				float ax = x + (i == 0 || i == 2 ? -0.25 : 0.25), ay = y + (i < 2 ? -0.25 : 0.25), q2 = (ax * ax + ay * ay) / (r * r);
+				if (q2 <= 1.0) {
+					Surf o = surf(vec3(ax / r, ay / r, sqrt(1.0 - q2)), x, y, lam, HV);
+					a_ramp[ns] = o.ramp; a_v[ns] = o.v; a_emit[ns] = o.emit; a_has[ns] = o.has_emit; a_glow[ns] = o.glow; a_glint[ns] = o.glint; a_irid[ns] = o.irid;
+					ns++;
 				}
 			}
-			return mem_state(ramp, v, sh, has_emit && !cloud, x, y, mb);
+			if (ns == 0) {
+				Surf o = surf(nv, x, y, lam, HV);
+				a_ramp[0] = o.ramp; a_v[0] = o.v; a_emit[0] = o.emit; a_has[0] = o.has_emit; a_glow[0] = o.glow; a_glint[0] = o.glint; a_irid[0] = o.irid;
+				ns = 1;
+			}
+			ramp = a_ramp[0];
+			int best = 0;
+			for (int i = 0; i < ns; i++) {
+				int c = 0;
+				for (int j = 0; j < ns; j++) if (a_ramp[j] == a_ramp[i]) c++;
+				if (c > best) { best = c; ramp = a_ramp[i]; }
+			}
+			int n = 0, emits = 0;
+			for (int i = 0; i < ns; i++) {
+				if (a_ramp[i] == ramp) { v += a_v[i]; n++; }
+				if (a_has[i]) { emits++; if (!has_emit) { emit = a_emit[i]; has_emit = true; } }
+				gv += a_glow[i]; gl += a_glint[i];
+				if (a_irid[i] >= 0.0) { ir += a_irid[i]; irn++; }
+			}
+			v /= float(n); gv /= float(ns); gl /= float(ns);
+			cloud = ramp == cloud_ramp || ramp == R_CLOUD;
+			if (emits * 2 < ns) has_emit = false;
+			if (mem_mode == 1) {
+				// THE GROUND HELD TOO: two kinds of ground half and half across a pixel
+				// tie, and which wins flipped back and forth as the points slid -- the
+				// one it showed keeps it while it still covers half the pixel
+				vec4 P0 = texture(mem_prev, (vec2(mb) + 0.5) / float(mem_n));
+				if (!mem_fresh && P0.a > 0.0) {
+					int psr = int(round(P0.b * 255.0)) & 31;
+					if (psr != ramp) {
+						float pv = 0.0;
+						int pn = 0;
+						for (int i = 0; i < ns; i++) if (a_ramp[i] == psr) { pv += a_v[i]; pn++; }
+						if (pn * 2 >= ns) { ramp = psr; v = pv / float(pn); cloud = ramp == cloud_ramp || ramp == R_CLOUD; }
+					}
+				}
+				return mem_state(ramp, v, sh, has_emit && !cloud, x, y, mb);
+			}
 		}
 		// the shade it shows: the remembered ground and its step (the styles that
 		// do not pick a step of the ramp take the eased value)
 		int mlv = -1;
 		if (mem_mode == 2) {
-			vec4 P = texture(mem_now, (vec2(mb) + 0.5) / float(mem_n));
-			if (P.a > 0.0 && !(has_emit && !cloud)) {
-				int B = int(round(P.b * 255.0));
+			if (PM.a > 0.0 && !(has_emit && !cloud)) {
+				int B = int(round(PM.b * 255.0));
 				ramp = B & 31;
 				mlv = B >> 5;
-				v = P.r * 2.0 - 0.5;
+				v = PM.r * 2.0 - 0.5;
 				cloud = ramp == cloud_ramp || ramp == R_CLOUD;
 			}
 		}

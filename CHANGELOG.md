@@ -62,6 +62,11 @@ The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
 
 ### Changed
 
+- **Changed** — the big world you orbit on LOCAL takes far less graphics work to draw. Its
+  surface is no longer worked out a second time where the first answer already holds, and it
+  is no longer worked out below or beside the screen where nobody can see it. The first change
+  makes every other world a little cheaper too, the sector map's included. Nothing looks
+  different.
 - **Changed** — a fight against three or more ships opens faster. Each enemy's hit marks, shield
   and armour are now built once, at the size the pack draws the ship. Before, they were built at
   full size and then again at half size, and the first build was thrown away. On Jon's Mac that

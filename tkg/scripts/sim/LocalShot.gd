@@ -147,12 +147,37 @@ func _run() -> void:
 			gsum += float(sky.call("gpu_ms"))
 		var gvp := GameShell.input_target(tree)
 		RenderingServer.viewport_set_measure_render_time(gvp.get_viewport_rid(), true)
+		# THE NEAR WORLD'S OWN PASSES, which the sky's time leaves out: the near
+		# picture (`LocalSky._near_vp`, the world drawn on screen) and its surface's
+		# memory (`PlanetView._mem_vp` with its copy of last frame)
+		var near_rids: Array[RID] = []
+		var mem_rids: Array[RID] = []
+		var nvp: Variant = sky.get("_near_vp")
+		if nvp is SubViewport:
+			near_rids.append((nvp as SubViewport).get_viewport_rid())
+		var nw: Variant = sky.get("_near_world")
+		if nw is PlanetView:
+			print("  near world %s, r %s" % [(nw as PlanetView).spec.get("world", &""), (nw as PlanetView).spec.get("r", 0.0)])
+			for k in ["_mem_vp", "_mem_copy"]:
+				var mv: Variant = (nw as PlanetView).get(k)
+				if mv is SubViewport:
+					mem_rids.append((mv as SubViewport).get_viewport_rid())
+		for rid: RID in near_rids + mem_rids:
+			RenderingServer.viewport_set_measure_render_time(rid, true)
 		await RenderingServer.frame_post_draw
 		var ggame := 0.0
+		var gnear := 0.0
+		var gmem := 0.0
 		for gi in 60:
 			await RenderingServer.frame_post_draw
 			ggame += RenderingServer.viewport_get_measured_render_time_gpu(gvp.get_viewport_rid())
+			for rid: RID in near_rids:
+				gnear += RenderingServer.viewport_get_measured_render_time_gpu(rid)
+			for rid: RID in mem_rids:
+				gmem += RenderingServer.viewport_get_measured_render_time_gpu(rid)
 		print("  sky gpu %.3f ms, game view gpu %.3f ms, fps %d" % [gsum / 60.0, ggame / 60.0, Engine.get_frames_per_second()])
+		if not near_rids.is_empty():
+			print("  near world gpu %.3f ms, its memory gpu %.3f ms" % [gnear / 60.0, gmem / 60.0])
 	# THE SKY BARE: the ships, their labels and the shots hidden, the game's own
 	# 960x540 picture (before the screen filter) read back
 	var statp := _arg("stats")
