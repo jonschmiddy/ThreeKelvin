@@ -163,7 +163,9 @@ static func power_state() -> String:
 	if OS.get_name() == "macOS":
 		var out: Array = []
 		if OS.execute("/usr/bin/pmset", ["-g", "batt"], out) == 0 and not out.is_empty():
-			var said := String(out[0]).replace("\t", " ").strip_edges()
+			# (less the battery's IOKit id: "-InternalBattery-0 (id=6815843)")
+			var said := RegEx.create_from_string(" ?\\(id=\\d+\\)").sub(String(out[0]), "", true)
+			said = said.replace("\t", " ").strip_edges()
 			var parts := PackedStringArray()
 			for line in said.split("\n", false):
 				parts.append(line.strip_edges())

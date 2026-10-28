@@ -129,7 +129,12 @@ func _settle(n: int) -> float:
 ## The frame's cost at the camera as it is, over n frames (the real clock is held
 ## to the display's rate, so it is measured as work): the map's own place
 ## picture on the GPU, the game's 960x540 frame on the GPU, the window's own
-## pass on the GPU, and the CPU's process time.
+## pass on the GPU, and `cpu`: the engine's `TIME_PROCESS` read every frame
+## and averaged. That is NOT a frame's process time: the engine sets it once a
+## second, to that second's worst process plus draw (`main.cpp`), so `cpu` is
+## a slow-moving worst that may still hold the last switch's stall, comparable
+## only with itself. (`MacBench` reads it once per sample and times each
+## frame's scripts on the engine's signals instead.)
 ## (`game_gpu` was `window_gpu` until Oct 27, and was never the window: this
 ## sheet runs inside the game's SubViewport, so `get_viewport()` is the game
 ## view. The window is `get_tree().root`, read as `root_gpu`.)

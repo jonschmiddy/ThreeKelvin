@@ -15,7 +15,10 @@ The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
 
 - **Changed** — the frame counter (Settings, DISPLAY, FRAME COUNTER) shows more. Beside the
   frames per second it gives the average frame time and the slowest frame of the last second,
-  in milliseconds, so a short hitch shows even when the rate looks fine. SAVE MY LOGS also
+  in milliseconds, so a short hitch shows even when the rate looks fine. It sits in the strip
+  under every screen's frame, five pixels lower than before, so it no longer runs through the
+  bottom bar's line on LOCAL and in a fight or the frame lines on SHIP and in the yard, and no
+  longer covers the foot of the cards in CARDS. SAVE MY LOGS also
   writes the look, the window size and how the screen scales it, the frame cap, vsync, the
   renderer and, on a Mac, the battery state. Nothing else on screen changes, and the game runs
   the same.

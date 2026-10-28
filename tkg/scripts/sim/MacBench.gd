@@ -293,6 +293,20 @@ func _restore_galaxy() -> void:
 func _settle(s: float) -> void:
 	var until := Time.get_ticks_msec() + int(s * 1000.0)
 	while Time.get_ticks_msec() < until:
+		await _frame()
+
+
+func _headless() -> bool:
+	return DisplayServer.get_name() == "headless"
+
+
+## One frame: drawn, with a window; processed, headless, where the dummy
+## renderer never emits `frame_post_draw` (so `MeterFitTest`, which only reads
+## rects, can visit these screens in a headless run).
+func _frame() -> void:
+	if _headless():
+		await get_tree().process_frame
+	else:
 		await RenderingServer.frame_post_draw
 
 
@@ -314,7 +328,7 @@ func _go(sc: String) -> bool:
 			if ls == null:
 				return false
 			var t0 := Time.get_ticks_msec()
-			while ls._sky != null and not (ls._sky._sky as ChartSky).ready_to_draw() and Time.get_ticks_msec() - t0 < 20000:
+			while not _headless() and ls._sky != null and not (ls._sky._sky as ChartSky).ready_to_draw() and Time.get_ticks_msec() - t0 < 20000:
 				await RenderingServer.frame_post_draw
 			await _settle(0.5)
 			return Router.current is LauncherScreen
@@ -326,7 +340,7 @@ func _go(sc: String) -> bool:
 				return false
 			var t1 := Time.get_ticks_msec()
 			var sky = cs._chart.get("_sky")
-			while sky != null and is_instance_valid(sky) and not (sky as ChartSky).ready_to_draw() and Time.get_ticks_msec() - t1 < 20000:
+			while not _headless() and sky != null and is_instance_valid(sky) and not (sky as ChartSky).ready_to_draw() and Time.get_ticks_msec() - t1 < 20000:
 				await RenderingServer.frame_post_draw
 			await _settle(0.5)
 			return Router.current is StarchartScreen
@@ -338,7 +352,7 @@ func _go(sc: String) -> bool:
 			if scr == null:
 				return false
 			var t2 := Time.get_ticks_msec()
-			while not bool(scr.view._palette_built) and Time.get_ticks_msec() - t2 < 15000:
+			while not _headless() and not bool(scr.view._palette_built) and Time.get_ticks_msec() - t2 < 15000:
 				await RenderingServer.frame_post_draw
 			await _settle(1.5)
 			return Router.current is SystemMapScreen

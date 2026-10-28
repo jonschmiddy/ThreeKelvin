@@ -357,6 +357,9 @@ func _logs_case() -> void:
 ## and a player feels. A frame held for 90 ms has to read as the worst, and be
 ## gone from it a second and a half later; and the meter stays top-level, in
 ## no layout (`872f546` removed one that was a child of the HUD row).
+## GONE MEANS THAT FRAME IS GONE, not that every frame since was under 85 ms:
+## the gate runs three at once on an 8 GB Mac, and a stall of the machine's
+## own in that second is not the meter's fault (Oct 27 review).
 func _meter_case() -> void:
 	var m := FpsMeter.new()
 	_tree.root.add_child(m)
@@ -365,6 +368,10 @@ func _meter_case() -> void:
 	OS.delay_msec(90)
 	await _secs(0.4)
 	var worst := _meter_worst(m)
+	# (the slowest frame the meter holds, to the microsecond: the held one)
+	var held := 0.0
+	for v in m._worst:
+		held = maxf(held, v)
 	_ok("  it reads FPS, MS and WORST (%s)" % m.text.replace("\n", " / "),
 		m.text.contains(" FPS ") and m.text.contains(" MS") and m.text.contains("WORST "))
 	# (a second line rose into the bottom bar's buttons: SCAN SECTOR, DISCARD)
@@ -372,7 +379,8 @@ func _meter_case() -> void:
 	_ok("  a 90 ms frame is the worst of its second (%.1f ms)" % worst, worst >= 85.0)
 	await _secs(1.6)
 	var later := _meter_worst(m)
-	_ok("  and has left it a second later (%.1f ms)" % later, later >= 0.0 and later < 85.0)
+	_ok("  and has left it a second later (%.1f ms now)" % later,
+		later >= 0.0 and not m._worst.has(held) and absf(later - held) > 0.05)
 	_ok("  top-level, in no layout", m.is_set_as_top_level())
 	m.queue_free()
 	await _tree.process_frame

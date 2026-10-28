@@ -41,9 +41,16 @@ extends Label
 ## reporting is a cost: 60 to 40 FPS sounds like a third gone and is 8 ms added
 ## to a 16 ms frame.
 ##
-## ONE LINE, wider to the left rather than taller: the row above the meter is
-## the bottom bar's buttons (SCAN SECTOR on LOCAL, DISCARD in a fight), and a
-## second line sat on them; the bottom row is clear for 400 px on every screen.
+## ONE LINE, IN THE WINDOW'S BOTTOM MARGIN. Every screen sits inside Main's
+## margin, which stops 7 px short of the window's bottom edge, so the frames
+## end there: the bottom bar's line is row 532 of 540 on LOCAL and in a fight,
+## the yard's panel line row 528. The figures go under all of it, on rows 534
+## to 538, a row clear of the frames and a row clear of the window's edge.
+## Twice it sat inside the frame: a second line rose onto SCAN SECTOR and
+## DISCARD, and the first one-line reading (Oct 27, figures on rows 529-533)
+## ran through the bar's 1 px line for all 158 px of it, past a box test that
+## only looked at text. `-- sheet=MeterFitTest` checks the ink against every
+## text, frame and edge on each screen.
 
 ## How often the reading refreshes. Frames per second read every frame is a
 ## number that never settles long enough to be read; a quarter second was the
@@ -54,8 +61,12 @@ const TICK := 0.25
 const WARN := 50
 const BAD := 30
 
-## Clearance from the corner, in viewport pixels.
-const INSET := Vector2(6.0, 4.0)
+## Clearance from the corner, in viewport pixels: 6 from the right edge, and
+## -1 at the bottom because the box is taller than the ink. Silkscreen at
+## FS_SMALL draws its capitals and figures on 5 of the box's 11 rows, 4 empty
+## above them and 2 below, so the box hangs a pixel past the window's bottom
+## and the ink stops a row above it (rows 534-538 of 540; see ONE LINE).
+const INSET := Vector2(6.0, -1.0)
 
 ## THE LAST SECOND, IN FOUR QUARTERS: each slot holds one tick's frames (their
 ## slowest, their total and how many), so the worst and the mean of the last
@@ -130,10 +141,10 @@ func _process(_delta: float) -> void:
 	# to it — so the corner is arithmetic. It has to be redone each tick because
 	# the width changes when the reading goes from two digits to three.
 	#
-	# BOTTOM RIGHT, the one corner with nothing in it. The top right is the HUD
-	# row: CARDS, MODULES and HISTORY run to within a few pixels of the
-	# edge, and that crowding is precisely what got the last frame counter
-	# deleted. Down here it overlaps nothing on any screen.
+	# BOTTOM RIGHT, under every screen's frame. The top right is the HUD row:
+	# CARDS, MODULES and HISTORY run to within a few pixels of the edge, and
+	# that crowding is precisely what got the last frame counter deleted. The
+	# margin under the frames holds nothing else (`-- sheet=MeterFitTest`).
 	var vp := get_viewport_rect().size
 	size = get_combined_minimum_size()
 	position = vp - size - INSET
