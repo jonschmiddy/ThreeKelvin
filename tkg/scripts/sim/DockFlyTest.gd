@@ -67,6 +67,53 @@ func _name_of(c: Control) -> String:
 	return c.get_script().get_global_name() if c.get_script() != null else c.get_class()
 
 
+## A button's word, its state and its tooltip, for a check's line.
+func _says(b: Button) -> String:
+	if b == null:
+		return "none"
+	return "%s, disabled %s, %s" % [b.text, b.disabled, b.tooltip_text.replace("\n", " ")]
+
+
+## The width a button's word takes, and the room its plate leaves for it.
+func _word_w(b: Button) -> float:
+	return b.get_theme_font(&"font").get_string_size(b.text, HORIZONTAL_ALIGNMENT_LEFT, -1,
+		b.get_theme_font_size(&"font_size")).x
+
+
+func _room(b: Button) -> float:
+	var sb := b.get_theme_stylebox(&"disabled" if b.disabled else &"normal")
+	return b.size.x - sb.get_margin(SIDE_LEFT) - sb.get_margin(SIDE_RIGHT)
+
+
+## FIT MEANS NOTHING OVERLAPS, for a DOCKED this change put on the map's panel:
+## whole inside the panel and the 960x540 screen, its word not clipped, and
+## clear of every other word and button on the panel (what the panel's scroll
+## hides of its page left out, as it is not drawn).
+func _fits(what: String, b: Button, m: SystemMapScreen) -> void:
+	if not _ok("berth: %s is up" % what, b != null and b.is_visible_in_tree()):
+		return
+	var p := m.panel as Control
+	var r := b.get_global_rect()
+	var clip: Rect2 = (m.panel._scroll as Control).get_global_rect()
+	var hit := ""
+	for c in p.find_children("*", "Control", true, false):
+		var k := c as Control
+		if k == b or not k.is_visible_in_tree() or b.is_ancestor_of(k) or k.is_ancestor_of(b):
+			continue
+		if not (k is Button or k is Label or k is RichTextLabel):
+			continue
+		var kr := k.get_global_rect()
+		if (m.panel._box as Node).is_ancestor_of(k):
+			kr = kr.intersection(clip)
+		if kr.has_area() and kr.intersects(r):
+			hit = "%s \"%s\" at %s" % [k.get_class(), k.get("text"), kr]
+			break
+	_ok("berth: %s fits: inside the panel and the screen, its word whole (%.0f of %.0f px), touching nothing (%s; %s in %s)" % [
+			what, _word_w(b), _room(b), hit if hit != "" else "clear", r, p.get_global_rect()],
+		p.get_global_rect().encloses(r) and get_viewport().get_visible_rect().encloses(r)
+			and _word_w(b) <= _room(b) + 0.5 and hit == "")
+
+
 func _ok(what: String, c: bool) -> bool:
 	print("  %s %s" % ["ok  " if c else "FAIL", what])
 	if not c:
@@ -434,6 +481,14 @@ func _berth_shut(p: int) -> void:
 	_ok("berth: its tooltip says \"%s\" (%s)" % [DOCKED_LINE, tab.tooltip_text.replace("\n", " ")],
 		tab.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
 	_ok("berth: greyed, not lit as the page you are on", not tab.has_theme_stylebox_override("disabled"))
+	# FIT MEANS NOTHING OVERLAPS: LOCAL in the slot built for STATION, its word
+	# whole, clear of every other button on the HUD
+	var hud_hit := ""
+	for b in Router.hud.find_children("*", "Button", true, false):
+		if b != tab and (b as Button).is_visible_in_tree() and (b as Button).get_global_rect().intersects(tab.get_global_rect()):
+			hud_hit = (b as Button).text
+	_ok("berth: LOCAL whole in its tab (%.0f of %.0f px) and on screen, touching no other HUD button (%s)" % [_word_w(tab), _room(tab), hud_hit if hud_hit != "" else "clear"],
+		_word_w(tab) <= _room(tab) + 0.5 and get_viewport().get_visible_rect().encloses(tab.get_global_rect()) and hud_hit == "")
 	var st := Router.current as StationScreen
 	_watch_on()
 	# (a press it will not take, sent by hand: the door behind it is shut too)
@@ -465,9 +520,7 @@ func _berth_shut(p: int) -> void:
 		_ok("berth: the world's page offers no flight: DOCKED, greyed, saying \"%s\" (%s)" % [DOCKED_LINE,
 			"none" if fly == null else "%s, disabled %s, %s" % [fly.text, fly.disabled, fly.tooltip_text.replace("\n", " ")]],
 			fly != null and fly.text == "DOCKED" and fly.disabled and fly.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
-		if fly != null:
-			_ok("berth: DOCKED sits whole inside the panel and the screen (%s in %s)" % [fly.get_global_rect(), (m.panel as Control).get_global_rect()],
-				(m.panel as Control).get_global_rect().encloses(fly.get_global_rect()) and get_viewport().get_visible_rect().encloses(fly.get_global_rect()))
+		_fits("the world page's DOCKED", fly, m)
 		m.fly_to_body(p)
 		await _frames(30)
 		_ok("berth: FLY HERE refused, still docked, the ship where it was (%d)" % m.flight.reached(),
@@ -486,7 +539,26 @@ func _berth_shut(p: int) -> void:
 		var ev := _any_event()
 		if _ok("berth: an event to plant for GO (%s)" % ev, ev != &""):
 			n.options.append(ev)
-			m.go_event(n.options.size() - 1)
+			var k := n.options.size() - 1
+			# ITS PAGE AND ITS ROW ON THE STATION'S PAGE (`SystemPanel._event_page`,
+			# `_place_event`): GO reads DOCKED with the words, and the longer word
+			# fits where two letters stood
+			m.panel.open_page(k)
+			await _frames(3)
+			var pg := m.panel.find_child("Go", true, false) as Button
+			_ok("berth: the event's page: GO reads DOCKED, greyed, saying \"%s\" (%s)" % [DOCKED_LINE, _says(pg)],
+				pg != null and pg.text == "DOCKED" and pg.disabled and pg.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
+			_fits("the event page's DOCKED", pg, m)
+			m.panel.show_body(_station_body())
+			m.panel._place_event(_station_body(), k)
+			await _frames(3)
+			var rg := m.panel.find_child("Go", true, false) as Button
+			_ok("berth: the event's row on the station's page: GO reads DOCKED, greyed, saying \"%s\" (%s)" % [DOCKED_LINE, _says(rg)],
+				rg != null and rg.text == "DOCKED" and rg.disabled and rg.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
+			_fits("the station page's DOCKED", rg, m)
+			m.panel.show_system()
+			await _frames(2)
+			m.go_event(k)
 			await _frames(30)
 			_ok("berth: GO refused: still docked, on the map, no event waiting for LOCAL (on %s)" % _name_of(Router.current),
 				Router.docked and Router.current == m and LocalEventDrawer.pending.is_empty())
@@ -500,8 +572,8 @@ func _berth_shut(p: int) -> void:
 		await _frames(2)
 		_ok("berth: JUMP reads DOCKED, greyed, saying \"%s\" (%s, %s)" % [DOCKED_LINE, ch._jump.text, ch._jump.tooltip_text.replace("\n", " ")],
 			ch._jump.disabled and ch._jump.text == "DOCKED" and ch._jump.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
-		_ok("berth: the chart's DOCKED button whole on screen (%s)" % ch._jump.get_global_rect(),
-			get_viewport().get_visible_rect().encloses(ch._jump.get_global_rect()))
+		_ok("berth: the chart's DOCKED button whole on screen, its word whole (%s, %.0f of %.0f px)" % [ch._jump.get_global_rect(), _word_w(ch._jump), _room(ch._jump)],
+			get_viewport().get_visible_rect().encloses(ch._jump.get_global_rect()) and _word_w(ch._jump) <= _room(ch._jump) + 0.5)
 		Router.begin_jump(to)
 		await _frames(30)
 		_ok("berth: the chart's JUMP refused (at %d, still docked, on %s)" % [Run.at, _name_of(Router.current)],
