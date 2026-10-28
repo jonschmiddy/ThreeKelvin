@@ -563,10 +563,16 @@ const PRIMER_W := 460
 ## awful. This was a paraphrase of that comment that inverted it.
 const PRIMER_LEGEND: Array[String] = [
 	"A system's colour is its star: pale is ordinary, red and blue are rarer.",
-	"You fly as far as THRUSTER REACH, and one ring deeper a jump at most. You see as far as SENSOR RANGE. Past your sight a jump is refused: NOT SCANNED.",
+	"You fly as far as THRUSTER REACH, and two rings deeper a jump at most. You see as far as SENSOR RANGE. Past your sight a jump is refused: NOT SCANNED.",
 	"Each row shows danger, then fuel. Full danger beside empty fuel is a cheap, deadly jump.",
 	"Danger has five steps: EASY, ROUGH, HARD, BRUTAL and LETHAL. A more dangerous system offers more.",
 ]
+
+## WHY A STAR INSIDE THE REACH RING IS REFUSED, on its FUEL row: a jump goes two
+## rings deeper at most (`RunState.DEPTH_STEP`; Jon, Oct 27: "Two rings now").
+## It read ONE RING AT A TIME under Oct 22's one ring. Named here so `-- maptest`
+## can hold it, and the legend's second line, to the rule's count.
+const DEPTH_ROW := "TWO RINGS AT MOST"
 
 
 ## One wrapped paragraph at the card's width.
@@ -942,9 +948,9 @@ func _refresh() -> void:
 	else:
 		if Run.too_deep_only(here, t):
 			# IN THE RING AND STILL REFUSED, which is the one refusal the picture
-			# cannot explain by itself: it is two rings in or more, and a jump
-			# goes one ring deeper at most (`RunState.DEPTH_STEP`).
-			_rows.add_child(_row("FUEL", "ONE RING AT A TIME", Color("#7c6a58")))
+			# cannot explain by itself: it is three rings in or more, and a jump
+			# goes two rings deeper at most (`RunState.DEPTH_STEP`).
+			_rows.add_child(_row("FUEL", DEPTH_ROW, Color("#7c6a58")))
 		elif not Run.reachable(t):
 			_rows.add_child(_row("FUEL", "OUT OF RANGE", Color("#7c6a58")))
 		elif not t.sensed:
@@ -982,7 +988,7 @@ func _refresh() -> void:
 	elif t.index == here.index:
 		_jump.text = "YOU ARE HERE"
 	elif Run.too_deep_only(here, t):
-		# A FOURTH REASON (Oct 22): near enough, but two rings in or more.
+		# A FOURTH REASON (Oct 22): near enough, but three rings in or more.
 		_jump.text = "TOO DEEP"
 	elif not Run.reachable(t):
 		_jump.text = "TOO FAR TO REACH"

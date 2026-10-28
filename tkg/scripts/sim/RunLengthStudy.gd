@@ -3,7 +3,7 @@ extends Node
 ## THE SHORTEST WAY IN (balance/run-length, Oct 22):
 ##   godot --headless --path . -- sheet=RunLengthStudy [seeds=12] [depthcap=N]
 ##       [radrim=X raddeep=Y] [dump=<dir>]
-## (`depthcap=` is the game's one ring a jump unless given; 0 is no cap)
+## (`depthcap=` is the game's two rings a jump unless given; 0 is no cap)
 ##
 ## Kevin, the first outside playtester, reached the core in seven jumps. This
 ## measures what the galaxy allows: for `seeds` galaxies of every kind

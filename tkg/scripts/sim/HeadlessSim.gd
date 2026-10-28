@@ -214,6 +214,18 @@ var _cust_hp := 1.0
 var _cust_dmg := 1.0
 var _cust_block := 1.0
 var _cust_loop := ""
+## THE COMBAT STUDY (Phase 11 step 1, Oct 27; Jeremy: "combat doesn't feel
+## important"). Every enemy but the boss as multiples of its own: its hull
+## (`enemyhp=`) and the damage its intents deal (`enemydmg=`), applied to the
+## templates before any run, so ambush packs, event fights, creatures and the
+## Hellbender all meet the same numbers. The Custodian keeps its tuned values;
+## `custhp=` and the rest move it. Off unless given, and never a ruling.
+var _enemy_hp := 1.0
+var _enemy_dmg := 1.0
+## How each run ended, for the study's closing line: the credits a won run
+## ended with, and how many runs ended with nothing in the tank.
+var st_won_credits: Array = []
+var st_empty_tank := 0
 var st_reached := 0
 var st_core_wins := 0
 var st_rows: Array = []
@@ -246,8 +258,9 @@ func run_sim() -> void:
 			_trace_path = arg.split("=")[1]
 		# THE RUN-LENGTH STUDY'S FLAGS (balance/run-length, Oct 22). Off unless
 		# given; see RunState.study_radius_scale and `_study_custodian`.
-		# `depthcap=N` flies another depth rule than the game's one ring a jump
-		# (RunState.DEPTH_STEP; 0 is August's, no cap), for comparison only.
+		# `depthcap=N` flies another depth rule than the game's two rings a jump
+		# (RunState.DEPTH_STEP; 0 is August's, no cap; 1 Oct 22's), for
+		# comparison only.
 		elif arg.begins_with("depthcap="):
 			Run.depth_step = int(arg.split("=")[1])
 		elif arg.begins_with("ambushdeep="):
@@ -264,6 +277,10 @@ func run_sim() -> void:
 			_cust_block = float(arg.split("=")[1])
 		elif arg.begins_with("custloop="):
 			_cust_loop = arg.split("=")[1]
+		elif arg.begins_with("enemyhp="):
+			_enemy_hp = float(arg.split("=")[1])
+		elif arg.begins_with("enemydmg="):
+			_enemy_dmg = float(arg.split("=")[1])
 	policy.dash = "dash" in OS.get_cmdline_user_args()
 	policy.beeline = policy.dash or "beeline" in OS.get_cmdline_user_args()
 	if policy.beeline:
@@ -273,6 +290,9 @@ func run_sim() -> void:
 		print("STUDY: depth cap %d · radius x%.2f at the rim, x%.2f at the last ring" % [
 			Run.depth_step, Run.study_radius_rim, Run.study_radius_deep])
 	_study_custodian()
+	if _enemy_hp != 1.0 or _enemy_dmg != 1.0:
+		print("STUDY enemies, all but the boss: hull x%.2f · damage x%.2f · %s" % [
+			_enemy_hp, _enemy_dmg, " / ".join(scale_enemies(_enemy_hp, _enemy_dmg))])
 	if "bossonly" in OS.get_cmdline_user_args():
 		_boss_only()
 		return
@@ -672,6 +692,9 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		_trace_file.flush()
 	if Run.won:
 		wins += 1
+		st_won_credits.append(Run.credits)
+	if Run.fuel <= 0:
+		st_empty_tank += 1
 	if Run.dead:
 		deaths += 1
 		var key := Run.death_reason.substr(0, 24)
@@ -1075,6 +1098,45 @@ func _study_arrival() -> Dictionary:
 	}
 
 
+## THE COMBAT STUDY'S SCALING (`enemyhp=`, `enemydmg=`): every template in
+## `DB.enemies` but the boss, in place, hull times `hp` and every intent's damage
+## times `dmg` (a private copy of each intent, as `_study_custodian` makes).
+## Danger scaling still applies on top, in `Combat._spawn`. Returns each
+## scaled template's id and new hull, for the STUDY line.
+static func scale_enemies(hp: float, dmg: float) -> PackedStringArray:
+	var said: PackedStringArray = []
+	for id in DB.enemies:
+		var t: EnemyTemplate = DB.enemies[id]
+		if t.boss:
+			continue
+		t.max_hull = maxi(1, int(round(t.max_hull * hp)))
+		var loop: Array[IntentData] = []
+		for raw in t.loop:
+			var c := (raw as IntentData).duplicate(true) as IntentData
+			c.damage = int(round(c.damage * dmg))
+			loop.append(c)
+		t.loop = loop
+		var pool: Array[IntentData] = []
+		for raw in t.pool:
+			var c := (raw as IntentData).duplicate(true) as IntentData
+			c.damage = int(round(c.damage * dmg))
+			pool.append(c)
+		t.pool = pool
+		said.append("%s %d" % [id, t.max_hull])
+	return said
+
+
+## The study's closing line: credits at the end of won runs, and runs that
+## ended with an empty tank (of them, `dry` were strands with places in reach
+## and none affordable).
+static func end_line(won_credits: Array, empty: int, dry: int) -> String:
+	var top := 0
+	for c in won_credits:
+		top = maxi(top, int(c))
+	return "STUDY at the end: won runs %d · credits median %.0f max %d · ended on an empty tank %d (dry-tank strands %d)" % [
+		won_credits.size(), _median(won_credits), top, empty, dry]
+
+
 static func _median(a: Array) -> float:
 	if a.is_empty():
 		return 0.0
@@ -1085,6 +1147,7 @@ static func _median(a: Array) -> float:
 
 
 func _report_study() -> void:
+	print(end_line(st_won_credits, st_empty_tank, stranded_no_fuel))
 	var jumps: Array = []
 	var fights: Array = []
 	var earned: Array = []
