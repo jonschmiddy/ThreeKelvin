@@ -79,7 +79,7 @@ Python tools run through uv, for example:
   Jeremy, Kevin). Jon is on vacation from Oct 24. No updates mid-alpha unless
   something strands players, as the hull-swap softlock did.
 - **Plan:** `docs/DEVELOPMENT_PLAN.md`. Phases 1 to 9 are the build order as
-  done; phases 10 to 14 are the post-alpha roadmap from the testers' notes.
+  done; phases 10 to 15 are the post-alpha roadmap from the testers' notes (updated Oct 27).
 - **Waiting on Jon:**
   - chassis hull numbers against pips (A Korvan only, B every chassis exact, C show the number);
   - the star chart marking stars in reach but too deep (parked);
