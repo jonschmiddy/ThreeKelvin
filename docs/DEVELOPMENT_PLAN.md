@@ -393,7 +393,7 @@ the alpha to end. 15 is design only.
 - **Weapons only** are drawn on the ship (Geno).
 - **Lock on stacks** (Jon).
 
-### Phase 10 — Alpha bugs and small UX
+### Phase 10 — Alpha bugs and small UX — **landed Oct 28, Jon's picks open**
 *About 2 to 3 days. No dependencies.*
 
 - **Derelict hauler hides what you are claiming** (Jeremy). "Claim the hull"
@@ -425,11 +425,48 @@ fix/local-while-docked, feat/hull-number and feat/map-own-ship. Jon still picks
 a few looks from stills: the hull number's format, the too-deep grey, and the
 map ship's brightness, left-facing pose and brake colour.
 
+**Landed Oct 28** (0bed7dc9), in one gate with the Mac speed work below. The
+looks are still Jon's to pick from the Phase 10 Picks page. Each pick that
+changes something is a small follow-up branch.
+
 Two rings, measured (200 sim runs per pilot, seeds 777 and 977): twice as many
 ships reach the core (human pilot 16% to 36%), but they arrive after 21 jumps
 instead of 31, poorer and with less hull, and beat the Custodian half as often
 (44% of arrivals to 21%). The run win rate barely moved (human 7% to 7.5%). The
 Custodian re-tune is Phase 11 step 5.
+
+### Mac speed work — **landed Oct 28**
+*Not a phase. Jon's Mac (8 GB, Intel Iris Plus 645) ran the alpha slowly.
+These changes make the game lighter on it and show where the time goes. They
+landed with Phase 10 (0bed7dc9). The CHANGELOG has the detail.*
+
+- **A Retina window stops at 2X.** At 3X the game drew more than twice the
+  pixels every frame. BORDERLESS and FULLSCREEN still fill the screen.
+- **FRAME CAP 30 and a VSYNC row.** Both are opt-in, and the defaults are
+  unchanged.
+- **The frame counter** gives the average and the slowest frame in
+  milliseconds. SAVE MY LOGS writes the look, the window, the cap, vsync, the
+  renderer and the battery state.
+- **The window frame draws less:** about 7.8 ms to 5.6 ms a frame at 3X, and
+  3.5 ms to 2.6 ms at 2X.
+- **Worlds draw less**, the big one on LOCAL most of all.
+- **The sector map does less each frame.** It drops seven dust layers that
+  were black, skips orbits and belts off the screen, and works out each
+  world's place once.
+- **A pack of three or more ships opens about half a second to a second
+  sooner.** Each enemy's hit layers are built once, at the size drawn.
+- **The first star chart opens without its pause.** Its stars are worked out
+  while you pick a hull.
+- **GRAPHICS picks LOW by itself on a slow chip**, once, and never again after
+  a player picks in Settings. An Intel Mac starts on LOW. Jon: "Graphics low:
+  ok" (Oct 28).
+
+**Ruled:** the first LAUNCH of a session still stands still for 16 to 23 s
+while the planet's shader compiles (C, Oct 28; see the table in §4).
+
+**Still open.** Each of these opens a window on Jon's screen, so each waits
+for his OK: windowed timing of the first chart and sector map, VSYNC off on
+his Mac, and the ANGLE renderer test.
 
 ### Phase 11 — Make combat matter
 *Jeremy: "combat doesn't feel important", "encounters are way too fast for how
