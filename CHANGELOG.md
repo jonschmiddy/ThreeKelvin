@@ -11,6 +11,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
+### Changed
+
+- **Changed** — the first star chart of a run opens without the pause it had while its
+  stars were worked out. They are now worked out in the background while you pick your
+  hull. The sector map's drawing is also set up while the title menu sits idle, so the
+  first sector map holds still for less time on slower machines. Nothing looks different.
+
 ## 2026-10-23
 
 ### [0.4.2-alpha.1]

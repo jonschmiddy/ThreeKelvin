@@ -1320,11 +1320,15 @@ static func _derive_region(n: MapNode) -> Region:
 ## The spiral, in one place. The chart draws its stars with this and the map
 ## places its systems with it, so a system lands in an arm rather than beside one.
 static func shape_angle(r_norm: float, arm: int, along: float) -> float:
-	var g := Run.galaxy
+	return shape_angle_in(Run.galaxy, Run.galaxy_spin, r_norm, arm, along)
+
+## The same spiral for a galaxy handed in rather than the run's: the chart's
+## star field built on a worker (`MapChart.build_ahead`) reads a copy, never Run.
+static func shape_angle_in(g: Dictionary, spin: float, r_norm: float, arm: int, along: float) -> float:
 	var n := maxi(1, int(g.arms))
 	# Includes the run's spin, so the arms turn with the systems rather than
 	# the systems sliding around a fixed galaxy.
-	var base := float(arm) * TAU / float(n) + Run.galaxy_spin
+	var base := float(arm) * TAU / float(n) + spin
 	var bar: float = g.bar
 	if bar > 0.0 and r_norm < bar:
 		# Inside the bar the arms have not started: it is a straight spine

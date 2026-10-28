@@ -22,6 +22,16 @@ extends Node
 ## and docked, the berth to the map (`dive_station_map`) and the chart back to the
 ## berth (`dive_chart_station`). `timing` writes no pictures: it logs every real
 ## frame's length (run it WITHOUT --fixed-fps).
+##
+## `first` (with `timing`): THE FIRST VISITS, as a player meets them on a launch:
+## the title held `title=S` seconds (6), NEW RUN, the hull pick held `pick=S`
+## (4), LAUNCH onto LOCAL, Tab to the map, on to the chart, then the same hops
+## again. Each step prints its longest real frame, how many went over 50 and
+## 100 ms, and what the ladder's probes said on the longest -- the one-off
+## stalls (a shader compiled on first use, the chart's galaxy built) that a
+## fixed-fps film hides. `buildcost` adds the chart's star field built cold.
+## `stills` (with --fixed-fps 60) saves each step's last frame, the sky's clock
+## held, for a before-and-after diff.
 
 const SVP := preload("res://scripts/ui/sysmap/SystemView.gd")
 var _tree: SceneTree
@@ -303,6 +313,9 @@ func _run() -> void:
 	# the frame after the swap held still, to diff it against the frame before
 	ZoomLadder.measure_hold = "measure" in _args
 	Rng.forced = int(_arg("seed", "1"))
+	if "first" in _args:
+		await _run_first()
+		return
 	# (`weight=light|medium|heavy`: the hull flown)
 	var wt := {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}
 	Run.start_new_run(&"korvan", int(wt.get(_arg("weight", "medium"), HullData.Weight.MEDIUM)))
@@ -589,4 +602,138 @@ func _run() -> void:
 	print("  [ladder] done")
 	ZoomLadder.force = -1
 	ZoomLadder.fixed_dt = -1.0
+	_tree.quit()
+
+
+## `first`: every real frame of one step timed for `secs` from just before
+## `call` (the click's own frame counted). Prints the longest, the long ones and
+## the ladder's probes on the longest.
+func _timed(name: String, call: Callable, secs: float) -> void:
+	var t0 := Time.get_ticks_usec()
+	var t_last := t0
+	if call.is_valid():
+		call.call()
+	# (`stills`, with --fixed-fps 60: the step a fixed number of frames, and its
+	# last frame saved as <out>/<name>.png, to diff a before and an after)
+	var stills := "stills" in _args
+	var frames := int(secs * 60.0)
+	var worst := 0.0
+	var worst_at := -1
+	var worst_probe := {}
+	var over50 := 0
+	var over100 := 0
+	var lost := 0.0
+	var n := 0
+	var total := 0.0
+	while (n < frames) if stills else (Time.get_ticks_usec() - t0 < int(secs * 1000000.0)):
+		await _tree.process_frame
+		var now := Time.get_ticks_usec()
+		var ms := (now - t_last) / 1000.0
+		t_last = now
+		for kk: String in SVP.prof:
+			ZoomLadder.probe["sv:" + kk] = SVP.prof[kk]
+		SVP.prof.clear()
+		if ms > worst:
+			worst = ms
+			worst_at = n
+			worst_probe = ZoomLadder.probe.duplicate()
+		ZoomLadder.probe.clear()
+		if ms > 50.0:
+			over50 += 1
+		if ms > 100.0:
+			over100 += 1
+		# (time past a 30 fps frame: what the stalls cost on top of a steady 30)
+		lost += maxf(0.0, ms - 33.3)
+		total += ms
+		n += 1
+	if stills:
+		await _shown()
+		_img().save_png("%s/%s.png" % [_out, name])
+	var probe_s := ""
+	for k: String in worst_probe:
+		probe_s += " %s=%.0fms" % [k, int(worst_probe[k]) / 1000.0]
+	print("  [first] %-16s longest %6.0f ms (frame %d of %d, on %s), over 50 ms: %d, over 100 ms: %d, past 33 ms: %.0f ms, mean %.1f ms%s" % [
+		name, worst, worst_at, n,
+		Router.current.get_script().get_global_name() if Router.current != null else "-",
+		over50, over100, lost, total / maxf(1.0, float(n)),
+		(" | probe:" + probe_s) if probe_s != "" else ""])
+
+
+func _run_first() -> void:
+	ZoomLadder.fixed_dt = (1.0 / 60.0) if "stills" in _args else -1.0
+	# (`stills`: the sky's clock held, as `ChartSheet` holds it, so the title's
+	# turning galaxy and the chart's gas are at the same moment in a before and
+	# an after; on the real clock they are wherever the launch's own time put them)
+	if "stills" in _args:
+		StarchartScreen.MapChart.clock_override = 123.456
+	ZoomLadder.probe_on = true
+	SVP.prof_on = true
+	ZoomLadder.force = -1
+	print("  [first] window %s, screen scale %.1f, driver %s, adapter %s" % [
+		DisplayServer.window_get_size(), DisplayServer.screen_get_max_scale(),
+		RenderingServer.get_current_rendering_driver_name(), RenderingServer.get_video_adapter_name()])
+	# the title again, its galaxy the same every run (`ChartSheet`'s), let settle
+	LauncherScreen._sky_kind = -1
+	seed(4242)
+	Router.show_launcher()
+	await _timed("title_shown", Callable(), 2.0)
+	# the title, as a player reads it
+	await _timed("title", Callable(), float(_arg("title", "6")))
+	# NEW RUN: the run rolled, the hull pick up
+	await _timed("new_run", func() -> void: Router.new_run(), 1.0)
+	await _timed("pick", Callable(), float(_arg("pick", "4")))
+	var cs := Router.current as ChassisSelect
+	if cs == null:
+		print("  [first] no hull pick: %s" % Router.current)
+		_tree.quit()
+		return
+	# LAUNCH: the first LOCAL, its arrival
+	await _timed("launch_local", func() -> void: cs.launched.emit(), 6.0)
+	await _timed("local_to_map", Router.show_system, 4.0)
+	await _timed("map_to_chart", Router.show_starchart, 5.0)
+	var ch := Router.current as StarchartScreen
+	if ch != null and ch._chart != null:
+		var key := ChartSky.galaxy_key() + "|map"
+		var g: Dictionary = ChartSky._baked.get(key, {})
+		print("  [first] chart %s, stars key %s, bake %s ms %s" % [ch._chart.size, ch._chart._star_key,
+			g.get("bake_ms", "-"), g.get("times", {})])
+	await _timed("chart_to_map", Router.show_system, 4.0)
+	await _timed("map_to_local", Router.show_local, 4.0)
+	await _timed("local_to_map2", Router.show_system, 4.0)
+	await _timed("map_to_chart2", Router.show_starchart, 4.0)
+	if "buildcost" in _args:
+		var size := (Router.current as StarchartScreen)._chart.size if Router.current is StarchartScreen else Vector2.ZERO
+		StarchartScreen.MapChart._sky_cache.clear()
+		var mc := StarchartScreen.MapChart.new()
+		mc.size = size
+		var t0 := Time.get_ticks_usec()
+		mc._build_stars()
+		print("  [first] the chart's star field built cold at %s: %.0f ms" % [size, (Time.get_ticks_usec() - t0) / 1000.0])
+		mc.free()
+	# what the GL shader cache kept this launch (program binaries, or nothing)
+	var files := 0
+	var bytes := 0
+	var empty := 0
+	var stack: Array[String] = ["user://shader_cache"]
+	while not stack.is_empty():
+		var d := stack.pop_back() as String
+		var da := DirAccess.open(d)
+		if da == null:
+			continue
+		for sub in da.get_directories():
+			stack.append(d + "/" + sub)
+		for f in da.get_files():
+			var fa := FileAccess.open(d + "/" + f, FileAccess.READ)
+			if fa != null:
+				files += 1
+				bytes += fa.get_length()
+				if fa.get_length() < 64:
+					empty += 1
+	print("  [first] shader cache: %d files, %d bytes (%d under 64 bytes)" % [files, bytes, empty])
+	# (what the title compiled ahead, where it is built: `ShaderWarm`)
+	if ResourceLoader.exists("res://scripts/ui/ShaderWarm.gd"):
+		var sw: GDScript = load("res://scripts/ui/ShaderWarm.gd")
+		for c: Array in sw.get("costs"):
+			print("  [first] warmed %s: its frame %.0f ms" % [c[0], float(c[1])])
+	print("  [ladder] done")
 	_tree.quit()
