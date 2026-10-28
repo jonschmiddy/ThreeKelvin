@@ -1166,10 +1166,11 @@ func _ready() -> void:
 			_open_settings()
 			_show_keys.call_deferred()
 			break
-		# `-- settings=motion`: scrolled to MOTION, for a still of it
-		if a_k == "settings=motion":
+		# `-- settings=motion`: scrolled to MOTION, for a still of it; `settings=look`
+		# to THE LOOK (GRAPHICS, and with `gfxprobe` the machine's pick beside it)
+		if a_k == "settings=motion" or a_k == "settings=look":
 			_open_settings()
-			_show_section.call_deferred(&"motion")
+			_show_section.call_deferred(StringName((a_k as String).substr(9)))
 			break
 	if "confirm" in OS.get_cmdline_user_args() and _menu != null:
 		_menu.confirm(true)
@@ -1208,6 +1209,16 @@ func _shoot() -> void:
 	get_window().size = base
 	for i in 8:
 		await get_tree().process_frame
+	# `-- gfxprobe settings=look shot=<png>`: the still is of the MEASURED pick,
+	# not the hint's: the title's sky needs about a hundred frames to decide, and
+	# the shot was taken at eight. Up to 30 s for it, then the Settings drawer's
+	# redraw (`Sig.graphics_picked`) a few frames to lay out.
+	if GpuProbe.asked() != "":
+		var until := Time.get_ticks_msec() + 30000
+		while DisplaySettings.graphics_by == DisplaySettings.GFX_NOBODY and Time.get_ticks_msec() < until:
+			await get_tree().process_frame
+		for i in 8:
+			await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
 	var out := "user://shot.png"

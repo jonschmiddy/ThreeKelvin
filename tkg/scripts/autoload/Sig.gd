@@ -24,6 +24,9 @@ signal fps_meter_changed(on: bool)
 ## The rendering style was changed in Settings (`DisplaySettings.render_style`).
 ## The star chart and the sector map rebuild their pictures on it.
 signal render_style_changed()
+## The machine picked GRAPHICS for this computer (`DisplaySettings.machine_pick`).
+## Nothing is rebuilt (the pictures up keep their pass); Settings redraws its row.
+signal graphics_picked()
 ## A contract was taken, finished or paid. The station board and the ledger both
 ## read it, and it fires from RunState rather than from the four places that can
 ## move a contract.
