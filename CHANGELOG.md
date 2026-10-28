@@ -11,6 +11,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
+### Changed
+
+- **Changed** — the big world you orbit on LOCAL takes far less graphics work to draw. Its
+  surface is no longer worked out a second time where the first answer already holds, and it
+  is no longer worked out below or beside the screen where nobody can see it. The first change
+  makes every other world a little cheaper too, the sector map's included. Nothing looks
+  different.
+
 ## 2026-10-23
 
 ### [0.4.2-alpha.1]

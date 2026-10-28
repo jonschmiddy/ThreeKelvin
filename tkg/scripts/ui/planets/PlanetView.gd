@@ -40,6 +40,24 @@ var _mem_mat: ShaderMaterial
 var _mem_fresh := 0
 var _mem_r := -1.0
 var _mem_off := Vector2.INF
+## THE MEMORY ONLY WHERE IT CAN BE SEEN (LOCAL's near world, `LocalSky`: drawn
+## hundreds of px across, much of it below its picture or past its side). When
+## set, the memory's pass covers only the blocks inside the picture this view is
+## drawn in, `MEM_MARGIN` more each way and `mem_clip_lead` more on its right
+## (where the picture's camera, following a ship as it leaves, brings more of
+## the world in), the rest of the memory left clear. Nothing outside the picture
+## is ever drawn from it, and a block that comes into view has been worked out
+## all along, so nothing seen changes. (A block left clear that did come into
+## view would start afresh there, as every block of a new world does.)
+var mem_clip := false
+var mem_clip_lead := 0
+## (how far the picture slides over the world between two fresh starts of its
+## memory -- the cutaway's push-in and the zoom ladder move it a few px for each
+## 2 px of radius, and a new radius starts the memory afresh, `_mem_sync` -- with
+## room to spare)
+const MEM_MARGIN := 16
+## the blocks worked out this frame (`_mem_window`), the whole memory unclipped
+var _mem_win := Rect2i()
 ## what the memory's pass must see each frame as the world on screen sees it
 ## (the light, the clock, the zoom; the rest is copied once, `_mem_setup`)
 const MEM_LIVE := ["time", "light", "k_light", "lift", "flare", "moon_sh", "n_moon_sh", "r", "ctr_off", "rich", "cell", "unlit"]
@@ -349,6 +367,8 @@ func _mem_setup() -> void:
 	_mem_copy.size = Vector2i(n, n)
 	(_mem_vp.get_child(0) as ColorRect).size = Vector2(n, n)
 	(_mem_copy.get_child(0) as TextureRect).size = Vector2(n, n)
+	_mem_win = Rect2i(0, 0, n, n)
+	_mem_mat.set_shader_parameter("mem_win", Vector4.ZERO)
 	# everything the world on screen was given, then the memory's own
 	for u: Dictionary in _mat.shader.get_shader_uniform_list():
 		var nm := String(u.name)
@@ -394,8 +414,42 @@ func _mem_sync() -> void:
 	_mem_mat.set_shader_parameter("mem_fresh", _mem_fresh > 0)
 	if _mem_fresh > 0:
 		_mem_fresh -= 1
+	_mem_window()
 	if PixelTurn.cost_on:
 		PixelTurn.cpu_us += Time.get_ticks_usec() - t0
+
+
+## The blocks of the memory its pass works out this frame: with `mem_clip`, those
+## the picture this view is drawn in can show (`MEM_MARGIN` more each way), and
+## all of them otherwise. A block's place in the memory is its px from this
+## view's middle, a block a `_cell`, `mem_half` in (as `planet.gdshader` counts).
+## Told to the shader alone, which stops at once on a block outside: its pass
+## stays drawn over the whole memory. (Moving and sizing the pass's rect to the
+## window was tried: run here, just before drawing, a control's new size waits
+## for its redraw, which comes a frame late -- so on every frame the window
+## moved, on a push-in or a ship leaving, the memory was written a block-grid
+## off from where the world read it, and showed as a second, smaller world.)
+func _mem_window() -> void:
+	var n := _mem_vp.size.x
+	var full := Rect2i(0, 0, n, n)
+	var w := full
+	if mem_clip:
+		var cl := float(maxi(_cell, 1))
+		var half := int(_mem_mat.get_shader_parameter("mem_half"))
+		var vis := get_global_transform_with_canvas().affine_inverse() * get_viewport().get_visible_rect()
+		var x0 := floori(vis.position.x / cl) + half - MEM_MARGIN
+		var y0 := floori(vis.position.y / cl) + half - MEM_MARGIN
+		var x1 := floori(vis.end.x / cl) + half + MEM_MARGIN + maxi(mem_clip_lead, 0)
+		var y1 := floori(vis.end.y / cl) + half + MEM_MARGIN
+		w = Rect2i(x0, y0, x1 - x0 + 1, y1 - y0 + 1).intersection(full)
+		# (wholly out of the picture: one block, never an empty window, which the
+		# shader would read as the whole memory)
+		if w.size.x <= 0 or w.size.y <= 0:
+			w = Rect2i(0, 0, 1, 1)
+	if w == _mem_win:
+		return
+	_mem_win = w
+	_mem_mat.set_shader_parameter("mem_win", Vector4.ZERO if w == full else Vector4(w.position.x, w.position.y, w.end.x, w.end.y))
 
 
 func _exit_tree() -> void:

@@ -1572,6 +1572,11 @@ func _build_near() -> void:
 		var v: Node2D = Worlds.view_for(tgt.world)
 		v.call("set_world", tgt.world, tgt.seed, R, over)
 		_near_world = v
+		# (its surface's memory worked out only where this picture can show it:
+		# much of it lies off the bottom or the side)
+		if v is PlanetView:
+			(v as PlanetView).mem_clip = true
+			(v as PlanetView).mem_clip_lead = near_lead()
 		v.call("set_cell", 2)
 		_near_vp.add_child(v)
 		_dress(v)
@@ -1684,6 +1689,16 @@ static func near_r(b: SystemLayout.Body) -> float:
 	var look: Dictionary = NEAR_SIZES.get(near_size, NEAR_SIZES[&"large"])
 	var giant := b.kind == &"giant"
 	return roundf(float(look.giant if giant else look.planet) * clampf(b.r / (22.0 if giant else 12.0), 0.8, 1.25) / 2.0) * 2.0
+
+
+## THE WORLD YOU ORBIT, SLID ALONG AS YOUR SHIP LEAVES: the camera follows the
+## ship out (`CAM_FOLLOW` of its travel, at most the view's width and
+## `ShipView.DEPART_OVER` past it) and the world slides `F_NEAR` of that to the
+## left, bringing in what lay past the picture's right edge. In its 2 px blocks,
+## how far past that edge its surface's memory is worked out all along
+## (`PlanetView.mem_clip_lead`), so what comes in was never left out.
+static func near_lead() -> int:
+	return ceili(F_NEAR * CAM_FOLLOW * (960.0 + ShipView.DEPART_OVER) / 2.0) + 1
 
 
 ## The least radius a world of `kind` is drawn at in the look chosen.
@@ -1966,6 +1981,8 @@ func end_hand() -> void:
 			(nd as Node).queue_free()
 	_near[0][0] = v
 	_near_world = v
+	v.mem_clip = true
+	v.mem_clip_lead = near_lead()
 	if is_instance_valid(own) and own != v:
 		own.queue_free()
 	v.set_world(StringName(_hand.world), int(_hand.seed), R, ov)
