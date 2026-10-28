@@ -66,6 +66,8 @@ func run(tree: SceneTree) -> void:
 			await _logs_case()
 			print("the first launch's window")
 			await _first_window_case()
+			print("a Retina Mac's window stops at 2X")
+			await _retina_case()
 			print("MOTION in dev mode: the player's rows only")
 			await _dev_motion_case()
 			print("RUN ENDED: TITLE")
@@ -393,6 +395,146 @@ func _first_window_case() -> void:
 	await _tree.process_frame
 
 
+## A RETINA MAC'S WINDOW STOPS AT 2X (`DisplaySettings.RETINA_MAX_SCALE`; Jon,
+## Oct 27, ruling C2). On stand-in screens (`DisplaySettings.test_screen`,
+## `test_retina`), since no machine the gate runs on is a Retina Mac and
+## headless has no screen: "looks like 1440x900" (2880x1800 pixels) offers 2X
+## at most and its first launch is a 2X window, where the same screen off a Mac
+## still offers and opens 3X, and a 1080p screen is unchanged; a settings file
+## saved before the cap at 3X opens at 2X on a Retina Mac and stays 3X off one,
+## and a saved BORDERLESS is kept; Settings' WINDOW SIZE row on that Mac has no
+## 3X chip, says why, and fits the drawer at 960x540 with nothing overlapping.
+## A scratch settings file, never the player's.
+func _retina_case() -> void:
+	const SCRATCH := "user://retinatest_settings.cfg"
+	const NOTE := "LARGER SIZES NEED BORDERLESS"
+	var mac := Vector2i(2880, 1800)
+	var was_path := DisplaySettings.path
+	var was_mode := DisplaySettings.mode
+	var was_scale := DisplaySettings.window_scale
+	DisplaySettings.test_screen = mac
+	DisplaySettings.test_retina = 1
+	_ok("  a Retina Mac at 1440x900 (3X fits) offers 2X at most", DisplaySettings.fit_scale(mac) == 3
+		and DisplaySettings.max_window_scale() == 2 and DisplaySettings.retina_capped())
+	DisplaySettings.first_launch_window()
+	_ok("  and its first launch is a 2X window", DisplaySettings.mode == DisplaySettings.Mode.WINDOWED
+		and DisplaySettings.window_scale == 2)
+	DisplaySettings.test_screen = Vector2i(5120, 2880)
+	_ok("  a 5K Retina screen stops at 2X too", DisplaySettings.max_window_scale() == 2)
+	DisplaySettings.test_screen = Vector2i(2560, 1600)
+	_ok("  a Retina Mac at 1280x800 loses nothing (2X was its largest)",
+		DisplaySettings.max_window_scale() == 2 and not DisplaySettings.retina_capped())
+	DisplaySettings.test_retina = 0
+	DisplaySettings.test_screen = mac
+	DisplaySettings.first_launch_window()
+	_ok("  the same 2880x1800 off a Mac still offers and opens 3X", DisplaySettings.max_window_scale() == 3
+		and not DisplaySettings.retina_capped() and DisplaySettings.mode == DisplaySettings.Mode.WINDOWED
+		and DisplaySettings.window_scale == 3)
+	DisplaySettings.test_screen = Vector2i(1920, 1080)
+	DisplaySettings.first_launch_window()
+	_ok("  a 1080p screen still starts BORDERLESS", DisplaySettings.max_window_scale() == 1
+		and DisplaySettings.mode == DisplaySettings.Mode.BORDERLESS)
+
+	# SAVED BEFORE THE CAP: WINDOWED 3X and nothing newer, as 0.4.2-alpha.1 wrote it
+	DisplaySettings.path = SCRATCH
+	var old := ConfigFile.new()
+	old.set_value("display", "mode", int(DisplaySettings.Mode.WINDOWED))
+	old.set_value("display", "window_scale", 3)
+	old.set_value("display", "screen", 0)
+	old.save(SCRATCH)
+	DisplaySettings.test_screen = mac
+	DisplaySettings.test_retina = 1
+	DisplaySettings.load_and_apply()
+	var kept := ConfigFile.new()
+	_ok("  a saved 3X window opens at 2X on a Retina Mac", DisplaySettings.mode == DisplaySettings.Mode.WINDOWED
+		and DisplaySettings.window_scale == 2)
+	_ok("  and 2X is what is kept", kept.load(SCRATCH) == OK
+		and int(kept.get_value("display", "window_scale", 0)) == 2
+		and int(kept.get_value("display", "mode", -1)) == int(DisplaySettings.Mode.WINDOWED))
+	old.save(SCRATCH)
+	DisplaySettings.test_retina = 0
+	DisplaySettings.load_and_apply()
+	_ok("  the same file stays 3X off a Mac", DisplaySettings.mode == DisplaySettings.Mode.WINDOWED
+		and DisplaySettings.window_scale == 3)
+	old.set_value("display", "mode", int(DisplaySettings.Mode.BORDERLESS))
+	old.save(SCRATCH)
+	DisplaySettings.test_retina = 1
+	DisplaySettings.load_and_apply()
+	_ok("  a saved BORDERLESS is kept on a Retina Mac", DisplaySettings.mode == DisplaySettings.Mode.BORDERLESS)
+
+	# off a Mac, Settings still offers 3X and says nothing about it
+	DisplaySettings.mode = DisplaySettings.Mode.WINDOWED
+	DisplaySettings.window_scale = 2
+	DisplaySettings.test_retina = 0
+	var panel := SettingsPanel.new()
+	_tree.root.add_child(panel)
+	panel.build()
+	await _tree.process_frame
+	_ok("  off a Mac WINDOW SIZE still offers 3X, with no note", _plate(panel, "3X") != null
+		and _label(panel, NOTE) == null)
+	panel.queue_free()
+	await _tree.process_frame
+
+	# ON THE MAC: the title drawer, laid out in the game's own 960x540
+	DisplaySettings.test_retina = 1
+	_set_motion([true, false])
+	_main.call("_open_settings")
+	await _secs(0.3)
+	var drawer: SettingsMenu = _main.get("_settings")
+	if _ok("  Settings opens on a Retina Mac", drawer != null):
+		var c2 := _plate(drawer, "2X")
+		_ok("  WINDOW SIZE offers 1X and 2X and no 3X", _plate(drawer, "1X") != null and c2 != null
+			and _plate(drawer, "3X") == null)
+		_ok("  2X is lit and says why it is the largest", c2 != null and c2.lead
+			and c2.tooltip_text.contains("Retina"))
+		var note := _label(drawer, NOTE)
+		_ok("  and the row says larger sizes need BORDERLESS", note != null)
+		# THE BOX TEST: each piece of the row inside the scroll's visible rect and
+		# the 960x540 picture, and none on top of another
+		var scroll := first(drawer, func(n: Node) -> bool: return n is ScrollContainer) as ScrollContainer
+		var key := _label(drawer, "WINDOW SIZE")
+		var fps := _label(drawer, "FRAME COUNTER")
+		var boxes := {
+			"the WINDOW SIZE line": key.get_parent() if key != null else null,
+			"1X": _plate(drawer, "1X"), "2X": c2, "the note": note,
+			"the FRAME COUNTER row": fps.get_parent() if fps != null else null,
+		}
+		var picture := Rect2(Vector2.ZERO, Vector2(DisplaySettings.BASE))
+		var view := scroll.get_global_rect() if scroll != null else Rect2()
+		var bad: Array[String] = []
+		var names := boxes.keys()
+		for i in names.size():
+			var a := boxes[names[i]] as Control
+			if a == null:
+				bad.append("%s missing" % names[i])
+				continue
+			var ra := a.get_global_rect()
+			# (a box with no size is inside everything and overlaps nothing)
+			if ra.size.x < 1.0 or ra.size.y < 1.0:
+				bad.append("%s has no size" % names[i])
+			elif not (picture.encloses(ra) and view.encloses(ra)):
+				bad.append("%s at %s outside %s" % [names[i], ra, view])
+			for j in range(i + 1, names.size()):
+				var b := boxes[names[j]] as Control
+				if b != null and ra.intersects(b.get_global_rect()):
+					bad.append("%s overlaps %s" % [names[i], names[j]])
+		_ok("  and the row fits the drawer at 960x540, nothing overlapping (the note %s in %s)%s"
+			% [note.get_global_rect() if note != null else Rect2(), view,
+			"" if bad.is_empty() else ": " + "; ".join(bad)], bad.is_empty())
+		_plate(drawer, "BACK").pressed.emit()
+		await _secs(0.5)
+	_set_motion([false, false])
+
+	DisplaySettings.test_screen = Vector2i.ZERO
+	DisplaySettings.test_retina = -1
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
+	DisplaySettings.path = was_path
+	DisplaySettings.mode = was_mode
+	DisplaySettings.window_scale = was_scale
+	DisplaySettings.load_and_apply()
+	await _tree.process_frame
+
+
 ## MOTION HOLDS THE PLAYER'S ROWS, EVEN IN DEV MODE. The zoom ladder's
 ## developer rows -- ONE CAMERA, each seam's design, 3B into the yard, the move
 ## timings and the station lights -- were built there under `DevMode.enabled`
@@ -532,6 +674,11 @@ func _set_motion(v: Array) -> void:
 func _plate(root: Node, title: String) -> DrawerPlate:
 	return first(root, func(n: Node) -> bool:
 		return n is DrawerPlate and (n as DrawerPlate).title == title) as DrawerPlate
+
+
+func _label(root: Node, text: String) -> Label:
+	return first(root, func(n: Node) -> bool:
+		return n is Label and (n as Label).text == text) as Label
 
 
 func _pause_menus() -> int:
