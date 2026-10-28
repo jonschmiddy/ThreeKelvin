@@ -557,9 +557,13 @@ func _show_starchart() -> void:
 	s.setup()
 
 ## WHERE YOU ARE: the system map (Jon: "a system map like Starfield's"), or the
-## side-on view while a fight is on or a jump is leaving. Every caller that
-## means "back to the place" comes through here -- UNDOCK, the HUD tab, the
-## galleries' BACK, the end of a fight -- so they all land on the map.
+## side-on view while a fight is on or a jump is leaving. The callers that mean
+## "back to the place" come through here -- UNDOCK, the galleries' and PARTY's
+## BACK or LEAVE, the end of a fight -- and land where the place is: the map;
+## LOCAL in a fight, or as UNDOCK's one distance out on the ladder; and the
+## station from a page looked at from the berth (`over_berth`). The HUD's first
+## tab does not come through here: it goes to `show_station` or `show_local`
+## itself (`HudBar._go_here`).
 func show_sector() -> void:
 	# A HELLBENDER AT ANCHOR DOES NOT SHUT THE MAP. It did (Oct 2: "the map would
 	# let you walk round it"), from when it was fought from anywhere in the

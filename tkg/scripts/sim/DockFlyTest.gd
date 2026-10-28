@@ -174,7 +174,8 @@ func _tab() -> void:
 	await _idle()
 
 
-## The HUD's second tab (STATION while docked, LOCAL flying), pressed.
+## The HUD's first tab, pressed: LOCAL flying; docked, STATION on the map or
+## the chart (back into the berth), and LOCAL greyed at the berth itself.
 func _here_tab() -> void:
 	Router.hud._tab_sector.pressed.emit()
 	await _frames(1)
