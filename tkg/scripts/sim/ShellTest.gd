@@ -6,7 +6,9 @@ extends Node
 ##
 ## NEEDS A WINDOW, because the shell IS the window. It resizes that window
 ## through 1X, 2X, 3X, a letterboxed size and BORDERLESS (which covers the whole
-## screen for a few seconds). With none of the three parts named it runs all of
+## screen for a few seconds). 3X only where the screen allows it: a Retina Mac's
+## window stops at 2X (Oct 27, `DisplaySettings.RETINA_MAX_SCALE`), so there w3
+## is left out and the run says so; BORDERLESS is still the big window. With none of the three parts named it runs all of
 ## them; `out=` is where the stills and `shell.json` go.
 ##
 ##   checks  A pointer moved through the WINDOW onto your ship on LOCAL lights
@@ -35,7 +37,8 @@ const LOOKS := [["flat", DisplaySettings.Look.FLAT],
 ## w1/w2/w3: WINDOWED at that scale, the picture filling the window exactly.
 ## box: a window with room on all four sides (bands left, right, top, bottom).
 ## bl: BORDERLESS, the screen and one row (bands top and bottom, one odd).
-## w3z: 3X asked for after BORDERLESS, which a Mac leaves zoomed (see `_run`).
+## w3z: 3X asked for after BORDERLESS, which a Mac leaves zoomed (see `_run`);
+## on a Retina Mac the ask is held to 2X.
 const BOX := Vector2i(2100, 1240)
 const BENCH_FRAMES := 900
 
@@ -102,10 +105,14 @@ func _run() -> void:
 	_shell._pointer = Vector2(1e7, 1e7)
 	if "checks" in parts:
 		await _frame_checks()
+	# (a 3X this screen will not hold would be a second 2X under w3's name)
+	var three := DisplaySettings.max_window_scale() >= 3
+	if not three and ("stills" in parts or "bench" in parts):
+		print("  shelltest: this screen allows %dx at most, so w3 is left out" % DisplaySettings.max_window_scale())
 	if "stills" in parts:
-		await _stills(["w1", "w2", "w3", "box"])
+		await _stills(["w1", "w2", "w3", "box"] if three else ["w1", "w2", "box"])
 	if "bench" in parts:
-		await _bench(["w3", "w2"])
+		await _bench(["w3", "w2"] if three else ["w2"])
 	# BORDERLESS LAST. Leaving it, a Mac keeps the window zoomed to the screen's
 	# visible frame (2880x1694 on a 1440x900 Retina) whatever size is asked
 	# for, so nothing windowed after it is the window it says. That zoomed
