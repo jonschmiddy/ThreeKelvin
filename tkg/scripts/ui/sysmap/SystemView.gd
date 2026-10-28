@@ -617,12 +617,24 @@ func show_system(n: MapGen.MapNode) -> void:
 		veil.visible = false
 		# GRAPHICS LOW: the two fluffy sheets only, no far wisps, no near ones
 		var low := gfx_low()
+		# A WISP SHEET THAT DRAWS NOTHING IS NOT BUILT (`_wisps_blank`): in a clear
+		# sky its colour is black, it adds nothing to any pixel, and three far and
+		# four near full-screen passes of it were most of the dust's GPU time. Each
+		# sheet still takes the seed it always had (`sk`, the count of sheets before
+		# it as they were built: a skipped wisp still counts, a LOW one never did),
+		# so the fluff's clouds stay where they were.
+		var blank := _wisps_blank()
+		var sk := 0
 		for fd: Array in DEPTH_FAR:
 			if low and int(fd[2]) == 0:
 				continue
+			if blank and int(fd[2]) == 0:
+				sk += 1
+				continue
 			var fk: Array = fd.duplicate()
 			fk[1] = float(fd[1]) * depth_k
-			_scene.add_child(_depth_sheet(fk, -1, pal, n.index))
+			_scene.add_child(_depth_sheet(fk, -1, pal, n.index, sk))
+			sk += 1
 	_points = SkyWeatherS.Points.new()
 	_scene.add_child(_points)
 	for fi in range(4, _fields.size()):
@@ -705,8 +717,10 @@ func show_system(n: MapGen.MapNode) -> void:
 				# sun's own painted glow on top read as a pale ring A never drew)
 				var sm: ShaderMaterial = star.get("_mat")
 				sm.set_shader_parameter("glow_i", float((star.get("P") as Dictionary).glow_i) * 0.3)
-	# the near sheets: in front of everything the palette sets, sparse wisps
-	if depth_k > 0.0 and not gfx_low():
+	# the near sheets: in front of everything the palette sets, sparse wisps (none
+	# where a wisp draws nothing, `_wisps_blank`; their seed is set each frame by
+	# their slot, `_step_depth`)
+	if depth_k > 0.0 and not gfx_low() and not _wisps_blank():
 		for sl in DEPTH_NEAR:
 			_scene.add_child(_depth_sheet([-1.0, DEPTH_NEAR_K * depth_k, 0, 260.0, 0.62], sl, pal, n.index))
 	_palette = ColorRect.new()
@@ -1420,8 +1434,9 @@ static func tick(key: String, t0: int) -> void:
 
 
 ## One dust sheet: [distance beyond the plane (-1: a near slot), strength, look,
-## cloud size, cover].
-func _depth_sheet(fd: Array, slot: int, pal: Array, sd: int) -> ColorRect:
+## cloud size, cover]. `seed_n`: its place among the sheets for its seed (-1: the
+## sheets built so far).
+func _depth_sheet(fd: Array, slot: int, pal: Array, sd: int, seed_n: int = -1) -> ColorRect:
 	var r := ColorRect.new()
 	r.size = Vector2(960, 540)
 	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1445,10 +1460,18 @@ func _depth_sheet(fd: Array, slot: int, pal: Array, sd: int) -> ColorRect:
 	m.set_shader_parameter("lit_near", dl[2])
 	m.set_shader_parameter("wisp_col", dl[3])
 	m.set_shader_parameter("center", Vector2(CX, CY))
-	m.set_shader_parameter("seed", float(sd) * 1.37 + float(_depth.size()) * 11.3)
+	m.set_shader_parameter("seed", float(sd) * 1.37 + float(_depth.size() if seed_n < 0 else seed_n) * 11.3)
 	r.material = m
 	_depth.append([m, float(fd[0]), slot, float(fd[1]), sd])
 	return r
+
+
+## Whether a wisp sheet (`look` 0) would draw nothing here: outside LEGACY (whose
+## wisps take the sky's two gas colours) its colour is `_depth_look`'s last, and
+## in a clear sky that is black -- `sky_depth` adds it times its strength, so not
+## one pixel changes (outside a nebula, not at a pulsar or the core).
+func _wisps_blank() -> bool:
+	return not legacy and (_depth_look()[3] as Vector3) == Vector3.ZERO
 
 
 ## THE DUST SHEETS' COLOURS in SIMPLIFIED (C), display colours: [the dense core,
@@ -1830,6 +1853,13 @@ func step() -> void:
 		_palette_built = true
 	if _ready_sky and not _palette_built and _frame > 6:
 		_palette_built = true
+		var pk := _pal_key()
+		if pal_cache_on and _pal_cache.has(pk):
+			# BACK IN A SYSTEM ALREADY SEEN: the palette its first visit cut, set on
+			# the same frame a cut would have been (`_pal_cache`)
+			await RenderingServer.frame_post_draw
+			_set_pal(_pal_cache[pk])
+			return
 		await RenderingServer.frame_post_draw
 		# from the place's own half-size picture, so in its pixels
 		var img := _scene.get_texture().get_image()
@@ -1882,10 +1912,47 @@ func step() -> void:
 		var pal: PackedVector3Array = SystemPaletteS.build(img, 0, Vector2(CX, CY) / 2.0, layout.star_r / 2.0, kind, 0,
 			SystemPaletteS.K_NEBULA if cloud else SystemPaletteS.K, extra, legacy or not cloud,
 			not legacy and cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, not legacy)
-		var arr := PackedVector3Array(pal)
-		arr.resize(72)
-		_palette_mat.set_shader_parameter("pal", arr)
-		_palette_mat.set_shader_parameter("pal_n", mini(72, pal.size()))
+		if _pal_cache.size() >= PAL_CACHE_MAX:
+			_pal_cache.clear()
+		_pal_cache[pk] = pal
+		pal_cuts += 1
+		_set_pal(pal)
+
+
+## The palette pass given its colours.
+func _set_pal(pal: PackedVector3Array) -> void:
+	var arr := PackedVector3Array(pal)
+	arr.resize(72)
+	_palette_mat.set_shader_parameter("pal", arr)
+	_palette_mat.set_shader_parameter("pal_n", mini(72, pal.size()))
+
+
+## THE PALETTE CUT ONCE A SYSTEM (the Mac's map, Oct 27: every visit read the
+## picture back from the GPU and ran the median cut in GDScript, a tenth of a
+## second or more on the main thread as the map opened). Memory only, for this
+## session: the palette `step` cut for a system, by everything that changes the
+## picture it is cut from -- the system itself (the MapNode, so a new or loaded
+## run never meets another's), its bodies, the style, GRAPHICS LOW, the field
+## under it, the frame and the opening zoom, and a harness's switches. Every
+## visit opens the system on its clock's zero, unpanned, at its opening zoom, so
+## the picture a revisit would cut from is the one its first visit cut from; only
+## the gas's wall clock and the frame the bake ends on can move it, by a frame
+## or so, and a revisit now keeps the first visit's steps instead of a recut a
+## step apart (`-- sheet=MapPerfTest palcache` measures both). `-- palcache=0`
+## (and `pal_cache_on`): every visit cuts, as before.
+static var _pal_cache := {}
+const PAL_CACHE_MAX := 64
+static var pal_cache_on := not ("palcache=0" in OS.get_cmdline_user_args())
+## palettes cut this session (a harness counts them)
+static var pal_cuts := 0
+
+
+func _pal_key() -> Array:
+	var bodies := PackedStringArray()
+	for b in layout.bodies:
+		bodies.append("%s:%s:%s" % [b.kind, b.world, b.seed])
+	return [node.get_instance_id(), node.index, kind, style(), legacy, painted, radiant, gfx_low(), field_under,
+		neb_sky, no_ramp, depth_k, ",".join(bodies), window, home_zoom]
 
 
 # ---------------------------------------------------------------- the twinkling stars
@@ -2143,48 +2210,92 @@ class _Belts extends Node2D:
 		_rocks()
 		view.tick("belts", t0)
 
+	## EACH BELT'S ROCKS' OWN DRAWS from its generator, seven a rock in the order
+	## `_rocks` takes them, made once and grown as a closer zoom asks for more
+	## rocks (the generator is seeded the same every frame and a rock's draws never
+	## depend on how many rocks there are, so the table is those draws exactly):
+	## belt -> [its seed, its generator, the draws]
+	var _rtab := {}
+
+	func _rock_draws(b: SystemLayout.Body, n: int) -> PackedFloat64Array:
+		var key := floorf(b.orbit * 13.0)
+		var e: Array = _rtab.get(b.index, [])
+		if e.is_empty() or float(e[0]) != key:
+			e = [key, Worlds.XRng.new(key), PackedFloat64Array()]
+			_rtab[b.index] = e
+		var tab: PackedFloat64Array = e[2]
+		var have := tab.size() / 7
+		if have < n:
+			var R: Worlds.XRng = e[1]
+			tab.resize(n * 7)
+			for k in range(have * 7, n * 7):
+				tab[k] = R.next()
+			e[2] = tab
+		return tab
+
+	## THE SAME ROCKS FOR LESS (the Mac's map, Oct 27): up to 1,200 rocks a belt
+	## a frame, each with seven calls on the generator, two on an untyped view and
+	## the star's tone that only LEGACY reads. Now its draws come from the table
+	## (`_rock_draws`), its place is worked out in place (as `screen` and `block`
+	## work it, to the bit), a rock whose drawing (a glint's arms reach 4 px left
+	## and 6 right, a big rock 2 up) falls wholly off the place's 960 x 540 is not
+	## drawn, and the tone is worked out for LEGACY alone.
 	func _rocks() -> void:
 		var L: SystemLayout = view.layout
 		var glints: bool = view.belt_glints
+		var painted: bool = view.painted
+		var legacy: bool = view.legacy
+		var vt: float = view.t
+		var zm: float = view.zoom
+		var base: Vector2 = Vector2(CX, CY) + (view.pan as Vector2)
+		var lit_belt: int = view.belt_lit
+		var lit_t: float = view.belt_t
+		var sc3: Vector3 = SkyBakeS.STARCOL.get(view.kind, SkyBakeS.STARCOL.ORDINARY)
+		var rk_all: Array = (view._pt as Dictionary).get("rock", []) if painted else []
 		for b in L.bodies:
 			if b.kind != &"belt":
 				continue
 			# (which of its first 300 rocks are glinting now, and how far in: worked
 			# out from a table made once a belt, so the rocks that are not cost nothing)
-			var gl := _glints_now(b.index, view.pose(view.t, 8.0) if view.painted else view.t) if glints else {}
-			var R := Worlds.XRng.new(floor(b.orbit * 13.0))
-			var spin: float = view.t / b.period * TAU
+			var gl := _glints_now(b.index, view.pose(vt, 8.0) if painted else vt) if glints else {}
+			var spin: float = vt / b.period * TAU
 			var pulsar: bool = L.star == SystemLayout.StarKind.PULSAR
 			var o: Vector2 = view.origin()
 			# more rocks the closer you look, the first 300 always the same; the
 			# newest ones COME IN FAINT (each new rock popped in at full strength, a
 			# few more of them every frame of a zoom): the last 60 are faded by how
 			# near the zoom is to adding them
-			var n_rocks := 300.0 * maxf(view.zoom, 0.8)
-			for i in ceili(n_rocks):
+			var n_rocks := 300.0 * maxf(zm, 0.8)
+			var nr := ceili(n_rocks)
+			var D := _rock_draws(b, nr)
+			var orbit: float = b.orbit
+			var lit_on := b.index == lit_belt
+			for i in nr:
 				var fade_in := clampf((n_rocks - float(i)) / 60.0, 0.0, 1.0) if i >= 300 else 1.0
-				var a := R.next() * TAU + spin * (0.9 + R.next() * 0.2)
-				var rr := b.orbit + (R.next() - 0.5) * 33.0 * (0.5 + R.next())
-				var big := R.next()
-				var shade := R.next()
-				var lift := (R.next() - 0.5) * 2.0
+				var d := i * 7
+				var a := D[d] * TAU + spin * (0.9 + D[d + 1] * 0.2)
+				var rr := orbit + (D[d + 2] - 0.5) * 33.0 * (0.5 + D[d + 3])
+				var big := D[d + 4]
+				var shade := D[d + 5]
+				var lift := (D[d + 6] - 0.5) * 2.0
 				var x := cos(a) * rr
 				var z := sin(a) * rr
-				var s: Vector2 = view.block(view.screen(x, z, lift))
-				var litv: Vector3 = view.tone(x, z, Vector3(0.66, 0.68, 0.72) if shade < 0.5 else Vector3(0.52, 0.54, 0.58))
-				if view.painted and fade_in < 0.5:
+				var s: Vector2 = ((base + Vector2(x, z * TILT + lift) * zm) / 2.0).floor() * 2.0
+				if s.x < -16.0 or s.x > 976.0 or s.y < -16.0 or s.y > 556.0:
+					continue
+				if painted and fade_in < 0.5:
 					# (PAINTED: a new rock is there or not, from half way in)
 					continue
-				if view.painted:
+				if painted:
 					# PAINTED (B): each rock lit on its star side, in the rock's own ramp
 					# (its night and dusk leaning to the sky), brightest where we see its
 					# lit face full; round a pulsar, caught by the beam in held poses
-					var rk: Array = view._pt.rock
+					var rk: Array = rk_all
 					var lv := (0.62 + 0.38 * clampf(-sin(a) * 0.9 + 0.3, 0.0, 1.0)) * (0.85 + 0.3 * shade)
 					if pulsar:
 						lv *= 0.55 + 0.9 * round(view.beam_on(s - o) * 2.0) / 2.0
 					var ci := 6 if lv > 0.98 else (5 if lv > 0.82 else (4 if lv > 0.66 else 3))
-					if b.index == view.belt_lit and view.belt_t > 0.5:
+					if lit_on and lit_t > 0.5:
 						ci = mini(ci + 2, 7)
 					var plt: Color = rk[ci]
 					var pdk: Color = rk[maxi(ci - 2, 1)]
@@ -2201,16 +2312,17 @@ class _Belts extends Node2D:
 					if gl.has(i) and not pulsar:
 						_glint(s, float(gl[i]), 0.62 + 0.38 * clampf(-sin(a) * 0.9 + 0.3, 0.0, 1.0), Vector3.ONE, rk)
 					continue
-				if view.legacy:
+				if legacy:
 					# LEGACY's grey rubble, as before -- lit as the pulsar's beam sweeps
 					# across it (as the worlds are)
+					var litv: Vector3 = view.tone(x, z, Vector3(0.66, 0.68, 0.72) if shade < 0.5 else Vector3(0.52, 0.54, 0.58))
 					var bk: float = view.beam_on(s - o) if pulsar else 0.0
 					var lkv: Vector3 = litv * ((0.7 + 0.8 * bk) if pulsar else 1.0)
 					var lt := Color(minf(lkv.x, 1.0), minf(lkv.y, 1.0), minf(lkv.z, 1.0))
 					var dk := Color("#3e444c").lerp(lt, 0.35 * bk)
-					if b.index == view.belt_lit and view.belt_t > 0.0:
-						lt = lt.lerp(Color.WHITE, 0.45 * view.belt_t)
-						dk = dk.lerp(lt, 0.6 * view.belt_t)
+					if lit_on and lit_t > 0.0:
+						lt = lt.lerp(Color.WHITE, 0.45 * lit_t)
+						dk = dk.lerp(lt, 0.6 * lit_t)
 					lt.a = fade_in
 					dk.a = fade_in
 					var sxl := -1 if x > 0.0 else 1
@@ -2220,12 +2332,12 @@ class _Belts extends Node2D:
 						draw_rect(Rect2(s, Vector2(4, 2)), dk)
 						draw_rect(Rect2(s + Vector2(2 if sxl > 0 else 0, 0), Vector2(2, 2)), lt)
 					else:
-						var twl := int(floor(view.t * 0.8 + i)) & 1
+						var twl := int(floor(vt * 0.8 + i)) & 1
 						draw_rect(Rect2(s - Vector2(2, 2), Vector2(6, 4)), Color("#4a5058").lerp(lt, 0.3 * bk))
 						draw_rect(Rect2(s + Vector2(sxl * 2 * (1 - twl), -2), Vector2(2, 2)), Color("#b0b6be").lerp(Color.WHITE, 0.4 * bk))
 						draw_rect(Rect2(s + Vector2(-sxl * 2, 0), Vector2(2, 2)), Color("#2a2e34"))
 					if gl.has(i) and not pulsar:
-						_glint(s, float(gl[i]), 0.62 + 0.38 * clampf(-sin(a) * 0.9 + 0.3, 0.0, 1.0), SkyBakeS.STARCOL.get(view.kind, SkyBakeS.STARCOL.ORDINARY))
+						_glint(s, float(gl[i]), 0.62 + 0.38 * clampf(-sin(a) * 0.9 + 0.3, 0.0, 1.0), sc3)
 					continue
 				# LIT RUBBLE (C), never a ring of dark specks: each rock's lit face in
 				# the star's colour, brightest where we see it full (the far side of
@@ -2238,14 +2350,14 @@ class _Belts extends Node2D:
 					kb = 0.45 + 1.1 * view.beam_on(s - o)
 				# (light rock, lighter than the gas it sits in: grey rock dimmed with
 				# distance read as dark specks against a lit cloud)
-				var sc3: Vector3 = SkyBakeS.STARCOL.get(view.kind, SkyBakeS.STARCOL.ORDINARY)
-				litv = Vector3(0.80, 0.78, 0.74).lerp(sc3, 0.3) * (0.78 + 0.22 * view.light_at(x, z))
+				# (`light_at`, as it works it)
+				var litv: Vector3 = Vector3(0.80, 0.78, 0.74).lerp(sc3, 0.3) * (0.78 + 0.22 * (1.0 / (1.0 + (x * x + z * z) / (160.0 * 160.0))))
 				litv = (litv * (phase * alb * kb)).clamp(Vector3.ZERO, Vector3.ONE)
 				var lit := Color(litv.x, litv.y, litv.z)
 				var dark := lit.darkened(0.18)
-				if b.index == view.belt_lit and view.belt_t > 0.0:
-					lit = lit.lerp(Color.WHITE, 0.45 * view.belt_t)
-					dark = dark.lerp(lit, 0.6 * view.belt_t)
+				if lit_on and lit_t > 0.0:
+					lit = lit.lerp(Color.WHITE, 0.45 * lit_t)
+					dark = dark.lerp(lit, 0.6 * lit_t)
 				lit.a = fade_in
 				dark.a = fade_in
 				var sx := -1 if x > 0.0 else 1
@@ -2256,7 +2368,7 @@ class _Belts extends Node2D:
 					draw_rect(Rect2(s, Vector2(4, 2)), dark)
 					draw_rect(Rect2(s + Vector2(2 if sx > 0 else 0, 0), Vector2(2, 2)), lit)
 				else:
-					var tw := int(floor(view.t * 0.8 + i)) & 1
+					var tw := int(floor(vt * 0.8 + i)) & 1
 					draw_rect(Rect2(s - Vector2(2, 2), Vector2(6, 4)), dark)
 					draw_rect(Rect2(s + Vector2(sx * 2 * (1 - tw), -2), Vector2(2, 2)), lit.lightened(0.15))
 					draw_rect(Rect2(s + Vector2(-sx * 2, 0), Vector2(2, 2)), dark.darkened(0.3))
@@ -2385,79 +2497,137 @@ class _Lines extends Node2D:
 		# (HIDE ORBITS on the map's toolbar)
 		if not view.orbits_on:
 			return
-		var L: SystemLayout = view.layout
-		var cam := Vector3(view.zoom, view.pan.x, view.pan.y)
 		var t1 := Time.get_ticks_usec()
+		for run: Array in orbit_runs():
+			draw_polyline_colors(run[0], run[1], 1.0)
+		view.tick("lines draw", t1)
+
+	## How many of a ring's points `orbit_runs` tests against the frame at once.
+	const SPAN := 32
+
+	## EVERY ORBIT'S LINE as drawn this frame, in drawing order: [[points, colours],
+	## ...], one entry for each unbroken stretch of a ring.
+	##
+	## THE SAME LINES FOR LESS (the Mac's map, Oct 27): every ring was worked out a
+	## point a pixel and a bit all the way round, up to 3,000 points, zoomed in
+	## where most of it is off the frame -- each point through two calls on an
+	## untyped view. Now the camera's values are read once, the point is worked
+	## out in place (as `screen` and `orbit_point` work it, to the bit), and
+	## SPAN points at a time are skipped whole when none of them can be in the
+	## frame: a ring's point moves at most `orbit * zoom` px a radian on screen, so
+	## nothing between two points is further from the nearer of them than that
+	## times half the angle between; a stretch whose two ends, grown by that and 2
+	## px more, miss the frame has no point in it (`cull` false works every point,
+	## for `-- sheet=MapPerfTest` to hold the two to the same lines).
+	func orbit_runs(cull := true) -> Array:
+		var runs: Array = []
+		var L: SystemLayout = view.layout
+		var zm: float = view.zoom
+		var base: Vector2 = Vector2(CX, CY) + (view.pan as Vector2)
 		var win: Rect2 = view.window.grow(4.0)
 		var o: Vector2 = view.origin()
 		var hole := _star_hole()
 		var odepth: bool = view.orbit_depth
+		var painted: bool = view.painted
+		var vt: float = view.t
+		var views: Dictionary = view._views
+		var ats: Array[Vector2] = view.at
+		var c_far := Vector3(0.55, 0.58, 0.62)
+		var c_near := Vector3(0.82, 0.85, 0.9)
 		for bi in L.bodies.size():
 			var b := L.bodies[bi]
 			if b.kind == &"belt":
 				continue
 			# A POINT EVERY PIXEL AND A BIT of the ellipse as drawn (Jon: "why are some
 			# of the planet orbits wobbly?"): its perimeter on screen, Ramanujan's
-			var ea: float = b.orbit * view.zoom
+			var orbit: float = b.orbit
+			var ea: float = orbit * zm
 			var eb: float = ea * TILT
 			var per: float = PI * (3.0 * (ea + eb) - sqrt((3.0 * ea + eb) * (ea + 3.0 * eb)))
 			var n := clampi(int(per / 1.2), 64, 3000)
-			var own: bool = view._views.has(bi)
-			var own_r: float = view.draw_r(view.layout.bodies[bi]) + 1.5
+			var fn := float(n)
+			var own: bool = views.has(bi)
+			var own_r: float = view.draw_r(b) + 1.5
+			var own_r2 := own_r * own_r
+			var at_b: Vector2 = ats[bi]
 			# A RINGED WORLD'S RINGS TOO (its orbit was drawn across the face of its
 			# own rings, a grey line laid over the near band): stopped at their outer
 			# edge as at the disc, an ellipse at the rings' squash
 			var ring_ab := Vector2.ZERO
 			if own:
-				var vw: Node2D = view._views[bi]
+				var vw: Node2D = views[bi]
 				var vm: ShaderMaterial = vw.get("_mat")
 				var rmode: Variant = vm.get_shader_parameter("ring_mode") if vm != null else null
 				var rout: Variant = vm.get_shader_parameter("ring_out") if vm != null else null
 				if rmode != null and rout != null and int(rmode) == 1 and bool((vw.get("spec") as Dictionary).get("ring", false)):
 					var ra: float = float(rout) * (own_r - 1.5) + 2.0
 					ring_ab = Vector2(ra, ra * 0.28 + 1.5)
-			var a0: float = b.phase + (view.t / b.period) * TAU
+			var rings := ring_ab.x > 0.0
+			var wc: Vector2 = view.world_c(bi) if rings else Vector2.ZERO
+			var a0: float = b.phase + (vt / b.period) * TAU
+			var orb1 := maxf(orbit, 1.0)
+			# (how far a stretch of SPAN points can bow from its ends, and a margin)
+			var bow := ea * (TAU * float(SPAN) / fn) * 0.5 + 2.0
 			var pts := PackedVector2Array()
 			var cols := PackedColorArray()
-			for i in n + 1:
-				var a := float(i) / float(n) * TAU
-				var op: Vector3 = b.orbit_point(a)
-				var sp: Vector2 = view.screen(op.x, op.z)
+			var i := 0
+			while i <= n:
+				if cull and i % SPAN == 0 and i + SPAN <= n:
+					var j := i + SPAN
+					var ai := float(i) / fn * TAU
+					var aj := float(j) / fn * TAU
+					var pi_ := base + Vector2(cos(ai) * orbit, sin(ai) * orbit * TILT) * zm
+					var pj := base + Vector2(cos(aj) * orbit, sin(aj) * orbit * TILT) * zm
+					if not Rect2(pi_, Vector2.ZERO).expand(pj).grow(bow).intersects(win, true):
+						# none of i .. j-1 is on the frame: the line breaks there, once
+						if pts.size() > 1:
+							runs.append([pts, cols])
+						pts = PackedVector2Array()
+						cols = PackedColorArray()
+						i = j
+						continue
+				var a := float(i) / fn * TAU
+				i += 1
+				# (`orbit_point` and `screen`, as they work it: the plane point held in
+				# 32 bits as a Vector3's is)
+				var op := Vector2(cos(a) * orbit, sin(a) * orbit)
+				var sp: Vector2 = base + Vector2(op.x, op.y * TILT + 0.0) * zm
 				# off the frame, in the star, or on its own world (the only one on its ring)
-				var off_world := own and sp.distance_squared_to(view.at[bi]) < own_r * own_r
-				if ring_ab.x > 0.0 and not off_world:
-					var rq: Vector2 = (sp - view.world_c(bi)) / ring_ab
+				var off_world := own and sp.distance_squared_to(at_b) < own_r2
+				if rings and not off_world:
+					var rq: Vector2 = (sp - wc) / ring_ab
 					off_world = rq.length_squared() < 1.0
 				if not win.has_point(sp) or pow((sp.x - o.x) / hole.x, 2.0) + pow((sp.y - o.y) / hole.y, 2.0) < 1.0 or off_world:
 					if pts.size() > 1:
-						draw_polyline_colors(pts, cols, 1.0)
+						runs.append([pts, cols])
 					pts = PackedVector2Array()
 					cols = PackedColorArray()
 					continue
-				var behind := fposmod(a0 - a, TAU)
-				var tr := pow(1.0 - behind / 2.1, 1.6) if behind < 2.1 else 0.0
-				var c := Vector3(0.55, 0.58, 0.62).lerp(Vector3(0.82, 0.85, 0.9), tr)
 				# ON WHOLE PIXELS of the screen: the rings are drawn over the picture at
 				# its full size (snapped to the half-size picture's 2x2 blocks, as they
 				# were for a round, they stair-stepped and wobbled)
 				var q: Vector2 = sp.round()
-				if pts.size() > 0 and pts[pts.size() - 1] == q:
+				var np := pts.size()
+				if np > 0 and pts[np - 1] == q:
 					continue
 				pts.append(q)
+				var behind := fposmod(a0 - a, TAU)
+				var tr := pow(1.0 - behind / 2.1, 1.6) if behind < 2.1 else 0.0
+				var c := c_far.lerp(c_near, tr)
 				# THE NEAR HALF BOLDER (Jon kept it, Oct 11): the half of the ring toward
 				# you (below the star) up to 1.45 times as strong, the far half down to
 				# 0.6, so the plane reads as a plane lying back -- by where on the ring,
 				# never by the zoom. PAINTED in three held bands, as B paints a ramp.
 				var dk := 1.0
 				if odepth:
-					var dz := smoothstep(-1.0, 1.0, op.z / maxf(b.orbit, 1.0))
-					if view.painted:
+					var dz := smoothstep(-1.0, 1.0, op.y / orb1)
+					if painted:
 						dz = 0.0 if dz < 0.33 else (0.5 if dz < 0.67 else 1.0)
 					dk = lerpf(0.6, 1.45, dz)
 				cols.append(Color(c.x, c.y, c.z, (0.14 + tr * 0.38) * dk))
 			if pts.size() > 1:
-				draw_polyline_colors(pts, cols, 1.0)
-		view.tick("lines draw", t1)
+				runs.append([pts, cols])
+		return runs
 
 
 # ---------------------------------------------------------------- the fabric

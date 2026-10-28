@@ -896,7 +896,10 @@ func _inside(body: int, p: Vector2, t: float) -> bool:
 ## ONE STEP OF OPEN-SPACE FLIGHT, for the ship and for its line alike, so the
 ## line can only show what the ship will do. Returns a capture (&"rail",
 ## &"keep"), a ring crossed too fast (&"fast"), or {}.
-func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, real: bool) -> Dictionary:
+## `cs`: every place's centre at `t` (`center`), when the caller has them
+## (`_centres`); empty, each is worked out here.
+func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, real: bool, cs := PackedVector3Array()) -> Dictionary:
+	var have_c := not cs.is_empty()
 	if k.a:
 		st.head -= TURN * dt
 	if k.d:
@@ -979,7 +982,7 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 	for b in L.bodies:
 		if b.world == &"":
 			continue
-		var c := center(b.index, t)
+		var c: Vector3 = cs[b.index] if have_c else center(b.index, t)
 		var d := Vector2(st.p.x - c.x, st.p.y - c.z)
 		var dd := d.length()
 		var m := maxf(b.r, 10.0) + 10.0
@@ -1003,7 +1006,7 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 	for b in L.bodies:
 		if b.world == &"" or b.index == no_cap:
 			continue
-		var c2 := center(b.index, t)
+		var c2: Vector3 = cs[b.index] if have_c else center(b.index, t)
 		var rel := Vector2(st.p.x - c2.x, st.p.y - c2.z)
 		if rel.length() < b.soi:
 			var rv := st.v - _flat(center_vel(b.index, t))
@@ -1022,11 +1025,13 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 	for b in L.bodies:
 		if not is_keep(b.index) or b.index == no_cap:
 			continue
-		var c3 := center(b.index, t)
+		var c3: Vector3 = cs[b.index] if have_c else center(b.index, t)
 		var rel3 := Vector2(st.p.x - c3.x, st.p.y - c3.z)
-		var rv3 := st.v - _flat(center_vel(b.index, t))
-		if Vector2(rel3.x, rel3.y * TILT).length() < KEEP_R and rv3.length() < CAPTURE + (STICKY if stick == b.index else 0.0):
-			return {"kind": &"keep", "body": b.index, "rel": rel3, "rv": rv3, "at": st.p}
+		# (its motion, two more centres, only for a place this close)
+		if Vector2(rel3.x, rel3.y * TILT).length() < KEEP_R:
+			var rv3 := st.v - _flat(center_vel(b.index, t))
+			if rv3.length() < CAPTURE + (STICKY if stick == b.index else 0.0):
+				return {"kind": &"keep", "body": b.index, "rel": rel3, "rv": rv3, "at": st.p}
 	return {}
 
 
@@ -1046,8 +1051,10 @@ func predict(t: float, k: Dictionary) -> void:
 		line = {}
 		hold_line = {}
 		return
+	_ctab.clear()
 	line = _run_line(t, {"w": false, "a": false, "s": false, "d": false}, 0.0)
 	hold_line = _run_line(t, k, 1.5) if any else {}
+	_ctab.clear()
 	var meet: int = -9
 	if not (line.out as Dictionary).is_empty() and line.out.kind != &"star":
 		meet = int(line.out.body)
@@ -1056,6 +1063,31 @@ func predict(t: float, k: Dictionary) -> void:
 		_meet_t = t
 	if t - _meet_t > 0.25:
 		sticky = meet
+
+
+## THE PLACES BOTH LINES STEP PAST, worked out once a frame (`predict`): the line
+## and the held line step through the same moments, and each step looked up every
+## world's centre twice and every station's, belt's and hulk's once more -- about
+## 6,800 calls a frame for one answer per place a step. Step i: [its t, every
+## place's centre then]; a step is taken from here only at the very t it was
+## worked out for. (`centre_table` off: each worked out where it is needed, as
+## before, for `-- sheet=MapPerfTest` to hold the two lines to each other.)
+var _ctab: Array = []
+static var centre_table := true
+
+
+func _centres(i: int, t: float) -> PackedVector3Array:
+	if i < _ctab.size() and float(_ctab[i][0]) == t:
+		return _ctab[i][1]
+	var cs := PackedVector3Array()
+	cs.resize(L.bodies.size())
+	for b in L.bodies:
+		cs[b.index] = center(b.index, t)
+	if i == _ctab.size():
+		_ctab.append([t, cs])
+	elif i < _ctab.size():
+		_ctab[i] = [t, cs]
+	return cs
 
 
 func _run_line(t0: float, k: Dictionary, hold: float) -> Dictionary:
@@ -1070,7 +1102,7 @@ func _run_line(t0: float, k: Dictionary, hold: float) -> Dictionary:
 	for i in 180:
 		var kk: Dictionary = k if i * hstep < hold else none
 		st.bumped = false
-		var res := free_step(st, kk, t, hstep, sticky, false)
+		var res := free_step(st, kk, t, hstep, sticky, false, _centres(i, t) if centre_table else PackedVector3Array())
 		t += hstep
 		pts.append(st.p)
 		if st.bumped and bump == Vector2.INF:

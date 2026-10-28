@@ -62,6 +62,12 @@ The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
 
 ### Changed
 
+- **Changed** — the sector map does less work each frame, and nothing on it looks different.
+  In a clear sky it no longer draws seven layers of dust that were black and added nothing. The
+  orbit lines and the asteroid belts skip what is off the screen. The dotted lines ahead of your
+  ship work out where each world will be once for both lines, not four or more times over. A
+  system you come back to keeps the colours it had, so the map opens without working them out
+  again.
 - **Changed** — the big world you orbit on LOCAL takes far less graphics work to draw. Its
   surface is no longer worked out a second time where the first answer already holds, and it
   is no longer worked out below or beside the screen where nobody can see it. The first change
