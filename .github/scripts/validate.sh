@@ -1590,6 +1590,27 @@ if run_godot chartfilter 120 --headless --path "$PROJECT" -- chartfilter; then
 fi
 }
 
+unit_chartdeeptest() {
+step "The chart dims stars in reach that are too deep to jump to"
+# Ruling 13 A (Jon, Oct 27): a star inside the reach ring that a jump refuses
+# for depth looked like any other until JUMP said TOO DEEP (Geno, near the top
+# of the tilted map). Three galaxies through the real chart, zoomed out and in:
+# every such star drawn dimmed, read off its ink as drawn, under the cursor and
+# picked too; every reachable star in its own colour; nothing else dimmed; the
+# readout and JUMP saying TOO DEEP.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot chartdeeptest 180 --headless --path "$PROJECT" -- sheet=ChartDeepTest; then
+	if grep -qE '^chartdeeptest: PASS' "$LOG_DIR/chartdeeptest.log"; then
+		ok "too-deep stars in reach drawn dimmed, reachable ones not"
+	else
+		bad "the chart draws a too-deep star in reach like a reachable one, or says it wrong"
+		grep -E 'FAIL|^chartdeeptest|^    ' "$LOG_DIR/chartdeeptest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "chartdeeptest did not finish"
+fi
+}
+
 unit_reactor() {
 step "Every frame launches with a deck it can play"
 # The reactor cap decides how many modules a frame can RUN, and a cap set too

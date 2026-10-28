@@ -1850,8 +1850,36 @@ class Glyph extends Control:
 			# say what they are, so the star is what every one of them gets.
 			_: return _EVENT
 
+	## The emissive band's own colour, where a caller does not give one.
+	const BAND := Color("#fff6e2")
+
+	## A STAR IN REACH THAT A JUMP REFUSES AS TOO DEEP (`MapChart.too_deep_set`),
+	## in one grey whatever its star: the dot zoomed out, the glyph's body
+	## zoomed in (`ramp_for` with `dim`). Darker than any star you can go to and
+	## than the far ones, and no colour in it, so it reads as off. Not the dead
+	## blue grey of a cleared system (#37424f), which says "spent".
+	const DIM := Color("#4a4e55")
+
 	static func draw_glyph(ci: CanvasItem, o: Vector2, t: MapGen.NodeType,
-			tint_in: Color, here: bool, selected: bool, band: Color = Color("#fff6e2")) -> void:
+			tint_in: Color, here: bool, selected: bool, band: Color = BAND,
+			dim: bool = false) -> Color:
+		var ramp := ramp_for(tint_in, band, dim)
+		var art := art_for(t)
+		for y in art.size():
+			var row: String = art[y]
+			for x in row.length():
+				var ch := row[x]
+				if ch == ".":
+					continue
+				ci.draw_rect(Rect2(o + Vector2(x, y), Vector2.ONE),
+					ramp.get(ch, ramp["#"]) as Color, true)
+
+		draw_brackets(ci, o, here, selected)
+		# (the body's ink, for `MapChart.drawn_ink`)
+		return ramp["#"]
+
+	## The inks a glyph is drawn in, by its pixel map's letters.
+	static func ramp_for(tint_in: Color, band: Color = BAND, dim: bool = false) -> Dictionary:
 		# Region colours sit quietly behind sprites; as a glyph on a dark chart
 		# they need lifting or the icon reads as a smudge. The ramp is built
 		# from the tint every call rather than stored, because the tint is the
@@ -1862,7 +1890,26 @@ class Glyph extends Control:
 		# enough value break to survive being 13 pixels wide on a starfield;
 		# closer stops than that and the shading turns back into one flat mass,
 		# which is what the four-colour version was.
-		var ramp := {
+		if dim:
+			# TOO DEEP: one grey ramp, the lights and the glass greyed with the
+			# body, and no lift (a lifted grey read as a lit star). The faces
+			# keep their break, so it is still a station or a star, only off.
+			var face := DIM.lightened(0.3)
+			var wall := DIM.darkened(0.3)
+			return {
+				"o": Color("#070b11"),
+				"%": face,
+				"#": DIM,
+				"+": wall,
+				"-": DIM.darkened(0.55),
+				"*": DIM,
+				"@": face,
+				":": wall,
+				"=": DIM,
+				"~": wall,
+				"!": face,
+			}
+		return {
 			"o": Color("#070b11"),
 			"%": tint_in.lightened(0.62),
 			"#": tint_in.lightened(0.34),
@@ -1875,17 +1922,6 @@ class Glyph extends Control:
 			"~": Color("#3a6b8c"),
 			"!": Color("#dff6ff"),
 		}
-		var art := art_for(t)
-		for y in art.size():
-			var row: String = art[y]
-			for x in row.length():
-				var ch := row[x]
-				if ch == ".":
-					continue
-				ci.draw_rect(Rect2(o + Vector2(x, y), Vector2.ONE),
-					ramp.get(ch, ramp["#"]) as Color, true)
-
-		draw_brackets(ci, o, here, selected)
 
 
 	## A dark rim one pixel round a glyph, so it stands off the sky behind it.
@@ -2273,6 +2309,11 @@ class MapChart extends Control:
 	## Every star a click could pick, as last drawn (screen positions), for the
 	## tags to keep off.
 	var _pickable: PackedVector2Array = PackedVector2Array()
+	## Each star's ink as last drawn, by index (the dot zoomed out, the glyph's
+	## body zoomed in), and the stars drawn dimmed as too deep (`too_deep_set`):
+	## what the tests read, so they check the picture's colours and not the rule.
+	var drawn_ink: Dictionary = {}
+	var drawn_dim: Dictionary = {}
 
 	# ---- the instrument: reticle, scan and zoom tick. The navigated chart only
 	# (`remembers_view`): the launcher's backdrop is the same class and must stay
@@ -3268,6 +3309,7 @@ class MapChart extends Control:
 	## is not.
 	var _range_key: String = ""
 	var _range_memo: Array = []
+	var _deep_memo: Dictionary = {}
 
 	func _in_range() -> Array:
 		var key := "%d|%d|%d|%s|%s" % [Run.at, Run.galaxy_seed, Run.map.size(),
@@ -3275,7 +3317,39 @@ class MapChart extends Control:
 		if key != _range_key:
 			_range_key = key
 			_range_memo = Run.in_range()
+			_deep_memo = _too_deep_of(Run.node_at())
 		return _range_memo
+
+	## THE STARS INSIDE THE REACH RING THAT A JUMP STILL REFUSES, as a set of
+	## indices: near enough for the drive, but deeper than one jump may go
+	## (`Run.too_deep_only`; ruling 13 A, Jon, Oct 27). Remembered with
+	## `_in_range`, on the same key, since it is the same kind of answer.
+	##
+	## Geno met these near the top of the map, where the tilted chart puts rings
+	## close together on the screen: a star beside YOU, lit like the rest, and
+	## TOO DEEP only once it was clicked. The chart draws them dimmed
+	## (`Glyph.DIM`).
+	##
+	## The rule is read through `Run.too_deep_only` and nothing here, so how many
+	## rings a jump may go (`RunState.DEPTH_STEP`) can change under it. The core
+	## is left out: it has its own mark on the black hole, and `too_deep_only`
+	## counts it from any distance, not only from inside the ring.
+	func too_deep_set() -> Dictionary:
+		_in_range()
+		return _deep_memo
+
+	static func _too_deep_of(here: MapGen.MapNode) -> Dictionary:
+		var out: Dictionary = {}
+		if here == null:
+			return out
+		for n in Run.map:
+			var t: MapGen.MapNode = n
+			# (only a star further in can be too deep: the rest skip the sums)
+			if t.layer <= here.layer or t.type == MapGen.NodeType.CORE:
+				continue
+			if Run.too_deep_only(here, t):
+				out[t.index] = true
+		return out
 
 	func _node_at(p: Vector2) -> int:
 		var visible := _visible_set(Run.node_at(), _in_range())
@@ -3414,6 +3488,9 @@ class MapChart extends Control:
 		# you zoom in for.
 		var tiny := zoom < 0.78
 		_pickable = PackedVector2Array()
+		drawn_ink.clear()
+		drawn_dim.clear()
+		var deep: Dictionary = too_deep_set() if show_icons else {}
 		for n in Run.map:
 			var node2: MapGen.MapNode = n
 			if not show_icons:
@@ -3445,6 +3522,13 @@ class MapChart extends Control:
 			# back through -- they are simply not on the dish this minute.
 			if not node2.sensed and node2.index != here.index:
 				tint = tint.darkened(0.45)
+			# IN THE RING AND STILL REFUSED (ruling 13 A, Jon, Oct 27): a star the
+			# drive reaches that lies deeper than one jump may go is drawn in one
+			# dim grey (`Glyph.DIM`), lights and all, and stays so under the
+			# cursor and when picked; the reticle, the brackets and the name say
+			# which one it is. Drawn like the rest, it read as a place you could
+			# go until JUMP said TOO DEEP. Its hover readout ends TOO DEEP.
+			var dim: bool = deep.has(node2.index)
 			# THE CORE IS ITS BLACK HOLE, AND MARKED ON IT ("the core icon should
 			# be in the center of the black part of the black hole AND the
 			# selection reticle should be there too", Jon): its glyph on the
@@ -3466,7 +3550,7 @@ class MapChart extends Control:
 				# covers the shadow's lower part, so that is above the hole's
 				# own centre)
 				p = (_screen_pos(node2) - Vector2(6, 6 + _hole_px() * 0.38)).round()
-				Glyph.draw_glyph(self, p, node2.type, tint.lightened(0.12),
+				drawn_ink[node2.index] = Glyph.draw_glyph(self, p, node2.type, tint.lightened(0.12),
 					node2.index == here.index, node2.index == selected, UITheme.FLARE)
 			elif tiny:
 				var lit: bool = node2.index == here.index \
@@ -3483,15 +3567,20 @@ class MapChart extends Control:
 				# corners), so it stands off the arms and the bulge
 				draw_rect(Rect2(at - Vector2(1, 0), Vector2(d + 2.0, d)), _UNDER, true)
 				draw_rect(Rect2(at - Vector2(0, 1), Vector2(d, d + 2.0)), _UNDER, true)
-				draw_rect(Rect2(at, Vector2(d, d)),
-					tint.lightened(0.15) if near else tint.darkened(0.35), true)
+				var dot := tint.lightened(0.15) if near else tint.darkened(0.35)
+				if dim:
+					dot = Glyph.DIM
+				draw_rect(Rect2(at, Vector2(d, d)), dot, true)
+				drawn_ink[node2.index] = dot
 			else:
 				var near2: bool = node2.index == here.index or node2.index == selected \
 					or node2.index == hovered or reach.has(node2)
 				Glyph.draw_halo(self, p, node2.type, _UNDER)
-				Glyph.draw_glyph(self, p, node2.type,
+				drawn_ink[node2.index] = Glyph.draw_glyph(self, p, node2.type,
 					tint.lightened(0.12) if near2 else tint.darkened(0.2),
-					node2.index == here.index, node2.index == selected)
+					node2.index == here.index, node2.index == selected, Glyph.BAND, dim)
+			if dim:
+				drawn_dim[node2.index] = true
 			if node2.index == here.index:
 				_draw_you(p, tiny)
 			elif (node2.index == hovered or node2.index == selected) and node2.type != MapGen.NodeType.CORE:
@@ -3927,6 +4016,44 @@ class MapChart extends Control:
 		draw_rect(Rect2(q - Vector2(1, 0), Vector2(3, 1)), _UNDER_SOFT, true)
 		draw_rect(Rect2(q - Vector2(0, 1), Vector2(1, 3)), _UNDER_SOFT, true)
 
+	## The hover readout's four lines for `n` seen from `here`: name, kind,
+	## place, and danger with what a jump there costs or why it cannot go.
+	func tip_lines(n: MapGen.MapNode, here: MapGen.MapNode) -> PackedStringArray:
+		var l1 := MapGen.star_name(n)
+		var l2 := MapGen.type_label(n.type)
+		if n.cleared and n.type != MapGen.NodeType.CORE:
+			l2 = "CLEARED · " + l2
+		var l3 := MapGen.place_line(n)
+		var l4 := "DANGER %d/10" % n.danger
+		# (a star inside the reach ring that a jump cannot take says why on
+		# hover, before it is clicked: see `RunState.DEPTH_STEP`; the chart
+		# draws it dimmed too, `too_deep_set`)
+		var deep := Run.too_deep_only(here, n)
+		if deep:
+			l4 += "   TOO DEEP"
+		elif here.links.has(n.index):
+			l4 += "   %d FUEL" % Run.fuel_cost_to(n)
+
+		# THE SAME REFUSAL THE PANEL MAKES, and it has to be made twice or it is
+		# not made at all: the tooltip prints type, place and danger, which is
+		# precisely the survey the destination panel just declined to give. One
+		# hover and the withholding is undone.
+		#
+		# Fuel survives, because reachability is a fact about your tank and the
+		# link you are standing next to rather than about the place. So does
+		# TOO DEEP, for the same reason.
+		if Run.known_only_by_contract(n.index):
+			var job := Run.contract_at(n.index)
+			l2 = "%s WANTS SOMETHING HERE" % DB.short_name(
+				DB.manufacturer_name(job.manufacturer)).to_upper()
+			l3 = "POSITION ONLY · NO SURVEY"
+			l4 = "%d CREDITS" % job.pay
+			if deep:
+				l4 += "   TOO DEEP"
+			elif here.links.has(n.index):
+				l4 += "   %d FUEL" % Run.fuel_cost_to(n)
+		return PackedStringArray([l1, l2, l3, l4])
+
 	## What this system is, at the cursor. Zoomed out every system is a two-pixel
 	## dot, so without this the chart is unreadable — you can see the shape of the
 	## galaxy and nothing about the places in it.
@@ -3946,34 +4073,11 @@ class MapChart extends Control:
 			draw_rect(Rect2(k - Vector2(0, 0.0 if corner.y > 0 else tick - 1.0),
 				Vector2(1, tick)), Color(1, 1, 1, 0.55 * _hover_t), true)
 
-		var l1 := MapGen.star_name(n)
-		var l2 := MapGen.type_label(n.type)
-		if n.cleared and n.type != MapGen.NodeType.CORE:
-			l2 = "CLEARED · " + l2
-		var l3 := MapGen.place_line(n)
-		var l4 := "DANGER %d/10" % n.danger
-		# (a star inside the reach ring that a jump cannot take says why on
-		# hover, before it is clicked: see `RunState.DEPTH_STEP`)
-		if Run.too_deep_only(here, n):
-			l4 += "   TOO DEEP"
-		elif here.links.has(n.index):
-			l4 += "   %d FUEL" % Run.fuel_cost_to(n)
-
-		# THE SAME REFUSAL THE PANEL MAKES, and it has to be made twice or it is
-		# not made at all: the tooltip prints type, place and danger, which is
-		# precisely the survey the destination panel just declined to give. One
-		# hover and the withholding is undone.
-		#
-		# Fuel survives, because reachability is a fact about your tank and the
-		# link you are standing next to rather than about the place.
-		if Run.known_only_by_contract(n.index):
-			var job := Run.contract_at(n.index)
-			l2 = "%s WANTS SOMETHING HERE" % DB.short_name(
-				DB.manufacturer_name(job.manufacturer)).to_upper()
-			l3 = "POSITION ONLY · NO SURVEY"
-			l4 = "%d CREDITS" % job.pay
-			if here.links.has(n.index):
-				l4 += "   %d FUEL" % Run.fuel_cost_to(n)
+		var lines := tip_lines(n, here)
+		var l1 := lines[0]
+		var l2 := lines[1]
+		var l3 := lines[2]
+		var l4 := lines[3]
 
 		var w := 0.0
 		for line in [l1, l2, l3, l4]:
