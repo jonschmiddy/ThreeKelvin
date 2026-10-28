@@ -210,6 +210,8 @@ for a hard game, and 0.4.0-alpha.1 carries all of it:
 - **One ring deeper per jump, at most** (`RunState.DEPTH_STEP`, b28fdad6). The
   shortest way to the core went from as few as 4 jumps to 14. The chart says
   TOO DEEP and ONE RING AT A TIME, and every galaxy keeps a way into each ring.
+  **Changed Oct 27 (ruling 15):** two rings deeper per jump (feat/two-rings).
+  The shortest way in is 7 jumps again; see Phase 10's status for the sim.
 - **The Custodian:** hull 120 to 200 (b28fdad6), and it lost Plated Up, so
   Annihilate lands every third turn for 40, up from 22 (7790b9f5). In the sim a
   built ship wins 56% of arrivals, a human-like pilot 39%, and a starter never.
@@ -416,6 +418,19 @@ the alpha to end. 15 is design only.
 
 **Gate:** each item closed or ruled out by Jon.
 
+**Status, Oct 27.** All six are built on their own branches, each passed an
+adversarial review and its own tests, and they land together:
+fix/derelict-hauler, feat/chart-too-deep, feat/two-rings,
+fix/local-while-docked, feat/hull-number and feat/map-own-ship. Jon still picks
+a few looks from stills: the hull number's format, the too-deep grey, and the
+map ship's brightness, left-facing pose and brake colour.
+
+Two rings, measured (200 sim runs per pilot, seeds 777 and 977): twice as many
+ships reach the core (human pilot 16% to 36%), but they arrive after 21 jumps
+instead of 31, poorer and with less hull, and beat the Custodian half as often
+(44% of arrivals to 21%). The run win rate barely moved (human 7% to 7.5%). The
+Custodian re-tune is Phase 11 step 5.
+
 ### Phase 11 — Make combat matter
 *Jeremy: "combat doesn't feel important", "encounters are way too fast for how
 infrequent they are", "combats need to feel epic". Cody dove star to star.*
@@ -426,6 +441,15 @@ infrequent they are", "combats need to feel epic". Cody dove star to star.*
    Solari holding about 5,900 credits; is the economy loose at the end?). Machine
    time only: about 2 hours on the PC, about 4 on the Mac. It can start during
    Phase 10.
+   **Done Oct 27, on two rings** (chore/combat-study: `-- sim enemyhp=X
+   enemydmg=Y` scales every enemy but the Custodian). 200 runs a cell:
+   enemy hull ×1.5 makes fights 31% longer for the human pilot (4.6 to 6.1
+   turns) and costlier (fights lost 19.7% to 24.3%); ×2 cuts human wins from 15
+   to 5 of 200; damage ×1.3 makes fights shorter, not longer. Hull lost per turn
+   falls as fights get longer. At any hull scale the Hellbender is never killed.
+   Credits at the end of won runs show no trend (median about 1,600 to 1,900).
+   Recommended for ruling 14: non-boss hull ×1.5, damage unchanged, the
+   Hellbender kept at 90; ×2 only together with step 5's re-tune.
 2. **Pick and apply the health and damage change** (open ruling 14). Hours.
    Depends on step 1.
 3. **A second combat resource** (Jeremy). A design project: a page of options
@@ -500,7 +524,7 @@ quietly break the fuel economy.
 why." Depends on the alpha ending, so the list is complete.*
 
 Collect the flagged lines during the alpha. Rewrite each to state the concrete
-fact, for example "Too deep. One ring at a time." Re-record the voiced ones, at
+fact, for example "Too deep. Two rings at most." Re-record the voiced ones, at
 about 0.4 credits a character. The recorder now refuses all-caps words in a
 spoken script, since eleven_v3 spells them out.
 
@@ -557,7 +581,7 @@ removed; see the footnote. Rows 5, 9, 10, 12, 13, 15 and 16 were ruled on Oct 27
 | # | Ruling | From | Blocks |
 |---|---|---|---|
 | 4 | Three reds. `UITheme` now names `LEAVE` for exits and `WARN`/`BAD` for warnings; the older literal sites were left alone on purpose | B3 | Nothing now; a sweep of the literals |
-| 14 | Which health and damage change, after the study | Phase 11 step 1 | Phase 11 steps 2 to 5, Phase 12 |
+| 14 | Which health and damage change. The study is done (Phase 11 step 1); recommended: non-boss hull ×1.5, the Hellbender kept at 90 | Phase 11 step 1 | Phase 11 steps 2 to 5, Phase 12 |
 
 ### Ruled since Oct 20
 
@@ -574,7 +598,7 @@ changing how anything they touch plays.
 | Jump rule (ruling 15) | Two rings deeper per jump, now (was one). Re-tune after | Oct 27; Phase 10 |
 | Riding the galaxy (ruling 16) | A design page later, after the alpha data and the combat study | Oct 27; Phase 15 |
 | LOCAL while docked | Greyed out with "Docked. Press UNDOCK to leave."; UNDOCK is the only way out | Oct 27; Phase 10 |
-| A jump goes one ring deeper at most | "A1D ... I want this to be a hard game" (Oct 22) | b28fdad6, 0.4.0 |
+| A jump goes one ring deeper at most (replaced by ruling 15, Oct 27) | "A1D ... I want this to be a hard game" (Oct 22) | b28fdad6, 0.4.0 |
 | The Custodian has 200 hull | "custodian health at 200" (Oct 22) | b28fdad6, 0.4.0 |
 | The Custodian loses Plated Up; Annihilate deals 40 | "Option 1" (Oct 22) | 7790b9f5, 0.4.0 |
 | No commons from danger 5 in | a hard game where going deep is worth it (Oct 22) | 27d7f6eb, 0.4.0 |
