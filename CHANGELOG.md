@@ -11,6 +11,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
+### Changed
+
+- **Changed** — the sector map does less work each frame, and nothing on it looks different.
+  In a clear sky it no longer draws seven layers of dust that were black and added nothing. The
+  orbit lines and the asteroid belts skip what is off the screen. The dotted lines ahead of your
+  ship work out where each world will be once for both lines, not four or more times over. A
+  system you come back to keeps the colours it had, so the map opens without working them out
+  again.
+
 ## 2026-10-23
 
 ### [0.4.2-alpha.1]

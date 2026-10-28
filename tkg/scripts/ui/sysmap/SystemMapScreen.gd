@@ -617,8 +617,12 @@ func _step_ship(delta: float) -> void:
 		for k in _wasd:
 			_wasd[k] = false
 	var keys: Dictionary = _wasd if free and not _taking else {"w": false, "a": false, "s": false, "d": false}
+	var t_fly := Time.get_ticks_usec()
 	var level: float = flight.step(delta, view.t, keys)
+	view.tick("flight step", t_fly)
+	var t_pred := Time.get_ticks_usec()
 	flight.predict(view.t, keys)
+	view.tick("predict", t_pred)
 	Audio.ship_thrust(level)
 	# A FLIGHT ONTO AN ORBIT, from the moment it turns onto it (burning in), as
 	# LOCAL already counts the ship there (`ship_place`)

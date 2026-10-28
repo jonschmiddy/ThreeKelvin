@@ -791,6 +791,24 @@ else
 fi
 }
 
+unit_mapperftest() {
+step "The sector map's trims draw what they replaced"
+# The Mac's map trims (Oct 27) work out the orbit lines, the dust sheets' seeds
+# and the ship's forecast lines their own faster way. Held here to the old loop
+# (which calls `screen` and `orbit_point`) point for point, so a change to
+# either that the trimmed copy misses fails here, not as a line off its world.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot mapperftest 300 --headless --path "$PROJECT" -- sheet=MapPerfTest; then
+	if grep -qE '^mapperftest: PASS' "$LOG_DIR/mapperftest.log"; then
+		ok "the map's orbits, dust and forecast lines are as they were"
+	else
+		bad "a map trim draws something else"
+		grep -E 'FAIL|^mapperftest' "$LOG_DIR/mapperftest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "mapperftest did not finish"
+fi
+}
+
 unit_laddertest() {
 step "One camera: every move between chart, map, LOCAL and station lands"
 # Each seam's designs both ways, input mid-move, scroll past a zoom's end, a
@@ -2170,7 +2188,7 @@ gate_weight() {
 		hinttest) echo 28 ;; calmladdertest) echo 28 ;; foetagtest) echo 28 ;;
 		menutest) echo 25 ;; market) echo 24 ;; parseall) echo 24 ;;
 		devtest) echo 22 ;; hulldamagetest) echo 22 ;; fightopentest) echo 22 ;;
-		lockedpooltest) echo 41 ;; rewardshowntest) echo 33 ;;
+		lockedpooltest) echo 41 ;; rewardshowntest) echo 33 ;; mapperftest) echo 40 ;;
 		*) echo 15 ;;
 	esac
 }
