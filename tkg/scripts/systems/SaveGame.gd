@@ -284,7 +284,13 @@ static var restoring := false
 ## empty), and the manufacturer the run launched as (`launched_as`; a 35 save
 ## has none, and its win falls back to the hull it ends in, see Unlocks).
 ## OLDEST_READ stays at 29.
-const VERSION := 36
+## 37: WHAT THE HULL ON OFFER CUTS UP FOR (`found_scrap`, `{credits,
+## material}`). The derelict hauler's frame carries the pay of the strip you
+## gave up for it, so a frame you do not fly has SCRAP in place of LEAVE IT
+## (Jeremy, friends' alpha). Read the way 36 reads 35: a 36 save has no
+## `found_scrap`, and missing means none -- its found hull offers LEAVE IT, as
+## a 36 build did. OLDEST_READ stays at 29.
+const VERSION := 37
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
 const OLDEST_READ := 29
@@ -437,6 +443,10 @@ static func _snapshot() -> Dictionary:
 		cargo = cargo,
 		pad = pad,
 		found_hull = _hull_to(Run.found_hull) if Run.found_hull != null else null,
+		# What it cuts up for (VERSION 37), empty for a hull with no SCRAP.
+		found_scrap = {"credits": Run.found_scrap_credits(),
+			"material": String(Run.found_scrap.get("material", &""))} \
+			if Run.found_scrap_credits() > 0 else {},
 		# The ship you are moving out of, while anything is still aboard it
 		# (VERSION 36): the move's left half is drawn from it.
 		old_hull = _hull_to(Run.old_hull) if Run.old_hull != null and not Run.pad.is_empty() else null,
@@ -587,6 +597,11 @@ static func load_into_run() -> bool:
 
 	var fh: Variant = d.get("found_hull", null)
 	Run.found_hull = _hull_from(fh) if typeof(fh) == TYPE_DICTIONARY else null
+	# AFTER the hull, whose setter clears it (VERSION 37; a 36 save has none).
+	var fs: Variant = d.get("found_scrap", {})
+	if Run.found_hull != null and typeof(fs) == TYPE_DICTIONARY and int((fs as Dictionary).get("credits", 0)) > 0:
+		Run.found_scrap = {credits = int(fs.get("credits", 0)),
+			material = StringName(String(fs.get("material", "")))}
 	# THE MOVE IN PROGRESS, as far as a save can carry it (VERSION 36; a 35
 	# save has none). The undo is never saved, and it is CLEARED here rather than
 	# left: SAVE AND EXIT then CONTINUE is one process, and the undo and the old

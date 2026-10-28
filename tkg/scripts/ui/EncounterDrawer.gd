@@ -809,8 +809,12 @@ static func choice_card(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
 	card.custom_minimum_size = Vector2(150, 44)
 	if not open:
 		card.bar(false)
-	var lb := UITheme.body(String(c.get("label", "…")).to_upper(),
+	# THE WORDS AS THIS SYSTEM HAS THEM (`OptionTable.label_of`): a label may
+	# name something rolled here, as the derelict hauler's frame does.
+	var words := OptionTable.label_of(c, n)
+	var lb := UITheme.body((words if words != "" else "…").to_upper(),
 		UITheme.ICE if open else UITheme.COLD, UITheme.FS_SMALL)
+	lb.name = "Words"
 	lb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(lb)
 	if note != "":

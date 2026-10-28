@@ -483,6 +483,30 @@ else
 fi
 }
 
+unit_derelicttest() {
+step "The derelict hauler names its frame, and claiming it never costs the strip"
+# Jeremy, friends' alpha: a heavy pilot claimed the hull blind, got a light frame,
+# and had given up "Strip it for scrap" for it. On the real LOCAL at a light, a
+# medium and a heavy frame, in all three layouts: the claim's card names the
+# weight, the page passes the box test, YOU CHOSE names it, and the hull found is
+# that one, the same with the loot stream moved and another seat. Then the
+# frame's SCRAP on the rail (where LEAVE IT was) pays the strip's credits and
+# crate, once, after a backed-out TRANSFER and a save and load; and on the map.
+# A frame still on offer is paid, not lost, when a second claim or the yard's
+# TAKE IT replaces it, and the log says its crate is in SECTOR LOOT. SCRAP +105
+# fits the rail and the map; a VERSION 36 save's found hull keeps LEAVE IT.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot derelicttest 240 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=DerelictTest; then
+	if grep -qE '^derelicttest: PASS' "$LOG_DIR/derelicttest.log"; then
+		ok "the claim names its frame, and a frame not flown pays the strip"
+	else
+		bad "the derelict hauler hides its frame, or declining it loses the strip"
+		grep -E 'FAIL|^derelicttest' "$LOG_DIR/derelicttest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "derelicttest did not finish"
+fi
+}
+
 unit_orbitworldtest() {
 step "LOCAL draws the world you orbit, close, from its first frame"
 # Jon, Oct 21: "I want the planet you are orbiting to be large in the

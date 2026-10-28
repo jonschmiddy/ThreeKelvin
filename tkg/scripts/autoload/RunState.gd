@@ -356,7 +356,18 @@ var standing: Dictionary = {}
 var found_hull: HullData = null:
 	set(v):
 		found_hull = v
+		# The pay belongs to the hull it came with, so any other hull (or none)
+		# clears it. `find_hull` and a backed-out move set it after. The doors
+		# that put another hull over a frame with pay (`find_hull`,
+		# `transfer_to_hull`) pay it out first; this setter never pays.
+		found_scrap = {}
 		Sig.ship_changed.emit()
+## WHAT CUTTING UP THE HULL ON OFFER PAYS, `{credits, material}`, or empty for a
+## hull that cannot be cut up for anything (a wreck's, which cost you nothing).
+## The derelict hauler's frame carries what its strip pays
+## (`OptionTable.strip_pay`), so claiming it and not flying it never costs you
+## the strip (Jeremy, friends' alpha). Spent by `scrap_found_hull`, once.
+var found_scrap: Dictionary = {}
 ## Hulls BOUGHT at a station's yard this run (`transfer_to_hull` with the
 ## station it came off). A.S.H.'s "New body" moment keys on this and not on
 ## `hull` changing: the chassis select swaps `hull` once per click before a run
@@ -2302,11 +2313,52 @@ func add_credits(n: int) -> void:
 ## Clears the dismissal outright rather than incrementing `hauls`: a hull is not
 ## a haul, and the honest statement is "there is something new here", which is
 ## what an undismissed rail means.
-func find_hull(h: HullData) -> void:
+##
+## `scrap` is what cutting it up pays instead (`found_scrap`): the derelict
+## hauler passes its strip's pay; a wreck's hull passes nothing.
+##
+## A FRAME STILL ON OFFER WITH ITS PAY IS CUT UP FIRST (`scrap_found_hull`).
+## Claiming a second derelict used to put the new frame over it, and the setter
+## wiped the old frame's pay with it: the strip you gave up, lost after all.
+func find_hull(h: HullData, scrap: Dictionary = {}) -> void:
+	if h != found_hull:
+		scrap_found_hull()
 	found_hull = h
+	found_scrap = scrap.duplicate() if h != null else {}
 	salvage_hushed_hauls = -1
 	salvage_hushed_bag = -1
 	Sig.ship_changed.emit()
+
+
+## What SCRAP on the hull on offer pays in credits, or 0 when it has no SCRAP.
+func found_scrap_credits() -> int:
+	if found_hull == null or found_scrap.is_empty():
+		return 0
+	return int(found_scrap.get("credits", 0))
+
+
+## Cut up the hull on offer for what it carries (`found_scrap`): the credits,
+## and its crate on this system's pile, under SECTOR LOOT. Once: the hull is
+## gone after. False, and nothing moves, for a hull with nothing to pay.
+##
+## THE LOG SAYS WHERE THE CRATE WENT, by name. It lands in SECTOR LOOT and not
+## in the hold, and with nothing on screen saying so Jon called it "super NOT
+## intuitive".
+func scrap_found_hull() -> bool:
+	if found_scrap_credits() <= 0:
+		return false
+	var pay := found_scrap.duplicate()
+	var what := found_hull.display_name()
+	found_hull = null
+	add_credits(int(pay.get("credits", 0)))
+	var said := "Scrapped the %s for %d credits." % [what, int(pay.get("credits", 0))]
+	var mat := StringName(pay.get("material", &""))
+	if mat != &"":
+		var made := add_material(mat, 1)
+		if not made.is_empty() and node_at() != null:
+			said += " A crate of %s is in SECTOR LOOT." % made[0].name
+	log_line(said, &"good")
+	return true
 
 
 ## Permanent coolant, bought at a station. Emits, and that is the point.
@@ -2638,6 +2690,13 @@ func transfer_to_hull(h: HullData, paid: int = 0,
 	# possible -- a gun remembers its hardpoint and a crate remembers its cell,
 	# so the left-hand side of that screen is the ship you have been flying and
 	# not an inventory of it.
+	#
+	# A FOUND FRAME YOU ARE NOT MOVING INTO is cut up for its pay first
+	# (`scrap_found_hull`): buying a yard hull threw it away below, pay and all.
+	# Before the way back is taken, so backing out of the purchase does not
+	# bring back a frame that has already paid.
+	if h != found_hull:
+		scrap_found_hull()
 	old_hull = hull
 	# THE WAY BACK, TAKEN BEFORE ANYTHING MOVES. Every part's hardpoint and every
 	# crate's cell, plus the frame and the hull points they belonged to -- which
@@ -2662,6 +2721,8 @@ func transfer_to_hull(h: HullData, paid: int = 0,
 		# taken off it below and never put back, so BACKING OUT of a derelict's
 		# frame threw the frame away.
 		found = found_hull,
+		# And with what it cuts up for, so backing out keeps its SCRAP.
+		scrap = found_scrap.duplicate(),
 	}
 
 	pad.clear()
@@ -2750,6 +2811,7 @@ func abandon_move() -> void:
 	var found: HullData = _undo_move.get("found", null)
 	if found != null:
 		found_hull = found
+		found_scrap = (_undo_move.get("scrap", {}) as Dictionary).duplicate()
 	# `display_name`, because this is the player's own ship being named back to
 	# them -- a named ship that backs out of a purchase should not be told it is
 	# still flying its chassis.

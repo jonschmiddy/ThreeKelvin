@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Fixed** — the derelict hauler says what you would be claiming. The choice reads "Claim the
+  light frame" (or medium, or heavy), and the frame you claim is that one. It is the same frame
+  on every visit and for everyone in a party. Jeremy claimed it blind on a heavy ship, got a
+  light frame, and had given up "Strip it for scrap" for it.
+- **Added** — SCRAP on a derelict hauler's frame you do not want, where LEAVE IT was, on LOCAL's
+  rail and on the system map. It pays what "Strip it for scrap" pays, the same credits and the
+  same crate, once. It is still there after you back out of TRANSFER, and after a save and load.
+  Claim another hull or buy one at a yard while it is still on offer, and it is scrapped for you.
+  The log names the crate and says it is in SECTOR LOOT. Saves from 0.4.2-alpha.1 load; a hull
+  already on offer in one keeps LEAVE IT.
+
 ### Roadmap
 
 The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
