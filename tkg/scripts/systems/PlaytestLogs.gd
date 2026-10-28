@@ -21,9 +21,9 @@ extends RefCounted
 ## the screen, and none of what decides how much the game draws there -- the
 ## LOOK (the tube is a pass over every window pixel), the window's mode and
 ## size and how many screen pixels each game pixel became, how far the screen
-## scales (a Retina Mac opens the game at 3x), the frame cap and vsync (a frame
-## a hair over 16.7 ms is SHOWN for 33.3 with vsync on), the renderer, and
-## whether the machine was on battery. Each is one line, asked of the engine
+## scales (a Retina Mac opened the game at 3x until the 2X cap of Oct 27), the
+## frame cap and vsync (a frame a hair over 16.7 ms is SHOWN for 33.3 with vsync
+## on), the renderer, and whether the machine was on battery. Each is one line, asked of the engine
 ## the moment the zip is written.
 ##
 ## IN THE LOG COPIES the home folder's path becomes `~` and the account name

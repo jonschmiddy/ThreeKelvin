@@ -54,14 +54,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   a cap: picking OFF with FRAME CAP at NONE sets the cap to 60, and setting the cap back to NONE
   turns VSYNC on again. Both are opt-in. The defaults are unchanged, and older settings files
   load with VSYNC ON and their own cap.
-
-### Roadmap
-
-The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
-[`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
-
-### Changed
-
 - **Changed** — the frame counter (Settings, DISPLAY, FRAME COUNTER) shows more. Beside the
   frames per second it gives the average frame time and the slowest frame of the last second,
   in milliseconds, so a short hitch shows even when the rate looks fine. It sits in the strip
@@ -94,8 +86,13 @@ The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
 - **Changed** — the window around the game draws less each frame. The black edges are drawn
   only where the picture does not reach, a hidden layer that covered the whole window is no
   longer drawn, and the screen filter writes its pixels without reading the window first.
-  Nothing looks different. It helps most on a Mac, where the window is 3X: there the window
-  alone went from about 7.8 ms a frame to 5.6 ms.
+  Nothing looks different. It helps most in a big window. On Jon's Mac the window alone went
+  from about 7.8 ms a frame to 5.6 ms at 3X, and from 3.5 ms to 2.6 ms at 2X.
+
+### Roadmap
+
+The next build follows the friends' playtest of 0.4.2-alpha.1 (Oct 23). See
+[`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the build order and the balance spine.
 
 ## 2026-10-23
 

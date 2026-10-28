@@ -20,8 +20,9 @@ extends Node
 ## any integrated GPU: every budget in the code was set on an RTX 3070. The
 ## headless profilers cannot see the GPU, the window, vsync or the shell's
 ## passes at the window's own size, which is where a Retina Mac differs: its
-## WINDOWED default is 3x, 2880x1620 window pixels for a 960x540 game. So this
-## measures exactly those, on the real screens, in one run:
+## WINDOWED default was 3x, 2880x1620 window pixels for a 960x540 game, until
+## the 2X cap of Oct 27 (`DisplaySettings.RETINA_MAX_SCALE`; there 3 is held to
+## 2 and skipped). So this measures exactly those, on the real screens, in one run:
 ##
 ##   * THE WINDOW AT 1X, 2X AND 3X, set through `DisplaySettings.set_scale` as
 ##     the WINDOW SIZE row sets it (a scale the screen cannot hold is clamped,
@@ -152,7 +153,7 @@ func _run() -> void:
 	for want in scales:
 		var k := await _set_scale(want)
 		if k in done_k:
-			print("  macbench: %dx asked, %dx is the largest this screen holds and is already measured" % [want, k])
+			print("  macbench: %dx asked, %dx is the largest this screen allows and is already measured" % [want, k])
 			continue
 		done_k.append(k)
 		for g in gfx:
