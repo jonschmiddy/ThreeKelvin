@@ -128,23 +128,37 @@ func _settle(n: int) -> float:
 
 ## The frame's cost at the camera as it is, over n frames (the real clock is held
 ## to the display's rate, so it is measured as work): the map's own place
-## picture on the GPU, the whole window on the GPU, and the CPU's process time.
+## picture on the GPU, the game's 960x540 frame on the GPU, the window's own
+## pass on the GPU, and `cpu`: the engine's `TIME_PROCESS` read every frame
+## and averaged. That is NOT a frame's process time: the engine sets it once a
+## second, to that second's worst process plus draw (`main.cpp`), so `cpu` is
+## a slow-moving worst that may still hold the last switch's stall, comparable
+## only with itself. (`MacBench` reads it once per sample and times each
+## frame's scripts on the engine's signals instead.)
+## (`game_gpu` was `window_gpu` until Oct 27, and was never the window: this
+## sheet runs inside the game's SubViewport, so `get_viewport()` is the game
+## view. The window is `get_tree().root`, read as `root_gpu`.)
 func _cost(scr: Control, n: int) -> Dictionary:
 	var rid: RID = scr.view._scene.get_viewport_rid()
-	var root := get_viewport().get_viewport_rid()
+	var game := get_viewport().get_viewport_rid()
+	var root := get_tree().root.get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(rid, true)
+	RenderingServer.viewport_set_measure_render_time(game, true)
 	RenderingServer.viewport_set_measure_render_time(root, true)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var g := 0.0
+	var gg := 0.0
 	var gr := 0.0
 	var cpu := 0.0
 	for _i in n:
 		await RenderingServer.frame_post_draw
 		g += RenderingServer.viewport_get_measured_render_time_gpu(rid)
+		gg += RenderingServer.viewport_get_measured_render_time_gpu(game)
 		gr += RenderingServer.viewport_get_measured_render_time_gpu(root)
 		cpu += Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
-	return {"scene_gpu": snappedf(g / n, 0.01), "window_gpu": snappedf(gr / n, 0.01), "cpu": snappedf(cpu / n, 0.01)}
+	return {"scene_gpu": snappedf(g / n, 0.01), "game_gpu": snappedf(gg / n, 0.01),
+		"root_gpu": snappedf(gr / n, 0.01), "cpu": snappedf(cpu / n, 0.01)}
 
 
 func _sweep(want: Dictionary, dir: String, t: float) -> void:

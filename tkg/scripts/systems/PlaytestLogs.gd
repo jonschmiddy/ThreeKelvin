@@ -16,6 +16,16 @@ extends RefCounted
 ## pictures stays out because nothing is gathered by listing a folder except
 ## the logs, and only `.log` files from there.
 ##
+## BUILD.TXT CARRIES WHAT A SLOW MACHINE'S REPORT NEEDS (Oct 27). "The game
+## chugs on my Mac" could not be read from it: it named the graphics card and
+## the screen, and none of what decides how much the game draws there -- the
+## LOOK (the tube is a pass over every window pixel), the window's mode and
+## size and how many screen pixels each game pixel became, how far the screen
+## scales (a Retina Mac opens the game at 3x), the frame cap and vsync (a frame
+## a hair over 16.7 ms is SHOWN for 33.3 with vsync on), the renderer, and
+## whether the machine was on battery. Each is one line, asked of the engine
+## the moment the zip is written.
+##
 ## IN THE LOG COPIES the home folder's path becomes `~` and the account name
 ## goes too: logs can carry absolute paths (an engine warning about a file names
 ## it), and a friend's user name is nobody else's business.
@@ -108,8 +118,60 @@ static func _build_txt() -> String:
 		"graphics: %s (%s)" % [RenderingServer.get_video_adapter_name(), RenderingServer.get_video_adapter_vendor()],
 		"screen: %s, window %s" % [DisplayServer.screen_get_size(), DisplayServer.window_get_size()],
 		"settings: style %s, graphics %s" % [DisplaySettings.render_style, "LOW" if DisplaySettings.graphics_low else "HIGH"],
+		"look: %s" % DisplaySettings.look_name(DisplaySettings.screen_look),
+		window_line(),
+		"frames: cap %s, max_fps %d, vsync %s" % [
+			"NONE" if DisplaySettings.frame_cap <= 0 else str(DisplaySettings.frame_cap),
+			Engine.max_fps, vsync_name(DisplayServer.window_get_vsync_mode())],
+		"driver: %s, %s, API %s" % [RenderingServer.get_current_rendering_driver_name(),
+			RenderingServer.get_current_rendering_method(), RenderingServer.get_video_adapter_api_version()],
+		"battery: %s" % power_state(),
 	])
 	return "\n".join(lines) + "\n"
+
+
+## The window as the game is drawn into it: the mode and WINDOW SIZE the
+## settings ask for, the window's real size, how many screen pixels each game
+## pixel became (the shell's whole-number fit, `GameShell._fit`: BORDERLESS and
+## FULLSCREEN choose it too), and the screen's own scale (2 on a Retina Mac,
+## where the window's pixels are the backing store's, not the points a player
+## sees) beside the largest of any screen.
+static func window_line() -> String:
+	var win := DisplayServer.window_get_size()
+	var k := maxi(1, mini(win.x / DisplaySettings.BASE.x, win.y / DisplaySettings.BASE.y))
+	var on := DisplayServer.window_get_current_screen()
+	return "window: %s, WINDOW SIZE %dx, %s px, picture %dx; screen %d scale %.2f, largest scale %.2f" % [
+		DisplaySettings.mode_name(DisplaySettings.mode), DisplaySettings.window_scale,
+		win, k, on + 1, DisplayServer.screen_get_scale(on), DisplayServer.screen_get_max_scale()]
+
+
+static func vsync_name(m: int) -> String:
+	match m:
+		DisplayServer.VSYNC_DISABLED: return "off"
+		DisplayServer.VSYNC_ENABLED: return "on"
+		DisplayServer.VSYNC_ADAPTIVE: return "adaptive"
+		DisplayServer.VSYNC_MAILBOX: return "mailbox"
+	return str(m)
+
+
+## ON BATTERY OR NOT, and how full, where it can be asked. Godot 4 has no power
+## API (3.x's `OS.get_power_state` is gone), so a Mac is asked through
+## `pmset -g batt`, which only reads and answers at once; anywhere else the line
+## says it was not read. A worn battery throttles a laptop near empty, and a
+## report taken then is a report about the battery.
+static func power_state() -> String:
+	if OS.get_name() == "macOS":
+		var out: Array = []
+		if OS.execute("/usr/bin/pmset", ["-g", "batt"], out) == 0 and not out.is_empty():
+			# (less the battery's IOKit id: "-InternalBattery-0 (id=6815843)")
+			var said := RegEx.create_from_string(" ?\\(id=\\d+\\)").sub(String(out[0]), "", true)
+			said = said.replace("\t", " ").strip_edges()
+			var parts := PackedStringArray()
+			for line in said.split("\n", false):
+				parts.append(line.strip_edges())
+			if not parts.is_empty():
+				return " | ".join(parts)
+	return "not read on %s" % OS.get_name()
 
 
 ## A user:// path, or nothing: the bundle never reads outside the game's folder.

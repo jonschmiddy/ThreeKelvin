@@ -25,6 +25,10 @@ extends RefCounted
 const FRAMES := 240
 
 var _gpu_rid := RID()
+## THE WINDOW'S OWN PASS (`tree.root`: the shell's glass, at the window's size),
+## read beside the game's frame since Oct 27: `_gpu_rid` is the game view only,
+## and on a Retina Mac the window is 3x the game's pixels.
+var _root_rid := RID()
 var _measuring := false
 
 
@@ -50,6 +54,8 @@ func run(tree: SceneTree) -> void:
 	if GameShell.instance != null:
 		_gpu_rid = GameShell.instance.view.get_viewport_rid()
 		RenderingServer.viewport_set_measure_render_time(_gpu_rid, true)
+	_root_rid = tree.root.get_viewport_rid()
+	RenderingServer.viewport_set_measure_render_time(_root_rid, true)
 	# Rng.forced, NOT Rng.reseed -- see ChartFilter, which already learned this.
 	# start_new_run rolls its own master seed, so a reseed before it changes
 	# nothing and every run of this bench drew a DIFFERENT galaxy: 157, 244, 332
@@ -217,6 +223,7 @@ func _sample(tree: SceneTree, chart: Node, move: String, label := "", sky_rid: A
 			return -1.0
 	StarchartScreen.MapChart.prof_us.clear()
 	var gpu := 0.0
+	var gpu_root := 0.0
 	var gpu_sky := 0.0
 	var t0 := Time.get_ticks_usec()
 	for i in FRAMES:
@@ -224,6 +231,7 @@ func _sample(tree: SceneTree, chart: Node, move: String, label := "", sky_rid: A
 			return -1.0
 		if _gpu_rid.is_valid():
 			gpu += RenderingServer.viewport_get_measured_render_time_gpu(_gpu_rid)
+		gpu_root += RenderingServer.viewport_get_measured_render_time_gpu(_root_rid)
 		for r in sky_rid:
 			gpu_sky += RenderingServer.viewport_get_measured_render_time_gpu(r)
 	var t1 := Time.get_ticks_usec()
@@ -232,11 +240,11 @@ func _sample(tree: SceneTree, chart: Node, move: String, label := "", sky_rid: A
 	# re-submitted EVERY frame whether or not `_draw` rebuilt it -- so skipping
 	# the repaint removes the GDScript loop and leaves the submission. Drawing
 	# the field as one mesh is what took that away.
-	print("      [%s] %d draw calls, %.0fk primitives a frame, GPU %.2f ms (the sky's own viewport %.2f ms)" % [
+	print("      [%s] %d draw calls, %.0fk primitives a frame, GPU game view %.2f ms (the sky's own viewport %.2f ms, the window's %.2f ms)" % [
 		label,
 		int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
 		Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME) / 1000.0,
-		gpu / float(FRAMES), gpu_sky / float(FRAMES)])
+		gpu / float(FRAMES), gpu_sky / float(FRAMES), gpu_root / float(FRAMES)])
 	var parts := []
 	for k in ["sky", "chart", "push"]:
 		var us := int(StarchartScreen.MapChart.prof_us.get(k, 0))

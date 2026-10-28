@@ -30,6 +30,27 @@ extends Label
 ##
 ## BUILT ALWAYS, SHOWN CONDITIONALLY, so the toggle takes effect immediately
 ## rather than at the next launch.
+##
+## THREE READINGS, AND THE LAST IS THE ONE THAT FINDS A HITCH: the rate, what
+## an average frame took, and the slowest single frame of the last second
+## (`60 FPS  16.7 MS  WORST 41.2 MS`). A rate is an average, and an average
+## hides the one long frame a player feels as a jolt: a second of fifty-eight
+## 16 ms frames and one of 70 ms reads 59 FPS. The Mac investigation (Oct 27)
+## asked a tester to read this meter and found it could not show a spike at
+## all, so it does now. Both are in milliseconds because the thing a player is
+## reporting is a cost: 60 to 40 FPS sounds like a third gone and is 8 ms added
+## to a 16 ms frame.
+##
+## ONE LINE, IN THE WINDOW'S BOTTOM MARGIN. Every screen sits inside Main's
+## margin, which stops 7 px short of the window's bottom edge, so the frames
+## end there: the bottom bar's line is row 532 of 540 on LOCAL and in a fight,
+## the yard's panel line row 528. The figures go under all of it, on rows 534
+## to 538, a row clear of the frames and a row clear of the window's edge.
+## Twice it sat inside the frame: a second line rose onto SCAN SECTOR and
+## DISCARD, and the first one-line reading (Oct 27, figures on rows 529-533)
+## ran through the bar's 1 px line for all 158 px of it, past a box test that
+## only looked at text. `-- sheet=MeterFitTest` checks the ink against every
+## text, frame and edge on each screen.
 
 ## How often the reading refreshes. Frames per second read every frame is a
 ## number that never settles long enough to be read; a quarter second was the
@@ -40,10 +61,27 @@ const TICK := 0.25
 const WARN := 50
 const BAD := 30
 
-## Clearance from the corner, in viewport pixels.
-const INSET := Vector2(6.0, 4.0)
+## Clearance from the corner, in viewport pixels: 6 from the right edge, and
+## -1 at the bottom because the box is taller than the ink. Silkscreen at
+## FS_SMALL draws its capitals and figures on 5 of the box's 11 rows, 4 empty
+## above them and 2 below, so the box hangs a pixel past the window's bottom
+## and the ink stops a row above it (rows 534-538 of 540; see ONE LINE).
+const INSET := Vector2(6.0, -1.0)
 
-var _t: float = 0.0
+## THE LAST SECOND, IN FOUR QUARTERS: each slot holds one tick's frames (their
+## slowest, their total and how many), so the worst and the mean of the last
+## second are four numbers away rather than a list of every frame.
+const SLOTS := 4
+var _worst := PackedFloat64Array([0.0, 0.0, 0.0, 0.0])
+var _sum := PackedFloat64Array([0.0, 0.0, 0.0, 0.0])
+var _count := PackedInt32Array([0, 0, 0, 0])
+var _slot := 0
+## When the last frame and the last tick ended, on the real clock (usec). A
+## frame is measured end to end on the wall clock rather than from `delta`,
+## which `Engine.time_scale` shrinks during a hit's slow motion. 0 is "not
+## counting": the meter was hidden, and a gap while it was is not a frame.
+var _last_us := 0
+var _tick_us := 0
 
 
 func _ready() -> void:
@@ -61,30 +99,63 @@ func _ready() -> void:
 	Sig.fps_meter_changed.connect(func(on: bool) -> void: visible = on)
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if not visible:
+		if _last_us != 0:
+			_reset()
 		return
-	_t += delta
-	if _t < TICK:
+	var now := Time.get_ticks_usec()
+	if _last_us == 0:
+		_last_us = now
+		_tick_us = now
 		return
-	_t = 0.0
+	var ms := float(now - _last_us) / 1000.0
+	_last_us = now
+	_worst[_slot] = maxf(_worst[_slot], ms)
+	_sum[_slot] += ms
+	_count[_slot] += 1
+	if now - _tick_us < int(TICK * 1000000.0):
+		return
+	_tick_us = now
+	var worst := 0.0
+	var total := 0.0
+	var frames := 0
+	for i in SLOTS:
+		worst = maxf(worst, _worst[i])
+		total += _sum[i]
+		frames += _count[i]
+	_slot = (_slot + 1) % SLOTS
+	_worst[_slot] = 0.0
+	_sum[_slot] = 0.0
+	_count[_slot] = 0
 	var f := Engine.get_frames_per_second()
 	var col := UITheme.COLD
 	if f < BAD:
 		col = UITheme.BAD
 	elif f < WARN:
 		col = UITheme.WARN
-	text = "%d FPS" % f
+	text = "%d FPS  %.1f MS  WORST %.1f MS" % [f, total / float(maxi(frames, 1)), worst]
 	add_theme_color_override("font_color", col)
 	# PLACED EVERY TICK RATHER THAN ANCHORED. A top-level Control is excluded
 	# from its parent's layout, and that also means no anchor preset is applied
 	# to it — so the corner is arithmetic. It has to be redone each tick because
 	# the width changes when the reading goes from two digits to three.
 	#
-	# BOTTOM RIGHT, the one corner with nothing in it. The top right is the HUD
-	# row: CARDS, MODULES and HISTORY run to within a few pixels of the
-	# edge, and that crowding is precisely what got the last frame counter
-	# deleted. Down here it overlaps nothing on any screen.
+	# BOTTOM RIGHT, under every screen's frame. The top right is the HUD row:
+	# CARDS, MODULES and HISTORY run to within a few pixels of the edge, and
+	# that crowding is precisely what got the last frame counter deleted. The
+	# margin under the frames holds nothing else (`-- sheet=MeterFitTest`).
 	var vp := get_viewport_rect().size
 	size = get_combined_minimum_size()
 	position = vp - size - INSET
+
+
+## Hidden: the next reading starts from nothing, so a second spent hidden (or
+## the frames before it) never shows as the worst frame when it comes back.
+func _reset() -> void:
+	_last_us = 0
+	_tick_us = 0
+	for i in SLOTS:
+		_worst[i] = 0.0
+		_sum[i] = 0.0
+		_count[i] = 0

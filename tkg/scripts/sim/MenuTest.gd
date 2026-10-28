@@ -68,6 +68,8 @@ func run(tree: SceneTree) -> void:
 			await _tutorial_case()
 			print("SAVE MY LOGS")
 			await _logs_case()
+			print("the frame counter")
+			await _meter_case()
 			print("the first launch's window")
 			await _first_window_case()
 			print("a Retina Mac's window stops at 2X")
@@ -592,13 +594,61 @@ func _logs_case() -> void:
 		if home == "":
 			home = OS.get_environment("HOME")
 		_ok("  with the home folder taken out of the log", home == "" or not log.contains(home.replace("\\", "/")))
-		_ok("  and the build named", zr.read_file("build.txt").get_string_from_utf8().begins_with("Three Kelvin"))
+		var build := zr.read_file("build.txt").get_string_from_utf8()
+		_ok("  and the build named", build.begins_with("Three Kelvin"))
+		# WHAT A SLOW MACHINE'S REPORT NEEDS (Oct 27): which look and window the
+		# game was drawn at, how the screen scales it, what paces the frames, the
+		# renderer and whether it ran on battery -- so "it chugs" comes with them
+		for line: String in ["look: ", "window: ", "frames: ", "driver: ", "battery: "]:
+			_ok("  build.txt says the %s" % line.trim_suffix(": "), build.contains("\n" + line))
 		zr.close()
 		DirAccess.remove_absolute(String(r.path))
 	DirAccess.remove_absolute(dest)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
 	DisplaySettings.path = was_path
 	await _tree.process_frame
+
+
+## THE FRAME COUNTER (`FpsMeter`, Settings' FRAME COUNTER): the rate and the
+## mean frame, and the WORST frame of the last second -- the one a rate hides
+## and a player feels. A frame held for 90 ms has to read as the worst, and be
+## gone from it a second and a half later; and the meter stays top-level, in
+## no layout (`872f546` removed one that was a child of the HUD row).
+## GONE MEANS THAT FRAME IS GONE, not that every frame since was under 85 ms:
+## the gate runs three at once on an 8 GB Mac, and a stall of the machine's
+## own in that second is not the meter's fault (Oct 27 review).
+func _meter_case() -> void:
+	var m := FpsMeter.new()
+	_tree.root.add_child(m)
+	m.visible = true
+	await _secs(0.4)
+	OS.delay_msec(90)
+	await _secs(0.4)
+	var worst := _meter_worst(m)
+	# (the slowest frame the meter holds, to the microsecond: the held one)
+	var held := 0.0
+	for v in m._worst:
+		held = maxf(held, v)
+	_ok("  it reads FPS, MS and WORST (%s)" % m.text.replace("\n", " / "),
+		m.text.contains(" FPS ") and m.text.contains(" MS") and m.text.contains("WORST "))
+	# (a second line rose into the bottom bar's buttons: SCAN SECTOR, DISCARD)
+	_ok("  on one line, the bottom row's", not m.text.contains("\n"))
+	_ok("  a 90 ms frame is the worst of its second (%.1f ms)" % worst, worst >= 85.0)
+	await _secs(1.6)
+	var later := _meter_worst(m)
+	_ok("  and has left it a second later (%.1f ms now)" % later,
+		later >= 0.0 and not m._worst.has(held) and absf(later - held) > 0.05)
+	_ok("  top-level, in no layout", m.is_set_as_top_level())
+	m.queue_free()
+	await _tree.process_frame
+
+
+## The meter's WORST reading in ms, or -1 when it has none.
+func _meter_worst(m: FpsMeter) -> float:
+	var parts := m.text.split("WORST ")
+	if parts.size() < 2:
+		return -1.0
+	return parts[1].split(" ")[0].to_float()
 
 
 ## THE FIRST LAUNCH'S WINDOW (`DisplaySettings.first_launch_window`; Jon's
