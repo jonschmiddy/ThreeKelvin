@@ -118,9 +118,9 @@ func _check(cs: ChassisSelect, manufacturer: StringName, w: HullData.Weight, scr
 		amt.text if amt != null else "none"])
 	if not _ok("%s: HULL's row shows a hull number" % tag, amt != null and amt.is_visible_in_tree()):
 		return
-	_ok("%s: it is the real max hull, \"%d hull\" (frame %d, full: %d/%d)" % [
-		tag, Run.max_hp(), frame.max_hull, Run.hp, Run.max_hp()],
-		amt.text == "%d hull" % Run.max_hp() and Run.hp == Run.max_hp())
+	_ok("%s: it is the real max hull, \"%s%d hull\" (frame %d, full: %d/%d)" % [
+		tag, AttrBlock.AMOUNT_SEP, Run.max_hp(), frame.max_hull, Run.hp, Run.max_hp()],
+		amt.text == AttrBlock.AMOUNT_SEP + "%d hull" % Run.max_hp() and Run.hp == Run.max_hp())
 	_ok("%s: HULL is the only row with one" % tag,
 		amounts.size() == 1 and amounts.has(0))
 	# after the pips and HULL's number, in the same row

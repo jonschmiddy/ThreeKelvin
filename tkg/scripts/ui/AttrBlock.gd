@@ -43,6 +43,11 @@ const GAIN := Color("#ffffff")
 const LOSS := Color("#d4614f")
 
 
+## WHAT STANDS BETWEEN A ROW'S NUMBER AND ITS AMOUNT: "6 · 40 HULL". Jon, Oct 29
+## ("hull:B"): with nothing between them the pip count and the hull ran together
+## as one number, told apart by colour alone. `-- sheet=HullNumberTest` reads it.
+const AMOUNT_SEP := "· "
+
 var _rows: Array[Cells] = []
 var _values: Array[Label] = []
 ## The readout after a row's number, by row index: only rows that carry an
@@ -140,7 +145,7 @@ func _build_row(a: Dictionary) -> Control:
 	# so the bright number stays the one a check reads and this one reads as
 	# what it is made of.
 	if _show_amounts and a.has("amount"):
-		var amt := UITheme.body(String(a.amount), UITheme.CHILL, UITheme.FS_SMALL)
+		var amt := UITheme.body(AMOUNT_SEP + String(a.amount), UITheme.CHILL, UITheme.FS_SMALL)
 		row.add_child(amt)
 		_amounts[_values.size() - 1] = amt
 
@@ -210,7 +215,7 @@ func set_values(rows: Array[Dictionary]) -> void:
 		_rows[i].queue_redraw()
 		_values[i].text = str(v)
 		if _amounts.has(i):
-			(_amounts[i] as Label).text = String(rows[i].get("amount", ""))
+			(_amounts[i] as Label).text = AMOUNT_SEP + String(rows[i].get("amount", ""))
 
 
 class Cells extends Control:
