@@ -538,8 +538,10 @@ seen on a page before it touches the game.*
    **Ruled Oct 29** from version 2 of the page: the new solved flight, on map
    time, and the giant only when it pays ("flight:N clock:map assist:pays").
    On map time a ship flies about 100 times faster than the giant moves, so the
-   giant has no speed to give: the cheapest flight past it costs 52% more fuel,
-   and its pull adds -0.003 px/s. With these picks the autopilot never plans an
+   giant has no speed to give: the flight past it needing the least engine work
+   (delta-v, the push summed) needs 52% more than the direct one, and its pull
+   adds -0.003 px/s. Engine work only chooses the path: flying inside a system
+   costs no fuel (fuel goes on jumps, some events and a flee). With these picks the autopilot never plans an
    assist. What step 3 becomes is asked on the Giant Assist On Map Time page.
 2. **Transfer arcs and arrival side** (days). The autopilot flies a real arc.
    The ship can capture on the front, back, lit or dark side of a world, and
@@ -562,8 +564,9 @@ Constraints: `ShipFlight` owns the flight; co-op partner positions
 the path must stay smooth at the game's pixel scale.
 
 **Gate:** Jon picks each step from its page; partners still fly where they are
-on a co-op map; fuel per route is measured before and after, so assists do not
-quietly break the fuel economy.
+on a co-op map; flying inside a system stays free of fuel (Jon, Oct 29: "I
+thought traversing the sector map costs 0 fuel"), so no step quietly moves the
+fuel economy.
 
 ### Phase 14 — Words that don't read as AI
 *Cody: "feels very AI", for example "We can't jump there yet. The button says
