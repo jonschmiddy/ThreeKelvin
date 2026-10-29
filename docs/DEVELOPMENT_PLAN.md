@@ -488,7 +488,10 @@ infrequent they are", "combats need to feel epic". Cody dove star to star.*
    Recommended for ruling 14: non-boss hull ×1.5, damage unchanged, the
    Hellbender kept at 90; ×2 only together with step 5's re-tune.
 2. **Pick and apply the health and damage change** (open ruling 14). Hours.
-   Depends on step 1.
+   Depends on step 1. **Ruled Oct 29: hull ×2** for every ordinary enemy,
+   damage unchanged, the Hellbender at 90, landing only with the Custodian
+   re-tuned against it (step 5 pulled forward, ruling 17). Built on
+   feat/enemy-hull-x2.
 3. **A second combat resource** (Jeremy). A design project: a page of options
    first, then a build of days to a week. Depends on step 2, since both change
    how long a fight lasts.
@@ -532,6 +535,12 @@ seen on a page before it touches the game.*
    - the same arc arriving on a chosen side of the planet.
 
    Plus one gravity assist past a big planet. Jon picks what reads best in 2D.
+   **Ruled Oct 29** from version 2 of the page: the new solved flight, on map
+   time, and the giant only when it pays ("flight:N clock:map assist:pays").
+   On map time a ship flies about 100 times faster than the giant moves, so the
+   giant has no speed to give: the cheapest flight past it costs 52% more fuel,
+   and its pull adds -0.003 px/s. With these picks the autopilot never plans an
+   assist. What step 3 becomes is asked on the Giant Assist On Map Time page.
 2. **Transfer arcs and arrival side** (days). The autopilot flies a real arc.
    The ship can capture on the front, back, lit or dark side of a world, and
    orbit with or against its spin, at about the same cost (Jeremy: "since
@@ -613,12 +622,15 @@ print the distributions.
 ## 4. Open rulings
 
 Each needs a human decision. Rows 1, 1b, 3, 7 and 8 are settled and were
-removed; see the footnote. Rows 5, 9, 10, 12, 13, 15 and 16 were ruled on Oct 27 and moved to the table below.
+removed; see the footnote. Rows 5, 9, 10, 12, 13, 15 and 16 were ruled on Oct 27, and row 14
+on Oct 29; they moved to the table below.
 
 | # | Ruling | From | Blocks |
 |---|---|---|---|
 | 4 | Three reds. `UITheme` now names `LEAVE` for exits and `WARN`/`BAD` for warnings; the older literal sites were left alone on purpose | B3 | Nothing now; a sweep of the literals |
-| 14 | Which health and damage change. The study is done (Phase 11 step 1); recommended: non-boss hull ×1.5, the Hellbender kept at 90 | Phase 11 step 1 | Phase 11 steps 2 to 5, Phase 12 |
+| 17 | The Custodian's numbers against enemy hull ×2 (ruling 14 B). Sims first, then a page | Ruling 14 | Landing ×2 (feat/enemy-hull-x2) |
+| 18 | What Phase 13 step 3 (gravity assists) becomes, since on map time the giant never pays. Recommended: drop it, and test heavy giants in step 5's prototype | Orbits v2, Oct 29 | Phase 13 step 3 |
+| 19 | SCRAP alone or SCRAP and LEAVE IT on a claimed frame you do not want (the Derelict Scrap page). Recommended: SCRAP alone, as built | Phase 10 picks | Nothing; A stands until picked |
 
 ### Ruled since Oct 20
 
@@ -635,6 +647,9 @@ changing how anything they touch plays.
 | Jump rule (ruling 15) | Two rings deeper per jump, now (was one). Re-tune after | Oct 27; Phase 10 |
 | Riding the galaxy (ruling 16) | A design page later, after the alpha data and the combat study | Oct 27; Phase 15 |
 | LOCAL while docked | Greyed out with "Docked. Press UNDOCK to leave."; UNDOCK is the only way out | Oct 27; Phase 10 |
+| Enemy toughness (ruling 14) | "combat:B": hull ×2 for every ordinary enemy, ships and creatures, only together with the Custodian re-tuned against it ("the harder game"). The Hellbender keeps 90: the study found it never killed at any scale | Oct 29; feat/enemy-hull-x2, waiting on ruling 17 |
+| Phase 10 looks | "lift:A west:A burn:B hull:B gray:B fuel:B": the map ship brightened and rolled heading west, as built; the planned burns, burn marker and brake puffs blue; "6 · 40 HULL"; a darker too-deep gray, shown first; the fuel row TWO RINGS IN AT MOST | Oct 29; feat/phase10-picks |
+| Orbits | "flight:N clock:map assist:pays" | Oct 29; Phase 13 step 1 |
 | The first LAUNCH's freeze stays | "C, leave it as it is. If it becomes a huge deal, we can address it then." On his Mac the planet's shader compiles in about 16 s the first time a session draws it, and the sun's and the nebula sky's in about 2 s each, so the first LAUNCH of a session stands still for 16 to 23 s. Compiling them behind the title froze the title for 13 s instead | Oct 28; `ShaderWarm` warms the four cheap shaders only |
 | A jump goes one ring deeper at most (replaced by ruling 15, Oct 27) | "A1D ... I want this to be a hard game" (Oct 22) | b28fdad6, 0.4.0 |
 | The Custodian has 200 hull | "custodian health at 200" (Oct 22) | b28fdad6, 0.4.0 |
