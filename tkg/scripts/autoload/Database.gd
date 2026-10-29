@@ -2546,40 +2546,48 @@ func _enemy(id: StringName, name: String, tag: String, hp: int, brace: int,
 	enemies[id] = e
 
 func _seed_enemies() -> void:
+	# HULL x2 FOR EVERY ORDINARY ENEMY, ships and creatures alike (Jon, Oct 29,
+	# ruling 14 "combat:B": "hull x2, only with the Custodian re-tune; the harder
+	# game"). Jeremy, friends' alpha: "combat doesn't feel important", fights
+	# "way too fast". The combat study (Phase 11 step 1, Oct 27, `-- sim enemyhp=2`)
+	# had x2 cut the human pilot's wins from 15 to 5 of 200, so it lands only with
+	# the Custodian re-tuned against it. Each number below is twice the one before
+	# it; danger scaling still applies on top (`Combat._spawn`). The Hellbender and
+	# the Custodian are tuned by hand and keep their own.
 	# Ships run fixed loops — machines are predictable.
-	_enemy(&"cutter", "Rustjaw Cutter", "pirate skirmisher", 26, 0, 15, &"cutter", [
+	_enemy(&"cutter", "Rustjaw Cutter", "pirate skirmisher", 52, 0, 15, &"cutter", [
 		{name = "Strafe", text = "Deal 5", damage = 5},
 		{name = "Twin Guns", text = "Deal 3 × 2", damage = 3, hits = 2},
 		{name = "Juke", text = "Gain 4 block", block = 4},
 	], [])
-	_enemy(&"lancer", "Corsair Lancer", "raider · fast", 34, 2, 22, &"cutter", [
+	_enemy(&"lancer", "Corsair Lancer", "raider · fast", 68, 2, 22, &"cutter", [
 		{name = "Lance", text = "Deal 9", damage = 9},
 		{name = "Sear", text = "Deal 4 × 2", damage = 4, hits = 2},
 		{name = "Vent Bloom", text = "Gain 3 block", block = 3},
 	], [])
-	_enemy(&"hulk", "Dreg Hulk", "salvage barge", 52, 6, 30, &"hulk", [
+	_enemy(&"hulk", "Dreg Hulk", "salvage barge", 104, 6, 30, &"hulk", [
 		{name = "Reinforce", text = "Gain 4 block", block = 4},
 		{name = "Winding up…", text = "Charging a ram", telegraph = true},
 		{name = "RAM", text = "Deal 14", damage = 14},
 	], [])
-	_enemy(&"marauder", "Vex Marauder", "raider · heavy weapons", 46, 4, 34, &"cutter", [
+	_enemy(&"marauder", "Vex Marauder", "raider · heavy weapons", 92, 4, 34, &"cutter", [
 		{name = "Rake", text = "Deal 8", damage = 8},
 		{name = "Barrage", text = "Deal 5 × 3", damage = 5, hits = 3},
 		{name = "Harden", text = "Gain 4 block", block = 4},
 	], [])
-	_enemy(&"sentinel", "Combine Sentinel", "corporate security", 58, 8, 42, &"hulk", [
+	_enemy(&"sentinel", "Combine Sentinel", "corporate security", 116, 8, 42, &"hulk", [
 		{name = "Lock Plates", text = "Gain 5 block", block = 5},
 		{name = "Pulse", text = "Deal 11", damage = 11},
 		{name = "Sweep", text = "Deal 4 × 3", damage = 4, hits = 3},
 	], [])
 	# Fauna use weighted random pools — animals are not predictable.
-	_enemy(&"whale", "Voidwhale Calf", "megafauna · pacifiable", 40, 0, 0, &"whale", [], [
+	_enemy(&"whale", "Voidwhale Calf", "megafauna · pacifiable", 80, 0, 0, &"whale", [], [
 		{name = "Drift Song", text = "Heals 4", heal = 4, weight = 30},
 		{name = "Tail Sweep", text = "Deal 7", damage = 7, weight = 40},
 		{name = "Spore Breath", text = "Deal 3, +1 Dross", damage = 3, dross = 1,
 			dross_id = &"slowburn", weight = 30},
 	], true)
-	_enemy(&"leviathan", "Void Leviathan", "megafauna · adult", 88, 4, 0, &"whale", [], [
+	_enemy(&"leviathan", "Void Leviathan", "megafauna · adult", 176, 4, 0, &"whale", [], [
 		{name = "Sounding", text = "Heals 8", heal = 8, weight = 20},
 		{name = "Breach", text = "Deal 15", damage = 15, weight = 45},
 		{name = "Spore Storm", text = "Deal 5, +2 Dross", damage = 5, dross = 2,

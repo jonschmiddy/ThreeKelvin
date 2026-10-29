@@ -102,8 +102,11 @@ func _scaling() -> void:
 	cb.plan(DB.enemies[&"lancer"], 1)
 	var e: Combat.EnemyState = cb.enemies[0]
 	var lance := (e.template.loop[0] as IntentData).damage
-	h._ok("a danger-1 Corsair Lancer fields hull 68 and a Lance of 12 (%d, %d)"
-		% [e.max_hp, lance], e.max_hp == 68 and lance == 12)
+	# (from the template's own hull, which ruling 14 B doubled to 68 on Oct 29:
+	# a typed 68 was 34 x2 and went stale with it)
+	var want_hull := maxi(1, int(round(int(before[&"lancer"].hull) * HP)))
+	h._ok("a danger-1 Corsair Lancer fields hull %d and a Lance of 12 (%d, %d)"
+		% [want_hull, e.max_hp, lance], e.max_hp == want_hull and lance == 12)
 	var hb: EnemyTemplate = DB.enemies[&"hellbender"]
 	h._ok("the Hellbender's template is hull 180 (%d), and a run's Hellbender opens at it (%d of %d)"
 		% [hb.max_hull, Run.hellbender_hp, Run.hellbender_max],
