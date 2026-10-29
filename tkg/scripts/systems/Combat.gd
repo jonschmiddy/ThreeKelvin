@@ -560,7 +560,12 @@ func _act_one(e: EnemyState) -> void:
 				_log("  %d hull damage." % total, &"them")
 				Sig.damage_dealt.emit(total, true, enemies.find(e))
 				Run.take_hull_damage(total, "Enemy fire broke the hull open.")
-			if feedback > 0:
+			# A SHIP THAT IS GONE RETURNS NO FIRE. Feedback ran before the death
+			# check, so a hit that killed you could still kill the Custodian on
+			# the way back: `Run.win()` on a dead ship, the run ended as a death
+			# and a win at once (5 runs in about 5,000 of the Oct 29 sims).
+			# `-- sheet=PlayerDeathTest` holds it.
+			if feedback > 0 and not Run.dead:
 				damage_enemy(feedback, 1, "Feedback")
 			if Run.dead:
 				_finish(&"dead", Run.death_reason)
