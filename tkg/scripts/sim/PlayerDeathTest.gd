@@ -88,7 +88,42 @@ func _run() -> void:
 			print("    %s: %s vs %s" % [k, str(a.state[k]), str(b.state[k])])
 	_ok("the run each leaves is identical (%s)" % ", ".join(PackedStringArray(a.state.keys())), same)
 	_ok("dead, and recorded once as a loss each time", a.state.dead and a.records == 1 and b.records == 1)
+	_feedback_after_death()
 	_finish()
+
+
+## A SHIP KILLED BY A HIT RETURNS NO FEEDBACK (Oct 29). The Custodian at 1 hull
+## lands Annihilate on a ship at 5 hull carrying feedback: the ship dies, the
+## Custodian lives, and the run is not won. Feedback ran before the death check
+## and killed it on the way back, so the run ended as a death and a win at once.
+## Then the same hit on a ship that lives: the feedback still kills it, and wins.
+func _feedback_after_death() -> void:
+	for survive in [false, true]:
+		Rng.forced = SEED
+		Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
+		Run.hull.dodge = 0.0
+		Run.installed.clear()
+		var cb := Combat.new()
+		cb.plan(DB.enemies[&"custodian"], 1)
+		var e: Combat.EnemyState = cb.enemies[0]
+		var hit: IntentData = null
+		for raw in e.template.loop:
+			if (raw as IntentData).damage >= 40:
+				hit = raw as IntentData
+		e.intent = hit
+		e.hp = 1
+		e.block = 0
+		cb.block = 0
+		cb.brace = 0
+		cb.feedback = 10
+		Run.hp = Run.max_hp() if survive else 5
+		cb._enemy_act()
+		if survive:
+			_ok("feedback from a ship that lives still kills the Custodian (hull %d, won %s)"
+				% [e.hp, Run.won], hit != null and e.hp <= 0 and Run.won and not Run.dead)
+		else:
+			_ok("a ship killed by the hit returns no feedback: dead %s, won %s, Custodian at %d"
+				% [Run.dead, Run.won, e.hp], hit != null and Run.dead and not Run.won and e.hp == 1)
 
 
 ## One fight to the death. Returns what was seen.

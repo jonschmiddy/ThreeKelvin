@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Fixed** — a hit that destroys your ship no longer lets your feedback destroy the enemy on the
+  way back. Against the Custodian this could end a run as a death and a win at once.
 - **Added** — GRAPHICS can pick LOW by itself on a slow graphics chip. The first time the title
   screen is up, the game times how long its galaxy takes to draw. If this computer can't keep
   up, GRAPHICS goes to LOW from the next screen on. Settings then says PICKED FOR THIS COMPUTER
