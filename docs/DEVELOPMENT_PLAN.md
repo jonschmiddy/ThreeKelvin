@@ -491,7 +491,8 @@ infrequent they are", "combats need to feel epic". Cody dove star to star.*
    Depends on step 1. **Ruled Oct 29: hull ×2** for every ordinary enemy,
    damage unchanged, the Hellbender at 90, landing only with the Custodian
    re-tuned against it (step 5 pulled forward, ruling 17). Built on
-   feat/enemy-hull-x2.
+   feat/enemy-hull-x2. **Ruled Oct 30 (ruling 17): the Custodian keeps 200**
+   ("Custodian: A"). See step 5 for the numbers.
 3. **A second combat resource** (Jeremy). A design project: a page of options
    first, then a build of days to a week. Depends on step 2, since both change
    how long a fight lasts.
@@ -500,6 +501,14 @@ infrequent they are", "combats need to feel epic". Cody dove star to star.*
    credits, which need Jon's OK.
 5. **Re-run the Custodian balance** after steps 2 and 3. It was tuned on Oct 22
    to a 56% win rate for a built ship.
+   **Done for step 2, Oct 29.** Korvan only (`manufacturer=korvan
+   unlocked=korvan`, as the Oct 22 runs were), seeds 777 and 977, 200 runs
+   each, so 400 a line. The built ship is `sturdy`, the lens Oct 22's 56%
+   came from; the human-like pilot is `human`. Under hull ×2 with the
+   Custodian at 200: the built ship beats it in 55% of arrivals (Oct 22: 56%;
+   today 50%), and the human pilot wins 8.25% of its runs (Oct 22: 8%; today
+   10.5%). At 150 those are 68% and 9.5%; at 120, 73% and 11.25%. Ruled A,
+   keep 200. Run it again after step 3.
 
 **Gate:** fights measurably longer and costlier per the step 1 study, the
 Custodian re-tuned, and Jon's pick on each step that needs one.
@@ -625,13 +634,12 @@ print the distributions.
 ## 4. Open rulings
 
 Each needs a human decision. Rows 1, 1b, 3, 7 and 8 are settled and were
-removed; see the footnote. Rows 5, 9, 10, 12, 13, 15 and 16 were ruled on Oct 27, and rows 14
-and 19 on Oct 29; they moved to the table below.
+removed; see the footnote. Rows 5, 9, 10, 12, 13, 15 and 16 were ruled on Oct 27, rows 14
+and 19 on Oct 29, and row 17 on Oct 30; they moved to the table below.
 
 | # | Ruling | From | Blocks |
 |---|---|---|---|
 | 4 | Three reds. `UITheme` now names `LEAVE` for exits and `WARN`/`BAD` for warnings; the older literal sites were left alone on purpose | B3 | Nothing now; a sweep of the literals |
-| 17 | The Custodian's numbers against enemy hull ×2 (ruling 14 B). Sims first, then a page | Ruling 14 | Landing ×2 (feat/enemy-hull-x2) |
 | 18 | What Phase 13 step 3 (gravity assists) becomes, since on map time the giant never pays. Recommended: drop it, and test heavy giants in step 5's prototype | Orbits v2, Oct 29 | Phase 13 step 3 |
 
 ### Ruled since Oct 20
@@ -649,8 +657,9 @@ changing how anything they touch plays.
 | Jump rule (ruling 15) | Two rings deeper per jump, now (was one). Re-tune after | Oct 27; Phase 10 |
 | Riding the galaxy (ruling 16) | A design page later, after the alpha data and the combat study | Oct 27; Phase 15 |
 | LOCAL while docked | Greyed out with "Docked. Press UNDOCK to leave."; UNDOCK is the only way out | Oct 27; Phase 10 |
-| Enemy toughness (ruling 14) | "combat:B": hull ×2 for every ordinary enemy, ships and creatures, only together with the Custodian re-tuned against it ("the harder game"). The Hellbender keeps 90: the study found it never killed at any scale | Oct 29; feat/enemy-hull-x2, waiting on ruling 17 |
-| Phase 10 looks | "lift:A west:A burn:B hull:B gray:B fuel:B": the map ship brightened and rolled heading west, as built; the planned burns, burn marker and brake puffs blue; "6 · 40 HULL"; a darker too-deep gray, shown first; the fuel row TWO RINGS IN AT MOST | Oct 29; feat/phase10-picks |
+| Enemy toughness (ruling 14) | "combat:B": hull ×2 for every ordinary enemy, ships and creatures, only together with the Custodian re-tuned against it ("the harder game"). The Hellbender keeps 90: the study found it never killed at any scale | Oct 29; feat/enemy-hull-x2 |
+| The Custodian against hull ×2 (ruling 17) | "Custodian: A": keep 200. Korvan only, under ×2: a built ship beats it in 55% of arrivals (Oct 22: 56%), and the human-like pilot wins 8.25% of its runs (Oct 22: 8%) | Oct 30; feat/enemy-hull-x2, Phase 11 step 5 |
+| Phase 10 looks | "lift:A west:A burn:B hull:B gray:B fuel:B": the map ship brightened and rolled heading west, as built; the planned burns, burn marker and brake puffs blue; "6 · 40 HULL"; a darker too-deep gray, #303236 ("Gray: B2", Oct 30, the darkest of three); the fuel row TWO RINGS IN AT MOST | Oct 29; feat/phase10-picks |
 | SCRAP on a claimed frame (ruling 19) | "Phase 10: A", from the Derelict Scrap page: SCRAP alone, where LEAVE IT was, as built. Next to SCRAP's pay, LEAVE IT would pay nothing | Oct 29; landed with Phase 10 (0bed7dc9) |
 | Orbits | "flight:N clock:map assist:pays" | Oct 29; Phase 13 step 1 |
 | The first LAUNCH's freeze stays | "C, leave it as it is. If it becomes a huge deal, we can address it then." On his Mac the planet's shader compiles in about 16 s the first time a session draws it, and the sun's and the nebula sky's in about 2 s each, so the first LAUNCH of a session stands still for 16 to 23 s. Compiling them behind the title froze the title for 13 s instead | Oct 28; `ShaderWarm` warms the four cheap shaders only |

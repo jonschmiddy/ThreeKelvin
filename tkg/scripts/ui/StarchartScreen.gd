@@ -1878,8 +1878,10 @@ class Glyph extends Control:
 	## in one grey whatever its star: the dot zoomed out, the glyph's body
 	## zoomed in (`ramp_for` with `dim`). Darker than any star you can go to and
 	## than the far ones, and no colour in it, so it reads as off. Not the dead
-	## blue grey of a cleared system (#37424f), which says "spent".
-	const DIM := Color("#4a4e55")
+	## blue grey of a cleared system (#37424f), which says "spent". Jon picked
+	## this darkest of three on the Too-Deep Gray page (Oct 30, "Gray: B2");
+	## it was #4a4e55.
+	const DIM := Color("#303236")
 
 	static func draw_glyph(ci: CanvasItem, o: Vector2, t: MapGen.NodeType,
 			tint_in: Color, here: bool, selected: bool, band: Color = BAND,
