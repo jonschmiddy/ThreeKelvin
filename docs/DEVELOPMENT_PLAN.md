@@ -551,22 +551,27 @@ seen on a page before it touches the game.*
    (delta-v, the push summed) needs 52% more than the direct one, and its pull
    adds -0.003 px/s. Engine work only chooses the path: flying inside a system
    costs no fuel (fuel goes on jumps, some events and a flee). With these picks the autopilot never plans an
-   assist. What step 3 becomes is asked on the Giant Assist On Map Time page.
+   assist, so step 3 was dropped (ruling 18, Oct 30).
 2. **Transfer arcs and arrival side** (days). The autopilot flies a real arc.
    The ship can capture on the front, back, lit or dark side of a world, and
    orbit with or against its spin, at about the same cost (Jeremy: "since
    you're already in orbit the energy should be virtually the same").
-3. **Gravity assists** (days). Where a big planet lies along the route, the
-   autopilot may swing past it. In the planet's frame the ship leaves at the
-   speed it came in; in the system's frame it gains or loses speed and turns.
-   It pays in fuel or time, and the path shows the swing.
+3. ~~**Gravity assists**~~ **Dropped Oct 30** (ruling 18, "Giant on map
+   time: B", from the Giant Assist On Map Time page). Jeremy asked for assists
+   "where the direction of travel makes it worth it". On map time it never is:
+   the giant moves about 100 times slower than the ship, so the autopilot would
+   never plan one. Every flight still feels the giant's pull, so a close pass
+   bends a little on its own. Step 5 tests whether a much heavier giant's free
+   turn ever pays.
 4. **Two engine systems, visible.** An ion drive inside a system (blue flame,
    Phase 10) and the jump drive between stars, which looks and sounds different
    (Jeremy: "it only makes sense with two separate engine systems").
 5. **Prototype: two-star and big-Jovian systems** with restricted three-body
    navigation: low-energy paths along the gravity of two bodies, tested in a
    page first. The most distinctive and the riskiest step; it ships only if the
-   prototype reads well at the game's scale.
+   prototype reads well at the game's scale. It also tries a much heavier
+   giant (ruling 18): on map time a giant can turn a ship for free but cannot
+   speed it up, so the test is whether that turn ever saves engine work.
 
 Constraints: `ShipFlight` owns the flight; co-op partner positions
 (`Net.report_spot`, sent as offsets from the orbited world) must keep working;
@@ -635,12 +640,11 @@ print the distributions.
 
 Each needs a human decision. Rows 1, 1b, 3, 7 and 8 are settled and were
 removed; see the footnote. Rows 5, 9, 10, 12, 13, 15 and 16 were ruled on Oct 27, rows 14
-and 19 on Oct 29, and row 17 on Oct 30; they moved to the table below.
+and 19 on Oct 29, and rows 17 and 18 on Oct 30; they moved to the table below.
 
 | # | Ruling | From | Blocks |
 |---|---|---|---|
 | 4 | Three reds. `UITheme` now names `LEAVE` for exits and `WARN`/`BAD` for warnings; the older literal sites were left alone on purpose | B3 | Nothing now; a sweep of the literals |
-| 18 | What Phase 13 step 3 (gravity assists) becomes, since on map time the giant never pays. Recommended: drop it, and test heavy giants in step 5's prototype | Orbits v2, Oct 29 | Phase 13 step 3 |
 
 ### Ruled since Oct 20
 
@@ -662,6 +666,7 @@ changing how anything they touch plays.
 | Phase 10 looks | "lift:A west:A burn:B hull:B gray:B fuel:B": the map ship brightened and rolled heading west, as built; the planned burns, burn marker and brake puffs blue; "6 · 40 HULL"; a darker too-deep gray, #303236 ("Gray: B2", Oct 30, the darkest of three); the fuel row TWO RINGS IN AT MOST | Oct 29; feat/phase10-picks |
 | SCRAP on a claimed frame (ruling 19) | "Phase 10: A", from the Derelict Scrap page: SCRAP alone, where LEAVE IT was, as built. Next to SCRAP's pay, LEAVE IT would pay nothing | Oct 29; landed with Phase 10 (0bed7dc9) |
 | Orbits | "flight:N clock:map assist:pays" | Oct 29; Phase 13 step 1 |
+| Gravity assists (ruling 18) | "Giant on map time: B": drop Phase 13 step 3, since on map time the giant never pays; step 5's prototype tests a much heavier giant | Oct 30; Phase 13 |
 | The first LAUNCH's freeze stays | "C, leave it as it is. If it becomes a huge deal, we can address it then." On his Mac the planet's shader compiles in about 16 s the first time a session draws it, and the sun's and the nebula sky's in about 2 s each, so the first LAUNCH of a session stands still for 16 to 23 s. Compiling them behind the title froze the title for 13 s instead | Oct 28; `ShaderWarm` warms the four cheap shaders only |
 | A jump goes one ring deeper at most (replaced by ruling 15, Oct 27) | "A1D ... I want this to be a hard game" (Oct 22) | b28fdad6, 0.4.0 |
 | The Custodian has 200 hull | "custodian health at 200" (Oct 22) | b28fdad6, 0.4.0 |
