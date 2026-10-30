@@ -26,9 +26,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   brighter so you can find it against the stars. Jeremy asked for it. Partners in your party are
   still green arrows with their names.
 - **Changed** — the engine flame on the sector map is blue now, an ion drive, so flying inside a
-  system no longer looks like a jump. LOCAL and fights keep their own flames.
+  system no longer looks like a jump. The planned burns on its path, the burn marker and the
+  braking puffs are the same blue. LOCAL and fights keep their own flames.
 - **Changed** — the chassis select shows each frame's real hull after its HULL pips, so a light
-  Korvan reads "4 29 hull". Geno read 4, 6 and 8 pips against 29, 40 and 57 hull as a mismatch.
+  Korvan reads "4 · 29 hull". Geno read 4, 6 and 8 pips against 29, 40 and 57 hull as a mismatch.
   The HULL tooltip no longer says a pip is exactly 7 hull. It says about 7, on the refit screen
   and in the cutaway too. Then it does the sum on your own ship: "Your 29 hull rounds to 4 pips."
 - **Changed** — UNDOCK is the only way out of a station. While you are docked, LOCAL on the top
@@ -40,14 +41,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Changed** — a jump now goes at most two rings deeper than the ring you are in, up from one.
   Jon ruled it on Oct 27: "Two rings now." Jumps outward or along your ring reach as far as
   before. The quickest way to the core is now 7 jumps, where it was 14. A star inside your reach
-  ring that is three rings deeper or more still says TOO DEEP. Its fuel row now reads TWO RINGS AT
-  MOST. The chart's first survey says two rings as well. From the ring two out from the core, the
+  ring that is three rings deeper or more still says TOO DEEP. Its fuel row now reads TWO RINGS IN
+  AT MOST. The chart's first survey says two rings as well. From the ring two out from the core, the
   core is a jump like any other when it is in reach. Every galaxy still has a way in.
 - **Added** — two test settings for the balance simulator, for the combat study. One makes every
   enemy but the Custodian tougher, and one makes them hit harder. The game itself plays the same.
 - **Changed** — the star chart dims a star inside your reach ring that is too deep to jump to.
-  It is drawn in flat gray, its lights too, so it no longer looks like a place you can go. It
-  stays gray when you point at it or pick it. Its readout still ends TOO DEEP, and so does JUMP.
+  It is drawn in a dark, flat gray, its lights too, so it no longer looks like a place you can go.
+  It stays gray when you point at it or pick it. Its readout still ends TOO DEEP, and so does JUMP.
   Geno met these near the top of the map, where the tilted chart puts rings close together.
 - **Fixed** — the derelict hauler says what you would be claiming. The choice reads "Claim the
   light frame" (or medium, or heavy), and the frame you claim is that one. It is the same frame

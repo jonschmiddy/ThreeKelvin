@@ -571,8 +571,9 @@ const PRIMER_LEGEND: Array[String] = [
 ## WHY A STAR INSIDE THE REACH RING IS REFUSED, on its FUEL row: a jump goes two
 ## rings deeper at most (`RunState.DEPTH_STEP`; Jon, Oct 27: "Two rings now").
 ## It read ONE RING AT A TIME under Oct 22's one ring. Named here so `-- maptest`
-## can hold it, and the legend's second line, to the rule's count.
-const DEPTH_ROW := "TWO RINGS AT MOST"
+## can hold it, and the legend's second line, to the rule's count. "IN" because
+## TWO RINGS AT MOST, on a FUEL row, read as a limit on fuel (Jon, Oct 29, "fuel:B").
+const DEPTH_ROW := "TWO RINGS IN AT MOST"
 
 
 ## One wrapped paragraph at the card's width.
@@ -1877,8 +1878,10 @@ class Glyph extends Control:
 	## in one grey whatever its star: the dot zoomed out, the glyph's body
 	## zoomed in (`ramp_for` with `dim`). Darker than any star you can go to and
 	## than the far ones, and no colour in it, so it reads as off. Not the dead
-	## blue grey of a cleared system (#37424f), which says "spent".
-	const DIM := Color("#4a4e55")
+	## blue grey of a cleared system (#37424f), which says "spent". Jon picked
+	## this darkest of three on the Too-Deep Gray page (Oct 30, "Gray: B2");
+	## it was #4a4e55.
+	const DIM := Color("#303236")
 
 	static func draw_glyph(ci: CanvasItem, o: Vector2, t: MapGen.NodeType,
 			tint_in: Color, here: bool, selected: bool, band: Color = BAND,

@@ -393,7 +393,7 @@ the alpha to end. 15 is design only.
 - **Weapons only** are drawn on the ship (Geno).
 - **Lock on stacks** (Jon).
 
-### Phase 10 — Alpha bugs and small UX
+### Phase 10 — Alpha bugs and small UX — **landed Oct 28, Jon's picks open**
 *About 2 to 3 days. No dependencies.*
 
 - **Derelict hauler hides what you are claiming** (Jeremy). "Claim the hull"
@@ -425,11 +425,48 @@ fix/local-while-docked, feat/hull-number and feat/map-own-ship. Jon still picks
 a few looks from stills: the hull number's format, the too-deep grey, and the
 map ship's brightness, left-facing pose and brake colour.
 
+**Landed Oct 28** (0bed7dc9), in one gate with the Mac speed work below. The
+looks are still Jon's to pick from the Phase 10 Picks page. Each pick that
+changes something is a small follow-up branch.
+
 Two rings, measured (200 sim runs per pilot, seeds 777 and 977): twice as many
 ships reach the core (human pilot 16% to 36%), but they arrive after 21 jumps
 instead of 31, poorer and with less hull, and beat the Custodian half as often
 (44% of arrivals to 21%). The run win rate barely moved (human 7% to 7.5%). The
 Custodian re-tune is Phase 11 step 5.
+
+### Mac speed work — **landed Oct 28**
+*Not a phase. Jon's Mac (8 GB, Intel Iris Plus 645) ran the alpha slowly.
+These changes make the game lighter on it and show where the time goes. They
+landed with Phase 10 (0bed7dc9). The CHANGELOG has the detail.*
+
+- **A Retina window stops at 2X.** At 3X the game drew more than twice the
+  pixels every frame. BORDERLESS and FULLSCREEN still fill the screen.
+- **FRAME CAP 30 and a VSYNC row.** Both are opt-in, and the defaults are
+  unchanged.
+- **The frame counter** gives the average and the slowest frame in
+  milliseconds. SAVE MY LOGS writes the look, the window, the cap, vsync, the
+  renderer and the battery state.
+- **The window frame draws less:** about 7.8 ms to 5.6 ms a frame at 3X, and
+  3.5 ms to 2.6 ms at 2X.
+- **Worlds draw less**, the big one on LOCAL most of all.
+- **The sector map does less each frame.** It drops seven dust layers that
+  were black, skips orbits and belts off the screen, and works out each
+  world's place once.
+- **A pack of three or more ships opens about half a second to a second
+  sooner.** Each enemy's hit layers are built once, at the size drawn.
+- **The first star chart opens without its pause.** Its stars are worked out
+  while you pick a hull.
+- **GRAPHICS picks LOW by itself on a slow chip**, once, and never again after
+  a player picks in Settings. An Intel Mac starts on LOW. Jon: "Graphics low:
+  ok" (Oct 28).
+
+**Ruled:** the first LAUNCH of a session still stands still for 16 to 23 s
+while the planet's shader compiles (C, Oct 28; see the table in §4).
+
+**Still open.** Each of these opens a window on Jon's screen, so each waits
+for his OK: windowed timing of the first chart and sector map, VSYNC off on
+his Mac, and the ANGLE renderer test.
 
 ### Phase 11 — Make combat matter
 *Jeremy: "combat doesn't feel important", "encounters are way too fast for how
@@ -451,7 +488,11 @@ infrequent they are", "combats need to feel epic". Cody dove star to star.*
    Recommended for ruling 14: non-boss hull ×1.5, damage unchanged, the
    Hellbender kept at 90; ×2 only together with step 5's re-tune.
 2. **Pick and apply the health and damage change** (open ruling 14). Hours.
-   Depends on step 1.
+   Depends on step 1. **Ruled Oct 29: hull ×2** for every ordinary enemy,
+   damage unchanged, the Hellbender at 90, landing only with the Custodian
+   re-tuned against it (step 5 pulled forward, ruling 17). Built on
+   feat/enemy-hull-x2. **Ruled Oct 30 (ruling 17): the Custodian keeps 200**
+   ("Custodian: A"). See step 5 for the numbers.
 3. **A second combat resource** (Jeremy). A design project: a page of options
    first, then a build of days to a week. Depends on step 2, since both change
    how long a fight lasts.
@@ -460,6 +501,14 @@ infrequent they are", "combats need to feel epic". Cody dove star to star.*
    credits, which need Jon's OK.
 5. **Re-run the Custodian balance** after steps 2 and 3. It was tuned on Oct 22
    to a 56% win rate for a built ship.
+   **Done for step 2, Oct 29.** Korvan only (`manufacturer=korvan
+   unlocked=korvan`, as the Oct 22 runs were), seeds 777 and 977, 200 runs
+   each, so 400 a line. The built ship is `sturdy`, the lens Oct 22's 56%
+   came from; the human-like pilot is `human`. Under hull ×2 with the
+   Custodian at 200: the built ship beats it in 55% of arrivals (Oct 22: 56%;
+   today 50%), and the human pilot wins 8.25% of its runs (Oct 22: 8%; today
+   10.5%). At 150 those are 68% and 9.5%; at 120, 73% and 11.25%. Ruled A,
+   keep 200. Run it again after step 3.
 
 **Gate:** fights measurably longer and costlier per the step 1 study, the
 Custodian re-tuned, and Jon's pick on each step that needs one.
@@ -495,29 +544,43 @@ seen on a page before it touches the game.*
    - the same arc arriving on a chosen side of the planet.
 
    Plus one gravity assist past a big planet. Jon picks what reads best in 2D.
+   **Ruled Oct 29** from version 2 of the page: the new solved flight, on map
+   time, and the giant only when it pays ("flight:N clock:map assist:pays").
+   On map time a ship flies about 100 times faster than the giant moves, so the
+   giant has no speed to give: the flight past it needing the least engine work
+   (delta-v, the push summed) needs 52% more than the direct one, and its pull
+   adds -0.003 px/s. Engine work only chooses the path: flying inside a system
+   costs no fuel (fuel goes on jumps, some events and a flee). With these picks the autopilot never plans an
+   assist, so step 3 was dropped (ruling 18, Oct 30).
 2. **Transfer arcs and arrival side** (days). The autopilot flies a real arc.
    The ship can capture on the front, back, lit or dark side of a world, and
    orbit with or against its spin, at about the same cost (Jeremy: "since
    you're already in orbit the energy should be virtually the same").
-3. **Gravity assists** (days). Where a big planet lies along the route, the
-   autopilot may swing past it. In the planet's frame the ship leaves at the
-   speed it came in; in the system's frame it gains or loses speed and turns.
-   It pays in fuel or time, and the path shows the swing.
+3. ~~**Gravity assists**~~ **Dropped Oct 30** (ruling 18, "Giant on map
+   time: B", from the Giant Assist On Map Time page). Jeremy asked for assists
+   "where the direction of travel makes it worth it". On map time it never is:
+   the giant moves about 100 times slower than the ship, so the autopilot would
+   never plan one. Every flight still feels the giant's pull, so a close pass
+   bends a little on its own. Step 5 tests whether a much heavier giant's free
+   turn ever pays.
 4. **Two engine systems, visible.** An ion drive inside a system (blue flame,
    Phase 10) and the jump drive between stars, which looks and sounds different
    (Jeremy: "it only makes sense with two separate engine systems").
 5. **Prototype: two-star and big-Jovian systems** with restricted three-body
    navigation: low-energy paths along the gravity of two bodies, tested in a
    page first. The most distinctive and the riskiest step; it ships only if the
-   prototype reads well at the game's scale.
+   prototype reads well at the game's scale. It also tries a much heavier
+   giant (ruling 18): on map time a giant can turn a ship for free but cannot
+   speed it up, so the test is whether that turn ever saves engine work.
 
 Constraints: `ShipFlight` owns the flight; co-op partner positions
 (`Net.report_spot`, sent as offsets from the orbited world) must keep working;
 the path must stay smooth at the game's pixel scale.
 
 **Gate:** Jon picks each step from its page; partners still fly where they are
-on a co-op map; fuel per route is measured before and after, so assists do not
-quietly break the fuel economy.
+on a co-op map; flying inside a system stays free of fuel (Jon, Oct 29: "I
+thought traversing the sector map costs 0 fuel"), so no step quietly moves the
+fuel economy.
 
 ### Phase 14 — Words that don't read as AI
 *Cody: "feels very AI", for example "We can't jump there yet. The button says
@@ -576,12 +639,12 @@ print the distributions.
 ## 4. Open rulings
 
 Each needs a human decision. Rows 1, 1b, 3, 7 and 8 are settled and were
-removed; see the footnote. Rows 5, 9, 10, 12, 13, 15 and 16 were ruled on Oct 27 and moved to the table below.
+removed; see the footnote. Rows 5, 9, 10, 12, 13, 15 and 16 were ruled on Oct 27, rows 14
+and 19 on Oct 29, and rows 17 and 18 on Oct 30; they moved to the table below.
 
 | # | Ruling | From | Blocks |
 |---|---|---|---|
 | 4 | Three reds. `UITheme` now names `LEAVE` for exits and `WARN`/`BAD` for warnings; the older literal sites were left alone on purpose | B3 | Nothing now; a sweep of the literals |
-| 14 | Which health and damage change. The study is done (Phase 11 step 1); recommended: non-boss hull ×1.5, the Hellbender kept at 90 | Phase 11 step 1 | Phase 11 steps 2 to 5, Phase 12 |
 
 ### Ruled since Oct 20
 
@@ -598,6 +661,12 @@ changing how anything they touch plays.
 | Jump rule (ruling 15) | Two rings deeper per jump, now (was one). Re-tune after | Oct 27; Phase 10 |
 | Riding the galaxy (ruling 16) | A design page later, after the alpha data and the combat study | Oct 27; Phase 15 |
 | LOCAL while docked | Greyed out with "Docked. Press UNDOCK to leave."; UNDOCK is the only way out | Oct 27; Phase 10 |
+| Enemy toughness (ruling 14) | "combat:B": hull ×2 for every ordinary enemy, ships and creatures, only together with the Custodian re-tuned against it ("the harder game"). The Hellbender keeps 90: the study found it never killed at any scale | Oct 29; feat/enemy-hull-x2 |
+| The Custodian against hull ×2 (ruling 17) | "Custodian: A": keep 200. Korvan only, under ×2: a built ship beats it in 55% of arrivals (Oct 22: 56%), and the human-like pilot wins 8.25% of its runs (Oct 22: 8%) | Oct 30; feat/enemy-hull-x2, Phase 11 step 5 |
+| Phase 10 looks | "lift:A west:A burn:B hull:B gray:B fuel:B": the map ship brightened and rolled heading west, as built; the planned burns, burn marker and brake puffs blue; "6 · 40 HULL"; a darker too-deep gray, #303236 ("Gray: B2", Oct 30, the darkest of three); the fuel row TWO RINGS IN AT MOST | Oct 29; feat/phase10-picks |
+| SCRAP on a claimed frame (ruling 19) | "Phase 10: A", from the Derelict Scrap page: SCRAP alone, where LEAVE IT was, as built. Next to SCRAP's pay, LEAVE IT would pay nothing | Oct 29; landed with Phase 10 (0bed7dc9) |
+| Orbits | "flight:N clock:map assist:pays" | Oct 29; Phase 13 step 1 |
+| Gravity assists (ruling 18) | "Giant on map time: B": drop Phase 13 step 3, since on map time the giant never pays; step 5's prototype tests a much heavier giant | Oct 30; Phase 13 |
 | The first LAUNCH's freeze stays | "C, leave it as it is. If it becomes a huge deal, we can address it then." On his Mac the planet's shader compiles in about 16 s the first time a session draws it, and the sun's and the nebula sky's in about 2 s each, so the first LAUNCH of a session stands still for 16 to 23 s. Compiling them behind the title froze the title for 13 s instead | Oct 28; `ShaderWarm` warms the four cheap shaders only |
 | A jump goes one ring deeper at most (replaced by ruling 15, Oct 27) | "A1D ... I want this to be a hard game" (Oct 22) | b28fdad6, 0.4.0 |
 | The Custodian has 200 hull | "custodian health at 200" (Oct 22) | b28fdad6, 0.4.0 |

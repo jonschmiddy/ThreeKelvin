@@ -758,11 +758,11 @@ func _draw_line3(pts: PackedVector3Array, lit: PackedByteArray, k: float, us: Pa
 		if on and not was_on:
 			var c0: Vector2 = wp[j].round()
 			for d in [Vector2(0, -1), Vector2(-1, 0), Vector2(1, 0), Vector2(0, 1)]:
-				_px(c0 + d, Color(UITheme.HOT, 0.85 * k))
+				_px(c0 + d, Color(ION_TIP, 0.85 * k))
 		was_on = on
 		if wd[j] >= next:
 			next += 3.0
-			_px(wp[j].round(), Color(UITheme.FLARE, 0.85 * k) if on else Color(UITheme.ICE, 0.65 * k))
+			_px(wp[j].round(), Color(ION_CORE, 0.85 * k) if on else Color(UITheme.ICE, 0.65 * k))
 
 
 ## A SMOOTH CURVE THROUGH POINTS ON SCREEN (Jon: "why is this path so lumpy?"):
@@ -1273,8 +1273,8 @@ func _draw_ship(t: float) -> void:
 		var fl := int(t * 20.0) % 2
 		var n0: int = 7 if pic.is_empty() else nose[0] + 1
 		var n2: int = 7 if pic.is_empty() else nose[2] + 1
-		P.call(n0 + fl, -1, Color(UITheme.HOT, 0.8), &"rcs")
-		P.call(n2 + (1 - fl), 1, Color(UITheme.HOT, 0.8), &"rcs")
+		P.call(n0 + fl, -1, Color(ION_TIP, 0.8), &"rcs")
+		P.call(n2 + (1 - fl), 1, Color(ION_TIP, 0.8), &"rcs")
 	# THE RING when it is settled (arrived, or stopped); in orbit the orbit is it
 	var settled: bool = flight.mode == &"warp"
 	if settled:
