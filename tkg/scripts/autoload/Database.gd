@@ -2551,8 +2551,9 @@ func _seed_enemies() -> void:
 	# game"). Jeremy, friends' alpha: "combat doesn't feel important", fights
 	# "way too fast". The combat study (Phase 11 step 1, Oct 27, `-- sim enemyhp=2`)
 	# had x2 cut the human pilot's wins from 15 to 5 of 200, so it lands only with
-	# the Custodian re-tuned against it. Each number below is twice the one before
-	# it; danger scaling still applies on top (`Combat._spawn`). The Hellbender and
+	# the Custodian re-tuned against it. Re-tuned Oct 29-30 (ruling 17, "Custodian:
+	# A"): it keeps 200, see its note below. Each number below is twice the one
+	# before it; danger scaling still applies on top (`Combat._spawn`). The Hellbender and
 	# the Custodian are tuned by hand and keep their own.
 	# Ships run fixed loops — machines are predictable.
 	_enemy(&"cutter", "Rustjaw Cutter", "pirate skirmisher", 52, 0, 15, &"cutter", [
@@ -2620,7 +2621,11 @@ func _seed_enemies() -> void:
 	# 22, "Option 1") the loop lost Plated Up and Annihilate went 22 -> 40: it
 	# lands every third turn, and a built ship wins 56% of arrivals (sim, seeds
 	# 777 and 977), a human-like pilot 39%. Those sims flew one ring deeper a
-	# jump at most; at two (Oct 27) they have not been run again.
+	# jump at most. RE-RUN AT TWO RINGS UNDER ENEMY HULL x2 (Oct 29, the same
+	# flags: Korvan only, `sturdy` for the built ship, `human`, seeds 777 and 977,
+	# 200 runs each): a built ship wins 55% of arrivals and the human pilot wins
+	# 8.25% of its runs, against Oct 22's 56% and 8%. At 150 hull those were 68%
+	# and 9.5%; at 120, 73% and 11.25%. Jon kept 200 (Oct 30, "Custodian: A").
 	_enemy(&"custodian", "The Custodian", "guardian of the light", 200, 8, 120, &"hulk", [
 		{name = "Volley", text = "Deal 6 × 3", damage = 6, hits = 3},
 		{name = "Charging…", text = "Charging a heavy attack", telegraph = true},
