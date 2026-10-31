@@ -6,29 +6,45 @@ extends Node
 ##
 ## A system with two suns (the run's ordinary system with the longest name, made
 ## a twin the way a harness may, `n.twin = true`), from a world round star A:
-##   - star B is hit where it is drawn, at its own size, and star A where it is;
-##     the tip names each "<system> A" / "<system> B" with its kind;
+##   - star B is hit where its sun is drawn, at the size it is drawn (the
+##     SunView the map puts there, `SystemView.star2`), and star A where it is;
+##     a click on a sun is on it even with its world just behind it; the tip
+##     names each "<system> A" / "<system> B" with its kind;
+##   - each star's close orbit, drawn bigger than life to read, stays short of
+##     its own world's disc, and a ship's orbit round that world off its sun;
 ##   - one click on star B selects it: the panel's sector page shows both suns,
 ##     each with its own facts and FLY HERE, and the system reads TWO SUNS; every
 ##     word and button on it inside the panel and none on another (fit means
 ##     nothing overlaps), here and on the giant's page with its MASS line;
 ##   - a right-click zooms onto star B and holds it in the middle;
 ##   - star B's FLY HERE flies there: the status line says where it is going,
-##     then CLOSE ORBIT · <system> B; its FLY HERE reads IN A CLOSE ORBIT;
+##     then CLOSE ORBIT · <system> B, and the ship rides round star B at the
+##     layout's close orbit for it; its FLY HERE reads IN A CLOSE ORBIT;
 ##   - the map leaves the ship at star B (`Run.site_here` -4), LOCAL finds no
-##     event there (star B holds none), and the map puts it back there;
+##     event there (star B holds none), and the map puts it back round star B;
 ##   - a partner in star B's close orbit is drawn where it said it was (a spot
 ##     at -4 is absolute, as at -1), and hidden behind star B's disc there;
+##   - a ship let go round star B, or round both suns, is drawn on a wide orbit
+##     round that and the words say ORBITING <system> B / BOTH SUNS;
 ##   - a ship left at star B in a system with one sun comes back at the star;
 ##   - the zoom the map opens at is the layout's own formula
 ##     (`SystemLayout.open_zoom`) on its frame, and on the real frame every
 ##     twin opens at or nearer than the zoom its rings were fitted to;
 ##   - every giant's MASS line is 1/n of its star (n the whole number nearest
-##     1 / gm_frac), "OF ITS STARS" round two suns;
+##     1 / gm_frac), "OF ITS STARS" round two suns, in the FAUNA row's place so
+##     the page keeps its rows;
 ##   - the HUD's SECTOR tab says "two suns".
 ## Prints how many twin systems and cases each part saw.
+##
+## IT JUDGES THE WHOLE BUILD. Where a part is another build's (the flight's ride
+## round star B and its settle, the drawing's star B), it is checked all the
+## same and fails on a tree without that build, saying whose it is: on
+## feat/twin-sites alone, the ride round star B, the settle and star B's drawn
+## sun fail, and nothing else.
 
 const PanelS := preload("res://scripts/ui/sysmap/SystemPanel.gd")
+const OverlayS := preload("res://scripts/ui/sysmap/SystemOverlay.gd")
+const FlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
 
 var h := Harness.new()
 ## twin systems and twin cases seen, by part
@@ -102,6 +118,7 @@ func _run() -> void:
 	await _fly_to_b(m, n)
 	await _back_at_b(n)
 	await _partner_at_b(n)
+	await _settle_round(n)
 	await _giant_page(n)
 	await _one_sun_fallback(n)
 	_end()
@@ -251,18 +268,32 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	var nm_a := MapGen.star_name(n) + " A"
 	var nm_b := MapGen.star_name(n) + " B"
 	_real_frame(m)
-	# THE HIT, at each star's drawn place and size
+	# THE SUNS AS DRAWN: where the map puts each sun's picture (`SystemView.star`,
+	# and star B's `SystemView.star2`, the drawing's) and the disc it tells it to
+	# draw (its radius R times its disc's zoom). The overlay's hit, tip and
+	# occlusion read `star_scr` / `star_disc`, so these hold them to the drawing,
+	# not to the overlay's own working of where star B should be.
 	var sb: Vector2 = ov.star_scr(B)
+	_drawn_suns(m)
 	var want_b: Vector2 = m.view.block_round(m.view.screen(L.star2_at.x, L.star2_at.y))
-	h._ok("star B is drawn where it holds still (%s, the plane's %s)" % [sb, want_b], sb == want_b)
+	h._ok("star B is put where it holds still on the plane (%s, the plane's %s)" % [sb, want_b], sb == want_b)
+	# THE HIT, at each star's place and size
 	var hb: Dictionary = ov.hit(sb)
 	h._ok("a click on star B is on star B (%s %d)" % [hb.get("kind", &""), int(hb.get("body", -99))], hb.get("kind", &"") == &"star" and int(hb.get("body", -99)) == B)
+	# (at its edge on the side away from its own world, whose disc may stand
+	# over the other side: there the click is the world's)
 	var rim: float = ov.star_disc(B)
-	var he: Dictionary = ov.hit(sb + Vector2(maxf(8.0, rim) - 1.0, 0.0))
-	h._ok("and at its drawn edge (%.1f px out)" % (maxf(8.0, rim) - 1.0), int(he.get("body", -99)) == B or he.get("kind", &"") == &"body")
+	var away := Vector2(1.0, 0.0)
+	for b in L.bodies:
+		if b.host_id == B and b.world != &"":
+			away = (sb - m.view.at[b.index]).normalized()
+	var he: Dictionary = ov.hit(sb + away * (maxf(8.0, rim) - 1.0))
+	h._ok("and at its drawn edge, %.1f px out away from its world (%s %d)" % [maxf(8.0, rim) - 1.0, he.get("kind", &""), int(he.get("body", -99))],
+		he.get("kind", &"") == &"star" and int(he.get("body", -99)) == B)
 	var ha: Dictionary = ov.hit(m.view.origin())
 	h._ok("a click on star A is on star A (%d)" % int(ha.get("body", -99)), ha.get("kind", &"") == &"star" and int(ha.get("body", -99)) == -1)
 	_saw("hits", 3)
+	_hits_behind(m)
 	# THE TIP, each star by its own name
 	var tb: Array = ov.tip_lines(hb)[0]
 	h._ok("star B's tip names it %s, %s (%s)" % [nm_b, ov.star_class_of(B), tb[0][0]], tb[0][0] == nm_b and tb[1][0] == ov.star_class_of(B))
@@ -309,6 +340,7 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 			break
 	await _frames(4)
 	h._ok("and a second one back out to the whole sector (zoom %.3f of %.3f)" % [m.view.zoom, m.zoom_min], absf(m.view.zoom - m.zoom_min) < 0.002)
+	_orbit_fit(m)
 	# THE PARTNERS' AND YOUR SHIP'S DISC TEST: behind star B (further from the
 	# viewer, on its disc) is hidden by it; in front is not
 	var behind: Array = ov._star_occ(L.star2_at + Vector2(0.0, -2.0))
@@ -316,6 +348,162 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	h._ok("a ship just behind star B is hidden by its disc, one just in front is not",
 		behind.any(func(o: Array) -> bool: return o[0] == sb) and not front.any(func(o: Array) -> bool: return o[0] == sb))
 	_saw("star B places", 1)
+
+
+## EACH SUN IS HIT WHERE IT IS DRAWN, AT THE SIZE IT IS DRAWN: the overlay's
+## point and disc for star p against the SunView the map paints it with, its
+## place under its parent and its disc (R times the disc's zoom, `SunView._kd`).
+## Star B's sun is the drawing's (`SystemView.star2`); a tree without it draws no
+## star B at all, and that is a fail here, not a pass on the overlay's word.
+func _drawn_suns(m: SystemMapScreen) -> void:
+	var ov = m.overlay
+	for s: int in m.view.layout.stars():
+		var nm := "star A" if s == -1 else "star B"
+		var sv = m.view.get("star") if s == -1 else m.view.get("star2")
+		if not h._ok("%s's sun is drawn on the map%s" % [nm, "" if s == -1 else " (`SystemView.star2`, the drawing build's)"], sv is Node2D):
+			continue
+		var n2 := sv as Node2D
+		var drawn_at: Vector2 = (n2.get_parent() as Node2D).transform * n2.position if n2.get_parent() is Node2D else n2.position
+		var dr: float = float((n2.get("P") as Dictionary).get("R", 0.0)) * float(n2.get("_kd"))
+		h._ok("%s is hit where its sun is drawn (%s, drawn at %s)" % [nm, ov.star_scr(s), drawn_at], (ov.star_scr(s) as Vector2).distance_to(drawn_at) < 0.01)
+		h._ok("and at the size its disc is drawn (%.2f px, drawn %.2f)" % [ov.star_disc(s), dr], absf(float(ov.star_disc(s)) - dr) < 0.5)
+		_saw("suns measured as drawn")
+
+
+## A CLICK ON A SUN IS ON THE SUN WITH ITS WORLD JUST BEHIND IT. In a pair a world
+## round one star passes 6 to 8 px from its sun's middle at the far side of its
+## circle, behind the disc; its click circle took the sun's middle there. Each
+## star's own world is put just behind its middle (3 px up the screen, further
+## from the viewer) and just in front (3 px down), where the view puts bodies
+## (`view.pos` / `view.at`) and put back at once: behind, the click is the sun's;
+## in front, the world's, which is drawn over it. Then round one turn of its
+## circle, every place it is behind the sun's middle.
+func _hits_behind(m: SystemMapScreen) -> void:
+	var ov = m.overlay
+	var v = m.view
+	var L: SystemLayout = v.layout
+	var t0: float = v.t
+	for s: int in L.stars():
+		var nm := "star A" if s == -1 else "star B"
+		var wi := -1
+		for b in L.bodies:
+			if b.host_id == s and b.world != &"":
+				wi = b.index
+		if not h._ok("%s has a world round it (#%d)" % [nm, wi], wi >= 0):
+			continue
+		var b: SystemLayout.Body = L.bodies[wi]
+		var was_p: Vector2 = v.pos[wi]
+		var was_a: Vector2 = v.at[wi]
+		var sc: Vector2 = ov.star_scr(s)
+		var dz := 3.0 / maxf(float(v.TILT) * float(v.zoom), 0.0001)
+		var sp: Vector2 = L.star_pos(s)
+		var got := []
+		for q: Vector2 in [sp + Vector2(0.0, -dz), sp + Vector2(0.0, dz)]:
+			v.pos[wi] = q
+			v.at[wi] = v.block_round(v.screen(q.x, q.y))
+			var hh: Dictionary = ov.hit(sc)
+			got.append("%s %d" % [hh.get("kind", &""), int(hh.get("body", -99))])
+		# ROUND ONE TURN, 48 places
+		var behind := 0
+		var behind_ok := 0
+		for k in 48:
+			var q2: Vector2 = b.pos(t0 + b.period * float(k) / 48.0)
+			v.pos[wi] = q2
+			v.at[wi] = v.block_round(v.screen(q2.x, q2.y))
+			if (v.at[wi] as Vector2).distance_to(sc) > maxf(v.draw_r(b), 4.0) + 3.0 or v.depth(q2) >= v.depth(sp):
+				continue
+			behind += 1
+			var hk: Dictionary = ov.hit(sc)
+			if hk.get("kind", &"") == &"star" and int(hk.get("body", -99)) == s:
+				behind_ok += 1
+		v.pos[wi] = was_p
+		v.at[wi] = was_a
+		h._ok("a click on %s with its world just behind is the sun's (%s), just in front the world's (%s)" % [nm, got[0], got[1]],
+			got[0] == "star %d" % s and got[1] == "body %d" % wi)
+		h._ok("and round its world's turn, %d of the %d of 48 places where it is behind the sun's middle" % [behind_ok, behind], behind_ok == behind)
+		_saw("suns clicked with a world behind", 1 + behind)
+
+
+## WHAT FITS ROUND A STAR OF TWO, AS DRAWN, at the opening zoom. An orbit is
+## drawn bigger than life to read (`SystemOverlay._orbit_k`: the place's disc +
+## 9 px at least), and in a pair that floor would reach past what is next to
+## it. On this map: each star's close orbit (the layout's,
+## `FlightSolve.star_orbit_r`) is drawn short of the disc of its own world by 2
+## px where that world stands widest from it, and a ship's orbit round that
+## world (the flight's `orbit_r`) 2 px off its sun's disc, unless it truly is
+## that big. Then for every twin of the run at its fit_zoom, by the layout's own
+## drawn sizes (`sun_drawn`, `world_drawn`): how many cut through before the cap
+## and after, and the least room left between a close orbit and its sun.
+func _orbit_fit(m: SystemMapScreen) -> void:
+	var ov = m.overlay
+	var v = m.view
+	var L: SystemLayout = v.layout
+	var z: float = v.zoom
+	for s: int in L.stars():
+		var nm := "star A" if s == -1 else "star B"
+		var wi := -1
+		for b in L.bodies:
+			if b.host_id == s and b.world != &"":
+				wi = b.index
+		if wi < 0:
+			continue
+		var b: SystemLayout.Body = L.bodies[wi]
+		var rail := FlightSolve.star_orbit_r(L, s)
+		var drawn: float = ov._orbit_px(s, rail)
+		var edge: float = b.orbit * z - float(v.draw_r(b))
+		h._ok("%s's close orbit is drawn at %.2f px (it is %.2f, its disc %.2f), short of its world's disc at %.2f" % [nm, drawn, rail * z, ov.star_disc(s), edge],
+			drawn <= edge - 2.0 + 0.001 or drawn <= rail * z + 0.001)
+		var ride: float = m.flight.orbit_r(wi)
+		var wd: float = ov._orbit_px(wi, ride)
+		var off: float = b.orbit * z - float(ov.star_disc(s))
+		h._ok("a ship's orbit round %s's world is drawn at %.2f px (it is %.2f, the world's disc %.2f), off its sun's disc at %.2f" % [nm, wd, ride * z, v.draw_r(b), off],
+			wd <= off - 2.0 + 0.001 or wd <= ride * z + 0.001)
+		_saw("orbits round a star of two, as drawn")
+	# EVERY TWIN OF THE RUN, at its fit_zoom (the zoom it opens at with nothing
+	# posted), by the layout's drawn sizes
+	var stars := 0
+	var cut_was := 0
+	var cut_now := 0
+	var cut_true := 0
+	var out_was := 0
+	var sun_was := 0
+	var sun_now := 0
+	var room := INF
+	for raw in Run.map:
+		var c: MapGen.MapNode = raw
+		if not MapGen.twin_ok(c):
+			continue
+		var was := c.twin
+		c.twin = true
+		var L2 := SystemLayout.of(c)
+		c.twin = was
+		var fz: float = L2.fit_zoom
+		for s: int in L2.stars():
+			for b in L2.bodies:
+				if b.host_id != s or b.world == &"":
+					continue
+				stars += 1
+				var disc := SystemLayout.sun_drawn(L2.star_radius(s), fz)
+				var wr := SystemLayout.world_drawn(b, fz)
+				var rz := FlightSolve.star_orbit_r(L2, s) * fz
+				var edge2 := b.orbit * fz - wr
+				var old := maxf(rz, disc + OverlayS.ORBIT_MIN_PX)
+				var now := rz * OverlayS.orbit_floor_k(rz, disc, edge2 - 2.0)
+				cut_was += int(old > edge2)
+				cut_now += int(now > edge2)
+				cut_true += int(rz > edge2)
+				out_was += int(old > b.orbit * fz)
+				room = minf(room, now - disc)
+				# (a ship's ride round the world: at most its ring times ORBIT_K)
+				var wz := b.soi * FlightS.ORBIT_K * fz
+				var off2 := b.orbit * fz - disc
+				sun_was += int(maxf(wz, wr + OverlayS.ORBIT_MIN_PX) > off2)
+				sun_now += int(wz * OverlayS.orbit_floor_k(wz, wr, off2 - 2.0) > off2)
+	print("  --   %d stars of two with a world round them, at fit_zoom: a close orbit drawn into its world's disc %d before the cap (%d outside the world's orbit), %d now, %d as big as it truly is; the least room between a close orbit as drawn and its sun %.2f px; a ship's orbit round the world onto its sun %d before, %d now" % [
+		stars, cut_was, out_was, cut_now, cut_true, room, sun_was, sun_now])
+	h._ok("over every twin of the run, a close orbit is drawn into its world's disc only where it truly is that big (%d, %d; of %d) and no ship's orbit round a world onto its sun (%d)" % [cut_now, cut_true, stars, sun_now],
+		stars > 0 and cut_now == cut_true and sun_now == 0)
+	_saw("stars of two with a world, at fit_zoom", stars)
 
 
 ## THE ROW `_way_there` built for place i, and its button.
@@ -327,6 +515,16 @@ func _way_button(m: SystemMapScreen, i: int) -> Button:
 		if c is Button:
 			return c
 	return null
+
+
+## The keys of the page's fact rows (`SystemPanel._row`: a key, a spacer, a
+## value), in order.
+func _fact_keys(box: Node) -> Array[String]:
+	var out: Array[String] = []
+	for c in box.get_children():
+		if c is HBoxContainer and c.get_child_count() == 3 and c.get_child(0) is Label and c.get_child(2) is Label:
+			out.append((c.get_child(0) as Label).text)
+	return out
 
 
 ## Every word on the panel's page, labels and buttons.
@@ -468,15 +666,7 @@ func _fly_to_b(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	await _frames(4)
 	var st: String = ov.ship_status()[0]
 	h._ok("the status line says CLOSE ORBIT · %s (%s)" % [nm_b, st], st == "CLOSE ORBIT · " + nm_b)
-	# where the ship is: round star B, judged once the flight knows star B's
-	# centre (`ShipFlight.center`, the flight build's)
-	var c3: Vector3 = m.flight.center(B, m.view.t)
-	var p3: Vector3 = m.flight.where3()
-	var d := Vector2(p3.x, p3.z).distance_to(m.view.layout.star2_at)
-	if Vector2(c3.x, c3.z).distance_to(m.view.layout.star2_at) < 0.5:
-		h._ok("round star B, %.1f px from it (its close orbit %.1f)" % [d, m.flight.orbit_r(B)], absf(d - float(m.flight.orbit_r(B))) < 3.0)
-	else:
-		print("  --   round star B not judged: ShipFlight.center(STAR_B) is %s, not star B's place (the flight's change)" % c3)
+	_round_b(m, "it rides")
 	var fb2 := _way_button(m, B)
 	var fa2 := _way_button(m, -1)
 	h._ok("star B's FLY HERE reads IN A CLOSE ORBIT, greyed (%s); star A's FLY HERE (%s)" % [fb2.text if fb2 != null else "none", fa2.text if fa2 != null else "none"],
@@ -501,7 +691,26 @@ func _back_at_b(n: MapGen.MapNode) -> void:
 		SectorScreen.things_here(n).is_empty() and LocalEventDrawer.auto_open(n) == -1)
 	var m := await _map()
 	h._ok("the map puts it back in star B's close orbit (%d)" % (m.flight.reached() if m != null else -99), m != null and m.flight.reached() == B)
+	if m != null:
+		_round_b(m, "put back, it rides")
 	_saw("returns to star B")
+
+
+## WHERE THE SHIP IS, IN STAR B'S CLOSE ORBIT: measured on the plane from star
+## B's own place, against the layout's close orbit for it
+## (`FlightSolve.star_orbit_r`, its rail in a twin), not the flight's own idea
+## of either. `reached() == STAR_B` alone passed with the ship riding star A.
+## The ride is the flight build's (`ShipFlight.center` / `orbit_r` for star B):
+## on a tree without it this fails, as it should.
+func _round_b(m: SystemMapScreen, what: String) -> void:
+	var L: SystemLayout = m.view.layout
+	var B := SystemLayout.STAR_B
+	var p3: Vector3 = m.flight.where3()
+	var p := Vector2(p3.x, p3.z)
+	var want := FlightSolve.star_orbit_r(L, B)
+	var c3: Vector3 = m.flight.center(B, m.view.t)
+	h._ok("%s round star B: %.1f px from it, its close orbit %.1f (%.1f from star A; ShipFlight.center(STAR_B) %s, the flight build's)" % [
+		what, p.distance_to(L.star2_at), want, p.length(), Vector2(c3.x, c3.z)], absf(p.distance_to(L.star2_at) - want) < 3.0)
 
 
 ## A PARTNER IN STAR B'S CLOSE ORBIT, as the wire brings it: drawn where it
@@ -538,6 +747,52 @@ func _partner_at_b(n: MapGen.MapNode) -> void:
 	_saw("partners at star B")
 
 
+## LET GO ROUND STAR B, AND ROUND BOTH SUNS: the wide orbit is drawn round what
+## the flight settles round (`SystemOverlay._star_c`, from the flight's own
+## settle centre, `ShipFlight.f.cen`), and the status line names it (from
+## `f.cen_id`). It read `ShipFlight.star_orbit_c`, which the flight never built,
+## and so drew and named every wide orbit round star A. First the names alone,
+## from each centre; then the flight's settle (`ShipFlight.settle_at`, the
+## flight build's: on a tree without it this fails, as it should), at a point
+## inside star B's steady zone on the far side from its world, and at one out
+## between the suns' zones and the worlds round both.
+func _settle_round(n: MapGen.MapNode) -> void:
+	var m := Router.current as SystemMapScreen
+	if m == null:
+		h._fail("no map for the settle")
+		return
+	var ov = m.overlay
+	var L: SystemLayout = m.view.layout
+	var B := SystemLayout.STAR_B
+	var nm_a := MapGen.star_name(n) + " A"
+	var nm_b := MapGen.star_name(n) + " B"
+	var said := [ov._settle_nm(Vector2.ZERO), ov._settle_nm(L.star2_at), ov._settle_nm(L.bary)]
+	h._ok("a wide orbit round star A, star B and the balance point is named %s" % " / ".join(said),
+		said[0] == nm_a and said[1] == nm_b and said[2] == "BOTH SUNS")
+	if not h._ok("the flight can let a ship go to settle where it is (`ShipFlight.settle_at`, the flight build's)", m.flight.has_method(&"settle_at")):
+		return
+	var away := Vector2(1.0, 0.0)
+	for b in L.bodies:
+		if b.host_id == B and b.world != &"":
+			away = (L.star2_at - b.pos(m.view.t)).normalized()
+	var zone_b := SystemLayout.s_limit(L.star_share) * L.sep
+	var r_b := (L.star_ring_of(B) + zone_b) * 0.5
+	var side := (L.star2_at / maxf(L.star2_at.length(), 0.001)).orthogonal()
+	var cases := [
+		[L.star2_at + away * r_b, "ORBITING " + nm_b, L.star2_at],
+		[L.bary + side * L.sep * 1.3, "ORBITING BOTH SUNS", L.bary],
+	]
+	for c: Array in cases:
+		m.flight.call(&"settle_at", c[0], 1.0)
+		await _frames(12)
+		var st: String = ov.ship_status()[0]
+		var sc: Vector2 = ov._star_c
+		h._ok("let go %.0f px from %s, it settles round it: the status line says %s (%s), its wide orbit drawn round %s (%s)" % [
+			(c[0] as Vector2).distance_to(c[2]), "star B" if c[2] == L.star2_at else "the balance point", c[1], st, c[2], sc],
+			m.flight.star_orbiting() and st == c[1] and sc.distance_to(c[2]) < 0.5)
+		_saw("wide orbits round star B or both")
+
+
 ## THE GIANT'S PAGE: its MASS line, "OF ITS STARS" in a twin, on a page that fits.
 func _giant_page(n: MapGen.MapNode) -> void:
 	var g: MapGen.MapNode = null
@@ -572,6 +827,18 @@ func _giant_page(n: MapGen.MapNode) -> void:
 		var words := _words(m.panel._box)
 		h._ok("%s: its page says MASS %s (gm_frac %.3f)" % ["two suns" if two else "one sun", want, gb.gm_frac],
 			words.has("MASS") and words.has(want) and want.ends_with("OF ITS STARS" if two else "OF ITS STAR"))
+		# NOTHING PRESSABLE MOVES: the page has the rows it had before ruling 20
+		# (its facts less TYPE), MASS under GRAVITY in place of FAUNA, which a
+		# giant never has, so its FLY HERE and the cards under it are where they
+		# were (an extra row put them 13 px lower)
+		var keys := _fact_keys(m.panel._box)
+		var was_keys: Array[String] = []
+		for f in m.view.facts(gb):
+			if String(f[0]) != "TYPE" and String(f[0]) != "BEACONS":
+				was_keys.append(String(f[0]))
+		var gi2 := keys.find("GRAVITY")
+		h._ok("%s: its %d fact rows are as many as before (%s), MASS under GRAVITY where FAUNA was (%s)" % ["two suns" if two else "one sun", keys.size(), ", ".join(was_keys), ", ".join(keys)],
+			keys.size() == was_keys.size() and gi2 >= 0 and gi2 + 1 < keys.size() and keys[gi2 + 1] == "MASS" and not keys.has("FAUNA") and was_keys.has("FAUNA"))
 		await _fit(m, "the giant's page, %s" % ("two suns" if two else "one sun"))
 		if two:
 			_saw("giant pages")

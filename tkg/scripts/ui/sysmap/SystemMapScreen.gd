@@ -1181,8 +1181,9 @@ func _body_of_beacon(bc) -> int:
 	return -1
 
 
-## Your ship into orbit of place `i` (-1 the star), or alongside it; the panel
-## stays on it and opens it there.
+## Your ship into orbit of place `i` (-1 the star, star A of two suns;
+## `SystemLayout.STAR_B` (-4) star B), or alongside it; the panel stays on it
+## and opens it there.
 func fly_to_body(i: int) -> void:
 	if _taking or not flight.can_fly():
 		return

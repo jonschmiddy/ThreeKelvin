@@ -71,7 +71,9 @@ var _portrait: Node2D = null
 var _portraits: Array[Node2D] = []
 ## Which page is up: &"list" or &"event".
 var mode: StringName = &"list"
-## The place the list is narrowed to: a body, -1 the star, -2 nowhere.
+## The place the list is narrowed to: a body, -1 the star (star A of two suns),
+## `SystemLayout.STAR_B` (-4) star B, -2 nowhere. Any negative filter shows the
+## sector's page, which is the star's (both suns' in a pair).
 var filter: int = -2
 ## The option whose page is up.
 var open_opt: int = -1
@@ -641,8 +643,14 @@ func _twin_head() -> void:
 		# radii, both in the one sun's 84 px
 		sv.position = Vector2(TEXT_W / 2 + (TWIN_SUN_DX_B if s == SystemLayout.STAR_B else -TWIN_SUN_DX_A), 42)
 		holder.add_child(sv)
-		var look: Array = _sun_look(s)
-		sv.call("setup", String(look[0]), int(look[1]), 22.0 * L.star_radius(s) / maxf(L.star_r, 1.0))
+		var sr := 22.0 * L.star_radius(s) / maxf(L.star_r, 1.0)
+		if v.has_method(&"sun_setup"):
+			# (painted as the map paints star p: `SystemView.sun_setup`, star B
+			# from its own roll, smaller and warmer)
+			v.call(&"sun_setup", sv, s, sr)
+		else:
+			var look: Array = _sun_look(s)
+			sv.call("setup", String(look[0]), int(look[1]), sr)
 		if _portrait == null:
 			_portrait = sv
 		else:
@@ -669,13 +677,12 @@ const TWIN_SUN_DX_A := 46
 const TWIN_SUN_DX_B := 50
 
 
-## Which sun picture star p is drawn with: the map's own (`SystemView.sun_look`,
-## the drawing's, once it says), else star A's as the one sun's and star B's
-## rolled off a number of its own so the two are not one picture twice.
+## Which sun picture star p is drawn with where the map cannot paint one
+## (`SystemView.sun_setup`, the drawing's, comes first): star A's as the one
+## sun's and star B's rolled off a number of its own so the two are not one
+## picture twice.
 func _sun_look(p: int) -> Array:
 	var v = screen.view
-	if v.has_method(&"sun_look"):
-		return v.call(&"sun_look", p)
 	if p == SystemLayout.STAR_B:
 		return [SystemViewS.KIND_NAMES[v.layout.star2], v.node.index + SUN_B_SALT]
 	return [v.kind, v.node.index]
@@ -799,12 +806,18 @@ func _place_head(i: int) -> void:
 	_class(_place_kind(i))
 	if b != null:
 		for f in v.facts(b):
-			if String(f[0]) != "TYPE" and String(f[0]) != "BEACONS":
-				_row(f[0], f[1])
-				# A GIANT'S WEIGHT against its star, under its gravity (every
-				# giant has one: `gm_frac`, ruling 20)
-				if String(f[0]) == "GRAVITY" and b.gm_frac > 0.0:
-					_row("MASS", mass_line(b.gm_frac, L.twin))
+			var key := String(f[0])
+			if key == "TYPE" or key == "BEACONS":
+				continue
+			# A GIANT'S WEIGHT against its star, under its gravity (every giant
+			# has one: `gm_frac`, ruling 20). It takes the FAUNA row's place,
+			# which on a giant always read NONE, so the page keeps its rows and
+			# its FLY HERE stays where it was (an extra row put it 13 px lower).
+			if key == "FAUNA" and b.gm_frac > 0.0 and String(f[1]) == "NONE":
+				continue
+			_row(f[0], f[1])
+			if key == "GRAVITY" and b.gm_frac > 0.0:
+				_row("MASS", mass_line(b.gm_frac, L.twin))
 	else:
 		var sf: Dictionary = SystemViewS.STAR_FACTS[v.kind]
 		_row("CLASS", sf.cls)
