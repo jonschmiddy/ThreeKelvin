@@ -9,51 +9,61 @@ extends RefCounted
 ##
 ## A FLIGHT, from where the ship is to a place:
 ## 1. the ride: round its ring (a world's, a star's close orbit, or any circle
-##    round a fixed point) for a lead of 0 to LEAD_MAX 2.2 s, sped up by a
-##    phasing burn of at most PHASE_K_MAX times the ring's pace when the point it
-##    leaves from is further round (`ShipFlight._step_phase` flies it);
+##    round a fixed point) at the ring's own pace for up to LEAD_MAX 4.4 s, and
+##    past that sped up by a phasing burn whose push is held to THRUST
+##    (`ShipFlight._step_phase` flies it); alongside a station, belt, hulk or
+##    contact, holding there KEEP_HOLD 1 s;
 ## 2. the departure burn, at THRUST 40 px/s^2 in one direction, from the ring's
 ##    own motion (velocity continuous);
 ## 3. the coast, integrated through the stars and the moving giant (RK4 in
 ##    64-bit scalars, each step ETA of the nearest pull's own time);
-## 4. the arrival burn, onto the target's ring at its speed either way round
-##    (or alongside a station, belt, hulk or contact, at its own motion): the
-##    coast's path plus a cubic that ends exactly on the ring, its own pull at
-##    most THRUST and linear in time, so the burn turns smoothly or not at all
-##    (with gravity's change across it, at most THRUST_SLACK over).
+## 4. the arrival burn, onto the target's ring at its speed either way round:
+##    a constant pull of THRUST that ends exactly on the ring (`_const_burn`),
+##    its end where that pull is exact; alongside, the coast's path plus a cubic
+##    that ends exactly at the spot, its own pull at most THRUST and linear in
+##    time. With gravity's change across the burn, at most THRUST_SLACK over.
 ## Keep-out (`MapGravity`) holds along the whole path: each step's closest
-## approach on the cubic through its ends, and the arrival burn's own path.
+## approach on the cubic through its ends, and the arrival burn's own path. The
+## flight's own departure and target world keep out only to their rings
+## (OWN_GAP).
 ##
-## THE COST: engine work (the burns' sizes, px/s) + TIME_W x seconds from now
-## to arrival. Flying inside a system costs no fuel; the cost only picks the
-## path. TIME_W is the dial: more, faster flights that burn more.
+## THE COST: engine work (the ride's phasing and both burns, px/s) + TIME_W x
+## seconds from now to arrival. Flying inside a system costs no fuel; the cost
+## only picks the path. TIME_W is the dial: more, faster flights that burn more.
 ##
 ## HOW IT IS FOUND (prototyped in tk-scratch/twin-build/solve-proto, measured):
-## - conic guesses (Lambert about the star, or in a twin about the pair's
-##   balance point), priced from the very point and moment the ship can leave,
-##   aimed at the target ring's tangent point (where the ring's motion runs
-##   along the coast's own);
+## - conic guesses (Lambert about the star; in a twin about the pair's balance
+##   point and about each star the flight leaves or reaches), priced from the
+##   very point and moment the ship can leave, aimed at the target ring's
+##   tangent point (where the ring's motion runs along the coast's own);
 ## - the cheapest refined by Newton (finite differences, then Broyden) on the
 ##   departure velocity until the coast meets that tangent point at its time;
 ## - in a twin always, otherwise when no conic flies clean: a scan of real
-##   departures (SCAN_ANG points round the ring x SCAN_KICKS along its motion),
-##   the best refined by a minimum-norm Newton on the signed miss at the
-##   coast's pass of the target (its time free: along-track timing is the
-##   sensitive direction of an arc); then a second scan between the first's,
-##   and a third with slower departures;
-## - last, the rest of the conics as they are; at most BUDGET integrations.
+##   departures (SCAN_HEAD headings x four speeds, each leaving from the ring
+##   point whose motion runs along it, or the end of the ride's reach; out of a
+##   twin star's well to a place round both, faster: FAR_SPEED), the best
+##   refined by a minimum-norm Newton on the signed miss at the coast's pass of
+##   the target (its time free: along-track timing is the sensitive direction
+##   of an arc), from the point it left; then a second scan between the
+##   first's headings, and a third slower and faster;
+## - last, the rest of the conics as they are. At most BUDGET integrations,
+##   and one more for the samples.
 ##
-## MEASURED (SolveTest, Oct 30, this Mac's i5-8257U; 7,884 plans: every start
-## to every place at 12 line-ups in 16 real systems, the same with their giant
-## at 1/10 and 1/4, and three twins by hand): found and clean in 99.9% of
-## one-star plans, 99.3% with a heavy giant, 99.1% in twins; each lands on its
-## ring within 0.0001 px and 0.06 px/s; the drawn coast within 0.08 px of a
-## plain RK4 at SAMPLE. Planning median 14 ms one-star, 15 with a giant, 36 in
-## a twin; the worst 64, 61 and 103 ms. A twin's plans are over DESIGN's
-## median of 25 ms, so the game plans on a worker while the ship rides its
-## ring (a plan made on a worker is the same plan, bit for bit). The
-## prototype's free twin flight (world a to world b at its best line-up, 9.2
-## s): 1.6 px/s in 9.4 s.
+## MEASURED (SolveTest, Oct 30, this Mac's i5-8257U, with the LAYOUT branch's
+## twins merged in; 10,362 plans, every start to every place): found and
+## clean in 99.97% of 3,084 one-star plans, 100% of 3,768 with the giant at
+## 1/10 and 1/4, 99.16% of 2,610 in the layout's own twins (8, the most bodies
+## of four seeds, 6 line-ups), 98.9% of 900 in the prototype's twins built by
+## hand. Each lands on its ring within 0.0001 px and 0.07 px/s; the drawn
+## coast within 0.11 px of a plain RK4 at SAMPLE; 82% of arrivals onto a ring
+## a constant burn. Planning median 13 ms one-star, 14 with a giant, 37 in a
+## real twin; the worst 61, 70 and 136 ms (209 in the hand twins). A twin's
+## plans are over DESIGN's median of 25 ms, so the game plans them on a worker
+## while the ship rides its ring (a plan made on a worker is the same plan, bit
+## for bit). The prototype's free twin flight (world a to world b at its best
+## line-up, 9.2 s): 1.6 px/s in 9.3 s. The first build, on the same real
+## twins: 89.8% found (the planner review), its rides phasing at up to 436
+## px/s^2 for free and its arrival burns three times their least.
 ##
 ## USE
 ##   var G := MapGravity.from_layout(L)          # once per system; shareable
@@ -61,38 +71,89 @@ extends RefCounted
 ##   dep: {kind: &"ring", place: int, rt: float, ang: float, w: float}
 ##          place: a body index, -1 star A, SystemLayout.STAR_B, or -9 with
 ##          c: Vector2, a fixed centre (a settled star orbit); w signed rad/s
+##          (a star's rt: `star_orbit_r`)
 ##        {kind: &"keep", place: int, off: Vector2}   alongside, `off` from it
 ##        {kind: &"free", p: Vector2, v: Vector2}
 ##   tgt: {kind: &"ring", place: int, R: float, V: float, sense: 0 | 1 | -1}
-##          R the radius it arrives on (ShipFlight.orbit_r), V the ring speed
-##          (RAIL_V 35, a star's STAR_RAIL_V 45), sense 0 either way round
+##          R the radius it arrives on: a world's `ShipFlight.orbit_r(i)`, a
+##          star's `FlightSolve.star_orbit_r(L, p)` (in a twin its rail, NOT
+##          its ring - 8, which is inside its keep-out); V the ring speed (RAIL_V
+##          35, a star's STAR_RAIL_V 45); sense 0 either way round
 ##        {kind: &"keep", place: int, off: Vector2}
 ##   t: map time now.
 ## The result (`Result`) fills a ShipFlight.FlightPlan: samp from t0 (after
-## the ride) SAMPLE apart, burns per sample, end {body, p, v, a, arel, rv, t,
-## keep, sense} (a: the ring's own pull, relative, so the insertion that
-## follows flies none), lead and lead_k for rail.phase, dur, amax, esc_t (the
-## departure burn), and `choice`. Passing that choice back as `prefer` rebuilds
-## the same flight exactly (one integration) while its departure is still
-## ahead and the ride can reach it; otherwise it starts the search from it and
-## keeps that flight if it flies, so a preview does not flip between near
-## equals. `found` false: nothing clean within the budget, and no samples (the
-## caller falls back); `clean` false on a found plan only if its own samples
-## cut a keep-out (none in the sweeps).
+## the ride, or the hold alongside) SAMPLE apart, burns per sample, end {body,
+## p, v, a, arel, rv, t, keep, sense} (a: the ring's own pull, relative, so the
+## insertion that follows flies none), lead and lead_k for rail.phase (a ride
+## of up to 4.4 s: rail.phase {T: lead, k: lead_k} as it is; alongside, the
+## ship holds at its spot for `lead`), dur, amax, esc_t (the departure burn),
+## and `choice`. Passing that choice back as `prefer` rebuilds the same flight
+## exactly (one integration) while it is the same flight (`_same_flight`) and
+## its departure is still ahead: round a ring while the ride from where the
+## ship is now reaches it at a phasing within THRUST (its ride may then phase
+## harder than it did, at up to 2 THRUST lead / pi px/s more work), alongside
+## while the hold lasts, free at the same moment and state. Otherwise the
+## search starts from it and keeps that flight while it costs about what it
+## did (WARM_K, WARM_ADD), so a preview does not flip between near equals.
+## `found` false: nothing clean within the budget, and no samples (the caller
+## falls back); `clean` false on a found plan only if its own samples cut a
+## keep-out (none in the sweeps).
 
 const THRUST := 40.0
 ## an arrival burn may pull this much over THRUST where gravity's own pull
-## changes across it (its cubic alone holds to THRUST)
+## changes across it (its own pull holds to THRUST)
 const THRUST_SLACK := 1.1
+## an arrival burn's own pull may be this much over THRUST where its end is
+## moved onto the sample grid (`_build`): a constant burn whose end moves by
+## up to SAMPLE needs at most a few tenths of a percent more
+const BURN_TOL := 0.01
 ## the arrival burn's path is checked every 0.05 s of it and kept this far
 ## (px) inside its keep-outs' edge: checked every 0.1 s, two arrivals onto a
 ## twin's close orbit cut 0.15 and 1.5 px in between the points
 const BURN_PAD := 0.5
-const LEAD_MAX := 2.2
-## the phasing burn's top pace, in times the ring's own (today's `_lead` has no
-## cap): at 4 the prototype sweeps found 98.2% of twin and heavy-giant flights
-## (the ring's best point out of reach), at 8 99.1% and 99.5%
-const PHASE_K_MAX := 8.0
+## an arrival burn starts at least this long (s) after the departure burn
+## ends, so moving its end onto the sample grid (`_build`) cannot start it
+## before: one did, by under a sample, and the flight's first samples carried
+## its pull (0.18 px off the place it left, SolveTest)
+const TB_PAD := 2.0 * (1.0 / 240.0)
+## THE RIDE round to the departure point, at the ring's own pace, lasts at
+## most this (s): twice `ShipFlight.LEAD_MAX`'s 2.2. Past it the ride phases
+## (below). Priced honestly, phasing costs 2 V of engine work for each unit of
+## k (70 px/s on a world's ring) where riding on costs TIME_W a second, so
+## riding is about a hundred times cheaper for the same way round; held to
+## 2.2 s and THRUST, the twins built by hand fell from 99.1% found to 95%
+## (SolveTest, Oct 30). A ride's seconds are in the flight's time, so the cost
+## keeps it short where it can.
+const LEAD_MAX := 4.4
+## THE PHASING BURN's top pace, in times the ring's own, at the most: the ride
+## speeds round as `ShipFlight._step_phase` flies it, pace 1 + (k - 1) sin^2,
+## and its push along the ring peaks at |w| (k - 1) pi rt / LEAD_MAX. That push
+## is held to THRUST (`_kmax`): k at most 2.6 on a world's ring at RAIL_V,
+## 2.25 on a star's close orbit at STAR_RAIL_V, its top speed under VMAX. The
+## first build let k reach 8 within 2.2 s, which pushed at up to 436 px/s^2
+## and whirled a ship round a twin's 17.6 px rings at up to 350 px/s, free in
+## the cost (the planner review, Oct 30). Its work, 2 |k - 1| |w| rt, is in the
+## cost.
+const PHASE_K_MAX := 4.0
+## `ShipFlight.VMAX`: the ride's top speed
+const VMAX := 150.0
+## ALONGSIDE, A FLIGHT LEAVES THIS LONG AFTER IT IS PLANNED (the ship holding
+## alongside meanwhile), so the drawn flight is still ahead when it is clicked
+## and is rebuilt exactly from its choice (a ring's ride does the same). With
+## no hold, 48 of 48 clicks a quarter second after their preview flew another
+## flight, by a median 17.8 px (the planner review, Oct 30).
+const KEEP_HOLD := 1.0
+## A FLIGHT'S OWN DEPARTURE AND TARGET WORLD keeps out only to its ring less
+## this (px), not to r + 8: a twin's worlds round one star ride a 17.6 px ring,
+## inside r + 8 for any world over 9.6 px (1 twin in 26), so nothing flew to
+## or from them; where it did fit, it left a median 2.7 px
+const OWN_GAP := 2.0
+## A PREVIEW'S FLIGHT IS KEPT (`prefer`, its departure gone by) while it costs
+## at most WARM_K more than it did, or WARM_ADD: past that the search runs, and
+## the kept flight stays only if the search does not beat it by as much. With
+## none, kept flights ran up to 81.6 over a fresh search (the planner review).
+const WARM_K := 0.25
+const WARM_ADD := 10.0
 ## a flight arrives within this of now
 const T_CAP := 30.0
 ## px/s of engine work one second of flight is worth. At 0.5 the median flight
@@ -108,21 +169,40 @@ const ETA := 0.15
 const H_MIN := 1.0 / 120.0
 const H_MAX := 0.5
 const H_BURN := 0.1
-## the longest arrival burn: the coast is flown on this far past a keep-out
-## it breaks, for an arrival whose burn starts before it
+## the longest arrival burn (a constant one of 120 px/s): the coast is flown
+## on this far past a keep-out it breaks, for an arrival whose burn starts
+## before it
 const D2_MAX := 3.0
 ## how far round a pass a coast is priced from the target (px past its ring)
 const NEAR := 260.0
 ## a coast passing within this of the ring's virtual circle is priced at its
 ## closest even when it does not cross it
 const GRAZE := 60.0
-const SCAN_ANG := 6
-const SCAN_KICKS := [0.0, 15.0, 35.0, 60.0]
-const SCAN_KICKS2 := [7.0, 25.0, 47.0, 80.0]
-## the third look, when two find nothing: slower than the ring, and faster
-const SCAN_KICKS3 := [-12.0, -22.0, 20.0, 100.0]
-## integrations a plan may take: a twin's flights are short and its search
-## wide (measured: the median twin plan 39, one-star 8)
+## THE SCAN (`_scan`): headings, and per pass the speeds (times the ring's
+## own) a ring departure tries, or the kicks (px/s) on a place's own motion
+## alongside or free; the third pass, when two find nothing, slower and faster
+## (the first build's speeds, along the ring's motion only)
+const SCAN_HEAD := 8
+const SCAN_SPEED := [[1.0, 1.43, 2.0, 2.71], [1.2, 1.71, 2.34, 3.29], [0.66, 0.8, 1.57, 3.86]]
+const SCAN_KICK := [[15.0, 35.0, 60.0], [7.0, 25.0, 47.0, 80.0], [12.0, 22.0, 100.0]]
+## A TARGET FAR OUT OF A TWIN STAR'S WELL is scanned from at least the speed
+## that climbs out to it in about FAR_T s; a point is round a star where its
+## pull is FAR_SHARE times the other's
+const FAR_T := 18.0
+const FAR_SHARE := 3.0
+## its scan's speeds per pass, in times that need
+const FAR_SPEED := [[0.8, 1.1, 1.5, 2.0], [0.9, 1.25, 1.75, 2.4], [0.7, 1.0, 1.35, 2.9]]
+## A RING DEPARTURE'S BURN is centred on its point (the ship comes off the
+## ring half a burn sooner) only as far back as the ring turns this much (rad):
+## further, the burn starts along a chord that dips inside the ring by about
+## rt theta^2 / 8, 2.3 px for a 1.2 s burn on a twin star's close orbit, which
+## is only 2 px outside its keep-out
+const BACK_TURN := 0.25
+## INTEGRATIONS A PLAN MAY TAKE: `_fly` flies no more past it, so a
+## refinement under way stops there too (the first build only checked it
+## between scan flights, and a plan took up to 144); the samples take one
+## more, and a warm start that is not kept gives the search a budget of its
+## own after it. A twin's flights are short and its search wide.
 const BUDGET := 140
 const CONIC_TS := [6.0, 9.0, 13.0, 18.0, 24.0, 29.0]
 ## the conics the second stage re-solves from the real departure
@@ -153,10 +233,18 @@ class Result:
 	var end: Dictionary = {}
 	var choice: Dictionary = {}
 	var cost := INF
-	## engine work, px/s: the departure burn and the arrival burn
+	## the cost the search priced it at, before its end was moved onto the
+	## sample grid
+	var priced := INF
+	## engine work, px/s: the ride's phasing, the departure burn and the
+	## arrival burn
 	var work := 0.0
+	var dvp := 0.0
 	var dv1 := 0.0
 	var dv2 := 0.0
+	## whether the arrival burn pulls the same way all through (onto a ring,
+	## where it ends exactly; else the cubic, alongside or past BURN_TOL)
+	var arr_const := false
 	## seconds from now to arrival, and the arrival burn's length
 	var T := 0.0
 	var d2 := 0.0
@@ -204,8 +292,16 @@ var _tV := 0.0
 var _toffx := 0.0
 var _toffz := 0.0
 var _tplace := -9
+var _tsense := 0
 var _senses := PackedFloat64Array([1.0, -1.0])
 var _twin := false
+## the ride's top phasing (`_kmax`)
+var _kmax := 1.0
+## the keep-outs this flight holds: MapGravity's, its own departure and
+## target world's cut to their rings (OWN_GAP)
+var _wkeep := PackedFloat64Array()
+var _gkeep := PackedFloat64Array()
+var _budget := BUDGET
 
 ## a place's centre and motion (`_dep_at`, `_tgt_at` write these)
 var _cx := 0.0
@@ -236,8 +332,12 @@ var _us_build := 0
 var _e_J := INF
 var _e_td := 0.0
 var _e_ad := 0.0
+## the ring angle asked for, before the burn is centred on it (`_depart`)
+var _e_a0 := 0.0
 var _e_lead := 0.0
 var _e_k := 1.0
+## the ride's phasing work, px/s
+var _e_ph := 0.0
 var _e_x0 := 0.0
 var _e_z0 := 0.0
 var _e_vx0 := 0.0
@@ -267,6 +367,17 @@ static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, 
 	return fs._solve(grav, dep, tgt, t, prefer)
 
 
+## THE RADIUS OF STAR p'S CLOSE ORBIT, ridden and arrived on (a ring's R and
+## rt). One star: 8 inside its ring, as `ShipFlight.orbit_r(-1)` rides it. A
+## twin's star: its rail (`star_rail_of`), 2 px outside the keep-out, since its
+## ring is only 4 px out and ring - 8 is inside the keep-out (for every twin
+## star of 1,710: none of 96 flights there was found, the planner review, Oct 30).
+static func star_orbit_r(L: SystemLayout, p: int) -> float:
+	if L.twin:
+		return L.star_rail_of(p)
+	return L.star_ring_of(p) - 8.0
+
+
 func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary) -> Result:
 	var t_us := Time.get_ticks_usec()
 	G = grav
@@ -279,10 +390,26 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 	var res: Result = null
 	if not prefer.is_empty() and int(prefer.get("v", 0)) == CHOICE_V:
 		res = _replay(prefer)
-		if res == null:
-			_warm(prefer)
-			if _b_J < INF:
+		if res == null and _warm(prefer):
+			# KEPT while it costs about what it did; else the search, and the kept
+			# flight only if the search does not beat it by as much
+			var j_old := float(prefer.get("J", INF))
+			if _b_J <= j_old + _warm_slack(j_old):
 				res = _build(&"warm")
+			else:
+				var wj := _b_J
+				var wb := _b.duplicate()
+				_b_J = INF
+				_b = {}
+				# (a budget of its own, so it finds what a fresh search would)
+				_budget = _n_integ + BUDGET
+				_search()
+				if _b_J == INF or _b_J + _warm_slack(_b_J) >= wj:
+					_b_J = wj
+					_b = wb
+					res = _build(&"warm")
+				else:
+					res = _build(&"solved")
 	if res == null:
 		_search()
 		res = _build(&"solved")
@@ -296,7 +423,49 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 	return res
 
 
+static func _warm_slack(j: float) -> float:
+	return maxf(WARM_ADD, WARM_K * j)
+
+
 func _setup(dep: Dictionary, tgt: Dictionary) -> bool:
+	if not _setup_in(dep, tgt):
+		return false
+	# THE RIDE'S PHASING, held to THRUST and VMAX on the ring being ridden
+	_kmax = 1.0
+	if _dk == 0:
+		var vr := absf(_dw) * _drt
+		_kmax = clampf(minf(1.0 + THRUST * LEAD_MAX / (PI * vr), VMAX / vr), 1.0, PHASE_K_MAX)
+	# ITS OWN WORLDS keep out to their rings, not past them
+	_wkeep = PackedFloat64Array()
+	_wkeep.resize(G.wo_keep.size())
+	for j in G.wo_keep.size():
+		_wkeep[j] = G.wo_keep[j]
+		var own := _own_r(G.wo_body[j])
+		if own > 0.0:
+			_wkeep[j] = maxf(minf(G.wo_keep[j], own - OWN_GAP), G.wo_r[j] + 1.0)
+	_gkeep = PackedFloat64Array()
+	_gkeep.resize(G.gi_keep.size())
+	for j in G.gi_keep.size():
+		_gkeep[j] = G.gi_keep[j]
+		var own2 := _own_r(G.gi_body[j])
+		if own2 > 0.0:
+			_gkeep[j] = maxf(minf(G.gi_keep[j], own2 - OWN_GAP), G.gi_r[j] + 1.0)
+	return true
+
+
+## The radius this flight leaves or arrives on round body i, 0 when it is
+## neither its departure nor its target.
+func _own_r(i: int) -> float:
+	var r := 0.0
+	if i == _dplace and i >= 0:
+		r = _drt if _dk == 0 else (sqrt(_doffx * _doffx + _doffz * _doffz) if _dk == 1 else 0.0)
+	if i == _tplace and i >= 0:
+		var rt := _tR if _tk == 0 else sqrt(_toffx * _toffx + _toffz * _toffz)
+		r = rt if r == 0.0 else minf(r, rt)
+	return r
+
+
+func _setup_in(dep: Dictionary, tgt: Dictionary) -> bool:
 	match StringName(dep.get("kind", &"")):
 		&"ring":
 			_dk = 0
@@ -330,12 +499,14 @@ func _setup(dep: Dictionary, tgt: Dictionary) -> bool:
 			_tR = float(tgt.R)
 			_tV = float(tgt.V)
 			var sn := int(tgt.get("sense", 0))
+			_tsense = signi(sn)
 			_senses = PackedFloat64Array([1.0, -1.0]) if sn == 0 else PackedFloat64Array([float(signi(sn))])
 		&"keep":
 			_tk = 1
 			var o2: Vector2 = tgt.get("off", Vector2.ZERO)
 			_toffx = o2.x
 			_toffz = o2.y
+			_tsense = 0
 			_senses = PackedFloat64Array([1.0])
 		_:
 			return false
@@ -403,7 +574,13 @@ func _tgt_at(t: float) -> void:
 # ---------------------------------------------------------------- the ride and the departure
 ## How far round its ring the ride reaches within LEAD_MAX (rad).
 func _reach() -> float:
-	return absf(_dw) * LEAD_MAX * (PHASE_K_MAX + 1.0) * 0.5 - 1e-6
+	return absf(_dw) * LEAD_MAX * (_kmax + 1.0) * 0.5 - 1e-6
+
+
+## The ride's phasing work at k (px/s): its push along the ring, up by
+## |k - 1| |w| rt and back down.
+func _phase_work(k: float) -> float:
+	return 2.0 * absf(k - 1.0) * absf(_dw) * _drt
 
 
 ## The ride dang radians round at rate w (> 0): [lead, phasing k]
@@ -434,10 +611,11 @@ func _ride_to(a: float) -> bool:
 	var dr := 1.0 if _dw >= 0.0 else -1.0
 	var dang := fposmod(dr * (a - _dang), TAU)
 	var lk := _lead_of(dang, absf(_dw))
-	if lk[1] > PHASE_K_MAX + 1e-6:
+	if lk[1] > _kmax + 1e-6:
 		return false
 	_e_lead = lk[0]
 	_e_k = lk[1]
+	_e_ph = _phase_work(_e_k)
 	_e_td = t_now + _e_lead
 	_e_ad = a
 	_dep_at(_e_td)
@@ -460,6 +638,8 @@ func _depart(ux: float, uz: float, has_fix: bool, a_fix: float) -> bool:
 	_e_uz = uz
 	_e_fix = has_fix
 	_e_afix = a_fix
+	_e_ph = 0.0
+	_e_a0 = 0.0
 	if _dk == 2:
 		_e_td = t_now
 		_e_lead = 0.0
@@ -473,11 +653,12 @@ func _depart(ux: float, uz: float, has_fix: bool, a_fix: float) -> bool:
 		_e_dvz = uz - _dvz
 		return true
 	if _dk == 1:
-		_e_td = t_now
-		_e_lead = 0.0
+		# (holding alongside for KEEP_HOLD first)
+		_e_td = t_now + KEEP_HOLD
+		_e_lead = KEEP_HOLD
 		_e_k = 1.0
 		_e_ad = 0.0
-		_dep_at(t_now)
+		_dep_at(_e_td)
 		_e_x0 = _cx + _doffx
 		_e_z0 = _cz + _doffz
 		_e_vx0 = _cvx
@@ -488,13 +669,14 @@ func _depart(ux: float, uz: float, has_fix: bool, a_fix: float) -> bool:
 	var a := a_fix if has_fix else _aligned(ux, uz)
 	if not _ride_to(a):
 		return false
+	_e_a0 = a
 	_e_dvx = _cvx + ux - _e_vx0
 	_e_dvz = _cvz + uz - _e_vz0
 	var d1 := sqrt(_e_dvx * _e_dvx + _e_dvz * _e_dvz) / THRUST
-	var back := minf(0.5 * d1, _e_lead)
+	var back := minf(minf(0.5 * d1, _e_lead), BACK_TURN / absf(_dw))
 	if back > 1e-6:
 		var a_b := a - _dw * back
-		var keep := [_e_td, _e_lead, _e_k, _e_ad, _e_x0, _e_z0, _e_vx0, _e_vz0, _e_dvx, _e_dvz]
+		var keep := [_e_td, _e_lead, _e_k, _e_ad, _e_x0, _e_z0, _e_vx0, _e_vz0, _e_dvx, _e_dvz, _e_ph]
 		if _ride_to(a_b) and _e_td <= float(keep[0]):
 			_e_dvx = _cvx + ux - _e_vx0
 			_e_dvz = _cvz + uz - _e_vz0
@@ -509,14 +691,18 @@ func _depart(ux: float, uz: float, has_fix: bool, a_fix: float) -> bool:
 			_e_vz0 = float(keep[7])
 			_e_dvx = float(keep[8])
 			_e_dvz = float(keep[9])
+			_e_ph = float(keep[10])
 	return true
 
 
 ## Fly the departure for (ux, uz) and price its arrival: the flight's cost, INF
 ## when it has no clean arrival. The coast stays in _c*, the flight in _e_*.
+## No coast is flown (`_cn` 0) when the ride cannot reach the departure, or
+## past the budget: everything that reads the coast checks for one.
 func _fly(ux: float, uz: float, has_fix: bool, a_fix: float) -> float:
 	_e_J = INF
-	if not _depart(ux, uz, has_fix, a_fix):
+	if _n_integ >= _budget or not _depart(ux, uz, has_fix, a_fix):
+		_cn = 0
 		return INF
 	var t0 := Time.get_ticks_usec()
 	_integrate(_e_td, _e_x0, _e_z0, _e_vx0, _e_vz0, _e_dvx, _e_dvz, t_now + T_CAP)
@@ -531,9 +717,9 @@ func _fly(ux: float, uz: float, has_fix: bool, a_fix: float) -> float:
 
 func _keep_best() -> void:
 	_b_J = _e_J
-	_b = {"ux": _e_ux, "uz": _e_uz, "fix": _e_fix, "afix": _e_afix, "td": _e_td, "ad": _e_ad,
+	_b = {"ux": _e_ux, "uz": _e_uz, "fix": _e_fix, "afix": _e_afix, "a0": _e_a0, "td": _e_td, "ad": _e_ad,
 		"x0": _e_x0, "z0": _e_z0, "vx0": _e_vx0, "vz0": _e_vz0, "dvx": _e_dvx, "dvz": _e_dvz,
-		"te": _e_te, "s": _e_s, "phi": _e_phi, "d2": _e_d2, "w2": _e_w2, "lead": _e_lead, "k": _e_k, "pk": _e_pk}
+		"te": _e_te, "s": _e_s, "phi": _e_phi, "d2": _e_d2, "w2": _e_w2, "lead": _e_lead, "k": _e_k, "ph": _e_ph, "pk": _e_pk}
 
 
 # ---------------------------------------------------------------- the coast
@@ -555,6 +741,11 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 	var ns := G.star_x.size()
 	var ng := G.gi_hx.size()
 	var nw := G.wo_hx.size()
+	# (a coast flown with no flight set up, as a bench does: MapGravity's own)
+	if _wkeep.size() != nw:
+		_wkeep = G.wo_keep
+	if _gkeep.size() != ng:
+		_gkeep = G.gi_keep
 	var fast := ns <= 2 and ng <= 1
 	var s0x := G.star_x[0] if ns > 0 else 0.0
 	var s0z := G.star_z[0] if ns > 0 else 0.0
@@ -570,7 +761,7 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 	var gnn := G.gi_n[0] if ng > 0 else 0.0
 	var gph := G.gi_ph[0] if ng > 0 else 0.0
 	var ggm := G.gi_gm[0] if ng > 0 else 0.0
-	var gkp := G.gi_keep[0] if ng > 0 else 0.0
+	var gkp := _gkeep[0] if ng > 0 else 0.0
 	var dv := sqrt(dvx * dvx + dvz * dvz)
 	var d1 := dv / THRUST
 	var thx := dvx / dv * THRUST if dv > 1e-9 else 0.0
@@ -802,7 +993,7 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 		for j in ng:
 			var ox2 := gxm if j == 0 else G.giant_at(j, t + hh)[0]
 			var oz2 := gzm if j == 0 else G.giant_at(j, t + hh)[1]
-			var kp2 := gkp if j == 0 else G.gi_keep[j]
+			var kp2 := gkp if j == 0 else _gkeep[j]
 			var dd2 := sqrt((nx - ox2) * (nx - ox2) + (nz - oz2) * (nz - oz2))
 			if dd2 < 0.5 * kp2:
 				deep = true
@@ -814,7 +1005,7 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 		for j in nw:
 			# (cheap first: how far the step is from the world's whole orbit)
 			var rh := sqrt((nx - G.wo_hx[j]) * (nx - G.wo_hx[j]) + (nz - G.wo_hz[j]) * (nz - G.wo_hz[j]))
-			var kp3: float = G.wo_keep[j]
+			var kp3: float = _wkeep[j]
 			if absf(rh - G.wo_orb[j]) - kp3 > reach + 40.0:
 				continue
 			var aw := G.wo_ph[j] + G.wo_n[j] * (t + hh)
@@ -919,15 +1110,16 @@ func _coast_k(k: int, tq: float) -> PackedFloat64Array:
 
 # ---------------------------------------------------------------- the arrival
 ## THE RING POINT A CONSTANT-THRUST BURN WOULD END ON from the coast's state (r,
-## u) relative to the target at te, sense s: [radial mismatch g, angle phi,
-## burn length d]. A constant burn of length d ends at r_T, u_T exactly when
-## r_T - u_T d/2 = r - u d/2 (the virtual point q), and |r_T - u_T d/2| is the
-## same all round the ring, so phi follows from q's angle and g is the miss.
-## Into _vg, _vphi, _vd (it runs at every node near the target).
+## u) relative to the target at te, sense s, its pull pk: [radial mismatch g,
+## angle phi, burn length d]. A constant burn of length d ends at r_T, u_T
+## exactly when r_T - u_T d/2 = r - u d/2 (the virtual point q), and |r_T - u_T
+## d/2| is the same all round the ring, so phi follows from q's angle and g is
+## the miss. Into _vg, _vphi, _vd (it runs at every node near the target, so it
+## takes a few rounds of d, not the exact one: `_const_burn` is that).
 var _vg := 0.0
 var _vphi := 0.0
 var _vd := 0.0
-func _virt(rx: float, rz: float, ux: float, uz: float, s: float, rounds: int = 3) -> void:
+func _virt(rx: float, rz: float, ux: float, uz: float, s: float, rounds: int = 3, pk: float = THRUST) -> void:
 	var d := 0.0
 	var phi := atan2(rz, rx)
 	var R := _tR
@@ -938,7 +1130,7 @@ func _virt(rx: float, rz: float, ux: float, uz: float, s: float, rounds: int = 3
 		phi = atan2(qz, qx) + s * atan2(V * d * 0.5, R)
 		var tx := -sin(phi) * s * V
 		var tz := cos(phi) * s * V
-		d = sqrt((tx - ux) * (tx - ux) + (tz - uz) * (tz - uz)) / THRUST
+		d = sqrt((tx - ux) * (tx - ux) + (tz - uz) * (tz - uz)) / pk
 	var qx2 := rx - ux * d * 0.5
 	var qz2 := rz - uz * d * 0.5
 	_vg = sqrt(qx2 * qx2 + qz2 * qz2) - sqrt(R * R + V * d * 0.5 * V * d * 0.5)
@@ -946,38 +1138,182 @@ func _virt(rx: float, rz: float, ux: float, uz: float, s: float, rounds: int = 3
 	_vd = d
 
 
+## THE CONSTANT BURN THAT ENDS ON THE RING AT te EXACTLY, from the coast's
+## state (r, u) relative to the target there, sense s. A constant pull a for d
+## seconds on top of the coast ends at r + a d^2/2, u + a d: on the ring at its
+## speed when r - u d/2 = R e(phi) - s V d/2 e'(phi), whose size is sqrt(R^2 +
+## V^2 d^2/4) all round, so d is a root of
+##   (|u|^2 - V^2)/4 d^2 - (r.u) d + |r|^2 - R^2 = 0
+## (the one nearest d_near) and phi follows from the angle. Into _kd, _kphi and
+## _ka, the pull |du| / d it takes; false when there is no root.
+var _kd := 0.0
+var _kphi := 0.0
+var _ka := 0.0
+func _const_burn(rx: float, rz: float, ux: float, uz: float, s: float, d_near: float) -> bool:
+	var R := _tR
+	var V := _tV
+	var a2 := 0.25 * (ux * ux + uz * uz - V * V)
+	var b1 := -(rx * ux + rz * uz)
+	var c0 := rx * rx + rz * rz - R * R
+	var d := -1.0
+	if absf(a2) < 1e-9:
+		if absf(b1) > 1e-12:
+			d = -c0 / b1
+	else:
+		var disc := b1 * b1 - 4.0 * a2 * c0
+		if disc < 0.0:
+			return false
+		var sq := sqrt(disc)
+		# (the pair of roots that loses no digits)
+		var q := -0.5 * (b1 + (sq if b1 >= 0.0 else -sq))
+		var r1 := q / a2
+		var r2 := c0 / q if absf(q) > 1e-300 else -1.0
+		if r1 > 1e-6 and (r2 <= 1e-6 or absf(r1 - d_near) <= absf(r2 - d_near)):
+			d = r1
+		elif r2 > 1e-6:
+			d = r2
+	if d <= 1e-6:
+		return false
+	var qx := rx - ux * d * 0.5
+	var qz := rz - uz * d * 0.5
+	var phi := atan2(qz, qx) + s * atan2(V * d * 0.5, R)
+	var dux := -sin(phi) * s * V - ux
+	var duz := cos(phi) * s * V - uz
+	_kd = d
+	_kphi = phi
+	_ka = sqrt(dux * dux + duz * duz) / d
+	return true
+
+
+## The pull of the constant burn ending at te (`_const_burn`), NAN where there
+## is none or it would start before the departure burn ends.
+## (d_near < 0: the virtual point's own d)
+func _ka_at(te: float, s: float, d_near: float) -> float:
+	if te > _cT[_cn - 1] or te < _tc0:
+		return NAN
+	var c := _coast_at(te)
+	_tgt_at(te)
+	var rx := c[0] - _cx
+	var rz := c[1] - _cz
+	var ux := c[2] - _cvx
+	var uz := c[3] - _cvz
+	if d_near < 0.0:
+		_virt(rx, rz, ux, uz, s, 3)
+		d_near = _vd
+	if not _const_burn(rx, rz, ux, uz, s, d_near) or te - _kd < _tc0:
+		return NAN
+	return _ka
+
+
+## WHERE THE ARRIVAL'S CONSTANT BURN PULLS pk EXACTLY: a secant on te from te0
+## (where the coast's virtual point crosses the ring's, found between nodes),
+## the pull falling as the arrival comes later. te0 when it finds none. Found
+## between nodes alone, the crossing left the burn up to some px off a
+## constant one, and the burn that held its pull then lasted three times as
+## long, pulling against its own change for the first third (the planner
+## review, Oct 30).
+func _te_for(te0: float, s: float, pk: float, d_near: float) -> float:
+	var lo := _tc0
+	var hi := minf(_cT[_cn - 1], t_now + T_CAP)
+	var t1 := te0
+	var f1 := _ka_at(t1, s, d_near) - pk
+	if is_nan(f1):
+		return te0
+	if absf(f1) < 1e-5 * pk:
+		return t1
+	var dn := _kd
+	var t2 := clampf(t1 + (0.01 if f1 > 0.0 else -0.01), lo, hi)
+	var f2 := _ka_at(t2, s, dn) - pk
+	for _i in 6:
+		if is_nan(f2) or f2 == f1:
+			break
+		dn = _kd
+		if absf(f2) < 1e-5 * pk:
+			return t2
+		var t3 := clampf(t2 - f2 * (t2 - t1) / (f2 - f1), lo, hi)
+		t1 = t2
+		f1 = f2
+		t2 = t3
+		f2 = _ka_at(t2, s, dn) - pk
+	if not is_nan(f2) and absf(f2) < 1e-3 * pk:
+		return t2
+	return te0
+
+
 ## THE ARRIVAL BURN for a change of position (dxx, dxz) and velocity (dux, duz)
 ## off the coast: P(tau) = A tau^2 + B tau^3 on top of the coast, A = 3 dx -
 ## du d, B = du d - 2 dx; its pull (2A + 6B tau) / d^2 is linear, so at most
-## THRUST (pk) means at both ends. [d, engine work], d the least that holds (a
-## constant burn when dx = du d/2), or empty past 64 s.
+## pk means at both ends. [d, engine work], d the least that holds, or empty
+## past 64 s. No burn that holds to pk changes the velocity by |du| in less
+## than |du| / pk; there, it holds only as a constant burn (dx = du d/2), and
+## just past it only in a window a few percent wide (one end's pull falls as
+## the burn lengthens and the other's rises), or not at all where the miss is
+## across the motion. So the least pull is looked for there first (to BURN_TOL
+## over), and only then further out, where the pull turns over: it first pulls
+## against du, then with it, from about three times as long. The first build
+## doubled its way out from 0.05 s and so always stepped over the window, and
+## every arrival burn lasted three times the least (the planner review).
 static func _cubic_burn(dxx: float, dxz: float, dux: float, duz: float, pk: float = THRUST) -> PackedFloat64Array:
-	var lo := 1e-3
-	var hi := 0.05
-	while _peak(dxx, dxz, dux, duz, hi) > pk:
-		hi *= 2.0
-		if hi > 64.0:
-			return PackedFloat64Array()
-	for _i in 22:
-		var m := 0.5 * (lo + hi)
-		if _peak(dxx, dxz, dux, duz, m) > pk:
-			lo = m
+	var du := sqrt(dux * dux + duz * duz)
+	var lb := maxf(du / pk, 1e-3)
+	var d := -1.0
+	var pl := _peak(dxx, dxz, dux, duz, lb)
+	if pl <= pk:
+		d = lb
+	else:
+		# near the least: the lowest peak, golden section on [lb, 1.5 lb], where
+		# it falls to a point and then rises
+		var a := lb
+		var b := 1.5 * lb
+		var gr := 0.6180339887498949
+		var c := b - gr * (b - a)
+		var e := a + gr * (b - a)
+		var fc := _peak(dxx, dxz, dux, duz, c)
+		var fe := _peak(dxx, dxz, dux, duz, e)
+		for _i in 18:
+			if fc < fe:
+				b = e
+				e = c
+				fe = fc
+				c = b - gr * (b - a)
+				fc = _peak(dxx, dxz, dux, duz, c)
+			else:
+				a = c
+				c = e
+				fc = fe
+				e = a + gr * (b - a)
+				fe = _peak(dxx, dxz, dux, duz, e)
+		var dm := c if fc < fe else e
+		var pm := minf(fc, fe)
+		if pm <= pk:
+			# the least that holds, between lb (over) and dm
+			var lo := lb
+			var hi := dm
+			for _i in 20:
+				var m := 0.5 * (lo + hi)
+				if _peak(dxx, dxz, dux, duz, m) > pk:
+					lo = m
+				else:
+					hi = m
+			d = hi
+		elif pm <= pk * (1.0 + BURN_TOL):
+			d = dm
 		else:
-			hi = m
-	var d := hi
-	var a0x := 6.0 * dxx - 2.0 * dux * d
-	var a0z := 6.0 * dxz - 2.0 * duz * d
-	var a1x := 4.0 * dux * d - 6.0 * dxx
-	var a1z := 4.0 * duz * d - 6.0 * dxz
-	# the work, Simpson on four intervals of the linear pull's size
-	var w := 0.0
-	for j in 5:
-		var u := float(j) / 4.0
-		var wt := 1.0 if j == 0 or j == 4 else (4.0 if j % 2 == 1 else 2.0)
-		var px := a0x + (a1x - a0x) * u
-		var pz := a0z + (a1z - a0z) * u
-		w += wt * sqrt(px * px + pz * pz)
-	return PackedFloat64Array([d, w / 12.0 / d])
+			var lo2 := 1.5 * lb
+			var hi2 := 1.5 * lo2
+			while _peak(dxx, dxz, dux, duz, hi2) > pk:
+				lo2 = hi2
+				hi2 *= 1.5
+				if hi2 > 64.0:
+					return PackedFloat64Array()
+			for _i in 22:
+				var m2 := 0.5 * (lo2 + hi2)
+				if _peak(dxx, dxz, dux, duz, m2) > pk:
+					lo2 = m2
+				else:
+					hi2 = m2
+			d = hi2
+	return PackedFloat64Array([d, _cubic_work(dxx, dxz, dux, duz, d)])
 
 
 static func _peak(dxx: float, dxz: float, dux: float, duz: float, d: float) -> float:
@@ -988,8 +1324,41 @@ static func _peak(dxx: float, dxz: float, dux: float, duz: float, d: float) -> f
 	return maxf(sqrt(ax * ax + az * az), sqrt(bx * bx + bz * bz)) / (d * d)
 
 
+## THE CUBIC BURN'S ENGINE WORK, exactly: its pull p + q u (u 0 to 1) is linear,
+## and the integral of its size sqrt(A u^2 + 2 B u + C) is closed (Simpson on
+## four steps read 1.167 |du| for a burn whose pull passes through nothing,
+## against 1.25).
+static func _cubic_work(dxx: float, dxz: float, dux: float, duz: float, d: float) -> float:
+	var px := (6.0 * dxx - 2.0 * dux * d) / (d * d)
+	var pz := (6.0 * dxz - 2.0 * duz * d) / (d * d)
+	var qx := (4.0 * dux * d - 6.0 * dxx) / (d * d) - px
+	var qz := (4.0 * duz * d - 6.0 * dxz) / (d * d) - pz
+	var A := qx * qx + qz * qz
+	var C := px * px + pz * pz
+	if A < 1e-18:
+		return sqrt(C) * d
+	var B := px * qx + pz * qz
+	var w0 := B / A
+	var w1 := 1.0 + w0
+	var k2 := maxf(C / A - w0 * w0, 0.0)
+	return d * sqrt(A) * (_half_hyp(w1, k2) - _half_hyp(w0, k2))
+
+
+## The integral of sqrt(w^2 + k2) from 0 to w.
+static func _half_hyp(w: float, k2: float) -> float:
+	var s := sqrt(w * w + k2)
+	if k2 < 1e-24:
+		return 0.5 * w * absf(w)
+	var k := sqrt(k2)
+	var x := absf(w) / k
+	var ash := log(x + sqrt(x * x + 1.0))
+	return 0.5 * (w * s + k2 * (ash if w >= 0.0 else -ash))
+
+
 ## The arrival ending at te from the coast's state (x, z, vx, vz) there, sense
-## s: [work, phi, d, dxx, dxz, dux, duz], or empty.
+## s: [work, phi, d, dxx, dxz, dux, duz, constant (1 or 0)], or empty. Onto a
+## ring the constant burn ending there (`_const_burn`) where its pull is
+## within BURN_TOL of pk; the cubic otherwise, and alongside.
 func _arrival(te: float, x: float, z: float, vx: float, vz: float, s: float, pk: float = THRUST) -> PackedFloat64Array:
 	_tgt_at(te)
 	var rx := x - _cx
@@ -1007,7 +1376,14 @@ func _arrival(te: float, x: float, z: float, vx: float, vz: float, s: float, pk:
 		dux = -ux
 		duz = -uz
 	else:
-		_virt(rx, rz, ux, uz, s)
+		_virt(rx, rz, ux, uz, s, 3, pk)
+		if _const_burn(rx, rz, ux, uz, s, _vd) and _ka <= pk * (1.0 + BURN_TOL):
+			phi = _kphi
+			dxx = _tR * cos(phi) - rx
+			dxz = _tR * sin(phi) - rz
+			dux = -sin(phi) * s * _tV - ux
+			duz = cos(phi) * s * _tV - uz
+			return PackedFloat64Array([_ka * _kd, phi, _kd, dxx, dxz, dux, duz, 1.0])
 		phi = _vphi
 		dxx = _tR * cos(phi) - rx
 		dxz = _tR * sin(phi) - rz
@@ -1016,7 +1392,58 @@ func _arrival(te: float, x: float, z: float, vx: float, vz: float, s: float, pk:
 	var cb := _cubic_burn(dxx, dxz, dux, duz, pk)
 	if cb.is_empty():
 		return PackedFloat64Array()
-	return PackedFloat64Array([cb[1], phi, cb[0], dxx, dxz, dux, duz])
+	return PackedFloat64Array([cb[1], phi, cb[0], dxx, dxz, dux, duz, 0.0])
+
+
+## WHERE AN ARRIVAL ALONGSIDE (or a graze of a ring) IS BEST, between the nodes
+## round node kk: the time its virtual point passes closest to the spot (the
+## ring's virtual circle), golden section on the coast. Found only at a node, it
+## was up to half a step (some 25 px of the coast) off, and the burn made up
+## the rest.
+func _te_near(kk: int, s: float) -> float:
+	var a := _cT[maxi(kk - 1, 0)]
+	var b := _cT[mini(kk + 1, _cn - 1)]
+	a = maxf(a, _tc0)
+	b = minf(b, t_now + T_CAP)
+	if b <= a:
+		return _cT[kk]
+	var gr := 0.6180339887498949
+	var c := b - gr * (b - a)
+	var e := a + gr * (b - a)
+	var fc := _miss_at(c, s)
+	var fe := _miss_at(e, s)
+	for _i in 14:
+		if fc < fe:
+			b = e
+			e = c
+			fe = fc
+			c = b - gr * (b - a)
+			fc = _miss_at(c, s)
+		else:
+			a = c
+			c = e
+			fc = fe
+			e = a + gr * (b - a)
+			fe = _miss_at(e, s)
+	return c if fc < fe else e
+
+
+## How far the virtual point is from the spot alongside (or outside the ring's
+## virtual circle) at tq.
+func _miss_at(tq: float, s: float) -> float:
+	var c := _coast_at(tq)
+	_tgt_at(tq)
+	var rx := c[0] - _cx
+	var rz := c[1] - _cz
+	var ux := c[2] - _cvx
+	var uz := c[3] - _cvz
+	if _tk == 1:
+		var dk := sqrt(ux * ux + uz * uz) / THRUST
+		var qx := rx - ux * dk * 0.5 - _toffx
+		var qz := rz - uz * dk * 0.5 - _toffz
+		return sqrt(qx * qx + qz * qz)
+	_virt(rx, rz, ux, uz, s, 3)
+	return absf(_vg)
 
 
 ## The least keep-out margin along an arrival burn's path (the coast plus the
@@ -1074,15 +1501,15 @@ func _margin(x: float, z: float, t: float) -> float:
 		var a := G.gi_ph[k] + G.gi_n[k] * t
 		var gx := G.gi_hx[k] + G.gi_orb[k] * cos(a) - x
 		var gz := G.gi_hz[k] + G.gi_orb[k] * sin(a) - z
-		least = minf(least, sqrt(gx * gx + gz * gz) - G.gi_keep[k])
+		least = minf(least, sqrt(gx * gx + gz * gz) - _gkeep[k])
 	for k in G.wo_hx.size():
 		var rh := sqrt((x - G.wo_hx[k]) * (x - G.wo_hx[k]) + (z - G.wo_hz[k]) * (z - G.wo_hz[k]))
-		if absf(rh - G.wo_orb[k]) - G.wo_keep[k] >= least:
+		if absf(rh - G.wo_orb[k]) - _wkeep[k] >= least:
 			continue
 		var aw := G.wo_ph[k] + G.wo_n[k] * t
 		var wx := G.wo_hx[k] + G.wo_orb[k] * cos(aw) - x
 		var wz := G.wo_hz[k] + G.wo_orb[k] * sin(aw) - z
-		least = minf(least, sqrt(wx * wx + wz * wz) - G.wo_keep[k])
+		least = minf(least, sqrt(wx * wx + wz * wz) - _wkeep[k])
 	return least
 
 
@@ -1131,6 +1558,8 @@ func _grad2(x: float, z: float, t: float) -> float:
 ## each priced by its burn, the coast clean up to the burn and the burn's own
 ## path clean. _e_J stays INF when there is none.
 func _price() -> void:
+	if _cn < 2:
+		return
 	var t_lim := minf(_cT[_cn - 1], t_now + T_CAP)
 	var ns := _senses.size()
 	var keepd := _tk == 1
@@ -1209,30 +1638,50 @@ func _price() -> void:
 					cands.append(float(k1[j]))
 					cands.append(gk1 / (gk1 - g))
 					cands.append(s)
+					cands.append(1.0)
 				elif g2[j] < INF and gk1 < g2[j] and gk1 <= g and (keepd or gk1 > 0.0) and gk1 < GRAZE:
 					cands.append(float(k1[j]))
 					cands.append(0.0)
 					cands.append(s)
+					cands.append(0.0)
 				g2[j] = gk1
 			else:
 				g2[j] = INF
 			g1[j] = g
 			k1[j] = k
 			ap[j] = 0
-	# each candidate priced (cheap), then its path checked cheapest first, so
-	# the first that is clean is the one
+	# EACH CANDIDATE'S ARRIVAL TIME made exact (a crossing: where its constant
+	# burn pulls THRUST; alongside or a graze: where it passes closest), priced
+	# (cheap), then its path checked cheapest first, so the first clean is the one
 	var priced: Array = []
-	for c in range(0, cands.size(), 3):
+	for c in range(0, cands.size(), 4):
 		var kk := int(cands[c])
 		if kk + 1 >= _cn:
 			continue
-		var h := _cT[kk + 1] - _cT[kk]
-		var te := _cT[kk] + cands[c + 1] * h
-		if te > t_now + T_CAP:
+		var s := cands[c + 2]
+		if cands[c + 3] > 0.5:
+			# a crossing, roughly: the constant burn's size where the virtual point
+			# says (made exact only when it is checked: it moves little)
+			var te0 := _cT[kk] + cands[c + 1] * (_cT[kk + 1] - _cT[kk])
+			if te0 > t_now + T_CAP:
+				continue
+			var st0 := _coast_k(kk, te0)
+			_tgt_at(te0)
+			var ux0 := st0[2] - _cvx
+			var uz0 := st0[3] - _cvz
+			_virt(st0[0] - _cx, st0[1] - _cz, ux0, uz0, s, 3)
+			if te0 - _vd < _tc0 + TB_PAD:
+				continue
+			var dux0 := -sin(_vphi) * s * _tV - ux0
+			var duz0 := cos(_vphi) * s * _tV - uz0
+			priced.append([sqrt(dux0 * dux0 + duz0 * duz0) + TIME_W * (te0 - t_now), c, te0])
 			continue
-		var st := _coast_k(kk, te)
-		var ar := _arrival(te, st[0], st[1], st[2], st[3], cands[c + 2])
-		if ar.is_empty() or te - ar[2] < _tc0 - 1e-9:
+		var te := _te_near(kk, s)
+		if te > t_now + T_CAP or te < _tc0:
+			continue
+		var st := _coast_at(te)
+		var ar := _arrival(te, st[0], st[1], st[2], st[3], s)
+		if ar.is_empty() or te - ar[2] < _tc0 + TB_PAD:
 			continue
 		priced.append([ar[0] + TIME_W * (te - t_now), c, te])
 	priced.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]) or (float(a[0]) == float(b[0]) and int(a[1]) < int(b[1])))
@@ -1241,23 +1690,28 @@ func _price() -> void:
 		if float(pc[0]) >= best:
 			break
 		var c: int = pc[1]
-		var kk := int(cands[c])
 		var s2 := cands[c + 2]
+		var crossing := cands[c + 3] > 0.5
 		var te: float = pc[2]
-		var st := _coast_k(kk, te)
+		if crossing:
+			te = _te_for(te, s2, THRUST, -1.0)
+			if te > t_now + T_CAP:
+				continue
 		# WHERE GRAVITY'S PULL CHANGES ACROSS THE BURN (close to a star or a heavy
-		# giant) the engine pulls more than the cubic's own: a longer, gentler
-		# cubic then, its own pull cut by what it overshot, up to three times
+		# giant) the engine pulls more than the burn's own: a gentler burn then,
+		# its own pull cut by what it overshot (onto a ring, ending where that
+		# pull is exact), up to three times
 		var pk := THRUST
 		var ok := false
 		var ar := PackedFloat64Array()
 		var cost := INF
 		for _try in 4:
+			var st := _coast_at(te)
 			ar = _arrival(te, st[0], st[1], st[2], st[3], s2, pk)
 			if ar.is_empty():
 				break
 			var tb := te - ar[2]
-			if tb < _tc0 - 1e-9:
+			if tb < _tc0 + TB_PAD:
 				break
 			cost = ar[0] + TIME_W * (te - t_now)
 			if cost >= best:
@@ -1272,6 +1726,10 @@ func _price() -> void:
 				ok = true
 				break
 			pk *= THRUST / _bthr
+			if crossing:
+				te = _te_for(te, s2, pk, ar[2])
+				if te > t_now + T_CAP:
+					break
 		if not ok:
 			continue
 		best = cost
@@ -1282,7 +1740,7 @@ func _price() -> void:
 		_e_w2 = ar[0]
 		_e_pk = pk
 	if best < INF:
-		_e_J = sqrt(_e_dvx * _e_dvx + _e_dvz * _e_dvz) + best
+		_e_J = sqrt(_e_dvx * _e_dvx + _e_dvz * _e_dvz) + _e_ph + best
 
 
 # ---------------------------------------------------------------- refining
@@ -1290,7 +1748,7 @@ func _price() -> void:
 ## the target) whose ring motion for sense s runs along the coast's own (u),
 ## and the constant burn onto it. Its miss, q - aim: [fx, fz], or empty.
 func _qres(te: float, s: float) -> PackedFloat64Array:
-	if te > _cT[_cn - 1] or te < _tc0:
+	if _cn < 2 or te > _cT[_cn - 1] or te < _tc0:
 		return PackedFloat64Array()
 	var c := _coast_at(te)
 	_tgt_at(te)
@@ -1378,6 +1836,8 @@ func _pass_miss(s: float) -> float:
 	var V := 0.0 if keepd else _tV
 	var ox := _toffx if keepd else 0.0
 	var oz := _toffz if keepd else 0.0
+	if _cn < 2:
+		return NAN
 	var t_lim := minf(_cT[_cn - 1], t_now + T_CAP)
 	var hp := NAN
 	for k in _cn:
@@ -1485,7 +1945,7 @@ func _pass_side() -> PackedFloat64Array:
 
 
 # ---------------------------------------------------------------- the search
-## Every way it tries, cheapest kept in _b, within BUDGET integrations.
+## Every way it tries, cheapest kept in _b, within the budget of integrations.
 func _search() -> void:
 	var t0 := Time.get_ticks_usec()
 	var seeds := _seeds()
@@ -1500,70 +1960,137 @@ func _search() -> void:
 		if _b_J < INF:
 			return
 	# A SCAN OF REAL DEPARTURES (in a twin always: its cheap flights come from the
-	# two stars' pull, which no conic sees), the best refined at their pass
+	# two stars' pull, which no conic sees), the best refined at their pass from
+	# the very ring point each left from
 	for pass_i in 3:
-		var kicks: Array = [SCAN_KICKS, SCAN_KICKS2, SCAN_KICKS3][pass_i]
-		var scan := _scan([0.0, 0.5, 0.25][pass_i], kicks)
+		var scan := _scan(pass_i)
 		var rows: Array = []
 		for i in range(0, scan.size(), 4):
-			if _n_integ >= BUDGET:
+			if _n_integ >= _budget:
 				break
 			var jj := _fly(scan[i], scan[i + 1], scan[i + 2] > 0.5, scan[i + 3])
+			if _cn == 0:
+				continue
 			var side := _pass_side()
 			var sc := jj if jj < INF else 1e8 + side[0]
-			rows.append([sc, i, _e_s if jj < INF else side[1]])
+			rows.append([sc, i, _e_s if jj < INF else side[1], _e_a0])
 		rows.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]) or (float(a[0]) == float(b[0]) and int(a[1]) < int(b[1])))
 		var nfix := 2 if pass_i == 0 else 3
 		for r in rows.slice(0, nfix):
-			if _n_integ >= BUDGET:
+			if _n_integ >= _budget:
 				break
 			var i2: int = r[1]
-			_refine_pass(scan[i2], scan[i2 + 1], scan[i2 + 2] > 0.5, scan[i2 + 3], float(r[2]) if _tk == 0 else 1.0)
+			_refine_pass(scan[i2], scan[i2 + 1], _dk == 0, float(r[3]), float(r[2]) if _tk == 0 else 1.0)
 		if _b_J < INF:
 			return
 	# last, the rest of the conics as they are
 	for i in range(1, nsd):
-		if _n_integ >= BUDGET:
+		if _n_integ >= _budget:
 			return
 		_fly(seeds[i * 9 + 1], seeds[i * 9 + 2], seeds[i * 9 + 6] > 0.5, seeds[i * 9 + 7])
 
 
-## Departures to fly as they are: round a ring, SCAN_ANG points across what the
-## ride reaches (shifted `off` of a step), each leaving along its ring motion
-## plus each kick; free or alongside, its own motion and each kick in eight
-## directions. Flat: [ux, uz, has_fix, a_fix] each.
-func _scan(off: float, kicks: Array) -> PackedFloat64Array:
+## DEPARTURES TO FLY AS THEY ARE, pass 0, 1 or 2: SCAN_HEAD headings, the
+## first toward where the target is, each at SCAN_SPEED times the departure's
+## own speed scale (its ring's, or its place's motion plus SCAN_KICK px/s).
+## Round a ring each leaves from the point whose motion runs along it (or the
+## end of the ride's reach nearer it), so a heading the ride cannot bring
+## round leaves across the ring's motion. The first build left only along the
+## ring's motion from points across the ride's reach, which a ride held to
+## THRUST no longer makes a full lap, and its departures out of a twin star's
+## well were too slow for places round both (the planner review, Oct 30).
+## Flat: [ux, uz, has_fix, a_fix] each.
+func _scan(pass_i: int) -> PackedFloat64Array:
 	var out := PackedFloat64Array()
+	var off: float = [0.0, 0.5, 0.25][pass_i]
+	var th0 := _toward()
+	var nh := SCAN_HEAD
+	var need := _far_need()
 	if _dk == 0:
+		# (walking round the way the ride goes: the first headings are the
+		# ride's own reach, leaving along the ring's motion)
 		var dr := 1.0 if _dw >= 0.0 else -1.0
-		var reach := _reach()
-		for j in SCAN_ANG:
-			var f := (float(j) + off) / float(SCAN_ANG - 1)
-			if f > 1.0:
-				continue
-			var a := _dang + dr * reach * f
-			if not _ride_to(a):
-				continue
-			var ux := _e_vx0 - _cvx
-			var uz := _e_vz0 - _cvz
-			var m := sqrt(ux * ux + uz * uz)
-			for kk in kicks:
-				var fk := (m + float(kk)) / m
-				if fk <= 0.05:
-					continue
-				out.append_array(PackedFloat64Array([ux * fk, uz * fk, 1.0, a]))
+		var vr := absf(_dw) * _drt
+		var speeds := PackedFloat64Array()
+		for m: float in (SCAN_SPEED[pass_i] if need <= 0.0 else FAR_SPEED[pass_i]):
+			speeds.append(vr * m if need <= 0.0 else maxf(0.66 * vr, need * m))
+		for j in nh:
+			var hd := th0 + dr * TAU * (float(j) + off) / float(nh)
+			for sp in speeds:
+				out.append_array(PackedFloat64Array([sp * cos(hd), sp * sin(hd), 0.0, 0.0]))
 	else:
 		var vx := _dvx if _dk == 2 else 0.0
 		var vz := _dvz if _dk == 2 else 0.0
-		if off == 0.0:
+		if pass_i == 0:
 			out.append_array(PackedFloat64Array([vx, vz, 0.0, 0.0]))
-		for kk in kicks:
-			if absf(float(kk)) <= 0.0:
-				continue
-			for j in 8:
-				var hd := TAU * (float(j) + off) / 8.0
-				out.append_array(PackedFloat64Array([vx + float(kk) * cos(hd), vz + float(kk) * sin(hd), 0.0, 0.0]))
+		for kk: float in (SCAN_KICK[pass_i] if need <= 0.0 else FAR_SPEED[pass_i]):
+			var sp := kk if need <= 0.0 else need * kk
+			for j in nh:
+				var hd := th0 + TAU * (float(j) + off) / float(nh)
+				out.append_array(PackedFloat64Array([vx + sp * cos(hd), vz + sp * sin(hd), 0.0, 0.0]))
 	return out
+
+
+## The scan's first heading: round a ring, its own motion where the ship is
+## now (leaving at once); else from the departure's place to where the target
+## is in a typical flight's time.
+func _toward() -> float:
+	if _dk == 0:
+		var dr := 1.0 if _dw >= 0.0 else -1.0
+		return _dang + dr * PI * 0.5
+	var px := _dpx
+	var pz := _dpz
+	if _dk != 2:
+		_dep_at(t_now)
+		px = _cx
+		pz = _cz
+	_tgt_at(t_now + 12.0)
+	return atan2(_cz - pz, _cx - px)
+
+
+## THE SPEED A FLIGHT OUT OF A TWIN STAR'S WELL TO A PLACE ROUND BOTH TAKES
+## (px/s, relative to the place it leaves), or 0 for any other flight: what
+## climbing out to it in about FAR_T takes, vis-viva about the star with the
+## pair's whole pull (roughly what the ship feels on the way), less the
+## place's own motion round the star. Such flights were 84% of the first
+## build's misses in real twins, from a world's ring or a star's close orbit
+## to the stations, belts, hulks and worlds round both; a brute scan flew them
+## at 60 to 110 px/s off the ring (the planner review, Oct 30). So their scan
+## speeds bracket this (FAR_SPEED), not the ring's own.
+func _far_need() -> float:
+	if not _twin or _dk == 2:
+		return 0.0
+	_dep_at(t_now)
+	var px := _cx + (_drt * cos(_dang) if _dk == 0 else _doffx)
+	var pz := _cz + (_drt * sin(_dang) if _dk == 0 else _doffz)
+	var k := G.star_index(_star_of(px, pz))
+	if k < 0:
+		return 0.0
+	var own := sqrt(_cvx * _cvx + _cvz * _cvz)
+	var r1 := sqrt((px - G.star_x[k]) * (px - G.star_x[k]) + (pz - G.star_z[k]) * (pz - G.star_z[k]))
+	_tgt_at(t_now + FAR_T)
+	# (only to a place round both: one round a star is in that star's own well)
+	if _star_of(_cx, _cz) != -2:
+		return 0.0
+	var r2 := sqrt((_cx - G.star_x[k]) * (_cx - G.star_x[k]) + (_cz - G.star_z[k]) * (_cz - G.star_z[k]))
+	if r2 < 2.0 * r1 + 60.0:
+		return 0.0
+	var v2 := 2.0 * SystemLayout.GM_SHIP * (1.0 / r1 - 1.0 / r2) + pow((r2 - r1) / FAR_T, 2.0)
+	return maxf(sqrt(maxf(v2, 0.0)) - own, 20.0)
+
+
+## The star a point is round: in a twin, the one whose pull there is the
+## greater, if it is the greater by FAR_SHARE; else none (-2).
+func _star_of(x: float, z: float) -> int:
+	if G.star_x.size() < 2:
+		return G.star_id[0] if G.star_x.size() > 0 else -2
+	var f0 := G.star_gm[0] / ((x - G.star_x[0]) * (x - G.star_x[0]) + (z - G.star_z[0]) * (z - G.star_z[0]))
+	var f1 := G.star_gm[1] / ((x - G.star_x[1]) * (x - G.star_x[1]) + (z - G.star_z[1]) * (z - G.star_z[1]))
+	if f0 > FAR_SHARE * f1:
+		return G.star_id[0]
+	if f1 > FAR_SHARE * f0:
+		return G.star_id[1]
+	return -2
 
 
 # ---------------------------------------------------------------- conic guesses
@@ -1576,7 +2103,23 @@ func _scan(off: float, kicks: Array) -> PackedFloat64Array:
 func _seeds() -> PackedFloat64Array:
 	var centres := PackedFloat64Array()
 	if _twin:
+		# the pair's balance point with their whole pull, and each star the
+		# flight leaves from or goes to with its own (a flight out of one star's
+		# well is that star's conic first)
 		centres.append_array(PackedFloat64Array([G.bary.x, G.bary.y, SystemLayout.GM_SHIP]))
+		var own := PackedInt32Array()
+		var px := _dpx
+		var pz := _dpz
+		if _dk != 2:
+			_dep_at(t_now)
+			px = _cx
+			pz = _cz
+		own.append(G.star_index(_star_of(px, pz)))
+		_tgt_at(t_now)
+		own.append(G.star_index(_star_of(_cx, _cz)))
+		for k in own:
+			if k >= 0 and (centres.size() < 6 or absf(centres[3] - G.star_x[k]) > 1e-6 or absf(centres[4] - G.star_z[k]) > 1e-6):
+				centres.append_array(PackedFloat64Array([G.star_x[k], G.star_z[k], G.star_gm[k]]))
 	else:
 		for k in G.star_x.size():
 			centres.append_array(PackedFloat64Array([G.star_x[k], G.star_z[k], G.star_gm[k]]))
@@ -1652,7 +2195,8 @@ func _seeds() -> PackedFloat64Array:
 			vx = _e_vx0
 			vz = _e_vz0
 		elif _dk == 1:
-			_dep_at(t_now)
+			td = t_now + KEEP_HOLD
+			_dep_at(td)
 			px = _cx + _doffx
 			pz = _cz + _doffz
 			vx = _cvx
@@ -1860,13 +2404,41 @@ static func lambert(r1x: float, r1z: float, r2x: float, r2z: float, dth: float, 
 
 
 # ---------------------------------------------------------------- replay
+## Whether a choice was made for this very flight: the same departure (kind,
+## place, ring or spot, centre) and the same target (kind, place, ring and
+## speed or spot, centre), its sense one the target allows. The first build
+## checked only the places and the ring, so a choice made for another radius,
+## spot or sense was rebuilt as it was (the planner review, Oct 30).
+func _same_flight(c: Dictionary) -> bool:
+	if int(c.get("dk", -1)) != _dk or int(c.get("dp", -99)) != _dplace or int(c.get("tp", -99)) != _tplace or int(c.get("tk", -1)) != _tk:
+		return false
+	if _dk == 0 and not (_near(c.get("w", NAN), _dw) and _near(c.get("rt", NAN), _drt)):
+		return false
+	if _dk == 1 and not (_near(c.get("dox", NAN), _doffx) and _near(c.get("doz", NAN), _doffz)):
+		return false
+	if _dk != 2 and _dplace == -9 and not (_near(c.get("dhx", NAN), _dhx) and _near(c.get("dhz", NAN), _dhz)):
+		return false
+	if _tk == 0 and not (_near(c.get("R", NAN), _tR) and _near(c.get("V", NAN), _tV)):
+		return false
+	if _tk == 1 and not (_near(c.get("tox", NAN), _toffx) and _near(c.get("toz", NAN), _toffz)):
+		return false
+	if _tplace == -9 and not (_near(c.get("thx", NAN), _thx) and _near(c.get("thz", NAN), _thz)):
+		return false
+	return float(c.get("s", 0.0)) in _senses
+
+
+## (NAN, a missing number, is never near)
+static func _near(a: Variant, b: float) -> bool:
+	return absf(float(a) - b) <= 1e-9
+
+
 ## THE SAME FLIGHT AGAIN from its choice, one integration, every number as it
 ## was: round a ring, while its departure is still ahead and the ride from
-## where the ship is now reaches it (the same ring); alongside, while it is
-## still ahead (the ship waits there); free, at the same moment from the same
-## state. Null when it cannot be.
+## where the ship is now reaches it at a phasing within THRUST; alongside,
+## while it is still ahead (the ship holds there, KEEP_HOLD); free, at the
+## same moment from the same state. Null when it cannot be.
 func _replay(c: Dictionary) -> Result:
-	if int(c.get("dk", -1)) != _dk or int(c.get("dp", -99)) != _dplace or int(c.get("tp", -99)) != _tplace:
+	if not _same_flight(c):
 		return null
 	var td := float(c.td)
 	var lead := td - t_now
@@ -1876,16 +2448,17 @@ func _replay(c: Dictionary) -> Result:
 	var ad := float(c.get("ad", 0.0))
 	var k := 1.0
 	if _dk == 0:
-		if absf(float(c.get("w", 0.0)) - _dw) > 1e-9 or absf(float(c.get("rt", 0.0)) - _drt) > 1e-9:
-			return null
 		var dr := 1.0 if _dw >= 0.0 else -1.0
 		var dang := fposmod(dr * (ad - _dang), TAU)
 		if lead < 1e-6:
 			if dang > 1e-4 and dang < TAU - 1e-4:
 				return null
 		else:
+			# the ride's phasing over the lead that is left, its push at most
+			# THRUST and its speed under VMAX
 			k = 2.0 * dang / (absf(_dw) * lead) - 1.0
-			if k < 0.2 or k > PHASE_K_MAX:
+			var vr := absf(_dw) * _drt
+			if absf(k - 1.0) > THRUST * lead / (PI * vr) + 1e-9 or k * vr > VMAX or k < 0.2:
 				return null
 		_dep_at(td)
 		_e_x0 = _cx + _drt * cos(ad)
@@ -1909,12 +2482,14 @@ func _replay(c: Dictionary) -> Result:
 	_e_ad = ad
 	_e_lead = lead
 	_e_k = k
+	_e_ph = _phase_work(k) if _dk == 0 else 0.0
 	_e_dvx = float(c.dvx)
 	_e_dvz = float(c.dvz)
 	_e_ux = float(c.get("ux", 0.0))
 	_e_uz = float(c.get("uz", 0.0))
 	_e_fix = bool(c.get("fix", false))
 	_e_afix = float(c.get("afix", 0.0))
+	_e_a0 = float(c.get("a0", 0.0))
 	_e_te = float(c.te)
 	_e_s = float(c.s)
 	_e_phi = float(c.get("phi", 0.0))
@@ -1927,21 +2502,31 @@ func _replay(c: Dictionary) -> Result:
 
 
 ## FROM A CHOICE THAT CANNOT BE REBUILT (its departure gone by, or open
-## space): the search starts from its departure and keeps that flight if it
-## flies, so the preview does not jump between near equals; else the search.
-func _warm(c: Dictionary) -> void:
-	if int(c.get("dk", -1)) != _dk or int(c.get("tp", -99)) != _tplace:
-		return
+## space), for the same places: its departure flown again, toward its old
+## arrival time, from its old ring point while the ride still reaches it (or
+## else from wherever its motion runs along the flight's). True when it flies;
+## `_solve` keeps it only while it costs about what it did. The first build
+## kept any flight that flew, from any departure place (the planner review).
+func _warm(c: Dictionary) -> bool:
+	if int(c.get("dk", -1)) != _dk or int(c.get("dp", -99)) != _dplace or int(c.get("tp", -99)) != _tplace or int(c.get("tk", -1)) != _tk:
+		return false
 	var ux := float(c.get("ux", 0.0))
 	var uz := float(c.get("uz", 0.0))
 	var te := float(c.get("te", 0.0))
 	var s := float(c.get("s", 1.0))
+	if not s in _senses:
+		s = _senses[0]
 	var fix := bool(c.get("fix", false))
 	var afix := float(c.get("afix", 0.0))
+	if fix and _dk == 0 and not _ride_to(afix):
+		# (its ring point gone past the ride's reach: a ride to it would read
+		# a coast that was never flown, a SCRIPT ERROR in the first build)
+		fix = false
 	if te > t_now + 1.0:
 		_refine_at(ux, uz, fix, afix, te, s, 3)
 	else:
 		_fly(ux, uz, fix, afix)
+	return _b_J < INF
 
 
 # ---------------------------------------------------------------- the result
@@ -1965,16 +2550,30 @@ func _build_in(kind: StringName) -> Result:
 	# steps: the last step before the time cap is cut short to meet it)
 	_integrate(float(b.td), float(b.x0), float(b.z0), float(b.vx0), float(b.vz0), float(b.dvx), float(b.dvz), float(b.te) + 0.5)
 	var td := float(b.td)
-	var n := maxi(2, roundi((float(b.te) - td) / SAMPLE))
-	var te := td + float(n) * SAMPLE
-	if te > _cT[_cn - 1]:
-		n -= 1
-		te = td + float(n) * SAMPLE
 	var s := float(b.s)
-	var st := _coast_at(te)
-	var ar := _arrival(te, st[0], st[1], st[2], st[3], s, float(b.pk))
+	# THE END ON THE SAMPLE GRID: the next sample after the arrival, where the
+	# constant burn onto a ring pulls a little less than it did (its pull falls
+	# as the arrival comes later), else the one before; the burn worked out
+	# again there, constant within BURN_TOL or else the cubic
+	var n0 := maxi(2, ceili((float(b.te) - td) / SAMPLE - 1e-6))
+	var n := n0
+	var ar := PackedFloat64Array()
+	for nn: int in [n0, n0 - 1]:
+		if nn < 2 or td + float(nn) * SAMPLE > _cT[_cn - 1]:
+			continue
+		var tq := td + float(nn) * SAMPLE
+		var sq := _coast_at(tq)
+		var aq := _arrival(tq, sq[0], sq[1], sq[2], sq[3], s, float(b.pk))
+		if aq.is_empty() or tq - aq[2] < _tc0:
+			continue
+		if ar.is_empty() or (aq[7] > 0.5 and ar[7] < 0.5):
+			ar = aq
+			n = nn
+		if ar[7] > 0.5 or _tk == 1:
+			break
 	if ar.is_empty():
 		return res
+	var te := td + float(n) * SAMPLE
 	var phi := ar[1]
 	var d2 := ar[2]
 	var dxx := ar[3]
@@ -2033,12 +2632,15 @@ func _build_in(kind: StringName) -> Result:
 	res.a_dep = float(b.ad)
 	res.dur = float(n) * SAMPLE
 	res.esc_t = _tc0 - td
+	res.dvp = float(b.ph)
 	res.dv1 = sqrt(float(b.dvx) * float(b.dvx) + float(b.dvz) * float(b.dvz))
 	res.dv2 = ar[0]
-	res.work = res.dv1 + res.dv2
+	res.arr_const = ar[7] > 0.5
+	res.work = res.dvp + res.dv1 + res.dv2
 	res.d2 = d2
 	res.T = te - t_now
 	res.cost = res.work + TIME_W * res.T
+	res.priced = _b_J
 	_tgt_at(te)
 	var keepd := _tk == 1
 	var arx := _toffx if keepd else _tR * cos(phi)
@@ -2049,9 +2651,11 @@ func _build_in(kind: StringName) -> Result:
 	res.end = {"body": _tplace, "p": Vector3(_cx + arx, 0.0, _cz + arz), "v": Vector3(_cvx + rvx, 0.0, _cvz + rvz),
 		"a": Vector2(cen * cos(phi), cen * sin(phi)) if not keepd else Vector2.ZERO, "arel": Vector2(arx, arz),
 		"rv": Vector2(rvx, rvz), "t": te, "keep": keepd, "sense": s if not keepd else 0.0}
-	res.choice = {"v": CHOICE_V, "dk": _dk, "dp": _dplace, "tp": _tplace, "w": _dw, "rt": _drt,
-		"td": td, "ad": float(b.ad), "dvx": float(b.dvx), "dvz": float(b.dvz), "ux": float(b.ux), "uz": float(b.uz),
+	res.choice = {"v": CHOICE_V, "dk": _dk, "dp": _dplace, "tp": _tplace, "tk": _tk, "w": _dw, "rt": _drt,
+		"dox": _doffx, "doz": _doffz, "dhx": _dhx, "dhz": _dhz, "R": _tR, "V": _tV, "tox": _toffx, "toz": _toffz,
+		"thx": _thx, "thz": _thz, "sn": _tsense,
+		"td": td, "ad": float(b.ad), "a0": float(b.a0), "dvx": float(b.dvx), "dvz": float(b.dvz), "ux": float(b.ux), "uz": float(b.uz),
 		"x0": float(b.x0), "z0": float(b.z0), "vx0": float(b.vx0), "vz0": float(b.vz0),
 		"fix": bool(b.fix), "afix": float(b.afix), "te": float(b.te), "s": s, "phi": float(b.phi), "d2": float(b.d2),
-		"w2": float(b.w2), "pk": float(b.pk), "J": _b_J}
+		"w2": float(b.w2), "pk": float(b.pk), "J": res.cost}
 	return res

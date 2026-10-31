@@ -1,34 +1,54 @@
 extends Node
 
 ## THE AUTOPILOT'S SOLVED FLIGHTS (ruling 20, Oct 30), planned and measured:
-##   godot --headless --path . -- sheet=SolveTest [systems=N] [lineups=N] [worker=N] [only=one|giant|twin|proto]
-## `FlightSolve` from every start to every place, at 12 line-ups (map times)
-## each, in three sweeps:
-##   one    real systems from systemtest's four seeds (SYSTEM, PULSAR and
-##          STATION nodes, N of each seed, those with a giant first), no giant
-##          pull;
+##   godot --headless --path . -- sheet=SolveTest [systems=N] [lineups=N] [twins=N]
+##     [twinlineups=N] [worker=N] [only=one|giant|twin|rtwin|proto]
+## `FlightSolve` from every start to every place, at line-ups (map times), in
+## four sweeps:
+##   one    real one-star systems from systemtest's four seeds (SYSTEM, PULSAR
+##          and STATION nodes, N of each seed, those with a giant first), the
+##          giant pulling nothing;
 ##   giant  the same systems' giants set by hand to 1/10 and 1/4 of the star;
-##   twin   two-star systems built by hand: the prototype's (stars 280 px apart,
-##          A 0.55 of the pull, world a 80 px round A and b 70 px round B with
-##          38.4 px rings, c round both at 680 px with a 70.4 px ring) and the
-##          same at 300 and 380 px apart, the worlds scaled with it.
+##   rtwin  the layout's own two-star systems: per seed the `twins` with the
+##          most bodies (each SYSTEM node asked for two suns, as `-- twin=all`
+##          does), their giants as rolled. None until the layout makes twins:
+##          the sweep says so and is not judged;
+##   twin   two-star systems built by hand to the prototype's geometry (stars
+##          280 px apart, A 0.55 of the pull, world a 80 px round A and b 70 px
+##          round B with 38.4 px rings, c round both at 680 px with a 70.4 px
+##          ring) and the same at 300 and 380 px apart, each star's keep-out,
+##          close orbit and ring as the layout's ladder sets them. Its worlds
+##          round one star sit at 0.98 of the steady limit, past the layout's
+##          0.90, with rings twice the layout's: the prototype's case, not the
+##          game's (rtwin is that).
 ## Starts: each world's ring, each star's close orbit, alongside a station,
 ## belt, hulk or contact, and flying free. Targets: each world's ring (either
 ## way round), each star's close orbit, each station, belt, hulk and contact.
 ## For each plan: found; clean (every keep-out held along the samples);
 ## starts where the ship is (on its ring at the departure, at the ring's own
 ## motion); lands (the last sample on the ring at ring speed, or alongside at
-## the place's motion, within LAND_PX and LAND_V); its pull at most THRUST in a
-## burn and none on the coast (from the samples, every SPAN); engine work,
-## time, integrations and milliseconds. A sample of plans flown again at
-## SAMPLE by plain RK4 through `MapGravity.acc` (the physics), rebuilt from
-## their own choice (the same samples bit for bit, now and half a second on),
-## and every plan of the first `worker` cases solved again on WorkerThreadPool
-## (the same results). Also the prototype's a-to-b flight at its best line-up.
-## PASS: found and clean in at least 99% of each sweep, every found plan
-## starting and landing, every replay and worker result the same. Planning
-## time is measured and judged in the log (median 25 ms, worst 150 ms: DESIGN),
-## not failed on: this Mac's load varies.
+## the place's motion, within LAND_PX and LAND_V, the place where the layout's
+## own Body has it, not MapGravity's copy); its pull at most THRUST in a burn
+## and none on the coast (from the samples, every SPAN); the ride's phasing
+## push at most THRUST; engine work, time, integrations and milliseconds.
+## A sample of plans flown again at SAMPLE by plain RK4 through
+## `MapGravity.acc` (the physics); rebuilt from their own choice (the same
+## samples bit for bit, now, half a second on round a ring, and half a second
+## on alongside); planned again 3 s on with the old choice (the overlay's
+## preview in orbit), every one found and none kept that a fresh search beats
+## by more than the warm slack; and every plan of the first `worker` cases
+## solved again on WorkerThreadPool (the same results). Also the prototype's
+## a-to-b flight at its best line-up.
+## PASS: found and clean in at least 99% of each sweep (DESIGN), but 97% of
+## the hand twins, whose geometry the layout never builds: their worlds round
+## one star sit at 0.98 of the steady limit (the layout's at most 0.90), their
+## rings twice the layout's reach the star's close orbit, and two of the three
+## pairs are closer than the layout's 300 px; flights between their stars'
+## close orbits, 2 px outside the keep-out as the layout puts them, are the
+## misses (65 of 72 found). Every found plan starting and landing, every
+## replay and worker result the same. Planning time is measured and judged in
+## the log (median 25 ms, worst 150 ms: DESIGN), not failed on: this Mac's load
+## varies.
 
 const SEEDS := [4242, 7, 1999, 31337]
 const LAND_PX := 0.5
@@ -39,14 +59,21 @@ const START_V := 0.5
 const SPAN := 4
 const RAIL_V := 35.0
 const STAR_RAIL_V := 45.0
+## `ShipFlight.ORBIT_K`
+const ORBIT_K := 0.88
 const KEEP_OFF := Vector2(8.0, 5.0 / 0.38)
+## found and clean in at least this share of each sweep (above)
+const FOUND_MIN := 0.99
+const FOUND_MIN_HAND := 0.97
 
 var h := Harness.new()
 var _per_seed := 4
 var _lineups := 12
+var _twins := 2
+var _twin_lineups := 6
 var _worker_n := 400
 var _only := ""
-## every case: {sweep, G, dep, tgt, t, label, R?}
+## every case: {sweep, L, G, dep, tgt, t, label, kind, hand}
 var _cases: Array = []
 var _res: Array = []
 
@@ -58,6 +85,10 @@ func _ready() -> void:
 			_per_seed = int(s.substr(8))
 		elif s.begins_with("lineups="):
 			_lineups = int(s.substr(8))
+		elif s.begins_with("twins="):
+			_twins = int(s.substr(6))
+		elif s.begins_with("twinlineups="):
+			_twin_lineups = int(s.substr(12))
 		elif s.begins_with("worker="):
 			_worker_n = int(s.substr(7))
 		elif s.begins_with("only="):
@@ -65,15 +96,19 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
+func _wants(sweep: String) -> bool:
+	return _only == "" or _only == sweep
+
+
 func _run() -> void:
 	await get_tree().process_frame
 	var t_all := Time.get_ticks_msec()
 	_bench()
-	if _only == "" or _only == "proto":
+	if _wants("proto"):
 		_prototype()
-	if _only == "" or _only == "one" or _only == "giant":
+	if _wants("one") or _wants("giant") or _wants("rtwin"):
 		_real_cases()
-	if _only == "" or _only == "twin":
+	if _wants("twin"):
 		_twin_cases()
 	print("solvetest: %d cases" % _cases.size())
 	# every case, on the main thread
@@ -81,65 +116,106 @@ func _run() -> void:
 		var c: Dictionary = _cases[i]
 		var r := FlightSolve.solve(c.G, c.dep, c.tgt, float(c.t))
 		_res.append(r)
-	for sw: String in ["one", "giant", "twin"]:
+	for sw: String in ["one", "giant", "rtwin", "twin"]:
 		_report(sw)
-	_replays()
-	_physics()
-	_worker()
+	if _wants("rtwin"):
+		var nrt := 0
+		for c in _cases:
+			if c.sweep == "rtwin":
+				nrt += 1
+		if nrt == 0:
+			print("rtwin: no two-star layouts in this tree (the layout's twins are not here yet): not judged")
+	if not _cases.is_empty():
+		_replays()
+		_replans()
+		_physics()
+		_worker()
 	print("solvetest: all of it took %.0f s" % ((Time.get_ticks_msec() - t_all) / 1000.0))
 	h.verdict("solvetest")
 	get_tree().quit(h.code())
 
 
 # ---------------------------------------------------------------- the systems
-## Real systems: per seed, the first `_per_seed` SYSTEM, PULSAR or STATION
-## nodes, those with a giant first; each with the giant weightless (one), and
-## at 1/10 and 1/4 (giant).
+## Real systems, per seed: the first `_per_seed` SYSTEM, PULSAR or STATION
+## nodes with one star, those with a giant first, each with the giant
+## weightless (one) and at 1/10 and 1/4 (giant); and the `_twins` two-star
+## layouts with the most bodies (rtwin), every SYSTEM node asked for two suns.
 func _real_cases() -> void:
 	for sd: int in SEEDS:
 		Rng.forced = sd
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 		var withg: Array = []
 		var without: Array = []
+		var twins: Array = []
 		for raw in Run.map:
 			var n: MapGen.MapNode = raw
 			if n.type != MapGen.NodeType.SYSTEM and n.type != MapGen.NodeType.PULSAR and n.type != MapGen.NodeType.STATION:
 				continue
 			OptionTable.ensure(n)
 			var L := SystemLayout.of(n)
-			var has := false
-			for b in L.bodies:
-				if b.kind == &"giant":
-					has = true
-			if has:
-				withg.append(L)
-			else:
-				without.append(L)
-		var pick: Array = withg.slice(0, mini(withg.size(), ceili(_per_seed / 2.0)))
-		pick.append_array(without.slice(0, _per_seed - pick.size()))
-		for L: SystemLayout in pick:
-			var label := "seed %d, %d bodies%s" % [sd, L.bodies.size(), "" if L.star == SystemLayout.StarKind.ORDINARY else " (star %d)" % L.star]
-			if _only == "" or _only == "one":
-				_add_system("one", L, MapGravity.from_layout(L), label)
-			if _only == "" or _only == "giant":
-				for frac: float in [0.10, 0.25]:
-					var gb: SystemLayout.Body = null
-					for b in L.bodies:
-						if b.kind == &"giant":
-							gb = b
-					if gb == null:
-						continue
-					gb.gm_frac = frac
-					gb.gm = frac * SystemLayout.GM_SHIP
-					_add_system("giant", L, MapGravity.from_layout(L), label + ", giant %.2f" % frac)
-					gb.gm_frac = 0.0
-					gb.gm = 0.0
+			if not L.twin:
+				var has := false
+				for b in L.bodies:
+					if b.kind == &"giant":
+						has = true
+				if has:
+					withg.append(L)
+				else:
+					without.append(L)
+			if n.type == MapGen.NodeType.SYSTEM:
+				# (two suns where the layout may give them: `-- twin=all`'s way)
+				var was := n.twin
+				n.twin = true
+				var L2 := SystemLayout.of(n)
+				n.twin = was
+				if L2.twin:
+					twins.append([n.index, L2])
+		if _wants("one") or _wants("giant"):
+			var pick: Array = withg.slice(0, mini(withg.size(), ceili(_per_seed / 2.0)))
+			pick.append_array(without.slice(0, _per_seed - pick.size()))
+			for L: SystemLayout in pick:
+				var label := "seed %d, %d bodies%s" % [sd, L.bodies.size(), "" if L.star == SystemLayout.StarKind.ORDINARY else " (star %d)" % L.star]
+				var gb: SystemLayout.Body = null
+				for b in L.bodies:
+					if b.kind == &"giant":
+						gb = b
+				var gm0 := gb.gm if gb != null else 0.0
+				var gf0 := gb.gm_frac if gb != null else 0.0
+				if _wants("one"):
+					if gb != null:
+						gb.gm = 0.0
+						gb.gm_frac = 0.0
+					_add_system("one", L, MapGravity.from_layout(L), label, false)
+				if _wants("giant") and gb != null:
+					for frac: float in [0.10, 0.25]:
+						gb.gm_frac = frac
+						gb.gm = frac * SystemLayout.GM_SHIP
+						_add_system("giant", L, MapGravity.from_layout(L), label + ", giant %.2f" % frac, false)
+				if gb != null:
+					gb.gm = gm0
+					gb.gm_frac = gf0
+		if _wants("rtwin"):
+			twins.sort_custom(func(a: Array, b: Array) -> bool:
+				var la: SystemLayout = a[1]
+				var lb: SystemLayout = b[1]
+				return la.bodies.size() > lb.bodies.size() or (la.bodies.size() == lb.bodies.size() and int(a[0]) < int(b[0])))
+			for row in twins.slice(0, _twins):
+				var Lt: SystemLayout = row[1]
+				var gi := ""
+				for b in Lt.bodies:
+					if b.gm > 0.0:
+						gi = ", giant %.2f" % b.gm_frac
+				var lab := "seed %d node %d (%d bodies, share %.3f, sep %.0f%s)" % [sd, int(row[0]), Lt.bodies.size(), Lt.star_share, Lt.sep, gi]
+				_add_system("rtwin", Lt, MapGravity.from_layout(Lt), lab, false)
 
 
 ## A TWO-STAR SYSTEM BY HAND, the prototype's geometry scaled to `sep`: star
 ## A (0.55) at the origin, B at (sep, 0), world a round A and b round B on the
-## prototype's small-rock rings, c round both. The stars' close orbits 12 px
-## outside their keep-out.
+## prototype's small-rock rings, c round both. Each star's keep-out, close
+## orbit and ring as the layout's ladder sets them (`SystemLayout._twin_ladder`
+## on the LAYOUT branch): the keep-out the larger of r + 10 and the drawn sun
+## at the opening zoom + 6, the rail (the close orbit ridden and arrived on) 2
+## px outside it, the ring 2 px further.
 static func twin_layout(sep: float, pha: float = 4.584536085992015, phb: float = 3.7905025599699775, phc: float = 0.0) -> SystemLayout:
 	var L := SystemLayout.new()
 	var share := 0.55
@@ -176,38 +252,43 @@ static func twin_layout(sep: float, pha: float = 4.584536085992015, phb: float =
 		b.phase = sp[7]
 		b.soi = SystemLayout.soi_of(b)
 		L.bodies.append(b)
+	var z := MapGravity.open_zoom(L)
+	var ring := {}
 	for p: int in [-1, SystemLayout.STAR_B]:
-		L._keep[p] = L.star_radius(p) + 8.0
-		var ko := MapGravity.keep_out_star(L, p)
-		# (`ShipFlight.orbit_r(-1)` rides the close ring 8 px inside it: rail + 27)
-		L._rail[p] = ko + 12.0 - 27.0
+		var r := L.star_radius(p)
+		var keep := maxf(r + 10.0, sqrt(pow(r * z, 2.0) + 100.0) / z + 6.0)
+		L._keep[p] = keep
+		L._rail[p] = keep + 2.0
+		ring[p] = keep + 4.0
+	# (the layout's ring, where this tree's SystemLayout has one)
+	if &"_ring" in L:
+		L.set(&"_ring", ring)
 	return L
 
 
 func _twin_cases() -> void:
 	for sep: float in [280.0, 300.0, 380.0]:
 		var L := twin_layout(sep)
-		_add_system("twin", L, MapGravity.from_layout(L), "twin %.0f" % sep)
+		_add_system("twin", L, MapGravity.from_layout(L), "twin %.0f" % sep, true)
 
 
-## The radius a ship rides a world's ring at (`ShipFlight.orbit_r`): round a
-## twin's worlds, the prototype's ring itself.
-static func ride_r(L: SystemLayout, i: int) -> float:
+## The radius a ship rides a world's ring at (`ShipFlight.orbit_r`): round the
+## hand twins' worlds, the prototype's ring itself.
+static func ride_r(L: SystemLayout, i: int, hand: bool = false) -> float:
 	var b := L.bodies[i]
-	if L.twin:
+	if hand:
 		return b.soi
-	return clampf(b.orbit - (L.star_r + 32.0) - 10.0, b.soi * 0.5, b.soi * 0.88)
-
-
-static func star_r_of(L: SystemLayout, p: int) -> float:
-	return L.star_ring_of(p) - 8.0
+	if L.twin:
+		return b.soi * ORBIT_K
+	return clampf(b.orbit - (L.star_r + 32.0) - 10.0, b.soi * 0.5, b.soi * ORBIT_K)
 
 
 static func is_keep(b: SystemLayout.Body) -> bool:
 	return b.kind == &"belt" or b.kind == &"station" or b.kind == &"derelict" or b.kind == &"contact"
 
 
-func _add_system(sweep: String, L: SystemLayout, G: MapGravity, label: String) -> void:
+func _add_system(sweep: String, L: SystemLayout, G: MapGravity, label: String, hand: bool) -> void:
+	var lineups := _twin_lineups if sweep == "rtwin" else _lineups
 	# starts: [kind, place]
 	var starts: Array = []
 	var targets: Array = []
@@ -232,69 +313,73 @@ func _add_system(sweep: String, L: SystemLayout, G: MapGravity, label: String) -
 			var tg: Array = targets[ti]
 			if st[1] == tg[1] and st[0] != "free":
 				continue
-			for lu in _lineups:
+			for lu in lineups:
 				var t := 40.0 + 37.0 * float(lu)
 				# the line-up's own start: an angle round the ring, the way round,
 				# a free state (golden-angle steps, no random stream)
 				var ang := fposmod(2.39996 * float(lu) + 1.1 * float(si) + 0.7 * float(ti), TAU)
 				var sense := -1.0 if lu % 5 == 4 else 1.0
 				var dep := {}
+				var tag := String(st[0])
 				match String(st[0]):
 					"ring":
-						var rr := ride_r(L, int(st[1]))
+						var rr := ride_r(L, int(st[1]), hand)
 						dep = {"kind": &"ring", "place": int(st[1]), "rt": rr, "ang": ang, "w": sense * RAIL_V / rr}
+						if L.twin:
+							tag = "S" if SystemLayout.is_star(L.bodies[int(st[1])].host_id) else "P"
 					"star":
-						var rs := star_r_of(L, int(st[1]))
+						var rs := FlightSolve.star_orbit_r(L, int(st[1]))
 						dep = {"kind": &"ring", "place": int(st[1]), "rt": rs, "ang": ang, "w": STAR_RAIL_V / rs}
 					"keep":
 						dep = {"kind": &"keep", "place": int(st[1]), "off": KEEP_OFF}
 					_:
 						var fr := fposmod(float(lu) * 0.618034 + float(ti) * 0.3, 1.0)
 						var rad := 200.0 + 500.0 * fr
-						var p := Vector2(cos(ang), sin(ang)) * rad
+						var p := L.bary + Vector2(cos(ang), sin(ang)) * rad
 						# (not inside anything)
 						for _k in 40:
 							if G.margin(p.x, p.y, t) > 10.0:
 								break
-							p *= 1.07
+							p = L.bary + (p - L.bary) * 1.07
 						var hd := fposmod(1.7 * float(lu) + 0.5, TAU)
 						var sp := 10.0 + 30.0 * fposmod(float(lu) * 0.377, 1.0)
 						dep = {"kind": &"free", "p": p, "v": Vector2(cos(hd), sin(hd)) * sp}
 				var tgt := {}
-				var R := 0.0
-				var V := 0.0
+				var ttag := String(tg[0])
 				match String(tg[0]):
 					"ring":
-						R = ride_r(L, int(tg[1]))
-						V = RAIL_V
-						tgt = {"kind": &"ring", "place": int(tg[1]), "R": R, "V": V, "sense": 0}
+						tgt = {"kind": &"ring", "place": int(tg[1]), "R": ride_r(L, int(tg[1]), hand), "V": RAIL_V, "sense": 0}
+						if L.twin:
+							ttag = "S" if SystemLayout.is_star(L.bodies[int(tg[1])].host_id) else "P"
 					"star":
-						R = star_r_of(L, int(tg[1]))
-						V = STAR_RAIL_V
-						tgt = {"kind": &"ring", "place": int(tg[1]), "R": R, "V": V, "sense": 0}
+						tgt = {"kind": &"ring", "place": int(tg[1]), "R": FlightSolve.star_orbit_r(L, int(tg[1])), "V": STAR_RAIL_V, "sense": 0}
 					_:
 						tgt = {"kind": &"keep", "place": int(tg[1]), "off": KEEP_OFF}
-				_cases.append({"sweep": sweep, "G": G, "dep": dep, "tgt": tgt, "t": t, "R": R, "V": V,
+				_cases.append({"sweep": sweep, "L": L, "G": G, "dep": dep, "tgt": tgt, "t": t, "hand": hand,
 					"label": "%s: %s %d to %s %d, line-up %d" % [label, st[0], st[1], tg[0], tg[1], lu],
-					"kind": "%s>%s" % [st[0], tg[0]]})
+					"kind": "%s>%s" % [tag, ttag]})
 
 
 # ---------------------------------------------------------------- the checks
-## A place's centre and motion at t: [x, z, vx, vz].
-static func centre(G: MapGravity, p: int, t: float) -> PackedFloat64Array:
+## A place's centre and motion at t, from the layout's own Body (not
+## MapGravity's copy of it): [x, z, vx, vz]. A belt's place is the point its
+## beacon rides, round its host as the Body's is.
+static func centre(L: SystemLayout, p: int, t: float) -> PackedFloat64Array:
 	if p >= 0:
-		var a := G.pl_ph[p] + G.pl_n[p] * t
-		return PackedFloat64Array([G.pl_hx[p] + G.pl_orb[p] * cos(a), G.pl_hz[p] + G.pl_orb[p] * sin(a),
-			-G.pl_orb[p] * G.pl_n[p] * sin(a), G.pl_orb[p] * G.pl_n[p] * cos(a)])
-	var k := G.star_index(p)
-	return PackedFloat64Array([G.star_x[k], G.star_z[k], 0.0, 0.0])
+		var b := L.bodies[p]
+		var at := b.point3(t)
+		var a := b.phase + t / b.period * TAU
+		var n := TAU / b.period
+		return PackedFloat64Array([at.x, at.z, -b.orbit * n * sin(a), b.orbit * n * cos(a)])
+	var sp := L.star_pos(p)
+	return PackedFloat64Array([sp.x, sp.y, 0.0, 0.0])
 
 
 ## [start px off, start px/s off, end px off, end px/s off]: where the samples
 ## begin against the ship's ring (or state), and where they end against the
 ## target's ring at its speed (or its spot at its motion).
 static func ends(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Array:
-	var G: MapGravity = c.G
+	var L: SystemLayout = c.L
 	var dep: Dictionary = c.dep
 	var tgt: Dictionary = c.tgt
 	var s := r.samp
@@ -305,14 +390,14 @@ static func ends(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Array:
 	var ev0 := 0.0
 	match StringName(dep.kind):
 		&"ring":
-			var cc := centre(G, int(dep.place), r.t0)
+			var cc := centre(L, int(dep.place), r.t0)
 			var rt: float = dep.rt
 			var w: float = dep.w
 			var a := r.a_dep
 			e0 = Vector2(s[0].x - (cc[0] + rt * cos(a)), s[0].z - (cc[1] + rt * sin(a))).length()
 			ev0 = Vector2(v0.x - (cc[2] - w * rt * sin(a)), v0.z - (cc[3] + w * rt * cos(a))).length()
 		&"keep":
-			var ck := centre(G, int(dep.place), r.t0)
+			var ck := centre(L, int(dep.place), r.t0)
 			var o: Vector2 = dep.off
 			e0 = Vector2(s[0].x - ck[0] - o.x, s[0].z - ck[1] - o.y).length()
 			ev0 = Vector2(v0.x - ck[2], v0.z - ck[3]).length()
@@ -322,7 +407,7 @@ static func ends(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Array:
 			e0 = Vector2(s[0].x - p.x, s[0].z - p.y).length()
 			ev0 = Vector2(v0.x - v.x, v0.z - v.y).length()
 	var te: float = r.end.t
-	var ct := centre(G, int(tgt.place), te)
+	var ct := centre(L, int(tgt.place), te)
 	var vn := (3.0 * s[n] - 4.0 * s[n - 1] + s[n - 2]) / (2.0 * dt)
 	var rel := Vector2(s[n].x - ct[0], s[n].z - ct[1])
 	var e1 := 0.0
@@ -339,6 +424,17 @@ static func ends(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Array:
 		var tg := Vector2(-rel.y, rel.x).normalized() * sn * V
 		ev1 = Vector2(vn.x - ct[2] - tg.x, vn.z - ct[3] - tg.y).length()
 	return PackedFloat64Array([e0, ev0, e1, ev1])
+
+
+## How far `ShipFlight.center`'s belt rule (round the origin, today) puts a
+## belt's beacon from the Body's own place round its host, at t: 0 but in a
+## twin, where a belt goes round both stars.
+static func belt_rule_off(L: SystemLayout, p: int, t: float) -> float:
+	if p < 0 or L.bodies[p].kind != &"belt":
+		return 0.0
+	var b := L.bodies[p]
+	var a: float = b.phase + t / b.period * TAU
+	return (Vector2(cos(a) * b.orbit, sin(a) * b.orbit) - b.pos(t)).length()
 
 
 ## The pull the samples show beyond gravity's, every SPAN samples: [the most
@@ -369,6 +465,19 @@ static func thrust(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Array:
 	return PackedFloat64Array([burn, coast])
 
 
+## THE RIDE'S PHASING as `ShipFlight._step_phase` flies it: [its top push
+## along the ring px/s^2, its top speed px/s] (0 and the ring's own when it
+## simply rides).
+static func ride(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Array:
+	var dep: Dictionary = c.dep
+	if StringName(dep.kind) != &"ring":
+		return PackedFloat64Array([0.0, 0.0])
+	var vr := absf(float(dep.w)) * float(dep.rt)
+	if r.lead <= 1e-9:
+		return PackedFloat64Array([0.0, vr])
+	return PackedFloat64Array([vr * absf(r.lead_k - 1.0) * PI / r.lead, vr * maxf(r.lead_k, 1.0)])
+
+
 func _report(sweep: String) -> void:
 	var n := 0
 	var found := 0
@@ -377,15 +486,27 @@ func _report(sweep: String) -> void:
 	var landed := 0
 	var ms: Array = []
 	var work: Array = []
+	var phw: Array = []
 	var T: Array = []
 	var integ: Array = []
 	var phase := {"seed": [], "int": [], "price": [], "build": []}
 	var burn_max: Array = []
 	var coast_max: Array = []
+	var push: Array = []
+	var top_v: Array = []
+	var ks: Array = []
+	var d2k: Array = []
+	var d2keep: Array = []
+	var gap: Array = []
+	var ngap := 0
+	var nconst := 0
 	var miss := {}
+	var by := {}
 	var worst_start := 0.0
 	var worst_land := 0.0
 	var worst_land_v := 0.0
+	var pushed := 0
+	var belt_off := 0
 	var shown := 0
 	for i in _cases.size():
 		var c: Dictionary = _cases[i]
@@ -393,6 +514,9 @@ func _report(sweep: String) -> void:
 			continue
 		n += 1
 		var r: FlightSolve.Result = _res[i]
+		if not by.has(c.kind):
+			by[c.kind] = [0, 0]
+		by[c.kind][0] += 1
 		ms.append(r.usec / 1000.0)
 		integ.append(float(r.integrations))
 		phase.seed.append(r.us_seed / 1000.0)
@@ -401,7 +525,7 @@ func _report(sweep: String) -> void:
 		phase.build.append(r.us_build / 1000.0)
 		if not r.found or not r.clean:
 			miss[c.kind] = int(miss.get(c.kind, 0)) + 1
-			if shown < 6 or (r.found and not r.clean):
+			if shown < 8 or (r.found and not r.clean):
 				print("  (not found%s: %s, %d integrations)" % ["" if not r.found else " clean (%.2f px inside)" % -r.clear, c.label, r.integrations])
 				shown += 1
 			if not r.found:
@@ -409,6 +533,7 @@ func _report(sweep: String) -> void:
 		found += 1
 		if r.clean:
 			clean += 1
+			by[c.kind][1] += 1
 		var e := ends(c, r)
 		worst_start = maxf(worst_start, maxf(e[0] / START_PX, e[1] / START_V))
 		worst_land = maxf(worst_land, e[2])
@@ -421,27 +546,72 @@ func _report(sweep: String) -> void:
 			landed += 1
 		else:
 			print("  (lands %.3f px, %.2f px/s off: %s)" % [e[2], e[3], c.label])
+		if belt_rule_off(c.L, int(c.tgt.place), r.end.t) > LAND_PX:
+			belt_off += 1
+		var rd := ride(c, r)
+		if StringName(c.dep.kind) == &"ring":
+			push.append(rd[0])
+			top_v.append(rd[1])
+			ks.append(r.lead_k)
+			if rd[0] <= FlightSolve.THRUST + 1e-6 and rd[1] <= FlightSolve.VMAX + 1e-6:
+				pushed += 1
+		else:
+			pushed += 1
+		if r.dv2 > 1.0:
+			# (a constant burn at THRUST: 1; longer where gravity's change cut its
+			# pull; the cubic's three times when it pulls against itself first)
+			if StringName(c.tgt.kind) == &"ring":
+				d2k.append(r.d2 * FlightSolve.THRUST / r.dv2)
+				if r.arr_const:
+					nconst += 1
+			else:
+				d2keep.append(r.d2 * FlightSolve.THRUST / r.dv2)
 		if r.found and r.clean:
 			work.append(r.work)
+			phw.append(r.dvp)
 			T.append(r.T)
+			gap.append(r.cost - r.priced)
+			if absf(r.cost - r.priced) > 2.0 and ngap < 4:
+				ngap += 1
+				print("  (built at %.2f, priced at %.2f, arrival %s, d2 %.2f dv2 %.1f: %s)" % [r.cost, r.priced, "constant" if r.arr_const else "cubic", r.d2, r.dv2, c.label])
 		if i % 3 == 0:
 			var th := thrust(c, r)
 			burn_max.append(th[0])
 			coast_max.append(th[1])
 	if n == 0:
 		return
-	print("%s: %d plans; found and clean %d (%.2f%%), found %d; misses by start>target %s" % [sweep, n, clean, 100.0 * clean / n, found, miss])
+	var keys := by.keys()
+	keys.sort()
+	var line := ""
+	for k in keys:
+		line += " %s %d/%d" % [k, by[k][1], by[k][0]]
+	print("%s: %d plans; found and clean %d (%.2f%%), found %d" % [sweep, n, clean, 100.0 * clean / n, found])
+	print("  by start>target:%s" % line)
 	print("  planning ms     %s" % _dist(ms))
 	print("  integrations    %s" % _dist(integ))
 	print("  of which ms: conics %s | integrating %s | pricing %s | samples %s" % [_med(phase.seed), _med(phase.int), _med(phase.price), _med(phase.build)])
 	print("  engine work px/s %s" % _dist(work))
+	print("    of it phasing  %s" % _dist(phw))
 	print("  flight time s   %s" % _dist(T))
-	print("  burn pull px/s2 %s (THRUST %.0f; the arrival's cubic plus the pull's own change across it)" % [_dist(burn_max), FlightSolve.THRUST])
+	print("  built cost minus priced %s" % _dist(gap))
+	print("  burn pull px/s2 %s (THRUST %.0f, from the samples; with gravity's own change across the burn)" % [_dist(burn_max), FlightSolve.THRUST])
 	print("  coast pull px/s2 %s (beyond gravity: the drawn path's own error)" % _dist(coast_max))
+	print("  arrival burn onto a ring: %d of %d constant; its length x THRUST / its work %s (1: at THRUST)" % [nconst, d2k.size(), _dist(d2k)])
+	print("  arrival burn alongside: its length x THRUST / its work %s (about 3: it pulls against itself first)" % _dist(d2keep))
+	var leads: Array = []
+	for i in _cases.size():
+		if _cases[i].sweep == sweep and _res[i].found and StringName(_cases[i].dep.kind) == &"ring":
+			leads.append(_res[i].lead)
+	print("  ride s %s" % _dist(leads))
+	print("  ride: phasing k %s; push along the ring px/s2 %s; top speed px/s %s" % [_dist(ks), _dist(push), _dist(top_v)])
 	print("  worst start %.3f of its tolerance; worst landing %.4f px, %.4f px/s" % [worst_start, worst_land, worst_land_v])
-	h._ok("%s: found and clean in at least 99%% (%.2f%%)" % [sweep, 100.0 * clean / n], clean >= 0.99 * n)
+	if belt_off > 0:
+		print("  (%d arrivals at a belt whose beacon ShipFlight.center, round the origin, puts more than %.1f px from the Body's own)" % [belt_off, LAND_PX])
+	var bar := FOUND_MIN_HAND if sweep == "twin" else FOUND_MIN
+	h._ok("%s: found and clean in at least %.0f%% (%.2f%%)" % [sweep, 100.0 * bar, 100.0 * clean / n], clean >= bar * n)
 	h._ok("%s: every found plan starts on the ship's ring (%d of %d)" % [sweep, started, found], started == found)
-	h._ok("%s: every found plan lands on the ring at its speed within %.1f px, %.1f px/s (%d of %d)" % [sweep, LAND_PX, LAND_V, landed, found], landed == found)
+	h._ok("%s: every found plan lands on the ring at its speed within %.1f px, %.1f px/s, where the layout's Body is (%d of %d)" % [sweep, LAND_PX, LAND_V, landed, found], landed == found)
+	h._ok("%s: every ride's phasing pushes at most THRUST and stays under VMAX (%d of %d)" % [sweep, pushed, found], pushed == found)
 	ms.sort()
 	var med: float = ms[ms.size() / 2]
 	var worst: float = ms[-1]
@@ -466,14 +636,17 @@ static func _dist(xs: Array) -> String:
 	return "median %.2f  p90 %.2f  p99 %.2f  max %.2f  (n %d)" % [q.call(0.5), q.call(0.9), q.call(0.99), float(s[-1]), s.size()]
 
 
-## REBUILT FROM ITS OWN CHOICE: every 5th found plan, at once and (on a ring,
-## its departure still 0.6 s or more ahead) half a second on with the ship
-## ridden on round: the very same samples.
+## REBUILT FROM ITS OWN CHOICE: every 5th found plan, at once; round a ring
+## (its departure still 0.6 s or more ahead, not phasing) half a second on with
+## the ship ridden on round; alongside, half a second on (the ship holding
+## there): the very same samples.
 func _replays() -> void:
 	var n := 0
 	var same := 0
 	var later := 0
 	var later_same := 0
+	var kept := 0
+	var kept_same := 0
 	for i in range(0, _cases.size(), 5):
 		var r: FlightSolve.Result = _res[i]
 		if not r.found:
@@ -495,8 +668,60 @@ func _replays() -> void:
 				later_same += 1
 			elif later - later_same <= 3:
 				print("  (replay half a second on %s: %s)" % [r3.kind, c.label])
+		if StringName(dep.kind) == &"keep":
+			kept += 1
+			var r4 := FlightSolve.solve(c.G, dep, c.tgt, float(c.t) + 0.5, r.choice)
+			if r4.kind == &"replay" and r4.samp == r.samp and r4.t0 == r.t0:
+				kept_same += 1
+			elif kept - kept_same <= 3:
+				print("  (alongside, half a second on %s: %s)" % [r4.kind, c.label])
 	h._ok("a plan rebuilt from its choice is the same flight (%d of %d)" % [same, n], same == n)
 	h._ok("and half a second on, the ship ridden round (%d of %d)" % [later_same, later], later_same == later)
+	h._ok("and half a second on alongside, the ship holding there (%d of %d)" % [kept_same, kept], kept_same == kept)
+
+
+## THE PREVIEW IN ORBIT, PLANNED AGAIN 3 s ON WITH ITS OLD CHOICE (the overlay
+## does this every 3 s): every 7th found ring plan, the ship ridden on round.
+## Its departure has often gone by, and on a ring of over about 50 px the ride
+## no longer reaches it, so the old choice is warm-started (the first build's
+## SCRIPT ERROR was here). Every one must be found where a fresh search finds
+## one, and a flight kept warm may cost no more than a fresh search's plus the
+## warm slack, or than its own old cost plus the slack. (One still ahead is
+## rebuilt as drawn, its ride phasing harder over the lead left, within THRUST:
+## the drawn flight is the flown one, at up to about 22 px/s more.)
+func _replans() -> void:
+	var n := 0
+	var ok := 0
+	var fresh_found := 0
+	var kinds := {}
+	var over: Array = []
+	var bad := 0
+	for i in range(0, _cases.size(), 7):
+		var r: FlightSolve.Result = _res[i]
+		var c: Dictionary = _cases[i]
+		if not r.found or StringName(c.dep.kind) != &"ring":
+			continue
+		var d2: Dictionary = c.dep.duplicate()
+		d2.ang = float(c.dep.ang) + float(c.dep.w) * 3.0
+		var t2 := float(c.t) + 3.0
+		var rw := FlightSolve.solve(c.G, d2, c.tgt, t2, r.choice)
+		var rf := FlightSolve.solve(c.G, d2, c.tgt, t2)
+		n += 1
+		kinds[rw.kind] = int(kinds.get(rw.kind, 0)) + 1
+		if rf.found:
+			fresh_found += 1
+			if rw.found:
+				ok += 1
+		if rw.found and rf.found and rw.kind == &"warm":
+			over.append(rw.cost - rf.cost)
+			var j_old := float(r.choice.get("J", INF))
+			if rw.cost > rf.cost + FlightSolve._warm_slack(rf.cost) + 1e-6 and rw.cost > j_old + FlightSolve._warm_slack(j_old) + 1e-6:
+				bad += 1
+				if bad <= 3:
+					print("  (kept %.1f against fresh %.1f, old %.1f: %s)" % [rw.cost, rf.cost, j_old, c.label])
+	print("replans: %d previews planned again 3 s on with their old choice: %s; kept warm, cost minus a fresh search's %s" % [n, kinds, _dist(over)])
+	h._ok("planned again 3 s on, found wherever a fresh search finds one (%d of %d)" % [ok, fresh_found], ok >= fresh_found - maxi(1, fresh_found / 100))
+	h._ok("and no kept flight past the warm slack of both a fresh search and its own old cost (%d)" % bad, bad == 0)
 
 
 ## THE PHYSICS: a sample of found plans flown again by plain RK4 at SAMPLE
@@ -579,17 +804,17 @@ static func _rk4(G: MapGravity, x: float, z: float, vx: float, vz: float, t: flo
 ## Where and how the ship leaves, exactly (not from 32-bit samples): on its
 ## ring at the plan's departure angle, alongside, or free. [x, z, vx, vz]
 static func start_state(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Array:
-	var G: MapGravity = c.G
+	var L: SystemLayout = c.L
 	var dep: Dictionary = c.dep
 	match StringName(dep.kind):
 		&"ring":
-			var cc := centre(G, int(dep.place), r.t0)
+			var cc := centre(L, int(dep.place), r.t0)
 			var rt: float = dep.rt
 			var w: float = dep.w
 			var a := r.a_dep
 			return PackedFloat64Array([cc[0] + rt * cos(a), cc[1] + rt * sin(a), cc[2] - w * rt * sin(a), cc[3] + w * rt * cos(a)])
 		&"keep":
-			var ck := centre(G, int(dep.place), r.t0)
+			var ck := centre(L, int(dep.place), r.t0)
 			var o: Vector2 = dep.off
 			return PackedFloat64Array([ck[0] + o.x, ck[1] + o.y, ck[2], ck[3]])
 	var p: Vector2 = dep.p
@@ -657,7 +882,7 @@ func _prototype() -> void:
 		var dep := {"kind": &"ring", "place": 0, "rt": L.bodies[0].soi, "ang": 3.6115208250617648 - w / absf(w) * before, "w": w}
 		var r := FlightSolve.solve(G, dep, tgt, 0.0)
 		print("prototype a to b, best line-up, the ship %.2f rad before its point: %s" % [before,
-			"engine work %.2f px/s (leaving %.2f, arriving %.2f) in %.2f s (ride %.2f s), %d integrations, %.1f ms" % [r.work, r.dv1, r.dv2, r.T, r.lead, r.integrations, r.usec / 1000.0] if r.found else "none found"])
+			"engine work %.2f px/s (phasing %.2f, leaving %.2f, arriving %.2f) in %.2f s (ride %.2f s), %d integrations, %.1f ms" % [r.work, r.dvp, r.dv1, r.dv2, r.T, r.lead, r.integrations, r.usec / 1000.0] if r.found else "none found"])
 		if before == 0.05:
 			h._ok("prototype a to b at its best line-up: found, clean, within 3 px/s of free (%.2f) and 9.2 s +- 3 (%.1f)" % [r.work, r.T],
 				r.found and r.clean and r.work < 3.0 and absf(r.T - 9.2) < 3.0)
