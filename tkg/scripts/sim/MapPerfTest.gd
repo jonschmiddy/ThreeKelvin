@@ -60,10 +60,11 @@ func _ready() -> void:
 
 
 ## The systems of one run worth looking at: clear skies, a cloud, a pulsar, the
-## core, a station, a belt.
+## core, a station, a belt, and two suns (ruling 20: a twin's orbits circle three
+## centres and stop at two discs, held to the old loop like the rest).
 func _pick() -> Array:
 	var out: Array = []
-	var want := {"clear": 2, "nebula": 1, "pulsar": 1, "core": 1, "station": 1, "belt": 1}
+	var want := {"clear": 2, "nebula": 1, "pulsar": 1, "core": 1, "station": 1, "belt": 1, "twin": 1}
 	for raw in Run.map:
 		var n: MapGen.MapNode = raw
 		var key := ""
@@ -73,6 +74,8 @@ func _pick() -> Array:
 			key = "core"
 		elif n.type == MapGen.NodeType.STATION:
 			key = "station"
+		elif n.type == MapGen.NodeType.SYSTEM and n.twin and int(want.twin) > 0:
+			key = "twin"
 		elif n.type == MapGen.NodeType.SYSTEM:
 			key = "nebula" if n.in_nebula else "clear"
 			if not n.in_nebula and SystemLayout.of(n).bodies.any(func(b: SystemLayout.Body) -> bool: return b.kind == &"belt"):
@@ -164,14 +167,19 @@ func _lines(view, key: String) -> void:
 	var skipped := 0
 	var t_new := 0
 	var t_old := 0
+	# (and the whole map's frame on the CPU, `SystemView.step`, a camera's second
+	# step: one sun against two)
+	var t_step := 0
 	for zi in zs.size():
 		for pi in 6:
 			view.zoom = zs[zi]
 			view.pan = Vector2.ZERO if pi == 0 else Vector2(rng.randf_range(-900, 900), rng.randf_range(-500, 500)) * zs[zi]
 			view.t = rng.randf_range(0.0, 400.0)
 			# (a step settles the worlds where they are drawn: their places, sizes)
-			for _i in 2:
-				view.step()
+			view.step()
+			var ts := Time.get_ticks_usec()
+			view.step()
+			t_step += Time.get_ticks_usec() - ts
 			var t0 := Time.get_ticks_usec()
 			var a: Array = view._lines.orbit_runs(true)
 			var t1 := Time.get_ticks_usec()
@@ -191,6 +199,8 @@ func _lines(view, key: String) -> void:
 				n_pts += (r[0] as PackedVector2Array).size()
 	print("  mapperftest:   %s: orbits identical at %d cameras (%d stretches, %d points); %.2f ms new, %.2f ms old a camera" % [key, zs.size() * 6, n_runs, n_pts,
 		float(t_new) / 1000.0 / float(zs.size() * 6), float(t_old) / 1000.0 / float(zs.size() * 6)])
+	print("  mapperftest:   %s%s: the map's step %.2f ms a frame on the CPU (%d cameras)" % [key, " (two suns)" if view.layout.twin else "",
+		float(t_step) / 1000.0 / float(zs.size() * 6), zs.size() * 6])
 	view.zoom = 1.0
 	view.pan = Vector2.ZERO
 
@@ -205,7 +215,10 @@ static func _same(a: Array, b: Array) -> bool:
 
 
 ## The orbits' loop as it was before the trim (SystemView `_Lines._draw`, Oct 27
-## main), its draws collected instead of drawn.
+## main), its draws collected instead of drawn. TWO SUNS (ruling 20, Oct 30), in
+## step with `orbit_runs`: each ring round its own centre (`orbit_point` already
+## adds `Body.host`), stopped at star B's disc as at star A's, and its near half
+## told by where on its own ring a point is (its z less its centre's).
 static func _old_runs(view) -> Array:
 	var out: Array = []
 	var self_lines = view._lines
@@ -213,6 +226,8 @@ static func _old_runs(view) -> Array:
 	var win: Rect2 = view.window.grow(4.0)
 	var o: Vector2 = view.origin()
 	var hole: Vector2 = self_lines._star_hole()
+	var hole2: Vector2 = self_lines._star2_hole()
+	var o2: Vector2 = view.star_screen(SystemLayout.STAR_B)
 	var odepth: bool = view.orbit_depth
 	var TILT: float = SystemViewS.TILT
 	for bi in L.bodies.size():
@@ -245,7 +260,8 @@ static func _old_runs(view) -> Array:
 			if ring_ab.x > 0.0 and not off_world:
 				var rq: Vector2 = (sp - view.world_c(bi)) / ring_ab
 				off_world = rq.length_squared() < 1.0
-			if not win.has_point(sp) or pow((sp.x - o.x) / hole.x, 2.0) + pow((sp.y - o.y) / hole.y, 2.0) < 1.0 or off_world:
+			if not win.has_point(sp) or pow((sp.x - o.x) / hole.x, 2.0) + pow((sp.y - o.y) / hole.y, 2.0) < 1.0 or off_world \
+					or (hole2.x > 0.0 and pow((sp.x - o2.x) / hole2.x, 2.0) + pow((sp.y - o2.y) / hole2.y, 2.0) < 1.0):
 				if pts.size() > 1:
 					out.append([pts, cols])
 				pts = PackedVector2Array()
@@ -260,7 +276,7 @@ static func _old_runs(view) -> Array:
 			pts.append(q)
 			var dk := 1.0
 			if odepth:
-				var dz := smoothstep(-1.0, 1.0, op.z / maxf(b.orbit, 1.0))
+				var dz := smoothstep(-1.0, 1.0, (op.z - b.host.y) / maxf(b.orbit, 1.0))
 				if view.painted:
 					dz = 0.0 if dz < 0.33 else (0.5 if dz < 0.67 else 1.0)
 				dk = lerpf(0.6, 1.45, dz)

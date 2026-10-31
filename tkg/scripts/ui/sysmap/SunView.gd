@@ -87,8 +87,18 @@ func _init() -> void:
 ## Which kind of sun ("ORDINARY", "RED" or "BLUE"), for which system, at what
 ## radius in game pixels -- the map's `starLook`: seed index * 7 + 3, radius 16,
 ## 48 or 24.
-func setup(kind: String, system_index: int, star_r: float) -> void:
-	P = roll(kind, system_index * 7 + 3, star_r)
+## `second`: A PAIR'S SECOND SUN (ruling 20, Oct 30), star B of a twin: its looks
+## rolled from a seed of its own (index * 7 + 5, which no system's star A has),
+## and warmer -- the lighter star of a pair is the cooler, an orange dwarf
+## beside a yellow one. Its face sits WARM_B of the way up its ramp (white-hot
+## at the middle goes to amber, the limb to deep orange), and its glow leans
+## orange (GLOW_B). The same shader and palette as star A's: nothing new to
+## compile.
+func setup(kind: String, system_index: int, star_r: float, second: bool = false) -> void:
+	P = roll(kind, system_index * 7 + (5 if second else 3), star_r)
+	if second:
+		P.warm = WARM_B
+		P.glow_c = GLOW_B
 	_last = -1e9
 	_spray_g = -1
 	var m := _mat
@@ -125,7 +135,15 @@ func setup(kind: String, system_index: int, star_r: float) -> void:
 	m.set_shader_parameter("n_blobs", 0)
 	m.set_shader_parameter("cme_a", Vector4.ZERO)
 	m.set_shader_parameter("wave", Vector4.ZERO)
-	m.set_shader_parameter("flick", 1.0)
+	m.set_shader_parameter("flick", float(P.get("warm", 1.0)))
+
+
+## A second sun's face against star A's (`setup`'s `second`): its light in the
+## shader is times this (`flick`, which only the blue giant's flicker moved
+## before), so the face is drawn this far up its ramp and the glow this bright;
+## and its glow's colour.
+const WARM_B := 0.86
+const GLOW_B := Vector3(1.0, 0.52, 0.18)
 
 
 ## AS FAR AS THE MAP EVER ZOOMS: the wheel stops at 4, but the dive into LOCAL
@@ -180,7 +198,7 @@ func step(t: float) -> void:
 	var flick := 1.0
 	if P.flicker > 0.0:
 		flick = 1.0 + P.flicker * (noise(t * 3.0, 7.0) - 0.5) * 2.0
-	m.set_shader_parameter("flick", flick)
+	m.set_shader_parameter("flick", flick * float(P.get("warm", 1.0)))
 	var R: float = P.R
 	var layers: Array = P.layers
 	if layers.has("plumes"):

@@ -254,6 +254,23 @@ var _shadow_mat: ShaderMaterial
 var _star_layer: Node2D
 ## The star's own painter: a SunView, a PulsarView, or a CoreView.
 var star: Node2D
+## STAR B (ruling 20, Oct 30: two suns): its own SunView at `layout.star2_at`,
+## null with one sun. Sized as star A is, through the same 2x2 blocks and the
+## same hold (its own `_kq2` / `_klive2` / `_kcor2`), re-slotted among the worlds
+## by its own depth, and visibly another sun: its looks rolled apart from A's,
+## smaller, and warmer (`SunView.setup`'s `second`: the lighter star of a pair is
+## the cooler one, an orange K dwarf beside a yellow one).
+var star2: Node2D = null
+var _kq2 := -1.0
+var _klive2 := -1.0
+var _kcor2 := -1.0
+## star B's light (linear, its brightest channel 1), and its colour as the sky
+## and the dust take it (`STARCOL`'s, warmer)
+var _tint2 := Vector3.ONE
+const STAR_B_COL := Vector3(1.0, 0.74, 0.48)
+## how far star B's prominences run behind A's on the clock, so the two suns
+## never erupt together
+const STAR_B_PROM := 23.0
 var _flash: ColorRect
 ## A distant supernova, now and then, in the far sky.
 var _nova: _Nova
@@ -456,6 +473,10 @@ func show_system(n: MapGen.MapNode) -> void:
 	_at_last.clear()
 	_klive = -1.0
 	_kcor = -1.0
+	star2 = null
+	_kq2 = -1.0
+	_klive2 = -1.0
+	_kcor2 = -1.0
 	_zlast = -1.0
 	_plive = Vector2.INF
 	_sky_z = -1.0
@@ -550,6 +571,7 @@ func show_system(n: MapGen.MapNode) -> void:
 		# (PAINTED: B's small teal heart round the sun, the rose lit all round it)
 		bubble_r *= 0.45
 	_tint = star_light()
+	_tint2 = _lin_top(STAR_B_COL)
 	_beam_k.clear()
 	_neb_mat = null
 	_weather = null
@@ -717,6 +739,14 @@ func show_system(n: MapGen.MapNode) -> void:
 				# sun's own painted glow on top read as a pale ring A never drew)
 				var sm: ShaderMaterial = star.get("_mat")
 				sm.set_shader_parameter("glow_i", float((star.get("P") as Dictionary).glow_i) * 0.3)
+			if layout.twin:
+				# STAR B, a second sun painted the same way (`sun_setup`)
+				star2 = SunViewS.new()
+				star2.position = Vector2(CX, CY)
+				sun_setup(star2, SystemLayout.STAR_B, layout.star2_r)
+				if radiant and n.in_nebula:
+					var sm2: ShaderMaterial = star2.get("_mat")
+					sm2.set_shader_parameter("glow_i", float((star2.get("P") as Dictionary).glow_i) * 0.3)
 	# the near sheets: in front of everything the palette sets, sparse wisps (none
 	# where a wisp draws nothing, `_wisps_blank`; their seed is set each frame by
 	# their slot, `_step_depth`)
@@ -791,21 +821,25 @@ func show_system(n: MapGen.MapNode) -> void:
 		if not headless():
 			star.call("setup")
 	elif layout.star != SystemLayout.StarKind.PULSAR:
-		_worlds.add_child(star)
-		(star.get("_mat") as ShaderMaterial).set_shader_parameter("half_pal", true)
-		# B FOR EVERY SUN (Jon: "the red hypergiant needs to look more pixellated ...
-		# I think it would look good for ALL the stars"): its dither in 2x2 blocks
-		(star.get("_mat") as ShaderMaterial).set_shader_parameter("cell", 2)
-		if painted:
-			(star.get("_mat") as ShaderMaterial).set_shader_parameter("painted", true)
+		# (a twin's star B among the worlds too, painted as star A: every style
+		# draws both through this one path)
+		for sn: Node2D in ([star, star2] if star2 != null else [star]):
+			_worlds.add_child(sn)
+			(sn.get("_mat") as ShaderMaterial).set_shader_parameter("half_pal", true)
+			# B FOR EVERY SUN (Jon: "the red hypergiant needs to look more pixellated ...
+			# I think it would look good for ALL the stars"): its dither in 2x2 blocks
+			(sn.get("_mat") as ShaderMaterial).set_shader_parameter("cell", 2)
+			if painted:
+				(sn.get("_mat") as ShaderMaterial).set_shader_parameter("painted", true)
 	# THE STAR'S OWN DITHER IN BLOCKS, and the black hole's lens reading the
 	# half-size screen a block at a time
-	_set_deep(star, "cell", 2)
-	_set_deep(star, "px_scale", 2.0)
-	if painted:
-		_set_deep(star, "painted", true)
-	if radiant:
-		_set_deep(star, "radiant", true)
+	for sn: Node2D in ([star, star2] if star2 != null else [star]):
+		_set_deep(sn, "cell", 2)
+		_set_deep(sn, "px_scale", 2.0)
+		if painted:
+			_set_deep(sn, "painted", true)
+		if radiant:
+			_set_deep(sn, "radiant", true)
 	for i in layout.bodies.size():
 		var b := layout.bodies[i]
 		if b.world == &"":
@@ -874,6 +908,11 @@ func show_system(n: MapGen.MapNode) -> void:
 		_neb_mat.set_shader_parameter("star_light", star_light())
 		# the sky's own glow round the star is the cloud's light now
 		_sky_mat.set_shader_parameter("light_k", 0.0)
+	# STAR B'S GLOW ON THE SKY AND ITS LIGHT ON THE CLOUD (`_step_twin_sky`): how
+	# bright it is against star A, 0 with one sun (the shaders then add nothing)
+	_sky_mat.set_shader_parameter("star2_k", star2_light_k())
+	if _neb_mat != null and not legacy:
+		_neb_mat.set_shader_parameter("star2_k", star2_light_k())
 	_palette_mat.set_shader_parameter("x0", 0.0)
 	_shadow_mat.set_shader_parameter("x0", 0.0)
 	_twinkle.stars = _bake.twinkle
@@ -931,8 +970,33 @@ static func au(b: SystemLayout.Body) -> String:
 	return "%.1f AU" % (b.orbit / 80.0)
 
 
-## A body's facts for the panel: [label, value] rows.
+## WHAT IT GOES ROUND, in a system with two suns (ruling 20): its orbit in AU
+## is about that centre, so the panel says which. The stars are "<system> A"
+## and "<system> B", as the panel names them. Empty with one sun.
+func host_line(b: SystemLayout.Body) -> String:
+	if layout == null or not layout.twin:
+		return ""
+	if b.host_id == SystemLayout.STAR_B:
+		return "%s B" % star_name()
+	if b.host_id == -1:
+		return "%s A" % star_name()
+	return "BOTH SUNS"
+
+
+## A body's facts for the panel: [label, value] rows. In a twin the ORBIT row is
+## followed by ROUND, the star (or both) it circles (`host_line`).
 func facts(b: SystemLayout.Body) -> Array:
+	var rows := _facts(b)
+	var hl := host_line(b)
+	if hl != "":
+		for k in rows.size():
+			if String(rows[k][0]) == "ORBIT":
+				rows.insert(k + 1, ["ROUND", hl])
+				break
+	return rows
+
+
+func _facts(b: SystemLayout.Body) -> Array:
 	match b.kind:
 		&"belt":
 			return [["TYPE", "ASTEROID BELT"], ["MADE OF", b.comp], ["WIDTH", "%.1f AU" % (b.orbit * 0.004)], ["ORBIT", au(b)], ["BEACONS", str(b.beacons.size())]]
@@ -1065,15 +1129,102 @@ const PULSAR_OPEN_K := 4.0 / 3.0
 
 
 func _star_k_raw() -> float:
+	return _star_k_raw_of(-1)
+
+
+## Star p's true size factor this frame (its drawn radius over its own), before
+## it is held in blocks: `sun_raw_k`, and in a twin below the fit, no more than
+## the plane radius it is drawn at there (`twin_floor`).
+func _star_k_raw_of(p: int) -> float:
 	if layout != null and layout.star == SystemLayout.StarKind.CORE:
 		return maxf(zoom, 1.0)
-	var sr := maxf(layout.star_r if layout != null else 16.0, 1.0)
-	if not legacy:
+	var sr := maxf(layout.star_radius(p) if layout != null else 16.0, 1.0)
+	var k := sun_raw_k(sr, zoom, legacy)
+	if twin_floor_on():
+		k = minf(k, sun_raw_k(sr, layout.fit_zoom, legacy) * zoom / layout.fit_zoom)
+	return k
+
+
+## A sun of radius `sr` at zoom `z`: how many times its size it is drawn.
+static func sun_raw_k(sr: float, z: float, leg: bool) -> float:
+	if not leg:
 		# (both prototypes ease the star up to a floor of screen radius, the frame's
 		# light source: C's sqrt((r z)^2 + 8^2), B's a little bigger; held at 7 px
 		# it read as one more star at the opening zoom)
-		return maxf(zoom, sqrt(pow(sr * zoom, 2.0) + STAR_FLOOR * STAR_FLOOR) / sr)
-	return maxf(zoom, minf(1.0, MIN_SCREEN_STAR / sr))
+		return maxf(z, sqrt(pow(sr * z, 2.0) + STAR_FLOOR * STAR_FLOOR) / sr)
+	return maxf(z, minf(1.0, MIN_SCREEN_STAR / sr))
+
+
+## THE TWIN SUN FLOOR (ruling 20's build, Oct 30). A twin's close rings and the
+## worlds round each star are fitted to its suns as drawn at `layout.fit_zoom`,
+## the zoom the system opens at with no job and no Hellbender out. A signed job
+## or the Hellbender out past its edge opens the map further out than that, and
+## the floor of screen radius (STAR_FLOOR, 10 px) then drew each sun wider on
+## the plane than the rings were fitted to: over 24 seeds' twins, with a fetch,
+## a hunt and the Hellbender all out, 184 star rings ran up to 2.5 plane px
+## inside their drawn suns and 550 worlds touched theirs (the layout's own
+## measure, Oct 30). So below `fit_zoom`, in a twin, a sun's drawn plane radius
+## never exceeds the one it has at `fit_zoom`: the floor shrinks with the zoom.
+## The zoom itself is not capped (the job's place must stay on screen). Its
+## true size (the corona's) at most `sun_raw_k` at the fit times zoom / fit; its
+## held disc at most the block it is held at there (the nearest), scaled the
+## same way and taken down to a whole block (`twin_held_cap`). One sun: never.
+func twin_floor_on() -> bool:
+	return layout != null and layout.twin and layout.fit_zoom > 0.0 and zoom < layout.fit_zoom
+
+
+## The largest held radius (game px) star p's disc may have now: INF but below
+## a twin's fit (`twin_floor_on`).
+func _held_cap(p: int) -> float:
+	if not twin_floor_on():
+		return INF
+	return twin_held_cap(layout.star_radius(p), zoom, layout.fit_zoom, legacy)
+
+
+## (static, for a harness to measure the drawing without a view)
+static func twin_held_cap(sr: float, z: float, fz: float, leg: bool) -> float:
+	var at_fit := maxf(roundf(sr * sun_raw_k(sr, fz, leg) / 2.0) * 2.0, 2.0)
+	return maxf(floorf(at_fit * z / fz / 2.0) * 2.0, 2.0)
+
+
+## Star p's size factor as drawn now (star A: `star_k`).
+func star_k_of(p: int) -> float:
+	if p != SystemLayout.STAR_B:
+		return star_k()
+	if _klive2 > 0.0:
+		return _klive2
+	if _kq2 > 0.0:
+		return _kq2
+	return _star_k_raw_of(p)
+
+
+## WHERE STAR p IS DRAWN, on screen: star A at `origin`, star B on the block grid
+## at its place on the plane (it holds still, as A does).
+func star_screen(p: int) -> Vector2:
+	if p != SystemLayout.STAR_B or layout == null:
+		return origin()
+	return block_round(screen(layout.star2_at.x, layout.star2_at.y))
+
+
+## Star p's disc as drawn, its radius on screen (px): what hides a world behind
+## it, stops the orbit lines and clears the fabric.
+func star_disc(p: int) -> float:
+	if layout == null:
+		return 0.0
+	return layout.star_radius(p) * star_k_of(p)
+
+
+## How near the viewer star p is (`depth`): star A at 0, star B at its own z.
+func star_depth(p: int) -> float:
+	return layout.star_pos(p).y if layout != null else 0.0
+
+
+## A SunView painted as star p of this system (the map's star B, the panel's
+## portrait of either): star A rolled from the system's seed as it always was,
+## star B from its own, smaller and warmer (`SunView.setup`'s `second`), at
+## radius `r` game px.
+func sun_setup(sv: Node2D, p: int, r: float) -> void:
+	sv.call("setup", kind, node.index, r, p == SystemLayout.STAR_B)
 
 
 ## WHERE THE PULSAR IS DRAWN: on the block grid with its orbits at rest, and
@@ -1142,6 +1293,109 @@ static func light_at(x: float, z: float) -> float:
 static func light_for(p: Vector2) -> Vector3:
 	var len := maxf(p.length(), 1.0)
 	return Vector3(-p.x / len, -p.y / len * TILT, -p.y / len * 0.5 + 0.42).normalized()
+
+
+## TWO SUNS' LIGHT (ruling 20's build, Oct 30). Every world keeps ONE light, so
+## `planet.gdshader` and `planet_ring.gdshader` keep their interface (and the
+## planet shader its 13-16 s cold compile on the Mac): with two suns it is the
+## light of both made one -- its direction each star's, weighted by the light it
+## gives there, its strength their sum, its tint theirs by the same weights. A
+## world round one star of a pair takes 88 to 98% of its light from that star,
+## and its one light comes from within 6 degrees of it (the four systemtest
+## seeds' 213 twins as rolled, 426 such worlds, `-- sheet=TwinDrawTest`), so it
+## is lit from its own sun; a body round both is lit from between the two.
+## How bright star p is against a lone sun: by its drawn area, as
+## `SystemLayout.light_distance` weighs it (star A 1, star B (r_B / 16)^2).
+func star_lum(p: int) -> float:
+	return star_lum_of(layout, p)
+
+
+static func star_lum_of(L: SystemLayout, p: int) -> float:
+	if L == null or p != SystemLayout.STAR_B:
+		return 1.0
+	return pow(L.star2_r / float(SystemLayout.STAR_R[SystemLayout.StarKind.ORDINARY]), 2.0)
+
+
+## How much light reaches plane point (x, z): `light_at`, and with two suns each
+## star's by its own distance and brightness, held to 1.
+func light_here(x: float, z: float) -> float:
+	return light_here_of(layout, x, z)
+
+
+static func light_here_of(L: SystemLayout, x: float, z: float) -> float:
+	if L == null or not L.twin:
+		return light_at(x, z)
+	var b := L.star2_at
+	return minf(1.0, light_at(x, z) + star_lum_of(L, SystemLayout.STAR_B) * light_at(x - b.x, z - b.y))
+
+
+## Star B's share of the light at plane point p (0 with one sun): its brightness
+## over the distance squared against both stars'.
+func share_b(p: Vector2) -> float:
+	return share_b_of(layout, p)
+
+
+static func share_b_of(L: SystemLayout, p: Vector2) -> float:
+	if L == null or not L.twin:
+		return 0.0
+	var wa := 1.0 / (p.length_squared() + 400.0)
+	var wb := star_lum_of(L, SystemLayout.STAR_B) / (p.distance_squared_to(L.star2_at) + 400.0)
+	return wb / (wa + wb)
+
+
+## The one light on a body at plane point p (`light_for`): with two suns, toward
+## each star by its share of the light there.
+func light_for_at(p: Vector2) -> Vector3:
+	if layout == null or not layout.twin:
+		return light_for(p)
+	var u := toward_light_of(layout, p)
+	return Vector3(u.x, u.y * TILT, u.y * 0.5 + 0.42).normalized()
+
+
+## The way to the light from plane point p, a unit vector on the plane: toward
+## star A with one sun, and with two toward each by its share there.
+static func toward_light_of(L: SystemLayout, p: Vector2) -> Vector2:
+	var da := -p / maxf(p.length(), 1.0)
+	if L == null or not L.twin:
+		return da
+	var sb := share_b_of(L, p)
+	var db := (L.star2_at - p) / maxf(p.distance_to(L.star2_at), 1.0)
+	var u := da * (1.0 - sb) + db * sb
+	# (between the two, the pull of each nearly cancelling: lit from the brighter)
+	if u.length() < 1e-3:
+		return da if sb < 0.5 else db
+	return u.normalized()
+
+
+## Where a body at plane point p is lit from on screen: a point toward its light
+## (the shadows' and the moons' source), `o` with one sun.
+func light_screen(p: Vector2, at_s: Vector2) -> Vector2:
+	if layout == null or not layout.twin:
+		return origin()
+	var u := toward_light_of(layout, p)
+	var ds := Vector2(u.x, u.y * TILT)
+	return at_s + ds / maxf(ds.length(), 1e-3) * 400.0
+
+
+## The tint of the light on a body at plane point p: the star's (`_tint`), and
+## with two suns star A's and B's by their shares there.
+func tint_at(p: Vector2) -> Vector3:
+	if layout == null or not layout.twin:
+		return _tint
+	return _tint.lerp(_tint2, share_b(p))
+
+
+## How bright star B is against star A on the sky and the cloud (0 alone).
+func star2_light_k() -> float:
+	if layout == null or not layout.twin:
+		return 0.0
+	return star_lum(SystemLayout.STAR_B)
+
+
+## A colour as light, its brightest channel 1 (`star_light`'s rule).
+static func _lin_top(c: Vector3) -> Vector3:
+	var l := Vector3(pow(c.x, 2.2), pow(c.y, 2.2), pow(c.z, 2.2))
+	return l / maxf(l.x, maxf(l.y, l.z))
 
 
 ## RADIANT'S SAFETY, the sector's half of the chart's (`ChartSky._radiant_safety`,
@@ -1288,6 +1542,11 @@ func night_fill(p: Vector2) -> Vector3:
 	var lz := pow(maxf(zoom, 0.01) / maxf(home_zoom, 0.01), 0.42) * clampf(window.size.x / 700.0, 0.5, 1.4)
 	var dl := s.length() / maxf(lz, 0.01)
 	var js := 1.0 / (1.0 + pow(dl / 155.0, 2.0))
+	if layout.twin:
+		# (two suns: star B's light on the gas round it too, by its brightness)
+		var q := p - layout.star2_at
+		var dl2 := (Vector2(q.x, q.y * TILT * 1.15) * zoom).length() / maxf(lz, 0.01)
+		js = minf(1.0, js + star_lum(SystemLayout.STAR_B) / (1.0 + pow(dl2 / 155.0, 2.0)))
 	if layout.star == SystemLayout.StarKind.PULSAR:
 		return Vector3(0.03, 0.05, 0.10) * (0.3 + js)
 	if layout.star == SystemLayout.StarKind.CORE:
@@ -1326,6 +1585,8 @@ func _bubble_r() -> float:
 	# where it should be: about four fifths of the way to the frame's edge at the
 	# opening zoom (which fits the edge, plus 20, into the frame's width)
 	var want := 0.8 * (E + 20.0)
+	if layout.twin:
+		return bubble_gap(layout, want)
 	var rs: Array[float] = [0.0]
 	for b in layout.bodies:
 		if b.kind == &"belt":
@@ -1340,6 +1601,38 @@ func _bubble_r() -> float:
 	for i in rs.size() - 1:
 		var lo: float = rs[i] + 24.0
 		var hi: float = rs[i + 1] - 24.0
+		if hi <= lo:
+			continue
+		var at := clampf(want, lo, hi)
+		if absf(at - want) < bd:
+			bd = absf(at - want)
+			best = at
+	return best
+
+
+## THE BUBBLE'S GAP IN A TWIN (ruling 20): the bubble is a sphere round star A
+## (the cloud's light, `sky_nebula`'s `star_at`), and a body circling star B or
+## the balance point sweeps a band of distances from A, not one radius -- from
+## |host| - orbit to |host| + orbit (a belt 28 px wider each side). So the gap
+## is looked for between those bands, merged, never inside one. (The one-sun
+## rule above, kept as it was, treats each orbit as a point.)
+static func bubble_gap(L: SystemLayout, want: float) -> float:
+	var bands: Array = [[0.0, 0.0]]
+	for b in L.bodies:
+		var h := b.host.length()
+		var w := 28.0 if b.kind == &"belt" else 0.0
+		bands.append([maxf(0.0, absf(h - b.orbit) - w), h + b.orbit + w])
+	# (the pair's own stars: star B's disc sits in the band of its distance)
+	bands.append([L.sep, L.sep])
+	bands.append([L.edge + 400.0, L.edge + 400.0])
+	bands.sort_custom(func(x: Array, y: Array) -> bool: return float(x[0]) < float(y[0]))
+	var best := want
+	var bd := INF
+	var reach := float(bands[0][1])
+	for i in range(1, bands.size()):
+		var lo := reach + 24.0
+		var hi := float(bands[i][0]) - 24.0
+		reach = maxf(reach, float(bands[i][1]))
 		if hi <= lo:
 			continue
 		var at := clampf(want, lo, hi)
@@ -1387,6 +1680,15 @@ func _step_star() -> void:
 			if legacy:
 				# (LEGACY: the sky's own glow round the sun breathes with it)
 				_sky_mat.set_shader_parameter("light_k", lerpf(1.0, breath(t), 0.6))
+		if star2 != null:
+			# STAR B lives as A does, on its own clock: its breath and its
+			# prominences STAR_B_PROM seconds behind A's, so the two never erupt
+			# together
+			star2.call("step", pose(t, 4.0))
+			var sm2: ShaderMaterial = star2.get("_mat")
+			sm2.set_shader_parameter("c_breath", breath(pose(t, 4.0) + STAR_B_PROM))
+			sm2.set_shader_parameter("c_prom", prominence(pose(t + STAR_B_PROM, 6.0)))
+			sm2.set_shader_parameter("halo_cut", 36.0 if legacy else 72.0)
 	else:
 		# ON THE BEAT OF ITS SOUND: the beam points at you on each pass of
 		# `amb_pulsar`. The map's clock keeps running smoothly and is only
@@ -1551,6 +1853,25 @@ func weather_now(at := Vector2.INF) -> void:
 		_weather.start_default(at)
 
 
+## STAR B ON THE SKY, each frame (ruling 20): its glow beside star A's on the
+## baked sky (`sky.gdshader`, the clear sky's and LEGACY's), its light on the
+## cloud (`sky_nebula`'s `light_at`, SIMPLIFIED and RADIANT), and PAINTED's halo
+## rings round it (`sector_b_state`) -- each by `star2_light_k`, so a one-sun
+## system sets nothing and the shaders add nothing.
+func _step_twin_sky() -> void:
+	if star2 == null:
+		return
+	var sb := star_screen(SystemLayout.STAR_B)
+	_sky_mat.set_shader_parameter("star2_at", sb)
+	if _neb_mat != null and not legacy:
+		_neb_mat.set_shader_parameter("star2_at", screen(layout.star2_at.x, layout.star2_at.y))
+	if painted and not _pt.is_empty():
+		var ms: ShaderMaterial = _pt.get("state")
+		if ms != null:
+			ms.set_shader_parameter("star2_px", sb)
+			ms.set_shader_parameter("sun2_r", star_disc(SystemLayout.STAR_B))
+
+
 ## The wall clock the weather and the gas read, or a harness's.
 func wclock() -> float:
 	return hclock if hclock >= 0.0 else SkyWeatherS.now()
@@ -1578,7 +1899,11 @@ func step() -> void:
 		var rk := _held(layout.star_r * _star_k_raw(), layout.star_r * _kq, 2.0) / layout.star_r
 		if layout.star == SystemLayout.StarKind.CORE:
 			rk = maxf(rk, 1.0)
-		_kq = rk
+		# (a twin below its fit: never past the block the fit draws it at, scaled)
+		_kq = minf(rk, _held_cap(-1) / layout.star_r)
+	if star2 != null:
+		var r2 := layout.star2_r
+		_kq2 = minf(_held(r2 * _star_k_raw_of(SystemLayout.STAR_B), r2 * _kq2, 2.0), _held_cap(SystemLayout.STAR_B)) / r2
 	# THE SMOOTH ZOOM: is the zoom moving; the star at its true size while it is
 	var dtz := clampf(get_process_delta_time(), 1.0 / 240.0, 0.1)
 	if _zlast < 0.0 or absf(zoom - _zlast) > 1e-7:
@@ -1591,7 +1916,7 @@ func step() -> void:
 		# (the star in whole blocks of radius even while the zoom moves, but the nearest
 		# block, not one held back: its limb between blocks flickered with its corona's
 		# own life)
-		var kt := maxf(roundf(layout.star_r * _star_k_raw() / 2.0) * 2.0, 2.0) / layout.star_r if zooming() else _kq
+		var kt := minf(maxf(roundf(layout.star_r * _star_k_raw() / 2.0) * 2.0, 2.0), _held_cap(-1)) / layout.star_r if zooming() else _kq
 		if layout.star == SystemLayout.StarKind.CORE:
 			kt = maxf(kt, 1.0)
 		if _klive < 0.0 or absf(_klive - kt) < 0.002 * kt:
@@ -1610,6 +1935,21 @@ func step() -> void:
 			_kcor = kc
 		else:
 			_kcor = lerpf(_kcor, kc, ez)
+	if star2 != null:
+		# STAR B'S SIZES as star A's: its disc in whole blocks, its corona true
+		# while the zoom moves and eased onto the disc once it is still
+		var r2 := layout.star2_r
+		var kb := minf(maxf(roundf(r2 * _star_k_raw_of(SystemLayout.STAR_B) / 2.0) * 2.0, 2.0), _held_cap(SystemLayout.STAR_B)) / r2 if zooming() else _kq2
+		if _klive2 < 0.0 or absf(_klive2 - kb) < 0.002 * kb or zooming():
+			_klive2 = kb
+		else:
+			_klive2 = lerpf(_klive2, kb, ez)
+		var smooth2 := zooming() and not _nosmooth and _palette_built
+		var kc2 := _star_k_raw_of(SystemLayout.STAR_B) if smooth2 else star_k_of(SystemLayout.STAR_B)
+		if _kcor2 < 0.0 or smooth2 or _nosmooth or not _palette_built or absf(_kcor2 - kc2) < 0.002 * kc2:
+			_kcor2 = kc2
+		else:
+			_kcor2 = lerpf(_kcor2, kc2, ez)
 	# and each world's radius and centre
 	for i: int in _views:
 		var bw := layout.bodies[i]
@@ -1644,6 +1984,7 @@ func step() -> void:
 	if _nosmooth:
 		_live.clear()
 		_klive = -1.0
+		_klive2 = -1.0
 	_sky_mat.set_shader_parameter("time", pose(t, 4.0))
 	# (a pulsar's light and shell, and its whole drawing below, about its own centre)
 	var pc := _pulsar_at(o, ez) if layout.star == SystemLayout.StarKind.PULSAR else o
@@ -1677,6 +2018,11 @@ func step() -> void:
 			# across at zoom 2); drawn at the old size it filled the frame
 			star.set("hole_k", 0.36 * pow(maxf(zoom, 0.01) / maxf(home_zoom, 0.01), 0.53) / maxf(star_k(), 0.01))
 			(star.get("_hmat") as ShaderMaterial).set_shader_parameter("warm_glow", true)
+	if star2 != null:
+		star2.position = star_screen(SystemLayout.STAR_B)
+		if _kcor2 > 0.0:
+			star2.call("set_zoom", _kcor2, star_k_of(SystemLayout.STAR_B))
+	_step_twin_sky()
 	var t_star := Time.get_ticks_usec()
 	_step_star()
 	tick("star", t_star)
@@ -1725,7 +2071,9 @@ func step() -> void:
 		bv.resize(3)
 		_belt_mat.set_shader_parameter("belts", bv)
 		_belt_mat.set_shader_parameter("n_belts", nb)
-		_belt_mat.set_shader_parameter("origin", Vector2(CX, CY) + pan)
+		# (round what the belts circle: star A, or in a twin the balance point, where
+		# every belt goes -- `SystemLayout._twin`)
+		_belt_mat.set_shader_parameter("origin", screen(layout.bary.x, layout.bary.y) if layout.twin else Vector2(CX, CY) + pan)
 		_belt_mat.set_shader_parameter("zoom", zoom)
 		_belt_mat.set_shader_parameter("tilt", TILT)
 	# the shadows: each world where its picture is drawn and how big (as
@@ -1736,6 +2084,11 @@ func step() -> void:
 	var ml: Array = _moons.positions(get_process_delta_time())
 	var bp := PackedVector4Array()
 	var rg := PackedFloat32Array()
+	# WITH TWO SUNS EACH SHADOW FALLS AWAY FROM ITS OWN LIGHT (`light_screen`, the
+	# world's one light made of both): a point toward it per caster, its moons
+	# taking their world's
+	var twin := layout.twin
+	var from := PackedVector2Array()
 	for i in layout.bodies.size():
 		var b := layout.bodies[i]
 		if b.world != &"" and bp.size() < SHADOW_CASTERS:
@@ -1744,6 +2097,8 @@ func step() -> void:
 			# slid by slivers and its dithered edge flickered through a zoom)
 			var ca: Vector2 = at[i] + Vector2.ONE * float(Worlds.half_size(b.world, float(_rq.get(i, rr))) % 2)
 			bp.append(Vector4(ca.x, ca.y, rr, world_r(b) * zoom))
+			if twin:
+				from.append(light_screen(pos[i], ca))
 			# its rings' shadow too (C), as wide as their outer edge
 			var vw: Node2D = _views.get(i)
 			rg.append(2.1 if not legacy and vw != null and bool((vw.get("spec") as Dictionary).get("ring", false)) else 0.0)
@@ -1756,6 +2111,8 @@ func step() -> void:
 			continue
 		var mc: Vector2 = mm.c
 		bp.append(Vector4(mc.x, mc.y, float(mm.mrad), float(mm.mrad)))
+		if twin:
+			from.append(light_screen(pos[int(mm.i)], mc))
 		rg.append(0.0)
 	var n_cast := bp.size()
 	rg.resize(SHADOW_CASTERS)
@@ -1765,12 +2122,19 @@ func step() -> void:
 	_shadow_mat.set_shader_parameter("bodies", bp)
 	_shadow_mat.set_shader_parameter("n_bodies", n_cast)
 	_shadow_mat.set_shader_parameter("star_at", o)
+	if twin:
+		from.resize(SHADOW_CASTERS)
+		_shadow_mat.set_shader_parameter("cast_from", from)
+		_shadow_mat.set_shader_parameter("per_body", true)
 	if radiant and _neb_mat != null:
 		# RADIANT: the shafts the worlds throw through the lit gas, and a flare
 		_neb_mat.set_shader_parameter("r_bodies", bp)
 		_neb_mat.set_shader_parameter("r_rings", rg)
 		_neb_mat.set_shader_parameter("r_nb", n_cast)
 		_neb_mat.set_shader_parameter("r_flare", _flare)
+		if twin:
+			_neb_mat.set_shader_parameter("r_from", from)
+			_neb_mat.set_shader_parameter("r_per", true)
 	# THE WORLDS DRAWN AGAIN AT THE NEW SIZE, not stretched
 	var t_resize := Time.get_ticks_usec()
 	for i: int in _views:
@@ -1790,15 +2154,28 @@ func step() -> void:
 	var dep := func(i: int) -> float: return depth(pos[i])
 	order.sort_custom(func(a, b2): return dep.call(a) < dep.call(b2))
 	var core_placed := false
+	# STAR B AT ITS OWN DEPTH (ruling 20): drawn after every world behind it and
+	# before every world in front of it, as star A is at 0 -- so a world round B
+	# passes over B's face at the near point of its circle and behind it at the
+	# far point (`-- sheet=TwinDrawTest` holds the order for both stars)
+	var star2_placed := star2 == null
+	var d2 := star_depth(SystemLayout.STAR_B)
 	for k in order.size():
 		var i: int = order[k]
 		if not _views.has(i):
 			continue
 		var v: Node2D = _views[i]
 		var p := pos[i]
+		# (the farther of the two suns first, should one world come after both)
+		if not star2_placed and d2 < 0.0 and dep.call(i) >= d2:
+			_worlds.move_child(star2, -1)
+			star2_placed = true
 		if core and not core_placed and dep.call(i) >= 0.0:
 			_worlds.move_child(star, -1)
 			core_placed = true
+		if not star2_placed and dep.call(i) >= d2:
+			_worlds.move_child(star2, -1)
+			star2_placed = true
 		_worlds.move_child(v, -1)
 		# its box's corner on the grid too: an odd half-size moves it a unit
 		var hs := Worlds.half_size(layout.bodies[i].world, float(_rq.get(i, draw_r(layout.bodies[i]))))
@@ -1807,7 +2184,9 @@ func step() -> void:
 			v.call("set_live", float(_live[i][0]), (_live[i][1] as Vector2) - v.position)
 		var behind: bool = dep.call(i) < 0.0 and not core
 		# (lit as the showcase lit them: a world far out still bright on its day side)
-		var kl := (0.7 + 0.55 * light_at(p.x, p.y)) if legacy else (0.95 + 0.35 * light_at(p.x, p.y))
+		# (two suns: the light of both, `light_here`; one sun, `light_at` itself)
+		var lh := light_here(p.x, p.y)
+		var kl := (0.7 + 0.55 * lh) if legacy else (0.95 + 0.35 * lh)
 		if layout.star == SystemLayout.StarKind.PULSAR:
 			# THE BEAM CATCHES IT (C): dim between passes, lit as a beam sweeps by
 			var bo := beam_on(at[i] - o, i)
@@ -1815,13 +2194,13 @@ func step() -> void:
 			if painted:
 				bo = round(bo * 2.0) / 2.0
 			kl = 0.55 + 0.9 * bo
-		v.call("step", t, light_for(p), kl, o if behind else Vector2(-9999, -9999), layout.star_r * star_k() if behind else 0.0)
+		v.call("step", t, light_for_at(p), kl, o if behind else Vector2(-9999, -9999), layout.star_r * star_k() if behind else 0.0)
 		# LIT BY ITS OWN STAR (C): the lit side in its colour, the night side
 		# filled by the sky round it, brighter at a flare's height
 		var vm: ShaderMaterial = v.get("_mat")
 		if vm != null:
 			if not legacy:
-				vm.set_shader_parameter("star_tint", _tint)
+				vm.set_shader_parameter("star_tint", tint_at(p))
 				vm.set_shader_parameter("night_fill", night_fill(p))
 			vm.set_shader_parameter("flare", _flare)
 			vm.set_shader_parameter("lift", 0.0 if legacy else 1.0)
@@ -1837,8 +2216,13 @@ func step() -> void:
 			msh.resize(4)
 			vm.set_shader_parameter("moon_sh", msh)
 			vm.set_shader_parameter("n_moon_sh", nm)
+	if not star2_placed and d2 < 0.0:
+		_worlds.move_child(star2, -1)
+		star2_placed = true
 	if core and not core_placed:
 		_worlds.move_child(star, -1)
+	if not star2_placed:
+		_worlds.move_child(star2, -1)
 	tick("worlds", t_worlds)
 	_moons.queue_redraw()
 	_lines.queue_redraw()
@@ -1863,60 +2247,108 @@ func step() -> void:
 		await RenderingServer.frame_post_draw
 		# from the place's own half-size picture, so in its pixels
 		var img := _scene.get_texture().get_image()
-		# a cloud seen from inside has more colours to keep than open space
-		# and the weather's own colours, so a strike's core or an echo's ring
-		# has its step without taking any from the sky
-		var extra: PackedVector3Array = PackedVector3Array() if no_ramp or _weather == null else SkyWeatherS.ramp(_weather.sky)
-		var cloud := _neb_mat != null
-		# the distant galaxies' own tones in a clear sky: a few blocks each, the cut
-		# never found them, and they set to the void (in a cloud they are faint
-		# behind it, and seven more steps there set its gas flickering between them)
-		if not cloud:
-			for gt: Vector3 in SkyGalaxiesS.TONES:
-				extra.append(gt)
-		if legacy:
-			# LEGACY: the weather's colours alone, as before
-			pass
-		elif cloud:
-			# SIMPLIFIED's cloud: its own reserved steps, so its gradients never plate
-			# (RADIANT's core: A's heart is a rose-brown haze; SIMPLIFIED's cool violet
-			# steps caught it and set it mauve)
-			var res: Array = R_CORE if radiant and int(_sky_look.neb) == 5 else C_RESERVED.get(int(_sky_look.neb), [])
-			for h: String in res:
-				var cr := Color(h)
-				extra.append(Vector3(cr.r, cr.g, cr.b))
-			# and the sun painter's warm steps (not its greys and blues, which caught
-			# the cloud): the weather's fire -- a jet's head, a fan of amber, an
-			# ember, a flier -- keeps its colour
-			for h: String in ["#fff6e2", "#ffdc96", "#ffb054", "#ec7a26", "#c24a14", "#84280c", "#ff8a50"]:
-				var cw := Color(h)
-				extra.append(Vector3(cw.r, cw.g, cw.b))
-		elif layout.star == SystemLayout.StarKind.PULSAR:
-			# the remnant's hydrogen reds and oxygen teals (the pulsar's own palette is blues)
-			for h: String in ["#3a0e14", "#6a1a20", "#a02a32", "#d0505a", "#16302e", "#24504c", "#357a72", "#56b0a2"]:
-				var cr := Color(h)
-				extra.append(Vector3(cr.r, cr.g, cr.b))
-		elif layout.star != SystemLayout.StarKind.CORE:
-			# a clear sky's sun: its glow's dark end in its own hue, so the halo
-			# falls off through warm steps to the void and never onto a grey plate
-			var sc: Vector3 = SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY)
-			var deep := Vector3(pow(sc.x, 3.0), pow(sc.y, 3.0), pow(sc.z, 3.0))
-			deep /= maxf(deep.x, maxf(deep.y, deep.z))
-			for kq: float in [0.07, 0.11, 0.17, 0.26, 0.38]:
-				extra.append(deep * kq)
-			if radiant:
-				# (RADIANT: A's warm haze round the sun, its dim browns; the cut set it grey)
-				for h: String in ["#0b0603", "#191209", "#22190e", "#2b2014", "#34291b", "#443b2e", "#504535"]:
-					var ch := Color(h)
-					extra.append(Vector3(ch.r, ch.g, ch.b))
-		var pal: PackedVector3Array = SystemPaletteS.build(img, 0, Vector2(CX, CY) / 2.0, layout.star_r / 2.0, kind, 0,
-			SystemPaletteS.K_NEBULA if cloud else SystemPaletteS.K, extra, legacy or not cloud,
-			not legacy and cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, not legacy)
+		var pal := pal_from(img)
 		if _pal_cache.size() >= PAL_CACHE_MAX:
 			_pal_cache.clear()
 		_pal_cache[pk] = pal
 		pal_cuts += 1
 		_set_pal(pal)
+
+
+## THE PALETTE CUT FROM THE PICTURE `img` (the place's half-size picture): the
+## system's own colours (`SystemPalette.build`) with the steps `pal_extra` keeps
+## for it. With two suns, star B's light too: a cut round its disc and its glow's
+## dark end in its own warmer hue (`pal_star2`), put in after star A's and only
+## as many of them as fit the pass's 72 (`SystemPalette.build`'s `star2_*`). A
+## one-sun system's call is the one it always was, argument for argument
+## (`-- sheet=TwinPalProof`, a scratch harness: every one-sun system's palette
+## over the four systemtest seeds the same as main's, from the same picture).
+func pal_from(img: Image) -> PackedVector3Array:
+	var cloud := _neb_mat != null
+	var extra := pal_extra()
+	if not layout.twin:
+		return SystemPaletteS.build(img, 0, Vector2(CX, CY) / 2.0, layout.star_r / 2.0, kind, 0,
+			SystemPaletteS.K_NEBULA if cloud else SystemPaletteS.K, extra, legacy or not cloud,
+			not legacy and cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, not legacy)
+	# (where star B is in the half-size picture the palette is cut from: the picture
+	# it is cut from is the system at its opening, unpanned)
+	return SystemPaletteS.build(img, 0, Vector2(CX, CY) / 2.0, layout.star_r / 2.0, kind, 0,
+		SystemPaletteS.K_NEBULA if cloud else SystemPaletteS.K, extra, legacy or not cloud,
+		not legacy and cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, not legacy,
+		star_screen(SystemLayout.STAR_B) / 2.0, star_disc(SystemLayout.STAR_B) / 2.0, pal_star2(), PAL_N)
+
+
+## How many colours the palette pass holds (`map_palette.gdshader`'s `pal`).
+const PAL_N := 72
+
+
+## Star B's own steps in the palette: its glow's dark end in its own hue, as a
+## clear sky's sun has (`pal_extra`), only outside a cloud (where the cloud is
+## lit by it instead) and never in LEGACY (whose steps are the weather's alone).
+func pal_star2() -> PackedVector3Array:
+	var out := PackedVector3Array()
+	if star2 == null or legacy or _neb_mat != null:
+		return out
+	var sc := STAR_B_COL
+	var deep := Vector3(pow(sc.x, 3.0), pow(sc.y, 3.0), pow(sc.z, 3.0))
+	deep /= maxf(deep.x, maxf(deep.y, deep.z))
+	for kq: float in [0.07, 0.11, 0.17, 0.26, 0.38]:
+		out.append(deep * kq)
+	return out
+
+
+## THE PALETTE'S RESERVED STEPS, by sky and style (`pal_from`): the weather's
+## colours, a clear sky's galaxies, a cloud's own reserved steps and the sun
+## painter's warm ones, a pulsar's remnant, a clear sky's sun glow falling off
+## in its own hue (and RADIANT's warm haze).
+func pal_extra() -> PackedVector3Array:
+	# a cloud seen from inside has more colours to keep than open space
+	# and the weather's own colours, so a strike's core or an echo's ring
+	# has its step without taking any from the sky
+	var extra: PackedVector3Array = PackedVector3Array() if no_ramp or _weather == null else SkyWeatherS.ramp(_weather.sky)
+	var cloud := _neb_mat != null
+	# the distant galaxies' own tones in a clear sky: a few blocks each, the cut
+	# never found them, and they set to the void (in a cloud they are faint
+	# behind it, and seven more steps there set its gas flickering between them)
+	if not cloud:
+		for gt: Vector3 in SkyGalaxiesS.TONES:
+			extra.append(gt)
+	if legacy:
+		# LEGACY: the weather's colours alone, as before
+		pass
+	elif cloud:
+		# SIMPLIFIED's cloud: its own reserved steps, so its gradients never plate
+		# (RADIANT's core: A's heart is a rose-brown haze; SIMPLIFIED's cool violet
+		# steps caught it and set it mauve)
+		var res: Array = R_CORE if radiant and int(_sky_look.neb) == 5 else C_RESERVED.get(int(_sky_look.neb), [])
+		for h: String in res:
+			var cr := Color(h)
+			extra.append(Vector3(cr.r, cr.g, cr.b))
+		# and the sun painter's warm steps (not its greys and blues, which caught
+		# the cloud): the weather's fire -- a jet's head, a fan of amber, an
+		# ember, a flier -- keeps its colour
+		for h: String in ["#fff6e2", "#ffdc96", "#ffb054", "#ec7a26", "#c24a14", "#84280c", "#ff8a50"]:
+			var cw := Color(h)
+			extra.append(Vector3(cw.r, cw.g, cw.b))
+	elif layout.star == SystemLayout.StarKind.PULSAR:
+		# the remnant's hydrogen reds and oxygen teals (the pulsar's own palette is blues)
+		for h: String in ["#3a0e14", "#6a1a20", "#a02a32", "#d0505a", "#16302e", "#24504c", "#357a72", "#56b0a2"]:
+			var cr := Color(h)
+			extra.append(Vector3(cr.r, cr.g, cr.b))
+	elif layout.star != SystemLayout.StarKind.CORE:
+		# a clear sky's sun: its glow's dark end in its own hue, so the halo
+		# falls off through warm steps to the void and never onto a grey plate
+		var sc: Vector3 = SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY)
+		var deep := Vector3(pow(sc.x, 3.0), pow(sc.y, 3.0), pow(sc.z, 3.0))
+		deep /= maxf(deep.x, maxf(deep.y, deep.z))
+		for kq: float in [0.07, 0.11, 0.17, 0.26, 0.38]:
+			extra.append(deep * kq)
+		if radiant:
+			# (RADIANT: A's warm haze round the sun, its dim browns; the cut set it grey)
+			for h: String in ["#0b0603", "#191209", "#22190e", "#2b2014", "#34291b", "#443b2e", "#504535"]:
+				var ch := Color(h)
+				extra.append(Vector3(ch.r, ch.g, ch.b))
+	return extra
 
 
 ## The palette pass given its colours.
@@ -2041,6 +2473,8 @@ class _Nova extends Node2D:
 		for _i in 24:
 			var p := Vector2(_rng.randf_range(w.position.x + 30.0, w.end.x - 30.0), _rng.randf_range(w.position.y + 30.0, w.end.y - 30.0))
 			if p.distance_to(view.origin()) < view.layout.star_r * view.star_k() + 40.0:
+				continue
+			if view.star2 != null and p.distance_to(view.star_screen(SystemLayout.STAR_B)) < view.star_disc(SystemLayout.STAR_B) + 40.0:
 				continue
 			var clear := true
 			for i in view.at.size():
@@ -2270,6 +2704,10 @@ class _Belts extends Node2D:
 			var D := _rock_draws(b, nr)
 			var orbit: float = b.orbit
 			var lit_on := b.index == lit_belt
+			# ROUND ITS OWN CENTRE (ruling 20: in a twin every belt circles the pair's
+			# balance point), sided by where on its own circle a rock is
+			var hx: float = b.host.x
+			var hz: float = b.host.y
 			for i in nr:
 				var fade_in := clampf((n_rocks - float(i)) / 60.0, 0.0, 1.0) if i >= 300 else 1.0
 				var d := i * 7
@@ -2278,8 +2716,8 @@ class _Belts extends Node2D:
 				var big := D[d + 4]
 				var shade := D[d + 5]
 				var lift := (D[d + 6] - 0.5) * 2.0
-				var x := cos(a) * rr
-				var z := sin(a) * rr
+				var x := hx + cos(a) * rr
+				var z := hz + sin(a) * rr
 				var s: Vector2 = ((base + Vector2(x, z * TILT + lift) * zm) / 2.0).floor() * 2.0
 				if s.x < -16.0 or s.x > 976.0 or s.y < -16.0 or s.y > 556.0:
 					continue
@@ -2299,7 +2737,7 @@ class _Belts extends Node2D:
 						ci = mini(ci + 2, 7)
 					var plt: Color = rk[ci]
 					var pdk: Color = rk[maxi(ci - 2, 1)]
-					var psx := -1 if x > 0.0 else 1
+					var psx := -1 if x - hx > 0.0 else 1
 					if big < 0.86:
 						draw_rect(Rect2(s, Vector2(2, 2)), plt if shade < 0.8 else pdk)
 					elif big < 0.97:
@@ -2325,7 +2763,7 @@ class _Belts extends Node2D:
 						dk = dk.lerp(lt, 0.6 * lit_t)
 					lt.a = fade_in
 					dk.a = fade_in
-					var sxl := -1 if x > 0.0 else 1
+					var sxl := -1 if x - hx > 0.0 else 1
 					if big < 0.86:
 						draw_rect(Rect2(s, Vector2(2, 2)), lt if shade < 0.35 else dk)
 					elif big < 0.97:
@@ -2360,7 +2798,7 @@ class _Belts extends Node2D:
 					dark = dark.lerp(lit, 0.6 * lit_t)
 				lit.a = fade_in
 				dark.a = fade_in
-				var sx := -1 if x > 0.0 else 1
+				var sx := -1 if x - hx > 0.0 else 1
 				# in blocks of 2x2, as the whole place is
 				if big < 0.86:
 					draw_rect(Rect2(s, Vector2(2, 2)), lit if shade < 0.85 else dark)
@@ -2493,6 +2931,13 @@ class _Lines extends Node2D:
 		var k: float = view.star_k()
 		return Vector2(L.star_r * k + 2.0, L.star_r * k + 2.0)
 
+	## Star B's hole in the lines, as star A's (`Vector2.ZERO` with one sun).
+	func _star2_hole() -> Vector2:
+		if view.star2 == null:
+			return Vector2.ZERO
+		var r2: float = view.star_disc(SystemLayout.STAR_B)
+		return Vector2(r2 + 2.0, r2 + 2.0)
+
 	func _draw() -> void:
 		# (HIDE ORBITS on the map's toolbar)
 		if not view.orbits_on:
@@ -2527,6 +2972,10 @@ class _Lines extends Node2D:
 		var win: Rect2 = view.window.grow(4.0)
 		var o: Vector2 = view.origin()
 		var hole := _star_hole()
+		# (two suns: star B's disc stops the lines too)
+		var hole2 := _star2_hole()
+		var o2: Vector2 = view.star_screen(SystemLayout.STAR_B)
+		var two := hole2.x > 0.0
 		var odepth: bool = view.orbit_depth
 		var painted: bool = view.painted
 		var vt: float = view.t
@@ -2541,6 +2990,10 @@ class _Lines extends Node2D:
 			# A POINT EVERY PIXEL AND A BIT of the ellipse as drawn (Jon: "why are some
 			# of the planet orbits wobbly?"): its perimeter on screen, Ramanujan's
 			var orbit: float = b.orbit
+			# ROUND ITS OWN CENTRE (ruling 20): star A, star B or the pair's balance
+			# point (`Body.host`; star A's origin with one sun)
+			var hx: float = b.host.x
+			var hz: float = b.host.y
 			var ea: float = orbit * zm
 			var eb: float = ea * TILT
 			var per: float = PI * (3.0 * (ea + eb) - sqrt((3.0 * ea + eb) * (ea + 3.0 * eb)))
@@ -2576,8 +3029,8 @@ class _Lines extends Node2D:
 					var j := i + SPAN
 					var ai := float(i) / fn * TAU
 					var aj := float(j) / fn * TAU
-					var pi_ := base + Vector2(cos(ai) * orbit, sin(ai) * orbit * TILT) * zm
-					var pj := base + Vector2(cos(aj) * orbit, sin(aj) * orbit * TILT) * zm
+					var pi_ := base + Vector2(hx + cos(ai) * orbit, (hz + sin(ai) * orbit) * TILT) * zm
+					var pj := base + Vector2(hx + cos(aj) * orbit, (hz + sin(aj) * orbit) * TILT) * zm
 					if not Rect2(pi_, Vector2.ZERO).expand(pj).grow(bow).intersects(win, true):
 						# none of i .. j-1 is on the frame: the line breaks there, once
 						if pts.size() > 1:
@@ -2590,14 +3043,15 @@ class _Lines extends Node2D:
 				i += 1
 				# (`orbit_point` and `screen`, as they work it: the plane point held in
 				# 32 bits as a Vector3's is)
-				var op := Vector2(cos(a) * orbit, sin(a) * orbit)
+				var op := Vector2(hx + cos(a) * orbit, hz + sin(a) * orbit)
 				var sp: Vector2 = base + Vector2(op.x, op.y * TILT + 0.0) * zm
 				# off the frame, in the star, or on its own world (the only one on its ring)
 				var off_world := own and sp.distance_squared_to(at_b) < own_r2
 				if rings and not off_world:
 					var rq: Vector2 = (sp - wc) / ring_ab
 					off_world = rq.length_squared() < 1.0
-				if not win.has_point(sp) or pow((sp.x - o.x) / hole.x, 2.0) + pow((sp.y - o.y) / hole.y, 2.0) < 1.0 or off_world:
+				if not win.has_point(sp) or pow((sp.x - o.x) / hole.x, 2.0) + pow((sp.y - o.y) / hole.y, 2.0) < 1.0 or off_world \
+						or (two and pow((sp.x - o2.x) / hole2.x, 2.0) + pow((sp.y - o2.y) / hole2.y, 2.0) < 1.0):
 					if pts.size() > 1:
 						runs.append([pts, cols])
 					pts = PackedVector2Array()
@@ -2620,7 +3074,7 @@ class _Lines extends Node2D:
 				# never by the zoom. PAINTED in three held bands, as B paints a ramp.
 				var dk := 1.0
 				if odepth:
-					var dz := smoothstep(-1.0, 1.0, op.y / orb1)
+					var dz := smoothstep(-1.0, 1.0, (op.y - hz) / orb1)
 					if painted:
 						dz = 0.0 if dz < 0.33 else (0.5 if dz < 0.67 else 1.0)
 					dk = lerpf(0.6, 1.45, dz)
@@ -2802,6 +3256,21 @@ class _Fabric extends Node2D:
 		if _level >= 0:
 			draw_mesh(_mesh(_level), null)
 
+	## A HEAVY GIANT'S WELL IS WIDER (ruling 20: giants 1/10 to 1/4 of their star,
+	## "purely because it's more fun", felt by every autopilot flight): its width
+	## grown with its weight so its far reach (depth x width^2, the shader's sum
+	## far out) goes as its share of the star's, depth kept (the tanh cap at 45
+	## swallows a deeper well, so a deeper one barely shows). The old 34 px is a
+	## giant of 0.145, the middle of the roll: at 0.10 the well is 28 px wide, at
+	## 0.25, 45. Anything else, and a giant with no weight, as laid out.
+	static func giant_well_w(b: SystemLayout.Body) -> float:
+		if b.kind != &"giant" or b.gm_frac <= 0.0:
+			return b.well_w
+		return b.well_w * sqrt(b.gm_frac / GIANT_W_AT)
+
+	## the giant's weight the laid-out well width (34) is drawn for
+	const GIANT_W_AT := 0.145
+
 	## Each frame: the camera, the wells where the bodies are now, and the clear
 	## discs of the star and the worlds. Redrawn only when the spacing changes.
 	func update() -> void:
@@ -2828,10 +3297,16 @@ class _Fabric extends Node2D:
 		_mat.set_shader_parameter("star_d", L.star_mass * 0.8)
 		_mat.set_shader_parameter("star_w", 46.0 + L.star_r * 1.4)
 		var wells := PackedVector4Array()
+		# STAR B'S WELL (ruling 20): a funnel of its own, star A's law, its depth
+		# star A's by B's share of the mass against A's (0.72 to 0.92 of it) and
+		# its width by its own radius -- so the lighter star dents the fabric less.
+		# First in the list, so the sixteen wells always hold it.
+		if L.twin:
+			wells.append(Vector4(L.star2_at.x, L.star2_at.y, L.star_mass * 0.8 * (1.0 - L.star_share) / L.star_share, 46.0 + L.star2_r * 1.4))
 		for i in L.bodies.size():
 			var b := L.bodies[i]
 			if b.mass > 0.0 and wells.size() < 16:
-				wells.append(Vector4(view.pos[i].x, view.pos[i].y, b.mass * 0.9, b.well_w))
+				wells.append(Vector4(view.pos[i].x, view.pos[i].y, b.mass * 0.9, giant_well_w(b)))
 		var nw := wells.size()
 		wells.resize(16)
 		_mat.set_shader_parameter("wells", wells)
@@ -2840,6 +3315,10 @@ class _Fabric extends Node2D:
 		var sk: float = view.star_k()
 		_mat.set_shader_parameter("hole", Vector2(116.0 * sk, 116.0 * view.TILT * sk + 22.0 * sk) if core else Vector2(L.star_r * sk + 2.0, L.star_r * sk + 2.0))
 		var worlds := PackedVector3Array()
+		# (star B's disc left clear as a world's is, first so it always is)
+		if view.star2 != null:
+			var sb: Vector2 = view.star_screen(SystemLayout.STAR_B)
+			worlds.append(Vector3(sb.x, sb.y, float(view.star_disc(SystemLayout.STAR_B)) + 2.0))
 		for i: int in view._views:
 			if worlds.size() < 16:
 				worlds.append(Vector3(view.at[i].x, view.at[i].y, view.draw_r(L.bodies[i]) + 1.5))
@@ -2878,6 +3357,8 @@ class _Moons extends Node2D:
 		var z: float = view.zoom
 		var o: Vector2 = view.origin()
 		var hole: Vector2 = view._lines._star_hole()
+		var hole2: Vector2 = view._lines._star2_hole()
+		var o2: Vector2 = view.star_screen(SystemLayout.STAR_B)
 		var mrad := clampf(0.35 + 0.42 * z, 0.5, 2.4)
 		for i: int in view._views:
 			var b := L.bodies[i]
@@ -2893,7 +3374,9 @@ class _Moons extends Node2D:
 			var sq: float = 0.28 if not slots.is_empty() else TILT
 			if pow((s.x - o.x) / hole.x, 2.0) + pow((s.y - o.y) / hole.y, 2.0) < 1.0:
 				continue
-			var L3: Vector3 = view.light_for(view.pos[i]).normalized()
+			if hole2.x > 0.0 and pow((s.x - o2.x) / hole2.x, 2.0) + pow((s.y - o2.y) / hole2.y, 2.0) < 1.0:
+				continue
+			var L3: Vector3 = view.light_for_at(view.pos[i]).normalized()
 			for m in moons:
 				var a: float = view.pose(view.t) * (0.25 + m * 0.12) + m * 2.1
 				var mr: float = float(slots[m]) * r if not slots.is_empty() else orbit_r(r, m, gap)
@@ -2985,6 +3468,8 @@ class _Moons extends Node2D:
 		var win: Rect2 = view.window.grow(4.0)
 		var o: Vector2 = view.origin()
 		var hole: Vector2 = view._lines._star_hole()
+		var hole2: Vector2 = view._lines._star2_hole()
+		var o2: Vector2 = view.star_screen(SystemLayout.STAR_B)
 		for i: int in view._views:
 			var b := L.bodies[i]
 			var v: Node2D = view._views[i]
@@ -3001,6 +3486,8 @@ class _Moons extends Node2D:
 			var sq: float = 0.28 if not slots.is_empty() else TILT
 			# a world behind the star: its moons are behind it too
 			var behind_star: bool = pow((s.x - o.x) / hole.x, 2.0) + pow((s.y - o.y) / hole.y, 2.0) < 1.0
+			if hole2.x > 0.0 and pow((s.x - o2.x) / hole2.x, 2.0) + pow((s.y - o2.y) / hole2.y, 2.0) < 1.0:
+				behind_star = true
 			if behind_star:
 				continue
 			if view.moon_focus.has(i):
@@ -3026,7 +3513,9 @@ class _Moons extends Node2D:
 					if pts.size() > 1:
 						draw_polyline(pts, Color(0.52, 0.62, 0.74, 0.16), 1.0)
 			# the moons: hidden behind the world, over it in front
-			var lit_dir := (o - s).normalized() if o.distance_to(s) > 0.5 else Vector2(-1, 0)
+			# (toward its world's light: star A, or with two suns the light of both)
+			var lo: Vector2 = view.light_screen(view.pos[i], s)
+			var lit_dir := (lo - s).normalized() if lo.distance_to(s) > 0.5 else Vector2(-1, 0)
 			var mrad := clampf(0.35 + 0.42 * z, 0.5, 2.4)
 			# (PAINTED: the moon's own ramp, its night leaning to the sky; held poses)
 			var mk: Array = view._pt.get("moon", []) if view.painted else []
@@ -3036,7 +3525,7 @@ class _Moons extends Node2D:
 			var c_dark := Color(0.34, 0.37, 0.43)
 			var c_dot := Color(0.48, 0.52, 0.58)
 			if view.radiant:
-				var tn: Vector3 = view._tint
+				var tn: Vector3 = view.tint_at(view.pos[i])
 				var nf: Vector3 = view.night_fill(view.pos[i])
 				c_lit = _tone(Vector3(0.42, 0.42, 0.44) * tn * 1.7 + Vector3(0.42, 0.42, 0.44) * nf * 9.0 * 0.5)
 				c_dark = _tone(Vector3(0.42, 0.42, 0.44) * nf * 9.0 * 0.7)

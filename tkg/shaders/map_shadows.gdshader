@@ -37,6 +37,12 @@ uniform float rings[24];
 // penumbra half as dark, for the paint pass to set a step or two down the ramp
 // each falls on (its own checker where they meet)
 uniform bool painted = false;
+// TWO SUNS (ruling 20): each caster's own light, a point on screen toward it
+// (`SystemView.light_screen`, the world's one light made of both stars), so a
+// world round star B throws its shadow away from B. Off with one sun: every
+// shadow falls away from `star_at`, as it always did.
+uniform vec2 cast_from[24];
+uniform bool per_body = false;
 
 void fragment() {
 	vec2 px = (floor(SCREEN_UV / SCREEN_PIXEL_SIZE) + 0.5) * px_scale;
@@ -46,7 +52,7 @@ void fragment() {
 			vec4 b = bodies[i];
 			vec2 at = b.xy;
 			float r = max(b.z, 1.0);
-			vec2 away = at - star_at;
+			vec2 away = at - (per_body ? cast_from[i] : star_at);
 			if (length(away) < 0.5) continue;
 			vec2 u = normalize(away);
 			vec2 dlt = px - at;

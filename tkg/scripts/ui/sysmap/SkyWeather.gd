@@ -671,6 +671,9 @@ func clear_at(p: Vector2, ship_r: float, grow: float = 0.0) -> bool:
 		return false
 	if p.distance_to(view.origin()) < _star_disc() + 40.0 + grow:
 		return false
+	# (and star B's, with two suns)
+	if view.star2 != null and p.distance_to(view.star_screen(SystemLayout.STAR_B)) < view.star_disc(SystemLayout.STAR_B) + 40.0 + grow:
+		return false
 	var L: SystemLayout = view.layout
 	for i in mini(view.at.size(), L.bodies.size()):
 		var b: SystemLayout.Body = L.bodies[i]
@@ -995,7 +998,8 @@ func focus(ev: Dictionary) -> Vector2:
 			if nm == &"collision":
 				var b: SystemLayout.Body = view.layout.bodies[int(ev.body)]
 				var a0 := float(ev.a0) + float(view.t) / b.period * TAU
-				return view.screen(cos(a0) * float(ev.r0), sin(a0) * float(ev.r0))
+				# (round the belt's own centre: a twin's belts circle the balance point)
+				return view.screen(b.host.x + cos(a0) * float(ev.r0), b.host.y + sin(a0) * float(ev.r0))
 			var p := Comet.comet_pos(ev, maxf(float(ev.age), 0.0))
 			return view.screen(p.x, p.y)
 		&"depth":
@@ -1529,8 +1533,11 @@ func _p_microlens(ev: Dictionary) -> bool:
 func _p_comet(ev: Dictionary) -> bool:
 	var L: SystemLayout = view.layout
 	var inner := INF
+	# (the comet swings round star A, the origin of `comet_pos`: its perihelion by
+	# the inner orbit ROUND A -- in a twin the world circling A, not one round B
+	# or the pair, whose orbits are about other centres)
 	for b in L.bodies:
-		if b.kind != &"belt":
+		if b.kind != &"belt" and b.host_id == -1:
 			inner = minf(inner, b.orbit)
 	if inner == INF:
 		inner = L.star_r * 6.0
@@ -1711,7 +1718,7 @@ func _belt_spots() -> Array:
 			continue
 		for k in 48:
 			var a := float(k) / 48.0 * TAU
-			var p: Vector2 = view.screen(cos(a) * b.orbit, sin(a) * b.orbit)
+			var p: Vector2 = view.screen(b.host.x + cos(a) * b.orbit, b.host.y + sin(a) * b.orbit)
 			if _in_view(p, 24.0) and p.distance_to(ship) >= 80.0 and clear_at(p, 80.0, -20.0):
 				out.append([b.index, a])
 	return out
@@ -2301,7 +2308,7 @@ class Puff extends Node2D:
 		var a0 := float(ev.a0) + spin
 		# THE FLASH: up over 4 frames, down over 11
 		var fl := sm(0.0, 4.0 / 60.0, a) * (1.0 - sm(4.0 / 60.0, 15.0 / 60.0, a))
-		var c0: Vector2 = view.block(view.screen(cos(a0) * r0, sin(a0) * r0))
+		var c0: Vector2 = view.block(view.screen(b.host.x + cos(a0) * r0, b.host.y + sin(a0) * r0))
 		if fl > 0.0:
 			draw_rect(Rect2(c0, Vector2(2, 2)), Color(Color("#ffdc96"), fl))
 			for bx in range(-1, 2):
@@ -2325,8 +2332,8 @@ class Puff extends Node2D:
 			var dphi := clampf(-1.5 * (dr / r0) * w * 40.0 * a, -0.7, 0.7) + float(p[1]) * sig / r0
 			var rr := r0 + dr
 			var ph := a0 + dphi
-			var x := cos(ph) * rr
-			var zz := sin(ph) * rr
+			var x := b.host.x + cos(ph) * rr
+			var zz := b.host.y + sin(ph) * rr
 			var s: Vector2 = view.block(view.screen(x, zz))
 			# dims in three steps over its own life
 			var step := floorf(clampf(a / life, 0.0, 0.999) * 3.0)

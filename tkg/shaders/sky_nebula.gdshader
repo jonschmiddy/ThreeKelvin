@@ -83,6 +83,13 @@ uniform float lzoom = 1.0;
 uniform float lscale = 0.68;
 uniform vec3 star_light = vec3(1.0, 0.72, 0.36);
 uniform float breath = 1.0;
+// STAR B (ruling 20, two suns): where it is on screen and how bright against
+// star A (0 with one sun: nothing added). Its light on the gas is star A's own
+// law round it, added in `light_at`, the way to the light turned toward the
+// brighter of the two there; the bubble, the zones and RADIANT's shafts and rays
+// stay star A's.
+uniform vec2 star2_at = vec2(-9999.0);
+uniform float star2_k = 0.0;
 // the emission bubble's radius on the plane (map px at zoom 1)
 uniform float bubble_r = 400.0;
 // THE CORE: the hole's disc's outer edge on screen (px), and its flare echo
@@ -184,6 +191,9 @@ uniform float r_floor = 0.16;
 // each world: where it is drawn (screen px), its drawn radius, its true radius
 // at this zoom; its rings' outer edge in its radii (0: none)
 uniform vec4 r_bodies[24];
+// (two suns: each shaft away from its own world's light, `SystemView.light_screen`)
+uniform vec2 r_from[24];
+uniform bool r_per = false;
 uniform float r_rings[24];
 uniform int r_nb = 0;
 // how much of the sun's light a shaft's umbra takes; a flare's height now
@@ -282,7 +292,7 @@ float r_shafts(vec2 px) {
 	for (int i = 0; i < 24; i++) {
 		if (i >= r_nb) break;
 		vec4 bd = r_bodies[i];
-		vec2 away = bd.xy - star_at;
+		vec2 away = bd.xy - (r_per ? r_from[i] : star_at);
 		if (length(away) < 0.5) continue;
 		vec2 u = normalize(away);
 		vec2 dlt = px - bd.xy;
@@ -345,6 +355,15 @@ Lt light_at(vec2 b) {
 	l.Js = 1.0 / (1.0 + pow(l.dL / 155.0, 2.0)) * mix(1.0, breath, 0.6);
 	l.Jc = 1.0 / (1.0 + pow(l.dL / (38.0 * breath), 2.0));
 	l.Jw = 0.35 / (1.0 + pow(l.dL / 520.0, 2.0));
+	if (star2_k > 0.0) {
+		vec2 d2 = b - star2_at;
+		float dL2 = length(d2 * vec2(1.0, 1.15)) / l.LZ;
+		float Js2 = star2_k / (1.0 + pow(dL2 / 155.0, 2.0)) * mix(1.0, breath, 0.6);
+		l.toSun = normalize(l.toSun * l.Js - d2 / max(length(d2), 1e-3) * Js2 + vec2(1e-6, 0.0));
+		l.Js += Js2;
+		l.Jc += star2_k / (1.0 + pow(dL2 / (38.0 * breath), 2.0));
+		l.Jw += star2_k * 0.35 / (1.0 + pow(dL2 / 520.0, 2.0));
+	}
 	// (a flare lights the gas round, never the glow on the sun's own face: that
 	// went to a flat white plate)
 	l.Js *= l.att * (1.0 + 0.6 * r_flare);

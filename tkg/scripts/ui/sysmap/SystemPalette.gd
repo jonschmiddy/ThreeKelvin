@@ -129,12 +129,40 @@ static func oklab(c: Vector3) -> Vector3:
 ## `extra`: colours of the system's weather (`SkyWeather.RAMP`), put in before
 ## the void, so its brightest moments have steps of their own.
 ## `merge`: twins closer than this (OKLab) are one colour (0: none).
-static func build(img: Image, x0: int, star_at: Vector2, star_r: float, kind: String, y0: int = 0, k: int = K, extra: PackedVector3Array = PackedVector3Array(), own_pal: bool = true, no_grey: bool = false, merge: float = MERGE, void_first: bool = false) -> PackedVector3Array:
+## TWO SUNS (ruling 20): `star2_r` > 0 adds star B's light -- a cut of its own
+## round `star2_at` and its own steps `star2_cols` -- straight after star A's, so
+## the merge keeps them before the painter's and the weather's. Only as many of
+## them as leave the whole within `most` colours (the palette pass holds 72, and
+## the caller cuts the rest off without a sound): star B's are what give way,
+## never the sky's, the weather's or the void. Left out (every one-sun call),
+## the palette is the one this always made.
+static func build(img: Image, x0: int, star_at: Vector2, star_r: float, kind: String, y0: int = 0, k: int = K, extra: PackedVector3Array = PackedVector3Array(), own_pal: bool = true, no_grey: bool = false, merge: float = MERGE, void_first: bool = false,
+		star2_at: Vector2 = Vector2.ZERO, star2_r: float = 0.0, star2_cols: PackedVector3Array = PackedVector3Array(), most: int = 0) -> PackedVector3Array:
 	if img.get_format() != Image.FORMAT_RGBA8 and img.get_format() != Image.FORMAT_RGB8:
 		img.convert(Image.FORMAT_RGBA8)
 	var pal := median_cut(img, k, Rect2i(x0, y0, img.get_width() - x0, img.get_height() - y0))
 	var sr := maxf(40.0, star_r * 3.2)
 	pal.append_array(median_cut(img, maxi(6, K >> 2), Rect2i(int(star_at.x - sr), int(star_at.y - sr), int(sr * 2), int(sr * 2))))
+	if star2_r > 0.0:
+		var b2 := PackedVector3Array()
+		var sr2 := maxf(40.0, star2_r * 3.2)
+		b2.append_array(median_cut(img, maxi(6, K >> 2), Rect2i(int(star2_at.x - sr2), int(star2_at.y - sr2), int(sr2 * 2), int(sr2 * 2))))
+		b2.append_array(star2_cols)
+		# (as many of star B's as fit: all, then one fewer, down to none)
+		var out := PackedVector3Array()
+		for n in range(b2.size(), -1, -1):
+			var with := pal.duplicate()
+			with.append_array(b2.slice(0, n))
+			out = _finish(with, kind, extra, own_pal, no_grey, void_first, merge)
+			if most <= 0 or out.size() <= most:
+				break
+		return out
+	return _finish(pal, kind, extra, own_pal, no_grey, void_first, merge)
+
+
+## The cut's colours `pal` (the whole picture's, round the star) made a palette:
+## its greys dropped in a cloud, the painter's own, the extras, the void, merged.
+static func _finish(pal: PackedVector3Array, kind: String, extra: PackedVector3Array, own_pal: bool, no_grey: bool, void_first: bool, merge: float) -> PackedVector3Array:
 	# A CLOUD SEEN FROM INSIDE HAS NO GREYS (SIMPLIFIED, C): where teal meets rose,
 	# or a flash meets the cloud, the cut finds a few dull mid-greys, and those
 	# blocks turn dirty; dropped, they fall to the nearest hue instead

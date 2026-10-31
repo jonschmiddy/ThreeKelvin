@@ -1750,6 +1750,26 @@ class Glyph extends Control:
 		"......+......",
 		"......-......"]
 
+	## TWO SUNS (ruling 20, Oct 30): a system with a pair of stars wears the same
+	## burst with a small second star at its lower right, warm (the companion is
+	## the cooler, orange one, as the map paints it), where the burst's lower
+	## right ray was -- so it reads as two suns at the chart's 13 pixels without a
+	## new shape to learn, and stands in the same box (nothing to click moves).
+	const _TWIN := [
+		"......-......",
+		"......+......",
+		"..+...#...+..",
+		"...#..#..#...",
+		"....#.%.#....",
+		".....%%%.....",
+		"-+#%%*@*%%#+-",
+		".....%%%.....",
+		"....#.%......",
+		"...#..#...:..",
+		"..+...#..:*:.",
+		"......+...:..",
+		"......-......"]
+
 	## NOT DRAWN SINCE THE TYPE COLLAPSE, and kept rather than deleted. Every
 	## system wears `_EVENT` now, but these are authored pixel art and the option
 	## detail view is the obvious place a wreck or a contact wants a picture --
@@ -1859,7 +1879,9 @@ class Glyph extends Control:
 		"oooo.........",
 		"............."]
 
-	static func art_for(t: MapGen.NodeType) -> Array:
+	static func art_for(t: MapGen.NodeType, twin: bool = false) -> Array:
+		if twin and t == MapGen.NodeType.SYSTEM:
+			return _TWIN
 		match t:
 			MapGen.NodeType.STATION: return _STATION
 			MapGen.NodeType.CORE: return _GOAL
@@ -1885,9 +1907,9 @@ class Glyph extends Control:
 
 	static func draw_glyph(ci: CanvasItem, o: Vector2, t: MapGen.NodeType,
 			tint_in: Color, here: bool, selected: bool, band: Color = BAND,
-			dim: bool = false) -> Color:
+			dim: bool = false, twin: bool = false) -> Color:
 		var ramp := ramp_for(tint_in, band, dim)
-		var art := art_for(t)
+		var art := art_for(t, twin)
 		for y in art.size():
 			var row: String = art[y]
 			for x in row.length():
@@ -1957,10 +1979,11 @@ class Glyph extends Control:
 	## pixels; how dark it is depends on the sky under it (`MapChart._UNDER`).
 	static var _halo_cache: Dictionary = {}
 
-	static func draw_halo(ci: CanvasItem, o: Vector2, t: MapGen.NodeType, col: Color) -> void:
-		var pts: PackedVector2Array = _halo_cache.get(t, PackedVector2Array())
+	static func draw_halo(ci: CanvasItem, o: Vector2, t: MapGen.NodeType, col: Color, twin: bool = false) -> void:
+		var hk: int = int(t) * 2 + (1 if twin else 0)
+		var pts: PackedVector2Array = _halo_cache.get(hk, PackedVector2Array())
 		if pts.is_empty():
-			var art := art_for(t)
+			var art := art_for(t, twin)
 			var on := {}
 			for y in art.size():
 				var row: String = art[y]
@@ -1975,7 +1998,7 @@ class Glyph extends Control:
 						rim[q] = true
 			for q: Vector2i in rim:
 				pts.append(Vector2(q))
-			_halo_cache[t] = pts
+			_halo_cache[hk] = pts
 		for q in pts:
 			ci.draw_rect(Rect2(o + q, Vector2.ONE), col, true)
 
@@ -3726,13 +3749,19 @@ class MapChart extends Control:
 					dot = Glyph.DIM
 				draw_rect(Rect2(at, Vector2(d, d)), dot, true)
 				drawn_ink[node2.index] = dot
+				if node2.twin:
+					# TWO SUNS, zoomed out: a pixel of a second, warmer star off the
+					# dot's lower right corner, on its own rim of the void
+					var c2 := at + Vector2(d + 1.0, d)
+					draw_rect(Rect2(c2 - Vector2(1, 1), Vector2(3, 3)), _UNDER, true)
+					draw_rect(Rect2(c2, Vector2.ONE), Glyph.DIM if dim else dot.lerp(UITheme.EMBER, 0.55), true)
 			else:
 				var near2: bool = node2.index == here.index or node2.index == selected \
 					or node2.index == hovered or reach.has(node2)
-				Glyph.draw_halo(self, p, node2.type, _UNDER)
+				Glyph.draw_halo(self, p, node2.type, _UNDER, node2.twin)
 				drawn_ink[node2.index] = Glyph.draw_glyph(self, p, node2.type,
 					tint.lightened(0.12) if near2 else tint.darkened(0.2),
-					node2.index == here.index, node2.index == selected, Glyph.BAND, dim)
+					node2.index == here.index, node2.index == selected, Glyph.BAND, dim, node2.twin)
 			if dim:
 				drawn_dim[node2.index] = true
 			if node2.index == here.index:

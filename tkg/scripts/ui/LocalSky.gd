@@ -252,6 +252,19 @@ var _low_skip := false
 var orbit_target := -9
 var orbit_d := 0.0
 var _dk := 1.0
+## TWO SUNS (ruling 20, Oct 30). `star2`: star B's SunView on the band beside
+## star A, null with one sun -- placed where the band puts its place on the
+## plane, each sun sized by the ship's own distance from it (`_dk_a`, `_dk_b`),
+## so the far one is the smaller. `_lit`: the sun that lights where the ship is
+## (-1 star A, STAR_B star B), the one giving it more light (`SystemView.share_b`);
+## `origin`, `star_light`, `star_px` and `star_k` are its, and so is everything
+## that asks them -- the far glow, the cloud's light, the near world's light, the
+## dust (`LocalDust`), the subjects (`LocalSubject`) and the life (`LocalLife`).
+## Star A keeps the band: it is laid out round A's place (`_sun`), as always.
+var star2: Node2D = null
+var _lit := -1
+var _dk_a := 1.0
+var _dk_b := 1.0
 ## the near things: their own picture, the world the ship orbits and its moons,
 ## a belt's rocks, a wreck (each [node, screen position before parallax,
 ## parallax, radius])
@@ -457,6 +470,8 @@ func _build() -> void:
 	_palette = null
 	_palette_mat = null
 	star = null
+	star2 = null
+	_lit = -1
 	_ready_sky = false
 	_palette_built = false
 	_frame = 0
@@ -632,19 +647,30 @@ func _build() -> void:
 		star.position = _sun
 		_worlds.add_child(star)
 		star.call("setup", kind, node.index, layout.star_r)
-		star.call("set_zoom", star_k())
-		var sm := star.get("_mat") as ShaderMaterial
-		sm.set_shader_parameter("half_pal", true)
-		sm.set_shader_parameter("cell", 2)
+		star.call("set_zoom", star_k_of(-1))
+		if layout.twin:
+			# STAR B, the map's second sun (`SystemView.sun_setup`): its own looks,
+			# smaller and warmer, on the band where its place is
+			star2 = SunViewS.new()
+			star2.position = _sun_at(SystemLayout.STAR_B)
+			_worlds.add_child(star2)
+			star2.call("setup", kind, node.index, layout.star2_r, true)
+			star2.call("set_zoom", star_k_of(SystemLayout.STAR_B))
+		for sn: Node2D in ([star, star2] if star2 != null else [star]):
+			var sm := sn.get("_mat") as ShaderMaterial
+			sm.set_shader_parameter("half_pal", true)
+			sm.set_shader_parameter("cell", 2)
+			if painted:
+				sm.set_shader_parameter("painted", true)
+	for sn: Node2D in [star, star2]:
+		if sn == null:
+			continue
+		_set_deep(sn, "cell", 2)
+		_set_deep(sn, "px_scale", 2.0)
 		if painted:
-			sm.set_shader_parameter("painted", true)
-	if star != null:
-		_set_deep(star, "cell", 2)
-		_set_deep(star, "px_scale", 2.0)
-		if painted:
-			_set_deep(star, "painted", true)
+			_set_deep(sn, "painted", true)
 		if radiant:
-			_set_deep(star, "radiant", true)
+			_set_deep(sn, "radiant", true)
 	for i in layout.bodies.size():
 		var b := layout.bodies[i]
 		if b.world == &"" or i == orbit_target:
@@ -868,6 +894,10 @@ static func _blank(img: Image) -> bool:
 func _bubble_r() -> float:
 	var E := layout.edge
 	var want := 0.8 * (E + 20.0)
+	if layout.twin:
+		# (two suns: between the bands of distance from star A each body sweeps,
+		# `SystemView.bubble_gap`)
+		return SystemViewS.bubble_gap(layout, want) * _s
 	var rs: Array[float] = [0.0]
 	for b in layout.bodies:
 		if b.kind == &"belt":
@@ -929,11 +959,40 @@ static func _set_deep(n: Node, key: String, value: Variant) -> void:
 
 # ------------------------------------------------------------------ what the map's helpers ask
 
-## the star's size against its map size
+## The tint of the light on a band world at plane point p: the lit sun's with
+## one sun (`_tint`); with two, star A's and B's by their shares there.
+func _tint_at(p: Vector2) -> Vector3:
+	if star2 == null:
+		return _tint
+	var ta := SystemViewS._lin_top(SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY))
+	return ta.lerp(SystemViewS._lin_top(SystemViewS.STAR_B_COL), SystemViewS.share_b_of(layout, p))
+
+
+## How bright the other sun is on the sky against the lit one: its brightness by
+## its drawn area, and nearness as its size goes (0 with one sun).
+func _star2_k() -> float:
+	if star2 == null:
+		return 0.0
+	var u := _unlit()
+	var k := SystemViewS.star_lum_of(layout, u) / SystemViewS.star_lum_of(layout, _lit) * star_k_of(u) / maxf(star_k(), 1e-3)
+	return clampf(k, 0.0, 1.0)
+
+
+## The sun that is not the lit one (two suns only).
+func _unlit() -> int:
+	return -1 if _lit == SystemLayout.STAR_B else SystemLayout.STAR_B
+
+
+## the star's size against its map size (with two suns, the lit one's, `_lit`)
 func star_k() -> float:
+	return star_k_of(_lit)
+
+
+## Star p's size against its map size, by the ship's distance from it.
+func star_k_of(p: int) -> float:
 	if layout == null:
 		return 1.0
-	var f := clampf(pow(_dk, SIZE_POW), SIZE_LO, SIZE_HI)
+	var f := clampf(pow(_dk_b if p == SystemLayout.STAR_B else _dk_a, SIZE_POW), SIZE_LO, SIZE_HI)
 	if layout.star == SystemLayout.StarKind.PULSAR:
 		return PULSAR_K * f
 	if layout.star == SystemLayout.StarKind.CORE:
@@ -942,6 +1001,8 @@ func star_k() -> float:
 
 
 func star_light() -> Vector3:
+	if _lit == SystemLayout.STAR_B:
+		return SystemViewS._lin_top(SystemViewS.STAR_B_COL)
 	var c: Vector3 = SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY)
 	var l := Vector3(pow(c.x, 2.2), pow(c.y, 2.2), pow(c.z, 2.2))
 	return l / maxf(l.x, maxf(l.y, l.z))
@@ -960,8 +1021,23 @@ func origin() -> Vector2:
 
 
 ## The star with no zoom: what the layout and the palette are laid out from.
+## (With two suns, the lit one, `_lit`.)
 func rest_origin() -> Vector2:
-	return _block_round(_sun - cam * F_STAR)
+	return _star_rest(_lit)
+
+
+## Star p with no zoom, on its own near-still layer.
+func _star_rest(p: int) -> Vector2:
+	return _block_round(_sun_at(p) - cam * F_STAR)
+
+
+## Where star p hangs on the band at rest: star A at `_sun`, star B where the
+## band puts its place on the plane (across by its x, a little lower the nearer
+## it is, at the band's scale), on the block grid.
+func _sun_at(p: int) -> Vector2:
+	if p != SystemLayout.STAR_B or layout == null or not layout.twin:
+		return _sun
+	return _block_round(_sun + Vector2(layout.star2_at.x, layout.star2_at.y * TILT) * _s)
 
 
 ## the band's centre this frame: where the worlds' orbits are laid out from
@@ -1131,8 +1207,20 @@ func _step(delta: float) -> void:
 			_neb_mat.set_shader_parameter("lscale", 1.35)
 			_neb_mat.set_shader_parameter("breath", SystemViewS.breath(pose(t, 4.0)))
 			_neb_mat.set_shader_parameter("hole_r", 116.0 * star_k() * _zl(Z_STAR))
+			# THE OTHER SUN'S LIGHT ON THE GAS (two suns): beside the lit one's, by its
+			# brightness and nearness against it (0 with one sun: nothing added)
+			_neb_mat.set_shader_parameter("star2_k", _star2_k())
+			if star2 != null:
+				_neb_mat.set_shader_parameter("star2_at", Vector2(_zp(_star_rest(_unlit()), Z_STAR)))
 	if painted:
 		SectorPaintedS.push(self)
+		if star2 != null and not _pt.is_empty():
+			# (PAINTED's halo rings round both suns, the lit one's at its own size)
+			var ms: ShaderMaterial = _pt.get("state")
+			if ms != null:
+				ms.set_shader_parameter("sun_r", star_px())
+				ms.set_shader_parameter("star2_px", Vector2(_zp(_star_rest(_unlit()), Z_STAR)))
+				ms.set_shader_parameter("sun2_r", float(layout.star_radius(_unlit())) * star_k_of(_unlit()) * _zl(Z_STAR))
 	_step_star(o)
 	_step_worlds(o)
 	_step_near(o)
@@ -1165,12 +1253,23 @@ func _step_star(o: Vector2) -> void:
 	# painter's zoom, never scaled as a picture (a 1.04 scale of the disc drew a
 	# row of its blocks twice)
 	var k := _zl(Z_STAR)
-	star.position = _zp(o, Z_STAR)
+	# (star A at its own place: with two suns `o` is the lit one's)
+	star.position = _zp(_star_rest(-1) if star2 != null else o, Z_STAR)
 	star.scale = Vector2.ONE
 	if layout.star == SystemLayout.StarKind.CORE:
 		star.set("hole_k", star_k() * k)
 	else:
-		star.call("set_zoom", star_k() * k)
+		star.call("set_zoom", star_k_of(-1) * k)
+	if star2 != null:
+		# STAR B at its place on the band, its size by the ship's distance from it,
+		# on its own clock (`SystemView.STAR_B_PROM` behind A's)
+		star2.position = _zp(_star_rest(SystemLayout.STAR_B), Z_STAR)
+		star2.call("set_zoom", star_k_of(SystemLayout.STAR_B) * k)
+		star2.call("step", pose(t, 4.0))
+		var sm2: ShaderMaterial = star2.get("_mat")
+		sm2.set_shader_parameter("c_breath", SystemViewS.breath(pose(t, 4.0) + SystemViewS.STAR_B_PROM))
+		sm2.set_shader_parameter("c_prom", SystemViewS.prominence(pose(t + SystemViewS.STAR_B_PROM, 6.0)))
+		sm2.set_shader_parameter("halo_cut", 36.0 if legacy else 72.0)
 	_flare = 0.0
 	match layout.star:
 		SystemLayout.StarKind.PULSAR:
@@ -1198,13 +1297,22 @@ func _step_worlds(o: Vector2) -> void:
 		pos[i] = layout.bodies[i].pos(t)
 	order.sort_custom(func(a: int, b: int) -> bool: return (pos[a] as Vector2).y < (pos[b] as Vector2).y)
 	var star_placed := star == null or layout.star == SystemLayout.StarKind.PULSAR
+	# (star B at its own depth, as the map slots it: `SystemView.step`)
+	var star2_placed := star2 == null
+	var d2: float = layout.star2_at.y
 	var bp := PackedVector4Array()
 	for i: int in order:
 		var p: Vector2 = pos[i]
 		var v: Node2D = _views[i]
+		if not star2_placed and d2 < 0.0 and p.y >= d2:
+			_worlds.move_child(star2, -1)
+			star2_placed = true
 		if not star_placed and p.y >= 0.0:
 			_worlds.move_child(star, -1)
 			star_placed = true
+		if not star2_placed and p.y >= d2:
+			_worlds.move_child(star2, -1)
+			star2_placed = true
 		_worlds.move_child(v, -1)
 		var b := layout.bodies[i]
 		var at := _zp(_block_round(band_origin() + Vector2(p.x, p.y * TILT) * _s), Z_BAND)
@@ -1216,18 +1324,31 @@ func _step_worlds(o: Vector2) -> void:
 		# lit from the star: across, a little from above, and from behind for a
 		# world in front of it
 		var light := Vector3(-p.x / len, -p.y / len * TILT, -p.y / len * 0.8 + 0.3).normalized()
-		var kl := 0.95 + 0.35 * SystemViewS.light_at(p.x, p.y)
+		if star2 != null:
+			# (two suns: the one light of both, as the map lights it)
+			var u := SystemViewS.toward_light_of(layout, p)
+			light = Vector3(u.x, u.y * TILT, u.y * 0.8 + 0.3).normalized()
+		var kl := 0.95 + 0.35 * SystemViewS.light_here_of(layout, p.x, p.y)
 		if layout.star == SystemLayout.StarKind.PULSAR:
 			kl = 0.75
 		# (the star's disc as this layer sees it: where `_step_star` put it, at
 		# its own depth, in the band's coordinates)
-		var sr := float(layout.star_r) * star_k() * _zl(Z_STAR)
+		var sr := float(layout.star_r) * star_k_of(-1) * _zl(Z_STAR)
 		var so: Vector2 = star.position if star != null else o
+		if star2 != null:
+			# (two suns: the disc it hides behind is the one in front of it nearer it
+			# on screen; the two stand far apart, so it can be behind one at most)
+			var b_in_front := p.y < d2
+			var near_b := v.position.distance_to(star2.position) < v.position.distance_to(so)
+			if b_in_front and (near_b or not behind):
+				behind = true
+				so = star2.position
+				sr = float(layout.star2_r) * star_k_of(SystemLayout.STAR_B) * _zl(Z_STAR)
 		v.call("step", t, light, kl, so if behind else Vector2(-9999, -9999), sr if behind else 0.0)
 		var vm: ShaderMaterial = v.get("_mat")
 		if vm != null:
 			if not legacy:
-				vm.set_shader_parameter("star_tint", _tint)
+				vm.set_shader_parameter("star_tint", _tint_at(p))
 				vm.set_shader_parameter("night_fill", Vector3(0.02, 0.02, 0.03))
 			vm.set_shader_parameter("flare", _flare)
 			vm.set_shader_parameter("lift", 0.0 if legacy else 1.0)
@@ -1236,8 +1357,13 @@ func _step_worlds(o: Vector2) -> void:
 		if bp.size() < 24:
 			var wr := _world_r(b) * _zl(Z_BAND)
 			bp.append(Vector4(v.position.x, v.position.y, wr, wr))
+	if not star2_placed and d2 < 0.0:
+		_worlds.move_child(star2, -1)
+		star2_placed = true
 	if not star_placed:
 		_worlds.move_child(star, -1)
+	if not star2_placed:
+		_worlds.move_child(star2, -1)
 	if radiant and _neb_mat != null:
 		var rg := PackedFloat32Array()
 		rg.resize(24)
@@ -1317,9 +1443,27 @@ func _build_palette() -> void:
 		deep /= maxf(deep.x, maxf(deep.y, deep.z))
 		for kq: float in [0.07, 0.11, 0.17, 0.26, 0.38]:
 			extra.append(deep * kq)
-	var pal: PackedVector3Array = SystemPaletteS.build(img, 0, Vector2(rest_origin()) / 2.0, float(layout.star_r) * star_k() / 2.0, kind, 0,
-		SystemPaletteS.K_NEBULA + PAL_MORE if cloud else SystemPaletteS.K, extra, legacy or not cloud,
-		not legacy and cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, not legacy)
+	var pal: PackedVector3Array
+	if star2 == null:
+		pal = SystemPaletteS.build(img, 0, Vector2(rest_origin()) / 2.0, float(layout.star_r) * star_k() / 2.0, kind, 0,
+			SystemPaletteS.K_NEBULA + PAL_MORE if cloud else SystemPaletteS.K, extra, legacy or not cloud,
+			not legacy and cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, not legacy)
+	else:
+		# TWO SUNS: the lit one's light first, then the other's -- a cut round its
+		# disc and, in a clear sky, its glow's dark end in its own hue -- as many of
+		# the other's as fit the pass's 72 (`SystemView.pal_from`)
+		var u := _unlit()
+		var cols := PackedVector3Array()
+		if not cloud and not legacy and layout.star != SystemLayout.StarKind.PULSAR:
+			var sc: Vector3 = SystemViewS.STAR_B_COL if u == SystemLayout.STAR_B else SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY)
+			var dp := Vector3(pow(sc.x, 3.0), pow(sc.y, 3.0), pow(sc.z, 3.0))
+			dp /= maxf(dp.x, maxf(dp.y, dp.z))
+			for kq: float in [0.07, 0.11, 0.17, 0.26, 0.38]:
+				cols.append(dp * kq)
+		pal = SystemPaletteS.build(img, 0, Vector2(rest_origin()) / 2.0, float(layout.star_radius(_lit)) * star_k() / 2.0, kind, 0,
+			SystemPaletteS.K_NEBULA + PAL_MORE if cloud else SystemPaletteS.K, extra, legacy or not cloud,
+			not legacy and cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, not legacy,
+			Vector2(_star_rest(u)) / 2.0, float(layout.star_radius(u)) * star_k_of(u) / 2.0, cols, SystemViewS.PAL_N)
 	var arr := PackedVector3Array(pal)
 	arr.resize(72)
 	_palette_mat.set_shader_parameter("pal", arr)
@@ -1513,17 +1657,36 @@ func _situate() -> void:
 			if p.length() < 1.0:
 				p = Vector2(layout.bodies[orbit_target].orbit, 0.0)
 		elif orbit_target == -1:
-			p = Vector2(float(layout.star_r) + 71.0, 0.0)
+			# (a twin's star rides its close rail, `SystemLayout.star_rail_of`: one
+			# star's ride at ring - 8 is inside a twin's keep-out)
+			p = Vector2(layout.star_rail_of(-1) if layout.twin else float(layout.star_r) + 71.0, 0.0)
+		elif orbit_target == SystemLayout.STAR_B and layout.twin:
+			# STAR B (-4): the ship at B's close orbit is AT a star, as at -1
+			p = layout.star2_at + Vector2(layout.star_rail_of(SystemLayout.STAR_B), 0.0)
 		elif StringName(d.get("mode", &"")) == &"free":
 			p = d.get("p", p)
-	if orbit_target < -1 or orbit_target >= layout.bodies.size():
+	if (orbit_target < -1 and not (layout.twin and orbit_target == SystemLayout.STAR_B)) or orbit_target >= layout.bodies.size():
 		orbit_target = -9
 	orbit_d = maxf(p.length(), float(layout.star_r) + 20.0)
 	_dk = REF_K * (layout.edge + 20.0) / orbit_d
+	_dk_a = _dk
+	_lit = -1
+	if layout.twin:
+		# EACH SUN BY ITS OWN DISTANCE (ruling 20): a world round star B is some
+		# 350 px from star A but 65 to 100 from its own sun, which lights it and is
+		# drawn the bigger; `orbit_d` is the distance from the sun that lights the
+		# ship's place (`_lit`, the one giving it more light)
+		var d_b := maxf(p.distance_to(layout.star2_at), float(layout.star2_r) + 20.0)
+		_dk_b = REF_K * (layout.edge + 20.0) / d_b
+		_lit = SystemLayout.STAR_B if SystemViewS.share_b_of(layout, p) > 0.5 else -1
+		if _lit == SystemLayout.STAR_B:
+			orbit_d = d_b
+			_dk = _dk_b
 	# A BIG STAR rides up into the top of the view, cut by it, blazing
 	if layout.star != SystemLayout.StarKind.PULSAR:
 		# (the core's: the size it had on the band, for the cloud's anchor)
-		var sk := HOLE_K * clampf(pow(_dk, SIZE_POW), SIZE_LO, SIZE_HI) 			if layout.star == SystemLayout.StarKind.CORE else star_k()
+		# (star A's: the band is laid out round it)
+		var sk := HOLE_K * clampf(pow(_dk, SIZE_POW), SIZE_LO, SIZE_HI) 			if layout.star == SystemLayout.StarKind.CORE else star_k_of(-1)
 		var R := float(layout.star_r) * sk * (0.3 if layout.star == SystemLayout.StarKind.CORE else 1.0)
 		_sun.y = HORIZON - roundf(clampf(R - 20.0, 0.0, 36.0) / 2.0) * 2.0
 	# the cloud stays where look A has it: it is baked round that point, and
@@ -1767,7 +1930,7 @@ func scene_to_global(p: Vector2) -> Vector2:
 func star_px() -> float:
 	if layout == null:
 		return 0.0
-	return float(layout.star_r) * star_k() * _zl(Z_STAR)
+	return float(layout.star_radius(_lit)) * star_k() * _zl(Z_STAR)
 
 
 ## THE GAS CLOSED IN (`no_stars`: "The gas has closed in. ... No stars"): the

@@ -66,6 +66,10 @@ uniform bool calm = false;
 uniform int u_halo0 = -1;
 uniform vec2 star_px = vec2(480.0, 270.0);
 uniform float sun_r = 10.0;
+// STAR B (ruling 20, two suns): its disc on screen, its halo rings as star A's
+// (sun2_r 0 with one sun: none)
+uniform vec2 star2_px = vec2(-9999.0);
+uniform float sun2_r = 0.0;
 // THE GALAXY'S BAND ON A CLEAR SKY (B's): two tones of navy across the view,
 // broad and wandering, the inner tone in lumps, and the far gas's faint wisps
 // in it, set here by where a block lies on the sky (the far picture's glow,
@@ -173,6 +177,11 @@ void fragment() {
 		vec2 sv = vec2(b) * 2.0 + 1.0 - star_px;
 		// (B's sun is drawn bigger than ours: its rings by a third more)
 		float d = length(sv) / max(sun_r * 1.35, 1.0);
+		if (sun2_r > 0.0) {
+			vec2 sv2 = vec2(b) * 2.0 + 1.0 - star2_px;
+			float d2 = length(sv2) / max(sun2_r * 1.35, 1.0);
+			if (d2 < d) { d = d2; sv = sv2; }
+		}
 		vec2 dir = sv / max(length(sv), 1e-3);
 		d *= 1.0 - 0.04 * vn(dir * 3.0 + 21.0);
 		int lv = d < 1.6 ? 4 : (d < 2.3 ? 3 : (d < 3.2 ? 2 : (d < 4.4 || (d < 5.6 && ((b.x + b.y) & 1) == 0 && hsh(vec2(b) + sky_blk) < 0.5) ? 1 : 0)));

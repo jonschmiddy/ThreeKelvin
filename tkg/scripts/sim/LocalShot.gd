@@ -19,6 +19,10 @@ extends Node
 ## (`SystemMapScreen._parked`): in orbit of a ringed giant (or any giant), of a
 ## world, of the star close in, alongside a belt or a wreck, or free at the
 ## system's edge; `giant` looks for a system of the sky with a ringed giant.
+## TWO SUNS (ruling 20, Oct 30): `twin` looks for a two-sun system of the sky
+## (with `-- twin=all` every ordinary one is), and `orbit=` also takes `starb`
+## (star B's close orbit, place -4), `worlda` and `worldb` (the world circling
+## star A or star B).
 ## `dustcheck` (with `combat fire`): a fight's frames, each taken with the
 ## foreground dust and again without it, and what the dust covered of the ships'
 ## pictures and of every label and gauge printed -- the worst frame's share.
@@ -64,7 +68,11 @@ func _run() -> void:
 					continue
 				if String(SkyWeatherS.sky_of_node(n)) != want:
 					continue
-				if orbit != "" and orbit != "star" and orbit != "edge" and _body_for(SystemLayout.of(n), orbit, pass_i == 0) < 0:
+				if "twin" in _args and not n.twin:
+					continue
+				if orbit in ["starb", "worlda", "worldb"] and not SystemLayout.of(n).twin:
+					continue
+				if orbit != "" and orbit != "star" and orbit != "edge" and not orbit in ["starb", "worlda", "worldb"] and _body_for(SystemLayout.of(n), orbit, pass_i == 0) < 0:
 					continue
 				idx = n.index
 				break
@@ -83,6 +91,14 @@ func _run() -> void:
 		match orbit:
 			"star":
 				at = -1
+			"starb":
+				at = SystemLayout.STAR_B
+			"worlda", "worldb":
+				var hid := -1 if orbit == "worlda" else SystemLayout.STAR_B
+				for bw: SystemLayout.Body in Lo.bodies:
+					if bw.world != &"" and bw.host_id == hid:
+						at = bw.index
+						break
 			"edge":
 				mode = &"free"
 			_:
@@ -91,8 +107,8 @@ func _run() -> void:
 					at = _body_for(Lo, orbit, false)
 		SystemMapScreen._parked[idx] = {"at": at, "p": Vector2(Lo.edge * 1.02, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": mode}
 		print("  orbit %s: body %d" % [orbit, at])
-	print("  node %d %s: sky %s, star %d, nebula %s, giant %s" % [idx, MapGen.star_name(node),
-		SkyWeatherS.sky_of_node(node), SystemLayout.of(node).star, node.in_nebula, node.gas_giant])
+	print("  node %d %s: sky %s, star %d, nebula %s, giant %s, two suns %s" % [idx, MapGen.star_name(node),
+		SkyWeatherS.sky_of_node(node), SystemLayout.of(node).star, node.in_nebula, node.gas_giant, SystemLayout.of(node).twin])
 	if not "approach" in _args:
 		SectorScreen._approached_at = idx
 	if "combat" in _args:

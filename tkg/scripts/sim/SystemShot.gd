@@ -23,6 +23,17 @@ extends Node
 ##                    narrows a planetary one, `star=RED|BLUE|ORDINARY` a calm one
 ##   `wlist`          the sky, its temperament, its favourite and its events
 ##   `wprobe`         a mark at every point the weather's ported noise finds
+## TWO SUNS AND HEAVY GIANTS (ruling 20, Oct 30):
+##   `twin`           the run's first two-sun system, the busiest (most bodies, a
+##                    giant first); with `-- twin=all` every ordinary system is one
+##   `twinnth=K`      with `twin`, the K-th such system instead of the busiest
+##   `giantsys`       the first one-sun system with a giant (every giant now
+##                    weighs 1/10 to 1/4 of its star; prints its weight)
+##   `park=I`         the ship in orbit of body I (default 0; `noship` at the edge);
+##                    `park=wa` / `park=wb` the world round star A / star B
+##   `focus=wa|wb`    the camera held on the world round star A / star B
+##   `look=a|b`       the camera held on star A or star B at the zoom given
+## and prints the pair (star B's place, radius, share, each body's centre).
 
 const ScreenS := preload("res://scripts/ui/sysmap/SystemMapScreen.gd")
 const SectorPaintedS := preload("res://scripts/ui/sysmap/SectorPainted.gd")
@@ -140,6 +151,47 @@ func _ready() -> void:
 					print("  systemshot: job %s at node %d" % [mine.status_line(), n.index])
 			if n != null:
 				break
+	elif "twin" in OS.get_cmdline_user_args():
+		# `twin`: a two-sun system -- the busiest of the run's (a giant, then most
+		# bodies), or the K-th (`twinnth=K`)
+		var nth := -1
+		for a24 in OS.get_cmdline_user_args():
+			if (a24 as String).begins_with("twinnth="):
+				nth = int((a24 as String).substr(8))
+		var best2 := -1
+		var k2 := 0
+		for raw in Run.map:
+			var m: MapGen.MapNode = raw
+			if m.type != MapGen.NodeType.SYSTEM or not m.twin:
+				continue
+			OptionTable.ensure(m)
+			var L2 := SystemLayout.of(m)
+			if not L2.twin:
+				continue
+			if nth >= 0:
+				if k2 == nth:
+					n = m
+					break
+				k2 += 1
+				continue
+			var sc2 := (100 if L2.bodies.any(func(bb: SystemLayout.Body) -> bool: return bb.kind == &"giant") else 0) + L2.bodies.size() * 10 + m.options.size()
+			if sc2 > best2:
+				best2 = sc2
+				n = m
+		if n == null:
+			print("  systemshot: no two-sun system in this run (try -- twin=all)")
+			get_tree().quit()
+			return
+	elif "giantsys" in OS.get_cmdline_user_args():
+		# `giantsys`: the first one-sun system with a giant
+		for raw in Run.map:
+			var m: MapGen.MapNode = raw
+			if m.type != MapGen.NodeType.SYSTEM or m.twin:
+				continue
+			OptionTable.ensure(m)
+			if SystemLayout.of(m).bodies.any(func(bb: SystemLayout.Body) -> bool: return bb.kind == &"giant"):
+				n = m
+				break
 	elif "belt" in OS.get_cmdline_user_args():
 		# `belt`: the first system with an asteroid belt (for `hoverbelt`)
 		for raw in Run.map:
@@ -209,6 +261,15 @@ func _ready() -> void:
 					print("  systemshot: moons node %d body %d %s %s r %.1f moons %d ring %s" % [mn.index, bi, bm.kind, bm.world, bm.r, int(spm.moons), str(spm.get("ring", false))])
 		get_tree().quit()
 		return
+	var Lt := SystemLayout.of(n)
+	if Lt.twin:
+		print("  systemshot: two suns at node %d: star B at (%.0f, %.0f), %.0f px apart, r %.1f against 16, star A's share %.3f, fit zoom %.3f" % [n.index,
+			Lt.star2_at.x, Lt.star2_at.y, Lt.sep, Lt.star2_r, Lt.star_share, Lt.fit_zoom])
+	for bt in Lt.bodies:
+		if bt.kind == &"giant":
+			print("  systemshot: giant %s weighs %.3f of its star%s" % [bt.name, bt.gm_frac, "s" if Lt.twin else ""])
+		if Lt.twin and bt.world != &"":
+			print("  systemshot: body %d %s round %s, orbit %.0f" % [bt.index, bt.name, {-1: "star A", SystemLayout.STAR_B: "star B"}.get(bt.host_id, "both"), bt.orbit])
 	if "bodies" in OS.get_cmdline_user_args():
 		var Lb := SystemLayout.of(n)
 		for bi in Lb.bodies.size():
@@ -269,7 +330,11 @@ func _ready() -> void:
 			for c2 in v2.get_children():
 				if c2 is CanvasItem and (c2 as CanvasItem).material is ShaderMaterial:
 					((c2 as CanvasItem).material as ShaderMaterial).set_shader_parameter("cell", 2)
-	scr.overlay.ship_park = -3 if "noship" in OS.get_cmdline_user_args() else 0
+	var park := 0
+	for a25 in OS.get_cmdline_user_args():
+		if (a25 as String).begins_with("park="):
+			park = _body_arg(scr.view.layout, (a25 as String).substr(5))
+	scr.overlay.ship_park = -3 if "noship" in OS.get_cmdline_user_args() else park
 	# parked by hand, not flown in: the screen should not take it for an arrival
 	scr._was_at = scr.flight.reached()
 	# the list again, now the ship is parked, so YOU sits on the right card
@@ -361,12 +426,22 @@ func _ready() -> void:
 	var focus := -9
 	for a15 in OS.get_cmdline_user_args():
 		if (a15 as String).begins_with("focus="):
-			focus = int((a15 as String).substr(6))
+			focus = _body_arg(scr.view.layout, (a15 as String).substr(6))
+	# `look=a|b`: the camera held on star A or star B (two suns) at the zoom given
+	var look := ""
+	for a26 in OS.get_cmdline_user_args():
+		if (a26 as String).begins_with("look="):
+			look = (a26 as String).substr(5)
 	for _i in (90 if "loc" in OS.get_cmdline_user_args() else 10):
 		if focus >= 0:
 			scr._zoom_to = zoom
 			scr.view.zoom = zoom
 			scr.view.pan = -scr.overlay.place_rel(focus)
+		elif look != "":
+			var sp: Vector2 = scr.view.layout.star2_at if look == "b" else Vector2.ZERO
+			scr._zoom_to = zoom
+			scr.view.zoom = zoom
+			scr.view.pan = -Vector2(sp.x, sp.y * scr.view.TILT) * zoom
 		await get_tree().process_frame
 	if focus >= 0:
 		var fb: SystemLayout.Body = scr.view.layout.bodies[focus]
@@ -1487,3 +1562,15 @@ class _Probe extends Node2D:
 			var c := Color(1, 1, 0) if String(e[0]) in ["cc", "rim"] else Color(0, 1, 0.4)
 			draw_line(p - Vector2(4, 0), p + Vector2(4, 0), c)
 			draw_line(p - Vector2(0, 4), p + Vector2(0, 4), c)
+
+
+## A body named on the command line: its index, or `wa` / `wb` for the world
+## circling star A / star B of a two-sun system (-9 when there is none).
+static func _body_arg(L: SystemLayout, v: String) -> int:
+	if v == "wa" or v == "wb":
+		var hid := -1 if v == "wa" else SystemLayout.STAR_B
+		for b in L.bodies:
+			if b.world != &"" and L.twin and b.host_id == hid:
+				return b.index
+		return -9
+	return int(v)
