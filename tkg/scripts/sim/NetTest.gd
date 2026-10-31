@@ -998,9 +998,11 @@ func _late_join_test() -> void:
 	var to_b := await _wait_until(func() -> bool:
 		return int(late.spot_of(id, 12).get("body", 3)) == SystemLayout.STAR_B \
 			and int(host.spot_of(id, 12).get("body", 3)) == SystemLayout.STAR_B, 3.0)
-	ok("a ship in star B's close orbit is seen there (twin cases: 1)", to_b)
+	ok("a ship in star B's close orbit is seen there", to_b)
 	var sb := late.spot_of(id, 12)
 	check("at the point it said, not an offset", Vector2(float(sb.get("x", 0.0)), float(sb.get("z", 0.0))), on_b)
+	# (this file prints only its failures; the count says the case was seen)
+	print("  twin cases: 1 (a spot in star B's close orbit, relayed to both: %s)" % ("yes" if to_b else "no"))
 	await _teardown()
 
 

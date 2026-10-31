@@ -384,28 +384,48 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 func _fit_zoom() -> float:
 	var L: SystemLayout = view.layout
 	if _frame.size.x <= 10.0:
-		return SystemLayout.open_zoom(L.edge)
-	return zoom_for(L, _frame.size)
+		return _twin_floor(L, view.node, SystemLayout.FIT_FRAME, SystemLayout.open_zoom(L.edge))
+	return zoom_for(L, view.node, _frame.size)
 
 
-## The zoom system L opens at in a frame of size `fs`: its edge fitted in it,
-## and TWO SUNS NO FURTHER OUT THAN THEIR RINGS WERE FITTED TO while nothing is
+## The zoom system L (of node n) opens at in a frame of size `fs`: its edge
+## fitted in it, and for two suns no further out than their rings were fitted
+## to (`_twin_floor`).
+static func zoom_for(L: SystemLayout, n: MapGen.MapNode, fs: Vector2) -> float:
+	return _twin_floor(L, n, fs, fit_zoom_in(L.edge, fs))
+
+
+## TWO SUNS OPEN NO FURTHER OUT THAN THEIR RINGS WERE FITTED TO while nothing is
 ## posted past the edge (`SystemLayout.fit_zoom`: "the map opens there or
-## nearer"). The layout fits on a 655x420 frame, which the map's is, until a
-## panel row asks for more than its text column with the scroll bar up and the
-## panel widens: then 650x420 (measured, `-- sheet=TwinSiteTest`, an event card
-## naming a long world you orbit). On that, twins of seed 4242 opened at down to
-## 0.9924 of their `fit_zoom`, their suns' floor drawn wider than the rings
-## round them were fitted to. A twin's `fit_zoom` is fitted to the
-## farthest its edge could be (`SystemLayout._twin_edge_most`), so while its own
-## edge is within that (`open_zoom(edge)` at or above it) the whole edge is
-## still in the frame at it; only a job or the Hellbender posted past it opens
-## the map further out, as it must to show them. One sun opens exactly as it did.
-static func zoom_for(L: SystemLayout, fs: Vector2) -> float:
-	var z := fit_zoom_in(L.edge, fs)
-	if L.twin and L.fit_zoom > 0.0 and SystemLayout.open_zoom(L.edge) >= L.fit_zoom - 1e-9:
-		z = maxf(z, L.fit_zoom)
-	return z
+## nearer"), and only where the whole edge is still in the frame at it.
+## Measured on seed 4242 (`-- sheet=TwinSiteTest`): the edge alone fitted
+## opened twins at down to 0.9924 of their `fit_zoom`, their suns' floor drawn
+## wider than the rings round them were fitted to -- from two causes. The
+## layout fits on a 655x420 frame, which the map's is until a panel row asks
+## for more than its text column with the scroll bar up and the panel widens
+## (650x420: an event card naming a long world you orbit); and some twins' edge
+## reaches a little past the farthest the fit allowed for. A job or the
+## Hellbender posted past the edge opens the map further out, as it must to show
+## them (the drawing keeps the suns to their fitted size there). One sun opens
+## exactly as it did.
+static func _twin_floor(L: SystemLayout, n: MapGen.MapNode, fs: Vector2, z: float) -> float:
+	if not L.twin or L.fit_zoom <= 0.0 or z >= L.fit_zoom or posted_past(L, n):
+		return z
+	if fs.x / (2.0 * L.fit_zoom) < L.edge or fs.y / (2.0 * L.fit_zoom * SystemLayout.SLANT) < L.edge:
+		return z
+	return L.fit_zoom
+
+
+## Whether a job or the Hellbender has a place past the layout's own edge:
+## they come and go, and the map opens out to show them.
+static func posted_past(L: SystemLayout, n: MapGen.MapNode) -> bool:
+	for b in L.bodies:
+		for bc in b.beacons:
+			if bc.hellbender:
+				return true
+			if n != null and bc.opt >= 0 and bc.opt < n.options.size() and OptionTable.is_job(n.options[bc.opt]):
+				return true
+	return false
 
 
 ## `SystemLayout.open_zoom`'s formula for a frame of size `fs` (the layout's is

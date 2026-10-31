@@ -163,16 +163,20 @@ func _fit_zooms() -> void:
 
 
 ## ON THE FRAME THE MAP HAS: every system that may have two suns, laid out with
-## them, against the zoom its rings were fitted to. Only where nothing is posted
-## past the edge the layout fitted (a job, the Hellbender: `fit_zoom`'s own
-## rule), which is where `open_zoom(edge)` is at or above `fit_zoom` (a twin's
-## is fitted to the farthest its edge could be, `_twin_edge_most`).
+## them, against the zoom its rings were fitted to, wherever nothing is posted
+## past its edge (a job, the Hellbender: `fit_zoom`'s own rule). Also measured:
+## how many open below it on the layout's own frame with nothing posted (the
+## edge past what the fit allowed for, the layout's to look at).
 func _real_frame(m: SystemMapScreen) -> void:
 	var fs: Vector2 = m._frame.size
 	var low := INF
 	var low_at := ""
 	var bare := INF
 	var judged := 0
+	var posted := 0
+	var own_below := 0
+	var own_low := INF
+	var own_at := ""
 	var off: Array[String] = []
 	for raw in Run.map:
 		var c: MapGen.MapNode = raw
@@ -182,12 +186,19 @@ func _real_frame(m: SystemMapScreen) -> void:
 		c.twin = true
 		var L := SystemLayout.of(c)
 		c.twin = was
-		if SystemLayout.open_zoom(L.edge) < L.fit_zoom - 1e-9:
+		if SystemMapScreen.posted_past(L, c):
+			posted += 1
 			continue
 		judged += 1
-		# (the edge fitted in this frame alone, which is what it opened at before)
+		var own := SystemLayout.open_zoom(L.edge) / maxf(L.fit_zoom, 0.0001)
+		if own < 1.0 - 1e-9:
+			own_below += 1
+			if own < own_low:
+				own_low = own
+				own_at = MapGen.star_name(c)
+		# (the edge alone fitted in this frame, which is what it opened at before)
 		bare = minf(bare, SystemMapScreen.fit_zoom_in(L.edge, fs) / maxf(L.fit_zoom, 0.0001))
-		var z := SystemMapScreen.zoom_for(L, fs)
+		var z := SystemMapScreen.zoom_for(L, c, fs)
 		var k := z / maxf(L.fit_zoom, 0.0001)
 		if k < low:
 			low = k
@@ -197,16 +208,38 @@ func _real_frame(m: SystemMapScreen) -> void:
 		if fs.x / (2.0 * z) < L.edge or fs.y / (2.0 * z * SystemLayout.SLANT) < L.edge:
 			off.append(MapGen.star_name(c))
 	_saw("twin layouts on the real frame", judged)
-	print("  --   the map's frame is %dx%d (the layout fits to %dx%d); this map opens at %.3f, its layout was fitted at %.3f; the edge alone fitted in this frame opens twins at down to %.4f of it" % [
+	print("  --   the map's frame is %dx%d (the layout fits to %dx%d); this map opens at %.4f, its layout was fitted at %.4f; the edge alone fitted in this frame opens twins at down to %.4f of it" % [
 		int(fs.x), int(fs.y), int(SystemLayout.FIT_FRAME.x), int(SystemLayout.FIT_FRAME.y), m.zoom_min, m.view.layout.fit_zoom, bare])
+	print("  --   with nothing posted, %d of %d twins' edges open below their fit_zoom even on the layout's own frame (least %.4f, %s); %d twins have a job or the Hellbender posted" % [
+		own_below, judged, own_low if own_below > 0 else 1.0, own_at, posted])
 	h._ok("on the real frame every twin opens at or nearer than its rings were fitted to (least %.4f of it, %s; %d twins)" % [low, low_at, judged],
 		judged > 0 and low >= 1.0 - 1e-6)
 	h._ok("with its whole edge still in the frame%s" % ("" if off.is_empty() else ": not " + ", ".join(off.slice(0, 4))), off.is_empty())
+	# A TWIN WITH THE HELLBENDER ANCHORED THERE opens out to show it (the
+	# Hellbender moved there for the check, then back)
+	if Run.hellbender_alive():
+		var hb_was := Run.hellbender_at
+		for raw in Run.map:
+			var c: MapGen.MapNode = raw
+			if not MapGen.twin_ok(c) or c.index == m.view.node.index:
+				continue
+			var was := c.twin
+			c.twin = true
+			Run.hellbender_at = c.index
+			var L := SystemLayout.of(c)
+			var z := SystemMapScreen.zoom_for(L, c, fs)
+			var wide := SystemMapScreen.fit_zoom_in(L.edge, fs)
+			h._ok("with the Hellbender out past a twin's edge it opens to show it (%.4f, its fit_zoom %.4f)" % [z, L.fit_zoom],
+				SystemMapScreen.posted_past(L, c) and z == wide and fs.x / (2.0 * z) >= L.edge)
+			c.twin = was
+			_saw("twins with the Hellbender posted")
+			break
+		Run.hellbender_at = hb_was
 	# THIS MAP, as it opened (a map shown fresh fits before its frame is laid
 	# out, on the layout's own frame; shown again, on the real one: either way)
 	var L0: SystemLayout = m.view.layout
-	h._ok("this map opened at %.4f, at or nearer than its rings were fitted to (%.4f; on the layout's frame %.4f, on this one %.4f)" % [
-		m.zoom_min, L0.fit_zoom, SystemLayout.open_zoom(L0.edge), SystemMapScreen.zoom_for(L0, fs)],
+	h._ok("this map opened at %.4f, at or nearer than its rings were fitted to (%.4f; the edge alone on the layout's frame %.4f, on this one %.4f)" % [
+		m.zoom_min, L0.fit_zoom, SystemLayout.open_zoom(L0.edge), SystemMapScreen.fit_zoom_in(L0.edge, fs)],
 		m.zoom_min >= L0.fit_zoom - 1e-6 and fs.x / (2.0 * m.zoom_min) >= L0.edge)
 
 
