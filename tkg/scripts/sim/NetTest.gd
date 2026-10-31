@@ -990,6 +990,17 @@ func _late_join_test() -> void:
 	var moved := await _wait_until(func() -> bool:
 		return int(late.spot_of(id, 12).get("body", 3)) == -9, 3.0)
 	ok("and a ship that flies on is seen to", moved)
+	# TWO SUNS (PROTOCOL 13): a ship in star B's close orbit says so, body
+	# `SystemLayout.STAR_B` (-4), at its point as it is -- star B holds still,
+	# as star A does, so it is not an offset -- and the others hear exactly that
+	var on_b := Vector2(372.5, -118.25)
+	early.report_spot(12, SystemLayout.STAR_B, on_b, 0.75, true)
+	var to_b := await _wait_until(func() -> bool:
+		return int(late.spot_of(id, 12).get("body", 3)) == SystemLayout.STAR_B \
+			and int(host.spot_of(id, 12).get("body", 3)) == SystemLayout.STAR_B, 3.0)
+	ok("a ship in star B's close orbit is seen there (twin cases: 1)", to_b)
+	var sb := late.spot_of(id, 12)
+	check("at the point it said, not an offset", Vector2(float(sb.get("x", 0.0)), float(sb.get("z", 0.0))), on_b)
 	await _teardown()
 
 

@@ -446,8 +446,14 @@ func refresh() -> void:
 	_state(_tab_sector,
 		lit == ZoomLadder.LOCAL or lit == ZoomLadder.STATION or fighting,
 		here_lock, here_hint)
+	# (Jon's approved line for one sun; in a system with two, the same said of
+	# both: ruling 20. `here`, not `node_at`: the HUD is drawn while a new run
+	# is still building its map, with nowhere to stand yet)
+	var here_n := Run.here()
+	var two := here_n != null and here_n.twin and MapGen.twin_ok(here_n)
 	_state(_tab_system, lit == ZoomLadder.MAP, lock,
-		"This system's star, what orbits it, and any threats nearby.")
+		"This system's two suns, what orbits them, and any threats nearby." if two
+		else "This system's star, what orbits it, and any threats nearby.")
 	_state(_tab_chart, lit == ZoomLadder.CHART, lock, "Where to go next.")
 	# (open mid-fight: reading changes nothing out there; its SHOW ON STARCHART
 	# waits for the fight to end)

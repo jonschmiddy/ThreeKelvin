@@ -117,6 +117,7 @@ func _run() -> void:
 	await _round_trips()
 	await _other_systems()
 	await _off_the_world()
+	await _twin_sites()
 	h.verdict("wrecksitetest")
 	get_tree().quit(h.code())
 
@@ -824,6 +825,89 @@ func _off_the_world() -> void:
 		"" if art_small.is_empty() else ": " + "; ".join(art_small.slice(0, 4))], art_small.is_empty())
 	for k in big_cases:
 		print("  --   %d wrecks: a picture on the world (no room off it) at %d of %d places" % [k, int(art_big.get(k, 0)), int(big_cases[k])])
+
+
+## TWO SUNS (ruling 20, Oct 30): star B (`SystemLayout.STAR_B`, -4) is a place
+## of its own, as the star is. A fight won in star B's close orbit leaves its
+## hull there and not at star A, and star A's own hull is star A's; the real
+## LOCAL at each star draws exactly its own; a save keeps both places; read back
+## in a system with one sun, the hull and a ship left at star B are the star's
+## (`Run.star_site`); and at no place in a system without a Hellbender or a
+## Custodian is the ship at one (their places are -2 there, "none", and the two
+## checks compared against it unguarded: a site of -2 read as at the Hellbender).
+func _twin_sites() -> void:
+	h.seed_run(2718)
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var n: MapGen.MapNode = null
+	for c: MapGen.MapNode in Run.map:
+		if MapGen.twin_ok(c) and c.region != MapGen.Region.FAUNA and not Router.no_fights_at(c):
+			n = c
+			break
+	if not h._ok("an ordinary system to give two suns", n != null):
+		return
+	n.twin = true
+	Run.at = n.index
+	n.visited = true
+	SectorScreen._approached_at = n.index
+	var B := SystemLayout.STAR_B
+	var parked := SystemMapScreen._parked
+	var cases := 0
+	h._ok("%s is laid out with two suns" % MapGen.star_name(n), SystemLayout.of(n).twin)
+	parked[n.index] = {"at": B}
+	_win(n, &"cutter")
+	var at_b := Run.wrecks_here(n)
+	h._ok("a hull won in star B's close orbit lies there (%d, site %d)" % [at_b.size(), at_b[0].site if not at_b.is_empty() else -99],
+		at_b.size() == 1 and at_b[0].site == B)
+	parked[n.index] = {"at": -1}
+	h._ok("star A has none of it (%d)" % Run.wrecks_here(n).size(), Run.wrecks_here(n).is_empty())
+	_win(n, &"hulk")
+	var at_a := Run.wrecks_here(n)
+	h._ok("star A's own fight's hull is star A's alone (%d)" % at_a.size(), at_a.size() == 1 and at_a[0].site == -1)
+	parked[n.index] = {"at": B}
+	h._ok("back at star B, its one is there (%d)" % Run.wrecks_here(n).size(), Run.wrecks_here(n).size() == 1)
+	cases += 4
+	# the real LOCAL at each star
+	for site: int in [B, -1]:
+		parked[n.index] = {"at": site}
+		Router.show_local()
+		await _frames(6)
+		var sc := Router.current as SectorScreen
+		var ev: EncounterView = sc._view if sc != null else null
+		var want := Run.wrecks_here(n)
+		var drawn: int = ev._made.size() if ev != null and ev._slots_mode == &"wrecks" and ev._slots.visible else 0
+		h._ok("LOCAL at star %s draws its %d wreck (%d)" % ["B" if site == B else "A", want.size(), drawn], ev != null and drawn == want.size() and drawn == 1)
+		cases += 1
+	# the save
+	var back := SaveGame._node_from(SaveGame._node_to(n))
+	var sites: Array = []
+	for raw in back.jetsam:
+		if (raw as MapGen.Jetsam).is_wreck():
+			sites.append((raw as MapGen.Jetsam).site)
+	h._ok("a save keeps each hull at its star %s, and the two suns" % [sites], sites == [B, -1] and back.twin)
+	cases += 1
+	# read back with one sun
+	n.twin = false
+	parked[n.index] = {"at": -1}
+	h._ok("in a system with one sun, the hull left at star B is the star's (%d)" % Run.wrecks_here(n).size(), Run.wrecks_here(n).size() == 2)
+	parked[n.index] = {"at": B}
+	h._ok("and a ship left at star B is at the star (site %d)" % Run.site_here(n), Run.site_here(n) == -1)
+	n.twin = true
+	cases += 2
+	# never at a Hellbender or a Custodian that is not there
+	var L := SystemLayout.of(n)
+	h._ok("this system has no Hellbender and no Custodian (%d, %d)" % [L.hellbender_place(), L.core_place()],
+		L.hellbender_place() == -2 and L.core_place() == -2)
+	var said := 0
+	var asked := 0
+	for site: int in [B, -1, -9, -2, 0]:
+		parked[n.index] = {"at": site}
+		asked += 1
+		if Router.at_hellbender(n) or Router.at_custodian(n):
+			said += 1
+	h._ok("at none of %d places is the ship at the Hellbender or the Custodian (%d said so)" % [asked, said], said == 0)
+	cases += asked
+	parked.erase(n.index)
+	print("  --   two suns: %d cases in %s" % [cases, MapGen.star_name(n)])
 
 
 ## Whether a box comes onto a disc.

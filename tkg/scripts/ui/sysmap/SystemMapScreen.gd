@@ -378,10 +378,41 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 
 
 ## THE ZOOM THAT SHOWS IT ALL: the system's edge with a margin, in the frame.
+## Before the frame is laid out it is the zoom the layout was fitted to
+## (`SystemLayout.open_zoom`, on its own 655x420 frame), called rather than
+## copied, so the two cannot drift; laid out, the same formula on the real frame.
 func _fit_zoom() -> float:
 	var L: SystemLayout = view.layout
-	var fs := _frame.size if _frame.size.x > 10.0 else Vector2(655, 420)
-	return clampf(minf(fs.x / (2.0 * (L.edge + 20.0)), fs.y / (2.0 * (L.edge + 20.0) * view.TILT + 60.0)), 0.1, 1.0)
+	if _frame.size.x <= 10.0:
+		return SystemLayout.open_zoom(L.edge)
+	return zoom_for(L, _frame.size)
+
+
+## The zoom system L opens at in a frame of size `fs`: its edge fitted in it,
+## and TWO SUNS NO FURTHER OUT THAN THEIR RINGS WERE FITTED TO while nothing is
+## posted past the edge (`SystemLayout.fit_zoom`: "the map opens there or
+## nearer"). The layout fits on a 655x420 frame, which the map's is, until a
+## panel row asks for more than its text column with the scroll bar up and the
+## panel widens: then 650x420 (measured, `-- sheet=TwinSiteTest`, an event card
+## naming a long world you orbit). On that, twins of seed 4242 opened at down to
+## 0.9924 of their `fit_zoom`, their suns' floor drawn wider than the rings
+## round them were fitted to. A twin's `fit_zoom` is fitted to the
+## farthest its edge could be (`SystemLayout._twin_edge_most`), so while its own
+## edge is within that (`open_zoom(edge)` at or above it) the whole edge is
+## still in the frame at it; only a job or the Hellbender posted past it opens
+## the map further out, as it must to show them. One sun opens exactly as it did.
+static func zoom_for(L: SystemLayout, fs: Vector2) -> float:
+	var z := fit_zoom_in(L.edge, fs)
+	if L.twin and L.fit_zoom > 0.0 and SystemLayout.open_zoom(L.edge) >= L.fit_zoom - 1e-9:
+		z = maxf(z, L.fit_zoom)
+	return z
+
+
+## `SystemLayout.open_zoom`'s formula for a frame of size `fs` (the layout's is
+## this at SystemLayout.FIT_FRAME): the edge and a 20 px margin across, and up
+## and down at the map's slant with 60 px for the words.
+static func fit_zoom_in(edge: float, fs: Vector2) -> float:
+	return clampf(minf(fs.x / (2.0 * (edge + 20.0)), fs.y / (2.0 * (edge + 20.0) * SystemLayout.SLANT + 60.0)), 0.1, 1.0)
 
 
 # ---------------------------------------------------------------- the party
@@ -398,6 +429,8 @@ func _report_spot() -> void:
 	var p3: Vector3 = flight.where3()
 	var body: int = flight.orbit_body()
 	var p := Vector2(p3.x, p3.z)
+	# (a world's orbit as the offset from the world; either star's close orbit,
+	# -1 or STAR_B, and open space as they are: neither star moves)
 	if body >= 0:
 		var c: Vector3 = flight.center(body, view.t)
 		p -= Vector2(c.x, c.z)
@@ -429,6 +462,8 @@ func partner_points() -> Array:
 			else:
 				q = Vector2(view.layout.edge, -210.0)
 		else:
+			# (as `_report_spot` sends it: off a world, or as it is in either
+			# star's close orbit or open space)
 			q = Vector2(float(sp.x), float(sp.z))
 			if body >= 0 and body < view.layout.bodies.size():
 				var c: Vector3 = flight.center(body, view.t)
@@ -461,8 +496,9 @@ func _keep_ship() -> void:
 	_parked[view.node.index] = {"at": ship_place(), "p": flight.f.p, "v": flight.f.v, "head": flight.f.head, "mode": flight.mode}
 
 
-## WHERE THE SHIP IS, as LOCAL is told it: a body, -1 the star's close orbit,
-## -9 none. Also what `Router.at_station` reads off the map while LOCAL is built
+## WHERE THE SHIP IS, as LOCAL is told it: a body, -1 the star's close orbit
+## (star A's), `SystemLayout.STAR_B` star B's, -9 none. Also what
+## `Router.at_station` reads off the map while LOCAL is built
 ## ahead of the swap: it read `reached` there, so LOCAL opened as the ship burned
 ## onto the station's orbit drew the station's world (this) with no station's
 ## side and a bar saying to fly to the station (that), and the hab ring's picture
@@ -478,7 +514,7 @@ func ship_place() -> int:
 	# the ship came in drew open space with the world right there on the map,
 	# and the map, back, dropped the ship off its orbit. Put back, it is on that
 	# orbit (`_restore_ship`); a flight it was waiting to start is let go.
-	if at < -1 and (flight.mode == &"rail" or flight.mode == &"keep"):
+	if not SystemLayout.is_place(at) and (flight.mode == &"rail" or flight.mode == &"keep"):
 		at = flight.orbit_body()
 	return at
 
@@ -488,9 +524,14 @@ func _restore_ship(d: Dictionary) -> void:
 		flight.place_at(-3, view.t)
 		return
 	# (a body the layout no longer has -- a save from before a change to how
-	# systems are laid out -- is the edge, not an index error)
-	if int(d.at) >= -1 and int(d.at) < view.layout.bodies.size():
-		flight.place_at(int(d.at), view.t)
+	# systems are laid out -- is the edge, not an index error; star B's close
+	# orbit in a system laid out with one sun is the star's, as its wrecks are,
+	# `Run.star_site`)
+	var at := int(d.at)
+	if at == SystemLayout.STAR_B and not view.layout.twin:
+		at = -1
+	if SystemLayout.is_place(at) and at < view.layout.bodies.size():
+		flight.place_at(at, view.t)
 	elif StringName(d.mode) == &"free":
 		flight.mode = &"free"
 		flight.f.p = d.p
@@ -711,7 +752,8 @@ func _glide_target(kind: String, body: int) -> Vector2:
 			var on_world: int = int(flight.rail.body) if flight != null and flight.mode == &"rail" and int(flight.rail.body) >= 0 else -9
 			return (overlay.place_rel(on_world) if on_world >= 0 else overlay.ship_rel()) / z
 		"body":
-			return overlay.place_rel(body) / z if body >= 0 else Vector2.ZERO
+			# (a world where it is now, or either star: `place_rel`)
+			return overlay.place_rel(body) / z if SystemLayout.is_place(body) else Vector2.ZERO
 	return Vector2.ZERO
 
 
@@ -761,15 +803,16 @@ func _step_glide() -> bool:
 ## rebindable keys are keys), listed in Settings > CONTROLS.
 func right_click(h: Dictionary) -> void:
 	var b: int = int(h.get("body", -9)) if not h.is_empty() else -9
-	if h.get("kind", &"") == &"star":
+	# (a star is the one under the pointer, -1 or STAR_B: `SystemOverlay.hit`)
+	if h.get("kind", &"") == &"star" and not SystemLayout.is_star(b):
 		b = -1
-	if b >= -1 and b == overlay.selected and b != _focus_body:
+	if SystemLayout.is_place(b) and b == overlay.selected and b != _focus_body:
 		if _location_on:
 			_location_on = false
 			_paint_location()
 		_glide_to("body", b, maxf(ZOOM_FOCUS, view.zoom))
 		_focus_body = -9
-	elif _focus_body >= -1 or b < -1 or b == _focus_body:
+	elif SystemLayout.is_place(_focus_body) or not SystemLayout.is_place(b) or b == _focus_body:
 		_focus_body = -9
 		_glide_to("home", -9, zoom_min)
 
@@ -798,7 +841,7 @@ func _step_camera(delta: float) -> void:
 	var c := Vector2(view.CX, view.CY)
 	var z: float = view.zoom
 	var a: Vector2 = c if _anchor.x < 0.0 or _homing else _anchor
-	if _focus_body >= -1:
+	if SystemLayout.is_place(_focus_body):
 		a = c
 	if absf(z - _zoom_to) > 0.0005:
 		var nz := lerpf(z, _zoom_to, 1.0 - exp(-delta * 14.0))
@@ -829,7 +872,7 @@ func _step_camera(delta: float) -> void:
 			view.pan = view.pan.lerp(target, 1.0 - exp(-delta * 8.0))
 			if view.pan.distance_to(target) < 0.5:
 				_locked = true
-	elif _focus_body >= -1:
+	elif SystemLayout.is_place(_focus_body):
 		# HELD ON THE PLACE A RIGHT-CLICK ZOOMED ONTO, as it goes round
 		view.pan = -_glide_target("body", _focus_body) * view.zoom
 	else:
@@ -1131,7 +1174,7 @@ func fly_to_body(i: int) -> void:
 	# ARRIVED: the place opens -- unless another was picked on the way, which
 	# stays picked, its flight drawn now the ship is in orbit
 	_fly(i, func() -> void:
-		if overlay.selected == i or overlay.selected < -1:
+		if overlay.selected == i or not SystemLayout.is_place(overlay.selected):
 			select_body(i)
 		else:
 			_refresh_panel())
@@ -1196,7 +1239,7 @@ func go_event(i: int) -> void:
 		return
 	var body := LocalEventDrawer.body_of(view.node, i)
 	overlay.link_on = false
-	if body < -1:
+	if not SystemLayout.is_place(body):
 		_zoom_down(i)
 		return
 	_go_then(body, func() -> void: _zoom_down(i))

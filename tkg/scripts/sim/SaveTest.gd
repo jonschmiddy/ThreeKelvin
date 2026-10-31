@@ -432,6 +432,19 @@ func run() -> void:
 	SystemMapScreen._parked.clear()
 	SystemMapScreen._parked[Run.at] = {"at": 1, "p": Vector2(212.5, -40.25), "v": Vector2(0.75, -1.5), "head": 2.25, "mode": &"rail"}
 	SystemMapScreen._parked[card_node if card_node >= 0 else 0] = {"at": -9, "p": Vector2(-318.125, 96.5), "v": Vector2.ZERO, "head": -0.625, "mode": &"free"}
+	# AND IN STAR B'S CLOSE ORBIT, in a system with two suns (ruling 20): a
+	# system that may have them made a twin, as a harness may (`n.twin`), so the
+	# case is there whatever this run rolled. `at` is SystemLayout.STAR_B, -4.
+	var twin_node := -1
+	for e in Run.map:
+		var nt: MapGen.MapNode = e
+		if MapGen.twin_ok(nt) and nt.index != Run.at and nt.index != card_node:
+			twin_node = nt.index
+			nt.twin = true
+			SystemMapScreen._parked[nt.index] = {"at": SystemLayout.STAR_B, "p": Vector2(402.5, -61.75), "v": Vector2(-12.5, 30.25), "head": 1.125, "mode": &"rail"}
+			break
+	if twin_node < 0:
+		print("  FAIL: no system that may have two suns, for the star B fixture"); fails += 1
 
 	var before := fingerprint()
 	var jumps_before := Run.jumps
@@ -496,6 +509,15 @@ func run() -> void:
 				check("node[%d]" % i, a[i], b[i])
 		else:
 			check(k, before[k], after[k])
+
+	# THE SHIP IN STAR B'S CLOSE ORBIT, read back: its system still has two suns,
+	# the row is at star B, and that is where the run says the ship is there
+	if twin_node >= 0:
+		var nt2: MapGen.MapNode = Run.map[twin_node]
+		check("star B's system has two suns after reload", true, nt2.twin and SystemLayout.of(nt2).twin)
+		check("the ship parked in star B's close orbit", SystemLayout.STAR_B, int(SystemMapScreen._parked.get(twin_node, {}).get("at", -9)))
+		check("and the run's place for it there", SystemLayout.STAR_B, Run.site_here(nt2))
+		print("  twin cases: 1 (a ship parked at star B of %s)" % MapGen.star_name(nt2))
 
 	# AND THE CARDS READ IT BACK: the walk-away is still LEFT ALONE after the
 	# reload (Jon: "left alone should survive a reload"), the taken one keeps its

@@ -782,15 +782,26 @@ func new_wreck(n: MapGen.MapNode, t: EnemyTemplate, look: int = 0) -> MapGen.Jet
 	return h
 
 
-## WHERE YOUR SHIP IS IN A SYSTEM: the body it orbits (-1 the star) or -9 for
-## open space, as the system map left it. A system the map has not flown you
-## round yet is open space: you arrived at its edge.
+## WHERE YOUR SHIP IS IN A SYSTEM: the body it orbits, -1 star A (the star),
+## `SystemLayout.STAR_B` (-4) star B of two suns, or -9 for open space, as the
+## system map left it. A system the map has not flown you round yet is open
+## space: you arrived at its edge.
 func site_here(n: MapGen.MapNode = null) -> int:
 	if n == null:
 		n = node_at()
 	if n == null:
 		return -9
-	return int(SystemMapScreen._parked.get(n.index, {}).get("at", -9))
+	return star_site(n, int(SystemMapScreen._parked.get(n.index, {}).get("at", -9)))
+
+
+## A PLACE THAT IS STAR B, in a system that has no star B, is star A: a ship
+## parked or a wreck left in star B's close orbit, read back where the system
+## has one sun (a save from a build that laid it out with two), is at the star
+## rather than nowhere. Every other place is itself.
+static func star_site(n: MapGen.MapNode, site: int) -> int:
+	if site == SystemLayout.STAR_B and not (n.twin and MapGen.twin_ok(n)):
+		return -1
+	return site
 
 
 ## The wrecks lying where your ship is, in the order they died. Each wreck
@@ -805,7 +816,7 @@ func wrecks_here(n: MapGen.MapNode = null) -> Array:
 	var site := site_here(n)
 	for raw in n.jetsam:
 		var h: MapGen.Jetsam = raw
-		if h.is_wreck() and (h.site == site or h.site == MapGen.SITE_ANY):
+		if h.is_wreck() and (star_site(n, h.site) == site or h.site == MapGen.SITE_ANY):
 			out.append(h)
 	return out
 

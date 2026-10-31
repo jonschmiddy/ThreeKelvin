@@ -67,6 +67,8 @@ var _box: VBoxContainer
 var _foot: HBoxContainer
 var _scroll: ScrollContainer
 var _portrait: Node2D = null
+## and any other picture stepped with it (star B's sun, of two)
+var _portraits: Array[Node2D] = []
 ## Which page is up: &"list" or &"event".
 var mode: StringName = &"list"
 ## The place the list is narrowed to: a body, -1 the star, -2 nowhere.
@@ -111,6 +113,7 @@ func _clear() -> void:
 	Widgets.clear(_box)
 	Widgets.clear(_foot)
 	_portrait = null
+	_portraits = []
 	_cards = {}
 	_conseq = null
 	_scroll.scroll_vertical = 0
@@ -283,17 +286,24 @@ func _key(bc) -> Variant:
 func _body_of_opt(i: int) -> int:
 	# (-1 the star, for an event sited on it; and where nothing holds it)
 	var at: int = screen.view.layout.place_of(i)
-	return at if at >= 0 else -1
+	return at if SystemLayout.is_place(at) else -1
 
 
+## A place's name. A star by its own (`SystemLayout.star_title`: "<system> A"
+## and "<system> B" of two suns); anything else negative reads as the star, as
+## it always did.
 func _place_name(body: int) -> String:
 	var v = screen.view
-	return v.star_name() if body < 0 else v.layout.bodies[body].name
+	if body < 0:
+		return screen.overlay.star_name_of(SystemLayout.STAR_B if body == SystemLayout.STAR_B else -1)
+	return v.layout.bodies[body].name
 
 
 func _place_kind(body: int) -> String:
 	var v = screen.view
-	return v.star_class() if body < 0 else v.body_kind(v.layout.bodies[body])
+	if body < 0:
+		return screen.overlay.star_class_of(SystemLayout.STAR_B if body == SystemLayout.STAR_B else -1)
+	return v.body_kind(v.layout.bodies[body])
 
 
 ## In orbit of it (or alongside it, or in a close orbit of the star): its events
@@ -305,6 +315,7 @@ func _ship_at(body: int) -> bool:
 ## What being there is called at this place.
 func _there_word(body: int) -> String:
 	if body < 0:
+		# (either star's close orbit)
 		return "IN A CLOSE ORBIT"
 	var k: StringName = screen.view.layout.bodies[body].kind
 	return "ALONGSIDE" if k == &"belt" or k == &"station" or k == &"derelict" or k == &"contact" else "IN ORBIT"
@@ -346,7 +357,7 @@ func _locked_line(body: int = -9) -> String:
 
 ## Whether the flight under way is taking the ship to `body`.
 func _heading_to(body: int) -> bool:
-	return body >= -1 and screen.flight != null and screen.flight.heading_to() == body
+	return SystemLayout.is_place(body) and screen.flight != null and screen.flight.heading_to() == body
 
 
 ## An event's page drawn again as it stands.
@@ -577,6 +588,9 @@ func _go_button(i: int) -> void:
 ## locked only when the star has an event of its own (the pulsar's harvest).
 func _star_head() -> void:
 	var v = screen.view
+	if v.layout != null and v.layout.twin:
+		_twin_head()
+		return
 	_eyebrow("SECTOR")
 	if v.kind in ["ORDINARY", "RED", "BLUE"]:
 		var holder := Control.new()
@@ -603,6 +617,89 @@ func _star_head() -> void:
 	_rule()
 
 
+## THE SECTOR'S PAGE WITH TWO SUNS (ruling 20, Oct 30): both suns in the one
+## sun's picture, the system named once and called TWO SUNS, its place line,
+## and then each star under its own name ("<system> A", "<system> B") with its
+## kind, its facts and its own way into its close orbit. Clicking either star on
+## the map opens this page, as clicking the one star does.
+## THE FACTS ARE THE GAME'S OWN NUMBERS: the pair pulls a ship as one sun does
+## (`SystemLayout.GM_SHIP`), so their masses are star A's share of one sun's
+## and the rest; a radius is the star's drawn size against one sun's 16 px.
+## Kind, class and surface are the kind's (`SystemView.STAR_FACTS`).
+func _twin_head() -> void:
+	var v = screen.view
+	var L: SystemLayout = v.layout
+	_eyebrow("SECTOR")
+	var holder := Control.new()
+	holder.custom_minimum_size = Vector2(TEXT_W, 84)
+	holder.clip_contents = true
+	holder.name = "TwoSuns"
+	_box.add_child(holder)
+	for s: int in L.stars():
+		var sv: Node2D = SunViewS.new()
+		# star A left of the middle and star B right of it, B smaller by their
+		# radii, both in the one sun's 84 px
+		sv.position = Vector2(TEXT_W / 2 + (TWIN_SUN_DX_B if s == SystemLayout.STAR_B else -TWIN_SUN_DX_A), 42)
+		holder.add_child(sv)
+		var look: Array = _sun_look(s)
+		sv.call("setup", String(look[0]), int(look[1]), 22.0 * L.star_radius(s) / maxf(L.star_r, 1.0))
+		if _portrait == null:
+			_portrait = sv
+		else:
+			_portraits.append(sv)
+	_name(MapGen.star_name(v.node))
+	_class("TWO SUNS")
+	_blurb(MapGen.place_line(v.node))
+	for s: int in L.stars():
+		_gap(2)
+		_wrap(screen.overlay.star_name_of(s), UITheme.ICE, UITheme.FS_SMALL)
+		_class(screen.overlay.star_class_of(s))
+		var sf: Dictionary = SystemViewS.STAR_FACTS[SystemViewS.KIND_NAMES[L.star_kind_of(s)]]
+		_row("CLASS", sf.cls)
+		_row("SURFACE", sf.temp)
+		_row("MASS", _sol(L.star_share if s == -1 else 1.0 - L.star_share))
+		_row("RADIUS", _sol(L.star_radius(s) / SystemLayout.STAR_R[SystemLayout.StarKind.ORDINARY]))
+		# (the same way in that star A's FLY HERE always was: `fly_to_body`)
+		_way_there(s)
+	_rule()
+
+
+## How far either sun of a pair stands off the picture's middle (px).
+const TWIN_SUN_DX_A := 46
+const TWIN_SUN_DX_B := 50
+
+
+## Which sun picture star p is drawn with: the map's own (`SystemView.sun_look`,
+## the drawing's, once it says), else star A's as the one sun's and star B's
+## rolled off a number of its own so the two are not one picture twice.
+func _sun_look(p: int) -> Array:
+	var v = screen.view
+	if v.has_method(&"sun_look"):
+		return v.call(&"sun_look", p)
+	if p == SystemLayout.STAR_B:
+		return [SystemViewS.KIND_NAMES[v.layout.star2], v.node.index + SUN_B_SALT]
+	return [v.kind, v.node.index]
+
+
+## (star B's picture is rolled as if for this many systems on: no system has it)
+const SUN_B_SALT := 100003
+
+
+## A share of one sun, as the facts print it: 1.0 SOL, 0.55 SOL, 0.8 SOL.
+static func _sol(x: float) -> String:
+	return "%s SOL" % ("%.2f" % x).trim_suffix("0")
+
+
+## A GIANT'S WEIGHT (ruling 20, Jon: "1/4 - 1/10 ... purely because it's more
+## fun"): its pull against its star's, as one simple fraction. 1/n, n the whole
+## number nearest 1 / gm_frac (0.17 is 1/5.9, so 1/6), held to 4 through 10,
+## the range it is rolled in; "OF ITS STARS" round two suns, whose pull it is
+## weighed against together.
+static func mass_line(frac: float, two: bool) -> String:
+	var n := clampi(roundi(1.0 / maxf(frac, 0.001)), 4, 10)
+	return "1/%d OF ITS STAR%s" % [n, "S" if two else ""]
+
+
 ## The worlds that go round the star, each a link to its page.
 func _satellites() -> void:
 	var v = screen.view
@@ -620,6 +717,11 @@ func _satellites() -> void:
 		_box.add_child(row)
 
 
+## The name of place i's way-there row (`_way_there`).
+static func way_name(i: int) -> String:
+	return "Way_" + str(i).replace("-", "m")
+
+
 ## Whether a place has any event of its own (the star's is the pulsar's harvest).
 func _has_events(body: int) -> bool:
 	for pair in _events():
@@ -632,6 +734,9 @@ func _has_events(body: int) -> bool:
 ## they are locked, and FLY HERE (or any choice) takes you there.
 func _way_there(i: int) -> void:
 	var go := HBoxContainer.new()
+	# (named for its place, so a harness can press the right one of two suns'
+	# FLY HERE: Way_3, Way_m1 star A, Way_m4 star B)
+	go.name = way_name(i)
 	# WHERE FLY HERE GOES, GREYED (Jon: "have ON YOUR WAY and IN ORBIT be a
 	# grayed-out button on the right side")
 	if _ship_at(i):
@@ -696,6 +801,10 @@ func _place_head(i: int) -> void:
 		for f in v.facts(b):
 			if String(f[0]) != "TYPE" and String(f[0]) != "BEACONS":
 				_row(f[0], f[1])
+				# A GIANT'S WEIGHT against its star, under its gravity (every
+				# giant has one: `gm_frac`, ruling 20)
+				if String(f[0]) == "GRAVITY" and b.gm_frac > 0.0:
+					_row("MASS", mass_line(b.gm_frac, L.twin))
 	else:
 		var sf: Dictionary = SystemViewS.STAR_FACTS[v.kind]
 		_row("CLASS", sf.cls)
@@ -712,6 +821,9 @@ func _process(_d: float) -> void:
 			_portrait.call("step", screen.view.t, Vector3(-0.83, -0.31, 0.47))
 		else:
 			_portrait.call("step", screen.view.t)
+	for p in _portraits:
+		if is_instance_valid(p):
+			p.call("step", screen.view.t)
 
 
 # ---------------------------------------------------------------- a card
