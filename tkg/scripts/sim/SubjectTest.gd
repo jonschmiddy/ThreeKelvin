@@ -50,6 +50,10 @@ const STAGES := [&"single", &"row", &"tether", &"field", &"herd", &"line", &"aro
 ## The effects `LocalFx` draws (`fx` stages).
 const FX := [&"beam", &"glare", &"wind", &"dust", &"front", &"stream", &"drift", &"gas", &"buoy", &"marks", &"moor"]
 var _tree: SceneTree
+## A MAP FLIGHT'S WAIT (`_orbit_switch`): this long on the map's clock (s), and
+## at most this many frames whatever the clock does
+const FLY_WAIT := 60.0
+const FLY_WAIT_FRAMES := 60 * 120
 ## THE SEED EVERY RUN HERE STARTS FROM, forced (`Rng.forced`). Until Oct 12 each
 ## run called `Rng.reseed(4242)` and then `start_new_run`, which draws its own
 ## seed from the global generator and threw the reseed away, so every gate run
@@ -1446,10 +1450,16 @@ func _orbit_switch() -> void:
 	map.frozen = false
 	map.select_body(b)
 	map.fly_to_body(b)
-	var t0 := Time.get_ticks_msec()
-	while map.flight.reached() != b and Time.get_ticks_msec() - t0 < 30000:
+	# ON THE MAP'S OWN CLOCK, not the wall's (a wall-clock wait races the game
+	# under a fixed frame rate), and long enough for a flight on map time: its
+	# ride round up to 4.4 s, its coast up to 30 s, the plan made on a worker
+	# first (ruling 20, Oct 30). The time-scaled conics took 4 to 12 s, and this
+	# waited 30 s of the wall.
+	var t0: float = map.view.t
+	var f0 := Engine.get_process_frames()
+	while map.flight.reached() != b and map.view.t - t0 < FLY_WAIT and Engine.get_process_frames() - f0 < FLY_WAIT_FRAMES:
 		await _tree.process_frame
-	if not _ok("flown to world %d in %.1f s" % [b, (Time.get_ticks_msec() - t0) / 1000.0], map.flight.reached() == b):
+	if not _ok("flown to world %d in %.1f s of the map's clock" % [b, map.view.t - t0], map.flight.reached() == b):
 		map.flight.place_at(b, map.view.t)
 	await _frames(5)
 	# LOCAL ONCE, by the HUD's tab: B, not A

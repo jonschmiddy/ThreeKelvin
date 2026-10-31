@@ -580,13 +580,20 @@ func _ready() -> void:
 			scr.frozen = false
 			scr.tap({"kind": &"star" if ai == -1 else &"body", "body": ai, "beacon": null, "at": Vector2.ZERO})
 			scr.tap({"kind": &"star" if ai == -1 else &"body", "body": ai, "beacon": null, "at": Vector2.ZERO})
-			var t1 := Time.get_ticks_msec()
-			print("  systemshot: again: flying %s" % (scr.flight.mode == &"fly"))
-			while scr.flight.reached() != ai and Time.get_ticks_msec() - t1 < 12000:
+			var t1: float = scr.view.t
+			var f1 := Engine.get_process_frames()
+			# (on its way while it rides round to leave, or while its plan is made
+			# on a worker, as much as when it flies)
+			print("  systemshot: again: on its way to %d" % scr.flight.heading_to())
+			# (a flight on map time takes up to 30 s and its ride 4.4 s first,
+			# ruling 20, 40 when only the wider search finds it; the time-scaled
+			# conics took 12 at most. On the map's own clock, and a frame cap: a
+			# render slower than real time ran the wall clock out first)
+			while scr.flight.reached() != ai and scr.view.t - t1 < 60.0 and Engine.get_process_frames() - f1 < 60 * 120:
 				await get_tree().process_frame
 			for _w2 in 20:
 				await get_tree().process_frame
-			print("  systemshot: again: after %.1f s in orbit of %d: %s" % [(Time.get_ticks_msec() - t1) / 1000.0, ai, scr.flight.reached() == ai])
+			print("  systemshot: again: after %.1f s of the map's clock in orbit of %d: %s" % [scr.view.t - t1, ai, scr.flight.reached() == ai])
 			scr.frozen = true
 		elif s5.begins_with("fly="):
 			# `fly=I`: flies to place I as a second click does, and goes on (with

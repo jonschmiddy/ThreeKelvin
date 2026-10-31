@@ -29,6 +29,15 @@ var _quick := false
 ## and its rest, saved at 960x540
 var _shots := ""
 var _label := ""
+## LOCAL opened while the ship rides round to leave (`_early`): a ride with at
+## least this much of the map's clock left (s), the flight tried up to this
+## many times for one
+const RIDE_LEFT := 1.5
+const RIDE_TRIES := 4
+## and the ride sought before the click this much longer (s): the click plans
+## PLAN_AHEAD on, and the map is left a few frames after
+const RIDE_SLACK := 0.6
+const ShipFlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
 ## GO taken on a world's event where it has one
 var _go_ok := true
 ## `film`: every frame of each trip down to LOCAL saved (with `shots=`)
@@ -989,14 +998,51 @@ func _early(sd: int, label: String, when: String) -> void:
 		if m.flight != null and m.flight.can_fly():
 			break
 		await _tree.process_frame
+	# (clicked when its ride round will be long: the flight the click makes,
+	# planned here first every tenth of a second for up to two of a world's
+	# laps. A random moment rode under RIDE_LEFT three times running, seed 7,
+	# Oct 31: a world's ring goes round in about 3.2 s)
+	if when == "phase":
+		for _k in 70:
+			var pl0 = m.flight.make_plan(to, float(m.view.t), {}, ShipFlightS.PLAN_AHEAD)
+			if pl0 != null and float(pl0.t0) - float(m.view.t) >= RIDE_LEFT + RIDE_SLACK:
+				break
+			for _j in 6:
+				await _tree.process_frame
 	m.fly_to_body(to)
 	var f = m.flight
 	var seen := false
-	for i in 3600:
+	# RIDING OUT WITH TIME LEFT TO OPEN LOCAL IN: a solved flight's ride round
+	# to its departure (ruling 20) can be as short as a quarter second, and
+	# one that ended while the map was still being left found the ship flying
+	# (seed 11, Oct 31): what is checked here is LOCAL opened during the ride.
+	# A ride too short for it is flown on to the place, and the flight tried
+	# back the other way, up to RIDE_TRIES times
+	var tries := 0
+	for i in 3600 * RIDE_TRIES:
 		await _tree.process_frame
-		if when == "phase" and f.rail.has("phase"):
-			seen = true
-			break
+		# (a flight that leaves at once has no ride at all: too short too)
+		var riding: bool = f.rail.has("phase") and not f.rail.phase.get("wait", false)
+		if when == "phase" and (riding or f.mode == &"fly"):
+			var left := float(f.rail.phase.T) - (float(m.view.t) - float(f.rail.phase.t0)) if riding else 0.0
+			if left >= RIDE_LEFT:
+				print("    the ride round to leave: %.2f s of the map's clock left" % left)
+				seen = true
+				break
+			tries += 1
+			if tries >= RIDE_TRIES:
+				break
+			# (flown on there, then back)
+			for _w in 3600:
+				if f.reached() == to and f.can_fly():
+					break
+				await _tree.process_frame
+			var back := from
+			from = to
+			to = back
+			print("    the ride round to leave was %.2f s: flown on, and tried back to %d" % [left, to])
+			m.fly_to_body(to)
+			continue
 		if when == "insert" and f.mode == &"rail" and f.orbit_body() == to and f.inserting():
 			seen = true
 			break
@@ -1005,6 +1051,8 @@ func _early(sd: int, label: String, when: String) -> void:
 	if when == "insert":
 		print("    the burn onto the orbit: %.2f s of the map's clock left (s %.2f)" % [_burn_left(f), float(f.rail.get("s", 1.0))])
 	var want := from if when == "phase" else to
+	if when == "phase":
+		shown = from
 	var onto: int = f.orbit_body()
 	_here_tab.call()
 	for i in 600:
@@ -1048,8 +1096,17 @@ func _early(sd: int, label: String, when: String) -> void:
 
 ## How long the burn onto the orbit has to go, by the map's clock.
 func _burn_left(f) -> float:
+	# (a solved flight's burn onto the orbit is its own last samples, `arrive`)
+	if f.rail.has("arrive") and f.plan != null:
+		return float(f.fly_t0) + float(f.plan.dur) - float(_map_t())
 	var ins: Dictionary = f.rail.get("ins", {})
 	return (1.0 - float(f.rail.get("s", 1.0))) * float(ins.get("T", 0.0))
+
+
+## The map's clock (its `view.t`), or 0 off the map.
+func _map_t() -> float:
+	var m := Router.current as SystemMapScreen
+	return float(m.view.t) if m != null else 0.0
 
 
 ## A system in reach to jump to: a station's if `station`.

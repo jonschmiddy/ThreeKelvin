@@ -50,6 +50,11 @@ func _frames(n: int) -> void:
 		await RenderingServer.frame_post_draw
 
 
+## GO's whole flow, on the map's clock (s), and at most this many frames
+const FLOW_WAIT := 60.0
+const FLOW_FRAMES := 60 * 120
+
+
 func _secs(t: float) -> void:
 	var t0 := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < int(t * 1000.0):
@@ -128,7 +133,16 @@ func _flow(n: MapGen.MapNode) -> void:
 	var k := 0
 	var t0 := Time.get_ticks_msec()
 	var settle := 0
-	while Time.get_ticks_msec() - t0 < 20000:
+	# (GO's flight on map time takes up to 30 s and its ride 4.4 s first, ruling
+	# 20, and up to 40 when only the wider search finds it; with the conics the
+	# whole of it was over in 20. Waited on the map's own clock while the map is
+	# up, and a frame cap: a render slower than real time ran the wall clock
+	# out first, the map's clock behind it, a flight cut off)
+	var tm0: float = map.view.t
+	var f0 := Engine.get_process_frames()
+	while Engine.get_process_frames() - f0 < FLOW_FRAMES:
+		if is_instance_valid(map) and map.is_inside_tree() and map.view.t - tm0 > FLOW_WAIT:
+			break
 		await _secs(0.033)
 		_img().save_png("%s/f_%04d.png" % [flow, k])
 		k += 1

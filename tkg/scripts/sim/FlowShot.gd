@@ -112,7 +112,9 @@ func _orbit_clip(dir: String) -> void:
 	map.select_body(b)
 	map.fly_to_body(b)
 	var guard := 0
-	while map.flight.reached() != b and guard < 900:
+	# (a flight on map time takes up to 30 s and its ride 4.4 s first, ruling
+	# 20: 60 s of frames, where the time-scaled conics needed 15)
+	while map.flight.reached() != b and guard < 3600:
 		await rec.call(1)
 		guard += 1
 	await rec.call(25)

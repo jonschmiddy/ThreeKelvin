@@ -13,8 +13,9 @@ extends RefCounted
 ##    past that sped up by a phasing burn whose push is held to THRUST
 ##    (`ShipFlight._step_phase` flies it); alongside a station, belt, hulk or
 ##    contact, holding there KEEP_HOLD 1 s;
-## 2. the departure burn, at THRUST 40 px/s^2 in one direction, from the ring's
-##    own motion (velocity continuous);
+## 2. the departure burn, in one direction, from the ring's own motion
+##    (velocity continuous), at THRUST 40 px/s^2 but eased while the ship is
+##    slow so it turns no tighter than R_BURN;
 ## 3. the coast, integrated through the stars and the moving giant (RK4 in
 ##    64-bit scalars, each step ETA of the nearest pull's own time);
 ## 4. the arrival burn, onto the target's ring at its speed either way round:
@@ -25,7 +26,8 @@ extends RefCounted
 ## Keep-out (`MapGravity`) holds along the whole path: each step's closest
 ## approach on the cubic through its ends, and the arrival burn's own path. The
 ## flight's own departure and target world keep out only to their rings
-## (OWN_GAP).
+## (OWN_GAP). No burn all but stops the ship and turns it round a point, which
+## draws a cusp (V_CUSP).
 ##
 ## THE COST: engine work (the ride's phasing and both burns, px/s) + TIME_W x
 ## seconds from now to arrival. Flying inside a system costs no fuel; the cost
@@ -47,7 +49,12 @@ extends RefCounted
 ##   of an arc), from the point it left; then a second scan between the
 ##   first's headings, and a third slower and faster;
 ## - last, the rest of the conics as they are. At most BUDGET integrations,
-##   and one more for the samples.
+##   and one more for the samples;
+## - when all of that finds nothing, a wider search to T_CAP_WIDE, its scan
+##   faster and, out of a settled star orbit, toward the target (`_search_wide`,
+##   BUDGET_WIDE more).
+## A burn that all but stops the ship and turns it round (`V_CUSP`, `CUSP_TURN`),
+## or an arrival burn the map would draw as a corner (`DRAW_K`), is not flown.
 ##
 ## MEASURED (SolveTest, Oct 30, this Mac's i5-8257U, with the LAYOUT branch's
 ## twins merged in; 10,362 plans, every start to every place): found and
@@ -156,6 +163,30 @@ const WARM_K := 0.25
 const WARM_ADD := 10.0
 ## a flight arrives within this of now
 const T_CAP := 30.0
+## WHEN THE SEARCH FINDS NOTHING, A WIDER ONE (`_search_wide`): arriving within
+## T_CAP_WIDE of now, the cheapest conics to then refined, and a scan of
+## WIDE_HEAD headings whose departures are at least as fast as crossing to the
+## target in WIDE_T takes (`_wide_need`) -- out of a settled star orbit, across
+## WIDE_SPAN either side of the target's bearing -- within BUDGET_WIDE more
+## integrations. Out of a settled star orbit the scan's speeds were its ring's
+## own times 1 to 3.9, and a twin's settled orbits far out go round at 11 to 16
+## px/s: 41 px/s at the most in its first pass, too slow to cross a two-star
+## system inside T_CAP, and the edge as arrived (every visit's first flight) was
+## found for 201 of 224 flights. Measured on FlightTest's game starts (Oct 31,
+## three seeds): twins 1,432 found of 1,478 before, 1,460 with it; a heavy
+## giant 913 of 921, 917; one star 694 of 696, the same. It runs only for
+## flights nothing else found, so every flight found before is the same flight;
+## those it finds take a median of 200 ms and at most about 250 (on a worker).
+## Budgets of 400, 16 headings, headings within 30 or 45 deg of the bearing and
+## a cap of 55 s found no more; what it still misses (18 twin flights of 1,478)
+## leave a star's close orbit or a settled orbit far out for a station, belt,
+## hulk or contact on the far side of the pair, which no departure burn and one
+## coast reaches (the closest any of 1,260 departures came was 42 to 249 px).
+const T_CAP_WIDE := 40.0
+const WIDE_T := 20.0
+const BUDGET_WIDE := 250
+const WIDE_HEAD := 12
+const WIDE_SPAN := PI * 75.0 / 180.0
 ## px/s of engine work one second of flight is worth. At 0.5 the median flight
 ## takes 24 s one-star, 21 s with a heavy giant and 15 s in a twin (SolveTest);
 ## Jon's v2 pick took 18 to 23 s
@@ -205,8 +236,58 @@ const BACK_TURN := 0.25
 ## own after it. A twin's flights are short and its search wide.
 const BUDGET := 140
 const CONIC_TS := [6.0, 9.0, 13.0, 18.0, 24.0, 29.0]
+## the wider search's (`_search_wide`), to T_CAP_WIDE
+const CONIC_TS_WIDE := [18.0, 24.0, 29.0, 34.0, 39.0]
 ## the conics the second stage re-solves from the real departure
 const CONIC_KEEP := 6
+## THE DEPARTURE BURN IS EASED WHILE THE SHIP IS SLOW (Jon: "why are there
+## sharp angles on some of the trajectories?"): a ship at speed v turned by a
+## pull a goes round a curve of v^2 / a, so out of a settled star orbit at 14 to
+## 23 px/s a burn at THRUST across its motion bent it round 5 to 13 px, drawn at
+## zoom 1 as tight as 0.7 px (the plane's slant shortens a curve seen end on to
+## 0.38^2 of it): FlightTest counted a corner, over 20 deg a px, in 3 to 7 of a
+## system's flights from a star orbit (Oct 31). So the pull is at most v^2 /
+## R_BURN (a curve of R_BURN px at the least), never under P_MIN, and THRUST from
+## about 24 px/s. The work is the same; the burn takes longer. Out of a
+## settled star orbit only (a ring round a fixed point, place -9: the edge as
+## arrived is one), whose pace is 14 to 40 px/s: a world's ring and a star's
+## close orbit leave at 35 and 45, and eased there a burn deep in a star's well
+## was too weak to climb out (SolveTest's star-to-star flights in the hand twins
+## found 79%, against 90%); alongside, the ship leaves all but at rest and its
+## first curve is under a pixel; free, only a harness leaves (SolveTest's free
+## starts at 10 to 40 px/s were found 1.7% less often eased, Oct 31).
+const R_BURN := 14.0
+const P_MIN := 3.0
+## A BURN THAT ALL BUT STOPS THE SHIP AND TURNS IT draws a cusp however gently
+## it pulls: its speed (on the plane, where it is drawn) dipping under this
+## mid-burn, below where it starts and ends, so the motion swings round a
+## point tighter than R_BURN at P_MIN. Such a departure out of a ring (a
+## world's, a star's close orbit or a settled star orbit) or an arrival is not
+## flown: the search finds another. (At 12 px/s,
+## before the burn was eased, it cut SolveTest's flights found from 99.97% to
+## 96.2% one-star, Oct 31.)
+const V_CUSP := 5.0
+## and turned down this much above it (px/s): the burn's speed read here from
+## the coast's nodes and a few points of the arrival, SolveTest's from every
+## sample (one flight of 3,061 read just under 5 there and passed here, Oct 31)
+const CUSP_PAD := 0.5
+## A CUSP IS WHERE THE MOTION ALL BUT STOPS MID-BURN AND TURNS ROUND: its least
+## speed inside the burn (CUSP_IN under both its ends) and the motion turned by
+## more than CUSP_TURN while slower than V_SLOW. It was a least speed 2 px/s
+## under both ends, which let through a departure out of a star orbit at 15.5
+## px/s that burned down to 1.0 and left at 2.3 the other way: a turn of about
+## 150 deg round a third of a pixel, 64 deg a px on screen at zoom 2
+## (FlightTest, seed 4242 system 104, Oct 31). A burn that only slows (its
+## least speed its end) still flies.
+const CUSP_IN := 0.25
+const CUSP_TURN := PI / 3.0
+const V_SLOW := 2.0 * V_CUSP
+## AN ARRIVAL BURN IS NOT FLOWN where its curve as the map draws it at zoom 1
+## (`ShipFlight.TILT` 0.38: the plane's depth drawn at that) turns more than
+## DRAW_K rad a px: FlightTest's corner is 20 deg a px over 2 px, a curve 1.43
+## px across; this keeps 1.67.
+const DRAW_TILT := 0.38
+const DRAW_K := 0.6
 ## the version of `choice` this file writes and reads
 const CHOICE_V := 1
 
@@ -295,6 +376,8 @@ var _tplace := -9
 var _tsense := 0
 var _senses := PackedFloat64Array([1.0, -1.0])
 var _twin := false
+## (a departure out of a settled star orbit: its burn eased while slow, R_BURN)
+var _ease := false
 ## the ride's top phasing (`_kmax`)
 var _kmax := 1.0
 ## the keep-outs this flight holds: MapGravity's, its own departure and
@@ -302,6 +385,12 @@ var _kmax := 1.0
 var _wkeep := PackedFloat64Array()
 var _gkeep := PackedFloat64Array()
 var _budget := BUDGET
+## the time cap this search flies to (T_CAP, or T_CAP_WIDE in the wider one),
+## and whether the scan is the wider one's
+var _tcap := T_CAP
+var _wide := false
+## where the coast just flown first turns tighter than the map draws (`_coast_tight`)
+var _tight_t := INF
 
 ## a place's centre and motion (`_dep_at`, `_tgt_at` write these)
 var _cx := 0.0
@@ -389,6 +478,8 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 		return bad
 	var res: Result = null
 	if not prefer.is_empty() and int(prefer.get("v", 0)) == CHOICE_V:
+		# (a flight the wider search found is warmed to its own time cap)
+		_tcap = clampf(float(prefer.get("cap", T_CAP)), T_CAP, T_CAP_WIDE)
 		res = _replay(prefer)
 		if res == null and _warm(prefer):
 			# KEPT while it costs about what it did; else the search, and the kept
@@ -399,19 +490,30 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 			else:
 				var wj := _b_J
 				var wb := _b.duplicate()
+				var wcap := _tcap
 				_b_J = INF
 				_b = {}
 				# (a budget of its own, so it finds what a fresh search would)
 				_budget = _n_integ + BUDGET
+				# (and the wider search when that finds nothing, as a fresh plan has:
+				# without it a kept flight of 359 stood where a fresh one found 206,
+				# SolveTest Oct 31)
+				_tcap = T_CAP
 				_search()
+				if _b_J == INF:
+					_search_wide()
 				if _b_J == INF or _b_J + _warm_slack(_b_J) >= wj:
 					_b_J = wj
 					_b = wb
+					_tcap = wcap
 					res = _build(&"warm")
 				else:
 					res = _build(&"solved")
 	if res == null:
+		_tcap = T_CAP
 		_search()
+		if _b_J == INF:
+			_search_wide()
 		res = _build(&"solved")
 	res.integrations = _n_integ
 	res.steps = _n_steps
@@ -430,6 +532,7 @@ static func _warm_slack(j: float) -> float:
 func _setup(dep: Dictionary, tgt: Dictionary) -> bool:
 	if not _setup_in(dep, tgt):
 		return false
+	_ease = _dk == 0 and _dplace == -9
 	# THE RIDE'S PHASING, held to THRUST and VMAX on the ring being ridden
 	_kmax = 1.0
 	if _dk == 0:
@@ -705,14 +808,154 @@ func _fly(ux: float, uz: float, has_fix: bool, a_fix: float) -> float:
 		_cn = 0
 		return INF
 	var t0 := Time.get_ticks_usec()
-	_integrate(_e_td, _e_x0, _e_z0, _e_vx0, _e_vz0, _e_dvx, _e_dvz, t_now + T_CAP)
+	_integrate(_e_td, _e_x0, _e_z0, _e_vx0, _e_vz0, _e_dvx, _e_dvz, t_now + _tcap)
 	var t1 := Time.get_ticks_usec()
-	_price()
+	# (a departure burn that swings the ship round a point is not flown: `V_CUSP`)
+	if not (_dk == 0 and _departure_cusps()):
+		_tight_t = _coast_tight()
+		_price()
 	_us_int += t1 - t0
 	_us_price += Time.get_ticks_usec() - t1
 	if _e_J < _b_J:
 		_keep_best()
 	return _e_J
+
+
+## WHETHER THE DEPARTURE BURN JUST FLOWN draws a cusp (`V_CUSP`): its speed at
+## the coast's nodes through the burn (H_BURN apart, gravity in), and the burn's
+## own least speed between them, dipping under V_CUSP and under where it starts
+## and ends.
+func _departure_cusps() -> bool:
+	if _cn < 2 or _tc0 <= _cT[0] + 1e-6:
+		return false
+	var v0 := sqrt(_cVX[0] * _cVX[0] + _cVZ[0] * _cVZ[0])
+	var vmin := INF
+	var kmin := 0
+	var v1 := v0
+	var k := 0
+	while k + 1 < _cn and _cT[k] < _tc0 - 1e-9:
+		var ax := (_cVX[k + 1] - _cVX[k])
+		var az := (_cVZ[k + 1] - _cVZ[k])
+		var aa := ax * ax + az * az
+		# the least speed on the straight change of velocity across this step
+		var tau := clampf(-(_cVX[k] * ax + _cVZ[k] * az) / aa, 0.0, 1.0) if aa > 1e-12 else 0.0
+		var mx := _cVX[k] + ax * tau
+		var mz := _cVZ[k] + az * tau
+		var mv := sqrt(mx * mx + mz * mz)
+		if mv < vmin:
+			vmin = mv
+			kmin = k
+		k += 1
+		v1 = sqrt(_cVX[k] * _cVX[k] + _cVZ[k] * _cVZ[k])
+	return vmin < V_CUSP + CUSP_PAD and vmin < minf(v0, v1) - CUSP_IN and _turn_round(kmin, k) > CUSP_TURN
+
+
+## THE MOTION'S TURN ROUND THE BURN'S LEAST SPEED (rad), on step kmin of a burn
+## ending at node kend: from the last node before it slower than V_SLOW (or the
+## burn's start) to the first after it (or the burn's end).
+func _turn_round(kmin: int, kend: int) -> float:
+	var ka := kmin
+	while ka > 0 and _cVX[ka] * _cVX[ka] + _cVZ[ka] * _cVZ[ka] < V_SLOW * V_SLOW:
+		ka -= 1
+	var kb := mini(kmin + 1, kend)
+	while kb < kend and _cVX[kb] * _cVX[kb] + _cVZ[kb] * _cVZ[kb] < V_SLOW * V_SLOW:
+		kb += 1
+	return absf(Vector2(_cVX[ka], _cVZ[ka]).angle_to(Vector2(_cVX[kb], _cVZ[kb])))
+
+
+## WHERE THE COAST FIRST TURNS TIGHTER THAN THE MAP CAN DRAW (DRAW_K at zoom
+## 1), or INF; an arrival whose burn starts after it is not flown. A coast that
+## all but stops at the top of its climb and falls back turns there round a
+## fraction of a px: out of a settled star orbit, climbing to 1.0 px/s, it drew
+## 66 deg a px at zoom 1 (FlightTest, seed 1999 system 226, Oct 31). Read on
+## each step's straight change of velocity, at its slowest.
+func _coast_tight() -> float:
+	var k := 0
+	while k < _cn - 1 and _cT[k] < _tc0 - 1e-9:
+		k += 1
+	while k < _cn - 1:
+		var h := _cT[k + 1] - _cT[k]
+		if h > 1e-9:
+			var dvx := _cVX[k + 1] - _cVX[k]
+			var dvz := _cVZ[k + 1] - _cVZ[k]
+			var dd := dvx * dvx + dvz * dvz
+			var u := clampf(-(_cVX[k] * dvx + _cVZ[k] * dvz) / dd, 0.0, 1.0) if dd > 1e-12 else 0.0
+			var vx := _cVX[k] + dvx * u
+			var vz := _cVZ[k] + dvz * u
+			var dn := pow(vx * vx + DRAW_TILT * DRAW_TILT * vz * vz, 1.5)
+			if dn > 1e-12 and DRAW_TILT * absf(vx * dvz - vz * dvx) / h / dn > DRAW_K:
+				return _cT[k] + u * h
+		k += 1
+	return INF
+
+
+## Whether the arrival burn ending at te (`_arrival`'s [.., d, dxx, dxz, dux,
+## duz, ..]) draws a cusp: the coast's motion plus the burn's, sampled.
+func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
+	var d := ar[2]
+	if d <= 1e-6:
+		return false
+	var dxx := ar[3]
+	var dxz := ar[4]
+	var dux := ar[5]
+	var duz := ar[6]
+	var Ax := 3.0 * dxx - dux * d
+	var Az := 3.0 * dxz - duz * d
+	var Bx := dux * d - 2.0 * dxx
+	var Bz := duz * d - 2.0 * dxz
+	var vmin := INF
+	var jmin := 0
+	var v0 := 0.0
+	var v1 := 0.0
+	var vs := PackedVector2Array()
+	var ex := 0.0
+	var ez := 0.0
+	for j in 17:
+		var tau := float(j) / 16.0
+		var tq := te - d + tau * d
+		var c := _coast_at(tq)
+		var vx := c[2] + (2.0 * Ax * tau + 3.0 * Bx * tau * tau) / d
+		var vz := c[3] + (2.0 * Az * tau + 3.0 * Bz * tau * tau) / d
+		vs.append(Vector2(vx, vz))
+		# A BURN TURNING THE SHIP TIGHTER THAN THE MAP CAN DRAW: its curve as
+		# drawn at zoom 1 (the plane tilted, TILT), the stars' and the giant's
+		# pull and the burn's together. Arriving at 19 px/s, a constant burn
+		# at THRUST across the motion bent it round 9 px, seen end on 1.3 px
+		# across: 22 deg a px (FlightTest, seed 4242 system 291, Oct 31).
+		# (Alongside, the line ends where the ship stops: its last px and a
+		# half, where it slows to the place's own crawl, is not a turn drawn)
+		var px := c[0] + Ax * tau * tau + Bx * tau * tau * tau
+		var pz := c[1] + Az * tau * tau + Bz * tau * tau * tau
+		if j == 0:
+			var ce := _coast_at(te)
+			ex = ce[0] + Ax + Bx
+			ez = ce[1] + Az + Bz
+		var left := Vector2(ex - px, DRAW_TILT * (ez - pz)).length()
+		if _tk != 1 or left > 1.5:
+			_acc_at(px, pz, tq)
+			var ax := _ax + (2.0 * Ax + 6.0 * Bx * tau) / (d * d)
+			var az := _az + (2.0 * Az + 6.0 * Bz * tau) / (d * d)
+			var dn := pow(vx * vx + DRAW_TILT * DRAW_TILT * vz * vz, 1.5)
+			if dn > 1e-9 and DRAW_TILT * absf(vx * az - vz * ax) / dn > DRAW_K:
+				return true
+		var sp := sqrt(vx * vx + vz * vz)
+		if j == 0:
+			v0 = sp
+		elif j == 16:
+			v1 = sp
+		elif sp < vmin:
+			vmin = sp
+			jmin = j
+	if not (vmin < V_CUSP + CUSP_PAD and vmin < minf(v0, v1) - CUSP_IN):
+		return false
+	# (the turn round it while slower than V_SLOW, as `_turn_round` reads a departure)
+	var ja := jmin
+	while ja > 0 and vs[ja].length() < V_SLOW:
+		ja -= 1
+	var jb := jmin
+	while jb < 16 and vs[jb].length() < V_SLOW:
+		jb += 1
+	return absf(vs[ja].angle_to(vs[jb])) > CUSP_TURN
 
 
 func _keep_best() -> void:
@@ -762,17 +1005,15 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 	var gph := G.gi_ph[0] if ng > 0 else 0.0
 	var ggm := G.gi_gm[0] if ng > 0 else 0.0
 	var gkp := _gkeep[0] if ng > 0 else 0.0
+	# THE DEPARTURE BURN: dv delivered along its own way, its pull eased while
+	# the ship is slow (R_BURN), held for each step of at most H_BURN
 	var dv := sqrt(dvx * dvx + dvz * dvz)
-	var d1 := dv / THRUST
-	var thx := dvx / dv * THRUST if dv > 1e-9 else 0.0
-	var thz := dvz / dv * THRUST if dv > 1e-9 else 0.0
-	var nb := 0
-	if d1 > 1e-9:
-		nb = maxi(1, ceili(d1 / H_BURN))
-	var hb := d1 / float(nb) if nb > 0 else 0.0
+	var bux := dvx / dv if dv > 1e-9 else 0.0
+	var buz := dvz / dv if dv > 1e-9 else 0.0
+	var rem := dv if dv > 1e-9 else 0.0
 	var t := td
 	var lost2 := pow(G.edge * 1.6, 2.0)
-	_tc0 = td + d1
+	_tc0 = td + dv / THRUST
 	_t_bad = INF
 	var clear := INF
 	_cT[0] = t
@@ -793,10 +1034,19 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 		var h := 0.0
 		var ax_t := 0.0
 		var az_t := 0.0
-		if k < nb:
-			h = hb
-			ax_t = thx
-			az_t = thz
+		var burn_ends := false
+		if rem > 0.0:
+			var pull := THRUST
+			if _ease:
+				var sp0 := sqrt(vx * vx + vz * vz)
+				pull = clampf(sp0 * sp0 / R_BURN, P_MIN, THRUST)
+			h = minf(H_BURN, rem / pull)
+			ax_t = bux * pull
+			az_t = buz * pull
+			rem -= pull * h
+			if rem <= 1e-9:
+				rem = 0.0
+				burn_ends = true
 		else:
 			# a tenth of the nearest pull's own time
 			var tau2 := INF
@@ -1023,6 +1273,8 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 		vz = nvz
 		t += h
 		k += 1
+		if burn_ends:
+			_tc0 = t
 		gx0 = gx1
 		gz0 = gz1
 		_cT[n] = t
@@ -1214,7 +1466,7 @@ func _ka_at(te: float, s: float, d_near: float) -> float:
 ## review, Oct 30).
 func _te_for(te0: float, s: float, pk: float, d_near: float) -> float:
 	var lo := _tc0
-	var hi := minf(_cT[_cn - 1], t_now + T_CAP)
+	var hi := minf(_cT[_cn - 1], t_now + _tcap)
 	var t1 := te0
 	var f1 := _ka_at(t1, s, d_near) - pk
 	if is_nan(f1):
@@ -1404,7 +1656,7 @@ func _te_near(kk: int, s: float) -> float:
 	var a := _cT[maxi(kk - 1, 0)]
 	var b := _cT[mini(kk + 1, _cn - 1)]
 	a = maxf(a, _tc0)
-	b = minf(b, t_now + T_CAP)
+	b = minf(b, t_now + _tcap)
 	if b <= a:
 		return _cT[kk]
 	var gr := 0.6180339887498949
@@ -1560,7 +1812,7 @@ func _grad2(x: float, z: float, t: float) -> float:
 func _price() -> void:
 	if _cn < 2:
 		return
-	var t_lim := minf(_cT[_cn - 1], t_now + T_CAP)
+	var t_lim := minf(_cT[_cn - 1], t_now + _tcap)
 	var ns := _senses.size()
 	var keepd := _tk == 1
 	# per sense: the last two g and the last node
@@ -1663,7 +1915,7 @@ func _price() -> void:
 			# a crossing, roughly: the constant burn's size where the virtual point
 			# says (made exact only when it is checked: it moves little)
 			var te0 := _cT[kk] + cands[c + 1] * (_cT[kk + 1] - _cT[kk])
-			if te0 > t_now + T_CAP:
+			if te0 > t_now + _tcap:
 				continue
 			var st0 := _coast_k(kk, te0)
 			_tgt_at(te0)
@@ -1677,7 +1929,7 @@ func _price() -> void:
 			priced.append([sqrt(dux0 * dux0 + duz0 * duz0) + TIME_W * (te0 - t_now), c, te0])
 			continue
 		var te := _te_near(kk, s)
-		if te > t_now + T_CAP or te < _tc0:
+		if te > t_now + _tcap or te < _tc0:
 			continue
 		var st := _coast_at(te)
 		var ar := _arrival(te, st[0], st[1], st[2], st[3], s)
@@ -1695,7 +1947,7 @@ func _price() -> void:
 		var te: float = pc[2]
 		if crossing:
 			te = _te_for(te, s2, THRUST, -1.0)
-			if te > t_now + T_CAP:
+			if te > t_now + _tcap:
 				continue
 		# WHERE GRAVITY'S PULL CHANGES ACROSS THE BURN (close to a star or a heavy
 		# giant) the engine pulls more than the burn's own: a gentler burn then,
@@ -1711,7 +1963,7 @@ func _price() -> void:
 			if ar.is_empty():
 				break
 			var tb := te - ar[2]
-			if tb < _tc0 + TB_PAD:
+			if tb < _tc0 + TB_PAD or tb > _tight_t:
 				break
 			cost = ar[0] + TIME_W * (te - t_now)
 			if cost >= best:
@@ -1723,12 +1975,12 @@ func _price() -> void:
 			if _burn_clear(te, ar[2], ar[3], ar[4], ar[5], ar[6], clampi(ceili(ar[2] / 0.05), 16, 64)) < BURN_PAD:
 				break
 			if _bthr <= THRUST * THRUST_SLACK:
-				ok = true
+				ok = not _arrival_cusps(te, ar)
 				break
 			pk *= THRUST / _bthr
 			if crossing:
 				te = _te_for(te, s2, pk, ar[2])
-				if te > t_now + T_CAP:
+				if te > t_now + _tcap:
 					break
 		if not ok:
 			continue
@@ -1838,7 +2090,7 @@ func _pass_miss(s: float) -> float:
 	var oz := _toffz if keepd else 0.0
 	if _cn < 2:
 		return NAN
-	var t_lim := minf(_cT[_cn - 1], t_now + T_CAP)
+	var t_lim := minf(_cT[_cn - 1], t_now + _tcap)
 	var hp := NAN
 	for k in _cn:
 		var tk := _cT[k]
@@ -1962,6 +2214,18 @@ func _search() -> void:
 	# A SCAN OF REAL DEPARTURES (in a twin always: its cheap flights come from the
 	# two stars' pull, which no conic sees), the best refined at their pass from
 	# the very ring point each left from
+	if _scan_passes():
+		return
+	# last, the rest of the conics as they are
+	for i in range(1, nsd):
+		if _n_integ >= _budget:
+			return
+		_fly(seeds[i * 9 + 1], seeds[i * 9 + 2], seeds[i * 9 + 6] > 0.5, seeds[i * 9 + 7])
+
+
+## The scan's three passes (`_scan`), each one's best refined at its pass: true
+## once one finds a flight.
+func _scan_passes() -> bool:
 	for pass_i in 3:
 		var scan := _scan(pass_i)
 		var rows: Array = []
@@ -1982,12 +2246,26 @@ func _search() -> void:
 			var i2: int = r[1]
 			_refine_pass(scan[i2], scan[i2 + 1], _dk == 0, float(r[3]), float(r[2]) if _tk == 0 else 1.0)
 		if _b_J < INF:
-			return
-	# last, the rest of the conics as they are
-	for i in range(1, nsd):
+			return true
+	return false
+
+
+## NOTHING FOUND: THE WIDER LOOK (T_CAP_WIDE). The scan again, its departures
+## at least as fast as crossing to the target in WIDE_T (`_wide_need`), its
+## arrival up to T_CAP_WIDE on, within BUDGET_WIDE more integrations.
+func _search_wide() -> void:
+	_tcap = T_CAP_WIDE
+	_budget = _n_integ + BUDGET_WIDE
+	_wide = true
+	# the cheapest conics to T_CAP_WIDE, refined
+	var seeds := _seeds()
+	for i in mini(2, floori(seeds.size() / 9.0)):
 		if _n_integ >= _budget:
-			return
-		_fly(seeds[i * 9 + 1], seeds[i * 9 + 2], seeds[i * 9 + 6] > 0.5, seeds[i * 9 + 7])
+			break
+		_refine_at(seeds[i * 9 + 1], seeds[i * 9 + 2], seeds[i * 9 + 6] > 0.5, seeds[i * 9 + 7], seeds[i * 9 + 8], seeds[i * 9 + 5])
+	if _b_J == INF:
+		_scan_passes()
+	_wide = false
 
 
 ## DEPARTURES TO FLY AS THEY ARE, pass 0, 1 or 2: SCAN_HEAD headings, the
@@ -2006,6 +2284,9 @@ func _scan(pass_i: int) -> PackedFloat64Array:
 	var th0 := _toward()
 	var nh := SCAN_HEAD
 	var need := _far_need()
+	if _wide:
+		need = maxf(need, _wide_need())
+		nh = WIDE_HEAD
 	if _dk == 0:
 		# (walking round the way the ride goes: the first headings are the
 		# ride's own reach, leaving along the ring's motion)
@@ -2014,8 +2295,17 @@ func _scan(pass_i: int) -> PackedFloat64Array:
 		var speeds := PackedFloat64Array()
 		for m: float in (SCAN_SPEED[pass_i] if need <= 0.0 else FAR_SPEED[pass_i]):
 			speeds.append(vr * m if need <= 0.0 else maxf(0.66 * vr, need * m))
+		# THE WIDER SCAN OUT OF A SETTLED STAR ORBIT looks toward the target: its
+		# ride all but stands still (a twin's far out goes round at 11 to 16
+		# px/s), so the ring's own way is no guide, and headings a full turn apart
+		# by 45 deg passed a target 2,000 px off by hundreds of px
+		var toward := _wide and _dplace == -9
+		if toward:
+			th0 = _bearing()
 		for j in nh:
 			var hd := th0 + dr * TAU * (float(j) + off) / float(nh)
+			if toward:
+				hd = th0 + WIDE_SPAN * (2.0 * (float(j) + off) / float(nh) - 1.0)
 			for sp in speeds:
 				out.append_array(PackedFloat64Array([sp * cos(hd), sp * sin(hd), 0.0, 0.0]))
 	else:
@@ -2029,6 +2319,15 @@ func _scan(pass_i: int) -> PackedFloat64Array:
 				var hd := th0 + TAU * (float(j) + off) / float(nh)
 				out.append_array(PackedFloat64Array([vx + sp * cos(hd), vz + sp * sin(hd), 0.0, 0.0]))
 	return out
+
+
+## From where the ship is now to where the target is half WIDE_T on (rad).
+func _bearing() -> float:
+	_dep_at(t_now)
+	var px := _cx + _drt * cos(_dang)
+	var pz := _cz + _drt * sin(_dang)
+	_tgt_at(t_now + WIDE_T * 0.5)
+	return atan2(_cz + _toffz - pz, _cx + _toffx - px)
 
 
 ## The scan's first heading: round a ring, its own motion where the ship is
@@ -2077,6 +2376,24 @@ func _far_need() -> float:
 		return 0.0
 	var v2 := 2.0 * SystemLayout.GM_SHIP * (1.0 / r1 - 1.0 / r2) + pow((r2 - r1) / FAR_T, 2.0)
 	return maxf(sqrt(maxf(v2, 0.0)) - own, 20.0)
+
+
+## THE WIDER SCAN'S LEAST SPEED (px/s, relative to the place it leaves): from
+## where the ship is now to where the target is WIDE_T on, in WIDE_T, and never
+## under twice its ring's own pace (`_search_wide`).
+func _wide_need() -> float:
+	var px := _dpx
+	var pz := _dpz
+	var own := 0.0
+	if _dk != 2:
+		_dep_at(t_now)
+		px = _cx + (_drt * cos(_dang) if _dk == 0 else _doffx)
+		pz = _cz + (_drt * sin(_dang) if _dk == 0 else _doffz)
+		if _dk == 0:
+			own = absf(_dw) * _drt
+	_tgt_at(t_now + WIDE_T)
+	var d := sqrt((_cx - px) * (_cx - px) + (_cz - pz) * (_cz - pz))
+	return maxf(maxf(d / WIDE_T, 2.0 * own), 20.0)
 
 
 ## The star a point is round: in a twin, the one whose pull there is the
@@ -2138,7 +2455,7 @@ func _seeds() -> PackedFloat64Array:
 		var oz := _doffz if _dk == 1 else 0.0
 		p1s.append_array(PackedFloat64Array([_cx + ox, _cz + oz, _cvx, _cvz]))
 	var rough: Array = []
-	for T: float in CONIC_TS:
+	for T: float in (CONIC_TS_WIDE if _wide else CONIC_TS):
 		for pi in range(0, p1s.size(), 4):
 			for ci in range(0, centres.size(), 3):
 				for way: float in [1.0, -1.0]:
@@ -2458,7 +2775,7 @@ func _replay(c: Dictionary) -> Result:
 			# THRUST and its speed under VMAX
 			k = 2.0 * dang / (absf(_dw) * lead) - 1.0
 			var vr := absf(_dw) * _drt
-			if absf(k - 1.0) > THRUST * lead / (PI * vr) + 1e-9 or k * vr > VMAX or k < 0.2:
+			if absf(k - 1.0) > THRUST * lead / (PI * vr) + 1e-9 or k * vr > VMAX + 1e-6 or k < 0.2:
 				return null
 		_dep_at(td)
 		_e_x0 = _cx + _drt * cos(ad)
@@ -2657,5 +2974,5 @@ func _build_in(kind: StringName) -> Result:
 		"td": td, "ad": float(b.ad), "a0": float(b.a0), "dvx": float(b.dvx), "dvz": float(b.dvz), "ux": float(b.ux), "uz": float(b.uz),
 		"x0": float(b.x0), "z0": float(b.z0), "vx0": float(b.vx0), "vz0": float(b.vz0),
 		"fix": bool(b.fix), "afix": float(b.afix), "te": float(b.te), "s": s, "phi": float(b.phi), "d2": float(b.d2),
-		"w2": float(b.w2), "pk": float(b.pk), "J": res.cost}
+		"w2": float(b.w2), "pk": float(b.pk), "J": res.cost, "cap": _tcap}
 	return res
