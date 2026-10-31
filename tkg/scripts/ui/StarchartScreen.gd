@@ -1171,7 +1171,8 @@ func _neighbour_row(n: MapGen.MapNode) -> Control:
 	b.add_child(row)
 
 	var g := Glyph.new()
-	g.setup(n.type, MapGen.star_colour(n))
+	# (a twin's row wears the chart's two-sun mark, as the chart beside it does)
+	g.setup(n.type, MapGen.star_colour(n), n.twin)
 	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(g)
 
@@ -1676,15 +1677,18 @@ class Glyph extends Control:
 
 	var type: MapGen.NodeType = MapGen.NodeType.SYSTEM
 	var tint: Color = Color.WHITE
+	## a system of two suns (ruling 20): `_TWIN`, as the chart draws it
+	var twin := false
 
-	func setup(t: MapGen.NodeType, c: Color) -> void:
+	func setup(t: MapGen.NodeType, c: Color, two: bool = false) -> void:
 		type = t
 		tint = c
+		twin = two
 		custom_minimum_size = Vector2(13, 13)
 		queue_redraw()
 
 	func _draw() -> void:
-		draw_glyph(self, Vector2.ZERO, type, tint, false, false)
+		draw_glyph(self, Vector2.ZERO, type, tint, false, false, BAND, false, twin)
 
 	## Hostile: a dart nosing left, because enemies face left everywhere else in
 	## the game and the chart should not be the exception.

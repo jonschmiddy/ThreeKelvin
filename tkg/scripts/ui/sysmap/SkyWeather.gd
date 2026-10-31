@@ -504,8 +504,9 @@ func _sel() -> Vector2:
 	if screen == null or screen.overlay == null:
 		return Vector2.INF
 	var s: int = screen.overlay.selected
-	if s == -1:
-		return view.origin()
+	# (either star of a pair: `star_screen` is star A's `origin` with one sun)
+	if SystemLayout.is_star(s):
+		return view.star_screen(s)
 	if s >= 0 and s < view.at.size():
 		return view.at[s]
 	return Vector2.INF
@@ -2232,7 +2233,15 @@ class Comet extends Node2D:
 		# block: the block steps across then down, its angle wobbles, and the
 		# tail flicked between two of its 2 degree steps
 		var away: Vector2 = view.screen(p.x, p.y) - view.screen(0.0, 0.0)
-		if away.length() < 0.5:
+		# (two suns: away from the light where the head is, both suns' made one,
+		# `SystemView.toward_light` -- a comet passing star B trailed its tail
+		# across B; one sun, as it always was)
+		var twin: bool = view.layout.twin
+		if twin:
+			var lu: Vector2 = view.toward_light(p)
+			var tl: float = view.TILT
+			away = -Vector2(lu.x, lu.y * tl)
+		if away.length() < (1e-3 if twin else 0.5):
 			away = Vector2.RIGHT
 		var ang := atan2(away.y, away.x)
 		ang = roundf(ang / deg_to_rad(2.0)) * deg_to_rad(2.0)
@@ -2262,7 +2271,9 @@ class Comet extends Node2D:
 			# stops where it would wrap)
 			if absf(wrapf(atan2(pj.y, pj.x) - head_a, -PI, PI)) > 0.7:
 				break
-			pj += pj.normalized() * beta * tau * tau
+			# (pushed away from the light: star A with one sun, both suns' with two)
+			var push: Vector2 = -(view.toward_light(pj) as Vector2) if twin else pj.normalized()
+			pj += push * beta * tau * tau
 			var sj: Vector2 = view.screen(pj.x, pj.y)
 			if sj.distance_to(hs) > cap:
 				break

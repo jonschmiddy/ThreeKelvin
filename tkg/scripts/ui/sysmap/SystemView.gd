@@ -269,8 +269,16 @@ var _kcor2 := -1.0
 var _tint2 := Vector3.ONE
 const STAR_B_COL := Vector3(1.0, 0.74, 0.48)
 ## how far star B's prominences run behind A's on the clock, so the two suns
-## never erupt together
+## are never at their height together (`prominence`: each erupts in a 40 s slot,
+## its start jittered over 14 s, for 19 s with 3 s at its height). They do
+## overlap at their edges: over four hours of the map's clock, star A erupting
+## 47.5% of the time, both 8.1%, both above half strength 0.9%, both at their
+## height never (a model of `prominence` and `SkyBake.hash2`, Oct 31). Each
+## world's flare is its own sun's by its share of the light (`step`).
 const STAR_B_PROM := 23.0
+## star B's prominence's envelope this frame (0 with one sun): the flare of the
+## worlds it lights
+var _flare2 := 0.0
 var _flash: ColorRect
 ## A distant supernova, now and then, in the far sky.
 var _nova: _Nova
@@ -911,6 +919,8 @@ func show_system(n: MapGen.MapNode) -> void:
 	# STAR B'S GLOW ON THE SKY AND ITS LIGHT ON THE CLOUD (`_step_twin_sky`): how
 	# bright it is against star A, 0 with one sun (the shaders then add nothing)
 	_sky_mat.set_shader_parameter("star2_k", star2_light_k())
+	# (its glow in its own warmer colour, as its SunView's and the palette's steps)
+	_sky_mat.set_shader_parameter("star2_col", STAR_B_COL)
 	if _neb_mat != null and not legacy:
 		_neb_mat.set_shader_parameter("star2_k", star2_light_k())
 	_palette_mat.set_shader_parameter("x0", 0.0)
@@ -1367,6 +1377,12 @@ static func toward_light_of(L: SystemLayout, p: Vector2) -> Vector2:
 	return u.normalized()
 
 
+## `toward_light_of` for this system (for the weather, which holds the view
+## untyped).
+func toward_light(p: Vector2) -> Vector2:
+	return toward_light_of(layout, p)
+
+
 ## Where a body at plane point p is lit from on screen: a point toward its light
 ## (the shadows' and the moons' source), `o` with one sun.
 func light_screen(p: Vector2, at_s: Vector2) -> Vector2:
@@ -1610,21 +1626,24 @@ func _bubble_r() -> float:
 	return best
 
 
-## THE BUBBLE'S GAP IN A TWIN (ruling 20): the bubble is a sphere round star A
-## (the cloud's light, `sky_nebula`'s `star_at`), and a body circling star B or
-## the balance point sweeps a band of distances from A, not one radius -- from
-## |host| - orbit to |host| + orbit (a belt 28 px wider each side). So the gap
-## is looked for between those bands, merged, never inside one. (The one-sun
-## rule above, kept as it was, treats each orbit as a point.)
-static func bubble_gap(L: SystemLayout, want: float) -> float:
+## THE BUBBLE'S GAP IN A TWIN (ruling 20): the bubble is a sphere round the
+## cloud's sun (`sky_nebula`'s `star_at`: star A on the map; in LOCAL the sun
+## that lights the ship's place, `LocalSky._lit`, at plane point `centre`), and a
+## body circling star B or the balance point sweeps a band of distances from
+## it, not one radius -- from |host - centre| - orbit to |host - centre| + orbit
+## (a belt 28 px wider each side). So the gap is looked for between those
+## bands, merged, never inside one. (The one-sun rule above, kept as it was,
+## treats each orbit as a point.)
+static func bubble_gap(L: SystemLayout, want: float, centre := Vector2.ZERO) -> float:
 	var bands: Array = [[0.0, 0.0]]
 	for b in L.bodies:
-		var h := b.host.length()
+		var h := (b.host - centre).length()
 		var w := 28.0 if b.kind == &"belt" else 0.0
 		bands.append([maxf(0.0, absf(h - b.orbit) - w), h + b.orbit + w])
-	# (the pair's own stars: star B's disc sits in the band of its distance)
+	# (the pair's own stars: the other sun's disc sits in the band of its
+	# distance, `sep` from either)
 	bands.append([L.sep, L.sep])
-	bands.append([L.edge + 400.0, L.edge + 400.0])
+	bands.append([L.edge + centre.length() + 400.0, L.edge + centre.length() + 400.0])
 	bands.sort_custom(func(x: Array, y: Array) -> bool: return float(x[0]) < float(y[0]))
 	var best := want
 	var bd := INF
@@ -1642,9 +1661,10 @@ static func bubble_gap(L: SystemLayout, want: float) -> float:
 	return best
 
 
-## The star's colour on things near it; things far from it darker.
+## The star's colour on things near it; things far from it darker. (Two suns:
+## by the light of both, `light_here`; one sun, `light_at` itself.)
 func tone(x: float, z: float, base: Vector3) -> Vector3:
-	var k := light_at(x, z)
+	var k := light_here(x, z)
 	var dim := base.lerp(Vector3(base.x * 0.55, base.y * 0.55, base.z * 0.6), 1.0 - minf(1.0, k * 2.2))
 	return dim.lerp(SkyBakeS.STARCOL.get(kind, Vector3.ONE), k * 0.45)
 
@@ -1682,8 +1702,8 @@ func _step_star() -> void:
 				_sky_mat.set_shader_parameter("light_k", lerpf(1.0, breath(t), 0.6))
 		if star2 != null:
 			# STAR B lives as A does, on its own clock: its breath and its
-			# prominences STAR_B_PROM seconds behind A's, so the two never erupt
-			# together
+			# prominences STAR_B_PROM seconds behind A's, so the two are never at
+			# their height together
 			star2.call("step", pose(t, 4.0))
 			var sm2: ShaderMaterial = star2.get("_mat")
 			sm2.set_shader_parameter("c_breath", breath(pose(t, 4.0) + STAR_B_PROM))
@@ -1834,6 +1854,9 @@ func _step_depth(o: Vector2) -> void:
 		m.set_shader_parameter("home_zoom", home_zoom)
 		m.set_shader_parameter("lscale", clampf(window.size.x / 700.0, 0.5, 1.4))
 		m.set_shader_parameter("pan", pan)
+		# (two suns: the sheets stay lit from star A alone, as the cloud's bubble,
+		# zones and rays are -- `sky_depth` has one light, and a second would grow
+		# a shader that compiles cold on the Mac for a faint rim on the fluff)
 		m.set_shader_parameter("star_at", Vector2(CX, CY) + pan)
 		m.set_shader_parameter("alpha", a)
 		m.set_shader_parameter("strength", float(e[3]))
@@ -1895,6 +1918,8 @@ func step() -> void:
 	_step_bodies()
 	var o := origin()
 	_flare = prominence(pose(t, 6.0)).z if layout.star != SystemLayout.StarKind.PULSAR and layout.star != SystemLayout.StarKind.CORE else 0.0
+	# (two suns: star B's own eruptions, on its clock, for the worlds it lights)
+	_flare2 = prominence(pose(t + STAR_B_PROM, 6.0)).z if star2 != null else 0.0
 	if layout.star_r > 0.0 and layout.star != SystemLayout.StarKind.PULSAR:
 		var rk := _held(layout.star_r * _star_k_raw(), layout.star_r * _kq, 2.0) / layout.star_r
 		if layout.star == SystemLayout.StarKind.CORE:
@@ -2131,6 +2156,9 @@ func step() -> void:
 		_neb_mat.set_shader_parameter("r_bodies", bp)
 		_neb_mat.set_shader_parameter("r_rings", rg)
 		_neb_mat.set_shader_parameter("r_nb", n_cast)
+		# (the cloud's flare stays star A's: the cloud's sun is A, its bubble, zones
+		# and rays round A, star B's light added to it -- one uniform cannot flare
+		# each sun's light on its own clock)
 		_neb_mat.set_shader_parameter("r_flare", _flare)
 		if twin:
 			_neb_mat.set_shader_parameter("r_from", from)
@@ -2202,7 +2230,9 @@ func step() -> void:
 			if not legacy:
 				vm.set_shader_parameter("star_tint", tint_at(p))
 				vm.set_shader_parameter("night_fill", night_fill(p))
-			vm.set_shader_parameter("flare", _flare)
+			# (two suns: its own sun's flare, each by its share of the light here --
+			# a world round star B flickers when B erupts, not when A does)
+			vm.set_shader_parameter("flare", lerpf(_flare, _flare2, share_b(p)) if star2 != null else _flare)
 			vm.set_shader_parameter("lift", 0.0 if legacy else 1.0)
 			# ITS MOONS' SHADOWS ON ITS FACE (Jon: "shouldn't moons cast eclipses on
 			# their planets?"): each moon's place about the world (screen px, x
@@ -2976,6 +3006,17 @@ class _Lines extends Node2D:
 		var hole2 := _star2_hole()
 		var o2: Vector2 = view.star_screen(SystemLayout.STAR_B)
 		var two := hole2.x > 0.0
+		# A STAR'S HOLE ONLY BEHIND IT, in a twin (the lines are drawn over the whole
+		# picture, so the hole is all that hides them): a world round one star of a
+		# pair passes in front of its sun at the near point of its circle, drawn
+		# over it there (`step`'s depth order), and its ring's near half with it.
+		# Cut wherever it crossed the disc, 26% of the near half of every such
+		# ring was missing at the opening zoom, up to 38% (the four systemtest
+		# seeds under twin=all, 1,710 worlds, review Oct 31). With one star the
+		# hole cuts wherever a ring crosses it, as it always did (a sun's first
+		# orbit is at least 243 px out, its near point 92 x zoom px below the star
+		# against a hole of 16 x zoom + 2, so no ring's near half comes near it).
+		var d2: float = view.star_depth(SystemLayout.STAR_B)
 		var odepth: bool = view.orbit_depth
 		var painted: bool = view.painted
 		var vt: float = view.t
@@ -3050,8 +3091,9 @@ class _Lines extends Node2D:
 				if rings and not off_world:
 					var rq: Vector2 = (sp - wc) / ring_ab
 					off_world = rq.length_squared() < 1.0
-				if not win.has_point(sp) or pow((sp.x - o.x) / hole.x, 2.0) + pow((sp.y - o.y) / hole.y, 2.0) < 1.0 or off_world \
-						or (two and pow((sp.x - o2.x) / hole2.x, 2.0) + pow((sp.y - o2.y) / hole2.y, 2.0) < 1.0):
+				if not win.has_point(sp) or off_world \
+						or ((not two or op.y < 0.0) and pow((sp.x - o.x) / hole.x, 2.0) + pow((sp.y - o.y) / hole.y, 2.0) < 1.0) \
+						or (two and op.y < d2 and pow((sp.x - o2.x) / hole2.x, 2.0) + pow((sp.y - o2.y) / hole2.y, 2.0) < 1.0):
 					if pts.size() > 1:
 						runs.append([pts, cols])
 					pts = PackedVector2Array()
@@ -3258,18 +3300,22 @@ class _Fabric extends Node2D:
 
 	## A HEAVY GIANT'S WELL IS WIDER (ruling 20: giants 1/10 to 1/4 of their star,
 	## "purely because it's more fun", felt by every autopilot flight): its width
-	## grown with its weight so its far reach (depth x width^2, the shader's sum
-	## far out) goes as its share of the star's, depth kept (the tanh cap at 45
-	## swallows a deeper well, so a deeper one barely shows). The old 34 px is a
-	## giant of 0.145, the middle of the roll: at 0.10 the well is 28 px wide, at
-	## 0.25, 45. Anything else, and a giant with no weight, as laid out.
+	## grown with its weight, depth kept (the tanh cap at 45 swallows a deeper
+	## well, so a deeper one barely shows). The lightest giant keeps today's
+	## 34 px -- before the ruling a giant pulled nothing and was drawn at 34, and
+	## every giant now weighs more, so none is drawn lighter -- and the heaviest,
+	## a quarter of its star, is 45 px: the width whose far reach (depth x
+	## width^2, the shader's sum far out) is a quarter of an ORDINARY star's at
+	## the giant's depth (21.6 x 44.6^2 is about 172,171 / 4). Between, by its
+	## weight. Anything else, and a giant with no weight, as laid out.
 	static func giant_well_w(b: SystemLayout.Body) -> float:
 		if b.kind != &"giant" or b.gm_frac <= 0.0:
 			return b.well_w
-		return b.well_w * sqrt(b.gm_frac / GIANT_W_AT)
+		var u := clampf((b.gm_frac - SystemLayout.GIANT_MIN) / (SystemLayout.GIANT_MAX - SystemLayout.GIANT_MIN), 0.0, 1.0)
+		return b.well_w * lerpf(1.0, GIANT_W_MOST, u)
 
-	## the giant's weight the laid-out well width (34) is drawn for
-	const GIANT_W_AT := 0.145
+	## the heaviest giant's well against the laid-out width (34 px to 45)
+	const GIANT_W_MOST := 45.0 / 34.0
 
 	## Each frame: the camera, the wells where the bodies are now, and the clear
 	## discs of the star and the worlds. Redrawn only when the spacing changes.
@@ -3344,6 +3390,23 @@ class _Moons extends Node2D:
 	## how deep each moon ("world:moon") sits in its world's shadow, eased
 	var _ecl := {}
 
+	## A WORLD BEHIND A STAR, its moons with it: its centre `s` inside the star's
+	## hole on screen (star A's at `o`, star B's at `o2`, `hole2` zero with one
+	## sun). In a twin, only while the world is farther from you than that star:
+	## in front of it, at the near point of its circle, the world is drawn over
+	## the sun and so are its moons (cut by the screen alone, a world round one
+	## star of a pair lost its moons for 23% of its time in front of its sun, up
+	## to 36%: the four systemtest seeds under twin=all, 573 worlds with moons,
+	## review Oct 31). With one star the screen test stands as it was (no sun's
+	## world in front comes near its hole: `_Lines.orbit_runs`).
+	func behind_star(i: int, s: Vector2, o: Vector2, hole: Vector2, o2: Vector2, hole2: Vector2) -> bool:
+		var two := hole2.x > 0.0
+		var d: float = (view.pos[i] as Vector2).y
+		if (not two or d < 0.0) and pow((s.x - o.x) / hole.x, 2.0) + pow((s.y - o.y) / hole.y, 2.0) < 1.0:
+			return true
+		return two and d < float(view.star_depth(SystemLayout.STAR_B)) \
+			and pow((s.x - o2.x) / hole2.x, 2.0) + pow((s.y - o2.y) / hole2.y, 2.0) < 1.0
+
 	## THE MOONS THIS FRAME, as `_draw` places them: for each, its world, the
 	## world's centre and drawn radius, the moon on screen and how far toward you
 	## (px), its drawn radius, whether its world hides it; and its ECLIPSE, how
@@ -3372,9 +3435,7 @@ class _Moons extends Node2D:
 			var gap := gap_for(b, r, moons)
 			var slots := ring_slots(i, b, r, moons)
 			var sq: float = 0.28 if not slots.is_empty() else TILT
-			if pow((s.x - o.x) / hole.x, 2.0) + pow((s.y - o.y) / hole.y, 2.0) < 1.0:
-				continue
-			if hole2.x > 0.0 and pow((s.x - o2.x) / hole2.x, 2.0) + pow((s.y - o2.y) / hole2.y, 2.0) < 1.0:
+			if behind_star(i, s, o, hole, o2, hole2):
 				continue
 			var L3: Vector3 = view.light_for_at(view.pos[i]).normalized()
 			for m in moons:
@@ -3485,10 +3546,7 @@ class _Moons extends Node2D:
 			var slots := ring_slots(i, b, r, moons)
 			var sq: float = 0.28 if not slots.is_empty() else TILT
 			# a world behind the star: its moons are behind it too
-			var behind_star: bool = pow((s.x - o.x) / hole.x, 2.0) + pow((s.y - o.y) / hole.y, 2.0) < 1.0
-			if hole2.x > 0.0 and pow((s.x - o2.x) / hole2.x, 2.0) + pow((s.y - o2.y) / hole2.y, 2.0) < 1.0:
-				behind_star = true
-			if behind_star:
+			if behind_star(i, s, o, hole, o2, hole2):
 				continue
 			if view.moon_focus.has(i):
 				for m in moons:

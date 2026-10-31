@@ -25,7 +25,26 @@ extends Node
 ##     share of its light, the angle of its one light against the way to it);
 ##   * THE SHIP ON A WORLD'S 20 px RING (`ShipFlight.orbit_r`), measured, not
 ##     judged: how much of its ride round a world circling one star its centre
-##     spends inside the world's drawn disc, at the opening zoom and at 1.
+##     spends inside the world's drawn disc, at the opening zoom and at 1;
+##   * THE SUN FLOOR AS DRAWN (Oct 31): the same promise read off the map
+##     itself, each SunView's own disc and corona (`_kd`, `_k`) as `step` sets
+##     them, on every frame of a zoom out from the fit to 0.6 of it and of the
+##     jumps and settles after, for both stars -- the floor above is the
+##     layout's sums, which hold by construction and could not catch the map
+##     dropping its cap;
+##   * THE NEAR POINT'S RING AND MOONS (Oct 31): every drawn orbit point inside
+##     a star's hole on screen is in front of that star (none behind it), some
+##     are (a world round one star of a pair passes in front of its sun, and its
+##     ring's near half with it), and a world in front of its sun inside its
+##     hole keeps its moons (`_Moons.positions`), one behind it does not;
+##   * LOCAL'S TWO SUNS, as far as headless reaches (`LocalSky._build` stops
+##     before any picture is made, so the suns, their slots, the disc cut, the
+##     palette and the steps run first in a window): with the ship parked at a
+##     world round each star and at each star's close orbit, the place kept
+##     (-4 too), the lit sun the near one, the distance from it (a world round B
+##     65 to 100 px out, not 350), the near sun drawn the bigger, the two discs
+##     apart on the band, and the cloud's bubble round the lit sun clear of
+##     every band of distance from it that a body sweeps.
 ## Prints `twindrawtest: PASS` or `twindrawtest: N FAILURES`.
 
 const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
@@ -86,9 +105,23 @@ func _run() -> void:
 			await view.show_system(nd)
 			view.window = Rect2(0, 0, 960, 540)
 			_view_checks(view, "seed %d system %d" % [sd, nd.index])
+			_view_floor(view, "seed %d system %d" % [sd, nd.index])
 	view.queue_free()
 	print("  twindrawtest: %d twins drawn and checked in %.1f s" % [seen, float(Time.get_ticks_msec() - t0) / 1000.0])
 	_view_verdict(seen)
+	t0 = Time.get_ticks_msec()
+	var lseen := 0
+	for sd: int in VIEW_SEEDS:
+		Rng.forced = sd
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		for raw in Run.map:
+			var nd: MapGen.MapNode = raw
+			if not nd.twin or lseen >= n_views:
+				continue
+			lseen += 1
+			_local_checks(nd, "seed %d system %d" % [sd, nd.index])
+	print("  twindrawtest: LOCAL looked at in %d twins in %.1f s" % [lseen, float(Time.get_ticks_msec() - t0) / 1000.0])
+	_local_verdict(lseen)
 	_report()
 	h.verdict("twindrawtest")
 	get_tree().quit(h.code())
@@ -253,6 +286,7 @@ func _view_checks(view, at: String) -> void:
 		var sn: Node2D = view.star2 if w.host_id == SystemLayout.STAR_B else view.star
 		var sd: float = view.star_depth(w.host_id)
 		# THE DEPTH ORDER, round its year
+		var mooned := int((view._views[w.index].get("spec") as Dictionary).get("moons", 0)) > 0
 		for k in 24:
 			view.t = w.period * float(k) / 24.0
 			view.step()
@@ -260,6 +294,24 @@ func _view_checks(view, at: String) -> void:
 			var in_front: bool = (view.pos[w.index] as Vector2).y >= sd
 			var ok := (wv.get_index() > sn.get_index()) == in_front
 			_tally("depth order: world round a star, moments checked")
+			# ITS MOONS AT THE NEAR POINT: over its sun with it in front, hidden
+			# with it behind (only where its centre is inside the sun's hole)
+			if mooned and _in_hole(view, w.host_id, view.world_c(w.index)):
+				var has := false
+				for mm: Dictionary in view._moons.positions(0.0):
+					if int(mm.i) == w.index:
+						has = true
+						break
+				if in_front:
+					_tally("moons: in front of its sun, inside its hole")
+					if not has:
+						_tally("moons: hidden in front of its sun")
+						h._fail("%s: world %d's moons hidden in front of its sun at t %.0f" % [at, w.index, view.t])
+				else:
+					_tally("moons: behind its sun, inside its hole")
+					if has:
+						_tally("moons: shown behind its sun")
+						h._fail("%s: world %d's moons shown behind its sun at t %.0f" % [at, w.index, view.t])
 			if not ok:
 				_tally("depth order: drawn on the wrong side of its sun")
 				h._fail("%s: world %d drawn %s its sun at t %.0f (%s it)" % [at, w.index, "over" if wv.get_index() > sn.get_index() else "under", view.t, "in front of" if in_front else "behind"])
@@ -321,6 +373,24 @@ func _view_checks(view, at: String) -> void:
 				stray += 1
 			else:
 				own_pts[bi] = int(own_pts.get(bi, 0)) + 1
+			# A STAR'S HOLE ONLY BEHIND IT: a point drawn inside a star's hole is in
+			# front of that star. (The point's z on the plane from its screen row:
+			# whole pixels, so half a pixel either way, and points within a pixel
+			# of the star's own depth are not judged. And the hole a pixel smaller:
+			# `orbit_runs` cuts by the point before it is rounded to its pixel,
+			# which moves it up to 0.71 px -- judged by the rounded point, 28 of
+			# 3,750 drawn just outside the hole's edge read as inside it.)
+			var zq: float = (q.y - (float(SystemViewS.CY) + float(view.pan.y))) / (SystemViewS.TILT * float(view.zoom))
+			var tol: float = 1.0 / (SystemViewS.TILT * float(view.zoom))
+			for sp: int in L.stars():
+				if not _in_hole(view, sp, q, -1.0):
+					continue
+				var dz: float = zq - float(view.star_depth(sp))
+				if dz > tol:
+					_tally("orbits: points drawn in front of a star, inside its hole")
+				elif dz < -tol:
+					_tally("orbits: points drawn behind a star, inside its hole")
+					h._fail("%s: an orbit point drawn behind star %d inside its disc (%.0f, %.0f)" % [at, sp, q.x, q.y])
 	_tally("orbits: points checked", n_pts)
 	_tally("orbits: points on no body's ring about its own centre", stray)
 	for w in L.bodies:
@@ -330,8 +400,117 @@ func _view_checks(view, at: String) -> void:
 				h._fail("%s: world %d round a star has %d points on its own ring" % [at, w.index, int(own_pts.get(w.index, 0))])
 
 
+## Whether screen point q is inside star p's hole in the lines and the moons
+## (`_Lines._star_hole` / `_star2_hole`, round the star as drawn), the hole
+## grown by `grow` px.
+static func _in_hole(view, p: int, q: Vector2, grow := 0.0) -> bool:
+	var hole: Vector2 = view._lines._star_hole() if p != SystemLayout.STAR_B else view._lines._star2_hole()
+	if hole.x <= 0.0:
+		return false
+	hole += Vector2(grow, grow)
+	var o: Vector2 = view.star_screen(p)
+	return pow((q.x - o.x) / hole.x, 2.0) + pow((q.y - o.y) / hole.y, 2.0) < 1.0
+
+
+## THE SUN FLOOR AS THE MAP DRAWS IT: from the fit, still, a zoom out over 24
+## frames to 0.6 of the fit, then jumps to 0.683 (the worst comer's), 0.8 and
+## 0.95 of it, each held until it has settled and 20 frames on -- on every
+## frame, each sun's disc and corona as its own SunView has them (`_kd`, `_k`),
+## in plane px, never wider than the layout's sun at the fit: the disc than the
+## most it is held at there (`SystemLayout.held_most`), the corona than that or
+## its true size there, whichever is more (the corona is the true size while the
+## zoom moves and eases onto the disc once it is still). Counted in frames, never
+## the clock: `step` measures its settle in its own frame steps.
+func _view_floor(view, at: String) -> void:
+	var L: SystemLayout = view.layout
+	var fz: float = L.fit_zoom
+	if fz <= 0.0:
+		h._fail("%s: a twin with no fit_zoom" % at)
+		return
+	# (headless never cuts a palette, and the corona is drawn at its true size
+	# while the zoom moves only once one is cut: without this the frames below
+	# would only ever see the disc)
+	view._palette_built = true
+	var bound := {}
+	for p in L.stars():
+		var tf := SystemLayout.sun_drawn(L.star_radius(p), fz)
+		var hf := SystemLayout.held_most(tf, SystemLayout.SUN_LEAST)
+		bound[p] = Vector2(hf / fz, maxf(tf, hf) / fz)
+	view.zoom = fz
+	_settle(view)
+	for k in 24:
+		view.zoom = lerpf(fz, 0.6 * fz, float(k + 1) / 24.0)
+		view.step()
+		_floor_frame(view, bound, at)
+	for f: float in [0.6, 0.683, 0.8, 0.95]:
+		view.zoom = f * fz
+		# (the jump seen by its first frame, then held until it settles)
+		view.step()
+		_floor_frame(view, bound, at)
+		var n := 0
+		while n < 200 and bool(view.zooming()):
+			view.step()
+			_floor_frame(view, bound, at)
+			n += 1
+		for k in 20:
+			view.step()
+			_floor_frame(view, bound, at)
+	view.zoom = SystemLayout.open_zoom(L.edge)
+	_settle(view)
+
+
+## Step the map until its zoom has settled (at most 200 frames) and 20 on.
+static func _settle(view) -> void:
+	var n := 0
+	view.step()
+	while n < 200 and bool(view.zooming()):
+		view.step()
+		n += 1
+	for k in 20:
+		view.step()
+
+
+## One frame of `_view_floor`: both suns as drawn against the fit's.
+func _floor_frame(view, bound: Dictionary, at: String) -> void:
+	var L: SystemLayout = view.layout
+	var zf: float = view.zoom
+	var moving: bool = view.zooming()
+	for p in L.stars():
+		var sv: Node2D = view.star2 if p == SystemLayout.STAR_B else view.star
+		if sv == null:
+			h._fail("%s: star %d has no painter" % [at, p])
+			continue
+		var r := L.star_radius(p)
+		var disc := r * float(sv.get("_kd")) / zf
+		var cor := r * float(sv.get("_k")) / zf
+		var bd: Vector2 = bound[p]
+		_tally("sun floor as drawn: suns checked")
+		_tally("sun floor as drawn: suns checked while the zoom moved" if moving else "sun floor as drawn: suns checked at rest")
+		_most("sun floor as drawn: disc on the plane over the most it is held at the fit", disc / bd.x, at)
+		_most("sun floor as drawn: corona on the plane over the most it is drawn at the fit", cor / bd.y, at)
+		if disc > bd.x + 1e-4 or cor > bd.y + 1e-4:
+			_tally("sun floor as drawn: a sun wider on the plane than at the fit")
+			if int(_n.get("sun floor as drawn: a sun wider on the plane than at the fit", 0)) <= 5:
+				h._fail("%s: star %d at zoom %.3f (fit %.3f) drawn %.2f plane px (disc), %.2f (corona), against %.2f / %.2f at the fit" % [at, p, zf, L.fit_zoom, disc, cor, bd.x, bd.y])
+
+
 func _view_verdict(seen: int) -> void:
 	h._ok("drawn and checked %d twins" % seen, seen > 20 and int(_n.get("views", 0)) == seen)
+	var fc := int(_n.get("sun floor as drawn: suns checked", 0))
+	var fm := int(_n.get("sun floor as drawn: suns checked while the zoom moved", 0))
+	var fs := int(_n.get("sun floor as drawn: suns checked at rest", 0))
+	var fw := int(_n.get("sun floor as drawn: a sun wider on the plane than at the fit", 0))
+	h._ok("below the fit no sun is drawn wider on the plane than at the fit, as the map draws it (%d suns: %d while the zoom moved, %d at rest; %d wider)" % [fc, fm, fs, fw],
+		fm > 1000 and fs > 1000 and fw == 0)
+	var fr := int(_n.get("orbits: points drawn in front of a star, inside its hole", 0))
+	var bh := int(_n.get("orbits: points drawn behind a star, inside its hole", 0))
+	h._ok("every orbit point drawn inside a star's disc is in front of it (%d in front, %d behind)" % [fr, bh], fr > 1000 and bh == 0)
+	var mf := int(_n.get("moons: in front of its sun, inside its hole", 0))
+	var mh := int(_n.get("moons: hidden in front of its sun", 0))
+	var mb := int(_n.get("moons: behind its sun, inside its hole", 0))
+	var ms := int(_n.get("moons: shown behind its sun", 0))
+	h._ok("a world's moons drawn over its sun with it in front, hidden with it behind (%d moments in front, %d hidden; %d behind, %d shown)" % [mf, mh, mb, ms],
+		mf > 100 and mb > 100 and mh == 0 and ms == 0)
 	var dm := int(_n.get("depth order: world round a star, moments checked", 0))
 	h._ok("each world round a star drawn on the right side of its sun (%d moments, %d wrong)" % [dm, int(_n.get("depth order: drawn on the wrong side of its sun", 0))],
 		dm > 500 and int(_n.get("depth order: drawn on the wrong side of its sun", 0)) == 0)
@@ -356,3 +535,107 @@ func _report() -> void:
 	nk.sort()
 	for k: String in nk:
 		print("  count %s: %d" % [k, int(_n[k])])
+
+
+# ---------------------------------------------------------------- LOCAL
+
+## LOCAL in twin `n` with the ship parked at a world round each star and at each
+## star's close orbit, as the map leaves it (`SystemMapScreen._parked`), as far
+## as a headless build goes (`LocalSky._situate` and the reads off it).
+func _local_checks(n: MapGen.MapNode, at: String) -> void:
+	var L := SystemLayout.of(n)
+	if not L.twin:
+		h._fail("%s: a twin node laid out with one sun" % at)
+		return
+	_tally("local: twins")
+	var wa := -1
+	var wb := -1
+	for b in L.bodies:
+		if b.world == &"":
+			continue
+		if b.host_id == -1 and wa < 0:
+			wa = b.index
+		elif b.host_id == SystemLayout.STAR_B and wb < 0:
+			wb = b.index
+	if wa < 0 or wb < 0:
+		h._fail("%s: no world round star %s" % [at, "A" if wa < 0 else "B"])
+		return
+	var had: Dictionary = SystemMapScreen._parked.get(n.index, {})
+	for c: Array in [[wb, SystemLayout.STAR_B, "a world round B"], [SystemLayout.STAR_B, SystemLayout.STAR_B, "B's close orbit"],
+			[wa, -1, "a world round A"], [-1, -1, "A's close orbit"]]:
+		var place: int = c[0]
+		var lit_want: int = c[1]
+		var what: String = c[2]
+		SystemMapScreen._parked[n.index] = {"at": place, "p": Vector2(L.edge * 1.02, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+		var sky := LocalSky.new()
+		add_child(sky)
+		sky.setup(n)
+		_tally("local: places looked at")
+		if sky.orbit_target != place:
+			h._fail("%s: LOCAL at %s (place %d) took place %d" % [at, what, place, sky.orbit_target])
+		if sky._lit != lit_want:
+			h._fail("%s: LOCAL at %s lit by star %d" % [at, what, sky._lit])
+		# (the distance LOCAL sizes the lit sun by: from that sun)
+		_most("local: distance from the lit sun at %s, plane px" % what, sky.orbit_d, at)
+		_least("local: distance from the lit sun at %s, plane px (least)" % what, sky.orbit_d, at)
+		if sky.orbit_d > 120.0:
+			h._fail("%s: LOCAL at %s reads %.0f px from its sun" % [at, what, sky.orbit_d])
+		# the near sun the bigger, and the two drawn apart on the band
+		var far := -1 if lit_want == SystemLayout.STAR_B else SystemLayout.STAR_B
+		if sky.star_k_of(lit_want) * L.star_radius(lit_want) <= sky.star_k_of(far) * L.star_radius(far):
+			h._fail("%s: LOCAL at %s draws the far sun as big as the near one" % [at, what])
+		var ra := L.star_radius(-1) * sky.star_k_of(-1)
+		var rb := L.star_radius(SystemLayout.STAR_B) * sky.star_k_of(SystemLayout.STAR_B)
+		var gap := sky._sun_at(SystemLayout.STAR_B).distance_to(sky._sun_at(-1)) - ra - rb
+		_least("local: the two suns' discs apart on the band, px", gap, at + " at " + what)
+		if gap <= 0.0:
+			h._fail("%s: LOCAL at %s draws the two suns' discs over each other (%.1f px)" % [at, what, gap])
+		if sky.star_light().is_equal_approx(SystemViewS._lin_top(SystemViewS.STAR_B_COL)) != (lit_want == SystemLayout.STAR_B):
+			h._fail("%s: LOCAL at %s lit in the other sun's colour" % [at, what])
+		# THE BUBBLE ROUND THE LIT SUN, clear of every band of distance from it a
+		# body sweeps (`SystemView.bubble_gap`'s bands, which keep 24 px off them)
+		var R := sky._bubble_r() / sky._s
+		var lc := L.star_pos(lit_want)
+		for b in L.bodies:
+			var hb := (b.host - lc).length()
+			var bw := 28.0 if b.kind == &"belt" else 0.0
+			var lo := maxf(0.0, absf(hb - b.orbit) - bw)
+			var hi := hb + b.orbit + bw
+			_tally("local: bodies' bands against the bubble")
+			if R > lo - 1.0 and R < hi + 1.0:
+				_tally("local: the bubble's wall through a body's band")
+				h._fail("%s: LOCAL at %s: the bubble (%.0f px round the lit sun) runs through body %d's band %.0f-%.0f" % [at, what, R, b.index, lo, hi])
+		# (the reads that ask for star B's SunView, which headless never makes,
+		# run with a stand-in so their sums run at all: the other sun's light on
+		# the gas against the lit one's, a band world's tint, the lit sun's breath)
+		var stand_in := Node2D.new()
+		sky.star2 = stand_in
+		var k2 := sky._star2_k()
+		if k2 < 0.0 or k2 > 1.0:
+			h._fail("%s: LOCAL at %s: the other sun's light %.2f of the lit one's" % [at, what, k2])
+		_most("local: the other sun's light on the gas against the lit one's", k2, at + " at " + what)
+		var tw := sky._tint_at(L.bodies[wb].pos(0.0))
+		if absf(maxf(tw.x, maxf(tw.y, tw.z)) - 1.0) > 0.02:
+			h._fail("%s: LOCAL at %s: a world's tint %s, not a light" % [at, what, str(tw)])
+		var br := sky._breath_lit()
+		if br < 0.9 or br > 1.1:
+			h._fail("%s: LOCAL at %s: the lit sun breathes at %.3f" % [at, what, br])
+		sky.star2 = null
+		stand_in.free()
+		_tally("local: %s looked at" % what)
+		remove_child(sky)
+		# (freed at the frame's end, not now: anything `setup` queued for it runs first)
+		sky.queue_free()
+	if had.is_empty():
+		SystemMapScreen._parked.erase(n.index)
+	else:
+		SystemMapScreen._parked[n.index] = had
+
+
+func _local_verdict(seen: int) -> void:
+	var places := int(_n.get("local: places looked at", 0))
+	h._ok("LOCAL looked at in %d twins, %d places: each world round a star and each star's close orbit" % [seen, places],
+		seen > 20 and places == 4 * int(_n.get("local: twins", 0)))
+	var nb := int(_n.get("local: bodies' bands against the bubble", 0))
+	var nx := int(_n.get("local: the bubble's wall through a body's band", 0))
+	h._ok("LOCAL's bubble round its lit sun clear of the bands its bodies sweep (%d bands, %d crossed)" % [nb, nx], nb > 1000 and nx == 0)

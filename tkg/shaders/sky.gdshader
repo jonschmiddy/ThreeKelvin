@@ -25,9 +25,11 @@ uniform vec2 star_at = vec2(480.0, 270.0);
 uniform float zoom = 1.0;
 uniform vec3 star_col = vec3(1.0, 0.86, 0.62);
 // STAR B (ruling 20, two suns): where it is on screen and how bright against
-// star A (0 with one sun: nothing added); its glow is star A's law round it
+// star A (0 with one sun: nothing added); its glow is star A's law round it,
+// in its own warmer colour (`SystemView.STAR_B_COL`)
 uniform vec2 star2_at = vec2(-9999.0);
 uniform float star2_k = 0.0;
+uniform vec3 star2_col = vec3(1.0, 0.74, 0.48);
 uniform float rays_k = 1.0;
 // the star's own glow on the sky (SIMPLIFIED inside a cloud: 0, the cloud is lit by it instead)
 uniform float light_k = 1.0;
@@ -277,13 +279,15 @@ void fragment() {
 	if (simplified && !pulsar) I2 = 0.30 * exp(-dd / 28.0) + 0.022 * exp(-dd * pow(max(zk, 1.0), 0.58) / 110.0);
 	// (PAINTED: a clear sky's rings are set by the band memory, `sector_b_state`)
 	if (painted && !pulsar) I2 = 0.05 * step(dd, 34.0) + 0.028 * step(dd, 58.0);
+	// (star B's glow kept apart from A's, to be tinted its own colour below)
+	float I2b = 0.0;
 	if (star2_k > 0.0 && !pulsar) {
 		vec2 sv2 = (b + 0.5 - star2_at) / zoom;
 		float d2 = length(vec2(sv2.x, sv2.y * 1.25));
 		float J2 = 0.36 * exp(-d2 / 42.0) + 0.06 * exp(-d2 / 160.0);
 		if (simplified) J2 = 0.30 * exp(-d2 / 28.0) + 0.022 * exp(-d2 * pow(max(zk, 1.0), 0.58) / 110.0);
 		if (painted) J2 = 0.05 * step(d2, 34.0) + 0.028 * step(d2, 58.0);
-		I2 += J2 * star2_k;
+		I2b = J2 * star2_k;
 	}
 	if (!pulsar) {
 		float a = atan(sv.y, sv.x), n = fbm2(vec2(a * 7.0 + 30.0, 3.1), 3);
@@ -311,8 +315,10 @@ void fragment() {
 		// (dithered as light: each block's share of the glow nudged up or down by its
 		// place in a 4x4 pattern, so where the palette steps the step is a dither)
 		I2 *= 1.0 + bay_jit(b) * 0.5 * smooth_k(1.25, 3.0, zk);
+		I2b *= 1.0 + bay_jit(b) * 0.5 * smooth_k(1.25, 3.0, zk);
 	}
 	vec3 P = I2 * light_k * (1.0 - dk * 0.5) * (1.0 - dk * 0.85) * star_col;
+	P += I2b * light_k * (1.0 - dk * 0.5) * (1.0 - dk * 0.85) * star2_col;
 	// (the haze in the dust's own warm brown, whatever the star's tint: in its
 	// white it came out grey)
 	P += hz * light_k * (1.0 - dk * 0.85) * vec3(1.0, 0.6, 0.34);

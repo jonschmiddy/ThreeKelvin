@@ -92,7 +92,12 @@ func _seed(sd: int) -> void:
 	print("  mapperftest: seed %d" % sd)
 	var view: Control = SystemViewS.new()
 	add_child(view)
-	for e: Array in _pick():
+	var picks := _pick()
+	# (the twin row held, not just tried: a seed whose run has no two-sun system
+	# would drop it without a word; `twin=none` turns them all off)
+	if MapGen._twin_force() >= 0:
+		_ok("seed %d: a system of two suns among those looked at" % sd, picks.any(func(e: Array) -> bool: return String(e[0]) == "twin"))
+	for e: Array in picks:
 		var key: String = e[0]
 		var n: MapGen.MapNode = e[1]
 		for low: bool in [false, true]:
@@ -217,8 +222,10 @@ static func _same(a: Array, b: Array) -> bool:
 ## The orbits' loop as it was before the trim (SystemView `_Lines._draw`, Oct 27
 ## main), its draws collected instead of drawn. TWO SUNS (ruling 20, Oct 30), in
 ## step with `orbit_runs`: each ring round its own centre (`orbit_point` already
-## adds `Body.host`), stopped at star B's disc as at star A's, and its near half
-## told by where on its own ring a point is (its z less its centre's).
+## adds `Body.host`), stopped at star B's disc as at star A's -- in a twin each
+## star's disc only where the ring is behind that star (Oct 31: a world round one
+## star passes in front of it) -- and its near half told by where on its own ring
+## a point is (its z less its centre's).
 static func _old_runs(view) -> Array:
 	var out: Array = []
 	var self_lines = view._lines
@@ -228,6 +235,8 @@ static func _old_runs(view) -> Array:
 	var hole: Vector2 = self_lines._star_hole()
 	var hole2: Vector2 = self_lines._star2_hole()
 	var o2: Vector2 = view.star_screen(SystemLayout.STAR_B)
+	var two := hole2.x > 0.0
+	var d2: float = L.star2_at.y
 	var odepth: bool = view.orbit_depth
 	var TILT: float = SystemViewS.TILT
 	for bi in L.bodies.size():
@@ -260,8 +269,8 @@ static func _old_runs(view) -> Array:
 			if ring_ab.x > 0.0 and not off_world:
 				var rq: Vector2 = (sp - view.world_c(bi)) / ring_ab
 				off_world = rq.length_squared() < 1.0
-			if not win.has_point(sp) or pow((sp.x - o.x) / hole.x, 2.0) + pow((sp.y - o.y) / hole.y, 2.0) < 1.0 or off_world \
-					or (hole2.x > 0.0 and pow((sp.x - o2.x) / hole2.x, 2.0) + pow((sp.y - o2.y) / hole2.y, 2.0) < 1.0):
+			if not win.has_point(sp) or ((not two or op.z < 0.0) and pow((sp.x - o.x) / hole.x, 2.0) + pow((sp.y - o.y) / hole.y, 2.0) < 1.0) or off_world \
+					or (two and op.z < d2 and pow((sp.x - o2.x) / hole2.x, 2.0) + pow((sp.y - o2.y) / hole2.y, 2.0) < 1.0):
 				if pts.size() > 1:
 					out.append([pts, cols])
 				pts = PackedVector2Array()
