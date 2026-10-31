@@ -413,10 +413,12 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 			S.ring_corners = int(S.ring_corners) + 1
 		if cv > CORNER and pl.res != null:
 			S["corners%d" % int(zz)] = int(S["corners%d" % int(zz)]) + 1
-			if key != "free" and key != "near":
+			var game: bool = key != "free" and key != "near"
+			if game:
 				S["game_corners%d" % int(zz)] = int(S["game_corners%d" % int(zz)]) + 1
-			if (S.cornered as Array).size() < 20:
-				(S.cornered as Array).append("%s: %.0f deg/px at zoom %d" % [where, cv, int(zz)])
+			# (the game's own starts first: a harness's free starts fill a list)
+			if (S.cornered as Array).size() < 20 or game:
+				(S.cornered as Array).insert(0 if game else (S.cornered as Array).size(), "%s%s: %.0f deg/px at zoom %d" % ["A GAME'S START, " if game else "", where, cv, int(zz)])
 			if _why != "":
 				_corner_why(pl, path3, zz)
 	_category(sweep, key, fl, L, pl, path3, i, b)
@@ -1319,7 +1321,7 @@ func _report(cap: Dictionary) -> void:
 			print("    not found: %s" % l)
 		for l2 in (S.not_landed as Array).slice(0, 12):
 			print("    NOT LANDED: %s" % l2)
-		for l3 in S.cornered:
+		for l3 in (S.cornered as Array).slice(0, 24):
 			print("    CORNER: %s" % l3)
 		for l4 in S.snapped:
 			print("    SNAP: %s" % l4)

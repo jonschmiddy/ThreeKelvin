@@ -389,6 +389,8 @@ var _budget := BUDGET
 ## and whether the scan is the wider one's
 var _tcap := T_CAP
 var _wide := false
+## where the coast just flown first turns tighter than the map draws (`_coast_tight`)
+var _tight_t := INF
 
 ## a place's centre and motion (`_dep_at`, `_tgt_at` write these)
 var _cx := 0.0
@@ -493,8 +495,13 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 				_b = {}
 				# (a budget of its own, so it finds what a fresh search would)
 				_budget = _n_integ + BUDGET
+				# (and the wider search when that finds nothing, as a fresh plan has:
+				# without it a kept flight of 359 stood where a fresh one found 206,
+				# SolveTest Oct 31)
 				_tcap = T_CAP
 				_search()
+				if _b_J == INF:
+					_search_wide()
 				if _b_J == INF or _b_J + _warm_slack(_b_J) >= wj:
 					_b_J = wj
 					_b = wb
@@ -805,6 +812,7 @@ func _fly(ux: float, uz: float, has_fix: bool, a_fix: float) -> float:
 	var t1 := Time.get_ticks_usec()
 	# (a departure burn that swings the ship round a point is not flown: `V_CUSP`)
 	if not (_dk == 0 and _departure_cusps()):
+		_tight_t = _coast_tight()
 		_price()
 	_us_int += t1 - t0
 	_us_price += Time.get_ticks_usec() - t1
@@ -853,6 +861,32 @@ func _turn_round(kmin: int, kend: int) -> float:
 	while kb < kend and _cVX[kb] * _cVX[kb] + _cVZ[kb] * _cVZ[kb] < V_SLOW * V_SLOW:
 		kb += 1
 	return absf(Vector2(_cVX[ka], _cVZ[ka]).angle_to(Vector2(_cVX[kb], _cVZ[kb])))
+
+
+## WHERE THE COAST FIRST TURNS TIGHTER THAN THE MAP CAN DRAW (DRAW_K at zoom
+## 1), or INF; an arrival whose burn starts after it is not flown. A coast that
+## all but stops at the top of its climb and falls back turns there round a
+## fraction of a px: out of a settled star orbit, climbing to 1.0 px/s, it drew
+## 66 deg a px at zoom 1 (FlightTest, seed 1999 system 226, Oct 31). Read on
+## each step's straight change of velocity, at its slowest.
+func _coast_tight() -> float:
+	var k := 0
+	while k < _cn - 1 and _cT[k] < _tc0 - 1e-9:
+		k += 1
+	while k < _cn - 1:
+		var h := _cT[k + 1] - _cT[k]
+		if h > 1e-9:
+			var dvx := _cVX[k + 1] - _cVX[k]
+			var dvz := _cVZ[k + 1] - _cVZ[k]
+			var dd := dvx * dvx + dvz * dvz
+			var u := clampf(-(_cVX[k] * dvx + _cVZ[k] * dvz) / dd, 0.0, 1.0) if dd > 1e-12 else 0.0
+			var vx := _cVX[k] + dvx * u
+			var vz := _cVZ[k] + dvz * u
+			var dn := pow(vx * vx + DRAW_TILT * DRAW_TILT * vz * vz, 1.5)
+			if dn > 1e-12 and DRAW_TILT * absf(vx * dvz - vz * dvx) / h / dn > DRAW_K:
+				return _cT[k] + u * h
+		k += 1
+	return INF
 
 
 ## Whether the arrival burn ending at te (`_arrival`'s [.., d, dxx, dxz, dux,
@@ -1929,7 +1963,7 @@ func _price() -> void:
 			if ar.is_empty():
 				break
 			var tb := te - ar[2]
-			if tb < _tc0 + TB_PAD:
+			if tb < _tc0 + TB_PAD or tb > _tight_t:
 				break
 			cost = ar[0] + TIME_W * (te - t_now)
 			if cost >= best:

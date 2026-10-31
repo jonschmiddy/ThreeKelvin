@@ -502,8 +502,9 @@ func _settle_centre(st: FreeState) -> void:
 	var r := (st.p - L.bary).length()
 	var r_out := _bary_out()
 	if r < r_out and dn - zn < r_out - r:
-		# (inside the pair: the nearer zone's edge is the shorter way)
-		_round_star(st, near, zn)
+		# (inside the pair: the nearer zone's edge is the shorter way, out past
+		# the ring of the world round that star where it crosses it)
+		_round_star(st, near, _clear_round(near, zn))
 		return
 	st.cen = L.bary
 	st.cen_id = -9
@@ -528,13 +529,34 @@ func _zone(p: int) -> float:
 
 
 ## THE LEAST CIRCLE ROUND A TWIN'S BALANCE POINT THAT IS OUTSIDE THE PAIR: clear
-## of each star's capture ring by STAR_ORBIT_GAP.
+## of each star's capture ring by STAR_ORBIT_GAP, and of the band each world
+## round one star sweeps (as the arrival orbit keeps clear of it, `arrival_r`).
 const STAR_ORBIT_GAP := 12.0
 func _bary_out() -> float:
 	var r := 0.0
 	for p in _stars:
 		r = maxf(r, (L.star_pos(p) - L.bary).length() + star_ring(p) + STAR_ORBIT_GAP)
+	for b in L.bodies:
+		if SystemLayout.is_star(b.host_id) and b.world != &"":
+			r = maxf(r, (b.host - L.bary).length() + b.orbit + _band(b))
 	return r
+
+
+## A circle of radius r round twin star p, moved out past the band a world
+## round that star sweeps where it would cross it: a ship let go between the
+## stars settled on its zone's edge, which a world there can ring, and was taken
+## onto that world (FlightTest, Oct 31: 1 of 20).
+func _clear_round(p: int, r: float) -> float:
+	for b in L.bodies:
+		if b.host_id == p and b.world != &"" and absf(r - b.orbit) < _band(b):
+			r = b.orbit + _band(b)
+	return r
+
+
+## How far either side of its circle a world's ring reaches, well clear (as
+## `arrival_r` keeps it).
+func _band(b: SystemLayout.Body) -> float:
+	return b.soi * 1.3 + 10.0
 
 
 ## THE WIDEST CIRCLE ROUND IT INSIDE THE MAP: the edge is measured from star A,
