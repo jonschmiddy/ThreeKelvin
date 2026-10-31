@@ -602,6 +602,9 @@ func _process(delta: float) -> void:
 ## THE SHIP AND THE VIEW, a frame on: the arrows pan (eased), WASD flies, the
 ## dotted line is run forward, and the panel follows the ship into an orbit.
 func _step_ship(delta: float) -> void:
+	# (flight plans let go of, a freed ship's among them, waited for once done:
+	# never in a frame before they are, `ShipFlight.reap`)
+	ShipFlightS.reap()
 	if flight == null or view.layout == null:
 		return
 	_settle_keys()

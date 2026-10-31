@@ -31,6 +31,15 @@ extends Node
 ## index), a slow ship let go inside each place's ring, and `worker` plans made
 ## on WorkerThreadPool (`plan_bg`): the same flights bit for bit, how long each
 ## took there, its take-in on this thread, and this thread's frames meanwhile.
+## Then THE CLICKS THROUGH THE MAP'S OWN PATH (`_click_phase`, `clicks=N`): some
+## of the game's starts clicked through `fly_bg` at 60 and 30 frames a second
+## in the map's order, the preview kept as the overlay keeps it, paced to the
+## wall clock while anything is planned -- every click flown and landed with
+## its callback once, W letting go of one still being planned, nothing planned
+## on this thread in a frame, every flight flown on the line drawn for it, no
+## engine error. And FLYING BY HAND IN A TWIN (`_hand_phase`, `hand=0` to skip):
+## let go far out on the far side and between the stars, it settles inside the
+## map and taken by no ring; W at a sun never takes it inside its keep-out.
 ## PASS, per sweep, on the flights the game can start (out of an orbit, a
 ## star's close orbit, a settled star orbit or the edge as arrived, or
 ## alongside: free and close-by starts, coasting at up to 170 px/s, only this
@@ -39,7 +48,10 @@ extends Node
 ## drawn so small its own ends turn faster, a twin's world round one star at
 ## zoom 1, left out where it is ridden, and counted). From every start: every
 ## planned flight landed; no frame's velocity change a snap; every click flew
-## the drawn flight to within DRAWN_PX; every worker plan the same.
+## the drawn flight to within DRAWN_PX; every solved flight ends where the
+## ship's own `center` puts its place; every worker plan the same. A game start
+## the first frame takes onto a ring is counted and not planned (the map would
+## refuse the click there).
 ## Other modes: `retarget` (another place chosen on the way, PASS/FAIL) and
 ## `starride` (out of star orbits, held as the ship rides).
 
@@ -60,13 +72,18 @@ const CORNER := 20.0
 ## and a star's pull near its keep-out about twice that.
 const SNAP_RATIO := 4.0
 const SNAP_DV := 6.0
-## the longest a flight may take, from the click to on its orbit: the ride
-## (`FlightSolve.LEAD_MAX` 4.4 s), the coast (T_CAP 30 s from its departure),
-## the insertion or the stop alongside, and slack. It was 16 s when flights
-## were time-scaled conics of 4 to 12 s; on map time they take up to 30.
+## the longest a flight may take, from the click to on its orbit: from its plan
+## to its arrival T_CAP 30 s, ride and all (T_CAP_WIDE 40 s for the few only
+## the wider search finds), the plan made up to PREVIEW_AHEAD 1 s on, the
+## insertion or the stop alongside, and slack. It was 16 s when flights were
+## time-scaled conics of 4 to 12 s; on map time they take up to 30, or 40.
 const FLY_MAX := 45.0
 ## the click comes up to this long after the first plan (s)
 const CLICK_S := 1.5
+## the overlay's preview line, laid out to this many points (`SystemOverlay.PV_N`)
+const PV_LINE := 1600
+## a solved flight ends this close to where `ShipFlight.center` puts its place (px)
+const END_PX := 0.05
 
 var h := Harness.new()
 var _n_seeds := 3
@@ -95,6 +112,33 @@ var _sw := {}
 var _cat := {}
 ## the cases to plan again on a worker: [sweep, L, start, b, i, t, plan]
 var _wk: Array = []
+## THE CLICKS THROUGH THE MAP'S OWN PATH (`_click_phase`): [sweep, L, start, b,
+## i, t, node index] per sweep, and how many of each sweep to click at each frame
+## rate (`clicks=N`: twins N, the others half)
+var _ck := {"one": [], "giant": [], "twin": []}
+var _clicks := 16
+## `hand=0`: no flying by hand (`_hand_phase`)
+var _hand := true
+var _errs := ErrCount.new()
+
+
+## Every engine error while the map's own paths run (a task waited for twice, a
+## task let go of and never waited): there must be none.
+class ErrCount extends Logger:
+	var n := 0
+	var first: Array[String] = []
+	var lock := Mutex.new()
+
+	func _log_error(function: String, file: String, line: int, code: String, rationale: String,
+			_editor_notify: bool, _error_type: int, _script_backtraces: Array[ScriptBacktrace]) -> void:
+		lock.lock()
+		n += 1
+		if first.size() < 8:
+			first.append("%s  (%s:%d %s)" % [rationale if rationale != "" else code, file, line, function])
+		lock.unlock()
+
+	func _log_message(_message: String, _error: bool) -> void:
+		pass
 
 
 func _ready() -> void:
@@ -108,6 +152,10 @@ func _ready() -> void:
 			_only = s.substr(5)
 		elif s.begins_with("worker="):
 			_worker_n = int(s.substr(7))
+		elif s.begins_with("clicks="):
+			_clicks = int(s.substr(7))
+		elif s == "hand=0":
+			_hand = false
 		elif s.begins_with("out="):
 			_out = s.substr(4)
 		elif s.begins_with("flight="):
@@ -136,7 +184,7 @@ func _stat(sweep: String) -> Dictionary:
 			"flown": 0, "landed": 0, "ms": [], "T": [], "work": [], "lead": [], "clicks": 0, "drawn": 0,
 			"drawn_px": [], "corners1": 0, "corners2": 0, "turn1": [], "turn2": [], "snaps": 0, "frame_dv": 0.0,
 			"frame_ratio": 0.0, "star": INF, "keep": INF, "world": INF, "speed": 0.0, "not_found": [], "not_landed": [],
-			"cornered": [], "snapped": [], "off_drawn": [], "nose": 0.0, "by_start": {}, "systems": 0, "redrawn": 0, "ring_corners": 0, "game_corners1": 0, "game_corners2": 0}
+			"cornered": [], "snapped": [], "off_drawn": [], "nose": 0.0, "by_start": {}, "systems": 0, "redrawn": 0, "ring_corners": 0, "game_corners1": 0, "game_corners2": 0, "unflyable": 0, "end_off": 0.0, "belt_ends": 0}
 	return _sw[sweep]
 
 
@@ -202,6 +250,11 @@ func _run() -> void:
 				n2.twin = was2
 		print("flighttest: seed %d: %s systems" % [sd, counts])
 	await _worker_phase()
+	OS.add_logger(_errs)
+	await _click_phase()
+	if _hand:
+		_hand_phase()
+	OS.remove_logger(_errs)
 	_report(cap)
 	print("flighttest: all of it took %.0f s" % ((Time.get_ticks_msec() - t_all) / 1000.0))
 	h.verdict("flighttest")
@@ -288,6 +341,12 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 	# (taken by the place's ring already: nothing to fly)
 	if fl.orbit_body() == i:
 		return
+	# (a game's start the first frame took elsewhere -- a star orbit put inside a
+	# world's ring, taken onto it -- is no longer a start a flight can leave from:
+	# the map would refuse the click, `can_fly`; counted, not planned)
+	if key != "free" and key != "near" and not fl.can_fly():
+		S.unflyable = int(S.unflyable) + 1
+		return
 	var where := "seed %d system %d (%s, %s) from %s %d to %d" % [sd, n.index, MapGen.star_name(n), sweep, key, b, i]
 	var bs: Dictionary = S.by_start
 	if not bs.has(key):
@@ -319,6 +378,20 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 		S.keep = minf(float(S.keep), pl.res.clear)
 		if int(_wk.size()) < _worker_n * 3 and (_wk.size() % 3 == 0 or sweep == "twin"):
 			_wk.append([sweep, L, key, b, i, t, pl, n.index])
+		# (the game's starts, every few, for the clicks through the map's path)
+		if key != "free" and key != "near" and int(S.plans) % 5 == 2:
+			(_ck[sweep] as Array).append([sweep, L, key, b, i, t, n.index])
+	# WHERE IT ENDS, against where the ship's own `center` puts the place then
+	# (the solver's place is MapGravity's copy of the layout's; a belt's beacon
+	# rides round the belt's host, which `center` once took for the origin)
+	if pl.res != null:
+		var ce: Vector3 = fl.center(i, float(pl.end.t))
+		var arl: Vector2 = pl.end.arel
+		var ep: Vector3 = pl.end.p
+		var de := Vector2(ce.x + arl.x - ep.x, ce.z + arl.y - ep.z).length()
+		S.end_off = maxf(float(S.end_off), de)
+		if i >= 0 and L.bodies[i].kind == &"belt":
+			S.belt_ends = int(S.belt_ends) + 1
 	var m := _measure(fl, L, pl, i, t, b if key == "orbit" or key == "close" else -9)
 	S.star = minf(float(S.star), float(m.star))
 	S.world = minf(float(S.world), float(m.world))
@@ -865,6 +938,359 @@ func _worker_phase() -> void:
 	h._ok("every worker plan the same flight as this thread's (%d of %d)" % [same, tried], same == tried and tried > 0)
 
 
+## THE CLICK AS THE MAP MAKES IT (the flight review, Oct 31: no harness clicked
+## through `fly_bg`, and none in a twin): for some of the game's starts in each
+## sweep, at 60 and at 30 frames a second, in the map's own order -- the click
+## before the frame's clock moves, then the clock, the ship's step, and the
+## overlay's draw (its preview asked for on a worker, laid out there, taken in
+## when done and kept while it can be flown, as `SystemOverlay._draw_paths`
+## does) -- paced to the wall clock while anything is being planned, so a plan
+## comes in as many frames late as it would. Some clicks come while the preview
+## is still being made (the click takes its job over), some let go with W while
+## their plan is still coming. Counted: flown, landed, the callback once on the
+## orbit, put there, stale take-ins, a frame the step took over 20 ms (a plan
+## made on this thread), frames from the click to the flight, and each flown
+## frame against the line the overlay drew (the polyline `ShipFlight.lay_out`
+## laid out, which is what is on screen).
+func _click_phase() -> void:
+	var tree := get_tree()
+	var tot := {}
+	var lines: Array = []
+	for fps: float in [60.0, 30.0]:
+		var dt := 1.0 / fps
+		for sweep: String in ["twin", "one", "giant"]:
+			var pool: Array = _ck[sweep]
+			if pool.is_empty():
+				continue
+			var want := _clicks if sweep == "twin" else maxi(1, _clicks / 2)
+			var picks := _spread(pool.size(), want)
+			var key2 := "%s at %.0f fps" % [sweep, fps]
+			var T := {"clicks": 0, "flown": 0, "landed": 0, "cb_ok": 0, "put": 0, "stale": 0, "sync": 0, "pend": [], "drawn": 0,
+				"drawn_px": [], "w_n": 0, "w_ok": 0, "adopt": 0, "undrawn": 0, "take_us": []}
+			for ci in picks.size():
+				var row: Array = pool[picks[ci]]
+				var L: SystemLayout = row[1]
+				var key: String = row[2]
+				var b: int = row[3]
+				var i: int = row[4]
+				var t: float = row[5]
+				var fl = _flight_script.new()
+				fl.setup(L, Vector2(-L.edge * 0.95, 0.0), t)
+				_start(fl, L, key, b, t, int(row[6]))
+				fl.step(dt, t, NONE)
+				if not fl.can_fly() or fl.orbit_body() == i:
+					continue
+				var where := "%s system %d from %s %d to %d" % [key2, int(row[6]), key, b, i]
+				# (most click on the line drawn; some while the preview is still
+				# being made, some with none drawn -- planned for the click -- and
+				# some of those let go of with W while it is)
+				var adopt := ci % 5 == 4
+				var w_cancel := not adopt and ci % 4 == 3
+				var undrawn := w_cancel or (not adopt and ci % 3 == 1)
+				var R := RandomNumberGenerator.new()
+				R.seed = int(row[6]) * 31 + i * 7 + ci
+				# THE PREVIEW, as the overlay keeps it, up to the click
+				var pv = null
+				var pv_at := -99.0
+				var every := 3.0 if fl.mode == &"rail" else 1.0
+				var click_at := t + 0.4 + R.randf() * 1.1
+				var w0 := Time.get_ticks_usec()
+				var fr := 0
+				var asked := false
+				while true:
+					if adopt and asked:
+						break
+					if not adopt and t >= click_at and pv != null:
+						break
+					if t > click_at + 4.0:
+						break
+					await tree.process_frame
+					_pace(w0, fr, dt)
+					fr += 1
+					t += dt
+					fl.step(dt, t, NONE)
+					var gone: bool = pv != null and (t >= float(pv.t0) - ShipFlightS.PLAN_AHEAD or fl._takeable(pv, t).is_empty())
+					if not fl.planning(&"preview") and (pv == null and pv_at < -1.0 or gone or t - pv_at > every):
+						if fl.plan_bg(i, t, pv.choice if pv != null else {}, &"preview", PV_LINE):
+							asked = true
+							pv_at = t
+					var tu := Time.get_ticks_usec()
+					var got: Dictionary = fl.take_bg(&"preview", t)
+					if not got.is_empty():
+						(T.take_us as Array).append(float(Time.get_ticks_usec() - tu))
+						var pl = got.plan
+						if pl != null and not fl._takeable(pl, t).is_empty():
+							pv = pl
+						elif pl != null:
+							pv_at = -99.0
+				# THE CLICK, before the frame's clock moves
+				T.clicks = int(T.clicks) + 1
+				if adopt:
+					T.adopt = int(T.adopt) + 1
+				if undrawn:
+					T.undrawn = int(T.undrawn) + 1
+					pv = null
+					fl.drop_bg(&"preview")
+				var calls := [0, -99]
+				var st0: int = ShipFlightS.n_stale
+				var ok: bool = fl.fly_bg(i, t, func() -> void:
+					calls[0] += 1
+					calls[1] = fl.reached(), pv.choice if pv != null else {}, pv)
+				if not ok:
+					lines.append("REFUSED: %s" % where)
+					continue
+				var took := -1
+				var flew_drawn := false
+				var flown_pl = null
+				var fline := PackedVector3Array()
+				var off := 0.0
+				var jl := 0
+				var w0b := Time.get_ticks_usec()
+				var fb := 0
+				var put := false
+				var landed := false
+				for k in int(FLY_MAX / dt):
+					var pend: bool = not (fl._pend as Dictionary).is_empty()
+					if pend:
+						await tree.process_frame
+						_pace(w0b, fb, dt)
+						fb += 1
+					t += dt
+					var keys: Dictionary = NONE
+					if w_cancel and pend and k == 1:
+						keys = {"w": true, "a": false, "s": false, "d": false}
+					var s0 := Time.get_ticks_usec()
+					fl.step(dt, t, keys)
+					if Time.get_ticks_usec() - s0 > 20000:
+						T.sync = int(T.sync) + 1
+					if keys.w:
+						T.w_n = int(T.w_n) + 1
+						if (fl._pend as Dictionary).is_empty() and not fl.planning(&"fly") and fl.mode == &"free":
+							T.w_ok = int(T.w_ok) + 1
+						else:
+							lines.append("W DID NOT LET GO: %s (mode %s)" % [where, fl.mode])
+						break
+					if took < 0 and (fl._pend as Dictionary).is_empty():
+						took = k + 1
+						(T.pend as Array).append(float(took))
+						if fl.plan == null and calls[0] > 0:
+							put = true
+						elif fl.plan != null:
+							flew_drawn = pv != null and ((fl.plan.res != null and fl.plan.res == pv.res) or fl.plan == pv)
+							# the flight as the overlay draws it once it is flown (its
+							# own line, `_plan_line`): the preview's, or the one
+							# planned for the click and laid out
+							flown_pl = pv if flew_drawn else fl.plan
+							fline = (flown_pl.line[0] if (flown_pl.line as Array).size() == 3 else fl.lay_out(flown_pl, PV_LINE)[0])
+					# THE FLOWN FRAME AGAINST THE LINE DRAWN for its stretch: from its
+					# departure (a settled star orbit's ride round to it is not drawn)
+					# to the ring drawn after its arrival
+					if flown_pl != null and not fline.is_empty():
+						var te: float = float(flown_pl.end.get("t", float(flown_pl.t0) + float(flown_pl.dur)))
+						if t >= float(flown_pl.t0) and t <= te + 0.9 * ShipFlightS.TAIL_S:
+							var p3: Vector3 = fl.where3()
+							var r2 := _near_line(Vector2(p3.x, p3.z), fline, jl)
+							jl = int(r2[1])
+							off = maxf(off, float(r2[0]))
+					if fl.reached() == i and calls[0] > 0:
+						landed = true
+						break
+				var stales: int = ShipFlightS.n_stale - st0
+				T.stale = int(T.stale) + stales
+				if put:
+					T.put = int(T.put) + 1
+					lines.append("PUT THERE: %s" % where)
+				if took >= 0 and not put:
+					T.flown = int(T.flown) + 1
+				if landed:
+					T.landed = int(T.landed) + 1
+				var cb_ok: bool = calls[0] == 1 and int(calls[1]) == i
+				if landed and cb_ok:
+					T.cb_ok = int(T.cb_ok) + 1
+				elif not w_cancel and lines.size() < 40:
+					lines.append("%s: callback %d times (at %d), landed %s, mode %s" % [where, calls[0], calls[1], landed, fl.mode])
+				if flew_drawn:
+					T.drawn = int(T.drawn) + 1
+				if flown_pl != null:
+					(T.drawn_px as Array).append(off)
+					if off > DRAWN_PX and lines.size() < 40:
+						lines.append("OFF THE DRAWN LINE %.2f px: %s" % [off, where])
+			tot[key2] = T
+	print("flighttest: clicks through the map's own path (fly_bg, the preview as the overlay keeps it), paced to the wall clock while planning")
+	var all_ok := true
+	for key3: String in tot:
+		var T2: Dictionary = tot[key3]
+		var n_fly: int = int(T2.clicks) - int(T2.w_n)
+		print("  %s: %d clicks (%d while the preview was being made, %d with none drawn), %d flown, %d landed, %d with the callback once on the orbit, %d put there; %d stale take-ins planned again, %d frames over 20 ms in the step; W let go of %d of %d still being planned" % [key3, T2.clicks, T2.adopt, T2.undrawn, T2.flown, T2.landed, T2.cb_ok, T2.put, T2.stale, T2.sync, T2.w_ok, T2.w_n])
+		print("    frames from the click to the flight: %s; the preview's take-in on this thread: %s us" % [_dist(T2.pend), _dist(T2.take_us)])
+		print("    flew the preview drawn before the click: %d; every flight's frames against the line the overlay draws for it, px: %s" % [T2.drawn, _dist(T2.drawn_px)])
+		var off_ok := true
+		for x in T2.drawn_px:
+			if float(x) > DRAWN_PX:
+				off_ok = false
+		var ok3: bool = int(T2.landed) == n_fly and int(T2.cb_ok) == n_fly and int(T2.w_ok) == int(T2.w_n) and int(T2.sync) == 0 and off_ok and n_fly > 0
+		h._ok("%s: every click flew and landed with its callback once (%d of %d), W let go of every one being planned (%d of %d), no frame planned on this thread, every flight that was drawn flown on its line within %.1f px" % [key3, T2.cb_ok, n_fly, T2.w_ok, T2.w_n, DRAWN_PX], ok3)
+		all_ok = all_ok and ok3
+	for l in lines.slice(0, 30):
+		print("    " + l)
+	print("  engine errors while the map's paths ran: %d" % _errs.n)
+	for e in _errs.first:
+		print("    error: " + e)
+	h._ok("no engine error while clicking through the map's paths (%d)" % _errs.n, _errs.n == 0)
+
+
+## The map's frames paced to the wall clock: frame fr ends no sooner than (fr +
+## 1) dt after w0 (a frame of the game's, at that rate).
+func _pace(w0: int, fr: int, dt: float) -> void:
+	var want := int(float(fr + 1) * dt * 1e6)
+	var spent := Time.get_ticks_usec() - w0
+	if spent < want:
+		OS.delay_usec(want - spent)
+
+
+## How far p is from a laid-out line (plane px), looking on from point j0:
+## [distance, the segment it is nearest].
+static func _near_line(p: Vector2, line: PackedVector3Array, j0: int) -> Array:
+	var best := INF
+	var bj := j0
+	for j in range(maxi(1, j0 - 8), mini(line.size(), j0 + 64)):
+		var a := Vector2(line[j - 1].x, line[j - 1].z)
+		var b := Vector2(line[j].x, line[j].z)
+		var ab := b - a
+		var u := clampf((p - a).dot(ab) / maxf(ab.length_squared(), 1e-12), 0.0, 1.0)
+		var d := (a + ab * u - p).length()
+		if d < best:
+			best = d
+			bj = j
+	return [best, bj]
+
+
+## FLYING BY HAND IN A TWIN, as the flight review let go and held W (Oct 31),
+## in each twin the clicks used: let go out on the far side from star B (0.99 of
+## the edge, drifting 8 px/s along), it settles round both stars on a circle
+## inside the map and stays off the edge, and a flight from there stays inside
+## it; let go between the stars (3 and 25 px off their balance point, at rest),
+## it settles, taken by no ring; W held at each star at 150 px/s, it never comes
+## inside its keep-out (6 px outside its sun as drawn at the opening zoom).
+func _hand_phase() -> void:
+	var seen := {}
+	var dt := 1.0 / 60.0
+	var n := {"far": 0, "far_ok": 0, "far_flights": 0, "far_fl_ok": 0, "mid": 0, "mid_ok": 0, "sun": 0, "sun_ok": 0}
+	var rows: Array = []
+	var worst_out := -INF
+	var worst_settle := 0.0
+	var worst_sun := INF
+	for row: Array in _ck.twin:
+		var L: SystemLayout = row[1]
+		if seen.has(int(row[6])) or seen.size() >= 10:
+			continue
+		seen[int(row[6])] = true
+		var t0: float = row[5]
+		var away := -L.star2_at.normalized()
+		var perp := Vector2(-away.y, away.x)
+		# OUT ON THE FAR SIDE
+		var fl = _flight_script.new()
+		fl.setup(L, Vector2(-L.edge * 0.95, 0.0), t0)
+		fl.mode = &"free"
+		fl.f.p = away * L.edge * 0.99
+		fl.f.v = perp * 8.0
+		fl.f.orbit_r = -1.0
+		fl.f.coast = 0.0
+		var t := t0
+		var settled_at := -1.0
+		var pinned := 0
+		for k in int(60.0 / dt):
+			t += dt
+			fl.step(dt, t, NONE)
+			if settled_at < 0.0 and fl.star_orbiting():
+				settled_at = float(k) * dt
+			if settled_at >= 0.0 and (fl.f.p as Vector2).length() > L.edge - 0.5:
+				pinned += 1
+		n.far = int(n.far) + 1
+		var out: float = (fl.f.cen as Vector2).length() + float(fl.f.orbit_r) - L.edge
+		worst_out = maxf(worst_out, out)
+		worst_settle = maxf(worst_settle, settled_at if settled_at >= 0.0 else 99.0)
+		var far_ok: bool = settled_at >= 0.0 and settled_at < 30.0 and out <= -11.0 and pinned == 0
+		if far_ok:
+			n.far_ok = int(n.far_ok) + 1
+		else:
+			rows.append("far side, system %d: settled at %.1f s, its circle %+.0f px past the edge, %d frames on the edge after" % [int(row[6]), settled_at, out, pinned])
+		if fl.star_orbiting():
+			var tg: Array[int] = [-1]
+			for bb in L.bodies:
+				if bb.world != &"":
+					tg.append(bb.index)
+					break
+			for i2: int in tg:
+				var pl = fl.make_plan(i2, t, {}, ShipFlightS.PREVIEW_AHEAD)
+				if pl == null:
+					continue
+				n.far_flights = int(n.far_flights) + 1
+				var past := -INF
+				for q: Vector3 in pl.samp:
+					past = maxf(past, Vector2(q.x, q.z).length() - L.edge)
+				if past <= 0.5:
+					n.far_fl_ok = int(n.far_fl_ok) + 1
+				else:
+					rows.append("far side, system %d: the flight to %d runs %.1f px past the edge" % [int(row[6]), i2, past])
+		# BETWEEN THE STARS
+		for r0: float in [3.0, 25.0]:
+			var fm = _flight_script.new()
+			fm.setup(L, Vector2(-L.edge * 0.95, 0.0), t0)
+			fm.mode = &"free"
+			fm.f.p = L.bary + Vector2(-L.star2_at.y, L.star2_at.x).normalized() * r0
+			fm.f.v = Vector2.ZERO
+			fm.f.orbit_r = -1.0
+			fm.f.coast = 0.0
+			var tm := t0
+			var st_at := -1.0
+			var taken := false
+			for k2 in int(15.0 / dt):
+				tm += dt
+				fm.step(dt, tm, NONE)
+				if fm.mode != &"free":
+					taken = true
+					break
+				if fm.star_orbiting():
+					st_at = float(k2) * dt
+					break
+			n.mid = int(n.mid) + 1
+			if st_at >= 0.0 and st_at < 10.0 and not taken:
+				n.mid_ok = int(n.mid_ok) + 1
+			else:
+				rows.append("between the stars, system %d, %.0f px off: settled at %.1f s, taken by a ring %s (mode %s, %d)" % [int(row[6]), r0, st_at, taken, fm.mode, fm.orbit_body()])
+		# W HELD AT EACH SUN
+		for s: int in L.stars():
+			var sc := L.star_pos(s)
+			var dir := Vector2(-L.star2_at.y, L.star2_at.x).normalized()
+			var fw = _flight_script.new()
+			fw.setup(L, Vector2(-L.edge * 0.95, 0.0), t0)
+			fw.mode = &"free"
+			fw.f.p = sc + dir * 170.0
+			fw.f.v = -dir * 150.0
+			fw.f.orbit_r = -1.0
+			fw.f.head = ShipFlightS._scr_ang(-dir)
+			fw.ang = fw.f.head
+			var tw := t0
+			var rmin := INF
+			for _k3 in int(4.0 / dt):
+				tw += dt
+				fw.step(dt, tw, {"w": true, "a": false, "s": false, "d": false})
+				rmin = minf(rmin, ((fw.f.p as Vector2) - sc).length())
+			n.sun = int(n.sun) + 1
+			var kc: float = float(fw.keep_clear(s))
+			worst_sun = minf(worst_sun, rmin - (kc - 6.0))
+			if rmin >= kc - 0.5:
+				n.sun_ok = int(n.sun_ok) + 1
+			else:
+				rows.append("W at star %d, system %d: came to %.1f px from its centre, its keep-out %.1f (drawn sun %.1f)" % [s, int(row[6]), rmin, kc, kc - 6.0])
+	print("flighttest: flying by hand in a twin (%d systems): let go on the far side, %d of %d settled inside the map and off its edge (its circle at worst %+.0f px past the edge, settled at worst in %.1f s), %d of %d flights from there inside it; let go between the stars, %d of %d settled and taken by no ring; W at a sun, %d of %d held out of its keep-out (at worst %.1f px outside the drawn sun)" % [seen.size(), n.far_ok, n.far, worst_out, worst_settle, n.far_fl_ok, n.far_flights, n.mid_ok, n.mid, n.sun_ok, n.sun, worst_sun])
+	for r in rows.slice(0, 20):
+		print("    " + r)
+	h._ok("by hand in a twin: let go anywhere it settles inside the map, between the stars too, and W never takes it into a sun (%d/%d, %d/%d, %d/%d, %d/%d)" % [n.far_ok, n.far, n.far_fl_ok, n.far_flights, n.mid_ok, n.mid, n.sun_ok, n.sun],
+		int(n.far) > 0 and n.far_ok == n.far and n.far_fl_ok == n.far_flights and n.mid_ok == n.mid and n.sun_ok == n.sun)
+
+
 func _report(cap: Dictionary) -> void:
 	var tot_plans := 0
 	for sweep: String in ["one", "giant", "twin"]:
@@ -887,7 +1313,9 @@ func _report(cap: Dictionary) -> void:
 		print("  corners (over %.0f deg/px in 2 px) in solved flights: zoom 1 %d, zoom 2 %d (from the game's starts %d, %d); and %d on a ring's own curve only (a ring drawn so small its ends turn that fast)" % [CORNER, S.corners1, S.corners2, S.game_corners1, S.game_corners2, S.ring_corners])
 		print("  clicks: %d, %d flew the drawn flight; drawn against flown, px: %s; the drawn flight planned again before the click %d times" % [S.clicks, S.drawn, _dist(S.drawn_px), S.redrawn])
 		print("  flown: biggest frame-to-frame change of velocity %.1f px/s, %.1fx its neighbours; snaps %d; the nose's biggest turn in a frame %.1f deg" % [S.frame_dv, S.frame_ratio, S.snaps, S.nose])
-		for l in (S.not_found as Array).slice(0, 12):
+		if int(S.unflyable) > 0:
+			print("  game starts the first frame took onto a ring (no flight can leave there, not planned): %d" % S.unflyable)
+		for l in (S.not_found as Array).slice(0, 40):
 			print("    not found: %s" % l)
 		for l2 in (S.not_landed as Array).slice(0, 12):
 			print("    NOT LANDED: %s" % l2)
@@ -922,6 +1350,7 @@ func _report(cap: Dictionary) -> void:
 		# printed above, not judged)
 		h._ok("%s: no corner in the drawn path of a solved flight from an orbit, a star orbit or alongside (zoom 1 %d, zoom 2 %d)" % [sweep, S.game_corners1, S.game_corners2], int(S.game_corners1) == 0 and int(S.game_corners2) == 0)
 		h._ok("%s: no snap in a flown frame (%d)" % [sweep, S.snaps], int(S.snaps) == 0)
+		h._ok("%s: every solved flight ends where the ship's own centre puts its place, a belt's beacon round its host among them (%d), within %.2f px (worst %.4f)" % [sweep, S.belt_ends, END_PX, S.end_off], float(S.end_off) <= END_PX)
 		var off_ok := true
 		for x in S.drawn_px:
 			if float(x) > DRAWN_PX:

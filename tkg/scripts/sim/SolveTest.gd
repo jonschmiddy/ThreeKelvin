@@ -456,17 +456,6 @@ static func ends(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Array:
 	return PackedFloat64Array([e0, ev0, e1, ev1])
 
 
-## How far `ShipFlight.center`'s belt rule (round the origin, today) puts a
-## belt's beacon from the Body's own place round its host, at t: 0 but in a
-## twin, where a belt goes round both stars.
-static func belt_rule_off(L: SystemLayout, p: int, t: float) -> float:
-	if p < 0 or L.bodies[p].kind != &"belt":
-		return 0.0
-	var b := L.bodies[p]
-	var a: float = b.phase + t / b.period * TAU
-	return (Vector2(cos(a) * b.orbit, sin(a) * b.orbit) - b.pos(t)).length()
-
-
 ## The pull the samples show beyond gravity's, every SPAN samples: [the most
 ## in a burn, the most on the coast] (px/s^2).
 static func thrust(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Array:
@@ -562,7 +551,6 @@ func _report(sweep: String) -> void:
 	var worst_land := 0.0
 	var worst_land_v := 0.0
 	var pushed := 0
-	var belt_off := 0
 	var cusped := 0
 	var cusped_free := 0
 	var found_free := 0
@@ -605,8 +593,6 @@ func _report(sweep: String) -> void:
 			landed += 1
 		else:
 			print("  (lands %.3f px, %.2f px/s off: %s)" % [e[2], e[3], c.label])
-		if belt_rule_off(c.L, int(c.tgt.place), r.end.t) > LAND_PX:
-			belt_off += 1
 		# (a free start, coasting at 10 to 40 px/s, is a harness's: the map flies
 		# only out of a ring, a settled star orbit or alongside, `can_fly`, and
 		# the solver turns down a cusp only from those; counted apart)
@@ -677,8 +663,6 @@ func _report(sweep: String) -> void:
 	print("  ride s %s" % _dist(leads))
 	print("  ride: phasing k %s; push along the ring px/s2 %s; top speed px/s %s" % [_dist(ks), _dist(push), _dist(top_v)])
 	print("  worst start %.3f of its tolerance; worst landing %.4f px, %.4f px/s" % [worst_start, worst_land, worst_land_v])
-	if belt_off > 0:
-		print("  (%d arrivals at a belt whose beacon ShipFlight.center, round the origin, puts more than %.1f px from the Body's own)" % [belt_off, LAND_PX])
 	var bar := FOUND_MIN_HAND if sweep == "twin" else FOUND_MIN
 	h._ok("%s: found and clean in at least %.0f%% (%.2f%%)" % [sweep, 100.0 * bar, 100.0 * clean / n], clean >= bar * n)
 	h._ok("%s: every found plan starts on the ship's ring (%d of %d)" % [sweep, started, found], started == found)

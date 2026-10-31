@@ -23,9 +23,15 @@ extends Node
 ## (`VoiceGlitch.from_pcm`); its slowest take-in printed too.
 ## And the sector map's flight plans (ruling 20, Oct 30): `ShipFlight.plan_bg`
 ## solves a flight (`FlightSolve` through `MapGravity`, arrays only) on a worker
-## while the ship rides on, and `take_bg` makes the FlightPlan and its drawn
-## insertion on the main thread; two ships at once, in a two-star system (the
-## slowest plans), from a world's ring to every other place in turn.
+## while the ship rides on, makes its FlightPlan and its drawn insertion there
+## from a snapshot of the ship, and lays its line out (`lay_out`); `take_bg`
+## only takes it in. Two ships at once in a two-star system (the slowest
+## plans), from a world's ring to every other place in turn; a third in a
+## system of one star whose plans all go to today's planner, on the worker too
+## (`old_only`: as a flight the solver finds nothing for); a fourth clicking
+## through `fly_bg` (the preview's job taken over, its plan taken in after the
+## step), letting go with W while one is coming, and set up afresh mid-plan;
+## and a ship freed mid-plan every half second (its task reaped, not waited).
 
 const IDS := ["custodian", "whale", "leviathan"]
 const FAUNA_JOBS := 6
@@ -114,7 +120,44 @@ func _run() -> void:
 		fl.place_at(k % 2, 0.0)
 		ships.append({fl = fl, next = 0})
 	var places: Array[int] = [-1, SystemLayout.STAR_B, 0, 1, 2]
+	# (a system of one star, every plan today's planner's on the worker)
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var one_l: SystemLayout = null
+	for raw in Run.map:
+		var nd: MapGen.MapNode = raw
+		if nd.type == MapGen.NodeType.SYSTEM and not nd.twin:
+			var lo := SystemLayout.of(nd)
+			var nw := 0
+			for b in lo.bodies:
+				if b.world != &"":
+					nw += 1
+			if nw >= 3:
+				one_l = lo
+				break
+	var one_places: Array[int] = [-1]
+	for b2 in one_l.bodies:
+		if b2.world != &"":
+			one_places.append(b2.index)
+	var fo = ShipFlightS.new()
+	fo.setup(one_l, Vector2(-one_l.edge * 0.95, 0.0), 0.0)
+	fo.old_only = true
+	fo.place_at(one_places[1], 0.0)
+	ships.append({fl = fo, next = 0, places = one_places})
+	for sh0: Dictionary in ships:
+		if not sh0.has("places"):
+			sh0.places = places
+	var clicker = ShipFlightS.new()
+	clicker.setup(twin_l, Vector2(-twin_l.edge * 0.95, 0.0), 0.0)
+	clicker.place_at(0, 0.0)
+	var n_click := 0
+	var n_click_flown := 0
+	var n_w := 0
+	var n_setup := 0
+	var n_freed := 0
+	var ck_next := 0
 	var n_plan := 0
+	var n_old := 0
 	var worst_plan := 0
 	var plan_t := 0.0
 
@@ -173,20 +216,57 @@ func _run() -> void:
 		plan_t += 1.0 / 60.0
 		for sh: Dictionary in ships:
 			var fl = sh.fl
+			var pls: Array[int] = sh.places
+			fl.step(1.0 / 60.0, plan_t, {"w": false, "a": false, "s": false, "d": false})
 			var t4 := Time.get_ticks_usec()
 			var got: Dictionary = fl.take_bg(&"preview", plan_t)
 			if not got.is_empty():
 				worst_plan = maxi(worst_plan, Time.get_ticks_usec() - t4)
 				if got.get("plan") != null:
 					n_plan += 1
+					if got.plan.res == null:
+						n_old += 1
 			if not fl.planning(&"preview"):
-				var to: int = places[int(sh.next) % places.size()]
+				var to: int = pls[int(sh.next) % pls.size()]
 				sh.next = int(sh.next) + 1
 				if to == fl.orbit_body():
-					to = places[int(sh.next) % places.size()]
+					to = pls[int(sh.next) % pls.size()]
 					sh.next = int(sh.next) + 1
-				fl.plan_bg(to, plan_t, {}, &"preview")
-			fl.step(1.0 / 60.0, plan_t, {"w": false, "a": false, "s": false, "d": false})
+				fl.plan_bg(to, plan_t, {}, &"preview", 1600)
+		# THE CLICKER, as the map clicks: the preview asked for, the click taking
+		# its job over, the plan taken in after the step; every third click let go
+		# of with W while it is coming, every fifth set up afresh mid-plan; once a
+		# flight is under way, put back on a ring for the next
+		var none4 := {"w": false, "a": false, "s": false, "d": false}
+		var cw := false
+		if not (clicker._pend as Dictionary).is_empty() and ck_next % 3 == 1:
+			cw = true
+			n_w += 1
+		clicker.step(1.0 / 60.0, plan_t, {"w": cw, "a": false, "s": false, "d": false} if cw else none4)
+		if cw:
+			clicker.place_at(0, plan_t)
+		if clicker.can_fly() and (clicker._pend as Dictionary).is_empty():
+			var to2: int = places[ck_next % places.size()]
+			ck_next += 1
+			if to2 != clicker.orbit_body():
+				clicker.plan_bg(to2, plan_t, {}, &"preview", 1600)
+				if clicker.fly_bg(to2, plan_t, func() -> void: pass):
+					n_click += 1
+				if ck_next % 5 == 0:
+					clicker.setup(twin_l, Vector2(-twin_l.edge * 0.95, 0.0), plan_t)
+					clicker.place_at(1, plan_t)
+					n_setup += 1
+		elif clicker.mode == &"fly" or clicker.rail.has("phase") and not clicker.rail.phase.get("wait", false):
+			n_click_flown += 1
+			clicker.place_at(ck_next % 2, plan_t)
+		# A SHIP FREED MID-PLAN (the map left with a plan out): its task reaped
+		if int(plan_t * 60.0) % 30 == 0:
+			var tmp = ShipFlightS.new()
+			tmp.setup(twin_l, Vector2(-twin_l.edge * 0.95, 0.0), plan_t)
+			tmp.place_at(2, plan_t)
+			if tmp.plan_bg(-1, plan_t, {}, &"preview", 1600):
+				n_freed += 1
+			tmp = null
 		# the main thread's own textures, as many as a busy frame makes
 		for k in 4:
 			var tex := ResourceLoader.load(cards[(n_load + k) % cards.size()], "", ResourceLoader.CACHE_MODE_IGNORE) as Texture2D
@@ -223,13 +303,24 @@ func _run() -> void:
 		if fl2.planning(&"preview"):
 			print("threadstress: a flight plan still being made after 600 frames")
 			_log.n += 1
+	# (and every task let go of reaped, waited for as each finishes, no sooner)
+	var fr2 := 0
+	clicker._cancel_flight()
+	while not ShipFlightS._reap.is_empty() and fr2 < 600:
+		ShipFlightS.reap()
+		fr2 += 1
+		await _tree.process_frame
+	if not ShipFlightS._reap.is_empty():
+		print("threadstress: %d flight plans let go of never finished" % ShipFlightS._reap.size())
+		_log.n += 1
 	OS.remove_logger(_log)
-	print("threadstress: %d motion cuts, %d breakups, %d glitched takes, %d flight plans, %d card loads, %d main-thread textures" % [n_cut, n_break, n_voice, n_plan, n_load, n_tex])
+	print("threadstress: %d motion cuts, %d breakups, %d glitched takes, %d flight plans (%d today's planner's, made on the worker), %d card loads, %d main-thread textures" % [n_cut, n_break, n_voice, n_plan, n_old, n_load, n_tex])
+	print("threadstress: the clicker: %d clicks, %d under way, %d let go of with W while planned, %d set up afresh mid-plan; %d ships freed mid-plan" % [n_click, n_click_flown, n_w, n_setup, n_freed])
 	print("threadstress: slowest take-in on the main thread: a motion %.1f ms, a breakup %.1f ms, a take %.1f ms, a flight plan %.1f ms"
 		% [worst_take / 1000.0, worst_break / 1000.0, worst_voice / 1000.0, worst_plan / 1000.0])
 	for l in _log.first:
 		print("  error: " + l)
-	var ok := _log.n == 0 and n_cut > 0 and n_break > 0 and n_voice > 0 and n_plan > 0
+	var ok := _log.n == 0 and n_cut > 0 and n_break > 0 and n_voice > 0 and n_plan > 0 and n_old > 0 and n_click_flown > 0 and n_freed > 0
 	print("threadstress: %s (%d engine errors)" % ["PASS" if ok else "FAIL", _log.n])
 	_tree.quit(0 if ok else 1)
 

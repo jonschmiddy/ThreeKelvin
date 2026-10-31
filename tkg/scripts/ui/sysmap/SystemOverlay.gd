@@ -121,6 +121,8 @@ var _pv_choice: Dictionary = {}
 ## a median of 40 ms), so it comes in a few frames after it is asked for
 var _pv_plan = null
 var _pv_req_key := ""
+## the ship the preview was made for (`_draw_paths` starts afresh on a new one)
+var _pv_flight = null
 ## The flight being flown, laid out once.
 var _fly_line: Array = []
 var _fly_line_plan = null
@@ -648,6 +650,22 @@ func _draw_paths(t: float) -> void:
 	# thrust or settling
 	var by_hand: bool = flight.mode == &"free" and t - float(flight.thrust_t) < 1.0
 	var can: bool = flight.can_fly() and not by_hand
+	# A NEW SHIP (another system shown, or this one again): nothing drawn for the
+	# last one carries over. Its clock starts again at 0 and the arrival orbit's
+	# key is the same every visit, so a preview from an earlier visit could pass
+	# as this one's and, its time ahead of the clock, never be planned again
+	# (the flight review, Oct 31)
+	if flight != _pv_flight:
+		_pv_flight = flight
+		_preview_key = ""
+		_pv_req_key = ""
+		_pv_new = PackedVector3Array()
+		_pv_old = PackedVector3Array()
+		_pv_plan = null
+		_pv_choice = {}
+		_pv_at = -99.0
+		_fly_line = []
+		_fly_line_plan = null
 	if not can:
 		_preview_key = ""
 		_pv_new = PackedVector3Array()
@@ -663,11 +681,13 @@ func _draw_paths(t: float) -> void:
 		# only kept while its hold lasts), and as its departure comes up (the
 		# drawn flight then gives way to the one after it)
 		var every := 3.0 if in_orbit else 1.0
-		# (today's planner, the fallback, made on this thread: as before, every
-		# 2 s at the least)
-		if _pv_plan != null and _pv_plan.res == null:
+		# (today's planner, the fallback, is made on the worker ahead as a solved
+		# flight is, and kept the same way; made for the moment only, every 2 s
+		# at the least, as before)
+		var ahead: bool = _pv_plan != null and (_pv_plan.res != null or _pv_plan.ahead)
+		if _pv_plan != null and not ahead:
 			every = maxf(every, 2.0)
-		var gone: bool = _pv_plan != null and _pv_plan.res != null and (t >= float(_pv_plan.t0) - flight.PLAN_AHEAD or flight._takeable(_pv_plan, t).is_empty())
+		var gone: bool = ahead and (t >= float(_pv_plan.t0) - flight.PLAN_AHEAD or flight._takeable(_pv_plan, t).is_empty())
 		if key != _preview_key and _pv_plan != null and int(_pv_plan.to) != preview_to:
 			# ANOTHER PLACE: the last one's flight is not drawn while this one's is made
 			_pv_plan = null
@@ -677,7 +697,8 @@ func _draw_paths(t: float) -> void:
 			var same := key == _preview_key
 			_preview_key = key
 			_pv_at = t
-			if flight.plan_bg(preview_to, t, _pv_choice if same else {}, &"preview"):
+			# (its line laid out on the worker too, `ShipFlight.lay_out`)
+			if flight.plan_bg(preview_to, t, _pv_choice if same else {}, &"preview", PV_N):
 				_pv_req_key = key
 		var got: Dictionary = flight.take_bg(&"preview", t)
 		if not got.is_empty():
@@ -688,10 +709,18 @@ func _draw_paths(t: float) -> void:
 			# for again
 			if pl != null and int(got.i) == preview_to and _pv_req_key == key and not flight._takeable(pl, t).is_empty():
 				var was_same: bool = _pv_plan != null and int(_pv_plan.to) == preview_to
+				# A SOLVED FLIGHT IS DRAWN AS IT IS, never blended in: the line on
+				# screen is the flight a click flies. Blended over PV_BLEND from
+				# the last, it was another flight for that half second, a fifth of
+				# the time a preview showed (the flight review, Oct 31); the same
+				# flight planned again is the same line point for point, so the
+				# blend only ever showed a flight that had changed. Today's
+				# planner's made for the moment only still blend, as they did.
+				var blend: bool = was_same and _pv_new.size() == PV_N and pl.res == null and not pl.ahead and _pv_plan.res == null and not _pv_plan.ahead
 				_pv_plan = pl
 				_pv_choice = pl.choice
 				var ln: Array = _plan_line(pl, false)
-				_pv_old = _pv_blend() if was_same and _pv_new.size() == PV_N else PackedVector3Array()
+				_pv_old = _pv_blend() if blend else PackedVector3Array()
 				_pv_new = ln[0]
 				_pv_lit = ln[1]
 				_pv_b0 = _clock() if not _pv_old.is_empty() else -99.0
@@ -709,7 +738,7 @@ func _draw_paths(t: float) -> void:
 			# start is eased onto it over the first stretch, not left behind it. A
 			# solved flight's line starts where it leaves the star orbit, ahead of
 			# the ship, as round a ring: eased onto the ship it was not the flight
-			if flight.mode == &"free" and _pv_plan != null and _pv_plan.res == null:
+			if flight.mode == &"free" and _pv_plan != null and _pv_plan.res == null and not _pv_plan.ahead:
 				var off: Vector3 = flight.where3() - pvl[0]
 				if off.length() > 0.5:
 					var step := maxf(pvl[1].distance_to(pvl[0]), 0.01)
@@ -737,41 +766,12 @@ func _pv_blend() -> PackedVector3Array:
 
 ## A WHOLE FLIGHT LAID OUT ALONG ITS LENGTH: PV_N points at even distances along
 ## it (the escape, the coast, the insertion after), whether the engine burns at
-## each, and (`with_u`) how far through the flight each is.
-func _plan_line(pl, with_u: bool) -> Array:
-	var dense := PackedVector3Array()
-	var lit := PackedByteArray()
-	var us := PackedFloat32Array()
-	var n: int = pl.samp.size()
-	for j in range(0, n, 1):
-		dense.append(pl.samp[j])
-		lit.append(1 if pl.burns[j] == 1 else 0)
-		us.append(float(j) / float(maxi(n - 1, 1)))
-	for q in pl.tail:
-		dense.append(q)
-		lit.append(1)
-		us.append(1.0)
-	var cum := PackedFloat32Array()
-	cum.resize(dense.size())
-	var tot := 0.0
-	for j in dense.size():
-		if j > 0:
-			tot += dense[j].distance_to(dense[j - 1])
-		cum[j] = tot
-	var pts := PackedVector3Array()
-	var lits := PackedByteArray()
-	var uu := PackedFloat32Array()
-	var j2 := 0
-	for k in PV_N:
-		var dk := tot * float(k) / float(PV_N - 1)
-		while j2 < dense.size() - 2 and cum[j2 + 1] < dk:
-			j2 += 1
-		var seg := maxf(cum[j2 + 1] - cum[j2], 0.0001) if dense.size() > 1 else 1.0
-		var f := clampf((dk - cum[j2]) / seg, 0.0, 1.0)
-		pts.append(dense[j2].lerp(dense[mini(j2 + 1, dense.size() - 1)], f))
-		lits.append(lit[j2])
-		uu.append(lerpf(us[j2], us[mini(j2 + 1, us.size() - 1)], f))
-	return [pts, lits, uu]
+## each, and how far through the flight each is (`ShipFlight.lay_out`, made on
+## the worker with the plan when it was asked for so, `plan_bg`'s `lay`).
+func _plan_line(pl, _with_u: bool) -> Array:
+	if (pl.line as Array).size() == 3 and (pl.line[0] as PackedVector3Array).size() == PV_N:
+		return pl.line
+	return flight.lay_out(pl, PV_N)
 
 
 ## A LAID-OUT FLIGHT, DOTTED: projected point by point, a smooth curve through
