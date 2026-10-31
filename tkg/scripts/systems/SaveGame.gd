@@ -290,7 +290,15 @@ static var restoring := false
 ## (Jeremy, friends' alpha). Read the way 36 reads 35: a 36 save has no
 ## `found_scrap`, and missing means none -- its found hull offers LEAVE IT, as
 ## a 36 build did. OLDEST_READ stays at 29.
-const VERSION := 37
+## 38: A SYSTEM CAN HAVE TWO SUNS (`twin`, ruling 20). Rolled at generation off
+## its own stream and saved with the node for 25's reason: a save carries the
+## MAP, not the seed. It also decides the whole layout -- which world goes round
+## which star, and every body's index -- so a system that changed its mind
+## across a load would move the ship's parked place and its wrecks' sites
+## (`parked.at`, `Jetsam.site`, both body indices) onto other bodies. Read the
+## way 37 reads 36: a 37 save has no `twin`, and missing means one sun, so its
+## systems lay out as they did. OLDEST_READ stays at 29.
+const VERSION := 38
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
 const OLDEST_READ := 29
@@ -1102,7 +1110,7 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		rows_in_layer = n.rows_in_layer,
 		region = int(n.region), development = int(n.development),
 		star = int(n.star), gas_giant = n.gas_giant,
-		near_pulsar = n.near_pulsar,
+		near_pulsar = n.near_pulsar, twin = n.twin,
 		security = n.security, berths = berths,
 		manufacturer = String(n.manufacturer), fauna = n.fauna,
 		danger = n.danger, type = int(n.type),
@@ -1145,6 +1153,8 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 	n.star = int(d.get("star", 0)) as MapGen.Star
 	n.gas_giant = bool(d.get("gas_giant", false))
 	n.near_pulsar = bool(d.get("near_pulsar", false))
+	# (VERSION 38; missing on a 37 save, which had one sun everywhere)
+	n.twin = bool(d.get("twin", false))
 	n.type = int(d.get("type", 0)) as MapGen.NodeType
 	n.visited = bool(d.get("visited", false))
 	# Absent on a save from before sensors could see. False is the honest

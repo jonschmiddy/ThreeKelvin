@@ -101,7 +101,14 @@ extends Node
 ## 12: a guest tells the host the galaxy it built (`_galaxy_at_host`), and a
 ##    galaxy that differs from the host's is said on every screen
 ##    (`_galaxy_differs`). A version 11 partner sends neither.
-const PROTOCOL: int = 12
+## 13: TWO SUNS (ruling 20). A system can have a second star, and a ship can be
+##    in a close orbit of it: a spot's `body` may be `SystemLayout.STAR_B`
+##    (-4), sent the way -1 is, since both stars hold still. `galaxy_print`
+##    hashes each system's `twin`, so two builds that disagree about which
+##    systems have two suns say their galaxies differ. A version 12 partner
+##    reads a -4 spot as nowhere and draws the ship at the edge, and lays every
+##    twin system out round one star.
+const PROTOCOL: int = 13
 
 ## How long a contested option waits for the host to say who got it.
 ##
@@ -923,9 +930,9 @@ func _apply_presence(id: int, wire: Dictionary, at: int) -> void:
 
 
 ## A galaxy as a number: every system's index, type, layer, danger, region,
-## star, sky facts and position (to a tenth of a chart unit), its links, and the
-## galaxy's name. Coarse on purpose about position, exact about everything a
-## player can act on.
+## star, sky facts (two suns among them, PROTOCOL 13) and position (to a tenth
+## of a chart unit), its links, and the galaxy's name. Coarse on purpose about
+## position, exact about everything a player can act on.
 static func galaxy_print(map: Array, galaxy_name: String) -> int:
 	var parts := PackedStringArray([galaxy_name, str(map.size())])
 	for raw in map:
@@ -933,9 +940,9 @@ static func galaxy_print(map: Array, galaxy_name: String) -> int:
 		var links := PackedStringArray()
 		for l in n.links:
 			links.append(str(l))
-		parts.append("%d:%d:%d:%d:%d:%d:%d%d%d:%d,%d:%s" % [n.index, int(n.type), n.layer,
+		parts.append("%d:%d:%d:%d:%d:%d:%d%d%d%d:%d,%d:%s" % [n.index, int(n.type), n.layer,
 			n.danger, int(n.region), int(n.star), int(n.gas_giant), int(n.near_pulsar),
-			int(n.in_nebula), roundi(n.gal.x * 10.0), roundi(n.gal.y * 10.0), "-".join(links)])
+			int(n.twin), int(n.in_nebula), roundi(n.gal.x * 10.0), roundi(n.gal.y * 10.0), "-".join(links)])
 	return hash("|".join(parts))
 
 

@@ -325,7 +325,9 @@ func _fly_job(st: MapGen.MapNode, offer: ContractData, links: Dictionary, nth: i
 		for b in lay.bodies:
 			if b == jb or _is_job_body(target, b):
 				continue
-			if b.orbit + SystemLayout.reach_of(b) >= jb.orbit - SystemLayout.reach_of(jb):
+			# (by how far each reaches from the job's centre: in a two-sun system a
+			# world circles its own star, not the balance point the job does)
+			if b.host.distance_to(jb.host) + b.orbit + SystemLayout.reach_of(b) >= jb.orbit - SystemLayout.reach_of(jb):
 				return "the job's place overlaps a world's orbit"
 		if jb.kind != (&"contact" if offer.kind == ContractData.Kind.HUNT else &"planet"):
 			return "the job's place is the wrong kind of place"

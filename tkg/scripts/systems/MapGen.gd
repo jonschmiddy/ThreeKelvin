@@ -1016,6 +1016,7 @@ static func generate(canvas: Rect2) -> Array:
 			nn.nebula_emission = cloud.emission
 	_seed_pulsars(nodes)
 	_mark_pulsar_neighbours(nodes)
+	_roll_twins(nodes)
 
 	_link(nodes)
 	nodes[0].visited = true
@@ -1196,6 +1197,47 @@ static func _mark_pulsar_neighbours(nodes: Array) -> void:
 				break
 
 
+## TWO SUNS (ruling 20, Oct 30): about one system in four that may have them
+## does (`twin_ok`). Rolled here, after `_seed_pulsars`, where a node's type and
+## star are final, and off a stream of the node's own (`Rng.derive(&"twin",
+## index)`, whose first draw this is; the layout draws the pair from the rest),
+## so no other roll in the galaxy moves.
+const TWIN_CHANCE := 0.25
+## (a harness's switch: `-- twin=all` makes every system that may have two suns
+## have them, `twin=none` none, so the build can be tested on twins; a harness
+## can set it itself, 1 all, -1 none, 0 as the command line says)
+static var twin_force := 0
+
+
+static func _roll_twins(nodes: Array) -> void:
+	var force := _twin_force()
+	for raw in nodes:
+		var n: MapNode = raw
+		n.twin = false
+		if not twin_ok(n):
+			continue
+		var roll := Rng.derive(&"twin", n.index).randf()
+		n.twin = force > 0 or (force == 0 and roll < TWIN_CHANCE)
+
+
+## Whether a system may have two suns: an ordinary star's ordinary system. Not
+## the start (the first flights are taught there), a station, a pulsar, the core,
+## or a red or blue star (their events are about "the star here", one place).
+static func twin_ok(n: MapNode) -> bool:
+	return n.type == NodeType.SYSTEM and n.star == Star.ORDINARY
+
+
+static func _twin_force() -> int:
+	if twin_force != 0:
+		return twin_force
+	for a in OS.get_cmdline_user_args():
+		if a == "twin=all":
+			return 1
+		if a == "twin=none":
+			return -1
+	return 0
+
+
 ## The rim is unclaimed and the core is built up - that is the whole shape of
 ## the journey, so development tracks depth directly. The variance is what stops
 ## it being a readout of the ring number: a city out on the frontier is worth the
@@ -1221,6 +1263,8 @@ static func _roll_axes(n: MapNode, depth: float) -> void:
 		n.berths.clear()
 		n.manufacturer = &""
 		n.fauna = false
+		# (and a neutron star is one star, whatever the system had before)
+		n.twin = false
 		return
 	if n.type == NodeType.START:
 		n.development = Development.OUTPOST

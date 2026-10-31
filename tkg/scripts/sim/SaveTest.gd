@@ -179,9 +179,27 @@ func fingerprint() -> Dictionary:
 			Run.galaxy_name, Run.galaxy_title],
 		gparams = _round_floats(Run.galaxy),
 		nodes = nodes,
+		# EACH SYSTEM'S SKY (VERSION 25, and two suns, 38): which options it may
+		# hold, and for two suns its whole layout -- which world goes round which
+		# star, every body's index. None of it was in the fingerprint before, so
+		# a save that dropped `twin` would have come back with every pair a lone
+		# sun and its parked ships and wrecks on other bodies, and this said PASS.
+		sky = _sky(),
 		derived = ["%.9f" % Run.jump_range(), Run.max_hp(), Run.heat_cap(),
 			Run.reactor(), Run.hand_size(), Run.dissipation()],
 	}
+
+## Every system's star, giant, pulsar neighbour and second sun, one string.
+func _sky() -> String:
+	var out: PackedStringArray = []
+	var twins := 0
+	for e in Run.map:
+		var n: MapGen.MapNode = e
+		out.append("%d%d%d%d" % [int(n.star), int(n.gas_giant), int(n.near_pulsar), int(n.twin)])
+		twins += int(n.twin)
+	# (and how many have two suns, so a run with none shows: about one in four
+	# ordinary systems has them)
+	return "%d:%s" % [twins, ",".join(out)]
 
 ## `SystemMapScreen._parked` as a stable string, sorted by system.
 func _parked() -> String:
