@@ -246,8 +246,12 @@ var fights: Dictionary = {}
 ## it. A body >= 0 means "in orbit of / alongside that world" and (x, z) is the
 ## offset from the world's centre, because a world's place on its orbit is this
 ## machine's clock and not the sender's -- an absolute position would put a
-## partner in orbit of nothing. Body -1 is the star and -9 open space, both
-## absolute (the star does not move). An empty entry: arrived, at the edge.
+## partner in orbit of nothing. Body -1 is the star (star A of two suns),
+## `SystemLayout.STAR_B` (-4) star B, and -9 open space, all absolute: neither
+## star moves (ruling 20 holds a pair still, and star A at the plane's origin),
+## so a point in a star's close orbit is the same point on every machine
+## (`SystemMapScreen._report_spot`, `partner_points`). -10: just arrived. An
+## empty entry: arrived, at the edge.
 ##
 ## NOT on the roster. It changes several times a second while a ship flies,
 ## and the roster is whole, reliable and rebuilt on every machine per change;

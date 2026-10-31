@@ -1446,7 +1446,7 @@ static func things_here(n: MapGen.MapNode) -> Array:
 	if n == null:
 		return out
 	var site := Run.site_here(n)
-	if site < -1:
+	if not SystemLayout.is_place(site):
 		return out
 	var L := SystemLayout.of(n)
 	for i: int in EncounterDrawer.untaken(n):

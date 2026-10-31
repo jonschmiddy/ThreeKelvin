@@ -319,6 +319,17 @@ static func is_place(p: int) -> bool:
 	return p >= -1 or p == STAR_B
 
 
+## A STAR'S NAME (ruling 20, Oct 30): the system's own name for its one star,
+## as the map always named it, and "<system> A" and "<system> B" for the two of
+## a pair, wherever a star is named (the map's words and tip, the panel, LOCAL's
+## event line). Added by the sites build; it lays out nothing.
+func star_title(n: MapGen.MapNode, p: int = -1) -> String:
+	var s := MapGen.star_name(n)
+	if not twin:
+		return s
+	return s + (" B" if p == STAR_B else " A")
+
+
 ## The stars a system has, as places: [-1] or [-1, STAR_B].
 func stars() -> Array[int]:
 	var out: Array[int] = [-1]

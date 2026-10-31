@@ -39,7 +39,8 @@ const SPENT := Color("#3a4654")
 var view
 ## What the pointer is over: {kind: &"beacon"|&"body"|&"star", body: int, beacon: Beacon or null, at: Vector2}
 var hover: Dictionary = {}
-## The body selected (-1: the star; -2: nothing).
+## The place selected: a body, -1 the star (star A of two suns),
+## `SystemLayout.STAR_B` (-4) star B, -2 nothing.
 var selected: int = -2
 ## Every beacon drawn this frame, for hit-testing: [at, body index, Beacon]
 var beacons_at: Array = []
@@ -97,6 +98,8 @@ var _pulse := {}
 var _left := {}
 ## the star orbit the ship is settled on (plane radius), or -1
 var _star_r := -1.0
+## and the plane point it circles (star A's origin with one sun: `_settle_c`)
+var _star_c := Vector2.ZERO
 var _preview: Array = []
 var _preview_key := ""
 var _preview_ms := 0.0
@@ -260,25 +263,30 @@ func _process(d: float) -> void:
 		# is done
 		var now: int = flight.reached()
 		if now != _was:
-			if _was >= -1:
+			if SystemLayout.is_place(_was):
 				_left = {"body": _was, "r": _orbit_px(_was, _orbit_r(_was)), "t0": _clock(), "a": 0.8}
-			if now >= -1:
+			if SystemLayout.is_place(now):
 				_pulse = {"body": now, "t0": _clock()}
 			_was = now
 		var sw: float = flight.f.orbit_r if flight.star_orbiting() else -1.0
 		if sw < 0.0 and _star_r > 0.0:
-			_left = {"body": -1, "r": _star_r * view.zoom, "t0": _clock(), "a": 0.35}
+			# (the wide orbit left behind, round what it circled: `_star_c`, kept
+			# under that star's id, or -9 round both suns, so a capture into the
+			# close orbit of the star it circled draws no fade, as with one sun)
+			_left = {"body": _settle_id(_star_c), "r": _star_r * view.zoom, "t0": _clock(), "a": 0.35, "c": _star_c}
 		elif sw > 0.0 and _star_r < 0.0:
 			_pulse = {"body": -2, "t0": _clock()}
 		_star_r = sw
+		if sw > 0.0:
+			_star_c = _settle_c()
 		var on: int = flight.orbit_body()
-		if on >= -1:
+		if SystemLayout.is_place(on):
 			_ok_body = on
 		# ON A SPRING, so the drawn ship's motion has no step when it starts or stops
-		var want := 1.0 if on < -1 else _orbit_k(on, _orbit_r(on))
+		var want := 1.0 if not SystemLayout.is_place(on) else _orbit_k(on, _orbit_r(on))
 		_ok_v += (OK_W * OK_W * (want - _ok) - 2.0 * OK_W * _ok_v) * d
 		_ok += _ok_v * d
-		if on < -1 and absf(_ok - 1.0) < 0.002 and absf(_ok_v) < 0.01:
+		if not SystemLayout.is_place(on) and absf(_ok - 1.0) < 0.002 and absf(_ok_v) < 0.01:
 			_ok = 1.0
 			_ok_v = 0.0
 	var key := "" if hover.is_empty() else "%s:%s" % [hover.get("kind", &""), hover.get("body", -9)]
@@ -342,8 +350,9 @@ func _draw() -> void:
 			var bc = b.beacons[k]
 			var sx: Vector2 = view.at[i]
 			if b.kind == &"belt":
+				# (round the belt's own centre: the pair's balance point in a twin)
 				var a: float = b.phase + t / b.period * TAU + k * 0.9
-				sx = view.screen(cos(a) * b.orbit, sin(a) * b.orbit).round()
+				sx = view.screen(b.host.x + cos(a) * b.orbit, b.host.y + sin(a) * b.orbit).round()
 			elif b.beacons.size() > 1:
 				# TWO ON ONE WORLD STAND SIDE BY SIDE. They were drawn on the
 				# same spot, so a world with two events showed one beacon and
@@ -445,9 +454,9 @@ func _draw() -> void:
 			draw_rect(Rect2(c + Vector2(0, -3 if d.y > 0 else 0), Vector2(1, 4)).abs(), UITheme.ICE)
 	# THE SELECTION: the chart's reticle, closed and held, brighter than a hover,
 	# and the name beside it (on the left near the frame's right edge)
-	if selected >= -1:
-		var s: Vector2 = view.origin() if selected == -1 else view.at[selected]
-		var b: SystemLayout.Body = null if selected == -1 else L.bodies[selected]
+	if SystemLayout.is_place(selected):
+		var s: Vector2 = _place_scr(selected)
+		var b: SystemLayout.Body = null if SystemLayout.is_star(selected) else L.bodies[selected]
 		if b == null or b.kind != &"belt":
 			var r := _reach(selected)
 			_reticle(s, r, 1.0, 0.95)
@@ -455,7 +464,7 @@ func _draw() -> void:
 		# top of each other)
 		if (b == null or b.kind != &"belt") and (flight == null or flight.reached() != selected):
 			var r := _reach(selected)
-			var nm: String = view.star_name() if b == null else b.name
+			var nm: String = star_name_of(selected) if b == null else b.name
 			var tw := _font().get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 			var lx := s.x + r + 4.0
 			if lx + tw > view.window.end.x - 4.0:
@@ -464,7 +473,7 @@ func _draw() -> void:
 	# THE HOVER: the same reticle, closing in from 13 px to 7 px as it eases in
 	var hk: StringName = hover.get("kind", &"")
 	if (hk == &"body" or hk == &"star") and int(hover.body) != selected and _hover_t > 0.0:
-		var hs: Vector2 = view.origin() if int(hover.body) == -1 else view.at[int(hover.body)]
+		var hs: Vector2 = _place_scr(int(hover.body))
 		_reticle(hs, _reach(int(hover.body)) + (6.0 - 6.0 * _hover_t), _hover_t, 0.55)
 	var t_paths := Time.get_ticks_usec()
 	_draw_paths(t)
@@ -486,9 +495,120 @@ func _draw() -> void:
 ## The drawn edge of a place, and the reticle's reach out from it.
 func _reach(body: int) -> float:
 	var L: SystemLayout = view.layout
-	if body == -1:
-		return L.star_r * view.star_k() + 7.0
+	if SystemLayout.is_star(body):
+		return star_disc(body) + 7.0
+	if not SystemLayout.is_place(body):
+		# (-9, both suns' balance point: no disc there)
+		return 7.0
 	return view.draw_r(L.bodies[body]) + 7.0
+
+
+# ---------------------------------------------------------------- the stars
+## STAR p ON SCREEN (-1 star A, the star; `SystemLayout.STAR_B` star B of two
+## suns, ruling 20): where its disc is drawn, on the block grid as `origin()`
+## puts star A. The view says where it draws star B (`SystemView.star_screen`)
+## once it does; until then it is worked out the same way, since star B holds
+## still at `star2_at`.
+func star_scr(p: int) -> Vector2:
+	if view.has_method(&"star_screen"):
+		return view.call(&"star_screen", p)
+	var L: SystemLayout = view.layout
+	if p == SystemLayout.STAR_B and L != null and L.twin:
+		return view.block_round(view.screen(L.star2_at.x, L.star2_at.y))
+	return view.origin()
+
+
+## How big star p's disc is drawn (its radius on screen, px): the view's own
+## size for it (`SystemView.star_disc`) once it says, else star A's as it was
+## always read here and star B's at the floor the map eases a sun up to
+## (`SystemLayout.sun_drawn`, a block or so off the held size).
+func star_disc(p: int) -> float:
+	if view.has_method(&"star_disc"):
+		return float(view.call(&"star_disc", p))
+	var L: SystemLayout = view.layout
+	if p == SystemLayout.STAR_B and L != null and L.twin:
+		return SystemLayout.sun_drawn(L.star2_r, view.zoom)
+	return L.star_r * view.star_k()
+
+
+## Where place p is drawn: a star's disc, or a body's place on the grid. (`at`
+## is an Array, and `at[-4]` would quietly have been the fourth body from the
+## end.)
+func _place_scr(p: int) -> Vector2:
+	if SystemLayout.is_star(p):
+		return star_scr(p)
+	return view.at[p]
+
+
+## Star p's name: the system's for one star, "<system> A" / "<system> B" for two.
+func star_name_of(p: int) -> String:
+	return view.layout.star_title(view.node, p)
+
+
+## What kind of star p is, in the panel's and the tip's words: YELLOW DWARF...
+func star_class_of(p: int) -> String:
+	if p == SystemLayout.STAR_B and view.layout.twin:
+		return view.STAR_FACTS[view.KIND_NAMES[view.layout.star2]].kind
+	return view.star_class()
+
+
+## A place's name: a star's, or a body's.
+func _place_nm(p: int) -> String:
+	return star_name_of(p) if SystemLayout.is_star(p) else view.layout.bodies[p].name
+
+
+## THE CENTRE OF THE WIDE STAR ORBIT the ship is settled on (plane): star A at
+## the origin as it always was, or, in a pair, whatever the flight settles round
+## (the nearer star or both suns' balance point): the flight's own settle
+## centre, `ShipFlight.f.cen` (`_settle_centre`). It is read by name, since a
+## flight without a pair's settle has no such field and settles round star A.
+func _settle_c() -> Vector2:
+	if flight != null and flight.has_method(&"star_orbit_c"):
+		return flight.call(&"star_orbit_c")
+	if flight != null and flight.f != null:
+		var c = flight.f.get("cen")
+		if c is Vector2:
+			return c
+	return Vector2.ZERO
+
+
+## WHAT THE WIDE ORBIT ROUND `c` CIRCLES, as a place id: -1 star A (the one
+## star), `SystemLayout.STAR_B` star B, -9 both suns. The flight says which
+## (`ShipFlight.f.cen_id`) while it is settled round `c`; else it is told by
+## where `c` is.
+func _settle_id(c: Vector2) -> int:
+	var L: SystemLayout = view.layout
+	if L == null or not L.twin:
+		return -1
+	if flight != null and flight.f != null and flight.star_orbiting():
+		var id = flight.f.get("cen_id")
+		var fc = flight.f.get("cen")
+		if id is int and fc is Vector2 and (fc as Vector2).distance_to(c) < 1.0:
+			return id
+	if c.distance_to(Vector2.ZERO) < 1.0:
+		return -1
+	if c.distance_to(L.star2_at) < 1.0:
+		return SystemLayout.STAR_B
+	return -9
+
+
+## What a wide orbit round `c` circles, named: a star, or BOTH SUNS round the pair.
+func _settle_nm(c: Vector2) -> String:
+	var id := _settle_id(c)
+	return "BOTH SUNS" if id == -9 else star_name_of(id)
+
+
+## The stars' discs a point on the plane is behind, as [screen centre, radius]:
+## what hides a ship (yours, a partner's) or the far half of an orbit. A point
+## is behind a star where it is further from the viewer (`depth`), as it was
+## behind the one star at the origin.
+func _star_occ(q: Vector2) -> Array:
+	var out: Array = []
+	var d: float = view.depth(q)
+	for s: int in view.layout.stars():
+		if d < view.depth(view.layout.star_pos(s)):
+			out.append([star_scr(s), star_disc(s)])
+	return out
 
 
 ## StarchartScreen's reticle: four corner ticks, 3 px, in white.
@@ -543,13 +663,13 @@ func _draw_rings(t: float) -> void:
 	# THE ORBIT YOU ARE ON: solid and bright, round the world, the ship on it --
 	# still while it rides round to where a flight leaves from
 	var ob: int = flight.reached()
-	if ob < -1 and flight.mode == &"rail" and flight.rail.has("phase"):
+	if not SystemLayout.is_place(ob) and flight.mode == &"rail" and flight.rail.has("phase"):
 		ob = flight.orbit_body()
-	if ob >= -1:
+	if SystemLayout.is_place(ob):
 		var bw := _body_scr(ob)
 		_ring(bw, _orbit_px(ob, _orbit_r(ob)) * _ok / maxf(_orbit_k(ob, _orbit_r(ob)), 1.0), Color(UITheme.FLARE, 0.95), ob, false)
 		if selected != ob and not _is_belt(ob):
-			_reticle(view.origin() if ob == -1 else view.at[ob], _reach(ob), 1.0, 0.95)
+			_reticle(_place_scr(ob), _reach(ob), 1.0, 0.95)
 	# SETTLED ROUND THE STAR: the arc by the ship pulses once
 	if not _pulse.is_empty() and int(_pulse.body) == -2 and flight.star_orbiting():
 		var age3 := _clock() - float(_pulse.t0)
@@ -565,16 +685,34 @@ func _draw_rings(t: float) -> void:
 	if not _left.is_empty() and int(_left.body) != ob:
 		var age2 := _clock() - float(_left.t0)
 		if age2 < 0.9:
-			_ring(_body_scr(int(_left.body)), float(_left.r), Color(UITheme.FLARE, float(_left.get("a", 0.8)) * (1.0 - age2 / 0.9)), int(_left.body), true)
+			var lb := int(_left.body)
+			var lw: Vector2
+			if _left.has("c"):
+				# a wide orbit left: round what it circled, behind that star's disc
+				# if it was one (round both, -9, there is no disc at its middle)
+				var lc: Vector2 = _left.c
+				lw = _scr(lc.x, lc.y)
+			else:
+				lw = _body_scr(lb)
+			_ring(lw, float(_left.r), Color(UITheme.FLARE, float(_left.get("a", 0.8)) * (1.0 - age2 / 0.9)), lb, true)
 
 
 ## THE STAR ORBIT of plane radius r: faint all round, bright for a stretch either
 ## side of plane point `by` (the ship); `k` fades it, `arc_only` draws the stretch.
+## Round `_star_c`: star A at the origin with one sun; in a pair, the star or
+## the balance point the flight settles round, its far half behind either sun.
 func _star_orbit(r: float, by: Vector2, k: float, arc_only: bool) -> void:
-	var o: Vector2 = view.origin()
+	var c := _star_c
+	var o: Vector2 = view.origin() if c == Vector2.ZERO else view.block_round(view.screen(c.x, c.y))
 	var rp: float = r * view.zoom
-	var a0 := atan2(by.y, by.x)
+	var a0 := atan2(by.y - c.y, by.x - c.x)
 	var disc: float = view.layout.star_r * view.star_k()
+	var two: bool = view.layout.twin
+	# (each sun as [its plane z, its disc's centre on screen, its radius])
+	var suns: Array = []
+	if two:
+		for s: int in view.layout.stars():
+			suns.append([view.layout.star_pos(s).y, star_scr(s), star_disc(s)])
 	# AS A LINE OF SINGLE PIXELS, only the stretch on screen (point by point it
 	# was thousands of dots a frame for the orbit you arrive on, zoomed in)
 	var eb: float = rp * float(view.TILT)
@@ -588,7 +726,16 @@ func _star_orbit(r: float, by: Vector2, k: float, arc_only: bool) -> void:
 		var dd := absf(wrapf(an - a0, -PI, PI))
 		var near := clampf(1.0 - dd / 0.55, 0.0, 1.0)
 		var q: Vector2 = (o + Vector2(cos(an) * rp, sin(an) * eb)).round()
-		var skip := (arc_only and near <= 0.0) or not win.has_point(q) or (sin(an) < 0.0 and q.distance_to(o) < disc)
+		var skip := (arc_only and near <= 0.0) or not win.has_point(q)
+		if not skip and not two:
+			skip = sin(an) < 0.0 and q.distance_to(o) < disc
+		elif not skip:
+			# behind a sun: further from the viewer than it, and on its disc
+			var pz := c.y + sin(an) * r
+			for oc: Array in suns:
+				if pz < float(oc[0]) and q.distance_to(oc[1]) < float(oc[2]):
+					skip = true
+					break
 		if skip:
 			if pts.size() > 1:
 				draw_polyline_colors(pts, cols, 1.0)
@@ -811,10 +958,54 @@ func _orbit_r(body: int) -> float:
 
 
 ## How much bigger than life an orbit is drawn: never closer to the world's disc
-## than ORBIT_MIN_PX, so it reads round a 5 px world at the opening zoom.
+## than ORBIT_MIN_PX, so it reads round a 5 px world at the opening zoom; in a
+## pair, never further out than fits there (`_orbit_cap`).
 func _orbit_k(body: int, r: float) -> float:
-	var disc := _reach(body) - 7.0
-	return maxf(1.0, (disc + ORBIT_MIN_PX) / maxf(r * view.zoom, 0.01))
+	return orbit_floor_k(r * view.zoom, _reach(body) - 7.0, _orbit_cap(body))
+
+
+## (static, so a harness can measure it for every pair without a map) An orbit
+## of `r_px` round a disc of `disc` px, drawn out to the disc + ORBIT_MIN_PX but
+## no further than `cap` px; never smaller than it is.
+static func orbit_floor_k(r_px: float, disc: float, cap: float) -> float:
+	var want := minf(maxf(r_px, disc + ORBIT_MIN_PX), maxf(cap, r_px))
+	return maxf(1.0, want / maxf(r_px, 0.01))
+
+
+## HOW FAR OUT AN ORBIT ROUND `body` MAY BE DRAWN in a pair (ruling 20), px. The
+## floor above drew a star's close orbit at its disc + 9 px, about 19 px at a
+## twin's opening zoom, where it rides 12.5 to 13 px out, and that cut into the
+## disc of the star's own world; and it drew a ship riding a world round a star
+## at the world's disc + 9 px, where it rides about 5 px out, across its sun's
+## disc every lap. Measured at fit_zoom over the 470 stars of seed 4242's twins
+## (TwinSiteTest): 454 close orbits drawn into their world's disc (5 outside
+## its orbit altogether) and 454 world orbits onto their sun. So in a twin:
+##   - a star's close orbit stops 2 px short of the disc of each world round
+##     that star, where the world stands widest from it on screen;
+##   - an orbit round a world that goes round one star stops 2 px short of that
+##     star's disc there.
+## Neither is ever drawn smaller than it is. With the cap, 0 and 0, and the
+## least room left between a close orbit as drawn and its sun is 1.84 px. One
+## sun: no cap (INF), since its close orbit (ring - 8, 87 px) and its worlds are
+## far wider than the floor. (The tilt brings both nearer above and below the
+## star, where a world passes in front of and behind its sun anyway.)
+func _orbit_cap(body: int) -> float:
+	var L: SystemLayout = view.layout
+	if L == null or not L.twin:
+		return INF
+	var z: float = view.zoom
+	if SystemLayout.is_star(body):
+		var cap := INF
+		for b in L.bodies:
+			if b.host_id == body and b.kind != &"belt":
+				cap = minf(cap, b.orbit * z - view.draw_r(b) - 2.0)
+		return cap
+	if not SystemLayout.is_place(body):
+		return INF
+	var hb: SystemLayout.Body = L.bodies[body]
+	if SystemLayout.is_star(hb.host_id):
+		return hb.orbit * z - star_disc(hb.host_id) - 2.0
+	return INF
 
 
 ## An orbit's drawn radius in screen pixels.
@@ -826,8 +1017,12 @@ func _is_belt(body: int) -> bool:
 	return body >= 0 and view.layout.bodies[body].kind == &"belt"
 
 
-## A place's centre on screen.
+## A place's centre on screen. A star's from the layout: both hold still, star
+## A at the origin and star B at `star2_at`.
 func _body_scr(body: int) -> Vector2:
+	if SystemLayout.is_star(body):
+		var sp: Vector2 = view.layout.star_pos(body)
+		return _scr(sp.x, sp.y)
 	var c: Vector3 = flight.center(body, view.t)
 	return _scr(c.x, c.z)
 
@@ -893,13 +1088,13 @@ func _draw_trail(x: Vector2, ob: int) -> void:
 		_trail.pop_front()
 	for e: Array in _trail:
 		var b := int(e[1])
-		var base: Vector2 = view.origin() if b < -1 else _body_scr(b)
+		var base: Vector2 = _body_scr(b) if SystemLayout.is_place(b) else view.origin()
 		var q: Vector2 = (base + (e[2] as Vector2) * view.zoom).round()
 		var age := (now - float(e[0])) / TRAIL_S
-		_px(q, Color(UITheme.FLARE if b >= -1 else UITheme.ICE, 0.55 * (1.0 - age)))
+		_px(q, Color(UITheme.FLARE if SystemLayout.is_place(b) else UITheme.ICE, 0.55 * (1.0 - age)))
 	if float(view.t) - float(flight.warp_t) < 0.6:
 		return
-	var base2: Vector2 = view.origin() if ob < -1 else _body_scr(ob)
+	var base2: Vector2 = _body_scr(ob) if SystemLayout.is_place(ob) else view.origin()
 	_trail.append([now, ob, (x - base2) / maxf(view.zoom, 0.01)])
 
 
@@ -924,28 +1119,33 @@ func _line(ln: Dictionary, a: float, t: float, main: bool) -> void:
 		path.append(_scr(q0.x, q0.y))
 	if o.kind == &"star":
 		# SETTLING ROUND THE STAR: the stretch of that orbit where it settles, dashed
+		# (round what it settles round: star A at the origin, or in a pair the
+		# centre the flight's settle gives, `out.c`)
 		var sr: float = o.r
-		var sat: Vector2 = o.at
+		var sc0: Vector2 = o.get("c", Vector2.ZERO)
+		var sat: Vector2 = (o.at as Vector2) - sc0
 		var st0 := atan2(sat.y, sat.x)
 		var arc := PackedVector2Array()
+		var so: Vector2 = view.origin() if sc0 == Vector2.ZERO else view.block_round(view.screen(sc0.x, sc0.y))
 		# from where the line ends, on along the orbit the way it goes (it began a
 		# little behind, and the two met in a V)
 		var dirn := signf(sat.x * (o.get("v", Vector2(0, 1)) as Vector2).y - sat.y * (o.get("v", Vector2(0, 1)) as Vector2).x) if o.has("v") else 1.0
 		for j in 21:
 			var an := st0 + dirn * 0.5 * float(j) / 20.0
-			arc.append(view.origin() + Vector2(cos(an), sin(an) * view.TILT) * sr * view.zoom)
+			arc.append(so + Vector2(cos(an), sin(an) * view.TILT) * sr * view.zoom)
 		_dashes_px(arc, Color(UITheme.FLARE, a * 0.9), false)
 		return
 	var body: int = o.body
-	var nm: String = view.star_name() if body == -1 else L.bodies[body].name
+	var nm: String = _place_nm(body)
 	var tag: String
-	var c: Vector3 = flight.center(body, float(o.t))
+	# (a star's centre from the layout: star B holds still at `star2_at`)
+	var c: Vector3 = Vector3(L.star_pos(body).x, 0.0, L.star_pos(body).y) if SystemLayout.is_star(body) else flight.center(body, float(o.t))
 	var cw := _scr(c.x, c.z)
 	var rel: Vector2 = o.rel
 	var under := 0.0
 	# the place it takes you to, its reticle held faintly
 	if not _is_belt(body):
-		_reticle(view.origin() if body == -1 else view.at[body], _reach(body), 1.0, a)
+		_reticle(_place_scr(body), _reach(body), 1.0, a)
 	if o.kind == &"keep":
 		under = maxf(rel.length() * view.zoom, _reach(body) + 2.0)
 		_ring(cw, under, Color(UITheme.HOT, a * 0.9), body, true)
@@ -958,10 +1158,10 @@ func _line(ln: Dictionary, a: float, t: float, main: bool) -> void:
 		var rpx := _orbit_px(body, rt)
 		var rv: Vector2 = o.rv if o.get("rv") != null else Vector2.ZERO
 		var dir := 1.0 if rel.x * rv.y - rel.y * rv.x >= 0.0 else -1.0
-		var spd: float = flight.STAR_RAIL_V if body == -1 else flight.RAIL_V
+		var spd: float = flight.STAR_RAIL_V if SystemLayout.is_star(body) else flight.RAIL_V
 		# THE INSERTION AS THE SHIP WILL FLY IT (`ShipFlight.insert_plan`), its
 		# offset drawn at the ring's scale
-		var ins: Dictionary = flight.insert_plan(rel, rv, rt, dir * spd / rt, null if body == -1 else L.bodies[body])
+		var ins: Dictionary = flight.insert_plan(rel, rv, rt, dir * spd / rt, null if SystemLayout.is_star(body) else L.bodies[body])
 		var kq := _orbit_k(body, rt)
 		var curl := PackedVector2Array()
 		for j in 61:
@@ -1054,12 +1254,10 @@ func _draw_partners(_t: float) -> void:
 			x = _ship_at + Vector2(-6.0, ship_r() + 5.0 + 12.0 * (row - 1))
 		partner_at.append([id, x])
 		# HIDDEN BEHIND what stands in front of it, as your own ship is: the
-		# star's disc, a nearer world's (the first stills had a partner in close
-		# orbit drawn across the face of the star)
-		var occ: Array = []
+		# star's disc (either sun's, of two), a nearer world's (the first stills
+		# had a partner in close orbit drawn across the face of the star)
 		var depth: float = view.depth(q)
-		if depth < 0.0:
-			occ.append([view.origin(), view.layout.star_r * view.star_k()])
+		var occ: Array = _star_occ(q)
 		for i: int in view._views:
 			if view.depth(view.pos[i]) > depth:
 				occ.append([view.at[i], view.draw_r(view.layout.bodies[i])])
@@ -1104,8 +1302,13 @@ func ship_rel() -> Vector2:
 	return Vector2(p.x, p.z * view.TILT) * view.zoom
 
 
-## A place relative to the star on screen, for LOCATION holding a world you orbit.
+## A place relative to the star on screen, for LOCATION holding a world you orbit
+## and a right-click holding a place. Star B is where it holds still
+## (`star2_at`); star A, and anything that is not a place, the origin.
 func place_rel(body: int) -> Vector2:
+	if SystemLayout.is_star(body) and view.layout != null:
+		var sp: Vector2 = view.layout.star_pos(body)
+		return Vector2(sp.x, sp.y * view.TILT) * view.zoom
 	if body < 0 or flight == null:
 		return Vector2.ZERO
 	var c: Vector3 = flight.center(body, view.t)
@@ -1156,17 +1359,16 @@ func _draw_ship(t: float) -> void:
 				_px(x + Vector2(k, 0), Color(UITheme.ICE, 0.7 * (1.0 - k / 80.0)))
 	_last_rel = rel
 	# ON THE ORBIT AS DRAWN: its offset from its world scaled as the ring is
-	if _ok > 1.001 and _ok_body >= -1:
+	if _ok > 1.001 and SystemLayout.is_place(_ok_body):
 		var bw := _body_scr(_ok_body)
 		x = (bw + (x - bw) * _ok).round()
 	var ob: int = flight.reached()
 	_draw_trail(x, flight.orbit_body())
 	_ship_at = x
-	# HIDDEN BEHIND what stands in front of it: the star's disc, a nearer world's
-	var occ: Array = []
+	# HIDDEN BEHIND what stands in front of it: the star's disc (either sun's,
+	# of two), a nearer world's
 	var my_depth: float = view.depth(Vector2(p3.x, p3.z))
-	if my_depth < 0.0:
-		occ.append([view.origin(), view.layout.star_r * view.star_k()])
+	var occ: Array = _star_occ(Vector2(p3.x, p3.z))
 	for i: int in view._views:
 		var b: SystemLayout.Body = view.layout.bodies[i]
 		if view.depth(view.pos[i]) > my_depth:
@@ -1286,27 +1488,26 @@ func _draw_ship(t: float) -> void:
 	# (which says which ship well enough: YOU would sit on the ring)
 	var on: int = flight.orbit_body()
 	var words := ""
-	if ob >= -1:
-		var nm: String = view.star_name() if ob == -1 else view.layout.bodies[ob].name
-		words = ("CLOSE ORBIT · " if ob == -1 else ("ALONGSIDE · " if flight.mode == &"keep" else "IN ORBIT · ")) + nm
-	elif on >= -1 and flight.mode == &"rail" and flight.rail.has("phase"):
-		words = "LEAVING ORBIT · " + (view.star_name() if on == -1 else view.layout.bodies[on].name)
-	elif on >= -1 and flight.inserting():
-		words = ("COMING ALONGSIDE · " if flight.mode == &"keep" else "ENTERING ORBIT · ") + (view.star_name() if on == -1 else view.layout.bodies[on].name)
+	if SystemLayout.is_place(ob):
+		words = ("CLOSE ORBIT · " if SystemLayout.is_star(ob) else ("ALONGSIDE · " if flight.mode == &"keep" else "IN ORBIT · ")) + _place_nm(ob)
+	elif SystemLayout.is_place(on) and flight.mode == &"rail" and flight.rail.has("phase"):
+		words = "LEAVING ORBIT · " + _place_nm(on)
+	elif SystemLayout.is_place(on) and flight.inserting():
+		words = ("COMING ALONGSIDE · " if flight.mode == &"keep" else "ENTERING ORBIT · ") + _place_nm(on)
 	elif flight.star_orbiting():
-		words = "ORBITING " + view.star_name()
+		words = "ORBITING " + _settle_nm(_star_c)
 	if words == "":
 		_label(x + Vector2(-8, -you_up()), "YOU", UITheme.FLARE, 1, false)
 	else:
 		var tw := _font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 		var lc := x
 		var ly := x.y + maxf(17.0, ship_r() + 11.0)
-		if on >= -1:
+		if SystemLayout.is_place(on):
 			# UNDER THE RING it names, centred on its place (under the ship it sat
 			# on the world when zoomed in)
 			var bw := _body_scr(on)
 			var rr := _orbit_px(on, _orbit_r(on)) * _ok / maxf(_orbit_k(on, _orbit_r(on)), 1.0)
-			var disc: float = (view.layout.star_r * view.star_k()) if on == -1 else (_reach(on) - 7.0)
+			var disc: float = star_disc(on) if SystemLayout.is_star(on) else (_reach(on) - 7.0)
 			lc = bw
 			ly = bw.y + maxf(rr * view.TILT, disc) + 13.0
 		var lx := clampf(lc.x - roundf(tw / 2.0), view.window.position.x + 4.0, view.window.end.x - tw - 4.0)
@@ -1339,47 +1540,57 @@ func ship_status() -> Array:
 	if flight == null:
 		return ["", UITheme.CHILL]
 	var t: float = view.t
-	var nm := func(b: int) -> String: return view.star_name() if b == -1 else L.bodies[b].name
+	var nm := func(b: int) -> String: return _place_nm(b)
+	# where a flight is going: a star's close orbit (THE STAR with one sun; with
+	# two, which of them), or a place by name
+	var to := func(b: int) -> String:
+		if SystemLayout.is_star(b):
+			return "TO A CLOSE ORBIT OF " + (star_name_of(b) if L.twin else "THE STAR")
+		return "TO " + nm.call(b)
 	match flight.mode:
 		&"fly":
-			return ["TO A CLOSE ORBIT OF THE STAR" if flight.fly_to == -1 else "TO " + nm.call(flight.fly_to), UITheme.CHILL]
+			return [to.call(flight.fly_to), UITheme.CHILL]
 		&"rail":
 			var b := int(flight.rail.body)
 			if flight.rail.has("phase"):
-				return ["LEAVING ORBIT · " + ("TO A CLOSE ORBIT OF THE STAR" if flight.fly_to == -1 else "TO " + nm.call(flight.fly_to)), UITheme.CHILL]
+				return ["LEAVING ORBIT · " + to.call(flight.fly_to), UITheme.CHILL]
 			if flight.inserting():
 				return ["ENTERING ORBIT · " + nm.call(b), UITheme.HOT]
-			return ["CLOSE ORBIT · " + nm.call(b) if b == -1 else "IN ORBIT · " + nm.call(b), UITheme.FLARE]
+			return ["CLOSE ORBIT · " + nm.call(b) if SystemLayout.is_star(b) else "IN ORBIT · " + nm.call(b), UITheme.FLARE]
 		&"keep":
 			if flight.inserting():
 				return ["COMING ALONGSIDE · " + nm.call(int(flight.keep.body)), UITheme.HOT]
 			return ["ALONGSIDE · " + nm.call(int(flight.keep.body)), UITheme.FLARE]
 		&"free":
 			if flight.star_orbiting():
-				return ["ORBITING " + view.star_name(), UITheme.FLARE]
+				return ["ORBITING " + _settle_nm(_settle_c()), UITheme.FLARE]
 			if flight.f.no_cap_left > 0.0:
 				return ["LEAVING ORBIT", UITheme.CHILL]
 			if t - flight.fast_t < 0.6:
 				return ["TOO FAST TO ORBIT · SLOW DOWN", UITheme.HOT]
-			if flight.sticky >= -1:
+			if SystemLayout.is_place(flight.sticky):
 				return ["WILL SLIDE INTO ORBIT · " + nm.call(flight.sticky), UITheme.HOT]
 	return ["", UITheme.CHILL]
 
 
 # ---------------------------------------------------------------- the tip
-func _draw_tip() -> void:
+## THE TIP'S WORDS for what is pointed at (`hit`), as [lines, chip colour]: each
+## line [words, colour]. What `_draw_tip` draws, and what a harness reads.
+func tip_lines(h: Dictionary) -> Array:
 	var L: SystemLayout = view.layout
 	var lines: Array = []
 	var chip := UITheme.ICE
-	var h := hover
 	if h.kind == &"star":
-		lines.append([view.star_name(), UITheme.ICE])
-		lines.append([view.star_class(), UITheme.COLD])
-		var ns := L.star_beacons.size()
+		# EITHER STAR, by its own name and kind (star B, ruling 20); the star's
+		# events are star A's (`star_beacons`: star B holds none)
+		var sb := int(h.body)
+		lines.append([star_name_of(sb), UITheme.ICE])
+		lines.append([star_class_of(sb), UITheme.COLD])
+		var ns := L.star_beacons.size() if sb == -1 else 0
 		if ns > 0:
 			var here_s: bool = flight != null and flight.reached() == -1
 			lines.append(["%d %s · %s" % [ns, "EVENT" if ns == 1 else "EVENTS", "OPEN" if here_s else "OPEN IN A CLOSE ORBIT"], UITheme.EMBER])
-		lines.append(_click_line(-1))
+		lines.append(_click_line(sb))
 	elif h.kind == &"body" or h.kind == &"belt":
 		var b := L.bodies[h.body]
 		lines.append([b.name, UITheme.ICE])
@@ -1394,8 +1605,8 @@ func _draw_tip() -> void:
 			lines.append([b.name, UITheme.ICE])
 			lines.append([view.body_kind(b), UITheme.COLD])
 		elif h.body == -1 and h.beacon != null:
-			lines.append([view.star_name(), UITheme.ICE])
-			lines.append([view.star_class(), UITheme.COLD])
+			lines.append([star_name_of(-1), UITheme.ICE])
+			lines.append([star_class_of(-1), UITheme.COLD])
 		var bc = h.beacon
 		if bc == null:
 			lines.append([view.star_name(), UITheme.ICE])
@@ -1422,6 +1633,14 @@ func _draw_tip() -> void:
 			lines.append(["THE HELLBENDER", UITheme.HOT])
 			lines.append(["ANCHORED HERE" if Run.hellbender_alive() else "ITS WRECK", UITheme.BAD])
 		lines.append(_click_line(int(h.body)))
+	return [lines, chip]
+
+
+func _draw_tip() -> void:
+	var h := hover
+	var tl := tip_lines(h)
+	var lines: Array = tl[0]
+	var chip: Color = tl[1]
 	var f := _font()
 	var w := 0.0
 	for l in lines:
@@ -1481,6 +1700,23 @@ static func _wrap(text: String, n: int) -> Array:
 
 
 # ---------------------------------------------------------------- what the pointer is over
+## A BODY AT PLANE POINT q IS HIDDEN AT SCREEN POINT p by a sun in front of it,
+## whose disc p is on. In a pair a world round one star passes 6 to 8 px from
+## its sun's middle at the far side of its circle, behind the disc, and its
+## click circle covered the sun's middle there (the review: on ZETA HOLLOW-4,
+## seed 4242, 8 of 48 clicks on star B over one turn went to its world). A
+## click on the sun you see is on the sun: TwinSiteTest puts each star's world
+## just behind its middle, and on its own turn where it is behind (2 and 3 of 48
+## on LAMBDA CALLOUS SECUNDUS), and every click is the sun's. One sun's
+## innermost world never comes that near.
+func _behind_sun(q: Vector2, p: Vector2) -> bool:
+	var L: SystemLayout = view.layout
+	for s: int in L.stars():
+		if view.depth(q) < view.depth(L.star_pos(s)) and p.distance_to(star_scr(s)) <= star_disc(s):
+			return true
+	return false
+
+
 func hit(p: Vector2) -> Dictionary:
 	for e in beacons_at:
 		var at: Vector2 = e[0]
@@ -1492,17 +1728,20 @@ func hit(p: Vector2) -> Dictionary:
 		if b.kind == &"belt" or b.kind == &"contact":
 			continue
 		var at: Vector2 = view.at[i]
-		if p.distance_to(at) <= maxf(view.draw_r(b), 4.0) + 3.0:
+		if p.distance_to(at) <= maxf(view.draw_r(b), 4.0) + 3.0 and not _behind_sun(view.pos[i], p):
 			return {"kind": &"body", "body": i, "beacon": null, "at": at}
-	var sc: Vector2 = view.origin()
-	if p.distance_to(sc) <= maxf(8.0, L.star_r * view.star_k()):
-		return {"kind": &"star", "body": -1, "beacon": null, "at": sc}
+	# EITHER STAR, at its own place and drawn size (star B, ruling 20: -4)
+	for s: int in L.stars():
+		var sc: Vector2 = star_scr(s)
+		if p.distance_to(sc) <= maxf(8.0, star_disc(s)):
+			return {"kind": &"star", "body": s, "beacon": null, "at": sc}
 	# A BELT IS ITS BAND: anywhere within the band's width of its orbit, all the
-	# way round (it had no hit at all, so it could only be reached by its beacon)
+	# way round (it had no hit at all, so it could only be reached by its beacon);
+	# round its own centre, which in a pair is the balance point
 	var rel: Vector2 = (p - view.origin()) / maxf(view.zoom, 0.0001)
 	var plane := Vector2(rel.x, rel.y / view.TILT)
 	for i in L.bodies.size():
 		var b := L.bodies[i]
-		if b.kind == &"belt" and absf(plane.length() - b.orbit) < maxf(26.0, 5.0 / view.zoom):
+		if b.kind == &"belt" and absf((plane - b.host).length() - b.orbit) < maxf(26.0, 5.0 / view.zoom):
 			return {"kind": &"belt", "body": i, "beacon": null, "at": p}
 	return {}

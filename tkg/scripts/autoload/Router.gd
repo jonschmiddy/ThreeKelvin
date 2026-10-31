@@ -1513,12 +1513,22 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 ## WHETHER YOU ARE AT THE HELLBENDER, or at the core's Custodian: each has a
 ## place of its own on the map (`SystemLayout`), and it is fought there and
 ## nowhere else (Jon, Oct 15), so its wrecks are its own place's.
+## ONLY A BODY IS EITHER PLACE: each returns -2 for "none", which no ship is ever
+## at, but the two were compared unguarded, so any site that came to equal -2
+## would have read as at a Hellbender that is not there. Two suns made the site
+## values a set to be careful with (star B is -4, `SystemLayout.STAR_B`).
 static func at_hellbender(n: MapGen.MapNode) -> bool:
-	return n != null and Run.site_here(n) == SystemLayout.of(n).hellbender_place()
+	if n == null:
+		return false
+	var p := SystemLayout.of(n).hellbender_place()
+	return p >= 0 and Run.site_here(n) == p
 
 
 static func at_custodian(n: MapGen.MapNode) -> bool:
-	return n != null and Run.site_here(n) == SystemLayout.of(n).core_place()
+	if n == null:
+		return false
+	var p := SystemLayout.of(n).core_place()
+	return p >= 0 and Run.site_here(n) == p
 
 
 static func no_fights_at(n: MapGen.MapNode) -> bool:

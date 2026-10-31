@@ -117,9 +117,13 @@ static func open_here(n: MapGen.MapNode) -> int:
 
 
 ## Whether the ship is parked where option i stands (the map leaves it there).
+## (an option placed nowhere, -2, is at no place a ship can be: `is_place`)
 static func here_now(n: MapGen.MapNode, i: int) -> bool:
 	var d: Dictionary = SystemMapScreen._parked.get(n.index, {})
-	return d.is_empty() or int(d.get("at", -9)) == body_of(n, i)
+	if d.is_empty():
+		return true
+	var b := body_of(n, i)
+	return SystemLayout.is_place(b) and int(d.get("at", -9)) == b
 
 
 ## The bar's event, if it has one here: the last opened, while the ship is still
@@ -237,7 +241,7 @@ static func auto_open(n: MapGen.MapNode) -> int:
 	if n == null:
 		return -1
 	var site := Run.site_here(n)
-	if site < -1:
+	if not SystemLayout.is_place(site):
 		return -1
 	var key := visit_key(n)
 	if str(_auto.get(n.index, "")) == key:
@@ -1012,7 +1016,10 @@ func _place_line(i: int) -> String:
 	var b := body_of(node, i)
 	var L := SystemLayout.of(node)
 	if b < 0 or b >= L.bodies.size():
-		return MapGen.star_name(node) + " · YOU ARE IN A CLOSE ORBIT"
+		# ON A STAR, named as the map names it: the system's name for one star,
+		# "<system> A" or "<system> B" for one of two (ruling 20); an option on
+		# no place reads as on star A, the star, as it always did
+		return L.star_title(node, SystemLayout.STAR_B if b == SystemLayout.STAR_B else -1) + " · YOU ARE IN A CLOSE ORBIT"
 	var body: SystemLayout.Body = L.bodies[b]
 	var kind := Worlds.display_name(body.world) if body.world != &"" else \
 		String({&"belt": "ASTEROID BELT", &"derelict": "DERELICT HULK", &"contact": "CONTACT", &"station": "STATION"}.get(body.kind, ""))

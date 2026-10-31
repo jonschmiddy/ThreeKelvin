@@ -1577,12 +1577,15 @@ static func covers(cur: Control, r: Rect2) -> String:
 			return ""
 		var o: Vector2 = v.origin()
 		var g := map._box.get_global_transform()
+		var tilt: float = SystemMapScreen.SystemViewS.TILT
 		for b in L.bodies:
 			if b.orbit <= 0.0:
 				continue
+			# (round each body's own centre, `Body.host`: star A at the origin, or
+			# in a pair star B or the balance point)
 			for k in 180:
 				var a := TAU * float(k) / 180.0
-				var p: Vector2 = g * (o + Vector2(cos(a), sin(a) * SystemMapScreen.SystemViewS.TILT) * b.orbit * v.zoom)
+				var p: Vector2 = g * (o + Vector2(b.host.x + cos(a) * b.orbit, (b.host.y + sin(a) * b.orbit) * tilt) * v.zoom)
 				if r.grow(1.0).has_point(p):
 					return "an orbit"
 		return ""
