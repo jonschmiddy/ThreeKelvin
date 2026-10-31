@@ -572,6 +572,16 @@ seen on a page before it touches the game.*
    prototype reads well at the game's scale. It also tries a much heavier
    giant (ruling 18): on map time a giant can turn a ship for free but cannot
    speed it up, so the test is whether that turn ever saves engine work.
+   **Ruled Oct 30 (ruling 20, "Prototype: twin:A giant:A")** from the Twin
+   Stars Prototype page: build both. Two-star systems, with a planner that
+   solves each autopilot flight through both stars' pull (the page's flight
+   from world a to world b hooks around star A and falls toward star B with
+   no burn). Giants weigh 1/10 to 1/4 of their star, "purely because it's more
+   fun", and every autopilot flight feels the giant. The page measured what
+   that buys: 5 to 13% less engine work at the best line-up, nothing at a
+   typical one. WASD stays free of gravity, and flying stays free of fuel.
+   This takes in step 2's solved flight: the twins need a planner that
+   searches, so step 2 is built with it.
 
 Constraints: `ShipFlight` owns the flight; co-op partner positions
 (`Net.report_spot`, sent as offsets from the orbited world) must keep working;
@@ -667,6 +677,7 @@ changing how anything they touch plays.
 | SCRAP on a claimed frame (ruling 19) | "Phase 10: A", from the Derelict Scrap page: SCRAP alone, where LEAVE IT was, as built. Next to SCRAP's pay, LEAVE IT would pay nothing | Oct 29; landed with Phase 10 (0bed7dc9) |
 | Orbits | "flight:N clock:map assist:pays" | Oct 29; Phase 13 step 1 |
 | Gravity assists (ruling 18) | "Giant on map time: B": drop Phase 13 step 3, since on map time the giant never pays; step 5's prototype tests a much heavier giant | Oct 30; Phase 13 |
+| Two stars and heavy giants (ruling 20) | "Prototype: twin:A giant:A": build two-star systems with a planner that solves each autopilot flight through both stars, and giants at 1/10 to 1/4 of their star ("purely because it's more fun"), felt by every autopilot flight. Takes in step 2's solved flight | Oct 30; Phase 13 steps 2 and 5, feat/twin-stars |
 | The first LAUNCH's freeze stays | "C, leave it as it is. If it becomes a huge deal, we can address it then." On his Mac the planet's shader compiles in about 16 s the first time a session draws it, and the sun's and the nebula sky's in about 2 s each, so the first LAUNCH of a session stands still for 16 to 23 s. Compiling them behind the title froze the title for 13 s instead | Oct 28; `ShaderWarm` warms the four cheap shaders only |
 | A jump goes one ring deeper at most (replaced by ruling 15, Oct 27) | "A1D ... I want this to be a hard game" (Oct 22) | b28fdad6, 0.4.0 |
 | The Custodian has 200 hull | "custodian health at 200" (Oct 22) | b28fdad6, 0.4.0 |

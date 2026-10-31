@@ -56,6 +56,27 @@ enum StarKind { ORDINARY, RED, BLUE, PULSAR, CORE }
 const STAR_R := {StarKind.ORDINARY: 16.0, StarKind.RED: 48.0, StarKind.BLUE: 24.0, StarKind.PULSAR: 3.0, StarKind.CORE: 16.0}
 const STAR_MASS := {StarKind.ORDINARY: 46.0, StarKind.RED: 62.0, StarKind.BLUE: 56.0, StarKind.PULSAR: 66.0, StarKind.CORE: 110.0}
 
+## THE PULL A SHIP FEELS, on map time (Phase 13, ruled Oct 29 "clock:map", and
+## ruling 20, Oct 30): a system's whole star mass pulls a ship with this GM
+## (px^3/s^2), whatever its kind. It is KAPPA times the Kepler GM that turns the
+## worlds (GM_KEPLER: a world 100 px out laps in 800 s), because on map time a
+## ship flies about a hundred times faster than the worlds move. A ship riding
+## 170 px out at RAIL_V 35 px/s is on a circular orbit under it. Only autopilot
+## flights feel it; flying by hand has no gravity (Jon, Oct 3).
+const GM_KEPLER := 61.685
+const KAPPA := 3376.0
+const GM_SHIP := 208250.0
+## A GIANT'S WEIGHT against its star (ruling 20: "1/4 - 1/10 ... purely because
+## it's more fun"), rolled per giant; every autopilot flight feels it.
+const GIANT_MIN := 0.10
+const GIANT_MAX := 0.25
+## STAR B'S PLACE. A place in a system is an int: a body's index (0 or more),
+## -1 star A (the star, its close orbit), STAR_B star B. -2 is "nowhere", -3
+## the edge as arrived, -9 open space, -10 a co-op arrival, -99 SITE_ANY, so
+## star B takes -4, which nothing used. Test with `is_star` / `is_place`, never
+## `>= -1` or `< 0`.
+const STAR_B := -4
+
 ## EVERY WORLD IN THE MIX, by how far out it is: the scorched and burning close
 ## in, the living in the middle, the frozen far out. The names are the planet
 ## painter's.
@@ -110,6 +131,21 @@ class Body extends RefCounted:
 	## Its ring: let go inside it slow enough and you are on its orbit
 	## (`ShipFlight`). Worlds only; 0 for everything else.
 	var soi: float = 0.0
+	## THE CENTRE OF ITS CIRCLE on the plane (x, z): star A at the origin in a
+	## one-star system and for a world round star A; star B's place for a world
+	## round star B; the pair's balance point for a world round both (P-type).
+	## The stars hold still (ruling 20's build: the pair turns once an hour on
+	## map time, and each visit starts the map's clock again), so this is fixed.
+	var host: Vector2 = Vector2.ZERO
+	## Which: -1 star A, STAR_B star B, -9 both (round the balance point).
+	var host_id: int = -1
+	## The pull a ship feels from it (px^3/s^2): a giant's, `gm_frac` of the
+	## stars' whole GM_SHIP; 0 for every other body (worlds pull nothing).
+	var gm: float = 0.0
+	## A giant's weight against its star or stars (GIANT_MIN to GIANT_MAX); 0
+	## for every other body. The fabric's dent (`mass`) and the capture ring
+	## (`soi`) do not follow it.
+	var gm_frac: float = 0.0
 
 	## Where it is at time `t`, on the plane: x across, z toward the viewer.
 	## Its footprint on the plane: where it is at time t, x across, z toward the viewer.
@@ -124,7 +160,7 @@ class Body extends RefCounted:
 		return orbit_point(phase + t / period * TAU)
 
 	func orbit_point(a: float) -> Vector3:
-		return Vector3(cos(a) * orbit, 0.0, sin(a) * orbit)
+		return Vector3(host.x + cos(a) * orbit, 0.0, host.y + sin(a) * orbit)
 
 
 var star: StarKind = StarKind.ORDINARY
@@ -137,6 +173,82 @@ var bodies: Array[Body] = []
 var star_beacons: Array[Beacon] = []
 ## How far out the outermost orbit reaches, plus a margin.
 var edge: float = HI + 30.0
+
+## TWO STARS (ruling 20, Oct 30). Star A is `star`, at the origin as the one
+## star always was; star B holds still at `star2_at`. Off (`twin` false) every
+## field here keeps its one-star value and nothing changes.
+var twin: bool = false
+var star2: StarKind = StarKind.ORDINARY
+var star2_r: float = 0.0
+var star2_at: Vector2 = Vector2.ZERO
+## Star A's share of the stars' mass (1 alone); star B has the rest.
+var star_share: float = 1.0
+## The pair's balance point, which worlds round both stars circle.
+var bary: Vector2 = Vector2.ZERO
+## The stars' distance apart (0 alone).
+var sep: float = 0.0
+## Each star's close-orbit ring and keep-clear, set where the layout is built
+## (`star_rail_of`). A one-star system keeps today's numbers.
+var _rail := {}
+var _keep := {}
+
+
+static func is_star(p: int) -> bool:
+	return p == -1 or p == STAR_B
+
+
+## A place a ship can be at: a body, star A or star B.
+static func is_place(p: int) -> bool:
+	return p >= -1 or p == STAR_B
+
+
+## The stars a system has, as places: [-1] or [-1, STAR_B].
+func stars() -> Array[int]:
+	var out: Array[int] = [-1]
+	if twin:
+		out.append(STAR_B)
+	return out
+
+
+## Where star p is on the plane (x, z).
+func star_pos(p: int) -> Vector2:
+	return star2_at if p == STAR_B else Vector2.ZERO
+
+
+func star_radius(p: int) -> float:
+	return star2_r if p == STAR_B else star_r
+
+
+func star_kind_of(p: int) -> StarKind:
+	return star2 if p == STAR_B else star
+
+
+## The pull a ship feels from star p (px^3/s^2).
+func star_gm(p: int) -> float:
+	return GM_SHIP * ((1.0 - star_share) if p == STAR_B else star_share)
+
+
+## STAR p'S CLOSE ORBIT, as `ShipFlight` rides it: the rail (the black hole's
+## lens reaches far past its disc, so its close orbit sits outside it), and the
+## ring a ship is taken onto it inside, 35 px further out. One star: today's
+## numbers, star_r + 44 and + 79.
+func star_rail_of(p: int = -1) -> float:
+	if _rail.has(p):
+		return _rail[p]
+	if star == StarKind.CORE:
+		return 150.0
+	return star_radius(p) + 44.0
+
+
+func star_ring_of(p: int = -1) -> float:
+	return star_rail_of(p) + 35.0
+
+
+## How far a flight keeps from star p's centre. One star: star_r + 32.
+func keep_clear_of(p: int = -1) -> float:
+	if _keep.has(p):
+		return _keep[p]
+	return star_radius(p) + 32.0
 
 
 static func star_kind(n: MapGen.MapNode) -> StarKind:
@@ -328,7 +440,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 	# again round a red giant or the core), and every world's ring kept clear of
 	# the star's close-orbit ring
 	lo = maxf(lo, HI * (0.32 if L.star == StarKind.RED or L.star == StarKind.CORE else 0.27))
-	var star_ring := (150.0 if L.star == StarKind.CORE else L.star_r + 44.0) + 35.0
+	var star_ring := L.star_ring_of(-1)
 	var sysname := MapGen.star_name(n)
 	var short := " ".join(sysname.split(" ").slice(0, 2))
 	var last := -INF

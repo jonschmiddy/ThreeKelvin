@@ -571,6 +571,12 @@ class MapNode extends RefCounted:
 	## giant, and `slipping_orbit` only cares about the second.
 	var gas_giant: bool = false
 
+	## TWO STARS (ruling 20, Oct 30): a second sun beside this system's own, with
+	## worlds round each and round both (`SystemLayout.twin`). Ordinary SYSTEM
+	## nodes only. Decided at generation off its own derive tag, never a shared
+	## stream, and saved like `star`, so a save from before it loads with none.
+	var twin: bool = false
+
 	## Is there a pulsar near enough to matter? Computed once at generation --
 	## see `_seed_pulsars` -- rather than measured when an option asks, because
 	## `admits` runs for every option against every system and a distance scan
