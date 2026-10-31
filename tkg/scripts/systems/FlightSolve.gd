@@ -13,8 +13,9 @@ extends RefCounted
 ##    past that sped up by a phasing burn whose push is held to THRUST
 ##    (`ShipFlight._step_phase` flies it); alongside a station, belt, hulk or
 ##    contact, holding there KEEP_HOLD 1 s;
-## 2. the departure burn, at THRUST 40 px/s^2 in one direction, from the ring's
-##    own motion (velocity continuous);
+## 2. the departure burn, in one direction, from the ring's own motion
+##    (velocity continuous), at THRUST 40 px/s^2 but eased while the ship is
+##    slow so it turns no tighter than R_BURN;
 ## 3. the coast, integrated through the stars and the moving giant (RK4 in
 ##    64-bit scalars, each step ETA of the nearest pull's own time);
 ## 4. the arrival burn, onto the target's ring at its speed either way round:
@@ -25,7 +26,8 @@ extends RefCounted
 ## Keep-out (`MapGravity`) holds along the whole path: each step's closest
 ## approach on the cubic through its ends, and the arrival burn's own path. The
 ## flight's own departure and target world keep out only to their rings
-## (OWN_GAP).
+## (OWN_GAP). No burn all but stops the ship and turns it round a point, which
+## draws a cusp (V_CUSP).
 ##
 ## THE COST: engine work (the ride's phasing and both burns, px/s) + TIME_W x
 ## seconds from now to arrival. Flying inside a system costs no fuel; the cost
@@ -207,6 +209,37 @@ const BUDGET := 140
 const CONIC_TS := [6.0, 9.0, 13.0, 18.0, 24.0, 29.0]
 ## the conics the second stage re-solves from the real departure
 const CONIC_KEEP := 6
+## THE DEPARTURE BURN IS EASED WHILE THE SHIP IS SLOW (Jon: "why are there
+## sharp angles on some of the trajectories?"): a ship at speed v turned by a
+## pull a goes round a curve of v^2 / a, so out of a settled star orbit at 14 to
+## 23 px/s a burn at THRUST across its motion bent it round 5 to 13 px, drawn at
+## zoom 1 as tight as 0.7 px (the plane's slant shortens a curve seen end on to
+## 0.38^2 of it): FlightTest counted a corner, over 20 deg a px, in 3 to 7 of a
+## system's flights from a star orbit (Oct 31). So the pull is at most v^2 /
+## R_BURN (a curve of R_BURN px at the least), never under P_MIN, and THRUST from
+## about 24 px/s. The work is the same; the burn takes longer. Out of a
+## settled star orbit only (a ring round a fixed point, place -9: the edge as
+## arrived is one), whose pace is 14 to 40 px/s: a world's ring and a star's
+## close orbit leave at 35 and 45, and eased there a burn deep in a star's well
+## was too weak to climb out (SolveTest's star-to-star flights in the hand twins
+## found 79%, against 90%); alongside, the ship leaves all but at rest and its
+## first curve is under a pixel; free, only a harness leaves (SolveTest's free
+## starts at 10 to 40 px/s were found 1.7% less often eased, Oct 31).
+const R_BURN := 14.0
+const P_MIN := 3.0
+## A BURN THAT ALL BUT STOPS THE SHIP AND TURNS IT draws a cusp however gently
+## it pulls: its speed (on the plane, where it is drawn) dipping under this
+## mid-burn, below where it starts and ends, so the motion swings round a
+## point tighter than R_BURN at P_MIN. Such a departure out of a ring (a
+## world's, a star's close orbit or a settled star orbit) or an arrival is not
+## flown: the search finds another. (At 12 px/s,
+## before the burn was eased, it cut SolveTest's flights found from 99.97% to
+## 96.2% one-star, Oct 31.)
+const V_CUSP := 5.0
+## and turned down this much above it (px/s): the burn's speed read here from
+## the coast's nodes and a few points of the arrival, SolveTest's from every
+## sample (one flight of 3,061 read just under 5 there and passed here, Oct 31)
+const CUSP_PAD := 0.5
 ## the version of `choice` this file writes and reads
 const CHOICE_V := 1
 
@@ -295,6 +328,8 @@ var _tplace := -9
 var _tsense := 0
 var _senses := PackedFloat64Array([1.0, -1.0])
 var _twin := false
+## (a departure out of a settled star orbit: its burn eased while slow, R_BURN)
+var _ease := false
 ## the ride's top phasing (`_kmax`)
 var _kmax := 1.0
 ## the keep-outs this flight holds: MapGravity's, its own departure and
@@ -430,6 +465,7 @@ static func _warm_slack(j: float) -> float:
 func _setup(dep: Dictionary, tgt: Dictionary) -> bool:
 	if not _setup_in(dep, tgt):
 		return false
+	_ease = _dk == 0 and _dplace == -9
 	# THE RIDE'S PHASING, held to THRUST and VMAX on the ring being ridden
 	_kmax = 1.0
 	if _dk == 0:
@@ -707,12 +743,71 @@ func _fly(ux: float, uz: float, has_fix: bool, a_fix: float) -> float:
 	var t0 := Time.get_ticks_usec()
 	_integrate(_e_td, _e_x0, _e_z0, _e_vx0, _e_vz0, _e_dvx, _e_dvz, t_now + T_CAP)
 	var t1 := Time.get_ticks_usec()
-	_price()
+	# (a departure burn that swings the ship round a point is not flown: `V_CUSP`)
+	if not (_dk == 0 and _departure_cusps()):
+		_price()
 	_us_int += t1 - t0
 	_us_price += Time.get_ticks_usec() - t1
 	if _e_J < _b_J:
 		_keep_best()
 	return _e_J
+
+
+## WHETHER THE DEPARTURE BURN JUST FLOWN draws a cusp (`V_CUSP`): its speed at
+## the coast's nodes through the burn (H_BURN apart, gravity in), and the burn's
+## own least speed between them, dipping under V_CUSP and under where it starts
+## and ends.
+func _departure_cusps() -> bool:
+	if _cn < 2 or _tc0 <= _cT[0] + 1e-6:
+		return false
+	var v0 := sqrt(_cVX[0] * _cVX[0] + _cVZ[0] * _cVZ[0])
+	var vmin := INF
+	var v1 := v0
+	var k := 0
+	while k + 1 < _cn and _cT[k] < _tc0 - 1e-9:
+		var ax := (_cVX[k + 1] - _cVX[k])
+		var az := (_cVZ[k + 1] - _cVZ[k])
+		var aa := ax * ax + az * az
+		# the least speed on the straight change of velocity across this step
+		var tau := clampf(-(_cVX[k] * ax + _cVZ[k] * az) / aa, 0.0, 1.0) if aa > 1e-12 else 0.0
+		var mx := _cVX[k] + ax * tau
+		var mz := _cVZ[k] + az * tau
+		vmin = minf(vmin, sqrt(mx * mx + mz * mz))
+		k += 1
+		v1 = sqrt(_cVX[k] * _cVX[k] + _cVZ[k] * _cVZ[k])
+	return vmin < V_CUSP + CUSP_PAD and vmin < minf(v0, v1) - 2.0
+
+
+## Whether the arrival burn ending at te (`_arrival`'s [.., d, dxx, dxz, dux,
+## duz, ..]) draws a cusp: the coast's motion plus the burn's, sampled.
+func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
+	var d := ar[2]
+	if d <= 1e-6:
+		return false
+	var dxx := ar[3]
+	var dxz := ar[4]
+	var dux := ar[5]
+	var duz := ar[6]
+	var Ax := 3.0 * dxx - dux * d
+	var Az := 3.0 * dxz - duz * d
+	var Bx := dux * d - 2.0 * dxx
+	var Bz := duz * d - 2.0 * dxz
+	var vmin := INF
+	var v0 := 0.0
+	var v1 := 0.0
+	for j in 17:
+		var tau := float(j) / 16.0
+		var c := _coast_at(te - d + tau * d)
+		var vx := c[2] + (2.0 * Ax * tau + 3.0 * Bx * tau * tau) / d
+		var vz := c[3] + (2.0 * Az * tau + 3.0 * Bz * tau * tau) / d
+		var sp := sqrt(vx * vx + vz * vz)
+		if j == 0:
+			v0 = sp
+		elif j == 16:
+			v1 = sp
+		else:
+			vmin = minf(vmin, sp)
+	return vmin < V_CUSP + CUSP_PAD and vmin < minf(v0, v1) - 2.0
 
 
 func _keep_best() -> void:
@@ -762,17 +857,15 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 	var gph := G.gi_ph[0] if ng > 0 else 0.0
 	var ggm := G.gi_gm[0] if ng > 0 else 0.0
 	var gkp := _gkeep[0] if ng > 0 else 0.0
+	# THE DEPARTURE BURN: dv delivered along its own way, its pull eased while
+	# the ship is slow (R_BURN), held for each step of at most H_BURN
 	var dv := sqrt(dvx * dvx + dvz * dvz)
-	var d1 := dv / THRUST
-	var thx := dvx / dv * THRUST if dv > 1e-9 else 0.0
-	var thz := dvz / dv * THRUST if dv > 1e-9 else 0.0
-	var nb := 0
-	if d1 > 1e-9:
-		nb = maxi(1, ceili(d1 / H_BURN))
-	var hb := d1 / float(nb) if nb > 0 else 0.0
+	var bux := dvx / dv if dv > 1e-9 else 0.0
+	var buz := dvz / dv if dv > 1e-9 else 0.0
+	var rem := dv if dv > 1e-9 else 0.0
 	var t := td
 	var lost2 := pow(G.edge * 1.6, 2.0)
-	_tc0 = td + d1
+	_tc0 = td + dv / THRUST
 	_t_bad = INF
 	var clear := INF
 	_cT[0] = t
@@ -793,10 +886,19 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 		var h := 0.0
 		var ax_t := 0.0
 		var az_t := 0.0
-		if k < nb:
-			h = hb
-			ax_t = thx
-			az_t = thz
+		var burn_ends := false
+		if rem > 0.0:
+			var pull := THRUST
+			if _ease:
+				var sp0 := sqrt(vx * vx + vz * vz)
+				pull = clampf(sp0 * sp0 / R_BURN, P_MIN, THRUST)
+			h = minf(H_BURN, rem / pull)
+			ax_t = bux * pull
+			az_t = buz * pull
+			rem -= pull * h
+			if rem <= 1e-9:
+				rem = 0.0
+				burn_ends = true
 		else:
 			# a tenth of the nearest pull's own time
 			var tau2 := INF
@@ -1023,6 +1125,8 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 		vz = nvz
 		t += h
 		k += 1
+		if burn_ends:
+			_tc0 = t
 		gx0 = gx1
 		gz0 = gz1
 		_cT[n] = t
@@ -1723,7 +1827,7 @@ func _price() -> void:
 			if _burn_clear(te, ar[2], ar[3], ar[4], ar[5], ar[6], clampi(ceili(ar[2] / 0.05), 16, 64)) < BURN_PAD:
 				break
 			if _bthr <= THRUST * THRUST_SLACK:
-				ok = true
+				ok = not _arrival_cusps(te, ar)
 				break
 			pk *= THRUST / _bthr
 			if crossing:

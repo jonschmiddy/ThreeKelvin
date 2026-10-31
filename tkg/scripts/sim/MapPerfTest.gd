@@ -292,13 +292,27 @@ func _belts(view, key: String) -> void:
 		_ok("%s: belt %d's table is its generator's 8,400 draws in order" % [key, b.index], same)
 
 
-## THE LINE from many states of the ship, with the centres shared and without.
+## THE LINE from many states of the ship, with the centres shared and without;
+## and in the same system with two suns (ruling 20: each star a bumper with a
+## close ring of its own, letting go settling round the nearer star or both),
+## where it may have them.
 func _line(view, key: String) -> void:
-	var L: SystemLayout = view.layout
+	_line_on(view.layout, key, view.node.index)
+	var n: MapGen.MapNode = view.node
+	if MapGen.twin_ok(n):
+		var was := n.twin
+		n.twin = true
+		var L2 := SystemLayout.of(n)
+		n.twin = was
+		if _ok("%s: the layout has two suns when asked (%s)" % [key, L2.twin], L2.twin):
+			_line_on(L2, key + " (two suns)", n.index)
+
+
+func _line_on(L: SystemLayout, key: String, seed: int) -> void:
 	var fl = ShipFlightS.new()
 	fl.setup(L, Vector2(L.edge * 0.9, -210.0), 0.0)
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 7 + view.node.index
+	rng.seed = 7 + seed
 	var keysets := [{"w": false, "a": false, "s": false, "d": false}, {"w": true, "a": false, "s": false, "d": false},
 		{"w": true, "a": true, "s": false, "d": false}, {"w": false, "a": false, "s": true, "d": true}]
 	var t_new := 0
@@ -308,8 +322,12 @@ func _line(view, key: String) -> void:
 	for k in 40:
 		var t := rng.randf_range(0.0, 600.0)
 		# a place's ring to aim at now and then, so the line ends in captures too
+		# (in a twin also a star's, star B's most: its close ring is new)
 		var p := Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(L.star_r + 40.0, L.edge)
-		if k % 3 == 0 and not L.bodies.is_empty():
+		if L.twin and k % 5 == 1:
+			var sb := L.star_pos(SystemLayout.STAR_B if k % 10 == 1 else -1)
+			p = sb + Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(20.0, 120.0)
+		elif k % 3 == 0 and not L.bodies.is_empty():
 			var bi := rng.randi() % L.bodies.size()
 			var c3: Vector3 = fl.center(bi, t)
 			p = Vector2(c3.x, c3.z) + Vector2.from_angle(rng.randf() * TAU) * 60.0

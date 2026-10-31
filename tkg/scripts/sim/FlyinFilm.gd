@@ -55,7 +55,8 @@ func _fly(b: int) -> bool:
 		await _tree.process_frame
 	_mark("fly to body %d" % b)
 	m.fly_to_body(b)
-	for i in 1800:
+	# (a flight on map time takes up to 30 s and its ride 4.4 s first, ruling 20)
+	for i in 3600:
 		await _tree.process_frame
 		if not is_instance_valid(m):
 			return false

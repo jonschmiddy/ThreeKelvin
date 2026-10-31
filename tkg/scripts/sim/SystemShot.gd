@@ -507,7 +507,9 @@ func _ready() -> void:
 			scr.tap({"kind": &"star" if ai == -1 else &"body", "body": ai, "beacon": null, "at": Vector2.ZERO})
 			var t1 := Time.get_ticks_msec()
 			print("  systemshot: again: flying %s" % (scr.flight.mode == &"fly"))
-			while scr.flight.reached() != ai and Time.get_ticks_msec() - t1 < 12000:
+			# (a flight on map time takes up to 30 s and its ride 4.4 s first,
+			# ruling 20; the time-scaled conics took 12 at most)
+			while scr.flight.reached() != ai and Time.get_ticks_msec() - t1 < 60000:
 				await get_tree().process_frame
 			for _w2 in 20:
 				await get_tree().process_frame

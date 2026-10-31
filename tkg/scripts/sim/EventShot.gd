@@ -128,7 +128,9 @@ func _flow(n: MapGen.MapNode) -> void:
 	var k := 0
 	var t0 := Time.get_ticks_msec()
 	var settle := 0
-	while Time.get_ticks_msec() - t0 < 20000:
+	# (GO's flight on map time takes up to 30 s and its ride 4.4 s first, ruling
+	# 20; with the conics the whole of it was over in 20)
+	while Time.get_ticks_msec() - t0 < 60000:
 		await _secs(0.033)
 		_img().save_png("%s/f_%04d.png" % [flow, k])
 		k += 1

@@ -21,11 +21,18 @@ extends Node
 ## its playback made on the main thread, the decode and the edits on a worker
 ## (`VoiceGlitch.bake_placed`), the stream made from the bytes on the main thread
 ## (`VoiceGlitch.from_pcm`); its slowest take-in printed too.
+## And the sector map's flight plans (ruling 20, Oct 30): `ShipFlight.plan_bg`
+## solves a flight (`FlightSolve` through `MapGravity`, arrays only) on a worker
+## while the ship rides on, and `take_bg` makes the FlightPlan and its drawn
+## insertion on the main thread; two ships at once, in a two-star system (the
+## slowest plans), from a world's ring to every other place in turn.
 
 const IDS := ["custodian", "whale", "leviathan"]
 const FAUNA_JOBS := 6
 const BREAK_JOBS := 3
 const VOICE_JOBS := 2
+const PLAN_SHIPS := 2
+const ShipFlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
 
 
 class Counter extends Logger:
@@ -97,6 +104,20 @@ func _run() -> void:
 	small.fill(Color(0.4, 0.6, 0.8, 1.0))
 	print("threadstress: %.0f s, %d pictures to cut, %d deaths, %d card pictures" % [_secs, cuts.size(), deaths.size(), cards.size()])
 
+	# the map's ships, each on a world's ring in a twin built to the
+	# prototype's geometry (`SolveTest.twin_layout`)
+	var twin_l: SystemLayout = load("res://scripts/sim/SolveTest.gd").twin_layout(300.0)
+	var ships: Array = []
+	for k in PLAN_SHIPS:
+		var fl = ShipFlightS.new()
+		fl.setup(twin_l, Vector2(-twin_l.edge * 0.95, 0.0), 0.0)
+		fl.place_at(k % 2, 0.0)
+		ships.append({fl = fl, next = 0})
+	var places: Array[int] = [-1, SystemLayout.STAR_B, 0, 1, 2]
+	var n_plan := 0
+	var worst_plan := 0
+	var plan_t := 0.0
+
 	var fauna: Array = []    # in flight: {task, held}
 	var breaks: Array = []
 	var voices: Array = []
@@ -148,6 +169,24 @@ func _run() -> void:
 		while voices.size() < VOICE_JOBS and not takes.is_empty():
 			voices.append(_start_voice(takes[vi % takes.size()]))
 			vi += 1
+		# the map's flight plans: taken in when done, the next asked for
+		plan_t += 1.0 / 60.0
+		for sh: Dictionary in ships:
+			var fl = sh.fl
+			var t4 := Time.get_ticks_usec()
+			var got: Dictionary = fl.take_bg(&"preview", plan_t)
+			if not got.is_empty():
+				worst_plan = maxi(worst_plan, Time.get_ticks_usec() - t4)
+				if got.get("plan") != null:
+					n_plan += 1
+			if not fl.planning(&"preview"):
+				var to: int = places[int(sh.next) % places.size()]
+				sh.next = int(sh.next) + 1
+				if to == fl.orbit_body():
+					to = places[int(sh.next) % places.size()]
+					sh.next = int(sh.next) + 1
+				fl.plan_bg(to, plan_t, {}, &"preview")
+			fl.step(1.0 / 60.0, plan_t, {"w": false, "a": false, "s": false, "d": false})
 		# the main thread's own textures, as many as a busy frame makes
 		for k in 4:
 			var tex := ResourceLoader.load(cards[(n_load + k) % cards.size()], "", ResourceLoader.CACHE_MODE_IGNORE) as Texture2D
@@ -170,13 +209,27 @@ func _run() -> void:
 			bb.free()
 	for v in voices:
 		_take_voice(v)
+	# the last plans taken in as the game takes them, a frame at a time (take_bg
+	# waits on its own task once it is done; waiting on it here first hands
+	# take_bg a task the pool has already let go of)
+	for sh2: Dictionary in ships:
+		var fl2 = sh2.fl
+		var fr := 0
+		while fl2.planning(&"preview") and fr < 600:
+			if fl2.take_bg(&"preview", plan_t).get("plan") != null:
+				n_plan += 1
+			fr += 1
+			await _tree.process_frame
+		if fl2.planning(&"preview"):
+			print("threadstress: a flight plan still being made after 600 frames")
+			_log.n += 1
 	OS.remove_logger(_log)
-	print("threadstress: %d motion cuts, %d breakups, %d glitched takes, %d card loads, %d main-thread textures" % [n_cut, n_break, n_voice, n_load, n_tex])
-	print("threadstress: slowest take-in on the main thread: a motion %.1f ms, a breakup %.1f ms, a take %.1f ms"
-		% [worst_take / 1000.0, worst_break / 1000.0, worst_voice / 1000.0])
+	print("threadstress: %d motion cuts, %d breakups, %d glitched takes, %d flight plans, %d card loads, %d main-thread textures" % [n_cut, n_break, n_voice, n_plan, n_load, n_tex])
+	print("threadstress: slowest take-in on the main thread: a motion %.1f ms, a breakup %.1f ms, a take %.1f ms, a flight plan %.1f ms"
+		% [worst_take / 1000.0, worst_break / 1000.0, worst_voice / 1000.0, worst_plan / 1000.0])
 	for l in _log.first:
 		print("  error: " + l)
-	var ok := _log.n == 0 and n_cut > 0 and n_break > 0 and n_voice > 0
+	var ok := _log.n == 0 and n_cut > 0 and n_break > 0 and n_voice > 0 and n_plan > 0
 	print("threadstress: %s (%d engine errors)" % ["PASS" if ok else "FAIL", _log.n])
 	_tree.quit(0 if ok else 1)
 

@@ -115,6 +115,12 @@ var _pv_new := PackedVector3Array()
 var _pv_lit := PackedByteArray()
 var _pv_b0 := -99.0
 var _pv_choice: Dictionary = {}
+## THE PLAN DRAWN (`ShipFlight.FlightPlan`), which a click flies as it is while
+## its departure is still ahead (`ShipFlight.fly_bg`), and the key it was asked
+## for under: planned on a worker since ruling 20 (a twin's solved flight takes
+## a median of 40 ms), so it comes in a few frames after it is asked for
+var _pv_plan = null
+var _pv_req_key := ""
 ## The flight being flown, laid out once.
 var _fly_line: Array = []
 var _fly_line_plan = null
@@ -614,20 +620,25 @@ func _draw_paths(t: float) -> void:
 	if flight.mode == &"free":
 		# WITH A FLIGHT DRAWN TOO, the let-go forecast steps back (the two leave
 		# the ship together and read as one line with a corner in it)
-		var previewing: bool = preview_to >= -1 and flight.orbit_body() != preview_to and t - float(flight.thrust_t) >= 1.0 and flight.can_fly()
+		var previewing: bool = SystemLayout.is_place(preview_to) and flight.orbit_body() != preview_to and t - float(flight.thrust_t) >= 1.0 and flight.can_fly()
 		if not previewing and not (flight.hold_line as Dictionary).is_empty():
 			_line(flight.hold_line, 0.22, t, false)
 		if not (flight.line as Dictionary).is_empty():
 			_line(flight.line, 0.25 if previewing else 0.55, t, not previewing)
-	elif flight.plan != null and (flight.mode == &"fly" or (flight.mode == &"rail" and flight.rail.has("phase"))):
-		# THE FLIGHT BEING FLOWN (or ridden round to): what is left of it --
-		# faded when another place is chosen, its flight drawn over it
+	var arriving: bool = flight.plan != null and (flight.rail.has("arrive") or flight.keep.has("arrive"))
+	if flight.plan != null and (flight.mode == &"fly" or arriving or (flight.mode == &"rail" and flight.rail.has("phase")) or (flight.mode == &"keep" and flight.keep.has("hold"))):
+		# THE FLIGHT BEING FLOWN (or ridden round to, or held alongside for, or
+		# its last burn onto the place): what is left of it -- faded when
+		# another place is chosen, its flight drawn over it. Round a settled
+		# star orbit its ride is the plan's first samples, not drawn: the line
+		# starts where it leaves, as it was drawn
 		if _fly_line_plan != flight.plan:
 			_fly_line_plan = flight.plan
 			_fly_line = _plan_line(flight.plan, true)
 		var u := 0.0
-		if flight.mode == &"fly":
+		if flight.mode == &"fly" or arriving:
 			u = clampf((t - flight.fly_t0) / flight.plan.dur, 0.0, 1.0)
+		u = maxf(u, float(flight.plan.u_dep))
 		_draw_line3(_fly_line[0], _fly_line[1], 1.0, _fly_line[2], u)
 	# FLYING BY HAND (a key held, or let go of a moment ago): only where you are
 	# going is drawn, never a plan replanned from under you (Jon: "why does the
@@ -641,33 +652,64 @@ func _draw_paths(t: float) -> void:
 		_preview_key = ""
 		_pv_new = PackedVector3Array()
 		_pv_old = PackedVector3Array()
-	if preview_to >= -1 and can and flight.orbit_body() != preview_to:
+		_pv_plan = null
+		flight.drop_bg(&"preview")
+	if SystemLayout.is_place(preview_to) and can and flight.orbit_body() != preview_to:
 		var in_orbit: bool = flight.mode == &"rail" and not flight.inserting()
 		var key := "%d:%d:%d:%s" % [preview_to, flight.orbit_body() if in_orbit else -9, roundi(float(flight.rail.get("rt", 0.0))) if in_orbit else 0, flight.mode]
-		var every := 3.0 if in_orbit else 0.5
-		var slow: bool = _preview_ms > 30.0
-		if slow:
+		# PLANNED AGAIN: round a ring every 3 s to check it holds (its choice
+		# rebuilds the very flight while its departure is ahead), alongside or
+		# round a star orbit every second (DESIGN: a departure from there is
+		# only kept while its hold lasts), and as its departure comes up (the
+		# drawn flight then gives way to the one after it)
+		var every := 3.0 if in_orbit else 1.0
+		# (today's planner, the fallback, made on this thread: as before, every
+		# 2 s at the least)
+		if _pv_plan != null and _pv_plan.res == null:
 			every = maxf(every, 2.0)
-		if key != _preview_key or t - _pv_at > every:
+		var gone: bool = _pv_plan != null and _pv_plan.res != null and (t >= float(_pv_plan.t0) - flight.PLAN_AHEAD or flight._takeable(_pv_plan, t).is_empty())
+		if key != _preview_key and _pv_plan != null and int(_pv_plan.to) != preview_to:
+			# ANOTHER PLACE: the last one's flight is not drawn while this one's is made
+			_pv_plan = null
+			_pv_new = PackedVector3Array()
+			_pv_old = PackedVector3Array()
+		if (key != _preview_key or t - _pv_at > every or gone) and not flight.planning(&"preview"):
 			var same := key == _preview_key
 			_preview_key = key
 			_pv_at = t
-			var t0 := Time.get_ticks_usec()
-			var pl = flight.make_plan(preview_to, t, _pv_choice if same else {})
-			_preview_ms = float(Time.get_ticks_usec() - t0) / 1000.0
-			if pl != null:
+			if flight.plan_bg(preview_to, t, _pv_choice if same else {}, &"preview"):
+				_pv_req_key = key
+		var got: Dictionary = flight.take_bg(&"preview", t)
+		if not got.is_empty():
+			var pl = got.plan
+			_preview_ms = float(flight.last_ms)
+			# STALE (another place chosen, or the ship off what it was planned
+			# from, or its departure gone by while it was made): dropped, and asked
+			# for again
+			if pl != null and int(got.i) == preview_to and _pv_req_key == key and not flight._takeable(pl, t).is_empty():
+				var was_same: bool = _pv_plan != null and int(_pv_plan.to) == preview_to
+				_pv_plan = pl
 				_pv_choice = pl.choice
 				var ln: Array = _plan_line(pl, false)
-				_pv_old = _pv_blend() if same and _pv_new.size() == PV_N else PackedVector3Array()
+				_pv_old = _pv_blend() if was_same and _pv_new.size() == PV_N else PackedVector3Array()
 				_pv_new = ln[0]
 				_pv_lit = ln[1]
 				_pv_b0 = _clock() if not _pv_old.is_empty() else -99.0
+			elif pl == null and int(got.i) == preview_to:
+				# (nothing at all from here: none drawn, and asked again in a while)
+				_pv_plan = null
+				_pv_new = PackedVector3Array()
+				_pv_old = PackedVector3Array()
+			else:
+				_pv_at = -99.0
 		if _pv_new.size() == PV_N:
 			var pvl := _pv_blend()
-			# FROM THE SHIP WHERE IT IS NOW: in open space it moves on between
-			# replans (half a second apart), so the line's start is eased onto it
-			# over the first stretch, not left behind it
-			if flight.mode == &"free":
+			# FROM THE SHIP WHERE IT IS NOW: in open space today's planner's plan
+			# starts at the ship, which moves on between replans, so the line's
+			# start is eased onto it over the first stretch, not left behind it. A
+			# solved flight's line starts where it leaves the star orbit, ahead of
+			# the ship, as round a ring: eased onto the ship it was not the flight
+			if flight.mode == &"free" and _pv_plan != null and _pv_plan.res == null:
 				var off: Vector3 = flight.where3() - pvl[0]
 				if off.length() > 0.5:
 					var step := maxf(pvl[1].distance_to(pvl[0]), 0.01)

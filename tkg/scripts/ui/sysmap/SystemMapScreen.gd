@@ -629,11 +629,11 @@ func _step_ship(delta: float) -> void:
 	var ob: int = flight.orbit_body()
 	if ob != _flown_ob:
 		_flown_ob = ob
-		if ob >= -1 and view.node != null:
+		if SystemLayout.is_place(ob) and view.node != null:
 			flights += 1
 			flown_to[view.node.index] = {"at": ob, "n": flights}
-	# THE FLIGHT A SECOND CLICK WOULD FLY, drawn before you fly it
-	overlay.preview_to = overlay.selected if overlay.selected >= -1 else -9
+	# THE FLIGHT A SECOND CLICK WOULD FLY, drawn before you fly it (star B too)
+	overlay.preview_to = overlay.selected if SystemLayout.is_place(overlay.selected) else -9
 	# WHETHER A FLIGHT CAN START changed (settled into an orbit, or left one):
 	# FLY HERE and the choices say so
 	var cf: bool = flight.can_fly()
@@ -644,17 +644,17 @@ func _step_ship(delta: float) -> void:
 	if now != _was_at:
 		var was := _was_at
 		_was_at = now
-		if now >= -1 and not _taking:
+		if SystemLayout.is_place(now) and not _taking:
 			# IN ORBIT: the panel opens that place, its events now open; heard
 			# even when it was already the one selected -- unless another place
 			# was picked on the way, which stays picked (its flight shows now)
 			if overlay.selected == now:
 				_sound(&"chart_select", 0.04, 60)
-			if overlay.selected >= -1 and overlay.selected != now:
+			if SystemLayout.is_place(overlay.selected) and overlay.selected != now:
 				_refresh_panel()
 			else:
 				select_body(now)
-		elif was >= -1 and panel.mode == &"list" and (panel.filter == was or (was == -1 and panel.filter == -2)):
+		elif SystemLayout.is_place(was) and panel.mode == &"list" and (panel.filter == was or (SystemLayout.is_star(was) and panel.filter == -2)):
 			panel.show_body(panel.filter)
 
 
@@ -1081,20 +1081,28 @@ func _fly(body: int, done: Callable) -> void:
 	# LANDING IS THE FLIGHT'S OWN BUSINESS: the callback decides what the panel
 	# shows (a choice's result, or the place), so the frame's own "arrived in
 	# orbit" must not open the place over it
-	# the flight drawn before it is the one flown: the preview's own choice
-	var prefer: Dictionary = overlay._pv_choice if overlay.preview_to == body else {}
-	var pl = flight.fly(body, view.t, func() -> void:
+	# THE FLIGHT DRAWN BEFORE IT IS THE ONE FLOWN: the preview's own plan while
+	# its departure is still ahead, else one planned on a worker keeping the
+	# preview's choice (ruling 20's solved flights take a median of 40 ms in a
+	# twin, too long for the frame of a click), the ship riding on meanwhile;
+	# one that finds nothing puts the ship in orbit there (`ShipFlight.fly_bg`)
+	var near: bool = overlay.preview_to == body
+	var prefer: Dictionary = overlay._pv_choice if near else {}
+	var ok: bool = flight.fly_bg(body, view.t, func() -> void:
 		_was_at = flight.reached()
 		_sound(&"chart_select", 0.04, 60)
-		done.call(), prefer)
-	if pl == null:
-		# no manoeuvre would solve (the flight measure has never seen it): put the
-		# ship in orbit there rather than leave the choice hanging
+		done.call(), prefer, overlay._pv_plan if near else null)
+	if not ok:
+		# no flight could start from here: put the ship in orbit there rather
+		# than leave the choice hanging
 		flight.place_at(body, view.t)
 		_was_at = flight.reached()
 		done.call()
 		return
-	_was_at = -9
+	# (on its way, or being planned: not where it was; put there at once, the
+	# callback has said where it is)
+	if SystemLayout.is_place(flight.heading_to()):
+		_was_at = -9
 
 
 ## The panel drawn again as it stands (a place's list, or an event's page).

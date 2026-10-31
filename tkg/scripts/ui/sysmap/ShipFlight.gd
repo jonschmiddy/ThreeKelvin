@@ -38,6 +38,24 @@ extends RefCounted
 ## own motion, and the insertion any capture flies, onto the orbit. There is
 ## no straight or swooping fallback any more.
 ##
+## SINCE RULING 20 (Oct 30, "Prototype: twin:A giant:A") THE COAST IS SOLVED
+## (`FlightSolve`): from the ring the ship rides (a world's, a star's close
+## orbit, a settled star orbit), alongside, or free, through the real pull of
+## the stars and the moving giant on map time, a burn at THRUST onto the
+## target's ring at its own speed, landing on it exactly. The ride round to the
+## departure point is `rail.phase` (round a world or a star close in), the
+## flight's own first samples (round a settled star orbit, `_with_ride`) or the
+## hold alongside (`keep.hold`); its last stretch, the burn onto the place, is
+## flown as the insertion was (`_arrive`: at the place, burning on). The Lambert
+## manoeuvres above are kept only as the fallback for the under 1% of flights
+## the solver finds nothing clean for (`_old_plan`); failing that, the ship is
+## put in orbit there. The preview and the click plan on a worker
+## (`plan_bg`, `fly_bg`): a twin's plan takes a median of about 40 ms, the
+## worst about 140, too long for a frame. Flying by hand still feels no pull
+## (Jon, Oct 3). In a twin each star is a bumper with a close ring of its own,
+## and letting go settles round the nearer star inside its steady zone, else
+## round both.
+##
 ## All in the plane's own units (x across, z toward you); the view projects
 ## it. Nothing here is saved: where the ship is in a system
 ## lives for the session (`SystemMapScreen._flights`).
@@ -147,6 +165,14 @@ class FreeState:
 	## which way round the star it settles: the way it is already going round
 	## (it used to swing round to the worlds' way, a hook by the ship)
 	var sense := 1.0
+	## WHAT IT SETTLES ROUND (`ShipFlight._settle_centre`): the centre, which (-1
+	## star A, SystemLayout.STAR_B, -9 both stars' balance point), that centre's
+	## share of the stars' pull (its pace), and the radius it must settle at when
+	## the one it is at would cross a star (-1: where it is). One star: the star.
+	var cen := Vector2.ZERO
+	var cen_id := -1
+	var cen_share := 1.0
+	var r_want := -1.0
 
 	func copy() -> FreeState:
 		var c := FreeState.new()
@@ -160,6 +186,10 @@ class FreeState:
 		c.orbit_r = orbit_r
 		c.bound = bound
 		c.sense = sense
+		c.cen = cen
+		c.cen_id = cen_id
+		c.cen_share = cen_share
+		c.r_want = r_want
 		return c
 
 
@@ -188,6 +218,15 @@ class FlightPlan:
 	var choice: Dictionary = {}
 	## the insertion's sharpest curvature as drawn (1 / its tightest radius, px)
 	var tail_k := 0.0
+	## A SOLVED FLIGHT (`FlightSolve`): its Result (null for today's planner,
+	## `conic` true), where it goes, what it was planned from (`_dep_of`) and when
+	## (map time), and the share of the plan a settled star orbit's ride takes up
+	## before its departure (the line is drawn from there, as a ring's)
+	var res: FlightSolve.Result = null
+	var to := -9
+	var dep: Dictionary = {}
+	var t_plan := 0.0
+	var u_dep := 0.0
 
 	func pos(u: float) -> Vector3:
 		var n := samp.size() - 1
@@ -208,16 +247,25 @@ class FlightPlan:
 func setup(layout: SystemLayout, edge_point: Vector2, t: float) -> void:
 	L = layout
 	edge_at = edge_point
+	_grav_v = null
+	_stars = L.stars()
 	f = FreeState.new()
+	_drop_jobs()
 	# IN ORBIT OF THE STAR AS IT ARRIVES (Jon: "Can we start the ship in orbit
 	# around the star? Like it can be as far away as it normally is when a sector
 	# is entered"): out where it warps in, on a circle clear of every place's
-	# ring and inside the edge, going round the way the worlds go
-	var r := arrival_r(edge_point.length())
-	f.p = edge_point.normalized() * r if edge_point.length() > 1.0 else Vector2(r, 0.0)
+	# ring and inside the edge, going round the way the worlds go. In a twin,
+	# round both stars (their balance point), clear of each.
+	var c := L.bary if L.twin else Vector2.ZERO
+	var ep := edge_point - c
+	var r := arrival_r(ep.length())
+	f.p = c + ep.normalized() * r if ep.length() > 1.0 else c + Vector2(r, 0.0)
+	f.cen = c
+	f.cen_id = -9 if L.twin else -1
+	f.cen_share = 1.0
 	f.orbit_r = r
 	f.sense = 1.0
-	f.v = star_orbit_v(f.p, r, 1.0)
+	f.v = star_orbit_v(f.p, r, 1.0, c, 1.0)
 	f.head = _scr_ang(f.v)
 	ang = f.head
 	mode = &"free"
@@ -230,28 +278,40 @@ func setup(layout: SystemLayout, edge_point: Vector2, t: float) -> void:
 
 
 # ---------------------------------------------------------------- the places
-func star_rail() -> float:
-	# the black hole's lens reaches far past its disc: its close orbit sits outside it
-	if L.star == SystemLayout.StarKind.CORE:
-		return 150.0
-	return L.star_r + 44.0
+## THE SYSTEM'S STARS as places ([-1], or [-1, STAR_B] in a twin), kept from
+## `setup`: free flight asks every step.
+var _stars: Array[int] = [-1]
 
 
-func star_ring() -> float:
-	return star_rail() + 35.0
+## STAR p'S CLOSE ORBIT (the rail), its capture ring and its keep-clear: the
+## layout's own ladder (`SystemLayout.star_rail_of` and the rest), one source
+## for the layout and the flight. One star: star_r + 44 (150 round the black
+## hole, whose lens reaches far past its disc), + 79 and star_r + 32, as before.
+func star_rail(p: int = -1) -> float:
+	return L.star_rail_of(p)
+
+
+func star_ring(p: int = -1) -> float:
+	return L.star_ring_of(p)
 
 
 ## THE ORBIT A SHIP RIDES, OUT AT THE EDGE OF THE RING (Jon: "When you orbit an
 ## object... you orbit at the furthest distance"): just inside the place's
-## capture ring, clear of its line. -1 the star's close orbit.
+## capture ring, clear of its line. A star: its close orbit
+## (`FlightSolve.star_orbit_r`, 8 inside the ring of one star; a twin's rail,
+## since ring - 8 there is inside the keep-out).
 const ORBIT_K := 0.88
 func orbit_r(i: int) -> float:
+	if SystemLayout.is_star(i):
+		return FlightSolve.star_orbit_r(L, i)
 	if i < 0:
 		return star_ring() - 8.0
-	# (a world close in to the star: as far out as keeps the orbit off the
-	# star's keep-clear, never lower than the old half ring)
+	# (a world close in to its star: as far out as keeps the orbit off that
+	# star's keep-clear, never lower than the old half ring; round both stars of
+	# a twin it is far out and the ring decides)
 	var b := L.bodies[i]
-	return clampf(b.orbit - keep_clear() - 10.0, b.soi * 0.5, b.soi * ORBIT_K)
+	var hs := b.host_id if SystemLayout.is_star(b.host_id) else -1
+	return clampf(b.orbit - keep_clear(hs) - 10.0, b.soi * 0.5, b.soi * ORBIT_K)
 
 
 ## Where a flight's coast meets the place, for the burn onto its orbit: just
@@ -259,16 +319,21 @@ func orbit_r(i: int) -> float:
 const APPROACH_K := 1.12
 func approach_r(i: int) -> float:
 	if i < 0:
-		return star_ring() + 12.0
+		return star_ring(i if SystemLayout.is_star(i) else -1) + 12.0
 	return L.bodies[i].soi * APPROACH_K
 
 
-func bumper() -> float:
-	return star_rail() + 25.0
+## STAR p'S SOFT BUMPER (`free_step`). One star: 25 px out past its rail, 10
+## inside its ring. A twin's ring is only 2 px past its rail, so its bumper sits
+## 8 px past the ring: as close as a world round that star can have its ring.
+func bumper(p: int = -1) -> float:
+	if L.twin:
+		return star_ring(p) + 8.0
+	return star_rail(p) + 25.0
 
 
-func keep_clear() -> float:
-	return L.star_r + 32.0
+func keep_clear(p: int = -1) -> float:
+	return L.keep_clear_of(p)
 
 
 func is_keep(i: int) -> bool:
@@ -278,16 +343,16 @@ func is_keep(i: int) -> bool:
 	return k == &"belt" or k == &"station" or k == &"derelict" or k == &"contact"
 
 
-## Where a place is at time t: the star, a world, or for a belt the point its
-## beacon rides.
+## Where a place is at time t: a star, a world, or for a belt the point its
+## beacon rides; every body round its own `host` (a world round star B, or round
+## both stars, circles there; the belt rule used to circle the origin, and 236
+## arrivals at a twin's belt landed more than 0.5 px off its beacon).
 func center(i: int, t: float) -> Vector3:
 	if i < 0:
+		if i == SystemLayout.STAR_B and L.twin:
+			return Vector3(L.star2_at.x, 0.0, L.star2_at.y)
 		return Vector3.ZERO
-	var b := L.bodies[i]
-	if b.kind == &"belt":
-		var a: float = b.phase + t / b.period * TAU
-		return Vector3(cos(a) * b.orbit, 0.0, sin(a) * b.orbit)
-	return b.point3(t)
+	return L.bodies[i].point3(t)
 
 
 func center_vel(i: int, t: float) -> Vector3:
@@ -309,12 +374,17 @@ func vel() -> Vector2:
 	return f.v
 
 
-## What the ship is in orbit of or alongside: a body, -1 the star, -9 nothing.
+## What the ship is in orbit of or alongside: a body, -1 star A (the star),
+## SystemLayout.STAR_B star B, -9 nothing.
 func reached() -> int:
+	# (a flight asked for and being planned, or holding alongside to leave, is
+	# on its way: as riding round to leave is)
+	if not _pend.is_empty():
+		return -9
 	if mode == &"rail":
 		return -9 if (inserting() or rail.has("phase")) else int(rail.body)
 	if mode == &"keep":
-		return -9 if inserting() else int(keep.body)
+		return -9 if (inserting() or keep.has("hold")) else int(keep.body)
 	return -9
 
 
@@ -323,11 +393,12 @@ func inserting() -> bool:
 	if mode == &"rail":
 		return float(rail.get("s", 1.0)) < 1.0
 	if mode == &"keep":
-		return (keep.get("ev", Vector2.ZERO) as Vector2).length() > 3.0
+		return keep.has("arrive") or (keep.get("ev", Vector2.ZERO) as Vector2).length() > 3.0
 	return false
 
 
-## What the ship is on, or burning onto: a body, -1 the star's close orbit, -9.
+## What the ship is on, or burning onto: a body, a star's close orbit (-1,
+## SystemLayout.STAR_B), -9.
 func orbit_body() -> int:
 	if mode == &"rail":
 		return int(rail.body)
@@ -341,17 +412,93 @@ func star_orbiting() -> bool:
 	return mode == &"free" and f.orbit_r > 0.0
 
 
-## THE STAR ORBIT'S VELOCITY at plane point p, on radius r: round the way the
-## worlds go, at the calm pace, with a pull back onto r once it is held.
-func star_orbit_v(p: Vector2, r_hold: float, sense := 1.0) -> Vector2:
-	var r := maxf(p.length(), 1.0)
-	var rh := p / r
+## THE STAR ORBIT'S VELOCITY at plane point p, on radius r round c: round the
+## way the worlds go, at the calm pace (STAR_PACE times Kepler's there, for
+## `share` of the stars' pull: a twin's star its own share, both stars all of
+## it), with a pull back onto r once it is held.
+func star_orbit_v(p: Vector2, r_hold: float, sense := 1.0, c := Vector2.ZERO, share := 1.0) -> Vector2:
+	var q := p - c
+	var r := maxf(q.length(), 1.0)
+	var rh := q / r
 	var rr := r_hold if r_hold > 0.0 else r
 	var spd := STAR_PACE * TAU * 1000.0 / (800.0 * sqrt(maxf(rr, 20.0)))
+	if share != 1.0:
+		spd *= sqrt(share)
 	var v := Vector2(-rh.y, rh.x) * spd * sense
 	if r_hold > 0.0:
 		v -= rh * (r - r_hold) * 1.2
 	return v
+
+
+## The settled star orbit's pace (px/s) at radius r round a centre with `share`
+## of the stars' pull (`star_orbit_v`'s speed).
+static func star_pace(r: float, share := 1.0) -> float:
+	var spd := STAR_PACE * TAU * 1000.0 / (800.0 * sqrt(maxf(r, 20.0)))
+	if share != 1.0:
+		spd *= sqrt(share)
+	return spd
+
+
+## WHAT A SHIP LET GO AT st.p SETTLES ROUND (Jon's pick for the twins, ruling
+## 20's DESIGN): one star, the star. In a twin, the nearer star when the ship is
+## inside its steady zone (`SystemLayout.s_limit` of the other star's share,
+## times the separation), at that star's own pace; else both stars, round their
+## balance point at their whole pace, at a radius whose circle keeps clear of
+## each star's capture ring (the nearer clear radius, in or out), so a ship
+## settled round both never grazes or is taken by a star.
+func _settle_centre(st: FreeState) -> void:
+	st.r_want = -1.0
+	if not L.twin:
+		st.cen = Vector2.ZERO
+		st.cen_id = -1
+		st.cen_share = 1.0
+		return
+	var da := st.p.length()
+	var db := (st.p - L.star2_at).length()
+	var near := -1 if da <= db else SystemLayout.STAR_B
+	var share := L.star_share if near == -1 else 1.0 - L.star_share
+	var zone := SystemLayout.s_limit(1.0 - share) * L.sep
+	if minf(da, db) < zone:
+		st.cen = L.star_pos(near)
+		st.cen_id = near
+		st.cen_share = share
+		return
+	st.cen = L.bary
+	st.cen_id = -9
+	st.cen_share = 1.0
+	var r := (st.p - L.bary).length()
+	var rc := _bary_clear(r)
+	if absf(rc - r) > 0.01:
+		st.r_want = rc
+	else:
+		st.r_want = -1.0
+
+
+## The radius nearest r of a circle round a twin's balance point that keeps
+## clear of both stars' capture rings by STAR_ORBIT_GAP.
+const STAR_ORBIT_GAP := 12.0
+func _bary_clear(r: float) -> float:
+	var bands: Array = []
+	for p in _stars:
+		var d := (L.star_pos(p) - L.bary).length()
+		var w := star_ring(p) + STAR_ORBIT_GAP
+		bands.append([d - w, d + w])
+	# (the bands may overlap: walk out and in from r to the first clear radius)
+	var hit := func(x: float) -> bool:
+		for bd: Array in bands:
+			if x > float(bd[0]) and x < float(bd[1]):
+				return true
+		return false
+	if not hit.call(r):
+		return r
+	var best := INF
+	var out := r
+	for bd: Array in bands:
+		for e: float in [float(bd[0]), float(bd[1])]:
+			if e > 20.0 and not hit.call(e - 0.001 if e == float(bd[0]) else e + 0.001) and absf(e - r) < best:
+				best = absf(e - r)
+				out = e
+	return out
 
 
 ## THE NOSE, turned toward `want` (a screen angle) on its spring.
@@ -374,6 +521,8 @@ func _flame(k: float, dt: float) -> void:
 
 
 # ---------------------------------------------------------------- a frame
+## A FLIGHT'S MOTION, read from its samples this far either side in time (s)
+const FLY_DT := 1.0 / 60.0
 var _fly_pos := Vector3.ZERO
 var _last_screen := Vector2.ZERO
 
@@ -381,41 +530,25 @@ var _last_screen := Vector2.ZERO
 ## Moves the ship on by `dt` real seconds; `t` is the system's clock now. Keys:
 ## {w, a, s, d} as held. Returns the thrust loop's level for this frame.
 func step(dt: float, t: float, k: Dictionary) -> float:
+	_poll_jobs(t)
 	var any: bool = k.w or k.a or k.s or k.d
 	if any and (mode == &"free" or mode == &"warp"):
 		thrust_t = t
 	if any or mode != &"free":
 		fresh = false
+	# A FLIGHT ASKED FOR AND STILL BEING PLANNED (`fly_bg`): W or S lets go of
+	# it, as W lets go of a ride round to leave
+	if not _pend.is_empty() and (k.w or k.s):
+		_cancel_flight()
 	if mode == &"fly":
-		var u := clampf((t - fly_t0) / plan.dur, 0.0, 1.0)
-		_fly_pos = plan.pos(u)
-		burn = plan.burning(u)
-		rcs = false
-		# THE SAME MANOEUVRE AS AN INSERTION: the nose on the burn while it burns
-		# (retrograde as it arrives), along the way it goes between
-		var du := 1.0 / 120.0
-		var q0 := plan.pos(maxf(u - du, 0.0))
-		var q2 := plan.pos(minf(u + du, 1.0))
-		var vv := Vector2(q2.x - q0.x, q2.z - q0.z)
-		var aa := Vector2(q2.x - 2.0 * _fly_pos.x + q0.x, q2.z - 2.0 * _fly_pos.z + q0.z)
-		# WHERE IT IS AND HOW IT MOVES, kept as it flies: a new place chosen on
-		# the way plans from here, at this speed (it planned from the motion the
-		# ship had before the flight, and drew nonsense)
-		f.p = Vector2(_fly_pos.x, _fly_pos.z)
-		if u < 1.0:
-			f.v = vv / (2.0 * du * plan.dur)
-		var lvl := 0.0
-		if burn and aa.length() > 0.0001:
-			_nose(_scr_ang(aa), dt)
-			var ac := aa.length() / pow(du * plan.dur, 2.0)
-			_flame(clampf(ac / maxf(plan.amax, 1.0), 0.3, 1.0), dt)
-			lvl = 0.7 * burn_k
-		else:
-			if vv.length() > 0.0001:
-				_nose(_scr_ang(vv), dt)
-			_burn_age = 0.0
-			burn_k = 0.0
-		if u >= 1.0:
+		var lvl := _fly_frame(dt, t)
+		# A SOLVED FLIGHT'S LAST STRETCH IS ITS BURN ONTO THE ORBIT: from there
+		# the ship is at the place, burning onto its ring or coming alongside
+		# (`inserting`, as LOCAL and the map count it), on the flight's own
+		# samples to its end
+		if plan.res != null and t >= _arrive_t(plan):
+			_arrive(t)
+		elif t - fly_t0 >= plan.dur:
 			_land(t)
 		return lvl
 	if mode == &"warp":
@@ -427,22 +560,43 @@ func step(dt: float, t: float, k: Dictionary) -> float:
 	if mode == &"rail":
 		return _step_rail(dt, t, k)
 	if mode == &"keep":
+		if keep.has("arrive"):
+			return _step_arrive(dt, t, k)
+		# HOLDING ALONGSIDE BEFORE A FLIGHT LEAVES (`FlightSolve.KEEP_HOLD`): W
+		# lets go of the flight; at its departure, the flight
+		if keep.has("hold"):
+			if k.w:
+				_cancel_flight()
+			elif t >= float(keep.hold):
+				keep.erase("hold")
+				_begin_fly(t)
+				return step(0.0, t, k)
 		if not k.w:
 			if k.a:
 				f.head -= TURN * dt
 			if k.d:
 				f.head += TURN * dt
 			ang = f.head
+			# BURNED TO A STOP ALONGSIDE: its motion relative to the place eases
+			# out with KEEP_TAU, and where it comes to rest (`inf`) is fixed from
+			# the moment it came alongside, so a flight planned from there (its
+			# hold, `FlightSolve`'s keep departure) leaves from the very spot
 			var ev: Vector2 = keep.ev
-			keep.off = (keep.off as Vector2) + ev * dt
-			keep.ev = ev * exp(-dt / 0.35)
+			if not keep.has("inf"):
+				keep.inf = (keep.off as Vector2) + ev * KEEP_TAU
+			keep.ev = ev * exp(-dt / KEEP_TAU)
+			keep.off = (keep.inf as Vector2) - (keep.ev as Vector2) * KEEP_TAU
 			var c := center(int(keep.body), t)
 			f.p = _flat(c) + (keep.off as Vector2)
 			f.v = _flat(center_vel(int(keep.body), t)) + (keep.ev as Vector2)
 			rcs = false
-			# BURNED TO A STOP ALONGSIDE: nose against the motion, flame on it
 			var e0 := float(keep.get("ev0", 1.0))
-			if ev.length() > 3.0 and not (k.a or k.d):
+			if keep.has("hold"):
+				# the nose onto the burn it will leave on
+				var hd: Vector2 = keep.get("hold_dir", Vector2.ZERO)
+				if hd.length() > 0.01:
+					_nose(_scr_ang(hd), dt)
+			elif ev.length() > 3.0 and not (k.a or k.d):
 				burn = true
 				_nose(_scr_ang(-ev), dt)
 				_flame(ev.length() / maxf(e0, 1.0), dt)
@@ -450,7 +604,9 @@ func step(dt: float, t: float, k: Dictionary) -> float:
 			burn = false
 			burn_k = 0.0
 			_burn_age = 0.0
-			_arrived()
+			# (not while it waits to leave: the callback is the next flight's)
+			if not keep.has("hold") and _pend.is_empty():
+				_arrived()
 			return 0.32 if (k.a or k.d) else 0.0
 		f.no_cap_body = int(keep.body)
 		f.no_cap_left = NO_CAPTURE_S
@@ -494,8 +650,113 @@ func step(dt: float, t: float, k: Dictionary) -> float:
 		start_rail(int(res.body), res.rel, res.rv, t)
 	elif res.get("kind", &"") == &"keep":
 		mode = &"keep"
-		keep = {"body": res.body, "off": res.rel, "ev": res.rv, "ev0": (res.rv as Vector2).length()}
+		keep = {"body": res.body, "off": res.rel, "ev": res.rv, "ev0": (res.rv as Vector2).length(),
+			"inf": (res.rel as Vector2) + (res.rv as Vector2) * KEEP_TAU}
 		f.orbit_r = -1.0
+	return lvl
+
+
+## Alongside, the motion relative to the place eases out over this (s).
+const KEEP_TAU := 0.35
+
+
+## ONE FRAME ON A PLANNED FLIGHT: where it is and how it moves, from its
+## samples at the map's clock, the nose and the flame on its burn.
+func _fly_frame(dt: float, t: float) -> float:
+	var u := clampf((t - fly_t0) / plan.dur, 0.0, 1.0)
+	_fly_pos = plan.pos(u)
+	burn = plan.burning(u)
+	rcs = false
+	# THE SAME MANOEUVRE AS AN INSERTION: the nose on the burn while it burns
+	# (retrograde as it arrives), along the way it goes between. Its motion
+	# read FLY_DT either side, in time: a share of the plan (a 120th) was a
+	# quarter of a second either side of a 30 s solved flight, which smeared
+	# its burns
+	var du := FLY_DT / maxf(plan.dur, 0.001)
+	var ua := maxf(u - du, 0.0)
+	var ub := minf(u + du, 1.0)
+	var q0 := plan.pos(ua)
+	var q2 := plan.pos(ub)
+	var vv := Vector2(q2.x - q0.x, q2.z - q0.z)
+	var aa := Vector2(q2.x - 2.0 * _fly_pos.x + q0.x, q2.z - 2.0 * _fly_pos.z + q0.z)
+	# WHERE IT IS AND HOW IT MOVES, kept as it flies: a new place chosen on
+	# the way plans from here, at this speed (it planned from the motion the
+	# ship had before the flight, and drew nonsense)
+	f.p = Vector2(_fly_pos.x, _fly_pos.z)
+	if u < 1.0 and ub > ua:
+		f.v = vv / ((ub - ua) * plan.dur)
+	var lvl := 0.0
+	var push := aa / (FLY_DT * FLY_DT)
+	if plan.res != null:
+		# A SOLVED FLIGHT FALLS AS IT COASTS: the burn is what the samples
+		# show less the stars' and the giant's pull, the nose on it and the
+		# flame by its share of THRUST (a star's pull near its keep-out is
+		# twice THRUST, and turned the nose off the burn)
+		var g := _grav().acc(_fly_pos.x, _fly_pos.z, t)
+		push -= Vector2(g[0], g[1])
+	if burn and push.length() > 0.5:
+		_nose(_scr_ang(push), dt)
+		if plan.res != null:
+			_flame(clampf(push.length() / THRUST, 0.3, 1.0), dt)
+		else:
+			_flame(clampf(push.length() / maxf(plan.amax, 1.0), 0.3, 1.0), dt)
+		lvl = 0.7 * burn_k
+	else:
+		if vv.length() > 0.0001:
+			_nose(_scr_ang(vv), dt)
+		_burn_age = 0.0
+		burn_k = 0.0
+	return lvl
+
+
+## WHEN A SOLVED FLIGHT TURNS ONTO ITS PLACE: its arrival burn (onto the ring at
+## its speed, or to the spot alongside), and never less than ARRIVE_MIN of its
+## end, so a flight arriving at nearly the ring's own speed still shows, and is
+## counted, burning onto the orbit.
+const ARRIVE_MIN := 0.5
+func _arrive_t(pl: FlightPlan) -> float:
+	return float(pl.end.t) - maxf(pl.res.d2, ARRIVE_MIN)
+
+
+## ONTO THE PLACE (`_arrive_t`): in orbit of it, burning on (the rail, not yet
+## on it), or coming alongside; the ship still on the flight's samples
+## (`_step_arrive`) until they end, on the ring exactly (`_land`).
+func _arrive(t: float) -> void:
+	var e := plan.end
+	var i: int = e.body
+	var arel: Vector2 = e.arel
+	if e.get("keep", false):
+		mode = &"keep"
+		keep = {"body": i, "off": arel, "ev": Vector2.ZERO, "ev0": 0.0, "inf": arel, "arrive": true}
+		rail = {}
+	else:
+		var pl := plan
+		start_rail(i, arel, e.rv, float(e.t), e.get("a", Vector2.ZERO))
+		plan = pl
+		rail.s = 0.0
+		rail.arrive = true
+		rail.erase("ins")
+	f.orbit_r = -1.0
+	f.no_cap_left = 0.0
+
+
+## A FRAME OF THE BURN ONTO THE PLACE (`_arrive`): on the flight's samples; W
+## breaks off it from the motion it has, as it does off an insertion.
+func _step_arrive(dt: float, t: float, k: Dictionary) -> float:
+	if k.w:
+		var body := orbit_body()
+		mode = &"free"
+		_fly_done = Callable()
+		f.no_cap_body = body
+		f.no_cap_left = NO_CAPTURE_S
+		f.coast = 0.0
+		rail = {}
+		keep = {}
+		plan = null
+		return 0.7
+	var lvl := _fly_frame(dt, t)
+	if t - fly_t0 >= plan.dur:
+		_land(t)
 	return lvl
 
 
@@ -506,9 +767,7 @@ func _step_rail(dt: float, t: float, k: Dictionary) -> float:
 	if rail.has("phase"):
 		if k.w:
 			# W: the flight is off; leave the orbit as W always does
-			rail.erase("phase")
-			plan = null
-			_fly_done = Callable()
+			_cancel_flight()
 		else:
 			return _step_phase(dt, t)
 	rail.u = minf(1.0, float(rail.u) + dt / EASE)
@@ -570,7 +829,10 @@ func _step_phase(dt: float, t: float) -> float:
 	var cv := center_vel(body, t)
 	var w: float = ph.w
 	var kk: float = ph.k
-	var a := float(ph.a0) + w * (tau + (kk - 1.0) * (tau / 2.0 - T / (4.0 * PI) * sin(TAU * tau / T)))
+	# (waiting for its plan, `fly_bg`: no end, the ring's own pace)
+	var a := float(ph.a0) + w * tau
+	if kk != 1.0:
+		a = float(ph.a0) + w * (tau + (kk - 1.0) * (tau / 2.0 - T / (4.0 * PI) * sin(TAU * tau / T)))
 	var rt: float = rail.rt
 	var tg := Vector2(-sin(a), cos(a))
 	f.p = _flat(c) + Vector2(cos(a), sin(a)) * rt
@@ -578,7 +840,8 @@ func _step_phase(dt: float, t: float) -> float:
 	rail.ang = a
 	rcs = false
 	var at: float = w * (kk - 1.0) * PI / T * sin(TAU * tau / T) * rt
-	var peak: float = absf(w) * (kk - 1.0) * PI / T * rt
+	# (a ride sped up or, replaying a drawn flight, slowed: k under 1)
+	var peak: float = absf(w) * absf(kk - 1.0) * PI / T * rt
 	if absf(at) > 4.0:
 		burn = true
 		_nose(_scr_ang(tg * signf(at)), dt)
@@ -595,6 +858,7 @@ func _step_phase(dt: float, t: float) -> float:
 ## `rv` relative to it; with no rv, already on it (a flight's arrival, a restore).
 func start_rail(body: int, rel: Vector2, rv: Variant, t: float, acc0 := Vector2.ZERO) -> void:
 	var b: SystemLayout.Body = null if body < 0 else L.bodies[body]
+	var sb := body if SystemLayout.is_star(body) else -1
 	var r0 := maxf(1.0, rel.length())
 	var rt := orbit_r(body)
 	var spd := STAR_RAIL_V if b == null else RAIL_V
@@ -611,11 +875,31 @@ func start_rail(body: int, rel: Vector2, rv: Variant, t: float, acc0 := Vector2.
 	keep = {}
 	f.no_cap_left = 0.0
 	f.orbit_r = -1.0
+	# A AND D take a star's close orbit in to star_r + 30 and out to 4 inside
+	# its ring; a twin's star rides its rail, 2 px outside the keep-out and 2
+	# inside the ring, so there it goes no lower and out to a px inside the ring
+	var rmin := (L.star_radius(sb) + 30.0) if b == null else (b.r + 10.0)
+	var rmax := (star_ring(sb) - 4.0) if b == null else b.soi * 0.95
+	if b == null and L.twin:
+		rmin = star_rail(sb)
+		rmax = star_ring(sb) - 1.0
 	rail = {"body": body, "ang": atan2(rel.y, rel.x), "r0": rt, "rt": rt,
-		"rmin": (L.star_r + 30.0) if b == null else (b.r + 10.0), "rmax": (star_ring() - 4.0) if b == null else b.soi * 0.95,
+		"rmin": rmin, "rmax": rmax,
 		"speed": spd, "dir": dir, "w0": dir * spd / rt, "u": 1.0, "s": 1.0}
 	if rv != null:
-		_plan_insert(rel, rv as Vector2, rt, dir * spd / rt, b, acc0)
+		# ALREADY ON IT, at its speed (a solved flight lands on the ring exactly,
+		# `FlightSolve`): no insertion, the ship rides on from where it is
+		var rvv2 := rv as Vector2
+		if absf(rel.length() - rt) < ON_RING_PX and absf(rvv2.length() - spd) < ON_RING_V and absf(rvv2.dot(rel / r0)) < ON_RING_V:
+			return
+		_plan_insert(rel, rv as Vector2, rt, dir * spd / rt, b, acc0, sb)
+
+
+## A ship this close to a ring (px) and its speed (px/s) is on it: no insertion.
+const ON_RING_PX := 0.05
+const ON_RING_V := 0.05
+## the ring drawn after a solved flight's arrival, as the ship rides it (s)
+const TAIL_S := 1.0
 
 
 ## THE INSERTION'S CURVE in the world's frame: from `p0` moving `v0` (no burn
@@ -624,19 +908,20 @@ func start_rail(body: int, rel: Vector2, rv: Variant, t: float, acc0 := Vector2.
 ## angle a sweep on from where it starts, the approach's own turning and the
 ## orbit's averaged. Kept clear of the world's disc: shorter, then longer, until
 ## its closest is outside it.
-func _plan_insert(p0: Vector2, v0: Vector2, rt: float, w: float, b: SystemLayout.Body, acc0 := Vector2.ZERO) -> void:
-	var best := insert_plan(p0, v0, rt, w, b, acc0)
+func _plan_insert(p0: Vector2, v0: Vector2, rt: float, w: float, b: SystemLayout.Body, acc0 := Vector2.ZERO, star := -1) -> void:
+	var best := insert_plan(p0, v0, rt, w, b, acc0, star)
 	rail.ins = best
 	rail.s = 0.0
 	rail.ang = best.a1
 
 
 ## The insertion an approach would fly (the line draws it before it happens).
-func insert_plan(p0: Vector2, v0: Vector2, rt: float, w: float, b: SystemLayout.Body, acc0 := Vector2.ZERO) -> Dictionary:
+## `b` null: onto star `star`'s close orbit.
+func insert_plan(p0: Vector2, v0: Vector2, rt: float, w: float, b: SystemLayout.Body, acc0 := Vector2.ZERO, star := -1) -> Dictionary:
 	var r0 := maxf(p0.length(), 1.0)
 	var w0 := (p0.x * v0.y - p0.y * v0.x) / (r0 * r0)
 	var a0 := atan2(p0.y, p0.x)
-	var clear := (b.r + 6.0) if b != null else (L.star_r + 14.0)
+	var clear := (b.r + 6.0) if b != null else (L.star_radius(star if SystemLayout.is_star(star) else -1) + 14.0)
 	var base := clampf(2.4 * (absf(r0 - rt) + rt * 0.5) / (v0.length() + absf(w) * rt + 20.0), INSERT_T.x, INSERT_T.y)
 	# OF THE CLEAR TRIES, THE ONE THAT TURNS LEAST SHARPLY as drawn (the plane
 	# tilted as the map shows it): a try whose motion doubles back on itself drew
@@ -764,6 +1049,8 @@ static func _ins_at(ins: Dictionary, s: float, d: int) -> Vector2:
 ## nose on the burn, the flame by how hard it burns; at its end, on the circle.
 ## W breaks off it, from the motion it has.
 func _step_insert(dt: float, t: float, k: Dictionary) -> float:
+	if rail.has("arrive"):
+		return _step_arrive(dt, t, k)
 	var body := int(rail.body)
 	var ins: Dictionary = rail.ins
 	var c := center(body, t)
@@ -822,13 +1109,18 @@ func place_at(body: int, t: float) -> void:
 		warp_t = -100.0
 		return
 	fresh = false
+	_drop_flight()
 	if is_keep(body):
 		mode = &"keep"
 		var c := center(body, t)
-		keep = {"body": body, "off": Vector2(8.0, 5.0 / TILT), "ev": Vector2.ZERO}
-		f.p = _flat(c) + Vector2(8.0, 5.0 / TILT)
+		keep = {"body": body, "off": KEEP_OFF, "ev": Vector2.ZERO, "inf": KEEP_OFF}
+		f.p = _flat(c) + KEEP_OFF
 		return
 	start_rail(body, Vector2(orbit_r(body), 0.0), null, t)
+
+
+## Where a ship sits alongside a station, belt, hulk or contact, from its place.
+const KEEP_OFF := Vector2(8.0, 5.0 / TILT)
 
 
 ## THE COAST, AS IT IS, GOES INTO A RING: straight on for up to five seconds (a
@@ -841,8 +1133,9 @@ func capture_ahead(st: FreeState, t: float) -> bool:
 	for j in range(1, 51):
 		var tau := float(j) * 0.1
 		var p := st.p + st.v * tau
-		if no_cap != -1 and p.length() < star_ring() and st.v.length() < CAPTURE:
-			return true
+		for s in _stars:
+			if no_cap != s and (p - L.star_pos(s)).length() < star_ring(s) and st.v.length() < CAPTURE:
+				return true
 		for b in L.bodies:
 			if b.index == no_cap:
 				continue
@@ -859,15 +1152,32 @@ func capture_ahead(st: FreeState, t: float) -> bool:
 
 ## THE STAR ORBIT A SHIP ARRIVES ON: radius r0 if every place's ring is well
 ## clear of it (a world's, a station's or belt's reach), else the nearest radius
-## that is -- outward first, never past the edge, then inward.
+## that is -- outward first, never past the edge, then inward. Round the star,
+## or in a twin round both stars' balance point: there each body's circle is
+## round its own host, so what it sweeps is a band of distances from the
+## balance point (a world round one star, from that star's distance less its
+## orbit to more), and each star's ring is kept clear too.
 func arrival_r(r0: float) -> float:
+	var c := L.bary if L.twin else Vector2.ZERO
 	var lo := star_ring() + 40.0
 	var hi := L.edge - 12.0
+	if L.twin:
+		lo = 0.0
+		for s in _stars:
+			lo = maxf(lo, (L.star_pos(s) - c).length() + star_ring(s) + 40.0)
+		hi = L.edge - c.length() - 12.0
 	var clear := func(r: float) -> bool:
 		for b in L.bodies:
 			var reach: float = b.soi * 1.3 + 10.0 if b.world != &"" else (KEEP_R / TILT + 10.0 if is_keep(b.index) else 0.0)
-			if reach > 0.0 and absf(r - b.orbit) < reach:
-				return false
+			if reach <= 0.0:
+				continue
+			if b.host == c:
+				if absf(r - b.orbit) < reach:
+					return false
+			else:
+				var dh := (b.host - c).length()
+				if r > absf(dh - b.orbit) - reach and r < dh + b.orbit + reach:
+					return false
 		return true
 	var r := clampf(r0, lo, hi)
 	if clear.call(r):
@@ -884,8 +1194,8 @@ func arrival_r(r0: float) -> float:
 
 ## Inside a place's capture ring (the star's close ring, a world's).
 func _inside(body: int, p: Vector2, t: float) -> bool:
-	if body == -1:
-		return p.length() < star_ring()
+	if SystemLayout.is_star(body):
+		return (p - L.star_pos(body)).length() < star_ring(body)
 	if body < 0 or body >= L.bodies.size() or L.bodies[body].world == &"":
 		return false
 	var c := center(body, t)
@@ -915,7 +1225,9 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 	if k.s:
 		st.v *= exp(-BRAKE * dt)
 	# COASTING SETTLES ONTO THE STAR (it used to drag to a stop): the nose turns
-	# for SETTLE_TURN, then a burn eases in, at most SETTLE_A
+	# for SETTLE_TURN, then a burn eases in, at most SETTLE_A. Round the star, or
+	# in a twin round the nearer star or both (`_settle_centre`), chosen as the
+	# coast starts
 	st.acc = Vector2.ZERO
 	if k.w or k.s:
 		st.coast = 0.0
@@ -927,11 +1239,13 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 		st.aim = Vector2.ZERO
 	else:
 		if st.coast == 0.0:
+			_settle_centre(st)
 			# the way round it is already going, unless it is hardly going round
-			var tang := (st.p.x * st.v.y - st.p.y * st.v.x) / maxf(st.p.length(), 1.0)
+			var q0 := st.p - st.cen
+			var tang := (q0.x * st.v.y - q0.y * st.v.x) / maxf(q0.length(), 1.0)
 			st.sense = signf(tang) if absf(tang) > 20.0 else 1.0
 		st.coast += dt
-		var tv := star_orbit_v(st.p, st.orbit_r, st.sense)
+		var tv := star_orbit_v(st.p, st.orbit_r if st.orbit_r > 0.0 else st.r_want, st.sense, st.cen, st.cen_share)
 		var dv := tv - st.v
 		var ramp := smoothstep(SETTLE_TURN, SETTLE_TURN + SETTLE_RAMP, st.coast)
 		var turn_by := st.v.angle_to(tv)
@@ -952,33 +1266,38 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 			st.aim = want
 			st.acc = want * ramp
 			# the circle's own pull, which is the star's and not a burn: without it
-			# the burn holds a steady error and the ship creeps outward, never settling
-			var r0 := maxf(st.p.length(), 1.0)
-			var pull := -st.p / r0 * tv.length_squared() / r0 * ramp
+			# the burn holds a steady error and the ship creeps outward, never
+			# settling. Toward the settle's centre (a twin's other star, or both)
+			var q := st.p - st.cen
+			var r0 := maxf(q.length(), 1.0)
+			var pull := -q / r0 * tv.length_squared() / r0 * ramp
 			st.v += (st.acc + pull) * dt
 		if st.orbit_r < 0.0 and dv.length() < SETTLED_DV and st.coast > SETTLE_TURN + SETTLE_RAMP:
-			st.orbit_r = st.p.length()
+			st.orbit_r = st.r_want if st.r_want > 0.0 else (st.p - st.cen).length()
 	# THE RING YOU LEFT lets you go until you are out of it, and a moment more
 	if st.no_cap_left > 0.0 and not _inside(st.no_cap_body, st.p, t):
 		st.no_cap_left -= dt
 	var no_cap := st.no_cap_body if st.no_cap_left > 0.0 else -9
-	var r := st.p.length()
-	var rh := st.p / r if r > 0.001 else Vector2.RIGHT
 	var sp := st.v.length()
-	# THE STAR IS A SOFT BUMPER: inside it, the inward part of your motion is turned
-	# sideways (speed kept) and a little push goes out -- unless you are slow
-	# enough for its close ring, which takes you instead
-	var bm := bumper()
-	if r < bm and not (no_cap != -1 and sp < CAPTURE + (STICKY if stick == -1 else 0.0) and not k.w):
-		var kk := (bm - r) / bm
-		var vr := st.v.dot(rh)
-		if vr < 0.0:
-			st.v -= rh * minf(1.0, kk * 10.0 * dt) * vr
-			var nn := st.v.length()
-			if nn > 0.01:
-				st.v *= sp / nn
-		st.v += rh * 40.0 * kk * dt
-		st.bumped = true
+	# EACH STAR IS A SOFT BUMPER: inside it, the inward part of your motion is
+	# turned sideways (speed kept) and a little push goes out -- unless you are
+	# slow enough for its close ring, which takes you instead
+	for s in _stars:
+		var sc := L.star_pos(s)
+		var qs := st.p - sc
+		var r := qs.length()
+		var rh := qs / r if r > 0.001 else Vector2.RIGHT
+		var bm := bumper(s)
+		if r < bm and not (no_cap != s and sp < CAPTURE + (STICKY if stick == s else 0.0) and not k.w):
+			var kk := (bm - r) / bm
+			var vr := st.v.dot(rh)
+			if vr < 0.0:
+				st.v -= rh * minf(1.0, kk * 10.0 * dt) * vr
+				var nn := st.v.length()
+				if nn > 0.01:
+					st.v *= sp / nn
+			st.v += rh * 40.0 * kk * dt
+			st.bumped = true
 	for b in L.bodies:
 		if b.world == &"":
 			continue
@@ -999,10 +1318,27 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 		var vr3 := st.v.dot(st.p / L.edge)
 		if vr3 > 0.0:
 			st.v -= st.p / L.edge * vr3
-	if real and rr < L.star_r + 8.0 and rr > 0.001:
-		st.p = st.p / rr * (L.star_r + 8.0)
+	if real:
+		# (out of each star's disc, as drawn at its least)
+		for s2 in _stars:
+			var sc2 := L.star_pos(s2)
+			var q2 := st.p - sc2
+			var r2 := q2.length()
+			var rd := L.star_radius(s2) + 8.0
+			if r2 < rd and r2 > 0.001:
+				st.p = sc2 + q2 / r2 * rd
 	if k.w:
 		return {}
+	# A RING THAT TAKES YOU (Jon's twins put 30% of the worlds round both stars
+	# inside another's ring, 29% inside the giant's; one star 13%): of every ring
+	# that holds a slow ship -- a world's, a star's close one, alongside a
+	# station, belt, hulk or contact -- the one the line shows you going into
+	# (`stick`), else the nearest. It took the first world by index, so letting
+	# go by a hulk near the giant put you on the giant. A ring crossed too fast
+	# is said only when none takes you.
+	var take := {}
+	var take_d := INF
+	var fast := {}
 	for b in L.bodies:
 		if b.world == &"" or b.index == no_cap:
 			continue
@@ -1011,17 +1347,32 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 		if rel.length() < b.soi:
 			var rv := st.v - _flat(center_vel(b.index, t))
 			if rv.length() < CAPTURE + (STICKY if stick == b.index else 0.0):
-				return {"kind": &"rail", "body": b.index, "rel": rel, "rv": rv, "at": st.p}
-			if st.fast_seen != b.index:
-				st.fast_seen = b.index
-				return {"kind": &"fast", "body": b.index, "at": st.p}
-	var r2 := st.p.length()
-	if no_cap != -1 and r2 < star_ring():
-		if st.v.length() < CAPTURE + (STICKY if stick == -1 else 0.0):
-			return {"kind": &"rail", "body": -1, "rel": st.p, "rv": st.v, "at": st.p}
-		if st.fast_seen != -1:
-			st.fast_seen = -1
-			return {"kind": &"fast", "body": -1, "at": st.p}
+				var tk := {"kind": &"rail", "body": b.index, "rel": rel, "rv": rv, "at": st.p}
+				if capture_by_index:
+					return tk
+				if take_d > -1.0 and (b.index == stick or rel.length() < take_d):
+					take = tk
+					take_d = -1.0 if b.index == stick else rel.length()
+			elif st.fast_seen != b.index and fast.is_empty():
+				fast = {"kind": &"fast", "body": b.index, "at": st.p}
+				if capture_by_index:
+					st.fast_seen = b.index
+					return fast
+	for s3 in _stars:
+		var rs := st.p - L.star_pos(s3)
+		if no_cap != s3 and rs.length() < star_ring(s3):
+			if st.v.length() < CAPTURE + (STICKY if stick == s3 else 0.0):
+				var tk2 := {"kind": &"rail", "body": s3, "rel": rs, "rv": st.v, "at": st.p}
+				if capture_by_index:
+					return tk2
+				if take_d > -1.0 and (s3 == stick or rs.length() < take_d):
+					take = tk2
+					take_d = -1.0 if s3 == stick else rs.length()
+			elif st.fast_seen != s3 and fast.is_empty():
+				fast = {"kind": &"fast", "body": s3, "at": st.p}
+				if capture_by_index:
+					st.fast_seen = s3
+					return fast
 	for b in L.bodies:
 		if not is_keep(b.index) or b.index == no_cap:
 			continue
@@ -1031,8 +1382,24 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 		if Vector2(rel3.x, rel3.y * TILT).length() < KEEP_R:
 			var rv3 := st.v - _flat(center_vel(b.index, t))
 			if rv3.length() < CAPTURE + (STICKY if stick == b.index else 0.0):
-				return {"kind": &"keep", "body": b.index, "rel": rel3, "rv": rv3, "at": st.p}
+				var tk3 := {"kind": &"keep", "body": b.index, "rel": rel3, "rv": rv3, "at": st.p}
+				if capture_by_index:
+					return tk3
+				if take_d > -1.0 and (b.index == stick or rel3.length() < take_d):
+					take = tk3
+					take_d = -1.0 if b.index == stick else rel3.length()
+	if not take.is_empty():
+		return take
+	if not fast.is_empty():
+		st.fast_seen = int(fast.body)
+		return fast
 	return {}
+
+
+## THE OLD CAPTURE RULE, for a harness to measure what the new one changed
+## (FlightTest): the first world by index whose ring holds the ship, then the
+## star's, then a station's, belt's or hulk's.
+static var capture_by_index := false
 
 
 # ---------------------------------------------------------------- the line
@@ -1116,8 +1483,9 @@ func _run_line(t0: float, k: Dictionary, hold: float) -> Dictionary:
 			break
 		var held: bool = kk.w or kk.a or kk.s or kk.d
 		if not held and st.orbit_r > 0.0:
-			# SETTLED ROUND THE STAR, here
-			out = {"kind": &"star", "body": -1, "r": st.orbit_r, "at": st.p, "t": t, "v": st.v}
+			# SETTLED ROUND THE STAR, here: `c` the centre (a twin's star, or its
+			# balance point, `id` -9), `r` the radius round it
+			out = {"kind": &"star", "body": -1, "r": st.orbit_r, "at": st.p, "t": t, "v": st.v, "c": st.cen, "id": st.cen_id}
 			break
 	return {"pts": pts, "out": out, "fast": fast, "bump": bump}
 
@@ -1161,6 +1529,8 @@ var _mid := false
 ## The place a flight under way is taking the ship to (riding round to leave,
 ## flying, or burning onto its orbit), or -9.
 func heading_to() -> int:
+	if not _pend.is_empty():
+		return int(_pend.i)
 	match mode:
 		&"fly":
 			return fly_to
@@ -1170,23 +1540,598 @@ func heading_to() -> int:
 			if inserting():
 				return int(rail.body)
 		&"keep":
+			if keep.has("hold"):
+				return fly_to
 			if inserting():
 				return int(keep.body)
 	return -9
 
 
 func can_fly() -> bool:
+	# (a flight asked for, still being planned: it is under way)
+	if not _pend.is_empty():
+		return false
 	match mode:
 		&"rail":
 			return not rail.is_empty() and not inserting() and not rail.has("phase")
 		&"keep":
-			return not keep.is_empty() and not inserting()
+			return not keep.is_empty() and not inserting() and not keep.has("hold")
 		&"free":
 			return star_orbiting()
 	return false
 
 
-func make_plan(i: int, t: float, prefer: Dictionary = {}) -> FlightPlan:
+# ---------------------------------------------------------------- the solved flight
+## THE PULL AND THE KEEP-OUTS a solved flight flies through (`MapGravity`), made
+## once a visit (pure data: a worker reads it while the map goes on).
+var _grav_v: MapGravity = null
+var _grav_n := -1
+func _grav() -> MapGravity:
+	if _grav_v == null or _grav_n != L.bodies.size():
+		_grav_v = MapGravity.from_layout(L)
+		_grav_n = L.bodies.size()
+	return _grav_v
+
+
+## FLIGHTS PLANNED BY `FlightSolve`, by the old planner when it found nothing
+## clean (`_old_plan`), and none at all (the ship put in orbit there); asked
+## for on a worker and dropped as stale when they came in (their departure
+## gone by, the ship moved off its ring); for a harness to count.
+static var n_solved := 0
+static var n_fallback := 0
+static var n_none := 0
+static var n_stale := 0
+## the last plan's own time on the thread that made it (ms), and whether it was
+## made on a worker
+var last_ms := 0.0
+var last_bg := false
+
+
+## WHAT A FLIGHT LEAVES FROM, as `FlightSolve` takes it: riding a world's ring
+## or a star's close orbit (its rail, as ridden), settled on a star orbit (a
+## circle round a fixed centre, at its settled radius), alongside a place (where
+## the ship comes to rest there), or free. {} when the ship is in no state to
+## plan from (flying, burning onto an orbit, riding round to leave).
+## `ahead` s on: where the ship will be on its ring then (a plan made on a
+## worker is made for a moment just ahead, PLAN_AHEAD, so its departure is still
+## to come when it is taken in); free, only now.
+func _dep_of(t: float, ahead := 0.0) -> Dictionary:
+	match mode:
+		&"rail":
+			if rail.is_empty() or inserting() or (rail.has("phase") and not rail.phase.get("wait", false)):
+				return {}
+			var rt := float(rail.rt)
+			var w := float(rail.dir) * float(rail.speed) / rt
+			return {"kind": &"ring", "place": int(rail.body), "rt": rt, "ang": float(rail.ang) + w * ahead, "w": w}
+		&"keep":
+			if keep.is_empty() or inserting() or (keep.has("hold") and not keep.get("wait", false)):
+				return {}
+			return {"kind": &"keep", "place": int(keep.body), "off": keep.get("inf", keep.off)}
+		&"free":
+			if star_orbiting():
+				var q := f.p - f.cen
+				var rt2 := f.orbit_r
+				var w2 := f.sense * star_pace(rt2, f.cen_share) / rt2
+				return {"kind": &"ring", "place": -9, "c": f.cen, "rt": rt2, "ang": atan2(q.y, q.x) + w2 * ahead, "w": w2}
+			return {"kind": &"free", "p": f.p, "v": f.v}
+		&"warp":
+			return {"kind": &"free", "p": f.p, "v": Vector2.ZERO}
+	return {}
+
+
+## HOW FAR AHEAD A PLAN MADE ON A WORKER IS MADE FOR (s): the worker's plan
+## (a twin's worst about 140 ms, a median of 40) and the frame that takes it in
+## are over by then, so the flight it plans has not yet left. Made for now, a
+## flight leaving at once was gone by the time it came in.
+const PLAN_AHEAD := 0.25
+## A PREVIEW IS MADE FOR A MOMENT FURTHER AHEAD (s): a flight whose ride must
+## phase can only be flown from where the ship is while it can still phase
+## within THRUST, and planned 0.25 s ahead the drawn one stopped being that
+## about a quarter second after, so the overlay planned it again about four
+## times a second (FlightTest, Oct 31); planned this far ahead it holds for
+## about this long. A click on it flies it as drawn; a click with none drawn
+## plans PLAN_AHEAD on.
+const PREVIEW_AHEAD := 1.0
+
+
+## WHERE A FLIGHT TO PLACE i ARRIVES: a world's ring at RAIL_V either way round
+## (the radius it rides, `orbit_r`); a star's close orbit at STAR_RAIL_V; or
+## alongside a station, belt, hulk or contact, where `place_at` puts a ship.
+func _tgt_of(i: int) -> Dictionary:
+	if is_keep(i):
+		return {"kind": &"keep", "place": i, "off": KEEP_OFF}
+	if SystemLayout.is_star(i):
+		return {"kind": &"ring", "place": i, "R": orbit_r(i), "V": STAR_RAIL_V, "sense": 0}
+	return {"kind": &"ring", "place": i, "R": orbit_r(i), "V": RAIL_V, "sense": 0}
+
+
+## A solved flight as a FlightPlan: its samples from its departure, its end (on
+## the ring exactly, or alongside), its ride or hold (`lead`), its choice, and
+## the insertion after it drawn (on the ring already, it is the ring).
+func _plan_of(r: FlightSolve.Result, i: int, dep: Dictionary, t: float) -> FlightPlan:
+	var pl := FlightPlan.new()
+	pl.conic = false
+	pl.kind = &"solved"
+	pl.res = r
+	pl.to = i
+	pl.dep = dep
+	pl.t_plan = t
+	pl.t0 = r.t0
+	pl.sdt = r.sdt
+	pl.samp = r.samp
+	pl.burns = r.burns
+	pl.dur = r.dur
+	pl.amax = r.amax
+	pl.esc_t = r.esc_t
+	pl.end = r.end.duplicate()
+	pl.lead = r.lead
+	pl.lead_k = r.lead_k
+	pl.choice = r.choice
+	return _tail(pl)
+
+
+## THE FLIGHT TO PLACE i FROM WHERE THE SHIP IS, at map time t, on this thread:
+## solved (`FlightSolve`), `prefer` the choice of the flight drawn so the same
+## flight comes back while it can; when nothing is clean (under 1% of plans),
+## today's planner (`_old_plan`); null when neither finds one.
+## `ahead`: made for that moment on, as a worker's is (`PLAN_AHEAD`).
+func make_plan(i: int, t: float, prefer: Dictionary = {}, ahead := 0.0) -> FlightPlan:
+	var dep := _dep_of(t, ahead)
+	if dep.is_empty() or not SystemLayout.is_place(i):
+		return _fallback(i, t, prefer)
+	if StringName(dep.kind) == &"free":
+		ahead = 0.0
+	var pf := prefer if int(prefer.get("v", -1)) == FlightSolve.CHOICE_V else {}
+	var r := FlightSolve.solve(_grav(), dep, _tgt_of(i), t + ahead, pf)
+	last_ms = float(r.usec) / 1000.0
+	last_bg = false
+	if r.found:
+		n_solved += 1
+		return _plan_of(r, i, dep, t + ahead)
+	return _fallback(i, t, prefer)
+
+
+## NOTHING CLEAN SOLVED: today's planner, from the same state, in a system of
+## one star; null when that finds nothing either, and the caller puts the ship
+## in orbit there. Never in a twin: its coasts are Lambert conics round star A
+## alone, and there, failing, it ran up to 1.15 s on this thread (FlightTest,
+## Oct 31) for flights that were then thrown out for crossing star B.
+func _fallback(i: int, t: float, prefer: Dictionary) -> FlightPlan:
+	if not SystemLayout.is_place(i):
+		return null
+	if L.twin:
+		n_none += 1
+		return null
+	var pl := _old_plan(i, t, prefer if not prefer.has("v") else {})
+	if pl == null:
+		n_none += 1
+		return null
+	n_fallback += 1
+	pl.to = i
+	pl.t_plan = t
+	return pl
+
+
+## A FLIGHT PLAN STILL GOOD TO FLY NOW, from where the ship is: a solved one
+## while its departure is still ahead and the ship is where it was planned from
+## -- on the same ring (its ride round to the point then phasing within THRUST,
+## as `FlightSolve._replay` holds it), alongside the same spot, on the same star
+## orbit, or free at the very moment and state; today's planner's only at the
+## moment it was made. {} when it is not; else the ride {T, k, a0, w}.
+func _takeable(pl: FlightPlan, t: float) -> Dictionary:
+	if pl == null:
+		return {}
+	if pl.res == null:
+		return {"T": maxf(pl.t0 - t, 0.0), "k": pl.lead_k} if absf(t - pl.t_plan) < 1e-9 else {}
+	var d := pl.dep
+	var lead := pl.t0 - t
+	if lead < -1e-9:
+		return {}
+	lead = maxf(lead, 0.0)
+	match StringName(d.get("kind", &"")):
+		&"ring":
+			var p := int(d.place)
+			var a := 0.0
+			var w := float(d.w)
+			var rt := float(d.rt)
+			if p == -9:
+				if mode != &"free" or not star_orbiting() or f.cen != (d.c as Vector2) or f.orbit_r != rt or not _pend_free_ok(w):
+					return {}
+				var q := f.p - f.cen
+				a = atan2(q.y, q.x)
+			else:
+				if mode != &"rail" or rail.is_empty() or inserting() or (rail.has("phase") and not rail.phase.get("wait", false)) or int(rail.body) != p or float(rail.rt) != rt:
+					return {}
+				if float(rail.dir) * float(rail.speed) / float(rail.rt) != w:
+					return {}
+				a = float(rail.ang)
+			var dr := 1.0 if w >= 0.0 else -1.0
+			var dang := fposmod(dr * (pl.res.a_dep - a), TAU)
+			# (on the turn the plan's own ride is on: its ride from where it was
+			# planned is under a lap, but from a moment before -- the ship riding on
+			# meanwhile -- it can be more; read as the near end of a lap it was a
+			# flight a lap short, Oct 31)
+			var want := fposmod(dr * (pl.res.a_dep - float(d.ang)), TAU) + absf(w) * (pl.t_plan - t)
+			dang += TAU * roundf((want - dang) / TAU)
+			if absf(dang - want) > 0.05:
+				return {}
+			var k := 1.0
+			if lead < 1e-6:
+				if absf(dang) > 1e-4:
+					return {}
+			else:
+				if dang < 0.0:
+					return {}
+				k = 2.0 * dang / (absf(w) * lead) - 1.0
+				var vr := absf(w) * rt
+				if absf(k - 1.0) > FlightSolve.THRUST * lead / (PI * vr) + 1e-6 or k * vr > FlightSolve.VMAX or k < 0.2:
+					return {}
+			return {"T": lead, "k": k, "a0": a, "w": w}
+		&"keep":
+			if mode != &"keep" or keep.is_empty() or inserting() or (keep.has("hold") and not keep.get("wait", false)) or int(keep.body) != int(d.place):
+				return {}
+			if keep.get("inf", keep.off) != d.off:
+				return {}
+			return {"T": lead, "k": 1.0}
+		&"free":
+			if absf(t - pl.t_plan) > 1e-9 or f.p != (d.p as Vector2) or f.v != (d.v as Vector2):
+				return {}
+			return {"T": 0.0, "k": 1.0}
+	return {}
+
+
+## (a settled star orbit is ridden at its pace the way the ship goes round)
+func _pend_free_ok(w: float) -> bool:
+	return absf(f.sense * star_pace(f.orbit_r, f.cen_share) / f.orbit_r - w) < 1e-9
+
+
+## FLY PLAN pl FROM NOW, by the ride `rd` (`_takeable`): round a ring to its
+## departure (`rail.phase`), alongside until it (`keep.hold`), round a settled
+## star orbit (its ride flown as the plan's first samples), or at once.
+func _fly_plan(pl: FlightPlan, rd: Dictionary, t: float, done: Callable) -> void:
+	_pend = {}
+	fly_to = pl.to
+	_fly_done = done
+	line = {}
+	hold_line = {}
+	var T := float(rd.get("T", 0.0))
+	if pl.res == null:
+		# TODAY'S PLANNER'S, as it flew: out of an orbit round it first
+		plan = pl
+		if pl.lead > 0.0 and mode == &"rail" and not rail.is_empty():
+			rail.phase = {"t0": t, "T": pl.lead, "k": pl.lead_k, "a0": float(rail.ang),
+				"w": float(rail.dir) * float(rail.speed) / float(rail.rt)}
+			return
+		_begin_fly(t)
+		return
+	match StringName(pl.dep.get("kind", &"")):
+		&"ring":
+			if int(pl.dep.place) == -9:
+				plan = _with_ride(pl, rd, t)
+				_begin_fly(t)
+				return
+			plan = pl
+			if T > 1e-6:
+				rail.phase = {"t0": t, "T": T, "k": float(rd.k), "a0": float(rd.a0), "w": float(rd.w)}
+				return
+			_begin_fly(t)
+		&"keep":
+			plan = pl
+			keep.erase("wait")
+			if T > 1e-6:
+				keep.hold = pl.t0
+				var c := pl.res.choice
+				keep.hold_dir = Vector2(float(c.get("dvx", 0.0)), float(c.get("dvz", 0.0)))
+				return
+			_begin_fly(t)
+		_:
+			plan = pl
+			_begin_fly(t)
+
+
+## THE RIDE ROUND A SETTLED STAR ORBIT TO A SOLVED FLIGHT'S DEPARTURE, as the
+## flight's first samples (`_step_phase`'s law, round the fixed centre): from
+## where the ship is, eased onto the circle it was planned on, phasing by k, to
+## the departure exactly, then the flight. Its samples sit on the flight's own
+## time grid (from SAMPLE steps back from its departure), so the flight itself
+## is not resampled.
+func _with_ride(pl: FlightPlan, rd: Dictionary, t: float) -> FlightPlan:
+	var T := float(rd.T)
+	var n := ceili(T / SAMPLE - 1e-9)
+	if n <= 0:
+		return pl
+	var out := FlightPlan.new()
+	out.conic = false
+	out.kind = pl.kind
+	out.res = pl.res
+	out.to = pl.to
+	out.dep = pl.dep
+	out.t_plan = pl.t_plan
+	out.sdt = pl.sdt
+	out.end = pl.end
+	out.choice = pl.choice
+	out.tail = pl.tail
+	out.tail_k = pl.tail_k
+	out.lead = 0.0
+	out.lead_k = 1.0
+	out.t0 = pl.t0 - float(n) * SAMPLE
+	var c: Vector2 = pl.dep.c
+	var rt := float(pl.dep.rt)
+	var w := float(rd.w)
+	var k := float(rd.k)
+	var a0 := float(rd.a0)
+	var r0 := (f.p - c).length()
+	var samp := PackedVector3Array()
+	var lit := PackedByteArray()
+	for j in n:
+		# (the first may be up to a sample before now: the ride runs back that far at its pace)
+		var tau := out.t0 + float(j) * SAMPLE - t
+		var a := a0 + w * tau
+		if tau > 0.0:
+			a = a0 + w * (tau + (k - 1.0) * (tau / 2.0 - T / (4.0 * PI) * sin(TAU * tau / T)))
+		var e := smoothstep(0.0, 1.0, clampf(tau / maxf(T, 0.001), 0.0, 1.0))
+		var r := r0 + (rt - r0) * e
+		samp.append(Vector3(c.x + cos(a) * r, 0.0, c.y + sin(a) * r))
+		var at := w * (k - 1.0) * PI / T * sin(TAU * tau / T) * rt if tau > 0.0 else 0.0
+		lit.append(1 if absf(at) > 4.0 else 0)
+	samp.append_array(pl.samp)
+	lit.append_array(pl.burns)
+	out.samp = samp
+	out.burns = lit
+	out.dur = float(samp.size() - 1) * SAMPLE
+	out.amax = pl.amax
+	out.esc_t = pl.esc_t + float(n) * SAMPLE
+	out.u_dep = float(n) / float(maxi(samp.size() - 1, 1))
+	return out
+
+
+## INTO THE FLIGHT ITSELF: its samples from its departure on, on the map's
+## clock (a solved flight's are at their own times; today's from now).
+func _begin_fly(t: float) -> void:
+	fly_t0 = plan.t0 if plan.res != null else t
+	_fly_pos = plan.pos(clampf((t - fly_t0) / plan.dur, 0.0, 1.0))
+	mode = &"fly"
+	rail = {}
+	keep = {}
+	line = {}
+	hold_line = {}
+
+
+## A FLIGHT LET GO OF (W off the ring, or out of the hold, or before its plan
+## came in): nothing flies, the callback is dropped.
+func _cancel_flight() -> void:
+	if rail.has("phase"):
+		rail.erase("phase")
+	if keep.has("hold"):
+		keep.erase("hold")
+	keep.erase("wait")
+	plan = null
+	_fly_done = Callable()
+	_pend = {}
+	if _jobs.has(&"fly"):
+		_reap.append(int(_jobs[&"fly"].task))
+		_jobs.erase(&"fly")
+
+
+## (put somewhere by hand: no flight is waiting to leave)
+func _drop_flight() -> void:
+	plan = null
+	_pend = {}
+	if _jobs.has(&"fly"):
+		_reap.append(int(_jobs[&"fly"].task))
+		_jobs.erase(&"fly")
+
+
+# ---------------------------------------------------------------- planned on a worker
+## A FLIGHT ASKED FOR (`fly_bg`) while its plan is being made: {i, t, prefer};
+## the ship goes on as it was meanwhile (riding its ring, holding alongside,
+## round its star orbit), and flies it the frame it comes in.
+var _pend: Dictionary = {}
+## PLANS BEING MADE ON A WORKER, one for each use (&"preview", &"fly"): {task,
+## held (the worker writes its Result there), i, t, dep, prefer}. A task once
+## started is always waited for: dropped ones are reaped as they finish
+## (`_reap`), and a ship freed mid-plan waits for its own.
+var _jobs: Dictionary = {}
+static var _reap: Array[int] = []
+## the slowest plan made on a worker (ms, its own time) and how many
+var worst_bg_ms := 0.0
+var n_bg := 0
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		for k in _jobs:
+			WorkerThreadPool.wait_for_task_completion(int(_jobs[k].task))
+		_jobs.clear()
+
+
+func _drop_jobs() -> void:
+	for k in _jobs:
+		_reap.append(int(_jobs[k].task))
+	_jobs.clear()
+	_pend = {}
+
+
+## Whether a plan for `use` is being made.
+func planning(use: StringName) -> bool:
+	return _jobs.has(use)
+
+
+## A plan for `use` no longer wanted: let go of (its task reaped when done).
+func drop_bg(use: StringName) -> void:
+	if _jobs.has(use):
+		_reap.append(int(_jobs[use].task))
+		_jobs.erase(use)
+
+
+## A PLAN FOR PLACE i MADE ON A WORKER (`FlightSolve` touches no Node: pure
+## arrays, `MapGravity` read only, its inputs copied), from the ship as it is
+## at t. False when one for this use is already being made, or the ship is in
+## no state to plan from.
+func plan_bg(i: int, t: float, prefer: Dictionary, use: StringName) -> bool:
+	if _jobs.has(use) or not SystemLayout.is_place(i):
+		return false
+	var ahead := PREVIEW_AHEAD if use == &"preview" else PLAN_AHEAD
+	var dep := _dep_of(t, ahead)
+	if dep.is_empty():
+		return false
+	var ts := t if StringName(dep.kind) == &"free" else t + ahead
+	var G: MapGravity = _grav()
+	var held := {}
+	var d2 := dep.duplicate(true)
+	var t2 := _tgt_of(i).duplicate(true)
+	var p2 := prefer.duplicate(true) if int(prefer.get("v", -1)) == FlightSolve.CHOICE_V else {}
+	var task := WorkerThreadPool.add_task(func() -> void:
+		held.r = FlightSolve.solve(G, d2, t2, ts, p2), false, "sector map flight plan")
+	_jobs[use] = {"task": task, "held": held, "i": i, "t": ts, "dep": dep, "prefer": prefer}
+	return true
+
+
+## TAKE IN A PLAN MADE ON A WORKER for `use`, once it is done (never waiting
+## for it): {} while it is still being made or none was asked for; else
+## {"plan": the FlightPlan or null when nothing was found, "i", "t"}. A plan
+## for which nothing was solved goes to today's planner here, on this thread.
+func take_bg(use: StringName, t: float) -> Dictionary:
+	if not _jobs.has(use):
+		return {}
+	var j: Dictionary = _jobs[use]
+	if not WorkerThreadPool.is_task_completed(int(j.task)):
+		return {}
+	WorkerThreadPool.wait_for_task_completion(int(j.task))
+	_jobs.erase(use)
+	var r: FlightSolve.Result = j.held.get("r")
+	var pl: FlightPlan = null
+	if r != null:
+		last_ms = float(r.usec) / 1000.0
+		last_bg = true
+		n_bg += 1
+		worst_bg_ms = maxf(worst_bg_ms, last_ms)
+		if r.found:
+			n_solved += 1
+			pl = _plan_of(r, int(j.i), j.dep, float(j.t))
+	if pl == null and not _dep_of(t).is_empty():
+		pl = _fallback(int(j.i), t, j.prefer)
+	return {"plan": pl, "i": int(j.i), "t": float(j.t)}
+
+
+## THE CLICK (`SystemMapScreen._fly`): the flight to place i, the one drawn
+## (`pv`, the preview, flown as it is while its departure is ahead), else one
+## asked for on a worker -- the preview's own if it is being made for this
+## place now -- and flown the frame it comes in, the ship going on as it was
+## meanwhile. `done` once it is on the orbit (or alongside); if nothing can be
+## planned, the ship is put there. False when no flight can start now.
+func fly_bg(i: int, t: float, done: Callable, prefer: Dictionary = {}, pv: FlightPlan = null) -> bool:
+	if not can_fly() or not SystemLayout.is_place(i):
+		return false
+	if pv != null and pv.to == i:
+		var rd := _takeable(pv, t)
+		if not rd.is_empty():
+			_fly_plan(pv, rd, t, done)
+			return true
+	fly_to = i
+	_fly_done = done
+	line = {}
+	hold_line = {}
+	if _jobs.has(&"preview") and int(_jobs[&"preview"].i) == i:
+		_jobs[&"fly"] = _jobs[&"preview"]
+		_jobs.erase(&"preview")
+	elif not plan_bg(i, t, prefer, &"fly"):
+		# (nothing to plan from: put there, as a plan that finds nothing is)
+		_put_there(i, t)
+		return true
+	_pend = {"i": i, "t": t, "prefer": prefer}
+	# ON ITS WAY ALREADY while it is planned, as it will be while it rides round
+	# to leave: on a ring the ride round at the ring's own pace (`_step_phase`
+	# with no end, k 1: the very motion the rail has), alongside the hold with
+	# no end, so the map draws the orbit it is leaving and says where it is
+	# going, and the place it is leaving is not opened again
+	if mode == &"rail":
+		rail.phase = {"t0": t, "T": INF, "k": 1.0, "a0": float(rail.ang),
+			"w": float(rail.dir) * float(rail.speed) / float(rail.rt), "wait": true}
+	elif mode == &"keep":
+		keep.hold = INF
+		keep.wait = true
+	return true
+
+
+## Nothing could be planned: the ship is put in orbit there (or alongside), and
+## told it has arrived.
+func _put_there(i: int, t: float) -> void:
+	var d := _fly_done
+	place_at(i, t)
+	_fly_done = d
+	_pend = {}
+	_arrived()
+
+
+## EVERY FRAME (`step`): finished plans reaped, and a flight asked for taken in
+## and flown -- or, gone stale while it was made (its departure passed, the ship
+## moved off what it was planned from), asked for again from here keeping its
+## choice.
+func _poll_jobs(t: float) -> void:
+	for ri in range(_reap.size() - 1, -1, -1):
+		if WorkerThreadPool.is_task_completed(_reap[ri]):
+			WorkerThreadPool.wait_for_task_completion(_reap[ri])
+			_reap.remove_at(ri)
+	if _pend.is_empty() or not _jobs.has(&"fly"):
+		return
+	var got := take_bg(&"fly", t)
+	if got.is_empty():
+		return
+	var i := int(_pend.i)
+	var pl: FlightPlan = got.plan
+	var d := _fly_done
+	if pl == null:
+		_put_there(i, t)
+		return
+	var rd := _takeable(pl, t)
+	if rd.is_empty():
+		n_stale += 1
+		var p0: Dictionary = _pend.prefer
+		var tries := int(_pend.get("tries", 0)) + 1
+		_pend = {}
+		var keep_c := pl.choice if pl.res != null else p0
+		# (a fourth stale plan in a row: planned here, on this thread)
+		if tries > 3:
+			var pl2 := make_plan(i, t, keep_c)
+			var rd2 := _takeable(pl2, t)
+			if pl2 == null or rd2.is_empty():
+				_put_there(i, t)
+			else:
+				_fly_plan(pl2, rd2, t, d)
+			return
+		if not plan_bg(i, t, keep_c, &"fly"):
+			_put_there(i, t)
+			return
+		_pend = {"i": i, "t": t, "prefer": keep_c, "tries": tries}
+		return
+	_fly_plan(pl, rd, t, d)
+
+
+## A SHIP PUT ON A SETTLED STAR ORBIT AT p (a harness): round what letting go
+## there settles round (`_settle_centre`), at its radius, its pace, the way
+## `sense` says, as if it had settled there.
+func settle_at(p: Vector2, sense := 1.0) -> void:
+	mode = &"free"
+	rail = {}
+	keep = {}
+	f.p = p
+	f.v = Vector2.ZERO
+	_settle_centre(f)
+	if f.r_want > 0.0:
+		f.p = f.cen + (p - f.cen).normalized() * f.r_want
+	f.orbit_r = (f.p - f.cen).length()
+	f.sense = sense
+	f.v = star_orbit_v(f.p, f.orbit_r, sense, f.cen, f.cen_share)
+	# (settled: the next step keeps this centre and does not choose again)
+	f.coast = SETTLE_TURN + SETTLE_RAMP + 0.01
+	f.head = _scr_ang(f.v)
+	ang = f.head
+
+
+## TODAY'S PLANNER (before ruling 20): Lambert conics round star A, time-scaled,
+## now only the fallback for the flights `FlightSolve` finds nothing clean for.
+func _old_plan(i: int, t: float, prefer: Dictionary = {}) -> FlightPlan:
 	var st := _depart_state(t)
 	# A PLACE ALREADY CLOSE (Jon: the plan took a lap round the star with the
 	# world right beside him): a short hop in the world's own frame
@@ -1437,7 +2382,7 @@ func _escape(i: int, t: float, st: Dictionary) -> Dictionary:
 	# round the ring before that, spiralling out; the ship rides round to it
 	# first. Angle and radius each a quintic, so it starts with the orbit's own
 	# motion and pull.
-	if int(st.body) >= -1:
+	if SystemLayout.is_place(int(st.body)):
 		var b := int(st.body)
 		var rt: float = st.rt
 		var w: float = st.w
@@ -1459,7 +2404,7 @@ func _escape(i: int, t: float, st: Dictionary) -> Dictionary:
 		# OUT TO JUST PAST THE RING (the orbit now rides at its edge: the spiral
 		# out was sized from the old low orbit, and twice the new one reached
 		# far enough to graze the star from an inner world)
-		var rxs: Array = [star_ring() + 30.0, star_ring() + 8.0, star_ring() + 70.0] if b < 0 else [L.bodies[b].soi * 1.2, L.bodies[b].soi * 1.05, L.bodies[b].soi * 1.5]
+		var rxs: Array = [star_ring(b) + 30.0, star_ring(b) + 8.0, star_ring(b) + 70.0] if b < 0 else [L.bodies[b].soi * 1.2, L.bodies[b].soi * 1.05, L.bodies[b].soi * 1.5]
 		var vr := ESC_V * 0.3
 		var best := {}
 		for rx: float in rxs:
@@ -2432,7 +3377,8 @@ func _grace(pl: FlightPlan) -> float:
 func _tail(pl: FlightPlan) -> FlightPlan:
 	if pl == null or not pl.tail.is_empty():
 		return pl
-	if not pl.choice.is_empty() and pl.end.has("t"):
+	# (a solved flight's choice is `FlightSolve`'s own, given back as it was)
+	if pl.res == null and not pl.choice.is_empty() and pl.end.has("t"):
 		pl.choice["t_end"] = float(pl.end.get("t_coast", pl.end.t))
 		if pl.end.has("t1"):
 			pl.choice["T_coast"] = float(pl.end.get("t_coast", pl.end.t)) - float(pl.end.t1)
@@ -2453,7 +3399,17 @@ func _tail(pl: FlightPlan) -> FlightPlan:
 	var rti: float = orbit_r(i)
 	var spd: float = STAR_RAIL_V if i < 0 else RAIL_V
 	var dr := 1.0 if arel.x * rv.y - arel.y * rv.x >= 0.0 else -1.0
-	var ins := insert_plan(arel, rv, rti, dr * spd / rti, null if i < 0 else L.bodies[i], aend)
+	if pl.res != null and absf(arel.length() - rti) < ON_RING_PX and absf(rv.length() - spd) < ON_RING_V:
+		# ON THE RING ALREADY (a solved flight lands on it exactly): what it
+		# flies next is the ring itself, TAIL_S of it, as `_land` rides it
+		var w := dr * spd / rti
+		var a0 := atan2(arel.y, arel.x)
+		for k3 in 121:
+			var tk3 := TAIL_S * float(k3) / 120.0
+			var ck3 := center(i, t2 + tk3)
+			pl.tail.append(ck3 + Vector3(cos(a0 + w * tk3) * rti, 0.0, sin(a0 + w * tk3) * rti))
+		return pl
+	var ins := insert_plan(arel, rv, rti, dr * spd / rti, null if i < 0 else L.bodies[i], aend, i)
 	pl.tail_k = float(ins.get("kmax", 0.0))
 	for k in 121:
 		var sk2 := float(k) / 120.0
@@ -2726,46 +3682,65 @@ func _v0() -> Vector3:
 	return Vector3(f.v.x, 0.0, f.v.y)
 
 
-func fly(i: int, t: float, done: Callable, prefer: Dictionary = {}) -> FlightPlan:
-	plan = make_plan(i, t, prefer)
-	# A KEPT CHOICE THAT NO LONGER STARTS WHERE THE SHIP IS (made for another
-	# moment): planned afresh, so the flight never jumps
-	if plan != null and not prefer.is_empty() and plan.lead <= 0.0 and not plan.samp.is_empty():
+## THE FLIGHT TO PLACE i, NOW, planned on this thread (a harness; the map
+## plans on a worker, `fly_bg`): `pv` a plan already drawn, flown as it is while
+## it still can be (`_takeable`), else planned from here with `prefer`. Null
+## when nothing can be planned.
+func fly(i: int, t: float, done: Callable, prefer: Dictionary = {}, pv: FlightPlan = null) -> FlightPlan:
+	if pv != null and pv.to == i:
+		var rd := _takeable(pv, t)
+		if not rd.is_empty():
+			_fly_plan(pv, rd, t, done)
+			return plan
+	var pl := make_plan(i, t, prefer)
+	# A KEPT CHOICE OF TODAY'S PLANNER THAT NO LONGER STARTS WHERE THE SHIP IS
+	# (made for another moment): planned afresh, so the flight never jumps
+	if pl != null and pl.res == null and not prefer.is_empty() and pl.lead <= 0.0 and not pl.samp.is_empty():
 		var w0 := where3()
-		if Vector2(plan.samp[0].x - w0.x, plan.samp[0].z - w0.z).length() > 3.0:
+		if Vector2(pl.samp[0].x - w0.x, pl.samp[0].z - w0.z).length() > 3.0:
 			if why:
-				print("  kept plan starts %.0f px from the ship: planned afresh" % Vector2(plan.samp[0].x - w0.x, plan.samp[0].z - w0.z).length())
-			plan = make_plan(i, t)
-	if plan == null:
+				print("  kept plan starts %.0f px from the ship: planned afresh" % Vector2(pl.samp[0].x - w0.x, pl.samp[0].z - w0.z).length())
+			pl = make_plan(i, t)
+	if pl == null:
 		return null
-	# OUT OF AN ORBIT the ship rides round it to the departure point first (a
-	# phasing burn if that is far), then the flight
-	if plan.lead > 0.0 and mode == &"rail" and not rail.is_empty():
-		rail.phase = {"t0": t, "T": plan.lead, "k": plan.lead_k, "a0": float(rail.ang),
-			"w": float(rail.dir) * float(rail.speed) / float(rail.rt)}
-		fly_to = i
-		_fly_done = done
-		line = {}
-		hold_line = {}
-		return plan
-	fly_t0 = t
-	fly_to = i
-	_fly_done = done
-	_fly_pos = plan.pos(0.0)
-	mode = &"fly"
-	rail = {}
-	keep = {}
-	line = {}
-	hold_line = {}
+	var rd2 := _takeable(pl, t)
+	if rd2.is_empty():
+		# (planned from here this moment: its own ride, as made)
+		rd2 = {"T": maxf(pl.t0 - t, 0.0), "k": pl.lead_k, "a0": float(rail.get("ang", 0.0)), "w": float(pl.dep.get("w", 0.0))}
+	_fly_plan(pl, rd2, t, done)
 	return plan
 
 
 ## THE COAST DONE, at the ring with the place's own motion: the insertion (or
 ## the stop alongside) every capture flies, and the flight's callback once it is
-## on the orbit.
+## on the orbit. A solved flight ends on the ring exactly, at its speed, at its
+## own arrival time: the ship rides on round from there to now, no insertion.
 func _land(t: float) -> void:
 	var e := plan.end
 	var i: int = e.body
+	if plan.res != null:
+		var te := float(e.t)
+		var arel: Vector2 = e.arel
+		var rv0: Vector2 = e.rv
+		var c0 := center(i, t)
+		if e.get("keep", false):
+			mode = &"keep"
+			keep = {"body": i, "off": arel, "ev": Vector2.ZERO, "ev0": 0.0, "inf": arel}
+			f.p = _flat(c0) + arel
+			f.v = _flat(center_vel(i, t))
+			plan = null
+			return
+		start_rail(i, arel, rv0, te, e.get("a", Vector2.ZERO))
+		plan = null
+		if not inserting():
+			var w: float = float(rail.dir) * float(rail.speed) / float(rail.rt)
+			rail.ang = float(rail.ang) + w * (t - te)
+			var a: float = rail.ang
+			var rt: float = rail.rt
+			f.p = _flat(c0) + Vector2(cos(a), sin(a)) * rt
+			f.v = _flat(center_vel(i, t)) + Vector2(-sin(a), cos(a)) * w * rt
+			_arrived()
+		return
 	var p: Vector3 = e.p
 	f.p = Vector2(p.x, p.z)
 	f.v = Vector2((e.v as Vector3).x, (e.v as Vector3).z)
@@ -2774,7 +3749,7 @@ func _land(t: float) -> void:
 	var rv := f.v - _flat(center_vel(i, t))
 	if e.get("keep", false):
 		mode = &"keep"
-		keep = {"body": i, "off": rel, "ev": rv, "ev0": rv.length()}
+		keep = {"body": i, "off": rel, "ev": rv, "ev0": rv.length(), "inf": rel + rv * KEEP_TAU}
 	else:
 		start_rail(i, rel, rv, t, e.get("a", Vector2.ZERO))
 	plan = null

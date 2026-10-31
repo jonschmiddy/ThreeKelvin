@@ -21,8 +21,10 @@ extends Node
 ##          round one star sit at 0.98 of the steady limit, past the layout's
 ##          0.90, with rings twice the layout's: the prototype's case, not the
 ##          game's (rtwin is that).
-## Starts: each world's ring, each star's close orbit, alongside a station,
-## belt, hulk or contact, and flying free. Targets: each world's ring (either
+## Starts: each world's ring, each star's close orbit, a settled star orbit
+## (round the star, or round both stars' balance point: a ring round a fixed
+## point, where every visit's ship arrives, `ShipFlight.setup`), alongside a
+## station, belt, hulk or contact, and flying free. Targets: each world's ring (either
 ## way round), each star's close orbit, each station, belt, hulk and contact.
 ## For each plan: found; clean (every keep-out held along the samples);
 ## starts where the ship is (on its ring at the departure, at the ring's own
@@ -45,8 +47,9 @@ extends Node
 ## rings twice the layout's reach the star's close orbit, and two of the three
 ## pairs are closer than the layout's 300 px; flights between their stars'
 ## close orbits, 2 px outside the keep-out as the layout puts them, are the
-## misses (65 of 72 found). Every found plan starting and landing, every
-## replay and worker result the same. Planning time is measured and judged in
+## misses (65 of 72 found). Every found plan starting and landing, no burn in
+## it swinging the ship round a point (`FlightSolve.V_CUSP`, read off its
+## samples), every replay and worker result the same. Planning time is measured and judged in
 ## the log (median 25 ms, worst 150 ms: DESIGN), not failed on: this Mac's load
 ## varies.
 
@@ -61,6 +64,8 @@ const RAIL_V := 35.0
 const STAR_RAIL_V := 45.0
 ## `ShipFlight.ORBIT_K`
 const ORBIT_K := 0.88
+## `ShipFlight.STAR_PACE`: a settled star orbit's pace, times Kepler's
+const STAR_PACE := 50.0
 const KEEP_OFF := Vector2(8.0, 5.0 / 0.38)
 ## found and clean in at least this share of each sweep (above)
 const FOUND_MIN := 0.99
@@ -306,6 +311,7 @@ func _add_system(sweep: String, L: SystemLayout, G: MapGravity, label: String, h
 			if nk == 0:
 				starts.append(["keep", b.index])
 			nk += 1
+	starts.append(["orbit9", -9])
 	starts.append(["free", -9])
 	for si in starts.size():
 		var st: Array = starts[si]
@@ -332,6 +338,20 @@ func _add_system(sweep: String, L: SystemLayout, G: MapGravity, label: String, h
 						dep = {"kind": &"ring", "place": int(st[1]), "rt": rs, "ang": ang, "w": STAR_RAIL_V / rs}
 					"keep":
 						dep = {"kind": &"keep", "place": int(st[1]), "off": KEEP_OFF}
+					"orbit9":
+						# (out where a visit arrives, 0.55 to 0.85 of the edge round the
+						# centre, its pace STAR_PACE times Kepler's there, clear of
+						# everything where it starts)
+						var c9 := L.bary if L.twin else Vector2.ZERO
+						var r9 := (L.edge - c9.length()) * (0.55 + 0.3 * fposmod(float(lu) * 0.618034, 1.0))
+						var a9 := ang
+						for _k9 in 40:
+							var p9 := c9 + Vector2(cos(a9), sin(a9)) * r9
+							if G.margin(p9.x, p9.y, t) > 30.0:
+								break
+							a9 += 0.15
+						var pace := STAR_PACE * TAU * 1000.0 / (800.0 * sqrt(r9))
+						dep = {"kind": &"ring", "place": -9, "c": c9, "rt": r9, "ang": a9, "w": sense * pace / r9}
 					_:
 						var fr := fposmod(float(lu) * 0.618034 + float(ti) * 0.3, 1.0)
 						var rad := 200.0 + 500.0 * fr
@@ -375,6 +395,16 @@ static func centre(L: SystemLayout, p: int, t: float) -> PackedFloat64Array:
 	return PackedFloat64Array([sp.x, sp.y, 0.0, 0.0])
 
 
+## The centre and motion of the ring a case leaves from: its place's, or a
+## settled star orbit's fixed point. [x, z, vx, vz]
+static func dep_centre(c: Dictionary, t: float) -> PackedFloat64Array:
+	var dep: Dictionary = c.dep
+	if int(dep.get("place", -9)) == -9:
+		var c9: Vector2 = dep.get("c", Vector2.ZERO)
+		return PackedFloat64Array([c9.x, c9.y, 0.0, 0.0])
+	return centre(c.L, int(dep.place), t)
+
+
 ## [start px off, start px/s off, end px off, end px/s off]: where the samples
 ## begin against the ship's ring (or state), and where they end against the
 ## target's ring at its speed (or its spot at its motion).
@@ -390,7 +420,7 @@ static func ends(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Array:
 	var ev0 := 0.0
 	match StringName(dep.kind):
 		&"ring":
-			var cc := centre(L, int(dep.place), r.t0)
+			var cc := dep_centre(c, r.t0)
 			var rt: float = dep.rt
 			var w: float = dep.w
 			var a := r.a_dep
@@ -465,6 +495,32 @@ static func thrust(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Array:
 	return PackedFloat64Array([burn, coast])
 
 
+## WHETHER A BURN DRAWS A CUSP, from the samples (`FlightSolve.V_CUSP`): in
+## any run of lit samples, the speed dipping under V_CUSP and 2 px/s under
+## where the run starts and ends -- the motion swinging round a point, a sharp
+## angle as drawn. [1 or 0, the least such speed].
+static func cusp(r: FlightSolve.Result) -> PackedFloat64Array:
+	var s := r.samp
+	var dt := r.sdt
+	var k := 1
+	var n := s.size()
+	var worst := INF
+	while k < n - 1:
+		if r.burns[k] == 0:
+			k += 1
+			continue
+		var k0 := k
+		var vmin := INF
+		while k < n - 1 and r.burns[k] == 1:
+			vmin = minf(vmin, ((s[k + 1] - s[k - 1]) / (2.0 * dt)).length())
+			k += 1
+		var va := ((s[mini(k0 + 1, n - 1)] - s[maxi(k0 - 1, 0)]) / (2.0 * dt)).length()
+		var vb := ((s[mini(k, n - 1)] - s[maxi(k - 2, 0)]) / (2.0 * dt)).length()
+		if vmin < FlightSolve.V_CUSP and vmin < minf(va, vb) - 2.0:
+			worst = minf(worst, vmin)
+	return PackedFloat64Array([1.0 if worst < INF else 0.0, worst])
+
+
 ## THE RIDE'S PHASING as `ShipFlight._step_phase` flies it: [its top push
 ## along the ring px/s^2, its top speed px/s] (0 and the ring's own when it
 ## simply rides).
@@ -507,6 +563,9 @@ func _report(sweep: String) -> void:
 	var worst_land_v := 0.0
 	var pushed := 0
 	var belt_off := 0
+	var cusped := 0
+	var cusped_free := 0
+	var found_free := 0
 	var shown := 0
 	for i in _cases.size():
 		var c: Dictionary = _cases[i]
@@ -548,6 +607,19 @@ func _report(sweep: String) -> void:
 			print("  (lands %.3f px, %.2f px/s off: %s)" % [e[2], e[3], c.label])
 		if belt_rule_off(c.L, int(c.tgt.place), r.end.t) > LAND_PX:
 			belt_off += 1
+		# (a free start, coasting at 10 to 40 px/s, is a harness's: the map flies
+		# only out of a ring, a settled star orbit or alongside, `can_fly`, and
+		# the solver turns down a cusp only from those; counted apart)
+		var cu := cusp(r)
+		var free_dep := StringName(c.dep.kind) == &"free"
+		if free_dep:
+			found_free += 1
+		if cu[0] > 0.5 and free_dep:
+			cusped_free += 1
+		elif cu[0] > 0.5:
+			cusped += 1
+			if cusped <= 4:
+				print("  (a burn's speed dips to %.1f px/s: %s)" % [cu[1], c.label])
 		var rd := ride(c, r)
 		if StringName(c.dep.kind) == &"ring":
 			push.append(rd[0])
@@ -612,6 +684,8 @@ func _report(sweep: String) -> void:
 	h._ok("%s: every found plan starts on the ship's ring (%d of %d)" % [sweep, started, found], started == found)
 	h._ok("%s: every found plan lands on the ring at its speed within %.1f px, %.1f px/s, where the layout's Body is (%d of %d)" % [sweep, LAND_PX, LAND_V, landed, found], landed == found)
 	h._ok("%s: every ride's phasing pushes at most THRUST and stays under VMAX (%d of %d)" % [sweep, pushed, found], pushed == found)
+	h._ok("%s: no burn swings the ship round a point, its speed under %.0f px/s mid-burn (a cusp as drawn), out of a ring, a settled star orbit or alongside: %d of %d" % [sweep, FlightSolve.V_CUSP, cusped, found - found_free], cusped == 0)
+	print("  %s: free starts (a harness's) with such a burn: %d of %d" % [sweep, cusped_free, found_free])
 	ms.sort()
 	var med: float = ms[ms.size() / 2]
 	var worst: float = ms[-1]
@@ -748,25 +822,45 @@ func _physics() -> void:
 		var dvx := float(r.choice.dvx)
 		var dvz := float(r.choice.dvz)
 		var dv := sqrt(dvx * dvx + dvz * dvz)
-		var thx := dvx / dv * FlightSolve.THRUST if dv > 1e-9 else 0.0
-		var thz := dvz / dv * FlightSolve.THRUST if dv > 1e-9 else 0.0
+		var bux := dvx / dv if dv > 1e-9 else 0.0
+		var buz := dvz / dv if dv > 1e-9 else 0.0
+		# THE DEPARTURE BURN by its own law, from this flight's own state: a pull
+		# held for each step of at most H_BURN, eased out of a settled star orbit
+		# while the ship is slow (`FlightSolve.R_BURN`), until dv is spent
+		var ease := StringName(c.dep.kind) == &"ring" and int(c.dep.place) == -9
+		var rem := dv if dv > 1e-9 else 0.0
+		var pull := 0.0
 		var t := r.t0
+		var t_step := t
 		var tb := r.t0 + r.dur - r.d2
 		var dev := 0.0
 		var k := 0
-		var t_off := r.t0 + r.esc_t
 		while t + dt <= tb and k + 1 < s.size():
-			# (the step the burn ends in, flown in two: burning, then not)
-			var parts := PackedFloat64Array([dt])
-			if t < t_off - 1e-12 and t + dt > t_off + 1e-12:
-				parts = PackedFloat64Array([t_off - t, t + dt - t_off])
-			for hp in parts:
-				var st2 := _rk4(G, x, z, vx, vz, t, hp, thx if t < t_off - 1e-12 else 0.0, thz if t < t_off - 1e-12 else 0.0)
+			var left := dt
+			while left > 1e-12:
+				var hp := left
+				var ax := 0.0
+				var az := 0.0
+				if rem > 0.0 or t < t_step - 1e-12:
+					if t >= t_step - 1e-12:
+						pull = FlightSolve.THRUST
+						if ease:
+							pull = clampf((vx * vx + vz * vz) / FlightSolve.R_BURN, FlightSolve.P_MIN, FlightSolve.THRUST)
+						var hb := minf(FlightSolve.H_BURN, rem / pull)
+						rem -= pull * hb
+						if rem <= 1e-9:
+							rem = 0.0
+						t_step = t + hb
+					hp = minf(left, t_step - t)
+					ax = bux * pull
+					az = buz * pull
+				var st2 := _rk4(G, x, z, vx, vz, t, hp, ax, az)
 				x = st2[0]
 				z = st2[1]
 				vx = st2[2]
 				vz = st2[3]
 				t += hp
+				left -= hp
 			k += 1
 			dev = maxf(dev, Vector2(x - s[k].x, z - s[k].z).length())
 		devs.append(dev)
@@ -808,7 +902,7 @@ static func start_state(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Ar
 	var dep: Dictionary = c.dep
 	match StringName(dep.kind):
 		&"ring":
-			var cc := centre(L, int(dep.place), r.t0)
+			var cc := dep_centre(c, r.t0)
 			var rt: float = dep.rt
 			var w: float = dep.w
 			var a := r.a_dep
