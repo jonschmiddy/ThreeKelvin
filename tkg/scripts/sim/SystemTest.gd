@@ -29,11 +29,20 @@ extends Harness
 ## AND TWO SUNS (ruling 20, Oct 30), about one ordinary system in four, and every
 ## one of them under `twin=all`: a world round each star, inside the farthest
 ## steady orbit round it (Holman and Wiegert); everything else round both, past
-## the nearest steady orbit round the pair; neighbours apart round each centre,
-## not by index; every world's ring clear of its star's close ring, of both
-## stars' keep-clear and of every ring it can meet; each world round a star
-## standing clear of its sun's drawn disc at the map's opening zoom, beside it;
-## zones by distance from the light; Kepler round what each body circles.
+## the nearest steady orbit round the pair (theirs, for the pair's own shares);
+## neighbours apart round each centre, not by index; each world round a star
+## with its ring clear of its star's close ring, of both stars' keep-clear and
+## of every ring it can meet; every ring round both clear of both stars' close
+## rings; each star's keep-clear the autopilot's keep-out at the zoom the layout
+## is fitted to, its close orbit and ring outside it, and that zoom never above
+## the one the map opens at; each world round a star standing 3 game px clear of
+## its sun's drawn disc beside it at the opening zoom, as SystemView draws both
+## in 2 px blocks; zones by distance from the light; Kepler round what each body
+## circles. Round both, as round one sun, the bodies are kept apart and not their
+## rings: how often a body sits inside a world's ring is printed, not promised.
+## A SIGNED JOB AND THE HELLBENDER (`_comers`), put in every twin: they move no
+## other body and none of the stars' rings or keep-outs, and how far they push
+## the opening zoom past the layout's is measured against the drawn suns.
 
 const SEEDS := [4242, 7, 1999, 31337]
 const STAR_B := SystemLayout.STAR_B
@@ -57,7 +66,7 @@ func _print_of(L: SystemLayout) -> String:
 	for bc in L.star_beacons:
 		on_star.append("%d" % bc.opt)
 	parts.append("star[%s]" % ",".join(on_star))
-	parts.append("edge:%.3f" % L.edge)
+	parts.append("edge:%.3f:%.5f" % [L.edge, L.fit_zoom])
 	return "|".join(parts)
 
 
@@ -157,6 +166,7 @@ func run() -> void:
 				_fail("system %d: twin %s, laid out twin %s" % [n.index, str(n.twin), str(L.twin)])
 			if L.twin:
 				_twin_checks(n, L, "seed %d system %d" % [s, n.index])
+				_comers(n, "seed %d system %d" % [s, n.index])
 				zooms_two.append(SystemLayout.open_zoom(L.edge))
 			else:
 				zooms_one.append(SystemLayout.open_zoom(L.edge))
@@ -254,6 +264,122 @@ static func _ring(b: SystemLayout.Body) -> float:
 	return b.soi if b.soi > 0.0 else SystemLayout.reach_of(b)
 
 
+## Star p's sun and world w's disc at zoom z at the most SystemView draws them,
+## in 2 px blocks (`SystemLayout.held_most`, `SystemView._held`).
+static func _sun_held(L: SystemLayout, p: int, z: float) -> float:
+	return SystemLayout.held_most(SystemLayout.sun_drawn(L.star_radius(p), z), SystemLayout.SUN_LEAST)
+
+
+static func _disc_held(w: SystemLayout.Body, z: float) -> float:
+	var raw := SystemLayout.world_drawn(w, z)
+	return SystemLayout.held_most(raw, minf(SystemLayout.WORLD_FLOOR, raw))
+
+
+## How far world w round a star stands from its sun's drawn disc beside it at
+## zoom z, as drawn (game px).
+static func _side(L: SystemLayout, w: SystemLayout.Body, z: float) -> float:
+	return w.orbit * z - _sun_held(L, w.host_id, z) - _disc_held(w, z)
+
+
+## Whether a layout has a place that comes and goes out past its edge: the
+## Hellbender's, or a signed job's.
+static func _comers_in(n: MapGen.MapNode, L: SystemLayout) -> bool:
+	if L.hellbender_place() >= 0:
+		return true
+	for b in L.bodies:
+		for bc in b.beacons:
+			if bc.opt >= 0 and bc.opt < n.options.size() and OptionTable.is_job(n.options[bc.opt]):
+				return true
+	return false
+
+
+## How many of each thing the two-sun checks counted, across every twin.
+var _twin_n := {}
+
+
+func _tally(k: String) -> void:
+	_twin_n[k] = int(_twin_n.get(k, 0)) + 1
+
+
+## A SIGNED JOB AND THE HELLBENDER OUT PAST A TWIN'S EDGE (`Contracts.post_goal`
+## appends a job's event to the node; the Hellbender anchors or dies here): a
+## fetch's world, a hunt's contact and the Hellbender, alone and together. They
+## move no other body, and none of the stars' keep-outs, close orbits or rings
+## or the zoom the layout is fitted to, so a planned flight's keep-out is the
+## layout's whatever comes (`SystemLayout.keep_clear_of`). They do push the
+## edge out, and the map opens further out than the layout was fitted to while
+## one is there: how far the drawn suns then reach past the stars' rings and
+## toward the worlds is measured, not promised, since fitting to that zoom
+## cannot be had (`SystemLayout._twin`). First measured Oct 30 over the four
+## seeds' 1,068 twins: a hunt or the Hellbender alone left every star's ring 4.2
+## plane px outside its drawn sun and every world 1.9 game px off its sun; a
+## fetch's world, 3 of 2,136 rings up to 0.2 px inside and 3 worlds touching;
+## all three, 34 rings up to 2.3 px inside and worlds up to 1.1 game px over.
+## Over 24 seeds' 5,014 twins: a fetch, 22 of 10,028 rings up to 0.4 px inside
+## and 13 worlds up to 0.4 game px over; all three, 184 and 550, 2.5 and 1.2.
+## Leaves the node and the run as they were.
+func _comers(n: MapGen.MapNode, at: String) -> void:
+	var hb_at := Run.hellbender_at
+	var hb_hp := Run.hellbender_hp
+	var n_opt := n.options.size()
+	if hb_at == n.index:
+		Run.hellbender_at = -1
+	var bare := SystemLayout.of(n)
+	if _comers_in(n, bare):
+		# (a Hellbender's wreck lies here, or a job is posted: not bare)
+		Run.hellbender_at = hb_at
+		return
+	var cases: Array = [["a fetch", [&"job_pickup"], false], ["a hunt", [&"job_target"], false],
+		["the Hellbender", [], true], ["a fetch, a hunt and the Hellbender", [&"job_pickup", &"job_target"], true]]
+	for c in cases:
+		for id in c[1]:
+			n.options.append(id)
+		if c[2]:
+			Run.hellbender_at = n.index
+			Run.hellbender_hp = maxi(hb_hp, 1)
+		var L := SystemLayout.of(n)
+		Run.hellbender_at = -1 if hb_at == n.index else hb_at
+		Run.hellbender_hp = hb_hp
+		n.options.resize(n_opt)
+		var what: String = c[0]
+		_tally("twins with %s out" % what)
+		if L.bodies.size() != bare.bodies.size() + c[1].size() + (1 if c[2] else 0):
+			_fail("%s: with %s out, %d bodies against %d" % [at, what, L.bodies.size(), bare.bodies.size()])
+			continue
+		var moved := L.fit_zoom != bare.fit_zoom or L.sep != bare.sep
+		for p in bare.stars():
+			moved = moved or L.keep_clear_of(p) != bare.keep_clear_of(p) or L.star_rail_of(p) != bare.star_rail_of(p) \
+				or L.star_ring_of(p) != bare.star_ring_of(p)
+		for i in bare.bodies.size():
+			var a := bare.bodies[i]
+			var b := L.bodies[i]
+			moved = moved or a.orbit != b.orbit or a.phase != b.phase or a.period != b.period or a.host != b.host \
+				or a.world != b.world or a.soi != b.soi or a.name != b.name
+		if moved:
+			_fail("%s: putting %s out moved a body, a star's rings or the fitted zoom" % [at, what])
+		# what the map then draws: its opening zoom, the suns' drawn discs against
+		# the layout's rings and the planner's live keep-out, the worlds beside them
+		var z := SystemLayout.open_zoom(L.edge)
+		_least("with %s out: opening zoom over the fitted one" % what, z / L.fit_zoom, at)
+		for p in L.stars():
+			var sd := SystemLayout.sun_drawn(L.star_radius(p), z) / z
+			_least("with %s out: star's ring outside its drawn sun (plane px)" % what, L.star_ring_of(p) - sd, at)
+			_most("with %s out: the drawn sun + 6 past the layout's keep-out, most (plane px)" % what, sd + SystemLayout.RING_OUT - L.keep_clear_of(p), at)
+			if L.star_ring_of(p) < sd:
+				_tally("with %s out: star rings inside the drawn sun" % what)
+		for w in L.bodies:
+			if SystemLayout.is_star(w.host_id):
+				var side := _side(L, w, z)
+				_least("with %s out: world beside its sun, as drawn (game px)" % what, side, at)
+				_tally("with %s out: worlds round a star" % what)
+				if side < SystemLayout.SIDE_GAP:
+					_tally("with %s out: worlds under 3 game px off their sun" % what)
+				if side < 0.0:
+					_tally("with %s out: worlds whose disc runs into their sun's beside it" % what)
+	Run.hellbender_at = hb_at
+	Run.hellbender_hp = hb_hp
+
+
 ## THE TWO-SUN PROMISES, on one twin layout.
 func _twin_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 	var share := L.star_share
@@ -303,12 +429,18 @@ func _twin_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 			_fail("%s: %s at %.3f of its steady limit (%.1f of %.1f px)" % [at, w.name, f, w.orbit, lim])
 		_least("world round a star, share of its limit", f, at)
 		_most("world round a star, share of its limit, most", f, at)
-	# PAST THE NEAREST STEADY ORBIT ROUND BOTH
+	# PAST THE NEAREST STEADY ORBIT ROUND BOTH, for this pair's shares, and never
+	# inside the build's 2.423
+	var p_lim := SystemLayout.p_limit(1.0 - share)
+	var hw := 1.60 + 4.12 * (1.0 - share) - 5.09 * pow(1.0 - share, 2.0)
+	if p_lim < 2.423 or p_lim < hw - 1e-9:
+		_fail("%s: the nearest steady orbit round both taken as %.3f, under %.3f" % [at, p_lim, maxf(2.423, hw)])
 	for b in both:
 		var k := b.orbit / L.sep
-		if k < SystemLayout.P_LIMIT:
-			_fail("%s: %s %s round both at %.3f of the separation, inside %.3f" % [at, b.kind, b.name, k, SystemLayout.P_LIMIT])
+		if k < p_lim:
+			_fail("%s: %s %s round both at %.3f of the separation, inside %.3f" % [at, b.kind, b.name, k, p_lim])
 		_least("round both, orbit over separation", k, at)
+		_least("round both, orbit past its steady limit (share)", k / p_lim, at)
 	# NEIGHBOURS APART ROUND EACH CENTRE, nearest out, not by index
 	for group in [round_a, round_b, both]:
 		var g: Array = group.duplicate()
@@ -324,11 +456,22 @@ func _twin_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 		var k := b.period / (800.0 * pow(b.orbit / 100.0, 1.5) / sqrt(m))
 		if k < 0.95 - 1e-6 or k > 1.05 + 1e-6:
 			_fail("%s: %s's period is %.3f of Kepler's round what it circles" % [at, b.name, k])
-	# THE RINGS. Each star: keep-clear, then rail, then ring, out from its surface.
+	# THE RINGS. Each star: keep-clear, then rail, then ring, out from its surface;
+	# the keep-clear no nearer than the autopilot's keep-out round a sun (its
+	# drawn radius + 6) at the zoom the layout is fitted to, so the close orbit a
+	# ship rides and the ring it is taken onto it inside are outside that
+	var fz := L.fit_zoom
+	if not (fz > 0.0):
+		_fail("%s: no zoom the layout is fitted to (%.3f)" % [at, fz])
+		return
 	for p in L.stars():
 		var r := L.star_radius(p)
 		if not (r < L.keep_clear_of(p) and L.keep_clear_of(p) < L.star_rail_of(p) and L.star_rail_of(p) < L.star_ring_of(p)):
 			_fail("%s: star %d's keep-clear %.1f, rail %.1f and ring %.1f are out of order" % [at, p, L.keep_clear_of(p), L.star_rail_of(p), L.star_ring_of(p)])
+		var keep_out := SystemLayout.sun_drawn(r, fz) / fz + SystemLayout.RING_OUT
+		_least("star's keep-clear past the keep-out at the fitted zoom (plane px)", L.keep_clear_of(p) - keep_out, at)
+		if L.keep_clear_of(p) < keep_out - 1e-6:
+			_fail("%s: star %d's keep-clear %.2f is inside the keep-out %.2f (its drawn sun + 6 at the fitted zoom %.3f)" % [at, p, L.keep_clear_of(p), keep_out, fz])
 	for w in sw:
 		var p := w.host_id
 		var q := STAR_B if p == -1 else -1
@@ -357,23 +500,47 @@ func _twin_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 			var near := b.orbit - b.host.distance_to(L.star_pos(p)) - _ring(b) - L.star_ring_of(p)
 			if near < SystemLayout.RING_CLEAR:
 				_fail("%s: %s %s's ring comes %.1f px from star %d's close ring" % [at, b.kind, b.name, near, p])
-	# AT THE OPENING ZOOM each world round a star stands clear of its sun's drawn
-	# disc beside it (3 game px). At its near point, in front of the sun, it
-	# cannot -- the edge is too far out for the zone it is in (`SystemLayout._twin`)
-	# -- so that is measured, not promised.
+	# ROUND BOTH, bodies apart but not rings, as round one sun: how often a body
+	# sits inside another world's ring (where letting go by hand is taken onto that
+	# world), and a giant's neighbours inside its ring in particular
+	for b in both:
+		_tally("bodies round both")
+		var held := false
+		for o in both:
+			if o == b or o.soi <= 0.0:
+				continue
+			if _closest(o, b) < o.soi:
+				held = true
+				if o.kind == &"giant":
+					_tally("of them inside the giant's ring")
+		if held:
+			_tally("of them inside another world's ring")
+	# AT THE OPENING ZOOM, with no job or Hellbender out (`_comers` puts them in):
+	# the map opens no further out than the layout was fitted to, each star's
+	# close orbit is outside the keep-out there, and each world round a star
+	# stands 3 game px clear of its sun's drawn disc beside it, both as drawn in 2
+	# px blocks. At its near point, in front of the sun, it cannot -- the edge is
+	# too far out for the zone it is in (`SystemLayout._twin`) -- so that is
+	# measured, not promised.
 	var z := SystemLayout.open_zoom(L.edge)
+	var bare := not _comers_in(n, L)
+	# (the edge adds 32-bit `Vector2` host lengths: a millionth either way)
+	if bare and z < fz * (1.0 - 1e-6):
+		_fail("%s: the map opens at %.4f, further out than the zoom the layout is fitted to (%.4f)" % [at, z, fz])
 	for w in sw:
 		var p := w.host_id
-		var sun := SystemLayout.sun_drawn(L.star_radius(p), z)
-		var disc := SystemLayout.world_drawn(w, z)
-		var side := w.orbit * z - sun - disc
-		var front := w.orbit * z * SystemLayout.SLANT - sun - disc
-		_least("world beside its sun at the opening zoom (game px)", side, at)
-		_least("world in front of its sun at the opening zoom (game px)", front, at)
-		_most("world in front of its sun at the opening zoom, most (game px)", front, at)
-		_least("star's close ring outside its drawn sun (game px)", L.star_ring_of(p) * z - sun, at)
-		if side < 3.0:
-			_fail("%s: %s stands %.1f game px off its sun's drawn disc at the opening zoom %.3f" % [at, w.name, side, z])
+		var side := _side(L, w, z)
+		var front := w.orbit * z * SystemLayout.SLANT - _sun_held(L, p, z) - _disc_held(w, z)
+		var tag := "" if bare else ", the Hellbender here"
+		_least("world beside its sun at the opening zoom, as drawn (game px)%s" % tag, side, at)
+		_least("world in front of its sun at the opening zoom, as drawn (game px)%s" % tag, front, at)
+		_most("world in front of its sun at the opening zoom, as drawn, most (game px)%s" % tag, front, at)
+		var sd := SystemLayout.sun_drawn(L.star_radius(p), z) / z
+		_least("star's close orbit past its keep-out at the opening zoom (plane px)%s" % tag, L.star_rail_of(p) - sd - SystemLayout.RING_OUT, at)
+		if bare and side < SystemLayout.SIDE_GAP - 1e-4:
+			_fail("%s: %s stands %.2f game px off its sun's drawn disc at the opening zoom %.3f" % [at, w.name, side, z])
+		if bare and L.star_rail_of(p) < sd + SystemLayout.RING_OUT - 1e-4:
+			_fail("%s: star %d's close orbit %.2f is inside the keep-out %.2f at the opening zoom %.3f" % [at, p, L.star_rail_of(p), sd + SystemLayout.RING_OUT, z])
 	# ZONES BY DISTANCE FROM THE LIGHT: never a farther body in a nearer zone;
 	# the worlds round a star near
 	var dist := {}
@@ -428,6 +595,7 @@ func _all_twins() -> void:
 			laid += 1
 			zooms.append(SystemLayout.open_zoom(L.edge))
 			_twin_checks(n, L, "twin=all seed %d system %d" % [s, n.index])
+			_comers(n, "twin=all seed %d system %d" % [s, n.index])
 			_weights(n, L)
 			if shown < 2:
 				rows.append(_row(s, n, L))
@@ -446,7 +614,7 @@ func _all_twins() -> void:
 	_ok("twin=none: no system has two suns (%d do)" % any, any == 0)
 	MapGen.twin_force = 0
 	print("  two-sun systems (twin=all), two a seed:")
-	print("    seed node  sep  share  rA   rB  | round A: a / limit (ring; star A's close ring) | round B: the same | round both: kind a (ring) ... | edge  zoom | A beside, in front | B beside, in front (game px)")
+	print("    seed node  sep  share  rA   rB  | round A: a / limit (ring; star A's keep-clear, close orbit, ring) | round B: the same | round both: kind a (ring) ... | edge  zoom | A beside, in front | B beside, in front (game px, as drawn)")
 	for r in rows:
 		print("    " + r)
 
@@ -461,9 +629,10 @@ func _row(s: int, n: MapGen.MapNode, L: SystemLayout) -> String:
 			both.append("%s %.0f (%.0f)" % [b.kind, b.orbit, _ring(b)])
 		else:
 			var mu := (1.0 - L.star_share) if b.host_id == -1 else L.star_share
-			var sun := SystemLayout.sun_drawn(L.star_radius(b.host_id), z)
-			var disc := SystemLayout.world_drawn(b, z)
-			ws[b.host_id] = "%.1f / %.1f (%.0f; its star's %.0f) | " % [b.orbit, SystemLayout.s_limit(mu) * L.sep, b.soi, L.star_ring_of(b.host_id)]
+			var sun := _sun_held(L, b.host_id, z)
+			var disc := _disc_held(b, z)
+			ws[b.host_id] = "%.1f / %.1f (%.0f; its star's %.1f, %.1f, %.1f) | " % [b.orbit, SystemLayout.s_limit(mu) * L.sep, b.soi,
+				L.keep_clear_of(b.host_id), L.star_rail_of(b.host_id), L.star_ring_of(b.host_id)]
 			ws[str(b.host_id)] = "%.1f, %.1f" % [b.orbit * z - sun - disc, b.orbit * z * SystemLayout.SLANT - sun - disc]
 	return "%5d %4d %5.0f %.3f %4.1f %4.1f | %s%s%s | %5.0f %.3f | %s | %s" % [s, n.index, L.sep, L.star_share,
 		L.star_r, L.star2_r, ws.get(-1, "?"), ws.get(STAR_B, "?"), ", ".join(both), L.edge, z,
@@ -473,6 +642,10 @@ func _row(s: int, n: MapGen.MapNode, L: SystemLayout) -> String:
 ## What the two-sun checks measured.
 func _report() -> void:
 	print("  two-sun layouts checked: %d, %d of them moved apart past their rolled separation" % [_seen, _spread_out])
+	var nk := _twin_n.keys()
+	nk.sort()
+	for k in nk:
+		print("  %s: %d" % [k, int(_twin_n[k])])
 	var keys := _st.keys()
 	keys.sort()
 	for k in keys:

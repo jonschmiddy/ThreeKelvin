@@ -80,16 +80,20 @@ const GIANT_MAX := 0.25
 const STAR_B := -4
 
 ## TWO SUNS: THE NUMBERS (ruling 20, Oct 30; `of` lays them out, `_twin`).
-## Star A's share of the pair's mass, rolled. The build asked 0.52 to 0.65; past
-## 0.60 star B's steady zone (0.236 of the separation at 0.60, 0.217 at 0.65) is
-## too small for its world to stand clear of B's drawn sun at the opening zoom
-## without pushing the pair 650 px apart (measured in the layout's own model:
-## at 0.65, 19 to 39% of twins had to be spread, up to 720 px; at 0.60, 2 to 6%,
-## up to about 400).
+## Star A's share of the pair's mass, rolled. The build asked 0.52 to 0.65. The
+## higher the share, the smaller star B's steady zone (0.255 of the separation
+## at 0.55, 0.243 at 0.58, 0.236 at 0.60, 0.217 at 0.65), and its world has to
+## stand clear of B's drawn sun at the opening zoom, which spreading the pair
+## lowers in turn: near 0.60 the two almost keep pace, and a pair runs away.
+## Measured in a model of this fit on the 1,633 twins of eight seeds (layout
+## review, Oct 30): capped at 0.60, 5% of pairs went past 380 px, the widest to
+## 564 px and an opening zoom of 0.158; at 0.59, 1% and 435 px; at 0.58, none
+## past 380 and the least zoom 0.229.
 const TWIN_SHARE_LO := 0.52
-const TWIN_SHARE_HI := 0.60
+const TWIN_SHARE_HI := 0.58
 ## How far apart the two stars are, rolled (px). A pair whose worlds would not
-## fit is moved further apart until they do (`_twin`), a few percent of them.
+## fit is moved further apart until they do (`_twin`): about a third of them in
+## a model of the fit, and none past 380 in 24 seeds' 5,014 twins (Oct 30).
 const TWIN_SEP_LO := 320.0
 const TWIN_SEP_HI := 380.0
 ## Star B is never more than this (radians, 40 degrees) off the map's level line
@@ -105,10 +109,17 @@ const HW_MU := 0.380
 ## Where in that zone a world round one star goes: 0.70 to 0.90 of the limit.
 const S_LO := 0.70
 const S_HI := 0.90
-## THE NEAREST STEADY ORBIT ROUND BOTH: 2.423 x the separation from the balance
-## point (about 2.42 for every share in range), and the first world round both
-## a few percent past it.
+## THE NEAREST STEADY ORBIT ROUND BOTH, as a share of the separation from the
+## balance point (`p_limit`): Holman and Wiegert's circumbinary limit for
+## circular orbits, HW_P0 + HW_P1 mu - HW_P2 mu^2 with mu star B's share, and
+## never under the build's 2.423. The formula peaks at 2.434 at mu 0.40 (star A
+## at 0.60) and is 2.405 at mu 0.48, so 2.423 alone sat inside it for star A
+## above about 0.555 (layout review, Oct 30). The first world round both goes a
+## few percent past it.
 const P_LIMIT := 2.423
+const HW_P0 := 1.60
+const HW_P1 := 4.12
+const HW_P2 := 5.09
 const P_MARGIN := 1.03
 ## The worlds round both are spread by ratio over this much of their first
 ## orbit, as a one-star system's are over lo to HI (3.7 times): kept close,
@@ -119,25 +130,42 @@ const P_SPREAD := 1.25
 ## 38.4 did not fit inside it. 20 holds the ship 17.6 px out (`ORBIT_K`), clear
 ## of the largest world drawn (12, a broken one).
 const S_RING := 20.0
-## Each twin star's keep-clear, close-orbit rail and the least ring past the
-## rail (px past its surface). One star keeps 32, 44 and 35, made for a 243 px
-## first orbit; a twin's world is 65 to 110 px out. The ring is also kept 6 px
-## outside the star's drawn sun at the opening zoom (`_twin_ring`), where the
-## autopilot's keep-out round a sun is (the drawn sun + 6), so a ship on the
-## ring is not drawn on the sun and a flight passing the star stays off it.
-## Moving it out from 4 to 6 moved two of systemtest's eight tabled pairs, by
-## 0.3 px at most: most worlds are held further out by the drawn-disc rule.
+## EACH TWIN STAR'S KEEP-OUT, CLOSE ORBIT AND RING (`_twin_ladder`), in plane
+## px from its centre, all fitted to the zoom the layout is fitted to
+## (`fit_zoom`), where the sun is drawn widest on the plane it ever is with no
+## job or Hellbender out (the map never zooms out past its opening zoom):
+## - keep-clear (`keep_clear_of`): RING_OUT outside the drawn sun, the
+##   autopilot's keep-out round a sun (the drawn sun + 6, ruling 20's build),
+##   and never under TWIN_KEEP past its surface. One source: the planner's
+##   keep-out (the larger of this and the drawn sun + 6) is exactly this, so
+##   long as it measures the sun at `fit_zoom` and not at the zoom the map
+##   opens at, which a job or the Hellbender lowers.
+## - the close orbit a ship rides (`star_rail_of`): TWIN_RIDE outside that, so a
+##   ship parked there starts every flight outside the keep-out.
+## - the ring a ship is taken onto it inside (`star_ring_of`): TWIN_TAKE past it.
+## One star keeps 48, 60 and 95 (r + 32, + 44, + 79), made for a 243 px first
+## orbit; a twin's world is 65 to 110 px out, so the three sit 2 px apart. The
+## first fit (r + 10, r + 14 and the drawn sun + 6) left the close orbit inside
+## the drawn sun at every twin's opening zoom and the ring on the keep-out
+## itself, so nothing ridable was outside it (layout review, Oct 30). These 4 px
+## cost a median opening zoom of 0.254 against 0.256, in a model of the fit.
 const TWIN_KEEP := 10.0
-const TWIN_RAIL := 14.0
-const TWIN_RING := 12.0
 const RING_OUT := 6.0
+const TWIN_RIDE := 2.0
+const TWIN_TAKE := 2.0
 ## How far a world's ring keeps from its star's close-orbit ring (px).
 const RING_CLEAR := 8.0
 ## AT THE OPENING ZOOM a world round one star stands this far (game px) clear of
-## its sun's drawn disc, either side of the star: 3, and 1 more for the blocks
-## the sun and the world are drawn in. (At its near point, in front of the sun,
-## it cannot: see `_twin`.)
-const SIDE_PX := 4.0
+## its sun's drawn disc beside it, as drawn: SystemView holds both in 2 px
+## blocks (`held_most`), so a world at its 5 px floor is drawn at 6 and a sun
+## up to HOLD_PX over its true size. The first fit counted 4 game px of the
+## true sizes, which drawn came to 2.75 (layout review, Oct 30). (At its near
+## point, in front of the sun, it cannot: see `_twin`.)
+const SIDE_GAP := 3.0
+## `SystemView.HOLD_PX`: a held size moves to the nearest block only once the
+## true size is this far from it; and the sun's least held radius.
+const HOLD_PX := 1.4
+const SUN_LEAST := 2.0
 ## The map's drawing, which the twins' numbers are fitted to: the sun's floor of
 ## screen radius (`SystemView.STAR_FLOOR`), a world's least drawn radius on the
 ## plane and on screen (`SystemView.min_r`, `MIN_SCREEN_R`), the largest world
@@ -254,6 +282,13 @@ var star_beacons: Array[Beacon] = []
 ## How far out the outermost orbit reaches, plus a margin: from star A, round
 ## whatever centre each body circles.
 var edge: float = HI + 30.0
+## THE ZOOM THE LAYOUT IS FITTED TO: the opening zoom (`open_zoom`) of the
+## system with no signed job and no Hellbender out past its edge, which come and
+## go and must move nothing. The map opens there or nearer, and only further out
+## while one of them is posted. A twin's star rings are fitted to it, and the
+## autopilot's keep-out round a sun should be measured at it too, so the
+## keep-out is the layout's and not moved by a job (`keep_clear_of`).
+var fit_zoom: float = 0.0
 
 ## TWO STARS (ruling 20, Oct 30). Star A is `star`, at the origin as the one
 ## star always was; star B holds still at `star2_at`. Off (`twin` false) every
@@ -310,10 +345,13 @@ func star_gm(p: int) -> float:
 	return GM_SHIP * ((1.0 - star_share) if p == STAR_B else star_share)
 
 
-## STAR p'S CLOSE ORBIT, as `ShipFlight` rides it: the rail (the black hole's
-## lens reaches far past its disc, so its close orbit sits outside it), and the
-## ring a ship is taken onto it inside, 35 px further out. One star: today's
-## numbers, star_r + 44 and + 79.
+## STAR p'S CLOSE ORBIT, the rail (the black hole's lens reaches far past its
+## disc, so its close orbit sits outside it), and the ring a ship is taken onto
+## it inside. One star: today's numbers, star_r + 44 and + 79, and `ShipFlight`
+## rides 8 inside the ring. In a twin (`_twin_ladder`) the rail IS the orbit to
+## ride, 2 px outside the keep-out, and the ring 2 px past it: ring - 8 there is
+## inside the keep-out, and rail-derived radii such as ShipFlight's bumper
+## (rail + 25) land past the ring.
 func star_rail_of(p: int = -1) -> float:
 	if _rail.has(p):
 		return _rail[p]
@@ -322,15 +360,17 @@ func star_rail_of(p: int = -1) -> float:
 	return star_radius(p) + 44.0
 
 
-## (a twin's ring is set on its own, 12 px or more past the rail: 35 would not
-## fit inside its world's orbit)
+## (a twin's ring is set on its own, TWIN_TAKE past the rail: 35 would not fit
+## inside its world's orbit)
 func star_ring_of(p: int = -1) -> float:
 	if _ring.has(p):
 		return _ring[p]
 	return star_rail_of(p) + 35.0
 
 
-## How far a flight keeps from star p's centre. One star: star_r + 32.
+## How far a flight keeps from star p's centre. One star: star_r + 32. In a
+## twin: the drawn sun at `fit_zoom` plus RING_OUT, so it is the autopilot's
+## keep-out itself (`_twin_ladder`).
 func keep_clear_of(p: int = -1) -> float:
 	if _keep.has(p):
 		return _keep[p]
@@ -341,6 +381,20 @@ func keep_clear_of(p: int = -1) -> float:
 ## separation; `mu` is the OTHER star's share (Holman and Wiegert 1999).
 static func s_limit(mu: float) -> float:
 	return HW_0 - HW_MU * mu
+
+
+## The nearest steady orbit round both stars of a pair, as a share of the
+## separation from the balance point; `mu` is star B's share (Holman and
+## Wiegert 1999, circular orbits), never under P_LIMIT.
+static func p_limit(mu: float) -> float:
+	return maxf(P_LIMIT, HW_P0 + HW_P1 * mu - HW_P2 * mu * mu)
+
+
+## The most a size of `raw` game px can be drawn at once SystemView holds it in
+## 2 px blocks (`SystemView._held`): the nearest block, or one up to HOLD_PX
+## above it still held from a nearer zoom, and never under `least`.
+static func held_most(raw: float, least: float) -> float:
+	return maxf(maxf(roundf(raw / 2.0) * 2.0, floorf((raw + HOLD_PX) / 2.0) * 2.0), ceilf(least / 2.0) * 2.0)
 
 
 ## THE ZOOM A SYSTEM OPENS AT for its edge: `SystemMapScreen._fit_zoom`, with
@@ -541,6 +595,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 		last = b.orbit
 		last_reach = reach
 	L.edge = maxf(HI, last + last_reach) + 30.0
+	L.fit_zoom = open_zoom(L.edge)
 	# A SIGNED CONTRACT'S WORK, each on a place of its own past every orbit
 	# (`Contracts.post_goal`): a hunt's target is a contact, a fetch's pickup a
 	# world. Drawn off its own stream and added after the system's own bodies,
@@ -687,21 +742,33 @@ static func _weigh_giant(L: SystemLayout, n: MapGen.MapNode) -> void:
 ## past the nearest steady orbit round the pair, circling the balance point. So
 ## index order is not radial order here: there are three centres.
 ##
-## FITTED TO THE MAP AT ITS OPENING ZOOM. A world round one star is 65 to 110 px
-## from it and the whole system 1,000 to 1,400 px across the frame's half, so the
-## map opens at about a quarter zoom, where a sun is drawn at its 10 px floor (40
-## plane px, against its own 16) and a world at 5. So each star's close-orbit ring
-## sits RING_OUT outside its drawn sun, each world's ring RING_CLEAR outside that,
-## and each world stands SIDE_PX clear of its sun's disc beside it. Where a
-## pair's worlds would not fit, the stars move further apart; that moves the edge
-## and so the opening zoom, so the two are solved together (`_twin_edge_most`).
+## FITTED TO THE MAP AT ITS OPENING ZOOM (`fit_zoom`). A world round one star is
+## 65 to 110 px from it and the whole system 1,000 to 1,400 px across the frame's
+## half, so the map opens at about a quarter zoom, where a sun is drawn at its 10
+## px floor (40 plane px, against its own 16) and a world at 5. So each star's
+## keep-out sits RING_OUT outside its drawn sun, its close orbit and ring just
+## past that (`_twin_ladder`), each world's ring RING_CLEAR outside the star's,
+## and each world stands SIDE_GAP clear of its sun's disc beside it as drawn.
+## Where a pair's worlds would not fit, the stars move further apart; that moves
+## the edge and so the opening zoom, so the two are solved together
+## (`_twin_edge_most`, `_twin_fit`).
+## A SIGNED JOB OR THE HELLBENDER out past the edge opens the map further out
+## than `fit_zoom` while it is there, and the suns are drawn wider on the plane
+## than the rings were fitted to: by up to about 10 px with a fetch's world out
+## (systemtest measures it). Fitting to that instead cannot be done: the fit is
+## a fixed point (the worlds need about 19 / zoom px from their sun, and the zoom
+## falls as the pair spreads) whose slope is about 0.82, so the 271 px that a
+## fetch, a hunt and the Hellbender can add came back about five times over, and
+## in a model of 1,633 twins 98% of pairs went past 380 px apart and the median
+## opening zoom fell from 0.26 to 0.13 (layout review, Oct 30). So the keep-out
+## stays the layout's (`keep_clear_of`), and nothing moves when they come.
 ## IN FRONT OF ITS SUN, at its orbit's near point, a world round one star cannot
 ## clear the drawn disc at the opening zoom, for any numbers: it is a z SLANT
 ## below the sun there, and with anything round both the edge is at least 2.8
 ## times the separation while a is at most 0.30 of it, so that is at most 13
 ## game px against the sun's 10 and the world's 5. It passes over the sun's lower
-## edge (systemtest measures it: 4 to 8 game px of overlap) and clears it from a
-## zoom of about 0.6.
+## edge (systemtest measures it: 5.6 to 10 game px of overlap as drawn in 2 px
+## blocks, 4 to 8 of the true sizes) and clears it from a zoom of about 0.6.
 ##
 ## Draws: the "twin" stream for the pair (its first draw is MapGen's, whether
 ## there are two suns at all), then R in a twin's own order -- the orbits' three
@@ -740,32 +807,43 @@ static func _twin(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, 
 	var hb_here := hellbender_here(n)
 	# THE SEPARATION, as rolled or as far apart as the worlds round each star
 	# need: never shrunk, and moving it out moves the opening zoom (smaller, so
-	# a sun's floor is wider on the plane), so it is found by going out until
-	# what the worlds need no longer grows past it (a few steps; it halves or
-	# better each time)
+	# a sun's floor is wider on the plane). Near the answer each step of going
+	# out by what the worlds need closes only 7 to 9% of the distance left, and
+	# the first fit's 32 such steps ran out short in about half the spread pairs,
+	# its rings fitted to the step before (layout review, Oct 30). So it is
+	# bisected: from a separation that fits, halved toward the rolled one 48
+	# times, and everything below is fitted to the one it ends on.
 	var sep := sep0
-	var z := 1.0
-	var ring_a := 0.0
-	var ring_b := 0.0
-	var need_a := 0.0
-	var need_b := 0.0
-	for _k in 32:
-		z = open_zoom(_twin_edge_most(L, sep, lim_a, lim_b, outer, jit))
-		ring_a = _twin_ring(L.star_r, z)
-		ring_b = _twin_ring(L.star2_r, z)
-		need_a = _s_need(L.star_r, ring_a, z)
-		need_b = _s_need(L.star2_r, ring_b, z)
-		var s_need := maxf(sep0, maxf(need_a / (S_HI * lim_a), need_b / (S_HI * lim_b)))
-		if s_need <= sep:
-			break
-		# (a hundredth of a pixel past it, so the step after meets it outright)
-		sep = s_need + 0.01
+	if not _twin_fits(L, sep, lim_a, lim_b, outer, jit):
+		var lo := sep0
+		var hi := sep0 * 2.0
+		# (at the zoom's 0.1 floor a world needs at most about 190 px from its
+		# sun, which any pair 900 px apart holds, so this ends by 1,520)
+		for _k in 4:
+			if _twin_fits(L, hi, lim_a, lim_b, outer, jit):
+				break
+			lo = hi
+			hi *= 2.0
+		for _k in 48:
+			var mid := 0.5 * (lo + hi)
+			if _twin_fits(L, mid, lim_a, lim_b, outer, jit):
+				hi = mid
+			else:
+				lo = mid
+		sep = hi
+	var fit := _twin_fit(L, sep, lim_a, lim_b, outer, jit)
+	var z := fit[0]
+	var lad_a := _twin_ladder(L.star_r, z)
+	var lad_b := _twin_ladder(L.star2_r, z)
+	var need_a := fit[1]
+	var need_b := fit[2]
+	L.fit_zoom = z
 	L.sep = sep
 	L.star2_at = Vector2(cos(theta), sin(theta)) * sep
 	L.bary = L.star2_at * (1.0 - L.star_share)
-	L._keep = {-1: L.star_r + TWIN_KEEP, STAR_B: L.star2_r + TWIN_KEEP}
-	L._rail = {-1: L.star_r + TWIN_RAIL, STAR_B: L.star2_r + TWIN_RAIL}
-	L._ring = {-1: ring_a, STAR_B: ring_b}
+	L._keep = {-1: lad_a[0], STAR_B: lad_b[0]}
+	L._rail = {-1: lad_a[1], STAR_B: lad_b[1]}
+	L._ring = {-1: lad_a[2], STAR_B: lad_b[2]}
 	# round one star each, where in the steady zone it rolled, or as far out as
 	# its ring and its drawn disc need (the separation was found so that is
 	# inside the steady limit, which is the rule)
@@ -843,9 +921,14 @@ static func _twin(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, 
 ## The orbits round both stars, in index order: spread by ratio from just past
 ## the nearest steady one, each at least as far from the last as the two bodies
 ## could be wide (`_reach_most`: the spacing is fixed before the worlds are
-## rolled, so it cannot depend on them).
+## rolled, so it cannot depend on them). As round one sun, the bodies are kept
+## apart, not their rings: a giant's 131 px ring holds its neighbours round both
+## far more often than round one sun, where the orbits spread 3.7 times from the
+## first (systemtest prints how often). Keeping every body out of the giant's
+## ring cost, in a model of 1,633 twins, the least opening zoom 0.229 to 0.145
+## and pushed 9% of pairs past 380 px apart (layout review, Oct 30).
 static func _p_orbits(L: SystemLayout, sep: float, outer: Array[int], jit: PackedFloat64Array) -> PackedFloat64Array:
-	var lo := P_LIMIT * P_MARGIN * sep
+	var lo := p_limit(1.0 - L.star_share) * P_MARGIN * sep
 	var hi := lo * P_SPREAD
 	var out := PackedFloat64Array()
 	var last := -INF
@@ -878,10 +961,9 @@ static func _reach_most(b: Body) -> float:
 ## with every world as big as it can be: its opening zoom can then only be this
 ## or nearer, and nearer only clears the suns more. Not the Hellbender's place
 ## or a signed job's: they come and go, and must move nothing when they do
-## (systemtest, contracttest), so while one is out past the edge the map opens
-## a little further out and a world round a star stands nearer its sun than
-## SIDE_PX (the Hellbender's 36 px take about half a pixel of it; counting it
-## always instead spread five times as many pairs, 164 of 1,068, for nothing).
+## (systemtest, contracttest), and room kept for them always cannot be had (see
+## `_twin`), so while one is out past the edge the map opens further out than
+## the layout's `fit_zoom` and the suns are drawn wider than it.
 static func _twin_edge_most(L: SystemLayout, sep: float, lim_a: float, lim_b: float, outer: Array[int], jit: PackedFloat64Array) -> float:
 	var bary_r := (1.0 - L.star_share) * sep
 	var ext := maxf(bary_r + S_HI * lim_a * sep, L.star_share * sep + S_HI * lim_b * sep) + S_WORLD_MOST
@@ -891,15 +973,59 @@ static func _twin_edge_most(L: SystemLayout, sep: float, lim_a: float, lim_b: fl
 	return maxf(HI, bary_r + ext) + 30.0
 
 
-## A twin star's close-orbit ring at zoom z: past its rail, and outside its drawn sun.
-static func _twin_ring(r: float, z: float) -> float:
-	return maxf(r + TWIN_RAIL + TWIN_RING, sun_drawn(r, z) / z + RING_OUT)
+## A twin star's keep-out, close orbit and ring at zoom z: RING_OUT outside its
+## drawn sun and at least TWIN_KEEP past its surface, then TWIN_RIDE and
+## TWIN_TAKE further out. (64-bit: a Vector3's 32-bit parts rounded the keep-out
+## under the drawn sun + 6 it is measured against.)
+static func _twin_ladder(r: float, z: float) -> PackedFloat64Array:
+	var keep := maxf(r + TWIN_KEEP, sun_drawn(r, z) / z + RING_OUT)
+	return PackedFloat64Array([keep, keep + TWIN_RIDE, keep + TWIN_RIDE + TWIN_TAKE])
 
 
 ## The least orbit a world round a star of radius r needs at zoom z: its ring
-## clear of the star's, and its disc clear of the drawn sun beside it.
-static func _s_need(r: float, ring: float, z: float) -> float:
-	return maxf(ring + RING_CLEAR + S_RING, (sun_drawn(r, z) + maxf(S_WORLD_MOST * z, WORLD_FLOOR) + SIDE_PX) / z)
+## clear of the star's, and its disc clear of the drawn sun beside it
+## (`_side_need`).
+static func _s_need(r: float, z: float) -> float:
+	return maxf(_twin_ladder(r, z)[2] + RING_CLEAR + S_RING, _side_need(r, z))
+
+
+## The least orbit that keeps a world SIDE_GAP clear of its sun beside it, both
+## at the most SystemView draws them (`held_most`), at zoom z AND at every
+## nearer zoom, since the map can open nearer than the layout was fitted to.
+## The world's distance grows with the zoom but the held sun steps up 2 px at
+## a time: just past z its next step can take back what the zoom gave (fitted at
+## a sun of 10.58 game px, held at 10, a twin opened at a sun past 10.6, held at
+## 12, and its world stood 1.8 game px off). Past that step the next ones come
+## too far apart to matter (`_side_need` takes the first only: a sun of r 16
+## steps again at 0.48 zoom, needing half the orbit).
+static func _side_need(r: float, z: float) -> float:
+	var raw := sun_drawn(r, z)
+	var worst := (held_most(raw, SUN_LEAST) + _disc_most(z) + SIDE_GAP) / z
+	var next := floorf((raw + HOLD_PX) / 2.0) * 2.0 + 2.0
+	var raw_at := next - HOLD_PX
+	if raw_at > SUN_FLOOR:
+		var z2 := sqrt(raw_at * raw_at - SUN_FLOOR * SUN_FLOOR) / r
+		worst = maxf(worst, (next + _disc_most(z2) + SIDE_GAP) / z2)
+	return worst
+
+
+## The largest disc a world round one star of a pair is drawn at, zoom z.
+static func _disc_most(z: float) -> float:
+	var w := maxf(S_WORLD_MOST * z, WORLD_FLOOR)
+	return held_most(w, minf(WORLD_FLOOR, w))
+
+
+## What a pair `sep` apart is fitted to: [its zoom, the orbit star A's world
+## needs, star B's].
+static func _twin_fit(L: SystemLayout, sep: float, lim_a: float, lim_b: float, outer: Array[int], jit: PackedFloat64Array) -> PackedFloat64Array:
+	var z := open_zoom(_twin_edge_most(L, sep, lim_a, lim_b, outer, jit))
+	return PackedFloat64Array([z, _s_need(L.star_r, z), _s_need(L.star2_r, z)])
+
+
+## Whether both worlds fit inside their steady zones with the pair `sep` apart.
+static func _twin_fits(L: SystemLayout, sep: float, lim_a: float, lim_b: float, outer: Array[int], jit: PackedFloat64Array) -> bool:
+	var fit := _twin_fit(L, sep, lim_a, lim_b, outer, jit)
+	return fit[1] <= S_HI * lim_a * sep and fit[2] <= S_HI * lim_b * sep
 
 
 ## HOW FAR FROM THE LIGHT a body is: the distance from a lone sun that would
