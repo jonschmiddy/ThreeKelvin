@@ -25,7 +25,7 @@ extends Node
 ##   - a partner in star B's close orbit is drawn where it said it was (a spot
 ##     at -4 is absolute, as at -1), and hidden behind star B's disc there;
 ##   - a ship let go round star B, or round both suns, is drawn on a wide orbit
-##     round that and the words say ORBITING <system> B / BOTH SUNS;
+##     round that and the words say ORBITING <system> B / BOTH STARS;
 ##   - a ship settled round star B, round both suns or round star A, the map
 ##     left for LOCAL and shown again (and the same through the save's rows),
 ##     comes back on that orbit: the same centre, on its radius within 1 px a
@@ -59,17 +59,22 @@ extends Node
 ##   - the HUD's SECTOR tab says "binary system".
 ## Jon's picks from the twin looks sheet (Nov 1), and "Let's call it Binary
 ## instead of two suns":
-##   - no string a player reads says two suns;
+##   - no string a player reads says two suns or both suns (a world round the
+##     pair is AROUND BOTH STARS, a ship settled round it ORBITING BOTH STARS);
 ##   - every system lists its SATELLITES in name order, the sector page too, one
-##     sun's in the order they always were ("list:C");
+##     sun's in the order they always were ("list:C"); and every binary's event
+##     cards, above that list, in the same order;
 ##   - star B reads a K5's own MASS and RADIUS, 0.70 SOL, in every binary, its
 ##     pull as built ("starb:B");
 ##   - on the ring of a world round one sun the ship is drawn over that world all
 ##     the way round in a 1 px light outline, never on a ring round both suns or
 ##     one sun's ("ring:A");
-##   - over the binaries of three seeds, the ship in every star's close orbit and
-##     on every world's ring at the opening zoom, no word on the map is written
-##     across a sun (IN ORBIT · OMEGA CALLOUS I ran across both on seed 7).
+##   - over the binaries of three seeds at the opening zoom, with the ship in
+##     every star's close orbit and on every world's ring, with each other place
+##     selected, and let go coasting into each world's ring, no word on the map
+##     is written across a sun (IN ORBIT · OMEGA CALLOUS I ran across both on
+##     seed 7; WILL ORBIT <world> across one in about half the coasts, a
+##     selected world's name across its sun), and nearly none held back for it.
 ## Prints how many twin systems and cases each part saw.
 ##
 ## IT JUDGES THE WHOLE BUILD. Where a part is another build's (the flight's ride
@@ -87,8 +92,10 @@ const MapHullS := preload("res://scripts/ui/sysmap/MapHull.gd")
 ## each seed rolls them; `ringseeds=a,b` for others, `ringcap=N` binaries a seed
 const RING_SEEDS := [7, 4242, 1999]
 const RING_CAP := 10
-## and always these (seed: nodes): the binary the words ran across both suns in
-const RING_MUST := {7: [284]}
+## and always these (seed: nodes): the binary the words ran across both suns in,
+## and those a selected world's name sat across its sun in (SIGMA CINDER-2 II,
+## LAMBDA FALLOW II, ETA CALLOUS II; the picks review, Nov 1)
+const RING_MUST := {7: [284, 46, 83], 4242: [116]}
 
 var h := Harness.new()
 ## twin systems and twin cases seen, by part
@@ -823,7 +830,7 @@ func _partner_at_b(n: MapGen.MapNode) -> void:
 	_saw("partners at star B")
 
 
-## LET GO ROUND STAR B, AND ROUND BOTH SUNS: the wide orbit is drawn round what
+## LET GO ROUND STAR B, AND ROUND BOTH STARS: the wide orbit is drawn round what
 ## the flight settles round (`SystemOverlay._star_c`, from the flight's own
 ## settle centre, `ShipFlight.f.cen`), and the status line names it (from
 ## `f.cen_id`). It read `ShipFlight.star_orbit_c`, which the flight never built,
@@ -844,7 +851,7 @@ func _settle_round(n: MapGen.MapNode) -> void:
 	var nm_b := MapGen.star_name(n) + " B"
 	var said := [ov._settle_nm(Vector2.ZERO), ov._settle_nm(L.star2_at), ov._settle_nm(L.bary)]
 	h._ok("a wide orbit round star A, star B and the balance point is named %s" % " / ".join(said),
-		said[0] == nm_a and said[1] == nm_b and said[2] == "BOTH SUNS")
+		said[0] == nm_a and said[1] == nm_b and said[2] == "BOTH STARS")
 	if not h._ok("the flight can let a ship go to settle where it is (`ShipFlight.settle_at`, the flight build's)", m.flight.has_method(&"settle_at")):
 		return
 	var away := Vector2(1.0, 0.0)
@@ -856,7 +863,7 @@ func _settle_round(n: MapGen.MapNode) -> void:
 	var side := (L.star2_at / maxf(L.star2_at.length(), 0.001)).orthogonal()
 	var cases := [
 		[L.star2_at + away * r_b, "ORBITING " + nm_b, L.star2_at],
-		[L.bary + side * L.sep * 1.3, "ORBITING BOTH SUNS", L.bary],
+		[L.bary + side * L.sep * 1.3, "ORBITING BOTH STARS", L.bary],
 	]
 	for c: Array in cases:
 		m.flight.call(&"settle_at", c[0], 1.0)
@@ -1016,6 +1023,27 @@ func _said_box(ov, s: String) -> Rect2:
 static func _box_on_disc(box: Rect2, c: Vector2, r: float) -> bool:
 	var near := Vector2(clampf(c.x, box.position.x, box.end.x), clampf(c.y, box.position.y, box.end.y))
 	return near.distance_to(c) < r
+
+
+## The words placed last frame (`SystemOverlay.label_rects`) across a sun's
+## disc, counted, each added to `out` as "<where>: <words> across <star>".
+static func _words_on_suns(ov, L: SystemLayout, where: String, out: Array[String]) -> int:
+	var k := 0
+	for q in (ov.label_rects as Array).size():
+		var box: Rect2 = ov.label_rects[q]
+		for s: int in L.stars():
+			if _box_on_disc(box, ov.star_scr(s), ov.star_disc(s)):
+				k += 1
+				out.append("%s: %s across %s" % [where, ov.label_says[q], ov.star_name_of(s)])
+	return k
+
+
+## The words the overlay held back last frame to keep them off a sun
+## (`SystemOverlay.label_held`; none on a tree without it, so the sheet still
+## judges one).
+static func _held(ov) -> Array:
+	var got = ov.get(&"label_held")
+	return got if got is Array else []
 
 
 ## THE CURL DRAWN FOR A CAPTURE INTO STAR B'S CLOSE ORBIT IS THE ONE FLOWN: the
@@ -1976,11 +2004,13 @@ static func _files_under(dir: String, out: Array[String]) -> void:
 
 ## NO STRING A PLAYER READS SAYS TWO SUNS ("Let's call it Binary instead of two
 ## suns"): every string in the game's scripts, scenes and data, the harnesses and
-## comments left out, read for "two suns", "two-sun" and "second sun". The
-## sector page, the HUD's tip (`_stars_as_places`) and the chart's STAR row
-## (`MapGen.BINARY`) say binary.
+## comments left out, read for "two suns", "two-sun", "second sun" and "both
+## suns". The sector page, the HUD's tip (`_stars_as_places`) and the chart's
+## STAR row (`MapGen.BINARY`) say binary; a world round the pair, and a ship
+## settled round it, say BOTH STARS (the AROUND row read BOTH SUNS beside the
+## page's BINARY, the picks review, Nov 1).
 func _no_two_suns_said() -> void:
-	var re := RegEx.create_from_string("(?i)\"[^\"]*\\b(two[ -]suns?|second sun)\\b[^\"]*\"")
+	var re := RegEx.create_from_string("(?i)\"[^\"]*\\b(two[ -]suns?|second sun|both suns)\\b[^\"]*\"")
 	var files: Array[String] = []
 	for top: String in ["res://scripts", "res://scenes", "res://data"]:
 		_files_under(top, files)
@@ -2004,7 +2034,7 @@ func _no_two_suns_said() -> void:
 			var mm := re.search(code)
 			if mm != null:
 				said.append("%s:%d %s" % [p.get_file(), ln, mm.get_string()])
-	h._ok("no string a player reads says two suns (%d files, %d lines of code read), and a binary is called %s%s" % [read, lines, MapGen.BINARY,
+	h._ok("no string a player reads says two suns or both suns (%d files, %d lines of code read), and a binary is called %s%s" % [read, lines, MapGen.BINARY,
 		"" if said.is_empty() else ": " + "; ".join(said.slice(0, 4))], said.is_empty() and read > 100 and MapGen.BINARY == "BINARY")
 
 
@@ -2101,6 +2131,16 @@ func _ring_outline_open(m: SystemMapScreen, wa: int) -> void:
 ## (once a seed) round one sun's world. OMEGA CALLOUS REACH on seed 7, its first
 ## world round star A: IN ORBIT · OMEGA CALLOUS I ran across both suns, under
 ## the ring, above it and under the ship all crossing one (Nov 1).
+## THEN IN EACH BINARY (the picks review, Nov 1): its event cards
+## (`SystemPanel._events`) in name order; the ship on its first world's ring
+## and each other place but a belt selected in turn, its name clear of both
+## suns; and the ship let go from four sides of each world, coasting into its
+## ring (held at its point, the clock still), the forecast's WILL ORBIT <world>
+## or WILL BE ALONGSIDE <world> clear of both. Each name and forecast counted
+## shown, held back off a sun (`SystemOverlay.label_held`) or under a higher
+## label (the map's rule since before binaries). On 35ce5c73, 235 words across
+## a sun: 226 forecasts (WILL ORBIT IOTA CINDER-2 I across IOTA CINDER-2 B on
+## seed 7) and 9 selected names (IOTA CINDER-2 II across IOTA CINDER-2 B).
 func _ring_sweep() -> void:
 	var seeds: Array = RING_SEEDS.duplicate()
 	var cap := RING_CAP
@@ -2111,9 +2151,13 @@ func _ring_sweep() -> void:
 			cap = int((a as String).substr(8))
 	var t0 := Time.get_ticks_msec()
 	var st := {"twins": 0, "places": 0, "moments": 0, "words": 0, "crossed": 0, "whole": 0, "short": 0, "held": 0,
-		"rings": 0, "rim_frames": 0, "hull_frames": 0, "rim_bad": 0, "own_hid": 0, "on_disc": 0, "both": 0, "both_rim": 0, "one": 0, "one_rim": 0}
+		"rings": 0, "rim_frames": 0, "hull_frames": 0, "rim_bad": 0, "own_hid": 0, "on_disc": 0, "both": 0, "both_rim": 0, "one": 0, "one_rim": 0,
+		"sel": 0, "sel_shown": 0, "sel_held": 0, "sel_under": 0, "coasts": 0, "into": 0, "fc_shown": 0, "fc_held": 0, "ev_sys": 0, "ev_moved": 0}
 	var crossed: Array[String] = []
 	var held: Array[String] = []
+	var fc_held: Array[String] = []
+	var sel_held: Array[String] = []
+	var ev_bad: Array[String] = []
 	for sd: int in seeds:
 		Router.show_local()
 		await _idle()
@@ -2194,13 +2238,8 @@ func _ring_sweep() -> void:
 					var r := await _ring_frames(m, p, 2, 2)
 					st.moments += 1
 					# EVERY WORD PLACED, clear of both suns
-					for q in (ov.label_rects as Array).size():
-						var box: Rect2 = ov.label_rects[q]
-						st.words += 1
-						for s: int in L.stars():
-							if _box_on_disc(box, ov.star_scr(s), ov.star_disc(s)):
-								st.crossed += 1
-								crossed.append("seed %d %s, the ship at %s: %s across %s" % [sd, MapGen.star_name(n), ov._place_nm(p), ov.label_says[q], ov.star_name_of(s)])
+					st.words += (ov.label_rects as Array).size()
+					st.crossed += _words_on_suns(ov, L, "seed %d %s, the ship at %s" % [sd, MapGen.star_name(n), ov._place_nm(p)], crossed)
 					# THE SHIP'S OWN WORDS: whole, shortened or held back
 					var full: String = ("CLOSE ORBIT · " if p < 0 else "IN ORBIT · ") + String(ov._place_nm(p))
 					var says: Array = ov.label_says
@@ -2224,16 +2263,139 @@ func _ring_sweep() -> void:
 					else:
 						st.both += 1
 						st.both_rim += int(r.rim_px) + int(r.ringed)
+			# THE EVENT CARDS IN NAME ORDER, as the SATELLITES list under them
+			# (`SystemPanel._events`, what < and > step): a body's after the one
+			# named before it, the star's last
+			var rank := {}
+			var ord := L.name_order()
+			for k in ord.size():
+				rank[ord[k]] = k
+			var last := -1
+			var made := -1
+			var in_order := true
+			var as_made := true
+			var star_seen := false
+			var ev_names := PackedStringArray()
+			for pair: Array in m.panel._events():
+				var bi: int = pair[0]
+				if bi < 0:
+					star_seen = true
+					continue
+				ev_names.append(L.bodies[bi].name)
+				if star_seen or int(rank[bi]) < last:
+					in_order = false
+				if bi < made:
+					as_made = false
+				last = int(rank[bi])
+				made = bi
+			st.ev_sys += 1
+			st.ev_moved += int(not as_made)
+			if not in_order:
+				ev_bad.append("seed %d %s: %s" % [sd, MapGen.star_name(n), ", ".join(ev_names)])
+			# EACH OTHER PLACE SELECTED, the ship on the first world's ring: its
+			# name beside its reticle, never across a sun; at three moments of the
+			# year of the first world round one sun (a world close to its sun
+			# meets it with its name only part of the way round)
+			var sel_at: Array[int] = L.stars()
+			var wr := -1
+			for b in L.bodies:
+				if b.kind != &"belt" and b.index != w0:
+					sel_at.append(b.index)
+				if wr < 0 and b.world != &"" and SystemLayout.is_star(b.host_id):
+					wr = b.index
+			for j in 3:
+				var ts: float = 37.0 + (L.bodies[wr].period * float(j) / 3.0 if wr >= 0 else float(j) * 20.0)
+				m.view.t = ts
+				m.flight.place_at(w0, ts)
+				await _frames(2)
+				for q: int in sel_at:
+					ov.selected = q
+					await _frames(2)
+					var nm_q: String = ov.star_name_of(q) if SystemLayout.is_star(q) else L.bodies[q].name
+					st.sel += 1
+					if (ov.label_says as Array).has(nm_q):
+						st.sel_shown += 1
+					elif _held(ov).has(nm_q):
+						st.sel_held += 1
+						sel_held.append("seed %d %s: %s held back" % [sd, MapGen.star_name(n), nm_q])
+					else:
+						st.sel_under += 1
+					st.words += (ov.label_rects as Array).size()
+					st.crossed += _words_on_suns(ov, L, "seed %d %s, %s selected" % [sd, MapGen.star_name(n), nm_q], crossed)
+				ov.selected = -2
+			# LET GO AND COASTING INTO EACH WORLD'S RING (`restore_free`, held at
+			# its point, the clock still): the forecast's WILL ORBIT <world> or
+			# WILL BE ALONGSIDE <world> by the ring it will take, never across a
+			# sun, from four sides
+			m.frozen = true
+			for b in L.bodies:
+				if b.world == &"":
+					continue
+				var w: int = b.index
+				var nm_w: String = ov._place_nm(w)
+				var c3: Vector3 = m.flight.center(w, m.view.t)
+				var cv3: Vector3 = m.flight.center_vel(w, m.view.t)
+				var rt: float = m.flight.orbit_r(w)
+				for k in 4:
+					var dir := Vector2.from_angle(TAU * float(k) / 4.0 + 0.4)
+					var at := Vector2(c3.x, c3.z) + dir * rt * 1.4
+					var v := Vector2(cv3.x, cv3.z) - dir * 6.0
+					m.flight.restore_free(at, v, atan2(v.y * 0.38, v.x))
+					for f in 3:
+						await get_tree().process_frame
+						m.flight.f.p = at
+						m.flight.f.v = v
+					st.coasts += 1
+					var out: Dictionary = (m.flight.line as Dictionary).get("out", {})
+					if out.is_empty() or int(out.get("body", -99)) != w:
+						continue
+					st.into += 1
+					var says_w: Array = ov.label_says
+					var held_w: Array = _held(ov)
+					if says_w.has("WILL ORBIT " + nm_w) or says_w.has("WILL BE ALONGSIDE " + nm_w):
+						st.fc_shown += 1
+					elif held_w.has("WILL ORBIT " + nm_w) or held_w.has("WILL BE ALONGSIDE " + nm_w):
+						st.fc_held += 1
+						fc_held.append("seed %d %s into %s, held back (%s)" % [sd, MapGen.star_name(n), nm_w, ", ".join(PackedStringArray(says_w))])
+					else:
+						fc_held.append("seed %d %s into %s, under a higher label (%s)" % [sd, MapGen.star_name(n), nm_w, ", ".join(PackedStringArray(says_w))])
+					st.words += says_w.size()
+					st.crossed += _words_on_suns(ov, L, "seed %d %s, coasting into %s" % [sd, MapGen.star_name(n), nm_w], crossed)
+			m.frozen = false
+			m.flight.place_at(w0, m.view.t)
+			await _frames(2)
 	print("  --   the ring sweep: %d binaries over seeds %s in %.1f s; the ship at %d places, %d moments; %d words placed; its own words whole %d, shortened %d, held back %d" % [
 		st.twins, seeds, float(Time.get_ticks_msec() - t0) / 1000.0, st.places, st.moments, st.words, st.whole, st.short, st.held])
+	print("  --   and %d places selected (%d names shown, %d held back off a sun, %d under a higher label), %d coasts let go (%d into the ring aimed at, its forecast shown in %d, held back off a sun in %d)" % [
+		st.sel, st.sel_shown, st.sel_held, st.sel_under, st.coasts, st.into, st.fc_shown, st.fc_held])
+	if not crossed.is_empty():
+		var by := {"the ship at": 0, "selected:": 0, "coasting into": 0}
+		for e: String in crossed:
+			for k: String in by:
+				if e.contains(k):
+					by[k] = int(by[k]) + 1
+		print("  --   words across a sun: %d with the ship at a place, %d of a selected place, %d coasting into a ring" % [by["the ship at"], by["selected:"], by["coasting into"]])
 	for e: String in held.slice(0, 6):
 		print("  --     held back: %s" % e)
+	for e: String in sel_held.slice(0, 6):
+		print("  --     selected name %s" % e)
+	for e: String in fc_held.slice(0, 6):
+		print("  --     forecast not shown: %s" % e)
 	_saw("ring sweep: binaries", st.twins)
 	_saw("ring sweep: moments", st.moments)
-	h._ok("no word on the map is written across a sun in %d binaries of %d seeds (%d words at %d moments, %d across)%s" % [st.twins, seeds.size(), st.words, st.moments, st.crossed,
-		"" if crossed.is_empty() else ": " + "; ".join(crossed.slice(0, 4))], st.crossed == 0 and st.twins >= seeds.size() * mini(cap, 8) and st.words > st.moments)
+	_saw("ring sweep: places selected", st.sel)
+	_saw("ring sweep: coasts into a ring", st.into)
+	h._ok("no word on the map is written across a sun in %d binaries of %d seeds: the ship at each place, each other place selected, coasting into each ring (%d words at %d moments, %d selections and %d coasts, %d across)%s" % [
+		st.twins, seeds.size(), st.words, st.moments, st.sel, st.coasts, st.crossed,
+		"" if crossed.is_empty() else ": " + "; ".join(crossed.slice(0, 4))],
+		st.crossed == 0 and st.twins >= seeds.size() * mini(cap, 8) and st.words > st.moments and st.sel > st.twins and st.into > st.twins)
 	h._ok("the words by the ship stand whole or shortened at nearly every place (%d whole, %d shortened, %d held back of %d)" % [st.whole, st.short, st.held, st.moments],
 		st.held * 50 <= st.moments)
+	h._ok("a selected place's name is held back off a sun at nearly no selection (%d of %d; %d shown, %d under a higher label as ever), and the forecast's words at nearly no coast into a ring (%d of %d; %d shown)" % [
+		st.sel_held, st.sel, st.sel_shown, st.sel_under, st.fc_held, st.into, st.fc_shown],
+		st.sel_held * 20 <= st.sel and st.fc_held * 20 <= st.into and st.sel_shown * 4 >= st.sel * 3 and st.fc_shown * 4 >= st.into * 3)
+	h._ok("every binary's event cards go in name order, as its SATELLITES list (%d binaries, %d of them with cards out of the order the bodies were made)%s" % [
+		st.ev_sys, st.ev_moved, "" if ev_bad.is_empty() else ": " + "; ".join(ev_bad.slice(0, 4))], ev_bad.is_empty() and st.ev_sys == st.twins and st.ev_moved > 0)
 	h._ok("on every ring of a world round one sun of a binary the ship is outlined in light: %d rings, %d of %d frames with the hull drawn outlined, %d outline pixels wrong, %d hull pixels hidden by its own world (%d frames with its middle on that world's disc)" % [
 		st.rings, st.rim_frames, st.hull_frames, st.rim_bad, st.own_hid, st.on_disc],
 		st.rings > 2 * st.twins and st.hull_frames > 0 and st.rim_frames == st.hull_frames and st.rim_bad == 0 and st.own_hid == 0 and st.on_disc > 0)

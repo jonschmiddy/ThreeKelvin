@@ -1013,9 +1013,12 @@ static func au(b: SystemLayout.Body) -> String:
 	return "%.1f AU" % (b.orbit / 80.0)
 
 
-## WHAT IT GOES AROUND, in a system with two suns (ruling 20): its orbit in AU
-## is about that centre, so the panel says which. The stars are "<system> A"
-## and "<system> B", as the panel names them. Empty with one sun.
+## WHAT IT GOES AROUND, in a binary (ruling 20): its orbit in AU is about that
+## centre, so the panel says which. The stars are "<system> A" and "<system> B",
+## as the panel names them, and the pair BOTH STARS (it was BOTH SUNS beside
+## the page's BINARY: "Let's call it Binary instead of two suns", Nov 1; the
+## map's ORBITING words say the same, `SystemOverlay._settle_nm`). Empty with
+## one sun.
 func host_line(b: SystemLayout.Body) -> String:
 	if layout == null or not layout.twin:
 		return ""
@@ -1023,7 +1026,7 @@ func host_line(b: SystemLayout.Body) -> String:
 		return "%s B" % star_name()
 	if b.host_id == -1:
 		return "%s A" % star_name()
-	return "BOTH SUNS"
+	return "BOTH STARS"
 
 
 ## The label of that row. It was ROUND: the game's words say "around", never

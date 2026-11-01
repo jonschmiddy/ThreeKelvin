@@ -248,12 +248,16 @@ func _spacer() -> Control:
 
 
 # ---------------------------------------------------------------- what is in the sector
-## Every event in the sector, as [body, beacon], in orbit order; the pulsar's
-## own on the star (beacon null).
+## Every event in the sector, as [body, beacon], in the order of their places'
+## names (I, II, III), as the SATELLITES list below them goes (`_satellites`,
+## "list:C"); the pulsar's own on the star (beacon null). Round one sun that is
+## the order the bodies were made in, as ever; in a binary the cards read III,
+## IV, I over a list that read I to V (KAPPA AUGUR-9 on seed 7, the picks
+## review, Nov 1). What < and > step through follows (`_encounters`).
 func _events() -> Array:
 	var L: SystemLayout = screen.view.layout
 	var out: Array = []
-	for bi in L.bodies.size():
+	for bi: int in L.name_order():
 		for bc in L.bodies[bi].beacons:
 			out.append([bi, bc])
 	# the star's own events (an option sited on it), from a close orbit of it

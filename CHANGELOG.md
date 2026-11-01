@@ -12,7 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   BINARY. One of the pair is an orange dwarf, smaller and cooler than the other. Each world takes the
   light of the sun it circles, and in PAINTED the far cloud's edges catch the light of both. A
   world that circles one sun is small. In orbit of one, your ship gets a thin light outline and
-  stays in front of it. The words that say which orbit you are in never run across a sun.
+  stays in front of it. The map's words for your orbit, the orbit you will drift into and the
+  place you select never cross a sun.
 - **Changed** — the autopilot flies a real path through the pull of the suns and the giants. The
   path is worked out before you click, so the dotted line is the flight the ship will fly, burns
   and all. A flight from place to place takes about 11 seconds, where it took about 7. Flying inside
