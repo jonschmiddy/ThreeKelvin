@@ -1312,7 +1312,7 @@ func _go_view_open(n: MapGen.MapNode, what: String) -> void:
 	m._wasd.w = false
 	m.harness_keys = false
 	var page1 := "%s %d %d" % [m.panel.mode, m.panel.filter, m.panel.open_opt]
-	h._ok("%s: mid-GO a click, a double click, a right-click, FLY HERE and W change nothing (selected %d, was %d; page %s, was %s; heading to %d, mode %s, _taking %s)" % [
+	h._ok("%s: mid-GO a click, a double click, a right-click (it only moves the view), FLY HERE and W select, open and fly nothing (selected %d, was %d; page %s, was %s; heading to %d, mode %s, _taking %s)" % [
 		what, m.overlay.selected, sel0, page1, page0, m.flight.heading_to(), m.flight.mode, m._taking],
 		m.overlay.selected == sel0 and page1 == page0 and m.flight.heading_to() == b and m._taking and ran[0] == 0)
 	# ON ARRIVAL ITS ERRAND RUNS, ONCE, AND THE MAP TAKES CLICKS AGAIN
