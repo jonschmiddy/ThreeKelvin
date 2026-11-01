@@ -754,7 +754,11 @@ func _replays() -> void:
 ## one, and a flight kept warm may cost no more than a fresh search's plus the
 ## warm slack, or than its own old cost plus the slack. (One still ahead is
 ## rebuilt as drawn, its ride phasing harder over the lead left, within THRUST:
-## the drawn flight is the flown one, at up to about 22 px/s more.)
+## the drawn flight is the flown one, at up to about 22 px/s more.) And no
+## flight the fallback found (its cap past T_CAP) is kept warm where a fresh
+## plan is C's own search's and arrives sooner: kept on its own cost alone, 20
+## of 1,271 were, 3 of them the as-built search's and 17 the wider one's, by up
+## to 7.5 s (the review of Nov 1).
 func _replans() -> void:
 	var n := 0
 	var ok := 0
@@ -762,6 +766,8 @@ func _replans() -> void:
 	var kinds := {}
 	var over: Array = []
 	var bad := 0
+	var fell := 0
+	var held := 0
 	for i in range(0, _cases.size(), 7):
 		var r: FlightSolve.Result = _res[i]
 		var c: Dictionary = _cases[i]
@@ -785,9 +791,16 @@ func _replans() -> void:
 				bad += 1
 				if bad <= 3:
 					print("  (kept %.1f against fresh %.1f, old %.1f: %s)" % [rw.cost, rf.cost, j_old, c.label])
-	print("replans: %d previews planned again 3 s on with their old choice: %s; kept warm, cost minus a fresh search's %s" % [n, kinds, _dist(over)])
+		if rw.found and rw.kind == &"warm" and float(rw.choice.get("cap", 0.0)) > FlightSolve.T_CAP + 1e-6:
+			fell += 1
+			if rf.found and float(rf.choice.get("cap", INF)) <= FlightSolve.T_CAP + 1e-6 and rf.T < rw.T - 1e-3:
+				held += 1
+				if held <= 3:
+					print("  (the fallback's %.2f s kept against C's own %.2f s: %s)" % [rw.T, rf.T, c.label])
+	print("replans: %d previews planned again 3 s on with their old choice: %s; kept warm, cost minus a fresh search's %s; the fallback's flights kept warm %d" % [n, kinds, _dist(over), fell])
 	h._ok("planned again 3 s on, found wherever a fresh search finds one (%d of %d)" % [ok, fresh_found], ok >= fresh_found - maxi(1, fresh_found / 100))
 	h._ok("and no kept flight past the warm slack of both a fresh search and its own old cost (%d)" % bad, bad == 0)
+	h._ok("and no flight the fallback found kept where C's own search, fresh, arrives sooner (%d of the %d kept)" % [held, fell], held == 0)
 
 
 ## THE PHYSICS: a sample of found plans flown again by plain RK4 at SAMPLE

@@ -2181,8 +2181,13 @@ static func reap() -> void:
 ## that crashed the quit (signal 11, exit 134): the scroll check 3 of 3 times
 ## with a plan out, and a window closed on a map with a place selected
 ## (previews are planned again every second) some of the time (Oct 31). A plan
-## is bounded, at worst about 550 ms. A task waited for here is let go of by
-## whoever held it (`_done`, `_wait`).
+## is bounded: each search in it stops at its own budget of integrations
+## (`FlightSolve.BUDGET`, `BUDGET_WIDE`). At C (ruling 21) a plan that runs C's
+## own search, the as-built one and the wider one, or flies in two legs, takes
+## up to about 750 ms in a twin (the study on the Mac, one Godot at a time:
+## 734 to 768 ms, where the as-built search alone took 503 to 510); on the
+## Windows PC (Nov 1), with other Godots running beside it, 0.48 to 1.3 s. A
+## task waited for here is let go of by whoever held it (`_done`, `_wait`).
 static func drain() -> void:
 	for task in _out.keys():
 		WorkerThreadPool.wait_for_task_completion(int(task))

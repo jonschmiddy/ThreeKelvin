@@ -112,7 +112,9 @@ extends RefCounted
 ## harder than it did, at up to 2 THRUST lead / pi px/s more work), alongside
 ## while the hold lasts, free at the same moment and state. Otherwise the
 ## search starts from it and keeps that flight while it costs about what it
-## did (WARM_K, WARM_ADD), so a preview does not flip between near equals.
+## did (WARM_K, WARM_ADD), so a preview does not flip between near equals; a
+## flight the fallback found, only while C's own search finds none arriving
+## sooner.
 ## `found` false: nothing clean within the budget, and no samples (the caller
 ## falls back); `clean` false on a found plan only if its own samples cut a
 ## keep-out (none in the sweeps).
@@ -603,9 +605,16 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 		res = _replay(prefer)
 		if res == null and _warm(prefer):
 			# KEPT while it costs about what it did; else the search, and the kept
-			# flight only if the search does not beat it by as much
+			# flight only if the search does not beat it by as much. A flight the
+			# fallback found (its cap past T_CAP) is kept only while C's own
+			# search finds none that arrives sooner, the rule `_fallback` keeps
+			# between its two. Kept on its own cost alone, one fallback while a
+			# preview was drawn held every later plan of that errand to its slow
+			# flight, and C's own search never looked again (the review, Nov 1)
 			var j_old := float(prefer.get("J", INF))
-			if _b_J <= j_old + _warm_slack(j_old):
+			var fell := _leg == 0 and _tcap > T_CAP + 1e-6
+			var cheap := _b_J <= j_old + _warm_slack(j_old)
+			if cheap and not fell:
 				res = _build(&"warm")
 			else:
 				var wj := _b_J
@@ -617,11 +626,31 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 				_b = {}
 				# (a budget of its own, so it finds what a fresh search would)
 				_budget = _n_integ + BUDGET
-				# (and the fallback when that finds nothing, as a fresh plan has:
-				# without the wider search a kept flight of 359 stood where a fresh
-				# one found 206, SolveTest Oct 31)
-				_fresh()
-				if _b_J == INF or _b_J + _warm_slack(_b_J) >= wj:
+				var keep := false
+				if cheap:
+					# (the fallback's flight, costing what it did: C's own search
+					# alone looks, and its flight is kept if it arrives sooner)
+					_search_own()
+					keep = _b_J == INF or float(wb.te) <= float(_b.te) + 1e-6
+				else:
+					# (and the fallback when that finds nothing, as a fresh plan
+					# has: without the wider search a kept flight of 359 stood where
+					# a fresh one found 206, SolveTest Oct 31)
+					_fresh()
+					if _b_J == INF:
+						keep = true
+					elif fell and _own:
+						keep = float(wb.te) <= float(_b.te) + 1e-6
+					else:
+						# (both priced at TIME_W where their searches priced them
+						# at two weights)
+						var fj := _b_J
+						var kj := wj
+						if absf(_tw - wtw) > 1e-9:
+							fj = _at_time_w(_b_J, _b, _tw)
+							kj = _at_time_w(wj, wb, wtw)
+						keep = fj + _warm_slack(fj) >= kj
+				if keep:
 					_b_J = wj
 					_b = wb
 					_tcap = wcap
@@ -645,6 +674,12 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 
 static func _warm_slack(j: float) -> float:
 	return maxf(WARM_ADD, WARM_K * j)
+
+
+## A flight's cost j, priced at tw, priced again at TIME_W: its seconds to its
+## arrival b.te at the setting's own weight.
+func _at_time_w(j: float, b: Dictionary, tw: float) -> float:
+	return j + (TIME_W - tw) * (float(b.te) - t_now)
 
 
 ## A CHOICE IS WARMED AS THE SEARCH THAT FOUND IT PRICED IT: to its own time
@@ -1088,11 +1123,17 @@ func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
 	var ja := jmin
 	var jb := jmin
 	# (between each two: the least speed on the straight change of velocity
-	# across the step, as `_departure_cusps` reads a departure's; alongside,
-	# not in its last px and a half, where the ship falls in with the place's
-	# own crawl: it all but stops there and turns with the place, which is no
-	# turn drawn, and read there it cost 7 of SolveTest's 8,544 one-sun and
-	# giant flights, every one arriving alongside)
+	# across the step, as `_departure_cusps` reads a departure's. Alongside,
+	# not where that least speed falls in the last px and a half left (the
+	# step's two lefts, taken at its point), where the ship falls in with the
+	# place's own crawl: it all but stops there and turns with the place, which
+	# is no turn drawn. Read there, it lost 7 of SolveTest's 8,544 one-sun
+	# and giant flights and flew 135 others another way (117 of them over
+	# 0.3 s longer), every one arriving alongside; and skipped only where a
+	# step started in that last px and a half, the last step (from 1.5 to
+	# 4.5 px out, to the end) still read the crawl and turned down 9 giant
+	# plans of 4,656 and 4 of FlightTest's 3,832 flights that are no cusp,
+	# Nov 1)
 	for j in 16:
 		if _tk == 1 and lefts[j] <= 1.5:
 			continue
@@ -1103,6 +1144,8 @@ func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
 			continue
 		var u := -(vs[j].x * gx + vs[j].y * gz) / gg
 		if u > 0.0 and u < 1.0:
+			if _tk == 1 and lerpf(lefts[j], lefts[j + 1], u) <= 1.5:
+				continue
 			var su := Vector2(vs[j].x + gx * u, vs[j].y + gz * u).length()
 			if su < vmin:
 				vmin = su
@@ -2424,13 +2467,19 @@ func _fresh() -> void:
 		_search()
 		_back = false
 		return
+	_search_own()
+	if not _own:
+		_fallback()
+
+
+## C'S OWN SEARCH into _b: to T_CAP at TIME_W (`_own` whether it found one).
+func _search_own() -> void:
+	_own = false
+	_back = false
 	_tcap = T_CAP
 	_tw = TIME_W
 	_search()
-	if _b_J < INF:
-		_own = true
-		return
-	_fallback()
+	_own = _b_J < INF
 
 
 ## NOTHING FOUND TO T_CAP: THE SOONER OF TWO. The as-built search to T_CAP_BACK
