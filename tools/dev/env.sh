@@ -51,6 +51,14 @@ if [ -z "${PY:-}" ]; then
 	if python3 -c "" >/dev/null 2>&1; then PY=python3; else PY=python; fi
 fi
 
+# THE HIDDEN DESKTOP (Windows): render.sh opens windowed runs on a desktop that
+# is never shown when TK_HIDDESK names the helper. Built once per machine from
+# tools/dev/hiddesk/hiddesk.cs into TK_SCRATCH (see that file's header).
+if [ "$TK_OS" = win ] && [ -z "${TK_HIDDESK:-}" ] && [ -x "$TK_SCRATCH/hiddesk/hiddesk.exe" ]; then
+	TK_HIDDESK="$TK_SCRATCH/hiddesk/hiddesk.exe"
+fi
+export TK_HIDDESK
+
 TK_GODOT_BIN="$GODOT"
 export TK_OS TK_REPO TK_WT TK_SCRATCH GODOT TK_GODOT_BIN PY
 

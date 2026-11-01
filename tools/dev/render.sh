@@ -9,8 +9,9 @@
 #   tools/dev/render.sh -t 300 --path tkg -- sheet=QuestLogShot
 #
 # WHERE THE WINDOW GOES:
-#   Windows: if TK_HIDDESK points at hiddesk.exe, the window opens on a hidden
-#            desktop and never shows on Jon's screens. Without it, it shows.
+#   Windows: with hiddesk.exe built (tools/dev/hiddesk/hiddesk.cs; env.sh finds
+#            it in TK_SCRATCH), the window opens on a hidden desktop and never
+#            shows on Jon's screens. Without it, it shows.
 #   Mac:     there is no hidden desktop. The window shows on screen while it
 #            runs, so ask Jon before a batch (it steals focus mid-game), and
 #            never run one while he is playing.
