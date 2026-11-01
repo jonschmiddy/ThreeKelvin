@@ -5,7 +5,12 @@
 // The program's stdout and stderr go to <log file>; hiddesk waits for it and
 // exits with its exit code. Used by tools/dev/render.sh through TK_HIDDESK.
 //
-// Build: C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /nologo /out:hiddesk.exe hiddesk.cs
+// Build it into the scratch folder, from Git Bash at the repo root.
+// MSYS_NO_PATHCONV stops Git Bash turning /switches into paths (it matters for
+// any /arg passed through to a program, too):
+//   mkdir -p ../tk-scratch/hiddesk
+//   MSYS_NO_PATHCONV=1 /c/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe -nologo -out:../tk-scratch/hiddesk/hiddesk.exe tools/dev/hiddesk/hiddesk.cs
+// env.sh then finds it on its own.
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
