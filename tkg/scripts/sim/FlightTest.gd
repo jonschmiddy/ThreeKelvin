@@ -78,6 +78,24 @@ const SNAP_DV := 6.0
 ## insertion or the stop alongside, and slack. It was 16 s when flights were
 ## time-scaled conics of 4 to 12 s; on map time they take up to 30, or 40.
 const FLY_MAX := 45.0
+## a flight in two legs (`FlightSolve._chain`, in a twin only where one leg
+## reaches nothing) has a second leg of up to T_CAP more
+const FLY_MAX_TWO := FLY_MAX + FlightSolve.T_CAP
+## A START NO FLIGHT CAN LEAVE: flying free, no burn at THRUST (CLEAR_HEAD
+## headings, each of CLEAR_DV) keeps its coast clear of every keep-out for this
+## long (s). Close by a twin's world round one star, coasting at up to 170 px/s
+## a few px outside a keep-out, a burn changes the motion by 4 px/s in a tenth
+## of a second: the coast is into the keep-out first
+const CLEAR_S := 1.0
+const CLEAR_HEAD := 16
+const CLEAR_DV := [0.0, 20.0, 40.0, 70.0, 100.0, 150.0, 220.0]
+## AND THE MEASURED RESIDUAL past those, at the most (Oct 31, three seeds: 1 of
+## 1,790 twin plans): seed 7 system 110, close by world 1 round star B coasting
+## at 77 px/s, 11 px outside a keep-out, where one burn of 96 keeps clear but no
+## flight in one leg or two (through any of 34 points round the pair and the
+## place, or with that burn itself as the first leg) nor the near hop flies
+## from. A harness's start: the map flies only out of an orbit
+const PUT_LEFT := 1
 ## the click comes up to this long after the first plan (s)
 const CLICK_S := 1.5
 ## the overlay's preview line, laid out to this many points (`SystemOverlay.PV_N`)
@@ -184,7 +202,8 @@ func _stat(sweep: String) -> Dictionary:
 			"flown": 0, "landed": 0, "ms": [], "T": [], "work": [], "lead": [], "clicks": 0, "drawn": 0,
 			"drawn_px": [], "corners1": 0, "corners2": 0, "turn1": [], "turn2": [], "snaps": 0, "frame_dv": 0.0,
 			"frame_ratio": 0.0, "star": INF, "keep": INF, "world": INF, "speed": 0.0, "not_found": [], "not_landed": [],
-			"cornered": [], "snapped": [], "off_drawn": [], "nose": 0.0, "by_start": {}, "systems": 0, "redrawn": 0, "ring_corners": 0, "game_corners1": 0, "game_corners2": 0, "unflyable": 0, "end_off": 0.0, "belt_ends": 0}
+			"cornered": [], "snapped": [], "off_drawn": [], "nose": 0.0, "by_start": {}, "systems": 0, "redrawn": 0, "ring_corners": 0, "game_corners1": 0, "game_corners2": 0, "unflyable": 0, "end_off": 0.0, "belt_ends": 0,
+			"chained": 0, "chain_T": [], "chain_ms": [], "chain_cut": [], "chain_list": [], "chain_far": 0.0, "far": 0.0, "put": []}
 	return _sw[sweep]
 
 
@@ -360,6 +379,7 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 	if pl == null:
 		S.none = int(S.none) + 1
 		(S.not_found as Array).append(where + " (none)")
+		(S.put as Array).append([where, _clear_for(fl, i, t)])
 		return
 	if pl.res == null:
 		S.fallback = int(S.fallback) + 1
@@ -376,6 +396,19 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 		(S.work as Array).append(pl.res.work)
 		(S.lead as Array).append(pl.res.lead)
 		S.keep = minf(float(S.keep), pl.res.clear)
+		# HOW FAR OUT FROM STAR A, against the map's edge (the edge is measured
+		# from it): every solved flight, and a flight in two legs apart
+		var far := 0.0
+		for q: Vector3 in pl.samp:
+			far = maxf(far, Vector2(q.x, q.z).length() / L.edge)
+		S.far = maxf(float(S.far), far)
+		if pl.res.legs == 2:
+			S.chained = int(S.chained) + 1
+			(S.chain_T as Array).append(pl.res.T)
+			(S.chain_ms as Array).append(ms)
+			(S.chain_cut as Array).append(pl.res.t_cut - pl.res.t0)
+			S.chain_far = maxf(float(S.chain_far), far)
+			(S.chain_list as Array).append("%s: %.1f s (the second leg off the first's coast %.1f s on, aimed through %s), work %.0f px/s, planned in %.0f ms, out to %.2f of the edge" % [where, pl.res.T, pl.res.t_cut - pl.res.t0, pl.res.wp.round(), pl.res.work, ms, far])
 		if int(_wk.size()) < _worker_n * 3 and (_wk.size() % 3 == 0 or sweep == "twin"):
 			_wk.append([sweep, L, key, b, i, t, pl, n.index])
 		# (the game's starts, every few, for the clicks through the map's path)
@@ -645,7 +678,7 @@ func _fly(fl, i: int, t0: float, drawn, undrawn := false) -> Dictionary:
 	var te: float = float(drawn.t0) + float(drawn.dur)
 	var off := 0.0
 	var landed_at := -1
-	for k in int(FLY_MAX / dt):
+	for k in int(_fly_max(pl) / dt):
 		t += dt
 		fl.step(dt, t, NONE)
 		var p: Vector3 = fl.where3()
@@ -697,6 +730,33 @@ func _fly(fl, i: int, t0: float, drawn, undrawn := false) -> Dictionary:
 	if landed_at < 0 and ShipFlightS.why:
 		print("    not landed: mode %s, reached %d" % [fl.mode, fl.reached()])
 	return out
+
+
+## HOW LONG THE BEST BURN FROM HERE KEEPS CLEAR (s, up to 30): flying free, a
+## burn at THRUST of each of CLEAR_DV at CLEAR_HEAD headings and the coast after
+## it, through the keep-outs this flight to place i holds (its own place's cut
+## to its ring); INF from any other start (an orbit, alongside), which no
+## measure excuses.
+func _clear_for(fl, i: int, t: float) -> float:
+	var dep: Dictionary = fl._dep_of(t, ShipFlightS.PREVIEW_AHEAD)
+	if dep.is_empty() or StringName(dep.kind) != &"free":
+		return INF
+	var fs := FlightSolve.new()
+	fs._solve(fl._grav(), dep, fl._tgt_of(i), t, {})
+	var p: Vector2 = dep.p
+	var v: Vector2 = dep.v
+	var best := 0.0
+	for hj in CLEAR_HEAD:
+		var hd := TAU * float(hj) / float(CLEAR_HEAD)
+		for dv: float in CLEAR_DV:
+			fs._integrate(t, p.x, p.y, v.x, v.y, cos(hd) * dv, sin(hd) * dv, t + 30.0)
+			best = maxf(best, fs._t_bad - t if fs._t_bad < INF else 30.0)
+	return best
+
+
+## The longest plan pl may take from its click to on its orbit (s).
+static func _fly_max(pl) -> float:
+	return FLY_MAX_TWO if pl != null and pl.res != null and pl.res.legs == 2 else FLY_MAX
 
 
 ## How far p is from the polyline (plane px).
@@ -1051,7 +1111,11 @@ func _click_phase() -> void:
 				var fb := 0
 				var put := false
 				var landed := false
-				for k in int(FLY_MAX / dt):
+				# (longer once the flight flown is one in two legs)
+				var lim := int(FLY_MAX / dt)
+				var k := -1
+				while k + 1 < lim:
+					k += 1
 					var pend: bool = not (fl._pend as Dictionary).is_empty()
 					if pend:
 						await tree.process_frame
@@ -1084,6 +1148,7 @@ func _click_phase() -> void:
 							# planned for the click and laid out
 							flown_pl = pv if flew_drawn else fl.plan
 							fline = (flown_pl.line[0] if (flown_pl.line as Array).size() == 3 else fl.lay_out(flown_pl, PV_LINE)[0])
+							lim = int(_fly_max(flown_pl) / dt)
 					# THE FLOWN FRAME AGAINST THE LINE DRAWN for its stretch: from its
 					# departure (a settled star orbit's ride round to it is not drawn)
 					# to the ring drawn after its arrival
@@ -1346,6 +1411,25 @@ func _report(cap: Dictionary) -> void:
 		print("  found and clean: from the game's starts %d of %d; flying free or close by (a harness's) %d of %d" % [g_ok, g_n, f_ok, f_n])
 		var share := float(g_ok) / float(maxi(g_n, 1))
 		h._ok("%s: found and clean from an orbit, a star orbit or alongside %d of %d (%.2f%%, at least %.0f%%)" % [sweep, g_ok, g_n, share * 100.0, FOUND_MIN * 100.0], g_n > 0 and share >= FOUND_MIN)
+		print("  farthest any solved flight goes from star A: %.2f of the edge" % S.far)
+		if int(S.chained) > 0 or sweep == "twin":
+			print("  flights in two legs (FlightSolve._chain, where one leg reaches nothing): %d; flight time %s s; planned (this thread) %s ms; the second leg off the first's coast, s on: %s; out to %.2f of the edge at the farthest" % [S.chained, _dist(S.chain_T), _dist(S.chain_ms), _dist(S.chain_cut), S.chain_far])
+			for l6 in S.chain_list:
+				print("    TWO LEGS: %s" % l6)
+		if sweep == "twin":
+			# IN A TWIN NO FLIGHT IS PUT THERE (the ship jumped to the place with no
+			# flight: 63 of 1,790 before a flight in two legs, 18 of them from the
+			# game's starts), from any start this measure makes -- but one no burn
+			# at THRUST can leave without crossing a keep-out within CLEAR_S, each
+			# listed with how long its best burn keeps clear
+			var excused := 0
+			for e7: Array in S.put:
+				var ok7 := float(e7[1]) < CLEAR_S
+				if ok7:
+					excused += 1
+				print("    PUT THERE: %s; the best burn from there keeps clear for %.2f s%s" % [e7[0], e7[1], " (no flight can leave)" if ok7 else " (THE RESIDUAL)"])
+			var left: int = (S.put as Array).size() - excused
+			h._ok("%s: no flight put there from any start (%d of %d plans) but where no burn at THRUST keeps clear of a keep-out for %.1f s (%d of them), and the measured residual, at most %d (%d)" % [sweep, (S.put as Array).size(), plans, CLEAR_S, excused, PUT_LEFT, left], left <= PUT_LEFT)
 		h._ok("%s: every planned flight landed (%d of %d)" % [sweep, S.landed, S.flown], int(S.landed) == int(S.flown))
 		# (from a harness's free start, coasting at anything from nought to 170
 		# px/s, a burn across a ship all but at rest draws a hook where it starts:
@@ -1444,14 +1528,15 @@ func _run_retarget() -> void:
 			fl.step(dt, t0, none)
 			var first: int = cs[2]
 			var j: int = cs[3]
-			if fl.fly(first, t0, func() -> void: pass) == null:
+			var pf = fl.fly(first, t0, func() -> void: pass)
+			if pf == null:
 				continue
 			tot.tries += 1
 			var where := "system %d, %s %d -> %d, then %d" % [n.index, cs[0], cs[1], first, j]
 			# ON THE WAY: no flight may start until it is settled in its orbit
 			var t := t0
 			var settled := false
-			for _f in int(FLY_MAX / dt):
+			for _f in int(_fly_max(pf) / dt):
 				t += dt
 				fl.step(dt, t, none)
 				tot.frames += 1
@@ -1530,8 +1615,8 @@ func _run_retarget() -> void:
 				print("  MOVED %.1f px in a half second: %s" % [worst, where])
 			# and flown from there, the drawn plan as a click flies it
 			var ok := false
-			fl.fly(j, t, func() -> void: pass, choice, pa)
-			for _k in int(FLY_MAX / dt):
+			var pj = fl.fly(j, t, func() -> void: pass, choice, pa)
+			for _k in int(_fly_max(pj) / dt):
 				t += dt
 				fl.step(dt, t, none)
 				if fl.reached() == j:

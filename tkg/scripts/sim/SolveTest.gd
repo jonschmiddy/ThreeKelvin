@@ -820,6 +820,19 @@ func _physics() -> void:
 		var dev := 0.0
 		var k := 0
 		while t + dt <= tb and k + 1 < s.size():
+			# A FLIGHT IN TWO LEGS (`FlightSolve._chain`): the second leaves free off
+			# the first's coast at sample k_cut by its own burn, eased while slow as
+			# a second leg's is
+			if r.legs == 2 and k == r.k_cut:
+				var c2: Dictionary = r.choice.chain.c2
+				dvx = float(c2.dvx)
+				dvz = float(c2.dvz)
+				dv = sqrt(dvx * dvx + dvz * dvz)
+				bux = dvx / dv if dv > 1e-9 else 0.0
+				buz = dvz / dv if dv > 1e-9 else 0.0
+				rem = dv if dv > 1e-9 else 0.0
+				ease = true
+				t_step = t
 			var left := dt
 			while left > 1e-12:
 				var hp := left

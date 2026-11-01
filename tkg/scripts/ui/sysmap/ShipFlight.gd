@@ -49,7 +49,10 @@ extends RefCounted
 ## flown as the insertion was (`_arrive`: at the place, burning on). The Lambert
 ## manoeuvres above are kept only as the fallback, in a system of one star, for
 ## the under 1% of flights the solver finds nothing clean for (`_old_plan`);
-## failing that, the ship is put in orbit there. The preview and the click plan
+## failing that, the ship is put in orbit there. In a twin, where one leg
+## reaches nothing, the solver flies two (`FlightSolve._chain`: aimed through a
+## point round the pair, turning off that coast before it would stop), one
+## FlightPlan like any other. The preview and the click plan
 ## on a worker (`plan_bg`, `fly_bg`), the fallback and the line's layout there
 ## too: a twin's plan takes a median of about 40 ms, the worst about 140, and
 ## one the solver's wider search was needed for up to about 250, too long for a
@@ -1796,8 +1799,10 @@ func _plan_of(r: FlightSolve.Result, i: int, dep: Dictionary, t: float) -> Fligh
 
 ## THE FLIGHT TO PLACE i FROM WHERE THE SHIP IS, at map time t, on this thread:
 ## solved (`FlightSolve`), `prefer` the choice of the flight drawn so the same
-## flight comes back while it can; when nothing is clean (under 1% of plans),
-## today's planner (`_old_plan`); null when neither finds one.
+## flight comes back while it can (in a twin, in two legs where one reaches
+## nothing: `FlightSolve._chain`); when nothing is clean (under 1% of plans),
+## today's planner (`_old_plan`; in a twin only its near hop, `_twin_near`);
+## null when neither finds one.
 ## `ahead`: made for that moment on, as a worker's is (`PLAN_AHEAD`).
 func make_plan(i: int, t: float, prefer: Dictionary = {}, ahead := 0.0) -> FlightPlan:
 	var dep := _dep_of(t, ahead)
@@ -1812,11 +1817,9 @@ func make_plan(i: int, t: float, prefer: Dictionary = {}, ahead := 0.0) -> Fligh
 	if r.found:
 		n_solved += 1
 		return _plan_of(r, i, dep, t + ahead)
-	if L.twin:
-		n_none += 1
-		return null
-	# (today's planner, from the ship as it will be then, as the worker plans it)
-	var op := _snapshot(t, t + ahead)._old_ahead(i, t + ahead, prefer if not prefer.has("v") else {}, dep, ahead > 0.0) as FlightPlan
+	# (today's planner, from the ship as it will be then, as the worker plans it;
+	# in a twin only its near hop, `_twin_near`)
+	var op := _snapshot(t, t + ahead)._old_ahead(i, t + ahead, prefer if not prefer.has("v") else {}, dep, ahead > 0.0, L.twin) as FlightPlan
 	if op == null:
 		n_none += 1
 		return null
@@ -2128,9 +2131,9 @@ func drop_bg(use: StringName) -> void:
 
 ## A PLAN FOR PLACE i MADE ON A WORKER (`FlightSolve` touches no Node: pure
 ## arrays, `MapGravity` read only, its inputs copied), from the ship as it is
-## at t, for a moment just ahead. In a system of one star, when nothing is
-## solved, today's planner there too, from a snapshot of the ship as it will be
-## then (`_snapshot`): it ran here, in the frame that took the plan in, for 60
+## at t, for a moment just ahead. When nothing is solved, today's planner there
+## too (in a twin only its near hop, `_twin_near`), from a snapshot of the ship
+## as it will be then (`_snapshot`): it ran here, in the frame that took the plan in, for 60
 ## to 275 ms (the flight review, Oct 31), and every 2 s again while such a
 ## place stayed selected. `lay` > 0: the line laid out there too, to that many
 ## points (`lay_out`), so the frame that takes it in does not (3 to 8 ms).
@@ -2152,7 +2155,7 @@ func plan_bg(i: int, t: float, prefer: Dictionary, use: StringName, lay := 0) ->
 	var p2 := prefer.duplicate(true) if int(prefer.get("v", -1)) == FlightSolve.CHOICE_V else {}
 	var po := prefer.duplicate(true) if not prefer.has("v") else {}
 	var snap = _snapshot(t, ts)
-	var old_ok := not L.twin
+	var near_only := L.twin
 	var only_old := old_only
 	var task := WorkerThreadPool.add_task(func() -> void:
 		var r := FlightSolve.Result.new() if only_old else FlightSolve.solve(G, d2, t2, ts, p2)
@@ -2160,8 +2163,9 @@ func plan_bg(i: int, t: float, prefer: Dictionary, use: StringName, lay := 0) ->
 		var pl = null
 		if r.found:
 			pl = snap._plan_of(r, i, d2, ts)
-		elif old_ok:
-			pl = snap._old_ahead(i, ts, po, d2, not free)
+		else:
+			# (in a twin, only today's near hop: `_twin_near`)
+			pl = snap._old_ahead(i, ts, po, d2, not free, near_only)
 			held.old = true
 		# (through the snapshot: a lambda naming this ship's own functions holds
 		# the ship, which could then be freed on the worker)
@@ -2221,8 +2225,8 @@ func _snapshot(t: float, ts: float) -> RefCounted:
 ## plan made ahead: flown from its own t0 while the ship rides on to it
 ## (`_takeable`), its departure angle round the ring it rides (`a_dep`); `ahead`
 ## false (open space), only at that moment.
-func _old_ahead(i: int, ts: float, prefer: Dictionary, dep: Dictionary, ahead: bool) -> FlightPlan:
-	var pl := _old_plan(i, ts, prefer)
+func _old_ahead(i: int, ts: float, prefer: Dictionary, dep: Dictionary, ahead: bool, near_only := false) -> FlightPlan:
+	var pl := _twin_near(i, ts, prefer) if near_only else _old_plan(i, ts, prefer)
 	if pl == null:
 		return null
 	pl.to = i
@@ -2232,6 +2236,26 @@ func _old_ahead(i: int, ts: float, prefer: Dictionary, dep: Dictionary, ahead: b
 	if StringName(dep.get("kind", &"")) == &"ring":
 		pl.a_dep = float(dep.ang) + float(dep.w) * pl.lead * (1.0 + pl.lead_k) * 0.5
 	return pl
+
+
+## IN A TWIN, NOTHING SOLVED IN ONE LEG OR TWO, FOR A SHIP CLOSE BY A WORLD AND
+## NOT IN AN ORBIT: today's near hop (`_near_hop`, a short hop in the world's
+## own frame, which DESIGN lets stay kinematic), as a system of one star's
+## fallback starts. Coasting at up to 170 px/s a few px outside a keep-out (a
+## harness's start: the map flies only out of an orbit), no burn at THRUST
+## keeps its coast clear for even half a second, so no solved flight can leave
+## from there (FlightTest's twin near starts, Oct 31: 26 of 32 that one leg
+## missed, two legs too). Never today's conics round star A alone: null.
+func _twin_near(i: int, t: float, prefer: Dictionary) -> FlightPlan:
+	if i < 0 or is_keep(i) or not (prefer.is_empty() or prefer.get("near", false)):
+		return null
+	var st := _depart_state(t)
+	if int(st.body) != -9:
+		return null
+	var hp := _near_hop(i, t, st, prefer if prefer.get("near", false) else {})
+	if hp == null and prefer.get("near", false):
+		hp = _near_hop(i, t, st)
+	return _tail(hp) if hp != null else null
 
 
 ## A WHOLE FLIGHT LAID OUT ALONG ITS LENGTH, as the map draws it
@@ -3519,7 +3543,13 @@ func _near_hop(i: int, t: float, st: Dictionary, pick: Dictionary = {}) -> Fligh
 						break
 					var ck := center(i, t + k * SAMPLE)
 					var q := ck + Vector3(cos(aa) * rr, 0.0, sin(aa) * rr)
-					if Vector2(q.x, q.z).length() < keep_clear():
+					# (clear of every star: a twin's second too; one sun, star A at
+					# the origin as before)
+					var in_star := false
+					for s in _stars:
+						if (Vector2(q.x, q.z) - L.star_pos(s)).length() < keep_clear(s):
+							in_star = true
+					if in_star:
 						ok = false
 						break
 					if k % 12 == 0:

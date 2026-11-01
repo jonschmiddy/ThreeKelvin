@@ -52,7 +52,11 @@ extends RefCounted
 ##   and one more for the samples;
 ## - when all of that finds nothing, a wider search to T_CAP_WIDE, its scan
 ##   faster and, out of a settled star orbit, toward the target (`_search_wide`,
-##   BUDGET_WIDE more).
+##   BUDGET_WIDE more);
+## - in a twin, when even that finds nothing, a flight in two legs (`_chain`):
+##   the first aimed at a point round the pair, the second leaving free off its
+##   coast before the first's arrival burn, so the ship never stops there. One
+##   Result.
 ## A burn that all but stops the ship and turns it round (`V_CUSP`, `CUSP_TURN`),
 ## or an arrival burn the map would draw as a corner (`DRAW_K`), is not flown.
 ##
@@ -94,7 +98,9 @@ extends RefCounted
 ## insertion that follows flies none), lead and lead_k for rail.phase (a ride
 ## of up to 4.4 s: rail.phase {T: lead, k: lead_k} as it is; alongside, the
 ## ship holds at its spot for `lead`), dur, amax, esc_t (the departure burn),
-## and `choice`. Passing that choice back as `prefer` rebuilds the same flight
+## `legs` (2 for a flight in two legs, `wp` its point, `k_cut` and `t_cut` the
+## sample and moment its second leaves) and `choice`. Passing that choice back
+## as `prefer` rebuilds the same flight
 ## exactly (one integration) while it is the same flight (`_same_flight`) and
 ## its departure is still ahead: round a ring while the ride from where the
 ## ship is now reaches it at a phasing within THRUST (its ride may then phase
@@ -181,12 +187,38 @@ const T_CAP := 30.0
 ## a cap of 55 s found no more; what it still misses (18 twin flights of 1,478)
 ## leave a star's close orbit or a settled orbit far out for a station, belt,
 ## hulk or contact on the far side of the pair, which no departure burn and one
-## coast reaches (the closest any of 1,260 departures came was 42 to 249 px).
+## coast reaches (the closest any of 1,260 departures came was 42 to 249 px):
+## those fly in two legs (`_chain`).
 const T_CAP_WIDE := 40.0
 const WIDE_T := 20.0
 const BUDGET_WIDE := 250
 const WIDE_HEAD := 12
 const WIDE_SPAN := PI * 75.0 / 180.0
+## WHEN EVEN THAT FINDS NOTHING, IN A TWIN, A FLIGHT IN TWO LEGS (`_chain`):
+## the first aimed at a point in open space (`_waypoints`), the second leaving
+## free off its coast CHAIN_PRE s (each in turn) before its arrival burn, at
+## least CHAIN_AFTER after its departure burn. The points: round the pair, half
+## way round from the ship to where the place is CHAIN_T on, at CHAIN_R times
+## the farther from the balance point, at least CHAIN_CLEAR separations out and
+## within CHAIN_EDGE of the map's edge. Measured (FlightTest, Oct 31, three
+## seeds' 36 twins, 1,790 plans): 37 fly in two legs -- every one of the 18 game
+## starts one leg missed (a star's close orbit, a settled star orbit and the
+## edge, to places round both on the far side of the pair), all 13 free starts
+## it missed, 6 close by a world -- in a median of 45 s, at worst 57, planned in
+## a median of 270 ms, at worst 530 (on a worker in the game), out to 0.98 of the
+## edge at the farthest; the turn onto the second leg at worst 13 deg a px at
+## zoom 1 (a corner is 20). SolveTest's real twins: 3,024 of 3,024 found (99.31%
+## with one leg). The 24 left were all close by a world coasting fast: in 23,
+## no burn at THRUST keeps the coast clear of a keep-out for a second (the one
+## where a burn did, seed 7 system 110, is FlightTest's residual). Points all
+## round the pair (12 bearings, two radii) and round the place found no more,
+## nor, there, a first leg that was that burn and its coast.
+const CHAIN_PRE := [0.5, 3.0, 6.0]
+const CHAIN_AFTER := 0.5
+const CHAIN_T := 15.0
+const CHAIN_R := [1.0, 0.7]
+const CHAIN_CLEAR := 1.5
+const CHAIN_EDGE := 0.95
 ## px/s of engine work one second of flight is worth. At 0.5 the median flight
 ## takes 24 s one-star, 21 s with a heavy giant and 15 s in a twin (SolveTest);
 ## Jon's v2 pick took 18 to 23 s
@@ -339,6 +371,12 @@ class Result:
 	var us_int := 0
 	var us_price := 0
 	var us_build := 0
+	## A FLIGHT IN TWO LEGS (`_chain`): 2, the point its first leg is aimed at,
+	## and the sample (of `samp`) and map time its second leaves free from
+	var legs := 1
+	var wp := Vector2.ZERO
+	var k_cut := 0
+	var t_cut := 0.0
 
 
 # ---------------------------------------------------------------- the problem
@@ -391,6 +429,14 @@ var _tcap := T_CAP
 var _wide := false
 ## where the coast just flown first turns tighter than the map draws (`_coast_tight`)
 var _tight_t := INF
+## A LEG OF A FLIGHT IN TWO (`_chain`): 0 a flight of one, 1 the first (to a
+## point in open space), 2 the second (leaving free off the first's coast, its
+## burn eased while slow and kept from swinging round a point, as a settled star
+## orbit's is); whether the wider search may run; whether `_setup` took the
+## flight (so a chain is only looked for where a flight could be)
+var _leg := 0
+var _wide_ok := true
+var _set := false
 
 ## a place's centre and motion (`_dep_at`, `_tgt_at` write these)
 var _cx := 0.0
@@ -451,9 +497,37 @@ var _b := {}
 
 
 ## THE FLIGHT from `dep` to `tgt` at map time t (see the head of this file).
+## In a twin, where nothing is found, a flight in two legs (`_chain`).
 static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary = {}) -> Result:
+	if prefer.has("chain") and grav.star_x.size() > 1:
+		# A FLIGHT IN TWO LEGS DRAWN BEFORE: its own legs again while they hold,
+		# else looked for afresh, its old point tried first
+		var t_us := Time.get_ticks_usec()
+		var rc := _chain_again(grav, dep, tgt, t, prefer)
+		if rc == null:
+			var ch: Dictionary = prefer.chain
+			rc = _solve_or_chain(grav, dep, tgt, t, {}, ch.get("W", Vector2.INF))
+		rc.usec = Time.get_ticks_usec() - t_us
+		return rc
+	return _solve_or_chain(grav, dep, tgt, t, prefer, Vector2.INF)
+
+
+## The flight of one leg; in a twin where none is found, of two (`_chain`,
+## `hint` its first point tried first).
+static func _solve_or_chain(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary, hint: Vector2) -> Result:
 	var fs := FlightSolve.new()
-	return fs._solve(grav, dep, tgt, t, prefer)
+	var r := fs._solve(grav, dep, tgt, t, prefer)
+	if r.found or not fs._twin or not fs._set:
+		return r
+	var t_us := Time.get_ticks_usec()
+	var rc := _chain(grav, dep, tgt, t, hint)
+	if rc == null:
+		r.usec += Time.get_ticks_usec() - t_us
+		return r
+	rc.integrations += r.integrations
+	rc.steps += r.steps
+	rc.usec = r.usec + Time.get_ticks_usec() - t_us
+	return rc
 
 
 ## THE RADIUS OF STAR p'S CLOSE ORBIT, ridden and arrived on (a ring's R and
@@ -476,6 +550,7 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 		var bad := Result.new()
 		bad.usec = Time.get_ticks_usec() - t_us
 		return bad
+	_set = true
 	var res: Result = null
 	if not prefer.is_empty() and int(prefer.get("v", 0)) == CHOICE_V:
 		# (a flight the wider search found is warmed to its own time cap)
@@ -500,7 +575,7 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 				# SolveTest Oct 31)
 				_tcap = T_CAP
 				_search()
-				if _b_J == INF:
+				if _b_J == INF and _wide_ok:
 					_search_wide()
 				if _b_J == INF or _b_J + _warm_slack(_b_J) >= wj:
 					_b_J = wj
@@ -512,7 +587,7 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 	if res == null:
 		_tcap = T_CAP
 		_search()
-		if _b_J == INF:
+		if _b_J == INF and _wide_ok:
 			_search_wide()
 		res = _build(&"solved")
 	res.integrations = _n_integ
@@ -532,7 +607,7 @@ static func _warm_slack(j: float) -> float:
 func _setup(dep: Dictionary, tgt: Dictionary) -> bool:
 	if not _setup_in(dep, tgt):
 		return false
-	_ease = _dk == 0 and _dplace == -9
+	_ease = (_dk == 0 and _dplace == -9) or (_leg == 2 and _dk == 2)
 	# THE RIDE'S PHASING, held to THRUST and VMAX on the ring being ridden
 	_kmax = 1.0
 	if _dk == 0:
@@ -811,7 +886,7 @@ func _fly(ux: float, uz: float, has_fix: bool, a_fix: float) -> float:
 	_integrate(_e_td, _e_x0, _e_z0, _e_vx0, _e_vz0, _e_dvx, _e_dvz, t_now + _tcap)
 	var t1 := Time.get_ticks_usec()
 	# (a departure burn that swings the ship round a point is not flown: `V_CUSP`)
-	if not (_dk == 0 and _departure_cusps()):
+	if not ((_dk == 0 or _leg == 2) and _departure_cusps()):
 		_tight_t = _coast_tight()
 		_price()
 	_us_int += t1 - t0
@@ -2976,3 +3051,201 @@ func _build_in(kind: StringName) -> Result:
 		"fix": bool(b.fix), "afix": float(b.afix), "te": float(b.te), "s": s, "phi": float(b.phi), "d2": float(b.d2),
 		"w2": float(b.w2), "pk": float(b.pk), "J": res.cost, "cap": _tcap}
 	return res
+
+
+# ---------------------------------------------------------------- a flight in two legs
+## A FLIGHT IN TWO LEGS, in a twin, where one departure burn and one coast
+## reach nothing (the wider search too): its first leg aimed at a point in open
+## space (`_waypoints`: a keep target at place -9, c that point), its second
+## leaving free off the first's coast CHAIN_PRE s before the first's arrival
+## burn would start, so the ship never stops there -- a coast, a burn that
+## turns it, a coast, the arrival. One Result, one set of samples SAMPLE apart
+## from the first's departure: drawn, previewed and flown as any other. Its
+## choice is the first leg's with `chain` {W, k, pre, c1, c2}, so the same
+## flight comes back (`_chain_again`): the first leg rebuilt from c1 as any
+## flight is, the second then leaving from the very same state is rebuilt from
+## c2 as a free one is.
+static func _chain(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, hint: Vector2) -> Result:
+	var wps := _waypoints(G, dep, tgt, t)
+	if hint.is_finite():
+		wps.insert(0, hint)
+	for W in wps:
+		var rj := _chain_try(G, dep, tgt, t, W, CHAIN_PRE)
+		if rj != null:
+			return rj
+	return null
+
+
+## The flight in two legs through W, its second leaving `pres` s (each in
+## turn) before the first's arrival burn: null when none is found and clean.
+static func _chain_try(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, W: Vector2, pres: Array) -> Result:
+	var l1 := FlightSolve.new()
+	l1._leg = 1
+	l1._wide_ok = false
+	var r1 := l1._solve(G, dep, _wp_target(W), t, {})
+	if not r1.found or not r1.clean:
+		return null
+	var tried := -1
+	for pre: float in pres:
+		# (each cut once: one past the first's departure burn stands for all
+		# before it)
+		var k := _cut_k(r1, pre)
+		if k == tried:
+			continue
+		tried = k
+		var rj := _leg_two(G, l1, r1, tgt, t, W, pre, k, {})
+		if rj != null:
+			return rj
+	return null
+
+
+## The sample of the first leg its second leaves from, `pre` s before the
+## first's arrival burn and at least CHAIN_AFTER after its departure burn.
+static func _cut_k(r1: Result, pre: float) -> int:
+	var tb := r1.t0 + r1.dur - r1.d2
+	return floori((maxf(tb - pre, r1.t0 + r1.esc_t + CHAIN_AFTER) - r1.t0) / SAMPLE)
+
+
+## A keep target at the fixed point W.
+static func _wp_target(W: Vector2) -> Dictionary:
+	return {"kind": &"keep", "place": -9, "c": W, "off": Vector2.ZERO}
+
+
+## THE SECOND LEG off the first (r1, flown by l1): free from its coast at sample
+## k (k < 0: `pre` s before its arrival burn, and after its departure burn by
+## CHAIN_AFTER), `c2` its choice to rebuild it from; joined into one flight.
+static func _leg_two(G: MapGravity, l1: FlightSolve, r1: Result, tgt: Dictionary, t: float, W: Vector2, pre: float, k_fix: int, c2: Dictionary) -> Result:
+	var tb := r1.t0 + r1.dur - r1.d2
+	var k := k_fix if k_fix >= 0 else _cut_k(r1, pre)
+	if k < 1 or k >= r1.samp.size() - 1 or r1.t0 + float(k) * SAMPLE > tb - SAMPLE:
+		return null
+	var tc := r1.t0 + float(k) * SAMPLE
+	var st := l1._coast_at(tc)
+	var l2 := FlightSolve.new()
+	l2._leg = 2
+	l2._wide_ok = false
+	var d2 := {"kind": &"free", "p": Vector2(st[0], st[1]), "v": Vector2(st[2], st[3])}
+	var r2 := l2._solve(G, d2, tgt, tc, c2)
+	if not r2.found or not r2.clean:
+		return null
+	return _join(r1, k, r2, t, W, tb - tc)
+
+
+## THE TWO LEGS AS ONE FLIGHT: the first's samples up to sample k, then the
+## second's (its first sample is the first's state there), its end, the work of
+## both (the first's arrival burn never flown), and the choice to rebuild it.
+static func _join(r1: Result, k: int, r2: Result, t: float, W: Vector2, pre: float) -> Result:
+	var res := Result.new()
+	res.found = true
+	res.clean = r1.clean and r2.clean
+	res.kind = &"replay" if r1.kind == &"replay" and r2.kind == &"replay" else &"solved"
+	res.legs = 2
+	res.wp = W
+	res.k_cut = k
+	res.t_cut = r1.t0 + float(k) * SAMPLE
+	res.t0 = r1.t0
+	res.lead = r1.lead
+	res.lead_k = r1.lead_k
+	res.a_dep = r1.a_dep
+	res.sdt = SAMPLE
+	res.samp = r1.samp.slice(0, k)
+	res.samp.append_array(r2.samp)
+	res.burns = r1.burns.slice(0, k)
+	res.burns.append_array(r2.burns)
+	var n := res.samp.size() - 1
+	res.dur = float(n) * SAMPLE
+	var amax := 1.0
+	for j in range(1, n, 2):
+		amax = maxf(amax, (res.samp[j + 1] - 2.0 * res.samp[j] + res.samp[j - 1]).length() / (SAMPLE * SAMPLE))
+	res.amax = amax
+	res.esc_t = r1.esc_t
+	res.end = r2.end.duplicate()
+	res.dvp = r1.dvp
+	res.dv1 = r1.dv1
+	res.dv2 = r2.dv2
+	res.work = r1.dvp + r1.dv1 + r2.dv1 + r2.dv2
+	res.arr_const = r2.arr_const
+	res.d2 = r2.d2
+	res.T = float(r2.end.t) - t
+	res.cost = res.work + TIME_W * res.T
+	res.priced = res.cost
+	res.clear = minf(r1.clear, r2.clear)
+	res.integrations = r1.integrations + r2.integrations
+	res.steps = r1.steps + r2.steps
+	res.choice = r1.choice.duplicate()
+	res.choice.J = res.cost
+	res.choice.chain = {"W": W, "k": k, "pre": pre, "c1": r1.choice, "c2": r2.choice}
+	return res
+
+
+## A FLIGHT IN TWO LEGS FROM ITS CHOICE: the first leg from c1 (rebuilt as any
+## flight is while its departure is ahead, else searched from it), the second
+## off it -- at the very sample it left from when the first is the same flight,
+## so it is rebuilt too, else as long before the first's arrival burn -- from
+## c2. Kept while it costs about what it did (WARM_K, WARM_ADD); else null, and
+## the caller looks again.
+static func _chain_again(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, c: Dictionary) -> Result:
+	var ch: Dictionary = c.chain
+	var W: Vector2 = ch.get("W", Vector2.INF)
+	if not W.is_finite():
+		return null
+	var l1 := FlightSolve.new()
+	l1._leg = 1
+	l1._wide_ok = false
+	var r1 := l1._solve(G, dep, _wp_target(W), t, ch.get("c1", {}))
+	if not r1.found or not r1.clean:
+		return null
+	var same := r1.kind == &"replay"
+	var rj := _leg_two(G, l1, r1, tgt, t, W, float(ch.get("pre", 0.0)), int(ch.get("k", -1)) if same else -1, ch.get("c2", {}))
+	if rj == null:
+		return null
+	if rj.kind == &"replay":
+		return rj
+	rj.kind = &"warm"
+	var j_old := float(c.get("J", INF))
+	if rj.cost > j_old + _warm_slack(j_old):
+		return null
+	return rj
+
+
+## WHERE THE SHIP IS NOW, as it leaves (round its ring, alongside, or free).
+func _dep_pos(t: float) -> Vector2:
+	if _dk == 2:
+		return Vector2(_dpx, _dpz)
+	_dep_at(t)
+	if _dk == 1:
+		return Vector2(_cx + _doffx, _cz + _doffz)
+	return Vector2(_cx + _drt * cos(_dang), _cz + _drt * sin(_dang))
+
+
+## THE POINTS A FLIGHT IN TWO LEGS IS AIMED THROUGH, best first: round the
+## pair's balance point, half way round from where the ship is to where the
+## place will be in CHAIN_T, the short way then the long, at CHAIN_R times the
+## farther of the two from it (never closer than CHAIN_CLEAR times the stars'
+## separation, nor past CHAIN_EDGE of the map's edge from star A).
+static func _waypoints(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	var fs := FlightSolve.new()
+	fs.G = G
+	fs.t_now = t
+	if G.star_x.size() < 2 or not fs._setup_in(dep, tgt):
+		return out
+	var pd := fs._dep_pos(t)
+	fs._tgt_at(t + CHAIN_T)
+	var pt := Vector2(fs._cx + fs._toffx, fs._cz + fs._toffz)
+	var c := G.bary
+	var qd := pd - c
+	var qt := pt - c
+	var gap := wrapf(qt.angle() - qd.angle(), -PI, PI)
+	var sep := Vector2(G.star_x[1] - G.star_x[0], G.star_z[1] - G.star_z[0]).length()
+	var e := CHAIN_EDGE * G.edge
+	for way in 2:
+		var a := qd.angle() + (gap if way == 0 else gap - signf(gap) * TAU) * 0.5
+		var u := Vector2(cos(a), sin(a))
+		# (as far out as the map allows along u: |c + u r| = e)
+		var cu := c.dot(u)
+		var r_hi := -cu + sqrt(maxf(cu * cu - c.length_squared() + e * e, 0.0))
+		for rk: float in CHAIN_R:
+			var r := clampf(maxf(qd.length(), qt.length()) * rk, CHAIN_CLEAR * sep, r_hi)
+			out.append(c + u * r)
+	return out
