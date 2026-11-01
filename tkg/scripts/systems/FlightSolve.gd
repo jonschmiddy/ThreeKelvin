@@ -50,13 +50,18 @@ extends RefCounted
 ##   first's headings, and a third slower and faster;
 ## - last, the rest of the conics as they are. At most BUDGET integrations,
 ##   and one more for the samples;
-## - when all of that finds nothing, a wider search to T_CAP_WIDE, its scan
-##   faster and, out of a settled star orbit, toward the target (`_search_wide`,
-##   BUDGET_WIDE more);
+## - when all of that finds nothing to T_CAP, THE FALLBACK (`_fallback`, ruling
+##   21): the as-built search (all of the above to T_CAP_BACK at TIME_W_BACK,
+##   BUDGET more) and a wider search to T_CAP_WIDE at TIME_W, its scan faster
+##   and, out of a settled star orbit, toward the target (`_search_wide`,
+##   BUDGET_WIDE more), the flight that arrives first kept; when both find
+##   nothing, the wider search again at TIME_W_BACK. A flight found to T_CAP
+##   whose samples cut a keep-out gets the fallback's look too, and the
+##   fallback's flight is kept if it is clean (`_build_fresh`);
 ## - in a twin, when even that finds nothing, a flight in two legs (`_chain`):
 ##   the first aimed at a point round the pair, the second leaving free off its
-##   coast before the first's arrival burn, so the ship never stops there. One
-##   Result.
+##   coast before the first's arrival burn, so the ship never stops there, both
+##   legs by the as-built search alone. One Result.
 ## A burn that all but stops the ship and turns it round (`V_CUSP`, `CUSP_TURN`),
 ## or an arrival burn the map would draw as a corner (`DRAW_K`), is not flown.
 ##
@@ -132,8 +137,9 @@ const TB_PAD := 2.0 * (1.0 / 240.0)
 ## THE RIDE round to the departure point, at the ring's own pace, lasts at
 ## most this (s): twice `ShipFlight.LEAD_MAX`'s 2.2. Past it the ride phases
 ## (below). Priced honestly, phasing costs 2 V of engine work for each unit of
-## k (70 px/s on a world's ring) where riding on costs TIME_W a second, so
-## riding is about a hundred times cheaper for the same way round; held to
+## k (70 px/s on a world's ring) where riding on costs TIME_W a second, 2.2 s
+## of it for the same way round: at the as-built TIME_W of 0.5 riding was about
+## sixty times cheaper, and at 16 (ruling 21) it is still half the price; held to
 ## 2.2 s and THRUST, the twins built by hand fell from 99.1% found to 95%
 ## (SolveTest, Oct 30). A ride's seconds are in the flight's time, so the cost
 ## keeps it short where it can.
@@ -167,8 +173,9 @@ const OWN_GAP := 2.0
 ## none, kept flights ran up to 81.6 over a fresh search (the planner review).
 const WARM_K := 0.25
 const WARM_ADD := 10.0
-## a flight arrives within this of now
-const T_CAP := 30.0
+## a flight arrives within this of now: 16 s (ruling 21, Nov 1, "Flight length:
+## C"), where ruling 20 built it to 30 (T_CAP_BACK, the fallback's)
+const T_CAP := 16.0
 ## WHEN THE SEARCH FINDS NOTHING, A WIDER ONE (`_search_wide`): arriving within
 ## T_CAP_WIDE of now, the cheapest conics to then refined, and a scan of
 ## WIDE_HEAD headings whose departures are at least as fast as crossing to the
@@ -188,7 +195,8 @@ const T_CAP := 30.0
 ## leave a star's close orbit or a settled orbit far out for a station, belt,
 ## hulk or contact on the far side of the pair, which no departure burn and one
 ## coast reaches (the closest any of 1,260 departures came was 42 to 249 px):
-## those fly in two legs (`_chain`).
+## those fly in two legs (`_chain`). Those numbers are the as-built search's;
+## at C the wider one looks beside it (`_fallback`).
 const T_CAP_WIDE := 40.0
 const WIDE_T := 20.0
 const BUDGET_WIDE := 250
@@ -219,10 +227,32 @@ const CHAIN_T := 15.0
 const CHAIN_R := [1.0, 0.7]
 const CHAIN_CLEAR := 1.5
 const CHAIN_EDGE := 0.95
-## px/s of engine work one second of flight is worth. At 0.5 the median flight
-## takes 24 s one-star, 21 s with a heavy giant and 15 s in a twin (SolveTest);
-## Jon's v2 pick took 18 to 23 s
-const TIME_W := 0.5
+## px/s of engine work one second of flight is worth: Jon's dial. Ruling 21
+## (Nov 1, "Flight length: C", picked from the Autopilot Flight Time page, eight
+## flights played at game speed) set it to 16 with T_CAP 16. As built (ruling
+## 20) it was 0.5 to a cap of 30 s, and a flight from place to place with one
+## sun took a median of 23.5 s from the click to settled (FlightTest), the v2
+## pick (B: 1, to 23 s) 18.9 s, and today's autopilot on main 6.9 s. At C it
+## takes 10.8 s, 14.9 s for 9 in 10, at worst 20; every game start 13.4 s with
+## one sun and 14.0 s in a twin. The engine works harder for it: a median of
+## 157 px/s, where the as-built flight's was 91 (the study, Nov 1).
+const TIME_W := 16.0
+## THE AS-BUILT SEARCH, behind C's (`_fallback`): ruling 20's dials, T_CAP_BACK
+## 30 s at TIME_W_BACK 0.5, with its own conic guesses and FAR_T. C's dials
+## alone missed 10 of SolveTest's 12,648 flights that the as-built search finds
+## (9 in twins, most from a settled star orbit to a station). Where C's own
+## search finds nothing, this and the wider search at TIME_W both look and the
+## flight that arrives first is kept. The as-built search alone held C's
+## flights from the edge and settled star orbits to about 29 s, one game start
+## in five to eight, where the wider one found quicker; the wider one alone let
+## flights of up to 40 s stand where the as-built found one under 30. With
+## both, C misses none of those A finds, finds one A misses, and never arrives
+## after the as-built search's flight. A flight in two legs flies both by it,
+## so those keep the as-built length: 30 of 1,790 twin plans, a median of 47 s.
+const T_CAP_BACK := 30.0
+const TIME_W_BACK := 0.5
+const CONIC_TS_BACK := [6.0, 9.0, 13.0, 18.0, 24.0, 29.0]
+const FAR_T_BACK := 18.0
 const SAMPLE := 1.0 / 240.0
 ## the coast's step: ETA of the nearest pull's dynamical time sqrt(r^3/GM),
 ## clamped; a burn's steps at most H_BURN. Measured (SolveTest): at 0.1 and
@@ -249,9 +279,10 @@ const SCAN_HEAD := 8
 const SCAN_SPEED := [[1.0, 1.43, 2.0, 2.71], [1.2, 1.71, 2.34, 3.29], [0.66, 0.8, 1.57, 3.86]]
 const SCAN_KICK := [[15.0, 35.0, 60.0], [7.0, 25.0, 47.0, 80.0], [12.0, 22.0, 100.0]]
 ## A TARGET FAR OUT OF A TWIN STAR'S WELL is scanned from at least the speed
-## that climbs out to it in about FAR_T s; a point is round a star where its
-## pull is FAR_SHARE times the other's
-const FAR_T := 18.0
+## that climbs out to it in about FAR_T s (the as-built 18 s scaled to T_CAP,
+## 9.6; the as-built search keeps FAR_T_BACK); a point is round a star where
+## its pull is FAR_SHARE times the other's
+const FAR_T := FAR_T_BACK * (T_CAP / T_CAP_BACK)
 const FAR_SHARE := 3.0
 ## its scan's speeds per pass, in times that need
 const FAR_SPEED := [[0.8, 1.1, 1.5, 2.0], [0.9, 1.25, 1.75, 2.4], [0.7, 1.0, 1.35, 2.9]]
@@ -267,7 +298,13 @@ const BACK_TURN := 0.25
 ## more, and a warm start that is not kept gives the search a budget of its
 ## own after it. A twin's flights are short and its search wide.
 const BUDGET := 140
-const CONIC_TS := [6.0, 9.0, 13.0, 18.0, 24.0, 29.0]
+## THE CONIC GUESSES' FLIGHT TIMES (s): the as-built ones (CONIC_TS_BACK)
+## scaled to T_CAP, x 16/30 (3.2, 4.8, 6.93, 9.6, 12.8, 15.47), and beside them
+## the as-built ones under T_CAP (6, 9, 13). With the scaled ones alone, the
+## v2 pick (B) flew longer than the as-built search in about a fifth of game
+## starts (the review of Nov 1); with both, C does in 1 to 2%, by at most 6 s
+const CONIC_TS := [6.0 * (T_CAP / T_CAP_BACK), 9.0 * (T_CAP / T_CAP_BACK), 6.0, 13.0 * (T_CAP / T_CAP_BACK), 9.0,
+	18.0 * (T_CAP / T_CAP_BACK), 24.0 * (T_CAP / T_CAP_BACK), 13.0, 29.0 * (T_CAP / T_CAP_BACK)]
 ## the wider search's (`_search_wide`), to T_CAP_WIDE
 const CONIC_TS_WIDE := [18.0, 24.0, 29.0, 34.0, 39.0]
 ## the conics the second stage re-solves from the real departure
@@ -423,10 +460,18 @@ var _kmax := 1.0
 var _wkeep := PackedFloat64Array()
 var _gkeep := PackedFloat64Array()
 var _budget := BUDGET
-## the time cap this search flies to (T_CAP, or T_CAP_WIDE in the wider one),
-## and whether the scan is the wider one's
+## the time cap this search flies to (T_CAP, T_CAP_BACK in the as-built one,
+## or T_CAP_WIDE in the wider one), and whether the scan is the wider one's
 var _tcap := T_CAP
 var _wide := false
+## the time weight this search prices with (TIME_W, or TIME_W_BACK in the
+## as-built one), and whether it uses the as-built search's own times (its
+## conic guesses, FAR_T_BACK)
+var _tw := TIME_W
+var _back := false
+## whether the flight kept was found by the search to T_CAP itself, not the
+## fallback (`_build_fresh`)
+var _own := false
 ## where the coast just flown first turns tighter than the map draws (`_coast_tight`)
 var _tight_t := INF
 ## A LEG OF A FLIGHT IN TWO (`_chain`): 0 a flight of one, 1 the first (to a
@@ -551,10 +596,10 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 		bad.usec = Time.get_ticks_usec() - t_us
 		return bad
 	_set = true
+	_tw = TIME_W
 	var res: Result = null
 	if not prefer.is_empty() and int(prefer.get("v", 0)) == CHOICE_V:
-		# (a flight the wider search found is warmed to its own time cap)
-		_tcap = clampf(float(prefer.get("cap", T_CAP)), T_CAP, T_CAP_WIDE)
+		_warm_tier(prefer)
 		res = _replay(prefer)
 		if res == null and _warm(prefer):
 			# KEPT while it costs about what it did; else the search, and the kept
@@ -566,30 +611,28 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 				var wj := _b_J
 				var wb := _b.duplicate()
 				var wcap := _tcap
+				var wtw := _tw
+				var wback := _back
 				_b_J = INF
 				_b = {}
 				# (a budget of its own, so it finds what a fresh search would)
 				_budget = _n_integ + BUDGET
-				# (and the wider search when that finds nothing, as a fresh plan has:
-				# without it a kept flight of 359 stood where a fresh one found 206,
-				# SolveTest Oct 31)
-				_tcap = T_CAP
-				_search()
-				if _b_J == INF and _wide_ok:
-					_search_wide()
+				# (and the fallback when that finds nothing, as a fresh plan has:
+				# without the wider search a kept flight of 359 stood where a fresh
+				# one found 206, SolveTest Oct 31)
+				_fresh()
 				if _b_J == INF or _b_J + _warm_slack(_b_J) >= wj:
 					_b_J = wj
 					_b = wb
 					_tcap = wcap
+					_tw = wtw
+					_back = wback
 					res = _build(&"warm")
 				else:
-					res = _build(&"solved")
+					res = _build_fresh()
 	if res == null:
-		_tcap = T_CAP
-		_search()
-		if _b_J == INF and _wide_ok:
-			_search_wide()
-		res = _build(&"solved")
+		_fresh()
+		res = _build_fresh()
 	res.integrations = _n_integ
 	res.steps = _n_steps
 	res.us_seed = _us_seed
@@ -602,6 +645,19 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 
 static func _warm_slack(j: float) -> float:
 	return maxf(WARM_ADD, WARM_K * j)
+
+
+## A CHOICE IS WARMED AS THE SEARCH THAT FOUND IT PRICED IT: to its own time
+## cap (`cap`), and at TIME_W_BACK with the as-built search's times where the
+## as-built search found it (past T_CAP, its `tw`), so the flight the fallback
+## found is kept or beaten on its own terms.
+func _warm_tier(c: Dictionary) -> void:
+	_tcap = clampf(float(c.get("cap", T_CAP)), T_CAP, maxf(T_CAP_WIDE, T_CAP_BACK))
+	_tw = TIME_W
+	_back = false
+	if _tcap > T_CAP + 1e-6 and absf(float(c.get("tw", TIME_W)) - TIME_W_BACK) < 1e-9:
+		_tw = TIME_W_BACK
+		_back = true
 
 
 func _setup(dep: Dictionary, tgt: Dictionary) -> bool:
@@ -965,7 +1021,13 @@ func _coast_tight() -> float:
 
 
 ## Whether the arrival burn ending at te (`_arrival`'s [.., d, dxx, dxz, dux,
-## duz, ..]) draws a cusp: the coast's motion plus the burn's, sampled.
+## duz, ..]) draws a cusp: the coast's motion plus the burn's, sampled at 17
+## points, its least speed read between each two as well. The points alone are
+## 1/16 of the burn apart, and a fast arrival's burn is long: from alongside a
+## station to world 0 (SolveTest, seed 4242 node 281, line-up 3, at ruling
+## 21's C) a 6.2 s burn took the ship from 111 px/s down to 4.4 and out at
+## 34.5, turned round 177 deg, and was flown, since the points either side of
+## its least speed, 0.39 s apart, read 7.5 and 6.4 px/s (Nov 1).
 func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
 	var d := ar[2]
 	if d <= 1e-6:
@@ -983,6 +1045,7 @@ func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
 	var v0 := 0.0
 	var v1 := 0.0
 	var vs := PackedVector2Array()
+	var lefts := PackedFloat64Array()
 	var ex := 0.0
 	var ez := 0.0
 	for j in 17:
@@ -1006,6 +1069,7 @@ func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
 			ex = ce[0] + Ax + Bx
 			ez = ce[1] + Az + Bz
 		var left := Vector2(ex - px, DRAW_TILT * (ez - pz)).length()
+		lefts.append(left)
 		if _tk != 1 or left > 1.5:
 			_acc_at(px, pz, tq)
 			var ax := _ax + (2.0 * Ax + 6.0 * Bx * tau) / (d * d)
@@ -1021,13 +1085,34 @@ func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
 		elif sp < vmin:
 			vmin = sp
 			jmin = j
+	var ja := jmin
+	var jb := jmin
+	# (between each two: the least speed on the straight change of velocity
+	# across the step, as `_departure_cusps` reads a departure's; alongside,
+	# not in its last px and a half, where the ship falls in with the place's
+	# own crawl: it all but stops there and turns with the place, which is no
+	# turn drawn, and read there it cost 7 of SolveTest's 8,544 one-sun and
+	# giant flights, every one arriving alongside)
+	for j in 16:
+		if _tk == 1 and lefts[j] <= 1.5:
+			continue
+		var gx := vs[j + 1].x - vs[j].x
+		var gz := vs[j + 1].y - vs[j].y
+		var gg := gx * gx + gz * gz
+		if gg < 1e-12:
+			continue
+		var u := -(vs[j].x * gx + vs[j].y * gz) / gg
+		if u > 0.0 and u < 1.0:
+			var su := Vector2(vs[j].x + gx * u, vs[j].y + gz * u).length()
+			if su < vmin:
+				vmin = su
+				ja = j
+				jb = j + 1
 	if not (vmin < V_CUSP + CUSP_PAD and vmin < minf(v0, v1) - CUSP_IN):
 		return false
 	# (the turn round it while slower than V_SLOW, as `_turn_round` reads a departure)
-	var ja := jmin
 	while ja > 0 and vs[ja].length() < V_SLOW:
 		ja -= 1
-	var jb := jmin
 	while jb < 16 and vs[jb].length() < V_SLOW:
 		jb += 1
 	return absf(vs[ja].angle_to(vs[jb])) > CUSP_TURN
@@ -2001,7 +2086,7 @@ func _price() -> void:
 				continue
 			var dux0 := -sin(_vphi) * s * _tV - ux0
 			var duz0 := cos(_vphi) * s * _tV - uz0
-			priced.append([sqrt(dux0 * dux0 + duz0 * duz0) + TIME_W * (te0 - t_now), c, te0])
+			priced.append([sqrt(dux0 * dux0 + duz0 * duz0) + _tw * (te0 - t_now), c, te0])
 			continue
 		var te := _te_near(kk, s)
 		if te > t_now + _tcap or te < _tc0:
@@ -2010,7 +2095,7 @@ func _price() -> void:
 		var ar := _arrival(te, st[0], st[1], st[2], st[3], s)
 		if ar.is_empty() or te - ar[2] < _tc0 + TB_PAD:
 			continue
-		priced.append([ar[0] + TIME_W * (te - t_now), c, te])
+		priced.append([ar[0] + _tw * (te - t_now), c, te])
 	priced.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]) or (float(a[0]) == float(b[0]) and int(a[1]) < int(b[1])))
 	var best := INF
 	for pc in priced:
@@ -2040,7 +2125,7 @@ func _price() -> void:
 			var tb := te - ar[2]
 			if tb < _tc0 + TB_PAD or tb > _tight_t:
 				break
-			cost = ar[0] + TIME_W * (te - t_now)
+			cost = ar[0] + _tw * (te - t_now)
 			if cost >= best:
 				break
 			# the coast clean up to the burn, and the burn's own path
@@ -2325,11 +2410,100 @@ func _scan_passes() -> bool:
 	return false
 
 
-## NOTHING FOUND: THE WIDER LOOK (T_CAP_WIDE). The scan again, its departures
+## A FRESH SEARCH into _b: to T_CAP at TIME_W, and where that finds nothing,
+## the fallback (`_fallback`). A leg of a flight in two (`_chain`) is searched
+## by the as-built search alone (T_CAP_BACK at TIME_W_BACK), so those flights
+## keep the as-built length.
+func _fresh() -> void:
+	_own = false
+	_back = false
+	if _leg > 0:
+		_tcap = T_CAP_BACK
+		_tw = TIME_W_BACK
+		_back = true
+		_search()
+		_back = false
+		return
+	_tcap = T_CAP
+	_tw = TIME_W
+	_search()
+	if _b_J < INF:
+		_own = true
+		return
+	_fallback()
+
+
+## NOTHING FOUND TO T_CAP: THE SOONER OF TWO. The as-built search to T_CAP_BACK
+## (`_search_back`) and the wider search to T_CAP_WIDE at TIME_W both look, a
+## budget each, and the flight that arrives first is kept. Where both find
+## nothing, the wider search again at TIME_W_BACK, with FAR_T_BACK (its scan
+## reads it). (The study, Nov 1: the wider search first let flights of up to
+## 40 s stand where the as-built one found one under 30; the as-built one first
+## held flights from the edge and settled star orbits to about 29 s, where the
+## wider one found quicker ones in one game start in five to eight.)
+func _fallback() -> void:
+	_search_back()
+	if not _wide_ok:
+		return
+	var kj := _b_J
+	var kb := _b.duplicate()
+	var kcap := _tcap
+	var ktw := _tw
+	_b_J = INF
+	_b = {}
+	_search_wide(TIME_W)
+	if kj < INF and (_b_J == INF or float(kb.te) <= float(_b.te) + 1e-6):
+		_b_J = kj
+		_b = kb
+		_tcap = kcap
+		_tw = ktw
+	if _b_J == INF:
+		_back = true
+		_search_wide(TIME_W_BACK)
+		_back = false
+
+
+## THE AS-BUILT SEARCH (ruling 20's), to T_CAP_BACK at TIME_W_BACK with its own
+## conic guesses and FAR_T_BACK, a budget of its own.
+func _search_back() -> void:
+	_tcap = T_CAP_BACK
+	_tw = TIME_W_BACK
+	_budget = _n_integ + BUDGET
+	_back = true
+	_search()
+	_back = false
+	if _b_J == INF:
+		_tcap = T_CAP
+		_tw = TIME_W
+
+
+## A FRESH SEARCH'S FLIGHT AS SAMPLES (`_build`). Where the search to T_CAP
+## found it and its samples cut a keep-out (the search priced it clear; the
+## samples are checked again once built), the fallback looks as it would had
+## nothing been found, and its flight is kept if it is clean.
+## Without it, a harness's free start at seed 4242 system 291 (FlightTest, to
+## place 1, one sun) kept an 11.8 s flight 0.72 px into a keep-out, found and
+## not clean, and the fallback never ran; with it, the wider search's clean
+## flight of 18.4 s (Nov 1).
+func _build_fresh() -> Result:
+	var res := _build(&"solved")
+	if not res.found or res.clean or not _own:
+		return res
+	_b_J = INF
+	_b = {}
+	_fallback()
+	if _b_J == INF:
+		return res
+	var res2 := _build(&"solved")
+	return res2 if res2.clean else res
+
+
+## THE WIDER LOOK (T_CAP_WIDE), priced at tw. The scan again, its departures
 ## at least as fast as crossing to the target in WIDE_T (`_wide_need`), its
 ## arrival up to T_CAP_WIDE on, within BUDGET_WIDE more integrations.
-func _search_wide() -> void:
+func _search_wide(tw: float) -> void:
 	_tcap = T_CAP_WIDE
+	_tw = tw
 	_budget = _n_integ + BUDGET_WIDE
 	_wide = true
 	# the cheapest conics to T_CAP_WIDE, refined
@@ -2430,7 +2604,8 @@ func _toward() -> float:
 ## build's misses in real twins, from a world's ring or a star's close orbit
 ## to the stations, belts, hulks and worlds round both; a brute scan flew them
 ## at 60 to 110 px/s off the ring (the planner review, Oct 30). So their scan
-## speeds bracket this (FAR_SPEED), not the ring's own.
+## speeds bracket this (FAR_SPEED), not the ring's own. The as-built search
+## climbs out in FAR_T_BACK.
 func _far_need() -> float:
 	if not _twin or _dk == 2:
 		return 0.0
@@ -2442,14 +2617,15 @@ func _far_need() -> float:
 		return 0.0
 	var own := sqrt(_cvx * _cvx + _cvz * _cvz)
 	var r1 := sqrt((px - G.star_x[k]) * (px - G.star_x[k]) + (pz - G.star_z[k]) * (pz - G.star_z[k]))
-	_tgt_at(t_now + FAR_T)
+	var far_t := FAR_T_BACK if _back else FAR_T
+	_tgt_at(t_now + far_t)
 	# (only to a place round both: one round a star is in that star's own well)
 	if _star_of(_cx, _cz) != -2:
 		return 0.0
 	var r2 := sqrt((_cx - G.star_x[k]) * (_cx - G.star_x[k]) + (_cz - G.star_z[k]) * (_cz - G.star_z[k]))
 	if r2 < 2.0 * r1 + 60.0:
 		return 0.0
-	var v2 := 2.0 * SystemLayout.GM_SHIP * (1.0 / r1 - 1.0 / r2) + pow((r2 - r1) / FAR_T, 2.0)
+	var v2 := 2.0 * SystemLayout.GM_SHIP * (1.0 / r1 - 1.0 / r2) + pow((r2 - r1) / far_t, 2.0)
 	return maxf(sqrt(maxf(v2, 0.0)) - own, 20.0)
 
 
@@ -2530,7 +2706,7 @@ func _seeds() -> PackedFloat64Array:
 		var oz := _doffz if _dk == 1 else 0.0
 		p1s.append_array(PackedFloat64Array([_cx + ox, _cz + oz, _cvx, _cvz]))
 	var rough: Array = []
-	for T: float in (CONIC_TS_WIDE if _wide else CONIC_TS):
+	for T: float in (CONIC_TS_WIDE if _wide else (CONIC_TS_BACK if _back else CONIC_TS)):
 		for pi in range(0, p1s.size(), 4):
 			for ci in range(0, centres.size(), 3):
 				for way: float in [1.0, -1.0]:
@@ -2540,7 +2716,7 @@ func _seeds() -> PackedFloat64Array:
 						if sol.is_empty():
 							continue
 						var pr := _price_conic(t_now + T, sol[0] - p1s[pi + 2], sol[1] - p1s[pi + 3], sol[0], sol[1], sol[2], sol[3], false, 0.0, 0.0)
-						rough.append([pr + TIME_W * T, T, ci, way, pi, ai, sol[2], sol[3]])
+						rough.append([pr + _tw * T, T, ci, way, pi, ai, sol[2], sol[3]])
 	rough.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
 	var out: Array = []
 	for r in rough.slice(0, CONIC_KEEP):
@@ -2630,7 +2806,7 @@ func _seeds() -> PackedFloat64Array:
 			if sol.is_empty():
 				continue
 			var pr := _price_conic(te, sol[0] - cvdx, sol[1] - cvdz, sol[0], sol[1], sol[2], sol[3], true, vx, vz)
-			out.append([pr + TIME_W * T, sol[0] - (cvdx if _dk != 2 else 0.0), sol[1] - (cvdz if _dk != 2 else 0.0), T, way, s, 0.0, 0.0, te])
+			out.append([pr + _tw * T, sol[0] - (cvdx if _dk != 2 else 0.0), sol[1] - (cvdz if _dk != 2 else 0.0), T, way, s, 0.0, 0.0, te])
 	out.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
 	var flat := PackedFloat64Array()
 	for o in out:
@@ -3031,7 +3207,7 @@ func _build_in(kind: StringName) -> Result:
 	res.work = res.dvp + res.dv1 + res.dv2
 	res.d2 = d2
 	res.T = te - t_now
-	res.cost = res.work + TIME_W * res.T
+	res.cost = res.work + _tw * res.T
 	res.priced = _b_J
 	_tgt_at(te)
 	var keepd := _tk == 1
@@ -3049,7 +3225,7 @@ func _build_in(kind: StringName) -> Result:
 		"td": td, "ad": float(b.ad), "a0": float(b.a0), "dvx": float(b.dvx), "dvz": float(b.dvz), "ux": float(b.ux), "uz": float(b.uz),
 		"x0": float(b.x0), "z0": float(b.z0), "vx0": float(b.vx0), "vz0": float(b.vz0),
 		"fix": bool(b.fix), "afix": float(b.afix), "te": float(b.te), "s": s, "phi": float(b.phi), "d2": float(b.d2),
-		"w2": float(b.w2), "pk": float(b.pk), "J": res.cost, "cap": _tcap}
+		"w2": float(b.w2), "pk": float(b.pk), "J": res.cost, "cap": _tcap, "tw": _tw}
 	return res
 
 

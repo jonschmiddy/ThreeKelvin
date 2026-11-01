@@ -26,7 +26,9 @@ extends Node
 ##   plan, as `fly_bg` flies it -- whether it flew that very flight, and how far
 ##   each flown frame was from the drawn point for its moment;
 ## - FLOWN through `ShipFlight.step` at 60 a second until it is on the orbit:
-##   landed, and the biggest change of velocity from one frame to the next.
+##   landed, the biggest change of velocity from one frame to the next, and
+##   how long from the click to settled (printed, not judged: ruling 21's
+##   measure of flight length).
 ## Then the captures that change under the new rule against the old (first by
 ## index), a slow ship let go inside each place's ring, and `worker` plans made
 ## on WorkerThreadPool (`plan_bg`): the same flights bit for bit, how long each
@@ -85,14 +87,16 @@ const CORNER := 20.0
 const SNAP_RATIO := 4.0
 const SNAP_DV := 6.0
 ## the longest a flight may take, from the click to on its orbit: from its plan
-## to its arrival T_CAP 30 s, ride and all (T_CAP_WIDE 40 s for the few only
-## the wider search finds), the plan made up to PREVIEW_AHEAD 1 s on, the
+## to its arrival T_CAP 16 s, ride and all (ruling 21; T_CAP_BACK 30 s where
+## the as-built search behind it flies it, T_CAP_WIDE 40 s for the few only the
+## wider search finds), the plan made up to PREVIEW_AHEAD 1 s on, the
 ## insertion or the stop alongside, and slack. It was 16 s when flights were
-## time-scaled conics of 4 to 12 s; on map time they take up to 30, or 40.
+## time-scaled conics of 4 to 12 s; on map time they take up to 16, 30 or 40.
 const FLY_MAX := 45.0
 ## a flight in two legs (`FlightSolve._chain`, in a twin only where one leg
-## reaches nothing) has a second leg of up to T_CAP more
-const FLY_MAX_TWO := FLY_MAX + FlightSolve.T_CAP
+## reaches nothing) flies both legs by the as-built search, its second of up
+## to T_CAP_BACK more
+const FLY_MAX_TWO := FLY_MAX + FlightSolve.T_CAP_BACK
 ## A START NO FLIGHT CAN LEAVE: flying free, no burn at THRUST (CLEAR_HEAD
 ## headings, each of CLEAR_DV) keeps its coast clear of every keep-out for this
 ## long (s). Close by a twin's world round one star, coasting at up to 170 px/s
@@ -234,7 +238,8 @@ func _stat(sweep: String) -> Dictionary:
 			"drawn_px": [], "corners1": 0, "corners2": 0, "turn1": [], "turn2": [], "snaps": 0, "frame_dv": 0.0,
 			"frame_ratio": 0.0, "star": INF, "keep": INF, "world": INF, "speed": 0.0, "not_found": [], "not_landed": [],
 			"cornered": [], "snapped": [], "off_drawn": [], "nose": 0.0, "by_start": {}, "systems": 0, "redrawn": 0, "ring_corners": 0, "game_corners1": 0, "game_corners2": 0, "unflyable": 0, "end_off": 0.0, "belt_ends": 0,
-			"chained": 0, "chain_T": [], "chain_ms": [], "chain_cut": [], "chain_list": [], "chain_far": 0.0, "far": 0.0, "put": []}
+			"chained": 0, "chain_T": [], "chain_ms": [], "chain_cut": [], "chain_list": [], "chain_far": 0.0, "far": 0.0, "put": [],
+			"click_game": [], "click_place": [], "click_two": []}
 	return _sw[sweep]
 
 
@@ -659,6 +664,15 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 	S.flown = int(S.flown) + 1
 	if fm.landed:
 		S.landed = int(S.landed) + 1
+		# HOW LONG IT TAKES (ruling 21's measure): from the click to settled on
+		# the orbit or alongside, s of map time, from the game's starts, out of
+		# a place (an orbit, a star's close orbit, alongside), and in two legs
+		if key != "free" and key != "near":
+			(S.click_game as Array).append(float(fm.land_s))
+		if key == "orbit" or key == "close" or key == "keep":
+			(S.click_place as Array).append(float(fm.land_s))
+		if pl.res != null and pl.res.legs == 2:
+			(S.click_two as Array).append(float(fm.land_s))
 	else:
 		(S.not_landed as Array).append(where + " (mode %s, %.1f s)" % [fm.mode_end, fm.secs])
 	if pl.res != null and not fm.undrawn:
@@ -818,7 +832,7 @@ func _measure(fl, L: SystemLayout, pl, i: int, t: float, from_b: int) -> Diction
 ## drawn insertion; on the orbit at the end; the biggest frame-to-frame change
 ## of velocity (against the frames either side, a snap's tell) and of the nose.
 func _fly(fl, i: int, t0: float, drawn, undrawn := false) -> Dictionary:
-	var out := {"landed": false, "frame_dv": 0.0, "frame_ratio": 0.0, "at": 0.0, "mode": "", "same": false,
+	var out := {"land_s": -1.0, "landed": false, "frame_dv": 0.0, "frame_ratio": 0.0, "at": 0.0, "mode": "", "same": false,
 		"off": 0.0, "snap": false, "nose": 0.0, "mode_end": "", "secs": 0.0, "undrawn": undrawn}
 	var pl = fl.fly(i, t0, func() -> void: pass, drawn.choice, null if undrawn else drawn)
 	if pl == null:
@@ -850,6 +864,7 @@ func _fly(fl, i: int, t0: float, drawn, undrawn := false) -> Dictionary:
 		if fl.reached() == i and k > 2:
 			out.landed = true
 			landed_at = k
+			out.land_s = t - t0
 			# a few frames on the orbit too
 			for _j in 6:
 				t += dt
@@ -1531,6 +1546,7 @@ func _report(cap: Dictionary) -> void:
 		print("  planning (this thread) ms: %s" % _dist(S.ms))
 		print("  flight time from the plan, s: %s; its ride first, s: %s" % [_dist(S.T), _dist(S.lead)])
 		print("  engine work, px/s: %s" % _dist(S.work))
+		print("  click to settled, s: from the game's starts %s; place to place %s; in two legs %s" % [_dist(S.click_game), _dist(S.click_place), _dist(S.click_two)])
 		print("  closest to a star's surface %.1f px; least margin to a keep-out %.2f px; closest to a world's disc %.1f px; top speed %.0f px/s" % [S.star, S.keep, S.world, S.speed])
 		print("  sharpest turn of the drawn path, deg per px: zoom 1 %s; zoom 2 %s" % [_dist(S.turn1), _dist(S.turn2)])
 		print("  corners (over %.0f deg/px in 2 px) in solved flights: zoom 1 %d, zoom 2 %d (from the game's starts %d, %d); and %d on a ring's own curve only (a ring drawn so small its ends turn that fast)" % [CORNER, S.corners1, S.corners2, S.game_corners1, S.game_corners2, S.ring_corners])
@@ -1641,10 +1657,11 @@ static func _dist(xs: Array) -> String:
 ## to leave); then, once settled, the plan to another place -- none, degenerate
 ## (not a number, off the map, through a star), how far out it swings and
 ## turns, how much it moves as the map replans it every half second for 3 s --
-## and whether it lands. Flights on map time take up to 30 s from their
-## departure and their ride up to 4.4 s first (ruling 20), so the waits for
-## settling and landing are FLY_MAX, not the 30 s and 20 s of the time-scaled
-## conics; what is counted is the same.
+## and whether it lands. Flights on map time take up to 16 s from their
+## departure (ruling 21; 30 s where the as-built search behind it flies them,
+## 40 for the wider search) and their ride up to 4.4 s first (ruling 20), so
+## the waits for settling and landing are FLY_MAX, not the 30 s and 20 s of the
+## time-scaled conics; what is counted is the same.
 func _run_retarget() -> void:
 	Rng.forced = 4242 if _one_seed < 0 else _one_seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))

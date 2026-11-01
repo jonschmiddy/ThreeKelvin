@@ -1000,7 +1000,8 @@ func _prototype() -> void:
 
 # ---------------------------------------------------------------- the cost of a step
 ## THE PLANNER'S OWN COST on this machine: 40 flights of a one-star system's
-## 30 s coast, timed; what one RK4 step costs.
+## 30 s coast (T_CAP_BACK, the as-built search's cap; only the wider search
+## flies longer), timed; what one RK4 step costs.
 func _bench() -> void:
 	var G := MapGravity.new()
 	G.add_star(-1, 0.0, 0.0, SystemLayout.GM_SHIP, 48.0)
@@ -1012,7 +1013,7 @@ func _bench() -> void:
 	var t0 := Time.get_ticks_usec()
 	var steps0 := fs._n_steps
 	for i in 40:
-		fs._integrate(0.0, 300.0, 0.0, 0.0, 26.0 + 0.1 * i, 3.0, 0.0, FlightSolve.T_CAP)
+		fs._integrate(0.0, 300.0, 0.0, 0.0, 26.0 + 0.1 * i, 3.0, 0.0, FlightSolve.T_CAP_BACK)
 	var us := Time.get_ticks_usec() - t0
 	var steps := fs._n_steps - steps0
 	print("bench: 40 coasts of 30 s round one star, %d RK4 steps, %.2f ms each, %.2f us a step" % [steps, us / 40000.0, float(us) / maxf(1.0, steps)])
@@ -1025,7 +1026,7 @@ func _bench() -> void:
 	t0 = Time.get_ticks_usec()
 	steps0 = fs2._n_steps
 	for i in 40:
-		fs2._integrate(0.0, 0.0, 300.0, 30.0 + 0.1 * i, 0.0, 0.0, 3.0, FlightSolve.T_CAP)
+		fs2._integrate(0.0, 0.0, 300.0, 30.0 + 0.1 * i, 0.0, 0.0, 3.0, FlightSolve.T_CAP_BACK)
 	us = Time.get_ticks_usec() - t0
 	steps = fs2._n_steps - steps0
 	print("bench: 40 coasts through two stars and a giant, %d RK4 steps, %.2f ms each, %.2f us a step" % [steps, us / 40000.0, float(us) / maxf(1.0, steps)])
