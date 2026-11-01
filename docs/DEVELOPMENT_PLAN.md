@@ -581,7 +581,14 @@ seen on a page before it touches the game.*
    that buys: 5 to 13% less engine work at the best line-up, nothing at a
    typical one. WASD stays free of gravity, and flying stays free of fuel.
    This takes in step 2's solved flight: the twins need a planner that
-   searches, so step 2 is built with it.
+   searches, so step 2 is built with it. **Built Oct 30 to Nov 1** on
+   feat/twin-fix (FlightSolve and MapGravity; a twin flies two legs where one
+   reaches nothing), not landed yet. **Flight length ruled Nov 1 (ruling 21,
+   "Flight length: C")** from the Autopilot Flight Time page, which played eight
+   flights at game speed: TIME_W 16 and T_CAP 16, with the as-built search as a
+   fallback where C's own finds nothing. A flight from place to place takes
+   about 11 s (9 in 10 under 15 s), the first flight after a jump about 18 s.
+   As built it took about 24 s, and today's autopilot about 7 s.
 
 Constraints: `ShipFlight` owns the flight; co-op partner positions
 (`Net.report_spot`, sent as offsets from the orbited world) must keep working;
@@ -678,6 +685,7 @@ changing how anything they touch plays.
 | Orbits | "flight:N clock:map assist:pays" | Oct 29; Phase 13 step 1 |
 | Gravity assists (ruling 18) | "Giant on map time: B": drop Phase 13 step 3, since on map time the giant never pays; step 5's prototype tests a much heavier giant | Oct 30; Phase 13 |
 | Two stars and heavy giants (ruling 20) | "Prototype: twin:A giant:A": build two-star systems with a planner that solves each autopilot flight through both stars, and giants at 1/10 to 1/4 of their star ("purely because it's more fun"), felt by every autopilot flight. Takes in step 2's solved flight | Oct 30; Phase 13 steps 2 and 5, feat/twin-stars |
+| Flight length (ruling 21) | "Flight length: C", from the Autopilot Flight Time page: TIME_W 16, T_CAP 16, with the as-built search as a fallback. About 11 s place to place, against 24 s as built (A) and 19 s (B) | Nov 1; Phase 13 step 5, feat/twin-fix |
 | The first LAUNCH's freeze stays | "C, leave it as it is. If it becomes a huge deal, we can address it then." On his Mac the planet's shader compiles in about 16 s the first time a session draws it, and the sun's and the nebula sky's in about 2 s each, so the first LAUNCH of a session stands still for 16 to 23 s. Compiling them behind the title froze the title for 13 s instead | Oct 28; `ShaderWarm` warms the four cheap shaders only |
 | A jump goes one ring deeper at most (replaced by ruling 15, Oct 27) | "A1D ... I want this to be a hard game" (Oct 22) | b28fdad6, 0.4.0 |
 | The Custodian has 200 hull | "custodian health at 200" (Oct 22) | b28fdad6, 0.4.0 |

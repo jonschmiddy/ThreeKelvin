@@ -1,0 +1,63 @@
+{
+ "order": [
+  "one-neighbour",
+  "one-across",
+  "one-starorbit",
+  "one-edge",
+  "twin-AtoB-worlds",
+  "twin-world-to-starB",
+  "twin-starA-to-starB",
+  "twin-circumbinary-to-S"
+ ],
+ "flights": {
+  "one-neighbour": {
+   "label": "ONE SUN · TO THE NEXT WORLD OUT",
+   "sub": "IOTA HOLLOW-4 II to IOTA HOLLOW-4 IV"
+  },
+  "one-across": {
+   "label": "ONE SUN · ACROSS THE SYSTEM",
+   "sub": "IOTA HOLLOW-4 I to IOTA HOLLOW-4 IV"
+  },
+  "one-starorbit": {
+   "label": "ONE SUN · FROM AN ORBIT OF THE SUN",
+   "sub": "a settled orbit of the sun, to IOTA HOLLOW-4 IV"
+  },
+  "one-edge": {
+   "label": "ONE SUN · JUST ARRIVED",
+   "sub": "from the orbit a jump puts you in, to IOTA HOLLOW-4 II"
+  },
+  "twin-AtoB-worlds": {
+   "label": "TWO SUNS · A WORLD OF ONE SUN TO A WORLD OF THE OTHER",
+   "sub": "ETA CALLOUS I to ETA CALLOUS II"
+  },
+  "twin-world-to-starB": {
+   "label": "TWO SUNS · A GIANT TO THE SECOND SUN",
+   "sub": "ETA CALLOUS IV to ETA CALLOUS WATCH B"
+  },
+  "twin-starA-to-starB": {
+   "label": "TWO SUNS · SUN TO SUN",
+   "sub": "ETA CALLOUS WATCH A to ETA CALLOUS WATCH B"
+  },
+  "twin-circumbinary-to-S": {
+   "label": "TWO SUNS · A WORLD AROUND BOTH TO A WORLD OF ONE",
+   "sub": "ETA CALLOUS V to ETA CALLOUS I"
+  }
+ },
+ "text": {
+  "H1": "How long should an autopilot flight take?",
+  "LEDE": "Eight flights by the new autopilot, each at three settings side by side. They play at game speed, from the click until the ship is in orbit. A two-sun flight can change by up to 13 s with the moment you click, so the line under each flight gives the range over ten clicks a tenth of a second apart.",
+  "PICKS": "Reply with a letter: Flight length: A, B or C",
+  "A_HEAD": "A · AS BUILT",
+  "A_STAT": "ONE SUN, PLACE TO PLACE: MEDIAN 23.5 S, LONGEST 30.6 S",
+  "A_TEXT": "Place to place, flights of about 24 s, nine in ten under 30 s. The first flight after a jump takes about 29 s. Built and tested; nothing more to write before the branch lands.",
+  "B_HEAD": "B · YOUR V2 PACE",
+  "B_STAT": "ONE SUN, PLACE TO PLACE: MEDIAN 18.9 S, LONGEST 23.7 S",
+  "B_TEXT": "Place to place, flights of about 19 s, nine in ten under 23 s: the pace you picked on the Orbits v2 page. The first flight after a jump takes about 23 s. Needs about 100 lines of new solver code with tests, and one failing test fixed.",
+  "C_HEAD": "C · QUICK",
+  "C_STAT": "ONE SUN, PLACE TO PLACE: MEDIAN 10.8 S, LONGEST 20.0 S",
+  "C_TEXT": "Place to place, flights of about 11 s, nine in ten under 15 s. The first flight after a jump takes about 18 s. The engine burns about three times as long as A's. Needs the same new code as B, and one failing test fixed.",
+  "AFTER": "At every setting, a two-sun flight that needs two legs takes about 48 s, up to 57. About 1 twin flight in 85 needs two legs. Flying inside a system costs no fuel at any setting.",
+  "TODAY": "Today's autopilot on the four one-sun flights, from the same clicks. Over every one-sun flight between places it took 6.9 s median and 12.1 s at most. It cannot fly to the second sun, so it has no two-sun flights.",
+  "HOW": "<li>Measured headless, one Godot at a time, on feat/twin-fix (ee5ef1d3) with B's and C's changes added as study code. One second of map time is one second on the wall.</li><li>The medians and longest times are from FlightTest's full runs, from the click to settled in orbit, for flights between places in one-sun systems. Over all 1,478 game starts in twins the medians are A 24.4 s, B 21.5 s and C 14.0 s.</li><li>From an orbit of the sun or just after a jump, B and C sometimes fall back to A's search, so their longest one-sun flights from any start are A 30.6 s, B 29.9 s and C 27.3 s. With a heavy giant they are 39.5, 36.4 and 34.4 s.</li><li>B lands later than A from about 1 start in 13, by up to 13 s. In twins about 1 start in 33 is later by over 5 s. C lands later from about 1 start in 55, by up to 6 s. Where B is later, it mostly picked a flight that works its engine less.</li><li>Before B or C can land: B fails one SolveTest replan check, and C fails one SolveTest check where a burn slows to a cusp (1 of 2,610 twin flights). C also leaves one test-only start grazing a keep-out.</li><li>No setting loses a flight A finds. SolveTest's 12,648 plans were compared case by case.</li><li>Each replay is the one of its ten clicks nearest that setting's median.</li><li>Drawn as the map draws them, at the zoom it opens at, in game pixels doubled: the ship's arrow (not your hull's picture), its trail, its plan line, its rings and the reticles. Names and labels are left out.</li><li>Settings: A is TIME_W 0.5, T_CAP 30. B is TIME_W 1, T_CAP 23. C is TIME_W 16, T_CAP 16.</li>"
+ }
+}

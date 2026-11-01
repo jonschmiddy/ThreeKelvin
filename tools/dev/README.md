@@ -73,6 +73,16 @@ Python tools run through uv, for example:
   raise `RunHistory.VERSION`: it discards the whole flight record, unlocks
   included.
 
+## Handoff, Nov 1 (Mac to PC)
+
+- **Twin stars (ruling 20) are built** on `feat/twin-fix` (= `feat/twin-stars`),
+  pushed, not landed. Full notes, next steps and the files the next steps need:
+  `docs/handoffs/2026-11-01-twin-stars/HANDOFF.md`.
+- **Flight length: C** (ruling 21, Nov 1): TIME_W 16, T_CAP 16, with the study's
+  fallback. Not built yet; it is the next job.
+- **Then:** the twin looks sheet (stills; ask before windowed runs), the battery,
+  CHANGELOG, one gate_land.
+
 ## Handoff, Oct 23
 
 - **Released:** 0.4.2-alpha.1 (2a0ee950) is with the friends' alpha (Cody, Geno,

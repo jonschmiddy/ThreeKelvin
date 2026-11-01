@@ -1,0 +1,535 @@
+<title>Autopilot Flight Time</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono&display=swap">
+<style>
+/* One dark look, as the game's other pick pages. Rows of flights, A B C across. */
+:root{
+  color-scheme:dark;
+  --void:#090c13; --panel:#0f141e; --line:#222c3b; --fg:#d9e1ec; --dim:#8e9bb0; --amber:#f0a043; --pick:#6fcf8f; --ion:#5ea6ff;
+  --display:"Silkscreen",ui-monospace,monospace; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+html,body{background:var(--void);color:var(--fg)}
+body{margin:0;font:15px/1.55 var(--body)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--void)}
+main{max-width:2000px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 120px;display:grid;gap:22px}
+h1{font:400 26px/1.2 var(--display);margin:0;text-wrap:balance}
+h2{font:400 15px/1.3 var(--display);margin:0;color:var(--amber);letter-spacing:.03em;text-wrap:balance}
+p{margin:0;max-width:70ch}
+header{display:grid;gap:10px}
+.picks{font:13px var(--mono);color:var(--pick)}
+.ctl{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.ctl button{font:400 13px var(--display);padding:7px 11px;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:3px;cursor:pointer}
+.ctl .note{font-size:13px;color:var(--dim)}
+button:focus-visible,summary:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.heads{position:sticky;top:env(safe-area-inset-top,0px);z-index:4;background:var(--void);padding-block:8px;border-bottom:1px solid var(--line)}
+.head{display:grid;gap:2px;min-width:0}
+.head b{font:400 13px var(--display);color:var(--fg);letter-spacing:.04em;font-weight:400}
+.head span{font:12.5px/1.4 var(--mono);color:var(--dim);font-variant-numeric:tabular-nums}
+.row{display:grid;gap:8px;min-width:0}
+.rlab{display:flex;flex-wrap:wrap;gap:2px 12px;align-items:baseline}
+.rlab b{font:400 12px var(--display);color:var(--fg);letter-spacing:.04em;font-weight:400}
+.rlab span{font-size:13px;color:var(--dim)}
+.cell{display:grid;gap:5px;min-width:0;align-content:start;justify-items:start}
+canvas{display:block;width:100%;height:auto;max-width:100%;background:var(--void);border:1px solid var(--line);border-radius:2px}
+.clock{display:flex;gap:8px;justify-content:space-between;width:100%;font:12.5px var(--mono);color:var(--dim);font-variant-numeric:tabular-nums;min-height:1.4em}
+.clock .t{color:var(--fg)}
+.clock .t.done{color:var(--pick)}
+.clock .sz{font-size:11px}
+.rng{font:11.5px/1.35 var(--mono);color:var(--dim);font-variant-numeric:tabular-nums}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:8px}
+.opts button{font:400 13px var(--display);text-align:left;padding:10px 12px;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:3px;cursor:pointer;min-width:0}
+.opts button span{display:block;font:14px/1.45 var(--body);color:var(--dim);margin-top:4px}
+.opts button[aria-pressed="true"]{border-color:var(--pick);box-shadow:inset 0 0 0 1px var(--pick)}
+section{display:grid;gap:12px;min-width:0}
+.cap{font-size:13px;color:var(--dim);max-width:80ch}
+footer{font-size:13px;color:var(--dim);border-top:1px solid var(--line);padding-top:16px;display:grid;gap:12px}
+footer summary{cursor:pointer;font:400 12px var(--display);color:var(--fg);letter-spacing:.04em}
+footer details > * + *{margin-top:10px}
+footer ul{margin:8px 0 0;padding-left:18px;display:grid;gap:6px}
+footer li{max-width:90ch}
+.quad{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.quad .rlab b{font-size:11px}
+.cells{display:grid;min-width:0}
+.reply{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);padding-block:10px calc(10px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;gap:10px;align-items:center;flex-wrap:wrap;z-index:5}
+.reply code{font:14px var(--mono);color:var(--pick);flex:1 1 200px;min-width:0}
+.reply button{font:400 13px var(--display);padding:8px 14px;background:var(--amber);color:var(--void);border:0;border-radius:3px;cursor:pointer}
+@media (max-width:760px){ .quad{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (max-width:640px){
+  .trio{grid-template-columns:1fr}
+  .heads{display:none}
+  h1{font-size:21px}
+}
+@media (prefers-reduced-motion:reduce){ .ctl .note::after{content:" Paused at load, as your system asks for less motion."} }
+</style>
+
+<main>
+<header>
+  <h1>__H1__</h1>
+  <p>__LEDE__</p>
+  <p class="picks">__PICKS__</p>
+</header>
+
+<div class="ctl">
+  <button type="button" id="play">Pause</button>
+  <button type="button" id="replay">Replay</button>
+  <span class="note">Every flight plays at game speed, from the click until the ship is in orbit.</span>
+</div>
+
+<div class="trio heads" aria-hidden="true">
+  <div class="head"><b>__A_HEAD__</b><span>__A_STAT__</span></div>
+  <div class="head"><b>__B_HEAD__</b><span>__B_STAT__</span></div>
+  <div class="head"><b>__C_HEAD__</b><span>__C_STAT__</span></div>
+</div>
+
+<div id="rows" style="display:grid;gap:26px"></div>
+
+<section>
+  <h2>YOUR PICK</h2>
+  <div class="opts" role="group" aria-label="Flight length">
+    <button type="button" data-v="A" aria-pressed="false">__A_HEAD__<span>__A_TEXT__</span></button>
+    <button type="button" data-v="B" aria-pressed="false">__B_HEAD__<span>__B_TEXT__</span></button>
+    <button type="button" data-v="C" aria-pressed="false">__C_HEAD__<span>__C_TEXT__</span></button>
+  </div>
+  <p class="cap">__AFTER__</p>
+</section>
+
+<footer>
+  <details id="today">
+    <summary>TODAY'S AUTOPILOT, FOR COMPARISON</summary>
+    <p>__TODAY__</p>
+    <div class="quad" id="todayrows"></div>
+  </details>
+  <details>
+    <summary>HOW THESE WERE MEASURED</summary>
+    <ul>__HOW__</ul>
+  </details>
+</footer>
+</main>
+
+<div class="reply" role="region" aria-label="Your reply">
+  <code id="reply">Flight length: ?</code>
+  <button type="button" id="copy">Copy</button>
+</div>
+
+<script type="application/json" id="data">__DATA__</script>
+<script>
+(() => {
+const D = JSON.parse(document.getElementById('data').textContent);
+const ICE = [195, 210, 226], CHILL = [143, 163, 186], CORE = [94, 166, 255], TIP = [191, 226, 255], WHITE = [255, 255, 255], BLACK = [0, 0, 0];
+const VOID = [10, 14, 21];
+const K = 2; // screen px to a game px: the game's 960 x 540 picture on a 1920 x 1080 screen
+const HOLD = 2.5; // seconds a row rests, every ship in orbit, before it plays again
+const OPTS = ['A', 'B', 'C'];
+const lerp = (a, b, k) => a + (b - a) * k;
+const mix = (p, q, k) => [lerp(p[0], q[0], k), lerp(p[1], q[1], k), lerp(p[2], q[2], k)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// The still part of a flight's picture: space, the orbits, the suns.
+function makeBg(f) {
+  const [x0, y0, w, h] = f.crop;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  const img = g.createImageData(w, h), a = img.data;
+  for (let i = 0; i < w * h; i++) { a[i * 4] = VOID[0]; a[i * 4 + 1] = VOID[1]; a[i * 4 + 2] = VOID[2]; a[i * 4 + 3] = 255; }
+  const put = (x, y, rgb, al) => {
+    x = Math.round(x); y = Math.round(y);
+    if (x < 0 || y < 0 || x >= w || y >= h || al <= 0) return;
+    const i = (y * w + x) * 4;
+    a[i] = lerp(a[i], rgb[0], al); a[i + 1] = lerp(a[i + 1], rgb[1], al); a[i + 2] = lerp(a[i + 2], rgb[2], al);
+  };
+  for (const o of f.orbit) { const col = o.rgba.slice(0, 3), al = o.rgba[3]; for (const p of o.pts) put(p[0] - x0, p[1] - y0, col, al); }
+  for (const s of f.stars) {
+    const cx = s.c[0] - x0, cy = s.c[1] - y0, R = s.r, G = R * 3.2;
+    for (let y = Math.floor(cy - G); y <= Math.ceil(cy + G); y++) {
+      for (let x = Math.floor(cx - G); x <= Math.ceil(cx + G); x++) {
+        const d = Math.hypot(x - cx, y - cy);
+        if (d <= R) {
+          const k = d / R;
+          put(x, y, k < 0.5 ? mix(s.hot, s.rgb, k / 0.5) : mix(s.rgb, s.limb, Math.pow((k - 0.5) / 0.5, 1.6)), 1);
+        } else if (d <= G) {
+          // the glow in steps, as the game lights: three bands, dithered at their edges
+          const q = 1 - (d - R) / (G - R);
+          let band = q > 0.66 ? 0.34 : q > 0.33 ? 0.18 : 0.07;
+          const edge = (q * 3) % 1;
+          if (edge < 0.2 && ((x + y) & 1)) band = q > 0.66 ? 0.18 : q > 0.33 ? 0.07 : 0;
+          put(x, y, s.glow, band);
+        }
+      }
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
+
+// Where a world is at map time t (seconds after the scene's clock zero): its
+// track every 0.5 s, carried on at the last step's pace past its end. `snap`
+// puts it on the map's 2 px block grid, as SystemView draws a world.
+// Where a world is at map time t (seconds after the scene's clock zero): its
+// track every 0.5 s, held at its last point past the end. `snap` puts it on
+// the map's 2 px block grid, as SystemView draws a world.
+function worldAt(wd, t, snap = true) {
+  const n = wd.c.length; if (n === 1) return wd.c[0];
+  const step = (wd.ct[1] - wd.ct[0]) || 0.5;
+  const u = Math.max(0, (t - wd.ct[0]) / step), i = Math.min(n - 2, Math.floor(u)), k = Math.min(1, u - i);
+  const p = wd.c[i], q = wd.c[i + 1];
+  const x = lerp(p[0], q[0], k), y = lerp(p[1], q[1], k);
+  if (!snap) return [x, y];
+  const gx = ((wd.c[0][0] % 2) + 2) % 2, gy = ((wd.c[0][1] % 2) + 2) % 2;
+  return [Math.round((x - gx) / 2) * 2 + gx, Math.round((y - gy) / 2) * 2 + gy];
+}
+
+// The centre of a ring the flight leaves or arrives on, at map time t.
+function rideC(f, rd, t) {
+  if (rd.c) return rd.c;
+  const wd = f.worlds.find(w => w.i === rd.w);
+  return wd ? worldAt(wd, t, false) : null;
+}
+
+// A ring's drawn radius across: SystemOverlay draws it at _orbit_px * _ok /
+// max(_orbit_k, 1), which is its real size times the overlay's ring scale.
+function ringR(rd, ok) {
+  if (ok == null) return rd.rx;
+  return (rd.rx / rd.life >= 1 ? rd.life : rd.rx) * ok;
+}
+
+// One run of one flight: where its line runs, when it leaves and settles, and
+// how it goes on around the far ring after it settles.
+function prepRun(run, f) {
+  const L = run.line, cum = [0];
+  for (let j = 1; j < L.length; j++) cum.push(cum[j - 1] + Math.hypot(L[j][0] - L[j - 1][0], L[j][1] - L[j - 1][1]));
+  run.cum = cum;
+  const S = run.s, n = S.length, ca = run.ca;
+  const left = S.find(s => s[5] !== 'ride');
+  run.t_leave = left ? left[0] : 0;
+  const cap = S.find(s => s[5] === 'orbit');
+  run.t_orbit = cap ? cap[0] : S[n - 1][0];
+  // after it settles it rides its ring at the ring's own pace (35 px/s round a
+  // world, 45 round a sun, on the real ring), eased in over 0.5 s from the
+  // speed it arrived with, on the ring as drawn
+  const tgt = f.rides.find(r => r.what === 'arrives');
+  run.after = null;
+  if (tgt && n > 12) {
+    const sq = tgt.ry / tgt.rx;
+    const ang = (s) => { const c = rideC(f, tgt, s[0] + ca); return Math.atan2((s[2] - c[1]) / sq, s[1] - c[0]); };
+    const a1 = ang(S[n - 1]), a0 = ang(S[n - 10]);
+    let da = a1 - a0; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
+    const om_s = da / (S[n - 1][0] - S[n - 10][0]);
+    const om_r = tgt.pace > 0 ? Math.sign(da || 1) * tgt.pace : om_s;
+    const c1 = rideC(f, tgt, S[n - 1][0] + ca);
+    const rho_s = Math.hypot(S[n - 1][1] - c1[0], (S[n - 1][2] - c1[1]) / sq);
+    const ok1 = run.ok ? run.ok[n - 1] : null;
+    run.after = { rd: tgt, sq, a1, om_s, om_r, rho_s, rho_r: ringR(tgt, ok1 == null ? null : ok1), t1: S[n - 1][0] };
+  }
+  return run;
+}
+
+// The ship at t seconds after the click, as the map draws it: { x, y, hd, burn,
+// ph, i, k } (i, k: the sample and the share of the way to the next, for the
+// per-sample fields).
+function shipAt(f, run, t) {
+  const S = run.s, n = S.length;
+  if (t < 0) {
+    const P = run.pre;
+    if (!P || !P.length || t < P[0][0]) return null;
+    let i = 0; while (i < P.length - 1 && P[i + 1][0] <= t) i++;
+    const p = P[i], q = i < P.length - 1 ? P[i + 1] : S[0], k = q[0] > p[0] ? clamp((t - p[0]) / (q[0] - p[0]), 0, 1) : 0;
+    return { x: lerp(p[1], q[1], k), y: lerp(p[2], q[2], k), hd: p[3], burn: p[4], ph: 'pre', i: -1, k: 0 };
+  }
+  if (t >= S[n - 1][0]) {
+    const A = run.after;
+    if (!A) return { x: S[n - 1][1], y: S[n - 1][2], hd: S[n - 1][3], burn: 0, ph: 'orbit', i: n - 1, k: 0 };
+    const dt = t - A.t1, e = Math.min(dt, 0.5);
+    // the speed eases from om_s to om_r over 0.5 s: integrate the blend
+    const a = A.a1 + A.om_r * dt + (A.om_s - A.om_r) * (e - e * e);
+    const rho = lerp(A.rho_s, A.rho_r, Math.min(1, dt / 0.5));
+    const c = rideC(f, A.rd, t + run.ca);
+    const x = c[0] + rho * Math.cos(a), y = c[1] + rho * A.sq * Math.sin(a);
+    const sg = Math.sign(A.om_r || 1);
+    const dx = -rho * Math.sin(a) * sg, dy = rho * A.sq * Math.cos(a) * sg;
+    return { x, y, hd: Math.atan2(dy, dx) * 180 / Math.PI, burn: 0, ph: 'orbit', i: n - 1, k: 0, after: true };
+  }
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (S[m][0] <= t) lo = m; else hi = m; }
+  const p = S[lo], q = S[hi], k = q[0] > p[0] ? clamp((t - p[0]) / (q[0] - p[0]), 0, 1) : 0;
+  return { x: lerp(p[1], q[1], k), y: lerp(p[2], q[2], k), hd: p[3], burn: p[4], ph: p[5], i: lo, k };
+}
+
+const FLARE = [255, 157, 61], COLD = [107, 125, 148];
+const easeOut = (x, c) => 1 - Math.pow(1 - clamp(x, 0, 1), 1 / c); // Godot's ease(x, c) for 0 < c < 1
+
+class Panel {
+  constructor(f, key, host, label) {
+    this.f = f; this.key = key; this.run = prepRun(f.runs[key], f);
+    const [, , w, h] = f.crop;
+    this.off = document.createElement('canvas'); this.off.width = w; this.off.height = h;
+    this.g = this.off.getContext('2d');
+    this.cv = document.createElement('canvas'); this.cv.width = w * K; this.cv.height = h * K;
+    this.cv.style.maxWidth = (w * K) + 'px';
+    this.cv.setAttribute('role', 'img');
+    this.cv.setAttribute('aria-label', `${label}: ${f.label.toLowerCase()}, ${this.run.secs.toFixed(1)} seconds from the click to orbit`);
+    this.vg = this.cv.getContext('2d'); this.vg.imageSmoothingEnabled = false;
+    this.clock = document.createElement('div'); this.clock.className = 'clock';
+    this.clock.innerHTML = `<span class="t"></span><span class="sz"></span>`;
+    this.tEl = this.clock.firstChild; this.szEl = this.clock.lastChild;
+    host.append(this.cv, this.clock);
+    const R = this.run.rng, rg = document.createElement('div'); rg.className = 'rng';
+    rg.textContent = R[0].toFixed(1) === R[1].toFixed(1) ? `OVER ${this.run.n} CLICKS: ${R[0].toFixed(1)} S EVERY TIME` : `OVER ${this.run.n} CLICKS: ${R[0].toFixed(1)} TO ${R[1].toFixed(1)} S`;
+    host.append(rg);
+    this.label = label; this._txt = '';
+    this.dep = f.rides.find(r => r.what === 'leaves'); this.arr = f.rides.find(r => r.what === 'arrives');
+  }
+  size() {
+    const s = this.cv.clientWidth / (this.f.crop[2] * K);
+    this.cv.style.imageRendering = s >= 0.98 ? 'pixelated' : 'auto';
+    this.szEl.textContent = s >= 0.98 ? 'GAME SIZE' : `${s.toFixed(2)} × GAME SIZE`;
+  }
+  px(x, y, rgb, al = 1) {
+    if (al <= 0) return;
+    const g = this.g; g.fillStyle = `rgba(${rgb[0] | 0},${rgb[1] | 0},${rgb[2] | 0},${Math.min(1, al)})`;
+    g.fillRect(Math.round(x), Math.round(y), 1, 1);
+  }
+  rect(x, y, w, h, rgb, al) {
+    const g = this.g; g.fillStyle = `rgba(${rgb[0] | 0},${rgb[1] | 0},${rgb[2] | 0},${Math.min(1, al)})`;
+    g.fillRect(Math.round(x), Math.round(y), w, h);
+  }
+  // SystemOverlay._ring: flattened as the plane is, solid or dashed 4 on 3 off,
+  // its far half behind the disc it circles
+  ring(c, rx, sq, col, al, dashed, disc) {
+    const [x0, y0] = this.f.crop, n = Math.floor(rx * 6.4) + 24, arc = 2 * Math.PI * rx / n;
+    for (let j = 0; j < n; j++) {
+      if (dashed && (j * arc) % 7 >= 4) continue;
+      const an = j / n * 2 * Math.PI, x = c[0] + Math.cos(an) * rx, y = c[1] + Math.sin(an) * rx * sq;
+      if (Math.sin(an) < 0 && Math.hypot(x - c[0], y - c[1]) < disc) continue;
+      this.px(Math.round(x) - x0, Math.round(y) - y0, col, al);
+    }
+  }
+  // SystemOverlay._reticle: four corner ticks, 3 px, white, `reach` out from the place
+  reticle(at, reach, al) {
+    const [x0, y0] = this.f.crop;
+    for (const [cx, cy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const kx = Math.round(at[0] + cx * reach) - x0, ky = Math.round(at[1] + cy * reach) - y0;
+      this.rect(kx - (cx > 0 ? 0 : 2), ky, 3, 1, WHITE, al);
+      this.rect(kx, ky - (cy > 0 ? 0 : 2), 1, 3, WHITE, al);
+    }
+  }
+  // where a ring's place is drawn, and how far its reticle sits out
+  placeOf(rd, tm) {
+    if (rd.s != null) { const st = this.f.stars.find(s => s.p === rd.s); return st ? [st.c, st.r + 7] : null; }
+    if (rd.w != null) { const wd = this.f.worlds.find(w => w.i === rd.w); return wd && wd.kind !== 'belt' ? [worldAt(wd, tm), wd.r + 7] : null; }
+    return null;
+  }
+  draw(t, bg) {
+    const f = this.f, run = this.run, [x0, y0] = f.crop, g = this.g, tm = t + run.ca, dep = this.dep, arr = this.arr;
+    g.drawImage(bg, 0, 0);
+    // the worlds where they are now, lit from the nearer sun
+    for (const wd of f.worlds) {
+      if (wd.r <= 0) continue;
+      const c = worldAt(wd, tm), cx = c[0] - x0, cy = c[1] - y0, r = wd.r;
+      if (cx < -r - 2 || cy < -r - 2 || cx > f.crop[2] + r + 2 || cy > f.crop[3] + r + 2) continue;
+      let L = [0, 0], best = 1e9;
+      for (const s of f.stars) { const d = Math.hypot(s.c[0] - c[0], s.c[1] - c[1]); if (d < best) { best = d; L = [(s.c[0] - c[0]) / d, (s.c[1] - c[1]) / d]; } }
+      for (let y = Math.floor(cy - r - 1); y <= Math.ceil(cy + r + 1); y++) {
+        for (let x = Math.floor(cx - r - 1); x <= Math.ceil(cx + r + 1); x++) {
+          const dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy);
+          if (d <= r) {
+            const nd = (dx * L[0] + dy * L[1]) / r;
+            const lit = clamp(0.5 + 0.7 * nd, 0, 1);
+            const step = lit > 0.66 ? 1 : lit > 0.33 ? 0.72 : 0.45;
+            this.px(x, y, wd.rgb.map(v => v * step));
+          } else if (wd.atm && d <= r + 1) {
+            this.px(x, y, wd.atm, 0.45);
+          }
+        }
+      }
+    }
+    const sh = shipAt(f, run, t);
+    const okAt = (s) => (run.ok && s && s.i >= 0 && !s.after) ? lerp(run.ok[s.i], run.ok[Math.min(run.ok.length - 1, s.i + 1)], s.k) : null;
+    const ok = okAt(sh);
+    // the ship's own point (not drawn out on its ring), for nearness to a pull
+    let rx_ = sh.x, ry_ = sh.y;
+    if (run.rw && run.rw.length && !sh.after && sh.i >= 0) {
+      const p = run.rw[sh.i], q = run.rw[Math.min(run.rw.length - 1, sh.i + 1)];
+      rx_ = lerp(p[0], q[0], sh.k); ry_ = lerp(p[1], q[1], sh.k);
+    }
+    // each world's pull, a faint dotted ring while the ship is near it and not on its ring
+    for (const wd of f.worlds) {
+      if (!wd.soi) continue;
+      const held = (sh.ph === 'ride' && dep && dep.w === wd.i) || ((sh.ph === 'capture' || sh.ph === 'orbit') && arr && arr.w === wd.i);
+      if (held) continue;
+      const c = worldAt(wd, tm, false), [rx, ry] = wd.soi;
+      const d = Math.hypot((rx_ - c[0]) / rx, (ry_ - c[1]) / ry);
+      const kk = clamp((2.2 - d) / 1.2, 0, 1);
+      if (kk <= 0) continue;
+      const n = Math.floor(rx * 2.4) + 24;
+      for (let k = 0; k < n; k += 3) {
+        const a = k / n * 2 * Math.PI;
+        this.px(Math.round(c[0] + Math.cos(a) * rx) - x0, Math.round(c[1] + Math.sin(a) * ry) - y0, COLD, 0.5 * kk);
+      }
+    }
+    // THE RINGS, as SystemOverlay._draw_rings: the orbit the ship rides, solid;
+    // left behind, a dashed fade timed from the click (shown once it has left);
+    // a settled orbit of the sun left, a fainter dashed fade from the click; the
+    // ring it burns onto, dashed; the ring it settles on, solid, with a pulse
+    if (dep) {
+      const c = rideC(f, dep, tm), sq = dep.ry / dep.rx;
+      if (dep.wide) {
+        if (t < 0.9) this.ring(c, dep.rx, sq, FLARE, 0.35 * (1 - t / 0.9), true, f.stars[0] ? f.stars[0].r : 0);
+      } else if (sh.ph === 'ride') {
+        this.ring(c, ringR(dep, ok), sq, FLARE, 0.95, false, dep.disc);
+      } else if (t < 0.9) {
+        this.ring(c, dep.rx, sq, FLARE, 0.8 * (1 - t / 0.9), true, dep.disc);
+      }
+    }
+    if (arr) {
+      const c = rideC(f, arr, tm), sq = arr.ry / arr.rx, r = sh.after ? (run.after ? run.after.rho_r : arr.rx) : ringR(arr, ok);
+      if (sh.ph === 'capture') this.ring(c, r, sq, FLARE, 0.7, true, arr.disc);
+      if (sh.ph === 'orbit') {
+        this.ring(c, r, sq, FLARE, 0.95, false, arr.disc);
+        const age = t - run.t_orbit;
+        if (age >= 0 && age < 0.7) this.ring(c, r + 22 * easeOut(age / 0.7, 0.5), sq, FLARE, 0.9 * (1 - age / 0.7), false, arr.disc);
+      }
+    }
+    // THE RETICLES: round the target all through (the selection), and round the
+    // place it leaves while it rides that ring
+    if (arr) { const pl = this.placeOf(arr, tm); if (pl) this.reticle(pl[0], pl[1], 0.95); }
+    if (dep && sh.ph === 'ride' && !dep.wide && !(arr && dep.w === arr.w && dep.s === arr.s)) {
+      const pl = this.placeOf(dep, tm); if (pl) this.reticle(pl[0], pl[1], 0.95);
+    }
+    // THE PLAN LINE still ahead of the ship, as _draw_line3 draws it: dots every
+    // 3 px laid from the ship's place on the line each frame (so they travel with
+    // it), blue where it burns, a small plus where a burn starts
+    if (sh.ph !== 'orbit') {
+      const L = run.line, cum = run.cum;
+      let p = 0;
+      if (sh.ph !== 'ride') {
+        let best = 1e9; p = this.p || 0;
+        for (let j = p; j < Math.min(L.length, p + 160); j++) {
+          const d = Math.hypot(L[j][0] - sh.x, L[j][1] - sh.y); if (d < best) { best = d; p = j; }
+        }
+      }
+      this.p = p;
+      let next = cum[p], wasOn = false;
+      for (let j = p; j < L.length; j++) {
+        const on = L[j][2] === 1, dot = cum[j] >= next;
+        if (dot) next += 3;
+        const mark = on && !wasOn; wasOn = on;
+        if ((!dot && !mark) || L[j][3]) continue;
+        const x = Math.round(L[j][0] - x0), y = Math.round(L[j][1] - y0);
+        if (mark) for (const d of [[0, -1], [-1, 0], [1, 0], [0, 1]]) this.px(x + d[0], y + d[1], TIP, 0.85);
+        if (dot) this.px(x, y, on ? CORE : ICE, on ? 0.85 : 0.65);
+      }
+    }
+    // THE TRAIL: where the ship was this last 1.4 s, orange round a place's
+    // ring, ice in open space (riding off a settled orbit of the sun is open space)
+    for (let k = 84; k >= 1; k--) {
+      const ta = t - k / 60, q = shipAt(f, run, ta);
+      // (none while the jump's streak is drawn, its first 0.6 s)
+      if (!q || (run.wa != null && ta < run.wa + 0.6)) continue;
+      const onPlace = q.ph === 'capture' || q.ph === 'orbit' || ((q.ph === 'ride' || q.ph === 'pre') && dep && !dep.wide);
+      this.px(Math.round(q.x) - x0, Math.round(q.y) - y0, onPlace ? FLARE : ICE, 0.55 * (1 - k / 84));
+    }
+    // THE SHIP: the map's arrow hull, its drive glow, and its flame while it burns
+    const X = Math.round(sh.x - x0), Y = Math.round(sh.y - y0), an = sh.hd * Math.PI / 180, c = Math.cos(an), s = Math.sin(an);
+    // hidden behind what stands in front of it (SystemOverlay._draw_ship): a sun
+    // it is farther off than, a world nearer than it; farther is higher on screen
+    const occ = [];
+    for (const st of f.stars) if (ry_ < st.c[1]) occ.push([st.c[0] - x0, st.c[1] - y0, st.r]);
+    for (const wd of f.worlds) { if (wd.r <= 0) continue; const wc = worldAt(wd, tm); if (wc[1] > ry_) occ.push([wc[0] - x0, wc[1] - y0, wd.r]); }
+    const P = (u, v, col, al = 1) => {
+      const qx = Math.round(X + u * c - v * s), qy = Math.round(Y + u * s + v * c);
+      for (const o of occ) if (Math.hypot(qx - o[0], qy - o[1]) < o[2]) return;
+      this.px(qx, qy, col, al);
+    };
+    const inH = (u, v) => u >= -3 && u <= 6 && Math.abs(v) <= (6 - u) * 0.5;
+    for (let u = -4; u < 8; u++) for (let v = -4; v < 5; v++) {
+      if (!inH(u, v) && (inH(u - 1, v) || inH(u + 1, v) || inH(u, v - 1) || inH(u, v + 1))) P(u, v, BLACK);
+    }
+    for (let u = -3; u < 7; u++) for (let v = -4; v < 5; v++) {
+      if (inH(u, v)) P(u, v, u > 3 ? WHITE : (Math.abs(v) >= 2 ? CHILL : ICE));
+    }
+    P(-4, -1, CORE); P(-4, 1, CORE);
+    P(-5, -1, Math.floor(t * 20) % 2 === 1 ? TIP : CORE); P(-5, 1, Math.floor(t * 20 + 1) % 2 === 1 ? TIP : CORE);
+    if (sh.burn) {
+      // as long and as bright as the burn: the export's flame length where there
+      // is one (int(4 + 8 bk) plus the map's own flicker, so it is drawn as it
+      // is, with bk read back from it for the brightness), else a full burn
+      let bk = 1, ln = 12 + (Math.floor(t * 30) % 3 - 1);
+      if (run.fl && sh.i >= 0 && run.fl[sh.i] > 0) { ln = run.fl[sh.i]; bk = clamp((ln - 4) / 8, 0.25, 1.6); }
+      for (let k = 1; k <= ln; k++) {
+        const fade = 1 - k / (ln + 1), tip = k / ln, al = Math.min(1, (0.35 + 0.45 * bk) * fade + (k <= 2 ? 0.25 : 0)), col = mix(CORE, TIP, tip);
+        P(-4 - k, -1, col, al); P(-4 - k, 1, col, al);
+        if (k <= 3 + Math.floor(bk * 3)) P(-4 - k, 0, col, Math.min(1, al * 1.1));
+      }
+    }
+    this.vg.drawImage(this.off, 0, 0, this.off.width * K, this.off.height * K);
+    const done = t >= run.secs;
+    const txt = done ? `${this.label} · IN ORBIT AT ${run.secs.toFixed(1)} S` : `${this.label} · ${t.toFixed(1)} S`;
+    if (txt !== this._txt) { this._txt = txt; this.tEl.textContent = txt; this.tEl.classList.toggle('done', done); }
+  }
+  reset() { this.p = 0; }
+}
+
+class Row {
+  constructor(f, keys, host, compact) {
+    this.f = f; this.bg = makeBg(f); this.panels = [];
+    const el = document.createElement('div'); el.className = 'row';
+    const lab = document.createElement('div'); lab.className = 'rlab';
+    lab.innerHTML = `<b></b><span></span>`; lab.firstChild.textContent = f.label; lab.lastChild.textContent = f.sub;
+    const grid = document.createElement('div'); grid.className = compact ? 'cells' : 'trio';
+    for (const k of keys) {
+      const cell = document.createElement('div'); cell.className = 'cell';
+      grid.append(cell);
+      this.panels.push(new Panel(f, k, cell, k === 'TODAY' ? 'TODAY' : k));
+    }
+    el.append(lab, grid); host.append(el); this.el = el;
+    this.len = Math.max(...this.panels.map(p => p.run.secs)) + HOLD;
+    this.seen = false; this.last = -1;
+  }
+  tick(T) {
+    const t = T % this.len;
+    if (t < this.last) this.panels.forEach(p => p.reset());
+    this.last = t;
+    for (const p of this.panels) p.draw(t, this.bg);
+  }
+}
+
+const rows = [], todays = [];
+const host = document.getElementById('rows');
+for (const f of D.flights) rows.push(new Row(f, OPTS.filter(k => f.runs[k]), host, false));
+const th = document.getElementById('todayrows');
+for (const f of D.flights) if (f.runs.TODAY) todays.push(new Row(f, ['TODAY'], th, true));
+const all = rows.concat(todays);
+
+const io = new IntersectionObserver(es => { for (const e of es) { const r = all.find(r => r.el === e.target); if (r) r.seen = e.isIntersecting; } }, { rootMargin: '120px' });
+all.forEach(r => io.observe(r.el));
+const sizeAll = () => all.forEach(r => r.panels.forEach(p => p.size()));
+new ResizeObserver(sizeAll).observe(document.body);
+document.getElementById('today').addEventListener('toggle', sizeAll);
+
+let T = 0, playing = !matchMedia('(prefers-reduced-motion: reduce)').matches, prev = null;
+const playBtn = document.getElementById('play');
+const setPlay = (v) => { playing = v; playBtn.textContent = v ? 'Pause' : 'Play'; };
+setPlay(playing);
+playBtn.onclick = () => setPlay(!playing);
+document.getElementById('replay').onclick = () => { T = 0; all.forEach(r => { r.last = -1; r.panels.forEach(p => p.reset()); }); setPlay(true); };
+all.forEach(r => r.tick(0));
+function frame(now) {
+  if (prev !== null && playing) T += Math.min(0.1, (now - prev) / 1000);
+  prev = now;
+  for (const r of all) if (r.seen) r.tick(T);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+const reply = document.getElementById('reply');
+document.querySelectorAll('.opts button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.opts button').forEach(o => o.setAttribute('aria-pressed', o === b ? 'true' : 'false'));
+  reply.textContent = 'Flight length: ' + b.dataset.v;
+});
+document.getElementById('copy').onclick = async () => {
+  try { await navigator.clipboard.writeText(reply.textContent); }
+  catch (e) { const r = document.createRange(); r.selectNodeContents(reply); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+};
+})();
+</script>

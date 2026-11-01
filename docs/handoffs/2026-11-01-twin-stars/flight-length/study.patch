@@ -1,0 +1,658 @@
+diff --git a/tkg/scripts/sim/FlightTest.gd b/tkg/scripts/sim/FlightTest.gd
+index 24de9506..43e7915a 100644
+--- a/tkg/scripts/sim/FlightTest.gd
++++ b/tkg/scripts/sim/FlightTest.gd
+@@ -92,7 +92,6 @@ const SNAP_DV := 6.0
+ const FLY_MAX := 45.0
+ ## a flight in two legs (`FlightSolve._chain`, in a twin only where one leg
+ ## reaches nothing) has a second leg of up to T_CAP more
+-const FLY_MAX_TWO := FLY_MAX + FlightSolve.T_CAP
+ ## A START NO FLIGHT CAN LEAVE: flying free, no burn at THRUST (CLEAR_HEAD
+ ## headings, each of CLEAR_DV) keeps its coast clear of every keep-out for this
+ ## long (s). Close by a twin's world round one star, coasting at up to 170 px/s
+@@ -155,6 +154,12 @@ var _short := false
+ var _places := 12
+ var _rows_only := false
+ var _errs := ErrCount.new()
++## FLIGHT-LENGTH STUDY (scratch): `lenout=<json>` the numbers per sweep;
++## `today=1` today's planner (`_old_plan`) flown from the same click, for its
++## click-to-arrival beside the solved one
++var _lenout := ""
++var _far_st := {}
++var _today := false
+ 
+ 
+ ## Every engine error while the map's own paths run (a task waited for twice, a
+@@ -177,9 +182,14 @@ class ErrCount extends Logger:
+ 
+ 
+ func _ready() -> void:
++	FlightSolve.tune_args()
+ 	for a in OS.get_cmdline_user_args():
+ 		var s := a as String
+-		if s.begins_with("seeds="):
++		if s.begins_with("lenout="):
++			_lenout = s.substr(7)
++		elif s == "today=1":
++			_today = true
++		elif s.begins_with("seeds="):
+ 			_n_seeds = int(s.substr(6))
+ 		elif s.begins_with("systems="):
+ 			_systems = int(s.substr(8))
+@@ -234,7 +244,8 @@ func _stat(sweep: String) -> Dictionary:
+ 			"drawn_px": [], "corners1": 0, "corners2": 0, "turn1": [], "turn2": [], "snaps": 0, "frame_dv": 0.0,
+ 			"frame_ratio": 0.0, "star": INF, "keep": INF, "world": INF, "speed": 0.0, "not_found": [], "not_landed": [],
+ 			"cornered": [], "snapped": [], "off_drawn": [], "nose": 0.0, "by_start": {}, "systems": 0, "redrawn": 0, "ring_corners": 0, "game_corners1": 0, "game_corners2": 0, "unflyable": 0, "end_off": 0.0, "belt_ends": 0,
+-			"chained": 0, "chain_T": [], "chain_ms": [], "chain_cut": [], "chain_list": [], "chain_far": 0.0, "far": 0.0, "put": []}
++			"chained": 0, "chain_T": [], "chain_ms": [], "chain_cut": [], "chain_list": [], "chain_far": 0.0, "far": 0.0, "put": [],
++			"click_all": [], "click_game": [], "click_place": [], "click_two": [], "today_game": [], "today_place": [], "today_none": 0, "sbends": 0, "rows": []}
+ 	return _sw[sweep]
+ 
+ 
+@@ -372,6 +383,7 @@ func _places_phase(seeds: Array) -> void:
+ 				Run.hellbender_at = -1
+ 				Run.hellbender_hp = 0
+ 				n2.twin = was
++	_far_st = st
+ 	for k3: String in ["far one", "far twin", "core", "start"]:
+ 		var S: Dictionary = st[k3]
+ 		print("flighttest: %s: %d flights from the game's starts: solved %d, today's planner %d, none (put there) %d; flight time %s s%s" % [k3, S.plans, S.solved, S.old, S.none, _dist(S.T),
+@@ -536,6 +548,7 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
+ 		S.none = int(S.none) + 1
+ 		(S.not_found as Array).append(where + " (none)")
+ 		(S.put as Array).append([where, _clear_for(fl, i, t)])
++		(S.rows as Array).append([where, key, -1.0, -1.0, 1, 0, -1.0, -1.0, ms, 0, 1])
+ 		return
+ 	if pl.res == null:
+ 		S.fallback = int(S.fallback) + 1
+@@ -657,10 +670,35 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
+ 	tc = tt
+ 	var fm := _fly(fl, i, tc, pv if pv != null else pl, pv == null)
+ 	S.flown = int(S.flown) + 1
++	var today_s := -1.0
+ 	if fm.landed:
+ 		S.landed = int(S.landed) + 1
++		# CLICK TO SETTLED ON THE ORBIT (or alongside), s of map time
++		(S.click_all as Array).append(float(fm.land_s))
++		if key != "free" and key != "near":
++			(S.click_game as Array).append(float(fm.land_s))
++		if key == "orbit" or key == "close" or key == "keep":
++			(S.click_place as Array).append(float(fm.land_s))
++		if pl.res != null and pl.res.legs == 2:
++			(S.click_two as Array).append(float(fm.land_s))
++		# (today's planner is never flown in a twin: `ShipFlight._fallback`)
++		if _today and key != "free" and key != "near" and not L.twin:
++			var ts := _fly_today(sweep, L, key, b, i, t, tc, n.index)
++			today_s = ts
++			if ts < 0.0:
++				S.today_none = int(S.today_none) + 1
++			else:
++				(S.today_game as Array).append(ts)
++				if key == "orbit" or key == "close" or key == "keep":
++					(S.today_place as Array).append(ts)
+ 	else:
+ 		(S.not_landed as Array).append(where + " (mode %s, %.1f s)" % [fm.mode_end, fm.secs])
++	# (one row a case, so two settings compare case by case: where, the start,
++	# plan T, engine work, legs, clean, click to settled, today's, planning ms,
++	# today's planner's fallback, put there)
++	(S.rows as Array).append([where, key, float(pl.res.T) if pl.res != null else -1.0, float(pl.res.work) if pl.res != null else -1.0,
++		int(pl.res.legs) if pl.res != null else 1, 1 if pl.res != null and pl.res.clean else 0, float(fm.land_s) if fm.landed else -1.0,
++		today_s, ms, 1 if pl.res == null else 0, 0])
+ 	if pl.res != null and not fm.undrawn:
+ 		S.clicks = int(S.clicks) + 1
+ 		if fm.same:
+@@ -818,7 +856,7 @@ func _measure(fl, L: SystemLayout, pl, i: int, t: float, from_b: int) -> Diction
+ ## drawn insertion; on the orbit at the end; the biggest frame-to-frame change
+ ## of velocity (against the frames either side, a snap's tell) and of the nose.
+ func _fly(fl, i: int, t0: float, drawn, undrawn := false) -> Dictionary:
+-	var out := {"landed": false, "frame_dv": 0.0, "frame_ratio": 0.0, "at": 0.0, "mode": "", "same": false,
++	var out := {"land_s": -1.0, "landed": false, "frame_dv": 0.0, "frame_ratio": 0.0, "at": 0.0, "mode": "", "same": false,
+ 		"off": 0.0, "snap": false, "nose": 0.0, "mode_end": "", "secs": 0.0, "undrawn": undrawn}
+ 	var pl = fl.fly(i, t0, func() -> void: pass, drawn.choice, null if undrawn else drawn)
+ 	if pl == null:
+@@ -850,6 +888,7 @@ func _fly(fl, i: int, t0: float, drawn, undrawn := false) -> Dictionary:
+ 		if fl.reached() == i and k > 2:
+ 			out.landed = true
+ 			landed_at = k
++			out.land_s = t - t0
+ 			# a few frames on the orbit too
+ 			for _j in 6:
+ 				t += dt
+@@ -888,6 +927,61 @@ func _fly(fl, i: int, t0: float, drawn, undrawn := false) -> Dictionary:
+ 	return out
+ 
+ 
++## TODAY'S PLANNER FROM THE SAME CLICK (`today=1`): the ship started as the
++## case's was; the preview made at the selection as main's overlay made it
++## (`_old_plan`, made again from its own choice every 3 s on a ring and every
++## 0.5 s otherwise); ridden on to the click, and the click flown as main's
++## `fly` flew it: `_old_plan` from the preview's choice, which keeps its
++## arrival time (planned afresh only where that no longer starts at the ship);
++## at 60 a second to settled; s from the click, or -1.
++func _fly_today(sweep: String, L: SystemLayout, key: String, b: int, i: int, t: float, tc: float, seed: int) -> float:
++	var fo = _flight_script.new()
++	fo.setup(L, Vector2(-L.edge * 0.95, 0.0), t)
++	_start(fo, L, key, b, t, seed)
++	var dt := 1.0 / 60.0
++	fo.step(dt, t, NONE)
++	var pv = fo._old_plan(i, t)
++	var t_pv := t
++	var tt := t
++	while tt + dt <= tc + 1e-9:
++		tt += dt
++		fo.step(dt, tt, NONE)
++		var in_orbit: bool = fo.mode == &"rail" and not fo.inserting()
++		if pv != null and tt - t_pv > (3.0 if in_orbit else 0.5):
++			t_pv = tt
++			var np = fo._old_plan(i, tt, pv.choice)
++			if np != null:
++				pv = np
++	var po = today_click(fo, i, tt, pv)
++	if po == null:
++		return -1.0
++	po.to = i
++	po.t_plan = tt
++	var got = fo.fly(i, tt, func() -> void: pass, {}, po)
++	if got == null:
++		return -1.0
++	var t0 := tt
++	for k in int(FLY_MAX / dt):
++		tt += dt
++		fo.step(dt, tt, NONE)
++		if fo.reached() == i and k > 2:
++			return tt - t0
++	return -1.0
++
++
++## MAIN'S CLICK on today's planner (`ShipFlight.fly` before the branch): the
++## preview's own choice planned at the click, and planned afresh where the kept
++## plan no longer starts where the ship is; null where neither finds one.
++static func today_click(fo, i: int, tc: float, pv):
++	var prefer: Dictionary = pv.choice if pv != null else {}
++	var po = fo._old_plan(i, tc, prefer)
++	if po != null and not prefer.is_empty() and po.lead <= 0.0 and not po.samp.is_empty():
++		var w0: Vector3 = fo.where3()
++		if Vector2(po.samp[0].x - w0.x, po.samp[0].z - w0.z).length() > 3.0:
++			po = fo._old_plan(i, tc)
++	return po
++
++
+ ## HOW LONG THE BEST BURN FROM HERE KEEPS CLEAR (s, up to 30): flying free, a
+ ## burn at THRUST of each of CLEAR_DV at CLEAR_HEAD headings and the coast after
+ ## it, through the keep-outs this flight to place i holds (its own place's cut
+@@ -912,7 +1006,7 @@ func _clear_for(fl, i: int, t: float) -> float:
+ 
+ ## The longest plan pl may take from its click to on its orbit (s).
+ static func _fly_max(pl) -> float:
+-	return FLY_MAX_TWO if pl != null and pl.res != null and pl.res.legs == 2 else FLY_MAX
++	return FLY_MAX + FlightSolve.T_CAP if pl != null and pl.res != null and pl.res.legs == 2 else FLY_MAX
+ 
+ 
+ ## How far p is from the polyline (plane px).
+@@ -960,6 +1054,7 @@ func _category(sweep: String, key: String, fl, L: SystemLayout, pl, path3: Packe
+ 	var ga := _gait(fl, L, pl, path3, i, b if key == "orbit" else -9)
+ 	(C.off as Array).append(ga[0])
+ 	(C.s as Array).append(ga[1])
++	_stat(sweep).sbends = int(_stat(sweep).sbends) + int(ga[1])
+ 	(C.sw as Array).append(ga[2])
+ 	(C.arr as Array).append(ga[3])
+ 	(C.dur as Array).append(float(pl.res.T) if pl.res != null else float(pl.dur))
+@@ -1531,6 +1626,9 @@ func _report(cap: Dictionary) -> void:
+ 		print("  planning (this thread) ms: %s" % _dist(S.ms))
+ 		print("  flight time from the plan, s: %s; its ride first, s: %s" % [_dist(S.T), _dist(S.lead)])
+ 		print("  engine work, px/s: %s" % _dist(S.work))
++		print("  CLICK TO SETTLED, s of map time: every start %s; the game's starts %s; out of a place (orbit, close orbit, alongside) %s; two legs %s" % [_dist(S.click_all), _dist(S.click_game), _dist(S.click_place), _dist(S.click_two)])
++		if _today:
++			print("  TODAY'S PLANNER, click to settled, s: the game's starts %s; out of a place %s; none %d" % [_dist(S.today_game), _dist(S.today_place), S.today_none])
+ 		print("  closest to a star's surface %.1f px; least margin to a keep-out %.2f px; closest to a world's disc %.1f px; top speed %.0f px/s" % [S.star, S.keep, S.world, S.speed])
+ 		print("  sharpest turn of the drawn path, deg per px: zoom 1 %s; zoom 2 %s" % [_dist(S.turn1), _dist(S.turn2)])
+ 		print("  corners (over %.0f deg/px in 2 px) in solved flights: zoom 1 %d, zoom 2 %d (from the game's starts %d, %d); and %d on a ring's own curve only (a ring drawn so small its ends turn that fast)" % [CORNER, S.corners1, S.corners2, S.game_corners1, S.game_corners2, S.ring_corners])
+@@ -1618,6 +1716,34 @@ func _report(cap: Dictionary) -> void:
+ 	print("  S-bends by where: %s" % _s_where)
+ 	print("  fallbacks: %d to today's planner, %d none (the ship put there) of %d plans" % [ShipFlightS.n_fallback, ShipFlightS.n_none, tot_plans])
+ 	print("flighttest: captures, a slow ship let go inside a place's ring: one star %d of %d held by two rings or more, %d of them taken elsewhere by the new rule (the place the line goes into, else the nearest; it was the first world by index); two suns %d of %d, %d" % [cap.one[0], cap.one[2], cap.one[1], cap.twin[0], cap.twin[2], cap.twin[1]])
++	if _lenout != "":
++		var o := {"setting": FlightSolve.setting(), "tw": FlightSolve.TIME_W, "cap": FlightSolve.T_CAP, "capw": FlightSolve.T_CAP_WIDE, "sweeps": {}, "far": {}}
++		for sweep: String in _sw:
++			var S: Dictionary = _sw[sweep]
++			var g_n := 0
++			var g_ok := 0
++			for k in S.by_start:
++				if k != "free" and k != "near":
++					g_n += int(S.by_start[k].plans)
++					g_ok += int(S.by_start[k].clean)
++			var cats := {}
++			for ck: String in _cat:
++				if ck.begins_with(sweep + ":"):
++					cats[ck] = {"n": _cat[ck].n, "dur": _cat[ck].dur, "s": _cat[ck].s, "c1": _cat[ck].c1, "c2": _cat[ck].c2}
++			o.sweeps[sweep] = {"plans": S.plans, "solved": S.solved, "clean": S.clean, "fallback": S.fallback, "none": S.none,
++				"game_n": g_n, "game_ok": g_ok, "by_start": S.by_start, "put": (S.put as Array).size(), "put_list": S.put,
++				"chained": S.chained, "chain_T": S.chain_T, "corners1": S.corners1, "corners2": S.corners2,
++				"game_corners1": S.game_corners1, "game_corners2": S.game_corners2, "sbends": S.sbends,
++				"ms": S.ms, "T": S.T, "lead": S.lead, "work": S.work, "landed": S.landed, "flown": S.flown,
++				"click_all": S.click_all, "click_game": S.click_game, "click_place": S.click_place, "click_two": S.click_two,
++				"today_game": S.today_game, "today_place": S.today_place, "today_none": S.today_none,
++				"drawn": S.drawn, "clicks": S.clicks, "snaps": S.snaps, "not_found": S.not_found, "cats": cats, "rows": S.rows}
++		for k4: String in _far_st:
++			var F: Dictionary = _far_st[k4]
++			o.far[k4] = {"plans": F.plans, "solved": F.solved, "old": F.old, "none": F.none, "T": F.T, "inside": F.inside}
++		var fo := FileAccess.open(_lenout, FileAccess.WRITE)
++		fo.store_string(JSON.stringify(o))
++		fo.close()
+ 	if _out != "":
+ 		var f := FileAccess.open(_out, FileAccess.WRITE)
+ 		f.store_string(JSON.stringify({"sweeps": _sw, "cap": cap}))
+diff --git a/tkg/scripts/sim/SolveTest.gd b/tkg/scripts/sim/SolveTest.gd
+index 41b4d600..6f83b07c 100644
+--- a/tkg/scripts/sim/SolveTest.gd
++++ b/tkg/scripts/sim/SolveTest.gd
+@@ -86,6 +86,7 @@ var _res: Array = []
+ 
+ 
+ func _ready() -> void:
++	FlightSolve.tune_args()
+ 	for a in OS.get_cmdline_user_args():
+ 		var s := a as String
+ 		if s.begins_with("systems="):
+diff --git a/tkg/scripts/systems/FlightSolve.gd b/tkg/scripts/systems/FlightSolve.gd
+index 280a352a..6d637127 100644
+--- a/tkg/scripts/systems/FlightSolve.gd
++++ b/tkg/scripts/systems/FlightSolve.gd
+@@ -137,7 +137,7 @@ const TB_PAD := 2.0 * (1.0 / 240.0)
+ ## 2.2 s and THRUST, the twins built by hand fell from 99.1% found to 95%
+ ## (SolveTest, Oct 30). A ride's seconds are in the flight's time, so the cost
+ ## keeps it short where it can.
+-const LEAD_MAX := 4.4
++static var LEAD_MAX := 4.4
+ ## THE PHASING BURN's top pace, in times the ring's own, at the most: the ride
+ ## speeds round as `ShipFlight._step_phase` flies it, pace 1 + (k - 1) sin^2,
+ ## and its push along the ring peaks at |w| (k - 1) pi rt / LEAD_MAX. That push
+@@ -168,7 +168,7 @@ const OWN_GAP := 2.0
+ const WARM_K := 0.25
+ const WARM_ADD := 10.0
+ ## a flight arrives within this of now
+-const T_CAP := 30.0
++static var T_CAP := 30.0
+ ## WHEN THE SEARCH FINDS NOTHING, A WIDER ONE (`_search_wide`): arriving within
+ ## T_CAP_WIDE of now, the cheapest conics to then refined, and a scan of
+ ## WIDE_HEAD headings whose departures are at least as fast as crossing to the
+@@ -189,8 +189,8 @@ const T_CAP := 30.0
+ ## hulk or contact on the far side of the pair, which no departure burn and one
+ ## coast reaches (the closest any of 1,260 departures came was 42 to 249 px):
+ ## those fly in two legs (`_chain`).
+-const T_CAP_WIDE := 40.0
+-const WIDE_T := 20.0
++static var T_CAP_WIDE := 40.0
++static var WIDE_T := 20.0
+ const BUDGET_WIDE := 250
+ const WIDE_HEAD := 12
+ const WIDE_SPAN := PI * 75.0 / 180.0
+@@ -215,14 +215,14 @@ const WIDE_SPAN := PI * 75.0 / 180.0
+ ## nor, there, a first leg that was that burn and its coast.
+ const CHAIN_PRE := [0.5, 3.0, 6.0]
+ const CHAIN_AFTER := 0.5
+-const CHAIN_T := 15.0
++static var CHAIN_T := 15.0
+ const CHAIN_R := [1.0, 0.7]
+ const CHAIN_CLEAR := 1.5
+ const CHAIN_EDGE := 0.95
+ ## px/s of engine work one second of flight is worth. At 0.5 the median flight
+ ## takes 24 s one-star, 21 s with a heavy giant and 15 s in a twin (SolveTest);
+ ## Jon's v2 pick took 18 to 23 s
+-const TIME_W := 0.5
++static var TIME_W := 0.5
+ const SAMPLE := 1.0 / 240.0
+ ## the coast's step: ETA of the nearest pull's dynamical time sqrt(r^3/GM),
+ ## clamped; a burn's steps at most H_BURN. Measured (SolveTest): at 0.1 and
+@@ -251,7 +251,7 @@ const SCAN_KICK := [[15.0, 35.0, 60.0], [7.0, 25.0, 47.0, 80.0], [12.0, 22.0, 10
+ ## A TARGET FAR OUT OF A TWIN STAR'S WELL is scanned from at least the speed
+ ## that climbs out to it in about FAR_T s; a point is round a star where its
+ ## pull is FAR_SHARE times the other's
+-const FAR_T := 18.0
++static var FAR_T := 18.0
+ const FAR_SHARE := 3.0
+ ## its scan's speeds per pass, in times that need
+ const FAR_SPEED := [[0.8, 1.1, 1.5, 2.0], [0.9, 1.25, 1.75, 2.4], [0.7, 1.0, 1.35, 2.9]]
+@@ -267,9 +267,9 @@ const BACK_TURN := 0.25
+ ## more, and a warm start that is not kept gives the search a budget of its
+ ## own after it. A twin's flights are short and its search wide.
+ const BUDGET := 140
+-const CONIC_TS := [6.0, 9.0, 13.0, 18.0, 24.0, 29.0]
++static var CONIC_TS: Array = [6.0, 9.0, 13.0, 18.0, 24.0, 29.0]
+ ## the wider search's (`_search_wide`), to T_CAP_WIDE
+-const CONIC_TS_WIDE := [18.0, 24.0, 29.0, 34.0, 39.0]
++static var CONIC_TS_WIDE: Array = [18.0, 24.0, 29.0, 34.0, 39.0]
+ ## the conics the second stage re-solves from the real departure
+ const CONIC_KEEP := 6
+ ## THE DEPARTURE BURN IS EASED WHILE THE SHIP IS SLOW (Jon: "why are there
+@@ -324,6 +324,79 @@ const DRAW_K := 0.6
+ const CHOICE_V := 1
+ 
+ 
++## FLIGHT-LENGTH STUDY (scratch, Nov 1; not for the repo): the time dials set
++## from a harness or the command line. `fs.tw=` TIME_W, `fs.cap=` T_CAP (and,
++## unless `fs.capw=` says, T_CAP_WIDE the same 10 s past it), `fs.lead=`
++## LEAD_MAX; the search's own times (the conic guesses, WIDE_T, FAR_T, CHAIN_T)
++## go with the cap they were tuned to (30 s, and 40 for the wider one) unless
++## `fs.scale=0`. Returns the setting as one line.
++static var _T0 := {"tw": 0.5, "cap": 30.0, "capw": 40.0, "lead": 4.4}
++## (study prototype, off at 0) A QUICK CAP WITH THE AS-BUILT SEARCH BEHIND IT:
++## where the search to T_CAP finds nothing, the search again to T_CAP_BACK with
++## the as-built search times (its conics, FAR_T), before the wider one
++static var T_CAP_BACK := 0.0
++## (and its time weight: the whole as-built procedure, so what it found is found)
++const TIME_W_BACK := 0.5
++const CONIC_TS_BACK := [6.0, 9.0, 13.0, 18.0, 24.0, 29.0]
++const FAR_T_BACK := 18.0
++static func tune(d: Dictionary) -> String:
++	TIME_W = float(d.get("tw", _T0.tw))
++	T_CAP = float(d.get("cap", _T0.cap))
++	T_CAP_WIDE = float(d.get("capw", T_CAP + 10.0))
++	LEAD_MAX = float(d.get("lead", _T0.lead))
++	T_CAP_BACK = float(d.get("back", 0.0))
++	var sc := bool(d.get("scale", true))
++	var k := T_CAP / 30.0 if sc else 1.0
++	var kw := T_CAP_WIDE / 40.0 if sc else 1.0
++	CONIC_TS = []
++	for x: float in [6.0, 9.0, 13.0, 18.0, 24.0, 29.0]:
++		if x * k <= T_CAP:
++			CONIC_TS.append(x * k)
++	# (`fs.both=1`, the review of Nov 1: the as-built guesses under the cap kept
++	# beside the scaled ones, so a flight the as-built search finds inside the
++	# cap is still among the guesses)
++	if bool(d.get("both", false)) and sc and k != 1.0:
++		for x1: float in [6.0, 9.0, 13.0, 18.0, 24.0, 29.0]:
++			if x1 <= T_CAP and not CONIC_TS.has(x1):
++				CONIC_TS.append(x1)
++		CONIC_TS.sort()
++	CONIC_TS_WIDE = []
++	for x2: float in [18.0, 24.0, 29.0, 34.0, 39.0]:
++		if x2 * kw <= T_CAP_WIDE:
++			CONIC_TS_WIDE.append(x2 * kw)
++	WIDE_T = 20.0 * kw
++	FAR_T = 18.0 * k
++	CHAIN_T = 15.0 * k if T_CAP_BACK <= 0.0 else 15.0
++	return setting()
++
++
++static func setting() -> String:
++	return "TIME_W %s, T_CAP %s, T_CAP_WIDE %s, back %s, LEAD_MAX %s, conics %s, wide %s, WIDE_T %s, FAR_T %s, CHAIN_T %s" % [TIME_W, T_CAP, T_CAP_WIDE, T_CAP_BACK, LEAD_MAX, CONIC_TS, CONIC_TS_WIDE, WIDE_T, FAR_T, CHAIN_T]
++
++
++static func tune_args() -> String:
++	var d := {}
++	for a in OS.get_cmdline_user_args():
++		var s := a as String
++		if s.begins_with("fs.tw="):
++			d.tw = float(s.substr(6))
++		elif s.begins_with("fs.cap="):
++			d.cap = float(s.substr(7))
++		elif s.begins_with("fs.capw="):
++			d.capw = float(s.substr(8))
++		elif s.begins_with("fs.lead="):
++			d.lead = float(s.substr(8))
++		elif s.begins_with("fs.back="):
++			d.back = float(s.substr(8))
++		elif s == "fs.scale=0":
++			d.scale = false
++		elif s == "fs.both=1":
++			d.both = true
++	var line := tune(d)
++	print("flightsolve setting: %s" % line)
++	return line
++
++
+ class Result:
+ 	extends RefCounted
+ 	var found := false
+@@ -427,6 +500,10 @@ var _budget := BUDGET
+ ## and whether the scan is the wider one's
+ var _tcap := T_CAP
+ var _wide := false
++var _back := false
++## the time weight this search prices with: TIME_W, or the as-built behind a quick cap
++var _tw := 0.5
++var _prefer_tw := 0.5
+ ## where the coast just flown first turns tighter than the map draws (`_coast_tight`)
+ var _tight_t := INF
+ ## A LEG OF A FLIGHT IN TWO (`_chain`): 0 a flight of one, 1 the first (to a
+@@ -551,10 +628,13 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
+ 		bad.usec = Time.get_ticks_usec() - t_us
+ 		return bad
+ 	_set = true
++	_tw = TIME_W
+ 	var res: Result = null
+ 	if not prefer.is_empty() and int(prefer.get("v", 0)) == CHOICE_V:
+ 		# (a flight the wider search found is warmed to its own time cap)
+-		_tcap = clampf(float(prefer.get("cap", T_CAP)), T_CAP, T_CAP_WIDE)
++		_tcap = clampf(float(prefer.get("cap", T_CAP)), T_CAP, maxf(T_CAP_WIDE, T_CAP_BACK))
++		_prefer_tw = float(prefer.get("tw", TIME_W))
++		_tier_of_cap()
+ 		res = _replay(prefer)
+ 		if res == null and _warm(prefer):
+ 			# KEPT while it costs about what it did; else the search, and the kept
+@@ -566,6 +646,8 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
+ 				var wj := _b_J
+ 				var wb := _b.duplicate()
+ 				var wcap := _tcap
++				var wtw := _tw
++				var wback := _back
+ 				_b_J = INF
+ 				_b = {}
+ 				# (a budget of its own, so it finds what a fresh search would)
+@@ -573,22 +655,18 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
+ 				# (and the wider search when that finds nothing, as a fresh plan has:
+ 				# without it a kept flight of 359 stood where a fresh one found 206,
+ 				# SolveTest Oct 31)
+-				_tcap = T_CAP
+-				_search()
+-				if _b_J == INF and _wide_ok:
+-					_search_wide()
++				_fresh()
+ 				if _b_J == INF or _b_J + _warm_slack(_b_J) >= wj:
+ 					_b_J = wj
+ 					_b = wb
+ 					_tcap = wcap
++					_tw = wtw
++					_back = wback
+ 					res = _build(&"warm")
+ 				else:
+ 					res = _build(&"solved")
+ 	if res == null:
+-		_tcap = T_CAP
+-		_search()
+-		if _b_J == INF and _wide_ok:
+-			_search_wide()
++		_fresh()
+ 		res = _build(&"solved")
+ 	res.integrations = _n_integ
+ 	res.steps = _n_steps
+@@ -2001,7 +2079,7 @@ func _price() -> void:
+ 				continue
+ 			var dux0 := -sin(_vphi) * s * _tV - ux0
+ 			var duz0 := cos(_vphi) * s * _tV - uz0
+-			priced.append([sqrt(dux0 * dux0 + duz0 * duz0) + TIME_W * (te0 - t_now), c, te0])
++			priced.append([sqrt(dux0 * dux0 + duz0 * duz0) + _tw * (te0 - t_now), c, te0])
+ 			continue
+ 		var te := _te_near(kk, s)
+ 		if te > t_now + _tcap or te < _tc0:
+@@ -2010,7 +2088,7 @@ func _price() -> void:
+ 		var ar := _arrival(te, st[0], st[1], st[2], st[3], s)
+ 		if ar.is_empty() or te - ar[2] < _tc0 + TB_PAD:
+ 			continue
+-		priced.append([ar[0] + TIME_W * (te - t_now), c, te])
++		priced.append([ar[0] + _tw * (te - t_now), c, te])
+ 	priced.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]) or (float(a[0]) == float(b[0]) and int(a[1]) < int(b[1])))
+ 	var best := INF
+ 	for pc in priced:
+@@ -2040,7 +2118,7 @@ func _price() -> void:
+ 			var tb := te - ar[2]
+ 			if tb < _tc0 + TB_PAD or tb > _tight_t:
+ 				break
+-			cost = ar[0] + TIME_W * (te - t_now)
++			cost = ar[0] + _tw * (te - t_now)
+ 			if cost >= best:
+ 				break
+ 			# the coast clean up to the burn, and the burn's own path
+@@ -2325,11 +2403,97 @@ func _scan_passes() -> bool:
+ 	return false
+ 
+ 
++## A FRESH SEARCH: to T_CAP at TIME_W; with a quick cap and the as-built
++## procedure behind it (study prototype, T_CAP_BACK), that procedure where the
++## quick one finds nothing, and a leg of a flight in two always by it; then the
++## wider search.
++static var dbg := false
++func _dbg(what: String) -> void:
++	if dbg:
++		print("    fresh %s: found %s, J %.1f, integrations %d, tcap %.1f, tw %.2f, back %s" % [what, _b_J < INF, _b_J, _n_integ, _tcap, _tw, _back])
++
++
++func _fresh() -> void:
++	_tcap = T_CAP
++	_tw = TIME_W
++	_back = false
++	if _leg > 0 and T_CAP_BACK > T_CAP:
++		_tcap = T_CAP_BACK
++		_tw = TIME_W_BACK
++		_back = true
++		_search()
++		_back = false
++		return
++	_search()
++	_dbg("search")
++	# THE SOONER OF TWO where the setting's own search finds nothing: the
++	# as-built search to T_CAP_BACK and the wider one at TIME_W both look, and
++	# the flight that arrives first is kept. (The review of Nov 1: the wider
++	# search alone first let a flight of up to 40 s stand where the as-built
++	# search found one under 30. The as-built search alone first held C's
++	# flights from the edge and settled star orbits to about 29 s, where its
++	# wider search had found quicker ones: one game start in seven to five.)
++	if _b_J == INF and T_CAP_BACK > T_CAP:
++		_search_back()
++		_dbg("back")
++		if _wide_ok:
++			var kj := _b_J
++			var kb := _b.duplicate()
++			var kcap := _tcap
++			var ktw := _tw
++			_b_J = INF
++			_b = {}
++			_search_wide(TIME_W)
++			_dbg("wide")
++			if kj < INF and (_b_J == INF or float(kb.te) <= float(_b.te) + 1e-6):
++				_b_J = kj
++				_b = kb
++				_tcap = kcap
++				_tw = ktw
++	elif _b_J == INF and _wide_ok:
++		_search_wide(TIME_W)
++		_dbg("wide")
++	if _b_J == INF and T_CAP_BACK > T_CAP and _wide_ok:
++		# (the as-built wider one last; its FAR_T too: the wider scan reads it)
++		_back = true
++		_search_wide(TIME_W_BACK)
++		_back = false
++		_dbg("back wide")
++
++
++## (study prototype) A warmed flight priced as the tier that found it: past
++## T_CAP with a procedure behind it, the as-built weight (and its search times).
++func _tier_of_cap() -> void:
++	_tw = TIME_W
++	_back = false
++	if T_CAP_BACK > T_CAP and _tcap > T_CAP + 1e-6 and absf(float(_prefer_tw) - TIME_W_BACK) < 1e-9:
++		_tw = TIME_W_BACK
++		_back = true
++
++
++## (study prototype) NOTHING FOUND TO A QUICK T_CAP: the as-built search to
++## T_CAP_BACK at the as-built weight, a budget of its own.
++func _search_back() -> void:
++	if _b_J < INF or T_CAP_BACK <= T_CAP:
++		return
++	_tcap = T_CAP_BACK
++	_tw = TIME_W_BACK
++	_budget = _n_integ + BUDGET
++	_back = true
++	_search()
++	_back = false
++	if _b_J == INF:
++		_tcap = T_CAP
++		_tw = TIME_W
++
++
+ ## NOTHING FOUND: THE WIDER LOOK (T_CAP_WIDE). The scan again, its departures
+ ## at least as fast as crossing to the target in WIDE_T (`_wide_need`), its
+ ## arrival up to T_CAP_WIDE on, within BUDGET_WIDE more integrations.
+-func _search_wide() -> void:
++func _search_wide(tw: float = -1.0) -> void:
+ 	_tcap = T_CAP_WIDE
++	if tw > 0.0:
++		_tw = tw
+ 	_budget = _n_integ + BUDGET_WIDE
+ 	_wide = true
+ 	# the cheapest conics to T_CAP_WIDE, refined
+@@ -2442,14 +2606,15 @@ func _far_need() -> float:
+ 		return 0.0
+ 	var own := sqrt(_cvx * _cvx + _cvz * _cvz)
+ 	var r1 := sqrt((px - G.star_x[k]) * (px - G.star_x[k]) + (pz - G.star_z[k]) * (pz - G.star_z[k]))
+-	_tgt_at(t_now + FAR_T)
++	var far_t := FAR_T_BACK if _back else FAR_T
++	_tgt_at(t_now + far_t)
+ 	# (only to a place round both: one round a star is in that star's own well)
+ 	if _star_of(_cx, _cz) != -2:
+ 		return 0.0
+ 	var r2 := sqrt((_cx - G.star_x[k]) * (_cx - G.star_x[k]) + (_cz - G.star_z[k]) * (_cz - G.star_z[k]))
+ 	if r2 < 2.0 * r1 + 60.0:
+ 		return 0.0
+-	var v2 := 2.0 * SystemLayout.GM_SHIP * (1.0 / r1 - 1.0 / r2) + pow((r2 - r1) / FAR_T, 2.0)
++	var v2 := 2.0 * SystemLayout.GM_SHIP * (1.0 / r1 - 1.0 / r2) + pow((r2 - r1) / far_t, 2.0)
+ 	return maxf(sqrt(maxf(v2, 0.0)) - own, 20.0)
+ 
+ 
+@@ -2530,7 +2695,7 @@ func _seeds() -> PackedFloat64Array:
+ 		var oz := _doffz if _dk == 1 else 0.0
+ 		p1s.append_array(PackedFloat64Array([_cx + ox, _cz + oz, _cvx, _cvz]))
+ 	var rough: Array = []
+-	for T: float in (CONIC_TS_WIDE if _wide else CONIC_TS):
++	for T: float in (CONIC_TS_WIDE if _wide else (CONIC_TS_BACK if _back else CONIC_TS)):
+ 		for pi in range(0, p1s.size(), 4):
+ 			for ci in range(0, centres.size(), 3):
+ 				for way: float in [1.0, -1.0]:
+@@ -2540,7 +2705,7 @@ func _seeds() -> PackedFloat64Array:
+ 						if sol.is_empty():
+ 							continue
+ 						var pr := _price_conic(t_now + T, sol[0] - p1s[pi + 2], sol[1] - p1s[pi + 3], sol[0], sol[1], sol[2], sol[3], false, 0.0, 0.0)
+-						rough.append([pr + TIME_W * T, T, ci, way, pi, ai, sol[2], sol[3]])
++						rough.append([pr + _tw * T, T, ci, way, pi, ai, sol[2], sol[3]])
+ 	rough.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
+ 	var out: Array = []
+ 	for r in rough.slice(0, CONIC_KEEP):
+@@ -2630,7 +2795,7 @@ func _seeds() -> PackedFloat64Array:
+ 			if sol.is_empty():
+ 				continue
+ 			var pr := _price_conic(te, sol[0] - cvdx, sol[1] - cvdz, sol[0], sol[1], sol[2], sol[3], true, vx, vz)
+-			out.append([pr + TIME_W * T, sol[0] - (cvdx if _dk != 2 else 0.0), sol[1] - (cvdz if _dk != 2 else 0.0), T, way, s, 0.0, 0.0, te])
++			out.append([pr + _tw * T, sol[0] - (cvdx if _dk != 2 else 0.0), sol[1] - (cvdz if _dk != 2 else 0.0), T, way, s, 0.0, 0.0, te])
+ 	out.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
+ 	var flat := PackedFloat64Array()
+ 	for o in out:
+@@ -3031,7 +3196,7 @@ func _build_in(kind: StringName) -> Result:
+ 	res.work = res.dvp + res.dv1 + res.dv2
+ 	res.d2 = d2
+ 	res.T = te - t_now
+-	res.cost = res.work + TIME_W * res.T
++	res.cost = res.work + _tw * res.T
+ 	res.priced = _b_J
+ 	_tgt_at(te)
+ 	var keepd := _tk == 1
+@@ -3049,7 +3214,7 @@ func _build_in(kind: StringName) -> Result:
+ 		"td": td, "ad": float(b.ad), "a0": float(b.a0), "dvx": float(b.dvx), "dvz": float(b.dvz), "ux": float(b.ux), "uz": float(b.uz),
+ 		"x0": float(b.x0), "z0": float(b.z0), "vx0": float(b.vx0), "vz0": float(b.vz0),
+ 		"fix": bool(b.fix), "afix": float(b.afix), "te": float(b.te), "s": s, "phi": float(b.phi), "d2": float(b.d2),
+-		"w2": float(b.w2), "pk": float(b.pk), "J": res.cost, "cap": _tcap}
++		"w2": float(b.w2), "pk": float(b.pk), "J": res.cost, "cap": _tcap, "tw": _tw}
+ 	return res
+ 
+ 
