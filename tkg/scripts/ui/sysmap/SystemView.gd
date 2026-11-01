@@ -970,6 +970,43 @@ func star_class() -> String:
 	return STAR_FACTS[kind].kind
 
 
+## STAR B OF A PAIR, AS IT IS DRAWN (ruling 20): the lighter star, and the cooler,
+## an orange dwarf beside a yellow one (`SunView.WARM_B` and `GLOW_B`, the sky's
+## `STAR_B_COL`). Its class and surface are read off that colour: B's drawn light,
+## face and glow each against star A's, channel by channel in linear light, beside
+## a blackbody at each of K0 to K5 against one at G2's 5,770 K (Mamajek's dwarf
+## sequence), are all nearest K5 at 4,440 K (the best fits 4,290 to 4,450 K;
+## Nov 1). Its surface is rounded as G2's is to 5,700 K. It read YELLOW DWARF, G2,
+## 5,700 K, star A's, under the orange sun the map draws.
+const STAR_B_FACTS := {"kind": "ORANGE DWARF", "cls": "K5", "temp": "4,400 K"}
+
+
+## STAR p'S FACTS AS SHOWN, {kind, cls, temp, mass, radius}: its kind's
+## (`STAR_FACTS`), the same as ever with one sun. In a pair, star A is drawn as the
+## one sun is, so it reads as one does, a G2 of 1.0 SOL (it read its share of the
+## pair's pull, 0.52 to 0.58 SOL, which no G2 weighs). Star B is the orange dwarf
+## it is drawn as (`STAR_B_FACTS`), its mass against A's as the stars' pulls are
+## (`star_share`: B / A = (1 - share) / share, 0.72 to 0.92 SOL) and its radius
+## the one it is drawn at against one sun's 16 px (`star2_r`, which the layout
+## rolls as 16 times that mass to the 0.8, a dwarf's radius for its mass). Only
+## the words: the pull, the share and the drawing are as they were.
+static func star_facts_of(L: SystemLayout, kind_name: String, p: int) -> Dictionary:
+	var f: Dictionary = STAR_FACTS[kind_name]
+	if L == null or not L.twin or p != SystemLayout.STAR_B:
+		return f
+	var out: Dictionary = f.duplicate()
+	out.merge(STAR_B_FACTS, true)
+	out["mass"] = sol((1.0 - L.star_share) / L.star_share)
+	out["radius"] = sol(L.star2_r / float(SystemLayout.STAR_R[SystemLayout.StarKind.ORDINARY]))
+	return out
+
+
+## A star's mass or radius against one sun's, as the facts print it: 1.0 SOL,
+## 0.82 SOL, 0.8 SOL.
+static func sol(x: float) -> String:
+	return "%s SOL" % ("%.2f" % x).trim_suffix("0")
+
+
 func body_kind(b: SystemLayout.Body) -> String:
 	if b.world != &"":
 		return Worlds.display_name(b.world)
@@ -980,7 +1017,7 @@ static func au(b: SystemLayout.Body) -> String:
 	return "%.1f AU" % (b.orbit / 80.0)
 
 
-## WHAT IT GOES ROUND, in a system with two suns (ruling 20): its orbit in AU
+## WHAT IT GOES AROUND, in a system with two suns (ruling 20): its orbit in AU
 ## is about that centre, so the panel says which. The stars are "<system> A"
 ## and "<system> B", as the panel names them. Empty with one sun.
 func host_line(b: SystemLayout.Body) -> String:
@@ -993,15 +1030,20 @@ func host_line(b: SystemLayout.Body) -> String:
 	return "BOTH SUNS"
 
 
+## The label of that row. It was ROUND: the game's words say "around", never
+## "round" in that sense (the encounter-prose rule for all player text, Nov 1).
+const HOST_KEY := "AROUND"
+
+
 ## A body's facts for the panel: [label, value] rows. In a twin the ORBIT row is
-## followed by ROUND, the star (or both) it circles (`host_line`).
+## followed by AROUND, the star (or both) it circles (`host_line`).
 func facts(b: SystemLayout.Body) -> Array:
 	var rows := _facts(b)
 	var hl := host_line(b)
 	if hl != "":
 		for k in rows.size():
 			if String(rows[k][0]) == "ORBIT":
-				rows.insert(k + 1, ["ROUND", hl])
+				rows.insert(k + 1, [HOST_KEY, hl])
 				break
 	return rows
 
@@ -1893,6 +1935,23 @@ func _step_twin_sky() -> void:
 		if ms != null:
 			ms.set_shader_parameter("star2_px", sb)
 			ms.set_shader_parameter("sun2_r", star_disc(SystemLayout.STAR_B))
+		# AND ITS SILHOUETTES FACE BOTH SUNS (`sector_b_paint`): star B where its
+		# disc is (star A's is `origin`, as `SectorPainted.push` gives it), as
+		# bright as the cloud has it (`star2_light_k`) and the light reaching as
+		# far as on the cloud (`sky_nebula`'s lzoom, home_zoom and lscale), so the
+		# rims are on the side the cloud is lit from. They faced star A alone.
+		var mp: ShaderMaterial = _pt.get("paint")
+		if mp != null:
+			mp.set_shader_parameter("star2_at", sb)
+			mp.set_shader_parameter("star2_k", star2_light_k())
+			mp.set_shader_parameter("light_lz", paint_light_lz())
+
+
+## How far the light reaches on the cloud, as `sky_nebula` works it (its LZ),
+## for PAINTED's silhouettes: the zoom against the opening one to the 0.42, by
+## the frame against the showcase's.
+func paint_light_lz() -> float:
+	return pow(maxf(zoom, 1e-3) / maxf(home_zoom, 1e-3), 0.42) * clampf(window.size.x / 700.0, 0.5, 1.4)
 
 
 ## The wall clock the weather and the gas read, or a harness's.
@@ -3577,6 +3636,11 @@ class _Moons extends Node2D:
 			var mrad := clampf(0.35 + 0.42 * z, 0.5, 2.4)
 			# (PAINTED: the moon's own ramp, its night leaning to the sky; held poses)
 			var mk: Array = view._pt.get("moon", []) if view.painted else []
+			# (two suns: its brightest step warmed by its own world's light, as the
+			# painted world's is (`tint_at`), not by star A's alone)
+			if not mk.is_empty() and view.star2 != null:
+				mk = mk.duplicate()
+				mk[7] = SectorPaintedS.lit_step(&"moon", view.tint_at(view.pos[i]))
 			# (RADIANT: lit as its world is -- grey rock in the star's colour on its lit
 			# side, the gas's colour in its shade, through the same gathered tone)
 			var c_lit := Color(0.8, 0.83, 0.88)

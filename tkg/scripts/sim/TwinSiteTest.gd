@@ -66,6 +66,7 @@ extends Node
 ## sun fail, and nothing else.
 
 const PanelS := preload("res://scripts/ui/sysmap/SystemPanel.gd")
+const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
 const OverlayS := preload("res://scripts/ui/sysmap/SystemOverlay.gd")
 const FlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
 
@@ -114,6 +115,8 @@ func _run() -> void:
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	_fit_zooms()
 	_mass_lines()
+	_star_facts_all()
+	_around_rows()
 	var n := _longest_twin()
 	if not h._ok("an ordinary system to make a twin (%s)" % (MapGen.star_name(n) if n != null else "none"), n != null):
 		_end()
@@ -147,6 +150,7 @@ func _run() -> void:
 	await _capture_curl_b(n)
 	await _mid_flight_tab(n, "twin")
 	await _restyle_mid_flight(n, "twin")
+	await _go_view_open(n, "twin")
 	await _giant_page(n)
 	await _alongside_hold()
 	await _one_sun_fallback(n)
@@ -340,6 +344,8 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	h._ok("the panel says TWO SUNS, and names %s and %s" % [nm_a, nm_b], words.has("TWO SUNS") and words.has(nm_a) and words.has(nm_b))
 	h._ok("its picture holds both suns", m.panel._box.find_child("TwoSuns", true, false) != null
 		and m.panel._box.find_child("TwoSuns", true, false).get_child_count() == 2)
+	_star_facts_page(m)
+	h._ok("star B's tip calls it the ORANGE DWARF it is drawn as (%s)" % tb[1][0], tb[1][0] == "ORANGE DWARF")
 	var fa := _way_button(m, -1)
 	var fb := _way_button(m, B)
 	h._ok("FLY HERE to each (%s / %s)" % [fa.text if fa != null else "none", fb.text if fb != null else "none"],
@@ -580,9 +586,9 @@ func _fit(m: SystemMapScreen, tag: String) -> void:
 	var box: VBoxContainer = m.panel._box
 	var col := box.get_global_rect()
 	# THE PAGE'S OWN ROWS (the head, its facts and ways in: what this build
-	# adds), each no wider than the text column; the event cards under them
-	# are measured and printed, not judged here (they are the list's, from
-	# before two suns: a card naming the world you orbit runs past it, below)
+	# adds), each no wider than the text column; and the event cards under them
+	# (a card naming the world you orbit asked for 231 px of the 226, its tags
+	# and YOU · <place> on one row; that row now wraps, Nov 1)
 	var mw := 0.0
 	var wide: Array[String] = []
 	var card_w := 0.0
@@ -602,8 +608,8 @@ func _fit(m: SystemMapScreen, tag: String) -> void:
 			wide.append("%s %.0f px: %s" % [c.get_class(), w, said])
 	h._ok("%s: its rows ask for %.0f px, the column is %d%s" % [tag, mw, PanelS.TEXT_W, "" if wide.is_empty() else " (" + "; ".join(wide) + ")"],
 		mw <= PanelS.TEXT_W + 0.5)
-	if card_w > PanelS.TEXT_W + 0.5:
-		print("  --   %s: an event card asks for %.0f px of the %d (%s): the list's, not judged here" % [tag, card_w, PanelS.TEXT_W, card_said])
+	h._ok("%s: its widest event card asks for %.0f px, the column is %d (%s)" % [tag, card_w, PanelS.TEXT_W, card_said],
+		card_w <= PanelS.TEXT_W + 0.5)
 	print("  --   %s: the panel is %d px wide, the map's frame %d px, the scroll bar %s" % [tag, int(m.panel.get_global_rect().size.x),
 		int(m._frame.size.x), "up" if m.panel._scroll.get_v_scroll_bar().is_visible_in_tree() else "down"])
 	var leaves := _leaves(box, [])
@@ -1197,6 +1203,228 @@ func _restyle_mid_flight(n: MapGen.MapNode, what: String) -> void:
 	_saw("flights the map was drawn again round")
 
 
+## A GO LEAVES THE VIEW OPEN (kept finding [11], Nov 1: the whole map was shut
+## for the flight, about 27 s on map time), through the window's own input
+## (`push_input`, so the map's frame takes it as a hand's): while it flies the
+## pointer hovers and its tip shows, offering no click; the wheel zooms; a drag
+## pans; a right-click is the view's. A click, a double click, FLY HERE and WASD
+## are refused, so the GO's errand is the one that runs, once, on arrival, and
+## after it a click selects again.
+func _go_view_open(n: MapGen.MapNode, what: String) -> void:
+	var m := await _map()
+	if m == null:
+		h._fail("%s: no map for a GO" % what)
+		return
+	var L: SystemLayout = m.view.layout
+	# (from the world nearest the middle to the one furthest from it, and a
+	# third world to point at and click on)
+	var a := -9
+	var b := -9
+	var near := INF
+	var far := 0.0
+	for bd in L.bodies:
+		if bd.world == &"":
+			continue
+		var c3: Vector3 = m.flight.center(bd.index, m.view.t)
+		var d := Vector2(c3.x, c3.z).length()
+		if d < near:
+			near = d
+			a = bd.index
+		if d > far:
+			far = d
+			b = bd.index
+	if not h._ok("%s: two worlds a GO flies between (%d, %d)" % [what, a, b], a >= 0 and b >= 0 and a != b):
+		return
+	var ran := [0]
+	var errand := func() -> void: ran[0] += 1
+	await _sit(m, a)
+	var n0 := SystemMapScreen.flights
+	m._go_then(b, errand)
+	var coasting: bool = await _coast(m, 1.0)
+	if not h._ok("%s: the GO is on its coast to %s (mode %s)" % [what, L.bodies[b].name, m.flight.mode], coasting):
+		return
+	var sel0: int = m.overlay.selected
+	var page0 := "%s %d %d" % [m.panel.mode, m.panel.filter, m.panel.open_opt]
+	var c := _pointable(m, [a, b])
+	if not h._ok("%s: a place on screen to point at mid-GO (%d)" % [what, c], SystemLayout.is_place(c)):
+		return
+	_pointer_on(m)
+	_took = 0
+	_sent = 0
+	# THE POINTER HOVERS, and the tip offers no click
+	var q: Vector2 = _place_q(m, c)
+	var want: Dictionary = m.overlay.hit(q)
+	_push_motion(_win_at(m, q))
+	var hv: Dictionary = m.overlay.hover
+	var tl: Array = m.overlay.tip_lines(hv)[0] if not hv.is_empty() else []
+	var offers := tl.any(func(l: Array) -> bool: return String(l[0]).begins_with("CLICK"))
+	h._ok("%s: mid-GO the pointer hovers %s %d (want %s %d), its tip up (%d lines) and offering no click (%s)" % [what, hv.get("kind", &""), int(hv.get("body", -99)),
+		want.get("kind", &""), int(want.get("body", -99)), tl.size(), " / ".join(PackedStringArray(tl.map(func(l: Array) -> String: return String(l[0]))))],
+		not hv.is_empty() and hv.get("kind") == want.get("kind") and int(hv.get("body", -99)) == int(want.get("body", -98)) and tl.size() >= 2 and not offers)
+	var qb: Vector2 = m.view.at[b]
+	if Rect2(Vector2.ZERO, m._frame.size).has_point(m._box.position + qb) and m.overlay.hit(qb).get("body", -99) == b:
+		_push_motion(_win_at(m, qb))
+		var tb: Array = m.overlay.tip_lines(m.overlay.hover)[0] if not m.overlay.hover.is_empty() else [["(no hover)", Color.WHITE]]
+		h._ok("%s: and on where it is going, ON YOUR WAY (%s)" % [what, tb[tb.size() - 1][0]], String(tb[tb.size() - 1][0]) == "ON YOUR WAY")
+	# THE WHEEL ZOOMS
+	var z0: float = m._zoom_to
+	q = _place_q(m, c)
+	_push_button(_win_at(m, q), MOUSE_BUTTON_WHEEL_UP, true)
+	_push_button(_win_at(m, q), MOUSE_BUTTON_WHEEL_UP, false)
+	var z1: float = m._zoom_to
+	for i in 120:
+		await get_tree().process_frame
+		if absf(m.view.zoom - m._zoom_to) < 0.0005:
+			break
+	h._ok("%s: mid-GO the wheel zooms (%.3f to %.3f, the view at %.3f)" % [what, z0, z1, m.view.zoom], z1 > z0 * 1.01 and absf(m.view.zoom - z1) < 0.002)
+	# A DRAG PANS (and lets go of LOCATION, as any drag does), and is no click
+	var mid: Vector2 = m._frame.size * 0.5 - m._box.position
+	var pan0: Vector2 = m.view.pan
+	_push_motion(_win_at(m, mid))
+	_push_button(_win_at(m, mid), MOUSE_BUTTON_LEFT, true)
+	for k in [10.0, 25.0, 40.0]:
+		_push_motion(_win_at(m, mid + Vector2(k, 6.0)), Vector2(15.0, 2.0), true)
+	_push_button(_win_at(m, mid + Vector2(40.0, 6.0)), MOUSE_BUTTON_LEFT, false)
+	var moved: Vector2 = m.view.pan - pan0
+	# (as far as the map lets a view go, `_clamp_pan`)
+	var zv: float = m.view.zoom
+	var reach := Vector2((L.edge + 40.0) * zv, ((L.edge + 40.0) * float(m.view.TILT) + 40.0) * zv)
+	var lim := (reach - m._frame.size * 0.25).max(Vector2.ZERO)
+	var want_mv: Vector2 = (pan0 + Vector2(40.0, 6.0)).clamp(-lim, lim) - pan0
+	h._ok("%s: mid-GO a drag pans the view (%s px for a 40, 6 px drag, %s as far as it may go), selecting nothing (%d)" % [what, moved, want_mv, m.overlay.selected],
+		moved.length() > 1.0 and moved.distance_to(want_mv) < 0.5 and m.overlay.selected == sel0)
+	await _frames(2)
+	# A CLICK AND A DOUBLE CLICK ON ANOTHER WORLD, A RIGHT-CLICK, FLY HERE AND
+	# WASD: none selects, opens or flies; the GO goes on
+	q = _place_q(m, c)
+	if Rect2(Vector2.ZERO, m._frame.size).has_point(m._box.position + q):
+		_push_motion(_win_at(m, q))
+		_push_button(_win_at(m, q), MOUSE_BUTTON_LEFT, true)
+		_push_button(_win_at(m, q), MOUSE_BUTTON_LEFT, false)
+		_push_button(_win_at(m, q), MOUSE_BUTTON_LEFT, true, true)
+		_push_button(_win_at(m, q), MOUSE_BUTTON_LEFT, false)
+	_push_button(_win_at(m, mid), MOUSE_BUTTON_RIGHT, true)
+	_push_button(_win_at(m, mid), MOUSE_BUTTON_RIGHT, false)
+	m.fly_to_body(c)
+	m.harness_keys = true
+	m._wasd.w = true
+	await _frames(10)
+	m._wasd.w = false
+	m.harness_keys = false
+	var page1 := "%s %d %d" % [m.panel.mode, m.panel.filter, m.panel.open_opt]
+	h._ok("%s: mid-GO a click, a double click, a right-click, FLY HERE and W change nothing (selected %d, was %d; page %s, was %s; heading to %d, mode %s, _taking %s)" % [
+		what, m.overlay.selected, sel0, page1, page0, m.flight.heading_to(), m.flight.mode, m._taking],
+		m.overlay.selected == sel0 and page1 == page0 and m.flight.heading_to() == b and m._taking and ran[0] == 0)
+	# ON ARRIVAL ITS ERRAND RUNS, ONCE, AND THE MAP TAKES CLICKS AGAIN
+	var land := -1.0
+	for i in 90 * 60:
+		await get_tree().process_frame
+		if ran[0] > 0:
+			land = float(i) / 60.0
+			break
+	await _frames(30)
+	h._ok("%s: the GO lands in orbit of %s (%d) with its errand run once (%d, %.1f s on), the map open (_taking %s, the tip's clicks %s), counted once (%d)" % [
+		what, L.bodies[b].name, m.flight.reached(), ran[0], land, m._taking, "held" if m.overlay.clicks_held else "offered", SystemMapScreen.flights - n0],
+		m.flight.reached() == b and ran[0] == 1 and not m._taking and not m.overlay.clicks_held and SystemMapScreen.flights == n0 + 1)
+	c = _pointable(m, [b])
+	if SystemLayout.is_place(c):
+		q = _place_q(m, c)
+		var hit_c: Dictionary = m.overlay.hit(q)
+		_push_motion(_win_at(m, q))
+		_push_button(_win_at(m, q), MOUSE_BUTTON_LEFT, true)
+		_push_button(_win_at(m, q), MOUSE_BUTTON_LEFT, false)
+		await _frames(2)
+		h._ok("%s: after it, a click selects again (%d, want %d)" % [what, m.overlay.selected, int(hit_c.get("body", -99))],
+			m.overlay.selected == int(hit_c.get("body", -98)))
+	h._ok("%s: every pointer event reached the map's frame through the game's viewport (%d of %d)" % [what, _took, _sent], _sent > 15 and _took == _sent)
+	_pointer_off(m)
+	await _sit(m, a)
+	_saw("GOs with the view open")
+
+
+## Where place p is drawn on the map: a body's point, a star's sun.
+func _place_q(m: SystemMapScreen, p: int) -> Vector2:
+	return m.overlay.star_scr(p) if SystemLayout.is_star(p) else m.view.at[p]
+
+
+## A place (not one of `skip`: a world, a station, hulk or contact, or either
+## star) drawn on the map's frame, clear of its edge and the LOCATION button,
+## whose point hits it; or -9.
+func _pointable(m: SystemMapScreen, skip: Array) -> int:
+	var fr := Rect2(Vector2(24.0, 24.0), m._frame.size - Vector2(48.0, 48.0))
+	var ids: Array[int] = []
+	for bd in m.view.layout.bodies:
+		if bd.world != &"" or bd.kind in [&"station", &"derelict", &"contact"]:
+			ids.append(bd.index)
+	ids.append_array(m.view.layout.stars())
+	for p: int in ids:
+		if skip.has(p):
+			continue
+		var q := _place_q(m, p)
+		if fr.has_point(m._box.position + q) and int(m.overlay.hit(q).get("body", -99)) == p \
+				and not m._loc_btn.get_global_rect().grow(6.0).has_point(_win_at(m, q)):
+			return p
+	return -9
+
+
+## The map's point q (its picture's pixels, as `SystemOverlay.hit` takes them)
+## in the game's own 960x540 viewport, as `push_input` takes it there.
+func _win_at(m: SystemMapScreen, q: Vector2) -> Vector2:
+	return m._frame.global_position + m._box.position + q
+
+
+## THE POINTER, AS A HAND MOVES IT: each event pushed into the game's viewport
+## (`GameShell.input_target`; the game is in the shell's SubViewport), which is
+## told the pointer is in it (headless the window never has it, and a motion
+## then reaches no control), and counted where the map's frame takes it: every
+## one must reach it, or the test measured something lying on the map.
+var _took := 0
+var _sent := 0
+
+
+func _pointer_on(m: SystemMapScreen) -> void:
+	GameShell.input_target(get_tree()).notification(Node.NOTIFICATION_VP_MOUSE_ENTER)
+	if not m._frame.gui_input.is_connected(_frame_took):
+		m._frame.gui_input.connect(_frame_took)
+
+
+func _pointer_off(m: SystemMapScreen) -> void:
+	if m != null and is_instance_valid(m) and m._frame.gui_input.is_connected(_frame_took):
+		m._frame.gui_input.disconnect(_frame_took)
+	GameShell.input_target(get_tree()).notification(Node.NOTIFICATION_VP_MOUSE_EXIT)
+
+
+func _frame_took(_e: InputEvent) -> void:
+	_took += 1
+
+
+func _send(ev: InputEventMouse) -> void:
+	_sent += 1
+	GameShell.input_target(get_tree()).push_input(ev, true)
+
+
+func _push_motion(at: Vector2, rel := Vector2.ZERO, held := false) -> void:
+	var mm := InputEventMouseMotion.new()
+	mm.position = at
+	mm.global_position = at
+	mm.relative = rel
+	if held:
+		mm.button_mask = MOUSE_BUTTON_MASK_LEFT
+	_send(mm)
+
+
+func _push_button(at: Vector2, idx: MouseButton, down: bool, dbl := false) -> void:
+	var ev := InputEventMouseButton.new()
+	ev.button_index = idx
+	ev.pressed = down
+	ev.double_click = dbl
+	ev.position = at
+	ev.global_position = at
+	if down and idx == MOUSE_BUTTON_LEFT:
+		ev.button_mask = MOUSE_BUTTON_MASK_LEFT
+	_send(ev)
+
+
 ## In orbit of world i, out of any flight, nothing selected (so no preview is
 ## of the next target), free to fly.
 func _sit(m: SystemMapScreen, i: int) -> void:
@@ -1400,6 +1628,7 @@ func _one_sun_fallback(n: MapGen.MapNode) -> void:
 	h._ok("and the map puts the ship in the star's close orbit (%d)" % (m.flight.reached() if m != null else -99), m != null and m.flight.reached() == -1)
 	if m == null:
 		return
+	_one_sun_facts(m)
 	# ONE SUN, PUT BACK ON ITS WIDE ORBIT: r 300 came back at 223 (the saves review)
 	var L: SystemLayout = m.view.layout
 	var r1 := clampf(300.0, L.star_ring_of(-1) + 40.0, L.edge * 0.8)
@@ -1410,6 +1639,154 @@ func _one_sun_fallback(n: MapGen.MapNode) -> void:
 	await _put_back(one, _clear_at(m, r1, 2.6), -1, "one sun, round the star, by the save's rows", true)
 	await _mid_flight_tab(one, "one sun")
 	await _restyle_mid_flight(one, "one sun")
+	await _go_view_open(one, "one sun")
+
+
+# ---------------------------------------------------------------- the stars' facts
+## EACH STAR'S FACTS AS IT IS DRAWN (kept findings [23] and [27], Nov 1): star B
+## read YELLOW DWARF, G2, 5,700 K, star A's, under the orange sun the map draws,
+## and MASS read each star's share of the pair's pull (star A 0.55 SOL beside G2,
+## which no G2 weighs). Now star A reads as the one sun does, and star B as the
+## K5 orange dwarf its colour is nearest, its mass against A's as their pulls are
+## and its radius its drawn one.
+## The sector page as it stands, star by star: its kind under its name, then
+## CLASS, SURFACE, MASS and RADIUS.
+func _page_facts(m: SystemMapScreen, nm: String) -> Dictionary:
+	var words := _words(m.panel._box)
+	var k := words.find(nm)
+	var got := {}
+	if k < 0 or k + 1 >= words.size():
+		return got
+	got["kind"] = words[k + 1]
+	for j in range(k + 2, mini(k + 12, words.size() - 1)):
+		if words[j] in ["CLASS", "SURFACE", "MASS", "RADIUS"] and not got.has(words[j]):
+			got[words[j]] = words[j + 1]
+	return got
+
+
+## A fact's number, 0.82 out of "0.82 SOL".
+static func _num(s: String) -> float:
+	return float(s.get_slice(" ", 0))
+
+
+func _star_facts_page(m: SystemMapScreen) -> void:
+	var L: SystemLayout = m.view.layout
+	var one: Dictionary = SystemViewS.STAR_FACTS["ORDINARY"]
+	var fa := _page_facts(m, m.overlay.star_name_of(-1))
+	var fb := _page_facts(m, m.overlay.star_name_of(SystemLayout.STAR_B))
+	h._ok("star A reads as one sun does: %s, %s, %s, MASS %s, RADIUS %s" % [fa.get("kind"), fa.get("CLASS"), fa.get("SURFACE"), fa.get("MASS"), fa.get("RADIUS")],
+		fa.get("kind") == one.kind and fa.get("CLASS") == one.cls and fa.get("SURFACE") == one.temp and fa.get("MASS") == one.mass and fa.get("RADIUS") == one.radius)
+	var share_b := 1.0 - L.star_share
+	var want_m := SystemViewS.sol(share_b / L.star_share)
+	var want_r := SystemViewS.sol(L.star2_r / 16.0)
+	h._ok("star B reads as the orange dwarf it is drawn as: %s, %s, %s, MASS %s (want %s), RADIUS %s (want %s)" % [fb.get("kind"), fb.get("CLASS"), fb.get("SURFACE"), fb.get("MASS"), want_m, fb.get("RADIUS"), want_r],
+		fb.get("kind") == "ORANGE DWARF" and fb.get("CLASS") == "K5" and fb.get("SURFACE") == "4,400 K" and fb.get("MASS") == want_m and fb.get("RADIUS") == want_r)
+	# THE MASSES' RATIO IS THE PULLS' (to the 0.005 SOL the page prints)
+	var mr := _num(String(fb.get("MASS", "0"))) / maxf(_num(String(fa.get("MASS", "1"))), 0.001)
+	h._ok("their masses as their pulls: B / A %.3f on the page, the shares' %.3f" % [mr, share_b / L.star_share],
+		absf(mr - share_b / L.star_share) <= 0.0051)
+	_saw("star facts read off the page")
+
+
+## EVERY TWIN OF THE RUN, made so where it may be: star A's facts the one sun's,
+## word for word, and star B's an orange dwarf's, its mass the pulls' ratio of
+## A's and its radius a dwarf's for that mass (to the 0.8, as the layout draws
+## it), each to what the page prints; and every one-sun system's facts its
+## kind's table, as ever.
+func _star_facts_all() -> void:
+	var twins := 0
+	var ones := 0
+	var bad: Array[String] = []
+	var m_lo := INF
+	var m_hi := 0.0
+	var r_lo := INF
+	var r_hi := 0.0
+	for raw in Run.map:
+		var c: MapGen.MapNode = raw
+		if c.type != MapGen.NodeType.SYSTEM and c.type != MapGen.NodeType.STATION and c.type != MapGen.NodeType.START:
+			continue
+		for two: bool in ([false, true] if MapGen.twin_ok(c) else [false]):
+			var was := c.twin
+			c.twin = two
+			var L := SystemLayout.of(c)
+			c.twin = was
+			var kn: String = SystemViewS.KIND_NAMES[L.star]
+			var fa: Dictionary = SystemViewS.star_facts_of(L, kn, -1)
+			if fa != SystemViewS.STAR_FACTS[kn]:
+				bad.append("%s star A %s" % [MapGen.star_name(c), fa])
+			if not L.twin:
+				ones += 1
+				if SystemViewS.star_facts_of(L, kn, SystemLayout.STAR_B) != SystemViewS.STAR_FACTS[kn]:
+					bad.append("%s one sun's star B" % MapGen.star_name(c))
+				continue
+			twins += 1
+			var fb: Dictionary = SystemViewS.star_facts_of(L, SystemViewS.KIND_NAMES[L.star2], SystemLayout.STAR_B)
+			var mb := _num(String(fb.mass))
+			var rb := _num(String(fb.radius))
+			var ratio := (1.0 - L.star_share) / L.star_share
+			m_lo = minf(m_lo, mb)
+			m_hi = maxf(m_hi, mb)
+			r_lo = minf(r_lo, rb)
+			r_hi = maxf(r_hi, rb)
+			if fb.kind != "ORANGE DWARF" or fb.cls != "K5" or fb.temp != "4,400 K" or absf(mb / _num(String(fa.mass)) - ratio) > 0.0051 \
+					or absf(rb - pow(mb, 0.8)) > 0.011:
+				bad.append("%s star B %s (share %.3f)" % [MapGen.star_name(c), fb, L.star_share])
+	h._ok("every twin's star A reads as one sun, its star B an orange dwarf K5, MASS the pulls' ratio of A's (%.2f to %.2f SOL) and RADIUS a dwarf's for it (%.2f to %.2f SOL); %d twins, %d one-sun systems their kind's own%s" % [
+		m_lo, m_hi, r_lo, r_hi, twins, ones, "" if bad.is_empty() else ": " + "; ".join(bad.slice(0, 4))], bad.is_empty() and twins > 20 and ones > 20)
+	_saw("twins' star facts", twins)
+
+
+## A SYSTEM WITH ONE SUN'S PAGE, as it always read: its kind's own facts.
+func _one_sun_facts(m: SystemMapScreen) -> void:
+	m.panel_back()
+	var sf: Dictionary = SystemViewS.STAR_FACTS[m.view.kind]
+	var got := _page_facts(m, m.view.star_name())
+	h._ok("one sun (%s): its page reads %s, %s, %s, MASS %s, RADIUS %s, its kind's own" % [m.view.kind, got.get("kind"), got.get("CLASS"), got.get("SURFACE"), got.get("MASS"), got.get("RADIUS")],
+		got.get("kind") == sf.kind and got.get("CLASS") == sf.cls and got.get("SURFACE") == sf.temp and got.get("MASS") == sf.mass and got.get("RADIUS") == sf.radius)
+
+
+## EVERY BODY OF A TWIN SAYS WHAT IT GOES AROUND (`SystemView.facts`): AROUND
+## under ORBIT, never ROUND (Nov 1: the game says "around", never "round" in
+## that sense), and its widest row, label and value, inside the text column.
+func _around_rows() -> void:
+	var font := UITheme.pixel_font()
+	var rows := 0
+	var bad: Array[String] = []
+	var best := 0.0
+	var best_say := ""
+	for raw in Run.map:
+		var c: MapGen.MapNode = raw
+		if not MapGen.twin_ok(c):
+			continue
+		var was := c.twin
+		c.twin = true
+		var v: SystemViewS = SystemViewS.new()
+		v.node = c
+		v.layout = SystemLayout.of(c)
+		c.twin = was
+		for b in v.layout.bodies:
+			var f: Array = v.facts(b)
+			var keys: Array[String] = []
+			for r: Array in f:
+				keys.append(String(r[0]))
+			var oi := keys.find("ORBIT")
+			if oi < 0:
+				continue
+			rows += 1
+			if oi + 1 >= keys.size() or keys[oi + 1] != "AROUND" or keys.has("ROUND") or String(f[oi + 1][1]) != v.host_line(b):
+				bad.append("%s: %s" % [b.name, ", ".join(keys)])
+				continue
+			# (a row is its label, a spacer and its value: an HBox's two gaps of 4)
+			var w := font.get_string_size("AROUND", HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x \
+				+ font.get_string_size(String(f[oi + 1][1]), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x + 8.0
+			if w > best:
+				best = w
+				best_say = "AROUND %s (%s)" % [f[oi + 1][1], b.name]
+		v.free()
+	var lw := font.get_string_size("AROUND", HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+	h._ok("every twin body's facts say AROUND what it circles, never ROUND (%d rows); the label %.0f px, the widest row %.0f px of the %d: %s%s" % [
+		rows, lw, best, PanelS.TEXT_W, best_say, "" if bad.is_empty() else "; " + "; ".join(bad.slice(0, 4))],
+		bad.is_empty() and rows > 100 and best <= PanelS.TEXT_W)
 
 
 # ---------------------------------------------------------------- the giants

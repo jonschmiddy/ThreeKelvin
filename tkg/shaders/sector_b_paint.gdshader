@@ -31,6 +31,15 @@ uniform int u_star0 = 0;
 uniform int u_star_n = 0;
 // where the star is, in the place picture's 960 x 540 pixels
 uniform vec2 star_at = vec2(480.0, 270.0);
+// STAR B (ruling 20, two suns): where it is, in the same pixels, how bright
+// against star A, and how far the light reaches (`sky_nebula`'s LZ: its lzoom
+// over home_zoom to the 0.42, times lscale). The silhouettes then face the light
+// of both suns, each weighted by its light there as `sky_nebula`'s `light_at`
+// weighs it for the very cloud they outline. star2_k 0 with one sun: star A's
+// way alone, worked out as it always was.
+uniform vec2 star2_at = vec2(-9999.0);
+uniform float star2_k = 0.0;
+uniform float light_lz = 1.0;
 uniform float time = 0.0;
 // the far picture's slide in blocks: checker parity and twinkle ride the sky
 uniform vec2 sky_blk = vec2(0.0);
@@ -98,6 +107,19 @@ void fragment() {
 		if ((fl & 2) != 0 && same >= 2 && !low) {
 			vec2 toS = star_at - (vec2(b) * 2.0 + 1.0);
 			toS /= max(length(toS), 1.0);
+			if (star2_k > 0.0) {
+				// (each sun's way weighted by its light here and NOT normalised, as
+				// the cloud's own `toSun` is: 1 long where one sun rules, falling to
+				// nothing between them where both light it alike, so the rim and the
+				// outline fade out there rather than turn round)
+				vec2 to1 = star_at - (vec2(b) * 2.0 + 1.0);
+				vec2 to2 = star2_at - (vec2(b) * 2.0 + 1.0);
+				float q1 = length(to1 * vec2(1.0, 1.15)) / (max(light_lz, 1e-3) * 155.0);
+				float q2 = length(to2 * vec2(1.0, 1.15)) / (max(light_lz, 1e-3) * 155.0);
+				float j1 = 1.0 / (1.0 + q1 * q1);
+				float j2 = star2_k / (1.0 + q2 * q2);
+				toS = (toS * j1 + to2 / max(length(to2), 1.0) * j2) / max(j1 + j2, 1e-4);
+			}
 			float dOut = 1e9, dRim = -1e9;
 			for (int k = 0; k < 4; k++) {
 				Ent nb = pickN(k, n0, n1, n2, n3);

@@ -377,13 +377,20 @@ static func ext_ramp(v, name: StringName) -> Array[Color]:
 	var r: Array = Worlds.RAMP.get(name, Worlds.RAMP[&"rock"])
 	var lk: Array = LOOK.get(sky_key(v), LOOK[&"calm"])
 	var amb := Color(String(lk[0]))
-	var sl: Vector3 = v.star_light()
-	var star := Color(pow(sl.x, 1.0 / 2.2), pow(sl.y, 1.0 / 2.2), pow(sl.z, 1.0 / 2.2))
 	var out: Array[Color] = [Color(String(lk[1])), mix_ok(Color(String(r[0])), amb, 0.5), mix_ok(Color(String(r[1])), amb, 0.34)]
 	for i in range(1, 5):
 		out.append(Color(String(r[i])))
-	out.append(mix_ok(Color(String(r[5])), star, 0.3))
+	out.append(lit_step(name, v.star_light()))
 	return out
+
+
+## That ramp's brightest step, warmed by a light (linear, its brightest channel
+## 1): the star's, or with two suns the light of the world it is drawn by
+## (`SystemView.tint_at`), as a painted world's own brightest step is.
+static func lit_step(name: StringName, sl: Vector3) -> Color:
+	var r: Array = Worlds.RAMP.get(name, Worlds.RAMP[&"rock"])
+	var star := Color(pow(sl.x, 1.0 / 2.2), pow(sl.y, 1.0 / 2.2), pow(sl.z, 1.0 / 2.2))
+	return mix_ok(Color(String(r[5])), star, 0.3)
 
 
 ## THE CLOUD PAINTED WITH FORM (round 2): the scene's cloud ramps handed to the

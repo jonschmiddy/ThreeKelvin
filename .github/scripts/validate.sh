@@ -831,7 +831,10 @@ step "Star B is a place, as the one star is"
 # held alongside to go; it quits with a flight plan still on a worker (that
 # crashed the quit, signal 11); and the map drawn again round a flight (a style
 # or GRAPHICS change) carries its errand on: a GO's event once, the map open
-# again (a GO cut short kept the map shut until it was left).
+# again (a GO cut short kept the map shut until it was left). Nov 1: each
+# star's facts as it is drawn (star B the K5 orange dwarf, masses as the
+# pulls), AROUND (never ROUND), no event card wider than the column, and a GO
+# that leaves the view open (hover, wheel, drag) and still runs its event once.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
 	run_godot twinsitetest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=TwinSiteTest; then
 	if grep -qE '^twinsitetest: PASS' "$LOG_DIR/twinsitetest.log"; then
@@ -1424,7 +1427,9 @@ step "No scroll bar on the sector map's panel covers a word"
 # Jon, Oct 20, on the WORLD card: "the scroll bar covers up text". Over the
 # run's first 40 systems, the sector's list and every world's page, unscrolled
 # and scrolled to the end: no text and nothing that takes the mouse within
-# UITheme.BAR_GAP of the bar as drawn. It fails if no page scrolled at all.
+# UITheme.BAR_GAP of the bar as drawn, and no page asking for more than the
+# text column (Nov 1: an event card asked for 231 px of the 226, widening the
+# panel under its bar). It fails if no page scrolled at all.
 if run_godot scrollcheck 240 --headless --path "$PROJECT" -- sheet=SystemShot scrollcheck; then
 	if grep -qE '^scrollcheck: PASS' "$LOG_DIR/scrollcheck.log"; then
 		ok "the sector panel's words stay clear of its scroll bar"
@@ -2366,7 +2371,7 @@ gate_weight() {
 		menutest) echo 25 ;; market) echo 24 ;; parseall) echo 24 ;;
 		devtest) echo 22 ;; hulldamagetest) echo 22 ;; fightopentest) echo 22 ;;
 		lockedpooltest) echo 41 ;; rewardshowntest) echo 33 ;; mapperftest) echo 40 ;;
-		solvetest) echo 125 ;; twindrawtest) echo 106 ;; flighttest) echo 80 ;; twinsitetest) echo 70 ;;
+		solvetest) echo 125 ;; twindrawtest) echo 106 ;; flighttest) echo 80 ;; twinsitetest) echo 90 ;;
 		*) echo 15 ;;
 	esac
 }

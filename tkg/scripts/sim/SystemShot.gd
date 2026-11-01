@@ -37,6 +37,7 @@ extends Node
 
 const ScreenS := preload("res://scripts/ui/sysmap/SystemMapScreen.gd")
 const SectorPaintedS := preload("res://scripts/ui/sysmap/SectorPainted.gd")
+const PanelS := preload("res://scripts/ui/sysmap/SystemPanel.gd")
 
 
 func _ready() -> void:
@@ -1455,6 +1456,13 @@ func _scroll_check(first) -> void:
 				if mw > widest_page:
 					widest_page = mw
 					widest_what = page
+				# NO PAGE ASKS FOR MORE THAN THE TEXT COLUMN (`SystemPanel.TEXT_W`):
+				# one that does widens the panel under its bar and narrows the map's
+				# frame (an event card asked for 231 px of the 226, Nov 1)
+				if mw > float(scr.panel.TEXT_W) + 0.5:
+					fails += 1
+					if fails <= 20:
+						print("  FAIL scrollcheck: %s %s asks for %.0f px of the %d: %s" % [page, "scrolled" if end else "unscrolled", mw, scr.panel.TEXT_W, _widest_child(scr.panel._box)])
 				if not bar.is_visible_in_tree():
 					continue
 				barred += 1
@@ -1477,7 +1485,7 @@ func _scroll_check(first) -> void:
 		if swept >= limit:
 			break
 	print("  scrollcheck: %d systems, %d pages measured, %d with the bar up; widest row %.0f px: %s" % [swept, looked, barred, best_w, best_row])
-	print("  scrollcheck: the widest page asks for %.0f px (%s)" % [widest_page, widest_what])
+	print("  scrollcheck: the widest page asks for %.0f px of the column's %d (%s)" % [widest_page, PanelS.TEXT_W, widest_what])
 	if barred == 0:
 		fails += 1
 		print("  FAIL scrollcheck: no page scrolled, so the bar was never measured")
@@ -1542,6 +1550,22 @@ func _scroll_leaves(root: Node, out: Array) -> Array:
 			out.append([k, r])
 		_scroll_leaves(k, out)
 	return out
+
+
+## The widest of the page's own rows, and its words, for a page too wide.
+func _widest_child(box: Control) -> String:
+	var best: Control = null
+	for c in box.get_children():
+		if c is Control and (c as Control).is_visible_in_tree() and (best == null or (c as Control).get_combined_minimum_size().x > best.get_combined_minimum_size().x):
+			best = c
+	if best == null:
+		return "nothing"
+	var words := PackedStringArray()
+	for e: Array in _scroll_leaves(best, []):
+		var t: Variant = (e[0] as Control).get("text")
+		if t != null and String(t) != "":
+			words.append(String(t).substr(0, 30))
+	return "%s %.0f px: %s" % [best.get_class(), best.get_combined_minimum_size().x, " / ".join(words.slice(0, 6))]
 
 
 ## A card or a plate that takes the pointer (a plain Control stops the mouse by

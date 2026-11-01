@@ -179,8 +179,9 @@ def sentences(text: str) -> list:
 	return [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
 
 
-def player_strings():
-	"""(file, line, unit, text) for every string a player could read."""
+def _player_lines():
+	"""(file, line number, encounter id or None, line) for every line that may
+	hold player text: not a comment, not debug output, not under scripts/sim/."""
 	for dirpath, dirs, files in os.walk(SCRIPTS):
 		rel_dir = os.path.relpath(dirpath, SCRIPTS)
 		if rel_dir.split(os.sep)[0] in SKIP_DIRS:
@@ -199,14 +200,36 @@ def player_strings():
 				stripped = line.lstrip()
 				if stripped.startswith("#") or NOT_PLAYER_TEXT.search(line):
 					continue
-				for m in STRING.finditer(line):
-					if len(m.group(1)) < MIN_CHARS:
-						continue
-					text = m.group(1).replace("\\n", " ").replace('\\"', '"')
-					# prose has spaces between lowercase words; keys and paths do not
-					if len(text.split()) < 5 or not re.search(r"[a-z] [a-z]", text):
-						continue
-					yield rel, n, (unit if rel == ENCOUNTERS and unit else None), text
+				yield rel, n, (unit if rel == ENCOUNTERS and unit else None), line
+
+
+def player_strings():
+	"""(file, line, unit, text) for every string a player could read."""
+	for rel, n, unit, line in _player_lines():
+		for m in STRING.finditer(line):
+			if len(m.group(1)) < MIN_CHARS:
+				continue
+			text = m.group(1).replace("\\n", " ").replace('\\"', '"')
+			# prose has spaces between lowercase words; keys and paths do not
+			if len(text.split()) < 5 or not re.search(r"[a-z] [a-z]", text):
+				continue
+			yield rel, n, unit, text
+
+
+# A SHORT LABEL IN THE PANELS' CAPITALS: "ROUND" as the key of a fact row, beside
+# its value (`["ROUND", "<system> B"]`, a twin's world page, Oct 31). The rules
+# above read prose only, strings of MIN_CHARS or more with five words, so a
+# one-word label walked past the "round" rule; this reads the short strings for
+# that label alone. ("ROUND-TRIP" and "ROUNDED" are other words.)
+ROUND_LABEL = re.compile(r"^ROUND(?![-A-Z])")
+
+
+def short_labels():
+	"""(file, line, text) for every string under MIN_CHARS a player could read."""
+	for rel, n, unit, line in _player_lines():
+		for m in STRING.finditer(line):
+			if len(m.group(1)) < MIN_CHARS:
+				yield rel, n, m.group(1)
 
 
 def _key(rel, tid, text, sentence):
@@ -270,6 +293,12 @@ def main() -> int:
 			review.append((rel, n, "fragments",
 				"%d of %d sentences have no verb a cheap test can see" % (len(frags), len(ss)),
 				text))
+
+	for rel, n, text in short_labels():
+		if ROUND_LABEL.search(text):
+			density[rel] += 1
+			errors.append((_key(rel, "round", text, text), rel, n, "round",
+				'a label "ROUND" for "AROUND" (SKILL §3b)', text))
 
 	base = set()
 	if os.path.exists(BASELINE):

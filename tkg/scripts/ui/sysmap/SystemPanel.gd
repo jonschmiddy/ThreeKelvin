@@ -624,10 +624,11 @@ func _star_head() -> void:
 ## and then each star under its own name ("<system> A", "<system> B") with its
 ## kind, its facts and its own way into its close orbit. Clicking either star on
 ## the map opens this page, as clicking the one star does.
-## THE FACTS ARE THE GAME'S OWN NUMBERS: the pair pulls a ship as one sun does
-## (`SystemLayout.GM_SHIP`), so their masses are star A's share of one sun's
-## and the rest; a radius is the star's drawn size against one sun's 16 px.
-## Kind, class and surface are the kind's (`SystemView.STAR_FACTS`).
+## EACH STAR'S FACTS AS IT IS DRAWN (`SystemView.star_facts_of`, one source with
+## the tip's kind): star A as the one sun reads, a yellow dwarf of 1.0 SOL; star B
+## the orange dwarf the map draws, its mass against A's as their pulls are and
+## its radius its drawn size against one sun's 16 px. (MASS read each star's
+## share of the pair's pull: 0.55 SOL beside G2, and B a yellow dwarf too.)
 func _twin_head() -> void:
 	var v = screen.view
 	var L: SystemLayout = v.layout
@@ -662,11 +663,11 @@ func _twin_head() -> void:
 		_gap(2)
 		_wrap(screen.overlay.star_name_of(s), UITheme.ICE, UITheme.FS_SMALL)
 		_class(screen.overlay.star_class_of(s))
-		var sf: Dictionary = SystemViewS.STAR_FACTS[SystemViewS.KIND_NAMES[L.star_kind_of(s)]]
+		var sf: Dictionary = SystemViewS.star_facts_of(L, SystemViewS.KIND_NAMES[L.star_kind_of(s)], s)
 		_row("CLASS", sf.cls)
 		_row("SURFACE", sf.temp)
-		_row("MASS", _sol(L.star_share if s == -1 else 1.0 - L.star_share))
-		_row("RADIUS", _sol(L.star_radius(s) / SystemLayout.STAR_R[SystemLayout.StarKind.ORDINARY]))
+		_row("MASS", sf.mass)
+		_row("RADIUS", sf.radius)
 		# (the same way in that star A's FLY HERE always was: `fly_to_body`)
 		_way_there(s)
 	_rule()
@@ -690,11 +691,6 @@ func _sun_look(p: int) -> Array:
 
 ## (star B's picture is rolled as if for this many systems on: no system has it)
 const SUN_B_SALT := 100003
-
-
-## A share of one sun, as the facts print it: 1.0 SOL, 0.55 SOL, 0.8 SOL.
-static func _sol(x: float) -> String:
-	return "%s SOL" % ("%.2f" % x).trim_suffix("0")
 
 
 ## A GIANT'S WEIGHT (ruling 20, Jon: "1/4 - 1/10 ... purely because it's more
@@ -1054,17 +1050,32 @@ class EventCard extends PanelContainer:
 		_doom = UITheme.body("WILL BE MADE UNAVAILABLE", UITheme.WARN, UITheme.FS_SMALL)
 		_doom.visible = false
 		top.add_child(_doom)
-		var mid := HBoxContainer.new()
+		# ITS TAGS, AND WHERE IT IS AT THE RIGHT, ON ONE LINE WHERE THEY FIT AND
+		# ON TWO WHERE THEY DO NOT, as the panel's other words wrap at its column
+		# (`_wrap`): on one row a card at the world you orbit asked for 231 px of
+		# the 226 (RECEIPTED TWICE, YOU · LAMBDA CALLOUS I; Nov 1), and a page
+		# that asks for more than the column widens the panel under its scroll
+		# bar. The place goes down whole, YOU with it; on one line it is laid out
+		# as it was.
+		var mid := HFlowContainer.new()
 		mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mid.add_theme_constant_override("h_separation", 4)
+		mid.add_theme_constant_override("v_separation", 2)
 		col.add_child(mid)
 		var tags := _mk_rich(tags_bb)
 		tags.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tags.custom_minimum_size = Vector2(0, 0)
 		tags.autowrap_mode = TextServer.AUTOWRAP_OFF
 		mid.add_child(tags)
+		var at := HBoxContainer.new()
+		at.name = "Where"
+		at.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		at.alignment = BoxContainer.ALIGNMENT_END
+		at.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		mid.add_child(at)
 		if here:
-			mid.add_child(UITheme.body("YOU · ", UITheme.FLARE, UITheme.FS_SMALL))
-		mid.add_child(UITheme.body(where, UITheme.COLD, UITheme.FS_SMALL))
+			at.add_child(UITheme.body("YOU · ", UITheme.FLARE, UITheme.FS_SMALL))
+		at.add_child(UITheme.body(where, UITheme.COLD, UITheme.FS_SMALL))
 		_fade.append(mid)
 		var line := _mk_rich(line_bb)
 		line.custom_minimum_size = Vector2(210, 0)

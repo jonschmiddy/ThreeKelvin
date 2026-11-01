@@ -1238,6 +1238,14 @@ func _step(delta: float) -> void:
 				ms.set_shader_parameter("sun_r", star_px())
 				ms.set_shader_parameter("star2_px", Vector2(_zp(_star_rest(_unlit()), Z_STAR)))
 				ms.set_shader_parameter("sun2_r", float(layout.star_radius(_unlit())) * star_k_of(_unlit()) * _zl(Z_STAR))
+			# (and its silhouettes facing both suns' light on the cloud, as the
+			# cloud has it above: the other sun where its disc is, its brightness
+			# against the lit one's, the light's reach; `sector_b_paint`)
+			var mp: ShaderMaterial = _pt.get("paint")
+			if mp != null:
+				mp.set_shader_parameter("star2_at", Vector2(_zp(_star_rest(_unlit()), Z_STAR)))
+				mp.set_shader_parameter("star2_k", _star2_k())
+				mp.set_shader_parameter("light_lz", pow(clampf(pow(_dk, 0.8), 0.45, 2.4), 0.42) * 1.35)
 	_step_star(o)
 	_step_worlds(o)
 	_step_near(o)

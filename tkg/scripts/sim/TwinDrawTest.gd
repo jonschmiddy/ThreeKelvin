@@ -49,6 +49,8 @@ extends Node
 
 const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
 const ShipFlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
+const SectorPaintedS := preload("res://scripts/ui/sysmap/SectorPainted.gd")
+const SkyBakeS := preload("res://scripts/ui/sysmap/SkyBake.gd")
 const SEEDS := [4242, 7, 1999, 31337, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584, 4181, 6765, 10946]
 const VIEW_SEEDS := [4242, 7, 1999, 31337]
 
@@ -109,6 +111,9 @@ func _run() -> void:
 	view.queue_free()
 	print("  twindrawtest: %d twins drawn and checked in %.1f s" % [seen, float(Time.get_ticks_msec() - t0) / 1000.0])
 	_view_verdict(seen)
+	t0 = Time.get_ticks_msec()
+	await _painted()
+	print("  twindrawtest: PAINTED's silhouettes looked at in %.1f s" % [float(Time.get_ticks_msec() - t0) / 1000.0])
 	t0 = Time.get_ticks_msec()
 	var lseen := 0
 	for sd: int in VIEW_SEEDS:
@@ -535,6 +540,145 @@ func _report() -> void:
 	nk.sort()
 	for k: String in nk:
 		print("  count %s: %d" % [k, int(_n[k])])
+
+
+# ---------------------------------------------------------------- PAINTED
+## PAINTED'S SILHOUETTES FACE THE LIGHT THE CLOUD IS LIT BY (Nov 1; they faced
+## star A alone, "SectorPainted's rims face star A only"): its paint pass
+## (`sector_b_paint`) outlines the cloud where it meets the sky, a rim on the
+## side toward the light and an outline on the side away. The other styles light
+## that cloud by both suns (`sky_nebula`'s `light_at`), and each world by its own
+## one light (checked above for every style: `toward_light_of`, which the world's
+## shader takes in PAINTED too). Headless compiles no shader, so this reads the
+## numbers each pass is given: in a twin the paint pass gets star B's place on
+## screen, its brightness and the light's reach, the same as the cloud's; with
+## one sun it gets none of them, and its shader keeps its defaults (star B's
+## brightness 0: star A's way alone, worked out as before). And a moon's
+## brightest step is warmed by its own world's light (`tint_at`), as the world's
+## is; with one sun by the star's, as before.
+func _painted() -> void:
+	var was: StringName = DisplaySettings.render_style
+	DisplaySettings.render_style = SystemViewS.STYLE_PAINTED
+	var sh := load("res://shaders/sector_b_paint.gdshader") as Shader
+	var names := PackedStringArray()
+	for u: Dictionary in sh.get_shader_uniform_list():
+		names.append(String(u.get("name", "")))
+	print("  twindrawtest: sector_b_paint's uniforms as this build reads them (%d): star2_at %s, star2_k %s, light_lz %s" % [names.size(),
+		"star2_at" in names, "star2_k" in names, "light_lz" in names])
+	var twins := 0
+	var clouded := 0
+	var ones := 0
+	var bad: Array[String] = []
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	for raw in Run.map:
+		var nd: MapGen.MapNode = raw
+		if nd.type != MapGen.NodeType.SYSTEM or (nd.twin and twins >= 6) or (not nd.twin and ones >= 4):
+			continue
+		# (at most four twins of a clear sky: the rest have a cloud to hold the
+		# silhouettes' light against)
+		if nd.twin and twins - clouded >= 4 and not SkyBakeS.look_for(nd, "ORDINARY").has("neb"):
+			continue
+		var view: SystemViewS = SystemViewS.new()
+		add_child(view)
+		await view.show_system(nd)
+		view.window = Rect2(0, 0, 960, 540)
+		var L: SystemLayout = view.layout
+		view.zoom = SystemLayout.open_zoom(L.edge)
+		view.home_zoom = view.zoom
+		view.pan = Vector2(18.0, -12.0)
+		view.t = 30.0
+		view.step()
+		var at := "%s (%s)" % [MapGen.star_name(nd), "two suns" if L.twin else "one sun"]
+		var pt: Dictionary = view._pt
+		if not view.painted or pt.is_empty():
+			bad.append("%s: no painted pass" % at)
+			view.queue_free()
+			continue
+		var mp: ShaderMaterial = pt.paint
+		var a_at: Variant = mp.get_shader_parameter("star_at")
+		if a_at != view.origin():
+			bad.append("%s: star A at %s, its disc at %s" % [at, a_at, view.origin()])
+		var moon_was: Color = SectorPaintedS.mix_ok(Color(String(Worlds.RAMP[&"moon"][5])), _srgb(view.star_light()), 0.3)
+		if (pt.moon as Array)[7] != moon_was:
+			bad.append("%s: the moons' brightest step %s, was %s" % [at, (pt.moon as Array)[7], moon_was])
+		if not L.twin:
+			ones += 1
+			for k: String in ["star2_at", "star2_k", "light_lz"]:
+				if mp.get_shader_parameter(k) != null:
+					bad.append("%s: one sun given %s %s" % [at, k, mp.get_shader_parameter(k)])
+			view.queue_free()
+			continue
+		twins += 1
+		var sb: Vector2 = view.star_screen(SystemLayout.STAR_B)
+		var k2: Variant = mp.get_shader_parameter("star2_k")
+		var lz: Variant = mp.get_shader_parameter("light_lz")
+		if mp.get_shader_parameter("star2_at") != sb or k2 == null or absf(float(k2 if k2 != null else 0.0) - view.star2_light_k()) > 1e-6 or float(k2 if k2 != null else 0.0) <= 0.0:
+			bad.append("%s: star B given %s, %s (its disc %s, its light %.3f)" % [at, mp.get_shader_parameter("star2_at"), k2, sb, view.star2_light_k()])
+		# THE CLOUD'S OWN LIGHT, as `sky_nebula` is given it this frame: star B's
+		# place (the cloud's unrounded, the silhouettes' its disc's, within the
+		# 2 px block), the light's reach from its own lzoom, home_zoom and lscale,
+		# and star B's brightness where it has it (headless the sky's bake, which
+		# gives it `star2_light_k`, is skipped: the same call then). A clear sky
+		# has no cloud: the view's own numbers.
+		var nm: ShaderMaterial = view._neb_mat
+		var lz_c: float = view.paint_light_lz()
+		if nm != null and nm.get_shader_parameter("lzoom") != null and nm.get_shader_parameter("star2_at") != null:
+			clouded += 1
+			lz_c = pow(maxf(float(nm.get_shader_parameter("lzoom")), 1e-3) / maxf(float(nm.get_shader_parameter("home_zoom")), 1e-3), 0.42) * float(nm.get_shader_parameter("lscale"))
+			var nk: Variant = nm.get_shader_parameter("star2_k")
+			if (nk != null and absf(float(nk) - float(k2 if k2 != null else 0.0)) > 1e-6) or (nm.get_shader_parameter("star2_at") as Vector2).distance_to(sb) > 1.5:
+				bad.append("%s: star B on the cloud %s, %s; on the silhouettes %s, %s" % [at, nm.get_shader_parameter("star2_at"), nk, sb, k2])
+			_most("painted: star B's place on the cloud against on the silhouettes, px", (nm.get_shader_parameter("star2_at") as Vector2).distance_to(sb), at)
+		if lz == null or absf(float(lz) - lz_c) > 1e-5:
+			bad.append("%s: the light's reach %s, the cloud's %.4f" % [at, lz, lz_c])
+		# BESIDE STAR B, off its side across from star A: the silhouettes' way to
+		# the light, as `sector_b_paint` works it, against the way to star B --
+		# how far round toward B it has come
+		var sa: Vector2 = view.origin()
+		var perp := (sb - sa).orthogonal().normalized()
+		var k2f: float = float(k2) if k2 != null else 0.0
+		var lzf: float = float(lz) if lz != null else 1.0
+		for side: float in [1.0, -1.0]:
+			var px: Vector2 = sb + perp * side * (view.star_disc(SystemLayout.STAR_B) + 6.0)
+			var to_b := (sb - px).normalized()
+			var now := _rim_way(sa, sb, k2f, lzf, px)
+			var old := _rim_way(sa, sb, 0.0, lzf, px)
+			_least("painted: beside star B, cos of the silhouettes' way to the light off the way to B", now.normalized().dot(to_b), at)
+			_most("painted: beside star B, cos of the silhouettes' way off the way to B, star A's alone (as it was)", old.dot(to_b), at)
+			if now.normalized().dot(to_b) <= old.dot(to_b) + 0.05:
+				bad.append("%s: beside star B the silhouettes face %.2f of the way to B (star A's alone %.2f)" % [at, now.normalized().dot(to_b), old.dot(to_b)])
+		# A MOON OF A WORLD ROUND STAR B: its brightest step its world's light's
+		for w in L.bodies:
+			if w.host_id == SystemLayout.STAR_B and w.world != &"":
+				var lit_b: Color = SectorPaintedS.lit_step(&"moon", view.tint_at(view.pos[w.index]))
+				_most("painted: a moon of a world round star B, its brightest step from star A's (RGB distance)",
+					Vector3(lit_b.r - moon_was.r, lit_b.g - moon_was.g, lit_b.b - moon_was.b).length(), at)
+		view.queue_free()
+	DisplaySettings.render_style = was
+	h._ok("PAINTED: in %d twins (%d with a cloud, held against the cloud's own numbers) the silhouettes are given star B's place, its brightness and the light's reach, and lean toward B beside it; in %d one-sun systems none of them, star A's at its disc as before, and the moons' steps as before%s" % [
+		twins, clouded, ones, "" if bad.is_empty() else ": " + "; ".join(bad.slice(0, 4))], bad.is_empty() and twins >= 4 and clouded >= 2 and ones >= 4)
+
+
+## A light as the palette's colour (linear, brightest channel 1, to sRGB as
+## `SectorPainted.ext_ramp` turns it).
+static func _srgb(sl: Vector3) -> Color:
+	return Color(pow(sl.x, 1.0 / 2.2), pow(sl.y, 1.0 / 2.2), pow(sl.z, 1.0 / 2.2))
+
+
+## `sector_b_paint`'s way to the light at place-picture point px, line for line.
+static func _rim_way(sa: Vector2, sb: Vector2, k2: float, lz: float, px: Vector2) -> Vector2:
+	var to_s := sa - px
+	to_s /= maxf(to_s.length(), 1.0)
+	if k2 <= 0.0:
+		return to_s
+	var to1 := sa - px
+	var to2 := sb - px
+	var q1 := (to1 * Vector2(1.0, 1.15)).length() / (maxf(lz, 1e-3) * 155.0)
+	var q2 := (to2 * Vector2(1.0, 1.15)).length() / (maxf(lz, 1e-3) * 155.0)
+	var j1 := 1.0 / (1.0 + q1 * q1)
+	var j2 := k2 / (1.0 + q2 * q2)
+	return (to_s * j1 + to2 / maxf(to2.length(), 1.0) * j2) / maxf(j1 + j2, 1e-4)
 
 
 # ---------------------------------------------------------------- LOCAL

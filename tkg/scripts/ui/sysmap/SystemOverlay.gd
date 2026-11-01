@@ -53,6 +53,9 @@ var link_body := -2
 
 ## THE SHIP, flown (`ShipFlight`); the screen steps it, this draws it.
 var flight
+## A GO UNDER WAY (the screen's `_taking`): the map takes no click until it
+## lands, so the tip offers none (only pressable things look pressable).
+var clicks_held := false
 var _ship_at := Vector2.ZERO
 ## YOUR OWN HULL, drawn at the map's scale (`MapHull`): the picture it is made
 ## from (`ShipView.hull_art`, the one LOCAL draws) and the map's picture of it,
@@ -591,10 +594,11 @@ func star_name_of(p: int) -> String:
 	return view.layout.star_title(view.node, p)
 
 
-## What kind of star p is, in the panel's and the tip's words: YELLOW DWARF...
+## What kind of star p is, in the panel's and the tip's words: YELLOW DWARF...;
+## a pair's star B the ORANGE DWARF it is drawn as (`SystemView.star_facts_of`).
 func star_class_of(p: int) -> String:
 	if p == SystemLayout.STAR_B and view.layout.twin:
-		return view.STAR_FACTS[view.KIND_NAMES[view.layout.star2]].kind
+		return String(view.star_facts_of(view.layout, view.KIND_NAMES[view.layout.star2], p).kind)
 	return view.star_class()
 
 
@@ -1856,7 +1860,7 @@ func tip_lines(h: Dictionary) -> Array:
 		if ns > 0:
 			var here_s: bool = flight != null and flight.reached() == -1
 			lines.append(["%d %s · %s" % [ns, "EVENT" if ns == 1 else "EVENTS", "OPEN" if here_s else "OPEN IN A CLOSE ORBIT"], UITheme.EMBER])
-		lines.append(_click_line(sb))
+		lines.append_array(_click_line(sb))
 	elif h.kind == &"body" or h.kind == &"belt":
 		var b := L.bodies[h.body]
 		lines.append([b.name, UITheme.ICE])
@@ -1864,7 +1868,7 @@ func tip_lines(h: Dictionary) -> Array:
 		if b.beacons.size() > 0:
 			var here: bool = flight != null and flight.reached() == int(h.body)
 			lines.append(["%d %s · %s" % [b.beacons.size(), "EVENT" if b.beacons.size() == 1 else "EVENTS", "OPEN" if here else ("OPEN ALONGSIDE" if b.kind == &"belt" or b.kind == &"station" else "OPEN IN ORBIT")], UITheme.EMBER])
-		lines.append(_click_line(int(h.body)))
+		lines.append_array(_click_line(int(h.body)))
 	else:
 		if h.body >= 0:
 			var b := L.bodies[h.body]
@@ -1898,7 +1902,7 @@ func tip_lines(h: Dictionary) -> Array:
 			chip = UITheme.BAD
 			lines.append(["THE HELLBENDER", UITheme.HOT])
 			lines.append(["ANCHORED HERE" if Run.hellbender_alive() else "ITS WRECK", UITheme.BAD])
-		lines.append(_click_line(int(h.body)))
+		lines.append_array(_click_line(int(h.body)))
 	return [lines, chip]
 
 
@@ -1934,15 +1938,19 @@ func _draw_tip() -> void:
 
 
 ## What a click on this place will do: select it, fly there (a second click on
-## the selection), or nothing, being there already.
+## the selection), or nothing, being there already; as the tip's lines, one or
+## none. While a GO flies (`clicks_held`) a click does nothing, so no line offers
+## one: its place is ON YOUR WAY, and the rest say nothing of clicking.
 func _click_line(body: int) -> Array:
 	if flight != null and flight.reached() == body:
-		return ["YOU ARE HERE", UITheme.FLARE]
+		return [["YOU ARE HERE", UITheme.FLARE]]
+	if clicks_held:
+		return [["ON YOUR WAY", UITheme.HOT]] if flight != null and flight.heading_to() == body else []
 	if selected == body:
 		if flight != null and flight.mode == &"fly" and flight.fly_to == body:
-			return ["ON YOUR WAY", UITheme.HOT]
-		return ["CLICK AGAIN: FLY HERE", UITheme.HOT]
-	return ["CLICK: SELECT", UITheme.QUOTE]
+			return [["ON YOUR WAY", UITheme.HOT]]
+		return [["CLICK AGAIN: FLY HERE", UITheme.HOT]]
+	return [["CLICK: SELECT", UITheme.QUOTE]]
 
 
 static func _first_sentence(s: String) -> String:

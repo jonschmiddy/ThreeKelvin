@@ -104,6 +104,9 @@ var _transfer: TransferView = null
 ## The beacon the cursor is on, as [body, beacon], so its card lights while it is.
 var _lit: Array = []
 var _taking := false
+## the zoom down onto the ship before LOCAL (`_zoom_down`, without the ladder):
+## the camera is the move's, and the map takes no input at all
+var _diving := false
 var _cursor: Node2D
 var _scan_px := 0.0
 var _zoom_to := 1.0
@@ -762,6 +765,8 @@ func _step_ship(delta: float) -> void:
 		for k in _wasd:
 			_wasd[k] = false
 	var keys: Dictionary = _wasd if free and not _taking else {"w": false, "a": false, "s": false, "d": false}
+	# (and while a GO flies the tip offers no click, as none is taken)
+	overlay.clicks_held = _taking
 	var t_fly := Time.get_ticks_usec()
 	var level: float = flight.step(delta, view.t, keys)
 	view.tick("flight step", t_fly)
@@ -1097,9 +1102,16 @@ func _map_at(p: Vector2) -> Vector2:
 	return p - _box.position
 
 
+## A GO UNDER WAY (`_taking`, about 27 s of flight on map time) leaves the VIEW
+## the player's: the pointer hovers and its tip shows, the wheel zooms, a drag
+## pans (and lets go of LOCATION, as any drag does), a right-click zooms. What
+## would fly, select or open is refused until it lands -- a click (`tap`),
+## FLY HERE, GO and WASD -- so its errand is the one that runs, once (Nov 1: the
+## whole map was shut for the flight). The zoom down onto the ship after it
+## (`_diving`) keeps the camera to itself, as it did.
 func _on_map_input(e: InputEvent) -> void:
 	last_input_t = Time.get_ticks_msec() / 1000.0
-	if _transfer != null or _taking:
+	if _transfer != null or _diving:
 		return
 	if e is InputEventMouseMotion:
 		var mm := e as InputEventMouseMotion
@@ -1138,7 +1150,7 @@ func _on_map_input(e: InputEvent) -> void:
 					_press_at = mb.position
 					_drag_moved = false
 				else:
-					if _dragging and not _drag_moved:
+					if _dragging and not _drag_moved and not _taking:
 						tap(overlay.hit(_map_at(mb.position)))
 					_dragging = false
 			MOUSE_BUTTON_MIDDLE:
@@ -1370,9 +1382,11 @@ func _zoom_down(i: int) -> void:
 		return
 	if Router.animating():
 		_taking = true
+		_diving = true
 		_glide_to("loc", -9, ZOOM_LOCATION * 2.0, ZOOM_DOWN_S)
 		await get_tree().create_timer(ZOOM_DOWN_S).timeout
 		_taking = false
+		_diving = false
 		if not is_inside_tree():
 			return
 	# (where the ship is, before LOCAL is built from it: the Router's hide writes
