@@ -1696,6 +1696,10 @@ func _situate() -> void:
 	var p := Vector2(layout.edge, -210.0)
 	if not d.is_empty():
 		orbit_target = int(d.get("at", -9))
+		# (star B's close orbit in a system laid out with one sun is the star's,
+		# as the map, the site and the wrecks read it: `Run.star_site`)
+		if orbit_target == SystemLayout.STAR_B and not layout.twin:
+			orbit_target = -1
 		if orbit_target >= 0 and orbit_target < layout.bodies.size():
 			p = layout.bodies[orbit_target].pos(0.0)
 			if p.length() < 1.0:

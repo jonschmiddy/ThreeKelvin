@@ -1943,6 +1943,10 @@ func _map_fly_probe(map: SystemMapScreen, hud: Rect2) -> Dictionary:
 		return {}
 	if int(map.flight.reached()) != -9:
 		return {}
+	# (not on an autopilot flight, or while GO takes the ship there: a click and
+	# W do nothing then, and ruling 20's flights last about 24 s)
+	if int(map.flight.heading_to()) != -9 or map._taking:
+		return {}
 	var at: Vector2 = map.overlay._ship_at
 	var r := map._box.get_global_transform() * Rect2(at - Vector2(12, 12), Vector2(24, 24))
 	if not map._box.get_global_rect().encloses(r):

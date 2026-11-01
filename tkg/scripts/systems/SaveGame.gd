@@ -1028,16 +1028,26 @@ static func _standing_to() -> Dictionary:
 
 ## WHERE THE SHIP WAS LEFT (`SystemMapScreen._parked`), one row per system.
 ## Rows, not a dictionary keyed by system: JSON keys are strings (see 23).
-## `at` is the body the ship orbits (-1 the star, -9 none), and `p`, `head` and
-## `mode` say where it was flying in open space when it orbits nothing.
+## `at` is the place the ship orbits (a body, -1 the star (star A of two suns),
+## SystemLayout.STAR_B (-4) star B, -9 none), and `p`, `head` and `mode` say
+## where it was flying in open space when it orbits nothing. Settled on a wide
+## orbit there, `cen`, `r` and `sense` say round what (-1 star A, the star; -4
+## star B; -9 both suns), how wide and which way, so it is put back on it
+## (`ShipFlight.restore_free`). They are only there for such a row, and a row
+## without them -- an older save's -- settles again where it is: no VERSION.
 static func _parked_to() -> Array:
 	var out: Array = []
 	for k in SystemMapScreen._parked:
 		var e: Dictionary = SystemMapScreen._parked[k]
 		var p: Vector2 = e.get("p", Vector2.ZERO)
 		var v: Vector2 = e.get("v", Vector2.ZERO)
-		out.append({index = int(k), at = int(e.get("at", -9)), p = [p.x, p.y], v = [v.x, v.y],
-			head = float(e.get("head", 0.0)), mode = String(e.get("mode", &""))})
+		var row := {index = int(k), at = int(e.get("at", -9)), p = [p.x, p.y], v = [v.x, v.y],
+			head = float(e.get("head", 0.0)), mode = String(e.get("mode", &""))}
+		if e.has("r"):
+			row.cen = int(e.get("cen", -1))
+			row.r = float(e.r)
+			row.sense = float(e.get("sense", 1.0))
+		out.append(row)
 	return out
 
 
@@ -1056,6 +1066,10 @@ static func _parked_from(raw: Variant, systems: int) -> Dictionary:
 			continue
 		out[idx] = {"at": int(r.get("at", -9)), "p": _vec(r.get("p")), "v": _vec(r.get("v")),
 			"head": float(r.get("head", 0.0)), "mode": StringName(str(r.get("mode", "")))}
+		if r.has("r"):
+			out[idx]["cen"] = int(r.get("cen", -1))
+			out[idx]["r"] = float(r.get("r", -1.0))
+			out[idx]["sense"] = float(r.get("sense", 1.0))
 	return out
 
 

@@ -131,6 +131,13 @@ static func keep_zoom(L: SystemLayout) -> float:
 ## 33.1 plane px, 39.1 with the margin, under its keep-clear 48. A twin's
 ## keep-clear is this already (the layout's `_twin_ladder`), so there the two
 ## agree exactly: its close orbit (`star_rail_of`) is 2 px outside it.
+## THE BLACK HOLE keeps a flight out of its lens, not its disc: STAR_MARGIN
+## inside its close orbit (`star_rail_of`, 150, set there because "the black
+## hole's lens reaches far past its disc"), 144. Kept to its disc as drawn
+## (52 px) the solved flights dove across the shadow and the lens -- 33 of 252
+## of the core's flights from the game's starts inside 150 px, 8 under 70,
+## where today's planner never came inside 161 (the one-sun review, Oct 31) --
+## and the Custodian's ENGAGE flies there in every won run.
 static func keep_out_star(L: SystemLayout, p: int) -> float:
 	var z := keep_zoom(L)
 	var r := L.star_radius(p)
@@ -138,6 +145,7 @@ static func keep_out_star(L: SystemLayout, p: int) -> float:
 	match L.star_kind_of(p):
 		SystemLayout.StarKind.CORE:
 			drawn = r * maxf(z, 1.0)
+			return maxf(maxf(L.keep_clear_of(p), drawn / z + STAR_MARGIN), L.star_rail_of(p) - STAR_MARGIN)
 		SystemLayout.StarKind.PULSAR:
 			drawn = r * PULSAR_OPEN_K
 		_:

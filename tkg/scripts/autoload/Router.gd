@@ -75,9 +75,24 @@ func crumb(line: String) -> void:
 ## SAVE & EXIT does there: the save from before the fight stands and the fight
 ## is noted so it starts again. The title, the hull pick and a finished run
 ## save nothing (`_autosave`'s own rules). A harness's `quit()` never comes here.
+##
+## A FLIGHT PLAN STILL BEING MADE ON A WORKER is waited for before the engine
+## shuts down (`ShipFlight.drain`): here as the window closes, and as this
+## autoload goes, after every screen (a harness's `quit()` comes that way). Left
+## out, a plan the map asked for crashed the quit (signal 11), Oct 31.
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		save_on_close()
+		_drain_flights()
+	elif what == NOTIFICATION_PREDELETE:
+		_drain_flights()
+
+
+## (by path, and only once the map's flight has been loaded: no ship, no plan)
+const _FLIGHT_GD := "res://scripts/ui/sysmap/ShipFlight.gd"
+func _drain_flights() -> void:
+	if ResourceLoader.has_cached(_FLIGHT_GD):
+		load(_FLIGHT_GD).drain()
 
 func save_on_close() -> void:
 	if in_combat():

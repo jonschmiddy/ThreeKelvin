@@ -116,6 +116,8 @@ var _pv_at := -99.0
 var _pv_old := PackedVector3Array()
 var _pv_new := PackedVector3Array()
 var _pv_lit := PackedByteArray()
+## how far through its flight each of the preview's points is (`lay_out`)
+var _pv_u := PackedFloat32Array()
 var _pv_b0 := -99.0
 var _pv_choice: Dictionary = {}
 ## THE PLAN DRAWN (`ShipFlight.FlightPlan`), which a click flies as it is while
@@ -161,6 +163,8 @@ var _lq: Array = []
 ## WHERE THE WORDS WENT last frame: the weather keeps its events off them
 ## (`SkyWeather.clear_at`)
 var label_rects: Array = []
+## and the words in each (a harness reads which is which)
+var label_says: Array = []
 ## A FLASH NEAR THE SHIP (`SkyWeather` `nearstrike`): its place on screen, its
 ## colour and how strong it is now ({} for none). The edge of the hull facing it
 ## catches its light for a moment; the outline stays.
@@ -186,6 +190,7 @@ func _place_labels() -> void:
 	_lq.sort_custom(func(x: Array, y: Array) -> bool: return int(x[0]) > int(y[0]))
 	var placed: Array = []
 	label_rects = []
+	label_says = []
 	for e: Array in _lq:
 		var at: Vector2 = e[1]
 		var s: String = e[2]
@@ -205,10 +210,33 @@ func _place_labels() -> void:
 			continue
 		placed.append(box)
 		label_rects.append(box)
+		label_says.append(s)
 		if e[4]:
 			_text(at + Vector2(1, 1), s, Color(Color("#05070b"), (e[3] as Color).a))
 		_text(at, s, e[3])
 	_lq.clear()
+
+
+## WHETHER WORDS AT `at` WOULD BE WRITTEN ACROSS A SUN: their box, as
+## `_place_labels` builds it, against the disc of each star of a pair but `but`
+## (one sun has no other). The words a twin puts by a star or a selected name
+## sat across the other sun about half the time at the opening zoom: the suns
+## are 56 to 106 px apart there, and such words 140 to 230 px wide (the words
+## review, Oct 31).
+func _meets_sun(at: Vector2, words: String, but := -99) -> bool:
+	var L: SystemLayout = view.layout
+	if L == null or not L.twin:
+		return false
+	var tw := _font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+	var box := Rect2(at + Vector2(-2, -10), Vector2(tw + 4, 14))
+	for st: int in L.stars():
+		if st == but:
+			continue
+		var c := star_scr(st)
+		var near := Vector2(clampf(c.x, box.position.x, box.end.x), clampf(c.y, box.position.y, box.end.y))
+		if near.distance_to(c) < star_disc(st):
+			return true
+	return false
 
 
 ## THE WORDS HELD BACK while the zoom ladder is far from rest (`ZoomLadder`):
@@ -477,7 +505,17 @@ func _draw() -> void:
 			var lx := s.x + r + 4.0
 			if lx + tw > view.window.end.x - 4.0:
 				lx = s.x - r - 4.0 - tw
-			_name_label(Vector2(lx, s.y + 3.0), nm, UITheme.ICE, 2, false)
+			var at := Vector2(lx, s.y + 3.0)
+			# NEVER ACROSS THE OTHER SUN of a pair: the other side, else under
+			# the reticle (on a flight to star B it lay over star A's disc)
+			if _meets_sun(at, nm, selected):
+				var tries := [Vector2(s.x - r - 4.0 - tw if lx > s.x else s.x + r + 4.0, s.y + 3.0),
+					Vector2(clampf(s.x - roundf(tw / 2.0), view.window.position.x + 4.0, view.window.end.x - tw - 4.0), s.y + r + 12.0)]
+				for q: Vector2 in tries:
+					if q.x >= view.window.position.x + 4.0 and q.x + tw <= view.window.end.x - 4.0 and not _meets_sun(q, nm, selected):
+						at = q
+						break
+			_name_label(at, nm, UITheme.ICE, 2, false)
 	# THE HOVER: the same reticle, closing in from 13 px to 7 px as it eases in
 	var hk: StringName = hover.get("kind", &"")
 	if (hk == &"body" or hk == &"star") and int(hover.body) != selected and _hover_t > 0.0:
@@ -558,6 +596,20 @@ func star_class_of(p: int) -> String:
 	if p == SystemLayout.STAR_B and view.layout.twin:
 		return view.STAR_FACTS[view.KIND_NAMES[view.layout.star2]].kind
 	return view.star_class()
+
+
+## THE INSERTION A CAPTURE AT `body` WILL FLY (the ship at `rel` from it,
+## moving `rv` relative to it): `ShipFlight.insert_plan` as `start_rail` makes
+## it, cleared against the very star it is onto. Drawn with star A's keep-out
+## for a twin's star B, bigger by 0.4 to 1.5 px where B's rail is 2 px clear,
+## the curl drawn was up to 58 px off the one flown, 961 of 1,666 captures at
+## star B (the seams review, Oct 31).
+func capture_ins(body: int, rel: Vector2, rv: Vector2) -> Dictionary:
+	var rt: float = flight.orbit_r(body)
+	var dir := 1.0 if rel.x * rv.y - rel.y * rv.x >= 0.0 else -1.0
+	var spd: float = flight.STAR_RAIL_V if SystemLayout.is_star(body) else flight.RAIL_V
+	var star := SystemLayout.is_star(body)
+	return flight.insert_plan(rel, rv, rt, dir * spd / rt, null if star else view.layout.bodies[body], Vector2.ZERO, body if star else -1)
 
 
 ## A place's name: a star's, or a body's.
@@ -788,7 +840,7 @@ func _draw_paths(t: float) -> void:
 		if flight.mode == &"fly" or arriving:
 			u = clampf((t - flight.fly_t0) / flight.plan.dur, 0.0, 1.0)
 		u = maxf(u, float(flight.plan.u_dep))
-		_draw_line3(_fly_line[0], _fly_line[1], 1.0, _fly_line[2], u)
+		_draw_line3(_fly_line[0], _fly_line[1], 1.0, _fly_line[2], u, flight.plan)
 	# FLYING BY HAND (a key held, or let go of a moment ago): only where you are
 	# going is drawn, never a plan replanned from under you (Jon: "why does the
 	# predicted orbit act so weird")
@@ -870,6 +922,7 @@ func _draw_paths(t: float) -> void:
 				_pv_old = _pv_blend() if blend else PackedVector3Array()
 				_pv_new = ln[0]
 				_pv_lit = ln[1]
+				_pv_u = ln[2]
 				_pv_b0 = _clock() if not _pv_old.is_empty() else -99.0
 			elif pl == null and int(got.i) == preview_to:
 				# (nothing at all from here: none drawn, and asked again in a while)
@@ -895,7 +948,9 @@ func _draw_paths(t: float) -> void:
 						var x := float(j) / float(m)
 						eased[j] = pvl[j] + off * (1.0 - x * x * (3.0 - 2.0 * x))
 					pvl = eased
-			_draw_line3(pvl, _pv_lit, 1.0, PackedFloat32Array(), 0.0)
+			# (a solved flight's ends at its rings' drawn size: `_drawn_ends`)
+			var whole: bool = _pv_plan != null and _pv_plan.res != null and _pv_old.is_empty() and _pv_u.size() == pvl.size()
+			_draw_line3(pvl, _pv_lit, 1.0, _pv_u if whole else PackedFloat32Array(), 0.0, _pv_plan if whole else null)
 
 
 ## The preview as it is drawn now: the last plan blending into the new.
@@ -923,17 +978,29 @@ func _plan_line(pl, _with_u: bool) -> Array:
 
 ## A LAID-OUT FLIGHT, DOTTED: projected point by point, a smooth curve through
 ## them, a dot every 3 px of it -- in the burn's colour where the engine burns,
-## ice on the coast; from `u0` of the flight on.
-func _draw_line3(pts: PackedVector3Array, lit: PackedByteArray, k: float, us: PackedFloat32Array, u0: float) -> void:
+## ice on the coast; from `u0` of the flight on. `pl`, the plan it is: its ends
+## drawn at its rings' drawn size (`_drawn_ends`).
+## HIDDEN BEHIND what stands in front of it, as the ship is: a sun's disc, a
+## nearer world's. Dotted over everything, a flight's line ran across a sun's
+## face where it passed behind it -- a quarter of a twin's flights at the
+## opening zoom, up to 26 px of it, the ship itself hidden on that stretch --
+## and over nearer worlds (the seen review, Oct 31). Each dot goes by the point
+## of the flight it is on.
+func _draw_line3(pts: PackedVector3Array, lit: PackedByteArray, k: float, us: PackedFloat32Array, u0: float, pl = null) -> void:
+	var drawn := _drawn_ends(pts, us, pl)
 	var sp := PackedVector2Array()
 	var sl := PackedByteArray()
-	for j in pts.size():
+	var sd := PackedFloat32Array()
+	for j in drawn.size():
 		if not us.is_empty() and us[j] < u0:
 			continue
-		sp.append(_scr(pts[j].x, pts[j].z))
+		var q: Vector3 = drawn[j]
+		sp.append(_scr(q.x, q.z))
 		sl.append(lit[j])
+		sd.append(view.depth(Vector2(q.x, q.z)))
 	if sp.size() < 2:
 		return
+	var occ := _occluders()
 	var w := _spline(sp)
 	var next := 0.0
 	var wp: PackedVector2Array = w[0]
@@ -942,16 +1009,129 @@ func _draw_line3(pts: PackedVector3Array, lit: PackedByteArray, k: float, us: Pa
 	var was_on := false
 	for j in wp.size():
 		var on: bool = sl[ws[j]] == 1
+		var dot := wd[j] >= next
+		if dot:
+			next += 3.0
+		var mark := on and not was_on
+		was_on = on
+		if not dot and not mark:
+			continue
+		if _hidden(wp[j], sd[ws[j]], occ):
+			continue
 		# A BURN MARKER where each real burn starts: a small plus, so a change of
 		# course reads as a manoeuvre (only the burns the plan marks as real)
-		if on and not was_on:
+		if mark:
 			var c0: Vector2 = wp[j].round()
 			for d in [Vector2(0, -1), Vector2(-1, 0), Vector2(1, 0), Vector2(0, 1)]:
 				_px(c0 + d, Color(ION_TIP, 0.85 * k))
-		was_on = on
-		if wd[j] >= next:
-			next += 3.0
+		if dot:
 			_px(wp[j].round(), Color(ION_CORE, 0.85 * k) if on else Color(UITheme.ICE, 0.65 * k))
+
+
+## WHAT CAN STAND IN FRONT OF A POINT ON THE PLANE, as [screen centre, drawn
+## radius, depth]: each sun's disc and each world drawn. `_hidden` is the rule
+## `_draw_ship` and `_draw_partners` keep (`_star_occ`, nearer worlds).
+func _occluders() -> Array:
+	var out: Array = []
+	var L: SystemLayout = view.layout
+	for st: int in L.stars():
+		out.append([star_scr(st), star_disc(st), view.depth(L.star_pos(st))])
+	for i: int in view._views:
+		out.append([view.at[i], view.draw_r(L.bodies[i]), view.depth(view.pos[i])])
+	return out
+
+
+## Whether screen point `x`, of a plane point at depth `d`, is behind one of
+## `occ` (`_occluders`): nearer the viewer than it, and over it.
+static func _hidden(x: Vector2, d: float, occ: Array) -> bool:
+	for o: Array in occ:
+		if float(o[2]) > d and x.distance_to(o[0]) < float(o[1]):
+			return true
+	return false
+
+
+## A SOLVED FLIGHT'S ENDS AT ITS RINGS' DRAWN SIZE: a ring is drawn bigger than
+## life to read (`_orbit_k`), and the ship on it drawn out with it (`_ok`, on
+## its spring: easing to life size as it leaves, to the ring's size as it burns
+## on), while its line was laid at life size. At a twin's worlds round one
+## star (a ring of 4 to 5 px drawn at about 10) the line began and ended on the
+## world's face and the ship rode 3.5 to 8.9 px off it at each end (the seen
+## review, Oct 31). Each point is drawn off its place as the ship will be drawn
+## there at its moment: the departure's spring from the plan's start, the
+## arrival's from its burn (`ShipFlight._arrive_t`). The moments and places are
+## worked out once a plan (`_ends_table`); the sizes, which go with the zoom,
+## every frame. Today's planner's lines, and a one-sun or giant system's (where
+## a ring is drawn its own size), are as laid out.
+func _drawn_ends(pts: PackedVector3Array, us: PackedFloat32Array, pl) -> PackedVector3Array:
+	if pl == null or pl.res == null or us.size() != pts.size() or pts.is_empty():
+		return pts
+	var tab: Dictionary = _ends_table(pts, us, pl)
+	var kd: float = _orbit_k(int(tab.dp), float(tab.rd)) if bool(tab.has_d) else 1.0
+	var ka: float = _orbit_k(int(tab.to), float(tab.ra)) if bool(tab.has_a) else 1.0
+	if kd <= 1.001 and ka <= 1.001:
+		return pts
+	var out := PackedVector3Array(pts)
+	var rows: Array = tab.rows
+	for e: Array in rows:
+		var j: int = e[0]
+		var c: Vector2 = e[1]
+		var sc: float = 1.0 + (kd - 1.0) * float(e[2]) + (ka - 1.0) * float(e[3])
+		var q := pts[j]
+		out[j] = Vector3(c.x + (q.x - c.x) * sc, q.y, c.y + (q.z - c.y) * sc)
+	return out
+
+
+## (per plan: what `_drawn_ends` scales, and each point's share of each scale)
+var _ends_tabs: Dictionary = {}
+func _ends_table(pts: PackedVector3Array, us: PackedFloat32Array, pl) -> Dictionary:
+	var key := "%d:%d" % [pl.get_instance_id(), pts.size()]
+	if _ends_tabs.has(key):
+		return _ends_tabs[key]
+	if _ends_tabs.size() >= 4:
+		_ends_tabs.clear()
+	var L: SystemLayout = view.layout
+	var dep: Dictionary = pl.dep
+	var dk := StringName(dep.get("kind", &""))
+	var dp := int(dep.get("place", -9))
+	var has_d := SystemLayout.is_place(dp) and (dk == &"ring" or dk == &"keep")
+	var rd := float(dep.get("rt", 0.0)) if dk == &"ring" else maxf((dep.get("off", Vector2.ZERO) as Vector2).length(), 4.0)
+	var to := int(pl.to)
+	var has_a := SystemLayout.is_place(to)
+	var ra: float = maxf((pl.end.get("arel", Vector2.ZERO) as Vector2).length(), 4.0) if bool(pl.end.get("keep", false)) else float(flight.orbit_r(to)) if has_a else 0.0
+	var t0 := float(pl.t0)
+	var dur := float(pl.dur)
+	var t_end := float(pl.end.get("t", t0 + dur))
+	var t_arr: float = flight._arrive_t(pl)
+	var w := OK_W
+	# (the spring's own fall from rest, `_process`'s `_ok`)
+	var g := func(tau: float) -> float:
+		return (1.0 + w * tau) * exp(-w * tau) if tau > 0.0 else 1.0
+	var at := func(i: int, tt: float) -> Vector2:
+		return L.star_pos(i) if SystemLayout.is_star(i) else _flat3(flight.center(i, tt))
+	# (the tail after the last sample, TAIL_S of the ring, at its own moments)
+	var n_tail := 0
+	for j in range(us.size() - 1, -1, -1):
+		if us[j] < 1.0:
+			break
+		n_tail += 1
+	var wd_arr: float = g.call(t_arr - t0) if has_d else 0.0
+	var rows: Array = []
+	var nt := 0
+	for j in pts.size():
+		var tj := t0 + float(us[j]) * dur
+		if us[j] >= 1.0 and n_tail > 1:
+			tj = t_end + float(flight.TAIL_S) * float(nt) / float(n_tail - 1)
+			nt += 1
+		if has_a and tj > t_arr:
+			var ga: float = g.call(tj - t_arr)
+			rows.append([j, at.call(to, tj), wd_arr * ga, 1.0 - ga])
+		elif has_d:
+			var gd: float = g.call(tj - t0)
+			if gd > 0.001:
+				rows.append([j, at.call(dp, tj), gd, 0.0])
+	var tab := {"dp": dp, "rd": rd, "has_d": has_d, "to": to, "ra": ra, "has_a": has_a, "rows": rows}
+	_ends_tabs[key] = tab
+	return tab
 
 
 ## A SMOOTH CURVE THROUGH POINTS ON SCREEN (Jon: "why is this path so lumpy?"):
@@ -1057,6 +1237,10 @@ func _orbit_px(body: int, r: float) -> float:
 
 func _is_belt(body: int) -> bool:
 	return body >= 0 and view.layout.bodies[body].kind == &"belt"
+
+
+static func _flat3(v: Vector3) -> Vector2:
+	return Vector2(v.x, v.z)
 
 
 ## A place's centre on screen. A star's from the layout: both hold still, star
@@ -1199,11 +1383,8 @@ func _line(ln: Dictionary, a: float, t: float, main: bool) -> void:
 		var rt: float = flight.orbit_r(body)
 		var rpx := _orbit_px(body, rt)
 		var rv: Vector2 = o.rv if o.get("rv") != null else Vector2.ZERO
-		var dir := 1.0 if rel.x * rv.y - rel.y * rv.x >= 0.0 else -1.0
-		var spd: float = flight.STAR_RAIL_V if SystemLayout.is_star(body) else flight.RAIL_V
-		# THE INSERTION AS THE SHIP WILL FLY IT (`ShipFlight.insert_plan`), its
-		# offset drawn at the ring's scale
-		var ins: Dictionary = flight.insert_plan(rel, rv, rt, dir * spd / rt, null if SystemLayout.is_star(body) else L.bodies[body])
+		# THE INSERTION AS THE SHIP WILL FLY IT, its offset drawn at the ring's scale
+		var ins := capture_ins(body, rel, rv)
 		var kq := _orbit_k(body, rt)
 		var curl := PackedVector2Array()
 		for j in 61:
@@ -1264,6 +1445,11 @@ var partner_at: Array = []
 ## ship reported six times a second flies rather than steps.
 var _partner_plane: Dictionary = {}
 var _partner_ms: int = 0
+## AND ON AN ORBIT, AT THE ORBIT'S DRAWN SIZE, as your own ship is (`_ok`): by
+## partner, [the place it is drawn off, how much bigger than life], eased. At
+## its true offset a partner riding with you round a twin's world round one
+## star sat on the world's disc, 5 px off the ring as drawn (the seams review).
+var _partner_kb: Dictionary = {}
 
 ## THE PARTY ON THE MAP: the small arrow your own ship was before it was your
 ## hull, in the party's colour, with its pilot's name (Oct 22 playtest:
@@ -1288,9 +1474,27 @@ func _draw_partners(_t: float) -> void:
 		var want: Vector2 = e[1]
 		var q: Vector2 = _partner_plane.get(id, want)
 		# a jump across the system is a new place, not a flight to it
-		q = want if q.distance_to(want) > 400.0 else q.lerp(want, k)
+		var jumped := q.distance_to(want) > 400.0
+		q = want if jumped else q.lerp(want, k)
 		_partner_plane[id] = q
-		var x := _scr(q.x, q.y).round()
+		var pb: int = int(e[4]) if e.size() > 4 else -10
+		var want_k := 1.0
+		var kb: Array = _partner_kb.get(id, [pb, -1.0])
+		if SystemLayout.is_place(pb):
+			var cp: Vector2 = view.layout.star_pos(pb) if SystemLayout.is_star(pb) else _flat3(flight.center(pb, view.t))
+			want_k = _orbit_k(pb, maxf((q - cp).length(), 4.0))
+			kb[0] = pb
+		# (first seen, or jumped: drawn where it is at once)
+		var kq: float = want_k if (float(kb[1]) < 0.0 or jumped) else lerpf(float(kb[1]), want_k, k)
+		if want_k == 1.0 and absf(kq - 1.0) < 0.002:
+			kq = 1.0
+		kb[1] = kq
+		_partner_kb[id] = kb
+		var x := _scr(q.x, q.y)
+		if kq > 1.001 and SystemLayout.is_place(int(kb[0])):
+			var bw := _body_scr(int(kb[0]))
+			x = bw + (x - bw) * kq
+		x = x.round()
 		if x.distance_to(_ship_at) < ship_r() + 7.0:
 			row += 1
 			x = _ship_at + Vector2(-6.0, ship_r() + 5.0 + 12.0 * (row - 1))
@@ -1534,6 +1738,9 @@ func _draw_ship(t: float) -> void:
 		words = ("CLOSE ORBIT · " if SystemLayout.is_star(ob) else ("ALONGSIDE · " if flight.mode == &"keep" else "IN ORBIT · ")) + _place_nm(ob)
 	elif SystemLayout.is_place(on) and flight.mode == &"rail" and flight.rail.has("phase"):
 		words = "LEAVING ORBIT · " + _place_nm(on)
+	elif SystemLayout.is_place(on) and flight.mode == &"keep" and flight.keep.has("hold"):
+		# (holding alongside to leave: it said YOU, the flight already drawn)
+		words = "LEAVING · " + _place_nm(on)
 	elif SystemLayout.is_place(on) and flight.inserting():
 		words = ("COMING ALONGSIDE · " if flight.mode == &"keep" else "ENTERING ORBIT · ") + _place_nm(on)
 	elif flight.star_orbiting():
@@ -1553,6 +1760,19 @@ func _draw_ship(t: float) -> void:
 			lc = bw
 			ly = bw.y + maxf(rr * view.TILT, disc) + 13.0
 		var lx := clampf(lc.x - roundf(tw / 2.0), view.window.position.x + 4.0, view.window.end.x - tw - 4.0)
+		# NEVER ACROSS A SUN of a pair (in a star's close orbit they sat across
+		# the other one, 46 of 90 twins): above the ring, else under the ship
+		if names_on and SystemLayout.is_place(on) and _meets_sun(Vector2(lx, ly), words):
+			var bw2 := _body_scr(on)
+			var rr2 := _orbit_px(on, _orbit_r(on)) * _ok / maxf(_orbit_k(on, _orbit_r(on)), 1.0)
+			var disc2: float = star_disc(on) if SystemLayout.is_star(on) else (_reach(on) - 7.0)
+			var tries := [Vector2(lx, bw2.y - maxf(rr2 * view.TILT, disc2) - 5.0),
+				Vector2(clampf(x.x - roundf(tw / 2.0), view.window.position.x + 4.0, view.window.end.x - tw - 4.0), x.y + maxf(17.0, ship_r() + 11.0))]
+			for q: Vector2 in tries:
+				if not _meets_sun(q, words):
+					lx = q.x
+					ly = q.y
+					break
 		if names_on:
 			_label(Vector2(lx, ly), words, UITheme.FLARE, 4, true)
 		else:
@@ -1602,6 +1822,10 @@ func ship_status() -> Array:
 		&"keep":
 			if flight.inserting():
 				return ["COMING ALONGSIDE · " + nm.call(int(flight.keep.body)), UITheme.HOT]
+			# HOLDING ALONGSIDE TO LEAVE (`FlightSolve`'s KEEP_HOLD, or while the
+			# flight is planned): on its way, as riding round a ring to leave is
+			if flight.keep.has("hold"):
+				return ["LEAVING · " + to.call(flight.fly_to), UITheme.CHILL]
 			return ["ALONGSIDE · " + nm.call(int(flight.keep.body)), UITheme.FLARE]
 		&"free":
 			if flight.star_orbiting():

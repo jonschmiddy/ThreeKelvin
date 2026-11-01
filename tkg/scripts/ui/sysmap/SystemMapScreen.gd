@@ -355,6 +355,9 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 	flight = ShipFlightS.new()
 	var ex := minf(view.layout.edge, (view.window.end.x - view.CX - 26.0) / zoom_min)
 	flight.setup(view.layout, Vector2(ex, -210.0), t0)
+	# (where a jump into this system puts a ship: a partner just arrived is
+	# drawn there, `partner_points`)
+	_arrival_p = flight.f.p
 	if not arrived:
 		_restore_ship(_parked.get(n.index, {}))
 	elif n.type == MapGen.NodeType.STATION and view.layout.dock_place() >= 0:
@@ -457,9 +460,17 @@ func _report_spot() -> void:
 	Net.report_spot(Run.at, body, p, float(flight.ang))
 
 
+## WHERE A JUMP INTO THIS SYSTEM PUTS A SHIP (`ShipFlight.setup`'s arrival
+## orbit, for the edge point this map's own ship came in at), kept as the map
+## is shown: a partner who has just arrived is drawn there.
+var _arrival_p := Vector2.INF
+
+
 ## Where each partner in this system is on the plane, at this machine's clock:
-## `[[peer id, Vector2 plane point, angle, name], ...]`. What the overlay draws
-## and what `-- cojoin` reads.
+## `[[peer id, Vector2 plane point, angle, name, place], ...]`, the place the
+## spot was sent off (a world, either star's close orbit, -9 open space): the
+## overlay draws a partner on an orbit at the orbit's drawn size, as it does
+## your own ship. What the overlay draws and what `-- cojoin` reads.
 func partner_points() -> Array:
 	var out: Array = []
 	if view == null or view.node == null or view.layout == null or flight == null:
@@ -479,6 +490,11 @@ func partner_points() -> Array:
 			if dp >= 0:
 				var c0: Vector3 = flight.center(dp, view.t)
 				q = Vector2(c0.x, c0.z) + Vector2(14.0, 0.0)
+			elif _arrival_p != Vector2.INF:
+				# (on the arrival orbit, where this map put its own ship: in a twin
+				# round both suns' balance point, which the frame's edge point by
+				# star A was a median 108 px off on screen; one sun 20)
+				q = _arrival_p
 			else:
 				q = Vector2(view.layout.edge, -210.0)
 		else:
@@ -488,7 +504,7 @@ func partner_points() -> Array:
 			if body >= 0 and body < view.layout.bodies.size():
 				var c: Vector3 = flight.center(body, view.t)
 				q += Vector2(c.x, c.z)
-		out.append([id, q, float(sp.get("ang", PI)), String(s.get("name", "")).to_upper()])
+		out.append([id, q, float(sp.get("ang", PI)), String(s.get("name", "")).to_upper(), body if not sp.is_empty() else -10])
 	return out
 
 
@@ -505,6 +521,10 @@ func own_mark() -> Vector2:
 	return overlay._ship_at
 
 
+## the flight the map was left on, counted there once (`_keep_ship`)
+var _left_on_way = null
+
+
 ## Where the ship is, kept for the session when the screen leaves this system.
 func _keep_ship() -> void:
 	if flight == null or view.node == null:
@@ -513,7 +533,23 @@ func _keep_ship() -> void:
 	# nothing: its system is the last run's)
 	if view.node.index >= Run.map.size() or Run.map[view.node.index] != view.node:
 		return
-	_parked[view.node.index] = {"at": ship_place(), "p": flight.f.p, "v": flight.f.v, "head": flight.f.head, "mode": flight.mode}
+	var at := ship_place()
+	# A FLIGHT LEFT ON ITS WAY lands where it was going (`ship_place`), counted
+	# as a flight there as it would have been on arrival, so LOCAL plays its own
+	# arrival (`flown_to`); once, though the map is put away twice (hidden, then
+	# out of the tree) and steps the ship between
+	if flight.mode == &"fly" and SystemLayout.is_place(at) and flight.plan != _left_on_way:
+		_left_on_way = flight.plan
+		flights += 1
+		flown_to[view.node.index] = {"at": at, "n": flights}
+	var e := {"at": at, "p": flight.f.p, "v": flight.f.v, "head": flight.f.head, "mode": flight.mode}
+	# SETTLED ON A WIDE ORBIT: round what, how wide and which way, so it is put
+	# back on that very orbit (`ShipFlight.restore_free`)
+	if flight.star_orbiting():
+		e["cen"] = int(flight.f.cen_id)
+		e["r"] = float(flight.f.orbit_r)
+		e["sense"] = float(flight.f.sense)
+	_parked[view.node.index] = e
 
 
 ## WHERE THE SHIP IS, as LOCAL is told it: a body, -1 the star's close orbit
@@ -536,6 +572,15 @@ func ship_place() -> int:
 	# orbit (`_restore_ship`); a flight it was waiting to start is let go.
 	if not SystemLayout.is_place(at) and (flight.mode == &"rail" or flight.mode == &"keep"):
 		at = flight.orbit_body()
+	# AND A FLIGHT UNDER WAY IS AT THE PLACE IT IS GOING TO, as its arrival burn
+	# already is: the map left on the way (Tab, the HUD's tabs, SAVE & EXIT, the
+	# window closed) puts the ship there, in orbit or alongside, and LOCAL opens
+	# its event. Clicking never loses anything: fly, then orbit, then open. It
+	# put the ship back at the system's edge with the flight gone, which ruling
+	# 20's flights, about 24 s where they took 4 to 12, made several times as
+	# likely (the reviews, Oct 31)
+	elif not SystemLayout.is_place(at) and flight.mode == &"fly" and SystemLayout.is_place(flight.fly_to):
+		at = flight.fly_to
 	return at
 
 
@@ -553,11 +598,10 @@ func _restore_ship(d: Dictionary) -> void:
 	if SystemLayout.is_place(at) and at < view.layout.bodies.size():
 		flight.place_at(at, view.t)
 	elif StringName(d.mode) == &"free":
-		flight.mode = &"free"
-		flight.f.p = d.p
-		flight.f.v = Vector2.ZERO
-		flight.f.head = d.head
-		flight.ang = d.head
+		# (on the wide orbit it was settled on, else coasting on from where it
+		# was: never on the arrival orbit `setup` has just made)
+		flight.restore_free(d.get("p", Vector2.ZERO), d.get("v", Vector2.ZERO), float(d.get("head", PI)),
+			int(d.get("cen", -99)), float(d.get("r", -1.0)), float(d.get("sense", 0.0)))
 	else:
 		flight.place_at(-3, view.t)
 

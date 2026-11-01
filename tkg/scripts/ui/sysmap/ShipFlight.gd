@@ -267,6 +267,7 @@ func setup(layout: SystemLayout, edge_point: Vector2, t: float) -> void:
 	edge_at = edge_point
 	_grav_v = null
 	_stars = L.stars()
+	_cache_stars()
 	f = FreeState.new()
 	_drop_jobs()
 	# IN ORBIT OF THE STAR AS IT ARRIVES (Jon: "Can we start the ship in orbit
@@ -299,6 +300,32 @@ func setup(layout: SystemLayout, edge_point: Vector2, t: float) -> void:
 ## THE SYSTEM'S STARS as places ([-1], or [-1, STAR_B] in a twin), kept from
 ## `setup`: free flight asks every step.
 var _stars: Array[int] = [-1]
+## EACH STAR'S OWN NUMBERS, in `_stars`' order, kept from `setup` too: where it
+## is, its bumper, its keep-clear, its close ring, and the radius a ship is held
+## out at (a twin's keep-clear, else star_r + 8). Free flight read them through
+## the layout's lookups every step of both forecast lines, which in a twin, its
+## two stars and its lines that run their whole 6 s settling, cost the frame
+## about twice one sun's (MapPerfTest, Oct 31: 5.2 to 6.1 ms a pair against 2.2
+## to 3.4).
+var _s_pos := PackedVector2Array()
+var _s_bump := PackedFloat64Array()
+var _s_keep := PackedFloat64Array()
+var _s_ring := PackedFloat64Array()
+var _s_hold := PackedFloat64Array()
+
+
+func _cache_stars() -> void:
+	_s_pos = PackedVector2Array()
+	_s_bump = PackedFloat64Array()
+	_s_keep = PackedFloat64Array()
+	_s_ring = PackedFloat64Array()
+	_s_hold = PackedFloat64Array()
+	for s in _stars:
+		_s_pos.append(L.star_pos(s))
+		_s_bump.append(bumper(s))
+		_s_keep.append(keep_clear(s))
+		_s_ring.append(star_ring(s))
+		_s_hold.append(keep_clear(s) if L.twin else L.star_radius(s) + 8.0)
 
 
 ## STAR p'S CLOSE ORBIT (the rail), its capture ring and its keep-clear: the
@@ -1372,12 +1399,14 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 	# EACH STAR IS A SOFT BUMPER: inside it, the inward part of your motion is
 	# turned sideways (speed kept) and a little push goes out -- unless you are
 	# slow enough for its close ring, which takes you instead
-	for s in _stars:
-		var sc := L.star_pos(s)
-		var qs := st.p - sc
+	if _s_pos.size() != _stars.size():
+		_cache_stars()
+	for si in _stars.size():
+		var s := _stars[si]
+		var qs := st.p - _s_pos[si]
 		var r := qs.length()
 		var rh := qs / r if r > 0.001 else Vector2.RIGHT
-		var bm := bumper(s)
+		var bm := _s_bump[si]
 		if r < bm and not (no_cap != s and sp < CAPTURE + (STICKY if stick == s else 0.0) and not k.w and _star_takes(s, st.v, rh)):
 			var kk := (bm - r) / bm
 			var turn := 10.0
@@ -1388,7 +1417,7 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 				# held there. Ramped over the whole bumper as one star's is, W held at
 				# a sun drove the ship 18 to 22 px into a 41 to 44 px drawn sun (the
 				# flight review, Oct 31)
-				kk = clampf((bm - r) / maxf(bm - keep_clear(s), 1.0), 0.0, 1.0)
+				kk = clampf((bm - r) / maxf(bm - _s_keep[si], 1.0), 0.0, 1.0)
 				turn = TWIN_TURN
 			var vr := st.v.dot(rh)
 			if vr < 0.0:
@@ -1423,13 +1452,11 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 		# keep-out, 6 px outside its sun as drawn at the opening zoom, sliding
 		# round it, and the line the same: star_r + 8 was half way into a twin's
 		# drawn sun)
-		for s2 in _stars:
-			var sc2 := L.star_pos(s2)
+		for s2 in _stars.size():
+			var sc2 := _s_pos[s2]
 			var q2 := st.p - sc2
 			var r2 := q2.length()
-			var rd := L.star_radius(s2) + 8.0
-			if L.twin:
-				rd = keep_clear(s2)
+			var rd := _s_hold[s2]
 			if r2 < rd and r2 > 0.001:
 				st.p = sc2 + q2 / r2 * rd
 				if L.twin:
@@ -1467,9 +1494,10 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 				if capture_by_index:
 					st.fast_seen = b.index
 					return fast
-	for s3 in _stars:
-		var rs := st.p - L.star_pos(s3)
-		if no_cap != s3 and rs.length() < star_ring(s3):
+	for si3 in _stars.size():
+		var s3 := _stars[si3]
+		var rs := st.p - _s_pos[si3]
+		if no_cap != s3 and rs.length() < _s_ring[si3]:
 			if not _star_takes(s3, st.v, rs / maxf(rs.length(), 0.001)):
 				continue
 			if st.v.length() < CAPTURE + (STICKY if stick == s3 else 0.0):
@@ -1759,6 +1787,11 @@ const PLAN_AHEAD := 0.25
 ## about this long. A click on it flies it as drawn; a click with none drawn
 ## plans PLAN_AHEAD on.
 const PREVIEW_AHEAD := 1.0
+## THE LINE THE MAP DRAWS A FLIGHT AS, laid out on the worker that plans it
+## (`lay_out`, `SystemOverlay.PV_N`): a click's own plan too, so the frame the
+## flight starts in does not lay it out (3 to 8 ms on this thread, the flight
+## review's timing, Oct 31) when no preview was drawn to fly
+const LINE_N := 1600
 
 
 ## WHERE A FLIGHT TO PLACE i ARRIVES: a world's ring at RAIL_V either way round
@@ -2080,6 +2113,9 @@ var _pend: Dictionary = {}
 ## ship's own, are reaped as they finish (`_reap`, `reap`).
 var _jobs: Dictionary = {}
 static var _reap: Array[int] = []
+## EVERY TASK STARTED AND NOT YET WAITED FOR, by id, whoever holds it (a ship's
+## `_jobs`, `_reap`): what `drain` waits for as the game quits.
+static var _out: Dictionary = {}
 ## (a harness, ThreadStress: this ship's worker plans go straight to today's
 ## planner, as one the solver found nothing for does)
 var old_only := false
@@ -2112,9 +2148,37 @@ func _drop_jobs() -> void:
 ## ship's step, and the map's frame with none (`SystemMapScreen._step_ship`).
 static func reap() -> void:
 	for ri in range(_reap.size() - 1, -1, -1):
-		if WorkerThreadPool.is_task_completed(_reap[ri]):
-			WorkerThreadPool.wait_for_task_completion(_reap[ri])
+		if _done(_reap[ri]):
+			_wait(_reap[ri])
 			_reap.remove_at(ri)
+
+
+## EVERY TASK STILL OUT, WAITED FOR, as the game quits (`Router`: the window's
+## close, and its own PREDELETE, which comes after every screen's): a ship's
+## plans as well as the ones let go of. A task never waited for kept its lambda
+## until the engine's own cleanup freed it, after GDScript had shut down, and
+## that crashed the quit (signal 11, exit 134): the scroll check 3 of 3 times
+## with a plan out, and a window closed on a map with a place selected
+## (previews are planned again every second) some of the time (Oct 31). A plan
+## is bounded, at worst about 550 ms. A task waited for here is let go of by
+## whoever held it (`_done`, `_wait`).
+static func drain() -> void:
+	for task in _out.keys():
+		WorkerThreadPool.wait_for_task_completion(int(task))
+	_out.clear()
+	_reap.clear()
+
+
+## Whether task `task` is done (or already waited for, `drain`).
+static func _done(task: int) -> bool:
+	return not _out.has(task) or WorkerThreadPool.is_task_completed(task)
+
+
+## Task `task` waited for, once: never again after `drain` has.
+static func _wait(task: int) -> void:
+	if _out.has(task):
+		_out.erase(task)
+		WorkerThreadPool.wait_for_task_completion(task)
 
 
 ## Whether a plan for `use` is being made.
@@ -2172,6 +2236,7 @@ func plan_bg(i: int, t: float, prefer: Dictionary, use: StringName, lay := 0) ->
 		if pl != null and lay > 0:
 			pl.line = snap.lay_out(pl, lay)
 		held.plan = pl, false, "sector map flight plan")
+	_out[task] = true
 	_jobs[use] = {"task": task, "held": held, "i": i, "t": ts, "dep": dep, "prefer": prefer}
 	return true
 
@@ -2184,6 +2249,11 @@ func _snapshot(t: float, ts: float) -> RefCounted:
 	var s = get_script().new()
 	s.L = L
 	s._stars = _stars
+	s._s_pos = _s_pos
+	s._s_bump = _s_bump
+	s._s_keep = _s_keep
+	s._s_ring = _s_ring
+	s._s_hold = _s_hold
 	s.edge_at = edge_at
 	s._grav_v = _grav_v
 	s._grav_n = _grav_n
@@ -2309,9 +2379,9 @@ func take_bg(use: StringName, t: float) -> Dictionary:
 	if not _jobs.has(use):
 		return {}
 	var j: Dictionary = _jobs[use]
-	if not WorkerThreadPool.is_task_completed(int(j.task)):
+	if not _done(int(j.task)):
 		return {}
-	WorkerThreadPool.wait_for_task_completion(int(j.task))
+	_wait(int(j.task))
 	_jobs.erase(use)
 	var r: FlightSolve.Result = j.held.get("r")
 	var pl: FlightPlan = j.held.get("plan")
@@ -2350,7 +2420,7 @@ func fly_bg(i: int, t: float, done: Callable, prefer: Dictionary = {}, pv: Fligh
 	if _jobs.has(&"preview") and int(_jobs[&"preview"].i) == i:
 		_jobs[&"fly"] = _jobs[&"preview"]
 		_jobs.erase(&"preview")
-	elif not plan_bg(i, t, prefer, &"fly"):
+	elif not plan_bg(i, t, prefer, &"fly", LINE_N):
 		# (nothing to plan from: put there, as a plan that finds nothing is)
 		_put_there(i, t)
 		return true
@@ -2412,7 +2482,7 @@ func _poll_jobs(t: float) -> void:
 			else:
 				_fly_plan(pl2, rd2, t, d)
 			return
-		if not plan_bg(i, t, keep_c, &"fly"):
+		if not plan_bg(i, t, keep_c, &"fly", LINE_N):
 			_put_there(i, t)
 			return
 		_pend = {"i": i, "t": t, "prefer": keep_c, "tries": tries}
@@ -2439,6 +2509,44 @@ func settle_at(p: Vector2, sense := 1.0) -> void:
 	f.coast = SETTLE_TURN + SETTLE_RAMP + 0.01
 	f.head = _scr_ang(f.v)
 	ang = f.head
+
+
+## A SHIP PUT BACK IN OPEN SPACE (`SystemMapScreen._restore_ship`, a Tab back
+## from LOCAL, another rendering style, a save loaded): where it was, and on
+## the wide orbit it was settled on where the record says which (round
+## `cen_id` -- -1 star A, the star; `SystemLayout.STAR_B`; -9 both suns -- at
+## `orbit_r`, the way `sense` goes) and this system still has that centre;
+## else coasting on from there at `v`, to settle again from where it is. Put
+## back with only its point, it kept the arrival orbit `setup` had just made,
+## whose radius (round the balance point in a twin) it was then pulled onto
+## round its own star: settled round star B at 69 px, back on a 318 px circle
+## that ran through star A's keep-out, and every flight from there planned off
+## that circle, up to 818 px from the ship (the seams and saves reviews, Oct
+## 31; one sun the same, r 300 back at 223).
+func restore_free(p: Vector2, v: Vector2, head: float, cen_id := -99, r := -1.0, sense := 0.0) -> void:
+	_drop_flight()
+	mode = &"free"
+	rail = {}
+	keep = {}
+	plan = null
+	f = FreeState.new()
+	f.p = p
+	f.head = head
+	ang = head
+	fresh = false
+	warp_t = -100.0
+	var known := cen_id == -1 or (L.twin and (cen_id == SystemLayout.STAR_B or cen_id == -9))
+	if r > 0.0 and known:
+		f.cen_id = cen_id
+		f.cen = L.bary if cen_id == -9 else L.star_pos(cen_id)
+		f.cen_share = 1.0 if (not L.twin or cen_id == -9) else (L.star_share if cen_id == -1 else 1.0 - L.star_share)
+		f.orbit_r = r
+		f.sense = sense if sense != 0.0 else 1.0
+		f.v = star_orbit_v(f.p, f.orbit_r, f.sense, f.cen, f.cen_share)
+		# (settled: the next step keeps this centre and does not choose again)
+		f.coast = SETTLE_TURN + SETTLE_RAMP + 0.01
+	else:
+		f.v = v
 
 
 ## TODAY'S PLANNER (before ruling 20): Lambert conics round star A, time-scaled,

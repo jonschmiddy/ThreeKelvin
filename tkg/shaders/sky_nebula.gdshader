@@ -359,7 +359,13 @@ Lt light_at(vec2 b) {
 		vec2 d2 = b - star2_at;
 		float dL2 = length(d2 * vec2(1.0, 1.15)) / l.LZ;
 		float Js2 = star2_k / (1.0 + pow(dL2 / 155.0, 2.0)) * mix(1.0, breath, 0.6);
-		l.toSun = normalize(l.toSun * l.Js - d2 / max(length(d2), 1e-3) * Js2 + vec2(1e-6, 0.0));
+		// (the two suns' ways, weighted by their light and NOT normalised: its
+		// length is how far they agree, 1 where one sun rules, falling to 0 at the
+		// point between them where both light the gas alike, so every reader --
+		// the wrap, the dust's face and rim, the shafts' angle -- fades to neutral
+		// there. Normalised, it turned 180 deg across that point and through 90
+		// within a pixel of it: a whorl in the cloud, zoomed in between the suns)
+		l.toSun = (l.toSun * l.Js - d2 / max(length(d2), 1e-3) * Js2) / max(l.Js + Js2, 1e-4);
 		l.Js += Js2;
 		l.Jc += star2_k / (1.0 + pow(dL2 / (38.0 * breath), 2.0));
 		l.Jw += star2_k * 0.35 / (1.0 + pow(dL2 / 520.0, 2.0));

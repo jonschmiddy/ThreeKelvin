@@ -493,11 +493,34 @@ func _labels() -> Array:
 	return []
 
 
-## THE FRAME'S OWN WORDS, which the overlay does not place: the ship's status
-## at the top left, the scale bar and LOCATION at the bottom right.
+## THE FRAME'S OWN WORDS, which the overlay does not place: the goal line and
+## its step at the picture's top left (`GoalLine`), the ship's status under
+## them, and the scale bar and LOCATION at the bottom right. The status line's
+## box is its own words' (`SystemOverlay.status_rect`): a fixed 300 x 24 at the
+## top left was where the status stood before Oct 20, and it kept nothing off
+## the line now drawn under the goal (at y 37 to 49), nor off a twin's longest,
+## 327 px "LEAVING ORBIT · TO A CLOSE ORBIT OF <system> B" (the words review).
+## (worked out once a frame: a spot is tried at many points)
+var _ui_at := -1
+var _ui: Array = []
 func _ui_rects() -> Array:
+	if _ui_at == Engine.get_process_frames():
+		return _ui
+	_ui_at = Engine.get_process_frames()
 	var w: Rect2 = view.window
-	return [Rect2(w.position, Vector2(300.0, 24.0)), Rect2(w.end - Vector2(160.0, 52.0), Vector2(160.0, 52.0))]
+	var out: Array = [Rect2(w.end - Vector2(160.0, 52.0), Vector2(160.0, 52.0))]
+	var goal := Rect2(w.position, Vector2(300.0, 24.0))
+	if screen != null and is_instance_valid(screen) and screen.get("_box") != null:
+		var g := GoalLine.stack_rect(screen)
+		if g.size.x > 0.0:
+			goal = (screen._box.get_global_transform().affine_inverse() * g).grow(2.0)
+	out.append(goal)
+	if screen != null and is_instance_valid(screen) and screen.get("overlay") != null:
+		var st: Array = screen.overlay.ship_status()
+		if String(st[0]) != "":
+			out.append(screen.overlay.status_rect(String(st[0])).grow(4.0))
+	_ui = out
+	return out
 
 
 func _sel() -> Vector2:
