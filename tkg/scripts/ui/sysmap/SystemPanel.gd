@@ -631,7 +631,7 @@ func _star_head() -> void:
 ## the map opens this page, as clicking the one star does.
 ## EACH STAR'S FACTS AS IT IS DRAWN (`SystemView.star_facts_of`, one source with
 ## the tip's kind): star A as the one sun reads, a yellow dwarf of 1.0 SOL; star B
-## the K5 orange dwarf the map draws, with a K5's own mass and radius, 0.70 SOL
+## the K5 orange dwarf the map draws, with a K5's own mass and radius, 0.7 SOL
 ## each (Jon, Nov 1, "starb:B"). (MASS read each star's share of the pair's pull:
 ## 0.55 SOL beside G2, and B a yellow dwarf too; then B's mass against A's as
 ## their pulls are, 0.72 to 0.92 SOL, and its radius its drawn size.)

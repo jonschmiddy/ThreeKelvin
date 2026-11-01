@@ -64,7 +64,7 @@ extends Node
 ##   - every system lists its SATELLITES in name order, the sector page too, one
 ##     sun's in the order they always were ("list:C"); and every binary's event
 ##     cards, above that list, in the same order;
-##   - star B reads a K5's own MASS and RADIUS, 0.70 SOL, in every binary, its
+##   - star B reads a K5's own MASS and RADIUS, 0.7 SOL, in every binary, its
 ##     pull as built ("starb:B");
 ##   - on the ring of a world round one sun the ship is drawn over that world all
 ##     the way round in a 1 px light outline, never on a ring round both suns or
@@ -74,7 +74,9 @@ extends Node
 ##     selected, and let go coasting into each world's ring, no word on the map
 ##     is written across a sun (IN ORBIT · OMEGA CALLOUS I ran across both on
 ##     seed 7; WILL ORBIT <world> across one in about half the coasts, a
-##     selected world's name across its sun), and nearly none held back for it.
+##     selected world's name across its sun), and nearly none held back for it;
+##     the ship's own words never over an event's beacon where a spot clears
+##     both (stepped off the suns, IN ORBIT · OMEGA CALLOUS I covered one).
 ## Prints how many twin systems and cases each part saw.
 ##
 ## IT JUDGES THE WHOLE BUILD. Where a part is another build's (the flight's ride
@@ -1046,6 +1048,48 @@ static func _held(ov) -> Array:
 	return got if got is Array else []
 
 
+## THE BEACON THE BOX `box` IS OVER, of every event's beacon drawn last frame
+## (`SystemOverlay.beacons_at`, each glyph 5 cells of 2 px round its point: a
+## 10 px square from 4 px up and left of it), or Vector2.INF for none.
+static func _on_beacon(ov, box: Rect2) -> Vector2:
+	for e: Array in ov.beacons_at:
+		var at: Vector2 = e[0]
+		if box.intersects(Rect2(at.round() + Vector2(-4, -4), Vector2(10, 10))):
+			return at.round()
+	return Vector2.INF
+
+
+## THE SHIP'S OWN WORDS OFF THE BEACONS: `full` (IN ORBIT · <world>, CLOSE ORBIT
+## · <star>) or the words before its " · ", as placed last frame, against every
+## event's beacon drawn that frame (`_on_beacon`). Counted in `st`: placed
+## (`bc_words`); left by a beacon where no spot cleared the suns and the
+## beacons both (`bc_fallback`, `SystemOverlay.label_on_beacon`; none on a tree
+## without it); over a beacon all the same (`bc_crossed`), each added to `out`.
+static func _ship_words_off_beacons(ov, full: String, where: String, st: Dictionary, out: Array[String]) -> void:
+	var short := full.get_slice(" · ", 0)
+	var fell = ov.get(&"label_on_beacon")
+	for q in (ov.label_says as Array).size():
+		var s: String = ov.label_says[q]
+		if s != full and s != short:
+			continue
+		st.bc_words += 1
+		if fell is Array and (fell as Array).has(s):
+			st.bc_fallback += 1
+			continue
+		var bat := _on_beacon(ov, ov.label_rects[q])
+		if bat != Vector2.INF:
+			st.bc_crossed += 1
+			out.append("%s: %s over the beacon at %s" % [where, s, bat])
+
+
+## WORDS `s` AS PLACED LAST FRAME OVER A BEACON (`_on_beacon`), counted in
+## `st[key]`.
+func _said_on_beacon(ov, s: String, st: Dictionary, key: String) -> void:
+	var box := _said_box(ov, s)
+	if box.size.x > 0.0 and _on_beacon(ov, box) != Vector2.INF:
+		st[key] = int(st[key]) + 1
+
+
 ## THE CURL DRAWN FOR A CAPTURE INTO STAR B'S CLOSE ORBIT IS THE ONE FLOWN: the
 ## overlay's (`SystemOverlay.capture_ins`) against `ShipFlight.start_rail`'s own
 ## insertion, for captures just inside B's ring from all round it, coming in
@@ -1702,7 +1746,7 @@ func _one_sun_fallback(n: MapGen.MapNode) -> void:
 ## read YELLOW DWARF, G2, 5,700 K, star A's, under the orange sun the map draws,
 ## and MASS read each star's share of the pair's pull (star A 0.55 SOL beside G2,
 ## which no G2 weighs). Now star A reads as the one sun does, and star B as the
-## K5 orange dwarf its colour is nearest, with a K5's own MASS and RADIUS, 0.70
+## K5 orange dwarf its colour is nearest, with a K5's own MASS and RADIUS, 0.7
 ## SOL each (Jon, Nov 1, "starb:B"; they read its mass against A's as their
 ## pulls are, 0.72 to 0.92, and its drawn radius). The pulls are as they were.
 ## The sector page as it stands, star by star: its kind under its name, then
@@ -1737,8 +1781,8 @@ func _star_facts_page(m: SystemMapScreen) -> void:
 	var fb := _page_facts(m, m.overlay.star_name_of(SystemLayout.STAR_B))
 	h._ok("star A reads as one sun does: %s, %s, %s, MASS %s, RADIUS %s" % [fa.get("kind"), fa.get("CLASS"), fa.get("SURFACE"), fa.get("MASS"), fa.get("RADIUS")],
 		fa.get("kind") == one.kind and fa.get("CLASS") == one.cls and fa.get("SURFACE") == one.temp and fa.get("MASS") == one.mass and fa.get("RADIUS") == one.radius)
-	h._ok("star B reads as the K5 orange dwarf it is drawn as, a K5's own numbers: %s, %s, %s, MASS %s, RADIUS %s (want 0.70 SOL each)" % [fb.get("kind"), fb.get("CLASS"), fb.get("SURFACE"), fb.get("MASS"), fb.get("RADIUS")],
-		fb.get("kind") == "ORANGE DWARF" and fb.get("CLASS") == "K5" and fb.get("SURFACE") == "4,400 K" and fb.get("MASS") == "0.70 SOL" and fb.get("RADIUS") == "0.70 SOL")
+	h._ok("star B reads as the K5 orange dwarf it is drawn as, a K5's own numbers: %s, %s, %s, MASS %s, RADIUS %s (want 0.7 SOL each)" % [fb.get("kind"), fb.get("CLASS"), fb.get("SURFACE"), fb.get("MASS"), fb.get("RADIUS")],
+		fb.get("kind") == "ORANGE DWARF" and fb.get("CLASS") == "K5" and fb.get("SURFACE") == "4,400 K" and fb.get("MASS") == "0.7 SOL" and fb.get("RADIUS") == "0.7 SOL")
 	# THE PULLS AS THEY WERE: the page's words only; a flight still feels star B
 	# at its share of the pair's pull, 0.72 to 0.92 of star A's
 	var pr := (1.0 - L.star_share) / L.star_share
@@ -1756,7 +1800,7 @@ func _star_facts_page(m: SystemMapScreen) -> void:
 
 
 ## EVERY TWIN OF THE RUN, made so where it may be: star A's facts the one sun's,
-## word for word, and star B's a K5 orange dwarf's own, MASS and RADIUS 0.70 SOL
+## word for word, and star B's a K5 orange dwarf's own, MASS and RADIUS 0.7 SOL
 ## in every one (Jon, Nov 1, "starb:B"), while the pulls' ratio B / A runs 0.72
 ## to 0.92 as built; and every one-sun system's facts its kind's table, as ever.
 func _star_facts_all() -> void:
@@ -1788,9 +1832,9 @@ func _star_facts_all() -> void:
 			var ratio := (1.0 - L.star_share) / L.star_share
 			p_lo = minf(p_lo, ratio)
 			p_hi = maxf(p_hi, ratio)
-			if fb.kind != "ORANGE DWARF" or fb.cls != "K5" or fb.temp != "4,400 K" or fb.mass != "0.70 SOL" or fb.radius != "0.70 SOL":
+			if fb.kind != "ORANGE DWARF" or fb.cls != "K5" or fb.temp != "4,400 K" or fb.mass != "0.7 SOL" or fb.radius != "0.7 SOL":
 				bad.append("%s star B %s (share %.3f)" % [MapGen.star_name(c), fb, L.star_share])
-	h._ok("every twin's star A reads as one sun, its star B an orange dwarf K5 of MASS 0.70 SOL and RADIUS 0.70 SOL, while B pulls %.2f to %.2f of A as built; %d twins, %d one-sun systems their kind's own%s" % [
+	h._ok("every twin's star A reads as one sun, its star B an orange dwarf K5 of MASS 0.7 SOL and RADIUS 0.7 SOL, while B pulls %.2f to %.2f of A as built; %d twins, %d one-sun systems their kind's own%s" % [
 		p_lo, p_hi, twins, ones, "" if bad.is_empty() else ": " + "; ".join(bad.slice(0, 4))], bad.is_empty() and twins > 20 and ones > 20 and p_lo >= _pull_lo() - 1e-6 and p_hi <= _pull_hi() + 1e-6)
 	_saw("twins' star facts", twins)
 
@@ -2141,6 +2185,14 @@ func _ring_outline_open(m: SystemMapScreen, wa: int) -> void:
 ## label (the map's rule since before binaries). On 35ce5c73, 235 words across
 ## a sun: 226 forecasts (WILL ORBIT IOTA CINDER-2 I across IOTA CINDER-2 B on
 ## seed 7) and 9 selected names (IOTA CINDER-2 II across IOTA CINDER-2 B).
+## THE SHIP'S OWN WORDS OFF THE BEACONS, at each place and each selection
+## (`_ship_words_off_beacons`): clear of every event's beacon drawn that frame,
+## but where the overlay says no spot cleared the suns and the beacons both
+## (`SystemOverlay.label_on_beacon`, the suns-only fallback, counted and at most
+## 1 in 50). On b764c344, stepped off a sun, 209 of 760 sat over a beacon (IN
+## ORBIT · OMEGA CALLOUS I over the one above its world, the picks stills);
+## with every system a binary (`twin=all`), CLOSE ORBIT · TAU BRINE-2 B sat on
+## one where it first stood, clear of the suns.
 func _ring_sweep() -> void:
 	var seeds: Array = RING_SEEDS.duplicate()
 	var cap := RING_CAP
@@ -2152,8 +2204,10 @@ func _ring_sweep() -> void:
 	var t0 := Time.get_ticks_msec()
 	var st := {"twins": 0, "places": 0, "moments": 0, "words": 0, "crossed": 0, "whole": 0, "short": 0, "held": 0,
 		"rings": 0, "rim_frames": 0, "hull_frames": 0, "rim_bad": 0, "own_hid": 0, "on_disc": 0, "both": 0, "both_rim": 0, "one": 0, "one_rim": 0,
-		"sel": 0, "sel_shown": 0, "sel_held": 0, "sel_under": 0, "coasts": 0, "into": 0, "fc_shown": 0, "fc_held": 0, "ev_sys": 0, "ev_moved": 0}
+		"sel": 0, "sel_shown": 0, "sel_held": 0, "sel_under": 0, "coasts": 0, "into": 0, "fc_shown": 0, "fc_held": 0, "ev_sys": 0, "ev_moved": 0,
+		"bc_words": 0, "bc_fallback": 0, "bc_crossed": 0, "sel_bc": 0, "fc_bc": 0}
 	var crossed: Array[String] = []
+	var on_beacon: Array[String] = []
 	var held: Array[String] = []
 	var fc_held: Array[String] = []
 	var sel_held: Array[String] = []
@@ -2250,6 +2304,8 @@ func _ring_sweep() -> void:
 					else:
 						st.held += 1
 						held.append("seed %d %s at %s (%s)" % [sd, MapGen.star_name(n), ov._place_nm(p), ", ".join(PackedStringArray(says))])
+					# and clear of every beacon drawn that frame
+					_ship_words_off_beacons(ov, full, "seed %d %s, the ship at %s" % [sd, MapGen.star_name(n), ov._place_nm(p)], st, on_beacon)
 					# THE OUTLINE: on a world round one star, none round both
 					if p < 0:
 						continue
@@ -2322,6 +2378,8 @@ func _ring_sweep() -> void:
 						st.sel_under += 1
 					st.words += (ov.label_rects as Array).size()
 					st.crossed += _words_on_suns(ov, L, "seed %d %s, %s selected" % [sd, MapGen.star_name(n), nm_q], crossed)
+					_ship_words_off_beacons(ov, "IN ORBIT · " + String(ov._place_nm(w0)), "seed %d %s, %s selected" % [sd, MapGen.star_name(n), nm_q], st, on_beacon)
+					_said_on_beacon(ov, nm_q, st, "sel_bc")
 				ov.selected = -2
 			# LET GO AND COASTING INTO EACH WORLD'S RING (`restore_free`, held at
 			# its point, the clock still): the forecast's WILL ORBIT <world> or
@@ -2361,6 +2419,8 @@ func _ring_sweep() -> void:
 						fc_held.append("seed %d %s into %s, under a higher label (%s)" % [sd, MapGen.star_name(n), nm_w, ", ".join(PackedStringArray(says_w))])
 					st.words += says_w.size()
 					st.crossed += _words_on_suns(ov, L, "seed %d %s, coasting into %s" % [sd, MapGen.star_name(n), nm_w], crossed)
+					_said_on_beacon(ov, "WILL ORBIT " + nm_w, st, "fc_bc")
+					_said_on_beacon(ov, "WILL BE ALONGSIDE " + nm_w, st, "fc_bc")
 			m.frozen = false
 			m.flight.place_at(w0, m.view.t)
 			await _frames(2)
@@ -2381,6 +2441,10 @@ func _ring_sweep() -> void:
 		print("  --     selected name %s" % e)
 	for e: String in fc_held.slice(0, 6):
 		print("  --     forecast not shown: %s" % e)
+	print("  --   the words by the ship: %d placed, %d over an event's beacon drawn that frame, %d left by one where no spot cleared the suns and the beacons both (the suns-only fallback); over a beacon too, %d selected names and %d forecasts (counted, not judged: a first spot that meets no sun is kept, as with one sun)" % [
+		st.bc_words, st.bc_crossed, st.bc_fallback, st.sel_bc, st.fc_bc])
+	for e: String in on_beacon.slice(0, 6):
+		print("  --     over a beacon: %s" % e)
 	_saw("ring sweep: binaries", st.twins)
 	_saw("ring sweep: moments", st.moments)
 	_saw("ring sweep: places selected", st.sel)
@@ -2391,6 +2455,9 @@ func _ring_sweep() -> void:
 		st.crossed == 0 and st.twins >= seeds.size() * mini(cap, 8) and st.words > st.moments and st.sel > st.twins and st.into > st.twins)
 	h._ok("the words by the ship stand whole or shortened at nearly every place (%d whole, %d shortened, %d held back of %d)" % [st.whole, st.short, st.held, st.moments],
 		st.held * 50 <= st.moments)
+	h._ok("and never over an event's beacon drawn that frame, but where no spot clears the suns and the beacons both (%d placed, %d over a beacon, %d by one for want of a spot)%s" % [
+		st.bc_words, st.bc_crossed, st.bc_fallback, "" if on_beacon.is_empty() else ": " + "; ".join(on_beacon.slice(0, 4))],
+		st.bc_crossed == 0 and st.bc_words > st.moments and st.bc_fallback * 50 <= st.bc_words)
 	h._ok("a selected place's name is held back off a sun at nearly no selection (%d of %d; %d shown, %d under a higher label as ever), and the forecast's words at nearly no coast into a ring (%d of %d; %d shown)" % [
 		st.sel_held, st.sel, st.sel_shown, st.sel_under, st.fc_held, st.into, st.fc_shown],
 		st.sel_held * 20 <= st.sel and st.fc_held * 20 <= st.into and st.sel_shown * 4 >= st.sel * 3 and st.fc_shown * 4 >= st.into * 3)

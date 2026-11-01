@@ -978,13 +978,13 @@ func star_class() -> String:
 ## sequence), are all nearest K5 at 4,440 K (the best fits 4,290 to 4,450 K;
 ## Nov 1). Its surface is rounded as G2's is to 5,700 K. It read YELLOW DWARF, G2,
 ## 5,700 K, star A's, under the orange sun the map draws.
-## ITS MASS AND RADIUS ARE A K5'S OWN, 0.70 SOL each, in every binary (Jon, Nov 1,
+## ITS MASS AND RADIUS ARE A K5'S OWN, 0.7 SOL each, in every binary (Jon, Nov 1,
 ## "starb:B"). They read its mass against A's as the stars' pulls are
 ## (`star_share`: B / A = (1 - share) / share, 0.72 to 0.92 SOL) and its radius
 ## the one it is drawn at against one sun's 16 px (0.77 to 0.94), where a real K5
 ## weighs about 0.70; the pair then read 1.72 to 1.92 SOL while the map pulls as
 ## one sun. Written as the sheet he picked from showed them.
-const STAR_B_FACTS := {"kind": "ORANGE DWARF", "cls": "K5", "temp": "4,400 K", "mass": "0.70 SOL", "radius": "0.70 SOL"}
+const STAR_B_FACTS := {"kind": "ORANGE DWARF", "cls": "K5", "temp": "4,400 K", "mass": "0.7 SOL", "radius": "0.7 SOL"}
 
 
 ## STAR p'S FACTS AS SHOWN, {kind, cls, temp, mass, radius}: its kind's
