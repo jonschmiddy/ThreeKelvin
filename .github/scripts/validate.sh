@@ -517,8 +517,11 @@ step "LOCAL draws the world you orbit, close, from its first frame"
 # Tab and by GO, and CONTINUE: the sky's world on LOCAL's first frame is the one
 # the ship orbits, at least the look's size, under your ship and clear of the
 # HUD and the goal line; LOCAL pressed mid-arrival draws that world too.
+# 600 s: its tour flies every leg on map time since ruling 20 (about 24 s a
+# flight, where they took 4 to 12): 310 s alone on the Mac (Oct 31), past the
+# 300 it had (137 s on Oct 30).
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot orbitworldtest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=OrbitWorldTest; then
+	run_godot orbitworldtest 600 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=OrbitWorldTest; then
 	if grep -qE '^orbitworldtest: PASS' "$LOG_DIR/orbitworldtest.log"; then
 		ok "LOCAL draws the world you orbit, close"
 	else
@@ -813,6 +816,110 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 else
 	bad "maplagtest did not finish"
+fi
+}
+
+unit_twinsitetest() {
+step "Star B is a place, as the one star is"
+# Ruling 20 (Oct 30), two suns on the real map: star B hit where its sun is
+# drawn, named, its FLY HERE flown and its close orbit ridden; the map leaves
+# the ship there and puts it back; a partner there drawn where it said, and on
+# an orbit at the orbit's drawn size. Oct 31: a ship settled round star B, both
+# suns or one star comes back on that orbit, by LOCAL and by the save's rows;
+# the map left on a flight's coast puts the ship where it was going; no words
+# across the other sun; a capture at star B drawn as it is flown; LEAVING while
+# held alongside to go; and it quits with a flight plan still on a worker (that
+# crashed the quit, signal 11).
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot twinsitetest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=TwinSiteTest; then
+	if grep -qE '^twinsitetest: PASS' "$LOG_DIR/twinsitetest.log"; then
+		ok "star B is a place everywhere the star is"
+	else
+		bad "star B is not a place somewhere the star is, or a ship is put back wrong"
+		grep -E 'FAIL|^twinsitetest' "$LOG_DIR/twinsitetest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "twinsitetest did not finish"
+fi
+}
+
+unit_twindrawtest() {
+step "Two suns and heavy giants are drawn as they are"
+# Ruling 20 (Oct 30): a twin's sun floor shrinks with the zoom below its fit,
+# a world round one star is drawn in front of its sun on the near side and
+# behind it on the far, every orbit round its own centre, each world lit from
+# its own sun, the floor read off the map's own SunViews, and LOCAL's two suns
+# as far as headless reaches. Shaders are not compiled headless.
+if run_godot twindrawtest 300 --headless --path "$PROJECT" -- sheet=TwinDrawTest; then
+	if grep -qE '^twindrawtest: PASS' "$LOG_DIR/twindrawtest.log"; then
+		ok "two suns and heavy giants are drawn as they are"
+	else
+		bad "a twin or a heavy giant is drawn wrong"
+		grep -E 'FAIL|^twindrawtest' "$LOG_DIR/twindrawtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "twindrawtest did not finish"
+fi
+}
+
+unit_flighttest() {
+step "Every autopilot flight on the map is solved, flown as drawn and lands"
+# Ruling 20 (Oct 30): FlightSolve's flights on map time, one sun, a heavy
+# giant and two suns, from every start to every place, planned as the
+# preview is, clicked, flown and landed; the far places (the Hellbender, where
+# a job's place goes too) and the core's black hole (kept out of its lens) and
+# the start system; the same plans on a worker; flying by hand in a twin. The
+# full run is about 500 s: this is its `short` one (one seed, four systems a
+# sweep), its clicks apart in `flightclicks`, which times frames.
+if run_godot flighttest 300 --headless --path "$PROJECT" -- sheet=FlightTest short clicks=0; then
+	if grep -qE '^flighttest: PASS' "$LOG_DIR/flighttest.log"; then
+		ok "every flight solved (or today's planner, with one sun), flown as drawn, landed"
+	else
+		bad "a flight was not found, not flown as drawn, or did not land"
+		grep -E 'FAIL|^flighttest' "$LOG_DIR/flighttest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "flighttest did not finish"
+fi
+}
+
+unit_flightclicks() {
+step "A click on the map flies the flight drawn, planned on a worker"
+# FlightTest's clicks through the map's own path (`fly_bg`, the preview as the
+# overlay keeps it) at 60 and 30 frames a second, paced to the wall clock
+# while a plan is made: every click flown and landed with its callback once, W
+# letting go of one still planned, no step over 20 ms (nothing planned on the
+# main thread), every flight on the line drawn for it, no engine error. It
+# times frames: one of SOLO_UNITS.
+if run_godot flightclicks 180 --headless --path "$PROJECT" -- sheet=FlightTest clicks; then
+	if grep -qE '^flighttest: PASS' "$LOG_DIR/flightclicks.log"; then
+		ok "every click flew the flight drawn, planned off the main thread"
+	else
+		bad "a click flew another flight, waited on the main thread, or lost its callback"
+		grep -E 'FAIL|^flighttest' "$LOG_DIR/flightclicks.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "flightclicks did not finish"
+fi
+}
+
+unit_solvetest() {
+step "The solver finds clean flights, replays them and agrees on a worker"
+# FlightSolve (ruling 20, Oct 30) from every start to every place at several
+# line-ups: one sun, the giant at 1/10 and 1/4, the layout's own twins and
+# hand-built ones: found and clean in at least 99% (97% of the hand twins),
+# starting and landing where it should, no cusp in a burn, the same plan
+# rebuilt from its choice, a sample flown again by plain RK4, and the same
+# results on WorkerThreadPool. The full run is about 500 s: this is `short`.
+if run_godot solvetest 300 --headless --path "$PROJECT" -- sheet=SolveTest short; then
+	if grep -qE '^solvetest: PASS' "$LOG_DIR/solvetest.log"; then
+		ok "the solver's flights are found, clean, replayed and the same on a worker"
+	else
+		bad "a solved flight was not found, not clean, or not the same again"
+		grep -E 'FAIL|^solvetest' "$LOG_DIR/solvetest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "solvetest did not finish"
 fi
 }
 
@@ -2236,7 +2343,7 @@ fi
 #                    frame all the same)
 #   sim              forty whole runs, the regression test of last resort; run
 #                    alone so its limit is never spent waiting for a CPU
-SOLO_UNITS="maplagtest gameclocktest playerdeathtest faunatest threadstress lowhulltest ashteachcosttest sim"
+SOLO_UNITS="maplagtest gameclocktest playerdeathtest faunatest threadstress lowhulltest ashteachcosttest flightclicks sim"
 # Run first and alone, because every other unit needs what it writes: the class
 # cache in .godot/, without which nothing compiles.
 FIRST_UNITS="import"
@@ -2248,7 +2355,7 @@ gate_weight() {
 	case "$1" in
 		packlayouttest) echo 225 ;; laddertest) echo 170 ;; fightcounttest) echo 166 ;;
 		ashtest) echo 133 ;; localeventtest) echo 109 ;; ashtutortest) echo 104 ;;
-		enemyarttest) echo 95 ;; wrecksitetest) echo 80 ;; orbitworldtest) echo 70 ;; dockflytest) echo 62 ;;
+		enemyarttest) echo 95 ;; wrecksitetest) echo 80 ;; orbitworldtest) echo 320 ;; dockflytest) echo 150 ;;
 		subjecttest) echo 61 ;; outcometest) echo 58 ;; soundmomenttest) echo 57 ;;
 		maptest) echo 53 ;; sidebartest) echo 50 ;; popplacetest) echo 45 ;;
 		cutawaytest) echo 44 ;; gradesheet) echo 44 ;; moontest) echo 40 ;;
@@ -2257,6 +2364,7 @@ gate_weight() {
 		menutest) echo 25 ;; market) echo 24 ;; parseall) echo 24 ;;
 		devtest) echo 22 ;; hulldamagetest) echo 22 ;; fightopentest) echo 22 ;;
 		lockedpooltest) echo 41 ;; rewardshowntest) echo 33 ;; mapperftest) echo 40 ;;
+		solvetest) echo 125 ;; twindrawtest) echo 106 ;; flighttest) echo 80 ;; twinsitetest) echo 40 ;;
 		*) echo 15 ;;
 	esac
 }

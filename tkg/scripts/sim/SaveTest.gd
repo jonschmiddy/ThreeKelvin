@@ -212,6 +212,9 @@ func _parked() -> String:
 		var v: Vector2 = e.get("v", Vector2.ZERO)
 		parts.append("%d:at=%d p=%.6f,%.6f v=%.6f,%.6f head=%.6f mode=%s" % [int(k), int(e.get("at", -9)),
 			p.x, p.y, v.x, v.y, float(e.get("head", 0.0)), String(e.get("mode", &""))])
+		# (settled on a wide orbit: round what, how wide, which way)
+		if e.has("r"):
+			parts.append("%d:cen=%d r=%.6f sense=%.1f" % [int(k), int(e.get("cen", -99)), float(e.r), float(e.get("sense", 0.0))])
 	return " ".join(parts)
 
 ## What you are carrying, as a stable string. Off the HOLD, because that is the
@@ -445,6 +448,20 @@ func run() -> void:
 			break
 	if twin_node < 0:
 		print("  FAIL: no system that may have two suns, for the star B fixture"); fails += 1
+	# AND SETTLED ON A WIDE ORBIT ROUND STAR B, in another of them: round what,
+	# how wide and which way (`cen`, `r`, `sense`), so the map puts it back on
+	# that orbit and not on the arrival orbit's radius (the saves review, Oct 31)
+	var wide_node := -1
+	for e in Run.map:
+		var nw: MapGen.MapNode = e
+		if MapGen.twin_ok(nw) and nw.index != Run.at and nw.index != card_node and nw.index != twin_node:
+			wide_node = nw.index
+			nw.twin = true
+			SystemMapScreen._parked[nw.index] = {"at": -9, "p": Vector2(361.25, -88.5), "v": Vector2(-20.5, 14.25), "head": 0.75, "mode": &"free",
+				"cen": SystemLayout.STAR_B, "r": 69.375, "sense": -1.0}
+			break
+	if wide_node < 0:
+		print("  FAIL: no second system that may have two suns, for the wide orbit fixture"); fails += 1
 
 	var before := fingerprint()
 	var jumps_before := Run.jumps
@@ -518,6 +535,11 @@ func run() -> void:
 		check("the ship parked in star B's close orbit", SystemLayout.STAR_B, int(SystemMapScreen._parked.get(twin_node, {}).get("at", -9)))
 		check("and the run's place for it there", SystemLayout.STAR_B, Run.site_here(nt2))
 		print("  twin cases: 1 (a ship parked at star B of %s)" % MapGen.star_name(nt2))
+	if wide_node >= 0:
+		var ew: Dictionary = SystemMapScreen._parked.get(wide_node, {})
+		check("the ship settled round star B, read back round it, as wide, the same way", "-4 69.375 -1",
+			"%d %.3f %d" % [int(ew.get("cen", -99)), float(ew.get("r", -1.0)), int(ew.get("sense", 0.0))])
+		print("  twin cases: 2 (and one settled round star B of %s)" % MapGen.star_name(Run.map[wide_node]))
 
 	# AND THE CARDS READ IT BACK: the walk-away is still LEFT ALONE after the
 	# reload (Jon: "left alone should survive a reload"), the taken one keeps its
@@ -587,6 +609,13 @@ func run_version_test() -> void:
 	old_save["version"] = SaveGame.OLDEST_READ
 	old_save.erase("parked")
 	old_save.erase("unlocked")
+	# (and from before two suns, VERSION 38: no node says `twin`)
+	var twins_written := 0
+	for nd in old_save.get("map", []):
+		if typeof(nd) == TYPE_DICTIONARY:
+			if bool((nd as Dictionary).get("twin", false)):
+				twins_written += 1
+			(nd as Dictionary).erase("twin")
 	Run.unlocked_manufacturers = [&"korvan"] as Array[StringName]
 	var fo := FileAccess.open(SaveGame.path, FileAccess.WRITE)
 	if fo != null:
@@ -594,6 +623,11 @@ func run_version_test() -> void:
 		fo.close()
 	check("a save of version %d (no parked spot) still loads" % SaveGame.OLDEST_READ, true, SaveGame.load_into_run())
 	check("and with no parked spot: every ship at its edge", 0, SystemMapScreen._parked.size())
+	var twins_read := 0
+	for e2 in Run.map:
+		if (e2 as MapGen.MapNode).twin:
+			twins_read += 1
+	check("and from before two suns (%d written as twins): no system has two" % twins_written, 0, twins_read)
 	# VERSION 34: a save from before `unlocked` rolls on from every manufacturer,
 	# which is what the build that wrote it was rolling.
 	check("and with no unlocked list: every manufacturer, as it was", str(Unlocks.CHAIN),

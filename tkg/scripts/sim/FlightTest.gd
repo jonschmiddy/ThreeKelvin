@@ -52,6 +52,18 @@ extends Node
 ## ship's own `center` puts its place; every worker plan the same. A game start
 ## the first frame takes onto a ring is counted and not planned (the map would
 ## refuse the click there).
+## THE FAR PLACES AND THE CORE (`_places_phase`): the Hellbender laid out
+## (`Run.hellbender_at`), where a job's place goes too, past every orbit, in
+## systems of one sun and of two, and the core's black hole and the start
+## system, which no sweep holds: every game start to each, found (in a twin by
+## the solver; with one sun today's planner the fallback), and no flight in the
+## core inside the black hole's keep-out (`MapGravity.keep_out_star`, its lens).
+## `short`: the gate's run (seeds=1 systems=4 worker=24 clicks=6, the far places
+## in 4 systems a sweep), one star, giant and twin, the clicks and the hand
+## phase, in about 95 s. The gate runs it as two: `short clicks=0` (no clicks)
+## in the pool, and `clicks` alone (the same systems' starts gathered, nothing
+## else planned, then only the clicks, which time the step against 20 ms and
+## pace to the wall clock: one of the gate's SOLO_UNITS).
 ## Other modes: `retarget` (another place chosen on the way, PASS/FAIL) and
 ## `starride` (out of star orbits, held as the ship rides).
 
@@ -137,6 +149,11 @@ var _ck := {"one": [], "giant": [], "twin": []}
 var _clicks := 16
 ## `hand=0`: no flying by hand (`_hand_phase`)
 var _hand := true
+## `short`: the gate's run (above); `places=N`: the far places' systems a sweep;
+## `clicks`: only the clicks (the starts gathered as a sweep would, unplanned)
+var _short := false
+var _places := 12
+var _rows_only := false
 var _errs := ErrCount.new()
 
 
@@ -172,8 +189,22 @@ func _ready() -> void:
 			_worker_n = int(s.substr(7))
 		elif s.begins_with("clicks="):
 			_clicks = int(s.substr(7))
+		elif s == "clicks":
+			_rows_only = true
+			_n_seeds = 1
+			_systems = 4
+			_clicks = 6
 		elif s == "hand=0":
 			_hand = false
+		elif s == "short":
+			_short = true
+			_n_seeds = 1
+			_systems = 4
+			_worker_n = 24
+			_clicks = 6
+			_places = 4
+		elif s.begins_with("places="):
+			_places = int(s.substr(7))
 		elif s.begins_with("out="):
 			_out = s.substr(4)
 		elif s.begins_with("flight="):
@@ -262,22 +293,141 @@ func _run() -> void:
 				var was2 := n2.twin
 				n2.twin = bool(all_of[k][2])
 				_system(sweep2, sd, n2, L3)
-				var cc := _captures(L3, n2.index)
-				var into: Array = cap.twin if L3.twin else cap.one
-				for q in 3:
-					into[q] += cc[q]
+				if not _rows_only:
+					var cc := _captures(L3, n2.index)
+					var into: Array = cap.twin if L3.twin else cap.one
+					for q in 3:
+						into[q] += cc[q]
 				n2.twin = was2
 		print("flighttest: seed %d: %s systems" % [sd, counts])
-	await _worker_phase()
+	if _why == "" and not _rows_only:
+		_places_phase(seeds)
+	if not _rows_only:
+		await _worker_phase()
 	OS.add_logger(_errs)
-	await _click_phase()
-	if _hand:
+	if _clicks > 0:
+		await _click_phase()
+	if _hand and not _rows_only:
 		_hand_phase()
 	OS.remove_logger(_errs)
-	_report(cap)
-	print("flighttest: all of it took %.0f s" % ((Time.get_ticks_msec() - t_all) / 1000.0))
+	if not _rows_only:
+		_report(cap)
+	print("flighttest: all of it took %.0f s%s" % [(Time.get_ticks_msec() - t_all) / 1000.0, " (short)" if _short else ""])
 	h.verdict("flighttest")
 	get_tree().quit(h.code())
+
+
+## THE FAR PLACES AND THE CORE, from the game's starts (out of each world's
+## orbit, each star's close orbit, a settled star orbit, the edge as arrived,
+## alongside): the Hellbender laid out in `_places` systems a sweep of one sun
+## and of two (a job's place is laid out the same way, past every orbit:
+## `SystemLayout.of`), flown to; and the core and the start system, every
+## place. A twin's flight to the Hellbender found nothing 17% of the time from
+## the edge before flights in two legs (the one-sun review, Oct 31), and the
+## core's solved flights dove inside the black hole's lens, 33 of 252 inside its
+## close orbit, where today's planner never went.
+func _places_phase(seeds: Array) -> void:
+	var t_ph := Time.get_ticks_msec()
+	var st := {}
+	for k: String in ["far one", "far twin", "core", "start"]:
+		st[k] = {"plans": 0, "solved": 0, "old": 0, "none": 0, "T": [], "miss": [], "close": INF, "inside": 0}
+	var keep_core := INF
+	for sd: int in seeds:
+		Rng.forced = sd
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		var one: Array = []
+		var two: Array = []
+		for raw in Run.map:
+			var n: MapGen.MapNode = raw
+			if n.type == MapGen.NodeType.CORE or n.type == MapGen.NodeType.START:
+				OptionTable.ensure(n)
+				var Lc := SystemLayout.of(n)
+				var key := "core" if n.type == MapGen.NodeType.CORE else "start"
+				if key == "core":
+					keep_core = MapGravity.keep_out_star(Lc, -1)
+				var places: Array = []
+				for s0 in Lc.stars():
+					places.append(s0)
+				for b in Lc.bodies:
+					places.append(b.index)
+				for i: int in places:
+					_far_case(st[key], key, sd, n, Lc, i, keep_core if key == "core" else -1.0)
+			elif n.type == MapGen.NodeType.SYSTEM:
+				if MapGen.twin_ok(n):
+					two.append(n)
+				one.append(n)
+		for pair: Array in [["far one", one, false], ["far twin", two, true]]:
+			var pool: Array = pair[1]
+			for k2: int in _spread(pool.size(), _places):
+				var n2: MapGen.MapNode = pool[k2]
+				OptionTable.ensure(n2)
+				var was := n2.twin
+				n2.twin = bool(pair[2])
+				Run.hellbender_at = n2.index
+				Run.hellbender_hp = 1
+				var L2 := SystemLayout.of(n2)
+				var hp := L2.hellbender_place()
+				if hp >= 0 and L2.twin == bool(pair[2]):
+					_far_case(st[pair[0]], String(pair[0]), sd, n2, L2, hp, -1.0)
+				Run.hellbender_at = -1
+				Run.hellbender_hp = 0
+				n2.twin = was
+	for k3: String in ["far one", "far twin", "core", "start"]:
+		var S: Dictionary = st[k3]
+		print("flighttest: %s: %d flights from the game's starts: solved %d, today's planner %d, none (put there) %d; flight time %s s%s" % [k3, S.plans, S.solved, S.old, S.none, _dist(S.T),
+			"; closest to the black hole %.1f px, its keep-out %.1f" % [S.close, keep_core] if k3 == "core" else ""])
+		for l in (S.miss as Array).slice(0, 12):
+			print("    %s" % l)
+		# (in a twin no fallback: found by the solver; with one sun today's planner may)
+		h._ok("%s: every flight from the game's starts found, none put there (%d of %d)" % [k3, int(S.plans) - int(S.none), S.plans], int(S.plans) > 0 and int(S.none) == 0)
+		if k3 == "core":
+			h._ok("core: no flight inside the black hole's keep-out, %.1f px, its lens (%d; closest %.1f)" % [keep_core, S.inside, S.close], int(S.inside) == 0)
+	print("flighttest: the far places and the core took %.0f s" % ((Time.get_ticks_msec() - t_ph) / 1000.0))
+
+
+## Every game start in system n to place i, planned as the preview is (`S` the
+## tally; `keep` > 0: no flight's samples closer than that to star A).
+func _far_case(S: Dictionary, key: String, sd: int, n: MapGen.MapNode, L: SystemLayout, i: int, keep: float) -> void:
+	var t := 40.0 + float(n.index % 17) * 13.0
+	var starts: Array = []
+	for b in L.bodies:
+		if b.index != i and (b.world != &"" or b.kind == &"station" or b.kind == &"belt" or b.kind == &"derelict" or b.kind == &"contact"):
+			starts.append(["orbit" if b.world != &"" else "keep", b.index])
+	for s in L.stars():
+		if s != i:
+			starts.append(["close", s])
+	starts.append(["edge", 0])
+	starts.append(["star", 0])
+	starts.append(["star", 1])
+	for s0: Array in starts:
+		var fl = _flight_script.new()
+		fl.setup(L, Vector2(L.edge, -210.0), t)
+		_start(fl, L, String(s0[0]), int(s0[1]), t, sd * 7 + int(s0[1]) * 13 + i)
+		fl.step(1.0 / 60.0, t, NONE)
+		if not fl.can_fly():
+			continue
+		S.plans = int(S.plans) + 1
+		var pl = fl.make_plan(i, t, {}, ShipFlightS.PREVIEW_AHEAD)
+		var what := "seed %d system %d (%s) %s %d -> %d" % [sd, n.index, key, s0[0], s0[1], i]
+		if pl == null:
+			S.none = int(S.none) + 1
+			(S.miss as Array).append("PUT THERE: " + what)
+			continue
+		if pl.res != null:
+			S.solved = int(S.solved) + 1
+		else:
+			S.old = int(S.old) + 1
+		(S.T as Array).append(float(pl.dur))
+		if keep > 0.0:
+			var m := INF
+			for q: Vector3 in pl.samp:
+				m = minf(m, Vector2(q.x, q.z).length())
+			for q2: Vector3 in pl.tail:
+				m = minf(m, Vector2(q2.x, q2.z).length())
+			S.close = minf(float(S.close), m)
+			if m < keep - 0.5:
+				S.inside = int(S.inside) + 1
+				(S.miss as Array).append("INSIDE THE KEEP-OUT, %.1f px (%s): %s" % [m, "solved" if pl.res != null else "today's planner", what])
 
 
 ## Whether `why=` names a flight in system `index`.
@@ -365,6 +515,12 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 	# the map would refuse the click, `can_fly`; counted, not planned)
 	if key != "free" and key != "near" and not fl.can_fly():
 		S.unflyable = int(S.unflyable) + 1
+		return
+	# (`clicks`: the start kept for the clicks as below, nothing planned)
+	if _rows_only:
+		S.plans = int(S.plans) + 1
+		if key != "free" and key != "near" and int(S.plans) % 5 == 2:
+			(_ck[sweep] as Array).append([sweep, L, key, b, i, t, n.index])
 		return
 	var where := "seed %d system %d (%s, %s) from %s %d to %d" % [sd, n.index, MapGen.star_name(n), sweep, key, b, i]
 	var bs: Dictionary = S.by_start

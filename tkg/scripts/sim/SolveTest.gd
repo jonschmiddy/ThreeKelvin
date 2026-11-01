@@ -2,7 +2,9 @@ extends Node
 
 ## THE AUTOPILOT'S SOLVED FLIGHTS (ruling 20, Oct 30), planned and measured:
 ##   godot --headless --path . -- sheet=SolveTest [systems=N] [lineups=N] [twins=N]
-##     [twinlineups=N] [worker=N] [only=one|giant|twin|rtwin|proto]
+##     [twinlineups=N] [worker=N] [only=one|giant|twin|rtwin|proto] [short]
+## `short`: the gate's run, every sweep at fewer systems and line-ups
+## (systems=1 lineups=4 twins=1 twinlineups=3 worker=100).
 ## `FlightSolve` from every start to every place, at line-ups (map times), in
 ## four sweeps:
 ##   one    real one-star systems from systemtest's four seeds (SYSTEM, PULSAR
@@ -98,6 +100,12 @@ func _ready() -> void:
 			_worker_n = int(s.substr(7))
 		elif s.begins_with("only="):
 			_only = s.substr(5)
+		elif s == "short":
+			_per_seed = 1
+			_lineups = 4
+			_twins = 1
+			_twin_lineups = 3
+			_worker_n = 100
 	_run.call_deferred()
 
 

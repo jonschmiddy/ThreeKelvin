@@ -26,7 +26,25 @@ extends Node
 ##     at -4 is absolute, as at -1), and hidden behind star B's disc there;
 ##   - a ship let go round star B, or round both suns, is drawn on a wide orbit
 ##     round that and the words say ORBITING <system> B / BOTH SUNS;
-##   - a ship left at star B in a system with one sun comes back at the star;
+##   - a ship settled round star B, round both suns or round star A, the map
+##     left for LOCAL and shown again (and the same through the save's rows),
+##     comes back on that orbit: the same centre, on its radius within 1 px a
+##     second on, a flight from there leaving from the ship; one sun the same;
+##   - the map left on a flight's coast puts the ship where it was going, in
+##     orbit there, as LOCAL is told and the flight counted (twin and one sun);
+##     the map_fly hint keeps quiet on the way;
+##   - the curl the map draws for a capture into star B's close orbit is the
+##     one `start_rail` flies;
+##   - in either star's close orbit the words by the ship, and a selected sun's
+##     name, are never written across the other sun;
+##   - a partner off a world is drawn on that orbit's drawn ring, as your own
+##     ship is;
+##   - holding alongside to leave, the status line and the words by the ship
+##     say LEAVING, not ALONGSIDE and YOU;
+##   - a ship left at star B in a system with one sun comes back at the star,
+##     LOCAL's sky with it;
+##   - it quits with a flight plan still being made on a worker, and the quit
+##     waits for it (`ShipFlight.drain`: it crashed, signal 11);
 ##   - the zoom the map opens at is the layout's own formula
 ##     (`SystemLayout.open_zoom`) on its frame, and on the real frame every
 ##     twin opens at or nearer than the zoom its rings were fitted to;
@@ -119,8 +137,14 @@ func _run() -> void:
 	await _back_at_b(n)
 	await _partner_at_b(n)
 	await _settle_round(n)
+	await _restore_round(n)
+	await _labels_off_suns(n)
+	await _capture_curl_b(n)
+	await _mid_flight_tab(n, "twin")
 	await _giant_page(n)
+	await _alongside_hold()
 	await _one_sun_fallback(n)
+	await _end_planning()
 	_end()
 
 
@@ -741,6 +765,19 @@ func _partner_at_b(n: MapGen.MapNode) -> void:
 		got.has(ids[0]) and (got[ids[0]] as Vector2).distance_to(at) < 0.01)
 	h._ok("and one off a world, off that world as it is here", got.has(ids[1])
 		and (got[ids[1]] as Vector2).distance_to(Vector2(c3.x, c3.z) + Vector2(6.0, -2.0)) < 0.01)
+	# DRAWN ON THAT ORBIT AS IT IS DRAWN (`SystemOverlay._orbit_k`), as your own
+	# ship is: at its true offset it sat on the world's disc (the seams review)
+	await _frames(2)
+	var ov = m.overlay
+	var drawn := Vector2.INF
+	for e2: Array in ov.partner_at:
+		if int(e2[0]) == ids[1]:
+			drawn = e2[1]
+	var bw: Vector2 = ov._body_scr(w)
+	var kw: float = ov._orbit_k(w, Vector2(6.0, -2.0).length())
+	var want_w: Vector2 = (bw + (ov._scr(c3.x + 6.0, c3.z - 2.0) - bw) * kw).round()
+	h._ok("and drawn on the world's orbit as drawn, %.2f times life (at %s, the ring's point %s, the world %s)" % [kw, drawn, want_w, bw],
+		drawn != Vector2.INF and drawn.distance_to(want_w) <= 1.0)
 	for id in ids:
 		Net.roster.erase(id)
 		Net.spots.erase(id)
@@ -791,6 +828,336 @@ func _settle_round(n: MapGen.MapNode) -> void:
 			(c[0] as Vector2).distance_to(c[2]), "star B" if c[2] == L.star2_at else "the balance point", c[1], st, c[2], sc],
 			m.flight.star_orbiting() and st == c[1] and sc.distance_to(c[2]) < 0.5)
 		_saw("wide orbits round star B or both")
+
+
+## PUT BACK ON THE WIDE ORBIT IT WAS SETTLED ON: round star B, round both suns
+## and round star A (the way round the worlds do not go, to see it kept), the
+## map left for LOCAL and shown again, and again with the record through the
+## save's own rows (`SaveGame._parked_to` / `_parked_from`, JSON and back). The
+## same centre and way round, on its radius within 1 px then and a second on,
+## the status line naming it, and a flight from there leaving from the ship
+## (`ShipFlight._dep_of`). Put back with only its point it kept the arrival
+## orbit `setup` makes, round the balance point, and was pulled onto that
+## radius round its own star: round B at 68 px, back on a 314 px ring that ran
+## inside star A's keep-out (the seams and saves reviews, Oct 31).
+func _restore_round(n: MapGen.MapNode) -> void:
+	var m := Router.current as SystemMapScreen
+	if m == null:
+		h._fail("no map for the put-back")
+		return
+	var L: SystemLayout = m.view.layout
+	var B := SystemLayout.STAR_B
+	var away_b := Vector2(1.0, 0.0)
+	var away_a := Vector2(-1.0, 0.0)
+	for b in L.bodies:
+		if b.world == &"":
+			continue
+		if b.host_id == B:
+			away_b = (L.star2_at - b.pos(m.view.t)).normalized()
+		elif b.host_id == -1:
+			away_a = (-b.pos(m.view.t)).normalized()
+	var r_b := (L.star_ring_of(B) + SystemLayout.s_limit(L.star_share) * L.sep) * 0.5
+	var r_a := (L.star_ring_of(-1) + SystemLayout.s_limit(1.0 - L.star_share) * L.sep) * 0.5
+	var side := (L.star2_at / maxf(L.star2_at.length(), 0.001)).orthogonal()
+	var cases := [[L.star2_at + away_b * r_b, B, "star B"], [L.bary + side * L.sep * 1.3, -9, "both suns"], [away_a * r_a, -1, "star A"]]
+	for c: Array in cases:
+		for how: String in ["LOCAL", "the save's rows"]:
+			await _put_back(n, c[0], int(c[1]), "%s, by %s" % [c[2], how], how != "LOCAL")
+	_saw("wide orbits put back")
+
+
+## One put-back (`_restore_round`): settled at p (round `want`), away and back.
+func _put_back(n: MapGen.MapNode, p: Vector2, want: int, what: String, rows: bool) -> void:
+	var m := Router.current as SystemMapScreen
+	if m == null:
+		m = await _map()
+	if m == null:
+		h._fail("no map for %s" % what)
+		return
+	m.flight.settle_at(p, -1.0)
+	await _frames(6)
+	var f0 = m.flight.f
+	var cen0 := int(f0.cen_id)
+	var r0: float = f0.orbit_r
+	var c0: Vector2 = f0.cen
+	if not h._ok("%s: settled round %d at %.1f px" % [what, cen0, r0], m.flight.star_orbiting() and (want == -9 or cen0 == want)):
+		return
+	Router.show_local()
+	await _idle()
+	await _frames(4)
+	if rows:
+		var raw = JSON.parse_string(JSON.stringify(SaveGame._parked_to()))
+		SystemMapScreen._parked = SaveGame._parked_from(raw, Run.map.size())
+	m = await _map()
+	if m == null:
+		h._fail("no map back for %s" % what)
+		return
+	var f1 = m.flight.f
+	var off0: float = absf(((f1.p as Vector2) - (f1.cen as Vector2)).length() - float(f1.orbit_r))
+	var st: String = m.overlay.ship_status()[0]
+	await _frames(60)
+	var f2 = m.flight.f
+	var off1: float = absf(((f2.p as Vector2) - (f2.cen as Vector2)).length() - float(f2.orbit_r))
+	var dep: Dictionary = m.flight._dep_of(m.view.t)
+	var dp := Vector2.INF
+	if StringName(dep.get("kind", &"")) == &"ring" and int(dep.get("place", 0)) == -9:
+		dp = (dep.c as Vector2) + Vector2(cos(float(dep.ang)), sin(float(dep.ang))) * float(dep.rt)
+	var nm: String = m.overlay._settle_nm(c0)
+	h._ok("%s: put back round %d (was %d) at %.1f px (was %.1f), %s, %.2f px off it then and %.2f a second on, going the same way (%.0f); it says %s; a flight leaves %.2f px from the ship" % [
+		what, int(f1.cen_id), cen0, float(f1.orbit_r), r0, "settled" if m.flight.star_orbiting() else "NOT settled", off0, off1, float(f1.sense), st,
+		dp.distance_to(f2.p) if dp != Vector2.INF else INF],
+		m.flight.star_orbiting() and int(f1.cen_id) == cen0 and (f1.cen as Vector2).distance_to(c0) < 0.01 and absf(float(f1.orbit_r) - r0) < 1.0
+		and off0 < 1.0 and off1 < 1.0 and float(f1.sense) == -1.0 and st == "ORBITING " + nm and dp != Vector2.INF and dp.distance_to(f2.p) < 1.0)
+
+
+## NEVER WRITTEN ACROSS THE OTHER SUN: in each star's close orbit, at the
+## opening zoom, the words by the ship ("CLOSE ORBIT · <system> A/B") and the
+## other star's name when it is selected, their boxes as placed
+## (`SystemOverlay.label_rects`) against the other sun's disc. In this system
+## the words in star B's close orbit sat 10 px over star A's disc, its whole
+## radius (the words review, Oct 31).
+func _labels_off_suns(n: MapGen.MapNode) -> void:
+	var B := SystemLayout.STAR_B
+	for at: int in [B, -1]:
+		# (the map up put away, and out of the tree, before its record is set)
+		Router.show_local()
+		await _idle()
+		await _frames(2)
+		SystemMapScreen._parked[n.index] = {"at": at, "mode": &"rail"}
+		var m := await _map()
+		if m == null:
+			h._fail("no map for the words")
+			return
+		var ov = m.overlay
+		var other := -1 if at == B else B
+		await _frames(4)
+		var words: String = "CLOSE ORBIT · " + ov.star_name_of(at)
+		var box := _said_box(ov, words)
+		h._ok("in %s's close orbit the words by the ship are drawn (%s) clear of %s's disc (%s, r %.1f)%s" % [
+			ov.star_name_of(at), box, ov.star_name_of(other), ov.star_scr(other), ov.star_disc(other),
+			"" if box.size.x > 0.0 else " -- placed: %s, the ship at %d" % [ov.label_says, m.flight.reached()]],
+			box.size.x > 0.0 and not _box_on_disc(box, ov.star_scr(other), ov.star_disc(other)))
+		ov.selected = other
+		await _frames(3)
+		var nm: String = ov.star_name_of(other)
+		var nb := _said_box(ov, nm)
+		# (not drawn at all is a name a higher label took the place of: no overlap)
+		h._ok("and %s, selected, has its name %s clear of %s's disc" % [nm, "drawn (%s)" % nb if nb.size.x > 0.0 else "held back under a higher label,", ov.star_name_of(at)],
+			not _box_on_disc(nb, ov.star_scr(at), ov.star_disc(at)) or nb.size.x <= 0.0)
+		ov.selected = -2
+	_saw("words kept off the suns", 4)
+
+
+## A point r from star A, from angle a0 on, clear of every world's ring and
+## every place's reach for the next few seconds (a settle there is not taken).
+func _clear_at(m: SystemMapScreen, r: float, a0: float) -> Vector2:
+	var L: SystemLayout = m.view.layout
+	for k in 24:
+		var a := a0 + float(k) * TAU / 24.0
+		var p := Vector2(cos(a), sin(a)) * r
+		var clear := true
+		for b in L.bodies:
+			for dt: float in [0.0, 2.0, 4.0]:
+				var c3: Vector3 = m.flight.center(b.index, m.view.t + dt)
+				if p.distance_to(Vector2(c3.x, c3.z)) < maxf(b.soi, 30.0) * 2.0 + 20.0:
+					clear = false
+		if clear:
+			return p
+	return Vector2(cos(a0), sin(a0)) * r
+
+
+## The box the words `s` were placed in last frame, or an empty one.
+func _said_box(ov, s: String) -> Rect2:
+	for k in (ov.label_says as Array).size():
+		if String(ov.label_says[k]) == s:
+			return ov.label_rects[k]
+	return Rect2()
+
+
+static func _box_on_disc(box: Rect2, c: Vector2, r: float) -> bool:
+	var near := Vector2(clampf(c.x, box.position.x, box.end.x), clampf(c.y, box.position.y, box.end.y))
+	return near.distance_to(c) < r
+
+
+## THE CURL DRAWN FOR A CAPTURE INTO STAR B'S CLOSE ORBIT IS THE ONE FLOWN: the
+## overlay's (`SystemOverlay.capture_ins`) against `ShipFlight.start_rail`'s own
+## insertion, for captures just inside B's ring from all round it, coming in
+## and going round both ways. Drawn against star A's keep-out it was up to 58
+## px off the curl flown (the seams review, Oct 31).
+func _capture_curl_b(n: MapGen.MapNode) -> void:
+	var m := Router.current as SystemMapScreen
+	if m == null:
+		m = await _map()
+	if m == null:
+		h._fail("no map for the curl")
+		return
+	var L: SystemLayout = m.view.layout
+	var B := SystemLayout.STAR_B
+	var worst := 0.0
+	var worst_a := 0.0
+	var cases := 0
+	for k in 12:
+		var a := float(k) / 12.0 * TAU
+		var rh := Vector2(cos(a), sin(a))
+		for sense: float in [1.0, -1.0]:
+			var rel := rh * (L.star_ring_of(B) - 0.6)
+			var rv := rh.orthogonal() * 28.0 * sense - rh * 12.0
+			var fl = FlightS.new()
+			fl.setup(L, Vector2(L.edge, -210.0), m.view.t)
+			fl.start_rail(B, rel, rv, m.view.t)
+			if not fl.rail.has("ins"):
+				continue
+			var drawn: Dictionary = m.overlay.capture_ins(B, rel, rv)
+			var rt: float = m.flight.orbit_r(B)
+			var dir := 1.0 if rel.x * rv.y - rel.y * rv.x >= 0.0 else -1.0
+			var as_a: Dictionary = m.flight.insert_plan(rel, rv, rt, dir * m.flight.STAR_RAIL_V / rt, null)
+			cases += 1
+			for j in 21:
+				var u := float(j) / 20.0
+				var q: Vector2 = fl._ins_at(fl.rail.ins, u, 0)
+				worst = maxf(worst, q.distance_to(m.flight._ins_at(drawn, u, 0)))
+				worst_a = maxf(worst_a, q.distance_to(m.flight._ins_at(as_a, u, 0)))
+	h._ok("a capture into star B's close orbit is drawn as it is flown: %d captures, worst %.3f px apart (cleared against star A's keep-out, as it was drawn, %.1f px)" % [cases, worst, worst_a], cases > 0 and worst < 0.01)
+	_saw("captures at star B", cases)
+
+
+## THE MAP LEFT ON A FLIGHT'S COAST (Tab, the HUD's tabs, SAVE & EXIT): the
+## ship is where it was going, in orbit there -- LOCAL told so (`Run.site_here`)
+## and the flight counted (`flown_to`), the map putting it back on that orbit.
+## It put the ship back at the system's edge with the flight gone, and ruling
+## 20's flights, about 24 s, made that several times as likely (the reviews,
+## Oct 31). On the way, the map_fly hint ("Click a world twice to fly there")
+## keeps quiet: a click does nothing then.
+func _mid_flight_tab(n: MapGen.MapNode, what: String) -> void:
+	var m := await _map()
+	if m == null:
+		h._fail("%s: no map for the flight" % what)
+		return
+	var L: SystemLayout = m.view.layout
+	# (from star A's close orbit to the world furthest from it: a long coast)
+	var from := -1
+	var to := -9
+	var far := 0.0
+	for b in L.bodies:
+		var c3: Vector3 = m.flight.center(b.index, m.view.t)
+		if b.world != &"" and Vector2(c3.x, c3.z).length() > far:
+			far = Vector2(c3.x, c3.z).length()
+			to = b.index
+	m.flight.place_at(from, m.view.t)
+	for i in 120:
+		if m.flight.can_fly():
+			break
+		await get_tree().process_frame
+	m.fly_to_body(to)
+	var coast := false
+	var quiet := true
+	for i in 1200:
+		await get_tree().process_frame
+		if m.flight.mode == &"fly":
+			if not Hints._map_fly_probe(m, Rect2()).is_empty():
+				quiet = false
+			if m.view.t - float(m.flight.fly_t0) > 2.0:
+				coast = true
+				break
+	if not h._ok("%s: on its way to %s, 2 s into the flight (mode %s)" % [what, L.bodies[to].name, m.flight.mode], coast):
+		return
+	h._ok("%s: the map_fly hint keeps quiet on the way" % what, quiet)
+	var n0 := SystemMapScreen.flights
+	Router.show_local()
+	await _idle()
+	await _frames(4)
+	var ft: Dictionary = SystemMapScreen.flown_to.get(n.index, {})
+	h._ok("%s: left on the way, the ship is at %s as LOCAL is told (site %d), the flight counted (%d, flown to %s)" % [
+		what, L.bodies[to].name, Run.site_here(), SystemMapScreen.flights - n0, ft],
+		Run.site_here() == to and SystemMapScreen.flights == n0 + 1 and int(ft.get("at", -9)) == to)
+	m = await _map()
+	h._ok("%s: and the map puts it on that orbit (%d, %s)" % [what, m.flight.reached() if m != null else -99, m.flight.mode if m != null else &""],
+		m != null and m.flight.reached() == to and m.flight.mode == &"rail")
+	_saw("flights left on the way")
+
+
+## HOLDING ALONGSIDE TO LEAVE (`FlightSolve`'s KEEP_HOLD, and while the flight
+## is planned): the status line says LEAVING · TO <place> and the words by the
+## ship LEAVING · <here>, as a ring's ride round to leave says LEAVING ORBIT. It
+## said ALONGSIDE, and YOU by the ship, with the flight already drawn (the
+## seams and seen reviews). In the first system of the run with a station,
+## belt, hulk or contact.
+func _alongside_hold() -> void:
+	var was_at := Run.at
+	var keep_n: MapGen.MapNode = null
+	var kb := -1
+	var wb := -1
+	for raw in Run.map:
+		var c: MapGen.MapNode = raw
+		if c.type != MapGen.NodeType.SYSTEM or c.region == MapGen.Region.FAUNA:
+			continue
+		var L := SystemLayout.of(c)
+		var k0 := -1
+		var w0 := -1
+		for b in L.bodies:
+			if k0 < 0 and (b.kind == &"station" or b.kind == &"belt" or b.kind == &"derelict" or b.kind == &"contact"):
+				k0 = b.index
+			if w0 < 0 and b.world != &"":
+				w0 = b.index
+		if k0 >= 0 and w0 >= 0:
+			keep_n = c
+			kb = k0
+			wb = w0
+			break
+	if not h._ok("a system with a place to sit alongside", keep_n != null):
+		return
+	Run.at = keep_n.index
+	keep_n.visited = true
+	SystemMapScreen._parked[keep_n.index] = {"at": kb, "mode": &"keep"}
+	var m := await _map()
+	if m == null or not h._ok("alongside %s (%d)" % [m.view.layout.bodies[kb].name, m.flight.reached()], m.flight.reached() == kb):
+		Run.at = was_at
+		return
+	var ov = m.overlay
+	var here: String = m.view.layout.bodies[kb].name
+	var there: String = m.view.layout.bodies[wb].name
+	m.fly_to_body(wb)
+	var said := {}
+	var words := {}
+	var held := 0
+	for i in 600:
+		await get_tree().process_frame
+		if m.flight.mode == &"keep" and m.flight.keep.has("hold"):
+			held += 1
+			said[String(ov.ship_status()[0])] = true
+			for w: String in ov.label_says:
+				if w.begins_with("LEAVING") or w == "YOU" or w.begins_with("ALONGSIDE"):
+					words[w] = true
+		elif m.flight.mode == &"fly":
+			break
+	h._ok("holding alongside to leave (%d frames), the status line says LEAVING · TO %s (%s) and the ship LEAVING · %s (%s)" % [
+		held, there, ", ".join(PackedStringArray(said.keys())), here, ", ".join(PackedStringArray(words.keys()))],
+		held > 0 and said.keys() == ["LEAVING · TO " + there] and words.has("LEAVING · " + here) and not words.has("YOU"))
+	Run.at = was_at
+	_saw("holds alongside")
+
+
+## IT QUITS WITH A FLIGHT PLAN STILL BEING MADE on a worker (a preview asked
+## for this frame): the quit waits for it (`ShipFlight.drain`, Router). Not
+## waited for, its task crashed the quit, signal 11, exit 134 (the scroll
+## check, 3 of 3; the saves review's QuitLens, Oct 31).
+func _end_planning() -> void:
+	var m := await _map()
+	if m == null:
+		return
+	var L: SystemLayout = m.view.layout
+	for i in 120:
+		if m.flight.can_fly():
+			break
+		await get_tree().process_frame
+	var to := -9
+	for b in L.bodies:
+		if b.world != &"" and b.index != m.flight.reached():
+			to = b.index
+			break
+	if SystemLayout.is_place(to):
+		m.flight.plan_bg(to, m.view.t, {}, &"preview", 1600)
+	print("  --   quitting with a flight plan being made on a worker: %s" % m.flight.planning(&"preview"))
 
 
 ## THE GIANT'S PAGE: its MASS line, "OF ITS STARS" in a twin, on a page that fits.
@@ -856,11 +1223,36 @@ func _one_sun_fallback(n: MapGen.MapNode) -> void:
 			break
 	if not h._ok("a system with one sun", one != null):
 		return
+	# (the map up now put away first, and out of the tree, its own record
+	# written: it may be this one)
+	Router.show_local()
+	await _idle()
+	await _frames(2)
 	Run.at = one.index
+	one.visited = true
 	SystemMapScreen._parked[one.index] = {"at": SystemLayout.STAR_B, "mode": &"rail"}
 	h._ok("its place reads as the star (%d)" % Run.site_here(one), Run.site_here(one) == -1)
+	# (LOCAL first, from that record as it stands: its sky at the star's close
+	# orbit, not open space at the edge)
+	Router.show_local()
+	await _idle()
+	await _frames(2)
+	var sc := Router.current as SectorScreen
+	var sky: LocalSky = sc._view.backdrop if sc != null and sc._view != null else null
+	h._ok("LOCAL's sky has the ship at the star too (%d)" % (sky.orbit_target if sky != null else -99), sky != null and sky.orbit_target == -1)
 	var m := await _map()
 	h._ok("and the map puts the ship in the star's close orbit (%d)" % (m.flight.reached() if m != null else -99), m != null and m.flight.reached() == -1)
+	if m == null:
+		return
+	# ONE SUN, PUT BACK ON ITS WIDE ORBIT: r 300 came back at 223 (the saves review)
+	var L: SystemLayout = m.view.layout
+	var r1 := clampf(300.0, L.star_ring_of(-1) + 40.0, L.edge * 0.8)
+	await _put_back(one, _clear_at(m, r1, 0.4), -1, "one sun, round the star", false)
+	m = Router.current as SystemMapScreen
+	if m == null:
+		return
+	await _put_back(one, _clear_at(m, r1, 2.6), -1, "one sun, round the star, by the save's rows", true)
+	await _mid_flight_tab(one, "one sun")
 
 
 # ---------------------------------------------------------------- the giants

@@ -321,8 +321,11 @@ func _belts(view, key: String) -> void:
 ## and in the same system with two suns (ruling 20: each star a bumper with a
 ## close ring of its own, letting go settling round the nearer star or both),
 ## where it may have them.
+## The pair's cost with two suns against the same system's with one is printed
+## (Oct 31, after `ShipFlight` kept each star's numbers: 1.5 to 2.1 times, was
+## 1.9 to 2.3), not judged: the Mac's load varies.
 func _line(view, key: String) -> void:
-	_line_on(view.layout, key, view.node.index)
+	var ms1 := _line_on(view.layout, key, view.node.index)
 	var n: MapGen.MapNode = view.node
 	if MapGen.twin_ok(n):
 		var was := n.twin
@@ -330,10 +333,12 @@ func _line(view, key: String) -> void:
 		var L2 := SystemLayout.of(n)
 		n.twin = was
 		if _ok("%s: the layout has two suns when asked (%s)" % [key, L2.twin], L2.twin):
-			_line_on(L2, key + " (two suns)", n.index)
+			var ms2 := _line_on(L2, key + " (two suns)", n.index)
+			if not view.layout.twin and ms1 > 0.0:
+				print("  mapperftest:   %s: a pair of lines with two suns costs %.2f times one sun's" % [key, ms2 / ms1])
 
 
-func _line_on(L: SystemLayout, key: String, seed: int) -> void:
+func _line_on(L: SystemLayout, key: String, seed: int) -> float:
 	var fl = ShipFlightS.new()
 	fl.setup(L, Vector2(L.edge * 0.9, -210.0), 0.0)
 	var rng := RandomNumberGenerator.new()
@@ -385,9 +390,10 @@ func _line_on(L: SystemLayout, key: String, seed: int) -> void:
 			outs[ka] = int(outs.get(ka, 0)) + 1
 			if not _ok("%s: the %s from state %d is the same with the centres shared" % [key, pr[2], k],
 					a.pts == b.pts and a.out == b.out and a.fast == b.fast and a.bump == b.bump):
-				return
+				return -1.0
 	print("  mapperftest:   %s: %d pairs of lines identical %s; %.3f ms a pair shared, %.3f ms not" % [key, n, str(outs),
 		float(t_new) / 1000.0 / float(n), float(t_old) / 1000.0 / float(n)])
+	return float(t_new) / 1000.0 / float(n)
 
 
 # ---------------------------------------------------------------- the palette cache
