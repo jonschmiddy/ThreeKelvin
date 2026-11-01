@@ -1148,6 +1148,26 @@ func dock_place() -> int:
 	return -2
 
 
+## THE BODIES IN THE ORDER OF THEIR NAMES (I, II, III ...): the panel's
+## SATELLITES list (Jon, Nov 1, "list:C"). Round one sun every body is named by
+## its index (`ROMAN[i]`), so this is the order they were made in and nothing
+## there moves. In a binary they are named out from the suns (star A's world,
+## star B's world, then those round both, `_twin`), not in the order they were
+## made: SIGMA KESTREL PRIME on seed 7 read III, IV, I, V, II, VI. By the numeral
+## each name ends in; a tie (past X, which `ROMAN` stops at) by index.
+func name_order() -> Array[int]:
+	var num := {}
+	for b in bodies:
+		var k := ROMAN.find(b.name.get_slice(" ", b.name.get_slice_count(" ") - 1))
+		num[b.index] = k if k >= 0 else ROMAN.size()
+	var out: Array[int] = []
+	for b in bodies:
+		out.append(b.index)
+	out.sort_custom(func(a: int, c: int) -> bool:
+		return int(num[a]) < int(num[c]) if int(num[a]) != int(num[c]) else a < c)
+	return out
+
+
 ## The body an option sits on, or null (also for one on the star: `place_of`).
 func body_of_option(i: int) -> Body:
 	for b in bodies:

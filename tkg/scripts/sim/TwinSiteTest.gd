@@ -13,7 +13,7 @@ extends Node
 ##   - each star's close orbit, drawn bigger than life to read, stays short of
 ##     its own world's disc, and a ship's orbit round that world off its sun;
 ##   - one click on star B selects it: the panel's sector page shows both suns,
-##     each with its own facts and FLY HERE, and the system reads TWO SUNS; every
+##     each with its own facts and FLY HERE, and the system reads BINARY; every
 ##     word and button on it inside the panel and none on another (fit means
 ##     nothing overlaps), here and on the giant's page with its MASS line;
 ##   - a right-click zooms onto star B and holds it in the middle;
@@ -56,7 +56,20 @@ extends Node
 ##   - every giant's MASS line is 1/n of its star (n the whole number nearest
 ##     1 / gm_frac), "OF ITS STARS" round two suns, in the FAUNA row's place so
 ##     the page keeps its rows;
-##   - the HUD's SECTOR tab says "two suns".
+##   - the HUD's SECTOR tab says "binary system".
+## Jon's picks from the twin looks sheet (Nov 1), and "Let's call it Binary
+## instead of two suns":
+##   - no string a player reads says two suns;
+##   - every system lists its SATELLITES in name order, the sector page too, one
+##     sun's in the order they always were ("list:C");
+##   - star B reads a K5's own MASS and RADIUS, 0.70 SOL, in every binary, its
+##     pull as built ("starb:B");
+##   - on the ring of a world round one sun the ship is drawn over that world all
+##     the way round in a 1 px light outline, never on a ring round both suns or
+##     one sun's ("ring:A");
+##   - over the binaries of three seeds, the ship in every star's close orbit and
+##     on every world's ring at the opening zoom, no word on the map is written
+##     across a sun (IN ORBIT · OMEGA CALLOUS I ran across both on seed 7).
 ## Prints how many twin systems and cases each part saw.
 ##
 ## IT JUDGES THE WHOLE BUILD. Where a part is another build's (the flight's ride
@@ -69,6 +82,13 @@ const PanelS := preload("res://scripts/ui/sysmap/SystemPanel.gd")
 const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
 const OverlayS := preload("res://scripts/ui/sysmap/SystemOverlay.gd")
 const FlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
+const MapHullS := preload("res://scripts/ui/sysmap/MapHull.gd")
+## THE BINARIES THE WORDS AND THE OUTLINE ARE SWEPT OVER (`_ring_sweep`), as
+## each seed rolls them; `ringseeds=a,b` for others, `ringcap=N` binaries a seed
+const RING_SEEDS := [7, 4242, 1999]
+const RING_CAP := 10
+## and always these (seed: nodes): the binary the words ran across both suns in
+const RING_MUST := {7: [284]}
 
 var h := Harness.new()
 ## twin systems and twin cases seen, by part
@@ -117,6 +137,8 @@ func _run() -> void:
 	_mass_lines()
 	_star_facts_all()
 	_around_rows()
+	_name_order_all()
+	_no_two_suns_said()
 	var n := _longest_twin()
 	if not h._ok("an ordinary system to make a twin (%s)" % (MapGen.star_name(n) if n != null else "none"), n != null):
 		_end()
@@ -140,6 +162,8 @@ func _run() -> void:
 		return
 	h._ok("the ship is put back in orbit of the world round star A (%d)" % m.flight.reached(), m.flight.reached() == wa)
 	_saw("twin systems")
+	await _ring_outline_open(m, wa)
+	_satellites_page(m)
 	await _stars_as_places(m, n)
 	await _fly_to_b(m, n)
 	await _back_at_b(n)
@@ -154,6 +178,7 @@ func _run() -> void:
 	await _giant_page(n)
 	await _alongside_hold()
 	await _one_sun_fallback(n)
+	await _ring_sweep()
 	await _end_planning()
 	_end()
 
@@ -341,7 +366,8 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	var tb2: Array = ov.tip_lines(hb)[0]
 	h._ok("its tip now says a second click flies there (%s)" % tb2[tb2.size() - 1][0], tb2[tb2.size() - 1][0] == "CLICK AGAIN: FLY HERE")
 	var words := _words(m.panel._box)
-	h._ok("the panel says TWO SUNS, and names %s and %s" % [nm_a, nm_b], words.has("TWO SUNS") and words.has(nm_a) and words.has(nm_b))
+	h._ok("the panel says BINARY (never TWO SUNS), and names %s and %s" % [nm_a, nm_b],
+		words.has("BINARY") and not words.has("TWO SUNS") and words.has(nm_a) and words.has(nm_b))
 	h._ok("its picture holds both suns", m.panel._box.find_child("TwoSuns", true, false) != null
 		and m.panel._box.find_child("TwoSuns", true, false).get_child_count() == 2)
 	_star_facts_page(m)
@@ -709,10 +735,11 @@ func _fly_to_b(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 		fb2 != null and fb2.text == "IN A CLOSE ORBIT" and fb2.disabled and fa2 != null and fa2.text == "FLY HERE")
 	await _fit(m, "the sector page, in star B's close orbit")
 	h._ok("the ship's place as LOCAL is told it is star B (%d)" % m.ship_place(), m.ship_place() == B)
-	# THE HUD's SECTOR tab says two suns
+	# THE HUD's SECTOR tab says it is a binary system (Jon, Nov 1: "Let's call it
+	# Binary instead of two suns")
 	Router.hud.refresh()
 	var tip := String(Router.hud._tab_system.tooltip_text).replace("\n", " ")
-	h._ok("the SECTOR tab says two suns (%s)" % tip.strip_edges(), tip.contains("two suns"))
+	h._ok("the SECTOR tab says binary, not two suns (%s)" % tip.strip_edges(), tip.contains("binary system") and not tip.to_lower().contains("two suns"))
 	_saw("flights to star B")
 
 
@@ -1647,8 +1674,9 @@ func _one_sun_fallback(n: MapGen.MapNode) -> void:
 ## read YELLOW DWARF, G2, 5,700 K, star A's, under the orange sun the map draws,
 ## and MASS read each star's share of the pair's pull (star A 0.55 SOL beside G2,
 ## which no G2 weighs). Now star A reads as the one sun does, and star B as the
-## K5 orange dwarf its colour is nearest, its mass against A's as their pulls are
-## and its radius its drawn one.
+## K5 orange dwarf its colour is nearest, with a K5's own MASS and RADIUS, 0.70
+## SOL each (Jon, Nov 1, "starb:B"; they read its mass against A's as their
+## pulls are, 0.72 to 0.92, and its drawn radius). The pulls are as they were.
 ## The sector page as it stands, star by star: its kind under its name, then
 ## CLASS, SURFACE, MASS and RADIUS.
 func _page_facts(m: SystemMapScreen, nm: String) -> Dictionary:
@@ -1664,9 +1692,14 @@ func _page_facts(m: SystemMapScreen, nm: String) -> Dictionary:
 	return got
 
 
-## A fact's number, 0.82 out of "0.82 SOL".
-static func _num(s: String) -> float:
-	return float(s.get_slice(" ", 0))
+## STAR B'S PULL AGAINST STAR A'S as the layout rolls it (`TWIN_SHARE_LO` to
+## `_HI` of the pair's pull to star A): 0.724 to 0.923.
+static func _pull_lo() -> float:
+	return (1.0 - SystemLayout.TWIN_SHARE_HI) / SystemLayout.TWIN_SHARE_HI
+
+
+static func _pull_hi() -> float:
+	return (1.0 - SystemLayout.TWIN_SHARE_LO) / SystemLayout.TWIN_SHARE_LO
 
 
 func _star_facts_page(m: SystemMapScreen) -> void:
@@ -1676,31 +1709,34 @@ func _star_facts_page(m: SystemMapScreen) -> void:
 	var fb := _page_facts(m, m.overlay.star_name_of(SystemLayout.STAR_B))
 	h._ok("star A reads as one sun does: %s, %s, %s, MASS %s, RADIUS %s" % [fa.get("kind"), fa.get("CLASS"), fa.get("SURFACE"), fa.get("MASS"), fa.get("RADIUS")],
 		fa.get("kind") == one.kind and fa.get("CLASS") == one.cls and fa.get("SURFACE") == one.temp and fa.get("MASS") == one.mass and fa.get("RADIUS") == one.radius)
-	var share_b := 1.0 - L.star_share
-	var want_m := SystemViewS.sol(share_b / L.star_share)
-	var want_r := SystemViewS.sol(L.star2_r / 16.0)
-	h._ok("star B reads as the orange dwarf it is drawn as: %s, %s, %s, MASS %s (want %s), RADIUS %s (want %s)" % [fb.get("kind"), fb.get("CLASS"), fb.get("SURFACE"), fb.get("MASS"), want_m, fb.get("RADIUS"), want_r],
-		fb.get("kind") == "ORANGE DWARF" and fb.get("CLASS") == "K5" and fb.get("SURFACE") == "4,400 K" and fb.get("MASS") == want_m and fb.get("RADIUS") == want_r)
-	# THE MASSES' RATIO IS THE PULLS' (to the 0.005 SOL the page prints)
-	var mr := _num(String(fb.get("MASS", "0"))) / maxf(_num(String(fa.get("MASS", "1"))), 0.001)
-	h._ok("their masses as their pulls: B / A %.3f on the page, the shares' %.3f" % [mr, share_b / L.star_share],
-		absf(mr - share_b / L.star_share) <= 0.0051)
+	h._ok("star B reads as the K5 orange dwarf it is drawn as, a K5's own numbers: %s, %s, %s, MASS %s, RADIUS %s (want 0.70 SOL each)" % [fb.get("kind"), fb.get("CLASS"), fb.get("SURFACE"), fb.get("MASS"), fb.get("RADIUS")],
+		fb.get("kind") == "ORANGE DWARF" and fb.get("CLASS") == "K5" and fb.get("SURFACE") == "4,400 K" and fb.get("MASS") == "0.70 SOL" and fb.get("RADIUS") == "0.70 SOL")
+	# THE PULLS AS THEY WERE: the page's words only; a flight still feels star B
+	# at its share of the pair's pull, 0.72 to 0.92 of star A's
+	var pr := (1.0 - L.star_share) / L.star_share
+	var g := MapGravity.from_layout(L)
+	var ga := -1.0
+	var gb := -1.0
+	for k in g.star_id.size():
+		if g.star_id[k] == -1:
+			ga = g.star_gm[k]
+		elif g.star_id[k] == SystemLayout.STAR_B:
+			gb = g.star_gm[k]
+	h._ok("and its pull is as built: B / A %.3f in the flight's gravity, %.3f from the shares, in %.3f to %.3f" % [gb / maxf(ga, 1e-9), pr, _pull_lo(), _pull_hi()],
+		ga > 0.0 and gb > 0.0 and absf(gb / ga - pr) < 1e-6 and pr >= _pull_lo() - 1e-6 and pr <= _pull_hi() + 1e-6)
 	_saw("star facts read off the page")
 
 
 ## EVERY TWIN OF THE RUN, made so where it may be: star A's facts the one sun's,
-## word for word, and star B's an orange dwarf's, its mass the pulls' ratio of
-## A's and its radius a dwarf's for that mass (to the 0.8, as the layout draws
-## it), each to what the page prints; and every one-sun system's facts its
-## kind's table, as ever.
+## word for word, and star B's a K5 orange dwarf's own, MASS and RADIUS 0.70 SOL
+## in every one (Jon, Nov 1, "starb:B"), while the pulls' ratio B / A runs 0.72
+## to 0.92 as built; and every one-sun system's facts its kind's table, as ever.
 func _star_facts_all() -> void:
 	var twins := 0
 	var ones := 0
 	var bad: Array[String] = []
-	var m_lo := INF
-	var m_hi := 0.0
-	var r_lo := INF
-	var r_hi := 0.0
+	var p_lo := INF
+	var p_hi := 0.0
 	for raw in Run.map:
 		var c: MapGen.MapNode = raw
 		if c.type != MapGen.NodeType.SYSTEM and c.type != MapGen.NodeType.STATION and c.type != MapGen.NodeType.START:
@@ -1721,18 +1757,13 @@ func _star_facts_all() -> void:
 				continue
 			twins += 1
 			var fb: Dictionary = SystemViewS.star_facts_of(L, SystemViewS.KIND_NAMES[L.star2], SystemLayout.STAR_B)
-			var mb := _num(String(fb.mass))
-			var rb := _num(String(fb.radius))
 			var ratio := (1.0 - L.star_share) / L.star_share
-			m_lo = minf(m_lo, mb)
-			m_hi = maxf(m_hi, mb)
-			r_lo = minf(r_lo, rb)
-			r_hi = maxf(r_hi, rb)
-			if fb.kind != "ORANGE DWARF" or fb.cls != "K5" or fb.temp != "4,400 K" or absf(mb / _num(String(fa.mass)) - ratio) > 0.0051 \
-					or absf(rb - pow(mb, 0.8)) > 0.011:
+			p_lo = minf(p_lo, ratio)
+			p_hi = maxf(p_hi, ratio)
+			if fb.kind != "ORANGE DWARF" or fb.cls != "K5" or fb.temp != "4,400 K" or fb.mass != "0.70 SOL" or fb.radius != "0.70 SOL":
 				bad.append("%s star B %s (share %.3f)" % [MapGen.star_name(c), fb, L.star_share])
-	h._ok("every twin's star A reads as one sun, its star B an orange dwarf K5, MASS the pulls' ratio of A's (%.2f to %.2f SOL) and RADIUS a dwarf's for it (%.2f to %.2f SOL); %d twins, %d one-sun systems their kind's own%s" % [
-		m_lo, m_hi, r_lo, r_hi, twins, ones, "" if bad.is_empty() else ": " + "; ".join(bad.slice(0, 4))], bad.is_empty() and twins > 20 and ones > 20)
+	h._ok("every twin's star A reads as one sun, its star B an orange dwarf K5 of MASS 0.70 SOL and RADIUS 0.70 SOL, while B pulls %.2f to %.2f of A as built; %d twins, %d one-sun systems their kind's own%s" % [
+		p_lo, p_hi, twins, ones, "" if bad.is_empty() else ": " + "; ".join(bad.slice(0, 4))], bad.is_empty() and twins > 20 and ones > 20 and p_lo >= _pull_lo() - 1e-6 and p_hi <= _pull_hi() + 1e-6)
 	_saw("twins' star facts", twins)
 
 
@@ -1822,3 +1853,389 @@ func _mass_lines() -> void:
 	_saw("twin giants", twin_giants)
 	h._ok("every giant's MASS line is 1/n of its star or stars (%d giants, %d round two suns, n in %s)%s" % [giants, twin_giants, nk,
 		"" if bad.is_empty() else ": " + "; ".join(bad.slice(0, 4))], bad.is_empty() and giants > 0 and twin_giants > 0)
+
+
+# ---------------------------------------------------------------- the looks sheet's picks
+## Jon's picks from the twin looks sheet (Nov 1: "Twin looks: ring:A mass:A
+## transit:A key:A list:C city:A letgo:A starb:B", and "Let's call it Binary
+## instead of two suns"). starb:B is `_star_facts_page` and `_star_facts_all`.
+
+## The numeral a body's name ends in, as an index into `SystemLayout.ROMAN` (I
+## is 0), or ROMAN's size for a name with none.
+static func _numeral(nm: String) -> int:
+	var k := SystemLayout.ROMAN.find(nm.get_slice(" ", nm.get_slice_count(" ") - 1))
+	return k if k >= 0 else SystemLayout.ROMAN.size()
+
+
+## THE SATELLITES LIST IN NAME ORDER ("list:C"): every system of the run, laid
+## out each way it may be, lists its bodies (`SystemLayout.name_order`) with the
+## numerals of their names going up, I, II, III (past X, which ROMAN stops at,
+## X again); round one sun that is the order they were made in, so nothing there
+## moves. The binaries whose made order was not their names' are counted: the
+## list read III, IV, I, V, II, VI in some.
+func _name_order_all() -> void:
+	var twins := 0
+	var ones := 0
+	var moved := 0
+	var bad: Array[String] = []
+	for raw in Run.map:
+		var c: MapGen.MapNode = raw
+		for two: bool in ([false, true] if MapGen.twin_ok(c) else [false]):
+			var was := c.twin
+			c.twin = two
+			var L := SystemLayout.of(c)
+			c.twin = was
+			var order := L.name_order()
+			var made: Array[int] = []
+			for i in L.bodies.size():
+				made.append(i)
+			var ok := order.size() == made.size()
+			for k in range(1, order.size()):
+				var a := _numeral(L.bodies[order[k - 1]].name)
+				var b := _numeral(L.bodies[order[k]].name)
+				if b < a or (b == a and b < SystemLayout.ROMAN.size() - 1):
+					ok = false
+			if L.twin:
+				twins += 1
+				if order != made:
+					moved += 1
+			else:
+				ones += 1
+				if order != made:
+					ok = false
+			if not ok:
+				var nms := PackedStringArray()
+				for i: int in order:
+					nms.append(L.bodies[i].name)
+				bad.append("%s (%s): %s" % [MapGen.star_name(c), "binary" if L.twin else "one sun", ", ".join(nms)])
+	_saw("layouts' SATELLITES in name order", twins + ones)
+	h._ok("every system lists its SATELLITES in name order: %d binaries (%d of them not in the order they were made), %d with one sun, all in the order they were made%s" % [
+		twins, moved, ones, "" if bad.is_empty() else ": " + "; ".join(bad.slice(0, 4))],
+		bad.is_empty() and twins > 20 and ones > 20 and moved > 0)
+
+
+## AND ON THE PAGE: the sector page's SATELLITES rows, read off it in order, are
+## the bodies in name order.
+func _satellites_page(m: SystemMapScreen) -> void:
+	m.panel_back()
+	var L: SystemLayout = m.view.layout
+	var words := _words(m.panel._box)
+	var k := -1
+	for i in words.size():
+		if words[i].begins_with("SATELLITES · "):
+			k = i
+	var names := {}
+	for b in L.bodies:
+		names[b.name] = true
+	var got := PackedStringArray()
+	if k >= 0:
+		for j in range(k + 1, words.size()):
+			if names.has(words[j]):
+				got.append(words[j])
+	var want := PackedStringArray()
+	for i: int in L.name_order():
+		want.append(L.bodies[i].name)
+	var made := PackedStringArray()
+	for b in L.bodies:
+		made.append(b.name)
+	h._ok("the sector page lists its SATELLITES in name order: %s (made %s)" % [", ".join(got), ", ".join(made)],
+		k >= 0 and got == want and got.size() == L.bodies.size())
+	_saw("SATELLITES pages read")
+
+
+## The code on a line of GDScript or a scene, its comment left off (a # outside
+## a string).
+static func _code_of(line: String) -> String:
+	var q := ""
+	var i := 0
+	while i < line.length():
+		var ch := line[i]
+		if q != "":
+			if ch == "\\":
+				i += 1
+			elif ch == q:
+				q = ""
+		elif ch == "\"" or ch == "'":
+			q = ch
+		elif ch == "#":
+			return line.substr(0, i)
+		i += 1
+	return line
+
+
+static func _files_under(dir: String, out: Array[String]) -> void:
+	var d := DirAccess.open(dir)
+	if d == null:
+		return
+	for f in d.get_files():
+		if f.ends_with(".gd") or f.ends_with(".tscn") or f.ends_with(".tres") or f.ends_with(".json"):
+			out.append(dir.path_join(f))
+	for sub in d.get_directories():
+		_files_under(dir.path_join(sub), out)
+
+
+## NO STRING A PLAYER READS SAYS TWO SUNS ("Let's call it Binary instead of two
+## suns"): every string in the game's scripts, scenes and data, the harnesses and
+## comments left out, read for "two suns", "two-sun" and "second sun". The
+## sector page, the HUD's tip (`_stars_as_places`) and the chart's STAR row
+## (`MapGen.BINARY`) say binary.
+func _no_two_suns_said() -> void:
+	var re := RegEx.create_from_string("(?i)\"[^\"]*\\b(two[ -]suns?|second sun)\\b[^\"]*\"")
+	var files: Array[String] = []
+	for top: String in ["res://scripts", "res://scenes", "res://data"]:
+		_files_under(top, files)
+	var said: Array[String] = []
+	var lines := 0
+	var read := 0
+	for p: String in files:
+		if p.begins_with("res://scripts/sim/"):
+			continue
+		var f := FileAccess.open(p, FileAccess.READ)
+		if f == null:
+			continue
+		read += 1
+		var ln := 0
+		while not f.eof_reached():
+			var code := _code_of(f.get_line())
+			ln += 1
+			if code.strip_edges() == "":
+				continue
+			lines += 1
+			var mm := re.search(code)
+			if mm != null:
+				said.append("%s:%d %s" % [p.get_file(), ln, mm.get_string()])
+	h._ok("no string a player reads says two suns (%d files, %d lines of code read), and a binary is called %s%s" % [read, lines, MapGen.BINARY,
+		"" if said.is_empty() else ": " + "; ".join(said.slice(0, 4))], said.is_empty() and read > 100 and MapGen.BINARY == "BINARY")
+
+
+## THE SHIP ON A RING, frame by frame (`SystemOverlay.ship_px`): over `frames`
+## frames, every `every`th, with world `w` the ring it rides. Counts the frames
+## looked at, those with any of the hull drawn and those with the light outline
+## (&"rim"); the outline's pixels in another colour, on the hull's shape or not
+## beside it; the hull's pixels hidden by nothing but its own world (any other
+## world's disc or a sun's explains one); and the frames with the ship's middle
+## on its own world's drawn disc, where it sat hidden in part before ring:A.
+func _ring_frames(m: SystemMapScreen, w: int, frames: int, every: int) -> Dictionary:
+	var ov = m.overlay
+	var L: SystemLayout = m.view.layout
+	var r := {"seen": 0, "hull": 0, "rim": 0, "rim_px": 0, "colour": 0, "on_hull": 0, "apart": 0, "own_hid": 0, "on_disc": 0, "ringed": 0}
+	ov.record_px = true
+	for f in frames:
+		await get_tree().process_frame
+		if f % every != every - 1:
+			continue
+		r.seen += 1
+		if ov.ringed_world() == w:
+			r.ringed += 1
+		var pic: Dictionary = ov.hull_pic
+		if pic.is_empty():
+			continue
+		var x: Vector2 = ov._ship_at
+		var tp: Dictionary = MapHullS.turned(pic, MapHullS.bin_of(m.flight.ang))
+		var shape := {}
+		for o: Vector2 in (tp.o as PackedVector2Array):
+			shape[Vector2i((x + o).round())] = true
+		var drawn := {}
+		var rims: Array[Vector2i] = []
+		for e: Array in ov.ship_px:
+			var q := Vector2i((e[0] as Vector2).round())
+			if e[2] == &"hull" or e[2] == &"outline":
+				drawn[q] = true
+			elif e[2] == &"rim":
+				rims.append(q)
+				if (e[1] as Color) != OverlayS.RING_OUTLINE:
+					r.colour += 1
+		if not drawn.is_empty():
+			r.hull += 1
+		if not rims.is_empty():
+			r.rim += 1
+		r.rim_px += rims.size()
+		for q: Vector2i in rims:
+			if shape.has(q):
+				r.on_hull += 1
+			elif not (shape.has(q + Vector2i(1, 0)) or shape.has(q - Vector2i(1, 0)) or shape.has(q + Vector2i(0, 1)) or shape.has(q - Vector2i(0, 1))):
+				r.apart += 1
+		if w >= 0 and x.distance_to(m.view.at[w]) < m.view.draw_r(L.bodies[w]):
+			r.on_disc += 1
+		for q: Vector2i in shape:
+			if drawn.has(q):
+				continue
+			var qv := Vector2(q)
+			var why := false
+			for s: int in L.stars():
+				if qv.distance_to(ov.star_scr(s)) < float(ov.star_disc(s)) + 0.5:
+					why = true
+			for j: int in m.view._views:
+				if j != w and qv.distance_to(m.view.at[j]) < m.view.draw_r(L.bodies[j]) + 0.5:
+					why = true
+			if not why:
+				r.own_hid += 1
+	ov.record_px = false
+	return r
+
+
+## THE SHIP ON ITS SMALL WORLD'S RING, OUTLINED ("ring:A"): on the ring of the
+## world round star A, at the opening zoom, for a lap and more, the ship wears a
+## 1 px light outline (`SystemOverlay.RING_OUTLINE`) round its hull and never on
+## it, in every frame any of the hull shows, and no pixel of the hull is hidden
+## by its own world (on the far side of the ring it hid part of it).
+func _ring_outline_open(m: SystemMapScreen, wa: int) -> void:
+	var r := await _ring_frames(m, wa, 180, 3)
+	h._ok("on the ring of %s round star A the ship is outlined in light: %d of %d frames with the hull drawn have it (%d px, %d off colour, %d on the hull, %d not beside it)" % [
+		m.view.layout.bodies[wa].name, r.rim, r.hull, r.rim_px, r.colour, r.on_hull, r.apart],
+		r.ringed == r.seen and r.hull > 0 and r.rim == r.hull and r.colour == 0 and r.on_hull == 0 and r.apart == 0)
+	h._ok("and its own world never hides it: %d hull pixels hidden by nothing else, over %d frames, %d with its middle on the world's disc" % [r.own_hid, r.seen, r.on_disc],
+		r.own_hid == 0 and r.on_disc > 0)
+	_saw("rings outlined, frames", r.seen)
+
+
+## THE WORDS BY THE SHIP NEVER ACROSS A SUN, AND THE SHIP ON A SMALL WORLD'S RING
+## OUTLINED, over the binaries of `RING_SEEDS` as each seed rolls them (at most
+## `RING_CAP` a seed), on the real map at its opening zoom: the ship put in each
+## star's close orbit and in orbit of each world, a world round one star at
+## three moments of its year. Every word placed that frame
+## (`SystemOverlay.label_rects`) clear of both suns' discs; the ship's own words
+## (IN ORBIT · <world>, CLOSE ORBIT · <star>) counted where they stand whole,
+## shortened to IN ORBIT or CLOSE ORBIT, or held back. The outline on the ring of
+## each world round one star, as `_ring_outline_open`; none round both suns, nor
+## (once a seed) round one sun's world. OMEGA CALLOUS REACH on seed 7, its first
+## world round star A: IN ORBIT · OMEGA CALLOUS I ran across both suns, under
+## the ring, above it and under the ship all crossing one (Nov 1).
+func _ring_sweep() -> void:
+	var seeds: Array = RING_SEEDS.duplicate()
+	var cap := RING_CAP
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("ringseeds="):
+			seeds = Array((a as String).substr(10).split(",")).map(func(s: String) -> int: return int(s))
+		elif (a as String).begins_with("ringcap="):
+			cap = int((a as String).substr(8))
+	var t0 := Time.get_ticks_msec()
+	var st := {"twins": 0, "places": 0, "moments": 0, "words": 0, "crossed": 0, "whole": 0, "short": 0, "held": 0,
+		"rings": 0, "rim_frames": 0, "hull_frames": 0, "rim_bad": 0, "own_hid": 0, "on_disc": 0, "both": 0, "both_rim": 0, "one": 0, "one_rim": 0}
+	var crossed: Array[String] = []
+	var held: Array[String] = []
+	for sd: int in seeds:
+		Router.show_local()
+		await _idle()
+		await _frames(2)
+		Rng.forced = sd
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		var m: SystemMapScreen = null
+		# (spread over the map: every so many of the seed's binaries, the ones it
+		# must see and the first one-sun system with a world)
+		var twins: Array = []
+		for raw in Run.map:
+			var c: MapGen.MapNode = raw
+			if c.twin and MapGen.twin_ok(c):
+				twins.append(c)
+		var pick: Array = []
+		for i in mini(cap, twins.size()):
+			pick.append(twins[int(float(i) * float(twins.size()) / float(mini(cap, twins.size())))])
+		for ni: int in RING_MUST.get(sd, []):
+			if ni < Run.map.size() and not pick.has(Run.map[ni]) and (Run.map[ni] as MapGen.MapNode).twin:
+				pick.append(Run.map[ni])
+		for raw in Run.map:
+			var c: MapGen.MapNode = raw
+			if not (c.twin and MapGen.twin_ok(c)) and c.type == MapGen.NodeType.SYSTEM and c.region != MapGen.Region.FAUNA and c.index != Run.at:
+				pick.append(c)
+				break
+		for raw in pick:
+			var n: MapGen.MapNode = raw
+			var two := n.twin and MapGen.twin_ok(n)
+			var Ln := SystemLayout.of(n)
+			var w0 := -1
+			for b in Ln.bodies:
+				if b.world != &"" and w0 < 0:
+					w0 = b.index
+			if w0 < 0:
+				continue
+			Run.at = n.index
+			n.visited = true
+			SystemMapScreen._parked[n.index] = {"at": w0, "mode": &"rail"}
+			if m == null or not is_instance_valid(m) or Router.current != m:
+				m = await _map()
+			else:
+				# (one map shown again for another system, where the game makes a new
+				# one each time: the overlay's ring easing, fade and trail, which name
+				# the last system's bodies by index, start afresh as on a new map)
+				await m.show_system(n, 0.0, false)
+				m.overlay._ok_body = -9
+				m.overlay._was = -9
+				m.overlay._left = {}
+				m.overlay._pulse = {}
+				m.overlay._ok = 1.0
+				m.overlay._ok_v = 0.0
+				m.overlay._trail = []
+				await _frames(2)
+			if m == null or m.view.node != n:
+				h._fail("seed %d: no map at %s" % [sd, MapGen.star_name(n)])
+				continue
+			var L: SystemLayout = m.view.layout
+			var ov = m.overlay
+			if not two:
+				# ONE SUN, once a seed: a world's ring is never outlined
+				m.flight.place_at(w0, m.view.t)
+				var r1 := await _ring_frames(m, w0, 6, 2)
+				st.one += 1
+				st.one_rim += int(r1.rim_px) + int(r1.ringed)
+				continue
+			st.twins += 1
+			var places: Array[int] = L.stars()
+			for b in L.bodies:
+				if b.world != &"":
+					places.append(b.index)
+			for p: int in places:
+				var round_one := p >= 0 and SystemLayout.is_star(L.bodies[p].host_id)
+				st.places += 1
+				for j in (3 if round_one else 1):
+					var tt: float = 37.0 + (L.bodies[p].period * float(j) / 3.0 if p >= 0 else 0.0)
+					m.view.t = tt
+					m.flight.place_at(p, tt)
+					var r := await _ring_frames(m, p, 2, 2)
+					st.moments += 1
+					# EVERY WORD PLACED, clear of both suns
+					for q in (ov.label_rects as Array).size():
+						var box: Rect2 = ov.label_rects[q]
+						st.words += 1
+						for s: int in L.stars():
+							if _box_on_disc(box, ov.star_scr(s), ov.star_disc(s)):
+								st.crossed += 1
+								crossed.append("seed %d %s, the ship at %s: %s across %s" % [sd, MapGen.star_name(n), ov._place_nm(p), ov.label_says[q], ov.star_name_of(s)])
+					# THE SHIP'S OWN WORDS: whole, shortened or held back
+					var full: String = ("CLOSE ORBIT · " if p < 0 else "IN ORBIT · ") + String(ov._place_nm(p))
+					var says: Array = ov.label_says
+					if says.has(full):
+						st.whole += 1
+					elif says.has(full.get_slice(" · ", 0)):
+						st.short += 1
+					else:
+						st.held += 1
+						held.append("seed %d %s at %s (%s)" % [sd, MapGen.star_name(n), ov._place_nm(p), ", ".join(PackedStringArray(says))])
+					# THE OUTLINE: on a world round one star, none round both
+					if p < 0:
+						continue
+					if round_one:
+						st.rings += 1
+						st.hull_frames += int(r.hull)
+						st.rim_frames += int(r.rim)
+						st.rim_bad += int(r.colour) + int(r.on_hull) + int(r.apart) + (int(r.seen) - int(r.ringed))
+						st.own_hid += int(r.own_hid)
+						st.on_disc += int(r.on_disc)
+					else:
+						st.both += 1
+						st.both_rim += int(r.rim_px) + int(r.ringed)
+	print("  --   the ring sweep: %d binaries over seeds %s in %.1f s; the ship at %d places, %d moments; %d words placed; its own words whole %d, shortened %d, held back %d" % [
+		st.twins, seeds, float(Time.get_ticks_msec() - t0) / 1000.0, st.places, st.moments, st.words, st.whole, st.short, st.held])
+	for e: String in held.slice(0, 6):
+		print("  --     held back: %s" % e)
+	_saw("ring sweep: binaries", st.twins)
+	_saw("ring sweep: moments", st.moments)
+	h._ok("no word on the map is written across a sun in %d binaries of %d seeds (%d words at %d moments, %d across)%s" % [st.twins, seeds.size(), st.words, st.moments, st.crossed,
+		"" if crossed.is_empty() else ": " + "; ".join(crossed.slice(0, 4))], st.crossed == 0 and st.twins >= seeds.size() * mini(cap, 8) and st.words > st.moments)
+	h._ok("the words by the ship stand whole or shortened at nearly every place (%d whole, %d shortened, %d held back of %d)" % [st.whole, st.short, st.held, st.moments],
+		st.held * 50 <= st.moments)
+	h._ok("on every ring of a world round one sun of a binary the ship is outlined in light: %d rings, %d of %d frames with the hull drawn outlined, %d outline pixels wrong, %d hull pixels hidden by its own world (%d frames with its middle on that world's disc)" % [
+		st.rings, st.rim_frames, st.hull_frames, st.rim_bad, st.own_hid, st.on_disc],
+		st.rings > 2 * st.twins and st.hull_frames > 0 and st.rim_frames == st.hull_frames and st.rim_bad == 0 and st.own_hid == 0 and st.on_disc > 0)
+	h._ok("and never on a ring round both suns (%d rings, %d outline pixels or outlined frames) nor round one sun (%d systems, %d)" % [st.both, st.both_rim, st.one, st.one_rim],
+		st.both > 0 and st.both_rim == 0 and st.one > 0 and st.one_rim == 0)

@@ -1220,6 +1220,12 @@ static func _roll_twins(nodes: Array) -> void:
 		n.twin = force > 0 or (force == 0 and roll < TWIN_CHANCE)
 
 
+## WHAT A SYSTEM WITH TWO SUNS IS CALLED wherever a player reads it: the sector
+## page's class line, the chart's STAR row (Jon, Nov 1: "Let's call it Binary
+## instead of two suns"; both read TWO SUNS). In a sentence, "a binary system".
+const BINARY := "BINARY"
+
+
 ## Whether a system may have two suns: an ordinary star's ordinary system. Not
 ## the start (the first flights are taught there), a station, a pulsar, the core,
 ## or a red or blue star (their events are about "the star here", one place).

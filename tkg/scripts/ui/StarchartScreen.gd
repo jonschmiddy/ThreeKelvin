@@ -874,9 +874,10 @@ func _refresh() -> void:
 	#
 	# In the star's own colour, so the swatch on the map and the words here are
 	# obviously the same fact.
-	# TWO SUNS where it has two (ruling 20): both ordinary, so the row says how
+	# BINARY where it has two suns (ruling 20; Jon, Nov 1: "Let's call it Binary
+	# instead of two suns", it read TWO SUNS): both ordinary, so the row says how
 	# many rather than what kind, and is seen before the jump.
-	_rows.add_child(_row("STAR", "TWO SUNS" if t.twin and MapGen.twin_ok(t) else MapGen.star_kind(t), MapGen.star_colour(t)))
+	_rows.add_child(_row("STAR", MapGen.BINARY if t.twin and MapGen.twin_ok(t) else MapGen.star_kind(t), MapGen.star_colour(t)))
 	# Only when there IS one, and under labels that are true: a gas giant is a
 	# body IN this system and a pulsar is a neighbour, so neither of them is
 	# "also". A row reading NONE for the commonest possible answer is blank four

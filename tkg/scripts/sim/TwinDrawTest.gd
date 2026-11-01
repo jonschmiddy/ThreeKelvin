@@ -25,7 +25,9 @@ extends Node
 ##     share of its light, the angle of its one light against the way to it);
 ##   * THE SHIP ON A WORLD'S 20 px RING (`ShipFlight.orbit_r`), measured, not
 ##     judged: how much of its ride round a world circling one star its centre
-##     spends inside the world's drawn disc, at the opening zoom and at 1;
+##     spends inside the world's drawn disc, at the opening zoom and at 1 (since
+##     Jon's "ring:A", Nov 1, it is drawn over that world in a light outline
+##     there: TwinSiteTest checks that on the real map);
 ##   * THE SUN FLOOR AS DRAWN (Oct 31): the same promise read off the map
 ##     itself, each SunView's own disc and corona (`_kd`, `_k`) as `step` sets
 ##     them, on every frame of a zoom out from the fit to 0.6 of it and of the

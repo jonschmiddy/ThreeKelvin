@@ -620,15 +620,17 @@ func _star_head() -> void:
 
 
 ## THE SECTOR'S PAGE WITH TWO SUNS (ruling 20, Oct 30): both suns in the one
-## sun's picture, the system named once and called TWO SUNS, its place line,
+## sun's picture, the system named once and called BINARY (Jon, Nov 1: "Let's
+## call it Binary instead of two suns"; it read TWO SUNS), its place line,
 ## and then each star under its own name ("<system> A", "<system> B") with its
 ## kind, its facts and its own way into its close orbit. Clicking either star on
 ## the map opens this page, as clicking the one star does.
 ## EACH STAR'S FACTS AS IT IS DRAWN (`SystemView.star_facts_of`, one source with
 ## the tip's kind): star A as the one sun reads, a yellow dwarf of 1.0 SOL; star B
-## the orange dwarf the map draws, its mass against A's as their pulls are and
-## its radius its drawn size against one sun's 16 px. (MASS read each star's
-## share of the pair's pull: 0.55 SOL beside G2, and B a yellow dwarf too.)
+## the K5 orange dwarf the map draws, with a K5's own mass and radius, 0.70 SOL
+## each (Jon, Nov 1, "starb:B"). (MASS read each star's share of the pair's pull:
+## 0.55 SOL beside G2, and B a yellow dwarf too; then B's mass against A's as
+## their pulls are, 0.72 to 0.92 SOL, and its radius its drawn size.)
 func _twin_head() -> void:
 	var v = screen.view
 	var L: SystemLayout = v.layout
@@ -657,7 +659,7 @@ func _twin_head() -> void:
 		else:
 			_portraits.append(sv)
 	_name(MapGen.star_name(v.node))
-	_class("TWO SUNS")
+	_class(MapGen.BINARY)
 	_blurb(MapGen.place_line(v.node))
 	for s: int in L.stars():
 		_gap(2)
@@ -703,7 +705,10 @@ static func mass_line(frac: float, two: bool) -> String:
 	return "1/%d OF ITS STAR%s" % [n, "S" if two else ""]
 
 
-## The worlds that go round the star, each a link to its page.
+## The worlds that go round the star, each a link to its page, in the order of
+## their names (Jon, Nov 1, "list:C": in a binary the order they were made read
+## III, IV, I, V, II, VI; `SystemLayout.name_order`, the same order as ever
+## round one sun).
 func _satellites() -> void:
 	var v = screen.view
 	var L: SystemLayout = v.layout
@@ -711,7 +716,7 @@ func _satellites() -> void:
 		return
 	_rule()
 	_eyebrow("SATELLITES · %d" % L.bodies.size())
-	for bi in L.bodies.size():
+	for bi: int in L.name_order():
 		var bd: SystemLayout.Body = L.bodies[bi]
 		var row := HBoxContainer.new()
 		row.add_child(_link(bd.name, func() -> void: screen.select_body(bi)))

@@ -71,11 +71,16 @@ var _hull_key: Array = []
 const ION_CORE := Color("#5ea6ff")
 const ION_TIP := Color("#bfe2ff")
 ## FOR THE HARNESSES (`-- sheet=MapShipTest`): every pixel of the ship drawn
-## last frame, `[screen point, colour, &"hull" | &"outline" | &"glow" |
-## &"flame" | &"rcs"]`, kept while `record_px` is on (headless draws nothing
+## last frame, `[screen point, colour, &"hull" | &"outline" | &"rim" | &"glow" |
+## &"flame" | &"rcs"]` (&"rim" the light outline on a binary's small world's
+## ring, `ringed_world`), kept while `record_px` is on (headless draws nothing
 ## anyone can read back).
 var record_px := false
 var ship_px: Array = []
+## THE LIGHT OUTLINE round the ship on the ring of a world that circles one sun
+## of a binary (Jon, Nov 1, "ring:A"): 1 px of the ice the HUD draws in, outside
+## the hull's own dark outline.
+const RING_OUTLINE := UITheme.ICE
 var _last_rel := Vector2.INF
 ## The hover easing in, as the chart's `_hover_t` (move_toward at 9 a second),
 ## from nothing again for each new thing pointed at.
@@ -1582,6 +1587,20 @@ func _hull_pic() -> Dictionary:
 	return hull_pic
 
 
+## THE WORLD WHOSE RING THE SHIP RIDES, where that world circles one sun of a
+## binary (on its rail: in orbit, burning onto it or riding round to leave); -9
+## anywhere else, a world round both suns and every one-sun system included.
+## There the ship is drawn over that world all the way round, outlined
+## (`_draw_ship`, `RING_OUTLINE`).
+func ringed_world() -> int:
+	if flight == null or view == null or view.layout == null or not view.layout.twin or flight.mode != &"rail":
+		return -9
+	var w := int(flight.rail.get("body", -9))
+	if w < 0 or w >= view.layout.bodies.size():
+		return -9
+	return w if SystemLayout.is_star(view.layout.bodies[w].host_id) else -9
+
+
 ## HOW FAR THE SHIP REACHES from its middle, whichever way it points (px): what
 ## the words round it, the ring and a partner in formation keep clear of. The
 ## old arrow's was 7.
@@ -1619,10 +1638,23 @@ func _draw_ship(t: float) -> void:
 	# of two), a nearer world's
 	var my_depth: float = view.depth(Vector2(p3.x, p3.z))
 	var occ: Array = _star_occ(Vector2(p3.x, p3.z))
+	# ON THE RING OF A WORLD ROUND ONE SUN OF A BINARY (Jon, Nov 1, "ring:A"):
+	# that world is small and its ring tight, so at the opening zoom the ship sat
+	# on it (its middle on the disc for a quarter of the lap and up to all of it,
+	# TwinDrawTest), and on the far side the world hid part of the hull. It is
+	# drawn over its own world all the way round, in a 1 px light outline
+	# (`RING_OUTLINE`), so the hull reads on any world and the camera never moves
+	# on its own. Every other world and either sun still hides it.
+	var own_w := ringed_world()
 	for i: int in view._views:
+		if i == own_w:
+			continue
 		var b: SystemLayout.Body = view.layout.bodies[i]
 		if view.depth(view.pos[i]) > my_depth:
 			occ.append([view.at[i], view.draw_r(b)])
+	# (every pixel of the hull and its own dark outline, hidden or not: the light
+	# outline goes round the whole shape and is hidden where the hull would be)
+	var shape := {}
 	var cf: float = float(catch_light.get("f", 0.0))
 	var cdir := Vector2.ZERO
 	if cf > 0.0:
@@ -1637,6 +1669,8 @@ func _draw_ship(t: float) -> void:
 	var s := sin(ang)
 	var P := func(u: float, v: float, col: Color, what: StringName) -> void:
 		var q := (x + Vector2(u * c - v * s, u * s + v * c)).round()
+		if own_w >= 0 and (what == &"hull" or what == &"outline"):
+			shape[Vector2i(q)] = true
 		for o: Array in occ:
 			if q.distance_to(o[0]) < float(o[1]):
 				return
@@ -1681,6 +1715,8 @@ func _draw_ship(t: float) -> void:
 		var hulls: PackedFloat32Array = tp.hull
 		for i in offs.size():
 			var q := x + offs[i]
+			if own_w >= 0:
+				shape[Vector2i(q.round())] = true
 			var hid := false
 			for o: Array in occ:
 				if q.distance_to(o[0]) < float(o[1]):
@@ -1695,6 +1731,27 @@ func _draw_ship(t: float) -> void:
 			_px(q, hc)
 			if record_px:
 				ship_px.append([q, hc, &"hull" if hulls[i] > 0.0 else &"outline"])
+	# THE LIGHT OUTLINE on its own world's ring (above): each pixel beside the
+	# shape and not in it, hidden as the hull is; under the drive, so its glow
+	# and flame still show
+	if own_w >= 0:
+		var rim := {}
+		for k: Vector2i in shape:
+			for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				if not shape.has(k + d):
+					rim[k + d] = true
+		for k: Vector2i in rim:
+			var q := Vector2(k)
+			var hid := false
+			for o: Array in occ:
+				if q.distance_to(o[0]) < float(o[1]):
+					hid = true
+					break
+			if hid:
+				continue
+			_px(q, RING_OUTLINE)
+			if record_px:
+				ship_px.append([q, RING_OUTLINE, &"rim"])
 	# THE DRIVE, AN ION DRIVE (Jeremy: blue engines on the map, so flying in a
 	# system reads as the drive and not the warp): the old flame's shape and
 	# motion in the player's cold drive ramp (`ThrusterFx.COOL_RAMP`), a cool
@@ -1764,23 +1821,67 @@ func _draw_ship(t: float) -> void:
 			lc = bw
 			ly = bw.y + maxf(rr * view.TILT, disc) + 13.0
 		var lx := clampf(lc.x - roundf(tw / 2.0), view.window.position.x + 4.0, view.window.end.x - tw - 4.0)
-		# NEVER ACROSS A SUN of a pair (in a star's close orbit they sat across
-		# the other one, 46 of 90 twins): above the ring, else under the ship
-		if names_on and SystemLayout.is_place(on) and _meets_sun(Vector2(lx, ly), words):
-			var bw2 := _body_scr(on)
-			var rr2 := _orbit_px(on, _orbit_r(on)) * _ok / maxf(_orbit_k(on, _orbit_r(on)), 1.0)
-			var disc2: float = star_disc(on) if SystemLayout.is_star(on) else (_reach(on) - 7.0)
-			var tries := [Vector2(lx, bw2.y - maxf(rr2 * view.TILT, disc2) - 5.0),
-				Vector2(clampf(x.x - roundf(tw / 2.0), view.window.position.x + 4.0, view.window.end.x - tw - 4.0), x.y + maxf(17.0, ship_r() + 11.0))]
-			for q: Vector2 in tries:
-				if not _meets_sun(q, words):
-					lx = q.x
-					ly = q.y
-					break
-		if names_on:
-			_label(Vector2(lx, ly), words, UITheme.FLARE, 4, true)
-		else:
+		# NEVER ACROSS A SUN of a binary (`_words_off_suns`). In a star's close
+		# orbit they sat across the other one, 46 of 90 twins; on the ring of a
+		# world round star A at the opening zoom, under the ring, above it and
+		# under the ship all crossed a sun (OMEGA CALLOUS REACH on seed 7, Nov 1:
+		# the suns 76 px apart, the words 136 px wide)
+		if names_on and _meets_sun(Vector2(lx, ly), words):
+			var spot := _words_off_suns(words, on, x)
+			if spot.is_empty():
+				words = ""
+			else:
+				lx = (spot[0] as Vector2).x
+				ly = (spot[0] as Vector2).y
+				words = spot[1]
+		if not names_on:
 			_label(x + Vector2(-8, -you_up()), "YOU", UITheme.FLARE, 1, false)
+		elif words != "":
+			_label(Vector2(lx, ly), words, UITheme.FLARE, 4, true)
+
+
+## HOW FAR THE WORDS BY THE SHIP MAY STEP OFF THEIR PLACE to clear a sun (px):
+## past this they would read as another place's.
+const WORDS_STEP_MOST := 40.0
+
+
+## WHERE THE WORDS BY THE SHIP GO CLEAR OF A BINARY'S SUNS (`_meets_sun`), as
+## [their baseline's left end, the words], or [] where nothing clears. The spots
+## the words always tried, in their order: under the ring they name (under the
+## ship off a ring), above it, under the ship. Then each of those a step further
+## out, 2 px at a time to `WORDS_STEP_MOST`, the nearest first. Then the same for
+## the words before their " · " alone (IN ORBIT, CLOSE ORBIT, ALONGSIDE: the
+## status line at the frame's top left still names the place). Where nothing
+## clears, the words are held back, as `_place_labels` holds back words that
+## would sit on others, and the status line says them.
+func _words_off_suns(words: String, on: int, x: Vector2) -> Array:
+	var win: Rect2 = view.window
+	var sayings: Array[String] = [words]
+	if words.contains(" · "):
+		sayings.append(words.get_slice(" · ", 0))
+	# the spots' heights, and the middle they are centred on
+	var c := x
+	var under := x.y + maxf(17.0, ship_r() + 11.0)
+	var over := x.y - float(you_up())
+	if SystemLayout.is_place(on):
+		c = _body_scr(on)
+		var rr := _orbit_px(on, _orbit_r(on)) * _ok / maxf(_orbit_k(on, _orbit_r(on)), 1.0)
+		var disc: float = star_disc(on) if SystemLayout.is_star(on) else (_reach(on) - 7.0)
+		under = c.y + maxf(rr * view.TILT, disc) + 13.0
+		over = c.y - maxf(rr * view.TILT, disc) - 5.0
+	var ship_y := x.y + maxf(17.0, ship_r() + 11.0)
+	for s: String in sayings:
+		var tw := _font().get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+		var at_x := clampf(c.x - roundf(tw / 2.0), win.position.x + 4.0, win.end.x - tw - 4.0)
+		var ship_x := clampf(x.x - roundf(tw / 2.0), win.position.x + 4.0, win.end.x - tw - 4.0)
+		var d := 0.0
+		while d <= WORDS_STEP_MOST:
+			for q: Vector2 in [Vector2(at_x, under + d), Vector2(at_x, over - d), Vector2(ship_x, ship_y + d)]:
+				# (their box, as `_place_labels` builds it, inside the frame)
+				if q.y - 10.0 >= win.position.y and q.y + 4.0 <= win.end.y and not _meets_sun(q, s):
+					return [q, s]
+			d += 2.0
+	return []
 
 
 ## Where the ship's status is written (its words' baseline) from the frame's top

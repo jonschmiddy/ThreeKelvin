@@ -978,33 +978,29 @@ func star_class() -> String:
 ## sequence), are all nearest K5 at 4,440 K (the best fits 4,290 to 4,450 K;
 ## Nov 1). Its surface is rounded as G2's is to 5,700 K. It read YELLOW DWARF, G2,
 ## 5,700 K, star A's, under the orange sun the map draws.
-const STAR_B_FACTS := {"kind": "ORANGE DWARF", "cls": "K5", "temp": "4,400 K"}
+## ITS MASS AND RADIUS ARE A K5'S OWN, 0.70 SOL each, in every binary (Jon, Nov 1,
+## "starb:B"). They read its mass against A's as the stars' pulls are
+## (`star_share`: B / A = (1 - share) / share, 0.72 to 0.92 SOL) and its radius
+## the one it is drawn at against one sun's 16 px (0.77 to 0.94), where a real K5
+## weighs about 0.70; the pair then read 1.72 to 1.92 SOL while the map pulls as
+## one sun. Written as the sheet he picked from showed them.
+const STAR_B_FACTS := {"kind": "ORANGE DWARF", "cls": "K5", "temp": "4,400 K", "mass": "0.70 SOL", "radius": "0.70 SOL"}
 
 
 ## STAR p'S FACTS AS SHOWN, {kind, cls, temp, mass, radius}: its kind's
 ## (`STAR_FACTS`), the same as ever with one sun. In a pair, star A is drawn as the
 ## one sun is, so it reads as one does, a G2 of 1.0 SOL (it read its share of the
-## pair's pull, 0.52 to 0.58 SOL, which no G2 weighs). Star B is the orange dwarf
-## it is drawn as (`STAR_B_FACTS`), its mass against A's as the stars' pulls are
-## (`star_share`: B / A = (1 - share) / share, 0.72 to 0.92 SOL) and its radius
-## the one it is drawn at against one sun's 16 px (`star2_r`, which the layout
-## rolls as 16 times that mass to the 0.8, a dwarf's radius for its mass). Only
-## the words: the pull, the share and the drawing are as they were.
+## pair's pull, 0.52 to 0.58 SOL, which no G2 weighs). Star B is the K5 orange
+## dwarf it is drawn as, with a K5's own numbers (`STAR_B_FACTS`). Only the words:
+## the pull, the share and the drawing are as they were, so a flight feels star B
+## at 0.72 to 0.92 of star A's pull whatever its page says.
 static func star_facts_of(L: SystemLayout, kind_name: String, p: int) -> Dictionary:
 	var f: Dictionary = STAR_FACTS[kind_name]
 	if L == null or not L.twin or p != SystemLayout.STAR_B:
 		return f
 	var out: Dictionary = f.duplicate()
 	out.merge(STAR_B_FACTS, true)
-	out["mass"] = sol((1.0 - L.star_share) / L.star_share)
-	out["radius"] = sol(L.star2_r / float(SystemLayout.STAR_R[SystemLayout.StarKind.ORDINARY]))
 	return out
-
-
-## A star's mass or radius against one sun's, as the facts print it: 1.0 SOL,
-## 0.82 SOL, 0.8 SOL.
-static func sol(x: float) -> String:
-	return "%s SOL" % ("%.2f" % x).trim_suffix("0")
 
 
 func body_kind(b: SystemLayout.Body) -> String:
