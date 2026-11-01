@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Added** — two-star systems. About one ordinary system in four now has two suns that circle
+  each other. Some worlds circle one sun and some circle both. The sector panel lists both suns,
+  and FLY HERE works on either one. The star chart marks a system with two suns. Its second sun
+  is an orange dwarf, smaller and cooler than the first. Each world takes the light of the sun it
+  circles, and in PAINTED the far cloud's edges catch the light of both.
+- **Changed** — the autopilot flies a real path through the pull of the suns and the giants. The
+  path is worked out before you click, so the dotted line is the flight the ship will fly, burns
+  and all. A flight from place to place takes about 11 seconds, where it took about 7. Flying inside
+  a system still costs no fuel, and flying with WASD still feels no pull.
+- **Changed** — gas giants are heavier, from a tenth to a quarter of their star. A flight that
+  passes close to one bends around it. A giant's page shows its MASS.
+- **Fixed** — leaving the sector map during a flight no longer drops it. The ship arrives where it
+  was going, and a GO still opens its event. Changing the render style or GRAPHICS during a GO no
+  longer loses the event and locks the map.
+- **Changed** — during a GO you can hover, zoom and drag the map. Clicks that would start another
+  flight still wait until you arrive.
 - **Fixed** — a hit that destroys your ship no longer lets your feedback destroy the enemy on the
   way back. Against the Custodian this could end a run as a death and a win at once.
 - **Changed** — every ordinary enemy has twice the hull it had, ships and creatures alike. Fights
