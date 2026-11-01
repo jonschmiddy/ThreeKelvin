@@ -828,8 +828,10 @@ step "Star B is a place, as the one star is"
 # suns or one star comes back on that orbit, by LOCAL and by the save's rows;
 # the map left on a flight's coast puts the ship where it was going; no words
 # across the other sun; a capture at star B drawn as it is flown; LEAVING while
-# held alongside to go; and it quits with a flight plan still on a worker (that
-# crashed the quit, signal 11).
+# held alongside to go; it quits with a flight plan still on a worker (that
+# crashed the quit, signal 11); and the map drawn again round a flight (a style
+# or GRAPHICS change) carries its errand on: a GO's event once, the map open
+# again (a GO cut short kept the map shut until it was left).
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
 	run_godot twinsitetest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=TwinSiteTest; then
 	if grep -qE '^twinsitetest: PASS' "$LOG_DIR/twinsitetest.log"; then
@@ -2364,7 +2366,7 @@ gate_weight() {
 		menutest) echo 25 ;; market) echo 24 ;; parseall) echo 24 ;;
 		devtest) echo 22 ;; hulldamagetest) echo 22 ;; fightopentest) echo 22 ;;
 		lockedpooltest) echo 41 ;; rewardshowntest) echo 33 ;; mapperftest) echo 40 ;;
-		solvetest) echo 125 ;; twindrawtest) echo 106 ;; flighttest) echo 80 ;; twinsitetest) echo 40 ;;
+		solvetest) echo 125 ;; twindrawtest) echo 106 ;; flighttest) echo 80 ;; twinsitetest) echo 70 ;;
 		*) echo 15 ;;
 	esac
 }

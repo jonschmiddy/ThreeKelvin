@@ -2093,6 +2093,27 @@ func _cancel_flight() -> void:
 		_jobs.erase(&"fly")
 
 
+## THE ERRAND OF A FLIGHT UNDER WAY, handed to the ship that replaces this one
+## as the map is drawn again round it (`SystemMapScreen.show_system`: another
+## rendering style, GRAPHICS LOW): {to, done, prefer}, where it is going, what
+## is to happen there (a GO's event, DOCK, ENGAGE, the place opened) and the
+## choice it was planned with. This ship never calls `done` after. Empty when
+## nothing is on its way, or the flight was let go of (W off the ring or the
+## burn drops its callback).
+func hand_over() -> Dictionary:
+	var to := heading_to()
+	if not _fly_done.is_valid() or not SystemLayout.is_place(to):
+		return {}
+	var d := _fly_done
+	_fly_done = Callable()
+	var prefer: Dictionary = {}
+	if not _pend.is_empty():
+		prefer = _pend.get("prefer", {})
+	elif plan != null and plan.res != null:
+		prefer = plan.choice
+	return {"to": to, "done": d, "prefer": prefer}
+
+
 ## (put somewhere by hand: no flight is waiting to leave)
 func _drop_flight() -> void:
 	plan = null

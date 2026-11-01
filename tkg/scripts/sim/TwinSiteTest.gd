@@ -33,6 +33,11 @@ extends Node
 ##   - the map left on a flight's coast puts the ship where it was going, in
 ##     orbit there, as LOCAL is told and the flight counted (twin and one sun);
 ##     the map_fly hint keeps quiet on the way;
+##   - the map drawn again round a flight (another rendering style or GRAPHICS
+##     LOW, `_on_style`): a GO on its coast is in orbit there with its errand
+##     run once and the map open; a GO still being planned flies on and its
+##     errand runs on arrival; a FLY HERE on its coast opens the place; a
+##     flight let go of with W is not flown again (twin and one sun);
 ##   - the curl the map draws for a capture into star B's close orbit is the
 ##     one `start_rail` flies;
 ##   - in either star's close orbit the words by the ship, and a selected sun's
@@ -141,6 +146,7 @@ func _run() -> void:
 	await _labels_off_suns(n)
 	await _capture_curl_b(n)
 	await _mid_flight_tab(n, "twin")
+	await _restyle_mid_flight(n, "twin")
 	await _giant_page(n)
 	await _alongside_hold()
 	await _one_sun_fallback(n)
@@ -1076,6 +1082,156 @@ func _mid_flight_tab(n: MapGen.MapNode, what: String) -> void:
 	_saw("flights left on the way")
 
 
+## THE MAP DRAWN AGAIN ROUND A FLIGHT, as Settings' style and GRAPHICS rows do
+## it (`Sig.render_style_changed`, `SystemMapScreen._on_style`): the flight's
+## errand goes on with the new ship (`ShipFlight.hand_over`, `_carry_on`). It was
+## lost: a GO cut short this way left the ship at its target with the event
+## never opened, and `_taking` true, so the map took no click, hover, zoom, drag,
+## WASD or FLY HERE until it was left (the recheck's probe, Oct 31, both a twin
+## and one sun; main has the same code, ruling 20's ~24 s flights made it likely).
+func _restyle_mid_flight(n: MapGen.MapNode, what: String) -> void:
+	var m := await _map()
+	if m == null:
+		h._fail("%s: no map to draw again" % what)
+		return
+	var L: SystemLayout = m.view.layout
+	# (from the world nearest the middle to the one furthest from it: a coast)
+	var a := -9
+	var b := -9
+	var near := INF
+	var far := 0.0
+	for bd in L.bodies:
+		if bd.world == &"":
+			continue
+		var c3: Vector3 = m.flight.center(bd.index, m.view.t)
+		var d := Vector2(c3.x, c3.z).length()
+		if d < near:
+			near = d
+			a = bd.index
+		if d > far:
+			far = d
+			b = bd.index
+	if not h._ok("%s: two worlds to fly between when the map is drawn again (%d, %d)" % [what, a, b], a >= 0 and b >= 0 and a != b):
+		return
+	var ran := [0]
+	var errand := func() -> void: ran[0] += 1
+
+	# A GO ON ITS COAST: in orbit there, its errand run once, the map open
+	await _sit(m, a)
+	var n0 := SystemMapScreen.flights
+	m._go_then(b, errand)
+	var coasting: bool = await _coast(m, 2.0)
+	if not h._ok("%s: a GO is on its coast to %s, 2 s in (mode %s)" % [what, L.bodies[b].name, m.flight.mode], coasting):
+		return
+	m = await _restyle(m)
+	h._ok("%s: drawn again on its coast, the GO is in orbit of %s (%d, %s), its errand run once (%d), the map open (_taking %s), the flight counted once (%d)" % [
+		what, L.bodies[b].name, m.flight.reached(), m.flight.mode, ran[0], m._taking, SystemMapScreen.flights - n0],
+		m.flight.reached() == b and ran[0] == 1 and not m._taking and SystemMapScreen.flights == n0 + 1)
+	await _frames(30)
+	m.fly_to_body(a)
+	await _frames(2)
+	h._ok("%s: the errand not run again (%d), and FLY HERE flies (heading to %d)" % [what, ran[0], m.flight.heading_to()],
+		ran[0] == 1 and m.flight.heading_to() == a)
+
+	# A GO STILL BEING PLANNED (or riding round to leave): put back where it was
+	# leaving, it flies on, the map shut for it, and its errand runs on arrival
+	await _sit(m, a)
+	ran[0] = 0
+	n0 = SystemMapScreen.flights
+	m._go_then(b, errand)
+	var before := "%s, planning %s" % [m.flight.mode, m.flight.planning(&"fly")]
+	if not h._ok("%s: a GO asked for, not yet flying (%s, heading to %d)" % [what, before, m.flight.heading_to()],
+			m.flight.heading_to() == b and m.flight.mode != &"fly" and m.flight.reached() == -9):
+		return
+	m = await _restyle(m)
+	var on: bool = m.flight.heading_to() == b and m._taking and ran[0] == 0
+	var land := -1.0
+	for i in 90 * 60:
+		await get_tree().process_frame
+		if ran[0] > 0:
+			land = float(i) / 60.0
+			break
+	await _frames(30)
+	h._ok("%s: drawn again before it left, the GO flies on to %s (heading there, map shut: %s) and its errand runs on arrival, once (%d, %.1f s on; in orbit %d, _taking %s, counted %d)" % [
+		what, L.bodies[b].name, on, ran[0], land, m.flight.reached(), m._taking, SystemMapScreen.flights - n0],
+		on and ran[0] == 1 and m.flight.reached() == b and not m._taking and SystemMapScreen.flights == n0 + 1)
+
+	# A FLY HERE ON ITS COAST: in orbit there, the place opened
+	await _sit(m, a)
+	m.fly_to_body(b)
+	coasting = await _coast(m, 2.0)
+	if not h._ok("%s: FLY HERE is on its coast to %s, 2 s in (mode %s)" % [what, L.bodies[b].name, m.flight.mode], coasting):
+		return
+	m = await _restyle(m)
+	await _frames(4)
+	h._ok("%s: drawn again on its coast, FLY HERE is in orbit of %s (%d) with it opened (selected %d, panel %s %d)" % [
+		what, L.bodies[b].name, m.flight.reached(), m.overlay.selected, m.panel.mode, m.panel.filter],
+		m.flight.reached() == b and m.overlay.selected == b and m.panel.mode == &"list" and m.panel.filter == b)
+
+	# A FLIGHT LET GO OF (W while it is planned or rides round to leave) is not
+	# flown again by the new ship
+	await _sit(m, a)
+	m.fly_to_body(b)
+	m.harness_keys = true
+	m._wasd.w = true
+	await _frames(1)
+	m._wasd.w = false
+	await _frames(1)
+	m.harness_keys = false
+	if m.flight.heading_to() != -9:
+		print("  --   %s: the flight left before W could let go of it (mode %s): that case not seen" % [what, m.flight.mode])
+	else:
+		m = await _restyle(m)
+		# (coasting off the ring it may be caught by one close by, as any coast
+		# is: that is not a flight; one to the far world, or planned, is)
+		var flew := false
+		for i in 120:
+			await get_tree().process_frame
+			if m.flight.mode == &"fly" or m.flight.planning(&"fly") or m.flight.heading_to() == b:
+				flew = true
+				break
+		h._ok("%s: a flight let go of with W is not flown again when the map is drawn again (mode %s, heading to %d, _taking %s)" % [
+			what, m.flight.mode, m.flight.heading_to(), m._taking], not flew and not m._taking)
+	# (left in orbit, for the parts after)
+	await _sit(m, a)
+	_saw("flights the map was drawn again round")
+
+
+## In orbit of world i, out of any flight, nothing selected (so no preview is
+## of the next target), free to fly.
+func _sit(m: SystemMapScreen, i: int) -> void:
+	m.panel_back()
+	m.flight.place_at(i, m.view.t)
+	for k in 120:
+		await get_tree().process_frame
+		if m.flight.can_fly() and m.flight.reached() == i:
+			break
+	await _frames(10)
+
+
+## Until the flight has coasted `secs` (true), or it never does.
+func _coast(m: SystemMapScreen, secs: float) -> bool:
+	for i in 1800:
+		await get_tree().process_frame
+		if m.flight.mode == &"fly" and m.view.t - float(m.flight.fly_t0) > secs:
+			return true
+	return false
+
+
+## THE MAP DRAWN AGAIN as Settings does it (`Sig.render_style_changed`); back
+## once its new ship is in (the errand handed over in the same frame).
+func _restyle(m: SystemMapScreen) -> SystemMapScreen:
+	var was = m.flight
+	Sig.render_style_changed.emit()
+	for i in 600:
+		await get_tree().process_frame
+		if m.flight != null and m.flight != was:
+			break
+	if m.flight == null or m.flight == was:
+		h._fail("the map was not drawn again (no new ship)")
+	return m
+
+
 ## HOLDING ALONGSIDE TO LEAVE (`FlightSolve`'s KEEP_HOLD, and while the flight
 ## is planned): the status line says LEAVING · TO <place> and the words by the
 ## ship LEAVING · <here>, as a ring's ride round to leave says LEAVING ORBIT. It
@@ -1253,6 +1409,7 @@ func _one_sun_fallback(n: MapGen.MapNode) -> void:
 		return
 	await _put_back(one, _clear_at(m, r1, 2.6), -1, "one sun, round the star, by the save's rows", true)
 	await _mid_flight_tab(one, "one sun")
+	await _restyle_mid_flight(one, "one sun")
 
 
 # ---------------------------------------------------------------- the giants

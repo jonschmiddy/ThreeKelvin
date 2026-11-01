@@ -328,6 +328,16 @@ func _place_map() -> void:
 ## station's system, alongside the station: arrive:B).
 func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> void:
 	_keep_ship()
+	# A FLIGHT UNDER WAY, THE MAP DRAWN AGAIN ROUND IT (`_on_style`: another
+	# rendering style, GRAPHICS LOW): its errand goes on with the ship that
+	# replaces this one (`_carry_on`). Its callback belonged to this ship and
+	# never ran: a GO's event, DOCK or ENGAGE was lost, and `_taking`, cleared
+	# only there, kept the map shut (no click, hover, zoom, drag, WASD or FLY
+	# HERE) until the player left it (the recheck's probe, Oct 31)
+	var going: Dictionary = {}
+	if flight != null and not arrived and view.node == n:
+		going = flight.hand_over()
+	var taking := _taking
 	view.t = t0
 	overlay.selected = -2
 	overlay.hover = {}
@@ -378,6 +388,33 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 	if _location_on:
 		_glide_to("loc", -9, ZOOM_LOCATION)
 	panel.show_system()
+	# (nothing is being taken on a ship just made: a GO carried on takes again)
+	_taking = false
+	if not going.is_empty():
+		_carry_on(going, taking)
+
+
+## THE ERRAND OF A FLIGHT THE MAP WAS DRAWN AGAIN ROUND (`ShipFlight.hand_over`):
+## the ship has been put where it was going if it was on its way (`ship_place`),
+## and what was to happen there happens now, once; if it was still planning or
+## riding round to leave, it was put back where it was leaving and flies there
+## now, keeping its choice, the map shut again for a GO as it was. Clicking never
+## loses anything: fly, then orbit, then open.
+func _carry_on(going: Dictionary, taking: bool) -> void:
+	var to := int(going.to)
+	var done: Callable = going.done
+	_taking = taking
+	if flight.reached() == to:
+		done.call()
+		return
+	if not flight.fly_bg(to, view.t, done, going.get("prefer", {})):
+		# (no flight could start from where it was put: in orbit there, as
+		# `_fly` does)
+		flight.place_at(to, view.t)
+		done.call()
+		return
+	if SystemLayout.is_place(flight.heading_to()):
+		_was_at = -9
 
 
 ## THE ZOOM THAT SHOWS IT ALL: the system's edge with a margin, in the frame.
