@@ -1065,6 +1065,28 @@ func _late_join_test() -> void:
 	ok("a partner's map put away says its clock holds", to_held)
 	await _tree.create_timer(0.3).timeout
 	check("and the party's clock is the one it said, not run on", late.party_t(12), 101.5)
+	# A LOST WORD COSTS SECONDS, NOT A VISIT (review 2): that word goes reliably
+	# (`_spot_at_host_sure`), a spot that holds still is said again every
+	# SPOT_BEAT_MS, and a row nothing refreshes -- its map put away and the word
+	# lost -- is run on no further than RUN_ON_MAX past when it came
+	var g_old := int(late.spot_of(id, 12).get("got", 0))
+	early.report_spot(12, -9, round_both, 2.0, true, 101.5, -9, true)
+	await _wait_until(func() -> bool: return int(late.spot_of(id, 12).get("got", 0)) > g_old, 3.0)
+	var g0 := int(late.spot_of(id, 12).get("got", 0))
+	early.report_spot(12, -9, round_both, 2.0, false, 101.5, -9, true)
+	await _tree.create_timer(0.3).timeout
+	early.report_spot(12, -9, round_both, 2.0, false, 101.5, -9, true)
+	await _tree.create_timer(0.2).timeout
+	check("a spot that holds still is not said again within a beat", int(late.spot_of(id, 12).get("got", 0)), g0)
+	var beat := await _wait_until(func() -> bool:
+		early.report_spot(12, -9, round_both, 2.0, false, 101.5, -9, true)
+		return int(late.spot_of(id, 12).get("got", 0)) > g0, 3.0)
+	ok("but it is said again a beat on (SPOT_BEAT_MS), though nothing moved", beat)
+	var kept_row: Dictionary = late.spots[id].duplicate()
+	late.spots[id]["held"] = false
+	late.spots[id]["got"] = Time.get_ticks_msec() - 600000
+	check("a partner's clock nothing has refreshed for ten minutes is run on only RUN_ON_MAX", late.party_t(12), 101.5 + NetSession.RUN_ON_MAX)
+	late.spots[id] = kept_row
 	# AN ARRIVAL says no clock: its map has not opened (it said 0.0, run on)
 	early.report_arrival(12)
 	var to_arr := await _wait_until(func() -> bool:

@@ -272,7 +272,11 @@ var fights: Dictionary = {}
 ##
 ## NOT on the roster. It changes several times a second while a ship flies,
 ## and the roster is whole, reliable and rebuilt on every machine per change;
-## this is one small unreliable message, relayed by the host, last one wins.
+## this is one small unreliable message, relayed by the host, last one wins --
+## except the one saying a map's clock stopped or started (`held`), which goes
+## reliably (`_spot_at_host_sure`): it is the last a map put away ever sends.
+## A partner's row goes when it leaves the party, on every machine
+## (`_push_roster_to`), not only the host's.
 var spots: Dictionary = {}
 ## THE GALAXY EACH MACHINE BUILT, as `[seed, systems, fingerprint]`.
 ##
@@ -294,10 +298,17 @@ var galaxy_warning: String = ""
 var forced_galaxy: int = 0
 
 ## Throttle for `report_spot`: what was last sent and when ([at, body, x, z,
-## ang, host]).
+## ang, host, held]).
 var _spot_sent: Array = []
 var _spot_ms: int = 0
 const SPOT_EVERY_MS := 150
+## A SPOT SAID AGAIN at least this often while the map is up, though nothing
+## moved: the clock in it runs on (`party_t`), and a row nothing refreshes is
+## run on at most RUN_ON_MAX past when it came. So a lost packet -- the one
+## saying a map was put away among them -- costs a partner a few seconds of
+## the pair's turn, never a whole visit to LOCAL (review 2)
+const SPOT_BEAT_MS := 1000
+const RUN_ON_MAX := 3.0
 
 
 func _ready() -> void:
@@ -803,8 +814,9 @@ func _enemy_swings(at: int, which: int, kind: int, pick: int) -> void:
 
 
 ## "This is where I am in my system." Unreliable: a dropped one is replaced by
-## the next a sixth of a second later, and a stale one queued behind a lost
-## packet is worse than none.
+## the next a sixth of a second later (a second, `SPOT_BEAT_MS`, for a ship
+## that holds still), and a stale one queued behind a lost packet is worse than
+## none. A change of `held` goes by `_spot_at_host_sure`.
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func _spot_at_host(at: int, body: int, x: float, z: float, ang: float, mt: float, host: int, held: bool) -> void:
 	if is_host():
@@ -813,6 +825,23 @@ func _spot_at_host(at: int, body: int, x: float, z: float, ang: float, mt: float
 
 @rpc("authority", "call_remote", "unreliable_ordered")
 func _spot_to(id: int, at: int, body: int, x: float, z: float, ang: float, mt: float, host: int, held: bool) -> void:
+	if id != local_id():
+		spots[id] = _spot_row(at, body, x, z, ang, mt, host, held)
+
+
+## THE SAME, SENT RELIABLY, for a spot whose `held` changed (review 2): the map
+## put away says its clock stopped once, as it goes, and LOCAL, a fight or the
+## dock say nothing after it; lost, every partner ran that clock on for the
+## whole visit. (On the relay every packet arrives anyway; on ENet this one
+## must.) A stale unreliable spot overtaking it costs at most RUN_ON_MAX.
+@rpc("any_peer", "call_remote", "reliable")
+func _spot_at_host_sure(at: int, body: int, x: float, z: float, ang: float, mt: float, host: int, held: bool) -> void:
+	if is_host():
+		_apply_spot(multiplayer.get_remote_sender_id(), at, body, x, z, ang, mt, host, held, true)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _spot_to_sure(id: int, at: int, body: int, x: float, z: float, ang: float, mt: float, host: int, held: bool) -> void:
 	if id != local_id():
 		spots[id] = _spot_row(at, body, x, z, ang, mt, host, held)
 
@@ -1037,9 +1066,10 @@ func _galaxy_differs_here(guest: String, seed_value: int, host_n: int, host_fp: 
 ## Where this ship is in its system, from the SECTOR map. Throttled here, so
 ## the map can call it every frame: sent when it moved and SPOT_EVERY_MS has
 ## passed, or at once when the system, the body or the sun it is said off
-## changed. `body`, `p` and `host` as in `spots` (`spot_anchor`); `mt` this
+## changed, and again every SPOT_BEAT_MS though it did not move (its clock runs
+## on). `body`, `p` and `host` as in `spots` (`spot_anchor`); `mt` this
 ## machine's map clock for the system as `p` was measured, `held` whether that
-## clock has stopped there (sent at once when it changes).
+## clock has stopped there (sent at once, and reliably, when it changes).
 func report_spot(at: int, body: int, p: Vector2, ang: float, force: bool = false, mt: float = 0.0, host: int = -9, held: bool = false) -> void:
 	if not _can_talk() or state != State.DIVING:
 		return
@@ -1049,12 +1079,17 @@ func report_spot(at: int, body: int, p: Vector2, ang: float, force: bool = false
 	if same_place and not force:
 		if now - _spot_ms < SPOT_EVERY_MS:
 			return
-		if Vector2(_spot_sent[2], _spot_sent[3]).distance_to(p) < 0.5 				and absf(angle_difference(float(_spot_sent[4]), ang)) < 0.05:
+		if Vector2(_spot_sent[2], _spot_sent[3]).distance_to(p) < 0.5 \
+				and absf(angle_difference(float(_spot_sent[4]), ang)) < 0.05 and now - _spot_ms < SPOT_BEAT_MS:
 			return
+	# (the clock stopping or starting goes reliably: `_spot_at_host_sure`)
+	var sure := _spot_sent.size() != 7 or bool(_spot_sent[6]) != held
 	_spot_sent = [at, body, p.x, p.y, ang, host, held]
 	_spot_ms = now
 	if is_host():
-		_apply_spot(1, at, body, p.x, p.y, ang, mt, host, held)
+		_apply_spot(1, at, body, p.x, p.y, ang, mt, host, held, sure)
+	elif sure:
+		_spot_at_host_sure.rpc_id(1, at, body, p.x, p.y, ang, mt, host, held)
 	else:
 		_spot_at_host.rpc_id(1, at, body, p.x, p.y, ang, mt, host, held)
 
@@ -1075,11 +1110,14 @@ func spot_of(id: int, at: int) -> Dictionary:
 	return sp
 
 
-func _apply_spot(id: int, at: int, body: int, x: float, z: float, ang: float, mt: float, host: int, held: bool = false) -> void:
+func _apply_spot(id: int, at: int, body: int, x: float, z: float, ang: float, mt: float, host: int, held: bool = false, sure: bool = false) -> void:
 	if id != 1:
 		spots[id] = _spot_row(at, body, x, z, ang, mt, host, held)
 	if not multiplayer.get_peers().is_empty():
-		_spot_to.rpc(id, at, body, x, z, ang, mt, host, held)
+		if sure:
+			_spot_to_sure.rpc(id, at, body, x, z, ang, mt, host, held)
+		else:
+			_spot_to.rpc(id, at, body, x, z, ang, mt, host, held)
 
 
 ## A spot as `spots` keeps it, stamped with when it came.
@@ -1122,7 +1160,10 @@ func party_t(at: int) -> float:
 		var sp := spot_of(int(id), at)
 		if sp.is_empty() or not sp.has("t") or float(sp.t) < 0.0 or int(sp.get("body", -9)) == -10:
 			continue
-		var run_on := 0.0 if bool(sp.get("held", false)) else float(now - int(sp.get("got", now))) / 1000.0
+		# (and a row nothing has refreshed is run on no further than RUN_ON_MAX:
+		# a map up says its spot every SPOT_BEAT_MS, so one that stopped saying
+		# it was put away and its last word lost, review 2)
+		var run_on := 0.0 if bool(sp.get("held", false)) else minf(float(now - int(sp.get("got", now))) / 1000.0, RUN_ON_MAX)
 		best = maxf(best, float(sp.t) + run_on)
 	return best
 
