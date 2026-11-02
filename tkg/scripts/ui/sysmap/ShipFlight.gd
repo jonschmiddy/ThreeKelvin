@@ -2183,11 +2183,14 @@ static func reap() -> void:
 ## (previews are planned again every second) some of the time (Oct 31). A plan
 ## is bounded: each search in it stops at its own budget of integrations
 ## (`FlightSolve.BUDGET`, `BUDGET_WIDE`). At C (ruling 21) a plan that runs C's
-## own search, the as-built one and the wider one (a fresh plan, or a preview
-## of the fallback's flight planned again), or flies in two legs, takes up to
-## about 750 ms in a twin (the study on the Mac, one Godot at a time: 734 to
-## 768 ms, where the as-built search alone took 503 to 510); on the Windows PC
-## (Nov 1), with other Godots running beside it, 0.48 to 1.3 s. A
+## own search, the as-built one and the wider one (a fresh plan, a preview of
+## the fallback's flight planned again, or a preview in two legs planned again,
+## which runs a fresh plan of one leg beside its own legs), or flies in two
+## legs, takes up to about 750 ms in a twin (the study on the Mac, one Godot at
+## a time: 734 to 768 ms, where the as-built search alone took 503 to 510); on
+## the Windows PC (Nov 1), with other Godots running beside it, 0.48 to 1.3 s.
+## A preview in two legs planned again and kept took a median of 347 ms there,
+## at most 429 (782 integrations), with one other Godot running. A
 ## task waited for here is let go of by whoever held it (`_done`, `_wait`).
 static func drain() -> void:
 	for task in _out.keys():

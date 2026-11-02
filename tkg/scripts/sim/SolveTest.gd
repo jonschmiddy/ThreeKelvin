@@ -40,9 +40,10 @@ extends Node
 ## samples bit for bit, now, half a second on round a ring, and half a second
 ## on alongside); planned again 3 s on with the old choice (the overlay's
 ## preview in orbit), every one found and none kept that a fresh search beats
-## by more than the warm slack; and every plan of the first `worker` cases
-## solved again on WorkerThreadPool (the same results). Also the prototype's
-## a-to-b flight at its best line-up.
+## by more than the warm slack; flights in two legs planned again as the overlay
+## does, none kept where a fresh plan of one leg arrives sooner; and every
+## plan of the first `worker` cases solved again on WorkerThreadPool (the same
+## results). Also the prototype's a-to-b flight at its best line-up.
 ## PASS: found and clean in at least 99% of each sweep (DESIGN), but 97% of
 ## the hand twins, whose geometry the layout never builds: their worlds round
 ## one star sit at 0.98 of the steady limit (the layout's at most 0.90), their
@@ -72,6 +73,8 @@ const KEEP_OFF := Vector2(8.0, 5.0 / 0.38)
 ## found and clean in at least this share of each sweep (above)
 const FOUND_MIN := 0.99
 const FOUND_MIN_HAND := 0.97
+## how many times each flight in two legs is planned again (`_replans`)
+const TWO_STEPS := 5
 
 var h := Harness.new()
 var _per_seed := 4
@@ -762,7 +765,15 @@ func _replays() -> void:
 ## found (its cap past T_CAP) is kept warm where a fresh plan arrives sooner:
 ## kept on its own cost, 55 of the 95 kept were, by up to 7.5 s; with C's own
 ## search alone looking beside it, 35 of 75, 5 of them the as-built search's
-## (the reviews of Nov 1).
+## (the reviews of Nov 1). And every flight in two legs (`FlightSolve._chain`)
+## from a ring or alongside, planned again as the overlay does TWO_STEPS times
+## (every 3 s round a world's ring or a star's close orbit, every second round
+## a settled star orbit or alongside), each from the last one's choice: none
+## kept in two legs where a fresh plan of one leg arrives sooner. Held on their
+## own cost (6e6e563c), the full run's 20 such flights, planned again 15 times,
+## kept two legs 105 times where one leg flew sooner, by up to 41.4 s (seed
+## 1999 node 150, star -1 to keep 2, line-up 1: 51.4 s in two legs against
+## 10.0 in one); planned again TWO_STEPS times, 24 of 100.
 func _replans() -> void:
 	var n := 0
 	var ok := 0
@@ -806,6 +817,41 @@ func _replans() -> void:
 	h._ok("planned again 3 s on, found wherever a fresh search finds one (%d of %d)" % [ok, fresh_found], ok >= fresh_found - maxi(1, fresh_found / 100))
 	h._ok("and no flight of C's own kept past the warm slack of both a fresh search and its own old cost, at TIME_W (%d)" % bad, bad == 0)
 	h._ok("and no flight the fallback found kept where a fresh plan arrives sooner (%d of the %d kept)" % [held, fell], held == 0)
+	# FLIGHTS IN TWO LEGS, planned again as the overlay plans them: every found
+	# one leaving a ring or alongside, TWO_STEPS times, each from the last one's
+	# choice; wherever the flight kept is in two legs, a fresh plan of one leg
+	# (`FlightSolve._fresh`, as a first plan's) beside it
+	var twos := 0
+	var two_kept := 0
+	var two_held := 0
+	for i in _cases.size():
+		var r: FlightSolve.Result = _res[i]
+		var c: Dictionary = _cases[i]
+		var dk := StringName(c.dep.kind)
+		if not r.found or r.legs != 2 or (dk != &"ring" and dk != &"keep"):
+			continue
+		twos += 1
+		var dt := 3.0 if dk == &"ring" and int(c.dep.place) != -9 else 1.0
+		var pv := r
+		for k in range(1, TWO_STEPS + 1):
+			var d2: Dictionary = c.dep.duplicate()
+			if dk == &"ring":
+				d2.ang = float(c.dep.ang) + float(c.dep.w) * dt * float(k)
+			var t2 := float(c.t) + dt * float(k)
+			var rw := FlightSolve.solve(c.G, d2, c.tgt, t2, pv.choice)
+			if not rw.found:
+				continue
+			pv = rw
+			if rw.legs != 2:
+				continue
+			two_kept += 1
+			var r1 := FlightSolve.new()._solve(c.G, d2, c.tgt, t2, {})
+			if r1.found and r1.clean and r1.T < rw.T - 1e-3:
+				two_held += 1
+				if two_held <= 3:
+					print("  (%.2f s in two legs kept against a fresh %.2f s in one, %.0f s on: %s)" % [rw.T, r1.T, dt * float(k), c.label])
+	print("replans: %d flights in two legs planned again %d times each as the overlay plans them; kept in two legs %d times" % [twos, TWO_STEPS, two_kept])
+	h._ok("and no flight in two legs kept where a fresh plan of one leg arrives sooner (%d of %d)" % [two_held, two_kept], two_held == 0)
 
 
 ## A plan's cost at TIME_W: an as-built flight's (its choice's tw
