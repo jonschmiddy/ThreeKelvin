@@ -418,7 +418,11 @@ func _process(d: float) -> void:
 
 func _draw() -> void:
 	var L: SystemLayout = view.layout
+	tip_rect = Rect2()
 	if L == null:
+		# (no picture, no arrows over it)
+		mark_rects = []
+		marks_drawn.emit()
 		return
 	var t: float = view.t
 	# WHAT IS POINTED AT: the cursor on the map, or else a card in the panel
@@ -640,6 +644,7 @@ func _draw() -> void:
 	_draw_edge_marks(String(st[0]))
 	if not hover.is_empty():
 		_draw_tip()
+	marks_drawn.emit()
 
 
 # ---------------------------------------------------------------- the edge marks
@@ -649,41 +654,43 @@ func _draw() -> void:
 ## -- fights, salvage, jobs, the Hellbender -- start off screen. Each event's
 ## beacon off the picture, your ship and each partner's has a small arrow at the
 ## frame's edge pointing to it, where the line to it from the frame's middle
-## crosses the edge, drawn in the beacons' own 2 px cells, in the beacon's
-## colour (your ship's in ice, a partner's in the party's green), a little
-## dimmed while the beacon is closed (at the beacon's own dimness an arrow this
-## small was lost on the gas). Only at the opening zoom or further out
-## (`mark_zoom`): zoomed in, looking closer is the player's choice, and LOCATION
-## and a right-click hold what they look at. Never on anything else drawn there:
-## each arrow is slid round the edge clear of the words (MARK_WORDS_CLEAR off
-## them: an arrow just under the status line read as its bullet, a thing to
-## press), the suns, the worlds, the beacons, the reticles and the bracket, your
-## ship and the partners', the goal and the instrument (`mark_keep`) and the
-## arrows already placed, and left out where no spot clears. Not a control: it
-## takes no click (only pressable things look pressable).
+## crosses the edge. The look is Jon's "Edge arrows: C" (Nov 2): a narrow
+## triangle (`tri_px`) in the beacon's own colour, closed or not (your ship's in
+## ice, a partner's in the party's green), an event's with its key glyph in 1 px
+## cells just behind it and one dark outline round both, a tag on the arrow and
+## never a second beacon. The map screen draws them over the picture
+## (`SystemMapScreen._Marks`, from `mark_rects`), out of the key shader's edge
+## fade, which left the first arrows faint. Only at the opening zoom or further
+## out (`mark_zoom`): zoomed in, looking closer is the player's choice, and
+## LOCATION and a right-click hold what they look at. Never on anything else
+## drawn there: each arrow is slid round the edge clear of the words
+## (MARK_WORDS_CLEAR off them: an arrow just under the status line read as its
+## bullet, a thing to press) and of the column under the status line and the
+## goal (MARK_UNDER_WORDS: an up arrow there read as the line's caret), the
+## suns, the worlds, the beacons, the reticles and the bracket, your ship and
+## the partners', the goal and the instrument (`mark_keep`) and the arrows
+## already placed, and left out where no spot clears. Not a control: it takes
+## no click (only pressable things look pressable).
 var mark_zoom := INF
 ## the screen's own things the arrows keep off, in this space
 ## (`SystemMapScreen.mark_keep`)
 var mark_keep: Array = []
-## THE ARROWS DRAWN last frame, for a harness: {at (the arrow's middle), box,
-## body (the beacon's place, or -9 a ship), peer (a partner's id, 0 for yours or
-## a beacon), dir (one of the eight, x and y -1 to 1), to (where what it points
-## at is drawn)}
+## THE ARROWS DRAWN last frame, for a harness: {at (the arrow's middle), box
+## (round all of it, outline in), arrow_box, glyph_box (Rect2() with none),
+## glyph (the key glyph's name, &"" for a ship), body (the beacon's place, or -9
+## a ship), peer (a partner's id, 0 for yours or a beacon), dir (one of the
+## eight, x and y -1 to 1), to (where what it points at is drawn)}
 var edge_marks: Array = []
 ## how far in from the frame's edge an arrow's middle stands (clear of the
-## frame's bezel), its cells' size, its box's half-size (five cells long and
-## the outline), and the step it is slid round the edge by
+## frame's bezel), and the step it is slid round the edge by
 const MARK_IN := 12.0
-const MARK_CELL := 2.0
-const MARK_HALF := 6.0
 const MARK_STEP := 3.0
-## a closed beacon's arrow's alpha (a spent one's is the spent beacon's grey)
-const MARK_DIM := 0.75
 ## and how many steps either way it may go (240 px) before it is left out
 const MARK_SLIDES := 80
 ## how far an arrow keeps off words (the status line, the map's words, a group's
-## warning), and off everything else
-const MARK_WORDS_CLEAR := 8.0
+## warning; at 8 the top-left arrow read as the status line's bullet), and off
+## everything else
+const MARK_WORDS_CLEAR := 12.0
 const MARK_CLEAR := 2.0
 ## A PARTNER'S HULL's half-size on screen (`_draw_partners`: its cells reach 4
 ## back and 7 forward, 4 either side, with the outline)
@@ -692,16 +699,148 @@ const PARTNER_HALF := 8.0
 ## space: the selection's and hover's reticles, a card's bracket and an
 ## exclusive group's words (`_draw_edge_marks` keeps off them)
 var _drawn_marks: Array = []
-## AN ARROW pointing right, in cells round its middle; the others are it
-## turned. A diagonal one is a corner, pointing up-right.
-const MARK_SIDE := [Vector2i(-1, -2), Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0),
-	Vector2i(1, 0), Vector2i(-1, 1), Vector2i(0, 1), Vector2i(-1, 2)]
-const MARK_CORNER := [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1), Vector2i(0, 0), Vector2i(1, 0),
-	Vector2i(1, 1)]
+## what the screen draws over the picture for the arrows this frame, in this
+## space, [Rect2, Color] each (outline first)
+var mark_rects: Array = []
+## the hover tip's box this frame (Rect2() with none): the screen draws no
+## arrow pixel under it, so the tip covers an arrow
+var tip_rect := Rect2()
+## the overlay has drawn this frame's arrows (the screen redraws its layer on
+## it, so the arrows are never a frame behind the picture)
+signal marks_drawn
+## nothing in the column under the status line (and the goal) this far down:
+## 12 px under it, an up arrow left-aligned under ORBITING read as the line's
+## caret
+const MARK_UNDER_WORDS := 40.0
+## the glyph's 1 px cells this far (the outline's width) off the arrow's
+const MARK_GLYPH_GAP := 1
+const MARK_DARK := Color("#05070b")
+## THE ARROW, a narrow triangle 13 px long and 10 across, its point cut to
+## 2 px, its sides in even 3 px stairs (about 40 degrees at the point: the
+## 90-degree one read as a mound pointing up, a play button pointing right).
+## Pointing right, round its middle (the row and column of the first cell):
+const TRI_SIDE := ["##...........", "#####........", "########.....", "###########..",
+	"#############", "#############", "###########..", "########.....", "#####........",
+	"##..........."]
+const TRI_SIDE_AT := Vector2i(-7, -5)
+## and pointing up-right: the same triangle turned 45 degrees, its point on the
+## diagonal and no edge along the frame (the wedge with its legs on the axes
+## read as a ramp, and pointing down-right as a window's resize grip), its point
+## a 2 px corner and its back corners blunted a pixel (a 3 px square point with
+## 1 px back corners read as pointing the other way)
+const TRI_DIAG := ["..........##", ".........###", ".......####.", ".....#####..",
+	"..########..", "#########...", "#########...", "########....", ".#######....",
+	"..######....", "...####.....", "....###....."]
+const TRI_DIAG_AT := Vector2i(-6, -6)
+static var _tri_cache := {}
+
+
+## The arrow pointing `dir`, as its pixels round its middle (each the
+## top left of a 1 px square; the middle is a pixel corner): TRI_SIDE turned
+## for up, left and down, TRI_DIAG mirrored for the other three diagonals.
+static func tri_px(dir: Vector2i) -> Array:
+	if _tri_cache.has(dir):
+		return _tri_cache[dir]
+	var diag := dir.x != 0 and dir.y != 0
+	var rows: Array = TRI_DIAG if diag else TRI_SIDE
+	var at: Vector2i = TRI_DIAG_AT if diag else TRI_SIDE_AT
+	var out: Array = []
+	for j in rows.size():
+		for k in (rows[j] as String).length():
+			if (rows[j] as String)[k] == "#":
+				out.append(_tri_turn(at + Vector2i(k, j), dir))
+	_tri_cache[dir] = out
+	return out
+
+
+## Pixel p of the right (or up-right) arrow, turned (or mirrored) to point `dir`:
+## its centre moved, then floored, so the shape stays round the same corner.
+static func _tri_turn(p: Vector2i, dir: Vector2i) -> Vector2i:
+	var c := Vector2(p) + Vector2(0.5, 0.5)
+	var v: Vector2
+	if dir.x != 0 and dir.y != 0:
+		v = Vector2(c.x * dir.x, -c.y * dir.y)
+	else:
+		v = Vector2(c.x * dir.x - c.y * dir.y, c.x * dir.y + c.y * dir.x)
+	return Vector2i(floori(v.x), floori(v.y))
+
+
+## The glyph's 5 px box behind the arrow pointing `dir` (its top left, round
+## the arrow's middle): from the arrow's middle stepped back along -dir until
+## it is MARK_GLYPH_GAP px clear of every arrow pixel, so the two outlines meet.
+static func _glyph_at(dir: Vector2i) -> Vector2i:
+	var key := dir + Vector2i(10, 10)
+	if _tri_cache.has(key):
+		return _tri_cache[key]
+	var px := tri_px(dir)
+	var lo := Vector2i(999, 999)
+	var hi := Vector2i(-999, -999)
+	for p: Vector2i in px:
+		lo = Vector2i(mini(lo.x, p.x), mini(lo.y, p.y))
+		hi = Vector2i(maxi(hi.x, p.x), maxi(hi.y, p.y))
+	var mid := Vector2(lo + hi + Vector2i.ONE) * 0.5
+	var g := Vector2i.ZERO
+	for r in 30:
+		g = Vector2i(roundi(mid.x - dir.x * r - 2.5), roundi(mid.y - dir.y * r - 2.5))
+		var ok := true
+		for p: Vector2i in px:
+			var dx := maxi(maxi(g.x - p.x, p.x - (g.x + 4)), 0)
+			var dy := maxi(maxi(g.y - p.y, p.y - (g.y + 4)), 0)
+			if maxi(dx, dy) < MARK_GLYPH_GAP + 1:
+				ok = false
+				break
+		if ok:
+			break
+	_tri_cache[key] = g
+	return g
+
+
+## Where an arrow at `q` pointing `dir` stands and what it holds:
+## [the box round all of it (outline in), the arrow's box (outline in), the
+## glyph's box (its 5 px, no outline) or Rect2()], in this space.
+func _tri_boxes(q: Vector2, dir: Vector2i, glyph_too: bool) -> Array:
+	var ab := Rect2()
+	for p: Vector2i in tri_px(dir):
+		var r := Rect2(Vector2(p), Vector2.ONE)
+		ab = r if ab.size == Vector2.ZERO else ab.merge(r)
+	ab = Rect2(ab.position + q, ab.size).grow(1.0)
+	if not glyph_too:
+		return [ab, ab, Rect2()]
+	var gb := Rect2(q + Vector2(_glyph_at(dir)), Vector2(5, 5))
+	return [ab.merge(gb.grow(1.0)), ab, gb]
+
+
+## The arrow and the glyph's 1 px cells, outlined 1 px all round as one
+## shape (its corners too, in one even dark), queued for the screen to draw
+## over the picture.
+func _tri_queue(q: Vector2, dir: Vector2i, c: Color, glyph_too: bool, gname: StringName) -> void:
+	var fill := {}
+	for p: Vector2i in tri_px(dir):
+		fill[p] = true
+	if glyph_too:
+		var g := _glyph_at(dir)
+		var m: Array = GLYPH.get(gname, GLYPH[&"signal"])
+		for r in 5:
+			for k in 5:
+				if (m[r] as String)[k] == "#":
+					fill[g + Vector2i(k, r)] = true
+	var edge := {}
+	for p: Vector2i in fill:
+		for dy in [-1, 0, 1]:
+			for dx in [-1, 0, 1]:
+				var n := p + Vector2i(dx, dy)
+				if not fill.has(n):
+					edge[n] = true
+	var dark := Color(MARK_DARK, 0.8 * c.a)
+	for p: Vector2i in edge:
+		mark_rects.append([Rect2(q + Vector2(p), Vector2.ONE), dark])
+	for p: Vector2i in fill:
+		mark_rects.append([Rect2(q + Vector2(p), Vector2.ONE), c])
 
 
 func _draw_edge_marks(status: String) -> void:
 	edge_marks = []
+	mark_rects = []
 	if hush_labels or label_a <= 0.01 or view.zoom > mark_zoom:
 		return
 	var win: Rect2 = view.window
@@ -719,17 +858,17 @@ func _draw_edge_marks(status: String) -> void:
 			var col: Color = UITheme.TRACTOR if bc == null else beacon_look(bc)[1]
 			if bc != null and not spent_word(bc).is_empty():
 				col = SPENT
-			elif flight != null and flight.reached() != int(e[1]):
-				col = Color(col, MARK_DIM)
-			want.append([e[0], int(e[1]), col, 0])
+			# (the event's key glyph: a pulsar's beacon has none of its own,
+			# harvest the beam)
+			want.append([e[0], int(e[1]), col, 0, &"harvest" if bc == null else beacon_look(bc)[0]])
 	if flight != null and not win.grow(-2.0).has_point(_ship_at):
-		want.append([_ship_at, -9, UITheme.ICE, 0])
+		want.append([_ship_at, -9, UITheme.ICE, 0, &""])
 	# and each partner's (the whole-system view kept every partner on the
 	# picture; framed on a wide pair's own part, one out on a world round both
 	# suns was nowhere: 15 of 16 such on seed 7, the gap:A review)
 	for e: Array in partner_at:
 		if not win.grow(-2.0).has_point(e[1]):
-			want.append([e[1], -9, UITheme.GOOD, int(e[0])])
+			want.append([e[1], -9, UITheme.GOOD, int(e[0]), &""])
 	if want.is_empty():
 		return
 	# what is drawn on the picture already
@@ -740,6 +879,10 @@ func _draw_edge_marks(status: String) -> void:
 	keep.append_array(_drawn_marks)
 	if status != "":
 		keep.append(status_rect(status).grow(MARK_WORDS_CLEAR))
+		# and the column under it, so nothing hangs off it
+		var sr := status_rect(status)
+		keep.append(Rect2(sr.position.x - MARK_WORDS_CLEAR, sr.position.y, sr.size.x + MARK_WORDS_CLEAR * 2.0,
+			sr.size.y + MARK_UNDER_WORDS))
 	for e in beacons_at:
 		if beacon_box(e[0]).intersects(win):
 			keep.append(beacon_box(e[0]).grow(MARK_CLEAR))
@@ -768,10 +911,13 @@ func _draw_edge_marks(status: String) -> void:
 		# spot clear of everything (the goal fills most of the top left: a mark
 		# for something up there goes down the left side, under it)
 		var spot := Vector2.INF
+		var glyph_too: bool = int(w[1]) != -9
 		for st in MARK_SLIDES:
 			for sg in ([1.0] if st == 0 else [1.0, -1.0]):
 				var q := _round_at(inner, s0 + MARK_STEP * float(st) * float(sg)).round()
-				var box := Rect2(q - Vector2.ONE * MARK_HALF, Vector2.ONE * MARK_HALF * 2.0)
+				# the box of what would be drawn there, arrow and glyph, pointing
+				# the way it would from there
+				var box: Rect2 = _tri_boxes(q, _eight_way(to - q), glyph_too)[0]
 				var hit := false
 				for r: Rect2 in keep:
 					if r.intersects(box):
@@ -785,12 +931,18 @@ func _draw_edge_marks(status: String) -> void:
 		if spot == Vector2.INF:
 			continue
 		# pointing at it from where it stands, the nearest of the eight ways
-		var a := (to - spot).angle()
-		var dir := Vector2i(roundi(cos(a) * 1.2), roundi(sin(a) * 1.2)).clamp(Vector2i(-1, -1), Vector2i.ONE)
-		var mbox := Rect2(spot - Vector2.ONE * MARK_HALF, Vector2.ONE * MARK_HALF * 2.0)
-		keep.append(mbox.grow(1.0))
-		_mark(spot, dir, Color(w[2], (w[2] as Color).a * label_a))
-		edge_marks.append({"at": spot, "box": mbox, "body": w[1], "peer": w[3], "dir": dir, "to": to})
+		var dir := _eight_way(to - spot)
+		var bx := _tri_boxes(spot, dir, glyph_too)
+		keep.append((bx[0] as Rect2).grow(1.0))
+		_tri_queue(spot, dir, Color(w[2], (w[2] as Color).a * label_a), glyph_too, w[4])
+		edge_marks.append({"at": spot, "box": bx[0], "body": w[1], "peer": w[3], "dir": dir, "to": to,
+			"arrow_box": bx[1], "glyph_box": bx[2], "glyph": w[4] if glyph_too else &""})
+
+
+## The nearest of the eight ways to `d` (x and y -1, 0 or 1).
+static func _eight_way(d: Vector2) -> Vector2i:
+	var a := d.angle()
+	return Vector2i(roundi(cos(a) * 1.2), roundi(sin(a) * 1.2)).clamp(Vector2i(-1, -1), Vector2i.ONE)
 
 
 ## A point on the edge of `r` that far round it, clockwise from its top left.
@@ -820,28 +972,6 @@ static func _round_s(r: Rect2, p: Vector2) -> float:
 	if absf(p.y - r.end.y) < 0.5:
 		return w + h + r.end.x - p.x
 	return 2.0 * w + h + r.end.y - p.y
-
-
-## One arrow at `at` pointing `dir` (x and y -1, 0 or 1), in MARK_CELL cells
-## outlined 1 px in the dark the words' shadow is, so it reads on the gas too.
-func _mark(at: Vector2, dir: Vector2i, c: Color) -> void:
-	var cells: Array = []
-	var diag := dir.x != 0 and dir.y != 0
-	for q: Vector2i in (MARK_CORNER if diag else MARK_SIDE):
-		var v := q
-		if diag:
-			# the corner points up-right: mirrored for the others
-			v = Vector2i(q.x * dir.x, -q.y * dir.y)
-		else:
-			# pointing right, turned to the side it points to
-			v = Vector2i(q.x * dir.x - q.y * dir.y, q.x * dir.y + q.y * dir.x)
-		cells.append(v)
-	var dark := Color(Color("#05070b"), 0.8 * c.a)
-	var o := at.round() - Vector2.ONE * MARK_CELL * 0.5
-	for v: Vector2i in cells:
-		draw_rect(Rect2(o + Vector2(v) * MARK_CELL - Vector2.ONE, Vector2.ONE * (MARK_CELL + 2.0)), dark)
-	for v: Vector2i in cells:
-		draw_rect(Rect2(o + Vector2(v) * MARK_CELL, Vector2.ONE * MARK_CELL), c)
 
 
 # ---------------------------------------------------------------- the reticle
@@ -2448,6 +2578,7 @@ func _draw_tip() -> void:
 		y = win.end.y - 6 - hgt
 	y = maxf(y, win.position.y + 6)
 	var al := maxf(0.15, _hover_t)
+	tip_rect = Rect2(x, y, w, hgt)
 	draw_rect(Rect2(x, y, w, hgt), Color(11 / 255.0, 17 / 255.0, 27 / 255.0, 0.94 * al))
 	draw_rect(Rect2(x + 0.5, y + 0.5, w - 1.0, hgt - 1.0), Color(Color("#3c4c60"), al), false, 1.0)
 	draw_rect(Rect2(x, y, 2, hgt), Color(chip, al))

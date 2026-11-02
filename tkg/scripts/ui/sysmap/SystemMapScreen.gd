@@ -275,6 +275,15 @@ func _init() -> void:
 	overlay = SystemOverlayS.new()
 	overlay.view = view
 	_vp.add_child(overlay)
+	# THE EDGE ARROWS (`SystemOverlay.mark_rects`), over the picture in the
+	# frame, so the key shader's edge fade (`NavField.EDGE_FADE`) never touches
+	# them
+	var marks := _Marks.new()
+	marks.screen = self
+	marks.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	marks.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_frame.add_child(marks)
+	overlay.marks_drawn.connect(marks.queue_redraw)
 	# THE INSTRUMENT, over the picture in the frame: the scale bar and LOCATION
 	var bar := _Scale.new()
 	bar.screen = self
@@ -1987,6 +1996,8 @@ func mark_keep() -> Array:
 	var g := GoalLine.stack_rect(self)
 	if g.size != Vector2.ZERO:
 		out.append(Rect2(g.position - o, g.size))
+		# and the column under it, so no arrow hangs off it
+		out.append(Rect2(g.position - o, g.size + Vector2(0.0, SystemOverlayS.MARK_UNDER_WORDS)))
 	if _loc_btn != null and _loc_btn.visible:
 		var lb := _loc_btn.get_global_rect()
 		out.append(Rect2(lb.position - o, lb.size))
@@ -2022,3 +2033,42 @@ class _Scale extends Control:
 		var txt := "%d AU" % int(au) if au >= 1.0 else ("%.2f" % au).trim_suffix("0") + " AU"
 		draw_string(UITheme.pixel_font(), Vector2(x + w - BAR_MAX_PX, y - 7.0), LowHull.scr(self, txt, 8),
 			HORIZONTAL_ALIGNMENT_RIGHT, BAR_MAX_PX, 8, ink)
+
+
+## THE EDGE ARROWS (Jon, Nov 2, "Edge arrows: C"): the overlay's
+## (`SystemOverlay.mark_rects`, in the picture's own space), drawn over the
+## picture where it sits in the frame, out of the key shader's edge fade.
+## Redrawn when the overlay has drawn (`marks_drawn`), so never a frame behind
+## the picture, and each frame while it shows any (for the overlay hidden).
+## None while a move of the zoom ladder (or the calm move) runs: the key shader
+## dissolves the picture into its cloud then (`round_k`), and these stood crisp
+## over it. None under the hover tip, which covers an arrow.
+class _Marks extends Control:
+	var screen
+	## how many rects it drew last (a harness's)
+	var drawn := 0
+
+	func _process(_d: float) -> void:
+		if drawn > 0:
+			queue_redraw()
+
+	func _draw() -> void:
+		drawn = 0
+		var ov = screen.overlay
+		if ov == null or not ov.is_visible_in_tree() or not screen._box.is_visible_in_tree():
+			return
+		if not (screen._lad as Dictionary).is_empty():
+			return
+		var mat = screen._box.material
+		if mat is ShaderMaterial:
+			var rk: Variant = (mat as ShaderMaterial).get_shader_parameter(&"round_k")
+			if rk != null and float(rk) > 0.001:
+				return
+		var o: Vector2 = screen._box.position
+		var tip: Rect2 = ov.tip_rect
+		for e: Array in ov.mark_rects:
+			var r: Rect2 = e[0]
+			if tip.has_area() and tip.intersects(r):
+				continue
+			draw_rect(Rect2(r.position + o, r.size), e[1])
+			drawn += 1

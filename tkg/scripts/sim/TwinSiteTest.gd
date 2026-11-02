@@ -1187,8 +1187,8 @@ func _partner_marked() -> void:
 	h._ok("at the opening framing (%.3f), a partner out round both suns at %s is off the picture (drawn at %s, the picture %s)" % [m.view.zoom, at, drawn, win], off)
 	if off:
 		var mb: Rect2 = mark.get("box", Rect2())
-		h._ok("and has its arrow at the frame's edge%s" % ("" if mark.is_empty() else " (at %s, pointing %s)" % [mark.at, mark.dir]),
-			not mark.is_empty() and win.encloses(mb))
+		h._ok("and has its arrow at the frame's edge, with no glyph%s" % ("" if mark.is_empty() else " (at %s, pointing %s)" % [mark.at, mark.dir]),
+			not mark.is_empty() and win.encloses(mb) and StringName(mark.get("glyph", &"")) == &"")
 	Net.roster.erase(id)
 	Net.spots.erase(id)
 	await _frames(2)
@@ -2726,6 +2726,10 @@ func _pair_marks(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 		st.marks += 1
 		if int(mk.body) != -9:
 			st.marked += 1
+		# (an event's arrow carries its key glyph, a ship's none: "Edge arrows: C")
+		if (StringName(mk.glyph) != &"") != (int(mk.body) != -9) or (StringName(mk.glyph) != &"") != (mk.glyph_box as Rect2).has_area():
+			st.untagged += 1
+			bad.append("%s: the arrow at %s for %d carries glyph '%s'" % [nm, mk.at, int(mk.body), mk.glyph])
 		var mb: Rect2 = mk.box
 		var on := not win.encloses(mb)
 		for r: Rect2 in drawn + boxes:
@@ -2786,7 +2790,7 @@ func _ring_sweep() -> void:
 		"sel": 0, "sel_shown": 0, "sel_held": 0, "sel_under": 0, "coasts": 0, "into": 0, "fc_shown": 0, "fc_held": 0, "ev_sys": 0, "ev_moved": 0,
 		"bc_words": 0, "bc_fallback": 0, "bc_crossed": 0, "sel_bc": 0, "fc_bc": 0,
 		"bc_stepped": 0, "bc_ticks": 0, "bc_hid": 0, "bc_marks": 0, "sel_on_words": 0, "close": 0,
-		"wide": 0, "zoom_bad": 0, "gap_n": 0, "gap_least": INF, "off": 0, "marked": 0, "marks": 0, "mark_on": 0}
+		"wide": 0, "zoom_bad": 0, "gap_n": 0, "gap_least": INF, "off": 0, "marked": 0, "marks": 0, "mark_on": 0, "untagged": 0}
 	var mark_bad: Array[String] = []
 	var crossed: Array[String] = []
 	var on_beacon: Array[String] = []
@@ -3073,6 +3077,8 @@ func _ring_sweep() -> void:
 		st.gap_n >= 2 * st.wide and st.gap_least >= PAIR_GAP_LEAST)
 	h._ok("every event's beacon off the picture as it opens has an arrow at the frame's edge (%d of %d), each inside the frame and on nothing drawn there (%d on something)" % [
 		st.marked, st.off, st.mark_on], st.off > 0 and st.marked == st.off and st.mark_on == 0)
+	h._ok("and each event's arrow carries the event's key glyph, a ship's none (%d of %d arrows not)" % [st.untagged, st.marks],
+		st.marks > 0 and st.untagged == 0)
 	h._ok("the words by the ship stand whole or shortened at nearly every place (%d whole, %d shortened, %d held back of %d)" % [st.whole, st.short, st.held, st.moments],
 		st.held * 50 <= st.moments)
 	h._ok("and never over an event's beacon drawn that frame, but where no spot clears the suns and the beacons both (%d placed, %d over a beacon, %d by one for want of a spot)%s" % [
