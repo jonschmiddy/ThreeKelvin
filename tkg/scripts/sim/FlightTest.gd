@@ -107,25 +107,27 @@ const FLY_MAX_TWO := FLY_MAX + FlightSolve.T_CAP_BACK
 ## headings, each of CLEAR_DV) keeps its coast clear of every keep-out for this
 ## long (s). Close by a twin's world round one star, coasting at up to 170 px/s
 ## a few px outside a keep-out, a burn changes the motion by 4 px/s in a tenth
-## of a second: the coast is into the keep-out first
+## of a second: the coast is into the keep-out first. (No dv of nought: the coast
+## with no burn is not a departure, and one grazing a keep-out by 3.7 px read as
+## clear for 30 s)
 const CLEAR_S := 1.0
 const CLEAR_HEAD := 16
-const CLEAR_DV := [0.0, 20.0, 40.0, 70.0, 100.0, 150.0, 220.0]
-## AND THE MEASURED RESIDUAL past those, at the most (Oct 31, three seeds: 1 of
-## 1,790 twin plans): seed 7 system 110, close by world 1 round star B coasting
-## at 77 px/s, 11 px outside a keep-out, where one burn of 96 keeps clear but no
-## flight in one leg or two (through any of 34 points round the pair and the
-## place, or with that burn itself as the first leg) nor the near hop flies
-## from. A harness's start: the map flies only out of an orbit.
-## THE PAIR TURNING (ruling 23, measured Nov 2, three seeds: 6 of 1,790 twin
-## plans, all from two of a harness's free starts; every game start found):
-## the suns stand elsewhere at each case's t, so the harness's random free
-## starts meet them differently. Seed 1999 system 177, 138 px outside star B's
-## keep-out and coming at it at 116 px/s, to 4 places; seed 7 system 209, 89
-## px outside star B's at 77 px/s, to 2. A burn keeps each clear for 30 s, but
-## every departure the search flies is into a keep-out within 0.9 to 1.6 s;
-## with the pair held still (`pair=0`) the first was found, and only by the
-## as-built search. (The Oct 31 one, seed 7 system 110, no longer comes up.)
+const CLEAR_DV := [20.0, 40.0, 70.0, 100.0, 150.0, 220.0]
+## AND THE MEASURED RESIDUAL past those, every one a harness's free or near start
+## (the map flies only out of an orbit: `can_fly` in free mode is a star orbit),
+## at the most, and only from the starts named in PUT_LEFT_CASES. A game start
+## put there with no flight is never excused (`_clear_for` is INF for it): none
+## may be. On Oct 31 (three seeds, 1 of 1,790 twin plans) it was seed 7 system
+## 110, close by world 1 round star B, which no longer comes up. THE PAIR
+## TURNING (ruling 23, measured Nov 2, three seeds: 6 of 1,790 twin plans, from
+## two free starts; every game start found): seed 1999 system 177, 138 px
+## outside star B's keep-out coming at it at 116 px/s, to 4 places, and seed 7
+## system 209, 89 px outside star B's at 77 px/s, to 2. The misses are the
+## arrivals, not the departures: from 177 the search flew 192 departures that hit
+## no keep-out (one heading, 90 deg, keeps clear for 30 s at every burn) and
+## found no arrival for any; from 257 (close, below) wide windows keep clear for
+## 30 s and the scan's own heading lies in one. Only 209 has a narrow window
+## out. No gap in the solver for a turning pair was found.
 const PUT_LEFT := 6
 ## AND A CLOSE PAIR'S (Nov 1, three seeds: 5 of 1,789 plans, every one from a
 ## harness's start; every game start found): a free start 223 px from star A
@@ -139,6 +141,12 @@ const PUT_LEFT := 6
 ## at 149 px/s, to 5 places; and seed 4242 system 24's near start, 23 px
 ## outside world 4's ring at 106 px/s, to world 4.
 const PUT_LEFT_CLOSE := 6
+## the harness's starts the residual may come from, "seed:system:start" a sweep
+## (any other start put there fails, whatever the count)
+const PUT_LEFT_CASES := {
+	"twin": ["1999:177:free", "7:209:free"],
+	"close": ["1999:257:free", "4242:24:near"],
+}
 ## the click comes up to this long after the first plan (s)
 const CLICK_S := 1.5
 ## the overlay's preview line, laid out to this many points (`SystemOverlay.PV_N`)
@@ -583,7 +591,7 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 	if pl == null:
 		S.none = int(S.none) + 1
 		(S.not_found as Array).append(where + " (none)")
-		(S.put as Array).append([where, _clear_for(fl, i, t)])
+		(S.put as Array).append([where, _clear_for(fl, i, t), key, "%d:%d:%s" % [sd, n.index, key]])
 		return
 	if pl.res == null:
 		S.fallback = int(S.fallback) + 1
@@ -2083,14 +2091,28 @@ func _report(cap: Dictionary) -> void:
 			# at THRUST can leave without crossing a keep-out within CLEAR_S, each
 			# listed with how long its best burn keeps clear
 			var excused := 0
+			var game := 0
+			var unnamed := 0
+			var named: Array = PUT_LEFT_CASES.get(sweep, [])
 			for e7: Array in S.put:
-				var ok7 := float(e7[1]) < CLEAR_S
-				if ok7:
+				var harness7 := String(e7[2]) == "free" or String(e7[2]) == "near"
+				var ok7 := harness7 and float(e7[1]) < CLEAR_S
+				var why7 := " (no flight can leave)"
+				if not harness7:
+					game += 1
+					why7 = " (A GAME'S START)"
+				elif ok7:
 					excused += 1
-				print("    PUT THERE: %s; the best burn from there keeps clear for %.2f s%s" % [e7[0], e7[1], " (no flight can leave)" if ok7 else " (THE RESIDUAL)"])
-			var left: int = (S.put as Array).size() - excused
+				else:
+					why7 = " (THE RESIDUAL)"
+					if not named.has(e7[3]):
+						unnamed += 1
+						why7 = " (THE RESIDUAL, NOT A NAMED START)"
+				print("    PUT THERE: %s; the best burn from there keeps clear for %.2f s%s" % [e7[0], e7[1], why7])
+			h._ok("%s: no flight put there from the game's starts (%d)" % [sweep, game], game == 0)
+			var left: int = (S.put as Array).size() - excused - game
 			var most := PUT_LEFT_CLOSE if sweep == "close" else PUT_LEFT
-			h._ok("%s: no flight put there from any start (%d of %d plans) but where no burn at THRUST keeps clear of a keep-out for %.1f s (%d of them), and the measured residual, at most %d (%d)" % [sweep, (S.put as Array).size(), plans, CLEAR_S, excused, most, left], left <= most)
+			h._ok("%s: no flight put there from a harness's start (%d of %d plans) but where no burn at THRUST keeps clear of a keep-out for %.1f s (%d of them), and the measured residual from the named starts %s, at most %d (%d, %d from another start)" % [sweep, (S.put as Array).size() - game, plans, CLEAR_S, excused, ", ".join(PackedStringArray(named)), most, left, unnamed], left <= most and unnamed == 0)
 		h._ok("%s: every planned flight landed (%d of %d)" % [sweep, S.landed, S.flown], int(S.landed) == int(S.flown))
 		# (from a harness's free start, coasting at anything from nought to 170
 		# px/s, a burn across a ship all but at rest draws a hook where it starts:
