@@ -113,12 +113,16 @@ extends RefCounted
 ## while the hold lasts, free at the same moment and state. Otherwise the
 ## search starts from it and keeps that flight while it costs about what it
 ## did (WARM_K, WARM_ADD), so a preview does not flip between near equals; a
-## flight the fallback found, only while a fresh search (C's own, else the
-## fallback's two) finds none arriving sooner. A flight in two legs comes back
-## from its legs (`_chain_again`: rebuilt while the first is the same flight,
-## else searched from them, while it costs about what it did), and round a ring
-## or alongside is kept only while a fresh plan of one leg finds none arriving
-## sooner (`_sooner_of`), its own drawn flight too.
+## flight the fallback found, rebuilt or searched from, only while a fresh
+## search (C's own, else the fallback's two) finds none arriving sooner. A
+## flight in two legs comes back from its legs (`_chain_again`: rebuilt while
+## the first is the same flight, else searched from them, while it costs about
+## what it did), and round a ring or alongside is kept only while a fresh plan
+## of one leg finds none arriving sooner (`_sooner_of`), its own drawn flight
+## too. A flight of one leg that took over from one in two carries those legs
+## in its choice (`alt`), and they are tried again beside it each time it is
+## planned again, so a later flight in two legs found afresh never stands
+## where the old legs still fly sooner.
 ## `found` false: nothing clean within the budget, and no samples (the caller
 ## falls back); `clean` false on a found plan only if its own samples cut a
 ## keep-out (none in the sweeps).
@@ -550,41 +554,70 @@ var _b := {}
 ## THE FLIGHT from `dep` to `tgt` at map time t (see the head of this file).
 ## In a twin, where nothing is found, a flight in two legs (`_chain`).
 static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary = {}) -> Result:
-	if prefer.has("chain") and grav.star_x.size() > 1:
-		# A FLIGHT IN TWO LEGS DRAWN BEFORE: its own legs again while they hold,
-		# else looked for afresh, its old point tried first. Held, it is kept
-		# only while a fresh plan of one leg finds none that arrives sooner
-		# (`_sooner_of`), the rule a flight the fallback found is kept by
-		var t_us := Time.get_ticks_usec()
-		var rc := _chain_again(grav, dep, tgt, t, prefer)
-		if rc == null:
-			var ch: Dictionary = prefer.chain
-			rc = _solve_or_chain(grav, dep, tgt, t, {}, ch.get("W", Vector2.INF))
-		elif StringName(dep.get("kind", &"")) != &"free":
-			rc = _sooner_of(rc, FlightSolve.new()._solve(grav, dep, tgt, t, {}))
-		rc.usec = Time.get_ticks_usec() - t_us
-		return rc
+	if grav.star_x.size() > 1:
+		var held := StringName(dep.get("kind", &"")) != &"free"
+		if prefer.has("chain"):
+			# A FLIGHT IN TWO LEGS DRAWN BEFORE: its own legs again while they hold,
+			# else looked for afresh, its old point tried first. Held, it is kept
+			# only while a fresh plan of one leg finds none that arrives sooner
+			# (`_sooner_of`), the rule a flight the fallback found is kept by
+			var t_us := Time.get_ticks_usec()
+			var rc := _chain_again(grav, dep, tgt, t, prefer)
+			if rc == null:
+				var ch: Dictionary = prefer.chain
+				rc = _solve_or_chain(grav, dep, tgt, t, {}, ch.get("W", Vector2.INF))
+			elif held:
+				rc = _sooner_of(rc, FlightSolve.new()._solve(grav, dep, tgt, t, {}))
+			rc.usec = Time.get_ticks_usec() - t_us
+			return rc
+		if prefer.has("alt") and held:
+			# A FLIGHT OF ONE LEG THAT TOOK OVER FROM ONE IN TWO (`_sooner_of`):
+			# itself from its choice as any flight is (else one found afresh, and
+			# where one leg finds nothing, two found afresh, the old legs' point
+			# tried first), beside the old legs again (`_chain_again`), the one
+			# that arrives first kept, the old legs on a tie. Without them, the
+			# preview that went to one leg went next, where one leg found nothing,
+			# to two found afresh, later than its old legs flew (seed 31337 node
+			# 28, ring 1 to keep 5, line-up 10: 486.1 drawn where the old legs
+			# arrived 463.4, the review of Nov 1)
+			var t_ua := Time.get_ticks_usec()
+			var alt: Dictionary = prefer.alt
+			var c1 := prefer.duplicate()
+			c1.erase("alt")
+			var ra := _chain_again(grav, dep, tgt, t, alt)
+			var ch2: Dictionary = alt.get("chain", {})
+			var r := _solve_or_chain(grav, dep, tgt, t, c1, ch2.get("W", Vector2.INF))
+			if ra != null:
+				r = _sooner_of(ra, r)
+			r.usec = Time.get_ticks_usec() - t_ua
+			return r
 	return _solve_or_chain(grav, dep, tgt, t, prefer, Vector2.INF)
 
 
 ## A FLIGHT IN TWO LEGS HELD FROM ITS CHOICE (`_chain_again`: rebuilt, or
-## searched from its legs) against a fresh plan of one leg (`_fresh`, as a
-## first plan's is): the one that arrives first, the two legs where they arrive
-## no later, and never a flight that is not clean. Held on their cost alone, a
-## preview in two legs that began where one leg found nothing stayed in two
-## legs while a fresh flight of one arrived far sooner: of every SolveTest
-## fallback flight from a ring or alongside planned again 15 times as the
-## overlay does, 63 steps (the review of Nov 1), at worst 50.9 s in two legs
-## where one leg flew 13.5 (twin 300, ring 2 to star -1, line-up 4). Only round
-## a ring or alongside, the ship still where the flight leaves from: free, it
-## is on its way (or a harness's free start), and the flight is as
-## `_chain_again` gives it. Its integrations are both plans'.
+## searched from its legs) against another plan, r1 (a fresh plan of one leg,
+## `_fresh` as a first plan's is; or, from a flight of one leg that took over
+## from them, that flight planned again, else two legs found afresh): the one
+## that arrives first, the held legs where they arrive no later, and never a
+## flight that is not clean. Held on their cost alone, a preview in two legs
+## that began where one leg found nothing stayed in two legs while a fresh
+## flight of one arrived far sooner: of every SolveTest fallback flight from a
+## ring or alongside planned again 15 times as the overlay does, 63 steps (the
+## review of Nov 1), at worst 50.9 s in two legs where one leg flew 13.5 (twin
+## 300, ring 2 to star -1, line-up 4). Only round a ring or alongside, the ship
+## still where the flight leaves from: free, it is on its way (or a harness's
+## free start), and the flight is as `_chain_again` gives it. A flight of one
+## leg kept carries the held legs' choice as its `alt` (`solve`). Its
+## integrations are both plans'.
 static func _sooner_of(rc: Result, r1: Result) -> Result:
 	var n := rc.integrations + r1.integrations
 	var st := rc.steps + r1.steps
 	var out := rc
 	if r1.found and r1.clean and float(r1.end.t) < float(rc.end.t) - 1e-6:
 		out = r1
+		if r1.legs == 1:
+			out.choice = r1.choice.duplicate()
+			out.choice.alt = rc.choice
 	out.integrations = n
 	out.steps = st
 	return out
@@ -634,6 +667,23 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 	if not prefer.is_empty() and int(prefer.get("v", 0)) == CHOICE_V:
 		_warm_tier(prefer)
 		res = _replay(prefer)
+		if res != null and _leg == 0 and _tcap > T_CAP + 1e-6:
+			# A FLIGHT THE FALLBACK FOUND, REBUILT AS DRAWN, is kept by the rule it
+			# is kept by warm (below): only while a fresh plan (its own budget)
+			# finds none clean that arrives sooner. Rebuilt with no look, a preview of
+			# the fallback's flight whose departure was still ahead held while a
+			# fresh plan flew sooner: of every SolveTest fallback flight from a
+			# ring or alongside planned again 15 times as the overlay does, 163
+			# steps, at worst 7.9 s (twin 280, ring 0 to ring 2, line-up 11; the
+			# review of Nov 1)
+			_b_J = INF
+			_b = {}
+			_budget = _n_integ + BUDGET
+			_fresh()
+			if _b_J < INF:
+				var rf := _build_fresh()
+				if rf.found and rf.clean and float(rf.end.t) < float(res.end.t) - 1e-6:
+					res = rf
 		if res == null and _warm(prefer):
 			# KEPT while it costs about what it did; else the search, and the kept
 			# flight only if the search does not beat it by as much. A flight the
@@ -690,6 +740,13 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 				else:
 					res = _build_fresh()
 	if res == null:
+		# (a budget of its own after a warm start that flew nothing, so it finds
+		# what a fresh plan does: on what the warm start had used, C's own search
+		# ran short and a flight of 17.9 s the fallback found stood where a
+		# fresh plan found one of 14.9, twin 280, orbit9 -9 to ring 1, line-up 4)
+		_b_J = INF
+		_b = {}
+		_budget = _n_integ + BUDGET
 		_fresh()
 		res = _build_fresh()
 	res.integrations = _n_integ

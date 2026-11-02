@@ -38,10 +38,13 @@ extends Node
 ## A sample of plans flown again at SAMPLE by plain RK4 through
 ## `MapGravity.acc` (the physics); rebuilt from their own choice (the same
 ## samples bit for bit, now, half a second on round a ring, and half a second
-## on alongside); planned again 3 s on with the old choice (the overlay's
+## on alongside, unless a flight the fallback found gave way to a fresh one
+## arriving sooner); planned again 3 s on with the old choice (the overlay's
 ## preview in orbit), every one found and none kept that a fresh search beats
-## by more than the warm slack; flights in two legs planned again as the overlay
-## does, none kept where a fresh plan of one leg arrives sooner; and every
+## by more than the warm slack, nor a flight the fallback found, rebuilt or
+## warm, where a fresh plan arrives sooner; flights in two legs planned again
+## as the overlay does, none kept where a fresh plan of one leg arrives sooner,
+## nor any flight later than its old legs flown again; and every
 ## plan of the first `worker` cases solved again on WorkerThreadPool (the same
 ## results). Also the prototype's a-to-b flight at its best line-up.
 ## PASS: found and clean in at least 99% of each sweep (DESIGN), but 97% of
@@ -75,6 +78,16 @@ const FOUND_MIN := 0.99
 const FOUND_MIN_HAND := 0.97
 ## how many times each flight in two legs is planned again (`_replans`)
 const TWO_STEPS := 5
+## [system label's head, start, target, line-up]: real-twin flights past the
+## line-ups SolveTest plans by default, planned again with the flights in two
+## legs (`_replans`) wherever their system is in the run. On 9875260b each,
+## gone to one leg, went next to two legs found afresh, later than its old
+## legs flew: 16.0 s and 6.6 s (twinlineups=12 over every two-leg flight from
+## a ring or alongside planned again 15 times: 5 such steps, none here)
+const TWO_PINS := [
+	["seed 31337 node 3 ", "ring 1", "keep 3", 6],
+	["seed 31337 node 28 ", "ring 1", "keep 5", 10],
+]
 
 var h := Harness.new()
 var _per_seed := 4
@@ -86,6 +99,9 @@ var _only := ""
 ## every case: {sweep, L, G, dep, tgt, t, label, kind, hand}
 var _cases: Array = []
 var _res: Array = []
+## cases past the line-ups asked for, planned only for the replan check of
+## flights in two legs (`TWO_PINS`, `_replans`)
+var _pin_cases: Array = []
 
 
 func _ready() -> void:
@@ -330,7 +346,12 @@ func _add_system(sweep: String, L: SystemLayout, G: MapGravity, label: String, h
 			var tg: Array = targets[ti]
 			if st[1] == tg[1] and st[0] != "free":
 				continue
-			for lu in lineups:
+			var lus: Array = range(lineups)
+			if sweep == "rtwin":
+				for pin: Array in TWO_PINS:
+					if label.begins_with(pin[0]) and "%s %d" % [st[0], st[1]] == pin[1] and "%s %d" % [tg[0], tg[1]] == pin[2] and int(pin[3]) >= lineups:
+						lus.append(int(pin[3]))
+			for lu: int in lus:
 				var t := 40.0 + 37.0 * float(lu)
 				# the line-up's own start: an angle round the ring, the way round,
 				# a free state (golden-angle steps, no random stream)
@@ -386,7 +407,7 @@ func _add_system(sweep: String, L: SystemLayout, G: MapGravity, label: String, h
 						tgt = {"kind": &"ring", "place": int(tg[1]), "R": FlightSolve.star_orbit_r(L, int(tg[1])), "V": STAR_RAIL_V, "sense": 0}
 					_:
 						tgt = {"kind": &"keep", "place": int(tg[1]), "off": KEEP_OFF}
-				_cases.append({"sweep": sweep, "L": L, "G": G, "dep": dep, "tgt": tgt, "t": t, "hand": hand,
+				(_cases if lu < lineups else _pin_cases).append({"sweep": sweep, "L": L, "G": G, "dep": dep, "tgt": tgt, "t": t, "hand": hand,
 					"label": "%s: %s %d to %s %d, line-up %d" % [label, st[0], st[1], tg[0], tg[1], lu],
 					"kind": "%s>%s" % [tag, ttag]})
 
@@ -708,7 +729,9 @@ static func _dist(xs: Array) -> String:
 ## REBUILT FROM ITS OWN CHOICE: every 5th found plan, at once; round a ring
 ## (its departure still 0.6 s or more ahead, not phasing) half a second on with
 ## the ship ridden on round; alongside, half a second on (the ship holding
-## there): the very same samples.
+## there): the very same samples, or, for a flight the fallback found, a fresh
+## plan of one leg, clean, that arrives sooner (`_fell_sooner`: the rule such
+## a flight is kept by, rebuilt or warm).
 func _replays() -> void:
 	var n := 0
 	var same := 0
@@ -716,6 +739,7 @@ func _replays() -> void:
 	var later_same := 0
 	var kept := 0
 	var kept_same := 0
+	var later_fell := 0
 	for i in range(0, _cases.size(), 5):
 		var r: FlightSolve.Result = _res[i]
 		if not r.found:
@@ -735,6 +759,9 @@ func _replays() -> void:
 			var r3 := FlightSolve.solve(c.G, d2, c.tgt, float(c.t) + 0.5, r.choice)
 			if r3.kind == &"replay" and r3.samp == r.samp:
 				later_same += 1
+			elif _fell_sooner(r, r3):
+				later_same += 1
+				later_fell += 1
 			elif later - later_same <= 3:
 				print("  (replay half a second on %s: %s)" % [r3.kind, c.label])
 		if StringName(dep.kind) == &"keep":
@@ -742,11 +769,22 @@ func _replays() -> void:
 			var r4 := FlightSolve.solve(c.G, dep, c.tgt, float(c.t) + 0.5, r.choice)
 			if r4.kind == &"replay" and r4.samp == r.samp and r4.t0 == r.t0:
 				kept_same += 1
+			elif _fell_sooner(r, r4):
+				kept_same += 1
+				later_fell += 1
 			elif kept - kept_same <= 3:
 				print("  (alongside, half a second on %s: %s)" % [r4.kind, c.label])
 	h._ok("a plan rebuilt from its choice is the same flight (%d of %d)" % [same, n], same == n)
+	print("replays: half a second on, %d flights the fallback found gave way to a fresh plan arriving sooner" % later_fell)
 	h._ok("and half a second on, the ship ridden round (%d of %d)" % [later_same, later], later_same == later)
 	h._ok("and half a second on alongside, the ship holding there (%d of %d)" % [kept_same, kept], kept_same == kept)
+
+
+## A FLIGHT THE FALLBACK FOUND (r, its cap past T_CAP) that, rebuilt from its
+## choice, gave way to a fresh plan of one leg, clean and arriving sooner (r2):
+## the rule it is kept by (`FlightSolve._solve`), so the drawn flight changes.
+static func _fell_sooner(r: FlightSolve.Result, r2: FlightSolve.Result) -> bool:
+	return r.legs == 1 and float(r.choice.get("cap", 0.0)) > FlightSolve.T_CAP + 1e-6 and r2.found and r2.clean and r2.legs == 1 and r2.kind == &"solved" and float(r2.end.t) < float(r.end.t) - 1e-6
 
 
 ## THE PREVIEW IN ORBIT, PLANNED AGAIN 3 s ON WITH ITS OLD CHOICE (the overlay
@@ -765,15 +803,21 @@ func _replays() -> void:
 ## found (its cap past T_CAP) is kept warm where a fresh plan arrives sooner:
 ## kept on its own cost, 55 of the 95 kept were, by up to 7.5 s; with C's own
 ## search alone looking beside it, 35 of 75, 5 of them the as-built search's
-## (the reviews of Nov 1). And every flight in two legs (`FlightSolve._chain`)
-## from a ring or alongside, planned again as the overlay does TWO_STEPS times
-## (every 3 s round a world's ring or a star's close orbit, every second round
-## a settled star orbit or alongside), each from the last one's choice: none
+## (the reviews of Nov 1); nor rebuilt as drawn, where a fresh plan beside it
+## is clean (9875260b kept 6 of 54 so, one at seed 1999 node 304, ring 3 to
+## keep 5, line-up 2: 21.0 s against 15.6). And every flight in two legs
+## (`FlightSolve._chain`) from a ring or alongside, planned again as the
+## overlay does TWO_STEPS times (every 3 s round a world's ring or a star's
+## close orbit, every second round a settled star orbit or alongside), each
+## from the last one's choice: none
 ## kept in two legs where a fresh plan of one leg arrives sooner. Held on their
 ## own cost (6e6e563c), the full run's 20 such flights, planned again 15 times,
 ## kept two legs 105 times where one leg flew sooner, by up to 41.4 s (seed
 ## 1999 node 150, star -1 to keep 2, line-up 1: 51.4 s in two legs against
-## 10.0 in one); planned again TWO_STEPS times, 24 of 100.
+## 10.0 in one); planned again TWO_STEPS times, 24 of 100. And none kept,
+## in one leg or two, that arrives later than the last legs kept flown again
+## from here (`FlightSolve._chain_again`), as a flight of one leg that took
+## over from two holds them (`alt`).
 func _replans() -> void:
 	var n := 0
 	var ok := 0
@@ -799,21 +843,24 @@ func _replans() -> void:
 			fresh_found += 1
 			if rw.found:
 				ok += 1
+		# (a flight the fallback found, kept warm, or rebuilt as drawn where a
+		# fresh plan beside it is clean)
+		var fb := rw.found and rf.found and float(rw.choice.get("cap", 0.0)) > FlightSolve.T_CAP + 1e-6
+		if fb and (rw.kind == &"warm" or (rw.kind == &"replay" and rw.legs == 1)):
+			fell += 1
+			if rf.T < rw.T - 1e-3 and (rf.clean or rw.kind == &"warm"):
+				held += 1
+				if held <= 3:
+					print("  (the fallback's %.2f s kept %s against a fresh %.2f s: %s)" % [rw.T, rw.kind, rf.T, c.label])
 		if rw.found and rf.found and rw.kind == &"warm":
 			var fc := _at_time_w(rf)
 			over.append(_at_time_w(rw) - fc)
 			var j_old := float(r.choice.get("J", INF))
-			if float(rw.choice.get("cap", 0.0)) > FlightSolve.T_CAP + 1e-6:
-				fell += 1
-				if rf.T < rw.T - 1e-3:
-					held += 1
-					if held <= 3:
-						print("  (the fallback's %.2f s kept against a fresh %.2f s: %s)" % [rw.T, rf.T, c.label])
-			elif rw.cost > fc + FlightSolve._warm_slack(fc) + 1e-6 and rw.cost > j_old + FlightSolve._warm_slack(j_old) + 1e-6:
+			if not fb and rw.cost > fc + FlightSolve._warm_slack(fc) + 1e-6 and rw.cost > j_old + FlightSolve._warm_slack(j_old) + 1e-6:
 				bad += 1
 				if bad <= 3:
 					print("  (kept %.1f against fresh %.1f, old %.1f: %s)" % [rw.cost, fc, j_old, c.label])
-	print("replans: %d previews planned again 3 s on with their old choice: %s; kept warm, cost minus a fresh search's at TIME_W %s; the fallback's flights kept warm %d" % [n, kinds, _dist(over), fell])
+	print("replans: %d previews planned again 3 s on with their old choice: %s; kept warm, cost minus a fresh search's at TIME_W %s; the fallback's flights kept warm or rebuilt %d" % [n, kinds, _dist(over), fell])
 	h._ok("planned again 3 s on, found wherever a fresh search finds one (%d of %d)" % [ok, fresh_found], ok >= fresh_found - maxi(1, fresh_found / 100))
 	h._ok("and no flight of C's own kept past the warm slack of both a fresh search and its own old cost, at TIME_W (%d)" % bad, bad == 0)
 	h._ok("and no flight the fallback found kept where a fresh plan arrives sooner (%d of the %d kept)" % [held, fell], held == 0)
@@ -824,34 +871,56 @@ func _replans() -> void:
 	var twos := 0
 	var two_kept := 0
 	var two_held := 0
+	var two_old := 0
+	var two_later := 0
+	var two_cases: Array = []
 	for i in _cases.size():
-		var r: FlightSolve.Result = _res[i]
-		var c: Dictionary = _cases[i]
+		two_cases.append([_cases[i], _res[i]])
+	for c: Dictionary in _pin_cases:
+		two_cases.append([c, FlightSolve.solve(c.G, c.dep, c.tgt, float(c.t))])
+	for cr: Array in two_cases:
+		var c: Dictionary = cr[0]
+		var r: FlightSolve.Result = cr[1]
 		var dk := StringName(c.dep.kind)
 		if not r.found or r.legs != 2 or (dk != &"ring" and dk != &"keep"):
 			continue
 		twos += 1
 		var dt := 3.0 if dk == &"ring" and int(c.dep.place) != -9 else 1.0
 		var pv := r
+		var legs: Dictionary = r.choice
 		for k in range(1, TWO_STEPS + 1):
 			var d2: Dictionary = c.dep.duplicate()
 			if dk == &"ring":
 				d2.ang = float(c.dep.ang) + float(c.dep.w) * dt * float(k)
 			var t2 := float(c.t) + dt * float(k)
 			var rw := FlightSolve.solve(c.G, d2, c.tgt, t2, pv.choice)
+			# (the last legs kept, flown again here as `FlightSolve._chain_again`
+			# flies them: none kept arrives later)
+			var ra: FlightSolve.Result = null
+			if not legs.is_empty():
+				ra = FlightSolve._chain_again(c.G, d2, c.tgt, t2, legs)
+			if ra != null:
+				two_old += 1
+				if not rw.found or float(rw.end.t) > float(ra.end.t) + 1e-3:
+					two_later += 1
+					if two_later <= 3:
+						print("  (kept %s in %d legs where its old legs fly %.2f s, %.0f s on: %s)" % ["%.2f s" % rw.T if rw.found else "nothing", rw.legs, ra.T, dt * float(k), c.label])
 			if not rw.found:
 				continue
 			pv = rw
 			if rw.legs != 2:
+				legs = ra.choice if ra != null else {}
 				continue
+			legs = rw.choice
 			two_kept += 1
 			var r1 := FlightSolve.new()._solve(c.G, d2, c.tgt, t2, {})
 			if r1.found and r1.clean and r1.T < rw.T - 1e-3:
 				two_held += 1
 				if two_held <= 3:
 					print("  (%.2f s in two legs kept against a fresh %.2f s in one, %.0f s on: %s)" % [rw.T, r1.T, dt * float(k), c.label])
-	print("replans: %d flights in two legs planned again %d times each as the overlay plans them; kept in two legs %d times" % [twos, TWO_STEPS, two_kept])
+	print("replans: %d flights in two legs planned again %d times each as the overlay plans them (%d pinned cases, `TWO_PINS`); kept in two legs %d times" % [twos, TWO_STEPS, _pin_cases.size(), two_kept])
 	h._ok("and no flight in two legs kept where a fresh plan of one leg arrives sooner (%d of %d)" % [two_held, two_kept], two_held == 0)
+	h._ok("and none kept that arrives later than its old legs flown again (%d of %d)" % [two_later, two_old], two_later == 0)
 
 
 ## A plan's cost at TIME_W: an as-built flight's (its choice's tw
