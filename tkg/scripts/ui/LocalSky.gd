@@ -998,12 +998,14 @@ static func _set_deep(n: Node, key: String, value: Variant) -> void:
 # ------------------------------------------------------------------ the pair as the map left it
 
 ## Takes the system's kept map clock and holds the pair there for the visit
-## (`_tm`, `_a0`, `_turn`). For the system the ship is in, the party's: a
-## partner's map further on is taken, as the map takes it
-## (`NetSession.adopt_clock`), so LOCAL and the map behind it show one angle.
-## Another system's sky (a field under the chart) reads its clock as kept.
+## (`_tm`, `_a0`, `_turn`). Handed the pair by its map (`Router.pair_handed`:
+## the zoom down, GO, Tab), the very clock that map kept, so the pair stands
+## where it stood. For the system the ship is in opened any other way (a
+## fight's end, the dock), the party's: a partner's map further on is taken,
+## as the map takes it (`NetSession.adopt_clock`). Another system's sky (a
+## field under the chart) reads its clock as kept.
 func _hold_pair() -> void:
-	_tm = Net.adopt_clock(node.index) if node.index == Run.at else Run.map_t(node.index)
+	_tm = Net.adopt_clock(node.index) if node.index == Run.at and not Router.pair_handed(node.index) else Run.map_t(node.index)
 	_a0 = layout.star_pos(-1, _tm)
 	_turn = layout.pair_n * _tm if layout.twin else 0.0
 

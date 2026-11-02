@@ -17,7 +17,12 @@ extends Node
 ##     lighting the ship's place (its own); a world round star B within its
 ##     orbit of B on the band, and still there a minute of LOCAL's clock on.
 ##  2. MAP -> LOCAL -> MAP: the map's clock goes into LOCAL whole, LOCAL holds it
-##     while it is up, and the map opens on it again.
+##     while it is up, and the map opens on it again. IN CO-OP, a partner's map
+##     clock a minute ahead, with the zoom ladder off and on: at both handovers
+##     the picture coming up has the clock of the one going (LOCAL does not take
+##     the party's from its map, the map does not take it from LOCAL), the kept
+##     clock never goes back, and the map then catches up with the party, a
+##     little faster than time and never by a jump (review 1).
 ##  3. A SAVE: the clock written, the run's clocks scrambled, the save read back:
 ##     LOCAL opens on the very angle.
 ##  4. ONE SUN: star A at the band's anchor and nothing turned, at any clock.
@@ -81,6 +86,9 @@ func _run() -> void:
 	_sweep(false)
 	_sweep(true)
 	await _through_the_map()
+	for ladder in [0, 1]:
+		await _coop_handovers(ladder)
+	ZoomLadder.force = 0
 	await _through_a_save()
 	_one_sun()
 	_end()
@@ -213,12 +221,12 @@ func _through_the_map() -> void:
 	_ok("and the pair's angle then", absf(angle_difference(sky.held_angle(), L.pair_angle(left))) < 1e-6)
 	var b_before := sky._sun_at(SystemLayout.STAR_B)
 	# (the map, hidden as LOCAL is built, is freed a frame later and writes its
-	# clock again as it goes, `_keep_ship`: by then its `_process` has run it on
-	# a frame -- the map's to hold, ZoomLadder's ORBIT:map note -- so the clock
-	# kept is LOCAL's within a frame, and from there it must not move)
+	# clock again as it goes, `_keep_ship`: hidden, its clock holds,
+	# `clock_held`, so the clock kept is LOCAL's to the bit -- it ran a frame on
+	# before, review 1 -- and from there it must not move)
 	var kept := Run.map_t(idx)
-	_ok("the clock kept as the map went is LOCAL's within a frame (%.6f, LOCAL %.6f)" % [kept, sky.held_t()],
-		kept >= left and kept - left <= 1.0 / 60.0 + 1e-6)
+	_ok("the clock kept as the map went is LOCAL's (%.6f, LOCAL %.6f)" % [kept, sky.held_t()],
+		kept == left and kept == sky.held_t())
 	await _frames(30)
 	_ok("held while LOCAL is up: the clock not run on (%.6f) and star B not moved on the band" % Run.map_t(idx),
 		Run.map_t(idx) == kept and sky._sun_at(SystemLayout.STAR_B) == b_before and absf(sky.held_t() - left) < 1e-9)
@@ -229,6 +237,98 @@ func _through_the_map() -> void:
 		_ok("and opened on the angle LOCAL held (%.3f, LOCAL %.3f)" % [m.view.t, left], m.view.t >= left and m.view.t - left < 1.0)
 	Router.show_local()
 	await _frames(4)
+
+
+## 2b. In co-op, a partner's clock ahead: the handovers keep one clock.
+func _coop_handovers(ladder: int) -> void:
+	ZoomLadder.force = ladder
+	var how := "the ladder %s" % ("on" if ladder == 1 else "off")
+	var idx := _pair_of(true)
+	var L := SystemLayout.of(Run.map[idx])
+	var node: MapGen.MapNode = Run.map[idx]
+	node.visited = true
+	Run.at = idx
+	SectorScreen._approached_at = idx
+	var t0 := 0.55 * TAU / L.pair_n
+	Run.map_clock[idx] = t0
+	SystemMapScreen._parked[idx] = {"at": SystemLayout.STAR_B, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+	Router.show_system()
+	for i in 240:
+		await _tree.process_frame
+		if Router.current is SystemMapScreen and not ZoomLadder.busy():
+			break
+	var m := Router.current as SystemMapScreen
+	if not _ok("co-op, %s: the map is up over the close pair" % how, m != null and m.view.node == node):
+		return
+	# A PARTNER ON THIS SYSTEM'S MAP, a minute further on, its map up
+	var kept_state := Net.state
+	Net.state = NetSession.State.DIVING
+	Net.spots[77] = {"at": idx, "body": -9, "x": 0.0, "z": 0.0, "ang": 0.0, "t": float(m.view.t) + 60.0, "host": -9, "held": false, "got": Time.get_ticks_msec()}
+	var back := 0
+	var last := Run.map_t(idx)
+	# MAP -> LOCAL
+	var left := float(m.view.t)
+	Router.show_local()
+	var sky: LocalSky = null
+	for i in 240:
+		await _tree.process_frame
+		if Run.map_t(idx) < last:
+			back += 1
+		last = maxf(last, Run.map_t(idx))
+		sky = _local_sky()
+		if sky != null and not ZoomLadder.busy():
+			break
+	if not _ok("co-op, %s: LOCAL is up" % how, sky != null):
+		Net.state = kept_state
+		Net.spots.erase(77)
+		return
+	_ok("co-op, %s: LOCAL holds the map's clock, not the party's a minute on (%.6f, the map left at %.6f; the party %.3f)" % [how, sky.held_t(), left, Net.party_t(idx)],
+		sky.held_t() == left)
+	await _frames(20)
+	_ok("co-op, %s: and the clock kept is LOCAL's (%.6f)" % [how, Run.map_t(idx)], Run.map_t(idx) == sky.held_t())
+	var held := sky.held_t()
+	# LOCAL -> MAP
+	Router.show_system()
+	var at_swap := -1.0
+	for i in 240:
+		await _tree.process_frame
+		if Run.map_t(idx) < last:
+			back += 1
+		last = maxf(last, Run.map_t(idx))
+		var m2 := Router.current as SystemMapScreen
+		if m2 != null and at_swap < 0.0:
+			at_swap = float(m2.view.t)
+		if m2 != null and not ZoomLadder.busy():
+			break
+	m = Router.current as SystemMapScreen
+	if not _ok("co-op, %s: the map is up again" % how, m != null):
+		Net.state = kept_state
+		Net.spots.erase(77)
+		return
+	_ok("co-op, %s: the map comes up on LOCAL's clock, within a frame (%.6f, LOCAL %.6f)" % [how, at_swap, held],
+		at_swap >= held and at_swap - held <= 1.5 / 60.0)
+	# THE MAP CATCHES UP: faster than time, never by a jump, never past the party
+	var worst := 0.0
+	var t_prev := float(m.view.t)
+	var t_first := t_prev
+	for i in 120:
+		await _tree.process_frame
+		var tn := float(m.view.t)
+		worst = maxf(worst, tn - t_prev)
+		if Run.map_t(idx) < last:
+			back += 1
+		t_prev = tn
+	var ran := t_prev - t_first
+	_ok("co-op, %s: the map then catches up with the party, %.3f s of map time in 2 s, at most %.4f s a frame (never a jump), not past it (%.3f, the party %.3f)" % [how, ran, worst, t_prev, Net.party_t(idx)],
+		ran > 2.0 * 1.1 and worst <= (1.0 + SystemMapScreen.CATCH_K) / 60.0 + 1e-4 and t_prev <= Net.party_t(idx) + 1e-6)
+	_ok("co-op, %s: and the kept clock never went back (%d times)" % [how, back], back == 0)
+	Router.show_local()
+	for i in 240:
+		await _tree.process_frame
+		if _local_sky() != null and not ZoomLadder.busy():
+			break
+	Net.state = kept_state
+	Net.spots.erase(77)
 
 
 ## 3. Through a save.

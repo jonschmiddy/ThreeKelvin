@@ -785,8 +785,10 @@ static func preroll(target: int, then: Callable) -> bool:
 		pm.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		if pm is SystemMapScreen:
 			# (at the system's kept clock, held while it waits here and through
-			# the move: `SystemMapScreen.clock_held`)
-			(pm as SystemMapScreen).show_system(Run.node_at(), Run.map_t(Run.at), false)
+			# the move: `SystemMapScreen.clock_held`. Out of LOCAL, LOCAL's own,
+			# so the pair stands where LOCAL had it; out of the chart, which shows
+			# no angle of it, the party's in co-op: `Router.pair_handed`)
+			(pm as SystemMapScreen).show_system(Run.node_at(), Run.map_t(Run.at) if r == LOCAL else Net.adopt_clock(Run.at), false)
 		else:
 			(pm as StarchartScreen).setup()
 		prebuilt = pm
@@ -2568,7 +2570,8 @@ func _calm_prebuild(target: int) -> void:
 		move_child(pm, 0)
 	pm.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	if pm is SystemMapScreen:
-		(pm as SystemMapScreen).show_system(Run.node_at(), Run.map_t(Run.at), false)
+		# (LOCAL's clock out of LOCAL, the party's out of the chart: as `preroll`)
+		(pm as SystemMapScreen).show_system(Run.node_at(), Run.map_t(Run.at) if r_old == LOCAL else Net.adopt_clock(Run.at), false)
 	elif pm is StarchartScreen:
 		(pm as StarchartScreen).setup()
 	else:

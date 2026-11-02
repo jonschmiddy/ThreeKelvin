@@ -709,8 +709,9 @@ func _keep_ship() -> void:
 		return
 	# THE SYSTEM'S MAP CLOCK, kept with the ship (`Run.map_clock`): the map opens
 	# here again, its suns and worlds where they were left, and the ship's spot
-	# (an absolute plane point for a free ship) means what it meant
-	Run.map_clock[view.node.index] = view.t
+	# (an absolute plane point for a free ship) means what it meant. Never back:
+	# a clock taken on since (LOCAL's, a partner's) stands
+	Run.map_clock[view.node.index] = maxf(view.t, Run.map_t(view.node.index))
 	var at := ship_place()
 	# A FLIGHT LEFT ON ITS WAY lands where it was going (`ship_place`), counted
 	# as a flight there as it would have been on arrival, so LOCAL plays its own
@@ -864,8 +865,10 @@ func _on_orbits() -> void:
 
 
 func _process(delta: float) -> void:
-	if not frozen and not clock_held():
+	var held := frozen or clock_held()
+	if not held:
 		view.t += delta
+		_catch_up(delta)
 	_step_ship(delta)
 	_report_spot()
 	_step_camera(delta)
@@ -894,8 +897,29 @@ func _process(delta: float) -> void:
 ## a map built ahead and dropped wrote its moved clock back (`_keep_ship`). The
 ## ship is still stepped: on its ring it rides on round its world held still,
 ## for the second or so of a move.
+## And hidden (put away, about to be freed): it wrote its clock as it went
+## (`_keep_ship`), and a frame more run on past the one LOCAL took was written
+## again on the way out.
 func clock_held() -> bool:
-	return cam_held or ZoomLadder.busy() or ZoomLadder.prebuilt_screen() == self
+	return cam_held or ZoomLadder.busy() or ZoomLadder.prebuilt_screen() == self or not is_visible_in_tree()
+
+
+## CATCHING UP WITH THE PARTY (PROTOCOL 14): a map behind a partner's in the
+## same system runs CATCH_K faster until it is there, never past it and never
+## back. A map handed its pair by LOCAL opens on LOCAL's clock, not the party's
+## (`Router.pair_handed`), so a peer that only goes map to LOCAL and back would
+## otherwise never come level. Not while the ship flies a plan (a flight is a
+## plan on map time), so only the suns, the worlds and what rides with them go
+## a little faster for a while.
+const CATCH_K := 0.25
+func _catch_up(delta: float) -> void:
+	if not Net.is_networked() or view.node == null or view.node.index != Run.at or flight == null:
+		return
+	if flight.plan != null or flight.mode == &"fly":
+		return
+	var pt := Net.party_t(Run.at)
+	if pt > view.t:
+		view.t = minf(view.t + delta * CATCH_K, pt)
 
 
 ## THE SHIP AND THE VIEW, a frame on: the arrows pan (eased), WASD flies, the

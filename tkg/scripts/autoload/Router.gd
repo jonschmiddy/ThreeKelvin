@@ -104,6 +104,41 @@ func save_on_close() -> void:
 	if SaveGame.has_save():
 		crumb("[run] window closed, run saved")
 
+## WHOSE PAIR THE SCREEN JUST LEFT SHOWED (a system's map, or LOCAL, which is
+## the system the ship is in), and on which frame: `pair_handed`. -1 for any
+## other screen.
+var _left_pair := -1
+var _left_frame := -100
+
+
+static func _pair_of_screen(sc: Control) -> int:
+	if sc == null or not is_instance_valid(sc):
+		return -1
+	if sc is SystemMapScreen:
+		var m := sc as SystemMapScreen
+		return m.view.node.index if m.view != null and m.view.node != null else -1
+	if sc is SectorScreen:
+		return Run.at
+	return -1
+
+
+## WHETHER A MAP OR LOCAL OPENING SYSTEM `at` IS HANDED ITS PAIR by the picture
+## before it (ruling 23, PROTOCOL 14): that system's map is the screen up (LOCAL
+## built ahead of a move, `ZoomLadder.preroll`), or the screen swapped out this
+## very frame showed it (its map or LOCAL). Then it opens on the kept clock, the
+## angle that picture had (`Run.map_t`), and never takes the party's: taken at
+## the handover, a partner's clock ahead jumped the pair forward map to LOCAL
+## and back LOCAL to map (the map put away wrote its own clock again, review 1).
+## The map catches up with the party while it is up (`SystemMapScreen._catch_up`).
+## Opened after anything else -- a fight, the dock, the chart, a jump -- it takes
+## the party's clock at once (`NetSession.adopt_clock`): nothing shown before
+## had the pair in it.
+func pair_handed(at: int) -> bool:
+	if current is SystemMapScreen and _pair_of_screen(current) == at:
+		return true
+	return _left_pair == at and _left_frame == Engine.get_process_frames()
+
+
 ## `chrome` is whether the HUD belongs above this screen. The launcher and the
 ## record reached from it run before any run exists, and the HUD reads ship
 ## state — it bails on a null hull, but an empty bar above a title screen is a
@@ -128,6 +163,9 @@ func _swap(screen: Control, chrome: bool = true) -> void:
 	# here, before it goes, and carried into the one arriving
 	if current != null:
 		ZoomLadder.capture(current, screen)
+	# (whose pair the screen being left showed, before its hide: `pair_handed`)
+	_left_pair = _pair_of_screen(current)
+	_left_frame = Engine.get_process_frames()
 	if current != null:
 		current.hide()
 		current.queue_free()
@@ -649,8 +687,9 @@ func show_system() -> void:
 	_swap(s)
 	ZoomLadder.hold_off = false
 	# (at the system's own map clock, where its map was put away: a turning
-	# pair goes on from there, `Run.map_clock`; in co-op the party's, PROTOCOL 14)
-	s.show_system(Run.node_at(), Net.adopt_clock(Run.at), arrived)
+	# pair goes on from there, `Run.map_clock`; in co-op the party's, PROTOCOL 14,
+	# unless LOCAL just showed the pair at the kept one, `pair_handed`)
+	s.show_system(Run.node_at(), Run.map_t(Run.at) if pair_handed(Run.at) else Net.adopt_clock(Run.at), arrived)
 
 
 ## Leaving the berth, by whichever door.
