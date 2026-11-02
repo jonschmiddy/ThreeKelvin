@@ -835,8 +835,10 @@ step "Star B is a place, as the one star is"
 # star's facts as it is drawn (star B the K5 orange dwarf, masses as the
 # pulls), AROUND (never ROUND), no event card wider than the column, and a GO
 # that leaves the view open (hover, wheel, drag) and still runs its event once.
+# Nov 2 (ruling 23, the pair turning): about 140 s alone with its lap sweeps,
+# so its limit is TwinDrawTest's 300 (it was 180, and ran past it under load).
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot twinsitetest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=TwinSiteTest; then
+	run_godot twinsitetest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=TwinSiteTest; then
 	if grep -qE '^twinsitetest: PASS' "$LOG_DIR/twinsitetest.log"; then
 		ok "star B is a place everywhere the star is"
 	else
@@ -2374,7 +2376,7 @@ gate_weight() {
 		menutest) echo 25 ;; market) echo 24 ;; parseall) echo 24 ;;
 		devtest) echo 22 ;; hulldamagetest) echo 22 ;; fightopentest) echo 22 ;;
 		lockedpooltest) echo 41 ;; rewardshowntest) echo 33 ;; mapperftest) echo 40 ;;
-		solvetest) echo 250 ;; twindrawtest) echo 106 ;; flighttest) echo 80 ;; twinsitetest) echo 90 ;;
+		solvetest) echo 250 ;; twindrawtest) echo 106 ;; flighttest) echo 80 ;; twinsitetest) echo 140 ;;
 		*) echo 15 ;;
 	esac
 }
