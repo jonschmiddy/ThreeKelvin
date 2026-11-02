@@ -24,6 +24,12 @@
 # `sheet=ShardSum` judges what needs every case (a sweep's found-and-clean
 # share, the flights left put there) from the shards' logs: `<name>_total`. A
 # worktree from before the split (no ShardSum.gd) runs them whole, as before.
+#
+# HOW LONG (the PC, Nov 2, SOLO=0, one other Godot running): 9:00, where the
+# runs whole took 16:43 back to back on the same tree; the four timed runs add
+# about 1:30. The pool is now bound by its total work (about 4,000 s over 8),
+# not by any one run. JOBS=12 took 8:17 but starved FlightTest's clicks (shard
+# 3), which hold every frame's step to 20 ms: keep 8 unless the clicks move.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 W="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"; shift || true
