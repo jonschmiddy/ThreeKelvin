@@ -649,8 +649,8 @@ func show_system() -> void:
 	_swap(s)
 	ZoomLadder.hold_off = false
 	# (at the system's own map clock, where its map was put away: a turning
-	# pair goes on from there, `Run.map_clock`)
-	s.show_system(Run.node_at(), Run.map_t(Run.at), arrived)
+	# pair goes on from there, `Run.map_clock`; in co-op the party's, PROTOCOL 14)
+	s.show_system(Run.node_at(), Net.adopt_clock(Run.at), arrived)
 
 
 ## Leaving the berth, by whichever door.

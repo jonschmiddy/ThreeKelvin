@@ -108,7 +108,17 @@ extends Node
 ##    systems have two suns say their galaxies differ. A version 12 partner
 ##    reads a -4 spot as nowhere and draws the ship at the edge, and lays every
 ##    twin system out round one star.
-const PROTOCOL: int = 13
+## 14: THE PAIR TURNS (ruling 23, Jon, Nov 1: "Orbiting pair"). A binary's suns
+##    go round their balance point on each system's map clock, so a spot says
+##    the sender's map clock (`t`), and a spot in either star's close orbit, or
+##    settled round one sun, goes as the offset from that sun (`host`, the
+##    settle's `ShipFlight.f.cen_id`), as a world's always has; a ship round
+##    both suns, or flying, goes as the plane point it is. A system's map clock
+##    is the party's: a map or LOCAL opening it takes the farthest on a partner
+##    has said, run on since (`adopt_clock`). A version 13 partner sends a spot
+##    two numbers short, which this one cannot read, and would draw a ship at
+##    star B where B stood on another machine's clock.
+const PROTOCOL: int = 14
 
 ## How long a contested option waits for the host to say who got it.
 ##
@@ -242,16 +252,20 @@ var claims: Dictionary = {}
 var fights: Dictionary = {}
 
 ## Where each ship is INSIDE its system, for the SECTOR map: `{peer id: {at,
-## body, x, z, ang}}`. The roster's `at` says which system; this says where in
-## it. A body >= 0 means "in orbit of / alongside that world" and (x, z) is the
-## offset from the world's centre, because a world's place on its orbit is this
-## machine's clock and not the sender's -- an absolute position would put a
+## body, x, z, ang, t, host, got}}`. The roster's `at` says which system; this
+## says where in it. A body >= 0 means "in orbit of / alongside that world" and
+## (x, z) is the offset from the world's centre, because a world's place on its
+## orbit is each machine's own clock -- an absolute position would put a
 ## partner in orbit of nothing. Body -1 is the star (star A of two suns),
-## `SystemLayout.STAR_B` (-4) star B, and -9 open space, all absolute: neither
-## star moves (ruling 20 holds a pair still, and star A at the plane's origin),
-## so a point in a star's close orbit is the same point on every machine
-## (`SystemMapScreen._report_spot`, `partner_points`). -10: just arrived. An
-## empty entry: arrived, at the edge.
+## `SystemLayout.STAR_B` (-4) star B, -9 open space. A PAIR'S SUNS TURN
+## (PROTOCOL 14), so either star's close orbit is the offset from that star,
+## and so is open space settled round one sun (`host` -1 or STAR_B); open space
+## round both suns' balance point, which holds still, or flying (`host` -9) is
+## the plane point itself. One sun stays at the plane's origin at every t, so
+## there each is the very point it always was (`spot_anchor`,
+## `SystemMapScreen._report_spot`, `partner_points`). `t` is the sender's map
+## clock for the system as it said it, `got` this machine's ticks (ms) when it
+## came (`party_t`). -10: just arrived. An empty entry: arrived, at the edge.
 ##
 ## NOT on the roster. It changes several times a second while a ship flies,
 ## and the roster is whole, reliable and rebuilt on every machine per change;
@@ -276,7 +290,8 @@ var galaxy_warning: String = ""
 ## game code. `-- cojoin join CODE skew` sets it to force the mismatch.
 var forced_galaxy: int = 0
 
-## Throttle for `report_spot`: what was last sent and when.
+## Throttle for `report_spot`: what was last sent and when ([at, body, x, z,
+## ang, host]).
 var _spot_sent: Array = []
 var _spot_ms: int = 0
 const SPOT_EVERY_MS := 150
@@ -788,15 +803,15 @@ func _enemy_swings(at: int, which: int, kind: int, pick: int) -> void:
 ## the next a sixth of a second later, and a stale one queued behind a lost
 ## packet is worse than none.
 @rpc("any_peer", "call_remote", "unreliable_ordered")
-func _spot_at_host(at: int, body: int, x: float, z: float, ang: float) -> void:
+func _spot_at_host(at: int, body: int, x: float, z: float, ang: float, mt: float, host: int) -> void:
 	if is_host():
-		_apply_spot(multiplayer.get_remote_sender_id(), at, body, x, z, ang)
+		_apply_spot(multiplayer.get_remote_sender_id(), at, body, x, z, ang, mt, host)
 
 
 @rpc("authority", "call_remote", "unreliable_ordered")
-func _spot_to(id: int, at: int, body: int, x: float, z: float, ang: float) -> void:
+func _spot_to(id: int, at: int, body: int, x: float, z: float, ang: float, mt: float, host: int) -> void:
 	if id != local_id():
-		spots[id] = {"at": at, "body": body, "x": x, "z": z, "ang": ang}
+		spots[id] = _spot_row(at, body, x, z, ang, mt, host)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -1018,23 +1033,26 @@ func _galaxy_differs_here(guest: String, seed_value: int, host_n: int, host_fp: 
 
 ## Where this ship is in its system, from the SECTOR map. Throttled here, so
 ## the map can call it every frame: sent when it moved and SPOT_EVERY_MS has
-## passed, or at once when the system or the body changed. `body` as in `spots`.
-func report_spot(at: int, body: int, p: Vector2, ang: float, force: bool = false) -> void:
+## passed, or at once when the system, the body or the sun it is said off
+## changed. `body`, `p` and `host` as in `spots` (`spot_anchor`); `mt` this
+## machine's map clock for the system as `p` was measured.
+func report_spot(at: int, body: int, p: Vector2, ang: float, force: bool = false, mt: float = 0.0, host: int = -9) -> void:
 	if not _can_talk() or state != State.DIVING:
 		return
 	var now := Time.get_ticks_msec()
-	var same_place := _spot_sent.size() == 5 and int(_spot_sent[0]) == at and int(_spot_sent[1]) == body
+	var same_place := _spot_sent.size() == 6 and int(_spot_sent[0]) == at and int(_spot_sent[1]) == body \
+		and int(_spot_sent[5]) == host
 	if same_place and not force:
 		if now - _spot_ms < SPOT_EVERY_MS:
 			return
 		if Vector2(_spot_sent[2], _spot_sent[3]).distance_to(p) < 0.5 				and absf(angle_difference(float(_spot_sent[4]), ang)) < 0.05:
 			return
-	_spot_sent = [at, body, p.x, p.y, ang]
+	_spot_sent = [at, body, p.x, p.y, ang, host]
 	_spot_ms = now
 	if is_host():
-		_apply_spot(1, at, body, p.x, p.y, ang)
+		_apply_spot(1, at, body, p.x, p.y, ang, mt, host)
 	else:
-		_spot_at_host.rpc_id(1, at, body, p.x, p.y, ang)
+		_spot_at_host.rpc_id(1, at, body, p.x, p.y, ang, mt, host)
 
 
 ## Arrived in a system: at its edge until the map says otherwise. An empty spot
@@ -1052,11 +1070,75 @@ func spot_of(id: int, at: int) -> Dictionary:
 	return sp
 
 
-func _apply_spot(id: int, at: int, body: int, x: float, z: float, ang: float) -> void:
+func _apply_spot(id: int, at: int, body: int, x: float, z: float, ang: float, mt: float, host: int) -> void:
 	if id != 1:
-		spots[id] = {"at": at, "body": body, "x": x, "z": z, "ang": ang}
+		spots[id] = _spot_row(at, body, x, z, ang, mt, host)
 	if not multiplayer.get_peers().is_empty():
-		_spot_to.rpc(id, at, body, x, z, ang)
+		_spot_to.rpc(id, at, body, x, z, ang, mt, host)
+
+
+## A spot as `spots` keeps it, stamped with when it came.
+static func _spot_row(at: int, body: int, x: float, z: float, ang: float, mt: float, host: int) -> Dictionary:
+	return {"at": at, "body": body, "x": x, "z": z, "ang": ang, "t": mt, "host": host, "got": Time.get_ticks_msec()}
+
+
+## WHAT A SPOT IS SAID OFF (PROTOCOL 14), on layout L at map time t: the world
+## for body >= 0; star A or B for either star's close orbit; for open space
+## (-9), the sun it is settled round (`host` -1 or STAR_B), else nothing (the
+## plane's origin: a ship round both suns, or flying, is the plane point it
+## is). The sender takes it off at its own clock (`SystemMapScreen._report_spot`)
+## and every other machine adds it back at its own (`partner_points`), so a
+## partner on a sun's orbit is drawn on that sun wherever the pair stands
+## there. One sun: its star is the origin at every t, so a star's spot is the
+## point it always was.
+static func spot_anchor(L: SystemLayout, body: int, host: int, t: float) -> Vector2:
+	if L == null:
+		return Vector2.ZERO
+	if body >= 0:
+		return L.bodies[body].pos(t) if body < L.bodies.size() else Vector2.ZERO
+	var s := body if SystemLayout.is_star(body) else (host if body == -9 else -9)
+	if SystemLayout.is_star(s):
+		return L.star_pos(s, t)
+	return Vector2.ZERO
+
+
+## THE PARTY'S CLOCK FOR SYSTEM `at` (PROTOCOL 14): the farthest on of the map
+## clocks its partners there have said, each run on by the time since it came
+## (map time is wall time while a map is up, the sender's as this one's), or
+## -1.0 when none has said one.
+func party_t(at: int) -> float:
+	var best := -1.0
+	var now := Time.get_ticks_msec()
+	for id in spots:
+		var sp := spot_of(int(id), at)
+		if sp.is_empty() or not sp.has("t"):
+			continue
+		best = maxf(best, float(sp.t) + float(now - int(sp.get("got", now))) / 1000.0)
+	return best
+
+
+## THE CLOCK A MAP OPENS AT (PROTOCOL 14): its own, or the party's when that is
+## further on -- never back, which would undo what both machines have seen,
+## and never while its own ship flies (a flight is a plan on map time: a
+## clock moved under it would move the ship along it). Anything else is
+## relative (rails and settles round what they circle), so a jump moves it all
+## together.
+static func clock_to_open(own: float, party: float, flying: bool) -> float:
+	return party if party > own and not flying else own
+
+
+## A MAP OR LOCAL OPENING SYSTEM `at` takes the party's clock (`clock_to_open`):
+## kept in `Run.map_clock`, so whatever opens next opens on it too. The clock
+## to open at; its own, alone or offline.
+func adopt_clock(at: int) -> float:
+	var own := Run.map_t(at)
+	if not is_networked():
+		return own
+	var d: Dictionary = SystemMapScreen._parked.get(at, {})
+	var t := clock_to_open(own, party_t(at), StringName(d.get("mode", &"")) == &"fly")
+	if t != own:
+		Run.map_clock[at] = t
+	return t
 
 
 ## Broadcast the hellbender, host only. RunState calls this after every authority

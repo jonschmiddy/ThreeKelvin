@@ -580,8 +580,10 @@ static func fit_zoom_in(edge: float, fs: Vector2) -> float:
 ## Where this ship is in the system, told to the party (`Net.report_spot`,
 ## throttled there), so a partner's map draws it flying (Oct 22 playtest: "we
 ## could not see each other flying around on the sector map"). In orbit of or
-## alongside a world it is said as the offset from that world: the world's
-## place on its orbit is each machine's own clock.
+## alongside a world it is said as the offset from that world, and in either
+## star's close orbit or settled round one sun as the offset from that sun: a
+## world's place on its orbit, and a turning pair's suns (PROTOCOL 14), are each
+## machine's own clock. With this map's clock, which is the party's.
 func _report_spot() -> void:
 	if flight == null or view.node == null or view.layout == null or not Net.is_networked():
 		return
@@ -590,13 +592,13 @@ func _report_spot() -> void:
 	var p3: Vector3 = flight.where3()
 	var body: int = flight.orbit_body()
 	var p := Vector2(p3.x, p3.z)
-	# (a world's orbit as the offset from the world; either star's close orbit,
-	# -1 or STAR_B, and open space as they are: neither star moves)
-	# ORBIT:coop the suns move now: send a star's close orbit as an offset from that star, a free spot with its settle host (f.cen_id) and the sender's map t; PROTOCOL 14 (DESIGN step 7, review: -9 spots by settle host)
-	if body >= 0:
-		var c: Vector3 = flight.center(body, view.t)
-		p -= Vector2(c.x, c.z)
-	Net.report_spot(Run.at, body, p, float(flight.ang))
+	# (open space settled round one sun goes off that sun, `f.cen_id`; round
+	# both suns' balance point, which holds still, or flying, as it is)
+	var host := -9
+	if body == -9 and flight.star_orbiting():
+		host = int(flight.f.cen_id)
+	p -= NetSession.spot_anchor(view.layout, body, host, view.t)
+	Net.report_spot(Run.at, body, p, float(flight.ang), false, view.t, host)
 
 
 ## WHERE A JUMP INTO THIS SYSTEM PUTS A SHIP (`ShipFlight.setup`'s arrival
@@ -637,13 +639,12 @@ func partner_points() -> Array:
 			else:
 				q = Vector2(view.layout.edge, -210.0)
 		else:
-			# (as `_report_spot` sends it: off a world, or as it is in either
-			# star's close orbit or open space)
-			# ORBIT:coop mirror `_report_spot`: add the star's place at this machine's view.t for a star spot, and a settled free spot round its host
-			q = Vector2(float(sp.x), float(sp.z))
-			if body >= 0 and body < view.layout.bodies.size():
-				var c: Vector3 = flight.center(body, view.t)
-				q += Vector2(c.x, c.z)
+			# (as `_report_spot` sends it: off a world, off either star for its
+			# close orbit or settled round it, else as it is -- each put back
+			# where it is at this machine's clock, so a partner on a sun's orbit
+			# is drawn on that sun here though the two clocks differ)
+			q = Vector2(float(sp.x), float(sp.z)) \
+				+ NetSession.spot_anchor(view.layout, body, int(sp.get("host", -9)), view.t)
 		out.append([id, q, float(sp.get("ang", PI)), String(s.get("name", "")).to_upper(), body if not sp.is_empty() else -10])
 	return out
 

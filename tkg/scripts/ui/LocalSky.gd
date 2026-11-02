@@ -279,6 +279,18 @@ var star2: Node2D = null
 var _lit := -1
 var _dk_a := 1.0
 var _dk_b := 1.0
+## THE PAIR AS THE MAP LEFT IT (ruling 23, Jon, Nov 1: "Orbiting pair"): a
+## binary's suns turn round their balance point on the map's clock, and map
+## time does not run off the map, so LOCAL holds the pair still for the visit
+## at the system's kept map clock (`Run.map_t`, the party's in co-op:
+## `NetSession.adopt_clock`), and the map opens on that very angle again. `_tm`
+## is that clock; `_a0` star A's place on the plane then, which the band is
+## laid round (every plane point LOCAL draws is taken from it, `_rel`); `_turn`
+## how far the pair has turned from the way it was laid out (0 alone or held
+## still, where all of this is exactly what it was). Read once, in `_build`.
+var _tm := 0.0
+var _a0 := Vector2.ZERO
+var _turn := 0.0
 ## each sun's prominence's envelope this frame (`_step_star`; B's 0 with one sun)
 var _flare_a := 0.0
 var _flare_b := 0.0
@@ -504,6 +516,7 @@ func _build() -> void:
 	_sd = float(node.index % 97) * 0.731 + 3.0
 	_sun = Vector2(roundf(lerpf(SUN_X.x, SUN_X.y, SkyBakeS.hash2(node.index, 401)) / 2.0) * 2.0, HORIZON)
 	_s = SPAN / maxf(layout.edge + 20.0, 120.0)
+	_hold_pair()
 	_situate()
 	_tint = star_light()
 	# THE SKY AS THE MAP SEES IT (`SystemView.show_system`): the cloud the system
@@ -982,6 +995,82 @@ static func _set_deep(n: Node, key: String, value: Variant) -> void:
 		_set_deep(c, key, value)
 
 
+# ------------------------------------------------------------------ the pair as the map left it
+
+## Takes the system's kept map clock and holds the pair there for the visit
+## (`_tm`, `_a0`, `_turn`). For the system the ship is in, the party's: a
+## partner's map further on is taken, as the map takes it
+## (`NetSession.adopt_clock`), so LOCAL and the map behind it show one angle.
+## Another system's sky (a field under the chart) reads its clock as kept.
+func _hold_pair() -> void:
+	_tm = Net.adopt_clock(node.index) if node.index == Run.at else Run.map_t(node.index)
+	_a0 = layout.star_pos(-1, _tm)
+	_turn = layout.pair_n * _tm if layout.twin else 0.0
+
+
+## The map clock LOCAL holds the pair at (`_hold_pair`), and the pair's angle
+## there (`SystemLayout.pair_angle`: the way from the balance point to star B):
+## what the map opens on again, and what a harness checks LOCAL against.
+func held_t() -> float:
+	return _tm
+
+
+func held_angle() -> float:
+	return layout.pair_angle(_tm) if layout != null else 0.0
+
+
+## Plane point p (as the layout has it at the held clock) as the band has it:
+## from star A where the pair was left (`_a0`). One sun: p itself.
+func _rel(p: Vector2) -> Vector2:
+	return p - _a0
+
+
+## Star p from star A as the pair was left (star A itself: zero).
+func _star_rel(p: int) -> Vector2:
+	if p != SystemLayout.STAR_B or layout == null or not layout.twin:
+		return Vector2.ZERO
+	return layout.star_pos(SystemLayout.STAR_B, _tm) - _a0
+
+
+## Star B's depth on the band against star A's 0, as the pair was left: below
+## zero B is the farther (0 with one sun). The order the two are drawn in.
+func suns_depth() -> float:
+	return _star_rel(SystemLayout.STAR_B).y
+
+
+## Body b on the band at LOCAL's own clock `t` on from the held one: round its
+## circle from where the map left it, its centre held with the pair (a world
+## round one sun stays round the sun as drawn), from star A (`_rel`). One sun
+## at a clock of 0: exactly `pos(t)`, as before ruling 23.
+func _band_pos(b: SystemLayout.Body) -> Vector2:
+	var p3 := b.orbit_point(b.phase + (_tm + t) / b.period * TAU, _tm)
+	return _rel(Vector2(p3.x, p3.z))
+
+
+## A band point (from star A) turned back to the pair as it was laid out (star
+## A at the origin, star B at `star2_at0`), where the map's static light
+## helpers measure the two suns from (`SystemView.share_b_of`, `light_here_of`,
+## `toward_light_of`). The pair turns rigidly, so each sun's distance -- all the
+## light's share and strength ask -- is the same either way; a way to the light
+## is turned on again by `_turn`.
+func _laid(q: Vector2) -> Vector2:
+	return q if _turn == 0.0 else q.rotated(-_turn)
+
+
+func _share_b(q: Vector2) -> float:
+	return SystemViewS.share_b_of(layout, _laid(q))
+
+
+func _light_here(q: Vector2) -> float:
+	var r := _laid(q)
+	return SystemViewS.light_here_of(layout, r.x, r.y)
+
+
+func _toward(q: Vector2) -> Vector2:
+	var u := SystemViewS.toward_light_of(layout, _laid(q))
+	return u if _turn == 0.0 else u.rotated(_turn)
+
+
 # ------------------------------------------------------------------ what the map's helpers ask
 
 ## The tint of the light on a band world at plane point p: the lit sun's with
@@ -990,7 +1079,7 @@ func _tint_at(p: Vector2) -> Vector3:
 	if star2 == null:
 		return _tint
 	var ta := SystemViewS._lin_top(SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY))
-	return ta.lerp(SystemViewS._lin_top(SystemViewS.STAR_B_COL), SystemViewS.share_b_of(layout, p))
+	return ta.lerp(SystemViewS._lin_top(SystemViewS.STAR_B_COL), _share_b(p))
 
 
 ## How bright the other sun is on the sky against the lit one: its brightness by
@@ -1072,21 +1161,39 @@ func _star_rest(p: int) -> Vector2:
 
 
 ## Where star p hangs on the band at rest: star A at `_sun`, star B where the
-## band puts its place on the plane (across by its x, a little lower the nearer
-## it is, at the band's scale), on the block grid; a close pair's out that way
-## to SUNS_APART clear of star A's disc.
+## band puts its place on the plane from star A, as the pair was left (`_tm`:
+## across by its x, a little lower the nearer it is, at the band's scale), on
+## the block grid -- on the side the map shows it, held for the visit. A close
+## pair's out that way to SUNS_APART clear of star A's disc while the pair lies
+## as a layout lays one (within TWIN_TURN of level); turned on toward end on
+## (stacked:A, Jon, Nov 1), less and less, till end on the suns stand where the
+## band has them, one in front of the other, the nearer drawn over the farther
+## (`_step_worlds`).
 func _sun_at(p: int) -> Vector2:
 	if p != SystemLayout.STAR_B or layout == null or not layout.twin:
 		return _sun
-	# ORBIT:local star B on the band at the pair's angle when LOCAL opened: (star_pos(B, tm) - star_pos(-1, tm)) with tm the kept map clock (`Run.map_t`), held for the visit (DESIGN step 6)
-	var b0 := layout.star_pos(SystemLayout.STAR_B, 0.0)
+	var b0 := _star_rel(SystemLayout.STAR_B)
 	var off := Vector2(b0.x, b0.y * TILT) * _s
 	if not layout.close:
 		return _block_round(_sun + off)
 	var need := layout.star_r * star_k_of(-1) + layout.star2_r * star_k_of(SystemLayout.STAR_B) + SUNS_APART
+	need *= apart_k(b0)
 	if off.length() < need:
 		off = off.normalized() * need
 	return _block_round(_sun + off)
+
+
+## How much of SUNS_APART's push a close pair's star B gets on the band with the
+## pair's line `b` (star A to star B on the plane): all of it within TWIN_TURN of
+## level (as every layout lays a pair, so a pair not yet turned is drawn as it
+## always was), falling to none end on (`_sun_at`).
+static func apart_k(b: Vector2) -> float:
+	var lv := absf(b.x) / maxf(b.length(), 1e-6)
+	var c := cos(SystemLayout.TWIN_TURN)
+	# (a hair of slack, so a pair laid at TWIN_TURN itself keeps the whole push)
+	if lv >= c - 1e-4:
+		return 1.0
+	return clampf(lv / c, 0.0, 1.0)
 
 
 ## the band's centre this frame: where the worlds' orbits are laid out from
@@ -1361,13 +1468,15 @@ func _step_worlds(o: Vector2) -> void:
 	var order: Array = _views.keys()
 	var pos := {}
 	for i: int in order:
-		pos[i] = layout.bodies[i].pos(t)
+		pos[i] = _band_pos(layout.bodies[i])
 	order.sort_custom(func(a: int, b: int) -> bool: return (pos[a] as Vector2).y < (pos[b] as Vector2).y)
 	var star_placed := star == null or layout.star == SystemLayout.StarKind.PULSAR
-	# (star B at its own depth, as the map slots it: `SystemView.step`)
+	# (star B at its own depth, as the map slots it: `SystemView.step`.) EACH SUN
+	# AT ITS DEPTH as the pair was left, star A's 0 here (the band is from it),
+	# B's from the pair's angle then: the nearer sun goes in after the farther,
+	# so a pair turned end on draws its near sun over the far (stacked:A)
 	var star2_placed := star2 == null
-	# ORBIT:local the band's depth order takes star A at 0 and star B at its t 0 depth: both from the held pair angle (near sun over far, stacked:A), and band worlds at `pos(tm + t)` not LOCAL's own t alone
-	var d2: float = layout.star_pos(SystemLayout.STAR_B, 0.0).y
+	var d2: float = suns_depth()
 	var bp := PackedVector4Array()
 	var from := PackedVector2Array()
 	for i: int in order:
@@ -1395,9 +1504,9 @@ func _step_worlds(o: Vector2) -> void:
 		var light := Vector3(-p.x / len, -p.y / len * TILT, -p.y / len * 0.8 + 0.3).normalized()
 		if star2 != null:
 			# (two suns: the one light of both, as the map lights it)
-			var u := SystemViewS.toward_light_of(layout, p)
+			var u := _toward(p)
 			light = Vector3(u.x, u.y * TILT, u.y * 0.8 + 0.3).normalized()
-		var kl := 0.95 + 0.35 * SystemViewS.light_here_of(layout, p.x, p.y)
+		var kl := 0.95 + 0.35 * _light_here(p)
 		if layout.star == SystemLayout.StarKind.PULSAR:
 			kl = 0.75
 		# (the star's disc as this layer sees it: where `_step_star` put it, at
@@ -1420,7 +1529,7 @@ func _step_worlds(o: Vector2) -> void:
 				vm.set_shader_parameter("star_tint", _tint_at(p))
 				vm.set_shader_parameter("night_fill", Vector3(0.02, 0.02, 0.03))
 			# (two suns: its own sun's flare, by its share of the light here)
-			vm.set_shader_parameter("flare", lerpf(_flare_a, _flare_b, SystemViewS.share_b_of(layout, p)) if star2 != null else _flare)
+			vm.set_shader_parameter("flare", lerpf(_flare_a, _flare_b, _share_b(p)) if star2 != null else _flare)
 			vm.set_shader_parameter("lift", 0.0 if legacy else 1.0)
 		# (the shafts are cast on the cloud, which does not zoom: each world where
 		# the band's zoom shows it, at the size it is drawn)
@@ -1432,7 +1541,7 @@ func _step_worlds(o: Vector2) -> void:
 				# toward it on this screen -- as the map casts them,
 				# `SystemView.light_screen` -- not from the lit sun, which threw a
 				# world round the other sun's shaft back across its own sun)
-				var lu := SystemViewS.toward_light_of(layout, p)
+				var lu := _toward(p)
 				from.append(v.position + Vector2(lu.x, lu.y * TILT).normalized() * 400.0)
 	if not star2_placed and d2 < 0.0:
 		_worlds.move_child(star2, -1)
@@ -1742,22 +1851,26 @@ func _situate() -> void:
 		if orbit_target == SystemLayout.STAR_B and not layout.twin:
 			orbit_target = -1
 		if orbit_target >= 0 and orbit_target < layout.bodies.size():
-			# ORBIT:local the ship's world where the map left it: `pos(tm)` at the kept map clock, not t 0
-			p = layout.bodies[orbit_target].pos(0.0)
-			if p.length() < 1.0:
-				p = Vector2(layout.bodies[orbit_target].orbit, 0.0)
+			# (the world where the map left it, at the kept clock: a world round one
+			# sun of a turning pair carried with it)
+			p = layout.bodies[orbit_target].pos(_tm)
+			if p.distance_to(_a0) < 1.0:
+				p = _a0 + Vector2(layout.bodies[orbit_target].orbit, 0.0)
 		elif orbit_target == -1:
 			# (a twin's star rides its close rail, `SystemLayout.star_rail_of`: one
 			# star's ride at ring - 8 is inside a twin's keep-out)
-			p = Vector2(layout.star_rail_of(-1) if layout.twin else float(layout.star_r) + 71.0, 0.0)
+			p = _a0 + Vector2(layout.star_rail_of(-1) if layout.twin else float(layout.star_r) + 71.0, 0.0)
 		elif orbit_target == SystemLayout.STAR_B and layout.twin:
 			# STAR B (-4): the ship at B's close orbit is AT a star, as at -1
-			# ORBIT:local star B where the kept map clock has it (`star_pos(B, tm)`)
-			p = layout.star_pos(SystemLayout.STAR_B, 0.0) + Vector2(layout.star_rail_of(SystemLayout.STAR_B), 0.0)
+			p = layout.star_pos(SystemLayout.STAR_B, _tm) + Vector2(layout.star_rail_of(SystemLayout.STAR_B), 0.0)
 		elif StringName(d.get("mode", &"")) == &"free":
+			# (a free ship's place is a plane point at the map's clock, the one kept
+			# with it: `SystemMapScreen._keep_ship`)
 			p = d.get("p", p)
 	if (orbit_target < -1 and not (layout.twin and orbit_target == SystemLayout.STAR_B)) or orbit_target >= layout.bodies.size():
 		orbit_target = -9
+	# (from star A where the pair was left, as the band is laid round it)
+	p = _rel(p)
 	orbit_d = maxf(p.length(), float(layout.star_r) + 20.0)
 	_dk = REF_K * (layout.edge + 20.0) / orbit_d
 	_dk_a = _dk
@@ -1766,11 +1879,12 @@ func _situate() -> void:
 		# EACH SUN BY ITS OWN DISTANCE (ruling 20): a world round star B is some
 		# 350 px from star A but 65 to 100 from its own sun, which lights it and is
 		# drawn the bigger; `orbit_d` is the distance from the sun that lights the
-		# ship's place (`_lit`, the one giving it more light)
-		# ORBIT:local each sun's distance (and `orbit_d = p.length()` above, star A at the origin) at the kept map clock; hold `_lit` for the visit
-		var d_b := maxf(p.distance_to(layout.star_pos(SystemLayout.STAR_B, 0.0)), float(layout.star2_r) + 20.0)
+		# ship's place (`_lit`, the one giving it more light). Each distance as the
+		# pair was left (star A at zero here), and `_lit` chosen once, here, for
+		# the visit: the cloud's sun never swaps under a held view.
+		var d_b := maxf(p.distance_to(_star_rel(SystemLayout.STAR_B)), float(layout.star2_r) + 20.0)
 		_dk_b = REF_K * (layout.edge + 20.0) / d_b
-		_lit = SystemLayout.STAR_B if SystemViewS.share_b_of(layout, p) > 0.5 else -1
+		_lit = SystemLayout.STAR_B if _share_b(p) > 0.5 else -1
 		if _lit == SystemLayout.STAR_B:
 			orbit_d = d_b
 			_dk = _dk_b

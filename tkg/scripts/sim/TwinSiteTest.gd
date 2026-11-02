@@ -1103,8 +1103,9 @@ func _round_b(m: SystemMapScreen, what: String) -> void:
 		what, p.distance_to(L.star_pos(SystemLayout.STAR_B, m.view.t)), want, p.length(), Vector2(c3.x, c3.z)], absf(p.distance_to(L.star_pos(SystemLayout.STAR_B, m.view.t)) - want) < 3.0)
 
 
-## A PARTNER IN STAR B'S CLOSE ORBIT, as the wire brings it: drawn where it
-## said, absolute (star B holds still); a partner off a world, off that world.
+## A PARTNER IN STAR B'S CLOSE ORBIT, as the wire brings it (PROTOCOL 14): the
+## offset from star B, said by a machine whose map clock is 5 s behind this
+## one's, drawn on star B where it is here; a partner off a world, off that world.
 func _partner_at_b(n: MapGen.MapNode) -> void:
 	var m := Router.current as SystemMapScreen
 	if m == null:
@@ -1112,8 +1113,11 @@ func _partner_at_b(n: MapGen.MapNode) -> void:
 		return
 	var B := SystemLayout.STAR_B
 	var L: SystemLayout = m.view.layout
-	# ORBIT:coop a partner at star B was sent absolute: with PROTOCOL 14 it goes as an offset from B; add two machines at different clocks
-	var at := L.star_pos(SystemLayout.STAR_B, m.view.t) + Vector2(L.star_rail_of(B), 0.0)
+	# (the sender's ship on B's rail at its own clock, said off B there)
+	var t_them: float = m.view.t - 5.0
+	var off := Vector2(L.star_rail_of(B), 0.0)
+	var sent := NetSession.spot_anchor(L, B, B, t_them) + off - NetSession.spot_anchor(L, B, B, t_them)
+	var at := L.star_pos(SystemLayout.STAR_B, m.view.t) + off
 	var w := 0
 	for b in L.bodies:
 		if b.world != &"":
@@ -1122,13 +1126,14 @@ func _partner_at_b(n: MapGen.MapNode) -> void:
 	var ids := [70001, 70002]
 	Net.roster[ids[0]] = {"id": ids[0], "at": n.index, "order": 90, "name": "Mercer"}
 	Net.roster[ids[1]] = {"id": ids[1], "at": n.index, "order": 91, "name": "Kevin"}
-	Net.spots[ids[0]] = {"at": n.index, "body": B, "x": at.x, "z": at.y, "ang": 0.5}
+	Net.spots[ids[0]] = {"at": n.index, "body": B, "x": sent.x, "z": sent.y, "ang": 0.5, "t": t_them, "host": B}
 	Net.spots[ids[1]] = {"at": n.index, "body": w, "x": 6.0, "z": -2.0, "ang": 0.0}
 	var got := {}
 	for e: Array in m.partner_points():
 		got[int(e[0])] = e[1]
 	var c3: Vector3 = m.flight.center(w, m.view.t)
-	h._ok("a partner in star B's close orbit is drawn where it said (%s, sent %s)" % [got.get(ids[0], "none"), at],
+	h._ok("a partner in star B's close orbit, its clock 5 s behind, is drawn on star B as it is here (%s, want %s; B moved %.2f px in those 5 s)" % [
+		got.get(ids[0], "none"), at, L.star_pos(B, t_them).distance_to(L.star_pos(B, m.view.t))],
 		got.has(ids[0]) and (got[ids[0]] as Vector2).distance_to(at) < 0.01)
 	h._ok("and one off a world, off that world as it is here", got.has(ids[1])
 		and (got[ids[1]] as Vector2).distance_to(Vector2(c3.x, c3.z) + Vector2(6.0, -2.0)) < 0.01)

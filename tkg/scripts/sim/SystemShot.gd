@@ -34,6 +34,8 @@ extends Node
 ##   `focus=wa|wb`    the camera held on the world round star A / star B
 ##   `look=a|b`       the camera held on star A or star B at the zoom given
 ## and prints the pair (star B's place, radius, share, each body's centre).
+## `at=S` is the map's clock the still is taken at (30 s if not given): a pair
+## turns on it (ruling 23), so it is the pair's angle too, printed with it.
 
 const ScreenS := preload("res://scripts/ui/sysmap/SystemMapScreen.gd")
 const SectorPaintedS := preload("res://scripts/ui/sysmap/SectorPainted.gd")
@@ -267,6 +269,12 @@ func _ready() -> void:
 	if Lt.twin:
 		print("  systemshot: two suns at node %d: star B at (%.0f, %.0f), %.0f px apart, r %.1f against 16, star A's share %.3f, fit zoom %.3f" % [n.index,
 			Lt.star2_at0.x, Lt.star2_at0.y, Lt.sep, Lt.star2_r, Lt.star_share, Lt.fit_zoom])
+		# THE PAIR AT THE PICTURE'S CLOCK (ruling 23: it turns on map time, so
+		# `at=S` picks the angle a still shows)
+		var sa_t := Lt.star_pos(-1, at)
+		var sb_t := Lt.star_pos(SystemLayout.STAR_B, at)
+		print("  systemshot: at map time %.1f s the pair has turned %.1f deg (a lap %.0f s): star A at (%.0f, %.0f), star B at (%.0f, %.0f)" % [at,
+			rad_to_deg(Lt.pair_n * at), TAU / Lt.pair_n if Lt.pair_n > 0.0 else INF, sa_t.x, sa_t.y, sb_t.x, sb_t.y])
 	for bt in Lt.bodies:
 		if bt.kind == &"giant":
 			print("  systemshot: giant %s weighs %.3f of its star%s" % [bt.name, bt.gm_frac, "s" if Lt.twin else ""])
