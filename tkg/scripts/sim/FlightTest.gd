@@ -171,11 +171,18 @@ var _clicks := 16
 ## per sweep, the flights planned so far in every shard's systems: every 5th of
 ## the game's starts is kept for the clicks (as `S.plans` counts them unsplit)
 var _picks := {}
-## split, a shard that makes the worker plans (`_pick_wk`), or the clicks or
-## the hand phase (`_pick_ck`): it goes through every system, planning only
-## what those keep (`_pick_only`)
+## split, a shard that makes the worker plans (`_pick_wk`, until it has
+## them), the clicks (`_pick_ck`, every sweep through) or only the hand phase
+## (`_pick_hand`, the two-sun sweeps until they hold its systems): it goes
+## through the other shards' systems too, planning only what those keep
+## (`_pick_only`)
 var _pick_wk := false
 var _pick_ck := false
+var _pick_hand := false
+## the hand phase's systems (`_hand_phase`): the first wide and close pairs the
+## clicks' starts hold
+const HAND_WIDE := 10
+const HAND_CLOSE := 5
 ## `hand=0`: no flying by hand (`_hand_phase`)
 var _hand := true
 ## `short`: the gate's run (above); `places=N`: the far places' systems a sweep;
@@ -287,7 +294,8 @@ func _run() -> void:
 	var n_sys := 0
 	var n_mine := 0
 	_pick_wk = h.shard().y > 1 and not _rows_only and h.mine(1)
-	_pick_ck = h.shard().y > 1 and ((_clicks > 0 and h.mine(2)) or (_hand and not _rows_only and h.mine(3)))
+	_pick_ck = h.shard().y > 1 and _clicks > 0 and h.mine(2)
+	_pick_hand = h.shard().y > 1 and _hand and not _rows_only and h.mine(3) and not _pick_ck
 	for sd: int in seeds:
 		Rng.forced = sd
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -331,7 +339,7 @@ func _run() -> void:
 					continue
 				n_sys += 1
 				var mine := h.mine(n_sys - 1)
-				if not mine and not _pick_wk and not _pick_ck:
+				if not mine and not _picking(sweep2):
 					continue
 				if mine:
 					n_mine += 1
@@ -558,6 +566,25 @@ func _system(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, mine :=
 				_pick_only(sweep, n, L, key, int(s0[1]) if key != "near" else i, i, t)
 
 
+## Whether this shard still picks from another shard's system of `sweep`.
+func _picking(sweep: String) -> bool:
+	return (_pick_wk and int(_wk.size()) < _worker_n * 3) or _picking_ck(sweep)
+
+
+## Whether this shard still picks the clicks' starts of `sweep`: every one for
+## the clicks; for the hand phase alone, the two-sun sweeps' until they hold
+## its systems (the rows after those change nothing it flies).
+func _picking_ck(sweep: String) -> bool:
+	if _pick_ck:
+		return true
+	if not _pick_hand or (sweep != "twin" and sweep != "close"):
+		return false
+	var seen := {}
+	for row: Array in _ck[sweep]:
+		seen[int(row[6])] = true
+	return seen.size() < (HAND_WIDE if sweep == "twin" else HAND_CLOSE)
+
+
 ## ANOTHER SHARD'S FLIGHT, in a shard that makes the worker plans, the clicks or
 ## the hand phase: its start set up as `_case` sets it, and planned only where
 ## an unsplit run would keep it for those (solved, and the rules `_case`
@@ -572,7 +599,7 @@ func _pick_only(sweep: String, n: MapGen.MapNode, L: SystemLayout, key: String, 
 		return
 	_picks[sweep] = int(_picks.get(sweep, 0)) + 1
 	var for_wk := _pick_wk and int(_wk.size()) < _worker_n * 3 and (_wk.size() % 3 == 0 or sweep == "twin" or sweep == "close")
-	var for_ck := _pick_ck and key != "free" and key != "near" and int(_picks[sweep]) % 5 == 2
+	var for_ck := _picking_ck(sweep) and key != "free" and key != "near" and int(_picks[sweep]) % 5 == 2
 	if not for_wk and not for_ck:
 		return
 	var pl = fl.make_plan(i, t, {}, ShipFlightS.PREVIEW_AHEAD)
@@ -1500,13 +1527,14 @@ func _hand_phase() -> void:
 	var worst_out := -INF
 	var worst_settle := 0.0
 	var worst_sun := INF
-	# (ten wide pairs and five close pairs, as the clicks gathered them)
+	# (ten wide pairs and five close pairs, as the clicks gathered them:
+	# HAND_WIDE and HAND_CLOSE)
 	var by_kind := {}
 	for row: Array in (_ck.twin as Array) + (_ck.close as Array):
 		var L: SystemLayout = row[1]
 		var kind := "close" if L.close else "wide"
 		var key := "%s %d" % [kind, int(row[6])]
-		if seen.has(key) or int(by_kind.get(kind, 0)) >= (5 if L.close else 10):
+		if seen.has(key) or int(by_kind.get(kind, 0)) >= (HAND_CLOSE if L.close else HAND_WIDE):
 			continue
 		seen[key] = true
 		by_kind[kind] = int(by_kind.get(kind, 0)) + 1
