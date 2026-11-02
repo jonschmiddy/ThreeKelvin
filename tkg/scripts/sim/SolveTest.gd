@@ -2,7 +2,7 @@ extends Node
 
 ## THE AUTOPILOT'S SOLVED FLIGHTS (ruling 20, Oct 30), planned and measured:
 ##   godot --headless --path . -- sheet=SolveTest [systems=N] [lineups=N] [twins=N]
-##     [twinlineups=N] [worker=N] [only=one|giant|twin|rtwin|rclose|proto] [short]
+##     [twinlineups=N] [worker=N] [only=one|giant|twin|rtwin|rclose|phase|proto] [short]
 ## `short`: the gate's run, every sweep at fewer systems and line-ups
 ## (systems=1 lineups=4 twins=1 twinlineups=3 worker=100).
 ## `FlightSolve` from every start to every place, at line-ups (map times), in
@@ -25,7 +25,17 @@ extends Node
 ##          close orbit and ring as the layout's ladder sets them. Its worlds
 ##          round one star sit at 0.98 of the steady limit, past the layout's
 ##          0.90, with rings twice the layout's: the prototype's case, not the
-##          game's (rtwin is that).
+##          game's (rtwin is that);
+##   phase  THE PAIR-PHASE SWEEP (ruling 23, the orbiting pair; the review of
+##          the plan, Nov 1): the busiest wide pair of seeds 7 and 4242 and the
+##          busiest close pair of seed 7, each planned at PHASES map times a full
+##          lap of the pair apart (whatever its speed, `-- pair=K`), so every
+##          angle the suns stand at is flown, and from a settled orbit round
+##          each sun (a -9 circle riding with it, `host`) beside the starts
+##          above. The twin sweeps' line-ups (40 s on, 37 s apart) see the pair
+##          turn a sixth of a lap at the most in a wide pair.
+## Every two-star sweep's pair turns as the game's does (`SystemLayout.pair_speed`;
+## `-- pair=0` holds it still as before ruling 23).
 ## Starts: each world's ring, each star's close orbit, a settled star orbit
 ## (round the star, or round both stars' balance point: a ring round a fixed
 ## point, where every visit's ship arrives, `ShipFlight.setup`), alongside a
@@ -50,14 +60,16 @@ extends Node
 ## else of two) arrives sooner, nor any flight later than its old legs flown
 ## again; and every
 ## plan of the first `worker` cases solved again on WorkerThreadPool (the same
-## results). Also the prototype's a-to-b flight at its best line-up.
+## results). Also the prototype's a-to-b flight at its best line-up, and the
+## conic's "own star" aim by the sun's index where the pair turns (`_aim_check`).
 ## PASS: found and clean in at least 99% of each sweep (DESIGN), but 97% of
 ## the hand twins, whose geometry the layout never builds: their worlds round
 ## one star sit at 0.98 of the steady limit (the layout's at most 0.90), their
 ## rings twice the layout's reach the star's close orbit, and two of the three
 ## pairs are closer than the layout's 300 px; flights between their stars'
 ## close orbits, 2 px outside the keep-out as the layout puts them, are the
-## misses (65 of 72 found). Every found plan starting and landing, no burn in
+## misses (65 of 72 found). The pair-phase sweep is held to 99%, as the
+## layout's own twins are. Every found plan starting and landing, no burn in
 ## it swinging the ship round a point (`FlightSolve.V_CUSP`, read off its
 ## samples), every replay and worker result the same. Planning time is measured and judged in
 ## the log (median 25 ms, worst 150 ms: DESIGN), not failed on: this Mac's load
@@ -77,6 +89,8 @@ const ORBIT_K := 0.88
 ## `ShipFlight.STAR_PACE`: a settled star orbit's pace, times Kepler's
 const STAR_PACE := 50.0
 const KEEP_OFF := Vector2(8.0, 5.0 / 0.38)
+## the pair-phase sweep's angles round a lap (the review of the plan: 8)
+const PHASES := 8
 ## found and clean in at least this share of each sweep (above)
 const FOUND_MIN := 0.99
 const FOUND_MIN_HAND := 0.97
@@ -146,6 +160,8 @@ func _run() -> void:
 		_real_cases()
 	if _wants("twin"):
 		_twin_cases()
+	if _wants("phase"):
+		_phase_cases()
 	print("solvetest: %d cases" % _cases.size())
 	# every case, on the main thread
 	for i in _cases.size():
@@ -154,6 +170,9 @@ func _run() -> void:
 		_res.append(r)
 	for sw: String in ["one", "giant", "rtwin", "rclose", "twin"]:
 		_report(sw)
+	_report("phase")
+	if _wants("phase") or _wants("twin"):
+		_aim_check()
 	if _wants("rtwin"):
 		var nrt := 0
 		for c in _cases:
@@ -311,8 +330,10 @@ static func twin_layout(sep: float, pha: float = 4.584536085992015, phb: float =
 	if &"_ring" in L:
 		L.set(&"_ring", ring)
 	# THE PAIR TURNS as a laid-out one does (ruling 23), its worlds round one
-	# sun carried and sped with it
-	# ORBIT:solver the hand-built pair now turns at `pair_speed` (its worlds round one sun at Kepler x 4): the SolveTest twin baselines move; sweep the pair's phase (review: 8 angles a lap)
+	# sun carried and sped with it (Kepler x `pair_speed`): the hand twins'
+	# figures are the turning pair's from here on, `-- pair=0` the old ones.
+	# Their line-ups see a sixth of a lap at the most; the pair-phase sweep
+	# (`_phase_cases`) flies every angle.
 	SystemLayout.spin_pair(L)
 	return L
 
@@ -321,6 +342,112 @@ func _twin_cases() -> void:
 	for sep: float in [280.0, 300.0, 380.0]:
 		var L := twin_layout(sep)
 		_add_system("twin", L, MapGravity.from_layout(L), "twin %.0f" % sep, true)
+
+
+## THE PAIR-PHASE SWEEP (see the head): [seed, kind] -- the busiest pair of
+## that kind the seed's SYSTEM nodes lay out -- each at PHASES map times a lap
+## apart from 40 s on. Held still (`-- pair=0`) there is no lap: its line-ups
+## are the twin sweeps' own.
+func _phase_cases() -> void:
+	for pick: Array in [[7, 1], [7, -1], [4242, -1]]:
+		var sd: int = pick[0]
+		Rng.forced = sd
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		var best: SystemLayout = null
+		var best_n := -1
+		var best_i := -1
+		for raw in Run.map:
+			var n: MapGen.MapNode = raw
+			if n.type != MapGen.NodeType.SYSTEM:
+				continue
+			OptionTable.ensure(n)
+			var was := n.twin
+			n.twin = true
+			SystemLayout.close_force = int(pick[1])
+			var L := SystemLayout.of(n)
+			SystemLayout.close_force = 0
+			n.twin = was
+			if not L.twin or L.close != (int(pick[1]) == 1):
+				continue
+			if L.bodies.size() > best_n:
+				best = L
+				best_i = n.index
+				best_n = L.bodies.size()
+		if best == null:
+			print("phase: seed %d laid out no %s pair: not swept" % [sd, "close" if int(pick[1]) == 1 else "wide"])
+			continue
+		var times: Array = []
+		var lap := TAU / absf(best.pair_n) if best.pair_n != 0.0 else 0.0
+		for j in PHASES:
+			times.append(40.0 + (lap * float(j) / float(PHASES) if lap > 0.0 else 37.0 * float(j)))
+		var lab := "seed %d node %d (%s pair, %d bodies, sep %.0f, lap %.0f s)" % [sd, best_i, "close" if best.close else "wide", best.bodies.size(), best.sep, lap]
+		print("phase: %s, at %d angles round its lap%s" % [lab, PHASES, "" if lap > 0.0 else " (held still: line-ups 37 s apart)"])
+		_add_system("phase", best, MapGravity.from_layout(best), lab, false, times, true)
+
+
+## A SETTLED ORBIT ROUND ONE SUN (start "orbitS", star st[1]), as
+## `ShipFlight._dep_of` hands it over: a -9 circle whose host is the sun, so it
+## rides with a turning one (c, where the sun is now, is not read). Inside 0.9
+## of the sun's steady zone (`ShipFlight._zone`), from 12 px outside its close
+## orbit, at the sun's own settled pace (STAR_PACE times Kepler for its share), w for the
+## worlds' way round (the case turns it); clear of everything where it starts.
+## Empty for any other start, or where the zone has no room (a close pair).
+func _settled_round(L: SystemLayout, G: MapGravity, st: Array, t: float, lu: int, si: int, ti: int) -> Dictionary:
+	if st[0] != "orbitS" or not L.twin:
+		return {}
+	var hp := int(st[1])
+	var share := L.star_share if hp == -1 else 1.0 - L.star_share
+	var lo := FlightSolve.star_orbit_r(L, hp) + 12.0
+	var hi := 0.9 * SystemLayout.s_limit(1.0 - share) * L.sep
+	if hi <= lo + 4.0:
+		return {}
+	var r := lerpf(lo, hi, fposmod(float(lu) * 0.618034 + 0.3 * float(si), 1.0))
+	var cs := L.star_pos(hp, t)
+	var a := fposmod(2.39996 * float(lu) + 1.1 * float(si) + 0.7 * float(ti), TAU)
+	var ok := false
+	for _k in 42:
+		var q := cs + Vector2(cos(a), sin(a)) * r
+		if G.margin(q.x, q.y, t) > 10.0:
+			ok = true
+			break
+		a += 0.15
+	if not ok:
+		return {}
+	var pace := STAR_PACE * TAU * 1000.0 / (800.0 * sqrt(r)) * sqrt(share)
+	return {"kind": &"ring", "place": -9, "c": cs, "host": hp, "rt": r, "ang": a, "w": pace / r}
+
+
+## THE CONIC'S "OWN STAR" AIM BY INDEX (`FlightSolve._aims`, ruling 23): in the
+## hand twin 300 turning, a conic about star B laid now, to star B's close
+## orbit 12 s on, aims at a point on that orbit round where B is then -- not
+## at B's centre, which is where it aimed while that was asked by place (B
+## has moved past the 1 px that test allowed) -- and from world a's ring.
+func _aim_check() -> void:
+	var L := twin_layout(300.0)
+	var G := MapGravity.from_layout(L)
+	if L.pair_n == 0.0:
+		print("aim: the pair is held still (pair=0): not judged")
+		return
+	var t := 300.0
+	var te := t + 12.0
+	var R := FlightSolve.star_orbit_r(L, SystemLayout.STAR_B)
+	var dep := {"kind": &"ring", "place": 0, "rt": ride_r(L, 0, true), "ang": 0.3, "w": RAIL_V / ride_r(L, 0, true)}
+	var tgt := {"kind": &"ring", "place": SystemLayout.STAR_B, "R": R, "V": STAR_RAIL_V, "sense": 0}
+	var fs := FlightSolve.new()
+	fs.G = G
+	fs.t_now = t
+	var set_ok := fs._setup(dep, tgt)
+	var kb := G.star_index(SystemLayout.STAR_B)
+	var c0 := Vector2(G.sx(kb, t), G.sz(kb, t))
+	var c1 := Vector2(G.sx(kb, te), G.sz(kb, te))
+	var p1 := c0 + Vector2(-120.0, 30.0)
+	var by_id := fs._aims(te, p1.x, p1.y, c0.x, c0.y, 1.0, kb)
+	var by_place := fs._aims(te, p1.x, p1.y, c0.x, c0.y, 1.0, -1)
+	# (in 64 bits: Vector2 is 32)
+	var on := absf(sqrt(pow(by_id[0] - G.sx(kb, te), 2.0) + pow(by_id[1] - G.sz(kb, te), 2.0)) - R)
+	var at_centre := sqrt(pow(by_place[0] - G.sx(kb, te), 2.0) + pow(by_place[1] - G.sz(kb, te), 2.0))
+	print("aim: star B moves %.2f px in 12 s; aimed by index %.6f px off its close orbit then; asked by place, %.2f px from its centre" % [(c1 - c0).length(), on, at_centre])
+	h._ok("a conic about a turning sun aims at its close orbit round where it will be, by the sun's index (%.6f px off; it moved %.2f px)" % [on, (c1 - c0).length()], set_ok and (c1 - c0).length() > 1.0 and on < 1e-6 and at_centre < 1e-6)
 
 
 ## The radius a ship rides a world's ring at (`ShipFlight.orbit_r`): round the
@@ -338,8 +465,12 @@ static func is_keep(b: SystemLayout.Body) -> bool:
 	return b.kind == &"belt" or b.kind == &"station" or b.kind == &"derelict" or b.kind == &"contact"
 
 
-func _add_system(sweep: String, L: SystemLayout, G: MapGravity, label: String, hand: bool) -> void:
+## (times: the map times to plan at, one line-up each, in place of the sweep's
+## own line-ups; settled: also from a settled orbit round each sun of a twin)
+func _add_system(sweep: String, L: SystemLayout, G: MapGravity, label: String, hand: bool, times: Array = [], settled: bool = false) -> void:
 	var lineups := _twin_lineups if sweep == "rtwin" or sweep == "rclose" else _lineups
+	if not times.is_empty():
+		lineups = times.size()
 	# starts: [kind, place]
 	var starts: Array = []
 	var targets: Array = []
@@ -358,12 +489,15 @@ func _add_system(sweep: String, L: SystemLayout, G: MapGravity, label: String, h
 				starts.append(["keep", b.index])
 			nk += 1
 	starts.append(["orbit9", -9])
+	if settled and L.twin:
+		for p in L.stars():
+			starts.append(["orbitS", p])
 	starts.append(["free", -9])
 	for si in starts.size():
 		var st: Array = starts[si]
 		for ti in targets.size():
 			var tg: Array = targets[ti]
-			if st[1] == tg[1] and st[0] != "free":
+			if st[1] == tg[1] and st[0] != "free" and st[0] != "orbitS":
 				continue
 			var lus: Array = range(lineups)
 			if sweep == "rtwin":
@@ -372,6 +506,11 @@ func _add_system(sweep: String, L: SystemLayout, G: MapGravity, label: String, h
 						lus.append(int(pin[3]))
 			for lu: int in lus:
 				var t := 40.0 + 37.0 * float(lu)
+				if not times.is_empty():
+					t = float(times[lu])
+				var orb_s := _settled_round(L, G, st, t, lu, si, ti)
+				if st[0] == "orbitS" and orb_s.is_empty():
+					continue
 				# the line-up's own start: an angle round the ring, the way round,
 				# a free state (golden-angle steps, no random stream)
 				var ang := fposmod(2.39996 * float(lu) + 1.1 * float(si) + 0.7 * float(ti), TAU)
@@ -403,6 +542,9 @@ func _add_system(sweep: String, L: SystemLayout, G: MapGravity, label: String, h
 							a9 += 0.15
 						var pace := STAR_PACE * TAU * 1000.0 / (800.0 * sqrt(r9))
 						dep = {"kind": &"ring", "place": -9, "c": c9, "rt": r9, "ang": a9, "w": sense * pace / r9}
+					"orbitS":
+						dep = orb_s
+						dep.w = sense * float(dep.w)
 					_:
 						var fr := fposmod(float(lu) * 0.618034 + float(ti) * 0.3, 1.0)
 						var rad := 200.0 + 500.0 * fr
@@ -450,9 +592,12 @@ static func centre(L: SystemLayout, p: int, t: float) -> PackedFloat64Array:
 
 
 ## The centre and motion of the ring a case leaves from: its place's, or a
-## settled star orbit's fixed point. [x, z, vx, vz]
+## settled star orbit's fixed point, or the sun it rides with (`host`, a
+## settled orbit round one sun of a turning pair). [x, z, vx, vz]
 static func dep_centre(c: Dictionary, t: float) -> PackedFloat64Array:
 	var dep: Dictionary = c.dep
+	if int(dep.get("place", -9)) == -9 and dep.has("host"):
+		return centre(c.L, int(dep.host), t)
 	if int(dep.get("place", -9)) == -9:
 		var c9: Vector2 = dep.get("c", Vector2.ZERO)
 		return PackedFloat64Array([c9.x, c9.y, 0.0, 0.0])
@@ -1146,31 +1291,39 @@ func _solve_on_worker(j: int) -> void:
 ## b at 3.7905 round B at t 0, the ship leaving a's ring at 3.6115 clockwise):
 ## the prototype found it free in 9.2 s; and over 12 line-ups (the worlds'
 ## places and the ship's turned by golden-angle steps) against its typical
-## 3.6 px/s (a 60 s cap's figure, an upper bound).
+## 3.6 px/s (a 60 s cap's figure, an upper bound). Judged with the pair held
+## still, as the prototype flew it: turning (ruling 23), worlds a and b go
+## round their suns four times as fast, the line-up is no longer a free one
+## (62.7 px/s in 8.2 s at x4), and the turning pair's figures are only shown.
 func _prototype() -> void:
-	var L := twin_layout(280.0)
-	var G := MapGravity.from_layout(L)
-	var tgt := {"kind": &"ring", "place": 1, "R": L.bodies[1].soi, "V": RAIL_V, "sense": 0}
-	var w := -RAIL_V / L.bodies[0].soi
-	for before: float in [0.05, 0.4, 1.0]:
-		var dep := {"kind": &"ring", "place": 0, "rt": L.bodies[0].soi, "ang": 3.6115208250617648 - w / absf(w) * before, "w": w}
-		var r := FlightSolve.solve(G, dep, tgt, 0.0)
-		print("prototype a to b, best line-up, the ship %.2f rad before its point: %s" % [before,
-			"engine work %.2f px/s (phasing %.2f, leaving %.2f, arriving %.2f) in %.2f s (ride %.2f s), %d integrations, %.1f ms" % [r.work, r.dvp, r.dv1, r.dv2, r.T, r.lead, r.integrations, r.usec / 1000.0] if r.found else "none found"])
-		if before == 0.05:
-			h._ok("prototype a to b at its best line-up: found, clean, within 3 px/s of free (%.2f) and 9.2 s +- 3 (%.1f)" % [r.work, r.T],
-				r.found and r.clean and r.work < 3.0 and absf(r.T - 9.2) < 3.0)
-	var works: Array = []
-	var Ts: Array = []
-	for lu in 12:
-		var Lx := twin_layout(280.0, fposmod(4.5845 + 2.39996 * lu, TAU), fposmod(3.7905 + 1.3 * lu, TAU))
-		var Gx := MapGravity.from_layout(Lx)
-		var dep2 := {"kind": &"ring", "place": 0, "rt": Lx.bodies[0].soi, "ang": fposmod(0.7 * lu, TAU), "w": (-1.0 if lu % 2 == 0 else 1.0) * RAIL_V / Lx.bodies[0].soi}
-		var r2 := FlightSolve.solve(Gx, dep2, {"kind": &"ring", "place": 1, "R": Lx.bodies[1].soi, "V": RAIL_V, "sense": 0}, 0.0)
-		if r2.found:
-			works.append(r2.work)
-			Ts.append(r2.T)
-	print("prototype a to b over 12 line-ups: found %d; engine work %s; time %s (prototype typical 3.6 px/s)" % [works.size(), _dist(works), _dist(Ts)])
+	var k0 := SystemLayout.pair_speed()
+	for k: float in ([0.0, k0] if k0 > 0.0 else [0.0]):
+		SystemLayout.pair_k = k
+		var how := "held still" if k == 0.0 else "turning at x%.0f" % k
+		var L := twin_layout(280.0)
+		var G := MapGravity.from_layout(L)
+		var tgt := {"kind": &"ring", "place": 1, "R": L.bodies[1].soi, "V": RAIL_V, "sense": 0}
+		var w := -RAIL_V / L.bodies[0].soi
+		for before: float in [0.05, 0.4, 1.0]:
+			var dep := {"kind": &"ring", "place": 0, "rt": L.bodies[0].soi, "ang": 3.6115208250617648 - w / absf(w) * before, "w": w}
+			var r := FlightSolve.solve(G, dep, tgt, 0.0)
+			print("prototype a to b (%s), best line-up, the ship %.2f rad before its point: %s" % [how, before,
+				"engine work %.2f px/s (phasing %.2f, leaving %.2f, arriving %.2f) in %.2f s (ride %.2f s), %d integrations, %.1f ms" % [r.work, r.dvp, r.dv1, r.dv2, r.T, r.lead, r.integrations, r.usec / 1000.0] if r.found else "none found"])
+			if before == 0.05 and k == 0.0:
+				h._ok("prototype a to b at its best line-up, the pair held still: found, clean, within 3 px/s of free (%.2f) and 9.2 s +- 3 (%.1f)" % [r.work, r.T],
+					r.found and r.clean and r.work < 3.0 and absf(r.T - 9.2) < 3.0)
+		var works: Array = []
+		var Ts: Array = []
+		for lu in 12:
+			var Lx := twin_layout(280.0, fposmod(4.5845 + 2.39996 * lu, TAU), fposmod(3.7905 + 1.3 * lu, TAU))
+			var Gx := MapGravity.from_layout(Lx)
+			var dep2 := {"kind": &"ring", "place": 0, "rt": Lx.bodies[0].soi, "ang": fposmod(0.7 * lu, TAU), "w": (-1.0 if lu % 2 == 0 else 1.0) * RAIL_V / Lx.bodies[0].soi}
+			var r2 := FlightSolve.solve(Gx, dep2, {"kind": &"ring", "place": 1, "R": Lx.bodies[1].soi, "V": RAIL_V, "sense": 0}, 0.0)
+			if r2.found:
+				works.append(r2.work)
+				Ts.append(r2.T)
+		print("prototype a to b (%s) over 12 line-ups: found %d; engine work %s; time %s (prototype typical 3.6 px/s)" % [how, works.size(), _dist(works), _dist(Ts)])
+	SystemLayout.pair_k = k0
 
 
 # ---------------------------------------------------------------- the cost of a step
@@ -1205,3 +1358,17 @@ func _bench() -> void:
 	us = Time.get_ticks_usec() - t0
 	steps = fs2._n_steps - steps0
 	print("bench: 40 coasts through two stars and a giant, %d RK4 steps, %.2f ms each, %.2f us a step" % [steps, us / 40000.0, float(us) / maxf(1.0, steps)])
+	# (the hand twin 280, turning and held still: what the pair's turn costs a step)
+	var k0 := SystemLayout.pair_speed()
+	for k: float in [0.0, maxf(k0, 1.0)]:
+		SystemLayout.pair_k = k
+		var fs3 := FlightSolve.new()
+		fs3.G = MapGravity.from_layout(twin_layout(280.0))
+		t0 = Time.get_ticks_usec()
+		steps0 = fs3._n_steps
+		for i in 40:
+			fs3._integrate(0.0, 126.0, 300.0, 30.0 + 0.1 * i, 0.0, 0.0, 3.0, FlightSolve.T_CAP_BACK)
+		us = Time.get_ticks_usec() - t0
+		steps = fs3._n_steps - steps0
+		print("bench: 40 coasts through the hand twin 280 %s, %d RK4 steps, %.2f ms each, %.2f us a step" % ["held still" if k == 0.0 else "turning at x%.0f" % k, steps, us / 40000.0, float(us) / maxf(1.0, steps)])
+	SystemLayout.pair_k = k0
