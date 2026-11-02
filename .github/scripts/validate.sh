@@ -869,6 +869,28 @@ else
 fi
 }
 
+unit_pairlocaltest() {
+step "LOCAL holds a turning pair where the map left it"
+# Ruling 23 (Nov 1, the orbiting pair): LOCAL built at a system's kept map
+# clock holds that clock and the pair's angle there, at 8 angles of a wide pair
+# and a close one (star B on the band on the map's side, the nearer sun drawn
+# over the farther, a close pair end on crossing on the band); map -> LOCAL ->
+# map keeps one clock, in co-op too with a partner's clock ahead, the zoom
+# ladder off and on, the map then catching up with no jump; a save keeps the
+# angle; one sun is untouched.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot pairlocaltest 120 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=PairLocalTest; then
+	if grep -qE '^pairlocaltest: PASS' "$LOG_DIR/pairlocaltest.log"; then
+		ok "LOCAL holds the pair where the map left it"
+	else
+		bad "LOCAL shows the pair at another angle than the map, or a handover moved its clock"
+		grep -E 'FAIL|^pairlocaltest' "$LOG_DIR/pairlocaltest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "pairlocaltest did not finish"
+fi
+}
+
 unit_flighttest() {
 step "Every autopilot flight on the map is solved, flown as drawn and lands"
 # Ruling 20 (Oct 30): FlightSolve's flights on map time, one sun, a heavy
@@ -2377,6 +2399,7 @@ gate_weight() {
 		devtest) echo 22 ;; hulldamagetest) echo 22 ;; fightopentest) echo 22 ;;
 		lockedpooltest) echo 41 ;; rewardshowntest) echo 33 ;; mapperftest) echo 40 ;;
 		solvetest) echo 250 ;; twindrawtest) echo 106 ;; flighttest) echo 80 ;; twinsitetest) echo 140 ;;
+		pairlocaltest) echo 20 ;;
 		*) echo 15 ;;
 	esac
 }
