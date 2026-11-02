@@ -50,8 +50,9 @@ func _ready() -> void:
 	var take := -1
 	## `off=shadows|rays|dust`: one layer switched off, to see what it does
 	var off := ""
-	## `zoom=Z` holds the map at that zoom (the opening zoom, the whole system, if
-	## not given); `loc` holds LOCATION on your ship
+	## `zoom=Z` holds the map at that zoom (the opening zoom if not given: the
+	## whole system, a wide pair's own part), on the opening framing's middle;
+	## `loc` holds LOCATION on your ship
 	var zoom := -1.0
 	var sky_key := ""
 	var sky_shape := -1
@@ -341,7 +342,7 @@ func _ready() -> void:
 	# the list again, now the ship is parked, so YOU sits on the right card
 	scr.panel.show_system()
 	if zoom < 0.0:
-		zoom = scr.zoom_min
+		zoom = scr.open_zoom
 	# FILMING THE WEATHER: the palette found at the opening zoom first, as the game
 	# finds it (set to another zoom straight away, the palette raced the zoom and
 	# was found at one or the other, so a clip and its baseline differed everywhere)
@@ -360,6 +361,8 @@ func _ready() -> void:
 			m.set_shader_parameter("cell", int(parts[0]))
 			m.set_shader_parameter("pal_stride", int(parts[1]))
 	scr.view.zoom = zoom
+	# (on the opening framing's middle: star A but in a wide pair, `open_view`)
+	scr.view.pan = -scr.home_at * zoom
 	if "loc" in OS.get_cmdline_user_args():
 		scr._location_on = true
 		scr._paint_location()
@@ -674,8 +677,8 @@ func _ready() -> void:
 		# `zrel`: `zfrom` and `zto` as times the opening zoom (the bible's slow zoom:
 		# zfrom=1 zto=1.1 zframes=60)
 		if "zrel" in OS.get_cmdline_user_args():
-			z0 *= scr.zoom_min
-			z1 *= scr.zoom_min
+			z0 *= scr.open_zoom
+			z1 *= scr.open_zoom
 		var wi := -9
 		# `zbody=I`: held on body I instead
 		for a24 in OS.get_cmdline_user_args():
@@ -933,7 +936,7 @@ func _ready() -> void:
 		for k17 in 130:
 			if back17:
 				if k17 == 65:
-					scr._zoom_to = scr.zoom_min
+					scr._zoom_to = scr.open_zoom
 			elif k17 >= 40:
 				scr.view.pan += Vector2(-pv17, 0.0)
 			await RenderingServer.frame_post_draw

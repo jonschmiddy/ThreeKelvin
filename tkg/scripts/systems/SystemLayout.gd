@@ -432,9 +432,49 @@ static func held_most(raw: float, least: float) -> float:
 
 
 ## THE ZOOM A SYSTEM OPENS AT for its edge: `SystemMapScreen._fit_zoom`, with
-## the frame it is fitted to before the screen is laid out.
+## the frame it is fitted to before the screen is laid out. A wide pair opens
+## nearer, on its own part (`pair_box`), and is wheeled out to this.
 static func open_zoom(edge: float) -> float:
 	return clampf(minf(FIT_FRAME.x / (2.0 * (edge + 20.0)), FIT_FRAME.y / (2.0 * (edge + 20.0) * SLANT + 60.0)), ZOOM_FLOOR, 1.0)
+
+
+## THE PAIR'S OWN PART OF A WIDE BINARY (Jon, Nov 1, "gap:A"), which its map
+## opens framed on (`SystemMapScreen.open_view`): the two suns and the worlds
+## that circle one of them, each world by its whole orbit and reach. Fitted to
+## the whole system, a wide pair's world round one sun was drawn as little as
+## 5 px from its sun's disc (seed 7, the binary-gap prototype); framed on the
+## pair, 28 to 45 px (the wide pairs of seeds 7, 4242 and 1999). On the
+## plane (x across, y deep), star A at the origin: centred on the middle of the
+## suns' discs and those orbits, and reaching from there PAIR_SUN_PAD past each
+## sun's disc and past every such orbit, and PAIR_PAD more all round. Empty for one sun and for a close pair, which
+## nothing circles one sun of: they open on their whole system as they did.
+func pair_box() -> Rect2:
+	if not twin or close:
+		return Rect2()
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for p in stars():
+		lo = lo.min(star_pos(p) - Vector2.ONE * star_radius(p))
+		hi = hi.max(star_pos(p) + Vector2.ONE * star_radius(p))
+	for b in bodies:
+		if is_star(b.host_id):
+			var rr := b.orbit + reach_of(b)
+			lo = lo.min(b.host - Vector2.ONE * rr)
+			hi = hi.max(b.host + Vector2.ONE * rr)
+	var c := (lo + hi) * 0.5
+	var half := Vector2.ZERO
+	for p in stars():
+		half = half.max((star_pos(p) - c).abs() + Vector2.ONE * (star_radius(p) + PAIR_SUN_PAD))
+	for b in bodies:
+		if is_star(b.host_id):
+			half = half.max((b.host - c).abs() + Vector2.ONE * (b.orbit + reach_of(b)))
+	half += Vector2.ONE * PAIR_PAD
+	return Rect2(c - half, half * 2.0)
+
+
+## (the room `pair_box` leaves past each sun's disc, and all round it: plane px)
+const PAIR_SUN_PAD := 30.0
+const PAIR_PAD := 30.0
 
 
 ## A sun's drawn radius on screen (game px) at zoom z: the floor the map eases

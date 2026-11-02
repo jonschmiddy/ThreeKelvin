@@ -88,6 +88,14 @@ extends Node
 ## nothing meeting (bodies, rings, the suns' keep-outs, close orbits and capture
 ## rings), most with a planet in the middle band, the giant round both suns in
 ## either kind; and the ring sweep above sweeps close pairs too.
+## Jon's "gap:A" (Nov 1): one sun and every close pair open as they always did
+## (`_opens_as_before`); a wide pair opens framed on its two suns and their own
+## worlds, the wheel goes out to the whole system and a right-click comes home
+## to that framing (`_wheel_and_home`); in each wide pair the ring sweep opens,
+## each world round one sun drawn clear of its sun and every beacon off the
+## picture marked at the frame's edge on nothing drawn (`_pair_marks`); a ship
+## put back on a world round both suns is taken into the framing
+## (`_put_back_framed`).
 ## Prints how many twin systems and cases each part saw.
 ##
 ## IT JUDGES THE WHOLE BUILD. Where a part is another build's (the flight's ride
@@ -152,6 +160,7 @@ func _map() -> SystemMapScreen:
 func _run() -> void:
 	await get_tree().process_frame
 	_close_pairs()
+	_opens_as_before()
 	h.seed_run(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	_fit_zooms()
@@ -183,6 +192,7 @@ func _run() -> void:
 		return
 	h._ok("the ship is put back in orbit of the world round star A (%d)" % m.flight.reached(), m.flight.reached() == wa)
 	_saw("twin systems")
+	await _wheel_and_home(m)
 	await _ring_outline_open(m, wa)
 	_satellites_page(m)
 	await _stars_as_places(m, n)
@@ -201,6 +211,7 @@ func _run() -> void:
 	await _one_sun_fallback(n)
 	await _ring_sweep()
 	await _ring_words_ride()
+	await _put_back_framed()
 	await _end_planning()
 	_end()
 
@@ -234,6 +245,129 @@ func _longest_twin() -> MapGen.MapNode:
 	if best != null:
 		print("  --   the longest name of a system that may have two suns: %s (%d px at the panel's head size)" % [MapGen.star_name(best), int(best_w)])
 	return best
+
+
+# ---------------------------------------------------------------- the pair framed
+## ONE SUN AND A CLOSE PAIR OPEN AS THEY ALWAYS DID (Jon, Nov 1, "gap:A" is a
+## wide pair's alone), over every system of CLOSE_SEEDS as rolled, laid out, on
+## the layout's frame: `SystemMapScreen.open_view` is star A and exactly
+## `zoom_for`, the whole system; a wide pair's is nearer, on its own part.
+func _opens_as_before() -> void:
+	var same := 0
+	var wide := 0
+	var bad: Array[String] = []
+	for sd: int in CLOSE_SEEDS:
+		Rng.forced = sd
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		for raw in Run.map:
+			var c: MapGen.MapNode = raw
+			if c.type != MapGen.NodeType.SYSTEM and c.type != MapGen.NodeType.STATION:
+				continue
+			var L := SystemLayout.of(c)
+			var ov := SystemMapScreen.open_view(L, c, SystemLayout.FIT_FRAME)
+			var whole := SystemMapScreen.zoom_for(L, c, SystemLayout.FIT_FRAME)
+			if L.twin and not L.close:
+				wide += 1
+				if float(ov.zoom) <= whole * 1.5 or not L.pair_box().has_point(ov.at):
+					bad.append("seed %d %s (wide): %s, whole %.4f" % [sd, MapGen.star_name(c), ov, whole])
+			elif float(ov.zoom) == whole and ov.at == Vector2.ZERO and L.pair_box().size == Vector2.ZERO:
+				same += 1
+			else:
+				bad.append("seed %d %s: %s, whole %.4f" % [sd, MapGen.star_name(c), ov, whole])
+	_saw("systems opened as before", same)
+	h._ok("one sun and every close pair open as they did, on star A at the whole system's zoom, and every wide pair nearer on its own part (%d as before, %d wide; %d not)%s" % [
+		same, wide, bad.size(), "" if bad.is_empty() else ": " + "; ".join(bad.slice(0, 4))], bad.is_empty() and same > 0 and wide > 0)
+
+
+## THE WHEEL OUT TO THE WHOLE SYSTEM AND HOME AGAIN, on this wide pair's map: it
+## opened at `open_zoom`, nearer than the whole system and on its own part;
+## zoomed in past that, no arrow at the edge; the wheel goes out to the whole
+## system and stops there, every beacon then on the picture and none marked;
+## a right-click on empty space glides back to the opening framing.
+func _wheel_and_home(m: SystemMapScreen) -> void:
+	var v = m.view
+	var ov = m.overlay
+	h._ok("this wide pair opened framed on its own part: zoom %.4f, its whole system %.4f, looking at %s (home %s)" % [v.zoom, m.zoom_min, m._look_at(), m.home_at],
+		absf(v.zoom - m.open_zoom) < 1e-9 and m.open_zoom > m.zoom_min * 1.5 and m._look_at().distance_to(m.home_at) < 0.5)
+	m._zoom_to = minf(v.ZOOM_MAX, m.open_zoom * 2.0)
+	m._anchor = Vector2(-1, -1)
+	for i in 300:
+		await get_tree().process_frame
+		if absf(v.zoom - m._zoom_to) < 1e-4:
+			break
+	await _frames(2)
+	h._ok("zoomed in past the opening (%.3f), no arrows at the edge (%d)" % [v.zoom, (ov.edge_marks as Array).size()], (ov.edge_marks as Array).is_empty())
+	for i in 40:
+		m._zoom_by(1.0 / SystemMapScreen.ZOOM_STEP, Vector2(v.CX, v.CY))
+	for i in 600:
+		await get_tree().process_frame
+		if absf(v.zoom - m.zoom_min) < 1e-4:
+			break
+	await _frames(2)
+	var off := 0
+	for e in ov.beacons_at:
+		if not OverlayS.beacon_box(e[0]).intersects(v.window):
+			off += 1
+	var beacon_marks := (ov.edge_marks as Array).filter(func(e: Dictionary) -> bool: return int(e.body) != -9).size()
+	h._ok("the wheel goes out to the whole system and stops there (%.4f, wanted %.4f), every beacon on the picture (%d off) and none marked (%d)" % [
+		v.zoom, m.zoom_min, off, beacon_marks], absf(m._zoom_to - m.zoom_min) < 1e-6 and absf(v.zoom - m.zoom_min) < 1e-3 and off == 0 and beacon_marks == 0)
+	m.right_click({})
+	for i in 3000:
+		await get_tree().process_frame
+		if m._glide.is_empty():
+			break
+	await _frames(2)
+	h._ok("a right-click on empty space glides back to the opening framing (zoom %.4f of %.4f, looking at %s, home %s)" % [v.zoom, m.open_zoom, m._look_at(), m.home_at],
+		absf(v.zoom - m.open_zoom) < 1e-3 and m._look_at().distance_to(m.home_at) < 1.0)
+	_saw("wide pairs wheeled out and home")
+
+
+## A SHIP PUT BACK ON SOMETHING THAT CIRCLES BOTH SUNS, the map shown again: the
+## opening framing takes it in (`SystemMapScreen.show_system`), so it is on the
+## picture, its place too, and the framing is still no further out than the
+## whole system. Framed on the pair alone the ship was off it, and the move
+## down from LOCAL ended on nothing.
+func _put_back_framed() -> void:
+	Router.show_local()
+	await _idle()
+	await _frames(2)
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	# (the first wide pair with a world round both suns, its farthest)
+	var n: MapGen.MapNode = null
+	var L: SystemLayout = null
+	var far := -1
+	for raw in Run.map:
+		var c: MapGen.MapNode = raw
+		if not MapGen.twin_ok(c) or c.region == MapGen.Region.FAUNA or c.index == Run.at or SystemLayout.is_close(c):
+			continue
+		var was := c.twin
+		c.twin = true
+		var Lc := SystemLayout.of(c)
+		for b in Lc.bodies:
+			if b.world != &"" and b.host_id == -9 and (far < 0 or b.orbit > Lc.bodies[far].orbit):
+				far = b.index
+		if far >= 0:
+			n = c
+			L = Lc
+			break
+		c.twin = was
+	if not h._ok("a wide pair with a world round both suns (%s, #%d)" % [MapGen.star_name(n) if n != null else "none", far], n != null):
+		return
+	Run.at = n.index
+	n.visited = true
+	SystemMapScreen._parked[n.index] = {"at": far, "mode": &"rail"}
+	var m := await _map()
+	if not h._ok("the map comes up with the ship at %s" % L.bodies[far].name, m != null and m.flight.reached() == far):
+		return
+	var v = m.view
+	var wc: Vector2 = v.at[far]
+	var sc: Vector2 = Vector2(v.CX, v.CY) + v.pan + m.overlay.ship_rel()
+	var pair := float(SystemMapScreen.open_view(m.view.layout, n, m._frame.size).zoom)
+	h._ok("put back out there, the opening framing takes it in: the place at %s and the ship at %s inside the picture %s, zoom %.3f (the pair alone %.3f, the whole system %.3f)" % [
+		wc, sc, v.window, v.zoom, pair, m.zoom_min],
+		v.window.grow(-8.0).has_point(wc) and v.window.grow(-4.0).has_point(sc) and v.zoom >= m.zoom_min - 1e-9 and v.zoom < pair)
+	_saw("ships put back framed")
 
 
 # ---------------------------------------------------------------- the close pair
@@ -471,7 +605,7 @@ func _real_frame(m: SystemMapScreen) -> void:
 	# THIS MAP, as it opened (a map shown fresh fits before its frame is laid
 	# out, on the layout's own frame; shown again, on the real one: either way)
 	var L0: SystemLayout = m.view.layout
-	h._ok("this map opened at %.4f, at or nearer than its rings were fitted to (%.4f; the edge alone on the layout's frame %.4f, on this one %.4f)" % [
+	h._ok("this map's whole system, the furthest the wheel goes, is at %.4f, at or nearer than its rings were fitted to (%.4f; the edge alone on the layout's frame %.4f, on this one %.4f)" % [
 		m.zoom_min, L0.fit_zoom, SystemLayout.open_zoom(L0.edge), SystemMapScreen.fit_zoom_in(L0.edge, fs)],
 		m.zoom_min >= L0.fit_zoom - 1e-6 and fs.x / (2.0 * m.zoom_min) >= L0.edge)
 
@@ -558,7 +692,9 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 		if m._glide.is_empty() and m._focus_body == -9:
 			break
 	await _frames(4)
-	h._ok("and a second one back out to the whole sector (zoom %.3f of %.3f)" % [m.view.zoom, m.zoom_min], absf(m.view.zoom - m.zoom_min) < 0.002)
+	h._ok("and a second one back out to the opening framing, the pair's own part (zoom %.3f of %.3f, the whole system %.3f; looking at %s, home %s)" % [
+		m.view.zoom, m.open_zoom, m.zoom_min, m._look_at(), m.home_at],
+		absf(m.view.zoom - m.open_zoom) < 0.002 and m._look_at().distance_to(m.home_at) < 1.0)
 	_orbit_fit(m)
 	# THE PARTNERS' AND YOUR SHIP'S DISC TEST: behind star B (further from the
 	# viewer, on its disc) is hidden by it; in front is not
@@ -2450,6 +2586,78 @@ func _ring_words_ride() -> void:
 	_saw("ring rides, frames", seen)
 
 
+## A WIDE PAIR OPENS FRAMED ON ITS OWN PART (Jon, Nov 1, "gap:A"), as the ring
+## sweep shows each wide pair (`_pair_marks`): at `SystemMapScreen.open_view`,
+## nearer than the whole system and centred on the two suns and their own
+## worlds; each world round one sun drawn PAIR_GAP_LEAST px or more clear of its
+## sun's disc beside it (fitted to the whole system it was 5 px, seed 7); every
+## event's beacon off the picture with an arrow at the frame's edge
+## (`SystemOverlay.edge_marks`), each inside the frame and over nothing drawn
+## there: the words, the beacons, the suns, the worlds, your ship, the status
+## line, the goal, the instrument or another arrow.
+const PAIR_GAP_LEAST := 24.0
+
+
+func _pair_marks(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary, bad: Array[String]) -> void:
+	var v = m.view
+	var ov = m.overlay
+	var L: SystemLayout = v.layout
+	var win: Rect2 = v.window
+	var nm := "seed %d %s" % [sd, MapGen.star_name(n)]
+	st.wide += 1
+	# (the pair alone, on the frame it opened on: the layout's before the frame
+	# is laid out, the frame's after; a ship put back off it widens it)
+	var za := float(SystemMapScreen.open_view(L, n, m._frame.size).zoom)
+	var zb := float(SystemMapScreen.open_view(L, n, SystemLayout.FIT_FRAME).zoom)
+	if v.zoom != m.open_zoom or m.open_zoom > maxf(za, zb) + 1e-9 or m.open_zoom < m.zoom_min * 1.5 or m._look_at().distance_to(m.home_at) > 0.5:
+		st.zoom_bad += 1
+		bad.append("%s: opened at %.4f (open_view %.4f / %.4f, whole %.4f), looking at %s, home %s" % [nm, v.zoom, za, zb, m.zoom_min, m._look_at(), m.home_at])
+	for p: int in L.stars():
+		var w: SystemLayout.Body = null
+		for b in L.bodies:
+			if b.host_id == p and b.world != &"" and (w == null or b.orbit < w.orbit):
+				w = b
+		if w != null:
+			st.gap_n += 1
+			st.gap_least = minf(st.gap_least, w.orbit * v.zoom - v.star_disc(p) - v.draw_r(w))
+	# what is drawn there, which an arrow must not be on
+	var drawn: Array = (ov.label_rects as Array).duplicate()
+	drawn.append_array(ov.mark_keep)
+	var stat: Array = ov.ship_status()
+	if String(stat[0]) != "":
+		drawn.append(ov.status_rect(String(stat[0])))
+	for e in ov.beacons_at:
+		var bb: Rect2 = OverlayS.beacon_box(e[0])
+		if bb.intersects(win):
+			drawn.append(bb)
+		else:
+			st.off += 1
+	for p: int in L.stars():
+		var r: float = ov.star_disc(p)
+		drawn.append(Rect2(ov.star_scr(p) - Vector2(r, r), Vector2(r, r) * 2.0))
+	for i in L.bodies.size():
+		var b := L.bodies[i]
+		if b.kind != &"belt":
+			var r: float = maxf(v.draw_r(b), 2.0)
+			drawn.append(Rect2(v.at[i] - Vector2(r, r), Vector2(r, r) * 2.0))
+	var sr := float(ov.ship_r())
+	drawn.append(Rect2(ov._ship_at - Vector2(sr, sr), Vector2(sr, sr) * 2.0))
+	var boxes: Array = []
+	for mk: Dictionary in ov.edge_marks:
+		st.marks += 1
+		if int(mk.body) != -9:
+			st.marked += 1
+		var mb: Rect2 = mk.box
+		var on := not win.encloses(mb)
+		for r: Rect2 in drawn + boxes:
+			if r.intersects(mb):
+				on = true
+		boxes.append(mb)
+		if on:
+			st.mark_on += 1
+			bad.append("%s: the arrow at %s for %d is on something drawn" % [nm, mk.at, int(mk.body)])
+
+
 ## THE WORDS BY THE SHIP NEVER ACROSS A SUN, AND THE SHIP ON A SMALL WORLD'S RING
 ## OUTLINED, over the binaries of `RING_SEEDS` as each seed rolls them (at most
 ## `RING_CAP` a seed), on the real map at its opening zoom: the ship put in each
@@ -2498,7 +2706,9 @@ func _ring_sweep() -> void:
 		"rings": 0, "rim_frames": 0, "hull_frames": 0, "rim_bad": 0, "own_hid": 0, "on_disc": 0, "both": 0, "both_rim": 0, "one": 0, "one_rim": 0,
 		"sel": 0, "sel_shown": 0, "sel_held": 0, "sel_under": 0, "coasts": 0, "into": 0, "fc_shown": 0, "fc_held": 0, "ev_sys": 0, "ev_moved": 0,
 		"bc_words": 0, "bc_fallback": 0, "bc_crossed": 0, "sel_bc": 0, "fc_bc": 0,
-		"bc_stepped": 0, "bc_ticks": 0, "bc_hid": 0, "bc_marks": 0, "sel_on_words": 0, "close": 0}
+		"bc_stepped": 0, "bc_ticks": 0, "bc_hid": 0, "bc_marks": 0, "sel_on_words": 0, "close": 0,
+		"wide": 0, "zoom_bad": 0, "gap_n": 0, "gap_least": INF, "off": 0, "marked": 0, "marks": 0, "mark_on": 0}
+	var mark_bad: Array[String] = []
 	var crossed: Array[String] = []
 	var on_beacon: Array[String] = []
 	var held: Array[String] = []
@@ -2572,6 +2782,8 @@ func _ring_sweep() -> void:
 				continue
 			st.twins += 1
 			st.close += int(L.close)
+			if not L.close:
+				_pair_marks(m, sd, n, st, mark_bad)
 			var places: Array[int] = L.stars()
 			for b in L.bodies:
 				if b.world != &"":
@@ -2613,6 +2825,25 @@ func _ring_sweep() -> void:
 					else:
 						st.both += 1
 						st.both_rim += int(r.rim_px) + int(r.ringed)
+				# AND WHEELED OUT TO THE WHOLE SYSTEM, a wide pair's world round one
+				# sun: where the ship sits on its world's disc (framed on the pair
+				# as it opens since "gap:A", it rides clear of it)
+				if round_one and not L.close:
+					m.view.t = 37.0
+					m.flight.place_at(p, 37.0)
+					m._zoom_to = m.zoom_min
+					m.view.zoom = m.zoom_min
+					m.view.pan = Vector2.ZERO
+					var rw := await _ring_frames(m, p, 2, 2)
+					st.rings += 1
+					st.hull_frames += int(rw.hull)
+					st.rim_frames += int(rw.rim)
+					st.rim_bad += int(rw.colour) + int(rw.on_hull) + int(rw.apart) + (int(rw.seen) - int(rw.ringed))
+					st.own_hid += int(rw.own_hid)
+					st.on_disc += int(rw.on_disc)
+					m._zoom_to = m.open_zoom
+					m.view.zoom = m.open_zoom
+					m.view.pan = -m.home_at * m.open_zoom
 			# THE EVENT CARDS IN NAME ORDER, as the SATELLITES list under them
 			# (`SystemPanel._events`, what < and > step): a body's after the one
 			# named before it, the star's last
@@ -2750,6 +2981,19 @@ func _ring_sweep() -> void:
 		st.twins, st.close, seeds.size(), st.words, st.moments, st.sel, st.coasts, st.crossed,
 		"" if crossed.is_empty() else ": " + "; ".join(crossed.slice(0, 4))],
 		st.crossed == 0 and st.twins >= seeds.size() * mini(cap, 8) and st.close > 0 and st.words > st.moments and st.sel > st.twins and st.into > st.twins)
+	# A WIDE PAIR FRAMED ON ITS OWN PART, and what that leaves off the picture marked
+	print("  --   wide pairs opened: %d; their worlds round one sun at least %.1f px clear of their suns' discs (%d); %d beacons off the picture, %d marked, %d arrows (%d on something drawn)" % [
+		st.wide, st.gap_least, st.gap_n, st.off, st.marked, st.marks, st.mark_on])
+	for e: String in mark_bad.slice(0, 6):
+		print("  --     %s" % e)
+	_saw("ring sweep: wide pairs opened", st.wide)
+	_saw("ring sweep: beacons off the picture", st.off)
+	h._ok("every wide pair opens framed on its own part (`open_view`), nearer than the whole system and centred on it (%d of %d not)" % [st.zoom_bad, st.wide],
+		st.wide > 0 and st.zoom_bad == 0)
+	h._ok("and draws each world round one sun at least %.0f px clear of its sun's disc beside it (least %.1f px over %d; fitted to the whole system it was 5)" % [PAIR_GAP_LEAST, st.gap_least, st.gap_n],
+		st.gap_n >= 2 * st.wide and st.gap_least >= PAIR_GAP_LEAST)
+	h._ok("every event's beacon off the picture as it opens has an arrow at the frame's edge (%d of %d), each inside the frame and on nothing drawn there (%d on something)" % [
+		st.marked, st.off, st.mark_on], st.off > 0 and st.marked == st.off and st.mark_on == 0)
 	h._ok("the words by the ship stand whole or shortened at nearly every place (%d whole, %d shortened, %d held back of %d)" % [st.whole, st.short, st.held, st.moments],
 		st.held * 50 <= st.moments)
 	h._ok("and never over an event's beacon drawn that frame, but where no spot clears the suns and the beacons both (%d placed, %d over a beacon, %d by one for want of a spot)%s" % [

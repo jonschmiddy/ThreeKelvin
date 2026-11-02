@@ -2031,7 +2031,7 @@ func _run() -> void:
 	var cm := Router.current as SystemMapScreen
 	_clean("calm after the key")
 	if cm != null:
-		_ok("and the map is at rest (zoom %.2f, its fit %.2f)" % [cm.view.zoom, cm.zoom_min], absf(cm.view.zoom - cm.zoom_min) < 0.01)
+		_ok("and the map is at rest (zoom %.2f, its opening framing %.2f)" % [cm.view.zoom, cm.open_zoom], absf(cm.view.zoom - cm.open_zoom) < 0.01)
 	await _go("back to LOCAL (the old flow's key)", Router.show_local, SectorScreen)
 	# the old flow (behind the switch): the pre-roll defers the swap, and a key
 	# mid-move ends the move at once
@@ -2053,7 +2053,7 @@ func _run() -> void:
 	var m := Router.current as SystemMapScreen
 	_clean("after the key")
 	if m != null:
-		_ok("and the map is at rest (zoom %.2f, its fit %.2f)" % [m.view.zoom, m.zoom_min], absf(m.view.zoom - m.zoom_min) < 0.01)
+		_ok("and the map is at rest (zoom %.2f, its opening framing %.2f)" % [m.view.zoom, m.open_zoom], absf(m.view.zoom - m.open_zoom) < 0.01)
 		# the map takes the wheel after a move
 		var z0: float = m._zoom_to
 		m._zoom_by(SystemMapScreen.ZOOM_STEP, Vector2(480, 270))
@@ -2073,7 +2073,7 @@ func _run() -> void:
 			m._zoom_by(1.0 / SystemMapScreen.ZOOM_STEP, Vector2(480, 270))
 		await _frames(3)
 		_ok("the wheel out past the whole sector stays on the map", Router.current == m and not ZoomLadder.busy())
-		_ok("and the map's zoom stops at its fit", absf(m._zoom_to - m.zoom_min) < 0.001)
+		_ok("and the map's zoom stops at the whole system", absf(m._zoom_to - m.zoom_min) < 0.001)
 		m._zoom_to = m.view.ZOOM_MAX
 		for i in 4:
 			m._zoom_by(SystemMapScreen.ZOOM_STEP, Vector2(480, 270))

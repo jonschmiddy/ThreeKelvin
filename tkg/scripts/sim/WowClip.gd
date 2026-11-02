@@ -104,9 +104,9 @@ func _ready() -> void:
 		await get_tree().process_frame
 	# (`zoom=open`, `zoomto=open`: the zoom the map opens at)
 	if _arg("zoom", "") == "open":
-		z0 = _scr.zoom_min
+		z0 = _scr.open_zoom
 	if _arg("zoomto", "") == "open":
-		z1 = _scr.zoom_min
+		z1 = _scr.open_zoom
 	elif _arg("zoomto", "") == "":
 		z1 = z0
 	_pick_aim(_arg("aim", "star"))

@@ -123,7 +123,8 @@ var _loc_btn: Button
 var _locked := false
 ## whether a flight could start, last frame (`ShipFlight.can_fly`)
 var _could_fly := false
-## LOCATION was let go of by its button or L: glide back out to the whole sector.
+## LOCATION was let go of by its button or L: glide back out to the opening
+## framing (`open_zoom`, `home_at`).
 var _homing := false
 ## A CAMERA GLIDE (Jon: "You zoom in and then jolt to the player's location"):
 ## the zoom and the point looked at, eased together on one curve from where they
@@ -148,8 +149,26 @@ var _was_at := -9
 var _flown_ob := -9
 ## What LOCATION is holding: the ship, or the world it orbits.
 var _follow_key := ""
-## The zoom that shows the whole system, worked out for its edge and the frame.
+## The zoom that shows the whole system, worked out for its edge and the frame:
+## the furthest out the wheel goes.
 var zoom_min := 1.0
+## THE OPENING FRAMING, which the map opens at and goes home to (a second
+## right-click, LOCATION let go of): its zoom, and the point it centres on in
+## the map's zoom-1 pixels from star A (`_look_at`). The whole system for one
+## sun and a close pair (`zoom_min`, star A); a wide pair's two suns and their
+## own worlds (`open_view`; Jon, Nov 1, "gap:A").
+var open_zoom := 1.0
+var home_at := Vector2.ZERO
+## How much of the frame a wide pair's own part fills as the map opens
+## (`open_view`): the share the binary-gap sheet showed Jon.
+const PAIR_FILL := 0.6
+## The edge marks show at the opening zoom and further out (`SystemOverlay.mark_zoom`),
+## with this much slack for the wheel's ease settling onto it.
+const MARK_ZOOM_K := 1.002
+## A ship put back this close to the frame's edge (screen px) or past it takes
+## the opening framing out to it, with this much room round it (plane px).
+const SHIP_IN := 24.0
+const SHIP_PAD := 60.0
 ## A harness holding keys has no keyboard to check them against.
 var harness_keys := false
 ## WHEN THE PLAYER LAST DID ANYTHING, and last zoomed (the wall clock, s): the
@@ -346,7 +365,8 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 	overlay.hover = {}
 	overlay.flight = null
 	flight = null
-	# every visit opens on the whole sector, then zooms onto you if LOCATION is held
+	# every visit opens on its opening framing (the whole sector but in a wide
+	# pair), then zooms onto you if LOCATION is held
 	view.pan = Vector2.ZERO
 	_anchor = Vector2(-1, -1)
 	_locked = false
@@ -360,14 +380,23 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 	await view.show_system(n)
 	last_input_t = Time.get_ticks_msec() / 1000.0
 	zoom_min = _fit_zoom()
-	view.zoom = zoom_min
+	var ov := open_view(view.layout, view.node, _frame.size if _frame.size.x > 10.0 else SystemLayout.FIT_FRAME)
+	open_zoom = float(ov.zoom)
+	var oc: Vector2 = ov.at
+	home_at = Vector2(oc.x, oc.y * view.TILT)
+	overlay.mark_zoom = open_zoom * MARK_ZOOM_K
+	view.zoom = open_zoom
+	view.pan = -home_at * open_zoom
+	# (the sky, the gas and the lights are scaled from the whole system's zoom,
+	# as the binary-gap sheet showed a wide pair opened nearer)
 	view.home_zoom = zoom_min
-	_zoom_to = zoom_min
-	# THE SHIP: at the frame's edge as arrived (at the opening zoom), or back where
-	# it was left in this system
+	_zoom_to = open_zoom
+	# THE SHIP: at the frame's right edge as arrived (at the opening framing, as
+	# high on screen as it ever was), or back where it was left in this system.
+	# One sun and a close pair: as they always were.
 	flight = ShipFlightS.new()
-	var ex := minf(view.layout.edge, (view.window.end.x - view.CX - 26.0) / zoom_min)
-	flight.setup(view.layout, Vector2(ex, -210.0), t0)
+	var ex := minf(view.layout.edge, home_at.x + (view.window.end.x - view.CX - 26.0) / open_zoom)
+	flight.setup(view.layout, Vector2(ex, oc.y - 210.0 * (zoom_min / open_zoom)), t0)
 	# (where a jump into this system puts a ship: a partner just arrived is
 	# drawn there, `partner_points`)
 	_arrival_p = flight.f.p
@@ -377,6 +406,22 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 		# (a jump into a station's system arrives alongside the station:
 		# arrive:B, `Router._on_jumped`)
 		flight.place_at(view.layout.dock_place(), t0)
+	# YOUR SHIP ON THE PICTURE: a wide pair's framing that would leave it off,
+	# put back out on something that circles both suns, takes it in too, so the
+	# move down from LOCAL ends on it (`calm_rest`) and you can see where you are
+	if view.layout.pair_box().size != Vector2.ZERO:
+		var sp := _ship_plane(t0)
+		var fs := _frame.size if _frame.size.x > 10.0 else SystemLayout.FIT_FRAME
+		var on: Vector2 = Vector2(view.CX, view.CY) + view.pan + Vector2(sp.x, sp.y * view.TILT) * open_zoom
+		if not view.window.grow(-SHIP_IN).has_point(on):
+			var ov2 := open_view(view.layout, n, fs, sp)
+			open_zoom = float(ov2.zoom)
+			var oc2: Vector2 = ov2.at
+			home_at = Vector2(oc2.x, oc2.y * view.TILT)
+			overlay.mark_zoom = open_zoom * MARK_ZOOM_K
+			view.zoom = open_zoom
+			view.pan = -home_at * open_zoom
+			_zoom_to = open_zoom
 	overlay.flight = flight
 	_was_at = flight.reached()
 	# (put back or brought in, not flown: `flown_to` is written by a flight)
@@ -420,6 +465,14 @@ func _carry_on(going: Dictionary, taking: bool) -> void:
 		_was_at = -9
 
 
+## Where your ship is on the plane: on the world or star it is in orbit of or
+## alongside, else where it is flying.
+func _ship_plane(t: float) -> Vector2:
+	var on: int = flight.orbit_body()
+	var p: Vector3 = flight.center(on, t) if SystemLayout.is_place(on) else flight.where3()
+	return Vector2(p.x, p.z)
+
+
 ## THE ZOOM THAT SHOWS IT ALL: the system's edge with a margin, in the frame.
 ## Before the frame is laid out it is the zoom the layout was fitted to
 ## (`SystemLayout.open_zoom`, on its own 655x420 frame), called rather than
@@ -436,6 +489,33 @@ func _fit_zoom() -> float:
 ## to (`_twin_floor`).
 static func zoom_for(L: SystemLayout, n: MapGen.MapNode, fs: Vector2) -> float:
 	return _twin_floor(L, n, fs, fit_zoom_in(L.edge, fs))
+
+
+## WHERE SYSTEM L (of node n) OPENS in a frame of size `fs`: {at, the plane
+## point the frame centres on, star A at the origin; zoom}. One sun and
+## a close pair: star A and the whole system (`zoom_for`), as they always
+## opened. A WIDE PAIR (Jon, Nov 1, "gap:A"): its own part (`pair_box`, the two
+## suns and the worlds round one of them) filling PAIR_FILL of the frame, never
+## further out than the whole system. Fitted to the whole system, the things
+## that circle both suns far out made the pair so small that a world round one
+## sun was drawn as little as 5 px from its sun's disc; framed on the pair it is
+## 28 px from it at the least (the wide pairs of seeds 7, 4242 and 1999). The
+## wheel still goes out to the whole system, and what circles both suns is
+## marked at the frame's edge until then (`SystemOverlay._draw_edge_marks`). `ship`, the
+## plane point your ship is at when the map is shown with it put back off that
+## framing (`show_system`): taken in too, with SHIP_PAD round it.
+static func open_view(L: SystemLayout, n: MapGen.MapNode, fs: Vector2, ship := Vector2.INF) -> Dictionary:
+	# (the zoom a float, not a vector's single-precision part: one sun opens at
+	# exactly the zoom it always did)
+	var whole := zoom_for(L, n, fs)
+	var box := L.pair_box()
+	if box.size == Vector2.ZERO:
+		return {"at": Vector2.ZERO, "zoom": whole}
+	if ship.is_finite():
+		box = box.merge(Rect2(ship - Vector2.ONE * SHIP_PAD, Vector2.ONE * SHIP_PAD * 2.0))
+	var half := box.size * 0.5 / PAIR_FILL
+	var z := clampf(minf(fs.x / (2.0 * (half.x + 20.0)), fs.y / (2.0 * (half.y + 20.0) * SystemLayout.SLANT + 60.0)), 0.1, 1.0)
+	return {"at": box.get_center(), "zoom": maxf(z, whole)}
 
 
 ## TWO SUNS OPEN NO FURTHER OUT THAN THEIR RINGS WERE FITTED TO while nothing is
@@ -731,6 +811,7 @@ func _process(delta: float) -> void:
 	_step_ship(delta)
 	_report_spot()
 	_step_camera(delta)
+	overlay.mark_keep = mark_keep()
 	# THE BELT POINTED AT (or selected) brightens, eased in with the hover
 	var lit := -1
 	var lt := 0.0
@@ -863,7 +944,8 @@ func _glide_target(kind: String, body: int) -> Vector2:
 		"body":
 			# (a world where it is now, or either star: `place_rel`)
 			return overlay.place_rel(body) / z if SystemLayout.is_place(body) else Vector2.ZERO
-	return Vector2.ZERO
+	# home: the opening framing's middle
+	return home_at
 
 
 func _glide_to(kind: String, body: int, z1: float, dur: float = GLIDE_S) -> void:
@@ -900,7 +982,7 @@ func _step_glide() -> bool:
 			"body":
 				_focus_body = int(_glide.body)
 			"home":
-				view.pan = Vector2.ZERO
+				view.pan = -home_at * view.zoom
 		_glide = {}
 	return true
 
@@ -908,8 +990,9 @@ func _step_glide() -> bool:
 ## RIGHT-CLICK (Jon: "If you right-click a planet that is selected, it should
 ## zoom the camera onto that planet. A second right-click zooms all the way
 ## out"): onto the selected place, held there as it moves; again, or on empty
-## space, back out to the whole sector. A fixed control (a mouse button: the
-## rebindable keys are keys), listed in Settings > CONTROLS.
+## space, back out to the opening framing: the whole sector, or a wide pair's
+## own part (`open_view`; the wheel goes out the rest). A fixed control (a
+## mouse button: the rebindable keys are keys), listed in Settings > CONTROLS.
 func right_click(h: Dictionary) -> void:
 	var b: int = int(h.get("body", -9)) if not h.is_empty() else -9
 	# (a star is the one under the pointer, -1 or STAR_B: `SystemOverlay.hit`)
@@ -923,7 +1006,7 @@ func right_click(h: Dictionary) -> void:
 		_focus_body = -9
 	elif SystemLayout.is_place(_focus_body) or not SystemLayout.is_place(b) or b == _focus_body:
 		_focus_body = -9
-		_glide_to("home", -9, zoom_min)
+		_glide_to("home", -9, open_zoom)
 
 
 func _zoom_level() -> int:
@@ -986,9 +1069,10 @@ func _step_camera(delta: float) -> void:
 		view.pan = -_glide_target("body", _focus_body) * view.zoom
 	else:
 		if _homing:
-			view.pan = view.pan.lerp(Vector2.ZERO, 1.0 - exp(-delta * 8.0))
-			if view.pan.length() < 0.25 and absf(view.zoom - zoom_min) < 0.002:
-				view.pan = Vector2.ZERO
+			var hp: Vector2 = -home_at * view.zoom
+			view.pan = view.pan.lerp(hp, 1.0 - exp(-delta * 8.0))
+			if view.pan.distance_to(hp) < 0.25 and absf(view.zoom - open_zoom) < 0.002:
+				view.pan = hp
 				_homing = false
 		_clamp_pan()
 	_tick_zoom()
@@ -1011,6 +1095,8 @@ func _clamp_pan() -> void:
 	var z: float = view.zoom
 	var reach := Vector2((L.edge + 40.0) * z, ((L.edge + 40.0) * view.TILT + 40.0) * z)
 	var lim := (reach - _frame.size * 0.25).max(Vector2.ZERO)
+	# (and never so tight that the opening framing is out of reach)
+	lim = lim.max((home_at * z).abs())
 	view.pan = view.pan.clamp(-lim, lim)
 
 
@@ -1028,8 +1114,8 @@ func _zoom_by(f: float, at: Vector2) -> void:
 
 
 ## LOCATION, by its button or L. On, it zooms onto your ship and holds it;
-## off, it glides back out to the whole sector (Jon: "unclicking location should
-## zoom you all the way out").
+## off, it glides back out to the opening framing (Jon: "unclicking location
+## should zoom you all the way out"; a wide pair's is its own part, `open_view`).
 func _on_location() -> void:
 	_location_on = not _location_on
 	_paint_location()
@@ -1039,7 +1125,7 @@ func _on_location() -> void:
 	if _location_on:
 		_glide_to("loc", -9, ZOOM_LOCATION)
 	else:
-		_glide_to("home", -9, zoom_min)
+		_glide_to("home", -9, open_zoom)
 
 
 ## L FOR LOCATION, as on the star chart (`StarchartScreen._unhandled_key_input`).
@@ -1883,6 +1969,25 @@ func ladder_world() -> Dictionary:
 			return {"c": _frame.global_position + _box.position + v.position + (off if off is Vector2 else Vector2.ZERO),
 				"r": float(m.get_shader_parameter(&"r"))}
 	return {"c": _ladder_origin() + overlay.place_rel(b), "r": view.draw_r(view.layout.bodies[b])}
+
+
+## WHAT THE EDGE MARKS KEEP OFF (`SystemOverlay._draw_edge_marks`) that the
+## overlay does not draw itself, in its space: the goal and its step's room at
+## the picture's top left (`GoalLine.stack_rect`), and the instrument at its
+## bottom right, LOCATION and the scale bar with its words.
+func mark_keep() -> Array:
+	var o := _frame.global_position + _box.position
+	var out: Array = []
+	var g := GoalLine.stack_rect(self)
+	if g.size != Vector2.ZERO:
+		out.append(Rect2(g.position - o, g.size))
+	if _loc_btn != null and _loc_btn.visible:
+		var lb := _loc_btn.get_global_rect()
+		out.append(Rect2(lb.position - o, lb.size))
+	var fs := _frame.size
+	out.append(Rect2(Vector2(fs.x - BAR_PAD - BAR_MAX_PX, fs.y - BAR_PAD - BAR_LABEL_H) - _box.position,
+		Vector2(BAR_MAX_PX, BAR_LABEL_H + 2.0)))
+	return out
 
 
 ## THE SCALE BAR, the chart's (`MapChart._draw_scale`) in the bottom-right corner

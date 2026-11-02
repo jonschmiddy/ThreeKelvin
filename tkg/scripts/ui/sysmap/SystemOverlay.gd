@@ -633,8 +633,183 @@ func _draw() -> void:
 	var st := ship_status()
 	if String(st[0]) != "":
 		_text(view.window.position + STATUS_AT, st[0], st[1])
+	_draw_edge_marks(String(st[0]))
 	if not hover.is_empty():
 		_draw_tip()
+
+
+# ---------------------------------------------------------------- the edge marks
+## WHAT IS OFF THE PICTURE, MARKED AT ITS EDGE (Jon, Nov 1, "gap:A"): a wide
+## pair opens framed on its two suns and their own worlds
+## (`SystemMapScreen.open_view`), so the events out on what circles both suns
+## -- fights, salvage, jobs, the Hellbender -- start off screen. Each event's
+## beacon off the picture, and your ship, has a small arrow at the frame's edge
+## pointing to it, where the line to it from the frame's middle crosses the
+## edge, drawn in the beacons' own 2 px cells, in the beacon's colour (your
+## ship's in ice), a little dimmed while the beacon is closed (at the beacon's
+## own dimness an arrow this small was lost on the gas). Only at the opening zoom
+## or further out (`mark_zoom`): zoomed in, looking closer is the player's
+## choice, and LOCATION and a right-click hold what they look at. Never on
+## anything else drawn there: each arrow is slid round the edge clear of the
+## words, the suns, the worlds, the beacons, your ship, the status line, the
+## goal and the instrument (`mark_keep`) and the arrows already placed, and
+## left out where no spot clears. Not a control: it takes no click (only
+## pressable things look pressable).
+var mark_zoom := INF
+## the screen's own things the arrows keep off, in this space
+## (`SystemMapScreen.mark_keep`)
+var mark_keep: Array = []
+## THE ARROWS DRAWN last frame, for a harness: {at (the arrow's middle), box,
+## body (the beacon's place, or -9 your ship), dir (one of the eight, x and y
+## -1 to 1), to (where what it points at is drawn)}
+var edge_marks: Array = []
+## how far in from the frame's edge an arrow's middle stands (clear of the
+## frame's bezel), its cells' size, its box's half-size (five cells long and
+## the outline), and the step it is slid round the edge by
+const MARK_IN := 12.0
+const MARK_CELL := 2.0
+const MARK_HALF := 6.0
+const MARK_STEP := 3.0
+## a closed beacon's arrow's alpha (a spent one's is the spent beacon's grey)
+const MARK_DIM := 0.75
+## and how many steps either way it may go (240 px) before it is left out
+const MARK_SLIDES := 80
+## AN ARROW pointing right, in cells round its middle; the others are it
+## turned. A diagonal one is a corner, pointing up-right.
+const MARK_SIDE := [Vector2i(-1, -2), Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0),
+	Vector2i(1, 0), Vector2i(-1, 1), Vector2i(0, 1), Vector2i(-1, 2)]
+const MARK_CORNER := [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1), Vector2i(0, 0), Vector2i(1, 0),
+	Vector2i(1, 1)]
+
+
+func _draw_edge_marks(status: String) -> void:
+	edge_marks = []
+	if hush_labels or label_a <= 0.01 or view.zoom > mark_zoom:
+		return
+	var win: Rect2 = view.window
+	var inner := win.grow(-MARK_IN)
+	var mid := win.get_center()
+	var L: SystemLayout = view.layout
+	# what is off the picture: the events' beacons, and your ship
+	var want: Array = []
+	for e in beacons_at:
+		if not beacon_box(e[0]).intersects(win):
+			var bc = e[2]
+			var col: Color = UITheme.TRACTOR if bc == null else beacon_look(bc)[1]
+			if bc != null and not spent_word(bc).is_empty():
+				col = SPENT
+			elif flight != null and flight.reached() != int(e[1]):
+				col = Color(col, MARK_DIM)
+			want.append([e[0], int(e[1]), col])
+	if flight != null and not win.grow(-2.0).has_point(_ship_at):
+		want.append([_ship_at, -9, UITheme.ICE])
+	if want.is_empty():
+		return
+	# what is drawn on the picture already
+	var keep: Array = label_rects.duplicate()
+	keep.append_array(mark_keep)
+	if status != "":
+		keep.append(status_rect(status))
+	for e in beacons_at:
+		if beacon_box(e[0]).intersects(win):
+			keep.append(beacon_box(e[0]))
+	for i in L.bodies.size():
+		var b := L.bodies[i]
+		if b.kind != &"belt" and i < view.at.size():
+			var r := maxf(view.draw_r(b), 2.0)
+			keep.append(Rect2(view.at[i] - Vector2(r, r), Vector2(r, r) * 2.0))
+	for p in L.stars():
+		var r := star_disc(p)
+		keep.append(Rect2(star_scr(p) - Vector2(r, r), Vector2(r, r) * 2.0))
+	if flight != null:
+		keep.append(Rect2(_ship_at - Vector2.ONE * ship_r(), Vector2.ONE * ship_r() * 2.0))
+	for w: Array in want:
+		var to: Vector2 = w[0]
+		var d := to - mid
+		if d.length() < 0.5:
+			continue
+		# where the line from the middle meets the edge, the frame's inset
+		var k := minf(absf((inner.size.x * 0.5) / d.x) if absf(d.x) > 0.001 else INF,
+			absf((inner.size.y * 0.5) / d.y) if absf(d.y) > 0.001 else INF)
+		var s0 := _round_s(inner, mid + d * k)
+		# slid round the edge, nearest first either way and round a corner, to a
+		# spot clear of everything (the goal fills most of the top left: a mark
+		# for something up there goes down the left side, under it)
+		var spot := Vector2.INF
+		for st in MARK_SLIDES:
+			for sg in ([1.0] if st == 0 else [1.0, -1.0]):
+				var q := _round_at(inner, s0 + MARK_STEP * float(st) * float(sg)).round()
+				var box := Rect2(q - Vector2.ONE * MARK_HALF, Vector2.ONE * MARK_HALF * 2.0)
+				var hit := false
+				for r: Rect2 in keep:
+					if r.intersects(box):
+						hit = true
+						break
+				if not hit:
+					spot = q
+					break
+			if spot != Vector2.INF:
+				break
+		if spot == Vector2.INF:
+			continue
+		# pointing at it from where it stands, the nearest of the eight ways
+		var a := (to - spot).angle()
+		var dir := Vector2i(roundi(cos(a) * 1.2), roundi(sin(a) * 1.2)).clamp(Vector2i(-1, -1), Vector2i.ONE)
+		var mbox := Rect2(spot - Vector2.ONE * MARK_HALF, Vector2.ONE * MARK_HALF * 2.0)
+		keep.append(mbox.grow(1.0))
+		_mark(spot, dir, Color(w[2], (w[2] as Color).a * label_a))
+		edge_marks.append({"at": spot, "box": mbox, "body": w[1], "dir": dir, "to": to})
+
+
+## A point on the edge of `r` that far round it, clockwise from its top left.
+static func _round_at(r: Rect2, s: float) -> Vector2:
+	var w := r.size.x
+	var h := r.size.y
+	var u := fposmod(s, 2.0 * (w + h))
+	if u < w:
+		return r.position + Vector2(u, 0.0)
+	u -= w
+	if u < h:
+		return Vector2(r.end.x, r.position.y + u)
+	u -= h
+	if u < w:
+		return Vector2(r.end.x - u, r.end.y)
+	return Vector2(r.position.x, r.end.y - (u - w))
+
+
+## How far round the edge of `r` (clockwise from its top left) point p on it is.
+static func _round_s(r: Rect2, p: Vector2) -> float:
+	var w := r.size.x
+	var h := r.size.y
+	if absf(p.y - r.position.y) < 0.5:
+		return p.x - r.position.x
+	if absf(p.x - r.end.x) < 0.5:
+		return w + p.y - r.position.y
+	if absf(p.y - r.end.y) < 0.5:
+		return w + h + r.end.x - p.x
+	return 2.0 * w + h + r.end.y - p.y
+
+
+## One arrow at `at` pointing `dir` (x and y -1, 0 or 1), in MARK_CELL cells
+## outlined 1 px in the dark the words' shadow is, so it reads on the gas too.
+func _mark(at: Vector2, dir: Vector2i, c: Color) -> void:
+	var cells: Array = []
+	var diag := dir.x != 0 and dir.y != 0
+	for q: Vector2i in (MARK_CORNER if diag else MARK_SIDE):
+		var v := q
+		if diag:
+			# the corner points up-right: mirrored for the others
+			v = Vector2i(q.x * dir.x, -q.y * dir.y)
+		else:
+			# pointing right, turned to the side it points to
+			v = Vector2i(q.x * dir.x - q.y * dir.y, q.x * dir.y + q.y * dir.x)
+		cells.append(v)
+	var dark := Color(Color("#05070b"), 0.8 * c.a)
+	var o := at.round() - Vector2.ONE * MARK_CELL * 0.5
+	for v: Vector2i in cells:
+		draw_rect(Rect2(o + Vector2(v) * MARK_CELL - Vector2.ONE, Vector2.ONE * (MARK_CELL + 2.0)), dark)
+	for v: Vector2i in cells:
+		draw_rect(Rect2(o + Vector2(v) * MARK_CELL, Vector2.ONE * MARK_CELL), c)
 
 
 # ---------------------------------------------------------------- the reticle
