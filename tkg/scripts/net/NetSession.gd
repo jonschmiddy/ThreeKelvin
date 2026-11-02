@@ -701,6 +701,12 @@ func _push_roster_to(rows: Array) -> void:
 	# every time one of them takes a point of damage.
 	for row in rows:
 		roster[int(row.id)] = row
+	# A LEAVER'S SPOT GOES HERE TOO, as the host drops it on the disconnect
+	# (`_on_peer_disconnected`): kept on a guest, its clock was the party's
+	# for good (`party_t`, review 2)
+	for id in spots.keys():
+		if not roster.has(int(id)):
+			spots.erase(id)
 	if state == State.JOINING:
 		_set_state(State.IN_PARTY)
 	Sig.party_changed.emit()
@@ -1152,11 +1158,16 @@ static func spot_anchor(L: SystemLayout, body: int, host: int, t: float) -> Vect
 ## or held for a move), or -1.0 when none has said one. Run on regardless, a
 ## partner gone to LOCAL or a fight kept a clock that ran on with nobody
 ## watching, and the next map here jumped the pair by the whole time (review
-## 1). An arrival's spot says none (-1).
+## 1). An arrival's spot says none (-1). Only a partner in the party and in
+## that system counts, as `SystemMapScreen.partner_points` draws only those: a
+## leaver's last row stayed on every guest (only the host erased it) and ran
+## on there for good (review 2).
 func party_t(at: int) -> float:
 	var best := -1.0
 	var now := Time.get_ticks_msec()
 	for id in spots:
+		if not roster.has(int(id)) or where_is(int(id)) != at:
+			continue
 		var sp := spot_of(int(id), at)
 		if sp.is_empty() or not sp.has("t") or float(sp.t) < 0.0 or int(sp.get("body", -9)) == -10:
 			continue

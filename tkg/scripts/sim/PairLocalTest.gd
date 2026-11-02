@@ -263,7 +263,7 @@ func _coop_handovers(ladder: int) -> void:
 	# A PARTNER ON THIS SYSTEM'S MAP, a minute further on, its map up
 	var kept_state := Net.state
 	Net.state = NetSession.State.DIVING
-	Net.spots[77] = {"at": idx, "body": -9, "x": 0.0, "z": 0.0, "ang": 0.0, "t": float(m.view.t) + 60.0, "host": -9, "held": false, "got": Time.get_ticks_msec()}
+	_partner(idx, float(m.view.t) + 60.0, false)
 	var back := 0
 	var last := Run.map_t(idx)
 	# MAP -> LOCAL
@@ -280,7 +280,7 @@ func _coop_handovers(ladder: int) -> void:
 			break
 	if not _ok("co-op, %s: LOCAL is up" % how, sky != null):
 		Net.state = kept_state
-		Net.spots.erase(77)
+		_no_partner()
 		return
 	_ok("co-op, %s: LOCAL holds the map's clock, not the party's a minute on (%.6f, the map left at %.6f; the party %.3f)" % [how, sky.held_t(), left, Net.party_t(idx)],
 		sky.held_t() == left)
@@ -303,7 +303,7 @@ func _coop_handovers(ladder: int) -> void:
 	m = Router.current as SystemMapScreen
 	if not _ok("co-op, %s: the map is up again" % how, m != null):
 		Net.state = kept_state
-		Net.spots.erase(77)
+		_no_partner()
 		return
 	_ok("co-op, %s: the map comes up on LOCAL's clock, within a frame (%.6f, LOCAL %.6f)" % [how, at_swap, held],
 		at_swap >= held and at_swap - held <= 1.5 / 60.0)
@@ -328,7 +328,21 @@ func _coop_handovers(ladder: int) -> void:
 		if _local_sky() != null and not ZoomLadder.busy():
 			break
 	Net.state = kept_state
+	_no_partner()
+
+
+## A PARTNER (peer 77) in system `idx` on the roster, its map's clock `t`
+## said just now, held or running (`NetSession.party_t` counts a partner only
+## where the roster has it).
+func _partner(idx: int, t: float, held: bool) -> void:
+	Net.roster[77] = Net._slot(77, "PARTNER", &"korvan", 9)
+	Net.roster[77].at = idx
+	Net.spots[77] = {"at": idx, "body": -9, "x": 0.0, "z": 0.0, "ang": 0.0, "t": t, "host": -9, "held": held, "got": Time.get_ticks_msec()}
+
+
+func _no_partner() -> void:
 	Net.spots.erase(77)
+	Net.roster.erase(77)
 
 
 ## 3. Through a save.

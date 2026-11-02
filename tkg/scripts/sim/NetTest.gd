@@ -981,8 +981,18 @@ func _late_join_test() -> void:
 	ok("seated after the others, so its loot is its own",
 		late.seat() > early.seat())
 
-	# The spot: said by one client, seen by the other and by the host.
+	# The spot: said by one client, seen by the other and by the host. (Every
+	# ship in system 12 first, as the roster says it: the party's clock counts
+	# a partner only where the roster has it, `party_t`. The peers share one
+	# `Run`, so its `at` is each one's presence.)
 	var id := early.local_id()
+	var kept_at := Run.at
+	Run.at = 12
+	for pe: NetSession in [host, early, late]:
+		pe._mark_presence()
+	var all_there := await _wait_until(func() -> bool:
+		return late.where_is(id) == 12 and host.where_is(id) == 12 and late.where_is(1) == 12, 3.0)
+	ok("every ship is in system 12 on every roster", all_there)
 	early.report_spot(12, 3, Vector2(10.5, -4.0), 1.25, true)
 	var seen := await _wait_until(func() -> bool:
 		return not late.spot_of(id, 12).is_empty() and not host.spot_of(id, 12).is_empty(), 3.0)
@@ -1093,6 +1103,20 @@ func _late_join_test() -> void:
 		return int(late.spot_of(id, 12).get("body", 3)) == -10, 3.0)
 	ok("a partner just arrived is seen so", to_arr)
 	check("and says no clock", late.party_t(12), -1.0)
+	# A PARTNER WHO LEAVES takes its clock with it, on every machine (review 2:
+	# only the host erased its row, and on the other guest its last clock ran on
+	# for good as the party's)
+	early.report_spot(12, -9, round_both, 2.0, true, 101.5, -9, false)
+	var back_up := await _wait_until(func() -> bool:
+		return int(late.spot_of(id, 12).get("body", 3)) == -9 and not bool(late.spot_of(id, 12).get("held", true)), 3.0)
+	ok("a partner's map up again is seen so", back_up)
+	ok("and its clock is the party's while it is in the party (%.3f)" % late.party_t(12), late.party_t(12) >= 101.5)
+	early.leave_party()
+	var gone := await _wait_until(func() -> bool: return not late.roster.has(id) and not host.roster.has(id), 5.0)
+	ok("the partner who left is off the roster", gone)
+	ok("and its spot gone from the other guest too", not late.spots.has(id))
+	check("and the party's clock with it", late.party_t(12), -1.0)
+	Run.at = kept_at
 	Run.map_clock = kept_clock
 	SystemMapScreen._parked.erase(12)
 	if not kept_parked.is_empty():
