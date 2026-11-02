@@ -106,7 +106,10 @@ var _pulse := {}
 var _left := {}
 ## the star orbit the ship is settled on (plane radius), or -1
 var _star_r := -1.0
-## and the plane point it circles (star A's origin with one sun: `_settle_c`)
+## and what it circles (`_settle_id`: -1 star A, the one star; STAR_B; -9 both
+## suns), kept as the ship breaks away so the orbit left fades round it
+var _star_id := -9
+## and where that is now on the plane (the origin with one sun: `_settle_c`)
 var _star_c := Vector2.ZERO
 var _preview: Array = []
 var _preview_key := ""
@@ -229,6 +232,10 @@ func _place_labels() -> void:
 	label_under = []
 	ship_words = _ship_words_q
 	_ship_words_q = {}
+	# (the spots words stepped to this frame, held for the next: `_spot_kept`;
+	# words not placed this frame let theirs go)
+	_spot_mem = _spot_seen
+	_spot_seen = {}
 	for e: Array in _lq:
 		var at: Vector2 = e[1]
 		var s: String = e[2]
@@ -380,14 +387,16 @@ func _process(d: float) -> void:
 			_was = now
 		var sw: float = flight.f.orbit_r if flight.star_orbiting() else -1.0
 		if sw < 0.0 and _star_r > 0.0:
-			# (the wide orbit left behind, round what it circled: `_star_c`, kept
-			# under that star's id, or -9 round both suns, so a capture into the
-			# close orbit of the star it circled draws no fade, as with one sun)
-			_left = {"body": _settle_id(_star_c), "r": _star_r * view.zoom, "t0": _clock(), "a": 0.35, "c": _star_c}
+			# (the wide orbit left behind, round what it circled, kept under that
+			# star's id, or -9 round both suns, so a capture into the close orbit
+			# of the star it circled draws no fade, as with one sun; it fades round
+			# where that is as it goes, `_draw_rings`)
+			_left = {"body": _star_id, "r": _star_r * view.zoom, "t0": _clock(), "a": 0.35, "id": _star_id}
 		elif sw > 0.0 and _star_r < 0.0:
 			_pulse = {"body": -2, "t0": _clock()}
 		_star_r = sw
 		if sw > 0.0:
+			_star_id = _settle_id()
 			_star_c = _settle_c()
 		var on: int = flight.orbit_body()
 		if SystemLayout.is_place(on):
@@ -507,7 +516,9 @@ func _draw() -> void:
 	var ns := L.star_beacons.size()
 	for k in ns:
 		var bc = L.star_beacons[k]
-		var so: Vector2 = view.origin()
+		# (star A's: only a red or blue one holds any, and those are never a
+		# pair, `MapGen.twin_ok`; read where star A is drawn all the same)
+		var so: Vector2 = star_scr(-1)
 		var sr := maxf(L.star_r * view.star_k(), 3.0)
 		var sx := Vector2(so.x + roundf((float(k) - float(ns - 1) * 0.5) * 14.0), so.y)
 		var by := sx.y - sr - 14.0
@@ -539,7 +550,7 @@ func _draw() -> void:
 		beacons_at.append([at, -1, bc])
 	# a pulsar's own beacon: harvest the beam
 	if L.star == SystemLayout.StarKind.PULSAR:
-		var hat: Vector2 = view.origin() + Vector2(14, -16)
+		var hat: Vector2 = star_scr(-1) + Vector2(14, -16)
 		glyph(hat, &"harvest", UITheme.TRACTOR if flight == null or flight.reached() == -1 else Color(UITheme.TRACTOR, 0.42))
 		beacons_at.append([hat, -1, null])
 	# an exclusive group: rivals joined with a dashed line and marked
@@ -614,13 +625,15 @@ func _draw() -> void:
 				if not fw.is_empty():
 					var fww := _font().get_string_size(String(fw[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 					ship_words_at.append(Rect2((fw[1] as Vector2) + Vector2(-2, -10), Vector2(fww + 4, 14)))
-				at = _spot_off_suns(spots, steps, nm, selected, _clear_of_beacons(nm, ship_words_at))
-				if at == Vector2.INF and not ship_words_at.is_empty():
-					at = _spot_off_suns(spots, steps, nm, selected, _clear_of_beacons(nm))
-				if at == Vector2.INF:
-					at = _spot_off_suns(spots, steps, nm, selected)
-					if at != Vector2.INF and names_on:
-						_on_beacon_q.append(nm)
+				# (held where it stood while it stays clear there, `_spot_kept`)
+				var tries: Array = [["words", spots, steps, nm, _clear_of_beacons(nm, ship_words_at)]]
+				if not ship_words_at.is_empty():
+					tries.append(["beacons", spots, steps, nm, _clear_of_beacons(nm)])
+				tries.append(["suns", spots, steps, nm, Callable()])
+				var got := _spot_kept("sel", nm, tries, selected)
+				at = Vector2.INF if got.is_empty() else (got[0] as Vector2)
+				if not got.is_empty() and (got[1] as Array)[0] == "suns" and names_on:
+					_on_beacon_q.append(nm)
 			if at != Vector2.INF:
 				_name_label(at, nm, UITheme.ICE, 2, false)
 			elif names_on:
@@ -1003,6 +1016,21 @@ func star_scr(p: int) -> Vector2:
 	return view.origin()
 
 
+## WHERE A WIDE ORBIT ROUND `id` IS DRAWN ROUND on screen, its centre at plane
+## point `c`: one sun, the star where it is drawn (`origin()`); a sun of a pair,
+## that sun's disc on the block grid (`star_scr`), so the ring never wobbles a
+## pixel against it as the sun creeps (ruling 23); the balance point, on the
+## same grid. (Told by id: a centre of exactly zero was star A only while star
+## A held still at the origin.)
+func _ring_c(id: int, c: Vector2) -> Vector2:
+	var L: SystemLayout = view.layout
+	if L == null or not L.twin:
+		return view.origin()
+	if SystemLayout.is_star(id) and c.distance_to(L.star_pos(id, float(view.t))) < 0.5:
+		return star_scr(id)
+	return view.block_round(view.screen(c.x, c.y))
+
+
 ## How big star p's disc is drawn (its radius on screen, px): the view's own
 ## size for it (`SystemView.star_disc`) once it says, else star A's as it was
 ## always read here and star B's at the floor the map eases a sun up to
@@ -1057,47 +1085,50 @@ func _place_nm(p: int) -> String:
 	return star_name_of(p) if SystemLayout.is_star(p) else view.layout.bodies[p].name
 
 
-## THE CENTRE OF THE WIDE STAR ORBIT the ship is settled on (plane): star A at
-## the origin as it always was, or, in a pair, whatever the flight settles round
-## (the nearer star or both suns' balance point): the flight's own settle
-## centre, `ShipFlight.f.cen` (`_settle_centre`). It is read by name, since a
-## flight without a pair's settle has no such field and settles round star A.
+## THE CENTRE OF THE WIDE STAR ORBIT the ship is settled on (plane), now: star
+## A at the origin with one sun, or, in a pair, whatever the flight settles
+## round (the nearer star or both suns' balance point, `_settle_id`) where it is
+## at the view's t. Worked out from what it circles, never kept as a point: a
+## pair's suns turn (ruling 23), and a centre kept from the settle was off its
+## sun within seconds.
 func _settle_c() -> Vector2:
-	if flight != null and flight.has_method(&"star_orbit_c"):
-		return flight.call(&"star_orbit_c")
-	if flight != null and flight.f != null:
-		var c = flight.f.get("cen")
-		if c is Vector2:
-			return c
-	return Vector2.ZERO
+	return centre_of(_settle_id(), float(view.t))
 
 
-## WHAT THE WIDE ORBIT ROUND `c` CIRCLES, as a place id: -1 star A (the one
-## star), `SystemLayout.STAR_B` star B, -9 both suns. The flight says which
-## (`ShipFlight.f.cen_id`) while it is settled round `c`; else it is told by
-## where `c` is.
-func _settle_id(c: Vector2) -> int:
+## WHERE A WIDE ORBIT ROUND `id` IS CENTRED at map time t (-1 star A, the one
+## star; `SystemLayout.STAR_B`; -9 both suns): a sun where the pair has it then,
+## the balance point (which never moves), or the origin with one sun.
+func centre_of(id: int, t: float) -> Vector2:
+	var L: SystemLayout = view.layout
+	if L == null or not L.twin:
+		return Vector2.ZERO
+	return L.star_pos(id, t) if SystemLayout.is_star(id) else L.bary
+
+
+## WHAT THE WIDE ORBIT THE SHIP IS SETTLED ON CIRCLES, as a place id: -1 star A
+## (the one star), `SystemLayout.STAR_B` star B, -9 both suns. The flight says
+## which (`ShipFlight.f.cen_id`) while it is settled; after it breaks away, what
+## it last circled (`_star_id`). By id, never by where a centre is: once the
+## pair turns a centre read off a point drifts off its sun, and a ship round
+## star B read ORBITING BOTH STARS.
+func _settle_id() -> int:
 	var L: SystemLayout = view.layout
 	if L == null or not L.twin:
 		return -1
 	if flight != null and flight.f != null and flight.star_orbiting():
 		var id = flight.f.get("cen_id")
-		var fc = flight.f.get("cen")
-		if id is int and fc is Vector2 and (fc as Vector2).distance_to(c) < 1.0:
+		if id is int and (int(id) == -9 or SystemLayout.is_star(int(id))):
 			return id
-	# ORBIT:view `_settle_id` names the centre by position: once the pair turns, a cached centre drifts off its sun within seconds; name it by `flight.f.cen_id` (DESIGN step 5)
-	if c.distance_to(L.star_pos(-1, float(view.t))) < 1.0:
-		return -1
-	if c.distance_to(L.star_pos(SystemLayout.STAR_B, float(view.t))) < 1.0:
-		return SystemLayout.STAR_B
-	return -9
+	return _star_id
 
 
-## What a wide orbit round `c` circles, named: a star, or BOTH STARS round the
-## pair (it was BOTH SUNS: "Let's call it Binary instead of two suns", Nov 1;
-## the panel's AROUND row says the same, `SystemView.host_line`).
-func _settle_nm(c: Vector2) -> String:
-	var id := _settle_id(c)
+## What a wide orbit round `id` (`_settle_id`) circles, named: a star, or BOTH
+## STARS round the pair (it was BOTH SUNS: "Let's call it Binary instead of two
+## suns", Nov 1; the panel's AROUND row says the same, `SystemView.host_line`).
+## One sun: the star.
+func _settle_nm(id: int) -> String:
+	if not view.layout.twin:
+		return star_name_of(-1)
 	return "BOTH STARS" if id == -9 else star_name_of(id)
 
 
@@ -1191,10 +1222,11 @@ func _draw_rings(t: float) -> void:
 		if age2 < 0.9:
 			var lb := int(_left.body)
 			var lw: Vector2
-			if _left.has("c"):
-				# a wide orbit left: round what it circled, behind that star's disc
-				# if it was one (round both, -9, there is no disc at its middle)
-				var lc: Vector2 = _left.c
+			if _left.has("id"):
+				# a wide orbit left: round what it circled, where that is now,
+				# behind that star's disc if it was one (round both, -9, there is
+				# no disc at its middle)
+				var lc := centre_of(int(_left.id), float(view.t))
 				lw = _scr(lc.x, lc.y)
 			else:
 				lw = _body_scr(lb)
@@ -1205,10 +1237,10 @@ func _draw_rings(t: float) -> void:
 ## side of plane point `by` (the ship); `k` fades it, `arc_only` draws the stretch.
 ## Round `_star_c`: star A at the origin with one sun; in a pair, the star or
 ## the balance point the flight settles round, its far half behind either sun.
+## On screen round where its sun is drawn (`_ring_c`).
 func _star_orbit(r: float, by: Vector2, k: float, arc_only: bool) -> void:
 	var c := _star_c
-	# ORBIT:view a centre of exactly zero is star A only with one sun: in a turning pair star A leaves the origin (draw round `star_screen(-1)` by the settle's id)
-	var o: Vector2 = view.origin() if c == Vector2.ZERO else view.block_round(view.screen(c.x, c.y))
+	var o: Vector2 = _ring_c(_star_id, c)
 	var rp: float = r * view.zoom
 	var a0 := atan2(by.y - c.y, by.x - c.x)
 	var disc: float = view.layout.star_r * view.star_k()
@@ -1776,12 +1808,12 @@ func _line(ln: Dictionary, a: float, t: float, main: bool) -> void:
 	_dashes(ln.pts, Color(UITheme.ICE, a), (ln.out as Dictionary).is_empty() or not main)
 	if not main:
 		return
-	for fr: Dictionary in ln.fast:
-		var at: Vector2 = fr.at
-		_label(_scr(at.x, at.y) + Vector2(5, -4), "TOO FAST", Color(UITheme.HOT, minf(1.0, a * 1.6)), 2, true)
+	for k in (ln.fast as Array).size():
+		var at: Vector2 = ln.fast[k].at
+		_mark_word("fast%d" % k, _scr(at.x, at.y), "TOO FAST", Color(UITheme.HOT, minf(1.0, a * 1.6)))
 	var bp: Vector2 = ln.bump
 	if bp != Vector2.INF:
-		_label(_scr(bp.x, bp.y) + Vector2(5, -4), "BUMP", Color(UITheme.TRACTOR, minf(1.0, a * 1.6)), 2, true)
+		_mark_word("bump", _scr(bp.x, bp.y), "BUMP", Color(UITheme.TRACTOR, minf(1.0, a * 1.6)))
 	var o: Dictionary = ln.out
 	if o.is_empty():
 		return
@@ -1790,15 +1822,16 @@ func _line(ln: Dictionary, a: float, t: float, main: bool) -> void:
 		path.append(_scr(q0.x, q0.y))
 	if o.kind == &"star":
 		# SETTLING ROUND THE STAR: the stretch of that orbit where it settles, dashed
-		# (round what it settles round: star A at the origin, or in a pair the
-		# centre the flight's settle gives, `out.c`)
+		# (round what it settles round: star A at the origin, or in a pair what
+		# the flight's settle names, `out.id`, where that will be when it settles,
+		# `out.t`: a sun of a pair turns on meanwhile, ruling 23)
 		var sr: float = o.r
-		var sc0: Vector2 = o.get("c", Vector2.ZERO)
+		var sid: int = int(o.get("id", -1))
+		var sc0: Vector2 = centre_of(sid, float(o.get("t", view.t))) if L.twin else (o.get("c", Vector2.ZERO) as Vector2)
 		var sat: Vector2 = (o.at as Vector2) - sc0
 		var st0 := atan2(sat.y, sat.x)
 		var arc := PackedVector2Array()
-		# ORBIT:view as `_star_orbit`: a zero centre is star A only with one sun, and a forecast settle round a turning sun is round where it will be at o.t
-		var so: Vector2 = view.origin() if sc0 == Vector2.ZERO else view.block_round(view.screen(sc0.x, sc0.y))
+		var so: Vector2 = _ring_c(sid, sc0)
 		# from where the line ends, on along the orbit the way it goes (it began a
 		# little behind, and the two met in a V)
 		var dirn := signf(sat.x * (o.get("v", Vector2(0, 1)) as Vector2).y - sat.y * (o.get("v", Vector2(0, 1)) as Vector2).x) if o.has("v") else 1.0
@@ -1845,6 +1878,27 @@ func _line(ln: Dictionary, a: float, t: float, main: bool) -> void:
 	_label_clear(tag, cw, maxf(under * view.TILT, _reach(body) - 7.0), path, a)
 
 
+## A WORD AT A POINT ON THE LINE (TOO FAST, BUMP), on its right as it always
+## was; in a binary NEVER ACROSS A SUN (`_meets_sun`): on its left, else each a
+## step up or down (`_spot_off_suns`, held where it stood, `_spot_kept`), else
+## held back. A coast let go by a turning pair's sun bumps off that sun's
+## keep-out, a few px past its disc, and BUMP on the bump's right sat across the
+## sun's face (seed 7 ETA THORN SECUNDUS, coasting into ETA THORN I, with the
+## pair turned; the sweep met no such coast while the pair held still).
+func _mark_word(key: String, p: Vector2, words: String, col: Color) -> void:
+	var right := p + Vector2(5, -4)
+	if not _meets_sun(right, words):
+		_label(right, words, col, 2, true)
+		return
+	var tw := _font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+	var left := p + Vector2(-5.0 - tw, -4)
+	var got := _spot_kept(key, words, [["side", [right, left, right, left], [Vector2.UP, Vector2.UP, Vector2.DOWN, Vector2.DOWN], words, Callable()]])
+	if got.is_empty():
+		_held_q.append(words)
+		return
+	_label(got[0], words, col, 2, true)
+
+
 ## THE WORDS FOR WHERE THE LINE ENDS, on a shadow and clear of the line: under
 ## the ring (`half` its half-height round `at`), on the side away from where the
 ## path comes in; failing that centred, or over it, or on the other side.
@@ -1889,22 +1943,38 @@ func _label_clear(tag: String, at: Vector2, half: float, path: PackedVector2Arra
 	for cv: Vector2 in cands:
 		spots.append(Vector2(clampf(cv.x, view.window.position.x + 4.0, view.window.end.x - tw - 4.0), cv.y))
 	var pick: Vector2 = cands[0]
-	for p: Vector2 in spots:
-		if clear.call(p) and not _meets_sun(p.round(), tag):
-			pick = p
-			break
+	# (in a binary the spot last frame's words took, while it stays clear: the
+	# suns turn, ruling 23, and the first clear spot changed under them as one
+	# crept past; `_spot_kept`)
+	var two: bool = view.layout.twin
+	var took := -1
+	var was: Array = _spot_mem.get("fc_pick", []) if two else []
+	if was.size() == 2 and was[0] == tag and int(was[1]) < spots.size():
+		var wp: Vector2 = spots[int(was[1])]
+		if clear.call(wp) and not _meets_sun(wp.round(), tag):
+			took = int(was[1])
+	if took < 0:
+		for i in spots.size():
+			var p: Vector2 = spots[i]
+			if clear.call(p) and not _meets_sun(p.round(), tag):
+				took = i
+				break
+	if took >= 0:
+		pick = spots[took]
+		if two:
+			_spot_seen["fc_pick"] = [tag, took]
 	pick = pick.round()
 	if _meets_sun(pick, tag):
 		var near: Array = spots.map(func(p: Vector2) -> Vector2: return p.round())
 		var steps := [Vector2.DOWN, Vector2.DOWN, Vector2.UP, Vector2.UP, Vector2.DOWN]
 		var off_beacons := _clear_of_beacons(tag)
-		pick = _spot_off_suns(near, steps, tag, -99, func(p: Vector2) -> bool: return clear.call(p) and off_beacons.call(p))
-		if pick == Vector2.INF:
-			pick = _spot_off_suns(near, steps, tag, -99, clear)
-			if pick == Vector2.INF:
-				pick = _spot_off_suns(near, steps, tag)
-			if pick != Vector2.INF and names_on:
-				_on_beacon_q.append(tag)
+		var got := _spot_kept("fc", tag, [
+			["all", near, steps, tag, func(p: Vector2) -> bool: return clear.call(p) and off_beacons.call(p)],
+			["line", near, steps, tag, clear],
+			["suns", near, steps, tag, Callable()]])
+		pick = Vector2.INF if got.is_empty() else (got[0] as Vector2)
+		if not got.is_empty() and (got[1] as Array)[0] != "all" and names_on:
+			_on_beacon_q.append(tag)
 		if pick == Vector2.INF:
 			if names_on:
 				_held_q.append(tag)
@@ -2319,7 +2389,7 @@ func _ship_words_first(x: Vector2) -> Array:
 	elif SystemLayout.is_place(on) and flight.inserting():
 		words = ("COMING ALONGSIDE · " if flight.mode == &"keep" else "ENTERING ORBIT · ") + _place_nm(on)
 	elif flight.star_orbiting():
-		words = "ORBITING " + _settle_nm(_star_c)
+		words = "ORBITING " + _settle_nm(_settle_id())
 	if words == "":
 		return []
 	var tw := _font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
@@ -2390,22 +2460,67 @@ func _words_off_suns(words: String, on: int, x: Vector2) -> Array:
 		if int(e[0]) < 4:
 			var lw := _font().get_string_size(String(e[2]), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 			lower.append(Rect2((e[1] as Vector2) + Vector2(-2, -10), Vector2(lw + 4, 14)))
+	var tries: Array = []
 	for clear_of: StringName in [&"all", &"marks", &"suns"]:
-		for s: String in sayings:
+		for si in sayings.size():
+			var s: String = sayings[si]
 			var tw := _font().get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 			var at_x := clampf(c.x - roundf(tw / 2.0), win.position.x + 4.0, win.end.x - tw - 4.0)
 			var ok := Callable()
 			if clear_of != &"suns":
 				ok = _clear_of_beacons(s, ticks + lower if clear_of == &"all" else ticks)
-			var q := _spot_off_suns([Vector2(at_x, under), Vector2(at_x, over)], [Vector2.DOWN, Vector2.UP], s, -99, ok)
+			tries.append(["%s:%d:ring" % [clear_of, si], [Vector2(at_x, under), Vector2(at_x, over)], [Vector2.DOWN, Vector2.UP], s, ok, clear_of])
 			# (off a place, under the ring is under the ship already)
-			if q == Vector2.INF and SystemLayout.is_place(on):
+			if SystemLayout.is_place(on):
 				var ship_x := clampf(x.x - roundf(tw / 2.0), win.position.x + 4.0, win.end.x - tw - 4.0)
-				q = _spot_off_suns([Vector2(ship_x, ship_y)], [Vector2.DOWN], s, -99, ok)
-			if q != Vector2.INF:
-				if clear_of == &"suns":
-					_on_beacon_q.append(s)
-				return [q, s, clear_of]
+				tries.append(["%s:%d:ship" % [clear_of, si], [Vector2(ship_x, ship_y)], [Vector2.DOWN], s, ok, clear_of])
+	var got := _spot_kept("ship", words, tries)
+	if got.is_empty():
+		return []
+	var tr: Array = got[1]
+	if tr[5] == &"suns":
+		_on_beacon_q.append(String(tr[3]))
+	return [got[0], tr[3], tr[5]]
+
+
+## (each kind of words' spot as last frame placed it, `_spot_kept`: by key,
+## [the words, the try's tag, which spot, how far along its step]; and this
+## frame's, which `_place_labels` makes last frame's)
+var _spot_mem := {}
+var _spot_seen := {}
+
+
+## WORDS STEPPED OFF A BINARY'S SUNS HOLD WHERE THEY STOOD (ruling 23): the suns
+## of a pair turn, and each frame's nearest clear spot (`_spot_off_suns`) made
+## the words hop a whole step (up to `WORDS_STEP_MOST`) whenever a sun crept
+## across a spot tried before theirs: a lap of a close pair turning under the
+## words by the ship in star A's close orbit, placed afresh each frame, moved
+## them 59 times and hopped them 13 over three pairs, held 26 and 8
+## (TwinSiteTest, seeds 7, 4242 and 1999). So each kind of words stepped (`key`:
+## the ship's, a selected name, the forecast's, a warning on the line) keeps
+## last frame's spot, as the same try (its spot and how far along its step),
+## while those same `words` still stand clear there; pushed by a sun, they step
+## on along that same way first; only where that way is used up are the spots
+## tried afresh, nearest first. The spot is the try's own each frame, so the
+## words ride with the place they name (a world round one sun goes round with
+## it). `tries`: [[tag, spots, steps, the words to place, ok (`_spot_off_suns`),
+## anything else], ...], the order to try them afresh in. Returns [the spot, the
+## try], or [] where none clears.
+func _spot_kept(key: String, words: String, tries: Array, but := -99) -> Array:
+	var m: Array = _spot_mem.get(key, [])
+	if m.size() == 4 and m[0] == words:
+		for tr: Array in tries:
+			if tr[0] == m[1]:
+				var q := _spot_off_suns(tr[1], tr[2], tr[3], but, tr[4], int(m[2]), float(m[3]))
+				if q != Vector2.INF:
+					_spot_seen[key] = [words, tr[0], _spot_i, _spot_d]
+					return [q, tr]
+				break
+	for tr: Array in tries:
+		var q := _spot_off_suns(tr[1], tr[2], tr[3], but, tr[4])
+		if q != Vector2.INF:
+			_spot_seen[key] = [words, tr[0], _spot_i, _spot_d]
+			return [q, tr]
 	return []
 
 
@@ -2419,13 +2534,21 @@ func _words_off_suns(words: String, on: int, x: Vector2) -> Array:
 ## forecast's (`_label_clear`) all step out this way: the forecast's
 ## WILL ORBIT <world> sat across a sun in about half the coasts into a binary's
 ## rings at the opening zoom, and a selected world close to its sun had its name
-## across that sun on every side it tried (the picks review, Nov 1).
-func _spot_off_suns(spots: Array, steps: Array, words: String, but := -99, ok := Callable()) -> Vector2:
+## across that sun on every side it tried (the picks review, Nov 1). `only` and
+## `from_d`: that one spot alone, from that far along its step on (a spot held,
+## `_spot_kept`). Which spot it found and how far along, `_spot_i` and `_spot_d`.
+var _spot_i := -1
+var _spot_d := 0.0
+
+
+func _spot_off_suns(spots: Array, steps: Array, words: String, but := -99, ok := Callable(), only := -1, from_d := 0.0) -> Vector2:
 	var win: Rect2 = view.window
 	var tw := _font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
-	var d := 0.0
+	var d := from_d
 	while d <= WORDS_STEP_MOST:
 		for i in spots.size():
+			if only >= 0 and i != only:
+				continue
 			var q: Vector2 = (spots[i] as Vector2) + (steps[i] as Vector2) * d
 			if q.x < win.position.x + 4.0 - 0.01 or q.x + tw > win.end.x - 4.0 + 0.01:
 				continue
@@ -2433,6 +2556,8 @@ func _spot_off_suns(spots: Array, steps: Array, words: String, but := -99, ok :=
 				continue
 			if _meets_sun(q, words, but) or (ok.is_valid() and not bool(ok.call(q))):
 				continue
+			_spot_i = i
+			_spot_d = d
 			return q
 		d += 2.0
 	return Vector2.INF
@@ -2488,7 +2613,7 @@ func ship_status() -> Array:
 			return ["ALONGSIDE · " + nm.call(int(flight.keep.body)), UITheme.FLARE]
 		&"free":
 			if flight.star_orbiting():
-				return ["ORBITING " + _settle_nm(_settle_c()), UITheme.FLARE]
+				return ["ORBITING " + _settle_nm(_settle_id()), UITheme.FLARE]
 			if flight.f.no_cap_left > 0.0:
 				return ["LEAVING ORBIT", UITheme.CHILL]
 			if t - flight.fast_t < 0.6:
@@ -2647,6 +2772,15 @@ func _behind_sun(q: Vector2, p: Vector2) -> bool:
 	return false
 
 
+## The suns, the one nearer the viewer first (`depth` where the pair has them at
+## the view's t); star A first where they stand level, and with one sun.
+func _suns_near_first() -> Array[int]:
+	var out: Array[int] = view.layout.stars()
+	if out.size() == 2 and view.depth(view.layout.star_pos(out[1], float(view.t))) > view.depth(view.layout.star_pos(out[0], float(view.t))):
+		out.reverse()
+	return out
+
+
 func hit(p: Vector2) -> Dictionary:
 	for e in beacons_at:
 		var at: Vector2 = e[0]
@@ -2660,8 +2794,11 @@ func hit(p: Vector2) -> Dictionary:
 		var at: Vector2 = view.at[i]
 		if p.distance_to(at) <= maxf(view.draw_r(b), 4.0) + 3.0 and not _behind_sun(view.pos[i], p):
 			return {"kind": &"body", "body": i, "beacon": null, "at": at}
-	# EITHER STAR, at its own place and drawn size (star B, ruling 20: -4)
-	for s: int in L.stars():
+	# EITHER STAR, at its own place and drawn size (star B, ruling 20: -4), the
+	# nearer first: a turning pair stands one sun in front of the other twice a
+	# lap (ruling 23, "stacked:A", the near sun drawn over the far), and a click
+	# where their discs overlap is on the sun drawn on top
+	for s: int in _suns_near_first():
 		var sc: Vector2 = star_scr(s)
 		if p.distance_to(sc) <= maxf(8.0, star_disc(s)):
 			return {"kind": &"star", "body": s, "beacon": null, "at": sc}

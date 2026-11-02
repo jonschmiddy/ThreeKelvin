@@ -197,6 +197,7 @@ func _run() -> void:
 	_saw("twin systems")
 	await _wheel_and_home(m)
 	await _ring_outline_open(m, wa)
+	await _preview_end_gap(m, wa)
 	_satellites_page(m)
 	await _stars_as_places(m, n)
 	await _fly_to_b(m, n)
@@ -216,6 +217,7 @@ func _run() -> void:
 	await _ring_sweep()
 	await _ring_words_ride()
 	await _put_back_framed()
+	await _ladder_holds_the_pair()
 	await _end_planning()
 	_end()
 
@@ -259,6 +261,7 @@ func _longest_twin() -> MapGen.MapNode:
 func _opens_as_before() -> void:
 	var same := 0
 	var wide := 0
+	var lapped := 0
 	var bad: Array[String] = []
 	for sd: int in CLOSE_SEEDS:
 		Rng.forced = sd
@@ -268,20 +271,61 @@ func _opens_as_before() -> void:
 			if c.type != MapGen.NodeType.SYSTEM and c.type != MapGen.NodeType.STATION:
 				continue
 			var L := SystemLayout.of(c)
-			# ORBIT:map TwinSiteTest checks the opening framing at t 0 only: add kept clocks round the lap (review: the opening framing, a pair-phase sweep)
 			var ov := SystemMapScreen.open_view(L, c, SystemLayout.FIT_FRAME, 0.0)
 			var whole := SystemMapScreen.zoom_for(L, c, SystemLayout.FIT_FRAME)
 			if L.twin and not L.close:
 				wide += 1
 				if float(ov.zoom) <= whole * 1.5 or not L.pair_box(0.0).has_point(ov.at):
 					bad.append("seed %d %s (wide): %s, whole %.4f" % [sd, MapGen.star_name(c), ov, whole])
+				lapped += _framed_round_lap(L, c, ov, sd, bad)
 			elif float(ov.zoom) == whole and ov.at == Vector2.ZERO and L.pair_box(0.0).size == Vector2.ZERO:
 				same += 1
 			else:
 				bad.append("seed %d %s: %s, whole %.4f" % [sd, MapGen.star_name(c), ov, whole])
 	_saw("systems opened as before", same)
-	h._ok("one sun and every close pair open as they did, on star A at the whole system's zoom, and every wide pair nearer on its own part (%d as before, %d wide; %d not)%s" % [
-		same, wide, bad.size(), "" if bad.is_empty() else ": " + "; ".join(bad.slice(0, 4))], bad.is_empty() and same > 0 and wide > 0)
+	_saw("wide pairs framed at kept clocks", lapped)
+	h._ok("one sun and every close pair open as they did, on star A at the whole system's zoom, and every wide pair nearer on its own part, the same at %d clocks round its lap with the pair as it stands then on the picture (%d as before, %d wide; %d not)%s" % [
+		LAP_CLOCKS, same, wide, bad.size(), "" if bad.is_empty() else ": " + "; ".join(bad.slice(0, 4))], bad.is_empty() and same > 0 and wide > 0 and lapped == wide)
+
+
+## A WIDE PAIR OPENED AT ANY KEPT CLOCK (ruling 23: the map keeps each
+## system's clock, `Run.map_clock`, and the pair turns on it): at LAP_CLOCKS
+## clocks round its lap, `open_view` frames it the same as at t 0 (on the
+## balance point, no nearer than the circle it sweeps allows,
+## `SystemMapScreen.pair_reach`), and the
+## pair as it stands at each (both suns' discs and every world round one sun,
+## its whole circle and reach) is inside the picture that frames, on the
+## layout's frame. 1 where it holds, else 0 and why in `bad`. Held still
+## (`-- pair=0`) every clock is the laid-out pair, as before.
+const LAP_CLOCKS := 8
+
+
+func _framed_round_lap(L: SystemLayout, c: MapGen.MapNode, ov0: Dictionary, sd: int, bad: Array[String]) -> int:
+	var lap: float = TAU / L.pair_n if L.pair_n > 0.0 else 0.0
+	var fs := SystemLayout.FIT_FRAME
+	for k in LAP_CLOCKS:
+		var t := 37.0 + lap * float(k) / float(LAP_CLOCKS)
+		var ov := SystemMapScreen.open_view(L, c, fs, t)
+		var nm := "seed %d %s at t %.0f (%.0f deg round)" % [sd, MapGen.star_name(c), t, rad_to_deg(L.pair_n * t)]
+		if (ov.at as Vector2).distance_to(ov0.at) > 1e-3 or absf(float(ov.zoom) - float(ov0.zoom)) > 1e-9:
+			bad.append("%s: framed at %s, %.4f, not as at t 0 (%s, %.4f)" % [nm, ov.at, ov.zoom, ov0.at, ov0.zoom])
+			return 0
+		var z := float(ov.zoom)
+		var half := Vector2(fs.x * 0.5 / z, fs.y * 0.5 / (z * SystemLayout.SLANT))
+		var win := Rect2((ov.at as Vector2) - half, half * 2.0)
+		for p: int in L.stars():
+			var sp := L.star_pos(p, t)
+			var r := L.star_radius(p)
+			if not win.encloses(Rect2(sp - Vector2(r, r), Vector2(r, r) * 2.0)):
+				bad.append("%s: star %d at %s off the picture %s" % [nm, p, sp, win])
+				return 0
+		for b in L.bodies:
+			if SystemLayout.is_star(b.host_id):
+				var rr := b.orbit + SystemLayout.reach_of(b)
+				if not win.encloses(Rect2(b.host_at(t) - Vector2(rr, rr), Vector2(rr, rr) * 2.0)):
+					bad.append("%s: %s's circle round %s off the picture %s" % [nm, b.name, b.host_at(t), win])
+					return 0
+	return 1
 
 
 ## THE WHEEL OUT TO THE WHOLE SYSTEM AND HOME AGAIN, on this wide pair's map: it
@@ -673,7 +717,8 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	var he: Dictionary = ov.hit(sb + away * (maxf(8.0, rim) - 1.0))
 	h._ok("and at its drawn edge, %.1f px out away from its world (%s %d)" % [maxf(8.0, rim) - 1.0, he.get("kind", &""), int(he.get("body", -99))],
 		he.get("kind", &"") == &"star" and int(he.get("body", -99)) == B)
-	var ha: Dictionary = ov.hit(m.view.origin())
+	# (where star A is drawn: the pair turns, ruling 23, and it leaves the origin)
+	var ha: Dictionary = ov.hit(ov.star_scr(-1))
 	h._ok("a click on star A is on star A (%d)" % int(ha.get("body", -99)), ha.get("kind", &"") == &"star" and int(ha.get("body", -99)) == -1)
 	_saw("hits", 3)
 	_hits_behind(m)
@@ -717,9 +762,20 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 			held = true
 			break
 	var look: Vector2 = m._look_at()
-	# ORBIT:map the right-click hold on star B: the glide must follow a moving B (a glide onto a moving target)
 	var mid := Vector2(L.star_pos(SystemLayout.STAR_B, m.view.t).x, L.star_pos(SystemLayout.STAR_B, m.view.t).y * m.view.TILT)
 	h._ok("a right-click on star B zooms onto it and holds it in the middle (%s, want %s)" % [look, mid], held and look.distance_to(mid) < 1.0)
+	# AND HOLDS IT THERE AS IT MOVES (ruling 23: the pair turns): every frame for
+	# two seconds of the clock, the middle of the view where star B is then,
+	# however far it has gone
+	var b0 := L.star_pos(SystemLayout.STAR_B, m.view.t)
+	var worst := 0.0
+	for i in 120:
+		await get_tree().process_frame
+		var bt := L.star_pos(SystemLayout.STAR_B, m.view.t)
+		worst = maxf(worst, m._look_at().distance_to(Vector2(bt.x, bt.y * m.view.TILT)))
+	var went := b0.distance_to(L.star_pos(SystemLayout.STAR_B, m.view.t))
+	h._ok("and holds it there as the pair turns: %.2f plane px moved in 2 s, the view's middle at most %.2f px off it" % [went, worst],
+		m._focus_body == B and worst < 1.0 and (went > 0.05 or L.pair_n == 0.0))
 	m.right_click({})
 	for i in 3000:
 		await get_tree().process_frame
@@ -732,6 +788,8 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	_orbit_fit(m)
 	# THE PARTNERS' AND YOUR SHIP'S DISC TEST: behind star B (further from the
 	# viewer, on its disc) is hidden by it; in front is not
+	# (star B where it is now: it has turned on since the clicks above)
+	sb = ov.star_scr(B)
 	var behind: Array = ov._star_occ(L.star_pos(SystemLayout.STAR_B, m.view.t) + Vector2(0.0, -2.0))
 	var front: Array = ov._star_occ(L.star_pos(SystemLayout.STAR_B, m.view.t) + Vector2(0.0, 2.0))
 	h._ok("a ship just behind star B is hidden by its disc, one just in front is not",
@@ -1164,7 +1222,10 @@ func _partner_marked() -> void:
 		h._fail("no map for the partner's arrow")
 		return
 	var L: SystemLayout = m.view.layout
-	var at := L.bary + Vector2(0.0, 0.85 * (L.edge - L.bary.length()))
+	# (out to the side of the balance point the framing centres on: straight down
+	# the screen 0.85 of the edge out stood just inside the picture once a
+	# turning pair is framed on its balance point, `SystemMapScreen.open_view`)
+	var at := L.bary + Vector2(0.85 * (L.edge - L.bary.length()), 0.0)
 	var id := 70003
 	Net.roster[id] = {"id": id, "at": m.view.node.index, "order": 92, "name": "Geno"}
 	Net.spots[id] = {"at": m.view.node.index, "body": -9, "x": at.x, "z": at.y, "ang": 0.0}
@@ -1217,8 +1278,9 @@ func _settle_round(n: MapGen.MapNode) -> void:
 	var B := SystemLayout.STAR_B
 	var nm_a := MapGen.star_name(n) + " A"
 	var nm_b := MapGen.star_name(n) + " B"
-	# ORBIT:view settle names by position: star A is not at the origin once the pair turns; name by id (`_settle_id`)
-	var said := [ov._settle_nm(Vector2.ZERO), ov._settle_nm(L.star_pos(SystemLayout.STAR_B, m.view.t)), ov._settle_nm(L.bary)]
+	# (named by what each circles, `SystemOverlay._settle_id`, never by where its
+	# centre is: a turning pair's suns move off any point kept, ruling 23)
+	var said := [ov._settle_nm(-1), ov._settle_nm(B), ov._settle_nm(-9)]
 	h._ok("a wide orbit round star A, star B and the balance point is named %s" % " / ".join(said),
 		said[0] == nm_a and said[1] == nm_b and said[2] == "BOTH STARS")
 	if not h._ok("the flight can let a ship go to settle where it is (`ShipFlight.settle_at`, the flight build's)", m.flight.has_method(&"settle_at")):
@@ -1244,6 +1306,59 @@ func _settle_round(n: MapGen.MapNode) -> void:
 			(c[0] as Vector2).distance_to(c[2]), "star B" if c[2] == L.star_pos(SystemLayout.STAR_B, m.view.t) else "the balance point", c[1], st, c[2], sc],
 			m.flight.star_orbiting() and st == c[1] and sc.distance_to(c[2]) < 0.5)
 		_saw("wide orbits round star B or both")
+	await _settled_as_b_moves(m, cases[0][0], nm_b)
+
+
+## SETTLED ROUND STAR B AS IT MOVES (ruling 23): let go round star B, the clock
+## running for two seconds as the pair turns, every frame the status line and
+## the words by the ship say ORBITING <system> B (`SystemOverlay._settle_id`,
+## by the flight's `f.cen_id`), and the wide orbit is drawn round star B where
+## it is that frame (`_star_c`), on its disc (`_ring_c`, star B's place on the
+## grid). Named by where its centre was kept, a ship round star B drifted to
+## ORBITING BOTH STARS within seconds of the pair turning. Then broken away, the
+## orbit left fades round star B (`_left`, by id).
+func _settled_as_b_moves(m: SystemMapScreen, p: Vector2, nm_b: String) -> void:
+	var ov = m.overlay
+	var L: SystemLayout = m.view.layout
+	var B := SystemLayout.STAR_B
+	m.flight.call(&"settle_at", p, 1.0)
+	await _frames(6)
+	if not h._ok("let go round star B to watch it move, the flight settles round it (%d, the flight build's)" % int(m.flight.f.cen_id),
+			m.flight.star_orbiting() and int(m.flight.f.cen_id) == B):
+		return
+	var b0 := L.star_pos(B, m.view.t)
+	var frames := 0
+	var named := 0
+	var off := 0.0
+	var ring_off := 0.0
+	for i in 120:
+		await get_tree().process_frame
+		if not m.flight.star_orbiting():
+			continue
+		frames += 1
+		named += int(String(ov.ship_status()[0]) == "ORBITING " + nm_b and ov._settle_id() == B)
+		off = maxf(off, (ov._star_c as Vector2).distance_to(L.star_pos(B, m.view.t)))
+		ring_off = maxf(ring_off, (ov._ring_c(B, ov._star_c) as Vector2).distance_to(ov.star_scr(B)))
+	var went := b0.distance_to(L.star_pos(B, m.view.t))
+	h._ok("settled round star B as it moves %.2f px in 2 s: named ORBITING %s in %d of %d frames, the orbit drawn round it (at most %.3f px off it, %.1f px off its disc)" % [
+		went, nm_b, named, frames, off, ring_off], frames >= 100 and named == frames and off < 0.01 and ring_off < 0.01 and (went > 0.05 or L.pair_n == 0.0))
+	# BROKEN AWAY by W held: the orbit left fades round star B, by its id (the
+	# first frame it is off it: a ship let go by star B may be taken into its
+	# close orbit a moment on, and that fade is the close orbit's)
+	ov._left = {}
+	var keys_were: bool = m.harness_keys
+	m.harness_keys = true
+	m._wasd["w"] = true
+	var left := {}
+	for i in 60:
+		await get_tree().process_frame
+		if (ov._left as Dictionary).has("id"):
+			left = (ov._left as Dictionary).duplicate()
+			break
+	m._wasd["w"] = false
+	m.harness_keys = keys_were
+	h._ok("broken away, the orbit left fades round star B (%s)" % left, int(left.get("id", -99)) == B and int(left.get("body", -99)) == B)
+	_saw("settled round a moving star B, frames", frames)
 
 
 ## PUT BACK ON THE WIDE ORBIT IT WAS SETTLED ON: round star B, round both suns
@@ -1318,7 +1433,7 @@ func _put_back(n: MapGen.MapNode, p: Vector2, want: int, what: String, rows: boo
 	var dp := Vector2.INF
 	if StringName(dep.get("kind", &"")) == &"ring" and int(dep.get("place", 0)) == -9:
 		dp = (dep.c as Vector2) + Vector2(cos(float(dep.ang)), sin(float(dep.ang))) * float(dep.rt)
-	var nm: String = m.overlay._settle_nm(c0)
+	var nm: String = m.overlay._settle_nm(cen0)
 	h._ok("%s: put back round %d (was %d) at %.1f px (was %.1f), %s, %.2f px off it then and %.2f a second on, going the same way (%.0f); it says %s; a flight leaves %.2f px from the ship" % [
 		what, int(f1.cen_id), cen0, float(f1.orbit_r), r0, "settled" if m.flight.star_orbiting() else "NOT settled", off0, off1, float(f1.sense), st,
 		dp.distance_to(f2.p) if dp != Vector2.INF else INF],
@@ -2057,6 +2172,120 @@ func _alongside_hold() -> void:
 ## for this frame): the quit waits for it (`ShipFlight.drain`, Router). Not
 ## waited for, its task crashed the quit, signal 11, exit 134 (the scroll
 ## check, 3 of 3; the saves review's QuitLens, Oct 31).
+## THE ZOOM LADDER HANDS THE PAIR OVER WHERE IT STANDS (ruling 23; the review of
+## the plan, "the zoom-ladder handovers"), the moves animated as in play
+## (`Router.animate_in_harness`, the ladder's clock 1/30 s a frame), on a wide
+## pair's map opened a quarter of the way round its lap:
+##   - down to LOCAL, the map's clock kept at the click holds through the move
+##     (`SystemMapScreen.clock_held`), so the clock LOCAL is handed
+##     (`Run.map_t`) is the one the map last drew;
+##   - back up, the map built ahead (`ZoomLadder.prebuilt`) waits at that clock
+##     and holds it through the move, then runs on once it lands;
+##   - out to the chart by 1A (behind the calm switch, as LadderTest's every
+##     design), the move anchors on star A where it is now (`ladder_anchor`,
+##     the sun its hole shows, `ladder_sun`), not on the plane's origin where
+##     star A stood at t 0, and the map's clock holds through it too.
+## Running on through a move, the suns stood a frame's worth of turn or a whole
+## pre-roll's from where the other picture had them, and a map built ahead and
+## dropped wrote its moved clock back.
+func _ladder_holds_the_pair() -> void:
+	var m0 := Router.current as SystemMapScreen
+	if m0 == null or m0.view.layout == null or not m0.view.layout.twin or m0.view.layout.close:
+		h._fail("no wide pair's map for the ladder")
+		return
+	var n: MapGen.MapNode = m0.view.node
+	var L0: SystemLayout = m0.view.layout
+	var lap: float = TAU / L0.pair_n if L0.pair_n > 0.0 else 0.0
+	Router.show_local()
+	await _idle()
+	await _frames(2)
+	Run.map_clock[n.index] = lap * 0.25 + 3.0
+	var m := await _map()
+	if not h._ok("the map up again at a kept clock a quarter of the pair's lap round (%.1f)" % (m.view.t if m != null else -1.0), m != null and m.view.node == n):
+		return
+	var was_force := ZoomLadder.force
+	Router.animate_in_harness = true
+	ZoomLadder.fixed_dt = 1.0 / 30.0
+	ZoomLadder.force = 1
+	# DOWN TO LOCAL
+	await _frames(4)
+	var t_click: float = m.view.t
+	Router.show_local()
+	var moved := 0.0
+	var frames := 0
+	for i in 600:
+		await get_tree().process_frame
+		frames += 1
+		if is_instance_valid(m) and m.view != null:
+			moved = maxf(moved, absf(float(m.view.t) - t_click))
+		if not ZoomLadder.busy():
+			break
+	h._ok("down to LOCAL (%d frames): the map's clock held at the click (%.3f, moved %.4f s), and LOCAL handed it (%.3f)" % [
+		frames, t_click, moved, Run.map_t(n.index)], Router.current is SectorScreen and moved == 0.0 and Run.map_t(n.index) == t_click)
+	# BACK UP TO THE MAP, built ahead at that clock
+	var t_kept := Run.map_t(n.index)
+	await _frames(10)
+	Router.show_system()
+	var pm: Control = ZoomLadder.prebuilt_screen()
+	var off := 0.0
+	var seen := 0
+	for i in 600:
+		await get_tree().process_frame
+		var mm = pm if pm != null and is_instance_valid(pm) else Router.current
+		if mm is SystemMapScreen and (mm as SystemMapScreen).view.layout != null and ZoomLadder.busy():
+			seen += 1
+			off = maxf(off, absf(float((mm as SystemMapScreen).view.t) - t_kept))
+		if not ZoomLadder.busy():
+			break
+	var up := Router.current as SystemMapScreen
+	await _frames(20)
+	h._ok("up to the map: built ahead (%s) at the clock LOCAL held (%.3f), held through the move (%d frames, %.4f s off), running on once it lands (%.3f)" % [
+		pm != null, t_kept, seen, off, up.view.t if up != null else -1.0],
+		up != null and pm == up and seen > 0 and off == 0.0 and float(up.view.t) > t_kept)
+	# OUT TO THE CHART, 1A: anchored on star A where it is
+	if up != null:
+		ZoomLadder.calm_force = 0
+		ZoomLadder.force_design = {1: "A"}
+		var star_a: Vector2 = up._frame.global_position + up._box.position + (up.view.star_exact(-1) as Vector2)
+		var anchor: Vector2 = up.ladder_anchor(ZoomLadder.CHART, 1, "A")
+		var sun: Dictionary = up.ladder_sun()
+		var origin: Vector2 = up._ladder_origin()
+		h._ok("out to the chart (1A), the pair %.0f deg round: the move anchors on star A where it is (%s; star A at %s, the plane's origin where it stood at t 0 %s), the sun its hole shows there too (%s)" % [
+			rad_to_deg(L0.pair_n * float(up.view.t)), anchor, star_a, origin, sun.get("c", Vector2.INF)],
+			anchor.distance_to(star_a) < 0.5 and (sun.get("c", Vector2.INF) as Vector2).distance_to(star_a) < 0.5 and (origin.distance_to(star_a) > 4.0 or lap == 0.0))
+		var t_out: float = up.view.t
+		Router.show_starchart()
+		var out_moved := 0.0
+		# (the map's camera moves out first, so star A as it stood each frame, the
+		# frame the old picture is held and the one before)
+		var a_old := Vector2.INF
+		var near_a := INF
+		var near_o := INF
+		var was_a: Array = []
+		for i in 600:
+			var star_now: Vector2 = up._ladder_star() if is_instance_valid(up) and up.view != null else Vector2.INF
+			var origin_now: Vector2 = up._ladder_origin() if is_instance_valid(up) and up.view != null else Vector2.INF
+			await get_tree().process_frame
+			if is_instance_valid(up) and up.view != null:
+				out_moved = maxf(out_moved, absf(float(up.view.t) - t_out))
+			was_a.append([star_now, origin_now])
+			if ZoomLadder.busy() and a_old == Vector2.INF and ZoomLadder.active._a_old != Vector2.ZERO:
+				a_old = ZoomLadder.active._a_old
+				for e: Array in was_a.slice(maxi(0, was_a.size() - 2)):
+					near_a = minf(near_a, a_old.distance_to(e[0]))
+					near_o = minf(near_o, a_old.distance_to(e[1]))
+			if not ZoomLadder.busy():
+				break
+		h._ok("and the move holds the map's clock (%.4f s moved), the old picture held anchored on star A (%s: %.2f px off star A, %.1f off the plane's origin)" % [out_moved, a_old, near_a, near_o],
+			Router.current is StarchartScreen and out_moved == 0.0 and a_old != Vector2.INF and near_a < 1.0 and (near_o > 2.0 or lap == 0.0))
+		ZoomLadder.force_design = {}
+		ZoomLadder.calm_force = -1
+	ZoomLadder.force = was_force
+	ZoomLadder.fixed_dt = -1.0
+	Router.animate_in_harness = false
+	_saw("ladder moves with the pair turned", 3)
+
+
 func _end_planning() -> void:
 	var m := await _map()
 	if m == null:
@@ -2596,12 +2825,51 @@ func _ring_outline_open(m: SystemMapScreen, wa: int) -> void:
 	_saw("rings outlined, frames", r.seen)
 
 
+## WHERE THE FLIGHT DRAWN BEFORE IT IS FLOWN ENDS, flown to a world round star B
+## from the ring of the world round star A (the review of the plan, PLAUSIBLE:
+## at Kepler x 4 those two worlds go round their suns four times as fast, and
+## their suns turn, so the line's end, round where the world will be when the
+## ship gets there, `SystemOverlay._ends_table` at the plan's own moments,
+## stands off where it is drawn now): printed, not judged, for Jon to see.
+func _preview_end_gap(m: SystemMapScreen, wa: int) -> void:
+	var ov = m.overlay
+	var v = m.view
+	var L: SystemLayout = v.layout
+	var wb := -1
+	for b in L.bodies:
+		if wb < 0 and b.host_id == SystemLayout.STAR_B and b.world != &"":
+			wb = b.index
+	if wb < 0 or m.flight.reached() != wa:
+		return
+	ov.selected = wb
+	var got := false
+	for i in 600:
+		await get_tree().process_frame
+		if ov._pv_plan != null and ov._pv_plan.res != null and int(ov._pv_plan.to) == wb:
+			got = true
+			break
+	if got:
+		var pl = ov._pv_plan
+		var t_arr: float = m.flight._arrive_t(pl)
+		var now3: Vector3 = m.flight.center(wb, v.t)
+		var then3: Vector3 = m.flight.center(wb, t_arr)
+		var gap: float = (v.screen(now3.x, now3.z) as Vector2).distance_to(v.screen(then3.x, then3.z))
+		print("  --   the flight drawn to %s (round star B) ends round where it will be in %.1f s, %.1f px on screen from where it is drawn now (zoom %.3f, %.1f plane px)" % [
+			L.bodies[wb].name, t_arr - float(v.t), gap, v.zoom, Vector2(now3.x, now3.z).distance_to(Vector2(then3.x, then3.z))])
+	else:
+		print("  --   no flight drawn to the world round star B in 10 s, its end not measured")
+	ov.selected = -2
+	await _frames(2)
+
+
 ## THE WORDS BY THE SHIP HOLD STILL AS IT RIDES ITS RING: in OMEGA CALLOUS REACH
 ## (seed 7, node 284), on the ring of its first world round star A (OMEGA
 ## CALLOUS I), the world selected as in the picks stills, at the opening zoom,
 ## the clock running for `RIDE_FRAMES` frames (about two orbits). The words are
-## there every frame, never move more than 3 px from one frame to the next, and
-## spread no more than 3 px each way over the ride (the world drifts a pixel).
+## there every frame and, measured from where their world is drawn (it goes
+## round its sun, carried as its sun turns: ruling 23), never move more than 3
+## px from one frame to the next, and spread no more than 3 px each way over the
+## ride.
 ## Stepped off a sun and the beacon there, nearest first under the ring, above
 ## it and under the ship together, they hopped 6 to 10 px between under the
 ## ring and under the ship about twice an orbit and slid with the ship between
@@ -2633,7 +2901,6 @@ func _ring_words_ride() -> void:
 	if not h._ok("the map comes up in %s for the ride" % MapGen.star_name(n), m != null and m.view.node == n):
 		return
 	var ov = m.overlay
-	# ORBIT:view the ring-words ride and the sweeps below run at set map times; the suns now move with t too (label hysteresis, DESIGN step 5)
 	m.view.t = 40.0
 	m.flight.place_at(wa, m.view.t)
 	ov.selected = wa
@@ -2655,6 +2922,9 @@ func _ring_words_ride() -> void:
 			last = Rect2()
 			continue
 		seen += 1
+		# (from the world as drawn, `SystemOverlay._body_scr`, which the words
+		# under its ring are centred on)
+		box.position -= ov._body_scr(wa) as Vector2
 		if last.size.x > 0.0:
 			var d := box.position.distance_to(last.position)
 			biggest = maxf(biggest, d)
@@ -2666,7 +2936,7 @@ func _ring_words_ride() -> void:
 	var turns := absf(float(m.flight.rail.get("ang", 0.0)) - ang0) / TAU
 	ov.selected = -2
 	var spread := hi - lo if seen > 0 else Vector2.INF
-	h._ok("riding the ring of %s for %.1f orbits, %s selected, the words by the ship hold still: there in %d of %d frames, %d moves over 3 px (the most %.1f px), spread %s px from %s" % [
+	h._ok("riding the ring of %s for %.1f orbits, %s selected, the words by the ship hold still by it: there in %d of %d frames, %d moves over 3 px (the most %.1f px), spread %s px from %s off it" % [
 		ov._place_nm(wa), turns, ov._place_nm(wa), seen, RIDE_FRAMES, hops, biggest, spread, lo],
 		seen == RIDE_FRAMES and hops == 0 and spread.x <= 3.0 and spread.y <= 3.0 and turns >= 1.5)
 	_saw("ring rides, frames", seen)
@@ -2706,6 +2976,20 @@ func _pair_marks(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 		if w != null:
 			st.gap_n += 1
 			st.gap_least = minf(st.gap_least, w.orbit * v.zoom - v.star_disc(p) - v.draw_r(w))
+	# THE PAIR ON THE PICTURE at the clock it opened at (ruling 23: each binary
+	# here opens at another of LAP_CLOCKS angles): both suns' discs and every
+	# world round one sun as drawn, inside the frame
+	var whole := true
+	for p: int in L.stars():
+		var r: float = ov.star_disc(p)
+		whole = whole and win.encloses(Rect2(ov.star_scr(p) - Vector2(r, r), Vector2(r, r) * 2.0))
+	for b in L.bodies:
+		if SystemLayout.is_star(b.host_id) and b.world != &"":
+			var r: float = maxf(v.draw_r(b), 2.0)
+			whole = whole and win.encloses(Rect2(v.at[b.index] - Vector2(r, r), Vector2(r, r) * 2.0))
+	if not whole:
+		st.framed_off += 1
+		bad.append("%s at t %.0f (%.0f deg round): the pair not all on the picture %s" % [nm, v.t, rad_to_deg(L.pair_n * float(v.t)), win])
 	# what is drawn there, which an arrow must not be on
 	var drawn: Array = (ov.label_rects as Array).duplicate()
 	drawn.append_array(ov.mark_keep)
@@ -2746,6 +3030,130 @@ func _pair_marks(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 		if on:
 			st.mark_on += 1
 			bad.append("%s: the arrow at %s for %d is on something drawn" % [nm, mk.at, int(mk.body)])
+
+
+## THE NEARER SUN TAKES THE CLICK (ruling 23, "stacked:A": a close pair turns
+## through standing one sun in front of the other, the near one drawn over the
+## far), on this close pair's map at its opening zoom: over a lap of the pair,
+## the moment the suns' discs overlap most with each sun in front; there, a
+## click between their middles, on both discs, is on the nearer sun
+## (`SystemOverlay.hit`, the suns nearest first). Tried in fixed order, star A
+## first, the click went to star A behind star B's face. A pair whose discs
+## never meet at this zoom is counted, not judged.
+func _nearer_hit(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary, bad: Array[String]) -> void:
+	var v = m.view
+	var ov = m.overlay
+	var L: SystemLayout = v.layout
+	if L.pair_n <= 0.0:
+		return
+	var B := SystemLayout.STAR_B
+	var lap := TAU / L.pair_n
+	var t0: float = v.t
+	var best := {-1: [0.0, 0.0], B: [0.0, 0.0]}
+	for k in 720:
+		var t := t0 + lap * float(k) / 720.0
+		var pa := L.star_pos(-1, t)
+		var pb := L.star_pos(B, t)
+		var sa: Vector2 = v.block_round(v.screen(pa.x, pa.y))
+		var sbp: Vector2 = v.block_round(v.screen(pb.x, pb.y))
+		var meet: float = float(ov.star_disc(-1)) + float(ov.star_disc(B)) - sa.distance_to(sbp)
+		var front := -1 if v.depth(pa) > v.depth(pb) else B
+		if meet > float(best[front][0]):
+			best[front] = [meet, t]
+	m.frozen = true
+	for front: int in [-1, B]:
+		if float(best[front][0]) < 2.0:
+			st.near_none += 1
+			continue
+		v.t = float(best[front][1])
+		await _frames(2)
+		var a: Vector2 = ov.star_scr(-1)
+		var b: Vector2 = ov.star_scr(B)
+		var da: float = ov.star_disc(-1)
+		var db: float = ov.star_disc(B)
+		var d := a.distance_to(b)
+		var q := a if d < 0.01 else a + (b - a) / d * clampf((d + da - db) * 0.5, 0.0, d)
+		var hh: Dictionary = ov.hit(q)
+		st.near_n += 1
+		if hh.get("kind", &"") != &"star" or int(hh.get("body", -99)) != front:
+			st.near_bad += 1
+			bad.append("seed %d %s at t %.0f, star %d in front (the discs %.1f px over each other): a click at %s is on %s %d" % [
+				sd, MapGen.star_name(n), v.t, front, float(best[front][0]), q, hh.get("kind", &""), int(hh.get("body", -99))])
+	v.t = t0
+	m.frozen = false
+	await _frames(2)
+
+
+## THE WORDS HOLD AS THE SUNS TURN (ruling 23: each frame's nearest clear spot,
+## `SystemOverlay._spot_off_suns`, made the words hop a whole step as a sun
+## crept past a spot tried before theirs; DESIGN step 5): in the first
+## TURN_RUNS close pairs, the ship in star A's close orbit at the opening zoom,
+## the clock stepped TURN_STEP_S a frame through a whole lap of the pair, the
+## words by the ship (CLOSE ORBIT · <system> A, or CLOSE ORBIT alone) measured
+## from star A where it is (`_body_scr`, what they are centred on). Twice: as
+## the overlay places them, each spot held while it stays clear
+## (`SystemOverlay._spot_kept`), and placed afresh each frame, its memory
+## cleared, as they were before the pair turned. Held, they hop (move more than
+## 3 px in a frame, or change what they say) no more often than afresh and at
+## most TURN_HOPS_MOST times a lap; never across a sun; held back off one in
+## at most 1 frame in 20.
+const TURN_RUNS := 3
+const TURN_STEP_S := 1.5
+const TURN_HOPS_MOST := 6
+
+
+func _words_as_suns_turn(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary, bad: Array[String]) -> void:
+	var v = m.view
+	var ov = m.overlay
+	var L: SystemLayout = v.layout
+	if L.pair_n <= 0.0:
+		return
+	var lap := TAU / L.pair_n
+	var steps := int(ceil(lap / TURN_STEP_S))
+	var full: String = "CLOSE ORBIT · " + String(ov.star_name_of(-1))
+	var short: String = "CLOSE ORBIT"
+	var t0: float = v.t
+	m.frozen = true
+	m.flight.place_at(-1, t0)
+	await _frames(20)
+	st.turn_runs += 1
+	for afresh: bool in [false, true]:
+		var last := Vector2.INF
+		var last_s := ""
+		for k in steps:
+			v.t = t0 + TURN_STEP_S * float(k)
+			if afresh:
+				ov._spot_mem = {}
+			await get_tree().process_frame
+			var says := full
+			var box := _said_box(ov, full)
+			if box.size.x <= 0.0:
+				says = short
+				box = _said_box(ov, short)
+			if not afresh:
+				st.turn_frames += 1
+				var across := _words_on_suns(ov, L, "seed %d %s, the suns turning" % [sd, MapGen.star_name(n)], bad)
+				st.turn_across += int(across > 0)
+				st.turn_held += int(_held(ov).has(full) or _held(ov).has(short))
+			if box.size.x <= 0.0:
+				last = Vector2.INF
+				continue
+			var rel: Vector2 = box.position - (ov._body_scr(-1) as Vector2)
+			if last != Vector2.INF:
+				var dd := rel.distance_to(last)
+				var hop := dd > 3.0 or says != last_s
+				if afresh:
+					st.turn_moves_free += int(dd > 0.5 or says != last_s)
+					st.turn_hops_free += int(hop)
+				else:
+					st.turn_moves += int(dd > 0.5 or says != last_s)
+					st.turn_hops += int(hop)
+			last = rel
+			last_s = says
+	v.t = t0
+	m.frozen = false
+	m.flight.place_at(-1, t0)
+	await _frames(2)
 
 
 ## THE WORDS BY THE SHIP NEVER ACROSS A SUN, AND THE SHIP ON A SMALL WORLD'S RING
@@ -2797,8 +3205,14 @@ func _ring_sweep() -> void:
 		"sel": 0, "sel_shown": 0, "sel_held": 0, "sel_under": 0, "coasts": 0, "into": 0, "fc_shown": 0, "fc_held": 0, "ev_sys": 0, "ev_moved": 0,
 		"bc_words": 0, "bc_fallback": 0, "bc_crossed": 0, "sel_bc": 0, "fc_bc": 0,
 		"bc_stepped": 0, "bc_ticks": 0, "bc_hid": 0, "bc_marks": 0, "sel_on_words": 0, "close": 0,
-		"wide": 0, "zoom_bad": 0, "gap_n": 0, "gap_least": INF, "off": 0, "marked": 0, "marks": 0, "mark_on": 0, "untagged": 0}
+		"wide": 0, "zoom_bad": 0, "gap_n": 0, "gap_least": INF, "off": 0, "marked": 0, "marks": 0, "mark_on": 0, "untagged": 0,
+		"framed_off": 0, "near_n": 0, "near_bad": 0, "near_none": 0, "turn_runs": 0, "turn_frames": 0, "turn_hops": 0, "turn_hops_free": 0,
+		"turn_moves": 0, "turn_moves_free": 0, "turn_across": 0, "turn_held": 0}
 	var mark_bad: Array[String] = []
+	var near_bad: Array[String] = []
+	var turn_bad: Array[String] = []
+	# (the binaries seen, which kept clock each opens at)
+	var ti := 0
 	var crossed: Array[String] = []
 	var on_beacon: Array[String] = []
 	var held: Array[String] = []
@@ -2834,6 +3248,7 @@ func _ring_sweep() -> void:
 			var n: MapGen.MapNode = raw
 			var two := n.twin and MapGen.twin_ok(n)
 			var Ln := SystemLayout.of(n)
+			ti += int(two)
 			var w0 := -1
 			for b in Ln.bodies:
 				if b.world != &"" and w0 < 0:
@@ -2843,13 +3258,18 @@ func _ring_sweep() -> void:
 			Run.at = n.index
 			n.visited = true
 			SystemMapScreen._parked[n.index] = {"at": w0, "mode": &"rail"}
+			# OPENED AT A KEPT CLOCK (ruling 23): each binary at the next of
+			# LAP_CLOCKS points round its pair's lap, so the opening framing and
+			# everything below meet the pair at every angle (all at t 0 held still)
+			var lap: float = TAU / Ln.pair_n if two and Ln.pair_n > 0.0 else 0.0
+			Run.map_clock[n.index] = lap * float(ti % LAP_CLOCKS) / float(LAP_CLOCKS)
 			if m == null or not is_instance_valid(m) or Router.current != m:
 				m = await _map()
 			else:
 				# (one map shown again for another system, where the game makes a new
 				# one each time: the overlay's ring easing, fade and trail, which name
 				# the last system's bodies by index, start afresh as on a new map)
-				await m.show_system(n, 0.0, false)
+				await m.show_system(n, Run.map_t(n.index), false)
 				m.overlay._ok_body = -9
 				m.overlay._was = -9
 				m.overlay._left = {}
@@ -2874,6 +3294,10 @@ func _ring_sweep() -> void:
 			st.close += int(L.close)
 			if not L.close:
 				_pair_marks(m, sd, n, st, mark_bad)
+			else:
+				await _nearer_hit(m, sd, n, st, near_bad)
+				if st.turn_runs < TURN_RUNS:
+					await _words_as_suns_turn(m, sd, n, st, turn_bad)
 			var places: Array[int] = L.stars()
 			for b in L.bodies:
 				if b.world != &"":
@@ -2882,7 +3306,9 @@ func _ring_sweep() -> void:
 				var round_one := p >= 0 and SystemLayout.is_star(L.bodies[p].host_id)
 				st.places += 1
 				for j in (3 if round_one else 1):
-					var tt: float = 37.0 + (L.bodies[p].period * float(j) / 3.0 if p >= 0 else 0.0)
+					# (and the pair at the next of LAP_CLOCKS angles each moment: the
+					# words keep off suns that stand anywhere round their lap)
+					var tt: float = 37.0 + lap * float((ti + st.moments) % LAP_CLOCKS) / float(LAP_CLOCKS) 						+ (L.bodies[p].period * float(j) / 3.0 if p >= 0 else 0.0)
 					m.view.t = tt
 					m.flight.place_at(p, tt)
 					var r := await _ring_frames(m, p, 2, 2)
@@ -2975,7 +3401,7 @@ func _ring_sweep() -> void:
 				if wr < 0 and b.world != &"" and SystemLayout.is_star(b.host_id):
 					wr = b.index
 			for j in 3:
-				var ts: float = 37.0 + (L.bodies[wr].period * float(j) / 3.0 if wr >= 0 else float(j) * 20.0)
+				var ts: float = 37.0 + lap * float((ti + j * 3 + 1) % LAP_CLOCKS) / float(LAP_CLOCKS) 					+ (L.bodies[wr].period * float(j) / 3.0 if wr >= 0 else float(j) * 20.0)
 				m.view.t = ts
 				m.flight.place_at(w0, ts)
 				await _frames(2)
@@ -3080,6 +3506,25 @@ func _ring_sweep() -> void:
 	_saw("ring sweep: beacons off the picture", st.off)
 	h._ok("every wide pair opens framed on its own part (`open_view`), nearer than the whole system and centred on it (%d of %d not)" % [st.zoom_bad, st.wide],
 		st.wide > 0 and st.zoom_bad == 0)
+	h._ok("and opened at kept clocks round the pair's lap (%d angles), the pair as it stands then all on the picture (%d of %d not)" % [LAP_CLOCKS, st.framed_off, st.wide],
+		st.wide > 0 and st.framed_off == 0)
+	# THE NEARER SUN TAKES THE CLICK, in each close pair standing one sun in front
+	# of the other (`_nearer_hit`)
+	for e: String in near_bad.slice(0, 6):
+		print("  --     %s" % e)
+	_saw("ring sweep: clicks where the suns overlap", st.near_n)
+	h._ok("in each close pair, where the suns' discs overlap as the pair turns, a click there is on the nearer sun, the one drawn on top (%d clicks, %d not; %d pairs never overlapping)" % [
+		st.near_n, st.near_bad, st.near_none], (st.near_n > 0 or SystemLayout.pair_speed() == 0.0) and st.near_bad == 0)
+	# THE WORDS HOLD AS THE SUNS TURN (`_words_as_suns_turn`)
+	for e: String in turn_bad.slice(0, 6):
+		print("  --     %s" % e)
+	print("  --   the suns turning a lap under the words by the ship, %d close pairs, %d frames: held where they stood, %d moves and %d hops over 3 px; each frame placed afresh, %d moves and %d hops; %d across a sun, %d held back" % [
+		st.turn_runs, st.turn_frames, st.turn_moves, st.turn_hops, st.turn_moves_free, st.turn_hops_free, st.turn_across, st.turn_held])
+	_saw("ring sweep: frames of the suns turning under the words", st.turn_frames)
+	h._ok("a lap of a close pair turning under the words by the ship in star A's close orbit: never across a sun, held where they stood while clear (%d hops over 3 px a lap, %d placed afresh each frame; %d across, %d held back of %d frames)" % [
+		st.turn_hops, st.turn_hops_free, st.turn_across, st.turn_held, st.turn_frames],
+		(st.turn_runs > 0 or SystemLayout.pair_speed() == 0.0) and st.turn_across == 0 and st.turn_hops <= st.turn_hops_free
+		and st.turn_hops <= TURN_HOPS_MOST * st.turn_runs and st.turn_held * 20 <= st.turn_frames)
 	h._ok("and draws each world round one sun at least %.0f px clear of its sun's disc beside it (least %.1f px over %d; fitted to the whole system it was 5)" % [PAIR_GAP_LEAST, st.gap_least, st.gap_n],
 		st.gap_n >= 2 * st.wide and st.gap_least >= PAIR_GAP_LEAST)
 	h._ok("every event's beacon off the picture as it opens has an arrow at the frame's edge (%d of %d), each inside the frame and on nothing drawn there (%d on something)" % [
