@@ -1733,7 +1733,21 @@ func _body_scr(body: int) -> Vector2:
 ## A ring round a place, flattened as the plane is: solid, or dashed 4 on 3 off.
 ## Its far half goes behind the place's disc.
 func _ring(w: Vector2, r: float, col: Color, body: int, dashed: bool) -> void:
+	for q: Vector2 in ring_pts(w, r, body, dashed):
+		_px(q, col)
+
+
+## The pixels `_ring` draws (public for TwinSiteTest). Its far half goes behind
+## the place's disc round w, and behind the place's disc where it is drawn now
+## (`_place_scr`): a ring round where a world will be when the ship gets there
+## (`_line`) stands off the world as drawn, at Kepler x 4 by 5 to 9 px round a
+## sun of a turning pair (ruling 23), and its far half was drawn across the
+## world's disc while the cut fell on empty space.
+func ring_pts(w: Vector2, r: float, body: int, dashed: bool) -> PackedVector2Array:
+	var out := PackedVector2Array()
 	var disc := _reach(body) - 7.0
+	var wd := _place_scr(body) if SystemLayout.is_place(body) or SystemLayout.is_star(body) else w
+	var off := wd.distance_squared_to(w) > 0.01
 	var n := int(r * 6.4) + 24
 	var arc := TAU * r / float(n)
 	# only what is on screen (the star orbit you arrive on, zoomed in, ran to
@@ -1746,9 +1760,10 @@ func _ring(w: Vector2, r: float, col: Color, body: int, dashed: bool) -> void:
 		var q := w + Vector2(cos(an) * r, sin(an) * r * view.TILT)
 		if not win.has_point(q):
 			continue
-		if sin(an) < 0.0 and q.distance_to(w) < disc:
+		if sin(an) < 0.0 and (q.distance_to(w) < disc or (off and q.distance_to(wd) < disc)):
 			continue
-		_px(q.round(), col)
+		out.append(q.round())
+	return out
 
 
 ## A path on the plane, dashed 4 on 3 off; `fade` takes it out toward its end.

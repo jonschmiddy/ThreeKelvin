@@ -2877,7 +2877,8 @@ func _ring_outline_open(m: SystemMapScreen, wa: int) -> void:
 ## at Kepler x 4 those two worlds go round their suns four times as fast, and
 ## their suns turn, so the line's end, round where the world will be when the
 ## ship gets there, `SystemOverlay._ends_table` at the plan's own moments,
-## stands off where it is drawn now): printed, not judged, for Jon to see.
+## stands off where it is drawn now): printed, not judged, for Jon to see; and
+## a ring drawn there goes behind the world's disc as drawn now, judged.
 func _preview_end_gap(m: SystemMapScreen, wa: int) -> void:
 	var ov = m.overlay
 	var v = m.view
@@ -2903,6 +2904,29 @@ func _preview_end_gap(m: SystemMapScreen, wa: int) -> void:
 		var gap: float = (v.screen(now3.x, now3.z) as Vector2).distance_to(v.screen(then3.x, then3.z))
 		print("  --   the flight drawn to %s (round star B) ends round where it will be in %.1f s, %.1f px on screen from where it is drawn now (zoom %.3f, %.1f plane px)" % [
 			L.bodies[wb].name, t_arr - float(v.t), gap, v.zoom, Vector2(now3.x, now3.z).distance_to(Vector2(then3.x, then3.z))])
+		# THE RING ROUND WHERE IT WILL BE (as the let-go forecast draws its orbit
+		# there, `SystemOverlay._line`), dashed and solid: its far half never
+		# crosses the world's disc as it is drawn now. Cut only round its own
+		# centre, 7.8 px off the drawn world at the opening zoom, it was drawn
+		# across the world's face (review 1, Nov 2)
+		var cw: Vector2 = v.screen(then3.x, then3.z)
+		var wd: Vector2 = v.at[wb]
+		var disc: float = v.draw_r(L.bodies[wb])
+		var rpx: float = ov._orbit_px(wb, m.flight.orbit_r(wb))
+		var on := 0
+		var could := 0
+		for dashed: bool in [true, false]:
+			for q: Vector2 in ov.ring_pts(cw, rpx, wb, dashed):
+				if q.y < cw.y - 0.5 and q.distance_to(wd) < disc - 0.5:
+					on += 1
+		# (and how many of its far half's points lie on that disc, uncut)
+		var n_r := int(rpx * 6.4) + 24
+		for j in n_r:
+			var an := float(j) / float(n_r) * TAU
+			var q2 := cw + Vector2(cos(an) * rpx, sin(an) * rpx * v.TILT)
+			if sin(an) < 0.0 and q2.distance_to(wd) < disc and q2.distance_to(cw) >= disc:
+				could += 1
+		h._ok("the ring round where %s will be is cut behind its disc as drawn now: %d far-side pixels on it (%d of the ring's points lie there, %.1f px off its centre)" % [L.bodies[wb].name, on, could, gap], on == 0)
 	else:
 		print("  --   no flight drawn to the world round star B in 10 s, its end not measured")
 	ov.selected = -2
