@@ -1508,6 +1508,10 @@ func _hand_phase() -> void:
 		var t := t0
 		var settled_at := -1.0
 		var pinned := 0
+		# (and taken by no ring, while pulled in or once settled: in about one
+		# twin layout in five the far side's circle lay inside the ring of a world
+		# or giant round both suns, and the ship was put on it, Nov 2)
+		var taken_far := ""
 		for k in int(60.0 / dt):
 			t += dt
 			fl.step(dt, t, NONE)
@@ -1515,15 +1519,17 @@ func _hand_phase() -> void:
 				settled_at = float(k) * dt
 			if settled_at >= 0.0 and (fl.f.p as Vector2).length() > L.edge - 0.5:
 				pinned += 1
+			if taken_far == "" and fl.mode != &"free":
+				taken_far = "%s %d at %.1f s" % [fl.mode, fl.orbit_body(), float(k) * dt]
 		n.far = int(n.far) + 1
 		var out: float = (fl.f.cen as Vector2).length() + float(fl.f.orbit_r) - L.edge
 		worst_out = maxf(worst_out, out)
 		worst_settle = maxf(worst_settle, settled_at if settled_at >= 0.0 else 99.0)
-		var far_ok: bool = settled_at >= 0.0 and settled_at < 30.0 and out <= -11.0 and pinned == 0
+		var far_ok: bool = settled_at >= 0.0 and settled_at < 30.0 and out <= -11.0 and pinned == 0 and taken_far == ""
 		if far_ok:
 			n.far_ok = int(n.far_ok) + 1
 		else:
-			rows.append("far side, system %d: settled at %.1f s, its circle %+.0f px past the edge, %d frames on the edge after" % [int(row[6]), settled_at, out, pinned])
+			rows.append("far side, system %d: settled at %.1f s, its circle %+.0f px past the edge, %d frames on the edge after%s" % [int(row[6]), settled_at, out, pinned, "" if taken_far == "" else ", taken by a ring (%s)" % taken_far])
 		if fl.star_orbiting():
 			var tg: Array[int] = [-1]
 			for bb in L.bodies:
@@ -1595,7 +1601,7 @@ func _hand_phase() -> void:
 				n.sun_ok = int(n.sun_ok) + 1
 			else:
 				rows.append("W at star %d, system %d: came to %.1f px from its centre, its keep-out %.1f (drawn sun %.1f)" % [s, int(row[6]), rmin, kc, kc - 6.0])
-	print("flighttest: flying by hand in a twin (%d systems, %d of them close pairs): let go on the far side, %d of %d settled inside the map and off its edge (its circle at worst %+.0f px past the edge, settled at worst in %.1f s), %d of %d flights from there inside it; let go between the stars, %d of %d settled and taken by no ring; W at a sun, %d of %d held out of its keep-out (at worst %.1f px outside the drawn sun)" % [seen.size(), int(by_kind.get("close", 0)), n.far_ok, n.far, worst_out, worst_settle, n.far_fl_ok, n.far_flights, n.mid_ok, n.mid, n.sun_ok, n.sun, worst_sun])
+	print("flighttest: flying by hand in a twin (%d systems, %d of them close pairs): let go on the far side, %d of %d settled inside the map and off its edge and taken by no ring (its circle at worst %+.0f px past the edge, settled at worst in %.1f s), %d of %d flights from there inside it; let go between the stars, %d of %d settled and taken by no ring; W at a sun, %d of %d held out of its keep-out (at worst %.1f px outside the drawn sun)" % [seen.size(), int(by_kind.get("close", 0)), n.far_ok, n.far, worst_out, worst_settle, n.far_fl_ok, n.far_flights, n.mid_ok, n.mid, n.sun_ok, n.sun, worst_sun])
 	for r in rows.slice(0, 20):
 		print("    " + r)
 	h._ok("by hand in a twin: let go anywhere it settles inside the map, between the stars too, and W never takes it into a sun (%d/%d, %d/%d, %d/%d, %d/%d)" % [n.far_ok, n.far, n.far_fl_ok, n.far_flights, n.mid_ok, n.mid, n.sun_ok, n.sun],

@@ -616,7 +616,10 @@ func _settle_centre(st: FreeState, t: float) -> void:
 	st.cen = L.bary
 	st.cen_id = -9
 	st.cen_share = 1.0
-	var rw := clampf(r, r_out, maxf(_bary_in(), r_out))
+	var hi := maxf(_bary_in(), r_out)
+	var rw := clampf(r, r_out, hi)
+	if absf(rw - r) > 0.01:
+		rw = _clear_both(rw, r_out, hi)
 	st.r_want = rw if absf(rw - r) > 0.01 else -1.0
 
 
@@ -663,6 +666,34 @@ func _clear_round(p: int, r: float) -> float:
 	return r
 
 
+## A CIRCLE OF RADIUS r ROUND A TWIN'S BALANCE POINT, moved off the band of
+## every world round both suns (the nearest radius from lo to hi clear of all of
+## them; r if there is none): let go out on the far side, a ship pulled in to
+## `_bary_in` was taken onto the world or giant ringing that radius, while it was
+## pulled in or once it had settled (seed 1999 system 309; 267 of 1,310 twin
+## layouts put that radius inside such a ring, Nov 2).
+func _clear_both(r: float, lo: float, hi: float) -> float:
+	var cands: Array[float] = [r]
+	for b in L.bodies:
+		if b.host_id == -9 and b.world != &"":
+			cands.append(b.orbit - _band(b))
+			cands.append(b.orbit + _band(b))
+	var best := r
+	var best_d := INF
+	for c: float in cands:
+		if c < lo - 0.001 or c > hi + 0.001 or absf(c - r) >= best_d:
+			continue
+		var ok := true
+		for b in L.bodies:
+			if b.host_id == -9 and b.world != &"" and absf(c - b.orbit) < _band(b) - 0.001:
+				ok = false
+				break
+		if ok:
+			best = c
+			best_d = absf(c - r)
+	return best
+
+
 ## How far either side of its circle a world's ring reaches, well clear (as
 ## `arrival_r` keeps it).
 func _band(b: SystemLayout.Body) -> float:
@@ -670,7 +701,8 @@ func _band(b: SystemLayout.Body) -> float:
 
 
 ## THE WIDEST CIRCLE ROUND IT INSIDE THE MAP: the edge is measured from star A,
-## so this far from the balance point (as the arrival orbit keeps, `arrival_r`).
+## so this far from the balance point. (Unlike `arrival_r` it does not keep off
+## the worlds round both suns: `_clear_both` moves a settle's radius off them.)
 func _bary_in() -> float:
 	return L.edge - L.bary.length() - 12.0
 
@@ -1607,8 +1639,14 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 	var take := {}
 	var take_d := INF
 	var fast := {}
+	# (not a world's ring the settle's own burn is pulling the ship through on
+	# its way to a radius it chose, `_settle_centre`'s r_want, unless it is the
+	# one the line shows: as `capture_ahead` does not take that pull for an aim.
+	# Pulled in from the far side, the ship was taken onto the world it was being
+	# brought in past)
+	var pulled := st.r_want > 0.0 and st.orbit_r < 0.0 and st.coast > SETTLE_TURN
 	for b in L.bodies:
-		if b.world == &"" or b.index == no_cap:
+		if b.world == &"" or b.index == no_cap or (pulled and b.index != stick):
 			continue
 		var c2: Vector3 = cs[b.index] if have_c else center(b.index, t)
 		var rel := Vector2(st.p.x - c2.x, st.p.y - c2.z)
