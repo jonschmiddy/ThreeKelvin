@@ -17,7 +17,8 @@ extends Node
 ##     lighting the ship's place (its own); a world round star B within its
 ##     orbit of B on the band, and still there a minute of LOCAL's clock on.
 ##  2. MAP -> LOCAL -> MAP: the map's clock goes into LOCAL whole, LOCAL holds it
-##     while it is up, and the map opens on it again. IN CO-OP, a partner's map
+##     while it is up, and the map opens on it again, the ship where it rode
+##     round star B (review 2). IN CO-OP, a partner's map
 ##     clock 10 s ahead, with the zoom ladder off and on: at both handovers
 ##     the picture coming up has the clock of the one going (LOCAL does not take
 ##     the party's from its map, the map does not take it from LOCAL), the kept
@@ -255,6 +256,7 @@ func _through_the_map() -> void:
 		return
 	_ok("the map opened on the kept clock and ran on from it (%.3f, kept %.3f)" % [m.view.t, t0], m.view.t >= t0 and m.view.t - t0 < 2.0)
 	var left := float(m.view.t)
+	var off_left := _ship_off(m, SystemLayout.STAR_B)
 	Router.show_local()
 	await _frames(6)
 	var sky := _local_sky()
@@ -274,9 +276,15 @@ func _through_the_map() -> void:
 	_ok("held while LOCAL is up: the clock not run on (%.6f) and star B not moved on the band" % Run.map_t(idx),
 		Run.map_t(idx) == kept and sky._sun_at(SystemLayout.STAR_B) == b_before and absf(sky.held_t() - left) < 1e-9)
 	Router.show_system()
-	await _frames(4)
+	await _frames(1)
 	m = Router.current as SystemMapScreen
 	if _ok("the map is up again", m != null):
+		# (and the ship where it rode round star B, a frame on: put back at +x
+		# of it, it alone jumped across its sun, review 2)
+		_ok("and the ship back on star B's close orbit where it was, two frames of ride on (%.3f px off; at +x it would be %.1f)" % [
+			_ship_off(m, SystemLayout.STAR_B).distance_to(off_left), off_left.distance_to(Vector2(off_left.length(), 0.0))],
+			_ship_off(m, SystemLayout.STAR_B).distance_to(off_left) <= RIDE_FRAME)
+		await _frames(3)
 		_ok("and opened on the angle LOCAL held (%.3f, LOCAL %.3f)" % [m.view.t, left], m.view.t >= left and m.view.t - left < 1.0)
 	Router.show_local()
 	await _frames(4)
@@ -318,6 +326,7 @@ func _coop_handovers(ladder: int, lead: float) -> void:
 	var last := Run.map_t(idx)
 	# MAP -> LOCAL
 	var left := float(m.view.t)
+	var off_left := _ship_off(m, SystemLayout.STAR_B)
 	Router.show_local()
 	var sky: LocalSky = null
 	for i in 240:
@@ -341,6 +350,7 @@ func _coop_handovers(ladder: int, lead: float) -> void:
 	var pt_before := Net.party_t(idx)
 	Router.show_system()
 	var at_swap := -1.0
+	var off_back := Vector2.INF
 	for i in 240:
 		await _tree.process_frame
 		if Run.map_t(idx) < last:
@@ -349,6 +359,7 @@ func _coop_handovers(ladder: int, lead: float) -> void:
 		var m2 := Router.current as SystemMapScreen
 		if m2 != null and at_swap < 0.0:
 			at_swap = float(m2.view.t)
+			off_back = _ship_off(m2, SystemLayout.STAR_B)
 		if m2 != null and not ZoomLadder.busy():
 			break
 	m = Router.current as SystemMapScreen
@@ -356,6 +367,11 @@ func _coop_handovers(ladder: int, lead: float) -> void:
 		Net.state = kept_state
 		_no_partner()
 		return
+	if ladder == 0:
+		# (the ship where it rode round star B, its sun carried on with the
+		# party's clock or not: `NetSession.carry_parked`, review 2)
+		_ok("co-op, %s: the ship back on star B's close orbit where it was, two frames of ride on (%.3f px off)" % [how, off_back.distance_to(off_left)],
+			off_back.distance_to(off_left) <= RIDE_FRAME)
 	if far:
 		_ok("co-op, %s: too far behind to catch up, the map comes up on the party's clock, within a frame (%.6f, the party %.6f; LOCAL %.6f)" % [how, at_swap, pt_before, held],
 			at_swap >= pt_before and at_swap - pt_before <= 1.5 / 60.0)
@@ -516,6 +532,18 @@ func _coop_opened_cold() -> void:
 	Net.state = kept_state
 	_no_partner()
 	SystemMapScreen._parked[idx] = {"at": B, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+
+
+## The ride a put-back ship may show (px): two frames of a star's close orbit
+## at STAR_RAIL_V (the map's first step comes in the swap's own frame, and this
+## reads it a frame on), and a half for rounding. Put back at +x it is tens.
+const RIDE_FRAME := 2.5 * 45.0 / 60.0
+
+
+## The map's ship from place `body`'s centre now.
+func _ship_off(m: SystemMapScreen, body: int) -> Vector2:
+	var c: Vector3 = m.flight.center(body, m.view.t)
+	return m.flight.f.p - Vector2(c.x, c.z)
 
 
 ## A PARTNER (peer 77) in system `idx` on the roster, its map's clock `t`

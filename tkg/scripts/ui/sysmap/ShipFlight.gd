@@ -1356,6 +1356,21 @@ func place_at(body: int, t: float) -> void:
 	start_rail(body, Vector2(orbit_r(body), 0.0), null, t)
 
 
+## PUT BACK ON ITS RING WHERE IT RODE: `rel` the offset from the place's centre
+## it was kept at, `dir` the way it rode (+1 or -1), on its ring at its speed,
+## so no insertion. With the map's clock kept the suns and worlds come back
+## where they were, and a ship put at +x of its place (`place_at`) alone jumped
+## across its world or sun on a Tab back (review 2). Alongside, or with no
+## offset to go by, as `place_at`.
+func rail_back(body: int, rel: Vector2, dir: float, t: float) -> void:
+	place_at(body, t)
+	if mode != &"rail" or rel.length() < 0.5:
+		return
+	var u := rel.normalized()
+	var spd := STAR_RAIL_V if body < 0 else RAIL_V
+	start_rail(body, u * orbit_r(body), Vector2(-u.y, u.x) * spd * (-1.0 if dir < 0.0 else 1.0), t)
+
+
 ## Where a ship sits alongside a station, belt, hulk or contact, from its place.
 const KEEP_OFF := Vector2(8.0, 5.0 / TILT)
 

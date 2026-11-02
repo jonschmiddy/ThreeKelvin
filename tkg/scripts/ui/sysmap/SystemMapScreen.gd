@@ -779,7 +779,19 @@ func _restore_ship(d: Dictionary) -> void:
 	var at := int(d.at)
 	if at == SystemLayout.STAR_B and not view.layout.twin:
 		at = -1
-	if SystemLayout.is_place(at) and at < view.layout.bodies.size():
+	if SystemLayout.is_place(at) and at < view.layout.bodies.size() and StringName(d.get("mode", &"")) == &"rail" \
+			and d.has("p") and (d.get("v", Vector2.ZERO) as Vector2) != Vector2.ZERO:
+		# (ON ITS RING, where it was round its place and riding the way it rode:
+		# the map opens on the clock it was kept at, so the place is where it
+		# was, and `p` and `v` mean what they meant -- carried with the place
+		# when a partner's clock was taken since, `NetSession.carry_parked`. A
+		# record with no motion in it, a harness's, goes to +x as it did)
+		var c3: Vector3 = flight.center(at, view.t)
+		var cv3: Vector3 = flight.center_vel(at, view.t)
+		var rel: Vector2 = (d.p as Vector2) - Vector2(c3.x, c3.z)
+		var vr: Vector2 = (d.v as Vector2) - Vector2(cv3.x, cv3.z)
+		flight.rail_back(at, rel, -1.0 if rel.x * vr.y - rel.y * vr.x < 0.0 else 1.0, view.t)
+	elif SystemLayout.is_place(at) and at < view.layout.bodies.size():
 		flight.place_at(at, view.t)
 	elif StringName(d.mode) == &"free":
 		# (on the wide orbit it was settled on, else coasting on from where it

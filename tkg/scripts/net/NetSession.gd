@@ -1224,7 +1224,7 @@ func adopt_clock(at: int) -> float:
 	var t := clock_to_open(own, party_t(at), free and not d.has("cen"))
 	if t != own:
 		Run.map_clock[at] = t
-		if free and at >= 0 and at < Run.map.size():
+		if not d.is_empty() and at >= 0 and at < Run.map.size():
 			carry_parked(SystemLayout.of(Run.map[at]), d, own, t)
 	return t
 
@@ -1235,9 +1235,28 @@ func adopt_clock(at: int) -> float:
 ## point as it is; the map put it back on its circle round the sun along the
 ## line to it, so with the clock moved on under it the two disagreed about how
 ## far it was from its sun and which sun lit it (review 1).
+## AND A SHIP PARKED ON A RING, its point and its motion carried with its
+## place (a world, or either star's close orbit), so the map puts it back at
+## the very offset it rode at (`SystemMapScreen._restore_ship`, review 2).
 static func carry_parked(L: SystemLayout, d: Dictionary, own: float, t: float) -> void:
+	if L == null:
+		return
+	var mode := StringName(d.get("mode", &""))
+	var at := int(d.get("at", -9))
+	if mode == &"rail" and d.has("p") and SystemLayout.is_place(at) and at < L.bodies.size():
+		var star := SystemLayout.is_star(at)
+		if star and at == SystemLayout.STAR_B and not L.twin:
+			at = -1
+		var c0: Vector2 = L.star_pos(at, own) if star else L.bodies[at].pos(own)
+		var c1: Vector2 = L.star_pos(at, t) if star else L.bodies[at].pos(t)
+		d["p"] = (d.p as Vector2) + c1 - c0
+		if d.has("v"):
+			var v0: Vector2 = L.star_vel(at, own) if star else L.bodies[at].vel(own)
+			var v1: Vector2 = L.star_vel(at, t) if star else L.bodies[at].vel(t)
+			d["v"] = (d.v as Vector2) + v1 - v0
+		return
 	var cen := int(d.get("cen", -99))
-	if L == null or not L.twin or not SystemLayout.is_star(cen) or StringName(d.get("mode", &"")) != &"free":
+	if not L.twin or not SystemLayout.is_star(cen) or mode != &"free":
 		return
 	d["p"] = (d.get("p", Vector2.ZERO) as Vector2) + L.star_pos(cen, t) - L.star_pos(cen, own)
 
