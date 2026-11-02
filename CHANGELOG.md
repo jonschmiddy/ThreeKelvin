@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Added** — the suns of a binary now circle each other. A wide pair goes round once in 19 to 25
+  minutes, a close pair in 6 or 7. A world that circles one sun goes round with that sun. Worlds
+  that circle both suns, and the gas giants, move as before. In a close pair the suns pass in
+  front of each other, and the nearer one is drawn over the farther. The autopilot plans its path
+  with the suns where they will be, and a ship in orbit of one sun stays with it. LOCAL shows the
+  pair where the map left it. A wide pair's map opens centred on the point the suns go round.
+  Reduce motion does not slow the suns.
+- **Changed** — each system keeps its own clock, and the save keeps it too. Worlds stay where they
+  were when you come back to a system, instead of starting over from the same places on every
+  visit. In co-op the party shares one clock, so partners see the suns and worlds in the same
+  places.
+- **Changed** — in PAINTED, a binary's bright cloud and its teal hot zone are centred on the point
+  the suns go round. They used to sit on one sun.
 - **Added** — binary systems. About one ordinary system in four is now a binary, a pair of suns
   that circle each other. There are two kinds. In a wide pair the suns are far apart; a world
   near a sun circles that sun, and it is always hot. In a close pair, one binary in three, the suns

@@ -116,16 +116,29 @@ const CLEAR_DV := [0.0, 20.0, 40.0, 70.0, 100.0, 150.0, 220.0]
 ## at 77 px/s, 11 px outside a keep-out, where one burn of 96 keeps clear but no
 ## flight in one leg or two (through any of 34 points round the pair and the
 ## place, or with that burn itself as the first leg) nor the near hop flies
-## from. A harness's start: the map flies only out of an orbit
-const PUT_LEFT := 1
+## from. A harness's start: the map flies only out of an orbit.
+## THE PAIR TURNING (ruling 23, measured Nov 2, three seeds: 6 of 1,790 twin
+## plans, all from two of a harness's free starts; every game start found):
+## the suns stand elsewhere at each case's t, so the harness's random free
+## starts meet them differently. Seed 1999 system 177, 138 px outside star B's
+## keep-out and coming at it at 116 px/s, to 4 places; seed 7 system 209, 89
+## px outside star B's at 77 px/s, to 2. A burn keeps each clear for 30 s, but
+## every departure the search flies is into a keep-out within 0.9 to 1.6 s;
+## with the pair held still (`pair=0`) the first was found, and only by the
+## as-built search. (The Oct 31 one, seed 7 system 110, no longer comes up.)
+const PUT_LEFT := 6
 ## AND A CLOSE PAIR'S (Nov 1, three seeds: 5 of 1,789 plans, every one from a
 ## harness's start; every game start found): a free start 223 px from star A
 ## diving at the pair at 149 px/s, to star A and to world 3 (found 1 and 2 s
 ## on), and one to star B; two close by a world, coasting at 106 and 114 px/s,
 ## that the next half second takes onto the place itself or alongside (found 2 s
 ## on). With the suns 150 to 170 px apart a harness's free start lands nearer
-## them than in a wide pair, aimed at them more often.
-const PUT_LEFT_CLOSE := 5
+## them than in a wide pair, aimed at them more often. THE PAIR TURNING (ruling
+## 23, measured Nov 2: 6 of 1,789 plans, all from a harness's starts): seed 1999
+## system 257's free start, 165 px outside star B's keep-out diving at the pair
+## at 149 px/s, to 5 places; and seed 4242 system 24's near start, 23 px
+## outside world 4's ring at 106 px/s, to world 4.
+const PUT_LEFT_CLOSE := 6
 ## the click comes up to this long after the first plan (s)
 const CLICK_S := 1.5
 ## the overlay's preview line, laid out to this many points (`SystemOverlay.PV_N`)
@@ -539,6 +552,16 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 	# world's ring, taken onto it -- is no longer a start a flight can leave from:
 	# the map would refuse the click, `can_fly`; counted, not planned)
 	if key != "free" and key != "near" and not fl.can_fly():
+		S.unflyable = int(S.unflyable) + 1
+		return
+	# (nor is a harness's free or near start the first frame took onto another
+	# place's ring or alongside it: it is being taken in, with no departure to
+	# plan from, and the map would refuse the click as above. A turning pair
+	# carries its worlds and stations about, and seed 1999 system 177's near
+	# start for world 2 was put inside station 3's reach, taken alongside it
+	# and then counted as a flight put there; counted with the game's, not
+	# planned)
+	if (key == "free" or key == "near") and fl.mode != &"free":
 		S.unflyable = int(S.unflyable) + 1
 		return
 	# (`clicks`: the start kept for the clicks as below, nothing planned)
@@ -2018,7 +2041,7 @@ func _report(cap: Dictionary) -> void:
 		print("  clicks: %d, %d flew the drawn flight; drawn against flown, px: %s; the drawn flight planned again before the click %d times" % [S.clicks, S.drawn, _dist(S.drawn_px), S.redrawn])
 		print("  flown: biggest frame-to-frame change of velocity %.1f px/s, %.1fx its neighbours; snaps %d; the nose's biggest turn in a frame %.1f deg" % [S.frame_dv, S.frame_ratio, S.snaps, S.nose])
 		if int(S.unflyable) > 0:
-			print("  game starts the first frame took onto a ring (no flight can leave there, not planned): %d" % S.unflyable)
+			print("  starts the first frame took onto a ring or alongside (no flight can leave there, not planned): %d" % S.unflyable)
 		for l in (S.not_found as Array).slice(0, 40):
 			print("    not found: %s" % l)
 		for l2 in (S.not_landed as Array).slice(0, 12):
