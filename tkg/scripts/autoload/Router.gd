@@ -104,9 +104,10 @@ func save_on_close() -> void:
 	if SaveGame.has_save():
 		crumb("[run] window closed, run saved")
 
-## WHOSE PAIR THE SCREEN JUST LEFT SHOWED (a system's map, or LOCAL, which is
-## the system the ship is in), and on which frame: `pair_handed`. -1 for any
-## other screen.
+## WHOSE PAIR THE SCREEN JUST LEFT SHOWED (a system's map, or LOCAL's sky), and
+## on which frame: `pair_handed`. -1 for any other screen. (LOCAL by the system
+## its sky was built for, not `Run.at`: a jump has moved that on by the time
+## the next system's map opens.)
 var _left_pair := -1
 var _left_frame := -100
 
@@ -118,7 +119,9 @@ static func _pair_of_screen(sc: Control) -> int:
 		var m := sc as SystemMapScreen
 		return m.view.node.index if m.view != null and m.view.node != null else -1
 	if sc is SectorScreen:
-		return Run.at
+		var v := (sc as SectorScreen)._view
+		if v != null and is_instance_valid(v.backdrop) and v.backdrop.node != null:
+			return v.backdrop.node.index
 	return -1
 
 
@@ -689,7 +692,7 @@ func show_system() -> void:
 	# (at the system's own map clock, where its map was put away: a turning
 	# pair goes on from there, `Run.map_clock`; in co-op the party's, PROTOCOL 14,
 	# unless LOCAL just showed the pair at the kept one, `pair_handed`)
-	s.show_system(Run.node_at(), Run.map_t(Run.at) if pair_handed(Run.at) else Net.adopt_clock(Run.at), arrived)
+	s.show_system(Run.node_at(), Run.map_t(Run.at) if pair_handed(Run.at) and not arrived else Net.adopt_clock(Run.at), arrived)
 
 
 ## Leaving the berth, by whichever door.
