@@ -222,7 +222,7 @@ static func _same(a: Array, b: Array) -> bool:
 ## The orbits' loop as it was before the trim (SystemView `_Lines._draw`, Oct 27
 ## main), its draws collected instead of drawn. TWO SUNS (ruling 20, Oct 30), in
 ## step with `orbit_runs`: each ring round its own centre (`orbit_point` already
-## adds `Body.host`), stopped at star B's disc as at star A's -- in a twin each
+## adds `Body.host_at`), stopped at star B's disc as at star A's -- in a twin each
 ## star's disc only where the ring is behind that star (Oct 31: a world round one
 ## star passes in front of it) -- and its near half told by where on its own ring
 ## a point is (its z less its centre's).
@@ -231,12 +231,13 @@ static func _old_runs(view) -> Array:
 	var self_lines = view._lines
 	var L: SystemLayout = view.layout
 	var win: Rect2 = view.window.grow(4.0)
-	var o: Vector2 = view.origin()
+	# (star A's hole where it is drawn, at its own depth: the pair turns, ruling 23)
+	var o: Vector2 = view.star_screen(-1)
+	var da: float = view.star_depth(-1)
 	var hole: Vector2 = self_lines._star_hole()
 	var hole2: Vector2 = self_lines._star2_hole()
 	var o2: Vector2 = view.star_screen(SystemLayout.STAR_B)
 	var two := hole2.x > 0.0
-	# ORBIT:view MapPerfTest's copy of the old _Lines: keep it in step with SystemView._Lines once star A's hole and depth move (`star_screen(-1)`, `star_depth(-1)`)
 	var d2: float = L.star_pos(SystemLayout.STAR_B, view.t).y
 	var odepth: bool = view.orbit_depth
 	var TILT: float = SystemViewS.TILT
@@ -270,7 +271,7 @@ static func _old_runs(view) -> Array:
 			if ring_ab.x > 0.0 and not off_world:
 				var rq: Vector2 = (sp - view.world_c(bi)) / ring_ab
 				off_world = rq.length_squared() < 1.0
-			if not win.has_point(sp) or ((not two or op.z < 0.0) and pow((sp.x - o.x) / hole.x, 2.0) + pow((sp.y - o.y) / hole.y, 2.0) < 1.0) or off_world \
+			if not win.has_point(sp) or ((not two or op.z < da) and pow((sp.x - o.x) / hole.x, 2.0) + pow((sp.y - o.y) / hole.y, 2.0) < 1.0) or off_world \
 					or (two and op.z < d2 and pow((sp.x - o2.x) / hole2.x, 2.0) + pow((sp.y - o2.y) / hole2.y, 2.0) < 1.0):
 				if pts.size() > 1:
 					out.append([pts, cols])

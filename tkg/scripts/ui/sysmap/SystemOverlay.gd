@@ -108,6 +108,9 @@ var _left := {}
 var _star_r := -1.0
 ## and the plane point it circles (star A's origin with one sun: `_settle_c`)
 var _star_c := Vector2.ZERO
+## and what that is, by id (`_settle_id`), kept while it is settled: a turning
+## pair's sun moves on, so a centre kept by its place no longer names it
+var _star_id := -1
 var _preview: Array = []
 var _preview_key := ""
 var _preview_ms := 0.0
@@ -383,12 +386,13 @@ func _process(d: float) -> void:
 			# (the wide orbit left behind, round what it circled: `_star_c`, kept
 			# under that star's id, or -9 round both suns, so a capture into the
 			# close orbit of the star it circled draws no fade, as with one sun)
-			_left = {"body": _settle_id(_star_c), "r": _star_r * view.zoom, "t0": _clock(), "a": 0.35, "c": _star_c}
+			_left = {"body": _star_id, "r": _star_r * view.zoom, "t0": _clock(), "a": 0.35, "c": _star_c}
 		elif sw > 0.0 and _star_r < 0.0:
 			_pulse = {"body": -2, "t0": _clock()}
 		_star_r = sw
 		if sw > 0.0:
 			_star_c = _settle_c()
+			_star_id = _settle_id(_star_c)
 		var on: int = flight.orbit_body()
 		if SystemLayout.is_place(on):
 			_ok_body = on
@@ -1085,7 +1089,7 @@ func _settle_id(c: Vector2) -> int:
 		var fc = flight.f.get("cen")
 		if id is int and fc is Vector2 and (fc as Vector2).distance_to(c) < 1.0:
 			return id
-	# ORBIT:view `_settle_id` names the centre by position: once the pair turns, a cached centre drifts off its sun within seconds; name it by `flight.f.cen_id` (DESIGN step 5)
+	# (else by where `c` is, against each sun where the pair has it now)
 	if c.distance_to(L.star_pos(-1, float(view.t))) < 1.0:
 		return -1
 	if c.distance_to(L.star_pos(SystemLayout.STAR_B, float(view.t))) < 1.0:
@@ -1099,6 +1103,20 @@ func _settle_id(c: Vector2) -> int:
 func _settle_nm(c: Vector2) -> String:
 	var id := _settle_id(c)
 	return "BOTH STARS" if id == -9 else star_name_of(id)
+
+
+## THE PLANE POINT A SETTLE CIRCLES AT MAP TIME `tt`, by its id: a sun where the
+## pair has it then, the balance point for -9 (both suns); anything else, the
+## centre `c` the flight gave. One sun: star A, the origin, as it always was.
+func _centre_of(id: int, c: Vector2, tt: float) -> Vector2:
+	var L: SystemLayout = view.layout
+	if L == null:
+		return c
+	if id == -1 or (L.twin and id == SystemLayout.STAR_B):
+		return L.star_pos(id, tt)
+	if L.twin and id == -9:
+		return L.bary
+	return c
 
 
 ## The stars' discs a point on the plane is behind, as [screen centre, radius]:
@@ -1204,11 +1222,11 @@ func _draw_rings(t: float) -> void:
 ## THE STAR ORBIT of plane radius r: faint all round, bright for a stretch either
 ## side of plane point `by` (the ship); `k` fades it, `arc_only` draws the stretch.
 ## Round `_star_c`: star A at the origin with one sun; in a pair, the star or
-## the balance point the flight settles round, its far half behind either sun.
+## the balance point the flight settles round (by its id, `_star_id`, where the
+## pair has it now: ruling 23, the pair turns), its far half behind either sun.
 func _star_orbit(r: float, by: Vector2, k: float, arc_only: bool) -> void:
-	var c := _star_c
-	# ORBIT:view a centre of exactly zero is star A only with one sun: in a turning pair star A leaves the origin (draw round `star_screen(-1)` by the settle's id)
-	var o: Vector2 = view.origin() if c == Vector2.ZERO else view.block_round(view.screen(c.x, c.y))
+	var c := _centre_of(_star_id, _star_c, float(view.t))
+	var o: Vector2 = view.block_round(view.screen(c.x, c.y))
 	var rp: float = r * view.zoom
 	var a0 := atan2(by.y - c.y, by.x - c.x)
 	var disc: float = view.layout.star_r * view.star_k()
@@ -1769,6 +1787,21 @@ func _draw_trail(x: Vector2, ob: int) -> void:
 	_trail.append([now, ob, (x - base2) / maxf(view.zoom, 0.01)])
 
 
+## WHERE A FLIGHT'S WARNING IS WRITTEN by its point `p` on screen (BUMP, TOO
+## FAST): up and to its right, as it always was -- but in a binary off both
+## suns, by `_spot_off_suns` from beside it (a bump is at a sun's keep-out, a few
+## px off its disc, so the words right of it ran across a sun once the pair
+## turned a sun into the path, ruling 23). One sun: where it always was.
+func _warn_at(p: Vector2, words: String) -> Vector2:
+	var at := p + Vector2(5, -4)
+	if not _meets_sun(at, words):
+		return at
+	var tw := _font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+	var q := _spot_off_suns([at, p + Vector2(-tw - 5.0, -4.0), p + Vector2(5, 14), p + Vector2(-tw - 5.0, 14.0)],
+		[Vector2.UP, Vector2.UP, Vector2.DOWN, Vector2.DOWN], words)
+	return at if q == Vector2.INF else q
+
+
 func _line(ln: Dictionary, a: float, t: float, main: bool) -> void:
 	var L: SystemLayout = view.layout
 	# DASHED, unlike the solid orbit you are on; with nothing at its end it fades.
@@ -1778,10 +1811,10 @@ func _line(ln: Dictionary, a: float, t: float, main: bool) -> void:
 		return
 	for fr: Dictionary in ln.fast:
 		var at: Vector2 = fr.at
-		_label(_scr(at.x, at.y) + Vector2(5, -4), "TOO FAST", Color(UITheme.HOT, minf(1.0, a * 1.6)), 2, true)
+		_label(_warn_at(_scr(at.x, at.y), "TOO FAST"), "TOO FAST", Color(UITheme.HOT, minf(1.0, a * 1.6)), 2, true)
 	var bp: Vector2 = ln.bump
 	if bp != Vector2.INF:
-		_label(_scr(bp.x, bp.y) + Vector2(5, -4), "BUMP", Color(UITheme.TRACTOR, minf(1.0, a * 1.6)), 2, true)
+		_label(_warn_at(_scr(bp.x, bp.y), "BUMP"), "BUMP", Color(UITheme.TRACTOR, minf(1.0, a * 1.6)), 2, true)
 	var o: Dictionary = ln.out
 	if o.is_empty():
 		return
@@ -1791,14 +1824,14 @@ func _line(ln: Dictionary, a: float, t: float, main: bool) -> void:
 	if o.kind == &"star":
 		# SETTLING ROUND THE STAR: the stretch of that orbit where it settles, dashed
 		# (round what it settles round: star A at the origin, or in a pair the
-		# centre the flight's settle gives, `out.c`)
+		# centre the flight's settle gives, `out.c` -- by its id where that will
+		# be then, as `_star_orbit`: the pair turns)
 		var sr: float = o.r
-		var sc0: Vector2 = o.get("c", Vector2.ZERO)
+		var sc0: Vector2 = _centre_of(int(o.get("id", -99)), o.get("c", Vector2.ZERO), float(o.get("t", view.t)))
 		var sat: Vector2 = (o.at as Vector2) - sc0
 		var st0 := atan2(sat.y, sat.x)
 		var arc := PackedVector2Array()
-		# ORBIT:view as `_star_orbit`: a zero centre is star A only with one sun, and a forecast settle round a turning sun is round where it will be at o.t
-		var so: Vector2 = view.origin() if sc0 == Vector2.ZERO else view.block_round(view.screen(sc0.x, sc0.y))
+		var so: Vector2 = view.block_round(view.screen(sc0.x, sc0.y))
 		# from where the line ends, on along the orbit the way it goes (it began a
 		# little behind, and the two met in a V)
 		var dirn := signf(sat.x * (o.get("v", Vector2(0, 1)) as Vector2).y - sat.y * (o.get("v", Vector2(0, 1)) as Vector2).x) if o.has("v") else 1.0
@@ -2660,8 +2693,13 @@ func hit(p: Vector2) -> Dictionary:
 		var at: Vector2 = view.at[i]
 		if p.distance_to(at) <= maxf(view.draw_r(b), 4.0) + 3.0 and not _behind_sun(view.pos[i], p):
 			return {"kind": &"body", "body": i, "beacon": null, "at": at}
-	# EITHER STAR, at its own place and drawn size (star B, ruling 20: -4)
-	for s: int in L.stars():
+	# EITHER STAR, at its own place and drawn size (star B, ruling 20: -4), the
+	# nearer first: the pair turns, and where one sun stands before the other
+	# the click is the one drawn in front ("stacked:A")
+	var ss: Array[int] = L.stars()
+	if ss.size() > 1 and view.depth(L.star_pos(ss[1], float(view.t))) > view.depth(L.star_pos(ss[0], float(view.t))):
+		ss.reverse()
+	for s: int in ss:
 		var sc: Vector2 = star_scr(s)
 		if p.distance_to(sc) <= maxf(8.0, star_disc(s)):
 			return {"kind": &"star", "body": s, "beacon": null, "at": sc}

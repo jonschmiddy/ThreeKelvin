@@ -318,23 +318,32 @@ static func push(v) -> void:
 	# (`sky_nebula`'s light px go as zoom^0.42; its lit bands' edges lie some
 	# LIGHT_R light px out) -- and the hold cut so a band edge trails it by about
 	# a block (TRAIL_BLK), the full HOLD once it is still
+	# (two suns, ruling 23: the pair turns, so the light moves as each sun creeps
+	# round the balance point -- measured from both suns' exact places, the one
+	# that moved further: a rounded place moves a whole block on the frame it hops
+	# and none between, and the memory flushed and the bands flickered at every
+	# hop. One sun: star A's drawn place, as it always was.)
+	var twin: bool = "home_zoom" in v and v.layout != null and v.layout.twin
 	if "home_zoom" in v and not bool(pt.get("hold_fixed", false)):
-		# ORBIT:view PAINTED's 'moved' hold measures star A from the plane's origin: from `star_exact(-1)` once the pair turns (review: SectorPainted's star A)
-		var o: Vector2 = v.origin()
+		var o: Vector2 = v.star_exact(-1) if twin else v.origin()
+		var o2: Vector2 = v.star_exact(SystemLayout.STAR_B) if twin else o
 		var o0: Vector2 = pt.get("o", o)
+		var o20: Vector2 = pt.get("o2", o2)
 		var lz := pow(maxf(float(v.zoom), 1e-3) / maxf(float(v.home_zoom), 1e-3), 0.42)
 		var lz0: float = pt.get("lz", lz)
 		pt["o"] = o
+		pt["o2"] = o2
 		pt["lz"] = lz
 		var lscale := clampf(float(v.window.size.x) / 700.0, 0.5, 1.4)
-		var moved := (o - o0).length() / 2.0 + absf(log(lz / lz0)) * LIGHT_R * lz * lscale / 2.0
+		var moved := maxf((o - o0).length(), (o2 - o20).length()) / 2.0 + absf(log(lz / lz0)) * LIGHT_R * lz * lscale / 2.0
 		ms.set_shader_parameter("hold", HOLD if moved < 1e-4 else clampf(TRAIL_BLK / moved, 0.0, HOLD))
 	ms.set_shader_parameter("low", low)
-	# ORBIT:view star A's halo in PAINTED: `star_screen(-1)` in a turning pair
-	ms.set_shader_parameter("star_px", v.origin())
+	# STAR A'S HALO ROUND ITS DISC, where it is drawn (`star_screen`: the pair
+	# turns), and its light on the silhouettes from where it truly is, as star
+	# B's (`SystemView._step_twin_sky`): exact, so no rim steps at a block hop
+	ms.set_shader_parameter("star_px", v.star_screen(-1) if twin else v.origin())
 	ms.set_shader_parameter("sun_r", float(v.layout.star_r) * float(v.star_k()))
-	# ORBIT:view star A's silhouette light in PAINTED: `star_exact(-1)` in a turning pair
-	mp.set_shader_parameter("star_at", v.origin())
+	mp.set_shader_parameter("star_at", v.star_exact(-1) if twin else v.origin())
 	mp.set_shader_parameter("time", v.pose(v.t))
 	mp.set_shader_parameter("sky_blk", blk)
 	mp.set_shader_parameter("low", low)

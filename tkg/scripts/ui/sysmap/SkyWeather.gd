@@ -688,13 +688,21 @@ func _star_disc() -> float:
 	return view.layout.star_r * view.star_k()
 
 
+## WHERE STAR A IS DRAWN NOW (`SystemView.star_screen`): with one sun the
+## plane's origin, as the weather always had it; in a pair where the pair has
+## it at the map's t (ruling 23: the pair turns, and star A leaves the origin).
+## Everything the weather anchors on star A, keeps clear of it or flies round it
+## reads this, every frame it is asked.
+func _sa() -> Vector2:
+	return view.star_screen(-1)
+
+
 ## Is screen point p clear of the ship (by `ship_r`), the star's disc + 40, every
 ## world + 30, the labels and the selection (each grown by `grow`)?
 func clear_at(p: Vector2, ship_r: float, grow: float = 0.0) -> bool:
 	if p.distance_to(_ship()) < ship_r:
 		return false
-	# ORBIT:view weather anchored on star A at the plane's origin: `view.star_screen(-1)` once the pair turns (review: SkyWeather, ~25 sites; or hide these events in binaries, the cut list)
-	if p.distance_to(view.origin()) < _star_disc() + 40.0 + grow:
+	if p.distance_to(_sa()) < _star_disc() + 40.0 + grow:
 		return false
 	# (and star B's, with two suns)
 	if view.star2 != null and p.distance_to(view.star_screen(SystemLayout.STAR_B)) < view.star_disc(SystemLayout.STAR_B) + 40.0 + grow:
@@ -822,11 +830,15 @@ func _bil(sp: Vector2) -> float:
 ## THE YOUNG CLUSTER AN EMISSION CLOUD IS LIT BY: in SIMPLIFIED it is the system's
 ## own sun, at its sky pixel with no pan (`sky_field.gdshader`'s `cc`), so the
 ## tide washes out from the sun, the glints wink round it and the jets leave the
-## tips of the pillars that reach toward it. In LEGACY it is where it always
-## was, a spot of the cloud's own about the view (`sky_nebula_legacy`'s `cc`).
+## tips of the pillars that reach toward it -- with two suns their balance point,
+## where the sky is baked round (`SystemView.sky_c`, ruling 23). In LEGACY it is
+## where it always was, a spot of the cloud's own about the view
+## (`sky_nebula_legacy`'s `cc`).
 func em_cc() -> Vector2:
 	if _legacy():
 		return nspot(1.0, Vector2(-160, -120), Vector2(1120, 660))
+	if view != null and view.has_method(&"sky_c"):
+		return view.sky_c()
 	return Vector2(480, 270)
 
 
@@ -1015,9 +1027,8 @@ func focus(ev: Dictionary) -> Vector2:
 			if nm == &"globule":
 				return at + Vector2(ev.dir) * 3.0 * float(ev.age) + view.sky_off()
 			if nm == &"fog":
-				# ORBIT:view focus(): an event on star A is where star A is drawn now (`star_screen(-1)`), here and at the two returns below
-				return view.origin() + Vector2(ev.dir) * float(view.zoom) / maxf(float(view.home_zoom), 0.01)
-			return view.origin()
+				return _sa() + Vector2(ev.dir) * float(view.zoom) / maxf(float(view.home_zoom), 0.01)
+			return _sa()
 		&"field":
 			return view._fields[int(ev.field)].star_at(int(ev.star))
 		&"node":
@@ -1026,13 +1037,14 @@ func focus(ev: Dictionary) -> Vector2:
 				var a0 := float(ev.a0) + float(view.t) / b.period * TAU
 				# (round the belt's own centre: a twin's belts circle the balance point)
 				return view.screen(b.host_at(float(view.t)).x + cos(a0) * float(ev.r0), b.host_at(float(view.t)).y + sin(a0) * float(ev.r0))
-			var p := Comet.comet_pos(ev, maxf(float(ev.age), 0.0))
+			# (a comet flies round star A where the pair has it now, `Comet.at`)
+			var p: Vector2 = Comet.comet_pos(ev, maxf(float(ev.age), 0.0)) + view.layout.star_pos(-1, float(view.t))
 			return view.screen(p.x, p.y)
 		&"depth":
 			return _ship()
 		&"fabric":
 			return (view.window as Rect2).get_center()
-	return view.origin()
+	return _sa()
 
 
 # ---------------------------------------------------------------- place: where, how long
@@ -1110,8 +1122,7 @@ func _place(ev: Dictionary) -> bool:
 		&"globule":
 			return _p_globule(ev)
 		&"wisps", &"firehose":
-			# ORBIT:view placed on star A: `star_screen(-1)` in a turning pair
-			return view.star != null and _in_view(view.origin(), -60.0)
+			return view.star != null and _in_view(_sa(), -60.0)
 		&"fog":
 			return _p_fog(ev)
 		&"pulse":
@@ -1119,13 +1130,11 @@ func _place(ev: Dictionary) -> bool:
 		&"magnetar":
 			return _p_magnetar(ev)
 		&"hotspot":
-			# ORBIT:view placed on star A: `star_screen(-1)` in a turning pair
-			return view.star != null and bool(view.star.get("ready_to_draw")) and _in_view(view.origin(), -80.0)
+			return view.star != null and bool(view.star.get("ready_to_draw")) and _in_view(_sa(), -80.0)
 		&"ringflash":
 			return _p_ringflash(ev)
 		&"flareecho":
-			# ORBIT:view `ev.at` fixed at star A's place when placed: in a turning pair it moves on while the event plays
-			ev.at = view.origin() - view.sky_off()
+			ev.at = _sa() - view.sky_off()
 			return view.star != null and bool(view.star.get("ready_to_draw"))
 		&"einstein":
 			return _p_einstein(ev)
@@ -1514,8 +1523,10 @@ func _p_fan(ev: Dictionary) -> bool:
 		var p := spot(120.0, 60.0)
 		if p == Vector2.INF:
 			return false
-		# ORBIT:view kept off star A: `star_screen(-1)` (and star B's disc) in a turning pair
-		if p.distance_to(view.origin()) < 150.0:
+		if p.distance_to(_sa()) < 150.0:
+			continue
+		# (and off star B, with two suns)
+		if view.star2 != null and p.distance_to(view.star_screen(SystemLayout.STAR_B)) < 150.0:
 			continue
 		var sp := _neb_sp(p)
 		var d := dk_d(sp)
@@ -1589,8 +1600,7 @@ func _p_comet(ev: Dictionary) -> bool:
 
 func _p_sungrazer(ev: Dictionary) -> bool:
 	var L: SystemLayout = view.layout
-	# ORBIT:view sungrazers and comets ride star A's frame (DESIGN step 5, "comets in A's moving frame"; or hide the comet tier in binaries)
-	if not _in_view(view.origin(), 40.0):
+	if not _in_view(_sa(), 40.0):
 		return false
 	# (at the opening zoom the star is a few blocks across and the whole dive a
 	# speck nobody sees: the slot goes to an event that shows)
@@ -1636,12 +1646,12 @@ func _p_starmood(ev: Dictionary) -> bool:
 		ev.end = 26.0
 		ev.dir = Vector2.DOWN.rotated(_rng.randf_range(-PI / 3.0, PI / 3.0))
 		ev.mode = &"red"
-		return view.star != null and _in_view(view.origin(), -40.0)
+		return view.star != null and _in_view(_sa(), -40.0)
 	if star_kind == SystemLayout.StarKind.BLUE:
 		ev.end = 30.0
 		ev.mode = &"blue"
 		ev.seed = _rng.randf() * 40.0
-		return view.star != null and _in_view(view.origin(), -60.0)
+		return view.star != null and _in_view(_sa(), -60.0)
 	return false
 
 
@@ -1672,14 +1682,13 @@ func _p_globule(ev: Dictionary) -> bool:
 ## bright cloud where it could not be seen; now out in the darker shell, clear)
 func _p_fog(ev: Dictionary) -> bool:
 	ev.seed = _rng.randf() * 30.0
-	# ORBIT:view fog placed by star A: `star_screen(-1)` in a turning pair
-	if not _in_view(view.origin(), -100.0):
+	if not _in_view(_sa(), -100.0):
 		return false
 	var sk := float(view.zoom) / maxf(float(view.home_zoom), 0.01)
 	for _i in 24:
 		var a := _rng.randf() * TAU
 		var d := Vector2(cos(a), sin(a)) * _rng.randf_range(70.0, 130.0)
-		var p: Vector2 = view.origin() + d * sk
+		var p: Vector2 = _sa() + d * sk
 		if _in_view(p, 40.0) and clear_at(p, SHIP_R[M], 20.0):
 			ev.dir = d
 			return true
@@ -1698,7 +1707,7 @@ func _p_pulse(ev: Dictionary) -> bool:
 	var n := roundi(tb) + 3
 	ev.n = n
 	ev.end = float(n) + 0.7 - tb
-	return _in_view(view.origin(), -60.0)
+	return _in_view(_sa(), -60.0)
 
 
 func _p_magnetar(ev: Dictionary) -> bool:
@@ -1708,7 +1717,7 @@ func _p_magnetar(ev: Dictionary) -> bool:
 	var nb := ceilf(tb + 0.15)
 	ev.pre = nb - tb
 	ev.t0 = _beat_t() + float(ev.pre)
-	return _in_view(view.origin(), -60.0)
+	return _in_view(_sa(), -60.0)
 
 
 func _p_ringflash(ev: Dictionary) -> bool:
@@ -1727,18 +1736,18 @@ func _p_einstein(ev: Dictionary) -> bool:
 	if view._nova == null or view._nova.busy_within(20.0):
 		return false
 	# a supernova just behind the hole: the lens bends it into a ring by itself
-	ev.at = view.origin() + _unit() * _rng.randf_range(8.0, 20.0)
+	ev.at = _sa() + _unit() * _rng.randf_range(8.0, 20.0)
 	view.nova_now(ev.at)
 	return true
 
 
 func _p_lensstar(ev: Dictionary) -> bool:
-	if not _in_view(view.origin(), -40.0):
+	if not _in_view(_sa(), -40.0):
 		return false
 	ev.dir = _unit()
 	ev.speed = _rng.randf_range(8.0, 12.0)
 	ev.b = _rng.randf_range(0.0, 6.0) if _rng.randf() < 0.5 else _rng.randf_range(10.0, 25.0) * (1.0 if _rng.randf() < 0.5 else -1.0)
-	ev.c = view.origin() - view.sky_off()
+	ev.c = _sa() - view.sky_off()
 	return true
 
 
@@ -2189,7 +2198,9 @@ class Comet extends Node2D:
 
 	## THE COMET'S PATH, a parabola about the star (Barker's equation):
 	## perihelion q, its line at angle w, K = sqrt(2 q^3 / mu) set by how long
-	## it takes, and perihelion at age tp.
+	## it takes, and perihelion at age tp. In star A's own frame: on the plane it
+	## is this plus where star A is (`a_at`), so with two suns it rides round the
+	## balance point with its sun (ruling 23: the pair turns).
 	static func comet_pos(e: Dictionary, age: float) -> Vector2:
 		var B := 3.0 * (age - float(e.tp)) / float(e.K)
 		var y := pow(B + sqrt(B * B + 1.0), 1.0 / 3.0)
@@ -2197,6 +2208,12 @@ class Comet extends Node2D:
 		var r := float(e.q) * (1.0 + D * D)
 		var a := 2.0 * atan(D) + float(e.w)
 		return Vector2(cos(a), sin(a)) * r
+
+	## Star A on the plane at map time `tt`: the origin with one sun (so a lone
+	## sun's comet is drawn exactly as it always was), and in a pair where the
+	## pair has it.
+	func a_at(tt: float) -> Vector2:
+		return view.layout.star_pos(-1, tt)
 
 	func _blk(p: Vector2, c: Color) -> void:
 		draw_rect(Rect2((p / 2.0).floor() * 2.0, Vector2(2, 2)), c)
@@ -2215,11 +2232,15 @@ class Comet extends Node2D:
 			return
 		var grazer := StringName(ev.mode) == &"sungrazer"
 		var R0: float = view.layout.star_r
-		# ORBIT:view the bow round star A: `star_screen(-1)` in a turning pair
-		var o: Vector2 = view.origin()
+		# (round star A where it is drawn now: the pair turns)
+		var o: Vector2 = view.star_screen(-1)
 		var z: float = view.zoom
+		var vt := float(view.t)
+		var sa := a_at(vt)
+		# (in star A's frame, `p`; on the plane, `pw`)
 		var p := comet_pos(ev, a)
-		var hs: Vector2 = view.block_round(view.screen(p.x, p.y))
+		var pw := p + sa
+		var hs: Vector2 = view.block_round(view.screen(pw.x, pw.y))
 		var r := p.length()
 		var q := float(ev.q)
 		var A := clampf(pow(2.5 * q / maxf(r, 1.0), 2.0), 0.0, 1.0)
@@ -2267,13 +2288,13 @@ class Comet extends Node2D:
 		# THE TAILS, away from the star -- from where the head truly is, not its
 		# block: the block steps across then down, its angle wobbles, and the
 		# tail flicked between two of its 2 degree steps
-		var away: Vector2 = view.screen(p.x, p.y) - view.screen(0.0, 0.0)
+		var away: Vector2 = view.screen(pw.x, pw.y) - view.screen(sa.x, sa.y)
 		# (two suns: away from the light where the head is, both suns' made one,
 		# `SystemView.toward_light` -- a comet passing star B trailed its tail
 		# across B; one sun, as it always was)
 		var twin: bool = view.layout.twin
 		if twin:
-			var lu: Vector2 = view.toward_light(p)
+			var lu: Vector2 = view.toward_light(pw)
 			var tl: float = view.TILT
 			away = -Vector2(lu.x, lu.y * tl)
 		if away.length() < (1e-3 if twin else 0.5):
@@ -2306,6 +2327,9 @@ class Comet extends Node2D:
 			# stops where it would wrap)
 			if absf(wrapf(atan2(pj.y, pj.x) - head_a, -PI, PI)) > 0.7:
 				break
+			# (the dust shed tau ago, where star A was then: on the plane it stays
+			# where it was shed while the sun moves on)
+			pj += a_at(vt - tau)
 			# (pushed away from the light: star A with one sun, both suns' with two)
 			var push: Vector2 = -(view.toward_light(pj) as Vector2) if twin else pj.normalized()
 			pj += push * beta * tau * tau

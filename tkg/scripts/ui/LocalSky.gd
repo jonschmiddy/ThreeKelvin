@@ -990,7 +990,7 @@ func _tint_at(p: Vector2) -> Vector3:
 	if star2 == null:
 		return _tint
 	var ta := SystemViewS._lin_top(SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY))
-	return ta.lerp(SystemViewS._lin_top(SystemViewS.STAR_B_COL), SystemViewS.share_b_of(layout, p))
+	return ta.lerp(SystemViewS._lin_top(SystemViewS.STAR_B_COL), SystemViewS.share_b_of(layout, p, 0.0))
 
 
 ## How bright the other sun is on the sky against the lit one: its brightness by
@@ -1395,9 +1395,9 @@ func _step_worlds(o: Vector2) -> void:
 		var light := Vector3(-p.x / len, -p.y / len * TILT, -p.y / len * 0.8 + 0.3).normalized()
 		if star2 != null:
 			# (two suns: the one light of both, as the map lights it)
-			var u := SystemViewS.toward_light_of(layout, p)
+			var u := SystemViewS.toward_light_of(layout, p, 0.0)
 			light = Vector3(u.x, u.y * TILT, u.y * 0.8 + 0.3).normalized()
-		var kl := 0.95 + 0.35 * SystemViewS.light_here_of(layout, p.x, p.y)
+		var kl := 0.95 + 0.35 * SystemViewS.light_here_of(layout, p.x, p.y, 0.0)
 		if layout.star == SystemLayout.StarKind.PULSAR:
 			kl = 0.75
 		# (the star's disc as this layer sees it: where `_step_star` put it, at
@@ -1420,7 +1420,7 @@ func _step_worlds(o: Vector2) -> void:
 				vm.set_shader_parameter("star_tint", _tint_at(p))
 				vm.set_shader_parameter("night_fill", Vector3(0.02, 0.02, 0.03))
 			# (two suns: its own sun's flare, by its share of the light here)
-			vm.set_shader_parameter("flare", lerpf(_flare_a, _flare_b, SystemViewS.share_b_of(layout, p)) if star2 != null else _flare)
+			vm.set_shader_parameter("flare", lerpf(_flare_a, _flare_b, SystemViewS.share_b_of(layout, p, 0.0)) if star2 != null else _flare)
 			vm.set_shader_parameter("lift", 0.0 if legacy else 1.0)
 		# (the shafts are cast on the cloud, which does not zoom: each world where
 		# the band's zoom shows it, at the size it is drawn)
@@ -1432,7 +1432,7 @@ func _step_worlds(o: Vector2) -> void:
 				# toward it on this screen -- as the map casts them,
 				# `SystemView.light_screen` -- not from the lit sun, which threw a
 				# world round the other sun's shaft back across its own sun)
-				var lu := SystemViewS.toward_light_of(layout, p)
+				var lu := SystemViewS.toward_light_of(layout, p, 0.0)
 				from.append(v.position + Vector2(lu.x, lu.y * TILT).normalized() * 400.0)
 	if not star2_placed and d2 < 0.0:
 		_worlds.move_child(star2, -1)
@@ -1770,7 +1770,7 @@ func _situate() -> void:
 		# ORBIT:local each sun's distance (and `orbit_d = p.length()` above, star A at the origin) at the kept map clock; hold `_lit` for the visit
 		var d_b := maxf(p.distance_to(layout.star_pos(SystemLayout.STAR_B, 0.0)), float(layout.star2_r) + 20.0)
 		_dk_b = REF_K * (layout.edge + 20.0) / d_b
-		_lit = SystemLayout.STAR_B if SystemViewS.share_b_of(layout, p) > 0.5 else -1
+		_lit = SystemLayout.STAR_B if SystemViewS.share_b_of(layout, p, 0.0) > 0.5 else -1
 		if _lit == SystemLayout.STAR_B:
 			orbit_d = d_b
 			_dk = _dk_b
