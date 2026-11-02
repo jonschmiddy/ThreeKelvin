@@ -43,8 +43,9 @@ extends Node
 ## preview in orbit), every one found and none kept that a fresh search beats
 ## by more than the warm slack, nor a flight the fallback found, rebuilt or
 ## warm, where a fresh plan arrives sooner; flights in two legs planned again
-## as the overlay does, none kept where a fresh plan of one leg arrives sooner,
-## nor any flight later than its old legs flown again; and every
+## as the overlay does, none kept in two legs where a fresh plan (of one leg,
+## else of two) arrives sooner, nor any flight later than its old legs flown
+## again; and every
 ## plan of the first `worker` cases solved again on WorkerThreadPool (the same
 ## results). Also the prototype's a-to-b flight at its best line-up.
 ## PASS: found and clean in at least 99% of each sweep (DESIGN), but 97% of
@@ -814,10 +815,15 @@ static func _fell_sooner(r: FlightSolve.Result, r2: FlightSolve.Result) -> bool:
 ## own cost (6e6e563c), the full run's 20 such flights, planned again 15 times,
 ## kept two legs 105 times where one leg flew sooner, by up to 41.4 s (seed
 ## 1999 node 150, star -1 to keep 2, line-up 1: 51.4 s in two legs against
-## 10.0 in one); planned again TWO_STEPS times, 24 of 100. And none kept,
-## in one leg or two, that arrives later than the last legs kept flown again
-## from here (`FlightSolve._chain_again`), as a flight of one leg that took
-## over from two holds them (`alt`).
+## 10.0 in one); planned again TWO_STEPS times, 24 of 100. Nor kept in two
+## legs where a fresh plan in two legs arrives sooner: held against one leg
+## alone, legs searched again from their old ones as their departure went by
+## stood later than two found afresh (a033b05a kept 8 of 78 so, one at seed
+## 4242 node 281, orbit9 -9 to keep 5, line-up 1: 46.83 s against 41.80; 13 of
+## 168 over 15 replans, by up to 18.8 s; the fifth review, Nov 1). And none
+## kept, in one leg or two, that arrives later than the last legs kept flown
+## again from here (`FlightSolve._chain_again`), as a flight of one leg that
+## took over from two holds them (`alt`).
 func _replans() -> void:
 	var n := 0
 	var ok := 0
@@ -866,13 +872,14 @@ func _replans() -> void:
 	h._ok("and no flight the fallback found kept where a fresh plan arrives sooner (%d of the %d kept)" % [held, fell], held == 0)
 	# FLIGHTS IN TWO LEGS, planned again as the overlay plans them: every found
 	# one leaving a ring or alongside, TWO_STEPS times, each from the last one's
-	# choice; wherever the flight kept is in two legs, a fresh plan of one leg
-	# (`FlightSolve._fresh`, as a first plan's) beside it
+	# choice; wherever the flight kept is in two legs, a fresh plan (as a first
+	# plan's: one leg, else two) beside it
 	var twos := 0
 	var two_kept := 0
 	var two_held := 0
 	var two_old := 0
 	var two_later := 0
+	var two_fresh := 0
 	var two_cases: Array = []
 	for i in _cases.size():
 		two_cases.append([_cases[i], _res[i]])
@@ -909,17 +916,25 @@ func _replans() -> void:
 				continue
 			pv = rw
 			if rw.legs != 2:
-				legs = ra.choice if ra != null else {}
+				# (the old legs it carries, `alt`)
+				legs = rw.choice.get("alt", {})
 				continue
 			legs = rw.choice
 			two_kept += 1
-			var r1 := FlightSolve.new()._solve(c.G, d2, c.tgt, t2, {})
-			if r1.found and r1.clean and r1.T < rw.T - 1e-3:
-				two_held += 1
-				if two_held <= 3:
-					print("  (%.2f s in two legs kept against a fresh %.2f s in one, %.0f s on: %s)" % [rw.T, r1.T, dt * float(k), c.label])
+			# (a fresh plan as a first plan's: one leg, else two)
+			var rf2 := FlightSolve.solve(c.G, d2, c.tgt, t2)
+			if rf2.found and rf2.clean and rf2.T < rw.T - 1e-3:
+				if rf2.legs == 1:
+					two_held += 1
+					if two_held <= 3:
+						print("  (%.2f s in two legs kept against a fresh %.2f s in one, %.0f s on: %s)" % [rw.T, rf2.T, dt * float(k), c.label])
+				else:
+					two_fresh += 1
+					if two_fresh <= 3:
+						print("  (%.2f s in two legs kept %s against a fresh %.2f s in two, %.0f s on: %s)" % [rw.T, rw.kind, rf2.T, dt * float(k), c.label])
 	print("replans: %d flights in two legs planned again %d times each as the overlay plans them (%d pinned cases, `TWO_PINS`); kept in two legs %d times" % [twos, TWO_STEPS, _pin_cases.size(), two_kept])
 	h._ok("and no flight in two legs kept where a fresh plan of one leg arrives sooner (%d of %d)" % [two_held, two_kept], two_held == 0)
+	h._ok("nor where a fresh plan in two legs arrives sooner (%d of %d)" % [two_fresh, two_kept], two_fresh == 0)
 	h._ok("and none kept that arrives later than its old legs flown again (%d of %d)" % [two_later, two_old], two_later == 0)
 
 

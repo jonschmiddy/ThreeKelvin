@@ -118,11 +118,14 @@ extends RefCounted
 ## flight in two legs comes back from its legs (`_chain_again`: rebuilt while
 ## the first is the same flight, else searched from them, while it costs about
 ## what it did), and round a ring or alongside is kept only while a fresh plan
-## of one leg finds none arriving sooner (`_sooner_of`), its own drawn flight
-## too. A flight of one leg that took over from one in two carries those legs
-## in its choice (`alt`), and they are tried again beside it each time it is
-## planned again, so a later flight in two legs found afresh never stands
-## where the old legs still fly sooner.
+## (one leg, else two) finds none arriving sooner (`_sooner_of`), its own drawn
+## flight too. A flight of one leg that took over from one in two carries those
+## legs in its choice (`alt`), and they are tried again beside it each time it
+## is planned again (searched again once their departure has gone by), so a
+## later flight in two legs found afresh never stands where the old legs still
+## fly sooner. A flight in two legs looked for again through its old point
+## (`_chain`'s hint) is kept only while the first one found without it arrives
+## no sooner.
 ## `found` false: nothing clean within the budget, and no samples (the caller
 ## falls back); `clean` false on a found plan only if its own samples cut a
 ## keep-out (none in the sweeps).
@@ -558,35 +561,48 @@ static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, 
 		var held := StringName(dep.get("kind", &"")) != &"free"
 		if prefer.has("chain"):
 			# A FLIGHT IN TWO LEGS DRAWN BEFORE: its own legs again while they hold,
-			# else looked for afresh, its old point tried first. Held, it is kept
-			# only while a fresh plan of one leg finds none that arrives sooner
-			# (`_sooner_of`), the rule a flight the fallback found is kept by
+			# else looked for afresh, its old point tried first (and kept only
+			# while the first found without it arrives no sooner, `_chain`).
+			# Held, it is kept only while a fresh plan, of one leg or else of two,
+			# finds none that arrives sooner (`_sooner_of`), the rule a flight the
+			# fallback found is kept by. Against one leg alone, legs searched from
+			# their old ones each time their departure went by stood later than
+			# two found afresh: in the review's replan chains (the overlay's
+			# preview, 30 s, 16 line-ups), 89 drawn plans more than 1 s later, at
+			# worst 18.8 s (seed 4242 node 281, orbit9 -9 to keep 5, line-up 1:
+			# 139.8 kept where a fresh plan in two legs arrived 121.0; the fifth
+			# review, Nov 1)
 			var t_us := Time.get_ticks_usec()
 			var rc := _chain_again(grav, dep, tgt, t, prefer)
 			if rc == null:
 				var ch: Dictionary = prefer.chain
 				rc = _solve_or_chain(grav, dep, tgt, t, {}, ch.get("W", Vector2.INF))
 			elif held:
-				rc = _sooner_of(rc, FlightSolve.new()._solve(grav, dep, tgt, t, {}))
+				rc = _sooner_of(rc, _solve_or_chain(grav, dep, tgt, t, {}, Vector2.INF))
 			rc.usec = Time.get_ticks_usec() - t_us
 			return rc
 		if prefer.has("alt") and held:
 			# A FLIGHT OF ONE LEG THAT TOOK OVER FROM ONE IN TWO (`_sooner_of`):
 			# itself from its choice as any flight is (else one found afresh, and
-			# where one leg finds nothing, two found afresh, the old legs' point
-			# tried first), beside the old legs again (`_chain_again`), the one
-			# that arrives first kept, the old legs on a tie. Without them, the
-			# preview that went to one leg went next, where one leg found nothing,
-			# to two found afresh, later than its old legs flew (seed 31337 node
-			# 28, ring 1 to keep 5, line-up 10: 486.1 drawn where the old legs
-			# arrived 463.4, the review of Nov 1)
+			# where one leg finds nothing, two found afresh), beside the old legs
+			# again (`_chain_again`), the one that arrives first kept, the old
+			# legs on a tie. Without them, the preview that went to one leg went
+			# next, where one leg found nothing, to two found afresh, later than
+			# its old legs flew (seed 31337 node 28, ring 1 to keep 5, line-up 10:
+			# 486.1 drawn where the old legs arrived 463.4, the review of Nov 1).
+			# Two found afresh are a fresh plan's, not tried through the old
+			# legs' point first: the old legs stand beside them already, and
+			# through that point first, where the old legs no longer held, the
+			# first found stood later than a fresh plan's (seed 7 node 143, ring
+			# 1 to keep 2, line-up 5: 291.63 where a fresh plan arrives 291.50;
+			# seed 1999 node 150, star -1 to keep 2, line-up 1: 131.39 against
+			# 127.84; the fifth review, Nov 1)
 			var t_ua := Time.get_ticks_usec()
 			var alt: Dictionary = prefer.alt
 			var c1 := prefer.duplicate()
 			c1.erase("alt")
 			var ra := _chain_again(grav, dep, tgt, t, alt)
-			var ch2: Dictionary = alt.get("chain", {})
-			var r := _solve_or_chain(grav, dep, tgt, t, c1, ch2.get("W", Vector2.INF))
+			var r := _solve_or_chain(grav, dep, tgt, t, c1, Vector2.INF)
 			if ra != null:
 				r = _sooner_of(ra, r)
 			r.usec = Time.get_ticks_usec() - t_ua
@@ -595,9 +611,9 @@ static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, 
 
 
 ## A FLIGHT IN TWO LEGS HELD FROM ITS CHOICE (`_chain_again`: rebuilt, or
-## searched from its legs) against another plan, r1 (a fresh plan of one leg,
-## `_fresh` as a first plan's is; or, from a flight of one leg that took over
-## from them, that flight planned again, else two legs found afresh): the one
+## searched from its legs) against another plan, r1 (a fresh plan, of one leg
+## as a first plan's is, else of two; or, from a flight of one leg that took
+## over from them, that flight planned again, else two legs found afresh): the one
 ## that arrives first, the held legs where they arrive no later, and never a
 ## flight that is not clean. Held on their cost alone, a preview in two legs
 ## that began where one leg found nothing stayed in two legs while a fresh
@@ -607,7 +623,16 @@ static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, 
 ## 300, ring 2 to star -1, line-up 4). Only round a ring or alongside, the ship
 ## still where the flight leaves from: free, it is on its way (or a harness's
 ## free start), and the flight is as `_chain_again` gives it. A flight of one
-## leg kept carries the held legs' choice as its `alt` (`solve`). Its
+## leg kept carries the held legs' choice as its `alt` (`solve`): the legs as
+## they were flown this time, so once their departure has gone by they are
+## searched again from the last search's legs, priced against its cost, and may
+## arrive later each time (seed 31337 node 28, ring 1 to keep 5, line-up 11:
+## 483.95 to 516.62 over 7 replans, the review of Nov 1). That is kept: they
+## are taken only where they arrive sooner than the one leg, and held to the
+## arrival they had as one leg took over, or dropped once their departure went
+## by, the overlay's preview drew later than this, net, for 12 to 28 s of its
+## preview time in each sweep (16 line-ups, 30 s each, the fifth review), to
+## save a median of about 90 integrations a replan carrying them. Its
 ## integrations are both plans'.
 static func _sooner_of(rc: Result, r1: Result) -> Result:
 	var n := rc.integrations + r1.integrations
@@ -3370,16 +3395,26 @@ func _build_in(kind: StringName) -> Result:
 ## choice is the first leg's with `chain` {W, k, pre, c1, c2}, so the same
 ## flight comes back (`_chain_again`): the first leg rebuilt from c1 as any
 ## flight is, the second then leaving from the very same state is rebuilt from
-## c2 as a free one is.
+## c2 as a free one is. The first found is kept; with a `hint` (an old flight's
+## point, tried first), the flight through it only while the first found
+## without it (a fresh plan's) arrives no sooner. Through the hint alone, a
+## flight in two legs looked for again where its legs no longer held stood
+## later than a fresh plan's (seed 31337 node 28, orbit9 -9 to keep 2, line-up
+## 4, planned again 14 times: 243.82 against 242.54; the fifth review, Nov 1).
 static func _chain(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, hint: Vector2) -> Result:
-	var wps := _waypoints(G, dep, tgt, t)
+	var rh: Result = null
 	if hint.is_finite():
-		wps.insert(0, hint)
-	for W in wps:
+		rh = _chain_try(G, dep, tgt, t, hint, CHAIN_PRE)
+	for W in _waypoints(G, dep, tgt, t):
 		var rj := _chain_try(G, dep, tgt, t, W, CHAIN_PRE)
 		if rj != null:
-			return rj
-	return null
+			if rh == null:
+				return rj
+			var keep := rh if float(rh.end.t) <= float(rj.end.t) + 1e-6 else rj
+			keep.integrations = rh.integrations + rj.integrations
+			keep.steps = rh.steps + rj.steps
+			return keep
+	return rh
 
 
 ## The flight in two legs through W, its second leaving `pres` s (each in
