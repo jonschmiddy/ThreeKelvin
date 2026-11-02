@@ -413,7 +413,13 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 		var sp := _ship_plane(t0)
 		var fs := _frame.size if _frame.size.x > 10.0 else SystemLayout.FIT_FRAME
 		var on: Vector2 = Vector2(view.CX, view.CY) + view.pan + Vector2(sp.x, sp.y * view.TILT) * open_zoom
-		if not view.window.grow(-SHIP_IN).has_point(on):
+		# (the picture; before the frame is laid out its window is empty, and
+		# shrunk by SHIP_IN it was a box of negative size: then the frame it is
+		# fitted to, round the map's centre as `_place_map` lays it)
+		var win: Rect2 = view.window
+		if win.size.x <= SHIP_IN * 2.0 or win.size.y <= SHIP_IN * 2.0:
+			win = Rect2(Vector2(view.CX, view.CY) - fs * 0.5, fs)
+		if not win.grow(-SHIP_IN).has_point(on):
 			var ov2 := open_view(view.layout, n, fs, sp)
 			open_zoom = float(ov2.zoom)
 			var oc2: Vector2 = ov2.at

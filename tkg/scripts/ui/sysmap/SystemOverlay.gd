@@ -431,6 +431,7 @@ func _draw() -> void:
 				hv = {"kind": &"beacon", "body": e[1], "beacon": e[2], "at": e[0]}
 				from_card = true
 	beacons_at.clear()
+	_drawn_marks = []
 	var t_rings := Time.get_ticks_usec()
 	_draw_rings(t)
 	view.tick("overlay rings", t_rings)
@@ -553,11 +554,14 @@ func _draw() -> void:
 			if g[1] != hv.beacon:
 				var words := "WILL BE MADE UNAVAILABLE"
 				var w := _font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
-				_text(g[0] + Vector2(-roundf(w / 2.0), -9), words, UITheme.WARN)
+				var wat: Vector2 = g[0] + Vector2(-roundf(w / 2.0), -9)
+				_text(wat, words, UITheme.WARN)
+				_drawn_marks.append(Rect2(wat + Vector2(-2, -10), Vector2(w + 4, 14)).grow(MARK_WORDS_CLEAR))
 	# a card pointed at in the panel: its beacon bracketed, as the map's own
 	# selection is
 	if from_card:
 		var c0: Vector2 = hv.at
+		_drawn_marks.append(Rect2(c0 - Vector2(10, 9), Vector2(21, 19)).grow(MARK_CLEAR))
 		for d in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
 			var c := c0 + Vector2(d.x * 10.0, d.y * 9.0)
 			draw_rect(Rect2(c + Vector2(-3 if d.x > 0 else 0, 0), Vector2(4, 1)).abs(), UITheme.ICE)
@@ -643,25 +647,28 @@ func _draw() -> void:
 ## pair opens framed on its two suns and their own worlds
 ## (`SystemMapScreen.open_view`), so the events out on what circles both suns
 ## -- fights, salvage, jobs, the Hellbender -- start off screen. Each event's
-## beacon off the picture, and your ship, has a small arrow at the frame's edge
-## pointing to it, where the line to it from the frame's middle crosses the
-## edge, drawn in the beacons' own 2 px cells, in the beacon's colour (your
-## ship's in ice), a little dimmed while the beacon is closed (at the beacon's
-## own dimness an arrow this small was lost on the gas). Only at the opening zoom
-## or further out (`mark_zoom`): zoomed in, looking closer is the player's
-## choice, and LOCATION and a right-click hold what they look at. Never on
-## anything else drawn there: each arrow is slid round the edge clear of the
-## words, the suns, the worlds, the beacons, your ship, the status line, the
-## goal and the instrument (`mark_keep`) and the arrows already placed, and
-## left out where no spot clears. Not a control: it takes no click (only
-## pressable things look pressable).
+## beacon off the picture, your ship and each partner's has a small arrow at the
+## frame's edge pointing to it, where the line to it from the frame's middle
+## crosses the edge, drawn in the beacons' own 2 px cells, in the beacon's
+## colour (your ship's in ice, a partner's in the party's green), a little
+## dimmed while the beacon is closed (at the beacon's own dimness an arrow this
+## small was lost on the gas). Only at the opening zoom or further out
+## (`mark_zoom`): zoomed in, looking closer is the player's choice, and LOCATION
+## and a right-click hold what they look at. Never on anything else drawn there:
+## each arrow is slid round the edge clear of the words (MARK_WORDS_CLEAR off
+## them: an arrow just under the status line read as its bullet, a thing to
+## press), the suns, the worlds, the beacons, the reticles and the bracket, your
+## ship and the partners', the goal and the instrument (`mark_keep`) and the
+## arrows already placed, and left out where no spot clears. Not a control: it
+## takes no click (only pressable things look pressable).
 var mark_zoom := INF
 ## the screen's own things the arrows keep off, in this space
 ## (`SystemMapScreen.mark_keep`)
 var mark_keep: Array = []
 ## THE ARROWS DRAWN last frame, for a harness: {at (the arrow's middle), box,
-## body (the beacon's place, or -9 your ship), dir (one of the eight, x and y
-## -1 to 1), to (where what it points at is drawn)}
+## body (the beacon's place, or -9 a ship), peer (a partner's id, 0 for yours or
+## a beacon), dir (one of the eight, x and y -1 to 1), to (where what it points
+## at is drawn)}
 var edge_marks: Array = []
 ## how far in from the frame's edge an arrow's middle stands (clear of the
 ## frame's bezel), its cells' size, its box's half-size (five cells long and
@@ -674,6 +681,17 @@ const MARK_STEP := 3.0
 const MARK_DIM := 0.75
 ## and how many steps either way it may go (240 px) before it is left out
 const MARK_SLIDES := 80
+## how far an arrow keeps off words (the status line, the map's words, a group's
+## warning), and off everything else
+const MARK_WORDS_CLEAR := 8.0
+const MARK_CLEAR := 2.0
+## A PARTNER'S HULL's half-size on screen (`_draw_partners`: its cells reach 4
+## back and 7 forward, 4 either side, with the outline)
+const PARTNER_HALF := 8.0
+## THE MARKS DRAWN BEFORE THE ARROWS that no list holds, this frame, in this
+## space: the selection's and hover's reticles, a card's bracket and an
+## exclusive group's words (`_draw_edge_marks` keeps off them)
+var _drawn_marks: Array = []
 ## AN ARROW pointing right, in cells round its middle; the others are it
 ## turned. A diagonal one is a corner, pointing up-right.
 const MARK_SIDE := [Vector2i(-1, -2), Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0),
@@ -687,10 +705,13 @@ func _draw_edge_marks(status: String) -> void:
 	if hush_labels or label_a <= 0.01 or view.zoom > mark_zoom:
 		return
 	var win: Rect2 = view.window
+	# (no picture yet: the frame is not laid out, its window empty)
+	if win.size.x <= MARK_IN * 4.0 or win.size.y <= MARK_IN * 4.0:
+		return
 	var inner := win.grow(-MARK_IN)
 	var mid := win.get_center()
 	var L: SystemLayout = view.layout
-	# what is off the picture: the events' beacons, and your ship
+	# what is off the picture: the events' beacons, your ship and the partners'
 	var want: Array = []
 	for e in beacons_at:
 		if not beacon_box(e[0]).intersects(win):
@@ -700,19 +721,28 @@ func _draw_edge_marks(status: String) -> void:
 				col = SPENT
 			elif flight != null and flight.reached() != int(e[1]):
 				col = Color(col, MARK_DIM)
-			want.append([e[0], int(e[1]), col])
+			want.append([e[0], int(e[1]), col, 0])
 	if flight != null and not win.grow(-2.0).has_point(_ship_at):
-		want.append([_ship_at, -9, UITheme.ICE])
+		want.append([_ship_at, -9, UITheme.ICE, 0])
+	# and each partner's (the whole-system view kept every partner on the
+	# picture; framed on a wide pair's own part, one out on a world round both
+	# suns was nowhere: 15 of 16 such on seed 7, the gap:A review)
+	for e: Array in partner_at:
+		if not win.grow(-2.0).has_point(e[1]):
+			want.append([e[1], -9, UITheme.GOOD, int(e[0])])
 	if want.is_empty():
 		return
 	# what is drawn on the picture already
-	var keep: Array = label_rects.duplicate()
+	var keep: Array = []
+	for r: Rect2 in label_rects:
+		keep.append(r.grow(MARK_WORDS_CLEAR))
 	keep.append_array(mark_keep)
+	keep.append_array(_drawn_marks)
 	if status != "":
-		keep.append(status_rect(status))
+		keep.append(status_rect(status).grow(MARK_WORDS_CLEAR))
 	for e in beacons_at:
 		if beacon_box(e[0]).intersects(win):
-			keep.append(beacon_box(e[0]))
+			keep.append(beacon_box(e[0]).grow(MARK_CLEAR))
 	for i in L.bodies.size():
 		var b := L.bodies[i]
 		if b.kind != &"belt" and i < view.at.size():
@@ -722,7 +752,9 @@ func _draw_edge_marks(status: String) -> void:
 		var r := star_disc(p)
 		keep.append(Rect2(star_scr(p) - Vector2(r, r), Vector2(r, r) * 2.0))
 	if flight != null:
-		keep.append(Rect2(_ship_at - Vector2.ONE * ship_r(), Vector2.ONE * ship_r() * 2.0))
+		keep.append(Rect2(_ship_at - Vector2.ONE * ship_r(), Vector2.ONE * ship_r() * 2.0).grow(MARK_CLEAR))
+	for e: Array in partner_at:
+		keep.append(Rect2(e[1] - Vector2.ONE * PARTNER_HALF, Vector2.ONE * PARTNER_HALF * 2.0).grow(MARK_CLEAR))
 	for w: Array in want:
 		var to: Vector2 = w[0]
 		var d := to - mid
@@ -758,7 +790,7 @@ func _draw_edge_marks(status: String) -> void:
 		var mbox := Rect2(spot - Vector2.ONE * MARK_HALF, Vector2.ONE * MARK_HALF * 2.0)
 		keep.append(mbox.grow(1.0))
 		_mark(spot, dir, Color(w[2], (w[2] as Color).a * label_a))
-		edge_marks.append({"at": spot, "box": mbox, "body": w[1], "dir": dir, "to": to})
+		edge_marks.append({"at": spot, "box": mbox, "body": w[1], "peer": w[3], "dir": dir, "to": to})
 
 
 ## A point on the edge of `r` that far round it, clockwise from its top left.
@@ -952,6 +984,7 @@ func _star_occ(q: Vector2) -> Array:
 ## StarchartScreen's reticle: four corner ticks, 3 px, in white.
 func _reticle(at: Vector2, reach: float, k: float, alpha: float) -> void:
 	var c := Color(1, 1, 1, alpha * k)
+	_drawn_marks.append(Rect2(at - Vector2.ONE * (reach + 2.0), Vector2.ONE * (reach + 2.0) * 2.0 + Vector2.ONE).grow(MARK_CLEAR))
 	for raw in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
 		var corner: Vector2 = raw
 		var kp: Vector2 = (at + corner * reach).round()

@@ -109,8 +109,9 @@ const NOSE_W := 14.0
 const INSERT_T := Vector2(0.7, 1.6)
 const RAIL_V := 35.0
 const STAR_RAIL_V := 45.0
-## Alongside a belt's beacon, a station or a hulk: this close, as seen.
-const KEEP_R := 22.0
+## Alongside a belt's beacon, a station or a hulk: this close, as seen (the
+## layout keeps it, for the room an arrival needs: `SystemLayout.arrive_reach`).
+const KEEP_R := SystemLayout.ALONGSIDE
 const TILT := 0.38
 
 ## The modes: at the edge as arrived, flying free, on a rail, held alongside,
@@ -1277,19 +1278,21 @@ func capture_ahead(st: FreeState, t: float) -> bool:
 ## or in a twin round both stars' balance point: there each body's circle is
 ## round its own host, so what it sweeps is a band of distances from the
 ## balance point (a world round one star, from that star's distance less its
-## orbit to more), and each star's ring is kept clear too.
+## orbit to more), and each star's ring is kept clear too. How far from each
+## body's orbit is the layout's (`SystemLayout.arrive_reach`), which leaves a
+## close pair room for it past its worlds.
 func arrival_r(r0: float) -> float:
 	var c := L.bary if L.twin else Vector2.ZERO
 	var lo := star_ring() + 40.0
-	var hi := L.edge - 12.0
+	var hi := L.edge - SystemLayout.ARRIVE_IN
 	if L.twin:
 		lo = 0.0
 		for s in _stars:
 			lo = maxf(lo, (L.star_pos(s) - c).length() + star_ring(s) + 40.0)
-		hi = L.edge - c.length() - 12.0
+		hi = L.edge - c.length() - SystemLayout.ARRIVE_IN
 	var clear := func(r: float) -> bool:
 		for b in L.bodies:
-			var reach: float = b.soi * 1.3 + 10.0 if b.world != &"" else (KEEP_R / TILT + 10.0 if is_keep(b.index) else 0.0)
+			var reach: float = SystemLayout.arrive_reach(b)
 			if reach <= 0.0:
 				continue
 			if b.host == c:

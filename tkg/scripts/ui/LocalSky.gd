@@ -138,10 +138,11 @@ const SIZE_HI := 4.0
 ## px, TwinDrawTest, 10 of 73 close pairs) and the far sun came out bigger than
 ## the near one (1). So the far sun is drawn at most FAR_MOST of the near one's
 ## size, and star B stands at least SUNS_APART px clear of star A, out along the
-## way its place puts it (the block grid can take a px of it back). A wide pair
-## never meets either (over TwinDrawTest's 140, from its suns' close orbits and
-## its worlds, the far sun at most 0.61 of the near and the two 46 px or more
-## apart): its band is as it was.
+## way its place puts it (the block grid can take a px of it back). A CLOSE
+## PAIR'S ALONE: a wide pair's band is drawn as it was before the ruling. Held
+## to it too, the cap redrew a wide pair's far sun at 654 of 1,008 places
+## round both suns (seeds 7, 4242 and 1999), to 0.73 to 1.0 of its size; its
+## suns are 46 px or more apart there and never meet.
 const FAR_MOST := 0.75
 const SUNS_APART := 12.0
 ## THE WORLD IT ORBITS, CLOSE (Jon, Oct 21: "I want the planet you are orbiting
@@ -1019,12 +1020,12 @@ func star_k() -> float:
 
 
 ## Star p's size against its map size, by the ship's distance from it (the far
-## sun of two at most FAR_MOST of the near one, the lit one, as drawn).
+## sun of a close pair at most FAR_MOST of the near one, the lit one, as drawn).
 func star_k_of(p: int) -> float:
 	if layout == null:
 		return 1.0
 	var f := _size_f(p)
-	if layout.twin and p != _lit:
+	if layout.close and p != _lit:
 		f = minf(f, _size_f(_lit) * layout.star_radius(_lit) / maxf(layout.star_radius(p), 0.01) * FAR_MOST)
 	if layout.star == SystemLayout.StarKind.PULSAR:
 		return PULSAR_K * f
@@ -1071,12 +1072,14 @@ func _star_rest(p: int) -> Vector2:
 
 ## Where star p hangs on the band at rest: star A at `_sun`, star B where the
 ## band puts its place on the plane (across by its x, a little lower the nearer
-## it is, at the band's scale), or out that way to SUNS_APART clear of star A's
-## disc, on the block grid.
+## it is, at the band's scale), on the block grid; a close pair's out that way
+## to SUNS_APART clear of star A's disc.
 func _sun_at(p: int) -> Vector2:
 	if p != SystemLayout.STAR_B or layout == null or not layout.twin:
 		return _sun
 	var off := Vector2(layout.star2_at.x, layout.star2_at.y * TILT) * _s
+	if not layout.close:
+		return _block_round(_sun + off)
 	var need := layout.star_r * star_k_of(-1) + layout.star2_r * star_k_of(SystemLayout.STAR_B) + SUNS_APART
 	if off.length() < need:
 		off = off.normalized() * need

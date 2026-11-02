@@ -107,8 +107,9 @@ const TWIN_SEP_HI := 380.0
 ## opening zoom (A's 90 to 110 touched and read as one sun); a hot world first
 ## in all but 2; 43 of 55 with a world in the middle band (C's 230 to 250 had
 ## no hot world at all); each sun's close orbit as a wide pair's. Over
-## SystemTest's 343 close pairs the two keep-outs stay 70 px apart or more, a
-## sun's close orbit 68 px off the other's keep-out, the capture rings 62 apart.
+## SystemTest's 343 close pairs the two keep-outs stay 64 px apart or more, a
+## sun's close orbit 62 px off the other's keep-out, the capture rings 56 apart
+## (70, 68 and 62 before a close pair kept room to arrive in, `_close`).
 const CLOSE_SHARE := 1.0 / 3.0
 const CLOSE_SEP_LO := 150.0
 const CLOSE_SEP_HI := 170.0
@@ -996,14 +997,15 @@ static func _twin(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, 
 
 ## THE EDGE OF A BINARY, and the jobs and the Hellbender past it, round both
 ## suns: by how far each body reaches from its own centre, not the last one's
-## orbit. Then each world's ring (S_RING round one sun of a wide pair).
-static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int], short: String) -> void:
+## orbit, and never nearer than `least` (a close pair's room to arrive in,
+## `_close`). Then each world's ring (S_RING round one sun of a wide pair).
+static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int], short: String, least := 0.0) -> void:
 	var far := 0.0
 	var ext := 0.0
 	for b in L.bodies:
 		far = maxf(far, b.host.length() + b.orbit + reach_of(b))
 		ext = maxf(ext, b.host.distance_to(L.bary) + b.orbit + reach_of(b))
-	L.edge = maxf(HI, far) + 30.0
+	L.edge = maxf(maxf(HI, far) + 30.0, least)
 	for k in jobs.size():
 		var jr := Rng.derive(&"job_place", n.index * 8 + k)
 		var jb := _job_body(L, n, jobs[k], jr)
@@ -1018,7 +1020,7 @@ static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int],
 		jb.name = "%s %s" % [short, ROMAN[mini(jb.index, ROMAN.size() - 1)]]
 		L.bodies.append(jb)
 		ext = jb.orbit + reach_of(jb) + (soi_of(jb) if jb.world != &"" else 0.0)
-		L.edge = L.bary.length() + ext + 30.0
+		L.edge = maxf(L.bary.length() + ext + 30.0, least)
 	if hellbender_here(n):
 		var hb := _hellbender_body(L, n)
 		hb.orbit = maxf(HI, ext) + reach_of(hb) + GAP + 24.0
@@ -1028,7 +1030,7 @@ static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int],
 		hb.phase = float(Rng.derive(&"hellbender_place", n.index).randf()) * TAU
 		hb.name = "%s %s" % [short, ROMAN[mini(hb.index, ROMAN.size() - 1)]]
 		L.bodies.append(hb)
-		L.edge = L.bary.length() + hb.orbit + reach_of(hb) + 30.0
+		L.edge = maxf(L.bary.length() + hb.orbit + reach_of(hb) + 30.0, least)
 	for b in L.bodies:
 		if b.world != &"":
 			b.soi = S_RING if is_star(b.host_id) else soi_of(b)
@@ -1055,9 +1057,10 @@ static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int],
 ## neighbour about twice as often as round one sun; the bodies never meet.
 ##
 ## Each sun keeps its keep-out, close orbit and ring, a wide pair's ladder
-## (`_twin_ladder`) at the zoom this layout is fitted to (`fit_zoom`): at 150 px
-## apart the two keep-outs, and each sun's close orbit and the other's keep-out,
-## are 68 px or more apart.
+## (`_twin_ladder`) at the zoom this layout is fitted to (`fit_zoom`), which
+## takes in the room past the worlds a ship arrives in: at 150 px apart the two
+## keep-outs, and each sun's close orbit and the other's keep-out, are 62 px or
+## more apart.
 ##
 ## Draws: `_twin`'s, in its order: the "twin" stream's share, separation, side
 ## and turn; R's three a body (where in its slot, its period's jitter, its
@@ -1109,23 +1112,60 @@ static func _close(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator,
 		last = want
 		last_reach = reach
 		ext_most = maxf(ext_most, want + reach)
+	for b in L.bodies:
+		b.zone = L.zone_of(b)
+	_worlds(L, n, R)
+	# ROOM PAST THE WORLDS FOR A SHIP TO ARRIVE IN (`ShipFlight.arrival_r`): the
+	# edge out far enough that a circle round both suns clears every world's
+	# ring inside it (`arrive_reach`). Packed from about 440 px, a close pair's
+	# rings left no clear circle out there in 53 of the 56 close pairs of seeds
+	# 7, 4242 and 1999, and in 43 a ship jumping in was put inside the first
+	# world beside the suns, at 0.30 to 0.43 of the edge, where one sun's arrive
+	# at 0.98 (the built stills, Nov 2). It costs those 53 some opening zoom, a
+	# median 5% further out and 12% at the most: as the map opens the two suns
+	# stand 17 to 34 game px apart edge to edge (20 to 36 before; TwinSiteTest)
+	var arrive := 0.0
+	for b in L.bodies:
+		if b.world != &"":
+			b.soi = soi_of(b)
+		arrive = maxf(arrive, b.orbit + arrive_reach(b))
+	var least_edge := L.bary.length() + arrive + ARRIVE_IN + GAP
 	# FITTED TO THE MAP with every world as big as it can be, as a wide pair is
-	# (`_twin_edge_most`): the map opens there or nearer
-	var z := open_zoom(maxf(HI, L.bary.length() + ext_most) + 30.0)
+	# (`_twin_edge_most`), and that room: the map opens there or nearer
+	var z := open_zoom(maxf(maxf(HI, L.bary.length() + ext_most) + 30.0, least_edge))
 	var lad_a := _twin_ladder(L.star_r, z)
 	var lad_b := _twin_ladder(L.star2_r, z)
 	L.fit_zoom = z
 	L._keep = {-1: lad_a[0], STAR_B: lad_b[0]}
 	L._rail = {-1: lad_a[1], STAR_B: lad_b[1]}
 	L._ring = {-1: lad_a[2], STAR_B: lad_b[2]}
-	for b in L.bodies:
-		b.zone = L.zone_of(b)
-	_worlds(L, n, R)
 	# named out from the suns, which round both alone is by index
 	var short := " ".join(MapGen.star_name(n).split(" ").slice(0, 2))
 	for i in N:
 		L.bodies[i].name = "%s %s" % [short, ROMAN[mini(i, ROMAN.size() - 1)]]
-	_past_the_edge(L, n, jobs, short)
+	_past_the_edge(L, n, jobs, short, least_edge)
+
+
+## HOW FAR A SHIP ARRIVING ON A CIRCLE ROUND THE STAR (or a pair's balance
+## point) KEEPS ITS CIRCLE FROM BODY b's ORBIT (`ShipFlight.arrival_r`): a
+## world's ring ARRIVE_RING_K over, a station's, belt's, hulk's or contact's
+## alongside reach (`ShipFlight.KEEP_R`) as the slant stretches it, and
+## ARRIVE_PAD past either; nothing else has a reach.
+static func arrive_reach(b: Body) -> float:
+	if b.world != &"":
+		return b.soi * ARRIVE_RING_K + ARRIVE_PAD
+	if b.kind == &"belt" or b.kind == &"station" or b.kind == &"derelict" or b.kind == &"contact":
+		return ALONGSIDE / SLANT + ARRIVE_PAD
+	return 0.0
+
+
+## (`arrive_reach`'s numbers; ALONGSIDE is `ShipFlight.KEEP_R`, how close a ship
+## sits alongside, as seen; ARRIVE_IN how far inside the edge an arrival's
+## circle stays at its furthest)
+const ARRIVE_RING_K := 1.3
+const ARRIVE_PAD := 10.0
+const ALONGSIDE := 22.0
+const ARRIVE_IN := 12.0
 
 
 ## The largest ring a world can have before it is rolled (`soi_of`): a planet as

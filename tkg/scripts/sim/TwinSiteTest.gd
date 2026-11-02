@@ -87,7 +87,9 @@ extends Node
 ## its suns 150 to 170 px apart, every body round both past the steady limit,
 ## nothing meeting (bodies, rings, the suns' keep-outs, close orbits and capture
 ## rings), most with a planet in the middle band, the giant round both suns in
-## either kind; and the ring sweep above sweeps close pairs too.
+## either kind, a ship jumping in arrived out past every world's ring (53 of 56
+## not, 43 inside the first world, on d9f1afca); and the ring sweep above
+## sweeps close pairs too.
 ## Jon's "gap:A" (Nov 1): one sun and every close pair open as they always did
 ## (`_opens_as_before`); a wide pair opens framed on its two suns and their own
 ## worlds, the wheel goes out to the whole system and a right-click comes home
@@ -95,7 +97,8 @@ extends Node
 ## each world round one sun drawn clear of its sun and every beacon off the
 ## picture marked at the frame's edge on nothing drawn (`_pair_marks`); a ship
 ## put back on a world round both suns is taken into the framing
-## (`_put_back_framed`).
+## (`_put_back_framed`); a partner off the picture has its arrow too
+## (`_partner_marked`).
 ## Prints how many twin systems and cases each part saw.
 ##
 ## IT JUDGES THE WHOLE BUILD. Where a part is another build's (the flight's ride
@@ -199,6 +202,7 @@ func _run() -> void:
 	await _fly_to_b(m, n)
 	await _back_at_b(n)
 	await _partner_at_b(n)
+	await _partner_marked()
 	await _settle_round(n)
 	await _restore_round(n)
 	await _labels_off_suns(n)
@@ -402,6 +406,9 @@ func _close_pairs() -> void:
 	var held := [0, 0]
 	var held_one := [0, 0]
 	var giants := {"wide": [0, 0], "close": [0, 0]}
+	var arrive_in: Array[String] = []
+	var arrive_k: Array[float] = []
+	var suns_px: Array[float] = []
 	for sd: int in CLOSE_SEEDS:
 		Rng.forced = sd
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -463,6 +470,24 @@ func _close_pairs() -> void:
 			mid += int(has_mid)
 			hot_first += int((g[0] as SystemLayout.Body).zone == 0)
 			_held_in_rings(L, held)
+			# THE SHIP ARRIVES OUT PAST EVERY WORLD, at the frame's edge as round
+			# one sun (`SystemMapScreen.show_system`'s point, on the layout's
+			# frame): packed close, the rings left no clear circle there, and it
+			# was put inside the first world beside the suns (43 of 56 on
+			# d9f1afca, the built stills)
+			var z := SystemMapScreen.zoom_for(L, c, SystemLayout.FIT_FRAME)
+			var fl := FlightS.new()
+			fl.setup(L, Vector2(minf(L.edge, (SystemLayout.FIT_FRAME.x * 0.5 - 26.0) / z), -210.0), 40.0)
+			var ar: float = (fl.f.p - L.bary).length()
+			var out := 0.0
+			for b in L.bodies:
+				out = maxf(out, b.orbit + SystemLayout.arrive_reach(b))
+			arrive_k.append(ar / (L.edge - L.bary.length()))
+			if ar < out - 1e-6:
+				arrive_in.append("%s at %.0f, inside %.0f" % [at, ar, out])
+			# and the two suns on screen as the map opens, edge to edge
+			var d2 := Vector2(L.star2_at.x, L.star2_at.y * SystemLayout.SLANT).length() * z
+			suns_px.append(d2 - SystemLayout.sun_drawn(L.star_r, z) - SystemLayout.sun_drawn(L.star2_r, z))
 		n_bin += sb
 		n_close += sc
 		per_seed.append("seed %d %d of %d" % [sd, sc, sb])
@@ -474,6 +499,13 @@ func _close_pairs() -> void:
 		", ".join(per_seed), "%.1f to %.1f (median %.1f)" % [seps[0], seps[seps.size() - 1], seps[seps.size() / 2]] if not seps.is_empty() else "none",
 		hot_first, mid, n_close])
 	print("  --   least margins, px: %s" % ", ".join(least.keys().map(func(k: String) -> String: return "%s %.1f" % [k, least[k]])))
+	arrive_k.sort()
+	suns_px.sort()
+	if not arrive_k.is_empty():
+		print("  --   a close pair's arrival %.2f to %.2f of the way to the edge (median %.2f); its suns %.1f to %.1f game px apart edge to edge as the map opens (median %.1f)" % [
+			arrive_k[0], arrive_k[-1], arrive_k[arrive_k.size() / 2], suns_px[0], suns_px[-1], suns_px[suns_px.size() / 2]])
+	h._ok("a ship jumping into a close pair arrives out past every world's ring, at the edge as round one sun (%d of %d inside one)%s" % [
+		arrive_in.size(), n_close, "" if arrive_in.is_empty() else ": " + "; ".join(arrive_in.slice(0, 4))], n_close > 0 and arrive_in.is_empty())
 	print("  --   a body inside another world's ring: %d of %d round a close pair's suns (%.0f%%), %d of %d round one sun (%.0f%%; counted, not judged)" % [
 		held[0], held[1], 100.0 * held[0] / maxf(held[1], 1.0), held_one[0], held_one[1], 100.0 * held_one[0] / maxf(held_one[1], 1.0)])
 	h._ok("about one binary in three is a close pair over seeds %s (%d of %d, %.0f%%)" % [CLOSE_SEEDS, n_close, n_bin, share * 100.0],
@@ -1114,6 +1146,53 @@ func _partner_at_b(n: MapGen.MapNode) -> void:
 		Net.roster.erase(id)
 		Net.spots.erase(id)
 	_saw("partners at star B")
+
+
+## A PARTNER OFF THE PICTURE HAS ITS ARROW AT THE EDGE, as your ship and the
+## events' beacons do (`SystemOverlay._draw_edge_marks`): this wide pair at its
+## opening framing, a partner out in open space round both suns, below the
+## balance point most of the way to the edge.
+## The whole-system view kept every partner on the picture; framed on the pair,
+## 15 of seed 7's 16 such were nowhere (the gap:A review). The arrow in the
+## party's colour, inside the frame, and off the partner's own hull.
+func _partner_marked() -> void:
+	var m := Router.current as SystemMapScreen
+	if m == null:
+		h._fail("no map for the partner's arrow")
+		return
+	var L: SystemLayout = m.view.layout
+	var at := L.bary + Vector2(0.0, 0.85 * (L.edge - L.bary.length()))
+	var id := 70003
+	Net.roster[id] = {"id": id, "at": m.view.node.index, "order": 92, "name": "Geno"}
+	Net.spots[id] = {"at": m.view.node.index, "body": -9, "x": at.x, "z": at.y, "ang": 0.0}
+	m._glide = {}
+	m._focus_body = -9
+	m._homing = false
+	m._locked = false
+	m._zoom_to = m.open_zoom
+	m.view.zoom = m.open_zoom
+	m.view.pan = -m.home_at * m.open_zoom
+	await _frames(4)
+	var ov = m.overlay
+	var win: Rect2 = m.view.window
+	var drawn := Vector2.INF
+	for e: Array in ov.partner_at:
+		if int(e[0]) == id:
+			drawn = e[1]
+	var mark: Dictionary = {}
+	for mk: Dictionary in ov.edge_marks:
+		if int(mk.get("peer", 0)) == id:
+			mark = mk
+	var off: bool = drawn != Vector2.INF and not win.grow(-2.0).has_point(drawn)
+	h._ok("at the opening framing (%.3f), a partner out round both suns at %s is off the picture (drawn at %s, the picture %s)" % [m.view.zoom, at, drawn, win], off)
+	if off:
+		var mb: Rect2 = mark.get("box", Rect2())
+		h._ok("and has its arrow at the frame's edge%s" % ("" if mark.is_empty() else " (at %s, pointing %s)" % [mark.at, mark.dir]),
+			not mark.is_empty() and win.encloses(mb))
+	Net.roster.erase(id)
+	Net.spots.erase(id)
+	await _frames(2)
+	_saw("partners marked off the picture")
 
 
 ## LET GO ROUND STAR B, AND ROUND BOTH STARS: the wide orbit is drawn round what
