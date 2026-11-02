@@ -2,7 +2,7 @@ extends Node
 
 ## THE AUTOPILOT'S SOLVED FLIGHTS (ruling 20, Oct 30), planned and measured:
 ##   godot --headless --path . -- sheet=SolveTest [systems=N] [lineups=N] [twins=N]
-##     [twinlineups=N] [worker=N] [only=one|giant|twin|rtwin|proto] [short]
+##     [twinlineups=N] [worker=N] [only=one|giant|twin|rtwin|rclose|proto] [short]
 ## `short`: the gate's run, every sweep at fewer systems and line-ups
 ## (systems=1 lineups=4 twins=1 twinlineups=3 worker=100).
 ## `FlightSolve` from every start to every place, at line-ups (map times), in
@@ -13,8 +13,11 @@ extends Node
 ##   giant  the same systems' giants set by hand to 1/10 and 1/4 of the star;
 ##   rtwin  the layout's own two-star systems: per seed the `twins` with the
 ##          most bodies (each SYSTEM node asked for two suns, as `-- twin=all`
-##          does), their giants as rolled. None until the layout makes twins:
-##          the sweep says so and is not judged;
+##          does), their giants as rolled, each laid out a WIDE pair. None until
+##          the layout makes twins: the sweep says so and is not judged;
+##   rclose the same systems laid out as CLOSE PAIRS (Jon, Nov 1, "Binary
+##          kinds: close:B"; `SystemLayout.close_force`), every body round both
+##          suns 150 to 170 px apart, per seed the `twins` with the most bodies;
 ##   twin   two-star systems built by hand to the prototype's geometry (stars
 ##          280 px apart, A 0.55 of the pull, world a 80 px round A and b 70 px
 ##          round B with 38.4 px rings, c round both at 680 px with a 70.4 px
@@ -119,7 +122,7 @@ func _run() -> void:
 	_bench()
 	if _wants("proto"):
 		_prototype()
-	if _wants("one") or _wants("giant") or _wants("rtwin"):
+	if _wants("one") or _wants("giant") or _wants("rtwin") or _wants("rclose"):
 		_real_cases()
 	if _wants("twin"):
 		_twin_cases()
@@ -129,7 +132,7 @@ func _run() -> void:
 		var c: Dictionary = _cases[i]
 		var r := FlightSolve.solve(c.G, c.dep, c.tgt, float(c.t))
 		_res.append(r)
-	for sw: String in ["one", "giant", "rtwin", "twin"]:
+	for sw: String in ["one", "giant", "rtwin", "rclose", "twin"]:
 		_report(sw)
 	if _wants("rtwin"):
 		var nrt := 0
@@ -160,6 +163,7 @@ func _real_cases() -> void:
 		var withg: Array = []
 		var without: Array = []
 		var twins: Array = []
+		var closes: Array = []
 		for raw in Run.map:
 			var n: MapGen.MapNode = raw
 			if n.type != MapGen.NodeType.SYSTEM and n.type != MapGen.NodeType.PULSAR and n.type != MapGen.NodeType.STATION:
@@ -177,12 +181,19 @@ func _real_cases() -> void:
 					without.append(L)
 			if n.type == MapGen.NodeType.SYSTEM:
 				# (two suns where the layout may give them: `-- twin=all`'s way)
+				# (each kind laid out on purpose: the kind is rolled, `is_close`)
 				var was := n.twin
 				n.twin = true
+				SystemLayout.close_force = -1
 				var L2 := SystemLayout.of(n)
+				SystemLayout.close_force = 1
+				var L4 := SystemLayout.of(n)
+				SystemLayout.close_force = 0
 				n.twin = was
 				if L2.twin:
 					twins.append([n.index, L2])
+				if L4.close:
+					closes.append([n.index, L4])
 		if _wants("one") or _wants("giant"):
 			var pick: Array = withg.slice(0, mini(withg.size(), ceili(_per_seed / 2.0)))
 			pick.append_array(without.slice(0, _per_seed - pick.size()))
@@ -207,19 +218,22 @@ func _real_cases() -> void:
 				if gb != null:
 					gb.gm = gm0
 					gb.gm_frac = gf0
-		if _wants("rtwin"):
-			twins.sort_custom(func(a: Array, b: Array) -> bool:
+		for kind: Array in [["rtwin", twins, ""], ["rclose", closes, "close, "]]:
+			var rows: Array = kind[1]
+			if not _wants(String(kind[0])):
+				continue
+			rows.sort_custom(func(a: Array, b: Array) -> bool:
 				var la: SystemLayout = a[1]
 				var lb: SystemLayout = b[1]
 				return la.bodies.size() > lb.bodies.size() or (la.bodies.size() == lb.bodies.size() and int(a[0]) < int(b[0])))
-			for row in twins.slice(0, _twins):
+			for row in rows.slice(0, _twins):
 				var Lt: SystemLayout = row[1]
 				var gi := ""
 				for b in Lt.bodies:
 					if b.gm > 0.0:
 						gi = ", giant %.2f" % b.gm_frac
-				var lab := "seed %d node %d (%d bodies, share %.3f, sep %.0f%s)" % [sd, int(row[0]), Lt.bodies.size(), Lt.star_share, Lt.sep, gi]
-				_add_system("rtwin", Lt, MapGravity.from_layout(Lt), lab, false)
+				var lab := "seed %d node %d (%s%d bodies, share %.3f, sep %.0f%s)" % [sd, int(row[0]), kind[2], Lt.bodies.size(), Lt.star_share, Lt.sep, gi]
+				_add_system(String(kind[0]), Lt, MapGravity.from_layout(Lt), lab, false)
 
 
 ## A TWO-STAR SYSTEM BY HAND, the prototype's geometry scaled to `sep`: star
@@ -301,7 +315,7 @@ static func is_keep(b: SystemLayout.Body) -> bool:
 
 
 func _add_system(sweep: String, L: SystemLayout, G: MapGravity, label: String, hand: bool) -> void:
-	var lineups := _twin_lineups if sweep == "rtwin" else _lineups
+	var lineups := _twin_lineups if sweep == "rtwin" or sweep == "rclose" else _lineups
 	# starts: [kind, place]
 	var starts: Array = []
 	var targets: Array = []

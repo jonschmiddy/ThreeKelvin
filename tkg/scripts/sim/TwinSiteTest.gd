@@ -82,6 +82,12 @@ extends Node
 ##   - riding OMEGA CALLOUS I's ring for two orbits, its world selected, the
 ##     ship's words hold still (stepped, they hopped between under the ring and
 ##     under the ship about twice an orbit).
+## Jon's "Binary kinds: close:B share:A" (Nov 1), `_close_pairs`, over the
+## binaries of seeds 7, 4242 and 1999 as rolled: about one in three a close pair,
+## its suns 150 to 170 px apart, every body round both past the steady limit,
+## nothing meeting (bodies, rings, the suns' keep-outs, close orbits and capture
+## rings), most with a planet in the middle band, the giant round both suns in
+## either kind; and the ring sweep above sweeps close pairs too.
 ## Prints how many twin systems and cases each part saw.
 ##
 ## IT JUDGES THE WHOLE BUILD. Where a part is another build's (the flight's ride
@@ -145,6 +151,7 @@ func _map() -> SystemMapScreen:
 
 func _run() -> void:
 	await get_tree().process_frame
+	_close_pairs()
 	h.seed_run(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	_fit_zooms()
@@ -209,14 +216,16 @@ func _end() -> void:
 	get_tree().quit(h.code())
 
 
-## The ordinary system that may have two suns whose "<name> B" is widest.
+## The ordinary system that may have two suns whose "<name> B" is widest, of
+## those whose binary is a wide pair: the parts after it start from its world
+## round star A (a close pair has none, `_close_pairs`).
 func _longest_twin() -> MapGen.MapNode:
 	var font := UITheme.pixel_font()
 	var best: MapGen.MapNode = null
 	var best_w := -1.0
 	for raw in Run.map:
 		var c: MapGen.MapNode = raw
-		if not MapGen.twin_ok(c) or c.region == MapGen.Region.FAUNA or c.index == Run.at:
+		if not MapGen.twin_ok(c) or c.region == MapGen.Region.FAUNA or c.index == Run.at or SystemLayout.is_close(c):
 			continue
 		var w := font.get_string_size(MapGen.star_name(c) + " B", HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_HEAD).x
 		if w > best_w:
@@ -225,6 +234,139 @@ func _longest_twin() -> MapGen.MapNode:
 	if best != null:
 		print("  --   the longest name of a system that may have two suns: %s (%d px at the panel's head size)" % [MapGen.star_name(best), int(best_w)])
 	return best
+
+
+# ---------------------------------------------------------------- the close pair
+## THE CLOSE PAIR (Jon, Nov 1, "Binary kinds: close:B share:A"), over the
+## binaries of CLOSE_SEEDS as each rolls them, laid out, no map:
+##   - about one binary in three is a close pair, the rest wide, on every seed;
+##   - its suns 150 to 170 px apart, every body round both, at the balance point
+##     and past 1.03 of the nearest steady orbit round the pair;
+##   - nothing meets: no two bodies, no world's ring and a sun's close ring
+##     (RING_GAP, one sun's rule), no sun's keep-out, close orbit or capture ring
+##     and the other's;
+##   - most have a planet in the middle band, where a city, a green world or an
+##     ocean can be (a wide pair's are near or far);
+##   - in both kinds the giant circles both suns.
+## How often a body sits inside another world's ring is printed against one
+## sun's, not judged (the sheet's cost: about twice as often). The words on the
+## map are `_ring_sweep`'s, which counts the close pairs it saw.
+const CLOSE_SEEDS := [7, 4242, 1999]
+
+
+func _close_pairs() -> void:
+	var n_bin := 0
+	var n_close := 0
+	var per_seed: Array[String] = []
+	var seps: Array[float] = []
+	var off_both: Array[String] = []
+	var inside: Array[String] = []
+	var meet: Array[String] = []
+	var least := {"bodies": INF, "world ring to a sun's ring": INF, "keep-outs": INF, "close orbit to the other's keep-out": INF, "capture rings": INF}
+	var mid := 0
+	var hot_first := 0
+	var held := [0, 0]
+	var held_one := [0, 0]
+	var giants := {"wide": [0, 0], "close": [0, 0]}
+	for sd: int in CLOSE_SEEDS:
+		Rng.forced = sd
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		var sb := 0
+		var sc := 0
+		for raw in Run.map:
+			var c: MapGen.MapNode = raw
+			var L := SystemLayout.of(c)
+			if not L.twin:
+				if c.type == MapGen.NodeType.SYSTEM and L.star == SystemLayout.StarKind.ORDINARY:
+					_held_in_rings(L, held_one)
+				continue
+			sb += 1
+			for b in L.bodies:
+				if b.kind == &"giant":
+					var gk: Array = giants["close" if L.close else "wide"]
+					gk[0] += 1
+					gk[1] += int(b.host_id == -9 and b.host.distance_to(L.bary) < 0.01)
+			if not L.close:
+				continue
+			sc += 1
+			var at := "seed %d %s" % [sd, MapGen.star_name(c)]
+			seps.append(L.sep)
+			var lo := SystemLayout.p_limit(1.0 - L.star_share) * SystemLayout.P_MARGIN * L.sep
+			for b in L.bodies:
+				if b.host_id != -9 or b.host.distance_to(L.bary) > 0.01:
+					off_both.append("%s: %s round %d" % [at, b.name, b.host_id])
+				if b.orbit < lo - 1e-6:
+					inside.append("%s: %s at %.0f, the limit %.0f" % [at, b.name, b.orbit, lo])
+			# nothing meets
+			var g: Array = L.bodies.duplicate()
+			g.sort_custom(func(x, y): return x.orbit < y.orbit)
+			for i in range(1, g.size()):
+				var gap: float = g[i].orbit - g[i - 1].orbit - SystemLayout.reach_of(g[i]) - SystemLayout.reach_of(g[i - 1])
+				least.bodies = minf(least.bodies, gap)
+				if gap <= 0.0:
+					meet.append("%s: %s and %s" % [at, g[i - 1].name, g[i].name])
+			for b in L.bodies:
+				if b.soi <= 0.0:
+					continue
+				for p in L.stars():
+					var d := b.orbit - b.soi - b.host.distance_to(L.star_pos(p)) - L.star_ring_of(p)
+					least["world ring to a sun's ring"] = minf(least["world ring to a sun's ring"], d)
+					if d < SystemLayout.RING_GAP - 1e-6:
+						meet.append("%s: %s's ring and star %d's close ring" % [at, b.name, p])
+			var ka := L.keep_clear_of(-1)
+			var kb := L.keep_clear_of(SystemLayout.STAR_B)
+			var pairs := {"keep-outs": L.sep - ka - kb,
+				"close orbit to the other's keep-out": minf(L.sep - L.star_rail_of(-1) - kb, L.sep - L.star_rail_of(SystemLayout.STAR_B) - ka),
+				"capture rings": L.sep - L.star_ring_of(-1) - L.star_ring_of(SystemLayout.STAR_B)}
+			for k: String in pairs:
+				least[k] = minf(least[k], pairs[k])
+				if float(pairs[k]) <= 0.0:
+					meet.append("%s: the suns' %s" % [at, k])
+			# what it holds
+			var has_mid := false
+			for b in L.bodies:
+				has_mid = has_mid or (b.kind == &"planet" and b.zone == 1)
+			mid += int(has_mid)
+			hot_first += int((g[0] as SystemLayout.Body).zone == 0)
+			_held_in_rings(L, held)
+		n_bin += sb
+		n_close += sc
+		per_seed.append("seed %d %d of %d" % [sd, sc, sb])
+		h._ok("seed %d: close pairs among its binaries (%d of %d), wide pairs too" % [sd, sc, sb], sc > 0 and sc < sb)
+	_saw("close pairs laid out", n_close)
+	var share := float(n_close) / float(maxi(n_bin, 1))
+	seps.sort()
+	print("  --   close pairs: %s; the suns apart %s px; the first body hot in %d, a planet in the middle band in %d of %d" % [
+		", ".join(per_seed), "%.1f to %.1f (median %.1f)" % [seps[0], seps[seps.size() - 1], seps[seps.size() / 2]] if not seps.is_empty() else "none",
+		hot_first, mid, n_close])
+	print("  --   least margins, px: %s" % ", ".join(least.keys().map(func(k: String) -> String: return "%s %.1f" % [k, least[k]])))
+	print("  --   a body inside another world's ring: %d of %d round a close pair's suns (%.0f%%), %d of %d round one sun (%.0f%%; counted, not judged)" % [
+		held[0], held[1], 100.0 * held[0] / maxf(held[1], 1.0), held_one[0], held_one[1], 100.0 * held_one[0] / maxf(held_one[1], 1.0)])
+	h._ok("about one binary in three is a close pair over seeds %s (%d of %d, %.0f%%)" % [CLOSE_SEEDS, n_close, n_bin, share * 100.0],
+		n_close > 0 and share > 0.22 and share < 0.45)
+	h._ok("each close pair's suns %.0f to %.0f px apart (%d pairs)" % [SystemLayout.CLOSE_SEP_LO, SystemLayout.CLOSE_SEP_HI, seps.size()],
+		not seps.is_empty() and seps[0] >= SystemLayout.CLOSE_SEP_LO - 1e-6 and seps[seps.size() - 1] <= SystemLayout.CLOSE_SEP_HI + 1e-6)
+	h._ok("every body of a close pair round both suns%s, and past %.2f of the nearest steady orbit round them%s" % [
+		"" if off_both.is_empty() else " (not: " + "; ".join(off_both.slice(0, 3)) + ")", SystemLayout.P_MARGIN,
+		"" if inside.is_empty() else " (not: " + "; ".join(inside.slice(0, 3)) + ")"],
+		n_close > 0 and off_both.is_empty() and inside.is_empty())
+	h._ok("in a close pair nothing meets: bodies, a world's ring and a sun's close ring, the suns' keep-outs, close orbits and capture rings%s" % [
+		"" if meet.is_empty() else ": " + "; ".join(meet.slice(0, 4))], n_close > 0 and meet.is_empty())
+	h._ok("most close pairs have a planet in the middle band (%d of %d, at least two in three)" % [mid, n_close],
+		n_close > 0 and mid * 3 >= n_close * 2)
+	h._ok("the giant circles both suns in every binary: wide %d of %d, close %d of %d" % [giants.wide[1], giants.wide[0], giants.close[1], giants.close[0]],
+		giants.wide[0] > 0 and giants.close[0] > 0 and giants.wide[1] == giants.wide[0] and giants.close[1] == giants.close[0])
+
+
+## Into `t`: how many bodies of L sit inside another world's ring round the same
+## centre, of how many.
+static func _held_in_rings(L: SystemLayout, t: Array) -> void:
+	for b in L.bodies:
+		t[1] += 1
+		for o in L.bodies:
+			if o != b and o.soi > 0.0 and o.host == b.host and absf(o.orbit - b.orbit) < o.soi:
+				t[0] += 1
+				break
 
 
 # ---------------------------------------------------------------- the zoom
@@ -2356,7 +2498,7 @@ func _ring_sweep() -> void:
 		"rings": 0, "rim_frames": 0, "hull_frames": 0, "rim_bad": 0, "own_hid": 0, "on_disc": 0, "both": 0, "both_rim": 0, "one": 0, "one_rim": 0,
 		"sel": 0, "sel_shown": 0, "sel_held": 0, "sel_under": 0, "coasts": 0, "into": 0, "fc_shown": 0, "fc_held": 0, "ev_sys": 0, "ev_moved": 0,
 		"bc_words": 0, "bc_fallback": 0, "bc_crossed": 0, "sel_bc": 0, "fc_bc": 0,
-		"bc_stepped": 0, "bc_ticks": 0, "bc_hid": 0, "bc_marks": 0, "sel_on_words": 0}
+		"bc_stepped": 0, "bc_ticks": 0, "bc_hid": 0, "bc_marks": 0, "sel_on_words": 0, "close": 0}
 	var crossed: Array[String] = []
 	var on_beacon: Array[String] = []
 	var held: Array[String] = []
@@ -2429,6 +2571,7 @@ func _ring_sweep() -> void:
 				st.one_rim += int(r1.rim_px) + int(r1.ringed)
 				continue
 			st.twins += 1
+			st.close += int(L.close)
 			var places: Array[int] = L.stars()
 			for b in L.bodies:
 				if b.world != &"":
@@ -2576,8 +2719,8 @@ func _ring_sweep() -> void:
 			m.frozen = false
 			m.flight.place_at(w0, m.view.t)
 			await _frames(2)
-	print("  --   the ring sweep: %d binaries over seeds %s in %.1f s; the ship at %d places, %d moments; %d words placed; its own words whole %d, shortened %d, held back %d" % [
-		st.twins, seeds, float(Time.get_ticks_msec() - t0) / 1000.0, st.places, st.moments, st.words, st.whole, st.short, st.held])
+	print("  --   the ring sweep: %d binaries (%d close pairs) over seeds %s in %.1f s; the ship at %d places, %d moments; %d words placed; its own words whole %d, shortened %d, held back %d" % [
+		st.twins, st.close, seeds, float(Time.get_ticks_msec() - t0) / 1000.0, st.places, st.moments, st.words, st.whole, st.short, st.held])
 	print("  --   and %d places selected (%d names shown, %d held back off a sun, %d under a higher label), %d coasts let go (%d into the ring aimed at, its forecast shown in %d, held back off a sun in %d)" % [
 		st.sel, st.sel_shown, st.sel_held, st.sel_under, st.coasts, st.into, st.fc_shown, st.fc_held])
 	if not crossed.is_empty():
@@ -2603,10 +2746,10 @@ func _ring_sweep() -> void:
 	_saw("ring sweep: moments", st.moments)
 	_saw("ring sweep: places selected", st.sel)
 	_saw("ring sweep: coasts into a ring", st.into)
-	h._ok("no word on the map is written across a sun in %d binaries of %d seeds: the ship at each place, each other place selected, coasting into each ring (%d words at %d moments, %d selections and %d coasts, %d across)%s" % [
-		st.twins, seeds.size(), st.words, st.moments, st.sel, st.coasts, st.crossed,
+	h._ok("no word on the map is written across a sun in %d binaries (%d close pairs) of %d seeds: the ship at each place, each other place selected, coasting into each ring (%d words at %d moments, %d selections and %d coasts, %d across)%s" % [
+		st.twins, st.close, seeds.size(), st.words, st.moments, st.sel, st.coasts, st.crossed,
 		"" if crossed.is_empty() else ": " + "; ".join(crossed.slice(0, 4))],
-		st.crossed == 0 and st.twins >= seeds.size() * mini(cap, 8) and st.words > st.moments and st.sel > st.twins and st.into > st.twins)
+		st.crossed == 0 and st.twins >= seeds.size() * mini(cap, 8) and st.close > 0 and st.words > st.moments and st.sel > st.twins and st.into > st.twins)
 	h._ok("the words by the ship stand whole or shortened at nearly every place (%d whole, %d shortened, %d held back of %d)" % [st.whole, st.short, st.held, st.moments],
 		st.held * 50 <= st.moments)
 	h._ok("and never over an event's beacon drawn that frame, but where no spot clears the suns and the beacons both (%d placed, %d over a beacon, %d by one for want of a spot)%s" % [

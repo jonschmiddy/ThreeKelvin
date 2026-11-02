@@ -40,6 +40,9 @@ extends Harness
 ## in 2 px blocks; zones by distance from the light; Kepler round what each body
 ## circles. Round both, as round one sun, the bodies are kept apart and not their
 ## rings: how often a body sits inside a world's ring is printed, not promised.
+## THE TWO KINDS (Jon, Nov 1, "Binary kinds: close:B share:A"): a close pair at
+## about one binary in three, the rest wide (all the above is a wide pair's); a
+## close pair's own promises are `_close_checks`.
 ## A SIGNED JOB AND THE HELLBENDER (`_comers`), put in every twin: they move no
 ## other body and none of the stars' rings or keep-outs, and how far they push
 ## the opening zoom past the layout's is measured against the drawn suns.
@@ -52,7 +55,7 @@ func _print_of(L: SystemLayout) -> String:
 	var parts: Array[String] = ["%d" % L.star]
 	# (two suns: the pair, its rings and where each body circles)
 	if L.twin:
-		parts.append("twin:%.5f:%.3f:%.3f,%.3f:%.3f:%.3f,%.3f" % [L.star_share, L.sep, L.star2_at.x,
+		parts.append("twin:%d:%.5f:%.3f:%.3f,%.3f:%.3f:%.3f,%.3f" % [int(L.close), L.star_share, L.sep, L.star2_at.x,
 			L.star2_at.y, L.star2_r, L.bary.x, L.bary.y])
 		for p in L.stars():
 			parts.append("ring%d:%.3f:%.3f:%.3f" % [p, L.keep_clear_of(p), L.star_rail_of(p), L.star_ring_of(p)])
@@ -96,6 +99,7 @@ func run() -> void:
 	var counts := {}
 	var eligible := 0
 	var twins := 0
+	var closes := 0
 	var zooms_one: Array[float] = []
 	var zooms_two: Array[float] = []
 	for s in SEEDS:
@@ -160,6 +164,7 @@ func run() -> void:
 				eligible += 1
 				if n.twin:
 					twins += 1
+					closes += int(L.close)
 			elif n.twin:
 				_fail("system %d has two suns and may not (type %d, star %d)" % [n.index, n.type, n.star])
 			if L.twin != n.twin:
@@ -192,6 +197,9 @@ func run() -> void:
 	var share := float(twins) / float(maxi(eligible, 1))
 	_ok("two suns at %d of %d systems that may have them (%.0f%%; about one in four)" % [twins, eligible, share * 100.0],
 		twins > 0 and share > 0.12 and share < 0.40)
+	var cshare := float(closes) / float(maxi(twins, 1))
+	_ok("close pairs at %d of those %d binaries (%.0f%%; about one in three), the rest wide" % [closes, twins, cshare * 100.0],
+		closes > 0 and cshare > 0.22 and cshare < 0.45)
 	_hellbender("")
 	var cl: Array[String] = []
 	for k in range(1, 12):
@@ -389,13 +397,19 @@ func _twin_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 		_fail("%s: star B (r %.1f) is not the smaller" % [at, L.star2_r])
 	if share < SystemLayout.TWIN_SHARE_LO - 1e-9 or share > SystemLayout.TWIN_SHARE_HI + 1e-9:
 		_fail("%s: star A's share %.3f" % [at, share])
-	if L.sep < SystemLayout.TWIN_SEP_LO - 1e-6 or absf(L.star2_at.length() - L.sep) > 0.01:
+	if absf(L.star2_at.length() - L.sep) > 0.01:
 		_fail("%s: the stars %.1f apart, star B %.1f out" % [at, L.sep, L.star2_at.length()])
 	if L.bary.distance_to(L.star2_at * (1.0 - share)) > 0.01:
 		_fail("%s: the balance point is not where the shares put it" % at)
 	if not L.star_beacons.is_empty():
 		_fail("%s: an event on a star of a pair" % at)
 	_seen += 1
+	if L.close:
+		_close_checks(n, L, at)
+		return
+	_tally("wide pairs")
+	if L.sep < SystemLayout.TWIN_SEP_LO - 1e-6:
+		_fail("%s: a wide pair's stars %.1f apart" % [at, L.sep])
 	if L.sep > SystemLayout.TWIN_SEP_HI + 0.5:
 		_spread_out += 1
 		_most("separation spread past its roll", L.sep, at)
@@ -543,6 +557,15 @@ func _twin_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 			_fail("%s: star %d's close orbit %.2f is inside the keep-out %.2f at the opening zoom %.3f" % [at, p, L.star_rail_of(p), sd + SystemLayout.RING_OUT, z])
 	# ZONES BY DISTANCE FROM THE LIGHT: never a farther body in a nearer zone;
 	# the worlds round a star near
+	_zones_and_names(L, at)
+	for w in sw:
+		if w.zone != 0:
+			_fail("%s: %s, %.0f px from its sun, is not near" % [at, w.name, w.orbit])
+
+
+## Zones by distance from the light, never a farther body in a nearer zone, and
+## no two bodies of one name: a pair of either kind.
+func _zones_and_names(L: SystemLayout, at: String) -> void:
 	var dist := {}
 	for b in L.bodies:
 		var flux := 0.0
@@ -554,14 +577,99 @@ func _twin_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 		for b in L.bodies:
 			if float(dist[a]) < float(dist[b]) and a.zone > b.zone:
 				_fail("%s: %s (%.0f px from the light) is in zone %d, farther %s (%.0f) in %d" % [at, a.name, dist[a], a.zone, b.name, dist[b], b.zone])
-	for w in sw:
-		if w.zone != 0:
-			_fail("%s: %s, %.0f px from its sun, is not near" % [at, w.name, w.orbit])
 	var names := {}
 	for b in L.bodies:
 		if names.has(b.name):
 			_fail("%s: two bodies called %s" % [at, b.name])
 		names[b.name] = true
+
+
+## THE CLOSE PAIR'S PROMISES (Jon, Nov 1, "Binary kinds: close:B"), on one
+## close pair: its suns 150 to 170 px apart; every body round both, at the
+## balance point, past the first steady orbit round the pair; neighbours apart;
+## Kepler round both; each sun's keep-clear, close orbit and ring in order and
+## outside the autopilot's keep-out at the zoom the layout is fitted to; the two
+## suns' keep-outs apart, each sun's close orbit outside the other's keep-out,
+## and their capture rings apart; every world's ring RING_GAP clear of both
+## suns' close rings, every other body RING_CLEAR; the map opening no further
+## out than it was fitted to; zones by light. Counted: how many have a planet in
+## the middle band, what the first body is, and how often a body sits inside a
+## world's ring (as round one sun, printed, not promised).
+func _close_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
+	_tally("close pairs")
+	if L.sep < SystemLayout.CLOSE_SEP_LO - 1e-6 or L.sep > SystemLayout.CLOSE_SEP_HI + 1e-6:
+		_fail("%s: a close pair's stars %.1f apart" % [at, L.sep])
+	_least("close pair: separation", L.sep, at)
+	_most("close pair: separation, most", L.sep, at)
+	var lo := SystemLayout.p_limit(1.0 - L.star_share) * SystemLayout.P_MARGIN * L.sep
+	for b in L.bodies:
+		if b.host_id != -9 or b.host.distance_to(L.bary) > 0.01:
+			_fail("%s: %s %s circles %d, not both suns" % [at, b.kind, b.name, b.host_id])
+		if b.orbit < lo - 1e-6:
+			_fail("%s: %s %s round both at %.1f px, inside the first steady orbit %.1f" % [at, b.kind, b.name, b.orbit, lo])
+		_least("close pair: orbit past its steady limit (share)", b.orbit / (lo / SystemLayout.P_MARGIN), at)
+		var k := b.period / (800.0 * pow(b.orbit / 100.0, 1.5))
+		if k < 0.95 - 1e-6 or k > 1.05 + 1e-6:
+			_fail("%s: %s's period is %.3f of Kepler's round both" % [at, b.name, k])
+	var g: Array = L.bodies.duplicate()
+	g.sort_custom(func(x, y): return x.orbit < y.orbit)
+	for i in range(1, g.size()):
+		var gap: float = g[i].orbit - g[i - 1].orbit - SystemLayout.reach_of(g[i]) - SystemLayout.reach_of(g[i - 1])
+		_least("close pair: gap between neighbours", gap, at)
+		if gap <= 0.0:
+			_fail("%s: %s and %s cross their bodies (gap %.1f)" % [at, g[i - 1].name, g[i].name, gap])
+	var fz := L.fit_zoom
+	if not (fz > 0.0):
+		_fail("%s: no zoom the layout is fitted to (%.3f)" % [at, fz])
+		return
+	for p in L.stars():
+		var r := L.star_radius(p)
+		if not (r < L.keep_clear_of(p) and L.keep_clear_of(p) < L.star_rail_of(p) and L.star_rail_of(p) < L.star_ring_of(p)):
+			_fail("%s: star %d's keep-clear %.1f, rail %.1f and ring %.1f are out of order" % [at, p, L.keep_clear_of(p), L.star_rail_of(p), L.star_ring_of(p)])
+		var keep_out := SystemLayout.sun_drawn(r, fz) / fz + SystemLayout.RING_OUT
+		if L.keep_clear_of(p) < keep_out - 1e-6:
+			_fail("%s: star %d's keep-clear %.2f is inside the keep-out %.2f" % [at, p, L.keep_clear_of(p), keep_out])
+	# THE TWO SUNS' OWN RINGS, apart: keep-outs, a close orbit against the other's
+	# keep-out, capture rings
+	var ka := L.keep_clear_of(-1)
+	var kb := L.keep_clear_of(STAR_B)
+	var keeps := L.sep - ka - kb
+	var rails := minf(L.sep - L.star_rail_of(-1) - kb, L.sep - L.star_rail_of(STAR_B) - ka)
+	var rings := L.sep - L.star_ring_of(-1) - L.star_ring_of(STAR_B)
+	_least("close pair: the suns' keep-outs apart (px)", keeps, at)
+	_least("close pair: a sun's close orbit off the other's keep-out (px)", rails, at)
+	_least("close pair: the suns' capture rings apart (px)", rings, at)
+	if keeps <= 0.0 or rails <= 0.0 or rings <= 0.0:
+		_fail("%s: the suns' keep-outs %.1f, close orbits %.1f, capture rings %.1f px apart" % [at, keeps, rails, rings])
+	# EVERY RING ROUND BOTH CLEAR OF BOTH SUNS' CLOSE RINGS, a world's by RING_GAP
+	# (one sun's rule), anything else's by RING_CLEAR
+	for b in L.bodies:
+		for p in L.stars():
+			var near := b.orbit - b.host.distance_to(L.star_pos(p)) - _ring(b) - L.star_ring_of(p)
+			var want := SystemLayout.RING_GAP if b.soi > 0.0 else SystemLayout.RING_CLEAR
+			_least("close pair: a ring off a sun's close ring (px)", near, at)
+			if near < want - 1e-6:
+				_fail("%s: %s %s's ring comes %.1f px from star %d's close ring" % [at, b.kind, b.name, near, p])
+	var z := SystemLayout.open_zoom(L.edge)
+	if not _comers_in(n, L) and z < fz * (1.0 - 1e-6):
+		_fail("%s: the map opens at %.4f, further out than the zoom the layout is fitted to (%.4f)" % [at, z, fz])
+	_zones_and_names(L, at)
+	# what it holds (counted)
+	var mid := false
+	var first: SystemLayout.Body = g[0]
+	for b in L.bodies:
+		if b.kind == &"planet" and b.zone == 1:
+			mid = true
+		var held := false
+		for o in L.bodies:
+			if o != b and o.soi > 0.0 and absf(o.orbit - b.orbit) < o.soi:
+				held = true
+		_tally("close pairs: bodies")
+		if held:
+			_tally("close pairs: of them inside another world's ring")
+	if mid:
+		_tally("close pairs with a planet in the middle band")
+	_tally("close pairs whose first body is %s" % ["hot", "temperate", "cold"][first.zone])
 
 
 ## EVERY SYSTEM THAT MAY HAVE TWO SUNS, WITH THEM (`MapGen.twin_force`, the
@@ -635,7 +743,7 @@ func _row(s: int, n: MapGen.MapNode, L: SystemLayout) -> String:
 				L.keep_clear_of(b.host_id), L.star_rail_of(b.host_id), L.star_ring_of(b.host_id)]
 			ws[str(b.host_id)] = "%.1f, %.1f" % [b.orbit * z - sun - disc, b.orbit * z * SystemLayout.SLANT - sun - disc]
 	return "%5d %4d %5.0f %.3f %4.1f %4.1f | %s%s%s | %5.0f %.3f | %s | %s" % [s, n.index, L.sep, L.star_share,
-		L.star_r, L.star2_r, ws.get(-1, "?"), ws.get(STAR_B, "?"), ", ".join(both), L.edge, z,
+		L.star_r, L.star2_r, ws.get(-1, "(a close pair: none round one sun) | " if L.close else "?"), ws.get(STAR_B, "" if L.close else "?"), ", ".join(both), L.edge, z,
 		ws.get("-1", "?"), ws.get(str(STAR_B), "?")]
 
 

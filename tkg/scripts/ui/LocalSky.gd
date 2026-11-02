@@ -131,6 +131,19 @@ const REF_K := 0.45
 const SIZE_POW := 0.85
 const SIZE_LO := 0.4
 const SIZE_HI := 4.0
+## TWO SUNS ON THE BAND, A CLOSE PAIR'S TOO (Jon, Nov 1, "Binary kinds:
+## close:B"). A close pair's suns are 150 to 170 px apart, so from either sun's
+## close orbit both are near and held at or close to SIZE_HI, and laid out by
+## their places alone the two discs ran into each other on the band (by up to 7
+## px, TwinDrawTest, 10 of 73 close pairs) and the far sun came out bigger than
+## the near one (1). So the far sun is drawn at most FAR_MOST of the near one's
+## size, and star B stands at least SUNS_APART px clear of star A, out along the
+## way its place puts it (the block grid can take a px of it back). A wide pair
+## never meets either (over TwinDrawTest's 140, from its suns' close orbits and
+## its worlds, the far sun at most 0.61 of the near and the two 46 px or more
+## apart): its band is as it was.
+const FAR_MOST := 0.75
+const SUNS_APART := 12.0
 ## THE WORLD IT ORBITS, CLOSE (Jon, Oct 21: "I want the planet you are orbiting
 ## to be large in the background (you are close to it)"). Its radius on screen
 ## (a giant's, a planet's, before its own size nudges it, x0.8 to x1.25 by the
@@ -1005,16 +1018,24 @@ func star_k() -> float:
 	return star_k_of(_lit)
 
 
-## Star p's size against its map size, by the ship's distance from it.
+## Star p's size against its map size, by the ship's distance from it (the far
+## sun of two at most FAR_MOST of the near one, the lit one, as drawn).
 func star_k_of(p: int) -> float:
 	if layout == null:
 		return 1.0
-	var f := clampf(pow(_dk_b if p == SystemLayout.STAR_B else _dk_a, SIZE_POW), SIZE_LO, SIZE_HI)
+	var f := _size_f(p)
+	if layout.twin and p != _lit:
+		f = minf(f, _size_f(_lit) * layout.star_radius(_lit) / maxf(layout.star_radius(p), 0.01) * FAR_MOST)
 	if layout.star == SystemLayout.StarKind.PULSAR:
 		return PULSAR_K * f
 	if layout.star == SystemLayout.StarKind.CORE:
 		return float(_core_place().R) / 116.0
 	return float(SUN_K.get(kind, 0.6)) * f
+
+
+## Star p's size factor by the ship's distance from it alone.
+func _size_f(p: int) -> float:
+	return clampf(pow(_dk_b if p == SystemLayout.STAR_B else _dk_a, SIZE_POW), SIZE_LO, SIZE_HI)
 
 
 func star_light() -> Vector3:
@@ -1050,11 +1071,16 @@ func _star_rest(p: int) -> Vector2:
 
 ## Where star p hangs on the band at rest: star A at `_sun`, star B where the
 ## band puts its place on the plane (across by its x, a little lower the nearer
-## it is, at the band's scale), on the block grid.
+## it is, at the band's scale), or out that way to SUNS_APART clear of star A's
+## disc, on the block grid.
 func _sun_at(p: int) -> Vector2:
 	if p != SystemLayout.STAR_B or layout == null or not layout.twin:
 		return _sun
-	return _block_round(_sun + Vector2(layout.star2_at.x, layout.star2_at.y * TILT) * _s)
+	var off := Vector2(layout.star2_at.x, layout.star2_at.y * TILT) * _s
+	var need := layout.star_r * star_k_of(-1) + layout.star2_r * star_k_of(SystemLayout.STAR_B) + SUNS_APART
+	if off.length() < need:
+		off = off.normalized() * need
+	return _block_round(_sun + off)
 
 
 ## the band's centre this frame: where the worlds' orbits are laid out from

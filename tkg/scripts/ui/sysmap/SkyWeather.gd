@@ -1559,9 +1559,12 @@ func _p_comet(ev: Dictionary) -> bool:
 	var inner := INF
 	# (the comet swings round star A, the origin of `comet_pos`: its perihelion by
 	# the inner orbit ROUND A -- in a twin the world circling A, not one round B
-	# or the pair, whose orbits are about other centres)
+	# or the pair, whose orbits are about other centres. A close pair has none
+	# round A, and at a lone sun's 96 px its path could cross star B, 150 to 170
+	# px off: there the inner orbit round both, at least 2.4 separations out, so
+	# the comet passes outside the pair)
 	for b in L.bodies:
-		if b.kind != &"belt" and b.host_id == -1:
+		if b.kind != &"belt" and (b.host_id == -1 or L.close):
 			inner = minf(inner, b.orbit)
 	if inner == INF:
 		inner = L.star_r * 6.0

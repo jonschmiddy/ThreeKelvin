@@ -1204,8 +1204,10 @@ static func _mark_pulsar_neighbours(nodes: Array) -> void:
 ## so no other roll in the galaxy moves.
 const TWIN_CHANCE := 0.25
 ## (a harness's switch: `-- twin=all` makes every system that may have two suns
-## have them, `twin=none` none, so the build can be tested on twins; a harness
-## can set it itself, 1 all, -1 none, 0 as the command line says)
+## have them, `twin=none` none, so the build can be tested on twins, and
+## `twin=close` or `twin=wide` all of them, each of that kind
+## (`SystemLayout.is_close`); a harness can set it itself, 1 all, -1 none, 0 as
+## the command line says)
 static var twin_force := 0
 
 
@@ -1237,7 +1239,7 @@ static func _twin_force() -> int:
 	if twin_force != 0:
 		return twin_force
 	for a in OS.get_cmdline_user_args():
-		if a == "twin=all":
+		if a == "twin=all" or a == "twin=close" or a == "twin=wide":
 			return 1
 		if a == "twin=none":
 			return -1

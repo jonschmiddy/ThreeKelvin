@@ -36,8 +36,10 @@ extends RefCounted
 ##   contact of its own past every orbit, added last so no other body moves
 ##   (Jon, Oct 15: the system's contact at a place of its own, so you fly there
 ##   to fight it and its wrecks are its own);
-## - at about one ordinary system in four, TWO SUNS (ruling 20): a world round
-##   each, everything else round both (`_twin`).
+## - at about one ordinary system in four, TWO SUNS (ruling 20), of two kinds
+##   (Jon, Nov 1, "Binary kinds: close:B share:A"): two in three a WIDE PAIR, a
+##   world round each sun and everything else round both (`_twin`); one in
+##   three a CLOSE PAIR, every body round both (`_close`).
 ##
 ## Orbits are spread from just outside the star (further out round a red giant
 ## and the black hole) to `HI`; periods follow Kepler, the square of the period
@@ -96,6 +98,23 @@ const TWIN_SHARE_HI := 0.58
 ## a model of the fit, and none past 380 in 24 seeds' 5,014 twins (Oct 30).
 const TWIN_SEP_LO := 320.0
 const TWIN_SEP_HI := 380.0
+## THE CLOSE PAIR (Jon, Nov 1, "Binary kinds: close:B share:A", from the
+## binary-kinds sheet): one binary in three, rolled off a stream of its own
+## (`is_close`), so a wide pair keeps every draw it makes today. Its suns are
+## rolled 150 to 170 px apart (the sheet's B), off the "twin" stream's
+## separation draw, and every body goes round both (`_close`). At B, on the 55
+## binaries of seed 7: the two suns 19 to 33 game px apart edge to edge at the
+## opening zoom (A's 90 to 110 touched and read as one sun); a hot world first
+## in all but 2; 43 of 55 with a world in the middle band (C's 230 to 250 had
+## no hot world at all); each sun's close orbit as a wide pair's. Over
+## SystemTest's 343 close pairs the two keep-outs stay 70 px apart or more, a
+## sun's close orbit 68 px off the other's keep-out, the capture rings 62 apart.
+const CLOSE_SHARE := 1.0 / 3.0
+const CLOSE_SEP_LO := 150.0
+const CLOSE_SEP_HI := 170.0
+## (`open_zoom`'s floor: every ring a close pair's ladder can have is at most its
+## size here, `_close`)
+const ZOOM_FLOOR := 0.1
 ## Star B is never more than this (radians, 40 degrees) off the map's level line
 ## from star A: seen at the map's slant a pair one above the other stands 0.38 of
 ## its distance apart, and two suns that close on screen read as one. At 40
@@ -303,6 +322,10 @@ var star_share: float = 1.0
 var bary: Vector2 = Vector2.ZERO
 ## The stars' distance apart (0 alone).
 var sep: float = 0.0
+## A CLOSE PAIR (`is_close`, `_close`): every body round both suns, none round
+## one. False alone and in a wide pair, whose worlds round one sun are its
+## first two planets.
+var close: bool = false
 ## Each star's close-orbit rail, ring and keep-clear, set where the layout is
 ## built (`star_rail_of`). A one-star system keeps today's numbers.
 var _rail := {}
@@ -411,7 +434,7 @@ static func held_most(raw: float, least: float) -> float:
 ## THE ZOOM A SYSTEM OPENS AT for its edge: `SystemMapScreen._fit_zoom`, with
 ## the frame it is fitted to before the screen is laid out.
 static func open_zoom(edge: float) -> float:
-	return clampf(minf(FIT_FRAME.x / (2.0 * (edge + 20.0)), FIT_FRAME.y / (2.0 * (edge + 20.0) * SLANT + 60.0)), 0.1, 1.0)
+	return clampf(minf(FIT_FRAME.x / (2.0 * (edge + 20.0)), FIT_FRAME.y / (2.0 * (edge + 20.0) * SLANT + 60.0)), ZOOM_FLOOR, 1.0)
 
 
 ## A sun's drawn radius on screen (game px) at zoom z: the floor the map eases
@@ -423,6 +446,35 @@ static func sun_drawn(r: float, z: float) -> float:
 ## A planet's drawn radius on screen (game px) at zoom z (`SystemView._draw_r_raw`).
 static func world_drawn(b: Body, z: float) -> float:
 	return maxf(maxf(b.r, WORLD_MIN_R) * z, WORLD_FLOOR)
+
+
+## WHETHER A BINARY IS A CLOSE PAIR (Jon, Nov 1, "share:A": one in three), off
+## its own stream, `Rng.derive(&"binary_kind", index)`, so nothing else a system
+## rolls moves: a wide pair is drawn as it always was. Only asked of a system
+## with two suns.
+static func is_close(n: MapGen.MapNode) -> bool:
+	var force := _close_force()
+	if force != 0:
+		return force > 0
+	return Rng.derive(&"binary_kind", n.index).randf() < CLOSE_SHARE
+
+
+## (a harness's switch, as `MapGen.twin_force` is: `-- twin=close` makes every
+## binary a close pair and `twin=wide` every one wide, each with every system
+## that may have two suns given them; a harness can set it itself, 1 close, -1
+## wide, 0 as the command line says)
+static var close_force := 0
+
+
+static func _close_force() -> int:
+	if close_force != 0:
+		return close_force
+	for a in OS.get_cmdline_user_args():
+		if a == "twin=close":
+			return 1
+		if a == "twin=wide":
+			return -1
+	return 0
 
 
 static func star_kind(n: MapGen.MapNode) -> StarKind:
@@ -449,6 +501,8 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 	L.star_mass = STAR_MASS[L.star]
 	# TWO SUNS where the node has them, and only where it may (`MapGen.twin_ok`)
 	L.twin = n.twin and MapGen.twin_ok(n)
+	# and which kind of binary (`is_close`)
+	L.close = L.twin and is_close(n)
 
 	# what each option wants to sit on
 	var want: Array = []
@@ -505,7 +559,10 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 		order.insert(0, {"kind": &"planet"})
 	# A WORLD ROUND EACH SUN, always (ruling 20: the flight from one to the
 	# other is why a twin is there): its first two planets go round its two
-	# stars, so where the options bring one a bare second goes in beside it
+	# stars, so where the options bring one a bare second goes in beside it.
+	# A CLOSE PAIR GETS IT TOO, round both: the binary-kinds sheet's numbers that
+	# Jon picked on were measured with it (43 of seed 7's 55 with a world in the
+	# middle band; 35 without it), and it keeps R's draws as a wide pair's
 	if L.twin and order.filter(func(o): return o.kind == &"planet").size() < 2:
 		for k in order.size():
 			if order[k].kind == &"planet":
@@ -556,7 +613,10 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 				bd.dock = true
 				b.beacons.append(bd)
 	if L.twin:
-		_twin(L, n, R, jobs)
+		if L.close:
+			_close(L, n, R, jobs)
+		else:
+			_twin(L, n, R, jobs)
 		_weigh_giant(L, n)
 		return L
 
@@ -745,7 +805,8 @@ static func _weigh_giant(L: SystemLayout, n: MapGen.MapNode) -> void:
 			b.gm = b.gm_frac * GM_SHIP
 
 
-## TWO SUNS (ruling 20, Oct 30: "Prototype: twin:A"). Star A stays at the origin;
+## A WIDE PAIR, two binaries in three (ruling 20, Oct 30: "Prototype: twin:A";
+## the close pair is `_close`). Star A stays at the origin;
 ## star B holds still `sep` from it at `star2_at`, a little smaller. The first two
 ## planets go round one star each (S-type), inside the farthest steady orbit round
 ## it, at 0.70 to 0.90 of it. Everything else -- the giant, the belt, any further
@@ -815,7 +876,6 @@ static func _twin(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, 
 			outer.append(i)
 	var lim_a := s_limit(1.0 - L.star_share)
 	var lim_b := s_limit(L.star_share)
-	var hb_here := hellbender_here(n)
 	# THE SEPARATION, as rolled or as far apart as the worlds round each star
 	# need: never shrunk, and moving it out moves the opening zoom (smaller, so
 	# a sun's floor is wider on the plane). Near the answer each step of going
@@ -891,8 +951,13 @@ static func _twin(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, 
 	rank.append_array(outer)
 	for k in rank.size():
 		L.bodies[rank[k]].name = "%s %s" % [short, ROMAN[mini(k, ROMAN.size() - 1)]]
-	# THE EDGE, and the jobs and the Hellbender past it: by how far each body
-	# reaches from its own centre, not the last one's orbit
+	_past_the_edge(L, n, jobs, short)
+
+
+## THE EDGE OF A BINARY, and the jobs and the Hellbender past it, round both
+## suns: by how far each body reaches from its own centre, not the last one's
+## orbit. Then each world's ring (S_RING round one sun of a wide pair).
+static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int], short: String) -> void:
 	var far := 0.0
 	var ext := 0.0
 	for b in L.bodies:
@@ -914,7 +979,7 @@ static func _twin(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, 
 		L.bodies.append(jb)
 		ext = jb.orbit + reach_of(jb) + (soi_of(jb) if jb.world != &"" else 0.0)
 		L.edge = L.bary.length() + ext + 30.0
-	if hb_here:
+	if hellbender_here(n):
 		var hb := _hellbender_body(L, n)
 		hb.orbit = maxf(HI, ext) + reach_of(hb) + GAP + 24.0
 		hb.host = L.bary
@@ -927,6 +992,108 @@ static func _twin(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, 
 	for b in L.bodies:
 		if b.world != &"":
 			b.soi = S_RING if is_star(b.host_id) else soi_of(b)
+
+
+## A CLOSE PAIR (Jon, Nov 1, "Binary kinds: close:B"). Star A stays at the
+## origin and star B holds still `sep` from it, 150 to 170 px (`CLOSE_SEP_LO`),
+## a little smaller, as in a wide pair. Every body goes round both (P-type),
+## circling the balance point past the nearest steady orbit round the pair, and
+## none round one sun: round one, the steady orbits end 43 to 51 px out, inside
+## its close orbit's ring. The real close pairs Kepler-16 and Kepler-47 have
+## this shape, planets round both suns.
+##
+## LAID OUT AS ROUND ONE SUN (`of`'s rules): by ratio from that first steady
+## orbit (`p_limit`, P_MARGIN past it; never nearer than a one-sun system's
+## first, which it always is past) out to HI, each body at least as far from the
+## last as the two could be wide (`_reach_most`: their worlds are rolled after,
+## by their light), and each world's ring RING_GAP clear of both suns' close-
+## orbit rings. Zones by light (`zone_of`), as a wide pair's: the middle band is
+## about 490 to 830 px out, so the first body is hot in all but 2 of seed 7's 55
+## close pairs and 43 of them have a planet in the middle band, where a city, a
+## green world or an ocean can be. THE COST (the sheet's): the bodies are packed
+## between about 440 and 900 px, not 243 to 900, so a world's ring holds a
+## neighbour about twice as often as round one sun; the bodies never meet.
+##
+## Each sun keeps its keep-out, close orbit and ring, a wide pair's ladder
+## (`_twin_ladder`) at the zoom this layout is fitted to (`fit_zoom`): at 150 px
+## apart the two keep-outs, and each sun's close orbit and the other's keep-out,
+## are 68 px or more apart.
+##
+## Draws: `_twin`'s, in its order: the "twin" stream's share, separation, side
+## and turn; R's three a body (where in its slot, its period's jitter, its
+## phase); then its world.
+static func _close(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, jobs: Array[int]) -> void:
+	var tw := Rng.derive(&"twin", n.index)
+	tw.randf()
+	L.star_share = lerpf(TWIN_SHARE_LO, TWIN_SHARE_HI, tw.randf())
+	var sep := lerpf(CLOSE_SEP_LO, CLOSE_SEP_HI, tw.randf())
+	var theta := (0.0 if tw.randf() < 0.5 else PI) + (tw.randf() * 2.0 - 1.0) * TWIN_TURN
+	L.star2 = StarKind.ORDINARY
+	L.star2_r = STAR_R[StarKind.ORDINARY] * pow((1.0 - L.star_share) / L.star_share, 0.8)
+	L.sep = sep
+	L.star2_at = Vector2(cos(theta), sin(theta)) * sep
+	L.bary = L.star2_at * (1.0 - L.star_share)
+	var N := L.bodies.size()
+	for i in N:
+		L.bodies[i].index = i
+	var jit := PackedFloat64Array()
+	var pj := PackedFloat64Array()
+	var ph := PackedFloat64Array()
+	for i in N:
+		jit.append(R.randf())
+		pj.append(R.randf())
+		ph.append(R.randf())
+	# the suns' close-orbit rings as seen from the balance point, at their widest
+	# (the ladder at the zoom's floor: the map is fitted after the orbits are)
+	var rings := 0.0
+	for p in L.stars():
+		rings = maxf(rings, L.star_pos(p).distance_to(L.bary) + _twin_ladder(L.star_radius(p), ZOOM_FLOOR)[2])
+	var lo := maxf(p_limit(1.0 - L.star_share) * P_MARGIN * sep, HI * 0.27)
+	var last := -INF
+	var last_reach := 0.0
+	var ext_most := 0.0
+	for i in N:
+		var b := L.bodies[i]
+		var f := (float(i) + 0.5 + (jit[i] - 0.5) * 0.7) / float(N)
+		var want := maxf(lo, lo * pow(HI / lo, f))
+		var reach := _reach_most(b)
+		if i > 0:
+			want = maxf(want, last + last_reach + reach + GAP)
+		if b.kind == &"planet" or b.kind == &"giant":
+			want = maxf(want, rings + _soi_most(b) + RING_GAP)
+		b.host = L.bary
+		b.host_id = -9
+		b.orbit = want
+		b.period = 800.0 * pow(b.orbit / 100.0, 1.5) * (0.95 + pj[i] * 0.1)
+		b.phase = ph[i] * TAU
+		last = want
+		last_reach = reach
+		ext_most = maxf(ext_most, want + reach)
+	# FITTED TO THE MAP with every world as big as it can be, as a wide pair is
+	# (`_twin_edge_most`): the map opens there or nearer
+	var z := open_zoom(maxf(HI, L.bary.length() + ext_most) + 30.0)
+	var lad_a := _twin_ladder(L.star_r, z)
+	var lad_b := _twin_ladder(L.star2_r, z)
+	L.fit_zoom = z
+	L._keep = {-1: lad_a[0], STAR_B: lad_b[0]}
+	L._rail = {-1: lad_a[1], STAR_B: lad_b[1]}
+	L._ring = {-1: lad_a[2], STAR_B: lad_b[2]}
+	for b in L.bodies:
+		b.zone = L.zone_of(b)
+	_worlds(L, n, R)
+	# named out from the suns, which round both alone is by index
+	var short := " ".join(MapGen.star_name(n).split(" ").slice(0, 2))
+	for i in N:
+		L.bodies[i].name = "%s %s" % [short, ROMAN[mini(i, ROMAN.size() - 1)]]
+	_past_the_edge(L, n, jobs, short)
+
+
+## The largest ring a world can have before it is rolled (`soi_of`): a planet as
+## the largest broken one, a giant as every giant.
+static func _soi_most(b: Body) -> float:
+	var most := Body.new()
+	most.mass = 24.0 if b.kind == &"giant" else 3.0 + S_WORLD_MOST * 0.9
+	return soi_of(most)
 
 
 ## The orbits round both stars, in index order: spread by ratio from just past

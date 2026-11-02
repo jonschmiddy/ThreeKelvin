@@ -42,7 +42,8 @@ extends Node
 ##   * LOCAL'S TWO SUNS, as far as headless reaches (`LocalSky._build` stops
 ##     before any picture is made, so the suns, their slots, the disc cut, the
 ##     palette and the steps run first in a window): with the ship parked at a
-##     world round each star and at each star's close orbit, the place kept
+##     world round each star and at each star's close orbit (a close pair, with
+##     no world round one star, at each star's close orbit), the place kept
 ##     (-4 too), the lit sun the near one, the distance from it (a world round B
 ##     65 to 100 px out, not 350), the near sun drawn the bigger, the two discs
 ##     apart on the band, and the cloud's bubble round the lit sun clear of
@@ -693,7 +694,6 @@ func _local_checks(n: MapGen.MapNode, at: String) -> void:
 	if not L.twin:
 		h._fail("%s: a twin node laid out with one sun" % at)
 		return
-	_tally("local: twins")
 	var wa := -1
 	var wb := -1
 	for b in L.bodies:
@@ -703,12 +703,22 @@ func _local_checks(n: MapGen.MapNode, at: String) -> void:
 			wa = b.index
 		elif b.host_id == SystemLayout.STAR_B and wb < 0:
 			wb = b.index
-	if wa < 0 or wb < 0:
-		h._fail("%s: no world round star %s" % [at, "A" if wa < 0 else "B"])
-		return
+	# (a CLOSE PAIR has no world round one sun, `SystemLayout._close`: there
+	# LOCAL is looked at in each sun's close orbit, a world's tint any world's)
+	var places: Array = [[SystemLayout.STAR_B, SystemLayout.STAR_B, "B's close orbit"], [-1, -1, "A's close orbit"]]
+	if L.close:
+		_tally("local: close pairs")
+		for b in L.bodies:
+			if b.world != &"" and wb < 0:
+				wb = b.index
+	else:
+		_tally("local: twins")
+		if wa < 0 or wb < 0:
+			h._fail("%s: no world round star %s" % [at, "A" if wa < 0 else "B"])
+			return
+		places = [[wb, SystemLayout.STAR_B, "a world round B"], places[0], [wa, -1, "a world round A"], places[1]]
 	var had: Dictionary = SystemMapScreen._parked.get(n.index, {})
-	for c: Array in [[wb, SystemLayout.STAR_B, "a world round B"], [SystemLayout.STAR_B, SystemLayout.STAR_B, "B's close orbit"],
-			[wa, -1, "a world round A"], [-1, -1, "A's close orbit"]]:
+	for c: Array in places:
 		var place: int = c[0]
 		var lit_want: int = c[1]
 		var what: String = c[2]
@@ -733,7 +743,11 @@ func _local_checks(n: MapGen.MapNode, at: String) -> void:
 		var ra := L.star_radius(-1) * sky.star_k_of(-1)
 		var rb := L.star_radius(SystemLayout.STAR_B) * sky.star_k_of(SystemLayout.STAR_B)
 		var gap := sky._sun_at(SystemLayout.STAR_B).distance_to(sky._sun_at(-1)) - ra - rb
+		var kind := "a close pair's" if L.close else "a wide pair's"
 		_least("local: the two suns' discs apart on the band, px", gap, at + " at " + what)
+		_least("local: %s two suns' discs apart on the band, px" % kind, gap, at + " at " + what)
+		_most("local: %s far sun's drawn radius over the near one's" % kind,
+			sky.star_k_of(far) * L.star_radius(far) / (sky.star_k_of(lit_want) * L.star_radius(lit_want)), at + " at " + what)
 		if gap <= 0.0:
 			h._fail("%s: LOCAL at %s draws the two suns' discs over each other (%.1f px)" % [at, what, gap])
 		if sky.star_light().is_equal_approx(SystemViewS._lin_top(SystemViewS.STAR_B_COL)) != (lit_want == SystemLayout.STAR_B):
@@ -780,8 +794,10 @@ func _local_checks(n: MapGen.MapNode, at: String) -> void:
 
 func _local_verdict(seen: int) -> void:
 	var places := int(_n.get("local: places looked at", 0))
-	h._ok("LOCAL looked at in %d twins, %d places: each world round a star and each star's close orbit" % [seen, places],
-		seen > 20 and places == 4 * int(_n.get("local: twins", 0)))
+	var wide := int(_n.get("local: twins", 0))
+	var close := int(_n.get("local: close pairs", 0))
+	h._ok("LOCAL looked at in %d twins, %d places: each world round a star and each star's close orbit; in %d of them close pairs, each star's close orbit" % [seen, places, close],
+		seen > 20 and close > 0 and wide > 0 and places == 4 * wide + 2 * close)
 	var nb := int(_n.get("local: bodies' bands against the bubble", 0))
 	var nx := int(_n.get("local: the bubble's wall through a body's band", 0))
 	h._ok("LOCAL's bubble round its lit sun clear of the bands its bodies sweep (%d bands, %d crossed)" % [nb, nx], nb > 1000 and nx == 0)

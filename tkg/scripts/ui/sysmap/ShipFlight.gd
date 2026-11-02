@@ -504,7 +504,15 @@ static func star_pace(r: float, share := 1.0) -> float:
 ## balance point at their whole pace, on a circle outside the pair (clear of
 ## each star's capture ring, `_bary_out`) and inside the map (`_bary_in`).
 ## Let go inside the pair but outside both zones, it settles at the edge of the
-## nearer zone, or out on the pair's least circle, whichever is the shorter way.
+## nearer zone, or out on the pair's least circle, whichever is the shorter way;
+## and never nearer its star than STAR_ORBIT_GAP outside the star's capture
+## ring, as the circle round both keeps (`_bary_out`). A close pair's zones
+## (Jon, Nov 1, "Binary kinds: close:B") end 43 to 51 px out, 0 to 6 px past the
+## ring: settled on the edge a ship let go between the stars drifted into it and
+## was taken onto that star's close orbit (FlightTest, 5 of 30 such lets-go in
+## close pairs); sent out round both instead it spiralled out past a sun and was
+## taken there (8 of 16). A wide pair's zones end 78 px out or more (320 px
+## apart), its rings about 50, so it settles as it did.
 ## The circle round both used to be any clear radius, in or out: let go between
 ## the stars, a ship circled the empty balance point a few px across at the
 ## pace's floor, 88 px/s, was thrown out at 45 to 63 px/s and was taken by
@@ -534,7 +542,7 @@ func _settle_centre(st: FreeState) -> void:
 	if r < r_out and dn - zn < r_out - r:
 		# (inside the pair: the nearer zone's edge is the shorter way, out past
 		# the ring of the world round that star where it crosses it)
-		_round_star(st, near, _clear_round(near, zn))
+		_round_star(st, near, _clear_round(near, maxf(zn, star_ring(near) + STAR_ORBIT_GAP)))
 		return
 	st.cen = L.bary
 	st.cen_id = -9

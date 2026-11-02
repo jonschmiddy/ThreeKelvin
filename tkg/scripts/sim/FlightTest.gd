@@ -3,14 +3,16 @@ extends Node
 ## EVERY AUTO-FLIGHT ON THE SECTOR MAP, planned, clicked and flown, measured and
 ## judged (ruling 20, Oct 30: the solved flight, `FlightSolve`, in every system):
 ##   godot --headless --path . -- sheet=FlightTest [seeds=N] [seed=N] [systems=N]
-##     [only=one|giant|twin] [worker=N] [out=<json>] [why=sys:start:target]
+##     [only=one|giant|twin|close] [worker=N] [out=<json>] [why=sys:start:target]
 ## For systems of N runs' maps (SYSTEM, PULSAR and STATION nodes; `systems` of
 ## each sweep a run, 12 unless asked, spread evenly through the map: seed 4242's
 ## holds 610, and flying all of them ran past 43 minutes for the one run;
 ## `systems=999` flies them all): one-star systems without a giant (`one`), with
 ## one (`giant`, every giant pulling at its rolled 1/10 to 1/4 of the star), and
 ## the ordinary systems again with two suns (`twin`, the node asked for them as
-## `-- twin=all` does) -- from every
+## `-- twin=all` does, each a wide pair), and again as close pairs (`close`,
+## Jon's "Binary kinds: close:B", Nov 1: every body round both suns 150 to 170
+## px apart; `SystemLayout.close_force`) -- from every
 ## start (in orbit of each world; in each star's close orbit; settled on a star
 ## orbit, round a star or round both; flying free; at the edge as arrived;
 ## close by a world; alongside a station, belt, hulk or contact) to every place
@@ -112,6 +114,14 @@ const CLEAR_DV := [0.0, 20.0, 40.0, 70.0, 100.0, 150.0, 220.0]
 ## place, or with that burn itself as the first leg) nor the near hop flies
 ## from. A harness's start: the map flies only out of an orbit
 const PUT_LEFT := 1
+## AND A CLOSE PAIR'S (Nov 1, three seeds: 5 of 1,789 plans, every one from a
+## harness's start; every game start found): a free start 223 px from star A
+## diving at the pair at 149 px/s, to star A and to world 3 (found 1 and 2 s
+## on), and one to star B; two close by a world, coasting at 106 and 114 px/s,
+## that the next half second takes onto the place itself or alongside (found 2 s
+## on). With the suns 150 to 170 px apart a harness's free start lands nearer
+## them than in a wide pair, aimed at them more often.
+const PUT_LEFT_CLOSE := 5
 ## the click comes up to this long after the first plan (s)
 const CLICK_S := 1.5
 ## the overlay's preview line, laid out to this many points (`SystemOverlay.PV_N`)
@@ -149,7 +159,7 @@ var _wk: Array = []
 ## THE CLICKS THROUGH THE MAP'S OWN PATH (`_click_phase`): [sweep, L, start, b,
 ## i, t, node index] per sweep, and how many of each sweep to click at each frame
 ## rate (`clicks=N`: twins N, the others half)
-var _ck := {"one": [], "giant": [], "twin": []}
+var _ck := {"one": [], "giant": [], "twin": [], "close": []}
 var _clicks := 16
 ## `hand=0`: no flying by hand (`_hand_phase`)
 var _hand := true
@@ -263,7 +273,7 @@ func _run() -> void:
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 		# every system of the map sorted into its sweep, then `_systems` of each
 		# taken evenly through it: [node, its layout, two suns]
-		var pool := {"one": [], "giant": [], "twin": []}
+		var pool := {"one": [], "giant": [], "twin": [], "close": []}
 		for raw in Run.map:
 			var n: MapGen.MapNode = raw
 			if n.type != MapGen.NodeType.SYSTEM and n.type != MapGen.NodeType.PULSAR and n.type != MapGen.NodeType.STATION:
@@ -277,15 +287,19 @@ func _run() -> void:
 			var sweep := "giant" if L.bodies.any(func(b: SystemLayout.Body) -> bool: return b.gm > 0.0) else "one"
 			if _wants(sweep):
 				(pool[sweep] as Array).append([n, L, false])
-			# TWO SUNS where the layout may give them (`-- twin=all`'s way)
-			if MapGen.twin_ok(n) and _wants("twin"):
-				n.twin = true
-				var L2 := SystemLayout.of(n)
-				if L2.twin:
-					(pool.twin as Array).append([n, L2, true])
+			# TWO SUNS where the layout may give them (`-- twin=all`'s way), each
+			# kind laid out on purpose (the kind is rolled, `SystemLayout.is_close`)
+			for kind: Array in [["twin", -1], ["close", 1]]:
+				if MapGen.twin_ok(n) and _wants(String(kind[0])):
+					n.twin = true
+					SystemLayout.close_force = int(kind[1])
+					var L2 := SystemLayout.of(n)
+					SystemLayout.close_force = 0
+					if L2.twin:
+						(pool[kind[0]] as Array).append([n, L2, true])
 			n.twin = was
 		var counts := {}
-		for sweep2: String in ["one", "giant", "twin"]:
+		for sweep2: String in ["one", "giant", "twin", "close"]:
 			var all_of: Array = pool[sweep2]
 			# (`why=` names its systems by index: every one, the rest skipped)
 			var picks := _spread(all_of.size(), _systems if _why == "" else all_of.size())
@@ -334,7 +348,7 @@ func _run() -> void:
 func _places_phase(seeds: Array) -> void:
 	var t_ph := Time.get_ticks_msec()
 	var st := {}
-	for k: String in ["far one", "far twin", "core", "start"]:
+	for k: String in ["far one", "far twin", "far close", "core", "start"]:
 		st[k] = {"plans": 0, "solved": 0, "old": 0, "none": 0, "T": [], "miss": [], "close": INF, "inside": 0}
 	var keep_core := INF
 	for sd: int in seeds:
@@ -361,7 +375,7 @@ func _places_phase(seeds: Array) -> void:
 				if MapGen.twin_ok(n):
 					two.append(n)
 				one.append(n)
-		for pair: Array in [["far one", one, false], ["far twin", two, true]]:
+		for pair: Array in [["far one", one, false, 0], ["far twin", two, true, -1], ["far close", two, true, 1]]:
 			var pool: Array = pair[1]
 			for k2: int in _spread(pool.size(), _places):
 				var n2: MapGen.MapNode = pool[k2]
@@ -370,14 +384,16 @@ func _places_phase(seeds: Array) -> void:
 				n2.twin = bool(pair[2])
 				Run.hellbender_at = n2.index
 				Run.hellbender_hp = 1
+				SystemLayout.close_force = int(pair[3])
 				var L2 := SystemLayout.of(n2)
+				SystemLayout.close_force = 0
 				var hp := L2.hellbender_place()
 				if hp >= 0 and L2.twin == bool(pair[2]):
 					_far_case(st[pair[0]], String(pair[0]), sd, n2, L2, hp, -1.0)
 				Run.hellbender_at = -1
 				Run.hellbender_hp = 0
 				n2.twin = was
-	for k3: String in ["far one", "far twin", "core", "start"]:
+	for k3: String in ["far one", "far twin", "far close", "core", "start"]:
 		var S: Dictionary = st[k3]
 		print("flighttest: %s: %d flights from the game's starts: solved %d, today's planner %d, none (put there) %d; flight time %s s%s" % [k3, S.plans, S.solved, S.old, S.none, _dist(S.T),
 			"; closest to the black hole %.1f px, its keep-out %.1f" % [S.close, keep_core] if k3 == "core" else ""])
@@ -570,7 +586,7 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 			(S.chain_cut as Array).append(pl.res.t_cut - pl.res.t0)
 			S.chain_far = maxf(float(S.chain_far), far)
 			(S.chain_list as Array).append("%s: %.1f s (the second leg off the first's coast %.1f s on, aimed through %s), work %.0f px/s, planned in %.0f ms, out to %.2f of the edge" % [where, pl.res.T, pl.res.t_cut - pl.res.t0, pl.res.wp.round(), pl.res.work, ms, far])
-		if int(_wk.size()) < _worker_n * 3 and (_wk.size() % 3 == 0 or sweep == "twin"):
+		if int(_wk.size()) < _worker_n * 3 and (_wk.size() % 3 == 0 or sweep == "twin" or sweep == "close"):
 			_wk.append([sweep, L, key, b, i, t, pl, n.index])
 		# (the game's starts, every few, for the clicks through the map's path)
 		if key != "free" and key != "near" and int(S.plans) % 5 == 2:
@@ -1191,7 +1207,7 @@ func _click_phase() -> void:
 	var lines: Array = []
 	for fps: float in [60.0, 30.0]:
 		var dt := 1.0 / fps
-		for sweep: String in ["twin", "one", "giant"]:
+		for sweep: String in ["twin", "close", "one", "giant"]:
 			var pool: Array = _ck[sweep]
 			if pool.is_empty():
 				continue
@@ -1418,11 +1434,16 @@ func _hand_phase() -> void:
 	var worst_out := -INF
 	var worst_settle := 0.0
 	var worst_sun := INF
-	for row: Array in _ck.twin:
+	# (ten wide pairs and five close pairs, as the clicks gathered them)
+	var by_kind := {}
+	for row: Array in (_ck.twin as Array) + (_ck.close as Array):
 		var L: SystemLayout = row[1]
-		if seen.has(int(row[6])) or seen.size() >= 10:
+		var kind := "close" if L.close else "wide"
+		var key := "%s %d" % [kind, int(row[6])]
+		if seen.has(key) or int(by_kind.get(kind, 0)) >= (5 if L.close else 10):
 			continue
-		seen[int(row[6])] = true
+		seen[key] = true
+		by_kind[kind] = int(by_kind.get(kind, 0)) + 1
 		var t0: float = row[5]
 		var away := -L.star2_at.normalized()
 		var perp := Vector2(-away.y, away.x)
@@ -1522,16 +1543,16 @@ func _hand_phase() -> void:
 				n.sun_ok = int(n.sun_ok) + 1
 			else:
 				rows.append("W at star %d, system %d: came to %.1f px from its centre, its keep-out %.1f (drawn sun %.1f)" % [s, int(row[6]), rmin, kc, kc - 6.0])
-	print("flighttest: flying by hand in a twin (%d systems): let go on the far side, %d of %d settled inside the map and off its edge (its circle at worst %+.0f px past the edge, settled at worst in %.1f s), %d of %d flights from there inside it; let go between the stars, %d of %d settled and taken by no ring; W at a sun, %d of %d held out of its keep-out (at worst %.1f px outside the drawn sun)" % [seen.size(), n.far_ok, n.far, worst_out, worst_settle, n.far_fl_ok, n.far_flights, n.mid_ok, n.mid, n.sun_ok, n.sun, worst_sun])
+	print("flighttest: flying by hand in a twin (%d systems, %d of them close pairs): let go on the far side, %d of %d settled inside the map and off its edge (its circle at worst %+.0f px past the edge, settled at worst in %.1f s), %d of %d flights from there inside it; let go between the stars, %d of %d settled and taken by no ring; W at a sun, %d of %d held out of its keep-out (at worst %.1f px outside the drawn sun)" % [seen.size(), int(by_kind.get("close", 0)), n.far_ok, n.far, worst_out, worst_settle, n.far_fl_ok, n.far_flights, n.mid_ok, n.mid, n.sun_ok, n.sun, worst_sun])
 	for r in rows.slice(0, 20):
 		print("    " + r)
 	h._ok("by hand in a twin: let go anywhere it settles inside the map, between the stars too, and W never takes it into a sun (%d/%d, %d/%d, %d/%d, %d/%d)" % [n.far_ok, n.far, n.far_fl_ok, n.far_flights, n.mid_ok, n.mid, n.sun_ok, n.sun],
-		int(n.far) > 0 and n.far_ok == n.far and n.far_fl_ok == n.far_flights and n.mid_ok == n.mid and n.sun_ok == n.sun)
+		int(n.far) > 0 and (not _wants("close") or int(by_kind.get("close", 0)) > 0) and n.far_ok == n.far and n.far_fl_ok == n.far_flights and n.mid_ok == n.mid and n.sun_ok == n.sun)
 
 
 func _report(cap: Dictionary) -> void:
 	var tot_plans := 0
-	for sweep: String in ["one", "giant", "twin"]:
+	for sweep: String in ["one", "giant", "twin", "close"]:
 		if not _sw.has(sweep):
 			continue
 		var S: Dictionary = _sw[sweep]
@@ -1584,11 +1605,11 @@ func _report(cap: Dictionary) -> void:
 		var share := float(g_ok) / float(maxi(g_n, 1))
 		h._ok("%s: found and clean from an orbit, a star orbit or alongside %d of %d (%.2f%%, at least %.0f%%)" % [sweep, g_ok, g_n, share * 100.0, FOUND_MIN * 100.0], g_n > 0 and share >= FOUND_MIN)
 		print("  farthest any solved flight goes from star A: %.2f of the edge" % S.far)
-		if int(S.chained) > 0 or sweep == "twin":
+		if int(S.chained) > 0 or sweep == "twin" or sweep == "close":
 			print("  flights in two legs (FlightSolve._chain, where one leg reaches nothing): %d; flight time %s s; planned (this thread) %s ms; the second leg off the first's coast, s on: %s; out to %.2f of the edge at the farthest" % [S.chained, _dist(S.chain_T), _dist(S.chain_ms), _dist(S.chain_cut), S.chain_far])
 			for l6 in S.chain_list:
 				print("    TWO LEGS: %s" % l6)
-		if sweep == "twin":
+		if sweep == "twin" or sweep == "close":
 			# IN A TWIN NO FLIGHT IS PUT THERE (the ship jumped to the place with no
 			# flight: 63 of 1,790 before a flight in two legs, 18 of them from the
 			# game's starts), from any start this measure makes -- but one no burn
@@ -1601,7 +1622,8 @@ func _report(cap: Dictionary) -> void:
 					excused += 1
 				print("    PUT THERE: %s; the best burn from there keeps clear for %.2f s%s" % [e7[0], e7[1], " (no flight can leave)" if ok7 else " (THE RESIDUAL)"])
 			var left: int = (S.put as Array).size() - excused
-			h._ok("%s: no flight put there from any start (%d of %d plans) but where no burn at THRUST keeps clear of a keep-out for %.1f s (%d of them), and the measured residual, at most %d (%d)" % [sweep, (S.put as Array).size(), plans, CLEAR_S, excused, PUT_LEFT, left], left <= PUT_LEFT)
+			var most := PUT_LEFT_CLOSE if sweep == "close" else PUT_LEFT
+			h._ok("%s: no flight put there from any start (%d of %d plans) but where no burn at THRUST keeps clear of a keep-out for %.1f s (%d of them), and the measured residual, at most %d (%d)" % [sweep, (S.put as Array).size(), plans, CLEAR_S, excused, most, left], left <= most)
 		h._ok("%s: every planned flight landed (%d of %d)" % [sweep, S.landed, S.flown], int(S.landed) == int(S.flown))
 		# (from a harness's free start, coasting at anything from nought to 170
 		# px/s, a burn across a ship all but at rest draws a hook where it starts:
