@@ -898,8 +898,9 @@ step "Every autopilot flight on the map is solved, flown as drawn and lands"
 # preview is, clicked, flown and landed; the far places (the Hellbender, where
 # a job's place goes too) and the core's black hole (kept out of its lens) and
 # the start system; the same plans on a worker; flying by hand in a twin. The
-# full run is about 500 s: this is its `short` one (one seed, four systems a
-# sweep), its clicks apart in `flightclicks`, which times frames.
+# full run is about 700 s: this is its `short` one (one seed, four systems a
+# sweep; about 165 s with the pair turning), its clicks apart in
+# `flightclicks`, which times frames.
 if run_godot flighttest 300 --headless --path "$PROJECT" -- sheet=FlightTest short clicks=0; then
 	if grep -qE '^flighttest: PASS' "$LOG_DIR/flighttest.log"; then
 		ok "every flight solved (or today's planner, with one sun), flown as drawn, landed"
@@ -2398,7 +2399,7 @@ gate_weight() {
 		menutest) echo 25 ;; market) echo 24 ;; parseall) echo 24 ;;
 		devtest) echo 22 ;; hulldamagetest) echo 22 ;; fightopentest) echo 22 ;;
 		lockedpooltest) echo 41 ;; rewardshowntest) echo 33 ;; mapperftest) echo 40 ;;
-		solvetest) echo 250 ;; twindrawtest) echo 106 ;; flighttest) echo 80 ;; twinsitetest) echo 140 ;;
+		solvetest) echo 250 ;; twindrawtest) echo 106 ;; flighttest) echo 165 ;; twinsitetest) echo 140 ;;
 		pairlocaltest) echo 20 ;;
 		*) echo 15 ;;
 	esac
