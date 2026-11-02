@@ -81,6 +81,11 @@ const LAND_PX := 0.5
 const LAND_V := 0.5
 const START_PX := 0.05
 const START_V := 0.5
+## how far inside a keep-out a clean plan's samples may pass, as MapGravity has
+## the keep-outs at each sample's own time (review 2: the reviewer's probe saw
+## none past 1 px on the branch, and 16 up to 9 px with the solver's suns read
+## at the plan's start)
+const IN_PX := 1.0
 ## the samples the pull is read over (finite differences): 4 apart
 const SPAN := 4
 const RAIL_V := 35.0
@@ -763,6 +768,8 @@ func _report(sweep: String) -> void:
 	var cusped_free := 0
 	var found_free := 0
 	var shown := 0
+	var inside := 0
+	var worst_in := INF
 	for i in _cases.size():
 		var c: Dictionary = _cases[i]
 		if c.sweep != sweep:
@@ -789,6 +796,18 @@ func _report(sweep: String) -> void:
 		if r.clean:
 			clean += 1
 			by[c.kind][1] += 1
+			# CLEAN AS MAPGRAVITY HAS IT, not on the solver's word (`r.clean`): the
+			# flight's own samples against every keep-out where it stands at each
+			# sample's time. The solver's keep-out reads (`_sun_cs`) taken at the
+			# plan's start passed this sweep with 16 plans 9 px inside (review 2)
+			var mq := INF
+			for kq in r.samp.size():
+				mq = minf(mq, (c.G as MapGravity).margin(r.samp[kq].x, r.samp[kq].z, r.t0 + kq * r.sdt))
+			worst_in = minf(worst_in, mq)
+			if mq < -IN_PX:
+				inside += 1
+				if inside <= 4:
+					print("  (clean, but %.2f px inside a keep-out at its samples' times: %s)" % [-mq, c.label])
 		var e := ends(c, r)
 		worst_start = maxf(worst_start, maxf(e[0] / START_PX, e[1] / START_V))
 		worst_land = maxf(worst_land, e[2])
@@ -874,6 +893,7 @@ func _report(sweep: String) -> void:
 	var bar := FOUND_MIN_HAND if sweep == "twin" else FOUND_MIN
 	h._ok("%s: found and clean in at least %.0f%% (%.2f%%)" % [sweep, 100.0 * bar, 100.0 * clean / n], clean >= bar * n)
 	h._ok("%s: every found plan starts on the ship's ring (%d of %d)" % [sweep, started, found], started == found)
+	h._ok("%s: every clean plan clear of MapGravity's keep-outs at each sample's own time, within %.0f px (%d inside; least margin %.2f px)" % [sweep, IN_PX, inside, worst_in], inside == 0)
 	h._ok("%s: every found plan lands on the ring at its speed within %.1f px, %.1f px/s, where the layout's Body is (%d of %d)" % [sweep, LAND_PX, LAND_V, landed, found], landed == found)
 	h._ok("%s: every ride's phasing pushes at most THRUST and stays under VMAX (%d of %d)" % [sweep, pushed, found], pushed == found)
 	h._ok("%s: no burn swings the ship round a point, its speed under %.0f px/s mid-burn (a cusp as drawn), out of a ring, a settled star orbit or alongside: %d of %d" % [sweep, FlightSolve.V_CUSP, cusped, found - found_free], cusped == 0)

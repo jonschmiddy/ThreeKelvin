@@ -83,6 +83,9 @@ const SEEDS := [4242, 7, 1999, 31337, 99, 123, 5150, 8080]
 const NONE := {"w": false, "a": false, "s": false, "d": false}
 ## found and clean in at least this share of each sweep (DESIGN)
 const FOUND_MIN := 0.99
+## how far inside a keep-out a clean flight's samples may pass, as MapGravity
+## has it at each sample's own time (`SolveTest.IN_PX`)
+const IN_PX := 1.0
 ## a flown frame this far from the drawn point for its moment is another flight
 const DRAWN_PX := 0.5
 ## A CORNER, as `_turn_max` reads one over 2 px: more than this, deg per px
@@ -176,6 +179,8 @@ var _s_where := {}
 
 ## per sweep: counts and lists
 var _sw := {}
+## each layout's MapGravity, built once, that a clean flight is measured against
+var _gq := {}
 ## the common flights, apart (per sweep): tightest bend radius at zoom 1 and 2,
 ## corners, flight time, S-bends
 var _cat := {}
@@ -274,7 +279,7 @@ func _stat(sweep: String) -> Dictionary:
 			"frame_ratio": 0.0, "star": INF, "keep": INF, "world": INF, "speed": 0.0, "not_found": [], "not_landed": [],
 			"cornered": [], "snapped": [], "off_drawn": [], "nose": 0.0, "by_start": {}, "systems": 0, "redrawn": 0, "ring_corners": 0, "game_corners1": 0, "game_corners2": 0, "unflyable": 0, "end_off": 0.0, "belt_ends": 0,
 			"chained": 0, "chain_T": [], "chain_ms": [], "chain_cut": [], "chain_list": [], "chain_far": 0.0, "far": 0.0, "put": [],
-			"click_game": [], "click_place": [], "click_two": []}
+			"click_game": [], "click_place": [], "click_two": [], "in_clean": 0, "in_worst": INF}
 	return _sw[sweep]
 
 
@@ -602,6 +607,20 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 		if pl.res.clean:
 			S.clean = int(S.clean) + 1
 			bs[key].clean = int(bs[key].clean) + 1
+			# CLEAN AS MAPGRAVITY HAS IT at each sample's own time, not on the
+			# solver's word: a solver reading the suns at the plan's start passed
+			# this measure with flights 9 px inside a keep-out (review 2)
+			var Gq: MapGravity = _gq.get(L.get_instance_id(), null)
+			if Gq == null:
+				Gq = MapGravity.from_layout(L)
+				_gq[L.get_instance_id()] = Gq
+			var mq := INF
+			for kq in pl.samp.size():
+				mq = minf(mq, Gq.margin(pl.samp[kq].x, pl.samp[kq].z, pl.t0 + kq * pl.sdt))
+			S.in_worst = minf(float(S.in_worst), mq)
+			if mq < -IN_PX:
+				S.in_clean = int(S.in_clean) + 1
+				(S.not_found as Array).append(where + " (clean, but %.2f px inside a keep-out at its samples' times)" % -mq)
 		else:
 			(S.not_found as Array).append(where + " (unclean, %.2f px in)" % -pl.res.clear)
 		(S.T as Array).append(pl.res.T)
@@ -2085,6 +2104,7 @@ func _report(cap: Dictionary) -> void:
 		print("  found and clean: from the game's starts %d of %d; flying free or close by (a harness's) %d of %d" % [g_ok, g_n, f_ok, f_n])
 		var share := float(g_ok) / float(maxi(g_n, 1))
 		h._ok("%s: found and clean from an orbit, a star orbit or alongside %d of %d (%.2f%%, at least %.0f%%)" % [sweep, g_ok, g_n, share * 100.0, FOUND_MIN * 100.0], g_n > 0 and share >= FOUND_MIN)
+		h._ok("%s: every clean flight clear of MapGravity's keep-outs at each sample's own time, within %.0f px (%d inside; least margin %.2f px)" % [sweep, IN_PX, S.in_clean, S.in_worst], int(S.in_clean) == 0)
 		print("  farthest any solved flight goes from star A: %.2f of the edge" % S.far)
 		if int(S.chained) > 0 or sweep == "twin" or sweep == "close":
 			print("  flights in two legs (FlightSolve._chain, where one leg reaches nothing): %d; flight time %s s; planned (this thread) %s ms; the second leg off the first's coast, s on: %s; out to %.2f of the edge at the farthest" % [S.chained, _dist(S.chain_T), _dist(S.chain_ms), _dist(S.chain_cut), S.chain_far])
