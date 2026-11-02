@@ -184,6 +184,18 @@ var _held_q: Array = []
 ## forecast's, `_label_clear`); a harness tells them from words that missed one
 var label_on_beacon: Array = []
 var _on_beacon_q: Array = []
+## THE WORDS A HIGHER LABEL TOOK THE PLACE OF last frame (`_place_labels`), each
+## [the words, the box they would have had]: a harness tells which hid which
+var label_under: Array = []
+## THE WORDS BY THE SHIP last frame as `_draw_ship` placed them, for a harness:
+## {says, at (their baseline's left end), clear}, or {} for none. `clear` is
+## what the spot `_words_off_suns` stepped them to is clear of: &"all" (the
+## suns, the events' beacons, the reticle's ticks round the place they name and
+## the words queued under them), &"marks" (all but those words, which they then
+## hide: no spot cleared them too), &"suns" (the suns alone: `label_on_beacon`);
+## &"" where they stand where they first stood, as with one sun.
+var ship_words: Dictionary = {}
+var _ship_words_q: Dictionary = {}
 ## A FLASH NEAR THE SHIP (`SkyWeather` `nearstrike`): its place on screen, its
 ## colour and how strong it is now ({} for none). The edge of the hull facing it
 ## catches its light for a moment; the outline stays.
@@ -214,6 +226,9 @@ func _place_labels() -> void:
 	_held_q = []
 	label_on_beacon = _on_beacon_q
 	_on_beacon_q = []
+	label_under = []
+	ship_words = _ship_words_q
+	_ship_words_q = {}
 	for e: Array in _lq:
 		var at: Vector2 = e[1]
 		var s: String = e[2]
@@ -230,6 +245,7 @@ func _place_labels() -> void:
 					hit = true
 		if hit:
 			placed.append(Rect2())
+			label_under.append([s, box])
 			continue
 		placed.append(box)
 		label_rects.append(box)
@@ -571,9 +587,12 @@ func _draw() -> void:
 			# panel names what is selected. A world close to its sun kept its
 			# name across that sun where both first tries met it (SIGMA
 			# CINDER-2 II on seed 7, the picks review, Nov 1). Each spot clear
-			# of the events' beacons too, else of the suns alone, as the words
-			# by the ship (`_words_off_suns`): over the reticle is where the
-			# place's own beacon stands.
+			# of the events' beacons too and of the words by the ship where
+			# they first stand (`_ship_words_first`), else of the beacons, else
+			# of the suns alone, as the words by the ship (`_words_off_suns`):
+			# over the reticle is where the place's own beacon stands, and a
+			# step past it they stood on the ship's words, which hid them
+			# (LAMBDA FLINT II on seed 11, the review of the beacons, Nov 1).
 			if _meets_sun(at, nm, selected):
 				var side2 := Vector2(s.x - r - 4.0 - tw if lx > s.x else s.x + r + 4.0, s.y + 3.0)
 				var cx := clampf(s.x - roundf(tw / 2.0), view.window.position.x + 4.0, view.window.end.x - tw - 4.0)
@@ -581,7 +600,14 @@ func _draw() -> void:
 				var over := Vector2(cx, s.y - r - 5.0)
 				var spots := [side2, under, over, at, at, side2]
 				var steps := [Vector2.UP, Vector2.DOWN, Vector2.UP, Vector2.UP, Vector2.DOWN, Vector2.DOWN]
-				at = _spot_off_suns(spots, steps, nm, selected, _clear_of_beacons(nm))
+				var ship_words_at: Array = []
+				var fw: Array = [] if flight == null or not names_on else _ship_words_first(_ship_at)
+				if not fw.is_empty():
+					var fww := _font().get_string_size(String(fw[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+					ship_words_at.append(Rect2((fw[1] as Vector2) + Vector2(-2, -10), Vector2(fww + 4, 14)))
+				at = _spot_off_suns(spots, steps, nm, selected, _clear_of_beacons(nm, ship_words_at))
+				if at == Vector2.INF and not ship_words_at.is_empty():
+					at = _spot_off_suns(spots, steps, nm, selected, _clear_of_beacons(nm))
 				if at == Vector2.INF:
 					at = _spot_off_suns(spots, steps, nm, selected)
 					if at != Vector2.INF and names_on:
@@ -1727,7 +1753,6 @@ func _draw_ship(t: float) -> void:
 	if _ok > 1.001 and SystemLayout.is_place(_ok_body):
 		var bw := _body_scr(_ok_body)
 		x = (bw + (x - bw) * _ok).round()
-	var ob: int = flight.reached()
 	_draw_trail(x, flight.orbit_body())
 	_ship_at = x
 	# HIDDEN BEHIND what stands in front of it: the star's disc (either sun's,
@@ -1887,8 +1912,57 @@ func _draw_ship(t: float) -> void:
 		for k in range(0, 40, 2):
 			var an := float(k) / 40.0 * TAU
 			_px(x + Vector2(cos(an) * rr, sin(an) * rr * 0.8), Color(UITheme.FLARE, 0.75))
-	# WHAT IT IS DOING, by the ship itself: in orbit, alongside, a close orbit
-	# (which says which ship well enough: YOU would sit on the ring)
+	# WHAT IT IS DOING, by the ship itself (`_ship_words_first`)
+	var on: int = flight.orbit_body()
+	var first := _ship_words_first(x)
+	if first.is_empty():
+		_label(x + Vector2(-8, -you_up()), "YOU", UITheme.FLARE, 1, false)
+	else:
+		var words: String = first[0]
+		var lx: float = (first[1] as Vector2).x
+		var ly: float = (first[1] as Vector2).y
+		# NEVER ACROSS A SUN of a binary (`_words_off_suns`). In a star's close
+		# orbit they sat across the other one, 46 of 90 twins; on the ring of a
+		# world round star A at the opening zoom, under the ring, above it and
+		# under the ship all crossed a sun (OMEGA CALLOUS REACH on seed 7, Nov 1:
+		# the suns 76 px apart, the words 136 px wide). NOR OVER AN EVENT'S
+		# BEACON in a binary, where a spot clears both: stepped off the suns they
+		# covered the beacon over OMEGA CALLOUS I, and in star B's close orbit
+		# of TAU BRINE-2 (seed 7, every system a binary) they sat on one where
+		# they first stood. Off a beacon alone and nothing clear, they stay put.
+		# One sun: as it always was.
+		var sun: bool = names_on and _meets_sun(Vector2(lx, ly), words)
+		var clear_of := &""
+		if sun or (names_on and view.layout.twin and not _clear_of_beacons(words).call(Vector2(lx, ly))):
+			var spot := _words_off_suns(words, on, x)
+			if spot.is_empty() and sun:
+				_held_q.append(words)
+				words = ""
+			elif spot.is_empty():
+				_on_beacon_q.append(words)
+				clear_of = &"suns"
+			else:
+				lx = (spot[0] as Vector2).x
+				ly = (spot[0] as Vector2).y
+				words = spot[1]
+				clear_of = spot[2]
+		if not names_on:
+			_label(x + Vector2(-8, -you_up()), "YOU", UITheme.FLARE, 1, false)
+		elif words != "":
+			_label(Vector2(lx, ly), words, UITheme.FLARE, 4, true)
+			_ship_words_q = {"says": words, "at": Vector2(lx, ly), "clear": clear_of}
+
+
+## THE WORDS BY THE SHIP AND WHERE THEY FIRST STAND, the ship drawn at `x`:
+## [the words, their baseline's left end], or [] where it says YOU instead.
+## What it is doing, by the ship itself: in orbit, alongside, a close orbit
+## (which says which ship well enough: YOU would sit on the ring). Under the
+## ring they name, centred on its place (under the ship they sat on the world
+## when zoomed in); off a ring, under the ship. `_draw_ship` steps them off a
+## binary's suns and beacons from here (`_words_off_suns`); a selected place's
+## name stepping off a sun keeps off them here too.
+func _ship_words_first(x: Vector2) -> Array:
+	var ob: int = flight.reached()
 	var on: int = flight.orbit_body()
 	var words := ""
 	if SystemLayout.is_place(ob):
@@ -1903,46 +1977,18 @@ func _draw_ship(t: float) -> void:
 	elif flight.star_orbiting():
 		words = "ORBITING " + _settle_nm(_star_c)
 	if words == "":
-		_label(x + Vector2(-8, -you_up()), "YOU", UITheme.FLARE, 1, false)
-	else:
-		var tw := _font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
-		var lc := x
-		var ly := x.y + maxf(17.0, ship_r() + 11.0)
-		if SystemLayout.is_place(on):
-			# UNDER THE RING it names, centred on its place (under the ship it sat
-			# on the world when zoomed in)
-			var bw := _body_scr(on)
-			var rr := _orbit_px(on, _orbit_r(on)) * _ok / maxf(_orbit_k(on, _orbit_r(on)), 1.0)
-			var disc: float = star_disc(on) if SystemLayout.is_star(on) else (_reach(on) - 7.0)
-			lc = bw
-			ly = bw.y + maxf(rr * view.TILT, disc) + 13.0
-		var lx := clampf(lc.x - roundf(tw / 2.0), view.window.position.x + 4.0, view.window.end.x - tw - 4.0)
-		# NEVER ACROSS A SUN of a binary (`_words_off_suns`). In a star's close
-		# orbit they sat across the other one, 46 of 90 twins; on the ring of a
-		# world round star A at the opening zoom, under the ring, above it and
-		# under the ship all crossed a sun (OMEGA CALLOUS REACH on seed 7, Nov 1:
-		# the suns 76 px apart, the words 136 px wide). NOR OVER AN EVENT'S
-		# BEACON in a binary, where a spot clears both: stepped off the suns they
-		# covered the beacon over OMEGA CALLOUS I, and in star B's close orbit
-		# of TAU BRINE-2 (seed 7, every system a binary) they sat on one where
-		# they first stood. Off a beacon alone and nothing clear, they stay put.
-		# One sun: as it always was.
-		var sun: bool = names_on and _meets_sun(Vector2(lx, ly), words)
-		if sun or (names_on and view.layout.twin and not _clear_of_beacons(words).call(Vector2(lx, ly))):
-			var spot := _words_off_suns(words, on, x)
-			if spot.is_empty() and sun:
-				_held_q.append(words)
-				words = ""
-			elif spot.is_empty():
-				_on_beacon_q.append(words)
-			else:
-				lx = (spot[0] as Vector2).x
-				ly = (spot[0] as Vector2).y
-				words = spot[1]
-		if not names_on:
-			_label(x + Vector2(-8, -you_up()), "YOU", UITheme.FLARE, 1, false)
-		elif words != "":
-			_label(Vector2(lx, ly), words, UITheme.FLARE, 4, true)
+		return []
+	var tw := _font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+	var lc := x
+	var ly := x.y + maxf(17.0, ship_r() + 11.0)
+	if SystemLayout.is_place(on):
+		var bw := _body_scr(on)
+		var rr := _orbit_px(on, _orbit_r(on)) * _ok / maxf(_orbit_k(on, _orbit_r(on)), 1.0)
+		var disc: float = star_disc(on) if SystemLayout.is_star(on) else (_reach(on) - 7.0)
+		lc = bw
+		ly = bw.y + maxf(rr * view.TILT, disc) + 13.0
+	var lx := clampf(lc.x - roundf(tw / 2.0), view.window.position.x + 4.0, view.window.end.x - tw - 4.0)
+	return [words, Vector2(lx, ly)]
 
 
 ## HOW FAR WORDS MAY STEP OFF THEIR PLACE to clear a sun (px; the ship's, a
@@ -1952,19 +1998,28 @@ const WORDS_STEP_MOST := 40.0
 
 
 ## WHERE THE WORDS BY THE SHIP GO CLEAR OF A BINARY'S SUNS (`_meets_sun`) and
-## its events' beacons, as [their baseline's left end, the words], or [] where
-## nothing clears. The spots
-## the words always tried, in their order: under the ring they name (under the
-## ship off a ring), above it, under the ship. Then each of those a step further
-## out, 2 px at a time to `WORDS_STEP_MOST`, the nearest first. Then the same for
-## the words before their " · " alone (IN ORBIT, CLOSE ORBIT, ALONGSIDE: the
-## status line at the frame's top left still names the place). Each spot clear
-## of the events' beacons too, and of the corner ticks of the reticle round the
-## place they name (`_clear_of_beacons`): above the ring they covered the beacon
-## over OMEGA CALLOUS I (seed 7, Nov 1). Where none clears those, the same again
-## for the suns alone (`label_on_beacon`), so a beacon never holds them back.
-## Where nothing clears, the words are held back off a sun, as `_place_labels`
-## holds back words that would sit on others, and the status line says them.
+## its events' beacons, as [their baseline's left end, the words, what that
+## spot is clear of (`ship_words`)], or [] where nothing clears. The spots the
+## words always tried: under the ring they name (under the ship off a ring),
+## above it, under the ship. The two by the ring first, each a step further
+## out, 2 px at a time to `WORDS_STEP_MOST`, the nearer first; then under the
+## ship, the same. Tried nearest first all three together, the words hopped
+## between the ring's spots and the ship's as it rode round, about twice an
+## orbit on OMEGA CALLOUS I (seed 7, Nov 1): under the ring stands still, under
+## the ship goes round with it. Then the same for the words before their " · "
+## alone (IN ORBIT, CLOSE ORBIT, ALONGSIDE: the status line at the frame's top
+## left still names the place). Each spot clear of the events' beacons too, of
+## the corner ticks of the reticle round the place they name
+## (`_clear_of_beacons`), and of the words queued under them (a selected
+## place's name, the forecast's), which `_place_labels` would hold back under
+## them: above the ring they covered the beacon over OMEGA CALLOUS I, and
+## stepped off a beacon or a tick they hid the name of IOTA CINDER-2 II,
+## selected from IOTA CINDER-2 I's ring (seed 7, Nov 1). Where none clears all
+## that, the same clear of the beacons and ticks alone (&"marks", the name
+## under them held back), then of the suns alone (&"suns", `label_on_beacon`),
+## so a beacon never holds them back. Where nothing clears, the words are held
+## back off a sun, as `_place_labels` holds back words that would sit on
+## others, and the status line says them.
 func _words_off_suns(words: String, on: int, x: Vector2) -> Array:
 	var win: Rect2 = view.window
 	var sayings: Array[String] = [words]
@@ -1984,17 +2039,29 @@ func _words_off_suns(words: String, on: int, x: Vector2) -> Array:
 		if not _is_belt(on):
 			ticks = reticle_boxes(_place_scr(on), _reach(on))
 	var ship_y := x.y + maxf(17.0, ship_r() + 11.0)
-	for clear_of_beacons: bool in [true, false]:
+	# the words queued under them this frame, each in its box as `_place_labels`
+	# builds it
+	var lower: Array = []
+	for e: Array in _lq:
+		if int(e[0]) < 4:
+			var lw := _font().get_string_size(String(e[2]), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+			lower.append(Rect2((e[1] as Vector2) + Vector2(-2, -10), Vector2(lw + 4, 14)))
+	for clear_of: StringName in [&"all", &"marks", &"suns"]:
 		for s: String in sayings:
 			var tw := _font().get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 			var at_x := clampf(c.x - roundf(tw / 2.0), win.position.x + 4.0, win.end.x - tw - 4.0)
-			var ship_x := clampf(x.x - roundf(tw / 2.0), win.position.x + 4.0, win.end.x - tw - 4.0)
-			var q := _spot_off_suns([Vector2(at_x, under), Vector2(at_x, over), Vector2(ship_x, ship_y)],
-				[Vector2.DOWN, Vector2.UP, Vector2.DOWN], s, -99, _clear_of_beacons(s, ticks) if clear_of_beacons else Callable())
+			var ok := Callable()
+			if clear_of != &"suns":
+				ok = _clear_of_beacons(s, ticks + lower if clear_of == &"all" else ticks)
+			var q := _spot_off_suns([Vector2(at_x, under), Vector2(at_x, over)], [Vector2.DOWN, Vector2.UP], s, -99, ok)
+			# (off a place, under the ring is under the ship already)
+			if q == Vector2.INF and SystemLayout.is_place(on):
+				var ship_x := clampf(x.x - roundf(tw / 2.0), win.position.x + 4.0, win.end.x - tw - 4.0)
+				q = _spot_off_suns([Vector2(ship_x, ship_y)], [Vector2.DOWN], s, -99, ok)
 			if q != Vector2.INF:
-				if not clear_of_beacons:
+				if clear_of == &"suns":
 					_on_beacon_q.append(s)
-				return [q, s]
+				return [q, s, clear_of]
 	return []
 
 

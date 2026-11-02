@@ -983,7 +983,8 @@ func star_class() -> String:
 ## (`star_share`: B / A = (1 - share) / share, 0.72 to 0.92 SOL) and its radius
 ## the one it is drawn at against one sun's 16 px (0.77 to 0.94), where a real K5
 ## weighs about 0.70; the pair then read 1.72 to 1.92 SOL while the map pulls as
-## one sun. Written as the sheet he picked from showed them.
+## one sun. The sheet he picked from showed 0.70 SOL; written 0.7 SOL, to one
+## place as the yellow dwarf's 1.0 SOL and the pulsar's 1.4 SOL are (Nov 1).
 const STAR_B_FACTS := {"kind": "ORANGE DWARF", "cls": "K5", "temp": "4,400 K", "mass": "0.7 SOL", "radius": "0.7 SOL"}
 
 

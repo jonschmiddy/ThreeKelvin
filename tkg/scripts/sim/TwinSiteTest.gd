@@ -76,7 +76,12 @@ extends Node
 ##     seed 7; WILL ORBIT <world> across one in about half the coasts, a
 ##     selected world's name across its sun), and nearly none held back for it;
 ##     the ship's own words never over an event's beacon where a spot clears
-##     both (stepped off the suns, IN ORBIT · OMEGA CALLOUS I covered one).
+##     both (stepped off the suns, IN ORBIT · OMEGA CALLOUS I covered one), and
+##     where stepped, off the reticle's ticks round their place and over no
+##     selected name or forecast they would hide where a spot clears it;
+##   - riding OMEGA CALLOUS I's ring for two orbits, its world selected, the
+##     ship's words hold still (stepped, they hopped between under the ring and
+##     under the ship about twice an orbit).
 ## Prints how many twin systems and cases each part saw.
 ##
 ## IT JUDGES THE WHOLE BUILD. Where a part is another build's (the flight's ride
@@ -188,6 +193,7 @@ func _run() -> void:
 	await _alongside_hold()
 	await _one_sun_fallback(n)
 	await _ring_sweep()
+	await _ring_words_ride()
 	await _end_planning()
 	_end()
 
@@ -1059,15 +1065,37 @@ static func _on_beacon(ov, box: Rect2) -> Vector2:
 	return Vector2.INF
 
 
+## THE CORNER TICKS OF THE RETICLE round `at` (`SystemOverlay._reticle`: two
+## 3 px ticks meeting `reach` out at each corner), each the 3 px square they
+## stand in.
+static func _tick_boxes(at: Vector2, reach: float) -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
+		var kp: Vector2 = (at + corner * reach).round()
+		out.append(Rect2(kp - Vector2(0.0 if corner.x > 0 else 2.0, 0.0 if corner.y > 0 else 2.0), Vector2(3, 3)))
+	return out
+
+
 ## THE SHIP'S OWN WORDS OFF THE BEACONS: `full` (IN ORBIT · <world>, CLOSE ORBIT
 ## · <star>) or the words before its " · ", as placed last frame, against every
 ## event's beacon drawn that frame (`_on_beacon`). Counted in `st`: placed
 ## (`bc_words`); left by a beacon where no spot cleared the suns and the
 ## beacons both (`bc_fallback`, `SystemOverlay.label_on_beacon`; none on a tree
 ## without it); over a beacon all the same (`bc_crossed`), each added to `out`.
-static func _ship_words_off_beacons(ov, full: String, where: String, st: Dictionary, out: Array[String]) -> void:
+## AND WHERE THE OVERLAY STEPPED THEM clear of the beacons (`bc_stepped`,
+## `SystemOverlay.ship_words` clear &"all" or &"marks"): off the corner ticks of
+## the reticle round `place`, the place they name (`bc_ticks` where not), and
+## over none of the words they hid (`SystemOverlay.label_under`; `bc_hid` where
+## they are) but where the overlay says no spot cleared those as well (&"marks",
+## `bc_marks`). Words where they first stood may cross the ticks under the ring,
+## as with one sun; stepped, the ticks once moved them 20 px and they hid a
+## selected place's name a step less far would have shown (the review of
+## 19fd37e5, Nov 1).
+static func _ship_words_off_beacons(ov, full: String, place: int, where: String, st: Dictionary, out: Array[String]) -> void:
 	var short := full.get_slice(" · ", 0)
 	var fell = ov.get(&"label_on_beacon")
+	var how = ov.get(&"ship_words")
+	var hid = ov.get(&"label_under")
 	for q in (ov.label_says as Array).size():
 		var s: String = ov.label_says[q]
 		if s != full and s != short:
@@ -1076,10 +1104,52 @@ static func _ship_words_off_beacons(ov, full: String, where: String, st: Diction
 		if fell is Array and (fell as Array).has(s):
 			st.bc_fallback += 1
 			continue
-		var bat := _on_beacon(ov, ov.label_rects[q])
+		var box: Rect2 = ov.label_rects[q]
+		var bat := _on_beacon(ov, box)
 		if bat != Vector2.INF:
 			st.bc_crossed += 1
 			out.append("%s: %s over the beacon at %s" % [where, s, bat])
+		if not (how is Dictionary) or String((how as Dictionary).get("says", "")) != s:
+			continue
+		var clear := StringName((how as Dictionary).get("clear", &""))
+		if clear != &"all" and clear != &"marks":
+			continue
+		st.bc_stepped += 1
+		if SystemLayout.is_place(place) and not ov._is_belt(place):
+			for r: Rect2 in _tick_boxes(ov._place_scr(place), ov._reach(place)):
+				if box.intersects(r):
+					st.bc_ticks += 1
+					out.append("%s: %s, stepped, on the reticle's tick at %s" % [where, s, r.position])
+					break
+		if hid is Array:
+			for e: Array in hid:
+				if box.intersects(e[1]):
+					if clear == &"marks":
+						st.bc_marks += 1
+					else:
+						st.bc_hid += 1
+						out.append("%s: %s, stepped, hid %s" % [where, s, e[0]])
+					break
+
+
+## WHETHER WORDS `s` WERE HELD UNDER THE SHIP'S OWN WORDS last frame (`full`, or
+## the words before its " · "): where they would have stood
+## (`SystemOverlay.label_under`) across where those stand. False on a tree
+## without the record.
+static func _under_ship_words(ov, s: String, full: String) -> bool:
+	var hid = ov.get(&"label_under")
+	if not (hid is Array):
+		return false
+	var box := Rect2()
+	for q in (ov.label_says as Array).size():
+		if String(ov.label_says[q]) == full or String(ov.label_says[q]) == full.get_slice(" · ", 0):
+			box = ov.label_rects[q]
+	if box.size.x <= 0.0:
+		return false
+	for e: Array in hid:
+		if String(e[0]) == s and box.intersects(e[1]):
+			return true
+	return false
 
 
 ## WORDS `s` AS PLACED LAST FRAME OVER A BEACON (`_on_beacon`), counted in
@@ -2163,6 +2233,81 @@ func _ring_outline_open(m: SystemMapScreen, wa: int) -> void:
 	_saw("rings outlined, frames", r.seen)
 
 
+## THE WORDS BY THE SHIP HOLD STILL AS IT RIDES ITS RING: in OMEGA CALLOUS REACH
+## (seed 7, node 284), on the ring of its first world round star A (OMEGA
+## CALLOUS I), the world selected as in the picks stills, at the opening zoom,
+## the clock running for `RIDE_FRAMES` frames (about two orbits). The words are
+## there every frame, never move more than 3 px from one frame to the next, and
+## spread no more than 3 px each way over the ride (the world drifts a pixel).
+## Stepped off a sun and the beacon there, nearest first under the ring, above
+## it and under the ship together, they hopped 6 to 10 px between under the
+## ring and under the ship about twice an orbit and slid with the ship between
+## (the review of 19fd37e5, Nov 1); still, as they stood on b764c344, on the
+## beacon.
+const RIDE_FRAMES := 400
+
+
+func _ring_words_ride() -> void:
+	Router.show_local()
+	await _idle()
+	await _frames(2)
+	Rng.forced = 7
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var n: MapGen.MapNode = Run.map[284] if Run.map.size() > 284 else null
+	if not h._ok("seed 7's node 284 is a binary to ride a ring in (%s)" % (MapGen.star_name(n) if n != null else "none"),
+			n != null and n.twin and MapGen.twin_ok(n)):
+		return
+	var wa := -1
+	for b in SystemLayout.of(n).bodies:
+		if wa < 0 and b.host_id == -1 and b.world != &"":
+			wa = b.index
+	if not h._ok("it has a world round star A (#%d)" % wa, wa >= 0):
+		return
+	Run.at = n.index
+	n.visited = true
+	SystemMapScreen._parked[n.index] = {"at": wa, "mode": &"rail"}
+	var m := await _map()
+	if not h._ok("the map comes up in %s for the ride" % MapGen.star_name(n), m != null and m.view.node == n):
+		return
+	var ov = m.overlay
+	m.view.t = 40.0
+	m.flight.place_at(wa, m.view.t)
+	ov.selected = wa
+	await _frames(40)
+	var full: String = "IN ORBIT · " + String(ov._place_nm(wa))
+	var ang0 := float(m.flight.rail.get("ang", 0.0))
+	var seen := 0
+	var hops := 0
+	var biggest := 0.0
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	var last := Rect2()
+	for f in RIDE_FRAMES:
+		await get_tree().process_frame
+		var box := _said_box(ov, full)
+		if box.size.x <= 0.0:
+			box = _said_box(ov, full.get_slice(" · ", 0))
+		if box.size.x <= 0.0:
+			last = Rect2()
+			continue
+		seen += 1
+		if last.size.x > 0.0:
+			var d := box.position.distance_to(last.position)
+			biggest = maxf(biggest, d)
+			if d > 3.0:
+				hops += 1
+		lo = lo.min(box.position)
+		hi = hi.max(box.position)
+		last = box
+	var turns := absf(float(m.flight.rail.get("ang", 0.0)) - ang0) / TAU
+	ov.selected = -2
+	var spread := hi - lo if seen > 0 else Vector2.INF
+	h._ok("riding the ring of %s for %.1f orbits, %s selected, the words by the ship hold still: there in %d of %d frames, %d moves over 3 px (the most %.1f px), spread %s px from %s" % [
+		ov._place_nm(wa), turns, ov._place_nm(wa), seen, RIDE_FRAMES, hops, biggest, spread, lo],
+		seen == RIDE_FRAMES and hops == 0 and spread.x <= 3.0 and spread.y <= 3.0 and turns >= 1.5)
+	_saw("ring rides, frames", seen)
+
+
 ## THE WORDS BY THE SHIP NEVER ACROSS A SUN, AND THE SHIP ON A SMALL WORLD'S RING
 ## OUTLINED, over the binaries of `RING_SEEDS` as each seed rolls them (at most
 ## `RING_CAP` a seed), on the real map at its opening zoom: the ship put in each
@@ -2192,7 +2337,12 @@ func _ring_outline_open(m: SystemMapScreen, wa: int) -> void:
 ## 1 in 50). On b764c344, stepped off a sun, 209 of 760 sat over a beacon (IN
 ## ORBIT · OMEGA CALLOUS I over the one above its world, the picks stills);
 ## with every system a binary (`twin=all`), CLOSE ORBIT · TAU BRINE-2 B sat on
-## one where it first stood, clear of the suns.
+## one where it first stood, clear of the suns. And where the overlay stepped
+## them (`SystemOverlay.ship_words`), off the corner ticks of the reticle round
+## the place they name and over none of the words queued under them that a spot
+## clears (`_ship_words_off_beacons`). On 19fd37e5 the ticks alone moved them in
+## 209 of 760 frames, and stepped they hid 8 selected names b764c344 showed
+## (IOTA CINDER-2 II selected from IOTA CINDER-2 I's ring, seed 7).
 func _ring_sweep() -> void:
 	var seeds: Array = RING_SEEDS.duplicate()
 	var cap := RING_CAP
@@ -2205,7 +2355,8 @@ func _ring_sweep() -> void:
 	var st := {"twins": 0, "places": 0, "moments": 0, "words": 0, "crossed": 0, "whole": 0, "short": 0, "held": 0,
 		"rings": 0, "rim_frames": 0, "hull_frames": 0, "rim_bad": 0, "own_hid": 0, "on_disc": 0, "both": 0, "both_rim": 0, "one": 0, "one_rim": 0,
 		"sel": 0, "sel_shown": 0, "sel_held": 0, "sel_under": 0, "coasts": 0, "into": 0, "fc_shown": 0, "fc_held": 0, "ev_sys": 0, "ev_moved": 0,
-		"bc_words": 0, "bc_fallback": 0, "bc_crossed": 0, "sel_bc": 0, "fc_bc": 0}
+		"bc_words": 0, "bc_fallback": 0, "bc_crossed": 0, "sel_bc": 0, "fc_bc": 0,
+		"bc_stepped": 0, "bc_ticks": 0, "bc_hid": 0, "bc_marks": 0, "sel_on_words": 0}
 	var crossed: Array[String] = []
 	var on_beacon: Array[String] = []
 	var held: Array[String] = []
@@ -2305,7 +2456,7 @@ func _ring_sweep() -> void:
 						st.held += 1
 						held.append("seed %d %s at %s (%s)" % [sd, MapGen.star_name(n), ov._place_nm(p), ", ".join(PackedStringArray(says))])
 					# and clear of every beacon drawn that frame
-					_ship_words_off_beacons(ov, full, "seed %d %s, the ship at %s" % [sd, MapGen.star_name(n), ov._place_nm(p)], st, on_beacon)
+					_ship_words_off_beacons(ov, full, p, "seed %d %s, the ship at %s" % [sd, MapGen.star_name(n), ov._place_nm(p)], st, on_beacon)
 					# THE OUTLINE: on a world round one star, none round both
 					if p < 0:
 						continue
@@ -2376,9 +2527,10 @@ func _ring_sweep() -> void:
 						sel_held.append("seed %d %s: %s held back" % [sd, MapGen.star_name(n), nm_q])
 					else:
 						st.sel_under += 1
+						st.sel_on_words += int(_under_ship_words(ov, nm_q, "IN ORBIT · " + String(ov._place_nm(w0))))
 					st.words += (ov.label_rects as Array).size()
 					st.crossed += _words_on_suns(ov, L, "seed %d %s, %s selected" % [sd, MapGen.star_name(n), nm_q], crossed)
-					_ship_words_off_beacons(ov, "IN ORBIT · " + String(ov._place_nm(w0)), "seed %d %s, %s selected" % [sd, MapGen.star_name(n), nm_q], st, on_beacon)
+					_ship_words_off_beacons(ov, "IN ORBIT · " + String(ov._place_nm(w0)), w0, "seed %d %s, %s selected" % [sd, MapGen.star_name(n), nm_q], st, on_beacon)
 					_said_on_beacon(ov, nm_q, st, "sel_bc")
 				ov.selected = -2
 			# LET GO AND COASTING INTO EACH WORLD'S RING (`restore_free`, held at
@@ -2443,8 +2595,10 @@ func _ring_sweep() -> void:
 		print("  --     forecast not shown: %s" % e)
 	print("  --   the words by the ship: %d placed, %d over an event's beacon drawn that frame, %d left by one where no spot cleared the suns and the beacons both (the suns-only fallback); over a beacon too, %d selected names and %d forecasts (counted, not judged: a first spot that meets no sun is kept, as with one sun)" % [
 		st.bc_words, st.bc_crossed, st.bc_fallback, st.sel_bc, st.fc_bc])
+	print("  --   stepped clear of the beacons %d times: %d on the reticle's ticks round their place, %d over words they hid, %d hiding words where no spot cleared them too; %d selected names under the ship's own words (counted, not judged: where both first stand, as with one sun)" % [
+		st.bc_stepped, st.bc_ticks, st.bc_hid, st.bc_marks, st.sel_on_words])
 	for e: String in on_beacon.slice(0, 6):
-		print("  --     over a beacon: %s" % e)
+		print("  --     not clear: %s" % e)
 	_saw("ring sweep: binaries", st.twins)
 	_saw("ring sweep: moments", st.moments)
 	_saw("ring sweep: places selected", st.sel)
@@ -2458,6 +2612,9 @@ func _ring_sweep() -> void:
 	h._ok("and never over an event's beacon drawn that frame, but where no spot clears the suns and the beacons both (%d placed, %d over a beacon, %d by one for want of a spot)%s" % [
 		st.bc_words, st.bc_crossed, st.bc_fallback, "" if on_beacon.is_empty() else ": " + "; ".join(on_beacon.slice(0, 4))],
 		st.bc_crossed == 0 and st.bc_words > st.moments and st.bc_fallback * 50 <= st.bc_words)
+	h._ok("and where stepped, clear of the reticle's ticks round the place they name and of the words queued under them (%d stepped, %d on a tick, %d over words they hid; %d over words for want of a spot, with the fallback at most 1 in 50)" % [
+		st.bc_stepped, st.bc_ticks, st.bc_hid, st.bc_marks],
+		st.bc_stepped > 0 and st.bc_ticks == 0 and st.bc_hid == 0 and (st.bc_fallback + st.bc_marks) * 50 <= st.bc_words)
 	h._ok("a selected place's name is held back off a sun at nearly no selection (%d of %d; %d shown, %d under a higher label as ever), and the forecast's words at nearly no coast into a ring (%d of %d; %d shown)" % [
 		st.sel_held, st.sel, st.sel_shown, st.sel_under, st.fc_held, st.into, st.fc_shown],
 		st.sel_held * 20 <= st.sel and st.fc_held * 20 <= st.into and st.sel_shown * 4 >= st.sel * 3 and st.fc_shown * 4 >= st.into * 3)
