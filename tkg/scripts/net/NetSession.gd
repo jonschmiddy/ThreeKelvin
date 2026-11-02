@@ -1129,12 +1129,15 @@ func party_t(at: int) -> float:
 
 ## THE CLOCK A MAP OPENS AT (PROTOCOL 14): its own, or the party's when that is
 ## further on -- never back, which would undo what both machines have seen,
-## and never while its own ship flies (a flight is a plan on map time: a
-## clock moved under it would move the ship along it). Anything else is
-## relative (rails and settles round what they circle), so a jump moves it all
-## together.
-static func clock_to_open(own: float, party: float, flying: bool) -> float:
-	return party if party > own and not flying else own
+## and not where its own ship was put away coasting (`keep_own`: a free ship
+## not settled is put back at the very plane point it was, and the suns moved
+## on under it). Anything else is put back relative to what it circles (a
+## place by its offset, a flight left on its way at its end), so a jump moves
+## it all together. (It guarded a flight once, but a flight left on its way is
+## never flown again: the ship is put down where it was going,
+## `SystemMapScreen._restore_ship`.)
+static func clock_to_open(own: float, party: float, keep_own: bool) -> float:
+	return party if party > own and not keep_own else own
 
 
 ## A MAP OR LOCAL OPENING SYSTEM `at` takes the party's clock (`clock_to_open`):
@@ -1145,7 +1148,8 @@ func adopt_clock(at: int) -> float:
 	if not is_networked():
 		return own
 	var d: Dictionary = SystemMapScreen._parked.get(at, {})
-	var t := clock_to_open(own, party_t(at), StringName(d.get("mode", &"")) == &"fly")
+	var free := StringName(d.get("mode", &"")) == &"free"
+	var t := clock_to_open(own, party_t(at), free and not d.has("cen"))
 	if t != own:
 		Run.map_clock[at] = t
 	return t

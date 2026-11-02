@@ -1025,7 +1025,9 @@ func _late_join_test() -> void:
 	check("off no sun", int(s9.get("host", 0)), -9)
 	# THE PARTY'S CLOCK: the newest said, run on since it came; none for a
 	# system nobody has said one about. A map opening behind it takes it; one
-	# ahead keeps its own (never moved back); one whose ship flies is not moved
+	# ahead keeps its own (never moved back); one whose ship was put away
+	# coasting is not moved (the suns would move under it); one put away on its
+	# way is (it is put down at its end, relative to the place)
 	var since := Time.get_ticks_msec()
 	var pt := late.party_t(12)
 	ok("the party's clock is the one said, run on since (%.3f from 101.5)" % pt,
@@ -1042,10 +1044,17 @@ func _late_join_test() -> void:
 	check("a map ahead of it keeps its own: never moved back", late.adopt_clock(12), 500.0)
 	Run.map_clock[12] = 96.5
 	SystemMapScreen._parked[12] = {"at": 3, "mode": &"fly"}
-	check("nor while its own ship flies", late.adopt_clock(12), 96.5)
+	var took_fly := late.adopt_clock(12)
+	ok("one whose ship was put away on its way takes it too (%.3f): it is put down at its end" % took_fly, took_fly >= 101.5)
+	Run.map_clock[12] = 96.5
+	SystemMapScreen._parked[12] = {"at": -9, "mode": &"free", "p": Vector2(300.0, 40.0), "v": Vector2(0.0, 20.0), "head": 0.0}
+	check("but not one whose ship was put away coasting free", late.adopt_clock(12), 96.5)
+	Run.map_clock[12] = 96.5
+	SystemMapScreen._parked[12] = {"at": -9, "mode": &"free", "p": Vector2(300.0, 40.0), "v": Vector2(0.0, 20.0), "head": 0.0, "cen": -9, "r": 302.6, "sense": 1.0}
+	ok("and one settled takes it", late.adopt_clock(12) >= 101.5)
 	check("the rule: behind takes the party's", NetSession.clock_to_open(95.0, 100.25, false), 100.25)
 	check("ahead keeps its own", NetSession.clock_to_open(110.0, 100.25, false), 110.0)
-	check("flying keeps its own", NetSession.clock_to_open(95.0, 100.25, true), 95.0)
+	check("coasting keeps its own", NetSession.clock_to_open(95.0, 100.25, true), 95.0)
 	check("nobody said one: its own", NetSession.clock_to_open(95.0, -1.0, false), 95.0)
 	# HELD: a partner whose map is put away (to LOCAL, a fight, the dock) says
 	# its clock holds there, and it is not run on (review 1: run on regardless,
