@@ -1156,6 +1156,23 @@ func _turning_pair_test() -> void:
 			both_worst < 1e-3)
 		if not want_close:
 			ok("wide pair: one off the world round star B, off that world as it is here (worst %.6f px)" % world_worst, wb >= 0 and world_worst < 1e-3)
+		# PARKED SETTLED ROUND STAR B, the clock then taken on to the party's
+		# (`NetSession.adopt_clock`): carried with B (`carry_parked`), so the map
+		# puts it back (`ShipFlight.restore_free`) at the very point LOCAL reads
+		var own := 40.0
+		var tn := own + 0.37 * TAU / L.pair_n
+		var r_b := L.star_rail_of(B) + 30.0
+		var off := Vector2(r_b, 0.0).rotated(1.1)
+		var d := {"at": -9, "mode": &"free", "p": L.star_pos(B, own) + off, "v": Vector2.ZERO, "head": 0.0, "cen": B, "r": r_b, "sense": 1.0}
+		var stale := ((d.p as Vector2) - L.star_pos(B, tn)).length() - r_b
+		NetSession.carry_parked(L, d, own, tn)
+		var fl = load("res://scripts/ui/sysmap/ShipFlight.gd").new()
+		fl.setup(L, Vector2(-L.edge * 0.95, 0.0), tn)
+		fl.restore_free(tn, d.p, d.v, float(d.head), B, r_b, 1.0)
+		var carried := ((d.p as Vector2) - L.star_pos(B, tn)).distance_to(off)
+		var agree: float = (fl.f.p as Vector2).distance_to(d.p)
+		ok("%s pair: a ship parked settled round star B goes with B when the clock is taken on (%.6f px off its place round B; left where it was it is %.1f px off its circle), and the map puts it back where LOCAL reads it (%.6f px)" % [kind, carried, stale, agree],
+			carried < 1e-3 and agree < 1e-3)
 		print("  twin cases: %s pair, system %d: 8 angles, %d spots each" % [kind, ni, 5 if wb >= 0 else 4])
 	# ONE SUN: every star spot is the plane point it always was, to the bit
 	var L1: SystemLayout = null

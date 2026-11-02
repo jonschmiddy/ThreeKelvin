@@ -1132,17 +1132,20 @@ func party_t(at: int) -> float:
 ## and not where its own ship was put away coasting (`keep_own`: a free ship
 ## not settled is put back at the very plane point it was, and the suns moved
 ## on under it). Anything else is put back relative to what it circles (a
-## place by its offset, a flight left on its way at its end), so a jump moves
-## it all together. (It guarded a flight once, but a flight left on its way is
-## never flown again: the ship is put down where it was going,
-## `SystemMapScreen._restore_ship`.)
+## place by its offset, a flight left on its way at its end, a settle round a
+## sun with that sun, `adopt_clock`), so a jump moves it all together. (It
+## guarded a flight once, but a flight left on its way is never flown again:
+## the ship is put down where it was going, `SystemMapScreen._restore_ship`.)
 static func clock_to_open(own: float, party: float, keep_own: bool) -> float:
 	return party if party > own and not keep_own else own
 
 
 ## A MAP OR LOCAL OPENING SYSTEM `at` takes the party's clock (`clock_to_open`):
 ## kept in `Run.map_clock`, so whatever opens next opens on it too. The clock
-## to open at; its own, alone or offline.
+## to open at; its own, alone or offline. A ship parked settled round one sun of
+## a turning pair goes with that sun to where it stands at the new clock, so the
+## map (`ShipFlight.restore_free`) and LOCAL (`LocalSky._situate`, which reads
+## the parked point as it is) put it in one place, on its circle round that sun.
 func adopt_clock(at: int) -> float:
 	var own := Run.map_t(at)
 	if not is_networked():
@@ -1152,7 +1155,22 @@ func adopt_clock(at: int) -> float:
 	var t := clock_to_open(own, party_t(at), free and not d.has("cen"))
 	if t != own:
 		Run.map_clock[at] = t
+		if free and at >= 0 and at < Run.map.size():
+			carry_parked(SystemLayout.of(Run.map[at]), d, own, t)
 	return t
+
+
+## A PARKED FREE SHIP SETTLED ROUND ONE SUN of a turning pair (`d`, a
+## `SystemMapScreen._parked` record), its plane point carried with that sun from
+## where it stood at map time `own` to where it stands at `t`. LOCAL reads the
+## point as it is; the map put it back on its circle round the sun along the
+## line to it, so with the clock moved on under it the two disagreed about how
+## far it was from its sun and which sun lit it (review 1).
+static func carry_parked(L: SystemLayout, d: Dictionary, own: float, t: float) -> void:
+	var cen := int(d.get("cen", -99))
+	if L == null or not L.twin or not SystemLayout.is_star(cen) or StringName(d.get("mode", &"")) != &"free":
+		return
+	d["p"] = (d.get("p", Vector2.ZERO) as Vector2) + L.star_pos(cen, t) - L.star_pos(cen, own)
 
 
 ## Broadcast the hellbender, host only. RunState calls this after every authority
