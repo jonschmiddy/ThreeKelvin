@@ -1335,6 +1335,8 @@ func _put_back(n: MapGen.MapNode, p: Vector2, want: int, what: String, rows: boo
 	# t, a turning sun's)
 	var L1: SystemLayout = m.view.layout
 	var c_now: Vector2 = L1.bary if cen0 == -9 else L1.star_pos(cen0, m.view.t)
+	# (read now: `f1` is the flight's own state, which the frames below move on)
+	var cen_off := (f1.cen as Vector2).distance_to(c_now)
 	var dang := absf(wrapf(L1.pair_angle(m.view.t) - ang0, -PI, PI))
 	var dang_max := absf(L1.pair_n) * 0.5 + 1e-6
 	var rel1: Vector2 = (f1.p as Vector2) - (f1.cen as Vector2)
@@ -1351,8 +1353,8 @@ func _put_back(n: MapGen.MapNode, p: Vector2, want: int, what: String, rows: boo
 	var nm: String = m.overlay._settle_nm(m.flight.f.cen)
 	h._ok("%s: put back round %d (was %d) at %.1f px (was %.1f), %s, %.2f px off it then and %.2f a second on, going the same way (%.0f); it says %s; a flight leaves %.2f px from the ship; its centre %.3f px from where it is at the map's t; the pair turned %.5f rad from where it was left (at most %.5f), the ship %.4f rad round its centre (at most %.4f)" % [
 		what, int(f1.cen_id), cen0, float(f1.orbit_r), r0, "settled" if m.flight.star_orbiting() else "NOT settled", off0, off1, float(f1.sense), st,
-		dp.distance_to(f2.p) if dp != Vector2.INF else INF, (f1.cen as Vector2).distance_to(c_now), dang, dang_max, rode, rode_max],
-		m.flight.star_orbiting() and int(f1.cen_id) == cen0 and (f1.cen as Vector2).distance_to(c_now) < 0.01 and absf(float(f1.orbit_r) - r0) < 1.0
+		dp.distance_to(f2.p) if dp != Vector2.INF else INF, cen_off, dang, dang_max, rode, rode_max],
+		m.flight.star_orbiting() and int(f1.cen_id) == cen0 and cen_off < 0.01 and absf(float(f1.orbit_r) - r0) < 1.0
 		and dang <= dang_max and rode <= rode_max
 		and off0 < 1.0 and off1 < 1.0 and float(f1.sense) == -1.0 and st == "ORBITING " + nm and dp != Vector2.INF and dp.distance_to(f2.p) < 1.0)
 

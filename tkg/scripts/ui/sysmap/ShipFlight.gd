@@ -796,8 +796,17 @@ func _step_mode(dt: float, t: float, k: Dictionary) -> float:
 		f.no_cap_left = NO_CAPTURE_S
 		mode = &"free"
 	# OPEN SPACE: a step
-	# WHETHER THE COAST IS GOING INTO A RING anyway, held half a second
-	if capture_ahead(f, t):
+	# WHETHER THE COAST IS GOING INTO A RING anyway, held half a second. Not
+	# once the settle's own burn is bringing the ship onto a radius it chose
+	# (`_settle_centre`'s r_want, past the band of the world round that sun):
+	# that motion is the settle's, not where the ship was let go toward, and
+	# taking it for an aim stopped the settle half way and coasted the ship
+	# on into the world it was being kept clear of. Let go 3 to 25 px off a
+	# wide pair's balance point, a ship pulled 50 px in onto star A's circle
+	# was taken by the world round A, 3 of 30 with the pair at the angles it
+	# turns to by the moments FlightTest flies at (none at the angle it was
+	# laid out at, which only happened to keep that world off the line)
+	if not (f.r_want > 0.0 and f.coast > SETTLE_TURN) and capture_ahead(f, t):
 		_bound_t = t
 	f.bound = t - _bound_t < 0.5
 	var res := free_step(f, k, t, dt, sticky, true)
@@ -4246,7 +4255,8 @@ func _harsh(pl: FlightPlan) -> float:
 ## keeps of the star's disc and every world's (the least, in px, counted up to
 ## 20; the ring it leaves and the one it comes to excepted as `_clean` does),
 ## less a penalty for speed over 1,200 px/s and pull over 5,000 px/s² -- so the
-## one flown neither cuts a disc nor jumps.
+## one flown neither cuts a disc nor jumps. (One sun only, at the origin, as
+## `_clean` reads it.)
 func _clearance(pl: FlightPlan, st: Dictionary, i: int) -> float:
 	var n := pl.samp.size()
 	var least := INF
@@ -4279,7 +4289,9 @@ func _clearance(pl: FlightPlan, st: Dictionary, i: int) -> float:
 
 ## CLEAN: clear of the star's keep-clear zone and of every world's disc (bar
 ## the ring it leaves and the one it comes to), and when strict under 1,200
-## px/s and 5,000 px/s².
+## px/s and 5,000 px/s². The star at the origin: today's planner flies only in
+## a system of one sun (`_fallback`), whose star never moves; a twin's near hop
+## keeps clear of both suns where they are at each sample (`_near_hop`).
 func _clean(pl: FlightPlan, strict: bool, st: Dictionary, i: int) -> bool:
 	var n := pl.samp.size()
 	var pv := Vector3.INF

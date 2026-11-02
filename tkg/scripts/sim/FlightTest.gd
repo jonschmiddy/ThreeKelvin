@@ -1685,12 +1685,8 @@ func _orbit_phase() -> void:
 		# should be. For the settle and the put-back alone that world is off the
 		# map, its `world` cleared and put back after, so 60 s of the settle
 		# itself are flown; the preview below flies with it there.) In a close
-		# pair B's zone ends 0 to 6 px past its ring, so a ship put beside it
-		# settles at the ring's STAR_ORBIT_GAP (`_settle_centre`); let go there at
-		# rest it is not measured: the settle's first push round B sets it on a
-		# line into star A's close ring 5 s on, `capture_ahead` holds the settle
-		# off for it, and A's ring takes it, round a still pair the same
-		# (`-- pair=0`, 2 of 2)
+		# pair B's zone ends 0 to 6 px past its ring, so a ship let go or put
+		# beside it settles at the ring's STAR_ORBIT_GAP (`_settle_centre`)
 		var r_set := _settle_r(L)
 		var away := Vector2.RIGHT.rotated(L.pair_angle(t0) + PI * 0.5)
 		if wb >= 0:
@@ -1700,7 +1696,7 @@ func _orbit_phase() -> void:
 		if wb >= 0:
 			L.bodies[wb].world = &""
 		var settled: Array = []
-		for how: String in (["settle_at"] if L.close else ["let go", "settle_at"]):
+		for how: String in ["let go", "settle_at"]:
 			var fs = _flight_script.new()
 			fs.setup(L, Vector2(L.edge, -210.0), t0)
 			if how == "let go":
