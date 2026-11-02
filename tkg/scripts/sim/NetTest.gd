@@ -1047,6 +1047,21 @@ func _late_join_test() -> void:
 	check("ahead keeps its own", NetSession.clock_to_open(110.0, 100.25, false), 110.0)
 	check("flying keeps its own", NetSession.clock_to_open(95.0, 100.25, true), 95.0)
 	check("nobody said one: its own", NetSession.clock_to_open(95.0, -1.0, false), 95.0)
+	# HELD: a partner whose map is put away (to LOCAL, a fight, the dock) says
+	# its clock holds there, and it is not run on (review 1: run on regardless,
+	# the next map jumped the pair by the whole time nobody watched)
+	early.report_spot(12, -9, round_both, 2.0, true, 101.5, -9, true)
+	var to_held := await _wait_until(func() -> bool:
+		return bool(late.spot_of(id, 12).get("held", false)), 3.0)
+	ok("a partner's map put away says its clock holds", to_held)
+	await _tree.create_timer(0.3).timeout
+	check("and the party's clock is the one it said, not run on", late.party_t(12), 101.5)
+	# AN ARRIVAL says no clock: its map has not opened (it said 0.0, run on)
+	early.report_arrival(12)
+	var to_arr := await _wait_until(func() -> bool:
+		return int(late.spot_of(id, 12).get("body", 3)) == -10, 3.0)
+	ok("a partner just arrived is seen so", to_arr)
+	check("and says no clock", late.party_t(12), -1.0)
 	Run.map_clock = kept_clock
 	SystemMapScreen._parked.erase(12)
 	if not kept_parked.is_empty():

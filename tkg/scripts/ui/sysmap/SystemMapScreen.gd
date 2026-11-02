@@ -617,7 +617,10 @@ static func fit_zoom_in(edge: float, fs: Vector2) -> float:
 ## star's close orbit or settled round one sun as the offset from that sun: a
 ## world's place on its orbit, and a turning pair's suns (PROTOCOL 14), are each
 ## machine's own clock. With this map's clock, which is the party's.
-func _report_spot() -> void:
+## `held`: the map's clock is not running (put away, or held for a move of the
+## ladder, `clock_held`), so no partner runs it on (`NetSession.party_t`); sent
+## at once when that changes.
+func _report_spot(held := false) -> void:
 	if flight == null or view.node == null or view.layout == null or not Net.is_networked():
 		return
 	if view.node.index != Run.at:
@@ -631,7 +634,7 @@ func _report_spot() -> void:
 	if body == -9 and flight.star_orbiting():
 		host = int(flight.f.cen_id)
 	p -= NetSession.spot_anchor(view.layout, body, host, view.t)
-	Net.report_spot(Run.at, body, p, float(flight.ang), false, view.t, host)
+	Net.report_spot(Run.at, body, p, float(flight.ang), false, view.t, host, held)
 
 
 ## WHERE A JUMP INTO THIS SYSTEM PUTS A SHIP (`ShipFlight.setup`'s arrival
@@ -712,6 +715,8 @@ func _keep_ship() -> void:
 	# (an absolute plane point for a free ship) means what it meant. Never back:
 	# a clock taken on since (LOCAL's, a partner's) stands
 	Run.map_clock[view.node.index] = maxf(view.t, Run.map_t(view.node.index))
+	# (and the partners told it holds there: map time does not run off the map)
+	_report_spot(true)
 	var at := ship_place()
 	# A FLIGHT LEFT ON ITS WAY lands where it was going (`ship_place`), counted
 	# as a flight there as it would have been on arrival, so LOCAL plays its own
@@ -870,7 +875,7 @@ func _process(delta: float) -> void:
 		view.t += delta
 		_catch_up(delta)
 	_step_ship(delta)
-	_report_spot()
+	_report_spot(held)
 	_step_camera(delta)
 	overlay.mark_keep = mark_keep()
 	# THE BELT POINTED AT (or selected) brightens, eased in with the hover

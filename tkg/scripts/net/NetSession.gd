@@ -115,9 +115,10 @@ extends Node
 ##    settle's `ShipFlight.f.cen_id`), as a world's always has; a ship round
 ##    both suns, or flying, goes as the plane point it is. A system's map clock
 ##    is the party's: a map or LOCAL opening it takes the farthest on a partner
-##    has said, run on since (`adopt_clock`). A version 13 partner sends a spot
-##    two numbers short, which this one cannot read, and would draw a ship at
-##    star B where B stood on another machine's clock.
+##    has said, run on since while that partner's map runs (`held` says it does
+##    not), `adopt_clock`. A version 13 partner sends a spot three numbers
+##    short, which this one cannot read, and would draw a ship at star B where B
+##    stood on another machine's clock.
 const PROTOCOL: int = 14
 
 ## How long a contested option waits for the host to say who got it.
@@ -264,8 +265,10 @@ var fights: Dictionary = {}
 ## the plane point itself. One sun stays at the plane's origin at every t, so
 ## there each is the very point it always was (`spot_anchor`,
 ## `SystemMapScreen._report_spot`, `partner_points`). `t` is the sender's map
-## clock for the system as it said it, `got` this machine's ticks (ms) when it
-## came (`party_t`). -10: just arrived. An empty entry: arrived, at the edge.
+## clock for the system as it said it (-1: none, as an arrival says), `held`
+## whether that clock had stopped (its map put away or held for a move), `got`
+## this machine's ticks (ms) when it came (`party_t`). -10: just arrived. An
+## empty entry: arrived, at the edge.
 ##
 ## NOT on the roster. It changes several times a second while a ship flies,
 ## and the roster is whole, reliable and rebuilt on every machine per change;
@@ -803,15 +806,15 @@ func _enemy_swings(at: int, which: int, kind: int, pick: int) -> void:
 ## the next a sixth of a second later, and a stale one queued behind a lost
 ## packet is worse than none.
 @rpc("any_peer", "call_remote", "unreliable_ordered")
-func _spot_at_host(at: int, body: int, x: float, z: float, ang: float, mt: float, host: int) -> void:
+func _spot_at_host(at: int, body: int, x: float, z: float, ang: float, mt: float, host: int, held: bool) -> void:
 	if is_host():
-		_apply_spot(multiplayer.get_remote_sender_id(), at, body, x, z, ang, mt, host)
+		_apply_spot(multiplayer.get_remote_sender_id(), at, body, x, z, ang, mt, host, held)
 
 
 @rpc("authority", "call_remote", "unreliable_ordered")
-func _spot_to(id: int, at: int, body: int, x: float, z: float, ang: float, mt: float, host: int) -> void:
+func _spot_to(id: int, at: int, body: int, x: float, z: float, ang: float, mt: float, host: int, held: bool) -> void:
 	if id != local_id():
-		spots[id] = _spot_row(at, body, x, z, ang, mt, host)
+		spots[id] = _spot_row(at, body, x, z, ang, mt, host, held)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -1035,30 +1038,32 @@ func _galaxy_differs_here(guest: String, seed_value: int, host_n: int, host_fp: 
 ## the map can call it every frame: sent when it moved and SPOT_EVERY_MS has
 ## passed, or at once when the system, the body or the sun it is said off
 ## changed. `body`, `p` and `host` as in `spots` (`spot_anchor`); `mt` this
-## machine's map clock for the system as `p` was measured.
-func report_spot(at: int, body: int, p: Vector2, ang: float, force: bool = false, mt: float = 0.0, host: int = -9) -> void:
+## machine's map clock for the system as `p` was measured, `held` whether that
+## clock has stopped there (sent at once when it changes).
+func report_spot(at: int, body: int, p: Vector2, ang: float, force: bool = false, mt: float = 0.0, host: int = -9, held: bool = false) -> void:
 	if not _can_talk() or state != State.DIVING:
 		return
 	var now := Time.get_ticks_msec()
-	var same_place := _spot_sent.size() == 6 and int(_spot_sent[0]) == at and int(_spot_sent[1]) == body \
-		and int(_spot_sent[5]) == host
+	var same_place := _spot_sent.size() == 7 and int(_spot_sent[0]) == at and int(_spot_sent[1]) == body \
+		and int(_spot_sent[5]) == host and bool(_spot_sent[6]) == held
 	if same_place and not force:
 		if now - _spot_ms < SPOT_EVERY_MS:
 			return
 		if Vector2(_spot_sent[2], _spot_sent[3]).distance_to(p) < 0.5 				and absf(angle_difference(float(_spot_sent[4]), ang)) < 0.05:
 			return
-	_spot_sent = [at, body, p.x, p.y, ang, host]
+	_spot_sent = [at, body, p.x, p.y, ang, host, held]
 	_spot_ms = now
 	if is_host():
-		_apply_spot(1, at, body, p.x, p.y, ang, mt, host)
+		_apply_spot(1, at, body, p.x, p.y, ang, mt, host, held)
 	else:
-		_spot_at_host.rpc_id(1, at, body, p.x, p.y, ang, mt, host)
+		_spot_at_host.rpc_id(1, at, body, p.x, p.y, ang, mt, host, held)
 
 
 ## Arrived in a system: at its edge until the map says otherwise. An empty spot
-## is what a partner's map draws at the arrival point.
+## is what a partner's map draws at the arrival point. It says no map clock
+## (-1): its map has not opened yet, and a 0 was taken for one and run on.
 func report_arrival(at: int) -> void:
-	report_spot(at, -10, Vector2.ZERO, 0.0, true)
+	report_spot(at, -10, Vector2.ZERO, 0.0, true, -1.0)
 
 
 ## Where a partner is inside the system `at`, or {} if this machine does not
@@ -1070,16 +1075,16 @@ func spot_of(id: int, at: int) -> Dictionary:
 	return sp
 
 
-func _apply_spot(id: int, at: int, body: int, x: float, z: float, ang: float, mt: float, host: int) -> void:
+func _apply_spot(id: int, at: int, body: int, x: float, z: float, ang: float, mt: float, host: int, held: bool = false) -> void:
 	if id != 1:
-		spots[id] = _spot_row(at, body, x, z, ang, mt, host)
+		spots[id] = _spot_row(at, body, x, z, ang, mt, host, held)
 	if not multiplayer.get_peers().is_empty():
-		_spot_to.rpc(id, at, body, x, z, ang, mt, host)
+		_spot_to.rpc(id, at, body, x, z, ang, mt, host, held)
 
 
 ## A spot as `spots` keeps it, stamped with when it came.
-static func _spot_row(at: int, body: int, x: float, z: float, ang: float, mt: float, host: int) -> Dictionary:
-	return {"at": at, "body": body, "x": x, "z": z, "ang": ang, "t": mt, "host": host, "got": Time.get_ticks_msec()}
+static func _spot_row(at: int, body: int, x: float, z: float, ang: float, mt: float, host: int, held: bool = false) -> Dictionary:
+	return {"at": at, "body": body, "x": x, "z": z, "ang": ang, "t": mt, "host": host, "held": held, "got": Time.get_ticks_msec()}
 
 
 ## WHAT A SPOT IS SAID OFF (PROTOCOL 14), on layout L at map time t: the world
@@ -1104,16 +1109,21 @@ static func spot_anchor(L: SystemLayout, body: int, host: int, t: float) -> Vect
 
 ## THE PARTY'S CLOCK FOR SYSTEM `at` (PROTOCOL 14): the farthest on of the map
 ## clocks its partners there have said, each run on by the time since it came
-## (map time is wall time while a map is up, the sender's as this one's), or
-## -1.0 when none has said one.
+## while the sender's map is up (map time is wall time there, the sender's as
+## this one's) and not once it said its clock holds (`held`: its map put away,
+## or held for a move), or -1.0 when none has said one. Run on regardless, a
+## partner gone to LOCAL or a fight kept a clock that ran on with nobody
+## watching, and the next map here jumped the pair by the whole time (review
+## 1). An arrival's spot says none (-1).
 func party_t(at: int) -> float:
 	var best := -1.0
 	var now := Time.get_ticks_msec()
 	for id in spots:
 		var sp := spot_of(int(id), at)
-		if sp.is_empty() or not sp.has("t"):
+		if sp.is_empty() or not sp.has("t") or float(sp.t) < 0.0 or int(sp.get("body", -9)) == -10:
 			continue
-		best = maxf(best, float(sp.t) + float(now - int(sp.get("got", now))) / 1000.0)
+		var run_on := 0.0 if bool(sp.get("held", false)) else float(now - int(sp.get("got", now))) / 1000.0
+		best = maxf(best, float(sp.t) + run_on)
 	return best
 
 
