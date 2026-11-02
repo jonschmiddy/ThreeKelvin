@@ -43,7 +43,11 @@ extends Node
 ## on this thread in a frame, every flight flown on the line drawn for it, no
 ## engine error. And FLYING BY HAND IN A TWIN (`_hand_phase`, `hand=0` to skip):
 ## let go far out on the far side and between the stars, it settles inside the
-## map and taken by no ring; W at a sun never takes it inside its keep-out.
+## map and taken by no ring; W at a sun never takes it inside its keep-out. And
+## THE TURNING PAIR (`_orbit_phase`, ruling 23; skipped with the hand phase): a
+## rail and a settle carried round star B, parked and put back round it across a
+## reopened map, a preview round it kept and rebuilt as the ship rides on, and
+## the edge as arrived at eight angles of the pair.
 ## PASS, per sweep, on the flights the game can start (out of an orbit, a
 ## star's close orbit, a settled star orbit or the edge as arrived, or
 ## alongside: free and close-by starts, coasting at up to 170 px/s, only this
@@ -755,13 +759,13 @@ func _start(fl, L: SystemLayout, kind: String, b: int, t: float, seed: int) -> v
 			var lo: float = fl.star_ring() + 40.0
 			var r := lerpf(lo, L.edge * 0.8, R.randf())
 			var a := R.randf() * TAU
-			var p := _clear_of_stars(fl, L, _clear_of_worlds(fl, L, c0 + Vector2(cos(a), sin(a)) * r, t))
-			fl.settle_at(p, 1.0 if R.randf() < 0.8 else -1.0)
+			var p := _clear_of_stars(fl, L, _clear_of_worlds(fl, L, c0 + Vector2(cos(a), sin(a)) * r, t), t)
+			fl.settle_at(t, p, 1.0 if R.randf() < 0.8 else -1.0)
 		"free":
 			var r2 := lerpf(fl.star_ring() + 40.0, L.edge * 0.9, R.randf())
 			var a2 := R.randf() * TAU
 			fl.mode = &"free"
-			fl.f.p = _clear_of_stars(fl, L, _clear_of_worlds(fl, L, c0 + Vector2(cos(a2), sin(a2)) * r2, t))
+			fl.f.p = _clear_of_stars(fl, L, _clear_of_worlds(fl, L, c0 + Vector2(cos(a2), sin(a2)) * r2, t), t)
 			fl.f.v = Vector2(R.randf_range(-120, 120), R.randf_range(-120, 120))
 			# coasting free, not on the star orbit it arrived on
 			fl.f.orbit_r = -1.0
@@ -779,7 +783,7 @@ func _start(fl, L: SystemLayout, kind: String, b: int, t: float, seed: int) -> v
 			# clear of every star's bumper, as the game keeps a ship (round the
 			# world until it is)
 			for _k3 in 12:
-				if _star_gap(fl, L, fl.f.p) > 12.0:
+				if _star_gap(fl, L, fl.f.p, t) > 12.0:
 					break
 				a3 += TAU / 12.0
 				fl.f.p = Vector2(c3.x, c3.z) + Vector2(cos(a3), sin(a3)) * ra3 * d3
@@ -787,21 +791,20 @@ func _start(fl, L: SystemLayout, kind: String, b: int, t: float, seed: int) -> v
 			fl.f.v = Vector2(cv3.x, cv3.z) + Vector2(R.randf_range(-120, 120), R.randf_range(-120, 120))
 
 
-## How far p is outside the nearest star's keep-clear.
-func _star_gap(fl, L: SystemLayout, p: Vector2) -> float:
+## How far p is outside the nearest star's keep-clear at map time t (a
+## turning pair's suns where they are then).
+func _star_gap(fl, L: SystemLayout, p: Vector2, t: float) -> float:
 	var g := INF
 	for s in L.stars():
-		# ORBIT:flight FlightTest reads the suns at t 0 here: give `_star_gap` the moment p is at
-		g = minf(g, (p - L.star_pos(s, 0.0)).length() - float(fl.keep_clear(s)))
+		g = minf(g, (p - L.star_pos(s, t)).length() - float(fl.keep_clear(s)))
 	return g
 
 
-## A start the stars allow: out of every star's bumper (pushed out from the
-## nearest).
-func _clear_of_stars(fl, L: SystemLayout, p: Vector2) -> Vector2:
+## A start the stars allow at map time t: out of every star's bumper where
+## the star is then (pushed out from the nearest).
+func _clear_of_stars(fl, L: SystemLayout, p: Vector2, t: float) -> Vector2:
 	for s in L.stars():
-		# ORBIT:flight `_clear_of_stars` at t 0: needs the case's t
-		var c := L.star_pos(s, 0.0)
+		var c := L.star_pos(s, t)
 		var bm: float = float(fl.bumper(s)) + 10.0
 		if (p - c).length() < bm:
 			p = c + (p - c).normalized() * bm if (p - c).length() > 0.01 else c + Vector2(bm, 0.0)
@@ -851,7 +854,7 @@ func _measure(fl, L: SystemLayout, pl, i: int, t: float, from_b: int) -> Diction
 ## of velocity (against the frames either side, a snap's tell) and of the nose.
 func _fly(fl, i: int, t0: float, drawn, undrawn := false) -> Dictionary:
 	var out := {"land_s": -1.0, "landed": false, "frame_dv": 0.0, "frame_ratio": 0.0, "at": 0.0, "mode": "", "same": false,
-		"off": 0.0, "snap": false, "nose": 0.0, "mode_end": "", "secs": 0.0, "undrawn": undrawn}
+		"off": 0.0, "snap": false, "nose": 0.0, "mode_end": "", "secs": 0.0, "undrawn": undrawn, "inserted": false, "jump": 0.0}
 	var pl = fl.fly(i, t0, func() -> void: pass, drawn.choice, null if undrawn else drawn)
 	if pl == null:
 		return out
@@ -869,6 +872,9 @@ func _fly(fl, i: int, t0: float, drawn, undrawn := false) -> Dictionary:
 	for k in int(_fly_max(pl) / dt):
 		t += dt
 		fl.step(dt, t, NONE)
+		# (an insertion flown onto the ring: a solved flight lands on it exactly)
+		if fl.mode == &"rail" and (fl.rail as Dictionary).has("ins"):
+			out.inserted = true
 		var p: Vector3 = fl.where3()
 		ps.append(Vector2(p.x, p.z))
 		modes.append(String(fl.mode) + (" inserting" if fl.inserting() else ""))
@@ -895,6 +901,11 @@ func _fly(fl, i: int, t0: float, drawn, undrawn := false) -> Dictionary:
 	out.off = off
 	out.secs = t - t0
 	out.mode_end = String(fl.mode)
+	# (the most it moved in one frame: a ship put somewhere else, a flight
+	# landing hundreds of px off its place and set on the ring there, moves two
+	# frames' changes of velocity alike, which the snap's ratio does not see)
+	for k6 in range(1, ps.size()):
+		out.jump = maxf(float(out.jump), ((ps[k6] as Vector2) - (ps[k6 - 1] as Vector2)).length())
 	var dvs: Array = [0.0, 0.0]
 	for k2 in range(2, ps.size()):
 		var v1: Vector2 = (ps[k2] - ps[k2 - 1]) / dt
@@ -1087,8 +1098,7 @@ func _captures(L: SystemLayout, seed: int) -> Array:
 			elif fl.is_keep(b2.index) and Vector2(rel.x, rel.y * 0.38).length() < ShipFlightS.KEEP_R:
 				holds += 1
 		for s2 in L.stars():
-			# ORBIT:flight `_captures` at t 0: the free state's moment
-			if (st.p - L.star_pos(s2, 0.0)).length() < float(fl.star_ring(s2)):
+			if (st.p - L.star_pos(s2, t)).length() < float(fl.star_ring(s2)):
 				holds += 1
 		n += 1
 		if holds < 2:
@@ -1428,7 +1438,9 @@ static func _near_line(p: Vector2, line: PackedVector3Array, j0: int) -> Array:
 ## inside the map and stays off the edge, and a flight from there stays inside
 ## it; let go between the stars (3 and 25 px off their balance point, at rest),
 ## it settles, taken by no ring; W held at each star at 150 px/s, it never comes
-## inside its keep-out (6 px outside its sun as drawn at the opening zoom).
+## inside its keep-out (6 px outside its sun as drawn at the opening zoom). The
+## pair as it stands at each row's moment: it turns (ruling 23). Then the
+## turning pair's own checks (`_orbit_phase`; `hand=0` skips both).
 func _hand_phase() -> void:
 	var seen := {}
 	var dt := 1.0 / 60.0
@@ -1448,8 +1460,11 @@ func _hand_phase() -> void:
 		seen[key] = true
 		by_kind[kind] = int(by_kind.get(kind, 0)) + 1
 		var t0: float = row[5]
-		# ORBIT:flight `_hand_phase` places its cases off the pair as laid out (t 0); at the row's t0 the pair has turned: star_pos(B, t0) (here and at the two uses below)
-		var away := -L.star2_at0.normalized()
+		# (the pair as it stands at the row's moment: it turns, ruling 23, so
+		# "the far side from star B" and "across the pair" are read off the suns
+		# where they are then, not where they were laid out)
+		var line_ab := (L.star_pos(SystemLayout.STAR_B, t0) - L.star_pos(-1, t0)).normalized()
+		var away := -line_ab
 		var perp := Vector2(-away.y, away.x)
 		# OUT ON THE FAR SIDE
 		var fl = _flight_script.new()
@@ -1501,7 +1516,7 @@ func _hand_phase() -> void:
 			var fm = _flight_script.new()
 			fm.setup(L, Vector2(-L.edge * 0.95, 0.0), t0)
 			fm.mode = &"free"
-			fm.f.p = L.bary + Vector2(-L.star2_at0.y, L.star2_at0.x).normalized() * r0
+			fm.f.p = L.bary + Vector2(-line_ab.y, line_ab.x) * r0
 			fm.f.v = Vector2.ZERO
 			fm.f.orbit_r = -1.0
 			fm.f.coast = 0.0
@@ -1524,9 +1539,10 @@ func _hand_phase() -> void:
 				rows.append("between the stars, system %d, %.0f px off: settled at %.1f s, taken by a ring %s (mode %s, %d)" % [int(row[6]), r0, st_at, taken, fm.mode, fm.orbit_body()])
 		# W HELD AT EACH SUN
 		for s: int in L.stars():
-			# ORBIT:flight W held at each sun: the sun where it is at t0, and moving while held
-			var sc := L.star_pos(s, 0.0)
-			var dir := Vector2(-L.star2_at0.y, L.star2_at0.x).normalized()
+			# (the sun where it is at t0, measured against where it is each frame
+			# it is held: a turning sun moves under the ship)
+			var sc := L.star_pos(s, t0)
+			var dir := Vector2(-line_ab.y, line_ab.x)
 			var fw = _flight_script.new()
 			fw.setup(L, Vector2(-L.edge * 0.95, 0.0), t0)
 			fw.mode = &"free"
@@ -1540,7 +1556,7 @@ func _hand_phase() -> void:
 			for _k3 in int(4.0 / dt):
 				tw += dt
 				fw.step(dt, tw, {"w": true, "a": false, "s": false, "d": false})
-				rmin = minf(rmin, ((fw.f.p as Vector2) - sc).length())
+				rmin = minf(rmin, ((fw.f.p as Vector2) - L.star_pos(s, tw)).length())
 			n.sun = int(n.sun) + 1
 			var kc: float = float(fw.keep_clear(s))
 			worst_sun = minf(worst_sun, rmin - (kc - 6.0))
@@ -1553,6 +1569,433 @@ func _hand_phase() -> void:
 		print("    " + r)
 	h._ok("by hand in a twin: let go anywhere it settles inside the map, between the stars too, and W never takes it into a sun (%d/%d, %d/%d, %d/%d, %d/%d)" % [n.far_ok, n.far, n.far_fl_ok, n.far_flights, n.mid_ok, n.mid, n.sun_ok, n.sun],
 		int(n.far) > 0 and (not _wants("close") or int(by_kind.get("close", 0)) > 0) and n.far_ok == n.far and n.far_fl_ok == n.far_flights and n.mid_ok == n.mid and n.sun_ok == n.sun)
+	# (and the turning pair's own flights by hand and from its edge: `_orbit_phase`)
+	_orbit_phase()
+
+
+## THE PAIR TURNS (ruling 23, Jon, Nov 1, "Orbiting pair: after4:D speed:A
+## stacked:A"): both suns circle their balance point at four times Kepler and
+## each world round one sun is carried with it, so a ship round star B is round
+## something that moves. Over the twins the clicks used (three wide pairs, two
+## close ones), each at the clicks' moment:
+## - A CARRIED RAIL: on star B's close orbit, and on the orbit of the world round
+##   B, for 60 s, the ship on its radius from where the map draws the place at
+##   each frame's moment, its frame-to-frame motion its own velocity (no frame
+##   left behind by the sun), and the place carried meanwhile;
+## - A CARRIED SETTLE: let go at rest beside star B, inside its steady zone,
+##   and put there by `settle_at`: it settles round B and keeps its radius
+##   within SETTLED_PX of where B is, every frame of 60 s, its centre on B;
+## - PARKED AND PUT BACK round B across a reopened map (`restore_free` at the
+##   kept clock, `Run.map_clock`, and the record through the save's own rows
+##   with the clock's): on its orbit round B, where it was, 30 s on still; and
+##   with the clock run on 5 s without it (a map built ahead and dropped), on its
+##   circle round where B is then, no further from where it was than B moved;
+## - A PREVIEW ROUND B, from that settle to star A, to a world round each sun
+##   and to one round both: still takeable a quarter second and a second on, or
+##   the last frame the overlay keeps it before its departure if sooner
+##   (`_takeable`, by the sun's id, not its place: else it was planned again
+##   every frame), rebuilt from its choice then as the very same flight (kind
+##   replay, its samples: FlightSolve's choice must name the sun too), and
+##   clicked a quarter second on, flown as drawn and landed;
+## - THE EDGE AS ARRIVED AT EIGHT ANGLES OF THE PAIR, a lap apart in eighths
+##   (the review of the plan: the arrival point and the edge stand still while
+##   the pair turns under them, so a flight from there is another flight at
+##   every angle): every place planned as the preview is and flown, found and
+##   clean, landed, on the drawn line, no snap; and each one at star B or the
+##   world round B landed on its ring within ON_RING_PX with no insertion.
+## `-- pair=0` holds the pair still: every check holds there too (the place
+## then not carried).
+const ORBIT_S := 60.0
+const SETTLE_HOLD := 2.0
+## a frame's move past this (px) is a jump, not a flight: 900 px/s, past any
+## solved flight's top speed
+const JUMP_PX := 15.0
+func _orbit_phase() -> void:
+	var dt := 1.0 / 60.0
+	var B := SystemLayout.STAR_B
+	var seen := {}
+	var by_kind := {}
+	var rows: Array = []
+	var n := {"rail": 0, "rail_ok": 0, "settle": 0, "settle_ok": 0, "park": 0, "park_ok": 0,
+		"pv": 0, "pv_take": 0, "pv_replay": 0, "pv_gave": 0, "pv_fly": 0, "edge_end": 0.0, "edge": 0, "edge_found": 0, "edge_landed": 0,
+		"edge_drawn": 0, "edge_snaps": 0, "edge_jumps": 0, "on_b": 0, "on_b_ok": 0}
+	var worst := {"jump": 0.0, "rail": 0.0, "rail_v": 0.0, "settle": 0.0, "cen": 0.0, "park": 0.0, "edge_off": 0.0, "on_b": 0.0, "moved": INF}
+	for row: Array in (_ck.twin as Array) + (_ck.close as Array):
+		var L: SystemLayout = row[1]
+		var kind := "close" if L.close else "wide"
+		var key := "%s %d" % [kind, int(row[6])]
+		if seen.has(key) or int(by_kind.get(kind, 0)) >= (2 if L.close else 3):
+			continue
+		seen[key] = true
+		by_kind[kind] = int(by_kind.get(kind, 0)) + 1
+		var t0: float = row[5]
+		var idx: int = row[6]
+		var wb := -1
+		for b in L.bodies:
+			if b.host_id == B and b.world != &"":
+				wb = b.index
+				break
+		# A CARRIED RAIL: star B's close orbit, and its world's
+		var rails: Array[int] = [B]
+		if wb >= 0:
+			rails.append(wb)
+		for place: int in rails:
+			var fr = _flight_script.new()
+			fr.setup(L, Vector2(L.edge, -210.0), t0)
+			fr.place_at(place, t0)
+			var rt: float = float(fr.rail.rt)
+			var spd: float = float(fr.rail.speed)
+			var c0 := _where_drawn(L, place, t0)
+			var t := t0
+			var w_r := 0.0
+			var w_v := 0.0
+			var left := false
+			var last := Vector2.INF
+			for k in int(ORBIT_S / dt):
+				t = t0 + float(k + 1) * dt
+				fr.step(dt, t, NONE)
+				if fr.mode != &"rail" or fr.orbit_body() != place:
+					left = true
+					break
+				var p := fr.f.p as Vector2
+				w_r = maxf(w_r, absf((p - _where_drawn(L, place, t)).length() - rt))
+				# (its motion as flown, frame to frame, against the velocity it says
+				# it has there: a ship whose rail lagged its sun by a frame shows;
+				# from its first frame on the rail, `place_at` putting it there)
+				if last != Vector2.INF:
+					w_v = maxf(w_v, ((p - last) / dt - (fr.f.v as Vector2)).length())
+				last = p
+			var moved := (_where_drawn(L, place, t) - c0).length()
+			if L.pair_n != 0.0:
+				worst.moved = minf(float(worst.moved), moved)
+			worst.rail = maxf(float(worst.rail), w_r)
+			worst.rail_v = maxf(float(worst.rail_v), w_v)
+			n.rail = int(n.rail) + 1
+			# (frame to frame against its velocity: a rail turns, so a chord is off
+			# the tangent by v^2 dt / 2r, under 0.5 px/s on these rings)
+			var v_slack := spd * spd * dt / (2.0 * rt) + 0.05
+			if not left and w_r < 0.01 and w_v < v_slack and (L.pair_n == 0.0 or moved > 5.0):
+				n.rail_ok = int(n.rail_ok) + 1
+			else:
+				rows.append("A CARRIED RAIL round %d, %s: %s, off its radius by %.4f px at worst, its motion off its velocity by %.2f px/s (at most %.2f), the place carried %.1f px" % [place, key, "LEFT IT" if left else "held", w_r, w_v, v_slack, moved])
+		# A CARRIED SETTLE round star B: let go there at rest, and put there. (In
+		# a wide pair the world round B rings the whole of B's steady zone past
+		# STAR_ORBIT_GAP: a ship settled there is taken onto that world, or
+		# turned off its disc, the first time it passes, within seconds, as it
+		# should be. For the settle and the put-back alone that world is off the
+		# map, its `world` cleared and put back after, so 60 s of the settle
+		# itself are flown; the preview below flies with it there.) In a close
+		# pair B's zone ends 0 to 6 px past its ring, so a ship put beside it
+		# settles at the ring's STAR_ORBIT_GAP (`_settle_centre`); let go there at
+		# rest it is not measured: the settle's first push round B sets it on a
+		# line into star A's close ring 5 s on, `capture_ahead` holds the settle
+		# off for it, and A's ring takes it, round a still pair the same
+		# (`-- pair=0`, 2 of 2)
+		var r_set := _settle_r(L)
+		var away := Vector2.RIGHT.rotated(L.pair_angle(t0) + PI * 0.5)
+		if wb >= 0:
+			away = (L.star_pos(B, t0) - L.bodies[wb].pos(t0)).normalized()
+		var p_let := L.star_pos(B, t0) + away * r_set
+		var hid: StringName = L.bodies[wb].world if wb >= 0 else &""
+		if wb >= 0:
+			L.bodies[wb].world = &""
+		var settled: Array = []
+		for how: String in (["settle_at"] if L.close else ["let go", "settle_at"]):
+			var fs = _flight_script.new()
+			fs.setup(L, Vector2(L.edge, -210.0), t0)
+			if how == "let go":
+				fs.mode = &"free"
+				fs.f.p = p_let
+				fs.f.v = L.star_vel(B, t0)
+				fs.f.orbit_r = -1.0
+				fs.f.coast = 0.0
+			else:
+				fs.settle_at(t0, p_let, -1.0)
+			var t := t0
+			var at := -1.0
+			for k in int(20.0 / dt):
+				if fs.star_orbiting():
+					at = t - t0
+					break
+				t = t0 + float(k + 1) * dt
+				fs.step(dt, t, NONE)
+			n.settle = int(n.settle) + 1
+			if at < 0.0 or int(fs.f.cen_id) != B:
+				rows.append("A CARRIED SETTLE (%s) in %s: %s, round %d, %.2f px from it (want %.2f, let go at %.2f), moving %.2f px/s against it, %s" % [how, key, "settled at %.1f s" % at if at >= 0.0 else "NOT SETTLED in 20 s", int(fs.f.cen_id),
+					((fs.f.p as Vector2) - (fs.f.cen as Vector2)).length(), float(fs.f.r_want), r_set, ((fs.f.v as Vector2) - L.star_vel(B, t)).length(), fs.mode])
+				continue
+			var w_s := 0.0
+			var w_c := 0.0
+			var t1 := t
+			var off_orbit := false
+			# (let go, from SETTLE_HOLD after it counts as settled: it is settled
+			# with up to SETTLED_DV of motion left, which carries it on up to 0.6
+			# px round a still sun as round a turning one before the burn takes
+			# it out, `-- pair=0`; put there by `settle_at`, from the first frame)
+			var from_k := int(SETTLE_HOLD / dt) if how == "let go" else 0
+			for k2 in int(ORBIT_S / dt) + from_k:
+				t = t1 + float(k2 + 1) * dt
+				fs.step(dt, t, NONE)
+				if not fs.star_orbiting() or int(fs.f.cen_id) != B:
+					off_orbit = true
+					break
+				if k2 < from_k:
+					continue
+				var sb := L.star_pos(B, t)
+				w_s = maxf(w_s, absf(((fs.f.p as Vector2) - sb).length() - float(fs.f.orbit_r)))
+				w_c = maxf(w_c, ((fs.f.cen as Vector2) - sb).length())
+			worst.settle = maxf(float(worst.settle), w_s)
+			worst.cen = maxf(float(worst.cen), w_c)
+			if not off_orbit and w_s < ShipFlightS.SETTLED_PX and w_c < 0.01:
+				n.settle_ok = int(n.settle_ok) + 1
+				settled.append([fs, t])
+			else:
+				rows.append("A CARRIED SETTLE (%s) in %s: %s, off its radius round star B by %.3f px at worst (SETTLED_PX %.1f), its centre %.4f px off the sun" % [how, key, "LEFT IT" if off_orbit else "held", w_s, ShipFlightS.SETTLED_PX, w_c])
+		if not settled.is_empty():
+			var fs1 = settled[0][0]
+			var tp: float = settled[0][1]
+			# PARKED AND PUT BACK across a reopened map
+			var e := {"at": -9, "p": fs1.f.p, "v": fs1.f.v, "head": fs1.f.head, "mode": &"free",
+				"cen": int(fs1.f.cen_id), "r": float(fs1.f.orbit_r), "sense": float(fs1.f.sense)}
+			var rel_park: Vector2 = (fs1.f.p as Vector2) - L.star_pos(B, tp)
+			for how2: String in ["at the kept clock", "through the save's rows", "the clock run on 5 s without it"]:
+				var d := e
+				var tb := tp
+				if how2 == "through the save's rows":
+					var was_p: Dictionary = SystemMapScreen._parked
+					var was_c: Dictionary = Run.map_clock
+					SystemMapScreen._parked = {idx: e}
+					Run.map_clock = {idx: tp}
+					var raw = JSON.parse_string(JSON.stringify(SaveGame._parked_to()))
+					var raw_c = JSON.parse_string(JSON.stringify(SaveGame._clocks_to()))
+					var back := SaveGame._parked_from(raw, Run.map.size())
+					Run.map_clock = SaveGame._clocks_from(raw_c, Run.map.size())
+					d = back.get(idx, {})
+					tb = Run.map_t(idx)
+					SystemMapScreen._parked = was_p
+					Run.map_clock = was_c
+				elif how2 == "the clock run on 5 s without it":
+					tb = tp + 5.0
+				var fp = _flight_script.new()
+				fp.setup(L, Vector2(L.edge, -210.0), tb)
+				fp.restore_free(tb, d.get("p", Vector2.ZERO), d.get("v", Vector2.ZERO), float(d.get("head", PI)),
+					int(d.get("cen", -99)), float(d.get("r", -1.0)), float(d.get("sense", 0.0)))
+				var rel_back: Vector2 = (fp.f.p as Vector2) - L.star_pos(B, tb)
+				var off_r0 := absf(rel_back.length() - float(e.r))
+				# (where it was: the very spot at the kept clock; with the clock run on,
+				# no further from that spot than its sun has moved, `restore_free`
+				# putting it on its circle round where the sun is now)
+				var moved_b := (L.star_pos(B, tb) - L.star_pos(B, tp)).length()
+				var off_at := (rel_back - rel_park).length() if how2 != "the clock run on 5 s without it" else maxf(0.0, ((fp.f.p as Vector2) - (e.p as Vector2)).length() - moved_b)
+				var w_p := 0.0
+				var gone := false
+				var t := tb
+				for k3 in int(30.0 / dt):
+					t = tb + float(k3 + 1) * dt
+					fp.step(dt, t, NONE)
+					if not fp.star_orbiting() or int(fp.f.cen_id) != B:
+						gone = true
+						break
+					w_p = maxf(w_p, absf(((fp.f.p as Vector2) - L.star_pos(B, t)).length() - float(e.r)))
+				worst.park = maxf(float(worst.park), maxf(w_p, off_r0))
+				n.park = int(n.park) + 1
+				if not gone and absf(tb - (tp if how2 != "the clock run on 5 s without it" else tp + 5.0)) < 1e-6 and off_r0 < ShipFlightS.SETTLED_PX and off_at < 0.5 and w_p < ShipFlightS.SETTLED_PX:
+					n.park_ok = int(n.park_ok) + 1
+				else:
+					rows.append("PUT BACK round star B (%s) in %s: at t %.2f (parked at %.2f), %.3f px off its radius, %.3f px from where it was round its sun, %s 30 s on (off its radius by %.3f at worst)" % [how2, key, tb, tp, off_r0, off_at, "LEFT IT" if gone else "held", w_p])
+		if wb >= 0:
+			L.bodies[wb].world = hid
+		# A PREVIEW ROUND B, takeable and replayed on
+		var tgts: Array[int] = [-1]
+		var w_a := -1
+		var w_both := -1
+		for b2 in L.bodies:
+			if b2.world == &"":
+				continue
+			if b2.host_id == -1 and w_a < 0:
+				w_a = b2.index
+			elif b2.host_id == -9 and w_both < 0:
+				w_both = b2.index
+		for wi: int in [w_a, wb, w_both]:
+			if wi >= 0:
+				tgts.append(wi)
+		for i: int in tgts:
+			var fv = _flight_script.new()
+			fv.setup(L, Vector2(L.edge, -210.0), t0)
+			fv.settle_at(t0, p_let, 1.0)
+			_hold_off(fv, wb)
+			fv.step(dt, t0 + dt, NONE)
+			var tv0 := t0 + dt
+			if fv.orbit_body() == i or not fv.can_fly() or int(fv.f.cen_id) != B:
+				continue
+			var pv = fv.make_plan(i, tv0, {}, ShipFlightS.PREVIEW_AHEAD)
+			n.pv = int(n.pv) + 1
+			if pv == null or pv.res == null:
+				rows.append("A PREVIEW ROUND B in %s to %d: %s" % [key, i, "none planned" if pv == null else "today's planner's"])
+				continue
+			var take_ok := true
+			var replay_ok := true
+			var why := ""
+			var t := tv0
+			# (a quarter second on, and a second on or, sooner, the last frame
+			# the overlay keeps a preview before its departure, PLAN_AHEAD short of
+			# it: `SystemOverlay` plans it again from there, as FlightTest's sweep
+			# does, and even round a still sun a ride left a frame or two to its
+			# departure is no longer flown as drawn)
+			var k_late := clampi(int(floorf((float(pv.t0) - ShipFlightS.PLAN_AHEAD - tv0) / dt)), 15, 60)
+			for k4 in k_late:
+				t = tv0 + float(k4 + 1) * dt
+				fv.step(dt, t, NONE)
+				if k4 + 1 == 15 or k4 + 1 == k_late:
+					if fv._takeable(pv, t).is_empty():
+						take_ok = false
+						why += " not takeable %.2f s on;" % (t - tv0)
+					var rp = fv.make_plan(i, t, pv.choice)
+					if rp != null and rp.res != null and _gave_way(pv.res, rp.res):
+						n.pv_gave = int(n.pv_gave) + 1
+					elif rp == null or rp.res == null or rp.res.kind != &"replay" or rp.res.samp != pv.res.samp:
+						replay_ok = false
+						why += " rebuilt %.2f s on as %s;" % [t - tv0, "nothing" if rp == null or rp.res == null else String(rp.res.kind)]
+			if take_ok:
+				n.pv_take = int(n.pv_take) + 1
+			if replay_ok:
+				n.pv_replay = int(n.pv_replay) + 1
+			# THE CLICK a quarter second on, on the drawn flight
+			var fc = _flight_script.new()
+			fc.setup(L, Vector2(L.edge, -210.0), t0)
+			fc.settle_at(t0, p_let, 1.0)
+			_hold_off(fc, wb)
+			fc.step(dt, tv0, NONE)
+			var tcl := tv0
+			for k5 in 15:
+				tcl = tv0 + float(k5 + 1) * dt
+				fc.step(dt, tcl, NONE)
+			var fm := _fly(fc, i, tcl, pv)
+			var fly_ok: bool = fm.same and fm.landed and float(fm.off) <= DRAWN_PX and not fm.snap and float(fm.jump) <= JUMP_PX
+			if fly_ok:
+				n.pv_fly = int(n.pv_fly) + 1
+			else:
+				why += " clicked a quarter second on: %s, %s, %.2f px off the drawn line%s, the most in a frame %.1f px;" % ["the drawn flight" if fm.same else "PLANNED AGAIN", "landed" if fm.landed else "NOT LANDED", fm.off, ", A SNAP" if fm.snap else "", fm.jump]
+			if why != "":
+				rows.append("A PREVIEW ROUND B in %s to %d:%s" % [key, i, why])
+		# THE EDGE AS ARRIVED, the pair at eight angles a lap apart
+		var lap := TAU / L.pair_n if L.pair_n != 0.0 else 1200.0
+		var places: Array[int] = []
+		for s in L.stars():
+			places.append(s)
+		for b3 in L.bodies:
+			places.append(b3.index)
+		for ph in 8:
+			var tk := t0 + lap * float(ph) / 8.0
+			for i2: int in places:
+				var fe = _flight_script.new()
+				fe.setup(L, Vector2(L.edge, -210.0), tk)
+				fe.step(dt, tk, NONE)
+				if not fe.can_fly() or fe.orbit_body() == i2:
+					continue
+				n.edge = int(n.edge) + 1
+				var where := "%s, the pair at %d/8 of a lap (t %.0f), the edge -> %d" % [key, ph, tk, i2]
+				var pl = fe.make_plan(i2, tk, {}, ShipFlightS.PREVIEW_AHEAD)
+				if pl == null or pl.res == null or not pl.res.clean:
+					rows.append("THE EDGE: %s: %s" % [where, "none" if pl == null else ("today's planner's" if pl.res == null else "unclean, %.2f px in" % -pl.res.clear)])
+					if pl == null:
+						continue
+				else:
+					n.edge_found = int(n.edge_found) + 1
+				var round_b: bool = i2 == B or (i2 >= 0 and L.bodies[i2].host_id == B)
+				if pl.res != null:
+					# (where it ends against where the ship's own `center` puts the
+					# place then, as the sweep holds it to END_PX)
+					var ce: Vector3 = fe.center(i2, float(pl.end.t))
+					var arl: Vector2 = pl.end.arel
+					var ep: Vector3 = pl.end.p
+					var de := Vector2(ce.x + arl.x - ep.x, ce.z + arl.y - ep.z).length()
+					n.edge_end = maxf(float(n.edge_end), de)
+					if de > END_PX:
+						rows.append("THE EDGE: %s: ends %.3f px off where its place is then" % [where, de])
+				var fm2 := _fly(fe, i2, tk, pl)
+				if fm2.landed:
+					n.edge_landed = int(n.edge_landed) + 1
+				else:
+					rows.append("THE EDGE: %s: NOT LANDED (mode %s)" % [where, fm2.mode_end])
+				if fm2.same and float(fm2.off) <= DRAWN_PX:
+					n.edge_drawn = int(n.edge_drawn) + 1
+				elif pl.res != null:
+					rows.append("THE EDGE: %s: %s, %.2f px off the drawn line" % [where, "flew the drawn flight" if fm2.same else "PLANNED AGAIN", fm2.off])
+				worst.edge_off = maxf(float(worst.edge_off), float(fm2.off))
+				worst.jump = maxf(float(worst.jump), float(fm2.jump))
+				if float(fm2.jump) > JUMP_PX:
+					n.edge_jumps = int(n.edge_jumps) + 1
+					rows.append("THE EDGE: %s: MOVED %.1f px IN A FRAME" % [where, fm2.jump])
+				if fm2.snap:
+					n.edge_snaps = int(n.edge_snaps) + 1
+					rows.append("THE EDGE: %s: A SNAP, %.1f px/s in a frame (%s)" % [where, fm2.frame_dv, fm2.mode])
+				if round_b and fm2.landed and pl.res != null:
+					# ON ITS RING round where B (or its world) is, with no insertion
+					# flown (`_land`: a solved flight lands on the ring exactly)
+					n.on_b = int(n.on_b) + 1
+					var c_b := _where_drawn(L, i2, tk + float(fm2.secs))
+					var off_b := absf(((fe.f.p as Vector2) - c_b).length() - float(fe.orbit_r(i2)))
+					worst.on_b = maxf(float(worst.on_b), off_b)
+					if off_b <= ShipFlightS.ON_RING_PX and not bool(fm2.inserted):
+						n.on_b_ok = int(n.on_b_ok) + 1
+					else:
+						rows.append("THE EDGE: %s: landed %.4f px off its ring round B%s" % [where, off_b, ", AN INSERTION FLOWN" if bool(fm2.inserted) else ""])
+	print("flighttest: the turning pair (%d systems, %d of them close pairs; the pair at %.1fx Kepler): carried rails %d of %d held for %.0f s (off the radius at worst %.4f px, the motion off its velocity %.2f px/s; the place carried at least %.1f px); carried settles round star B %d of %d within %.1f px (at worst %.3f, the centre %.4f px off its sun); put back round B %d of %d (off its radius at worst %.3f px); previews round B: %d planned, %d takeable a quarter second and a second on, %d rebuilt as the same flight then (%d of those moments a flight the fallback found giving way to a fresh one arriving sooner), %d clicked, flown as drawn and landed; the edge as arrived at eight angles of the pair: %d of %d found and clean, ending at worst %.4f px off its place, %d landed, %d on the drawn line (worst %.2f px), %d snaps, %d jumps (the most in a frame %.1f px); %d of %d landings round B on the ring with no insertion (worst %.4f px)" % [
+		seen.size(), int(by_kind.get("close", 0)), SystemLayout.pair_speed(), n.rail_ok, n.rail, ORBIT_S, worst.rail, worst.rail_v, worst.moved,
+		n.settle_ok, n.settle, ShipFlightS.SETTLED_PX, worst.settle, worst.cen, n.park_ok, n.park, worst.park,
+		n.pv, n.pv_take, n.pv_replay, n.pv_gave, n.pv_fly, n.edge_found, n.edge, n.edge_end, n.edge_landed, n.edge_drawn, worst.edge_off, n.edge_snaps, n.edge_jumps, worst.jump, n.on_b_ok, n.on_b, worst.on_b])
+	for r in rows.slice(0, 40):
+		print("    " + r)
+	var any: bool = seen.size() > 0
+	h._ok("the turning pair: a carried rail round star B and round its world holds its radius from where it is drawn for %.0f s (%d of %d)" % [ORBIT_S, n.rail_ok, n.rail], any and n.rail_ok == n.rail and int(n.rail) > 0)
+	h._ok("the turning pair: let go or put round star B it settles round B and keeps its radius within %.1f px of the moving sun (%d of %d)" % [ShipFlightS.SETTLED_PX, n.settle_ok, n.settle], any and n.settle_ok == n.settle and int(n.settle) > 0)
+	h._ok("the turning pair: parked round star B and put back across a reopened map, at the kept clock, through the save's rows and with the clock run on, it is on its orbit round B (%d of %d)" % [n.park_ok, n.park], any and n.park_ok == n.park and int(n.park) > 0)
+	h._ok("the turning pair: a preview round star B still takeable a quarter second and a second on (%d of %d), rebuilt from its choice as the same flight (%d of %d), clicked and flown as drawn (%d of %d)" % [n.pv_take, n.pv, n.pv_replay, n.pv, n.pv_fly, n.pv],
+		any and int(n.pv) > 0 and n.pv_take == n.pv and n.pv_replay == n.pv and n.pv_fly == n.pv)
+	var share := float(n.edge_found) / float(maxi(int(n.edge), 1))
+	h._ok("the turning pair: from the edge as arrived at eight angles of the pair, found and clean %d of %d (%.1f%%, at least %.0f%%), each ending where its place is then (worst %.4f px, at most %.2f), every one landed (%d), on the drawn line (%d), no snap (%d) and no jump (%d), every landing round B on its ring with no insertion (%d of %d)" % [n.edge_found, n.edge, share * 100.0, FOUND_MIN * 100.0, n.edge_end, END_PX, n.edge_landed, n.edge_drawn, n.edge_snaps, n.edge_jumps, n.on_b_ok, n.on_b],
+		any and int(n.edge) > 0 and share >= FOUND_MIN and float(n.edge_end) <= END_PX and n.edge_landed == n.edge and n.edge_drawn == n.edge_found and int(n.edge_snaps) == 0 and int(n.edge_jumps) == 0 and n.on_b_ok == n.on_b)
+
+
+## A FLIGHT THE FALLBACK FOUND (its choice's cap past T_CAP) GIVING WAY, rebuilt
+## from its choice, to a fresh one in one leg arriving sooner: kept only while
+## none does (ruling 21's reviews, `FlightSolve._solve`; SolveTest's
+## `_fell_sooner`, the same rule), so not the same flight, and right.
+static func _gave_way(r: FlightSolve.Result, r2: FlightSolve.Result) -> bool:
+	return r.legs == 1 and float(r.choice.get("cap", 0.0)) > FlightSolve.T_CAP + 1e-6 and r2.found and r2.clean and r2.legs == 1 and r2.kind == &"solved" and float(r2.end.t) < float(r.end.t) - 1e-6
+
+
+## Where place i is drawn at map time t, on the plane: a star where the pair has
+## it (`SystemLayout.star_pos`), a body where its own circle has it (`Body.pos`,
+## round its sun where that is carried): the layout's own answer, not the
+## flight's `center`, which the rail rides.
+static func _where_drawn(L: SystemLayout, i: int, t: float) -> Vector2:
+	if SystemLayout.is_star(i):
+		return L.star_pos(i, t)
+	return L.bodies[i].pos(t)
+
+
+## A radius round star B to let a ship go at: inside its steady zone (where
+## letting go settles round it, `ShipFlight._settle_centre`) and at least
+## STAR_ORBIT_GAP outside its close ring, half way between; where a close pair
+## leaves no room (its zones end 0 to 6 px past its rings), just outside that
+## gap, where the settle brings it onto the gap round B.
+func _settle_r(L: SystemLayout) -> float:
+	var B := SystemLayout.STAR_B
+	var lo := L.star_ring_of(B) + ShipFlightS.STAR_ORBIT_GAP + 2.0
+	var hi := SystemLayout.s_limit(L.star_share) * L.sep - 2.0
+	if hi < lo:
+		return lo
+	return (lo + hi) * 0.5
+
+
+## The ring of world wb lets this ship go for the measure (`no_cap_body`, held
+## for good): a settle round its sun is flown, not that world's capture.
+static func _hold_off(fl, wb: int) -> void:
+	if wb >= 0:
+		fl.f.no_cap_body = wb
+		fl.f.no_cap_left = 1e9
 
 
 func _report(cap: Dictionary) -> void:
@@ -1880,7 +2323,7 @@ func _run_starride() -> void:
 					fl.setup(L, Vector2(-L.edge * 0.95, 0.0), t0)
 					var r := lerpf(fl.star_ring() + 40.0, L.edge, rk)
 					var a := float(ph) / 6.0 * TAU + float(n.index) * 0.37
-					fl.settle_at(_clear_of_worlds(fl, L, Vector2(cos(a), sin(a)) * r, t0))
+					fl.settle_at(t0, _clear_of_worlds(fl, L, Vector2(cos(a), sin(a)) * r, t0))
 					fl.step(dt, t0, none)
 					if fl.orbit_body() == b.index:
 						continue
@@ -1944,16 +2387,17 @@ func _run_starride() -> void:
 
 
 ## What is wrong with a plan's points, if anything: not a number, off the map,
-## through a star's disc.
+## through a star's disc (where the star is at that sample's moment).
 func _degenerate(fl, L: SystemLayout, pl) -> String:
-	for q: Vector3 in pl.samp:
+	for kq in pl.samp.size():
+		var q: Vector3 = pl.samp[kq]
+		var tq: float = float(pl.t0) + kq * pl.sdt
 		if is_nan(q.x) or is_nan(q.z) or is_inf(q.x) or is_inf(q.z):
 			return "not a number"
 		if Vector2(q.x, q.z).length() > L.edge * 1.6:
 			return "off the map"
 		for s in L.stars():
-			# ORBIT:flight `_degenerate`: "through a star" with the star where it is at the sample's t
-			if (Vector2(q.x, q.z) - L.star_pos(s, 0.0)).length() < L.star_radius(s) + 2.0:
+			if (Vector2(q.x, q.z) - L.star_pos(s, tq)).length() < L.star_radius(s) + 2.0:
 				return "through a star"
 	for q2: Vector3 in pl.tail:
 		if is_nan(q2.x) or is_nan(q2.z):
@@ -2097,8 +2541,8 @@ func _gait(fl, L: SystemLayout, pl, path3: PackedVector3Array, i: int, from_b: i
 					near = true
 					if b == i:
 						near_to = true
-		# ORBIT:flight `_gait`: the target star where it is at the sample's t
-		if SystemLayout.is_star(i) and (Vector2(q.x, q.z) - L.star_pos(i, 0.0)).length() < float(fl.star_ring(i)) + 30.0:
+		# (the target star where it is at the sample's moment)
+		if SystemLayout.is_star(i) and (Vector2(q.x, q.z) - L.star_pos(i, tk)).length() < float(fl.star_ring(i)) + 30.0:
 			near = true
 			near_to = true
 		# 2: coming in to the place (its arrival, apart); 0: leaving the one it left

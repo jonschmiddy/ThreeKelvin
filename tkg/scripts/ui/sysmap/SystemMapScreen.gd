@@ -744,7 +744,7 @@ func _restore_ship(d: Dictionary) -> void:
 	elif StringName(d.mode) == &"free":
 		# (on the wide orbit it was settled on, else coasting on from where it
 		# was: never on the arrival orbit `setup` has just made)
-		flight.restore_free(d.get("p", Vector2.ZERO), d.get("v", Vector2.ZERO), float(d.get("head", PI)),
+		flight.restore_free(view.t, d.get("p", Vector2.ZERO), d.get("v", Vector2.ZERO), float(d.get("head", PI)),
 			int(d.get("cen", -99)), float(d.get("r", -1.0)), float(d.get("sense", 0.0)))
 	else:
 		flight.place_at(-3, view.t)

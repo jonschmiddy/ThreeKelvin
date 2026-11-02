@@ -321,13 +321,73 @@ func _cache_stars() -> void:
 	_s_keep = PackedFloat64Array()
 	_s_ring = PackedFloat64Array()
 	_s_hold = PackedFloat64Array()
+	_s_r = PackedFloat64Array()
 	for s in _stars:
-		# ORBIT:flight a turning pair's suns move: cache their places per step at the step's t (DESIGN step 4, `_cache_stars` per step), not once at t 0
+		# (where each is at t 0, the pair as laid out: where a still pair and
+		# one sun always are, and a turning pair's only at t 0, `_stars_at`)
 		_s_pos.append(L.star_pos(s, 0.0))
 		_s_bump.append(bumper(s))
 		_s_keep.append(keep_clear(s))
 		_s_ring.append(star_ring(s))
 		_s_hold.append(keep_clear(s) if L.twin else L.star_radius(s) + 8.0)
+		_s_r.append(L._pair_r(s) if L.twin else 0.0)
+
+
+## each star's signed distance from the balance point along the pair's line
+## (`SystemLayout._pair_r`), in `_stars`' order: a turning pair's circles
+var _s_r := PackedFloat64Array()
+## WHERE EACH STAR IS AT t AND HOW FAST IT MOVES, in `_stars`' order, for free
+## flight's step (ruling 23: the pair turns). One sun, a still pair, or t 0: the
+## cached places, still. A turning pair: worked out for the step's own t, one
+## cos/sin for both suns, in `SystemLayout.star_pos`'s and `star_vel`'s very
+## arithmetic, so the bumper, the hold out of the keep-out and the close rings
+## ride their sun exactly where the map draws it. Worked out into buffers of
+## their own (`_sp_buf`, never the cache: a packed array is shared, not
+## copied), once a step, as the two forecast lines' 360 steps a frame need it
+## (MapPerfTest holds that frame to a budget, the `_s_pos` cache above).
+var _sp_at := PackedVector2Array()
+var _sv_at := PackedVector2Array()
+var _sp_buf := PackedVector2Array()
+var _sv_buf := PackedVector2Array()
+func _stars_at(t: float) -> bool:
+	if L.pair_n == 0.0 or t == 0.0:
+		_sp_at = _s_pos
+		return false
+	var a := L.pair_ph + L.pair_n * t
+	var u := Vector2(cos(a), sin(a))
+	var ut := Vector2(-u.y, u.x)
+	if _sp_buf.size() != _stars.size():
+		_sp_buf = PackedVector2Array()
+		_sv_buf = PackedVector2Array()
+		_sp_buf.resize(_stars.size())
+		_sv_buf.resize(_stars.size())
+	for si in _stars.size():
+		_sp_buf[si] = L.bary + u * _s_r[si]
+		_sv_buf[si] = ut * (_s_r[si] * L.pair_n)
+	_sp_at = _sp_buf
+	_sv_at = _sv_buf
+	return true
+
+
+## THE SETTLE'S CENTRE WHERE IT IS AT t, and how fast it moves: round a sun of
+## a turning pair it rides with that sun (`cen_id`, read again every step: a
+## fixed point there was left behind at up to 1.1 px/s, and the ship's circle
+## with it); the balance point and one sun hold still. Reads `_sp_at`/`_sv_at`
+## as `_stars_at` left them for this t (`moving` its answer).
+func _follow(st: FreeState, moving: bool) -> Vector2:
+	if not moving or not SystemLayout.is_star(st.cen_id):
+		return Vector2.ZERO
+	var ci := 0 if st.cen_id == -1 else 1
+	st.cen = _sp_at[ci]
+	return _sv_at[ci]
+
+
+## How fast a settle's centre `id` moves at t (`_follow`'s, for one moment):
+## a sun of a turning pair's, else nought.
+func _cen_vel(id: int, t: float) -> Vector2:
+	if not L.twin or not SystemLayout.is_star(id):
+		return Vector2.ZERO
+	return L.star_vel(id, t)
 
 
 ## STAR p'S CLOSE ORBIT (the rail), its capture ring and its keep-clear: the
@@ -524,16 +584,19 @@ static func star_pace(r: float, share := 1.0) -> float:
 ## whichever star's or world's ring it came to, 18 of 18 times; and let go out
 ## on the far side from star B its circle ran up to 337 px past the map's edge,
 ## the ship pinned on the edge burning for minutes (the flight review, Oct 31).
-func _settle_centre(st: FreeState) -> void:
+## THE PAIR AS IT STANDS AT t (ruling 23: it turns): each sun's distance and
+## zone measured from where that sun is then, the circle round both from the
+## balance point, which holds still. Settled round a sun, the centre then rides
+## with it (`_follow`, every step).
+func _settle_centre(st: FreeState, t: float) -> void:
 	st.r_want = -1.0
 	if not L.twin:
 		st.cen = Vector2.ZERO
 		st.cen_id = -1
 		st.cen_share = 1.0
 		return
-	# ORBIT:flight the settle reads the suns at t 0: it needs the step's t (star A is not at the origin once the pair turns), and a settle round one sun must ride with it (velocity relative to the moving sun)
-	var da := st.p.length()
-	var db := (st.p - L.star_pos(SystemLayout.STAR_B, 0.0)).length()
+	var da := (st.p - L.star_pos(-1, t)).length()
+	var db := (st.p - L.star_pos(SystemLayout.STAR_B, t)).length()
 	var za := _zone(-1)
 	var zb := _zone(SystemLayout.STAR_B)
 	var near := -1 if da - za <= db - zb else SystemLayout.STAR_B
@@ -541,14 +604,14 @@ func _settle_centre(st: FreeState) -> void:
 	var zn := za if near == -1 else zb
 	if da < za or db < zb:
 		near = -1 if da < za else SystemLayout.STAR_B
-		_round_star(st, near, -1.0)
+		_round_star(st, near, -1.0, t)
 		return
 	var r := (st.p - L.bary).length()
 	var r_out := _bary_out()
 	if r < r_out and dn - zn < r_out - r:
 		# (inside the pair: the nearer zone's edge is the shorter way, out past
 		# the ring of the world round that star where it crosses it)
-		_round_star(st, near, _clear_round(near, maxf(zn, star_ring(near) + STAR_ORBIT_GAP)))
+		_round_star(st, near, _clear_round(near, maxf(zn, star_ring(near) + STAR_ORBIT_GAP)), t)
 		return
 	st.cen = L.bary
 	st.cen_id = -9
@@ -557,10 +620,10 @@ func _settle_centre(st: FreeState) -> void:
 	st.r_want = rw if absf(rw - r) > 0.01 else -1.0
 
 
-## Settled round star p of a twin, at radius r_want (-1: where it is).
-func _round_star(st: FreeState, p: int, r_want: float) -> void:
-	# ORBIT:flight `st.cen` is a fixed Vector2: round a turning sun it must follow the sun (by `cen_id`, read at the step's t)
-	st.cen = L.star_pos(p, 0.0)
+## Settled round star p of a twin, at radius r_want (-1: where it is): round
+## where the star is at t, and from then on where it is each step (`_follow`).
+func _round_star(st: FreeState, p: int, r_want: float, t: float) -> void:
+	st.cen = L.star_pos(p, t)
 	st.cen_id = p
 	st.cen_share = L.star_share if p == -1 else 1.0 - L.star_share
 	st.r_want = r_want
@@ -1263,9 +1326,11 @@ func capture_ahead(st: FreeState, t: float) -> bool:
 		var tau := float(j) * 0.1
 		var p := st.p + st.v * tau
 		for s in _stars:
-			# (where the star is then: a turning pair's moves)
+			# (where the star is then, and the ship's motion against its own: a
+			# turning pair's suns move, as `free_step`'s close rings take it)
 			var qa := p - L.star_pos(s, t + tau)
-			if no_cap != s and qa.length() < star_ring(s) and st.v.length() < CAPTURE and _star_takes(s, st.v, qa / maxf(qa.length(), 0.001)):
+			var va := st.v - L.star_vel(s, t + tau)
+			if no_cap != s and qa.length() < star_ring(s) and va.length() < CAPTURE and _star_takes(s, va, qa / maxf(qa.length(), 0.001)):
 				return true
 		for b in L.bodies:
 			if b.index == no_cap:
@@ -1300,12 +1365,17 @@ func arrival_r(r0: float) -> float:
 		for s in _stars:
 			lo = maxf(lo, (L.star_pos(s, 0.0) - c).length() + star_ring(s) + 40.0)
 		hi = L.edge - c.length() - SystemLayout.ARRIVE_IN
+	# (what circles c by its host's id: with one sun everything does; in a twin
+	# what circles both. A world round one sun of a turning pair sweeps a band
+	# round the balance point at its sun's distance from it, which the turn does
+	# not change, so that distance is read at t 0, `host0`)
+	var twin := L.twin
 	var clear := func(r: float) -> bool:
 		for b in L.bodies:
 			var reach: float = SystemLayout.arrive_reach(b)
 			if reach <= 0.0:
 				continue
-			if b.host0 == c:
+			if not twin or b.host_id == -9:
 				if absf(r - b.orbit) < reach:
 					return false
 			else:
@@ -1358,10 +1428,20 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 			st.v *= maxf(VMAX, n - THRUST * 2.0 * dt) / n
 	if k.s:
 		st.v *= exp(-BRAKE * dt)
+	# THE STARS WHERE THEY ARE AT t (`_stars_at`; a turning pair's move), and the
+	# settle's centre with them
+	if _s_pos.size() != _stars.size():
+		_cache_stars()
+	var moving := _stars_at(t)
+	var cv := _follow(st, moving)
 	# COASTING SETTLES ONTO THE STAR (it used to drag to a stop): the nose turns
 	# for SETTLE_TURN, then a burn eases in, at most SETTLE_A. Round the star, or
 	# in a twin round the nearer star or both (`_settle_centre`), chosen as the
-	# coast starts
+	# coast starts. ROUND A SUN OF A TURNING PAIR all of it is in that sun's own
+	# frame: the ship's motion against the sun's (`cv`, nought for one sun and
+	# round both, so those move to the bit as they did), and the sun's carried
+	# on top, so a ship settled round star B rides round the balance point with
+	# it and keeps its radius (a fixed centre left it at up to 1.1 px/s)
 	st.acc = Vector2.ZERO
 	if k.w or k.s:
 		st.coast = 0.0
@@ -1373,24 +1453,29 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 		st.aim = Vector2.ZERO
 	else:
 		if st.coast == 0.0:
-			_settle_centre(st)
+			_settle_centre(st, t)
+			cv = _follow(st, moving)
 			# the way round it is already going, unless it is hardly going round
 			var q0 := st.p - st.cen
-			var tang := (q0.x * st.v.y - q0.y * st.v.x) / maxf(q0.length(), 1.0)
+			var v0 := st.v - cv
+			var tang := (q0.x * v0.y - q0.y * v0.x) / maxf(q0.length(), 1.0)
 			st.sense = signf(tang) if absf(tang) > 20.0 else 1.0
 		st.coast += dt
-		var tv := star_orbit_v(st.p, st.orbit_r if st.orbit_r > 0.0 else st.r_want, st.sense, st.cen, st.cen_share)
+		# (the orbit's motion against the centre, then as the map sees it)
+		var tvr := star_orbit_v(st.p, st.orbit_r if st.orbit_r > 0.0 else st.r_want, st.sense, st.cen, st.cen_share)
+		var tv := tvr + cv
+		var vr0 := st.v - cv
 		var dv := tv - st.v
 		var ramp := smoothstep(SETTLE_TURN, SETTLE_TURN + SETTLE_RAMP, st.coast)
-		var turn_by := st.v.angle_to(tv)
-		if st.v.length() > 10.0 and absf(turn_by) > 0.5:
+		var turn_by := vr0.angle_to(tvr)
+		if vr0.length() > 10.0 and absf(turn_by) > 0.5:
 			# GOING THE OTHER WAY: the motion swings round toward the orbit's at
 			# speed (a turn you can see), not braked through nought and reversed
-			var spd := st.v.length()
+			var spd := vr0.length()
 			var rot := clampf(turn_by, -SETTLE_W * dt, SETTLE_W * dt) * ramp
-			var nspd := move_toward(spd, maxf(tv.length(), 20.0), SETTLE_A * 0.5 * dt * ramp)
-			var nv := st.v.rotated(rot).normalized() * nspd
-			st.aim = st.v.rotated(signf(turn_by) * PI / 2.0).normalized() * SETTLE_A
+			var nspd := move_toward(spd, maxf(tvr.length(), 20.0), SETTLE_A * 0.5 * dt * ramp)
+			var nv := vr0.rotated(rot).normalized() * nspd + cv
+			st.aim = vr0.rotated(signf(turn_by) * PI / 2.0).normalized() * SETTLE_A
 			st.acc = (nv - st.v) / dt
 			st.v = nv
 		else:
@@ -1404,7 +1489,7 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 			# settling. Toward the settle's centre (a twin's other star, or both)
 			var q := st.p - st.cen
 			var r0 := maxf(q.length(), 1.0)
-			var pull := -q / r0 * tv.length_squared() / r0 * ramp
+			var pull := -q / r0 * tvr.length_squared() / r0 * ramp
 			st.v += (st.acc + pull) * dt
 		# (brought onto a radius of its own, `_settle_centre`: settled once it is
 		# on it, not while it rides the pull in at its pace, which is a flight's
@@ -1417,18 +1502,21 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 		st.no_cap_left -= dt
 	var no_cap := st.no_cap_body if st.no_cap_left > 0.0 else -9
 	var sp := st.v.length()
+	var vs0 := st.v
 	# EACH STAR IS A SOFT BUMPER: inside it, the inward part of your motion is
 	# turned sideways (speed kept) and a little push goes out -- unless you are
-	# slow enough for its close ring, which takes you instead
-	if _s_pos.size() != _stars.size():
-		_cache_stars()
+	# slow enough for its close ring, which takes you instead. All of it against
+	# the star's own motion (a turning pair's: `sv`, nought for a still one, so
+	# one sun moves to the bit as it did), as its close ring takes the ship
 	for si in _stars.size():
 		var s := _stars[si]
-		var qs := st.p - _s_pos[si]
+		var qs := st.p - _sp_at[si]
 		var r := qs.length()
 		var rh := qs / r if r > 0.001 else Vector2.RIGHT
 		var bm := _s_bump[si]
-		if r < bm and not (no_cap != s and sp < CAPTURE + (STICKY if stick == s else 0.0) and not k.w and _star_takes(s, st.v, rh)):
+		var sv := _sv_at[si] if moving else Vector2.ZERO
+		var spr := (vs0 - sv).length() if moving else sp
+		if r < bm and not (no_cap != s and spr < CAPTURE + (STICKY if stick == s else 0.0) and not k.w and _star_takes(s, st.v - sv, rh)):
 			var kk := (bm - r) / bm
 			var turn := 10.0
 			if L.twin:
@@ -1440,12 +1528,14 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 				# flight review, Oct 31)
 				kk = clampf((bm - r) / maxf(bm - _s_keep[si], 1.0), 0.0, 1.0)
 				turn = TWIN_TURN
-			var vr := st.v.dot(rh)
+			var rv := st.v - sv
+			var vr := rv.dot(rh)
 			if vr < 0.0:
-				st.v -= rh * minf(1.0, kk * turn * dt) * vr
-				var nn := st.v.length()
+				rv -= rh * minf(1.0, kk * turn * dt) * vr
+				var nn := rv.length()
 				if nn > 0.01:
-					st.v *= sp / nn
+					rv *= spr / nn
+				st.v = rv + sv
 			st.v += rh * 40.0 * kk * dt
 			st.bumped = true
 	for b in L.bodies:
@@ -1462,6 +1552,17 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 				st.v -= nrm * vr2 * 1.2
 			st.bumped = true
 	st.p += st.v * dt
+	# THE MAP'S EDGE, round the origin: the circle the layout measures the edge
+	# on (`SystemLayout._past_the_edge`, from star A's place at t 0) and the
+	# fabric is drawn out to. It stays there as the pair turns: the balance
+	# point holds still, and every circle round it and round each sun stays
+	# inside this one at every angle of the pair (the layout's promise), so a
+	# circle round the balance point, the arrival orbit (`arrival_r`) and the
+	# widest settle (`_bary_in`) among them, is clear of it at every t. Round
+	# the balance point, as the review of the plan asked, the ship would either
+	# stop short of the drawn edge on one side by up to twice the balance
+	# point's distance from star A (about 300 px in a wide pair), or fly past it
+	# on the other.
 	var rr := st.p.length()
 	if rr > L.edge:
 		st.p *= L.edge / rr
@@ -1472,16 +1573,17 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 		# (out of each star's disc, as drawn at its least; a twin's out of its
 		# keep-out, 6 px outside its sun as drawn at the opening zoom, sliding
 		# round it, and the line the same: star_r + 8 was half way into a twin's
-		# drawn sun)
+		# drawn sun; the motion turned is the ship's against a turning sun's)
 		for s2 in _stars.size():
-			var sc2 := _s_pos[s2]
+			var sc2 := _sp_at[s2]
 			var q2 := st.p - sc2
 			var r2 := q2.length()
 			var rd := _s_hold[s2]
 			if r2 < rd and r2 > 0.001:
 				st.p = sc2 + q2 / r2 * rd
 				if L.twin:
-					var vr4 := st.v.dot(q2 / r2)
+					var sv2 := _sv_at[s2] if moving else Vector2.ZERO
+					var vr4 := (st.v - sv2).dot(q2 / r2)
 					if vr4 < 0.0:
 						st.v -= q2 / r2 * vr4
 	if k.w:
@@ -1517,12 +1619,15 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 					return fast
 	for si3 in _stars.size():
 		var s3 := _stars[si3]
-		var rs := st.p - _s_pos[si3]
+		var rs := st.p - _sp_at[si3]
 		if no_cap != s3 and rs.length() < _s_ring[si3]:
-			if not _star_takes(s3, st.v, rs / maxf(rs.length(), 0.001)):
+			# (the motion against the star's, as a world's ring takes it: the rail
+			# then rides round with a turning sun, `center`)
+			var rvs := st.v - (_sv_at[si3] if moving else Vector2.ZERO)
+			if not _star_takes(s3, rvs, rs / maxf(rs.length(), 0.001)):
 				continue
-			if st.v.length() < CAPTURE + (STICKY if stick == s3 else 0.0):
-				var tk2 := {"kind": &"rail", "body": s3, "rel": rs, "rv": st.v, "at": st.p}
+			if rvs.length() < CAPTURE + (STICKY if stick == s3 else 0.0):
+				var tk2 := {"kind": &"rail", "body": s3, "rel": rs, "rv": rvs, "at": st.p}
 				if capture_by_index:
 					return tk2
 				if take_d > -1.0 and (s3 == stick or rs.length() < take_d):
@@ -1788,8 +1893,18 @@ func _dep_of(t: float, ahead := 0.0) -> Dictionary:
 				var q := f.p - f.cen
 				var rt2 := f.orbit_r
 				var w2 := f.sense * star_pace(rt2, f.cen_share) / rt2
-				# ORBIT:flight `_dep_of`: a settle round one sun of a turning pair passes its `host` (f.cen_id) so the planner rides the sun (proto `_place_circle`)
-				return {"kind": &"ring", "place": -9, "c": f.cen, "rt": rt2, "ang": atan2(q.y, q.x) + w2 * ahead, "w": w2}
+				var d := {"kind": &"ring", "place": -9, "c": f.cen, "rt": rt2, "ang": atan2(q.y, q.x) + w2 * ahead, "w": w2}
+				# ROUND ONE SUN OF A PAIR, which sun (`host`, the place id): the
+				# planner rides the circle round that sun where it is at each
+				# moment (FlightSolve's -9 with a host, as its star's close orbit
+				# rides it), `c` then where the sun is at the plan's moment (a
+				# circle round a fixed point there is right at that moment, and only
+				# a sun's own motion, about 1 px/s, off it after). The balance point
+				# and one sun hold still: no host, a fixed centre as before
+				if L.twin and SystemLayout.is_star(f.cen_id):
+					d["host"] = f.cen_id
+					d["c"] = L.star_pos(f.cen_id, t + ahead)
+				return d
 			return {"kind": &"free", "p": f.p, "v": f.v}
 		&"warp":
 			return {"kind": &"free", "p": f.p, "v": Vector2.ZERO}
@@ -1928,8 +2043,14 @@ func _takeable(pl: FlightPlan, t: float) -> Dictionary:
 			var w := float(d.w)
 			var rt := float(d.rt)
 			if p == -9:
-				# ORBIT:flight `_takeable` compares the settle centre as a Vector2: round a moving sun compare `cen_id` (DESIGN step 4, high risk: else a preview round a moving sun is replanned every frame)
-				if mode != &"free" or not star_orbiting() or f.cen != (d.c as Vector2) or f.orbit_r != rt or not _pend_free_ok(w):
+				# (round the same centre: round a sun of a pair by which sun it is
+				# (`_dep_of`'s host), since a turning one is somewhere else every
+				# frame and the preview round it was thrown out and planned again
+				# each one; round the balance point or one sun, the very point. The
+				# ride is then measured round the centre where it is now, in its
+				# own frame, as the plan's departure angle is)
+				var same_c: bool = (f.cen_id == int(d.host)) if d.has("host") else (f.cen == (d.c as Vector2))
+				if mode != &"free" or not star_orbiting() or not same_c or f.orbit_r != rt or not _pend_free_ok(w):
 					return {}
 				var q := f.p - f.cen
 				a = atan2(q.y, q.x)
@@ -2058,6 +2179,13 @@ func _with_ride(pl: FlightPlan, rd: Dictionary, t: float) -> FlightPlan:
 	out.lead_k = 1.0
 	out.t0 = pl.t0 - float(n) * SAMPLE
 	var c: Vector2 = pl.dep.c
+	# (round a sun of a turning pair, round where that sun is at each sample's
+	# moment, as the ship settled round it rides and the planner flies it:
+	# `_dep_of`'s host)
+	var hs := int(pl.dep.get("host", -9))
+	var carried := SystemLayout.is_star(hs) and L.pair_n != 0.0
+	if carried:
+		c = f.cen
 	var rt := float(pl.dep.rt)
 	var w := float(rd.w)
 	var k := float(rd.k)
@@ -2073,6 +2201,8 @@ func _with_ride(pl: FlightPlan, rd: Dictionary, t: float) -> FlightPlan:
 			a = a0 + w * (tau + (k - 1.0) * (tau / 2.0 - T / (4.0 * PI) * sin(TAU * tau / T)))
 		var e := smoothstep(0.0, 1.0, clampf(tau / maxf(T, 0.001), 0.0, 1.0))
 		var r := r0 + (rt - r0) * e
+		if carried:
+			c = L.star_pos(hs, out.t0 + float(j) * SAMPLE)
 		samp.append(Vector3(c.x + cos(a) * r, 0.0, c.y + sin(a) * r))
 		var at := w * (k - 1.0) * PI / T * sin(TAU * tau / T) * rt if tau > 0.0 else 0.0
 		lit.append(1 if absf(at) > 4.0 else 0)
@@ -2313,6 +2443,7 @@ func _snapshot(t: float, ts: float) -> RefCounted:
 	s._s_keep = _s_keep
 	s._s_ring = _s_ring
 	s._s_hold = _s_hold
+	s._s_r = _s_r
 	s.edge_at = edge_at
 	s._grav_v = _grav_v
 	s._grav_n = _grav_n
@@ -2342,12 +2473,19 @@ func _snapshot(t: float, ts: float) -> RefCounted:
 		s.f.p = _flat(c2) + off
 		s.f.v = _flat(center_vel(int(keep.body), ts))
 	elif star_orbiting():
-		# ORBIT:flight `_snapshot` carries a settle round a fixed `f.cen`: round a turning sun, carry the sun's motion over dt too
+		# (round its centre as it will be then: a sun of a turning pair carried
+		# on dt with the ship round it, its motion on top of the circle's)
 		var q := f.p - f.cen
 		var w2 := f.sense * star_pace(f.orbit_r, f.cen_share) / f.orbit_r
 		var a2 := atan2(q.y, q.x) + w2 * dt
-		s.f.p = f.cen + Vector2(cos(a2), sin(a2)) * f.orbit_r
-		s.f.v = star_orbit_v(s.f.p, f.orbit_r, f.sense, f.cen, f.cen_share)
+		var c2 := f.cen
+		var cv2 := Vector2.ZERO
+		if L.twin and SystemLayout.is_star(f.cen_id) and L.pair_n != 0.0:
+			c2 = L.star_pos(f.cen_id, ts)
+			cv2 = L.star_vel(f.cen_id, ts)
+			s.f.cen = c2
+		s.f.p = c2 + Vector2(cos(a2), sin(a2)) * f.orbit_r
+		s.f.v = star_orbit_v(s.f.p, f.orbit_r, f.sense, c2, f.cen_share) + cv2
 	return s
 
 
@@ -2550,21 +2688,24 @@ func _poll_jobs(t: float) -> void:
 	_fly_plan(pl, rd, t, d)
 
 
-## A SHIP PUT ON A SETTLED STAR ORBIT AT p (a harness): round what letting go
-## there settles round (`_settle_centre`), at its radius, its pace, the way
-## `sense` says, as if it had settled there.
-func settle_at(p: Vector2, sense := 1.0) -> void:
+## A SHIP PUT ON A SETTLED STAR ORBIT AT p AT MAP TIME t (a harness): round
+## what letting go there then settles round (`_settle_centre`: a turning pair's
+## suns where they are at t), at its radius, its pace, the way `sense` says, as
+## if it had settled there, moving with its centre round a sun of a turning
+## pair. t comes first and has no default, so a call from before the pair
+## turned fails rather than settling round where a sun was at t 0.
+func settle_at(t: float, p: Vector2, sense := 1.0) -> void:
 	mode = &"free"
 	rail = {}
 	keep = {}
 	f.p = p
 	f.v = Vector2.ZERO
-	_settle_centre(f)
+	_settle_centre(f, t)
 	if f.r_want > 0.0:
 		f.p = f.cen + (p - f.cen).normalized() * f.r_want
 	f.orbit_r = (f.p - f.cen).length()
 	f.sense = sense
-	f.v = star_orbit_v(f.p, f.orbit_r, sense, f.cen, f.cen_share)
+	f.v = star_orbit_v(f.p, f.orbit_r, sense, f.cen, f.cen_share) + _cen_vel(f.cen_id, t)
 	# (settled: the next step keeps this centre and does not choose again)
 	f.coast = SETTLE_TURN + SETTLE_RAMP + 0.01
 	f.head = _scr_ang(f.v)
@@ -2583,7 +2724,16 @@ func settle_at(p: Vector2, sense := 1.0) -> void:
 ## that ran through star A's keep-out, and every flight from there planned off
 ## that circle, up to 818 px from the ship (the seams and saves reviews, Oct
 ## 31; one sun the same, r 300 back at 223).
-func restore_free(p: Vector2, v: Vector2, head: float, cen_id := -99, r := -1.0, sense := 0.0) -> void:
+## AT MAP TIME t (ruling 23: the pair turns), the map's clock as it shows the
+## system again (`Run.map_clock`, kept with the ship, so p means what it meant):
+## round a sun, round where that sun is then, and following it after
+## (`_follow`). Put back round a sun of a turning pair it is put on its circle
+## round where that sun is, on the line from the sun to where it was: a clock
+## that ran on without the ship (a map built ahead and dropped, `ZoomLadder`)
+## had moved the sun on up to about 1 px a second, and the ship would have come
+## back off its orbit by that much. t comes first, with no default, so a call
+## from before the pair turned fails.
+func restore_free(t: float, p: Vector2, v: Vector2, head: float, cen_id := -99, r := -1.0, sense := 0.0) -> void:
 	_drop_flight()
 	mode = &"free"
 	rail = {}
@@ -2598,12 +2748,14 @@ func restore_free(p: Vector2, v: Vector2, head: float, cen_id := -99, r := -1.0,
 	var known := cen_id == -1 or (L.twin and (cen_id == SystemLayout.STAR_B or cen_id == -9))
 	if r > 0.0 and known:
 		f.cen_id = cen_id
-		# ORBIT:flight put back round a sun of a turning pair: its centre at the map's t when restored (restore_free has no t; `_restore_ship` knows view.t), and kept following the sun after
-		f.cen = L.bary if cen_id == -9 else L.star_pos(cen_id, 0.0)
+		f.cen = L.bary if cen_id == -9 else L.star_pos(cen_id, t)
 		f.cen_share = 1.0 if (not L.twin or cen_id == -9) else (L.star_share if cen_id == -1 else 1.0 - L.star_share)
 		f.orbit_r = r
 		f.sense = sense if sense != 0.0 else 1.0
-		f.v = star_orbit_v(f.p, f.orbit_r, f.sense, f.cen, f.cen_share)
+		var cv := _cen_vel(cen_id, t)
+		if cv != Vector2.ZERO and (p - f.cen).length() > 0.001:
+			f.p = f.cen + (p - f.cen).normalized() * r
+		f.v = star_orbit_v(f.p, f.orbit_r, f.sense, f.cen, f.cen_share) + cv
 		# (settled: the next step keeps this centre and does not choose again)
 		f.coast = SETTLE_TURN + SETTLE_RAMP + 0.01
 	else:
