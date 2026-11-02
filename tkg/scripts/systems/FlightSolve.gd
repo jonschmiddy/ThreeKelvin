@@ -1167,8 +1167,9 @@ func _fly(ux: float, uz: float, has_fix: bool, a_fix: float) -> float:
 	var t0 := Time.get_ticks_usec()
 	_integrate(_e_td, _e_x0, _e_z0, _e_vx0, _e_vz0, _e_dvx, _e_dvz, t_now + _tcap)
 	var t1 := Time.get_ticks_usec()
-	# (a departure burn that swings the ship round a point is not flown: `V_CUSP`)
-	if not ((_dk == 0 or _leg == 2) and _departure_cusps()):
+	# (a departure burn that swings the ship round a point is not flown: `V_CUSP`;
+	# nor, in a twin, an eased one the map would draw as a hook, `_burn_tight`)
+	if not ((_dk == 0 or _leg == 2) and _departure_cusps()) and not (_ease and _twin and _burn_tight()):
 		_tight_t = _coast_tight()
 		_price()
 	_us_int += t1 - t0
@@ -1230,7 +1231,29 @@ func _coast_tight() -> float:
 	var k := 0
 	while k < _cn - 1 and _cT[k] < _tc0 - 1e-9:
 		k += 1
-	while k < _cn - 1:
+	return _tight_in(k, _cn - 1)
+
+
+## WHETHER THE EASED DEPARTURE BURN JUST FLOWN TURNS TIGHTER THAN THE MAP CAN
+## DRAW (DRAW_K at zoom 1, as the coast and the arrival are held to): the one
+## part of a flight with no such check. Out of a settled orbit round a close
+## pair's balance point to star A's close orbit, a burn that dipped to 5.8 px/s,
+## over the cusp test's 5.5, bent round 4 px and drew 20 deg a px (FlightTest,
+## seed 4242 system 208, Nov 2); found without it, 14.55 s against 8.16, bent
+## round 20.7 px. Only in a twin: one sun's flights stay as they were.
+func _burn_tight() -> bool:
+	if _cn < 2:
+		return false
+	var k := 0
+	while k < _cn - 1 and _cT[k] < _tc0 - 1e-9:
+		k += 1
+	return _tight_in(0, k) < INF
+
+
+## Where the coast's nodes k to kend first turn tighter than DRAW_K, or INF (see
+## `_coast_tight`).
+func _tight_in(k: int, kend: int) -> float:
+	while k < kend:
 		var h := _cT[k + 1] - _cT[k]
 		if h > 1e-9:
 			var dvx := _cVX[k + 1] - _cVX[k]
