@@ -384,6 +384,25 @@ func _turn_report() -> void:
 		print("  turn: %s: %.4f to %.4f (%d)" % [k, float(e[0]), float(e[1]), int(e[2])])
 	_ok("the pair turns: Kepler x %.0f, rigid at %d angles a lap, MapGravity with it, one sun still" % [SystemLayout.pair_speed(), TURN_STEPS],
 		_turn_st.has("one sun: still at every t") and (SystemLayout.pair_speed() <= 0.0 or _turn_st.has("wide pair: a lap, minutes")))
+	# THE RULED SPEED ITSELF (ruling 23, "speed:A"): four times Kepler, a wide
+	# pair's lap 19 to 25 minutes and a close pair's 6 to 7 (the ruling's
+	# rounding of 6.1 to 7.4: close pairs lie 150 to 170 px apart). Every rate
+	# check above is against `pair_speed()`, which reads PAIR_K, so a changed
+	# PAIR_K passed them all, and 0 skipped them (review 2). Only a harness's
+	# `pair=` on the command line may ask for another speed
+	var asked := false
+	for a in OS.get_cmdline_user_args():
+		asked = asked or (a as String).begins_with("pair=")
+	if not asked:
+		var wide: Array = _turn_st.get("wide pair: a lap, minutes", [])
+		var close: Array = _turn_st.get("close pair: a lap, minutes", [])
+		_ok("the ruled speed: PAIR_K 4 (%.2f), wide pairs lap in 19 to 25 min (%s), close pairs in 6 to 7.5 (%s)" % [
+			SystemLayout.PAIR_K,
+			"none seen" if wide.is_empty() else "%.2f to %.2f" % [float(wide[0]), float(wide[1])],
+			"none seen" if close.is_empty() else "%.2f to %.2f" % [float(close[0]), float(close[1])]],
+			SystemLayout.PAIR_K == 4.0 and SystemLayout.pair_speed() == 4.0
+				and not wide.is_empty() and float(wide[0]) >= 19.0 and float(wide[1]) <= 25.0
+				and not close.is_empty() and float(close[0]) >= 6.0 and float(close[1]) <= 7.5)
 
 
 ## Least / median / most of a list, for a line.
