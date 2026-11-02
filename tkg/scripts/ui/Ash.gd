@@ -1581,11 +1581,13 @@ static func covers(cur: Control, r: Rect2) -> String:
 		for b in L.bodies:
 			if b.orbit <= 0.0:
 				continue
-			# (round each body's own centre, `Body.host`: star A at the origin, or
-			# in a pair star B or the balance point)
+			# (round each body's own centre where it is at the map's t, `Body.host_at`:
+			# star A at the origin, or in a pair star B or the balance point; `o` is
+			# the plane's origin on screen)
+			var bh: Vector2 = b.host_at(float(v.t))
 			for k in 180:
 				var a := TAU * float(k) / 180.0
-				var p: Vector2 = g * (o + Vector2(b.host.x + cos(a) * b.orbit, (b.host.y + sin(a) * b.orbit) * tilt) * v.zoom)
+				var p: Vector2 = g * (o + Vector2(bh.x + cos(a) * b.orbit, (bh.y + sin(a) * b.orbit) * tilt) * v.zoom)
 				if r.grow(1.0).has_point(p):
 					return "an orbit"
 		return ""

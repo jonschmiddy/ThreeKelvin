@@ -266,7 +266,7 @@ func _ready() -> void:
 	var Lt := SystemLayout.of(n)
 	if Lt.twin:
 		print("  systemshot: two suns at node %d: star B at (%.0f, %.0f), %.0f px apart, r %.1f against 16, star A's share %.3f, fit zoom %.3f" % [n.index,
-			Lt.star2_at.x, Lt.star2_at.y, Lt.sep, Lt.star2_r, Lt.star_share, Lt.fit_zoom])
+			Lt.star2_at0.x, Lt.star2_at0.y, Lt.sep, Lt.star2_r, Lt.star_share, Lt.fit_zoom])
 	for bt in Lt.bodies:
 		if bt.kind == &"giant":
 			print("  systemshot: giant %s weighs %.3f of its star%s" % [bt.name, bt.gm_frac, "s" if Lt.twin else ""])
@@ -442,7 +442,7 @@ func _ready() -> void:
 			scr.view.zoom = zoom
 			scr.view.pan = -scr.overlay.place_rel(focus)
 		elif look != "":
-			var sp: Vector2 = scr.view.layout.star2_at if look == "b" else Vector2.ZERO
+			var sp: Vector2 = scr.view.layout.star_pos(SystemLayout.STAR_B if look == "b" else -1, scr.view.t)
 			scr._zoom_to = zoom
 			scr.view.zoom = zoom
 			scr.view.pan = -Vector2(sp.x, sp.y * scr.view.TILT) * zoom

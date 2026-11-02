@@ -271,7 +271,7 @@ static func twin_layout(sep: float, pha: float = 4.584536085992015, phb: float =
 	L.star_r = 16.0
 	L.star2 = SystemLayout.StarKind.ORDINARY
 	L.star2_r = 16.0 * pow((1.0 - share) / share, 0.8)
-	L.star2_at = Vector2(sep, 0.0)
+	L.star2_at0 = Vector2(sep, 0.0)
 	L.star_share = share
 	L.sep = sep
 	L.bary = Vector2((1.0 - share) * sep, 0.0)
@@ -281,7 +281,7 @@ static func twin_layout(sep: float, pha: float = 4.584536085992015, phb: float =
 	var c_orb := 680.0 * k
 	L.edge = maxf(SystemLayout.HI, L.bary.x + c_orb + 9.0) + 30.0
 	var specs := [["a", Vector2.ZERO, -1, a_orb, share, 3.0, 0.0, pha],
-		["b", L.star2_at, SystemLayout.STAR_B, b_orb, 1.0 - share, 3.0, 0.0, phb],
+		["b", L.star2_at0, SystemLayout.STAR_B, b_orb, 1.0 - share, 3.0, 0.0, phb],
 		["c", L.bary, -9, c_orb, 1.0, 9.0, (70.4 / 1.6 - 24.0) / 2.4, phc]]
 	for i in specs.size():
 		var sp: Array = specs[i]
@@ -290,7 +290,7 @@ static func twin_layout(sep: float, pha: float = 4.584536085992015, phb: float =
 		b.world = &"rock"
 		b.index = i
 		b.name = "twin %s" % sp[0]
-		b.host = sp[1]
+		b.host0 = sp[1]
 		b.host_id = sp[2]
 		b.orbit = sp[3]
 		b.period = 800.0 * pow(b.orbit / 100.0, 1.5) / sqrt(float(sp[4]))
@@ -310,6 +310,10 @@ static func twin_layout(sep: float, pha: float = 4.584536085992015, phb: float =
 	# (the layout's ring, where this tree's SystemLayout has one)
 	if &"_ring" in L:
 		L.set(&"_ring", ring)
+	# THE PAIR TURNS as a laid-out one does (ruling 23), its worlds round one
+	# sun carried and sped with it
+	# ORBIT:solver the hand-built pair now turns at `pair_speed` (its worlds round one sun at Kepler x 4): the SolveTest twin baselines move; sweep the pair's phase (review: 8 angles a lap)
+	SystemLayout.spin_pair(L)
 	return L
 
 
@@ -437,9 +441,12 @@ static func centre(L: SystemLayout, p: int, t: float) -> PackedFloat64Array:
 		var at := b.point3(t)
 		var a := b.phase + t / b.period * TAU
 		var n := TAU / b.period
-		return PackedFloat64Array([at.x, at.z, -b.orbit * n * sin(a), b.orbit * n * cos(a)])
-	var sp := L.star_pos(p)
-	return PackedFloat64Array([sp.x, sp.y, 0.0, 0.0])
+		# (a world round one sun of a turning pair is carried with it)
+		var hv := b.host_vel(t)
+		return PackedFloat64Array([at.x, at.z, -b.orbit * n * sin(a) + hv.x, b.orbit * n * cos(a) + hv.y])
+	var sp := L.star_pos(p, t)
+	var sv := L.star_vel(p, t)
+	return PackedFloat64Array([sp.x, sp.y, sv.x, sv.y])
 
 
 ## The centre and motion of the ring a case leaves from: its place's, or a

@@ -921,7 +921,8 @@ func _bubble_r() -> float:
 		# bands of distance from that sun each body sweeps, `SystemView.bubble_gap`;
 		# measured from star A while drawn round B, its wall could run through
 		# the band's worlds)
-		return SystemViewS.bubble_gap(layout, want, layout.star_pos(_lit)) * _s
+		# (at t 0, as `bubble_gap` measures the bodies: the pair turns rigidly)
+		return SystemViewS.bubble_gap(layout, want, layout.star_pos(_lit, 0.0)) * _s
 	var rs: Array[float] = [0.0]
 	for b in layout.bodies:
 		if b.kind == &"belt":
@@ -1077,7 +1078,9 @@ func _star_rest(p: int) -> Vector2:
 func _sun_at(p: int) -> Vector2:
 	if p != SystemLayout.STAR_B or layout == null or not layout.twin:
 		return _sun
-	var off := Vector2(layout.star2_at.x, layout.star2_at.y * TILT) * _s
+	# ORBIT:local star B on the band at the pair's angle when LOCAL opened: (star_pos(B, tm) - star_pos(-1, tm)) with tm the kept map clock (`Run.map_t`), held for the visit (DESIGN step 6)
+	var b0 := layout.star_pos(SystemLayout.STAR_B, 0.0)
+	var off := Vector2(b0.x, b0.y * TILT) * _s
 	if not layout.close:
 		return _block_round(_sun + off)
 	var need := layout.star_r * star_k_of(-1) + layout.star2_r * star_k_of(SystemLayout.STAR_B) + SUNS_APART
@@ -1363,7 +1366,8 @@ func _step_worlds(o: Vector2) -> void:
 	var star_placed := star == null or layout.star == SystemLayout.StarKind.PULSAR
 	# (star B at its own depth, as the map slots it: `SystemView.step`)
 	var star2_placed := star2 == null
-	var d2: float = layout.star2_at.y
+	# ORBIT:local the band's depth order takes star A at 0 and star B at its t 0 depth: both from the held pair angle (near sun over far, stacked:A), and band worlds at `pos(tm + t)` not LOCAL's own t alone
+	var d2: float = layout.star_pos(SystemLayout.STAR_B, 0.0).y
 	var bp := PackedVector4Array()
 	var from := PackedVector2Array()
 	for i: int in order:
@@ -1738,6 +1742,7 @@ func _situate() -> void:
 		if orbit_target == SystemLayout.STAR_B and not layout.twin:
 			orbit_target = -1
 		if orbit_target >= 0 and orbit_target < layout.bodies.size():
+			# ORBIT:local the ship's world where the map left it: `pos(tm)` at the kept map clock, not t 0
 			p = layout.bodies[orbit_target].pos(0.0)
 			if p.length() < 1.0:
 				p = Vector2(layout.bodies[orbit_target].orbit, 0.0)
@@ -1747,7 +1752,8 @@ func _situate() -> void:
 			p = Vector2(layout.star_rail_of(-1) if layout.twin else float(layout.star_r) + 71.0, 0.0)
 		elif orbit_target == SystemLayout.STAR_B and layout.twin:
 			# STAR B (-4): the ship at B's close orbit is AT a star, as at -1
-			p = layout.star2_at + Vector2(layout.star_rail_of(SystemLayout.STAR_B), 0.0)
+			# ORBIT:local star B where the kept map clock has it (`star_pos(B, tm)`)
+			p = layout.star_pos(SystemLayout.STAR_B, 0.0) + Vector2(layout.star_rail_of(SystemLayout.STAR_B), 0.0)
 		elif StringName(d.get("mode", &"")) == &"free":
 			p = d.get("p", p)
 	if (orbit_target < -1 and not (layout.twin and orbit_target == SystemLayout.STAR_B)) or orbit_target >= layout.bodies.size():
@@ -1761,7 +1767,8 @@ func _situate() -> void:
 		# 350 px from star A but 65 to 100 from its own sun, which lights it and is
 		# drawn the bigger; `orbit_d` is the distance from the sun that lights the
 		# ship's place (`_lit`, the one giving it more light)
-		var d_b := maxf(p.distance_to(layout.star2_at), float(layout.star2_r) + 20.0)
+		# ORBIT:local each sun's distance (and `orbit_d = p.length()` above, star A at the origin) at the kept map clock; hold `_lit` for the visit
+		var d_b := maxf(p.distance_to(layout.star_pos(SystemLayout.STAR_B, 0.0)), float(layout.star2_r) + 20.0)
 		_dk_b = REF_K * (layout.edge + 20.0) / d_b
 		_lit = SystemLayout.STAR_B if SystemViewS.share_b_of(layout, p) > 0.5 else -1
 		if _lit == SystemLayout.STAR_B:

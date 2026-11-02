@@ -225,6 +225,17 @@ func clear_dross(which: StringName) -> bool:
 
 var map: Array = []
 var at: int = 0
+## EACH SYSTEM'S MAP CLOCK, by system index: the map time (`SystemView.t`) its
+## map was last put away at, so it opens there again (ruling 23, Jon, Nov 1:
+## a binary's two suns turn, and a clock that started again at 0 on every
+## visit snapped them back on a Tab to LOCAL and back). It runs only while that
+## map is up. Written where the map keeps the ship
+## (`SystemMapScreen._keep_ship`), read by every map open (`Router.show_system`,
+## `ZoomLadder`), saved (`SaveGame`, VERSION 39), and cleared with a new run
+## (`start_new_run`) and replaced whole by a load. Kept apart from `SystemMapScreen._parked`,
+## which every jump in erases: the suns go on from where they were. A system
+## never opened has none, which is t 0, the layout as laid out.
+var map_clock: Dictionary = {}
 
 var jumps: int = 0
 var kills: int = 0
@@ -498,6 +509,9 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	# stranger again — which is the only shape that does not turn into the
 	# meta-progression `Unlocks` was careful to keep power out of.
 	standing.clear()
+	# (each system's map clock is this run's: kept by system index, a new run's
+	# binary would open its suns where the last run's were left)
+	map_clock.clear()
 	started_at = Time.get_unix_time_from_system()
 	won = false
 	dead = false
@@ -2971,6 +2985,12 @@ func mend_loadout() -> int:
 
 func node_at() -> MapGen.MapNode:
 	return map[at]
+
+
+## System `index`'s map clock (`map_clock`): where its map was put away, 0 for
+## one never opened.
+func map_t(index: int) -> float:
+	return float(map_clock.get(index, 0.0))
 
 ## Where you are, or null when there is nowhere yet.
 ##

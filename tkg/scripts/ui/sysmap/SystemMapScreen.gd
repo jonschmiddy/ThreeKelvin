@@ -389,7 +389,7 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 	await view.show_system(n)
 	last_input_t = Time.get_ticks_msec() / 1000.0
 	zoom_min = _fit_zoom()
-	var ov := open_view(view.layout, view.node, _frame.size if _frame.size.x > 10.0 else SystemLayout.FIT_FRAME)
+	var ov := open_view(view.layout, view.node, _frame.size if _frame.size.x > 10.0 else SystemLayout.FIT_FRAME, t0)
 	open_zoom = float(ov.zoom)
 	var oc: Vector2 = ov.at
 	home_at = Vector2(oc.x, oc.y * view.TILT)
@@ -418,7 +418,7 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 	# YOUR SHIP ON THE PICTURE: a wide pair's framing that would leave it off,
 	# put back out on something that circles both suns, takes it in too, so the
 	# move down from LOCAL ends on it (`calm_rest`) and you can see where you are
-	if view.layout.pair_box().size != Vector2.ZERO:
+	if view.layout.pair_box(t0).size != Vector2.ZERO:
 		var sp := _ship_plane(t0)
 		var fs := _frame.size if _frame.size.x > 10.0 else SystemLayout.FIT_FRAME
 		var on: Vector2 = Vector2(view.CX, view.CY) + view.pan + Vector2(sp.x, sp.y * view.TILT) * open_zoom
@@ -429,7 +429,7 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 		if win.size.x <= SHIP_IN * 2.0 or win.size.y <= SHIP_IN * 2.0:
 			win = Rect2(Vector2(view.CX, view.CY) - fs * 0.5, fs)
 		if not win.grow(-SHIP_IN).has_point(on):
-			var ov2 := open_view(view.layout, n, fs, sp)
+			var ov2 := open_view(view.layout, n, fs, t0, sp)
 			open_zoom = float(ov2.zoom)
 			var oc2: Vector2 = ov2.at
 			home_at = Vector2(oc2.x, oc2.y * view.TILT)
@@ -518,12 +518,15 @@ static func zoom_for(L: SystemLayout, n: MapGen.MapNode, fs: Vector2) -> float:
 ## wheel still goes out to the whole system, and what circles both suns is
 ## marked at the frame's edge until then (`SystemOverlay._draw_edge_marks`). `ship`, the
 ## plane point your ship is at when the map is shown with it put back off that
-## framing (`show_system`): taken in too, with SHIP_PAD round it.
-static func open_view(L: SystemLayout, n: MapGen.MapNode, fs: Vector2, ship := Vector2.INF) -> Dictionary:
+## framing (`show_system`): taken in too, with SHIP_PAD round it. `t`: the map
+## time it opens at (the system's kept clock, `Run.map_clock`), which a turning
+## pair stands at (ruling 23).
+static func open_view(L: SystemLayout, n: MapGen.MapNode, fs: Vector2, t: float, ship := Vector2.INF) -> Dictionary:
 	# (the zoom a float, not a vector's single-precision part: one sun opens at
 	# exactly the zoom it always did)
 	var whole := zoom_for(L, n, fs)
-	var box := L.pair_box()
+	# ORBIT:map the wide pair opens framed on the pair as it stands at t (`pair_box(t)`): decide whether to frame on the balance point or the swept circle instead, and test at several kept clocks (review: the opening framing)
+	var box := L.pair_box(t)
 	if box.size == Vector2.ZERO:
 		return {"at": Vector2.ZERO, "zoom": whole}
 	if ship.is_finite():
@@ -589,6 +592,7 @@ func _report_spot() -> void:
 	var p := Vector2(p3.x, p3.z)
 	# (a world's orbit as the offset from the world; either star's close orbit,
 	# -1 or STAR_B, and open space as they are: neither star moves)
+	# ORBIT:coop the suns move now: send a star's close orbit as an offset from that star, a free spot with its settle host (f.cen_id) and the sender's map t; PROTOCOL 14 (DESIGN step 7, review: -9 spots by settle host)
 	if body >= 0:
 		var c: Vector3 = flight.center(body, view.t)
 		p -= Vector2(c.x, c.z)
@@ -635,6 +639,7 @@ func partner_points() -> Array:
 		else:
 			# (as `_report_spot` sends it: off a world, or as it is in either
 			# star's close orbit or open space)
+			# ORBIT:coop mirror `_report_spot`: add the star's place at this machine's view.t for a star spot, and a settled free spot round its host
 			q = Vector2(float(sp.x), float(sp.z))
 			if body >= 0 and body < view.layout.bodies.size():
 				var c: Vector3 = flight.center(body, view.t)
@@ -668,6 +673,10 @@ func _keep_ship() -> void:
 	# nothing: its system is the last run's)
 	if view.node.index >= Run.map.size() or Run.map[view.node.index] != view.node:
 		return
+	# THE SYSTEM'S MAP CLOCK, kept with the ship (`Run.map_clock`): the map opens
+	# here again, its suns and worlds where they were left, and the ship's spot
+	# (an absolute plane point for a free ship) means what it meant
+	Run.map_clock[view.node.index] = view.t
 	var at := ship_place()
 	# A FLIGHT LEFT ON ITS WAY lands where it was going (`ship_place`), counted
 	# as a flight there as it would have been on arrival, so LOCAL plays its own
@@ -1478,6 +1487,7 @@ func _zoom_down(i: int) -> void:
 	LocalEventDrawer.request(view.node.index, i)
 	# THE ZOOM LADDER makes this move itself, all the way into LOCAL
 	if ZoomLadder.enabled():
+		# ORBIT:map the map's clock (`view.t`) keeps running through the ladder's move while LOCAL holds the angle it was handed (`_keep_ship` writes `Run.map_clock` here): freeze the clock or share one t across both pictures for the move
 		_keep_ship()
 		Router.show_local()
 		return
@@ -1603,6 +1613,7 @@ func ladder_scale() -> float:
 
 ## The star on screen, in the game's picture.
 func _ladder_origin() -> Vector2:
+	# ORBIT:map the zoom ladder anchors on the plane's origin as star A: once the pair turns, anchor on star A's place now (or the balance point for the chart move); `ladder_sun` and the chart's `sun0` read this too (review: the zoom-ladder handovers)
 	return _frame.global_position + _box.position + Vector2(view.CX, view.CY) + view.pan
 
 

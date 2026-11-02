@@ -791,7 +791,8 @@ func _start(fl, L: SystemLayout, kind: String, b: int, t: float, seed: int) -> v
 func _star_gap(fl, L: SystemLayout, p: Vector2) -> float:
 	var g := INF
 	for s in L.stars():
-		g = minf(g, (p - L.star_pos(s)).length() - float(fl.keep_clear(s)))
+		# ORBIT:flight FlightTest reads the suns at t 0 here: give `_star_gap` the moment p is at
+		g = minf(g, (p - L.star_pos(s, 0.0)).length() - float(fl.keep_clear(s)))
 	return g
 
 
@@ -799,7 +800,8 @@ func _star_gap(fl, L: SystemLayout, p: Vector2) -> float:
 ## nearest).
 func _clear_of_stars(fl, L: SystemLayout, p: Vector2) -> Vector2:
 	for s in L.stars():
-		var c := L.star_pos(s)
+		# ORBIT:flight `_clear_of_stars` at t 0: needs the case's t
+		var c := L.star_pos(s, 0.0)
 		var bm: float = float(fl.bumper(s)) + 10.0
 		if (p - c).length() < bm:
 			p = c + (p - c).normalized() * bm if (p - c).length() > 0.01 else c + Vector2(bm, 0.0)
@@ -818,7 +820,7 @@ func _measure(fl, L: SystemLayout, pl, i: int, t: float, from_b: int) -> Diction
 		var tk: float = float(pl.t0) + k * pl.sdt
 		if not (SystemLayout.is_star(i) and (n - k) * pl.sdt < 0.4):
 			for s in L.stars():
-				m.star = minf(m.star, (Vector2(q.x, q.z) - L.star_pos(s)).length() - L.star_radius(s))
+				m.star = minf(m.star, (Vector2(q.x, q.z) - L.star_pos(s, tk)).length() - L.star_radius(s))
 		for b in L.bodies:
 			if b.world == &"":
 				continue
@@ -1038,7 +1040,7 @@ func _captures(L: SystemLayout, seed: int) -> Array:
 			continue
 		var a0 := L.bodies[p0]
 		for b1 in L.bodies:
-			if b1.world == &"" or b1.index == p0 or b1.host != a0.host:
+			if b1.world == &"" or b1.index == p0 or b1.host0 != a0.host0:
 				continue
 			if absf(a0.orbit - b1.orbit) >= b1.soi * 0.9:
 				continue
@@ -1085,7 +1087,8 @@ func _captures(L: SystemLayout, seed: int) -> Array:
 			elif fl.is_keep(b2.index) and Vector2(rel.x, rel.y * 0.38).length() < ShipFlightS.KEEP_R:
 				holds += 1
 		for s2 in L.stars():
-			if (st.p - L.star_pos(s2)).length() < float(fl.star_ring(s2)):
+			# ORBIT:flight `_captures` at t 0: the free state's moment
+			if (st.p - L.star_pos(s2, 0.0)).length() < float(fl.star_ring(s2)):
 				holds += 1
 		n += 1
 		if holds < 2:
@@ -1445,7 +1448,8 @@ func _hand_phase() -> void:
 		seen[key] = true
 		by_kind[kind] = int(by_kind.get(kind, 0)) + 1
 		var t0: float = row[5]
-		var away := -L.star2_at.normalized()
+		# ORBIT:flight `_hand_phase` places its cases off the pair as laid out (t 0); at the row's t0 the pair has turned: star_pos(B, t0) (here and at the two uses below)
+		var away := -L.star2_at0.normalized()
 		var perp := Vector2(-away.y, away.x)
 		# OUT ON THE FAR SIDE
 		var fl = _flight_script.new()
@@ -1497,7 +1501,7 @@ func _hand_phase() -> void:
 			var fm = _flight_script.new()
 			fm.setup(L, Vector2(-L.edge * 0.95, 0.0), t0)
 			fm.mode = &"free"
-			fm.f.p = L.bary + Vector2(-L.star2_at.y, L.star2_at.x).normalized() * r0
+			fm.f.p = L.bary + Vector2(-L.star2_at0.y, L.star2_at0.x).normalized() * r0
 			fm.f.v = Vector2.ZERO
 			fm.f.orbit_r = -1.0
 			fm.f.coast = 0.0
@@ -1520,8 +1524,9 @@ func _hand_phase() -> void:
 				rows.append("between the stars, system %d, %.0f px off: settled at %.1f s, taken by a ring %s (mode %s, %d)" % [int(row[6]), r0, st_at, taken, fm.mode, fm.orbit_body()])
 		# W HELD AT EACH SUN
 		for s: int in L.stars():
-			var sc := L.star_pos(s)
-			var dir := Vector2(-L.star2_at.y, L.star2_at.x).normalized()
+			# ORBIT:flight W held at each sun: the sun where it is at t0, and moving while held
+			var sc := L.star_pos(s, 0.0)
+			var dir := Vector2(-L.star2_at0.y, L.star2_at0.x).normalized()
 			var fw = _flight_script.new()
 			fw.setup(L, Vector2(-L.edge * 0.95, 0.0), t0)
 			fw.mode = &"free"
@@ -1947,7 +1952,8 @@ func _degenerate(fl, L: SystemLayout, pl) -> String:
 		if Vector2(q.x, q.z).length() > L.edge * 1.6:
 			return "off the map"
 		for s in L.stars():
-			if (Vector2(q.x, q.z) - L.star_pos(s)).length() < L.star_radius(s) + 2.0:
+			# ORBIT:flight `_degenerate`: "through a star" with the star where it is at the sample's t
+			if (Vector2(q.x, q.z) - L.star_pos(s, 0.0)).length() < L.star_radius(s) + 2.0:
 				return "through a star"
 	for q2: Vector3 in pl.tail:
 		if is_nan(q2.x) or is_nan(q2.z):
@@ -2091,7 +2097,8 @@ func _gait(fl, L: SystemLayout, pl, path3: PackedVector3Array, i: int, from_b: i
 					near = true
 					if b == i:
 						near_to = true
-		if SystemLayout.is_star(i) and (Vector2(q.x, q.z) - L.star_pos(i)).length() < float(fl.star_ring(i)) + 30.0:
+		# ORBIT:flight `_gait`: the target star where it is at the sample's t
+		if SystemLayout.is_star(i) and (Vector2(q.x, q.z) - L.star_pos(i, 0.0)).length() < float(fl.star_ring(i)) + 30.0:
 			near = true
 			near_to = true
 		# 2: coming in to the place (its arrival, apart); 0: leaving the one it left

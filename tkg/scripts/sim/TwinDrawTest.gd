@@ -330,7 +330,8 @@ func _view_checks(view, at: String) -> void:
 		var own := share if w.host_id == SystemLayout.STAR_B else 1.0 - share
 		_least("light: a world round one star, its own star's share of its light", own, at)
 		_most("light: a world round one star, its own star's share of its light, most", own, at)
-		var toward: Vector2 = (L.star_pos(w.host_id) - p).normalized()
+		# ORBIT:view TwinDrawTest: the world's own sun where it is at view.t, against `toward_light_of`, which still reads the pair at t 0 (fails once the pair has turned until the light helpers take the posed pair)
+		var toward: Vector2 = (L.star_pos(w.host_id, float(view.t)) - p).normalized()
 		var lit: Vector2 = SystemViewS.toward_light_of(L, p)
 		_least("light: a world round one star, cos of its light's angle off the way to its sun", lit.dot(toward), at)
 		if lit.dot(toward) < 0.9:
@@ -370,7 +371,7 @@ func _view_checks(view, at: String) -> void:
 			for b in L.bodies:
 				if b.kind == &"belt":
 					continue
-				var c: Vector2 = view.screen(b.host.x, b.host.y)
+				var c: Vector2 = view.screen(b.host_at(float(view.t)).x, b.host_at(float(view.t)).y)
 				var zv: float = view.zoom
 				var e: Vector2 = (q - c) / Vector2(b.orbit * zv, b.orbit * zv * SystemViewS.TILT)
 				var d: float = absf(e.length() - 1.0) * b.orbit * float(view.zoom) * SystemViewS.TILT
@@ -755,9 +756,9 @@ func _local_checks(n: MapGen.MapNode, at: String) -> void:
 		# THE BUBBLE ROUND THE LIT SUN, clear of every band of distance from it a
 		# body sweeps (`SystemView.bubble_gap`'s bands, which keep 24 px off them)
 		var R := sky._bubble_r() / sky._s
-		var lc := L.star_pos(lit_want)
+		var lc := L.star_pos(lit_want, 0.0)
 		for b in L.bodies:
-			var hb := (b.host - lc).length()
+			var hb := (b.host0 - lc).length()
 			var bw := 28.0 if b.kind == &"belt" else 0.0
 			var lo := maxf(0.0, absf(hb - b.orbit) - bw)
 			var hi := hb + b.orbit + bw

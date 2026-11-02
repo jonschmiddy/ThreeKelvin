@@ -268,13 +268,14 @@ func _opens_as_before() -> void:
 			if c.type != MapGen.NodeType.SYSTEM and c.type != MapGen.NodeType.STATION:
 				continue
 			var L := SystemLayout.of(c)
-			var ov := SystemMapScreen.open_view(L, c, SystemLayout.FIT_FRAME)
+			# ORBIT:map TwinSiteTest checks the opening framing at t 0 only: add kept clocks round the lap (review: the opening framing, a pair-phase sweep)
+			var ov := SystemMapScreen.open_view(L, c, SystemLayout.FIT_FRAME, 0.0)
 			var whole := SystemMapScreen.zoom_for(L, c, SystemLayout.FIT_FRAME)
 			if L.twin and not L.close:
 				wide += 1
-				if float(ov.zoom) <= whole * 1.5 or not L.pair_box().has_point(ov.at):
+				if float(ov.zoom) <= whole * 1.5 or not L.pair_box(0.0).has_point(ov.at):
 					bad.append("seed %d %s (wide): %s, whole %.4f" % [sd, MapGen.star_name(c), ov, whole])
-			elif float(ov.zoom) == whole and ov.at == Vector2.ZERO and L.pair_box().size == Vector2.ZERO:
+			elif float(ov.zoom) == whole and ov.at == Vector2.ZERO and L.pair_box(0.0).size == Vector2.ZERO:
 				same += 1
 			else:
 				bad.append("seed %d %s: %s, whole %.4f" % [sd, MapGen.star_name(c), ov, whole])
@@ -367,7 +368,7 @@ func _put_back_framed() -> void:
 	var v = m.view
 	var wc: Vector2 = v.at[far]
 	var sc: Vector2 = Vector2(v.CX, v.CY) + v.pan + m.overlay.ship_rel()
-	var pair := float(SystemMapScreen.open_view(m.view.layout, n, m._frame.size).zoom)
+	var pair := float(SystemMapScreen.open_view(m.view.layout, n, m._frame.size, Run.map_t(n.index)).zoom)
 	h._ok("put back out there, the opening framing takes it in: the place at %s and the ship at %s inside the picture %s, zoom %.3f (the pair alone %.3f, the whole system %.3f)" % [
 		wc, sc, v.window, v.zoom, pair, m.zoom_min],
 		v.window.grow(-8.0).has_point(wc) and v.window.grow(-4.0).has_point(sc) and v.zoom >= m.zoom_min - 1e-9 and v.zoom < pair)
@@ -426,7 +427,7 @@ func _close_pairs() -> void:
 				if b.kind == &"giant":
 					var gk: Array = giants["close" if L.close else "wide"]
 					gk[0] += 1
-					gk[1] += int(b.host_id == -9 and b.host.distance_to(L.bary) < 0.01)
+					gk[1] += int(b.host_id == -9 and b.host0.distance_to(L.bary) < 0.01)
 			if not L.close:
 				continue
 			sc += 1
@@ -434,7 +435,7 @@ func _close_pairs() -> void:
 			seps.append(L.sep)
 			var lo := SystemLayout.p_limit(1.0 - L.star_share) * SystemLayout.P_MARGIN * L.sep
 			for b in L.bodies:
-				if b.host_id != -9 or b.host.distance_to(L.bary) > 0.01:
+				if b.host_id != -9 or b.host0.distance_to(L.bary) > 0.01:
 					off_both.append("%s: %s round %d" % [at, b.name, b.host_id])
 				if b.orbit < lo - 1e-6:
 					inside.append("%s: %s at %.0f, the limit %.0f" % [at, b.name, b.orbit, lo])
@@ -450,7 +451,7 @@ func _close_pairs() -> void:
 				if b.soi <= 0.0:
 					continue
 				for p in L.stars():
-					var d := b.orbit - b.soi - b.host.distance_to(L.star_pos(p)) - L.star_ring_of(p)
+					var d := b.orbit - b.soi - b.host0.distance_to(L.star_pos(p, 0.0)) - L.star_ring_of(p)
 					least["world ring to a sun's ring"] = minf(least["world ring to a sun's ring"], d)
 					if d < SystemLayout.RING_GAP - 1e-6:
 						meet.append("%s: %s's ring and star %d's close ring" % [at, b.name, p])
@@ -486,7 +487,7 @@ func _close_pairs() -> void:
 			if ar < out - 1e-6:
 				arrive_in.append("%s at %.0f, inside %.0f" % [at, ar, out])
 			# and the two suns on screen as the map opens, edge to edge
-			var d2 := Vector2(L.star2_at.x, L.star2_at.y * SystemLayout.SLANT).length() * z
+			var d2 := Vector2(L.star2_at0.x, L.star2_at0.y * SystemLayout.SLANT).length() * z
 			suns_px.append(d2 - SystemLayout.sun_drawn(L.star_r, z) - SystemLayout.sun_drawn(L.star2_r, z))
 		n_bin += sb
 		n_close += sc
@@ -530,7 +531,7 @@ static func _held_in_rings(L: SystemLayout, t: Array) -> void:
 	for b in L.bodies:
 		t[1] += 1
 		for o in L.bodies:
-			if o != b and o.soi > 0.0 and o.host == b.host and absf(o.orbit - b.orbit) < o.soi:
+			if o != b and o.soi > 0.0 and o.host0 == b.host0 and absf(o.orbit - b.orbit) < o.soi:
 				t[0] += 1
 				break
 
@@ -657,7 +658,7 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	# not to the overlay's own working of where star B should be.
 	var sb: Vector2 = ov.star_scr(B)
 	_drawn_suns(m)
-	var want_b: Vector2 = m.view.block_round(m.view.screen(L.star2_at.x, L.star2_at.y))
+	var want_b: Vector2 = m.view.block_round(m.view.screen(L.star_pos(SystemLayout.STAR_B, m.view.t).x, L.star_pos(SystemLayout.STAR_B, m.view.t).y))
 	h._ok("star B is put where it holds still on the plane (%s, the plane's %s)" % [sb, want_b], sb == want_b)
 	# THE HIT, at each star's place and size
 	var hb: Dictionary = ov.hit(sb)
@@ -706,7 +707,7 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	await _frames(2)
 	# ON THE MAP: star B where it holds still, and a right-click holds it there
 	var pr: Vector2 = ov.place_rel(B)
-	var want_r: Vector2 = Vector2(L.star2_at.x, L.star2_at.y * m.view.TILT) * m.view.zoom
+	var want_r: Vector2 = Vector2(L.star_pos(SystemLayout.STAR_B, m.view.t).x, L.star_pos(SystemLayout.STAR_B, m.view.t).y * m.view.TILT) * m.view.zoom
 	h._ok("star B's place on screen, from the star (%s)" % pr, pr.distance_to(want_r) < 0.01)
 	m.right_click(hb)
 	var held := false
@@ -716,7 +717,8 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 			held = true
 			break
 	var look: Vector2 = m._look_at()
-	var mid := Vector2(L.star2_at.x, L.star2_at.y * m.view.TILT)
+	# ORBIT:map the right-click hold on star B: the glide must follow a moving B (a glide onto a moving target)
+	var mid := Vector2(L.star_pos(SystemLayout.STAR_B, m.view.t).x, L.star_pos(SystemLayout.STAR_B, m.view.t).y * m.view.TILT)
 	h._ok("a right-click on star B zooms onto it and holds it in the middle (%s, want %s)" % [look, mid], held and look.distance_to(mid) < 1.0)
 	m.right_click({})
 	for i in 3000:
@@ -730,8 +732,8 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	_orbit_fit(m)
 	# THE PARTNERS' AND YOUR SHIP'S DISC TEST: behind star B (further from the
 	# viewer, on its disc) is hidden by it; in front is not
-	var behind: Array = ov._star_occ(L.star2_at + Vector2(0.0, -2.0))
-	var front: Array = ov._star_occ(L.star2_at + Vector2(0.0, 2.0))
+	var behind: Array = ov._star_occ(L.star_pos(SystemLayout.STAR_B, m.view.t) + Vector2(0.0, -2.0))
+	var front: Array = ov._star_occ(L.star_pos(SystemLayout.STAR_B, m.view.t) + Vector2(0.0, 2.0))
 	h._ok("a ship just behind star B is hidden by its disc, one just in front is not",
 		behind.any(func(o: Array) -> bool: return o[0] == sb) and not front.any(func(o: Array) -> bool: return o[0] == sb))
 	_saw("star B places", 1)
@@ -783,7 +785,7 @@ func _hits_behind(m: SystemMapScreen) -> void:
 		var was_a: Vector2 = v.at[wi]
 		var sc: Vector2 = ov.star_scr(s)
 		var dz := 3.0 / maxf(float(v.TILT) * float(v.zoom), 0.0001)
-		var sp: Vector2 = L.star_pos(s)
+		var sp: Vector2 = L.star_pos(s, t0)
 		var got := []
 		for q: Vector2 in [sp + Vector2(0.0, -dz), sp + Vector2(0.0, dz)]:
 			v.pos[wi] = q
@@ -1098,7 +1100,7 @@ func _round_b(m: SystemMapScreen, what: String) -> void:
 	var want := FlightSolve.star_orbit_r(L, B)
 	var c3: Vector3 = m.flight.center(B, m.view.t)
 	h._ok("%s round star B: %.1f px from it, its close orbit %.1f (%.1f from star A; ShipFlight.center(STAR_B) %s, the flight build's)" % [
-		what, p.distance_to(L.star2_at), want, p.length(), Vector2(c3.x, c3.z)], absf(p.distance_to(L.star2_at) - want) < 3.0)
+		what, p.distance_to(L.star_pos(SystemLayout.STAR_B, m.view.t)), want, p.length(), Vector2(c3.x, c3.z)], absf(p.distance_to(L.star_pos(SystemLayout.STAR_B, m.view.t)) - want) < 3.0)
 
 
 ## A PARTNER IN STAR B'S CLOSE ORBIT, as the wire brings it: drawn where it
@@ -1110,7 +1112,8 @@ func _partner_at_b(n: MapGen.MapNode) -> void:
 		return
 	var B := SystemLayout.STAR_B
 	var L: SystemLayout = m.view.layout
-	var at := L.star2_at + Vector2(L.star_rail_of(B), 0.0)
+	# ORBIT:coop a partner at star B was sent absolute: with PROTOCOL 14 it goes as an offset from B; add two machines at different clocks
+	var at := L.star_pos(SystemLayout.STAR_B, m.view.t) + Vector2(L.star_rail_of(B), 0.0)
 	var w := 0
 	for b in L.bodies:
 		if b.world != &"":
@@ -1214,7 +1217,8 @@ func _settle_round(n: MapGen.MapNode) -> void:
 	var B := SystemLayout.STAR_B
 	var nm_a := MapGen.star_name(n) + " A"
 	var nm_b := MapGen.star_name(n) + " B"
-	var said := [ov._settle_nm(Vector2.ZERO), ov._settle_nm(L.star2_at), ov._settle_nm(L.bary)]
+	# ORBIT:view settle names by position: star A is not at the origin once the pair turns; name by id (`_settle_id`)
+	var said := [ov._settle_nm(Vector2.ZERO), ov._settle_nm(L.star_pos(SystemLayout.STAR_B, m.view.t)), ov._settle_nm(L.bary)]
 	h._ok("a wide orbit round star A, star B and the balance point is named %s" % " / ".join(said),
 		said[0] == nm_a and said[1] == nm_b and said[2] == "BOTH STARS")
 	if not h._ok("the flight can let a ship go to settle where it is (`ShipFlight.settle_at`, the flight build's)", m.flight.has_method(&"settle_at")):
@@ -1222,12 +1226,13 @@ func _settle_round(n: MapGen.MapNode) -> void:
 	var away := Vector2(1.0, 0.0)
 	for b in L.bodies:
 		if b.host_id == B and b.world != &"":
-			away = (L.star2_at - b.pos(m.view.t)).normalized()
+			away = (L.star_pos(SystemLayout.STAR_B, m.view.t) - b.pos(m.view.t)).normalized()
 	var zone_b := SystemLayout.s_limit(L.star_share) * L.sep
 	var r_b := (L.star_ring_of(B) + zone_b) * 0.5
-	var side := (L.star2_at / maxf(L.star2_at.length(), 0.001)).orthogonal()
+	# ORBIT:flight the cases are laid off star A at the origin and the pair's line from it; at a turned pair read star A at t too (here, the cases below, and in `_restore_round`)
+	var side := (L.star_pos(SystemLayout.STAR_B, m.view.t) / maxf(L.star_pos(SystemLayout.STAR_B, m.view.t).length(), 0.001)).orthogonal()
 	var cases := [
-		[L.star2_at + away * r_b, "ORBITING " + nm_b, L.star2_at],
+		[L.star_pos(SystemLayout.STAR_B, m.view.t) + away * r_b, "ORBITING " + nm_b, L.star_pos(SystemLayout.STAR_B, m.view.t)],
 		[L.bary + side * L.sep * 1.3, "ORBITING BOTH STARS", L.bary],
 	]
 	for c: Array in cases:
@@ -1236,7 +1241,7 @@ func _settle_round(n: MapGen.MapNode) -> void:
 		var st: String = ov.ship_status()[0]
 		var sc: Vector2 = ov._star_c
 		h._ok("let go %.0f px from %s, it settles round it: the status line says %s (%s), its wide orbit drawn round %s (%s)" % [
-			(c[0] as Vector2).distance_to(c[2]), "star B" if c[2] == L.star2_at else "the balance point", c[1], st, c[2], sc],
+			(c[0] as Vector2).distance_to(c[2]), "star B" if c[2] == L.star_pos(SystemLayout.STAR_B, m.view.t) else "the balance point", c[1], st, c[2], sc],
 			m.flight.star_orbiting() and st == c[1] and sc.distance_to(c[2]) < 0.5)
 		_saw("wide orbits round star B or both")
 
@@ -1264,13 +1269,13 @@ func _restore_round(n: MapGen.MapNode) -> void:
 		if b.world == &"":
 			continue
 		if b.host_id == B:
-			away_b = (L.star2_at - b.pos(m.view.t)).normalized()
+			away_b = (L.star_pos(SystemLayout.STAR_B, m.view.t) - b.pos(m.view.t)).normalized()
 		elif b.host_id == -1:
 			away_a = (-b.pos(m.view.t)).normalized()
 	var r_b := (L.star_ring_of(B) + SystemLayout.s_limit(L.star_share) * L.sep) * 0.5
 	var r_a := (L.star_ring_of(-1) + SystemLayout.s_limit(1.0 - L.star_share) * L.sep) * 0.5
-	var side := (L.star2_at / maxf(L.star2_at.length(), 0.001)).orthogonal()
-	var cases := [[L.star2_at + away_b * r_b, B, "star B"], [L.bary + side * L.sep * 1.3, -9, "both suns"], [away_a * r_a, -1, "star A"]]
+	var side := (L.star_pos(SystemLayout.STAR_B, m.view.t) / maxf(L.star_pos(SystemLayout.STAR_B, m.view.t).length(), 0.001)).orthogonal()
+	var cases := [[L.star_pos(SystemLayout.STAR_B, m.view.t) + away_b * r_b, B, "star B"], [L.bary + side * L.sep * 1.3, -9, "both suns"], [away_a * r_a, -1, "star A"]]
 	for c: Array in cases:
 		for how: String in ["LOCAL", "the save's rows"]:
 			await _put_back(n, c[0], int(c[1]), "%s, by %s" % [c[2], how], how != "LOCAL")
@@ -1317,6 +1322,7 @@ func _put_back(n: MapGen.MapNode, p: Vector2, want: int, what: String, rows: boo
 	h._ok("%s: put back round %d (was %d) at %.1f px (was %.1f), %s, %.2f px off it then and %.2f a second on, going the same way (%.0f); it says %s; a flight leaves %.2f px from the ship" % [
 		what, int(f1.cen_id), cen0, float(f1.orbit_r), r0, "settled" if m.flight.star_orbiting() else "NOT settled", off0, off1, float(f1.sense), st,
 		dp.distance_to(f2.p) if dp != Vector2.INF else INF],
+		# ORBIT:flight put back round a moving sun: compare the centre with the sun where it is at the map's t (the 6-frame wait alone moves a turning sun past 0.01 px), and check the pair's angle survives LOCAL and the rows
 		m.flight.star_orbiting() and int(f1.cen_id) == cen0 and (f1.cen as Vector2).distance_to(c0) < 0.01 and absf(float(f1.orbit_r) - r0) < 1.0
 		and off0 < 1.0 and off1 < 1.0 and float(f1.sense) == -1.0 and st == "ORBITING " + nm and dp != Vector2.INF and dp.distance_to(f2.p) < 1.0)
 
@@ -2627,6 +2633,7 @@ func _ring_words_ride() -> void:
 	if not h._ok("the map comes up in %s for the ride" % MapGen.star_name(n), m != null and m.view.node == n):
 		return
 	var ov = m.overlay
+	# ORBIT:view the ring-words ride and the sweeps below run at set map times; the suns now move with t too (label hysteresis, DESIGN step 5)
 	m.view.t = 40.0
 	m.flight.place_at(wa, m.view.t)
 	ov.selected = wa
@@ -2686,8 +2693,8 @@ func _pair_marks(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 	st.wide += 1
 	# (the pair alone, on the frame it opened on: the layout's before the frame
 	# is laid out, the frame's after; a ship put back off it widens it)
-	var za := float(SystemMapScreen.open_view(L, n, m._frame.size).zoom)
-	var zb := float(SystemMapScreen.open_view(L, n, SystemLayout.FIT_FRAME).zoom)
+	var za := float(SystemMapScreen.open_view(L, n, m._frame.size, Run.map_t(n.index)).zoom)
+	var zb := float(SystemMapScreen.open_view(L, n, SystemLayout.FIT_FRAME, Run.map_t(n.index)).zoom)
 	if v.zoom != m.open_zoom or m.open_zoom > maxf(za, zb) + 1e-9 or m.open_zoom < m.zoom_min * 1.5 or m._look_at().distance_to(m.home_at) > 0.5:
 		st.zoom_bad += 1
 		bad.append("%s: opened at %.4f (open_view %.4f / %.4f, whole %.4f), looking at %s, home %s" % [nm, v.zoom, za, zb, m.zoom_min, m._look_at(), m.home_at])

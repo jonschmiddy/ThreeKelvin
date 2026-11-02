@@ -298,7 +298,15 @@ static var restoring := false
 ## (`parked.at`, `Jetsam.site`, both body indices) onto other bodies. Read the
 ## way 37 reads 36: a 37 save has no `twin`, and missing means one sun, so its
 ## systems lay out as they did. OLDEST_READ stays at 29.
-const VERSION := 38
+## 39: EACH SYSTEM'S MAP CLOCK (`clocks`: `Run.map_clock`, ruling 23). A
+## binary's two suns turn on map time, and the worlds round one of them with
+## them, so where everything in a system is depends on its clock; a parked free
+## ship's spot is an absolute plane point that only means where it was at the
+## clock it was left at. Rows of {index, t}, for the reason 23 gives. Read the
+## way 38 reads 37: a 38 save has no `clocks`, and missing means t 0 -- the
+## picture a 38 build showed on every visit, its suns where they were laid out
+## -- so every parked spot loads where it was made. OLDEST_READ stays at 29.
+const VERSION := 39
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
 const OLDEST_READ := 29
@@ -487,6 +495,8 @@ static func _snapshot() -> Dictionary:
 		at = Run.at,
 		# Where the ship was left in each system you have been in (VERSION 30).
 		parked = _parked_to(),
+		# And each system's map clock, which those spots were left at (VERSION 39).
+		clocks = _clocks_to(),
 		trail = Array(Run.trail),
 		jumps = Run.jumps,
 		kills = Run.kills,
@@ -725,6 +735,9 @@ static func load_into_run() -> bool:
 	# put there first would be wiped by the signal that announces it. A 29 save
 	# has no `parked` and loads with none: every ship at its system's edge.
 	SystemMapScreen._parked = _parked_from(d.get("parked", []), map.size())
+	# (the map clocks with them, after run_started for the same reason; a 38
+	# save has none: every system at t 0, as a 38 build drew it)
+	Run.map_clock = _clocks_from(d.get("clocks", []), map.size())
 	Sig.resources_changed.emit()
 	Sig.ship_changed.emit()
 	Run.log_line("Reactor warm. Resuming from %s." % MapGen.star_name(Run.node_at()), &"big")
@@ -1070,6 +1083,34 @@ static func _parked_from(raw: Variant, systems: int) -> Dictionary:
 			out[idx]["cen"] = int(r.get("cen", -1))
 			out[idx]["r"] = float(r.get("r", -1.0))
 			out[idx]["sense"] = float(r.get("sense", 1.0))
+	return out
+
+
+## EACH SYSTEM'S MAP CLOCK (`Run.map_clock`), one row per system: {index, t}.
+## Rows, not a dictionary keyed by system, for the reason 23 gives.
+static func _clocks_to() -> Array:
+	var out: Array = []
+	for k in Run.map_clock:
+		out.append({index = int(k), t = float(Run.map_clock[k])})
+	return out
+
+
+## The rows back into `Run.map_clock`. A row for a system outside this map, or
+## a clock that is not a finite time from 0 on, is dropped: that system opens
+## at t 0.
+static func _clocks_from(raw: Variant, systems: int) -> Dictionary:
+	var out := {}
+	if typeof(raw) != TYPE_ARRAY:
+		return out
+	for e in raw:
+		if typeof(e) != TYPE_DICTIONARY:
+			continue
+		var r: Dictionary = e
+		var idx := int(r.get("index", -1))
+		var t := float(r.get("t", 0.0))
+		if idx < 0 or idx >= systems or not is_finite(t) or t < 0.0:
+			continue
+		out[idx] = t
 	return out
 
 

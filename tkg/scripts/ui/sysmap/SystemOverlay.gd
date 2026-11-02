@@ -467,7 +467,8 @@ func _draw() -> void:
 			if b.kind == &"belt":
 				# (round the belt's own centre: the pair's balance point in a twin)
 				var a: float = b.phase + t / b.period * TAU + k * 0.9
-				sx = view.screen(b.host.x + cos(a) * b.orbit, b.host.y + sin(a) * b.orbit).round()
+				var bh: Vector2 = b.host_at(t)
+				sx = view.screen(bh.x + cos(a) * b.orbit, bh.y + sin(a) * b.orbit).round()
 			elif b.beacons.size() > 1:
 				# TWO ON ONE WORLD STAND SIDE BY SIDE. They were drawn on the
 				# same spot, so a world with two events showed one beacon and
@@ -990,14 +991,15 @@ func _reach(body: int) -> float:
 ## STAR p ON SCREEN (-1 star A, the star; `SystemLayout.STAR_B` star B of two
 ## suns, ruling 20): where its disc is drawn, on the block grid as `origin()`
 ## puts star A. The view says where it draws star B (`SystemView.star_screen`)
-## once it does; until then it is worked out the same way, since star B holds
-## still at `star2_at`.
+## once it does; until then it is worked out the same way, where the pair has
+## it at the view's t.
 func star_scr(p: int) -> Vector2:
 	if view.has_method(&"star_screen"):
 		return view.call(&"star_screen", p)
 	var L: SystemLayout = view.layout
-	if p == SystemLayout.STAR_B and L != null and L.twin:
-		return view.block_round(view.screen(L.star2_at.x, L.star2_at.y))
+	if L != null and L.twin:
+		var sp := L.star_pos(p, float(view.t))
+		return view.block_round(view.screen(sp.x, sp.y))
 	return view.origin()
 
 
@@ -1083,9 +1085,10 @@ func _settle_id(c: Vector2) -> int:
 		var fc = flight.f.get("cen")
 		if id is int and fc is Vector2 and (fc as Vector2).distance_to(c) < 1.0:
 			return id
-	if c.distance_to(Vector2.ZERO) < 1.0:
+	# ORBIT:view `_settle_id` names the centre by position: once the pair turns, a cached centre drifts off its sun within seconds; name it by `flight.f.cen_id` (DESIGN step 5)
+	if c.distance_to(L.star_pos(-1, float(view.t))) < 1.0:
 		return -1
-	if c.distance_to(L.star2_at) < 1.0:
+	if c.distance_to(L.star_pos(SystemLayout.STAR_B, float(view.t))) < 1.0:
 		return SystemLayout.STAR_B
 	return -9
 
@@ -1106,7 +1109,7 @@ func _star_occ(q: Vector2) -> Array:
 	var out: Array = []
 	var d: float = view.depth(q)
 	for s: int in view.layout.stars():
-		if d < view.depth(view.layout.star_pos(s)):
+		if d < view.depth(view.layout.star_pos(s, float(view.t))):
 			out.append([star_scr(s), star_disc(s)])
 	return out
 
@@ -1204,6 +1207,7 @@ func _draw_rings(t: float) -> void:
 ## the balance point the flight settles round, its far half behind either sun.
 func _star_orbit(r: float, by: Vector2, k: float, arc_only: bool) -> void:
 	var c := _star_c
+	# ORBIT:view a centre of exactly zero is star A only with one sun: in a turning pair star A leaves the origin (draw round `star_screen(-1)` by the settle's id)
 	var o: Vector2 = view.origin() if c == Vector2.ZERO else view.block_round(view.screen(c.x, c.y))
 	var rp: float = r * view.zoom
 	var a0 := atan2(by.y - c.y, by.x - c.x)
@@ -1213,7 +1217,7 @@ func _star_orbit(r: float, by: Vector2, k: float, arc_only: bool) -> void:
 	var suns: Array = []
 	if two:
 		for s: int in view.layout.stars():
-			suns.append([view.layout.star_pos(s).y, star_scr(s), star_disc(s)])
+			suns.append([view.layout.star_pos(s, float(view.t)).y, star_scr(s), star_disc(s)])
 	# AS A LINE OF SINGLE PIXELS, only the stretch on screen (point by point it
 	# was thousands of dots a frame for the orbit you arrive on, zoomed in)
 	var eb: float = rp * float(view.TILT)
@@ -1476,7 +1480,7 @@ func _occluders() -> Array:
 	var out: Array = []
 	var L: SystemLayout = view.layout
 	for st: int in L.stars():
-		out.append([star_scr(st), star_disc(st), view.depth(L.star_pos(st))])
+		out.append([star_scr(st), star_disc(st), view.depth(L.star_pos(st, float(view.t)))])
 	for i: int in view._views:
 		out.append([view.at[i], view.draw_r(L.bodies[i]), view.depth(view.pos[i])])
 	return out
@@ -1548,7 +1552,7 @@ func _ends_table(pts: PackedVector3Array, us: PackedFloat32Array, pl) -> Diction
 	var g := func(tau: float) -> float:
 		return (1.0 + w * tau) * exp(-w * tau) if tau > 0.0 else 1.0
 	var at := func(i: int, tt: float) -> Vector2:
-		return L.star_pos(i) if SystemLayout.is_star(i) else _flat3(flight.center(i, tt))
+		return L.star_pos(i, tt) if SystemLayout.is_star(i) else _flat3(flight.center(i, tt))
 	# (the tail after the last sample, TAIL_S of the ring, at its own moments)
 	var n_tail := 0
 	for j in range(us.size() - 1, -1, -1):
@@ -1684,11 +1688,11 @@ static func _flat3(v: Vector3) -> Vector2:
 	return Vector2(v.x, v.z)
 
 
-## A place's centre on screen. A star's from the layout: both hold still, star
-## A at the origin and star B at `star2_at`.
+## A place's centre on screen. A star's from the layout, where the pair has it
+## at the view's t.
 func _body_scr(body: int) -> Vector2:
 	if SystemLayout.is_star(body):
-		var sp: Vector2 = view.layout.star_pos(body)
+		var sp: Vector2 = view.layout.star_pos(body, float(view.t))
 		return _scr(sp.x, sp.y)
 	var c: Vector3 = flight.center(body, view.t)
 	return _scr(c.x, c.z)
@@ -1793,6 +1797,7 @@ func _line(ln: Dictionary, a: float, t: float, main: bool) -> void:
 		var sat: Vector2 = (o.at as Vector2) - sc0
 		var st0 := atan2(sat.y, sat.x)
 		var arc := PackedVector2Array()
+		# ORBIT:view as `_star_orbit`: a zero centre is star A only with one sun, and a forecast settle round a turning sun is round where it will be at o.t
 		var so: Vector2 = view.origin() if sc0 == Vector2.ZERO else view.block_round(view.screen(sc0.x, sc0.y))
 		# from where the line ends, on along the orbit the way it goes (it began a
 		# little behind, and the two met in a V)
@@ -1805,8 +1810,8 @@ func _line(ln: Dictionary, a: float, t: float, main: bool) -> void:
 	var body: int = o.body
 	var nm: String = _place_nm(body)
 	var tag: String
-	# (a star's centre from the layout: star B holds still at `star2_at`)
-	var c: Vector3 = Vector3(L.star_pos(body).x, 0.0, L.star_pos(body).y) if SystemLayout.is_star(body) else flight.center(body, float(o.t))
+	# (a star's centre where it will be then, as a world's: `ShipFlight.center`)
+	var c: Vector3 = flight.center(body, float(o.t))
 	var cw := _scr(c.x, c.z)
 	var rel: Vector2 = o.rel
 	var under := 0.0
@@ -1950,7 +1955,7 @@ func _draw_partners(_t: float) -> void:
 		var want_k := 1.0
 		var kb: Array = _partner_kb.get(id, [pb, -1.0])
 		if SystemLayout.is_place(pb):
-			var cp: Vector2 = view.layout.star_pos(pb) if SystemLayout.is_star(pb) else _flat3(flight.center(pb, view.t))
+			var cp: Vector2 = view.layout.star_pos(pb, float(view.t)) if SystemLayout.is_star(pb) else _flat3(flight.center(pb, view.t))
 			want_k = _orbit_k(pb, maxf((q - cp).length(), 4.0))
 			kb[0] = pb
 		# (first seen, or jumped: drawn where it is at once)
@@ -2017,12 +2022,13 @@ func ship_rel() -> Vector2:
 	return Vector2(p.x, p.z * view.TILT) * view.zoom
 
 
-## A place relative to the star on screen, for LOCATION holding a world you orbit
-## and a right-click holding a place. Star B is where it holds still
-## (`star2_at`); star A, and anything that is not a place, the origin.
+## A place relative to the plane's origin on screen (star A's place at t 0,
+## the one star's always), for LOCATION holding a world you orbit and a
+## right-click holding a place. A star where the pair has it at the view's t;
+## anything that is not a place, the origin.
 func place_rel(body: int) -> Vector2:
 	if SystemLayout.is_star(body) and view.layout != null:
-		var sp: Vector2 = view.layout.star_pos(body)
+		var sp: Vector2 = view.layout.star_pos(body, float(view.t))
 		return Vector2(sp.x, sp.y * view.TILT) * view.zoom
 	if body < 0 or flight == null:
 		return Vector2.ZERO
@@ -2636,7 +2642,7 @@ static func _wrap(text: String, n: int) -> Array:
 func _behind_sun(q: Vector2, p: Vector2) -> bool:
 	var L: SystemLayout = view.layout
 	for s: int in L.stars():
-		if view.depth(q) < view.depth(L.star_pos(s)) and p.distance_to(star_scr(s)) <= star_disc(s):
+		if view.depth(q) < view.depth(L.star_pos(s, float(view.t))) and p.distance_to(star_scr(s)) <= star_disc(s):
 			return true
 	return false
 
@@ -2666,6 +2672,6 @@ func hit(p: Vector2) -> Dictionary:
 	var plane := Vector2(rel.x, rel.y / view.TILT)
 	for i in L.bodies.size():
 		var b := L.bodies[i]
-		if b.kind == &"belt" and absf((plane - b.host).length() - b.orbit) < maxf(26.0, 5.0 / view.zoom):
+		if b.kind == &"belt" and absf((plane - b.host_at(float(view.t))).length() - b.orbit) < maxf(26.0, 5.0 / view.zoom):
 			return {"kind": &"belt", "body": i, "beacon": null, "at": p}
 	return {}

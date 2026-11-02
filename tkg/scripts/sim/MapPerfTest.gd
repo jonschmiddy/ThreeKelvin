@@ -236,7 +236,8 @@ static func _old_runs(view) -> Array:
 	var hole2: Vector2 = self_lines._star2_hole()
 	var o2: Vector2 = view.star_screen(SystemLayout.STAR_B)
 	var two := hole2.x > 0.0
-	var d2: float = L.star2_at.y
+	# ORBIT:view MapPerfTest's copy of the old _Lines: keep it in step with SystemView._Lines once star A's hole and depth move (`star_screen(-1)`, `star_depth(-1)`)
+	var d2: float = L.star_pos(SystemLayout.STAR_B, view.t).y
 	var odepth: bool = view.orbit_depth
 	var TILT: float = SystemViewS.TILT
 	for bi in L.bodies.size():
@@ -263,7 +264,7 @@ static func _old_runs(view) -> Array:
 		var cols := PackedColorArray()
 		for i in n + 1:
 			var a := float(i) / float(n) * TAU
-			var op: Vector3 = b.orbit_point(a)
+			var op: Vector3 = b.orbit_point(a, view.t)
 			var sp: Vector2 = view.screen(op.x, op.z)
 			var off_world := own and sp.distance_squared_to(view.at[bi]) < own_r * own_r
 			if ring_ab.x > 0.0 and not off_world:
@@ -285,7 +286,7 @@ static func _old_runs(view) -> Array:
 			pts.append(q)
 			var dk := 1.0
 			if odepth:
-				var dz := smoothstep(-1.0, 1.0, (op.z - b.host.y) / maxf(b.orbit, 1.0))
+				var dz := smoothstep(-1.0, 1.0, (op.z - b.host_at(view.t).y) / maxf(b.orbit, 1.0))
 				if view.painted:
 					dz = 0.0 if dz < 0.33 else (0.5 if dz < 0.67 else 1.0)
 				dk = lerpf(0.6, 1.45, dz)
@@ -355,7 +356,7 @@ func _line_on(L: SystemLayout, key: String, seed: int) -> float:
 		# (in a twin also a star's, star B's most: its close ring is new)
 		var p := Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(L.star_r + 40.0, L.edge)
 		if L.twin and k % 5 == 1:
-			var sb := L.star_pos(SystemLayout.STAR_B if k % 10 == 1 else -1)
+			var sb := L.star_pos(SystemLayout.STAR_B if k % 10 == 1 else -1, t)
 			p = sb + Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(20.0, 120.0)
 		elif k % 3 == 0 and not L.bodies.is_empty():
 			var bi := rng.randi() % L.bodies.size()

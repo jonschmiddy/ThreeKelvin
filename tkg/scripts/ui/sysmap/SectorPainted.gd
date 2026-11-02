@@ -319,6 +319,7 @@ static func push(v) -> void:
 	# LIGHT_R light px out) -- and the hold cut so a band edge trails it by about
 	# a block (TRAIL_BLK), the full HOLD once it is still
 	if "home_zoom" in v and not bool(pt.get("hold_fixed", false)):
+		# ORBIT:view PAINTED's 'moved' hold measures star A from the plane's origin: from `star_exact(-1)` once the pair turns (review: SectorPainted's star A)
 		var o: Vector2 = v.origin()
 		var o0: Vector2 = pt.get("o", o)
 		var lz := pow(maxf(float(v.zoom), 1e-3) / maxf(float(v.home_zoom), 1e-3), 0.42)
@@ -329,8 +330,10 @@ static func push(v) -> void:
 		var moved := (o - o0).length() / 2.0 + absf(log(lz / lz0)) * LIGHT_R * lz * lscale / 2.0
 		ms.set_shader_parameter("hold", HOLD if moved < 1e-4 else clampf(TRAIL_BLK / moved, 0.0, HOLD))
 	ms.set_shader_parameter("low", low)
+	# ORBIT:view star A's halo in PAINTED: `star_screen(-1)` in a turning pair
 	ms.set_shader_parameter("star_px", v.origin())
 	ms.set_shader_parameter("sun_r", float(v.layout.star_r) * float(v.star_k()))
+	# ORBIT:view star A's silhouette light in PAINTED: `star_exact(-1)` in a turning pair
 	mp.set_shader_parameter("star_at", v.origin())
 	mp.set_shader_parameter("time", v.pose(v.t))
 	mp.set_shader_parameter("sky_blk", blk)

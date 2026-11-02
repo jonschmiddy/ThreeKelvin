@@ -126,6 +126,9 @@ func fingerprint() -> Dictionary:
 		# or the spot in open space it was flying at. Fixtured below, because
 		# an empty record round-trips to empty whatever the save does.
 		parked = _parked(),
+		# AND EACH SYSTEM'S MAP CLOCK (VERSION 39), which those spots were left
+		# at and a binary's suns turn by. Fixtured below, for the same reason.
+		clocks = _clocks(),
 		# THE GRADE'S PERKS ARE IN THE FINGERPRINT, and they have to be. The
 		# loader does not call `at_tier`, so nothing regrants them on the way
 		# back in — an S-tier ship that lost all three would come back with
@@ -200,6 +203,15 @@ func _sky() -> String:
 	# (and how many have two suns, so a run with none shows: about one in four
 	# ordinary systems has them)
 	return "%d:%s" % [twins, ",".join(out)]
+
+## `Run.map_clock` as a stable string, sorted by system, to the nanosecond.
+func _clocks() -> String:
+	var keys: Array = Run.map_clock.keys()
+	keys.sort()
+	var parts: PackedStringArray = []
+	for k in keys:
+		parts.append("%d:%.9f" % [int(k), float(Run.map_clock[k])])
+	return " ".join(parts)
 
 ## `SystemMapScreen._parked` as a stable string, sorted by system.
 func _parked() -> String:
@@ -462,6 +474,22 @@ func run() -> void:
 			break
 	if wide_node < 0:
 		print("  FAIL: no second system that may have two suns, for the wide orbit fixture"); fails += 1
+	# EACH SYSTEM'S MAP CLOCK (VERSION 39), written the way the map writes it
+	# (`SystemMapScreen._keep_ship`): the two binaries' suns turned to where
+	# those spots were left, and one system at a clock with no ship kept
+	Run.map_clock.clear()
+	Run.map_clock[Run.at] = 37.6875
+	var twin_clock := 412.375
+	if twin_node >= 0:
+		# (a quarter of its pair's lap, whatever kind it is: a close pair laps in
+		# 6 to 7 minutes, so a fixed time could find it nearly back where it began)
+		var lt0 := SystemLayout.of(Run.map[twin_node])
+		if lt0.pair_n > 0.0:
+			twin_clock = 0.25 * TAU / lt0.pair_n
+		Run.map_clock[twin_node] = twin_clock
+	if wide_node >= 0:
+		Run.map_clock[wide_node] = 1033.515625
+	Run.map_clock[card_node if card_node >= 0 else 0] = 0.25
 
 	var before := fingerprint()
 	var jumps_before := Run.jumps
@@ -510,6 +538,7 @@ func run() -> void:
 	Run.galaxy_title = ""
 	Run._range_cache.clear()
 	SystemMapScreen._parked = {3: {"at": 0, "p": Vector2.ONE, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}}
+	Run.map_clock = {3: 9.0, 5: 99.5}
 
 	if not SaveGame.load_into_run():
 		print("  FAIL: load_into_run() returned false"); fails += 1; return
@@ -540,6 +569,14 @@ func run() -> void:
 		check("the ship settled round star B, read back round it, as wide, the same way", "-4 69.375 -1",
 			"%d %.3f %d" % [int(ew.get("cen", -99)), float(ew.get("r", -1.0)), int(ew.get("sense", 0.0))])
 		print("  twin cases: 2 (and one settled round star B of %s)" % MapGen.star_name(Run.map[wide_node]))
+	# THE SUNS WHERE THEY WERE LEFT: the binary's clock read back, so its map
+	# opens with the pair at the angle the parked spot was made at
+	if twin_node >= 0:
+		check("star B's system's map clock read back", "%.9f" % twin_clock, "%.9f" % Run.map_t(twin_node))
+		var lt := SystemLayout.of(Run.map[twin_node])
+		check("and its suns there turned off where they were laid out", true,
+			lt.pair_n == 0.0 or lt.star_pos(SystemLayout.STAR_B, Run.map_t(twin_node)).distance_to(lt.star2_at0) > 1.0)
+	check("a system never opened: map clock 0", 0.0, Run.map_t(Run.map.size() + 7))
 
 	# AND THE CARDS READ IT BACK: the walk-away is still LEFT ALONE after the
 	# reload (Jon: "left alone should survive a reload"), the taken one keeps its
@@ -597,6 +634,40 @@ func run_version_test() -> void:
 	check("and an ordinary save brings no fight with it", true, Router.fight_on_resume.is_empty())
 	Router.fight_on_resume = {}
 
+	# THE MAP CLOCKS (VERSION 39): this build writes 39, and a 38 save -- this
+	# shape without `clocks` -- loads with every system at t 0, its suns where
+	# they were laid out, which is the picture a 38 build drew on every visit
+	check("this build writes VERSION 39", 39, SaveGame.VERSION)
+	Run.start_new_run(&"korvan", 1)
+	Run.map_clock[Run.at] = 512.5
+	SystemMapScreen._parked[Run.at] = {"at": -9, "p": Vector2(140.5, -60.25), "v": Vector2.ZERO, "head": 0.5, "mode": &"free"}
+	SaveGame.save()
+	var f38 := FileAccess.open(SaveGame.path, FileAccess.READ)
+	var save38: Dictionary = JSON.parse_string(f38.get_as_text()) if f38 != null else {}
+	if f38 != null:
+		f38.close()
+	check("a 39 save carries its map clocks", 1, (save38.get("clocks", []) as Array).size())
+	save38["version"] = 38
+	save38.erase("clocks")
+	var w38 := FileAccess.open(SaveGame.path, FileAccess.WRITE)
+	if w38 != null:
+		w38.store_string(JSON.stringify(save38, "", true, true))
+		w38.close()
+	Run.map_clock[Run.at] = 77.0
+	check("a save of version 38 (no map clocks) still loads", true, SaveGame.load_into_run())
+	check("and with no map clocks: every system at t 0", "0 0.000", "%d %.3f" % [Run.map_clock.size(), Run.map_t(Run.at)])
+	check("and its parked spot where it was made", "-9 140.50 -60.25", "%d %.2f %.2f" % [int(SystemMapScreen._parked.get(Run.at, {}).get("at", 0)),
+		(SystemMapScreen._parked.get(Run.at, {}).get("p", Vector2.ZERO) as Vector2).x, (SystemMapScreen._parked.get(Run.at, {}).get("p", Vector2.ZERO) as Vector2).y])
+	# (and the rows' reader drops what it cannot place: a system off this map,
+	# a clock that is not a time)
+	check("clock rows off the map or not a time are dropped", "1 2.500",
+		"%d %.3f" % [SaveGame._clocks_from([{index = 2, t = 2.5}, {index = 9999, t = 1.0}, {index = 3, t = -4.0}, {index = 4, t = INF}, "x"], 100).size(),
+		float(SaveGame._clocks_from([{index = 2, t = 2.5}], 100).get(2, 0.0))])
+	# A NEW RUN STARTS EVERY CLOCK AGAIN: its systems are not the last run's
+	Run.map_clock[Run.at] = 3.0
+	Run.start_new_run(&"korvan", 1)
+	check("a new run keeps no map clock of the last", 0, Run.map_clock.size())
+
 	# THE ONE BEFORE STILL READS (VERSION 30): a 29 save is this shape without
 	# `parked`, and loads with every ship at its system's edge, as it did.
 	Run.start_new_run(&"korvan", 1)
@@ -608,6 +679,7 @@ func run_version_test() -> void:
 		fr.close()
 	old_save["version"] = SaveGame.OLDEST_READ
 	old_save.erase("parked")
+	old_save.erase("clocks")
 	old_save.erase("unlocked")
 	# (and from before two suns, VERSION 38: no node says `twin`)
 	var twins_written := 0

@@ -784,7 +784,8 @@ static func preroll(target: int, then: Callable) -> bool:
 		lad.move_child(pm, 0)
 		pm.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		if pm is SystemMapScreen:
-			(pm as SystemMapScreen).show_system(Run.node_at(), 0.0, false)
+			# ORBIT:map a map built ahead opens at the kept clock but its _process ticks view.t while it waits at alpha 0, and a dropped one writes that clock back on _exit_tree (_keep_ship): hold its clock until it is shown, or share one t with the move
+			(pm as SystemMapScreen).show_system(Run.node_at(), Run.map_t(Run.at), false)
 		else:
 			(pm as StarchartScreen).setup()
 		prebuilt = pm
@@ -2566,7 +2567,7 @@ func _calm_prebuild(target: int) -> void:
 		move_child(pm, 0)
 	pm.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	if pm is SystemMapScreen:
-		(pm as SystemMapScreen).show_system(Run.node_at(), 0.0, false)
+		(pm as SystemMapScreen).show_system(Run.node_at(), Run.map_t(Run.at), false)
 	elif pm is StarchartScreen:
 		(pm as StarchartScreen).setup()
 	else:

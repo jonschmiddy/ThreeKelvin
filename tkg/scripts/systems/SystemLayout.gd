@@ -259,14 +259,26 @@ class Body extends RefCounted:
 	## Its ring: let go inside it slow enough and you are on its orbit
 	## (`ShipFlight`). Worlds only; 0 for everything else.
 	var soi: float = 0.0
-	## THE CENTRE OF ITS CIRCLE on the plane (x, z): star A at the origin in a
-	## one-star system and for a world round star A; star B's place for a world
-	## round star B; the pair's balance point for a world round both (P-type).
-	## The stars hold still (ruling 20's build: the pair turns once an hour on
-	## map time, and each visit starts the map's clock again), so this is fixed.
-	var host: Vector2 = Vector2.ZERO
+	## THE CENTRE OF ITS CIRCLE on the plane (x, z) AT MAP TIME 0: star A at the
+	## origin in a one-star system and for a world round star A; star B's place
+	## for a world round star B; the pair's balance point for a world round both
+	## (P-type). THE PAIR TURNS (ruling 23, Jon, Nov 1: "Orbiting pair"), so a
+	## world round one sun of a pair is carried round with it: where its centre
+	## is at t is `host_at(t)`. Named for its time so a reader that wants "where
+	## it is now" cannot take it by mistake; one sun, a close pair and every
+	## world round both hold still here at every t.
+	var host0: Vector2 = Vector2.ZERO
 	## Which: -1 star A, STAR_B star B, -9 both (round the balance point).
 	var host_id: int = -1
+	## ITS CENTRE'S OWN CIRCLE, for a world round one sun of a turning pair
+	## (`spin_pair`): round `hc` (the balance point), `hr` out along the pair's
+	## line (signed: star B's side positive, star A's negative, so the centre is
+	## exactly where `star_pos` puts its sun), at the pair's rate `hn` rad/s from
+	## the pair's angle `hph` at t = 0. `hr` 0 holds the centre still at `host0`.
+	var hc: Vector2 = Vector2.ZERO
+	var hr: float = 0.0
+	var hn: float = 0.0
+	var hph: float = 0.0
 	## The pull a ship feels from it (px^3/s^2): a giant's, `gm_frac` of the
 	## stars' whole GM_SHIP; 0 for every other body (worlds pull nothing).
 	var gm: float = 0.0
@@ -285,10 +297,37 @@ class Body extends RefCounted:
 	## plane (Jon: "we can get rid of planets with tilted orbits, it doesn't
 	## work on a flat plane for this game").
 	func point3(t: float) -> Vector3:
-		return orbit_point(phase + t / period * TAU)
+		return orbit_point(phase + t / period * TAU, t)
 
-	func orbit_point(a: float) -> Vector3:
-		return Vector3(host.x + cos(a) * orbit, 0.0, host.y + sin(a) * orbit)
+	## The point at angle `a` on its circle as the circle is at time t (a world
+	## round one sun of a turning pair: round where its sun is then).
+	func orbit_point(a: float, t: float) -> Vector3:
+		if hr == 0.0 or t == 0.0:
+			return Vector3(host0.x + cos(a) * orbit, 0.0, host0.y + sin(a) * orbit)
+		var h := host_at(t)
+		return Vector3(h.x + cos(a) * orbit, 0.0, h.y + sin(a) * orbit)
+
+	## THE CENTRE OF ITS CIRCLE AT t: `host0` but for a world round one sun of a
+	## turning pair, carried round the balance point with its sun.
+	func host_at(t: float) -> Vector2:
+		if hr == 0.0 or t == 0.0:
+			return host0
+		var a := hph + hn * t
+		return hc + Vector2(cos(a), sin(a)) * hr
+
+	## How fast its centre moves at t (plane px/s): zero but where it is carried.
+	func host_vel(t: float) -> Vector2:
+		if hr == 0.0:
+			return Vector2.ZERO
+		var a := hph + hn * t
+		return Vector2(-sin(a), cos(a)) * (hr * hn)
+
+	## How fast it moves at t (plane px/s): round its circle, and with its
+	## centre where that is carried.
+	func vel(t: float) -> Vector2:
+		var a := phase + t / period * TAU
+		var n := TAU / period
+		return Vector2(-sin(a), cos(a)) * (orbit * n) + host_vel(t)
 
 
 var star: StarKind = StarKind.ORDINARY
@@ -310,16 +349,22 @@ var edge: float = HI + 30.0
 ## keep-out is the layout's and not moved by a job (`keep_clear_of`).
 var fit_zoom: float = 0.0
 
-## TWO STARS (ruling 20, Oct 30). Star A is `star`, at the origin as the one
-## star always was; star B holds still at `star2_at`. Off (`twin` false) every
-## field here keeps its one-star value and nothing changes.
+## TWO STARS (ruling 20, Oct 30). Star A is `star`, at the origin at map time
+## 0 as the one star always was; star B at `star2_at0` then. THE PAIR TURNS
+## (ruling 23, Jon, Nov 1, "Orbiting pair: after4:D speed:A stacked:A"): both
+## suns circle the balance point, which holds still, so where either is at t is
+## `star_pos(p, t)`. Off (`twin` false) every field here keeps its one-star
+## value and nothing changes.
 var twin: bool = false
 var star2: StarKind = StarKind.ORDINARY
 var star2_r: float = 0.0
-var star2_at: Vector2 = Vector2.ZERO
+## Star B's place at map time 0, the pair as it was laid out. Named for its time
+## so a reader that wants "where star B is" cannot take it by mistake.
+var star2_at0: Vector2 = Vector2.ZERO
 ## Star A's share of the stars' mass (1 alone); star B has the rest.
 var star_share: float = 1.0
-## The pair's balance point, which worlds round both stars circle.
+## The pair's balance point, which worlds round both stars circle. It holds
+## still at every t: the pair turns round it.
 var bary: Vector2 = Vector2.ZERO
 ## The stars' distance apart (0 alone).
 var sep: float = 0.0
@@ -327,6 +372,13 @@ var sep: float = 0.0
 ## one. False alone and in a wide pair, whose worlds round one sun are its
 ## first two planets.
 var close: bool = false
+## THE PAIR'S TURN (`spin_pair`): its rate, rad/s (0 alone, or held still by a
+## harness, `pair_k` 0); star B's angle round the balance point at t = 0; and
+## star A's distance from it ((1 - share) x sep; star B's is the rest of sep).
+## The suns go round the way the worlds do (counter-clockwise on the plane).
+var pair_n: float = 0.0
+var pair_ph: float = 0.0
+var pair_ra: float = 0.0
 ## Each star's close-orbit rail, ring and keep-clear, set where the layout is
 ## built (`star_rail_of`). A one-star system keeps today's numbers.
 var _rail := {}
@@ -362,9 +414,40 @@ func stars() -> Array[int]:
 	return out
 
 
-## Where star p is on the plane (x, z).
-func star_pos(p: int) -> Vector2:
-	return star2_at if p == STAR_B else Vector2.ZERO
+## WHERE STAR p IS ON THE PLANE (x, z) AT MAP TIME t. One sun: the origin.
+## Two: both on one line through the balance point, star B `share x sep` out
+## from it and star A `(1 - share) x sep` on the far side, turned `pair_n * t`
+## from where the layout put them, so at t = 0 they are exactly there (A at
+## the origin, B at `star2_at0`). t has no default: a caller that does not say
+## which moment it means is a caller that has not been thought about.
+func star_pos(p: int, t: float) -> Vector2:
+	if pair_n == 0.0 or t == 0.0:
+		return star2_at0 if p == STAR_B else Vector2.ZERO
+	var a := pair_ph + pair_n * t
+	return bary + Vector2(cos(a), sin(a)) * _pair_r(p)
+
+
+## How fast star p moves at t (plane px/s): zero alone or held still.
+func star_vel(p: int, t: float) -> Vector2:
+	if pair_n == 0.0:
+		return Vector2.ZERO
+	var a := pair_ph + pair_n * t
+	return Vector2(-sin(a), cos(a)) * (_pair_r(p) * pair_n)
+
+
+## THE PAIR'S ANGLE AT t: the way from the balance point to star B, radians
+## (`pair_ph` at t = 0). For a frame that turns with the pair (co-op's spots,
+## LOCAL's band): a point turned by -pair_angle(t) about `bary` is the same
+## point in the pair's own frame at every t.
+func pair_angle(t: float) -> float:
+	return pair_ph + pair_n * t
+
+
+## (star p's signed distance from the balance point along the pair's line:
+## star B's side positive. `Body.hr` is the same number for a world round it,
+## so a carried world's centre is exactly where its sun is.)
+func _pair_r(p: int) -> float:
+	return (sep - pair_ra) if p == STAR_B else -pair_ra
 
 
 func star_radius(p: int) -> float:
@@ -449,26 +532,28 @@ static func open_zoom(edge: float) -> float:
 ## suns' discs and those orbits, and reaching from there PAIR_SUN_PAD past each
 ## sun's disc and past every such orbit, and PAIR_PAD more all round. Empty for one sun and for a close pair, which
 ## nothing circles one sun of: they open on their whole system as they did.
-func pair_box() -> Rect2:
+## AT MAP TIME t: the pair turns (ruling 23), so the box is the pair as it
+## stands then; at t 0 it is the box the binary-gap sheet measured.
+func pair_box(t: float) -> Rect2:
 	if not twin or close:
 		return Rect2()
 	var lo := Vector2(INF, INF)
 	var hi := Vector2(-INF, -INF)
 	for p in stars():
-		lo = lo.min(star_pos(p) - Vector2.ONE * star_radius(p))
-		hi = hi.max(star_pos(p) + Vector2.ONE * star_radius(p))
+		lo = lo.min(star_pos(p, t) - Vector2.ONE * star_radius(p))
+		hi = hi.max(star_pos(p, t) + Vector2.ONE * star_radius(p))
 	for b in bodies:
 		if is_star(b.host_id):
 			var rr := b.orbit + reach_of(b)
-			lo = lo.min(b.host - Vector2.ONE * rr)
-			hi = hi.max(b.host + Vector2.ONE * rr)
+			lo = lo.min(b.host_at(t) - Vector2.ONE * rr)
+			hi = hi.max(b.host_at(t) + Vector2.ONE * rr)
 	var c := (lo + hi) * 0.5
 	var half := Vector2.ZERO
 	for p in stars():
-		half = half.max((star_pos(p) - c).abs() + Vector2.ONE * (star_radius(p) + PAIR_SUN_PAD))
+		half = half.max((star_pos(p, t) - c).abs() + Vector2.ONE * (star_radius(p) + PAIR_SUN_PAD))
 	for b in bodies:
 		if is_star(b.host_id):
-			half = half.max((b.host - c).abs() + Vector2.ONE * (b.orbit + reach_of(b)))
+			half = half.max((b.host_at(t) - c).abs() + Vector2.ONE * (b.orbit + reach_of(b)))
 	half += Vector2.ONE * PAIR_PAD
 	return Rect2(c - half, half * 2.0)
 
@@ -659,6 +744,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 		else:
 			_twin(L, n, R, jobs)
 		_weigh_giant(L, n)
+		spin_pair(L)
 		return L
 
 	# where each body falls, out from the star: which pool its world comes from
@@ -846,9 +932,71 @@ static func _weigh_giant(L: SystemLayout, n: MapGen.MapNode) -> void:
 			b.gm = b.gm_frac * GM_SHIP
 
 
+## THE PAIR'S SPEED (ruling 23, Jon, Nov 1, "speed:A"): four times the game's
+## own Kepler rate (`GM_KEPLER`: 800 s a lap at 100 px with the whole mass, as
+## the worlds go). A wide pair laps in 19 to 25 minutes of map time and a close
+## pair in 6 to 7; at Kepler (77 to 99 and 25 to 30 minutes) nobody would see it
+## move in a visit. The worlds round one sun go four times faster too, so each
+## still laps its sun 5.4 to 7.6 times a lap of the pair, as a steady world
+## round one sun of a real binary does (any speed-up of the pair alone past
+## about x1.1 breaks that rule). Worlds round both, giants and map time itself
+## keep their speed.
+const PAIR_K := 4.0
+## (a harness's switch, `-- pair=K`: K times Kepler, 0 holding the pair still
+## as before ruling 23; -1 means PAIR_K, or the command line's)
+static var pair_k := -1.0
+
+
+## The pair's speed as a multiple of Kepler: `pair_k` if a harness set it, else
+## the command line's `pair=K`, else PAIR_K. NOT DisplaySettings' reduced
+## motion: the pair's angle feeds flights, saves and co-op, so a setting one
+## player has on cannot change it (the review of the plan, Nov 1).
+static func pair_speed() -> float:
+	if pair_k >= 0.0:
+		return pair_k
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("pair="):
+			pair_k = maxf(float((a as String).substr(5)), 0.0)
+			return pair_k
+	pair_k = PAIR_K
+	return pair_k
+
+
+## THE PAIR TURNS (ruling 23): its rate (`pair_n`), angle at t = 0 and star
+## A's distance from the balance point, and each world round one sun carried
+## round with its sun (`Body.hc` .. `hph`) at `pair_speed` times its own Kepler
+## rate. A pair turns as one rigid thing, so every distance from a sun to its
+## world, from the balance point to anything, and between the suns is the same
+## at every t: the steady zones, ladders, keep-outs, rails and rings laid out
+## at t = 0 hold at every angle. Laid last, once the layout is done; a harness
+## that builds a pair by hand calls it too. One sun: nothing.
+static func spin_pair(L: SystemLayout) -> void:
+	if not L.twin or L.sep <= 0.0:
+		return
+	# (the pair's line and shares, turning or not: `pair_angle`, `_pair_r`)
+	L.pair_ph = atan2(L.star2_at0.y, L.star2_at0.x)
+	L.pair_ra = L.bary.length()
+	var k := pair_speed()
+	if k <= 0.0:
+		return
+	L.pair_n = TAU / (800.0 * pow(L.sep / 100.0, 1.5)) * k
+	for b in L.bodies:
+		if not is_star(b.host_id):
+			continue
+		b.hc = L.bary
+		b.hn = L.pair_n
+		b.hph = L.pair_ph
+		b.hr = L._pair_r(b.host_id)
+		# (past Kepler the world goes as much faster as the pair: x1 and the
+		# still pair leave it its own Kepler period)
+		if k > 1.0:
+			b.period /= k
+
+
 ## A WIDE PAIR, two binaries in three (ruling 20, Oct 30: "Prototype: twin:A";
 ## the close pair is `_close`). Star A stays at the origin;
-## star B holds still `sep` from it at `star2_at`, a little smaller. The first two
+## star B `sep` from it at `star2_at0`, a little smaller (as laid out, at map
+## time 0: the pair then turns round its balance point, `spin_pair`). The first two
 ## planets go round one star each (S-type), inside the farthest steady orbit round
 ## it, at 0.70 to 0.90 of it. Everything else -- the giant, the belt, any further
 ## world, a contact, a signed job, the Hellbender -- goes round both (P-type),
@@ -951,8 +1099,8 @@ static func _twin(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, 
 	var need_b := fit[2]
 	L.fit_zoom = z
 	L.sep = sep
-	L.star2_at = Vector2(cos(theta), sin(theta)) * sep
-	L.bary = L.star2_at * (1.0 - L.star_share)
+	L.star2_at0 = Vector2(cos(theta), sin(theta)) * sep
+	L.bary = L.star2_at0 * (1.0 - L.star_share)
 	L._keep = {-1: lad_a[0], STAR_B: lad_b[0]}
 	L._rail = {-1: lad_a[1], STAR_B: lad_b[1]}
 	L._ring = {-1: lad_a[2], STAR_B: lad_b[2]}
@@ -960,18 +1108,18 @@ static func _twin(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, 
 	# its ring and its drawn disc need (the separation was found so that is
 	# inside the steady limit, which is the rule)
 	var wa := L.bodies[sa]
-	wa.host = Vector2.ZERO
+	wa.host0 = Vector2.ZERO
 	wa.host_id = -1
 	wa.orbit = minf(maxf(lerpf(S_LO, S_HI, jit[sa]) * lim_a * sep, need_a), S_HI * lim_a * sep)
 	var wb := L.bodies[sb]
-	wb.host = L.star2_at
+	wb.host0 = L.star2_at0
 	wb.host_id = STAR_B
 	wb.orbit = minf(maxf(lerpf(S_LO, S_HI, jit[sb]) * lim_b * sep, need_b), S_HI * lim_b * sep)
 	# round both
 	var po := _p_orbits(L, sep, outer, jit)
 	for k in outer.size():
 		var b := L.bodies[outer[k]]
-		b.host = L.bary
+		b.host0 = L.bary
 		b.host_id = -9
 		b.orbit = po[k]
 	# KEPLER ROUND WHAT IT CIRCLES: a world round one star goes round as its
@@ -1002,9 +1150,13 @@ static func _twin(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, 
 static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int], short: String, least := 0.0) -> void:
 	var far := 0.0
 	var ext := 0.0
+	# (from star A's place at t 0, the origin: a world round one sun of a turning
+	# pair reaches further from the origin half a lap on, but never past the
+	# worlds round both, so the edge holds at every angle; `ext`, from the
+	# balance point, is the same at every angle)
 	for b in L.bodies:
-		far = maxf(far, b.host.length() + b.orbit + reach_of(b))
-		ext = maxf(ext, b.host.distance_to(L.bary) + b.orbit + reach_of(b))
+		far = maxf(far, b.host0.length() + b.orbit + reach_of(b))
+		ext = maxf(ext, b.host0.distance_to(L.bary) + b.orbit + reach_of(b))
 	L.edge = maxf(maxf(HI, far) + 30.0, least)
 	for k in jobs.size():
 		var jr := Rng.derive(&"job_place", n.index * 8 + k)
@@ -1013,7 +1165,7 @@ static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int],
 		if jb.world != &"":
 			at += soi_of(jb)
 		jb.orbit = at
-		jb.host = L.bary
+		jb.host0 = L.bary
 		jb.host_id = -9
 		jb.period = 800.0 * pow(jb.orbit / 100.0, 1.5) * (0.95 + jr.randf() * 0.1)
 		jb.phase = jr.randf() * TAU
@@ -1024,7 +1176,7 @@ static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int],
 	if hellbender_here(n):
 		var hb := _hellbender_body(L, n)
 		hb.orbit = maxf(HI, ext) + reach_of(hb) + GAP + 24.0
-		hb.host = L.bary
+		hb.host0 = L.bary
 		hb.host_id = -9
 		hb.period = 800.0 * pow(hb.orbit / 100.0, 1.5)
 		hb.phase = float(Rng.derive(&"hellbender_place", n.index).randf()) * TAU
@@ -1036,8 +1188,8 @@ static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int],
 			b.soi = S_RING if is_star(b.host_id) else soi_of(b)
 
 
-## A CLOSE PAIR (Jon, Nov 1, "Binary kinds: close:B"). Star A stays at the
-## origin and star B holds still `sep` from it, 150 to 170 px (`CLOSE_SEP_LO`),
+## A CLOSE PAIR (Jon, Nov 1, "Binary kinds: close:B"). Star A at the origin
+## and star B `sep` from it at map time 0, 150 to 170 px (`CLOSE_SEP_LO`),
 ## a little smaller, as in a wide pair. Every body goes round both (P-type),
 ## circling the balance point past the nearest steady orbit round the pair, and
 ## none round one sun: round one, the steady orbits end 43 to 51 px out, inside
@@ -1074,8 +1226,8 @@ static func _close(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator,
 	L.star2 = StarKind.ORDINARY
 	L.star2_r = STAR_R[StarKind.ORDINARY] * pow((1.0 - L.star_share) / L.star_share, 0.8)
 	L.sep = sep
-	L.star2_at = Vector2(cos(theta), sin(theta)) * sep
-	L.bary = L.star2_at * (1.0 - L.star_share)
+	L.star2_at0 = Vector2(cos(theta), sin(theta)) * sep
+	L.bary = L.star2_at0 * (1.0 - L.star_share)
 	var N := L.bodies.size()
 	for i in N:
 		L.bodies[i].index = i
@@ -1090,7 +1242,7 @@ static func _close(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator,
 	# (the ladder at the zoom's floor: the map is fitted after the orbits are)
 	var rings := 0.0
 	for p in L.stars():
-		rings = maxf(rings, L.star_pos(p).distance_to(L.bary) + _twin_ladder(L.star_radius(p), ZOOM_FLOOR)[2])
+		rings = maxf(rings, L.star_pos(p, 0.0).distance_to(L.bary) + _twin_ladder(L.star_radius(p), ZOOM_FLOOR)[2])
 	var lo := maxf(p_limit(1.0 - L.star_share) * P_MARGIN * sep, HI * 0.27)
 	var last := -INF
 	var last_reach := 0.0
@@ -1104,7 +1256,7 @@ static func _close(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator,
 			want = maxf(want, last + last_reach + reach + GAP)
 		if b.kind == &"planet" or b.kind == &"giant":
 			want = maxf(want, rings + _soi_most(b) + RING_GAP)
-		b.host = L.bary
+		b.host0 = L.bary
 		b.host_id = -9
 		b.orbit = want
 		b.period = 800.0 * pow(b.orbit / 100.0, 1.5) * (0.95 + pj[i] * 0.1)
@@ -1294,7 +1446,9 @@ static func _twin_fits(L: SystemLayout, sep: float, lim_a: float, lim_b: float, 
 func light_distance(b: Body) -> float:
 	var flux := 0.0
 	for p in stars():
-		var c := star_pos(p).distance_to(b.host)
+		# (at t 0: the pair turns rigidly, every world round one sun with its
+		# sun, so the distance from each sun to the centre is the same at every t)
+		var c := star_pos(p, 0.0).distance_to(b.host0)
 		var lum := pow(star_radius(p) / STAR_R[StarKind.ORDINARY], 2.0)
 		flux += lum / maxf(absf(c * c - b.orbit * b.orbit), 1.0)
 	return 1.0 / sqrt(flux)

@@ -46,6 +46,17 @@ extends Harness
 ## A SIGNED JOB AND THE HELLBENDER (`_comers`), put in every twin: they move no
 ## other body and none of the stars' rings or keep-outs, and how far they push
 ## the opening zoom past the layout's is measured against the drawn suns.
+## THE PAIR TURNS (ruling 23, Jon, Nov 1, "Orbiting pair: speed:A"; `_turn`):
+## at four times Kepler round the balance point, the worlds round one sun four
+## times Kepler round it (their own Kepler promise above is Kepler x 4) and
+## carried with it; every place a pure function of the layout and the map's
+## time, so two machines and a save and a load at the same t put it in the same
+## place; the rest pose (t 0) exactly the layout as laid out; the turn rigid at
+## eight angles round a lap (the suns `sep` apart about a still balance point,
+## each world round one sun its orbit from it, the edge past everything);
+## `MapGravity` reading the suns where the layout has them; and reduced motion
+## moving nothing. One sun is still at every t, every body exactly where the
+## old formula put it.
 
 const SEEDS := [4242, 7, 1999, 31337]
 const STAR_B := SystemLayout.STAR_B
@@ -55,8 +66,10 @@ func _print_of(L: SystemLayout) -> String:
 	var parts: Array[String] = ["%d" % L.star]
 	# (two suns: the pair, its rings and where each body circles)
 	if L.twin:
-		parts.append("twin:%d:%.5f:%.3f:%.3f,%.3f:%.3f:%.3f,%.3f" % [int(L.close), L.star_share, L.sep, L.star2_at.x,
-			L.star2_at.y, L.star2_r, L.bary.x, L.bary.y])
+		parts.append("twin:%d:%.5f:%.3f:%.3f,%.3f:%.3f:%.3f,%.3f" % [int(L.close), L.star_share, L.sep, L.star2_at0.x,
+			L.star2_at0.y, L.star2_r, L.bary.x, L.bary.y])
+		# (and its turn: rate, angle at t 0, star A's distance from the balance point)
+		parts.append("pair:%.9f:%.6f:%.3f" % [L.pair_n, L.pair_ph, L.pair_ra])
 		for p in L.stars():
 			parts.append("ring%d:%.3f:%.3f:%.3f" % [p, L.keep_clear_of(p), L.star_rail_of(p), L.star_ring_of(p)])
 	for b in L.bodies:
@@ -64,7 +77,7 @@ func _print_of(L: SystemLayout) -> String:
 		for bc in b.beacons:
 			opts.append("%d%s%s" % [bc.opt, "d" if bc.dock else "", "c" if bc.core else ""])
 		parts.append("%s:%s:%.3f:%.3f:%.3f:%s:%.3f[%s]:%d:%.3f,%.3f:%.5f:%d:%.3f" % [b.kind, b.world, b.orbit,
-			b.period, b.phase, b.name, b.r, ",".join(opts), b.host_id, b.host.x, b.host.y, b.gm_frac, b.zone, b.soi])
+			b.period, b.phase, b.name, b.r, ",".join(opts), b.host_id, b.host0.x, b.host0.y, b.gm_frac, b.zone, b.soi])
 	var on_star: Array[String] = []
 	for bc in L.star_beacons:
 		on_star.append("%d" % bc.opt)
@@ -155,10 +168,14 @@ func run() -> void:
 			if L.bodies.is_empty():
 				_fail("system %d has no bodies" % n.index)
 			counts[L.bodies.size()] = int(counts.get(L.bodies.size(), 0)) + 1
-			# the edge past everything, from star A, whatever each body circles
+			# the edge past everything, from the plane's origin (star A at t 0),
+			# whatever each body circles, at every angle of a turning pair
 			for b in L.bodies:
-				if L.edge < b.host.length() + b.orbit + SystemLayout.reach_of(b):
-					_fail("system %d: %s %s reaches past the edge" % [n.index, b.kind, b.name])
+				for q in TURN_STEPS:
+					var tq := _turn_t(L, q)
+					if L.edge < b.host_at(tq).length() + b.orbit + SystemLayout.reach_of(b):
+						_fail("system %d: %s %s reaches past the edge at %d/%d of the pair's lap" % [n.index, b.kind, b.name, q, TURN_STEPS])
+						break
 			# two suns only where they may be, and always where the node has them
 			if MapGen.twin_ok(n):
 				eligible += 1
@@ -169,6 +186,7 @@ func run() -> void:
 				_fail("system %d has two suns and may not (type %d, star %d)" % [n.index, n.type, n.star])
 			if L.twin != n.twin:
 				_fail("system %d: twin %s, laid out twin %s" % [n.index, str(n.twin), str(L.twin)])
+			_turn(n, L, "seed %d system %d" % [s, n.index])
 			if L.twin:
 				_twin_checks(n, L, "seed %d system %d" % [s, n.index])
 				_comers(n, "seed %d system %d" % [s, n.index])
@@ -176,7 +194,7 @@ func run() -> void:
 			else:
 				zooms_one.append(SystemLayout.open_zoom(L.edge))
 				# ONE SUN: everything round star A, as it always was
-				if L.sep != 0.0 or L.star_share != 1.0 or not L.bodies.all(func(b): return b.host_id == -1 and b.host == Vector2.ZERO):
+				if L.sep != 0.0 or L.star_share != 1.0 or not L.bodies.all(func(b): return b.host_id == -1 and b.host0 == Vector2.ZERO):
 					_fail("system %d has one sun and something circles elsewhere" % n.index)
 				# orbits clear of each other's bodies (a giant's rings reach twice its
 				# radius), in index order, which round one sun is the order out
@@ -220,6 +238,7 @@ func run() -> void:
 	_ok("every layout the same in a fresh run of the same seed (%d differ)" % drift, drift == 0)
 	_all_twins()
 	_report()
+	_turn_report()
 	var keys := worlds.keys()
 	keys.sort_custom(func(a, b): return int(worlds[a]) > int(worlds[b]))
 	var line: Array[String] = []
@@ -227,6 +246,144 @@ func run() -> void:
 		line.append("%s %d" % [k, worlds[k]])
 	print("  worlds drawn: " + ", ".join(line))
 	verdict("systemtest")
+
+
+## THE PAIR'S LAP in this many steps (`_turn`): eight angles round it, whatever
+## its speed (the review's pair-phase sweep).
+const TURN_STEPS := 8
+## (what `_turn` measured, across every layout it saw)
+var _turn_st := {}
+
+
+## The map time at which a turning pair has gone q / TURN_STEPS of its lap
+## (q / TURN_STEPS of a long minute for one sun or a still pair).
+static func _turn_t(L: SystemLayout, q: int) -> float:
+	var lap := TAU / L.pair_n if L.pair_n > 0.0 else 600.0
+	return lap * float(q) / float(TURN_STEPS)
+
+
+func _tn(k: String, v: float) -> void:
+	var e: Array = _turn_st.get(k, [INF, -INF, 0])
+	_turn_st[k] = [minf(float(e[0]), v), maxf(float(e[1]), v), int(e[2]) + 1]
+
+
+## THE PAIR TURNS (ruling 23), on one layout of either kind. One sun: still at
+## every t, every body exactly where the old formula put it (one-sun systems
+## bit-identical). Two: the rate is Kepler x `pair_speed`, the rest pose is the
+## layout as laid out, and at eight angles round the lap the turn is rigid and
+## `MapGravity` agrees with the layout; reduced motion moves nothing.
+func _turn(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
+	var ts: Array[float] = [0.0, 0.5, 37.25, 400.0, 1234.5]
+	if not L.twin:
+		var still := L.pair_n == 0.0
+		for t in ts:
+			still = still and L.star_pos(-1, t) == Vector2.ZERO and L.star_vel(-1, t) == Vector2.ZERO
+			for b in L.bodies:
+				# (the formula `point3` always was, to the bit)
+				var a := b.phase + t / b.period * TAU
+				var old := Vector3(b.host0.x + cos(a) * b.orbit, 0.0, b.host0.y + sin(a) * b.orbit)
+				still = still and b.point3(t) == old and b.host_at(t) == b.host0 and b.hr == 0.0
+		if not still:
+			_fail("%s: one sun, and something moved off where it always was" % at)
+		_tn("one sun: still at every t", 1.0)
+		return
+	var k := SystemLayout.pair_speed()
+	var kind := "close" if L.close else "wide"
+	# THE RATE: Kepler round the pair's whole mass, times the ruling's speed
+	var lap := 800.0 * pow(L.sep / 100.0, 1.5)
+	if k <= 0.0:
+		if L.pair_n != 0.0:
+			_fail("%s: the pair held still (pair=0) and turns" % at)
+	elif absf(L.pair_n - TAU / lap * k) > 1e-9 * L.pair_n:
+		_fail("%s: the pair turns at %.6f rad/s, not Kepler x %.0f (%.6f)" % [at, L.pair_n, k, TAU / lap * k])
+	if L.pair_n > 0.0:
+		_tn("%s pair: a lap, minutes" % kind, TAU / L.pair_n / 60.0)
+	# THE REST POSE: at t 0 exactly the layout as laid out
+	if L.star_pos(-1, 0.0) != Vector2.ZERO or L.star_pos(STAR_B, 0.0) != L.star2_at0:
+		_fail("%s: at t 0 the suns are not where the layout put them" % at)
+	for b in L.bodies:
+		if b.host_at(0.0) != b.host0:
+			_fail("%s: at t 0 %s's centre is not where the layout put it" % [at, b.name])
+	var G := MapGravity.from_layout(L)
+	var ka := G.star_index(-1)
+	var kb := G.star_index(STAR_B)
+	var worst_g := 0.0
+	var worst_rigid := 0.0
+	var worst_v := 0.0
+	for q in TURN_STEPS:
+		var t := _turn_t(L, q) + 3.0
+		var sa := L.star_pos(-1, t)
+		var sb := L.star_pos(STAR_B, t)
+		# the suns sep apart, either side of the still balance point by their shares
+		worst_rigid = maxf(worst_rigid, absf(sa.distance_to(sb) - L.sep))
+		worst_rigid = maxf(worst_rigid, absf(sa.distance_to(L.bary) - L.pair_ra))
+		worst_rigid = maxf(worst_rigid, absf((sa * L.star_share + sb * (1.0 - L.star_share)).distance_to(L.bary)))
+		# each body's centre where its sun is, or still; the world its orbit from it
+		for b in L.bodies:
+			var want := L.star_pos(b.host_id, t) if SystemLayout.is_star(b.host_id) else b.host0
+			worst_rigid = maxf(worst_rigid, b.host_at(t).distance_to(want))
+			var p3 := b.point3(t)
+			worst_rigid = maxf(worst_rigid, absf(Vector2(p3.x, p3.z).distance_to(b.host_at(t)) - b.orbit))
+			# its motion: round its circle and with its centre (`vel`), against a
+			# step either side
+			var fd := (b.pos(t + 0.01) - b.pos(t - 0.01)) / 0.02
+			worst_v = maxf(worst_v, fd.distance_to(b.vel(t)))
+		for p in L.stars():
+			var fd2 := (L.star_pos(p, t + 0.01) - L.star_pos(p, t - 0.01)) / 0.02
+			worst_v = maxf(worst_v, fd2.distance_to(L.star_vel(p, t)))
+		# THE PULL'S SUNS where the layout has them, and its carried worlds too
+		worst_g = maxf(worst_g, Vector2(G.sx(ka, t), G.sz(ka, t)).distance_to(sa))
+		worst_g = maxf(worst_g, Vector2(G.sx(kb, t), G.sz(kb, t)).distance_to(sb))
+		worst_g = maxf(worst_g, Vector2(G.svx(kb, t), G.svz(kb, t)).distance_to(L.star_vel(STAR_B, t)))
+		for j in G.wo_body.size():
+			var b := L.bodies[G.wo_body[j]]
+			var aw := G.wo_ph[j] + G.wo_n[j] * t
+			var wq := Vector2(G.hx_at(G.wo_hs[j], G.wo_hx[j], t) + G.wo_orb[j] * cos(aw), G.hz_at(G.wo_hs[j], G.wo_hz[j], t) + G.wo_orb[j] * sin(aw))
+			worst_g = maxf(worst_g, wq.distance_to(b.pos(t)))
+	_tn("%s pair: the turn's worst off rigid (px)" % kind, worst_rigid)
+	_tn("%s pair: motion against a step either side (px/s)" % kind, worst_v)
+	_tn("%s pair: MapGravity against the layout (px)" % kind, worst_g)
+	if worst_rigid > 0.01:
+		_fail("%s: the turn is not rigid, %.4f px off" % [at, worst_rigid])
+	if worst_v > 0.05:
+		_fail("%s: a speed %.4f px/s off its own motion" % [at, worst_v])
+	if worst_g > 0.01:
+		_fail("%s: MapGravity's suns or worlds %.4f px off the layout's" % [at, worst_g])
+	# A WORLD ROUND ONE SUN LAPS IT 5.4 TO 7.6 TIMES A LAP OF THE PAIR (DESIGN,
+	# seed 7's wide pairs at Kepler; the same at any speed past it): printed
+	if L.pair_n > 0.0:
+		for b in L.bodies:
+			if SystemLayout.is_star(b.host_id):
+				_tn("wide pair: a world's laps of its sun a lap of the pair", (TAU / L.pair_n) / b.period)
+	# THE SAME t, THE SAME PLACE: a second layout of the node, with reduced
+	# motion on, puts every sun and world where the first does (the pair's angle
+	# feeds flights, saves and co-op, so no one machine's setting may move it)
+	var rm := DisplaySettings.reduced_motion
+	var rows: Array = []
+	for pass_i in 2:
+		DisplaySettings.reduced_motion = pass_i == 1
+		var L2 := L if pass_i == 0 else SystemLayout.of(n)
+		var row: Array = []
+		for t in ts:
+			for p in L2.stars():
+				row.append(L2.star_pos(p, t))
+			for b in L2.bodies:
+				row.append(b.point3(t))
+		rows.append(row)
+	DisplaySettings.reduced_motion = rm
+	if rows[0] != rows[1]:
+		_fail("%s: a place is not one function of the map's time (or reduced motion moved it)" % at)
+
+
+## What `_turn` measured.
+func _turn_report() -> void:
+	var keys := _turn_st.keys()
+	keys.sort()
+	for k in keys:
+		var e: Array = _turn_st[k]
+		print("  turn: %s: %.4f to %.4f (%d)" % [k, float(e[0]), float(e[1]), int(e[2])])
+	_ok("the pair turns: Kepler x %.0f, rigid at %d angles a lap, MapGravity with it, one sun still" % [SystemLayout.pair_speed(), TURN_STEPS],
+		_turn_st.has("one sun: still at every t") and (SystemLayout.pair_speed() <= 0.0 or _turn_st.has("wide pair: a lap, minutes")))
 
 
 ## Least / median / most of a list, for a line.
@@ -259,7 +416,7 @@ func _weights(n: MapGen.MapNode, L: SystemLayout) -> void:
 ## How near two bodies on their circles can come, centre to centre, whatever
 ## their phases: apart, one inside the other, or 0 where the circles cross.
 static func _closest(a: SystemLayout.Body, b: SystemLayout.Body) -> float:
-	var d := a.host.distance_to(b.host)
+	var d := a.host0.distance_to(b.host0)
 	if d >= a.orbit + b.orbit:
 		return d - a.orbit - b.orbit
 	if d <= absf(a.orbit - b.orbit):
@@ -361,7 +518,7 @@ func _comers(n: MapGen.MapNode, at: String) -> void:
 		for i in bare.bodies.size():
 			var a := bare.bodies[i]
 			var b := L.bodies[i]
-			moved = moved or a.orbit != b.orbit or a.phase != b.phase or a.period != b.period or a.host != b.host \
+			moved = moved or a.orbit != b.orbit or a.phase != b.phase or a.period != b.period or a.host0 != b.host0 \
 				or a.world != b.world or a.soi != b.soi or a.name != b.name
 		if moved:
 			_fail("%s: putting %s out moved a body, a star's rings or the fitted zoom" % [at, what])
@@ -397,9 +554,9 @@ func _twin_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 		_fail("%s: star B (r %.1f) is not the smaller" % [at, L.star2_r])
 	if share < SystemLayout.TWIN_SHARE_LO - 1e-9 or share > SystemLayout.TWIN_SHARE_HI + 1e-9:
 		_fail("%s: star A's share %.3f" % [at, share])
-	if absf(L.star2_at.length() - L.sep) > 0.01:
-		_fail("%s: the stars %.1f apart, star B %.1f out" % [at, L.sep, L.star2_at.length()])
-	if L.bary.distance_to(L.star2_at * (1.0 - share)) > 0.01:
+	if absf(L.star2_at0.length() - L.sep) > 0.01:
+		_fail("%s: the stars %.1f apart, star B %.1f out" % [at, L.sep, L.star2_at0.length()])
+	if L.bary.distance_to(L.star2_at0 * (1.0 - share)) > 0.01:
 		_fail("%s: the balance point is not where the shares put it" % at)
 	if not L.star_beacons.is_empty():
 		_fail("%s: an event on a star of a pair" % at)
@@ -419,14 +576,14 @@ func _twin_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 	var round_b: Array[SystemLayout.Body] = []
 	var both: Array[SystemLayout.Body] = []
 	for b in L.bodies:
-		if b.host_id == -1 and b.host == Vector2.ZERO:
+		if b.host_id == -1 and b.host0 == Vector2.ZERO:
 			round_a.append(b)
-		elif b.host_id == STAR_B and b.host.distance_to(L.star2_at) < 0.01:
+		elif b.host_id == STAR_B and b.host0.distance_to(L.star2_at0) < 0.01:
 			round_b.append(b)
-		elif b.host_id == -9 and b.host.distance_to(L.bary) < 0.01:
+		elif b.host_id == -9 and b.host0.distance_to(L.bary) < 0.01:
 			both.append(b)
 		else:
-			_fail("%s: %s %s circles %d at (%.1f, %.1f), which is no centre" % [at, b.kind, b.name, b.host_id, b.host.x, b.host.y])
+			_fail("%s: %s %s circles %d at (%.1f, %.1f), which is no centre" % [at, b.kind, b.name, b.host_id, b.host0.x, b.host0.y])
 	if round_a.size() != 1 or round_b.size() != 1 or round_a[0].kind != &"planet" or round_b[0].kind != &"planet":
 		_fail("%s: %d bodies round star A and %d round star B, not one world each" % [at, round_a.size(), round_b.size()])
 		return
@@ -464,12 +621,18 @@ func _twin_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 			_least("gap between neighbours round both", gap, at)
 			if gap <= 0.0:
 				_fail("%s: %s and %s cross their bodies round the same centre (gap %.1f)" % [at, g[i - 1].name, g[i].name, gap])
-	# KEPLER ROUND WHAT IT CIRCLES: a world round one star by that star's share
+	# KEPLER ROUND WHAT IT CIRCLES: a world round one star by that star's share,
+	# and (ruling 23) as many times faster than Kepler as the pair turns, so it
+	# laps its sun as often a lap of the pair as at Kepler
+	var kk := maxf(SystemLayout.pair_speed(), 1.0)
 	for b in L.bodies:
 		var m := 1.0 if b.host_id == -9 else (share if b.host_id == -1 else 1.0 - share)
-		var k := b.period / (800.0 * pow(b.orbit / 100.0, 1.5) / sqrt(m))
+		var kep := 800.0 * pow(b.orbit / 100.0, 1.5) / sqrt(m)
+		if b.host_id != -9:
+			kep /= kk
+		var k := b.period / kep
 		if k < 0.95 - 1e-6 or k > 1.05 + 1e-6:
-			_fail("%s: %s's period is %.3f of Kepler's round what it circles" % [at, b.name, k])
+			_fail("%s: %s's period is %.3f of Kepler's%s round what it circles" % [at, b.name, k, "" if b.host_id == -9 else " x %.0f" % kk])
 	# THE RINGS. Each star: keep-clear, then rail, then ring, out from its surface;
 	# the keep-clear no nearer than the autopilot's keep-out round a sun (its
 	# drawn radius + 6) at the zoom the layout is fitted to, so the close orbit a
@@ -496,7 +659,7 @@ func _twin_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 		if c < SystemLayout.RING_CLEAR - 1e-6 or inner < L.keep_clear_of(p):
 			_fail("%s: %s's ring (%.1f to %.1f) is %.1f px off its star's close ring %.1f (keep-clear %.1f)" % [at, w.name, inner, w.orbit + w.soi, c, L.star_ring_of(p), L.keep_clear_of(p)])
 		# and the other star's, wherever on their circles they are
-		var cq := w.host.distance_to(L.star_pos(q)) - w.orbit - w.soi
+		var cq := w.host0.distance_to(L.star_pos(q, 0.0)) - w.orbit - w.soi
 		_least("world's ring off the other star's close ring", cq - L.star_ring_of(q), at)
 		if cq - L.star_ring_of(q) < SystemLayout.RING_CLEAR or cq < L.keep_clear_of(q):
 			_fail("%s: %s's ring comes %.1f px from the other star" % [at, w.name, cq])
@@ -511,7 +674,7 @@ func _twin_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 	# the rings round both clear of both stars' close rings
 	for b in both:
 		for p in L.stars():
-			var near := b.orbit - b.host.distance_to(L.star_pos(p)) - _ring(b) - L.star_ring_of(p)
+			var near := b.orbit - b.host0.distance_to(L.star_pos(p, 0.0)) - _ring(b) - L.star_ring_of(p)
 			if near < SystemLayout.RING_CLEAR:
 				_fail("%s: %s %s's ring comes %.1f px from star %d's close ring" % [at, b.kind, b.name, near, p])
 	# ROUND BOTH, bodies apart but not rings, as round one sun: how often a body
@@ -570,7 +733,7 @@ func _zones_and_names(L: SystemLayout, at: String) -> void:
 	for b in L.bodies:
 		var flux := 0.0
 		for p in L.stars():
-			var cc := L.star_pos(p).distance_to(b.host)
+			var cc := L.star_pos(p, 0.0).distance_to(b.host0)
 			flux += pow(L.star_radius(p) / 16.0, 2.0) / maxf(absf(cc * cc - b.orbit * b.orbit), 1.0)
 		dist[b] = 1.0 / sqrt(flux)
 	for a in L.bodies:
@@ -603,7 +766,7 @@ func _close_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 	_most("close pair: separation, most", L.sep, at)
 	var lo := SystemLayout.p_limit(1.0 - L.star_share) * SystemLayout.P_MARGIN * L.sep
 	for b in L.bodies:
-		if b.host_id != -9 or b.host.distance_to(L.bary) > 0.01:
+		if b.host_id != -9 or b.host0.distance_to(L.bary) > 0.01:
 			_fail("%s: %s %s circles %d, not both suns" % [at, b.kind, b.name, b.host_id])
 		if b.orbit < lo - 1e-6:
 			_fail("%s: %s %s round both at %.1f px, inside the first steady orbit %.1f" % [at, b.kind, b.name, b.orbit, lo])
@@ -645,7 +808,7 @@ func _close_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 	# (one sun's rule), anything else's by RING_CLEAR
 	for b in L.bodies:
 		for p in L.stars():
-			var near := b.orbit - b.host.distance_to(L.star_pos(p)) - _ring(b) - L.star_ring_of(p)
+			var near := b.orbit - b.host0.distance_to(L.star_pos(p, 0.0)) - _ring(b) - L.star_ring_of(p)
 			var want := SystemLayout.RING_GAP if b.soi > 0.0 else SystemLayout.RING_CLEAR
 			_least("close pair: a ring off a sun's close ring (px)", near, at)
 			if near < want - 1e-6:
@@ -788,5 +951,5 @@ func _hellbender(label: String) -> void:
 	if past:
 		var hb := with.bodies[hp]
 		for b in without.bodies:
-			past = past and hb.orbit - SystemLayout.reach_of(hb) > b.host.distance_to(hb.host) + b.orbit + SystemLayout.reach_of(b)
+			past = past and hb.orbit - SystemLayout.reach_of(hb) > b.host0.distance_to(hb.host0) + b.orbit + SystemLayout.reach_of(b)
 	_ok("%spast every orbit" % label, past)
