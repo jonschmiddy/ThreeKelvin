@@ -132,7 +132,9 @@ static func _pair_of_screen(sc: Control) -> int:
 ## angle that picture had (`Run.map_t`), and never takes the party's: taken at
 ## the handover, a partner's clock ahead jumped the pair forward map to LOCAL
 ## and back LOCAL to map (the map put away wrote its own clock again, review 1).
-## The map catches up with the party while it is up (`SystemMapScreen._catch_up`).
+## The map catches up with the party while it is up (`SystemMapScreen._catch_up`),
+## and takes it at once out of LOCAL when it is too far on to
+## (`NetSession.handed_clock`).
 ## Opened after anything else -- a fight, the dock, the chart, a jump -- it takes
 ## the party's clock at once (`NetSession.adopt_clock`): nothing shown before
 ## had the pair in it.
@@ -691,8 +693,9 @@ func show_system() -> void:
 	ZoomLadder.hold_off = false
 	# (at the system's own map clock, where its map was put away: a turning
 	# pair goes on from there, `Run.map_clock`; in co-op the party's, PROTOCOL 14,
-	# unless LOCAL just showed the pair at the kept one, `pair_handed`)
-	s.show_system(Run.node_at(), Run.map_t(Run.at) if pair_handed(Run.at) and not arrived else Net.adopt_clock(Run.at), arrived)
+	# unless LOCAL just showed the pair at the kept one, `pair_handed`, and the
+	# party is not too far on from it, `NetSession.handed_clock`)
+	s.show_system(Run.node_at(), Net.handed_clock(Run.at) if pair_handed(Run.at) and not arrived else Net.adopt_clock(Run.at), arrived)
 
 
 ## Leaving the berth, by whichever door.

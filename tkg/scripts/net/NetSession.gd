@@ -1192,6 +1192,23 @@ static func clock_to_open(own: float, party: float, keep_own: bool) -> float:
 	return party if party > own and not keep_own else own
 
 
+## THE CLOCK A MAP HANDED ITS PAIR BY LOCAL OPENS AT (`Router.pair_handed`):
+## the kept one, the angle LOCAL showed, while the party's is less than
+## CATCH_CUT on from it, and the map catches up from there
+## (`SystemMapScreen._catch_up`). Further behind, the party's at once
+## (`adopt_clock`): LOCAL holds the clock for its whole visit while a
+## partner's map runs, so the gap is the time spent there, and caught up a
+## little faster than time it took four times that (40 minutes after 10 in
+## LOCAL), the pair at another angle on each machine and a partner flying drawn
+## off it all the while (review 2). One cut at the swap instead.
+const CATCH_CUT := 20.0
+func handed_clock(at: int) -> float:
+	var own := Run.map_t(at)
+	if is_networked() and party_t(at) - own > CATCH_CUT:
+		return adopt_clock(at)
+	return own
+
+
 ## A MAP OR LOCAL OPENING SYSTEM `at` takes the party's clock (`clock_to_open`):
 ## kept in `Run.map_clock`, so whatever opens next opens on it too. The clock
 ## to open at; its own, alone or offline. A ship parked settled round one sun of

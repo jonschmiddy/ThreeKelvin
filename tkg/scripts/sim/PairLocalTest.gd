@@ -18,11 +18,15 @@ extends Node
 ##     orbit of B on the band, and still there a minute of LOCAL's clock on.
 ##  2. MAP -> LOCAL -> MAP: the map's clock goes into LOCAL whole, LOCAL holds it
 ##     while it is up, and the map opens on it again. IN CO-OP, a partner's map
-##     clock a minute ahead, with the zoom ladder off and on: at both handovers
+##     clock 10 s ahead, with the zoom ladder off and on: at both handovers
 ##     the picture coming up has the clock of the one going (LOCAL does not take
 ##     the party's from its map, the map does not take it from LOCAL), the kept
 ##     clock never goes back, and the map then catches up with the party, a
-##     little faster than time and never by a jump (review 1).
+##     little faster than time and never by a jump (review 1), level within
+##     LEVEL_S. Ten minutes on instead, too far to catch up (CATCH_CUT), the
+##     map out of LOCAL takes the party's clock at once. And three rounds of
+##     4 s on the map and 4 s in LOCAL, the partner's map running: the gap
+##     shrinks round by round (review 2).
 ##  3. A SAVE: the clock written, the run's clocks scrambled, the save read back:
 ##     LOCAL opens on the very angle.
 ##  4. ONE SUN: star A at the band's anchor and nothing turned, at any clock.
@@ -87,7 +91,9 @@ func _run() -> void:
 	_sweep(true)
 	await _through_the_map()
 	for ladder in [0, 1]:
-		await _coop_handovers(ladder)
+		for lead: float in [10.0, 600.0]:
+			await _coop_handovers(ladder, lead)
+	await _coop_rounds()
 	ZoomLadder.force = 0
 	await _through_a_save()
 	_one_sun()
@@ -239,10 +245,16 @@ func _through_the_map() -> void:
 	await _frames(4)
 
 
-## 2b. In co-op, a partner's clock ahead: the handovers keep one clock.
-func _coop_handovers(ladder: int) -> void:
+## 2b. In co-op, a partner's clock ahead by `lead`: under CATCH_CUT the
+## handovers keep one clock and the map then catches up, level within
+## LEVEL_S; further on, the map out of LOCAL takes the party's at once
+## (`NetSession.handed_clock`, review 2: caught up at CATCH_K alone, 10
+## minutes in LOCAL took 40 to come level).
+const LEVEL_S := 25.0
+func _coop_handovers(ladder: int, lead: float) -> void:
 	ZoomLadder.force = ladder
-	var how := "the ladder %s" % ("on" if ladder == 1 else "off")
+	var far := lead > NetSession.CATCH_CUT
+	var how := "the ladder %s, the partner %.0f s on" % ["on" if ladder == 1 else "off", lead]
 	var idx := _pair_of(true)
 	var L := SystemLayout.of(Run.map[idx])
 	var node: MapGen.MapNode = Run.map[idx]
@@ -260,10 +272,11 @@ func _coop_handovers(ladder: int) -> void:
 	var m := Router.current as SystemMapScreen
 	if not _ok("co-op, %s: the map is up over the close pair" % how, m != null and m.view.node == node):
 		return
-	# A PARTNER ON THIS SYSTEM'S MAP, a minute further on, its map up
+	# A PARTNER ON THIS SYSTEM'S MAP, `lead` further on, its map up (held, far
+	# on, so its clock is exactly the one said)
 	var kept_state := Net.state
 	Net.state = NetSession.State.DIVING
-	_partner(idx, float(m.view.t) + 60.0, false)
+	_partner(idx, float(m.view.t) + lead, far)
 	var back := 0
 	var last := Run.map_t(idx)
 	# MAP -> LOCAL
@@ -282,12 +295,13 @@ func _coop_handovers(ladder: int) -> void:
 		Net.state = kept_state
 		_no_partner()
 		return
-	_ok("co-op, %s: LOCAL holds the map's clock, not the party's a minute on (%.6f, the map left at %.6f; the party %.3f)" % [how, sky.held_t(), left, Net.party_t(idx)],
+	_ok("co-op, %s: LOCAL holds the map's clock, not the party's (%.6f, the map left at %.6f; the party %.3f)" % [how, sky.held_t(), left, Net.party_t(idx)],
 		sky.held_t() == left)
 	await _frames(20)
 	_ok("co-op, %s: and the clock kept is LOCAL's (%.6f)" % [how, Run.map_t(idx)], Run.map_t(idx) == sky.held_t())
 	var held := sky.held_t()
 	# LOCAL -> MAP
+	var pt_before := Net.party_t(idx)
 	Router.show_system()
 	var at_swap := -1.0
 	for i in 240:
@@ -305,28 +319,98 @@ func _coop_handovers(ladder: int) -> void:
 		Net.state = kept_state
 		_no_partner()
 		return
-	_ok("co-op, %s: the map comes up on LOCAL's clock, within a frame (%.6f, LOCAL %.6f)" % [how, at_swap, held],
-		at_swap >= held and at_swap - held <= 1.5 / 60.0)
-	# THE MAP CATCHES UP: faster than time, never by a jump, never past the party
+	if far:
+		_ok("co-op, %s: too far behind to catch up, the map comes up on the party's clock, within a frame (%.6f, the party %.6f; LOCAL %.6f)" % [how, at_swap, pt_before, held],
+			at_swap >= pt_before and at_swap - pt_before <= 1.5 / 60.0)
+	else:
+		# (within a frame: its first frame may already be one of catching up)
+		_ok("co-op, %s: the map comes up on LOCAL's clock, within a frame (%.6f, LOCAL %.6f)" % [how, at_swap, held],
+			at_swap >= held and at_swap - held <= (1.0 + SystemMapScreen.CATCH_MAX) / 60.0 + 1e-4)
+	# THE MAP CATCHES UP: faster than time, never by a jump, never past the
+	# party, and level within LEVEL_S
 	var worst := 0.0
 	var t_prev := float(m.view.t)
 	var t_first := t_prev
-	for i in 120:
+	var level_at := -1.0
+	for i in int(LEVEL_S * 60.0) + 1:
 		await _tree.process_frame
 		var tn := float(m.view.t)
 		worst = maxf(worst, tn - t_prev)
 		if Run.map_t(idx) < last:
 			back += 1
 		t_prev = tn
-	var ran := t_prev - t_first
-	_ok("co-op, %s: the map then catches up with the party, %.3f s of map time in 2 s, at most %.4f s a frame (never a jump), not past it (%.3f, the party %.3f)" % [how, ran, worst, t_prev, Net.party_t(idx)],
-		ran > 2.0 * 1.1 and worst <= (1.0 + SystemMapScreen.CATCH_K) / 60.0 + 1e-4 and t_prev <= Net.party_t(idx) + 1e-6)
+		if i == 119 and not far:
+			var ran := t_prev - t_first
+			_ok("co-op, %s: the map then catches up with the party, %.3f s of map time in 2 s, at most %.4f s a frame (never a jump), not past it (%.3f, the party %.3f)" % [how, ran, worst, t_prev, Net.party_t(idx)],
+				ran > 2.0 * 1.1 and worst <= (1.0 + SystemMapScreen.CATCH_MAX) / 60.0 + 1e-4 and t_prev <= Net.party_t(idx) + 1e-6)
+		if level_at < 0.0 and (far or Net.party_t(idx) - tn < 0.05):
+			level_at = float(i + 1) / 60.0
+			break
+	_ok("co-op, %s: and level with the party within %.0f s (%s)" % [how, LEVEL_S, "%.2f s" % level_at if level_at >= 0.0 else "not"], level_at >= 0.0)
 	_ok("co-op, %s: and the kept clock never went back (%d times)" % [how, back], back == 0)
 	Router.show_local()
 	for i in 240:
 		await _tree.process_frame
 		if _local_sky() != null and not ZoomLadder.busy():
 			break
+	Net.state = kept_state
+	_no_partner()
+
+
+## 2c. MAP AND LOCAL IN TURN, in co-op, with a partner whose map runs on (its
+## clock said every frame, a frame on): three rounds of 4 s on the map and 4 s
+## in LOCAL from 16 s behind. LOCAL holds the clock each time while the
+## partner's runs, and the map must win back more than that: the gap shrinks
+## round by round and never reaches CATCH_CUT (review 2: at CATCH_K alone it
+## grew by about 3 s a round, for good).
+func _coop_rounds() -> void:
+	ZoomLadder.force = 0
+	var idx := _pair_of(true)
+	var L := SystemLayout.of(Run.map[idx])
+	var node: MapGen.MapNode = Run.map[idx]
+	node.visited = true
+	Run.at = idx
+	SectorScreen._approached_at = idx
+	Run.map_clock[idx] = 0.2 * TAU / L.pair_n
+	SystemMapScreen._parked[idx] = {"at": SystemLayout.STAR_B, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+	Router.show_system()
+	await _frames(6)
+	var m := Router.current as SystemMapScreen
+	if not _ok("co-op rounds: the map is up over the close pair", m != null and m.view.node == node):
+		return
+	var kept_state := Net.state
+	Net.state = NetSession.State.DIVING
+	var pt := float(m.view.t) + 16.0
+	_partner(idx, pt, false)
+	var gaps: Array[float] = []
+	var most := 0.0
+	for r in 3:
+		for i in 240:
+			await _tree.process_frame
+			pt += 1.0 / 60.0
+			_partner(idx, pt, false)
+			if i == 0:
+				m = Router.current as SystemMapScreen
+		if m == null or not is_instance_valid(m):
+			break
+		gaps.append(pt - float(m.view.t))
+		Router.show_local()
+		for i in 240:
+			await _tree.process_frame
+			pt += 1.0 / 60.0
+			_partner(idx, pt, false)
+			most = maxf(most, pt - Run.map_t(idx))
+		Router.show_system()
+		m = null
+	var shrank := gaps.size() == 3 and gaps[2] < gaps[1] and gaps[1] < gaps[0]
+	var said := PackedStringArray()
+	for g in gaps:
+		said.append("%.2f" % g)
+	_ok("co-op rounds: the gap after each 4 s on the map shrinks round by round (%s s), and never reaches CATCH_CUT (at most %.2f s)" % [
+		", ".join(said), most], shrank and most < NetSession.CATCH_CUT)
+	await _frames(4)
+	Router.show_local()
+	await _frames(4)
 	Net.state = kept_state
 	_no_partner()
 

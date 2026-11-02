@@ -910,13 +910,19 @@ func clock_held() -> bool:
 
 
 ## CATCHING UP WITH THE PARTY (PROTOCOL 14): a map behind a partner's in the
-## same system runs CATCH_K faster until it is there, never past it and never
-## back. A map handed its pair by LOCAL opens on LOCAL's clock, not the party's
+## same system runs faster until it is there, never past it and never back: by
+## the gap over CATCH_S, at least CATCH_K and at most CATCH_MAX faster than
+## time, so a gap closes in seconds and smoothly (from CATCH_CUT, the most a
+## map out of LOCAL opens behind, `NetSession.handed_clock`, in about 18 s). A
+## map handed its pair by LOCAL opens on LOCAL's clock, not the party's
 ## (`Router.pair_handed`), so a peer that only goes map to LOCAL and back would
-## otherwise never come level. Not while the ship flies a plan (a flight is a
-## plan on map time), so only the suns, the worlds and what rides with them go
-## a little faster for a while.
+## otherwise never come level; at CATCH_K alone it fell further behind on every
+## visit that was more than a quarter of its time on the map (review 2). Not
+## while the ship flies a plan (a flight is a plan on map time), so only the
+## suns, the worlds and what rides with them go faster for a while.
 const CATCH_K := 0.25
+const CATCH_S := 4.0
+const CATCH_MAX := 2.0
 func _catch_up(delta: float) -> void:
 	if not Net.is_networked() or view.node == null or view.node.index != Run.at or flight == null:
 		return
@@ -924,7 +930,7 @@ func _catch_up(delta: float) -> void:
 		return
 	var pt := Net.party_t(Run.at)
 	if pt > view.t:
-		view.t = minf(view.t + delta * CATCH_K, pt)
+		view.t = minf(view.t + delta * clampf((pt - view.t) / CATCH_S, CATCH_K, CATCH_MAX), pt)
 
 
 ## THE SHIP AND THE VIEW, a frame on: the arrows pan (eased), WASD flies, the
