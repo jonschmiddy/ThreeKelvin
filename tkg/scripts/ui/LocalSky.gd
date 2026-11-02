@@ -1461,6 +1461,39 @@ func _step_star(o: Vector2) -> void:
 			_flare = _flare_b
 
 
+## THE BAND'S DRAWING ORDER, farthest first: the worlds at depths `ys` (sorted,
+## nearest last; the band is from star A, so A is at 0) with star A among them
+## (`with_a`) and star B at its depth `d2` (`with_b`, `suns_depth`). Each entry
+## is an index into `ys`, -1 for star A or `SystemLayout.STAR_B`. The nearer
+## sun goes in after the farther, so a pair turned end on draws its near sun
+## over the far (stacked:A). Pure, so a headless test can see it: LOCAL's suns
+## are not built headless, and a flipped order passed every sheet (review 2).
+static func band_order(d2: float, ys: Array, with_a := true, with_b := true) -> Array:
+	var out: Array = []
+	var a_placed := not with_a
+	var b_placed := not with_b
+	for k in ys.size():
+		var y := float(ys[k])
+		if not b_placed and d2 < 0.0 and y >= d2:
+			out.append(SystemLayout.STAR_B)
+			b_placed = true
+		if not a_placed and y >= 0.0:
+			out.append(-1)
+			a_placed = true
+		if not b_placed and y >= d2:
+			out.append(SystemLayout.STAR_B)
+			b_placed = true
+		out.append(k)
+	if not b_placed and d2 < 0.0:
+		out.append(SystemLayout.STAR_B)
+		b_placed = true
+	if not a_placed:
+		out.append(-1)
+	if not b_placed:
+		out.append(SystemLayout.STAR_B)
+	return out
+
+
 ## Each world where its orbit has it now, seen from just above the plane: across
 ## by its x, a little lower the nearer it is; the ones behind the star drawn
 ## before it and hidden by its disc.
@@ -1477,22 +1510,22 @@ func _step_worlds(o: Vector2) -> void:
 	# AT ITS DEPTH as the pair was left, star A's 0 here (the band is from it),
 	# B's from the pair's angle then: the nearer sun goes in after the farther,
 	# so a pair turned end on draws its near sun over the far (stacked:A)
-	var star2_placed := star2 == null
 	var d2: float = suns_depth()
+	var ys: Array = []
+	for i: int in order:
+		ys.append((pos[i] as Vector2).y)
 	var bp := PackedVector4Array()
 	var from := PackedVector2Array()
-	for i: int in order:
+	for e: int in band_order(d2, ys, not star_placed, star2 != null):
+		if e == -1:
+			_worlds.move_child(star, -1)
+			continue
+		if e == SystemLayout.STAR_B:
+			_worlds.move_child(star2, -1)
+			continue
+		var i: int = order[e]
 		var p: Vector2 = pos[i]
 		var v: Node2D = _views[i]
-		if not star2_placed and d2 < 0.0 and p.y >= d2:
-			_worlds.move_child(star2, -1)
-			star2_placed = true
-		if not star_placed and p.y >= 0.0:
-			_worlds.move_child(star, -1)
-			star_placed = true
-		if not star2_placed and p.y >= d2:
-			_worlds.move_child(star2, -1)
-			star2_placed = true
 		_worlds.move_child(v, -1)
 		var b := layout.bodies[i]
 		var at := _zp(_block_round(band_origin() + Vector2(p.x, p.y * TILT) * _s), Z_BAND)
@@ -1545,13 +1578,6 @@ func _step_worlds(o: Vector2) -> void:
 				# world round the other sun's shaft back across its own sun)
 				var lu := _toward(p)
 				from.append(v.position + Vector2(lu.x, lu.y * TILT).normalized() * 400.0)
-	if not star2_placed and d2 < 0.0:
-		_worlds.move_child(star2, -1)
-		star2_placed = true
-	if not star_placed:
-		_worlds.move_child(star, -1)
-	if not star2_placed:
-		_worlds.move_child(star2, -1)
 	if radiant and _neb_mat != null:
 		var rg := PackedFloat32Array()
 		rg.resize(24)

@@ -188,6 +188,17 @@ func _sweep(close: bool) -> void:
 		var r_both := L.star_r * se.star_k_of(-1) + L.star2_r * se.star_k_of(B)
 		_ok("close pair end on (%.0f deg): its suns cross on the band (%.1f px apart, discs %.1f across together), star B the nearer (%.1f)" % [
 			rad_to_deg(L.pair_angle(tz)), gap_e, r_both, se.suns_depth()], gap_e < r_both and se.suns_depth() > 0.0 and rel_e.y > 0.0)
+		# THE DRAWING ORDER (`LocalSky.band_order`, what `_step_worlds` moves the
+		# suns and worlds by; not built headless): end on with B nearer, B after
+		# A, and the other way half a lap on, each among the band's worlds by
+		# depth -- the real band's, and one with a world far nearer than both
+		var tz2 := tz + 0.5 * TAU / L.pair_n
+		Run.map_clock[idx] = tz2
+		var so := _sky_at(idx)
+		var e_ok := _drawn_in_depth(se, true) and _drawn_in_depth(so, false)
+		_ok("close pair end on: LOCAL draws the nearer sun after the farther, among the worlds by depth (B nearer %s, A nearer %s)" % [
+			str(LocalSky.band_order(se.suns_depth(), [-200.0, 300.0])), str(LocalSky.band_order(so.suns_depth(), [-200.0, 300.0]))], e_ok)
+		so.free()
 		se.free()
 	_ok("%s pair (system %d): LOCAL holds the kept clock and the pair's angle there, 8 of 8 (%d off)" % [kind, idx, held_bad], held_bad == 0)
 	_ok("%s pair: star B on the band on the side of star A the map has it (%d of 8 wrong)" % [kind, side_bad], side_bad == 0)
@@ -202,6 +213,28 @@ func _sweep(close: bool) -> void:
 		_ok("wide pair: the world round star B on the band on its orbit of B, now and a minute on (%d of 16 off)" % world_bad, wb >= 0 and world_bad == 0)
 	SystemMapScreen._parked.erase(idx)
 	Run.map_clock.erase(idx)
+
+
+## Whether LOCAL sky `s` draws its band farthest first (`LocalSky.band_order`):
+## its suns and its worlds in depth order, star B after star A exactly when
+## `b_near`; for the band's own worlds at its clock and for a band with one
+## world far behind both suns and one far nearer.
+func _drawn_in_depth(s: LocalSky, b_near: bool) -> bool:
+	var d2 := s.suns_depth()
+	var ok := (d2 > 0.0) == b_near
+	var real: Array = []
+	for b in s.layout.bodies:
+		real.append(s._band_pos(b).y)
+	real.sort()
+	for ys: Array in [real, [-200.0, 300.0], []]:
+		var out := LocalSky.band_order(d2, ys)
+		var last := -INF
+		for e: int in out:
+			var y: float = 0.0 if e == -1 else (d2 if e == SystemLayout.STAR_B else float(ys[e]))
+			ok = ok and y >= last
+			last = y
+		ok = ok and out.size() == ys.size() + 2 and (out.find(SystemLayout.STAR_B) > out.find(-1)) == b_near
+	return ok
 
 
 ## 2. Map -> LOCAL -> map, through the screens.
