@@ -4,7 +4,8 @@ extends Node
 ##   godot --headless --path . -- sheet=SolveTest [systems=N] [lineups=N] [twins=N]
 ##     [twinlineups=N] [worker=N] [only=one|giant|twin|rtwin|rclose|phase|proto] [short]
 ## `short`: the gate's run, every sweep at fewer systems and line-ups
-## (systems=1 lineups=4 twins=1 twinlineups=3 worker=100).
+## (systems=1 lineups=4 twins=1 twinlineups=3 worker=100; the phase sweep at
+## PHASES_SHORT angles of two pairs).
 ## `FlightSolve` from every start to every place, at line-ups (map times), in
 ## four sweeps:
 ##   one    real one-star systems from systemtest's four seeds (SYSTEM, PULSAR
@@ -89,8 +90,12 @@ const ORBIT_K := 0.88
 ## `ShipFlight.STAR_PACE`: a settled star orbit's pace, times Kepler's
 const STAR_PACE := 50.0
 const KEEP_OFF := Vector2(8.0, 5.0 / 0.38)
-## the pair-phase sweep's angles round a lap (the review of the plan: 8)
+## the pair-phase sweep's angles round a lap (the review of the plan: 8), and
+## in `short` (the gate's run) PHASES_SHORT of them, for the close pair of seed
+## 7 and the wide one of seed 4242 only: at full size the sweep took the gate's
+## run from about 170 s to 370 s alone, past its 300 s limit (review 1)
 const PHASES := 8
+const PHASES_SHORT := 4
 ## found and clean in at least this share of each sweep (above)
 const FOUND_MIN := 0.99
 const FOUND_MIN_HAND := 0.97
@@ -114,6 +119,8 @@ var _twins := 2
 var _twin_lineups := 6
 var _worker_n := 400
 var _only := ""
+## the gate's run (`short`)
+var _short := false
 ## every case: {sweep, L, G, dep, tgt, t, label, kind, hand}
 var _cases: Array = []
 var _res: Array = []
@@ -138,6 +145,7 @@ func _ready() -> void:
 		elif s.begins_with("only="):
 			_only = s.substr(5)
 		elif s == "short":
+			_short = true
 			_per_seed = 1
 			_lineups = 4
 			_twins = 1
@@ -349,7 +357,8 @@ func _twin_cases() -> void:
 ## apart from 40 s on. Held still (`-- pair=0`) there is no lap: its line-ups
 ## are the twin sweeps' own.
 func _phase_cases() -> void:
-	for pick: Array in [[7, 1], [7, -1], [4242, -1]]:
+	var phases := PHASES_SHORT if _short else PHASES
+	for pick: Array in ([[7, 1], [4242, -1]] if _short else [[7, 1], [7, -1], [4242, -1]]):
 		var sd: int = pick[0]
 		Rng.forced = sd
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -378,10 +387,10 @@ func _phase_cases() -> void:
 			continue
 		var times: Array = []
 		var lap := TAU / absf(best.pair_n) if best.pair_n != 0.0 else 0.0
-		for j in PHASES:
-			times.append(40.0 + (lap * float(j) / float(PHASES) if lap > 0.0 else 37.0 * float(j)))
+		for j in phases:
+			times.append(40.0 + (lap * float(j) / float(phases) if lap > 0.0 else 37.0 * float(j)))
 		var lab := "seed %d node %d (%s pair, %d bodies, sep %.0f, lap %.0f s)" % [sd, best_i, "close" if best.close else "wide", best.bodies.size(), best.sep, lap]
-		print("phase: %s, at %d angles round its lap%s" % [lab, PHASES, "" if lap > 0.0 else " (held still: line-ups 37 s apart)"])
+		print("phase: %s, at %d angles round its lap%s" % [lab, phases, "" if lap > 0.0 else " (held still: line-ups 37 s apart)"])
 		_add_system("phase", best, MapGravity.from_layout(best), lab, false, times, true)
 
 

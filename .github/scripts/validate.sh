@@ -915,8 +915,11 @@ step "The solver finds clean flights, replays them and agrees on a worker"
 # hand-built ones: found and clean in at least 99% (97% of the hand twins),
 # starting and landing where it should, no cusp in a burn, the same plan
 # rebuilt from its choice, a sample flown again by plain RK4, and the same
-# results on WorkerThreadPool. The full run is about 500 s: this is `short`.
-if run_godot solvetest 300 --headless --path "$PROJECT" -- sheet=SolveTest short; then
+# results on WorkerThreadPool. The full run is about 1,200 s: this is `short`,
+# about 250 s alone since the pair turns (ruling 23: the twins' plans cost
+# about a fifth more, and its pair-phase sweep at 4 angles of two pairs), so
+# its limit is 420 (it was 300; the whole phase sweep took it to 370 s).
+if run_godot solvetest 420 --headless --path "$PROJECT" -- sheet=SolveTest short; then
 	if grep -qE '^solvetest: PASS' "$LOG_DIR/solvetest.log"; then
 		ok "the solver's flights are found, clean, replayed and the same on a worker"
 	else
@@ -2371,7 +2374,7 @@ gate_weight() {
 		menutest) echo 25 ;; market) echo 24 ;; parseall) echo 24 ;;
 		devtest) echo 22 ;; hulldamagetest) echo 22 ;; fightopentest) echo 22 ;;
 		lockedpooltest) echo 41 ;; rewardshowntest) echo 33 ;; mapperftest) echo 40 ;;
-		solvetest) echo 125 ;; twindrawtest) echo 106 ;; flighttest) echo 80 ;; twinsitetest) echo 90 ;;
+		solvetest) echo 250 ;; twindrawtest) echo 106 ;; flighttest) echo 80 ;; twinsitetest) echo 90 ;;
 		*) echo 15 ;;
 	esac
 }
