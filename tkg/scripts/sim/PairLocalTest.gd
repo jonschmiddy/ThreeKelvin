@@ -27,6 +27,9 @@ extends Node
 ##     map out of LOCAL takes the party's clock at once. And three rounds of
 ##     4 s on the map and 4 s in LOCAL, the partner's map running: the gap
 ##     shrinks round by round (review 2).
+##     OPENED ANY OTHER WAY (out of the chart), a map and LOCAL take the
+##     party's clock at once, and a ship parked settled round star B goes with
+##     B (review 2).
 ##  3. A SAVE: the clock written, the run's clocks scrambled, the save read back:
 ##     LOCAL opens on the very angle.
 ##  4. ONE SUN: star A at the band's anchor and nothing turned, at any clock.
@@ -94,6 +97,7 @@ func _run() -> void:
 		for lead: float in [10.0, 600.0]:
 			await _coop_handovers(ladder, lead)
 	await _coop_rounds()
+	await _coop_opened_cold()
 	ZoomLadder.force = 0
 	await _through_a_save()
 	_one_sun()
@@ -413,6 +417,72 @@ func _coop_rounds() -> void:
 	await _frames(4)
 	Net.state = kept_state
 	_no_partner()
+
+
+## 2d. OPENED ANY OTHER WAY, IN CO-OP: a map or LOCAL opened after something
+## that showed no angle of the pair (here the chart) takes the party's clock at
+## once (`Router.show_system`'s and `LocalSky._hold_pair`'s `adopt_clock`),
+## and a ship parked settled round star B goes with B to where it stands then
+## (`NetSession.carry_parked`). Cut either call and the gate stayed green while
+## two machines opened the pair at two angles (review 2).
+func _coop_opened_cold() -> void:
+	ZoomLadder.force = 0
+	var idx := _pair_of(true)
+	var L := SystemLayout.of(Run.map[idx])
+	var B := SystemLayout.STAR_B
+	var node: MapGen.MapNode = Run.map[idx]
+	node.visited = true
+	Run.at = idx
+	SectorScreen._approached_at = idx
+	Run.map_clock[idx] = 0.35 * TAU / L.pair_n
+	SystemMapScreen._parked[idx] = {"at": B, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+	var kept_state := Net.state
+	Net.state = NetSession.State.DIVING
+	# THE MAP, out of the chart
+	Router.show_starchart()
+	for i in 120:
+		await _tree.process_frame
+		if Router.current is StarchartScreen:
+			break
+	if not _ok("co-op, cold: the chart is up", Router.current is StarchartScreen):
+		Net.state = kept_state
+		return
+	var own := Run.map_t(idx)
+	_partner(idx, own + 60.0, true)
+	var pt := Net.party_t(idx)
+	Router.show_system()
+	var m := Router.current as SystemMapScreen
+	_ok("co-op, cold: the map opened out of the chart takes the party's clock at once (%.6f; its own %.3f, the party %.6f)" % [
+		m.view.t if m != null else -1.0, own, pt], m != null and m.view.node == node and absf(m.view.t - pt) < 1e-6 and Run.map_t(idx) == pt)
+	await _frames(4)
+	# LOCAL, out of the chart, a ship parked settled round star B
+	Router.show_starchart()
+	for i in 120:
+		await _tree.process_frame
+		if Router.current is StarchartScreen:
+			break
+	own = Run.map_t(idx)
+	_partner(idx, own + 60.0, true)
+	pt = Net.party_t(idx)
+	var off := Vector2(31.0, -12.5)
+	var p_own := L.star_pos(B, own) + off
+	SystemMapScreen._parked[idx] = {"at": -9, "mode": &"free", "p": p_own, "v": Vector2.ZERO, "head": 0.0, "cen": B, "r": off.length(), "sense": 1.0}
+	Router.show_local()
+	var sky: LocalSky = null
+	for i in 240:
+		await _tree.process_frame
+		sky = _local_sky()
+		if sky != null and not ZoomLadder.busy():
+			break
+	var p_now: Vector2 = (SystemMapScreen._parked.get(idx, {}) as Dictionary).get("p", Vector2.INF)
+	_ok("co-op, cold: LOCAL opened out of the chart takes the party's clock at once (%.6f; its own %.3f, the party %.6f)" % [
+		sky.held_t() if sky != null else -1.0, own, pt], sky != null and absf(sky.held_t() - pt) < 1e-6)
+	_ok("co-op, cold: and the ship parked settled round star B went with B (%.4f px off its offset; B moved %.1f px)" % [
+		(p_now - L.star_pos(B, pt)).distance_to(off), L.star_pos(B, pt).distance_to(L.star_pos(B, own))],
+		(p_now - L.star_pos(B, pt)).distance_to(off) < 1e-3 and L.star_pos(B, pt).distance_to(L.star_pos(B, own)) > 1.0)
+	Net.state = kept_state
+	_no_partner()
+	SystemMapScreen._parked[idx] = {"at": B, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 
 
 ## A PARTNER (peer 77) in system `idx` on the roster, its map's clock `t`
