@@ -33,6 +33,7 @@ at the bottom says where the work stands.
 | `env.sh` | Sourced by the rest. Finds TK_REPO, TK_WT, TK_SCRATCH, GODOT, PY; gives `tk_timeout`, `tk_new_profile`, `tk_isolated`, `tk_guard`. |
 | `godot.sh [-t S] [-C DIR] args...` | Godot with a fresh throwaway profile, dummy audio and a time limit. Use this for every test and sim run. |
 | `render.sh [-t S] [-C DIR] args...` | The same, windowed, for stills and films; at most two at once. On a Mac the window shows on screen. |
+| `run_battery.sh [WORKTREE] [names...]` | The wide test battery (35 runs), JOBS at once (default 8), longest first: FlightTest and SolveTest split into shards, their totals after (`sheet=ShardSum`), the four timed runs alone at the end (`SOLO=0` skips them). Logs and `summary.txt` in `$OUT`. The wide set for a change to flight, save, clock or net; not the gate. |
 | `gate_land.sh WORKTREE BRANCH LABEL` | Merge main, import, run the full gate (about 12 minutes), fast-forward main and push on a pass. |
 | `release.sh WORKTREE BRANCH LABEL VERSION` | gate_land, then build both zips from a clean copy, check the Mac app, copy zips to `builds/`, tag `alpha-VERSION` and push the tag. |
 | `resolve_changelog.py CHANGELOG.md` | Keeps both sides of a CHANGELOG-only merge conflict. gate_land runs it. |

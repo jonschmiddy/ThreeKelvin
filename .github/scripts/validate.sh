@@ -49,6 +49,10 @@ set -uo pipefail
 GODOT="${GODOT:-godot}"
 PROJECT="${PROJECT:-tkg}"
 SIM_RUNS="${SIM_RUNS:-40}"
+# How many units FlightTest and SolveTest run split into: as many as there are
+# `unit_flighttest_<K>` and `unit_solvetest_<K>` functions (checked below).
+GATE_FLIGHT_SHARDS=4
+GATE_SOLVE_SHARDS=4
 # Overridable so CI can put the logs somewhere it can upload from.
 LOG_DIR="${LOG_DIR:-$(mktemp -d)}"
 mkdir -p "$LOG_DIR"
@@ -867,8 +871,17 @@ else
 fi
 }
 
-unit_flighttest() {
-step "Every autopilot flight on the map is solved, flown as drawn and lands"
+# FlightTest and SolveTest run SPLIT, GATE_FLIGHT_SHARDS and GATE_SOLVE_SHARDS
+# units each (`-- shard=K/N`: every Nth system or case, `Harness.mine`), side by
+# side in the pool. Each shard judges its own cases (FlightTest's worker plans
+# and hand phase pick their flights from every system, as unsplit); then
+# `flighttest` and `solvetest`, after the pool, add up what needs every case (a
+# sweep's found-and-clean share, the flights left put there, the replans found
+# again) from the shards' logs (`sheet=ShardSum`), and check every case ran
+# once. A shard's unit is one of `unit_flighttest_<K>` below: as many as the
+# count.
+gate_flight_shard() {
+step "FlightTest, shard $1 of $GATE_FLIGHT_SHARDS"
 # Ruling 20 (Oct 30): FlightSolve's flights on map time, one sun, a heavy
 # giant and two suns, from every start to every place, planned as the
 # preview is, clicked, flown and landed; the far places (the Hellbender, where
@@ -876,15 +889,54 @@ step "Every autopilot flight on the map is solved, flown as drawn and lands"
 # the start system; the same plans on a worker; flying by hand in a twin. The
 # full run is about 500 s: this is its `short` one (one seed, four systems a
 # sweep), its clicks apart in `flightclicks`, which times frames.
-if run_godot flighttest 300 --headless --path "$PROJECT" -- sheet=FlightTest short clicks=0; then
-	if grep -qE '^flighttest: PASS' "$LOG_DIR/flighttest.log"; then
-		ok "every flight solved (or today's planner, with one sun), flown as drawn, landed"
+if run_godot "flighttest_$1" 300 --headless --path "$PROJECT" -- sheet=FlightTest short clicks=0 "shard=$1/$GATE_FLIGHT_SHARDS"; then
+	if grep -qE '^flighttest: PASS' "$LOG_DIR/flighttest_$1.log"; then
+		ok "its flights solved (or today's planner, with one sun), flown as drawn, landed"
 	else
 		bad "a flight was not found, not flown as drawn, or did not land"
-		grep -E 'FAIL|^flighttest' "$LOG_DIR/flighttest.log" | head -n 12 | sed 's/^/        /'
+		grep -E 'FAIL|^flighttest' "$LOG_DIR/flighttest_$1.log" | head -n 12 | sed 's/^/        /'
 	fi
 else
-	bad "flighttest did not finish"
+	bad "flighttest shard $1 did not finish"
+fi
+}
+
+unit_flighttest_1() {
+gate_flight_shard 1
+}
+
+unit_flighttest_2() {
+gate_flight_shard 2
+}
+
+unit_flighttest_3() {
+gate_flight_shard 3
+}
+
+unit_flighttest_4() {
+gate_flight_shard 4
+}
+
+# The totals of a split test (above), from its shards' logs: one of AFTER_UNITS.
+gate_shard_sum() {
+	local name="$1" n="$2" k logs="" dir="$LOG_DIR"
+	case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) dir="$(cygpath -m "$LOG_DIR")" ;; esac
+	for ((k = 1; k <= n; k++)); do logs="$logs${logs:+,}$dir/${name}_$k.log"; done
+	if run_godot "$name" 120 --headless --path "$PROJECT" -- sheet=ShardSum "label=$name" "logs=$logs"; then
+		if grep -qE "^${name}_total: PASS" "$LOG_DIR/$name.log"; then
+			return 0
+		fi
+		grep -E 'FAIL|_total' "$LOG_DIR/$name.log" | head -n 12 | sed 's/^/        /'
+	fi
+	return 1
+}
+
+unit_flighttest() {
+step "Every autopilot flight on the map is solved, flown as drawn and lands (the shards' totals)"
+if gate_shard_sum flighttest "$GATE_FLIGHT_SHARDS"; then
+	ok "every system flown once across the shards, every sweep found and clean in at least 99%"
+else
+	bad "a sweep's flights were not found and clean often enough, or a shard did not run its share"
 fi
 }
 
@@ -908,23 +960,48 @@ else
 fi
 }
 
-unit_solvetest() {
-step "The solver finds clean flights, replays them and agrees on a worker"
+gate_solve_shard() {
+step "SolveTest, shard $1 of $GATE_SOLVE_SHARDS"
 # FlightSolve (ruling 20, Oct 30) from every start to every place at several
 # line-ups: one sun, the giant at 1/10 and 1/4, the layout's own twins and
 # hand-built ones: found and clean in at least 99% (97% of the hand twins),
 # starting and landing where it should, no cusp in a burn, the same plan
 # rebuilt from its choice, a sample flown again by plain RK4, and the same
 # results on WorkerThreadPool. The full run is about 500 s: this is `short`.
-if run_godot solvetest 300 --headless --path "$PROJECT" -- sheet=SolveTest short; then
-	if grep -qE '^solvetest: PASS' "$LOG_DIR/solvetest.log"; then
-		ok "the solver's flights are found, clean, replayed and the same on a worker"
+if run_godot "solvetest_$1" 300 --headless --path "$PROJECT" -- sheet=SolveTest short "shard=$1/$GATE_SOLVE_SHARDS"; then
+	if grep -qE '^solvetest: PASS' "$LOG_DIR/solvetest_$1.log"; then
+		ok "its flights are found, clean, replayed and the same on a worker"
 	else
 		bad "a solved flight was not found, not clean, or not the same again"
-		grep -E 'FAIL|^solvetest' "$LOG_DIR/solvetest.log" | head -n 12 | sed 's/^/        /'
+		grep -E 'FAIL|^solvetest' "$LOG_DIR/solvetest_$1.log" | head -n 12 | sed 's/^/        /'
 	fi
 else
-	bad "solvetest did not finish"
+	bad "solvetest shard $1 did not finish"
+fi
+}
+
+unit_solvetest_1() {
+gate_solve_shard 1
+}
+
+unit_solvetest_2() {
+gate_solve_shard 2
+}
+
+unit_solvetest_3() {
+gate_solve_shard 3
+}
+
+unit_solvetest_4() {
+gate_solve_shard 4
+}
+
+unit_solvetest() {
+step "The solver finds clean flights, replays them and agrees on a worker (the shards' totals)"
+if gate_shard_sum solvetest "$GATE_SOLVE_SHARDS"; then
+	ok "every case solved once across the shards, every sweep found and clean in at least 99% (97% of the hand twins)"
+else
+	bad "a sweep's flights were not found and clean often enough, or a shard did not run its share"
 fi
 }
 
@@ -2354,6 +2431,9 @@ SOLO_UNITS="maplagtest gameclocktest playerdeathtest faunatest threadstress lowh
 # Run first and alone, because every other unit needs what it writes: the class
 # cache in .godot/, without which nothing compiles.
 FIRST_UNITS="import"
+# Run after the pool, before the SOLO units: the split tests' totals, which read
+# their shards' logs (`gate_shard_sum`); each takes a few seconds.
+AFTER_UNITS="flighttest solvetest"
 
 # Seconds each unit took serially (Oct 20). The pool starts the heaviest first,
 # so the longest runs are never the last to begin. Only the ORDER depends on
@@ -2371,7 +2451,7 @@ gate_weight() {
 		menutest) echo 25 ;; market) echo 24 ;; parseall) echo 24 ;;
 		devtest) echo 22 ;; hulldamagetest) echo 22 ;; fightopentest) echo 22 ;;
 		lockedpooltest) echo 41 ;; rewardshowntest) echo 33 ;; mapperftest) echo 40 ;;
-		solvetest) echo 125 ;; twindrawtest) echo 106 ;; flighttest) echo 80 ;; twinsitetest) echo 90 ;;
+		solvetest_*) echo 50 ;; twindrawtest) echo 106 ;; flighttest_*) echo 35 ;; twinsitetest) echo 90 ;;
 		*) echo 15 ;;
 	esac
 }
@@ -2396,12 +2476,31 @@ gate_in() {  # gate_in NAME "LIST OF NAMES"
 	return 1
 }
 # A renamed unit must not quietly lose its place in the order.
-for u in $SOLO_UNITS $FIRST_UNITS; do
+for u in $SOLO_UNITS $FIRST_UNITS $AFTER_UNITS; do
 	if ! gate_has_unit "$u" || ! declare -F "unit_$u" >/dev/null; then
-		printf 'validate.sh: SOLO_UNITS or FIRST_UNITS names %s, and there is no unit_%s\n' "$u" "$u" >&2
+		printf 'validate.sh: SOLO_UNITS, FIRST_UNITS or AFTER_UNITS names %s, and there is no unit_%s\n' "$u" "$u" >&2
 		exit 2
 	fi
 done
+# Nor a split test run in fewer shards than its totals add up, or more.
+for gate_split in "flighttest $GATE_FLIGHT_SHARDS" "solvetest $GATE_SOLVE_SHARDS"; do
+	set -- $gate_split
+	gate_k=0
+	for u in "${UNITS[@]}"; do
+		case "$u" in "$1"_[0-9]*) gate_k=$((gate_k + 1)) ;; esac
+	done
+	if [ "$gate_k" -ne "$2" ]; then
+		printf 'validate.sh: %s is split %s ways and has %s unit_%s_<K> functions\n' "$1" "$2" "$gate_k" "$1" >&2
+		exit 2
+	fi
+	for ((gate_i = 1; gate_i <= $2; gate_i++)); do
+		if ! gate_has_unit "$1_$gate_i"; then
+			printf 'validate.sh: %s is split %s ways and has no unit_%s_%s\n' "$1" "$2" "$1" "$gate_i" >&2
+			exit 2
+		fi
+	done
+done
+set --
 
 GATE_CORES="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 6)"
 case "$GATE_CORES" in ''|*[!0-9]*|0) GATE_CORES=6 ;; esac
@@ -2528,12 +2627,15 @@ if [ "$GATE_JOBS" -eq 1 ]; then
 	run_phase 1 "${UNITS[@]}"
 else
 	GATE_FIRST=()
+	GATE_AFTER=()
 	GATE_SOLO=()
 	GATE_POOL=()
 	i=0
 	for u in "${UNITS[@]}"; do
 		if gate_in "$u" "$FIRST_UNITS"; then
 			GATE_FIRST+=("$u")
+		elif gate_in "$u" "$AFTER_UNITS"; then
+			GATE_AFTER+=("$u")
 		elif gate_in "$u" "$SOLO_UNITS"; then
 			GATE_SOLO+=("$u")
 		else
@@ -2548,6 +2650,7 @@ else
 	done < <(printf '%s\n' "${GATE_POOL[@]}" | sort -k1,1nr -k2,2n)
 	run_phase 1 "${GATE_FIRST[@]}"
 	run_phase "$GATE_JOBS" "${GATE_POOL_ORDER[@]}"
+	run_phase "$GATE_JOBS" "${GATE_AFTER[@]}"
 	run_phase 1 "${GATE_SOLO[@]}"
 fi
 flush_output
@@ -2563,6 +2666,7 @@ for u in "${UNITS[@]}"; do
 	tag=""
 	gate_in "$u" "$FIRST_UNITS" && tag="  (first, alone)"
 	gate_in "$u" "$SOLO_UNITS" && tag="  (solo)"
+	gate_in "$u" "$AFTER_UNITS" && tag="  (after the pool)"
 	if [ -f "$d/verdict" ]; then
 		read -r ufail usecs <"$d/verdict"
 		GATE_SUM=$((GATE_SUM + usecs))

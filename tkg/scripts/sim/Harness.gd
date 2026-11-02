@@ -95,3 +95,60 @@ func first(root: Node, matches: Callable) -> Node:
 ## Nonzero when anything failed, for `SceneTree.quit()`.
 func code() -> int:
 	return 1 if _fails > 0 else 0
+
+
+## SHARDS: a slow harness split over N processes run side by side, each its K-th
+## share of the cases (`-- shard=K/N`, K from 1). FlightTest and SolveTest each
+## took ten minutes as one process and set the battery's length. A case is a
+## shard's when its index modulo N is K - 1, so neighbours (alike in cost) are
+## dealt round. [K, N]; [1, 1] when unsplit.
+static func shard() -> Vector2i:
+	for a in OS.get_cmdline_user_args():
+		var s := a as String
+		if s.begins_with("shard="):
+			var kn := s.substr(6).split("/")
+			if kn.size() == 2 and int(kn[1]) >= 1 and int(kn[0]) >= 1 and int(kn[0]) <= int(kn[1]):
+				return Vector2i(int(kn[0]), int(kn[1]))
+	return Vector2i(1, 1)
+
+
+## Whether case `i` is this process's (always, unsplit).
+func mine(i: int) -> bool:
+	if _shard.y == 0:
+		_shard = shard()
+	return i % _shard.y == _shard.x - 1
+
+
+var _shard := Vector2i.ZERO
+
+
+## AN ASSERTION OVER EVERY CASE (a share, a count against a limit), which no
+## shard can judge on its own cases: unsplit it is `_ok(what, expr)`; split,
+## each shard prints its numbers and `ShardSum` adds them up across the shards'
+## logs and judges `expr` on the sums. `vars` are the expression's inputs:
+## lower-case names are added up, UPPER-case ones are constants every shard
+## must agree on. `key` names the assertion the same way in every shard.
+func total(key: String, what: String, expr: String, vars: Dictionary) -> bool:
+	if shard().y > 1:
+		var parts := PackedStringArray()
+		for v in vars:
+			parts.append("%s=%s" % [v, var_to_str(vars[v])])
+		print("SHARD_TOTAL %s|%s|%s" % [key, expr, ";".join(parts)])
+		print("  (left to the shards' sum) %s" % what)
+		return true
+	var e := Expression.new()
+	var held := false
+	if e.parse(expr, PackedStringArray(vars.keys())) == OK:
+		var r = e.execute(vars.values(), null, false)
+		held = not e.has_execute_failed() and bool(r)
+	else:
+		print("  (expression %s: %s)" % [expr, e.get_error_text()])
+	return _ok(what, held)
+
+
+## The line ShardSum checks coverage by: this shard ran `mine` of the `of` cases
+## every shard counts alike (all of them, summed over the shards).
+func shard_end(label: String, mine_n: int, of_n: int) -> void:
+	var s := shard()
+	if s.y > 1:
+		print("SHARD_DONE %s %d/%d mine=%d of=%d" % [label, s.x, s.y, mine_n, of_n])
