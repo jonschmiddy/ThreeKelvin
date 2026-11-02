@@ -86,6 +86,8 @@ func run(tree: SceneTree) -> void:
 	await _galaxy_test()
 	print("\n=== the host leaves ===")
 	await _host_loss_test()
+	print("\n=== a turning pair, seen from two clocks ===")
+	_turning_pair_test()
 
 	print("")
 	if fails == 0:
@@ -291,6 +293,12 @@ func _refusal_tests() -> void:
 	# the next protocol bump into a test failure that says nothing true.
 	await _one_refusal("a different protocol", PORT_BASE + 1, 99, 0,
 		"Different game version. Host is protocol %d, you are 99." % NetSession.PROTOCOL)
+	# THE ONE BEFORE THE PAIR TURNED (PROTOCOL 13): its spots are two numbers
+	# short and say star B's close orbit as the point where B stood on its own
+	# clock, so it is turned away at the door, by name
+	await _one_refusal("a version 13 peer", PORT_BASE + 32, 13, 0,
+		"Different game version. Host is protocol %d, you are 13." % NetSession.PROTOCOL)
+	ok("PROTOCOL is past 13, when the pair held still", NetSession.PROTOCOL >= 14)
 	await _one_refusal("different content", PORT_BASE + 2, 0, 0x5EEDBAD,
 		"Your content does not match the host's. Compare builds or mods.")
 	# Two exported builds from different commits, refused by name, and the
@@ -991,22 +999,155 @@ func _late_join_test() -> void:
 		return int(late.spot_of(id, 12).get("body", 3)) == -9, 3.0)
 	ok("and a ship that flies on is seen to", moved)
 	# TWO SUNS (PROTOCOL 13): a ship in star B's close orbit says so, body
-	# `SystemLayout.STAR_B` (-4), at its point as it is -- star B holds still,
-	# as star A does, so it is not an offset -- and the others hear exactly that
-	var on_b := Vector2(372.5, -118.25)
-	early.report_spot(12, SystemLayout.STAR_B, on_b, 0.75, true)
+	# `SystemLayout.STAR_B` (-4). THE PAIR TURNS (PROTOCOL 14): as the offset
+	# from star B at the sender's map clock, which it says with it (`t`), and
+	# the sun it is off (`host`) -- and the others hear exactly that
+	var off_b := Vector2(51.5, -18.25)
+	early.report_spot(12, SystemLayout.STAR_B, off_b, 0.75, true, 100.0, SystemLayout.STAR_B)
 	var to_b := await _wait_until(func() -> bool:
 		return int(late.spot_of(id, 12).get("body", 3)) == SystemLayout.STAR_B \
 			and int(host.spot_of(id, 12).get("body", 3)) == SystemLayout.STAR_B, 3.0)
 	ok("a ship in star B's close orbit is seen there", to_b)
 	var sb := late.spot_of(id, 12)
-	check("at the point it said, not an offset", Vector2(float(sb.get("x", 0.0)), float(sb.get("z", 0.0))), on_b)
+	check("at the offset from B it said", Vector2(float(sb.get("x", 0.0)), float(sb.get("z", 0.0))), off_b)
+	check("with the map clock it said it at", float(sb.get("t", -1.0)), 100.0)
+	check("and the sun it is said off", int(sb.get("host", 0)), SystemLayout.STAR_B)
+	check("and the host heard the same clock", float(host.spot_of(id, 12).get("t", -1.0)), 100.0)
+	# SETTLED ROUND BOTH SUNS: open space, said as the plane point it is (the
+	# balance point holds still), off nothing (`host` -9)
+	var round_both := Vector2(-140.0, 310.5)
+	early.report_spot(12, -9, round_both, 2.0, true, 101.5, -9)
+	var to_both := await _wait_until(func() -> bool:
+		return int(late.spot_of(id, 12).get("body", 3)) == -9 and float(late.spot_of(id, 12).get("t", 0.0)) == 101.5, 3.0)
+	ok("a ship settled round both suns is seen, off nothing", to_both)
+	var s9 := late.spot_of(id, 12)
+	check("at the plane point it said", Vector2(float(s9.get("x", 0.0)), float(s9.get("z", 0.0))), round_both)
+	check("off no sun", int(s9.get("host", 0)), -9)
+	# THE PARTY'S CLOCK: the newest said, run on since it came; none for a
+	# system nobody has said one about. A map opening behind it takes it; one
+	# ahead keeps its own (never moved back); one whose ship flies is not moved
+	var since := Time.get_ticks_msec()
+	var pt := late.party_t(12)
+	ok("the party's clock is the one said, run on since (%.3f from 101.5)" % pt,
+		pt >= 101.5 and pt <= 101.5 + 3.0 + float(Time.get_ticks_msec() - since) / 1000.0)
+	check("and there is none for a system nobody has said one about", late.party_t(13), -1.0)
+	var kept_clock: Dictionary = Run.map_clock.duplicate()
+	var kept_parked: Dictionary = SystemMapScreen._parked.get(12, {})
+	SystemMapScreen._parked.erase(12)
+	Run.map_clock[12] = 96.5
+	var took := late.adopt_clock(12)
+	ok("a map 5 s behind opens on the party's clock (%.3f), and keeps it" % took,
+		took >= 101.5 and Run.map_t(12) == took)
+	Run.map_clock[12] = 500.0
+	check("a map ahead of it keeps its own: never moved back", late.adopt_clock(12), 500.0)
+	Run.map_clock[12] = 96.5
+	SystemMapScreen._parked[12] = {"at": 3, "mode": &"fly"}
+	check("nor while its own ship flies", late.adopt_clock(12), 96.5)
+	check("the rule: behind takes the party's", NetSession.clock_to_open(95.0, 100.25, false), 100.25)
+	check("ahead keeps its own", NetSession.clock_to_open(110.0, 100.25, false), 110.0)
+	check("flying keeps its own", NetSession.clock_to_open(95.0, 100.25, true), 95.0)
+	check("nobody said one: its own", NetSession.clock_to_open(95.0, -1.0, false), 95.0)
+	Run.map_clock = kept_clock
+	SystemMapScreen._parked.erase(12)
+	if not kept_parked.is_empty():
+		SystemMapScreen._parked[12] = kept_parked
 	# (this file prints only its failures; the count says the case was seen)
-	print("  twin cases: 1 (a spot in star B's close orbit, relayed to both: %s)" % ("yes" if to_b else "no"))
+	print("  twin cases: 2 (a spot in star B's close orbit, relayed to both: %s; one round both suns: %s)" % [
+		"yes" if to_b else "no", "yes" if to_both else "no"])
 	await _teardown()
 
 
-## ONE SEED, TWO GALAXIES, AND BOTH SCREENS SAY SO (PROTOCOL 12). Only the seed
+## A TURNING PAIR, SEEN FROM TWO CLOCKS (PROTOCOL 14, ruling 23). Two machines
+## in one binary, their map clocks 5 s apart (a flying peer never takes the
+## party's clock, so they can drift), at 8 of the pair's angles round a lap, a
+## wide pair and a close one: a spot said by one at its clock and drawn by the
+## other at its own (`NetSession.spot_anchor`, as `SystemMapScreen._report_spot`
+## and `partner_points` use it). In star B's close orbit, settled round star B,
+## settled round star A: on that sun where it is on the drawing machine, to a
+## thousandth of a pixel. Settled round both suns: the plane point it was --
+## the balance point holds still, where turning it with the pair (the design's
+## first rule) would have swung it by the angle between the clocks. A world's
+## offset off the world, the world round star B carried with it. And one sun:
+## a star's spot is the plane point it always was, to the bit.
+func _turning_pair_test() -> void:
+	Rng.forced = 7
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var B := SystemLayout.STAR_B
+	var gap := 5.0
+	for want_close: bool in [false, true]:
+		var kind := "close" if want_close else "wide"
+		var L: SystemLayout = null
+		var ni := -1
+		for raw in Run.map:
+			var Lc := SystemLayout.of(raw as MapGen.MapNode)
+			if Lc.twin and Lc.close == want_close and Lc.pair_n > 0.0:
+				L = Lc
+				ni = (raw as MapGen.MapNode).index
+				break
+		if L == null:
+			fails += 1
+			print("  FAIL seed 7 has no turning %s pair" % kind)
+			continue
+		var wb := -1
+		for b in L.bodies:
+			if b.host_id == B and b.hr != 0.0:
+				wb = b.index
+				break
+		var worst := 0.0
+		var both_worst := 0.0
+		var world_worst := 0.0
+		var old_miss := 0.0
+		var turned_miss := 0.0
+		for k in 8:
+			var t_me := (float(k) + 0.5) / 8.0 * TAU / L.pair_n
+			var t_them := t_me - gap
+			old_miss = maxf(old_miss, L.star_pos(B, t_them).distance_to(L.star_pos(B, t_me)))
+			# on a sun's orbit: in B's close orbit (body B), settled round B or A
+			# (open space, host B / -1), each a point round where that sun is
+			for c: Array in [[B, B], [-9, B], [-9, -1]]:
+				var body: int = c[0]
+				var host: int = c[1]
+				var ring := Vector2(L.star_rail_of(host) + 3.0 * float(k), 0.0).rotated(0.9 * float(k))
+				var p_them := L.star_pos(host, t_them) + ring
+				var sent := p_them - NetSession.spot_anchor(L, body, host, t_them)
+				var drawn := sent + NetSession.spot_anchor(L, body, host, t_me)
+				worst = maxf(worst, drawn.distance_to(L.star_pos(host, t_me) + ring))
+			# settled round both suns: the plane point itself
+			var r := 0.6 * L.edge
+			var p_both := L.bary + Vector2(r, 0.0).rotated(0.7 * float(k))
+			var sent9 := p_both - NetSession.spot_anchor(L, -9, -9, t_them)
+			var drawn9 := sent9 + NetSession.spot_anchor(L, -9, -9, t_me)
+			both_worst = maxf(both_worst, drawn9.distance_to(p_both))
+			turned_miss = maxf(turned_miss, 2.0 * r * absf(sin(0.5 * L.pair_n * gap)))
+			# off the world round star B, carried round with it
+			if wb >= 0:
+				var w_off := Vector2(6.0, -2.0)
+				var sent_w := (L.bodies[wb].pos(t_them) + w_off) - NetSession.spot_anchor(L, wb, -9, t_them)
+				var drawn_w := sent_w + NetSession.spot_anchor(L, wb, -9, t_me)
+				world_worst = maxf(world_worst, drawn_w.distance_to(L.bodies[wb].pos(t_me) + w_off))
+		ok("%s pair (system %d): its clocks %.0f s apart move star B %.2f px, so the case means something" % [kind, ni, gap, old_miss], old_miss > 0.5)
+		ok("%s pair: a ship on a sun's orbit, said at one clock, is drawn on that sun at the other (worst %.6f px over 8 angles; said as a plane point, as PROTOCOL 13 did, %.2f px off)" % [kind, worst, old_miss],
+			worst < 1e-3)
+		ok("%s pair: one settled round both suns is drawn where it was (worst %.6f px; turned with the pair it would have swung %.2f px)" % [kind, both_worst, turned_miss],
+			both_worst < 1e-3)
+		if not want_close:
+			ok("wide pair: one off the world round star B, off that world as it is here (worst %.6f px)" % world_worst, wb >= 0 and world_worst < 1e-3)
+		print("  twin cases: %s pair, system %d: 8 angles, %d spots each" % [kind, ni, 5 if wb >= 0 else 4])
+	# ONE SUN: every star spot is the plane point it always was, to the bit
+	var L1: SystemLayout = null
+	for raw in Run.map:
+		var Lo := SystemLayout.of(raw as MapGen.MapNode)
+		if not Lo.twin:
+			L1 = Lo
+			break
+	if L1 != null:
+		var p1 := Vector2(61.25, -17.5)
+		var same := true
+		for t1: float in [0.0, 12.5, 777.0]:
+			for host: int in [-1, -9]:
+				same = same and (p1 - NetSession.spot_anchor(L1, -9, host, t1)) == p1 \
+					and (p1 - NetSession.spot_anchor(L1, -1, -1, t1)) == p1
+		ok("one sun: a star's spot is the point it always was, at every clock", same)
 ## crosses the wire; a Mac and a PC whose sines differ in the last bit can build
 ## different maps from it and agree on every index. The guests say what they
 ## built, the host compares, and everybody is told on a mismatch -- matching
