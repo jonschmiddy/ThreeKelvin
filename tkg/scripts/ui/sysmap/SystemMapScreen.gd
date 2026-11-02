@@ -518,22 +518,55 @@ static func zoom_for(L: SystemLayout, n: MapGen.MapNode, fs: Vector2) -> float:
 ## wheel still goes out to the whole system, and what circles both suns is
 ## marked at the frame's edge until then (`SystemOverlay._draw_edge_marks`). `ship`, the
 ## plane point your ship is at when the map is shown with it put back off that
-## framing (`show_system`): taken in too, with SHIP_PAD round it. `t`: the map
-## time it opens at (the system's kept clock, `Run.map_clock`), which a turning
-## pair stands at (ruling 23).
-static func open_view(L: SystemLayout, n: MapGen.MapNode, fs: Vector2, t: float, ship := Vector2.INF) -> Dictionary:
+## framing (`show_system`): taken in too, with SHIP_PAD round it. `_t`: the map
+## time it opens at (the system's kept clock, `Run.map_clock`), which changes
+## nothing: a turning pair opens the same at every clock (below).
+static func open_view(L: SystemLayout, n: MapGen.MapNode, fs: Vector2, _t: float, ship := Vector2.INF) -> Dictionary:
 	# (the zoom a float, not a vector's single-precision part: one sun opens at
 	# exactly the zoom it always did)
 	var whole := zoom_for(L, n, fs)
-	# ORBIT:map the wide pair opens framed on the pair as it stands at t (`pair_box(t)`): decide whether to frame on the balance point or the swept circle instead, and test at several kept clocks (review: the opening framing)
-	var box := L.pair_box(t)
+	# (the pair as laid out, as Jon picked its framing: held still, it is the
+	# pair at every t)
+	var box := L.pair_box(0.0)
 	if box.size == Vector2.ZERO:
 		return {"at": Vector2.ZERO, "zoom": whole}
 	if ship.is_finite():
 		box = box.merge(Rect2(ship - Vector2.ONE * SHIP_PAD, Vector2.ONE * SHIP_PAD * 2.0))
 	var half := box.size * 0.5 / PAIR_FILL
 	var z := clampf(minf(fs.x / (2.0 * (half.x + 20.0)), fs.y / (2.0 * (half.y + 20.0) * SystemLayout.SLANT + 60.0)), 0.1, 1.0)
-	return {"at": box.get_center(), "zoom": maxf(z, whole)}
+	if L.pair_n == 0.0:
+		return {"at": box.get_center(), "zoom": maxf(z, whole)}
+	# A TURNING PAIR (ruling 23) opens on its balance point, at the zoom the pair
+	# as laid out opens at, or further out where the whole circle the pair sweeps
+	# (`pair_reach`, and the ship put back) would not fit the frame at it with
+	# the whole system's margins (`fit_zoom_in`). Framed on the pair as it stood
+	# at the kept clock, the zoom went with the angle (upright, a pair stands
+	# 0.38 as wide on screen, the map's slant, so it opened nearer) and
+	# the pair turned off the picture within the visit (70 to 95 degrees in five
+	# minutes); framed on the circle it sweeps, the worlds round one sun opened
+	# as near their suns as 22.8 px (TwinSiteTest's sweep, every system a
+	# binary) against the 24 the framing is for. The balance point never moves, so this framing,
+	# and home (a second right-click, LOCATION let go), hold the whole visit, at
+	# every clock.
+	var reach := Vector2.ONE * pair_reach(L)
+	if ship.is_finite():
+		reach = reach.max((ship - L.bary).abs() + Vector2.ONE * SHIP_PAD)
+	z = minf(z, clampf(minf(fs.x / (2.0 * (reach.x + 20.0)), fs.y / (2.0 * (reach.y + 20.0) * SystemLayout.SLANT + 60.0)), 0.1, 1.0))
+	return {"at": L.bary, "zoom": maxf(z, whole)}
+
+
+## HOW FAR FROM THE BALANCE POINT A TURNING WIDE PAIR REACHES at any angle of its
+## turn (plane px): each sun's distance from it and its disc, each world round
+## one sun its sun's distance plus its orbit and reach, with `pair_box`'s own
+## room round them. The turn is rigid, so this is the same at every t.
+static func pair_reach(L: SystemLayout) -> float:
+	var r := 0.0
+	for p in L.stars():
+		r = maxf(r, absf(L._pair_r(p)) + L.star_radius(p) + SystemLayout.PAIR_SUN_PAD)
+	for b in L.bodies:
+		if SystemLayout.is_star(b.host_id):
+			r = maxf(r, absf(L._pair_r(b.host_id)) + b.orbit + SystemLayout.reach_of(b))
+	return r + SystemLayout.PAIR_PAD
 
 
 ## TWO SUNS OPEN NO FURTHER OUT THAN THEIR RINGS WERE FITTED TO while nothing is
@@ -830,7 +863,7 @@ func _on_orbits() -> void:
 
 
 func _process(delta: float) -> void:
-	if not frozen:
+	if not frozen and not clock_held():
 		view.t += delta
 	_step_ship(delta)
 	_report_spot()
@@ -847,6 +880,21 @@ func _process(delta: float) -> void:
 		lt = 0.7
 	view.belt_lit = lit
 	view.belt_t = lt
+
+
+## THE MAP'S CLOCK HOLDS (ruling 23) for the length of a move of the zoom
+## ladder (`ZoomLadder.busy`, its camera `cam_held`, the calm move too: from the
+## click, where the clock is kept, `_keep_ship`) and while it waits built ahead
+## of one (`ZoomLadder.prebuilt`, at no opacity): a pair's suns turn on the map's time,
+## and LOCAL holds the angle it was handed (`Run.map_t`) for its visit, so the
+## pair stands where both pictures have it across the swap. Running on through
+## a move, the suns had moved by the time the map was seen (a map built ahead
+## ticked while it waited) or LOCAL's had not (a move down onto the ship), and
+## a map built ahead and dropped wrote its moved clock back (`_keep_ship`). The
+## ship is still stepped: on its ring it rides on round its world held still,
+## for the second or so of a move.
+func clock_held() -> bool:
+	return cam_held or ZoomLadder.busy() or ZoomLadder.prebuilt_screen() == self
 
 
 ## THE SHIP AND THE VIEW, a frame on: the arrows pan (eased), WASD flies, the
@@ -1487,7 +1535,8 @@ func _zoom_down(i: int) -> void:
 	LocalEventDrawer.request(view.node.index, i)
 	# THE ZOOM LADDER makes this move itself, all the way into LOCAL
 	if ZoomLadder.enabled():
-		# ORBIT:map the map's clock (`view.t`) keeps running through the ladder's move while LOCAL holds the angle it was handed (`_keep_ship` writes `Run.map_clock` here): freeze the clock or share one t across both pictures for the move
+		# (the clock kept here is the one LOCAL opens on, and the map's holds
+		# from here through the move: `clock_held`)
 		_keep_ship()
 		Router.show_local()
 		return
@@ -1611,10 +1660,25 @@ func ladder_scale() -> float:
 	return view.zoom
 
 
-## The star on screen, in the game's picture.
+## The plane's origin on screen, in the game's picture: what `ship_rel` and
+## `place_rel` are measured from. The one star is there; a pair's star A only
+## at t 0 (ruling 23: the pair turns), so what the ladder means by your star is
+## `_ladder_star`.
 func _ladder_origin() -> Vector2:
-	# ORBIT:map the zoom ladder anchors on the plane's origin as star A: once the pair turns, anchor on star A's place now (or the balance point for the chart move); `ladder_sun` and the chart's `sun0` read this too (review: the zoom-ladder handovers)
 	return _frame.global_position + _box.position + Vector2(view.CX, view.CY) + view.pan
+
+
+## YOUR STAR ON SCREEN, in the game's picture: star A where the pair has it
+## now (`SystemOverlay.place_rel`), the one star at the origin. The chart's mark
+## for your system is a burst for star A with star B small at its lower right
+## (`StarchartScreen._TWIN`), so star A is what a move to and from the chart
+## carries onto that mark (1A: `ladder_anchor`, `sun0`), the sun its hole shows
+## (`ladder_sun`), and the star LOCAL's plane is laid onto (`ladder_plane`).
+## Anchored on the plane's origin, a pair's moves carried an empty point where
+## star A had been at t 0 onto the chart's star. The map's clock holds for the
+## move (`clock_held`), so star A stands still under it.
+func _ladder_star() -> Vector2:
+	return _ladder_origin() + overlay.place_rel(-1)
 
 
 ## The world the ship is in orbit of, or -9.
@@ -1627,7 +1691,7 @@ func _ladder_body() -> int:
 
 func _ladder_focus(other: int, seam: int, design: String) -> Vector2:
 	if other == ZoomLadder.CHART:
-		return Vector2.ZERO
+		return overlay.place_rel(-1)
 	var b := _ladder_body()
 	if seam == 2 and design == "C" and b >= 0:
 		return overlay.place_rel(b)
@@ -1712,7 +1776,7 @@ var _lad_min_r := -1.0
 func ladder_sun() -> Dictionary:
 	if not ladder_ready():
 		return {}
-	return {"c": _ladder_origin(), "r": float(view.layout.star_r) * float(view.star_k())}
+	return {"c": _ladder_star(), "r": float(view.layout.star_r) * float(view.star_k())}
 
 
 func ladder_cam(k: float) -> void:
@@ -1731,10 +1795,10 @@ func ladder_cam(k: float) -> void:
 		var ch: Control = ZoomLadder.prebuilt
 		if ch is StarchartScreen and ch.call(&"ladder_ready"):
 			if not _lad.has("sun0"):
-				_lad["sun0"] = _ladder_origin()
+				_lad["sun0"] = _ladder_star()
 			var goal: Vector2 = ch.call(&"ladder_anchor", 0, 1, "A")
 			var want: Vector2 = (_lad.sun0 as Vector2).lerp(goal, k * float(_lad.split))
-			view.pan = want - (_frame.global_position + _box.position + Vector2(view.CX, view.CY))
+			view.pan = want - (_frame.global_position + _box.position + Vector2(view.CX, view.CY)) - overlay.place_rel(-1)
 	var aim: Dictionary = _lad.get("aim", {})
 	if not aim.is_empty() and _lad_split > 0.0:
 		# the world on a straight line from where it was toward where LOCAL will
@@ -1970,12 +2034,13 @@ func ladder_give_world() -> Dictionary:
 	return out
 
 
-## The plane as the map draws it: the star on screen, plane px to screen px, and
-## the slant (for laying the map down into LOCAL's plane).
+## The plane as the map draws it: your star on screen (`_ladder_star`), plane
+## px to screen px, and the slant (for laying the map down into LOCAL's plane,
+## whose star is star A).
 func ladder_plane() -> Dictionary:
 	if not ladder_ready():
 		return {}
-	return {"o": _ladder_origin(), "s": view.zoom, "tilt": view.TILT}
+	return {"o": _ladder_star(), "s": view.zoom, "tilt": view.TILT}
 
 
 ## The world the ship orbits: its centre on screen and its drawn radius.
