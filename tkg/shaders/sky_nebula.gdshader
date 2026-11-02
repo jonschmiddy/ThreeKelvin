@@ -86,9 +86,13 @@ uniform float breath = 1.0;
 // STAR B (ruling 20, two suns): where it is on screen and how bright against
 // star A (0 with one sun: nothing added). Its light on the gas is star A's own
 // law round it, added in `light_at`, the way to the light turned toward the
-// brighter of the two there; the bubble, the zones and RADIANT's shafts and rays
-// stay star A's.
+// brighter of the two there; RADIANT's shafts and rays stay star A's.
 uniform vec2 star2_at = vec2(-9999.0);
+// THE BUBBLE'S CENTRE (ruling 23, the pair turns): where on screen the emission
+// bubble and RADIANT's zones are centred -- a twin's balance point, which holds
+// still while both suns circle it (`SystemView.bubble_exact`). Unset (below
+// -9000), star A's place, as every one-sun map and LOCAL have it.
+uniform vec2 bubble_at = vec2(-99999.0);
 uniform float star2_k = 0.0;
 // the emission bubble's radius on the plane (map px at zoom 1)
 uniform float bubble_r = 400.0;
@@ -486,7 +490,9 @@ bool p_pat(vec2 P, float c) {
 	int i = (q.x & 1) + 2 * (q.y & 1);
 	return c >= 0.74 ? i != 3 : (i == 0 || i == 3);
 }
-vec4 paint_cloud(vec3 c0, float alpha, vec3 Lev, vec2 sp, vec2 toSun, vec4 G, float Js, float tau, float dL) {
+// (`dL`: light px from the sun, for its light; `dB`: from the bubble's centre,
+// for the cavity and the hot zone -- the same with one sun, `bubble_at`)
+vec4 paint_cloud(vec3 c0, float alpha, vec3 Lev, vec2 sp, vec2 toSun, vec4 G, float Js, float tau, float dL, float dB) {
 	// the shells and the strands (planetary, remnant) keep their own drawing, for
 	// the band memory to band; an event's light half again as strong, so it reads
 	// a band or two up
@@ -562,7 +568,7 @@ vec4 paint_cloud(vec3 c0, float alpha, vec3 Lev, vec2 sp, vec2 toSun, vec4 G, fl
 			if (Hp < 0.05 * S && !p_pat(sp, 0.5)) continue;
 			// the star has blown a cavity: near it only the thick gas stands
 			if (k > 0 && (p_scene == 0 || p_scene == 1)) {
-				float er = S * (k == 2 ? 1.25 : 0.95) * (1.0 - smoothstep(0.35, 1.25, dL / p_light.z)) * (0.62 + 0.76 * t.a);
+				float er = S * (k == 2 ? 1.25 : 0.95) * (1.0 - smoothstep(0.35, 1.25, dB / p_light.z)) * (0.62 + 0.76 * t.a);
 				if (Hp < er) continue;
 				if (Hp < er + 0.06 * S && !p_pat(sp, 0.5)) continue;
 			}
@@ -593,7 +599,7 @@ vec4 paint_cloud(vec3 c0, float alpha, vec3 Lev, vec2 sp, vec2 toSun, vec4 G, fl
 			// faces it lights; the far sheet behind the cavity in teal rings round it
 			if (p_scene == 0 && p_go >= 0) {
 				float c = (1.0 + 0.7 * ((top == 0 ? det : det + 0.5 * (0.5 - clamp(Hp / (1.4 * S), 0.0, 1.0))) - 0.5)) * (1.55 - 0.9 * (top == 0 ? 0.5 : shade));
-				if (dL * c < p_light.z) {
+				if (dB * c < p_light.z) {
 					g = p_go;
 					nn = p_len[g];
 					if (top == 0) {
@@ -605,7 +611,7 @@ vec4 paint_cloud(vec3 c0, float alpha, vec3 Lev, vec2 sp, vec2 toSun, vec4 G, fl
 						lvB -= 0.16 + 0.42 * max(0.0, 0.62 - shade);
 					}
 				}
-			} else if (p_scene == 1 && top == 0 && dL < p_light.z * 1.3) {
+			} else if (p_scene == 1 && top == 0 && dB < p_light.z * 1.3) {
 				// (reflection: the far side of the hollow in blue rings round the star)
 				g = p_gm;
 				nn = p_len[g];
@@ -736,7 +742,7 @@ void fragment() {
 		vec3 rose = mix(mix(HA, vec3(1.0, 0.14, 0.40), sat(hv * 1.6 - 0.5)), vec3(1.0, 0.26, 0.20), sat(0.6 - hv * 1.5));
 		// THE BUBBLE: a sphere round the sun on the plane, ragged by direction,
 		// its wall puffed by the cloud's own lumps; distances across it in light px
-		vec2 ds = (b - star_at) * vec2(1.0, 1.15);
+		vec2 ds = (b - (bubble_at.x < -9000.0 ? star_at : bubble_at)) * vec2(1.0, 1.15);
 		vec2 dirB = normalize(ds + vec2(1e-4, 0.0));
 		// (the wall opens out in light px, as the showcase drew it: anchored to the
 		// plane it filled the screen at a close zoom and the thick gas vanished)
@@ -812,7 +818,7 @@ void fragment() {
 			// (they open out faster than the light's reach as the map closes in: A's
 			// zones are the gas's own, round the sun in the system, so a close view on
 			// a world near the sun is all its blue-violet, one far out all rose)
-			vec2 dz = (b - star_at) * vec2(1.0, r_zsq);
+			vec2 dz = (b - (bubble_at.x < -9000.0 ? star_at : bubble_at)) * vec2(1.0, r_zsq);
 			float LZz = pow(max(lzoom, 1e-3) / max(home_zoom, 1e-3), r_zpow) * lscale;
 			float xz = length(dz) / LZz + (fine - 0.5) * r_zn;
 			float dS = lt.dL;
@@ -1465,7 +1471,10 @@ void fragment() {
 		// (the dust B paints is the pillars and their bank: an emission cloud's lanes,
 		// drawn as dust, cut its masses into plates; with the sheets on they are gas)
 		float dtau = (kind == 0 && p_sheets_on) ? max(A.g - 0.45 * A.a * A.b, 0.0) : A.g;
-		COLOR = paint_cloud(c, clamp((1.0 - trans) * strength, 0.0, 0.97), L + Hev * 2.0, sp, toSun, G, Js, (kind <= 1) ? dtau : (kind == 4 ? 1.0 : 0.0), lt.dL);
+		// (two suns: the cavity and the hot zone round the pair's balance point, as
+		// SIMPLIFIED's bubble is; one sun, round the sun)
+		float dB = bubble_at.x < -9000.0 ? lt.dL : length((b - bubble_at) * vec2(1.0, 1.15)) / lt.LZ;
+		COLOR = paint_cloud(c, clamp((1.0 - trans) * strength, 0.0, 0.97), L + Hev * 2.0, sp, toSun, G, Js, (kind <= 1) ? dtau : (kind == 4 ? 1.0 : 0.0), lt.dL, dB);
 	} else {
 		c = vec3(1.0) - (vec3(1.0) - c) * exp(-L * expo);
 		COLOR = vec4(c, clamp((1.0 - trans) * strength, 0.0, 0.97));

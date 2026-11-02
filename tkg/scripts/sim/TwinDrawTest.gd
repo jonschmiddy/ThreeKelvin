@@ -14,10 +14,15 @@ extends Node
 ##     zoom and at 12 zooms from there to the fit), no star's close ring runs
 ##     inside its drawn sun, and the worlds round each star are counted against
 ##     their suns, before (the old floor, `SystemLayout.sun_drawn`) and after;
+##   * THE PAIR TURNS (ruling 23): every check of the drawn map below at
+##     `PHASES` (8) angles round the pair's lap, not only the one it was laid
+##     out at;
 ##   * THE DEPTH ORDER (`SystemView.step`): over the twins of the four
 ##     systemtest seeds as rolled, each world round a star drawn after its sun
 ##     when it is nearer the viewer than the sun and before it when farther, at
-##     24 moments round its year, for both stars;
+##     24 moments round its year, for both stars; the nearer of the two suns
+##     drawn over the farther ("stacked:A"), and each sun drawn where the pair
+##     has it (`star_screen`);
 ##   * THE ORBITS ROUND THEIR OWN CENTRES (`_Lines.orbit_runs`): every point of
 ##     every drawn ring on some body's ring about its own host, and each world
 ##     round a star with points on its own;
@@ -288,20 +293,72 @@ func _view_checks(view, at: String) -> void:
 	view.zoom = SystemLayout.open_zoom(L.edge)
 	view.home_zoom = view.zoom
 	view.pan = Vector2.ZERO
+	# THE PAIR TURNS (ruling 23): every check below at PHASES angles round a lap
+	# of the pair, so none holds only at the angle it was laid out at (a still
+	# pair, `pair=0`, has the one)
+	var lap: float = TAU / L.pair_n if L.pair_n > 0.0 else 0.0
+	var phases := PHASES if lap > 0.0 else 1
+	_tally("pair phases wanted", phases)
+	# (the orbit lines, every point of every ring against every body, at the
+	# first angle and one more, a different one for each twin in turn: all eight
+	# of them over the twins)
+	var also := 1 + int(_n.get("views", 0)) % (PHASES - 1)
+	for ph in phases:
+		_tally("pair phases drawn")
+		_phase_checks(view, fl, lap * float(ph) / float(PHASES), ph, ph == 0 or ph == also, "%s, the pair %d/%d round" % [at, ph, PHASES])
+
+
+## How many angles round its lap each pair is drawn at, and how many moments of
+## each world's year at each angle but the first (which has all 24): the map is
+## stepped once a moment, and 24 at every angle, with the orbit lines read at
+## every one, took the sheet from 110 s to 390.
+const PHASES := 8
+const MOMENTS_TURNED := 6
+
+
+## One angle of the pair, from map time `t0`: the depth order (each world round a
+## star against its sun, and the two suns against each other, near over far),
+## the two suns drawn where the pair has them, the moons, the light; the ship's
+## ring (at the first angle alone, since it is measured round its world); the
+## orbit lines, where `orbits`.
+func _phase_checks(view, fl, t0: float, ph: int, orbits: bool, at: String) -> void:
+	var L: SystemLayout = view.layout
+	var ring := ph == 0
+	# (every moment of the 24 at the first angle; at the others MOMENTS_TURNED of
+	# them, each angle starting a moment further on, so between them the angles
+	# see every part of the year)
+	var moments: Array[int] = []
+	for k in 24:
+		if ring or k % (24 / MOMENTS_TURNED) == ph % (24 / MOMENTS_TURNED):
+			moments.append(k)
 	for w in L.bodies:
 		if w.world == &"" or not SystemLayout.is_star(w.host_id) or not view._views.has(w.index):
 			continue
 		var sn: Node2D = view.star2 if w.host_id == SystemLayout.STAR_B else view.star
-		var sd: float = view.star_depth(w.host_id)
 		# THE DEPTH ORDER, round its year
 		var mooned := int((view._views[w.index].get("spec") as Dictionary).get("moons", 0)) > 0
-		for k in 24:
-			view.t = w.period * float(k) / 24.0
+		for k: int in moments:
+			view.t = t0 + w.period * float(k) / 24.0
 			view.step()
+			# (its sun's depth now: the pair turns, so it is not star A's 0)
+			var sd: float = view.star_depth(w.host_id)
 			var wv: Node2D = view._views[w.index]
 			var in_front: bool = (view.pos[w.index] as Vector2).y >= sd
 			var ok := (wv.get_index() > sn.get_index()) == in_front
 			_tally("depth order: world round a star, moments checked")
+			# THE TWO SUNS, NEAR OVER FAR ("stacked:A"), and each drawn where the pair
+			# has it (`star_screen`, as the lines, the overlay and the weather read it)
+			var b_front: bool = float(view.star_depth(SystemLayout.STAR_B)) > float(view.star_depth(-1))
+			_tally("depth order: the two suns, moments checked")
+			if (view.star2.get_index() > view.star.get_index()) != b_front:
+				_tally("depth order: the far sun drawn over the near one")
+				h._fail("%s: the far sun drawn over the near one at t %.0f" % [at, view.t])
+			for sp: int in L.stars():
+				var sv: Node2D = view.star2 if sp == SystemLayout.STAR_B else view.star
+				_tally("suns: drawn places checked")
+				if sv.position != view.star_screen(sp):
+					_tally("suns: drawn off their place")
+					h._fail("%s: star %d drawn at %s, the pair has it at %s (t %.0f)" % [at, sp, sv.position, view.star_screen(sp), view.t])
 			# ITS MOONS AT THE NEAR POINT: over its sun with it in front, hidden
 			# with it behind (only where its centre is inside the sun's hole)
 			if mooned and _in_hole(view, w.host_id, view.world_c(w.index)):
@@ -324,19 +381,20 @@ func _view_checks(view, at: String) -> void:
 				_tally("depth order: drawn on the wrong side of its sun")
 				h._fail("%s: world %d drawn %s its sun at t %.0f (%s it)" % [at, w.index, "over" if wv.get_index() > sn.get_index() else "under", view.t, "in front of" if in_front else "behind"])
 				break
-		# THE LIGHT, from its own star
+		# THE LIGHT, from its own star, where the pair has both now
 		var p: Vector2 = view.pos[w.index]
 		var share: float = view.share_b(p)
 		var own := share if w.host_id == SystemLayout.STAR_B else 1.0 - share
 		_least("light: a world round one star, its own star's share of its light", own, at)
 		_most("light: a world round one star, its own star's share of its light, most", own, at)
-		# ORBIT:view TwinDrawTest: the world's own sun where it is at view.t, against `toward_light_of`, which still reads the pair at t 0 (fails once the pair has turned until the light helpers take the posed pair)
 		var toward: Vector2 = (L.star_pos(w.host_id, float(view.t)) - p).normalized()
-		var lit: Vector2 = SystemViewS.toward_light_of(L, p)
+		var lit: Vector2 = SystemViewS.toward_light_of(L, p, float(view.t))
 		_least("light: a world round one star, cos of its light's angle off the way to its sun", lit.dot(toward), at)
 		if lit.dot(toward) < 0.9:
 			h._fail("%s: world %d lit from %.0f degrees off its own sun" % [at, w.index, rad_to_deg(acos(clampf(lit.dot(toward), -1.0, 1.0)))])
 		_tally("light: worlds round a star checked")
+		if not ring:
+			continue
 		# THE SHIP ON ITS RING, at the opening zoom and at 1: how much of the ride its
 		# centre spends inside the world's drawn disc
 		for zz: float in [view.zoom, 1.0]:
@@ -356,7 +414,10 @@ func _view_checks(view, at: String) -> void:
 			_tally("ship: ride samples inside the disc (%s)" % key, inside)
 			_tally("ship: ride samples (%s)" % key, 72)
 	# THE ORBITS ROUND THEIR OWN CENTRES, at the opening zoom
-	view.t = 37.0
+	if not orbits:
+		return
+	_tally("orbits: pair phases read")
+	view.t = t0 + 37.0
 	view.step()
 	view.step()
 	var runs: Array = view._lines.orbit_runs(false)
@@ -520,6 +581,17 @@ func _view_verdict(seen: int) -> void:
 	var ms := int(_n.get("moons: shown behind its sun", 0))
 	h._ok("a world's moons drawn over its sun with it in front, hidden with it behind (%d moments in front, %d hidden; %d behind, %d shown)" % [mf, mh, mb, ms],
 		mf > 100 and mb > 100 and mh == 0 and ms == 0)
+	var np := int(_n.get("pair phases drawn", 0))
+	# (every pair turns but where a harness holds them still, `pair=0`)
+	var turning := SystemLayout.pair_speed() > 0.0
+	h._ok("each pair drawn at %d angles round its lap%s (%d in all)" % [PHASES, "" if turning else ", held still at its one", np],
+		np == int(_n.get("pair phases wanted", 0)) and np == seen * (PHASES if turning else 1))
+	var ds := int(_n.get("depth order: the two suns, moments checked", 0))
+	h._ok("the near sun drawn over the far one at every angle of the pair (%d moments, %d wrong)" % [ds, int(_n.get("depth order: the far sun drawn over the near one", 0))],
+		ds > 500 and int(_n.get("depth order: the far sun drawn over the near one", 0)) == 0)
+	var dp := int(_n.get("suns: drawn places checked", 0))
+	h._ok("each sun drawn where the pair has it (%d, %d off)" % [dp, int(_n.get("suns: drawn off their place", 0))],
+		dp > 1000 and int(_n.get("suns: drawn off their place", 0)) == 0)
 	var dm := int(_n.get("depth order: world round a star, moments checked", 0))
 	h._ok("each world round a star drawn on the right side of its sun (%d moments, %d wrong)" % [dm, int(_n.get("depth order: drawn on the wrong side of its sun", 0))],
 		dm > 500 and int(_n.get("depth order: drawn on the wrong side of its sun", 0)) == 0)
@@ -591,7 +663,9 @@ func _painted() -> void:
 		view.zoom = SystemLayout.open_zoom(L.edge)
 		view.home_zoom = view.zoom
 		view.pan = Vector2(18.0, -12.0)
-		view.t = 30.0
+		# (a pair three eighths of the way round its lap from where it was laid out:
+		# the pair turns, so star A is off the plane's origin)
+		view.t = 30.0 + (TAU / L.pair_n * 0.375 if L.pair_n > 0.0 else 0.0)
 		view.step()
 		var at := "%s (%s)" % [MapGen.star_name(nd), "two suns" if L.twin else "one sun"]
 		var pt: Dictionary = view._pt
@@ -601,8 +675,11 @@ func _painted() -> void:
 			continue
 		var mp: ShaderMaterial = pt.paint
 		var a_at: Variant = mp.get_shader_parameter("star_at")
-		if a_at != view.origin():
-			bad.append("%s: star A at %s, its disc at %s" % [at, a_at, view.origin()])
+		# (one sun: at its disc, `origin`, as before; two: where star A truly is,
+		# `star_exact`, as the cloud's light has it -- the pair turns)
+		var a_want: Vector2 = view.star_exact(-1) if L.twin else view.origin()
+		if a_at != a_want:
+			bad.append("%s: star A at %s, it is at %s" % [at, a_at, a_want])
 		var moon_was: Color = SectorPaintedS.mix_ok(Color(String(Worlds.RAMP[&"moon"][5])), _srgb(view.star_light()), 0.3)
 		if (pt.moon as Array)[7] != moon_was:
 			bad.append("%s: the moons' brightest step %s, was %s" % [at, (pt.moon as Array)[7], moon_was])
@@ -614,7 +691,7 @@ func _painted() -> void:
 			view.queue_free()
 			continue
 		twins += 1
-		var sb: Vector2 = view.star_screen(SystemLayout.STAR_B)
+		var sb: Vector2 = view.star_exact(SystemLayout.STAR_B)
 		var k2: Variant = mp.get_shader_parameter("star2_k")
 		var lz: Variant = mp.get_shader_parameter("light_lz")
 		if mp.get_shader_parameter("star2_at") != sb or k2 == null or absf(float(k2 if k2 != null else 0.0) - view.star2_light_k()) > 1e-6 or float(k2 if k2 != null else 0.0) <= 0.0:
@@ -639,7 +716,7 @@ func _painted() -> void:
 		# BESIDE STAR B, off its side across from star A: the silhouettes' way to
 		# the light, as `sector_b_paint` works it, against the way to star B --
 		# how far round toward B it has come
-		var sa: Vector2 = view.origin()
+		var sa: Vector2 = view.star_exact(-1)
 		var perp := (sb - sa).orthogonal().normalized()
 		var k2f: float = float(k2) if k2 != null else 0.0
 		var lzf: float = float(lz) if lz != null else 1.0

@@ -1217,8 +1217,8 @@ func _settle_round(n: MapGen.MapNode) -> void:
 	var B := SystemLayout.STAR_B
 	var nm_a := MapGen.star_name(n) + " A"
 	var nm_b := MapGen.star_name(n) + " B"
-	# ORBIT:view settle names by position: star A is not at the origin once the pair turns; name by id (`_settle_id`)
-	var said := [ov._settle_nm(Vector2.ZERO), ov._settle_nm(L.star_pos(SystemLayout.STAR_B, m.view.t)), ov._settle_nm(L.bary)]
+	# (each centre where the pair has it now: star A leaves the origin as the pair turns)
+	var said := [ov._settle_nm(L.star_pos(-1, m.view.t)), ov._settle_nm(L.star_pos(SystemLayout.STAR_B, m.view.t)), ov._settle_nm(L.bary)]
 	h._ok("a wide orbit round star A, star B and the balance point is named %s" % " / ".join(said),
 		said[0] == nm_a and said[1] == nm_b and said[2] == "BOTH STARS")
 	if not h._ok("the flight can let a ship go to settle where it is (`ShipFlight.settle_at`, the flight build's)", m.flight.has_method(&"settle_at")):
@@ -2562,7 +2562,17 @@ func _ring_frames(m: SystemMapScreen, w: int, frames: int, every: int) -> Dictio
 				r.on_hull += 1
 			elif not (shape.has(q + Vector2i(1, 0)) or shape.has(q - Vector2i(1, 0)) or shape.has(q + Vector2i(0, 1)) or shape.has(q - Vector2i(0, 1))):
 				r.apart += 1
-		if w >= 0 and x.distance_to(m.view.at[w]) < m.view.draw_r(L.bodies[w]):
+		# (a frame with the hull over its world's disc, so "never hidden" was asked
+		# of it: by its pixels, not its middle -- the ring's near point is about
+		# the disc's own radius from the world's middle at the opening zoom, so the
+		# middle came onto the disc in a few frames or none by the rounding alone,
+		# 4 of 60 with the pair held still and 0 once it turns, ruling 23)
+		var over := false
+		for q: Vector2i in shape:
+			if w >= 0 and Vector2(q).distance_to(m.view.at[w]) < m.view.draw_r(L.bodies[w]) - 0.5:
+				over = true
+				break
+		if over:
 			r.on_disc += 1
 		for q: Vector2i in shape:
 			if drawn.has(q):
@@ -2591,7 +2601,7 @@ func _ring_outline_open(m: SystemMapScreen, wa: int) -> void:
 	h._ok("on the ring of %s round star A the ship is outlined in light: %d of %d frames with the hull drawn have it (%d px, %d off colour, %d on the hull, %d not beside it)" % [
 		m.view.layout.bodies[wa].name, r.rim, r.hull, r.rim_px, r.colour, r.on_hull, r.apart],
 		r.ringed == r.seen and r.hull > 0 and r.rim == r.hull and r.colour == 0 and r.on_hull == 0 and r.apart == 0)
-	h._ok("and its own world never hides it: %d hull pixels hidden by nothing else, over %d frames, %d with its middle on the world's disc" % [r.own_hid, r.seen, r.on_disc],
+	h._ok("and its own world never hides it: %d hull pixels hidden by nothing else, over %d frames, %d with the hull over the world's disc" % [r.own_hid, r.seen, r.on_disc],
 		r.own_hid == 0 and r.on_disc > 0)
 	_saw("rings outlined, frames", r.seen)
 
@@ -2601,7 +2611,9 @@ func _ring_outline_open(m: SystemMapScreen, wa: int) -> void:
 ## CALLOUS I), the world selected as in the picks stills, at the opening zoom,
 ## the clock running for `RIDE_FRAMES` frames (about two orbits). The words are
 ## there every frame, never move more than 3 px from one frame to the next, and
-## spread no more than 3 px each way over the ride (the world drifts a pixel).
+## spread no more than 3 px each way over the ride, both measured from where
+## the world is drawn (the pair turns, ruling 23, and carries the world with its
+## sun: it moves about 6 px over the ride, and the ship and its words with it).
 ## Stepped off a sun and the beacon there, nearest first under the ring, above
 ## it and under the ship together, they hopped 6 to 10 px between under the
 ## ring and under the ship about twice an orbit and slid with the ship between
@@ -2633,7 +2645,6 @@ func _ring_words_ride() -> void:
 	if not h._ok("the map comes up in %s for the ride" % MapGen.star_name(n), m != null and m.view.node == n):
 		return
 	var ov = m.overlay
-	# ORBIT:view the ring-words ride and the sweeps below run at set map times; the suns now move with t too (label hysteresis, DESIGN step 5)
 	m.view.t = 40.0
 	m.flight.place_at(wa, m.view.t)
 	ov.selected = wa
@@ -2654,6 +2665,11 @@ func _ring_words_ride() -> void:
 		if box.size.x <= 0.0:
 			last = Rect2()
 			continue
+		# (measured from where the world is drawn: the pair turns, so the world
+		# round star A is carried round with its sun, and its own year is four
+		# times Kepler's -- it moves several px over the ride, and the ship and
+		# its words with it, ruling 23)
+		box.position -= m.view.at[wa] as Vector2
 		seen += 1
 		if last.size.x > 0.0:
 			var d := box.position.distance_to(last.position)
@@ -3099,7 +3115,7 @@ func _ring_sweep() -> void:
 		st.sel_held * 20 <= st.sel and st.fc_held * 20 <= st.into and st.sel_shown * 4 >= st.sel * 3 and st.fc_shown * 4 >= st.into * 3)
 	h._ok("every binary's event cards go in name order, as its SATELLITES list (%d binaries, %d of them with cards out of the order the bodies were made)%s" % [
 		st.ev_sys, st.ev_moved, "" if ev_bad.is_empty() else ": " + "; ".join(ev_bad.slice(0, 4))], ev_bad.is_empty() and st.ev_sys == st.twins and st.ev_moved > 0)
-	h._ok("on every ring of a world round one sun of a binary the ship is outlined in light: %d rings, %d of %d frames with the hull drawn outlined, %d outline pixels wrong, %d hull pixels hidden by its own world (%d frames with its middle on that world's disc)" % [
+	h._ok("on every ring of a world round one sun of a binary the ship is outlined in light: %d rings, %d of %d frames with the hull drawn outlined, %d outline pixels wrong, %d hull pixels hidden by its own world (%d frames with the hull over that world's disc)" % [
 		st.rings, st.rim_frames, st.hull_frames, st.rim_bad, st.own_hid, st.on_disc],
 		st.rings > 2 * st.twins and st.hull_frames > 0 and st.rim_frames == st.hull_frames and st.rim_bad == 0 and st.own_hid == 0 and st.on_disc > 0)
 	h._ok("and never on a ring round both suns (%d rings, %d outline pixels or outlined frames) nor round one sun (%d systems, %d)" % [st.both, st.both_rim, st.one, st.one_rim],
