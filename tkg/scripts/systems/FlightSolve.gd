@@ -81,13 +81,38 @@ extends RefCounted
 ## twins: 89.8% found (the planner review), its rides phasing at up to 436
 ## px/s^2 for free and its arrival burns three times their least.
 ##
+## THE PAIR TURNS (ruling 23, Jon, Nov 1, "Orbiting pair: after4:D"): a
+## binary's suns circle their balance point at four times Kepler, every world
+## round one sun carried with it. The coast reads both suns at each step's
+## start, middle and end (one cos and sin a place for both); keep-outs, the
+## arrival burn's checks and the pull a burn is held to read them, and every
+## circle carried with one, where they are then; a place round one sun -- a
+## world, its close orbit, a settled orbit round it (`host`) -- rides with it
+## (`_dhs`, `_ths`); a conic about a sun is solved in its own frame and asks by
+## the sun's index whether the target is that sun (`_lam`, `_aims`). A sun
+## that holds still -- one alone, a pair held still (`-- pair=0`) -- runs the
+## very same arithmetic as before: SolveTest's one-star, giant, hand-twin and
+## real-twin sweeps print the same numbers to the last digit at pair=0.
+## Turning (SolveTest, Nov 2, this PC, other jobs beside it): found and clean
+## in 3,022 of 3,024 real wide-pair plans (the two misses free starts, a
+## harness's), 3,024 of 3,024 close, 1,080 of 1,080 hand twins, and 1,872 of
+## 1,872 in the pair-phase sweep (three of the busiest pairs at 8 angles a
+## lap, from a settled orbit round each sun too); every landing within 0.0001
+## px and 0.07 px/s of the ring where the layout's Body has it; the drawn coast
+## within 0.13 px of plain RK4 through `MapGravity.acc`; every replay and
+## worker plan the same. An RK4 step through a turning pair costs a tenth to a
+## fifth more (the prototype's bench, `tk-scratch/orbiting-pair/autopilot`).
+##
 ## USE
 ##   var G := MapGravity.from_layout(L)          # once per system; shareable
 ##   var r := FlightSolve.solve(G, dep, tgt, t)   # or (..., prefer = r.choice)
 ##   dep: {kind: &"ring", place: int, rt: float, ang: float, w: float}
 ##          place: a body index, -1 star A, SystemLayout.STAR_B, or -9 with
 ##          c: Vector2, a fixed centre (a settled star orbit); w signed rad/s
-##          (a star's rt: `star_orbit_r`)
+##          (a star's rt: `star_orbit_r`). A -9 round one sun of a turning
+##          pair also passes host: that sun's place id (`ShipFlight` f.cen_id);
+##          the circle then rides with the sun and c is not read (-9, or none,
+##          a fixed centre: the balance point, the edge as arrived)
 ##        {kind: &"keep", place: int, off: Vector2}   alongside, `off` from it
 ##        {kind: &"free", p: Vector2, v: Vector2}
 ##   tgt: {kind: &"ring", place: int, R: float, V: float, sense: 0 | 1 | -1}
@@ -370,8 +395,10 @@ const V_SLOW := 2.0 * V_CUSP
 ## px across; this keeps 1.67.
 const DRAW_TILT := 0.38
 const DRAW_K := 0.6
-## the version of `choice` this file writes and reads
-const CHOICE_V := 1
+## the version of `choice` this file writes and reads: 2 from the orbiting pair
+## (ruling 23), whose choice carries the sun each circle rides with (`dhs`,
+## `ths`), so no preview planned under the old meaning is rebuilt as it was
+const CHOICE_V := 2
 
 
 class Result:
@@ -449,6 +476,14 @@ var _dpz := 0.0
 var _dvx := 0.0
 var _dvz := 0.0
 var _dplace := -9
+## THE SUN A CIRCLE RIDES WITH (ruling 23, the orbiting pair): the index in G
+## of the star the departure's / target's circle is centred on where that star
+## turns -- a world round one sun, a sun's close orbit, a settled orbit round
+## one sun -- or -1 for a centre that holds still at _dhx, _dhz (_thx, _thz).
+## Where it rides, _dhx (_thx) is the centre at t = 0, and `_dep_at` (`_tgt_at`)
+## reads the star where it is at t.
+var _dhs := -1
+var _ths := -1
 ## the target: 0 ring, 1 keep
 var _tk := 0
 var _thx := 0.0
@@ -464,7 +499,8 @@ var _tplace := -9
 var _tsense := 0
 var _senses := PackedFloat64Array([1.0, -1.0])
 var _twin := false
-## (a departure out of a settled star orbit: its burn eased while slow, R_BURN)
+## (a departure out of a settled star orbit, round a fixed point or riding with
+## one sun of a turning pair: its burn eased while slow, R_BURN)
 var _ease := false
 ## the ride's top phasing (`_kmax`)
 var _kmax := 1.0
@@ -810,6 +846,10 @@ func _warm_tier(c: Dictionary) -> void:
 func _setup(dep: Dictionary, tgt: Dictionary) -> bool:
 	if not _setup_in(dep, tgt):
 		return false
+	# (keyed on the settled orbit, place -9, whatever it circles: one round a
+	# sun of a turning pair rides with that sun, `_dhs`, at the same slow pace,
+	# and eases the same. Its pull is read off the ship's speed on the plane,
+	# where the curve is drawn, the sun's own motion in it)
 	_ease = (_dk == 0 and _dplace == -9) or (_leg == 2 and _dk == 2)
 	# THE RIDE'S PHASING, held to THRUST and VMAX on the ring being ridden
 	_kmax = 1.0
@@ -850,7 +890,7 @@ func _setup_in(dep: Dictionary, tgt: Dictionary) -> bool:
 	match StringName(dep.get("kind", &"")):
 		&"ring":
 			_dk = 0
-			if not _place_circle(int(dep.get("place", -9)), dep.get("c", Vector2.ZERO), true):
+			if not _place_circle(int(dep.get("place", -9)), dep.get("c", Vector2.ZERO), true, int(dep.get("host", -9))):
 				return false
 			_drt = float(dep.rt)
 			_dang = float(dep.ang)
@@ -859,7 +899,7 @@ func _setup_in(dep: Dictionary, tgt: Dictionary) -> bool:
 				return false
 		&"keep":
 			_dk = 1
-			if not _place_circle(int(dep.get("place", -9)), dep.get("c", Vector2.ZERO), true):
+			if not _place_circle(int(dep.get("place", -9)), dep.get("c", Vector2.ZERO), true, int(dep.get("host", -9))):
 				return false
 			var o: Vector2 = dep.get("off", Vector2.ZERO)
 			_doffx = o.x
@@ -891,33 +931,46 @@ func _setup_in(dep: Dictionary, tgt: Dictionary) -> bool:
 			_senses = PackedFloat64Array([1.0])
 		_:
 			return false
-	return _place_circle(int(tgt.get("place", -9)), tgt.get("c", Vector2.ZERO), false)
+	return _place_circle(int(tgt.get("place", -9)), tgt.get("c", Vector2.ZERO), false, int(tgt.get("host", -9)))
 
 
-## A place's circle into the departure's (dep) or the target's fields.
-func _place_circle(p: int, c: Vector2, dep: bool) -> bool:
+## A place's circle into the departure's (dep) or the target's fields, and the
+## sun it rides with (`_dhs`, `_ths`): a world round one sun of a turning pair
+## its sun (MapGravity `pl_hs`), a sun's close orbit that sun, and a -9 circle
+## the sun `host` names (a settled orbit round one sun: c is then not read, its
+## centre being that sun wherever it is). Every other centre holds still.
+func _place_circle(p: int, c: Vector2, dep: bool, host: int = -9) -> bool:
 	var hx := c.x
 	var hz := c.y
 	var orb := 0.0
 	var n := 0.0
 	var ph := 0.0
+	var hs := -1
 	if p >= 0:
 		if p >= G.pl_hx.size():
 			return false
-		# ORBIT:solver a place round one sun of a turning pair rides with its star (G.pl_hs[p]): _dep_at/_tgt_at must add sx/sz(hs, t) - hx and svx/svz (proto.patch _place_circle)
 		hx = G.pl_hx[p]
 		hz = G.pl_hz[p]
 		orb = G.pl_orb[p]
 		n = G.pl_n[p]
 		ph = G.pl_ph[p]
+		hs = G.pl_hs[p]
 	elif p != -9:
 		var k := G.star_index(p)
 		if k < 0:
 			return false
-		# ORBIT:solver a star's close orbit: the star moves (keep its index, `_dhs`/`_ths`, and read sx/sz at t in _dep_at/_tgt_at); a -9 settle needs its host (proto)
 		hx = G.star_x0[k]
 		hz = G.star_z0[k]
+		if G.star_rad[k] != 0.0:
+			hs = k
+	elif host != -9:
+		var kh := G.star_index(host)
+		if kh >= 0 and G.star_rad[kh] != 0.0:
+			hs = kh
+			hx = G.star_x0[kh]
+			hz = G.star_z0[kh]
 	if dep:
+		_dhs = hs
 		_dplace = p
 		_dhx = hx
 		_dhz = hz
@@ -925,6 +978,7 @@ func _place_circle(p: int, c: Vector2, dep: bool) -> bool:
 		_dn = n
 		_dph = ph
 	else:
+		_ths = hs
 		_tplace = p
 		_thx = hx
 		_thz = hz
@@ -934,24 +988,47 @@ func _place_circle(p: int, c: Vector2, dep: bool) -> bool:
 	return true
 
 
+## The departure's place at t into _cx, _cz and its motion into _cvx, _cvz:
+## round its circle, and where the circle rides with a turning sun (`_dhs`), the
+## sun where it is at t and its motion added (as `MapGravity.sx`, `svx` have it,
+## one cos and sin for both). A centre that holds still is read as it always was.
 func _dep_at(t: float) -> void:
 	var a := _dph + _dn * t
 	var c := cos(a)
 	var s := sin(a)
-	_cx = _dhx + _dorb * c
-	_cz = _dhz + _dorb * s
-	_cvx = -_dorb * _dn * s
-	_cvz = _dorb * _dn * c
+	if _dhs < 0:
+		_cx = _dhx + _dorb * c
+		_cz = _dhz + _dorb * s
+		_cvx = -_dorb * _dn * s
+		_cvz = _dorb * _dn * c
+		return
+	var pa := G.star_ph[_dhs] + G.pair_n * t
+	var rc := G.star_rad[_dhs] * cos(pa)
+	var rs := G.star_rad[_dhs] * sin(pa)
+	_cx = G.star_cx[_dhs] + rc + _dorb * c
+	_cz = G.star_cz[_dhs] + rs + _dorb * s
+	_cvx = -_dorb * _dn * s - rs * G.pair_n
+	_cvz = _dorb * _dn * c + rc * G.pair_n
 
 
+## The target's, as `_dep_at`.
 func _tgt_at(t: float) -> void:
 	var a := _tph + _tn * t
 	var c := cos(a)
 	var s := sin(a)
-	_cx = _thx + _torb * c
-	_cz = _thz + _torb * s
-	_cvx = -_torb * _tn * s
-	_cvz = _torb * _tn * c
+	if _ths < 0:
+		_cx = _thx + _torb * c
+		_cz = _thz + _torb * s
+		_cvx = -_torb * _tn * s
+		_cvz = _torb * _tn * c
+		return
+	var pa := G.star_ph[_ths] + G.pair_n * t
+	var rc := G.star_rad[_ths] * cos(pa)
+	var rs := G.star_rad[_ths] * sin(pa)
+	_cx = G.star_cx[_ths] + rc + _torb * c
+	_cz = G.star_cz[_ths] + rs + _torb * s
+	_cvx = -_torb * _tn * s - rs * G.pair_n
+	_cvz = _torb * _tn * c + rc * G.pair_n
 
 
 # ---------------------------------------------------------------- the ride and the departure
@@ -1307,7 +1384,6 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 	if _gkeep.size() != ng:
 		_gkeep = G.gi_keep
 	var fast := ns <= 2 and ng <= 1
-	# ORBIT:solver the RK4 coast holds both suns at t 0: read them at the step's start, middle and end (G.star_cx/star_rad/star_ph/pair_n, proto.patch _integrate)
 	var s0x := G.star_x0[0] if ns > 0 else 0.0
 	var s0z := G.star_z0[0] if ns > 0 else 0.0
 	var s0g := G.star_gm[0] if ns > 0 else 0.0
@@ -1316,8 +1392,33 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 	var s1z := G.star_z0[1] if ns > 1 else 0.0
 	var s1g := G.star_gm[1] if ns > 1 else 0.0
 	var s1k := G.star_keep[1] if ns > 1 else 0.0
+	# THE PAIR TURNS (ruling 23): both suns on their circle round the balance
+	# point, read as the giant is at the step's start (carried from the last
+	# step's end), middle and end; one cos and sin a place for both, since they
+	# share one angle (MapGravity `star_ph`, their signed `star_rad` along the
+	# line). A sun that holds still -- one alone, a pair held still -- is read
+	# as it always was.
+	var spin := ns == 2 and G.pair_n != 0.0 and G.star_rad[0] != 0.0 and G.star_rad[1] != 0.0
+	var pcx0 := G.star_cx[0] if spin else 0.0
+	var pcz0 := G.star_cz[0] if spin else 0.0
+	var pcx1 := G.star_cx[1] if spin else 0.0
+	var pcz1 := G.star_cz[1] if spin else 0.0
+	var pr0 := G.star_rad[0] if spin else 0.0
+	var pr1 := G.star_rad[1] if spin else 0.0
+	var pph := G.star_ph[0] if spin else 0.0
+	var pnn := G.pair_n if spin else 0.0
+	if spin:
+		var ca := cos(pph + pnn * td)
+		var sa := sin(pph + pnn * td)
+		s0x = pcx0 + pr0 * ca
+		s0z = pcz0 + pr0 * sa
+		s1x = pcx1 + pr1 * ca
+		s1z = pcz1 + pr1 * sa
 	var ghx := G.gi_hx[0] if ng > 0 else 0.0
 	var ghz := G.gi_hz[0] if ng > 0 else 0.0
+	# (the star giant 0's circle is carried round with, -1 none: in the layout's
+	# twins every giant circles both suns, but a harness may carry one)
+	var ghs := G.gi_hs[0] if ng > 0 and spin else -1
 	var gor := G.gi_orb[0] if ng > 0 else 0.0
 	var gnn := G.gi_n[0] if ng > 0 else 0.0
 	var gph := G.gi_ph[0] if ng > 0 else 0.0
@@ -1346,8 +1447,10 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 	var gx0 := 0.0
 	var gz0 := 0.0
 	if ng > 0:
-		gx0 = ghx + gor * cos(gph + gnn * t)
-		gz0 = ghz + gor * sin(gph + gnn * t)
+		var gcx := ghx if ghs < 0 else (s0x if ghs == 0 else s1x)
+		var gcz := ghz if ghs < 0 else (s0z if ghs == 0 else s1z)
+		gx0 = gcx + gor * cos(gph + gnn * t)
+		gz0 = gcz + gor * sin(gph + gnn * t)
 	while t < t_end - 1e-9 and n < cap:
 		var h := 0.0
 		var ax_t := 0.0
@@ -1387,6 +1490,28 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 			if t + h > t_end:
 				h = t_end - t
 		var hh := 0.5 * h
+		# the suns at the step's middle (m) and end (e)
+		var m0x := s0x
+		var m0z := s0z
+		var m1x := s1x
+		var m1z := s1z
+		var e0x := s0x
+		var e0z := s0z
+		var e1x := s1x
+		var e1z := s1z
+		if spin:
+			var cm := cos(pph + pnn * (t + hh))
+			var sm := sin(pph + pnn * (t + hh))
+			m0x = pcx0 + pr0 * cm
+			m0z = pcz0 + pr0 * sm
+			m1x = pcx1 + pr1 * cm
+			m1z = pcz1 + pr1 * sm
+			var ce := cos(pph + pnn * (t + h))
+			var se := sin(pph + pnn * (t + h))
+			e0x = pcx0 + pr0 * ce
+			e0z = pcz0 + pr0 * se
+			e1x = pcx1 + pr1 * ce
+			e1z = pcz1 + pr1 * se
 		# the giant at the step's middle and end
 		var gxm := gx0
 		var gzm := gz0
@@ -1394,11 +1519,17 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 		var gz1 := gz0
 		if ng > 0:
 			var am := gph + gnn * (t + hh)
-			gxm = ghx + gor * cos(am)
-			gzm = ghz + gor * sin(am)
 			var a1 := gph + gnn * (t + h)
-			gx1 = ghx + gor * cos(a1)
-			gz1 = ghz + gor * sin(a1)
+			if ghs < 0:
+				gxm = ghx + gor * cos(am)
+				gzm = ghz + gor * sin(am)
+				gx1 = ghx + gor * cos(a1)
+				gz1 = ghz + gor * sin(a1)
+			else:
+				gxm = (m0x if ghs == 0 else m1x) + gor * cos(am)
+				gzm = (m0z if ghs == 0 else m1z) + gor * sin(am)
+				gx1 = (e0x if ghs == 0 else e1x) + gor * cos(a1)
+				gz1 = (e0z if ghs == 0 else e1z) + gor * sin(a1)
 		var a1x := ax_t
 		var a1z := az_t
 		var a2x := ax_t
@@ -1444,15 +1575,15 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 			v2x = vx + hh * a1x
 			v2z = vz + hh * a1z
 			# k2
-			dx = s0x - x2
-			dz = s0z - z2
+			dx = m0x - x2
+			dz = m0z - z2
 			r2 = dx * dx + dz * dz
 			f = s0g / (r2 * sqrt(r2))
 			a2x += f * dx
 			a2z += f * dz
 			if ns > 1:
-				dx = s1x - x2
-				dz = s1z - z2
+				dx = m1x - x2
+				dz = m1z - z2
 				r2 = dx * dx + dz * dz
 				f = s1g / (r2 * sqrt(r2))
 				a2x += f * dx
@@ -1469,15 +1600,15 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 			v3x = vx + hh * a2x
 			v3z = vz + hh * a2z
 			# k3
-			dx = s0x - x3
-			dz = s0z - z3
+			dx = m0x - x3
+			dz = m0z - z3
 			r2 = dx * dx + dz * dz
 			f = s0g / (r2 * sqrt(r2))
 			a3x += f * dx
 			a3z += f * dz
 			if ns > 1:
-				dx = s1x - x3
-				dz = s1z - z3
+				dx = m1x - x3
+				dz = m1z - z3
 				r2 = dx * dx + dz * dz
 				f = s1g / (r2 * sqrt(r2))
 				a3x += f * dx
@@ -1494,15 +1625,15 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 			v4x = vx + h * a3x
 			v4z = vz + h * a3z
 			# k4
-			dx = s0x - x4
-			dz = s0z - z4
+			dx = e0x - x4
+			dz = e0z - z4
 			r2 = dx * dx + dz * dz
 			f = s0g / (r2 * sqrt(r2))
 			a4x += f * dx
 			a4z += f * dz
 			if ns > 1:
-				dx = s1x - x4
-				dz = s1z - z4
+				dx = e1x - x4
+				dz = e1z - z4
 				r2 = dx * dx + dz * dz
 				f = s1g / (r2 * sqrt(r2))
 				a4x += f * dx
@@ -1547,10 +1678,10 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 		var reach := h * (sqrt(vx * vx + vz * vz) + sqrt(nvx * nvx + nvz * nvz)) * 0.5 + 1.0
 		var deep := false
 		for j in ns:
-			# ORBIT:solver star keep-outs at mid-step with the suns where they are then (m0x/m1x, G.sx(j, t + hh))
-			var ox := s0x if j == 0 else (s1x if fast else G.star_x0[j])
-			var oz := s0z if j == 0 else (s1z if fast else G.star_z0[j])
-			var kp := s0k if j == 0 else (s1k if fast else G.star_keep[j])
+			# (each sun where it is at the step's middle, as the giant is)
+			var ox := m0x if j == 0 else (m1x if j == 1 else G.sx(j, t + hh))
+			var oz := m0z if j == 0 else (m1z if j == 1 else G.sz(j, t + hh))
+			var kp := s0k if j == 0 else (s1k if j == 1 else G.star_keep[j])
 			var dd := sqrt((nx - ox) * (nx - ox) + (nz - oz) * (nz - oz))
 			if dd < 0.5 * kp:
 				deep = true
@@ -1572,15 +1703,19 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 				if m2 < 0.0 and _t_bad == INF:
 					_t_bad = t
 		for j in nw:
-			# (cheap first: how far the step is from the world's whole orbit)
-			# ORBIT:solver world keep-outs round a moving host (G.wo_hs[j]: the star's place at t + hh)
-			var rh := sqrt((nx - G.wo_hx[j]) * (nx - G.wo_hx[j]) + (nz - G.wo_hz[j]) * (nz - G.wo_hz[j]))
+			# (cheap first: how far the step is from the world's whole orbit,
+			# round where its centre is at the step's middle: a world round one
+			# sun of a turning pair rides with it, `wo_hs`)
+			var whs := G.wo_hs[j]
+			var whx: float = G.wo_hx[j] if whs < 0 else (m0x if whs == 0 else (m1x if whs == 1 else G.sx(whs, t + hh)))
+			var whz: float = G.wo_hz[j] if whs < 0 else (m0z if whs == 0 else (m1z if whs == 1 else G.sz(whs, t + hh)))
+			var rh := sqrt((nx - whx) * (nx - whx) + (nz - whz) * (nz - whz))
 			var kp3: float = _wkeep[j]
 			if absf(rh - G.wo_orb[j]) - kp3 > reach + 40.0:
 				continue
 			var aw := G.wo_ph[j] + G.wo_n[j] * (t + hh)
-			var ox3 := G.wo_hx[j] + G.wo_orb[j] * cos(aw)
-			var oz3 := G.wo_hz[j] + G.wo_orb[j] * sin(aw)
+			var ox3 := whx + G.wo_orb[j] * cos(aw)
+			var oz3 := whz + G.wo_orb[j] * sin(aw)
 			var dd3 := sqrt((nx - ox3) * (nx - ox3) + (nz - oz3) * (nz - oz3))
 			if dd3 - kp3 < reach + 40.0:
 				var m3 := _step_min(x, z, vx, vz, nx, nz, nvx, nvz, h, ox3, oz3) - kp3
@@ -1597,6 +1732,10 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 			_tc0 = t
 		gx0 = gx1
 		gz0 = gz1
+		s0x = e0x
+		s0z = e0z
+		s1x = e1x
+		s1z = e1z
 		_cT[n] = t
 		_cX[n] = x
 		_cZ[n] = z
@@ -1608,6 +1747,8 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 		# arrival that starts its burn before it never flies the rest
 		if _t_bad < INF and (t > _t_bad + D2_MAX or deep):
 			break
+		# (lost past 1.6 edges from the plane's origin, star A's place at t 0: a
+		# frame that holds still while a pair turns, as the map's edge does)
 		if x * x + z * z > lost2:
 			break
 	_cn = n
@@ -2064,26 +2205,60 @@ func _burn_clear(te: float, d: float, dxx: float, dxz: float, dux: float, duz: f
 
 
 ## `MapGravity.margin`, a world's place worked out only when it is near
-## enough for its orbit to matter.
+## enough for its orbit to matter. The suns, and every circle carried round
+## with one (`gi_hs`, `wo_hs`), where they are at t (`_sun_cs`).
 func _margin(x: float, z: float, t: float) -> float:
 	var least := INF
-	# ORBIT:solver _margin: stars, giants and worlds at t (G.sx/sz, hx_at/hz_at), as MapGravity.margin now reads them
+	_sun_cs(t)
 	for k in G.star_x0.size():
-		least = minf(least, sqrt((x - G.star_x0[k]) * (x - G.star_x0[k]) + (z - G.star_z0[k]) * (z - G.star_z0[k])) - G.star_keep[k])
+		var qx := G.star_x0[k]
+		var qz := G.star_z0[k]
+		if G.star_rad[k] != 0.0:
+			qx = G.star_cx[k] + G.star_rad[k] * _pc
+			qz = G.star_cz[k] + G.star_rad[k] * _ps
+		least = minf(least, sqrt((x - qx) * (x - qx) + (z - qz) * (z - qz)) - G.star_keep[k])
 	for k in G.gi_hx.size():
 		var a := G.gi_ph[k] + G.gi_n[k] * t
-		var gx := G.gi_hx[k] + G.gi_orb[k] * cos(a) - x
-		var gz := G.gi_hz[k] + G.gi_orb[k] * sin(a) - z
+		var hx := G.gi_hx[k]
+		var hz := G.gi_hz[k]
+		var hs := G.gi_hs[k]
+		if hs >= 0:
+			hx = G.star_cx[hs] + G.star_rad[hs] * _pc
+			hz = G.star_cz[hs] + G.star_rad[hs] * _ps
+		var gx := hx + G.gi_orb[k] * cos(a) - x
+		var gz := hz + G.gi_orb[k] * sin(a) - z
 		least = minf(least, sqrt(gx * gx + gz * gz) - _gkeep[k])
 	for k in G.wo_hx.size():
-		var rh := sqrt((x - G.wo_hx[k]) * (x - G.wo_hx[k]) + (z - G.wo_hz[k]) * (z - G.wo_hz[k]))
+		var wcx := G.wo_hx[k]
+		var wcz := G.wo_hz[k]
+		var ws := G.wo_hs[k]
+		if ws >= 0:
+			wcx = G.star_cx[ws] + G.star_rad[ws] * _pc
+			wcz = G.star_cz[ws] + G.star_rad[ws] * _ps
+		var rh := sqrt((x - wcx) * (x - wcx) + (z - wcz) * (z - wcz))
 		if absf(rh - G.wo_orb[k]) - _wkeep[k] >= least:
 			continue
 		var aw := G.wo_ph[k] + G.wo_n[k] * t
-		var wx := G.wo_hx[k] + G.wo_orb[k] * cos(aw) - x
-		var wz := G.wo_hz[k] + G.wo_orb[k] * sin(aw) - z
+		var wx := wcx + G.wo_orb[k] * cos(aw) - x
+		var wz := wcz + G.wo_orb[k] * sin(aw) - z
 		least = minf(least, sqrt(wx * wx + wz * wz) - _wkeep[k])
 	return least
+
+
+## THE PAIR'S ANGLE AT t as its cos and sin, into _pc, _ps (0 and 0 where it
+## holds still, so a still star's circle reads its own place): both suns share
+## one angle (MapGravity `star_ph`), so one pair serves every star and every
+## circle carried with one, at the same numbers `MapGravity.sx` gives.
+var _pc := 0.0
+var _ps := 0.0
+func _sun_cs(t: float) -> void:
+	if G.pair_n == 0.0 or G.star_ph.is_empty():
+		_pc = 0.0
+		_ps = 0.0
+		return
+	var pa := G.star_ph[0] + G.pair_n * t
+	_pc = cos(pa)
+	_ps = sin(pa)
 
 
 ## The pull at (x, z) at t into _ax, _az (`MapGravity.acc` without its array).
@@ -2092,18 +2267,29 @@ var _az := 0.0
 func _acc_at(x: float, z: float, t: float) -> void:
 	_ax = 0.0
 	_az = 0.0
-	# ORBIT:solver _acc_at: suns at t (G.sx/sz), giants round hx_at, as MapGravity.acc
+	_sun_cs(t)
 	for k in G.star_x0.size():
-		var dx := G.star_x0[k] - x
-		var dz := G.star_z0[k] - z
+		var qx := G.star_x0[k]
+		var qz := G.star_z0[k]
+		if G.star_rad[k] != 0.0:
+			qx = G.star_cx[k] + G.star_rad[k] * _pc
+			qz = G.star_cz[k] + G.star_rad[k] * _ps
+		var dx := qx - x
+		var dz := qz - z
 		var r2 := dx * dx + dz * dz
 		var f := G.star_gm[k] / (r2 * sqrt(r2))
 		_ax += f * dx
 		_az += f * dz
 	for k in G.gi_hx.size():
 		var a := G.gi_ph[k] + G.gi_n[k] * t
-		var dx := G.gi_hx[k] + G.gi_orb[k] * cos(a) - x
-		var dz := G.gi_hz[k] + G.gi_orb[k] * sin(a) - z
+		var hx := G.gi_hx[k]
+		var hz := G.gi_hz[k]
+		var hs := G.gi_hs[k]
+		if hs >= 0:
+			hx = G.star_cx[hs] + G.star_rad[hs] * _pc
+			hz = G.star_cz[hs] + G.star_rad[hs] * _ps
+		var dx := hx + G.gi_orb[k] * cos(a) - x
+		var dz := hz + G.gi_orb[k] * sin(a) - z
 		var r2 := dx * dx + dz * dz
 		var f := G.gi_gm[k] / (r2 * sqrt(r2))
 		_ax += f * dx
@@ -2111,17 +2297,29 @@ func _acc_at(x: float, z: float, t: float) -> void:
 
 
 ## The square of how fast the pull changes with place there (2 GM / r^3 of
-## the nearest-felt body, summed loosely): an upper bound for a few px.
+## the nearest-felt body, summed loosely): an upper bound for a few px. The
+## suns and giants where they are at t, as `_acc_at`.
 func _grad2(x: float, z: float, t: float) -> float:
 	var g := 0.0
-	# ORBIT:solver _grad2: suns at t, as _acc_at
+	_sun_cs(t)
 	for k in G.star_x0.size():
-		var r2 := (G.star_x0[k] - x) * (G.star_x0[k] - x) + (G.star_z0[k] - z) * (G.star_z0[k] - z)
+		var qx := G.star_x0[k]
+		var qz := G.star_z0[k]
+		if G.star_rad[k] != 0.0:
+			qx = G.star_cx[k] + G.star_rad[k] * _pc
+			qz = G.star_cz[k] + G.star_rad[k] * _ps
+		var r2 := (qx - x) * (qx - x) + (qz - z) * (qz - z)
 		g += 2.0 * G.star_gm[k] / (r2 * sqrt(r2))
 	for k in G.gi_hx.size():
 		var a := G.gi_ph[k] + G.gi_n[k] * t
-		var dx := G.gi_hx[k] + G.gi_orb[k] * cos(a) - x
-		var dz := G.gi_hz[k] + G.gi_orb[k] * sin(a) - z
+		var hx := G.gi_hx[k]
+		var hz := G.gi_hz[k]
+		var hs := G.gi_hs[k]
+		if hs >= 0:
+			hx = G.star_cx[hs] + G.star_rad[hs] * _pc
+			hz = G.star_cz[hs] + G.star_rad[hs] * _ps
+		var dx := hx + G.gi_orb[k] * cos(a) - x
+		var dz := hz + G.gi_orb[k] * sin(a) - z
 		var r2 := dx * dx + dz * dz
 		g += 2.0 * G.gi_gm[k] / (r2 * sqrt(r2))
 	return g * g
@@ -2775,18 +2973,32 @@ func _far_need() -> float:
 	_dep_at(t_now)
 	var px := _cx + (_drt * cos(_dang) if _dk == 0 else _doffx)
 	var pz := _cz + (_drt * sin(_dang) if _dk == 0 else _doffz)
-	var k := G.star_index(_star_of(px, pz))
+	var k := G.star_index(_star_of(px, pz, t_now))
 	if k < 0:
 		return 0.0
-	var own := sqrt(_cvx * _cvx + _cvz * _cvz)
-	# ORBIT:solver _far_need: star k at t_now and t_now + far_t, the ship's speed relative to the star's (proto)
-	var r1 := sqrt((px - G.star_x0[k]) * (px - G.star_x0[k]) + (pz - G.star_z0[k]) * (pz - G.star_z0[k]))
+	# (the place's own motion round that star, and the star where it is now and
+	# far_t on: in a turning pair it moves with its worlds)
+	var ovx := _cvx
+	var ovz := _cvz
+	var k1x := G.star_x0[k]
+	var k1z := G.star_z0[k]
 	var far_t := FAR_T_BACK if _back else FAR_T
+	var k2x := k1x
+	var k2z := k1z
+	if G.star_rad[k] != 0.0:
+		ovx -= G.svx(k, t_now)
+		ovz -= G.svz(k, t_now)
+		k1x = G.sx(k, t_now)
+		k1z = G.sz(k, t_now)
+		k2x = G.sx(k, t_now + far_t)
+		k2z = G.sz(k, t_now + far_t)
+	var own := sqrt(ovx * ovx + ovz * ovz)
+	var r1 := sqrt((px - k1x) * (px - k1x) + (pz - k1z) * (pz - k1z))
 	_tgt_at(t_now + far_t)
 	# (only to a place round both: one round a star is in that star's own well)
-	if _star_of(_cx, _cz) != -2:
+	if _star_of(_cx, _cz, t_now + far_t) != -2:
 		return 0.0
-	var r2 := sqrt((_cx - G.star_x0[k]) * (_cx - G.star_x0[k]) + (_cz - G.star_z0[k]) * (_cz - G.star_z0[k]))
+	var r2 := sqrt((_cx - k2x) * (_cx - k2x) + (_cz - k2z) * (_cz - k2z))
 	if r2 < 2.0 * r1 + 60.0:
 		return 0.0
 	var v2 := 2.0 * SystemLayout.GM_SHIP * (1.0 / r1 - 1.0 / r2) + pow((r2 - r1) / far_t, 2.0)
@@ -2811,14 +3023,18 @@ func _wide_need() -> float:
 	return maxf(maxf(d / WIDE_T, 2.0 * own), 20.0)
 
 
-## The star a point is round: in a twin, the one whose pull there is the
-## greater, if it is the greater by FAR_SHARE; else none (-2).
-func _star_of(x: float, z: float) -> int:
+## The star a point is round at t: in a twin, the one whose pull there is the
+## greater, if it is the greater by FAR_SHARE; else none (-2). The suns where
+## they are at t (in a turning pair the answer moves with them).
+func _star_of(x: float, z: float, t: float) -> int:
 	if G.star_x0.size() < 2:
 		return G.star_id[0] if G.star_x0.size() > 0 else -2
-	# ORBIT:solver _star_of needs a t: whose pull is greater depends on where the suns are then
-	var f0 := G.star_gm[0] / ((x - G.star_x0[0]) * (x - G.star_x0[0]) + (z - G.star_z0[0]) * (z - G.star_z0[0]))
-	var f1 := G.star_gm[1] / ((x - G.star_x0[1]) * (x - G.star_x0[1]) + (z - G.star_z0[1]) * (z - G.star_z0[1]))
+	var x0 := G.sx(0, t)
+	var z0 := G.sz(0, t)
+	var x1 := G.sx(1, t)
+	var z1 := G.sz(1, t)
+	var f0 := G.star_gm[0] / ((x - x0) * (x - x0) + (z - z0) * (z - z0))
+	var f1 := G.star_gm[1] / ((x - x1) * (x - x1) + (z - z1) * (z - z1))
 	if f0 > FAR_SHARE * f1:
 		return G.star_id[0]
 	if f1 > FAR_SHARE * f0:
@@ -2833,13 +3049,18 @@ func _star_of(x: float, z: float) -> int:
 ## and both ways round; stage 2 the CONIC_KEEP cheapest again from the very
 ## point and moment it would leave, aimed at the target ring's tangent point.
 ## Flat: [price, ux, uz, T, way, s, has_fix, a_fix, te] each.
+## A CONIC ABOUT A SUN OF A TURNING PAIR is solved in that sun's own frame
+## (`_lam`): its centre is the sun's index (a centre's fourth number; -1 a
+## centre that holds still), and whether the target is the sun it is about is
+## asked by that index, not by place, since the sun at the arrival is not
+## where it was when the conic was laid (`_aims`).
 func _seeds() -> PackedFloat64Array:
 	var centres := PackedFloat64Array()
 	if _twin:
 		# the pair's balance point with their whole pull, and each star the
 		# flight leaves from or goes to with its own (a flight out of one star's
-		# well is that star's conic first)
-		centres.append_array(PackedFloat64Array([G.bary.x, G.bary.y, SystemLayout.GM_SHIP]))
+		# well is that star's conic first), where it is now
+		centres.append_array(PackedFloat64Array([G.bary.x, G.bary.y, SystemLayout.GM_SHIP, -1.0]))
 		var own := PackedInt32Array()
 		var px := _dpx
 		var pz := _dpz
@@ -2847,25 +3068,38 @@ func _seeds() -> PackedFloat64Array:
 			_dep_at(t_now)
 			px = _cx
 			pz = _cz
-		own.append(G.star_index(_star_of(px, pz)))
+		own.append(G.star_index(_star_of(px, pz, t_now)))
 		_tgt_at(t_now)
-		own.append(G.star_index(_star_of(_cx, _cz)))
+		own.append(G.star_index(_star_of(_cx, _cz, t_now)))
+		var had := -1
 		for k in own:
-			# ORBIT:solver conic seeds about a moving star: solve in its own frame by index (`_lam`, `_aims` by index, proto.patch _seeds)
-			if k >= 0 and (centres.size() < 6 or absf(centres[3] - G.star_x0[k]) > 1e-6 or absf(centres[4] - G.star_z0[k]) > 1e-6):
-				centres.append_array(PackedFloat64Array([G.star_x0[k], G.star_z0[k], G.star_gm[k]]))
+			if k >= 0 and k != had:
+				had = k if had < 0 else had
+				var turns := G.star_rad[k] != 0.0
+				centres.append_array(PackedFloat64Array([G.sx(k, t_now), G.sz(k, t_now), G.star_gm[k], float(k) if turns else -1.0]))
 	else:
 		for k in G.star_x0.size():
-			centres.append_array(PackedFloat64Array([G.star_x0[k], G.star_z0[k], G.star_gm[k]]))
+			centres.append_array(PackedFloat64Array([G.star_x0[k], G.star_z0[k], G.star_gm[k], -1.0]))
 	var p1s := PackedFloat64Array()
 	if _dk == 2:
 		p1s.append_array(PackedFloat64Array([_dpx, _dpz, 0.0, 0.0]))
 	elif _dk == 0 and _dorb == 0.0:
-		# a star's close orbit (or a circle round a fixed point): from the ring
+		# a star's close orbit (or a circle round a fixed point): from the ring;
+		# round a turning sun, round where it is now, at its motion
 		var dr := 1.0 if _dw >= 0.0 else -1.0
+		var hx := _dhx
+		var hz := _dhz
+		var hvx := 0.0
+		var hvz := 0.0
+		if _dhs >= 0:
+			_dep_at(t_now)
+			hx = _cx
+			hz = _cz
+			hvx = _cvx
+			hvz = _cvz
 		for j in 2:
 			var a := _dang + dr * _reach() * (float(j) + 0.5) / 2.0
-			p1s.append_array(PackedFloat64Array([_dhx + _drt * cos(a), _dhz + _drt * sin(a), 0.0, 0.0]))
+			p1s.append_array(PackedFloat64Array([hx + _drt * cos(a), hz + _drt * sin(a), hvx, hvz]))
 	else:
 		_dep_at(t_now)
 		var ox := _doffx if _dk == 1 else 0.0
@@ -2874,11 +3108,12 @@ func _seeds() -> PackedFloat64Array:
 	var rough: Array = []
 	for T: float in (CONIC_TS_WIDE if _wide else (CONIC_TS_BACK if _back else CONIC_TS)):
 		for pi in range(0, p1s.size(), 4):
-			for ci in range(0, centres.size(), 3):
+			for ci in range(0, centres.size(), 4):
+				var ck0 := int(centres[ci + 3])
 				for way: float in [1.0, -1.0]:
-					var aims := _aims(t_now + T, p1s[pi], p1s[pi + 1], centres[ci], centres[ci + 1], way)
+					var aims := _aims(t_now + T, p1s[pi], p1s[pi + 1], centres[ci], centres[ci + 1], way, ck0)
 					for ai in range(0, aims.size(), 2):
-						var sol := _lambert_gm(centres[ci], centres[ci + 1], centres[ci + 2], p1s[pi], p1s[pi + 1], aims[ai], aims[ai + 1], T, way)
+						var sol := _lam(ck0, centres[ci], centres[ci + 1], centres[ci + 2], t_now, p1s[pi], p1s[pi + 1], aims[ai], aims[ai + 1], T, way)
 						if sol.is_empty():
 							continue
 						var pr := _price_conic(t_now + T, sol[0] - p1s[pi + 2], sol[1] - p1s[pi + 3], sol[0], sol[1], sol[2], sol[3], false, 0.0, 0.0)
@@ -2893,9 +3128,10 @@ func _seeds() -> PackedFloat64Array:
 		var cx := centres[ci]
 		var cz := centres[ci + 1]
 		var gm := centres[ci + 2]
-		var aims0 := _aims(t_now + T, p1s[pi], p1s[pi + 1], cx, cz, way)
+		var ck := int(centres[ci + 3])
+		var aims0 := _aims(t_now + T, p1s[pi], p1s[pi + 1], cx, cz, way, ck)
 		var ai: int = r[5]
-		var sol0 := _lambert_gm(cx, cz, gm, p1s[pi], p1s[pi + 1], aims0[ai], aims0[ai + 1], T, way)
+		var sol0 := _lam(ck, cx, cz, gm, t_now, p1s[pi], p1s[pi + 1], aims0[ai], aims0[ai + 1], T, way)
 		if sol0.is_empty():
 			continue
 		var ux := sol0[0] - p1s[pi + 2]
@@ -2914,13 +3150,19 @@ func _seeds() -> PackedFloat64Array:
 				# round a star too, off the ring along its motion: the point whose
 				# motion runs along the conic's, found by solving again from it
 				for _it in 2:
-					var aa := _aims(t_now + T, _e_x0, _e_z0, cx, cz, way)
-					var s2 := _lambert_gm(cx, cz, gm, _e_x0, _e_z0, aa[0], aa[1], T - _e_lead, way)
+					var aa := _aims(t_now + T, _e_x0, _e_z0, cx, cz, way, ck)
+					var s2 := _lam(ck, cx, cz, gm, _e_td, _e_x0, _e_z0, aa[0], aa[1], T - _e_lead, way)
 					if s2.is_empty() or T - _e_lead < 3.0:
 						break
-					# (a fixed centre: the conic's velocity is the one relative to it)
+					# (the conic's velocity relative to the place it leaves: on the
+					# plane, less the place's own motion then -- none where it holds
+					# still, a turning sun's where it rides with one)
 					ux = s2[0]
 					uz = s2[1]
+					if _dhs >= 0:
+						_dep_at(_e_td)
+						ux -= _cvx
+						uz -= _cvz
 					if not _ride_to(_aligned(ux, uz)):
 						break
 			td = _e_td
@@ -2953,9 +3195,11 @@ func _seeds() -> PackedFloat64Array:
 		_tgt_at(te)
 		var u2x: float = float(r[6]) - _cvx
 		var u2z: float = float(r[7]) - _cvz
-		var own := _tk == 0 and _torb == 0.0 and absf(_thx - cx) < 1.0 and absf(_thz - cz) < 1.0
+		# (the target is the star this conic is about: by its index where the
+		# pair turns, since that sun at te is not where this centre has it now)
+		var own := _tk == 0 and _torb == 0.0 and ((ck >= 0 and _ths == ck) or (ck < 0 and _ths < 0 and absf(_thx - cx) < 1.0 and absf(_thz - cz) < 1.0))
 		for s: float in _senses:
-			var aims := _aims(te, px, pz, cx, cz, way)
+			var aims := _aims(te, px, pz, cx, cz, way, ck)
 			var p2x := aims[0]
 			var p2z := aims[1]
 			if _tk == 0 and not own:
@@ -2968,7 +3212,7 @@ func _seeds() -> PackedFloat64Array:
 				var phi := atan2(-s * u2x / m, s * u2z / m)
 				p2x = _cx + _tR * cos(phi)
 				p2z = _cz + _tR * sin(phi)
-			var sol := _lambert_gm(cx, cz, gm, px, pz, p2x, p2z, Te, way)
+			var sol := _lam(ck, cx, cz, gm, td, px, pz, p2x, p2z, Te, way)
 			if sol.is_empty():
 				continue
 			var pr := _price_conic(te, sol[0] - cvdx, sol[1] - cvdz, sol[0], sol[1], sol[2], sol[3], true, vx, vz)
@@ -2982,11 +3226,22 @@ func _seeds() -> PackedFloat64Array:
 
 ## Where a conic aims at te: the target's centre (or its spot alongside); to
 ## a star's close orbit round this centre, the ring point most of a half lap on.
-func _aims(te: float, p1x: float, p1z: float, cx: float, cz: float, way: float) -> PackedFloat64Array:
+## ck: the turning sun the conic is about (-1 a centre that holds still). That
+## sun is asked by index (THE CONIC'S "OWN STAR" AIM, ruling 23): the sun at te
+## is not where the centre was laid (by some px in a flight), so asked by place
+## the aim went to the sun's centre, through its keep-out, not round its ring.
+## The ring point is round where the sun is at te, most of a half lap on from p1
+## as seen from the centre now.
+func _aims(te: float, p1x: float, p1z: float, cx: float, cz: float, way: float, ck: int = -1) -> PackedFloat64Array:
 	_tgt_at(te)
 	if _tk == 1:
 		return PackedFloat64Array([_cx + _toffx, _cz + _toffz])
-	if _torb == 0.0 and absf(_cx - cx) < 1.0 and absf(_cz - cz) < 1.0:
+	if ck >= 0:
+		if _torb == 0.0 and _ths == ck:
+			var b1 := atan2(p1z - cz, p1x - cx) + way * (PI - 0.4)
+			return PackedFloat64Array([_cx + _tR * cos(b1), _cz + _tR * sin(b1)])
+		return PackedFloat64Array([_cx, _cz])
+	if _torb == 0.0 and _ths < 0 and absf(_cx - cx) < 1.0 and absf(_cz - cz) < 1.0:
 		var a1 := atan2(p1z - cz, p1x - cx) + way * (PI - 0.4)
 		return PackedFloat64Array([cx + _tR * cos(a1), cz + _tR * sin(a1)])
 	return PackedFloat64Array([_cx, _cz])
@@ -3011,6 +3266,32 @@ func _price_conic(te: float, ux: float, uz: float, v1x: float, v1z: float, v2x: 
 	if _tk == 0:
 		c2 = absf(c2 - _tV)
 	return c1 + c2
+
+
+## THE CONIC ABOUT CENTRE ck from p1 at t1 to p2 T later: [v1x, v1z, v2x,
+## v2z] on the plane, or empty. ck -1: about the fixed (cx, cz), as
+## `_lambert_gm`. ck a turning sun's index: solved in that sun's own frame --
+## p1 from where it is at t1, p2 from where it is at t1 + T -- and its motion
+## then added back to each end (the sun's own pull round the balance point,
+## some thousandths of a px/s^2, is left out: these are guesses Newton refines).
+func _lam(ck: int, cx: float, cz: float, gm: float, t1: float, p1x: float, p1z: float, p2x: float, p2z: float, T: float, way: float) -> PackedFloat64Array:
+	if ck < 0:
+		return _lambert_gm(cx, cz, gm, p1x, p1z, p2x, p2z, T, way)
+	var a1 := G.star_ph[ck] + G.pair_n * t1
+	var a2 := G.star_ph[ck] + G.pair_n * (t1 + T)
+	var rr := G.star_rad[ck]
+	var c1x := G.star_cx[ck] + rr * cos(a1)
+	var c1z := G.star_cz[ck] + rr * sin(a1)
+	var c2x := G.star_cx[ck] + rr * cos(a2)
+	var c2z := G.star_cz[ck] + rr * sin(a2)
+	var sol := _lambert_gm(c1x, c1z, gm, p1x, p1z, p2x - c2x + c1x, p2z - c2z + c1z, T, way)
+	if sol.is_empty():
+		return sol
+	sol[0] += -rr * G.pair_n * sin(a1)
+	sol[1] += rr * G.pair_n * cos(a1)
+	sol[2] += -rr * G.pair_n * sin(a2)
+	sol[3] += rr * G.pair_n * cos(a2)
+	return sol
 
 
 ## THE CONIC about (cx, cz) of pull gm from p1 to p2 in T, way 1 counter-
@@ -3139,12 +3420,17 @@ static func lambert(r1x: float, r1z: float, r2x: float, r2z: float, dth: float, 
 
 # ---------------------------------------------------------------- replay
 ## Whether a choice was made for this very flight: the same departure (kind,
-## place, ring or spot, centre) and the same target (kind, place, ring and
-## speed or spot, centre), its sense one the target allows. The first build
-## checked only the places and the ring, so a choice made for another radius,
-## spot or sense was rebuilt as it was (the planner review, Oct 30).
+## place, ring or spot, centre, the sun it rides with) and the same target
+## (kind, place, ring and speed or spot, centre, sun), its sense one the target
+## allows. The first build checked only the places and the ring, so a choice
+## made for another radius, spot or sense was rebuilt as it was (the planner
+## review, Oct 30). A settled orbit round a sun of a turning pair is a -9
+## circle whose centre moves: it is the same flight by its sun (`dhs`), its
+## centre at t = 0 being that sun's, not by where the ship saw the sun.
 func _same_flight(c: Dictionary) -> bool:
 	if int(c.get("dk", -1)) != _dk or int(c.get("dp", -99)) != _dplace or int(c.get("tp", -99)) != _tplace or int(c.get("tk", -1)) != _tk:
+		return false
+	if int(c.get("dhs", -9)) != _dhs or int(c.get("ths", -9)) != _ths:
 		return false
 	if _dk == 0 and not (_near(c.get("w", NAN), _dw) and _near(c.get("rt", NAN), _drt)):
 		return false
@@ -3243,6 +3529,10 @@ func _replay(c: Dictionary) -> Result:
 ## kept any flight that flew, from any departure place (the planner review).
 func _warm(c: Dictionary) -> bool:
 	if int(c.get("dk", -1)) != _dk or int(c.get("dp", -99)) != _dplace or int(c.get("tp", -99)) != _tplace or int(c.get("tk", -1)) != _tk:
+		return false
+	# (nor from a flight out of a settled orbit round another centre: round a
+	# sun of a turning pair against round the balance point, say)
+	if int(c.get("dhs", -9)) != _dhs or int(c.get("ths", -9)) != _ths:
 		return false
 	var ux := float(c.get("ux", 0.0))
 	var uz := float(c.get("uz", 0.0))
@@ -3387,7 +3677,7 @@ func _build_in(kind: StringName) -> Result:
 		"rv": Vector2(rvx, rvz), "t": te, "keep": keepd, "sense": s if not keepd else 0.0}
 	res.choice = {"v": CHOICE_V, "dk": _dk, "dp": _dplace, "tp": _tplace, "tk": _tk, "w": _dw, "rt": _drt,
 		"dox": _doffx, "doz": _doffz, "dhx": _dhx, "dhz": _dhz, "R": _tR, "V": _tV, "tox": _toffx, "toz": _toffz,
-		"thx": _thx, "thz": _thz, "sn": _tsense,
+		"thx": _thx, "thz": _thz, "sn": _tsense, "dhs": _dhs, "ths": _ths,
 		"td": td, "ad": float(b.ad), "a0": float(b.a0), "dvx": float(b.dvx), "dvz": float(b.dvz), "ux": float(b.ux), "uz": float(b.uz),
 		"x0": float(b.x0), "z0": float(b.z0), "vx0": float(b.vx0), "vz0": float(b.vz0),
 		"fix": bool(b.fix), "afix": float(b.afix), "te": float(b.te), "s": s, "phi": float(b.phi), "d2": float(b.d2),
@@ -3590,6 +3880,8 @@ static func _waypoints(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float
 	var qd := pd - c
 	var qt := pt - c
 	var gap := wrapf(qt.angle() - qd.angle(), -PI, PI)
+	# (the suns' distance apart at t 0: a turning pair is rigid, so it is the
+	# same at every t, as the balance point is where it is)
 	var sep := Vector2(G.star_x0[1] - G.star_x0[0], G.star_z0[1] - G.star_z0[0]).length()
 	var e := CHAIN_EDGE * G.edge
 	for way in 2:
