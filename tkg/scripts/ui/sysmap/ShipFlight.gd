@@ -667,17 +667,21 @@ func _clear_round(p: int, r: float) -> float:
 
 
 ## A CIRCLE OF RADIUS r ROUND A TWIN'S BALANCE POINT, moved off the band of
-## every world round both suns (the nearest radius from lo to hi clear of all of
-## them; r if there is none): let go out on the far side, a ship pulled in to
-## `_bary_in` was taken onto the world or giant ringing that radius, while it was
-## pulled in or once it had settled (seed 1999 system 309; 267 of 1,310 twin
-## layouts put that radius inside such a ring, Nov 2).
+## every place round both suns that can take a ship (a world's or giant's ring,
+## alongside a station, belt, hulk or contact: `SystemLayout.arrive_reach`, as
+## the arrival orbit keeps clear of them, `arrival_r`), the nearest radius from
+## lo to hi clear of all of them (r if there is none): let go out on the far
+## side, a ship pulled in to `_bary_in` was taken onto the world or giant
+## ringing that radius, while it was pulled in or once it had settled (seed 1999
+## system 309; 267 of 1,310 twin layouts put that radius inside such a ring), or
+## alongside a contact 22 px inside it (seed 4242 system 173, Nov 2).
 func _clear_both(r: float, lo: float, hi: float) -> float:
 	var cands: Array[float] = [r]
 	for b in L.bodies:
-		if b.host_id == -9 and b.world != &"":
-			cands.append(b.orbit - _band(b))
-			cands.append(b.orbit + _band(b))
+		var reach: float = SystemLayout.arrive_reach(b)
+		if b.host_id == -9 and reach > 0.0:
+			cands.append(b.orbit - reach)
+			cands.append(b.orbit + reach)
 	var best := r
 	var best_d := INF
 	for c: float in cands:
@@ -685,7 +689,7 @@ func _clear_both(r: float, lo: float, hi: float) -> float:
 			continue
 		var ok := true
 		for b in L.bodies:
-			if b.host_id == -9 and b.world != &"" and absf(c - b.orbit) < _band(b) - 0.001:
+			if b.host_id == -9 and absf(c - b.orbit) < SystemLayout.arrive_reach(b) - 0.001:
 				ok = false
 				break
 		if ok:
@@ -1639,11 +1643,11 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 	var take := {}
 	var take_d := INF
 	var fast := {}
-	# (not a world's ring the settle's own burn is pulling the ship through on
-	# its way to a radius it chose, `_settle_centre`'s r_want, unless it is the
-	# one the line shows: as `capture_ahead` does not take that pull for an aim.
-	# Pulled in from the far side, the ship was taken onto the world it was being
-	# brought in past)
+	# (not a world's ring, nor alongside a place, the settle's own burn is
+	# pulling the ship through on its way to a radius it chose, `_settle_centre`'s
+	# r_want, unless it is the one the line shows: as `capture_ahead` does not
+	# take that pull for an aim. Pulled in from the far side, the ship was taken
+	# onto the world it was being brought in past)
 	var pulled := st.r_want > 0.0 and st.orbit_r < 0.0 and st.coast > SETTLE_TURN
 	for b in L.bodies:
 		if b.world == &"" or b.index == no_cap or (pulled and b.index != stick):
@@ -1686,7 +1690,7 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 					st.fast_seen = s3
 					return fast
 	for b in L.bodies:
-		if not is_keep(b.index) or b.index == no_cap:
+		if not is_keep(b.index) or b.index == no_cap or (pulled and b.index != stick):
 			continue
 		var c3: Vector3 = cs[b.index] if have_c else center(b.index, t)
 		var rel3 := Vector2(st.p.x - c3.x, st.p.y - c3.z)
