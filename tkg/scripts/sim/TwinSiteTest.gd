@@ -1229,20 +1229,28 @@ func _settle_round(n: MapGen.MapNode) -> void:
 			away = (L.star_pos(SystemLayout.STAR_B, m.view.t) - b.pos(m.view.t)).normalized()
 	var zone_b := SystemLayout.s_limit(L.star_share) * L.sep
 	var r_b := (L.star_ring_of(B) + zone_b) * 0.5
-	# ORBIT:flight the cases are laid off star A at the origin and the pair's line from it; at a turned pair read star A at t too (here, the cases below, and in `_restore_round`)
-	var side := (L.star_pos(SystemLayout.STAR_B, m.view.t) / maxf(L.star_pos(SystemLayout.STAR_B, m.view.t).length(), 0.001)).orthogonal()
+	# (the pair as it stands at the map's t: it turns, ruling 23, so "across the
+	# pair" is off the line between the suns where they are, and each case's
+	# centre is named by its id and read again where it is once the frames have
+	# run, a turning sun having moved meanwhile)
+	var t0: float = m.view.t
+	var side := (L.star_pos(B, t0) - L.star_pos(-1, t0)).normalized().orthogonal()
 	var cases := [
-		[L.star_pos(SystemLayout.STAR_B, m.view.t) + away * r_b, "ORBITING " + nm_b, L.star_pos(SystemLayout.STAR_B, m.view.t)],
-		[L.bary + side * L.sep * 1.3, "ORBITING BOTH STARS", L.bary],
+		[L.star_pos(B, t0) + away * r_b, "ORBITING " + nm_b, B],
+		[L.bary + side * L.sep * 1.3, "ORBITING BOTH STARS", -9],
 	]
 	for c: Array in cases:
-		m.flight.call(&"settle_at", c[0], 1.0)
+		var cid := int(c[2])
+		m.flight.call(&"settle_at", m.view.t, c[0], 1.0)
+		var from: float = (c[0] as Vector2).distance_to(L.bary if cid == -9 else L.star_pos(cid, m.view.t))
 		await _frames(12)
 		var st: String = ov.ship_status()[0]
 		var sc: Vector2 = ov._star_c
-		h._ok("let go %.0f px from %s, it settles round it: the status line says %s (%s), its wide orbit drawn round %s (%s)" % [
-			(c[0] as Vector2).distance_to(c[2]), "star B" if c[2] == L.star_pos(SystemLayout.STAR_B, m.view.t) else "the balance point", c[1], st, c[2], sc],
-			m.flight.star_orbiting() and st == c[1] and sc.distance_to(c[2]) < 0.5)
+		var want: Vector2 = L.bary if cid == -9 else L.star_pos(cid, m.view.t)
+		h._ok("let go %.0f px from %s, it settles round it: the status line says %s (%s), its wide orbit drawn round %s (%s), the flight's centre %s (%d)" % [
+			from, "star B" if cid == B else "the balance point", c[1], st, want, sc, m.flight.f.cen, int(m.flight.f.cen_id)],
+			m.flight.star_orbiting() and st == c[1] and sc.distance_to(want) < 0.5 and int(m.flight.f.cen_id) == cid
+			and (m.flight.f.cen as Vector2).distance_to(want) < 0.01)
 		_saw("wide orbits round star B or both")
 
 
@@ -1265,17 +1273,22 @@ func _restore_round(n: MapGen.MapNode) -> void:
 	var B := SystemLayout.STAR_B
 	var away_b := Vector2(1.0, 0.0)
 	var away_a := Vector2(-1.0, 0.0)
+	# (each sun where it is at the map's t: star A is at the origin only as the
+	# pair was laid out, ruling 23)
+	var t0: float = m.view.t
+	var sa := L.star_pos(-1, t0)
+	var sb := L.star_pos(B, t0)
 	for b in L.bodies:
 		if b.world == &"":
 			continue
 		if b.host_id == B:
-			away_b = (L.star_pos(SystemLayout.STAR_B, m.view.t) - b.pos(m.view.t)).normalized()
+			away_b = (sb - b.pos(t0)).normalized()
 		elif b.host_id == -1:
-			away_a = (-b.pos(m.view.t)).normalized()
+			away_a = (sa - b.pos(t0)).normalized()
 	var r_b := (L.star_ring_of(B) + SystemLayout.s_limit(L.star_share) * L.sep) * 0.5
 	var r_a := (L.star_ring_of(-1) + SystemLayout.s_limit(1.0 - L.star_share) * L.sep) * 0.5
-	var side := (L.star_pos(SystemLayout.STAR_B, m.view.t) / maxf(L.star_pos(SystemLayout.STAR_B, m.view.t).length(), 0.001)).orthogonal()
-	var cases := [[L.star_pos(SystemLayout.STAR_B, m.view.t) + away_b * r_b, B, "star B"], [L.bary + side * L.sep * 1.3, -9, "both suns"], [away_a * r_a, -1, "star A"]]
+	var side := (sb - sa).normalized().orthogonal()
+	var cases := [[sb + away_b * r_b, B, "star B"], [L.bary + side * L.sep * 1.3, -9, "both suns"], [sa + away_a * r_a, -1, "star A"]]
 	for c: Array in cases:
 		for how: String in ["LOCAL", "the save's rows"]:
 			await _put_back(n, c[0], int(c[1]), "%s, by %s" % [c[2], how], how != "LOCAL")
@@ -1290,26 +1303,45 @@ func _put_back(n: MapGen.MapNode, p: Vector2, want: int, what: String, rows: boo
 	if m == null:
 		h._fail("no map for %s" % what)
 		return
-	m.flight.settle_at(p, -1.0)
+	m.flight.settle_at(m.view.t, p, -1.0)
 	await _frames(6)
 	var f0 = m.flight.f
 	var cen0 := int(f0.cen_id)
 	var r0: float = f0.orbit_r
-	var c0: Vector2 = f0.cen
 	if not h._ok("%s: settled round %d at %.1f px" % [what, cen0, r0], m.flight.star_orbiting() and (want == -9 or cen0 == want)):
 		return
+	# (the pair's angle as the map is left, its clock kept with the ship,
+	# `Run.map_clock`, and where the ship is round the centre it circles)
+	var L0: SystemLayout = m.view.layout
+	var ang0 := L0.pair_angle(m.view.t)
+	var rel0: Vector2 = (f0.p as Vector2) - (f0.cen as Vector2)
 	Router.show_local()
 	await _idle()
 	await _frames(4)
 	if rows:
 		var raw = JSON.parse_string(JSON.stringify(SaveGame._parked_to()))
 		SystemMapScreen._parked = SaveGame._parked_from(raw, Run.map.size())
+		var raw_c = JSON.parse_string(JSON.stringify(SaveGame._clocks_to()))
+		Run.map_clock = SaveGame._clocks_from(raw_c, Run.map.size())
 	m = await _map()
 	if m == null:
 		h._fail("no map back for %s" % what)
 		return
 	var f1 = m.flight.f
 	var off0: float = absf(((f1.p as Vector2) - (f1.cen as Vector2)).length() - float(f1.orbit_r))
+	# (back at the kept clock: the pair turned on only by the few frames the map
+	# has run since it opened again, the ship where it was round its centre
+	# less what it rode round meanwhile, and the centre where it is at the map's
+	# t, a turning sun's)
+	var L1: SystemLayout = m.view.layout
+	var c_now: Vector2 = L1.bary if cen0 == -9 else L1.star_pos(cen0, m.view.t)
+	# (read now: `f1` is the flight's own state, which the frames below move on)
+	var cen_off := (f1.cen as Vector2).distance_to(c_now)
+	var dang := absf(wrapf(L1.pair_angle(m.view.t) - ang0, -PI, PI))
+	var dang_max := absf(L1.pair_n) * 0.5 + 1e-6
+	var rel1: Vector2 = (f1.p as Vector2) - (f1.cen as Vector2)
+	var rode := absf(wrapf(rel1.angle() - rel0.angle(), -PI, PI))
+	var rode_max := float(m.flight.star_pace(r0, float(f1.cen_share))) / maxf(r0, 1.0) * 0.5 + 1e-3
 	var st: String = m.overlay.ship_status()[0]
 	await _frames(60)
 	var f2 = m.flight.f
@@ -1318,12 +1350,12 @@ func _put_back(n: MapGen.MapNode, p: Vector2, want: int, what: String, rows: boo
 	var dp := Vector2.INF
 	if StringName(dep.get("kind", &"")) == &"ring" and int(dep.get("place", 0)) == -9:
 		dp = (dep.c as Vector2) + Vector2(cos(float(dep.ang)), sin(float(dep.ang))) * float(dep.rt)
-	var nm: String = m.overlay._settle_nm(c0)
-	h._ok("%s: put back round %d (was %d) at %.1f px (was %.1f), %s, %.2f px off it then and %.2f a second on, going the same way (%.0f); it says %s; a flight leaves %.2f px from the ship" % [
+	var nm: String = m.overlay._settle_nm(m.flight.f.cen)
+	h._ok("%s: put back round %d (was %d) at %.1f px (was %.1f), %s, %.2f px off it then and %.2f a second on, going the same way (%.0f); it says %s; a flight leaves %.2f px from the ship; its centre %.3f px from where it is at the map's t; the pair turned %.5f rad from where it was left (at most %.5f), the ship %.4f rad round its centre (at most %.4f)" % [
 		what, int(f1.cen_id), cen0, float(f1.orbit_r), r0, "settled" if m.flight.star_orbiting() else "NOT settled", off0, off1, float(f1.sense), st,
-		dp.distance_to(f2.p) if dp != Vector2.INF else INF],
-		# ORBIT:flight put back round a moving sun: compare the centre with the sun where it is at the map's t (the 6-frame wait alone moves a turning sun past 0.01 px), and check the pair's angle survives LOCAL and the rows
-		m.flight.star_orbiting() and int(f1.cen_id) == cen0 and (f1.cen as Vector2).distance_to(c0) < 0.01 and absf(float(f1.orbit_r) - r0) < 1.0
+		dp.distance_to(f2.p) if dp != Vector2.INF else INF, cen_off, dang, dang_max, rode, rode_max],
+		m.flight.star_orbiting() and int(f1.cen_id) == cen0 and cen_off < 0.01 and absf(float(f1.orbit_r) - r0) < 1.0
+		and dang <= dang_max and rode <= rode_max
 		and off0 < 1.0 and off1 < 1.0 and float(f1.sense) == -1.0 and st == "ORBITING " + nm and dp != Vector2.INF and dp.distance_to(f2.p) < 1.0)
 
 
@@ -3014,7 +3046,7 @@ func _ring_sweep() -> void:
 					var dir := Vector2.from_angle(TAU * float(k) / 4.0 + 0.4)
 					var at := Vector2(c3.x, c3.z) + dir * rt * 1.4
 					var v := Vector2(cv3.x, cv3.z) - dir * 6.0
-					m.flight.restore_free(at, v, atan2(v.y * 0.38, v.x))
+					m.flight.restore_free(m.view.t, at, v, atan2(v.y * 0.38, v.x))
 					for f in 3:
 						await get_tree().process_frame
 						m.flight.f.p = at
