@@ -374,10 +374,13 @@ say so and ask rather than quietly working around it.
 
 ## The most important tuning rule
 
-**Individual fights are not the difficulty — the economy is.** Under enemy hull x4
-(Nov 3), the human pilot on a fresh Korvan profile beats a Rustjaw Cutter for about
-seven hull, in about nine turns, and loses 4% of those fights
-(tk-scratch/hull-study/STUDY.md). Runs end from cumulative attrition.
+**Individual fights are not the difficulty — the economy is.** The Nov 3 study flew
+enemy hull x4 (tk-scratch/hull-study/STUDY.md). In it, the human pilot on a fresh
+Korvan profile beats a Rustjaw Cutter for about seven hull, in about nine turns. It
+loses 4% of those fights, over every depth. The same study has harder fights. A lone Vex
+Marauder is lost 60% of the time, a lone Dreg Hulk 35%, and a pack of two 63.5%.
+Enemy fire causes 61% of that pilot's deaths (54% at x2). At x4, then, fights carry
+more of the difficulty than this heading says. Runs still end from cumulative attrition.
 
 **Measure before and after, at a fixed seed, and write the number down.** Every claim
 in this file that turned out to be wrong was wrong because somebody asserted it once

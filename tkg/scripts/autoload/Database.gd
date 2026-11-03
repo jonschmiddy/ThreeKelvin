@@ -2602,9 +2602,12 @@ func _seed_enemies() -> void:
 	# set piece wherever you catch it, so danger scaling would make WHERE you
 	# fight it matter more than WHETHER you are ready to. Its guns sit between
 	# the sentinel and the custodian: a party kills it comfortably, one ship
-	# kills it with a good build and a reason. Its hull does not: it keeps 90
-	# under enemy hull x4 (Nov 3), so every ordinary enemy, the cutter (104)
-	# too, now carries more. Below 35% hull it spools an
+	# kills it with a good build and a reason. Few do: the Nov 3 study killed it
+	# 19 times in 156 fights, over all four hull levels; it mostly breaks off
+	# first. Its hull does not sit between them: it keeps 90 under enemy hull x4
+	# (Nov 3), so every ordinary enemy flying alone, the cutter (104) too, now
+	# carries more. A pack's cutter (0.6 share, Combat.plan) can carry less: 62
+	# at danger 1. Below 35% hull it spools an
 	# escape burn and leaves — see Combat.escape_intent() — so the loop below
 	# is what it does while it still thinks it is winning.
 	#

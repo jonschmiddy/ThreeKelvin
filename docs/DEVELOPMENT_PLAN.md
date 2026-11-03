@@ -494,16 +494,16 @@ infrequent they are", "combats need to feel epic". Cody dove star to star.*
    feat/enemy-hull-x2. **Ruled Oct 30 (ruling 17): the Custodian keeps 200**
    ("Custodian: A"). See step 5 for the numbers.
    **Ruled again Nov 3: hull ×4** ("Enemy hull: D", from the
-   [Enemy Hull Pick page](https://claude.ai/artifact/8vy6EGLLyHscQZHJPuxChV)),
-   so every ordinary enemy, ships and creatures, has four times its original
-   hull, twice the Oct 29 number. Damage is unchanged; the Hellbender keeps 90
-   and the Custodian 200. The study (400 runs a level, seeds 777 and 977, x2,
-   x2.5, x3 and x4; tk-scratch/hull-study/STUDY.md), for the human pilot on a
-   fresh Korvan profile: a fight takes 10.8 turns instead of 6.4, fights lost go
-   from 23.1% to 27.8%, and run wins from 33 to 23 of 400 (8.25% to 5.75%).
-   Fewer ships reach the core (29% to 25%). Packs of two are lost about two
-   times in three (63.5%, from 50.5%). Jon left the Custodian's size and packs
-   as they are. Built on feat/enemy-hull-x4.
+   [Enemy Hull Pick page](https://claude.ai/artifact/8vy6EGLLyHscQZHJPuxChV)).
+   Every ordinary enemy, ships and creatures, now has four times its original
+   hull. That is twice the Oct 29 number. Damage is unchanged. The Hellbender
+   keeps 90 and the Custodian 200. The study flew 400 runs a level (seeds 777
+   and 977) at ×2, ×2.5, ×3 and ×4; see tk-scratch/hull-study/STUDY.md. For the
+   human pilot on a fresh Korvan profile, a fight takes 10.8 turns instead of
+   6.4. Fights lost go from 23.1% to 27.8%. Run wins go from 33 to 23 of 400
+   (8.25% to 5.75%). Fewer ships reach the core (29% to 25%). Packs of two are
+   lost about two times in three (63.5%, from 50.5%). Jon left the Custodian's
+   size and packs as they are. Built on feat/enemy-hull-x4.
 3. ~~**A second combat resource**~~ **Dropped Nov 3** by Jon, from the
    [Second Combat Resource page](https://claude.ai/artifact/28qvZgVXjaPNHELwGB8uYU):
    "Enemies should have more health and the fights should last longer. That's
@@ -522,13 +522,13 @@ infrequent they are", "combats need to feel epic". Cody dove star to star.*
    today 50%), and the human pilot wins 8.25% of its runs (Oct 22: 8%; today
    10.5%). At 150 those are 68% and 9.5%; at 120, 73% and 11.25%. Ruled A,
    keep 200. Run it again after step 3.
-   **Checked again Nov 3, under hull ×4** (the same flags, 400 runs; step 3 was
-   dropped, so this is the last check the plan calls for): the built ship beats
-   the Custodian in 61.4% of arrivals (51 of 83; 59% and 65% by seed), against
-   54.8% under ×2. Fewer ships arrive (34% to 21%), and the ones that do are
-   the strongest. The human pilot wins 5.75% of its runs. The Custodian keeps
-   200, so a deep Hulk (291) or Sentinel (325) now carries more hull than it
-   does.
+   **Checked again Nov 3, under hull ×4**, with the same flags and 400 runs.
+   Step 3 was dropped, so this is the last check the plan calls for. The built
+   ship beats the Custodian in 61.4% of arrivals (51 of 83; 59% and 65% by
+   seed), against 54.8% under ×2. Fewer ships arrive (34% to 21%), and the
+   ones that do are the strongest. The human pilot wins 5.75% of its runs. The
+   Custodian keeps 200, so a deep Hulk (291) or Sentinel (325) now carries more
+   hull than it does.
 
 **Gate:** fights measurably longer and costlier per the step 1 study, the
 Custodian re-tuned, and Jon's pick on each step that needs one.
@@ -729,9 +729,9 @@ changing how anything they touch plays.
 | Jump rule (ruling 15) | Two rings deeper per jump, now (was one). Re-tune after | Oct 27; Phase 10 |
 | Riding the galaxy (ruling 16) | A design page later, after the alpha data and the combat study | Oct 27; Phase 15 |
 | LOCAL while docked | Greyed out with "Docked. Press UNDOCK to leave."; UNDOCK is the only way out | Oct 27; Phase 10 |
-| Enemy toughness (ruling 14) | "combat:B": hull ×2 for every ordinary enemy, ships and creatures, only together with the Custodian re-tuned against it ("the harder game"). The Hellbender keeps 90: the study found it never killed at any scale | Oct 29; feat/enemy-hull-x2 |
+| Enemy toughness (ruling 14, ×2 replaced by ×4, Nov 3) | "combat:B": hull ×2 for every ordinary enemy, ships and creatures, only together with the Custodian re-tuned against it ("the harder game"). The Hellbender keeps 90: the study found it never killed at any scale | Oct 29; feat/enemy-hull-x2 |
 | The Custodian against hull ×2 (ruling 17) | "Custodian: A": keep 200. Korvan only, under ×2: a built ship beats it in 55% of arrivals (Oct 22: 56%), and the human-like pilot wins 8.25% of its runs (Oct 22: 8%) | Oct 30; feat/enemy-hull-x2, Phase 11 step 5 |
-| Enemy hull ×4, no second combat resource | "Enemies should have more health and the fights should last longer. That's all." Then "Enemy hull: D": every ordinary enemy at ×4 of its original hull (twice ×2), damage unchanged, the Hellbender at 90 and the Custodian at 200. Human pilot, fresh Korvan: 10.8 turns a fight (6.4), 27.8% of fights lost (23.1%), 23 run wins of 400 (33); a built ship beats the Custodian in 61.4% of arrivals (54.8%). The Custodian's size and packs left as they are | Nov 3; Phase 11 steps 2, 3 (dropped) and 5, feat/enemy-hull-x4 |
+| Enemy hull ×4 (replaces ruling 14's ×2), no second combat resource | "Enemies should have more health and the fights should last longer. That's all." Then "Enemy hull: D". Every ordinary enemy has four times its first hull, twice ×2. Damage is the same. The Hellbender keeps 90 and the Custodian 200. Human pilot, fresh Korvan: 10.8 turns a fight (6.4), 27.8% of fights lost (23.1%), 23 run wins of 400 (33). A built ship beats the Custodian in 61.4% of arrivals (54.8%). The Custodian's size and packs stay as they are | Nov 3; Phase 11 steps 2, 3 (dropped) and 5, feat/enemy-hull-x4 |
 | Phase 10 looks | "lift:A west:A burn:B hull:B gray:B fuel:B": the map ship brightened and rolled heading west, as built; the planned burns, burn marker and brake puffs blue; "6 · 40 HULL"; a darker too-deep gray, #303236 ("Gray: B2", Oct 30, the darkest of three); the fuel row TWO RINGS IN AT MOST | Oct 29; feat/phase10-picks |
 | SCRAP on a claimed frame (ruling 19) | "Phase 10: A", from the Derelict Scrap page: SCRAP alone, where LEAVE IT was, as built. Next to SCRAP's pay, LEAVE IT would pay nothing | Oct 29; landed with Phase 10 (0bed7dc9) |
 | Orbits | "flight:N clock:map assist:pays" | Oct 29; Phase 13 step 1 |
