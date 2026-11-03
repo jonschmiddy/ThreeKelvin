@@ -374,8 +374,10 @@ say so and ask rather than quietly working around it.
 
 ## The most important tuning rule
 
-**Individual fights are not the difficulty — the economy is.** A starter deck beats a
-danger-5 Rustjaw Cutter for about nine hull. Runs end from cumulative attrition.
+**Individual fights are not the difficulty — the economy is.** Under enemy hull x4
+(Nov 3), the human pilot on a fresh Korvan profile beats a Rustjaw Cutter for about
+seven hull, in about nine turns, and loses 4% of those fights
+(tk-scratch/hull-study/STUDY.md). Runs end from cumulative attrition.
 
 **Measure before and after, at a fixed seed, and write the number down.** Every claim
 in this file that turned out to be wrong was wrong because somebody asserted it once
