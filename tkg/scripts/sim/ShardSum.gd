@@ -9,7 +9,8 @@ extends Node
 ## this adds them up and judges the expression on the sums, as the harness
 ## unsplit would have. It also holds the split itself: every shard's log ended
 ## (its SHARD_DONE line), K from 1 to N each once with N the logs given, and the
-## cases the shards ran add up to every case, once.
+## cases the shards ran add up to every case, once, and every total came from
+## every shard (each prints all of them, nought for a sweep it has no case of).
 ## PASS: `<label>_total: PASS`. Each shard's own verdict (`<label>: PASS`) is
 ## read by whoever ran it.
 
@@ -101,6 +102,9 @@ func _run() -> void:
 			var r = e.execute(vars2.values(), null, false)
 			held = not e.has_execute_failed() and bool(r)
 		h._ok("%s, over %d shards: %s (%s)" % [key, T2.shards, T2.expr, ", ".join(parts)], held)
+		# (every shard prints every total, its own cases' numbers, nought where
+		# it has none: one printed by fewer lost a shard's numbers for it)
+		h._ok("%s: printed by %d of the %d shards" % [key, T2.shards, n], int(T2.shards) == n)
 	_end(label)
 
 

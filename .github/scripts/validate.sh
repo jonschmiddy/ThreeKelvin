@@ -961,9 +961,9 @@ gate_shard_sum() {
 unit_flighttest() {
 step "Every autopilot flight on the map is solved, flown as drawn and lands (the shards' totals)"
 if gate_shard_sum flighttest "$GATE_FLIGHT_SHARDS"; then
-	ok "every system flown once across the shards, every sweep found and clean in at least 99%"
+	ok "every system flown once across the shards, every sweep found and clean in at least 99%, and the flights put there within PUT_LEFT"
 else
-	bad "a sweep's flights were not found and clean often enough, or a shard did not run its share"
+	bad "a sweep's flights were not found and clean often enough, more flights were put there than PUT_LEFT allows, or a shard did not run its share"
 fi
 }
 

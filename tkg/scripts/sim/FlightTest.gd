@@ -370,6 +370,10 @@ func _run() -> void:
 					continue
 				n_sys += 1
 				var mine := h.mine(n_sys - 1)
+				# (the sweep reported in every shard, where it has no system of
+				# it too: its totals then come from every shard, which ShardSum
+				# holds, as the run unsplit reports every sweep it has a system of)
+				_stat(sweep2)
 				if not mine and not _picking(sweep2):
 					continue
 				if mine:
