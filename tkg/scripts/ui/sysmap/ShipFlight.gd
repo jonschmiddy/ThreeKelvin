@@ -746,21 +746,59 @@ var _last_screen := Vector2.ZERO
 ## was planned again (the flight review, Oct 31).
 ## BY NO TIME (dt 0: the map's clock held for a move, `SystemMapScreen.
 ## clock_held`; Jon, Nov 2, "Pair calls: 4A"): the ship holds, its ride, nose
-## and flame as they were, the keys not read and the thrust as loud. On a ring,
-## alongside or on its way it is still put where that is at t: a map built
-## ahead is held from its first frame, and a ship put back on a ring had no
-## place until its first step (134 px off it, CalmLadderTest chart -> map).
-## Coasting free it already is where it is (and `free_step` divides by dt). A
-## flight planned on a worker is still taken in.
+## and flame as they were, the keys not read and the thrust as loud, but for
+## a key let go (`_let_go_held`). On a ring, alongside or on its way it is
+## still put where that is at t: a map built ahead is held from its first
+## frame, and a ship put back on a ring had no place until its first step (134
+## px off it, CalmLadderTest chart -> map). Coasting free it already is where
+## it is (and `free_step` divides by dt). A flight planned on a worker is still
+## taken in.
 func step(dt: float, t: float, k: Dictionary) -> float:
 	if dt > 0.0:
 		_lvl = _step_mode(dt, t, k)
-	elif mode != &"free" and mode != &"warp":
-		_step_mode(0.0, t, NO_KEYS)
+		_lvl_k = {"w": k.w, "a": k.a, "s": k.s, "d": k.d}
+	else:
+		var lvl0 := 0.0
+		if mode != &"free" and mode != &"warp":
+			lvl0 = _step_mode(0.0, t, NO_KEYS)
+		_let_go_held(k, lvl0)
 	_poll_jobs(t)
 	return _lvl
 var _lvl := 0.0
+## (the keys held on the last step by time: what the level held may be theirs)
+var _lvl_k := {}
 const NO_KEYS := {"w": false, "a": false, "s": false, "d": false}
+
+
+## A KEY LET GO WHILE THE SHIP HOLDS goes quiet at once, as it always did
+## (review of "Pair calls: 4A"): W held into a move and let go in it kept the
+## burn roaring and the flame lit to the move's end, up to 2 s. A key pressed
+## in the hold still starts nothing, as the ship does not move for it. Coasting
+## free, the level and the flame are those of the keys still held of the ones
+## that made them; anywhere else, once none is, the ship's own keyless level
+## at the held clock (`lvl0`: a flight's burn, a settle onto its place). The
+## level of no keys (a settle's burn coasting free, a flight's) is held as it
+## was, with the picture.
+func _let_go_held(k: Dictionary, lvl0: float) -> void:
+	var kept := {}
+	var gone := false
+	var any := false
+	for key: String in _lvl_k:
+		kept[key] = bool(_lvl_k[key]) and bool(k.get(key, false))
+		gone = gone or (bool(_lvl_k[key]) and not kept[key])
+		any = any or bool(kept[key])
+	if not gone:
+		return
+	_lvl_k = kept
+	if mode == &"free" or mode == &"warp":
+		burn = bool(kept.w)
+		rcs = bool(kept.s)
+		if not burn:
+			burn_k = 0.0
+			_burn_age = 0.0
+		_lvl = 0.7 if kept.w else (0.45 if kept.s else (0.32 if (kept.a or kept.d) else 0.0))
+	elif not any:
+		_lvl = lvl0
 
 
 func _step_mode(dt: float, t: float, k: Dictionary) -> float:

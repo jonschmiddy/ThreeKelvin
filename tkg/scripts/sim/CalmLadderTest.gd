@@ -40,7 +40,9 @@ extends Node
 ##     a partner drawn on it holds too, its reports coming in all the while,
 ##     and eases on to the latest once the clock runs (`_partner_holds`); and
 ##     a place's preview, drawn before the move, kept through it, not planned
-##     again frame after frame (`_preview_holds`).
+##     again frame after frame (`_preview_holds`); and a key held into the
+##     move and let go in it goes quiet on the next frame, its flame out, as
+##     it always did, on the ring and flying free (`_keys_let_go`).
 ## Written to run on main too (the ship's place read by the hooks every build
 ## has), so it can be watched failing there.
 
@@ -738,6 +740,8 @@ func _run() -> void:
 	await _hop("Tab mid-move, LOCAL -> map, on to the chart", func() -> void: _key(KEY_TAB), C, ["tab", 0.3])
 	await _rest()
 	await _preview_holds()
+	# (while your ship is still on its ring)
+	await _keys_let_go(&"d")
 	# AT THE SYSTEM'S EDGE (just jumped in, out of orbit): the audit's ship slid
 	# under the side bar on its way to the map
 	var edge := -1
@@ -768,6 +772,8 @@ func _run() -> void:
 	await _goal_line()
 	await _no_box()
 	await _field_drift()
+	# (last: it flies your ship off its ring)
+	await _keys_let_go(&"w")
 	ZoomLadder.force = -1
 	ZoomLadder.fixed_dt = -1.0
 	print("calmladdertest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
@@ -900,6 +906,57 @@ func _preview_holds() -> void:
 	_ok("the map's clock held through the move (%d frames)" % held_n, held_n > 20)
 	_ok("and the flight drawn kept through it, at most one more plan taken in (%d)" % taken, kept and taken <= 1)
 	print("  [calm] a preview through map -> chart: held %d frames, %d plans taken in, the drawn flight kept %s" % [held_n, taken, kept])
+	await _rest()
+
+
+## A KEY LET GO WHILE THE SHIP HOLDS (the review of "Pair calls: 4A"): on the
+## map, `key` held (D widening the orbit on its ring, W thrusting off it), map
+## -> chart by its tab, the key let go on the hold's fifth frame. From the next
+## frame on, the thrust the map asks for is none and the flame is out, to the
+## end of the hold; held, it roared on at its level to the move's end.
+func _keys_let_go(key: StringName) -> void:
+	await _at(ZoomLadder.MAP)
+	var m := Router.current as SystemMapScreen
+	if not _ok("a key let go in a hold (%s): the map up" % key, m != null and m.flight != null):
+		return
+	m.harness_keys = true
+	m._wasd[String(key)] = true
+	await _frames(20)
+	var want0 := Audio.ship_want
+	var mode0: StringName = m.flight.mode
+	var want_mode: StringName = &"free" if key == &"w" else &"rail"
+	_ok("a key let go in a hold (%s): held before the move, the ship %s and sounding (%.2f)" % [key, mode0, want0],
+		mode0 == want_mode and want0 > 0.3)
+	_click(_tab_at(ZoomLadder.CHART), _tab_button(ZoomLadder.CHART))
+	var held_n := 0
+	var after := 0
+	var loud := 0
+	var lit := 0
+	var loud_before := 0
+	for i in 300:
+		await _tree.process_frame
+		if not is_instance_valid(m) or not m.is_inside_tree():
+			break
+		if not m.clock_held():
+			if held_n > 0 or i > 30:
+				break
+			continue
+		held_n += 1
+		if held_n < 5:
+			loud_before += 1 if Audio.ship_want > 0.3 else 0
+		elif held_n == 5:
+			m._wasd[String(key)] = false
+		else:
+			after += 1
+			loud += 1 if Audio.ship_want > 0.0 else 0
+			lit += 1 if m.flight.burn else 0
+	if is_instance_valid(m):
+		m.harness_keys = false
+	_ok("a key let go in a hold (%s): the move held the clock (%d frames) with the key still sounding before it was let go (%d of 4)" % [key, held_n, loud_before],
+		held_n > 20 and loud_before == 4)
+	_ok("and quiet from the frame after it was let go, its flame out (%d of %d frames sounding, %d lit)" % [loud, after, lit],
+		after > 10 and loud == 0 and lit == 0)
+	print("  [calm] %s let go in a map -> chart hold: held %d frames, %d of %d after sounding, %d lit" % [key, held_n, loud, after, lit])
 	await _rest()
 
 
