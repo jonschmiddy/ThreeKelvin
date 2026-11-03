@@ -612,6 +612,13 @@ seen on a page before it touches the game.*
    merged on the branch. Jon passed the built look on Nov 2 ("Orbit look:
    OK": all four styles, PAINTED's hot zone on the balance point, the clock
    held through zoom moves); it lands through the gate after review.
+   **Pair calls (Nov 2, "1B 2Y 3OK 4A")**: 1B, a preview line to a world
+   round one sun ends where the ship will meet the world, with no marker
+   there; 2Y, the solver's check against an eased departure burn the map
+   would draw as a hook runs in every system, so a few one-sun flights change
+   (1 of 899 in FlightTest); 3OK, LOCAL's near sun over the far one stays as
+   built; 4A, your ship holds with the map's clock through a zoom move, and
+   partners' ships with it.
    Design in tk-scratch/orbiting-pair/DESIGN.md.
 
 Constraints: `ShipFlight` owns the flight; co-op partner positions
@@ -711,7 +718,7 @@ changing how anything they touch plays.
 | Two stars and heavy giants (ruling 20) | "Prototype: twin:A giant:A": build two-star systems with a planner that solves each autopilot flight through both stars, and giants at 1/10 to 1/4 of their star ("purely because it's more fun"), felt by every autopilot flight. Takes in step 2's solved flight | Oct 30; Phase 13 steps 2 and 5, feat/twin-stars |
 | Flight length (ruling 21) | "Flight length: C", from the Autopilot Flight Time page: TIME_W 16, T_CAP 16, with the as-built search as a fallback. About 11 s place to place, against 24 s as built (A) and 19 s (B) | Nov 1; Phase 13 step 5, feat/twin-fix |
 | Binary kinds (ruling 22) | "close:B share:A gap:A": one binary in three is a close pair (suns 150 to 170 px apart, every body around both); a wide pair's map opens framed on its suns, with edge arrows for events off the picture (Nov 2, "Edge arrows: C": a triangle with the event's glyph behind it). Giants circle both suns in both kinds. Also Nov 1: the word is "Binary"; looks "ring:A mass:A transit:A key:A list:C city:A letgo:A starb:B"; binary worlds A, as built | Nov 1; Phase 13 step 5, feat/twin-fix |
-| Orbiting pair (ruling 23) | "after4:D speed:A stacked:A": a binary's suns orbit each other at 4x Kepler, worlds around one sun at 4x with them; worlds around both, giants and map time unchanged; a close pair passes near sun over far. Needs a kept map clock | Nov 1; Phase 13 step 5, built on feat/orbiting-pair; look passed Nov 2 ("Orbit look: OK") |
+| Orbiting pair (ruling 23) | "after4:D speed:A stacked:A": a binary's suns orbit each other at 4x Kepler, worlds around one sun at 4x with them; worlds around both, giants and map time unchanged; a close pair passes near sun over far. Needs a kept map clock | Nov 1; Phase 13 step 5, built on feat/orbiting-pair; look passed Nov 2 ("Orbit look: OK"); Pair calls (Nov 2, "1B 2Y 3OK 4A"): the preview line ends at the true meeting place with no marker; the hook check in every system, one sun too; LOCAL's near-over-far kept; the ship holds through zoom moves |
 | The first LAUNCH's freeze stays | "C, leave it as it is. If it becomes a huge deal, we can address it then." On his Mac the planet's shader compiles in about 16 s the first time a session draws it, and the sun's and the nebula sky's in about 2 s each, so the first LAUNCH of a session stands still for 16 to 23 s. Compiling them behind the title froze the title for 13 s instead | Oct 28; `ShaderWarm` warms the four cheap shaders only |
 | A jump goes one ring deeper at most (replaced by ruling 15, Oct 27) | "A1D ... I want this to be a hard game" (Oct 22) | b28fdad6, 0.4.0 |
 | The Custodian has 200 hull | "custodian health at 200" (Oct 22) | b28fdad6, 0.4.0 |

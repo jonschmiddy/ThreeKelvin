@@ -13,6 +13,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   with the suns where they will be, and a ship in orbit of one sun stays with it. LOCAL shows the
   pair where the map left it. A wide pair's map opens centred on the point the suns go round.
   Reduce motion does not slow the suns.
+- **Changed** — while the view zooms between LOCAL, the system map and the star chart, the map
+  holds still. The suns, the worlds, your ship and your partners' ships stop, and all of them go
+  on together when the move ends.
+- **Changed** — in any system, the autopilot no longer leaves a sun's orbit in a tight U-turn that
+  the map draws as a hook. A few flights ride further round the orbit first.
 - **Changed** — each system keeps its own clock, and the save keeps it too. Worlds stay where they
   were when you come back to a system, instead of starting over from the same places on every
   visit. In co-op the party shares one clock, so partners see the suns and worlds in the same
