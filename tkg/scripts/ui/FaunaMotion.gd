@@ -131,7 +131,7 @@ static var enabled := true
 static func picture_key(e, hull: int, s: float) -> String:
 	var w := float(hull) / float(maxi(1, e.max_hp))
 	return "%s|%d|%d%d%d|%d|%.2f" % [e.template.id, e.look, int(w < 0.5), int(w < 0.3), int(w < 0.25),
-		int(e.max_hp > 60), s]
+		int(EnemyArt.big_fauna(e.template)), s]
 
 
 ## The picture's file name, without its extension.

@@ -460,16 +460,23 @@ static func set_marked_wreck(id: int, style: int, img: Image) -> void:
 		_marked[id] = {style = style, img = img}
 static var _wreck_tasks: Dictionary = {}
 
-static func _wreck_key(t: EnemyTemplate, max_hp: int, style: int, look: int, scale: float = 1.0) -> String:
+## Whether the coded fauna drawing is the big one (`_draw_fauna`): the adult,
+## by template. It was `max_hp > 60`, which split calf (40) from leviathan (88)
+## at the original hulls and called every calf big from enemy hull x2 on (80;
+## 160 at x4). Keyed to the kind so the next hull change cannot move it.
+static func big_fauna(t: EnemyTemplate) -> bool:
+	return t.fauna and t.id == &"leviathan"
+
+static func _wreck_key(t: EnemyTemplate, style: int, look: int, scale: float = 1.0) -> String:
 	# Size only changes the drawing for fauna; see `_draw_fauna`. `look` is which
 	# of the kind's pictures this ship wears (`Combat.look_for`); `scale` how big
 	# the pack drew it (`draw_scale`).
-	return "%s|%d|%d|%d|%.3f" % [t.id, int(t.fauna and max_hp > 60), style, look, scale]
+	return "%s|%d|%d|%d|%.3f" % [t.id, int(big_fauna(t)), style, look, scale]
 
 ## Start cutting this enemy's wreck now, off the main thread. Drawing the dead
 ## canvas to cut is the only part done here (a few ms).
 static func warm_wreck(e: Combat.EnemyState, style: int, scale: float = 1.0) -> void:
-	var key := _wreck_key(e.template, e.max_hp, style, e.look, scale)
+	var key := _wreck_key(e.template, style, e.look, scale)
 	if _wrecks.has(key) or _wreck_tasks.has(key):
 		return
 	var dc := dead_canvas(e, null, scale)
@@ -543,7 +550,7 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	# showed while they were literally the same pixels; the moment one of them
 	# has a sprite and the other does not, it would.
 	var sig := "%s|%s|%d|%d|%d|%d|%d" % [e.template.id, e.template.art, int(telegraphing),
-		int(wounded * 20.0), int(e.max_hp > 60), int(dead), int(cut_wreck) * (style + 2)]
+		int(wounded * 20.0), int(big_fauna(e.template)), int(dead), int(cut_wreck) * (style + 2)]
 	sig += "|look %d|scale %.3f" % [e.look, draw_scale]
 	if marks != null:
 		sig += "|marks %d" % marks.version
@@ -618,7 +625,7 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	# fight, are the same broken hull the animation ended on.
 	if dead and cut_wreck:
 		var st := style if style >= 0 else _default_style(e.template)
-		var key := _wreck_key(e.template, e.max_hp, st, e.look, draw_scale)
+		var key := _wreck_key(e.template, st, e.look, draw_scale)
 		var w := _take_wreck(key)
 		var mk: Dictionary = _marked.get(wreck_id, {})
 		if not mk.is_empty() and int(mk.style) == st:
@@ -674,11 +681,11 @@ func _draw_coded(e: Combat.EnemyState, wounded: float, telegraphing: bool) -> vo
 		# silently turned any unmatched key into a fauna, which is how the
 		# Custodian came to be a salvage barge without anyone noticing. Named
 		# here, a typo'd or new key lands in the fallback below and says so.
-		&"whale": _draw_fauna(wounded, e.max_hp > 60)
+		&"whale": _draw_fauna(wounded, big_fauna(e.template))
 		_:
 			push_warning("EnemyArt: no drawing for art key '%s' (%s); drew fauna"
 				% [e.template.art, e.template.id])
-			_draw_fauna(wounded, e.max_hp > 60)
+			_draw_fauna(wounded, big_fauna(e.template))
 	var drawn := _img
 	_img = full
 	var o := (Vector2i(W, H) - CODED) / 2
