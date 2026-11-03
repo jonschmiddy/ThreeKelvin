@@ -2546,49 +2546,52 @@ func _enemy(id: StringName, name: String, tag: String, hp: int, brace: int,
 	enemies[id] = e
 
 func _seed_enemies() -> void:
-	# HULL x2 FOR EVERY ORDINARY ENEMY, ships and creatures alike (Jon, Oct 29,
-	# ruling 14 "combat:B": "hull x2, only with the Custodian re-tune; the harder
-	# game"). Jeremy, friends' alpha: "combat doesn't feel important", fights
-	# "way too fast". The combat study (Phase 11 step 1, Oct 27, `-- sim enemyhp=2`)
-	# had x2 cut the human pilot's wins from 15 to 5 of 200, so it lands only with
-	# the Custodian re-tuned against it. Re-tuned Oct 29-30 (ruling 17, "Custodian:
-	# A"): it keeps 200, see its note below. Each number below is twice the one
-	# before it; danger scaling still applies on top (`Combat._spawn`). The Hellbender and
-	# the Custodian are tuned by hand and keep their own.
+	# HULL x4 FOR EVERY ORDINARY ENEMY, ships and creatures alike: twice the x2 of
+	# ruling 14 (Oct 29). Jon, Nov 3, "Enemy hull: D", after he turned down a
+	# second combat resource: "Enemies should have more health and the fights
+	# should last longer. That's all." The study (tk-scratch/hull-study/STUDY.md,
+	# 400 runs a level, a fresh Korvan profile, the human pilot) had x4 take a
+	# fight from 6.4 turns to 10.8, fights lost from 23% to 28%, and run wins
+	# from 33 to 23 of 400. Fewer ships reach the core; the built ship that does
+	# beats the Custodian 61% of the time (55% at x2). Each number below is four
+	# times the original (cutter 26, lancer 34, hulk 52, marauder 46, sentinel
+	# 58, calf 40, leviathan 88). Danger scaling still applies on top
+	# (`Combat._spawn`). Enemy damage did not change. The Hellbender (90) and the
+	# Custodian (200) are tuned by hand and keep their own.
 	# Ships run fixed loops — machines are predictable.
-	_enemy(&"cutter", "Rustjaw Cutter", "pirate skirmisher", 52, 0, 15, &"cutter", [
+	_enemy(&"cutter", "Rustjaw Cutter", "pirate skirmisher", 104, 0, 15, &"cutter", [
 		{name = "Strafe", text = "Deal 5", damage = 5},
 		{name = "Twin Guns", text = "Deal 3 × 2", damage = 3, hits = 2},
 		{name = "Juke", text = "Gain 4 block", block = 4},
 	], [])
-	_enemy(&"lancer", "Corsair Lancer", "raider · fast", 68, 2, 22, &"cutter", [
+	_enemy(&"lancer", "Corsair Lancer", "raider · fast", 136, 2, 22, &"cutter", [
 		{name = "Lance", text = "Deal 9", damage = 9},
 		{name = "Sear", text = "Deal 4 × 2", damage = 4, hits = 2},
 		{name = "Vent Bloom", text = "Gain 3 block", block = 3},
 	], [])
-	_enemy(&"hulk", "Dreg Hulk", "salvage barge", 104, 6, 30, &"hulk", [
+	_enemy(&"hulk", "Dreg Hulk", "salvage barge", 208, 6, 30, &"hulk", [
 		{name = "Reinforce", text = "Gain 4 block", block = 4},
 		{name = "Winding up…", text = "Charging a ram", telegraph = true},
 		{name = "RAM", text = "Deal 14", damage = 14},
 	], [])
-	_enemy(&"marauder", "Vex Marauder", "raider · heavy weapons", 92, 4, 34, &"cutter", [
+	_enemy(&"marauder", "Vex Marauder", "raider · heavy weapons", 184, 4, 34, &"cutter", [
 		{name = "Rake", text = "Deal 8", damage = 8},
 		{name = "Barrage", text = "Deal 5 × 3", damage = 5, hits = 3},
 		{name = "Harden", text = "Gain 4 block", block = 4},
 	], [])
-	_enemy(&"sentinel", "Combine Sentinel", "corporate security", 116, 8, 42, &"hulk", [
+	_enemy(&"sentinel", "Combine Sentinel", "corporate security", 232, 8, 42, &"hulk", [
 		{name = "Lock Plates", text = "Gain 5 block", block = 5},
 		{name = "Pulse", text = "Deal 11", damage = 11},
 		{name = "Sweep", text = "Deal 4 × 3", damage = 4, hits = 3},
 	], [])
 	# Fauna use weighted random pools — animals are not predictable.
-	_enemy(&"whale", "Voidwhale Calf", "megafauna · pacifiable", 80, 0, 0, &"whale", [], [
+	_enemy(&"whale", "Voidwhale Calf", "megafauna · pacifiable", 160, 0, 0, &"whale", [], [
 		{name = "Drift Song", text = "Heals 4", heal = 4, weight = 30},
 		{name = "Tail Sweep", text = "Deal 7", damage = 7, weight = 40},
 		{name = "Spore Breath", text = "Deal 3, +1 Dross", damage = 3, dross = 1,
 			dross_id = &"slowburn", weight = 30},
 	], true)
-	_enemy(&"leviathan", "Void Leviathan", "megafauna · adult", 176, 4, 0, &"whale", [], [
+	_enemy(&"leviathan", "Void Leviathan", "megafauna · adult", 352, 4, 0, &"whale", [], [
 		{name = "Sounding", text = "Heals 8", heal = 8, weight = 20},
 		{name = "Breach", text = "Deal 15", damage = 15, weight = 45},
 		{name = "Spore Storm", text = "Deal 5, +2 Dross", damage = 5, dross = 2,
@@ -2597,9 +2600,11 @@ func _seed_enemies() -> void:
 	# THE HELLBENDER: the galaxy's other harvester crew, and the only enemy with a
 	# position instead of an address. Hand-tuned like the custodian — it is a
 	# set piece wherever you catch it, so danger scaling would make WHERE you
-	# fight it matter more than WHETHER you are ready to. Numbers sit between
+	# fight it matter more than WHETHER you are ready to. Its guns sit between
 	# the sentinel and the custodian: a party kills it comfortably, one ship
-	# kills it with a good build and a reason. Below 35% hull it spools an
+	# kills it with a good build and a reason. Its hull does not: it keeps 90
+	# under enemy hull x4 (Nov 3), so every ordinary enemy, the cutter (104)
+	# too, now carries more. Below 35% hull it spools an
 	# escape burn and leaves — see Combat.escape_intent() — so the loop below
 	# is what it does while it still thinks it is winning.
 	#
@@ -2626,6 +2631,11 @@ func _seed_enemies() -> void:
 	# 200 runs each): a built ship wins 55% of arrivals and the human pilot wins
 	# 8.25% of its runs, against Oct 22's 56% and 8%. At 150 hull those were 68%
 	# and 9.5%; at 120, 73% and 11.25%. Jon kept 200 (Oct 30, "Custodian: A").
+	# CHECKED AGAIN UNDER ENEMY HULL x4 (Nov 3, the same flags, 400 runs): a
+	# built ship wins 61.4% of arrivals (59% and 65% by seed) and the human pilot
+	# 5.75% of its runs. Fewer ships arrive, and the ones that do are stronger.
+	# It keeps 200, so a deep Hulk (291) or Sentinel (325) now carries more hull
+	# than it does; Jon left that as it is.
 	_enemy(&"custodian", "The Custodian", "guardian of the light", 200, 8, 120, &"hulk", [
 		{name = "Volley", text = "Deal 6 × 3", damage = 6, hits = 3},
 		{name = "Charging…", text = "Charging a heavy attack", telegraph = true},

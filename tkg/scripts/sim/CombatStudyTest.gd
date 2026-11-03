@@ -102,8 +102,8 @@ func _scaling() -> void:
 	cb.plan(DB.enemies[&"lancer"], 1)
 	var e: Combat.EnemyState = cb.enemies[0]
 	var lance := (e.template.loop[0] as IntentData).damage
-	# (from the template's own hull, which ruling 14 B doubled to 68 on Oct 29:
-	# a typed 68 was 34 x2 and went stale with it)
+	# (from the template's own hull, never a typed number: the lancer's went
+	# 34 -> 68 on Oct 29 and 68 -> 136 on Nov 3, and a typed one went stale each time)
 	var want_hull := maxi(1, int(round(int(before[&"lancer"].hull) * HP)))
 	h._ok("a danger-1 Corsair Lancer fields hull %d and a Lance of 12 (%d, %d)"
 		% [want_hull, e.max_hp, lance], e.max_hp == want_hull and lance == 12)
