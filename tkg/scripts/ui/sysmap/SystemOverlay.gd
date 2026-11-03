@@ -269,12 +269,14 @@ func _place_labels() -> void:
 ## sat across the other sun about half the time at the opening zoom: the suns
 ## are 56 to 106 px apart there, and such words 140 to 230 px wide (the words
 ## review, Oct 31).
-func _meets_sun(at: Vector2, words: String, but := -99) -> bool:
+## `grow`: the box grown by that much each way (words held off their first
+## spot come back only once it clears by a margin, `_draw_ship`).
+func _meets_sun(at: Vector2, words: String, but := -99, grow := 0.0) -> bool:
 	var L: SystemLayout = view.layout
 	if L == null or not L.twin:
 		return false
 	var tw := _font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
-	var box := Rect2(at + Vector2(-2, -10), Vector2(tw + 4, 14))
+	var box := Rect2(at + Vector2(-2, -10), Vector2(tw + 4, 14)).grow(grow)
 	for st: int in L.stars():
 		if st == but:
 			continue
@@ -307,13 +309,13 @@ static func reticle_boxes(at: Vector2, reach: float) -> Array:
 ## Stepping the ship's words off a binary's suns put IN ORBIT · OMEGA CALLOUS I
 ## over the event beacon above its world, touching the world's reticle (seed 7,
 ## the opening zoom, the picks stills, Nov 1).
-func _clear_of_beacons(words: String, also: Array = []) -> Callable:
+func _clear_of_beacons(words: String, also: Array = [], grow := 0.0) -> Callable:
 	var tw := _font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 	var keep: Array = also.duplicate()
 	for e in beacons_at:
 		keep.append(beacon_box(e[0]))
 	return func(q: Vector2) -> bool:
-		var box := Rect2(q + Vector2(-2, -10), Vector2(tw + 4, 14))
+		var box := Rect2(q + Vector2(-2, -10), Vector2(tw + 4, 14)).grow(grow)
 		for r: Rect2 in keep:
 			if box.intersects(r):
 				return false
@@ -2362,12 +2364,24 @@ func _draw_ship(t: float) -> void:
 		# One sun: as it always was.
 		var sun: bool = names_on and _meets_sun(Vector2(lx, ly), words)
 		var clear_of := &""
-		if sun or (names_on and view.layout.twin and not _clear_of_beacons(words).call(Vector2(lx, ly))):
+		# BACK TO THEIR FIRST SPOT ONLY CLEAR BY A MARGIN (WORDS_BACK_PX): words
+		# stepped off last frame (`_spot_kept`'s memory) stay where they stepped
+		# to, while that still clears, until a sun or a beacon creeping a pixel
+		# or two past can no longer flip them. A beacon on a world round both
+		# suns crept along the words' left end as star B carried them the same
+		# way, and in star B's close orbit of a close pair (seed 7, system 41)
+		# the words hopped 16 px down, up and down again in 4 s (review 2)
+		var was: Array = _spot_mem.get("ship", [])
+		var grow := WORDS_BACK_PX if was.size() == 4 and was[0] == words else 0.0
+		var stepped: bool = grow > 0.0 and names_on and (_meets_sun(Vector2(lx, ly), words, -99, grow) \
+			or (view.layout.twin and not _clear_of_beacons(words, [], grow).call(Vector2(lx, ly))))
+		var on_beacon: bool = names_on and view.layout.twin and not _clear_of_beacons(words).call(Vector2(lx, ly))
+		if sun or stepped or on_beacon:
 			var spot := _words_off_suns(words, on, x)
 			if spot.is_empty() and sun:
 				_held_q.append(words)
 				words = ""
-			elif spot.is_empty():
+			elif spot.is_empty() and on_beacon:
 				_on_beacon_q.append(words)
 				clear_of = &"suns"
 			else:
@@ -2424,6 +2438,9 @@ func _ship_words_first(x: Vector2) -> Array:
 ## selected name, the let-go forecast's, `_spot_off_suns`): past this they
 ## would read as another place's.
 const WORDS_STEP_MOST := 40.0
+## and how far clear their first spot must be before words stepped off it go
+## back (px, `_draw_ship`)
+const WORDS_BACK_PX := 2.0
 
 
 ## WHERE THE WORDS BY THE SHIP GO CLEAR OF A BINARY'S SUNS (`_meets_sun`) and

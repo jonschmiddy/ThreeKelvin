@@ -3011,6 +3011,61 @@ func _ring_words_ride() -> void:
 		ov._place_nm(wa), turns, ov._place_nm(wa), seen, RIDE_FRAMES, hops, biggest, spread, lo],
 		seen == RIDE_FRAMES and hops == 0 and spread.x <= 3.0 and spread.y <= 3.0 and turns >= 1.5)
 	_saw("ring rides, frames", seen)
+	await _close_b_words_ride()
+
+
+## THE WORDS BY THE SHIP DO NOT FLICKER AT A BEACON'S EDGE (review 2): in star
+## B's close orbit of seed 7's close pair (system 41, ZETA VESPER-4) from map
+## time 97 to 107, the beacon on a world round both suns creeps along the
+## words' left end as star B carries the words the same way. They stepped 16 px
+## down off it, back up as it cleared by a hair and down again, three hops in
+## 4 s; stepped off, they now go back only once their first spot clears by
+## `SystemOverlay.WORDS_BACK_PX`. At most the one step off, never back and forth.
+func _close_b_words_ride() -> void:
+	var B := SystemLayout.STAR_B
+	var n: MapGen.MapNode = Run.map[41] if Run.map.size() > 41 else null
+	if not h._ok("seed 7's node 41 is a close pair to ride star B's close orbit in (%s)" % (MapGen.star_name(n) if n != null else "none"),
+			n != null and SystemLayout.of(n).twin and SystemLayout.of(n).close):
+		return
+	Router.show_local()
+	await _idle()
+	await _frames(2)
+	Run.at = n.index
+	n.visited = true
+	n.ambush_pending = false
+	SectorScreen._approached_at = n.index
+	Run.map_clock[n.index] = 97.0
+	SystemMapScreen._parked[n.index] = {"at": B, "mode": &"rail"}
+	var m := await _map()
+	if not h._ok("the map comes up in %s in star B's close orbit" % MapGen.star_name(n), m != null and m.view.node == n and m.flight.reached() == B):
+		return
+	var ov = m.overlay
+	m.view.t = 97.0
+	var full: String = "CLOSE ORBIT · " + String(ov._place_nm(B))
+	var hops := 0
+	var back := 0
+	var seen := 0
+	var spots: Array[Vector2] = []
+	var last := Rect2()
+	while m.view.t < 107.0:
+		await get_tree().process_frame
+		var box := _said_box(ov, full)
+		if box.size.x <= 0.0:
+			last = Rect2()
+			continue
+		seen += 1
+		box.position -= ov._body_scr(B) as Vector2
+		if last.size.x > 0.0 and box.position.distance_to(last.position) > 3.0:
+			hops += 1
+			# (back to a spot it had stood at: a flicker)
+			for q in spots:
+				if box.position.distance_to(q) <= 3.0:
+					back += 1
+					break
+			spots.append(last.position)
+		last = box
+	h._ok("in star B's close orbit of %s, map time 97 to 107, the words by the ship step at most once and never back (%d moves over 3 px, %d back; seen %d frames)" % [
+		MapGen.star_name(n), hops, back, seen], seen > 0 and hops <= 1 and back == 0)
 
 
 ## A WIDE PAIR OPENS FRAMED ON ITS OWN PART (Jon, Nov 1, "gap:A"), as the ring
