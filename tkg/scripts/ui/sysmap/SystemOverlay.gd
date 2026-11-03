@@ -2028,14 +2028,19 @@ func _draw_partners(_t: float) -> void:
 	var now := Time.get_ticks_msec()
 	var dt := clampf(float(now - _partner_ms) / 1000.0, 0.0, 0.25)
 	_partner_ms = now
-	var k := 1.0 - exp(-dt * 8.0)
+	# HELD WITH THE MAP'S CLOCK through a move, as your own ship is (Jon, Nov 2,
+	# "Pair calls: 4A"): each partner stays where it was drawn, and eases on to
+	# its latest report once the move is over; a report that came in meanwhile
+	# moved it against the still picture
+	var hold: bool = scr.has_method("clock_held") and scr.clock_held()
+	var k := 0.0 if hold else 1.0 - exp(-dt * 8.0)
 	var row := 0
 	for e: Array in scr.partner_points():
 		var id: int = e[0]
 		var want: Vector2 = e[1]
 		var q: Vector2 = _partner_plane.get(id, want)
 		# a jump across the system is a new place, not a flight to it
-		var jumped := q.distance_to(want) > 400.0
+		var jumped := q.distance_to(want) > 400.0 and not hold
 		q = want if jumped else q.lerp(want, k)
 		_partner_plane[id] = q
 		var pb: int = int(e[4]) if e.size() > 4 else -10

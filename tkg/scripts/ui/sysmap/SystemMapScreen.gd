@@ -882,11 +882,12 @@ func _on_orbits() -> void:
 
 
 func _process(delta: float) -> void:
-	var held := frozen or clock_held()
+	var hold := clock_held()
+	var held := frozen or hold
 	if not held:
 		view.t += delta
 		_catch_up(delta)
-	_step_ship(delta)
+	_step_ship(delta, hold)
 	_report_spot(held)
 	_step_camera(delta)
 	overlay.mark_keep = mark_keep()
@@ -911,9 +912,16 @@ func _process(delta: float) -> void:
 ## pair stands where both pictures have it across the swap. Running on through
 ## a move, the suns had moved by the time the map was seen (a map built ahead
 ## ticked while it waited) or LOCAL's had not (a move down onto the ship), and
-## a map built ahead and dropped wrote its moved clock back (`_keep_ship`). The
-## ship is still stepped: on its ring it rides on round its world held still,
-## for the second or so of a move.
+## a map built ahead and dropped wrote its moved clock back (`_keep_ship`).
+## YOUR SHIP HOLDS WITH IT (Jon, Nov 2, "Pair calls: 4A"; one sun too): stepped
+## by no time (`ShipFlight.step`), its ride round its ring or orbit stops with
+## the suns and the worlds and goes on with them, from the very point, so
+## nothing moves against a still picture. Riding on by frame time it went round
+## its world held still for the second or so of a move: turning back on the
+## line a ladder move draws it on (CalmLadderTest, 6.8 px), and every preview
+## planned in the hold came back stale, the ship off where it was planned from,
+## so it was planned again every frame of the hold. Partners drawn here hold
+## too (`SystemOverlay._draw_partners`).
 ## And hidden (put away, about to be freed): it wrote its clock as it went
 ## (`_keep_ship`), and a frame more run on past the one LOCAL took was written
 ## again on the way out.
@@ -947,7 +955,9 @@ func _catch_up(delta: float) -> void:
 
 ## THE SHIP AND THE VIEW, a frame on: the arrows pan (eased), WASD flies, the
 ## dotted line is run forward, and the panel follows the ship into an orbit.
-func _step_ship(delta: float) -> void:
+## The ship is stepped by no time while the clock holds for a move (`hold`,
+## `clock_held`); a harness's `frozen` clock still steps it.
+func _step_ship(delta: float, hold := false) -> void:
 	# (flight plans let go of, a freed ship's among them, waited for once done:
 	# never in a frame before they are, `ShipFlight.reap`)
 	ShipFlightS.reap()
@@ -969,7 +979,7 @@ func _step_ship(delta: float) -> void:
 	# (and while a GO flies the tip offers no click, as none is taken)
 	overlay.clicks_held = _taking
 	var t_fly := Time.get_ticks_usec()
-	var level: float = flight.step(delta, view.t, keys)
+	var level: float = flight.step(0.0 if hold else delta, view.t, keys)
 	view.tick("flight step", t_fly)
 	var t_pred := Time.get_ticks_usec()
 	flight.predict(view.t, keys)

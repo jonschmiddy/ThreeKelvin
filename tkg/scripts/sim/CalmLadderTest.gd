@@ -31,7 +31,16 @@ extends Node
 ##     hop, on, under the screens, never faded, never redrawn (its `version`);
 ##   - THE PANELS DRAWN AS THEY MOVE (Jon, Oct 18: "they come in blank now"):
 ##     on every frame a side panel or toolbar row slides, it is the screen's own,
-##     opaque, with its words on it -- never an empty plate.
+##     opaque, with its words on it -- never an empty plate;
+##   - THE SHIP HOLDS WITH THE MAP'S CLOCK (Jon, Nov 2, "Pair calls: 4A"): on
+##     every frame a map's clock holds for the move (`clock_held`, the map up,
+##     put away or built ahead), its ship on the plane and its clock stand where
+##     they were on the hold's first frame, and when the clock runs again the
+##     ship goes on from there by no more than a frame's ride (`RESUME_PX`);
+##     a partner drawn on it holds too, its reports coming in all the while,
+##     and eases on to the latest once the clock runs (`_partner_holds`); and
+##     a place's preview, drawn before the move, kept through it, not planned
+##     again frame after frame (`_preview_holds`).
 ## Written to run on main too (the ship's place read by the hooks every build
 ## has), so it can be watched failing there.
 
@@ -47,6 +56,8 @@ const SIDE_X := 689.0
 ## (the chart draws your star on whole pixels as the galaxy turns under it, and
 ## the hull bobs)
 const BACK_PX := 4.0
+## (a frame at 60 a second: the ride round a ring and the world under it)
+const RESUME_PX := 2.0
 
 
 func _ok(what: String, c: bool) -> bool:
@@ -316,8 +327,9 @@ func _tab_button(rank: int) -> Button:
 	return h._tab_sector if rank == ZoomLadder.LOCAL else (h._tab_system if rank == ZoomLadder.MAP else h._tab_chart)
 
 
-## Your ship's place at rest, the mean of 40 frames (its hull's bob averaged).
-func _rest_pt() -> Vector2:
+## Your ship's place at rest, the mean of 40 frames (its hull's bob averaged);
+## the maps' holds watched on through them (`_watch_hold`) when given `seen`.
+func _rest_pt(seen: Variant = null, was: Variant = null) -> Vector2:
 	var sum := Vector2.ZERO
 	var n := 0
 	for i in 40:
@@ -326,7 +338,47 @@ func _rest_pt() -> Vector2:
 			sum += q
 			n += 1
 		await _tree.process_frame
+		if seen is Dictionary:
+			_watch_hold(seen, was)
 	return sum / float(n) if n > 0 else Vector2.INF
+
+
+## THE SHIP HELD WITH THE MAP'S CLOCK, this frame, on every map there is (the
+## one up, the one the hop left, put away, and one built ahead), by map: while
+## its clock holds (`SystemMapScreen.clock_held`), the most its ship has moved
+## on the plane and its clock run since the hold's first frame; on the frames
+## after (to the end of the rest), the most it moved in one, and how far it
+## went from where it was held.
+func _watch_hold(seen: Dictionary, was: Variant) -> void:
+	var maps: Array = []
+	for sv: Variant in [Router.current, ZoomLadder.prebuilt_screen(), was]:
+		if is_instance_valid(sv) and sv is SystemMapScreen and not sv in maps:
+			maps.append(sv)
+	for m: SystemMapScreen in maps:
+		if m.flight == null or m.view == null or not m.has_method(&"clock_held"):
+			continue
+		var p: Vector3 = m.flight.where3()
+		var id := m.get_instance_id()
+		# (from the second frame a map is seen: one built ahead is first seen
+		# before its first step has put the ship on its ring)
+		if not seen.has(id):
+			seen[id] = {}
+			continue
+		var w: Dictionary = seen[id]
+		if m.clock_held():
+			if not w.has("p"):
+				w = {"p": p, "t": float(m.view.t), "n": 0, "moved": 0.0, "ran": 0.0}
+			w.n = int(w.n) + 1
+			w.moved = maxf(float(w.moved), p.distance_to(w.p))
+			w.ran = maxf(float(w.ran), absf(float(m.view.t) - float(w.t)))
+			w.last = p
+		elif w.has("p"):
+			var last: Vector3 = w.get("last", w.p)
+			w.resume = maxf(float(w.get("resume", 0.0)), p.distance_to(last))
+			w.went = maxf(float(w.get("went", 0.0)), p.distance_to(w.p))
+			w.last = p
+			w.mode = m.flight.mode
+		seen[id] = w
 
 
 func _tab_at(rank: int) -> Vector2:
@@ -388,10 +440,12 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 	var max_apart := 0.0
 	var under_side := 0
 	var began := false
+	var holds := {}
 	go.call()
 	for i in 900:
 		await _tree.process_frame
 		frames += 1
+		_watch_hold(holds, was)
 		var cur := Router.current
 		var live := _ship(cur)
 		var live_a := cur.modulate.a if is_instance_valid(cur) else 0.0
@@ -520,7 +574,7 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 		if _settled() and (began or frames > 40):
 			break
 	var secs := frames / 60.0
-	var p1 := await _rest_pt()
+	var p1 := await _rest_pt(holds, was)
 	_ok("%s lands on the screen asked (%s)" % [label, Router.current], _rank(Router.current) == want)
 	var uniq: Array = []
 	for b in bad:
@@ -591,7 +645,31 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 	else:
 		var after := (frames - pressed_at) / 60.0
 		_ok("%s: the press hurried the move to its end in %.2f s (under 0.45)" % [label, after], after <= 0.45)
-	print("  [calm] %s: %.2f s (target %.2f), off line %.1f, back %.1f, apart %.1f, chrome %d" % [label, secs, target, off, back, max_apart, chrome_moved])
+	# THE SHIP HOLDS WITH THE MAP'S CLOCK, and goes on from where it held
+	var held_n := 0
+	var moved := 0.0
+	var ran := 0.0
+	var resume := -1.0
+	var went := -1.0
+	var riding := false
+	for w: Dictionary in holds.values():
+		if not w.has("p"):
+			continue
+		held_n += int(w.n)
+		moved = maxf(moved, float(w.moved))
+		ran = maxf(ran, float(w.ran))
+		if w.has("resume"):
+			resume = maxf(resume, float(w.resume))
+			went = maxf(went, float(w.went))
+			riding = riding or w.mode == &"rail"
+	if from == ZoomLadder.MAP or want == ZoomLadder.MAP:
+		_ok("%s: a map's clock held through the move (%d frames)" % [label, held_n], held_n > 0)
+		_ok("%s: and your ship held with it (%.3f px and %.4f s on at most)" % [label, moved, ran], moved <= 0.001 and ran == 0.0)
+	if want == ZoomLadder.MAP and _rank(Router.current) == ZoomLadder.MAP:
+		_ok("%s: and on from where it held when the clock runs again (%.2f px a frame at most)" % [label, resume], resume >= 0.0 and resume <= RESUME_PX)
+		if riding:
+			_ok("%s: riding its ring again (%.2f px on from where it held)" % [label, went], went > 1.0)
+	print("  [calm] %s: %.2f s (target %.2f), off line %.1f, back %.1f, apart %.1f, chrome %d, held %d frames, moved %.3f, then %.2f a frame, %.1f on" % [label, secs, target, off, back, max_apart, chrome_moved, held_n, moved, resume, went])
 
 
 func _at(rank: int) -> void:
@@ -659,6 +737,7 @@ func _run() -> void:
 	await _at(L)
 	await _hop("Tab mid-move, LOCAL -> map, on to the chart", func() -> void: _key(KEY_TAB), C, ["tab", 0.3])
 	await _rest()
+	await _preview_holds()
 	# AT THE SYSTEM'S EDGE (just jumped in, out of orbit): the audit's ship slid
 	# under the side bar on its way to the map
 	var edge := -1
@@ -685,6 +764,7 @@ func _run() -> void:
 		await _rest()
 		await _hop("tab LOCAL -> map, at the edge", tab.call(M), M)
 		await _rest()
+	await _partner_holds()
 	await _goal_line()
 	await _no_box()
 	await _field_drift()
@@ -692,6 +772,135 @@ func _run() -> void:
 	ZoomLadder.fixed_dt = -1.0
 	print("calmladdertest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
 	_tree.quit(1 if _fails > 0 else 0)
+
+
+## A PARTNER HOLDS WITH THE MAP'S CLOCK (Jon, Nov 2, "Pair calls: 4A"), as your
+## own ship does: LOCAL -> map by its tab, a partner off a world of this system,
+## its report moved on 6 px every 10 frames as a partner riding its ring at
+## RAIL_V on its own machine would send. On every frame the map's clock holds it is drawn in one
+## place on the plane (`SystemOverlay._draw_partners`); once the clock runs it
+## eases on to the latest report, never more than `JUMP_PX` in a frame.
+func _partner_holds() -> void:
+	await _at(ZoomLadder.LOCAL)
+	var L: SystemLayout = SystemLayout.of(Run.node_at())
+	var w := -1
+	for b in L.bodies:
+		if b.world != &"" and b.kind != &"belt":
+			w = b.index
+			break
+	if w < 0:
+		_ok("a partner's hold: a world to put it off", false)
+		return
+	var id := 70011
+	Net.roster[id] = {"id": id, "at": Run.at, "order": 95, "name": "Mercer"}
+	Net.spots[id] = {"at": Run.at, "body": w, "x": 30.0, "z": 0.0, "ang": 0.0}
+	_click(_tab_at(ZoomLadder.MAP), _tab_button(ZoomLadder.MAP))
+	var held_n := 0
+	var held_moved := 0.0
+	var held_at := Vector2.INF
+	var after_n := 0
+	var after_step := 0.0
+	var last := Vector2.INF
+	var first := Vector2.INF
+	var ended := Vector2.INF
+	for i in 420:
+		await _tree.process_frame
+		if i % 10 == 9 and after_n == 0:
+			Net.spots[id].x = float(Net.spots[id].x) + 6.0
+		var m: SystemMapScreen = null
+		for sv: Variant in [Router.current, ZoomLadder.prebuilt_screen()]:
+			if is_instance_valid(sv) and sv is SystemMapScreen:
+				m = sv
+				break
+		if m == null or not m.has_method(&"clock_held"):
+			continue
+		# (on the plane: the camera moves under it through the move)
+		var drawn := Vector2.INF
+		for e: Array in m.overlay.partner_at:
+			if int(e[0]) == id:
+				drawn = m.overlay._partner_plane.get(id, Vector2.INF)
+		if drawn == Vector2.INF:
+			continue
+		if m.clock_held():
+			# (from the second frame drawn: the first is where it is first put)
+			if first == Vector2.INF:
+				first = drawn
+			else:
+				held_n += 1
+				held_moved = maxf(held_moved, drawn.distance_to(first))
+			held_at = drawn
+		elif held_at != Vector2.INF:
+			if ended == Vector2.INF:
+				ended = held_at
+			after_n += 1
+			after_step = maxf(after_step, drawn.distance_to(last))
+			if after_n >= 120 and _settled():
+				break
+		last = drawn
+	_ok("a partner drawn on the map while its clock holds for the move (%d frames)" % held_n, held_n > 20)
+	_ok("and held there with your ship, its reports moving on meanwhile (%.2f px at most)" % held_moved, held_moved <= 0.01)
+	_ok("and eased on to its latest report once the clock runs (%.1f px on, at most %.1f a frame)" % [last.distance_to(ended) if ended != Vector2.INF else -1.0, after_step],
+		after_n > 0 and last.distance_to(ended) > 2.0 and after_step <= JUMP_PX)
+	print("  [calm] a partner through LOCAL -> map: held %d frames, moved %.2f px, then %.1f px on, at most %.1f a frame" % [held_n, held_moved,
+		last.distance_to(ended) if ended != Vector2.INF else -1.0, after_step])
+	Net.roster.erase(id)
+	Net.spots.erase(id)
+	await _rest()
+
+
+## A PREVIEW HOLDS WITH THE MAP'S CLOCK (Jon, Nov 2, "Pair calls: 4A"): on the
+## map, your ship on its ring, another world selected and its flight drawn,
+## then map -> chart by its tab. Through the hold the drawn flight is kept and
+## at most one more plan is taken in; with the ship riding on by frame time
+## each plan came back stale (made from where the ship was, at a clock that
+## stood still), was dropped and was asked for again, the whole move long
+## (the review 2 render note).
+func _preview_holds() -> void:
+	await _at(ZoomLadder.MAP)
+	var m := Router.current as SystemMapScreen
+	if not _ok("a preview's hold: the map up", m != null and m.flight != null):
+		return
+	var at: int = m.flight.orbit_body()
+	# (another place round the sun, else the sun's close orbit)
+	var to := -1
+	for b in m.view.layout.bodies:
+		if b.index != at and SystemLayout.is_place(b.index) and b.kind != &"belt":
+			to = b.index
+			break
+	if not _ok("a preview's hold: your ship on a ring and another place to fly to (on %d, to %d)" % [at, to], at >= 0 and to != at and m.flight.mode == &"rail"):
+		return
+	m.select_body(to)
+	var ov = m.overlay
+	for i in 240:
+		await _tree.process_frame
+		if ov._pv_plan != null:
+			break
+	await _frames(10)
+	var drawn = ov._pv_plan
+	if not _ok("a preview drawn before the move", drawn != null):
+		m.select_body(-9)
+		return
+	var n0: int = m.flight.n_bg
+	_click(_tab_at(ZoomLadder.CHART), _tab_button(ZoomLadder.CHART))
+	var held_n := 0
+	var taken := 0
+	var kept := true
+	for i in 300:
+		await _tree.process_frame
+		if not is_instance_valid(m) or not m.is_inside_tree():
+			break
+		if not m.clock_held():
+			# (the press lands a few frames on; the hold is over once it was on)
+			if held_n > 0 or i > 30:
+				break
+			continue
+		held_n += 1
+		taken = m.flight.n_bg - n0
+		kept = kept and ov._pv_plan == drawn
+	_ok("the map's clock held through the move (%d frames)" % held_n, held_n > 20)
+	_ok("and the flight drawn kept through it, at most one more plan taken in (%d)" % taken, kept and taken <= 1)
+	print("  [calm] a preview through map -> chart: held %d frames, %d plans taken in, the drawn flight kept %s" % [held_n, taken, kept])
+	await _rest()
 
 
 ## A drag on the picture, as a hand makes one: down at `from`, a slide to `to`

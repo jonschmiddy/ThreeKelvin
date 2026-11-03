@@ -744,10 +744,23 @@ var _last_screen := Vector2.ZERO
 ## frame's, an error of |w| dt against the take-in's 0.05 rad, and every click
 ## from a twin's world round one star at 30 fps (|w| 2 rad/s) came in stale and
 ## was planned again (the flight review, Oct 31).
+## BY NO TIME (dt 0: the map's clock held for a move, `SystemMapScreen.
+## clock_held`; Jon, Nov 2, "Pair calls: 4A"): the ship holds, its ride, nose
+## and flame as they were, the keys not read and the thrust as loud. On a ring,
+## alongside or on its way it is still put where that is at t: a map built
+## ahead is held from its first frame, and a ship put back on a ring had no
+## place until its first step (134 px off it, CalmLadderTest chart -> map).
+## Coasting free it already is where it is (and `free_step` divides by dt). A
+## flight planned on a worker is still taken in.
 func step(dt: float, t: float, k: Dictionary) -> float:
-	var lvl := _step_mode(dt, t, k)
+	if dt > 0.0:
+		_lvl = _step_mode(dt, t, k)
+	elif mode != &"free" and mode != &"warp":
+		_step_mode(0.0, t, NO_KEYS)
 	_poll_jobs(t)
-	return lvl
+	return _lvl
+var _lvl := 0.0
+const NO_KEYS := {"w": false, "a": false, "s": false, "d": false}
 
 
 func _step_mode(dt: float, t: float, k: Dictionary) -> float:
