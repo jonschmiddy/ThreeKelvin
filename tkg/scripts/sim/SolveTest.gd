@@ -3,6 +3,11 @@ extends Node
 ## THE AUTOPILOT'S SOLVED FLIGHTS (ruling 20, Oct 30), planned and measured:
 ##   godot --headless --path . -- sheet=SolveTest [systems=N] [lineups=N] [twins=N]
 ##     [twinlineups=N] [worker=N] [only=one|giant|twin|rtwin|rclose|phase|proto] [short]
+##     [shard=K/N]
+## `shard=K/N`: every Nth case from the Kth (`Harness.mine`), the pair-phase
+## sweep's among them, the rest of the run (the bench, the prototype's flight,
+## the conic's aim) in shard 1; the shares of a sweep and of the replans are
+## summed across the shards by `ShardSum`.
 ## `short`: the gate's run, every sweep at fewer systems and line-ups
 ## (systems=1 lineups=4 twins=1 twinlineups=3 worker=100; the phase sweep at
 ## PHASES_SHORT angles of two pairs).
@@ -166,8 +171,9 @@ func _wants(sweep: String) -> bool:
 func _run() -> void:
 	await get_tree().process_frame
 	var t_all := Time.get_ticks_msec()
-	_bench()
-	if _wants("proto"):
+	if h.mine(0):
+		_bench()
+	if _wants("proto") and h.mine(0):
 		_prototype()
 	if _wants("one") or _wants("giant") or _wants("rtwin") or _wants("rclose"):
 		_real_cases()
@@ -176,15 +182,20 @@ func _run() -> void:
 	if _wants("phase"):
 		_phase_cases()
 	print("solvetest: %d cases" % _cases.size())
-	# every case, on the main thread
+	# every case, on the main thread (this shard's: the others' are null)
+	var n_mine := 0
 	for i in _cases.size():
+		if not h.mine(i):
+			_res.append(null)
+			continue
+		n_mine += 1
 		var c: Dictionary = _cases[i]
 		var r := FlightSolve.solve(c.G, c.dep, c.tgt, float(c.t))
 		_res.append(r)
 	for sw: String in ["one", "giant", "rtwin", "rclose", "twin"]:
 		_report(sw)
 	_report("phase")
-	if _wants("phase") or _wants("twin"):
+	if (_wants("phase") or _wants("twin")) and h.mine(0):
 		_aim_check()
 	if _wants("rtwin"):
 		var nrt := 0
@@ -199,6 +210,7 @@ func _run() -> void:
 		_physics()
 		_worker()
 	print("solvetest: all of it took %.0f s" % ((Time.get_ticks_msec() - t_all) / 1000.0))
+	h.shard_end("solvetest", n_mine, _cases.size())
 	h.verdict("solvetest")
 	get_tree().quit(h.code())
 
@@ -772,7 +784,7 @@ func _report(sweep: String) -> void:
 	var worst_in := INF
 	for i in _cases.size():
 		var c: Dictionary = _cases[i]
-		if c.sweep != sweep:
+		if c.sweep != sweep or _res[i] == null:
 			continue
 		n += 1
 		var r: FlightSolve.Result = _res[i]
@@ -888,13 +900,13 @@ func _report(sweep: String) -> void:
 	print("  arrival burn alongside: its length x THRUST / its work %s (about 3: it pulls against itself first)" % _dist(d2keep))
 	var leads: Array = []
 	for i in _cases.size():
-		if _cases[i].sweep == sweep and _res[i].found and StringName(_cases[i].dep.kind) == &"ring":
+		if _cases[i].sweep == sweep and _res[i] != null and _res[i].found and StringName(_cases[i].dep.kind) == &"ring":
 			leads.append(_res[i].lead)
 	print("  ride s %s" % _dist(leads))
 	print("  ride: phasing k %s; push along the ring px/s2 %s; top speed px/s %s" % [_dist(ks), _dist(push), _dist(top_v)])
 	print("  worst start %.3f of its tolerance; worst landing %.4f px, %.4f px/s" % [worst_start, worst_land, worst_land_v])
 	var bar := FOUND_MIN_HAND if sweep == "twin" else FOUND_MIN
-	h._ok("%s: found and clean in at least %.0f%% (%.2f%%)" % [sweep, 100.0 * bar, 100.0 * clean / n], clean >= bar * n)
+	h.total("%s: found and clean" % sweep, "%s: found and clean in at least %.0f%% (%.2f%%)" % [sweep, 100.0 * bar, 100.0 * clean / n], "clean >= BAR * n", {"clean": clean, "n": n, "BAR": bar})
 	h._ok("%s: every found plan starts on the ship's ring (%d of %d)" % [sweep, started, found], started == found)
 	h._ok("%s: every clean plan clear of MapGravity's keep-outs at each sample's own time, within %.0f px (%d inside; least margin %.2f px)" % [sweep, IN_PX, inside, worst_in], inside == 0)
 	h._ok("%s: every found plan lands on the ring at its speed within %.1f px, %.1f px/s, where the layout's Body is (%d of %d)" % [sweep, LAND_PX, LAND_V, landed, found], landed == found)
@@ -941,7 +953,7 @@ func _replays() -> void:
 	var later_fell := 0
 	for i in range(0, _cases.size(), 5):
 		var r: FlightSolve.Result = _res[i]
-		if not r.found:
+		if r == null or not r.found:
 			continue
 		var c: Dictionary = _cases[i]
 		n += 1
@@ -1034,7 +1046,7 @@ func _replans() -> void:
 	for i in range(0, _cases.size(), 7):
 		var r: FlightSolve.Result = _res[i]
 		var c: Dictionary = _cases[i]
-		if not r.found or StringName(c.dep.kind) != &"ring":
+		if r == null or not r.found or StringName(c.dep.kind) != &"ring":
 			continue
 		var d2: Dictionary = c.dep.duplicate()
 		d2.ang = float(c.dep.ang) + float(c.dep.w) * 3.0
@@ -1065,7 +1077,7 @@ func _replans() -> void:
 				if bad <= 3:
 					print("  (kept %.1f against fresh %.1f, old %.1f: %s)" % [rw.cost, fc, j_old, c.label])
 	print("replans: %d previews planned again 3 s on with their old choice: %s; kept warm, cost minus a fresh search's at TIME_W %s; the fallback's flights kept warm or rebuilt %d" % [n, kinds, _dist(over), fell])
-	h._ok("planned again 3 s on, found wherever a fresh search finds one (%d of %d)" % [ok, fresh_found], ok >= fresh_found - maxi(1, fresh_found / 100))
+	h.total("replans: found again", "planned again 3 s on, found wherever a fresh search finds one (%d of %d)" % [ok, fresh_found], "ok >= fresh_found - maxi(1, fresh_found / 100)", {"ok": ok, "fresh_found": fresh_found})
 	h._ok("and no flight of C's own kept past the warm slack of both a fresh search and its own old cost, at TIME_W (%d)" % bad, bad == 0)
 	h._ok("and no flight the fallback found kept where a fresh plan arrives sooner (%d of the %d kept)" % [held, fell], held == 0)
 	# FLIGHTS IN TWO LEGS, planned again as the overlay plans them: every found
@@ -1080,9 +1092,12 @@ func _replans() -> void:
 	var two_fresh := 0
 	var two_cases: Array = []
 	for i in _cases.size():
-		two_cases.append([_cases[i], _res[i]])
-	for c: Dictionary in _pin_cases:
-		two_cases.append([c, FlightSolve.solve(c.G, c.dep, c.tgt, float(c.t))])
+		if _res[i] != null:
+			two_cases.append([_cases[i], _res[i]])
+	for j in _pin_cases.size():
+		var c: Dictionary = _pin_cases[j]
+		if h.mine(_cases.size() + j):
+			two_cases.append([c, FlightSolve.solve(c.G, c.dep, c.tgt, float(c.t))])
 	for cr: Array in two_cases:
 		var c: Dictionary = cr[0]
 		var r: FlightSolve.Result = cr[1]
@@ -1152,7 +1167,7 @@ func _physics() -> void:
 	var n := 0
 	for i in range(0, _cases.size(), 41):
 		var r: FlightSolve.Result = _res[i]
-		if not r.found:
+		if r == null or not r.found:
 			continue
 		var c: Dictionary = _cases[i]
 		var G: MapGravity = c.G
@@ -1289,7 +1304,8 @@ func _worker() -> void:
 		var sw: String = _cases[i].sweep
 		if int(per.get(sw, 0)) < _worker_n:
 			per[sw] = int(per.get(sw, 0)) + 1
-			_widx.append(i)
+			if _res[i] != null:
+				_widx.append(i)
 	_wres = []
 	_wres.resize(_widx.size())
 	var t0 := Time.get_ticks_msec()

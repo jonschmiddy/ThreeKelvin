@@ -74,6 +74,14 @@ extends Node
 ## pace to the wall clock: one of the gate's SOLO_UNITS).
 ## Other modes: `retarget` (another place chosen on the way, PASS/FAIL) and
 ## `starride` (out of star orbits, held as the ship rides).
+## `shard=K/N`: every Nth system of the sweeps from the Kth (`Harness.mine`),
+## and the far places, the worker plans, the clicks and the hand phase (the
+## turning pair's `_orbit_phase` with it) dealt round the shards the same way
+## (the 1st, 2nd, 3rd and 4th). The shards that
+## make the worker plans, the clicks or the hand phase pick their flights from
+## every system as an unsplit run does (`_pick_only`), so those are the same
+## flights however the run is split; a sweep's found-and-clean share and its
+## flights put there are summed across the shards by `ShardSum`.
 
 const ShipFlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
 ## `flight=<path>`: another ShipFlight to measure (an older one, to compare).
@@ -191,6 +199,21 @@ var _wk: Array = []
 ## rate (`clicks=N`: twins N, the others half)
 var _ck := {"one": [], "giant": [], "twin": [], "close": []}
 var _clicks := 16
+## per sweep, the flights planned so far in every shard's systems: every 5th of
+## the game's starts is kept for the clicks (as `S.plans` counts them unsplit)
+var _picks := {}
+## split, a shard that makes the worker plans (`_pick_wk`, until it has
+## them), the clicks (`_pick_ck`, every sweep through) or only the hand phase
+## (`_pick_hand`, the two-sun sweeps until they hold its systems): it goes
+## through the other shards' systems too, planning only what those keep
+## (`_pick_only`)
+var _pick_wk := false
+var _pick_ck := false
+var _pick_hand := false
+## the hand phase's systems (`_hand_phase`): the first wide and close pairs the
+## clicks' starts hold
+const HAND_WIDE := 10
+const HAND_CLOSE := 5
 ## `hand=0`: no flying by hand (`_hand_phase`)
 var _hand := true
 ## `short`: the gate's run (above); `places=N`: the far places' systems a sweep;
@@ -298,6 +321,12 @@ func _run() -> void:
 	ShipFlightS.n_fallback = 0
 	ShipFlightS.n_none = 0
 	var cap := {"one": [0, 0, 0], "twin": [0, 0, 0]}
+	# (every system in turn, for the shards: `Harness.mine`)
+	var n_sys := 0
+	var n_mine := 0
+	_pick_wk = h.shard().y > 1 and not _rows_only and h.mine(1)
+	_pick_ck = h.shard().y > 1 and _clicks > 0 and h.mine(2)
+	_pick_hand = h.shard().y > 1 and _hand and not _rows_only and h.mine(3) and not _pick_ck
 	for sd: int in seeds:
 		Rng.forced = sd
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -339,29 +368,43 @@ func _run() -> void:
 				var L3: SystemLayout = all_of[k][1]
 				if _why != "" and not _why_names(n2.index):
 					continue
+				n_sys += 1
+				var mine := h.mine(n_sys - 1)
+				if not mine and not _picking(sweep2):
+					continue
+				if mine:
+					n_mine += 1
 				var was2 := n2.twin
 				n2.twin = bool(all_of[k][2])
-				_system(sweep2, sd, n2, L3)
-				if not _rows_only:
+				_system(sweep2, sd, n2, L3, mine)
+				if not _rows_only and mine:
 					var cc := _captures(L3, n2.index)
 					var into: Array = cap.twin if L3.twin else cap.one
 					for q in 3:
 						into[q] += cc[q]
 				n2.twin = was2
 		print("flighttest: seed %d: %s systems" % [sd, counts])
-	if _why == "" and not _rows_only:
+	print("flighttest: the sweeps took %.0f s" % ((Time.get_ticks_msec() - t_all) / 1000.0))
+	if _why == "" and not _rows_only and h.mine(0):
 		_places_phase(seeds)
-	if not _rows_only:
+	var t_ph := Time.get_ticks_msec()
+	if not _rows_only and h.mine(1):
 		await _worker_phase()
+		print("flighttest: the worker plans took %.0f s" % ((Time.get_ticks_msec() - t_ph) / 1000.0))
 	OS.add_logger(_errs)
-	if _clicks > 0:
+	t_ph = Time.get_ticks_msec()
+	if _clicks > 0 and h.mine(2):
 		await _click_phase()
-	if _hand and not _rows_only:
+		print("flighttest: the clicks took %.0f s" % ((Time.get_ticks_msec() - t_ph) / 1000.0))
+	t_ph = Time.get_ticks_msec()
+	if _hand and not _rows_only and h.mine(3):
 		_hand_phase()
+		print("flighttest: flying by hand took %.0f s" % ((Time.get_ticks_msec() - t_ph) / 1000.0))
 	OS.remove_logger(_errs)
 	if not _rows_only:
 		_report(cap)
 	print("flighttest: all of it took %.0f s%s" % [(Time.get_ticks_msec() - t_all) / 1000.0, " (short)" if _short else ""])
+	h.shard_end("flighttest", n_mine, n_sys)
 	h.verdict("flighttest")
 	get_tree().quit(h.code())
 
@@ -503,10 +546,12 @@ static func _spread(size: int, want: int) -> Array[int]:
 	return out
 
 
-## EVERY FLIGHT IN ONE SYSTEM, from every start to every place.
-func _system(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout) -> void:
+## EVERY FLIGHT IN ONE SYSTEM, from every start to every place (split, another
+## shard's system: only the picks, `_pick_only`).
+func _system(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, mine := true) -> void:
 	var S := _stat(sweep)
-	S.systems = int(S.systems) + 1
+	if mine:
+		S.systems = int(S.systems) + 1
 	var targets: Array = []
 	for s in L.stars():
 		targets.append(s)
@@ -546,7 +591,59 @@ func _system(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout) -> void
 				if not hit:
 					continue
 				print("  WHY %d:%s:%d (%s)" % [n.index, key, i, sweep])
-			_case(sweep, sd, n, L, key, int(s0[1]) if key != "near" else i, i, t)
+			if mine:
+				_case(sweep, sd, n, L, key, int(s0[1]) if key != "near" else i, i, t)
+			else:
+				_pick_only(sweep, n, L, key, int(s0[1]) if key != "near" else i, i, t)
+
+
+## Whether this shard still picks from another shard's system of `sweep`.
+func _picking(sweep: String) -> bool:
+	return (_pick_wk and int(_wk.size()) < _worker_n * 3) or _picking_ck(sweep)
+
+
+## Whether this shard still picks the clicks' starts of `sweep`: every one for
+## the clicks; for the hand phase alone, the two-sun sweeps' until they hold
+## its systems (the rows after those change nothing it flies).
+func _picking_ck(sweep: String) -> bool:
+	if _pick_ck:
+		return true
+	if not _pick_hand or (sweep != "twin" and sweep != "close"):
+		return false
+	var seen := {}
+	for row: Array in _ck[sweep]:
+		seen[int(row[6])] = true
+	return seen.size() < (HAND_WIDE if sweep == "twin" else HAND_CLOSE)
+
+
+## ANOTHER SHARD'S FLIGHT, in a shard that makes the worker plans, the clicks or
+## the hand phase: its start set up as `_case` sets it, and planned only where
+## an unsplit run would keep it for those (solved, and the rules `_case`
+## keeps them by), so they are the same flights however the run is split.
+## Nothing flown, measured or counted.
+func _pick_only(sweep: String, n: MapGen.MapNode, L: SystemLayout, key: String, b: int, i: int, t: float) -> void:
+	var fl = _flight_script.new()
+	fl.setup(L, Vector2(-L.edge * 0.95, 0.0), t)
+	_start(fl, L, key, b, t, n.index)
+	fl.step(1.0 / 60.0, t, NONE)
+	if fl.orbit_body() == i or (key != "free" and key != "near" and not fl.can_fly()):
+		return
+	# (nor a harness's start the first frame took onto a ring or alongside, as
+	# `_case` leaves those out)
+	if (key == "free" or key == "near") and fl.mode != &"free":
+		return
+	_picks[sweep] = int(_picks.get(sweep, 0)) + 1
+	var for_wk := _pick_wk and int(_wk.size()) < _worker_n * 3 and (_wk.size() % 3 == 0 or sweep == "twin" or sweep == "close")
+	var for_ck := _picking_ck(sweep) and key != "free" and key != "near" and int(_picks[sweep]) % 5 == 2
+	if not for_wk and not for_ck:
+		return
+	var pl = fl.make_plan(i, t, {}, ShipFlightS.PREVIEW_AHEAD)
+	if pl == null or pl.res == null:
+		return
+	if for_wk:
+		_wk.append([sweep, L, key, b, i, t, pl, n.index])
+	if for_ck:
+		(_ck[sweep] as Array).append([sweep, L, key, b, i, t, n.index])
 
 
 ## ONE FLIGHT: planned as the map's worker plans it, clicked a moment later,
@@ -592,6 +689,7 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 	var pl = fl.make_plan(i, t, {}, ShipFlightS.PREVIEW_AHEAD)
 	var ms := float(Time.get_ticks_usec() - t_us) / 1000.0
 	S.plans = int(S.plans) + 1
+	_picks[sweep] = int(_picks.get(sweep, 0)) + 1
 	(S.ms as Array).append(ms)
 	if pl == null:
 		S.none = int(S.none) + 1
@@ -646,7 +744,7 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 		if int(_wk.size()) < _worker_n * 3 and (_wk.size() % 3 == 0 or sweep == "twin" or sweep == "close"):
 			_wk.append([sweep, L, key, b, i, t, pl, n.index])
 		# (the game's starts, every few, for the clicks through the map's path)
-		if key != "free" and key != "near" and int(S.plans) % 5 == 2:
+		if key != "free" and key != "near" and int(_picks[sweep]) % 5 == 2:
 			(_ck[sweep] as Array).append([sweep, L, key, b, i, t, n.index])
 	# WHERE IT ENDS, against where the ship's own `center` puts the place then
 	# (the solver's place is MapGravity's copy of the layout's; a belt's beacon
@@ -1502,13 +1600,14 @@ func _hand_phase() -> void:
 	var worst_out := -INF
 	var worst_settle := 0.0
 	var worst_sun := INF
-	# (ten wide pairs and five close pairs, as the clicks gathered them)
+	# (ten wide pairs and five close pairs, as the clicks gathered them:
+	# HAND_WIDE and HAND_CLOSE)
 	var by_kind := {}
 	for row: Array in (_ck.twin as Array) + (_ck.close as Array):
 		var L: SystemLayout = row[1]
 		var kind := "close" if L.close else "wide"
 		var key := "%s %d" % [kind, int(row[6])]
-		if seen.has(key) or int(by_kind.get(kind, 0)) >= (5 if L.close else 10):
+		if seen.has(key) or int(by_kind.get(kind, 0)) >= (HAND_CLOSE if L.close else HAND_WIDE):
 			continue
 		seen[key] = true
 		by_kind[kind] = int(by_kind.get(kind, 0)) + 1
@@ -2106,7 +2205,10 @@ func _report(cap: Dictionary) -> void:
 				g_ok += int(S.by_start[k].clean)
 		print("  found and clean: from the game's starts %d of %d; flying free or close by (a harness's) %d of %d" % [g_ok, g_n, f_ok, f_n])
 		var share := float(g_ok) / float(maxi(g_n, 1))
-		h._ok("%s: found and clean from an orbit, a star orbit or alongside %d of %d (%.2f%%, at least %.0f%%)" % [sweep, g_ok, g_n, share * 100.0, FOUND_MIN * 100.0], g_n > 0 and share >= FOUND_MIN)
+		h.total("%s: found and clean" % sweep, "%s: found and clean from an orbit, a star orbit or alongside %d of %d (%.2f%%, at least %.0f%%)" % [sweep, g_ok, g_n, share * 100.0, FOUND_MIN * 100.0],
+			"g_n > 0 and float(g_ok) / float(maxi(g_n, 1)) >= FOUND_MIN", {"g_ok": g_ok, "g_n": g_n, "FOUND_MIN": FOUND_MIN})
+		# (a count of flights each judged on its own: none in any shard is none
+		# in all, so each shard judges its own; the least margin is its shard's)
 		h._ok("%s: every clean flight clear of MapGravity's keep-outs at each sample's own time, within %.0f px (%d inside; least margin %.2f px)" % [sweep, IN_PX, S.in_clean, S.in_worst], int(S.in_clean) == 0)
 		print("  farthest any solved flight goes from star A: %.2f of the edge" % S.far)
 		if int(S.chained) > 0 or sweep == "twin" or sweep == "close":
@@ -2141,7 +2243,11 @@ func _report(cap: Dictionary) -> void:
 			h._ok("%s: no flight put there from the game's starts (%d)" % [sweep, game], game == 0)
 			var left: int = (S.put as Array).size() - excused - game
 			var most := PUT_LEFT_CLOSE if sweep == "close" else PUT_LEFT
-			h._ok("%s: no flight put there from a harness's start (%d of %d plans) but where no burn at THRUST keeps clear of a keep-out for %.1f s (%d of them), and the measured residual from the named starts %s, at most %d (%d, %d from another start)" % [sweep, (S.put as Array).size() - game, plans, CLEAR_S, excused, ", ".join(PackedStringArray(named)), most, left, unnamed], left <= most and unnamed == 0)
+			# (the residual against its limit over every system, so summed across
+			# the shards; each flight's start is named or not on its own, and the
+			# flights from another start are summed with it)
+			h.total("%s: put there" % sweep, "%s: no flight put there from a harness's start (%d of %d plans) but where no burn at THRUST keeps clear of a keep-out for %.1f s (%d of them), and the measured residual from the named starts %s, at most %d (%d, %d from another start)" % [sweep, (S.put as Array).size() - game, plans, CLEAR_S, excused, ", ".join(PackedStringArray(named)), most, left, unnamed],
+				"left <= MOST and unnamed == 0", {"left": left, "unnamed": unnamed, "MOST": most})
 		h._ok("%s: every planned flight landed (%d of %d)" % [sweep, S.landed, S.flown], int(S.landed) == int(S.flown))
 		# (from a harness's free start, coasting at anything from nought to 170
 		# px/s, a burn across a ship all but at rest draws a hook where it starts:
