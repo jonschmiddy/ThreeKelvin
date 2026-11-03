@@ -614,9 +614,12 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 			if Gq == null:
 				Gq = MapGravity.from_layout(L)
 				_gq[L.get_instance_id()] = Gq
+			# (the departure's and the target's own keep-outs are the solver's to
+			# keep to their rings, `FlightSolve._setup`: left out, every sun's in)
+			var own := [int((pl.dep as Dictionary).get("place", -9)), i]
 			var mq := INF
 			for kq in pl.samp.size():
-				mq = minf(mq, Gq.margin(pl.samp[kq].x, pl.samp[kq].z, pl.t0 + kq * pl.sdt))
+				mq = minf(mq, Gq.margin_but(pl.samp[kq].x, pl.samp[kq].z, pl.t0 + kq * pl.sdt, own))
 			S.in_worst = minf(float(S.in_worst), mq)
 			if mq < -IN_PX:
 				S.in_clean = int(S.in_clean) + 1

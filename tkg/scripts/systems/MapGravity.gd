@@ -322,3 +322,26 @@ func margin(x: float, z: float, t: float) -> float:
 		var a := wo_ph[k] + wo_n[k] * t
 		least = minf(least, sqrt(pow(x - hx_at(wo_hs[k], wo_hx[k], t) - wo_orb[k] * cos(a), 2.0) + pow(z - hz_at(wo_hs[k], wo_hz[k], t) - wo_orb[k] * sin(a), 2.0)) - wo_keep[k])
 	return least
+
+
+## THE SAME, LEAVING OUT THE KEEP-OUTS OF THE BODIES IN `own` (a flight's
+## departure and target: the solver keeps their keep-outs only to the rings it
+## leaves and lands on, `FlightSolve._setup`), every sun's always in. What a
+## test measures a found flight against (SolveTest, FlightTest, review 2).
+func margin_but(x: float, z: float, t: float, own: Array) -> float:
+	var least := INF
+	for k in star_x0.size():
+		var qx := sx(k, t)
+		var qz := sz(k, t)
+		least = minf(least, sqrt((x - qx) * (x - qx) + (z - qz) * (z - qz)) - star_keep[k])
+	for k in gi_hx.size():
+		if own.has(gi_body[k]):
+			continue
+		var a := gi_ph[k] + gi_n[k] * t
+		least = minf(least, sqrt(pow(x - hx_at(gi_hs[k], gi_hx[k], t) - gi_orb[k] * cos(a), 2.0) + pow(z - hz_at(gi_hs[k], gi_hz[k], t) - gi_orb[k] * sin(a), 2.0)) - gi_keep[k])
+	for k in wo_hx.size():
+		if own.has(wo_body[k]):
+			continue
+		var a := wo_ph[k] + wo_n[k] * t
+		least = minf(least, sqrt(pow(x - hx_at(wo_hs[k], wo_hx[k], t) - wo_orb[k] * cos(a), 2.0) + pow(z - hz_at(wo_hs[k], wo_hz[k], t) - wo_orb[k] * sin(a), 2.0)) - wo_keep[k])
+	return least

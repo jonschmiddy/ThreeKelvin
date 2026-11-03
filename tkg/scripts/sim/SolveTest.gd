@@ -800,9 +800,12 @@ func _report(sweep: String) -> void:
 			# flight's own samples against every keep-out where it stands at each
 			# sample's time. The solver's keep-out reads (`_sun_cs`) taken at the
 			# plan's start passed this sweep with 16 plans 9 px inside (review 2)
+			# (the departure's and the target's own keep-outs are the solver's to
+			# keep to their rings, `FlightSolve._setup`: left out, every sun's in)
+			var own := [int(c.dep.get("place", -9)), int(c.tgt.get("place", -9))]
 			var mq := INF
 			for kq in r.samp.size():
-				mq = minf(mq, (c.G as MapGravity).margin(r.samp[kq].x, r.samp[kq].z, r.t0 + kq * r.sdt))
+				mq = minf(mq, (c.G as MapGravity).margin_but(r.samp[kq].x, r.samp[kq].z, r.t0 + kq * r.sdt, own))
 			worst_in = minf(worst_in, mq)
 			if mq < -IN_PX:
 				inside += 1
