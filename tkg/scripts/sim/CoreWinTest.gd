@@ -34,6 +34,10 @@ extends Node
 ## (`_custodian_growth`): the template's `hull_at`, the hull a fight fields
 ## through `Combat.plan` at each count, the template left at 200 across fights,
 ## only the Custodian growing, and a co-op joiner adding 0.6 of the grown hull.
+## ONE CUSTODIAN FOR THE GALAXY (Jon, Nov 4): in co-op it grows on the lead
+## ship's jumps (`Run.custodian_jumps()`), so a ship at jump 5 behind a lead at
+## 33 fields 400, and a fight opened at 20 grows to 33 mid-fight with its damage
+## kept and the log saying so (`_custodian_party`).
 ## Every core run below flies in at jump 41, so ENGAGE must open at 400.
 
 var _tree: SceneTree
@@ -61,6 +65,7 @@ func _run() -> void:
 	await _frames(2)
 
 	_custodian_growth()
+	_custodian_party()
 
 	# ---------------------------------------------------------- one: DONE
 	var core := await _to_core(31337)
@@ -268,6 +273,76 @@ func _custodian_growth() -> void:
 	_ok("co-op: opened at jump 33 the party's Custodian is 400, and a joiner makes it 640 (%d, %d)"
 		% [opened, f.foes[0].max_hp], opened == 400 and f.foes[0].max_hp == 640 and f.foes[0].hp == 640)
 	Run.jumps = 0
+
+
+## THE LEAD SHIP'S JUMPS (Jon, Nov 4: "The custodian strength and icon should be
+## the same for everyone in the galaxy, even if they join late."), without a
+## wire: the count a fight is built at, and the growth the host makes mid-fight.
+func _custodian_party() -> void:
+	var cust: EnemyTemplate = DB.enemies[&"custodian"]
+	Rng.forced = 31337
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	_ok("a new run's lead ship count is 0, its count its own (%d, %d)" % [Run.party_jumps, Run.custodian_jumps()],
+		Run.party_jumps == 0 and Run.custodian_jumps() == Run.jumps)
+	# behind the lead: your jumps 5, the lead ship's 33
+	Run.jumps = 5
+	Run.party_jumps = 33
+	var cb := Combat.new()
+	cb.plan(cust, 1)
+	var f := SharedFight.open(0, cb.foe_ids(), cb.foe_hp(), cb.foe_brace(), cb.foe_hp_now(), 1, cb.grown)
+	var opened := f.foes[0].max_hp
+	f.join(2)
+	_ok("co-op: at jump 5 behind a lead at 33 the Custodian is 400, grown at 33, and a joiner makes it 640 (%d, %d, %d)"
+		% [opened, cb.grown, f.foes[0].max_hp], opened == 400 and cb.grown == 33 and f.foes[0].max_hp == 640)
+	# and ahead of the lead's last word, your own jumps are the floor
+	Run.jumps = 40
+	Run.party_jumps = 20
+	_ok("ahead of the lead ship's last word, the count is your own (%d)" % Run.custodian_jumps(), Run.custodian_jumps() == 40)
+	# solo: the count is the jumps, and a fight with nothing that grows says -1
+	Run.party_jumps = 0
+	var seq: Array = []
+	for j in [60, 60, 0]:
+		Run.jumps = j
+		var c2 := Combat.new()
+		c2.plan(cust, 1)
+		seq.append(c2.enemies[0].max_hp)
+	var lancer := Combat.new()
+	lancer.plan(DB.enemies[&"lancer"], 1)
+	_ok("solo: fights at 60, 60 and 0 still field 400, 400, 200 (%s), and a lancer's says no count (%d)"
+		% [str(seq), lancer.grown], seq == [400, 400, 200] and lancer.grown == -1)
+	# MID-FIGHT (decision 2): opened at 20 with a joiner and hurt, the lead
+	# ship reaches 33; the host grows it (`NetSession._regrow`) and this
+	# machine adopts it (`Combat._adopt`): the hull bar rises, the damage done
+	# stays done, and the log says "The Custodian grows stronger."
+	Run.jumps = 20
+	var me := Combat.new()
+	me.plan(cust, 1)
+	var sf := SharedFight.open(0, me.foe_ids(), me.foe_hp(), me.foe_brace(), me.foe_hp_now(), 1, me.grown)
+	sf.join(2)
+	var said: Array = []
+	var listen := func(text: String, _kind: StringName) -> void: said.append(text)
+	Sig.log_line.connect(listen)
+	me._attach(sf)
+	sf.hurt(0, 120, 1, 1)
+	me._adopt(sf)
+	var done := me.enemies[0].max_hp - me.enemies[0].hp
+	var quiet := said.filter(func(s: String) -> bool: return s.contains("grows stronger")).is_empty()
+	var joined := sf.foes[0].max_hp
+	sf.regrow(33, NetSession.growth_ratios(sf, 33))
+	me._adopt(sf)
+	var grown_by := me.enemies[0].max_hp
+	var lines := said.filter(func(s: String) -> bool: return s == "The Custodian grows stronger.")
+	_ok("mid-fight from 20 to 33: the hull bar rises from %d to %d (joined hull x hull_at(33) / hull_at(20)), the damage done (%d) stays done"
+		% [joined, grown_by, done], grown_by == int(round(joined * float(cust.hull_at(33)) / float(cust.hull_at(20))))
+		and me.enemies[0].max_hp - me.enemies[0].hp == done and done > 0)
+	_ok("and the log says \"The Custodian grows stronger.\" once, never on joining (%d; %s)" % [lines.size(), "quiet" if quiet else "said early"],
+		lines.size() == 1 and quiet and me.grown == 33)
+	me._adopt(sf)
+	_ok("and not again for the same count", said.filter(func(s: String) -> bool: return s == "The Custodian grows stronger.").size() == 1)
+	Sig.log_line.disconnect(listen)
+	me.release()
+	Run.jumps = 0
+	Run.party_jumps = 0
 
 
 ## The wreck slot on LOCAL that is the custodian's body.

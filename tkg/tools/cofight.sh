@@ -116,7 +116,11 @@ pair "and therefore draw loot from different streams" "lootseed"
 # hellbender leg has its own pair claims, and which apply depends on how the fight
 # ended — the fate line is read first for exactly that reason.
 case " $MODE " in
-*" boss "*) ;;
+*" boss "*)
+	# ONE CUSTODIAN FOR THE GALAXY (PROTOCOL 16): the ships at different jumps
+	# fight one boss, grown at the lead ship's count, and draw one badge
+	same "one Custodian on both machines: its hull, its count and the badge's stage" "custodian"
+;;
 *" hellbender "*)
 	same "the host's pushes put the rival on one chart" "hellbenderat"
 	same "and both machines agree how its fight ended" "hellbenderfate"

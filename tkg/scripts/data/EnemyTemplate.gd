@@ -19,8 +19,9 @@ extends Resource
 ## Fauna use a weighted random pool (animals are not).
 @export var pool: Array[IntentData] = []
 
-## GROWTH WITH THE RUN, by jumps flown (`Run.jumps`), for a set piece whose
-## hull should follow how long the ship took to get there. Off unless
+## GROWTH WITH THE RUN, by jumps flown (`Run.custodian_jumps()`: yours alone,
+## the lead ship's in co-op), for a set piece whose hull should follow how long
+## the ship took to get there. Off unless
 ## `grow_after` is set. Hull only: the intents are not touched. Only the
 ## Custodian grows (Jon, Nov 3, rule G3 with cap B; see its note in
 ## `Database._seed_enemies`).

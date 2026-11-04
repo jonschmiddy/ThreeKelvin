@@ -138,6 +138,11 @@ var _seen_hit: int = 0
 ## Ended your turn and waiting on the rest of the party. The only moment in a
 ## shared fight that blocks — see SharedFight.end_turn().
 var waiting: bool = false
+## THE COUNT THIS FIGHT'S HULL WAS GROWN AT (`RunState.custodian_jumps`), or -1
+## when nothing in it grows. Set in `plan`, sent with the fight
+## (`Net.open_fight`, `SharedFight.grown`), and followed in a shared fight as
+## the host raises it (`_adopt`), so the log can say when the boss grows.
+var grown: int = -1
 
 var turn: int = 1
 var attacks_this_turn: int = 0
@@ -189,6 +194,10 @@ func start(template: EnemyTemplate, danger: int, extras: Array = []) -> void:
 func plan(template: EnemyTemplate, danger: int, extras: Array = []) -> void:
 	self.danger = danger
 	enemies.clear()
+	grown = -1
+	for t in [template] + extras:
+		if (t as EnemyTemplate).grow_after >= 0:
+			grown = Run.custodian_jumps()
 	var share := 1.0 if extras.is_empty() else 0.6
 	enemies.append(_spawn(template, danger, share))
 	for t in extras:
@@ -267,9 +276,13 @@ func look_for(i: int) -> int:
 ## Builds one enemy at this danger. Bosses are hand-tuned, never scaled by
 ## danger. HP scales faster than damage so deeper fights are longer rather than
 ## lethal. A hand-tuned enemy may grow with the run instead: its hull is
-## `EnemyTemplate.hull_at(Run.jumps)`, read here as the fight is built, which
-## today is only the Custodian (Jon, Nov 3, G3 capped at twice its hull). The
-## template is never written, so nothing carries from one run to the next.
+## `EnemyTemplate.hull_at(Run.custodian_jumps())`, read here as the fight is
+## built, which today is only the Custodian (Jon, Nov 3, G3 capped at twice its
+## hull). The count is your jumps alone, the lead ship's in co-op (Jon, Nov 4),
+## so one line covers the opener, a joiner's local build before the host's
+## numbers arrive, a fight alone when the party does not answer, and a party
+## that has dropped. The template is never written, so nothing carries from one
+## run to the next.
 func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0) -> EnemyState:
 	var e := EnemyState.new()
 	# Halved from 0.20/0.10 when danger went from five tiers to ten, so the
@@ -296,7 +309,7 @@ func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0) -> Enem
 	t.loop = scaled
 	t.pool = scaled_pool
 	e.template = t
-	var base := template.hull_at(Run.jumps) if hand_tuned else template.max_hull
+	var base := template.hull_at(Run.custodian_jumps()) if hand_tuned else template.max_hull
 	e.max_hp = maxi(1, int(round(base * hp_mult * hp_share)))
 	e.hp = e.max_hp
 	e.brace = int(round(template.brace * hp_mult))
@@ -1509,6 +1522,10 @@ func _attach(f: SharedFight) -> void:
 	# seven — starting at one and catching up would run begin_turn() six times
 	# in a row on the next push, which is six hands of cards.
 	turn = f.turn
+	# And so is its count: the host may have grown it past this machine's
+	# before anybody saw it (`NetSession._open_or_join`), which is no news
+	if f.grown >= 0:
+		grown = f.grown
 	Sig.party_fight_changed.connect(_on_fight_changed)
 	Sig.party_fight_swing.connect(_on_swing)
 	# Losing the host mid-fight must not be a softlock. See _on_party_lost().
@@ -1560,6 +1577,12 @@ func _adopt(f: SharedFight) -> void:
 			Sig.enemy_destroyed.emit(i)
 			if enemies.size() > 1:
 				_log("%s is wreckage." % dst.template.name, &"good")
+	# THE LEAD SHIP JUMPED, mid-fight (Jon, Nov 4, decision 2): the host grew
+	# the boss (`NetSession._regrow`) and the hulls above carry it
+	if grown >= 0 and f.grown > grown:
+		grown = f.grown
+		var who := enemies[0].template.name if not enemies.is_empty() else "It"
+		_log("%s grows stronger." % who, &"them")
 	# Somebody else's gun. Drawn here because it is the only place this machine
 	# can learn about it — a partner's card was played on a different computer,
 	# and without this their hits land silently and the hull bar drops for no

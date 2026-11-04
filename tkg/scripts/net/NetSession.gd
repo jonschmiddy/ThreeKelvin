@@ -124,7 +124,16 @@ extends Node
 ##    of them often a jump apart, so its galaxy is not this one. `galaxy_print`
 ##    hashes each system's type, so the dive would say so anyway; the version
 ##    says it at the door.
-const PROTOCOL: int = 15
+## 16: ONE CUSTODIAN FOR THE GALAXY (Jon, Nov 4: "The custodian strength and
+##    icon should be the same for everyone in the galaxy, even if they join
+##    late."). It grows on the most jumps any ship in the dive has made. A
+##    presence says the sender's jumps (`_my_jumps`), the host keeps the highest
+##    (`galaxy_jumps`) and pushes it whole (`_push_growth_to`), at the door too,
+##    and a fight says the count its hull was grown at (`SharedFight.grown`),
+##    which the host raises to the galaxy's, mid-fight too (`_regrow`). A
+##    version 15 partner sends a presence one number short and grows the
+##    Custodian on its own jumps.
+const PROTOCOL: int = 16
 
 ## How long a contested option waits for the host to say who got it.
 ##
@@ -164,6 +173,20 @@ var dive_seed: int = 0
 ## machine's world draws its parts and hulls from (`Unlocks.for_new_run`).
 ## Empty until launch.
 var dive_unlocked: Array[StringName] = []
+## THE LEAD SHIP'S JUMPS: the most jumps any ship in this dive has made, which
+## never goes down (PROTOCOL 16). The Custodian grows on it, for everyone
+## (`RunState.custodian_jumps`). The host's is the authority, folded from every
+## presence's jumps (`_fold_growth`); a guest's is the host's last push. A max,
+## so reports arriving in any order, or twice, give the same answer, and a ship
+## behind the lead, a late joiner or a rejoiner at jump 0 adds nothing. Here
+## rather than only on `Run` so `-- nettest`, whose peers share one Run, can
+## see each machine's copy. 0 until the dive; cleared with the session, while
+## `Run.party_jumps` keeps the figure for a ship that flies on alone.
+var galaxy_jumps: int = 0
+## Host only: the jumps each guest's last presence said (-1: nothing to say),
+## so a guest's first presence from this dive's galaxy is not taken for a jump
+## (the hellbender's clock, `_apply_presence`).
+var _jumps_said: Dictionary = {}
 
 var _error: String = ""
 var _local_name: String = "Pilot"
@@ -342,6 +365,10 @@ func _ready() -> void:
 	Sig.run_started.connect(_on_run_started)
 	Sig.jumped.connect(func(index: int) -> void:
 		_mark_presence()
+		# The host's own jump raises the lead ship's count here; a guest's
+		# arrives with its presence (`_apply_presence`)
+		if is_host():
+			_fold_growth(_my_jumps())
 		# and, inside the new system, at its edge (see `spots`)
 		report_arrival(index))
 
@@ -374,6 +401,8 @@ func host_party(player_name: String, hull_id: StringName, t: NetTransport = null
 	_join_serial = 0
 	_presence_sent = 0
 	_presence_dirty = true
+	galaxy_jumps = 0
+	_jumps_said.clear()
 	roster[1] = _slot(1, player_name, hull_id, 0)
 	_set_state(State.HOSTING)
 	Sig.party_changed.emit()
@@ -406,6 +435,8 @@ func join_party(code: String, player_name: String, hull_id: StringName, t: NetTr
 	_said_hello = false
 	_presence_sent = 0
 	_presence_dirty = true
+	galaxy_jumps = 0
+	_jumps_said.clear()
 	_handshake_deadline = _now() + handshake_timeout
 	_set_state(State.JOINING)
 	return true
@@ -431,6 +462,8 @@ func leave_party() -> void:
 	transport = null
 	dive_seed = 0
 	dive_unlocked.clear()
+	galaxy_jumps = 0
+	_jumps_said.clear()
 	_set_state(State.OFFLINE)
 	Sig.party_changed.emit()
 
@@ -680,6 +713,10 @@ func _hello(protocol: int, fingerprint: int, player_name: String, hull_id: Strin
 		var open: Array = Array(dive_unlocked).map(
 			func(m: StringName) -> String: return String(m))
 		_begin_dive.rpc_id(who, dive_seed, open)
+		# The lead ship's jumps, after `_begin_dive` on the same reliable
+		# channel, so they land on the fresh run; QUIET, so the joiner's badge
+		# shows the eye as it is now, with no arrival for jumps it never saw
+		_push_growth_to.rpc_id(who, galaxy_jumps, true)
 		_push_claims_to.rpc_id(who, claims)
 		_push_hellbender_to.rpc_id(who, Run.hellbender_at, Run.hellbender_hp, Run.hellbender_moves, false)
 		for f: SharedFight in fights.values():
@@ -740,10 +777,11 @@ func _choose_hull_at_host(hull_id: StringName) -> void:
 ## The ship and the position travel together because they change for the same
 ## reasons and neither is worth a message of its own. A jump moves you and
 ## cools you; a fight damages you and heats you.
+## `jumps` is the sender's own (`_my_jumps`, PROTOCOL 16), or -1.
 @rpc("any_peer", "call_remote", "reliable")
-func _report_presence_at_host(wire: Dictionary, at: int) -> void:
+func _report_presence_at_host(wire: Dictionary, at: int, jumps: int) -> void:
 	if is_host():
-		_apply_presence(multiplayer.get_remote_sender_id(), wire, at)
+		_apply_presence(multiplayer.get_remote_sender_id(), wire, at, jumps)
 
 
 ## "I have used this up." Only the host keeps the list.
@@ -768,11 +806,12 @@ func _push_claims_to(all: Dictionary) -> void:
 ## Engage here. Open-or-join in one message, because the client asking cannot
 ## know which one it is: two ships jumping into the same system in the same
 ## second both believe they are first, and only the host can say otherwise.
+## `grown`: the count the asker's hull was grown at (`Combat.grown`, PROTOCOL 16).
 @rpc("any_peer", "call_remote", "reliable")
 func _open_fight_at_host(index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		brace: PackedInt32Array, cur: PackedInt32Array) -> void:
+		brace: PackedInt32Array, cur: PackedInt32Array, grown: int) -> void:
 	if is_host():
-		_open_or_join(index, ids, hp, brace, cur, multiplayer.get_remote_sender_id())
+		_open_or_join(index, ids, hp, brace, cur, grown, multiplayer.get_remote_sender_id())
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -813,6 +852,22 @@ func _push_fight_to(wire: Dictionary) -> void:
 @rpc("authority", "call_remote", "reliable")
 func _push_hellbender_to(to: int, hp: int, moves: int, feeding: bool) -> void:
 	Run.hellbender_adopt(to, hp, moves, feeding)
+
+
+## THE LEAD SHIP'S JUMPS, from the host, whole (PROTOCOL 16). Adopted only in a
+## dive and never lower, so a push overtaken by this ship's own jump changes
+## nothing. `quiet` is the door's (`_hello`): the joiner counts the eye it is
+## shown as already seen, as a loaded save does, so its first screen has no
+## arrival for jumps it never saw.
+@rpc("authority", "call_remote", "reliable")
+func _push_growth_to(g: int, quiet: bool) -> void:
+	if state != State.DIVING:
+		return
+	g = clampi(g, 0, SharedFight.MAX_GROWN)
+	galaxy_jumps = maxi(galaxy_jumps, g)
+	Run.party_jumps = maxi(Run.party_jumps, g)
+	if quiet:
+		Run.custodian_seen = Run.custodian_jumps()
 
 
 ## Something is shooting at YOU. Sent to one peer, never broadcast — see
@@ -923,6 +978,7 @@ func _on_peer_disconnected(id: int) -> void:
 		if f.crew.has(id):
 			_apply_leave(int(index), id)
 	spots.erase(id)
+	_jumps_said.erase(id)
 	if roster.erase(id):
 		_builds.erase(id)
 		_push_roster()
@@ -962,17 +1018,29 @@ func _send_presence() -> void:
 	b.pilot = _local_name
 	var wire := b.to_wire()
 	var at := Run.at if not Run.map.is_empty() else -1
-	var stamp := hash([wire, at])
+	var jumps := _my_jumps()
+	var stamp := hash([wire, at, jumps])
 	if stamp == _presence_sent:
 		return
 	_presence_sent = stamp
 	if is_host():
-		_apply_presence(1, wire, at)
+		_apply_presence(1, wire, at, jumps)
 	else:
-		_report_presence_at_host.rpc_id(1, wire, at)
+		_report_presence_at_host.rpc_id(1, wire, at, jumps)
 
 
-func _apply_presence(id: int, wire: Dictionary, at: int) -> void:
+## THIS SHIP'S JUMPS, as a presence says them (PROTOCOL 16), or -1, "nothing to
+## say": only in a dive, on the dive's own galaxy, with a map. A guest accepted
+## into a dive under way sends presence as soon as it is seated, from whatever
+## ship its Run still holds, and a pilot who died and pressed NEW RUN is in
+## another galaxy while still DIVING; neither may raise the party's count.
+func _my_jumps() -> int:
+	if state != State.DIVING or dive_seed == 0 or Run.galaxy_seed != dive_seed or Run.map.is_empty():
+		return -1
+	return Run.jumps
+
+
+func _apply_presence(id: int, wire: Dictionary, at: int, jumps: int = -1) -> void:
 	if not roster.has(id):
 		return
 	# A presence whose `at` moved is a jump, and the party's jumps are the
@@ -980,15 +1048,74 @@ func _apply_presence(id: int, wire: Dictionary, at: int) -> void:
 	# RunState.jump_to() directly, and counting its presence too would tick
 	# twice for one jump.
 	var was := int(roster[id].get("at", -1))
+	var said := int(_jumps_said.get(id, -1))
 	roster[id].build = wire
 	roster[id].at = at
+	_jumps_said[id] = jumps
 	# `was >= 0` keeps a client's FIRST presence — arrival in the galaxy, not a
-	# jump — off the clock.
+	# jump — off the clock. And both presences must be from this dive's galaxy
+	# (`_my_jumps`: `said` and `jumps` >= 0). A late joiner's first presence in
+	# the dive moves `at` off the stale ship it was seated with, which is no
+	# jump; nor is a jump in a NEW RUN's galaxy.
 	if is_host() and id != 1 and state == State.DIVING \
-			and was >= 0 and at >= 0 and at != was:
+			and was >= 0 and at >= 0 and at != was and said >= 0 and jumps >= 0:
 		Run.hellbender_jumped()
+	# Every guest presence, its first too: the lead ship's count is a max, and
+	# a ship behind the lead adds nothing
+	if id != 1:
+		_fold_growth(jumps)
 	_push_roster()
 	Sig.party_changed.emit()
+
+
+## THE HOST FOLDS ONE SHIP'S JUMPS INTO THE LEAD SHIP'S COUNT (PROTOCOL 16):
+## host only, in a dive, a report >= 0. Higher, and it is the count: kept as
+## the host's own copy (`Run.party_jumps`), pushed whole to everyone, and every
+## open fight that grows is grown to it (`_regrow`). Never lower.
+func _fold_growth(n: int) -> void:
+	if not is_host() or state != State.DIVING or n < 0:
+		return
+	n = clampi(n, 0, SharedFight.MAX_GROWN)
+	if n <= galaxy_jumps:
+		return
+	galaxy_jumps = n
+	Run.party_jumps = maxi(Run.party_jumps, n)
+	push_growth()
+	for f: SharedFight in fights.values():
+		if _regrow(f):
+			_push_fight(f)
+
+
+## Broadcast the lead ship's count, host only; built like `push_hellbender`.
+func push_growth() -> void:
+	if not is_host() or not _can_talk():
+		return
+	if not multiplayer.get_peers().is_empty():
+		_push_growth_to.rpc(galaxy_jumps, false)
+
+
+## Each foe's growth from the fight's count to `to`: `hull_at(to) /
+## hull_at(grown)` for a foe whose template grows, 0 for one that does not.
+## Static so `-- sheet=CoreWinTest` can grow a fight with no session.
+static func growth_ratios(f: SharedFight, to: int) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	for i in f.foes.size():
+		var t: EnemyTemplate = DB.enemies.get(StringName(f.foe_ids[i])) if i < f.foe_ids.size() else null
+		if t == null or t.grow_after < 0 or f.grown < 0:
+			out.append(0.0)
+			continue
+		out.append(float(t.hull_at(to)) / float(maxi(1, t.hull_at(f.grown))))
+	return out
+
+
+## A fight grown at less than the lead ship's count grows to it now (decision
+## 2: its hull bar rises, damage done stays done; `SharedFight.regrow`). Every
+## crew machine adopts the numbers and says so in its log (`Combat._adopt`).
+## True when it moved, for the caller to push.
+func _regrow(f: SharedFight) -> bool:
+	if f == null or f.over or f.grown < 0 or f.grown >= galaxy_jumps:
+		return false
+	return f.regrow(galaxy_jumps, growth_ratios(f, galaxy_jumps))
 
 
 ## A galaxy as a number: every system's index, type, layer, danger, region,
@@ -1011,6 +1138,14 @@ static func galaxy_print(map: Array, galaxy_name: String) -> int:
 func _on_run_started() -> void:
 	if state != State.DIVING or dive_seed == 0 or Rng.master != dive_seed:
 		return
+	# A RUN STARTED ON THE DIVE'S GALAXY takes the lead ship's count as it is,
+	# quietly, as the door's push does (PROTOCOL 16): that push lands on the
+	# run the lobby starts in the same frame, and this keeps it if a run is
+	# started after it (`-- cojoin late` and `-- cofight` start theirs a frame
+	# or more later, and a new run clears `Run.party_jumps`).
+	if galaxy_jumps > 0:
+		Run.party_jumps = maxi(Run.party_jumps, galaxy_jumps)
+		Run.custodian_seen = maxi(Run.custodian_seen, Run.custodian_jumps())
 	var fp := forced_galaxy if forced_galaxy != 0 else galaxy_print(Run.map, Run.galaxy_name)
 	report_galaxy(dive_seed, Run.map.size(), fp)
 
@@ -1353,18 +1488,20 @@ func take(index: int, option: int = MapGen.OPTION_WHOLE) -> int:
 ## `cur` is the enemy's CURRENT hull, which is `hp` for everything except a
 ## fight that opens against something already hurt — the hellbender carrying a
 ## previous engagement's damage.
+## `grown` is the count the caller's hull was grown at (`Combat.grown`, -1 for
+## a fight with nothing in it that grows).
 func open_fight(index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		brace: PackedInt32Array, cur: PackedInt32Array) -> SharedFight:
+		brace: PackedInt32Array, cur: PackedInt32Array, grown: int = -1) -> SharedFight:
 	if not _can_talk() or index < 0 or party_size() < 2:
 		return null
 	if is_host():
-		_open_or_join(index, ids, hp, brace, cur, 1)
+		_open_or_join(index, ids, hp, brace, cur, grown, 1)
 		return fights.get(index, null)
 	# Ask and wait, for the same reason `take()` does: two ships arriving at one
 	# system in the same second must end up in ONE fight. A client that opened
 	# optimistically would spawn a private frigate, and the host's would arrive
 	# a moment later holding different numbers.
-	_open_fight_at_host.rpc_id(1, index, ids, hp, brace, cur)
+	_open_fight_at_host.rpc_id(1, index, ids, hp, brace, cur, grown)
 	var me := local_id()
 	var deadline := _now() + TAKE_TIMEOUT
 	while _now() < deadline:
@@ -1488,16 +1625,23 @@ func _push_claims() -> void:
 # --- fights, on the host --------------------------------------------------
 
 func _open_or_join(index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		brace: PackedInt32Array, cur: PackedInt32Array, by: int) -> void:
+		brace: PackedInt32Array, cur: PackedInt32Array, grown: int, by: int) -> void:
 	var f: SharedFight = fights.get(index, null)
 	if f != null and not f.over:
 		# Already somebody's fight. The second ship in is help, not a second
-		# frigate — see SharedFight.join().
+		# frigate — see SharedFight.join(). Its `grown` is ignored, as its hp
+		# is: the fight's count is the galaxy's already.
 		if not f.join(by):
 			return
 	else:
-		f = SharedFight.open(index, ids, hp, brace, cur, by)
+		f = SharedFight.open(index, ids, hp, brace, cur, by, grown)
 		fights[index] = f
+		# THE FIGHT IS GROWN AT THE GALAXY'S COUNT (PROTOCOL 16). The opener's
+		# count folds in first (its presence normally got there before it; this
+		# covers it not having), then a fight grown at less, its opener a push
+		# behind, grows to it before anyone sees it.
+		_fold_growth(grown)
+		_regrow(f)
 		for i in f.foes.size():
 			_pick_intent(f, i)
 	_push_fight(f)
@@ -1691,6 +1835,8 @@ func _apply_hull(id: int, hull_id: StringName) -> void:
 
 func _apply_dive(seed_value: int, unlocked: Array = []) -> void:
 	dive_seed = seed_value
+	galaxy_jumps = 0
+	_jumps_said.clear()
 	dive_unlocked.clear()
 	for m in unlocked:
 		var id := StringName(str(m))
@@ -1759,6 +1905,10 @@ func _drop(message: String) -> void:
 	_galaxy_theirs.clear()
 	galaxy_mine.clear()
 	galaxy_warning = ""
+	# The party's copy goes with the party; `Run.party_jumps` stays, so a guest
+	# whose host left flies on at the count it had and its boss never shrinks
+	galaxy_jumps = 0
+	_jumps_said.clear()
 	_set_state(State.FAILED)
 	Sig.party_failed.emit(message)
 

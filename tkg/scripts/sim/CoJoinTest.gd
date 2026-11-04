@@ -354,12 +354,27 @@ func _late_leg() -> void:
 		var placed := await _until(func() -> bool: return Net.where_is(other) >= 0, PARTNER_TIMEOUT)
 		_ok("and is flying in it (it reported a system)", placed)
 		await _wait(2.0)
+		print("[cojoin] custodian %d" % CustodianBadge.count())
 	else:
 		var other := _other_id()
 		_ok("the late ship knows where the host is",
 			await _until(func() -> bool: return Net.where_is(other) >= 0, 10.0))
 		_ok("in the same galaxy (seed %d)" % Net.dive_seed, Run.map.size() > 0)
+		# ONE CUSTODIAN FOR THE GALAXY (PROTOCOL 16): the lead ship's count came
+		# at the door, quietly, so the late ship's badge shows the eye as it is
+		# with no arrival for jumps it never saw
+		var b := Router.hud.goal.badge() if Router.hud != null and Router.hud.goal != null else null
+		var steps: Array[int] = []
+		for i in 30:
+			await _tree.process_frame
+			if b != null and b.is_visible_in_tree():
+				steps.append(int(b.shown.get("step", -2)))
+		_ok("the late ship has the lead ship's count (%d, own jumps %d), seen, with no arrival on its first frames (%s)" % [
+			CustodianBadge.count(), Run.jumps, "none" if not steps.any(func(s: int) -> bool: return s >= 0) else "one played"],
+			CustodianBadge.count() == Net.galaxy_jumps and Run.custodian_seen == CustodianBadge.count()
+			and not steps.any(func(s: int) -> bool: return s >= 0))
 		await _wait(2.0)
+		print("[cojoin] custodian %d" % CustodianBadge.count())
 
 
 # --- what each screen shows --------------------------------------------------

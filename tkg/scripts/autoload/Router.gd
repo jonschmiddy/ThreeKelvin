@@ -1682,7 +1682,7 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 		# game. Null means "fight it alone", which is what every one of those
 		# three wants when there is nobody else here.
 		f = await Net.open_fight(node.index, combat.foe_ids(),
-			combat.foe_hp(), combat.foe_brace(), combat.foe_hp_now())
+			combat.foe_hp(), combat.foe_brace(), combat.foe_hp_now(), combat.grown)
 		if f != null and f.crew.size() > 1:
 			var names := Net.fight_crew_names(node.index)
 			Run.log_line("Fighting alongside %s." % ", ".join(names).to_upper(), &"good")

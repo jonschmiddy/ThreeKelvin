@@ -2643,7 +2643,8 @@ func _seed_enemies() -> void:
 	# IT GROWS WITH THE RUN (Jon, Nov 3: rule G3 with cap B). 200 through jump
 	# 15, then 200 x 1.04 for every jump past it, compounding, rounded, capped at
 	# twice its hull: 208 at jump 16, 243 at 20, 390 at 32, 400 from 33 on. Hull
-	# only; its attacks do not change. Read off `Run.jumps` when its fight is
+	# only; its attacks do not change. Read off `Run.custodian_jumps()` (your
+	# jumps alone, the lead ship's in co-op, Jon, Nov 4) when its fight is
 	# built (`Combat._spawn`, `EnemyTemplate.hull_at`), so the template below
 	# stays 200 and nothing adds up across runs. `bossonly` flies in at 0 jumps
 	# and meets 200. The station study (tk-scratch/station-study/STUDY.md, Nov 3,

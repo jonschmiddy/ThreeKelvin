@@ -61,6 +61,10 @@ var _hellbender: bool = false
 ## How long the late arrival waits. Long enough that the host is unambiguously
 ## in the fight first, short enough that the harness is not mostly sleeping.
 const LATE_ARRIVAL := 6.0
+## `boss`: the two ships' jumps, the guest the lead ship (PROTOCOL 16). Past
+## the wake, so the badge is awake on both, and short of the cap.
+const BOSS_HOST_JUMPS := 3
+const BOSS_GUEST_JUMPS := 17
 var _at: int = -1
 ## Counters, and members rather than locals ON PURPOSE. A GDScript lambda
 ## captures a local BY VALUE, so `count += 1` inside one increments the
@@ -177,6 +181,17 @@ func _fly() -> void:
 			% LATE_ARRIVAL)
 		await _until(func() -> bool: return false, LATE_ARRIVAL)
 
+	# ONE CUSTODIAN FOR THE GALAXY (PROTOCOL 16, Jon, Nov 4): the two ships at
+	# different jumps, the guest ahead. Its presence says 17, the host folds it
+	# and pushes it back, and both machines grow the boss and draw the badge on
+	# the lead ship's 17 (the shell compares the `custodian` lines)
+	if _boss:
+		Run.jumps = BOSS_GUEST_JUMPS if _me == "GUEST" else BOSS_HOST_JUMPS
+		Net._mark_presence()
+		var agreed := await _until(func() -> bool:
+			return Net.galaxy_jumps == BOSS_GUEST_JUMPS and Run.custodian_jumps() == BOSS_GUEST_JUMPS, 10.0)
+		_ok("both ships know the lead ship's %d jumps (own %d, count %d)" % [BOSS_GUEST_JUMPS, Run.jumps,
+			Run.custodian_jumps()], agreed)
 	# Placed rather than flown. Adjacency and fuel are not what is under test,
 	# and making both ships legally reach one system means routing two of them
 	# across a map neither has explored — which would test the pathfinder.
@@ -233,6 +248,11 @@ func _fly() -> void:
 	_ok("the enemy is scaled for the crew, not for one ship", scaled > solo)
 	_ok("and both machines agree what it is",
 		cb.enemies[0].max_hp == scaled)
+	if _boss:
+		_ok("the Custodian is grown at the lead ship's %d jumps (%d, one ship's worth %d)" % [BOSS_GUEST_JUMPS, f0.grown, solo],
+			f0.grown == BOSS_GUEST_JUMPS and solo == (DB.enemies[&"custodian"] as EnemyTemplate).hull_at(BOSS_GUEST_JUMPS))
+		print("[cofight] custodian hull %d grown %d count %d stage %s" % [scaled, f0.grown,
+			CustodianBadge.count(), CustodianBadge.stage(CustodianBadge.count())])
 
 	await _play(cb)
 	# Winning at the core ends the run, so there is no dive left to go shopping

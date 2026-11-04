@@ -83,6 +83,9 @@ case " $MODE " in
 *) same "one galaxy on both machines" "galaxy" ;;
 esac
 case " $MODE " in
+*" late "*) same "and one Custodian: the late ship has the lead ship's count" "custodian" ;;
+esac
+case " $MODE " in
 *" late "*|*" skew "*) ;;
 *)
 	same "one system both ships flew to" "target"

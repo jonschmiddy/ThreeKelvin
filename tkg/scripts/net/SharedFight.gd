@@ -1,6 +1,12 @@
 class_name SharedFight
 extends RefCounted
 
+## @guarded-by NetSession.PROTOCOL
+##
+## `to_wire` and `from_wire` below are a wire format: a key renamed or added
+## there is a protocol change (`grown` was PROTOCOL 16). Read by
+## .github/scripts/version_guard.py.
+##
 ## One fight that more than one ship is in.
 ##
 ## This is the enemy, and only the enemy. Everything on YOUR side of a shared
@@ -29,6 +35,8 @@ extends RefCounted
 ## is the same problem seen from the other side: more hulls in a fight are worth
 ## less than the sum of them.
 const CREW_SHARE: float = 0.6
+## The highest count `grown` may say (a wire value is clamped to it).
+const MAX_GROWN: int = 9999
 
 ## Where the intent came from. `Combat._spawn` scales a private copy of both
 ## lists, identically on every machine, so an index into them is a name the
@@ -101,6 +109,12 @@ var hit_serial: int = 0
 ##
 ## Zero until something dies, so a fight that ends any other way pays no bag.
 var paid: int = 0
+## THE COUNT ITS HULL WAS GROWN AT (`RunState.custodian_jumps`, PROTOCOL 16), or
+## -1 for a fight with nothing in it that grows. The opener's count goes in;
+## the host raises it to the galaxy's (`NetSession.galaxy_jumps`) as the fight
+## opens and whenever that rises while it is on (`regrow`), so the boss in the
+## fight is the boss the badge shows (Jon, Nov 4).
+var grown: int = -1
 
 
 ## The first ship engages. `hp` and `brace` are what its own `Combat._spawn`
@@ -109,11 +123,13 @@ var paid: int = 0
 ## the hellbender carrying a previous engagement's damage. `base` stays what one
 ## ship's worth of the FULL enemy is, so a joiner's share does not shrink just
 ## because somebody softened it up first.
+## `grown` is the count the opener's hull was grown at (`Combat.grown`).
 static func open(node_index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		brace: PackedInt32Array, cur: PackedInt32Array, first: int) -> SharedFight:
+		brace: PackedInt32Array, cur: PackedInt32Array, first: int, grown_at: int = -1) -> SharedFight:
 	var f := SharedFight.new()
 	f.at = node_index
 	f.foe_ids = ids
+	f.grown = clampi(grown_at, -1, MAX_GROWN)
 	for i in hp.size():
 		var e := Foe.new()
 		e.max_hp = maxi(1, hp[i])
@@ -133,10 +149,11 @@ static func open(node_index: int, ids: PackedStringArray, hp: PackedInt32Array,
 ## arrives at 10% health should not be worth the same share of the loot as help
 ## that was there from the first turn. It is, and this is the price.
 ##
-## The share is of the hull the fight OPENED with (`base`), which for the
-## Custodian is the opener's grown hull: it grows with the opener's `Run.jumps`
-## (`EnemyTemplate.hull_at`), so a joiner at jump 33 adds 0.6 of 400, not of 200.
-## The joiner's own jumps do not count.
+## The share is of one ship's worth of the hull (`base`), which for the
+## Custodian is the grown hull: it grows with the lead ship's jumps
+## (`EnemyTemplate.hull_at`, `grown`), so a joiner at jump 33 adds 0.6 of 400,
+## not of 200, and after a `regrow` 0.6 of the new hull. The joiner's own count
+## does not count; the host's galaxy count already holds it.
 func join(peer: int) -> bool:
 	if peer == 0 or over or crew.has(peer):
 		return false
@@ -242,6 +259,30 @@ func advance() -> void:
 	turn += 1
 
 
+## THE LEAD SHIP JUMPED PAST THIS FIGHT'S COUNT (decision 2, Jon, Nov 4): every
+## live foe that grows (`ratio` holds its `hull_at(to) / hull_at(grown)`, 0 for
+## one that does not) is scaled by it, the damage already done staying done:
+## max_hp by the ratio, hp by what max_hp gained, and `base` by the ratio, so a
+## later joiner adds 0.6 of the new hull. Scaling max_hp keeps every join share
+## already added in proportion, even after a pilot has left (join growth never
+## shrinks back, so counting the crew would undercount). A lone Custodian lands
+## exactly on `hull_at(to)`. True when the fight moved; `grown` rises either way.
+func regrow(to: int, ratio: PackedFloat32Array) -> bool:
+	if over or grown < 0 or to <= grown:
+		return false
+	grown = mini(to, MAX_GROWN)
+	for i in mini(foes.size(), ratio.size()):
+		var e := foes[i]
+		var r := float(ratio[i])
+		if r <= 0.0 or is_equal_approx(r, 1.0) or not e.alive():
+			continue
+		var top := maxi(1, int(round(e.max_hp * r)))
+		e.hp = clampi(e.hp + top - e.max_hp, 1, top)
+		e.max_hp = top
+		e.base = maxi(1, int(round(e.base * r)))
+	return true
+
+
 func alive() -> Array[int]:
 	var out: Array[int] = []
 	for i in foes.size():
@@ -257,7 +298,7 @@ func to_wire() -> Dictionary:
 	return {
 		"at": at, "turn": turn, "over": over, "broke": broke, "ids": foe_ids,
 		"crew": crew, "ended": ended, "foes": rows,
-		"hit": last_hit, "serial": hit_serial, "paid": paid,
+		"hit": last_hit, "serial": hit_serial, "paid": paid, "grown": grown,
 	}
 
 
@@ -278,6 +319,9 @@ static func from_wire(d: Dictionary) -> SharedFight:
 	# roll, so a bad number here is not a wrong drawing, it is an arbitrary pile
 	# of modules — the one field on this wire that can print money.
 	f.paid = clampi(int(d.get("paid", 0)), 0, NetTransport.MAX_PLAYERS)
+	# Missing reads as nothing grown; a wild one is held to a count a run can
+	# reach, since it is only ever compared and fed to `hull_at`.
+	f.grown = clampi(int(d.get("grown", -1)), -1, MAX_GROWN)
 	f.foe_ids = PackedStringArray(d.get("ids", PackedStringArray()))
 	var rows: Array = d.get("foes", [])
 	for row in rows:
