@@ -2639,11 +2639,28 @@ func _seed_enemies() -> void:
 	# 5.75% of its runs. Fewer ships arrive, and the ones that do are stronger.
 	# It keeps 200, so a deep Hulk (291) or Sentinel (325) now carries more hull
 	# than it does; Jon left that as it is.
+	#
+	# IT GROWS WITH THE RUN (Jon, Nov 3: rule G3 with cap B). 200 through jump
+	# 15, then 200 x 1.04 for every jump past it, compounding, rounded, capped at
+	# twice its hull: 208 at jump 16, 243 at 20, 390 at 32, 400 from 33 on. Hull
+	# only; its attacks do not change. Read off `Run.jumps` when its fight is
+	# built (`Combat._spawn`, `EnemyTemplate.hull_at`), so the template below
+	# stays 200 and nothing adds up across runs. `bossonly` flies in at 0 jumps
+	# and meets 200. The station study (tk-scratch/station-study/STUDY.md, Nov 3,
+	# S3 stations, `custgrow=G3` with no cap, 400 runs) had the built ship meet a
+	# median of 253 at the core (200 to 600; the cap now stops it at 400) and win
+	# 68.9% of arrivals, against 75.5% with no growth. Its pilots shopped at every
+	# deck, which the game's sim pilots do not, so the 61.4% above is not yet
+	# measured again under growth.
 	_enemy(&"custodian", "The Custodian", "guardian of the light", 200, 8, 120, &"hulk", [
 		{name = "Volley", text = "Deal 6 × 3", damage = 6, hits = 3},
 		{name = "Charging…", text = "Charging a heavy attack", telegraph = true},
 		{name = "Annihilate", text = "Deal 40", damage = 40},
 	], [], false, true)
+	var cust: EnemyTemplate = enemies[&"custodian"]
+	cust.grow_after = 15
+	cust.grow_rate = 1.04
+	cust.grow_cap = 2.0
 
 ## Which enemies can appear at a given danger tier. Bosses are never in here.
 func fight_pool(danger: int, fauna_region: bool) -> Array[StringName]:

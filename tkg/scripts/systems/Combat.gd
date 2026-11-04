@@ -264,8 +264,12 @@ func look_for(i: int) -> int:
 			wrecks += 1
 	return Rng.derive(&"look", (n.index * 64 + wrecks) * 8 + i).randi() & 0xffff
 
-## Builds one enemy at this danger. Bosses are hand-tuned, never scaled. HP
-## scales faster than damage so deeper fights are longer rather than lethal.
+## Builds one enemy at this danger. Bosses are hand-tuned, never scaled by
+## danger. HP scales faster than damage so deeper fights are longer rather than
+## lethal. A hand-tuned enemy may grow with the run instead: its hull is
+## `EnemyTemplate.hull_at(Run.jumps)`, read here as the fight is built, which
+## today is only the Custodian (Jon, Nov 3, G3 capped at twice its hull). The
+## template is never written, so nothing carries from one run to the next.
 func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0) -> EnemyState:
 	var e := EnemyState.new()
 	# Halved from 0.20/0.10 when danger went from five tiers to ten, so the
@@ -292,7 +296,8 @@ func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0) -> Enem
 	t.loop = scaled
 	t.pool = scaled_pool
 	e.template = t
-	e.max_hp = maxi(1, int(round(template.max_hull * hp_mult * hp_share)))
+	var base := template.hull_at(Run.jumps) if hand_tuned else template.max_hull
+	e.max_hp = maxi(1, int(round(base * hp_mult * hp_share)))
 	e.hp = e.max_hp
 	e.brace = int(round(template.brace * hp_mult))
 	e.pick_intent()

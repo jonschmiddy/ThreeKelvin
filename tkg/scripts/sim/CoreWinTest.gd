@@ -28,6 +28,13 @@ extends Node
 ##   - an ordinary fight won, which leaves you on LOCAL by its wreck with no
 ##     win screen, no loot step and no win in the record;
 ##   - and the death screen asking for the same music the win does.
+##
+## THE CUSTODIAN GROWS WITH THE RUN (Jon, Nov 3, rule G3 with cap B): 200
+## through jump 15, then x1.04 a jump, capped at 400 from jump 33. Checked first
+## (`_custodian_growth`): the template's `hull_at`, the hull a fight fields
+## through `Combat.plan` at each count, the template left at 200 across fights,
+## only the Custodian growing, and a co-op joiner adding 0.6 of the grown hull.
+## Every core run below flies in at jump 41, so ENGAGE must open at 400.
 
 var _tree: SceneTree
 var _fails := 0
@@ -52,6 +59,8 @@ func _frames(n: int) -> void:
 func _run() -> void:
 	_tree = get_tree()
 	await _frames(2)
+
+	_custodian_growth()
 
 	# ---------------------------------------------------------- one: DONE
 	var core := await _to_core(31337)
@@ -189,6 +198,72 @@ func _run() -> void:
 	_finish()
 
 
+## G3 WITH CAP B, without a screen: the numbers, the fight they reach, and the
+## template they must not change.
+func _custodian_growth() -> void:
+	var cust: EnemyTemplate = DB.enemies[&"custodian"]
+	var want := {0: 200, 15: 200, 16: 208, 20: 243, 32: 390, 33: 400, 60: 400}
+	var got := {}
+	for j: int in want:
+		got[j] = cust.hull_at(j)
+	_ok("hull_at gives 200 to jump 15, then 208, 243, 390, 400 at 33, 400 at 60 (%s)" % str(got),
+		got == want)
+	Rng.forced = 31337
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var fielded := {}
+	for j: int in want:
+		Run.jumps = j
+		var cb := Combat.new()
+		cb.plan(cust, 1)
+		fielded[j] = cb.enemies[0].max_hp
+	_ok("a Custodian fight fields the same hull at each jump count (%s)" % str(fielded),
+		fielded == want)
+	# Two fights in one process at 60, then one at 0: nothing adds up.
+	var seq: Array = []
+	for j in [60, 60, 0]:
+		Run.jumps = j
+		var cb := Combat.new()
+		cb.plan(cust, 1)
+		seq.append(cb.enemies[0].max_hp)
+	var dmg: Array = []
+	for i in cust.loop:
+		dmg.append((i as IntentData).damage)
+	_ok("fights at jumps 60, 60 and 0 field 400, 400, 200 (%s)" % str(seq), seq == [400, 400, 200])
+	_ok("and the template still reads hull 200, brace 8, attacks 6 / 0 / 40 (%d, %d, %s)"
+		% [cust.max_hull, cust.brace, str(dmg)],
+		cust.max_hull == 200 and cust.brace == 8 and dmg == [6, 0, 40])
+	# Hull only: the attacks a grown fight shows are the template's.
+	Run.jumps = 60
+	var big := Combat.new()
+	big.plan(cust, 1)
+	var big_dmg: Array = []
+	for i in big.enemies[0].template.loop:
+		big_dmg.append((i as IntentData).damage)
+	_ok("a grown Custodian's attacks do not change (%s), nor its brace (%d)"
+		% [str(big_dmg), big.enemies[0].brace], big_dmg == [6, 0, 40] and big.enemies[0].brace == 8)
+	# Only the Custodian grows.
+	var hulls: Array[int] = []
+	for id in [&"lancer", &"hellbender"]:
+		for j in [0, 60]:
+			Run.jumps = j
+			var cb := Combat.new()
+			cb.plan(DB.enemies[id], 1)
+			hulls.append(cb.enemies[0].max_hp)
+	_ok("a lancer and the Hellbender field the same hull at jump 60 as at 0 (%s)" % str(hulls),
+		hulls[0] == hulls[1] and hulls[2] == hulls[3])
+	# CO-OP: the opener's grown hull goes to the party's fight, and a joiner
+	# adds 0.6 of it (SharedFight.CREW_SHARE), not 0.6 of 200.
+	Run.jumps = 33
+	var op := Combat.new()
+	op.plan(cust, 1)
+	var f := SharedFight.open(0, op.foe_ids(), op.foe_hp(), op.foe_brace(), op.foe_hp_now(), 1)
+	var opened := f.foes[0].max_hp
+	f.join(2)
+	_ok("co-op: opened at jump 33 the party's Custodian is 400, and a joiner makes it 640 (%d, %d)"
+		% [opened, f.foes[0].max_hp], opened == 400 and f.foes[0].max_hp == 640 and f.foes[0].hp == 640)
+	Run.jumps = 0
+
+
 ## The wreck slot on LOCAL that is the custodian's body.
 func _body_slot(sc: SectorScreen) -> EnemySlot:
 	if sc == null:
@@ -235,6 +310,10 @@ func _beat_core() -> bool:
 		return false
 	var t: EnemyTemplate = cb.enemies[0].template
 	_ok("against the custodian, a boss", t.id == &"custodian" and t.boss)
+	# jump 41 is past the cap, so the hull it opens with is twice its 200
+	_ok("which opens at hull 400 at jump %d, before the test cuts it (%d)"
+		% [Run.jumps, cb.enemies[0].max_hp],
+		Run.jumps == 41 and cb.enemies[0].max_hp == 400 and cb.enemies[0].hp == 400)
 	_ok("which asks for the boss cue", Audio.music_asked == &"boss")
 	Run.hp = Run.max_hp()
 	var tries := 0

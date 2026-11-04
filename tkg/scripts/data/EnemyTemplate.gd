@@ -18,3 +18,27 @@ extends Resource
 @export var loop: Array[IntentData] = []
 ## Fauna use a weighted random pool (animals are not).
 @export var pool: Array[IntentData] = []
+
+## GROWTH WITH THE RUN, by jumps flown (`Run.jumps`), for a set piece whose
+## hull should follow how long the ship took to get there. Off unless
+## `grow_after` is set. Hull only: the intents are not touched. Only the
+## Custodian grows (Jon, Nov 3, rule G3 with cap B; see its note in
+## `Database._seed_enemies`).
+##
+## `grow_after`: the jumps that are free; -1 means it never grows.
+## `grow_rate`: the hull's multiple for each jump past them, compounding.
+## `grow_cap`: the most it can reach, as a multiple of `max_hull`, so the cap
+## stays "twice its strength" if the base ever moves.
+@export var grow_after: int = -1
+@export var grow_rate: float = 1.0
+@export var grow_cap: float = 1.0
+
+
+## The hull this enemy fields after `jumps` jumps. PURE: reads only the
+## template, writes nothing, so a fight can ask it (`Combat._spawn`) and so can
+## anything that shows the growth.
+func hull_at(jumps: int) -> int:
+	if grow_after < 0 or jumps <= grow_after:
+		return max_hull
+	return mini(roundi(max_hull * grow_cap),
+		roundi(max_hull * pow(grow_rate, float(jumps - grow_after))))

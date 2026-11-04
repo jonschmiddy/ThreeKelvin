@@ -132,6 +132,11 @@ static func open(node_index: int, ids: PackedStringArray, hp: PackedInt32Array,
 ## a wounded enemy is deliberate: joining a fight late is help, and help that
 ## arrives at 10% health should not be worth the same share of the loot as help
 ## that was there from the first turn. It is, and this is the price.
+##
+## The share is of the hull the fight OPENED with (`base`), which for the
+## Custodian is the opener's grown hull: it grows with the opener's `Run.jumps`
+## (`EnemyTemplate.hull_at`), so a joiner at jump 33 adds 0.6 of 400, not of 200.
+## The joiner's own jumps do not count.
 func join(peer: int) -> bool:
 	if peer == 0 or over or crew.has(peer):
 		return false

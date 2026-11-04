@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Changed** — the Custodian grows stronger with every jump after your fifteenth, up to twice its
+  strength. Its attacks do not change.
 - **Added** — the suns of a binary now circle each other. A wide pair goes round once in 19 to 25
   minutes, a close pair in 6 or 7. A world that circles one sun goes round with that sun. Worlds
   that circle both suns, and the gas giants, move as before. In a close pair the suns pass in
