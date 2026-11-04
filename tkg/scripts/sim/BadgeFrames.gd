@@ -75,9 +75,9 @@ func _run() -> void:
 		if img.save_png(out.path_join(String(f.name))) == OK:
 			wrote += 1
 	b.fixed = {}
-	var man := {source = "game (-- sheet=BadgeFrames)", w = CustodianBadge.IMG_W, h = CustodianBadge.IMG_H, x = 0, cy = 7, frames = list}
+	var manifest := {source = "game (-- sheet=BadgeFrames)", w = CustodianBadge.IMG_W, h = CustodianBadge.IMG_H, x = 0, cy = 7, frames = list}
 	var fa := FileAccess.open(out.path_join("manifest.json"), FileAccess.WRITE)
-	fa.store_string(JSON.stringify(man, " "))
+	fa.store_string(JSON.stringify(manifest, " "))
 	fa.close()
 	print("badgeframes: wrote %d PNGs and manifest.json to %s" % [wrote, out])
 	_tree.quit(0 if wrote == list.size() else 1)
