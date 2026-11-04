@@ -986,7 +986,7 @@ func _replays() -> void:
 			elif kept - kept_same <= 3:
 				print("  (alongside, half a second on %s: %s)" % [r4.kind, c.label])
 	h._ok("a plan rebuilt from its choice is the same flight (%d of %d)" % [same, n], same == n)
-	print("replays: half a second on, %d flights the fallback found gave way to a fresh plan arriving sooner" % later_fell)
+	print("replays: half a second on, %d flights the fallback found or in two legs gave way to a fresh plan arriving sooner" % later_fell)
 	h._ok("and half a second on, the ship ridden round (%d of %d)" % [later_same, later], later_same == later)
 	h._ok("and half a second on alongside, the ship holding there (%d of %d)" % [kept_same, kept], kept_same == kept)
 
@@ -994,8 +994,18 @@ func _replays() -> void:
 ## A FLIGHT THE FALLBACK FOUND (r, its cap past T_CAP) that, rebuilt from its
 ## choice, gave way to a fresh plan of one leg, clean and arriving sooner (r2):
 ## the rule it is kept by (`FlightSolve._solve`), so the drawn flight changes.
+## AND A FLIGHT IN TWO LEGS (`FlightSolve._chain`) that gave way to a fresh
+## plan, of one leg or two, clean and arriving sooner: held round a ring or
+## alongside, it is kept only while none does (`FlightSolve._sooner_of`). Not
+## met here until stations were halved on Nov 3 and seed 7 node 199 came into
+## the phase sweep: orbitS -4 to keep 4, line-up 3, two legs to 544.32, half a
+## second on a fresh plan to 540.71.
 static func _fell_sooner(r: FlightSolve.Result, r2: FlightSolve.Result) -> bool:
-	return r.legs == 1 and float(r.choice.get("cap", 0.0)) > FlightSolve.T_CAP + 1e-6 and r2.found and r2.clean and r2.legs == 1 and r2.kind == &"solved" and float(r2.end.t) < float(r.end.t) - 1e-6
+	if not (r2.found and r2.clean and r2.kind == &"solved" and float(r2.end.t) < float(r.end.t) - 1e-6):
+		return false
+	if r.legs == 2:
+		return true
+	return r.legs == 1 and float(r.choice.get("cap", 0.0)) > FlightSolve.T_CAP + 1e-6 and r2.legs == 1
 
 
 ## THE PREVIEW IN ORBIT, PLANNED AGAIN 3 s ON WITH ITS OLD CHOICE (the overlay

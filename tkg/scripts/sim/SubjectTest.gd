@@ -1071,10 +1071,8 @@ func _live_structure(oid: StringName) -> void:
 		LocalEventDrawer.quiet = false
 		return
 	sr = sub.st_rect
-	# A FIGHT'S WRECK THERE
-	var foes: Array = DB.enemies.keys()
-	foes.sort()
-	Run.new_wreck(n, DB.enemies[foes[3 % foes.size()]])
+	# A FIGHT'S WRECK THERE (`WRECK_FOES`)
+	Run.new_wreck(n, DB.enemies[WRECK_FOES[0]])
 	sc._refresh()
 	for i in 30:
 		await _tree.process_frame
@@ -1231,6 +1229,18 @@ func _live(oid: StringName) -> void:
 	LocalEventDrawer.quiet = false
 
 
+## THE FOES THE WRECKS ARE LEFT BY, named. They were picked off
+## `DB.enemies.keys()` sorted, and an Array of StringNames sorts by address, so
+## which foes they were moved with every StringName a change interned: on main
+## (010655ff) whale, hellbender and cutter, and with the stations change of
+## Nov 3 leviathan, the Custodian and cutter (a boss's wreck at a fuel cache).
+## These are main's, the three it measured. (In text order, hulk, cutter and
+## whale, the third wreck's top row touches a tank's drawn square by 2 px,
+## measured Nov 3 and not yet looked into: the fit put the staging in the clear
+## stretch above the wrecks, and the tank's square reaches 10 px past it.)
+const WRECK_FOES: Array[StringName] = [&"whale", &"hellbender", &"cutter"]
+
+
 ## Wrecks left at the system one at a time, as fights there would: each time,
 ## the live subject keeps clear of every wreck. Returns where the wrecks stood
 ## each time, in the view's own space.
@@ -1241,10 +1251,8 @@ func _live_wrecks(oid: StringName) -> Array:
 		return sets
 	LocalEventDrawer.quiet = true
 	var n: MapGen.MapNode = Run.node_at()
-	var foes: Array = DB.enemies.keys()
-	foes.sort()
-	for k in 3:
-		Run.new_wreck(n, DB.enemies[foes[(k * 7 + 3) % foes.size()]])
+	for k in WRECK_FOES.size():
+		Run.new_wreck(n, DB.enemies[WRECK_FOES[k]])
 		sc._refresh()
 		for i in 20:
 			await _tree.process_frame

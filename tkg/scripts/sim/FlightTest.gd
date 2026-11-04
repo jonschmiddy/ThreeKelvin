@@ -150,13 +150,19 @@ const PUT_LEFT := 6
 ## 23, measured Nov 2: 6 of 1,789 plans, all from a harness's starts): seed 1999
 ## system 257's free start, 165 px outside star B's keep-out diving at the pair
 ## at 149 px/s, to 5 places; and seed 4242 system 24's near start, 23 px
-## outside world 4's ring at 106 px/s, to world 4.
+## outside world 4's ring at 106 px/s, to world 4. STATIONS HALVED (Nov 3,
+## S3): more systems may have two suns, so the sweep picks other close pairs
+## (every so many of a seed's binaries), and neither of those comes up. Seed
+## 4242 system 297, SIGMA KESTREL WATCH, does: 3 of 427 plans in its shard,
+## its free start to star A, star B and world 0, where the best burn keeps
+## clear for 30 s, so it is the arrivals that miss, as from 257. Every game
+## start found.
 const PUT_LEFT_CLOSE := 6
 ## the harness's starts the residual may come from, "seed:system:start" a sweep
 ## (any other start put there fails, whatever the count)
 const PUT_LEFT_CASES := {
 	"twin": ["1999:177:free", "7:209:free"],
-	"close": ["1999:257:free", "4242:24:near"],
+	"close": ["1999:257:free", "4242:24:near", "4242:297:free"],
 }
 ## the click comes up to this long after the first plan (s)
 const CLICK_S := 1.5
