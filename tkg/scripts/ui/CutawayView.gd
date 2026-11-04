@@ -119,7 +119,10 @@ var _shown: Variant = null
 ## The rename prompt (ShipScreen's own), while it is up.
 var _rename: Control = null
 var _perks: PerkBox
+var _routines: RoutineBox
 var _dross: Label
+## The row the routines and the malfunctions share (`_build_left`).
+var _tail: HFlowContainer
 var _keys: Label
 ## The two gaps between the left panel's blocks (`Rule`, `_fit_gaps`).
 var _gap_a: Rule = null
@@ -892,10 +895,27 @@ func _build_left() -> void:
 	_perks = PerkBox.new()
 	_perks.add_theme_constant_override("separation", 1)
 	hc.add_child(_perks)
+	# THE RUN'S ROUTINES (science) and the malfunctions, the two one-line facts
+	# with their detail on hover, in one row that wraps: side by side where the
+	# panel is wide enough (the heavy's, the fullest, which has no line to spare:
+	# stacked, its gaps fell from 11 to 5), one over the other where it is not
+	_tail = HFlowContainer.new()
+	_tail.add_theme_constant_override("h_separation", 10)
+	_tail.add_theme_constant_override("v_separation", 1)
+	_tail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hc.add_child(_tail)
+	# (the gaps are measured off the panel's minimum, and the row's height is
+	# only known once it has wrapped)
+	_tail.minimum_size_changed.connect(_fit_gaps)
+	# apart from the hull's perks, so a swap shows them staying: one line with the
+	# names on hover (`ShipScreen.fill_routines`), hidden with none
+	_routines = RoutineBox.new()
+	_routines.add_theme_constant_override("separation", 0)
+	_tail.add_child(_routines)
 	# THE DECK'S SECRET: malfunctions dealt into it, their cards on hover
 	_dross = UITheme.body("", UITheme.LEAVE, UITheme.FS_SMALL)
 	_dross.mouse_filter = Control.MOUSE_FILTER_STOP
-	hc.add_child(_dross)
+	_tail.add_child(_dross)
 	var sp := Control.new()
 	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1116,8 +1136,11 @@ func _refresh() -> void:
 		fitted, mounts, cards, Run.hand_size(), Run.deck_size()]
 	_attrs.add_theme_constant_override("separation", 0)
 	ShipScreen.fill_perks(_perks, false, true)
+	ShipScreen.fill_routines(_routines)
 	_dross.text = "MALFUNCTIONS · %d IN YOUR DECK" % Run.dross_count()
 	_dross.visible = Run.dross_count() > 0
+	# (an empty row would still take the panel's separation)
+	_tail.visible = _routines.visible or _dross.visible
 	_keys.text = "%s TURNS · %s FLIPS" % [Keys.describe(&"hold_turn"), Keys.describe(&"part_flip")]
 	_fit_gaps()
 	_fill_popup()
