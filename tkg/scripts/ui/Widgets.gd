@@ -100,6 +100,27 @@ static func material_row(m: MaterialData, ctx: ModuleContext, price: int,
 ## three.
 const TIP_W := 168
 
+## WHAT AN AUGMENTED PART SAYS, in every box that describes a part: the hover
+## popup (`module_readout`), the hull's tip (`module_tip_panel`) and the old
+## list row (`module_row`). One string, so the three cannot drift.
+##
+## It names the rule and not the affix. The mark is a bool (ModuleData.augmented),
+## so which line the Lab wrote is not known, and the part reads it in the affix
+## list above anyway. What the player cannot see anywhere else is that the Lab
+## is done with this part. STRIP still works on it, so it says "add", not "change".
+const AUGMENTED_TEXT := "AUGMENTED. The Lab can't add to it again."
+
+
+## The AUGMENTED line, in ICE: the colour of the corner mark on the part's plate
+## (`ModuleIcon.augment_mark`), so the word and the mark read as one fact.
+## Wrapped at `width` when one is given, like the affix lines it sits under.
+static func augmented_label(width: float, font_size: int) -> Label:
+	var l := UITheme.body(AUGMENTED_TEXT, UITheme.ICE, font_size)
+	if width > 0.0:
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(width, 0)
+	return l
+
 ## A part, as a PANEL, for a tooltip.
 ##
 ## Godot tooltips are one label of plain text -- no rules, no colour, and no
@@ -160,7 +181,9 @@ static func module_tip_panel(m: ModuleData) -> Control:
 		box.add_child(UITheme.body(" · ".join(gauges), UITheme.ICE,
 			UITheme.FS_SMALL))
 
-	if not m.affixes.is_empty():
+	# AUGMENTED goes under the affixes, and stands alone when STRIP has taken
+	# every affix off: the mark outlives what the Lab added (ModuleData.augmented).
+	if not m.affixes.is_empty() or m.augmented:
 		box.add_child(UITheme.hsep())
 		for a in m.affixes:
 			var al := UITheme.body("%s — %s" % [a.name, a.text], UITheme.EMBER,
@@ -168,6 +191,8 @@ static func module_tip_panel(m: ModuleData) -> Control:
 			al.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			al.custom_minimum_size = Vector2(TIP_W - 20, 0)
 			box.add_child(al)
+		if m.augmented:
+			box.add_child(augmented_label(TIP_W - 20, UITheme.FS_SMALL))
 
 	var cards: PackedStringArray = []
 	for c in m.resolved_cards():
@@ -244,6 +269,8 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 
 	for a in m.affixes:
 		box.add_child(UITheme.body("%s: %s" % [a.name, a.text], Color("#d4b98f"), 10))
+	if m.augmented:
+		box.add_child(augmented_label(0.0, 10))
 
 	# COUNTED, NOT REPEATED. `resolved_cards()` hands back one entry per copy the
 	# Grant Count Law awards, and this printed a hardcoded "×1" for each of them
@@ -922,6 +949,8 @@ static func module_readout(m: ModuleData, width: float = 0.0) -> PanelContainer:
 		al.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		al.custom_minimum_size = Vector2(CardView.CARD_W - 14, 0)
 		box.add_child(al)
+	if m.augmented:
+		box.add_child(augmented_label(CardView.CARD_W - 14, UITheme.FS_SMALL))
 
 	if m.flavour != "":
 		box.add_child(UITheme.hsep())
