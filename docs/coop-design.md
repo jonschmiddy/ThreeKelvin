@@ -265,6 +265,16 @@ This is the strongest rule in the design. It needs no ballot, no secret and no b
 
 It is also the leash on free-running time. A player who sprints ahead is spending the party's safety and can feel it happening.
 
+### RULING: one Custodian for the galaxy, grown on the lead ship's jumps (Jon, Nov 4)
+
+*"The custodian strength and icon should be the same for everyone in the galaxy, even if they join late."* The boss at the core grows with jumps (`EnemyTemplate.hull_at`: 200 through jump 15, +4% a jump, twice from 33), and in a party the count is **the most jumps any ship in the dive has made**, never going down: the same rule as danger above, the deepest ship deciding for everyone. The leading ship feels exactly the solo pace; a ship behind it meets the leader's boss, and the badge beside the goal shows that boss on every screen in the party. Crew size is already priced in by the join share (+0.6 of the grown hull a joiner).
+
+- The host keeps the count (`NetSession.galaxy_jumps`), folded from every presence's jumps, and pushes it whole, at the door too, quietly: a late joiner or a rejoiner sees the eye as it is, with no arrival for jumps it never saw. Each machine keeps its own jumps as a floor, so the jumping ship never waits on the network (`RunState.custodian_jumps`), and keeps the last count it heard (`Run.party_jumps`, saved), so a guest whose host left flies on with the boss it had.
+- **If the count rises mid-fight, the Custodian grows mid-fight** (Jon's pick 2): its hull bar rises by `hull_at(new) / hull_at(old)`, damage done stays done, and the fight log says "The Custodian grows stronger."
+- The tooltip says so in the party's words: it grows "each time the lead ship jumps". Solo, nothing changed.
+
+Protocol 16, save version 40; `docs/netcode.md` has the wire.
+
 ---
 
 ## 8. What keeps a convoy a convoy
