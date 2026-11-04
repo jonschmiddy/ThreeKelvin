@@ -81,10 +81,11 @@ static func buy(b: int) -> String:
 
 # ---------------------------------------------------------------- AUGMENT/STRIP
 
-## Whether this is a place with a Lab: any station, the way the bench is
-## anywhere but the Core (`Fabricator.available`).
+## Whether this is a place with a Lab: a station, and only a station. The Lab
+## is a room aboard one, so the start, a pulsar or an empty system has none,
+## whatever node a caller happens to hold (`Router.at_station` asks the same).
 static func lab_here(n: MapGen.MapNode) -> bool:
-	return n != null and n.type != MapGen.NodeType.CORE
+	return n != null and n.type == MapGen.NodeType.STATION
 
 ## Whether the part is yours to work on: fitted or in the hold. A part on the
 ## pad, on a shelf or floating as jetsam is not on the Lab's bench.
@@ -100,10 +101,16 @@ static func _yours(m: ModuleData) -> bool:
 ## dropped from the draw rather than tried again.
 ##
 ## THE SAME THREE EVERY TIME YOU LOOK (open call 11). Off its own derived stream,
-## keyed to the station, the part and the affixes it has, and stored nowhere:
-## closing the Lab and opening it again cannot reroll it, and drawing it moves
-## no stream the world, the loot or a fight draws from. Another Lab may offer
-## a different three, which costs a trip.
+## keyed to the station and the part (its id and the scrap value it dropped
+## with, which nothing writes after), and stored nowhere: closing the Lab and
+## opening it again cannot reroll it, and drawing it moves no stream the world,
+## the loot or a fight draws from. Another Lab may offer a different three,
+## which costs a trip.
+##
+## NOT KEYED TO THE AFFIXES THE PART HAS. The Lab ranks all of its affixes for
+## this part once (`_offer_order`) and offers the first three the part lacks,
+## so STRIP cannot buy a fresh three: taking an affix off can only let that
+## same affix back into the offer, in the place the ranking already gave it.
 static func augment_offer(m: ModuleData, n: MapGen.MapNode) -> Array[AffixData]:
 	var out: Array[AffixData] = []
 	if m == null or n == null:
@@ -111,21 +118,31 @@ static func augment_offer(m: ModuleData, n: MapGen.MapNode) -> Array[AffixData]:
 	var names: Array[String] = []
 	for a in m.affixes:
 		names.append((a as AffixData).name)
-	var avail: Array[AffixData] = []
+	for a in _offer_order(m, n):
+		if out.size() >= OFFER_SIZE:
+			break
+		if not names.has(a.name):
+			out.append(a)
+	return out
+
+## This Lab's ranking of its affixes for this part, drawn the way loot rolls
+## them (`LootGen._roll_affixes`): an even pick, with a scarce affix (Bus-Fed,
+## weight 0.35) refused that often and dropped rather than tried again.
+static func _offer_order(m: ModuleData, n: MapGen.MapNode) -> Array[AffixData]:
+	var pool: Array[AffixData] = []
 	for want in DB.LAB_AFFIXES:
-		if names.has(String(want)):
-			continue
 		var a := _affix(want)
 		if a != null:
-			avail.append(a)
-	var r := Rng.derive(&"augment", hash([n.index, String(m.id), names]))
-	while out.size() < OFFER_SIZE and not avail.is_empty():
-		var pick: AffixData = avail[r.randi() % avail.size()]
-		avail.erase(pick)
+			pool.append(a)
+	var r := Rng.derive(&"augment", hash([n.index, String(m.id), m.scrap_value]))
+	var order: Array[AffixData] = []
+	while not pool.is_empty():
+		var pick: AffixData = pool[r.randi() % pool.size()]
+		pool.erase(pick)
 		if pick.weight < 1.0 and r.randf() > pick.weight:
 			continue
-		out.append(pick)
-	return out
+		order.append(pick)
+	return order
 
 ## The affix the catalogue holds under this name, or null.
 static func _affix(name: StringName) -> AffixData:
@@ -190,14 +207,27 @@ static func strip_cost(n: MapGen.MapNode) -> Dictionary:
 static func can_strip(m: ModuleData, a: AffixData, n: MapGen.MapNode) -> bool:
 	if Run.science_off or not lab_here(n) or not _yours(m) or a == null:
 		return false
-	if _index_of(m, a) < 0:
+	var i := _index_of(m, a)
+	if i < 0:
 		return false
-	if Run.installed.has(m) and a.reactor > 0:
-		var level := Run.reactor_level() - a.reactor
-		if Run.power_draw() > maxi(0, level) * Run.CELLS_PER_LEVEL:
-			return false
+	if Run.installed.has(m) and a.raw_for(&"reactor") > 0.0 and not _powered_without(m, i):
+		return false
 	var cost := strip_cost(n)
 	return Run.data >= int(cost.data) and Run.credits >= int(cost.credits)
+
+## Whether the fitted parts still have the cells they draw with affix `i` off
+## fitted part `m`. Asked of `Run.power_cap()` and `Run.power_draw()` with the
+## affix really off for the question and put back before anything can see it,
+## so no copy of the cap's arithmetic lives here: whatever else raises the cap
+## (SPARE CELLS, say) counts the way the ship counts it.
+static func _powered_without(m: ModuleData, i: int) -> bool:
+	var keep := m.affixes
+	var list: Array[AffixData] = keep.duplicate()
+	list.remove_at(i)
+	m.affixes = list
+	var ok := Run.power_draw() <= Run.power_cap()
+	m.affixes = keep
+	return ok
 
 ## Where affix `a` sits on the part, by name (a loaded part's affixes are the
 ## catalogue's own objects, but a caller may hold a copy), or -1.

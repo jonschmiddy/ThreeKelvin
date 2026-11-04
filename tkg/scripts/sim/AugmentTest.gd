@@ -5,7 +5,8 @@ extends Node
 ##
 ## AUGMENT (pick 3A): the offer is three of the Lab's eight, never Cryo-Lined,
 ## Deregulated or one the part has, the same three each time you look, and
-## drawn from no stream a run plays on. One affix goes on; the part's price,
+## drawn from no stream a run plays on; STRIP cannot buy a fresh three, and no
+## place but a station has a Lab. One affix goes on; the part's price,
 ## its quote at the counter and its cards do not move. Once per part, ever: a
 ## second augment is refused, and so is one after STRIP. A Reinforced fitted on
 ## a full ship takes it 7 up on both sides (40/40 to 47/47); in the hold it
@@ -44,6 +45,8 @@ func _run() -> void:
 	_augment_hold()
 	_strip_contraband()
 	_strip_reactor()
+	_strip_keeps_offer()
+	_lab_only_at_stations()
 	_board()
 	_bench()
 	_science_off()
@@ -289,9 +292,15 @@ func _strip_reactor() -> void:
 	var hull_reactor := Run.hull.reactor
 	var level := Run.reactor_level()
 	Run.hull.reactor -= level - int(ceil(float(Run.power_draw()) / Run.CELLS_PER_LEVEL))
-	var needs := Run.power_draw() > (Run.reactor_level() - 1) * Run.CELLS_PER_LEVEL
+	# The cap without it, as the ship reads it (`Run.power_cap()` with the affix
+	# really off), never a copy of the cap's arithmetic: SPARE CELLS (S3) raises
+	# that cap, and a copy here would go on agreeing with a refusal that is wrong.
+	m.affixes = [] as Array[AffixData]
+	var cap_without := Run.power_cap()
+	m.affixes = [_affix("Bus-Fed")] as Array[AffixData]
+	var needs := Run.power_draw() > cap_without
 	_ok("STRIP Bus-Fed off a fitted part the reactor needs (draw %d, cap %d, %d without it) is refused"
-			% [Run.power_draw(), Run.power_cap(), (Run.reactor_level() - 1) * Run.CELLS_PER_LEVEL],
+			% [Run.power_draw(), Run.power_cap(), cap_without],
 		needs and not Science.can_strip(m, _affix("Bus-Fed"), lab)
 		and Science.strip(m, _affix("Bus-Fed"), lab) == "" and Run.data == 50)
 	Run.hull.reactor = hull_reactor
@@ -299,6 +308,57 @@ func _strip_reactor() -> void:
 		Science.strip(m, _affix("Bus-Fed"), lab) != "" and m.affixes.is_empty())
 	m.affixes = keep
 	Sig.ship_changed.emit()
+
+## STRIP BUYS NO FRESH OFFER (open call 11, fixed per part per station). The
+## offer is not keyed to the affixes the part has, so taking a rolled affix off
+## can only let that one affix back in; every other Lab's three stay put.
+func _strip_keeps_offer() -> void:
+	var m := (DB.modules[&"kh20"] as ModuleData).duplicate(true) as ModuleData
+	m.affixes = [_affix("Gyro-Trimmed"), _affix("Wide-Banded"), _affix("Stripped")] as Array[AffixData]
+	if not _ok("a part with three rolled affixes in the hold", Run.stow(m)):
+		return
+	var labs := _stations()
+	var before: Array = []
+	for n in labs:
+		before.append(_names(Science.augment_offer(m, n)))
+	_purse(2, 1000)
+	var line := Science.strip(m, _affix("Wide-Banded"), labs[0])
+	var moved: Array[String] = []
+	var short := 0
+	for k in labs.size():
+		var now := _names(Science.augment_offer(m, labs[k]))
+		if now.size() != 3:
+			short += 1
+		for nm in now:
+			if not (before[k] as Array).has(nm) and nm != "Wide-Banded":
+				moved.append("%s at Lab %d" % [nm, labs[k].index])
+	_ok("STRIP Wide-Banded rerolls no Lab's offer: only Wide-Banded may come back in, at %d Labs (%s)"
+			% [labs.size(), "none new" if moved.is_empty() else ", ".join(moved.slice(0, 4))],
+		line != "" and moved.is_empty() and short == 0)
+	Run.take_from_hold(m)
+
+## THE LAB IS ABOARD A STATION. The start, a pulsar or an empty system has none,
+## so a caller holding one of those nodes (a pilot, a hint) can buy nothing.
+func _lab_only_at_stations() -> void:
+	var m := (DB.modules[&"kh20"] as ModuleData).duplicate(true) as ModuleData
+	m.affixes = [_affix("Reinforced")] as Array[AffixData]
+	if not _ok("a part in the hold for the Lab", Run.stow(m)):
+		return
+	_purse(100, 1000)
+	var away: Array[String] = []
+	var tried := 0
+	for n: MapGen.MapNode in Run.map:
+		if n.type == MapGen.NodeType.STATION:
+			continue
+		tried += 1
+		var offer := Science.augment_offer(m, n)
+		if Science.lab_here(n) or Science.can_augment(m, n) or Science.can_strip(m, m.affixes[0], n) 				or (not offer.is_empty() and Science.augment(m, offer[0], n) != "") 				or Science.strip(m, m.affixes[0], n) != "":
+			away.append("%s %d" % [MapGen.NodeType.keys()[n.type], n.index])
+	_ok("no Lab at %d places that are not stations (%s), nothing spent" % [tried,
+			"none served" if away.is_empty() else ", ".join(away.slice(0, 4))],
+		tried > 0 and away.is_empty() and Run.data == 100 and Run.credits == 1000 and not m.augmented)
+	_ok("  the same part at a station can be augmented", Science.can_augment(m, _stations()[0]))
+	Run.take_from_hold(m)
 
 func _board() -> void:
 	Run.board_owned = PackedInt32Array([0, 0, 0])
