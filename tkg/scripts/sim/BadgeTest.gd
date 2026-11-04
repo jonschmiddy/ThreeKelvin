@@ -38,6 +38,17 @@ extends Node
 ##      under it is what the pointer is over, a press there reaches the chart,
 ##      the chart's and the map's hover keep off it (one tooltip at a time),
 ##      and nothing clickable moves for it.
+##   8. ONE CUSTODIAN FOR THE GALAXY (Jon, Nov 4: "The custodian strength and
+##      icon should be the same for everyone in the galaxy, even if they join
+##      late."): it shows the lead ship's jumps (`CustodianBadge.count`). Every
+##      single-step arrival is the page's; a rise of several plays the biggest
+##      edge crossed, from the count last shown (14 to 17 the wake, ending on
+##      S1; 18 to 26 the worse one from S2; 30 to 40 the full one); a partner's
+##      jump plays once with no jump of yours and never again on a screen
+##      change; the door's quiet push at 0, 16, 20 and 33 plays nothing; your
+##      own jump behind the lead plays nothing; the hover box is the look on
+##      show and follows the count; the party's tooltip words. Solo, none of
+##      this moves a frame: the goldens above are the same bytes.
 
 const GoalTestScript := preload("res://scripts/sim/GoalTest.gd")
 const GOLDEN := "res://scripts/sim/badge_golden.json"
@@ -86,6 +97,9 @@ func _run() -> void:
 	await _repaints()
 	await _screens()
 	await _arrivals()
+	_coop_kinds()
+	_coop_words()
+	await _coop()
 	_screen_summary()
 	await _hover_and_mouse()
 	await _no_growth()
@@ -111,7 +125,8 @@ func _screen_bad(b: CustodianBadge) -> String:
 		return ""
 	var j := int(b.shown.get("j", -1))
 	var key := String(b.shown.get("key", ""))
-	var want := CustodianBadge.frame(j, float(b.shown.get("t", 0.0)), float(b.shown.get("since", -1.0))).get_data()
+	var want := CustodianBadge.frame(j, float(b.shown.get("t", 0.0)), float(b.shown.get("since", -1.0)), 0, 7,
+		int(b.shown.get("from", j - 1))).get_data()
 	var img := b.image()
 	if img == null or img.get_data() != want:
 		return "%s: its Image is not frame() at the clock it shows" % key
@@ -147,20 +162,21 @@ func _screen_summary() -> void:
 		_pix_n > 1000 and _pix_bad.is_empty())
 
 
-## THE NEW LOOK NEVER SHOWS BEFORE ITS ARRIVAL: while the arrival at this jump
-## has yet to start, the badge on screen is the jump before at rest (the
-## transition's step 0). "" when so.
+## THE NEW LOOK NEVER SHOWS BEFORE ITS ARRIVAL: while the arrival at this count
+## has yet to start, the badge on screen is the count last shown at rest (the
+## transition's step 0; alone, the jump before). "" when so.
 func _early_bad(b: CustodianBadge) -> String:
-	if b == null or not b.is_visible_in_tree() or Run.custodian_seen >= Run.jumps \
-			or CustodianBadge.change_kind(Run.jumps) == &"none":
+	var g := CustodianBadge.count()
+	if b == null or not b.is_visible_in_tree() or Run.custodian_seen >= g \
+			or CustodianBadge.change_kind(g, Run.custodian_seen) == &"none":
 		return ""
 	# (the jump committed after the line's refresh this frame: what is up is the
 	# jump before's own frame, which `_screen_bad` holds it to)
-	if int(b.shown.get("j", -1)) < Run.jumps:
+	if int(b.shown.get("j", -1)) < g:
 		return ""
 	var img := b.image()
 	if int(b.shown.get("step", -2)) != 0 or img == null \
-			or img.get_data() != CustodianBadge.frame(Run.jumps - 1, 0.0, -1.0).get_data():
+			or img.get_data() != CustodianBadge.frame(Run.custodian_seen, 0.0, -1.0).get_data():
 		return "jump %d (seen %d) shows %s at line alpha %.2f" % [Run.jumps, Run.custodian_seen, b.shown.get("key", ""), _goal().modulate.a]
 	return ""
 
@@ -996,6 +1012,217 @@ func _not_pressable(g: Control) -> void:
 ## A CORE BOSS THAT DOES NOT GROW has no badge, and the line and everything
 ## clickable round it stand where they did; with it back, nothing clickable
 ## has moved for the badge.
+# ------------------------------------------------------------------ 8. one Custodian for the galaxy
+
+## THE ARRIVAL FROM THE COUNT LAST SHOWN: every single step is the page's
+## table, and a rise of several plays the biggest edge crossed, its frames the
+## page's own for that edge between the two counts at rest.
+func _coop_kinds() -> void:
+	var bad: Array[String] = []
+	for j in 41:
+		var want: StringName = _expect(j)[3]
+		if CustodianBadge.change_kind(j, j - 1) != want or CustodianBadge.change_kind(j) != want \
+				or not is_equal_approx(CustodianBadge.trans_len(j, j - 1), CustodianBadge.trans_len(j)):
+			bad.append(str(j))
+	_ok("every single-step arrival, 0 to 40, is the page's table (%s)" % ("all" if bad.is_empty() else ", ".join(bad)), bad.is_empty())
+	var table := [[14, 17, &"wake"], [15, 16, &"wake"], [3, 7, &"tick"], [0, 15, &"tick"], [12, 22, &"worse"],
+		[16, 19, &"none"], [18, 26, &"worse"], [21, 24, &"none"], [30, 40, &"full"], [10, 40, &"full"],
+		[33, 40, &"none"], [20, 20, &"none"], [22, 21, &"none"]]
+	var tb: Array[String] = []
+	for row: Array in table:
+		var got := CustodianBadge.change_kind(int(row[1]), int(row[0]))
+		if got != row[2]:
+			tb.append("%d to %d: %s, not %s" % [row[0], row[1], got, row[2]])
+	_ok("a rise of several plays the biggest edge crossed: 14 to 17 wakes, 18 to 26 worse, 30 to 40 full, 16 to 19 nothing (%s)"
+		% ("all %d" % table.size() if tb.is_empty() else "; ".join(tb)), tb.is_empty())
+	# THE FRAMES: step 0 is the count it runs from at rest, the steps between
+	# are that edge's own (as a single step draws them), the last the new count
+	# at rest
+	var fb: Array[String] = []
+	for row: Array in [[14, 17, 16], [18, 26, 25], [30, 40, 33], [3, 7, 7], [12, 22, 20]]:
+		var from: int = row[0]
+		var to: int = row[1]
+		var single: int = row[2]
+		var n: int = CustodianBadge.TRANS_STEPS[CustodianBadge.change_kind(to, from)]
+		for st in n:
+			var at := (float(st) + 0.5) / CustodianBadge.TRANS_RATE
+			var got := CustodianBadge.frame(to, 0.0, at, 0, 7, from).get_data()
+			var want: PackedByteArray
+			if st == 0:
+				want = CustodianBadge.frame(from, 0.0, -1.0).get_data()
+			elif st == n - 1:
+				want = CustodianBadge.frame(to, 0.0, -1.0).get_data()
+			else:
+				want = CustodianBadge.frame(single, 0.0, at).get_data()
+			if got != want:
+				fb.append("%d to %d step %d" % [from, to, st])
+	_ok("its frames: the count it runs from at rest, the edge's own steps, the new count at rest (%s)" % ("all" if fb.is_empty() else ", ".join(fb.slice(0, 6))), fb.is_empty())
+	var b := PackedByteArray()
+	b.resize(CustodianBadge.IMG_W * CustodianBadge.IMG_H * 4)
+	var box0 := CustodianBadge.paint(b, 0, 7, 16, 0.0, 0.05)
+	_ok("the wake's first step inks S0's box, the jump before's (%d px, want %d)" % [box0.size.x, CustodianBadge.S0_W], box0.size.x == CustodianBadge.S0_W)
+
+
+## THE PARTY'S WORDS (Jon, Nov 4), and the solo ones untouched.
+func _coop_words() -> void:
+	var e := DB.core_boss()
+	var head := e.name.to_upper()
+	var want := {
+		0: [head, "It guards the core.", "It starts to grow stronger", "when the lead ship makes jump 16.", "The lead ship has made 0 jumps."],
+		1: [head, "It guards the core.", "It starts to grow stronger", "when the lead ship makes jump 16.", "The lead ship has made 1 jump."],
+		15: [head, "It guards the core.", "It starts to grow stronger", "when the lead ship makes jump 16.", "The lead ship has made 15 jumps."],
+		16: [head, "It guards the core.", "It grows stronger each time", "the lead ship jumps.", "It woke after jump 15.", "It can grow to twice its strength."],
+		20: [head, "It guards the core.", "It grows stronger each time", "the lead ship jumps.", "It is already stronger.", "It can grow to twice its strength."],
+		25: [head, "It guards the core.", "It grows stronger each time", "the lead ship jumps.", "It is much stronger now.", "It can grow to twice its strength."],
+		33: [head, "It guards the core.", "It is at full strength.", "It will not grow any more."],
+	}
+	var bad: Array[String] = []
+	for j: int in want:
+		var got := Array(CustodianBadge.tooltip(j, true))
+		if got != want[j]:
+			bad.append("%d: %s" % [j, got])
+	_ok("the party's tooltip at 0, 1, 15, 16, 20, 25 and 33 (%s)" % ("as Jon put them" if bad.is_empty() else "; ".join(bad)), bad.is_empty())
+	var widest := 0
+	var hull := false
+	for j in 41:
+		for l: String in CustodianBadge.tooltip(j, true):
+			widest = maxi(widest, l.length())
+			hull = hull or l.to_lower().contains("hull") or l.contains(str(e.hull_at(j)))
+	_ok("no hull figure in them, and no line wider than the solo tooltip's widest, 34 (%d)" % widest, not hull and widest <= 34)
+	var same := true
+	for j in 41:
+		same = same and CustodianBadge.tooltip(j) == CustodianBadge.tooltip(j, false)
+	Run.jumps = 5
+	Run.party_jumps = 0
+	var solo := CustodianBadge.party()
+	Run.party_jumps = 9
+	var behind := CustodianBadge.party()
+	Run.party_jumps = 0
+	Run.jumps = 0
+	_ok("alone the words are the solo ones, and the party's show offline only behind a lead ship's count (%s, %s)" % [solo, behind],
+		same and not solo and behind)
+
+
+## On screen, through the real goal line: the count rising under you.
+func _coop() -> void:
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	Router.show_local()
+	await _frames(40)
+	var b := _badge()
+	# A PARTNER'S JUMP: the lead ship's count rises with no jump of yours, and
+	# the tick plays once on LOCAL
+	Run.jumps = 10
+	Run.custodian_seen = 10
+	await _frames(5)
+	Run.party_jumps = 11
+	var rs := _runs(await _watch(120))
+	_ok("a partner's jump past yours plays its arrival once, with no jump of yours (steps:frames %s; seen %d, shown %d)" % [
+		", ".join(rs.map(func(r: Array) -> String: return "%d:%d" % r)), Run.custodian_seen, int(b.shown.get("j", -1))],
+		_steps_ok(rs, 4) and Run.custodian_seen == 11 and int(b.shown.get("j", -1)) == 11 and Run.jumps == 10)
+	var replay := false
+	for step_to: Callable in [Router.show_starchart, Router.show_system, Router.show_local]:
+		step_to.call()
+		if (await _watch(40)).any(func(s: int) -> bool: return s >= 0):
+			replay = true
+	_ok("and never again on a screen change", not replay and Run.custodian_seen == 11)
+	# 14 TO 17: the wake, ending on S1; the hover box is the look on show
+	for row: Array in [[14, 17, &"wake"], [18, 26, &"worse"], [30, 40, &"full"]]:
+		Run.party_jumps = 0
+		Run.jumps = int(row[0])
+		Run.custodian_seen = int(row[0])
+		await _frames(5)
+		Run.party_jumps = int(row[1])
+		var seq: Array = []
+		var w0: Array = []
+		var wi: Array = []
+		var froms: Array = []
+		for i in 150:
+			await _frames(1)
+			_check_screen(b)
+			var st := int(b.shown.get("step", -2))
+			seq.append(st)
+			if st == 0:
+				w0.append(b.box_rect().size.x)
+			if st >= 0:
+				froms.append(int(b.shown.get("from", -1)))
+			elif st == -1:
+				wi.append(b.box_rect().size.x)
+		var r2 := _runs(seq)
+		var n: int = CustodianBadge.TRANS_STEPS[row[2]]
+		var ends := CustodianBadge.stage(int(b.shown.get("j", -1)))
+		var from_ok := froms.all(func(f: int) -> bool: return f == int(row[0]))
+		_ok("%d to %d plays the %s from %d at rest and ends at %s (steps:frames %s)" % [row[0], row[1], row[2], row[0], ends,
+			", ".join(r2.map(func(r: Array) -> String: return "%d:%d" % r))],
+			_steps_ok(r2, n) and from_ok and Run.custodian_seen == int(row[1]) and int(b.shown.get("j", -1)) == int(row[1]))
+		if int(row[0]) == 14:
+			_ok("the wake ends at S1 (%s), its hover box S0's 37 px on its first step and 24 at rest (%s, %s)" % [ends,
+				str(w0.slice(0, 1)), str(wi.slice(0, 1))], ends == &"S1"
+				and w0.all(func(w: float) -> bool: return int(w) == CustodianBadge.S0_W)
+				and not wi.is_empty() and wi.all(func(w: float) -> bool: return int(w) == CustodianBadge.BOX_W))
+			# the box follows the count, not your jumps (14: S0's 37 px)
+			var t := b.get_global_transform_with_canvas()
+			var inside := t * Vector2(10, 7)
+			var past := t * Vector2(30, 7)
+			_ok("the box and covers() follow the count, 17, not your 14 (%d px; covers 10 px in %s, 30 px in %s)" % [
+				int(b.box_rect().size.x), CustodianBadge.covers(inside), CustodianBadge.covers(past)],
+				int(b.box_rect().size.x) == CustodianBadge.BOX_W and CustodianBadge.covers(inside) and not CustodianBadge.covers(past))
+	# THE DOOR (a late joiner, a rejoiner): the host's quiet push on a fresh
+	# run plays nothing; the eye is as it is on the first frame
+	var door := NetSession.new()
+	door.state = NetSession.State.DIVING
+	var loud: Array[String] = []
+	for g: int in [0, 16, 20, 33]:
+		Run.jumps = 0
+		Run.party_jumps = 0
+		Run.custodian_seen = 0
+		await _frames(4)
+		door.galaxy_jumps = 0
+		door._push_growth_to(g, true)
+		var seq4: Array = await _watch(60)
+		if seq4.any(func(s: int) -> bool: return s >= 0) or int(b.shown.get("j", -1)) != g or Run.custodian_seen != g:
+			loud.append("%d: shown %d, seen %d" % [g, int(b.shown.get("j", -1)), Run.custodian_seen])
+	door.free()
+	_ok("the door's quiet push at 0, 16, 20 and 33 shows the eye as it is and plays nothing (%s)" % ("so" if loud.is_empty() else "; ".join(loud)), loud.is_empty())
+	# YOUR OWN JUMP BEHIND THE LEAD plays nothing: the count does not move
+	Run.party_jumps = 30
+	Run.jumps = 20
+	Run.custodian_seen = 30
+	await _frames(5)
+	Run.jumps = 21
+	var seq5: Array = await _watch(60)
+	_ok("your own jump behind the lead ship plays nothing (shows %d)" % int(b.shown.get("j", -1)),
+		not seq5.any(func(s: int) -> bool: return s >= 0) and int(b.shown.get("j", -1)) == 30)
+	# THE TOOLTIP ON SCREEN says the party's words behind a lead ship
+	_move_to(Vector2(8, 300))
+	await _frames(3)
+	_move_to(b.box_rect().get_center().floor())
+	await _frames(20)
+	var lines: Array[String] = []
+	if b.tip != null and b.tip.is_visible_in_tree():
+		for l in b._tip_box.get_children():
+			if l is Label:
+				lines.append((l as Label).text)
+	_ok("its tooltip behind a lead ship at 30 says the party's words (%s)" % " / ".join(lines), lines == Array(CustodianBadge.tooltip(30, true)))
+	_move_to(Vector2(8, 300))
+	await _frames(3)
+	Run.party_jumps = 0
+	Run.jumps = 0
+	Run.custodian_seen = 0
+	await _frames(5)
+
+
+## An arrival's runs: steps 0 to n-1 at about 6 frames each (10 a second at 60),
+## then idle.
+func _steps_ok(rs: Array, n: int) -> bool:
+	if rs.size() != n + 1 or (rs.back() as Array)[0] != -1:
+		return false
+	for s in n:
+		if (rs[s] as Array)[0] != s or absi(int((rs[s] as Array)[1]) - 6) > 1:
+			return false
+	return true
+
+
 func _no_growth() -> void:
 	Router.show_local()
 	await _frames(30)

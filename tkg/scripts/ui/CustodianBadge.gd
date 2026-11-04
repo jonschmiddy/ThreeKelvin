@@ -4,9 +4,12 @@ extends Control
 ## THE CUSTODIAN'S BADGE beside the goal line: badge 9b, "The eye opens, loud"
 ## (eye-1b), approved by Jon on Nov 4 ("Yeah, 9B like this"; the page is
 ## https://claude.ai/artifact/6sMbQ25hJP3pimr93ro9rj). It says, without a
-## number for its hull, that the boss at the core grows stronger the longer the
-## run takes (`EnemyTemplate.hull_at`: 200 through jump 15, +4% a jump, capped
-## at twice from jump 33).
+## number for its hull, that the boss at the core grows stronger the more jumps
+## the lead ship has made (`EnemyTemplate.hull_at`: 200 through jump 15, +4% a
+## jump, capped at twice from jump 33). Alone that is your jumps; in co-op the
+## most any ship in the dive has made (`count`, Jon, Nov 4: "The custodian
+## strength and icon should be the same for everyone in the galaxy, even if
+## they join late.").
 ##
 ##   S0    jumps 0 to 15   a closed eye, breathing, with the jumps left beside it
 ##   WAKE  jump 16         it opens (once, on arriving)
@@ -40,9 +43,13 @@ extends Control
 ## MOTION on the game's clock (`GameClock`, never the wall's: films run the
 ## wall's ticks about 13 times too fast). Idle loops at the stage's own rate
 ## (`IDLE`); a transition once, on the first screen that shows the goal line
-## after a jump (`GoalLine` starts it, `RunState.custodian_seen` remembers it),
-## at 10 steps a second, ending on the stage's idle frame 0. Reduced motion:
-## the transition plays and then holds idle frame 0, as the page did.
+## after the count rises (`GoalLine` starts it, `RunState.custodian_seen`
+## remembers it), at 10 steps a second, ending on the stage's idle frame 0.
+## Reduced motion: the transition plays and then holds idle frame 0, as the
+## page did. THE ARRIVAL RUNS FROM THE COUNT LAST SHOWN (`from`) to the count
+## now: alone that is always the jump before, so every frame is the page's; in
+## co-op a partner's jump can raise it while you sit still, or by several, and
+## the biggest stage edge crossed plays (`change_kind`).
 ##
 ## NOT A CONTROL: it ignores the mouse like the rest of the goal line, so the
 ## chart's and the map's pictures under it still take every press, drag and
@@ -129,9 +136,13 @@ var _buf := PackedByteArray()
 var _img: Image = null
 var _tex: ImageTexture = null
 var _key := ""
-## the arrival on show: the jump it is for, and when it started (GameClock s)
+## the arrival on show: the count it is for, the count it runs from, and when
+## it started (GameClock s)
 var _arrive_j := -1
+var _arrive_from := -1
 var _arrive_t0 := -1.0
+## the box the frame on show inks in (`paint`'s answer), for the hover
+var _drawn := Rect2i()
 ## when the pointer came over it (GameClock s; -1 not over it)
 var _hover_t0 := -1.0
 ## THE POINTER as its viewport last saw it (canvas px), and whether it is in the
@@ -248,6 +259,29 @@ static func enabled() -> bool:
 	return bool(ladder().grows)
 
 
+## THE COUNT IT SHOWS: the jumps the Custodian grows on, your own alone and the
+## lead ship's in co-op (`RunState.custodian_jumps`).
+static func count() -> int:
+	return Run.custodian_jumps()
+
+
+## THE PARTY'S WORDS in the tooltip: in a party, or flying on from one (its host
+## gone, or a co-op save CONTINUEd) while the lead ship's count is above yours.
+static func party() -> bool:
+	return Net.is_networked() or Run.party_jumps > Run.jumps
+
+
+## The count an arrival at `j` runs from: `from`, or the jump before when it is
+## not given (-1), as it always is alone.
+static func _from(j: int, from: int) -> int:
+	return j - 1 if from < 0 else from
+
+
+## Whether going from `from` to `j` crosses `edge`: (from, j] holds it.
+static func _crossed(from: int, j: int, edge: int) -> bool:
+	return from < edge and edge <= j
+
+
 ## "S0", "WAKE", "S1", "S2", "S3" or "FULL" at jump `j`.
 static func stage(j: int) -> StringName:
 	var l := ladder()
@@ -285,42 +319,48 @@ static func countdown(j: int) -> int:
 	return int(l.free) + 1 - j if j <= int(l.free) else 0
 
 
-## What arriving at jump `j` plays: &"wake", &"worse" (20, 25), &"full" (33),
-## &"tick" (the number drops, jumps 1 to 15) or &"none". The page ran from jump
-## 1 and ticked from 2; the game starts at jump 0, so its first jump ticks too.
-static func change_kind(j: int) -> StringName:
+## What arriving at count `j` from `from` (the jump before when -1) plays: the
+## biggest stage edge crossed, &"full" (33), then &"worse" (20, 25), then
+## &"wake" (16), then &"tick" (the number drops, jumps 1 to 15), else &"none".
+## One jump crosses one edge, so alone it is the page's table; the page ran
+## from jump 1 and ticked from 2, and the game starts at jump 0, so its first
+## jump ticks too. In co-op 14 to 17 wakes it and 30 to 40 is the full one.
+static func change_kind(j: int, from: int = -1) -> StringName:
 	var l := ladder()
-	if j == int(l.wake):
-		return &"wake"
-	if j == int(l.s2) or j == int(l.s3):
-		return &"worse"
-	if j == int(l.full):
+	var f := _from(j, from)
+	if f >= j:
+		return &"none"
+	if _crossed(f, j, int(l.full)):
 		return &"full"
-	if j >= 1 and j <= int(l.free):
+	if _crossed(f, j, int(l.s2)) or _crossed(f, j, int(l.s3)):
+		return &"worse"
+	if _crossed(f, j, int(l.wake)):
+		return &"wake"
+	if maxi(f + 1, 1) <= mini(j, int(l.free)):
 		return &"tick"
 	return &"none"
 
 
-## How long the transition at `j` lasts, s.
-static func trans_len(j: int) -> float:
-	return float(TRANS_STEPS[change_kind(j)]) / TRANS_RATE
+## How long the transition at `j` from `from` lasts, s.
+static func trans_len(j: int, from: int = -1) -> float:
+	return float(TRANS_STEPS[change_kind(j, from)]) / TRANS_RATE
 
 
-## The transition's step at `since` s after arriving at `j`, or -1 (not
-## arriving, `since` < 0, or done). core.js arrival().
-static func arrival(since: float, j: int) -> int:
+## The transition's step at `since` s after arriving at `j` from `from`, or -1
+## (not arriving, `since` < 0, or done). core.js arrival().
+static func arrival(since: float, j: int, from: int = -1) -> int:
 	if since < 0.0:
 		return -1
-	var n: int = TRANS_STEPS[change_kind(j)]
+	var n: int = TRANS_STEPS[change_kind(j, from)]
 	var k := floori(since * TRANS_RATE + 1e-9)
 	return k if k < n else -1
 
 
 ## The idle steps at `j`: {k fast, q slow, rate, slow, c idle seconds}, counted
 ## from the transition's end when arriving, from `t` otherwise. core.js idleOf().
-static func idle_of(j: int, t: float, since: float) -> Dictionary:
+static func idle_of(j: int, t: float, since: float, from: int = -1) -> Dictionary:
 	var r: Array = IDLE[stage(j)]
-	var c := maxf(0.0, since - trans_len(j)) if since >= 0.0 else t
+	var c := maxf(0.0, since - trans_len(j, from)) if since >= 0.0 else t
 	return {k = floori(c * float(r[0]) + 1e-9), q = floori(c * float(r[1]) + 1e-9), rate = int(r[0]), slow = int(r[1]), c = c}
 
 
@@ -332,23 +372,24 @@ static func box_w(j: int) -> int:
 
 # ------------------------------------------------------------------ the draw
 
-## THE BADGE AT JUMP `j`, `t` game seconds, `since` seconds after arriving (-1
-## not arriving), into `b` (IMG_W x IMG_H RGBA8, cleared by the caller) with its
-## left edge at `x` and its middle row at `cy`. Returns the box it inks in.
-## core.js + fin_eye.js eye-1b's draw(), line for line.
-static func paint(b: PackedByteArray, x: int, cy: int, j: int, t: float, since: float) -> Rect2i:
-	var st := arrival(since, j)
+## THE BADGE AT COUNT `j`, `t` game seconds, `since` seconds after arriving
+## from `from` (-1 not arriving; `from` -1 the jump before), into `b` (IMG_W x
+## IMG_H RGBA8, cleared by the caller) with its left edge at `x` and its middle
+## row at `cy`. Returns the box it inks in. core.js + fin_eye.js eye-1b's
+## draw(), line for line.
+static func paint(b: PackedByteArray, x: int, cy: int, j: int, t: float, since: float, from: int = -1) -> Rect2i:
+	var st := arrival(since, j, from)
 	if st >= 0:
-		return _arrive(b, x, cy, j, st)
-	var i := idle_of(j, t, since)
+		return _arrive(b, x, cy, j, st, from)
+	var i := idle_of(j, t, since, from)
 	return _idle(b, x, cy, j, int(i.k), int(i.q))
 
 
 ## One frame as an Image, for the tests and the frame dumper.
-static func frame(j: int, t: float, since: float, x: int = 0, cy: int = 7) -> Image:
+static func frame(j: int, t: float, since: float, x: int = 0, cy: int = 7, from: int = -1) -> Image:
 	var b := PackedByteArray()
 	b.resize(IMG_W * IMG_H * 4)
-	paint(b, x, cy, j, t, since)
+	paint(b, x, cy, j, t, since, from)
 	return Image.create_from_data(IMG_W, IMG_H, false, Image.FORMAT_RGBA8, b)
 
 
@@ -579,15 +620,16 @@ static func _e(b: PackedByteArray, x: int, cy: int, hw: int, hh: int, o: Diction
 	return _box(x, cy)
 
 
-## THE TRANSITIONS, 10 steps a second (fin_eye.js arrive()). Step 0 is the jump
-## before at rest; the last is the new stage at rest (its idle frame 0).
-static func _arrive(b: PackedByteArray, x: int, cy: int, j: int, st: int) -> Rect2i:
-	var kind := change_kind(j)
+## THE TRANSITIONS, 10 steps a second (fin_eye.js arrive()). Step 0 is the
+## count it runs from at rest (`from`, the jump before alone); the last is the
+## new stage at rest (its idle frame 0).
+static func _arrive(b: PackedByteArray, x: int, cy: int, j: int, st: int, from: int = -1) -> Rect2i:
+	var kind := change_kind(j, from)
 	var n: int = TRANS_STEPS[kind]
 	var l := ladder()
 	var last_free := j == int(l.free)
 	if st == 0:
-		return _rest(b, x, cy, j - 1)
+		return _rest(b, x, cy, _from(j, from))
 	if st == n - 1:
 		return _rest(b, x, cy, j)
 	if kind == &"tick":
@@ -621,7 +663,7 @@ static func _arrive(b: PackedByteArray, x: int, cy: int, j: int, st: int) -> Rec
 		if st <= 8:
 			return _e(b, x, cy, f.hw, f.hh, {rim = C_HOT, ir = f.ir, iris = C_FLARE, pr = 0, pupil = C_WHITE})
 		return _e(b, x, cy, f.hw, f.hh, {rim = f.rim, ir = f.ir, iris = C_HOT, pr = 0, pupil = C_WHITE})
-	if kind == &"worse" and j == int(l.s2):
+	if kind == &"worse" and not _crossed(_from(j, from), j, int(l.s3)):
 		# a blink, then it opens wider than before, hot; settles to the new
 		# size, the pupil white; rest
 		var a0 := look(1)
@@ -673,12 +715,24 @@ static func _arrive(b: PackedByteArray, x: int, cy: int, j: int, st: int) -> Rec
 
 # ------------------------------------------------------------------ the tooltip's words
 
-## THE TOOLTIP'S LINES at jump `j` (core.js tooltip()), line for line: the
+## THE TOOLTIP'S LINES at count `j` (core.js tooltip()), line for line: the
 ## boss's name from data, then what it does and when it grows. No hull figure.
-static func tooltip(j: int) -> PackedStringArray:
+## `in_party`: the co-op words (Jon, Nov 4), where it grows on the lead ship's
+## jumps rather than yours (`party()`); the solo lines are the page's, unchanged.
+static func tooltip(j: int, in_party: bool = false) -> PackedStringArray:
 	var l := ladder()
 	var e := boss()
 	var out := PackedStringArray([e.name.to_upper() if e != null else "", "It guards the core."])
+	if in_party and j < int(l.full):
+		if j <= int(l.free):
+			out.append_array(PackedStringArray(["It starts to grow stronger",
+				"when the lead ship makes jump %d." % int(l.wake),
+				"The lead ship has made %d %s." % [j, "jump" if j == 1 else "jumps"]]))
+		else:
+			var pl := ["", "It woke after jump %d." % int(l.free), "It is already stronger.", "It is much stronger now."]
+			out.append_array(PackedStringArray(["It grows stronger each time", "the lead ship jumps.", pl[tier(j)],
+				"It can grow to %s its strength." % _times(e.grow_cap)]))
+		return out
 	if j < int(l.free):
 		out.append_array(PackedStringArray(["It starts to grow stronger", "in %d jumps." % countdown(j)]))
 	elif j == int(l.free):
@@ -703,10 +757,12 @@ static func _times(cap: float) -> String:
 
 # ------------------------------------------------------------------ on screen
 
-## The arrival at jump `j` starts now (`GoalLine`, on the first frame the line
-## is up after the jump).
-func arrive(j: int) -> void:
+## The arrival at count `j` from `from` (the count last shown; -1 the jump
+## before) starts now (`GoalLine`, on the first frame the line is up after the
+## count rose).
+func arrive(j: int, from: int = -1) -> void:
 	_arrive_j = j
+	_arrive_from = _from(j, from)
 	_arrive_t0 = GameClock.now()
 
 
@@ -718,38 +774,49 @@ func clock(j: int) -> Dictionary:
 	var since := now - _arrive_t0 if _arrive_j == j and _arrive_t0 >= 0.0 else -1.0
 	# REDUCED MOTION, as the page did: the transition plays, then it holds
 	# idle frame 0
-	if DisplaySettings.reduced_motion and (since < 0.0 or since >= trans_len(j)):
+	if DisplaySettings.reduced_motion and (since < 0.0 or since >= trans_len(j, _arrive_from if _arrive_j == j else -1)):
 		return {t = 0.0, since = -1.0}
 	return {t = now, since = since}
 
 
 ## ONE FRAME ON SCREEN (`GoalLine.refresh`, every frame): `on` while the goal
-## line is up; `pending` while the arrival at this jump has yet to start (the
-## line still fading in), when it holds the transition's first step, the jump
-## before, so the new look never shows before it arrives. Repaints only when
-## the frame changes.
-func refresh(on: bool, pending: bool = false) -> void:
+## line is up; `pending` while the arrival at this count has yet to start (the
+## line still fading in), when it holds the transition's first step, the count
+## last shown (`seen`; -1 the jump before), so the new look never shows before
+## it arrives. Repaints only when the frame changes.
+func refresh(on: bool, pending: bool = false, seen: int = -1) -> void:
 	var up := on and enabled() and Run.hull != null
 	visible = up
 	if not up:
 		_hide_tip()
 		return
-	var j := Run.jumps
+	var j := count()
+	var from := -1
+	if pending:
+		from = seen
+	elif _arrive_j == j:
+		from = _arrive_from
+	if not fixed.is_empty() and fixed.has("from"):
+		from = int(fixed.from)
 	var c := clock(j)
 	var since: float = c.since
 	var t: float = c.t
-	if pending and change_kind(j) != &"none" and fixed.is_empty():
+	if pending and change_kind(j, from) != &"none" and fixed.is_empty():
 		since = 0.0
 		t = 0.0
-	var st := arrival(since, j)
-	var i := idle_of(j, t, since)
-	var key := "%d|a%d" % [j, st] if st >= 0 else "%d|i%d|%d" % [j, int(i.k), int(i.q)]
-	shown = {j = j, t = t, since = since, step = st, k = int(i.k), q = int(i.q), key = key}
+	var st := arrival(since, j, from)
+	var i := idle_of(j, t, since, from)
+	var f := _from(j, from)
+	# keyed by where it runs from only when that is not the jump before, so a
+	# solo frame's key is what it always was
+	var key := ("%d|a%d" % [j, st] if f == j - 1 else "%d<%d|a%d" % [j, f, st]) if st >= 0 \
+		else "%d|i%d|%d" % [j, int(i.k), int(i.q)]
+	shown = {j = j, from = f, t = t, since = since, step = st, k = int(i.k), q = int(i.q), key = key}
 	if key != _key:
 		_key = key
 		paints += 1
 		_buf.fill(0)
-		paint(_buf, 0, 7, j, t, since)
+		_drawn = paint(_buf, 0, 7, j, t, since, from)
 		if _img == null:
 			_img = Image.create_from_data(IMG_W, IMG_H, false, Image.FORMAT_RGBA8, _buf)
 			_tex = ImageTexture.create_from_image(_img)
@@ -765,9 +832,17 @@ func image() -> Image:
 	return _img
 
 
-## Its box on screen (global): S0's while it sleeps, 24 x 15 after.
+## Its box on screen (global): S0's while it sleeps, 24 x 15 after; AS DRAWN,
+## so while it holds the count before (an arrival pending, or its first step)
+## the box is the look on show, not the one coming (S0's 37 px at the wake's
+## first step, where it once was the wake's 24).
 func box_rect() -> Rect2:
-	return Rect2(global_position, Vector2(box_w(Run.jumps), BOX_H))
+	return Rect2(global_position, Vector2(drawn_w(), BOX_H))
+
+
+## The width of the box the frame on show inks in, or the count's while none is.
+func drawn_w() -> int:
+	return _drawn.size.x if _drawn.size.x > 0 else box_w(count())
 
 
 ## THE BADGE IS UP OVER `p` (viewport px): the chart's and the map's pictures
@@ -782,7 +857,7 @@ static func covers(p: Vector2) -> bool:
 	if b == null or not b.is_visible_in_tree():
 		return false
 	var local := b.get_global_transform_with_canvas().affine_inverse() * p
-	return Rect2(Vector2.ZERO, Vector2(box_w(Run.jumps), BOX_H)).has_point(local)
+	return Rect2(Vector2.ZERO, Vector2(b.drawn_w(), BOX_H)).has_point(local)
 
 
 func _draw() -> void:
@@ -819,7 +894,7 @@ func _hide_tip() -> void:
 func _show_tip(j: int) -> void:
 	if tip == null:
 		_build_tip()
-	var lines := tooltip(j)
+	var lines := tooltip(j, party())
 	if lines != _tip_lines:
 		_tip_lines = lines
 		for ch in _tip_box.get_children():

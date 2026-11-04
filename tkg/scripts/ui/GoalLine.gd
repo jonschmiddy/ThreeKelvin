@@ -61,8 +61,9 @@ extends Control
 ## with it, and its room is the line's (`size`, `stack_rect`), so what keeps off
 ## the goal keeps off the badge. It is 15 px tall to the goal's 13, so the
 ## step's line stands 2 px lower than it did (`_line_h`). Its arrival plays
-## here, once a jump: on the first frame the line is fully up after the jump
-## (`RunState.custodian_seen`), and until then it holds the jump before.
+## here, once a rise in its count: on the first frame the line is fully up
+## after it (`RunState.custodian_seen`), and until then it holds the count last
+## shown.
 
 const GOAL := "GOAL: REACH THE CORE"
 ## Every step's line as shown (`step`), for the room the step keeps (`stack_rect`).
@@ -233,16 +234,21 @@ func refresh() -> void:
 			_step_panel.size = ssz
 			_step_panel.position = step_at(cur) - position + Vector2(0.0, _appear())
 	_fade(want)
-	# THE BADGE'S ARRIVAL, once a jump, when the line is fully up after it (not
-	# half way through its fade, which would eat half a 0.4 s tick). Until then
-	# it holds the jump before, the line fading out too: a departure skipped on
-	# its first frame commits the jump while the old line is still going
-	var pending := CustodianBadge.enabled() and Run.custodian_seen < Run.jumps
+	# THE BADGE'S ARRIVAL, once a rise in the count, when the line is fully up
+	# after it (not half way through its fade, which would eat half a 0.4 s
+	# tick). Until then it holds the count last shown, the line fading out too:
+	# a departure skipped on its first frame commits the jump while the old line
+	# is still going. The count is the lead ship's in co-op
+	# (`CustodianBadge.count`), so it can rise by more than one, or while you
+	# sit still: it plays from the count last shown to the count now.
+	var seen := Run.custodian_seen
+	var g := CustodianBadge.count()
+	var pending := CustodianBadge.enabled() and seen < g
 	if pending and want and visible and modulate.a >= 0.99:
-		_badge.arrive(Run.jumps)
-		Run.custodian_seen = Run.jumps
+		_badge.arrive(g, seen)
+		Run.custodian_seen = g
 		pending = false
-	_badge.refresh(visible and (want or modulate.a > 0.0), pending)
+	_badge.refresh(visible and (want or modulate.a > 0.0), pending, seen)
 	queue_redraw()
 
 
