@@ -898,7 +898,7 @@ func _build_left() -> void:
 	# THE RUN'S ROUTINES (science) and the malfunctions, the two one-line facts
 	# with their detail on hover, in one row that wraps: side by side where the
 	# panel is wide enough (the heavy's, the fullest, which has no line to spare:
-	# stacked, its gaps fell from 11 to 5), one over the other where it is not
+	# stacked, its gaps fell from 12 to 5), one over the other where it is not
 	_tail = HFlowContainer.new()
 	_tail.add_theme_constant_override("h_separation", 10)
 	_tail.add_theme_constant_override("v_separation", 1)

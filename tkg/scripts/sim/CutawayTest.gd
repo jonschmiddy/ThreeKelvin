@@ -557,50 +557,65 @@ func _check_layouts() -> void:
 ## THE RUN'S ROUTINES ON THE LEFT PANEL (science, plan S8): one line, "ROUTINES
 ## · N OF 9", under the hull's perks, the names on hover (`RoutineBox`). On
 ## Korvan's light, medium and heavy in `_check_layouts`' used state (a part and a
-## crate in the hold, two malfunctions in the deck), with 0, 1 and all 9 bought:
+## crate in the hold, two malfunctions in the deck), with 0, 1 and all 9 bought,
+## and the heavy once more with all 9 and twelve malfunctions:
 ##  - with none there is no row (nothing drawn, no hover);
 ##  - with 1 and with 9 the row is inside the panel and on screen, below the
-##    perks and above the malfunctions, crossing none of the panel's other pieces,
-##    the panel's contents still fit, and the gaps keep at least GAP_MIN + 2 (the
-##    heavy with malfunctions and nine routines is the fullest panel there is);
+##    perks and beside or above the malfunctions, crossing none of the panel's
+##    other pieces, the panel's contents still fit, and the gaps keep at least
+##    GAP_MIN + 2 (the heavy with twelve malfunctions and nine routines is the
+##    fullest panel there is: both lines two digits wide, side by side);
 ##  - its hover names every routine bought and no perk, and the cutaway's own
 ##    card shows nothing over it (one hover).
 ## Then a hull swap (`Run.transfer_to_hull`, Korvan's medium for Solari's
 ## heavy): the same routines listed, the perks changed.
 func _check_routines() -> void:
+	# (each case: the hull's weight, routines bought, malfunctions; the last is
+	# the heavy's widest pair, both lines two digits wide, 24 px of its row to
+	# spare when the two went side by side)
+	var cases := []
 	for pair in [["light", HullData.Weight.LIGHT], ["medium", HullData.Weight.MEDIUM], ["heavy", HullData.Weight.HEAVY]]:
 		for bought in [0, 1, 9]:
-			var wname := "%s, %d routine%s" % [pair[0], bought, "" if bought == 1 else "s"]
-			seed_run(4242)
-			Run.start_new_run(&"korvan", int(pair[1]))
-			var node := Run.node_at()
-			node.jetsam.clear()
-			node.taken.clear()
-			Run.cargo.clear()
-			Run.place_in_hold(_module_of(ModuleData.Slot.SYSTEM))
-			Run.place_in_hold(MaterialData.of(MaterialTable.all()[0]))
-			var junk: Array[StringName] = [DB.MALFUNCTIONS[0][0], DB.MALFUNCTIONS[0][0]]
-			Run.dross = junk
-			Run.board_owned = PackedInt32Array([3, 3, 3] if bought == 9 else ([1, 0, 0] if bought == 1 else [0, 0, 0]))
-			if not _ok("%s: the board is dealt and %d bought on it" % [wname, bought],
-					Run.board.size() == 9 and Run.owned_routines().size() == bought):
-				continue
-			var host := Control.new()
-			host.size = Vector2(960, 459)
-			_tree.root.add_child(host)
-			var cut := CutawayView.open_over(host, null)
-			for i in 4:
-				await _tree.process_frame
-			var row := cut._routines
-			if bought == 0:
-				_ok("%s: no ROUTINES row (shown %s, %d pieces, hover \"%s\")" % [wname, row.is_visible_in_tree(), row.get_child_count(), row.tooltip_text.left(20)],
-					not row.is_visible_in_tree() and row.get_child_count() == 0 and row.tooltip_text == ""
-					and row._make_custom_tooltip("") == null)
-			else:
-				await _routine_row_on(cut, wname, bought)
-			cut.queue_free()
-			host.queue_free()
-			await _settle()
+			cases.append([pair, bought, 2])
+	cases.append([["heavy", HullData.Weight.HEAVY], 9, 12])
+	for cs in cases:
+		var pair: Array = cs[0]
+		var bought: int = cs[1]
+		var ndross: int = cs[2]
+		var wname := "%s, %d routine%s%s" % [pair[0], bought, "" if bought == 1 else "s",
+			"" if ndross == 2 else ", %d malfunctions" % ndross]
+		seed_run(4242)
+		Run.start_new_run(&"korvan", int(pair[1]))
+		var node := Run.node_at()
+		node.jetsam.clear()
+		node.taken.clear()
+		Run.cargo.clear()
+		Run.place_in_hold(_module_of(ModuleData.Slot.SYSTEM))
+		Run.place_in_hold(MaterialData.of(MaterialTable.all()[0]))
+		var junk: Array[StringName] = []
+		for i in ndross:
+			junk.append(DB.MALFUNCTIONS[0][0])
+		Run.dross = junk
+		Run.board_owned = PackedInt32Array([3, 3, 3] if bought == 9 else ([1, 0, 0] if bought == 1 else [0, 0, 0]))
+		if not _ok("%s: the board is dealt and %d bought on it" % [wname, bought],
+				Run.board.size() == 9 and Run.owned_routines().size() == bought):
+			continue
+		var host := Control.new()
+		host.size = Vector2(960, 459)
+		_tree.root.add_child(host)
+		var cut := CutawayView.open_over(host, null)
+		for i in 4:
+			await _tree.process_frame
+		var row := cut._routines
+		if bought == 0:
+			_ok("%s: no ROUTINES row (shown %s, %d pieces, hover \"%s\")" % [wname, row.is_visible_in_tree(), row.get_child_count(), row.tooltip_text.left(20)],
+				not row.is_visible_in_tree() and row.get_child_count() == 0 and row.tooltip_text == ""
+				and row._make_custom_tooltip("") == null)
+		else:
+			await _routine_row_on(cut, wname, bought)
+		cut.queue_free()
+		host.queue_free()
+		await _settle()
 	await _routines_after_swap()
 
 
