@@ -840,6 +840,17 @@ func _data_box(hud: HudBar, tag: String, fuel: Rect2) -> void:
 		v != null and v.text == str(Run.data))
 	_ok("%s: DATA in stat_nodes, for a reading's result to fly to" % tag,
 		hud._data != null and hud.stat_nodes("data") == [hud._data])
+	# The hovers: DATA says what DATA is, word and figure alike; CREDITS says
+	# both, since that is where a player asks what the new number beside it is.
+	var data_tip := Widgets.tip(CreditChit.WHAT_DATA_IS)
+	var both_tip := Widgets.tip("%s\n%s" % [CreditChit.WHAT_MONEY_IS, CreditChit.WHAT_DATA_IS])
+	var tips_ok := hud._data != null and hud._data.tooltip_text == data_tip \
+		and hud._scrap.tooltip_text == both_tip
+	for p in parts:
+		tips_ok = tips_ok and (p as Control).tooltip_text == data_tip
+	for p in hud._scrap.get_children():
+		tips_ok = tips_ok and (p as Control).tooltip_text == both_tip
+	_ok("%s: DATA's hover says what DATA is, CREDITS' says money then DATA" % tag, tips_ok)
 
 
 ## THE WORST CASE THE BAR CAN BE ASKED TO HOLD: in a party (the PARTY tab
@@ -876,6 +887,23 @@ func _worst(hud: HudBar) -> void:
 		_ok("%s: the row fits its %d px clip (wants %d)" % [tag, int(clip.size.x), need],
 			need <= int(clip.size.x))
 		_data_box(hud, tag, hud.fuel_rect())
+		# THE "00" HOLD. The money group is pinned right, so a DATA figure that
+		# grew would shove CREDITS and FUEL left: 0, 14 and 99 must leave them
+		# where they are. Past 99 the third figure comes out of the slack; the
+		# test prints what 199 and 999 want so the next thing added sees it.
+		var at := {}
+		for d in [0, 14, 99, 199, 999]:
+			Run.data = d
+			hud.refresh()
+			await _frames(2)
+			if d <= 99:
+				at[d] = [hud.fuel_rect().position.x, hud._scrap.get_global_rect().position.x]
+			else:
+				print("  %s, %d DATA: hud row wants %d of %d"
+					% [tag, d, int(hud._row.get_combined_minimum_size().x), int(clip.size.x)])
+		_ok("%s: DATA at 0, 14 and 99 leaves CREDITS and FUEL where they were (%s)" % [tag, at],
+			at[0] == at[14] and at[0] == at[99])
+		Run.data = 99
 	Net.state = was_state
 	Run.credits = was[0]
 	Run.data = was[1]
