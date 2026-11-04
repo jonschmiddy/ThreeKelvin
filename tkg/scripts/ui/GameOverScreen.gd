@@ -167,12 +167,21 @@ func _stats() -> Label:
 		lines.append("You reach the core with %d hull left." % Run.hp)
 	else:
 		lines.append(Run.death_reason)
-	lines.append("%d jumps · %d kills · danger %d when it ended" % [
-		Run.jumps, Run.kills, Run.node_at().danger])
+	# THE ROUTINES BOUGHT (science) on the jumps line, with the other things the
+	# run did; left off with none, as a material you never held is
+	var did: PackedStringArray = ["%d jumps" % Run.jumps, "%d kills" % Run.kills]
+	var routines := Run.owned_routines().size()
+	if routines > 0:
+		did.append("%d routine%s" % [routines, "" if routines == 1 else "s"])
+	did.append("danger %d when it ended" % Run.node_at().danger)
+	lines.append(" · ".join(did))
 	# The whole ledger, not just the row that used to be a field — exotics you
 	# never got to a bench is as much a thing you were carrying when it ended as
-	# scrap you never spent.
+	# scrap you never spent. DATA after the credits (science), and only when
+	# there is some left, as the materials are.
 	var held: PackedStringArray = ["%d credits unspent" % Run.credits]
+	if Run.data > 0:
+		held.append("%d DATA unspent" % Run.data)
 	for stock in Run.material_stock():
 		held.append("%d %s" % [int(stock.count), str(stock.name).to_lower()])
 	lines.append(" · ".join(held))
