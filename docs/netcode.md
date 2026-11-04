@@ -516,7 +516,8 @@ reads to them as a random disconnect.
 
 **What is allowed and not tuned:** `SharedFight.CREW_SHARE` is linear with no
 ceiling and has been flown at two. An eight-ship custodian is 200 + 7×120 hull
-against eight hands of cards. The cap permits that fight; nobody has played it.
+early, up to 400 + 7×240 (2,080) from jump 33, since it grows with the opener's
+jumps. That is against eight hands of cards. The cap permits that fight; nobody has played it.
 
 And one cost worth naming before it is discovered on a bill: `_push_roster_to`
 sends the **whole** roster to **everyone** on any change, and every slot carries

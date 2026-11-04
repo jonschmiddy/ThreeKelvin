@@ -526,9 +526,26 @@ infrequent they are", "combats need to feel epic". Cody dove star to star.*
    Step 3 was dropped, so this is the last check the plan calls for. The built
    ship beats the Custodian in 61.4% of arrivals (51 of 83; 59% and 65% by
    seed), against 54.8% under ×2. Fewer ships arrive (34% to 21%), and the
-   ones that do are the strongest. The human pilot wins 5.75% of its runs. The
-   Custodian keeps 200, so a deep Hulk (291) or Sentinel (325) now carries more
-   hull than it does.
+   ones that do are the strongest. The human pilot wins 5.75% of its runs. It
+   started at 200, so a deep Hulk (291) or Sentinel (325) carried more hull.
+   **Ruled Nov 3, "Custodian: G3", capped "B":** the Custodian grows with your
+   jumps. It has 200 hull through jump 15, then 200 x 1.04 a jump, and at most
+   400 from jump 33 ("It can grow to twice its strength"). Hull only; its
+   attacks do not change. So from jump 20 it carries 243, and from jump 33 it
+   carries more than any deep Hulk or Sentinel. Flown with the station rulings
+   below in tk-scratch/station-study/STUDY.md: against no growth it costs
+   fresh Korvan 10 wins in 1,200 runs and the built ship 23 in 1,200. The cap
+   is for the player who circles, and moves the sim's wins by 0 to 2 runs.
+   The badge that shows the growth is designed apart from this.
+6. **Stations, ruled Nov 3.** Every station has all five decks at every level
+   ("every station always has all 5 floors"), each in its own art. A station
+   with no manufacturer posts work for a house desk. And stations are rarer and
+   spaced ("Stations: S3"): never two in one system, none within 0.18 of
+   another (a light hull's jump), and half as many, about 36 a galaxy instead
+   of 73. Jon picked S3 knowing it strands the built ship on a dry tank in 19
+   of 400 sim runs (4.75%), against 5 with the gap alone. The human pilots,
+   which buy fuel for the way, strand in 1 of 400. Built on
+   feat/stations-custodian.
 
 **Gate:** fights measurably longer and costlier per the step 1 study, the
 Custodian re-tuned, and Jon's pick on each step that needs one.
@@ -730,8 +747,11 @@ changing how anything they touch plays.
 | Riding the galaxy (ruling 16) | A design page later, after the alpha data and the combat study | Oct 27; Phase 15 |
 | LOCAL while docked | Greyed out with "Docked. Press UNDOCK to leave."; UNDOCK is the only way out | Oct 27; Phase 10 |
 | Enemy toughness (ruling 14, ×2 replaced by ×4, Nov 3) | "combat:B": hull ×2 for every ordinary enemy, ships and creatures, only together with the Custodian re-tuned against it ("the harder game"). The Hellbender keeps 90: the study found it never killed at any scale | Oct 29; feat/enemy-hull-x2 |
-| The Custodian against hull ×2 (ruling 17) | "Custodian: A": keep 200. Korvan only, under ×2: a built ship beats it in 55% of arrivals (Oct 22: 56%), and the human-like pilot wins 8.25% of its runs (Oct 22: 8%) | Oct 30; feat/enemy-hull-x2, Phase 11 step 5 |
-| Enemy hull ×4 (replaces ruling 14's ×2), no second combat resource | "Enemies should have more health and the fights should last longer. That's all." Then "Enemy hull: D". Every ordinary enemy has four times its first hull, twice ×2. Damage is the same. The Hellbender keeps 90 and the Custodian 200. Human pilot, fresh Korvan: 10.8 turns a fight (6.4), 27.8% of fights lost (23.1%), 23 run wins of 400 (33). A built ship beats the Custodian in 61.4% of arrivals (54.8%). The Custodian's size and packs stay as they are | Nov 3; Phase 11 steps 2, 3 (dropped) and 5, feat/enemy-hull-x4 |
+| The Custodian against hull ×2 (ruling 17, amended by G3, Nov 3) | "Custodian: A": keep 200. Korvan only, under ×2: a built ship beats it in 55% of arrivals (Oct 22: 56%), and the human-like pilot wins 8.25% of its runs (Oct 22: 8%) | Oct 30; feat/enemy-hull-x2, Phase 11 step 5 |
+| Enemy hull ×4 (replaces ruling 14's ×2), no second combat resource (the Custodian's 200 amended by G3, Nov 3) | "Enemies should have more health and the fights should last longer. That's all." Then "Enemy hull: D". Every ordinary enemy has four times its first hull, twice ×2. Damage is the same. The Hellbender keeps 90 and the Custodian starts at 200. Human pilot, fresh Korvan: 10.8 turns a fight (6.4), 27.8% of fights lost (23.1%), 23 run wins of 400 (33). A built ship beats the Custodian in 61.4% of arrivals (54.8%). The Custodian's size and packs stay as they are | Nov 3; Phase 11 steps 2, 3 (dropped) and 5, feat/enemy-hull-x4 |
+| The Custodian grows with your jumps (rule G3, cap B) | "Custodian: G3", then the cap "B": 200 hull through jump 15, then 200 x 1.04 a jump, at most 400 from jump 33. "It can grow to twice its strength." Hull only; its attacks do not change. Applied as its fight starts (`EnemyTemplate.hull_at`), never to the template | Nov 3; Phase 11 step 5, feat/stations-custodian |
+| Every station has all five decks | "every station always has all 5 floors": PROMENADE, SHIPYARD, EXCHANGE, HIRING BOARD and LABORATORY at every level, each in its own art. A station with no manufacturer posts work for a house desk, which takes the work back | Nov 3; Phase 11 step 6, feat/stations-custodian |
+| Stations are rarer and spaced (S3) | "I think having two stations next to each other should never happen." Then "Stations: S3": never two in one system, none within 0.18 of another (a light hull's jump), and half as many, about 36 a galaxy instead of 73. Picked knowing a built ship that does not plan fuel strands on a dry tank in 4.75% of sim runs | Nov 3; Phase 11 step 6, feat/stations-custodian |
 | Phase 10 looks | "lift:A west:A burn:B hull:B gray:B fuel:B": the map ship brightened and rolled heading west, as built; the planned burns, burn marker and brake puffs blue; "6 · 40 HULL"; a darker too-deep gray, #303236 ("Gray: B2", Oct 30, the darkest of three); the fuel row TWO RINGS IN AT MOST | Oct 29; feat/phase10-picks |
 | SCRAP on a claimed frame (ruling 19) | "Phase 10: A", from the Derelict Scrap page: SCRAP alone, where LEAVE IT was, as built. Next to SCRAP's pay, LEAVE IT would pay nothing | Oct 29; landed with Phase 10 (0bed7dc9) |
 | Orbits | "flight:N clock:map assist:pays" | Oct 29; Phase 13 step 1 |
@@ -742,7 +762,7 @@ changing how anything they touch plays.
 | Orbiting pair (ruling 23) | "after4:D speed:A stacked:A": a binary's suns orbit each other at 4x Kepler, worlds around one sun at 4x with them; worlds around both, giants and map time unchanged; a close pair passes near sun over far. Needs a kept map clock | Nov 1; Phase 13 step 5, built on feat/orbiting-pair; look passed Nov 2 ("Orbit look: OK"); Pair calls (Nov 2, "1B 2Y 3OK 4A"): the preview line ends at the true meeting place with no marker; the hook check in every system, one sun too; LOCAL's near-over-far kept; the ship holds through zoom moves |
 | The first LAUNCH's freeze stays | "C, leave it as it is. If it becomes a huge deal, we can address it then." On his Mac the planet's shader compiles in about 16 s the first time a session draws it, and the sun's and the nebula sky's in about 2 s each, so the first LAUNCH of a session stands still for 16 to 23 s. Compiling them behind the title froze the title for 13 s instead | Oct 28; `ShaderWarm` warms the four cheap shaders only |
 | A jump goes one ring deeper at most (replaced by ruling 15, Oct 27) | "A1D ... I want this to be a hard game" (Oct 22) | b28fdad6, 0.4.0 |
-| The Custodian has 200 hull | "custodian health at 200" (Oct 22) | b28fdad6, 0.4.0 |
+| The Custodian has 200 hull (amended by G3, Nov 3: 200 is where it starts) | "custodian health at 200" (Oct 22) | b28fdad6, 0.4.0 |
 | The Custodian loses Plated Up; Annihilate deals 40 | "Option 1" (Oct 22) | 7790b9f5, 0.4.0 |
 | No commons from danger 5 in | a hard game where going deep is worth it (Oct 22) | 27d7f6eb, 0.4.0 |
 | The ARCHIVE is removed | a cool idea, but not for a procedural game (Oct 22) | 551ef568, 0.4.0 |

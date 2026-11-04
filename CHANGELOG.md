@@ -59,8 +59,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   way back. Against the Custodian this could end a run as a death and a win at once.
 - **Changed** — every ordinary enemy has four times the hull it had, ships and creatures alike.
   Fights last more than twice as long, and fewer ships make it to the core. Jeremy found fights
-  over too fast to matter. Enemies hit as hard as before. The Hellbender keeps 90 hull and the
-  Custodian keeps 200.
+  over too fast to matter. Enemies hit as hard as before. The Hellbender keeps 90 hull, and the
+  Custodian starts at 200.
 - **Added** — GRAPHICS can pick LOW by itself on a slow graphics chip. The first time the title
   screen is up, the game times how long its galaxy takes to draw. If this computer can't keep
   up, GRAPHICS goes to LOW from the next screen on. Settings then says PICKED FOR THIS COMPUTER
