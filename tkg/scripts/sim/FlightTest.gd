@@ -2124,8 +2124,10 @@ func _orbit_phase() -> void:
 
 ## A FLIGHT THE FALLBACK FOUND (its choice's cap past T_CAP) GIVING WAY, rebuilt
 ## from its choice, to a fresh one in one leg arriving sooner: kept only while
-## none does (ruling 21's reviews, `FlightSolve._solve`; SolveTest's
-## `_fell_sooner`, the same rule), so not the same flight, and right.
+## none does (ruling 21's reviews, `FlightSolve._solve`), so not the same
+## flight, and right. This is the one-leg half of SolveTest's `_fell_sooner`;
+## that one also lets a two-leg flight give way, as `FlightSolve._sooner_of`
+## does, and this one does not yet.
 static func _gave_way(r: FlightSolve.Result, r2: FlightSolve.Result) -> bool:
 	return r.legs == 1 and float(r.choice.get("cap", 0.0)) > FlightSolve.T_CAP + 1e-6 and r2.found and r2.clean and r2.legs == 1 and r2.kind == &"solved" and float(r2.end.t) < float(r.end.t) - 1e-6
 
