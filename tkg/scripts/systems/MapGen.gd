@@ -956,7 +956,7 @@ static func place_blurb(n: MapNode) -> String:
 			# square on a place nobody holds has a reason under it.
 			var house := Contracts.house(n)
 			if house != &"":
-				who = "No manufacturer holds this space. %s posts work from a desk on the dock." \
+				who = "No manufacturer holds this space. Salvage is thin and random. %s posts work from a desk on the dock." \
 					% DB.short_name(DB.manufacturer_name(house))
 			else:
 				who = "No manufacturer holds this space. Salvage is thin and random."

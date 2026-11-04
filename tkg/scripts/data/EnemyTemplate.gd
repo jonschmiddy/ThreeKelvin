@@ -40,5 +40,8 @@ extends Resource
 func hull_at(jumps: int) -> int:
 	if grow_after < 0 or jumps <= grow_after:
 		return max_hull
-	return mini(roundi(max_hull * grow_cap),
-		roundi(max_hull * pow(grow_rate, float(jumps - grow_after))))
+	# Capped as a float, then rounded: rounding first turned a long run's
+	# uncapped figure (past int64 near jump 994, or inf) into the most negative
+	# int, which `mini` kept and `Combat._spawn` floored to a 1-hull boss.
+	return roundi(minf(max_hull * grow_cap,
+		max_hull * pow(grow_rate, float(jumps - grow_after))))

@@ -103,11 +103,20 @@ static func house(n: MapGen.MapNode) -> StringName:
 		return &""
 	if n.manufacturer != &"" or not n.berths.is_empty():
 		return &""
-	var keys: Array = DB.manufacturers.keys()
-	keys.sort()
+	return house_from(n.index, DB.manufacturers)
+
+
+## The desk for station `index` out of `table`'s ids. Split from `house` so
+## StationDeckTest can hand it a table whose StringNames were made out of text
+## order. By their TEXT (`NetSession.sorted_ids`), never `keys().sort()`: an
+## Array of StringNames sorts by address, so the same seed's desk moved with how
+## the process started, and a saved job lost its desk (or two co-op copies
+## disagreed). The house is derived, never saved, so this order is the save.
+static func house_from(index: int, table: Dictionary) -> StringName:
+	var keys := NetSession.sorted_ids(table)
 	if keys.is_empty():
 		return &""
-	return StringName(keys[Rng.derive(&"house", n.index).randi() % keys.size()])
+	return StringName(keys[Rng.derive(&"house", index).randi() % keys.size()])
 
 
 static func _roll(n: MapGen.MapNode, manufacturer: StringName,

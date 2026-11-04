@@ -93,6 +93,48 @@ func _house_rule() -> void:
 		other_with_house == 0 and Contracts.house(Run.map[Run.at]) == &"")
 	_ok("a station's house is the same every time it is asked", steady)
 	_ok("a null node has none", Contracts.house(null) == &"")
+	# PINNED to the text order of the ids: `keys().sort()` on StringNames sorts
+	# by address, and one process cannot see that, since its order holds for
+	# the whole run. A literal desk fails as soon as the pick is not by text.
+	var pins: Array = []
+	for raw in Run.map:
+		var np: MapGen.MapNode = raw
+		if Contracts.house(np) != &"":
+			pins.append("%d:%s" % [np.index, Contracts.house(np)])
+	var pin := " ".join(pins)
+	_ok("seed 9300's house desks are the text-ordered picks (%s)" % pin,
+		pin == "11:calyx 37:redline 62:cygnet")
+	# And every one of them, against the ids written out in text order here.
+	var abc := PackedStringArray(["calyx", "cygnet", "korvan", "probate", "redline", "solari", "verity"])
+	var by_text := true
+	for raw in Run.map:
+		var nt: MapGen.MapNode = raw
+		var ht := Contracts.house(nt)
+		if ht != &"" and String(ht) != abc[Rng.derive(&"house", nt.index).randi() % abc.size()]:
+			by_text = false
+	_ok("each desk is drawn from the ids in text order (%s)" % ", ".join(abc),
+		by_text and NetSession.sorted_ids(DB.manufacturers) == abc)
+	# One process keeps one address order, so the real table cannot show the
+	# fault. A table of fresh StringNames made in reverse text order can: their
+	# addresses fall in no text order, and a different one each process (3, 4,
+	# 2, 5, 1, 6, 7 one run and 1, 5, 2, 4, 3, 7, 6 the next on Nov 3), and a
+	# `keys().sort()` pick follows the addresses. Checked failing on that sort.
+	var made: Array = []
+	for i in range(7, 0, -1):
+		made.append(StringName("tk_house_probe_%d" % i))
+	var probe := {}
+	for sn in made:
+		probe[sn] = true
+	var keyed: Array = probe.keys()
+	keyed.sort()
+	var text_order := NetSession.sorted_ids(probe)
+	var follows_text := true
+	for i in 64:
+		var want := StringName(text_order[Rng.derive(&"house", i).randi() % text_order.size()])
+		if Contracts.house_from(i, probe) != want:
+			follows_text = false
+	print("    probe table: keys().sort() gives %s" % str(keyed))
+	_ok("a table made out of text order still picks by text, at 64 indices", follows_text)
 	# And the same desk on the same seed in a new run (derived, never stored).
 	var first := {}
 	for raw in Run.map:
@@ -325,6 +367,18 @@ func _chart() -> void:
 			row_ok = box.grow(0.5).encloses(labels[labels.size() - 1].get_global_rect())
 	_ok("chart: OPERATORS reads %s (%s)" % [want, said], said == want)
 	_ok("chart: and its line sits inside the panel", row_ok)
+	# The house blurb is the longest a station gives (the salvage line and the
+	# desk line, and a law line after them). Its extra line spends the spacer
+	# below the rows; JUMP must stay on screen and clear of them.
+	var blurb := ch._dest_blurb.text
+	var rows_bottom := ch._rows.get_global_rect().end.y
+	var jump := ch._jump.get_global_rect()
+	var screen_h: float = ch.get_viewport_rect().size.y
+	print("    chart blurb %d chars: rows end at %.0f, JUMP %.0f to %.0f of %.0f" 		% [blurb.length(), rows_bottom, jump.position.y, jump.end.y, screen_h])
+	_ok("chart: the blurb says salvage is thin and names the desk",
+		blurb.contains("Salvage is thin and random.") and blurb.contains("posts work from a desk"))
+	_ok("chart: JUMP is on screen and below the rows",
+		jump.end.y <= screen_h + 0.5 and jump.position.y >= rows_bottom - 0.5)
 
 
 func _labels(n: Node) -> Array[Label]:

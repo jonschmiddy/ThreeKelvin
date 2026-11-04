@@ -56,8 +56,8 @@ enum State {
 ## `RunState.next_contract_id` on acceptance rather than at generation, because a
 ## contract nobody has taken does not need to be told apart from anything.
 var id: int = 0
-## Who is paying. Never empty — an unbranded station posts no work, because the
-## whole point is that the money has a manufacturer behind it.
+## Who is paying. Never empty. A station with no berth posts for its house desk
+## (`Contracts.house`), so the money still has a manufacturer behind it.
 var manufacturer: StringName = &""
 var kind: Kind = Kind.FETCH
 var state: State = State.OFFERED

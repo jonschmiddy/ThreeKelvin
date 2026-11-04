@@ -208,6 +208,12 @@ func _custodian_growth() -> void:
 		got[j] = cust.hull_at(j)
 	_ok("hull_at gives 200 to jump 15, then 208, 243, 390, 400 at 33, 400 at 60 (%s)" % str(got),
 		got == want)
+	# The cap holds however long the run: rounding before capping once gave
+	# the most negative int past jump 994 (and at inf), so a 1-hull boss.
+	var late := [994, 2000, 5000, 100000]
+	var late_got := late.map(func(j: int) -> int: return cust.hull_at(j))
+	_ok("and 400 at jumps 994, 2000, 5000 and 100000 (%s)" % str(late_got),
+		late_got.all(func(h: int) -> bool: return h == 400))
 	Rng.forced = 31337
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var fielded := {}
