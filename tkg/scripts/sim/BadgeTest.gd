@@ -20,10 +20,13 @@ extends Node
 ##      middle row on the capitals' middle, inside the line's room; the union of
 ##      every frame it inks clear of everything `GoalTest` keeps the line off
 ##      (its own list), of the step's line under it and of A.S.H.'s spots.
+##      On screen, every frame watched, the badge's own Image is `frame()` at
+##      the clock it shows (`_screen_bad`; its texture too where it renders).
 ##   4. THE ARRIVAL, ONCE A JUMP: at 10 steps a second on the game's clock,
 ##      ending in idle; never again moving between screens, after a save is
 ##      loaded, or on the chart a real jump left from; and, animated, never
-##      before the ship has stopped and the line is fully up.
+##      before the ship has stopped and the line is fully up; the jump before
+##      at rest until then, a departure skipped on its first frame too.
 ##   5. IDLE, PER SECOND: each stage's changes a second as the page measured
 ##      them, never above 12, no frame shorter than its rate, FULL the same every
 ##      second; on screen it repaints only when the frame changes.
@@ -33,6 +36,7 @@ extends Node
 ##      everything on the screen.
 ##   7. THE MOUSE: nothing in it takes the mouse or looks pressable, the picture
 ##      under it is what the pointer is over, a press there reaches the chart,
+##      the chart's and the map's hover keep off it (one tooltip at a time),
 ##      and nothing clickable moves for it.
 
 const GoalTestScript := preload("res://scripts/sim/GoalTest.gd")
@@ -42,6 +46,11 @@ var _tree: SceneTree
 var _fails := 0
 ## the union of every pixel the badge inks at a jump (local to its corner), by jump
 var _ink := {}
+## frames on screen that were not the frame the badge said (`_screen_bad`), and
+## whether the renderer gave its texture back to read
+var _pix_bad: Array[String] = []
+var _pix_n := 0
+var _tex_read := false
 
 
 func _ok(what: String, c: bool) -> bool:
@@ -77,6 +86,7 @@ func _run() -> void:
 	await _repaints()
 	await _screens()
 	await _arrivals()
+	_screen_summary()
 	await _hover_and_mouse()
 	await _no_growth()
 	_finish()
@@ -89,6 +99,70 @@ func _goal() -> GoalLine:
 func _badge() -> CustodianBadge:
 	var g := _goal()
 	return g.badge() if g != null else null
+
+
+## WHAT IS ON SCREEN IS THE FRAME IT SAYS IT IS: the badge's own Image, and the
+## texture it draws, are `frame()` at the jump and clock it shows, the texture
+## its size, and the badge at its place on the line. "" when so. (Every pixel
+## check but this one is of the static `paint`; this is the one that reads the
+## screen.)
+func _screen_bad(b: CustodianBadge) -> String:
+	if b == null or not b.is_visible_in_tree():
+		return ""
+	var j := int(b.shown.get("j", -1))
+	var key := String(b.shown.get("key", ""))
+	var want := CustodianBadge.frame(j, float(b.shown.get("t", 0.0)), float(b.shown.get("since", -1.0))).get_data()
+	var img := b.image()
+	if img == null or img.get_data() != want:
+		return "%s: its Image is not frame() at the clock it shows" % key
+	if b._tex == null or Vector2i(b._tex.get_size()) != Vector2i(CustodianBadge.IMG_W, CustodianBadge.IMG_H):
+		return "%s: its texture is %s" % [key, b._tex.get_size() if b._tex != null else "missing"]
+	# (headless, the dummy renderer hands back the image a texture was made
+	# from, never an update, so the texture is read only where it renders)
+	var ti := b._tex.get_image() if DisplayServer.get_name() != "headless" else null
+	if ti != null:
+		_tex_read = true
+		if ti.get_format() != Image.FORMAT_RGBA8:
+			ti.convert(Image.FORMAT_RGBA8)
+		if ti.get_data() != want:
+			return "%s: its texture is not its frame" % key
+	if b.position != GoalLine.badge_at() or b.size != Vector2(CustodianBadge.IMG_W, CustodianBadge.IMG_H):
+		return "%s: at %s size %s, not %s" % [key, b.position, b.size, GoalLine.badge_at()]
+	return ""
+
+
+func _check_screen(b: CustodianBadge) -> void:
+	if b == null or not b.is_visible_in_tree():
+		return
+	_pix_n += 1
+	var s := _screen_bad(b)
+	if s != "":
+		_pix_bad.append(s)
+
+
+func _screen_summary() -> void:
+	_ok("on screen, every frame watched (%d) is the badge's frame at the clock it shows, in its Image%s, at its place on the line (%s)" % [
+		_pix_n, " and the texture it draws" if _tex_read else " (the texture's size; headless gives no texture back to read)",
+		"all" if _pix_bad.is_empty() else "%d not: %s" % [_pix_bad.size(), "; ".join(_pix_bad.slice(0, 5))]],
+		_pix_n > 1000 and _pix_bad.is_empty())
+
+
+## THE NEW LOOK NEVER SHOWS BEFORE ITS ARRIVAL: while the arrival at this jump
+## has yet to start, the badge on screen is the jump before at rest (the
+## transition's step 0). "" when so.
+func _early_bad(b: CustodianBadge) -> String:
+	if b == null or not b.is_visible_in_tree() or Run.custodian_seen >= Run.jumps \
+			or CustodianBadge.change_kind(Run.jumps) == &"none":
+		return ""
+	# (the jump committed after the line's refresh this frame: what is up is the
+	# jump before's own frame, which `_screen_bad` holds it to)
+	if int(b.shown.get("j", -1)) < Run.jumps:
+		return ""
+	var img := b.image()
+	if int(b.shown.get("step", -2)) != 0 or img == null \
+			or img.get_data() != CustodianBadge.frame(Run.jumps - 1, 0.0, -1.0).get_data():
+		return "jump %d (seen %d) shows %s at line alpha %.2f" % [Run.jumps, Run.custodian_seen, b.shown.get("key", ""), _goal().modulate.a]
+	return ""
 
 
 # ------------------------------------------------------------------ 1. the ladder
@@ -323,6 +397,7 @@ func _repaints() -> void:
 		var last := String(b.shown.get("key", ""))
 		for i in 180:
 			await _frames(1)
+			_check_screen(b)
 			var k := String(b.shown.get("key", ""))
 			if k != last:
 				keys += 1
@@ -446,6 +521,10 @@ func _fit_every_jump(which: String) -> void:
 			continue
 		if int(b.shown.get("j", -1)) != j or int(b.shown.get("step", 0)) != -1:
 			bad.append("%d: shows %s" % [j, b.shown])
+		var scr := _screen_bad(b)
+		if scr != "":
+			bad.append("%d: %s" % [j, scr])
+		_pix_n += 1
 		var ink := _ink_at(j)
 		var at := b.global_position
 		var u := Rect2(at + Vector2(ink.position), Vector2(ink.size))
@@ -485,6 +564,7 @@ func _watch(n: int) -> Array:
 	var out: Array = []
 	for i in n:
 		await _frames(1)
+		_check_screen(b)
 		out.append(int(b.shown.get("step", -2)) if b.is_visible_in_tree() else -9)
 	return out
 
@@ -560,8 +640,13 @@ func _real_jump() -> void:
 	var on_chart := false
 	var seen: Array = []
 	var where := ""
+	var early: Array[String] = []
 	for i in 150:
 		await _frames(1)
+		_check_screen(_badge())
+		var e := _early_bad(_badge())
+		if e != "":
+			early.append("frame %d %s" % [i, e])
 		var st := int(_badge().shown.get("step", -2)) if _badge().is_visible_in_tree() else -9
 		if Router.current is StarchartScreen and Run.jumps == 16 and st >= 0:
 			on_chart = true
@@ -571,6 +656,7 @@ func _real_jump() -> void:
 	_ok("a real jump 15 to 16 (jumps %d): the chart it left never plays the wake" % Run.jumps, Run.jumps == 16 and not on_chart)
 	_ok("the next screen up does, on %s (steps %s)" % [where, _runs(seen).map(func(r: Array) -> int: return r[0])],
 		seen.size() > 0 and seen[0] == 0 and seen.max() == 11 and Run.custodian_seen == 16)
+	_ok("and until it does, jump 15's eye at rest is what shows (%s)" % ("every frame" if early.is_empty() else "; ".join(early.slice(0, 3))), early.is_empty())
 
 
 ## ANIMATED (`Router.animate_in_harness`): the arrival waits for the ship to
@@ -591,8 +677,13 @@ func _animated_jump() -> void:
 	var started := ""
 	var early := false
 	var faded := false
+	var shown_early: Array[String] = []
 	for i in 1500:
 		await _frames(1)
+		_check_screen(_badge())
+		var eb := _early_bad(_badge())
+		if eb != "":
+			shown_early.append("frame %d %s" % [i, eb])
 		if Run.custodian_seen == 20 and started == "":
 			var g := _goal()
 			var sc := Router.current as SectorScreen
@@ -603,6 +694,52 @@ func _animated_jump() -> void:
 	Router.animate_in_harness = false
 	_ok("animated, the jump to 20 lands (jumps %d) and its arrival starts once the ship has stopped and the line is up (%s)" % [Run.jumps, started],
 		Run.jumps == 20 and started != "" and not early and faded)
+	_ok("animated, jump 19's eye at rest shows until then, the old line fading out too (%s)" % ("every frame" if shown_early.is_empty() else "; ".join(shown_early.slice(0, 3))), shown_early.is_empty())
+	await _frames(30)
+	await _skipped_jump()
+
+
+## A DEPARTURE SKIPPED ON ITS FIRST FRAME (`SectorScreen._skip`, a click the
+## moment JUMP is pressed): the jump is committed while the old line is still
+## fading out, and that fading line still holds jump 15's eye, never the open
+## one, which waits for its wake on the next screen.
+func _skipped_jump() -> void:
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	Run.jumps = 15
+	Run.custodian_seen = 15
+	Router.show_local()
+	await _frames(40)
+	var to := _neighbour()
+	if to == null:
+		_ok("a star in range to jump to, skipped", false)
+		return
+	Router.animate_in_harness = true
+	Router.begin_jump(to.index)
+	var sc := Router.current as SectorScreen
+	var skipped := false
+	var fading_at_16 := 0
+	var early: Array[String] = []
+	var woke := false
+	for i in 1500:
+		await _frames(1)
+		if not skipped and sc != null and is_instance_valid(sc) and sc._phase == SectorScreen.Phase.DEPART:
+			sc._skip()
+			skipped = true
+		var b := _badge()
+		_check_screen(b)
+		if Run.jumps == 16 and Run.custodian_seen < 16 and b.is_visible_in_tree() and not _goal()._want:
+			fading_at_16 += 1
+		var eb := _early_bad(b)
+		if eb != "":
+			early.append("frame %d %s" % [i, eb])
+		if Run.custodian_seen == 16:
+			woke = true
+			break
+	Router.animate_in_harness = false
+	_ok("a departure skipped on its first frame lands at 16 and wakes it (skipped %s, jumps %d, the line fading out with jump 16 committed on %d frames)" % [
+		skipped, Run.jumps, fading_at_16], skipped and woke and Run.jumps == 16)
+	_ok("and the fading line holds jump 15's eye until the wake (%s)" % ("every frame" if early.is_empty() else "; ".join(early.slice(0, 3))), early.is_empty())
 	await _frames(30)
 
 
@@ -645,6 +782,7 @@ func _hover_and_mouse() -> void:
 				Router.start_combat(DB.enemies[&"cutter"], [], false, false)
 		await _frames(60)
 		var bad: Array[String] = []
+		var late: Array[String] = []
 		var timing: Array[String] = []
 		for j: int in [0, 15, 16, 25, 33, 40]:
 			Run.jumps = j
@@ -658,7 +796,7 @@ func _hover_and_mouse() -> void:
 			await _frames(6)
 			var up := b.tip.is_visible_in_tree()
 			if early or not up:
-				timing.append("%d: up at 0.2 s %s, at 0.3 s %s" % [j, early, up])
+				late.append("%d: up at 0.2 s %s, at 0.3 s %s" % [j, early, up])
 				continue
 			var tr := b.tip_rect()
 			var lines: Array[String] = []
@@ -698,11 +836,14 @@ func _hover_and_mouse() -> void:
 			await _frames(1)
 			if b.tip.is_visible_in_tree():
 				bad.append("%d: still up after leaving" % j)
-		_ok("%s: the tooltip comes up after a quarter second and not before, %s" % [which, ", ".join(timing)], timing.size() == 2)
+		_ok("%s: the tooltip comes up after a quarter second and not before, at every jump 0, 15, 16, 25, 33, 40 (%s)" % [which,
+			", ".join(timing) if late.is_empty() else "; ".join(late)], late.is_empty() and timing.size() == 2)
 		_ok("%s: the page's lines on the tooltip plate, inside the screen and clear of the badge, the goal, its step, A.S.H. and everything GoalTest keeps the line off; gone on leaving (%s)" % [
 			which, "jumps 0, 15, 16, 25, 33, 40" if bad.is_empty() else "; ".join(bad.slice(0, 5))], bad.is_empty())
 		if which == "the chart":
 			await _press_reaches_chart()
+		if which == "the chart" or which == "the map":
+			await _picture_hover_under_badge(which)
 	Router.show_local()
 	await _frames(30)
 
@@ -738,6 +879,97 @@ func _press_reaches_chart() -> void:
 	chart.disconnect(&"node_picked", on_pick)
 	_move_to(Vector2(8, 300))
 	await _frames(2)
+
+
+## ONE TOOLTIP UNDER THE POINTER: a system on the chart (a world on the map)
+## brought right under the badge, the pointer resting there, the badge's
+## tooltip opens and the picture under it hovers nothing, so its own tooltip
+## does not open under the badge's; brought a little right of the badge, the
+## picture hovers it as ever (so the test is driving its hover at all). The
+## picture's motion is handed to it as the GUI hands it a real pointer's:
+## headless, the GUI delivers no hover.
+func _picture_hover_under_badge(which: String) -> void:
+	var b := _badge()
+	Run.jumps = 16
+	Run.custodian_seen = 16
+	_move_to(Vector2(8, 300))
+	await _frames(3)
+	var mid := b.box_rect().get_center().floor()
+	var aside := Vector2(b.box_rect().end.x + 40.0, mid.y)
+	var rows: Array[String] = []
+	var ok := true
+	for spot: Vector2 in [mid, aside]:
+		var under := await _bring_under(which, spot)
+		var hovered := _picture_hover(which, spot)
+		if spot == mid:
+			_move_to(mid)
+			await _frames(18)
+			var tip := b.tip.is_visible_in_tree()
+			rows.append("under the badge: %s there, the picture hovers %s, the badge's tooltip %s" % [under, hovered, "up" if tip else "shut"])
+			ok = ok and under != "" and hovered == "" and tip
+		else:
+			rows.append("beside it: %s there, hovers %s" % [under, hovered])
+			ok = ok and under != "" and hovered != ""
+		_move_to(Vector2(8, 300))
+		await _frames(2)
+	_picture_hover(which, Vector2(8, 300))
+	_ok("%s: one tooltip at a time, the picture's hover is not under the badge (%s)" % [which, "; ".join(rows)], ok)
+	if which == "the chart":
+		Router.show_starchart()
+	else:
+		Router.show_system()
+	await _frames(30)
+
+
+## Brings what the picture shows under `spot` (global): the chart panned so
+## the ship's system sits there; on the map, whose pan stops short of putting a
+## world that high, the first world drawn there this frame (`view.at`, which
+## the map's hover reads, and which the next frame works out again). Returns
+## what the picture would pick there ("" nothing).
+func _bring_under(which: String, spot: Vector2) -> String:
+	if which == "the chart":
+		var chart: Control = (Router.current as StarchartScreen)._chart
+		var p := chart.get_global_transform_with_canvas().affine_inverse() * spot
+		var n := Run.node_at()
+		chart.pan += p - chart._screen_pos(n)
+		chart.queue_redraw()
+		await _frames(2)
+		chart.pan += p - chart._screen_pos(n)
+		var h: int = chart._node_at(p)
+		return "system %d" % h if h >= 0 else ""
+	var sm := Router.current as SystemMapScreen
+	var mp: Vector2 = sm._map_at(sm._frame.get_global_transform_with_canvas().affine_inverse() * spot)
+	var L: SystemLayout = sm.view.layout
+	var i := -1
+	for k in L.bodies.size():
+		if L.bodies[k].kind != &"belt" and L.bodies[k].kind != &"contact":
+			i = k
+			break
+	if i < 0:
+		return ""
+	sm.view.at[i] = mp
+	var hit: Dictionary = sm.overlay.hit(mp)
+	return "%s %d" % [hit.kind, int(hit.body)] if not hit.is_empty() else ""
+
+
+## The picture's hover after the pointer moves to `spot` (global), handed to it
+## as the GUI would: "" nothing.
+func _picture_hover(which: String, spot: Vector2) -> String:
+	var mm := InputEventMouseMotion.new()
+	if which == "the chart":
+		var chart: Control = (Router.current as StarchartScreen)._chart
+		mm.position = chart.get_global_transform_with_canvas().affine_inverse() * spot
+		mm.global_position = spot
+		chart._gui_input(mm)
+		var h: int = chart.hovered
+		var neb: String = chart._neb_hot
+		return "system %d" % h if h >= 0 else ("cloud %s" % neb if neb != "" else "")
+	var sm := Router.current as SystemMapScreen
+	mm.position = sm._frame.get_global_transform_with_canvas().affine_inverse() * spot
+	mm.global_position = spot
+	sm._on_map_input(mm)
+	var hv: Dictionary = sm.overlay.hover
+	return "%s %d" % [hv.kind, int(hv.body)] if not hv.is_empty() else ""
 
 
 ## Not a control: it and everything in it ignore the mouse, nothing is a

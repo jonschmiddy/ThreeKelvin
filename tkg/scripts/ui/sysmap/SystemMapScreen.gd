@@ -1343,7 +1343,10 @@ func _on_map_input(e: InputEvent) -> void:
 				_let_go_of_view()
 				_clamp_pan()
 			_drag_from = mm.position
-		overlay.hover = overlay.hit(_map_at(mm.position))
+		# (nothing under the Custodian's badge on the goal line: its tooltip
+		# opens there, not this one under it too; a press there is still the map's)
+		overlay.hover = {} if CustodianBadge.covers(_frame.get_global_transform_with_canvas() * mm.position) \
+			else overlay.hit(_map_at(mm.position))
 		_light_from_map(overlay.hover)
 		# THE CHART'S SCAN: the cursor moves, and every so far it blips
 		_cursor.set("at", _map_at(mm.position))

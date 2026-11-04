@@ -3295,11 +3295,15 @@ class MapChart extends Control:
 				# still drew a glyph and a tooltip over the galaxy you had just
 				# asked to see on its own. The nebulae still answer, because
 				# they are the galaxy.
-				var h := _node_at(mm.position) if show_icons else -1
+				# Nothing under the Custodian's badge on the goal line: its own
+				# tooltip opens there, and the chart's would open under it. A
+				# press there is still the chart's.
+				var under_badge := CustodianBadge.covers(get_global_transform_with_canvas() * mm.position)
+				var h := _node_at(mm.position) if show_icons and not under_badge else -1
 				# A system wins over the gas it is sitting in: you can act on
 				# one and only look at the other.
 				var cloud: NebulaField.Cloud = null
-				if h < 0:
+				if h < 0 and not under_badge:
 					# The same extent the boundary is drawn at, so pointing
 					# inside the ring always answers and pointing outside it
 					# never does.

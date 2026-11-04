@@ -234,9 +234,11 @@ func refresh() -> void:
 			_step_panel.position = step_at(cur) - position + Vector2(0.0, _appear())
 	_fade(want)
 	# THE BADGE'S ARRIVAL, once a jump, when the line is fully up after it (not
-	# half way through its fade, which would eat half a 0.4 s tick)
-	var pending := want and CustodianBadge.enabled() and Run.custodian_seen < Run.jumps
-	if pending and visible and modulate.a >= 0.99:
+	# half way through its fade, which would eat half a 0.4 s tick). Until then
+	# it holds the jump before, the line fading out too: a departure skipped on
+	# its first frame commits the jump while the old line is still going
+	var pending := CustodianBadge.enabled() and Run.custodian_seen < Run.jumps
+	if pending and want and visible and modulate.a >= 0.99:
 		_badge.arrive(Run.jumps)
 		Run.custodian_seen = Run.jumps
 		pending = false

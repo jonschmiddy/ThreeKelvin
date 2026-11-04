@@ -48,7 +48,8 @@ extends Control
 ## chart's and the map's pictures under it still take every press, drag and
 ## wheel. It reads the pointer itself for its tooltip (`_hover`), the game's
 ## tooltip plate (`TooltipPanel`) with the page's lines, the heading the boss's
-## name from data, and no hull figure.
+## name from data, and no hull figure. Their hover keeps off it (`covers`), so
+## a system or a world under it does not open its own tooltip under the badge's.
 
 ## The Image the badge draws into, px: wide enough for S0's box (37) and the
 ## jump before the wake shown at the wake's first step.
@@ -767,6 +768,21 @@ func image() -> Image:
 ## Its box on screen (global): S0's while it sleeps, 24 x 15 after.
 func box_rect() -> Rect2:
 	return Rect2(global_position, Vector2(box_w(Run.jumps), BOX_H))
+
+
+## THE BADGE IS UP OVER `p` (viewport px): the chart's and the map's pictures
+## under it take its presses but not its hover there, so the one tooltip that
+## opens is the badge's, not theirs under it too (`StarchartScreen`'s and
+## `SystemMapScreen`'s hover ask).
+static func covers(p: Vector2) -> bool:
+	var g: GoalLine = Router.hud.goal if Router.hud != null and is_instance_valid(Router.hud) else null
+	if g == null or not is_instance_valid(g) or g.modulate.a <= 0.0:
+		return false
+	var b := g.badge()
+	if b == null or not b.is_visible_in_tree():
+		return false
+	var local := b.get_global_transform_with_canvas().affine_inverse() * p
+	return Rect2(Vector2.ZERO, Vector2(box_w(Run.jumps), BOX_H)).has_point(local)
 
 
 func _draw() -> void:
