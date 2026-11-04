@@ -306,7 +306,13 @@ static var restoring := false
 ## way 38 reads 37: a 38 save has no `clocks`, and missing means t 0 -- the
 ## picture a 38 build showed on every visit, its suns where they were laid out
 ## -- so every parked spot loads where it was made. OLDEST_READ stays at 29.
-const VERSION := 39
+## 40: THE LEAD SHIP'S JUMPS (`party_jumps`: `Run.party_jumps`, Jon, Nov 4). In
+## co-op the Custodian grows on the most jumps any ship in the dive has made
+## (`RunState.custodian_jumps`), so a pilot behind the lead who quit and pressed
+## CONTINUE would otherwise meet a weaker boss than the badge showed. Read the
+## way 39 reads 38: a 39 save has no `party_jumps`, and missing means 0, so its
+## count is its own jumps, as a 39 build grew it. OLDEST_READ stays at 29.
+const VERSION := 40
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
 const OLDEST_READ := 29
@@ -499,6 +505,8 @@ static func _snapshot() -> Dictionary:
 		clocks = _clocks_to(),
 		trail = Array(Run.trail),
 		jumps = Run.jumps,
+		# The lead ship's, in co-op (VERSION 40); 0 alone.
+		party_jumps = Run.party_jumps,
 		kills = Run.kills,
 
 		hellbender_at = Run.hellbender_at,
@@ -697,9 +705,11 @@ static func load_into_run() -> bool:
 		trail.append(int(i))
 	Run.trail = trail
 	Run.jumps = int(d.get("jumps", 0))
-	# the badge's arrival at this jump was shown before the save, or never will
+	# The lead ship's (VERSION 40); a 39 save has none, so its count is its own.
+	Run.party_jumps = maxi(0, int(d.get("party_jumps", 0)))
+	# the badge's arrival at this count was shown before the save, or never will
 	# be: a loaded run does not replay it (`RunState.custodian_seen`)
-	Run.custodian_seen = Run.jumps
+	Run.custodian_seen = Run.custodian_jumps()
 	Run.kills = int(d.get("kills", 0))
 
 	# Clamped like `at`, because a stale index here is not a wrong marker — it

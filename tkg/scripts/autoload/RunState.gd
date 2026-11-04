@@ -238,12 +238,24 @@ var at: int = 0
 var map_clock: Dictionary = {}
 
 var jumps: int = 0
-## THE LAST JUMP WHOSE ARRIVAL THE CUSTODIAN'S BADGE HAS SHOWN (`GoalLine`,
+## THE LEAD SHIP'S JUMPS, as this pilot last heard them: the most jumps any ship
+## in the co-op dive has made (Jon, Nov 4: "The custodian strength and icon
+## should be the same for everyone in the galaxy, even if they join late."). The
+## host keeps the party's figure (`NetSession.galaxy_jumps`) and pushes it whole;
+## this is the copy that outlives the party, so a guest whose host left flies on
+## at the count it had, and a quit and CONTINUE meets the same boss. Saved
+## (`SaveGame`, VERSION 40); cleared with a new run. 0 in the solo game, where
+## nothing raises it. Read through `custodian_jumps`, never alone.
+var party_jumps: int = 0
+## THE LAST COUNT WHOSE ARRIVAL THE CUSTODIAN'S BADGE HAS SHOWN (`GoalLine`,
 ## `CustodianBadge`), so moving between LOCAL, the map and the chart never plays
-## it twice. NOT SAVED, on purpose: the save is written as the ship arrives
-## (`Router.resolve_current_node`), before the goal line comes up, so a saved
-## figure would always be one behind and every CONTINUE would replay it. A
-## loaded run counts as seen (`SaveGame`); a new one starts at 0.
+## it twice. The count is `custodian_jumps`, which in co-op can rise while you
+## sit still, or by more than one. NOT SAVED, on purpose: the save is written as
+## the ship arrives (`Router.resolve_current_node`), before the goal line comes
+## up, so a saved figure would always be one behind and every CONTINUE would
+## replay it. A loaded run counts as seen (`SaveGame`), and so does the count a
+## late joiner is handed at the door (`NetSession._push_growth_to`); a new run
+## starts at 0.
 var custodian_seen: int = 0
 var kills: int = 0
 ## Wall clock, seconds since the epoch, set when the run begins and carried
@@ -503,6 +515,7 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	fuel = start_fuel()
 	dross = []
 	jumps = 0
+	party_jumps = 0
 	custodian_seen = 0
 	kills = 0
 	hauls = 0
@@ -2990,6 +3003,17 @@ func mend_loadout() -> int:
 
 
 # -------------------------------------------------------------------------- map
+
+## THE COUNT THE CUSTODIAN GROWS ON: the lead ship's jumps (`party_jumps`), or
+## your own when you are the lead or alone. Your own jumps are the floor, so
+## the jumping ship's badge, the save on arrival and a fight it opens are right
+## with no round trip; a partner's jump arrives with the host's push. Solo it is
+## `jumps`, exactly. What reads it: `Combat._spawn`, the badge and its tooltip
+## (`CustodianBadge.count`), `GoalLine` and the load. Everything else that
+## counts jumps (history, the game-over line, A.S.H., hints) keeps `jumps`.
+func custodian_jumps() -> int:
+	return maxi(party_jumps, jumps)
+
 
 func node_at() -> MapGen.MapNode:
 	return map[at]

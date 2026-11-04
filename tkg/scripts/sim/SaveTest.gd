@@ -173,6 +173,9 @@ func fingerprint() -> Dictionary:
 		# is the most sensitive reading of all of them at once.
 		quotes = _quotes(),
 		pos = [Run.at, Array(Run.trail), Run.jumps, Run.kills],
+		# THE LEAD SHIP'S JUMPS (VERSION 40), which a co-op Custodian grows on.
+		# Fixtured above your own, so a save that dropped it shows here.
+		party = [Run.party_jumps, Run.custodian_jumps()],
 		# The roamer. The move counter is a SEED SOURCE — Rng.derive keys each
 		# hop on it — so losing it is not a cosmetic reset, it is a different
 		# walk from the same position.
@@ -333,6 +336,8 @@ func run() -> void:
 	Run.whale_boon = true
 	Run.unlocked_manufacturers = [&"korvan", &"solari", &"probate"] as Array[StringName]
 	Run.kills = 4
+	# a co-op dive's lead ship, ahead of this one
+	Run.party_jumps = Run.jumps + 9
 	for i in 4:
 		Run.place_in_hold(LootGen.roll_module(3 + i, &"", true))
 	# THE FIRST PART, not the first thing in the hold. Materials are stowed
@@ -516,6 +521,8 @@ func run() -> void:
 	Run.whale_boon = false
 	Run.unlocked_manufacturers = [&"calyx"] as Array[StringName]
 	Run.jumps = 0
+	Run.party_jumps = 0
+	Run.custodian_seen = 0
 	Run.kills = 0
 	Run.at = 0
 	Run.trail = PackedInt32Array()
@@ -637,7 +644,6 @@ func run_version_test() -> void:
 	# THE MAP CLOCKS (VERSION 39): this build writes 39, and a 38 save -- this
 	# shape without `clocks` -- loads with every system at t 0, its suns where
 	# they were laid out, which is the picture a 38 build drew on every visit
-	check("this build writes VERSION 39", 39, SaveGame.VERSION)
 	Run.start_new_run(&"korvan", 1)
 	Run.map_clock[Run.at] = 512.5
 	SystemMapScreen._parked[Run.at] = {"at": -9, "p": Vector2(140.5, -60.25), "v": Vector2.ZERO, "head": 0.5, "mode": &"free"}
@@ -649,6 +655,7 @@ func run_version_test() -> void:
 	check("a 39 save carries its map clocks", 1, (save38.get("clocks", []) as Array).size())
 	save38["version"] = 38
 	save38.erase("clocks")
+	save38.erase("party_jumps")
 	var w38 := FileAccess.open(SaveGame.path, FileAccess.WRITE)
 	if w38 != null:
 		w38.store_string(JSON.stringify(save38, "", true, true))
@@ -668,6 +675,50 @@ func run_version_test() -> void:
 	Run.start_new_run(&"korvan", 1)
 	check("a new run keeps no map clock of the last", 0, Run.map_clock.size())
 
+	# THE LEAD SHIP'S JUMPS (VERSION 40, Jon, Nov 4): this build writes 40. The
+	# Custodian grows on `Run.custodian_jumps()`, the lead ship's jumps in co-op,
+	# so they are saved; a 39 save has none and grows on its own jumps, as a 39
+	# build did. The load counts the count as seen, so CONTINUE replays no
+	# arrival; a new run clears it.
+	check("this build writes VERSION 40", 40, SaveGame.VERSION)
+	Run.start_new_run(&"korvan", 1)
+	Run.jumps = 7
+	Run.party_jumps = 21
+	Run.custodian_seen = 3
+	SaveGame.save()
+	var f39 := FileAccess.open(SaveGame.path, FileAccess.READ)
+	var save39: Dictionary = JSON.parse_string(f39.get_as_text()) if f39 != null else {}
+	if f39 != null:
+		f39.close()
+	check("a 40 save carries the lead ship's jumps", 21, int(save39.get("party_jumps", -1)))
+	Run.party_jumps = 0
+	Run.custodian_seen = 0
+	SaveGame.load_into_run()
+	check("and loads them back, its count the lead ship's and seen (jumps, party, count, seen)",
+		"7 21 21 21", "%d %d %d %d" % [Run.jumps, Run.party_jumps, Run.custodian_jumps(), Run.custodian_seen])
+	save39["version"] = 39
+	save39.erase("party_jumps")
+	var w39 := FileAccess.open(SaveGame.path, FileAccess.WRITE)
+	if w39 != null:
+		w39.store_string(JSON.stringify(save39, "", true, true))
+		w39.close()
+	Run.party_jumps = 30
+	check("a save of version 39 (no lead ship's jumps) still loads", true, SaveGame.load_into_run())
+	check("and its count is its own jumps, seen (jumps, party, count, seen)", "7 0 7 7",
+		"%d %d %d %d" % [Run.jumps, Run.party_jumps, Run.custodian_jumps(), Run.custodian_seen])
+	save39["version"] = 40
+	save39["party_jumps"] = -12
+	w39 = FileAccess.open(SaveGame.path, FileAccess.WRITE)
+	if w39 != null:
+		w39.store_string(JSON.stringify(save39, "", true, true))
+		w39.close()
+	SaveGame.load_into_run()
+	check("a negative one reads 0", 0, Run.party_jumps)
+	Run.party_jumps = 18
+	Run.start_new_run(&"korvan", 1)
+	check("a new run clears the lead ship's jumps and the badge's seen count", "0 0",
+		"%d %d" % [Run.party_jumps, Run.custodian_seen])
+
 	# THE ONE BEFORE STILL READS (VERSION 30): a 29 save is this shape without
 	# `parked`, and loads with every ship at its system's edge, as it did.
 	Run.start_new_run(&"korvan", 1)
@@ -681,6 +732,7 @@ func run_version_test() -> void:
 	old_save.erase("parked")
 	old_save.erase("clocks")
 	old_save.erase("unlocked")
+	old_save.erase("party_jumps")
 	# (and from before two suns, VERSION 38: no node says `twin`)
 	var twins_written := 0
 	for nd in old_save.get("map", []):
