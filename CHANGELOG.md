@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Changed** — every station has all five decks now, at every level. A laboratory reads relics
+  at an outpost too. A station that no manufacturer holds still posts work for one, and that desk
+  takes the work back. A Hiring Board with nothing to post says so.
 - **Changed** — the Custodian grows stronger with every jump after your fifteenth, up to twice its
   strength. Its attacks do not change.
 - **Added** — the suns of a binary now circle each other. A wide pair goes round once in 19 to 25

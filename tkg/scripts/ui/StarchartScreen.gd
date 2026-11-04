@@ -926,6 +926,12 @@ func _refresh() -> void:
 		# saying about those. NONE is already this panel's word for an absence --
 		# SECURITY: NONE on the Core, SURVEY: NONE on a contract system.
 		var who := "NONE"
+		# A HOUSE DESK (Jon, Nov 3: every station posts work): nobody holds the
+		# place, and one manufacturer posts and takes its work there. Said, or
+		# the chart draws a delivery square on a place it says nobody operates.
+		var house := Contracts.house(t)
+		if house != &"":
+			who = "NONE, %s DESK" % DB.short_name(DB.manufacturer_name(house)).to_upper()
 		if not t.berths.is_empty():
 			var names: Array[String] = []
 			for m in t.berths:

@@ -42,7 +42,10 @@ const HEAT_MIN := 4
 const HEAT_MAX := 9
 
 
-## What this station is offering, or empty for a station with no manufacturer behind it.
+## What this station is offering. Every station posts work (Jon, Nov 3: all five
+## decks at every station); one with no berth posts it for its house (`house`).
+## Empty off a station, and rarely at one: an offer with nowhere to send you is
+## not posted, so a board with no ordinary system within reach can be bare.
 ##
 ## Idempotent and derived — nothing is stored on the node. A board that was
 ## generated once and saved would be a board that could drift from the seed, and
@@ -77,7 +80,34 @@ static func _manufacturers(n: MapGen.MapNode) -> Array:
 	for m in n.berths:
 		if m != &"" and m != n.manufacturer and DB.manufacturers.has(m):
 			out.append(m)
+	if out.is_empty() and house(n) != &"":
+		out.append(house(n))
 	return out
+
+
+## WHO POSTS WORK AT A STATION WITH NO BERTH (Jon, Nov 3: every station has all
+## five decks, the HIRING BOARD among them). One manufacturer, drawn off the
+## station's own position, so it is the same desk on every visit, for every ship
+## in a party and on a save from before this existed: it is derived, never
+## stored. That desk also takes delivery here (`ContractData.berth_of`).
+##
+## A DESK, NOT A BERTH. It hangs no banner, sets no shelf, holds no territory
+## and gives no standing price; all of those read `berths` or `manufacturer`,
+## and this is neither. Any manufacturer can be drawn, as a berth can: a locked
+## one's fetch is already a crate with no markings (`_item`).
+##
+## Empty for anything but a station, and for a station that has a berth.
+## Ported from the station study's `-- sim alldecks` (Nov 3), so its numbers stand.
+static func house(n: MapGen.MapNode) -> StringName:
+	if n == null or n.type != MapGen.NodeType.STATION:
+		return &""
+	if n.manufacturer != &"" or not n.berths.is_empty():
+		return &""
+	var keys: Array = DB.manufacturers.keys()
+	keys.sort()
+	if keys.is_empty():
+		return &""
+	return StringName(keys[Rng.derive(&"house", n.index).randi() % keys.size()])
 
 
 static func _roll(n: MapGen.MapNode, manufacturer: StringName,

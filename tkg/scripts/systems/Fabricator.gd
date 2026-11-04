@@ -9,10 +9,11 @@ extends RefCounted
 ## here for one recipe's sake, stop and add a `kind` instead — the same law
 ## CardResolver is held to, for the same reason.
 ##
-## Availability is a property of the PLACE. An outpost has a welder and a still;
-## a laboratory needs a city. That is what stops the bench from being a button
-## that follows you around the galaxy, and what makes a developed system worth
-## the fuel to reach.
+## Availability is a property of the PLACE: a station has a bench and the Core
+## has none. A laboratory used to need a city; since Jon's Nov 3 ruling every
+## station has all five decks at every level, so RELIC ANALYSIS is dev 0 and a
+## developed system is worth the fuel for its PRICE (`price`, by the place's
+## service index), not for the door. The `dev` gate stays for a later recipe.
 
 ## Every recipe this place can build, whether or not you can currently pay.
 ## Showing what you cannot afford is the point: a recipe you can see is a reason

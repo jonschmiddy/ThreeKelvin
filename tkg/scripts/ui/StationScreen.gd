@@ -78,8 +78,10 @@ var _deck_note: Dictionary = {}
 var _pages: Dictionary = {}
 var _tabs: Dictionary = {}
 var _tab: StringName = &"services"
-## Which tabs this station actually has. An unbranded desk posts no work and a
-## station with no laboratory builds nothing.
+## Which tabs this station actually has. Every station has all five since Jon's
+## Nov 3 ruling (a lab at every level, a house desk where no manufacturer
+## berths), so today this is all on; the switch stays for a deck that ever
+## needs to go.
 var _tabs_on: Dictionary = {}
 ## How tall the hull portrait is. Enough for a heavy at 2x without the panel
 ## growing past the service column beside it.
@@ -2037,7 +2039,7 @@ func _refresh_hold(n: MapGen.MapNode) -> void:
 		Run.cargo_used(), Run.cargo_slots(), "" if stray == 0 else ", %d on the pad" % stray,
 		"This market has bought a lot today, so it pays less than it did."
 		if n.trades >= 3 else "These are this market's usual prices."]
-## The recipes this place can support, and the tab that hides when it cannot.
+## The recipes this place can support, on the lab's screen.
 
 
 func _refresh_bench(n: MapGen.MapNode) -> void:
@@ -2053,9 +2055,10 @@ func _refresh_bench(n: MapGen.MapNode) -> void:
 	_bench.size = Vector2(win.size.x, win.size.y)
 	Widgets.clear(_bench)
 	var recipes := Fabricator.available(n)
-	# The TAB goes, not the page. A page that hides itself leaves a lit tab
-	# pointing at nothing, and `_show_tab` would happily select it.
-	_enable_tab(&"bench", not recipes.is_empty())
+	# EVERY STATION HAS ITS LABORATORY (Jon, Nov 3: all five decks at every
+	# station, at every level). The tab used to go below a city, where no recipe
+	# was open; RELIC ANALYSIS is dev 0 now, priced by the level.
+	_enable_tab(&"bench", true)
 	# A ROW, NOT A BUTTON THE WIDTH OF THE PAGE.
 	#
 	# Each recipe was one wide button whose whole label was "NAME · COST", so the
@@ -2276,14 +2279,12 @@ func _refresh_work(n: MapGen.MapNode) -> void:
 	var hot := Run.heat_deliverable_at(n)
 	var mine := _open_elsewhere(n)
 
-	# The TAB goes at a station with no manufacturer behind it — see the fabricator's
-	# note. An empty board with a heading is a page telling you about a thing
-	# that is not there.
-	_enable_tab(&"work", not (offers.is_empty() and ready.is_empty()
-		and hot.is_empty() and mine.is_empty()))
-	if not _tabs_on.get(&"work", true):
-		Widgets.clear(_work)
-		return
+	# EVERY STATION HAS ITS HIRING BOARD (Jon, Nov 3: all five decks at every
+	# station). The tab used to go at a station with no manufacturer behind it;
+	# such a station posts for its house now (`Contracts.house`). A board can
+	# still come up bare, with no ordinary system in reach to send you to or every
+	# offer signed and done, and then it says so on a note of its own (below).
+	_enable_tab(&"work", true)
 
 	# WHAT IS ON THE BOARD, as [what it says, how to make it], in order; laid
 	# over what is up by `_sync_notes`, which leaves every note that says the
@@ -2352,7 +2353,25 @@ func _refresh_work(n: MapGen.MapNode) -> void:
 				state = "pay|%d|%s" % [(pay_here[key][0] as ContractData).id, pay_here[key][1]]
 		want.append(["offer|%s|%s|%s" % [key, state, _on_screen()],
 			_offer_row.bind(c2, state, pay_here.get(key, []))])
+	# A BARE BOARD SAYS SO, in its own hand, rather than hang nothing: a deck
+	# with no paper on it reads as a board that did not load. Not on a screen's
+	# tab that is only empty of its own kind: the other tabs count their work.
+	if want.is_empty() and counts[0] == 0:
+		want.append(["empty|%s" % _on_screen(), _empty_note])
 	_sync_notes(want)
+
+
+## What a bare Hiring Board shows: one note that says there is no work.
+const NO_WORK := "NO WORK POSTED."
+
+
+func _empty_note() -> Control:
+	var card := VBoxContainer.new()
+	card.add_theme_constant_override("separation", 3)
+	var say := UITheme.body(NO_WORK, _ink(&"head"), UITheme.FS_SMALL)
+	say.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	card.add_child(say)
+	return _note(PostingBoard.INDEX, card)
 
 
 ## THE OFFERS SIGNED ON THIS VISIT, by `_offer_key`. Each stays on the board
@@ -3477,7 +3496,8 @@ func _anchor_at(c: Control, frac_x: float, dx: float, top: float, w: float, h: f
 ## Which manufacturers have a notice of their own up on the Hiring Board.
 ##
 ## WHOEVER HOLDS THE STATION, first, because a notice is how a place says who runs
-## it. Then the place itself: lawless space gets Redline's flyer, since Redline is
+## it; where nobody does, the house desk that posts its work (`Contracts.house`).
+## Then the place itself: lawless space gets Redline's flyer, since Redline is
 ## never at the address on its invoices and a lawless board is exactly where it
 ## would turn up; a cosmopolitan station gets a couple of visitors, picked off the
 ## station's own index so the same station always carries the same ones. Three at
@@ -3489,6 +3509,10 @@ func _board_posts(n: MapGen.MapNode) -> Array[StringName]:
 	for mid in n.berths:
 		if DB.manufacturers.has(mid) and out.size() < 3:
 			out.append(mid)
+	# A HOUSE DESK hangs its notice first too: it is who posts the work here.
+	var house := Contracts.house(n)
+	if house != &"" and out.is_empty():
+		out.append(house)
 	match n.region:
 		MapGen.Region.LAWLESS:
 			if not out.has(&"redline") and out.size() < 3:

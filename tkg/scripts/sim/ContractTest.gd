@@ -23,6 +23,8 @@ func run() -> void:
 	_heat()
 	_standing()
 	_salvage_hush()
+	# Starts runs of its own on other seeds, so after everything on this one.
+	_every_station_posts()
 	# LAST, because it starts runs of its own on other seeds. Nothing in it
 	# waits on a signal, so it finishes before `run` returns.
 	await _every_job_lands()
@@ -40,8 +42,9 @@ func _boards() -> void:
 	var a := Contracts.board(n)
 	var b := Contracts.board(n)
 	_ok("a station posts the same board twice", _same(a, b))
-	# Not every station has a manufacturer behind it, so an empty board is legal. What
-	# is not legal is a board with work on it that nobody is paying for.
+	# Every station posts work now, its house's where nobody berths (Jon, Nov 3;
+	# `_every_station_posts` counts them). What is never legal is a board with
+	# work on it that nobody is paying for.
 	var has_manufacturer := true
 	for c in a:
 		if (c as ContractData).manufacturer == &"" or (c as ContractData).pay <= 0:
@@ -55,6 +58,49 @@ func _boards() -> void:
 			boards += 1
 	_ok("and enough stations carry one to matter", boards >= 3)
 	print("  %d of %d systems are posting work" % [boards, Run.map.size()])
+
+
+## EVERY STATION POSTS WORK (Jon, Nov 3: all five decks at every station, the
+## HIRING BOARD among them). A station with no berth posts for its house desk
+## (`Contracts.house`), every offer has a manufacturer and a price, and a house
+## job is handed in at the desk that posted it. A bare board is legal only
+## where no ordinary system lies within reach and both offers wanted one, which
+## is rare: at most one station in a hundred.
+func _every_station_posts() -> void:
+	var stations := 0
+	var bare := 0
+	var housed := 0
+	var house_ok := true
+	var priced := true
+	for sd in JOB_SEEDS:
+		Rng.forced = sd
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		for raw in Run.map:
+			var n: MapGen.MapNode = raw
+			if n.type != MapGen.NodeType.STATION:
+				continue
+			stations += 1
+			var offers := Contracts.board(n)
+			if offers.is_empty():
+				bare += 1
+			var h := Contracts.house(n)
+			if n.berths.is_empty() and n.manufacturer == &"":
+				housed += 1
+				if h == &"" or not ContractData.berth_of(n, h):
+					house_ok = false
+			for c in offers:
+				var job: ContractData = c
+				if job.manufacturer == &"" or job.pay <= 0:
+					priced = false
+				if h != &"" and job.manufacturer != h:
+					house_ok = false
+	print("  %d stations on %d seeds: %d with no berth post for a house desk, %d boards bare"
+		% [stations, JOB_SEEDS.size(), housed, bare])
+	_ok("every station posts work, or all but one in a hundred (%d of %d bare)" % [bare, stations],
+		stations > 0 and bare * 100 <= stations)
+	_ok("a station with no berth posts its house's work, and takes it back there (%d)" % housed,
+		housed > 0 and house_ok)
+	_ok("and every offer on every board has a manufacturer and a price", priced)
 
 
 func _fetch() -> void:

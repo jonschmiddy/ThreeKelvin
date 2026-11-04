@@ -2495,12 +2495,12 @@ func perk_text(id: StringName) -> String:
 # game already knows how to apply}, so adding one is a dictionary entry and
 # never a new branch — the same law modules and cards are held to.
 #
-# `dev` is the minimum Development the place needs. Anywhere with a docking ring
-# has a welder and a still; anything involving a laboratory needs a city. That is
-# what makes the fabricator a REASON to visit a developed system rather than a
-# button that follows you around the galaxy — and it is why the two basic recipes
-# are dev 0. A station on unclaimed ground is still a station, and gating cheap
-# fuel behind a flag on the wall is what strands people.
+# `dev` is the minimum Development the place needs. RELIC ANALYSIS was dev 3 (a
+# laboratory needed a city) until Jon's Nov 3 ruling that every station has all
+# five decks at every level, so it is dev 0 now and a lab at an outpost reads a
+# relic too. What a developed system still buys is the price: the bill is scaled
+# by the place's service index, 45 credits on unclaimed ground down to 30 at a
+# capital. The `dev` gate stays for a recipe that ever needs more than a dock.
 #
 # Deliberately few: one today, and there were four before alloy was retired. This is the stage crafting is built on, not crafting: the
 # ledger, the recipe shape, the resolver and the place it happens. Recipes that
@@ -2508,7 +2508,7 @@ func perk_text(id: StringName) -> String:
 # the next piece of work and not this one.
 
 const RECIPES: Array[Dictionary] = [
-	{id = &"analysis", name = "RELIC ANALYSIS", kind = &"artifact", amount = 1, dev = 3,
+	{id = &"analysis", name = "RELIC ANALYSIS", kind = &"artifact", amount = 1, dev = 0,
 		credits = 40, mats = {&"relic": 1},
 		text = "Have the fragment read. Fabricates a precursor module into the hold."},
 ]

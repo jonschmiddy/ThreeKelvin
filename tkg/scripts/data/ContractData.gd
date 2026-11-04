@@ -94,7 +94,10 @@ var item: String = ""
 static func berth_of(n: MapGen.MapNode, manufacturer: StringName) -> bool:
 	if n == null or manufacturer == &"" or n.type != MapGen.NodeType.STATION:
 		return false
-	return n.manufacturer == manufacturer or n.berths.has(manufacturer)
+	# A HOUSE DESK TAKES DELIVERY TOO (Jon, Nov 3): a station with no berth posts
+	# work for one manufacturer, and the work goes back to it there.
+	return n.manufacturer == manufacturer or n.berths.has(manufacturer) \
+		or Contracts.house(n) == manufacturer
 
 
 ## One line for the ledger. Deliberately says the STATE first: a player checking

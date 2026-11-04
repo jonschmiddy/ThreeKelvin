@@ -230,6 +230,25 @@ else
 fi
 }
 
+unit_stationdecktest() {
+step "Every station has all five decks, at every level"
+# Jon, Nov 3: the LABORATORY used to hide below a city and the HIRING BOARD
+# where no manufacturer berths. Through the real station screen at all five
+# levels, with and without a berth: five tabs and five floors, RELIC ANALYSIS
+# at the level's price inside the lab's screen, a house desk's work posted and
+# handed in where nobody berths, and NO WORK POSTED. on a bare board.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot stationdecktest 240 --headless --path "$PROJECT" -- sheet=StationDeckTest; then
+	if grep -qE '^stationdecktest: PASS' "$LOG_DIR/stationdecktest.log"; then
+		ok "all five decks at every station, the lab priced by level, a house desk where nobody berths"
+	else
+		bad "a station is missing a deck, the lab or a house desk is wrong, or a bare board says nothing"
+		grep -E 'FAIL|^stationdecktest' "$LOG_DIR/stationdecktest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "stationdecktest did not finish"
+fi
+}
+
 unit_contracttest() {
 step "Contracts, standing, and the salvage rail's dismissal rule"
 # Three claims, and the middle one is the one no other step can make. `-- market`
@@ -2484,6 +2503,7 @@ gate_weight() {
 		lockedpooltest) echo 41 ;; rewardshowntest) echo 33 ;; mapperftest) echo 40 ;;
 		solvetest_*) echo 105 ;; twindrawtest) echo 106 ;; twinsitetest) echo 140 ;;
 		flighttest_4) echo 108 ;; flighttest_*) echo 40 ;; pairlocaltest) echo 20 ;;
+		stationdecktest) echo 77 ;;
 		*) echo 15 ;;
 	esac
 }

@@ -345,12 +345,13 @@ func run(tree: SceneTree) -> void:
 		if not known:
 			print("[station] no deck '%s' -- staying on the one it opened" % deck)
 			break
-		# A LAB BELOW A CITY HAS NO RECIPE YET (`Fabricator.available`), so its
-		# deck is closed -- and the lab is Jon's picture all the same. The shot
-		# opens it anyway, empty, so every level's lab can be looked at.
+		# EVERY STATION HAS ITS LAB since Jon's Nov 3 ruling (all five decks at
+		# every level), so this never fires today. It used to: a lab below a city
+		# had no recipe and its deck was shut. Kept as a guard, so a deck that is
+		# ever shut again can still be photographed, and says so when it does.
 		if deck == &"bench" and not scr0._tabs_on.get(&"bench", true):
 			scr0._enable_tab(&"bench", true)
-			print("  deck: bench has no recipe at this level -- opened for the shot")
+			print("  deck: bench is shut at this station -- opened for the shot")
 		scr0._show_tab(deck)
 		print("  deck: %s" % deck)
 		break

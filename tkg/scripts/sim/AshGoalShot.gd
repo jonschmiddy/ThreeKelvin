@@ -355,7 +355,8 @@ func _decks() -> void:
 			Hints.mark_seen(id)
 	for id in Hints.STEP_LINES:
 		Hints.mark_seen(StringName("said_" + String(id)))
-	# (`pick=low`: a station under a city instead, its board a board, no lab)
+	# (`pick=low`: a station under a city instead, its board a board and its
+	# lab a lower level's; every station has all five decks since Nov 3)
 	var low := _arg("pick", "") == "low"
 	for raw in Run.map:
 		var m: MapGen.MapNode = raw

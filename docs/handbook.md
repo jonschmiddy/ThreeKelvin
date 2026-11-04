@@ -103,9 +103,11 @@ Four things about it are load-bearing:
 **Materials** (`DB.MATERIALS`) are the second half. Exotic comes off megafauna and
 pulsars, relic off deep wrecks and precursor parts. Both come from PLACES, which is
 the whole test — see the alloy row in the rulings table for the one that failed it.
-They are spent at the **fabricator** (`Fabricator.gd`, recipes in `DB.RECIPES`), which
-exists at a station and gates its better half behind Development ≥ CITY — that is what
-makes a developed system a destination rather than a scenery variant. A recipe is
+They are spent at the **fabricator** (`Fabricator.gd`, recipes in `DB.RECIPES`), the
+LABORATORY deck, which every station has at every level (Jon, Nov 3: all five decks at
+every station). It used to gate RELIC ANALYSIS behind Development ≥ CITY; now a developed
+system is worth the fuel for its price (by `Market.service_index`, 45 credits unclaimed
+to 30 at a capital), and a recipe's `dev` gate waits for one that needs more. A recipe is
 `{cost} -> {one effect the game already applies}`, so adding one is a dictionary
 entry. If you find yourself branching in `_apply` for one recipe, add a `kind`.
 
