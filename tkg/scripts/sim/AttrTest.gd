@@ -317,7 +317,95 @@ func _augment_mark() -> void:
 							break
 	_ok("the mark is clear of the silhouette at every footprint, 1x and 2x%s"
 		% ("" if bad.is_empty() else " (on it: %s)" % ", ".join(bad)), bad.is_empty())
+	_mark_on_sprites()
 	_ends += 1
+
+
+## THE MARK ON A SPRITE. A sprite is centred in its box with no PAD margin, and
+## a few run to the plate's edge (ejector, board, braceframe), so on those the
+## wedge is painted over the art's corner. That is kept on purpose: the mark is
+## ink over the art, as the edge is, and its VOID rim is what lets it read there.
+## What is checked is that it stays a corner: every sprite part, packed either
+## way, flipped or not, at 1x, 2x and 3x, mapped through `draw_sprite`'s own
+## placement, and the wedge hides no more than MARK_HIDES of the art drawn.
+const MARK_HIDES := 0.05
+
+func _mark_on_sprites() -> void:
+	var worst := 0.0
+	var worst_at := ""
+	var on: Dictionary = {}
+	var cases := 0
+	for id in DB.modules:
+		var m := DB.modules[id] as ModuleData
+		if m.sprite == null:
+			continue
+		var img := m.sprite.get_image()
+		if img == null:
+			continue
+		if img.is_compressed():
+			img.decompress()
+		var ink := 0
+		for y in img.get_height():
+			for x in img.get_width():
+				if img.get_pixel(x, y).a > 0.1:
+					ink += 1
+		if ink == 0:
+			continue
+		var fp := m.footprint()
+		var packs: Array[Vector2i] = [fp]
+		if fp.x != fp.y:
+			packs.append(Vector2i(fp.y, fp.x))
+		for f in packs:
+			for k: float in [1.0, 2.0, 3.0]:
+				var q := k / ModuleIcon.HOLD_K
+				var step := float(HoldGrid.CELL + HoldGrid.GAP) * q
+				var box := Rect2(Vector2(17, 9),
+					Vector2(f) * step - Vector2(HoldGrid.GAP, HoldGrid.GAP) * q)
+				for mirror in [false, true]:
+					cases += 1
+					var hid := _mark_hides(img, box, k, mirror,
+						ModuleIcon.sprite_turn(m.sprite, f))
+					if hid > 0:
+						on[id] = true
+					var kk := maxi(1, int(roundf(k)))
+					var share := float(hid) / float(ink * kk * kk)
+					if share > worst:
+						worst = share
+						worst_at = "%s %dx%d at %dx%s" % [id, f.x, f.y, int(k),
+							" flipped" if mirror else ""]
+	print("  the mark lies on sprite art for: %s" % ", ".join(on.keys()))
+	_ok("the mark was tried on sprite parts (%d cases)" % cases, cases > 100)
+	_ok("on a sprite it hides at most %d%% of the art (worst %.1f%%, %s)"
+		% [int(MARK_HIDES * 100), worst * 100.0, worst_at], worst <= MARK_HIDES)
+
+
+## How many of the wedge's pixels land on `img`'s ink, drawn into `box` the way
+## `ModuleIcon.draw_sprite` places it (centred, whole magnification, turned a
+## quarter anticlockwise when upright, reflected about the box's middle row).
+func _mark_hides(img: Image, box: Rect2, k: float, mirror: bool, upright: bool) -> int:
+	var kk := maxi(1, int(roundf(k)))
+	var dst := Vector2(img.get_size()) * float(kk)
+	var cy := box.get_center().y
+	var hid := 0
+	for w in ModuleIcon.augment_mark(box, k):
+		var rr := w[0] as Rect2
+		for y in range(int(rr.position.y), int(rr.end.y)):
+			for x in range(int(rr.position.x), int(rr.end.x)):
+				var p := Vector2(x + 0.5, y + 0.5)
+				if mirror:
+					p.y = cy * 2.0 - p.y
+				var sp: Vector2
+				if upright:
+					var rel := p - box.get_center().round()
+					sp = (Vector2(-rel.y, rel.x) - (-dst * 0.5).round()) / float(kk)
+				else:
+					sp = (p - (box.position + (box.size - dst) * 0.5).round()) / float(kk)
+				var ix := int(floorf(sp.x))
+				var iy := int(floorf(sp.y))
+				if ix >= 0 and iy >= 0 and ix < img.get_width() and iy < img.get_height() \
+						and img.get_pixel(ix, iy).a > 0.1:
+					hid += 1
+	return hid
 
 
 ## THE LAB'S MARK SURVIVES A SAVE, AND SO DOES WHAT IT ADDED (science, VERSION
