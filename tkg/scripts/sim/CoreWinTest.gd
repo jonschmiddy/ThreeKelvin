@@ -37,7 +37,10 @@ extends Node
 ## ONE CUSTODIAN FOR THE GALAXY (Jon, Nov 4): in co-op it grows on the lead
 ## ship's jumps (`Run.custodian_jumps()`), so a ship at jump 5 behind a lead at
 ## 33 fields 400, and a fight opened at 20 grows to 33 mid-fight with its damage
-## kept and the log saying so (`_custodian_party`).
+## kept and the log saying so (`_custodian_party`), a count asleep or past the
+## cap rising with no hull moving and nothing said, a ship joining a fight
+## already grown past its count saying nothing; and `Router.start_combat` on a
+## host in a dive opens the party's fight at that count (`_party_router_fight`).
 ## Every core run below flies in at jump 41, so ENGAGE must open at 400.
 
 var _tree: SceneTree
@@ -183,6 +186,9 @@ func _run() -> void:
 
 	# ------------------------------------------------ an ordinary fight
 	await _ordinary_fight()
+
+	# ---------------------------------------- a party's Custodian, by Router
+	await _party_router_fight()
 
 	# ----------------------------------------------- the death screen's cue
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -339,8 +345,45 @@ func _custodian_party() -> void:
 		lines.size() == 1 and quiet and me.grown == 33)
 	me._adopt(sf)
 	_ok("and not again for the same count", said.filter(func(s: String) -> bool: return s == "The Custodian grows stronger.").size() == 1)
-	Sig.log_line.disconnect(listen)
 	me.release()
+	# ASLEEP AND CAPPED: a count that rises before the wake (7 to 8) or past
+	# the cap (33 to 40) grows no hull, and the log says nothing; the wake
+	# itself (8 to 16) does say it
+	for row: Array in [[7, 8, false], [8, 16, true], [33, 40, false]]:
+		said.clear()
+		Run.jumps = int(row[0])
+		var c3 := Combat.new()
+		c3.plan(cust, 1)
+		var f3 := SharedFight.open(0, c3.foe_ids(), c3.foe_hp(), c3.foe_brace(), c3.foe_hp_now(), 1, c3.grown)
+		c3._attach(f3)
+		var hull0 := c3.enemies[0].max_hp
+		f3.regrow(int(row[1]), NetSession.growth_ratios(f3, int(row[1])))
+		c3._adopt(f3)
+		var told := said.any(func(s: String) -> bool: return s.contains("grows stronger"))
+		var grew := c3.enemies[0].max_hp > hull0
+		_ok("%d to %d mid-fight: the hull %s (%d to %d) and the log %s" % [row[0], row[1],
+			"grows" if grew else "stays", hull0, c3.enemies[0].max_hp, "says so" if told else "says nothing"],
+			told == bool(row[2]) and grew == bool(row[2]) and c3.grown == int(row[1])
+			and (not told or said.has("The Custodian grows stronger.")))
+		c3.release()
+	# JOINING A FIGHT ALREADY GROWN past this machine's count (its push not
+	# landed yet, its plan at 17; the host raised the fight to 20 before it
+	# got here): adopted on attaching, so nothing is said, as nothing grew in
+	# front of it
+	said.clear()
+	Run.jumps = 17
+	var late := Combat.new()
+	late.plan(cust, 1)
+	var lf := SharedFight.open(0, late.foe_ids(), late.foe_hp(), late.foe_brace(), late.foe_hp_now(), 1, late.grown)
+	lf.regrow(20, NetSession.growth_ratios(lf, 20))
+	late._attach(lf)
+	late._adopt(lf)
+	var late_told := said.any(func(s: String) -> bool: return s.contains("grows stronger"))
+	_ok("a ship planned at 17 joining a fight grown to 20 says nothing (%s), takes its count (%d) and its hull (%d, %d)" % [
+		"said it" if late_told else "quiet", late.grown, late.enemies[0].max_hp, lf.foes[0].max_hp],
+		not late_told and late.grown == 20 and late.enemies[0].max_hp == lf.foes[0].max_hp)
+	late.release()
+	Sig.log_line.disconnect(listen)
 	Run.jumps = 0
 	Run.party_jumps = 0
 
@@ -547,6 +590,61 @@ func _ordinary_fight() -> void:
 	_ok("(ordinary) the run is not won", not Run.won)
 	_ok("(ordinary) nothing new in the record", RunHistory.load_all().size() == records_before)
 	_ok("(ordinary) the music is not the death cue", Audio.music_asked != &"gameover")
+
+
+## THE FIGHT CARRIES ITS COUNT TO THE HOST (PROTOCOL 16), through the real
+## door: `Router.start_combat` on a host in a dive with a partner on its
+## roster hands `Combat.grown` to `Net.open_fight`, and the party's fight is
+## grown at the lead ship's count. The partner is a roster row only (nobody on
+## the wire), as NetTest's stale guest is; the fight's push goes to nobody.
+## And the tooltip's party words follow the dive's galaxy (`CustodianBadge.party`).
+func _party_router_fight() -> void:
+	Rng.forced = 777
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var idx := -1
+	for n: MapGen.MapNode in Run.map:
+		if n.type == MapGen.NodeType.SYSTEM and not n.cleared:
+			idx = n.index
+			break
+	if not _ok("(party) a system to fight at", idx >= 0):
+		return
+	Run.at = idx
+	Run.map[idx].visited = true
+	SectorScreen._approached_at = idx
+	Router.show_local()
+	await _frames(3)
+	var t := DirectTransport.new()
+	t.port = DirectTransport.DEFAULT_PORT + 19
+	t.advertise = "127.0.0.1"
+	if not _ok("(party) the game's session hosts a party", Net.host_party("Kevin", &"korvan", t) != ""):
+		return
+	Net.roster[777] = Net._slot(777, "Mercer", &"korvan", 1)
+	Net.dive_seed = Run.galaxy_seed
+	Net._set_state(NetSession.State.DIVING)
+	_ok("(party) in the dive on its galaxy the tooltip says the party's words", CustodianBadge.party())
+	Net.dive_seed = Run.galaxy_seed + 1
+	_ok("(party) on a NEW RUN's galaxy, still in the party, the solo words", not CustodianBadge.party())
+	Net.dive_seed = Run.galaxy_seed
+	Run.jumps = 5
+	Run.party_jumps = 20
+	Router.start_combat(DB.core_boss(), [], false, true)
+	await _frames(3)
+	var cb: Combat = Router.combat
+	var f := Net.fight_at(idx)
+	var want := Run.custodian_jumps()
+	var h20 := DB.core_boss().hull_at(20)
+	_ok("(party) Router opens the party's Custodian with its count: the fight's %d, Combat's %d, want %d, hull %d of %d" % [
+		f.grown if f != null else -2, cb.grown if cb != null else -2, want, f.foes[0].max_hp if f != null else -1, h20],
+		f != null and cb != null and want == 20 and f.grown == want and cb.grown == want
+		and f.foes[0].max_hp == h20 and Net.galaxy_jumps == want)
+	if cb != null:
+		cb.release()
+	Router.combat = null
+	Net.leave_party()
+	Net.dive_seed = 0
+	Run.jumps = 0
+	Run.party_jumps = 0
+	await _frames(2)
 
 
 func _win_screen() -> GameOverScreen:

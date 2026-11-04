@@ -48,7 +48,10 @@ extends Node
 ##      change; the door's quiet push at 0, 16, 20 and 33 plays nothing; your
 ##      own jump behind the lead plays nothing; the hover box is the look on
 ##      show and follows the count; the party's tooltip words. Solo, none of
-##      this moves a frame: the goldens above are the same bytes.
+##      this moves a frame: the goldens above are the same bytes. The one solo
+##      change: an arrival that never showed (a second jump begun inside the
+##      line's fade in, 15 shown and 17 jumps) plays the wake from 15, where
+##      the jump before (16) played nothing.
 
 const GoalTestScript := preload("res://scripts/sim/GoalTest.gd")
 const GOLDEN := "res://scripts/sim/badge_golden.json"
@@ -1167,10 +1170,33 @@ func _coop() -> void:
 			_ok("the box and covers() follow the count, 17, not your 14 (%d px; covers 10 px in %s, 30 px in %s)" % [
 				int(b.box_rect().size.x), CustodianBadge.covers(inside), CustodianBadge.covers(past)],
 				int(b.box_rect().size.x) == CustodianBadge.BOX_W and CustodianBadge.covers(inside) and not CustodianBadge.covers(past))
+	# ALONE, AN ARRIVAL THAT NEVER SHOWED (a second jump begun inside the
+	# line's fade in): the count last shown is 15, the jumps 17, and the wake
+	# plays from 15, where the jump before (16) would play nothing
+	Run.party_jumps = 0
+	Run.jumps = 15
+	Run.custodian_seen = 15
+	await _frames(5)
+	Run.jumps = 17
+	var seq6: Array = []
+	var froms6: Array = []
+	for i in 150:
+		await _frames(1)
+		var st6 := int(b.shown.get("step", -2))
+		seq6.append(st6)
+		if st6 >= 0:
+			froms6.append(int(b.shown.get("from", -1)))
+	var r6 := _runs(seq6)
+	_ok("alone, 15 shown and 17 jumps plays the wake from 15 and ends at S1 (steps:frames %s)" % ", ".join(
+		r6.map(func(r: Array) -> String: return "%d:%d" % r)),
+		not CustodianBadge.party() and _steps_ok(r6, CustodianBadge.TRANS_STEPS[&"wake"])
+		and froms6.all(func(f: int) -> bool: return f == 15)
+		and CustodianBadge.stage(int(b.shown.get("j", -1))) == &"S1" and Run.custodian_seen == 17)
 	# THE DOOR (a late joiner, a rejoiner): the host's quiet push on a fresh
 	# run plays nothing; the eye is as it is on the first frame
 	var door := NetSession.new()
 	door.state = NetSession.State.DIVING
+	door.dive_seed = Run.galaxy_seed
 	var loud: Array[String] = []
 	for g: int in [0, 16, 20, 33]:
 		Run.jumps = 0

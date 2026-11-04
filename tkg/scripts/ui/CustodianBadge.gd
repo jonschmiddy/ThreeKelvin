@@ -47,9 +47,11 @@ extends Control
 ## remembers it), at 10 steps a second, ending on the stage's idle frame 0.
 ## Reduced motion: the transition plays and then holds idle frame 0, as the
 ## page did. THE ARRIVAL RUNS FROM THE COUNT LAST SHOWN (`from`) to the count
-## now: alone that is always the jump before, so every frame is the page's; in
-## co-op a partner's jump can raise it while you sit still, or by several, and
-## the biggest stage edge crossed plays (`change_kind`).
+## now: alone that is the jump before, so every frame is the page's, except
+## after an arrival that never showed (a second jump begun inside the line's
+## fade in), when it runs from the count last shown; in co-op a partner's jump
+## can raise it while you sit still, or by several. Either way the biggest
+## stage edge crossed plays (`change_kind`).
 ##
 ## NOT A CONTROL: it ignores the mouse like the rest of the goal line, so the
 ## chart's and the map's pictures under it still take every press, drag and
@@ -265,14 +267,17 @@ static func count() -> int:
 	return Run.custodian_jumps()
 
 
-## THE PARTY'S WORDS in the tooltip: in a party, or flying on from one (its host
-## gone, or a co-op save CONTINUEd) while the lead ship's count is above yours.
+## THE PARTY'S WORDS in the tooltip: in a party on its dive's galaxy, or flying
+## on from one (its host gone, or a co-op save CONTINUEd) while the lead ship's
+## count is above yours. A pilot who died and pressed NEW RUN is still in the
+## party, in a galaxy no partner is in, and keeps the solo words.
 static func party() -> bool:
-	return Net.is_networked() or Run.party_jumps > Run.jumps
+	return (Net.is_networked() and Net.dive_seed != 0 and Run.galaxy_seed == Net.dive_seed) \
+		or Run.party_jumps > Run.jumps
 
 
 ## The count an arrival at `j` runs from: `from`, or the jump before when it is
-## not given (-1), as it always is alone.
+## not given (-1).
 static func _from(j: int, from: int) -> int:
 	return j - 1 if from < 0 else from
 

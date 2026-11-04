@@ -876,6 +876,22 @@ func _growth_rules_test() -> void:
 	var none := SharedFight.open(11, PackedStringArray(["custodian"]), PackedInt32Array([h20]),
 		PackedInt32Array([0]), PackedInt32Array([h20]), 1)
 	ok("a fight with no grown count does not grow", not none.regrow(33, NetSession.growth_ratios(none, 33)))
+	# ASLEEP AND CAPPED: a count before the wake (to 15) or past the cap (33)
+	# grows no hull, so regrow says nothing moved (the host pushes nothing and
+	# no log says it grew), but the fight's count still rises
+	var h7 := cust.hull_at(7)
+	var asleep := SharedFight.open(12, PackedStringArray(["custodian"]), PackedInt32Array([h7]),
+		PackedInt32Array([0]), PackedInt32Array([h7]), 1, 7)
+	var asleep_moved := asleep.regrow(8, NetSession.growth_ratios(asleep, 8))
+	ok("asleep, 7 to 8 moves nothing (%s, %d hull), its count 8" % [asleep_moved, asleep.foes[0].max_hp],
+		not asleep_moved and asleep.foes[0].max_hp == h7 and asleep.grown == 8)
+	ok("and 8 to 16, the wake, does (%d)" % asleep.foes[0].max_hp,
+		asleep.regrow(16, NetSession.growth_ratios(asleep, 16)) and asleep.foes[0].max_hp == cust.hull_at(16))
+	var capped := SharedFight.open(13, PackedStringArray(["custodian"]), PackedInt32Array([h33]),
+		PackedInt32Array([0]), PackedInt32Array([h33]), 1, 33)
+	var capped_moved := capped.regrow(40, NetSession.growth_ratios(capped, 40))
+	ok("past the cap, 33 to 40 moves nothing (%s, %d hull), its count 40" % [capped_moved, capped.foes[0].max_hp],
+		not capped_moved and capped.foes[0].max_hp == h33 and capped.grown == 40)
 	print("  a Custodian opened at 20 jumps with a joiner went %d -> %d at 33, %d hull of damage kept" % [joined, want, done])
 
 
@@ -891,6 +907,7 @@ func _growth_fold_test() -> void:
 	Run.party_jumps = 0
 	host._fold_growth(9)
 	check("the host folds nothing before the dive", host.galaxy_jumps, 0)
+	host.dive_seed = Run.galaxy_seed
 	host._set_state(NetSession.State.DIVING)
 	host._fold_growth(9)
 	check("in the dive a report raises the count", host.galaxy_jumps, 9)
@@ -914,8 +931,32 @@ func _growth_fold_test() -> void:
 	check("nor one in another galaxy (a NEW RUN while diving)", host._my_jumps(), -1)
 	host.dive_seed = Run.galaxy_seed
 	check("but one on the dive's galaxy says its own", host._my_jumps(), Run.jumps)
+	# A NEW RUN WHILE DIVING (a pilot who died and pressed NEW RUN is in
+	# another galaxy, still in the party): the session's copy of the lead
+	# ship's count moves, the run's does not, on the host's fold and on a
+	# guest's push alike
+	var kept_seen := Run.custodian_seen
+	Run.party_jumps = 0
+	Run.custodian_seen = 0
+	host.galaxy_jumps = 3
+	host.dive_seed = Run.galaxy_seed + 1
+	host._fold_growth(20)
+	ok("a host on a NEW RUN's galaxy folds 20 into the session (%d) and not into its run (%d)" % [
+		host.galaxy_jumps, Run.party_jumps], host.galaxy_jumps == 20 and Run.party_jumps == 0)
+	var guest := _make_peer("newrun")
+	guest._set_state(NetSession.State.DIVING)
+	guest.dive_seed = Run.galaxy_seed + 1
+	guest._push_growth_to(26, false)
+	guest._push_growth_to(30, true)
+	ok("a guest on a NEW RUN's galaxy takes pushes of 26 and 30 into the session (%d) and keeps its run's at 0, seen 0 (%d, %d)" % [
+		guest.galaxy_jumps, Run.party_jumps, Run.custodian_seen],
+		guest.galaxy_jumps == 30 and Run.party_jumps == 0 and Run.custodian_seen == 0)
+	guest.dive_seed = Run.galaxy_seed
+	guest._push_growth_to(31, false)
+	check("on the dive's galaxy the push is the run's", Run.party_jumps, 31)
 	print("  the host folded 9, 4, -1, 9 and 123456 to %d; out of the dive it kept 3" % SharedFight.MAX_GROWN)
 	Run.party_jumps = kept_party
+	Run.custodian_seen = kept_seen
 	await _teardown()
 
 
@@ -1120,6 +1161,21 @@ func _late_join_test() -> void:
 	early._mark_presence()
 	await _wait_frames(12)
 	check("a ship behind the lead does not lower it", host.galaxy_jumps, 33)
+	# THE HOST IS THE LEAD SHIP: its own jump reaches the count only through
+	# its jump handler (`_on_jumped`, on Sig.jumped), since a presence from
+	# id 1 is never folded. 35 is past the cap, so the open fight's count rises
+	# with no hull moving and the fight is not pushed for it
+	Run.jumps = 35
+	host._on_jumped(Run.at)
+	check("the host's own jump to 35 raises the count", host.galaxy_jumps, 35)
+	var host_told := await _wait_until(func() -> bool: return early.galaxy_jumps == 35, 3.0)
+	ok("and its push tells the guest (%d)" % early.galaxy_jumps, host_told)
+	ok("the open Custodian is at 35 and still capped at 400 (%d, %d)" % [host.fight_at(90).grown, host.fight_at(90).foes[0].max_hp],
+		host.fight_at(90).grown == 35 and host.fight_at(90).foes[0].max_hp == 400)
+	await _wait_frames(12)
+	ok("and not pushed for a growth that moved no hull (the guest's copy says %d)" % early.fight_at(90).grown,
+		early.fight_at(90) != null and early.fight_at(90).grown == 33)
+	Run.jumps = 12
 	# THE STALE PRESENCE (found reading the code for PROTOCOL 16): a guest
 	# seated in a dive under way sends presence from the ship its Run still
 	# holds, then from the dive's; that move of `at` is no jump, and must not
@@ -1133,6 +1189,21 @@ func _late_join_test() -> void:
 	check("a guest's first presence from the dive's galaxy ticks no hellbender", Run.hellbender_ticks, 0)
 	host._apply_presence(777, {}, 6, 1)
 	check("and its next jump does", Run.hellbender_ticks, 1)
+	host._apply_presence(777, {}, 40, -1)
+	check("but a move that says no jumps (a NEW RUN's galaxy) does not", Run.hellbender_ticks, 1)
+	# and over the wire: the guest presses NEW RUN while diving (another
+	# galaxy, a new `at`), so `_my_jumps` sends -1 and the host ticks nothing
+	var eid := early.local_id()
+	var was_at := host.where_is(eid)
+	var kept_at0 := Run.at
+	Run.galaxy_seed = host.dive_seed + 1
+	Run.at = was_at + 1 if was_at + 1 < Run.map.size() else was_at - 1
+	early._mark_presence()
+	var wire_moved := await _wait_until(func() -> bool: return host.where_is(eid) == Run.at, 3.0)
+	ok("a guest's NEW RUN moves it on the host's roster (%d to %d) and ticks no hellbender (%d)" % [
+		was_at, host.where_is(eid), Run.hellbender_ticks], wire_moved and was_at >= 0 and Run.hellbender_ticks == 1)
+	Run.galaxy_seed = host.dive_seed
+	Run.at = kept_at0
 	host.roster.erase(777)
 	host._jumps_said.erase(777)
 	host._push_roster()
@@ -1152,10 +1223,10 @@ func _late_join_test() -> void:
 	check("in the party everybody sees", early.party_size(), 3)
 	ok("seated after the others, so its loot is its own",
 		late.seat() > early.seat())
-	var counted := await _wait_until(func() -> bool: return late.galaxy_jumps == 33, 3.0)
+	var counted := await _wait_until(func() -> bool: return late.galaxy_jumps == 35, 3.0)
 	ok("the late ship is told the lead ship's count at the door (%d)" % late.galaxy_jumps, counted)
-	check("quietly: its badge counts it as seen, with no arrival to play", Run.custodian_seen, 33)
-	ok("and the fight it walks into is the grown one", late.fight_at(90) != null and late.fight_at(90).grown == 33
+	check("quietly: its badge counts it as seen, with no arrival to play", Run.custodian_seen, 35)
+	ok("and the fight it walks into is the grown one", late.fight_at(90) != null and late.fight_at(90).grown == 35
 		and late.fight_at(90).foes[0].max_hp == 400)
 	print("  the lead ship's count: host %d, guest %d, late %d at the door; the open Custodian %d -> %d" % [
 		host.galaxy_jumps, early.galaxy_jumps, late.galaxy_jumps, h20, host.fight_at(90).foes[0].max_hp])

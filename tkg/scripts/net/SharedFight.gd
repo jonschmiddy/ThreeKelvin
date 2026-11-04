@@ -266,21 +266,28 @@ func advance() -> void:
 ## later joiner adds 0.6 of the new hull. Scaling max_hp keeps every join share
 ## already added in proportion, even after a pilot has left (join growth never
 ## shrinks back, so counting the crew would undercount). A lone Custodian lands
-## exactly on `hull_at(to)`. True when the fight moved; `grown` rises either way.
+## exactly on `hull_at(to)`. True only when a hull moved: a count still asleep
+## (to jump 15) or past the cap (33) grows nothing, and the fight is not pushed
+## for it, so nobody's log says it grew. `grown` rises either way, and the next
+## push carries it.
 func regrow(to: int, ratio: PackedFloat32Array) -> bool:
 	if over or grown < 0 or to <= grown:
 		return false
 	grown = mini(to, MAX_GROWN)
+	var moved := false
 	for i in mini(foes.size(), ratio.size()):
 		var e := foes[i]
 		var r := float(ratio[i])
 		if r <= 0.0 or is_equal_approx(r, 1.0) or not e.alive():
 			continue
 		var top := maxi(1, int(round(e.max_hp * r)))
+		if top == e.max_hp:
+			continue
 		e.hp = clampi(e.hp + top - e.max_hp, 1, top)
 		e.max_hp = top
 		e.base = maxi(1, int(round(e.base * r)))
-	return true
+		moved = true
+	return moved
 
 
 func alive() -> Array[int]:

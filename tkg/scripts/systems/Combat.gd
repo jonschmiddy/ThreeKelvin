@@ -1548,6 +1548,16 @@ func release() -> void:
 	waiting = false
 
 
+## The name of the first live foe whose hull grows from count `from` to `to`
+## (`EnemyTemplate.hull_at`), or "" when none does.
+func _grew_between(from: int, to: int) -> String:
+	for e in enemies:
+		var t := e.template
+		if e.hp > 0 and t != null and t.grow_after >= 0 and t.hull_at(to) > t.hull_at(from):
+			return t.name
+	return ""
+
+
 ## Copy the host's answer over the local enemy.
 ##
 ## Only the numbers move. The templates, the art and the scaled intent lists
@@ -1578,11 +1588,14 @@ func _adopt(f: SharedFight) -> void:
 			if enemies.size() > 1:
 				_log("%s is wreckage." % dst.template.name, &"good")
 	# THE LEAD SHIP JUMPED, mid-fight (Jon, Nov 4, decision 2): the host grew
-	# the boss (`NetSession._regrow`) and the hulls above carry it
+	# the boss (`NetSession._regrow`) and the hulls above carry it. Said only
+	# when a live foe's hull really grows between the two counts: a count still
+	# asleep (to jump 15) or past the cap (33) rises with no hull moving
 	if grown >= 0 and f.grown > grown:
+		var who := _grew_between(grown, f.grown)
 		grown = f.grown
-		var who := enemies[0].template.name if not enemies.is_empty() else "It"
-		_log("%s grows stronger." % who, &"them")
+		if who != "":
+			_log("%s grows stronger." % who, &"them")
 	# Somebody else's gun. Drawn here because it is the only place this machine
 	# can learn about it — a partner's card was played on a different computer,
 	# and without this their hits land silently and the hull bar drops for no

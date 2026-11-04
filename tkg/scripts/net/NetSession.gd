@@ -363,14 +363,18 @@ func _ready() -> void:
 	# between systems, so it is the only event that can change the answer.
 	# The galaxy this machine built, the moment it exists (see `galaxy_mine`).
 	Sig.run_started.connect(_on_run_started)
-	Sig.jumped.connect(func(index: int) -> void:
-		_mark_presence()
-		# The host's own jump raises the lead ship's count here; a guest's
-		# arrives with its presence (`_apply_presence`)
-		if is_host():
-			_fold_growth(_my_jumps())
-		# and, inside the new system, at its edge (see `spots`)
-		report_arrival(index))
+	Sig.jumped.connect(_on_jumped)
+
+
+## This machine's ship jumped to `index`.
+func _on_jumped(index: int) -> void:
+	_mark_presence()
+	# The host's own jump raises the lead ship's count here; a guest's
+	# arrives with its presence (`_apply_presence`)
+	if is_host():
+		_fold_growth(_my_jumps())
+	# and, inside the new system, at its edge (see `spots`)
+	report_arrival(index)
 
 
 # --- what a screen calls -------------------------------------------------
@@ -858,13 +862,18 @@ func _push_hellbender_to(to: int, hp: int, moves: int, feeding: bool) -> void:
 ## dive and never lower, so a push overtaken by this ship's own jump changes
 ## nothing. `quiet` is the door's (`_hello`): the joiner counts the eye it is
 ## shown as already seen, as a loaded save does, so its first screen has no
-## arrival for jumps it never saw.
+## arrival for jumps it never saw. The session's copy always takes it; the run
+## only on the dive's galaxy (`_on_dive_galaxy`), so a pilot who died and
+## pressed NEW RUN keeps the old dive's count off the new galaxy. A run started
+## on the dive's seed after the push takes it in `_on_run_started`.
 @rpc("authority", "call_remote", "reliable")
 func _push_growth_to(g: int, quiet: bool) -> void:
 	if state != State.DIVING:
 		return
 	g = clampi(g, 0, SharedFight.MAX_GROWN)
 	galaxy_jumps = maxi(galaxy_jumps, g)
+	if not _on_dive_galaxy():
+		return
 	Run.party_jumps = maxi(Run.party_jumps, g)
 	if quiet:
 		Run.custodian_seen = Run.custodian_jumps()
@@ -1035,9 +1044,15 @@ func _send_presence() -> void:
 ## ship its Run still holds, and a pilot who died and pressed NEW RUN is in
 ## another galaxy while still DIVING; neither may raise the party's count.
 func _my_jumps() -> int:
-	if state != State.DIVING or dive_seed == 0 or Run.galaxy_seed != dive_seed or Run.map.is_empty():
-		return -1
-	return Run.jumps
+	return Run.jumps if _on_dive_galaxy() else -1
+
+
+## Whether this machine's run is the dive's: in a dive, on the dive's galaxy,
+## with a map. What a presence says (`_my_jumps`) and what the run takes from
+## the lead ship's count (`_push_growth_to`, `_fold_growth`) both ask it.
+func _on_dive_galaxy() -> bool:
+	return state == State.DIVING and dive_seed != 0 and Run.galaxy_seed == dive_seed \
+		and not Run.map.is_empty()
 
 
 func _apply_presence(id: int, wire: Dictionary, at: int, jumps: int = -1) -> void:
@@ -1070,8 +1085,9 @@ func _apply_presence(id: int, wire: Dictionary, at: int, jumps: int = -1) -> voi
 
 ## THE HOST FOLDS ONE SHIP'S JUMPS INTO THE LEAD SHIP'S COUNT (PROTOCOL 16):
 ## host only, in a dive, a report >= 0. Higher, and it is the count: kept as
-## the host's own copy (`Run.party_jumps`), pushed whole to everyone, and every
-## open fight that grows is grown to it (`_regrow`). Never lower.
+## the host's own copy (`Run.party_jumps`, only while its run is the dive's,
+## `_on_dive_galaxy`), pushed whole to everyone, and every open fight that
+## grows is grown to it (`_regrow`). Never lower.
 func _fold_growth(n: int) -> void:
 	if not is_host() or state != State.DIVING or n < 0:
 		return
@@ -1079,7 +1095,8 @@ func _fold_growth(n: int) -> void:
 	if n <= galaxy_jumps:
 		return
 	galaxy_jumps = n
-	Run.party_jumps = maxi(Run.party_jumps, n)
+	if _on_dive_galaxy():
+		Run.party_jumps = maxi(Run.party_jumps, n)
 	push_growth()
 	for f: SharedFight in fights.values():
 		if _regrow(f):
@@ -1111,7 +1128,9 @@ static func growth_ratios(f: SharedFight, to: int) -> PackedFloat32Array:
 ## A fight grown at less than the lead ship's count grows to it now (decision
 ## 2: its hull bar rises, damage done stays done; `SharedFight.regrow`). Every
 ## crew machine adopts the numbers and says so in its log (`Combat._adopt`).
-## True when it moved, for the caller to push.
+## True when a hull moved, for the caller to push; a count that grows nothing
+## (asleep, or past the cap) raises the fight's `grown` and the next push
+## carries it.
 func _regrow(f: SharedFight) -> bool:
 	if f == null or f.over or f.grown < 0 or f.grown >= galaxy_jumps:
 		return false
