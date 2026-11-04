@@ -2969,13 +2969,16 @@ func transfer_to_hull(h: HullData, paid: int = 0,
 		scrap = found_scrap.duplicate(),
 	}
 
+	# THE SHARE OF THE SHIP YOU WERE FLYING, plates and all, read before they
+	# come off. Read after, it was over the bare frame: 40 of 50 with a +10
+	# plate landed as full, and a full one overshot and was clamped back.
+	var ratio := float(hp) / float(max_hp())
 	pad.clear()
 	pad.append_array(installed)
 	pad.append_array(cargo)
 	installed.clear()
 	cargo.clear()
 
-	var ratio := float(hp) / float(max_hp())
 	hull = h
 	# OF `max_hp()`, read on the new frame with nothing fitted: the frame plus
 	# the run's routines. `h.max_hull` left out DAMAGE CONTROL, so a full ship

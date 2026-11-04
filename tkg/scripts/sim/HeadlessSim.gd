@@ -301,6 +301,13 @@ func run_sim() -> void:
 	if _enemy_hp != 1.0 or _enemy_dmg != 1.0:
 		print("STUDY enemies, all but the boss: hull x%.2f · damage x%.2f · %s" % [
 			_enemy_hp, _enemy_dmg, " / ".join(scale_enemies(_enemy_hp, _enemy_dmg))])
+	# Above `bossonly`, which returns before the rest: a routines= boss run has
+	# to say so in its log the way a full run does.
+	if not grant_routines.is_empty():
+		var said: Array[String] = []
+		for id in grant_routines:
+			said.append(String(DB.routines[id].name))
+		print("ROUTINES from launch, off the board: %s." % ", ".join(said))
 	if "bossonly" in OS.get_cmdline_user_args():
 		_boss_only()
 		return
@@ -315,11 +322,6 @@ func run_sim() -> void:
 	if policy.human:
 		print("HUMAN policy: heads for the core, scores the chart, buys fuel for the way in.")
 	print("fuel: start %d · tank %d" % [Run.start_fuel(), Run.fuel_cap()])
-	if not grant_routines.is_empty():
-		var said: Array[String] = []
-		for id in grant_routines:
-			said.append(String(DB.routines[id].name))
-		print("ROUTINES from launch, off the board: %s." % ", ".join(said))
 	if _trace_path != "":
 		_trace_file = FileAccess.open(_trace_path, FileAccess.WRITE)
 

@@ -26,8 +26,10 @@ extends Node
 ##  - PATCH CREW +3 capped, +6 with Calyx's three, on a pacify, never on a flee;
 ##  - BLACK BOX on PlayerDeathTest's seed 6061 against a cutter: the ship lives
 ##    at 1, the box is spent, the next killing hit kills, and so does an event's
-##    toll; overheat and junk count as the fight's;
-##  - a hull swap with all twelve: full stays full, BACK OUT restores the hull,
+##    toll; overheat and junk count as the fight's; and on the fight screen the
+##    turn's replay never draws the held ship at 0;
+##  - a hull swap with all twelve: full stays full, a damaged ship keeps its
+##    share of the ship it flew (a fitted plate included), BACK OUT restores the hull,
 ##    the yard's reading of a new frame includes the +7, a new run clears all;
 ##  - the two orders S2 could not test: a new run's hull is filled after the
 ##    last run's science is gone, and a load reads the science before the hull;
@@ -75,6 +77,9 @@ func _run() -> void:
 	_load_order()
 	print("-- the sim's routines=")
 	_sim_hook()
+	# Last, because it leaves a fight open on the screen.
+	print("-- BLACK BOX on the fight screen")
+	await _black_box_on_screen()
 	print("routinetest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
 	_tree.quit(1 if _fails > 0 else 0)
 
@@ -473,6 +478,65 @@ func _black_box() -> void:
 			Run.hp == 1 and not Run.dead and Run.black_box_spent)
 
 
+## BLACK BOX ON THE SCREEN: the fight screen replays the enemy turn, the hull
+## dropping by each hit's whole `dealt` (`SectorScreen.shown_hull`). A ship the
+## box held at 1 must never be drawn at 0 on the way there. PlayerDeathTest's
+## fight, through END TURN as the button presses it, with motion (without it
+## the whole replay plays inside the press and no frame sees it).
+func _black_box_on_screen() -> void:
+	for animated in [true]:
+		Router.animate_in_harness = animated
+		Rng.forced = DEATH_SEED
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		Run.hull.dodge = 0.0
+		_own([&"black_box"])
+		var idx := -1
+		for n: MapGen.MapNode in Run.map:
+			if n.type == MapGen.NodeType.SYSTEM and not n.cleared:
+				idx = n.index
+				break
+		Run.at = idx
+		Run.map[idx].visited = true
+		SectorScreen._approached_at = idx
+		Router.show_local()
+		for i in 3:
+			await _tree.process_frame
+		Router.start_combat(DB.enemies[&"cutter"], [], false, false)
+		var cb: Combat = null
+		var sc: SectorScreen = null
+		for i in 240:
+			await _tree.process_frame
+			cb = Router.combat
+			sc = Router.current as SectorScreen
+			if cb != null and sc != null and sc.fighting() and not sc._opening:
+				break
+		var how := "with motion" if animated else "without motion"
+		if not _ok("a cutter fight on the screen (%s)" % how, cb != null and sc != null and sc.fighting()):
+			continue
+		var e: Combat.EnemyState = cb.enemies[0]
+		e.intent = _hit(e)
+		cb.block = 0
+		cb.brace = 0
+		Run.hp = 5
+		var lowest := 99
+		var plate := ""
+		var held := false
+		sc._end_button.pressed.emit()
+		for i in 2400:
+			if sc._hold:
+				held = true
+				if SectorScreen.shown_hull >= 0 and SectorScreen.shown_hull < lowest:
+					lowest = SectorScreen.shown_hull
+					plate = sc._self_hp.text
+			elif held:
+				break
+			await _tree.process_frame
+		_ok("BLACK BOX on screen (%s): the replay drew the hull down to %d (\"%s\"), never 0; the ship at %d, alive"
+			% [how, lowest, plate, Run.hp],
+			held and lowest == 1 and Run.hp == 1 and not Run.dead and Run.black_box_spent)
+	Router.animate_in_harness = false
+
+
 # -------------------------------------------------------------- a hull swap
 
 func _swap() -> void:
@@ -497,6 +561,23 @@ func _swap() -> void:
 	var want := maxi(6, int(round((heavy.max_hull + 7) * ratio)))
 	_ok("20 down lands at the same share of the new max: %d, want %d" % [Run.hp, want], Run.hp == want)
 	Run.abandon_move()
+	# With a plate fitted the share is of the ship you flew, plates and all, not
+	# of the bare frame it is read on after they come off (that landed higher).
+	var plate := (Run.installed[0] as ModuleData).duplicate() as ModuleData
+	plate.max_hull += 10
+	Run.installed[0] = plate
+	Sig.ship_changed.emit()
+	Run.hp = Run.max_hp() - 20
+	var fitted := Run.max_hp()
+	var share := float(Run.hp) / float(fitted)
+	var hp_plated := Run.hp
+	Run.transfer_to_hull(heavy)
+	var want2 := maxi(6, int(round((heavy.max_hull + 7) * share)))
+	_ok("20 down of %d with a +10 plate lands at %d of %d, want %d" % [fitted, Run.hp, Run.max_hp(), want2],
+		Run.hp == want2)
+	Run.abandon_move()
+	_ok("BACK OUT with the plate restores %d/%d" % [Run.hp, Run.max_hp()],
+		Run.hp == hp_plated and Run.max_hp() == fitted)
 	# The yard's reading of a frame on the blocks: full, with the +7.
 	var hull_pips := -1
 	for a in Run.hull_attributes(heavy):
