@@ -56,8 +56,8 @@ enum State {
 ## `RunState.next_contract_id` on acceptance rather than at generation, because a
 ## contract nobody has taken does not need to be told apart from anything.
 var id: int = 0
-## Who is paying. Never empty. A station with no berth posts for its house desk
-## (`Contracts.house`), so the money still has a manufacturer behind it.
+## Who is paying. Never empty. A station with no berth posts for its dock desk
+## (`Contracts.dock_desk`), so the money still has a manufacturer behind it.
 var manufacturer: StringName = &""
 var kind: Kind = Kind.FETCH
 var state: State = State.OFFERED
@@ -94,10 +94,10 @@ var item: String = ""
 static func berth_of(n: MapGen.MapNode, manufacturer: StringName) -> bool:
 	if n == null or manufacturer == &"" or n.type != MapGen.NodeType.STATION:
 		return false
-	# A HOUSE DESK TAKES DELIVERY TOO (Jon, Nov 3): a station with no berth posts
+	# A DOCK DESK TAKES DELIVERY TOO (Jon, Nov 3): a station with no berth posts
 	# work for one manufacturer, and the work goes back to it there.
 	return n.manufacturer == manufacturer or n.berths.has(manufacturer) \
-		or Contracts.house(n) == manufacturer
+		or Contracts.dock_desk(n) == manufacturer
 
 
 ## One line for the ledger. Deliberately says the STATE first: a player checking

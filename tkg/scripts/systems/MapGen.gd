@@ -951,13 +951,13 @@ static func place_blurb(n: MapNode) -> String:
 	var who := ""
 	match n.berths.size():
 		0:
-			# A STATION WITH NO BERTH still posts work (Jon, Nov 3), for its house
-			# desk (`Contracts.house`), and says who, so the chart's delivery
+			# A STATION WITH NO BERTH still posts work (Jon, Nov 3), for its dock
+			# desk (`Contracts.dock_desk`), and says who, so the chart's delivery
 			# square on a place nobody holds has a reason under it.
-			var house := Contracts.house(n)
-			if house != &"":
+			var desk := Contracts.dock_desk(n)
+			if desk != &"":
 				who = "No manufacturer holds this space. Salvage is thin and random. %s posts work from a desk on the dock." \
-					% DB.short_name(DB.manufacturer_name(house))
+					% DB.short_name(DB.manufacturer_name(desk))
 			else:
 				who = "No manufacturer holds this space. Salvage is thin and random."
 		1: who = "One manufacturer dominates local salvage."

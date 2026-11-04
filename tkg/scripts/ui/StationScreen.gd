@@ -79,7 +79,7 @@ var _pages: Dictionary = {}
 var _tabs: Dictionary = {}
 var _tab: StringName = &"services"
 ## Which tabs this station actually has. Every station has all five since Jon's
-## Nov 3 ruling (a lab at every level, a house desk where no manufacturer
+## Nov 3 ruling (a lab at every level, a dock desk where no manufacturer
 ## berths), so today this is all on; the switch stays for a deck that ever
 ## needs to go.
 var _tabs_on: Dictionary = {}
@@ -2281,7 +2281,7 @@ func _refresh_work(n: MapGen.MapNode) -> void:
 
 	# EVERY STATION HAS ITS HIRING BOARD (Jon, Nov 3: all five decks at every
 	# station). The tab used to go at a station with no manufacturer behind it;
-	# such a station posts for its house now (`Contracts.house`). A board can
+	# such a station posts for its dock desk now (`Contracts.dock_desk`). A board can
 	# still come up bare, with no ordinary system in reach to send you to or every
 	# offer signed and done, and then it says so on a note of its own (below).
 	_enable_tab(&"work", true)
@@ -3496,7 +3496,7 @@ func _anchor_at(c: Control, frac_x: float, dx: float, top: float, w: float, h: f
 ## Which manufacturers have a notice of their own up on the Hiring Board.
 ##
 ## WHOEVER HOLDS THE STATION, first, because a notice is how a place says who runs
-## it; where nobody does, the house desk that posts its work (`Contracts.house`).
+## it; where nobody does, the dock desk that posts its work (`Contracts.dock_desk`).
 ## Then the place itself: lawless space gets Redline's flyer, since Redline is
 ## never at the address on its invoices and a lawless board is exactly where it
 ## would turn up; a cosmopolitan station gets a couple of visitors, picked off the
@@ -3509,10 +3509,10 @@ func _board_posts(n: MapGen.MapNode) -> Array[StringName]:
 	for mid in n.berths:
 		if DB.manufacturers.has(mid) and out.size() < 3:
 			out.append(mid)
-	# A HOUSE DESK hangs its notice first too: it is who posts the work here.
-	var house := Contracts.house(n)
-	if house != &"" and out.is_empty():
-		out.append(house)
+	# A DOCK DESK hangs its notice first too: it is who posts the work here.
+	var desk := Contracts.dock_desk(n)
+	if desk != &"" and out.is_empty():
+		out.append(desk)
 	match n.region:
 		MapGen.Region.LAWLESS:
 			if not out.has(&"redline") and out.size() < 3:

@@ -235,13 +235,13 @@ step "Every station has all five decks, at every level"
 # Jon, Nov 3: the LABORATORY used to hide below a city and the HIRING BOARD
 # where no manufacturer berths. Through the real station screen at all five
 # levels, with and without a berth: five tabs and five floors, RELIC ANALYSIS
-# at the level's price inside the lab's screen, a house desk's work posted and
+# at the level's price inside the lab's screen, a dock desk's work posted and
 # handed in where nobody berths, and NO WORK POSTED. on a bare board.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot stationdecktest 240 --headless --path "$PROJECT" -- sheet=StationDeckTest; then
 	if grep -qE '^stationdecktest: PASS' "$LOG_DIR/stationdecktest.log"; then
-		ok "all five decks at every station, the lab priced by level, a house desk where nobody berths"
+		ok "all five decks at every station, the lab priced by level, a dock desk where nobody berths"
 	else
-		bad "a station is missing a deck, the lab or a house desk is wrong, or a bare board says nothing"
+		bad "a station is missing a deck, the lab or a dock desk is wrong, or a bare board says nothing"
 		grep -E 'FAIL|^stationdecktest' "$LOG_DIR/stationdecktest.log" | head -n 12 | sed 's/^/        /'
 	fi
 else
@@ -2379,6 +2379,13 @@ step "One word for the thing: manufacturer"
 #      `var maker := ...` is still caught, which is the vocabulary this rule was
 #      written for -- checked by dropping such a file in and watching it fail.
 #
+#      `Rng.derive(&"house", ...)` is one more key of that kind (Nov 4). It
+#      seeds which manufacturer runs each unberthed station's dock desk
+#      (`Contracts.dock_desk_from`), derived and never saved, so the string IS
+#      the save: renaming it moves every desk in every run in flight, and
+#      StationDeckTest pins seed 9300's desks to it. Exempt as that exact call,
+#      in code and in the docs that name it.
+#
 # BRAND AND MARQUE were added after they were used to route AROUND this check:
 # a rename hit the guard on `maker`, and a synonym went in instead -- first as a
 # local called `brand`, then as `marque` in a comment. Neither was on the list,
@@ -2420,7 +2427,8 @@ VOCAB=$(
 	  | grep -v '"makers"' \
 	  | grep -v '`maker`' \
 	  | grep -v '`makers`' \
-	  | grep -v '`chassis_maker`'
+	  | grep -v '`chassis_maker`' \
+	  | grep -v 'Rng.derive(&"house"'
 )
 
 # The same check for prose. docs/archive/ is out of scope on purpose -- those
@@ -2437,7 +2445,8 @@ VOCAB_DOCS=$(
 	  | grep -v 'house style' \
 	  | grep -v 'never .house. or .maker.' \
 	  | grep -viE 'never house, maker, brand, or marque' \
-	  | grep -v '`chassis_maker`'
+	  | grep -v '`chassis_maker`' \
+	  | grep -v 'Rng.derive(&"house"'
 )
 if [ -z "$VOCAB" ]; then
 	ok "no retired vocabulary in $PROJECT/scripts"

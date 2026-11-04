@@ -2125,7 +2125,7 @@ func _cutaway_once() -> void:
 ## A station with all five decks (work on its board, a laboratory), the ship at
 ## it; null if the map has none. Every job on its board has a target, so the
 ## SIGN the tour presses rings a place on the chart (`contract_track`): since
-## stations were halved (Nov 3, S3) the first station on seed 4242 is a house
+## stations were halved (Nov 3, S3) the first station on seed 4242 is a dock
 ## desk whose first note is a HEAT job, which has none.
 func _full_station() -> MapGen.MapNode:
 	for raw in Run.map:

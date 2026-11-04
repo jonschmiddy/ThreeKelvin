@@ -12,10 +12,11 @@ extends Node
 ## elevator lights five floors; the lab's screen lists RELIC ANALYSIS at that
 ## level's price, its row inside the screen's window (the settlement's is the
 ## smallest, 218 x 118, and it never had a lab before); with no berth the board
-## posts its house's work (`Contracts.house`), hangs the house's notice, and a
-## job signed there is handed in at that desk; with a berth there is no house.
+## posts its dock desk's work (`Contracts.dock_desk`), hangs the desk's notice,
+## and a job signed there is handed in at that desk; with a berth there is no
+## desk.
 ## A board with nothing to post says NO WORK POSTED. and keeps its tab. The
-## chart names the house desk under OPERATORS, and every such line fits the
+## chart names the dock desk under OPERATORS, and every such line fits the
 ## destination panel.
 
 var _fails := 0
@@ -46,7 +47,7 @@ func _frames(n: int) -> void:
 
 func _run() -> void:
 	await _tree.process_frame
-	_house_rule()
+	_dock_desk_rule()
 	_operators_fit()
 	for dev in 5:
 		for berth: bool in [false, true]:
@@ -58,58 +59,58 @@ func _run() -> void:
 	_tree.quit(1 if _fails > 0 else 0)
 
 
-## WHO THE HOUSE IS, off the map alone: nobody at a station with a berth, at an
+## WHO THE DOCK DESK IS, off the map alone: nobody at a station with a berth, at an
 ## ordinary system or at the start; the same desk for one station every time;
 ## and every station without a berth has one.
-func _house_rule() -> void:
+func _dock_desk_rule() -> void:
 	Rng.forced = 9300
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var bare := 0
-	var housed := 0
-	var berthed_with_house := 0
-	var other_with_house := 0
+	var desked := 0
+	var berthed_with_desk := 0
+	var other_with_desk := 0
 	var steady := true
 	var seen := {}
 	for raw in Run.map:
 		var n: MapGen.MapNode = raw
-		var h := Contracts.house(n)
-		if h != Contracts.house(n):
+		var h := Contracts.dock_desk(n)
+		if h != Contracts.dock_desk(n):
 			steady = false
 		if n.type != MapGen.NodeType.STATION:
 			if h != &"":
-				other_with_house += 1
+				other_with_desk += 1
 			continue
 		if n.berths.is_empty() and n.manufacturer == &"":
 			bare += 1
 			if h != &"":
-				housed += 1
+				desked += 1
 				seen[h] = true
 		elif h != &"":
-			berthed_with_house += 1
-	print("    seed 9300: %d stations with no berth, %d of them with a house desk (%s)" % [bare, housed, ", ".join(seen.keys())])
-	_ok("every station with no berth has a house desk (%d of %d)" % [housed, bare], housed == bare)
-	_ok("no station with a berth has one (%d)" % berthed_with_house, berthed_with_house == 0)
-	_ok("nor any place that is not a station, the start among them (%d)" % other_with_house,
-		other_with_house == 0 and Contracts.house(Run.map[Run.at]) == &"")
-	_ok("a station's house is the same every time it is asked", steady)
-	_ok("a null node has none", Contracts.house(null) == &"")
+			berthed_with_desk += 1
+	print("    seed 9300: %d stations with no berth, %d of them with a dock desk (%s)" % [bare, desked, ", ".join(seen.keys())])
+	_ok("every station with no berth has a dock desk (%d of %d)" % [desked, bare], desked == bare)
+	_ok("no station with a berth has one (%d)" % berthed_with_desk, berthed_with_desk == 0)
+	_ok("nor any place that is not a station, the start among them (%d)" % other_with_desk,
+		other_with_desk == 0 and Contracts.dock_desk(Run.map[Run.at]) == &"")
+	_ok("a station's dock desk is the same every time it is asked", steady)
+	_ok("a null node has none", Contracts.dock_desk(null) == &"")
 	# PINNED to the text order of the ids: `keys().sort()` on StringNames sorts
 	# by address, and one process cannot see that, since its order holds for
 	# the whole run. A literal desk fails as soon as the pick is not by text.
 	var pins: Array = []
 	for raw in Run.map:
 		var np: MapGen.MapNode = raw
-		if Contracts.house(np) != &"":
-			pins.append("%d:%s" % [np.index, Contracts.house(np)])
+		if Contracts.dock_desk(np) != &"":
+			pins.append("%d:%s" % [np.index, Contracts.dock_desk(np)])
 	var pin := " ".join(pins)
-	_ok("seed 9300's house desks are the text-ordered picks (%s)" % pin,
+	_ok("seed 9300's dock desks are the text-ordered picks (%s)" % pin,
 		pin == "11:calyx 37:redline 62:cygnet")
 	# And every one of them, against the ids written out in text order here.
 	var abc := PackedStringArray(["calyx", "cygnet", "korvan", "probate", "redline", "solari", "verity"])
 	var by_text := true
 	for raw in Run.map:
 		var nt: MapGen.MapNode = raw
-		var ht := Contracts.house(nt)
+		var ht := Contracts.dock_desk(nt)
 		if ht != &"" and String(ht) != abc[Rng.derive(&"house", nt.index).randi() % abc.size()]:
 			by_text = false
 	_ok("each desk is drawn from the ids in text order (%s)" % ", ".join(abc),
@@ -121,7 +122,7 @@ func _house_rule() -> void:
 	# `keys().sort()` pick follows the addresses. Checked failing on that sort.
 	var made: Array = []
 	for i in range(7, 0, -1):
-		made.append(StringName("tk_house_probe_%d" % i))
+		made.append(StringName("tk_desk_probe_%d" % i))
 	var probe := {}
 	for sn in made:
 		probe[sn] = true
@@ -131,7 +132,7 @@ func _house_rule() -> void:
 	var follows_text := true
 	for i in 64:
 		var want := StringName(text_order[Rng.derive(&"house", i).randi() % text_order.size()])
-		if Contracts.house_from(i, probe) != want:
+		if Contracts.dock_desk_from(i, probe) != want:
 			follows_text = false
 	print("    probe table: keys().sort() gives %s" % str(keyed))
 	_ok("a table made out of text order still picks by text, at 64 indices", follows_text)
@@ -139,18 +140,18 @@ func _house_rule() -> void:
 	var first := {}
 	for raw in Run.map:
 		var n2: MapGen.MapNode = raw
-		first[n2.index] = Contracts.house(n2)
+		first[n2.index] = Contracts.dock_desk(n2)
 	Rng.forced = 9300
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var same := true
 	for raw in Run.map:
 		var n3: MapGen.MapNode = raw
-		if Contracts.house(n3) != first.get(n3.index, &"?"):
+		if Contracts.dock_desk(n3) != first.get(n3.index, &"?"):
 			same = false
 	_ok("and the same desks on the same seed in a new run", same)
 
 
-## "NONE, <HOUSE> DESK" for every manufacturer fits the chart's destination
+## "NONE, <MANUFACTURER> DESK" for every manufacturer fits the chart's destination
 ## panel beside its OPERATORS key, at the panel's own font.
 func _operators_fit() -> void:
 	var font := UITheme.pixel_font()
@@ -163,7 +164,7 @@ func _operators_fit() -> void:
 		if w > worst:
 			worst = w
 			worst_s = s
-	_ok("the widest house line (%s, %d px) fits the panel beside OPERATORS (%d px of %d)"
+	_ok("the widest desk line (%s, %d px) fits the panel beside OPERATORS (%d px of %d)"
 		% [worst_s, int(worst), int(key_w + worst), int(PANEL_W)], key_w + worst + 8.0 <= PANEL_W)
 
 
@@ -259,25 +260,25 @@ func _decks(dev: int, berth: bool) -> void:
 			% [tag, win, "all in" if out.is_empty() else "; ".join(out)], out.is_empty())
 
 	# THE HIRING BOARD: whose work it is.
-	var house := Contracts.house(here)
+	var desk := Contracts.dock_desk(here)
 	var offers := Contracts.board(here)
 	var who: Array[String] = []
 	for c in offers:
 		who.append(String((c as ContractData).manufacturer))
 	if berth:
-		_ok("%s: no house desk" % tag, house == &"")
+		_ok("%s: no dock desk" % tag, desk == &"")
 		_ok("%s: the board posts Korvan's work (%s)" % [tag, ", ".join(who)],
 			not offers.is_empty() and who.all(func(m: String) -> bool: return m == "korvan"))
 	else:
-		_ok("%s: a house desk (%s)" % [tag, house], house != &"")
-		_ok("%s: the board posts the house's work (%s)" % [tag, ", ".join(who)],
-			not offers.is_empty() and who.all(func(m: String) -> bool: return m == String(house)))
+		_ok("%s: a dock desk (%s)" % [tag, desk], desk != &"")
+		_ok("%s: the board posts the dock desk's work (%s)" % [tag, ", ".join(who)],
+			not offers.is_empty() and who.all(func(m: String) -> bool: return m == String(desk)))
 		_ok("%s: the blurb names the desk" % tag,
-			MapGen.place_blurb(here).contains("%s posts work from a desk" % DB.short_name(DB.manufacturer_name(house))))
+			MapGen.place_blurb(here).contains("%s posts work from a desk" % DB.short_name(DB.manufacturer_name(desk))))
 	if not _ok("%s: the board is open and lit" % tag, await _open(st, &"work")):
 		return
 	var posts: Array[StringName] = st._board.posts
-	var lead: StringName = &"korvan" if berth else house
+	var lead: StringName = &"korvan" if berth else desk
 	_ok("%s: %s's notice hangs first (%s)" % [tag, lead, str(posts)], not posts.is_empty() and posts[0] == lead)
 	_ok("%s: an offer's SIGN is on the board" % tag, _find_button(st._work, "SIGN") != null)
 	_ok("%s: no NO WORK POSTED. note on a board with work" % tag, _find_label(st._work, StationScreen.NO_WORK) == null)
@@ -341,10 +342,10 @@ func _bare(dev: int) -> void:
 			note.is_visible_in_tree() and board.encloses(note.get_global_rect()))
 
 
-## THE CHART at a house station: OPERATORS reads NONE, <HOUSE> DESK.
+## THE CHART at a dock desk station: OPERATORS reads NONE, <MANUFACTURER> DESK.
 func _chart() -> void:
 	var here := _station(MapGen.Development.OUTPOST, false, 9100)
-	var house := Contracts.house(here)
+	var desk := Contracts.dock_desk(here)
 	var st := await _dock(here)
 	if st == null:
 		_ok("chart: the station is up", false)
@@ -356,7 +357,7 @@ func _chart() -> void:
 		return
 	ch._on_node_picked(here.index)
 	await _frames(6)
-	var want := "NONE, %s DESK" % DB.short_name(DB.manufacturer_name(house)).to_upper()
+	var want := "NONE, %s DESK" % DB.short_name(DB.manufacturer_name(desk)).to_upper()
 	var said := ""
 	var row_ok := false
 	for row in ch._rows.get_children():
@@ -367,7 +368,7 @@ func _chart() -> void:
 			row_ok = box.grow(0.5).encloses(labels[labels.size() - 1].get_global_rect())
 	_ok("chart: OPERATORS reads %s (%s)" % [want, said], said == want)
 	_ok("chart: and its line sits inside the panel", row_ok)
-	# The house blurb is the longest a station gives (the salvage line and the
+	# The dock desk's blurb is the longest a station gives (the salvage line and the
 	# desk line, and a law line after them). Its extra line spends the spacer
 	# below the rows; JUMP must stay on screen and clear of them.
 	var blurb := ch._dest_blurb.text

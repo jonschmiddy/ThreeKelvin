@@ -43,7 +43,7 @@ const HEAT_MAX := 9
 
 
 ## What this station is offering. Every station posts work (Jon, Nov 3: all five
-## decks at every station); one with no berth posts it for its house (`house`).
+## decks at every station); one with no berth posts it for its dock desk (`dock_desk`).
 ## Empty off a station, and rarely at one: an offer with nowhere to send you is
 ## not posted, so a board with no ordinary system within reach can be bare.
 ##
@@ -80,8 +80,8 @@ static func _manufacturers(n: MapGen.MapNode) -> Array:
 	for m in n.berths:
 		if m != &"" and m != n.manufacturer and DB.manufacturers.has(m):
 			out.append(m)
-	if out.is_empty() and house(n) != &"":
-		out.append(house(n))
+	if out.is_empty() and dock_desk(n) != &"":
+		out.append(dock_desk(n))
 	return out
 
 
@@ -98,21 +98,21 @@ static func _manufacturers(n: MapGen.MapNode) -> Array:
 ##
 ## Empty for anything but a station, and for a station that has a berth.
 ## Ported from the station study's `-- sim alldecks` (Nov 3), so its numbers stand.
-static func house(n: MapGen.MapNode) -> StringName:
+static func dock_desk(n: MapGen.MapNode) -> StringName:
 	if n == null or n.type != MapGen.NodeType.STATION:
 		return &""
 	if n.manufacturer != &"" or not n.berths.is_empty():
 		return &""
-	return house_from(n.index, DB.manufacturers)
+	return dock_desk_from(n.index, DB.manufacturers)
 
 
-## The desk for station `index` out of `table`'s ids. Split from `house` so
+## The desk for station `index` out of `table`'s ids. Split from `dock_desk` so
 ## StationDeckTest can hand it a table whose StringNames were made out of text
 ## order. By their TEXT (`NetSession.sorted_ids`), never `keys().sort()`: an
 ## Array of StringNames sorts by address, so the same seed's desk moved with how
 ## the process started, and a saved job lost its desk (or two co-op copies
-## disagreed). The house is derived, never saved, so this order is the save.
-static func house_from(index: int, table: Dictionary) -> StringName:
+## disagreed). The desk is derived, never saved, so this order is the save.
+static func dock_desk_from(index: int, table: Dictionary) -> StringName:
 	var keys := NetSession.sorted_ids(table)
 	if keys.is_empty():
 		return &""

@@ -42,7 +42,7 @@ func _boards() -> void:
 	var a := Contracts.board(n)
 	var b := Contracts.board(n)
 	_ok("a station posts the same board twice", _same(a, b))
-	# Every station posts work now, its house's where nobody berths (Jon, Nov 3;
+	# Every station posts work now, its dock desk's where nobody berths (Jon, Nov 3;
 	# `_every_station_posts` counts them). What is never legal is a board with
 	# work on it that nobody is paying for.
 	var has_manufacturer := true
@@ -61,16 +61,16 @@ func _boards() -> void:
 
 
 ## EVERY STATION POSTS WORK (Jon, Nov 3: all five decks at every station, the
-## HIRING BOARD among them). A station with no berth posts for its house desk
-## (`Contracts.house`), every offer has a manufacturer and a price, and a house
+## HIRING BOARD among them). A station with no berth posts for its dock desk
+## (`Contracts.dock_desk`), every offer has a manufacturer and a price, and a desk
 ## job is handed in at the desk that posted it. A bare board is legal only
 ## where no ordinary system lies within reach and both offers wanted one, which
 ## is rare: at most one station in a hundred.
 func _every_station_posts() -> void:
 	var stations := 0
 	var bare := 0
-	var housed := 0
-	var house_ok := true
+	var desked := 0
+	var desk_ok := true
 	var priced := true
 	for sd in JOB_SEEDS:
 		Rng.forced = sd
@@ -83,23 +83,23 @@ func _every_station_posts() -> void:
 			var offers := Contracts.board(n)
 			if offers.is_empty():
 				bare += 1
-			var h := Contracts.house(n)
+			var h := Contracts.dock_desk(n)
 			if n.berths.is_empty() and n.manufacturer == &"":
-				housed += 1
+				desked += 1
 				if h == &"" or not ContractData.berth_of(n, h):
-					house_ok = false
+					desk_ok = false
 			for c in offers:
 				var job: ContractData = c
 				if job.manufacturer == &"" or job.pay <= 0:
 					priced = false
 				if h != &"" and job.manufacturer != h:
-					house_ok = false
-	print("  %d stations on %d seeds: %d with no berth post for a house desk, %d boards bare"
-		% [stations, JOB_SEEDS.size(), housed, bare])
+					desk_ok = false
+	print("  %d stations on %d seeds: %d with no berth post for a dock desk, %d boards bare"
+		% [stations, JOB_SEEDS.size(), desked, bare])
 	_ok("every station posts work, or all but one in a hundred (%d of %d bare)" % [bare, stations],
 		stations > 0 and bare * 100 <= stations)
-	_ok("a station with no berth posts its house's work, and takes it back there (%d)" % housed,
-		housed > 0 and house_ok)
+	_ok("a station with no berth posts its dock desk's work, and takes it back there (%d)" % desked,
+		desked > 0 and desk_ok)
 	_ok("and every offer on every board has a manufacturer and a price", priced)
 
 
