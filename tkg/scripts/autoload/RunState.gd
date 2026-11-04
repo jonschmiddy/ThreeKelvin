@@ -106,6 +106,26 @@ var old_hull: HullData = null
 ## save (Oct 23).
 var _undo_move: Dictionary = {}
 var credits: int = 40
+## DATA (science, Jon's pick 1A, Nov 4): the readings a run has taken and not yet
+## spent. Its own number, never a price in credits and never bought or sold:
+## it comes only from places (a science event's reading, a film developed, a
+## relic read) and only a Lab takes it, for board steps and augments. Never
+## below 0 (`add_data`). Saved (VERSION 41); cleared with a new run.
+var data: int = 0
+## THE RUN'S DEALT BOARD (pick 2B): nine routine ids, branch-major, FRAME 0-2,
+## CORE 3-5, DRIVE 6-8, each branch weakest first (`deal_board`). The same at
+## every Lab of the run. Saved AS IDS, never dealt again at a load: a retuned
+## pool would otherwise move a live run's board under steps already bought.
+var board: Array[StringName] = []
+## Steps bought per branch, in order (0 to 3). What you own is DERIVED from this
+## and `board` (`owned_routines`), so there is no list of owned routines that
+## could disagree with it.
+var board_owned: PackedInt32Array = PackedInt32Array([0, 0, 0])
+## BLACK BOX is once a run: set when it has saved the ship (plan S3).
+var black_box_spent: bool = false
+## Test seam: `-- sim science=off` measures the control cell. Never set from game
+## code, and `start_new_run` leaves it alone, as it does `hellbender_off`.
+var science_off: bool = false
 ## FUEL AND DROSS ANNOUNCE THEMSELVES. See the note below.
 var fuel: int = FUEL_TANK:
 	set(v):
@@ -488,6 +508,12 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	Rng.reseed(galaxy_seed, Net.seat())
 	# What this run's world may hold. Before anything is rolled, and once.
 	unlocked_manufacturers = Unlocks.for_new_run()
+	# THE LAST RUN'S SCIENCE OFF FIRST, before `fit_chassis` fills the hull: its
+	# `hp = max_hp()` must not see last run's DAMAGE CONTROL. Then this run's
+	# board, off its own derived stream, so dealing it moves nothing the world,
+	# the loot or a fight draws from.
+	clear_science()
+	deal_board()
 
 	# A weight of -1 rolls one, for the same reason an empty manufacturer does:
 	# HeadlessSim calls this directly, and a fixed default would report a win
@@ -567,7 +593,9 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 ## at what the generator rolls without starting a run each time. A new seed
 ## (never the one in use, and not a forced test seed), a new kind, its map as a
 ## new run's would be, the ship at the new start system. The ship, its hull,
-## cargo, credits, fuel and standing are kept; contracts are dropped, because
+## cargo, credits, fuel and standing are kept, and so are its DATA, its board and
+## the steps bought on it (the board is not dealt again: it is the ship's flight
+## computer, not the galaxy's); contracts are dropped, because
 ## they name systems of the old map. Not in a co-op session, where the galaxy
 ## belongs to the whole party (the button says so). Returns whether it did.
 func dev_regenerate_galaxy() -> bool:
@@ -784,7 +812,9 @@ func place_in_hold(m: HoldItem, at: Vector2i = -Vector2i.ONE) -> bool:
 ## first time somebody tuned a number and forgot the label. This reads the
 ## ledger, so it cannot disagree with the ledger.
 func ledger() -> Dictionary:
-	return {credits = credits, fuel = fuel, heat = heat, hp = hp}
+	# `data` too (science): a reading that paid DATA and nothing else is a
+	# change, not "nothing happened"
+	return {credits = credits, fuel = fuel, heat = heat, hp = hp, data = data}
 
 
 ## Take a part out, releasing its cells.
@@ -2361,6 +2391,124 @@ func add_credits(n: int) -> void:
 	credits = maxi(0, credits + n)
 	Sig.resources_changed.emit()
 
+# ---------------------------------------------------------------------- science
+#
+# DATA, the dealt board and the routines bought on it (Phase 12, Jon's picks
+# 1A and 2B, Nov 4). The catalogue is `DB.routines`; what each routine does is
+# read where it happens (plan S3). All of it is the RUN's, never the hull's: the
+# Lab writes into the flight computer and the computer goes to any hull.
+
+## DATA in or out, the way `add_credits` moves credits: never below 0.
+func add_data(n: int) -> void:
+	data = maxi(0, data + n)
+	Sig.resources_changed.emit()
+
+## Spends `n` DATA if there is that much. False, and nothing moves, if not.
+func spend_data(n: int) -> bool:
+	if n < 0 or data < n:
+		return false
+	add_data(-n)
+	return true
+
+## DEAL THIS RUN'S BOARD (pick 2B): per branch, one of its four routines is
+## dropped and the three left keep their order, weakest first, so the prices
+## (6, 10, 15) always climb with the power. 4 boards a branch, 64 in all.
+##
+## Off `Rng.derive(&"board", seat)` and NOTHING ELSE: dealing it draws from no
+## stream, so a run with science moves no world, loot, event, foe or fight roll
+## (`-- rngtest`), and `science=off` stays the run main would fly. By SEAT, so
+## each ship of a party has its own board and seat 0 is the solo board on that
+## seed. `Rng.seat` rather than `Net.seat()`: the two agree at a new run, which
+## reseeds from `Net.seat()`, and at a load only Rng has the saved seat back.
+func deal_board() -> void:
+	var r := Rng.derive(&"board", Rng.seat)
+	var out: Array[StringName] = []
+	for b in DB.BRANCHES:
+		var four := DB.routines_in(b)
+		var drop := r.randi() % four.size()
+		for k in four.size():
+			if k != drop:
+				out.append(four[k])
+	board = out
+
+## Whether this run has bought routine `id`.
+func has_routine(id: StringName) -> bool:
+	return owned_routines().has(id)
+
+## Every routine bought, branch by branch, in the order bought. Derived from
+## `board` and `board_owned`, never stored on its own.
+func owned_routines() -> Array[StringName]:
+	var out: Array[StringName] = []
+	for b in DB.BRANCHES.size():
+		for k in _owned_in(b):
+			var i := b * 3 + k
+			if i < board.size():
+				out.append(board[i])
+	return out
+
+## Steps bought in branch `b`, 0 to 3.
+func _owned_in(b: int) -> int:
+	return clampi(board_owned[b], 0, 3) if b >= 0 and b < board_owned.size() else 0
+
+## The routine branch `b` sells next, or &"" when the branch is finished.
+func next_step(b: int) -> StringName:
+	var k := _owned_in(b)
+	if b < 0 or b >= DB.BRANCHES.size() or k >= 3 or b * 3 + k >= board.size():
+		return &""
+	return board[b * 3 + k]
+
+## What branch `b`'s next step costs in DATA; 0 when it is finished.
+func step_cost(b: int) -> int:
+	if next_step(b) == &"":
+		return 0
+	return DB.BOARD_PRICES[_owned_in(b)]
+
+## Buy branch `b`'s next step. False, with nothing spent, when the branch is
+## finished or the DATA is short.
+func buy_step(b: int) -> bool:
+	var id := next_step(b)
+	if id == &"":
+		return false
+	if not spend_data(step_cost(b)):
+		return false
+	var owned := board_owned.duplicate()
+	owned[b] = _owned_in(b) + 1
+	board_owned = owned
+	log_line("Routine written to the flight computer: %s." % DB.routines[id].name, &"big")
+	Sig.ship_changed.emit()
+	Sig.resources_changed.emit()
+	return true
+
+## What the owned routines add to one raw passive field: each one's `raw[field]`
+## plus `PER_PIP[gauge][field]` for each of its gauge pips. The same arithmetic
+## as `AffixData.raw_for`, so a routine written as +1 SEN is worth exactly what
+## an affix written as +1 SEN is.
+func routine_raw(field: StringName) -> float:
+	var total := 0.0
+	for id in owned_routines():
+		var r: Dictionary = DB.routines.get(id, {})
+		if r.is_empty():
+			continue
+		total += float((r.raw as Dictionary).get(field, 0.0))
+		var pips: Dictionary = r.pips
+		for g in pips:
+			var per: Dictionary = PER_PIP.get(g, {})
+			if per.has(field):
+				total += float(per[field]) * float(pips[g])
+	return total
+
+## `routine_raw`, for an int field.
+func routine_int(field: StringName) -> int:
+	return int(round(routine_raw(field)))
+
+## A new run's science, and the chassis select's: no DATA, no board, nothing
+## bought, the black box unspent. `science_off` is a test seam and stays.
+func clear_science() -> void:
+	data = 0
+	board = [] as Array[StringName]
+	board_owned = PackedInt32Array([0, 0, 0])
+	black_box_spent = false
+
 ## A flyable hull, cut out of a wreck or claimed off an event.
 ##
 ## THE THIRD THING THE RAIL SHOWS, and the only one that never went through
@@ -3203,9 +3351,15 @@ func _hop_cost(from: MapGen.MapNode, to: MapGen.MapNode) -> int:
 ## 279 tank), not a route the player chose. Leaving only the single cheapest
 ## jump was tried first and moved the strand one system on.
 func drain_fuel(n: int) -> void:
+	fuel = maxi(mini(fuel, fuel_floor()), fuel - n)
+
+## THE WAY OUT `drain_fuel` keeps: the fuel to reach a dock you can see, or with
+## none in sight three of the cheapest jumps from here; 0 with no map. Pulled out
+## of `drain_fuel` so the science gate (a reading that burns fuel is refused
+## below this), the card's note and the sim pilot read the one rule it drains by.
+func fuel_floor() -> int:
 	if map.is_empty() or node_at() == null:
-		fuel = maxi(0, fuel - n)
-		return
+		return 0
 	var limp := 0
 	var dock := 0
 	for raw in in_range():
@@ -3216,8 +3370,7 @@ func drain_fuel(n: int) -> void:
 		limp = c if limp == 0 else mini(limp, c)
 		if t.type == MapGen.NodeType.STATION:
 			dock = c if dock == 0 else mini(dock, c)
-	var keep := dock if dock > 0 else limp * 3
-	fuel = maxi(mini(fuel, keep), fuel - n)
+	return dock if dock > 0 else limp * 3
 
 ## Why REFUEL cannot sell here right now ("" when it can). Credits are the
 ## caller's business.

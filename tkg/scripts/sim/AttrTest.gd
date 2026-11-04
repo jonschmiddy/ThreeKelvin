@@ -93,7 +93,43 @@ func run() -> void:
 		_fail(b)
 	_affixes()
 	_hull_follows_fit()
+	_augmented_round_trip()
 	verdict("attrtest")
+
+
+## THE LAB'S MARK SURVIVES A SAVE, AND SO DOES WHAT IT ADDED (science, VERSION
+## 41). A plain gun with Reinforced added by a Lab goes through the save's own
+## module writer and reader: it comes back augmented, still Reinforced, and
+## still worth +7 max hull fitted. A plain one comes back unmarked.
+func _augmented_round_trip() -> void:
+	var reinforced: AffixData = null
+	for a in DB.affixes:
+		if (a as AffixData).name == "Reinforced":
+			reinforced = a
+	if reinforced == null:
+		_fail("no Reinforced affix to augment with")
+		return
+	var m := (DB.modules[&"kh20"] as ModuleData).duplicate(true) as ModuleData
+	var added := m.affixes.duplicate()
+	added.append(reinforced)
+	m.affixes = added
+	m.augmented = true
+	var back := SaveGame._module_from(SaveGame._module_to(m))
+	_ok("an augmented part comes back from the save augmented, with its affix",
+		back != null and back.augmented and back.affixes.any(
+			func(a: AffixData) -> bool: return a.name == "Reinforced"))
+	var plain := SaveGame._module_from(SaveGame._module_to(
+		(DB.modules[&"kh20"] as ModuleData).duplicate(true) as ModuleData))
+	_ok("and a plain one comes back plain", plain != null and not plain.augmented)
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	Run.installed.clear()
+	var bare := Run.max_hp()
+	if back != null:
+		back.mount = 0
+		Run.installed.append(back)
+	_ok("and fitted it still adds 7 max hull (%d to %d)" % [bare, Run.max_hp()],
+		Run.max_hp() == bare + 7)
 
 
 ## MISSING HULL STAYS MISSING (Jon, Oct 22). A plate fitted to a full ship

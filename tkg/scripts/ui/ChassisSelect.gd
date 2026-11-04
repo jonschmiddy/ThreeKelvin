@@ -142,6 +142,11 @@ var _rows: Array[Button] = []
 
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# NO DEAD RUN'S ROUTINES ON THE SHIP YOU ARE CHOOSING. Every pick refits the
+	# real ship (`_refit`), and the run the routines belonged to is over, so its
+	# DAMAGE CONTROL would show as +7 hull and its SPARE CELLS as +3 cells
+	# (`power_cap()`, below) on a chassis that will launch without them.
+	Run.clear_science()
 	_build()
 	_select(0)
 

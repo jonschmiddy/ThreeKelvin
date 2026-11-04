@@ -154,6 +154,17 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT,
 @export var affixes: Array[AffixData] = []
 @export var scrap_value: int = 8
 
+## A LAB HAS ADDED AN AFFIX TO THIS PART (science, pick 3A: once per part, ever).
+##
+## Runtime state like `mount`: every template carries false, and the value means
+## something only on the copy you own. A BOOL, not the affix's name. STRIP can
+## take any affix off afterwards, the Lab's included, and the mark stays, so the
+## part can never be augmented twice; a stored name would go stale the moment
+## that affix came off. It moves no number and no price (`scrap_value` is set
+## once, at the drop). Saved with the part (`SaveGame._module_to`, VERSION 41),
+## so it goes everywhere a part can go: fitted, hold, pad, jetsam.
+@export var augmented: bool = false
+
 @export_group("Art")
 ## Transparent, trimmed to bounding box, same 3/4 angle and light direction as hulls.
 @export var sprite: Texture2D

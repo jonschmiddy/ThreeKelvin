@@ -58,6 +58,8 @@ func run() -> void:
 	_state_round_trip()
 	print("\n=== a whole run ===")
 	_whole_run()
+	print("\n=== the science board ===")
+	_board()
 
 	print("")
 	if fails == 0:
@@ -287,6 +289,65 @@ func _state_round_trip() -> void:
 		after.append(module_print(LootGen.roll_module(4)))
 	check("a restored run finds what it was going to find", str(after), str(expected))
 	check("and remembers its seed", Rng.master, SEED_A)
+
+
+# --- 8. the science board -------------------------------------------------
+#
+# THE DEAL DRAWS NOTHING (science, pick 2B). A run's board comes off
+# `Rng.derive(&"board", seat)` alone, so dealing it moves no stream: a run with
+# science rolls the world, the loot, every event and every fight exactly as a
+# run without it, which is what makes `-- sim science=off` a control cell.
+
+func _board() -> void:
+	build_world(SEED_A)
+	# every stream moved off its seed first, so a deal that drew from any of
+	# them shows as a cursor that moved
+	Rng.world.randi()
+	Rng.loot.randi()
+	Rng.event.randi()
+	Rng.foe.randi()
+	Rng.fight.randi()
+	var before := Rng.state()
+	Run.deal_board()
+	check("dealing the board drew nothing from any stream", Rng.state(), before)
+	var first := Run.board.duplicate()
+	build_world(SEED_A)
+	check("the same seed and seat deal the same board", Run.board, first)
+	Run.deal_board()
+	check("and dealing it again deals it again", Run.board, first)
+	ok("a board is nine routines (%d)" % first.size(), first.size() == 9)
+	var bad: PackedStringArray = []
+	for i in first.size():
+		var id: StringName = first[i]
+		if not DB.routines.has(id):
+			bad.append("%s is not a routine" % id)
+			continue
+		var r: Dictionary = DB.routines[id]
+		@warning_ignore("integer_division")
+		var b: int = i / 3
+		if r.branch != DB.BRANCHES[b]:
+			bad.append("%s (%s) dealt into %s" % [id, r.branch, DB.BRANCHES[b]])
+		if i % 3 > 0 and DB.routines.has(first[i - 1]) \
+				and int(r.rank) <= int(DB.routines[first[i - 1]].rank):
+			bad.append("%s out of rank order" % id)
+	ok("every id a routine, in its own branch, weakest first: %s" % ", ".join(bad), bad.is_empty())
+	# (and the deal is a deal: across seeds, every one of the 64 boards can come)
+	var seen := {}
+	for s in 400:
+		Rng.reseed(7000 + s)
+		Run.deal_board()
+		seen[str(Run.board)] = true
+	ok("400 seeds deal many boards (%d of 64)" % seen.size(), seen.size() >= 50)
+	# a second seat on the same seed is its own ship, with its own deal
+	var seats := {}
+	for seat in 4:
+		Rng.reseed(SEED_A, seat)
+		Run.deal_board()
+		seats[str(Run.board)] = true
+	ok("four seats on one seed are not all dealt one board", seats.size() > 1)
+	Rng.reseed(SEED_A)
+	Run.deal_board()
+	check("seat 0 is the solo board", Run.board, first)
 
 
 # --- 7. a whole run -------------------------------------------------------

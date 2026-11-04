@@ -51,6 +51,8 @@ var hull_frames: Array[HullData] = []
 var enemies: Dictionary = {}            ## StringName -> EnemyTemplate
 var affixes: Array[AffixData] = []
 var hull_perks: Dictionary = {}         ## StringName -> {name, text}
+## The Lab's routines (Phase 12, science). See `_seed_routines`.
+var routines: Dictionary = {}           ## StringName -> {name, text, branch, rank, pips, raw}
 
 ## ONE branded weapon, and yard stock for the rest.
 ##
@@ -145,6 +147,7 @@ func _ready() -> void:
 	_seed_hulls()
 	_seed_enemies()
 	_seed_perks()
+	_seed_routines()
 
 # ---------------------------------------------------------------- manufacturers
 
@@ -2465,6 +2468,104 @@ func perk_text(id: StringName) -> String:
 		return "%s: %s" % [p.name, p.text]
 	return ""
 
+# --------------------------------------------------------------------- routines
+#
+# SCIENCE (Phase 12, Jon's picks Nov 4, "1A 2B 3A 4B"). A routine is what the Lab
+# writes into the flight computer for DATA: a boost for the rest of the run that
+# goes with you to any hull, because the computer does. It is the run's, never
+# the hull's, so a yard swap leaves it alone and it stacks with a hull perk that
+# does the same thing (Deep Tanks and FUEL TRIM, Baffled Vents and VENT TIMING).
+#
+# THE BOARD (pick 2B). Each run deals three branches of three, FRAME, CORE and
+# DRIVE, from these twelve: four a branch, one dropped by the deal. Steps in a
+# branch are bought in order at BOARD_PRICES, so a branch's `rank` is its order,
+# weakest first, and the price always climbs with the power. The order is an
+# estimate until the routine sims rank them (plan S15).
+#
+# `pips` are gauge pips, through `RunState.PER_PIP` exactly as an affix's are
+# (`AffixData.raw_for`), so a routine that says +1 SEN moves SENSORS by exactly
+# one. `raw` is a field added straight, for the two a pip would get wrong: a
+# THERMAL pip is heat capacity AND venting (VENT TIMING is venting only), and a
+# REACTOR pip is three cells AND energy (SPARE CELLS is the cells only). The
+# other six are flags with no numbers: what they do is read by name where it
+# happens (plan S3).
+#
+# NOTHING HERE PAYS CREDITS, MATERIALS OR DATA, or makes the shop cheaper. Each
+# of those turns DATA into money, which is the one thing DATA must never be.
+
+## What a board step costs, by its place in the branch (pick 2B). The whole
+## board is 3 x (6 + 10 + 15) = 93.
+const BOARD_PRICES: Array[int] = [6, 10, 15]
+## The board's three branches, in the order the board is laid out and saved.
+const BRANCHES: Array[StringName] = [&"frame", &"core", &"drive"]
+
+## What the Lab's AUGMENT may add to a part (pick 3A). Every affix but two:
+## Cryo-Lined gives heat capacity on any part, which is a thermal module's job,
+## and Deregulated is contraband. Bus-Fed is drawn at its loot weight (0.35).
+const LAB_AFFIXES: Array[StringName] = [&"Reinforced", &"Double-Plated",
+	&"Gyro-Trimmed", &"Wide-Banded", &"Signature-Damped", &"Tuned Injectors",
+	&"Bus-Fed", &"Stripped"]
+
+func _seed_routines() -> void:
+	routines = {
+		# FRAME: what the hull takes and survives.
+		&"quiet_running": {name = "QUIET RUNNING", branch = &"frame", rank = 0,
+			pips = {&"stealth": 1}, raw = {},
+			text = "+1 stealth. Fewer ships see you coming."},
+		&"damage_control": {name = "DAMAGE CONTROL", branch = &"frame", rank = 1,
+			pips = {&"hull": 1}, raw = {},
+			text = "+7 max hull on any frame."},
+		&"patch_crew": {name = "PATCH CREW", branch = &"frame", rank = 2,
+			pips = {}, raw = {},
+			text = "Mend 3 hull after every fight you win."},
+		&"black_box": {name = "BLACK BOX", branch = &"frame", rank = 3,
+			pips = {}, raw = {},
+			text = "Once a run, a hit in a fight that would kill you leaves you at 1 hull."},
+		# CORE: the reactor and heat, and how a fight opens.
+		&"spare_cells": {name = "SPARE CELLS", branch = &"core", rank = 0,
+			pips = {}, raw = {&"cells": 3},
+			text = "+3 reactor cells. Power to fit more, but no more energy."},
+		&"vent_timing": {name = "VENT TIMING", branch = &"core", rank = 1,
+			pips = {}, raw = {&"dissipation": 1},
+			text = "+1 heat dissipation."},
+		&"cold_open": {name = "COLD OPEN", branch = &"core", rank = 2,
+			pips = {}, raw = {},
+			text = "Drop 4 heat when a fight starts."},
+		&"warm_start": {name = "WARM START", branch = &"core", rank = 3,
+			pips = {}, raw = {},
+			text = "+1 energy on the first turn of a fight only."},
+		# DRIVE: engines, nav and fire control.
+		&"wide_sweep": {name = "WIDE SWEEP", branch = &"drive", rank = 0,
+			pips = {&"sensors": 1}, raw = {},
+			text = "+1 sensors. You see farther on the chart."},
+		&"fuel_trim": {name = "FUEL TRIM", branch = &"drive", rank = 1,
+			pips = {}, raw = {},
+			text = "Every jump costs 10% less fuel. Stacks with Deep Tanks."},
+		&"evasion_tables": {name = "EVASION TABLES", branch = &"drive", rank = 2,
+			pips = {&"maneuver": 1}, raw = {},
+			text = "+1 maneuver. More enemy shots miss."},
+		&"first_look": {name = "FIRST LOOK", branch = &"drive", rank = 3,
+			pips = {}, raw = {},
+			text = "Draw 2 more cards on the first turn of a fight."},
+	}
+
+## A routine as the Lab and the ship tab print it: "NAME: what it does".
+func routine_text(id: StringName) -> String:
+	if routines.has(id):
+		var r: Dictionary = routines[id]
+		return "%s: %s" % [r.name, r.text]
+	return ""
+
+## A branch's four routines, weakest first: what the deal drops one of.
+func routines_in(branch: StringName) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for rank in 4:
+		for id in routines:
+			var r: Dictionary = routines[id]
+			if r.branch == branch and int(r.rank) == rank:
+				out.append(id)
+	return out
+
 # -------------------------------------------------------------------- materials
 #
 # The second half of the economy: things you take OFF a wreck rather than out of
@@ -2507,10 +2608,27 @@ func perk_text(id: StringName) -> String:
 # reach into a specific module in the hold need a picker and a target, which is
 # the next piece of work and not this one.
 
+#
+# RELIC ANALYSIS'S TEXT SAYS WHAT THE CODE DOES (science spec, Nov 4). It said
+# "Fabricates a precursor module", and `Fabricator._apply` rolls any part for the
+# danger, branded ones included. Rolling only the six precursor parts would be a
+# big power jump and a separate call, so the words moved and the roll did not.
+#
+# DEVELOP FILM AND READ FOR DATA (science, pick 1A) turn a survey film and a
+# relic into DATA, at no credits: a lab takes them, and nothing buys DATA.
+# DEV 99 UNTIL THE BENCH CAN PAY DATA. `Fabricator._apply` has no `&"data"` arm
+# yet, so `Fabricator.available` would list them and a press would take the film
+# and pay nothing. They go to dev 0 with that arm (plan S5).
 const RECIPES: Array[Dictionary] = [
 	{id = &"analysis", name = "RELIC ANALYSIS", kind = &"artifact", amount = 1, dev = 0,
 		credits = 40, mats = {&"relic": 1},
-		text = "Have the fragment read. Fabricates a precursor module into the hold."},
+		text = "Have the fragment read. It turns out to be a part."},
+	{id = &"develop", name = "DEVELOP FILM", kind = &"data", amount = 6, dev = 99,
+		credits = 0, mats = {&"survey_film": 1},
+		text = "Develop a roll of survey film. The readings on it are DATA."},
+	{id = &"read", name = "READ FOR DATA", kind = &"data", amount = 15, dev = 99,
+		credits = 0, mats = {&"relic": 1},
+		text = "Have the fragment read for DATA, which uses it up."},
 ]
 
 # ---------------------------------------------------------------------- enemies

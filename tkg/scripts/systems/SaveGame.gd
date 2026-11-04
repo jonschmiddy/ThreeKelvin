@@ -312,7 +312,15 @@ static var restoring := false
 ## CONTINUE would otherwise meet a weaker boss than the badge showed. Read the
 ## way 39 reads 38: a 39 save has no `party_jumps`, and missing means 0, so its
 ## count is its own jumps, as a 39 build grew it. OLDEST_READ stays at 29.
-const VERSION := 40
+## 41: SCIENCE (Phase 12, Jon's picks Nov 4). `data` (`Run.data`), the dealt
+## `board` (as routine ids), `board_owned` (steps bought per branch),
+## `black_box_spent`, and a module's `augmented`. The board is saved as ids and
+## never dealt again at a load: a retuned pool would otherwise move a live run's
+## board under steps already bought. Read the way 40 reads 39: a 40 save loads
+## with 0 DATA, nothing owned, nothing augmented, and its board dealt from its
+## seed and seat (`_board_from`), the board a 41 build would have dealt it.
+## OLDEST_READ stays at 29.
+const VERSION := 41
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
 const OLDEST_READ := 29
@@ -477,6 +485,12 @@ static func _snapshot() -> Dictionary:
 		heat = Run.heat,
 		heat_cap_bonus = Run.heat_cap_bonus,
 		credits = Run.credits,
+		# Science (VERSION 41): DATA, the board as dealt (ids, never re-dealt at a
+		# load), the steps bought on it and the once-a-run black box.
+		data = Run.data,
+		board = Array(Run.board).map(func(x: StringName) -> String: return String(x)),
+		board_owned = Array(Run.board_owned),
+		black_box_spent = Run.black_box_spent,
 		# The whole ledger, not the one row that used to be a field. A material
 		# added to MaterialTable is saved by construction rather than by somebody
 		# remembering to add a line here.
@@ -570,6 +584,21 @@ static func load_into_run() -> bool:
 	Run.galaxy_spin = float(d.get("galaxy_spin", 0.0))
 	Run.galaxy_name = str(d.get("galaxy_name", ""))
 	Run.galaxy_title = str(d.get("galaxy_title", ""))
+
+	# SCIENCE (VERSION 41), AFTER THE SEED AND BEFORE THE HULL. After, because a
+	# board that has to be dealt again is dealt from the restored seed and seat;
+	# before, because the hull and `hp` below go through `_clamp_hp`, which must
+	# already see an owned DAMAGE CONTROL's +7. A 40 save has none of these keys:
+	# 0 DATA, nothing owned, the box unspent, and a board dealt from its seed.
+	Run.data = maxi(0, int(d.get("data", 0)))
+	Run.board = _board_from(d.get("board", null))
+	var owned_raw: Variant = d.get("board_owned", [])
+	var owned := PackedInt32Array([0, 0, 0])
+	if typeof(owned_raw) == TYPE_ARRAY:
+		for b in mini(3, (owned_raw as Array).size()):
+			owned[b] = clampi(int((owned_raw as Array)[b]), 0, 3)
+	Run.board_owned = owned
+	Run.black_box_spent = bool(d.get("black_box_spent", false))
 
 	# The hull before the map: ring_radius() reads Run.galaxy, and half the
 	# screens read Run.hull the moment a signal reaches them.
@@ -860,6 +889,8 @@ static func _module_to(m: ModuleData) -> Dictionary:
 		mount = m.mount,
 		turned = m.turned,
 		hold_at = [m.hold_at.x, m.hold_at.y],
+		# A Lab has added an affix to it (VERSION 41): once per part, ever.
+		augmented = m.augmented,
 	}
 
 ## Null when the id is gone from the database — content changed under a save.
@@ -881,6 +912,8 @@ static func _module_from(e: Variant) -> ModuleData:
 	m.scrap_value = int(d.get("scrap_value", m.scrap_value))
 	m.mount = int(d.get("mount", -1))
 	m.turned = bool(d.get("turned", false))
+	# VERSION 41; a 40 save's parts were never augmented
+	m.augmented = bool(d.get("augmented", false))
 	# Version 6. A save from before the hold was a grid carries no position, and
 	# -1,-1 is exactly what a part not yet placed looks like — so the loader
 	# below re-packs those rather than leaving them claiming no cells.
@@ -1044,6 +1077,34 @@ static func _unlocked_from(raw: Variant) -> Array[StringName]:
 	if out.is_empty():
 		out.append(Unlocks.CHAIN[0])
 	return out
+
+## THE RUN'S BOARD, as saved (VERSION 41): nine routine ids, three a branch,
+## FRAME then CORE then DRIVE, each branch weakest first. An id this build does
+## not know is dropped, and anything short of a whole board in that shape (a 40
+## save has none, a hand-edited one may have anything) is dealt again from the
+## restored seed and seat (`RunState.deal_board`), the board the run would have
+## been dealt. Its bought steps stay as saved; the deal is the one it had unless
+## the pool changed under it.
+static func _board_from(raw: Variant) -> Array[StringName]:
+	var out: Array[StringName] = []
+	if typeof(raw) == TYPE_ARRAY:
+		for e in raw:
+			var id := StringName(str(e))
+			if DB.routines.has(id):
+				out.append(id)
+	var whole := out.size() == 9
+	if whole:
+		for b in 3:
+			for k in 3:
+				var r: Dictionary = DB.routines[out[b * 3 + k]]
+				# its own branch, and after the one before it in that branch
+				if r.branch != DB.BRANCHES[b] or (k > 0
+						and int(r.rank) <= int(DB.routines[out[b * 3 + k - 1]].rank)):
+					whole = false
+	if whole:
+		return out
+	Run.deal_board()
+	return Run.board.duplicate()
 
 static func _standing_to() -> Dictionary:
 	var out: Dictionary = {}
