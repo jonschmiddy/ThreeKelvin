@@ -2379,13 +2379,6 @@ step "One word for the thing: manufacturer"
 #      `var maker := ...` is still caught, which is the vocabulary this rule was
 #      written for -- checked by dropping such a file in and watching it fail.
 #
-#      `Rng.derive(&"house", ...)` is one more key of that kind (Nov 4). It
-#      seeds which manufacturer runs each unberthed station's dock desk
-#      (`Contracts.dock_desk_from`), derived and never saved, so the string IS
-#      the save: renaming it moves every desk in every run in flight, and
-#      StationDeckTest pins seed 9300's desks to it. Exempt as that exact call,
-#      in code and in the docs that name it.
-#
 # BRAND AND MARQUE were added after they were used to route AROUND this check:
 # a rename hit the guard on `maker`, and a synonym went in instead -- first as a
 # local called `brand`, then as `marque` in a comment. Neither was on the list,
@@ -2427,8 +2420,7 @@ VOCAB=$(
 	  | grep -v '"makers"' \
 	  | grep -v '`maker`' \
 	  | grep -v '`makers`' \
-	  | grep -v '`chassis_maker`' \
-	  | grep -v 'Rng.derive(&"house"'
+	  | grep -v '`chassis_maker`'
 )
 
 # The same check for prose. docs/archive/ is out of scope on purpose -- those
@@ -2445,8 +2437,7 @@ VOCAB_DOCS=$(
 	  | grep -v 'house style' \
 	  | grep -v 'never .house. or .maker.' \
 	  | grep -viE 'never house, maker, brand, or marque' \
-	  | grep -v '`chassis_maker`' \
-	  | grep -v 'Rng.derive(&"house"'
+	  | grep -v '`chassis_maker`'
 )
 if [ -z "$VOCAB" ]; then
 	ok "no retired vocabulary in $PROJECT/scripts"

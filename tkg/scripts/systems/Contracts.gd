@@ -116,7 +116,7 @@ static func dock_desk_from(index: int, table: Dictionary) -> StringName:
 	var keys := NetSession.sorted_ids(table)
 	if keys.is_empty():
 		return &""
-	return StringName(keys[Rng.derive(&"house", index).randi() % keys.size()])
+	return StringName(keys[Rng.derive(&"dock_desk", index).randi() % keys.size()])
 
 
 static func _roll(n: MapGen.MapNode, manufacturer: StringName,

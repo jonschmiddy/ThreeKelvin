@@ -104,14 +104,14 @@ func _dock_desk_rule() -> void:
 			pins.append("%d:%s" % [np.index, Contracts.dock_desk(np)])
 	var pin := " ".join(pins)
 	_ok("seed 9300's dock desks are the text-ordered picks (%s)" % pin,
-		pin == "11:calyx 37:redline 62:cygnet")
+		pin == "11:verity 37:calyx 62:calyx")
 	# And every one of them, against the ids written out in text order here.
 	var abc := PackedStringArray(["calyx", "cygnet", "korvan", "probate", "redline", "solari", "verity"])
 	var by_text := true
 	for raw in Run.map:
 		var nt: MapGen.MapNode = raw
 		var ht := Contracts.dock_desk(nt)
-		if ht != &"" and String(ht) != abc[Rng.derive(&"house", nt.index).randi() % abc.size()]:
+		if ht != &"" and String(ht) != abc[Rng.derive(&"dock_desk", nt.index).randi() % abc.size()]:
 			by_text = false
 	_ok("each desk is drawn from the ids in text order (%s)" % ", ".join(abc),
 		by_text and NetSession.sorted_ids(DB.manufacturers) == abc)
@@ -131,7 +131,7 @@ func _dock_desk_rule() -> void:
 	var text_order := NetSession.sorted_ids(probe)
 	var follows_text := true
 	for i in 64:
-		var want := StringName(text_order[Rng.derive(&"house", i).randi() % text_order.size()])
+		var want := StringName(text_order[Rng.derive(&"dock_desk", i).randi() % text_order.size()])
 		if Contracts.dock_desk_from(i, probe) != want:
 			follows_text = false
 	print("    probe table: keys().sort() gives %s" % str(keyed))
