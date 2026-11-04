@@ -697,6 +697,9 @@ static func load_into_run() -> bool:
 		trail.append(int(i))
 	Run.trail = trail
 	Run.jumps = int(d.get("jumps", 0))
+	# the badge's arrival at this jump was shown before the save, or never will
+	# be: a loaded run does not replay it (`RunState.custodian_seen`)
+	Run.custodian_seen = Run.jumps
 	Run.kills = int(d.get("kills", 0))
 
 	# Clamped like `at`, because a stale index here is not a wrong marker — it

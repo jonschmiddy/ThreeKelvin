@@ -238,6 +238,13 @@ var at: int = 0
 var map_clock: Dictionary = {}
 
 var jumps: int = 0
+## THE LAST JUMP WHOSE ARRIVAL THE CUSTODIAN'S BADGE HAS SHOWN (`GoalLine`,
+## `CustodianBadge`), so moving between LOCAL, the map and the chart never plays
+## it twice. NOT SAVED, on purpose: the save is written as the ship arrives
+## (`Router.resolve_current_node`), before the goal line comes up, so a saved
+## figure would always be one behind and every CONTINUE would replay it. A
+## loaded run counts as seen (`SaveGame`); a new one starts at 0.
+var custodian_seen: int = 0
 var kills: int = 0
 ## Wall clock, seconds since the epoch, set when the run begins and carried
 ## through the save. A run spans sessions now, so a frame counter or a tree
@@ -496,6 +503,7 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	fuel = start_fuel()
 	dross = []
 	jumps = 0
+	custodian_seen = 0
 	kills = 0
 	hauls = 0
 	contracts.clear()

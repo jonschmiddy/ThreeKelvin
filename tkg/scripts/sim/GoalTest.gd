@@ -205,7 +205,7 @@ func _check(g: Control, where: String, step: String) -> void:
 		_ok("%s: the step's line directly under the goal (%s, the goal %s)" % [where, sr.position, r],
 			sr.position == Vector2(r.position.x, r.end.y + 1.0))
 		var shits: Array[String] = []
-		for pair in _boxes(Router.current):
+		for pair in boxes(Router.current):
 			var b2: Rect2 = pair[1]
 			if b2.size.x > 0.0 and b2.size.y > 0.0 and sr.intersects(b2):
 				shits.append("%s %s" % [pair[0], b2])
@@ -224,7 +224,7 @@ func _check(g: Control, where: String, step: String) -> void:
 		var outer := inner.get_parent_control().get_global_rect()
 		if r.intersects(outer) and not inner.get_global_rect().encloses(r):
 			hits.append("the picture's frame %s" % outer)
-	for pair in _boxes(Router.current):
+	for pair in boxes(Router.current):
 		var b: Rect2 = pair[1]
 		if b.size.x > 0.0 and b.size.y > 0.0 and r.intersects(b):
 			hits.append("%s %s" % [pair[0], b])
@@ -236,7 +236,9 @@ func _check(g: Control, where: String, step: String) -> void:
 
 
 ## Everything the line must not cover, [name, global rect], gathered here.
-func _boxes(cur: Control) -> Array:
+## Static, so `-- sheet=BadgeTest` holds the Custodian's badge to the same
+## independent list.
+static func boxes(cur: Control) -> Array:
 	var out: Array = [["HUD", Router.hud.get_global_rect()]]
 	if cur.has_method("ladder_side"):
 		var side: Control = cur.call("ladder_side")

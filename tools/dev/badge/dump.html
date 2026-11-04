@@ -1,0 +1,41 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Badge dump</title>
+<!-- The approved badge 9b (eye-1b, Jon Nov 4) drawn by its own source, core.js and fin_eye.js, copied
+     here verbatim from tk-scratch/custodian-badge/web, frame by frame onto a transparent canvas, for
+     dump_golden.py. The font is the game's own file. -->
+<style>@font-face { font-family: "Silkscreen"; src: url("../../../tkg/assets/fonts/Silkscreen-Regular.ttf") format("truetype"); }</style>
+<script src="core.js"></script>
+<script src="fin_eye.js"></script>
+<script>
+"use strict";
+const BADGE = BADGES.find(b => b.id === "eye-1b");
+// coreBoot's font half (the stills are not needed): the same letter spacing the approved page used
+async function boot() {
+  await document.fonts.load("8px Silkscreen");
+  PROBE = document.createElement("canvas").getContext("2d");
+  setFont(PROBE, 8); const m = PROBE.measureText("GOAL: REACH THE CORE");
+  const ink = (m.actualBoundingBoxRight || m.width) + (m.actualBoundingBoxLeft || 0);
+  LS = Math.max(0, Math.min(2, Math.round((99 - ink) / 19)));
+  document.body.dataset.ready = "1";
+}
+function b64(u8) { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+// list: [{ j, t, since }] (since < 0: not arriving). Draws each at x X, cy CY on a W x H canvas.
+window.__dump = function (list, W, H, X, CY) {
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const x = c.getContext("2d", { willReadFrequently: true }); x.imageSmoothingEnabled = false;
+  return list.map(f => {
+    x.clearRect(0, 0, W, H); x.save();
+    const a = f.since >= 0 ? { since: f.since, from: f.j - 1 } : undefined;
+    const r = BADGE.draw(x, X, CY, f.j, f.t, 1, a);
+    x.restore(); x.globalAlpha = 1;
+    return { box: r, px: b64(x.getImageData(0, 0, W, H).data) };
+  });
+};
+window.__info = function () {
+  const d = {}; "0123456789".split("").forEach(ch => { d[ch] = textW(ch, 8); });
+  return { LS: LS, capH: capH(8), digitW: d, w15: textW("15", 8), w16: textW("16", 8), s0w: BADGE.s0w, goal: textW("GOAL: REACH THE CORE", 8),
+    tips: Array.from({ length: 41 }, (_, j) => j === 0 ? null : tooltip(j)) };
+};
+</script>
+<body onload="boot()"></body>

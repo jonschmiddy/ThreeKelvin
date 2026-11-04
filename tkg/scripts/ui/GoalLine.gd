@@ -53,6 +53,16 @@ extends Control
 ## hidden over any other move, a jump's departure and an arrival (it comes up
 ## when the ship stops), the cutaway, a wreck's window and the escape menu, and
 ## off the three flight screens.
+##
+## THE CUSTODIAN'S BADGE (`CustodianBadge`, badge 9b, Jon Nov 4) stands on the
+## goal's line, 6 blank px after its last letter, its middle row on the
+## capitals' middle (`badge_at`): the eye that wakes as the boss at the core
+## grows. It is part of the line: it shows when the line shows, fades and slides
+## with it, and its room is the line's (`size`, `stack_rect`), so what keeps off
+## the goal keeps off the badge. It is 15 px tall to the goal's 13, so the
+## step's line stands 2 px lower than it did (`_line_h`). Its arrival plays
+## here, once a jump: on the first frame the line is fully up after the jump
+## (`RunState.custodian_seen`), and until then it holds the jump before.
 
 const GOAL := "GOAL: REACH THE CORE"
 ## Every step's line as shown (`step`), for the room the step keeps (`stack_rect`).
@@ -71,6 +81,15 @@ const AT_LOCAL := Vector2(16.0, 4.0)
 const GAP := 1.0
 ## One line's height with its backing, px (where it cannot be measured).
 const LINE_H := 13.0
+## The backing's padding round the goal's words, px (`_backed`).
+const PAD_H := 5.0
+const PAD_V := 1.0
+## Silkscreen at 8 px: its capitals' height, and the blank column every glyph
+## carries on its right (its advance runs 1 px past its ink), px.
+const CAP_H := 5.0
+const INK_TAIL := 1.0
+## Blank columns between the goal's last letter and the badge (Jon, Nov 4).
+const BADGE_GAP := 6.0
 ## THE STEP'S LINE COMING BACK after she has said it: how long, s, and the
 ## settle up into its place, px.
 const APPEAR_S := 0.45
@@ -82,6 +101,8 @@ var _panel: PanelContainer
 var _step_panel: PanelContainer
 var _goal: Label
 var _step: Label
+## the Custodian's badge, on the goal's line
+var _badge: CustodianBadge
 ## The HUD tab the step names (&"chart" / &"sector"), or &"".
 var cue: StringName = &""
 var _want := false
@@ -110,7 +131,7 @@ func _init() -> void:
 	# THE GOAL, on the step's dim backing: it stands over the picture now (Jon,
 	# Oct 20), on a bright sky too; the same look on all three, a fixed piece of
 	# the HUD
-	_backed = UITheme.flat(Color(UITheme.VOID, 0.72), Color(0, 0, 0, 0), 0, 1, 5)
+	_backed = UITheme.flat(Color(UITheme.VOID, 0.72), Color(0, 0, 0, 0), 0, int(PAD_V), int(PAD_H))
 	_panel.add_theme_stylebox_override("panel", _backed)
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_panel)
@@ -125,6 +146,10 @@ func _init() -> void:
 	_step = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
 	_step.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_step_panel.add_child(_step)
+	# THE CUSTODIAN'S BADGE, after the goal's words (placed in `refresh`; after
+	# the step's panel, so the goal's and the step's labels stay the first two)
+	_badge = CustodianBadge.new()
+	add_child(_badge)
 
 
 ## The step pending now, as {text, tab, id}; {} for none. Marks a step done the
@@ -195,6 +220,12 @@ func refresh() -> void:
 	if want:
 		var sz := _panel.get_combined_minimum_size()
 		_panel.size = sz
+		# the line's room takes the badge in, at its widest (S0's), so nothing
+		# that keeps off the goal moves as the jumps go by
+		if CustodianBadge.enabled():
+			var at := badge_at()
+			_badge.position = at
+			sz = Vector2(maxf(sz.x, at.x + CustodianBadge.MAX_W), maxf(sz.y, at.y + CustodianBadge.BOX_H))
 		size = sz
 		position = fixed_at()
 		if _step.visible:
@@ -202,7 +233,31 @@ func refresh() -> void:
 			_step_panel.size = ssz
 			_step_panel.position = step_at(cur) - position + Vector2(0.0, _appear())
 	_fade(want)
+	# THE BADGE'S ARRIVAL, once a jump, when the line is fully up after it (not
+	# half way through its fade, which would eat half a 0.4 s tick)
+	var pending := want and CustodianBadge.enabled() and Run.custodian_seen < Run.jumps
+	if pending and visible and modulate.a >= 0.99:
+		_badge.arrive(Run.jumps)
+		Run.custodian_seen = Run.jumps
+		pending = false
+	_badge.refresh(visible and (want or modulate.a > 0.0), pending)
 	queue_redraw()
+
+
+## THE BADGE'S PLACE from the line's corner: BADGE_GAP blank columns after the
+## goal's last ink column (the label at the backing's padding, its ink running
+## to its advance less Silkscreen's blank tail), its middle row (cy, 7 rows
+## down its 15) on the capitals' middle. Whole pixels.
+static func badge_at() -> Vector2:
+	var font := UITheme.pixel_font()
+	var adv := font.get_string_size(GOAL, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+	var cap_top := PAD_V + ceilf(font.get_ascent(UITheme.FS_SMALL)) - CAP_H
+	return Vector2(roundf(PAD_H + adv - INK_TAIL + BADGE_GAP), roundf(cap_top + floorf(CAP_H / 2.0) - 7.0))
+
+
+## The badge (tests and the tooltip read it).
+func badge() -> CustodianBadge:
+	return _badge
 
 
 ## A.S.H. has the step on the goal line to say, or is saying it (`Hints`): its
@@ -285,7 +340,17 @@ func step_at(_cur: Control = null) -> Vector2:
 	return fixed_at() + Vector2(0, _line_h() + GAP)
 
 
+## The goal's line as the step's line under it keeps off it: the goal's words,
+## and the badge on them, which is 2 px taller (`CustodianBadge.BOX_H`).
 static func _line_h() -> float:
+	var h := _goal_h()
+	if CustodianBadge.enabled():
+		h = maxf(h, badge_at().y + CustodianBadge.BOX_H)
+	return h
+
+
+## One line of words on its backing (the goal's, and the step's).
+static func _goal_h() -> float:
 	var g: GoalLine = Router.hud.goal if Router.hud != null and is_instance_valid(Router.hud) else null
 	if g != null and is_instance_valid(g) and g._panel.size.y > 0.0:
 		return g._panel.size.y
@@ -301,13 +366,16 @@ static func stack_rect(cur: Control) -> Rect2:
 		return Rect2()
 	var font := UITheme.pixel_font()
 	var w := font.get_string_size(GOAL, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
-	# (in a fight there is no step: the goal's line alone, `step`)
+	# the badge on the goal's line, at its widest (S0's box)
+	var bw := badge_at().x + CustodianBadge.MAX_W if CustodianBadge.enabled() else 0.0
+	# (in a fight there is no step: the goal's line alone, `step`; A.S.H.
+	# stands after it, so after the badge)
 	if _fighting(cur):
-		return Rect2(fixed_at(), Vector2(ceilf(w) + 10.0, _line_h()))
+		return Rect2(fixed_at(), Vector2(maxf(ceilf(w) + 10.0, bw), _line_h()))
 	for t: String in STEP_TEXTS:
 		w = maxf(w, font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x)
 	# (the backing's 5 px each side)
-	return Rect2(fixed_at(), Vector2(ceilf(w) + 10.0, _line_h() * 2.0 + GAP))
+	return Rect2(fixed_at(), Vector2(maxf(ceilf(w) + 10.0, bw), _line_h() + GAP + _goal_h()))
 
 
 static func _fighting(cur: Control) -> bool:

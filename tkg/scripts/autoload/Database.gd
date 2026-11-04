@@ -2662,6 +2662,17 @@ func _seed_enemies() -> void:
 	cust.grow_rate = 1.04
 	cust.grow_cap = 2.0
 
+## THE BOSS AT THE CORE: the one fight the run ends on (`Router.engage_here`),
+## and the one the goal line's badge watches grow (`CustodianBadge`, which
+## takes its name, its free jumps and its cap from here, so another end boss
+## needs only this id changed).
+const CORE_BOSS := &"custodian"
+
+
+func core_boss() -> EnemyTemplate:
+	return enemies.get(CORE_BOSS) as EnemyTemplate
+
+
 ## Which enemies can appear at a given danger tier. Bosses are never in here.
 func fight_pool(danger: int, fauna_region: bool) -> Array[StringName]:
 	var out: Array[StringName] = []

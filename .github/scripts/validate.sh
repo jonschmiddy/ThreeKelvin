@@ -723,6 +723,26 @@ else
 fi
 }
 
+unit_badgetest() {
+step "The Custodian's badge: the approved eye, on every screen, once a jump"
+# Badge 9b, "The eye opens, loud" (Jon, Nov 4), on the goal line. Every frame
+# pixel for pixel as the approved page's own code draws it; its stages from the
+# core boss's growth; on LOCAL, the map, the chart and a fight at every jump 0
+# to 40, clear of everything the goal line keeps off; the arrival once a jump,
+# never on the chart a jump left from or after a load; the tooltip's words, no
+# hull figure; it takes no click.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot badgetest 240 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=BadgeTest; then
+	if grep -qE '^badgetest: PASS' "$LOG_DIR/badgetest.log"; then
+		ok "the badge is the approved eye, where it belongs, once a jump"
+	else
+		bad "the badge differs from the approved page, covers something, or replays"
+		grep -E 'FAIL|^badgetest' "$LOG_DIR/badgetest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "badgetest did not finish"
+fi
+}
+
 unit_questlogtest() {
 step "The QUESTS tab: its table, SHOW ON STARCHART, PLOT ROUTE, nothing covered"
 # Jon's design A (Oct 22): a QUESTS tab after STARCHART opens a table of the
@@ -2503,7 +2523,7 @@ gate_weight() {
 		lockedpooltest) echo 41 ;; rewardshowntest) echo 33 ;; mapperftest) echo 40 ;;
 		solvetest_*) echo 105 ;; twindrawtest) echo 106 ;; twinsitetest) echo 140 ;;
 		flighttest_4) echo 108 ;; flighttest_*) echo 40 ;; pairlocaltest) echo 20 ;;
-		stationdecktest) echo 77 ;;
+		stationdecktest) echo 77 ;; badgetest) echo 30 ;;
 		*) echo 15 ;;
 	esac
 }

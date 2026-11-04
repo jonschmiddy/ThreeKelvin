@@ -42,6 +42,8 @@ at the bottom says where the work stands.
 | `voice/record.py MANIFEST OUT plan/go/fx` | Record A.S.H. lines with ElevenLabs, several takes each, finished to the game's level. |
 | `voice/make_page.py OUT "Title"` | The pick page for those takes. |
 | `voice/install.py OUT "id:take ..."` | Copy the picked takes into the game. |
+| `badge/dump_golden.py golden\|frames DIR` | The Custodian's badge (9b) drawn by the approved page's own code (`badge/core.js`, `badge/fin_eye.js`, `badge/dump.html`): `golden` writes `tkg/scripts/sim/badge_golden.json` for `BadgeTest`, `frames` the page's PNGs of the frames `-- sheet=BadgeFrames` writes. Uses the installed Chrome. |
+| `badge/diff_frames.py GAME WEB [SHEET.png]` | Those two frame folders compared file by file, and a 4x contact sheet. |
 
 Python tools run through uv, for example:
 `uv run --with pillow python ...` for images, or the `--with` list in `voice/record.py`'s header.

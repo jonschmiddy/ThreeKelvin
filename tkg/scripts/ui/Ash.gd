@@ -871,11 +871,15 @@ static func spot_boxes(cur: Control) -> Array:
 ## under the two of them instead, EDGE below the step's room. In a fight beside
 ## the goal's line instead, at the same height (a fight has no step, and under
 ## the goal is your hull: the 65 screens of `AshTest` measured that corner as
-## the one clear in every fight).
+## the one clear in every fight). A spot that already stands below the goal's
+## words (under the band under the HUD) and only comes within EDGE of the
+## Custodian's badge, 2 px taller than the words, steps down under it instead.
 static func _under_goal(r: Rect2, cur: Control) -> Rect2:
 	var st := GoalLine.stack_rect(cur)
 	if st.size != Vector2.ZERO and r.intersects(st.grow(EDGE - 1.0)):
-		if GoalLine._fighting(cur):
+		if GoalLine._fighting(cur) and r.position.y >= st.position.y + GoalLine._goal_h():
+			r.position.y = roundf(st.end.y + EDGE)
+		elif GoalLine._fighting(cur):
 			r.position.x = roundf(st.end.x + EDGE)
 		else:
 			r.position.y = roundf(st.end.y + EDGE)

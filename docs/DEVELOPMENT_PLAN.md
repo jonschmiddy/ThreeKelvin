@@ -536,7 +536,13 @@ infrequent they are", "combats need to feel epic". Cody dove star to star.*
    below in tk-scratch/station-study/STUDY.md: against no growth it costs
    fresh Korvan 10 wins in 1,200 runs and the built ship 23 in 1,200. The cap
    is for the player who circles, and moves the sim's wins by 0 to 2 runs.
-   The badge that shows the growth is designed apart from this.
+   **The badge that shows the growth is built** (Nov 4, badge 9b, "The eye
+   opens, loud": "Yeah, 9B like this"). An eye 6 px after GOAL: REACH THE
+   CORE on LOCAL, the map, the chart and a fight: shut beside the jumps left
+   through 15, awake at 16, red from 20, glaring from 25, at full strength
+   from 33. Its tooltip says what it means with no hull figure. Ported pixel
+   for pixel from the approved page (`CustodianBadge`, `-- sheet=BadgeTest`).
+   Built on feat/custodian-badge.
 6. **Stations, ruled Nov 3.** Every station has all five decks at every level
    ("every station always has all 5 floors"), each in its own art. A station
    with no manufacturer posts work for a dock desk. And stations are rarer and

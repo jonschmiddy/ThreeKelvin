@@ -1705,7 +1705,7 @@ func engage_here() -> void:
 	if n.cleared or in_combat() or no_fights_at(n):
 		return
 	if n.type == MapGen.NodeType.CORE:
-		start_combat(DB.enemies[&"custodian"])
+		start_combat(DB.core_boss())
 		return
 	# Whatever this system rolled when you arrived, including on a run restored
 	# from disk. _roll_here() is idempotent, so this also covers a save written

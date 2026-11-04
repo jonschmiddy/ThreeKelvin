@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Added** — an eye beside GOAL: REACH THE CORE shows how strong the Custodian is getting. Until
+  your fifteenth jump it sleeps beside the number of jumps left before it starts to grow. Then it
+  wakes, and it opens wider and burns redder as the Custodian grows, until it is at full strength
+  at jump 33. Point at it to read what it means. The tutorial step under the goal sits a little lower.
 - **Changed** — stations are rarer, about half as many a galaxy, and no station sits within a
   light hull's jump of another. Plan your fuel. A ship that does not can run dry between docks.
 - **Changed** — every station has all five decks now, at every level. A laboratory reads relics

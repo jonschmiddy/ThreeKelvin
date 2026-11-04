@@ -545,7 +545,9 @@ func _step_boxes(goal: Control, fight: bool = false) -> Array:
 	var g := Rect2(goal.global_position, goal.size)
 	for pc in goal.find_children("*", "PanelContainer", false, false):
 		var p := pc as Control
-		if p.visible and p.get_global_rect() != g:
+		# (the goal's own words stand at the line's corner; the line's room is
+		# wider and taller, for the Custodian's badge on it)
+		if p.visible and p.get_global_rect().position != g.position:
 			out.append(["the step's line", p.get_global_rect()])
 	var w := UITheme.pixel_font().get_string_size("Open STARCHART. Pick a star in range, then JUMP.",
 		HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x + 10.0
