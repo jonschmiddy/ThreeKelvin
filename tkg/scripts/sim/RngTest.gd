@@ -189,6 +189,32 @@ func _independence() -> void:
 	check("generating a map did not move the loot stream",
 		module_print(second), module_print(first))
 
+	# THE STATION PASS DRAWS NOTHING FROM THE WORLD STREAM (Jon, Nov 3, S3):
+	# it halves and spaces the stations off `Rng.derive`, so every roll the
+	# world stream makes after it is the one it made before the pass existed.
+	# Run again on a map that has had it once, so it has work to do: stations
+	# to halve and, after `_pick_type`'s count, some too close to move.
+	Rng.reseed(SEED_A)
+	var nodes := MapGen.generate(Rect2(Vector2.ZERO, Vector2(1600, 900)))
+	for raw in nodes:
+		var n: MapGen.MapNode = raw
+		if n.type == MapGen.NodeType.SYSTEM and n.index % 3 == 0:
+			n.type = MapGen.NodeType.STATION
+	var before := _station_count(nodes)
+	var cursor: int = Rng.world.state
+	MapGen._place_stations(nodes)
+	ok("the station pass drew nothing from the world stream", Rng.world.state == cursor)
+	ok("and it had stations to thin (%d to %d)" % [before, _station_count(nodes)],
+		before > 0 and _station_count(nodes) < before)
+
+
+func _station_count(nodes: Array) -> int:
+	var c := 0
+	for raw in nodes:
+		if (raw as MapGen.MapNode).type == MapGen.NodeType.STATION:
+			c += 1
+	return c
+
 
 # --- 4. position beats order ----------------------------------------------
 

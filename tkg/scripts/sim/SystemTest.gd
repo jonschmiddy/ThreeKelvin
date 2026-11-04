@@ -115,6 +115,7 @@ func run() -> void:
 	var closes := 0
 	var zooms_one: Array[float] = []
 	var zooms_two: Array[float] = []
+	var st_systems := 0
 	for s in SEEDS:
 		Rng.forced = s
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -157,6 +158,14 @@ func run() -> void:
 					_fail("system %d: a beacon for option %d, which it does not have" % [n.index, int(k)])
 			if n.type == MapGen.NodeType.STATION and not L.bodies.any(func(b): return b.beacons.any(func(bc): return bc.dock)):
 				_fail("station %d has no DOCK" % n.index)
+			# ONE STATION TO A STATION SYSTEM AND NONE ELSEWHERE (Jon, Nov 3:
+			# "two stations next to each other should never happen"), after
+			# `MapGen._place_stations` turned some back into systems and moved others
+			var st_bodies := L.bodies.filter(func(b): return b.kind == &"station").size()
+			if st_bodies != (1 if n.type == MapGen.NodeType.STATION else 0):
+				_fail("system %d (%s) holds %d stations" % [n.index, MapGen.type_label(n.type), st_bodies])
+			elif n.type == MapGen.NodeType.STATION:
+				st_systems += 1
 			if n.type == MapGen.NodeType.CORE and not L.bodies.any(func(b): return b.beacons.any(func(bc): return bc.core)):
 				_fail("the core has no custodian")
 			# a gas giant if and only if the node has one
@@ -212,6 +221,7 @@ func run() -> void:
 				if b.world != &"":
 					worlds[b.world] = int(worlds.get(b.world, 0)) + 1
 	_ok("%d systems laid out, every option on one body, one event to a world" % n_sys, true)
+	_ok("one station body in each of the %d station systems, none anywhere else" % st_systems, st_systems > 0)
 	var share := float(twins) / float(maxi(eligible, 1))
 	_ok("two suns at %d of %d systems that may have them (%.0f%%; about one in four)" % [twins, eligible, share * 100.0],
 		twins > 0 and share > 0.12 and share < 0.40)

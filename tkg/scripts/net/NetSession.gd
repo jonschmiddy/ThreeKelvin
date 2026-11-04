@@ -119,7 +119,12 @@ extends Node
 ##    not), `adopt_clock`. A version 13 partner sends a spot three numbers
 ##    short, which this one cannot read, and would draw a ship at star B where B
 ##    stood on another machine's clock.
-const PROTOCOL: int = 14
+## 15: HALF THE STATIONS, SPACED (Jon, Nov 3, S3: `MapGen._place_stations`).
+##    A version 14 partner builds twice the stations from the same seed, two
+##    of them often a jump apart, so its galaxy is not this one. `galaxy_print`
+##    hashes each system's type, so the dive would say so anyway; the version
+##    says it at the door.
+const PROTOCOL: int = 15
 
 ## How long a contested option waits for the host to say who got it.
 ##

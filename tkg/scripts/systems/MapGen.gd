@@ -1024,6 +1024,7 @@ static func generate(canvas: Rect2) -> Array:
 		if cloud != null:
 			nn.nebula_emission = cloud.emission
 	_seed_pulsars(nodes)
+	_place_stations(nodes)
 	_mark_pulsar_neighbours(nodes)
 	_roll_twins(nodes)
 
@@ -1904,6 +1905,92 @@ static func _seed_pulsars(nodes: Array) -> void:
 		# Whatever else was true of the place, standing next to a neutron star
 		# is the dangerous part.
 		best.danger = maxi(best.danger, DANGER_MAX - 1)
+
+## STATIONS ARE RARER AND SPACED (Jon, Nov 3, his pick S3: "make stations more
+## rare", "two stations next to each other should never happen"). `_pick_type`
+## still rolls 8 slots in 36 as STATION, and this pass then thins them, in the
+## order the station study flew them (tk-scratch/station-study, S3):
+##   1. HALF ARE KEPT (`STATION_KEEP`): round(0.5 x the count), the ones lowest
+##      in `Rng.derive(&"station_keep", index)` order. The rest are systems.
+##   2. NONE WITHIN A JUMP OF ANOTHER (`Run.JUMP_RADIUS`, 0.18): the kept ones
+##      are taken greedily in `Rng.derive(&"station_gap", index)` order, and
+##      one too close to a station already taken becomes a system. It moves to
+##      the nearest system in its ring or either neighbour that is clear of
+##      every station taken (the lower index on a tie), or is dropped if none is.
+## About 36 stations a galaxy, down from 73 (the study: 35.5 a galaxy over 200
+## galaxies from seed 777, against 73.0 before).
+##
+## It makes NO `Rng.world` draw, so every roll in the world stream stays the
+## same: every other system is the one it was. It runs before the twins are
+## rolled, so a station turned back into a system may roll two suns like any
+## other. Its axes were rolled as any system's are (`_roll_axes` does not read
+## the type), so a moved station keeps the level and berths of the system it
+## lands on.
+##
+## The radius is the bare drive's, a light hull's jump. A medium hull reaches
+## 0.234 and a heavy 0.288 (`thrust_reach`), and 96% of stations still have
+## another within 0.288. Jon picked it knowing that a built ship that does not
+## plan its fuel ran dry between docks in 4.75% of the study's sim runs.
+##
+## A save stores each node's type, so a map made before this keeps its stations.
+const STATION_KEEP := 0.5
+
+static func _place_stations(nodes: Array) -> void:
+	var stations: Array = []
+	for raw in nodes:
+		if (raw as MapNode).type == NodeType.STATION:
+			stations.append(raw)
+	# 1. HALF KEPT. The keys are worked out once, not inside the sort: they are
+	# distinct floats, so the order is the one the study's sort gave.
+	var keep_key := {}
+	for raw in stations:
+		var k: MapNode = raw
+		keep_key[k.index] = Rng.derive(&"station_keep", k.index).randf()
+	stations.sort_custom(func(a: MapNode, b: MapNode) -> bool:
+		return keep_key[a.index] < keep_key[b.index])
+	var keep := int(round(float(stations.size()) * STATION_KEEP))
+	for i in range(keep, stations.size()):
+		(stations[i] as MapNode).type = NodeType.SYSTEM
+	stations = stations.slice(0, keep)
+	# 2. SPACED
+	var gap_key := {}
+	for raw in stations:
+		var g: MapNode = raw
+		gap_key[g.index] = Rng.derive(&"station_gap", g.index).randf()
+	stations.sort_custom(func(a: MapNode, b: MapNode) -> bool:
+		return gap_key[a.index] < gap_key[b.index])
+	var kept: Array = []
+	var extra: Array = []
+	for raw in stations:
+		if _clear_of_stations(raw as MapNode, kept):
+			kept.append(raw)
+		else:
+			extra.append(raw)
+	for raw in extra:
+		var s: MapNode = raw
+		s.type = NodeType.SYSTEM
+		var best: MapNode = null
+		var best_d := INF
+		for raw2 in nodes:
+			var c: MapNode = raw2
+			if c.type != NodeType.SYSTEM or c == s or absi(c.layer - s.layer) > 1:
+				continue
+			if not _clear_of_stations(c, kept):
+				continue
+			var d := hop_distance(c, s)
+			if d < best_d or (d == best_d and best != null and c.index < best.index):
+				best_d = d
+				best = c
+		if best != null:
+			best.type = NodeType.STATION
+			kept.append(best)
+
+## Further than a bare drive's jump from every station in `kept`.
+static func _clear_of_stations(n: MapNode, kept: Array) -> bool:
+	for raw in kept:
+		if hop_distance(n, raw as MapNode) <= Run.JUMP_RADIUS:
+			return false
+	return true
 
 static func _pick_type() -> NodeType:
 	# No PULSAR here. A neutron star is not scattered at random across the

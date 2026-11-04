@@ -299,6 +299,8 @@ func _refusal_tests() -> void:
 	await _one_refusal("a version 13 peer", PORT_BASE + 32, 13, 0,
 		"Different game version. Host is protocol %d, you are 13." % NetSession.PROTOCOL)
 	ok("PROTOCOL is past 13, when the pair held still", NetSession.PROTOCOL >= 14)
+	# (and past 14, which built twice the stations from the same seed, Nov 3)
+	ok("PROTOCOL is past 14, when stations were twice as many", NetSession.PROTOCOL >= 15)
 	await _one_refusal("different content", PORT_BASE + 2, 0, 0x5EEDBAD,
 		"Your content does not match the host's. Compare builds or mods.")
 	# Two exported builds from different commits, refused by name, and the

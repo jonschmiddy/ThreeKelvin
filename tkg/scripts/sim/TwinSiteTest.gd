@@ -193,6 +193,25 @@ func _run() -> void:
 	if not h._ok("the map comes up in %s" % MapGen.star_name(n), m != null and m.view.node == n):
 		_end()
 		return
+	# (at a clock where no world's beacon is drawn over star A's middle: a beacon
+	# is drawn on top and takes the click, and the clicks below are on the suns.
+	# EPSILON GALLOWS SECUNDUS on seed 4242, this pick since stations were halved
+	# on Nov 3, opened with its world just in front of star A and that world's
+	# beacon over the sun, so the map opens again half the world's turn on)
+	var over: Dictionary = m.overlay.hit(m.overlay.star_scr(-1))
+	if over.get("kind", &"") == &"beacon":
+		h._ok("star A's middle is under a world's beacon at %.2f s (#%d), so the map opens again half that world's turn on" % [
+			m.view.t, int(over.get("body", -99))], true)
+		Run.map_clock[n.index] = float(m.view.t) + L.bodies[wa].period * 0.5
+		Router.show_local()
+		await _idle()
+		m = await _map()
+		if not h._ok("the map comes up again in %s, star A's middle clear (%s)" % [MapGen.star_name(n),
+				(m.overlay.hit(m.overlay.star_scr(-1)) as Dictionary).get("kind", &"") if m != null else "no map"],
+				m != null and m.view.node == n
+				and (m.overlay.hit(m.overlay.star_scr(-1)) as Dictionary).get("kind", &"") == &"star"):
+			_end()
+			return
 	h._ok("the ship is put back in orbit of the world round star A (%d)" % m.flight.reached(), m.flight.reached() == wa)
 	_saw("twin systems")
 	await _wheel_and_home(m)
@@ -3379,6 +3398,16 @@ func _ring_sweep() -> void:
 			for b in Ln.bodies:
 				if b.world != &"" and w0 < 0:
 					w0 = b.index
+			# (in a binary, a world round one sun when it has one: the ship put
+			# back round a giant out past the pair widens the opening to show it,
+			# and a wide pair's opening is checked framed on its own part. Seed
+			# 4242's ETA GRIST SECUNDUS, a twin since stations were halved on
+			# Nov 3, opened at 0.32 round its giant, 1.33 of its whole system)
+			if two:
+				for b in Ln.bodies:
+					if b.world != &"" and SystemLayout.is_star(b.host_id):
+						w0 = b.index
+						break
 			if w0 < 0:
 				continue
 			Run.at = n.index

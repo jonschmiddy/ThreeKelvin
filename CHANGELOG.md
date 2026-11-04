@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Changed** — stations are rarer, about half as many a galaxy, and no station sits within a
+  light hull's jump of another. Plan your fuel. A ship that does not can run dry between docks.
 - **Changed** — every station has all five decks now, at every level. A laboratory reads relics
   at an outpost too. A station that no manufacturer holds still posts work for one, and that desk
   takes the work back. A Hiring Board with nothing to post says so.

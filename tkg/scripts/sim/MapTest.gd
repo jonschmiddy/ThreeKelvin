@@ -51,6 +51,15 @@ func run() -> void:
 	var flown := 0
 	var total_doors := 0
 	var total_rings := 0
+	# (the station pass, `MapGen._place_stations`)
+	var st_min := 9999
+	var st_max := 0
+	var st_total := 0
+	var st_maps := 0
+	var st_close: Array[String] = []
+	var st_wrong: Array[String] = []
+	var st_closest := INF
+	var st_closest_at := ""
 
 	# (`seeds=N from=S`: N galaxies from seed S instead, for hunting a rare
 	# failure; every failure names its seed, and `-- seed S` replays it)
@@ -90,6 +99,29 @@ func run() -> void:
 		if map.is_empty():
 			unreachable.append("seed %d produced no map" % Rng.forced)
 			continue
+
+		# STATIONS RARER AND SPACED (Jon, Nov 3, S3): none within a bare
+		# drive's jump of another, never the start or the core, and about 36 a
+		# galaxy
+		var here_st := _stations(map)
+		st_maps += 1
+		st_total += here_st.size()
+		st_min = mini(st_min, here_st.size())
+		st_max = maxi(st_max, here_st.size())
+		for si in here_st.size():
+			var a: MapGen.MapNode = here_st[si]
+			# (the start is node 0 and the core the last ring's one system)
+			if a.index == 0 or a.layer == MapGen.LAYERS - 1:
+				st_wrong.append("seed %d node %d" % [Rng.forced, a.index])
+			for sj in range(si + 1, here_st.size()):
+				var d := MapGen.hop_distance(a, here_st[sj])
+				if d < st_closest:
+					st_closest = d
+					st_closest_at = "seed %d nodes %d and %d" % [Rng.forced, a.index,
+						(here_st[sj] as MapGen.MapNode).index]
+				if d <= Run.JUMP_RADIUS:
+					st_close.append("seed %d: stations %d and %d are %.3f apart" % [Rng.forced,
+						a.index, (here_st[sj] as MapGen.MapNode).index, d])
 
 		# EVERY RING NEEDS AN EXIT. Counted on `links` rather than on
 		# reachability, because this is asking about the structure the linker
@@ -158,6 +190,9 @@ func run() -> void:
 	if flown > 0:
 		print("  FLYABLE path (radius, not links): %d shortest · %.1f mean · %d longest"
 			% [fly_best, float(fly_total) / float(flown), fly_worst])
+	var st_mean := float(st_total) / maxf(1.0, float(st_maps))
+	print("  stations a galaxy: %d fewest · %.1f mean · %d most; the closest two %.4f apart (%s)"
+		% [st_min, st_mean, st_max, st_closest, st_closest_at])
 
 	_ok("every ring has at least one way inward", doorless.is_empty())
 	for d in doorless:
@@ -178,6 +213,22 @@ func run() -> void:
 		var floor_jumps := ceili(float(MapGen.LAYERS - 1) / float(RULE))
 		_ok("no galaxy is flown in fewer than one jump per %d rings (%d, at least %d)"
 			% [RULE, fly_best, floor_jumps], fly_best >= floor_jumps)
+	_ok("no station is within a bare drive's jump (%.2f) of another (closest %.4f, %s)"
+		% [Run.JUMP_RADIUS, st_closest, st_closest_at], st_close.is_empty())
+	for c in st_close.slice(0, 6):
+		_fail(c)
+	_ok("the start and the core are never stations", st_wrong.is_empty())
+	for w in st_wrong.slice(0, 6):
+		_fail(w)
+	# (the study saw 35.5 a galaxy on the mean over 200 galaxies from seed
+	# 777, 73.0 before the pass)
+	_ok("stations a galaxy stay between %d and %d (%d to %d)"
+		% [ST_FEWEST, ST_MOST, st_min, st_max],
+		st_maps > 0 and st_min >= ST_FEWEST and st_max <= ST_MOST)
+	_ok("about half today's count, %.0f to %.0f a galaxy on the mean (%.1f)"
+		% [ST_MEAN_LO, ST_MEAN_HI, st_mean], st_mean >= ST_MEAN_LO and st_mean <= ST_MEAN_HI)
+	if list.size() > 0:
+		_stations_same(list[0])
 	if list.size() > 0:
 		Rng.forced = list[0]
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -188,6 +239,57 @@ func run() -> void:
 	Rng.forced = 0
 	_labels()
 	verdict("maptest")
+
+
+## STATIONS A GALAXY under S3 (Jon, Nov 3): the bounds every pinned galaxy
+## has to keep, and the mean over them (about 36; 73 before the pass).
+const ST_FEWEST := 10
+const ST_MOST := 60
+const ST_MEAN_LO := 30.0
+const ST_MEAN_HI := 42.0
+
+
+func _stations(map: Array) -> Array:
+	var out: Array = []
+	for raw in map:
+		if (raw as MapGen.MapNode).type == MapGen.NodeType.STATION:
+			out.append(raw)
+	return out
+
+
+func _station_list(map: Array) -> Array[int]:
+	var out: Array[int] = []
+	for raw in _stations(map):
+		out.append((raw as MapGen.MapNode).index)
+	return out
+
+
+## THE STATIONS ARE THE SEED'S, wherever the run's other dice have got to: the
+## same seed gives the same stations twice, and the map built again on the
+## same world cursor after 1,000 loot, foe and event rolls gives them again
+## (the pass reads `Rng.derive`, never a stream).
+func _stations_same(sd: int) -> void:
+	Rng.forced = sd
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var first := _station_list(Run.map)
+	Rng.forced = sd
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var second := _station_list(Run.map)
+	_ok("seed %d gives the same %d stations twice" % [sd, first.size()],
+		not first.is_empty() and first == second)
+	Rng.reseed(sd, 0)
+	Run.galaxy = GalaxyGen.roll(Run.galaxy_kind)
+	Run.galaxy_spin = Rng.world.randf() * TAU
+	var at: int = Rng.world.state
+	var built := _station_list(MapGen.generate(Run.MAP_CANVAS))
+	for _i in 1000:
+		Rng.loot.randf()
+		Rng.foe.randf()
+		Rng.event.randf()
+	Rng.world.state = at
+	var again := _station_list(MapGen.generate(Run.MAP_CANVAS))
+	_ok("and the same after 1,000 loot, foe and event rolls (%d stations)" % again.size(),
+		not built.is_empty() and built == again)
 
 
 ## THE RULE JON RULED, Oct 27: "Two rings now". A jump goes at most this many
