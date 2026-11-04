@@ -20,7 +20,11 @@ extends Node
 ##   on screen, clear of every other thing on the row, of the goal line and of
 ##   the band under it on the left, and every spot A.S.H. can stand in; with dev
 ##   mode's two extra
-##   tabs too. Not pressable: no button, no focus, the arrow cursor.
+##   tabs too. Not pressable: no button, no focus, the arrow cursor. DATA
+##   (science) after it: inside the bar's 932 px clip, clear of FUEL, reading
+##   the run's DATA; and the worst case (a party's tab, over the heat cap,
+##   9999 credits, 99 DATA) fitting the clip in player mode, its developer
+##   mode figure printed.
 ## - THE PRICE AND THE WAY OUT (Jon, Oct 18: "fuel:AB"), in a USED run -- a
 ##   few hops flown, credits spent, a can bought, docks visited -- not a fresh
 ##   one. A whole tank costs 55-60 at an outpost and follows the service
@@ -750,6 +754,7 @@ func _hud() -> void:
 			v.get_theme_color("font_color") == HudBar.FUEL_INK[pair[1]] and HudBar.fuel_state() == pair[1])
 	Run.fuel = 45
 	hud.refresh()
+	await _worst(hud)
 
 
 func _readout(hud: HudBar, f: int, tag: String) -> void:
@@ -810,6 +815,75 @@ func _readout(hud: HudBar, f: int, tag: String) -> void:
 		pressable = pressable or pc is BaseButton or pc.focus_mode != Control.FOCUS_NONE \
 			or pc.mouse_default_cursor_shape != Control.CURSOR_ARROW
 	_ok("%s: not pressable (no button, no focus, the arrow cursor)" % tag, not pressable)
+	_data_box(hud, tag, whole)
+
+
+## DATA (science, pick 1A), after FUEL: its word and figure inside the bar's
+## CLIP (932 at a 960 window, the bar less its padding: what is past it is cut,
+## not drawn) and on screen, clear of FUEL and right of it, reading the run's
+## DATA. Shown from launch at 0 (plan call 9), so no state hides it.
+func _data_box(hud: HudBar, tag: String, fuel: Rect2) -> void:
+	var view := hud.get_viewport().get_visible_rect()
+	var clip := (hud._row.get_parent() as Control).get_global_rect()
+	var parts: Array = hud._data.get_children() if hud._data != null else []
+	var d := hud.data_rect()
+	var inside := parts.size() == 2
+	for p in parts:
+		var r := (p as Control).get_global_rect()
+		inside = inside and clip.encloses(r) and view.encloses(r) and r.size.x > 0.0
+	_ok("%s: DATA, its word and figure, inside the bar's %d px clip and on screen (%s in %s)"
+		% [tag, int(clip.size.x), d, clip], inside)
+	_ok("%s: DATA clear of FUEL and after it (%s, FUEL %s)" % [tag, d, fuel],
+		d.size.x > 0.0 and not d.intersects(fuel) and d.position.x >= fuel.end.x)
+	var v: Label = hud._data.get_node("Value") as Label if hud._data != null else null
+	_ok("%s: DATA reads the run's %d (\"%s\")" % [tag, Run.data, v.text if v != null else "?"],
+		v != null and v.text == str(Run.data))
+	_ok("%s: DATA in stat_nodes, for a reading's result to fly to" % tag,
+		hud._data != null and hud.stat_nodes("data") == [hud._data])
+
+
+## THE WORST CASE THE BAR CAN BE ASKED TO HOLD: in a party (the PARTY tab
+## shows), over the heat cap (the long "41 — 19 HULL" form), 9999 credits and
+## 99 DATA. In player mode the row must fit its 932 clip; in developer mode
+## (CARDS, MODULES and the gap before them) it may clip, and the figure prints
+## so the next thing added here can be weighed against it.
+func _worst(hud: HudBar) -> void:
+	var was_state = Net.state
+	var was := [Run.credits, Run.data, Run.heat]
+	Net.state = Net.State.HOSTING
+	Run.credits = 9999
+	Run.data = 99
+	Run.heat = Run.heat_cap() + 19
+	for dev in [false, true]:
+		DevMode.enabled = dev
+		Sig.dev_mode_changed.emit()
+		await _frames(4)
+		Router.show_local()
+		await _frames(40)
+		hud.refresh()
+		await _frames(2)
+		var tag := "the worst case, dev mode %s" % ("on" if dev else "off")
+		var clip := hud._row.get_parent() as Control
+		var need := int(hud._row.get_combined_minimum_size().x)
+		print("  %s: hud row wants %d of %d" % [tag, need, int(clip.size.x)])
+		if dev:
+			continue
+		var heat_v := hud._heat_text.text
+		var credits_v := (hud._scrap.get_node("Value") as Label).text
+		_ok("%s: PARTY shows, heat reads over the cap (\"%s\"), credits \"%s\""
+			% [tag, heat_v, credits_v],
+			hud._tab_party.is_visible_in_tree() and heat_v.ends_with("19 HULL") and credits_v == "9999")
+		_ok("%s: the row fits its %d px clip (wants %d)" % [tag, int(clip.size.x), need],
+			need <= int(clip.size.x))
+		_data_box(hud, tag, hud.fuel_rect())
+	Net.state = was_state
+	Run.credits = was[0]
+	Run.data = was[1]
+	Run.heat = was[2]
+	DevMode.enabled = false
+	Sig.dev_mode_changed.emit()
+	await _frames(4)
+	hud.refresh()
 
 
 # ------------------------------------------------------------------ helpers
