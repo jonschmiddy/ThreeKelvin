@@ -126,6 +126,11 @@ var black_box_spent: bool = false
 ## Test seam: `-- sim science=off` measures the control cell. Never set from game
 ## code, and `start_new_run` leaves it alone, as it does `hellbender_off`.
 var science_off: bool = false
+## Test seam: routines owned OFF the board, which holds nine of the twelve. For
+## `-- sim routines=a,b|all` (each routine ranked alone, plan S15) and
+## `-- sheet=RoutineTest` (all twelve through a hull swap). Never set from game
+## code and never saved; `clear_science` empties it, so a new run starts without.
+var routines_granted: Array[StringName] = []
 ## FUEL AND DROSS ANNOUNCE THEMSELVES. See the note below.
 var fuel: int = FUEL_TANK:
 	set(v):
@@ -1478,6 +1483,9 @@ func max_hp(bare: bool = false) -> int:
 	if not bare:
 		for m in installed:
 			n += m.max_hull + m.affix_int(&"max_hull")
+		# DAMAGE CONTROL (science). The run's, not the frame's, so it is in the
+		# fitted reading and out of the bare one, like a plate.
+		n += routine_int(&"max_hull")
 	return maxi(1, n)
 
 func heat_cap(bare: bool = false) -> int:
@@ -1499,6 +1507,8 @@ func dissipation(bare: bool = false) -> int:
 	if not bare:
 		for m in installed:
 			d += m.dissipation + m.affix_int(&"dissipation")
+		# VENT TIMING (science): venting only, never capacity
+		d += routine_int(&"dissipation")
 	return maxi(0, d)
 
 ## Capped at 0.6. Dodge is the enemy's miss chance, so an uncapped sum is a ship
@@ -1509,6 +1519,8 @@ func dodge(bare: bool = false) -> float:
 	if not bare:
 		for m in installed:
 			v += m.dodge + m.affix_raw(&"dodge")
+		# EVASION TABLES (science), before the cap like everything else
+		v += routine_raw(&"dodge")
 	return clampf(v, 0.0, 0.6)
 
 func initiative(bare: bool = false) -> int:
@@ -1530,6 +1542,11 @@ func fuel_factor(bare: bool = false) -> float:
 	# this number prices every jump in the game, and the floor below it is
 	# there because a ship that drove it to zero would cross the galaxy free.
 	if hull.has_perk(&"deep_tanks"):
+		v *= 0.9
+	# FUEL TRIM (science), the same discount again and on top of Deep Tanks
+	# (0.81 with both), still above the floor. Every jump reads this; an event's
+	# fuel (`drain_fuel`) does not, so a science reading's burn is not trimmed.
+	if not bare and has_routine(&"fuel_trim"):
 		v *= 0.9
 	return maxf(0.3, v)
 
@@ -1679,8 +1696,10 @@ func reactor() -> int:
 	return e
 
 
+## SPARE CELLS (science) adds its cells here and in `can_power`'s own cap, and
+## NOT to the reactor level: room to fit more, no more energy (`reactor`).
 func power_cap() -> int:
-	return reactor_level() * CELLS_PER_LEVEL
+	return reactor_level() * CELLS_PER_LEVEL + routine_int(&"cells")
 
 ## What is bolted on right now, in cells. The SAME number the hold counts a
 ## part in, deliberately: a player already knows a 2x2 bay is four, and a
@@ -1712,7 +1731,7 @@ func can_power(m: ModuleData, replacing: ModuleData = null) -> bool:
 		draw -= replacing.cells()
 		# (its affix's share too, as `reactor_level` counts it)
 		level -= replacing.reactor + replacing.affix_int(&"reactor")
-	var cap := maxi(0, level) * CELLS_PER_LEVEL
+	var cap := maxi(0, level) * CELLS_PER_LEVEL + routine_int(&"cells")
 	return draw <= cap
 
 ## Development override, set by `-- fight N`. Zero means "use the real value".
@@ -1976,6 +1995,8 @@ func attr_sensors(bare: bool = false) -> int:
 	if not bare:
 		for m in installed:
 			n += m.sensors + m.affix_int(&"sensors")
+		# WIDE SWEEP (science)
+		n += routine_int(&"sensors")
 	return maxi(0, int(round(n * SENSE_SCALE)))
 
 ## Heat comes off the top of Stealth rather than out of the modules that grant
@@ -1994,6 +2015,8 @@ func attr_stealth(bare: bool = false) -> int:
 	if not bare:
 		for m in installed:
 			n += m.stealth + m.affix_int(&"stealth")
+		# QUIET RUNNING (science), before the heat comes off the top
+		n += routine_int(&"stealth")
 	# The heat penalty applies to BOTH readings. `bare` means "the chassis with
 	# nothing fitted", and heat is not something you fitted — so subtracting it
 	# only from the full reading would paint the loss as a module's fault in the
@@ -2124,8 +2147,10 @@ func hull_attributes(h: HullData) -> Array[Dictionary]:
 	installed = []
 	# AT FULL, because a hull on the blocks has not been shot at. `attr_hull`
 	# reads CURRENT hull deliberately -- see its own note -- and left at your hp
-	# the yard would price a fresh chassis by the damage on yours.
-	hp = h.max_hull
+	# the yard would price a fresh chassis by the damage on yours. `max_hp()` and
+	# not `h.max_hull`: with nothing fitted it is the frame plus the run's
+	# routines (DAMAGE CONTROL), which go with you to any hull.
+	hp = max_hp()
 	var out := attributes()
 	hull = was_hull
 	installed = was_installed
@@ -2373,8 +2398,16 @@ func harvest_pulsar() -> void:
 	# Dying with the fuel aboard is the point of the trade.
 	take_hull_damage(burn, "A neutron star's beam killed the crew. The hull held.")
 
-func take_hull_damage(amount: int, reason: String) -> void:
+## `combat` is true only for a fight's own damage (enemy fire, overheat, junk
+## left in hand, from Combat): BLACK BOX (science) saves the ship from a killing
+## hit there, once a run. An event's toll, a neutron beam and an empty tank still
+## kill.
+func take_hull_damage(amount: int, reason: String, combat: bool = false) -> void:
 	hp -= amount
+	if hp <= 0 and combat and not black_box_spent and has_routine(&"black_box"):
+		hp = 1
+		black_box_spent = true
+		log_line("BLACK BOX. The flight computer kept the ship together at 1 hull. It can only do that once.", &"big")
 	Sig.resources_changed.emit()
 	if hp <= 0:
 		hp = 0
@@ -2444,6 +2477,10 @@ func owned_routines() -> Array[StringName]:
 			var i := b * 3 + k
 			if i < board.size():
 				out.append(board[i])
+	# (the test seam's, after the board's; never one twice)
+	for id in routines_granted:
+		if not out.has(id) and DB.routines.has(id):
+			out.append(id)
 	return out
 
 ## Steps bought in branch `b`, 0 to 3.
@@ -2508,6 +2545,7 @@ func clear_science() -> void:
 	board = [] as Array[StringName]
 	board_owned = PackedInt32Array([0, 0, 0])
 	black_box_spent = false
+	routines_granted = [] as Array[StringName]
 
 ## A flyable hull, cut out of a wreck or claimed off an event.
 ##
@@ -2939,7 +2977,10 @@ func transfer_to_hull(h: HullData, paid: int = 0,
 
 	var ratio := float(hp) / float(max_hp())
 	hull = h
-	hp = maxi(6, int(round(h.max_hull * ratio)))
+	# OF `max_hp()`, read on the new frame with nothing fitted: the frame plus
+	# the run's routines. `h.max_hull` left out DAMAGE CONTROL, so a full ship
+	# moved into a new hull 7 short of full.
+	hp = maxi(6, int(round(max_hp() * ratio)))
 	# Bought off a station's rack (the yard passes its node); a found hull is not.
 	if node != null:
 		hulls_bought += 1

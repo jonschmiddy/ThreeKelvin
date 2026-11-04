@@ -29,6 +29,12 @@ var pin_manufacturer: StringName = &""
 ## editor binary developer mode is on, so that is every manufacturer, within
 ## `DB.ACTIVE_MANUFACTURERS`. `unlocked=korvan` is a fresh profile's world.
 var pin_unlocked: Array[StringName] = []
+## `-- sim routines=damage_control,fuel_trim` (or `routines=all`) gives every run
+## those science routines from launch, off the board (`Run.routines_granted`), so
+## each can be ranked alone against a run without (plan S15). Granted after
+## `start_new_run`, whose `clear_science` would take them away, and the hull
+## filled to the new max. Empty grants nothing, the run the game flies.
+var grant_routines: Array[StringName] = []
 var pilot: RandomNumberGenerator = RandomNumberGenerator.new()
 ## Every decision this file used to make itself. Extracted so the party bot can
 ## fly the same model the gate measures — see scripts/sim/Policy.gd.
@@ -281,6 +287,8 @@ func run_sim() -> void:
 			_enemy_hp = float(arg.split("=")[1])
 		elif arg.begins_with("enemydmg="):
 			_enemy_dmg = float(arg.split("=")[1])
+		elif arg.begins_with("routines="):
+			grant_routines = parse_routines(arg.split("=")[1])
 	policy.dash = "dash" in OS.get_cmdline_user_args()
 	policy.beeline = policy.dash or "beeline" in OS.get_cmdline_user_args()
 	if policy.beeline:
@@ -307,6 +315,11 @@ func run_sim() -> void:
 	if policy.human:
 		print("HUMAN policy: heads for the core, scores the chart, buys fuel for the way in.")
 	print("fuel: start %d · tank %d" % [Run.start_fuel(), Run.fuel_cap()])
+	if not grant_routines.is_empty():
+		var said: Array[String] = []
+		for id in grant_routines:
+			said.append(String(DB.routines[id].name))
+		print("ROUTINES from launch, off the board: %s." % ", ".join(said))
 	if _trace_path != "":
 		_trace_file = FileAccess.open(_trace_path, FileAccess.WRITE)
 
@@ -447,6 +460,31 @@ func _reset() -> void:
 	core_fights = 0
 	core_wins = 0
 
+## `routines=`'s ids: `all` is the twelve, branch by branch, weakest first; an
+## id the catalogue does not have is named and left out.
+static func parse_routines(arg: String) -> Array[StringName]:
+	var out: Array[StringName] = []
+	if arg == "all":
+		for b in DB.BRANCHES:
+			out.append_array(DB.routines_in(b))
+		return out
+	for raw in arg.split(",", false):
+		var id := StringName(raw.strip_edges())
+		if not DB.routines.has(id):
+			print("routines: no routine called %s, left out" % id)
+		elif not out.has(id):
+			out.append(id)
+	return out
+
+## The `routines=` grant, on a run `start_new_run` has just cleared: owned from
+## launch, and the hull at the max they make (DAMAGE CONTROL fills its 7).
+func grant_at_launch() -> void:
+	if grant_routines.is_empty():
+		return
+	Run.routines_granted = grant_routines.duplicate()
+	Run.hp = Run.max_hp()
+	Sig.ship_changed.emit()
+
 ## `index` exists so that `-- sim seed=N` gives every run its own reproducible
 ## seed rather than playing one run a thousand times. A sim that reports "40% of
 ## runs strand" is only actionable if one of those runs can be handed back:
@@ -458,6 +496,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 	# and no shelf, wreck or derelict is filled until it is reached.
 	if not pin_unlocked.is_empty():
 		Run.unlocked_manufacturers = pin_unlocked.duplicate()
+	grant_at_launch()
 	_credits_seen = Run.credits
 	var started_as := Run.hull.manufacturer
 	# The simulated pilot's own generator: one per run, seeded from the run's
@@ -1204,6 +1243,7 @@ func _boss_only() -> void:
 		for i in runs:
 			Rng.forced = (seed_base if seed_base != 0 else 4242) + i
 			Run.start_new_run(manu, int(w))
+			grant_at_launch()
 			hp0 = Run.max_hp()
 			for raw in Run.map:
 				if (raw as MapGen.MapNode).type == MapGen.NodeType.CORE:
