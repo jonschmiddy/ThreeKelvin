@@ -1186,6 +1186,17 @@ static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int],
 	for b in L.bodies:
 		if b.world != &"":
 			b.soi = S_RING if is_star(b.host_id) else soi_of(b)
+	# A CLOSE PAIR'S ROOM TO ARRIVE IN (`_close`) past what was put out here too:
+	# `least` counts only the bodies laid out before the jobs and the Hellbender,
+	# so with the Hellbender out past them the edge stopped short of a circle
+	# clear of it, and a ship jumping in was put inside the first world beside
+	# the suns (seed 1999's THETA ABYSSAL MINOR, every system two suns, once
+	# stations were halved on Nov 3: at 322 px, where the clear circle is 1000)
+	if least > 0.0:
+		var arrive := 0.0
+		for b in L.bodies:
+			arrive = maxf(arrive, b.orbit + arrive_reach(b))
+		L.edge = maxf(L.edge, L.bary.length() + arrive + ARRIVE_IN + GAP)
 
 
 ## A CLOSE PAIR (Jon, Nov 1, "Binary kinds: close:B"). Star A at the origin

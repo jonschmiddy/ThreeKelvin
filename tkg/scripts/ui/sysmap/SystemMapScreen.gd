@@ -372,6 +372,10 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 	view.t = t0
 	overlay.selected = -2
 	overlay.hover = {}
+	# (and the flight drawn for the selection: it names a place of the layout
+	# being left by its index, and the overlay planned it for the new ship
+	# before a step set it again, off the end of a smaller system's bodies)
+	overlay.preview_to = -9
 	overlay.flight = null
 	flight = null
 	# every visit opens on its opening framing (the whole sector but in a wide
