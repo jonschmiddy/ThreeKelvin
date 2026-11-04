@@ -143,6 +143,49 @@ def science_faults(blk, tags, chs):
 	return out
 
 
+TAGS = re.compile(r'&"(quest|fight|hazard|salvage|signal|contract|science)"')
+
+
+def _sub1(s, old, new, start=0):
+	"""s with the first `old` at or after `start` made `new`, or None."""
+	i = s.find(old, start)
+	return None if i < 0 else s[:i] + new + s[i + len(old):]
+
+
+def science_selfcheck(src):
+	"""Check 10 run on broken copies of the table's first science event, every
+	run: each break must raise a fault the event does not have, so a check that
+	stops seeing one fails `--strict` here and not after a bad event lands.
+	Returns the breaks it missed."""
+	blk = next((b for _e, b, _l in encounters(src)
+		if "science" in set(TAGS.findall(b))), None)
+	if blk is None:
+		return ["no science event in the table to break"]
+
+	def faults(b):
+		return science_faults(b, set(TAGS.findall(b)), choices_of(b))
+
+	base = len(faults(blk))
+	nocheck = None
+	for label, chunk in choices_of(blk):
+		if "burns = true" in chunk and "check = {" not in chunk:
+			fixed = _sub1(_sub1(chunk, "reads = 1", "reads = 2") or "",
+				"OptionTable.reading(1)", "OptionTable.reading(2)")
+			nocheck = blk.replace(chunk, fixed, 1) if fixed else None
+			break
+	site = re.search(r'site = &"[a-z_]+"', blk)
+	breaks = {
+		"a burns line's drain taken out": _sub1(blk, DRAIN, ""),
+		"reading(2) on a line with no check": nocheck,
+		"the site moved off barren and belt":
+			blk.replace(site.group(0), 'site = &"planet"', 1) if site else None,
+		"the credits line paying nothing": _sub1(blk, "Run.add_credits(", "Run.add_nothing("),
+		"DATA paid as a literal": _sub1(blk, DRAIN, DRAIN + "\n\t\t\t\t\tRun.add_data(3)"),
+		"the science tag taken off": _sub1(blk, '&"science"', '&"signal"'),
+	}
+	return [name for name, b in breaks.items() if b is None or len(faults(b)) <= base]
+
+
 def main():
 	src = io.open(SRC, encoding="utf-8").read()
 	errors, warns = [], []
@@ -155,8 +198,7 @@ def main():
 		lo = int(lo.group(1)) if lo else 1
 		hi = int(hi.group(1)) if hi else 10
 		tlo, thi = tier(lo), tier(hi)
-		tags = set(re.findall(
-			r'&"(quest|fight|hazard|salvage|signal|contract|science)"', blk))
+		tags = set(TAGS.findall(blk))
 		bm = re.search(r'body = "(.*?)",\n', blk, re.S)
 		body = bm.group(1) if bm else ""
 		chs = choices_of(blk)
@@ -289,9 +331,16 @@ def main():
 		for w in warns:
 			print("  " + w)
 		print()
-	if not errors and not warns:
+	# --- check 10 on itself: each break of a science event must be seen --
+	missed = science_selfcheck(src)
+	if missed:
+		print("SELF-CHECK  check 10 missed %d break(s) of a science event:" % len(missed))
+		for m in missed:
+			print("  " + m)
+		print()
+	if not errors and not warns and not missed:
 		print("clean")
-	return 1 if (fresh and "--strict" in sys.argv) else 0
+	return 1 if ((fresh or missed) and "--strict" in sys.argv) else 0
 
 
 if __name__ == "__main__":
