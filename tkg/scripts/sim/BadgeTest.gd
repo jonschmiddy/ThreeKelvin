@@ -588,6 +588,16 @@ func _watch(n: int) -> Array:
 	return out
 
 
+## Frames until the goal line is fully up with the badge on it (at most 20 s).
+func _until_up(b: CustodianBadge) -> int:
+	var g := _goal()
+	for i in 1200:
+		if g != null and g.is_visible_in_tree() and g.modulate.a > 0.99 and b.is_visible_in_tree():
+			return i
+		await _frames(1)
+	return -1
+
+
 ## The steps in a run of frames: [[step, frames], ...].
 func _runs(seq: Array) -> Array:
 	var out: Array = []
@@ -1113,6 +1123,10 @@ func _coop() -> void:
 	Router.show_local()
 	await _frames(40)
 	var b := _badge()
+	# Windowed, a new run's LOCAL plays its intro first: wait for the line to be
+	# fully up, as an arrival does, before the count moves.
+	var waited := await _until_up(b)
+	_ok("the line comes up on a new run's LOCAL (after %d more frames)" % waited, waited >= 0)
 	# A PARTNER'S JUMP: the lead ship's count rises with no jump of yours, and
 	# the tick plays once on LOCAL
 	Run.jumps = 10
