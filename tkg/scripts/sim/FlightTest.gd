@@ -159,9 +159,15 @@ const PUT_LEFT := 6
 ## start found.
 const PUT_LEFT_CLOSE := 6
 ## the harness's starts the residual may come from, "seed:system:start" a sweep
-## (any other start put there fails, whatever the count)
+## (any other start put there fails, whatever the count). SCIENCE (Phase 12,
+## Nov 4) put a reading in place of one option in about three systems in eight,
+## and those systems alone lay out anew (checked system by system against the
+## layouts before): two of them, seed 1999 system 258's near start (THE RACE
+## COURSE on its belt) and seed 7 system 328's free start (THE TARGET RANGE on
+## its dry world), each to one place, now leave a twin's residual, the best burn
+## from each keeping clear for 30 s, so again the arrivals miss
 const PUT_LEFT_CASES := {
-	"twin": ["1999:177:free", "7:209:free"],
+	"twin": ["1999:177:free", "7:209:free", "1999:258:near", "7:328:free"],
 	"close": ["1999:257:free", "4242:24:near", "4242:297:free"],
 }
 ## the click comes up to this long after the first plan (s)

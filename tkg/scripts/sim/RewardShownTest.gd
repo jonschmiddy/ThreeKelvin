@@ -70,6 +70,7 @@ func _run() -> void:
 	var missed_before: Array = []
 	var quests := {}
 	var left_ok := false
+	var science := 0
 	for o in OptionTable.all():
 		var id := StringName(o.id)
 		var is_quest := (o.get("tags", []) as Array).has(&"quest")
@@ -86,6 +87,9 @@ func _run() -> void:
 					Run.add_credits(int(c.cost_credits) + 50)
 				if id == &"job_pickup":
 					_sign_fetch(n)
+				# a science reading burns fuel, and is refused below the way out
+				if bool(c.get("burns", false)):
+					Run.fuel = Run.FUEL_TANK
 				SkillCheck.forced = int(b)
 				var d := LocalEventDrawer.new()
 				d.screen = _holder
@@ -117,6 +121,13 @@ func _run() -> void:
 					n = _system()
 					continue
 				var reward := d.find_child("Reward", true, false) as Button
+				# A READING PAYS DATA, NOT THINGS: its result has no REWARD and is
+				# never a fight with nothing to read
+				if OptionTable.is_science(o):
+					science += 1
+					if r.get("fight_now", false) or d.page != &"result" or reward != null or gained > 0:
+						_fail("%s (science): fight_now %s, page %s, REWARD %s, %d on the pile" % [tag,
+							str(r.get("fight_now", false)), d.page, str(reward != null), gained])
 				if r.get("fight_now", false):
 					# straight to the fight, no result: only when nothing was paid
 					if gained > 0:
@@ -148,6 +159,7 @@ func _run() -> void:
 	_ok("every outcome that put something on the pile showed REWARD (%d of %d)" % [shown, paid], paid > 0 and shown == paid)
 	_ok("a material paid with no `module` key was among them (%d)" % missed_before.size(), missed_before.size() > 0)
 	_ok("CONTINUE past REWARD was tried", left_ok)
+	_ok("every science outcome (%d) shows its result with no REWARD and no fight" % science, science == 8 * 6)
 	for q in [&"job_pickup", &"job_target", &"paid_in_full"]:
 		_ok("the quest event %s was resolved (%d)" % [q, int(quests.get(q, 0))], int(quests.get(q, 0)) > 0)
 	_end()

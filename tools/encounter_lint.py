@@ -92,6 +92,57 @@ def choices_of(blk):
 	return out
 
 
+# An outcome callable, by the key it sits under.
+OUTCOME = re.compile(r"\b(effect|met|clean|partial|botched) = func\(")
+DRAIN = "Run.drain_fuel(OptionTable.science_fuel())"
+READ = "Run.add_data(OptionTable.reading("
+
+
+def science_faults(blk, tags, chs):
+	"""Check 10 (science, Phase 12): the shape BUILD_PLAN.md section 1 gives a
+	science event, which the screen, the fuel gate and the sim pilot read off
+	its plain keys without running it. DATA comes from science events only."""
+	out = []
+	if "science" not in tags:
+		if re.search(r"add_data|reading\(|burns = true", blk):
+			out.append("pays DATA or burns fuel for a reading, and is not tagged science")
+		return out
+	site = re.search(r'\n\t+site = &"([a-z_]+)"', blk)
+	if not site or site.group(1) not in ("barren", "belt"):
+		out.append("a science event sits on site barren or belt (%s)"
+			% (site.group(1) if site else "no site"))
+	for k in ("min_danger", "max_danger"):
+		if not re.search(r"\n\t+%s = \d+" % k, blk):
+			out.append("a science event names its %s" % k)
+	if re.search(r"add_data\(\s*-?\d", blk):
+		out.append("DATA paid as a literal number; pay OptionTable.reading(k)")
+	credits = 0
+	for label, chunk in chs:
+		mults = [int(x) for x in re.findall(r"OptionTable\.reading\((\d+)\)", chunk)]
+		if "burns = true" in chunk:
+			calls = len(OUTCOME.findall(chunk))
+			if chunk.count(DRAIN) != calls:
+				out.append('"%s" burns fuel, and %d of its %d outcomes call %s'
+					% (label, chunk.count(DRAIN), calls, DRAIN))
+			if READ not in chunk:
+				out.append('"%s" burns fuel and never calls %s...)' % (label, READ))
+			if 2 in mults and "check = {" not in chunk:
+				out.append('"%s" pays reading(2) with no check in front of it' % label)
+			reads = re.search(r"reads = (\d+)", chunk)
+			if not reads:
+				out.append('"%s" burns fuel and does not say how many readings (reads)' % label)
+			elif mults and int(reads.group(1)) != max(mults):
+				out.append('"%s" says reads = %s and pays reading(%d)'
+					% (label, reads.group(1), max(mults)))
+		elif DRAIN in chunk or "add_data" in chunk or mults:
+			out.append('"%s" pays DATA or burns fuel without burns = true' % label)
+		elif "add_credits" in chunk:
+			credits += 1
+	if credits != 1:
+		out.append("a science event has exactly one credits line (it has %d)" % credits)
+	return out
+
+
 def main():
 	src = io.open(SRC, encoding="utf-8").read()
 	errors, warns = [], []
@@ -105,7 +156,7 @@ def main():
 		hi = int(hi.group(1)) if hi else 10
 		tlo, thi = tier(lo), tier(hi)
 		tags = set(re.findall(
-			r'&"(quest|fight|hazard|salvage|signal|contract)"', blk))
+			r'&"(quest|fight|hazard|salvage|signal|contract|science)"', blk))
 		bm = re.search(r'body = "(.*?)",\n', blk, re.S)
 		body = bm.group(1) if bm else ""
 		chs = choices_of(blk)
@@ -157,7 +208,7 @@ def main():
 				continue
 			moves = re.search(
 				r"add_credits|take_hull_damage|heat \+=|Run\.fuel|Run\.drain_fuel|material|"
-				r"module = true|fight = true|place =|find_hull|"
+				r"module = true|fight = true|place =|find_hull|add_data|reading\(|"
 				# readying a signed contract is the gain a job's pickup exists for
 				r"reach_contract_target", chunk)
 			if not moves and "check" not in chunk:
@@ -194,6 +245,10 @@ def main():
 		# --- 9. bodies carry their weight -------------------------------
 		if len(body) < BODY_MIN:
 			warn("body is %d chars; the reviewed four run 402-573" % len(body))
+
+		# --- 10. a science event pays DATA the one way ------------------
+		for e in science_faults(blk, tags, chs):
+			err(e)
 
 	# --- the baseline -----------------------------------------------------
 	#
