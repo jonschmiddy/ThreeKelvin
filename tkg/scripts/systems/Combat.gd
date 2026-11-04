@@ -145,6 +145,11 @@ var waiting: bool = false
 var grown: int = -1
 
 var turn: int = 1
+## THIS SHIP'S FIRST TURN OF THE FIGHT is still to come: WARM START and FIRST
+## LOOK (science) read it in `begin_turn`, which clears it. A flag and not
+## `turn == 1`, because `_attach` sets `turn` to the party's, so a ship joining
+## a fight on turn seven would never see a first turn of its own.
+var _opening := true
 var attacks_this_turn: int = 0
 var peaceful_turns: int = 0
 var new_dross: int = 0
@@ -222,6 +227,14 @@ func begin(f: SharedFight) -> void:
 	if f != null:
 		_attach(f)
 	Sig.combat_started.emit(enemies[0].template.name)
+	# COLD OPEN (science): heat off before the first hand, never below 0, and a
+	# line only when it moved.
+	if Run.has_routine(&"cold_open"):
+		var was := Run.heat
+		Run.heat = maxi(0, Run.heat - 4)
+		if Run.heat != was:
+			_log("Cold open. %d heat vented before the first shot." % (was - Run.heat), &"good")
+			Sig.resources_changed.emit()
 	begin_turn()
 
 ## What this fight is made of, by database id, in enemy order. What the host is
@@ -336,6 +349,13 @@ func begin_turn() -> void:
 	energy = Run.reactor()
 	attacks_this_turn = 0
 	lock_on = 0
+	# CLEARED HERE, before anything can return: a charge that ends the fight
+	# below leaves no first turn behind it either.
+	var opening := _opening
+	_opening = false
+	# WARM START (science): one more energy on this ship's first turn only.
+	if opening and Run.has_routine(&"warm_start"):
+		energy += 1
 
 	# Charge weapons fire on their own schedule.
 	var fired: Array[CardData] = []
@@ -348,7 +368,9 @@ func begin_turn() -> void:
 			still.append(c)
 	charging = still
 
-	draw_cards(maxi(0, Run.hand_size() - hand.size()), true)
+	# FIRST LOOK (science): two more cards on this ship's first turn only.
+	var first_look := 2 if opening and Run.has_routine(&"first_look") else 0
+	draw_cards(maxi(0, Run.hand_size() - hand.size()) + first_look, true)
 
 	for d in drones:
 		var times := 2 if (Run.has_set(&"cygnet", 3) and d.fresh) else 1
@@ -397,7 +419,7 @@ func end_turn() -> void:
 	if stuck > 0:
 		_log("%d hull from junk left in hand." % stuck, &"them")
 		Sig.hull_burned.emit(stuck, &"junk")
-		Run.take_hull_damage(stuck, "Malfunctions left too long broke the hull.")
+		Run.take_hull_damage(stuck, "Malfunctions left too long broke the hull.", true)
 
 	# FUSED CARDS DO NOT GO. Everything else in the hand is swept into the
 	# discard; a fused card stays, which is what makes it charge you again next
@@ -449,7 +471,7 @@ func end_turn() -> void:
 		_log("⚠ OVERHEAT: %d hull burned (%d/%d)." % [burn, Run.heat, Run.heat_cap()], &"heat")
 		Sig.overheated.emit(burn)
 		Sig.hull_burned.emit(burn, &"overheat")
-		Run.take_hull_damage(burn, "The ship overheated and burned through its own hull.")
+		Run.take_hull_damage(burn, "The ship overheated and burned through its own hull.", true)
 		if Run.dead:
 			_finish(&"dead", Run.death_reason)
 			return
@@ -577,7 +599,7 @@ func _act_one(e: EnemyState) -> void:
 			if total > 0:
 				_log("  %d hull damage." % total, &"them")
 				Sig.damage_dealt.emit(total, true, enemies.find(e))
-				Run.take_hull_damage(total, "Enemy fire broke the hull open.")
+				Run.take_hull_damage(total, "Enemy fire broke the hull open.", true)
 			# A SHIP THAT IS GONE RETURNS NO FIRE. Feedback ran before the death
 			# check, so a hit that killed you could still kill the Custodian on
 			# the way back: `Run.win()` on a dead ship, the run ended as a death
@@ -1349,6 +1371,7 @@ func _victory() -> void:
 		Run.add_dross(danger, which)
 	if Run.has_set(&"calyx", 3):
 		Run.heal(3)
+	_patch_crew()
 	if clears_node:
 		Run.consume_node(node)
 	# And anybody who paid to have this stop moving.
@@ -1491,8 +1514,17 @@ func _pacify() -> void:
 	Run.whale_boon = true
 	if Run.has_set(&"calyx", 3):
 		Run.heal(3)
+	_patch_crew()
 	_finish(&"pacified",
 		"It stops circling and drifts off, singing. You get 1 exotic material.")
+
+## PATCH CREW (science): 3 hull mended after a fight won or pacified, on top of
+## Calyx's 3, never past full. Not after a flee.
+func _patch_crew() -> void:
+	if Run.has_routine(&"patch_crew"):
+		var got := Run.heal(3)
+		if got > 0:
+			_log("Patch crew. %d hull mended." % got, &"good")
 
 func _finish(res: StringName, text: String) -> void:
 	finished = true

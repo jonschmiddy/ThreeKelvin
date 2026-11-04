@@ -5039,6 +5039,16 @@ func _end_hold() -> void:
 	_check_ending()
 
 
+## How low the replay of a turn may show your hull: where the turn left it.
+## Each hit takes its whole `dealt`, which is right until BLACK BOX (science)
+## holds a killing hit at 1. Taken whole, 5 hull against a 6 hit drew "0 / 47"
+## and a broken ship for a ship that lived. Dead, it is 0 as before. Never above
+## the number on show, so a hit can only ever take the shown hull down.
+func _shown_less(n: int) -> int:
+	var floor_at := 0 if Run.dead else maxi(0, Run.hp)
+	return maxi(shown_hull - n, mini(shown_hull, floor_at))
+
+
 ## The HUD and your plate, from the shown numbers.
 func _sync_hull() -> void:
 	_refresh_self_plate()
@@ -5166,7 +5176,7 @@ func _show_burn(amount: int, cause: StringName) -> void:
 	_view.fx.flash(at, true, true)
 	_flash_hit(_view.ship_view())
 	if shown_hull >= 0:
-		shown_hull = maxi(0, shown_hull - amount)
+		shown_hull = _shown_less(amount)
 		_sync_hull()
 	Audio.play(&"overheat" if cause == &"overheat" else &"impact_hull", 0.03)
 
@@ -5247,7 +5257,7 @@ func _on_volley_landed(id: int) -> void:
 	if q.to_player:
 		_pop_hit(_pop_at(true, who, _pop_lines(q)), q, true)
 		if shown_hull >= 0:
-			shown_hull = maxi(0, shown_hull - int(q.dealt))
+			shown_hull = _shown_less(int(q.dealt))
 			_sync_hull()
 		if _ship_fx != null:
 			_ship_fx.land(int(q.dealt), int(q.absorbed), shown_hull if shown_hull >= 0 else Run.hp)
