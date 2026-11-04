@@ -240,6 +240,21 @@ static func refuel_price(n: MapGen.MapNode) -> int:
 static func purge_price(n: MapGen.MapNode) -> int:
 	return maxi(1, int(round(15.0 * service_index(n))))
 
+## THE LAB'S TWO SERVICES ON A PART (science, pick 3A), the credits half of the
+## bill; `Science.AUGMENT_DATA` and `STRIP_DATA` are the DATA half. Work, not
+## goods, so they read off the service index like REPAIR and PURGE: AUGMENT is
+## 22/20/18/16/15 from the rim to a capital, STRIP 11/10/9/8/7.
+##
+## NEITHER MOVES THE PART'S PRICE. `ask`, `bid` and `melt` read `scrap_value`,
+## which is set once at the drop, so an augmented part sells for what the plain
+## one does (`-- market` checks it). A part whose price rose with its affixes
+## would turn DATA into credits, the one thing DATA must never be.
+static func augment_price(n: MapGen.MapNode) -> int:
+	return maxi(1, int(round(20.0 * service_index(n))))
+
+static func strip_price(n: MapGen.MapNode) -> int:
+	return maxi(1, int(round(10.0 * service_index(n))))
+
 ## A flyable hull on the pad. Goods, not work, so it reads off the goods index —
 ## and off the manufacturer who built it, exactly like a module does.
 static func hull_price(n: MapGen.MapNode, h: HullData) -> int:

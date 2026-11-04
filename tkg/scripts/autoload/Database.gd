@@ -2616,17 +2616,16 @@ func routines_in(branch: StringName) -> Array[StringName]:
 #
 # DEVELOP FILM AND READ FOR DATA (science, pick 1A) turn a survey film and a
 # relic into DATA, at no credits: a lab takes them, and nothing buys DATA.
-# DEV 99 UNTIL THE BENCH CAN PAY DATA. `Fabricator._apply` has no `&"data"` arm
-# yet, so `Fabricator.available` would list them and a press would take the film
-# and pay nothing. They go to dev 0 with that arm (plan S5).
+# `Fabricator._apply`'s `&"data"` arm pays it, and every station's Lab has both
+# (dev 0); a run with science off sees neither (`Fabricator.available`).
 const RECIPES: Array[Dictionary] = [
 	{id = &"analysis", name = "RELIC ANALYSIS", kind = &"artifact", amount = 1, dev = 0,
 		credits = 40, mats = {&"relic": 1},
 		text = "Have the fragment read. It turns out to be a part."},
-	{id = &"develop", name = "DEVELOP FILM", kind = &"data", amount = 6, dev = 99,
+	{id = &"develop", name = "DEVELOP FILM", kind = &"data", amount = 6, dev = 0,
 		credits = 0, mats = {&"survey_film": 1},
 		text = "Develop a roll of survey film. The readings on it are DATA."},
-	{id = &"read", name = "READ FOR DATA", kind = &"data", amount = 15, dev = 99,
+	{id = &"read", name = "READ FOR DATA", kind = &"data", amount = 15, dev = 0,
 		credits = 0, mats = {&"relic": 1},
 		text = "Have the fragment read for DATA, which uses it up."},
 ]
