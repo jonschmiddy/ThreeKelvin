@@ -231,15 +231,74 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2,
 	# left how good the part is to a one-pixel line.
 	draw_body(ci, m, r, mark, f, mirror, scale)
 
-	# THE EDGE IS THE INK, not the ground. Identical for seven grades and the
-	# whole plate for the eighth: a contraband ground is darker than the screen,
-	# so the bone edge is the only thing that says a part is there at all.
+	# What goes OVER the art: the edge, and the AUGMENTED mark on a part the
+	# Lab has worked on. Painted from one list (`plate_ink`), so a test can read
+	# what a plate inks without a renderer.
+	for q in plate_ink(m, r, scale):
+		ci.draw_rect(q[0], q[1], true)
+
+
+## EVERYTHING A PLATE INKS OVER ITS ART, as [Rect2, Color] in paint order.
+##
+## THE EDGE IS THE INK, not the ground. Identical for seven grades and the
+## whole plate for the eighth: a contraband ground is darker than the screen,
+## so the bone edge is the only thing that says a part is there at all.
+##
+## THEN THE AUGMENTED MARK, last so no art covers it, and only when
+## `m.augmented` (see `augment_mark`). The edge and the mark come out of the one
+## list `draw_plate` paints, so `-- attrtest` reading this list is reading what
+## the plate draws.
+static func plate_ink(m: ModuleData, r: Rect2, scale: float = HOLD_K) -> Array:
+	var out: Array = []
+	if m == null:
+		return out
 	var e := ModuleData.rarity_ink(m.rarity)
 	var p := r.position
 	var z := r.size
 	for side in [Rect2(p, Vector2(z.x, 1)), Rect2(p + Vector2(0, z.y - 1), Vector2(z.x, 1)),
 			Rect2(p, Vector2(1, z.y)), Rect2(p + Vector2(z.x - 1, 0), Vector2(1, z.y))]:
-		ci.draw_rect(side, e, true)
+		out.append([side, e])
+	if m.augmented:
+		out.append_array(augment_mark(r, scale))
+	return out
+
+
+## The AUGMENTED mark's legs at 1x, in pixels. Scaled with the plate, never
+## under 3 so it still reads at 1x.
+const MARK := 2.5
+
+## THE AUGMENTED MARK: a small ICE wedge in the plate's top-right corner, cut
+## from the corner like a folded tab, with a one-pixel VOID rim on its long side.
+##
+## ICE because it is the DATA colour and the colour of the AUGMENTED line in the
+## part's tooltip (`Widgets.augmented_label`). The rim is what makes it read on
+## any ground, the pale Common and the near-black contraband alike, and on a
+## sprite that stands proud of its box into the corner.
+##
+## TOP-RIGHT. A drawn silhouette sits PAD clear of every edge, so there the
+## corner is empty. A SPRITE is centred with no margin, and a few run to the
+## plate's edge (ejector, board, braceframe), so on those the wedge is painted
+## OVER the art's corner. That is on purpose: the mark is ink over the art, as
+## the edge is, and the VOID rim is what lets it read on art. Rows of whole
+## pixels, never a polygon, so the stair edge stays crisp at any whole
+## magnification. `-- attrtest` checks it sits clear of every drawn silhouette
+## at 1x and at the hold's 2x, and that on any sprite, at 1x to 3x, it hides no
+## more than a twentieth of the art.
+static func augment_mark(r: Rect2, scale: float = HOLD_K) -> Array:
+	var n := maxi(3, int(roundf(MARK * scale)))
+	n = mini(n, int(minf(r.size.x, r.size.y) * 0.5))
+	var out: Array = []
+	if n < 1:
+		return out
+	var x1 := roundf(r.end.x)
+	var y0 := roundf(r.position.y)
+	for y in n + 1:
+		var w := float(n + 1 - y)
+		out.append([Rect2(x1 - w, y0 + y, w, 1), UITheme.VOID])
+	for y in n:
+		var w2 := float(n - y)
+		out.append([Rect2(x1 - w2, y0 + y, w2, 1), UITheme.ICE])
+	return out
 
 ## THE PART, by whichever means it has: its sprite when one exists, the drawn
 ## silhouette when it does not.
