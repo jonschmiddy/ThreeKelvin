@@ -37,6 +37,7 @@ func run() -> void:
 	Run.start_new_run()
 	_check_invariant()
 	_one_price()
+	_augmented_price()
 	_print_goods()
 	_print_services()
 	print("=== %s (%d violations) ===\n" % ["PASS" if fails == 0 else "FAIL", fails])
@@ -225,6 +226,53 @@ func _one_price() -> void:
 		print("  COUNTER BUYS STOCK it would pay you for the shop's own shelf")
 	till_desk.free()
 	pay_desk.free()
+
+
+## AN AUGMENT NEVER MOVES A PRICE (science, pick 3A).
+##
+## The Lab adds an affix for DATA and credits. If the part then sold for more,
+## DATA would be money with a step in between, and DATA must never be money. So
+## a part is augmented through `Science.augment`, the Lab's own door, with each
+## of the three affixes it is offered, and priced against the same part plain at
+## every kind of place: the ask, the bid and the melt must all be the plain
+## part's. `scrap_value` is set at the drop and nothing in the Lab writes it;
+## this is the check that it stays that way.
+func _augmented_price() -> void:
+	var lab := _place(2, 3, [&"korvan"] as Array[StringName], 5)
+	lab.index = 7
+	var places: Array[MapGen.MapNode] = []
+	for dev in 5:
+		for sec in [1, 5]:
+			for berths in [[] as Array[StringName], [&"korvan"] as Array[StringName],
+					[&"solari"] as Array[StringName]]:
+				places.append(_place(dev, sec, berths, 1 + dev * 2))
+	var checked := 0
+	var plain := _part(int(ModuleData.Rarity.RARE), &"korvan", false)
+	for k in Science.OFFER_SIZE:
+		var part := plain.duplicate(true) as ModuleData
+		if not Run.stow(part):
+			fails += 1
+			print("  NO ROOM       the hold would not take the part to augment")
+			return
+		var offer := Science.augment_offer(part, lab)
+		Run.data = Science.AUGMENT_DATA
+		Run.credits = Market.augment_price(lab)
+		var line := Science.augment(part, offer[k] if k < offer.size() else null, lab)
+		Run.take_from_hold(part)
+		if line == "" or not part.augmented or part.affixes.size() != plain.affixes.size() + 1:
+			fails += 1
+			print("  NOT AUGMENTED the Lab refused offer %d (%s)" % [k, line])
+			continue
+		for n in places:
+			checked += 1
+			var a := [Market.ask(n, part), Market.bid(n, part), Market.melt(part)]
+			var b := [Market.ask(n, plain), Market.bid(n, plain), Market.melt(plain)]
+			if a != b:
+				fails += 1
+				print("  AUGMENT PAYS  %s with %s: ask/bid/melt %s against %s plain" % [
+					part.name, part.affixes[-1].name, a, b])
+	print("  augmented: %d prices with each of the 3 offered affixes, all the plain part's" % checked)
+	Run.data = 0
 
 
 ## What a Rare Korvan weapon costs and fetches in each kind of place. One row per

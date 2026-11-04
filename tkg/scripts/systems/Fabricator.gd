@@ -18,11 +18,17 @@ extends RefCounted
 ## Every recipe this place can build, whether or not you can currently pay.
 ## Showing what you cannot afford is the point: a recipe you can see is a reason
 ## to go and find one more exotic.
+##
+## DEVELOP FILM AND READ FOR DATA (kind &"data") are science's, so a run with
+## science off (`Run.science_off`, the sim's control cell) does not see them:
+## the bench it has is the bench main had.
 static func available(n: MapGen.MapNode) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	if n.type == MapGen.NodeType.CORE:
 		return out
 	for r in DB.RECIPES:
+		if Run.science_off and StringName(r.kind) == &"data":
+			continue
 		if int(n.development) >= int(r.dev):
 			out.append(r)
 	return out
@@ -34,7 +40,13 @@ static func has_bench(n: MapGen.MapNode) -> bool:
 ## service. Materials are not indexed: a fragment is a fragment wherever you
 ## stand, and a place that charges two of them for the same job would read as
 ## the recipe changing rather than the price.
+##
+## A RECIPE AT 0 CREDITS COSTS 0 ANYWHERE. DEVELOP FILM and READ FOR DATA cost
+## no credits at all (a lab takes readings; nothing buys DATA), and the floor of
+## 1 that keeps a priced job from rounding to free would have charged them 1.
 static func price(n: MapGen.MapNode, r: Dictionary) -> int:
+	if int(r.credits) == 0:
+		return 0
 	return maxi(1, int(round(float(r.credits) * Market.service_index(n))))
 
 static func can_make(n: MapGen.MapNode, r: Dictionary) -> bool:
@@ -61,18 +73,30 @@ static func _useful(r: Dictionary) -> bool:
 	match StringName(r.kind):
 		&"repair":
 			return Run.hp < Run.max_hp()
+		&"data":
+			# (the control cell's bench has none; see `available`)
+			return not Run.science_off
 		_:
 			return true
 
 ## What the bill reads, as one line. Materials first: they are the part you
 ## cannot go and earn in the next ten minutes.
+##
+## A DATA RECIPE READS AS THE TRADE, "1 survey film → 6 DATA": it costs no
+## credits, so "0 credits" would be a price that is not one, and what you get
+## is the number that decides whether to press it.
 static func cost_line(n: MapGen.MapNode, r: Dictionary) -> String:
 	var bits: PackedStringArray = []
 	for id in (r.mats as Dictionary).keys():
 		bits.append("%d %s" % [int(r.mats[id]),
 			str(MaterialTable.by_id(id).get("name", id)).to_lower()])
-	bits.append("%d credits" % price(n, r))
-	return " · ".join(bits)
+	var cost := price(n, r)
+	if cost > 0:
+		bits.append("%d credits" % cost)
+	var line := " · ".join(bits)
+	if StringName(r.kind) == &"data":
+		line += " → %d DATA" % int(r.amount)
+	return line
 
 ## Build it. Returns the log line, or an empty string when it did not happen —
 ## every caller checks, because a bench that silently declines is a bench the
@@ -103,4 +127,10 @@ static func _apply(n: MapGen.MapNode, r: Dictionary) -> String:
 			# Same again: `stow()` emits `ship_changed` itself.
 			Run.stow(m)
 			return "The fragment reads out as %s. It is in the hold." % m.name
+		&"data":
+			# DEVELOP FILM and READ FOR DATA (science, pick 1A): what went in is
+			# gone and the readings are DATA. `add_data` emits
+			# `resources_changed`, so the header's DATA moves with the press.
+			Run.add_data(int(r.amount))
+			return "The Lab got %d DATA out of it." % int(r.amount)
 	return ""
