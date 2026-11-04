@@ -226,7 +226,220 @@ func run() -> void:
 		if reach.has(id2):
 			print("    %-16s %d" % [String(id2), int(reach[id2])])
 
+	_science_table()
+	_science_rolls()
+	_science_pay()
+	_science_gate()
 	verdict("optiontest")
+
+
+const SCIENCE_SEEDS := [4242, 11, 90210, 31337, 7, 1000, 5150, 8675309, 42, 99, 2024, 777]
+
+
+## THE EIGHT SCIENCE EVENTS (Phase 12, plan section 3): four barren and four
+## belt, one of each in the bands 1-4, 3-6, 5-8 and 7-10, each with a careful
+## reading, a risky one behind a check and one line that pays credits.
+func _science_table() -> void:
+	print("\n=== SCIENCE ===")
+	var bands := {&"barren": [], &"belt": []}
+	var shape_bad: Array[String] = []
+	for o in OptionTable.all():
+		if not OptionTable.is_science(o):
+			continue
+		var site := StringName(o.get("site", &""))
+		if not bands.has(site):
+			shape_bad.append("%s sits on '%s'" % [o.id, site])
+			continue
+		(bands[site] as Array).append("%d-%d" % [int(o.get("min_danger", 0)), int(o.get("max_danger", 0))])
+		var burns := 0
+		var credits := 0
+		for c: Dictionary in o.choices:
+			if bool(c.get("burns", false)):
+				burns += 1
+			else:
+				credits += 1
+		if burns != 2 or credits != 1:
+			shape_bad.append("%s has %d reading lines and %d others" % [o.id, burns, credits])
+	for site in bands:
+		var got: Array = bands[site]
+		got.sort()
+		if str(got) != str(["1-4", "3-6", "5-8", "7-10"]):
+			shape_bad.append("%s bands are %s" % [site, str(got)])
+	_ok("eight science events, a barren and a belt one in each band, two readings and a credits line each%s"
+		% ("" if shape_bad.is_empty() else ": " + "; ".join(shape_bad)), shape_bad.is_empty())
+
+
+## HOW OFTEN, ONE AT MOST, AND NOTHING ELSE MOVES. Over the twelve seeds: the
+## science share of every option rolled sits near `SCIENCE_SHARE` (1 in 8), no
+## system holds two, and every system's list is the list the table WITHOUT
+## science rolls (main's), except a system the pass hit, which differs from it
+## in exactly one slot, the science event's. `science=off` rolls main's list
+## everywhere.
+func _science_rolls() -> void:
+	var main_all: Array[Dictionary] = []
+	for o in OptionTable.all():
+		if not OptionTable.is_science(o):
+			main_all.append(o)
+	var opts := 0
+	var sci := 0
+	var systems := 0
+	var hit := 0
+	var two: Array[String] = []
+	var moved: Array[String] = []
+	var off_moved: Array[String] = []
+	var rs_moved := 0
+	for seed in SCIENCE_SEEDS:
+		Rng.forced = seed
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		for raw in Run.map:
+			var n: MapGen.MapNode = raw
+			if n.type == MapGen.NodeType.STATION or n.type == MapGen.NodeType.CORE \
+					or n.type == MapGen.NodeType.START:
+				continue
+			var rs_before := JSON.stringify(Rng.state())
+			var got := OptionTable.roll_for(n)
+			if JSON.stringify(Rng.state()) != rs_before:
+				rs_moved += 1
+			Run.science_off = true
+			var off := OptionTable.roll_for(n)
+			Run.science_off = false
+			# main's table: every option but science, rolled the same way
+			var full := OptionTable._all
+			OptionTable._all = main_all
+			var main := OptionTable.roll_for(n)
+			OptionTable._all = full
+			systems += 1
+			opts += got.size()
+			var here := 0
+			for id in got:
+				if OptionTable.is_science(OptionTable.by_id(id)):
+					here += 1
+			sci += here
+			hit += int(here > 0)
+			if here > 1:
+				two.append("seed %d system %d: %s" % [seed, n.index, str(got)])
+			if str(off) != str(main):
+				off_moved.append("seed %d system %d: off %s, main %s" % [seed, n.index, str(off), str(main)])
+			var diff := 0
+			for k in mini(got.size(), main.size()):
+				if got[k] != main[k]:
+					diff += 1
+			if got.size() != main.size() or diff != here:
+				moved.append("seed %d system %d: %s, main %s" % [seed, n.index, str(got), str(main)])
+	var share := float(sci) / float(maxi(opts, 1))
+	print("  %d science events in %d options rolled (%.3f), at %d of %d systems (%.0f%%)"
+		% [sci, opts, share, hit, systems, 100.0 * float(hit) / float(maxi(systems, 1))])
+	_ok("the science share of rolled options is %.3f, about 1 in 8 (0.10 to 0.16)" % share,
+		share >= 0.10 and share <= 0.16)
+	_ok("no system holds two science events%s" % ("" if two.is_empty() else ": " + two[0]), two.is_empty())
+	_ok("every system rolls main's list, but for the one slot a science event took (%d differ)%s"
+		% [moved.size(), "" if moved.is_empty() else ": " + moved[0]], moved.is_empty())
+	_ok("science=off rolls main's list in every system (%d differ)%s"
+		% [off_moved.size(), "" if off_moved.is_empty() else ": " + off_moved[0]], off_moved.is_empty())
+	_ok("rolling with science moves no shared stream (%d systems did)" % rs_moved, rs_moved == 0)
+
+
+## THE PAY TABLE (plan section 3), run through every event's own callables at
+## the bottom of its band: the careful line pays a reading and burns the fuel,
+## the risky line pays two, two, one and none by band and burns the fuel on
+## every band (you flew down there), and the credits line pays credits and
+## moves neither fuel nor DATA.
+func _science_pay() -> void:
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var by_danger := {}
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		if not by_danger.has(n.danger):
+			by_danger[n.danger] = n
+	var pay_bad: Array[String] = []
+	# careful DATA and fuel by danger, as Jon's 4B and "science costs fuel" set them
+	var want_pay := [0, 5, 5, 6, 6, 8, 8, 10, 10, 14, 14]
+	var want_fuel := [0, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2]
+	var dangers := 0
+	for d in range(1, 11):
+		if not by_danger.has(d):
+			continue
+		dangers += 1
+		Run.at = (by_danger[d] as MapGen.MapNode).index
+		if OptionTable.reading(1) != want_pay[d] or OptionTable.reading(2) != 2 * want_pay[d] \
+				or OptionTable.science_fuel() != want_fuel[d]:
+			pay_bad.append("danger %d pays %d/%d for %d fuel" % [d, OptionTable.reading(1),
+				OptionTable.reading(2), OptionTable.science_fuel()])
+	_ok("a reading pays 5/6/8/10/14 by tier, double for the risky line, for 1/1/2/2/2 fuel (%d dangers)%s"
+		% [dangers, "" if pay_bad.is_empty() else ": " + ", ".join(pay_bad)], pay_bad.is_empty() and dangers >= 9)
+	var bad: Array[String] = []
+	var ran := 0
+	for o in OptionTable.all():
+		if not OptionTable.is_science(o):
+			continue
+		var d := int(o.min_danger)
+		if not by_danger.has(d):
+			bad.append("%s: no system at danger %d" % [o.id, d])
+			continue
+		Run.at = (by_danger[d] as MapGen.MapNode).index
+		var fuel := OptionTable.science_fuel()
+		var one := OptionTable.reading(1)
+		for c: Dictionary in o.choices:
+			var calls: Array = []
+			var reads: Array = []
+			if c.has("check"):
+				for b in [SkillCheck.Band.MET, SkillCheck.Band.CLEAN, SkillCheck.Band.PARTIAL, SkillCheck.Band.BOTCHED]:
+					calls.append(SkillCheck.pick_outcome(c, b))
+				reads = [2, 2, 1, 0]
+			else:
+				calls.append(c.effect)
+				reads = [int(c.get("reads", 0))]
+			for k in calls.size():
+				Run.fuel = Run.FUEL_TANK
+				Run.hp = Run.max_hp()
+				Run.heat = 0
+				Run.data = 0
+				var cr := Run.credits
+				var res: Variant = (calls[k] as Callable).call()
+				ran += 1
+				var tag := "%s \"%s\"%s" % [o.id, c.label, "" if calls.size() == 1 else " band %d" % k]
+				if typeof(res) != TYPE_DICTIONARY or String((res as Dictionary).get("text", "")) == "":
+					bad.append("%s returns no text" % tag)
+				if bool(c.get("burns", false)):
+					if Run.data != one * int(reads[k]) or Run.fuel != Run.FUEL_TANK - fuel:
+						bad.append("%s paid %d DATA for %d fuel, wants %d for %d" % [tag, Run.data,
+							Run.FUEL_TANK - Run.fuel, one * int(reads[k]), fuel])
+				elif Run.data != 0 or Run.fuel != Run.FUEL_TANK or Run.credits <= cr:
+					bad.append("%s (credits) moved DATA %d, fuel %d, credits %d" % [tag, Run.data,
+						Run.fuel - Run.FUEL_TANK, Run.credits - cr])
+	_ok("every science outcome (%d run) pays the table's DATA, burns its fuel on every band, and the credits line pays credits alone%s"
+		% [ran, "" if bad.is_empty() else ": " + "; ".join(bad.slice(0, 4))], bad.is_empty() and ran == 8 * 6)
+
+
+## THE FUEL GATE (open call 1, a hard gate): a reading is refused when paying it
+## would take the tank under `Run.fuel_floor()`, the way out `drain_fuel` keeps,
+## and the credits line never is. At the floor plus the reading's fuel it is
+## allowed, and the drain then takes the whole amount.
+func _science_gate() -> void:
+	var o := OptionTable.by_id(&"the_spare_probe")
+	var careful: Dictionary = o.choices[0]
+	var risky: Dictionary = o.choices[1]
+	var credits: Dictionary = o.choices[2]
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		if n.danger >= 1 and n.danger <= 4 and n.type == MapGen.NodeType.SYSTEM:
+			Run.at = n.index
+			break
+	var keep := Run.fuel_floor()
+	var cost := OptionTable.science_fuel()
+	Run.fuel = keep + cost
+	var open_at := OptionResolve.affordable(careful) and OptionResolve.affordable(risky)
+	Run.data = 0
+	careful.effect.call()
+	var drained := Run.fuel == keep and Run.data == OptionTable.reading(1)
+	Run.fuel = keep + cost - 1
+	var shut := not OptionResolve.affordable(careful) and not OptionResolve.affordable(risky)
+	var still := OptionResolve.affordable(credits)
+	_ok("at the floor (%d) plus the reading's fuel (%d) a reading is open, and the drain takes it all" % [keep, cost],
+		open_at and drained and keep > 0)
+	_ok("one fuel short of that both readings are refused and the credits line is not", shut and still)
+	Run.fuel = Run.FUEL_TANK
 
 
 ## Every field an option gates on is one `admits` actually reads.
@@ -276,6 +489,9 @@ func _gates_are_real() -> void:
 		# `&"star"` puts it on the giant or the star when the system has one),
 		# and how LOCAL draws the giant while it is open (`LocalSky`, `near`)
 		&"site": true, &"near": true,
+		# (`site = &"barren"` or `&"belt"`: a science reading's dry world or
+		# belt, Phase 12; its DATA lines' `burns` and `reads` are choice keys,
+		# which `encounter_lint` check 10 reads)
 		# WHAT ITS FIGHT BRINGS: the creature its text set up (Jon, Oct 17),
 		# read by `OptionTable.fight_foe` -- not a gate; `-- sheet=FoeTagTest`
 		# holds it to the text and to the fight that opens

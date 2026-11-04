@@ -79,6 +79,9 @@ func run(tree: SceneTree) -> void:
 					Run.add_credits(int(c.cost_credits) + 50)
 				if c.has("needs_material") and Run.material(StringName(c.needs_material)) < 1:
 					Run.add_material(StringName(c.needs_material), 1)
+				# a science reading burns fuel, and is refused below the way out
+				if bool(c.get("burns", false)):
+					Run.fuel = Run.FUEL_TANK
 				var d := LocalEventDrawer.new()
 				d.screen = holder
 				d.node = n
@@ -114,6 +117,9 @@ func run(tree: SceneTree) -> void:
 					what = "they are firing"
 				elif d.find_child("Continue", true, false) != null:
 					what = "continue"
+				# A READING IS NEVER A FIGHT: its result reads, then CONTINUE
+				if OptionTable.is_science(o) and what != "continue" and what != "dead":
+					_fail("%s choice %d (%s): a science result goes to '%s', not CONTINUE" % [o.id, j, layout, what])
 				if what == "?":
 					_fail("%s choice %d (%s): the result has the wrong way on" % [o.id, j, layout])
 				elif what != "":
@@ -147,8 +153,43 @@ func run(tree: SceneTree) -> void:
 	_ok("every option opened and every choice resolved in all three layouts, and every look said what moved and fit", _fails == 0)
 	for k in ["hp-", "credits+", "credits-", "fuel+", "fuel-", "heat+", "part+", "material+", "frame+", "nothing"]:
 		_ok("an outcome that moved %s was among them (%d)" % [k, int(_kinds_seen.get(k, 0))], int(_kinds_seen.get(k, 0)) > 0)
+	await _fuel_gate(holder, n)
 	_reveal_sound(holder)
 	_end(tree)
+
+
+## THE FUEL GATE ON THE BAND (science, a hard gate): with the tank one fuel short
+## of the way out plus the reading's fuel, a click on either reading does
+## nothing (no fuel, no DATA, no result), `OptionResolve.take` says "fuel", and
+## the credits line still resolves.
+func _fuel_gate(holder: Control, n: MapGen.MapNode) -> void:
+	LocalEventDrawer.layout = &"column"
+	_fresh(n, &"the_spare_probe")
+	var short := Run.fuel_floor() + OptionTable.science_fuel() - 1
+	Run.fuel = short
+	Run.data = 0
+	var d := LocalEventDrawer.new()
+	d.screen = holder
+	d.node = n
+	holder.add_child(d)
+	d.open(0)
+	for f in 3:
+		await _tree.process_frame
+	if d.text != null and not d.text.done:
+		d.text.skip()
+	var r0: Dictionary = await d.choose(0)
+	var r1: Dictionary = await d.choose(1)
+	var held := r0.is_empty() and r1.is_empty() and Run.fuel == short and Run.data == 0 and d.page == &"event"
+	var t: Dictionary = await OptionResolve.take(n, 0, 0)
+	_ok("one fuel short of the way out plus a reading's fuel, both readings refuse on the band (take says '%s')"
+		% String(t.get("why", "")), held and not bool(t.get("ok", true)) and String(t.get("why", "")) == "fuel"
+		and Run.fuel == short and Run.data == 0)
+	var cr := Run.credits
+	var r2: Dictionary = await d.choose(2)
+	_ok("and the credits line still resolves, burning nothing", bool(r2.get("ok", false))
+		and Run.credits > cr and Run.fuel == short and Run.data == 0)
+	d.queue_free()
+	Run.fuel = Run.FUEL_TANK
 
 
 ## THE LETTERS' SOUND, counted (`SignalText.blips`; `Audio` is off headless, so

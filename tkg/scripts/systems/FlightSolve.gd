@@ -1168,8 +1168,8 @@ func _fly(ux: float, uz: float, has_fix: bool, a_fix: float) -> float:
 	_integrate(_e_td, _e_x0, _e_z0, _e_vx0, _e_vz0, _e_dvx, _e_dvz, t_now + _tcap)
 	var t1 := Time.get_ticks_usec()
 	# (a departure burn that swings the ship round a point is not flown: `V_CUSP`;
-	# nor an eased one the map would draw as a hook, `_burn_tight`)
-	if not ((_dk == 0 or _leg == 2) and _departure_cusps()) and not (_ease and _burn_tight()):
+	# nor one out of a ring the map would draw as a hook, `_burn_tight`)
+	if not ((_dk == 0 or _leg == 2) and (_departure_cusps() or _burn_tight())):
 		_tight_t = _coast_tight()
 		_price()
 	_us_int += t1 - t0
@@ -1234,9 +1234,16 @@ func _coast_tight() -> float:
 	return _tight_in(k, _cn - 1)
 
 
-## WHETHER THE EASED DEPARTURE BURN JUST FLOWN TURNS TIGHTER THAN THE MAP CAN
-## DRAW (DRAW_K at zoom 1, as the coast and the arrival are held to): the one
-## part of a flight with no such check. Out of a settled orbit round a close
+## WHETHER THE DEPARTURE BURN JUST FLOWN OUT OF A RING TURNS TIGHTER THAN THE
+## MAP CAN DRAW (DRAW_K at zoom 1, as the coast and the arrival are held to):
+## the one part of a flight with no such check. Held to every departure out of
+## a ring (a world's, a star's close orbit, a settled star orbit) or a second
+## leg's, eased or not, since science (Phase 12, Nov 4) laid systems out anew:
+## out of a world's ring at 35 px/s a burn at THRUST slowed the ship to 13.5
+## and turned it, 28 deg a px at zoom 1 (FlightTest, seed 1999 system 234,
+## orbit 2 to 3: 10.68 s became 8.89), and to 10.5, 35 deg a px (seed 4242
+## system 297, orbit 2 to star B: 23.86 s became 12.71). Found and clean the
+## same in every sweep of both tests' full runs. Out of a settled orbit round a close
 ## pair's balance point to star A's close orbit, a burn that dipped to 5.8 px/s,
 ## over the cusp test's 5.5, bent round 4 px and drew 20 deg a px (FlightTest,
 ## seed 4242 system 208, Nov 2); found without it, 14.55 s against 8.16, bent
