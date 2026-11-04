@@ -154,6 +154,7 @@ func run(tree: SceneTree) -> void:
 	for k in ["hp-", "credits+", "credits-", "fuel+", "fuel-", "heat+", "part+", "material+", "frame+", "nothing"]:
 		_ok("an outcome that moved %s was among them (%d)" % [k, int(_kinds_seen.get(k, 0))], int(_kinds_seen.get(k, 0)) > 0)
 	await _fuel_gate(holder, n)
+	await _fuel_cards(holder, n)
 	_reveal_sound(holder)
 	_end(tree)
 
@@ -189,6 +190,90 @@ func _fuel_gate(holder: Control, n: MapGen.MapNode) -> void:
 	_ok("and the credits line still resolves, burning nothing", bool(r2.get("ok", false))
 		and Run.credits > cr and Run.fuel == short and Run.data == 0)
 	d.queue_free()
+	Run.fuel = Run.FUEL_TANK
+
+
+## WHAT A READING BURNS IS ON ITS CARD (`EncounterDrawer.choice_card`), in all
+## three layouts, for every science event: with a full tank each `burns` card's
+## note ends "· N fuel" after its odds ("N fuel" alone on the careful line), N
+## the reading's own `OptionTable.science_fuel()`, and the card answers a
+## click; the credits line says nothing of fuel. One fuel short of the way out
+## plus the reading, each `burns` card reads "needs N fuel · you have M" (N the
+## way out plus the reading, M the tank), in FLARE, and is not pressable: no
+## live plate, no pointing hand (only pressable things look pressable); the
+## credits line still is. And with the note showing it fits: every note inside
+## its card, every card inside the band and clear of the others, the band
+## asking for no more than its cap.
+func _fuel_cards(holder: Control, n: MapGen.MapNode) -> void:
+	var looked_at := 0
+	var bad: Array = []
+	for layout: StringName in [&"row", &"column", &"card"]:
+		LocalEventDrawer.layout = layout
+		for o in OptionTable.all():
+			if not OptionTable.is_science(o):
+				continue
+			for short in [false, true]:
+				_fresh(n, StringName(o.id))
+				var burn := OptionTable.science_fuel()
+				var need := burn + Run.fuel_floor()
+				Run.fuel = need - 1 if short else Run.FUEL_TANK
+				var d := LocalEventDrawer.new()
+				d.screen = holder
+				d.node = n
+				holder.add_child(d)
+				d.open(0)
+				for f in 4:
+					await _tree.process_frame
+				var at := "%s (%s, %s)" % [o.id, layout, "short" if short else "full"]
+				var choices: Array = o.get("choices", [])
+				var band := d.panel.get_global_rect()
+				var cap := LocalEventDrawer.CARD_MAX_H if layout == &"card" else LocalEventDrawer.H
+				if d.panel.get_combined_minimum_size().y > cap + 0.5:
+					bad.append("%s: the band asks for %.0f px of its %.0f" % [at, d.panel.get_combined_minimum_size().y, cap])
+				var rects: Array = []
+				for j in choices.size():
+					var c: Dictionary = choices[j]
+					var card := d.find_child("Choice%d" % j, true, false) as EncounterDrawer.OptionCard
+					if card == null:
+						bad.append("%s: no card %d" % [at, j])
+						continue
+					looked_at += 1
+					var note := card.find_child("Note", true, false) as Label
+					var said := note.text if note != null else ""
+					var cr := card.get_global_rect()
+					if bool(c.get("burns", false)):
+						var badge := SkillCheck.badge(c.check) + " · " if c.has("check") else ""
+						var want := ("needs %d fuel · you have %d" % [need, Run.fuel]) if short 							else "%s%d fuel" % [badge, burn]
+						if said != want:
+							bad.append("%s choice %d: the note reads '%s', not '%s'" % [at, j, said, want])
+						if card.live == short or (card.mouse_default_cursor_shape == Control.CURSOR_POINTING_HAND) == short:
+							bad.append("%s choice %d: the card is %s with %d fuel" % [at, j, "pressable" if short else "refused", Run.fuel])
+						if short and note != null and note.get_theme_color("font_color") != UITheme.FLARE:
+							bad.append("%s choice %d: the refusal is not in FLARE" % [at, j])
+					else:
+						if said.contains("fuel"):
+							bad.append("%s choice %d: the credits line says '%s'" % [at, j, said])
+						if not card.live:
+							bad.append("%s choice %d: the credits line is not pressable" % [at, j])
+					if note != null:
+						var nr := note.get_global_rect()
+						if not cr.encloses(nr):
+							bad.append("%s choice %d: the note %s is off its card %s" % [at, j, nr, cr])
+						if note.get_minimum_size().y > nr.size.y + 0.5:
+							bad.append("%s choice %d: the note wants %.0f px tall and has %.0f" % [at, j, note.get_minimum_size().y, nr.size.y])
+					if not band.encloses(cr):
+						bad.append("%s choice %d: the card %s is off the band %s" % [at, j, cr, band])
+					for r2: Rect2 in rects:
+						if r2.intersects(cr):
+							bad.append("%s choice %d: the card %s meets another %s" % [at, j, cr, r2])
+					rects.append(cr)
+				d.queue_free()
+				await _tree.process_frame
+	for line in bad.slice(0, 8):
+		print("    " + String(line))
+	_ok("every science card says the fuel it burns and fits, and a refused one reads 'needs N fuel' and is not pressable (%d cards, %d faults)" % [looked_at, bad.size()],
+		looked_at > 0 and bad.is_empty())
+	LocalEventDrawer.layout = &"column"
 	Run.fuel = Run.FUEL_TANK
 
 

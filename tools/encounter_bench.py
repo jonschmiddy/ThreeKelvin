@@ -26,7 +26,8 @@ PAY = [0, 1.0, 1.8, 3.0, 4.7, 7.2]
 TOLL = [0, 1.0, 1.9, 3.0, 4.3, 5.8]
 TIERS = ["", "EASY", "ROUGH", "HARD", "BRUTAL", "LETHAL"]
 TAGCOL = {"signal": "#9b8ec8", "contract": "#9b8ec8", "salvage": "#b3a488",
-	"hazard": "#f2761d", "fight": "#c05046", "quest": "#e0b83c"}
+	"hazard": "#f2761d", "fight": "#c05046", "quest": "#e0b83c",
+	"science": "#e07ac8"}
 
 
 def tier(d):
@@ -109,7 +110,7 @@ def parse(src):
 			"title": re.search(r'title = "(.*?)"', blk).group(1),
 			"body": bm.group(1) if bm else "",
 			"tags": sorted(set(re.findall(
-				r'&"(quest|fight|hazard|salvage|signal|contract)"', blk))),
+				r'&"(quest|fight|hazard|salvage|science|signal|contract)"', blk))),
 			"band": "%s–%s" % (TIERS[tier(lo)], TIERS[t])
 				if tier(lo) != t else TIERS[t],
 			"tier": t, "gates": gates, "choices": choices})

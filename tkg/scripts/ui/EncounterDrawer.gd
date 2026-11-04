@@ -704,6 +704,16 @@ const TAG_SALVAGE := Color("#b3a488")
 ## five leave open -- red, orange, bone, cyan and violet are spoken for.
 const TAG_QUEST := Color("#e0b83c")
 
+## Rose, for a reading (science, Phase 12): the last hue the six leave open.
+##
+## Green was the obvious one for an instrument and is taken twice over, by
+## `GOOD` (the SUCCESS stamp) and by the hull bar. Cyan is SIGNAL's and violet
+## CONTRACT's; this sits between violet and a fight's red, fifty to sixty
+## degrees from both, light enough to read at two pixels on the dark map. The HUD's DATA
+## readout has no hue of its own (ICE, like every figure on the bar), so there
+## was nothing to match.
+const TAG_SCIENCE := Color("#e07ac8")
+
 ## PRIORITY, NOT AUTHORING ORDER. `lead_tag` read the option's own `tags` array
 ## and returned the first one it recognised, so `[signal, fight]` came out cyan
 ## and `[fight, signal]` came out red -- the same option two colours depending
@@ -720,8 +730,11 @@ const TAG_QUEST := Color("#e0b83c")
 ## are walking into; this one is the reason you came, and a thread you have been
 ## carrying for four jumps should not be filed under whatever else is true of
 ## the encounter that pays it off.
+## SCIENCE AFTER SALVAGE. A reading is a place you take something from, as a
+## wreck is, and it never shares an option with a fight or a hazard today; if it
+## ever does, the fight or the star is still the thing to know first.
 const TAG_ORDER: Array[StringName] = [&"quest", &"fight", &"hazard", &"salvage",
-	&"signal", &"contract"]
+	&"science", &"signal", &"contract"]
 
 ## WHICH ONE OF ITS TAGS THIS OPTION IS, once and for both readings of it.
 ##
@@ -743,6 +756,7 @@ static func tag_colour(opt: Dictionary) -> Color:
 		&"fight": return UITheme.LEAVE
 		&"hazard": return TAG_HAZARD
 		&"salvage": return TAG_SALVAGE
+		&"science": return TAG_SCIENCE
 		&"signal": return Color("#8ec8e6")
 		&"contract": return TAG_CONTRACT
 	return UITheme.LINE
@@ -800,6 +814,19 @@ static func choice_card(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
 	elif bool(c.get("fight", false)) or opens_fight(c):
 		note = contact_reading(n)
 		tone = UITheme.THEM
+	# A READING BURNS FUEL (science, `burns`): what it costs goes on the card,
+	# after any odds, so the number you pay is inside what you press. When the
+	# tank cannot pay it and keep the way out (`OptionResolve.fuel_ok`, the hard
+	# gate), the card greys and says what the tank must hold, as RULING 8 has a
+	# price say what you have: only pressable things look pressable.
+	if bool(c.get("burns", false)):
+		var burn := OptionTable.science_fuel()
+		if not OptionResolve.fuel_ok(c):
+			note = "needs %d fuel · you have %d" % [burn + Run.fuel_floor(), Run.fuel]
+			open = false
+			tone = UITheme.FLARE
+		else:
+			note = "%d fuel" % burn if note == "" else "%s · %d fuel" % [note, burn]
 	var made := plate(tone, on_take.bind(i, j))
 	var card: OptionCard = made[0]
 	var col: VBoxContainer = made[1]
@@ -819,6 +846,7 @@ static func choice_card(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
 	col.add_child(lb)
 	if note != "":
 		var nl := UITheme.body(note, tone, UITheme.FS_SMALL)
+		nl.name = "Note"
 		nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		nl.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		col.add_child(nl)
