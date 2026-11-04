@@ -960,11 +960,19 @@ func _science_versions() -> void:
 		"0 [0, 0, 0] false 0 9", "%d %s %s %d %d" % [Run.data, str(Array(Run.board_owned)),
 			str(Run.black_box_spent), Run.owned_routines().size(), Run.board.size()])
 	check("and its hull full at the bare frame's max", Run.max_hp(), Run.hp)
-	# THE CHASSIS SELECT clears a dead run's science the same way
-	Run.data = 50
-	Run.board_owned = PackedInt32Array([3, 3, 3])
-	Run.clear_science()
-	check("clear_science leaves no DATA and nothing owned", "0 0", "%d %d" % [Run.data, Run.owned_routines().size()])
+	# AND THE CHASSIS SELECT KEEPS THE BOARD the new run dealt. It is the screen
+	# `Router.new_run` opens right after `start_new_run`, and LAUNCH deals
+	# nothing; it used to clear science on entry, so every real run flew with
+	# an empty board and the first autosave wrote `board: []`.
+	var fresh := Run.board.duplicate()
+	var pick := ChassisSelect.new()
+	# (out of the tree: the root is busy setting up this run's own children)
+	pick.setup()
+	check("the chassis select keeps the new run's board, nine dealt", "9 %s" % str(fresh),
+		"%d %s" % [Run.board.size(), str(Run.board)])
+	Run.deal_board()
+	check("and it is the board the run's seed and seat deal", str(fresh), str(Run.board))
+	pick.free()
 
 func run_history_test() -> void:
 	print("=== HISTORY ===")

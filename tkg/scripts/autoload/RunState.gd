@@ -2474,7 +2474,7 @@ func buy_step(b: int) -> bool:
 	var owned := board_owned.duplicate()
 	owned[b] = _owned_in(b) + 1
 	board_owned = owned
-	log_line("Routine written to the flight computer: %s." % DB.routines[id].name, &"big")
+	log_line("The Lab wrote %s into the flight computer." % DB.routines[id].name, &"big")
 	Sig.ship_changed.emit()
 	Sig.resources_changed.emit()
 	return true
