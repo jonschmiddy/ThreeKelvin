@@ -2257,7 +2257,7 @@ func _draw_partners(_t: float) -> void:
 		# behind the star. Nor for one off the picture: its arrow at the edge
 		# carries the name (`_draw_edge_marks`), and this one ran in past the
 		# frame, the name said twice and the second cut (Nov 5)
-		if shown > 0 and view.window.grow(-2.0).has_point(x):
+		if shown > 0 and _win_in(2.0).has_point(x):
 			_label(x + Vector2(-8, 17), String(e[3]), UITheme.GOOD, 0, true)
 
 
@@ -2511,7 +2511,7 @@ func _draw_ship(t: float) -> void:
 	# or cut by the frame (Nov 5)
 	var on: int = flight.orbit_body()
 	var first := _ship_words_first(x)
-	var off_pic: bool = not view.window.grow(-2.0).has_point(x)
+	var off_pic: bool = not _win_in(2.0).has_point(x)
 	if first.is_empty():
 		if not off_pic:
 			_label(x + Vector2(-8, -you_up()), "YOU", UITheme.FLARE, 1, false)
@@ -2551,12 +2551,12 @@ func _draw_ship(t: float) -> void:
 		# shader's edge fade (`NavField.EDGE_FADE`): under a world off the
 		# picture's left side, ALONGSIDE · SIGMA KESTREL III stood 4 px in, its
 		# A faded out (seed 7, system 314, the review of round two)
-		var cut: bool = names_on and not view.window.encloses(_words_box(Vector2(lx, ly), words))
+		var cut: bool = names_on and not _win_in(0.0).encloses(_words_box(Vector2(lx, ly), words))
 		var stepped: bool = grow > 0.0 and names_on and (_meets_sun(Vector2(lx, ly), words, -99, grow) \
 			or (view.layout.twin and not _clear_of_beacons(words, [], grow).call(Vector2(lx, ly))) \
-			or not view.window.grow(-grow).encloses(_words_box(Vector2(lx, ly), words)))
+			or not _win_in(grow).encloses(_words_box(Vector2(lx, ly), words)))
 		var on_beacon: bool = names_on and view.layout.twin and not _clear_of_beacons(words).call(Vector2(lx, ly))
-		if off_pic and not view.window.grow(-NavField.EDGE_FADE).encloses(_words_box(Vector2(lx, ly), words)):
+		if off_pic and not _win_in(NavField.EDGE_FADE).encloses(_words_box(Vector2(lx, ly), words)):
 			words = ""
 		elif sun or stepped or on_beacon or cut:
 			var spot := _words_off_suns(words, on, x)
@@ -2593,6 +2593,15 @@ func _draw_ship(t: float) -> void:
 ## when zoomed in); off a ring, under the ship. `_draw_ship` steps them off a
 ## binary's suns and beacons from here (`_words_off_suns`); a selected place's
 ## name stepping off a sun keeps off them here too.
+## The map's window drawn in by `m` px, never a negative size: before the map
+## is laid out (a harness, a screen still opening) the window can be empty, and
+## a negative Rect2's has_point and encloses log errors (the Nov 5 gate).
+func _win_in(m: float) -> Rect2:
+	var r := view.window.abs().grow(-m)
+	r.size = r.size.max(Vector2.ZERO)
+	return r
+
+
 func _ship_words_first(x: Vector2) -> Array:
 	var ob: int = flight.reached()
 	var on: int = flight.orbit_body()
