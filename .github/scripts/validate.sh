@@ -2591,7 +2591,7 @@ gate_weight() {
 		solvetest_*) echo 105 ;; twindrawtest) echo 106 ;; twinsitetest) echo 140 ;;
 		flighttest_4) echo 108 ;; flighttest_*) echo 40 ;; pairlocaltest) echo 20 ;;
 		stationdecktest) echo 77 ;; badgetest) echo 30 ;;
-		sciencesimtest) echo 40 ;; routinetest) echo 30 ;;
+		sciencesimtest) echo 51 ;; routinetest) echo 28 ;;
 		*) echo 15 ;;
 	esac
 }
