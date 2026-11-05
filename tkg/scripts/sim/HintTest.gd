@@ -514,17 +514,17 @@ func _decks() -> void:
 			var sig0 := Hints._deck_sig()
 			var data0 := Run.data
 			var owned0 := Run.owned_routines().size()
-			if id == &"research" and st.has_method(&"lab_zoom"):
+			if id == &"research":
 				# THE SCREEN PRESSED ALONE SPENDS IT (Lab layout 1C): the line's
 				# one thing to do, before anything is bought in there; the card
 				# does not stay over the Lab's pages
-				(st.get("_glass_press") as Button).pressed.emit()
+				st._glass_press.pressed.emit()
 				Hints.poll(0.05)
 				await _tree.process_frame
 				Hints.poll(0.05)
 				_ok("research: the lab's screen pressed, nothing bought yet (routines %d): spent, the card gone, the camera in (%s)" % [
-					Run.owned_routines().size(), bool(st.call(&"lab_zoom").call(&"is_open"))],
-					bool(st.call(&"lab_zoom").call(&"is_open")) and Run.owned_routines().size() == owned0 and Hints.seen(id)
+					Run.owned_routines().size(), st.lab_zoom().is_open()],
+					st.lab_zoom().is_open() and Run.owned_routines().size() == owned0 and Hints.seen(id)
 					and (Hints.card == null or Hints.card.id != id))
 			var did := HintActs.act(id)
 			Hints.poll(0.05)

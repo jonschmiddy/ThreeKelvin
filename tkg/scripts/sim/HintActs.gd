@@ -251,15 +251,14 @@ static func act(id: StringName) -> String:
 			# Lab layout 1C): the camera goes into the glass (`LabZoom`), which
 			# is what spends the hint; then, in there, BUY on the first branch
 			# whose next step the DATA covers (DATA alone moves). The camera
-			# stays in until `leave_lab`. Without the zoom (a screen before S9),
-			# the service BUY calls.
+			# stays in until `leave_lab`. (Without a zoom, the service BUY calls.)
 			if st == null or not Science.lab_here(Run.node_at()):
 				return ""
-			var z: Variant = st.call(&"lab_zoom") if st.has_method(&"lab_zoom") else null
+			var z := st.lab_zoom()
 			var did := ""
 			if z != null:
-				(st.get("_glass_press") as Button).pressed.emit()
-				z.call(&"finish")
+				st._glass_press.pressed.emit()
+				z.finish()
 				did = "pressed the lab's screen"
 			for b in 3:
 				if not Science.can_buy(b):
@@ -267,10 +266,9 @@ static func act(id: StringName) -> String:
 				var rid := Run.next_step(b)
 				var k0 := Run.board_owned[b]
 				if z != null:
-					var board: Variant = z.get("board")
-					board.set("pick", Vector2i(b, k0))
-					board.call(&"refresh")
-					(board.get("buy_button") as Button).pressed.emit()
+					z.board.pick = Vector2i(b, k0)
+					z.board.refresh()
+					z.board.buy_button.pressed.emit()
 				else:
 					Science.buy(b)
 				if Run.board_owned[b] > k0:
@@ -289,13 +287,11 @@ static func act(id: StringName) -> String:
 ## back in the room (`act(&"research")` leaves it in). True if it was in.
 static func leave_lab() -> bool:
 	var st := Router.current as StationScreen
-	if st == null or not st.has_method(&"lab_zoom"):
+	var z := st.lab_zoom() if st != null else null
+	if z == null or not z.is_open():
 		return false
-	var z: Variant = st.call(&"lab_zoom")
-	if z == null or not bool(z.call(&"is_open")):
-		return false
-	(z.get("leave_button") as Button).pressed.emit()
-	z.call(&"finish")
+	z.leave_button.pressed.emit()
+	z.finish()
 	return true
 
 

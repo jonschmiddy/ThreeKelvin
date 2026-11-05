@@ -1216,10 +1216,10 @@ func _deck_sig() -> Array:
 
 ## Whether the camera is in the lab's screen, or on its way (`LabZoom`).
 func _lab_in(st: StationScreen) -> bool:
-	if st == null or not st.has_method(&"lab_zoom"):
+	if st == null:
 		return false
-	var z: Variant = st.call(&"lab_zoom")
-	return z != null and is_instance_valid(z) and bool(z.call(&"is_open"))
+	var z := st.lab_zoom()
+	return z != null and is_instance_valid(z) and z.is_open()
 
 
 ## THE LAB USED (science, Nov 4): a board step bought or a part augmented. Its
