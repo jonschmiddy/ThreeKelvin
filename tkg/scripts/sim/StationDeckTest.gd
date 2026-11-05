@@ -538,6 +538,11 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	await _frames(2)
 	_ok("%s, animated: a click mid-move lands the camera (landed %s) and is eaten (the page %s, not AUGMENT)" % [tag, zoom.landed(), zoom.tab],
 		zoom.landed() and zoom.tab == &"research")
+	# LANDED, the chrome stays gone (frames on: where there is a berth the
+	# yard's edge sets the rail's alpha every frame, and put it back whole)
+	await _frames(4)
+	_ok("%s, animated: landed, frames on, the HUD and the rail stay gone (HUD %.2f, rail %.2f)" % [tag, hud.modulate.a, st._rail.modulate.a],
+		zoom.landed() and hud.modulate.a < 0.02 and st._rail.modulate.a < 0.02)
 	# OUT, with a click on the glass mid-move: it lands out, and the Lab stays shut
 	await _click(zoom.leave_button)
 	await _until(func() -> bool: return zoom._at <= out_s + ZoomLadder.LAB_ZOOM_S * 0.5)
