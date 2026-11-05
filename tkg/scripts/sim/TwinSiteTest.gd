@@ -98,7 +98,8 @@ extends Node
 ## picture marked at the frame's edge on nothing drawn (`_pair_marks`); a ship
 ## put back on a world round both suns is taken into the framing
 ## (`_put_back_framed`); a partner off the picture has its arrow too
-## (`_partner_marked`).
+## (`_partner_marked`). Each arrow's look (Jon, Nov 5, `_arrow_shapes`): its
+## key glyph as tall as the arrow, and the arrow hollow.
 ## Prints how many twin systems and cases each part saw.
 ##
 ## IT JUDGES THE WHOLE BUILD. Where a part is another build's (the flight's ride
@@ -162,6 +163,7 @@ func _map() -> SystemMapScreen:
 
 func _run() -> void:
 	await get_tree().process_frame
+	_arrow_shapes()
 	_close_pairs()
 	_opens_as_before()
 	h.seed_run(4242)
@@ -1275,8 +1277,8 @@ func _partner_marked() -> void:
 	h._ok("at the opening framing (%.3f), a partner out round both suns at %s is off the picture (drawn at %s, the picture %s)" % [m.view.zoom, at, drawn, win], off)
 	if off:
 		var mb: Rect2 = mark.get("box", Rect2())
-		h._ok("and has its arrow at the frame's edge, with no glyph%s" % ("" if mark.is_empty() else " (at %s, pointing %s)" % [mark.at, mark.dir]),
-			not mark.is_empty() and win.encloses(mb) and StringName(mark.get("glyph", &"")) == &"")
+		h._ok("and has its arrow at the frame's edge, with no glyph and named GENO beside it (Jon, Nov 5)%s" % ("" if mark.is_empty() else " (at %s, pointing %s, '%s')" % [mark.at, mark.dir, mark.get("name", "")]),
+			not mark.is_empty() and win.encloses(mb) and StringName(mark.get("glyph", &"")) == &"" and String(mark.get("name", "")) == "GENO")
 	Net.roster.erase(id)
 	Net.spots.erase(id)
 	await _frames(2)
@@ -3087,6 +3089,111 @@ func _close_b_words_ride() -> void:
 		MapGen.star_name(n), hops, back, seen], seen > 0 and hops <= 1 and back == 0)
 
 
+## THE EDGE ARROW'S LOOK (Jon, Nov 5: "make the icon the same height as the
+## arrow and make the arrow hollow"; then "Two px"), for each of the eight ways,
+## drawn by `SystemOverlay._tri_queue` alone: the key glyph in 2 px cells, as
+## tall across the arrow's axis as a side arrow is (10 px), centred on that
+## axis, and on a diagonal arrow centred on its middle line; the arrow's line 2
+## px (`_arrow_line`: every one of those cells in its colour), the hole inside
+## it never in its colour, only the dark ring just inside the line, and nothing
+## at all further in. And a ship's arrow with a name (Jon, Nov 5, "hollow arrow
+## with their name"): the name's box beside the arrow on its inward side, off
+## the arrow, in the mark's box, a side arrow's caps on its axis and an up or
+## down arrow's name centred on it.
+func _arrow_shapes() -> void:
+	var ov = OverlayS.new()
+	var col := Color("#9b8ec8")
+	var bad: Array[String] = []
+	var named_bad: Array[String] = []
+	var deep_n := 0
+	var line_n := 0
+	for dir: Vector2i in [Vector2i(1, 0), Vector2i(1, 1), Vector2i(0, 1), Vector2i(-1, 1), Vector2i(-1, 0), Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1)]:
+		var bx: Array = ov._tri_boxes(Vector2.ZERO, dir, true)
+		var ab: Rect2 = (bx[1] as Rect2).grow(-1.0)
+		var gb: Rect2 = bx[2]
+		var diag := dir.x != 0 and dir.y != 0
+		# (across the axis: a side arrow's height pointing left or right, its
+		# width pointing up or down)
+		var a_across := ab.size.y if dir.y == 0 else ab.size.x
+		var g_across := gb.size.y if dir.y == 0 else gb.size.x
+		var off := Vector2(dir).normalized().cross(gb.get_center() - ab.get_center())
+		if diag:
+			if gb.size != Vector2(10, 10) or absf(off) > 0.5:
+				bad.append("%s: the glyph %s, %.1f px off the arrow's middle line" % [dir, gb.size, off])
+		elif g_across != a_across or absf(off) > 0.01:
+			bad.append("%s: the glyph %.0f px across the axis, the arrow %.0f; %.1f px off its axis" % [dir, g_across, a_across, off])
+		# the line and the inside, from the solid triangle
+		var solid := {}
+		for p: Vector2i in OverlayS.tri_px(dir):
+			solid[p] = true
+		var line := _arrow_line(solid, 2)
+		var inside := {}
+		for p: Vector2i in solid:
+			if not line.has(p):
+				inside[p] = true
+		var by_line := {}
+		for p: Vector2i in inside:
+			for dy in [-1, 0, 1]:
+				for dx in [-1, 0, 1]:
+					if line.has(p + Vector2i(dx, dy)):
+						by_line[p] = true
+		ov.mark_rects = []
+		ov._tri_queue(Vector2.ZERO, dir, col, true, &"contract")
+		var drawn := {}
+		for e: Array in ov.mark_rects:
+			drawn[Vector2i((e[0] as Rect2).position)] = e[1]
+		var unlit := 0
+		for p: Vector2i in line:
+			line_n += 1
+			if not (drawn.has(p) and (drawn[p] as Color).is_equal_approx(col)):
+				unlit += 1
+		var lit := 0
+		var deep := 0
+		for p: Vector2i in inside:
+			if drawn.has(p) and (drawn[p] as Color).is_equal_approx(col):
+				lit += 1
+			if not by_line.has(p):
+				deep_n += 1
+				if drawn.has(p):
+					deep += 1
+		if unlit > 0 or lit > 0 or deep > 0 or inside.is_empty():
+			bad.append("%s: %d of its %d line pixels (2 px) not in its colour, %d of its %d inside pixels in it, %d of those off its line drawn" % [
+				dir, unlit, line.size(), lit, inside.size(), deep])
+		# A SHIP'S ARROW, NAMED: 20 px of words (no frame: the name not slid in)
+		var nbx: Variant = ov.callv(&"_tri_boxes", [Vector2.ZERO, dir, false, 20.0]) if ov.has_method(&"_tri_boxes") else null
+		if not (nbx is Array and (nbx as Array).size() >= 5 and ((nbx as Array)[3] as Rect2).has_area()):
+			named_bad.append("%s: no name's box" % dir)
+			continue
+		var na: Rect2 = (nbx as Array)[1]
+		var nb: Rect2 = (nbx as Array)[3]
+		var base: Vector2 = (nbx as Array)[4]
+		var inward := (nb.get_center() - na.get_center()).dot(Vector2(dir)) < 0.0
+		var lined := absf((base.y - 2.5) - na.get_center().y) <= 0.5 if dir.y == 0 else (absf(nb.get_center().x - na.get_center().x) <= 0.5 if dir.x == 0 else true)
+		if nb.intersects(na) or not (nbx as Array)[0].encloses(nb) or not inward or not lined or nb.size.x < 20.0:
+			named_bad.append("%s: the name %s beside the arrow %s (inward %s, on its axis %s)" % [dir, nb, na, inward, lined])
+	ov.free()
+	h._ok("each of the eight edge arrows: its key glyph as tall as the arrow (10 px, 2 px cells), centred on its axis or middle line, and the arrow hollow, its line 2 px in its colour (%d line pixels), the hole inside never in its colour and, past the dark ring inside its line, not drawn (%d such pixels)%s" % [
+		line_n, deep_n, "" if bad.is_empty() else ": " + "; ".join(bad)], bad.is_empty() and deep_n > 0 and line_n > 0)
+	h._ok("and a ship's arrow named each of the eight ways: the name beside it on its inward side, off the arrow and in the mark's box, on a side arrow's axis and centred on an up or down one%s" % [
+		"" if named_bad.is_empty() else ": " + "; ".join(named_bad)], named_bad.is_empty())
+
+
+## THE ARROW'S LINE `w` px wide: the cells of `solid` on its edge (a neighbour
+## outside), then the edge of what is left, `w` times.
+static func _arrow_line(solid: Dictionary, w: int) -> Dictionary:
+	var left := solid.duplicate()
+	var out := {}
+	for i in w:
+		var edge: Array = []
+		for p: Vector2i in left:
+			if not (left.has(p + Vector2i.RIGHT) and left.has(p + Vector2i.LEFT) and left.has(p + Vector2i.UP) and left.has(p + Vector2i.DOWN)):
+				edge.append(p)
+		for p: Vector2i in edge:
+			left.erase(p)
+			out[p] = true
+	return out
+
+
 ## A WIDE PAIR OPENS FRAMED ON ITS OWN PART (Jon, Nov 1, "gap:A"), as the ring
 ## sweep shows each wide pair (`_pair_marks`): at `SystemMapScreen.open_view`,
 ## nearer than the whole system and centred on the two suns and their own
@@ -3135,33 +3242,47 @@ func _pair_marks(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 	if not whole:
 		st.framed_off += 1
 		bad.append("%s at t %.0f (%.0f deg round): the pair not all on the picture %s" % [nm, v.t, rad_to_deg(L.pair_n * float(v.t)), win])
-	# what is drawn there, which an arrow must not be on
-	var drawn: Array = (ov.label_rects as Array).duplicate()
-	drawn.append_array(ov.mark_keep)
-	var stat: Array = ov.ship_status()
-	if String(stat[0]) != "":
-		drawn.append(ov.status_rect(String(stat[0])))
 	for e in ov.beacons_at:
-		var bb: Rect2 = OverlayS.beacon_box(e[0])
-		if bb.intersects(win):
-			drawn.append(bb)
-		else:
+		if not OverlayS.beacon_box(e[0]).intersects(win):
 			st.off += 1
-	for p: int in L.stars():
-		var r: float = ov.star_disc(p)
-		drawn.append(Rect2(ov.star_scr(p) - Vector2(r, r), Vector2(r, r) * 2.0))
-	for i in L.bodies.size():
-		var b := L.bodies[i]
-		if b.kind != &"belt":
-			var r: float = maxf(v.draw_r(b), 2.0)
-			drawn.append(Rect2(v.at[i] - Vector2(r, r), Vector2(r, r) * 2.0))
-	var sr := float(ov.ship_r())
-	drawn.append(Rect2(ov._ship_at - Vector2(sr, sr), Vector2(sr, sr) * 2.0))
+	# what is drawn there, which an arrow must not be on
+	var drawn := _drawn_under_marks(m)
 	var boxes: Array = []
+	# (what the screen draws for the arrows, by pixel: the look as drawn, Jon's
+	# Nov 5 `_arrow_shapes`)
+	var px_at := {}
+	for e: Array in ov.mark_rects:
+		px_at[Vector2i((e[0] as Rect2).position)] = e[1]
 	for mk: Dictionary in ov.edge_marks:
 		st.marks += 1
 		if int(mk.body) != -9:
 			st.marked += 1
+		var dir: Vector2i = mk.dir
+		var ab: Rect2 = (mk.arrow_box as Rect2).grow(-1.0)
+		var gb: Rect2 = mk.glyph_box
+		var looks := true
+		if gb.has_area() and dir.x * dir.y == 0 and (gb.size.y if dir.y == 0 else gb.size.x) != (ab.size.y if dir.y == 0 else ab.size.x):
+			looks = false
+			bad.append("%s: the arrow at %s pointing %s has its glyph %s beside the arrow's %s" % [nm, mk.at, dir, gb.size, ab.size])
+		var solid := {}
+		for p: Vector2i in OverlayS.tri_px(dir):
+			solid[p] = true
+		var q := Vector2i((mk.at as Vector2).round())
+		# (its line 2 px, Jon's "Two px", and the hole inside it never filled)
+		var line := _arrow_line(solid, 2)
+		for p: Vector2i in solid:
+			var c: Variant = px_at.get(q + p)
+			if line.has(p):
+				if c == null or Color(c).is_equal_approx(Color(OverlayS.MARK_DARK, Color(c).a)):
+					looks = false
+					bad.append("%s: the arrow at %s pointing %s has no line at %s" % [nm, mk.at, dir, p])
+					break
+			elif c != null and not Color(c).is_equal_approx(Color(OverlayS.MARK_DARK, Color(c).a)):
+				looks = false
+				bad.append("%s: the arrow at %s pointing %s is filled at %s" % [nm, mk.at, dir, p])
+				break
+		if not looks:
+			st.look_bad += 1
 		# (an event's arrow carries its key glyph, a ship's none: "Edge arrows: C")
 		if (StringName(mk.glyph) != &"") != (int(mk.body) != -9) or (StringName(mk.glyph) != &"") != (mk.glyph_box as Rect2).has_area():
 			st.untagged += 1
@@ -3175,6 +3296,209 @@ func _pair_marks(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 		if on:
 			st.mark_on += 1
 			bad.append("%s: the arrow at %s for %d is on something drawn" % [nm, mk.at, int(mk.body)])
+
+
+## YOUR SHIP'S AND THE PARTNERS' ARROWS, NAMED (Jon, Nov 5: "Maybe hollow arrow
+## with their name?"), on this wide pair at its opening framing: your ship put
+## in orbit of a place round both suns off the picture, and five partners off
+## it (`Net.roster`, `Net.spots`) -- four round the frame from an angle that
+## turns with each pair, and one straight out past a corner -- one of them with
+## a long name (SHIP_NAME_LONG). Each ship's arrow carries its name (YOU, the
+## pilot's, cut with ".." to `MARK_NAME_MOST` or less), its box (`name_box`)
+## inside the frame, in the mark's box, off its arrow and on its inward side,
+## queued for the screen (`mark_words`); every arrow's box, names in, inside the
+## frame and on nothing drawn (`_drawn_under_marks`) or another arrow.
+const SHIP_NAME_LONG := "Alexandria Kesselring-Vanterpool"
+
+
+func _ship_marks(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary, bad: Array[String]) -> void:
+	var v = m.view
+	var ov = m.overlay
+	var L: SystemLayout = v.layout
+	var nm := "seed %d %s" % [sd, MapGen.star_name(n)]
+	var zoom0: float = v.zoom
+	var pan0: Vector2 = v.pan
+	var win: Rect2 = v.window
+	var mid := win.get_center()
+	# your ship: in orbit of the first place round both suns drawn off the picture
+	var away := -1
+	for b in L.bodies:
+		if b.kind != &"belt" and not SystemLayout.is_star(b.host_id) and b.index < v.at.size() and not win.grow(24.0).has_point(v.at[b.index]):
+			away = b.index
+			break
+	if away >= 0:
+		m.flight.place_at(away, v.t)
+	# the partners, at screen points past the frame turned back onto the plane
+	var o: Vector2 = v.screen(0.0, 0.0)
+	var reach := win.size * 0.5 + Vector2(70.0, 70.0)
+	var a0 := deg_to_rad(37.0 * float(st.wide))
+	var spots: Array = []
+	for k in 4:
+		var a := a0 + TAU * float(k) / 4.0
+		spots.append(mid + Vector2(cos(a) * reach.x, sin(a) * reach.y))
+	var corner := [Vector2(1, 1), Vector2(-1, 1), Vector2(-1, -1), Vector2(1, -1)][st.wide % 4] as Vector2
+	spots.append(mid + reach * corner)
+	var names := ["Mercer", "Kevin", "Geno", "Cody", "Jeremy"]
+	names[st.wide % 5] = SHIP_NAME_LONG
+	var ids: Array[int] = []
+	for k in spots.size():
+		var id := 70100 + k
+		ids.append(id)
+		var sp: Vector2 = spots[k]
+		var pl := Vector2((sp.x - o.x) / v.zoom, (sp.y - o.y) / (v.zoom * v.TILT))
+		Net.roster[id] = {"id": id, "at": n.index, "order": 100 + k, "name": names[k]}
+		Net.spots[id] = {"at": n.index, "body": -9, "x": pl.x, "z": pl.y, "ang": 0.0}
+	# twice: your ship in orbit off the picture, then coasting free just past
+	# the frame's bottom (no orbit, so the words by it are YOU: the review of
+	# round two, where every case above said words)
+	for phase in 2:
+		if phase == 1:
+			var sx := Vector2(mid.x + win.size.x * 0.2, win.end.y + 6.0)
+			m.flight.place_at(-3, v.t)
+			m.flight.mode = &"free"
+			m.flight.f.p = Vector2((sx.x - o.x) / v.zoom, (sx.y - o.y) / (v.zoom * v.TILT))
+			m.flight.f.v = Vector2.ZERO
+			m.flight.f.orbit_r = -1.0
+		m._glide = {}
+		m._focus_body = -9
+		m._homing = false
+		m._locked = false
+		m._zoom_to = zoom0
+		v.zoom = zoom0
+		v.pan = pan0
+		await _frames(4)
+		win = v.window
+		var drawn := _drawn_under_marks(m)
+		var boxes: Array = []
+		var words: Array = ov.get("mark_words") if ov.get("mark_words") != null else []
+		var inner: Rect2 = win.grow(-OverlayS.MARK_IN)
+		var off: Array[int] = []
+		for e: Array in ov.partner_at:
+			if not win.grow(-2.0).has_point(e[1]):
+				off.append(int(e[0]))
+		var you_off := not win.grow(-2.0).has_point(ov._ship_at)
+		st.ship_you_off += int(you_off)
+		st.ship_partners_off += off.size()
+		var marked: Array[int] = []
+		for mk: Dictionary in ov.edge_marks:
+			var mb: Rect2 = mk.box
+			var hit := not win.encloses(mb)
+			for r: Rect2 in drawn + boxes:
+				if r.intersects(mb):
+					hit = true
+			boxes.append(mb)
+			st.ship_all_marks += 1
+			if hit:
+				st.ship_mark_on += 1
+				bad.append("%s: with the ships off the picture, the arrow at %s for %d (peer %d, '%s') is on something drawn or past the frame" % [
+					nm, mk.at, int(mk.body), int(mk.peer), mk.get("name", "")])
+			if int(mk.body) != -9:
+				if String(mk.get("name", "")) != "":
+					st.ship_name_bad += 1
+					bad.append("%s: the event's arrow at %s is named '%s'" % [nm, mk.at, mk.get("name", "")])
+				continue
+			st.ship_marks += 1
+			marked.append(int(mk.peer))
+			var who: String = "YOU" if int(mk.peer) == 0 else String(Net.roster.get(int(mk.peer), {}).get("name", "")).to_upper()
+			var said := String(mk.get("name", ""))
+			var nb: Rect2 = mk.get("name_box", Rect2())
+			var ab: Rect2 = mk.arrow_box
+			var dir: Vector2i = mk.dir
+			var fw: float = UITheme.pixel_font().get_string_size(said, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+			var right_words := said == who or (said.ends_with("..") and who.begins_with(said.trim_suffix("..").strip_edges()) and said.length() > 2)
+			var queued := false
+			for w: Array in words:
+				if String(w[1]) == said and (w[3] as Rect2) == nb:
+					queued = true
+			var inward := (nb.get_center() - ab.get_center()).dot(Vector2(dir)) < 0.0
+			if said == "" or not right_words or fw > float((ov.get_script() as Script).get_script_constant_map().get("MARK_NAME_MOST", 0.0)) or not nb.has_area() or not win.encloses(nb) or not mb.encloses(nb) or nb.intersects(ab) or not inward or not queued:
+				st.ship_name_bad += 1
+				bad.append("%s: the arrow at %s pointing %s for %s says '%s' (%.0f px) in %s, the arrow %s (inward %s, queued %s)" % [
+					nm, mk.at, dir, who, said, fw, nb, ab, inward, queued])
+				continue
+			st.ship_named += 1
+			if said != who:
+				st.ship_cut += 1
+			if int(mk.peer) == 0:
+				st.ship_you += 1
+			# (in a corner: the arrow within 24 px of two sides of the edge it slides on)
+			var at: Vector2 = mk.at
+			if minf(absf(at.x - inner.position.x), absf(at.x - inner.end.x)) <= 24.0 and minf(absf(at.y - inner.position.y), absf(at.y - inner.end.y)) <= 24.0:
+				st.ship_corner += 1
+		for id: int in off:
+			if not marked.has(id):
+				st.ship_unmarked += 1
+				bad.append("%s: the partner %d off the picture has no arrow" % [nm, id])
+			# (and its name said once, by its arrow: not again under its hull, cut
+			# by the frame, as the first round-two stills had a long one)
+			var who2 := String(Net.roster.get(id, {}).get("name", "")).to_upper()
+			if (ov.label_says as Array).has(who2):
+				st.ship_twice += 1
+				bad.append("%s: the partner %s off the picture is named under its hull too" % [nm, who2])
+		if you_off and (ov.label_says as Array).has("YOU"):
+			st.ship_twice += 1
+			bad.append("%s: your ship off the picture is named YOU over its hull too" % nm)
+		if you_off and not marked.has(0):
+			st.ship_unmarked += 1
+			bad.append("%s: your ship off the picture at %s has no arrow" % [nm, ov._ship_at])
+		if phase == 1:
+			st.ship_coast += int(you_off and (ov._ship_words_first(ov._ship_at) as Array).is_empty())
+		# (nor the words by it run in past the frame, cut: "ᴀLONGSIDE · ALPHA
+		# KESTREL III" under the YOU arrow in round two's stills, or hugging the
+		# frame's edge in the key shader's edge fade, ALONGSIDE · SIGMA KESTREL
+		# III's A faded out)
+		if you_off:
+			var sw: Array = []
+			var first: Array = ov._ship_words_first(ov._ship_at)
+			if not first.is_empty():
+				sw.append(String(first[0]))
+				sw.append(String(first[0]).get_slice(" · ", 0))
+			if not (ov.ship_words as Dictionary).is_empty():
+				sw.append(String(ov.ship_words.says))
+			var says: Array = ov.label_says
+			for li in says.size():
+				if sw.has(String(says[li])) and not win.grow(-NavField.EDGE_FADE).encloses(ov.label_rects[li]):
+					st.ship_words_cut += 1
+					bad.append("%s: your ship off the picture has its words '%s' cut by the frame or in its edge fade at %s" % [nm, says[li], ov.label_rects[li]])
+	for id in ids:
+		Net.roster.erase(id)
+		Net.spots.erase(id)
+	v.zoom = zoom0
+	v.pan = pan0
+	await _frames(2)
+
+
+## WHAT IS DRAWN ON THE MAP that no edge arrow (or a ship's name beside one) may
+## be on, as boxes: the words, the status line, the goal and the instrument
+## (`mark_keep`), the events' beacons on the picture, both suns, the worlds,
+## your ship and each partner's hull.
+func _drawn_under_marks(m: SystemMapScreen) -> Array:
+	var v = m.view
+	var ov = m.overlay
+	var L: SystemLayout = v.layout
+	var win: Rect2 = v.window
+	var drawn: Array = (ov.label_rects as Array).duplicate()
+	drawn.append_array(ov.mark_keep)
+	var stat: Array = ov.ship_status()
+	if String(stat[0]) != "":
+		drawn.append(ov.status_rect(String(stat[0])))
+	for e in ov.beacons_at:
+		var bb: Rect2 = OverlayS.beacon_box(e[0])
+		if bb.intersects(win):
+			drawn.append(bb)
+	for p: int in L.stars():
+		var r: float = ov.star_disc(p)
+		drawn.append(Rect2(ov.star_scr(p) - Vector2(r, r), Vector2(r, r) * 2.0))
+	for i in L.bodies.size():
+		var b := L.bodies[i]
+		if b.kind != &"belt":
+			var r: float = maxf(v.draw_r(b), 2.0)
+			drawn.append(Rect2(v.at[i] - Vector2(r, r), Vector2(r, r) * 2.0))
+	var sr := float(ov.ship_r())
+	drawn.append(Rect2(ov._ship_at - Vector2(sr, sr), Vector2(sr, sr) * 2.0))
+	for e: Array in ov.partner_at:
+		drawn.append(Rect2(e[1] - Vector2.ONE * OverlayS.PARTNER_HALF, Vector2.ONE * OverlayS.PARTNER_HALF * 2.0))
+	return drawn
 
 
 ## THE NEARER SUN TAKES THE CLICK (ruling 23, "stacked:A": a close pair turns
@@ -3345,15 +3669,18 @@ func _ring_sweep() -> void:
 		elif (a as String).begins_with("ringcap="):
 			cap = int((a as String).substr(8))
 	var t0 := Time.get_ticks_msec()
-	var st := {"twins": 0, "places": 0, "moments": 0, "words": 0, "crossed": 0, "whole": 0, "short": 0, "held": 0,
+	var st := {"twins": 0, "places": 0, "moments": 0, "words": 0, "crossed": 0, "whole": 0, "short": 0, "held": 0, "off_pic": 0,
 		"rings": 0, "rim_frames": 0, "hull_frames": 0, "rim_bad": 0, "own_hid": 0, "on_disc": 0, "both": 0, "both_rim": 0, "one": 0, "one_rim": 0,
 		"sel": 0, "sel_shown": 0, "sel_held": 0, "sel_under": 0, "coasts": 0, "into": 0, "fc_shown": 0, "fc_held": 0, "ev_sys": 0, "ev_moved": 0,
 		"bc_words": 0, "bc_fallback": 0, "bc_crossed": 0, "sel_bc": 0, "fc_bc": 0,
 		"bc_stepped": 0, "bc_ticks": 0, "bc_hid": 0, "bc_marks": 0, "sel_on_words": 0, "close": 0,
-		"wide": 0, "zoom_bad": 0, "gap_n": 0, "gap_least": INF, "off": 0, "marked": 0, "marks": 0, "mark_on": 0, "untagged": 0,
+		"wide": 0, "zoom_bad": 0, "gap_n": 0, "gap_least": INF, "off": 0, "marked": 0, "marks": 0, "mark_on": 0, "untagged": 0, "look_bad": 0,
+		"ship_you_off": 0, "ship_partners_off": 0, "ship_all_marks": 0, "ship_mark_on": 0, "ship_marks": 0, "ship_named": 0, "ship_name_bad": 0,
+		"ship_cut": 0, "ship_you": 0, "ship_corner": 0, "ship_unmarked": 0, "ship_twice": 0, "ship_coast": 0, "ship_words_cut": 0,
 		"framed_off": 0, "near_n": 0, "near_bad": 0, "near_none": 0, "turn_runs": 0, "turn_frames": 0, "turn_hops": 0, "turn_hops_free": 0,
 		"turn_moves": 0, "turn_moves_free": 0, "turn_across": 0, "turn_held": 0}
 	var mark_bad: Array[String] = []
+	var ship_bad: Array[String] = []
 	var near_bad: Array[String] = []
 	var turn_bad: Array[String] = []
 	# (the binaries seen, which kept clock each opens at)
@@ -3449,6 +3776,7 @@ func _ring_sweep() -> void:
 			st.close += int(L.close)
 			if not L.close:
 				_pair_marks(m, sd, n, st, mark_bad)
+				await _ship_marks(m, sd, n, st, ship_bad)
 			else:
 				await _nearer_hit(m, sd, n, st, near_bad)
 				if st.turn_runs < TURN_RUNS:
@@ -3478,6 +3806,11 @@ func _ring_sweep() -> void:
 						st.whole += 1
 					elif says.has(full.get_slice(" · ", 0)):
 						st.short += 1
+					elif not m.view.window.grow(-2.0).has_point(ov._ship_at):
+						# (the ship off the picture, a world out past the wide pair's
+						# framing: its arrow at the edge says YOU, and its words, cut
+						# by the frame there, are not drawn: `_ship_marks` checks)
+						st.off_pic += 1
 					else:
 						st.held += 1
 						held.append("seed %d %s at %s (%s)" % [sd, MapGen.star_name(n), ov._place_nm(p), ", ".join(PackedStringArray(says))])
@@ -3621,8 +3954,8 @@ func _ring_sweep() -> void:
 			m.frozen = false
 			m.flight.place_at(w0, m.view.t)
 			await _frames(2)
-	print("  --   the ring sweep: %d binaries (%d close pairs) over seeds %s in %.1f s; the ship at %d places, %d moments; %d words placed; its own words whole %d, shortened %d, held back %d" % [
-		st.twins, st.close, seeds, float(Time.get_ticks_msec() - t0) / 1000.0, st.places, st.moments, st.words, st.whole, st.short, st.held])
+	print("  --   the ring sweep: %d binaries (%d close pairs) over seeds %s in %.1f s; the ship at %d places, %d moments; %d words placed; its own words whole %d, shortened %d, held back %d, off the picture with the ship %d" % [
+		st.twins, st.close, seeds, float(Time.get_ticks_msec() - t0) / 1000.0, st.places, st.moments, st.words, st.whole, st.short, st.held, st.off_pic])
 	print("  --   and %d places selected (%d names shown, %d held back off a sun, %d under a higher label), %d coasts let go (%d into the ring aimed at, its forecast shown in %d, held back off a sun in %d)" % [
 		st.sel, st.sel_shown, st.sel_held, st.sel_under, st.coasts, st.into, st.fc_shown, st.fc_held])
 	if not crossed.is_empty():
@@ -3659,6 +3992,7 @@ func _ring_sweep() -> void:
 		print("  --     %s" % e)
 	_saw("ring sweep: wide pairs opened", st.wide)
 	_saw("ring sweep: beacons off the picture", st.off)
+	_saw("ring sweep: ships' arrows named", st.ship_named)
 	h._ok("every wide pair opens framed on its own part (`open_view`), nearer than the whole system and centred on it (%d of %d not)" % [st.zoom_bad, st.wide],
 		st.wide > 0 and st.zoom_bad == 0)
 	h._ok("and opened at kept clocks round the pair's lap (%d angles), the pair as it stands then all on the picture (%d of %d not)" % [LAP_CLOCKS, st.framed_off, st.wide],
@@ -3686,7 +4020,17 @@ func _ring_sweep() -> void:
 		st.marked, st.off, st.mark_on], st.off > 0 and st.marked == st.off and st.mark_on == 0)
 	h._ok("and each event's arrow carries the event's key glyph, a ship's none (%d of %d arrows not)" % [st.untagged, st.marks],
 		st.marks > 0 and st.untagged == 0)
-	h._ok("the words by the ship stand whole or shortened at nearly every place (%d whole, %d shortened, %d held back of %d)" % [st.whole, st.short, st.held, st.moments],
+	h._ok("and as drawn there, each side arrow's glyph as tall as the arrow and every arrow hollow (%d of %d arrows not)" % [st.look_bad, st.marks],
+		st.marks > 0 and st.look_bad == 0)
+	h._ok("with your ship and five partners off each wide pair's picture (%d times yours, %d partners), every ship's arrow is hollow and named beside it, on its inward side inside the frame: YOU %d times, the pilot's name, cut with '..' %d times (%d of %d ships' arrows named, %d not; %d in a corner)%s" % [
+		st.ship_you_off, st.ship_partners_off, st.ship_you, st.ship_cut, st.ship_named, st.ship_marks, st.ship_name_bad, st.ship_corner,
+		"" if ship_bad.is_empty() else ": " + "; ".join(ship_bad.slice(0, 6))],
+		st.ship_marks > 0 and st.ship_named == st.ship_marks and st.ship_name_bad == 0 and st.ship_you > 0 and st.ship_cut > 0 and st.ship_corner > 0)
+	h._ok("and every ship off the picture has its arrow, and every arrow there, names in, inside the frame and on nothing drawn: no word, beacon, sun, world, hull, the status line, the goal, the instrument or another arrow (%d unmarked, %d of %d arrows on something)" % [
+		st.ship_unmarked, st.ship_mark_on, st.ship_all_marks], st.ship_all_marks > 0 and st.ship_unmarked == 0 and st.ship_mark_on == 0)
+	h._ok("and a ship off the picture named once, by its arrow, never again over or under its hull past the frame, nor its words cut by the frame or in its edge fade (%d named twice, %d words cut or faded; coasting free just past the frame %d times)" % [
+		st.ship_twice, st.ship_words_cut, st.ship_coast], st.ship_marks > 0 and st.ship_twice == 0 and st.ship_words_cut == 0 and st.ship_coast > 0)
+	h._ok("the words by the ship stand whole or shortened at nearly every place (%d whole, %d shortened, %d held back of %d; %d with the ship off the picture, its arrow saying YOU)" % [st.whole, st.short, st.held, st.moments, st.off_pic],
 		st.held * 50 <= st.moments)
 	h._ok("and never over an event's beacon drawn that frame, but where no spot clears the suns and the beacons both (%d placed, %d over a beacon, %d by one for want of a spot)%s" % [
 		st.bc_words, st.bc_crossed, st.bc_fallback, "" if on_beacon.is_empty() else ": " + "; ".join(on_beacon.slice(0, 4))],

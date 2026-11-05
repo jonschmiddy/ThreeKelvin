@@ -263,6 +263,13 @@ func _place_labels() -> void:
 	_lq.clear()
 
 
+## THE BOX OF WORDS whose baseline's left end is `at`, as `_place_labels`
+## builds it.
+func _words_box(at: Vector2, words: String) -> Rect2:
+	var tw := _font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+	return Rect2(at + Vector2(-2, -10), Vector2(tw + 4, 14))
+
+
 ## WHETHER WORDS AT `at` WOULD BE WRITTEN ACROSS A SUN: their box, as
 ## `_place_labels` builds it, against the disc of each star of a pair but `but`
 ## (one sun has no other). The words a twin puts by a star or a selected name
@@ -433,6 +440,7 @@ func _draw() -> void:
 	if L == null:
 		# (no picture, no arrows over it)
 		mark_rects = []
+		mark_words = []
 		marks_drawn.emit()
 		return
 	var t: float = view.t
@@ -672,9 +680,17 @@ func _draw() -> void:
 ## frame's edge pointing to it, where the line to it from the frame's middle
 ## crosses the edge. The look is Jon's "Edge arrows: C" (Nov 2): a narrow
 ## triangle (`tri_px`) in the beacon's own colour, closed or not (your ship's in
-## ice, a partner's in the party's green), an event's with its key glyph in 1 px
-## cells just behind it and one dark outline round both, a tag on the arrow and
-## never a second beacon. The map screen draws them over the picture
+## ice, a partner's in the party's green), an event's with its key glyph just
+## behind it and one dark outline round both, a tag on the arrow and never a
+## second beacon; and since Nov 5 ("make the icon the same height as the arrow
+## and make the arrow hollow") the glyph in 2 px cells, as tall as the arrow,
+## and the arrow its line alone (`tri_line`), the map showing through it; that
+## line 2 px (Jon, Nov 5, "Two px": the 1 px line read lighter than the glyph's
+## 2 px strokes). Your ship's and each partner's arrow is hollow too, and named
+## (Jon, Nov 5, "hollow arrow with their name"): YOU, the star chart's word for
+## your ship, in ice, a partner's pilot in the party's green, the map's small
+## words beside the arrow on its inward side (`_name_at`), inside the frame and
+## moving round the edge with it. The map screen draws them over the picture
 ## (`SystemMapScreen._Marks`, from `mark_rects`), out of the key shader's edge
 ## fade, which left the first arrows faint. Only at the opening zoom or further
 ## out (`mark_zoom`): zoomed in, looking closer is the player's choice, and
@@ -692,11 +708,17 @@ var mark_zoom := INF
 ## (`SystemMapScreen.mark_keep`)
 var mark_keep: Array = []
 ## THE ARROWS DRAWN last frame, for a harness: {at (the arrow's middle), box
-## (round all of it, outline in), arrow_box, glyph_box (Rect2() with none),
-## glyph (the key glyph's name, &"" for a ship), body (the beacon's place, or -9
-## a ship), peer (a partner's id, 0 for yours or a beacon), dir (one of the
-## eight, x and y -1 to 1), to (where what it points at is drawn)}
+## (round all of it, outline and name in), arrow_box, glyph_box (Rect2() with
+## none), glyph (the key glyph's name, &"" for a ship), name (the words drawn
+## beside a ship's arrow, "" for an event's), name_box (their box, rim in, or
+## Rect2()), body (the beacon's place, or -9 a ship), peer (a partner's id, 0
+## for yours or a beacon), dir (one of the eight, x and y -1 to 1), to (where
+## what it points at is drawn)}
 var edge_marks: Array = []
+## THE NAMES BESIDE THE SHIPS' ARROWS this frame, for the screen to draw with
+## them (`SystemMapScreen._Marks`): [their baseline's left end, the words, the
+## colour, their box (rim in)], in this space
+var mark_words: Array = []
 ## how far in from the frame's edge an arrow's middle stands (clear of the
 ## frame's bezel), and the step it is slid round the edge by
 const MARK_IN := 12.0
@@ -728,8 +750,26 @@ signal marks_drawn
 ## 12 px under it, an up arrow left-aligned under ORBITING read as the line's
 ## caret
 const MARK_UNDER_WORDS := 40.0
-## the glyph's 1 px cells this far (the outline's width) off the arrow's
+## the glyph's cells this far (the outline's width) off the arrow's
 const MARK_GLYPH_GAP := 1
+## THE KEY GLYPH BESIDE THE ARROW (Jon, Nov 5): its 5x5 cells drawn 2 px each,
+## so 10 px, as tall as a side arrow is across (TRI_SIDE's 10 rows), centred on
+## its axis; a diagonal arrow's on its middle line, the same 10 px (its 2 px
+## grid has no 12)
+const MARK_GLYPH_CELL := 2
+const MARK_GLYPH_PX := 5 * MARK_GLYPH_CELL
+## THE ARROW'S LINE, 2 px (Jon, Nov 5, "Two px"), as the glyph's strokes are
+const MARK_LINE := 2
+## A SHIP'S NAME beside its arrow: this far off the arrow's outline (its box
+## holds the letters' 1 px rim, so 1 px of the map between), the caps (5 px of
+## the map's 8 px face) centred on the arrow's axis, and cut with ".." past
+## MARK_NAME_MOST px, or MARK_NAME_SHORT where no spot round the edge clears
+## the longer one (`_draw_edge_marks`)
+const MARK_NAME_GAP := 1.0
+const MARK_NAME_MOST := 72.0
+const MARK_NAME_SHORT := 30.0
+## and kept this far inside the frame
+const MARK_NAME_IN := 2.0
 const MARK_DARK := Color("#05070b")
 ## THE ARROW, a narrow triangle 13 px long and 10 across, its point cut to
 ## 2 px, its sides in even 3 px stairs (about 40 degrees at the point: the
@@ -749,6 +789,7 @@ const TRI_DIAG := ["..........##", ".........###", ".......####.", ".....#####..
 	"..######....", "...####.....", "....###....."]
 const TRI_DIAG_AT := Vector2i(-6, -6)
 static var _tri_cache := {}
+static var _line_cache := {}
 
 
 ## The arrow pointing `dir`, as its pixels round its middle (each the
@@ -769,6 +810,30 @@ static func tri_px(dir: Vector2i) -> Array:
 	return out
 
 
+## THE HOLLOW ARROW (Jon, Nov 5): the cells of `tri_px` on its edge (one of
+## their four neighbours outside it), and the cells on the edge of what is left,
+## MARK_LINE (2) px of line in steps round the shape; the cells inside are not
+## drawn but the dark ring along the line (`_tri_queue`).
+static func tri_line(dir: Vector2i) -> Array:
+	if _line_cache.has(dir):
+		return _line_cache[dir]
+	var left := {}
+	for p: Vector2i in tri_px(dir):
+		left[p] = true
+	var out: Array = []
+	for i in MARK_LINE:
+		var edge: Array = []
+		for p: Vector2i in left:
+			if not (left.has(p + Vector2i.RIGHT) and left.has(p + Vector2i.LEFT) and left.has(p + Vector2i.UP)
+					and left.has(p + Vector2i.DOWN)):
+				edge.append(p)
+		for p: Vector2i in edge:
+			left.erase(p)
+		out.append_array(edge)
+	_line_cache[dir] = out
+	return out
+
+
 ## Pixel p of the right (or up-right) arrow, turned (or mirrored) to point `dir`:
 ## its centre moved, then floored, so the shape stays round the same corner.
 static func _tri_turn(p: Vector2i, dir: Vector2i) -> Vector2i:
@@ -781,9 +846,11 @@ static func _tri_turn(p: Vector2i, dir: Vector2i) -> Vector2i:
 	return Vector2i(floori(v.x), floori(v.y))
 
 
-## The glyph's 5 px box behind the arrow pointing `dir` (its top left, round
-## the arrow's middle): from the arrow's middle stepped back along -dir until
-## it is MARK_GLYPH_GAP px clear of every arrow pixel, so the two outlines meet.
+## The glyph's MARK_GLYPH_PX box behind the arrow pointing `dir` (its top
+## left, round the arrow's middle): from the arrow's middle stepped back along
+## -dir until it is MARK_GLYPH_GAP px clear of every arrow pixel, so the two
+## outlines meet. Stepped along the axis, a side arrow's is centred on it (10 on
+## 10 rows), a diagonal's on its middle line.
 static func _glyph_at(dir: Vector2i) -> Vector2i:
 	var key := dir + Vector2i(10, 10)
 	if _tri_cache.has(key):
@@ -796,12 +863,14 @@ static func _glyph_at(dir: Vector2i) -> Vector2i:
 		hi = Vector2i(maxi(hi.x, p.x), maxi(hi.y, p.y))
 	var mid := Vector2(lo + hi + Vector2i.ONE) * 0.5
 	var g := Vector2i.ZERO
-	for r in 30:
-		g = Vector2i(roundi(mid.x - dir.x * r - 2.5), roundi(mid.y - dir.y * r - 2.5))
+	var half := MARK_GLYPH_PX * 0.5
+	var far := MARK_GLYPH_PX - 1
+	for r in 40:
+		g = Vector2i(roundi(mid.x - dir.x * r - half), roundi(mid.y - dir.y * r - half))
 		var ok := true
 		for p: Vector2i in px:
-			var dx := maxi(maxi(g.x - p.x, p.x - (g.x + 4)), 0)
-			var dy := maxi(maxi(g.y - p.y, p.y - (g.y + 4)), 0)
+			var dx := maxi(maxi(g.x - p.x, p.x - (g.x + far)), 0)
+			var dy := maxi(maxi(g.y - p.y, p.y - (g.y + far)), 0)
 			if maxi(dx, dy) < MARK_GLYPH_GAP + 1:
 				ok = false
 				break
@@ -812,40 +881,98 @@ static func _glyph_at(dir: Vector2i) -> Vector2i:
 
 
 ## Where an arrow at `q` pointing `dir` stands and what it holds:
-## [the box round all of it (outline in), the arrow's box (outline in), the
-## glyph's box (its 5 px, no outline) or Rect2()], in this space.
-func _tri_boxes(q: Vector2, dir: Vector2i, glyph_too: bool) -> Array:
+## [the box round all of it (outline and name in), the arrow's box (outline
+## in), the glyph's box (its MARK_GLYPH_PX, no outline) or Rect2(), the name's
+## box or Rect2(), the name's baseline's left end], in this space. `name_w`,
+## the width of a ship's name beside it (-1 for none).
+func _tri_boxes(q: Vector2, dir: Vector2i, glyph_too: bool, name_w := -1.0) -> Array:
 	var ab := Rect2()
 	for p: Vector2i in tri_px(dir):
 		var r := Rect2(Vector2(p), Vector2.ONE)
 		ab = r if ab.size == Vector2.ZERO else ab.merge(r)
 	ab = Rect2(ab.position + q, ab.size).grow(1.0)
-	if not glyph_too:
-		return [ab, ab, Rect2()]
-	var gb := Rect2(q + Vector2(_glyph_at(dir)), Vector2(5, 5))
-	return [ab.merge(gb.grow(1.0)), ab, gb]
+	var all := ab
+	var gb := Rect2()
+	if glyph_too:
+		gb = Rect2(q + Vector2(_glyph_at(dir)), Vector2.ONE * MARK_GLYPH_PX)
+		all = all.merge(gb.grow(1.0))
+	var nb := Rect2()
+	var base := Vector2.ZERO
+	if name_w >= 0.0:
+		base = _name_at(q, dir, ab, name_w)
+		nb = name_box(base, name_w)
+		all = all.merge(nb)
+	return [all, ab, gb, nb, base]
 
 
-## The arrow and the glyph's 1 px cells, outlined 1 px all round as one
-## shape (its corners too, in one even dark), queued for the screen to draw
-## over the picture.
+## WHETHER A SHIP'S NAME IN `nb` STANDS BESIDE ITS ARROW in `ab` pointing
+## `dir`: off it, and on its inward side (behind the way it points).
+static func name_beside(ab: Rect2, nb: Rect2, dir: Vector2i) -> bool:
+	return not nb.intersects(ab) and (nb.get_center() - ab.get_center()).dot(Vector2(dir)) < 0.0
+
+
+## The box of a ship's name `w` px wide with its baseline's left end at `base`:
+## the 5 px caps of the map's 8 px face and a Q's tail, with the 1 px dark rim
+## round them (`SystemMapScreen._Marks`).
+static func name_box(base: Vector2, w: float) -> Rect2:
+	return Rect2(base + Vector2(-1.0, -6.0), Vector2(w + 2.0, 9.0))
+
+
+## WHERE A SHIP'S NAME STANDS beside its arrow at `q` pointing `dir` (`ab` the
+## arrow's box, outline in), as its baseline's left end: on the arrow's inward
+## side, MARK_NAME_GAP off its outline. Beside a side arrow, the caps on its
+## axis; beside a diagonal one, on the same side and half the caps further in;
+## under an up arrow and over a down one, centred on it. Kept MARK_NAME_IN
+## inside the frame (a down arrow near a corner slides its name along).
+func _name_at(q: Vector2, dir: Vector2i, ab: Rect2, w: float) -> Vector2:
+	var b := Vector2.ZERO
+	if dir.x == 0:
+		b.x = roundf(ab.get_center().x - w * 0.5)
+		b.y = ab.end.y + MARK_NAME_GAP + 6.0 if dir.y < 0 else ab.position.y - MARK_NAME_GAP - 3.0
+	else:
+		b.x = ab.position.x - MARK_NAME_GAP - 1.0 - w if dir.x > 0 else ab.end.x + MARK_NAME_GAP + 1.0
+		# (the caps' rows base-5 to base-1, centred on the arrow's middle row)
+		b.y = q.y + 3.0 - float(dir.y) * 3.0
+	if view != null:
+		var win: Rect2 = view.window
+		if win.size.x > w + 2.0 * MARK_NAME_IN + 2.0:
+			b.x = clampf(b.x, win.position.x + MARK_NAME_IN + 1.0, win.end.x - MARK_NAME_IN - 1.0 - w)
+			b.y = clampf(b.y, win.position.y + MARK_NAME_IN + 6.0, win.end.y - MARK_NAME_IN - 3.0)
+	return b
+
+
+## The arrow's line (`tri_line`) and the glyph's 2 px cells, outlined 1 px
+## all round as one shape (its corners too, in one even dark), queued for the
+## screen to draw over the picture. Inside the hollow arrow the same dark runs
+## just inside its line and nothing further in: on a sun's glow, the line with
+## the bright glow on its inner side read as a filled pale arrow, its colour
+## lost (the Nov 5 sheet), and on the map's dark the ring is the dark it sits on.
 func _tri_queue(q: Vector2, dir: Vector2i, c: Color, glyph_too: bool, gname: StringName) -> void:
-	var fill := {}
+	var solid := {}
 	for p: Vector2i in tri_px(dir):
+		solid[p] = true
+	var fill := {}
+	for p: Vector2i in tri_line(dir):
 		fill[p] = true
+	var shape := solid.duplicate()
 	if glyph_too:
 		var g := _glyph_at(dir)
 		var m: Array = GLYPH.get(gname, GLYPH[&"signal"])
 		for r in 5:
 			for k in 5:
 				if (m[r] as String)[k] == "#":
-					fill[g + Vector2i(k, r)] = true
+					for a in MARK_GLYPH_CELL:
+						for b in MARK_GLYPH_CELL:
+							var gp := g + Vector2i(k * MARK_GLYPH_CELL + a, r * MARK_GLYPH_CELL + b)
+							fill[gp] = true
+							shape[gp] = true
 	var edge := {}
 	for p: Vector2i in fill:
 		for dy in [-1, 0, 1]:
 			for dx in [-1, 0, 1]:
 				var n := p + Vector2i(dx, dy)
-				if not fill.has(n):
+				# (round the whole shape outside, and just inside the line)
+				if not fill.has(n) and (not shape.has(n) or solid.has(n)):
 					edge[n] = true
 	var dark := Color(MARK_DARK, 0.8 * c.a)
 	for p: Vector2i in edge:
@@ -857,6 +984,7 @@ func _tri_queue(q: Vector2, dir: Vector2i, c: Color, glyph_too: bool, gname: Str
 func _draw_edge_marks(status: String) -> void:
 	edge_marks = []
 	mark_rects = []
+	mark_words = []
 	if hush_labels or label_a <= 0.01 or view.zoom > mark_zoom:
 		return
 	var win: Rect2 = view.window
@@ -876,15 +1004,15 @@ func _draw_edge_marks(status: String) -> void:
 				col = SPENT
 			# (the event's key glyph: a pulsar's beacon has none of its own,
 			# harvest the beam)
-			want.append([e[0], int(e[1]), col, 0, &"harvest" if bc == null else beacon_look(bc)[0]])
+			want.append([e[0], int(e[1]), col, 0, &"harvest" if bc == null else beacon_look(bc)[0], ""])
 	if flight != null and not win.grow(-2.0).has_point(_ship_at):
-		want.append([_ship_at, -9, UITheme.ICE, 0, &""])
+		want.append([_ship_at, -9, UITheme.ICE, 0, &"", "YOU"])
 	# and each partner's (the whole-system view kept every partner on the
 	# picture; framed on a wide pair's own part, one out on a world round both
-	# suns was nowhere: 15 of 16 such on seed 7, the gap:A review)
+	# suns was nowhere: 15 of 16 such on seed 7, the gap:A review), named
 	for e: Array in partner_at:
 		if not win.grow(-2.0).has_point(e[1]):
-			want.append([e[1], -9, UITheme.GOOD, int(e[0]), &""])
+			want.append([e[1], -9, UITheme.GOOD, int(e[0]), &"", String(e[2]) if e.size() > 2 else ""])
 	if want.is_empty():
 		return
 	# what is drawn on the picture already
@@ -925,34 +1053,61 @@ func _draw_edge_marks(status: String) -> void:
 		var s0 := _round_s(inner, mid + d * k)
 		# slid round the edge, nearest first either way and round a corner, to a
 		# spot clear of everything (the goal fills most of the top left: a mark
-		# for something up there goes down the left side, under it)
+		# for something up there goes down the left side, under it); a ship's
+		# with its name, cut to MARK_NAME_MOST, then shorter where that clears
+		# nowhere
 		var spot := Vector2.INF
 		var glyph_too: bool = int(w[1]) != -9
-		for st in MARK_SLIDES:
-			for sg in ([1.0] if st == 0 else [1.0, -1.0]):
-				var q := _round_at(inner, s0 + MARK_STEP * float(st) * float(sg)).round()
-				# the box of what would be drawn there, arrow and glyph, pointing
-				# the way it would from there
-				var box: Rect2 = _tri_boxes(q, _eight_way(to - q), glyph_too)[0]
-				var hit := false
-				for r: Rect2 in keep:
-					if r.intersects(box):
-						hit = true
+		var nm := ""
+		var names: Array = [""]
+		if String(w[5]) != "":
+			names = [OutcomeRow.fit(String(w[5]), UITheme.FS_SMALL, MARK_NAME_MOST),
+				OutcomeRow.fit(String(w[5]), UITheme.FS_SMALL, MARK_NAME_SHORT)]
+			# (a short name, YOU or GENO, is the same both cuts: tried once)
+			if names[1] == names[0]:
+				names.resize(1)
+			# and where no spot clears even the short name, the bare arrow, as
+			# round one drew it: an arrow with no name beats a ship not marked
+			names.append("")
+		for try_nm: String in names:
+			var nw := -1.0 if try_nm == "" else _font().get_string_size(try_nm, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+			for st in MARK_SLIDES:
+				for sg in ([1.0] if st == 0 else [1.0, -1.0]):
+					var q := _round_at(inner, s0 + MARK_STEP * float(st) * float(sg)).round()
+					# the box of what would be drawn there, arrow, glyph and name,
+					# pointing the way it would from there
+					var qd := _eight_way(to - q)
+					var bxs: Array = _tri_boxes(q, qd, glyph_too, nw)
+					var box: Rect2 = bxs[0]
+					# (and its name beside it on its inward side: near a corner the
+					# frame pushed a diagonal arrow's name onto the arrow, MERCER
+					# over its own up-right arrow on the left edge)
+					var hit := not win.encloses(box) or (nw >= 0.0 and not name_beside(bxs[1], bxs[3], qd))
+					for r: Rect2 in keep:
+						if hit or r.intersects(box):
+							hit = true
+							break
+					if not hit:
+						spot = q
 						break
-				if not hit:
-					spot = q
+				if spot != Vector2.INF:
 					break
 			if spot != Vector2.INF:
+				nm = try_nm
 				break
 		if spot == Vector2.INF:
 			continue
 		# pointing at it from where it stands, the nearest of the eight ways
 		var dir := _eight_way(to - spot)
-		var bx := _tri_boxes(spot, dir, glyph_too)
+		var nw2 := -1.0 if nm == "" else _font().get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+		var bx := _tri_boxes(spot, dir, glyph_too, nw2)
 		keep.append((bx[0] as Rect2).grow(1.0))
-		_tri_queue(spot, dir, Color(w[2], (w[2] as Color).a * label_a), glyph_too, w[4])
+		var c := Color(w[2], (w[2] as Color).a * label_a)
+		_tri_queue(spot, dir, c, glyph_too, w[4])
+		if nm != "":
+			mark_words.append([bx[4], nm, c, bx[3]])
 		edge_marks.append({"at": spot, "box": bx[0], "body": w[1], "peer": w[3], "dir": dir, "to": to,
-			"arrow_box": bx[1], "glyph_box": bx[2], "glyph": w[4] if glyph_too else &""})
+			"arrow_box": bx[1], "glyph_box": bx[2], "glyph": w[4] if glyph_too else &"", "name": nm, "name_box": bx[3]})
 
 
 ## The nearest of the eight ways to `d` (x and y -1, 0 or 1).
@@ -2000,7 +2155,7 @@ func _label_clear(tag: String, at: Vector2, half: float, path: PackedVector2Arra
 
 
 # ---------------------------------------------------------------- the party
-## Each partner's ship as last drawn: `[[peer id, screen point], ...]`.
+## Each partner's ship as last drawn: `[[peer id, screen point, pilot's name], ...]`.
 var partner_at: Array = []
 ## Where each partner is drawn on the plane, eased toward its last report so a
 ## ship reported six times a second flies rather than steps.
@@ -2064,7 +2219,7 @@ func _draw_partners(_t: float) -> void:
 		if x.distance_to(_ship_at) < ship_r() + 7.0:
 			row += 1
 			x = _ship_at + Vector2(-6.0, ship_r() + 5.0 + 12.0 * (row - 1))
-		partner_at.append([id, x])
+		partner_at.append([id, x, String(e[3])])
 		# HIDDEN BEHIND what stands in front of it, as your own ship is: the
 		# star's disc (either sun's, of two), a nearer world's (the first stills
 		# had a partner in close orbit drawn across the face of the star)
@@ -2099,8 +2254,10 @@ func _draw_partners(_t: float) -> void:
 		# way to every word the map already had, and outside YOU's own rule
 		# (priority 1, dropped near your orbit's words), under which every
 		# partner's name went whenever you were in orbit. Not for a ship wholly
-		# behind the star.
-		if shown > 0:
+		# behind the star. Nor for one off the picture: its arrow at the edge
+		# carries the name (`_draw_edge_marks`), and this one ran in past the
+		# frame, the name said twice and the second cut (Nov 5)
+		if shown > 0 and view.window.grow(-2.0).has_point(x):
 			_label(x + Vector2(-8, 17), String(e[3]), UITheme.GOOD, 0, true)
 
 
@@ -2348,11 +2505,16 @@ func _draw_ship(t: float) -> void:
 		for k in range(0, 40, 2):
 			var an := float(k) / 40.0 * TAU
 			_px(x + Vector2(cos(an) * rr, sin(an) * rr * 0.8), Color(UITheme.FLARE, 0.75))
-	# WHAT IT IS DOING, by the ship itself (`_ship_words_first`)
+	# WHAT IT IS DOING, by the ship itself (`_ship_words_first`). Off the
+	# picture its arrow at the edge says YOU (`_draw_edge_marks`, the same
+	# rule): YOU over the hull too would say it twice, the second over nothing
+	# or cut by the frame (Nov 5)
 	var on: int = flight.orbit_body()
 	var first := _ship_words_first(x)
+	var off_pic: bool = not view.window.grow(-2.0).has_point(x)
 	if first.is_empty():
-		_label(x + Vector2(-8, -you_up()), "YOU", UITheme.FLARE, 1, false)
+		if not off_pic:
+			_label(x + Vector2(-8, -you_up()), "YOU", UITheme.FLARE, 1, false)
 	else:
 		var words: String = first[0]
 		var lx: float = (first[1] as Vector2).x
@@ -2378,24 +2540,46 @@ func _draw_ship(t: float) -> void:
 		# the words hopped 16 px down, up and down again in 4 s (review 2)
 		var was: Array = _spot_mem.get("ship", [])
 		var grow := WORDS_BACK_PX if was.size() == 4 and was[0] == words else 0.0
+		# NOR CUT BY THE FRAME (Nov 5): under a ring near the frame's edge, or
+		# under a world off the picture, they ran in past the edge, the first
+		# letters cut ("ᴀLONGSIDE · ALPHA KESTREL III" under your ship's arrow
+		# at the edge). With the ship on the picture they step in as off a sun
+		# (`_words_off_suns` keeps every spot inside the frame), back only clear
+		# of the edge by the same margin. Off the picture its arrow says YOU and
+		# the status line at the frame's top left says the same, so words that
+		# would be cut go, and so do words pushed in to hug the edge, in the key
+		# shader's edge fade (`NavField.EDGE_FADE`): under a world off the
+		# picture's left side, ALONGSIDE · SIGMA KESTREL III stood 4 px in, its
+		# A faded out (seed 7, system 314, the review of round two)
+		var cut: bool = names_on and not view.window.encloses(_words_box(Vector2(lx, ly), words))
 		var stepped: bool = grow > 0.0 and names_on and (_meets_sun(Vector2(lx, ly), words, -99, grow) \
-			or (view.layout.twin and not _clear_of_beacons(words, [], grow).call(Vector2(lx, ly))))
+			or (view.layout.twin and not _clear_of_beacons(words, [], grow).call(Vector2(lx, ly))) \
+			or not view.window.grow(-grow).encloses(_words_box(Vector2(lx, ly), words)))
 		var on_beacon: bool = names_on and view.layout.twin and not _clear_of_beacons(words).call(Vector2(lx, ly))
-		if sun or stepped or on_beacon:
+		if off_pic and not view.window.grow(-NavField.EDGE_FADE).encloses(_words_box(Vector2(lx, ly), words)):
+			words = ""
+		elif sun or stepped or on_beacon or cut:
 			var spot := _words_off_suns(words, on, x)
 			if spot.is_empty() and sun:
 				_held_q.append(words)
 				words = ""
+			elif spot.is_empty() and cut:
+				words = ""
 			elif spot.is_empty() and on_beacon:
 				_on_beacon_q.append(words)
 				clear_of = &"suns"
+			elif spot.is_empty():
+				# (within the margin of what they stepped off, and no spot: where
+				# they first stand, which clears it)
+				pass
 			else:
 				lx = (spot[0] as Vector2).x
 				ly = (spot[0] as Vector2).y
 				words = spot[1]
 				clear_of = spot[2]
 		if not names_on:
-			_label(x + Vector2(-8, -you_up()), "YOU", UITheme.FLARE, 1, false)
+			if not off_pic:
+				_label(x + Vector2(-8, -you_up()), "YOU", UITheme.FLARE, 1, false)
 		elif words != "":
 			_label(Vector2(lx, ly), words, UITheme.FLARE, 4, true)
 			_ship_words_q = {"says": words, "at": Vector2(lx, ly), "clear": clear_of}

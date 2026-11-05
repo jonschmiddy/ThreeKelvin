@@ -2183,11 +2183,17 @@ class _Scale extends Control:
 ## the picture, and each frame while it shows any (for the overlay hidden).
 ## None while a move of the zoom ladder (or the calm move) runs: the key shader
 ## dissolves the picture into its cloud then (`round_k`), and these stood crisp
-## over it. None under the hover tip, which covers an arrow.
+## over it. None under the hover tip, which covers an arrow. The ships' names
+## beside their arrows (`SystemOverlay.mark_words`, Jon, Nov 5) with them, in
+## the map's small words on a 1 px dark rim, as the star chart rims its YOU and
+## the arrow has its outline (a drop shadow alone left a green name faint on a
+## sun's glow, the Nov 5 sheet).
 class _Marks extends Control:
 	var screen
 	## how many rects it drew last (a harness's)
 	var drawn := 0
+	## and how many names
+	var named := 0
 
 	func _process(_d: float) -> void:
 		if drawn > 0:
@@ -2195,6 +2201,7 @@ class _Marks extends Control:
 
 	func _draw() -> void:
 		drawn = 0
+		named = 0
 		var ov = screen.overlay
 		if ov == null or not ov.is_visible_in_tree() or not screen._box.is_visible_in_tree():
 			return
@@ -2213,3 +2220,14 @@ class _Marks extends Control:
 				continue
 			draw_rect(Rect2(r.position + o, r.size), e[1])
 			drawn += 1
+		var f := UITheme.pixel_font()
+		for e: Array in ov.mark_words:
+			if tip.has_area() and tip.intersects(e[3]):
+				continue
+			var c: Color = e[2]
+			var s := LowHull.scr(self, String(e[1]), UITheme.FS_SMALL, f)
+			for d: Vector2 in [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]:
+				draw_string(f, (e[0] as Vector2) + o + d, s, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL,
+					Color(SystemOverlayS.MARK_DARK, 0.8 * c.a))
+			draw_string(f, (e[0] as Vector2) + o, s, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, c)
+			named += 1
