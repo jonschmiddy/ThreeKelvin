@@ -6,9 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-- **Changed** — the autopilot is about four times faster. A flight between worlds takes about 3
-  seconds where it took about 11, and the first flight after a jump about 4 where it took 18. The
-  ship still rides round its orbit at the speed it always did.
+- **Changed** — the autopilot is about four times faster. From the click to settled in orbit, a
+  flight takes about 3.5 seconds where it took about 14, and the first flight after a jump about 4.
+  Your ship still circles a world at the speed it always did. It speeds up round its orbit just
+  before it leaves and slows onto the new one as it arrives.
 - **Added** — AUTOPILOT in Settings, under MOTION. CURVED, the new default, swings wide round the
   star and bends with its pull. DIRECT flies the straighter line the autopilot used to fly. Pick
   DIRECT to get the straight flights back.
