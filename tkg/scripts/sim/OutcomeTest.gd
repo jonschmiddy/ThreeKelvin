@@ -62,8 +62,11 @@ func _run() -> void:
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var n := _system()
 	var cases: Dictionary = await OutcomeCheck.find_cases(n)
-	for c in ["jon", "gain", "mix", "card", "nothing", "credits", "big", "data"]:
+	for c in ["jon", "gain", "mix", "card", "nothing", "credits", "big", "data", "data_toll"]:
 		_ok("a real outcome for the case '%s' (%s)" % [c, cases.get(c, {}).get("sig", "none")], cases.has(c))
+	if cases.has("data_toll"):
+		_ok("the toll reading moves three stats or more (%s)" % cases["data_toll"].sig,
+			String(cases["data_toll"].sig).split(", ").size() >= 3)
 	Router.animate_in_harness = false
 	for layout: StringName in [&"row", &"column", &"card"]:
 		LocalEventDrawer.layout = layout
@@ -73,6 +76,7 @@ func _run() -> void:
 		for layout: StringName in [&"row", &"column", &"card"]:
 			LocalEventDrawer.layout = layout
 			await _sheet_row(n, cases["data"], layout)
+			await _five_row(n, cases["data"], layout)
 	LocalEventDrawer.layout = &"column"
 	if cases.has("big"):
 		await _flight(n, cases["big"], false)
@@ -200,6 +204,46 @@ func _sheet_row(n: MapGen.MapNode, f: Dictionary, layout: StringName) -> void:
 	await _tree.process_frame
 
 
+## ALL FIVE AT THEIR WIDEST (DATA made five stats possible in one result): a
+## bill moving hull, fuel, credits, DATA and heat at once, each at the width
+## a real result reaches (HULL -28, FUEL -2, CREDITS +72, DATA +28, HEAT +3),
+## drawn on a real result in every look. Every look says all five and passes
+## the box test, and D's table reads them in ORDER.
+func _five_row(n: MapGen.MapNode, f: Dictionary, layout: StringName) -> void:
+	var got := await _take(n, f)
+	var d: LocalEventDrawer = got[0]
+	if not _ok("all five (%s): the result is up" % layout, d != null and d.page == &"result"):
+		return
+	var was := {credits = 180, fuel = 40, heat = 2, hp = 40, data = 16}
+	var now := {credits = 252, fuel = 38, heat = 5, hp = 12, data = 44}
+	d.out["bill"] = EncounterDrawer.bill_rows(was, now)
+	d.out["got"] = []
+	var stats := {}
+	for k in OutcomeCheck.WORDS:
+		stats[k] = [int(now[k]) - int(was[k]), int(was[k]), int(now[k])]
+	var want := {stats = stats, gained = {}, lost = {}, kind = {}, frame = false, place = false}
+	var bad: Array = []
+	for lk: StringName in OutcomeRow.LOOKS:
+		OutcomeRow.look = lk
+		d.out.erase("flown")
+		d._result()
+		for i in 4:
+			await _tree.process_frame
+		for b in OutcomeCheck.check(d, lk, want):
+			bad.append(b)
+		if lk == &"D":
+			var said := " · ".join(OutcomeCheck.entries(d).map(func(x: Dictionary) -> String: return String(x.text)))
+			if said != "HULL -28 · FUEL -2 · CREDITS +72 · DATA +28 · HEAT +3":
+				bad.append("D reads \"%s\"" % said)
+		if not OutcomeRow.held.is_empty():
+			bad.append("%s: HUD numbers left held %s" % [lk, OutcomeRow.held])
+	_ok("all five (%s): every look says hull, fuel, credits, DATA and heat and fits%s" % [layout,
+		"" if bad.is_empty() else ": " + "; ".join(bad.slice(0, 4))], bad.is_empty())
+	OutcomeRow.look = &"today"
+	d._drop()
+	await _tree.process_frame
+
+
 ## C, animated, on the big case and on the reading: the hold, the flight, the
 ## landing, the flicker.
 func _flight(n: MapGen.MapNode, f: Dictionary, reduced: bool) -> void:
@@ -266,7 +310,8 @@ func _flight(n: MapGen.MapNode, f: Dictionary, reduced: bool) -> void:
 			# so a readout keeps its right edge and its row
 			var r0: Rect2 = at0[wi]
 			var r1 := w.get_global_rect()
-			var still := r1.is_equal_approx(r0) if w is BaseButton 				else (is_equal_approx(r1.end.x, r0.end.x) and is_equal_approx(r1.position.y, r0.position.y))
+			var still := r1.is_equal_approx(r0) if w is BaseButton \
+				else (is_equal_approx(r1.end.x, r0.end.x) and is_equal_approx(r1.position.y, r0.position.y))
 			if not still:
 				moved = "%s moved %s -> %s" % [w.name, r0, r1]
 			if w.modulate != Color.WHITE:
@@ -276,7 +321,15 @@ func _flight(n: MapGen.MapNode, f: Dictionary, reduced: bool) -> void:
 	else:
 		_ok("C %s: the changes fly to the HUD (%d frames in the air, at most %.1f px a frame)" % [tag, flew, biggest], flew > 0)
 		for k in keys:
-			_ok("C %s: %s flies to its HUD readout" % [tag, OutcomeRow.WORDS[k]], flew_keys.has(k))
+			# in the air, and its last place in the air on its OWN readout
+			# (a chip sent to another readout would still have flown)
+			var home := Rect2()
+			for nd in hud.stat_nodes(k):
+				var g := (nd as Control).get_global_rect()
+				home = g if home.size == Vector2.ZERO else home.merge(g)
+			var end_at: Vector2 = last_at.get(k, Vector2(-999, -999))
+			_ok("C %s: %s flies to its HUD readout (last seen at %s, the readout %s)" % [tag, OutcomeRow.WORDS[k], end_at, home],
+				flew_keys.has(k) and home.grow(8).has_point(end_at))
 	_ok("C %s: a readout flickers as its change lands" % tag, flickered)
 	_ok("C %s: nothing on the HUD and no button moved%s" % [tag, "" if moved == "" else " (" + moved + ")"], moved == "")
 	var back := true

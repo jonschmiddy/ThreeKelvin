@@ -462,7 +462,8 @@ func run() -> void:
 		# Without this every node's list is empty, empty round-trips to empty,
 		# and the fingerprint above proves nothing -- verified by deleting the
 		# field from `_node_to` and watching the test still pass.
-		if n.type != MapGen.NodeType.STATION and n.type != MapGen.NodeType.CORE 				and n.options.is_empty():
+		if n.type != MapGen.NodeType.STATION and n.type != MapGen.NodeType.CORE \
+				and n.options.is_empty():
 			n.options = OptionTable.roll_for(n)
 		# A fight owed on arrival, and a roll already made. Both have to be on
 		# some nodes and not others, or an all-false field round-trips to
@@ -509,7 +510,8 @@ func run() -> void:
 	var read_node := -1
 	for e in Run.map:
 		var nr: MapGen.MapNode = e
-		if nr.type == MapGen.NodeType.SYSTEM and not nr.cleared and nr.options.size() >= 1 				and nr.index != card_node and nr.index != Run.at:
+		if nr.type == MapGen.NodeType.SYSTEM and not nr.cleared and nr.options.size() >= 1 \
+				and nr.index != card_node and nr.index != Run.at:
 			read_node = nr.index
 			nr.taken.append(MapGen.OPTION_SITE)
 			nr.results[0] = MapGen.R_SUCCESS

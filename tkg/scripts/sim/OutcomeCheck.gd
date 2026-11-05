@@ -437,8 +437,15 @@ static func find_cases(n: MapGen.MapNode, verbose: bool = false) -> Dictionary:
 				# A READING (science, Nov 4): DATA up and the fuel it burned
 				# down, and nothing else when the table has one like it (the
 				# careful line), so look D reads "FUEL -N · DATA +N"
-				if moved.call("data") > 0 and moved.call("fuel") < 0 and not rec.stay and not fight 						and (not found.has("data") or (sg.size() == 2 and String(found["data"].sig).count(",") > 1)):
+				if moved.call("data") > 0 and moved.call("fuel") < 0 and not rec.stay and not fight \
+						and (not found.has("data") or (sg.size() == 2 and String(found["data"].sig).count(",") > 1)):
 					found["data"] = rec
+				# A READING WITH A TOLL: DATA up, fuel down and the hull or the
+				# heat paying too (a risky reading's partial), three stats or
+				# more, so look D draws three rows and A and C three chips
+				if not found.has("data_toll") and moved.call("data") > 0 and moved.call("fuel") < 0 \
+						and (moved.call("hp") < 0 or moved.call("heat") > 0) and not rec.stay and not fight:
+					found["data_toll"] = rec
 				# THE MOST LINES: every stat moved and every different thing named
 				var lines := (sg.size() - (1 if sg.has("part+") else 0) - (1 if sg.has("material+") else 0)
 					+ (want.gained as Dictionary).size())
