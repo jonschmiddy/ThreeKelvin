@@ -81,6 +81,8 @@ func run(tree: SceneTree) -> void:
 	_fight_rules_test()
 	_growth_rules_test()
 	await _fight_net_test()
+	print("\n=== two ships start different fights at one system in the same second ===")
+	await _race_test()
 	print("\n=== one Custodian for the galaxy ===")
 	await _growth_fold_test()
 	print("\n=== joining a dive under way, and where a ship is in its system ===")
@@ -1094,6 +1096,223 @@ func _targeting_test(host: NetSession) -> void:
 		% [ratio, tally[hot], tally[cold]])
 	ok("a redlining ship draws about four times the fire", ratio > 3.2 and ratio < 5.8)
 	ok("and a cold ship is never safe", tally[cold] > 400)
+
+
+# --- the same-second race (Nov 5) -------------------------------------------
+
+## TWO SHIPS, ONE SYSTEM, TWO DIFFERENT FIGHTS, ONE SECOND. A guest cannot know
+## whether it is opening a fight or joining one, so it plans its own enemy and
+## asks; the host keeps one fight per system and seats the second asker in the
+## first. Until Nov 5 the asker kept the enemy it planned and painted the
+## party's numbers on it: Y's attack names over X's hulls, a softlock when Y had
+## more hulls than X (its extra hull lived only on that machine, so the kill
+## never came), a second hull nobody could shoot when X had more. Jon: "Yeah
+## you can fix it." So every asker takes the host's answer: `Combat.begin`
+## builds the enemy from the fight's ids when they are not the ones it planned.
+##
+## Each asker here is a real `Combat`, planned, asked through its session and
+## begun on the answer, as `Router.start_combat` does it. The packs differ in
+## size both ways: an asker that planned one hull and got two, and one that
+## planned two and got one.
+## Then the two session holes: an ask the host is slow to answer is still
+## answered (no private fight while the link is up, and null once it drops),
+## and a ship that left a fight and asks again is joined again, grown once,
+## never handed the copy it left.
+func _race_test() -> void:
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var host := _make_peer("rhost")
+	var t := DirectTransport.new()
+	t.port = PORT_BASE + 40
+	t.advertise = "127.0.0.1"
+	var code := host.host_party("Vela", &"redline", t)
+	var g: Array = []
+	for i in 2:
+		var c := _make_peer("rg%d" % i)
+		c.join_party(code, "Race%d" % i, &"korvan", DirectTransport.new())
+		g.append(c)
+	var seated := await _wait_until(func() -> bool:
+		return host.party_size() == 3 and g[0].party_size() == 3 and g[1].party_size() == 3, 5.0)
+	ok("(race) three ships in the party", seated)
+	if not seated:
+		await _teardown()
+		return
+	var cutter: EnemyTemplate = DB.enemies[&"cutter"]
+	var lancer: EnemyTemplate = DB.enemies[&"lancer"]
+	var hulk: EnemyTemplate = DB.enemies[&"hulk"]
+	var marauder: EnemyTemplate = DB.enemies[&"marauder"]
+
+	# HOST FIRST, IN ONE FRAME: the host opens X (two hulls) and the guest's ask
+	# for Y (one hull) is already on its way. The host never shows the fault;
+	# its own open has no await between the check and the ask.
+	var x: Combat = _plan_race(cutter, [lancer])
+	await host.open_fight(401, x.foe_ids(), x.foe_hp(), x.foe_brace(), x.foe_hp_now(), x.grown)
+	var y: Array = await _ask_race(g[0], 401, hulk, [])
+	await _takes_answer("host first: the guest planned one hull, the host holds two", y[0], y[1], g[0], 401,
+		PackedStringArray(["cutter", "lancer"]))
+
+	# GUEST FIRST: the guest's ask for Y (one hull) lands, then the host starts
+	# X (two hulls). On the host the check before the ask would have seen Y; this
+	# is the answer path itself, and it runs on the host too.
+	var gy: Array = [null, null]
+	_ask_race_into(g[0], 402, marauder, [], gy)
+	await _wait_until(func() -> bool: return host.fight_open_at(402), 4.0)
+	var hx: Array = await _ask_race(host, 402, cutter, [hulk])
+	await _wait_until(func() -> bool: return gy[1] != null, 4.0)
+	await _takes_answer("guest first: the host planned two hulls, the guest's fight has one", hx[0], hx[1], host, 402,
+		PackedStringArray(["marauder"]))
+	await _takes_answer("and the guest that opened it keeps its own", gy[0], gy[1], g[0], 402,
+		PackedStringArray(["marauder"]))
+
+	# TWO GUESTS IN ONE FRAME, both orders: neither knows about the other, and
+	# whichever ask the host reads first is the fight.
+	for order in [[0, 1], [1, 0]]:
+		var at: int = 403 + int(order[0])
+		var plans := [[lancer, [hulk]], [marauder, []]]
+		var outs: Array = [[null, null], [null, null]]
+		for k in order:
+			var p: Array = plans[k]
+			_ask_race_into(g[k], at, p[0], p[1], outs[k])
+		var both := await _wait_until(func() -> bool:
+			return outs[0][1] != null and outs[1][1] != null, 5.0)
+		ok("(race) two guests in one frame (Race%d first): both are answered" % order[0], both)
+		if not both:
+			continue
+		var want: PackedStringArray = (outs[0][1] as SharedFight).foe_ids
+		check("(race) and it is one fight, not two (Race%d first)" % order[0],
+			(outs[1][1] as SharedFight).foe_ids, want)
+		for k in 2:
+			await _takes_answer("two guests (Race%d first): Race%d takes it" % [order[0], k],
+				outs[k][0], outs[k][1], g[k], at, want)
+
+	# A REPEAT ASK. A ship still in the fight asks again: it gets the fight back
+	# unchanged, crew once, nothing grown. A ship that LEFT and asks again in the
+	# same frame (SAVE & EXIT then CONTINUE, quickly) is a new arrival: joined,
+	# grown once, and never handed the copy it left, which still lists it.
+	var before: int = host.fight_at(401).foes[0].max_hp
+	var again: Array = await _ask_race(g[0], 401, cutter, [lancer])
+	var fa: SharedFight = again[1]
+	ok("(race) a repeat ask is answered with the fight it is in",
+		fa != null and fa.foe_ids == PackedStringArray(["cutter", "lancer"]))
+	check("(race) and grows nothing", host.fight_at(401).foes[0].max_hp, before)
+	check("(race) and seats it once", Array(host.fight_at(401).crew).count(g[0].local_id()), 1)
+	var share := maxi(1, int(round(host.fight_at(401).foes[0].base * SharedFight.CREW_SHARE)))
+	g[0].leave_fight(401)
+	# At once, before the host has heard: on a real link the host's push of the
+	# leave is a round trip away, and the ask below checks this copy first
+	ok("(race) a ship that leaves stops counting itself in its own copy at once",
+		not g[0].fight_at(401).crew.has(g[0].local_id()))
+	var back: Array = await _ask_race(g[0], 401, cutter, [lancer])
+	var fb: SharedFight = back[1]
+	check("(race) a ship that left and asks again is answered grown once (%d -> %d)" % [before, before + share],
+		fb.foes[0].max_hp if fb != null else -1, before + share)
+	var in_once := await _wait_until(func() -> bool:
+		return Array(host.fight_at(401).crew).count(g[0].local_id()) == 1, 3.0)
+	ok("(race) and is in the host's crew once", in_once)
+
+	# THE SLOW ANSWER. Past TAKE_TIMEOUT the ask used to come back null and the
+	# guest fought a private copy of the enemy, though the host had seated it:
+	# its fight never said END TURN, so the party sat on "WAIT", and at the core
+	# that was a second Custodian it could win the run against. Now it waits for
+	# as long as the link is up.
+	host.hold_asks = true
+	var slow: Array = [null, null, -1.0]
+	var t0 := Time.get_ticks_msec()
+	_ask_race_into(g[1], 410, cutter, [], slow)
+	await _wait_until(func() -> bool: return slow[1] != null or slow[2] >= 0.0,
+		NetSession.TAKE_TIMEOUT + 1.0)
+	ok("(race) an ask the host holds past %.0f s is still waiting, not answered null (%s after %d ms)" % [
+		NetSession.TAKE_TIMEOUT, "null" if slow[2] >= 0.0 else "waiting",
+		Time.get_ticks_msec() - t0], slow[2] < 0.0 and slow[1] == null)
+	host.release_asks()
+	var late := await _wait_until(func() -> bool: return slow[1] != null, 4.0)
+	ok("(race) and the late answer is taken: the guest is in the host's fight",
+		late and (slow[1] as SharedFight).crew.has(g[1].local_id()))
+	# ...and comes back null only when the link is gone, which is when fighting
+	# alone is the right answer
+	var lost: Array = [null, null, -1.0]
+	_ask_race_into(g[1], 411, cutter, [], lost)
+	await _wait_frames(30)
+	ok("(race) a held ask is still waiting while the link is up", lost[2] < 0.0)
+	host.leave_party()
+	var dropped := await _wait_until(func() -> bool: return lost[2] >= 0.0, 6.0)
+	ok("(race) and returns null once the host is gone", dropped and lost[1] == null)
+	host.hold_asks = false
+	await _teardown()
+
+
+## One ship's own plan, as `Router.start_combat` makes it at danger 3.
+func _plan_race(lead: EnemyTemplate, extras: Array) -> Combat:
+	var cb := Combat.new()
+	cb.plan(lead, 3, extras)
+	return cb
+
+
+## Plan, ask, and hand back `[the Combat, the answer]`.
+func _ask_race(session: NetSession, at: int, lead: EnemyTemplate, extras: Array) -> Array:
+	var cb := _plan_race(lead, extras)
+	var f: SharedFight = await session.open_fight(at, cb.foe_ids(), cb.foe_hp(),
+		cb.foe_brace(), cb.foe_hp_now(), cb.grown)
+	return [cb, f]
+
+
+## The same, fire and forget, into `out`: [Combat, answer] and, when `out` has
+## a third slot, the ms it took to come back null (-1 until then). For the
+## asks a test watches while they wait.
+func _ask_race_into(session: NetSession, at: int, lead: EnemyTemplate, extras: Array, out: Array) -> void:
+	var t0 := Time.get_ticks_msec()
+	var cb := _plan_race(lead, extras)
+	out[0] = cb
+	var f: SharedFight = await session.open_fight(at, cb.foe_ids(), cb.foe_hp(),
+		cb.foe_brace(), cb.foe_hp_now(), cb.grown)
+	if out.size() > 2 and f == null:
+		out[2] = float(Time.get_ticks_msec() - t0)
+	out[1] = f
+
+
+## THE ASKER TAKES THE ANSWER: begun on the host's fight, its enemy is the
+## fight's, hull for hull, with the intent the host picked under each name, and
+## when the host's copy is all dead, so is this one.
+func _takes_answer(what: String, cb: Combat, f: SharedFight, session: NetSession, at: int,
+		want: PackedStringArray) -> void:
+	if cb == null or f == null:
+		ok("(race) %s: an answer came back" % what, false)
+		return
+	check("(race) %s: the answer is the host's fight" % what, f.foe_ids, want)
+	cb.begin(f)
+	var got := PackedStringArray()
+	for e in cb.enemies:
+		got.append(String(e.template.id))
+	check("(race) %s: the enemy built is that fight's, hull for hull" % what, got, want)
+	check("(race) %s: and so is what it would tell the host" % what, cb.foe_ids(), want)
+	var names := PackedStringArray()
+	var host_names := PackedStringArray()
+	var copy := session.fight_at(at)
+	for i in copy.foes.size():
+		host_names.append(_picked_name(copy, i))
+		names.append(cb.enemies[i].intent.name if i < cb.enemies.size() and cb.enemies[i].intent != null else "?")
+	check("(race) %s: every hull shows the intent the host picked" % what, names, host_names)
+	# The kill, as a push says it: every hull at zero on the copy this ship reads
+	var dead := SharedFight.from_wire(copy.to_wire())
+	for e in dead.foes:
+		e.hp = 0
+	dead.over = true
+	cb._adopt(dead)
+	ok("(race) %s: when the host's hulls are all dead, so are this ship's" % what, cb.alive().is_empty())
+	cb.release()
+	await _tree.process_frame
+
+
+## The name of the intent the host picked for hull `i`, read off the template
+## the way `Combat._adopt` reads it.
+func _picked_name(f: SharedFight, i: int) -> String:
+	var e := f.foes[i]
+	if e.kind == SharedFight.Pick.ESCAPE:
+		return Combat.escape_intent().name
+	var tpl: EnemyTemplate = DB.enemies.get(StringName(f.foe_ids[i]))
+	if tpl == null:
+		return "?"
+	var list: Array[IntentData] = tpl.pool if e.kind == SharedFight.Pick.POOL else tpl.loop
+	return list[e.pick].name if e.pick >= 0 and e.pick < list.size() else "?"
 
 
 # --- one process, four multiplayer roots ----------------------------------

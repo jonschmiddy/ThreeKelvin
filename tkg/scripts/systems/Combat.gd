@@ -218,11 +218,55 @@ func plan(template: EnemyTemplate, danger: int, extras: Array = []) -> void:
 
 ## Open the first turn. `f` is the party's copy of the enemy, or null for the
 ## fight the game has always had.
+##
+## THE PARTY'S ANSWER IS THE FIGHT, whatever this ship planned (the same-second
+## race, Nov 5). One fight per system, and a ship that planned Y can be handed
+## X, opened by a partner whose push had not reached it yet. It used to paint
+## X's numbers on Y's hulls: Y's attack names, Y's swings, a hull nobody else
+## had that kept the kill from ever coming. So when the ids differ the enemy is
+## built again from the fight's (`replan_foes`), here, before anything is
+## dealt or drawn: the screen builds its enemy slots on `combat_started`.
 func begin(f: SharedFight) -> void:
 	if f != null:
+		if f.foe_ids != _ids:
+			replan_foes(templates_of(f.foe_ids))
 		_attach(f)
 	Sig.combat_started.emit(enemies[0].template.name)
 	begin_turn()
+
+
+## Build the enemy again from `templates`, lead first, at this fight's danger:
+## the hulls, their art and their intent lists. Nothing else moves. The deck is
+## not built or shuffled again, and no intent is rolled (`_spawn`'s `pick`): the
+## host names each one, and the numbers come with its fight (`_adopt`), so the
+## streams are used as a fight that never raced uses them.
+func replan_foes(templates: Array) -> void:
+	if templates.is_empty():
+		return
+	enemies.clear()
+	current_target = null
+	grown = -1
+	var share := 1.0 if templates.size() == 1 else 0.6
+	_ids = PackedStringArray()
+	for t in templates:
+		var tpl := t as EnemyTemplate
+		if tpl.grow_after >= 0:
+			grown = Run.custodian_jumps()
+		enemies.append(_spawn(tpl, danger, share, false))
+		_ids.append(String(tpl.id))
+	for i in enemies.size():
+		enemies[i].look = look_for(i)
+
+
+## The templates behind a fight's ids, or empty if any is unknown here.
+static func templates_of(ids: PackedStringArray) -> Array:
+	var out: Array = []
+	for id in ids:
+		var t: EnemyTemplate = DB.enemies.get(StringName(id))
+		if t == null:
+			return []
+		out.append(t)
+	return out
 
 ## What this fight is made of, by database id, in enemy order. What the host is
 ## told so a ship arriving mid-fight can build the same hulls.
@@ -283,7 +327,9 @@ func look_for(i: int) -> int:
 ## numbers arrive, a fight alone when the party does not answer, and a party
 ## that has dropped. The template is never written, so nothing carries from one
 ## run to the next.
-func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0) -> EnemyState:
+## `pick` false builds it with no intent rolled, its first listed one standing
+## in until the party's fight names it (`replan_foes`).
+func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0, pick: bool = true) -> EnemyState:
 	var e := EnemyState.new()
 	# Halved from 0.20/0.10 when danger went from five tiers to ten, so the
 	# top of the ladder lands in the same place it always did and only the
@@ -313,7 +359,12 @@ func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0) -> Enem
 	e.max_hp = maxi(1, int(round(base * hp_mult * hp_share)))
 	e.hp = e.max_hp
 	e.brace = int(round(template.brace * hp_mult))
-	e.pick_intent()
+	if pick:
+		e.pick_intent()
+	elif not t.pool.is_empty():
+		e.intent = t.pool[0]
+	elif not t.loop.is_empty():
+		e.intent = t.loop[0]
 	return e
 
 ## NOTHING JOINS A FIGHT (Jon, Oct 13: "No reinforcements anywhere."). A fight
