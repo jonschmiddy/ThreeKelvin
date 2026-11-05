@@ -127,6 +127,35 @@ static func wanted() -> bool:
 const STORY_GAIN_B := 0.5
 
 
+## A BALL AS ITS OWN KIND in this style (`chart_b_place`'s `u_ballK`, from `ChartSky.ball_of`'s
+## look): (look, how far out its old warm light holds in ball radii, its young gas and
+## star birth 0..1, how irregular its outline 0..1). An old elliptical warm through its
+## body; a blue compact dwarf young, blue, lumpy and full of knots round a small warm
+## heart; a dwarf spheroidal faint, its warm light only round its middle; a merger's
+## remnant warm, a little lopsided, with a few knots of the star birth the merger lit.
+static func ball_kind(ball: Vector4) -> Vector4:
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("ballk=") and int(ball.w) == int((a as String).substr(6).split(",")[0]):
+			var f := (a as String).substr(6).split(",")
+			return Vector4(float(f[0]), float(f[1]), float(f[2]), float(f[3]))
+	match int(ball.w):
+		1:
+			return Vector4(1.0, 0.3, 1.0, 0.6)
+		2:
+			return Vector4(2.0, 0.6, 0.0, 0.15)
+		3:
+			return Vector4(3.0, 1.1, 0.3, 0.25)
+	return Vector4(0.0, 1.25, 0.0, 0.0)
+
+
+## How bright a ball's cool gas is against its warm light's (`chart_b_place`'s `u_ballC`).
+static func ball_cool() -> float:
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("ballc="):
+			return float((a as String).substr(6))
+	return 1.0
+
+
 static func galaxy_uniforms(p: Dictionary) -> Dictionary:
 	var g: Dictionary = Run.galaxy
 	var form: int = p.form
@@ -141,6 +170,8 @@ static func galaxy_uniforms(p: Dictionary) -> Dictionary:
 	return story.merged({
 		"u_ballD": bd[0],
 		"u_ballE": bd[1],
+		"u_ballK": ball_kind(ball),
+		"u_ballC": ball_cool(),
 		"u_g0": Vector4(float(maxi(arms, 1)), float(p.twist), float(p.bar), float(p.spread)),
 		"u_g1": Vector4(float(p.spin), arm_k, float(p.lane), float(p.gas)),
 		"u_g2": Vector4(float(g.get("dust", 1.6)), float(p.bulge_r), ball.y if form == 1 else 0.86, float(p.hole_r)),
@@ -193,6 +224,8 @@ static func star_data(sky: ChartSky, g: Dictionary, p: Dictionary) -> void:
 	var r_max: float = src.r_max
 	var sq: float = p.squash
 	var ball := int(p.form) == 1
+	# (a blue compact dwarf's stars are young: mostly blue-white, as its gas is)
+	var young := ball and int((p.ball as Vector4).w) == 1
 	var rows: Array = []
 	var pos: PackedVector2Array = src.pos
 	var col: PackedColorArray = src.col
@@ -210,7 +243,7 @@ static func star_data(sky: ChartSky, g: Dictionary, p: Dictionary) -> void:
 		var h3 := LegacyHole.hash01(i, 12)
 		var cls := 1
 		if ball:
-			cls = 0 if h3 < 0.12 else 1
+			cls = 0 if h3 < (0.7 if young else 0.12) else 1
 		elif c.b > c.r * 1.04:
 			cls = 0
 		elif c.g > c.r * 0.72:
