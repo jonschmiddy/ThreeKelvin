@@ -14,6 +14,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   your fifteenth jump it sleeps beside the number of jumps left before it starts to grow. Then it
   wakes, and it opens wider and burns redder as the Custodian grows, until it is at full strength
   at jump 33. Point at it to read what it means. The tutorial step under the goal sits a little lower.
+- **Changed** — the station's elevator moves the decks. Pick a floor and the deck you are on rides
+  out of the panel as the next one rides in, the way the car is going, instead of a cut. Zooming
+  into the Lab's screen carries the elevator and the top bar out with the room, and they ride back
+  in with it.
 - **Changed** — stations are rarer, about half as many a galaxy, and no station sits within a
   light hull's jump of another. Plan your fuel. A ship that does not can run dry between docks.
 - **Changed** — every station has all five decks now, at every level. A laboratory reads relics

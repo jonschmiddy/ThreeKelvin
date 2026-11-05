@@ -461,6 +461,7 @@ func _lab(st: StationScreen, here: MapGen.MapNode, tag: String, dev: int, deep: 
 	var big := dev == MapGen.Development.CAPITAL or dev == MapGen.Development.SETTLEMENT
 	if (deep and big) or (not deep and dev == MapGen.Development.CAPITAL):
 		await _camera_move(st, zoom, tag)
+		await _deck_ride(st, tag)
 
 
 ## RECIPES IN AUGMENT'S LAYOUT (Jon, Nov 5: "Can't we make the recipes page
@@ -786,8 +787,10 @@ func _landed(st: StationScreen, zoom: LabZoom, tag: String, _dev: int) -> void:
 
 
 ## THE MOVE ITSELF, animated (`Router.animate_in_harness`; headless it jumps
-## to its end): the station's chrome leaves before the camera moves and is
-## gone while it moves, and back only once the camera is out; Esc on the way
+## to its end): the camera carries the elevator and the HUD out with the
+## room's edges (Jon, Nov 5: "a smoother transition with the elevator"), the
+## gap between each and the room what it was at rest, never over the room,
+## gone once landed, and back in their places on the frame it is out; Esc on the way
 ## in turns it round and opens no pause menu; a click during the move lands
 ## it and is eaten (it reaches no page key, and on the way out it does not
 ## open the Lab again); Tab with the camera in takes it out at once, the
@@ -800,15 +803,32 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	Router.animate_in_harness = true
 	var out_s := ZoomLadder.UI_OUT_S
 	var mid := out_s + ZoomLadder.LAB_ZOOM_S * 0.4
+	# (where the elevator and the HUD stand at rest, against the room)
+	var o0 := st._lab.get_global_transform().origin
+	var rail0 := st._rail.position
+	var hud0 := hud.position
+	var rail_gap := o0.x - st._rail.get_global_rect().end.x
+	var hud_gap := o0.y - hud.get_global_rect().end.y
 	# IN, and held mid-move
 	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
 	await _click(st._glass_press)
 	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
-	await _until(func() -> bool: return zoom._at >= mid)
+	await _until(func() -> bool: return zoom._at >= out_s + ZoomLadder.LAB_ZOOM_S * 0.15)
 	var moving := zoom.is_open() and not zoom.landed() and zoom._at > out_s
-	_ok("%s, animated: mid-move the HUD and the rail are gone, and the sign-on rides in on the glass (HUD %.2f, rail %.2f, the screen %s %s, at %.2f of %.2f)" % [tag,
+	var rm := zoom.room_rect()
+	var rg := rm.position.x - st._rail.get_global_rect().end.x
+	var hg := rm.position.y - hud.get_global_rect().end.y
+	_ok("%s, animated: early in the move the elevator and the HUD ride the room's edges out, whole, over the veil (rail gap %.1f, at rest %.1f, x %.0f from %.0f, alpha %.2f, z %d; HUD gap %.1f, at rest %.1f, alpha %.2f, z %d)" % [tag,
+		rg, rail_gap, st._rail.position.x, rail0.x, st._rail.modulate.a, st._rail.z_index, hg, hud_gap, hud.modulate.a, hud.z_index],
+		moving and st._rail.position.x < rail0.x and absf(rg - rail_gap) <= 1.0 and st._rail.z_index == 2
+		and (st._rail.modulate.a > 0.98 or st._rail.get_global_rect().end.x <= 0.0)
+		and (hud.position.y < hud0.y or rm.position.y >= o0.y) and absf(hg - hud_gap) <= 1.0 and hud.z_index == 2)
+	await _until(func() -> bool: return zoom._at >= mid)
+	moving = zoom.is_open() and not zoom.landed() and zoom._at > out_s
+	_ok("%s, animated: mid-move the HUD and the rail are out of the window, and the sign-on rides in on the glass (HUD %.2f, rail %.2f, the screen %s %s, at %.2f of %.2f)" % [tag,
 		hud.modulate.a, st._rail.modulate.a, st._login.state, zoom._screen.visible, zoom._at, zoom._goal],
-		moving and hud.modulate.a < 0.02 and st._rail.modulate.a < 0.02 and zoom._screen.visible
+		moving and (hud.modulate.a < 0.02 or hud.get_global_rect().end.y <= 0.0)
+		and (st._rail.modulate.a < 0.02 or st._rail.get_global_rect().end.x <= 0.0) and zoom._screen.visible
 		and st._login.state == LabLogin.SIGNING and is_equal_approx(st._screen_pic.modulate.a, 1.0))
 	# THE SCREEN'S OWN EFFECTS GO WITH THE CHROME (its snow flashed on the bare
 	# glass), and THE CAMERA IS ONE PICTURE: the room at one scale between the
@@ -835,16 +855,26 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	_ok("%s, animated: Esc on the way in turns the camera round (goal %.2f, still moving %s), opens no menu (%s), and the glass keeps SIGNING IN while it moves (%s)" % [tag,
 		zoom._goal, zoom.visible and zoom._at > 0.0, menu, st._login.state],
 		zoom._goal == 0.0 and zoom.visible and zoom._at > 0.0 and menu == null and st._login.state == LabLogin.SIGNING)
-	var chrome_while_moving := 1.0
+	# (on the way out, frame by frame: neither the elevator nor the HUD ever
+	# over the room, and both in their places on the frame the camera rests)
+	var over := 0.0
+	var home_at := -1.0
 	var t0 := Time.get_ticks_msec()
 	while zoom.visible and Time.get_ticks_msec() - t0 < 8000:
 		if zoom._at > out_s:
-			chrome_while_moving = minf(chrome_while_moving, 1.0 - hud.modulate.a)
+			var r2 := zoom.room_rect()
+			if st._rail.modulate.a > 0.0:
+				over = maxf(over, st._rail.get_global_rect().end.x - r2.position.x)
+			if hud.modulate.a > 0.0:
+				over = maxf(over, hud.get_global_rect().end.y - r2.position.y)
+		elif home_at < 0.0 and st._rail.position == rail0 and hud.position == hud0:
+			home_at = zoom._at
 		await _tree.process_frame
-	_ok("%s, animated: out again, the chrome back as it was (HUD %.2f, rail %.2f), and gone all the way out (%.2f)" % [tag,
-		hud.modulate.a, st._rail.modulate.a, chrome_while_moving],
+	_ok("%s, animated: out again, the elevator and the HUD ride back in, never over the room (by at most %.1f px), in their places once the camera rests (%s), and as they were (HUD %.2f z %d, rail %.2f z %d, at %s)" % [tag,
+		over, home_at >= 0.0, hud.modulate.a, hud.z_index, st._rail.modulate.a, st._rail.z_index, st._rail.position],
 		not zoom.is_open() and is_equal_approx(hud.modulate.a, 1.0) and is_equal_approx(st._rail.modulate.a, 1.0)
-		and chrome_while_moving > 0.98)
+		and over <= 0.5 and home_at >= 0.0 and st._rail.position == rail0 and hud.position == hud0
+		and hud.z_index == 0 and st._rail.z_index == 0 and not st._lab_lift)
 	await _frames(2)
 	_ok("%s, animated: out again, the screen's effects back on its logo, the lamps free (screen %.2f, hushed %s, lamps held %s, veil %s, the screen %s)" % [tag,
 		st._lab.fx_layer().modulate.a, st._lab._glass.hushed, st._lab.lamps_held, zoom._veil.visible, st._login.state],
@@ -927,6 +957,102 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	_ok("%s: Tab (next screen, bound %s) with the camera in takes it out at once, the chrome back (open %s, shown %s, HUD %.2f, rail %.2f)" % [tag,
 		tab_bound, zoom.is_open(), zoom.visible, hud.modulate.a, st._rail.modulate.a],
 		tab_bound and not zoom.is_open() and not zoom.visible and is_equal_approx(hud.modulate.a, 1.0) and is_equal_approx(st._rail.modulate.a, 1.0))
+	Router.animate_in_harness = was_anim
+
+
+## THE ELEVATOR'S RIDE BETWEEN DECKS, animated (Jon, Nov 5: "a smoother
+## transition with the elevator"; the review: a dip to black is still a cut).
+## Pressing a floor no longer swaps the decks on the press. The deck you leave
+## and the deck you go to ride past the panel as one shaft, a floor slab
+## between them, in the car's direction, neither taking clicks, nothing
+## scaled; at the end only the new deck shows, in its place, taking clicks.
+## One floor takes at least `DECK_MIN_S`. A press mid-ride starts from where
+## the shaft stands (the deck on screen does not jump). The glass cannot be
+## pressed while the Lab rides in. Unanimated (a harness) the decks change on
+## the press, as before.
+func _deck_ride(st: StationScreen, tag: String) -> void:
+	var was_anim := Router.animate_in_harness
+	Router.animate_in_harness = true
+	var lab_page := st._pages[&"bench"] as Control
+	var yard := st._pages[&"services"] as Control
+	var hold := st._pages[&"hold"] as Control
+	var body := lab_page.get_parent() as Control
+	var span := body.size.y + float(StationScreen.DECK_SLAB)
+	var clip0 := body.clip_contents
+	(st._tabs[&"services"] as Button).pressed.emit()
+	var secs := st._ride_s
+	await _tree.process_frame
+	_ok("%s, animated: SHIPYARD from the Lab puts both decks in one shaft, neither taking clicks, the panel clipped (Lab %s y %.0f, yard %s y %.0f, span %.0f, ride %.2f s)" % [tag,
+		lab_page.visible, lab_page.position.y, yard.visible, yard.position.y, span, secs],
+		st._tab == &"services" and lab_page.visible and yard.visible and st.deck_changing() and body.clip_contents
+		and is_equal_approx(lab_page.position.y - yard.position.y, span)
+		and lab_page.mouse_behavior_recursive == Control.MOUSE_BEHAVIOR_DISABLED
+		and yard.mouse_behavior_recursive == Control.MOUSE_BEHAVIOR_DISABLED)
+	var rigid := true
+	var down_only := true
+	var last := lab_page.position.y
+	var scaled := false
+	var frames := 0
+	while st.deck_changing() and frames < 600:
+		if not is_equal_approx(lab_page.position.y - yard.position.y, span):
+			rigid = false
+		if lab_page.position.y < last:
+			down_only = false
+		last = lab_page.position.y
+		if lab_page.scale != Vector2.ONE or yard.scale != Vector2.ONE:
+			scaled = true
+		frames += 1
+		await _tree.process_frame
+	await _frames(1)
+	_ok("%s, animated: going up, the shaft moves down as one (rigid %s, one way %s, scaled %s, %d frames), and at the car's arrival only the yard shows, in its place, taking clicks, the clip as it was (Lab %s, yard y %.0f)" % [tag,
+		rigid, down_only, scaled, frames, lab_page.visible, yard.position.y],
+		rigid and down_only and not scaled and frames >= 3 and not lab_page.visible and yard.visible
+		and yard.position.y == 0.0 and lab_page.position.y == 0.0 and body.clip_contents == clip0
+		and yard.mouse_behavior_recursive == Control.MOUSE_BEHAVIOR_INHERITED
+		and lab_page.mouse_behavior_recursive == Control.MOUSE_BEHAVIOR_INHERITED)
+	# ONE FLOOR DOWN takes at least DECK_MIN_S (a 0.24 s hop read as a blink)
+	(st._tabs[&"hold"] as Button).pressed.emit()
+	var n1 := 0
+	var t1 := 0.0
+	while st.deck_changing() and n1 < 600:
+		n1 += 1
+		await _tree.process_frame
+		t1 += st.get_process_delta_time()
+	_ok("%s, animated: one floor (SHIPYARD to EXCHANGE) rides for at least %.2f s (%.2f s, %d frames)" % [tag,
+		StationScreen.DECK_MIN_S, t1, n1],
+		t1 >= StationScreen.DECK_MIN_S - 0.02)
+	(st._tabs[&"services"] as Button).pressed.emit()
+	await _until(func() -> bool: return not st.deck_changing(), 4000)
+	# A SECOND PRESS MID-RIDE takes over from where the shaft stands: the yard,
+	# still on screen, does not jump
+	(st._tabs[&"bench"] as Button).pressed.emit()
+	await _frames(3)
+	var y_was := yard.position.y
+	# (and the glass cannot be pressed while the Lab rides in)
+	st._open_lab(&"research")
+	var opened := st._lab_zoom.is_open()
+	(st._tabs[&"hold"] as Button).pressed.emit()
+	var y_now := yard.position.y
+	await _tree.process_frame
+	var shown := 0
+	for k in st._pages:
+		if (st._pages[k] as Control).visible:
+			shown += 1
+	_ok("%s, animated: the glass is not pressed while the Lab rides in (%s); a floor pressed mid-ride takes over from where the yard stands (y %.0f then %.0f, decks shown %d, the Lab %s, EXCHANGE %s, tab %s)" % [tag,
+		opened, y_was, y_now, shown, lab_page.visible, hold.visible, st._tab],
+		not opened and shown == 2 and yard.visible and hold.visible and not lab_page.visible and st._tab == &"hold"
+		and st.deck_changing() and y_was < 0.0 and is_equal_approx(y_now, y_was)
+		and is_equal_approx(hold.position.y - yard.position.y, span))
+	await _until(func() -> bool: return not st.deck_changing(), 4000)
+	Router.animate_in_harness = false
+	(st._tabs[&"bench"] as Button).pressed.emit()
+	var at_rest := true
+	for k2 in st._pages:
+		if (st._pages[k2] as Control).position.y != 0.0:
+			at_rest = false
+	_ok("%s: unanimated, the deck changes on the press (Lab %s, every deck in its place %s)" % [tag, lab_page.visible, at_rest],
+		lab_page.visible and not hold.visible and at_rest and not st.deck_changing())
+	await _frames(3)
 	Router.animate_in_harness = was_anim
 
 
