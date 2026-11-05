@@ -510,6 +510,13 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	_ok("%s, animated: mid-move the HUD, the rail and the entry are gone (HUD %.2f, rail %.2f, entry %.2f, at %.2f of %.2f)" % [tag,
 		hud.modulate.a, st._rail.modulate.a, st._bench.modulate.a, zoom._at, zoom._goal],
 		moving and hud.modulate.a < 0.02 and st._rail.modulate.a < 0.02 and st._bench.modulate.a < 0.02)
+	# AND ALL ELSE ON THE GLASS WITH THE ENTRY: the press's glow under the
+	# pointer went out in one frame as the camera set off (the capital's glass
+	# 52 to 39 grey), and the screen's snow flashed on the bare glass
+	var fxl := st._lab.fx_layer()
+	_ok("%s, animated: mid-move the press's glow and the screen's own effects are gone with it (press %.2f, screen %.2f), the room's edge let go (veil %s)" % [tag,
+		st._glass_press.modulate.a, fxl.modulate.a, zoom._veil.visible],
+		st._glass_press.modulate.a < 0.02 and fxl.modulate.a < 0.02 and zoom._veil.visible)
 	# Esc mid-move turns it round, and no pause menu opens
 	var esc := InputEventKey.new()
 	esc.keycode = KEY_ESCAPE
@@ -529,6 +536,10 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 		hud.modulate.a, st._rail.modulate.a, st._bench.modulate.a, chrome_while_moving],
 		not zoom.is_open() and is_equal_approx(hud.modulate.a, 1.0) and is_equal_approx(st._rail.modulate.a, 1.0)
 		and is_equal_approx(st._bench.modulate.a, 1.0) and chrome_while_moving > 0.98)
+	_ok("%s, animated: out again, the press's glow and the screen's effects back (press %.2f, screen %.2f, veil %s)" % [tag,
+		st._glass_press.modulate.a, st._lab.fx_layer().modulate.a, zoom._veil.visible],
+		is_equal_approx(st._glass_press.modulate.a, 1.0) and is_equal_approx(st._lab.fx_layer().modulate.a, 1.0)
+		and not zoom._veil.visible)
 	# IN AGAIN: a click mid-move lands it, and goes no further (it is where
 	# the AUGMENT tab will be)
 	await _click(_find_button(st._bench, "RESEARCH"))

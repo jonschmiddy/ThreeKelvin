@@ -43,10 +43,10 @@ uniform bool fullbright = false;
 // always did. `hole` is how far the glass has gone (0 to 1), inside
 // `hole_box` (x0, y0, x1, y1 in picture px, the end exclusive); where
 // `hole_masked` only the glass's own colour goes (own_map G & 8) and anything
-// standing in front of it (the capital's flasks) goes with `mirror`. A bright
+// standing in front of it (the capital's flasks) fades with `mirror`. A bright
 // pixel within `hole_k` px of a corner is the bezel's rounded corner and stays.
-// `mirror` puts the rows of `mirror_box` back as `mirror_sum - y`, dithered:
-// the bezel's top profile turned over, where the bench hid the bottom one.
+// `mirror` fades the rows of `mirror_box` into `mirror_sum - y`: the bezel's
+// top profile turned over, where the bench hid the bottom one.
 uniform float hole = 0.0;
 uniform vec4 hole_box = vec4(0.0);
 uniform bool hole_masked = false;
@@ -68,21 +68,18 @@ float pool(ivec2 g, int i) {
 	return (floor(hl.x * 255.0 + 0.5) * 256.0 + floor(hl.y * 255.0 + 0.5)) / 65535.0 * scale;
 }
 
-void fragment() {
-	ivec2 p = ivec2(floor(UV * vec2(textureSize(TEXTURE, 0))));
-	float dith = (BAYER[(p.y % 4) * 4 + (p.x % 4)] + 0.5) / 16.0;
-	if (mirror > 0.0 && inside(p, mirror_box) && dith < mirror) {
-		p.y = int(mirror_sum) - p.y;
-	}
-	vec3 base = texelFetch(TEXTURE, p, 0).rgb;
+// One room pixel lit, and whether the camera has let it go: (rgb, alpha).
+vec4 shade(sampler2D tex, ivec2 p, float dith) {
+	vec3 base = texelFetch(tex, p, 0).rgb;
+	vec4 col;
 	if (fullbright) {
-		COLOR = vec4(base, 1.0);
+		col = vec4(base, 1.0);
 	} else {
 		int own = int(floor(texelFetch(own_map, p, 0).r * 255.0 + 0.5)) - 1;
 		if (own >= 0) {
 			// AN EMITTER IS NOT LIT, IT BURNS: its own colour at its own brightness.
 			float e = own_w[own];
-			COLOR = vec4(min(vec3(1.0), base * e + vec3(8.0, 10.0, 10.0) / 255.0 * e), 1.0);
+			col = vec4(min(vec3(1.0), base * e + vec3(8.0, 10.0, 10.0) / 255.0 * e), 1.0);
 		} else {
 			ivec2 g = p / 2;
 			vec3 l3 = vec3(0.0);
@@ -125,7 +122,7 @@ void fragment() {
 				vec3 tr = l3 / l;
 				m = amb * ambc * (1.0 - tq) + (vec3(1.0) - 0.45 * (vec3(1.0) - tr)) * tq;
 			}
-			COLOR = vec4(min(vec3(1.0), base * m + ov * 0.3 * m), 1.0);
+			col = vec4(min(vec3(1.0), base * m + ov * 0.3 * m), 1.0);
 		}
 	}
 	if (hole > 0.0 && inside(p, hole_box)) {
@@ -133,11 +130,35 @@ void fragment() {
 		float cx = min(float(p.x) - hole_box.x, hole_box.z - 1.0 - float(p.x));
 		float cy = min(float(p.y) - hole_box.y, hole_box.w - 1.0 - float(p.y));
 		bool corner = cx < hole_k && cy < hole_k
-			&& dot(COLOR.rgb, vec3(0.3, 0.59, 0.11)) > 110.0 / 255.0;
-		// dithered out, never faded: a fade showed the glass's own picture as a
-		// second rectangle going pale inside the bezel
-		if (!corner && dith < hole && (glass || dith < mirror)) {
-			COLOR.a = 0.0;
+			&& dot(col.rgb, vec3(0.3, 0.59, 0.11)) > 110.0 / 255.0;
+		if (!corner) {
+			if (glass) {
+				// THE GLASS dithered out, never faded: a fade showed the glass's own
+				// picture as a second rectangle going pale inside the bezel
+				if (dith < hole) {
+					col.a = 0.0;
+				}
+			} else {
+				// what stands in front of it (the capital's flask tips) faded with
+				// the bench, never dithered: dithered, they went as a band of dots
+				col.a *= 1.0 - min(mirror, hole);
+			}
 		}
 	}
+	return col;
+}
+
+void fragment() {
+	ivec2 p = ivec2(floor(UV * vec2(textureSize(TEXTURE, 0))));
+	float dith = (BAYER[(p.y % 4) * 4 + (p.x % 4)] + 0.5) / 16.0;
+	vec4 a = shade(TEXTURE, p, dith);
+	if (mirror > 0.0 && inside(p, mirror_box)) {
+		// THE BENCH LOOKED OVER: the rows turned over from above, faded in
+		// (premultiplied, so a pixel let go on either side fades as it should)
+		vec4 b = shade(TEXTURE, ivec2(p.x, int(mirror_sum) - p.y), dith);
+		float al = mix(a.a, b.a, mirror);
+		vec3 rgb = mix(a.rgb * a.a, b.rgb * b.a, mirror);
+		a = vec4(al > 0.0 ? rgb / al : vec3(0.0), al);
+	}
+	COLOR = a;
 }
