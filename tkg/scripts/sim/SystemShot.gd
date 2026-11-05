@@ -414,7 +414,7 @@ func _ready() -> void:
 	# the list again, wearing whatever was taken above
 	scr.panel.show_system()
 	if "scrollcheck" in OS.get_cmdline_user_args():
-		await _scroll_check(scr)
+		await _scroll_check(scr, await _key_check(scr))
 		get_tree().quit()
 		return
 	if select >= -1:
@@ -1396,7 +1396,7 @@ func _wrun(scr: Control, secs: float) -> void:
 ## bar's rect. Prints the world with the widest row of facts (label and value,
 ## in the panel's type), which is among them. A pass that never saw a bar has
 ## measured nothing, so pages must scroll.
-func _scroll_check(first) -> void:
+func _scroll_check(first, key_fails := 0) -> void:
 	var content: Control = first.get_parent()
 	first.queue_free()
 	var scr = null
@@ -1415,7 +1415,7 @@ func _scroll_check(first) -> void:
 	var swept := 0
 	var widest_page := 0.0
 	var widest_what := ""
-	var fails := 0
+	var fails := key_fails
 	var barred := 0
 	var looked := 0
 	for raw in Run.map:
@@ -1531,6 +1531,92 @@ func _scroll_check(first) -> void:
 			crop.save_png(shots.path_join("world_%s_panel3x.png" % tag))
 		print("  scrollcheck: stills of %s in %s" % [best_row, shots])
 	print("scrollcheck: %s" % ("PASS" if fails == 0 else "FAIL (%d)" % fails))
+
+
+## THE KEY ALONG THE BOTTOM FITS (`SystemMapScreen.KEY`, science's SCIENCE the
+## eighth beacon in it): the screen where Main puts it, in the 960 x 540 window,
+## and every entry of the row (a glyph and its word) inside the screen's content
+## area, clear of every other entry, its word as wide as its words need and its
+## glyph drawn where it stands; every tag a beacon can wear in it, each with a
+## glyph and a colour no other entry has. The row asking for more than the area would
+## widen the whole screen past the window's edge, so its minimum width is
+## measured too. Returns the failures; prints the row's width and the room left.
+func _key_check(scr: Control) -> int:
+	for _f in 3:
+		await get_tree().process_frame
+	var fails := 0
+	var area := (scr.get_parent() as Control).get_global_rect()
+	var win := Rect2(Vector2.ZERO, Vector2(960, 540))
+	var row: HBoxContainer = scr._key_row
+	var font := UITheme.pixel_font()
+	var need := row.get_combined_minimum_size().x
+	var shown: Array = []
+	var words: Array = []
+	for item in row.get_children():
+		var it := item as Control
+		var r := it.get_global_rect()
+		var nm := ""
+		for k in it.get_children():
+			if k is Label:
+				nm = (k as Label).text
+		for k in it.get_children():
+			if k is Label:
+				var tw := font.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+				if tw > (k as Label).size.x + 0.5:
+					fails += 1
+					print("  FAIL keycheck: \"%s\" needs %.0f px and has %.0f" % [nm, tw, (k as Label).size.x])
+			elif k is Control and not (k as Control).get_global_rect().has_area():
+				fails += 1
+				print("  FAIL keycheck: the glyph of \"%s\" has no room" % nm)
+		if it is Label:
+			nm = (it as Label).text
+		words.append(nm)
+		if not area.encloses(r) or not win.encloses(r):
+			fails += 1
+			print("  FAIL keycheck: \"%s\" at %s is outside the content area %s" % [nm, r, area])
+		for o: Array in shown:
+			if (o[1] as Rect2).intersects(r):
+				fails += 1
+				print("  FAIL keycheck: \"%s\" meets \"%s\"" % [nm, o[0]])
+		shown.append([nm, r])
+	var want := ["KEY"]
+	for k in ScreenS.KEY:
+		want.append(String(k[1]))
+	if words != want:
+		fails += 1
+		print("  FAIL keycheck: the row reads %s, not %s" % [words, want])
+	if need > area.size.x:
+		fails += 1
+		print("  FAIL keycheck: the row asks for %.0f px of the area's %.0f" % [need, area.size.x])
+	# EVERY KIND A BEACON CAN BE IS IN THE KEY (`EncounterDrawer.TAG_ORDER`),
+	# each with a glyph of its own (`SystemOverlay.GLYPH`; a missing one falls
+	# back to SIGNAL's) and a colour of its own (a missing one is the frame's LINE)
+	var Ov := load("res://scripts/ui/sysmap/SystemOverlay.gd")
+	var keyed := {}
+	var looks := {}
+	var inks := {}
+	for k in ScreenS.KEY:
+		keyed[k[0]] = true
+		var g := str(Ov.GLYPH.get(k[0], []))
+		var ink: Color = ScreenS.key_colour(k[0])
+		if not Ov.GLYPH.has(k[0]) or looks.has(g):
+			fails += 1
+			print("  FAIL keycheck: %s has no glyph of its own (%s)" % [k[1], looks.get(g, "none")])
+		if ink == UITheme.LINE:
+			fails += 1
+			print("  FAIL keycheck: %s has no colour (the frame's LINE: not in TAG_ORDER)" % k[1])
+		if inks.has(ink.to_html()):
+			fails += 1
+			print("  FAIL keycheck: %s is the colour of %s" % [k[1], inks[ink.to_html()]])
+		looks[g] = k[1]
+		inks[ink.to_html()] = k[1]
+	for t: StringName in EncounterDrawer.TAG_ORDER:
+		if not keyed.has(t):
+			fails += 1
+			print("  FAIL keycheck: the tag %s has no entry in the key" % t)
+	print("  keycheck: %d entries, the row %.0f px of the area's %.0f (%.0f to spare), %s" % [
+		shown.size(), need, area.size.x, area.size.x - need, "PASS" if fails == 0 else "FAIL (%d)" % fails])
+	return fails
 
 
 ## Every text and every mouse-taking control under `root` that is showing, as

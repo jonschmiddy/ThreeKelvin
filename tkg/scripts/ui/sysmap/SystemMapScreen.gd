@@ -61,7 +61,7 @@ const BAR_LABEL_H := 15.0
 const MAP := Vector2i(960, 540)
 ## The KEY's beacons, in the drawer's own order of what matters.
 const KEY := [[&"fight", "FIGHT"], [&"hazard", "HAZARD"], [&"salvage", "SALVAGE"],
-	[&"signal", "SIGNAL"], [&"contract", "CONTRACT"], [&"quest", "QUEST"], [&"dock", "DOCK"]]
+	[&"science", "SCIENCE"], [&"signal", "SIGNAL"], [&"contract", "CONTRACT"], [&"quest", "QUEST"], [&"dock", "DOCK"]]
 
 ## WHERE THE SHIP WAS LEFT, by system: coming back from a fight, a dock or the
 ## ship screen puts it back -- in orbit where it was, or where it was flying.
