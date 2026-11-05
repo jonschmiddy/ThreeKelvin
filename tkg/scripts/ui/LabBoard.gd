@@ -143,8 +143,14 @@ static func font() -> Font:
 
 
 ## A run's advance in the pixel font, as the mockup's `tw` measured it.
+## Silkscreen has no arrow: "→" is drawn (`text_at`), 7 px with its gap.
 static func tw(s: String, sz: int = 8) -> int:
-	return int(font().get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x)
+	if not s.contains("→"):
+		return int(font().get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x)
+	var w := 0.0
+	for part in s.split("→"):
+		w += font().get_string_size(part, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x
+	return int(w) + 7 * s.count("→")
 
 
 static func mixc(a: Color, b: Color, t: float) -> Color:
@@ -293,8 +299,25 @@ func _mark(ci: CanvasItem, rows: Array, x: int, y: int, c: Color) -> void:
 
 
 ## Words with their capitals' top on `ycap` (F8's capitals are 5 px, F16's 10).
+## The one glyph Silkscreen lacks, "→", is the mockup's drawn 5x5 arrow.
 static func text_at(ci: CanvasItem, x: int, ycap: int, s: String, c: Color, sz: int = 8) -> void:
-	ci.draw_string(font(), Vector2(x, ycap + (5 if sz == 8 else 10)), s, HORIZONTAL_ALIGNMENT_LEFT, -1, sz, c)
+	var cap := 5 if sz == 8 else 10
+	if not s.contains("→"):
+		ci.draw_string(font(), Vector2(x, ycap + cap), s, HORIZONTAL_ALIGNMENT_LEFT, -1, sz, c)
+		return
+	var cx := float(x)
+	var parts := s.split("→")
+	for i in parts.size():
+		if parts[i] != "":
+			ci.draw_string(font(), Vector2(cx, ycap + cap), parts[i], HORIZONTAL_ALIGNMENT_LEFT, -1, sz, c)
+			cx += font().get_string_size(parts[i], HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x
+		if i < parts.size() - 1:
+			var ax := int(cx) + 1
+			var ay := ycap + cap / 2
+			for d: Vector2i in [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0), Vector2i(3, 0), Vector2i(4, 0),
+					Vector2i(3, -1), Vector2i(3, 1), Vector2i(2, -2), Vector2i(2, 2)]:
+				ci.draw_rect(Rect2(ax + d.x, ay + d.y, 1, 1), c)
+			cx += 7.0
 
 
 func ground_ink(a: float) -> Color:
