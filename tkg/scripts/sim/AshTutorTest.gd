@@ -3124,9 +3124,11 @@ func _comms() -> void:
 
 
 ## The HUD's row with COMMS: every piece inside the bar, none over another, and
-## its minimum within the bar (`QuestLogTest._hud_fits`, the same test).
+## its minimum within the bar (`QuestLogTest._hud_fits`, the same test). The
+## bar is the row's clip, 932 at a 960 window, not the panel's 944: a row up to
+## twelve pixels wider than the clip had its right-hand end cut off and passed.
 func _comms_row_fits(hud: HudBar) -> void:
-	var bar := hud.get_global_rect()
+	var bar := (hud._row.get_parent() as Control).get_global_rect()
 	var pieces: Array = []
 	for c in hud._row.get_children():
 		var k := c as Control
