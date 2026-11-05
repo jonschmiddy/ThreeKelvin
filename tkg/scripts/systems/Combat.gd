@@ -138,6 +138,13 @@ var _seen_hit: int = 0
 ## Ended your turn and waiting on the rest of the party. The only moment in a
 ## shared fight that blocks — see SharedFight.end_turn().
 var waiting: bool = false
+## THE SYSTEM THIS FIGHT IS ASKING THE PARTY ABOUT, or -1 (review, Nov 5).
+## `Router.start_combat` plans the fight, sets this, and waits for the host's
+## answer before `begin`. With no time limit on that wait, a fight planned but
+## not begun is a real state: no hand, and END TURN, FLEE, HAIL and every card
+## are refused in it. END TURN there ran a private enemy turn the answer then
+## undid, and a flee left a ship the late answer seated for good.
+var asking_at: int = -1
 ## THE COUNT THIS FIGHT'S HULL WAS GROWN AT (`RunState.custodian_jumps`), or -1
 ## when nothing in it grows. Set in `plan`, sent with the fight
 ## (`Net.open_fight`, `SharedFight.grown`), and followed in a shared fight as
@@ -218,11 +225,64 @@ func plan(template: EnemyTemplate, danger: int, extras: Array = []) -> void:
 
 ## Open the first turn. `f` is the party's copy of the enemy, or null for the
 ## fight the game has always had.
+##
+## THE PARTY'S ANSWER IS THE FIGHT, whatever this ship planned (the same-second
+## race, Nov 5). One fight per system, and a ship that planned Y can be handed
+## X, opened by a partner whose push had not reached it yet. It used to paint
+## X's numbers on Y's hulls: Y's attack names, Y's swings, a hull nobody else
+## had that kept the kill from ever coming. So when the ids differ the enemy is
+## built again from the fight's (`replan_foes`), here, before anything is
+## dealt or drawn: the screen builds its enemy slots on `combat_started`.
+##
+## AND A FIGHT ALREADY OVER (review, Nov 5): the host can seat this ship and
+## take the last hull in one frame, so the answer arrives finished, and no push
+## follows it. A ship in the crew at the kill was counted in `paid`, so it goes
+## to the win, as `_on_fight_changed` would have sent it.
 func begin(f: SharedFight) -> void:
 	if f != null:
+		if f.foe_ids != _ids:
+			replan_foes(templates_of(f.foe_ids))
 		_attach(f)
 	Sig.combat_started.emit(enemies[0].template.name)
+	if f != null and f.over:
+		_settle_over(f)
+		if finished:
+			return
 	begin_turn()
+
+
+## Build the enemy again from `templates`, lead first, at this fight's danger:
+## the hulls, their art and their intent lists. Nothing else moves. The deck is
+## not built or shuffled again, and no intent is rolled (`_spawn`'s `pick`): the
+## host names each one, and the numbers come with its fight (`_adopt`), so the
+## streams are used as a fight that never raced uses them.
+func replan_foes(templates: Array) -> void:
+	if templates.is_empty():
+		return
+	enemies.clear()
+	current_target = null
+	grown = -1
+	var share := 1.0 if templates.size() == 1 else 0.6
+	_ids = PackedStringArray()
+	for t in templates:
+		var tpl := t as EnemyTemplate
+		if tpl.grow_after >= 0:
+			grown = Run.custodian_jumps()
+		enemies.append(_spawn(tpl, danger, share, false))
+		_ids.append(String(tpl.id))
+	for i in enemies.size():
+		enemies[i].look = look_for(i)
+
+
+## The templates behind a fight's ids, or empty if any is unknown here.
+static func templates_of(ids: PackedStringArray) -> Array:
+	var out: Array = []
+	for id in ids:
+		var t: EnemyTemplate = DB.enemies.get(StringName(id))
+		if t == null:
+			return []
+		out.append(t)
+	return out
 
 ## What this fight is made of, by database id, in enemy order. What the host is
 ## told so a ship arriving mid-fight can build the same hulls.
@@ -283,7 +343,9 @@ func look_for(i: int) -> int:
 ## numbers arrive, a fight alone when the party does not answer, and a party
 ## that has dropped. The template is never written, so nothing carries from one
 ## run to the next.
-func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0) -> EnemyState:
+## `pick` false builds it with no intent rolled, its first listed one standing
+## in until the party's fight names it (`replan_foes`).
+func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0, pick: bool = true) -> EnemyState:
 	var e := EnemyState.new()
 	# Halved from 0.20/0.10 when danger went from five tiers to ten, so the
 	# top of the ladder lands in the same place it always did and only the
@@ -313,7 +375,12 @@ func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0) -> Enem
 	e.max_hp = maxi(1, int(round(base * hp_mult * hp_share)))
 	e.hp = e.max_hp
 	e.brace = int(round(template.brace * hp_mult))
-	e.pick_intent()
+	if pick:
+		e.pick_intent()
+	elif not t.pool.is_empty():
+		e.intent = t.pool[0]
+	elif not t.loop.is_empty():
+		e.intent = t.loop[0]
 	return e
 
 ## NOTHING JOINS A FIGHT (Jon, Oct 13: "No reinforcements anywhere."). A fight
@@ -374,7 +441,7 @@ func begin_turn() -> void:
 	Sig.player_combat_state_changed.emit()
 
 func end_turn() -> void:
-	if finished:
+	if finished or asking_at >= 0:
 		return
 	# A CHOICE CANNOT OUTLIVE THE TURN THAT ASKED IT. Ending the turn with one
 	# open would carry "pick 2" into a hand that no longer contains what it was
@@ -615,7 +682,7 @@ func can_play(c: CardData) -> bool:
 	# Nothing is playable while a card is waiting for you to pick. A hand that
 	# accepted a play mid-choice would resolve two cards in an order neither of
 	# them stated.
-	return not finished and choosing <= 0 and energy >= c.energy
+	return not finished and asking_at < 0 and choosing <= 0 and energy >= c.energy
 
 ## Pick one of the cards a discard or a decommission is waiting on.
 ##
@@ -944,7 +1011,7 @@ func salvo_live(c: CardData) -> bool:
 
 
 func can_hail() -> bool:
-	if finished or waiting or enemies.is_empty():
+	if finished or waiting or asking_at >= 0 or enemies.is_empty():
 		return false
 	if struck or hail_failed:
 		return false
@@ -1047,7 +1114,7 @@ var flee_failed := false
 ## NOT included -- breaking off it banks the damage you did, which is the whole
 ## shape of that chase, and taking that away would quietly delete a mechanic.
 func can_flee() -> bool:
-	if finished or waiting or flee_failed:
+	if finished or waiting or asking_at >= 0 or flee_failed:
 		return false
 	for e in enemies:
 		if (e as EnemyState).template.boss:
@@ -1548,6 +1615,23 @@ func release() -> void:
 	waiting = false
 
 
+## LEFT FROM THE MENU, mid-fight: SAVE & EXIT or ABANDON (review, Nov 5): out
+## of the party's crew, and off the signal bus. Both used to let go only (or
+## not at all), so the crew kept a ghost: every partner sat on "WAIT <name>", and a
+## CONTINUE was handed back the fight it never left, with no join and no
+## growth. And a fight SAVE & EXIT dropped without letting go stayed on the
+## signal bus, and ran the next turn with no hull when the party's moved.
+## A finished fight has left already (`_finish`). Let go BEFORE the leave: on
+## the host the leave is handled at once, and can close the barrier and move
+## the turn while this is still listening.
+func abandon() -> void:
+	var at := shared_at
+	var leave := is_shared() and not finished
+	release()
+	if leave:
+		Net.leave_fight(at)
+
+
 ## The name of the first live foe whose hull grows from count `from` to `to`
 ## (`EnemyTemplate.hull_at`), or "" when none does.
 func _grew_between(from: int, to: int) -> String:
@@ -1622,17 +1706,7 @@ func _on_fight_changed(at: int) -> void:
 	shared = f
 	_adopt(f)
 	if f.over:
-		# The hellbender left before anybody killed it. The host has already moved
-		# it and written its hull back; this machine only has to stop fighting.
-		if f.broke:
-			_finish(&"broke_off",
-				"It makes a blind jump and gets away hurt. It mends as it feeds. No salvage.")
-			return
-		# The host decides the fight is won, not this machine. Everyone still in
-		# it when the last hull came apart is paid, which is the ruling: winning
-		# a fight gets you the loot.
-		if alive().is_empty():
-			_victory()
+		_settle_over(f)
 		return
 	# The turn number IS the "everybody go again" message.
 	if f.turn > turn:
@@ -1642,6 +1716,22 @@ func _on_fight_changed(at: int) -> void:
 		turn = f.turn
 		waiting = false
 		begin_turn()
+
+
+## The party's fight is over: end this one the way it ended. From a push, or
+## from `begin` when the answer to the ask came back already over.
+func _settle_over(f: SharedFight) -> void:
+	# The hellbender left before anybody killed it. The host has already moved
+	# it and written its hull back; this machine only has to stop fighting.
+	if f.broke:
+		_finish(&"broke_off",
+			"It makes a blind jump and gets away hurt. It mends as it feeds. No salvage.")
+		return
+	# The host decides the fight is won, not this machine. Everyone still in
+	# it when the last hull came apart is paid, which is the ruling: winning
+	# a fight gets you the loot.
+	if alive().is_empty():
+		_victory()
 
 
 ## The party is gone — the host dropped, or the connection did.

@@ -1327,6 +1327,28 @@ else
 fi
 }
 
+unit_midjointest() {
+step "Co-op: starting and leaving a shared fight through Router, Combat and the menu"
+# Nov 5, the same-second mismatch and the review's holes: a ship that asked for
+# its own enemy and was seated in a partner's fights the partner's (hulls,
+# intents, what SAVE & EXIT restarts, "VELA got here first."), on the host and
+# as a guest of a host in this process; SAVE & EXIT and ABANDON leave the
+# party's crew (nothing here runs a turn with no hull), CONTINUE joins again,
+# grown once; a join answered on the kill goes to the win; an ambush at a
+# partner's fight says so; a slow host is waited for, not fought around, and
+# an answer that lands after SAVE & EXIT is left again.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot midjointest 180 --headless --path "$PROJECT" -- sheet=MidJoinTest; then
+	if grep -qE '^midjointest: PASS' "$LOG_DIR/midjointest.log"; then
+		ok "a shared fight is the host's fight on every ship, and leaving it leaves"
+	else
+		bad "starting or leaving a shared fight failed"
+		grep -E 'FAIL|^midjointest' "$LOG_DIR/midjointest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "midjointest did not finish"
+fi
+}
+
 unit_wreckloottest() {
 step "Each wreck holds its own ship's loot"
 # Jon, Oct 13: "Each ship you kill has a chance to get credits and modules and

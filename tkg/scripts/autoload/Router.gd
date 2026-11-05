@@ -452,10 +452,8 @@ func _on_run_started() -> void:
 	# Let go of the signal bus first. A shared fight listens for the host on
 	# `Sig`, and a connection outlives the reference that made it — an abandoned
 	# fight dropped on the floor here would keep reacting to the party's next
-	# one for the rest of the session.
-	if combat != null:
-		combat.release()
-	combat = null
+	# one for the rest of the session. And out of the party's crew with it.
+	drop_combat()
 	final_loot = false
 	# WHERE THE SHIP WAS LEFT is this run's: kept by system index, so a new run
 	# (or a load) would otherwise open LOCAL in orbit of whatever world the last
@@ -468,6 +466,16 @@ func _on_run_started() -> void:
 	# (and where the map flew it, which LOCAL arrived at and which station is
 	# lit: the last run's, by the same numbers)
 	SectorScreen.forget_places()
+
+## THE FIGHT ON SCREEN, DROPPED: out of the party's crew if it was shared and
+## still on, off the signal bus, and gone (`Combat.abandon`). SAVE & EXIT,
+## ABANDON and a run starting all leave a fight this way (review, Nov 5): they
+## used to drop it with no leave, and the partners sat on "WAIT <name>".
+func drop_combat() -> void:
+	if combat != null:
+		combat.abandon()
+	combat = null
+
 
 ## A run starts by choosing a chassis, then opens on the sector rather than the
 ## chart: your ship in open space, not a graph of places you have not been yet.
@@ -556,12 +564,40 @@ func resume_here() -> void:
 	var ids: Array = f.get("ids", [])
 	if ids.is_empty() or not DB.enemies.has(StringName(ids[0])):
 		return
+	if _saved_fight_over(f):
+		Run.log_line("The fight ended while you were away.", &"them")
+		return
 	var extras: Array = []
 	for i in range(1, ids.size()):
 		if DB.enemies.has(StringName(ids[i])):
 			extras.append(DB.enemies[StringName(ids[i])])
 	start_combat(DB.enemies[StringName(ids[0])], extras,
 		bool(f.get("clears", true)), bool(f.get("share", true)))
+
+## A FIGHT SAVED OUT OF THAT THE PARTY HAS SINCE FINISHED (review, Nov 5).
+## SAVE & EXIT leaves a shared fight now, so the partners can end it while
+## this ship is away; restarted, it was a second fight against an enemy the
+## party had killed (a second Custodian, or a dead Hellbender's reward again).
+## Finished means the party's fight here, with the saved ids, killed or broken
+## off; a fight saved at the core with the core cleared since; or a Hellbender
+## no longer here. A fight everyone simply left (`paid` 0) starts again, as a
+## solo one always has.
+func _saved_fight_over(saved: Dictionary) -> bool:
+	if not Net.is_networked() or not bool(saved.get("share", true)):
+		return false
+	var ids: Array = saved.get("ids", [])
+	var f := Net.fight_at(Run.at)
+	if f != null and f.over and (f.paid > 0 or f.broke):
+		var theirs: Array = []
+		for id in f.foe_ids:
+			theirs.append(String(id))
+		if theirs == ids:
+			return true
+	var n: MapGen.MapNode = Run.node_at()
+	if bool(saved.get("clears", true)) and n != null and n.cleared:
+		return true
+	return String(ids[0]) == "hellbender" and 		(not Run.hellbender_alive() or Run.hellbender_at != Run.at)
+
 
 ## Everybody you are flying with, with the numbers the convoy strip has no room
 ## for. `back` is where LEAVE returns to, so the HUD can be reached from three
@@ -1181,7 +1217,6 @@ func resolve_current_node() -> void:
 	if n.ambush_pending and no_fights_at(n):
 		n.ambush_pending = false
 	if n.ambush_pending:
-		Run.log_line("Contact. They saw your heat on the approach.", &"heat")
 		# Asked for HERE rather than stored at arrival. Positional, so it is the
 		# same pack however often it is asked and on whichever machine -- which
 		# is what lets the flag be a boolean instead of a list.
@@ -1189,9 +1224,19 @@ func resolve_current_node() -> void:
 		if pack.is_empty():
 			n.ambush_pending = false
 		else:
+			# A PARTNER ALREADY FIGHTING HERE: the pack is folded into their
+			# fight (one fight per system, `start_combat`) and spent with it,
+			# so the line says whose fight it is rather than announcing a
+			# contact that never shows up (review, Nov 5).
+			var theirs := party_fight_here()
+			if theirs.is_empty():
+				Run.log_line("Contact. They saw your heat on the approach.", &"heat")
+			else:
+				Run.log_line("%s is already fighting here. You join their fight."
+					% opener_name(Net.fight_at(n.index)), &"good")
 			# SHARED, like every fight at a place (Oct 22): a partner landing
 			# here while you are still in it can JOIN rather than watch.
-			start_combat(pack[0], pack.slice(1), false, true)
+			start_combat(pack[0], pack.slice(1), false, true, not theirs.is_empty())
 			return
 
 	# The hellbender holds this system. Nothing here is reachable past it — not the
@@ -1597,14 +1642,23 @@ static func no_fights_at(n: MapGen.MapNode) -> bool:
 	return n != null and n.type == MapGen.NodeType.STATION
 
 
+## TEST SEAM: the next `start_combat` does not look for a partner's fight here
+## first, as a ship whose copy of it is still on the wire would not (the
+## same-second race, Nov 5). One process cannot put a push in flight on
+## purpose, and two cannot time one. `-- cofight race` and
+## `-- sheet=MidJoinTest` set it; never game code.
+var forced_race: bool = false
+## Counts asks to the party, so "Waiting for the host." is said only for the
+## one still waiting.
+var _ask_serial: int = 0
+
+
+## `told`: the caller has already said whose fight this is (an arrival ambush
+## folded into a partner's), so the "Fighting alongside" line is not said too.
 func start_combat(template: EnemyTemplate, extras: Array = [],
-		clears_node: bool = true, share: bool = true) -> void:
+		clears_node: bool = true, share: bool = true, told: bool = false) -> void:
 	if no_fights_at(Run.node_at()):
 		return
-	# Bosses are hand-tuned set pieces, so they get the dread cue rather than
-	# the theme at full intensity. DREAD_NOTES §5, "boss reveal". The hellbender is
-	# one of those in everything but what winning pays, so it gets the cue too.
-	Audio.music_state(&"boss" if template.boss or template.miniboss else &"combat")
 	# A FIGHT IS NOT SOMETHING YOU HAVE WHILE TIED UP. This builds its own
 	# SectorScreen rather than going through show_sector(), so it has to clear
 	# the flag itself -- otherwise the HUD's second tab still said STATION on the
@@ -1619,11 +1673,20 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 	# that planned a different enemy here would hold the party's numbers on the
 	# wrong hulls. Built from the fight's own ids instead, the same on every
 	# machine (Oct 22 playtest: "couldn't join his fight").
-	if share:
+	var blind := forced_race
+	forced_race = false
+	var folded := false
+	if share and not blind:
 		var open := party_fight_here()
 		if not open.is_empty():
 			template = open[0]
 			extras = open.slice(1)
+			folded = true
+	# Bosses are hand-tuned set pieces, so they get the dread cue rather than
+	# the theme at full intensity. DREAD_NOTES §5, "boss reveal". The hellbender is
+	# one of those in everything but what winning pays, so it gets the cue too.
+	# (Of the fight joined, when it is a partner's.)
+	Audio.music_state(&"boss" if template.boss or template.miniboss else &"combat")
 	combat = Combat.new()
 	combat.clears_node = clears_node
 	var s := SectorScreen.new()
@@ -1679,14 +1742,100 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 	var f: SharedFight = null
 	if share:
 		# One round trip on a client, none on the host, and null in the solo
-		# game. Null means "fight it alone", which is what every one of those
-		# three wants when there is nobody else here.
-		f = await Net.open_fight(node.index, combat.foe_ids(),
-			combat.foe_hp(), combat.foe_brace(), combat.foe_hp_now(), combat.grown)
-		if f != null and f.crew.size() > 1:
-			var names := Net.fight_crew_names(node.index)
-			Run.log_line("Fighting alongside %s." % ", ".join(names).to_upper(), &"good")
+		# game or once the party is gone. Null means "fight it alone", which is
+		# what every one of those wants when there is nobody else here. While
+		# the link is up a guest waits as long as the host takes (Nov 5), and
+		# past TAKE_TIMEOUT the log says why nothing has happened yet.
+		var cb := combat
+		_ask_serial += 1
+		var ask := _ask_serial
+		if Net.is_networked() and not Net.is_host():
+			get_tree().create_timer(NetSession.TAKE_TIMEOUT).timeout.connect(func() -> void:
+				if _ask_serial == ask and combat == cb:
+					Run.log_line("Waiting for the host.", &"them"))
+		# (planned, not begun: nothing in it can be pressed until the answer)
+		cb.asking_at = node.index
+		f = await Net.open_fight(node.index, cb.foe_ids(),
+			cb.foe_hp(), cb.foe_brace(), cb.foe_hp_now(), cb.grown)
+		cb.asking_at = -1
+		_ask_serial += 1
+		# LEFT OR ENDED WHILE ASKING: SAVE & EXIT, ABANDON or a new run dropped
+		# this fight before the answer came, or it ended unbegun. Seated all
+		# the same, it leaves again, or the party waits on a ship that is not
+		# there; unless the fight up now is the party's here too (a quick
+		# CONTINUE, attached or still asking), which this seat is already in.
+		if combat != cb or cb.finished:
+			var kept := combat != null and combat != cb and 				(combat.shared_at == node.index or combat.asking_at == node.index)
+			if f != null and not kept:
+				Net.leave_fight(node.index)
+			return
+		if f != null:
+			_take_answer(f, folded, told)
 	combat.begin(f)
+
+
+## THE HOST'S ANSWER, TAKEN WHOLE (the same-second race, Nov 5).
+##
+## One fight per system, owned by the host, and a second start never opens a
+## second fight: it is seated in the first. A ship that asked to OPEN (no
+## partner's fight was here when it looked) and is seated in a partner's was
+## beaten to it by a push still on the wire. Its own contact is spent, as an
+## option fight folded into a partner's always was, and it fights theirs:
+## `Combat.begin` builds the enemy from the fight's ids, and this says so and
+## writes down the fight that SAVE & EXIT restarts (`fight_door`). Every other
+## shared answer is the fight it asked for.
+##
+## A JOIN CAN BE ANSWERED WITH ANOTHER FIGHT too (review, Nov 5): the fight it
+## meant to join ended and a partner opened a new one here before the ask
+## arrived. `begin` builds that one, so it is the one written down as well, or
+## SAVE & EXIT would restart the fight that had ended.
+func _take_answer(f: SharedFight, folded: bool, told: bool) -> void:
+	var theirs := f.crew.size() > 1 and f.crew[0] != Net.local_id()
+	var other := f.foe_ids != combat.foe_ids()
+	if other or (theirs and not folded):
+		var door := fight_door(f)
+		combat.clears_node = door.clears
+		current_fight = {ids = door.ids, clears = door.clears, share = true}
+		if other:
+			Audio.music_state(door.cue)
+	if theirs and not folded:
+		Run.log_line("%s got here first. You join their fight." % opener_name(f), &"good")
+	elif f.crew.size() > 1 and not told:
+		var names := Net.fight_crew_names(f.at)
+		Run.log_line("Fighting alongside %s." % ", ".join(names).to_upper(), &"good")
+
+
+## Who is first in a fight's crew, by name, as the log says names, or "A
+## PARTNER" for a ship the roster does not know.
+func opener_name(f: SharedFight) -> String:
+	var who := Net.name_of(f.crew[0]) if f != null and not f.crew.is_empty() else ""
+	return who.to_upper() if who != "" else "A PARTNER"
+
+
+## A PARTY'S FIGHT AS A DOOR INTO IT: its templates lead first, which door the
+## game opens it by (`kind`: the hellbender, the core, or a contact), whether
+## winning it clears the system, and its music cue. One answer for JOIN FIGHT
+## and for a start the host answered with a partner's fight, so the two cannot
+## drift. Empty templates when an id is unknown here.
+func fight_door(f: SharedFight) -> Dictionary:
+	var templates := Combat.templates_of(f.foe_ids) if f != null else []
+	var lead: EnemyTemplate = templates[0] if not templates.is_empty() else null
+	var n: MapGen.MapNode = Run.node_at()
+	var kind := &"contact"
+	if lead != null and lead.miniboss:
+		kind = &"hellbender"
+	elif n != null and n.type == MapGen.NodeType.CORE and not n.cleared:
+		kind = &"core"
+	var ids: Array = []
+	if f != null:
+		for id in f.foe_ids:
+			ids.append(String(id))
+	return {templates = templates, ids = ids, kind = kind,
+		# the core clears its node on a win; the hellbender is a visitor, and
+		# every other fight opened by an option or an arrival leaves the system
+		# as it was (`join_fight`, `engage_hellbender`, `start_ambush`)
+		clears = kind == &"core",
+		cue = &"boss" if lead != null and (lead.boss or lead.miniboss) else &"combat"}
 
 ## Start the fight waiting at this system.
 ##
@@ -1799,15 +1948,16 @@ func join_fight_names() -> String:
 func join_fight() -> void:
 	if not can_join_fight():
 		return
-	var open := party_fight_here()
-	var lead: EnemyTemplate = open[0]
-	var n: MapGen.MapNode = Run.node_at()
-	if lead.miniboss:
-		engage_hellbender()
-	elif n.type == MapGen.NodeType.CORE and not n.cleared:
-		engage_here()
-	else:
-		start_combat(lead, open.slice(1), false, true)
+	var door := fight_door(Net.fight_at(Run.at))
+	if door.templates.is_empty():
+		return
+	match door.kind:
+		&"hellbender":
+			engage_hellbender()
+		&"core":
+			engage_here()
+		_:
+			start_combat(door.templates[0], door.templates.slice(1), door.clears, true)
 
 ## What an option's fight brings at `n`. With no `foe`, a ship: one, off
 ## `Rng.foe`, from the ordinary pool -- never fauna, even in a fauna region,

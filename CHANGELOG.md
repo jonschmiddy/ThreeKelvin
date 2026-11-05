@@ -6,12 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Fixed** — in co-op, two ships that start different fights in the same system at the same moment
+  now end up in one fight, the one that started first, on both screens. The second ship's log says
+  "VELA got here first. You join their fight." Before, it could show the wrong enemy, take hits from
+  attacks it was never shown, or never be able to finish the fight.
+- **Fixed** — in co-op, SAVE & EXIT or ABANDON in a shared fight now takes your ship out of it. Your
+  friends no longer wait on you forever, and CONTINUE puts you back in their fight as a new arrival.
+  If the fight ended while you were away, CONTINUE does not start it again, and the log says "The fight
+  ended while you were away."
+- **Fixed** — in co-op, a slow host no longer leaves you fighting your own copy of the enemy. The log
+  says "Waiting for the host." until the answer comes. If your join lands in the same moment as the
+  last kill, you share the win instead of getting stuck.
+- **Changed** — an ambush on arrival where a friend is already fighting now says "VELA is already
+  fighting here. You join their fight." instead of announcing a contact that never shows up.
 - **Added** — NEW THINGS on the title menu, between SETTINGS and MESSAGE FROM JON. It opens a page
   in the note's case that lists what changed in each build, newest first: the version, the day it
   went out and a few short lines. Changes not out yet are headed "dev" when run from source and
   "NEXT" with the commit in a test build. A small amber square beside NEW THINGS means this build's
   notes are unread, or a line was added since you last opened it, and opening the page clears it. Jon asked for it on Nov 5. `tools/dev/release.sh` now refuses a version whose NEW THINGS entry
   is not on top and dated.
+
 - **Fixed** — on the sector map, when A.S.H. says "Click a world twice and we fly there", she now
   outlines the world nearest your ship instead of the ship. It is a world a click reaches (not one
   behind a sun or under another event's marker), and not one your ship sits on top of when there is

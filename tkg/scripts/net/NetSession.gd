@@ -203,6 +203,12 @@ var forced_protocol: int = 0
 var forced_fingerprint: int = 0
 ## And which build this session claims to be (`-- nettest`); empty is the real one.
 var forced_build: String = ""
+## A HOST THAT IS SLOW TO ANSWER (`-- nettest`, `-- sheet=MidJoinTest`): fight
+## asks are held, unanswered, until `release_asks()`. A relay round trip is
+## well under a second, so the slow answer cannot be had any other way on one
+## machine. Never set from game code.
+var hold_asks: bool = false
+var _held_asks: Array = []
 
 ## Arrival order, kept by the host. Peer ids are random 32-bit numbers, not a
 ## count, so sorting a roster by id shuffles the party every time somebody
@@ -397,6 +403,7 @@ func host_party(player_name: String, hull_id: StringName, t: NetTransport = null
 	_builds.clear()
 	claims.clear()
 	fights.clear()
+	_held_asks.clear()
 	spots.clear()
 	_galaxy_theirs.clear()
 	galaxy_mine.clear()
@@ -432,6 +439,7 @@ func join_party(code: String, player_name: String, hull_id: StringName, t: NetTr
 	_builds.clear()
 	claims.clear()
 	fights.clear()
+	_held_asks.clear()
 	spots.clear()
 	_galaxy_theirs.clear()
 	galaxy_mine.clear()
@@ -459,6 +467,7 @@ func leave_party() -> void:
 	_builds.clear()
 	claims.clear()
 	fights.clear()
+	_held_asks.clear()
 	spots.clear()
 	_galaxy_theirs.clear()
 	galaxy_mine.clear()
@@ -814,8 +823,21 @@ func _push_claims_to(all: Dictionary) -> void:
 @rpc("any_peer", "call_remote", "reliable")
 func _open_fight_at_host(index: int, ids: PackedStringArray, hp: PackedInt32Array,
 		brace: PackedInt32Array, cur: PackedInt32Array, grown: int) -> void:
-	if is_host():
-		_open_or_join(index, ids, hp, brace, cur, grown, multiplayer.get_remote_sender_id())
+	if not is_host():
+		return
+	var by := multiplayer.get_remote_sender_id()
+	if hold_asks:
+		_held_asks.append([index, ids, hp, brace, cur, grown, by])
+		return
+	_open_or_join(index, ids, hp, brace, cur, grown, by)
+
+
+## The test seam's other half: answer every held ask now, in the order asked.
+func release_asks() -> void:
+	var held := _held_asks
+	_held_asks = []
+	for a: Array in held:
+		_open_or_join(a[0], a[1], a[2], a[3], a[4], a[5], a[6])
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -1502,8 +1524,22 @@ func take(index: int, option: int = MapGen.OPTION_WHOLE) -> int:
 ##
 ## Returns the shared fight, or null. NULL IS A NORMAL ANSWER AND MEANS "FIGHT
 ## IT ALONE": it is what the solo game gets, what a party of one gets, and what
-## a client gets if the host never answers. All three want the same behaviour,
+## a client gets once the party is gone. All three want the same behaviour,
 ## which is the fight the game has always had.
+##
+## THE ANSWER MAY NOT BE WHAT YOU ASKED FOR. One fight per system, and the host
+## seats a second asker in the first: a ship that planned Y here can be handed
+## X, opened a moment earlier by a partner whose push had not reached it yet
+## (the same-second race). The caller takes it whole (`Combat.begin` builds
+## the enemy from its ids; `Router.start_combat` says whose fight it is).
+##
+## NO PRIVATE FIGHT WHILE THE LINK IS UP (Nov 5). This waited TAKE_TIMEOUT and
+## then said null, though the host might already have seated the ship: its
+## private copy never sent END TURN or a leave, so the party sat on "WAIT", and
+## at the core it was a second Custodian it could win the run against. A
+## reliable message arrives unless the link drops, and a dropped link is
+## `party_failed`, which ends the wait. Past TAKE_TIMEOUT, `Router` says
+## "Waiting for the host."
 ## `cur` is the enemy's CURRENT hull, which is `hp` for everything except a
 ## fight that opens against something already hurt — the hellbender carrying a
 ## previous engagement's damage.
@@ -1522,8 +1558,7 @@ func open_fight(index: int, ids: PackedStringArray, hp: PackedInt32Array,
 	# a moment later holding different numbers.
 	_open_fight_at_host.rpc_id(1, index, ids, hp, brace, cur, grown)
 	var me := local_id()
-	var deadline := _now() + TAKE_TIMEOUT
-	while _now() < deadline:
+	while _can_talk():
 		await get_tree().process_frame
 		var f: SharedFight = fights.get(index, null)
 		if f != null and f.crew.has(me):
@@ -1595,12 +1630,24 @@ func report_end_turn(index: int) -> void:
 ## You are out of it — dead, fled, or done. Not optional: a crew list holding
 ## somebody who will never press END TURN again is a fight that never takes
 ## another turn.
+##
+## A guest stops counting itself in its own copy AT ONCE. The host's push that
+## says so is a round trip away, and a ship that leaves and asks again (SAVE &
+## EXIT, then CONTINUE) checks this copy first: still listed, it was handed the
+## fight it left, joined to nothing, grown by nothing (review, Nov 5). The
+## leave is the host's own (`SharedFight.leave`): out of `ended` too, and a
+## fight with nobody left in it is over here at once, so the JOIN bar does not
+## offer an empty fight while the host's push is on its way. A push the host
+## sent before it heard puts this copy back as it was, until the next.
 func leave_fight(index: int) -> void:
 	if not _can_talk():
 		return
 	if is_host():
 		_apply_leave(index, 1)
 	else:
+		var f: SharedFight = fights.get(index, null)
+		if f != null:
+			f.leave(local_id())
 		_leave_fight_at_host.rpc_id(1, index)
 
 
@@ -1649,9 +1696,11 @@ func _open_or_join(index: int, ids: PackedStringArray, hp: PackedInt32Array,
 	if f != null and not f.over:
 		# Already somebody's fight. The second ship in is help, not a second
 		# frigate — see SharedFight.join(). Its `grown` is ignored, as its hp
-		# is: the fight's count is the galaxy's already.
-		if not f.join(by):
-			return
+		# is: the fight's count is the galaxy's already. Its ids are ignored
+		# too: it planned its own enemy, and this is the answer it takes.
+		# A ship already seated asking again is answered all the same, with
+		# nothing grown: an ask with no push behind it waits for one.
+		f.join(by)
 	else:
 		f = SharedFight.open(index, ids, hp, brace, cur, by, grown)
 		fights[index] = f
@@ -1920,6 +1969,7 @@ func _drop(message: String) -> void:
 	_builds.clear()
 	claims.clear()
 	fights.clear()
+	_held_asks.clear()
 	spots.clear()
 	_galaxy_theirs.clear()
 	galaxy_mine.clear()

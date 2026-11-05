@@ -704,8 +704,12 @@ build is planned yet.
 - **Set bonus texts that do not match the code.** Cygnet 5, Verity 5 and
   Calyx 5 by the Oct 17 finding; `CHANGELOG.md`'s 0.1.0 known issues name
   Cygnet 5, Korvan 3 and Solari 3. Parked until after the alpha (Jon, Oct 18).
-- **Co-op:** two ships starting different fights in one system in the same
-  second can mismatch. Rare; left as it is.
+- ~~**Co-op:** two ships starting different fights in one system in the same
+  second can mismatch. Rare; left as it is.~~ Fixed Nov 5 (Jon: "Yeah you can
+  fix it"): every asker takes the host's fight, with the review's three holes
+  (the slow answer, SAVE & EXIT and ABANDON not leaving, a join on the kill).
+  `docs/netcode.md`, "The same-second race". Joining mid-fight stunned is next
+  (slices 2 to 4 of `tk-scratch/coopjoin/DESIGN.md`).
 
 ## 3. Running alongside
 
