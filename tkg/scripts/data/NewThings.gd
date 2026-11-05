@@ -42,7 +42,7 @@ const LIST := [
 			"The Custodian grows stronger with each jump after your fifteenth.",
 			"An eye beside the goal shows how strong the Custodian is.",
 			"In co-op the whole party fights the same Custodian.",
-			"About one system in four has two suns that circle each other.",
+			"About one system in four is a binary, its stars circling each other.",
 			"The autopilot flies a real path through the pull of suns and giants.",
 			"A jump can go two rings deeper, up from one.",
 			"Stations are rarer, and each one has all five decks.",
