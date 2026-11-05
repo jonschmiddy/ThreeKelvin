@@ -514,9 +514,10 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	# pointer went out in one frame as the camera set off (the capital's glass
 	# 52 to 39 grey), and the screen's snow flashed on the bare glass
 	var fxl := st._lab.fx_layer()
-	_ok("%s, animated: mid-move the press's glow and the screen's own effects are gone with it (press %.2f, screen %.2f), the room's edge let go (veil %s)" % [tag,
-		st._glass_press.modulate.a, fxl.modulate.a, zoom._veil.visible],
-		st._glass_press.modulate.a < 0.02 and fxl.modulate.a < 0.02 and zoom._veil.visible)
+	_ok("%s, animated: mid-move the press's glow and the screen's own effects are gone with it (press %.2f, screen %.2f, hushed %s), the room's edge let go (veil %s, walls %s)" % [tag,
+		st._glass_press.modulate.a, fxl.modulate.a, st._lab._glass.hushed, zoom._veil.visible, zoom._walls.visible],
+		st._glass_press.modulate.a < 0.02 and fxl.modulate.a < 0.02 and st._lab._glass.hushed
+		and zoom._veil.visible and zoom._walls.visible)
 	# Esc mid-move turns it round, and no pause menu opens
 	var esc := InputEventKey.new()
 	esc.keycode = KEY_ESCAPE
@@ -536,10 +537,10 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 		hud.modulate.a, st._rail.modulate.a, st._bench.modulate.a, chrome_while_moving],
 		not zoom.is_open() and is_equal_approx(hud.modulate.a, 1.0) and is_equal_approx(st._rail.modulate.a, 1.0)
 		and is_equal_approx(st._bench.modulate.a, 1.0) and chrome_while_moving > 0.98)
-	_ok("%s, animated: out again, the press's glow and the screen's effects back (press %.2f, screen %.2f, veil %s)" % [tag,
-		st._glass_press.modulate.a, st._lab.fx_layer().modulate.a, zoom._veil.visible],
+	_ok("%s, animated: out again, the press's glow and the screen's effects back (press %.2f, screen %.2f, hushed %s, veil %s)" % [tag,
+		st._glass_press.modulate.a, st._lab.fx_layer().modulate.a, st._lab._glass.hushed, zoom._veil.visible],
 		is_equal_approx(st._glass_press.modulate.a, 1.0) and is_equal_approx(st._lab.fx_layer().modulate.a, 1.0)
-		and not zoom._veil.visible)
+		and not st._lab._glass.hushed and not zoom._veil.visible)
 	# IN AGAIN: a click mid-move lands it, and goes no further (it is where
 	# the AUGMENT tab will be)
 	await _click(_find_button(st._bench, "RESEARCH"))
@@ -554,6 +555,11 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	await _frames(4)
 	_ok("%s, animated: landed, frames on, the HUD and the rail stay gone (HUD %.2f, rail %.2f)" % [tag, hud.modulate.a, st._rail.modulate.a],
 		zoom.landed() and hud.modulate.a < 0.02 and st._rail.modulate.a < 0.02)
+	# nothing drawn for nothing under the landed frame: the walls and the veil
+	# behind it are hidden (they cost a pass of the room's light every frame)
+	_ok("%s, animated: landed, the walls and the veil under the frame are hidden (walls %s, life %s, veil %s)" % [tag,
+		zoom._walls.visible, zoom._wall_life.visible, zoom._veil.visible],
+		zoom.landed() and not zoom._walls.visible and not zoom._wall_life.visible and not zoom._veil.visible)
 	# OUT, with a click on the glass mid-move: it lands out, and the Lab stays shut
 	await _click(zoom.leave_button)
 	await _until(func() -> bool: return zoom._at <= out_s + ZoomLadder.LAB_ZOOM_S * 0.5)

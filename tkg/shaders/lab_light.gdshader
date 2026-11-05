@@ -69,8 +69,9 @@ float pool(ivec2 g, int i) {
 }
 
 // One room pixel lit, and whether the camera has let it go: (rgb, alpha).
-vec4 shade(sampler2D tex, ivec2 p, float dith) {
-	vec3 base = texelFetch(tex, p, 0).rgb;
+// `base` is its painted colour (TEXTURE read in fragment(): handed to a
+// function as a sampler it raised a shader compiler ERROR each load).
+vec4 shade(vec3 base, ivec2 p, float dith) {
 	vec4 col;
 	if (fullbright) {
 		col = vec4(base, 1.0);
@@ -151,11 +152,12 @@ vec4 shade(sampler2D tex, ivec2 p, float dith) {
 void fragment() {
 	ivec2 p = ivec2(floor(UV * vec2(textureSize(TEXTURE, 0))));
 	float dith = (BAYER[(p.y % 4) * 4 + (p.x % 4)] + 0.5) / 16.0;
-	vec4 a = shade(TEXTURE, p, dith);
+	vec4 a = shade(texelFetch(TEXTURE, p, 0).rgb, p, dith);
 	if (mirror > 0.0 && inside(p, mirror_box)) {
 		// THE BENCH LOOKED OVER: the rows turned over from above, faded in
 		// (premultiplied, so a pixel let go on either side fades as it should)
-		vec4 b = shade(TEXTURE, ivec2(p.x, int(mirror_sum) - p.y), dith);
+		ivec2 pm = ivec2(p.x, int(mirror_sum) - p.y);
+		vec4 b = shade(texelFetch(TEXTURE, pm, 0).rgb, pm, dith);
 		float al = mix(a.a, b.a, mirror);
 		vec3 rgb = mix(a.rgb * a.a, b.rgb * b.a, mirror);
 		a = vec4(al > 0.0 ? rgb / al : vec3(0.0), al);
