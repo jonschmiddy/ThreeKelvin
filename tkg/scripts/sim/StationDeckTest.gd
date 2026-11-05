@@ -498,6 +498,14 @@ func _recipes_page(zoom: LabZoom, here: MapGen.MapNode, tag: String, dev: int) -
 		and w0.has("NEEDS A RELIC + %d CREDITS" % PRICES[dev]) and w0.has("NONE  ·  FROM WRECKS, DANGER 7+")
 		and bad0.is_empty())
 	var prices: Array = rec._rings.map(func(g: Dictionary) -> int: return Fabricator.price(here, g.r))
+	# A CLICK ON A FADED ROW with nothing aboard: the page stays empty, no key,
+	# and the row does not look pressable
+	var row0 := rec.get_global_transform() * Vector2(LabRecipes.RAIL_X + 120, int(rec._items[0].cy))
+	await _click_at(row0)
+	await _frames(2)
+	_ok("%s: with nothing aboard a click on a faded row leaves the page empty, with no key and no hand cursor (%s)" % [tag, rec.hand],
+		rec.hand == &"" and not rec.commit_button.visible and rec.row_at(Vector2(LabRecipes.RAIL_X + 120, int(rec._items[0].cy))) == -1
+		and rec.leaves.any(func(l: Array) -> bool: return str(l[0]) == "NOTHING TO MAKE"))
 	_ok("%s: RELIC ANALYSIS costs %d credits, DEVELOP FILM and READ FOR DATA none (%s)" % [tag, PRICES[dev], prices],
 		prices == [0, 0, PRICES[dev]])
 	# TWO ROLLS AND A RELIC
@@ -560,10 +568,10 @@ func _recipes_page(zoom: LabZoom, here: MapGen.MapNode, tag: String, dev: int) -
 	var w4: Array = words.call()
 	var bad4 := zoom.check()
 	var made := str(rec.done.get("line", ""))
-	_ok("%s: MAKE clicked on RELIC ANALYSIS reads the relic out (relics %d, credits %d to %d, %s), the rail says none, the key stands disabled (%s)" % [tag,
+	_ok("%s: MAKE clicked on RELIC ANALYSIS reads the relic out (relics %d, credits %d to %d, %s), the rail says none, the key is gone (%s)" % [tag,
 		Run.material(&"relic"), c0, Run.credits, made, "clean" if bad4.is_empty() else "; ".join(bad4)],
 		Run.material(&"relic") == 0 and Run.credits == c0 - PRICES[dev] and made.begins_with("The fragment reads out as")
-		and w4.has(made.to_upper()) and w4.has("NONE  ·  FROM WRECKS, DANGER 7+") and key.visible and key.disabled
+		and w4.has(made.to_upper()) and w4.has("NONE  ·  FROM WRECKS, DANGER 7+") and not key.visible
 		and rec._rings.all(func(g: Dictionary) -> bool: return g.st == &"later") and bad4.is_empty())
 	Run.spend_material(&"survey_film", Run.material(&"survey_film"))
 	Run.data = data_was

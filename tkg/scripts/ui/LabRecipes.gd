@@ -59,61 +59,21 @@ const WORDS_X := 736
 const ORDER := [&"survey_film", &"relic"]
 ## The rings' order (the old rows' order): DATA first, then the part.
 const RECIPE_ORDER := [&"develop", &"read", &"analysis"]
-## A can of survey film: '#' edge, '+' body, 'O' its band.
-const CAN := [
-	"......####......",
-	"..############..",
-	".#++++++++++++#.",
-	".##############.",
-	".#++++++++++++#.",
-	".#OOOOOOOOOOOO#.",
-	".#+O++O++O++O+#.",
-	".#OOOOOOOOOOOO#.",
-	".#++++++++++++#.",
-	".#++++++++++++#.",
-	".#++++++++++++#.",
-	".#++++++++++++#.",
-	".##############.",
-	".#++++++++++++#.",
-	"..############..",
-]
-## A relic, a precursor fragment: '#' its edge, '+' its body, 'O' its marks.
-const RELIC := [
-	"............############..........",
-	"........####++++++++++++####......",
-	"......##++++++++++++++++++++##....",
-	"....##++++++++++++++++++++++++#...",
-	"..##+++++++++OOO++OOO+++++++++##..",
-	".#++++++OOO++++++++++++OO++++++#..",
-	"..#++++++++++++++++++++++++OO++#..",
-	"..#++OO++++++++++O++++++++++++#...",
-	"...#+++++++++++++++O++++++++##....",
-	"...##++++++++O+++++O+++++++#......",
-	"....#+++++++++++###++++++O+#......",
-	"..###+O++++++++#...#++++++++##....",
-	"....###+++++++#....###++++##......",
-	".......##++###........####........",
-	".........##.......................",
-]
-## Anything else a recipe might take one day: a plain crate.
-const CRATE := [
-	"..............",
-	".############.",
-	".#++++++++++#.",
-	".#+O++++++O+#.",
-	".#++++++++++#.",
-	".############.",
-	".#++++++++++#.",
-	".#+O++++++O+#.",
-	".#++++++++++#.",
-	".############.",
-]
+## THE PICTURES ARE DRAWN HERE, IN CODE, as shaded images the size of a part's
+## sprite, and go through AUGMENT's own two hands: its phosphor on the rail,
+## its schematic (outline, a line at each step of shading, four tones) on the
+## bench. One drawing in both places; the film's leader, pulled out of its slot
+## on the bench, is its only change. The relic is a broken slab of precursor
+## circuitry, not an Earth thing: three faces, a crack, traces that run off its
+## broken edges, and a ringed core.
+static var _imgs := {}
+static var _texs := {}
 ## Each thing in words: all of it, its unit (one, many), what it is on the bench, what a
 ## recipe needs of it, what a recipe uses, where it comes from (short, long),
 ## and its line on the rail's key.
 const WORDS := {
 	&"survey_film": {all = "SURVEY FILM", one = "ROLL", many = "ROLLS", kind = "UNDEVELOPED", need = "A ROLL OF FILM",
-		uses = "1 ROLL", the = "1 ROLL", from = "SOME EVENTS PAY IT",
+		uses = "1 ROLL", the = "1 ROLL", from = "FROM SOME EVENTS",
 		from_long = "SOME EVENTS PAY YOU IN SURVEY FILM.", key = "FILM COMES FROM SOME EVENTS."},
 	&"relic": {all = "RELICS", one = "RELIC", many = "RELICS", kind = "PRECURSOR FRAGMENT", need = "A RELIC",
 		uses = "THE RELIC", the = "THE RELIC", from = "FROM WRECKS, DANGER 7+",
@@ -152,6 +112,13 @@ var _lines := PackedByteArray()
 var _live: Control
 var _clock := 0.0
 var _frame := -1
+## THE SCANNER'S OWN CLOCK (s into its sweep) and the row it is on: it steps
+## one pixel at a time down the drawing over `SCAN_S`, then rests at the
+## bottom for `SCAN_REST_S`. On the page's 0.09 s loop it jumped 5 to 6 px.
+var _scan := 0.0
+var _scan_row := -1
+const SCAN_S := 3.0
+const SCAN_REST_S := 0.5
 
 
 func _init() -> void:
@@ -337,7 +304,7 @@ func _commit() -> void:
 
 ## Put a thing on the rail in hand (a click on its row).
 func pick_item(id: StringName) -> void:
-	if _item(id).is_empty():
+	if _item(id).is_empty() or empty():
 		return
 	hand = id
 	done = {}
@@ -360,16 +327,28 @@ func _process(delta: float) -> void:
 	if not is_visible_in_tree():
 		return
 	_clock += delta
+	_scan = fmod(_scan + delta, SCAN_S + SCAN_REST_S)
+	var row := _scan_y()
 	var f := int(floorf(_clock / LabBoard.FRAME_S)) % LabBoard.FRAMES
-	if f != _frame:
+	if f != _frame or row != _scan_row:
 		_frame = f
+		_scan_row = row
 		phase = float(f) / float(LabBoard.FRAMES)
 		_live.queue_redraw()
+
+
+## The scanner's line, in page px (its picture's top, down to its bottom).
+func _scan_y() -> int:
+	if not _pic.has_area():
+		return -1
+	var t := clampf(_scan / SCAN_S, 0.0, 1.0)
+	return _pic.position.y + mini(_pic.size.y, int(floorf(t * float(_pic.size.y + 1))))
 
 
 func hold_phase(p: float) -> void:
 	set_process(false)
 	phase = p
+	_scan = p * (SCAN_S + SCAN_REST_S)
 	_live.queue_redraw()
 
 
@@ -407,6 +386,10 @@ func node_at(p: Vector2) -> int:
 
 ## The rail row under `p`, or -1: its picture, its words, the room between.
 func row_at(p: Vector2) -> int:
+	# (with nothing aboard the rows are outlines that say where each thing
+	# comes from: nothing to pick, so nothing that looks pressable)
+	if empty():
+		return -1
 	for i in _items.size():
 		var cy: int = _items[i].cy
 		if Rect2(RAIL_X - 4, cy - 30, 300, 60).has_point(p):
@@ -417,7 +400,9 @@ func row_at(p: Vector2) -> int:
 # ------------------------------------------------------------------ restyle
 
 func _restyle() -> void:
-	var show := hand != &"" and not picked().is_empty()
+	# (none of it aboard, as after the last one is made: the bar says what
+	# came of it, and a key that cannot be pressed is not drawn)
+	var show := hand != &"" and not picked().is_empty() and Run.material(hand) > 0
 	commit_button.visible = show
 	if show:
 		commit_button.disabled = not bool(bill().ok)
@@ -491,53 +476,6 @@ func _icon(ci: CanvasItem, name: String, cx: int, cy: int, c: Color, lit: bool =
 				ci.draw_rect(Rect2(cx - n / 2 + i, cy - n / 2 + j, 1, 1), c2)
 			elif ch == "O":
 				ci.draw_rect(Rect2(cx - n / 2 + i, cy - n / 2 + j, 1, 1), LabBoard.WHITE)
-
-
-## A bitmap at `k` times: '#' hi, '+' lo, 'O' mark.
-func _bitmap(ci: CanvasItem, rows: Array, x: int, y: int, k: int, hi: Color, lo: Color, mark: Color, lit: bool = false) -> void:
-	if light and not lit:
-		return
-	for j in rows.size():
-		var row: String = rows[j]
-		for i in row.length():
-			var ch := row[i]
-			var c: Color
-			if ch == "#":
-				c = hi
-			elif ch == "+":
-				c = lo
-			elif ch == "O":
-				c = mark
-			else:
-				continue
-			ci.draw_rect(Rect2(x + i * k, y + j * k, k, k), c)
-
-
-## A bitmap as AUGMENT's schematic: its outline at `k` times, a flat body
-## (none for `bare`, the outline alone).
-func _schematic(ci: CanvasItem, rows: Array, x: int, y: int, k: int, hi: Color, lo: Color, mark: Color, bare: bool, lit: bool) -> void:
-	var hgt := rows.size()
-	var wid := (rows[0] as String).length()
-	var inside := func(i: int, j: int) -> bool:
-		if i < 0 or j < 0 or j >= hgt or i >= wid:
-			return false
-		return (rows[j] as String)[i] != "."
-	for j in hgt:
-		for i in wid:
-			if not inside.call(i, j):
-				continue
-			if not bare:
-				var ch := (rows[j] as String)[i]
-				var body := LabBoard.mixc(BG, lo, 0.55) if ch != "O" else LabBoard.mixc(BG, mark, 0.75)
-				_rect(ci, Rect2i(x + i * k, y + j * k, k, k), body, lit)
-			if not inside.call(i, j - 1):
-				_rect(ci, Rect2i(x + i * k, y + j * k, k, 1), hi, lit)
-			if not inside.call(i, j + 1):
-				_rect(ci, Rect2i(x + i * k, y + j * k + k - 1, k, 1), hi, lit)
-			if not inside.call(i - 1, j):
-				_rect(ci, Rect2i(x + i * k, y + j * k, 1, k), hi, lit)
-			if not inside.call(i + 1, j):
-				_rect(ci, Rect2i(x + i * k + k - 1, y + j * k, 1, k), hi, lit)
 
 
 func _text(ci: CanvasItem, x: int, ycap: int, s: String, c: Color, sz: int = 8, lit: bool = false, name: String = "") -> int:
@@ -617,22 +555,207 @@ static func word_ink(a: float) -> Color:
 	return LabAugment.word_ink(a)
 
 
-static func _pic_of(id: StringName) -> Array:
+## The picture of `id` as a shaded image (its grey is the shading, its alpha
+## its shape), with the film's leader out of its slot (`out`).
+static func pic_image(id: StringName, out: bool = false) -> Image:
+	var key := "%s|%s" % [id, out]
+	if _imgs.has(key):
+		return _imgs[key]
+	var lum: Array
 	if id == &"survey_film":
-		return CAN
-	if id == &"relic":
-		return RELIC
-	return CRATE
+		lum = _film(out)
+	elif id == &"relic":
+		lum = _relic()
+	else:
+		lum = _crate()
+	var h := lum.size()
+	var w := (lum[0] as PackedFloat32Array).size()
+	var im := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	im.fill(Color(0, 0, 0, 0))
+	for y in h:
+		var row: PackedFloat32Array = lum[y]
+		for x in w:
+			if row[x] >= 0.0:
+				var v := clampf(row[x], 0.0, 1.0)
+				im.set_pixel(x, y, Color(v, v, v, 1.0))
+	_imgs[key] = im
+	return im
 
 
-## The film can with its leader out of the slot, for the bench.
-static func _can_out() -> Array:
-	var tongue := {8: "#########.", 9: "O+O+O+O+#.", 10: "++++++++#.", 11: "O+O+O+O+#.", 12: "#########."}
-	var out := []
-	for i in CAN.size():
-		var row: String = CAN[i]
-		out.append(row.substr(0, 15) + str(tongue[i]) if tongue.has(i) else row + ".........")
+## On the rail: AUGMENT's phosphor of the picture, [as it looks, what glows].
+static func rail_tex(id: StringName, hi: Color, lo: Color, lit: bool) -> Array:
+	var key := "rail|%s|%s|%s|%s" % [id, hi.to_html(), lo.to_html(), lit]
+	if not _texs.has(key):
+		_texs[key] = LabAugment._phosphor(pic_image(id), hi, lo, lit)
+	return _texs[key]
+
+
+## On the bench: AUGMENT's schematic at `k`, [as it looks, what glows, the row
+## its body is widest on].
+static func bench_tex(id: StringName, k: int) -> Array:
+	var key := "bench|%s|%d" % [id, k]
+	if not _texs.has(key):
+		_texs[key] = LabAugment._schematic(pic_image(id, id == &"survey_film"), k)
+	return _texs[key]
+
+
+static func _blank(w: int, h: int) -> Array:
+	var out: Array = []
+	for y in h:
+		var row := PackedFloat32Array()
+		row.resize(w)
+		row.fill(-1.0)
+		out.append(row)
 	return out
+
+
+static func _lum_at(l: Array, x: int, y: int) -> float:
+	if y < 0 or y >= l.size() or x < 0 or x >= (l[y] as PackedFloat32Array).size():
+		return -1.0
+	return (l[y] as PackedFloat32Array)[x]
+
+
+## Set one pixel's shade (`only_in`: only where the picture already is).
+static func _put(l: Array, x: int, y: int, v: float, only_in: bool = false) -> void:
+	if y < 0 or y >= l.size() or x < 0 or x >= (l[y] as PackedFloat32Array).size():
+		return
+	var row: PackedFloat32Array = l[y]
+	if only_in and row[x] < 0.0:
+		return
+	row[x] = v
+	l[y] = row
+
+
+static func _line(l: Array, pts: Array, v: float) -> void:
+	for i in pts.size() - 1:
+		var a: Vector2i = pts[i]
+		var b: Vector2i = pts[i + 1]
+		var n := maxi(absi(b.x - a.x), absi(b.y - a.y))
+		for j in n + 1:
+			var t := float(j) / float(maxi(1, n))
+			_put(l, roundi(a.x + (b.x - a.x) * t), roundi(a.y + (b.y - a.y) * t), v, true)
+
+
+static func _side(a: Vector2, b: Vector2, p: Vector2) -> float:
+	return (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
+
+
+## A relic: a slab broken off something bigger, 46 x 32.
+static func _relic() -> Array:
+	var w := 46
+	var h := 32
+	var l := _blank(w, h)
+	var poly := PackedVector2Array([Vector2(0, 21), Vector2(9, 7), Vector2(20, 1), Vector2(33, 2), Vector2(45, 7),
+		Vector2(40, 13), Vector2(45, 18), Vector2(37, 23), Vector2(31, 31), Vector2(23, 26), Vector2(15, 30), Vector2(8, 25)])
+	for y in h:
+		for x in w:
+			var p := Vector2(x + 0.5, y + 0.5)
+			if not Geometry2D.is_point_in_polygon(p, poly):
+				continue
+			# three faces off two ridges, lit from the top left
+			var v := 0.40 if _side(Vector2(20, 1), Vector2(23, 26), p) < 0.0 else 0.30
+			if _side(Vector2(0, 21), Vector2(45, 12), p) < 0.0:
+				v += 0.12
+			v += 0.10 * (1.0 - float(x + y) / float(w + h))
+			_put(l, x, y, v)
+	# the bevel: its top and left edges catch the light, the others fall away
+	var bev := l.duplicate(true)
+	for y2 in h:
+		for x2 in w:
+			var v2 := _lum_at(l, x2, y2)
+			if v2 < 0.0:
+				continue
+			if _lum_at(l, x2, y2 - 1) < 0.0 or _lum_at(l, x2 - 1, y2) < 0.0:
+				_put(bev, x2, y2, minf(1.0, v2 + 0.14))
+			elif _lum_at(l, x2, y2 + 1) < 0.0 or _lum_at(l, x2 + 1, y2) < 0.0:
+				_put(bev, x2, y2, v2 - 0.12)
+	l = bev
+	# its cracks
+	_line(l, [Vector2i(41, 8), Vector2i(36, 12), Vector2i(37, 16), Vector2i(33, 18)], 0.08)
+	_line(l, [Vector2i(20, 26), Vector2i(21, 29)], 0.08)
+	# circuit traces off the core, cut off where the slab broke, a groove under each
+	var traces := [
+		[Vector2i(17, 15), Vector2i(9, 15), Vector2i(9, 11), Vector2i(4, 11)],
+		[Vector2i(17, 15), Vector2i(17, 6), Vector2i(26, 6), Vector2i(26, 1)],
+		[Vector2i(17, 15), Vector2i(29, 15), Vector2i(29, 10), Vector2i(40, 10), Vector2i(40, 13)],
+		[Vector2i(17, 15), Vector2i(17, 22), Vector2i(24, 22), Vector2i(24, 26)],
+		[Vector2i(29, 15), Vector2i(29, 20), Vector2i(38, 20)],
+		[Vector2i(9, 15), Vector2i(9, 20), Vector2i(12, 20), Vector2i(12, 25)],
+		[Vector2i(26, 6), Vector2i(33, 6)],
+	]
+	for t: Array in traces:
+		var low: Array = []
+		for q: Vector2i in t:
+			low.append(q + Vector2i(1, 1))
+		_line(l, low, 0.12)
+	for t2: Array in traces:
+		_line(l, t2, 0.92)
+	for t3: Array in traces:
+		var e: Vector2i = t3[-1]
+		for dx in 2:
+			for dy in 2:
+				_put(l, e.x + dx - (1 if e.x > 17 else 0), e.y + dy - (1 if e.y > 15 else 0), 1.0, true)
+	# the core: a ring round a bright eye
+	for y3 in h:
+		for x3 in w:
+			var d := Vector2(x3 - 17, y3 - 15).length()
+			if d > 2.6 and d < 4.0:
+				_put(l, x3, y3, 0.98, true)
+			elif d <= 1.2:
+				_put(l, x3, y3, 1.0, true)
+			elif d <= 2.6:
+				_put(l, x3, y3, 0.18, true)
+	return l
+
+
+static func _cyl(x: int, x0: int, x1: int, lo: float, hi: float) -> float:
+	var t := (x - x0 + 0.5) / float(x1 - x0 + 1)
+	return lo + (hi - lo) * pow(maxf(0.0, 1.0 - absf(t - 0.3) / 0.7), 1.5)
+
+
+## A can of survey film, 24 x 32, or 36 wide with its leader out (`out`).
+static func _film(out: bool) -> Array:
+	var w := 36 if out else 24
+	var l := _blank(w, 32)
+	# the spool's hub, the caps a little wider than the can, the can
+	for y in 3:
+		for x in range(9, 15):
+			_put(l, x, y, _cyl(x, 9, 14, 0.35, 0.9))
+	for y2: int in [3, 4, 5, 27, 28, 29]:
+		for x2 in range(2, 22):
+			_put(l, x2, y2, 0.2 if y2 == 5 or y2 == 27 else _cyl(x2, 2, 21, 0.3, 0.85))
+	for y3 in range(6, 27):
+		for x3 in range(4, 20):
+			var band := y3 >= 11 and y3 < 19
+			_put(l, x3, y3, _cyl(x3, 4, 19, 0.12, 0.35) if band else _cyl(x3, 4, 19, 0.25, 0.7))
+	# the band's marks, and the slot the film comes out of
+	for x4 in range(5, 19, 3):
+		for y4 in range(13, 17):
+			_put(l, x4, y4, 0.95)
+	for y5 in range(12, 18):
+		_put(l, 19, y5, 0.08)
+	if out:
+		for y6 in range(13, 18):
+			for x6 in range(20, 35):
+				if (y6 == 13 and x6 >= 33) or (y6 == 17 and x6 >= 32):
+					continue
+				_put(l, x6, y6, 0.55 if y6 == 13 or y6 == 17 else 0.45)
+		for x7 in range(20, 33):
+			_put(l, x7, 15, 0.62)
+		for x8 in range(22, 33, 3):
+			_put(l, x8, 14, 0.1)
+			_put(l, x8, 16, 0.1)
+	return l
+
+
+## Anything else a recipe might take one day: a plain crate, 20 x 16.
+static func _crate() -> Array:
+	var l := _blank(20, 16)
+	for y in range(1, 15):
+		for x in range(1, 19):
+			var edge := y == 1 or y == 14 or x == 1 or x == 18 or y == 7 or y == 8
+			_put(l, x, y, 0.8 if edge else 0.4 - 0.1 * float(x) / 18.0)
+	return l
 
 
 static func _words(id: StringName) -> Dictionary:
@@ -655,7 +778,7 @@ static func _gets(r: Dictionary) -> String:
 	if StringName(r.kind) == &"data":
 		return "+%d DATA" % int(r.amount)
 	if StringName(r.kind) == &"artifact":
-		return "1 PART, ROLLED HERE"
+		return "1 RANDOM PART"
 	return str(r.name).to_upper()
 
 
@@ -681,7 +804,6 @@ func paint(ci: CanvasItem) -> void:
 		_text(ci, SX, 118, "THE LAB HAS NO RECIPES HERE", ICE, 16)
 		_caption(ci)
 		return
-	var none := empty()
 	var idle_hi := LabBoard.mixc(CHILL, tint, 0.3)
 	var idle_lo := Color("#2d3d4f")
 	_text(ci, RAIL_X + 12, 70, "IN THE HOLD", word_ink(0.6))
@@ -697,19 +819,21 @@ func paint(ci: CanvasItem) -> void:
 		var held := n > 0
 		var hi := OWN if on and held else (idle_hi if held else (LabBoard.mixc(LATER_R, LATER_T, 0.5) if on else LATER_R))
 		var lo := OWN_D if on and held else (idle_lo if held else BG)
-		var mk := OWN if on and held else LabBoard.mixc(lo, hi, 0.6)
 		var lit := on and held
-		var pic := _pic_of(id)
-		var pw: int = (pic[0] as String).length() * 2
-		var ph: int = pic.size() * 2
-		var px := RAIL_X + 52 - pw / 2
-		var py := cy - ph / 2
+		var tex_pair := rail_tex(id, hi, lo, lit)
+		var tex: Texture2D = tex_pair[1] if light else tex_pair[0]
+		var tsz := Vector2i(tex.get_size())
+		var px := RAIL_X + 52 - tsz.x / 2
+		var py := cy - tsz.y / 2
 		if id == &"survey_film" and n > 1:
-			_bitmap(ci, pic, px - 8, py + 2, 2, LabBoard.mixc(hi, BG, 0.45), LabBoard.mixc(lo, BG, 0.3), LabBoard.mixc(mk, BG, 0.45))
-			_leaf("pic " + str(it.name), px - 8, py, pw + 8, ph + 2)
+			# (more than one roll: a second can behind the first)
+			if not light:
+				ci.draw_texture(tex_pair[0], Vector2(px - 7, py + 2), Color(1, 1, 1, 0.45))
+			_leaf("pic " + str(it.name), px - 7, py, tsz.x + 7, tsz.y + 2)
 		else:
-			_leaf("pic " + str(it.name), px, py, pw, ph)
-		_bitmap(ci, pic, px, py, 2, hi, lo, mk, lit)
+			_leaf("pic " + str(it.name), px, py, tsz.x, tsz.y)
+		if not light or lit:
+			ci.draw_texture(tex, Vector2(px, py))
 		var tx := RAIL_X + 98
 		var w := _words(id)
 		var l2 := ("%s  ·  SELLS FOR %d" % [count_words(id, n), _sells(id)]) if held else "NONE  ·  " + str(w.from)
@@ -724,42 +848,19 @@ func paint(ci: CanvasItem) -> void:
 	for yy in range(ROW0 - 24, last_cy + 16):
 		pts.append(Vector2i(RAIL_X, yy))
 	_path(ci, pts, ground_ink(0.25), false, &"dot", false)
-	# what the Lab takes, as a quiet key under the rail (with nothing held the
-	# rings and the strip say it)
-	if not none:
-		var ky := last_cy + 146
-		_text(ci, RAIL_X + 12, ky, "THE LAB TAKES", word_ink(0.6))
-		var yk := ky + 14
-		for it2: Dictionary in _items:
-			var gets: PackedStringArray = []
-			for r: Dictionary in it2.offers:
-				var g := "DATA" if StringName(r.kind) == &"data" else ("A PART" if StringName(r.kind) == &"artifact" else str(r.name).to_upper())
-				if not gets.has(g):
-					gets.append(g)
-			_text(ci, RAIL_X + 12, yk, "%s  →  %s" % [_words(it2.id).all, " OR ".join(gets)], CHILL)
-			yk += 11
-		yk += 3
-		for it3: Dictionary in _items:
-			var kw := str(_words(it3.id).key)
-			if kw != "":
-				_text(ci, RAIL_X + 12, yk, kw, word_ink(0.55))
-				yk += 11
 	# ---- the one in hand, on the bench under the scanner
 	var it_h := _item(hand)
 	var n_h := int(it_h.get("n", 0))
-	var bmp: Array = []
+	var sch: Array = []
 	var k := 5
-	if hand == &"survey_film":
-		bmp = _can_out()
-		k = 6
-	elif hand != &"":
-		bmp = _pic_of(hand)
-		k = 5 if hand == &"relic" else 6
 	var sw := 150
 	var sh := 90
-	if not bmp.is_empty():
-		sw = (bmp[0] as String).length() * k
-		sh = bmp.size() * k
+	if hand != &"":
+		var src := pic_image(hand, hand == &"survey_film")
+		k = LabAugment.scale_for(src.get_width(), src.get_height())
+		sch = bench_tex(hand, k)
+		sw = src.get_width() * k
+		sh = src.get_height() * k
 	var sy := MID - sh / 2
 	_pic = Rect2i(SX, sy, sw, sh)
 	if hand == &"":
@@ -785,15 +886,24 @@ func paint(ci: CanvasItem) -> void:
 			for t in range(-3, 4):
 				ci.draw_rect(Rect2(c.x + t, c.y, 1, 1), ground_ink(0.6 if bright else 0.35))
 				ci.draw_rect(Rect2(c.x, c.y + t, 1, 1), ground_ink(0.6 if bright else 0.35))
-	if not bmp.is_empty():
+	if not sch.is_empty():
 		if bright:
-			_schematic(ci, bmp, SX, sy, k, OWN, OWN_D, OWN, false, true)
-		else:
-			_schematic(ci, bmp, SX, sy, k, LATER_R, BG, BG, true, false)
+			ci.draw_texture(sch[1] if light else sch[0], Vector2(SX, sy))
+		elif not light:
+			# (none of it left aboard: the drawing dimmed, nothing glows)
+			ci.draw_texture(sch[0], Vector2(SX, sy), Color(1, 1, 1, 0.3))
 	_leaf("schematic", SX - 4, sy - 4, sw + 9, sh + 9)
-	var cl := MID
+	# the centreline through its widest row, AUGMENT's, which the line in from
+	# the rail meets
+	var cl := MID if sch.is_empty() else sy + int(sch[2]) * k + k / 2
+	if not light and not sch.is_empty():
+		var n2 := 0
+		for xx in range(SX - 12, SX + sw + 8):
+			if (n2 % 9 < 5 or n2 % 9 == 6) and not (xx >= SX and xx < SX + sw):
+				_px(ci, xx, cl, LabBoard.mixc(BG, OWN_D if bright else LATER_R, 0.9))
+			n2 += 1
 	if picked_at.x >= 0:
-		_path(ci, LabAugment._curve(Vector2(picked_at), Vector2(SX - 16, cl)), OWN_D if bright else LATER_R, bright, &"dash")
+		_path(ci, LabAugment._curve(Vector2(picked_at), Vector2(SX - 13, cl)), OWN_D if bright else LATER_R, bright, &"dash")
 	var hx := SX + sw + 18
 	var mc := OWN if bright else LATER_R
 	_ring(ci, hx, cl, 4, mc, bright)
@@ -921,7 +1031,10 @@ func _caption(ci: CanvasItem) -> void:
 	var n_h := Run.material(mat)
 	var l2 := ""
 	if n_h > 0:
-		l2 = "%s ABOARD. %s SELLS FOR %d HERE IF YOU WOULD RATHER HAVE THE CREDITS." % [count_words(mat, n_h), "IT" if n_h == 1 else "EACH", _sells(mat)]
+		# (what is aboard and what it sells for are on the rail and the bench:
+		# the strip says only what a press leaves)
+		var used := int((r.mats as Dictionary).get(mat, 1))
+		l2 = "AFTER THIS, %s LEFT ABOARD." % count_words(mat, n_h - used)
 	else:
 		l2 = "NONE LEFT ABOARD. " + str(_words(mat).from_long)
 	_text(ci, tx, 487, l2, CHILL)
@@ -973,7 +1086,7 @@ func paint_live(ci: CanvasItem) -> void:
 	if not done.is_empty() and not picked().is_empty() and StringName(done.id) == StringName(picked().id):
 		_node_live(ci, 60, 480, &"owned", phase)
 	if hand != &"" and Run.material(hand) > 0 and _pic.has_area():
-		var y := _pic.position.y + int(phase * float(_pic.size.y + 1))
+		var y := _scan_y()
 		for d in range(0, 7):
 			var yy := y - d
 			if yy < _pic.position.y:
