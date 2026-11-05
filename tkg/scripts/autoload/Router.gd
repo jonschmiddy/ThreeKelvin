@@ -564,12 +564,40 @@ func resume_here() -> void:
 	var ids: Array = f.get("ids", [])
 	if ids.is_empty() or not DB.enemies.has(StringName(ids[0])):
 		return
+	if _saved_fight_over(f):
+		Run.log_line("The fight ended while you were away.", &"them")
+		return
 	var extras: Array = []
 	for i in range(1, ids.size()):
 		if DB.enemies.has(StringName(ids[i])):
 			extras.append(DB.enemies[StringName(ids[i])])
 	start_combat(DB.enemies[StringName(ids[0])], extras,
 		bool(f.get("clears", true)), bool(f.get("share", true)))
+
+## A FIGHT SAVED OUT OF THAT THE PARTY HAS SINCE FINISHED (review, Nov 5).
+## SAVE & EXIT leaves a shared fight now, so the partners can end it while
+## this ship is away; restarted, it was a second fight against an enemy the
+## party had killed (a second Custodian, or a dead Hellbender's reward again).
+## Finished means the party's fight here, with the saved ids, killed or broken
+## off; a fight saved at the core with the core cleared since; or a Hellbender
+## no longer here. A fight everyone simply left (`paid` 0) starts again, as a
+## solo one always has.
+func _saved_fight_over(saved: Dictionary) -> bool:
+	if not Net.is_networked() or not bool(saved.get("share", true)):
+		return false
+	var ids: Array = saved.get("ids", [])
+	var f := Net.fight_at(Run.at)
+	if f != null and f.over and (f.paid > 0 or f.broke):
+		var theirs: Array = []
+		for id in f.foe_ids:
+			theirs.append(String(id))
+		if theirs == ids:
+			return true
+	var n: MapGen.MapNode = Run.node_at()
+	if bool(saved.get("clears", true)) and n != null and n.cleared:
+		return true
+	return String(ids[0]) == "hellbender" and 		(not Run.hellbender_alive() or Run.hellbender_at != Run.at)
+
 
 ## Everybody you are flying with, with the numbers the convoy strip has no room
 ## for. `back` is where LEAVE returns to, so the HUD can be reached from three
@@ -1725,15 +1753,20 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 			get_tree().create_timer(NetSession.TAKE_TIMEOUT).timeout.connect(func() -> void:
 				if _ask_serial == ask and combat == cb:
 					Run.log_line("Waiting for the host.", &"them"))
-		f = await Net.open_fight(node.index, combat.foe_ids(),
-			combat.foe_hp(), combat.foe_brace(), combat.foe_hp_now(), combat.grown)
+		# (planned, not begun: nothing in it can be pressed until the answer)
+		cb.asking_at = node.index
+		f = await Net.open_fight(node.index, cb.foe_ids(),
+			cb.foe_hp(), cb.foe_brace(), cb.foe_hp_now(), cb.grown)
+		cb.asking_at = -1
 		_ask_serial += 1
-		# LEFT WHILE ASKING: SAVE & EXIT, ABANDON or a new run dropped this
-		# fight before the answer came. Seated all the same, it leaves again,
-		# or the party waits on a ship that is not there; unless a fight here
-		# has started since (a quick CONTINUE), which is in this one.
-		if combat != cb:
-			if f != null and not (combat != null and Run.at == node.index):
+		# LEFT OR ENDED WHILE ASKING: SAVE & EXIT, ABANDON or a new run dropped
+		# this fight before the answer came, or it ended unbegun. Seated all
+		# the same, it leaves again, or the party waits on a ship that is not
+		# there; unless the fight up now is the party's here too (a quick
+		# CONTINUE, attached or still asking), which this seat is already in.
+		if combat != cb or cb.finished:
+			var kept := combat != null and combat != cb and 				(combat.shared_at == node.index or combat.asking_at == node.index)
+			if f != null and not kept:
 				Net.leave_fight(node.index)
 			return
 		if f != null:
@@ -1751,14 +1784,21 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 ## `Combat.begin` builds the enemy from the fight's ids, and this says so and
 ## writes down the fight that SAVE & EXIT restarts (`fight_door`). Every other
 ## shared answer is the fight it asked for.
+##
+## A JOIN CAN BE ANSWERED WITH ANOTHER FIGHT too (review, Nov 5): the fight it
+## meant to join ended and a partner opened a new one here before the ask
+## arrived. `begin` builds that one, so it is the one written down as well, or
+## SAVE & EXIT would restart the fight that had ended.
 func _take_answer(f: SharedFight, folded: bool, told: bool) -> void:
 	var theirs := f.crew.size() > 1 and f.crew[0] != Net.local_id()
-	if theirs and not folded:
+	var other := f.foe_ids != combat.foe_ids()
+	if other or (theirs and not folded):
 		var door := fight_door(f)
 		combat.clears_node = door.clears
 		current_fight = {ids = door.ids, clears = door.clears, share = true}
-		if f.foe_ids != combat.foe_ids():
+		if other:
 			Audio.music_state(door.cue)
+	if theirs and not folded:
 		Run.log_line("%s got here first. You join their fight." % opener_name(f), &"good")
 	elif f.crew.size() > 1 and not told:
 		var names := Net.fight_crew_names(f.at)

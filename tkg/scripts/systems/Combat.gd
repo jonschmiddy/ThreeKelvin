@@ -138,6 +138,13 @@ var _seen_hit: int = 0
 ## Ended your turn and waiting on the rest of the party. The only moment in a
 ## shared fight that blocks — see SharedFight.end_turn().
 var waiting: bool = false
+## THE SYSTEM THIS FIGHT IS ASKING THE PARTY ABOUT, or -1 (review, Nov 5).
+## `Router.start_combat` plans the fight, sets this, and waits for the host's
+## answer before `begin`. With no time limit on that wait, a fight planned but
+## not begun is a real state: no hand, and END TURN, FLEE, HAIL and every card
+## are refused in it. END TURN there ran a private enemy turn the answer then
+## undid, and a flee left a ship the late answer seated for good.
+var asking_at: int = -1
 ## THE COUNT THIS FIGHT'S HULL WAS GROWN AT (`RunState.custodian_jumps`), or -1
 ## when nothing in it grows. Set in `plan`, sent with the fight
 ## (`Net.open_fight`, `SharedFight.grown`), and followed in a shared fight as
@@ -434,7 +441,7 @@ func begin_turn() -> void:
 	Sig.player_combat_state_changed.emit()
 
 func end_turn() -> void:
-	if finished:
+	if finished or asking_at >= 0:
 		return
 	# A CHOICE CANNOT OUTLIVE THE TURN THAT ASKED IT. Ending the turn with one
 	# open would carry "pick 2" into a hand that no longer contains what it was
@@ -675,7 +682,7 @@ func can_play(c: CardData) -> bool:
 	# Nothing is playable while a card is waiting for you to pick. A hand that
 	# accepted a play mid-choice would resolve two cards in an order neither of
 	# them stated.
-	return not finished and choosing <= 0 and energy >= c.energy
+	return not finished and asking_at < 0 and choosing <= 0 and energy >= c.energy
 
 ## Pick one of the cards a discard or a decommission is waiting on.
 ##
@@ -1004,7 +1011,7 @@ func salvo_live(c: CardData) -> bool:
 
 
 func can_hail() -> bool:
-	if finished or waiting or enemies.is_empty():
+	if finished or waiting or asking_at >= 0 or enemies.is_empty():
 		return false
 	if struck or hail_failed:
 		return false
@@ -1107,7 +1114,7 @@ var flee_failed := false
 ## NOT included -- breaking off it banks the damage you did, which is the whole
 ## shape of that chase, and taking that away would quietly delete a mechanic.
 func can_flee() -> bool:
-	if finished or waiting or flee_failed:
+	if finished or waiting or asking_at >= 0 or flee_failed:
 		return false
 	for e in enemies:
 		if (e as EnemyState).template.boss:

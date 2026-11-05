@@ -34,6 +34,19 @@ extends Node
 ##     fighting alone, and the log says "Waiting for the host."; the late
 ##     answer is taken; and SAVE & EXIT before it comes leaves the fight the
 ##     answer seats it in.
+##
+## And the review of slice 1 (Nov 5):
+##   - ON THE HOST, SAVE & EXIT on a turn VELA has ended: the leave closes the
+##     barrier at once, and the fight left must not be listening when the turn
+##     moves (`Combat.abandon` lets go first);
+##   - AS A GUEST, CONTINUE after the party killed the fight this ship saved
+##     out of does not open a second one ("The fight ended while you were
+##     away."), while a fight everyone simply left still starts again;
+##   - while the host holds the ask, END TURN, FLEE, HAIL and cards are refused
+##     (END TURN ran a private enemy turn), and a fight that ends unbegun
+##     leaves the seat the late answer gives it;
+##   - a JOIN answered with a newer fight (the one it meant ended, a partner
+##     opened another) writes down the newer one for SAVE & EXIT.
 
 const PORT_HOSTING := DirectTransport.DEFAULT_PORT + 29
 const PORT_GUEST := DirectTransport.DEFAULT_PORT + 31
@@ -53,6 +66,9 @@ var _errs := ErrCount.new()
 ## with no hull, which is a script error and nothing else shows it.
 class ErrCount extends Logger:
 	var n := 0
+	## Of those, the game's own scripts' (`res://`): an RPC to a partner that is
+	## a roster row only is the engine's error, and expected on the host.
+	var scripts := 0
 	var first: Array[String] = []
 	var lock := Mutex.new()
 
@@ -62,6 +78,8 @@ class ErrCount extends Logger:
 			return
 		lock.lock()
 		n += 1
+		if file.begins_with("res://"):
+			scripts += 1
 		if first.size() < 6:
 			first.append("%s  (%s:%d %s)" % [rationale if rationale != "" else code, file, line, function])
 		lock.unlock()
@@ -126,8 +144,43 @@ func _host_side() -> void:
 	if cb != null:
 		cb.release()
 	Router.combat = null
+	await _host_save_exit_closes_the_barrier()
 	Net.leave_party()
 	await _frames(2)
+
+
+## ON THE HOST, SAVE & EXIT on a turn VELA has already ended. The host's leave
+## is applied at once, and with VELA the only one left it closes the barrier:
+## the swing, the turn moving and its push, all inside the leave. A fight still
+## listening then runs the new turn with no hull (`abandon` lets go of the
+## signal bus BEFORE it leaves; the review found nothing failed with the order
+## the other way round).
+func _host_save_exit_closes_the_barrier() -> void:
+	print("\n--- (host) SAVE & EXIT on a turn VELA has ended")
+	var at := _systems[1]
+	await _go(at)
+	SaveGame.save()
+	Router.start_combat(DB.enemies[&"cutter"], [], false, true)
+	await _frames(3)
+	var cb: Combat = Router.combat
+	if not _ok("(host-exit) the host's own fight is open, and shared",
+			cb != null and cb.is_shared() and Net.fight_at(at) != null):
+		return
+	var v := _plan(&"cutter", [])
+	Net._open_or_join(at, v.foe_ids(), v.foe_hp(), v.foe_brace(), v.foe_hp_now(), v.grown, 777)
+	Net._apply_end_turn(at, 777)
+	await _frames(2)
+	_ok("(host-exit) VELA is in it and has ended her turn",
+		Net.fight_at(at).crew.has(777) and Net.fight_at(at).ended.has(777) and Net.fight_at(at).turn == 1)
+	var errs := _errs.scripts
+	await _menu(&"save")
+	await _frames(5)
+	var f := Net.fight_at(at)
+	_ok("(host-exit) the leave closes the barrier: the host is out, the turn moves (crew %s, turn %d)" % [
+		str(f.crew), f.turn], not f.crew.has(Net.local_id()) and f.turn == 2)
+	_ok("(host-exit) and the fight left was not listening when it did (%d script errors%s)" % [
+		_errs.scripts - errs, (": " + " | ".join(_errs.first)) if _errs.scripts > errs else ""],
+		_errs.scripts == errs)
 
 
 # --- as a guest ---------------------------------------------------------------
@@ -152,6 +205,9 @@ func _guest_side() -> void:
 	await _ambush_at_their_fight()
 	await _slow_answer()
 	await _left_while_asking()
+	await _continue_after_the_kill()
+	await _pressed_while_asking()
+	await _join_answered_with_another()
 	await _guest_done()
 
 
@@ -371,6 +427,162 @@ func _left_while_asking() -> void:
 	await _frames(5)
 	_ok("(asking) and nothing here breaks (%d errors%s)" % [_errs.n - errs,
 		(": " + " | ".join(_errs.first)) if _errs.n > errs else ""], _errs.n == errs)
+
+
+## CONTINUE AFTER THE PARTY'S KILL: this ship saved out of VELA's fight, she
+## killed it, and CONTINUE restarted the saved fight. Her fight here was over,
+## so the ship asked to open one, and the host opened a fresh enemy at full
+## hull (at the core a second Custodian; for the Hellbender a dead ship's
+## reward again). And a fight everyone simply left still starts again.
+func _continue_after_the_kill() -> void:
+	print("\n--- CONTINUE after the party killed the fight this ship saved out of")
+	_new_run()
+	await _frames(2)
+	var at := _systems[7]
+	await _go(at)
+	SaveGame.save()
+	var me := Net.local_id()
+	var z := _plan(&"cutter", [])
+	await _host.open_fight(at, z.foe_ids(), z.foe_hp(), z.foe_brace(), z.foe_hp_now(), z.grown)
+	if not _ok("(after-kill) JOIN FIGHT is offered", await _until(func() -> bool: return Router.can_join_fight(), 4.0)):
+		return
+	Router.join_fight()
+	if not _ok("(after-kill) joined", await _until(func() -> bool:
+			return Router.combat != null and Router.combat.is_shared() and _host.fight_at(at).crew.has(me), 5.0)):
+		return
+	await _menu(&"save")
+	await _until(func() -> bool: return not _host.fight_at(at).crew.has(me), 3.0)
+	var killed := _host.fight_at(at)
+	for i in killed.foes.size():
+		_host.hurt_foe(at, i, 9999, 1)
+	_ok("(after-kill) VELA kills it while this ship is away (paid %d)" % killed.paid, await _until(func() -> bool:
+		return Net.fight_at(at) != null and Net.fight_at(at).over, 3.0) and killed.over and killed.paid == 1)
+	_said.clear()
+	Router.continue_run()
+	await _frames(20)
+	_ok("(after-kill) CONTINUE opens no fight here: none on screen, the host's still the one she won (%s)" % [
+		"none" if Router.combat == null else ("shared" if Router.combat.is_shared() else "own")],
+		not Router.in_combat() and _host.fight_at(at) == killed and killed.over)
+	_said_once("(after-kill)", "The fight ended while you were away.")
+	if Router.combat != null:
+		Router.drop_combat()
+
+	# A FIGHT EVERYONE SIMPLY LEFT is not finished: CONTINUE starts it again,
+	# as SAVE & EXIT always has.
+	at = _systems[8]
+	await _go(at)
+	SaveGame.save()
+	Router.start_combat(DB.enemies[&"cutter"], [], false, true)
+	if not _ok("(left-alone) this ship opens a fight alone", await _until(func() -> bool:
+			return Router.combat != null and Router.combat.is_shared(), 5.0)):
+		return
+	await _menu(&"save")
+	var gone := await _until(func() -> bool:
+		return _host.fight_at(at) != null and _host.fight_at(at).over, 3.0)
+	_ok("(left-alone) SAVE & EXIT leaves it empty and unpaid (paid %d)" % _host.fight_at(at).paid,
+		gone and _host.fight_at(at).paid == 0)
+	Router.continue_run()
+	_ok("(left-alone) and CONTINUE starts it again, the party's", await _until(func() -> bool:
+		return (Router.combat != null and Router.combat.is_shared() and _host.fight_open_at(at)
+			and _host.fight_at(at).crew.has(me)), 5.0))
+	if Router.combat != null:
+		Router.drop_combat()
+	await _frames(3)
+
+
+## WHILE THE HOST HOLDS THE ASK the fight is planned, not begun, and with no
+## time limit on the wait that is a state a bot (or anything calling Combat)
+## can act in. END TURN there ran a private enemy turn (hull down, turn 2, a
+## hand dealt) the answer then wound back; FLEE and HAIL were open. And a
+## fight that ended unbegun was begun on the late answer anyway, attached: the
+## ship sat in the host's crew for good.
+func _pressed_while_asking() -> void:
+	print("\n--- END TURN, FLEE and HAIL while the host holds the ask")
+	_new_run()
+	await _frames(2)
+	var at := _systems[9]
+	await _go(at)
+	var me := Net.local_id()
+	_host.hold_asks = true
+	Router.start_combat(DB.enemies[&"cutter"], [], false, true)
+	await _frames(5)
+	var cb: Combat = Router.combat
+	if not _ok("(press) asking", cb != null and not cb.is_shared()):
+		_host.release_asks()
+		_host.hold_asks = false
+		return
+	var hp := Run.hp
+	cb.end_turn()
+	await _frames(3)
+	_ok("(press) END TURN does nothing yet: turn %d, hand %d, hull %d -> %d" % [cb.turn, cb.hand.size(), hp, Run.hp],
+		cb.turn == 1 and cb.hand.is_empty() and Run.hp == hp and not cb.waiting)
+	_ok("(press) FLEE and HAIL are shut (flee %s, hail %s)" % [str(cb.can_flee()), str(cb.can_hail())],
+		not cb.can_flee() and not cb.can_hail())
+	var card: CardData = cb.deck[0] if not cb.deck.is_empty() else null
+	_ok("(press) and no card can be played", card != null and not cb.can_play(card))
+	_host.release_asks()
+	_host.hold_asks = false
+	_ok("(press) the answer begins it: the party's, turn 1, a hand dealt", await _until(func() -> bool:
+		return cb.is_shared() and cb.turn == 1 and not cb.hand.is_empty(), 5.0))
+	Router.drop_combat()
+	await _frames(3)
+
+	# ENDED UNBEGUN: the late answer must not attach it
+	at = _systems[10]
+	await _go(at)
+	_host.hold_asks = true
+	Router.start_combat(DB.enemies[&"cutter"], [], false, true)
+	await _frames(5)
+	cb = Router.combat
+	if cb == null:
+		_fail("(press) no fight to end while asking")
+		_host.release_asks()
+		_host.hold_asks = false
+		return
+	cb._finish(&"fled", "Gone.")
+	_host.release_asks()
+	_host.hold_asks = false
+	await _until(func() -> bool: return _host.fight_at(at) != null, 3.0)
+	var let_go := await _until(func() -> bool:
+		return _host.fight_at(at) != null and not _host.fight_at(at).crew.has(me), 3.0)
+	_ok("(press) a fight that ended while asking is never attached: the seat is left (shared %s)" % str(cb.is_shared()),
+		let_go and not cb.is_shared())
+	await _settle()
+
+
+## A JOIN ANSWERED WITH ANOTHER FIGHT: this ship asked to join VELA's cutter;
+## before the ask was read the cutter died and she opened a lancer and a hulk
+## here. The answer seats it in the newer fight, `begin` builds that one, and
+## that is the one SAVE & EXIT must restart, not the cutter that had ended.
+func _join_answered_with_another() -> void:
+	print("\n--- a JOIN the host answers with a newer fight here")
+	var at := _systems[11]
+	await _go(at)
+	var x := _plan(&"cutter", [])
+	await _host.open_fight(at, x.foe_ids(), x.foe_hp(), x.foe_brace(), x.foe_hp_now(), x.grown)
+	if not _ok("(newer) JOIN FIGHT is offered", await _until(func() -> bool: return Router.can_join_fight(), 4.0)):
+		return
+	_host.hold_asks = true
+	Router.join_fight()
+	await _frames(5)
+	for i in _host.fight_at(at).foes.size():
+		_host.hurt_foe(at, i, 9999, 1)
+	var y := _plan(&"lancer", [&"hulk"])
+	await _host.open_fight(at, y.foe_ids(), y.foe_hp(), y.foe_brace(), y.foe_hp_now(), y.grown)
+	_host.release_asks()
+	_host.hold_asks = false
+	var cb: Combat = Router.combat
+	if not _ok("(newer) seated in the newer fight", await _until(func() -> bool:
+			return cb != null and cb.is_shared(), 5.0)):
+		return
+	var want := PackedStringArray(["lancer", "hulk"])
+	_ok("(newer) the enemy is the newer fight's (%s)" % str(cb.foe_ids()), cb.foe_ids() == want)
+	_ok("(newer) and SAVE & EXIT would restart it (%s)" % str(Router.current_fight.get("ids", [])),
+		Router.current_fight.get("ids", []) == ["lancer", "hulk"])
+	for i in _host.fight_at(at).foes.size():
+		_host.hurt_foe(at, i, 9999, 1)
+	await _until(func() -> bool: return cb.finished, 5.0)
+	await _settle()
 
 
 func _guest_done() -> void:

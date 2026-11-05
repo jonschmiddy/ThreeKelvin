@@ -1195,6 +1195,17 @@ func _race_test() -> void:
 		fa != null and fa.foe_ids == PackedStringArray(["cutter", "lancer"]))
 	check("(race) and grows nothing", host.fight_at(401).foes[0].max_hp, before)
 	check("(race) and seats it once", Array(host.fight_at(401).crew).count(g[0].local_id()), 1)
+	# THE HOST ALWAYS ANSWERS (review, Nov 5): a ship already seated whose own
+	# copy does not list it (gone, or a push behind) asks again. With no time
+	# limit on the wait, an ask the host met with silence waited for ever.
+	g[0].fights.erase(401)
+	var mute: Array = [null, null, -1.0]
+	_ask_race_into(g[0], 401, cutter, [lancer], mute)
+	var heard := await _wait_until(func() -> bool: return mute[1] != null, 3.0)
+	ok("(race) the host answers a ship it has already seated, whatever its copy says", heard)
+	if not heard:
+		g[0].fights[401] = SharedFight.from_wire(host.fight_at(401).to_wire())
+	check("(race) and grows nothing for it", host.fight_at(401).foes[0].max_hp, before)
 	var share := maxi(1, int(round(host.fight_at(401).foes[0].base * SharedFight.CREW_SHARE)))
 	g[0].leave_fight(401)
 	# At once, before the host has heard: on a real link the host's push of the
@@ -1208,6 +1219,17 @@ func _race_test() -> void:
 	var in_once := await _wait_until(func() -> bool:
 		return Array(host.fight_at(401).crew).count(g[0].local_id()) == 1, 3.0)
 	ok("(race) and is in the host's crew once", in_once)
+
+	# ALONE IN A FIGHT, A SHIP THAT LEAVES ENDS IT IN ITS OWN COPY at once
+	# (review, Nov 5): the copy kept `over` false with an empty crew until the
+	# host's push, and the JOIN bar could offer that same fight with no names.
+	var solo: Array = await _ask_race(g[1], 412, cutter, [])
+	ok("(race) a ship opens a fight alone", solo[1] != null and (solo[1] as SharedFight).crew.size() == 1)
+	g[1].leave_fight(412)
+	var mine: SharedFight = g[1].fight_at(412)
+	ok("(race) and leaving it ends it in its own copy at once (over %s, crew %s)" % [
+		str(mine.over), str(mine.crew)], mine.over and mine.crew.is_empty() and not g[1].fight_open_at(412))
+	await _wait_until(func() -> bool: return host.fight_at(412).over, 3.0)
 
 	# THE SLOW ANSWER. Past TAKE_TIMEOUT the ask used to come back null and the
 	# guest fought a private copy of the enemy, though the host had seated it:

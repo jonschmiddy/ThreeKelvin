@@ -1634,7 +1634,11 @@ func report_end_turn(index: int) -> void:
 ## A guest stops counting itself in its own copy AT ONCE. The host's push that
 ## says so is a round trip away, and a ship that leaves and asks again (SAVE &
 ## EXIT, then CONTINUE) checks this copy first: still listed, it was handed the
-## fight it left, joined to nothing, grown by nothing (review, Nov 5).
+## fight it left, joined to nothing, grown by nothing (review, Nov 5). The
+## leave is the host's own (`SharedFight.leave`): out of `ended` too, and a
+## fight with nobody left in it is over here at once, so the JOIN bar does not
+## offer an empty fight while the host's push is on its way. A push the host
+## sent before it heard puts this copy back as it was, until the next.
 func leave_fight(index: int) -> void:
 	if not _can_talk():
 		return
@@ -1643,9 +1647,7 @@ func leave_fight(index: int) -> void:
 	else:
 		var f: SharedFight = fights.get(index, null)
 		if f != null:
-			var i := f.crew.find(local_id())
-			if i >= 0:
-				f.crew.remove_at(i)
+			f.leave(local_id())
 		_leave_fight_at_host.rpc_id(1, index)
 
 
