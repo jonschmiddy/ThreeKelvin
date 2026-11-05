@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   attacks it was never shown, or never be able to finish the fight.
 - **Fixed** — in co-op, SAVE & EXIT or ABANDON in a shared fight now takes your ship out of it. Your
   friends no longer wait on you forever, and CONTINUE puts you back in their fight as a new arrival.
+  If the fight ended while you were away, CONTINUE does not start it again, and the log says "The fight
+  ended while you were away."
 - **Fixed** — in co-op, a slow host no longer leaves you fighting your own copy of the enemy. The log
   says "Waiting for the host." until the answer comes. If your join lands in the same moment as the
   last kill, you share the win instead of getting stuck.
