@@ -16,14 +16,16 @@ extends RefCounted
 ## anywhere); B a row for every change with its totals ("HULL -5 35 > 30");
 ## E a row for every change with its new total ("HULL -5 31"); NOTHING GAINED
 ## OR LOST when nothing moved. D only the four stats that moved, each its
-## change alone ("HULL -5"), and no table when none did (Jon, Oct 19).
+## change alone ("HULL -5"), and no table when none did (Jon, Oct 19); and
+## DATA a fifth by the same rule (Jon, Nov 4, science pick 2A): a reading's
+## table reads "FUEL -2", "DATA +5".
 ##
 ## THE BOXES (fit means nothing overlaps): every entry inside the band, apart
 ## from every other entry, off every button (CONTINUE, REWARD, CHOOSE AGAIN,
 ## THEY ARE FIRING), off the text, the head and the YOU CHOSE line; B's rows
 ## inside their own column; and CONTINUE where today's look puts it.
 
-const WORDS := {"credits": "CREDITS", "heat": "HEAT", "hp": "HULL", "fuel": "FUEL"}
+const WORDS := {"credits": "CREDITS", "heat": "HEAT", "hp": "HULL", "fuel": "FUEL", "data": "DATA"}
 const BUTTONS := ["Continue", "Reward", "ChooseAgain", "TheyAreFiring"]
 
 
@@ -101,11 +103,12 @@ static func check(d: LocalEventDrawer, look: StringName, want: Dictionary) -> Ar
 				if not texts.has(t):
 					bad.append("today: no '%s' in [%s]" % [t, said])
 		&"D":
-			# THE FOUR STATS AND NOTHING ELSE (Jon, Oct 19: "let's only show
-			# CREDITS, FUEL, HULL, HEAT on the right"): a row for each that
-			# moved, its change and no total ("just put what is added or
-			# lost"), in hull, fuel, credits, heat order, no thing ever (those
-			# are REWARD's), and no table at all when none of the four moved
+			# THE FOUR STATS AND DATA, NOTHING ELSE (Jon, Oct 19: "let's only
+			# show CREDITS, FUEL, HULL, HEAT on the right"; Nov 4, 2A: DATA
+			# too): a row for each that moved, its change and no total ("just
+			# put what is added or lost"), in hull, fuel, credits, DATA, heat
+			# order, no thing ever (those are REWARD's), and no table at all
+			# when none of them moved
 			var rows: Array = []
 			for k in OutcomeRow.ORDER:
 				var s: Array = want.stats[k]
@@ -115,7 +118,7 @@ static func check(d: LocalEventDrawer, look: StringName, want: Dictionary) -> Ar
 				bad.append("D: the table says [%s], not [%s]" % [said, ", ".join(rows)])
 			var tab := d.panel.find_child("OutcomeTable", true, false)
 			if rows.is_empty() and tab != null:
-				bad.append("D: none of the four stats moved and there is a table [%s]" % said)
+				bad.append("D: none of the stats moved and there is a table [%s]" % said)
 		&"A", &"C", &"B", &"E":
 			for k in WORDS:
 				var s: Array = want.stats[k]
@@ -377,6 +380,7 @@ static func reset(n: MapGen.MapNode, id: StringName, seed_v: int) -> void:
 	Run.heat = 2
 	Run.fuel = 120
 	Run.credits = 180
+	Run.data = 0
 	Rng.event.seed = seed_v
 	Rng.loot.seed = seed_v * 7 + 1
 	Rng.world.seed = seed_v * 13 + 5
@@ -430,6 +434,11 @@ static func find_cases(n: MapGen.MapNode, verbose: bool = false) -> Dictionary:
 					found["nothing"] = rec
 				if not found.has("credits") and sg == ["credits+"] and not rec.stay and not fight:
 					found["credits"] = rec
+				# A READING (science, Nov 4): DATA up and the fuel it burned
+				# down, and nothing else when the table has one like it (the
+				# careful line), so look D reads "FUEL -N · DATA +N"
+				if moved.call("data") > 0 and moved.call("fuel") < 0 and not rec.stay and not fight 						and (not found.has("data") or (sg.size() == 2 and String(found["data"].sig).count(",") > 1)):
+					found["data"] = rec
 				# THE MOST LINES: every stat moved and every different thing named
 				var lines := (sg.size() - (1 if sg.has("part+") else 0) - (1 if sg.has("material+") else 0)
 					+ (want.gained as Dictionary).size())
@@ -455,7 +464,7 @@ static func find_cases(n: MapGen.MapNode, verbose: bool = false) -> Dictionary:
 ## The change kinds an outcome made: "hp-", "credits+", "part+", "frame+".
 static func sig(want: Dictionary) -> Array:
 	var outs: Array = []
-	for k in ["hp", "fuel", "credits", "heat"]:
+	for k in ["hp", "fuel", "credits", "data", "heat"]:
 		var d := int((want.stats[k] as Array)[0])
 		if d != 0:
 			outs.append("%s%s" % [k, "+" if d > 0 else "-"])

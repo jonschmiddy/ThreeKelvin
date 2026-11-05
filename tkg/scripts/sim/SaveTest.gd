@@ -503,6 +503,21 @@ func run() -> void:
 			break
 	if card_node < 0:
 		print("  FAIL: no system to hold the card fixture"); fails += 1
+	# AND A READING TAKEN IN ANOTHER, its line with DATA in it (science, Jon's
+	# 2A, Nov 4): DATA is the bill's fifth row, last, so the line reads
+	# "FUEL -2 · DATA +5" and the card above, which paid none, reads as it did.
+	var read_node := -1
+	for e in Run.map:
+		var nr: MapGen.MapNode = e
+		if nr.type == MapGen.NodeType.SYSTEM and not nr.cleared and nr.options.size() >= 1 				and nr.index != card_node and nr.index != Run.at:
+			read_node = nr.index
+			nr.taken.append(MapGen.OPTION_SITE)
+			nr.results[0] = MapGen.R_SUCCESS
+			OptionResolve._remember(nr, 0, {"stay": false, "res": {"text": "You took the readings and climbed back out. The film can wait."},
+				"bill": EncounterDrawer.bill_rows({"fuel": 40, "data": 16}, {"fuel": 38, "data": 21})})
+			break
+	if read_node < 0:
+		print("  FAIL: no system to hold the reading's card fixture"); fails += 1
 
 	# PARKED IN TWO SYSTEMS, two ways: in orbit of a world (the map's rail),
 	# and stopped in open space where it was flown by hand. Written the way the
@@ -690,6 +705,9 @@ func run() -> void:
 		nl.taken.append(MapGen.OPTION_SITE + 1)
 		check("card 1 once taken", "band", String(EncounterDrawer.option_state(nl, 1).kind))
 		check("card 1 no longer left alone", false, nl.left.has(1))
+	if read_node >= 0:
+		check("the reading's line after reload, DATA and all", "FUEL -2 · DATA +5|You took the readings and climbed back out.",
+			"|".join(Array((Run.map[read_node] as MapGen.MapNode).said.get(0, []))))
 
 	# Galaxy params must come back with their ORIGINAL TYPES, not as the floats
 	# JSON would hand back. `arms` is a loop count.

@@ -6,7 +6,7 @@ extends Node
 ##
 ## The real outcomes `OutcomeCheck.find_cases` finds (Jon's lifepod, credits and
 ## a part, credits and fuel, a part alone, nothing, credits alone, the most
-## changes), each
+## changes, a science reading's DATA and fuel), each
 ## played through LOCAL's band as the map's GO asks for it, its result drawn in
 ## every look in all three layouts:
 ##   the numbers the run moved, said (`OutcomeCheck.check`);
@@ -18,15 +18,19 @@ extends Node
 ##   CONTINUE exactly where today's look has it (in the band layouts; the card
 ##     is seated by its height, so there it is the card's width that holds);
 ##     but D's, at the band's top right, its size and right edge today's;
-##   D's table at 8, only the four stats that moved, no totals (none, no table), the
-##     buttons level with the title and clear of everything, the table
-##     centred under them (`OutcomeCheck.check` / `d_place`).
+##   D's table at 8, only the four stats and DATA that moved, no totals (none,
+##     no table), the buttons level with the title and clear of everything,
+##     the table centred under them (`OutcomeCheck.check` / `d_place`);
+##   and the Lab sheet's row (Jon's 2A, Nov 4) in all three layouts: D reads
+##     "FUEL -2 · DATA +5", box test and all, and so does the line the map's
+##     card keeps (`EncounterDrawer.moved_line`).
 ## Then C's flight, animated (the game's clock stepped 1/60 s):
 ##   the HUD holds its old number until the flight for it lands, then shows the
 ##   new one; something is in the air between; a readout flickers on landing
 ##   and is back to its own colour after; no HUD readout, tab or button moves a
 ##   pixel (only pressable things look pressable, and nothing pressable moves);
-##   nothing is left held. CONTINUE pressed mid-flight lands everything at once.
+##   nothing is left held. On the reading too: its DATA flies to the HUD's
+##   DATA readout, which holds, lands and flickers like the rest. CONTINUE pressed mid-flight lands everything at once.
 ##   Reduced motion: nothing flies, the numbers change at once, it still
 ##   flickers.
 
@@ -58,17 +62,24 @@ func _run() -> void:
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var n := _system()
 	var cases: Dictionary = await OutcomeCheck.find_cases(n)
-	for c in ["jon", "gain", "mix", "card", "nothing", "credits", "big"]:
+	for c in ["jon", "gain", "mix", "card", "nothing", "credits", "big", "data"]:
 		_ok("a real outcome for the case '%s' (%s)" % [c, cases.get(c, {}).get("sig", "none")], cases.has(c))
 	Router.animate_in_harness = false
 	for layout: StringName in [&"row", &"column", &"card"]:
 		LocalEventDrawer.layout = layout
 		for c in cases:
 			await _looks(n, String(c), cases[c], layout)
+	if cases.has("data"):
+		for layout: StringName in [&"row", &"column", &"card"]:
+			LocalEventDrawer.layout = layout
+			await _sheet_row(n, cases["data"], layout)
 	LocalEventDrawer.layout = &"column"
 	if cases.has("big"):
 		await _flight(n, cases["big"], false)
 		await _flight(n, cases["big"], true)
+	if cases.has("data"):
+		await _flight(n, cases["data"], false)
+		await _flight(n, cases["data"], true)
 	OutcomeRow.look = &"today"
 	LocalEventDrawer.quiet = false
 	print("")
@@ -150,7 +161,47 @@ func _looks(n: MapGen.MapNode, c: String, f: Dictionary, layout: StringName) -> 
 	await _tree.process_frame
 
 
-## C, animated, on the big case: the hold, the flight, the landing, the flicker.
+## THE LAB SHEET'S ROW (Jon's 2A, Nov 4: DATA a fifth stat in the result):
+## the reading's result on the real LOCAL, its bill made the sheet's own
+## (fuel 40 to 38, DATA 16 to 21) and drawn in D. The table reads
+## "FUEL -2 · DATA +5", the box test and D's placing pass, and the line the
+## map's card keeps for it says the same. No reading pays exactly this (fuel
+## 2 is tier 3, which pays 8), so the real case's own row is `_looks`'s.
+func _sheet_row(n: MapGen.MapNode, f: Dictionary, layout: StringName) -> void:
+	var got := await _take(n, f)
+	var d: LocalEventDrawer = got[0]
+	if not _ok("the sheet's row (%s): the result is up" % layout, d != null and d.page == &"result"):
+		return
+	var was := {credits = 180, fuel = 40, heat = 2, hp = 30, data = 16}
+	var now := was.duplicate()
+	now.fuel = 38
+	now.data = 21
+	d.out["bill"] = EncounterDrawer.bill_rows(was, now)
+	d.out["got"] = []
+	var stats := {}
+	for k in OutcomeCheck.WORDS:
+		stats[k] = [int(now[k]) - int(was[k]), int(was[k]), int(now[k])]
+	var want := {stats = stats, gained = {}, lost = {}, kind = {}, frame = false, place = false}
+	OutcomeRow.look = &"D"
+	d.out.erase("flown")
+	d._result()
+	for i in 4:
+		await _tree.process_frame
+	var texts: Array = OutcomeCheck.entries(d).map(func(x: Dictionary) -> String: return String(x.text))
+	var said := " · ".join(texts)
+	_ok("the sheet's row (%s): D reads \"%s\"" % [layout, said], said == "FUEL -2 · DATA +5")
+	var bad := OutcomeCheck.check(d, &"D", want)
+	_ok("the sheet's row (%s): fits and sits where D's table goes%s" % [layout,
+		"" if bad.is_empty() else ": " + "; ".join(bad.slice(0, 4))], bad.is_empty())
+	var line := EncounterDrawer.moved_line(d.out.bill)
+	_ok("the sheet's row (%s): the map's card keeps \"%s\"" % [layout, line], line == "FUEL -2 · DATA +5")
+	OutcomeRow.look = &"today"
+	d._drop()
+	await _tree.process_frame
+
+
+## C, animated, on the big case and on the reading: the hold, the flight, the
+## landing, the flicker.
 func _flight(n: MapGen.MapNode, f: Dictionary, reduced: bool) -> void:
 	var tag := "reduced motion" if reduced else "animated"
 	Router.animate_in_harness = true
@@ -191,6 +242,7 @@ func _flight(n: MapGen.MapNode, f: Dictionary, reduced: bool) -> void:
 	if d.text != null:
 		d.text.skip()
 	var flew := 0
+	var flew_keys := {}
 	var moved := ""
 	var last_at := {}
 	var biggest := 0.0
@@ -201,6 +253,7 @@ func _flight(n: MapGen.MapNode, f: Dictionary, reduced: bool) -> void:
 				for a: Dictionary in (c as OutcomeRow.Flight).in_air():
 					flew += 1
 					var k2 := String(a.e.key)
+					flew_keys[k2] = true
 					if last_at.has(k2):
 						biggest = maxf(biggest, (a.at as Vector2).distance_to(last_at[k2]))
 					last_at[k2] = a.at
@@ -222,6 +275,8 @@ func _flight(n: MapGen.MapNode, f: Dictionary, reduced: bool) -> void:
 		_ok("C %s: nothing flies" % tag, flew == 0)
 	else:
 		_ok("C %s: the changes fly to the HUD (%d frames in the air, at most %.1f px a frame)" % [tag, flew, biggest], flew > 0)
+		for k in keys:
+			_ok("C %s: %s flies to its HUD readout" % [tag, OutcomeRow.WORDS[k]], flew_keys.has(k))
 	_ok("C %s: a readout flickers as its change lands" % tag, flickered)
 	_ok("C %s: nothing on the HUD and no button moved%s" % [tag, "" if moved == "" else " (" + moved + ")"], moved == "")
 	var back := true
@@ -256,7 +311,7 @@ func _flight(n: MapGen.MapNode, f: Dictionary, reduced: bool) -> void:
 ## Every HUD readout and tab a change can fly to, and the band's buttons.
 func _watch(hud: HudBar, d: LocalEventDrawer) -> Array:
 	var watch: Array = []
-	for k in ["hp", "heat", "credits", "fuel"]:
+	for k in ["hp", "heat", "credits", "fuel", "data"]:
 		watch.append_array(hud.stat_nodes(k))
 	watch.append_array(hud.tab_nodes(&"chart"))
 	for nm in ["Continue", "Reward"]:
@@ -266,7 +321,7 @@ func _watch(hud: HudBar, d: LocalEventDrawer) -> Array:
 	return watch
 
 
-## What the HUD prints for each stat now: {hp, heat, credits, fuel}.
+## What the HUD prints for each stat now: {hp, heat, credits, fuel, data}.
 func _hud_numbers(hud: HudBar) -> Dictionary:
 	var outd := {}
 	var hp_t := (hud.stat_nodes("hp")[2] as Label).text
@@ -274,7 +329,9 @@ func _hud_numbers(hud: HudBar) -> Dictionary:
 	outd["hp"] = int(hp_t.get_slice("/", 0))
 	outd["heat"] = int(heat_t.get_slice("/", 0).get_slice(" ", 0))
 	outd["credits"] = int(((hud.stat_nodes("credits")[0] as Node).get_node("Value") as Label).text)
-	outd["fuel"] = int(((hud.stat_nodes("fuel")[0] as Node).get_node("Value") as Label).text)
+	# (fuel prints "44/45": the tank's size after the slash, not a digit of it)
+	outd["fuel"] = int(((hud.stat_nodes("fuel")[0] as Node).get_node("Value") as Label).text.get_slice("/", 0))
+	outd["data"] = int(((hud.stat_nodes("data")[0] as Node).get_node("Value") as Label).text)
 	return outd
 
 

@@ -44,6 +44,12 @@ extends RefCounted
 ##      right-aligned. And no totals ("you can remove the total credits and
 ##      fuel part. just put what is added or lost"): "FUEL -3", not
 ##      "FUEL -3 42".
+##      AND DATA, A FIFTH (Jon, Nov 4, science pick 2A, amending the Oct 19
+##      ruling's four): DATA is a stat like credits, spent at a lab and
+##      nowhere else, so a reading's result lists it with the four, after
+##      credits and before heat, by the same rule (only when it moved, its
+##      change alone): "FUEL -2", "DATA +5". Its mark is drawn in ICE, the
+##      HUD's DATA ink, never the credits note's brown: it is not money.
 ##   E  D, AND WHAT YOU GOT, BIG (Jon, of D: "I like this, but there was a
 ##      previous version of this where the things you get are big on the
 ##      right side"). D's table over REWARD and CONTINUE stays where it is; a
@@ -56,14 +62,14 @@ extends RefCounted
 ##      band grows upward if the plates stand taller than the table.
 ##   C  SHOW IT. Today's size, only what changed, each with its mark; once the
 ##      text is in, each change flies from the band to the HUD readout it moves
-##      (the hull gauge, credits, fuel, heat; a place to STARCHART) and that readout flickers as it lands -- and only then does
+##      (the hull gauge, credits, fuel, DATA, heat; a place to STARCHART) and that readout flickers as it lands -- and only then does
 ##      the HUD number change (`held`). A part or a crate makes REWARD flicker
 ##      on its turn instead: it is on the band already, and a copy sliding
 ##      along the row would cross the other entries. Nothing that takes a click
 ##      moves: the readouts and buttons only flicker.
 ##
-## WHAT AN EVENT CAN HAND YOU, all of it read off `OptionResolve.take`: the four
-## ledger stats (`bill`), and the things (`got`) -- a part or a material put on
+## WHAT AN EVENT CAN HAND YOU, all of it read off `OptionResolve.take`: the five
+## ledger stats (`bill`: the four and DATA), and the things (`got`) -- a part or a material put on
 ## the system's pile, a hull frame found, a place marked on the chart, an item taken out of your hold. No event gives or takes a card
 ## or a malfunction directly (malfunctions come from fights); a part's cards are
 ## the only cards an event ever offers, so a part names them.
@@ -79,9 +85,10 @@ const GROUP := &"outcome_entry"
 ## (`HudBar.refresh` reads this). Empty whenever nothing is flying.
 static var held: Dictionary = {}
 
-## The order a change matters in: what kills you, what strands you, money, heat.
-const ORDER: Array[String] = ["hp", "fuel", "credits", "heat"]
-const WORDS := {"hp": "HULL", "fuel": "FUEL", "credits": "CREDITS", "heat": "HEAT"}
+## The order a change matters in: what kills you, what strands you, money,
+## what a lab takes, heat.
+const ORDER: Array[String] = ["hp", "fuel", "credits", "data", "heat"]
+const WORDS := {"hp": "HULL", "fuel": "FUEL", "credits": "CREDITS", "data": "DATA", "heat": "HEAT"}
 ## The words a thing goes by, ahead of its name.
 const THING_WORDS := {&"part": "PART", &"frame": "HULL FRAME",
 	&"place": "MARKED", &"material": "", &"item": ""}
@@ -95,7 +102,7 @@ const FLICKER := [0.07, 0.06, 0.07]
 # ------------------------------------------------------------------ the changes
 
 ## Every change one result made, in the order it matters, as entries:
-##   key    "hp" "fuel" "credits" "heat", or the thing's kind
+##   key    "hp" "fuel" "credits" "data" "heat", or the thing's kind
 ##   kind   &"stat" or the thing's kind (part, material, frame, place, item)
 ##   n      the move (a stat), or the count (a thing; negative when taken)
 ##   was    now   a stat's totals either side
@@ -265,7 +272,9 @@ class Chip extends Control:
 
 ## A stat's mark, 7 px: the same cell the HUD's hull and heat gauges are made of
 ## (`BoxGauge._cell`), the stacked notes credits are drawn as everywhere
-## (`ChitIcon`), a tank for fuel; for a thing, a plate in its grade's colour.
+## (`ChitIcon`), a tank for fuel, a reading's trace over its baseline for DATA
+## (ICE, as the HUD prints DATA; never the notes' brown, since DATA is not
+## money); for a thing, a plate in its grade's colour.
 const MARK := 7.0
 
 ## `px`: how many game px one of the mark's pixels is (2 beside text at
@@ -302,6 +311,13 @@ static func draw_mark(ci: CanvasItem, at: Vector2, e: Dictionary, px: int = 1) -
 			r.call(0, 2, 5, 5, note)
 			r.call(0, 2, 5, 1, note.lerp(Color.WHITE, 0.34))
 			r.call(1, 4, 3, 1, ink)
+		"data":
+			# a trace going up, ICE, over the baseline it is read off, COLD
+			# (the Lab sheet's e_a mockup, Nov 4, pixel for pixel)
+			for p: Vector2i in [Vector2i(5, 0), Vector2i(4, 1), Vector2i(6, 2),
+					Vector2i(0, 3), Vector2i(3, 3), Vector2i(1, 4), Vector2i(2, 4)]:
+				r.call(p.x, p.y, 1, 1, UITheme.ICE)
+			r.call(0, 6, 7, 1, UITheme.COLD)
 		"fuel":
 			r.call(2, 0, 3, 1, UITheme.CHILL)
 			r.call(1, 1, 5, 6, UITheme.CHILL)
@@ -522,7 +538,7 @@ const D_FS := UITheme.FS_SMALL
 
 ## `without_big`: E's table, the things E draws big left out of it (`big_ones`);
 ## null when that leaves it nothing to say. `fs`: its text's size.
-## `stats_only`: D's, the four stats that moved and nothing else, each its
+## `stats_only`: D's, the stats that moved (the four and DATA) and nothing else, each its
 ## change alone with no new total (Jon: "just put what is added or lost");
 ## null when none of them did.
 static func table(out: Dictionary, without_big := false, fs: int = UITheme.FS_SMALL, stats_only := false) -> Control:
@@ -918,7 +934,7 @@ static func _hud_refresh() -> void:
 static func _targets(d: LocalEventDrawer, e: Dictionary) -> Array:
 	var hud: HudBar = Router.hud if Router.hud != null and is_instance_valid(Router.hud) and Router.hud.is_visible_in_tree() else null
 	match String(e.key):
-		"hp", "heat", "credits", "fuel":
+		"hp", "heat", "credits", "fuel", "data":
 			return hud.stat_nodes(String(e.key)) if hud != null else []
 		"part", "material":
 			if int(e.n) > 0:
