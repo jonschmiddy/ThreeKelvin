@@ -104,9 +104,13 @@ func _run() -> void:
 				if n2.type != MapGen.NodeType.SYSTEM:
 					continue
 				var L2 := SystemLayout.of(n2)
+				var kinds := PackedStringArray()
+				var hit := false
 				for b2 in L2.bodies:
-					if b2.name == want:
-						print("SCAN seed %d system %d %s twin %s bodies %d" % [sd, n2.index, MapGen.star_name(n2), L2.twin, L2.bodies.size()])
+					kinds.append("%s:%s" % [b2.name.get_slice(" ", b2.name.get_slice_count(" ") - 1), b2.kind])
+					hit = hit or b2.name == want
+				if hit:
+					print("SCAN seed %d system %d %s twin %s %s" % [sd, n2.index, MapGen.star_name(n2), L2.twin, " ".join(kinds)])
 		_tree.quit(0)
 		return
 	Rng.forced = int(_arg("seed", "4242"))
@@ -150,7 +154,8 @@ func _run() -> void:
 		print("FILM {\"error\": \"no map\"}")
 		_tree.quit(1)
 		return
-	var title := _arg("title", "%s  x%d" % [String(opts.path).to_upper(), roundi(float(opts.pace))])
+	# (`title=` with _ for spaces: a film script's argument has none)
+	var title := _arg("title", "%s  x%s" % [String(opts.path).to_upper(), _num(float(opts.pace))]).replace("_", " ")
 	var world_k := SystemLayout.world_pace()
 	if _has("worlds"):
 		_caption("WORLDS x%s" % _num(world_k))
@@ -160,6 +165,13 @@ func _run() -> void:
 		var out := {"kind": "worlds", "system": MapGen.star_name(n), "twin": L.twin, "world_pace": world_k, "laps": laps,
 			"pair_lap_s": TAU / absf(L.pair_n) if L.pair_n != 0.0 else 0.0,
 			"parked_lap_s": TAU * float(m.flight.rail.get("rt", 0.0)) / float(m.flight.rail.get("speed", 1.0)) if m.flight.mode == &"rail" else 0.0}
+		# (a comet, at today's speed in every column: Jon, Nov 5, "I think the
+		# comet speed is perfect though")
+		if _has("comet"):
+			await _frames(30)
+			var why: String = m.view._weather.force(&"comet")
+			out["comet"] = "started" if why == "" else why
+			_caption("WORLDS x%s   COMET x1" % _num(world_k))
 		await _frames(int(float(_arg("hold", "12")) * 60.0))
 		print("FILM " + JSON.stringify(out))
 		_tree.quit(0)
@@ -174,6 +186,24 @@ func _run() -> void:
 	# THE FIRST CLICK: the place selected, its line drawn; THE SECOND, `lead` on
 	m.select_body(to)
 	await _frames(int(float(_arg("lead", "1.2")) * 60.0))
+	if _has("debug"):
+		var pv = m.overlay._pv_plan
+		print("DEBUG preview %s t0-t %.3f takeable %s %s" % [pv != null, (float(pv.t0) - float(m.view.t)) if pv != null else -1.0,
+			(not m.flight._takeable(pv, float(m.view.t)).is_empty()) if pv != null else false, m.flight._takeable(pv, float(m.view.t)) if pv != null else {}])
+		var dpl = m.flight.make_plan(to, float(m.view.t), {}, ShipFlightS.PLAN_AHEAD)
+		if dpl != null and dpl.res != null:
+			var tn := float(m.view.t)
+			var w := float(dpl.dep.w)
+			var dang := fposmod((1.0 if w >= 0.0 else -1.0) * (dpl.res.a_dep - float(m.flight.rail.ang)), TAU)
+			var ke: float = m.flight._ride_ke(dpl)
+			var lead := float(dpl.t0) - tn
+			var shp := ShipFlightS._ride_shape(dang, absf(w), lead, ke)
+			shp.T = lead
+			print("DEBUG fresh lead %.3f dang %.3f (w lead %.3f) ke %.2f lead_k %.2f shape %s peak*vr %.1f most %.1f vmax %.1f" % [lead, dang, absf(w) * lead, ke, dpl.lead_k, shp,
+				absf(w) * float(dpl.dep.rt) * ShipFlightS._ride_peak(shp), FlightSolve.THRUST * dpl.pace * dpl.pace * ShipFlightS.SPIN_PUSH_K, (maxf(float(shp.k), 1.0) + ke - 1.0) * absf(w) * float(dpl.dep.rt)])
+		print("DEBUG plan %s res %s kind %s takeable %s dep %s mode %s ns %d nf %d nn %d" % [dpl != null, dpl != null and dpl.res != null,
+			dpl.res.kind if dpl != null and dpl.res != null else "-", (not m.flight._takeable(dpl, float(m.view.t)).is_empty()) if dpl != null else false,
+			m.flight._dep_of(float(m.view.t), ShipFlightS.PLAN_AHEAD), m.flight.mode, ShipFlightS.n_solved, ShipFlightS.n_fallback, ShipFlightS.n_none])
 	var t0 := float(m.view.t)
 	var f0 := Engine.get_frames_drawn()
 	m.fly_to_body(to)
@@ -181,6 +211,12 @@ func _run() -> void:
 	var solved := false
 	var pace := 1.0
 	var settled := -1.0
+	var ride := -1.0
+	var flew := -1.0
+	var plan_dur := 0.0
+	var dep_in := -1.0
+	var res_lead := -1.0
+	var res_kind := ""
 	for i in 60 * 120:
 		await _tree.process_frame
 		if not is_instance_valid(m):
@@ -192,7 +228,15 @@ func _run() -> void:
 			solved = true
 			shape = FlightSolve.shape_of(fl.plan.samp)
 			pace = float(fl.plan.pace)
+			dep_in = float(fl.plan.t0) - t0
+			res_lead = float(fl.plan.res.lead)
+			res_kind = String(fl.plan.res.kind)
 		var dt := float(m.view.t) - t0
+		if ride < 0.0 and fl.mode == &"fly":
+			ride = dt
+			plan_dur = float(fl.plan.dur) if fl.plan != null else 0.0
+		if ride >= 0.0 and flew < 0.0 and fl.mode != &"fly":
+			flew = dt - ride
 		if settled < 0.0:
 			_caption("%s   %.1f s" % [title, dt])
 		if settled < 0.0 and fl.reached() == to and fl.can_fly():
@@ -202,7 +246,7 @@ func _run() -> void:
 	await _frames(int(float(_arg("hold", "1.5")) * 60.0))
 	var rec := {"kind": "flight", "system": MapGen.star_name(n), "twin": L.twin, "from": "edge" if from == "edge" else L.bodies[start].name,
 		"to": L.bodies[to].name, "path": String(opts.path), "pace": float(opts.pace), "plan_pace": pace, "solved": solved,
-		"aids": ShipFlightS.aids_on(), "world_pace": world_k, "secs": settled, "frames": Engine.get_frames_drawn() - f0,
+		"aids": ShipFlightS.aids_on(), "world_pace": world_k, "secs": settled, "ride": ride, "flew": flew, "plan_dur": plan_dur, "dep_in": dep_in, "res_lead": res_lead, "res_kind": res_kind, "frames": Engine.get_frames_drawn() - f0,
 		"bend": shape[0], "turn": shape[1], "title": title}
 	print("FILM " + JSON.stringify(rec))
 	var out := _arg("out", "")

@@ -418,16 +418,30 @@ const CHOICE_V := 3
 ## of map time: KEEP_HOLD 1 s of tau is an eighth of a second at pace 8.
 const HOLD_MAP := 0.4
 ## THE RING SPEEDS ON THE FLIGHT'S CLOCK. A ring's speed divided by the pace
-## left the ship all but at rest in tau (a settled orbit at the edge, 13 px/s on
-## the map, 1.6 at pace 8; a star's close orbit 5.6 deep in its well, where its
-## pull is over THRUST), and the solver found a third of the game's flights
-## from there or none (FlightTest, Nov 5). So a ring is left and arrived on in
-## tau at its speed / pace but never under RING_TAU px/s (nor over its own
-## speed): on the map the ship spins up round its ring to pace times that as it
-## rides to leave (`ShipFlight._step_phase`, its ride's end rate `ke`), and
-## spins down onto the ring's own speed as it arrives (`ShipFlight.start_rail`'s
-## spin). `-- ringtau=X` sets it for a harness (0: speed / pace, as first built).
-const RING_TAU := 20.0
+## left the ship all but at rest in tau (a star's close orbit, 45 px/s on the
+## map, 5.6 at pace 8, deep in a well whose gravity the flight's clock leaves
+## as it is), and from a star's close orbit or to one the solver found a
+## third of the flights or none (SolveTest, Nov 5: twins 50%, close pairs
+## 62%, at a floor of 20 px/s; 100% at 60). So a ring is left and arrived on
+## in tau at its speed / pace but never under RING_TAU px/s, nor over its own
+## speed: every ring the game has (worlds' 35 px/s, stars' 45, settled star
+## orbits' 13 to 50) at its own speed. On the map the ship spins up round its
+## ring to pace times that before it leaves (`ShipFlight._ride_shape`: it
+## rides at the ring's own speed, spins up over SPIN_UP s and whirls round at
+## the departure's for the ride's last part) and spins down onto the ring's
+## own speed as it arrives (`ShipFlight.start_rail`'s spin, SPIN_S).
+## `-- ringtau=X` sets it for a harness (0: speed / pace, as first built).
+const RING_TAU := 60.0
+## THE SPIN-UP's length on the map (s): the ship's rate eased from its ring's
+## own to the departure's (`ShipFlight._ride_shape`). The ride on the flight's
+## clock starts with it (`dep.w0`, the ring's own rate there, and `dep.spin`,
+## SPIN_UP x pace tau-s: a smoothstep from w0 to w), so it lasts at least the
+## spin and goes (w - w0) spin / 2 less far round: a flight left at once, as
+## the solver first had it, could not be flown on the map, where the ship is
+## still at its ring's own rate (IOTA TALLOW GATE V to IV, DIRECT: every plan
+## made for a moment just ahead untakeable, and the ship put there). The spin
+## is the clock's hand-off, not engine work, and is not priced.
+const SPIN_UP := 0.3
 static var ring_tau := -1.0
 
 
@@ -455,7 +469,11 @@ static func dep_tau(dep: Dictionary, k: float) -> Dictionary:
 	match StringName(d.get("kind", &"")):
 		&"ring":
 			var rt := float(d.rt)
+			var w0 := float(d.w) / k
 			d.w = tau_speed(float(d.w) * rt, k) / rt
+			if absf(float(d.w) - w0) > 1e-12:
+				d.w0 = w0
+				d.spin = SPIN_UP * k
 		&"free":
 			d.v = (d.v as Vector2) / k
 	return d
@@ -566,6 +584,15 @@ var _dph := 0.0
 var _drt := 0.0
 var _dang := 0.0
 var _dw := 0.0
+## (a ring ridden at its own rate until a fast flight's ride spins up to _dw
+## over _spin tau-s: `SPIN_UP`)
+var _dw0 := 0.0
+var _spin := 0.0
+## the longest ride: LEAD_MAX, and never shorter than a fast flight's spin-up.
+## (Held to 0.55 s on the map for DIRECT, LEAD_MAX's 4.4 tau-s at pace 8, the
+## click to settled went from a median 4.1 s to 3.9 and twins lost flights and
+## grew corners: FlightTest, Nov 5. Not kept.)
+var _lmax := LEAD_MAX
 var _doffx := 0.0
 var _doffz := 0.0
 var _dpx := 0.0
@@ -1055,7 +1082,7 @@ func _setup(dep: Dictionary, tgt: Dictionary) -> bool:
 	_kmax = 1.0
 	if _dk == 0:
 		var vr := absf(_dw) * _drt
-		_kmax = clampf(minf(1.0 + THRUST * LEAD_MAX / (PI * vr), VMAX / vr), 1.0, PHASE_K_MAX)
+		_kmax = clampf(minf(1.0 + THRUST * _lmax / (PI * vr), VMAX / vr), 1.0, PHASE_K_MAX)
 	# ITS OWN WORLDS keep out to their rings, not past them
 	_wkeep = PackedFloat64Array()
 	_wkeep.resize(G.wo_keep.size())
@@ -1087,6 +1114,9 @@ func _own_r(i: int) -> float:
 
 
 func _setup_in(dep: Dictionary, tgt: Dictionary) -> bool:
+	_dw0 = 0.0
+	_spin = 0.0
+	_lmax = LEAD_MAX
 	match StringName(dep.get("kind", &"")):
 		&"ring":
 			_dk = 0
@@ -1095,6 +1125,9 @@ func _setup_in(dep: Dictionary, tgt: Dictionary) -> bool:
 			_drt = float(dep.rt)
 			_dang = float(dep.ang)
 			_dw = float(dep.w)
+			_dw0 = float(dep.get("w0", _dw))
+			_spin = float(dep.get("spin", 0.0)) if absf(_dw - _dw0) > 1e-12 else 0.0
+			_lmax = maxf(LEAD_MAX, _spin)
 			if absf(_dw) < 1e-6 or _drt <= 0.0:
 				return false
 		&"keep":
@@ -1234,7 +1267,31 @@ func _tgt_at(t: float) -> void:
 # ---------------------------------------------------------------- the ride and the departure
 ## How far round its ring the ride reaches within LEAD_MAX (rad).
 func _reach() -> float:
-	return absf(_dw) * LEAD_MAX * (_kmax + 1.0) * 0.5 - 1e-6
+	return absf(_dw) * _lmax * (_kmax + 1.0) * 0.5 - _spin_short() - 1e-6
+
+
+## How much less far round the spin-up takes a ride (rad): (w - w0) spin / 2.
+func _spin_short() -> float:
+	return absf(_dw - _dw0) * _spin * 0.5
+
+
+## THE RIDE dang radians round, the spin-up first: [lead, phasing k] (at least
+## the spin long: under it, slowed, and a k under RIDE_K_MIN cannot be flown).
+func _ride_lead(dang: float) -> PackedFloat64Array:
+	if _spin <= 0.0:
+		return _lead_of(dang, absf(_dw))
+	var w := absf(_dw)
+	var d2 := dang + _spin_short()
+	var nat := d2 / w
+	if nat < _spin:
+		return PackedFloat64Array([_spin, 1.0 + 2.0 * (d2 / (w * _spin) - 1.0)])
+	if nat <= _lmax:
+		return PackedFloat64Array([nat, 1.0])
+	return PackedFloat64Array([_lmax, 1.0 + 2.0 * (d2 / (w * _lmax) - 1.0)])
+
+
+## the least phasing a ride is flown at (`ShipFlight._takeable`'s)
+const RIDE_K_MIN := 0.2
 
 
 ## The ride's phasing work at k (px/s): its push along the ring, up by
@@ -1270,8 +1327,11 @@ func _aligned(ux: float, uz: float) -> float:
 func _ride_to(a: float) -> bool:
 	var dr := 1.0 if _dw >= 0.0 else -1.0
 	var dang := fposmod(dr * (a - _dang), TAU)
-	var lk := _lead_of(dang, absf(_dw))
-	if lk[1] > _kmax + 1e-6:
+	var lk := _ride_lead(dang)
+	if lk[1] > _kmax + 1e-6 or lk[1] < RIDE_K_MIN:
+		return false
+	# (a ride slowed to hold its spin-up, its push held to THRUST as a sped one's)
+	if lk[1] < 1.0 and (1.0 - lk[1]) * PI * absf(_dw) * _drt > THRUST * lk[0] + 1e-9:
 		return false
 	_e_lead = lk[0]
 	_e_k = lk[1]
@@ -3717,12 +3777,16 @@ func _replay(c: Dictionary) -> Result:
 		var dr := 1.0 if _dw >= 0.0 else -1.0
 		var dang := fposmod(dr * (ad - _dang), TAU)
 		if lead < 1e-6:
-			if dang > 1e-4 and dang < TAU - 1e-4:
+			# (nor one that must still spin up, `_spin`)
+			if (dang > 1e-4 and dang < TAU - 1e-4) or _spin > 0.0:
 				return null
 		else:
 			# the ride's phasing over the lead that is left, its push at most
-			# THRUST and its speed under VMAX
-			k = 2.0 * dang / (absf(_dw) * lead) - 1.0
+			# THRUST and its speed under VMAX (its spin-up first, over what is
+			# left of the ride if that is shorter, as `ShipFlight._ride_shape`
+			# flies it)
+			var sp := minf(_spin, lead)
+			k = 2.0 * (dang + absf(_dw - _dw0) * sp * 0.5) / (absf(_dw) * lead) - 1.0
 			var vr := absf(_dw) * _drt
 			if absf(k - 1.0) > THRUST * lead / (PI * vr) + 1e-9 or k * vr > VMAX + 1e-6 or k < 0.2:
 				return null

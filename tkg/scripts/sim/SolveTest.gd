@@ -1037,10 +1037,12 @@ func _replays() -> void:
 		elif n - same <= 3:
 			print("  (replay %s: %s)" % [r2.kind, c.label])
 		var dep: Dictionary = c.dep
-		if StringName(dep.kind) == &"ring" and r.lead >= 0.6 and r.lead_k <= 1.0:
+		# (the ship rides its ring at its own rate meanwhile, `w0` on a flight's
+		# clock, and the ride left must still hold its spin-up)
+		if StringName(dep.kind) == &"ring" and r.lead >= 0.6 + float(dep.get("spin", 0.0)) and r.lead_k <= 1.0:
 			later += 1
 			var d2 := dep.duplicate()
-			d2.ang = float(dep.ang) + float(dep.w) * 0.5
+			d2.ang = float(dep.ang) + float(dep.get("w0", dep.w)) * 0.5
 			var r3 := FlightSolve.solve(c.G, d2, c.tgt, float(c.t) + 0.5, r.choice, c.opts)
 			if r3.kind == &"replay" and r3.samp == r.samp:
 				later_same += 1
@@ -1149,7 +1151,7 @@ func _replans() -> void:
 		if r == null or not r.found or StringName(c.dep.kind) != &"ring":
 			continue
 		var d2: Dictionary = c.dep.duplicate()
-		d2.ang = float(c.dep.ang) + float(c.dep.w) * 3.0
+		d2.ang = float(c.dep.ang) + float(c.dep.get("w0", c.dep.w)) * 3.0
 		var t2 := float(c.t) + 3.0
 		var rw := FlightSolve.solve(c.G, d2, c.tgt, t2, r.choice, c.opts)
 		var rf := FlightSolve.solve(c.G, d2, c.tgt, t2, {}, c.opts)
@@ -1211,7 +1213,7 @@ func _replans() -> void:
 		for k in range(1, TWO_STEPS + 1):
 			var d2: Dictionary = c.dep.duplicate()
 			if dk == &"ring":
-				d2.ang = float(c.dep.ang) + float(c.dep.w) * dt * float(k)
+				d2.ang = float(c.dep.ang) + float(c.dep.get("w0", c.dep.w)) * dt * float(k)
 			var t2 := float(c.t) + dt * float(k)
 			var rw := FlightSolve.solve(c.G, d2, c.tgt, t2, pv.choice, c.opts)
 			# (the last legs kept, flown again here as `FlightSolve._chain_again`
