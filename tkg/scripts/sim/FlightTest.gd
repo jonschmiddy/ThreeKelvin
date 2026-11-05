@@ -2222,7 +2222,7 @@ func _orbit_phase() -> void:
 ## both, every CURVED flight read as the fallback's, cap 30, and every one
 ## that gave way was forgiven: the code review, Nov 5.)
 static func _gave_way(r: FlightSolve.Result, r2: FlightSolve.Result) -> bool:
-	return r.legs == 1 and float(r.choice.get("cap", 0.0)) > (FlightSolve.T_CAP_BACK if r.path == &"curved" else FlightSolve.T_CAP) + 1e-6 and r2.found and r2.clean and r2.legs == 1 and r2.kind == &"solved" and float(r2.end.t) < float(r.end.t) - 1e-6
+	return r.legs == 1 and float(r.choice.get("cap", 0.0)) > FlightSolve.first_cap(r.path) + 1e-6 and r2.found and r2.clean and r2.legs == 1 and r2.kind == &"solved" and float(r2.end.t) < float(r.end.t) - 1e-6
 
 
 ## Where place i is drawn at map time t, on the plane: a star where the pair has

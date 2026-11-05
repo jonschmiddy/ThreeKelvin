@@ -2280,6 +2280,8 @@ static func flight_opts() -> Dictionary:
 	if path != &"direct":
 		path = &"curved"
 	var k: float = pace_k if pace_k > 0.0 else float(FLIGHT_PACE[path])
+	# (CURVED's arc dials read here, on the main thread, before any worker plans)
+	FlightSolve.curved_arc()
 	return {"path": path, "pace": k}
 
 

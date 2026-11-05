@@ -3,7 +3,7 @@ extends Node
 ## THE AUTOPILOT'S SOLVED FLIGHTS (ruling 20, Oct 30), planned and measured:
 ##   godot --headless --path . -- sheet=SolveTest [systems=N] [lineups=N] [twins=N]
 ##     [twinlineups=N] [worker=N] [only=one|giant|twin|rtwin|rclose|phase|proto] [short]
-##     [shard=K/N]
+##     [shard=K/N] [shapes=<jsonl>]
 ## `shard=K/N`: every Nth case from the Kth (`Harness.mine`), the pair-phase
 ## sweep's among them, the rest of the run (the bench, the prototype's flight,
 ## the conic's aim) in shard 1; the shares of a sweep and of the replans are
@@ -153,6 +153,10 @@ var _worker_n := 400
 var _only := ""
 ## the gate's run (`short`)
 var _short := false
+## where each found, clean flight's shape is written, one JSON line a flight
+## (`shapes=path`: its sweep, path, bend, turn, flight seconds in tau and the
+## pace), so a run's shards can be pooled
+var _shapes_out := ""
 ## every case: {sweep, L, G, dep, tgt, t, label, kind, hand}
 var _cases: Array = []
 var _res: Array = []
@@ -182,6 +186,8 @@ func _ready() -> void:
 				_paths = [StringName(pv)]
 		elif s.begins_with("pace="):
 			_pace["all"] = float(s.substr(5))
+		elif s.begins_with("shapes="):
+			_shapes_out = s.substr(7)
 		elif s == "short":
 			_short = true
 			_per_seed = 1
@@ -1101,10 +1107,11 @@ static func _fell_sooner(r: FlightSolve.Result, r2: FlightSolve.Result) -> bool:
 	return r.legs == 1 and float(r.choice.get("cap", 0.0)) > _cap0(r) + 1e-6 and r2.legs == 1
 
 
-## The cap of the first look of r's path: T_CAP for DIRECT, T_CAP_BACK for
-## CURVED (whose first look is the as-built search); past it, the fallback's.
+## The cap of the first look of r's path: T_CAP for DIRECT, CURVED's arc's
+## (`FlightSolve.first_cap`, its first look the as-built search to that cap);
+## past it, the fallback's.
 static func _cap0(r: FlightSolve.Result) -> float:
-	return FlightSolve.T_CAP_BACK if r.path == &"curved" else FlightSolve.T_CAP
+	return FlightSolve.first_cap(r.path)
 
 
 ## A dep as `FlightSolve.solve` hands it on for case c's path (`_chain_again`
@@ -1273,7 +1280,7 @@ func _replans() -> void:
 ## A plan's cost at TIME_W: an as-built flight's (its choice's tw
 ## TIME_W_BACK) with its seconds at C's weight.
 static func _at_time_w(r: FlightSolve.Result) -> float:
-	var tw0 := FlightSolve.TIME_W_BACK if r.path == &"curved" else FlightSolve.TIME_W
+	var tw0 := FlightSolve.first_tw(r.path)
 	return r.cost + (tw0 - float(r.choice.get("tw", tw0))) * r.T
 
 
@@ -1282,6 +1289,7 @@ static func _at_time_w(r: FlightSolve.Result) -> float:
 ## and CURVED's median bend against DIRECT's where both ran in this shard.
 func _shapes() -> void:
 	var med := {}
+	var fo: FileAccess = FileAccess.open(_shapes_out, FileAccess.WRITE) if _shapes_out != "" else null
 	for p in _paths:
 		var bends: Array = []
 		var turns: Array = []
@@ -1292,6 +1300,8 @@ func _shapes() -> void:
 			if r == null or not r.found or not r.clean or StringName(c.path) != p:
 				continue
 			var sh := shape_of(r.samp)
+			if fo != null:
+				fo.store_line(JSON.stringify({"sweep": c.sweep, "path": String(p), "bend": sh[0], "turn": sh[1], "T_tau": r.T, "pace": _pace_of(p), "legs": r.legs, "kind": String(r.kind)}))
 			bends.append(sh[0])
 			turns.append(sh[1])
 			if sh[0] > LOOP_BEND:
