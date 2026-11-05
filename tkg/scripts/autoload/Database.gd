@@ -2479,8 +2479,10 @@ func perk_text(id: StringName) -> String:
 # THE BOARD (pick 2B). Each run deals three branches of three, FRAME, CORE and
 # DRIVE, from these twelve: four a branch, one dropped by the deal. Steps in a
 # branch are bought in order at BOARD_PRICES, so a branch's `rank` is its order,
-# weakest first, and the price always climbs with the power. The order is an
-# estimate until the routine sims rank them (plan S15).
+# weakest first, and the price always climbs with the power. The order is the
+# routine sims' (plan S15, Nov 4: a human pilot, 400 paired runs a routine over
+# two seeds): DAMAGE CONTROL tops FRAME on jumps survived, and CORE and DRIVE
+# keep the plan's order, WARM START at the top for its boss-fight wins.
 #
 # `pips` are gauge pips, through `RunState.PER_PIP` exactly as an affix's are
 # (`AffixData.raw_for`), so a routine that says +1 SEN moves SENSORS by exactly
@@ -2512,15 +2514,15 @@ func _seed_routines() -> void:
 		&"quiet_running": {name = "QUIET RUNNING", branch = &"frame", rank = 0,
 			pips = {&"stealth": 1}, raw = {},
 			text = "+1 stealth. Fewer ships see you coming."},
-		&"damage_control": {name = "DAMAGE CONTROL", branch = &"frame", rank = 1,
-			pips = {&"hull": 1}, raw = {},
-			text = "+7 max hull on any frame."},
-		&"patch_crew": {name = "PATCH CREW", branch = &"frame", rank = 2,
+		&"patch_crew": {name = "PATCH CREW", branch = &"frame", rank = 1,
 			pips = {}, raw = {},
 			text = "Mend 3 hull after every fight you win."},
-		&"black_box": {name = "BLACK BOX", branch = &"frame", rank = 3,
+		&"black_box": {name = "BLACK BOX", branch = &"frame", rank = 2,
 			pips = {}, raw = {},
 			text = "Once a run, a hit in a fight that would kill you leaves you at 1 hull."},
+		&"damage_control": {name = "DAMAGE CONTROL", branch = &"frame", rank = 3,
+			pips = {&"hull": 1}, raw = {},
+			text = "+7 max hull on any frame."},
 		# CORE: the reactor and heat, and how a fight opens.
 		&"spare_cells": {name = "SPARE CELLS", branch = &"core", rank = 0,
 			pips = {}, raw = {&"cells": 3},

@@ -105,14 +105,15 @@ func _own(ids: Array) -> void:
 	Sig.ship_changed.emit()
 
 
-## A board whose FRAME starts with DAMAGE CONTROL (QUIET RUNNING dropped), the
-## way a deal can lay it out, with the DATA to buy it.
+## A board whose FRAME sells DAMAGE CONTROL next: QUIET RUNNING dropped, the way
+## a deal can lay it out, PATCH CREW and BLACK BOX already bought (it is FRAME's
+## top step, rank 3), with the DATA to buy it.
 func _board_with_damage_control() -> void:
-	var b: Array[StringName] = [&"damage_control", &"patch_crew", &"black_box",
+	var b: Array[StringName] = [&"patch_crew", &"black_box", &"damage_control",
 		&"spare_cells", &"vent_timing", &"cold_open",
 		&"wide_sweep", &"fuel_trim", &"evasion_tables"]
 	Run.board = b
-	Run.board_owned = PackedInt32Array([0, 0, 0])
+	Run.board_owned = PackedInt32Array([2, 0, 0])
 	Run.data = 99
 
 
