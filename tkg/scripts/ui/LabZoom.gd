@@ -10,12 +10,13 @@ extends Control
 ## size: RESEARCH (the star chart, `LabBoard`), AUGMENT and RECIPES. LEAVE, or
 ## Esc, takes the camera back out to the room, the screen on its logo.
 ##
-## ONE CAMERA MOVE, NOT A CUT, between ZoomLadder's two beats: the station's
-## chrome goes, the HUD, the deck rail and the deck's plate (`UI_OUT_S`, the
-## camera still), the camera moves (`LAB_ZOOM_S`, smootherstep), and the Lab's
-## pages come up on the landed glass over the sign-in it carried in
-## (`UI_IN_S`). Back out it all runs backwards, the chrome back only once the
-## camera is at rest. A click or a key during a move is eaten and the camera
+## ONE CAMERA MOVE, NOT A CUT, between ZoomLadder's two beats: the deck's
+## plate goes (`UI_OUT_S`, the camera still), the camera moves (`LAB_ZOOM_S`,
+## smootherstep) and carries the elevator and the HUD out of the window with
+## the room's edges, and the Lab's pages come up on the landed glass over the
+## sign-in it carried in (`UI_IN_S`). Back out it all runs backwards: the
+## elevator and the HUD ride back in with the room and stand in their places
+## as it lands (Jon, Nov 5: "a smoother transition with the elevator"). A click or a key during a move is eaten and the camera
 ## goes on (camera moves, never cuts): Esc, or the pad's B, on the way in turns
 ## it round; Tab takes the camera out at three times the pace and then goes on
 ## to the ladder.
@@ -719,9 +720,9 @@ func _apply() -> void:
 	for c0: CanvasItem in on_glass:
 		if c0 != null and is_instance_valid(c0):
 			c0.modulate.a = 1.0 - ui_k
-	# THE STATION'S CHROME LEAVES before the camera moves, and comes back only
-	# once it is back at rest: the HUD and the deck rail stood still at 1x
-	# while the room grew over them, cut mid-word by its edge
+	# THE DECK'S PLATE LEAVES before the camera moves, and comes back only once
+	# it is back at rest. The HUD and the elevator are not faded: the camera
+	# carries them out with the room's edges (`_carry`, below)
 	_chrome(ui_k)
 	var u := clampf((_at - out_s) / move_s, 0.0, 1.0)
 	if hold_at >= 0.0:
@@ -767,6 +768,7 @@ func _apply() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP if _at > 0.0 or _goal > 0.0 else Control.MOUSE_FILTER_IGNORE
 	if shown and lab != null and is_instance_valid(lab) and not lab.lab.is_empty():
 		_place(e if moving else 0.0)
+		_carry(true)
 	if _at <= 0.0 and _goal <= 0.0:
 		visible = false
 		if lab != null and is_instance_valid(lab):
@@ -775,6 +777,7 @@ func _apply() -> void:
 			if c3 != null and is_instance_valid(c3):
 				c3.modulate.a = 1.0
 		_chrome(0.0)
+		_carry(false)
 		_rate = 1.0
 		closed.emit()
 		if _then_key != null:
@@ -801,10 +804,24 @@ func _chrome(k: float) -> void:
 		station.call(&"lab_chrome", k)
 
 
+## THE ELEVATOR AND THE HUD RIDE THE ROOM'S EDGES (`StationScreen.lab_carry`):
+## moved as far as the camera has moved the room's picture from where it
+## stands, out of the window going in and back into their places on the frame
+## the camera lands coming out; `on` false puts them back as they were.
+func _carry(on: bool) -> void:
+	if station == null or not is_instance_valid(station) or not station.has_method(&"lab_carry"):
+		return
+	var d := Vector2.ZERO
+	if on and lab != null and is_instance_valid(lab):
+		d = _o - lab.get_global_transform().origin
+	station.call(&"lab_carry", d, on)
+
+
 ## Whatever takes the station away (a screen change, a run's end) takes the
 ## Lab with it: the HUD it hid comes back.
 func _exit_tree() -> void:
 	_chrome(0.0)
+	_carry(false)
 	if lab != null and is_instance_valid(lab):
 		lab.hush_screen(false)
 
