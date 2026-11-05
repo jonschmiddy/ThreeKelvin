@@ -179,9 +179,11 @@ const SCIENCE_PAY: Array[int] = [0, 5, 6, 8, 10, 14]
 ## always takes the whole amount.
 const SCIENCE_FUEL: Array[int] = [0, 1, 1, 2, 2, 2]
 ## HOW OFTEN: each rolled slot has this chance of being a science event, so a
-## system of three holds one about three times in eight (`roll_for`). The first
-## dial to turn if the sim reads under 60 DATA a run; Jon's pay stays put.
-const SCIENCE_SHARE := 1.0 / 8.0
+## system of three holds one about half the time (`roll_for`). 1 in 6 is the
+## science study's pick (Nov 4): a human pilot reaching the core has taken in
+## about 70 DATA and met about six science events. The first dial to turn if
+## the sim reads under 60 DATA a run; Jon's pay stays put.
+const SCIENCE_SHARE := 1.0 / 6.0
 
 
 ## The DATA a reading pays here: `mult` careful readings' worth.

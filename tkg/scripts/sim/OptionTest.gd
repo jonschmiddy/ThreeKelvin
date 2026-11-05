@@ -270,7 +270,7 @@ func _science_table() -> void:
 
 
 ## HOW OFTEN, ONE AT MOST, AND NOTHING ELSE MOVES. Over the twelve seeds: the
-## science share of every option rolled sits near `SCIENCE_SHARE` (1 in 8), no
+## science share of every option rolled sits near `SCIENCE_SHARE` (1 in 6), no
 ## system holds two, and every system's list is the list the table WITHOUT
 ## science rolls (main's), except a system the pass hit, which differs from it
 ## in exactly one slot, the science event's. `science=off` rolls main's list
@@ -329,8 +329,8 @@ func _science_rolls() -> void:
 	var share := float(sci) / float(maxi(opts, 1))
 	print("  %d science events in %d options rolled (%.3f), at %d of %d systems (%.0f%%)"
 		% [sci, opts, share, hit, systems, 100.0 * float(hit) / float(maxi(systems, 1))])
-	_ok("the science share of rolled options is %.3f, about 1 in 8 (0.10 to 0.16)" % share,
-		share >= 0.10 and share <= 0.16)
+	_ok("the science share of rolled options is %.3f, about 1 in 6 (0.14 to 0.20)" % share,
+		share >= 0.14 and share <= 0.20)
 	_ok("no system holds two science events%s" % ("" if two.is_empty() else ": " + two[0]), two.is_empty())
 	_ok("every system rolls main's list, but for the one slot a science event took (%d differ)%s"
 		% [moved.size(), "" if moved.is_empty() else ": " + moved[0]], moved.is_empty())
