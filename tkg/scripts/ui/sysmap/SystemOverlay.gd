@@ -672,9 +672,11 @@ func _draw() -> void:
 ## frame's edge pointing to it, where the line to it from the frame's middle
 ## crosses the edge. The look is Jon's "Edge arrows: C" (Nov 2): a narrow
 ## triangle (`tri_px`) in the beacon's own colour, closed or not (your ship's in
-## ice, a partner's in the party's green), an event's with its key glyph in 1 px
-## cells just behind it and one dark outline round both, a tag on the arrow and
-## never a second beacon. The map screen draws them over the picture
+## ice, a partner's in the party's green), an event's with its key glyph just
+## behind it and one dark outline round both, a tag on the arrow and never a
+## second beacon; and since Nov 5 ("make the icon the same height as the arrow
+## and make the arrow hollow") the glyph in 2 px cells, as tall as the arrow,
+## and the arrow its line alone (`tri_line`), the map showing through it. The map screen draws them over the picture
 ## (`SystemMapScreen._Marks`, from `mark_rects`), out of the key shader's edge
 ## fade, which left the first arrows faint. Only at the opening zoom or further
 ## out (`mark_zoom`): zoomed in, looking closer is the player's choice, and
@@ -728,8 +730,14 @@ signal marks_drawn
 ## 12 px under it, an up arrow left-aligned under ORBITING read as the line's
 ## caret
 const MARK_UNDER_WORDS := 40.0
-## the glyph's 1 px cells this far (the outline's width) off the arrow's
+## the glyph's cells this far (the outline's width) off the arrow's
 const MARK_GLYPH_GAP := 1
+## THE KEY GLYPH BESIDE THE ARROW (Jon, Nov 5): its 5x5 cells drawn 2 px each,
+## so 10 px, as tall as a side arrow is across (TRI_SIDE's 10 rows), centred on
+## its axis; a diagonal arrow's on its middle line, the same 10 px (its 2 px
+## grid has no 12)
+const MARK_GLYPH_CELL := 2
+const MARK_GLYPH_PX := 5 * MARK_GLYPH_CELL
 const MARK_DARK := Color("#05070b")
 ## THE ARROW, a narrow triangle 13 px long and 10 across, its point cut to
 ## 2 px, its sides in even 3 px stairs (about 40 degrees at the point: the
@@ -749,6 +757,7 @@ const TRI_DIAG := ["..........##", ".........###", ".......####.", ".....#####..
 	"..######....", "...####.....", "....###....."]
 const TRI_DIAG_AT := Vector2i(-6, -6)
 static var _tri_cache := {}
+static var _line_cache := {}
 
 
 ## The arrow pointing `dir`, as its pixels round its middle (each the
@@ -769,6 +778,24 @@ static func tri_px(dir: Vector2i) -> Array:
 	return out
 
 
+## THE HOLLOW ARROW (Jon, Nov 5): the cells of `tri_px` on its edge (one of
+## their four neighbours outside it), a 1 px line in steps round the shape; the
+## cells inside are not drawn but the dark ring along the line (`_tri_queue`).
+static func tri_line(dir: Vector2i) -> Array:
+	if _line_cache.has(dir):
+		return _line_cache[dir]
+	var solid := {}
+	for p: Vector2i in tri_px(dir):
+		solid[p] = true
+	var out: Array = []
+	for p: Vector2i in tri_px(dir):
+		if not (solid.has(p + Vector2i.RIGHT) and solid.has(p + Vector2i.LEFT) and solid.has(p + Vector2i.UP)
+				and solid.has(p + Vector2i.DOWN)):
+			out.append(p)
+	_line_cache[dir] = out
+	return out
+
+
 ## Pixel p of the right (or up-right) arrow, turned (or mirrored) to point `dir`:
 ## its centre moved, then floored, so the shape stays round the same corner.
 static func _tri_turn(p: Vector2i, dir: Vector2i) -> Vector2i:
@@ -781,9 +808,11 @@ static func _tri_turn(p: Vector2i, dir: Vector2i) -> Vector2i:
 	return Vector2i(floori(v.x), floori(v.y))
 
 
-## The glyph's 5 px box behind the arrow pointing `dir` (its top left, round
-## the arrow's middle): from the arrow's middle stepped back along -dir until
-## it is MARK_GLYPH_GAP px clear of every arrow pixel, so the two outlines meet.
+## The glyph's MARK_GLYPH_PX box behind the arrow pointing `dir` (its top
+## left, round the arrow's middle): from the arrow's middle stepped back along
+## -dir until it is MARK_GLYPH_GAP px clear of every arrow pixel, so the two
+## outlines meet. Stepped along the axis, a side arrow's is centred on it (10 on
+## 10 rows), a diagonal's on its middle line.
 static func _glyph_at(dir: Vector2i) -> Vector2i:
 	var key := dir + Vector2i(10, 10)
 	if _tri_cache.has(key):
@@ -796,12 +825,14 @@ static func _glyph_at(dir: Vector2i) -> Vector2i:
 		hi = Vector2i(maxi(hi.x, p.x), maxi(hi.y, p.y))
 	var mid := Vector2(lo + hi + Vector2i.ONE) * 0.5
 	var g := Vector2i.ZERO
-	for r in 30:
-		g = Vector2i(roundi(mid.x - dir.x * r - 2.5), roundi(mid.y - dir.y * r - 2.5))
+	var half := MARK_GLYPH_PX * 0.5
+	var far := MARK_GLYPH_PX - 1
+	for r in 40:
+		g = Vector2i(roundi(mid.x - dir.x * r - half), roundi(mid.y - dir.y * r - half))
 		var ok := true
 		for p: Vector2i in px:
-			var dx := maxi(maxi(g.x - p.x, p.x - (g.x + 4)), 0)
-			var dy := maxi(maxi(g.y - p.y, p.y - (g.y + 4)), 0)
+			var dx := maxi(maxi(g.x - p.x, p.x - (g.x + far)), 0)
+			var dy := maxi(maxi(g.y - p.y, p.y - (g.y + far)), 0)
 			if maxi(dx, dy) < MARK_GLYPH_GAP + 1:
 				ok = false
 				break
@@ -813,7 +844,7 @@ static func _glyph_at(dir: Vector2i) -> Vector2i:
 
 ## Where an arrow at `q` pointing `dir` stands and what it holds:
 ## [the box round all of it (outline in), the arrow's box (outline in), the
-## glyph's box (its 5 px, no outline) or Rect2()], in this space.
+## glyph's box (its MARK_GLYPH_PX, no outline) or Rect2()], in this space.
 func _tri_boxes(q: Vector2, dir: Vector2i, glyph_too: bool) -> Array:
 	var ab := Rect2()
 	for p: Vector2i in tri_px(dir):
@@ -822,30 +853,42 @@ func _tri_boxes(q: Vector2, dir: Vector2i, glyph_too: bool) -> Array:
 	ab = Rect2(ab.position + q, ab.size).grow(1.0)
 	if not glyph_too:
 		return [ab, ab, Rect2()]
-	var gb := Rect2(q + Vector2(_glyph_at(dir)), Vector2(5, 5))
+	var gb := Rect2(q + Vector2(_glyph_at(dir)), Vector2.ONE * MARK_GLYPH_PX)
 	return [ab.merge(gb.grow(1.0)), ab, gb]
 
 
-## The arrow and the glyph's 1 px cells, outlined 1 px all round as one
-## shape (its corners too, in one even dark), queued for the screen to draw
-## over the picture.
+## The arrow's line (`tri_line`) and the glyph's 2 px cells, outlined 1 px
+## all round as one shape (its corners too, in one even dark), queued for the
+## screen to draw over the picture. Inside the hollow arrow the same dark runs
+## just inside its line and nothing further in: on a sun's glow, the line with
+## the bright glow on its inner side read as a filled pale arrow, its colour
+## lost (the Nov 5 sheet), and on the map's dark the ring is the dark it sits on.
 func _tri_queue(q: Vector2, dir: Vector2i, c: Color, glyph_too: bool, gname: StringName) -> void:
-	var fill := {}
+	var solid := {}
 	for p: Vector2i in tri_px(dir):
+		solid[p] = true
+	var fill := {}
+	for p: Vector2i in tri_line(dir):
 		fill[p] = true
+	var shape := solid.duplicate()
 	if glyph_too:
 		var g := _glyph_at(dir)
 		var m: Array = GLYPH.get(gname, GLYPH[&"signal"])
 		for r in 5:
 			for k in 5:
 				if (m[r] as String)[k] == "#":
-					fill[g + Vector2i(k, r)] = true
+					for a in MARK_GLYPH_CELL:
+						for b in MARK_GLYPH_CELL:
+							var gp := g + Vector2i(k * MARK_GLYPH_CELL + a, r * MARK_GLYPH_CELL + b)
+							fill[gp] = true
+							shape[gp] = true
 	var edge := {}
 	for p: Vector2i in fill:
 		for dy in [-1, 0, 1]:
 			for dx in [-1, 0, 1]:
 				var n := p + Vector2i(dx, dy)
-				if not fill.has(n):
+				# (round the whole shape outside, and just inside the line)
+				if not fill.has(n) and (not shape.has(n) or solid.has(n)):
 					edge[n] = true
 	var dark := Color(MARK_DARK, 0.8 * c.a)
 	for p: Vector2i in edge:

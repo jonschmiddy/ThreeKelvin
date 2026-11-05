@@ -98,7 +98,8 @@ extends Node
 ## picture marked at the frame's edge on nothing drawn (`_pair_marks`); a ship
 ## put back on a world round both suns is taken into the framing
 ## (`_put_back_framed`); a partner off the picture has its arrow too
-## (`_partner_marked`).
+## (`_partner_marked`). Each arrow's look (Jon, Nov 5, `_arrow_shapes`): its
+## key glyph as tall as the arrow, and the arrow hollow.
 ## Prints how many twin systems and cases each part saw.
 ##
 ## IT JUDGES THE WHOLE BUILD. Where a part is another build's (the flight's ride
@@ -162,6 +163,7 @@ func _map() -> SystemMapScreen:
 
 func _run() -> void:
 	await get_tree().process_frame
+	_arrow_shapes()
 	_close_pairs()
 	_opens_as_before()
 	h.seed_run(4242)
@@ -3087,6 +3089,69 @@ func _close_b_words_ride() -> void:
 		MapGen.star_name(n), hops, back, seen], seen > 0 and hops <= 1 and back == 0)
 
 
+## THE EDGE ARROW'S LOOK (Jon, Nov 5: "make the icon the same height as the
+## arrow and make the arrow hollow"), for each of the eight ways, drawn by
+## `SystemOverlay._tri_queue` alone: the key glyph in 2 px cells, as tall across
+## the arrow's axis as a side arrow is (10 px), centred on that axis, and on a
+## diagonal arrow centred on its middle line; the arrow's inside (`tri_px`
+## cells with all four neighbours in it) never in the arrow's colour, only the
+## dark ring just inside its line, and nothing at all further in.
+func _arrow_shapes() -> void:
+	var ov = OverlayS.new()
+	var col := Color("#9b8ec8")
+	var bad: Array[String] = []
+	var deep_n := 0
+	for dir: Vector2i in [Vector2i(1, 0), Vector2i(1, 1), Vector2i(0, 1), Vector2i(-1, 1), Vector2i(-1, 0), Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1)]:
+		var bx: Array = ov._tri_boxes(Vector2.ZERO, dir, true)
+		var ab: Rect2 = (bx[1] as Rect2).grow(-1.0)
+		var gb: Rect2 = bx[2]
+		var diag := dir.x != 0 and dir.y != 0
+		# (across the axis: a side arrow's height pointing left or right, its
+		# width pointing up or down)
+		var a_across := ab.size.y if dir.y == 0 else ab.size.x
+		var g_across := gb.size.y if dir.y == 0 else gb.size.x
+		var off := Vector2(dir).normalized().cross(gb.get_center() - ab.get_center())
+		if diag:
+			if gb.size != Vector2(10, 10) or absf(off) > 0.5:
+				bad.append("%s: the glyph %s, %.1f px off the arrow's middle line" % [dir, gb.size, off])
+		elif g_across != a_across or absf(off) > 0.01:
+			bad.append("%s: the glyph %.0f px across the axis, the arrow %.0f; %.1f px off its axis" % [dir, g_across, a_across, off])
+		# the inside, from the solid triangle
+		var solid := {}
+		for p: Vector2i in OverlayS.tri_px(dir):
+			solid[p] = true
+		var inside := {}
+		for p: Vector2i in solid:
+			if solid.has(p + Vector2i.RIGHT) and solid.has(p + Vector2i.LEFT) and solid.has(p + Vector2i.UP) and solid.has(p + Vector2i.DOWN):
+				inside[p] = true
+		var by_line := {}
+		for p: Vector2i in inside:
+			for dy in [-1, 0, 1]:
+				for dx in [-1, 0, 1]:
+					var n := p + Vector2i(dx, dy)
+					if solid.has(n) and not inside.has(n):
+						by_line[p] = true
+		ov.mark_rects = []
+		ov._tri_queue(Vector2.ZERO, dir, col, true, &"contract")
+		var drawn := {}
+		for e: Array in ov.mark_rects:
+			drawn[Vector2i((e[0] as Rect2).position)] = e[1]
+		var lit := 0
+		var deep := 0
+		for p: Vector2i in inside:
+			if drawn.has(p) and (drawn[p] as Color).is_equal_approx(col):
+				lit += 1
+			if not by_line.has(p):
+				deep_n += 1
+				if drawn.has(p):
+					deep += 1
+		if lit > 0 or deep > 0 or inside.is_empty():
+			bad.append("%s: %d of its %d inside pixels in its colour, %d of those off its line drawn" % [dir, lit, inside.size(), deep])
+	ov.free()
+	h._ok("each of the eight edge arrows: its key glyph as tall as the arrow (10 px, 2 px cells), centred on its axis or middle line, and the arrow hollow, its inside never in its colour and, past the dark ring inside its line, not drawn (%d such pixels)%s" % [
+		deep_n, "" if bad.is_empty() else ": " + "; ".join(bad)], bad.is_empty() and deep_n > 0)
+
+
 ## A WIDE PAIR OPENS FRAMED ON ITS OWN PART (Jon, Nov 1, "gap:A"), as the ring
 ## sweep shows each wide pair (`_pair_marks`): at `SystemMapScreen.open_view`,
 ## nearer than the whole system and centred on the two suns and their own
@@ -3158,10 +3223,35 @@ func _pair_marks(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 	var sr := float(ov.ship_r())
 	drawn.append(Rect2(ov._ship_at - Vector2(sr, sr), Vector2(sr, sr) * 2.0))
 	var boxes: Array = []
+	# (what the screen draws for the arrows, by pixel: the look as drawn, Jon's
+	# Nov 5 `_arrow_shapes`)
+	var px_at := {}
+	for e: Array in ov.mark_rects:
+		px_at[Vector2i((e[0] as Rect2).position)] = e[1]
 	for mk: Dictionary in ov.edge_marks:
 		st.marks += 1
 		if int(mk.body) != -9:
 			st.marked += 1
+		var dir: Vector2i = mk.dir
+		var ab: Rect2 = (mk.arrow_box as Rect2).grow(-1.0)
+		var gb: Rect2 = mk.glyph_box
+		var looks := true
+		if gb.has_area() and dir.x * dir.y == 0 and (gb.size.y if dir.y == 0 else gb.size.x) != (ab.size.y if dir.y == 0 else ab.size.x):
+			looks = false
+			bad.append("%s: the arrow at %s pointing %s has its glyph %s beside the arrow's %s" % [nm, mk.at, dir, gb.size, ab.size])
+		var solid := {}
+		for p: Vector2i in OverlayS.tri_px(dir):
+			solid[p] = true
+		var q := Vector2i((mk.at as Vector2).round())
+		for p: Vector2i in solid:
+			if solid.has(p + Vector2i.RIGHT) and solid.has(p + Vector2i.LEFT) and solid.has(p + Vector2i.UP) and solid.has(p + Vector2i.DOWN):
+				var c: Variant = px_at.get(q + p)
+				if c != null and not Color(c).is_equal_approx(Color(OverlayS.MARK_DARK, Color(c).a)):
+					looks = false
+					bad.append("%s: the arrow at %s pointing %s is filled at %s" % [nm, mk.at, dir, p])
+					break
+		if not looks:
+			st.look_bad += 1
 		# (an event's arrow carries its key glyph, a ship's none: "Edge arrows: C")
 		if (StringName(mk.glyph) != &"") != (int(mk.body) != -9) or (StringName(mk.glyph) != &"") != (mk.glyph_box as Rect2).has_area():
 			st.untagged += 1
@@ -3350,7 +3440,7 @@ func _ring_sweep() -> void:
 		"sel": 0, "sel_shown": 0, "sel_held": 0, "sel_under": 0, "coasts": 0, "into": 0, "fc_shown": 0, "fc_held": 0, "ev_sys": 0, "ev_moved": 0,
 		"bc_words": 0, "bc_fallback": 0, "bc_crossed": 0, "sel_bc": 0, "fc_bc": 0,
 		"bc_stepped": 0, "bc_ticks": 0, "bc_hid": 0, "bc_marks": 0, "sel_on_words": 0, "close": 0,
-		"wide": 0, "zoom_bad": 0, "gap_n": 0, "gap_least": INF, "off": 0, "marked": 0, "marks": 0, "mark_on": 0, "untagged": 0,
+		"wide": 0, "zoom_bad": 0, "gap_n": 0, "gap_least": INF, "off": 0, "marked": 0, "marks": 0, "mark_on": 0, "untagged": 0, "look_bad": 0,
 		"framed_off": 0, "near_n": 0, "near_bad": 0, "near_none": 0, "turn_runs": 0, "turn_frames": 0, "turn_hops": 0, "turn_hops_free": 0,
 		"turn_moves": 0, "turn_moves_free": 0, "turn_across": 0, "turn_held": 0}
 	var mark_bad: Array[String] = []
@@ -3686,6 +3776,8 @@ func _ring_sweep() -> void:
 		st.marked, st.off, st.mark_on], st.off > 0 and st.marked == st.off and st.mark_on == 0)
 	h._ok("and each event's arrow carries the event's key glyph, a ship's none (%d of %d arrows not)" % [st.untagged, st.marks],
 		st.marks > 0 and st.untagged == 0)
+	h._ok("and as drawn there, each side arrow's glyph as tall as the arrow and every arrow hollow (%d of %d arrows not)" % [st.look_bad, st.marks],
+		st.marks > 0 and st.look_bad == 0)
 	h._ok("the words by the ship stand whole or shortened at nearly every place (%d whole, %d shortened, %d held back of %d)" % [st.whole, st.short, st.held, st.moments],
 		st.held * 50 <= st.moments)
 	h._ok("and never over an event's beacon drawn that frame, but where no spot clears the suns and the beacons both (%d placed, %d over a beacon, %d by one for want of a spot)%s" % [
