@@ -1602,6 +1602,9 @@ func _key_check(scr: Control) -> int:
 		if not Ov.GLYPH.has(k[0]) or looks.has(g):
 			fails += 1
 			print("  FAIL keycheck: %s has no glyph of its own (%s)" % [k[1], looks.get(g, "none")])
+		if ink == UITheme.LINE:
+			fails += 1
+			print("  FAIL keycheck: %s has no colour (the frame's LINE: not in TAG_ORDER)" % k[1])
 		if inks.has(ink.to_html()):
 			fails += 1
 			print("  FAIL keycheck: %s is the colour of %s" % [k[1], inks[ink.to_html()]])
