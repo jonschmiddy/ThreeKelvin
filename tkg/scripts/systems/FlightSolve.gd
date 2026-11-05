@@ -433,9 +433,9 @@ const CHOICE_V := 3
 ## DIRECT is ruling 21's C search (TIME_W 16 to T_CAP 16) at pace 4, about 11 s
 ## of tau played in about 2.8 s; CURVED is the as-built search (ruling 20's
 ## TIME_W_BACK 0.5 to T_CAP_BACK 30, its conic times and FAR_T_BACK) as the
-## first look, at pace 8: slow, cheap flights that bend round the stars,
-## about 24 s of tau played in about 3 s. Both keep the wider search and the
-## flight in two legs behind them.
+## first look, at pace 4 too (Jon, Nov 5: "Lets do 4X for both"; it was 8):
+## slow, cheap flights that bend round the stars, about 24 s of tau played in
+## about 6 s. Both keep the wider search and the flight in two legs behind them.
 ## ALONGSIDE, the hold before leaving (KEEP_HOLD in tau) is at least HOLD_MAP
 ## of map time: KEEP_HOLD 1 s of tau is an eighth of a second at pace 8.
 const HOLD_MAP := 0.4

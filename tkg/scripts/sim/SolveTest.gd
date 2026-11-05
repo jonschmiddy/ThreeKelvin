@@ -14,7 +14,7 @@ extends Node
 ## THE TWO PATHS (the fast transfers, Nov 5: AUTOPILOT DIRECT . CURVED,
 ## `FlightSolve.solve`'s opts): `path=direct|curved|both` (both unless asked)
 ## and `pace=K` (each path's own `ShipFlight.FLIGHT_PACE`, DIRECT 4 and CURVED
-## 8, unless asked). Every case is built on the map as before and then put on
+## 4, unless asked). Every case is built on the map as before and then put on
 ## the flight's own clock, tau = pace x map time (its ring's and a free start's
 ## speed / pace, the target's ring speed / pace, the system as
 ## `MapGravity.paced`), and every check below reads it there, the layout's own

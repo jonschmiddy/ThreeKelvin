@@ -915,9 +915,9 @@ func _preview_holds() -> void:
 
 ## A FAST FLIGHT HOLDS WITH THE MAP'S CLOCK (the fast transfers, Nov 5): on
 ## the map, your ship flying to another place on `path` at its pace
-## (`ShipFlight.FLIGHT_PACE`: DIRECT x4, CURVED x8, a flight of about 3 s),
+## (`ShipFlight.FLIGHT_PACE`: DIRECT x4, CURVED x4),
 ## then map -> chart by its tab mid-flight. Through the hold the ship stands
-## where it was (the map's clock and the flight held, not run on at x8 under
+## where it was (the map's clock and the flight held, not run on at x4 under
 ## the still picture), and back on the map it is at that place.
 func _flight_holds(path: StringName) -> void:
 	await _at(ZoomLadder.MAP)
