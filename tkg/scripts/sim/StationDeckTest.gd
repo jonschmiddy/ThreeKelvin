@@ -482,6 +482,84 @@ func _lab(st: StationScreen, here: MapGen.MapNode, tag: String, dev: int, deep: 
 	st.get_viewport().push_input(esc)
 	await _frames(2)
 	_ok("%s: RESEARCH goes in, and Esc comes back out (open %s)" % [tag, zoom.is_open()], not zoom.is_open() and not zoom.visible)
+	# (and at the capital with a berth: the yard's edge sets the rail's alpha
+	# every frame there, and undid the chrome's going)
+	var big := dev == MapGen.Development.CAPITAL or dev == MapGen.Development.SETTLEMENT
+	if (deep and big) or (not deep and dev == MapGen.Development.CAPITAL):
+		await _camera_move(st, zoom, tag)
+
+
+## THE MOVE ITSELF, animated (`Router.animate_in_harness`; headless it jumps
+## to its end): the station's chrome leaves before the camera moves and is
+## gone while it moves, and back only once the camera is out; Esc on the way
+## in turns it round and opens no pause menu; a click during the move lands
+## it and is eaten (it reaches no page key, and on the way out it does not
+## open the Lab again); Tab with the camera in takes it out at once, the
+## chrome back. The HUD's alpha, the rail's and the entry's are read off the
+## nodes the player sees.
+func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
+	var hud: Control = Router.hud
+	var was_anim := Router.animate_in_harness
+	Router.animate_in_harness = true
+	var out_s := ZoomLadder.UI_OUT_S
+	var mid := out_s + ZoomLadder.LAB_ZOOM_S * 0.4
+	# IN, and held mid-move
+	await _click(_find_button(st._bench, "RESEARCH"))
+	await _until(func() -> bool: return zoom._at >= mid)
+	var moving := zoom.is_open() and not zoom.landed() and zoom._at > out_s
+	_ok("%s, animated: mid-move the HUD, the rail and the entry are gone (HUD %.2f, rail %.2f, entry %.2f, at %.2f of %.2f)" % [tag,
+		hud.modulate.a, st._rail.modulate.a, st._bench.modulate.a, zoom._at, zoom._goal],
+		moving and hud.modulate.a < 0.02 and st._rail.modulate.a < 0.02 and st._bench.modulate.a < 0.02)
+	# Esc mid-move turns it round, and no pause menu opens
+	var esc := InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	esc.pressed = true
+	GameShell.input_target(_tree).push_input(esc)
+	await _tree.process_frame
+	var menu: Variant = _tree.current_scene.get("_menu") if _tree.current_scene != null else null
+	_ok("%s, animated: Esc on the way in turns the camera round (goal %.2f) and opens no menu (%s)" % [tag, zoom._goal, menu],
+		zoom._goal == 0.0 and menu == null)
+	var chrome_while_moving := 1.0
+	var t0 := Time.get_ticks_msec()
+	while zoom.visible and Time.get_ticks_msec() - t0 < 8000:
+		if zoom._at > out_s:
+			chrome_while_moving = minf(chrome_while_moving, 1.0 - hud.modulate.a)
+		await _tree.process_frame
+	_ok("%s, animated: out again, the chrome back as it was (HUD %.2f, rail %.2f, entry %.2f), and gone all the way out (%.2f)" % [tag,
+		hud.modulate.a, st._rail.modulate.a, st._bench.modulate.a, chrome_while_moving],
+		not zoom.is_open() and is_equal_approx(hud.modulate.a, 1.0) and is_equal_approx(st._rail.modulate.a, 1.0)
+		and is_equal_approx(st._bench.modulate.a, 1.0) and chrome_while_moving > 0.98)
+	# IN AGAIN: a click mid-move lands it, and goes no further (it is where
+	# the AUGMENT tab will be)
+	await _click(_find_button(st._bench, "RESEARCH"))
+	await _until(func() -> bool: return zoom._at >= mid)
+	var tab_at: Vector2 = (zoom.tab_buttons[&"augment"] as Control).get_global_rect().get_center()
+	await _click_at(tab_at)
+	await _frames(2)
+	_ok("%s, animated: a click mid-move lands the camera (landed %s) and is eaten (the page %s, not AUGMENT)" % [tag, zoom.landed(), zoom.tab],
+		zoom.landed() and zoom.tab == &"research")
+	# OUT, with a click on the glass mid-move: it lands out, and the Lab stays shut
+	await _click(zoom.leave_button)
+	await _until(func() -> bool: return zoom._at <= out_s + ZoomLadder.LAB_ZOOM_S * 0.5)
+	var glass_at := st._bench_clip.get_global_rect().get_center()
+	await _click_at(glass_at)
+	await _frames(3)
+	_ok("%s, animated: a click on the glass on the way out lands it out and opens nothing (open %s, shown %s, HUD %.2f)" % [tag,
+		zoom.is_open(), zoom.visible, hud.modulate.a], not zoom.is_open() and not zoom.visible and is_equal_approx(hud.modulate.a, 1.0))
+	# TAB with the camera in: out at once, the chrome back, the key left for Main
+	Router.animate_in_harness = false
+	zoom.open(&"research")
+	await _frames(1)
+	var tab := InputEventKey.new()
+	tab.keycode = KEY_TAB
+	tab.physical_keycode = KEY_TAB
+	tab.pressed = true
+	var tab_bound := tab.is_action_pressed(&"next_screen")
+	zoom._input(tab)
+	_ok("%s: Tab (next screen, bound %s) with the camera in takes it out at once, the chrome back (open %s, shown %s, HUD %.2f, rail %.2f)" % [tag,
+		tab_bound, zoom.is_open(), zoom.visible, hud.modulate.a, st._rail.modulate.a],
+		tab_bound and not zoom.is_open() and not zoom.visible and is_equal_approx(hud.modulate.a, 1.0) and is_equal_approx(st._rail.modulate.a, 1.0))
+	Router.animate_in_harness = was_anim
 
 
 ## AUGMENT AND STRIP (S9 part two): the page's box test on every part and
@@ -603,6 +681,14 @@ func _strip_view(aug: LabAugment, m: ModuleData, dev: int) -> bool:
 ## AUGMENT pressed through the viewport after thirty refreshes, then STRIP.
 func _augment_press(st: StationScreen, zoom: LabZoom, m: ModuleData, tag: String, dev: int) -> void:
 	var aug := zoom.augment
+	# A ROLLED AFFIX ON IT FIRST, so STRIP has two to choose from and taking
+	# the wrong one shows (with one, the first and the last are the same)
+	if m.affixes.is_empty():
+		var rl: Array[AffixData] = []
+		rl.append(Science._affix(&"Cryo-Lined"))
+		m.affixes = rl
+		Sig.ship_changed.emit()
+	var rolled_name := m.affixes[0].name
 	aug.pick_part(m)
 	aug.pick_affix(0)
 	await _frames(2)
@@ -619,12 +705,21 @@ func _augment_press(st: StationScreen, zoom: LabZoom, m: ModuleData, tag: String
 	var data0 := Run.data
 	var cr0 := Run.credits
 	var hp0 := Run.max_hp()
+	# WHAT THE PAGE IS DOING INSIDE THE PRESS: the service sends ship_changed,
+	# and the refresh it runs must find the page still on AUGMENT (read here,
+	# after the station's own refresh, on the same emit)
+	var inside: Array = []
+	var probe := func() -> void: inside.append(aug.mode)
+	Sig.ship_changed.connect(probe)
 	await _click(key)
+	Sig.ship_changed.disconnect(probe)
 	await _frames(2)
 	_ok("%s: AUGMENT puts %s on %s for 5 DATA and %d credits (DATA %d to %d, credits %d to %d, the header %s)" % [tag, a.name, m.name,
 		AUGMENT[dev], data0, Run.data, cr0, Run.credits, zoom._note],
 		m.augmented and m.affixes.size() == n_aff + 1 and m.affixes[-1].name == a.name
 		and Run.data == data0 - 5 and Run.credits == cr0 - AUGMENT[dev] and zoom._note == "-5")
+	_ok("%s: inside the press the page never turned over to STRIP (%s)" % [tag, inside],
+		not inside.is_empty() and inside.all(func(md: StringName) -> bool: return md == &"augment"))
 	_ok("%s: the page stays on AUGMENT and the strip says it is done, with no key (mode %s, %s)" % [tag, aug.mode, aug.done.get("line", "")],
 		not aug.done.is_empty() and aug.done.kind == &"augment" and aug.mode == &"augment" and not key.visible
 		and aug.leaves.any(func(l: Array) -> bool: return l[0] == String(aug.done.line).to_upper())
@@ -638,15 +733,22 @@ func _augment_press(st: StationScreen, zoom: LabZoom, m: ModuleData, tag: String
 	await _click_at(aug.get_global_transform() * Vector2(aug.RAIL_X + 120, _row_y(aug, m)))
 	await _frames(2)
 	_ok("%s: picked again, it opens on STRIP, never a second augment" % tag, aug.mode == &"strip" and aug.commit_button.label == "STRIP")
-	aug.pick_affix(aug._affs.size() - 1)
+	# the Lab's own affix picked, and it last on the part: the rolled one first
+	var at_lab := -1
+	for i in aug._affs.size():
+		if aug._affs[i].name == a.name:
+			at_lab = i
+	aug.pick_affix(at_lab)
 	await _frames(1)
 	var data1 := Run.data
 	var cr1 := Run.credits
 	await _click(aug.commit_button)
 	await _frames(2)
-	_ok("%s: STRIP takes %s off for 2 DATA and %d credits, and the mark stays (DATA %d to %d, credits %d to %d)" % [tag, a.name,
-		STRIP[dev], data1, Run.data, cr1, Run.credits],
-		m.augmented and m.affixes.size() == n_aff and Run.data == data1 - 2 and Run.credits == cr1 - STRIP[dev])
+	var left: Array = m.affixes.map(func(x: AffixData) -> String: return x.name)
+	_ok("%s: STRIP takes the picked %s off and leaves %s on (%s) for 2 DATA and %d credits, and the mark stays (DATA %d to %d, credits %d to %d)" % [tag, a.name,
+		rolled_name, left, STRIP[dev], data1, Run.data, cr1, Run.credits],
+		at_lab > 0 and m.augmented and m.affixes.size() == n_aff and not left.has(a.name) and left.has(rolled_name)
+		and Run.data == data1 - 2 and Run.credits == cr1 - STRIP[dev])
 	var bad2 := zoom.check()
 	_ok("%s: the page just stripped passes the box test (%s)" % [tag, "clean" if bad2.is_empty() else "; ".join(bad2)], bad2.is_empty())
 
@@ -726,6 +828,24 @@ func _buy_rules(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	_ok("%s: and the strip says it runs from the next fight" % tag, board.leaves.any(func(l: Array) -> bool: return l[0] == "RUNNING FROM YOUR NEXT FIGHT."))
 	var bad := zoom.check()
 	_ok("%s: the board just bought passes the box test (%s)" % [tag, "clean" if bad.is_empty() else "; ".join(bad)], bad.is_empty())
+	# DATA SHORT: the next step keeps its key, dead, and the strip says what
+	# you hold; a click on it buys nothing
+	for b4 in 3:
+		Run.board_owned[b4] = 0
+	Run.data = 3
+	Sig.resources_changed.emit()
+	board.pick = Vector2i(0, 0)
+	board.bought = Vector2i(-1, -1)
+	board.refresh()
+	await _frames(2)
+	await _click(board.buy_button)
+	await _frames(2)
+	var bad2 := zoom.check()
+	_ok("%s: DATA short, BUY is there and dead, the strip says YOU HAVE 3 DATA, a click buys nothing, and it fits (%s)" % [tag,
+		"clean" if bad2.is_empty() else "; ".join(bad2)],
+		board.buy_button.visible and board.buy_button.disabled and board.buy_button == buy
+		and board.leaves.any(func(l: Array) -> bool: return l[0] == "YOU HAVE 3 DATA")
+		and Run.data == 3 and Run.board_owned[0] == 0 and bad2.is_empty())
 
 
 ## THE SAME BOARD AT A SECOND STATION of the run: the same steps where they
@@ -763,6 +883,14 @@ func _second_station() -> void:
 	_ok("the board is the same at a second station: every step and word where it was (%d)" % there.size(),
 		there == first and there.size() >= 20)
 	st2.lab_zoom().close()
+
+
+## Frames until `cond` holds, at most `ms` of the wall clock (the move runs
+## on it).
+func _until(cond: Callable, ms: int = 8000) -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cond.call() and Time.get_ticks_msec() - t0 < ms:
+		await _tree.process_frame
 
 
 ## A click through the viewport, as a player makes it (BoardSignTest's way):

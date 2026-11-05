@@ -67,7 +67,15 @@ signal dropped(payload: Dictionary, at: Vector2i)
 ## on one says `picked` with its part; and nothing can be dropped here. A pick
 ## never moves a part.
 signal picked(m: HoldItem)
-var pick_mode := false
+## Set, it takes effect at once on the icons already up (not on the next
+## refresh: until then they still took the mouse, and a shift-click or a
+## double-click still moved a part).
+var pick_mode := false:
+	set(v):
+		pick_mode = v
+		for c in get_children():
+			if c is ItemIcon:
+				(c as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE if v else Control.MOUSE_FILTER_PASS
 
 var _cols: int = 4
 var _rows: int = 5

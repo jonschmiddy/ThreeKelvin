@@ -129,6 +129,14 @@ func _init() -> void:
 	commit_button = LabPlate.new("AUGMENT", &"commit")
 	commit_button.visible = false
 	commit_button.pressed.connect(_commit)
+	# ON THE KEY, THE STRIP READS WHAT THE KEY DOES: a ring left under the
+	# pointer by a quick move onto the key kept the bill on that ring while a
+	# press acted on the one picked
+	commit_button.mouse_entered.connect(func() -> void:
+		if hover_node >= 0 or hover_row >= 0:
+			hover_node = -1
+			hover_row = -1
+			_restyle())
 	add_child(commit_button)
 	more_button = LabPlate.new("MORE", &"plate")
 	more_button.visible = false
@@ -315,9 +323,12 @@ func bill() -> Dictionary:
 
 func _commit() -> void:
 	var n: MapGen.MapNode = Run.node_at()
-	if part == null or n == null or choice < 0 or choice >= _affs.size():
+	# the affix the strip and its bill are about, whatever is under the pointer
+	var at := shown()
+	if part == null or n == null or at < 0 or at >= _affs.size():
 		return
-	var a: AffixData = _affs[choice]
+	choice = at
+	var a: AffixData = _affs[at]
 	var line := ""
 	var offer: Array = _affs.duplicate()
 	# (read before the press: after it, the part already carries the affix)
@@ -688,6 +699,17 @@ func ground_ink(a: float) -> Color:
 	return LabBoard.mixc(BG, tint, a)
 
 
+## THE QUIET WORDS' INK (the rail's heads, a part's kind, NO AFFIX YET): the
+## mockup's ground ink at the capital, whose tint is a cold white, at every
+## lab. In a warm lab's own tint they came out near the ember the prices and
+## keys are drawn in, and read as things to press. The tint stays on rules.
+const CAPITAL_TINT := Color(190.0 / 255.0, 240.0 / 255.0, 235.0 / 255.0)
+
+
+static func word_ink(a: float) -> Color:
+	return LabBoard.mixc(BG, CAPITAL_TINT, a)
+
+
 ## A one-pixel curve from `a` to `b`, x even and y eased (the mockup's lines).
 static func _curve(a: Vector2, b: Vector2) -> Array[Vector2i]:
 	var raw: Array[Vector2i] = []
@@ -935,7 +957,7 @@ func paint(ci: CanvasItem) -> void:
 		var m: ModuleData = r.m
 		var cy: int = r.cy
 		if r.head:
-			_text(ci, RAIL_X + 12, int(r.y) - 13, "FITTED" if r.where == &"fitted" else "IN THE HOLD", ground_ink(0.6))
+			_text(ci, RAIL_X + 12, int(r.y) - 13, "FITTED" if r.where == &"fitted" else "IN THE HOLD", word_ink(0.6))
 		var picked := m == part
 		var dim := m.augmented and not picked
 		var hi: Color
@@ -962,7 +984,7 @@ func paint(ci: CanvasItem) -> void:
 		var name_c := ICE if picked or hover_row == i else (LATER_T if m.augmented else CHILL)
 		var nw := _text(ci, tx, cy - 7, name, name_c, 8, picked)
 		var l2 := _line2(m)
-		var l2c: Color = OWN_D if not m.affixes.is_empty() else (LATER_T if m.augmented else ground_ink(0.55))
+		var l2c: Color = OWN_D if not m.affixes.is_empty() else (LATER_T if m.augmented else word_ink(0.55))
 		var l2w := _text(ci, tx, cy + 4, l2, l2c, 8, false, "line 2 of " + name)
 		var right := tx + maxi(nw, l2w)
 		if strip_buttons[i].visible:
@@ -1008,7 +1030,7 @@ func paint(ci: CanvasItem) -> void:
 		l3 = "HAS " + _affix_names(part)
 	if LabBoard.tw(l3) > 270:
 		l3 = ("AUGMENTED  ·  " if part.augmented else "HAS ") + "%d AFFIXES" % part.affixes.size()
-	_text(ci, SX, 145, l3, ground_ink(0.6))
+	_text(ci, SX, 145, l3, word_ink(0.6))
 	var src := _source(part)
 	var k := scale_for(src.get_width(), src.get_height())
 	var sch: Array = picture(part, &"schematic", OWN, OWN_D, true, k)

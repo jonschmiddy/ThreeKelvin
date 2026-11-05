@@ -115,6 +115,10 @@ func _gui_input(e: InputEvent) -> void:
 	var m := held_item()
 	if m == null:
 		return
+	# (a hold shown to pick from moves nothing, by any gesture: `HoldGrid.pick_mode`)
+	var g := get_parent() as HoldGrid
+	if g != null and g.pick_mode:
+		return
 	# SHIFT-CLICK BRINGS IT ABOARD, right-click puts it down. One gesture each
 	# way, for anyone who would rather not drag six things across a screen.
 	#

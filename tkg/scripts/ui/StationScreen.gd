@@ -1103,6 +1103,45 @@ func lab_zoom() -> LabZoom:
 	return _lab_zoom
 
 
+## THE CAMERA INTO THE LAB TAKES THE STATION'S CHROME WITH IT (`LabZoom`):
+## the HUD, the deck rail (UNDOCK in it) and the deck's own plate round the
+## room, k of the way gone on an eased curve, each from the alpha it had; at 0
+## each is put back exactly as it was. The plate goes by its self_modulate, so
+## the room it holds stays.
+var _lab_chrome_a := {}
+## How far the camera into the Lab has the rail gone (0 to 1). The yard's edge
+## sets the rail's alpha every frame where there is a berth (`_YardEdge`), so
+## it reads this too: setting the alpha here alone was undone a frame later,
+## and the rail stood whole beside the room growing over it.
+var _lab_k := 0.0
+
+
+func lab_chrome(k: float) -> void:
+	var e := smoothstep(0.0, 1.0, clampf(k, 0.0, 1.0))
+	_lab_k = e
+	for it: Array in [[Router.hud, false], [_rail, false], [_pages.get(&"bench"), true]]:
+		var c := it[0] as CanvasItem
+		if c == null or not is_instance_valid(c):
+			continue
+		var own: bool = it[1]
+		var id := c.get_instance_id()
+		if e <= 0.0:
+			if _lab_chrome_a.has(id):
+				if own:
+					c.self_modulate.a = float(_lab_chrome_a[id])
+				else:
+					c.modulate.a = float(_lab_chrome_a[id])
+				_lab_chrome_a.erase(id)
+			continue
+		if not _lab_chrome_a.has(id):
+			_lab_chrome_a[id] = c.self_modulate.a if own else c.modulate.a
+		var a := float(_lab_chrome_a[id]) * (1.0 - e)
+		if own:
+			c.self_modulate.a = a
+		else:
+			c.modulate.a = a
+
+
 ## Show one page. The lit stylebox is the HUD's, so an active tab looks the same
 ## wherever the player meets one.
 ## One deck of the section.
@@ -2909,7 +2948,7 @@ class _YardEdge extends Node:
 		if not screen._lad.is_empty() and not bool(screen._lad.get("out", false)):
 			gone = true
 		# (by its alpha, not `visible`: hidden, the row it stands in would close up)
-		r.modulate.a = 0.0 if gone else screen._rail_a
+		r.modulate.a = 0.0 if gone else screen._rail_a * (1.0 - screen._lab_k)
 		r.z_index = 1 if away and not gone and not _panning() else 0
 		if away == _on:
 			return

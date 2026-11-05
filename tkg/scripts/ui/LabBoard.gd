@@ -100,6 +100,10 @@ var _sig := ""
 var _nodes := {}             # Vector2i(b, k) -> Vector2i
 var _segs := {}              # Vector2i(b, k) -> Array[Vector2i]
 var _lines := PackedByteArray()
+## Where the words and price marks stand, a pixel round them: a running
+## step's pulse is not drawn there (`_node_live`), so it never runs onto a
+## name (at full spread it reached BLACK BOX's).
+var _quiet := PackedByteArray()
 var _labels: Array = []      # {x, ycap, s, c, size, name}
 var _price_marks: Array = [] # {x, y, c}
 ## Every box drawn, as the mockup's box test has them: [name, Rect2i].
@@ -256,7 +260,7 @@ func _disc(ci: CanvasItem, cx: int, cy: int, r: int, c: Color) -> void:
 
 
 ## A soft halo from r0 out to r1, faded in dithered steps. It glows.
-func _dither_ring(ci: CanvasItem, cx: int, cy: int, r0: int, r1: int, c: Color, a0: float) -> void:
+func _dither_ring(ci: CanvasItem, cx: int, cy: int, r0: int, r1: int, c: Color, a0: float, quiet := false) -> void:
 	var key := r0 * 1000 + r1
 	if not _dithers.has(key):
 		var cells := []
@@ -269,8 +273,18 @@ func _dither_ring(ci: CanvasItem, cx: int, cy: int, r0: int, r1: int, c: Color, 
 	for v: Vector3 in _dithers[key]:
 		var x := cx + int(v.x)
 		var y := cy + int(v.y)
+		if quiet and not pulse_free(x, y):
+			continue
 		if v.z * a0 > bayer(x, y):
 			ci.draw_rect(Rect2(x, y, 1, 1), c)
+
+
+## Whether a running step's pulse may light pixel (x, y): not on a word or a
+## price mark, nor the pixel round one.
+func pulse_free(x: int, y: int) -> bool:
+	if _quiet.size() != W * H or x < 0 or y < 0 or x >= W or y >= H:
+		return true
+	return _quiet[y * W + x] == 0
 
 
 func _bitmap(ci: CanvasItem, rows: Array, x: int, y: int, c: Color, c2: Color, lit: bool = true) -> void:
@@ -542,6 +556,19 @@ func _layout() -> void:
 			var px := bp.x + floori((w - pw) / 2.0)
 			_price_marks.append({x = px, y = bp.y + 11, c = pc})
 			_label(px + 8, bp.y + 11, ps, pc, 8, "price " + name, st == &"next")
+	_quiet = PackedByteArray()
+	_quiet.resize(W * H)
+	var keep: Array[Rect2i] = []
+	for l: Dictionary in _labels:
+		var cap := 5 if int(l.size) == 8 else 10
+		keep.append(Rect2i(int(l.x), int(l.ycap) - 1, tw(String(l.s), int(l.size)), cap + 2))
+	for m: Dictionary in _price_marks:
+		keep.append(Rect2i(int(m.x), int(m.y), LabIcons.DATA_MARK[0].length(), LabIcons.DATA_MARK.size()))
+	for q: Rect2i in keep:
+		var g := q.grow(1)
+		for yy in range(maxi(0, g.position.y), mini(H, g.end.y)):
+			for xx in range(maxi(0, g.position.x), mini(W, g.end.x)):
+				_quiet[yy * W + xx] = 1
 	queue_redraw()
 
 
@@ -614,13 +641,18 @@ class _Placer:
 ## Moves BUY, never makes it.
 func _restyle() -> void:
 	var s := shown()
-	var show_buy := dealt() and s.x >= 0 and state(s.x, s.y) == &"next"
+	# THE NEXT STEP HAS ITS KEY WHETHER OR NOT THE DATA COVERS IT: short, the
+	# key is there and dead and the strip says what you hold (it used to go,
+	# and the strip gave no reason; AUGMENT shows its key dead when short)
+	var st := state(s.x, s.y) if dealt() and s.x >= 0 else &""
+	var show_buy := st == &"next" or st == &"short"
 	if show_buy:
 		var label := "BUY  %d DATA" % int(DB.BOARD_PRICES[s.y])
 		var bw := tw(label) + 30
 		buy_button.label = label
 		buy_button.position = Vector2(W - T - 14 - bw, 461)
 		buy_button.size = Vector2(bw, 19)
+		buy_button.disabled = st != &"next"
 		buy_button.queue_redraw()
 	buy_button.visible = show_buy
 	queue_redraw()
@@ -728,9 +760,10 @@ func _node_still(ci: CanvasItem, x: int, y: int, name: String, st: StringName, r
 func _node_live(ci: CanvasItem, x: int, y: int, st: StringName, p: float, r: int = NR) -> void:
 	match st:
 		&"owned":
-			# the pulse: a ring going out from the step, fading as it goes
+			# the pulse: a ring going out from the step, fading as it goes, and
+			# held off the words round it
 			var pr := r + 2 + pyround(9.0 * p)
-			_dither_ring(ci, x, y, pr, pr + 3, OWN_D if p > 0.5 else OWN, 1.0 - p)
+			_dither_ring(ci, x, y, pr, pr + 3, OWN_D if p > 0.5 else OWN, 1.0 - p, true)
 		&"next":
 			_dither_ring(ci, x, y, r + 1, r + 6, NEXT_D, 0.7 + 0.3 * sin(TAU * p))
 			_ring(ci, x, y, r + 4, mixc(BG, NEXT, 0.6), 12, p / 12.0)
@@ -770,16 +803,29 @@ func _caption(ci: CanvasItem) -> void:
 			_text(ci, x, 487, "YOURS FOR THE REST OF THE RUN, WHATEVER SHIP YOU FLY.", CHILL)
 		&"later":
 			_text(ci, x, 487, "BUY %s FIRST." % _names[b][_owned[b]], CHILL)
-	if st == &"next":
+	if st == &"next" or st == &"short":
 		var r := Rect2i(buy_button.position, buy_button.size)
 		if not light:
 			leaves.append(["[BUY]", r])
-		else:
+		elif st == &"next":
 			# the key's word glows, as the mockup's commit plate did
 			var bl := buy_button.label
 			text_at(ci, r.position.x + floori((r.size.x - tw(bl)) / 2.0), r.position.y + floori((r.size.y - 5) / 2.0), bl, HOT)
-		var left := "LEAVES %d DATA" % (_data - int(DB.BOARD_PRICES[k]))
-		_text(ci, r.position.x + floori((r.size.x - tw(left)) / 2.0), 486, left, CHILL)
+		if st == &"next":
+			var left := "LEAVES %d DATA" % (_data - int(DB.BOARD_PRICES[k]))
+			_text(ci, r.position.x + floori((r.size.x - tw(left)) / 2.0), 486, left, CHILL)
+		else:
+			# what you hold, the number short in red, under the dead key
+			var held := str(_data)
+			var w := tw("YOU HAVE ") + tw(held) + tw(" DATA")
+			var hx := r.position.x + floori((r.size.x - w) / 2.0)
+			if not light:
+				text_at(ci, hx, 486, "YOU HAVE ", CHILL)
+				text_at(ci, hx + tw("YOU HAVE "), 486, held, BAD)
+				text_at(ci, hx + tw("YOU HAVE ") + tw(held), 486, " DATA", CHILL)
+				var hr := Rect2i(hx, 485, w, 7)
+				leaves.append(["YOU HAVE %s DATA" % held, hr])
+				tboxes.append(["YOU HAVE %s DATA" % held, hr])
 
 
 func _draw_live(ci: CanvasItem) -> void:
@@ -877,4 +923,21 @@ func check(extra: Array = []) -> PackedStringArray:
 						hit = true
 			if hit:
 				bad.append("text '%s' crosses an arm" % t[0])
+	# A RUNNING STEP'S PULSE, at its widest, off every word: each pixel it
+	# may light, against every word's box and the pixel round it
+	for key: Vector2i in _nodes:
+		if state(key.x, key.y) != &"owned":
+			continue
+		var c: Vector2i = _nodes[key]
+		var r1 := NR + 2 + 9 + 3
+		for t2: Array in tboxes:
+			var g: Rect2i = (t2[1] as Rect2i).grow(1)
+			var on := false
+			for y2 in range(maxi(g.position.y, c.y - r1), mini(g.end.y, c.y + r1 + 1)):
+				for x2 in range(maxi(g.position.x, c.x - r1), mini(g.end.x, c.x + r1 + 1)):
+					var d := Vector2(x2 - c.x, y2 - c.y).length()
+					if d >= NR + 2 and d <= r1 and pulse_free(x2, y2):
+						on = true
+			if on:
+				bad.append("the pulse of %s runs onto '%s'" % [_names[key.x][key.y], t2[0]])
 	return bad

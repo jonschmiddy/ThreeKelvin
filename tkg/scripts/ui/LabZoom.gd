@@ -11,10 +11,13 @@ extends Control
 ## Esc, takes the camera back out to the room.
 ##
 ## ONE CAMERA MOVE, NOT A CUT, between ZoomLadder's two beats: the room's entry
-## on the glass goes (`UI_OUT_S`, the camera still), the camera moves
+## on the glass goes, and the station's chrome with it, the HUD, the deck rail
+## and the deck's plate (`UI_OUT_S`, the camera still), the camera moves
 ## (`LAB_ZOOM_S`, smootherstep), and the Lab's pages come up on the landed
-## glass (`UI_IN_S`). Back out it all runs backwards. A click or a key during a
-## move finishes it at once, as on the ladder.
+## glass (`UI_IN_S`). Back out it all runs backwards, the chrome back only
+## once the camera is at rest. A click or a key during a move finishes it at
+## once and is eaten (Esc on the way in turns it round); Tab takes the camera
+## out at once and goes on to the ladder.
 ##
 ## THE PICTURE IS THE ROOM'S OWN, LIT AND LIVE. This draws the lab's painted
 ## room with the lab's own light (`LabScene`'s material, so a lamp that
@@ -58,9 +61,17 @@ const FIT := {
 	"capital": [28, 28, 200, 184],
 	"settlement": [32, 512, 50, 24],
 	"city": [24, 80, 74, 74],
-	"outpost": [176, 116, 74, 362],
+	"outpost": [164, 542, 112, 152],
 	"unclaimed": [392, 124, 232, 264],
 }
+## THE GLASS THE CAMERA FRAMES, a lab's glass widened by this many picture px
+## all round. The outpost's screen sits in a dark rim 8 px wide inside its
+## yellow-and-black hazard frame; at its zoom of 3 the bezel's 26 px are only
+## 9 of the room's, so framing the glass itself kept the rim and lost the
+## stripes, and the outpost read as any lab. Framed from the rim's outer edge,
+## the stripes are its bezel, as in the room. Its FIT was searched again for
+## this box, by build.py's own rule (tk-scratch/science/s9/fix2/fitsearch.py).
+const RIM := {"outpost": 8}
 ## The capital's bench in its picture: its top edge (row 318) and its ends.
 const BENCH := Rect2(104, 318, 532, 70)
 const TABS := [[&"research", "RESEARCH"], [&"augment", "AUGMENT"], [&"recipes", "RECIPES"]]
@@ -598,10 +609,27 @@ func _input(e: InputEvent) -> void:
 		return
 	var key := e as InputEventKey
 	var mb := e as InputEventMouseButton
+	# NEXT SCREEN (Tab) WITH THE CAMERA IN THE GLASS: out to the room at once,
+	# the station's chrome back, and the key left for Main, so the ladder's
+	# move off the station starts from the room it knows (it played under the
+	# Lab's picture, and the map arrived as a cut).
+	if key != null and key.pressed and not key.echo and key.is_action_pressed(&"next_screen"):
+		_goal = 0.0
+		_at = 0.0
+		_apply()
+		return
 	var moving := _at != _goal
 	if moving and ((key != null and key.pressed) or (mb != null and mb.pressed)):
-		# A PRESS DURING A MOVE ENDS IT, as on the ladder, and is not eaten
-		finish()
+		# A PRESS DURING A MOVE ENDS IT, AND IS EATEN: a click that hurried the
+		# move out went on to the room (onto the glass, it opened the Lab
+		# again), and the second click of a double-click on the entry landed on
+		# whatever page key was under it. Esc on the way in turns the camera
+		# round (not on to the pause menu over a Lab that just landed).
+		get_viewport().set_input_as_handled()
+		if key != null and key.keycode == KEY_ESCAPE and _goal > 0.0:
+			close()
+		else:
+			finish()
 		return
 	if key != null and key.pressed and not key.echo and key.keycode == KEY_ESCAPE and _goal > 0.0:
 		get_viewport().set_input_as_handled()
@@ -613,8 +641,13 @@ func _apply() -> void:
 	var out_s := ZoomLadder.UI_OUT_S
 	var move_s := ZoomLadder.LAB_ZOOM_S
 	var in_s := ZoomLadder.UI_IN_S
+	var ui_k := clampf(_at / out_s, 0.0, 1.0)
 	if entry != null and is_instance_valid(entry):
-		entry.modulate.a = 1.0 - clampf(_at / out_s, 0.0, 1.0)
+		entry.modulate.a = 1.0 - ui_k
+	# THE STATION'S CHROME LEAVES WITH THE ENTRY, before the camera moves, and
+	# comes back only once it is back at rest: the HUD and the deck rail stood
+	# still at 1x while the room grew over them, cut mid-word by its edge
+	_chrome(ui_k)
 	var u := clampf((_at - out_s) / move_s, 0.0, 1.0)
 	if hold_at >= 0.0:
 		u = hold_at
@@ -627,14 +660,20 @@ func _apply() -> void:
 	view.modulate.a = vk
 	view.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	mouse_filter = Control.MOUSE_FILTER_STOP if _at > 0.0 or _goal > 0.0 else Control.MOUSE_FILTER_IGNORE
-	# the glass gives way to the chart over the move's first part, and the
-	# capital's flasks go as the camera passes over them
-	var hole := clampf(u / 0.4, 0.0, 1.0)
-	var mirror := smoothstep(0.2, 0.8, u)
+	# the glass gives way to the chart over the move's first quarter, dithered
+	# out (a fade showed the room's own glass, its inner border and the flasks'
+	# reflections, as a second rectangle going pale inside the bezel), and the
+	# capital's flasks go as the camera passes over them, gone before the
+	# bezel nears the window's edge (at 0.2 to 0.8 their tips still showed over
+	# it late in the move)
+	var hole := clampf(u / 0.25, 0.0, 1.0)
+	var mirror := smoothstep(0.1, 0.6, u)
 	if lab != null and is_instance_valid(lab) and not lab.lab.is_empty():
 		_set_light(hole if moving else 0.0, mirror if moving else 0.0)
+	# (the chart whole wherever the glass has gone: at part strength the
+	# station's own room, at its own size, showed through it)
 	for c2: ColorRect in [_ground, _fin_add, _fin_mul]:
-		(c2.material as ShaderMaterial).set_shader_parameter(&"amount", hole)
+		(c2.material as ShaderMaterial).set_shader_parameter(&"amount", 1.0 if hole > 0.0 else 0.0)
 	if moving:
 		_place(e)
 	if _at <= 0.0 and _goal <= 0.0:
@@ -643,15 +682,29 @@ func _apply() -> void:
 			_set_light(0.0, 0.0)
 		if entry != null and is_instance_valid(entry):
 			entry.modulate.a = 1.0
+		_chrome(0.0)
 		closed.emit()
 	elif _at >= _goal and _goal > 0.0 and vk >= 1.0:
 		opened.emit()
 
 
+## The station's HUD, deck rail and deck plate, k of the way gone
+## (`StationScreen.lab_chrome`); at 0 they are as they were.
+func _chrome(k: float) -> void:
+	if station != null and is_instance_valid(station) and station.has_method(&"lab_chrome"):
+		station.call(&"lab_chrome", k)
+
+
+## Whatever takes the station away (a screen change, a run's end) takes the
+## Lab with it: the HUD it hid comes back.
+func _exit_tree() -> void:
+	_chrome(0.0)
+
+
 ## The lab's own light, told where the glass and the bench are.
 func _set_light(hole: float, mirror: float) -> void:
 	var m: ShaderMaterial = lab._mat
-	var g: Array = (lab.lab.get("screen", {}) as Dictionary).get("glass", [0, 0, 0, 0])
+	var g := _glass_box()
 	var gx0 := float(g[0])
 	var gy0 := float(g[1])
 	var gx1 := float(g[2]) + 1.0
@@ -680,9 +733,16 @@ func _set_light(hole: float, mirror: float) -> void:
 		_mirror = 0.0
 
 
+## The lab's glass as the camera frames it (`RIM`): x0, y0, x1, y1, inclusive.
+func _glass_box() -> Array:
+	var g: Array = (lab.lab.get("screen", {}) as Dictionary).get("glass", [0, 0, 0, 0])
+	var r := int(RIM.get(_level, 0))
+	return [int(g[0]) - r, int(g[1]) - r, int(g[2]) + r, int(g[3]) + r]
+
+
 ## The glass on screen at the camera's progress `e`, and the warp that frames it.
 func _place(e: float) -> void:
-	var g: Array = (lab.lab.get("screen", {}) as Dictionary).get("glass", [0, 0, 0, 0])
+	var g := _glass_box()
 	var gx0 := int(g[0])
 	var gy0 := int(g[1])
 	var gw := int(g[2]) - gx0 + 1

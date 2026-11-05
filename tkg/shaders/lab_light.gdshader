@@ -134,8 +134,10 @@ void fragment() {
 		float cy = min(float(p.y) - hole_box.y, hole_box.w - 1.0 - float(p.y));
 		bool corner = cx < hole_k && cy < hole_k
 			&& dot(COLOR.rgb, vec3(0.3, 0.59, 0.11)) > 110.0 / 255.0;
-		if (!corner && (glass || dith < mirror)) {
-			COLOR.a = 1.0 - hole;
+		// dithered out, never faded: a fade showed the glass's own picture as a
+		// second rectangle going pale inside the bezel
+		if (!corner && dith < hole && (glass || dith < mirror)) {
+			COLOR.a = 0.0;
 		}
 	}
 }
