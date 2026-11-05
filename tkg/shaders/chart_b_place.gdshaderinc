@@ -1555,6 +1555,10 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	Ec *= flo;
 	EwS *= flo;
 	EcS *= flo;
+	// (an old ball -- no gas, `ballGas` -- takes the chart's clouds only as far as it has
+	// young gas, `u_ballK.z`: their light read off its warm body painted it the arms' blue
+	// round its middle wherever a cloud was loaded, so only once zoomed in, Nov 5's review)
+	float clK = ellip && !ballGas() ? u_ballK.z : 1.0;
 	for (int i = 0; i < 12; i++) {
 		if (i >= u_ncl) {
 			break;
@@ -1563,7 +1567,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		if (kd > 1) {
 			continue;
 		}
-		float cl = cloudLight(v, i);
+		float cl = cloudLight(v, i) * clK;
 		if (kd == 0) {
 			Ep = max(Ep, cl * Ed * 2.4 * (1.0 - 0.75 * bub));
 		} else {
@@ -1596,7 +1600,11 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	bool galaxy = Et > 0.0062;
 	float EwA = Ew;
 	float EL = Et / (1.0 + EwA * adapt) + streams;
-	float dbt = galaxy ? starDebtB(g) : 0.0;
+	// (a dwarf spheroidal's light is 0.4 of a ball's, `ballBody`, but the stars the chart
+	// hands back to it as it zooms in are a full ball's: they lifted its body a whole step,
+	// maroon to orange, at zoom 2 (11% orange to 34%, Nov 5's review), so it takes them
+	// back at its own faintness)
+	float dbt = galaxy ? starDebtB(g) * (ellip && abs(u_ballK.x - 2.0) < 0.5 ? 0.4 : 1.0) : 0.0;
 	bool warmSide = false;
 	if (!galaxy) {
 		sc = skyAt(P, Ehalo + Et * 0.5, g);
@@ -1646,7 +1654,8 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			if ((solidB || ellip) && lvT < fHi && !pat(P, smoothstep(fLo, fHi, lvT))) {
 				float ELc2 = Ec + Ep + dbt;
 				float la2 = 1.08 + log2(max(ELc2, 1e-6)) / 6.2 - 0.12 * shade - 0.34 * bub;
-				sc = la2 >= 1.0 / 6.0 ? cand(M_ARM, la2, 0, 0.0) : skyAt(P, Ehalo + Et * 0.5, g);
+				// (an old ball has no cool gas behind its fade: it thins out into the sky)
+				sc = la2 >= 1.0 / 6.0 && !(ellip && !ballGas()) ? cand(M_ARM, la2, 0, 0.0) : skyAt(P, Ehalo + Et * 0.5, g);
 			}
 		} else {
 			float ELc = Ec + Ep + 0.35 * Ew + dbt;

@@ -152,8 +152,9 @@ static func ball_kind(ball: Vector4) -> Vector4:
 ## more than their roundness (Nov 5): a round one the plain profile; a flattened one
 ## squashed further (`ball_squash`) and falling off steeply, a lens of light; a giant
 ## bigger, its light falling off slowly into a wide envelope, ringed by a swarm of
-## globular clusters far past its body. A dwarf spheroidal's falls a little slower than
-## a round one's, its light spread thin.
+## globular clusters far past its body. A dwarf spheroidal smaller (0.75: at 1.0 it reached
+## 0.67 gu to a round one's 0.54, a dwarf further than a full ball, Nov 5), its light
+## falling a little slower than a round one's, spread thin.
 static func ball_form(kind: int) -> Vector4:
 	match GalaxyGen.type_name(kind):
 		"Flattened Elliptical":
@@ -161,7 +162,7 @@ static func ball_form(kind: int) -> Vector4:
 		"Giant Elliptical":
 			return Vector4(1.15, 0.95, 3.0, 1.0)
 		"Dwarf Spheroidal":
-			return Vector4(1.0, 1.2, 2.4, 0.0)
+			return Vector4(0.75, 1.2, 2.4, 0.0)
 	return Vector4(1.0, 1.3, 2.4, 0.0)
 
 

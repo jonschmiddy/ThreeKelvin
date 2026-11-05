@@ -226,7 +226,11 @@ func refresh() -> void:
 		if CustodianBadge.enabled():
 			var at := badge_at()
 			_badge.position = at
-			sz = Vector2(maxf(sz.x, at.x + CustodianBadge.MAX_W), maxf(sz.y, at.y + CustodianBadge.BOX_H))
+			# (the backing runs on behind the badge, its eye and its count, to the line's
+			# room: over a galaxy's gold close in, a giant elliptical at zoom 2, its blue
+			# count could not be read, Nov 5)
+			_panel.size.x = maxf(_panel.size.x, minf(at.x + float(_badge.drawn_w()) + PAD_H, at.x + CustodianBadge.MAX_W))
+			sz =Vector2(maxf(sz.x, at.x + CustodianBadge.MAX_W), maxf(sz.y, at.y + CustodianBadge.BOX_H))
 		size = sz
 		position = fixed_at()
 		if _step.visible:
