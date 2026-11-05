@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Added** — NEW THINGS on the title menu, between SETTINGS and MESSAGE FROM JON. It opens a page
+  in the note's case that lists what changed in each build, newest first: the version, the day it
+  went out and a few short lines. Changes not out yet are headed "dev" when run from source and
+  "NEXT" with the commit in a test build. A small amber square beside NEW THINGS means this build's
+  notes are unread, or a line was added since you last opened it, and opening the page clears it. Jon asked for it on Nov 5. `tools/dev/release.sh` now refuses a version whose NEW THINGS entry
+  is not on top and dated.
 - **Fixed** — on the sector map, when A.S.H. says "Click a world twice and we fly there", she now
   outlines the world nearest your ship instead of the ship. It is a world a click reaches (not one
   behind a sun or under another event's marker), and not one your ship sits on top of when there is

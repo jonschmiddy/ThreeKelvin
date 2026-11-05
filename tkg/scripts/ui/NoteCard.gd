@@ -38,6 +38,9 @@ var heart := false
 
 var _col: VBoxContainer
 var _scroll: ScrollContainer
+## What the note's width is read from before `_fit` measures it: the body, or
+## the list `set_note` put in its place.
+var _measure: Control
 var _foot: VBoxContainer
 var _buttons: HBoxContainer
 
@@ -87,6 +90,7 @@ func build(title: String, text: String, dim: float = 1.0) -> void:
 	# spacing is what makes paragraphs of eight-pixel capitals readable.
 	body.add_theme_constant_override("line_spacing", 4)
 	letter.add_child(body)
+	_measure = body
 	if signed != "":
 		letter.add_child(_sign_off())
 	_scroll = ScrollContainer.new()
@@ -116,6 +120,17 @@ func _ready() -> void:
 		var tw := create_tween()
 		tw.tween_property(self, "modulate:a", 1.0, FADE_S) \
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+
+
+## A NOTE THAT IS NOT A LETTER: `c` in the body's place, in the same scroll and
+## measured the same way (the title's NEW THINGS list, `NewThingsPopup`). After
+## `build` with an empty text.
+func set_note(c: Control) -> void:
+	body.visible = false
+	c.custom_minimum_size.x = WIDTH
+	body.get_parent().add_child(c)
+	_measure = c
+	c.resized.connect(_fit)
 
 
 ## Something under the note -- the win screen's numbers -- behind a scanline.
@@ -250,7 +265,7 @@ func _fit() -> void:
 	if _scroll == null or panel == null or not is_inside_tree() or size.y <= 0.0:
 		return
 	# (a scrolling note is narrower by its bar, and is measured anyway)
-	if body.size.x < WIDTH - 1.0 and not note_scrolls():
+	if _measure.size.x < WIDTH - 1.0 and not note_scrolls():
 		return
 	var note := _scroll.get_child(0) as Control
 	var want := note.get_combined_minimum_size().y
@@ -262,6 +277,11 @@ func _fit() -> void:
 	else:
 		_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 		_scroll.custom_minimum_size.y = maxf(48.0, room)
+
+
+## The note's scroll, for a page that moves it by key (`NewThingsPopup`).
+func note_scroll() -> ScrollContainer:
+	return _scroll
 
 
 func note_scrolls() -> bool:

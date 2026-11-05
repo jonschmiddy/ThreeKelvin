@@ -6,9 +6,13 @@
 # app still has its executable bit, copy the zips to <repo>/builds/<version>-<sha>/
 # (gitignored), and tag and push alpha-<version>.
 #
-# Before running: the branch sets config/version="<version>" in tkg/project.godot
-# and has its CHANGELOG cut (## date, ### [version]). Nothing is uploaded
-# anywhere: Jon shares the zips himself.
+# Before running: the branch sets config/version="<version>" in tkg/project.godot,
+# has its CHANGELOG cut (## date, ### [version]) and renames NEW THINGS' NEXT
+# entry to <version> with the day (tkg/scripts/data/NewThings.gd). Without that
+# entry on top it REFUSES, before the gate runs and again on the landed main
+# (new_things_check.sh): the title's NEW THINGS page would show the build's
+# changes under the wrong heading. Nothing is uploaded anywhere: Jon shares the
+# zips himself.
 #
 # The build needs Godot's export templates for this exact Godot version
 # installed (Godot > Editor > Manage Export Templates).
@@ -16,11 +20,15 @@ set -uo pipefail
 D="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$D/env.sh"
 WT="$1"; BR="$2"; LB="$3"; VER="$4"
+bash "$D/new_things_check.sh" "$VER" "$WT/tkg/scripts/data/NewThings.gd" || { echo "STOPPED: NEW THINGS has no entry for $VER (nothing landed)"; exit 1; }
 out=$(bash "$D/gate_land.sh" "$WT" "$BR" "$LB" 2>&1 | tail -4); echo "$out"
 echo "$out" | grep -q "^LANDED" || { echo "STOPPED: gate did not land"; exit 1; }
 SHA=$(git -C "$TK_REPO" rev-parse --short main); echo "main $SHA"
 git -C "$TK_REPO" show main:tkg/project.godot | grep -q "config/version=\"$VER\"" \
 	|| { echo "STOPPED: main is not version $VER"; exit 1; }
+NT="$(mktemp)"; git -C "$TK_REPO" show main:tkg/scripts/data/NewThings.gd >"$NT"
+bash "$D/new_things_check.sh" "$VER" "$NT" || { rm -f "$NT"; echo "STOPPED: main's NEW THINGS has no entry for $VER"; exit 1; }
+rm -f "$NT"
 REL="$TK_WT/release-$VER"
 git -C "$TK_REPO" worktree add -q --detach "$REL" "$SHA" || exit 1
 cd "$REL" || exit 1

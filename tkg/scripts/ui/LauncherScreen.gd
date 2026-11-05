@@ -87,6 +87,8 @@ const WARM_AFTER := 180
 ## the boot can fade up everything but the wordmark (`fade_up_around_title`).
 var _holder: Control = null
 var _menu_box: Control = null
+## The menu's NEW THINGS, kept so its unseen mark can go when the page opens.
+var _news: Button = null
 
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -171,6 +173,12 @@ func setup() -> void:
 	# 22: "It was a cool idea, but not for a procedural game." Gone from the
 	# HUD as well.)
 	menu.add_child(_option("SETTINGS", _open_settings))
+	# NEW THINGS (Jon, Nov 5): what changed in each build. Above MESSAGE FROM
+	# JON, not under it: that one is "the line above QUIT" (Jon, Oct 13), and the
+	# two pages to read sit together under the things you do.
+	_news = _option("NEW THINGS", open_new_things)
+	_news.add_child(_new_mark())
+	menu.add_child(_news)
 	# JON'S WELCOME NOTE, again, whenever it is wanted (Jon, Oct 13): the line
 	# above QUIT. It opens by itself the first time this screen does (`WelcomePopup`).
 	menu.add_child(_option("MESSAGE FROM JON", open_welcome))
@@ -218,6 +226,49 @@ func open_welcome(first: bool = false) -> void:
 	w.closed.connect(func() -> void:
 		if _popup == w:
 			_popup = null)
+
+## The NEW THINGS page (`NewThingsPopup`) in the popup slot, as the welcome
+## note. Opening it marks the newest notes seen, so the menu's mark goes.
+func open_new_things() -> void:
+	if _popup != null or _settings != null:
+		return
+	var p := NewThingsPopup.new()
+	p.setup()
+	add_child(p)
+	_popup = p
+	_paint_new_mark()
+	p.closed.connect(func() -> void:
+		if _popup == p:
+			_popup = null)
+
+
+## THE UNSEEN MARK: a small square in the menu's accent right of NEW THINGS
+## while this build's notes have not been opened on this profile
+## (`NewThings.unseen`). Still: no blink, no glow. A child of the button, past
+## its right edge, so it moves with the words and takes no click.
+func _new_mark() -> Control:
+	var m := ColorRect.new()
+	m.name = "NewMark"
+	m.color = UITheme.FLARE
+	m.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	m.anchor_left = 1.0
+	m.anchor_right = 1.0
+	m.anchor_top = 0.5
+	m.anchor_bottom = 0.5
+	m.offset_left = 4.0
+	m.offset_right = 8.0
+	m.offset_top = -2.0
+	m.offset_bottom = 2.0
+	m.visible = NewThings.unseen()
+	return m
+
+
+func _paint_new_mark() -> void:
+	if _news != null and is_instance_valid(_news):
+		var m := _news.get_node_or_null("NewMark") as Control
+		if m != null:
+			m.visible = NewThings.unseen()
+
 
 ## The developer switch, small, in the corner where a build stamp goes.
 ##
