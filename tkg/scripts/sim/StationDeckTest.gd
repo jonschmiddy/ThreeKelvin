@@ -16,7 +16,12 @@ extends Node
 ## at that level's price and DEVELOP FILM and READ FOR DATA at no credits, and
 ## the RESEARCH board passes the mockup's box test (every box inside the glass,
 ## none overlapping, no word across an arm) with no step, some and all of them
-## bought and the strip on every step; BUY stays one object through thirty
+## bought and the strip on every step; AUGMENT passes it on every part and
+## every affix (one part augmented, one with a rolled affix, DATA short, a
+## hold that runs onto a second page, STRIP on each affix), costs 5 DATA and
+## 22/20/18/16/15 credits, its key survives thirty refreshes, a click on a row
+## moves no part, AUGMENT and STRIP pressed through the viewport do what they
+## say; BUY stays one object through thirty
 ## refreshes, never shows on a step behind the next, buys, and the board is the
 ## same at a second station of the run; with no berth the board
 ## posts its dock desk's work (`Contracts.dock_desk`), hangs the desk's notice,
@@ -31,6 +36,9 @@ var _tree: SceneTree
 
 ## RELIC ANALYSIS's bill at each level: 40 credits by `Market.service_index`.
 const PRICES := [45, 40, 35, 32, 30]
+## AUGMENT's credits at each level (5 DATA beside them), and STRIP's (2 DATA).
+const AUGMENT := [22, 20, 18, 16, 15]
+const STRIP := [11, 10, 9, 8, 7]
 ## The chart's destination panel width (`NameFit.PANEL_W`).
 const PANEL_W := 228.0
 
@@ -409,14 +417,23 @@ func _lab(st: StationScreen, here: MapGen.MapNode, tag: String, dev: int, deep: 
 	for row: Dictionary in zoom.recipe_rows:
 		rows[StringName(row.r.id)] = row
 	var relic: Dictionary = rows.get(&"analysis", {})
-	_ok("%s: RECIPES says RELIC ANALYSIS at %d CREDITS (%s)" % [tag, PRICES[dev], (relic.cost as Label).text if not relic.is_empty() else "no row"],
-		not relic.is_empty() and (relic.name as Label).text == "RELIC ANALYSIS"
-		and (relic.cost as Label).text.contains("%d CREDITS" % PRICES[dev]))
+	_ok("%s: RECIPES says RELIC ANALYSIS at %d CREDITS (%s)" % [tag, PRICES[dev], relic.cost if not relic.is_empty() else "no row"],
+		not relic.is_empty() and relic.name == "RELIC ANALYSIS" and bool(relic.on)
+		and str(relic.cost).contains("%d CREDITS" % PRICES[dev]))
 	for id: StringName in [&"develop", &"read"]:
 		var r: Dictionary = rows.get(id, {})
-		_ok("%s: %s costs 0 credits (%s)" % [tag, id, (r.cost as Label).text if not r.is_empty() else "no row"],
-			not r.is_empty() and Fabricator.price(here, r.r) == 0 and not (r.cost as Label).text.contains("CREDITS")
-			and (r.cost as Label).visible)
+		_ok("%s: %s costs 0 credits (%s)" % [tag, id, r.cost if not r.is_empty() else "no row"],
+			not r.is_empty() and Fabricator.price(here, r.r) == 0 and not str(r.cost).contains("CREDITS")
+			and bool(r.on) and str(r.cost) != "")
+	# film and relics held, said on their rows
+	for i in 2:
+		Run.place_in_hold(MaterialData.of(MaterialTable.by_id(&"survey_film")))
+	Sig.resources_changed.emit()
+	await _frames(2)
+	_ok("%s: DEVELOP FILM says the film held (%s)" % [tag, rows[&"develop"].held],
+		str(rows[&"develop"].held) == "YOU HAVE %d SURVEY FILMS" % Run.material(&"survey_film") and not (rows[&"develop"].make as LabPlate).disabled)
+	var bad0 := zoom.check()
+	_ok("%s: RECIPES with film to develop passes the box test (%s)" % [tag, "clean" if bad0.is_empty() else "; ".join(bad0)], bad0.is_empty())
 	var bad := zoom.check()
 	_ok("%s: RECIPES passes the box test (%s)" % [tag, "clean" if bad.is_empty() else "; ".join(bad)], bad.is_empty())
 
@@ -448,6 +465,9 @@ func _lab(st: StationScreen, here: MapGen.MapNode, tag: String, dev: int, deep: 
 		Run.board_owned[b3] = was_owned[b3]
 	Run.data = was_data
 	Sig.resources_changed.emit()
+	await _augment_page(st, zoom, here, tag, dev, deep)
+	Run.data = was_data
+	Sig.resources_changed.emit()
 
 	# BACK OUT: LEAVE, and Esc
 	await _click(zoom.leave_button)
@@ -462,6 +482,198 @@ func _lab(st: StationScreen, here: MapGen.MapNode, tag: String, dev: int, deep: 
 	st.get_viewport().push_input(esc)
 	await _frames(2)
 	_ok("%s: RESEARCH goes in, and Esc comes back out (open %s)" % [tag, zoom.is_open()], not zoom.is_open() and not zoom.visible)
+
+
+## AUGMENT AND STRIP (S9 part two): the page's box test on every part and
+## affix, in the states a run reaches; its prices; its key kept through
+## refreshes; a pick that moves nothing; and both presses made through the
+## viewport, as a player makes them (`deep`: once a level).
+func _augment_page(st: StationScreen, zoom: LabZoom, here: MapGen.MapNode, tag: String, dev: int, deep: bool) -> void:
+	var aug := zoom.augment
+	# THE USED STATE: a fitted part already augmented, a hold part with a
+	# rolled affix, and two more in the hold
+	var fitted: ModuleData = Run.installed[0]
+	if not fitted.augmented:
+		var l1: Array[AffixData] = fitted.affixes.duplicate()
+		l1.append(Science._affix(&"Wide-Banded"))
+		fitted.affixes = l1
+		fitted.augmented = true
+	var guard := 0
+	while _held().size() < 3 and guard < 20:
+		guard += 1
+		Run.place_in_hold(LootGen.roll_module(3 + guard % 4, &"", true))
+	var rolled: ModuleData = _held()[0] if not _held().is_empty() else null
+	if rolled != null and rolled.affixes.is_empty():
+		var l2: Array[AffixData] = []
+		l2.append(Science._affix(&"Tuned Injectors"))
+		rolled.affixes = l2
+	Run.data = 16
+	Run.credits = 500
+	Sig.resources_changed.emit()
+	await _click(zoom.tab_buttons[&"augment"])
+	await _frames(2)
+	if not _ok("%s: AUGMENT is on show" % tag, zoom.tab == &"augment" and aug.is_visible_in_tree()):
+		return
+	# THE PRICE: 5 DATA and this level's credits, on the key's bill
+	var plain: ModuleData = null
+	for m in Run.installed:
+		if not m.augmented:
+			plain = m
+			break
+	if plain != null:
+		aug.pick_part(plain)
+		await _frames(2)
+	var b := aug.bill()
+	_ok("%s: AUGMENT costs 5 DATA and %d credits (bill %s, the key's %s)" % [tag, AUGMENT[dev], b, aug.bill_words],
+		int(b.data) == 5 and int(b.credits) == AUGMENT[dev] and Market.augment_price(here) == AUGMENT[dev]
+		and aug.bill_words == "5 DATA + %d CREDITS" % AUGMENT[dev])
+	# A PICK MOVES NOTHING: every part where it was after every row is clicked
+	var places := _places()
+	var fails: Array[String] = []
+	var rows_seen := 0
+	for pg in aug._pages.size():
+		aug.page = pg
+		aug._relayout()
+		for i in aug._rows.size():
+			var r: Dictionary = aug._rows[i]
+			await _click_at(aug.get_global_transform() * Vector2(aug.RAIL_X + 120, int(r.cy) - 5))
+			rows_seen += 1
+			if aug.part != r.m:
+				fails.append("row %d didn't pick %s" % [i, (r.m as ModuleData).name])
+			for k in maxi(1, aug._affs.size()):
+				if k < aug._affs.size():
+					aug.pick_affix(k)
+				await _frames(1)
+				for f in zoom.check():
+					fails.append("%s %s %d: %s" % [(r.m as ModuleData).name, aug.mode, k, f])
+	_ok("%s: AUGMENT passes the box test on all %d parts and every affix, a click picking each (%s)" % [tag, rows_seen,
+		"clean" if fails.is_empty() else "; ".join(fails.slice(0, 4))], fails.is_empty() and rows_seen >= 3)
+	_ok("%s: and no click on a row moved a part" % tag, _places() == places)
+	_ok("%s: the augmented part opens on STRIP, with its key" % tag, await _strip_view(aug, fitted, dev))
+	# DATA SHORT: the key goes dead, the bill says which is short, and it fits
+	Run.data = 3
+	Sig.resources_changed.emit()
+	if plain != null:
+		aug.pick_part(plain)
+	await _frames(2)
+	var bad := zoom.check()
+	_ok("%s: DATA short, AUGMENT can't be pressed and the page passes the box test (%s)" % [tag, "clean" if bad.is_empty() else "; ".join(bad)],
+		plain == null or (aug.commit_button.visible and aug.commit_button.disabled and bad.is_empty()))
+	Run.data = 16
+	Sig.resources_changed.emit()
+	if deep and plain != null:
+		await _augment_press(st, zoom, plain, tag, dev)
+	# A HOLD THAT RUNS ONTO A SECOND PAGE
+	guard = 0
+	while not Run.hold_full() and guard < 40:
+		guard += 1
+		Run.place_in_hold(LootGen.roll_module(1 + guard % 3, &"", true))
+	Sig.resources_changed.emit()
+	await _frames(2)
+	var pages := aug._pages.size()
+	var fails2: Array[String] = []
+	for pg2 in pages:
+		if pg2 > 0:
+			await _click(aug.more_button)
+			await _frames(1)
+		for f2 in zoom.check():
+			fails2.append("page %d: %s" % [aug.page + 1, f2])
+	_ok("%s: %d parts run onto %d pages, MORE turns them, and each passes the box test (%s)" % [tag, Run.installed.size() + _held().size(),
+		pages, "clean" if fails2.is_empty() else "; ".join(fails2.slice(0, 4))], fails2.is_empty() and (pages > 1) == aug.more_button.visible)
+
+
+## The augmented part on STRIP: each of its affixes in hand passes the box
+## test, the key reads STRIP, and the bill is 2 DATA and this level's credits.
+func _strip_view(aug: LabAugment, m: ModuleData, dev: int) -> bool:
+	aug.pick_part(m)
+	await _frames(1)
+	var ok := aug.mode == &"strip" and aug._affs.size() == m.affixes.size()
+	for k in aug._affs.size():
+		aug.pick_affix(k)
+		await _frames(1)
+		var bad := (aug.get_parent().get_parent() as LabZoom).check()
+		if not bad.is_empty():
+			print("    strip %d: %s" % [k, "; ".join(bad)])
+			ok = false
+		ok = ok and aug.commit_button.visible and aug.commit_button.label == "STRIP" \
+			and aug.bill_words == "2 DATA + %d CREDITS" % STRIP[dev]
+	return ok
+
+
+## AUGMENT pressed through the viewport after thirty refreshes, then STRIP.
+func _augment_press(st: StationScreen, zoom: LabZoom, m: ModuleData, tag: String, dev: int) -> void:
+	var aug := zoom.augment
+	aug.pick_part(m)
+	aug.pick_affix(0)
+	await _frames(2)
+	var key := aug.commit_button
+	for i in 30:
+		Sig.resources_changed.emit()
+		if i % 10 == 0:
+			await _frames(1)
+	await _frames(2)
+	_ok("%s: AUGMENT is the same object after 30 refreshes, the part still in hand" % tag,
+		is_instance_valid(key) and aug.commit_button == key and key.visible and not key.disabled and aug.part == m)
+	var a: AffixData = aug._affs[0]
+	var n_aff := m.affixes.size()
+	var data0 := Run.data
+	var cr0 := Run.credits
+	var hp0 := Run.max_hp()
+	await _click(key)
+	await _frames(2)
+	_ok("%s: AUGMENT puts %s on %s for 5 DATA and %d credits (DATA %d to %d, credits %d to %d, the header %s)" % [tag, a.name, m.name,
+		AUGMENT[dev], data0, Run.data, cr0, Run.credits, zoom._note],
+		m.augmented and m.affixes.size() == n_aff + 1 and m.affixes[-1].name == a.name
+		and Run.data == data0 - 5 and Run.credits == cr0 - AUGMENT[dev] and zoom._note == "-5")
+	_ok("%s: the page stays on AUGMENT and the strip says it is done, with no key (mode %s, %s)" % [tag, aug.mode, aug.done.get("line", "")],
+		not aug.done.is_empty() and aug.done.kind == &"augment" and aug.mode == &"augment" and not key.visible
+		and aug.leaves.any(func(l: Array) -> bool: return l[0] == String(aug.done.line).to_upper())
+		and aug.leaves.any(func(l: Array) -> bool: return l[0] == "%s %s" % [a.name.to_upper(), LabAugment.short_part(m.name)])
+		and aug._node_state(0) == &"owned")
+	var bad := zoom.check()
+	_ok("%s: the page just augmented passes the box test (%s)" % [tag, "clean" if bad.is_empty() else "; ".join(bad)], bad.is_empty())
+	if a.hull > 0 and Run.installed.has(m):
+		_ok("%s: and the ship's max hull went %d to %d" % [tag, hp0, Run.max_hp()], Run.max_hp() == hp0 + 7 * a.hull)
+	# a second augment is refused: the row opens on STRIP
+	await _click_at(aug.get_global_transform() * Vector2(aug.RAIL_X + 120, _row_y(aug, m)))
+	await _frames(2)
+	_ok("%s: picked again, it opens on STRIP, never a second augment" % tag, aug.mode == &"strip" and aug.commit_button.label == "STRIP")
+	aug.pick_affix(aug._affs.size() - 1)
+	await _frames(1)
+	var data1 := Run.data
+	var cr1 := Run.credits
+	await _click(aug.commit_button)
+	await _frames(2)
+	_ok("%s: STRIP takes %s off for 2 DATA and %d credits, and the mark stays (DATA %d to %d, credits %d to %d)" % [tag, a.name,
+		STRIP[dev], data1, Run.data, cr1, Run.credits],
+		m.augmented and m.affixes.size() == n_aff and Run.data == data1 - 2 and Run.credits == cr1 - STRIP[dev])
+	var bad2 := zoom.check()
+	_ok("%s: the page just stripped passes the box test (%s)" % [tag, "clean" if bad2.is_empty() else "; ".join(bad2)], bad2.is_empty())
+
+
+func _row_y(aug: LabAugment, m: ModuleData) -> int:
+	for r: Dictionary in aug._rows:
+		if r.m == m:
+			return int(r.cy) - 5
+	return -100
+
+
+func _held() -> Array[ModuleData]:
+	var out: Array[ModuleData] = []
+	for h in Run.cargo:
+		if h is ModuleData:
+			out.append(h)
+	return out
+
+
+## Where every part is: its mount, or its cell in the hold.
+func _places() -> Array:
+	var out: Array = []
+	for m in Run.installed:
+		out.append("%s fitted %d" % [m.name, m.mount])
+	for h in _held():
+		out.append("%s at %s" % [h.name, h.hold_at])
+	return out
 
 
 ## BUY: one object, only on the next step, and it buys.
