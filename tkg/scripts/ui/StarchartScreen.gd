@@ -1341,6 +1341,28 @@ func _corner_toggle(cb: Callable, row: int, wide: float, top := false) -> Button
 	b.add_theme_color_override("font_pressed_color", UITheme.HOT)
 	for st in ["normal", "hover", "pressed", "focus", "disabled"]:
 		b.add_theme_stylebox_override(st, UITheme.empty())
+	# A SHADOW UNDER THE WORDS, as the chart's own labels have (THE HELLBENDER's): with no
+	# plate, ember words on a galaxy's warm light close in -- a giant elliptical at zoom 2
+	# fills the corner with its own orange -- were lost in it (Nov 5). A Button draws no
+	# shadow (and an outline on this 8 px face filled the letters in), so a Label behind it
+	# (`show_behind_parent`) says the same words a pixel down and right, in black, kept
+	# to the button's text each time it draws
+	var sh := Label.new()
+	sh.show_behind_parent = true
+	sh.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sh.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
+	sh.add_theme_color_override("font_color", Color(0, 0, 0, 0.85))
+	sh.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	sh.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	sh.set_anchors_preset(Control.PRESET_FULL_RECT)
+	sh.offset_left = 1.0
+	sh.offset_top = 1.0
+	sh.offset_right = 1.0
+	sh.offset_bottom = 1.0
+	b.add_child(sh)
+	b.draw.connect(func() -> void:
+		if sh.text != b.text:
+			sh.text = b.text)
 	b.set_anchors_preset(Control.PRESET_TOP_RIGHT if top else Control.PRESET_BOTTOM_RIGHT)
 	# Clear of the bar by its own padding, plus the height of the bar and
 	# its label. Measured off the chart's own constants so the two cannot
@@ -3842,9 +3864,14 @@ class MapChart extends Control:
 			return
 		# A bar with end ticks, not a bare line: the ticks are what say where
 		# it starts and stops on a field of stars.
-		draw_line(Vector2(x, y), Vector2(x + w, y), ink, 1.0)
-		draw_line(Vector2(x, y - 4.0), Vector2(x, y + 1.0), ink, 1.0)
-		draw_line(Vector2(x + w, y - 4.0), Vector2(x + w, y + 1.0), ink, 1.0)
+		# (each with a shadow under it, as the chart's labels have: over a galaxy's warm
+		# light close in the bar and its words were lost)
+		var sh := Color(0, 0, 0, 0.85 * ui_a)
+		for o: Vector2 in [Vector2(1, 1), Vector2.ZERO]:
+			var c := sh if o != Vector2.ZERO else ink
+			draw_line(Vector2(x, y) + o, Vector2(x + w, y) + o, c, 1.0)
+			draw_line(Vector2(x, y - 4.0) + o, Vector2(x, y + 1.0) + o, c, 1.0)
+			draw_line(Vector2(x + w, y - 4.0) + o, Vector2(x + w, y + 1.0) + o, c, 1.0)
 		# Thousands read better than five digits on an 8px face.
 		var txt := ("%d ly" % int(ly) if ly < 1000.0
 			else "%dk ly" % int(ly / 1000.0))
@@ -3853,6 +3880,9 @@ class MapChart extends Control:
 		# step changes, so a label left-aligned on it slides sideways as you
 		# zoom while the toggle above it stays put. The right edge is the
 		# only one that holds still.
+		draw_string(UITheme.pixel_font(),
+			Vector2(x + w - BAR_MAX_PX, y - 7.0) + Vector2(1, 1), txt,
+			HORIZONTAL_ALIGNMENT_RIGHT, BAR_MAX_PX, 8, sh)
 		draw_string(UITheme.pixel_font(),
 			Vector2(x + w - BAR_MAX_PX, y - 7.0), txt,
 			HORIZONTAL_ALIGNMENT_RIGHT, BAR_MAX_PX, 8, ink)

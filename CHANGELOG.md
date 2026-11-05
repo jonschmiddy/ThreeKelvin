@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Changed** — in the PAINTED style, the star chart's round galaxies (the three ellipticals, the
+  merger remnant and the two dwarfs) are now painted in the same hand as the spirals: lit gas and
+  clumps on the spiral's own colours, instead of one flat salmon plate in a violet ring. Each fades
+  out softly into the dark with no rim. Only the ones with gas, the blue compact dwarf and the
+  merger with its tidal stream, have a blue skirt. The giant elliptical is bigger and wider, with a
+  swarm of star clusters round it; the flattened one is a lens with a steeper fall of light. A
+  dwarf's black hole is drawn at the dwarf's size, and supernova rings stay off these galaxies.
+- **Fixed** — the star chart's corner words (THRUSTER REACH, SENSOR RANGE, LOCAL REGION and the
+  scale bar) have a shadow under them, so they stay readable over a galaxy's bright middle.
+
 - **Fixed** — on the sector map, when A.S.H. says "Click a world twice and we fly there", she now
   outlines the world nearest your ship instead of the ship. It is a world a click reaches (not one
   behind a sun or under another event's marker), and not one your ship sits on top of when there is

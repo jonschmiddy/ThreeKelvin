@@ -1118,6 +1118,9 @@ float ballForm(vec2 v, float k, float bs, float blk, bool lit) {
 	return (0.2 * sh + 0.1 * lob) * smoothstep(1.25, 0.3, re) * smoothstep(0.02, 0.12, re);
 }
 
+// A BALL'S BODY (`ChartPainted.ball_form`): its size against its ball radius, the power its
+// light falls by, where its light ends (ball radii), its halo of globular clusters 0..1
+uniform vec4 u_ballF = vec4(1.0, 1.3, 2.4, 0.0);
 // B: a ball's globular clusters, as SIMPLIFIED's `globulars` (the same cells, so the
 // same clusters in both styles), in the ball's own frame (gu about the core):
 // 2 on a cluster's bright knot, 1 in its fuzz, 0 elsewhere. Never under a block.
@@ -1135,6 +1138,8 @@ float globularsB(vec2 g, float Rs, float blk) {
 			vec2 ctr = (vec2(cc) + 0.15 + 0.7 * h.xy) * CELL;
 			float rc = length(vec2(ctr.x, ctr.y / u_g2.z)) / Rs;
 			float prob = 0.07 * u_ballE.y * exp(-rc * 1.4) * smoothstep(0.18, 0.4, rc) * (1.0 - smoothstep(1.4, 1.9, rc));
+			// (a giant's halo of them, `u_ballF.w`: a swarm far past its body, thinning outward)
+			prob += 0.05 * u_ballF.w * smoothstep(0.5, 1.0, rc) * (1.0 - smoothstep(1.9, 2.7, rc));
 			if (h.z > prob) {
 				continue;
 			}
@@ -1162,14 +1167,26 @@ float globularsB(vec2 g, float Rs, float blk) {
 // remnant), how far out its old warm light holds (ball radii), how much young gas and
 // star birth it has (0..1), how irregular its outline (0..1)
 uniform vec4 u_ballK = vec4(0.0, 1.25, 0.0, 0.0);
-// and how bright its cool gas is against its warm light
-uniform float u_ballC = 1.0;
-// how much of the disc's relief an old ball has (its young gas, `u_ballK.z`, has it all)
-const float BALL_RELIEF_OLD = 0.45;
+// how much of the disc's relief an old ball has (its young gas, `u_ballK.z`, has it all):
+// little, so close in an old ball's light is a calm fall of old stars, never a crust
+const float BALL_RELIEF_OLD = 0.25;
+// and of its puffs
+const float BALL_PUFF_OLD = 0.4;
+// whether a ball has gas past its warm light (a blue compact dwarf, a merger and its
+// stream): the others are old stars to their edge, and fade straight into the dark
+bool ballGas() {
+	return abs(u_ballK.x - 1.0) < 0.5 || abs(u_ballK.x - 3.0) < 0.5;
+}
+// THE WARM BODY'S FADE, as the ball's smooth light's level (`lvT`, the bulge's banding):
+// from BALL_FADE_HI down to BALL_FADE_LO its blocks thin out in the style's ordered
+// patterns into what lies behind, a wide dithered band (three or four of the ramp's
+// steps), so a ball has no rim -- not the hard edge and dark ring of a fried egg
+const float BALL_FADE_HI = 0.5;
+const float BALL_FADE_LO = 0.04;
 // where the ball's body is, in ball radii (`u_g8.x`), its outline made irregular: gS the
 // ball's round frame (gu), gq the same turned with the galaxy, blkS a block there (gu)
 float ballS(vec2 gS, vec2 gq, float blkS) {
-	float RB = u_g8.x;
+	float RB = u_g8.x * u_ballF.x;
 	float s = length(gS) / RB;
 	if (u_ballK.w > 0.0) {
 		s *= 1.0 + 0.5 * u_ballK.w * fbmL(gq * (2.4 / RB) + vec2(3.7 + 13.0 * u_ballD.w, 1.1), blkS * (2.4 / RB), 2);
@@ -1178,10 +1195,12 @@ float ballS(vec2 gS, vec2 gq, float blkS) {
 }
 // the body's light at s (ball radii): a steady fall from a bright middle, about four
 // doublings out to where its warm light ends (so its light runs down the warm ramp's
-// steps one by one, never lying on one), gone by 2.4; a dwarf spheroidal's faint
+// steps one by one, never lying on one), at the kind's own pace (`u_ballF.y`: a giant's
+// slow, into a wide envelope; a flattened one's steep), gone by `u_ballF.z`; a dwarf
+// spheroidal's faint
 float ballBody(float s) {
 	float faint = abs(u_ballK.x - 2.0) < 0.5 ? 0.4 : 1.0;
-	return u_g8.y * 0.4 * faint * (1.0 + 0.6 * u_ballK.z) * pow(1.0 + sq(s / 0.5), -1.3) * smoothstep(2.4, 1.6, s);
+	return u_g8.y * 0.4 * faint * (1.0 + 0.6 * u_ballK.z) * pow(1.0 + sq(s / 0.5), -u_ballF.y) * smoothstep(u_ballF.z, 0.5 * u_ballF.z, s);
 }
 // lit as a ball from the chart's key light (upper left, `ballForm`'s): its near side a
 // little up, its far side and limb down, as a multiplier of its light
@@ -1301,13 +1320,21 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		// A BALL'S GAS (`ballBody`): the disc's light's own recipe -- the clumps (scale 11)
 		// and the fine grain (46) at its own strengths, so no band edge moves by half a step
 		// -- on a body falling off steadily; warm where its old stars hold, cool past
+		// (CALM CLOSE IN: an old ball's clumps and grain at about half a disc's, and its
+		// finest octaves left out, so zooming in on old stars resolves a few soft lumps,
+		// never the blotched crust of a gas disc; a young ball's -- `u_ballK.z` -- as a
+		// disc's)
 		float env = ballBody(sB);
-		float clump = fbmL(gq * 11.0 + vec2(5.0), blkS * 11.0, low ? 2 : 6);
-		float fine = low ? 0.0 : fbmL(gq * 46.0 + vec2(9.0), blkS * 46.0, 5);
+		float yg = u_ballK.z;
+		float clump = fbmL(gq * 11.0 + vec2(5.0), blkS * 11.0, low ? 2 : (yg > 0.5 ? 6 : 4));
+		float fine = low ? 0.0 : fbmL(gq * 46.0 + vec2(9.0), blkS * 46.0, yg > 0.5 ? 5 : 2);
 		float clumpS = fbmL(gq * 11.0 + 5.0, blkS * 11.0, 2);
-		Ed = env * (1.0 + 0.3 * clump + 0.22 * fine);
-		EdS = env * (1.0 + 0.3 * clumpS);
-		warmD = 1.0 - smoothstep(0.8 * u_ballK.y, 1.35 * u_ballK.y, sB);
+		float cA = mix(0.16, 0.3, yg), fA = mix(0.08, 0.22, yg);
+		Ed = env * (1.0 + cA * clump + fA * fine);
+		EdS = env * (1.0 + cA * clumpS);
+		// warm where its old stars hold; past them, in a ball with gas, its cool gas, handed
+		// over across a wide band; an old ball is warm to its edge
+		warmD = ballGas() ? 1.0 - smoothstep(0.6 * u_ballK.y, 1.6 * u_ballK.y, sB) : 1.0;
 		// a merger's tidal stream (`u_g8.w`, the disc's own above): what is left of the
 		// smaller galaxy, flung off one side and curling away, at the ball's own size
 		if (u_g8.w > 0.5) {
@@ -1373,8 +1400,10 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		}
 		float lit = pow(terrS.x + TERR_LIFT * terrS.y, TERR_GAMMA) * ballLit(gS);
 		if (u_fluff > 0.0 && (u_diag & 16384) == 0) {
+			// (an old ball's puffs at BALL_PUFF_OLD of a disc's: at full strength they were the
+			// blotched crust close in -- three of the ramp's steps across each puff at zoom 1)
 			vec3 fs = fluffShade(gq);
-			lit *= fs.x * (1.0 + 0.9 * fs.y) + FLUFF_BODY * fs.z * u_fluff;
+			lit *= mix(1.0, fs.x * (1.0 + 0.9 * fs.y) + FLUFF_BODY * fs.z * u_fluff, BALL_PUFF_OLD + (1.0 - BALL_PUFF_OLD) * u_ballK.z);
 		}
 		Ed = Ed * lit + tlB;
 		EdS = EdS * lit + tlB;
@@ -1495,9 +1524,9 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	float bFront = ff * (mix(1.0, tL, 0.7) * (1.0 - 0.85 * silh) + 0.6 * silh * (1.0 - silh));
 	float Ew = Ib * (bFront + bBack * T) + Ed * warmD * T;
 	float streams = clearK * holeL * 0.075 * (sw * sw * sw - 0.3125);   // (mean 0: sw^3 averages 5/16)
-	float Ec = Ed * (1.0 - warmD) * T * (ellip ? u_ballC : 1.0) + stC;
+	float Ec = Ed * (1.0 - warmD) * T + stC;
 	float TS = 1.0 - 0.8 * laneS;
-	float EwS = Ib * (bFront + bBack * TS) + EdS * warmD * TS, EcS = EdS * (1.0 - warmD) * TS * (ellip ? u_ballC : 1.0) + stC;
+	float EwS = Ib * (bFront + bBack * TS) + EdS * warmD * TS, EcS = EdS * (1.0 - warmD) * TS + stC;
 	// (the relief's faces toward the core are lit warm, `terrShade`'s warm light: round
 	// the bulge, where the gas is already the core's, the cool gas there hands that share
 	// to the warm side, so a lit face goes over to the warm ramp and its back stays on
@@ -1592,7 +1621,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			// patterns, as the bulge's checker meets the arms', never on one hard line round it)
 			float ELw0 = max((Ew + 0.35 * (Ec + Ep)) / (1.0 + EwA * adapt) + streams, 1e-5);
 			float thr = 0.5 + 0.38 * smoothstep(0.42, 0.2, clamp(1.0 + log2(ELw0) / 7.0, 0.0, 0.999));
-			warmSide = pat(P, smoothstep(thr - 0.18, thr + 0.18, wf));
+			warmSide = pat(P, smoothstep(thr - 0.3, thr + 0.3, wf));
 		}
 		if (warmSide) {
 			// (a ball's warm light is the bulge's, banded as the bulge's is: a step a doubling
@@ -1608,8 +1637,13 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			// patterns over what lies behind instead -- the gas there, or the sky
 			// (a ball's thins out by its body's smooth light, so only at its edge: a valley of
 			// its relief inside it stays its own dark steps, never a hole to the sky)
+			// (and over a wide band, `BALL_FADE_HI` to `_LO`: no rim, no ring)
 			float lvT = ellip ? clamp(1.0 + log2(max(ballBody(sB) * warmD + Ib, 1e-5)) / 7.0, 0.0, 0.999) : lvb;
-			if ((solidB || ellip) && lvT < 0.29 && !pat(P, smoothstep(0.04, 0.29, lvT))) {
+			// (a faint ball's band as far below its own light: a dwarf spheroidal's, 0.4 of an
+			// elliptical's, would lie in the band to its middle, a stippled plate)
+			float fSh = ellip && abs(u_ballK.x - 2.0) < 0.5 ? log2(0.4) / 7.0 : 0.0;
+			float fHi = ellip ? BALL_FADE_HI + fSh : 0.29, fLo = ellip ? max(BALL_FADE_LO + fSh, 0.01) : 0.04;
+			if ((solidB || ellip) && lvT < fHi && !pat(P, smoothstep(fLo, fHi, lvT))) {
 				float ELc2 = Ec + Ep + dbt;
 				float la2 = 1.08 + log2(max(ELc2, 1e-6)) / 6.2 - 0.12 * shade - 0.34 * bub;
 				sc = la2 >= 1.0 / 6.0 ? cand(M_ARM, la2, 0, 0.0) : skyAt(P, Ehalo + Et * 0.5, g);
@@ -1667,7 +1701,9 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	}
 	// the supernova's light echo: a ring stepping out through the gas and dust,
 	// one block wide, lit in the flare's colours a step at a time
-	if (u_echo.w > 0.5 && galaxy) {
+	// (never over a ball, as B and C keep them: on its smooth old light a ring of gas
+	// read as a hole punched in it)
+	if (u_echo.w > 0.5 && galaxy && !ellip) {
 		float de = abs(length(g - u_echo.xy) - u_echo.z);
 		if (de < blk * 0.9 && (sc.m == M_ARM || sc.m == M_DUST || sc.m == M_HALO || sc.m == M_BILLOW || sc.m == M_KNOT)) {
 			sc = cand(M_BILLOW, 0.5 + 0.16 * u_echo.w, 0, 0.0);
@@ -1677,7 +1713,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	// outside and teal inside as the remnant clouds are painted, that grows in held
 	// steps (a new pose every 4 s, larger steps first) and fades in three bands of
 	// its ramp over ten minutes; broken where the noise says, never a full circle
-	if (galaxy && u_nrem > 0) {
+	if (galaxy && u_nrem > 0 && !ellip) {
 		for (int i = 0; i < 16; i++) {
 			if (i >= u_nrem) {
 				break;

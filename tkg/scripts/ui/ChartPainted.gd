@@ -131,13 +131,11 @@ const STORY_GAIN_B := 0.5
 ## look): (look, how far out its old warm light holds in ball radii, its young gas and
 ## star birth 0..1, how irregular its outline 0..1). An old elliptical warm through its
 ## body; a blue compact dwarf young, blue, lumpy and full of knots round a small warm
-## heart; a dwarf spheroidal faint, its warm light only round its middle; a merger's
-## remnant warm, a little lopsided, with a few knots of the star birth the merger lit.
+## heart; a dwarf spheroidal faint and warm; a merger's remnant warm, a little lopsided,
+## with a few knots of the star birth the merger lit. Only the two with gas (the blue
+## compact dwarf, the merger with its stream) have cool gas past their warm light: the
+## others fade straight out into the dark (Nov 5, the critique of prototype A).
 static func ball_kind(ball: Vector4) -> Vector4:
-	for a in OS.get_cmdline_user_args():
-		if (a as String).begins_with("ballk=") and int(ball.w) == int((a as String).substr(6).split(",")[0]):
-			var f := (a as String).substr(6).split(",")
-			return Vector4(float(f[0]), float(f[1]), float(f[2]), float(f[3]))
 	match int(ball.w):
 		1:
 			return Vector4(1.0, 0.3, 1.0, 0.6)
@@ -148,12 +146,46 @@ static func ball_kind(ball: Vector4) -> Vector4:
 	return Vector4(0.0, 1.25, 0.0, 0.0)
 
 
-## How bright a ball's cool gas is against its warm light's (`chart_b_place`'s `u_ballC`).
-static func ball_cool() -> float:
-	for a in OS.get_cmdline_user_args():
-		if (a as String).begins_with("ballc="):
-			return float((a as String).substr(6))
-	return 1.0
+## A BALL'S BODY in this style (`chart_b_place`'s `u_ballF`): (its size against its ball
+## radius, how steeply its light falls (the power of its profile), where its light ends
+## (ball radii), its halo of globular clusters 0..1). The three ellipticals told apart by
+## more than their roundness (Nov 5): a round one the plain profile; a flattened one
+## squashed further (`ball_squash`) and falling off steeply, a lens of light; a giant
+## bigger, its light falling off slowly into a wide envelope, ringed by a swarm of
+## globular clusters far past its body. A dwarf spheroidal's falls a little slower than
+## a round one's, its light spread thin.
+static func ball_form(kind: int) -> Vector4:
+	match GalaxyGen.type_name(kind):
+		"Flattened Elliptical":
+			return Vector4(1.1, 1.55, 2.4, 0.0)
+		"Giant Elliptical":
+			return Vector4(1.15, 0.95, 3.0, 1.0)
+		"Dwarf Spheroidal":
+			return Vector4(1.0, 1.2, 2.4, 0.0)
+	return Vector4(1.0, 1.3, 2.4, 0.0)
+
+
+## How round a ball is drawn in this style: `ChartSky.ball_of`'s, a flattened elliptical's
+## squashed further, so it is a lens beside a round one's ball (0.55 against 0.74 read
+## as the same ball turned a little).
+static func ball_squash(kind: int, ball: Vector4) -> float:
+	return ball.y * (0.8 if GalaxyGen.type_name(kind) == "Flattened Elliptical" else 1.0)
+
+
+## A DWARF'S HOLE at its own size (Nov 5): a dwarf's hole is rolled off its bulge as any
+## galaxy's is, and a blue compact dwarf's ball is small, so its hole's lit ring filled
+## the middle of it and the dwarf read as a hole with a ring round it. A dwarf's hole is
+## at most this much of its ball's radius (a round elliptical's is about 0.11, a giant's 0.11).
+const DWARF_HOLE := 0.08
+
+
+## The hole's radius (gu) this style draws: a dwarf's held to DWARF_HOLE of its ball.
+static func hole_of(p: Dictionary) -> float:
+	var ball: Vector4 = p.ball
+	var h := float(p.hole_r)
+	if int(p.form) == 1 and (int(ball.w) == 1 or int(ball.w) == 2):
+		h = minf(h, DWARF_HOLE * ball.x)
+	return h
 
 
 static func galaxy_uniforms(p: Dictionary) -> Dictionary:
@@ -171,11 +203,11 @@ static func galaxy_uniforms(p: Dictionary) -> Dictionary:
 		"u_ballD": bd[0],
 		"u_ballE": bd[1],
 		"u_ballK": ball_kind(ball),
-		"u_ballC": ball_cool(),
+		"u_ballF": ball_form(Run.galaxy_kind),
 		"u_g0": Vector4(float(maxi(arms, 1)), float(p.twist), float(p.bar), float(p.spread)),
 		"u_g1": Vector4(float(p.spin), arm_k, float(p.lane), float(p.gas)),
-		"u_g2": Vector4(float(g.get("dust", 1.6)), float(p.bulge_r), ball.y if form == 1 else 0.86, float(p.hole_r)),
-		"u_g3": Vector4(1.0 if form == 1 else 0.0, ball.y, float(p.hole_r) * ChartSky.DISC_K, float(Run.galaxy_kind) * 0.137),
+		"u_g2": Vector4(float(g.get("dust", 1.6)), float(p.bulge_r), ball_squash(Run.galaxy_kind, ball) if form == 1 else 0.86, hole_of(p)),
+		"u_g3": Vector4(1.0 if form == 1 else 0.0, ball.y, hole_of(p) * ChartSky.DISC_K, float(Run.galaxy_kind) * 0.137),
 		"u_g4": Vector4(0.102, 0.0, 0.0, 0.18),
 		"u_g5": Vector4(0.5 if float(p.bar) > 0.0 else 0.6, 0.4, 0.35, 1.6),
 		"u_g6": Vector4(0.12, 0.06, 1.25, 0.8),
