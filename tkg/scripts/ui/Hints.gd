@@ -1947,10 +1947,14 @@ func _band_probe(sc: SectorScreen, id: StringName, hud: Rect2) -> Dictionary:
 ## highlighted here and not my ship?"). It was on the ship, from when the line
 ## taught flying by hand alone. The world (`_fly_world`): a planet or the giant
 ## (not a belt, a station, a derelict or a contact), not the place the ship is
-## on, not behind a sun where a click misses it (`SystemOverlay.hit`), its box
-## whole on the picture and clear of the HUD and the side bar; the one nearest
-## the ship on screen, kept while it still qualifies so the outline does not hop
-## from world to world as they go round. Its box is the map's own reticle round
+## on, one a click at its middle picks (`SystemOverlay.hit`: not behind a sun,
+## not under another place's beacon), its box whole on the picture and clear of
+## the HUD and the side bar; of those, one whose box is clear of the ship if
+## there is one, so the outline is not round the ship and the world together;
+## the one nearest the ship on screen, kept while it still qualifies so the
+## outline does not hop from world to world as they go round. Only while a
+## world clicked twice flies (`can_fly`: a ship drifting under its own thrust
+## flies by hand). Its box is the map's own reticle round
 ## it (`SystemOverlay._reticle` at `_reach`, which holds the click's circle),
 ## read where the world is drawn each frame the probe runs, so it goes round
 ## with the world. With no such world it is on the ship, as it was: the line's
@@ -1968,14 +1972,19 @@ func _map_fly_probe(map: SystemMapScreen, hud: Rect2) -> Dictionary:
 	var side := map.ladder_side()
 	if side != null and side.is_visible_in_tree():
 		avoid.append(side.get_global_rect())
-	var w := _fly_world(map, avoid)
+	var w := _fly_world(map, avoid) if map.flight.can_fly() else -1
 	if w >= 0:
 		return {subject = _fly_box(map, w), avoid = avoid, world = w}
-	var at: Vector2 = map.overlay._ship_at
-	var r := map._box.get_global_transform() * Rect2(at - Vector2(12, 12), Vector2(24, 24))
+	var r := _fly_ship_box(map)
 	if not map._box.get_global_rect().encloses(r):
 		return {}
 	return {subject = r, avoid = avoid}
+
+
+## The ship's box on the map, global (the outline's when no world is pointed at).
+func _fly_ship_box(map: SystemMapScreen) -> Rect2:
+	var at: Vector2 = map.overlay._ship_at
+	return map._box.get_global_transform() * Rect2(at - Vector2(12, 12), Vector2(24, 24))
 
 
 ## The map and the world `_fly_world` last chose: [map instance id, body].
@@ -1986,14 +1995,23 @@ var _fly_pick: Array = [0, -1]
 func _fly_world(map: SystemMapScreen, avoid: Array) -> int:
 	var id := map.get_instance_id()
 	var keep := int(_fly_pick[1]) if int(_fly_pick[0]) == id else -1
-	if keep >= 0 and _fly_ok(map, keep, avoid):
-		return keep
 	var ship: Vector2 = map.overlay._ship_at
-	var best := -1
-	var best_d := INF
+	var ship_box := _fly_ship_box(map)
+	# the qualifying worlds nearest first, and those whose box is clear of the ship
+	var ok: Array = []
+	var clear: Array = []
 	for i in map.view.layout.bodies.size():
 		if not _fly_ok(map, i, avoid):
 			continue
+		ok.append(i)
+		if not _fly_box(map, i).intersects(ship_box):
+			clear.append(i)
+	var pool: Array = clear if not clear.is_empty() else ok
+	if keep >= 0 and pool.has(keep):
+		return keep
+	var best := -1
+	var best_d := INF
+	for i: int in pool:
 		var d := ship.distance_squared_to(map.view.at[i])
 		if d < best_d:
 			best_d = d
@@ -2010,7 +2028,13 @@ func _fly_ok(map: SystemMapScreen, i: int, avoid: Array) -> bool:
 	var k: StringName = L.bodies[i].kind
 	if k != &"planet" and k != &"giant":
 		return false
-	if i == int(map.flight.orbit_body()) or map.overlay._behind_sun(map.view.pos[i], map.view.at[i]):
+	if i == int(map.flight.orbit_body()):
+		return false
+	# a click at its middle picks it, as `SystemMapScreen.tap` reads it: not
+	# behind a sun, not under another place's beacon (seed 4242's LAMBDA
+	# ABYSSAL IX: a fight's beacon over its first world opened the fight)
+	var h: Dictionary = map.overlay.hit(map.view.at[i])
+	if StringName(h.get("kind", &"")) != &"body" or int(h.get("body", -99)) != i:
 		return false
 	var r := _fly_box(map, i)
 	if not map._box.get_global_rect().encloses(r):

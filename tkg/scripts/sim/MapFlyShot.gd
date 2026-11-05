@@ -1,11 +1,13 @@
 extends Node
 
 ## THE MAP_FLY LINE ON THE SECTOR MAP, as the game draws it:
-##   godot --path . --windowed --resolution 1920x1080 -- sheet=MapFlyShot ash hints out=<dir> [seed=4242]
+##   godot --path . --windowed --resolution 1920x1080 -- sheet=MapFlyShot ash hints out=<dir> [seed=4242] [node=N]
 ##
 ## A run under way (its jump made, every other hint and step seen), the ship
 ## circling the star as it arrived, in a one-sun system with one world
-## (`one.png`) and one with the most worlds (`many.png`): A.S.H. says "Click a
+## (`one.png`), one with the most worlds (`many.png`), the first binary
+## (`binary.png`, ORBITING BOTH STARS) and, with `node=N`, system N
+## (`nodeN.png`): A.S.H. says "Click a
 ## world twice and we fly there. Or fly us by hand." with her outline on the
 ## world nearest the ship (Jon, Nov 4: "Shouldn't a world be highlighted here
 ## and not my ship?"). Each still is the whole window and a crop round the
@@ -68,6 +70,7 @@ func _run() -> void:
 	# the systems: one sun, no station; one world, and the most worlds
 	var one: MapGen.MapNode = null
 	var many: MapGen.MapNode = null
+	var twin: MapGen.MapNode = null
 	var most := 0
 	for raw in Run.map:
 		var m: MapGen.MapNode = raw
@@ -75,6 +78,8 @@ func _run() -> void:
 			continue
 		var L := SystemLayout.of(m)
 		if L.twin:
+			if twin == null and _worlds(L) > 0:
+				twin = m
 			continue
 		var w := _worlds(L)
 		if w == 1 and one == null:
@@ -82,7 +87,11 @@ func _run() -> void:
 		if w > most:
 			most = w
 			many = m
-	for pair in [[one, "one"], [many, "many"]]:
+	var shots: Array = [[one, "one"], [many, "many"], [twin, "binary"]]
+	var nn := int(_arg("node", "-1"))
+	if nn >= 0 and nn < Run.map.size():
+		shots.append([Run.map[nn], "node%d" % nn])
+	for pair in shots:
 		var m: MapGen.MapNode = pair[0]
 		if m == null:
 			print("[mapflyshot] MISSING %s: no such system on seed %s" % [pair[1], _arg("seed", "4242")])

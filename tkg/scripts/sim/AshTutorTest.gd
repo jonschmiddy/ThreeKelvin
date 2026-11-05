@@ -176,7 +176,11 @@ func _frames(n: int) -> void:
 ## giant's place on screen and not the ship's, follows that world round its
 ## star (the map's clock run on six minutes over two seconds, then put back),
 ## and is on the ship in a system with no world (its worlds made belts for one
-## probe, put back at once: every system has one).
+## probe, put back at once: every system has one). The world is one a click at
+## its middle picks, and not one under another place's beacon (seed 4242's
+## LAMBDA ABYSSAL IX); with the ship on that world the outline is on another,
+## clear of the ship; and with the ship drifting (no star orbit, so a click
+## does not fly) it is on the ship. Each of those for one probe, put back.
 func _map_fly_world(m: SystemMapScreen) -> void:
 	var g := m._box.get_global_transform()
 	var L: SystemLayout = m.view.layout
@@ -222,6 +226,44 @@ func _map_fly_world(m: SystemMapScreen) -> void:
 	var sn: Rect2 = pn.get("subject", Rect2())
 	_ok("map_fly: in a system with no world, the outline is on the ship (subject %s, ship %s)" % [sn, g * m.overlay._ship_at],
 		not pn.has("world") and sn.has_point(g * m.overlay._ship_at))
+	await _frames(1)
+	Hints._fly_pick = [0, -1]
+	var p0 := Hints._map_fly_probe(m, Hints._hud_rect())
+	var w0 := int(p0.get("world", -1))
+	var h: Dictionary = m.overlay.hit(m.view.at[w0]) if w0 >= 0 else {}
+	_ok("map_fly: a click at the outlined world's middle picks it (world %d, hit %s)" % [w0, h],
+		w0 >= 0 and StringName(h.get("kind", &"")) == &"body" and int(h.get("body", -99)) == w0)
+	if w0 < 0:
+		return
+	# another place's beacon over it: a click there opens that place's event
+	var other := (w0 + 1) % L.bodies.size()
+	m.overlay.beacons_at.append([m.view.at[w0], other, null])
+	Hints._fly_pick = [0, -1]
+	var pb := Hints._map_fly_probe(m, Hints._hud_rect())
+	m.overlay.beacons_at.pop_back()
+	_ok("map_fly: not a world under another place's beacon (was %d, now %d)" % [w0, int(pb.get("world", -1))],
+		int(pb.get("world", -1)) != w0)
+	# the ship on the outlined world
+	var keep_at: Vector2 = m.overlay._ship_at
+	m.overlay._ship_at = m.view.at[w0]
+	Hints._fly_pick = [m.get_instance_id(), w0]
+	var ps := Hints._map_fly_probe(m, Hints._hud_rect())
+	var ss: Rect2 = ps.get("subject", Rect2())
+	var ship_s: Vector2 = g * m.overlay._ship_at
+	m.overlay._ship_at = keep_at
+	_ok("map_fly: with the ship on world %d the outline is on another world clear of it (on %d, subject %s, ship %s)" % [
+		w0, int(ps.get("world", -1)), ss, ship_s],
+		int(ps.get("world", -1)) >= 0 and int(ps.get("world", -1)) != w0 and not ss.has_point(ship_s))
+	# drifting: free, no star orbit, so a world clicked twice only selects
+	var keep_r: float = m.flight.f.orbit_r
+	m.flight.f.orbit_r = -1.0
+	var pd := Hints._map_fly_probe(m, Hints._hud_rect())
+	var drift_fly: bool = m.flight.can_fly()
+	m.flight.f.orbit_r = keep_r
+	var sd: Rect2 = pd.get("subject", Rect2())
+	_ok("map_fly: drifting (can_fly %s) the outline is on the ship (subject %s, ship %s)" % [drift_fly, sd, g * m.overlay._ship_at],
+		not drift_fly and not pd.has("world") and sd.has_point(g * m.overlay._ship_at))
+	Hints._fly_pick = [0, -1]
 
 
 func _run() -> void:

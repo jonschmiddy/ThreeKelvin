@@ -7,8 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 - **Fixed** — on the sector map, when A.S.H. says "Click a world twice and we fly there", she now
-  outlines the world nearest your ship instead of the ship. The box goes round with the world. In a
-  system with no world she can show, it stays on your ship.
+  outlines the world nearest your ship instead of the ship. It is a world a click reaches (not one
+  behind a sun or under another event's marker), and not one your ship sits on top of when there is
+  another. The box goes round with the world. In a system with no such world, or while you are
+  drifting under your own thrust (a click doesn't fly you then), it stays on your ship.
 - **Added** — an eye beside GOAL: REACH THE CORE shows how strong the Custodian is getting. Until
   your fifteenth jump it sleeps beside the number of jumps left before it starts to grow. Then it
   wakes, and it opens wider and burns redder as the Custodian grows, until it is at full strength
