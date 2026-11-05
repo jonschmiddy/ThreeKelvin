@@ -165,9 +165,13 @@ const PUT_LEFT_CLOSE := 6
 ## layouts before): two of them, seed 1999 system 258's near start (THE RACE
 ## COURSE on its belt) and seed 7 system 328's free start (THE TARGET RANGE on
 ## its dry world), each to one place, now leave a twin's residual, the best burn
-## from each keeping clear for 30 s, so again the arrivals miss
+## from each keeping clear for 30 s, so again the arrivals miss. At the study's
+## 1 in 6 (Nov 4) about half of all systems hold one, and one more does: seed
+## 1999 system 74's near start (THE FIRST LOOK on its dry world, a reading it
+## does not hold at 1 in 8; its list is main's but for that slot), to one place,
+## the best burn keeping clear for 30 s again
 const PUT_LEFT_CASES := {
-	"twin": ["1999:177:free", "7:209:free", "1999:258:near", "7:328:free"],
+	"twin": ["1999:177:free", "7:209:free", "1999:258:near", "7:328:free", "1999:74:near"],
 	"close": ["1999:257:free", "4242:24:near", "4242:297:free"],
 }
 ## the click comes up to this long after the first plan (s)

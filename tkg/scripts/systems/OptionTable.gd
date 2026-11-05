@@ -169,7 +169,7 @@ static func toll(base: int) -> int:
 ## gate, the lint and the pilot read without running it: `burns = true` (it
 ## burns `science_fuel()`) and `reads` (how many readings it pays when it lands).
 ##
-## THE CAREFUL READING BY TIER (pick 4B, about 70 DATA a run), indexed by
+## THE CAREFUL READING BY TIER (pick 4B, about 70 DATA a full run), indexed by
 ## `MapGen.tier` as `PAY_SCALE` is; the risky line pays `reading(2)`.
 const SCIENCE_PAY: Array[int] = [0, 5, 6, 8, 10, 14]
 ## WHAT A READING BURNS: you flew down there. One fuel at tiers 1 and 2, two from
@@ -179,9 +179,16 @@ const SCIENCE_PAY: Array[int] = [0, 5, 6, 8, 10, 14]
 ## always takes the whole amount.
 const SCIENCE_FUEL: Array[int] = [0, 1, 1, 2, 2, 2]
 ## HOW OFTEN: each rolled slot has this chance of being a science event, so a
-## system of three holds one about three times in eight (`roll_for`). The first
-## dial to turn if the sim reads under 60 DATA a run; Jon's pay stays put.
-const SCIENCE_SHARE := 1.0 / 8.0
+## system of three holds one about half the time (`roll_for`). 1 in 6 is the
+## science study's pick (Nov 4): the sim's `human` pilot, in the runs that
+## reach the core (its `STUDY reached core` count), has taken in about 70 DATA
+## by then and met about six science events. That pilot takes the risky line on
+## nine readings in ten; a player careful half the time gets nearer 60. The
+## sim's `science: DATA N a run` line is not this number: it averages every run,
+## the short ones too, and reads far lower (about 30 for the default pilot the
+## gate flies). This is the first dial to turn if the human pilot reaches the
+## core with under 60; Jon's pay stays put.
+const SCIENCE_SHARE := 1.0 / 6.0
 
 
 ## The DATA a reading pays here: `mult` careful readings' worth.
