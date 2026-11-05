@@ -37,6 +37,31 @@ uniform float soft = 1.5;
 // Unlit, as painted: `stationshot` compares against Jon's pictures with it.
 uniform bool fullbright = false;
 
+// THE CAMERA INTO THE GLASS (`LabZoom`, science S9, Jon's 1C): the screen's
+// glass seen through as the Lab's chart comes up behind it, and the capital's
+// bench looked over. All three are 0 in the room, so the room draws as it
+// always did. `hole` is how far the glass has gone (0 to 1), inside
+// `hole_box` (x0, y0, x1, y1 in picture px, the end exclusive); where
+// `hole_masked` only the glass's own colour goes (own_map G & 8) and anything
+// standing in front of it (the capital's flasks) goes with `mirror`. A bright
+// pixel within `hole_k` px of a corner is the bezel's rounded corner and stays.
+// `mirror` puts the rows of `mirror_box` back as `mirror_sum - y`, dithered:
+// the bezel's top profile turned over, where the bench hid the bottom one.
+uniform float hole = 0.0;
+uniform vec4 hole_box = vec4(0.0);
+uniform bool hole_masked = false;
+uniform float hole_k = 0.0;
+uniform float mirror = 0.0;
+uniform vec4 mirror_box = vec4(0.0);
+uniform float mirror_sum = 0.0;
+
+const float BAYER[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0,
+	3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+
+bool inside(ivec2 p, vec4 b) {
+	return float(p.x) >= b.x && float(p.y) >= b.y && float(p.x) < b.z && float(p.y) < b.w;
+}
+
 float pool(ivec2 g, int i) {
 	vec4 t = texelFetch(light_map, ivec2(g.x, g.y + (i / 2) * band_h), 0);
 	vec2 hl = (i % 2 == 0) ? t.rg : t.ba;
@@ -44,11 +69,15 @@ float pool(ivec2 g, int i) {
 }
 
 void fragment() {
-	vec3 base = texture(TEXTURE, UV).rgb;
+	ivec2 p = ivec2(floor(UV * vec2(textureSize(TEXTURE, 0))));
+	float dith = (BAYER[(p.y % 4) * 4 + (p.x % 4)] + 0.5) / 16.0;
+	if (mirror > 0.0 && inside(p, mirror_box) && dith < mirror) {
+		p.y = int(mirror_sum) - p.y;
+	}
+	vec3 base = texelFetch(TEXTURE, p, 0).rgb;
 	if (fullbright) {
 		COLOR = vec4(base, 1.0);
 	} else {
-		ivec2 p = ivec2(floor(UV * vec2(textureSize(TEXTURE, 0))));
 		int own = int(floor(texelFetch(own_map, p, 0).r * 255.0 + 0.5)) - 1;
 		if (own >= 0) {
 			// AN EMITTER IS NOT LIT, IT BURNS: its own colour at its own brightness.
@@ -97,6 +126,16 @@ void fragment() {
 				m = amb * ambc * (1.0 - tq) + (vec3(1.0) - 0.45 * (vec3(1.0) - tr)) * tq;
 			}
 			COLOR = vec4(min(vec3(1.0), base * m + ov * 0.3 * m), 1.0);
+		}
+	}
+	if (hole > 0.0 && inside(p, hole_box)) {
+		bool glass = !hole_masked || (int(floor(texelFetch(own_map, p, 0).g * 255.0 + 0.5)) & 8) != 0;
+		float cx = min(float(p.x) - hole_box.x, hole_box.z - 1.0 - float(p.x));
+		float cy = min(float(p.y) - hole_box.y, hole_box.w - 1.0 - float(p.y));
+		bool corner = cx < hole_k && cy < hole_k
+			&& dot(COLOR.rgb, vec3(0.3, 0.59, 0.11)) > 110.0 / 255.0;
+		if (!corner && (glass || dith < mirror)) {
+			COLOR.a = 1.0 - hole;
 		}
 	}
 }
