@@ -1151,9 +1151,11 @@ func _retina_case() -> void:
 ## timings and the station lights -- were built there under `DevMode.enabled`
 ## until Jon had them out, Oct 19; what he had them on is `ZoomLadder`'s
 ## constants. So the section, built with dev mode on, names exactly ANIMATION,
-## CLICK TO SKIP JUMP, SCREEN SHAKE, FRAME CAP and VSYNC (Oct 27); and a settings file still
-## holding the old `[flow]` keys loads without a word and moves nothing.
-const PLAYER_MOTION := ["ANIMATION", "CLICK TO SKIP JUMP", "SCREEN SHAKE", "FRAME CAP", "VSYNC"]
+## CLICK TO SKIP JUMP, AUTOPILOT (Nov 5), SCREEN SHAKE, FRAME CAP and VSYNC (Oct 27); and a settings file still
+## holding the old `[flow]` keys loads without a word and moves nothing. AUTOPILOT
+## (Jon, Nov 5, "AUTOPILOT: DIRECT . CURVED"): a file with no key for it, or a
+## word it does not know, loads CURVED; DIRECT saved loads DIRECT.
+const PLAYER_MOTION := ["ANIMATION", "CLICK TO SKIP JUMP", "AUTOPILOT", "SCREEN SHAKE", "FRAME CAP", "VSYNC"]
 const GONE_ROWS := ["ONE CAMERA", "CHART - MAP", "MAP - LOCAL", "LOCAL - STATION",
 	"3B INTO THE YARD", "MOVE TIMINGS", "STATION LIGHTS", "TIMINGS", "UI LEAVES",
 	"UI ARRIVES", "TWO AT ONCE", "DOCK: THE STATION WAKES", "HANDOFF DISC SIZE (PX)",
@@ -1205,6 +1207,12 @@ func _dev_motion_case() -> void:
 		ZoomLadder.design_for(1) == "A" and ZoomLadder.design_for(2) == "C"
 		and ZoomLadder.design_for(3) == "B" and ZoomLadder.seam3_fade() == "F")
 	_ok("  the calm move stays on", ZoomLadder.calm_on())
+	_ok("  a file with no AUTOPILOT key flies CURVED (%s)" % DisplaySettings.autopilot, DisplaySettings.autopilot == &"curved")
+	for ap: Array in [["direct", &"direct"], ["sideways", &"curved"], ["curved", &"curved"]]:
+		old.set_value("display", "autopilot", ap[0])
+		old.save(SCRATCH)
+		DisplaySettings.load_and_apply()
+		_ok("  AUTOPILOT saved as %s loads %s (%s)" % [ap[0], ap[1], DisplaySettings.autopilot], DisplaySettings.autopilot == ap[1])
 	_ok("  and the timings are the baked ones (UI out %.2f, hop camera %.2f, station on %.2f)" % [
 		ZoomLadder.UI_OUT_S, ZoomLadder.CALM_CAM_S, ZoomLadder.LIGHT_ON],
 		is_equal_approx(ZoomLadder.UI_OUT_S, 0.22) and is_equal_approx(ZoomLadder.CALM_CAM_S, 0.8)

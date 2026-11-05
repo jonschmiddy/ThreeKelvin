@@ -83,7 +83,30 @@ extends Node
 ## flights however the run is split; a sweep's found-and-clean share and its
 ## flights put there are summed across the shards by `ShardSum`.
 
+## THE TWO PATHS (the fast transfers, Nov 5: AUTOPILOT DIRECT . CURVED): both
+## unless `autopilot=direct|curved` names one, each at its own pace
+## (`ShipFlight.FLIGHT_PACE`, or `flight_pace=K`). The sweeps and the far places
+## run once a path, each sweep judged on its own (its name with " curved" after
+## it for CURVED); the worker plans, the clicks and the hand and pair phases
+## run on the last path asked for (CURVED, the game's default, unless only
+## DIRECT is). `autopilot=direct flight_pace=1 worldpace=1` is the run of
+## before the fast transfers. Each sweep prints how long from the click to
+## settled in real seconds (map time is real time), from the edge as arrived
+## (a jump's first flight) apart, each flight's bend and turn
+## (`FlightSolve.shape_of`), and how many went to today's planner; at the
+## path's own pace the times are judged (`CLICK_MED`, `CLICK_P90`,
+## `CLICK_EDGE`).
 const ShipFlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
+## from the click to settled at the path's own pace, s: the median and 90th of
+## the game's starts, and the median from the edge as arrived (a jump's first)
+const CLICK_MED := 3.6
+const CLICK_P90 := 4.5
+const CLICK_EDGE := 5.0
+var _paths: Array[StringName] = [&"direct", &"curved"]
+## this pass's sweep suffix ("" DIRECT, " curved" CURVED) and whether it is the
+## pass that picks the worker plans, the clicks and the hand phase's systems
+var _tag := ""
+var _picks_on := true
 ## `flight=<path>`: another ShipFlight to measure (an older one, to compare).
 var _flight_script: Script = ShipFlightS
 
@@ -290,6 +313,10 @@ func _ready() -> void:
 			_starride = true
 		elif s.begins_with("seed="):
 			_one_seed = int(s.substr(5))
+		elif s.begins_with("autopilot="):
+			var ap := s.substr(10)
+			if ap == "direct" or ap == "curved":
+				_paths = [StringName(ap)]
 		elif s.begins_with("why="):
 			# `why=system:start:target`: that one flight, every try's failure said
 			_why = s.substr(4)
@@ -300,9 +327,10 @@ func _wants(sweep: String) -> bool:
 	return _only == "" or _only == sweep
 
 
-func _stat(sweep: String) -> Dictionary:
+func _stat(sweep0: String) -> Dictionary:
+	var sweep := sweep0 + _tag
 	if not _sw.has(sweep):
-		_sw[sweep] = {"plans": 0, "solved": 0, "clean": 0, "replay": 0, "warm": 0, "fallback": 0, "none": 0,
+		_sw[sweep] = {"click_edge": [], "bend": [], "turn": [], "old_n": 0, "pace": float(ShipFlightS.flight_opts().pace),"plans": 0, "solved": 0, "clean": 0, "replay": 0, "warm": 0, "fallback": 0, "none": 0,
 			"flown": 0, "landed": 0, "ms": [], "T": [], "work": [], "lead": [], "clicks": 0, "drawn": 0,
 			"drawn_px": [], "corners1": 0, "corners2": 0, "turn1": [], "turn2": [], "snaps": 0, "frame_dv": 0.0,
 			"frame_ratio": 0.0, "star": INF, "keep": INF, "world": INF, "speed": 0.0, "not_found": [], "not_landed": [],
@@ -333,6 +361,59 @@ func _run() -> void:
 	_pick_wk = h.shard().y > 1 and not _rows_only and h.mine(1)
 	_pick_ck = h.shard().y > 1 and _clicks > 0 and h.mine(2)
 	_pick_hand = h.shard().y > 1 and _hand and not _rows_only and h.mine(3) and not _pick_ck
+	ShipFlightS.flight_opts()
+	for pi in _paths.size():
+		_set_path(pi)
+		_sweeps(seeds, cap)
+		n_sys += _n_sys
+		n_mine += _n_mine
+	print("flighttest: the sweeps took %.0f s" % ((Time.get_ticks_msec() - t_all) / 1000.0))
+	if _why == "" and not _rows_only and h.mine(0):
+		for pi2 in _paths.size():
+			_set_path(pi2)
+			_places_phase(seeds)
+	var t_ph := Time.get_ticks_msec()
+	if not _rows_only and h.mine(1):
+		await _worker_phase()
+		print("flighttest: the worker plans took %.0f s" % ((Time.get_ticks_msec() - t_ph) / 1000.0))
+	OS.add_logger(_errs)
+	t_ph = Time.get_ticks_msec()
+	if _clicks > 0 and h.mine(2):
+		await _click_phase()
+		print("flighttest: the clicks took %.0f s" % ((Time.get_ticks_msec() - t_ph) / 1000.0))
+	t_ph = Time.get_ticks_msec()
+	if _hand and not _rows_only and h.mine(3):
+		_hand_phase()
+		print("flighttest: flying by hand took %.0f s" % ((Time.get_ticks_msec() - t_ph) / 1000.0))
+	OS.remove_logger(_errs)
+	if not _rows_only:
+		_report(cap)
+	print("flighttest: all of it took %.0f s%s" % [(Time.get_ticks_msec() - t_all) / 1000.0, " (short)" if _short else ""])
+	h.shard_end("flighttest", n_mine, n_sys)
+	h.verdict("flighttest")
+	get_tree().quit(h.code())
+
+
+## Path pi of `_paths` for what flies next: the ship's planner's path
+## (`ShipFlight.path_k`), the sweeps' suffix, and whether this pass picks.
+func _set_path(pi: int) -> void:
+	var p: StringName = _paths[pi]
+	ShipFlightS.path_k = p
+	_tag = "" if p == &"direct" else " curved"
+	_picks_on = pi == _paths.size() - 1
+	ShipFlightS.n_fallback = 0
+	print("flighttest: the %s path at pace %.1f" % [p, float(ShipFlightS.flight_opts().pace)])
+
+
+var _n_sys := 0
+var _n_mine := 0
+## ONE PATH'S SWEEPS (`_run`): every seed's systems sorted and flown. The
+## captures are counted on the picking pass only (they are by hand, the same
+## either way).
+func _sweeps(seeds: Array, cap: Dictionary) -> void:
+	var n_sys := 0
+	var n_mine := 0
+	var t_all := Time.get_ticks_msec()
 	for sd: int in seeds:
 		Rng.forced = sd
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -390,33 +471,14 @@ func _run() -> void:
 				if not _rows_only and mine:
 					var cc := _captures(L3, n2.index)
 					var into: Array = cap.twin if L3.twin else cap.one
-					for q in 3:
-						into[q] += cc[q]
+					if _picks_on:
+						for q in 3:
+							into[q] += cc[q]
 				n2.twin = was2
-		print("flighttest: seed %d: %s systems" % [sd, counts])
-	print("flighttest: the sweeps took %.0f s" % ((Time.get_ticks_msec() - t_all) / 1000.0))
-	if _why == "" and not _rows_only and h.mine(0):
-		_places_phase(seeds)
-	var t_ph := Time.get_ticks_msec()
-	if not _rows_only and h.mine(1):
-		await _worker_phase()
-		print("flighttest: the worker plans took %.0f s" % ((Time.get_ticks_msec() - t_ph) / 1000.0))
-	OS.add_logger(_errs)
-	t_ph = Time.get_ticks_msec()
-	if _clicks > 0 and h.mine(2):
-		await _click_phase()
-		print("flighttest: the clicks took %.0f s" % ((Time.get_ticks_msec() - t_ph) / 1000.0))
-	t_ph = Time.get_ticks_msec()
-	if _hand and not _rows_only and h.mine(3):
-		_hand_phase()
-		print("flighttest: flying by hand took %.0f s" % ((Time.get_ticks_msec() - t_ph) / 1000.0))
-	OS.remove_logger(_errs)
-	if not _rows_only:
-		_report(cap)
-	print("flighttest: all of it took %.0f s%s" % [(Time.get_ticks_msec() - t_all) / 1000.0, " (short)" if _short else ""])
-	h.shard_end("flighttest", n_mine, n_sys)
-	h.verdict("flighttest")
-	get_tree().quit(h.code())
+		print("flighttest: seed %d: %s systems%s" % [sd, counts, _tag])
+	print("flighttest: the%s sweeps took %.0f s" % [_tag, (Time.get_ticks_msec() - t_all) / 1000.0])
+	_n_sys = n_sys
+	_n_mine = n_mine
 
 
 ## THE FAR PLACES AND THE CORE, from the game's starts (out of each world's
@@ -432,7 +494,7 @@ func _places_phase(seeds: Array) -> void:
 	var t_ph := Time.get_ticks_msec()
 	var st := {}
 	for k: String in ["far one", "far twin", "far close", "core", "start"]:
-		st[k] = {"plans": 0, "solved": 0, "old": 0, "none": 0, "T": [], "miss": [], "close": INF, "inside": 0}
+		st[k + _tag] = {"plans": 0, "solved": 0, "old": 0, "none": 0, "T": [], "miss": [], "close": INF, "inside": 0}
 	var keep_core := INF
 	for sd: int in seeds:
 		Rng.forced = sd
@@ -453,7 +515,7 @@ func _places_phase(seeds: Array) -> void:
 				for b in Lc.bodies:
 					places.append(b.index)
 				for i: int in places:
-					_far_case(st[key], key, sd, n, Lc, i, keep_core if key == "core" else -1.0)
+					_far_case(st[key + _tag], key, sd, n, Lc, i, keep_core if key == "core" else -1.0)
 			elif n.type == MapGen.NodeType.SYSTEM:
 				if MapGen.twin_ok(n):
 					two.append(n)
@@ -472,20 +534,21 @@ func _places_phase(seeds: Array) -> void:
 				SystemLayout.close_force = 0
 				var hp := L2.hellbender_place()
 				if hp >= 0 and L2.twin == bool(pair[2]):
-					_far_case(st[pair[0]], String(pair[0]), sd, n2, L2, hp, -1.0)
+					_far_case(st[String(pair[0]) + _tag], String(pair[0]), sd, n2, L2, hp, -1.0)
 				Run.hellbender_at = -1
 				Run.hellbender_hp = 0
 				n2.twin = was
-	for k3: String in ["far one", "far twin", "far close", "core", "start"]:
+	for k30: String in ["far one", "far twin", "far close", "core", "start"]:
+		var k3 := k30 + _tag
 		var S: Dictionary = st[k3]
 		print("flighttest: %s: %d flights from the game's starts: solved %d, today's planner %d, none (put there) %d; flight time %s s%s" % [k3, S.plans, S.solved, S.old, S.none, _dist(S.T),
-			"; closest to the black hole %.1f px, its keep-out %.1f" % [S.close, keep_core] if k3 == "core" else ""])
+			"; closest to the black hole %.1f px, its keep-out %.1f" % [S.close, keep_core] if k30 == "core" else ""])
 		for l in (S.miss as Array).slice(0, 12):
 			print("    %s" % l)
 		# (in a twin no fallback: found by the solver; with one sun today's planner may)
 		h._ok("%s: every flight from the game's starts found, none put there (%d of %d)" % [k3, int(S.plans) - int(S.none), S.plans], int(S.plans) > 0 and int(S.none) == 0)
-		if k3 == "core":
-			h._ok("core: no flight inside the black hole's keep-out, %.1f px, its lens (%d; closest %.1f)" % [keep_core, S.inside, S.close], int(S.inside) == 0)
+		if k30 == "core":
+			h._ok("core%s: no flight inside the black hole's keep-out, %.1f px, its lens (%d; closest %.1f)" % [_tag, keep_core, S.inside, S.close], int(S.inside) == 0)
 	print("flighttest: the far places and the core took %.0f s" % ((Time.get_ticks_msec() - t_ph) / 1000.0))
 
 
@@ -609,6 +672,8 @@ func _system(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, mine :=
 
 ## Whether this shard still picks from another shard's system of `sweep`.
 func _picking(sweep: String) -> bool:
+	if not _picks_on:
+		return false
 	return (_pick_wk and int(_wk.size()) < _worker_n * 3) or _picking_ck(sweep)
 
 
@@ -687,7 +752,7 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 	# (`clicks`: the start kept for the clicks as below, nothing planned)
 	if _rows_only:
 		S.plans = int(S.plans) + 1
-		if key != "free" and key != "near" and int(S.plans) % 5 == 2:
+		if _picks_on and key != "free" and key != "near" and int(S.plans) % 5 == 2:
 			(_ck[sweep] as Array).append([sweep, L, key, b, i, t, n.index])
 		return
 	var where := "seed %d system %d (%s, %s) from %s %d to %d" % [sd, n.index, MapGen.star_name(n), sweep, key, b, i]
@@ -699,7 +764,8 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 	var pl = fl.make_plan(i, t, {}, ShipFlightS.PREVIEW_AHEAD)
 	var ms := float(Time.get_ticks_usec() - t_us) / 1000.0
 	S.plans = int(S.plans) + 1
-	_picks[sweep] = int(_picks.get(sweep, 0)) + 1
+	if _picks_on:
+		_picks[sweep] = int(_picks.get(sweep, 0)) + 1
 	(S.ms as Array).append(ms)
 	if pl == null:
 		S.none = int(S.none) + 1
@@ -708,6 +774,7 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 		return
 	if pl.res == null:
 		S.fallback = int(S.fallback) + 1
+		S.old_n = int(S.old_n) + 1
 		(S.not_found as Array).append(where + " (today's planner)")
 	else:
 		S.solved = int(S.solved) + 1
@@ -736,6 +803,10 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 			(S.not_found as Array).append(where + " (unclean, %.2f px in)" % -pl.res.clear)
 		(S.T as Array).append(pl.res.T)
 		(S.work as Array).append(pl.res.work)
+		if pl.res.clean:
+			var shp := FlightSolve.shape_of(pl.samp)
+			(S.bend as Array).append(shp[0])
+			(S.turn as Array).append(shp[1])
 		(S.lead as Array).append(pl.res.lead)
 		S.keep = minf(float(S.keep), pl.res.clear)
 		# HOW FAR OUT FROM STAR A, against the map's edge (the edge is measured
@@ -751,10 +822,10 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 			(S.chain_cut as Array).append(pl.res.t_cut - pl.res.t0)
 			S.chain_far = maxf(float(S.chain_far), far)
 			(S.chain_list as Array).append("%s: %.1f s (the second leg off the first's coast %.1f s on, aimed through %s), work %.0f px/s, planned in %.0f ms, out to %.2f of the edge" % [where, pl.res.T, pl.res.t_cut - pl.res.t0, pl.res.wp.round(), pl.res.work, ms, far])
-		if int(_wk.size()) < _worker_n * 3 and (_wk.size() % 3 == 0 or sweep == "twin" or sweep == "close"):
+		if _picks_on and int(_wk.size()) < _worker_n * 3 and (_wk.size() % 3 == 0 or sweep == "twin" or sweep == "close"):
 			_wk.append([sweep, L, key, b, i, t, pl, n.index])
 		# (the game's starts, every few, for the clicks through the map's path)
-		if key != "free" and key != "near" and int(_picks[sweep]) % 5 == 2:
+		if _picks_on and key != "free" and key != "near" and int(_picks[sweep]) % 5 == 2:
 			(_ck[sweep] as Array).append([sweep, L, key, b, i, t, n.index])
 	# WHERE IT ENDS, against where the ship's own `center` puts the place then
 	# (the solver's place is MapGravity's copy of the layout's; a belt's beacon
@@ -850,6 +921,8 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 		# a place (an orbit, a star's close orbit, alongside), and in two legs
 		if key != "free" and key != "near":
 			(S.click_game as Array).append(float(fm.land_s))
+		if key == "edge":
+			(S.click_edge as Array).append(float(fm.land_s))
 		if key == "orbit" or key == "close" or key == "keep":
 			(S.click_place as Array).append(float(fm.land_s))
 		if pl.res != null and pl.res.legs == 2:
@@ -1086,7 +1159,8 @@ func _fly(fl, i: int, t0: float, drawn, undrawn := false) -> Dictionary:
 			out.at = k3 * dt
 			out.mode = modes[k3]
 		out.frame_ratio = maxf(float(out.frame_ratio), ratio)
-		if d > SNAP_DV and ratio > SNAP_RATIO:
+		# (a flight on its own clock pulls pace^2 harder on the map: a snap's floor too)
+		if d > SNAP_DV * pow(float(pl.pace), 2.0) and ratio > SNAP_RATIO:
 			out.snap = true
 	if landed_at < 0 and ShipFlightS.why:
 		print("    not landed: mode %s, reached %d" % [fl.mode, fl.reached()])
@@ -2166,7 +2240,13 @@ static func _hold_off(fl, wb: int) -> void:
 
 func _report(cap: Dictionary) -> void:
 	var tot_plans := 0
-	for sweep: String in ["one", "giant", "twin", "close"]:
+	var keys: Array = []
+	for p in _paths:
+		for b0: String in ["one", "giant", "twin", "close"]:
+			keys.append([b0 + ("" if p == &"direct" else " curved"), b0, p])
+	for kq: Array in keys:
+		var sweep: String = kq[0]
+		var base: String = kq[1]
 		if not _sw.has(sweep):
 			continue
 		var S: Dictionary = _sw[sweep]
@@ -2182,6 +2262,17 @@ func _report(cap: Dictionary) -> void:
 		print("  flight time from the plan, s: %s; its ride first, s: %s" % [_dist(S.T), _dist(S.lead)])
 		print("  engine work, px/s: %s" % _dist(S.work))
 		print("  click to settled, s: from the game's starts %s; place to place %s; in two legs %s" % [_dist(S.click_game), _dist(S.click_place), _dist(S.click_two)])
+		print("  FAST (%s at pace %.1f): click to settled, real s: the game's starts %s; from the edge as arrived (a jump's first) %s; bend %s; turn deg %s; to today's planner %d" % [kq[2], S.pace, _dist(S.click_game), _dist(S.click_edge), _dist(S.bend), _dist(S.turn), S.old_n])
+		if float(S.pace) == float(ShipFlightS.FLIGHT_PACE[kq[2]]) and not (S.click_game as Array).is_empty():
+			var cg: Array = (S.click_game as Array).duplicate()
+			cg.sort()
+			var med: float = cg[cg.size() / 2]
+			var p90: float = cg[mini(cg.size() - 1, int(cg.size() * 0.9))]
+			h._ok("%s: click to settled at pace %.0f, median %.2f s (at most %.1f), 90th %.2f s (at most %.1f)" % [sweep, S.pace, med, CLICK_MED, p90, CLICK_P90], med <= CLICK_MED and p90 <= CLICK_P90)
+			if not (S.click_edge as Array).is_empty():
+				var ce: Array = (S.click_edge as Array).duplicate()
+				ce.sort()
+				h._ok("%s: a jump's first flight (from the edge as arrived), median %.2f s (at most %.1f)" % [sweep, float(ce[ce.size() / 2]), CLICK_EDGE], float(ce[ce.size() / 2]) <= CLICK_EDGE)
 		print("  closest to a star's surface %.1f px; least margin to a keep-out %.2f px; closest to a world's disc %.1f px; top speed %.0f px/s" % [S.star, S.keep, S.world, S.speed])
 		print("  sharpest turn of the drawn path, deg per px: zoom 1 %s; zoom 2 %s" % [_dist(S.turn1), _dist(S.turn2)])
 		print("  corners (over %.0f deg/px in 2 px) in solved flights: zoom 1 %d, zoom 2 %d (from the game's starts %d, %d); and %d on a ring's own curve only (a ring drawn so small its ends turn that fast)" % [CORNER, S.corners1, S.corners2, S.game_corners1, S.game_corners2, S.ring_corners])
@@ -2223,11 +2314,11 @@ func _report(cap: Dictionary) -> void:
 		# in all, so each shard judges its own; the least margin is its shard's)
 		h._ok("%s: every clean flight clear of MapGravity's keep-outs at each sample's own time, within %.0f px (%d inside; least margin %.2f px)" % [sweep, IN_PX, S.in_clean, S.in_worst], int(S.in_clean) == 0)
 		print("  farthest any solved flight goes from star A: %.2f of the edge" % S.far)
-		if int(S.chained) > 0 or sweep == "twin" or sweep == "close":
+		if int(S.chained) > 0 or base == "twin" or base == "close":
 			print("  flights in two legs (FlightSolve._chain, where one leg reaches nothing): %d; flight time %s s; planned (this thread) %s ms; the second leg off the first's coast, s on: %s; out to %.2f of the edge at the farthest" % [S.chained, _dist(S.chain_T), _dist(S.chain_ms), _dist(S.chain_cut), S.chain_far])
 			for l6 in S.chain_list:
 				print("    TWO LEGS: %s" % l6)
-		if sweep == "twin" or sweep == "close":
+		if base == "twin" or base == "close":
 			# IN A TWIN NO FLIGHT IS PUT THERE (the ship jumped to the place with no
 			# flight: 63 of 1,790 before a flight in two legs, 18 of them from the
 			# game's starts), from any start this measure makes -- but one no burn
@@ -2236,7 +2327,7 @@ func _report(cap: Dictionary) -> void:
 			var excused := 0
 			var game := 0
 			var unnamed := 0
-			var named: Array = PUT_LEFT_CASES.get(sweep, [])
+			var named: Array = PUT_LEFT_CASES.get(base, [])
 			for e7: Array in S.put:
 				var harness7 := String(e7[2]) == "free" or String(e7[2]) == "near"
 				var ok7 := harness7 and float(e7[1]) < CLEAR_S
@@ -2254,7 +2345,7 @@ func _report(cap: Dictionary) -> void:
 				print("    PUT THERE: %s; the best burn from there keeps clear for %.2f s%s" % [e7[0], e7[1], why7])
 			h._ok("%s: no flight put there from the game's starts (%d)" % [sweep, game], game == 0)
 			var left: int = (S.put as Array).size() - excused - game
-			var most := PUT_LEFT_CLOSE if sweep == "close" else PUT_LEFT
+			var most := PUT_LEFT_CLOSE if base == "close" else PUT_LEFT
 			# (the residual against its limit over every system, so summed across
 			# the shards; each flight's start is named or not on its own, and the
 			# flights from another start are summed with it)

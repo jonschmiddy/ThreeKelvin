@@ -62,8 +62,9 @@ const STAR_MASS := {StarKind.ORDINARY: 46.0, StarKind.RED: 62.0, StarKind.BLUE: 
 
 ## THE PULL A SHIP FEELS, on map time (Phase 13, ruled Oct 29 "clock:map", and
 ## ruling 20, Oct 30): a system's whole star mass pulls a ship with this GM
-## (px^3/s^2), whatever its kind. It is KAPPA times the Kepler GM that turns the
-## worlds (GM_KEPLER: a world 100 px out laps in 800 s), because on map time a
+## (px^3/s^2), whatever its kind. It is KAPPA times the Kepler GM that turned the
+## worlds at a pace of 1 (GM_KEPLER: a world 100 px out lapped in 800 s; at
+## `WORLD_PACE` they go round faster, in `kepler_s`), because on map time a
 ## ship flies about a hundred times faster than the worlds move. A ship riding
 ## 170 px out at RAIL_V 35 px/s is on a circular orbit under it. Only autopilot
 ## flights feel it; flying by hand has no gravity (Jon, Oct 3).
@@ -787,7 +788,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 		if b.world != &"":
 			want_at = maxf(want_at, star_ring + soi_of(b) + RING_GAP)
 		b.orbit = want_at
-		b.period = 800.0 * pow(b.orbit / 100.0, 1.5) * (0.95 + R.randf() * 0.1)
+		b.period = kepler_s() * pow(b.orbit / 100.0, 1.5) * (0.95 + R.randf() * 0.1)
 		b.phase = R.randf() * TAU
 		b.name = "%s %s" % [short, ROMAN[mini(i, ROMAN.size() - 1)]]
 		last = b.orbit
@@ -806,7 +807,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 		if jb.world != &"":
 			at += soi_of(jb)
 		jb.orbit = at
-		jb.period = 800.0 * pow(jb.orbit / 100.0, 1.5) * (0.95 + jr.randf() * 0.1)
+		jb.period = kepler_s() * pow(jb.orbit / 100.0, 1.5) * (0.95 + jr.randf() * 0.1)
 		jb.phase = jr.randf() * TAU
 		jb.name = "%s %s" % [short, ROMAN[mini(jb.index, ROMAN.size() - 1)]]
 		L.bodies.append(jb)
@@ -818,7 +819,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 	if hellbender_here(n):
 		var hb := _hellbender_body(L, n)
 		hb.orbit = maxf(HI, last + last_reach) + reach_of(hb) + GAP + 24.0
-		hb.period = 800.0 * pow(hb.orbit / 100.0, 1.5)
+		hb.period = kepler_s() * pow(hb.orbit / 100.0, 1.5)
 		hb.phase = float(Rng.derive(&"hellbender_place", n.index).randf()) * TAU
 		hb.name = "%s %s" % [short, ROMAN[mini(hb.index, ROMAN.size() - 1)]]
 		L.bodies.append(hb)
@@ -940,11 +941,47 @@ static func _weigh_giant(L: SystemLayout, n: MapGen.MapNode) -> void:
 ## still laps its sun 5.4 to 7.6 times a lap of the pair, as a steady world
 ## round one sun of a real binary does (any speed-up of the pair alone past
 ## about x1.1 breaks that rule). Worlds round both, giants and map time itself
-## keep their speed.
+## keep their speed. (Those lap times are at a `WORLD_PACE` of 1: the pair and
+## every world go WORLD_PACE times faster again, so the ratios hold.)
 const PAIR_K := 4.0
 ## (a harness's switch, `-- pair=K`: K times Kepler, 0 holding the pair still
 ## as before ruling 23; -1 means PAIR_K, or the command line's)
 static var pair_k := -1.0
+
+## THE WORLDS' PACE (Jon, Nov 4: "orbits could be faster"; the fast-transfers
+## design, Nov 5): every body's period and the pair's turn go WORLD_PACE times
+## the game's old Kepler rate (`kepler_s`: 800 / WORLD_PACE s a lap at 100 px),
+## so a world 100 px out laps in 400 s at 2, where it took 800. Applied where
+## each period is set. NOT the map's clock: the sun's breath, pulsars, the
+## sky's events and the comets keep their own time (Jon, Nov 5: "I think the
+## comet speed is perfect though"; SkyWeather ages them by the frame's dt);
+## nor the ship's parked orbit (`ShipFlight.STAR_PACE` keeps its own 800: "my
+## ships orbit is fine actually"). A game constant, not a setting: every peer
+## must turn the worlds alike (`NetSession.PROTOCOL` 17). 2 until Jon picks
+## from the films.
+const WORLD_PACE := 2.0
+## (a harness's switch, `-- worldpace=K`; -1 means WORLD_PACE, or the command
+## line's)
+static var world_k := -1.0
+
+
+## The worlds' pace: `world_k` if a harness set it, else the command line's
+## `worldpace=K`, else WORLD_PACE.
+static func world_pace() -> float:
+	if world_k > 0.0:
+		return world_k
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("worldpace="):
+			world_k = maxf(float((a as String).substr(10)), 0.01)
+			return world_k
+	world_k = WORLD_PACE
+	return world_k
+
+
+## SECONDS A LAP AT 100 px round the whole mass (Kepler's law sets the rest):
+## 800 at a pace of 1, as the game always had it, over the worlds' pace.
+static func kepler_s() -> float:
+	return 800.0 / world_pace()
 
 
 ## The pair's speed as a multiple of Kepler: `pair_k` if a harness set it, else
@@ -979,7 +1016,7 @@ static func spin_pair(L: SystemLayout) -> void:
 	var k := pair_speed()
 	if k <= 0.0:
 		return
-	L.pair_n = TAU / (800.0 * pow(L.sep / 100.0, 1.5)) * k
+	L.pair_n = TAU / (kepler_s() * pow(L.sep / 100.0, 1.5)) * k
 	for b in L.bodies:
 		if not is_star(b.host_id):
 			continue
@@ -1128,7 +1165,7 @@ static func _twin(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, 
 	for i in N:
 		var b := L.bodies[i]
 		var m := 1.0 if b.host_id == -9 else (L.star_share if b.host_id == -1 else 1.0 - L.star_share)
-		b.period = 800.0 * pow(b.orbit / 100.0, 1.5) / sqrt(m) * (0.95 + pj[i] * 0.1)
+		b.period = kepler_s() * pow(b.orbit / 100.0, 1.5) / sqrt(m) * (0.95 + pj[i] * 0.1)
 		b.phase = ph[i] * TAU
 	for b in L.bodies:
 		b.zone = L.zone_of(b)
@@ -1167,7 +1204,7 @@ static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int],
 		jb.orbit = at
 		jb.host0 = L.bary
 		jb.host_id = -9
-		jb.period = 800.0 * pow(jb.orbit / 100.0, 1.5) * (0.95 + jr.randf() * 0.1)
+		jb.period = kepler_s() * pow(jb.orbit / 100.0, 1.5) * (0.95 + jr.randf() * 0.1)
 		jb.phase = jr.randf() * TAU
 		jb.name = "%s %s" % [short, ROMAN[mini(jb.index, ROMAN.size() - 1)]]
 		L.bodies.append(jb)
@@ -1178,7 +1215,7 @@ static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int],
 		hb.orbit = maxf(HI, ext) + reach_of(hb) + GAP + 24.0
 		hb.host0 = L.bary
 		hb.host_id = -9
-		hb.period = 800.0 * pow(hb.orbit / 100.0, 1.5)
+		hb.period = kepler_s() * pow(hb.orbit / 100.0, 1.5)
 		hb.phase = float(Rng.derive(&"hellbender_place", n.index).randf()) * TAU
 		hb.name = "%s %s" % [short, ROMAN[mini(hb.index, ROMAN.size() - 1)]]
 		L.bodies.append(hb)
@@ -1270,7 +1307,7 @@ static func _close(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator,
 		b.host0 = L.bary
 		b.host_id = -9
 		b.orbit = want
-		b.period = 800.0 * pow(b.orbit / 100.0, 1.5) * (0.95 + pj[i] * 0.1)
+		b.period = kepler_s() * pow(b.orbit / 100.0, 1.5) * (0.95 + pj[i] * 0.1)
 		b.phase = ph[i] * TAU
 		last = want
 		last_reach = reach

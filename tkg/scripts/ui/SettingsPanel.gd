@@ -403,6 +403,16 @@ func _page_motion() -> void:
 		func(i: int) -> void:
 			DisplaySettings.set_skip_jump(i == 1)
 			_refresh()))
+	# THE AUTOPILOT'S FLIGHT (Jon, Nov 5, "AUTOPILOT: DIRECT . CURVED"): the
+	# map's flights for a world clicked twice. A flight under way flies on; the
+	# line drawn is planned again (`SystemOverlay`'s preview key holds the path)
+	_body.add_child(_row_chips("AUTOPILOT", ["DIRECT", "CURVED"],
+		0 if DisplaySettings.autopilot == &"direct" else 1,
+		func(i: int) -> void:
+			DisplaySettings.set_autopilot(&"direct" if i == 0 else &"curved")
+			_refresh(),
+		["Points the nose at the world and flies straight there.",
+			"Swings wide round the star, bent by its pull."]))
 	_body.add_child(_row_chips("SCREEN SHAKE", ["ON", "OFF"],
 		0 if DisplaySettings.screen_shake else 1,
 		func(i: int) -> void:

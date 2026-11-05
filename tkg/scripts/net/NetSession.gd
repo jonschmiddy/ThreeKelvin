@@ -133,7 +133,16 @@ extends Node
 ##    which the host raises to the galaxy's, mid-fight too (`_regrow`). A
 ##    version 15 partner sends a presence one number short and grows the
 ##    Custodian on its own jumps.
-const PROTOCOL: int = 16
+## 17: FAST TRANSFERS AND FASTER WORLDS (Jon, Nov 4-5). The worlds turn
+##    `SystemLayout.WORLD_PACE` times faster, so a version 16 partner's worlds
+##    stand somewhere else at the same clock. A flight lasts about 3 s and bends
+##    round the stars, and the spots (one every SPOT_EVERY_MS, eased) cut its
+##    chord, so the flier says the whole flight once, reliably, as it leaves
+##    (`report_flight`: its path, burns, place left and place to, on its own map
+##    clock), and a cancel if it lets go of it; every partner draws the ship on
+##    that path (`flight_of`), each end moved with its place to this machine's
+##    clock (`SystemMapScreen.partner_points`).
+const PROTOCOL: int = 17
 
 ## How long a contested option waits for the host to say who got it.
 ##
@@ -306,6 +315,14 @@ var fights: Dictionary = {}
 ## A partner's row goes when it leaves the party, on every machine
 ## (`_push_roster_to`), not only the host's.
 var spots: Dictionary = {}
+## EACH PARTNER'S FLIGHT UNDER WAY (PROTOCOL 17): peer id -> {at, from, to, t0
+## (its first point, on the sender's map clock), dt (s between points), pts
+## (PackedVector2Array, plane), burns (PackedByteArray), said (the sender's clock
+## as it said it), got (this machine's msec as it came)}. Dropped with the
+## partner's spots.
+var flights: Dictionary = {}
+## the flight this machine said last (its plan's instance id), so it is said once
+var _flight_said := 0
 ## THE GALAXY EACH MACHINE BUILT, as `[seed, systems, fingerprint]`.
 ##
 ## The seed is the only thing about the galaxy that crosses the wire; every
@@ -398,6 +415,8 @@ func host_party(player_name: String, hull_id: StringName, t: NetTransport = null
 	claims.clear()
 	fights.clear()
 	spots.clear()
+	flights.clear()
+	_flight_said = 0
 	_galaxy_theirs.clear()
 	galaxy_mine.clear()
 	galaxy_warning = ""
@@ -433,6 +452,8 @@ func join_party(code: String, player_name: String, hull_id: StringName, t: NetTr
 	claims.clear()
 	fights.clear()
 	spots.clear()
+	flights.clear()
+	_flight_said = 0
 	_galaxy_theirs.clear()
 	galaxy_mine.clear()
 	galaxy_warning = ""
@@ -460,6 +481,8 @@ func leave_party() -> void:
 	claims.clear()
 	fights.clear()
 	spots.clear()
+	flights.clear()
+	_flight_said = 0
 	_galaxy_theirs.clear()
 	galaxy_mine.clear()
 	galaxy_warning = ""
@@ -753,6 +776,7 @@ func _push_roster_to(rows: Array) -> void:
 	for id in spots.keys():
 		if not roster.has(int(id)):
 			spots.erase(id)
+			flights.erase(id)
 	if state == State.JOINING:
 		_set_state(State.IN_PARTY)
 	Sig.party_changed.emit()
@@ -987,6 +1011,7 @@ func _on_peer_disconnected(id: int) -> void:
 		if f.crew.has(id):
 			_apply_leave(int(index), id)
 	spots.erase(id)
+	flights.erase(id)
 	_jumps_said.erase(id)
 	if roster.erase(id):
 		_builds.erase(id)
@@ -1273,6 +1298,108 @@ func spot_of(id: int, at: int) -> Dictionary:
 	if sp.is_empty() or int(sp.get("at", -1)) != at:
 		return {}
 	return sp
+
+
+## A FLIGHT LEAVING (PROTOCOL 17), said once as it starts to fly, reliably: its
+## path decimated to `dt` apart (about 60 points a second), its burns, where it
+## left from and goes to, and its first point's time on this machine's map
+## clock `t0` and the clock as it is said `said`. `to` -9 lets go of the last
+## one said (W off it). Throttled by the plan (`key`): the same flight is said
+## once.
+func report_flight(at: int, key: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float) -> void:
+	if not _can_talk() or state != State.DIVING:
+		return
+	if key == _flight_said:
+		return
+	_flight_said = key
+	if is_host():
+		_apply_flight(1, at, from, to, t0, dt, pts, burns, said)
+	else:
+		_flight_at_host.rpc_id(1, at, from, to, t0, dt, pts, burns, said)
+
+
+## THE FLIGHT LET GO OF (W off it, or another place clicked on the way): the
+## partners draw the ship by its spots again.
+func report_flight_off(at: int) -> void:
+	if _flight_said == 0:
+		return
+	_flight_said = 0
+	report_flight(at, -1, -9, -9, 0.0, 0.0, PackedVector2Array(), PackedByteArray(), 0.0)
+	_flight_said = 0
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _flight_at_host(at: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float) -> void:
+	if is_host():
+		_apply_flight(multiplayer.get_remote_sender_id(), at, from, to, t0, dt, pts, burns, said)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _flight_to(id: int, at: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float) -> void:
+	if id != local_id():
+		_keep_flight(id, at, from, to, t0, dt, pts, burns, said)
+
+
+func _apply_flight(id: int, at: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float) -> void:
+	if id != 1:
+		_keep_flight(id, at, from, to, t0, dt, pts, burns, said)
+	if not multiplayer.get_peers().is_empty():
+		_flight_to.rpc(id, at, from, to, t0, dt, pts, burns, said)
+
+
+func _keep_flight(id: int, at: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float) -> void:
+	if to == -9 or pts.size() < 2:
+		flights.erase(id)
+		return
+	flights[id] = {"at": at, "from": from, "to": to, "t0": t0, "dt": dt, "pts": pts, "burns": burns, "said": said,
+		"got": Time.get_ticks_msec()}
+
+
+## A partner's flight in system `at` still to be drawn, or {}: one whose last
+## point has gone by on the sender's clock (as run on since it came) is over,
+## and the spots have it again.
+func flight_of(id: int, at: int) -> Dictionary:
+	var fl: Dictionary = flights.get(id, {})
+	if fl.is_empty() or int(fl.at) != at:
+		return {}
+	var now_s := float(fl.said) + float(Time.get_ticks_msec() - int(fl.got)) / 1000.0
+	if now_s > float(fl.t0) + float(fl.dt) * float((fl.pts as PackedVector2Array).size() - 1) + 0.05:
+		return {}
+	return fl
+
+
+## WHERE A PARTNER'S FLIGHT HAS IT NOW (PROTOCOL 17), on layout L at this
+## machine's map clock `t`: its path at the sender's clock now (run on from when
+## it was said), each end moved with its place to this clock (the place left
+## where it is here at the flight's start, the place gone to where it is here
+## at its end, blended by smoothstep along the flight), so a flight said from a
+## clock seconds apart still leaves from its world here and lands on its
+## target. [point, screen angle, burning], or [] when it is not flying now.
+static func flight_point(fl: Dictionary, L: SystemLayout, t: float, now_ms: int) -> Array:
+	var pts: PackedVector2Array = fl.pts
+	var n := pts.size()
+	if n < 2:
+		return []
+	var sender_now := float(fl.said) + float(now_ms - int(fl.got)) / 1000.0
+	var dur := float(fl.dt) * float(n - 1)
+	var s := sender_now - float(fl.t0)
+	if s < 0.0 or s > dur:
+		return []
+	var x := s / float(fl.dt)
+	var j := mini(int(floor(x)), n - 2)
+	var q := pts[j].lerp(pts[j + 1], x - float(j))
+	var dlt := t - sender_now
+	var t0 := float(fl.t0)
+	var t1 := t0 + dur
+	var d0 := spot_anchor(L, int(fl.from), -9, t0 + dlt) - spot_anchor(L, int(fl.from), -9, t0)
+	var d1 := spot_anchor(L, int(fl.to), -9, t1 + dlt) - spot_anchor(L, int(fl.to), -9, t1)
+	var u := smoothstep(0.0, 1.0, s / maxf(dur, 1e-6))
+	q += d0.lerp(d1, u)
+	var v := pts[j + 1] - pts[j]
+	var ang := atan2(v.y * 0.38, v.x)
+	var burns: PackedByteArray = fl.burns
+	var lit := j < burns.size() and burns[j] == 1
+	return [q, ang, lit]
 
 
 func _apply_spot(id: int, at: int, body: int, x: float, z: float, ang: float, mt: float, host: int, held: bool = false, sure: bool = false) -> void:
@@ -1921,6 +2048,8 @@ func _drop(message: String) -> void:
 	claims.clear()
 	fights.clear()
 	spots.clear()
+	flights.clear()
+	_flight_said = 0
 	_galaxy_theirs.clear()
 	galaxy_mine.clear()
 	galaxy_warning = ""

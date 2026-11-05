@@ -398,7 +398,74 @@ const DRAW_K := 0.6
 ## the version of `choice` this file writes and reads: 2 from the orbiting pair
 ## (ruling 23), whose choice carries the sun each circle rides with (`dhs`,
 ## `ths`), so no preview planned under the old meaning is rebuilt as it was
-const CHOICE_V := 2
+const CHOICE_V := 3
+## THE FAST TRANSFERS (Jon, Nov 4-5: "almost 4 times slower than feels good",
+## "Why is transferring between planets a straight line?"): every flight is
+## solved on its own clock, tau = pace x map time, through a copy of the system
+## whose bodies move pace times slower (`MapGravity.paced`), at today's THRUST,
+## gravity and every other dial, then played back pace times faster (`solve`'s
+## `pace`, `Result.to_map`): the same path, its pulls pace^2 stronger on the
+## map, and the place met where it really is. The ring speeds the ship leaves
+## and arrives at stay the map's own (RAIL_V 35 on the map, RAIL_V / pace in
+## tau). Two paths (`DisplaySettings.autopilot`, AUTOPILOT: DIRECT . CURVED):
+## DIRECT is ruling 21's C search (TIME_W 16 to T_CAP 16) at pace 4, about 11 s
+## of tau played in about 2.8 s; CURVED is the as-built search (ruling 20's
+## TIME_W_BACK 0.5 to T_CAP_BACK 30, its conic times and FAR_T_BACK) as the
+## first look, at pace 8: slow, cheap flights that bend round the stars,
+## about 24 s of tau played in about 3 s. Both keep the wider search and the
+## flight in two legs behind them.
+## ALONGSIDE, the hold before leaving (KEEP_HOLD in tau) is at least HOLD_MAP
+## of map time: KEEP_HOLD 1 s of tau is an eighth of a second at pace 8.
+const HOLD_MAP := 0.4
+## THE RING SPEEDS ON THE FLIGHT'S CLOCK. A ring's speed divided by the pace
+## left the ship all but at rest in tau (a settled orbit at the edge, 13 px/s on
+## the map, 1.6 at pace 8; a star's close orbit 5.6 deep in its well, where its
+## pull is over THRUST), and the solver found a third of the game's flights
+## from there or none (FlightTest, Nov 5). So a ring is left and arrived on in
+## tau at its speed / pace but never under RING_TAU px/s (nor over its own
+## speed): on the map the ship spins up round its ring to pace times that as it
+## rides to leave (`ShipFlight._step_phase`, its ride's end rate `ke`), and
+## spins down onto the ring's own speed as it arrives (`ShipFlight.start_rail`'s
+## spin). `-- ringtau=X` sets it for a harness (0: speed / pace, as first built).
+const RING_TAU := 20.0
+static var ring_tau := -1.0
+
+
+static func ring_floor() -> float:
+	if ring_tau < 0.0:
+		ring_tau = RING_TAU
+		for a in OS.get_cmdline_user_args():
+			if (a as String).begins_with("ringtau="):
+				ring_tau = maxf(float((a as String).substr(8)), 0.0)
+	return ring_tau
+
+
+## A ring's speed v (px/s, signed) on a flight's clock at pace k (`RING_TAU`).
+static func tau_speed(v: float, k: float) -> float:
+	if k == 1.0:
+		return v
+	var a := absf(v)
+	return signf(v) * minf(a, maxf(a / k, ring_floor()))
+
+
+## A departure or a target on the flight's clock at pace k: a ring's or a
+## target ring's speed by `tau_speed`, a free start's motion / k.
+static func dep_tau(dep: Dictionary, k: float) -> Dictionary:
+	var d := dep.duplicate()
+	match StringName(d.get("kind", &"")):
+		&"ring":
+			var rt := float(d.rt)
+			d.w = tau_speed(float(d.w) * rt, k) / rt
+		&"free":
+			d.v = (d.v as Vector2) / k
+	return d
+
+
+static func tgt_tau(tgt: Dictionary, k: float) -> Dictionary:
+	var g := tgt.duplicate()
+	if StringName(g.get("kind", &"")) == &"ring":
+		g.V = tau_speed(float(g.V), k)
+	return g
 
 
 class Result:
@@ -454,6 +521,36 @@ class Result:
 	var wp := Vector2.ZERO
 	var k_cut := 0
 	var t_cut := 0.0
+	## THE CLOCK IT WAS SOLVED ON (`solve`'s pace) and the search (&"direct",
+	## &"curved"); `tau` true while its times are still the flight's own clock
+	## (`to_map` makes them map time)
+	var pace := 1.0
+	var path: StringName = &"direct"
+	var tau := false
+
+	## ITS TIMES ON THE MAP'S CLOCK: every time and length / pace, every speed
+	## x pace, every pull x pace^2; positions as they are. Its choice stays in
+	## tau, as `solve` reads it back (`prefer`).
+	func to_map(k: float) -> void:
+		if k == 1.0 or not tau:
+			tau = false
+			return
+		tau = false
+		t0 /= k
+		lead /= k
+		sdt /= k
+		dur /= k
+		esc_t /= k
+		T /= k
+		d2 /= k
+		t_cut /= k
+		amax *= k * k
+		if not end.is_empty():
+			end = end.duplicate()
+			end.t = float(end.t) / k
+			end.v = (end.v as Vector3) * k
+			end.rv = (end.rv as Vector2) * k
+			end.a = (end.a as Vector2) * (k * k)
 
 
 # ---------------------------------------------------------------- the problem
@@ -518,6 +615,24 @@ var _wide := false
 ## conic guesses, FAR_T_BACK)
 var _tw := TIME_W
 var _back := false
+## CURVED (`solve`'s path): the as-built search is the first look, its cap
+## `_cap0` (T_CAP_BACK; DIRECT's T_CAP), its weight TIME_W_BACK; and the hold
+## alongside before leaving, in tau (`HOLD_MAP`)
+var _curved := false
+var _cap0 := T_CAP
+var _hold := KEEP_HOLD
+## THE PACE A FLIGHT IS SOLVED AT (`solve`), and the cusp's and the eased
+## burn's speeds and least pull on its clock: V_CUSP, V_SLOW, CUSP_PAD, CUSP_IN
+## and P_MIN over the pace, so a burn turned down as a cusp is one that slows
+## to under V_CUSP on the map, as before (in tau a settled orbit's 13 px/s at
+## the edge is 1.6, and at V_SLOW 10 every departure from it that turned read
+## as one)
+var _kp := 1.0
+var _vc := V_CUSP
+var _vsl := V_SLOW
+var _cpad := CUSP_PAD
+var _cin := CUSP_IN
+var _pmin := P_MIN
 ## whether the flight kept was found by the search to T_CAP itself, not the
 ## fallback (`_build_fresh`)
 var _own := false
@@ -592,7 +707,78 @@ var _b := {}
 
 ## THE FLIGHT from `dep` to `tgt` at map time t (see the head of this file).
 ## In a twin, where nothing is found, a flight in two legs (`_chain`).
-static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary = {}) -> Result:
+## THE FLIGHT, on the map: dep and tgt in map units, t map time, `opts`
+## {path: &"direct" | &"curved", pace: k} (`ShipFlight.flight_opts`); none is
+## today's flight, DIRECT at pace 1, to the last digit. `grav` the system's
+## MapGravity (at any pace: `paced(k)` is taken, a copy held already at k is
+## used as it is). The search runs on the flight's own clock (tau = k t, from
+## 0, so a choice made at one moment is read at the next): the ring's and a
+## free start's speed / k, the target's ring speed / k. The Result comes back
+## on the map's clock (`Result.to_map`) unless opts.tau. A `prefer` made on
+## another path or pace is not read.
+static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary = {}, opts: Dictionary = {}) -> Result:
+	var k := float(opts.get("pace", 1.0))
+	var path := StringName(opts.get("path", &"direct"))
+	var curved := path == &"curved"
+	var pf := prefer
+	if not pf.is_empty() and (StringName(pf.get("path", &"direct")) != path or float(pf.get("pace", 1.0)) != k):
+		pf = {}
+	var r: Result
+	if k == 1.0 and not curved:
+		r = _solve_tau(grav, dep, tgt, t, pf)
+	else:
+		var d := dep_tau(dep, k)
+		if curved:
+			d["_curved"] = true
+		if not d.has("_hold"):
+			d["_hold"] = maxf(KEEP_HOLD, HOLD_MAP * k)
+		if not d.has("_pace"):
+			d["_pace"] = k
+		var g := tgt_tau(tgt, k)
+		# (at pace 1 -- CURVED at today's speed, or a harness already in tau -- the
+		# system as it is given)
+		r = _solve_tau(grav if k == 1.0 else grav.paced(k), d, g, t * k, pf)
+	r.pace = k
+	r.path = path
+	r.tau = true
+	if r.found:
+		r.choice = r.choice.duplicate()
+		r.choice["path"] = path
+		r.choice["pace"] = k
+	if not bool(opts.get("tau", false)):
+		r.to_map(k)
+	return r
+
+
+## THE SHAPE OF A FLIGHT from its samples: [bend, turn] -- the farthest a
+## sample strays from the straight line between its two ends over that line's
+## length, and how far its motion turns in all (deg), read every 8th sample.
+static func shape_of(samp: PackedVector3Array) -> PackedFloat64Array:
+	var n := samp.size()
+	if n < 3:
+		return PackedFloat64Array([0.0, 0.0])
+	var a := Vector2(samp[0].x, samp[0].z)
+	var b := Vector2(samp[n - 1].x, samp[n - 1].z)
+	var ch := (b - a).length()
+	var far := 0.0
+	var turn := 0.0
+	var pv := Vector2.ZERO
+	var step := maxi(1, n / 400)
+	for j in range(0, n, step):
+		var q := Vector2(samp[j].x, samp[j].z)
+		if ch > 1e-6:
+			far = maxf(far, absf((b - a).cross(q - a)) / ch)
+		if j + step < n:
+			var v := Vector2(samp[j + step].x - samp[j].x, samp[j + step].z - samp[j].z)
+			if pv != Vector2.ZERO and v.length() > 1e-6:
+				turn += absf(pv.angle_to(v))
+			if v.length() > 1e-6:
+				pv = v
+	return PackedFloat64Array([far / maxf(ch, 1e-6), rad_to_deg(turn)])
+
+
+## (the search on the flight's own clock: dep, tgt and t already in tau)
+static func _solve_tau(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary = {}) -> Result:
 	if grav.star_x0.size() > 1:
 		var held := StringName(dep.get("kind", &"")) != &"free"
 		if prefer.has("chain"):
@@ -718,17 +904,26 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 	G = grav
 	t_now = t
 	_twin = G.star_x0.size() > 1
+	_curved = bool(dep.get("_curved", false))
+	_cap0 = T_CAP_BACK if _curved else T_CAP
+	_hold = float(dep.get("_hold", KEEP_HOLD))
+	_kp = float(dep.get("_pace", 1.0))
+	_vc = V_CUSP / _kp
+	_vsl = V_SLOW / _kp
+	_cpad = CUSP_PAD / _kp
+	_cin = CUSP_IN / _kp
+	_pmin = P_MIN / _kp
 	if not _setup(dep, tgt):
 		var bad := Result.new()
 		bad.usec = Time.get_ticks_usec() - t_us
 		return bad
 	_set = true
-	_tw = TIME_W
+	_tw = TIME_W_BACK if _curved else TIME_W
 	var res: Result = null
 	if not prefer.is_empty() and int(prefer.get("v", 0)) == CHOICE_V:
 		_warm_tier(prefer)
 		res = _replay(prefer)
-		if res != null and _leg == 0 and _tcap > T_CAP + 1e-6:
+		if res != null and _leg == 0 and _tcap > _cap0 + 1e-6:
 			# A FLIGHT THE FALLBACK FOUND, REBUILT AS DRAWN, is kept by the rule it
 			# is kept by warm (below): only while a fresh plan (its own budget)
 			# finds none clean that arrives sooner. Rebuilt with no look, a preview of
@@ -761,7 +956,7 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 			# again 15 times as the overlay does, 1,790 of the 5,745 kept warm
 			# were kept where a fresh plan arrived sooner; none now)
 			var j_old := float(prefer.get("J", INF))
-			var fell := _leg == 0 and _tcap > T_CAP + 1e-6
+			var fell := _leg == 0 and _tcap > _cap0 + 1e-6
 			if not fell and _b_J <= j_old + _warm_slack(j_old):
 				res = _build(&"warm")
 			else:
@@ -835,6 +1030,11 @@ func _at_time_w(j: float, b: Dictionary, tw: float) -> float:
 ## as-built search found it (past T_CAP, its `tw`), so the flight the fallback
 ## found is kept or beaten on its own terms.
 func _warm_tier(c: Dictionary) -> void:
+	if _curved:
+		_tcap = clampf(float(c.get("cap", T_CAP_BACK)), T_CAP_BACK, maxf(T_CAP_WIDE, T_CAP_BACK))
+		_tw = TIME_W_BACK
+		_back = true
+		return
 	_tcap = clampf(float(c.get("cap", T_CAP)), T_CAP, maxf(T_CAP_WIDE, T_CAP_BACK))
 	_tw = TIME_W
 	_back = false
@@ -1114,8 +1314,8 @@ func _depart(ux: float, uz: float, has_fix: bool, a_fix: float) -> bool:
 		return true
 	if _dk == 1:
 		# (holding alongside for KEEP_HOLD first)
-		_e_td = t_now + KEEP_HOLD
-		_e_lead = KEEP_HOLD
+		_e_td = t_now + _hold
+		_e_lead = _hold
 		_e_k = 1.0
 		_e_ad = 0.0
 		_dep_at(_e_td)
@@ -1205,7 +1405,7 @@ func _departure_cusps() -> bool:
 			kmin = k
 		k += 1
 		v1 = sqrt(_cVX[k] * _cVX[k] + _cVZ[k] * _cVZ[k])
-	return vmin < V_CUSP + CUSP_PAD and vmin < minf(v0, v1) - CUSP_IN and _turn_round(kmin, k) > CUSP_TURN
+	return vmin < _vc + _cpad and vmin < minf(v0, v1) - _cin and _turn_round(kmin, k) > CUSP_TURN
 
 
 ## THE MOTION'S TURN ROUND THE BURN'S LEAST SPEED (rad), on step kmin of a burn
@@ -1213,10 +1413,10 @@ func _departure_cusps() -> bool:
 ## burn's start) to the first after it (or the burn's end).
 func _turn_round(kmin: int, kend: int) -> float:
 	var ka := kmin
-	while ka > 0 and _cVX[ka] * _cVX[ka] + _cVZ[ka] * _cVZ[ka] < V_SLOW * V_SLOW:
+	while ka > 0 and _cVX[ka] * _cVX[ka] + _cVZ[ka] * _cVZ[ka] < _vsl * _vsl:
 		ka -= 1
 	var kb := mini(kmin + 1, kend)
-	while kb < kend and _cVX[kb] * _cVX[kb] + _cVZ[kb] * _cVZ[kb] < V_SLOW * V_SLOW:
+	while kb < kend and _cVX[kb] * _cVX[kb] + _cVZ[kb] * _cVZ[kb] < _vsl * _vsl:
 		kb += 1
 	return absf(Vector2(_cVX[ka], _cVZ[ka]).angle_to(Vector2(_cVX[kb], _cVZ[kb])))
 
@@ -1371,12 +1571,12 @@ func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
 				vmin = su
 				ja = j
 				jb = j + 1
-	if not (vmin < V_CUSP + CUSP_PAD and vmin < minf(v0, v1) - CUSP_IN):
+	if not (vmin < _vc + _cpad and vmin < minf(v0, v1) - _cin):
 		return false
 	# (the turn round it while slower than V_SLOW, as `_turn_round` reads a departure)
-	while ja > 0 and vs[ja].length() < V_SLOW:
+	while ja > 0 and vs[ja].length() < _vsl:
 		ja -= 1
-	while jb < 16 and vs[jb].length() < V_SLOW:
+	while jb < 16 and vs[jb].length() < _vsl:
 		jb += 1
 	return absf(vs[ja].angle_to(vs[jb])) > CUSP_TURN
 
@@ -1489,7 +1689,7 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 			var pull := THRUST
 			if _ease:
 				var sp0 := sqrt(vx * vx + vz * vz)
-				pull = clampf(sp0 * sp0 / R_BURN, P_MIN, THRUST)
+				pull = clampf(sp0 * sp0 / R_BURN, _pmin, THRUST)
 			h = minf(H_BURN, rem / pull)
 			ax_t = bux * pull
 			az_t = buz * pull
@@ -2814,6 +3014,14 @@ func _fresh() -> void:
 		_search()
 		_back = false
 		return
+	if _curved:
+		# CURVED: the as-built search first (its own budget, `_search_back`)
+		_search_back()
+		if _b_J < INF:
+			_own = true
+			return
+		_fallback()
+		return
 	_tcap = T_CAP
 	_tw = TIME_W
 	_search()
@@ -2832,6 +3040,15 @@ func _fresh() -> void:
 ## held flights from the edge and settled star orbits to about 29 s, where the
 ## wider one found quicker ones in one game start in five to eight.)
 func _fallback() -> void:
+	if _curved:
+		# (CURVED's own look was the as-built search: the wider one behind it,
+		# at its weight, as the as-built fallback had it)
+		if not _wide_ok:
+			return
+		_back = true
+		_search_wide(TIME_W_BACK)
+		_back = false
+		return
 	_search_back()
 	if not _wide_ok:
 		return
@@ -3200,7 +3417,7 @@ func _seeds() -> PackedFloat64Array:
 			vx = _e_vx0
 			vz = _e_vz0
 		elif _dk == 1:
-			td = t_now + KEEP_HOLD
+			td = t_now + _hold
 			_dep_at(td)
 			px = _cx + _doffx
 			pz = _cz + _doffz
@@ -3795,7 +4012,7 @@ static func _leg_two(G: MapGravity, l1: FlightSolve, r1: Result, tgt: Dictionary
 	var l2 := FlightSolve.new()
 	l2._leg = 2
 	l2._wide_ok = false
-	var d2 := {"kind": &"free", "p": Vector2(st[0], st[1]), "v": Vector2(st[2], st[3])}
+	var d2 := {"kind": &"free", "p": Vector2(st[0], st[1]), "v": Vector2(st[2], st[3]), "_pace": l1._kp}
 	var r2 := l2._solve(G, d2, tgt, tc, c2)
 	if not r2.found or not r2.clean:
 		return null
