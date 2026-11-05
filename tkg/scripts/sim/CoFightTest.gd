@@ -58,6 +58,18 @@ var _late: bool = false
 ## engagement, and whichever ending the fight produces — the kill's one bag, or
 ## the escape leaving the same banked damage on both machines.
 var _hellbender: bool = false
+## `-- cofight host race` / `-- cofight join CODE race`: THE SAME-SECOND RACE
+## (Nov 5), both orders, in two systems. One ship opens a fight; the other,
+## once it can see that fight, starts a different one at the same system
+## without looking (`Router.forced_race`), as a ship whose copy was still on
+## the wire would. Leg 1, host first: the host opens two hulls, the guest asks
+## for one. Leg 2, guest first: the guest opens one, the host asks for two, so
+## the answer path runs on the host too. Each leg is fought to the kill, and
+## the shell checks the pair from outside: the same ids, the same intent under
+## each hull, the same wrecks (`race1ids` ... `race2wreck`).
+var _race: bool = false
+## What this ship's log said, in race mode, for the line the second ship owes.
+var _said: PackedStringArray = PackedStringArray()
 ## How long the late arrival waits. Long enough that the host is unambiguously
 ## in the fight first, short enough that the harness is not mostly sleeping.
 const LATE_ARRIVAL := 6.0
@@ -86,6 +98,7 @@ func run(tree: SceneTree) -> void:
 	_boss = "boss" in argv
 	_late = "late" in argv
 	_hellbender = "hellbender" in argv
+	_race = "race" in argv
 	_me = "HOST" if hosting else "GUEST"
 
 	if hosting:
@@ -167,6 +180,9 @@ func _fly() -> void:
 
 	if _hellbender:
 		await _hellbender_leg()
+		return
+	if _race:
+		await _race_legs()
 		return
 
 	_at = _find(MapGen.NodeType.CORE) if _boss else _find(MapGen.NodeType.SYSTEM)
@@ -334,9 +350,15 @@ func _play(cb: Combat) -> void:
 		# The hellbender is a visitor: killing it must NOT consume the system it
 		# happened to be caught in. Its own leg asserts that; the ordinary
 		# contact still has to consume its node.
+		# (waited for: a ship seated in a partner's fight by the race does not
+		# clear it itself, the opener's claim does, and that is a push away)
 		if not _hellbender:
-			_ok("and consumed the system for the party", Run.map[_at].cleared)
-		await _bag(cb)
+			_ok("and consumed the system for the party", await _until(func() -> bool:
+				return Run.map[_at].cleared, 5.0))
+		# The race legs compare their wrecks from outside and reach for nothing:
+		# a part taken in one leg would sit in the hold through the next.
+		if not _race:
+			await _bag(cb)
 
 
 ## One kill, one set of wrecks, and one hand on each part.
@@ -541,6 +563,92 @@ func _hellbender_leg() -> void:
 		print("[cofight] hellbenderafter %d:%d" % [Run.hellbender_at, Run.hellbender_hp])
 	else:
 		print("[cofight] hellbenderfate %s" % cb.result)
+
+
+## THE SAME-SECOND RACE, both orders. See `_race` above.
+func _race_legs() -> void:
+	Sig.log_line.connect(func(t: String, _k: StringName) -> void: _said.append(t))
+	var a := _find(MapGen.NodeType.SYSTEM)
+	var b := -1
+	for i in Run.map.size():
+		var n: MapGen.MapNode = Run.map[i]
+		if i > a and n.type == MapGen.NodeType.SYSTEM and not n.cleared 				and n.region != MapGen.Region.FAUNA:
+			b = i
+			break
+	if not _ok("the shared galaxy holds two systems to race at", a >= 0 and b >= 0):
+		return
+	await _race_leg(1, a, "HOST", [&"cutter", &"lancer"], [&"hulk"])
+	if _fails == 0:
+		await _race_leg(2, b, "GUEST", [&"marauder"], [&"lancer", &"hulk"])
+
+
+## One leg: `first` opens `opened` at system `at`; the other ship, once it can
+## see that fight, starts `asked` there without looking.
+func _race_leg(leg: int, at: int, first: String, opened: Array, asked: Array) -> void:
+	_at = at
+	Run.at = at
+	Run.map[at].visited = true
+	# whole again, cold, and no ambush of this ship's own on the way in: the
+	# leg is the race, not the last leg's damage
+	Run.hp = Run.max_hp()
+	Run.heat = 0
+	Run.map[at].ambush_rolled = true
+	Run.map[at].ambush_pending = false
+	Router.resolve_current_node()
+	await _tree.process_frame
+	var mine: Array = opened if _me == first else asked
+	if _me != first:
+		var seen := await _until(func() -> bool: return Net.fight_open_at(at), PARTNER_TIMEOUT)
+		if not _ok("leg %d: %s sees the fight %s opened" % [leg, _me, first], seen):
+			return
+		Router.forced_race = true
+	_said.clear()
+	Router.start_combat(DB.enemies[mine[0]], mine.slice(1).map(
+		func(id: StringName) -> EnemyTemplate: return DB.enemies[id]), true, true)
+	var cb: Combat = Router.combat
+	var shared := await _until(func() -> bool: return cb != null and cb.is_shared(), 15.0)
+	if not _ok("leg %d: %s is in the party's fight" % [leg, _me], shared):
+		return
+	var together := await _until(func() -> bool:
+		var f := Net.fight_at(at)
+		return f != null and f.crew.size() >= 2, PARTNER_TIMEOUT)
+	if not _ok("leg %d: both ships are in it" % leg, together):
+		return
+	var ids := PackedStringArray()
+	var intents := PackedStringArray()
+	for e in cb.enemies:
+		ids.append(String(e.template.id))
+		intents.append(e.intent.name if e.intent != null else "?")
+	var want := PackedStringArray(opened.map(func(id: StringName) -> String: return String(id)))
+	_ok("leg %d: %s fights the fight %s opened (%s), whatever it asked for" % [leg, _me, first, ",".join(ids)],
+		ids == want and cb.foe_ids() == want and Net.fight_at(at).foe_ids == want)
+	if _me != first:
+		var line := "%s got here first. You join their fight." % Router.opener_name(Net.fight_at(at))
+		_ok("leg %d: and its log says \"%s\"" % [leg, line], _said.has(line))
+	print("[cofight] race%d ids %s" % [leg, ",".join(ids)])
+	print("[cofight] race%d intents %s" % [leg, "|".join(intents)])
+	await _play(cb)
+	print("[cofight] race%d outcome %s" % [leg, _outcome])
+	print("[cofight] race%d wreck %s" % [leg, _wreck_desc(at)])
+	# the fight's own hand-off, played out before the next leg starts one
+	await _until(func() -> bool: return Router.combat == null, 5.0)
+	if Router.combat != null and Router.combat.finished:
+		Router.after_combat(Router.combat)
+	await _until(func() -> bool: return false, 1.0)
+
+
+## The wrecks at a system, for the cross-process comparison.
+func _wreck_desc(at: int) -> String:
+	var desc := PackedStringArray()
+	for raw in Run.map[at].jetsam:
+		var h: MapGen.Jetsam = raw
+		if not h.is_wreck():
+			continue
+		var ids := PackedStringArray()
+		for m in h.items:
+			ids.append(_item_id(m))
+		desc.append("%s[%s]" % [h.art, ",".join(ids)])
+	return "|".join(desc) if desc.size() > 0 else "none"
 
 
 func _count_hit(_at2: int) -> void:
