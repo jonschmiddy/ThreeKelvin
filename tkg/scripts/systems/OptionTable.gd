@@ -150,9 +150,13 @@ static func _here_danger() -> int:
 ## outcome into the REWARD line -- a different job entirely, and the collision
 ## was a parse error rather than a silent shadow only because GDScript refuses
 ## two functions of one name.
+##
+## AND FOR THE PARTY (Jon, Nov 5: "loot pools are increased as the playercount
+## increases"): an n-player game pays `PartyScale.loot(n)` of it, so a party
+## that splits the galaxy's events evenly is each paid what a lone pilot is.
 static func purse(base: int) -> int:
-	return maxi(1, int(round(float(base)
-		* PAY_SCALE[MapGen.tier(_here_danger())])))
+	return PartyScale.pay(maxi(1, int(round(float(base)
+		* PAY_SCALE[MapGen.tier(_here_danger())]))))
 
 
 ## What a rim-priced injury costs here.
@@ -372,7 +376,10 @@ static func pay(res: Dictionary, n: MapGen.MapNode, src: StringName = &"") -> St
 		# what stops that.
 		# THE FLOOR, not a wreck: nothing died to produce this, so it lands in
 		# the system's own pile beside anything you have put down here.
-		Run.sector_jetsam(n).items.append(LootGen.roll_module(n.danger))
+		# One more for each player past the first (`PartyScale`, Jon, Nov 5),
+		# as the event's money is.
+		for i in PartyScale.pay(1):
+			Run.sector_jetsam(n).items.append(LootGen.roll_module(n.danger))
 	# THE ROLL IS POSITIONAL, like everything else a system decides about itself:
 	# derived from the node index so a party at one system is handed the same
 	# thing, and so a reload cannot shop for a better item.

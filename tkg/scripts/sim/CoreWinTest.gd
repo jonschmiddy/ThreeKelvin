@@ -33,7 +33,8 @@ extends Node
 ## through jump 15, then x1.04 a jump, capped at 400 from jump 33. Checked first
 ## (`_custodian_growth`): the template's `hull_at`, the hull a fight fields
 ## through `Combat.plan` at each count, the template left at 200 across fights,
-## only the Custodian growing, and a co-op joiner adding 0.6 of the grown hull.
+## only the Custodian growing, and in co-op the hull built for the players in
+## the game (`PartyScale`, Jon, Nov 5) with nothing added for a joiner.
 ## ONE CUSTODIAN FOR THE GALAXY (Jon, Nov 4): in co-op it grows on the lead
 ## ship's jumps (`Run.custodian_jumps()`), so a ship at jump 5 behind a lead at
 ## 33 fields 400, and a fight opened at 20 grows to 33 mid-fight with its damage
@@ -268,16 +269,24 @@ func _custodian_growth() -> void:
 			hulls.append(cb.enemies[0].max_hp)
 	_ok("a lancer and the Hellbender field the same hull at jump 60 as at 0 (%s)" % str(hulls),
 		hulls[0] == hulls[1] and hulls[2] == hulls[3])
-	# CO-OP: the opener's grown hull goes to the party's fight, and a joiner
-	# adds 0.6 of it (SharedFight.CREW_SHARE), not 0.6 of 200.
+	# CO-OP (Jon, Nov 5): the grown hull built for the players in the game,
+	# and a joiner adds nothing
 	Run.jumps = 33
 	var op := Combat.new()
-	op.plan(cust, 1)
-	var f := SharedFight.open(0, op.foe_ids(), op.foe_hp(), op.foe_brace(), op.foe_hp_now(), 1)
+	op.plan(cust, 1, [], 2)
+	var f := SharedFight.open(0, op.foe_ids(), op.foe_hp(), op.foe_brace(), op.foe_hp_now(), 1, -1, 2)
 	var opened := f.foes[0].max_hp
+	var two := PartyScale.party_hull(400, 2)
 	f.join(2)
-	_ok("co-op: opened at jump 33 the party's Custodian is 400, and a joiner makes it 640 (%d, %d)"
-		% [opened, f.foes[0].max_hp], opened == 400 and f.foes[0].max_hp == 640 and f.foes[0].hp == 640)
+	_ok("co-op: at jump 33 a game of two fields 400 x %.2f = %d, and a joiner adds nothing (%d, %d)"
+		% [PartyScale.hull(2), two, opened, f.foes[0].max_hp], opened == two and f.foes[0].max_hp == two and f.foes[0].hp == two)
+	var hulls4: Array = []
+	for n in [1, 2, 3, 4]:
+		var c4 := Combat.new()
+		c4.plan(cust, 1, [], n)
+		hulls4.append(c4.enemies[0].max_hp)
+	_ok("co-op: at jump 33 the Custodian for 1 to 4 players is %s" % str(hulls4),
+		hulls4 == [400, PartyScale.party_hull(400, 2), PartyScale.party_hull(400, 3), PartyScale.party_hull(400, 4)])
 	Run.jumps = 0
 
 
@@ -294,12 +303,13 @@ func _custodian_party() -> void:
 	Run.jumps = 5
 	Run.party_jumps = 33
 	var cb := Combat.new()
-	cb.plan(cust, 1)
-	var f := SharedFight.open(0, cb.foe_ids(), cb.foe_hp(), cb.foe_brace(), cb.foe_hp_now(), 1, cb.grown)
+	cb.plan(cust, 1, [], 2)
+	var f := SharedFight.open(0, cb.foe_ids(), cb.foe_hp(), cb.foe_brace(), cb.foe_hp_now(), 1, cb.grown, 2)
 	var opened := f.foes[0].max_hp
 	f.join(2)
-	_ok("co-op: at jump 5 behind a lead at 33 the Custodian is 400, grown at 33, and a joiner makes it 640 (%d, %d, %d)"
-		% [opened, cb.grown, f.foes[0].max_hp], opened == 400 and cb.grown == 33 and f.foes[0].max_hp == 640)
+	var two := PartyScale.party_hull(400, 2)
+	_ok("co-op: at jump 5 behind a lead at 33 a game of two fields %d, grown at 33, and a joiner adds nothing (%d, %d, %d)"
+		% [two, opened, cb.grown, f.foes[0].max_hp], opened == two and cb.grown == 33 and f.foes[0].max_hp == two)
 	# and ahead of the lead's last word, your own jumps are the floor
 	Run.jumps = 40
 	Run.party_jumps = 20
@@ -322,8 +332,8 @@ func _custodian_party() -> void:
 	# stays done, and the log says "The Custodian grows stronger."
 	Run.jumps = 20
 	var me := Combat.new()
-	me.plan(cust, 1)
-	var sf := SharedFight.open(0, me.foe_ids(), me.foe_hp(), me.foe_brace(), me.foe_hp_now(), 1, me.grown)
+	me.plan(cust, 1, [], 2)
+	var sf := SharedFight.open(0, me.foe_ids(), me.foe_hp(), me.foe_brace(), me.foe_hp_now(), 1, me.grown, 2)
 	sf.join(2)
 	var said: Array = []
 	var listen := func(text: String, _kind: StringName) -> void: said.append(text)
@@ -338,8 +348,9 @@ func _custodian_party() -> void:
 	me._adopt(sf)
 	var grown_by := me.enemies[0].max_hp
 	var lines := said.filter(func(s: String) -> bool: return s == "The Custodian grows stronger.")
-	_ok("mid-fight from 20 to 33: the hull bar rises from %d to %d (joined hull x hull_at(33) / hull_at(20)), the damage done (%d) stays done"
+	_ok("mid-fight from 20 to 33: the hull bar rises from %d to %d (the two-player hull x hull_at(33) / hull_at(20)), the damage done (%d) stays done"
 		% [joined, grown_by, done], grown_by == int(round(joined * float(cust.hull_at(33)) / float(cust.hull_at(20))))
+		and joined == PartyScale.party_hull(cust.hull_at(20), 2)
 		and me.enemies[0].max_hp - me.enemies[0].hp == done and done > 0)
 	_ok("and the log says \"The Custodian grows stronger.\" once, never on joining (%d; %s)" % [lines.size(), "quiet" if quiet else "said early"],
 		lines.size() == 1 and quiet and me.grown == 33)
@@ -633,12 +644,32 @@ func _party_router_fight() -> void:
 	var f := Net.fight_at(idx)
 	var want := Run.custodian_jumps()
 	var h20 := DB.core_boss().hull_at(20)
-	_ok("(party) Router opens the party's Custodian with its count: the fight's %d, Combat's %d, want %d, hull %d of %d" % [
-		f.grown if f != null else -2, cb.grown if cb != null else -2, want, f.foes[0].max_hp if f != null else -1, h20],
+	var h20x2 := PartyScale.party_hull(h20, 2)
+	_ok("(party) Router opens the party's Custodian with its count: the fight's %d, Combat's %d, want %d, hull %d of %d (hull_at(20) x %.2f for two)" % [
+		f.grown if f != null else -2, cb.grown if cb != null else -2, want, f.foes[0].max_hp if f != null else -1, h20x2, PartyScale.hull(2)],
 		f != null and cb != null and want == 20 and f.grown == want and cb.grown == want
-		and f.foes[0].max_hp == h20 and Net.galaxy_jumps == want)
+		and f.foes[0].max_hp == h20x2 and f.party == 2 and cb.party == 2 and Net.galaxy_jumps == want)
+	# ONE CUSTODIAN FOR THE GALAXY, AND ONE PARTY SIZE (Jon, Nov 4 and 5): the
+	# badge shows the lead ship's jumps, the same for every pilot whatever the
+	# party's size; the size is the host's count, the same for every pilot too
+	_ok("(party) the badge's count is the lead ship's jumps, not the party's size (%d)" % CustodianBadge.count(),
+		CustodianBadge.count() == want)
 	if cb != null:
 		cb.release()
+	Router.combat = null
+	# A THIRD PLAYER ARRIVES: the fight open keeps its numbers, the next
+	# Custodian is built for three; the badge does not move
+	Net.leave_fight(idx)
+	Net.roster[778] = Net._slot(778, "Vela", &"korvan", 2)
+	Router.start_combat(DB.core_boss(), [], false, true)
+	await _frames(3)
+	var f3 := Net.fight_at(idx)
+	_ok("(party) with a third player the next Custodian is built for three (%d, want %d), the badge still %d" % [
+		f3.foes[0].max_hp if f3 != null else -1, PartyScale.party_hull(h20, 3), CustodianBadge.count()],
+		f3 != null and f3 != f and f3.party == 3 and f3.foes[0].max_hp == PartyScale.party_hull(h20, 3)
+		and CustodianBadge.count() == want)
+	if Router.combat != null:
+		Router.combat.release()
 	Router.combat = null
 	Net.leave_party()
 	Net.dive_seed = 0

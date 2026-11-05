@@ -133,7 +133,21 @@ extends Node
 ##    which the host raises to the galaxy's, mid-fight too (`_regrow`). A
 ##    version 15 partner sends a presence one number short and grows the
 ##    Custodian on its own jumps.
-const PROTOCOL: int = 16
+## 17: feat/fast-flight's (fast transfers; not on this branch). Whichever of
+##    the two lands second takes the higher number and turns the other away.
+## 18: JOINING A FIGHT LATE, AND THE PARTY'S SIZE (Jon, Nov 5). A ship that
+##    joins a fight after its first turn is STUNNED until that turn's enemy
+##    turn is over (`SharedFight.stunned`, `"stun"` on a fight's push): no
+##    hand, counted as ended, and it can be shot. Nothing grows when a ship
+##    walks in; every fight is built for the players in the game
+##    (`party_count`, `PartyScale`), and says the count it was built for
+##    (`SharedFight.party`, `"party"`). An ask says the asker's count, which
+##    the host scales to its own, and whether it only joins (`join_only`): a
+##    join that lands after the kill opens nothing and is told so
+##    (`_no_fight_to`). A version 16 partner would read no stun, deal itself a
+##    hand and wait on a turn that has moved on, and grow every fight it walked
+##    into.
+const PROTOCOL: int = 18
 
 ## How long a contested option waits for the host to say who got it.
 ##
@@ -209,6 +223,20 @@ var forced_build: String = ""
 ## machine. Never set from game code.
 var hold_asks: bool = false
 var _held_asks: Array = []
+## A SWING'S TARGET, FORCED (`-- nettest`, `-- sheet=MidJoinTest`): every swing
+## goes to this peer while it is in the fight's crew. 0 is the real roll.
+## Never set from game code.
+var forced_target: int = 0
+## THE FIGHT THIS MACHINE IS ASKING TO BE SEATED IN, or -1 (PROTOCOL 18). A
+## stunned joiner counts as ended, so a partner's END TURN can swing at it
+## while its ask is still on the wire and no Combat is listening yet: those
+## swings are held here (`_held_swings`) and the Combat plays them as it begins
+## (`take_held_swings`).
+var _asking_at: int = -1
+var _held_swings: Array = []
+## The system whose JOIN the host answered with "nothing open here any more"
+## (`_no_fight_to`), or -1.
+var _no_fight_at: int = -1
 
 ## Arrival order, kept by the host. Peer ids are random 32-bit numbers, not a
 ## count, so sorting a roster by id shuffles the party every time somebody
@@ -543,6 +571,16 @@ func party_size() -> int:
 	return roster.size()
 
 
+## THE PLAYERS IN THIS GAME, for the enemy's hull and the pay (`PartyScale`,
+## Jon, Nov 5; PROTOCOL 18): the host's roster as it stands, pushed whole to
+## everyone, so every machine counts the same ships. 1 alone, outside a dive,
+## on a NEW RUN's galaxy, and once the party is gone.
+func party_count() -> int:
+	if not is_networked() or not _on_dive_galaxy():
+		return 1
+	return clampi(roster.size(), 1, MAX_PLAYERS)
+
+
 func everyone_ready() -> bool:
 	if roster.is_empty():
 		return false
@@ -820,16 +858,19 @@ func _push_claims_to(all: Dictionary) -> void:
 ## know which one it is: two ships jumping into the same system in the same
 ## second both believe they are first, and only the host can say otherwise.
 ## `grown`: the count the asker's hull was grown at (`Combat.grown`, PROTOCOL 16).
+## `players`: the game's count the asker built its hull for, and `join_only`:
+## the ask came from a JOIN door, so it opens nothing (PROTOCOL 18).
 @rpc("any_peer", "call_remote", "reliable")
 func _open_fight_at_host(index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		brace: PackedInt32Array, cur: PackedInt32Array, grown: int) -> void:
+		brace: PackedInt32Array, cur: PackedInt32Array, grown: int, players: int,
+		join_only: bool) -> void:
 	if not is_host():
 		return
 	var by := multiplayer.get_remote_sender_id()
 	if hold_asks:
-		_held_asks.append([index, ids, hp, brace, cur, grown, by])
+		_held_asks.append([index, ids, hp, brace, cur, grown, by, players, join_only])
 		return
-	_open_or_join(index, ids, hp, brace, cur, grown, by)
+	_open_or_join(index, ids, hp, brace, cur, grown, by, players, join_only)
 
 
 ## The test seam's other half: answer every held ask now, in the order asked.
@@ -837,7 +878,15 @@ func release_asks() -> void:
 	var held := _held_asks
 	_held_asks = []
 	for a: Array in held:
-		_open_or_join(a[0], a[1], a[2], a[3], a[4], a[5], a[6])
+		_open_or_join(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8])
+
+
+## A JOIN THAT CAME AFTER THE KILL (PROTOCOL 18): nothing is open at `index`
+## to join, and the host opened nothing. Sent to the asker alone, after the
+## fight that ended; its wait (`open_fight`) hands that fight back.
+@rpc("authority", "call_remote", "reliable")
+func _no_fight_to(index: int) -> void:
+	_no_fight_at = index
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -907,7 +956,27 @@ func _push_growth_to(g: int, quiet: bool) -> void:
 ## to travel by value.
 @rpc("authority", "call_remote", "reliable")
 func _enemy_swings(at: int, which: int, kind: int, pick: int) -> void:
+	# Still asking to be seated there: nothing is listening yet, so it is held
+	# for the Combat to play as it begins (`take_held_swings`).
+	if at == _asking_at:
+		_held_swings.append([at, which, kind, pick])
+		return
 	Sig.party_fight_swing.emit(at, which, kind, pick)
+
+
+## THE HITS THAT LANDED WHILE THIS SHIP WAS ASKING TO JOIN THE FIGHT AT `at`,
+## as `[at, which, kind, pick]` rows, in order; taken once. `Combat.begin`
+## plays them before it decides between a hand and the stun.
+func take_held_swings(at: int) -> Array:
+	var out: Array = []
+	var kept: Array = []
+	for row: Array in _held_swings:
+		if int(row[0]) == at:
+			out.append(row)
+		else:
+			kept.append(row)
+	_held_swings = kept
+	return out
 
 
 ## "This is where I am in my system." Unreliable: a dropped one is replaced by
@@ -1545,25 +1614,49 @@ func take(index: int, option: int = MapGen.OPTION_WHOLE) -> int:
 ## previous engagement's damage.
 ## `grown` is the count the caller's hull was grown at (`Combat.grown`, -1 for
 ## a fight with nothing in it that grows).
+## `join_only` (PROTOCOL 18): the ask came from a JOIN door. It opens nothing:
+## when the fight has ended before the host hears it, the answer is that
+## ended fight, with this ship not in it, and the caller goes back.
+## The hull is built for `party_count()` players; the host scales it to its own
+## count if that differs (`_open_or_join`).
 func open_fight(index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		brace: PackedInt32Array, cur: PackedInt32Array, grown: int = -1) -> SharedFight:
+		brace: PackedInt32Array, cur: PackedInt32Array, grown: int = -1,
+		join_only: bool = false) -> SharedFight:
 	if not _can_talk() or index < 0 or party_size() < 2:
 		return null
 	if is_host():
-		_open_or_join(index, ids, hp, brace, cur, grown, 1)
+		_open_or_join(index, ids, hp, brace, cur, grown, 1, party_count(), join_only)
 		return fights.get(index, null)
 	# Ask and wait, for the same reason `take()` does: two ships arriving at one
 	# system in the same second must end up in ONE fight. A client that opened
 	# optimistically would spawn a private frigate, and the host's would arrive
 	# a moment later holding different numbers.
-	_open_fight_at_host.rpc_id(1, index, ids, hp, brace, cur, grown)
+	_asking_at = index
+	_held_swings.clear()
+	_no_fight_at = -1
+	_open_fight_at_host.rpc_id(1, index, ids, hp, brace, cur, grown, party_count(), join_only)
 	var me := local_id()
+	var out: SharedFight = null
 	while _can_talk():
 		await get_tree().process_frame
 		var f: SharedFight = fights.get(index, null)
 		if f != null and f.crew.has(me):
-			return f
-	return null
+			out = f
+			break
+		# The host's "nothing open there" comes after the push it sent first,
+		# so the copy here is the ended fight by now
+		if _no_fight_at == index:
+			out = f
+			if out == null:
+				out = SharedFight.new()
+				out.at = index
+				out.over = true
+			break
+	_asking_at = -1
+	_no_fight_at = -1
+	if out == null:
+		_held_swings.clear()
+	return out
 
 
 ## The fight at a system, shared or not, over or not. Callers check `over`.
@@ -1691,18 +1784,37 @@ func _push_claims() -> void:
 # --- fights, on the host --------------------------------------------------
 
 func _open_or_join(index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		brace: PackedInt32Array, cur: PackedInt32Array, grown: int, by: int) -> void:
+		brace: PackedInt32Array, cur: PackedInt32Array, grown: int, by: int,
+		players: int = 1, join_only: bool = false) -> void:
 	var f: SharedFight = fights.get(index, null)
 	if f != null and not f.over:
 		# Already somebody's fight. The second ship in is help, not a second
-		# frigate — see SharedFight.join(). Its `grown` is ignored, as its hp
-		# is: the fight's count is the galaxy's already. Its ids are ignored
-		# too: it planned its own enemy, and this is the answer it takes.
-		# A ship already seated asking again is answered all the same, with
-		# nothing grown: an ask with no push behind it waits for one.
+		# frigate — see SharedFight.join(), which stuns it past turn one. Its
+		# `grown` is ignored, as its hp is: the fight's count is the galaxy's
+		# already, and its hull was built for the game's players as it opened.
+		# Its ids are ignored too: it planned its own enemy, and this is the
+		# answer it takes. A ship already seated asking again is answered all
+		# the same: an ask with no push behind it waits for one.
 		f.join(by)
+	elif join_only and f != null:
+		# A JOIN THAT CAME AFTER THE KILL (PROTOCOL 18): it opens nothing, as
+		# a JOIN door never opens a fight. The asker is sent the fight that
+		# ended, then told. (The host's own JOIN reads its copy at once.)
+		if by != 1:
+			_push_fight_to.rpc_id(by, f.to_wire())
+			_no_fight_to.rpc_id(by, index)
+		return
 	else:
-		f = SharedFight.open(index, ids, hp, brace, cur, by, grown)
+		# BUILT FOR THE GAME'S PLAYERS AS THE HOST COUNTS THEM (PROTOCOL 18).
+		# The asker built its hull for the count it had heard; a roster push
+		# still on its way to it is the only way the two differ.
+		var mine := party_count()
+		players = clampi(players, 1, MAX_PLAYERS)
+		if players != mine:
+			var k := PartyScale.hull(mine) / PartyScale.hull(players)
+			hp = _scaled(hp, k)
+			cur = _scaled(cur, k)
+		f = SharedFight.open(index, ids, hp, brace, cur, by, grown, mine)
 		fights[index] = f
 		# THE FIGHT IS GROWN AT THE GALAXY'S COUNT (PROTOCOL 16). The opener's
 		# count folds in first (its presence normally got there before it; this
@@ -1713,6 +1825,13 @@ func _open_or_join(index: int, ids: PackedStringArray, hp: PackedInt32Array,
 		for i in f.foes.size():
 			_pick_intent(f, i)
 	_push_fight(f)
+
+
+static func _scaled(v: PackedInt32Array, k: float) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	for x in v:
+		out.append(maxi(1, int(round(x * k))))
+	return out
 
 
 func _apply_hurt(index: int, which: int, amount: int, hits: int, by: int) -> void:
@@ -1752,7 +1871,8 @@ func _apply_leave(index: int, by: int) -> void:
 	# frames this runs.
 	if f.over and not was_over and f.paid == 0 and not f.broke \
 			and _is_hellbender_fight(f) and not f.foes.is_empty():
-		Run.hellbender_scarred(f.foes[0].hp)
+		# in one ship's terms, whoever fought it (`PartyScale.solo_hull`)
+		Run.hellbender_scarred(PartyScale.solo_hull(f.foes[0].hp, f.party))
 	# Somebody leaving can be the thing that closes the barrier — three ships
 	# waiting on a fourth who just died is a fight that would otherwise stop.
 	if not f.over and not f.crew.is_empty() and f.waiting_on().is_empty():
@@ -1780,7 +1900,7 @@ func _swing(f: SharedFight) -> void:
 		if e0.kind == SharedFight.Pick.ESCAPE:
 			f.broke = true
 			f.over = true
-			Run.hellbender_breaks_off(e0.hp)
+			Run.hellbender_breaks_off(PartyScale.solo_hull(e0.hp, f.party))
 			_push_fight(f)
 			return
 	for i in f.alive():
@@ -1817,7 +1937,12 @@ func _swing(f: SharedFight) -> void:
 ## redlining ship draws roughly four times the fire of a cold one and a cold one
 ## is still never safe — a target rule with a zero in it is a party that solves
 ## the fight by electing a victim.
+## A STUNNED SHIP IS IN THE POOL (Jon, Nov 5: "Can a stunned ship be shot?
+## Yes."): it is in the crew, so it is weighted by heat like anyone, and it has
+## no block or brace yet.
 func _who_gets_hit(f: SharedFight) -> int:
+	if forced_target != 0 and f.crew.has(forced_target):
+		return forced_target
 	var pool: PackedInt32Array = PackedInt32Array()
 	var weights: PackedFloat32Array = PackedFloat32Array()
 	var total := 0.0

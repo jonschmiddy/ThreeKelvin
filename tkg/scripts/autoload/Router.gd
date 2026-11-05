@@ -1578,6 +1578,8 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 	# whatever order. See Rng.derive().
 	var r := Rng.derive(&"salvage", n.index)
 	var count := 2 if n.region == MapGen.Region.LAWLESS else 1
+	# and the party's share of it (`PartyScale`, Jon, Nov 5)
+	count = PartyScale.pay(count)
 	for i in count:
 		var force := n.manufacturer if n.region == MapGen.Region.TERRITORY else &""
 		Run.stow(LootGen.roll_module(n.danger, force,
@@ -1733,7 +1735,10 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 	# engagement is the whole point of the chase — see RunState.hellbender_scarred
 	# — and both the local fight and the party's copy have to start from it.
 	if template.miniboss:
-		combat.enemies[0].hp = clampi(Run.hellbender_hp, 1, combat.enemies[0].max_hp)
+		# (kept between fights in one ship's terms, and built here for the
+		# game's players, as its full hull was: `PartyScale`)
+		combat.enemies[0].hp = clampi(PartyScale.party_hull(Run.hellbender_hp, combat.party),
+			1, combat.enemies[0].max_hp)
 		# And its intent re-read at that hull. _spawn picked one at full health,
 		# so a hellbender caught already on the ropes would otherwise open with an
 		# attack it is past making — the escape has to be on the table from
@@ -1755,8 +1760,12 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 					Run.log_line("Waiting for the host.", &"them"))
 		# (planned, not begun: nothing in it can be pressed until the answer)
 		cb.asking_at = node.index
+		# A START THAT FOUND A PARTNER'S FIGHT HERE ONLY JOINS (PROTOCOL 18):
+		# the JOIN doors, ENGAGE and an arrival folded into it. If the fight
+		# ends before the host hears the ask, the host opens nothing (it once
+		# opened a fresh, full-hull copy of the enemy that had just died).
 		f = await Net.open_fight(node.index, cb.foe_ids(),
-			cb.foe_hp(), cb.foe_brace(), cb.foe_hp_now(), cb.grown)
+			cb.foe_hp(), cb.foe_brace(), cb.foe_hp_now(), cb.grown, folded)
 		cb.asking_at = -1
 		_ask_serial += 1
 		# LEFT OR ENDED WHILE ASKING: SAVE & EXIT, ABANDON or a new run dropped
@@ -1768,6 +1777,17 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 			var kept := combat != null and combat != cb and 				(combat.shared_at == node.index or combat.asking_at == node.index)
 			if f != null and not kept:
 				Net.leave_fight(node.index)
+			Net.take_held_swings(node.index)
+			return
+		# THE FIGHT ENDED BEFORE THE ASK GOT THERE (a JOIN on the kill): the
+		# answer is the fight that ended, without this ship in it. Nothing
+		# was spent, and the ship goes back to where it was.
+		if f != null and f.over and not f.crew.has(Net.local_id()):
+			cb.release()
+			combat = null
+			Net.take_held_swings(node.index)
+			Run.log_line("The fight ended before you got there.", &"them")
+			show_sector()
 			return
 		if f != null:
 			_take_answer(f, folded, told)
@@ -1929,9 +1949,36 @@ func party_fight_here() -> Array:
 
 ## Whether there is a partner's fight HERE to join, now.
 func can_join_fight() -> bool:
+	return join_state() == JOIN_OPEN
+
+
+## THE JOIN DOORS' STATE HERE: JOIN_NONE (no partner's fight to join),
+## JOIN_OPEN, or JOIN_SHUT, a fight whose Hellbender is spooling its escape
+## (the design's edge: a joiner past turn one is stunned, so it could only add
+## a ship for the enemy to shoot as it leaves). The bars show JOIN FIGHT greyed
+## then, with `JOIN_SHUT_WHY`.
+const JOIN_NONE := 0
+const JOIN_OPEN := 1
+const JOIN_SHUT := 2
+const JOIN_SHUT_WHY := "It is about to jump away."
+func join_state() -> int:
 	if Run.dead or in_combat() or fight_up() or no_fights_at(Run.node_at()):
-		return false
-	return not party_fight_here().is_empty()
+		return JOIN_NONE
+	if party_fight_here().is_empty():
+		return JOIN_NONE
+	var f := Net.fight_at(Run.at)
+	for e in f.foes:
+		if e.alive() and e.kind == SharedFight.Pick.ESCAPE:
+			return JOIN_SHUT
+	return JOIN_OPEN
+
+
+## JOIN FIGHT's tooltip, the same on both bars (the SECTOR bar's and the map's
+## system panel's).
+func join_tip() -> String:
+	if join_state() == JOIN_SHUT:
+		return JOIN_SHUT_WHY
+	return "%s is fighting here. After their first turn you arrive stunned. You can't act or flee until the enemy's turn is over, and it can shoot you." % join_fight_names()
 
 
 ## Who is in the fight here, by name, for the button's line.

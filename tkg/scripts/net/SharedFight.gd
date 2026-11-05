@@ -4,7 +4,8 @@ extends RefCounted
 ## @guarded-by NetSession.PROTOCOL
 ##
 ## `to_wire` and `from_wire` below are a wire format: a key renamed or added
-## there is a protocol change (`grown` was PROTOCOL 16). Read by
+## there is a protocol change (`grown` was PROTOCOL 16; `stun` and `party`
+## PROTOCOL 18). Read by
 ## .github/scripts/version_guard.py.
 ##
 ## One fight that more than one ship is in.
@@ -25,16 +26,12 @@ extends RefCounted
 ## Nothing here touches `Run`, `Combat`, `Rng` or a screen. It is rules and a
 ## wire format, which is what makes it testable without four machines.
 
-## What each extra ship adds to the enemy, as a fraction of what it was worth
-## alone.
-##
-## Not 1.0. Three ships on one frigate is three hands of cards against one
-## intent, so a frigate scaled linearly would be easier than the solo fight, not
-## harder — the party's action economy grows faster than its exposure. 0.6 is
-## the same number `Combat.start()` already uses to split a pack's health, which
-## is the same problem seen from the other side: more hulls in a fight are worth
-## less than the sum of them.
-const CREW_SHARE: float = 0.6
+## NOTHING GROWS WHEN A SHIP WALKS IN ANY MORE (Jon, Nov 5). Each joiner used
+## to add 0.6 of one ship's worth (CREW_SHARE), so the enemy depended on who
+## happened to be in the room and grew again on every drop and rejoin. The
+## enemy is now built for the players in the GAME (`PartyScale`, `party`
+## below), wherever they are, and a fight keeps that hull whoever comes and
+## goes.
 ## The highest count `grown` may say (a wire value is clamped to it).
 const MAX_GROWN: int = 9999
 
@@ -50,6 +47,7 @@ class Foe extends RefCounted:
 	var hp: int = 1
 	var max_hp: int = 1
 	## What one ship's worth of this enemy is. A joiner adds CREW_SHARE of it.
+	## (`regrow` scales it with the hull.)
 	var base: int = 1
 	var brace: int = 0
 	var block: int = 0
@@ -74,8 +72,20 @@ var foe_ids: PackedStringArray = PackedStringArray()
 var foes: Array[Foe] = []
 ## Who is in it, in the order they arrived. The opener is first.
 var crew: PackedInt32Array = PackedInt32Array()
-## Who has pressed END TURN and is waiting on everybody else.
+## Who has pressed END TURN and is waiting on everybody else. A stunned ship
+## is in here from its join, so the turn never waits on it.
 var ended: PackedInt32Array = PackedInt32Array()
+## WHO IS STUNNED (Jon, Nov 5; PROTOCOL 18): joined after the fight's first
+## turn, and sitting out the rest of the turn it joined on and that turn's
+## enemy turn. Cleared by `advance`, so every stun ends together, as the
+## enemy's turn ends. Turn 1 never stuns: ships that arrive while the first
+## turn's players are still playing started the fight together (Jon: "If other
+## players in co op join on the FIRST player's turn of a fight they are not
+## stunned."), which also covers two ships starting one fight in the same
+## second. On the host the enemy's turn takes no time (the last END TURN swings
+## and moves the turn in one go), so any join is in some turn's players' phase,
+## and one after turn 1's is stunned, however little of it was left.
+var stunned: PackedInt32Array = PackedInt32Array()
 var turn: int = 1
 var over: bool = false
 ## Over because the enemy LEFT, not because anybody won or walked out. The
@@ -115,6 +125,11 @@ var paid: int = 0
 ## opens and whenever that rises while it is on (`regrow`), so the boss in the
 ## fight is the boss the badge shows (Jon, Nov 4).
 var grown: int = -1
+## THE PLAYERS IN THE GAME THIS FIGHT WAS BUILT FOR (`PartyScale`, PROTOCOL
+## 18): the host's count as it opened. Its hull was built for them and its
+## wrecks pay for them. A player who drops or joins mid-fight changes nothing
+## here; the next fight takes the new count.
+var party: int = 1
 
 
 ## The first ship engages. `hp` and `brace` are what its own `Combat._spawn`
@@ -124,12 +139,15 @@ var grown: int = -1
 ## ship's worth of the FULL enemy is, so a joiner's share does not shrink just
 ## because somebody softened it up first.
 ## `grown` is the count the opener's hull was grown at (`Combat.grown`).
+## `players` is the game's count the hull was built for (`PartyScale`).
 static func open(node_index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		brace: PackedInt32Array, cur: PackedInt32Array, first: int, grown_at: int = -1) -> SharedFight:
+		brace: PackedInt32Array, cur: PackedInt32Array, first: int, grown_at: int = -1,
+		players: int = 1) -> SharedFight:
 	var f := SharedFight.new()
 	f.at = node_index
 	f.foe_ids = ids
 	f.grown = clampi(grown_at, -1, MAX_GROWN)
+	f.party = clampi(players, 1, NetTransport.MAX_PLAYERS)
 	for i in hp.size():
 		var e := Foe.new()
 		e.max_hp = maxi(1, hp[i])
@@ -143,27 +161,18 @@ static func open(node_index: int, ids: PackedStringArray, hp: PackedInt32Array,
 
 ## Another ship arrives at a system somebody is already fighting in.
 ##
-## The enemy grows to meet them, hp AND max_hp together, so the bar stays
-## honest and a fight that is half over does not suddenly read as full. Growing
-## a wounded enemy is deliberate: joining a fight late is help, and help that
-## arrives at 10% health should not be worth the same share of the loot as help
-## that was there from the first turn. It is, and this is the price.
-##
-## The share is of one ship's worth of the hull (`base`), which for the
-## Custodian is the grown hull: it grows with the lead ship's jumps
-## (`EnemyTemplate.hull_at`, `grown`), so a joiner at jump 33 adds 0.6 of 400,
-## not of 200, and after a `regrow` 0.6 of the new hull. The joiner's own count
-## does not count; the host's galaxy count already holds it.
+## The enemy does not grow: it was built for every player in the game
+## (`party`). Past the first turn the joiner is STUNNED (`stunned`) and counted
+## as ended, so the turn it walked into goes on without it and the enemy's
+## turn after it may shoot it. True when it is seated.
 func join(peer: int) -> bool:
 	if peer == 0 or over or crew.has(peer):
 		return false
 	crew.append(peer)
-	for e in foes:
-		if not e.alive():
-			continue
-		var add := maxi(1, int(round(e.base * CREW_SHARE)))
-		e.max_hp += add
-		e.hp += add
+	if turn > 1:
+		stunned.append(peer)
+		if not ended.has(peer):
+			ended.append(peer)
 	return true
 
 
@@ -184,6 +193,9 @@ func leave(peer: int) -> void:
 	var j := ended.find(peer)
 	if j >= 0:
 		ended.remove_at(j)
+	var k := stunned.find(peer)
+	if k >= 0:
+		stunned.remove_at(k)
 	if crew.is_empty():
 		over = true
 
@@ -233,7 +245,7 @@ func hurt(which: int, amount: int, hits: int, by: int) -> int:
 ## free-running everywhere except the seam where it cannot be, which is
 ## `docs/coop-design.md` §5's "do not gate the tick" applied one level down.
 func end_turn(peer: int) -> bool:
-	if over or not crew.has(peer):
+	if over or not crew.has(peer) or stunned.has(peer):
 		return false
 	if not ended.has(peer):
 		ended.append(peer)
@@ -256,17 +268,17 @@ func advance() -> void:
 	for e in foes:
 		e.block = 0
 	ended = PackedInt32Array()
+	stunned = PackedInt32Array()
 	turn += 1
 
 
 ## THE LEAD SHIP JUMPED PAST THIS FIGHT'S COUNT (decision 2, Jon, Nov 4): every
 ## live foe that grows (`ratio` holds its `hull_at(to) / hull_at(grown)`, 0 for
 ## one that does not) is scaled by it, the damage already done staying done:
-## max_hp by the ratio, hp by what max_hp gained, and `base` by the ratio, so a
-## later joiner adds 0.6 of the new hull. Scaling max_hp keeps every join share
-## already added in proportion, even after a pilot has left (join growth never
-## shrinks back, so counting the crew would undercount). A lone Custodian lands
-## exactly on `hull_at(to)`. True only when a hull moved: a count still asleep
+## max_hp by the ratio, hp by what max_hp gained, and `base` by the ratio.
+## Scaling max_hp keeps the party's share (`party`) in proportion, so a fight
+## built for two lands on two of `hull_at(to)`, and a lone Custodian exactly
+## on `hull_at(to)`. True only when a hull moved: a count still asleep
 ## (to jump 15) or past the cap (33) grows nothing, and the fight is not pushed
 ## for it, so nobody's log says it grew. `grown` rises either way, and the next
 ## push carries it.
@@ -306,6 +318,7 @@ func to_wire() -> Dictionary:
 		"at": at, "turn": turn, "over": over, "broke": broke, "ids": foe_ids,
 		"crew": crew, "ended": ended, "foes": rows,
 		"hit": last_hit, "serial": hit_serial, "paid": paid, "grown": grown,
+		"stun": stunned, "party": party,
 	}
 
 
@@ -320,6 +333,14 @@ static func from_wire(d: Dictionary) -> SharedFight:
 	f.broke = bool(d.get("broke", false))
 	f.crew = PackedInt32Array(d.get("crew", PackedInt32Array()))
 	f.ended = PackedInt32Array(d.get("ended", PackedInt32Array()))
+	# Only ships in the crew can be stunned: a stranger here would be a ship
+	# the turn skips that is not in the fight at all.
+	for p in PackedInt32Array(d.get("stun", PackedInt32Array())):
+		if f.crew.has(p) and not f.stunned.has(p):
+			f.stunned.append(p)
+	# Missing reads as one player, a wild one is held to the party's ceiling:
+	# it multiplies a hull and a pay.
+	f.party = clampi(int(d.get("party", 1)), 1, NetTransport.MAX_PLAYERS)
 	f.last_hit = PackedInt32Array(d.get("hit", PackedInt32Array()))
 	f.hit_serial = maxi(0, int(d.get("serial", 0)))
 	# Clamped to the party ceiling rather than trusted. It multiplies a loot

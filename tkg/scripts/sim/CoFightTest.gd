@@ -18,7 +18,8 @@ extends Harness
 ##   tools/cofight.sh
 ##
 ## What it proves: two machines open ONE fight at one system; the enemy is
-## scaled for two and both see the same hull; each ship's cards land on the
+## built for the game's two players (`PartyScale`, Jon, Nov 5) and both see
+## the same hull; each ship's cards land on the
 ## other's copy of it; the enemy does not swing until both have ended their
 ## turn; it swings at exactly one of them; and when it dies BOTH ships are paid.
 ##
@@ -50,7 +51,9 @@ var _boss: bool = false
 ## shooting, which is what actually happens between two people: nobody arrives
 ## at a system on the same second as anybody else. Joining an OPEN fight is a
 ## different path through `_open_or_join` than opening one, and it is the one a
-## playtest exercises.
+## playtest exercises. The host ends its first turn alone before the guest
+## arrives, so the guest walks in on turn 2: STUNNED (PROTOCOL 18), no hand
+## until the host's END TURN moves the turn.
 var _late: bool = false
 ## `-- cofight host hellbender` / `-- cofight join CODE hellbender`. The roamer, flown:
 ## host authority moving it on both charts, a client's jumps ticking the clock
@@ -196,6 +199,10 @@ func _fly() -> void:
 		print("  GUEST holding off %.0fs so the host opens the fight first"
 			% LATE_ARRIVAL)
 		await _until(func() -> bool: return false, LATE_ARRIVAL)
+		# what the log says from here: the stun, then the turn (a stunned ship
+		# counts as ended, so the host's END TURN can move the turn the frame
+		# after this ship is seated; the log keeps the order)
+		Sig.log_line.connect(func(t: String, _k: StringName) -> void: _said.append(t))
 
 	# ONE CUSTODIAN FOR THE GALAXY (PROTOCOL 16, Jon, Nov 4): the two ships at
 	# different jumps, the guest ahead. Its presence says 17, the host folds it
@@ -245,6 +252,11 @@ func _fly() -> void:
 	var shared := await _until(func() -> bool: return cb.is_shared(), 15.0)
 	if not _ok("and it is the party's fight, not a private one", shared):
 		return
+	# LATE: the host ends its first turn alone, so the guest walks in on turn 2
+	if _late and _me == "HOST":
+		cb.end_turn()
+		_ok("the host ended its first turn alone: turn 2 before the guest arrives", await _until(func() -> bool:
+			return Net.fight_at(_at) != null and Net.fight_at(_at).turn >= 2 and not cb.waiting, 10.0))
 
 	# Both ships have to be IN it before either ends a turn, or the first one
 	# closes a barrier of one and this quietly measures a solo fight with extra
@@ -255,18 +267,38 @@ func _fly() -> void:
 	if not _ok("both ships are in the same fight%s" % (
 			" the host had already opened" if _late else ""), together):
 		return
+	# A stunned ship counts as ended, so the host's next END TURN moves the
+	# turn at once: it holds a moment first, so the guest is seen stunned
+	# rather than seated straight into turn 3 (which is right too: the swing is
+	# held for it, `MidJoinTest`)
+	if _late and _me == "HOST":
+		await _until(func() -> bool: return false, 3.0)
+	if _late and _me == "GUEST":
+		await _until(func() -> bool: return _said.has("Stunned. You act after the enemy's turn."), 3.0)
+		print("  GUEST seated: the fight's turn %d, stunned %s, said %s" % [Net.fight_at(_at).turn,
+			str(Net.fight_at(_at).stunned), str(_said)])
+		var stun_at := _said.find("Stunned. You act after the enemy's turn.")
+		_ok("the guest walked in after turn 1: stunned (the log says so, line %d)" % stun_at, stun_at >= 0)
+		var freed := await _until(func() -> bool: return not cb.stunned and not cb.hand.is_empty(), 30.0)
+		_ok("the host's END TURN moved the turn: the stun is gone and the hand came (turn %d, \"Your turn.\" at %d)" % [
+			cb.turn, _said.find("Your turn.")], freed and _said.find("Your turn.") > stun_at)
 
 	var f0 := Net.fight_at(_at)
 	var scaled := f0.foes[0].max_hp
-	var solo := f0.foes[0].base
-	print("  %s sees %s at %d hull — one ship's worth is %d" % [
-		_me, cb.enemies[0].template.name, scaled, solo])
-	_ok("the enemy is scaled for the crew, not for one ship", scaled > solo)
+	var solo := Combat.new()
+	solo.plan(cb.enemies[0].template, Run.node_at().danger, [], 1)
+	var two := Combat.new()
+	two.plan(cb.enemies[0].template, Run.node_at().danger, [], 2)
+	print("  %s sees %s at %d hull, built for %d players; one player's is %d" % [
+		_me, cb.enemies[0].template.name, scaled, f0.party, solo.enemies[0].max_hp])
+	_ok("the enemy is built for the game's two players (%d), not one (%d)" % [two.enemies[0].max_hp, solo.enemies[0].max_hp],
+		f0.party == 2 and scaled == two.enemies[0].max_hp and scaled > solo.enemies[0].max_hp)
 	_ok("and both machines agree what it is",
 		cb.enemies[0].max_hp == scaled)
 	if _boss:
-		_ok("the Custodian is grown at the lead ship's %d jumps (%d, one ship's worth %d)" % [BOSS_GUEST_JUMPS, f0.grown, solo],
-			f0.grown == BOSS_GUEST_JUMPS and solo == (DB.enemies[&"custodian"] as EnemyTemplate).hull_at(BOSS_GUEST_JUMPS))
+		_ok("the Custodian is grown at the lead ship's %d jumps for two (%d, %d)" % [BOSS_GUEST_JUMPS, f0.grown, scaled],
+			f0.grown == BOSS_GUEST_JUMPS and scaled == PartyScale.party_hull(
+				(DB.enemies[&"custodian"] as EnemyTemplate).hull_at(BOSS_GUEST_JUMPS), 2))
 		print("[cofight] custodian hull %d grown %d count %d stage %s" % [scaled, f0.grown,
 			CustodianBadge.count(), CustodianBadge.stage(CustodianBadge.count())])
 
@@ -297,7 +329,7 @@ func _play(cb: Combat) -> void:
 		# Yield first. A turn that opens the instant the last one closed gives
 		# the socket no frame to deliver anything in.
 		await _tree.process_frame
-		if cb.waiting:
+		if cb.waiting or cb.stunned or cb.asking_at >= 0:
 			continue
 		turns += 1
 		var acted := true
@@ -419,10 +451,10 @@ func _bag(cb: Combat) -> void:
 	var expect := 0
 	for i in wrecks.size():
 		var w: MapGen.Jetsam = wrecks[i]
-		for m in Combat.roll_wreck(n, DB.enemies[w.art], i, hands):
+		for m in Combat.roll_wreck(n, DB.enemies[w.art], i, PartyScale.loot(hands)):
 			if m is ModuleData:
 				expect += 1
-	_ok("sized for the crew, not for one ship (%d parts for %d hands, the roll says %d)"
+	_ok("sized for the game's players, not for one ship (%d parts for %d players, the roll says %d)"
 		% [parts, hands, expect], hands >= 2 and parts == expect)
 	if not _ok("and there is a part to reach for", at >= 0):
 		return
@@ -539,10 +571,10 @@ func _hellbender_leg() -> void:
 	if not _ok("both ships are in it", together):
 		return
 	var f0 := Net.fight_at(_at)
-	print("  %s sees the Hellbender at %d of %d hull — one ship's worth is %d" % [
-		_me, f0.foes[0].hp, f0.foes[0].max_hp, f0.foes[0].base])
-	_ok("scaled for the crew, not for one ship",
-		f0.foes[0].max_hp > f0.foes[0].base)
+	print("  %s sees the Hellbender at %d of %d hull, built for %d players" % [
+		_me, f0.foes[0].hp, f0.foes[0].max_hp, f0.party])
+	_ok("built for the game's two players (%d), not one (%d)" % [f0.foes[0].max_hp, Run.hellbender_max],
+		f0.party == 2 and f0.foes[0].max_hp == PartyScale.party_hull(Run.hellbender_max, 2))
 
 	await _play(cb)
 
