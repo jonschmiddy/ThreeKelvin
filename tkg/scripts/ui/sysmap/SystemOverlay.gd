@@ -263,6 +263,13 @@ func _place_labels() -> void:
 	_lq.clear()
 
 
+## THE BOX OF WORDS whose baseline's left end is `at`, as `_place_labels`
+## builds it.
+func _words_box(at: Vector2, words: String) -> Rect2:
+	var tw := _font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+	return Rect2(at + Vector2(-2, -10), Vector2(tw + 4, 14))
+
+
 ## WHETHER WORDS AT `at` WOULD BE WRITTEN ACROSS A SUN: their box, as
 ## `_place_labels` builds it, against the disc of each star of a pair but `but`
 ## (one sun has no other). The words a twin puts by a star or a selected name
@@ -898,6 +905,12 @@ func _tri_boxes(q: Vector2, dir: Vector2i, glyph_too: bool, name_w := -1.0) -> A
 	return [all, ab, gb, nb, base]
 
 
+## WHETHER A SHIP'S NAME IN `nb` STANDS BESIDE ITS ARROW in `ab` pointing
+## `dir`: off it, and on its inward side (behind the way it points).
+static func name_beside(ab: Rect2, nb: Rect2, dir: Vector2i) -> bool:
+	return not nb.intersects(ab) and (nb.get_center() - ab.get_center()).dot(Vector2(dir)) < 0.0
+
+
 ## The box of a ship's name `w` px wide with its baseline's left end at `base`:
 ## the 5 px caps of the map's 8 px face and a Q's tail, with the 1 px dark rim
 ## round them (`SystemMapScreen._Marks`).
@@ -1050,6 +1063,12 @@ func _draw_edge_marks(status: String) -> void:
 		if String(w[5]) != "":
 			names = [OutcomeRow.fit(String(w[5]), UITheme.FS_SMALL, MARK_NAME_MOST),
 				OutcomeRow.fit(String(w[5]), UITheme.FS_SMALL, MARK_NAME_SHORT)]
+			# (a short name, YOU or GENO, is the same both cuts: tried once)
+			if names[1] == names[0]:
+				names.resize(1)
+			# and where no spot clears even the short name, the bare arrow, as
+			# round one drew it: an arrow with no name beats a ship not marked
+			names.append("")
 		for try_nm: String in names:
 			var nw := -1.0 if try_nm == "" else _font().get_string_size(try_nm, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 			for st in MARK_SLIDES:
@@ -1057,8 +1076,13 @@ func _draw_edge_marks(status: String) -> void:
 					var q := _round_at(inner, s0 + MARK_STEP * float(st) * float(sg)).round()
 					# the box of what would be drawn there, arrow, glyph and name,
 					# pointing the way it would from there
-					var box: Rect2 = _tri_boxes(q, _eight_way(to - q), glyph_too, nw)[0]
-					var hit := not win.encloses(box)
+					var qd := _eight_way(to - q)
+					var bxs: Array = _tri_boxes(q, qd, glyph_too, nw)
+					var box: Rect2 = bxs[0]
+					# (and its name beside it on its inward side: near a corner the
+					# frame pushed a diagonal arrow's name onto the arrow, MERCER
+					# over its own up-right arrow on the left edge)
+					var hit := not win.encloses(box) or (nw >= 0.0 and not name_beside(bxs[1], bxs[3], qd))
 					for r: Rect2 in keep:
 						if hit or r.intersects(box):
 							hit = true
@@ -2481,11 +2505,16 @@ func _draw_ship(t: float) -> void:
 		for k in range(0, 40, 2):
 			var an := float(k) / 40.0 * TAU
 			_px(x + Vector2(cos(an) * rr, sin(an) * rr * 0.8), Color(UITheme.FLARE, 0.75))
-	# WHAT IT IS DOING, by the ship itself (`_ship_words_first`)
+	# WHAT IT IS DOING, by the ship itself (`_ship_words_first`). Off the
+	# picture its arrow at the edge says YOU (`_draw_edge_marks`, the same
+	# rule): YOU over the hull too would say it twice, the second over nothing
+	# or cut by the frame (Nov 5)
 	var on: int = flight.orbit_body()
 	var first := _ship_words_first(x)
+	var off_pic: bool = not view.window.grow(-2.0).has_point(x)
 	if first.is_empty():
-		_label(x + Vector2(-8, -you_up()), "YOU", UITheme.FLARE, 1, false)
+		if not off_pic:
+			_label(x + Vector2(-8, -you_up()), "YOU", UITheme.FLARE, 1, false)
 	else:
 		var words: String = first[0]
 		var lx: float = (first[1] as Vector2).x
@@ -2511,24 +2540,46 @@ func _draw_ship(t: float) -> void:
 		# the words hopped 16 px down, up and down again in 4 s (review 2)
 		var was: Array = _spot_mem.get("ship", [])
 		var grow := WORDS_BACK_PX if was.size() == 4 and was[0] == words else 0.0
+		# NOR CUT BY THE FRAME (Nov 5): under a ring near the frame's edge, or
+		# under a world off the picture, they ran in past the edge, the first
+		# letters cut ("ᴀLONGSIDE · ALPHA KESTREL III" under your ship's arrow
+		# at the edge). With the ship on the picture they step in as off a sun
+		# (`_words_off_suns` keeps every spot inside the frame), back only clear
+		# of the edge by the same margin. Off the picture its arrow says YOU and
+		# the status line at the frame's top left says the same, so words that
+		# would be cut go, and so do words pushed in to hug the edge, in the key
+		# shader's edge fade (`NavField.EDGE_FADE`): under a world off the
+		# picture's left side, ALONGSIDE · SIGMA KESTREL III stood 4 px in, its
+		# A faded out (seed 7, system 314, the review of round two)
+		var cut: bool = names_on and not view.window.encloses(_words_box(Vector2(lx, ly), words))
 		var stepped: bool = grow > 0.0 and names_on and (_meets_sun(Vector2(lx, ly), words, -99, grow) \
-			or (view.layout.twin and not _clear_of_beacons(words, [], grow).call(Vector2(lx, ly))))
+			or (view.layout.twin and not _clear_of_beacons(words, [], grow).call(Vector2(lx, ly))) \
+			or not view.window.grow(-grow).encloses(_words_box(Vector2(lx, ly), words)))
 		var on_beacon: bool = names_on and view.layout.twin and not _clear_of_beacons(words).call(Vector2(lx, ly))
-		if sun or stepped or on_beacon:
+		if off_pic and not view.window.grow(-NavField.EDGE_FADE).encloses(_words_box(Vector2(lx, ly), words)):
+			words = ""
+		elif sun or stepped or on_beacon or cut:
 			var spot := _words_off_suns(words, on, x)
 			if spot.is_empty() and sun:
 				_held_q.append(words)
 				words = ""
+			elif spot.is_empty() and cut:
+				words = ""
 			elif spot.is_empty() and on_beacon:
 				_on_beacon_q.append(words)
 				clear_of = &"suns"
+			elif spot.is_empty():
+				# (within the margin of what they stepped off, and no spot: where
+				# they first stand, which clears it)
+				pass
 			else:
 				lx = (spot[0] as Vector2).x
 				ly = (spot[0] as Vector2).y
 				words = spot[1]
 				clear_of = spot[2]
 		if not names_on:
-			_label(x + Vector2(-8, -you_up()), "YOU", UITheme.FLARE, 1, false)
+			if not off_pic:
+				_label(x + Vector2(-8, -you_up()), "YOU", UITheme.FLARE, 1, false)
 		elif words != "":
 			_label(Vector2(lx, ly), words, UITheme.FLARE, 4, true)
 			_ship_words_q = {"says": words, "at": Vector2(lx, ly), "clear": clear_of}
