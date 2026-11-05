@@ -30,7 +30,63 @@ func run() -> void:
 	_korvan_runs_cold()
 	_solari_runs_hot()
 	_solari_heat_not_waste()
+	_pick_mode()
 	verdict("holdtest")
+
+
+## PICK MODE (science S9, the Lab): a hold shown to choose a part from never
+## moves one. Its icons ignore the mouse, a click on each says `picked` with
+## that part, no icon gives up drag data, the grid takes no drop, and every
+## part is still in the cell it was in.
+func _pick_mode() -> void:
+	seed_run(4250)
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	for i in 4:
+		Run.place_in_hold(LootGen.roll_module(3 + i, &"", true))
+	var grid := HoldGrid.new()
+	grid.pick_mode = true
+	(Engine.get_main_loop() as SceneTree).root.add_child(grid)
+	grid.refresh()
+	var was := {}
+	for m in Run.cargo:
+		was[m] = m.hold_at
+	var got: Array = []
+	grid.picked.connect(func(m: HoldItem) -> void: got.append(m))
+	var icons: Array[ItemIcon] = []
+	for c in grid.get_children():
+		if c is ItemIcon:
+			icons.append(c)
+	_ok("pick mode: %d icons, every one ignoring the mouse" % icons.size(),
+		icons.size() == Run.cargo.size() and icons.all(func(ic: ItemIcon) -> bool: return ic.mouse_filter == Control.MOUSE_FILTER_IGNORE))
+	var want: Array = []
+	var drags := 0
+	for ic in icons:
+		want.append(ic.held_item())
+		var mb := InputEventMouseButton.new()
+		mb.button_index = MOUSE_BUTTON_LEFT
+		mb.pressed = true
+		mb.position = ic.position + ic.size * 0.5
+		grid._gui_input(mb)
+		if ic._get_drag_data(Vector2.ZERO) != null:
+			drags += 1
+	_ok("pick mode: a click on each icon picks its part (%d of %d)" % [got.size(), want.size()], got == want)
+	_ok("pick mode: no icon gives up drag data (%d did)" % drags, drags == 0 and icons.all(func(ic: ItemIcon) -> bool: return ic.visible))
+	var drop := {module = Run.cargo[0], origin = &"cargo"}
+	_ok("pick mode: the grid takes no drop", not grid._can_drop_data(Vector2(5, 5), drop))
+	var moved := 0
+	for m2 in Run.cargo:
+		if not was.has(m2) or was[m2] != m2.hold_at:
+			moved += 1
+	_ok("pick mode: no part moved (%d of %d still where they were)" % [Run.cargo.size() - moved, Run.cargo.size()],
+		moved == 0 and Run.cargo.size() == was.size())
+	grid.pick_mode = false
+	grid.refresh()
+	var passing := 0
+	for c2 in grid.get_children():
+		if c2 is ItemIcon and (c2 as Control).mouse_filter == Control.MOUSE_FILTER_PASS:
+			passing += 1
+	_ok("out of pick mode the icons take the mouse again (%d)" % passing, passing == Run.cargo.size())
+	grid.queue_free()
 
 
 ## EVERY MODULE OBEYS THE CARD RARITY LAW, and the shape of the catalogue is

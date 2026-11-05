@@ -62,6 +62,13 @@ const NUDGE := 2
 
 signal dropped(payload: Dictionary, at: Vector2i)
 
+## PICK MODE (science S9): the hold as a list to choose a part from, not a
+## place to pack. The icons ignore the mouse, so nothing can be lifted; a click
+## on one says `picked` with its part; and nothing can be dropped here. A pick
+## never moves a part.
+signal picked(m: HoldItem)
+var pick_mode := false
+
 var _cols: int = 4
 var _rows: int = 5
 ## Lit cells during a drag: where the thing being carried would actually fit.
@@ -92,7 +99,7 @@ func refresh() -> void:
 		# PASS, not STOP: the icon is what you pick UP, and the grid under it is
 		# what you drop ONTO. A child that swallowed the hover would leave the
 		# grid unable to say which cell the cursor is over.
-		icon.mouse_filter = Control.MOUSE_FILTER_PASS
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE if pick_mode else Control.MOUSE_FILTER_PASS
 		add_child(icon)
 		# SIZED AFTER add_child, AND the minimum cleared first. Both halves are
 		# load-bearing and neither is obvious.
@@ -236,7 +243,20 @@ func target_for(m: HoldItem, p: Vector2) -> Vector2i:
 				best = t
 	return best
 
+func _gui_input(e: InputEvent) -> void:
+	if not pick_mode:
+		return
+	var mb := e as InputEventMouseButton
+	if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
+		return
+	var icon := item_at(get_global_transform() * mb.position)
+	if icon != null and icon.held_item() != null:
+		accept_event()
+		picked.emit(icon.held_item())
+
 func _can_drop_data(at: Vector2, data: Variant) -> bool:
+	if pick_mode:
+		return false
 	if typeof(data) != TYPE_DICTIONARY or not data.has("module"):
 		return false
 	var m: HoldItem = data.module

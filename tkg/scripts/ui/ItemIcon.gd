@@ -200,6 +200,10 @@ func _get_drag_data(_at: Vector2) -> Variant:
 	var m := held_item()
 	if m == null:
 		return null
+	# (a hold shown to pick from lifts nothing: `HoldGrid.pick_mode`)
+	var g := get_parent() as HoldGrid
+	if g != null and g.pick_mode:
+		return null
 	set_drag_preview(_ghost())
 	# IT LEAVES THE CELL THE MOMENT YOU LIFT IT.
 	#
