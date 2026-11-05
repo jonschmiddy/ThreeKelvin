@@ -327,8 +327,9 @@ func _there_word(body: int) -> String:
 	return "ALONGSIDE" if k == &"belt" or k == &"station" or k == &"derelict" or k == &"contact" else "IN ORBIT"
 
 
-## The line a locked page carries over its choices: a choice flies you there,
-## but only out of an orbit (`ShipFlight.can_fly`).
+## The line an event's page carries when GO can't fly you there yet (out of an
+## orbit only, `ShipFlight.can_fly`). LOCKED_LINE, for when it can, is shown
+## nowhere now (Jon, Nov 5): `_locked_line` still returns it for a harness.
 const LOCKED_LINE := "GO FLIES YOU THERE, THEN DOWN TO IT"
 const WAIT_LINE := "GO ONCE YOU ARE IN AN ORBIT"
 ## on the way to it already
@@ -766,9 +767,9 @@ func _way_there(i: int) -> void:
 			go.add_child(_small("ON YOUR WAY", func() -> void: pass, true))
 		else:
 			go.add_child(_small("FLY HERE ONCE IN ORBIT", func() -> void: pass, true))
+	# (no line under it: the button already says whether GO can fly you there,
+	# Jon, Nov 5: "it's not needed there"; an event's own page keeps its line)
 	_box.add_child(go)
-	if not _ship_at(i) and _has_events(i):
-		_blurb(_locked_line(i), UITheme.COLD)
 
 
 ## The place the list is narrowed to: its picture, its name and kind, its facts,
@@ -964,7 +965,9 @@ func _event_page(out: Dictionary) -> void:
 		# THE TRIP COMES WITH THE CHOICE, and says so before you make it
 		if _ship_at(body):
 			_eyebrow("YOU ARE " + _there_word(body), UITheme.FLARE)
-		else:
+		elif not _can_go():
+			# only why GO can't fly you yet; when it can, GO says so itself
+			# (Jon, Nov 5: "You can remove that here too")
 			_blurb(_locked_line(body), UITheme.COLD)
 		if st.kind == &"left":
 			_blurb("You walked away from this. It is still open.", UITheme.CHILL)
