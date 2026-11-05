@@ -142,19 +142,20 @@ const JON := {
 
 ## THE DECKS' LINES, Jon's picks of two drafts each (Oct 20, "promenade:B
 ## shipyard:B exchange:B hiring_board:A laboratory:A"), character for character;
-## text alone until a take is recorded. The laboratory's is science's (Phase 12,
-## Lab layout 1C, Nov 4): the lab spends DATA, its screen is pressed to work it,
-## and RESEARCH and AUGMENT are its tabs. Its take is `tut_laboratory_2`, not
-## recorded yet, so it is text alone and the fabricator's old take never plays.
+## text alone until a take is recorded. The lab's is science's (Phase 12, Lab
+## layout 1C, Nov 4), under its own id, `research`, so a player who spent the
+## fabricator's `laboratory` line still gets it: the lab takes DATA, and its
+## screen is pressed to spend it. Its take would be `tut_research`, not
+## recorded, so it is text alone and the fabricator's old take never plays.
 const DECK_A := {
 	&"shipyard": "Repairs and fuel are here. Click a drone over the ship to pay for its job.",
 	&"promenade": "The shelf sells parts. Drag one down to the till to buy it. It goes in the hold.",
 	&"exchange": "Spare parts turn into credits here. Drag one to the counter to sell it.",
 	&"hiring_board": "Manufacturers post paid work here. Press SIGN on a note to take the job.",
-	&"laboratory": "The lab spends DATA. Click the screen. RESEARCH buys a routine. AUGMENT adds an affix to a part.",
+	&"research": "The lab takes DATA. Click the screen to spend it on a routine or a part.",
 }
 ## The decks' hints, in the rail's order from the deck the station opens on.
-const DECKS: Array[StringName] = [&"shipyard", &"promenade", &"exchange", &"hiring_board", &"laboratory"]
+const DECKS: Array[StringName] = [&"shipyard", &"promenade", &"exchange", &"hiring_board", &"research"]
 
 
 func _ok(what: String, c: bool) -> bool:
@@ -412,6 +413,7 @@ func _do(id: StringName) -> String:
 	for i in 6:
 		Hints.poll(1.0 / 60.0)
 		await _tree.process_frame
+	HintActs.leave_lab()
 	var sc := Router.current as SectorScreen
 	if sc != null:
 		if sc._cutaway != null and is_instance_valid(sc._cutaway):
@@ -812,17 +814,20 @@ func _lines() -> void:
 			deck_bad.append(String(k))
 	_ok("the decks' lines are Jon's picks (B, B, B, A) and the lab's science line, each a hint with a two-line card, said once (%s)" % [
 		"all %d" % DECKS.size() if deck_bad.is_empty() else "NOT " + ", ".join(deck_bad)], deck_bad.is_empty())
-	# THE LAB'S NEW WORDS (science, Nov 4): a take of their own, none installed,
-	# so text alone; its card names the lab's tabs; and it ends on the lab used
-	# as the line teaches it, a routine researched or a part augmented
-	var lab_card := " ".join(Hints.lines(&"laboratory"))
-	_ok("the lab's line: take %s (%s), the card names DATA, RESEARCH and AUGMENT, its action \"%s\"" % [
-		AshTutorLines.RETAKE.get(&"laboratory", "none"), "none installed" if AshTutorLines.voice_path(&"laboratory") == "" else AshTutorLines.voice_path(&"laboratory"),
-		Hints.DONE.get(&"laboratory", "")],
-		AshTutorLines.RETAKE.get(&"laboratory") == "tut_laboratory_2"
-		and not AshTutorLines.voice_path(&"laboratory").ends_with("/tut_laboratory.ogg")
-		and lab_card.contains("DATA") and lab_card.contains("RESEARCH") and lab_card.contains("AUGMENT")
-		and Hints.DONE.get(&"laboratory") == "a routine researched or a part augmented")
+	# THE LAB'S NEW WORDS (science, Nov 4): a new id, so the fabricator's
+	# `laboratory`, spent and heard by every alpha player who saw a lab, holds
+	# nothing back; no take installed, so text alone, never the fabricator's
+	# old take; its card names DATA and the screen; and it ends on the screen
+	# pressed, the line's one thing to do
+	var lab_card := " ".join(Hints.lines(&"research"))
+	_ok("the lab's line: its own id (laboratory gone from the hints: %s), take %s, the card names DATA and the screen, its action \"%s\"" % [
+		not Hints.ORDER.has(&"laboratory") and not Hints.DECK_HINTS.has(&"laboratory") and not AshTutorLines.LINES.has(&"laboratory"),
+		"none installed" if AshTutorLines.voice_path(&"research") == "" else AshTutorLines.voice_path(&"research"),
+		Hints.DONE.get(&"research", "")],
+		not Hints.ORDER.has(&"laboratory") and not Hints.DECK_HINTS.has(&"laboratory") and not AshTutorLines.LINES.has(&"laboratory")
+		and AshTutorLines.voice_path(&"research") == ""
+		and lab_card.contains("DATA") and lab_card.contains("screen")
+		and Hints.DONE.get(&"research") == "the lab's screen pressed")
 	# EVERY HINT ENDS ON ITS OWN ACTION, or is an information line that goes after
 	# its reading time: one or the other, never neither, never both
 	var no_end: Array[String] = []
@@ -2232,6 +2237,7 @@ func _decks() -> void:
 				await _tree.process_frame
 			_ok("%s: the deck used (%s): spent with the deck still open, and she goes" % [id, did if did != "" else "NOTHING TO USE IT WITH"],
 				did != "" and Hints.seen(id) and Hints.lesson != id and Ash.lesson != id)
+			HintActs.leave_lab()
 		else:
 			var t0 := GameClock.now()
 			while not Hints._said and Hints.lesson == id and GameClock.now() - t0 < 14.0:

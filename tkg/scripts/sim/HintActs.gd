@@ -246,31 +246,57 @@ static func act(id: StringName) -> String:
 				if (b as Button).text == "SIGN" and (b as Button).is_visible_in_tree():
 					(b as Button).pressed.emit()
 					return "pressed SIGN on a note"
-		&"laboratory":
-			# A BOARD STEP BOUGHT (science, Nov 4): the first branch whose next
-			# step the DATA covers, through the Lab screen's RESEARCH buy
-			# (`_research`, plan S9) when the screen has it, else the service
-			# that buy calls. DATA alone moves, so this is the DATA-only purchase
-			# `-- hinttest` holds the hint to being spent by.
+		&"research":
+			# THE LAB'S SCREEN PRESSED, as a player presses it (science, Nov 4,
+			# Lab layout 1C): the camera goes into the glass (`LabZoom`), which
+			# is what spends the hint; then, in there, BUY on the first branch
+			# whose next step the DATA covers (DATA alone moves). The camera
+			# stays in until `leave_lab`. Without the zoom (a screen before S9),
+			# the service BUY calls.
 			if st == null or not Science.lab_here(Run.node_at()):
 				return ""
+			var z: Variant = st.call(&"lab_zoom") if st.has_method(&"lab_zoom") else null
+			var did := ""
+			if z != null:
+				(st.get("_glass_press") as Button).pressed.emit()
+				z.call(&"finish")
+				did = "pressed the lab's screen"
 			for b in 3:
 				if not Science.can_buy(b):
 					continue
 				var rid := Run.next_step(b)
 				var k0 := Run.board_owned[b]
-				if st.has_method(&"_research"):
-					st.call(&"_research", b)
+				if z != null:
+					var board: Variant = z.get("board")
+					board.set("pick", Vector2i(b, k0))
+					board.call(&"refresh")
+					(board.get("buy_button") as Button).pressed.emit()
 				else:
 					Science.buy(b)
 				if Run.board_owned[b] > k0:
-					return "researched %s" % String(DB.routines[rid].name)
+					did = ("%s, researched %s" % [did, String(DB.routines[rid].name)]).trim_prefix(", ")
+					break
+			return did
 		&"ship":
 			if sc != null and sc.open_cutaway() != null:
 				return "opened the ship up"
 			if st != null and st.open_cutaway() != null:
 				return "opened the ship up"
 	return ""
+
+
+## Out of the lab's screen, as a player leaves it: LEAVE pressed, the camera
+## back in the room (`act(&"research")` leaves it in). True if it was in.
+static func leave_lab() -> bool:
+	var st := Router.current as StationScreen
+	if st == null or not st.has_method(&"lab_zoom"):
+		return false
+	var z: Variant = st.call(&"lab_zoom")
+	if z == null or not bool(z.call(&"is_open")):
+		return false
+	(z.get("leave_button") as Button).pressed.emit()
+	z.call(&"finish")
+	return true
 
 
 ## What a station's decks need to be used by `act`: credits for a drone, the
