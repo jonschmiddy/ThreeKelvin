@@ -452,10 +452,8 @@ func _on_run_started() -> void:
 	# Let go of the signal bus first. A shared fight listens for the host on
 	# `Sig`, and a connection outlives the reference that made it — an abandoned
 	# fight dropped on the floor here would keep reacting to the party's next
-	# one for the rest of the session.
-	if combat != null:
-		combat.release()
-	combat = null
+	# one for the rest of the session. And out of the party's crew with it.
+	drop_combat()
 	final_loot = false
 	# WHERE THE SHIP WAS LEFT is this run's: kept by system index, so a new run
 	# (or a load) would otherwise open LOCAL in orbit of whatever world the last
@@ -468,6 +466,16 @@ func _on_run_started() -> void:
 	# (and where the map flew it, which LOCAL arrived at and which station is
 	# lit: the last run's, by the same numbers)
 	SectorScreen.forget_places()
+
+## THE FIGHT ON SCREEN, DROPPED: out of the party's crew if it was shared and
+## still on, off the signal bus, and gone (`Combat.abandon`). SAVE & EXIT,
+## ABANDON and a run starting all leave a fight this way (review, Nov 5): they
+## used to drop it with no leave, and the partners sat on "WAIT <name>".
+func drop_combat() -> void:
+	if combat != null:
+		combat.abandon()
+	combat = null
+
 
 ## A run starts by choosing a chassis, then opens on the sector rather than the
 ## chart: your ship in open space, not a graph of places you have not been yet.

@@ -1712,6 +1712,9 @@ func toggle_menu(animate: bool = true) -> void:
 		# the title screen expects. It also stops new_run() recording this same
 		# abandonment a second time, since its guard is a live hull.
 		Run.hull = null
+		# Out of a shared fight too, now: left for the next run to drop, it kept
+		# a ghost in the party's crew until then (review, Nov 5).
+		Router.drop_combat()
 		Router.show_launcher())
 	# The autosave has already written a screen swap, but state moves after one
 	# — a station's purchases and repairs all land on a screen that was saved
@@ -1738,7 +1741,11 @@ func toggle_menu(animate: bool = true) -> void:
 		# write this run's MAP against that galaxy — the systems are positioned
 		# from the galaxy, so every one of them would move.
 		Run.hull = null
-		Router.combat = null
+		# Out of the party's fight and off the signal bus, not just dropped
+		# (review, Nov 5): the partners sat on "WAIT <name>", the fight still
+		# listening ran their next turn with no hull, and CONTINUE was handed
+		# back the fight it never left.
+		Router.drop_combat()
 		Router.show_launcher())
 
 ## `-- settings` for shots: Settings inside the escape drawer, as the player

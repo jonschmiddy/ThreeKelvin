@@ -91,6 +91,7 @@ LIST+=(
 "contracttest contracttest 120 0 --headless --path tkg -- contracttest"
 "systemtest systemtest 180 0 --headless --path tkg -- systemtest"
 "corewintest corewintest 180 0 --headless --path tkg -- sheet=CoreWinTest"
+"midjointest midjointest 180 0 --headless --path tkg -- sheet=MidJoinTest"
 "fueltest fueltest 180 0 --headless --path tkg -- sheet=FuelTest"
 "arriveidletest arriveidletest 180 0 --headless --fixed-fps 60 --path tkg -- sheet=ArriveIdleTest"
 "goaltest goaltest 180 0 --headless --path tkg -- sheet=GoalTest"

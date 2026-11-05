@@ -226,12 +226,21 @@ func plan(template: EnemyTemplate, danger: int, extras: Array = []) -> void:
 ## had that kept the kill from ever coming. So when the ids differ the enemy is
 ## built again from the fight's (`replan_foes`), here, before anything is
 ## dealt or drawn: the screen builds its enemy slots on `combat_started`.
+##
+## AND A FIGHT ALREADY OVER (review, Nov 5): the host can seat this ship and
+## take the last hull in one frame, so the answer arrives finished, and no push
+## follows it. A ship in the crew at the kill was counted in `paid`, so it goes
+## to the win, as `_on_fight_changed` would have sent it.
 func begin(f: SharedFight) -> void:
 	if f != null:
 		if f.foe_ids != _ids:
 			replan_foes(templates_of(f.foe_ids))
 		_attach(f)
 	Sig.combat_started.emit(enemies[0].template.name)
+	if f != null and f.over:
+		_settle_over(f)
+		if finished:
+			return
 	begin_turn()
 
 
@@ -1599,6 +1608,23 @@ func release() -> void:
 	waiting = false
 
 
+## LEFT FROM THE MENU, mid-fight: SAVE & EXIT or ABANDON (review, Nov 5): out
+## of the party's crew, and off the signal bus. Both used to let go only (or
+## not at all), so the crew kept a ghost: every partner sat on "WAIT <name>", and a
+## CONTINUE was handed back the fight it never left, with no join and no
+## growth. And a fight SAVE & EXIT dropped without letting go stayed on the
+## signal bus, and ran the next turn with no hull when the party's moved.
+## A finished fight has left already (`_finish`). Let go BEFORE the leave: on
+## the host the leave is handled at once, and can close the barrier and move
+## the turn while this is still listening.
+func abandon() -> void:
+	var at := shared_at
+	var leave := is_shared() and not finished
+	release()
+	if leave:
+		Net.leave_fight(at)
+
+
 ## The name of the first live foe whose hull grows from count `from` to `to`
 ## (`EnemyTemplate.hull_at`), or "" when none does.
 func _grew_between(from: int, to: int) -> String:
@@ -1673,17 +1699,7 @@ func _on_fight_changed(at: int) -> void:
 	shared = f
 	_adopt(f)
 	if f.over:
-		# The hellbender left before anybody killed it. The host has already moved
-		# it and written its hull back; this machine only has to stop fighting.
-		if f.broke:
-			_finish(&"broke_off",
-				"It makes a blind jump and gets away hurt. It mends as it feeds. No salvage.")
-			return
-		# The host decides the fight is won, not this machine. Everyone still in
-		# it when the last hull came apart is paid, which is the ruling: winning
-		# a fight gets you the loot.
-		if alive().is_empty():
-			_victory()
+		_settle_over(f)
 		return
 	# The turn number IS the "everybody go again" message.
 	if f.turn > turn:
@@ -1693,6 +1709,22 @@ func _on_fight_changed(at: int) -> void:
 		turn = f.turn
 		waiting = false
 		begin_turn()
+
+
+## The party's fight is over: end this one the way it ended. From a push, or
+## from `begin` when the answer to the ask came back already over.
+func _settle_over(f: SharedFight) -> void:
+	# The hellbender left before anybody killed it. The host has already moved
+	# it and written its hull back; this machine only has to stop fighting.
+	if f.broke:
+		_finish(&"broke_off",
+			"It makes a blind jump and gets away hurt. It mends as it feeds. No salvage.")
+		return
+	# The host decides the fight is won, not this machine. Everyone still in
+	# it when the last hull came apart is paid, which is the ruling: winning
+	# a fight gets you the loot.
+	if alive().is_empty():
+		_victory()
 
 
 ## The party is gone — the host dropped, or the connection did.
