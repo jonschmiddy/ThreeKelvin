@@ -495,17 +495,9 @@ var HUMAN_LOOK_ROUND := 12.0
 ## actually adds.
 func sell_hold(n: MapGen.MapNode) -> void:
 	var guard := 0
-	var kept: Array[HoldItem] = []
 	while not Run.cargo.is_empty() and guard < 24:
 		guard += 1
 		var item: HoldItem = Run.cargo[0]
-		# FILM AND RELICS THE LAB WILL TAKE are carried, not sold (science):
-		# `lab` reads them for DATA while the board still wants it. Out of the
-		# queue so the loop ends, and back in the hold below.
-		if _lab_takes(item):
-			Run.take_from_hold(item)
-			kept.append(item)
-			continue
 		# A MATERIAL IS ONLY EVER SOLD. It has no scrap value to weigh a bid
 		# against and nothing to install it into: carrying it to a counter IS
 		# the whole of what it is for, which is the half of the economy the
@@ -524,18 +516,6 @@ func sell_hold(n: MapGen.MapNode) -> void:
 			n.trades += 1
 		else:
 			Run.scrap_module(m)
-	for it in kept:
-		if not Run.place_in_hold(it):
-			_shed(it)
-
-
-## Whether `lab` would read this for DATA: a survey film or a relic, while the
-## board still wants DATA (`wants_data`). With science off, nothing.
-func _lab_takes(item: HoldItem) -> bool:
-	var mat := item as MaterialData
-	if mat == null or not wants_data():
-		return false
-	return mat.id == &"survey_film" or mat.id == &"relic"
 
 
 # ------------------------------------------------------------------ science

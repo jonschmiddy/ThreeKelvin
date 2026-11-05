@@ -290,7 +290,10 @@ var _data_seen := 0
 var _event_credits := 0
 
 ## Entry point. Reads `runs=N` from the user args after `--`, plays that many
-## complete runs, and prints the report. The caller quits the tree.
+## complete runs, and prints the report. The caller quits the tree, with
+## `exit_code` (2 for a flag it will not fly, such as a bad `science=`).
+var exit_code := 0
+
 func run_sim() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("runs="):
@@ -340,9 +343,13 @@ func run_sim() -> void:
 		elif arg.begins_with("science="):
 			var mode := parse_science(arg.split("=")[1])
 			if mode == &"":
-				print("science: no mode called %s (on, off or ignore); flying on" % arg.split("=")[1])
-			else:
-				science_mode = mode
+				# NOT FLOWN ON A TYPO: `science=of` flying on would have a study
+				# cell compare on against on and say nothing. No runs, and Main
+				# quits with `exit_code`.
+				push_error("science: no mode called %s (on, off or ignore); no runs flown" % arg.split("=")[1])
+				exit_code = 2
+				return
+			science_mode = mode
 	apply_science()
 	policy.dash = "dash" in OS.get_cmdline_user_args()
 	policy.beeline = policy.dash or "beeline" in OS.get_cmdline_user_args()
@@ -404,7 +411,7 @@ func run_sim() -> void:
 			credits_in += d
 		_credits_seen = Run.credits)
 	listen_data()
-	hot ="hot" in OS.get_cmdline_user_args()
+	hot = "hot" in OS.get_cmdline_user_args()
 	# The control cell. Comparing `nohellbender` against the default on one build
 	# is what says what the roamer costs, without keeping a second checkout.
 	Run.hellbender_off = "nohellbender" in OS.get_cmdline_user_args()

@@ -22,6 +22,7 @@ extends Node
 ##     part's price where it was, and a finished board sells its film;
 ##   - a better find never replaces an augmented part while a plain one shares
 ##     its slot;
+##   - the human pilot steers 6 more for a dock while its DATA buys a step;
 ##   - STRIP's reactor guard (S5) counts SPARE CELLS: Bus-Fed the reactor needs
 ##     is refused bare and comes off with SPARE CELLS owned;
 ##   - five seeded runs of the sim's own loop earn DATA and buy a step, and
@@ -30,7 +31,8 @@ extends Node
 ##
 ## Each key check fails with its rule taken out of Policy: `_choose_science`
 ## (the line rules), `lab` (no film read, no step bought), `augment`'s reserve
-## and one-a-visit, `_worst_fitted`, and the off cell's `apply_science`.
+## and one-a-visit, `_worst_fitted`, `human_score`'s dock pull, and the off
+## cell's `apply_science`.
 
 var h := Harness.new()
 
@@ -46,6 +48,7 @@ func _run() -> void:
 	_choices()
 	_dock()
 	_worst_fitted()
+	_dock_pull()
 	_strip_spare_cells()
 	_runs()
 	Run.science_off = false
@@ -350,6 +353,45 @@ func _worst_fitted() -> void:
 		all_aug == cheap)
 	for x in Run.installed:
 		x.augmented = false
+
+# ------------------------------------------------------------- the dock's pull
+
+## OPEN CALL 19: a person holding the DATA for a step steers for a dock. The
+## same star scored twice from one pilot state, so the noise is equal and the
+## gap is the rule's alone.
+func _dock_pull() -> void:
+	print("=== DATA PULLS TOWARD A DOCK ===")
+	Run.science_off = false
+	_start(777)
+	var p := Policy.new()
+	var here := Run.node_at()
+	var dock: MapGen.MapNode = null
+	var star: MapGen.MapNode = null
+	for raw in Run.map:
+		var t: MapGen.MapNode = raw
+		if t == here:
+			continue
+		if t.type == MapGen.NodeType.STATION and dock == null:
+			dock = t
+		elif t.type == MapGen.NodeType.SYSTEM and star == null:
+			star = t
+	if dock == null or star == null:
+		h._ok("seed 777 has a dock and a plain star to score (%s, %s)" % [dock, star], false)
+		return
+	var b := Policy.cheapest_step()
+	var gaps := []
+	for t in [dock, star]:
+		var st := p.pilot.state
+		Run.data = 0
+		var bare := p.human_score(here, t)
+		p.pilot.state = st
+		Run.data = Run.step_cost(b)
+		var held := p.human_score(here, t)
+		p.pilot.state = st
+		gaps.append(snappedf(held - bare, 0.01))
+	Run.data = 0
+	h._ok("DATA for a step (%d) adds 6 to a dock and nothing to a star (%s)" % [Run.step_cost(b), gaps],
+		gaps == [6.0, 0.0])
 
 # ---------------------------------------------------------------- STRIP's guard
 
