@@ -157,6 +157,11 @@ func _run() -> void:
 	# (`title=` with _ for spaces: a film script's argument has none)
 	var title := _arg("title", "%s  x%s" % [String(opts.path).to_upper(), _num(float(opts.pace))]).replace("_", " ")
 	var world_k := SystemLayout.world_pace()
+	# (windowed, the map's ship comes in a few frames on)
+	for i in 600:
+		if m.flight != null:
+			break
+		await _tree.process_frame
 	if _has("worlds"):
 		_caption("WORLDS x%s" % _num(world_k))
 		var laps := []
@@ -164,16 +169,23 @@ func _run() -> void:
 			laps.append({"name": b.name, "kind": String(b.kind), "orbit": b.orbit, "lap_s": b.period})
 		var out := {"kind": "worlds", "system": MapGen.star_name(n), "twin": L.twin, "world_pace": world_k, "laps": laps,
 			"pair_lap_s": TAU / absf(L.pair_n) if L.pair_n != 0.0 else 0.0,
-			"parked_lap_s": TAU * float(m.flight.rail.get("rt", 0.0)) / float(m.flight.rail.get("speed", 1.0)) if m.flight.mode == &"rail" else 0.0}
+			"parked_lap_s": TAU * float(m.flight.rail.get("rt", 0.0)) / float(m.flight.rail.get("speed", 1.0)) if m.flight != null and m.flight.mode == &"rail" else 0.0}
 		# (a comet, at today's speed in every column: Jon, Nov 5, "I think the
 		# comet speed is perfect though")
 		if _has("comet"):
 			await _frames(30)
+			# (the very same comet in every column: the weather's own dice are
+			# seeded off the clock)
+			m.view._weather._rng.seed = 4242
 			var why: String = m.view._weather.force(&"comet")
 			out["comet"] = "started" if why == "" else why
 			_caption("WORLDS x%s   COMET x1" % _num(world_k))
 		await _frames(int(float(_arg("hold", "12")) * 60.0))
 		print("FILM " + JSON.stringify(out))
+		if _arg("out", "") != "":
+			var fo := FileAccess.open(_arg("out", ""), FileAccess.WRITE)
+			fo.store_string(JSON.stringify(out))
+			fo.close()
 		_tree.quit(0)
 		return
 	_caption(title)
