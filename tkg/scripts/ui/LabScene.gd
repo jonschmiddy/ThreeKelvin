@@ -124,6 +124,11 @@ var lab: Dictionary = {}
 ## The glass's holder (the sign-on and the key), which the screen places at
 ## `glass_rect` and this opens as the power-on's scan passes.
 var rows_clip: Control = null
+## THE LAMPS HELD STEADY while the camera goes into the glass and back
+## (`hush_screen`): their faults (a loose bulb's blink, a starter's burst) do
+## not fire. The den's bulb blinked off screen just before landing and the whole
+## frame went 20, 9, 18, 9, 18 grey over six frames, as if the screen failed.
+var lamps_held := false
 
 var _level := ""
 var _pic: TextureRect
@@ -212,12 +217,14 @@ func fx_layer() -> Control:
 
 
 ## THE PRESS HUSHES THE SCREEN (`LabZoom`, the camera into the glass): from
-## the press until the camera is back, nothing new starts on the big screen,
+## the press until the camera is back, the lamps hold steady (`lamps_held`),
+## nothing new starts on the big screen,
 ## and the bad signal's snow and slips stop at once (they flicker frame to frame
 ## anyway); a sweep, a sag or a rim light already running plays out, fading
 ## with the entry. `on` false lets it all run again.
 func hush_screen(on: bool) -> void:
 	_glass.hush(on)
+	lamps_held = on
 
 
 ## The screen's glass in the picture (labs.json `screen.glass`, its end
@@ -563,14 +570,14 @@ func _weights(t: float, tb: float) -> Dictionary:
 			# each. It struck at random, nine times, before.
 			var n := roundi(tb * HZ)
 			var on := 1.0 if n >= 36 else (1.0 if n in [9, 10, 18, 19, 30, 31, 33, 34] else (0.04 if n >= 9 else 0.0))
-			return {"bulb": [on, (_loose(t, 1.3) if tb > 3.0 else 1.0) * _flutter(t, 0.4)],
+			return {"bulb": [on, (_loose(t, 1.3) if tb > 3.0 and not lamps_held else 1.0) * _flutter(t, 0.4)],
 				"screen": _smooth(1.9, 2.4, tb)}
 		"outpost":
 			# WORK LAMPS THAT CLUNK ON, and an amber status light blinking.
 			var st := 0.0 if tb < 1.0 else ((1.0 if int(floorf((tb - 1.0) / 0.12)) % 2 == 1 else 0.1) if tb < 1.7 else 1.0)
 			var sm := 1.0 if tb < 1.7 else 0.75 + 0.25 * sin(t * 6.283 / 2.6)
 			return {"lampL": [_clunk(tb, 0.35), _flutter(t, 1.1)],
-				"lampR": [_clunk(tb, 0.8), _starter(t, 2.2) if tb > 5.0 else 1.0],
+				"lampR": [_clunk(tb, 0.8), _starter(t, 2.2) if tb > 5.0 and not lamps_held else 1.0],
 				"status": [st, sm],
 				# its screen waits for the status light (Jon: "a bit more breathing
 				# room"): the light holds at 1.7, the glass glows from 2.4 s
@@ -579,7 +586,7 @@ func _weights(t: float, tb: float) -> Dictionary:
 			# THREE LAMPS WARMING UP, swaying as they come on.
 			return {"l1": [_warm(tb, 0.3), _sway(t, tb, 0.3, 3.1)],
 				"l2": [_warm(tb, 0.75), _sway(t, tb, 0.75, 5.3)],
-				"l3": [_warm(tb, 1.2), _sway(t, tb, 1.2, 8.7) * (_loose(t, 4.4) if tb > 5.0 else 1.0)]}
+				"l3": [_warm(tb, 1.2), _sway(t, tb, 1.2, 8.7) * (_loose(t, 4.4) if tb > 5.0 and not lamps_held else 1.0)]}
 		"city":
 			# THE HOOD STRIKES, the tubes stutter on in turn, the monitors pop --
 			# spaced out (Jon: "space the city sounds out a bit"): the tubes at 1.0
@@ -588,7 +595,7 @@ func _weights(t: float, tb: float) -> Dictionary:
 			var br := 0.9 + 0.1 * sin(t * 6.283 / 4.5)
 			return {"strip": [hood, br], "floor": [hood, br], "hood": [hood, br],
 				"tubeL": _strikes(tb, 1.0, 0.45, 2.7),
-				"tubeR": [_strikes(tb, 1.6, 0.6, 4.1), _starter(t, 2.0) if tb > 5.0 else 1.0],
+				"tubeR": [_strikes(tb, 1.6, 0.6, 4.1), _starter(t, 2.0) if tb > 5.0 and not lamps_held else 1.0],
 				"monL": [_pop_on(tb, 2.15), 0.8 + 0.2 * sin(t * 5.0)],
 				"monR": [_pop_on(tb, 2.3), 0.95 + 0.05 * sin(t * 3.3)],
 				"meter": _pop_on(tb, 2.2),

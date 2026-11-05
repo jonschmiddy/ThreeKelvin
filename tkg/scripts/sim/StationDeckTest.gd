@@ -512,6 +512,9 @@ func _sign_on(st: StationScreen, tag: String, dev: int, deep: bool) -> void:
 		", ".join(words), "clean" if bad.is_empty() else "; ".join(bad)],
 		login.state == LabLogin.LOGO and login.owner_short() == owner and words.has(owner) and words.has("mark")
 		and words.has("RESEARCH TERMINAL") and words.has("DATA %d" % Run.data) and bad.is_empty())
+	var cut := _cut_at_landing(st)
+	_ok("%s: the logo is laid out in what the landed camera keeps (%s), every box inside 960x540 there (%s)" % [tag, login.safe,
+		"all in" if cut.is_empty() else "; ".join(cut)], cut.is_empty() and login.safe.has_area())
 	# THE SIGN-IN, the pointer on the glass: the pilot, the password typing in
 	# and the cursor blinking
 	st._glass_press.notification(Control.NOTIFICATION_MOUSE_ENTER)
@@ -536,10 +539,27 @@ func _sign_on(st: StationScreen, tag: String, dev: int, deep: bool) -> void:
 		login.dots(), on, off, ", ".join(words), "clean" if bad.is_empty() else "; ".join(bad)],
 		was == LabLogin.LOGIN and login.state == LabLogin.LOGIN and named and words.has("PILOT") and words.has("PASSWORD")
 		and words.has("dots") and words.count("field") == 2 and words.has("CLICK TO SIGN IN") and on > 0 and off > 0 and bad.is_empty())
+	cut = _cut_at_landing(st)
+	_ok("%s: the sign-in's every box is inside 960x540 once the camera has landed (%s)" % [tag, "all in" if cut.is_empty() else "; ".join(cut)],
+		cut.is_empty())
+	# THE CUE: CLICK TO SIGN IN breathes brighter than the field labels, and
+	# the swap from the logo ran a refresh line down the glass
+	var inks: Array[float] = []
+	t0 = Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < int(LabLogin.PULSE_S * 1000.0):
+		inks.append(login.cue_ink())
+		await _tree.process_frame
+	_ok("%s: CLICK TO SIGN IN breathes between %.2f and %.2f, over the field labels' 0.55" % [tag, inks.min(), inks.max()],
+		inks.min() >= LabLogin.PULSE_LO - 0.001 and inks.max() >= 0.97 and inks.max() <= 1.0)
 	# and away again, the logo
 	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
+	await _tree.process_frame
+	var wiped := login.wipe_y() >= 0
 	await _frames(2)
-	_ok("%s: pointed away, the logo again (%s)" % [tag, login.state], login.state == LabLogin.LOGO and login.dots() == 0)
+	_ok("%s: pointed away, the logo again (%s), a refresh line down the glass as it swaps (%s), gone after (%d)" % [tag, login.state, wiped, login.wipe_y()],
+		login.state == LabLogin.LOGO and login.dots() == 0 and wiped)
+	await _until(func() -> bool: return login.wipe_y() < 0, 1000)
+	_ok("%s: the refresh line is gone after %.2f s" % [tag, LabLogin.WIPE_S], login.wipe_y() < 0)
 
 
 ## THE GLASS IS THE ONLY KEY: the one button on the lab's deck, the glass
@@ -590,6 +610,19 @@ func _glass_only(st: StationScreen, tag: String) -> void:
 		zoom.close()
 		await _frames(2)
 	_ok("%s: Enter and the pad's A press the glass (%s)" % [tag, ", ".join(by)], by.size() == 2)
+	# and the pad's B takes the camera back out, as Esc does
+	target.push_input(pad)
+	await _frames(2)
+	var in_by_a := zoom.is_open()
+	var b_ev := InputEventJoypadButton.new()
+	b_ev.button_index = JOY_BUTTON_B
+	b_ev.pressed = true
+	target.push_input(b_ev)
+	await _frames(2)
+	_ok("%s: the pad's B takes the camera back out (in by A %s, open after B %s)" % [tag, in_by_a, zoom.is_open()],
+		in_by_a and not zoom.is_open())
+	zoom.close()
+	await _frames(2)
 
 
 ## Every button showing under `n`.
@@ -599,6 +632,22 @@ func _buttons(n: Node) -> Array[BaseButton]:
 		out.append(n as BaseButton)
 	for c in n.get_children():
 		out.append_array(_buttons(c))
+	return out
+
+
+## The sign-on's boxes, in the look it has now, that the landed camera would put
+## outside the 960x540 window (`LabZoom.landed_origin`, the lab's zoom).
+func _cut_at_landing(st: StationScreen) -> Array[String]:
+	var lab := st._lab
+	var z := float(LabZoom.ZOOM.get(lab._level, 3))
+	var o := LabZoom.landed_origin(lab)
+	var wp := lab.win_rect().position
+	var out: Array[String] = []
+	for l: Array in st._login.leaves:
+		var r: Rect2i = l[1]
+		var sr := Rect2(o + (wp + Vector2(r.position)) * z, Vector2(r.size) * z)
+		if not Rect2(0, 0, LabZoom.W, LabZoom.H).encloses(sr):
+			out.append("'%s' at %s" % [l[0], sr])
 	return out
 
 
@@ -613,7 +662,7 @@ func _landed(st: StationScreen, zoom: LabZoom, tag: String, _dev: int) -> void:
 	var gs := zoom.glass_on_screen
 	var room := zoom.room_rect()
 	var smaller := (g.size * float(z - 1)).min(Vector2(LabZoom.W, LabZoom.H))
-	var covers := Rect2(0, 0, LabZoom.W, LabZoom.H).intersection(gs).is_equal_approx(Rect2(0, 0, LabZoom.W, LabZoom.H))
+	var covers := Rect2(0, 0, LabZoom.W, LabZoom.H).intersection(zoom.board_rect).is_equal_approx(Rect2(0, 0, LabZoom.W, LabZoom.H))
 	_ok("%s: landed at the %s's zoom %d, the room one picture %s at it, the glass %s centred (at %d it would be %s, too small for the board's 908x488)" % [tag,
 		lab._level, z, room, gs, z - 1, g.size * float(z - 1)],
 		z >= 2 and is_equal_approx(zoom.cam_scale(), float(z)) and room.size.is_equal_approx(LabScene.PANEL * float(z))
@@ -631,6 +680,16 @@ func _landed(st: StationScreen, zoom: LabZoom, tag: String, _dev: int) -> void:
 	var lb := login.check()
 	_ok("%s: the screen it carried in says SIGNING IN, and passes the box test (%s)" % [tag, "clean" if lb.is_empty() else "; ".join(lb)],
 		login.state == LabLogin.SIGNING and login.leaves.any(func(l: Array) -> bool: return l[0] == "SIGNING IN") and lb.is_empty())
+	var cut := _cut_at_landing(st)
+	var on_screen := Rect2(zoom.to_screen(Rect2(lab.win_rect().position + Vector2(login.safe.position), Vector2(login.safe.size))))
+	_ok("%s: landed, every box of SIGNING IN is inside 960x540 (%s; its area %s on screen)" % [tag, "all in" if cut.is_empty() else "; ".join(cut), on_screen],
+		cut.is_empty() and Rect2(0, 0, LabZoom.W, LabZoom.H).encloses(on_screen))
+	# THE DEN'S THIN BEZEL: where the glass leaves no more than a few px of the
+	# room at an edge, the board's ground covers the window whole
+	var gaps := [gs.position.x, gs.position.y, LabZoom.W - gs.end.x, LabZoom.H - gs.end.y]
+	var thin: bool = gaps.all(func(v: float) -> bool: return v <= LabZoom.THIN)
+	_ok("%s: the board's ground %s (glass %s, ground %s)" % [tag, "covers the window, the bezel only a few px" if thin else "lies on the glass", gs, zoom.board_rect],
+		zoom.board_rect.is_equal_approx(gs) if not thin else zoom.board_rect.encloses(Rect2(-16, -16, LabZoom.W + 32, LabZoom.H + 32)))
 
 
 ## THE MOVE ITSELF, animated (`Router.animate_in_harness`; headless it jumps
@@ -667,9 +726,9 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	var g := st._lab.glass_rect()
 	var gm := zoom.to_screen(g)
 	var room := zoom.room_rect()
-	_ok("%s, animated: mid-move the screen's own effects are gone (screen %.2f, hushed %s), the room's edge let go (veil %s), and the room is one picture at %.3f (room %s, its glass %s, %.3f of it)" % [tag,
-		fxl.modulate.a, st._lab._glass.hushed, zoom._veil.visible, s, room, gm, gm.size.x / g.size.x],
-		fxl.modulate.a < 0.02 and st._lab._glass.hushed and zoom._veil.visible and zoom._room.visible
+	_ok("%s, animated: mid-move the screen's own effects are gone (screen %.2f, hushed %s), the lamps held steady (%s), the room's edge let go (veil %s), and the room is one picture at %.3f (room %s, its glass %s, %.3f of it)" % [tag,
+		fxl.modulate.a, st._lab._glass.hushed, st._lab.lamps_held, zoom._veil.visible, s, room, gm, gm.size.x / g.size.x],
+		fxl.modulate.a < 0.02 and st._lab._glass.hushed and st._lab.lamps_held and zoom._veil.visible and zoom._room.visible
 		and s > 1.0 and s < z and room.size.is_equal_approx(LabScene.PANEL * s)
 		and absf(gm.size.x / g.size.x - s) <= 1.0 / g.size.x and absf(gm.size.y / g.size.y - s) <= 1.0 / g.size.y
 		and room.position == room.position.round())
@@ -680,8 +739,9 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	GameShell.input_target(_tree).push_input(esc)
 	await _tree.process_frame
 	var menu: Variant = _tree.current_scene.get("_menu") if _tree.current_scene != null else null
-	_ok("%s, animated: Esc on the way in turns the camera round (goal %.2f) to the logo (%s) and opens no menu (%s)" % [tag, zoom._goal, st._login.state, menu],
-		zoom._goal == 0.0 and menu == null and st._login.state == LabLogin.LOGO)
+	_ok("%s, animated: Esc on the way in turns the camera round (goal %.2f, still moving %s), opens no menu (%s), and the glass keeps SIGNING IN while it moves (%s)" % [tag,
+		zoom._goal, zoom.visible and zoom._at > 0.0, menu, st._login.state],
+		zoom._goal == 0.0 and zoom.visible and zoom._at > 0.0 and menu == null and st._login.state == LabLogin.SIGNING)
 	var chrome_while_moving := 1.0
 	var t0 := Time.get_ticks_msec()
 	while zoom.visible and Time.get_ticks_msec() - t0 < 8000:
@@ -692,9 +752,10 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 		hud.modulate.a, st._rail.modulate.a, chrome_while_moving],
 		not zoom.is_open() and is_equal_approx(hud.modulate.a, 1.0) and is_equal_approx(st._rail.modulate.a, 1.0)
 		and chrome_while_moving > 0.98)
-	_ok("%s, animated: out again, the screen's effects back on its logo (screen %.2f, hushed %s, veil %s, the screen %s)" % [tag,
-		st._lab.fx_layer().modulate.a, st._lab._glass.hushed, zoom._veil.visible, st._login.state],
-		is_equal_approx(st._lab.fx_layer().modulate.a, 1.0) and not st._lab._glass.hushed and not zoom._veil.visible
+	await _frames(2)
+	_ok("%s, animated: out again, the screen's effects back on its logo, the lamps free (screen %.2f, hushed %s, lamps held %s, veil %s, the screen %s)" % [tag,
+		st._lab.fx_layer().modulate.a, st._lab._glass.hushed, st._lab.lamps_held, zoom._veil.visible, st._login.state],
+		is_equal_approx(st._lab.fx_layer().modulate.a, 1.0) and not st._lab._glass.hushed and not st._lab.lamps_held and not zoom._veil.visible
 		and st._login.state == LabLogin.LOGO)
 	# IN AGAIN: a click mid-move lands it, and goes no further (it is where
 	# the AUGMENT tab will be)
@@ -702,10 +763,20 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
 	await _until(func() -> bool: return zoom._at >= mid)
 	var tab_at: Vector2 = (zoom.tab_buttons[&"augment"] as Control).get_global_rect().get_center()
+	var at_click := zoom._at
 	await _click_at(tab_at)
+	await _tree.process_frame
+	var jumped := zoom.landed()
+	var both := 0.0
+	t0 = Time.get_ticks_msec()
+	while not (zoom.landed() and zoom.view.modulate.a >= 1.0) and Time.get_ticks_msec() - t0 < 8000:
+		both = maxf(both, minf(zoom.signon_alpha(), zoom.view.modulate.a))
+		await _tree.process_frame
 	await _frames(2)
-	_ok("%s, animated: a click mid-move lands the camera (landed %s) and is eaten (the page %s, not AUGMENT)" % [tag, zoom.landed(), zoom.tab],
-		zoom.landed() and zoom.tab == &"research")
+	_ok("%s, animated: a click mid-move is eaten and the camera goes on, no jump (at %.2f, landed the next frame %s), landing by itself on RESEARCH (landed %s, the page %s, not AUGMENT)" % [tag,
+		at_click, jumped, zoom.landed(), zoom.tab],
+		not jumped and zoom.landed() and zoom.tab == &"research")
+	_ok("%s, animated: the sign-on is gone before the pages come up (both showing at once, at most %.3f)" % [tag, both], both < 0.1)
 	# LANDED, the chrome stays gone (frames on: where there is a berth the
 	# yard's edge sets the rail's alpha every frame, and put it back whole)
 	await _frames(4)
@@ -722,9 +793,34 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	await _until(func() -> bool: return zoom._at <= out_s + ZoomLadder.LAB_ZOOM_S * 0.5)
 	var glass_at := st._bench_clip.get_global_rect().get_center()
 	await _click_at(glass_at)
-	await _frames(3)
-	_ok("%s, animated: a click on the glass on the way out lands it out and opens nothing (open %s, shown %s, HUD %.2f)" % [tag,
-		zoom.is_open(), zoom.visible, hud.modulate.a], not zoom.is_open() and not zoom.visible and is_equal_approx(hud.modulate.a, 1.0))
+	await _tree.process_frame
+	var cut_out := not zoom.visible
+	t0 = Time.get_ticks_msec()
+	while zoom.visible and Time.get_ticks_msec() - t0 < 8000:
+		await _tree.process_frame
+	await _frames(2)
+	_ok("%s, animated: a click on the glass on the way out is eaten, the camera goes on out (no jump: %s) and opens nothing (open %s, shown %s, HUD %.2f)" % [tag,
+		not cut_out, zoom.is_open(), zoom.visible, hud.modulate.a],
+		not cut_out and not zoom.is_open() and not zoom.visible and is_equal_approx(hud.modulate.a, 1.0))
+	# TAB, ANIMATED, with the camera in: it goes out at three times the pace (it
+	# moves, never cuts) and holds the key for Main till it is out (taken back
+	# here, or the test would leave the station)
+	zoom.open(&"research")
+	zoom.finish()
+	await _frames(2)
+	var tab_a := InputEventKey.new()
+	tab_a.keycode = KEY_TAB
+	tab_a.physical_keycode = KEY_TAB
+	tab_a.pressed = true
+	zoom._input(tab_a)
+	await _tree.process_frame
+	var tab_moving := zoom.visible and zoom._at > 0.0 and zoom._goal == 0.0 and zoom._rate == 3.0 and zoom._then_key != null
+	zoom._then_key = null
+	t0 = Time.get_ticks_msec()
+	while zoom.visible and Time.get_ticks_msec() - t0 < 8000:
+		await _tree.process_frame
+	_ok("%s, animated: Tab with the camera in takes it out moving, at 3x (moving %s), then lets the key go on (out %s)" % [tag, tab_moving, not zoom.visible],
+		tab_moving and not zoom.visible and not zoom.is_open())
 	# TAB with the camera in: out at once, the chrome back, the key left for Main
 	Router.animate_in_harness = false
 	zoom.open(&"research")

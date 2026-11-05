@@ -921,10 +921,10 @@ static func _module_from(e: Variant) -> ModuleData:
 	m.hold_at = Vector2i(int(at[0]), int(at[1])) if at.size() == 2 else -Vector2i.ONE
 	var affixes: Array[AffixData] = []
 	for want in d.get("affixes", []):
-		for a in DB.affixes:
-			if a.name == str(want):
-				affixes.append(a)
-				break
+		# (by its old name too: "Stripped" loads as Lightened, `DB.AFFIX_RENAMED`)
+		var a := DB.affix_named(str(want))
+		if a != null:
+			affixes.append(a)
 	m.affixes = affixes
 	return m
 

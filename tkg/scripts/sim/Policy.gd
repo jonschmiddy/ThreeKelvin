@@ -611,7 +611,7 @@ func data_covers_step() -> bool:
 
 ## AUGMENT, when no step of the board is affordable: one part a visit. The most
 ## valuable fitted part not yet augmented (`Market.base_value`), and of the three
-## the Lab offers it the first in `AUGMENT_ORDER`. Never Stripped (-1 HUL) under
+## the Lab offers it the first in `AUGMENT_ORDER`. Never Lightened (-1 HUL) under
 ## 60% hull. Never below FUEL_RESERVE credits, the reserve the tank keeps. Returns
 ## the line, or "" when nothing was done.
 ##
@@ -650,7 +650,7 @@ func augment(n: MapGen.MapNode) -> String:
 		var rank := AUGMENT_ORDER.size()
 		for a in Science.augment_offer(m, n):
 			var r := AUGMENT_ORDER.find(StringName(a.name))
-			if r < 0 or (low and StringName(a.name) == &"Stripped"):
+			if r < 0 or (low and StringName(a.name) == &"Lightened"):
 				continue
 			if r < rank:
 				rank = r
@@ -673,7 +673,7 @@ func augment(n: MapGen.MapNode) -> String:
 ## The order this pilot wants the Lab's affixes in, best first.
 const AUGMENT_ORDER: Array[StringName] = [&"Double-Plated", &"Reinforced",
 	&"Gyro-Trimmed", &"Signature-Damped", &"Tuned Injectors", &"Wide-Banded",
-	&"Bus-Fed", &"Stripped"]
+	&"Bus-Fed", &"Lightened"]
 
 
 ## One science event taken: which line, the DATA it paid and the fuel it burned.

@@ -121,7 +121,7 @@ func _offer() -> void:
 	for id in DB.modules:
 		var m := (DB.modules[id] as ModuleData).duplicate(true) as ModuleData
 		for rolled in [[], ["Reinforced"], ["Cryo-Lined", "Gyro-Trimmed"],
-				["Deregulated", "Bus-Fed", "Stripped"]]:
+				["Deregulated", "Bus-Fed", "Lightened"]]:
 			var list: Array[AffixData] = []
 			for nm in rolled:
 				list.append(_affix(nm))
@@ -314,7 +314,7 @@ func _strip_reactor() -> void:
 ## can only let that one affix back in; every other Lab's three stay put.
 func _strip_keeps_offer() -> void:
 	var m := (DB.modules[&"kh20"] as ModuleData).duplicate(true) as ModuleData
-	m.affixes = [_affix("Gyro-Trimmed"), _affix("Wide-Banded"), _affix("Stripped")] as Array[AffixData]
+	m.affixes = [_affix("Gyro-Trimmed"), _affix("Wide-Banded"), _affix("Lightened")] as Array[AffixData]
 	if not _ok("a part with three rolled affixes in the hold", Run.stow(m)):
 		return
 	var labs := _stations()

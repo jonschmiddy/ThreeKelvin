@@ -578,7 +578,7 @@ func _floor() -> void:
 ## value can legitimately differ by one. Reusing the reference frame is what
 ## makes the two comparable.
 ##
-## A negative pip is checked as carefully as a positive one: `Stripped` trades
+## A negative pip is checked as carefully as a positive one: `Lightened` trades
 ## two of maneuverability for one of hull, and a table where the plus half works
 ## and the minus half silently does not is worse than one that never worked.
 ##
@@ -614,6 +614,13 @@ func _affixes() -> void:
 		bad.is_empty())
 	for b in bad:
 		_fail(b)
+	# LIGHTENED, once "Stripped" (Jon, Nov 5): the table holds the new name
+	# only, +2 MAN -1 HUL, and the old name a save may hold finds it
+	var names: Array = DB.affixes.map(func(x: AffixData) -> String: return x.name)
+	var lt := DB.affix_named("Lightened")
+	_ok("Lightened is +2 MAN -1 HUL, \"Stripped\" is gone from the table and an old save's \"Stripped\" reads as Lightened",
+		lt != null and lt.maneuver == 2 and lt.hull == -1 and not names.has("Stripped")
+		and DB.affix_named("Stripped") == lt and DB.LAB_AFFIXES.has(&"Lightened") and not DB.LAB_AFFIXES.has(&"Stripped"))
 	_faces()
 
 

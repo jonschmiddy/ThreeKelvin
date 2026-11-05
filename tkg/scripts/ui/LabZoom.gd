@@ -15,9 +15,10 @@ extends Control
 ## camera still), the camera moves (`LAB_ZOOM_S`, smootherstep), and the Lab's
 ## pages come up on the landed glass over the sign-in it carried in
 ## (`UI_IN_S`). Back out it all runs backwards, the chrome back only once the
-## camera is at rest. A click or a key during a move finishes it at once and is
-## eaten (Esc on the way in turns it round); Tab takes the camera out at once
-## and goes on to the ladder.
+## camera is at rest. A click or a key during a move is eaten and the camera
+## goes on (camera moves, never cuts): Esc, or the pad's B, on the way in turns
+## it round; Tab takes the camera out at three times the pace and then goes on
+## to the ladder.
 ##
 ## A PURE CAMERA (Jon, Nov 5: "I don't really like the warping of the screen
 ## getting bigger than the room, it should stay fixed"). The room is one
@@ -36,7 +37,7 @@ extends Control
 ## the board's own glass (908x488 at 26,26) inside the lab's glass on screen:
 ## the settlement's glass is 920x496 at 4 (its bezel, 20 and 22 px, round the
 ## window), the den's is the window's whole width at 3 (its bezel 9 px top and
-## bottom), and the outpost's, the city's and the capital's go past the window
+## bottom, which the board's ground covers: `board_rect`), and the outpost's, the city's and the capital's go past the window
 ## on every side, so their glass is the whole window. The board is laid out as
 ## it always was: the chart's ground runs on to the lab's glass edge, wherever
 ## that is (`lab_chart.gdshader`'s `rpos`).
@@ -123,6 +124,16 @@ var _s := 1.0
 var _o := Vector2.ZERO
 var _o1 := Vector2.ZERO
 var glass_on_screen := Rect2()
+## WHERE THE BOARD'S GROUND AND FINISH LIE once landed: the lab's glass on
+## screen, or the whole window (and a margin past it, so the rim is off it)
+## where the glass leaves no more than `THIN` px of bezel at any edge. The
+## den's 9 px strips of bezel top and bottom read as a crop, not a frame.
+var board_rect := Rect2()
+const THIN := 12.0
+## The pace of the move (1, or 3 for Tab), and the key Tab leaves for Main once
+## the camera is back out.
+var _rate := 1.0
+var _then_key: InputEvent
 var _data_was := -1
 var _note := ""
 ## THE BLOOM: what glows drawn alone into `_light_vp`, blurred into
@@ -591,24 +602,32 @@ func open(id: StringName = &"research") -> void:
 	board.refresh()
 	visible = true
 	_goal = _total()
+	_rate = 1.0
+	_then_key = null
 	if not Router.animating():
 		_at = _goal
 	_apply()
 
 
-## Back out to the room, the screen on its logo.
+## Back out to the room, the screen on its logo. The logo goes up at once while
+## the sign-on is hidden under the pages; turned round before that (Esc on the
+## way in), the glass keeps SIGNING IN until the camera is at rest
+## (`StationScreen._process` then shows the logo, or the sign-in under the
+## pointer): swapped mid-move, the look popped.
 func close() -> void:
 	if _goal <= 0.0:
 		return
 	_goal = 0.0
 	_note = ""
-	leaving.emit()
+	if signon_alpha() <= 0.0 or not Router.animating():
+		leaving.emit()
 	if not Router.animating():
 		_at = 0.0
 	_apply()
 
 
-## The move to its end at once (a click or a key during it; a harness).
+## The move to its end at once (a harness; never a player's key: camera moves,
+## never cuts).
 func finish() -> void:
 	_at = _goal
 	_apply()
@@ -618,7 +637,7 @@ func _process(delta: float) -> void:
 	if not visible:
 		return
 	if _at != _goal:
-		_at = move_toward(_at, _goal, delta)
+		_at = move_toward(_at, _goal, delta * _rate)
 		_apply()
 	elif _at > ZoomLadder.UI_OUT_S:
 		# the lab's light moves round the landed glass; its life with it
@@ -643,30 +662,48 @@ func _input(e: InputEvent) -> void:
 		return
 	var key := e as InputEventKey
 	var mb := e as InputEventMouseButton
-	# NEXT SCREEN (Tab) WITH THE CAMERA IN THE GLASS: out to the room at once,
-	# the station's chrome back, and the key left for Main, so the ladder's
-	# move off the station starts from the room it knows (it played under the
-	# Lab's picture, and the map arrived as a cut).
+	var pad := e as InputEventJoypadButton
+	# NEXT SCREEN (Tab) WITH THE CAMERA IN THE GLASS: out to the room, the
+	# station's chrome back, and then the key for Main, so the ladder's move off
+	# the station starts from the room it knows (it played under the Lab's
+	# picture, and the map arrived as a cut). The camera goes out at three times
+	# its pace rather than jumping: it moves, never cuts. Unanimated (a harness)
+	# it is out at once and the key goes straight on.
 	if key != null and key.pressed and not key.echo and key.is_action_pressed(&"next_screen"):
+		if _goal <= 0.0 and _then_key != null:
+			get_viewport().set_input_as_handled()
+			return
+		var was_open := _goal > 0.0
 		_goal = 0.0
-		_at = 0.0
-		leaving.emit()
+		if not Router.animating():
+			_at = 0.0
+			leaving.emit()
+			_apply()
+			return
+		get_viewport().set_input_as_handled()
+		if was_open and signon_alpha() <= 0.0:
+			leaving.emit()
+		_rate = 3.0
+		_then_key = e.duplicate()
 		_apply()
 		return
+	var esc := key != null and key.pressed and not key.echo and key.keycode == KEY_ESCAPE
+	# THE PAD'S B is the pad's Esc: the pad's A opens the Lab
+	# (`StationScreen._unhandled_input`), and there was no way back out on it
+	var back := esc or (pad != null and pad.pressed and pad.button_index == JOY_BUTTON_B)
 	var moving := _at != _goal
-	if moving and ((key != null and key.pressed) or (mb != null and mb.pressed)):
-		# A PRESS DURING A MOVE ENDS IT, AND IS EATEN: a click that hurried the
-		# move out went on to the room (onto the glass, it opened the Lab
-		# again), and the second click of a double-click on the glass landed on
-		# whatever page key was under it. Esc on the way in turns the camera
-		# round (not on to the pause menu over a Lab that just landed).
+	if moving and ((key != null and key.pressed) or (mb != null and mb.pressed) or (pad != null and pad.pressed)):
+		# A PRESS DURING A MOVE IS EATEN, AND THE CAMERA GOES ON (camera moves,
+		# never cuts: it used to finish the move at once, a jump). Eaten, a click
+		# on the way out cannot open the Lab again from the glass, nor the second
+		# click of a double-click on the glass land on a page key. Esc or B on the
+		# way in turns the camera round (not on to the pause menu over a Lab that
+		# just landed).
 		get_viewport().set_input_as_handled()
-		if key != null and key.keycode == KEY_ESCAPE and _goal > 0.0:
+		if back and _goal > 0.0:
 			close()
-		else:
-			finish()
 		return
-	if key != null and key.pressed and not key.echo and key.keycode == KEY_ESCAPE and _goal > 0.0:
+	if back and _goal > 0.0:
 		get_viewport().set_input_as_handled()
 		close()
 
@@ -698,11 +735,17 @@ func _apply() -> void:
 	# it is not drawn for nothing under the board. Where the bezel shows round
 	# the glass (the settlement, the den) it stays, lit and live; the sign-on
 	# under the board's ground goes once the ground is whole.
-	var covered := Rect2(0, 0, W, H).intersection(glass_on_screen).is_equal_approx(Rect2(0, 0, W, H))
+	var covered := Rect2(0, 0, W, H).intersection(board_rect).is_equal_approx(Rect2(0, 0, W, H))
 	var room_on := moving and not (landed_now and vk >= 1.0 and covered)
 	for c: CanvasItem in [_room, _life]:
 		c.visible = room_on
-	_screen.visible = moving and not (landed_now and vk >= 1.0)
+	# THE SIGN-ON GOES BEFORE THE PAGES COME (the review, Nov 5: the sign-in's
+	# fields at 3-4x crossed the chart's 1x words for 0.4 s): out over the first
+	# half of the beat, the pages in from 0.3 of it; on LEAVE the other way round
+	var so := signon_alpha()
+	_screen.visible = moving and so > 0.0
+	# (premultiplied: the colour goes down with the alpha)
+	_screen.modulate = Color(so, so, so, so)
 	# THE ROOM'S EDGE LETS GO WITH THE CHROME (Jon: "the square is kinda weird
 	# and harsh"): the picture's own rectangle falls away into the dark round
 	# it as the HUD and rail go, ahead of them (all gone by the beat's middle,
@@ -714,8 +757,9 @@ func _apply() -> void:
 		1.0 if moving else smoothstep(0.0, 1.0, minf(1.0, ui_k * 2.0)))
 	# THE PAGES COME UP ON THE LANDED GLASS, its ground with them, over the
 	# sign-in the camera carried in (and go, back out, before it moves)
-	view.visible = vk > 0.0
-	view.modulate.a = vk
+	var pk := smoothstep(0.3, 1.0, vk)
+	view.visible = pk > 0.0
+	view.modulate.a = pk
 	view.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for c2: ColorRect in [_ground, _fin_add, _fin_mul]:
 		c2.visible = vk > 0.0
@@ -731,9 +775,23 @@ func _apply() -> void:
 			if c3 != null and is_instance_valid(c3):
 				c3.modulate.a = 1.0
 		_chrome(0.0)
+		_rate = 1.0
 		closed.emit()
+		if _then_key != null:
+			var k := _then_key
+			_then_key = null
+			GameShell.input_target(get_tree()).push_input(k)
 	elif _at >= _goal and _goal > 0.0 and vk >= 1.0:
 		opened.emit()
+
+
+## How much of the sign-on the camera carries in shows now: whole while the
+## camera moves, gone by the middle of the pages' beat (`UI_IN_S`).
+func signon_alpha() -> float:
+	if hold_at >= 0.0:
+		return 1.0
+	var vk := clampf((_at - ZoomLadder.UI_OUT_S - ZoomLadder.LAB_ZOOM_S) / ZoomLadder.UI_IN_S, 0.0, 1.0)
+	return 1.0 - smoothstep(0.0, 0.5, vk)
 
 
 ## The station's HUD, deck rail and deck plate, k of the way gone
@@ -780,20 +838,42 @@ func _veil_lights() -> void:
 ## whole px), and the board's ground, finish and chart laid on it.
 func _land_at() -> void:
 	var g := lab.glass_rect()
-	_o1 = (Vector2(W, H) / 2.0 - (g.position + g.size / 2.0) * float(_z)).round()
+	_o1 = landed_origin(lab)
 	glass_on_screen = Rect2(_o1 + g.position * float(_z), g.size * float(_z))
+	board_rect = glass_on_screen
+	var gaps := [glass_on_screen.position.x, glass_on_screen.position.y,
+		W - glass_on_screen.end.x, H - glass_on_screen.end.y]
+	if gaps.all(func(v: float) -> bool: return v <= THIN):
+		board_rect = glass_on_screen.merge(Rect2(0, 0, W, H).grow(16.0))
 	for c: ColorRect in [_ground, _fin_add, _fin_mul]:
-		c.position = glass_on_screen.position
-		c.size = glass_on_screen.size
+		c.position = board_rect.position
+		c.size = board_rect.size
 	var gm := _ground.material as ShaderMaterial
-	gm.set_shader_parameter(&"rpos", glass_on_screen.position)
-	gm.set_shader_parameter(&"rsize", glass_on_screen.size)
+	gm.set_shader_parameter(&"rpos", board_rect.position)
+	gm.set_shader_parameter(&"rsize", board_rect.size)
 	for f: ColorRect in [_fin_add, _fin_mul]:
-		(f.material as ShaderMaterial).set_shader_parameter(&"gsize", glass_on_screen.size)
+		(f.material as ShaderMaterial).set_shader_parameter(&"gsize", board_rect.size)
 	# (the glare on the glass where the window's top-left corner sees it, as on
 	# the board's own glass)
 	(_fin_add.material as ShaderMaterial).set_shader_parameter(&"glare_at",
-		Vector2(maxf(0.0, -glass_on_screen.position.x), maxf(0.0, -glass_on_screen.position.y)))
+		Vector2(maxf(0.0, -board_rect.position.x), maxf(0.0, -board_rect.position.y)))
+
+
+## Where the room's picture stands on screen once the camera has landed: the
+## lab's glass at its zoom, centred in the window (each lab's glass is an even
+## number of picture px across and down, so this is on whole px).
+static func landed_origin(l: LabScene) -> Vector2:
+	var g := l.glass_rect()
+	var z := float(ZOOM.get(l._level, 3))
+	return (Vector2(W, H) / 2.0 - (g.position + g.size / 2.0) * z).round()
+
+
+## What of the room's picture (picture px) the window shows once the camera has
+## landed. The sign-on is laid out inside it (`LabLogin.safe`): the sign-in's
+## header ran to the screen's edges and was cut off at four labs.
+static func landed_view(l: LabScene) -> Rect2:
+	var z := float(ZOOM.get(l._level, 3))
+	return Rect2(-landed_origin(l) / z, Vector2(W, H) / z)
 
 
 ## THE CAMERA at its progress `e` (0 the room where it stands, 1 landed): one

@@ -30,6 +30,14 @@ const DOTS := 8
 const DOT_RATE := 10.0
 ## The cursor's blink: on, then off, for this long each.
 const BLINK_S := 0.4
+## CLICK TO SIGN IN breathes between these inks over `PULSE_S` (brightness
+## only, nothing moves): the review found it the weakest thing on the sign-in,
+## at the field labels' 0.55.
+const PULSE_LO := 0.8
+const PULSE_S := 1.6
+## THE SWAP between the logo and the sign-in is a refresh: one bright line runs
+## down the glass over this long (5 frames), as the new look comes up.
+const WIPE_S := 0.083
 
 var state: StringName = LOGO
 ## The station's owner (a manufacturer id, &"" for none) and the lab's tint.
@@ -37,6 +45,14 @@ var owner_id: StringName = &""
 var tint := Color(0.75, 0.94, 0.92)
 var pilot := ""
 var data := 0
+## WHERE THE LOOKS ARE LAID OUT, in this window's own px: the part of it the
+## camera still has on screen once it has landed (`LabZoom.landed_view`). The
+## sign-in's header ran across the whole window, and at four labs the landed
+## glass is wider or taller than the screen: "EPENDENT", "RVAN", no DATA. Empty
+## is the whole window.
+var safe := Rect2i()
+## The look before this one (a swap between the logo and the sign-in wipes).
+var _wipe := false
 ## How long this look has been up (game time, its own frames' deltas).
 var _t := 0.0
 var _sig := ""
@@ -53,9 +69,30 @@ func _init() -> void:
 func set_state(s: StringName) -> void:
 	if s == state:
 		return
+	_wipe = (s == LOGIN and state == LOGO) or (s == LOGO and state == LOGIN)
 	state = s
 	_t = 0.0
 	queue_redraw()
+
+
+## The window's area the looks are laid out in.
+func area() -> Rect2i:
+	var all := Rect2i(Vector2i.ZERO, Vector2i(size))
+	return all if not safe.has_area() else all.intersection(safe)
+
+
+## Where the refresh line is now, or -1.
+func wipe_y() -> int:
+	if not _wipe or _t >= WIPE_S:
+		return -1
+	var a := area()
+	return a.position.y + int(floorf(_t / WIPE_S * float(a.size.y)))
+
+
+## CLICK TO SIGN IN's ink now, in 1/40 steps.
+func cue_ink() -> float:
+	var k := 0.5 - 0.5 * cos(_t * TAU / PULSE_S)
+	return snappedf(PULSE_LO + (1.0 - PULSE_LO) * k, 0.025)
 
 
 ## How many dots the password shows now.
@@ -73,7 +110,8 @@ func cursor_on() -> bool:
 
 func _process(delta: float) -> void:
 	_t += delta
-	var s := "%s|%d|%s|%s|%s|%d|%s|%s" % [state, dots(), cursor_on(), owner_id, pilot, data, tint, size]
+	var s := "%s|%d|%s|%s|%s|%d|%s|%s|%s|%d|%.3f" % [state, dots(), cursor_on(), owner_id, pilot, data, tint, size,
+		safe, wipe_y(), cue_ink() if state == LOGIN else 0.0]
 	if s != _sig:
 		_sig = s
 		queue_redraw()
@@ -86,6 +124,12 @@ func _draw() -> void:
 			_paint_logo()
 		_:
 			_paint_login()
+	var y := wipe_y()
+	if y >= 0:
+		var a := area()
+		draw_rect(Rect2(a.position.x, y, a.size.x, 1), _ink(0.7))
+		if y > a.position.y:
+			draw_rect(Rect2(a.position.x, y - 1, a.size.x, 1), _ink(0.3))
 
 
 # ------------------------------------------------------------------ the looks
@@ -129,38 +173,44 @@ func _text(x: int, ycap: int, s: String, c: Color, sz: int = 8) -> void:
 
 
 func _data_corner() -> void:
+	var a := area()
 	var s := "DATA %d" % data
-	_text(int(size.x) - 6 - LabBoard.tw(s), 5, s, LabBoard.OWN)
+	_text(a.end.x - 6 - LabBoard.tw(s), a.position.y + 5, s, LabBoard.OWN)
 
 
 ## LOGO: the mark, the owner, RESEARCH TERMINAL; the block centred.
 func _paint_logo() -> void:
 	_data_corner()
-	var w := int(size.x)
-	var h := int(size.y)
+	var a := area()
+	var x0 := a.position.x
+	var w := a.size.x
+	var h := a.size.y
 	var name := owner_short()
 	var line := "RESEARCH TERMINAL"
 	var block := 28 + 8 + 10 + 7 + 5
-	var y0 := (h - block) / 2 + 3
-	_mark(w / 2, y0 + 14, 28, 2.0)
+	var y0 := a.position.y + (h - block) / 2 + 3
+	_mark(x0 + w / 2, y0 + 14, 28, 2.0)
 	var ny := y0 + 28 + 8
-	_text((w - LabBoard.tw(name, 16)) / 2, ny, name, _ink(1.0), 16)
-	_text((w - LabBoard.tw(line)) / 2, ny + 17, line, _ink(0.6))
+	_text(x0 + (w - LabBoard.tw(name, 16)) / 2, ny, name, _ink(1.0), 16)
+	_text(x0 + (w - LabBoard.tw(line)) / 2, ny + 17, line, _ink(0.6))
 
 
 ## LOGIN and SIGNING: the owner small on top, then PILOT and PASSWORD in
 ## their fields, and what to do (or what is happening) under them.
 func _paint_login() -> void:
-	var w := int(size.x)
-	var h := int(size.y)
-	_mark(11, 10, 11, 1.0)
-	_text(21, 8, owner_short(), _ink(0.85))
+	var a := area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var h := a.size.y
+	_mark(x0 + 11, y0 + 10, 11, 1.0)
+	_text(x0 + 21, y0 + 8, owner_short(), _ink(0.85))
 	_data_corner()
-	draw_rect(Rect2(4, 20, w - 8, 1), _ink(0.25))
+	draw_rect(Rect2(x0 + 4, y0 + 20, w - 8, 1), _ink(0.25))
 	var fw := mini(170, w - 40)
-	var fx := (w - fw) / 2
+	var fx := x0 + (w - fw) / 2
 	var block := 7 + 13 + 7 + 7 + 13 + 9 + 5
-	var y := 21 + maxi(6, (h - 21 - block) / 2)
+	var y := y0 + 21 + maxi(6, (h - 21 - block) / 2)
 	# PILOT, your ship's name in its field
 	_text(fx, y, "PILOT", _ink(0.55))
 	y += 7
@@ -183,7 +233,7 @@ func _paint_login() -> void:
 		draw_rect(Rect2(fx + 4 + n * 5, y + 3, 1, 7), _ink(1.0))
 	y += 13 + 9
 	var say := "SIGNING IN" if state == SIGNING else "CLICK TO SIGN IN"
-	_text((w - LabBoard.tw(say)) / 2, y, say, _ink(0.85) if state == SIGNING else _ink(0.55))
+	_text(x0 + (w - LabBoard.tw(say)) / 2, y, say, _ink(0.85) if state == SIGNING else _ink(cue_ink()))
 
 
 func _field(x: int, y: int, fw: int) -> void:
@@ -194,11 +244,12 @@ func _field(x: int, y: int, fw: int) -> void:
 	leaves.append(["field", Rect2i(x, y, fw, 13)])
 
 
-## The box test on this look: every word and mark inside the window, none on
-## another (the fields hold their own words, so those are let be).
+## The box test on this look: every word and mark inside the window, and
+## inside the part of it the landed camera keeps (`safe`), none on another
+## (the fields hold their own words, so those are let be).
 func check() -> PackedStringArray:
 	var bad := PackedStringArray()
-	var all := Rect2i(Vector2i.ZERO, Vector2i(size))
+	var all := area()
 	for l: Array in leaves:
 		if not all.encloses(l[1]):
 			bad.append("'%s' %s is outside the screen %s" % [l[0], l[1], all])

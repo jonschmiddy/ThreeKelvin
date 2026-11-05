@@ -1091,7 +1091,8 @@ func _process(_delta: float) -> void:
 
 
 ## THE KEY'S KEYBOARD AND PAD: Enter, Space or the pad's A on the lab's deck,
-## its screen up, presses the glass, as a click does.
+## its screen up, presses the glass, as a click does. Esc or the pad's B takes
+## the camera back out (`LabZoom._input`).
 func _unhandled_input(e: InputEvent) -> void:
 	if _tab != &"bench" or _lab_zoom == null or _lab_zoom.is_open() or e.is_echo():
 		return
@@ -2192,6 +2193,13 @@ func _refresh_bench(n: MapGen.MapNode) -> void:
 	if _screen_vp.size != Vector2i(win.size):
 		_screen_vp.size = Vector2i(win.size)
 	_login.size = win.size
+	# THE SIGN-ON IS LAID OUT IN WHAT THE LANDED CAMERA KEEPS of the window
+	# (`LabZoom.landed_view`), whole px inside it: its header was cut off at four
+	# labs, where the landed glass is wider or taller than the screen
+	var seen := LabZoom.landed_view(_lab).intersection(win)
+	var sa := (seen.position - win.position).ceil()
+	var sb := (seen.end - win.position).floor()
+	_login.safe = Rect2i(Vector2i(sa), Vector2i(sb - sa))
 	# EVERY STATION HAS ITS LABORATORY (Jon, Nov 3: all five decks at every
 	# station, at every level).
 	_enable_tab(&"bench", true)

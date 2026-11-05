@@ -970,6 +970,23 @@ func _science_versions() -> void:
 	SaveGame.load_into_run()
 	check("a whole board the seed would not deal is kept as saved", str(_other_board(dealt)), str(Run.board))
 
+	# AN AFFIX BY ITS OLD NAME (Jon, Nov 5: "Stripped" is "Lightened" now): a
+	# save whose fitted part holds "Stripped" loads it as Lightened, +2 MAN -1
+	# HUL, not dropped; and Lightened is written and read back as itself
+	var old := s41.duplicate(true)
+	var fit: Array = old.get("installed", [])
+	if not fit.is_empty():
+		(fit[0] as Dictionary)["affixes"] = ["Stripped", "Reinforced"]
+	_write(old)
+	SaveGame.load_into_run()
+	var first: ModuleData = Run.installed[0] if not Run.installed.is_empty() else null
+	var got: Array = [] if first == null else first.affixes.map(func(a: AffixData) -> String: return "%s %+d %+d" % [a.name, a.maneuver, a.hull])
+	check("a save's \"Stripped\" loads as Lightened", "[\"Lightened +2 -1\", \"Reinforced +0 +1\"]", str(got))
+	SaveGame.save()
+	var again: Array = Array(_read_save().get("installed", []))
+	check("and is written back as Lightened", "[\"Lightened\", \"Reinforced\"]",
+		str((again[0] as Dictionary).get("affixes", [])) if not again.is_empty() else "none")
+
 	# A NEW RUN AFTER A USED ONE: no DATA, nothing owned, the box unspent, and
 	# full hull (fitted with nothing of the last run's on it)
 	Run.data = 50
