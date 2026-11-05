@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Added** — NEW THINGS on the title menu, between SETTINGS and MESSAGE FROM JON. It opens a page
+  in the note's case that lists what changed in each build, newest first: the version, the day it
+  went out and a few short lines. Changes not out yet are headed with this build's own stamp. A small
+  amber square beside NEW THINGS means this build's notes are unread, and opening the page clears
+  it. Jon asked for it on Nov 5. `tools/dev/release.sh` now refuses a version whose NEW THINGS entry
+  is not on top and dated.
 - **Added** — an eye beside GOAL: REACH THE CORE shows how strong the Custodian is getting. Until
   your fifteenth jump it sleeps beside the number of jumps left before it starts to grow. Then it
   wakes, and it opens wider and burns redder as the Custodian grows, until it is at full strength
