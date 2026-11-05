@@ -1790,8 +1790,11 @@ func _swing(f: SharedFight) -> void:
 		var e := f.foes[i]
 		if target == 1:
 			Sig.party_fight_swing.emit(f.at, i, e.kind, e.pick)
-		else:
+		elif multiplayer.get_peers().has(target):
 			_enemy_swings.rpc_id(target, f.at, i, e.kind, e.pick)
+		# (a target no longer connected -- gone between the pick and the swing,
+		# or a harness's stand-in peer -- takes no message; Godot logs an error
+		# for an RPC to an unknown peer, Nov 5 gate)
 	f.advance()
 	for i in f.foes.size():
 		_pick_intent(f, i)
