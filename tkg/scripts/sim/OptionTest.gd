@@ -274,7 +274,9 @@ func _science_table() -> void:
 ## system holds two, and every system's list is the list the table WITHOUT
 ## science rolls (main's), except a system the pass hit, which differs from it
 ## in exactly one slot, the science event's. `science=off` rolls main's list
-## everywhere.
+## everywhere. The seeds are fixed, so the share is too: 0.166 at 1 in 6, 0.143
+## at 1 in 7 and 0.199 at 1 in 5 (Nov 4), and the band (0.155 to 0.18) passes
+## only the first. Move it with the share.
 func _science_rolls() -> void:
 	var main_all: Array[Dictionary] = []
 	for o in OptionTable.all():
@@ -329,8 +331,8 @@ func _science_rolls() -> void:
 	var share := float(sci) / float(maxi(opts, 1))
 	print("  %d science events in %d options rolled (%.3f), at %d of %d systems (%.0f%%)"
 		% [sci, opts, share, hit, systems, 100.0 * float(hit) / float(maxi(systems, 1))])
-	_ok("the science share of rolled options is %.3f, about 1 in 6 (0.14 to 0.20)" % share,
-		share >= 0.14 and share <= 0.20)
+	_ok("the science share of rolled options is %.3f, about 1 in 6 (0.155 to 0.18)" % share,
+		share >= 0.155 and share <= 0.18)
 	_ok("no system holds two science events%s" % ("" if two.is_empty() else ": " + two[0]), two.is_empty())
 	_ok("every system rolls main's list, but for the one slot a science event took (%d differ)%s"
 		% [moved.size(), "" if moved.is_empty() else ": " + moved[0]], moved.is_empty())
