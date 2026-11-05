@@ -146,10 +146,7 @@ static func _offer_order(m: ModuleData, n: MapGen.MapNode) -> Array[AffixData]:
 
 ## The affix the catalogue holds under this name, or null.
 static func _affix(name: StringName) -> AffixData:
-	for a in DB.affixes:
-		if StringName((a as AffixData).name) == name:
-			return a
-	return null
+	return DB.affix_named(String(name))
 
 ## What AUGMENT costs here: DATA, and credits by the place's service index.
 static func augment_cost(n: MapGen.MapNode) -> Dictionary:

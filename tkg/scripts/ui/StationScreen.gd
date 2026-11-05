@@ -16,16 +16,18 @@ var _header: RichTextLabel
 ## The door. Held as a member because whether it opens is run state -- see
 ## `_refresh_undock` -- and the rail that builds it is built once.
 var _undock: Button
-var _bench: VBoxContainer
-## The entry's holder on the lab's screen, which the power-on's scan opens.
+## The lab's glass in the room, which the power-on's scan opens: the owner's
+## sign-on on it (`LabLogin`), and the key that is the glass itself.
 var _bench_clip: Control
-## THE LAB'S SCREEN IN THE ROOM: the whole glass is a key into it, and the
-## entry's three keys open it on a page; DATA and what each page holds beside
-## them. Built once and restyled (`_refresh_bench`).
+## THE LAB'S SCREEN IN THE ROOM (Jon, Nov 5): the owner's logo, a sign-in
+## while you point at it, and the whole glass is the one key into it. Built
+## once and restyled (`_refresh_bench`).
 var _glass_press: Button
-var _entry_data: Label
-var _entry_keys := {}
-var _entry_notes := {}
+## The sign-on, drawn into `_screen_vp` and shown on the glass by
+## `_screen_pic`; the camera into the glass carries the same texture.
+var _login: LabLogin
+var _screen_vp: SubViewport
+var _screen_pic: TextureRect
 ## THE CAMERA INTO THE LAB'S SCREEN (Jon's 1C, Nov 4): the Lab's pages at the
 ## board's own size, the glass filling the window (`LabZoom`).
 var _lab_zoom: LabZoom
@@ -404,9 +406,10 @@ func _build() -> void:
 	# THE LAB'S SCREEN, ZOOMED: over everything, the HUD too, once pressed
 	_lab_zoom = LabZoom.new()
 	_lab_zoom.lab = _lab
-	_lab_zoom.entry = _bench
-	_lab_zoom.on_glass = [_glass_press, _lab.fx_layer()]
+	_lab_zoom.screen = _screen_pic
+	_lab_zoom.on_glass = [_lab.fx_layer()]
 	_lab_zoom.station = self
+	_lab_zoom.leaving.connect(func() -> void: _login.set_state(LabLogin.LOGO))
 	add_child(_lab_zoom)
 	# `-- station tab=stock` opens on a named page. Four of the five are only
 	# reachable by clicking, and a screenshot cannot click.
@@ -1009,16 +1012,16 @@ func _on_counter(item: HoldItem) -> void:
 
 
 func _page_bench() -> Control:
-	# --- ONE OF JON'S FIVE LABS, WITH ITS ENTRY ON ITS SCREEN.
+	# --- ONE OF JON'S FIVE LABS, ITS OWNER'S SIGN-ON ON ITS SCREEN.
 	#
 	# A painted lab per development level (`LabScene`). Its big screen is too
 	# small for the Lab itself (Jon, Nov 4: "is the screen really big enough for
-	# a player to see all of it?"), so in the room it holds a short entry --
-	# RESEARCH, AUGMENT, RECIPES and your DATA -- and pressing it moves the
-	# camera into the glass until it fills the window (`LabZoom`), where the
-	# pages are at their own size. Three layers: the lab, lit and running; the
-	# entry, in a holder the power-on's scan opens; and what the big screen
-	# does, over the entry.
+	# a player to see all of it?"), so in the room it holds the station owner's
+	# logo, a sign-in while you point at it (Jon, Nov 5), and pressing the glass
+	# moves the camera onto it (`LabZoom`), where the pages are at their own
+	# size. Three layers: the lab, lit and running; the glass, which the
+	# power-on's scan opens, with the sign-on and the key on it; and what the big
+	# screen does, over the sign-on.
 	var stack := Control.new()
 	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1026,30 +1029,46 @@ func _page_bench() -> Control:
 	_lab.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	stack.add_child(_lab)
 
-	# THE ROWS' HOLDER CLIPS, so the scan can bring them up a line at a time. It
-	# is placed at the screen once the station's level is known (`_refresh_bench`).
+	# THE GLASS CLIPS, so the scan can bring the screen up a line at a time. It
+	# is placed on the glass once the station's level is known (`_refresh_bench`).
 	_bench_clip = Control.new()
 	_bench_clip.clip_contents = true
 	_bench_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stack.add_child(_bench_clip)
-	# THE WHOLE GLASS IS A KEY: pressed anywhere, the camera goes into it.
-	# Faintly lit under the pointer, as the rail's floors are.
+	# THE SIGN-ON, drawn into its own small viewport: the room shows it at 1:1,
+	# and the camera into the glass draws the same pixels.
+	_screen_vp = SubViewport.new()
+	_screen_vp.transparent_bg = true
+	_screen_vp.disable_3d = true
+	_screen_vp.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
+	_screen_vp.render_target_update_mode = SubViewport.UPDATE_WHEN_PARENT_VISIBLE
+	_screen_vp.size = Vector2i(206, 110)
+	_login = LabLogin.new()
+	_screen_vp.add_child(_login)
+	stack.add_child(_screen_vp)
+	_screen_pic = TextureRect.new()
+	_screen_pic.texture = _screen_vp.get_texture()
+	_screen_pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_screen_pic.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_screen_pic.stretch_mode = TextureRect.STRETCH_KEEP
+	# (a transparent viewport's colour comes out premultiplied)
+	var pm := CanvasItemMaterial.new()
+	pm.blend_mode = CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA
+	_screen_pic.material = pm
+	_bench_clip.add_child(_screen_pic)
+	# THE WHOLE GLASS IS THE KEY, and the only one: pointed at, the screen
+	# turns to its sign-in; pressed anywhere on it, the camera goes onto it.
+	# It draws nothing of its own (only pressable things look pressable, and
+	# the sign-in is how it says so).
 	_glass_press = Button.new()
 	_glass_press.focus_mode = Control.FOCUS_NONE
 	_glass_press.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	for st in ["normal", "pressed", "disabled", "focus"]:
+	for st in ["normal", "pressed", "disabled", "focus", "hover"]:
 		_glass_press.add_theme_stylebox_override(st, UITheme.empty())
-	_glass_press.add_theme_stylebox_override("hover",
-		UITheme.flat(Color(0.85, 0.90, 1.0, 0.05), Color(0, 0, 0, 0), 0, 0, 0))
 	_glass_press.pressed.connect(Audio.click)
 	_glass_press.pressed.connect(func() -> void: _open_lab(&"research"))
 	_bench_clip.add_child(_glass_press)
-	_bench = VBoxContainer.new()
-	_bench.add_theme_constant_override("separation", 4)
-	_bench.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_bench_clip.add_child(_bench)
 	_lab.rows_clip = _bench_clip
-	_build_entry()
 
 	var glass := _lab.fx_layer()
 	glass.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1057,45 +1076,42 @@ func _page_bench() -> Control:
 	return Widgets.panel_with(Widgets.pad(stack))
 
 
-## THE ENTRY ON THE LAB'S SCREEN, built once: the Lab's name and your DATA,
-## then a key for each of its pages with what the page holds beside it. Sized
-## for the smallest glass, the settlement's 206 x 110.
-const ENTRY_KEY_W := 84
+## THE POINTER ON THE GLASS, or off it: the sign-in, or the logo. Read off the
+## key each frame (its hover, as the GUI has it), so the pointer already on the
+## glass when the camera comes back out shows the sign-in. Never while the
+## camera is away from the room (the screen says SIGNING IN on the way in, and
+## its logo on the way out).
+func _process(_delta: float) -> void:
+	if _login == null or _glass_press == null or _tab != &"bench":
+		return
+	if _lab_zoom != null and (_lab_zoom.is_open() or _lab_zoom.visible):
+		return
+	var on := _glass_press.is_visible_in_tree() and _glass_press.is_hovered()
+	_login.set_state(LabLogin.LOGIN if on else LabLogin.LOGO)
 
 
-func _build_entry() -> void:
-	var head := HBoxContainer.new()
-	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var title := UITheme.body("THE LAB", UITheme.CHILL, UITheme.FS_SMALL)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	head.add_child(title)
-	_entry_data = UITheme.body("DATA 0", UITheme.TRACTOR, UITheme.FS_SMALL)
-	_entry_data.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	head.add_child(_entry_data)
-	_bench.add_child(head)
-	for row in LabZoom.TABS:
-		var id: StringName = row[0]
-		var line := HBoxContainer.new()
-		line.add_theme_constant_override("separation", 8)
-		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var key := Widgets.button(String(row[1]), _open_lab.bind(id))
-		key.focus_mode = Control.FOCUS_NONE
-		key.custom_minimum_size = Vector2(ENTRY_KEY_W, 0)
-		line.add_child(key)
-		var note := UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-		note.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		note.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		line.add_child(note)
-		_bench.add_child(line)
-		_entry_keys[id] = key
-		_entry_notes[id] = note
+## THE KEY'S KEYBOARD AND PAD: Enter, Space or the pad's A on the lab's deck,
+## its screen up, presses the glass, as a click does. Esc or the pad's B takes
+## the camera back out (`LabZoom._input`).
+func _unhandled_input(e: InputEvent) -> void:
+	if _tab != &"bench" or _lab_zoom == null or _lab_zoom.is_open() or e.is_echo():
+		return
+	# (the pad's A by name: the project's ui_accept has no pad button in it)
+	var pad := e as InputEventJoypadButton
+	var pad_a := pad != null and pad.pressed and pad.button_index == JOY_BUTTON_A
+	if not pad_a and not e.is_action_pressed(&"ui_accept"):
+		return
+	if not deck_subject(&"bench").has_area():
+		return
+	get_viewport().set_input_as_handled()
+	_glass_press.pressed.emit()
 
 
 ## Into the Lab's screen, on page `id`.
 func _open_lab(id: StringName) -> void:
 	if _lab_zoom == null or _lab_zoom.is_open():
 		return
+	_login.set_state(LabLogin.SIGNING)
 	_lab_zoom.open(id)
 
 
@@ -2163,26 +2179,37 @@ func _refresh_hold(n: MapGen.MapNode) -> void:
 func _refresh_bench(n: MapGen.MapNode) -> void:
 	_dress_room(_lab, n)
 	_lab.load_level()
-	# ON THE LAB'S SCREEN. The holder is the screen's window; the entry keeps its
-	# full height whatever the scan has opened, so it does not re-flow as it goes.
+	# ON THE LAB'S GLASS. The holder is the glass, the key all of it; the
+	# sign-on stands in the screen's window, where the prototype drew its rows
+	# (clear of the capital's and the den's flasks in front of the glass).
+	var gr := _lab.glass_rect()
 	var win := _lab.win_rect()
-	_bench_clip.position = win.position
-	_bench_clip.size = win.size
+	_bench_clip.position = gr.position
+	_bench_clip.size = gr.size
 	_glass_press.position = Vector2.ZERO
-	_glass_press.size = win.size
-	_bench.position = Vector2.ZERO
-	_bench.custom_minimum_size = Vector2(win.size.x, 0.0)
-	_bench.size = Vector2(win.size.x, win.size.y)
+	_glass_press.size = gr.size
+	_screen_pic.position = win.position - gr.position
+	_screen_pic.size = win.size
+	if _screen_vp.size != Vector2i(win.size):
+		_screen_vp.size = Vector2i(win.size)
+	_login.size = win.size
+	# THE SIGN-ON IS LAID OUT IN WHAT THE LANDED CAMERA KEEPS of the window
+	# (`LabZoom.landed_view`), whole px inside it: its header was cut off at four
+	# labs, where the landed glass is wider or taller than the screen
+	var seen := LabZoom.landed_view(_lab).intersection(win)
+	var sa := (seen.position - win.position).ceil()
+	var sb := (seen.end - win.position).floor()
+	_login.safe = Rect2i(Vector2i(sa), Vector2i(sb - sa))
 	# EVERY STATION HAS ITS LABORATORY (Jon, Nov 3: all five decks at every
 	# station, at every level).
 	_enable_tab(&"bench", true)
 	# RESTYLED, NEVER REBUILT: a key made again on every `resources_changed`
 	# could not be clicked.
-	_entry_data.text = "DATA %d" % Run.data
-	var running := Run.owned_routines().size()
-	(_entry_notes[&"research"] as Label).text = ("%d OF 9 RUNNING" % running) if Run.board.size() >= 9 else ""
-	(_entry_notes[&"augment"] as Label).text = "ADD TO A PART"
-	(_entry_notes[&"recipes"] as Label).text = "FILM %d · RELICS %d" % [Run.material(&"survey_film"), Run.material(&"relic")]
+	var tn: Array = (_lab.lab.get("screen", {}) as Dictionary).get("tint", [190, 240, 235])
+	_login.tint = Color8(int(tn[0]), int(tn[1]), int(tn[2]))
+	_login.owner_id = n.manufacturer if n.manufacturer != &"" else (n.berths[0] if not n.berths.is_empty() else &"")
+	_login.pilot = Run.display_name()
+	_login.data = Run.data
 	if _deck_note.has(&"bench"):
 		(_deck_note[&"bench"] as Label).text = "DATA %d" % Run.data
 	if _lab_zoom != null:
@@ -2850,7 +2877,7 @@ func deck_subject(tab: StringName) -> Rect2:
 			if _bench_clip == null or not _bench_clip.is_visible_in_tree() or _lab == null:
 				return Rect2()
 			# (the scan opens the screen's holder a line at a time: whole once it has passed)
-			if _bench_clip.size.y < _lab.win_rect().size.y - 0.5 or _bench.get_child_count() == 0:
+			if _bench_clip.size.y < _lab.glass_rect().size.y - 0.5:
 				return Rect2()
 			return _bench_clip.get_global_rect()
 	return Rect2()

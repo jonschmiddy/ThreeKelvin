@@ -638,7 +638,7 @@ func _dither_ring(ci: CanvasItem, cx: int, cy: int, r0: int, r1: int, c: Color, 
 func _icon(ci: CanvasItem, name: String, cx: int, cy: int, c: Color, lit: bool = true) -> void:
 	if light and not lit:
 		return
-	var rows: Array = LabIcons.ICONS.get(name, LabIcons.ICONS.get("STRIPPED"))
+	var rows: Array = LabIcons.ICONS.get(name, LabIcons.ICONS.get("LIGHTENED"))
 	var n := rows.size()
 	var c2 := LabBoard.mixc(c, BG, 0.5)
 	for j in n:

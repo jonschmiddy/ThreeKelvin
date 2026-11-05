@@ -315,6 +315,23 @@ func short_name(full: String) -> String:
 
 # ---------------------------------------------------------------------- affixes
 
+## AN AFFIX'S OLD NAME, AND ITS NAME NOW. A save stores an affix by its name
+## (`SaveGame._module_to`), and a name the table no longer has is dropped on
+## load, so a renamed affix is mapped here wherever a name is read back.
+## "Stripped" became "Lightened" (Jon, Nov 5).
+const AFFIX_RENAMED := {"Stripped": "Lightened"}
+
+
+## The affix the table holds under `nm` (or under the name it had before a
+## rename, `AFFIX_RENAMED`), or null.
+func affix_named(nm: String) -> AffixData:
+	var want := str(AFFIX_RENAMED.get(nm, nm))
+	for a in affixes:
+		if a.name == want:
+			return a
+	return null
+
+
 func _seed_affixes() -> void:
 	# TEN, PAID IN SHIP ATTRIBUTES. See AffixData for why they stopped paying in
 	# card numbers: a card whose face changes with the module that granted it is
@@ -344,7 +361,10 @@ func _seed_affixes() -> void:
 		{name = "Tuned Injectors", thrust = 1},
 		{name = "Double-Plated", hull = 2},
 		# The tradeoff pair: lighter and thinner, louder and hotter.
-		{name = "Stripped", maneuver = 2, hull = -1},
+		# LIGHTENED, once "Stripped" (Jon, Nov 5): lightening holes, the holes
+		# cut in brackets and ribs to take weight out. Old saves say "Stripped"
+		# (`AFFIX_RENAMED`).
+		{name = "Lightened", maneuver = 2, hull = -1},
 		{name = "Bus-Fed", reactor = 1, weight = 0.35},
 		{name = "Deregulated", reactor = 2, stealth = -1,
 			contraband = true, weight = 0.5},
@@ -2506,7 +2526,7 @@ const BRANCHES: Array[StringName] = [&"frame", &"core", &"drive"]
 ## and Deregulated is contraband. Bus-Fed is drawn at its loot weight (0.35).
 const LAB_AFFIXES: Array[StringName] = [&"Reinforced", &"Double-Plated",
 	&"Gyro-Trimmed", &"Wide-Banded", &"Signature-Damped", &"Tuned Injectors",
-	&"Bus-Fed", &"Stripped"]
+	&"Bus-Fed", &"Lightened"]
 
 func _seed_routines() -> void:
 	routines = {

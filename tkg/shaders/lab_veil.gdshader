@@ -7,8 +7,8 @@ render_mode unshaded;
 // edges out of the window (Jon: "the square is kinda weird and harsh"). This
 // lays the window's own dark over everything round the room and lets the
 // room's last `feather` px fall away into it, its corners rounded off, so the
-// room has no edge to see. On a ColorRect over the whole window, under the
-// screen's frame; `room` is where the room's picture is on screen this frame
+// room has no edge to see. On a ColorRect over the whole window, over the
+// room the camera draws; `room` is where the room's picture is on screen this frame
 // (x0, y0, x1, y1), so the fall-off moves with the camera.
 //
 // THE LIGHTS STAY LIT. A lamp inside the band went dull while the pool it
@@ -44,7 +44,7 @@ void fragment() {
 	// bright thing cut by it, the capital's tank, rose over 4 px on smoothstep)
 	float e = 1.0 - clamp(d / max(feather, 0.001), 0.0, 1.0);
 	float shown = e * e * e * (e * (e * 6.0 - 15.0) + 10.0);
-	// (the picture px under this one, as the walls' nearest sampling has it)
+	// (the picture px under this one, as the camera's nearest sampling has it)
 	vec2 pp = (p - room.xy) / max(room.zw - room.xy, vec2(0.001)) * panel;
 	if (shown < 1.0 && pp.x >= 0.0 && pp.y >= 0.0 && pp.x < panel.x && pp.y < panel.y) {
 		int own = int(floor(texelFetch(own_map, ivec2(floor(pp)), 0).r * 255.0 + 0.5)) - 1;
