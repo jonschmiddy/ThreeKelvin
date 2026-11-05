@@ -125,11 +125,18 @@ const FLIGHT_PACE := {&"direct": 4.0, &"curved": 8.0}
 static var pace_k := -1.0
 static var path_k: StringName = &""
 ## THE LOOK AIDS while a fast flight plays (CURVED's burns at pace 8 last a
-## tenth of a second, three frames): the nose starts onto a burn NOSE_LEAD s
-## before it lights, and the flame fades out over FLAME_MIN s after a burn.
-## `-- lookaids=0` turns both off (a film's comparison).
-const NOSE_LEAD := 0.3
+## tenth of a second, three frames): the flame fades out over FLAME_MIN s
+## after a burn, the nose held on the burn's way while it does; and the nose
+## turns no faster than NOSE_RATE (rad/s) from the ride before a fast flight
+## until NOSE_SLOW_S after it lands. Today's flights turn it at about 260
+## deg/s at the most; a fast flight's spring turned it at up to 1,200, and an
+## arrival and its spin-down flipped it 455 deg in 1.2 s, a tumble (the look
+## review, Nov 5). A nose lead (it started onto a burn 0.3 s before it lit,
+## as first built) read as a skid, the ship turned broadside unpowered: gone.
+## `-- lookaids=0` turns them off (a film's comparison).
 const FLAME_MIN := 0.25
+const NOSE_RATE := deg_to_rad(300.0)
+const NOSE_SLOW_S := 1.2
 static var look_aids := -1
 ## SPIN-UP AND SPIN-DOWN ROUND A RING (`FlightSolve.RING_TAU`): a fast flight
 ## leaves its ring at `ke` times the ring's own speed (pace times its speed on
@@ -158,6 +165,20 @@ func _ride_ke(pl: FlightPlan) -> float:
 	return pl.pace * absf(FlightSolve.tau_speed(v, pl.pace)) / v
 
 
+## WHETHER A RIDE rd ROUND A RING (its speed vr px/s) CAN BE FLOWN for a flight
+## at pace pk: its push within THRUST (VMAX with the same slack: a plan whose
+## ride the solver held to exactly VMAX read as over it by a rounding. A flight
+## on its own clock held its ride to THRUST and VMAX there: on the map, pace^2
+## and pace of them; the spin-up's push beside the phasing's, SPIN_PUSH_K), and
+## its phasing k no less than `FlightSolve.RIDE_K_MIN` (under nought the ship
+## would run backwards round its ring).
+static func _ride_flyable(rd: Dictionary, pk: float, vr: float) -> bool:
+	var k := float(rd.get("k", 1.0))
+	var ke := float(rd.get("ke", 1.0))
+	var most := FlightSolve.THRUST * pk * pk * (SPIN_PUSH_K if ke > 1.0 + 1e-6 else 1.0)
+	return not (vr * _ride_peak(rd) > most + 1e-6 or (maxf(k, 1.0) + ke - 1.0) * vr > FlightSolve.VMAX * pk + 1e-6 or k < FlightSolve.RIDE_K_MIN)
+
+
 ## THE RIDE'S SHAPE round to a fast flight's departure, dang radians in T s
 ## at the ring's rate w (> 0) and leaving at ke times it: the solver had the
 ## ship ride at the ring's own rate until the moment it was planned for
@@ -173,7 +194,7 @@ static func _ride_shape(dang: float, w: float, T: float, ke: float) -> Dictionar
 		var k0 := 2.0 * dang / (w * T) - 1.0 if T > 1e-9 else 1.0
 		return {"k": k0, "ke": 1.0, "ls": 0.0, "sp": 0.0}
 	var need := dang / w - T
-	var sp := minf(FlightSolve.SPIN_UP, T)
+	var sp := minf(FlightSolve.spin_up(), T)
 	var ls := need / (ke - 1.0) + 0.5 * sp
 	if ls < sp:
 		sp = clampf(2.0 * need / (ke - 1.0), minf(SPIN_MIN, T), sp)
@@ -820,12 +841,22 @@ func _bary_in() -> float:
 	return L.edge - L.bary.length() - 12.0
 
 
-## THE NOSE, turned toward `want` (a screen angle) on its spring.
+## THE NOSE, turned toward `want` (a screen angle) on its spring; around a
+## fast flight no faster than NOSE_RATE (`_nose_slow`).
 func _nose(want: float, dt: float) -> void:
 	var err := wrapf(want - ang, -PI, PI)
 	_ang_v += (NOSE_W * NOSE_W * err - 2.0 * NOSE_W * _ang_v) * dt
+	# (from the ride round to a fast flight's departure to NOSE_SLOW_S after it
+	# is on its ring)
+	if plan != null and plan.res != null and plan.pace > 1.0:
+		_nose_slow = NOSE_SLOW_S
+	if _nose_slow > 0.0 and aids_on():
+		_ang_v = clampf(_ang_v, -NOSE_RATE, NOSE_RATE)
+	_nose_slow = maxf(_nose_slow - dt, 0.0)
 	ang = wrapf(ang + _ang_v * dt, -PI, PI)
 	f.head = ang
+## (s left of the nose's slow turn after a fast flight: `NOSE_RATE`)
+var _nose_slow := 0.0
 
 
 ## A plane direction as the screen angle the ship is drawn at.
@@ -1096,12 +1127,11 @@ func _fly_frame(dt: float, t: float) -> float:
 		if aids:
 			_flame_left = FLAME_MIN
 			_flame_peak = burn_k
+			_flame_dir = push
 	else:
-		# THE NOSE ONTO A BURN BEFORE IT LIGHTS (`NOSE_LEAD`): a fast flight's
-		# burns are too short for the spring to turn round in
-		var ahead := _burn_ahead(u) if aids else Vector2.ZERO
-		if ahead != Vector2.ZERO:
-			_nose(_scr_ang(ahead), dt)
+		# (the flame fading out, the nose still on the burn's way)
+		if aids and _flame_left > 0.0 and _flame_dir != Vector2.ZERO:
+			_nose(_scr_ang(_flame_dir), dt)
 		elif vv.length() > 0.0001:
 			_nose(_scr_ang(vv), dt)
 		if aids and _flame_left > 0.0:
@@ -1112,33 +1142,13 @@ func _fly_frame(dt: float, t: float) -> float:
 			lvl = 0.7 * burn_k
 		else:
 			_flame_left = 0.0
+			_flame_dir = Vector2.ZERO
 			_burn_age = 0.0
 			burn_k = 0.0
 	return lvl
 var _flame_left := 0.0
 var _flame_peak := 0.0
-
-
-## THE NEXT BURN WITHIN NOSE_LEAD OF u (a share of the flight): the way it
-## pushes as it lights (the samples' pull less gravity's, pace^2 of the
-## solver's), or nought when none comes that soon.
-func _burn_ahead(u: float) -> Vector2:
-	var n := plan.burns.size() - 1
-	if n < 2 or plan.samp.size() != plan.burns.size():
-		return Vector2.ZERO
-	var j0 := clampi(int(roundf(u * n)), 0, n)
-	var j1 := mini(n, j0 + ceili(NOSE_LEAD / maxf(plan.sdt, 1e-6)))
-	for j in range(j0, j1 + 1):
-		if plan.burns[j] == 1:
-			var ja := clampi(j + 2, 1, n - 1)
-			var qa := plan.samp[ja - 1]
-			var qb := plan.samp[ja]
-			var qc := plan.samp[ja + 1]
-			var a := Vector2(qa.x - 2.0 * qb.x + qc.x, qa.z - 2.0 * qb.z + qc.z) / (plan.sdt * plan.sdt)
-			var g := _grav().acc(qb.x, qb.z, plan.t0 + float(ja) * plan.sdt)
-			var p := a - Vector2(g[0], g[1]) * (plan.pace * plan.pace)
-			return p if p.length() > 0.5 else Vector2.ZERO
-	return Vector2.ZERO
+var _flame_dir := Vector2.ZERO
 
 
 ## WHEN A SOLVED FLIGHT TURNS ONTO ITS PLACE: its arrival burn (onto the ring at
@@ -1148,10 +1158,15 @@ func _burn_ahead(u: float) -> Vector2:
 ## (INSERT_T), so the ship counts as at the place (`orbit_body`, and from it
 ## LOCAL, the station and a ship parked on a Tab) only where an insertion had
 ## it. The whole arrival burn had a twin's ship there up to 338 px off its ring
-## and 9.7 s before it ended (the flight review, Oct 31).
+## and 9.7 s before it ended (the flight review, Oct 31). A flight on its own
+## clock is held to them there and played pace times faster: on the map an
+## eighth of them at pace 8. Held on the map's clock, the ship counted as at the
+## place for 0.5 s of a 1.5 s flight, up to 140 px off, and at pace 10 its
+## arrival began 0.13 s after it left (the code review, Nov 5).
 const ARRIVE_MIN := 0.5
 func _arrive_t(pl: FlightPlan) -> float:
-	return float(pl.end.t) - clampf(pl.res.d2, ARRIVE_MIN, INSERT_T.y)
+	var k := maxf(pl.pace, 1.0)
+	return float(pl.end.t) - clampf(pl.res.d2 * k, ARRIVE_MIN, INSERT_T.y) / k
 
 
 ## ONTO THE PLACE (`_arrive_t`): in orbit of it, burning on (the rail, not yet
@@ -1202,8 +1217,20 @@ func _step_rail(dt: float, t: float, k: Dictionary) -> float:
 		return _step_insert(dt, t, k)
 	if rail.has("phase"):
 		if k.w:
-			# W: the flight is off; leave the orbit as W always does
+			# W: the flight is off; leave the orbit as W always does -- from the
+			# ring's own rate: a fast flight's ride, spinning up (`ke`), is spun
+			# down to it first, over SPIN_S, from the rate it has
+			# (`_spin_down`), and W takes it off after. Let go at once, a
+			# whirl at up to 280 px/s dropped to the ring's 35 in a frame (the
+			# code review, Nov 5)
+			var ph: Dictionary = rail.phase
+			var w_now := float(ph.w) * _ride_at(ph, t - float(ph.t0))[1]
+			var w_own := float(rail.dir) * float(rail.speed) / float(rail.rt)
 			_cancel_flight()
+			if float(ph.get("ke", 1.0)) > 1.0 and absf(w_now - w_own) > 0.02 * absf(w_own):
+				rail.r0 = float(rail.rt)
+				rail.u = 0.0
+				rail.spin = {"t0": t, "a0": float(rail.ang), "w1": w_now}
 		else:
 			return _step_phase(dt, t)
 	rail.u = minf(1.0, float(rail.u) + dt / float(rail.get("ease", EASE)))
@@ -1233,9 +1260,10 @@ func _step_rail(dt: float, t: float, k: Dictionary) -> float:
 	burn_k = 0.0
 	_burn_age = 0.0
 	rcs = false
-	if k.w:
+	if k.w and not rail.has("spin"):
 		# W: OFF THE RAIL, a prograde burn from the orbit's own motion (no kick:
 		# the thrust does it), and this ring lets you go until you are out of it
+		# (not while it spins down onto its own rate: then)
 		mode = &"free"
 		f.v = _flat(cv) + tg * absf(wv) * r
 		f.no_cap_body = body
@@ -2126,6 +2154,73 @@ func heading_to() -> int:
 	return -9
 
 
+## THE FLIGHT UNDER WAY AS IT WILL BE FLOWN from map time t0, a point every dt
+## s (a partner is told it, PROTOCOL 17, `SystemMapScreen._report_flight`):
+## the ride round its ring to its departure (or the hold alongside), the flight
+## itself, and onto its ring after (`_tail`, the spin-down, TAIL_S of it) when
+## a solved flight lands on it. [pts (plane), lit, dep_s, arr_s (s from t0 to
+## its departure and its arrival)], or [] when nothing is under way.
+func said_path(t0: float, dt: float) -> Array:
+	var pl := plan
+	if pl == null or pl.samp.size() < 2 or dt <= 0.0:
+		return []
+	var tf := 0.0
+	var ph: Dictionary = {}
+	match mode:
+		&"fly":
+			tf = fly_t0
+		&"rail":
+			if not rail.has("phase") or rail.phase.get("wait", false):
+				return []
+			ph = rail.phase
+			tf = float(ph.t0) + float(ph.T)
+		&"keep":
+			if not keep.has("hold") or keep.get("wait", false):
+				return []
+			tf = float(keep.hold)
+		_:
+			return []
+	var t_end := tf + float(pl.dur)
+	var tail_s := TAIL_S if pl.res != null and not pl.tail_lit and pl.tail.size() > 1 else 0.0
+	var n := maxi(2, ceili((t_end + tail_s - t0) / dt) + 1)
+	var pts := PackedVector2Array()
+	var lit := PackedByteArray()
+	for j in n:
+		var tj := t0 + float(j) * dt
+		var q := Vector3.ZERO
+		var on := false
+		if tj < tf:
+			if not ph.is_empty():
+				# (the ride round the ring, as `_step_phase` flies it)
+				var ra := _ride_at(ph, tj - float(ph.t0))
+				var a := float(ph.a0) + float(ph.w) * ra[0]
+				var c := center(int(rail.body), tj)
+				q = c + Vector3(cos(a), 0.0, sin(a)) * float(rail.rt)
+				on = absf(float(ph.w) * ra[2] * float(rail.rt)) > 4.0
+			else:
+				# (holding alongside, where it rests)
+				var ck := center(int(keep.body), tj)
+				var off: Vector2 = keep.get("inf", keep.off)
+				q = ck + Vector3(off.x, 0.0, off.y)
+		elif tj <= t_end:
+			var u := clampf((tj - tf) / maxf(float(pl.dur), 1e-6), 0.0, 1.0)
+			q = pl.pos(u)
+			on = pl.burning(u)
+		else:
+			var x := clampf((tj - t_end) / TAIL_S, 0.0, 1.0) * float(pl.tail.size() - 1)
+			var k := mini(int(x), pl.tail.size() - 2)
+			q = pl.tail[k].lerp(pl.tail[k + 1], x - float(k))
+		pts.append(Vector2(q.x, q.z))
+		lit.append(1 if on else 0)
+	return [pts, lit, maxf(tf - t0, 0.0), maxf(t_end - t0, 0.0)]
+
+
+## SPINNING DOWN onto its ring after a fast flight (`start_rail`'s spin), with
+## nothing else under way: `can_fly` is false for that moment only.
+func spinning() -> bool:
+	return mode == &"rail" and rail.has("spin") and not rail.has("phase") and not inserting() and _pend.is_empty()
+
+
 func can_fly() -> bool:
 	# (a flight asked for, still being planned: it is under way)
 	if not _pend.is_empty():
@@ -2175,7 +2270,9 @@ static func flight_opts() -> Dictionary:
 		for a in OS.get_cmdline_user_args():
 			var s := a as String
 			if s.begins_with("flight_pace="):
-				pace_k = maxf(float(s.substr(12)), 0.0)
+				# (at least 1: under it the ride spins the other way from the
+				# solver's, the code review, Nov 5)
+				pace_k = maxf(float(s.substr(12)), 1.0)
 			elif s.begins_with("autopilot="):
 				path_k = StringName(s.substr(10))
 	var path: StringName = path_k if path_k == &"direct" or path_k == &"curved" else DisplaySettings.autopilot
@@ -2264,6 +2361,26 @@ const PLAN_AHEAD := 0.25
 ## about this long. A click on it flies it as drawn; a click with none drawn
 ## plans PLAN_AHEAD on.
 const PREVIEW_AHEAD := 1.0
+## THE DRAWN FLIGHT LEAVING LATE (a fast flight's: on its own clock, pace > 1;
+## today's, at pace 1, as it was): a click on a preview that leaves more than
+## CLICK_LATE s on plans a fresh flight from the click, PLAN_AHEAD on, as a
+## click with none drawn does, and flies it when it arrives CLICK_GAIN s
+## sooner (the line drawn again at the click); else the drawn one. Planned 1 s
+## ahead and kept until its departure is PLAN_AHEAD off, a preview left 0.25 to
+## 1 s after the click plus its ride: in a 2.95 s flight 1.18 s of it was the
+## wait (the code review, Nov 5).
+const CLICK_LATE := 0.45
+const CLICK_GAIN := 0.15
+## whether the last click flew a flight planned at it, not the one drawn (a
+## harness reads it)
+var click_replanned := false
+
+
+## Whether a flight planned at the click (pn) goes before the drawn one (pv).
+static func _sooner(pn: FlightPlan, pv: FlightPlan) -> bool:
+	if pn == null or pn.res == null or pv == null or pv.res == null:
+		return false
+	return float(pn.end.t) < float(pv.end.t) - CLICK_GAIN
 ## THE LINE THE MAP DRAWS A FLIGHT AS, laid out on the worker that plans it
 ## (`lay_out`, `SystemOverlay.PV_N`): a click's own plan too, so the frame the
 ## flight starts in does not lay it out (3 to 8 ms on this thread, the flight
@@ -2423,16 +2540,7 @@ func _takeable(pl: FlightPlan, t: float) -> Dictionary:
 				if dang < 0.0:
 					return {}
 				rd.merge(_ride_shape(dang, absf(w), lead, ke), true)
-				var k := float(rd.k)
-				var vr := absf(w) * rt
-				# (VMAX with the same slack: a plan whose ride the solver held to
-				# exactly VMAX read as over it by a rounding. A flight on its own
-				# clock held its ride to THRUST and VMAX there: on the map, pace^2
-				# and pace of them; the spin-up's push beside the phasing's,
-				# SPIN_PUSH_K)
-				var pk := pl.pace
-				var most := FlightSolve.THRUST * pk * pk * (SPIN_PUSH_K if ke > 1.0 + 1e-6 else 1.0)
-				if vr * _ride_peak(rd) > most + 1e-6 or (maxf(k, 1.0) + ke - 1.0) * vr > FlightSolve.VMAX * pk + 1e-6 or k < 0.2:
+				if not _ride_flyable(rd, pl.pace, absf(w) * rt):
 					return {}
 			return rd
 		&"keep":
@@ -2963,16 +3071,26 @@ func take_bg(use: StringName, t: float) -> Dictionary:
 func fly_bg(i: int, t: float, done: Callable, prefer: Dictionary = {}, pv: FlightPlan = null) -> bool:
 	if not can_fly() or not SystemLayout.is_place(i):
 		return false
+	click_replanned = false
+	var late: FlightPlan = null
 	if pv != null and pv.to == i:
 		var rd := _takeable(pv, t)
 		if not rd.is_empty():
-			_fly_plan(pv, rd, t, done)
-			return true
+			# (leaving late: a fresh flight asked for, the drawn one kept to fly if
+			# that is no sooner, `CLICK_LATE`)
+			if pv.res == null or pv.pace <= 1.0 or float(pv.t0) - t <= CLICK_LATE:
+				_fly_plan(pv, rd, t, done)
+				return true
+			late = pv
 	fly_to = i
 	_fly_done = done
 	line = {}
 	hold_line = {}
-	if _jobs.has(&"preview") and int(_jobs[&"preview"].i) == i:
+	if late != null:
+		if not plan_bg(i, t, {}, &"fly", LINE_N):
+			_fly_plan(late, _takeable(late, t), t, done)
+			return true
+	elif _jobs.has(&"preview") and int(_jobs[&"preview"].i) == i:
 		_jobs[&"fly"] = _jobs[&"preview"]
 		_jobs.erase(&"preview")
 	elif not plan_bg(i, t, prefer, &"fly", LINE_N):
@@ -2980,6 +3098,8 @@ func fly_bg(i: int, t: float, done: Callable, prefer: Dictionary = {}, pv: Fligh
 		_put_there(i, t)
 		return true
 	_pend = {"i": i, "t": t, "prefer": prefer}
+	if late != null:
+		_pend["pv"] = late
 	# ON ITS WAY ALREADY while it is planned, as it will be while it rides round
 	# to leave: on a ring the ride round at the ring's own pace (`_step_phase`
 	# with no end, k 1: the very motion the rail has), alongside the hold with
@@ -3018,6 +3138,20 @@ func _poll_jobs(t: float) -> void:
 	var i := int(_pend.i)
 	var pl: FlightPlan = got.plan
 	var d := _fly_done
+	# THE DRAWN FLIGHT KEPT BESIDE A CLICK'S OWN (`CLICK_LATE`): flown unless the
+	# one planned at the click is takeable and arrives sooner
+	var pv: FlightPlan = _pend.get("pv")
+	if pv != null:
+		var rdv := _takeable(pv, t)
+		if not rdv.is_empty():
+			var rdn := _takeable(pl, t) if pl != null else {}
+			if not rdn.is_empty() and _sooner(pl, pv):
+				click_replanned = true
+				_fly_plan(pl, rdn, t, d)
+			else:
+				_fly_plan(pv, rdv, t, d)
+			return
+		_pend.erase("pv")
 	if pl == null:
 		_put_there(i, t)
 		return
@@ -4704,9 +4838,20 @@ func _v0() -> Vector3:
 ## it still can be (`_takeable`), else planned from here with `prefer`. Null
 ## when nothing can be planned.
 func fly(i: int, t: float, done: Callable, prefer: Dictionary = {}, pv: FlightPlan = null) -> FlightPlan:
+	click_replanned = false
 	if pv != null and pv.to == i:
 		var rd := _takeable(pv, t)
 		if not rd.is_empty():
+			# THE DRAWN FLIGHT LEAVING LATE (`CLICK_LATE`): a fresh one planned at
+			# the click, as the map's worker plans it (PLAN_AHEAD on), flown when
+			# it arrives sooner
+			if pv.res != null and pv.pace > 1.0 and float(pv.t0) - t > CLICK_LATE:
+				var pn := make_plan(i, t, {}, PLAN_AHEAD)
+				var rn := _takeable(pn, t) if pn != null else {}
+				if not rn.is_empty() and _sooner(pn, pv):
+					click_replanned = true
+					_fly_plan(pn, rn, t, done)
+					return plan
 			_fly_plan(pv, rd, t, done)
 			return plan
 	var pl := make_plan(i, t, prefer)
@@ -4738,6 +4883,16 @@ func fly(i: int, t: float, done: Callable, prefer: Dictionary = {}, pv: FlightPl
 			var dr2 := 1.0 if w2 >= 0.0 else -1.0
 			var dang2 := fposmod(dr2 * (pl.res.a_dep - a0), TAU) if pl.res != null else 0.0
 			rd2.merge(_ride_shape(dang2, absf(w2), T2, ke2), true)
+			# (held to the bounds `_takeable` holds a ride to: unchecked, a
+			# phasing under nought ran the ship backwards round its ring, the code
+			# review, Nov 5. Planned once more from here with no kept choice; else
+			# no slower than RIDE_K_MIN, the flight leaving a little off its point)
+			if not _ride_flyable(rd2, pl.pace, absf(w2) * float(pl.dep.get("rt", 0.0))):
+				if not prefer.is_empty():
+					return fly(i, t, done)
+				if why:
+					print("  a ride out of bounds (k %.2f): held to %.1f" % [float(rd2.k), FlightSolve.RIDE_K_MIN])
+				rd2.k = maxf(float(rd2.k), FlightSolve.RIDE_K_MIN)
 	_fly_plan(pl, rd2, t, done)
 	return plan
 

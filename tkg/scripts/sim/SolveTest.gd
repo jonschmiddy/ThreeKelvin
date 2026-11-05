@@ -795,7 +795,7 @@ static func thrust(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Array:
 ## any run of lit samples, the speed dipping under V_CUSP and 2 px/s under
 ## where the run starts and ends -- the motion swinging round a point, a sharp
 ## angle as drawn. [1 or 0, the least such speed].
-static func cusp(r: FlightSolve.Result, kp := 1.0) -> PackedFloat64Array:
+static func cusp(r: FlightSolve.Result) -> PackedFloat64Array:
 	var s := r.samp
 	var dt := r.sdt
 	var k := 1
@@ -812,8 +812,9 @@ static func cusp(r: FlightSolve.Result, kp := 1.0) -> PackedFloat64Array:
 			k += 1
 		var va := ((s[mini(k0 + 1, n - 1)] - s[maxi(k0 - 1, 0)]) / (2.0 * dt)).length()
 		var vb := ((s[mini(k, n - 1)] - s[maxi(k - 2, 0)]) / (2.0 * dt)).length()
-		# (on a flight's own clock, its speeds / k: `FlightSolve._vc`)
-		if vmin < FlightSolve.V_CUSP / kp and vmin < minf(va, vb) - 2.0 / kp:
+		# (on a flight's own clock as on the map: a cusp is its turn radius,
+		# v^2 / a, which the clock leaves as it is, `FlightSolve._vc`)
+		if vmin < FlightSolve.V_CUSP and vmin < minf(va, vb) - 2.0:
 			worst = minf(worst, vmin)
 	return PackedFloat64Array([1.0 if worst < INF else 0.0, worst])
 
@@ -921,7 +922,7 @@ func _report(sweep: String) -> void:
 		# (a free start, coasting at 10 to 40 px/s, is a harness's: the map flies
 		# only out of a ring, a settled star orbit or alongside, `can_fly`, and
 		# the solver turns down a cusp only from those; counted apart)
-		var cu := cusp(r, float(c.get("k", 1.0)))
+		var cu := cusp(r)
 		var free_dep := StringName(c.dep.kind) == &"free"
 		if free_dep:
 			found_free += 1

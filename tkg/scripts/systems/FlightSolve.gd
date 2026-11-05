@@ -211,6 +211,28 @@ const OWN_GAP := 2.0
 ## none, kept flights ran up to 81.6 over a fresh search (the planner review).
 const WARM_K := 0.25
 const WARM_ADD := 10.0
+## CURVED's (`_slack`): its search prices a second at TIME_W_BACK, so flights
+## of near one cost bend round the stars very differently, and a preview
+## planned again as the ship rode its ring jumped between them (the code
+## review, Nov 5: the drawn line's biggest move in half a second, a median
+## 41.9 px against DIRECT's 16.8 and today's 8.1). `-- warmk=X` sets it for a
+## harness.
+const WARM_K_CURVED := 0.25
+static var warm_k_c := -1.0
+
+
+static func warm_k_curved() -> float:
+	if warm_k_c < 0.0:
+		warm_k_c = WARM_K_CURVED
+		for a in OS.get_cmdline_user_args():
+			if (a as String).begins_with("warmk="):
+				warm_k_c = maxf(float((a as String).substr(6)), 0.0)
+	return warm_k_c
+
+
+## The warm slack for this search's path: WARM_K, or CURVED's WARM_K_CURVED.
+func _slack(j: float) -> float:
+	return maxf(WARM_ADD, (warm_k_curved() if _curved else WARM_K) * j)
 ## a flight arrives within this of now: 16 s (ruling 21, Nov 1, "Flight length:
 ## C"), where ruling 20 built it to 30 (T_CAP_BACK, the fallback's)
 const T_CAP := 16.0
@@ -440,9 +462,23 @@ const RING_TAU := 60.0
 ## the solver first had it, could not be flown on the map, where the ship is
 ## still at its ring's own rate (IOTA TALLOW GATE V to IV, DIRECT: every plan
 ## made for a moment just ahead untakeable, and the ship put there). The spin
-## is the clock's hand-off, not engine work, and is not priced.
-const SPIN_UP := 0.3
+## is the clock's hand-off, not engine work, and is not priced. 0.15 (the code
+## review, Nov 5: 0.3 was the shortest ride before a departure and most of
+## the forced near offset in `_aligned`; its push at 0.15 is about 2450
+## px/s^2 against the 7680 `ShipFlight.SPIN_PUSH_K` allows). `-- spinup=S`
+## sets it for a harness.
+const SPIN_UP := 0.15
 static var ring_tau := -1.0
+static var spin_up_s := -1.0
+
+
+static func spin_up() -> float:
+	if spin_up_s < 0.0:
+		spin_up_s = SPIN_UP
+		for a in OS.get_cmdline_user_args():
+			if (a as String).begins_with("spinup="):
+				spin_up_s = maxf(float((a as String).substr(7)), 0.0)
+	return spin_up_s
 
 
 static func ring_floor() -> float:
@@ -473,7 +509,7 @@ static func dep_tau(dep: Dictionary, k: float) -> Dictionary:
 			d.w = tau_speed(float(d.w) * rt, k) / rt
 			if absf(float(d.w) - w0) > 1e-12:
 				d.w0 = w0
-				d.spin = SPIN_UP * k
+				d.spin = spin_up() * k
 		&"free":
 			d.v = (d.v as Vector2) / k
 	return d
@@ -626,6 +662,8 @@ var _twin := false
 ## (a departure out of a settled star orbit, round a fixed point or riding with
 ## one sun of a turning pair: its burn eased while slow, R_BURN)
 var _ease := false
+## (eased only as `_fresh`'s last look, or rebuilding a choice that was: `ez`)
+var _ease_forced := false
 ## the ride's top phasing (`_kmax`)
 var _kmax := 1.0
 ## the keep-outs this flight holds: MapGravity's, its own departure and
@@ -648,12 +686,15 @@ var _back := false
 var _curved := false
 var _cap0 := T_CAP
 var _hold := KEEP_HOLD
-## THE PACE A FLIGHT IS SOLVED AT (`solve`), and the cusp's and the eased
-## burn's speeds and least pull on its clock: V_CUSP, V_SLOW, CUSP_PAD, CUSP_IN
-## and P_MIN over the pace, so a burn turned down as a cusp is one that slows
-## to under V_CUSP on the map, as before (in tau a settled orbit's 13 px/s at
-## the edge is 1.6, and at V_SLOW 10 every departure from it that turned read
-## as one)
+## THE PACE A FLIGHT IS SOLVED AT (`solve`), and the eased burn's least pull
+## on its clock (P_MIN over the pace). THE CUSP'S SPEEDS (V_CUSP, V_SLOW,
+## CUSP_PAD, CUSP_IN) ARE NOT SCALED: a cusp is the burn's turn radius, v^2 / a,
+## which the flight's clock leaves as it is (speeds / k, pulls / k^2), so the
+## limits that turn one down at pace 1 turn the same drawn hook down at any
+## pace. Divided by the pace (as first built, when the rings in tau were their
+## speed / pace and a settled orbit's 13 px/s at the edge was 1.6), the
+## smallest radius turned down was 64 times tighter at pace 8 (the code
+## review, Nov 5); RING_TAU put the rings back at their own speeds.
 var _kp := 1.0
 var _vc := V_CUSP
 var _vsl := V_SLOW
@@ -935,16 +976,21 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 	_cap0 = T_CAP_BACK if _curved else T_CAP
 	_hold = float(dep.get("_hold", KEEP_HOLD))
 	_kp = float(dep.get("_pace", 1.0))
-	_vc = V_CUSP / _kp
-	_vsl = V_SLOW / _kp
-	_cpad = CUSP_PAD / _kp
-	_cin = CUSP_IN / _kp
+	_vc = V_CUSP
+	_vsl = V_SLOW
+	_cpad = CUSP_PAD
+	_cin = CUSP_IN
 	_pmin = P_MIN / _kp
 	if not _setup(dep, tgt):
 		var bad := Result.new()
 		bad.usec = Time.get_ticks_usec() - t_us
 		return bad
 	_set = true
+	# (a choice found eased, `_fresh`'s last look: rebuilt and warmed eased)
+	_ease_forced = false
+	if _dk == 0 and _kp > 1.0 and bool(prefer.get("ez", false)) and int(prefer.get("v", 0)) == CHOICE_V:
+		_ease = true
+		_ease_forced = true
 	_tw = TIME_W_BACK if _curved else TIME_W
 	var res: Result = null
 	if not prefer.is_empty() and int(prefer.get("v", 0)) == CHOICE_V:
@@ -984,7 +1030,7 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 			# were kept where a fresh plan arrived sooner; none now)
 			var j_old := float(prefer.get("J", INF))
 			var fell := _leg == 0 and _tcap > _cap0 + 1e-6
-			if not fell and _b_J <= j_old + _warm_slack(j_old):
+			if not fell and _b_J <= j_old + _slack(j_old):
 				res = _build(&"warm")
 			else:
 				var wj := _b_J
@@ -1012,7 +1058,7 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 					if absf(_tw - wtw) > 1e-9:
 						fj = _at_time_w(_b_J, _b, _tw)
 						kj = _at_time_w(wj, wb, wtw)
-					keep = fj + _warm_slack(fj) >= kj
+					keep = fj + _slack(fj) >= kj
 				if keep:
 					_b_J = wj
 					_b = wb
@@ -1435,8 +1481,13 @@ func _fly(ux: float, uz: float, has_fix: bool, a_fix: float) -> float:
 	_integrate(_e_td, _e_x0, _e_z0, _e_vx0, _e_vz0, _e_dvx, _e_dvz, t_now + _tcap)
 	var t1 := Time.get_ticks_usec()
 	# (a departure burn that swings the ship round a point is not flown: `V_CUSP`;
-	# nor an eased one the map would draw as a hook, `_burn_tight`)
-	if not ((_dk == 0 or _leg == 2) and _departure_cusps()) and not (_ease and _burn_tight()):
+	# nor an eased one the map would draw as a hook, `_burn_tight`, nor one out
+	# of a ring on a flight's own clock: a burn 127 to 150 deg against the
+	# ring's motion hooked round about 6 px, three game starts' corners at pace
+	# 4 and 8 that main never flew (the code review, Nov 5: seed 4242 systems
+	# 50 and 231). Not alongside: a burn from rest beside a slow station reads
+	# as tight and every flight from there was put there)
+	if not ((_dk == 0 or _leg == 2) and _departure_cusps()) and not ((_ease or (_kp > 1.0 and _dk == 0)) and _burn_tight()):
 		_tight_t = _coast_tight()
 		_price()
 	_us_int += t1 - t0
@@ -3072,6 +3123,27 @@ func _scan_passes() -> bool:
 ## by the as-built search alone (T_CAP_BACK at TIME_W_BACK), so those flights
 ## keep the as-built length.
 func _fresh() -> void:
+	_fresh_in()
+	# EASED, AS A LAST LOOK, out of a ring on a flight's own clock: every
+	# departure burn that hooks tighter than the map draws is turned down
+	# (`_burn_tight`), and at one moment of seed 4242 system 50's giant ring 2
+	# to world 0 nothing else was found, by CURVED with a spin-up of 0.15 s and
+	# by DIRECT with 0.3 (FlightTest, Nov 5: 95 of 96, today's planner flying
+	# it at today's speed). Then the burn eases while the ship is slow (R_BURN,
+	# as out of a settled star orbit), so it bends round 14 px at the least, and
+	# the choice says so (`ez`) for it to be rebuilt the same. Not first: eased,
+	# a burn deep in a star's well was too weak to climb out (`R_BURN`).
+	if _b_J == INF and _kp > 1.0 and _dk == 0 and _leg == 0 and not _ease:
+		_ease = true
+		_ease_forced = true
+		_budget = _n_integ + BUDGET
+		_fresh_in()
+		if _b_J == INF:
+			_ease = false
+			_ease_forced = false
+
+
+func _fresh_in() -> void:
 	_own = false
 	_back = false
 	if _leg > 0:
@@ -4009,6 +4081,8 @@ func _build_in(kind: StringName) -> Result:
 		"x0": float(b.x0), "z0": float(b.z0), "vx0": float(b.vx0), "vz0": float(b.vz0),
 		"fix": bool(b.fix), "afix": float(b.afix), "te": float(b.te), "s": s, "phi": float(b.phi), "d2": float(b.d2),
 		"w2": float(b.w2), "pk": float(b.pk), "J": res.cost, "cap": _tcap, "tw": _tw}
+	if _ease_forced:
+		res.choice["ez"] = true
 	return res
 
 

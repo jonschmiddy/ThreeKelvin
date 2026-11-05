@@ -7,16 +7,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 - **Changed** — the autopilot is about four times faster. From the click to settled in orbit, a
-  flight takes about 3.5 seconds where it took about 14, and the first flight after a jump about 4.
+  flight takes about 3 seconds where it took about 14, and the first flight after a jump about 4.
   Your ship still circles a world at the speed it always did. It speeds up round its orbit just
-  before it leaves and slows onto the new one as it arrives.
+  before it leaves and slows onto the new one as it arrives. A click on a world while it slows
+  onto its orbit is kept and flown once it is on it.
 - **Added** — AUTOPILOT in Settings, under MOTION. CURVED, the new default, swings wide round the
   star and bends with its pull. DIRECT flies the straighter line the autopilot used to fly. Pick
   DIRECT to get the straight flights back.
 - **Changed** — worlds go round their suns twice as fast, and so do the suns of a binary. Comets
   and your ship's own orbit keep their speed. A save from before shows its worlds in new places once.
 - **Changed** — in co-op a friend's flight is drawn on the arc it flies, not cut short between
-  updates. Everyone in a party needs this version.
+  updates, from the moment it starts round its orbit to leave until it is on the new one. A friend
+  who joins while you fly sees your flight too. Everyone in a party needs this version.
 - **Fixed** — on the sector map, when A.S.H. says "Click a world twice and we fly there", she now
   outlines the world nearest your ship instead of the ship. It is a world a click reaches (not one
   behind a sun or under another event's marker), and not one your ship sits on top of when there is

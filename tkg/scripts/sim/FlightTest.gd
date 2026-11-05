@@ -330,7 +330,7 @@ func _wants(sweep: String) -> bool:
 func _stat(sweep0: String) -> Dictionary:
 	var sweep := sweep0 + _tag
 	if not _sw.has(sweep):
-		_sw[sweep] = {"click_edge": [], "bend": [], "turn": [], "old_n": 0, "pace": float(ShipFlightS.flight_opts().pace),"plans": 0, "solved": 0, "clean": 0, "replay": 0, "warm": 0, "fallback": 0, "none": 0,
+		_sw[sweep] = {"click_edge": [], "click_dep": [], "bend": [], "turn": [], "old_n": 0, "pace": float(ShipFlightS.flight_opts().pace),"plans": 0, "solved": 0, "clean": 0, "replay": 0, "warm": 0, "fallback": 0, "none": 0,
 			"flown": 0, "landed": 0, "ms": [], "T": [], "work": [], "lead": [], "clicks": 0, "drawn": 0,
 			"drawn_px": [], "corners1": 0, "corners2": 0, "turn1": [], "turn2": [], "snaps": 0, "frame_dv": 0.0,
 			"frame_ratio": 0.0, "star": INF, "keep": INF, "world": INF, "speed": 0.0, "not_found": [], "not_landed": [],
@@ -921,6 +921,8 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 		# a place (an orbit, a star's close orbit, alongside), and in two legs
 		if key != "free" and key != "near":
 			(S.click_game as Array).append(float(fm.land_s))
+			if float(fm.dep_s) >= 0.0:
+				(S.click_dep as Array).append(float(fm.dep_s))
 		if key == "edge":
 			(S.click_edge as Array).append(float(fm.land_s))
 		if key == "orbit" or key == "close" or key == "keep":
@@ -931,6 +933,8 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 		(S.not_landed as Array).append(where + " (mode %s, %.1f s)" % [fm.mode_end, fm.secs])
 	if pl.res != null and not fm.undrawn:
 		S.clicks = int(S.clicks) + 1
+		if fm.redrawn:
+			S.click_redrawn = int(S.get("click_redrawn", 0)) + 1
 		if fm.same:
 			S.drawn = int(S.drawn) + 1
 			# (judged at pace 4's scale, `_drawn_px`)
@@ -1088,12 +1092,19 @@ func _measure(fl, L: SystemLayout, pl, i: int, t: float, from_b: int) -> Diction
 ## drawn insertion; on the orbit at the end; the biggest frame-to-frame change
 ## of velocity (against the frames either side, a snap's tell) and of the nose.
 func _fly(fl, i: int, t0: float, drawn, undrawn := false) -> Dictionary:
-	var out := {"land_s": -1.0, "landed": false, "frame_dv": 0.0, "frame_ratio": 0.0, "at": 0.0, "mode": "", "same": false,
+	var out := {"land_s": -1.0, "dep_s": -1.0, "landed": false, "frame_dv": 0.0, "frame_ratio": 0.0, "at": 0.0, "mode": "", "same": false, "redrawn": false,
 		"off": 0.0, "snap": false, "nose": 0.0, "mode_end": "", "secs": 0.0, "undrawn": undrawn, "inserted": false, "jump": 0.0}
 	var pl = fl.fly(i, t0, func() -> void: pass, drawn.choice, null if undrawn else drawn)
 	if pl == null:
 		return out
 	out.same = not undrawn and drawn.res != null and pl.res == drawn.res
+	# THE DRAWN FLIGHT LEAVING LATE, PLANNED AGAIN AT THE CLICK (`ShipFlight.
+	# CLICK_LATE`): the line is drawn again then, and that is the flight held
+	# to it
+	out.redrawn = bool(fl.click_replanned)
+	if out.redrawn and pl.res != null:
+		drawn = pl
+		out.same = true
 	out.pace = float(pl.pace) if pl.res != null else 1.0
 	if ShipFlightS.why:
 		print("    flown: kind %s, dur %.2f, esc %.2f, lead %.2f, t0 %.2f vs %.2f, samples %d, the drawn one %s" % [pl.kind, pl.dur, pl.esc_t, pl.lead, pl.t0, t0, pl.samp.size(), out.same])
@@ -1114,6 +1125,9 @@ func _fly(fl, i: int, t0: float, drawn, undrawn := false) -> Dictionary:
 		var p: Vector3 = fl.where3()
 		ps.append(Vector2(p.x, p.z))
 		modes.append(String(fl.mode) + (" inserting" if fl.inserting() else ""))
+		# (the wait before it leaves: the click to the frame it flies)
+		if float(out.dep_s) < 0.0 and fl.mode == &"fly":
+			out.dep_s = t - t0
 		noses.append(float(fl.ang))
 		if out.same:
 			if t >= float(drawn.t0) and t <= te:
@@ -2198,14 +2212,17 @@ func _orbit_phase() -> void:
 		any and int(n.edge) > 0 and share >= FOUND_MIN and float(n.edge_end) <= END_PX and n.edge_landed == n.edge and n.edge_drawn == n.edge_found and int(n.edge_snaps) == 0 and int(n.edge_jumps) == 0 and n.on_b_ok == n.on_b)
 
 
-## A FLIGHT THE FALLBACK FOUND (its choice's cap past T_CAP) GIVING WAY, rebuilt
-## from its choice, to a fresh one in one leg arriving sooner: kept only while
-## none does (ruling 21's reviews, `FlightSolve._solve`), so not the same
-## flight, and right. This is the one-leg half of SolveTest's `_fell_sooner`;
-## that one also lets a two-leg flight give way, as `FlightSolve._sooner_of`
-## does, and this one does not yet.
+## A FLIGHT THE FALLBACK FOUND (its choice's cap past its path's own first
+## look's: T_CAP for DIRECT, T_CAP_BACK for CURVED, `SolveTest._cap0`) GIVING
+## WAY, rebuilt from its choice, to a fresh one in one leg arriving sooner:
+## kept only while none does (ruling 21's reviews, `FlightSolve._solve`), so not
+## the same flight, and right. This is the one-leg half of SolveTest's
+## `_fell_sooner`; that one also lets a two-leg flight give way, as
+## `FlightSolve._sooner_of` does, and this one does not yet. (Against T_CAP for
+## both, every CURVED flight read as the fallback's, cap 30, and every one
+## that gave way was forgiven: the code review, Nov 5.)
 static func _gave_way(r: FlightSolve.Result, r2: FlightSolve.Result) -> bool:
-	return r.legs == 1 and float(r.choice.get("cap", 0.0)) > FlightSolve.T_CAP + 1e-6 and r2.found and r2.clean and r2.legs == 1 and r2.kind == &"solved" and float(r2.end.t) < float(r.end.t) - 1e-6
+	return r.legs == 1 and float(r.choice.get("cap", 0.0)) > (FlightSolve.T_CAP_BACK if r.path == &"curved" else FlightSolve.T_CAP) + 1e-6 and r2.found and r2.clean and r2.legs == 1 and r2.kind == &"solved" and float(r2.end.t) < float(r.end.t) - 1e-6
 
 
 ## Where place i is drawn at map time t, on the plane: a star where the pair has
@@ -2265,6 +2282,7 @@ func _report(cap: Dictionary) -> void:
 		print("  engine work, px/s: %s" % _dist(S.work))
 		print("  click to settled, s: from the game's starts %s; place to place %s; in two legs %s" % [_dist(S.click_game), _dist(S.click_place), _dist(S.click_two)])
 		print("  FAST (%s at pace %.1f): click to settled, real s: the game's starts %s; from the edge as arrived (a jump's first) %s; bend %s; turn deg %s; to today's planner %d" % [kq[2], S.pace, _dist(S.click_game), _dist(S.click_edge), _dist(S.bend), _dist(S.turn), S.old_n])
+		print("  the wait before it leaves (the click to the frame it flies, the game's starts), real s: %s" % _dist(S.click_dep))
 		if float(S.pace) == float(ShipFlightS.FLIGHT_PACE[kq[2]]) and not (S.click_game as Array).is_empty():
 			var cg: Array = (S.click_game as Array).duplicate()
 			cg.sort()
@@ -2278,7 +2296,7 @@ func _report(cap: Dictionary) -> void:
 		print("  closest to a star's surface %.1f px; least margin to a keep-out %.2f px; closest to a world's disc %.1f px; top speed %.0f px/s" % [S.star, S.keep, S.world, S.speed])
 		print("  sharpest turn of the drawn path, deg per px: zoom 1 %s; zoom 2 %s" % [_dist(S.turn1), _dist(S.turn2)])
 		print("  corners (over %.0f deg/px in 2 px) in solved flights: zoom 1 %d, zoom 2 %d (from the game's starts %d, %d); and %d on a ring's own curve only (a ring drawn so small its ends turn that fast)" % [CORNER, S.corners1, S.corners2, S.game_corners1, S.game_corners2, S.ring_corners])
-		print("  clicks: %d, %d flew the drawn flight; drawn against flown, px: %s; the drawn flight planned again before the click %d times" % [S.clicks, S.drawn, _dist(S.drawn_px), S.redrawn])
+		print("  clicks: %d, %d flew the drawn flight; drawn against flown, px: %s; the drawn flight planned again before the click %d times; planned again AT the click (it left late, `ShipFlight.CLICK_LATE`) %d" % [S.clicks, S.drawn, _dist(S.drawn_px), S.redrawn, int(S.get("click_redrawn", 0))])
 		print("  flown: biggest frame-to-frame change of velocity %.1f px/s, %.1fx its neighbours; snaps %d; the nose's biggest turn in a frame %.1f deg" % [S.frame_dv, S.frame_ratio, S.snaps, S.nose])
 		if int(S.unflyable) > 0:
 			print("  starts the first frame took onto a ring or alongside (no flight can leave there, not planned): %d" % S.unflyable)
@@ -2426,6 +2444,13 @@ static func _dist(xs: Array) -> String:
 ## 40 for the wider search) and their ride up to 4.4 s first (ruling 20), so
 ## the waits for settling and landing are FLY_MAX, not the 30 s and 20 s of the
 ## time-scaled conics; what is counted is the same.
+## THE DRAWN LINE HELD while the ship rides its orbit, judged (the code review,
+## Nov 5): the median of each flight's biggest move in half a second at most
+## twice today's (`autopilot=direct flight_pace=1 worldpace=1`: 8.11 px). Nov
+## 5: DIRECT 11.7, CURVED 29.0 (its search prices a second at TIME_W_BACK, so
+## flights of near one cost bend round the stars very differently; a warm slack
+## of 0.5 or 1 for it, `-- warmk=`, made 26.1 and 23.9). Left failing for Jon.
+const MOVE_MED := 16.0
 func _run_retarget() -> void:
 	Rng.forced = 4242 if _one_seed < 0 else _one_seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -2571,9 +2596,12 @@ func _run_retarget() -> void:
 	if not wides.is_empty():
 		print("  how far out it swings, against the farther of its two ends: median %.2fx, 90th %.2fx, worst %.2fx; over 1.3x: %d" % [wides[wides.size() / 2], wides[int(wides.size() * 0.9)], wides[-1], wides.filter(func(x: float) -> bool: return x > 1.3).size()])
 		print("  turning in all, deg: median %.0f, 90th %.0f, worst %.0f; lobes (over 300) %d; S-bends %d" % [turns_r[turns_r.size() / 2], turns_r[int(turns_r.size() * 0.9)], turns_r[-1], lobes, sbs])
+	var move_ok := true
 	if not moves.is_empty():
 		print("  the drawn plan's biggest move in a half second while it rides its orbit, px: median %.2f, 90th %.2f, worst %.1f; over 6 px: %d" % [moves[moves.size() / 2], moves[int(moves.size() * 0.9)], moves[-1], moves.filter(func(x: float) -> bool: return x > 6.0).size()])
-	var ok_all: bool = tot.early == 0 and tot.late == 0 and tot.none == 0 and tot.bad == 0 and tot.landed == tot.tries
+		move_ok = float(moves[moves.size() / 2]) <= MOVE_MED
+		print("  %s the drawn plan's median move, %.2f px, at most %.0f (twice today's)" % ["ok  " if move_ok else "FAIL", moves[moves.size() / 2], MOVE_MED])
+	var ok_all: bool = tot.early == 0 and tot.late == 0 and tot.none == 0 and tot.bad == 0 and tot.landed == tot.tries and move_ok
 	print("retarget: %s" % ("PASS" if ok_all else "FAIL"))
 	get_tree().quit(0 if ok_all else 1)
 

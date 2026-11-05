@@ -343,6 +343,35 @@ func _flight_said_test(host: NetSession, early: NetSession, late: NetSession, id
 		var want := pts[mini(int(j), 179)].lerp(pts[mini(int(j), 179) + 1], j - float(mini(int(j), 179)))
 		worst = maxf(worst, ((fp[0] as Vector2) - want).length())
 	ok("at the sender's own clock, drawn on its path (worst %.4f px over 5 moments)" % worst, worst < 1.0)
+	# ITS CLOCK HELD (a zoom move, LOCAL: a spot since saying so, its clock at
+	# t0 + 1): drawn where its clock stopped, not flown on by the wall clock 1.5
+	# s more; let go, by its spot's clock, not the wall clock's (the code
+	# review, Nov 5)
+	var held_ms := int(fl.got) + roundi((t0 + 2.5 - float(fl.said)) * 1000.0)
+	var sp_h := {"t": t0 + 1.0, "held": true, "got": int(fl.got) + 1}
+	var fh := NetSession.flight_point(fl, L, t0 + 1.0, held_ms, sp_h)
+	var off_h := INF if fh.is_empty() else ((fh[0] as Vector2) - pts[60]).length()
+	ok("its clock held at 1 s in, drawn there 2.5 s on by the wall clock (%.4f px)" % off_h, off_h < 1.0)
+	var sp_r := {"t": t0 + 1.2, "held": false, "got": held_ms}
+	var fr := NetSession.flight_point(fl, L, t0 + 1.5, held_ms + 300, sp_r)
+	var off_r := INF if fr.is_empty() else ((fr[0] as Vector2) - pts[90]).length()
+	ok("let go, by its spot's clock (1.2 s, 0.3 s on: at 1.5 s in, %.4f px)" % off_r, off_r < 1.0)
+	# THE RIDE BEFORE AND THE SPIN-DOWN AFTER (`shape`: it leaves 1 s in and
+	# arrives 2 s in): at a clock 10 s behind, riding it goes with world 0 and
+	# spinning down with world 1, wholly
+	var fl2 := fl.duplicate()
+	fl2.dep_s = 1.0
+	fl2.arr_s = 2.0
+	var ms_at := func(s0: float) -> int: return int(fl.got) + roundi((t0 + s0 - float(fl.said)) * 1000.0)
+	var rid := NetSession.flight_point(fl2, L, t0 + 0.5 - 10.0, ms_at.call(0.5))
+	var spn := NetSession.flight_point(fl2, L, t0 + 2.5 - 10.0, ms_at.call(2.5))
+	var off_rid := INF
+	var off_spn := INF
+	if not rid.is_empty() and not spn.is_empty():
+		off_rid = ((rid[0] as Vector2) - (pts[30] + L.bodies[0].pos(t0 + 0.5 - 10.0) - L.bodies[0].pos(t0 + 0.5))).length()
+		off_spn = ((spn[0] as Vector2) - (pts[150] + L.bodies[1].pos(t0 + 2.5 - 10.0) - L.bodies[1].pos(t0 + 2.5))).length()
+	ok("a clock 10 s behind: riding round to leave it goes with world 0 (%.4f px), spinning down with world 1 (%.4f px)" % [off_rid, off_spn],
+		off_rid < 0.01 and off_spn < 0.01)
 	var at_start := NetSession.flight_point(fl, L, t0 - 10.0, int(fl.got) + roundi((t0 - float(fl.said)) * 1000.0))
 	var at_end := NetSession.flight_point(fl, L, t0 + dur - 10.0, int(fl.got) + roundi((t0 + dur - float(fl.said)) * 1000.0))
 	var off0 := INF
@@ -1287,9 +1316,36 @@ func _late_join_test() -> void:
 	Run.hellbender_ticks = int(kept_hb[2])
 	Run.custodian_seen = 0
 
+	# TWO FLIGHTS UNDER WAY AS A SHIP JOINS (PROTOCOL 17): each was said once,
+	# to the peers there then; the host tells a late joiner the guest's it keeps
+	# and its own, the sender's clock run on (the code review, Nov 5: a late
+	# joiner never heard a flight already under way)
+	var lj_pts := PackedVector2Array([Vector2(0, 0), Vector2(50, 0), Vector2(100, 0)])
+	var lj_lit := PackedByteArray([0, 1, 0])
+	var eid0 := early.local_id()
+	early.report_flight(12, 777001, 0, 1, 500.0, 10.0, lj_pts, lj_lit, 500.0, PackedFloat64Array([-9.0, 2.0, 18.0]))
+	host.report_flight(12, 777002, 1, 0, 600.0, 10.0, lj_pts, lj_lit, 600.0)
+	var kept0 := await _wait_until(func() -> bool: return host.flights.has(eid0), 3.0)
+	ok("the host keeps a guest's flight under way", kept0)
+
 	var late := _make_peer("late")
 	late.join_party(code, "Jon", &"", DirectTransport.new())
 	var dived := await _wait_until(func() -> bool: return late.state == NetSession.State.DIVING, 5.0)
+	var told_fl := await _wait_until(func() -> bool: return late.flights.has(eid0) and late.flights.has(1), 3.0)
+	ok("a ship joining while two fly is told both flights, the guest's and the host's", told_fl)
+	if told_fl:
+		var lg: Dictionary = late.flights[eid0]
+		var lh: Dictionary = late.flights[1]
+		ok("whole, as said (from 0 to 1 at 500, its ride 2 s and its arrival 18 s in; the host's from 1 to 0 at 600)",
+			(lg.pts as PackedVector2Array) == lj_pts and (lg.burns as PackedByteArray) == lj_lit and int(lg.from) == 0 and int(lg.to) == 1
+			and float(lg.t0) == 500.0 and absf(float(lg.dep_s) - 2.0) < 1e-9 and absf(float(lg.arr_s) - 18.0) < 1e-9
+			and int(lh.from) == 1 and int(lh.to) == 0 and float(lh.t0) == 600.0)
+		ok("the sender's clock run on to when it was told (%.3f, %.3f)" % [float(lg.said), float(lh.said)],
+			float(lg.said) >= 500.0 and float(lg.said) < 520.0 and float(lh.said) >= 600.0 and float(lh.said) < 620.0)
+	early.report_flight_off(12)
+	host.report_flight_off(12)
+	var lj_gone := await _wait_until(func() -> bool: return not late.flights.has(eid0) and not late.flights.has(1), 3.0)
+	ok("and let go of, both gone on the late ship", lj_gone)
 	ok("a ship joining after launch is put in the dive", dived)
 	check("on the host's seed", late.dive_seed, host.dive_seed)
 	check("and the host's unlocks", str(late.dive_unlocked), str(host.dive_unlocked))
