@@ -223,6 +223,15 @@ func _run() -> void:
 		_twin_cases()
 	if _wants("phase"):
 		_phase_cases()
+	# (the paths' cases one after the other, each path's in its own order: made
+	# path by path for each line-up, a shard of 2 or 4 took every DIRECT case or
+	# every CURVED one, and the shards' sums and the bend's comparison lost a
+	# path each)
+	if _paths.size() > 1:
+		var by_path: Array = []
+		for p0 in _paths:
+			by_path.append_array(_cases.filter(func(c: Dictionary) -> bool: return StringName(c.path) == p0))
+		_cases = by_path
 	print("solvetest: %d cases" % _cases.size())
 	# every case, on the main thread (this shard's: the others' are null)
 	var n_mine := 0

@@ -1218,6 +1218,8 @@ func _step_rail(dt: float, t: float, k: Dictionary) -> float:
 	var wt: float = float(rail.dir) * float(rail.speed) / rt
 	var wv: float = float(rail.w0) + (wt - float(rail.w0)) * e
 	rail.ang = float(rail.ang) + wv * dt
+	if rail.has("spin"):
+		wv = _spin_down(t, wt)
 	var c := center(body, t)
 	var cv := center_vel(body, t)
 	var sg := 1.0 if wv >= 0.0 else -1.0
@@ -1335,9 +1337,27 @@ func start_rail(body: int, rel: Vector2, rv: Variant, t: float, acc0 := Vector2.
 		if on_k > 1.0 and absf(rel.length() - rt) < ON_RING_PX and absf(rvv2.dot(rel / r0)) < ON_RING_V * on_k and rvv2.length() > spd:
 			rail.w0 = hh / (r0 * r0)
 			rail.u = 0.0
-			rail.ease = SPIN_S
+			rail.spin = {"t0": t, "a0": atan2(rel.y, rel.x), "w1": hh / (r0 * r0)}
 			return
 		_plan_insert(rel, rv as Vector2, rt, dir * spd / rt, b, acc0, sb)
+
+
+## THE SPIN-DOWN after a fast flight's arrival (`start_rail`), at t: the ring's
+## angle from the arrival, as the arrival tail draws it (`_tail`), the
+## rate eased from the arrival's to the ring's own wt by smoothstep over SPIN_S;
+## then it is the ring's. Sets rail.ang and rail.u; returns the rate.
+func _spin_down(t: float, wt: float) -> float:
+	var sd: Dictionary = rail.spin
+	var tau := maxf(t - float(sd.t0), 0.0)
+	var x := clampf(tau / SPIN_S, 0.0, 1.0)
+	var w1 := float(sd.w1)
+	rail.ang = float(sd.a0) + wt * tau + (w1 - wt) * SPIN_S * (x - x * x * x + 0.5 * x * x * x * x)
+	var wv := wt + (w1 - wt) * (1.0 - x * x * (3.0 - 2.0 * x))
+	rail.u = 1.0 if x >= 1.0 else minf(x, 0.999)
+	rail.w0 = wv
+	if x >= 1.0:
+		rail.erase("spin")
+	return wv
 
 
 ## A ship this close to a ring (px) and its speed (px/s) is on it: no insertion.
@@ -4389,10 +4409,19 @@ func _tail(pl: FlightPlan) -> FlightPlan:
 		pl.tail_lit = false
 		var w := dr * spd / rti
 		var a0 := atan2(arel.y, arel.x)
+		# (a fast flight arrives faster than the ring goes and spins down onto
+		# it over SPIN_S, `start_rail`: that much further round, w_arr - w times
+		# the integral of 1 - smoothstep)
+		var w_arr := dr * rv.length() / rti
+		var spun := pl.pace > 1.0 and absf(w_arr) > absf(w) + 1e-9
 		for k3 in 121:
 			var tk3 := TAIL_S * float(k3) / 120.0
 			var ck3 := center(i, t2 + tk3)
-			pl.tail.append(ck3 + Vector3(cos(a0 + w * tk3) * rti, 0.0, sin(a0 + w * tk3) * rti))
+			var ak := a0 + w * tk3
+			if spun:
+				var x := clampf(tk3 / SPIN_S, 0.0, 1.0)
+				ak += (w_arr - w) * SPIN_S * (x - x * x * x + 0.5 * x * x * x * x)
+			pl.tail.append(ck3 + Vector3(cos(ak) * rti, 0.0, sin(ak) * rti))
 		return pl
 	var ins := insert_plan(arel, rv, rti, dr * spd / rti, null if i < 0 else L.bodies[i], aend, i)
 	pl.tail_k = float(ins.get("kmax", 0.0))
@@ -4736,10 +4765,11 @@ func _land(t: float) -> void:
 		plan = null
 		if not inserting():
 			var w: float = float(rail.dir) * float(rail.speed) / float(rail.rt)
-			# (spinning down onto it: at the rate it arrived at)
-			if float(rail.get("u", 1.0)) < 1.0:
-				w = float(rail.w0)
-			rail.ang = float(rail.ang) + w * (t - te)
+			# (spinning down onto it, from the arrival: `_spin_down`)
+			if rail.has("spin"):
+				w = _spin_down(t, w)
+			else:
+				rail.ang = float(rail.ang) + w * (t - te)
 			var a: float = rail.ang
 			var rt: float = rail.rt
 			f.p = _flat(c0) + Vector2(cos(a), sin(a)) * rt

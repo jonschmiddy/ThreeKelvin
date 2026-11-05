@@ -1319,6 +1319,13 @@ func _aligned(ux: float, uz: float) -> float:
 	var reach := _reach()
 	if dang > reach:
 		a = _dang + dr * (reach if dang - reach < TAU - dang else 0.0)
+		dang = fposmod(dr * (a - _dang), TAU)
+	# (a fast flight's ride spins up first: it leaves no nearer than the spin
+	# takes it, (w + w0) spin / 2 on; a point nearer, as leaving at once was,
+	# is that point)
+	var near := (absf(_dw) + absf(_dw0)) * _spin * 0.5
+	if _spin > 0.0 and dang < near:
+		a = _dang + dr * near
 	return a
 
 

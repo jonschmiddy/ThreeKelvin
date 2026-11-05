@@ -935,7 +935,8 @@ func _flight_holds(path: StringName) -> void:
 		if b.index != at and SystemLayout.is_place(b.index) and b.kind != &"belt":
 			to = b.index
 			break
-	if not _ok("a %s flight's hold: your ship on a ring and a place to fly to (on %d, to %d)" % [path, at, to], to >= 0 and m.flight.can_fly()):
+	# (else the sun's close orbit, as `_preview_holds` takes)
+	if not _ok("a %s flight's hold: your ship on a ring and a place to fly to (on %d, to %d)" % [path, at, to], to != at and m.flight.can_fly()):
 		return
 	var was: StringName = SF.path_k
 	SF.path_k = path
