@@ -17,6 +17,10 @@ render_mode unshaded, blend_disabled;
 uniform float u_ext = 1.3;
 uniform int u_pass = 0;
 uniform float u_isEll = 0.0;
+// A BALL'S YOUNG GAS (`ChartRadiant.ball_kind`, Nov 5): its kind (1 a blue compact
+// dwarf, 3 a merger's remnant), how much young gas 0..1, ... ; and its ball radius (gu)
+uniform vec4 u_ballK = vec4(0.0);
+uniform float u_ballR = 0.3;
 // pass 2 (the knot map): each texel the nearest knot in reach, (index + 1) / 255
 uniform int u_nkn = 0;
 uniform vec4 u_kn[64];
@@ -65,6 +69,58 @@ vec4 knotMap(vec2 p) {
 		}
 	}
 	return vec4(float(bi + 1) / 255.0, 0.0, 0.0, 1.0);
+}
+
+// A merger's tidal stream on the plane: how far p is from it in its own widths (the
+// arc `ChartRadiant.stream_at` walks: out from the body's edge, curling round one
+// side), and how far along it p lies (0..1), or a big number off its span
+vec2 streamD(vec2 p, float re) {
+	float th = atan(p.y, p.x);
+	float f = mod(th - 0.3 + R_TAU, R_TAU) / 2.4;
+	if (f > 1.15) {
+		return vec2(1e3, f);
+	}
+	float r = length(p);
+	float rs = re * (0.95 + 1.2 * f);
+	float w = re * (0.16 + 0.14 * f);
+	return vec2((r - rs) / w, f);
+}
+
+// A BALL'S GAS AND YOUNG LIGHT (Nov 5, direction A in this style): only a ball that
+// makes stars has any -- a blue compact dwarf all through its small body, lumpy, its
+// gas heaped in clumps that the place pass lights and billows as a spiral's arms; a
+// merger's remnant along its tidal stream. (old light, young light, H-alpha, dust) in
+// pass 0; (gas, billow height, blocker, core swirl) in pass 1, as a disc's
+vec4 ballDisc(vec2 p) {
+	float re = u_ballR;
+	float r = length(p);
+	float body = 0.0;
+	if (int(u_ballK.x + 0.5) == 1) {
+		body = exp(-pow(r / (0.8 * re), 2.0));
+	} else if (int(u_ballK.x + 0.5) == 3) {
+		vec2 sd = streamD(p, re);
+		float along = smoothstep(-0.05, 0.12, sd.y) * (1.0 - smoothstep(0.7, 1.12, sd.y));
+		body = exp(-sd.x * sd.x * 1.4) * along * 0.8;
+	}
+	if (body < 1e-3) {
+		return vec4(0.0);
+	}
+	// the gas in clumps, at the spirals' arms' scale; filaments of dust through it
+	float cl = kitFbm3(vec3(p * 30.0, 2.3 + u_seed), 4);
+	float clumps = 0.2 + 1.7 * pow(clamp(0.5 + 0.95 * cl, 0.0, 1.0), 2.4);
+	float fil = kitRidge3(vec3(p * 22.0, 5.1 + u_seed), 3);
+	if (u_pass == 0) {
+		float young = body * clumps * 0.85;
+		float ha = body * smoothstep(0.56, 0.84, cl * 0.5 + 0.5) * 0.8;
+		float tau = body * (0.15 + 0.5 * smoothstep(0.55, 0.85, fil)) * 0.6;
+		return vec4(0.0, young, ha, min(tau, 0.95));
+	}
+	float G = u_gas * body * (0.4 + 0.6 * clumps) * 1.4;
+	float rg = smoothstep(0.15, 0.85, 0.5 + 0.55 * kitFbm2(p * 9.0 + vec2(3.7 + u_seed, 1.3), 4));
+	// (lower than an arm's: a dwarf is small, and a billow as tall as an arm's stood
+	// half its radius over it)
+	float Hc = (0.006 + 0.04 * pow(rg, 1.7)) * smoothstep(0.06, 0.45, G);
+	return vec4(G, Hc, Hc * smoothstep(0.25, 0.7, G), 0.0);
 }
 
 vec4 discAt(vec2 UVp) {
@@ -121,6 +177,10 @@ vec4 discAt(vec2 UVp) {
 		}
 		float tau = u_laneStr * (0.95 * laneD + diffuse) + nuc * min(u_laneStr, 1.0);
 		tau = min(tau, 0.95);
+		if (u_isEll > 0.5) {
+			vec4 bd = ballDisc(p);
+			return vec4(S_old, bd.g, bd.b, bd.a);
+		}
 		return vec4(S_old, S_young, ha, tau);
 	} else {
 		float G = u_gas * youngR * (0.25 * armB + 0.75 * young * (0.4 + 0.6 * clumps)) * 1.6 * brk;
@@ -130,6 +190,9 @@ vec4 discAt(vec2 UVp) {
 		float ls = log(max(r, 1e-3));
 		float sw = 0.5 + 0.5 * sin(3.0 * th - ls * 5.0 + 1.5 * kitFbm2(p * 24.0, 3));
 		float core = sw * sw * sw * smoothstep(0.006, 0.02, r) * (1.0 - smoothstep(0.045, 0.12, r)) * (spiral ? 1.0 : 0.35);
+		if (u_isEll > 0.5) {
+			return vec4(ballDisc(p).rgb, core);
+		}
 		return vec4(G, Hc, blocker, core);
 	}
 	return vec4(0.0);
