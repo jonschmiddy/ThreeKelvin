@@ -2597,7 +2597,7 @@ func _draw_ship(t: float) -> void:
 ## is laid out (a harness, a screen still opening) the window can be empty, and
 ## a negative Rect2's has_point and encloses log errors (the Nov 5 gate).
 func _win_in(m: float) -> Rect2:
-	var r := view.window.abs().grow(-m)
+	var r: Rect2 = (view.window as Rect2).abs().grow(-m)
 	r.size = r.size.max(Vector2.ZERO)
 	return r
 
