@@ -1695,6 +1695,8 @@ func _lab_mode(tree: SceneTree) -> void:
 			press = true
 		elif s2.begins_with("labfilm=") or s2.begins_with("labrelic="):
 			var mat := &"survey_film" if s2.begins_with("labfilm=") else &"relic"
+			# (exactly that many: the run's own seeded relic goes too)
+			Run.spend_material(mat, Run.material(mat))
 			for i0 in int(s2.split("=")[1]):
 				# (a part out of a full hold to make room, the shot's own stock)
 				var crate := MaterialData.of(MaterialTable.by_id(mat))
@@ -1727,6 +1729,21 @@ func _lab_mode(tree: SceneTree) -> void:
 		if press:
 			aug._commit()
 		aug.hold_phase(0.35)
+	if tab == &"recipes":
+		# `labitem=relic` puts that on the bench, `labrecipe=i` picks its
+		# recipe i, `labdo` presses MAKE
+		var rec := zoom.recipes
+		for a3 in OS.get_cmdline_user_args():
+			var s3 := a3 as String
+			if s3.begins_with("labitem="):
+				rec.pick_item(StringName(s3.substr(8)))
+		for a4 in OS.get_cmdline_user_args():
+			var s4 := a4 as String
+			if s4.begins_with("labrecipe="):
+				rec.pick_recipe(int(s4.substr(10)))
+		if press:
+			rec._commit()
+		rec.hold_phase(0.35)
 	for i in 6:
 		await RenderingServer.frame_post_draw
 	var bad := zoom.check()

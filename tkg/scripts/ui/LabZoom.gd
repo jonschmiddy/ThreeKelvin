@@ -97,12 +97,9 @@ var tab: StringName = &"research"
 var view: Control
 var board: LabBoard
 var augment: LabAugment
-var recipes: Control
+var recipes: LabRecipes
 var tab_buttons := {}
 var leave_button: LabPlate
-## One per recipe: {r, make, y} built once, and what it says now ({on, can,
-## name, held, cost, what}), read on each refresh.
-var recipe_rows: Array = []
 
 var _at := 0.0
 var _goal := 0.0
@@ -217,13 +214,11 @@ func _build_view() -> void:
 	augment.lit_changed.connect(func() -> void: _light_dirty = true)
 	view.add_child(augment)
 	_pages[&"augment"] = augment
-	recipes = Control.new()
-	recipes.size = Vector2(W, H)
-	recipes.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	recipes.draw.connect(_draw_recipes)
+	recipes = LabRecipes.new()
+	recipes.maker = _make
+	recipes.lit_changed.connect(func() -> void: _light_dirty = true)
 	view.add_child(recipes)
 	_pages[&"recipes"] = recipes
-	_build_recipes()
 	_header = Control.new()
 	_header.size = Vector2(W, H)
 	_header.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -278,42 +273,16 @@ func _build_view() -> void:
 	board.lit_changed.connect(func() -> void: _light_dirty = true)
 
 
-## THE RECIPES, AS ROWS ON THE GLASS: what the Lab makes from what you carry,
-## each with what you hold of it and the one key that makes it. DEVELOP FILM
-## and READ FOR DATA turn a survey film and a relic into DATA; RELIC ANALYSIS
-## reads a relic out as a part. In the AUGMENT page's hand: a ring with the
-## recipe's icon (lit when you can make it), its name, the bill with the
-## mockup's drawn arrow, and MAKE where AUGMENT stands. The rows are drawn;
-## only MAKE is a node, built once and restyled (`refresh`).
-const RECIPE_ORDER := [&"develop", &"read", &"analysis"]
-const RECIPE_Y := 82
-const RECIPE_PITCH := 72
-
-
-func _build_recipes() -> void:
-	var order: Array = []
-	for id in RECIPE_ORDER:
-		for r in DB.RECIPES:
-			if StringName(r.id) == id:
-				order.append(r)
-	for r in DB.RECIPES:
-		if not order.has(r):
-			order.append(r)
-	for i in order.size():
-		var r: Dictionary = order[i]
-		var y := RECIPE_Y + i * RECIPE_PITCH
-		var make := LabPlate.new("MAKE", &"commit")
-		make.size = Vector2(150, 19)
-		make.position = Vector2(W - T - 14 - make.size.x, y - 2)
-		make.pressed.connect(_make.bind(r))
-		recipes.add_child(make)
-		recipe_rows.append({r = r, make = make, y = y, on = false, can = false,
-			name = str(r.name).to_upper(), held = "", cost = "", what = str(r.text).to_upper()})
-
-
-func _make(r: Dictionary) -> void:
+## THE RECIPES (`LabRecipes`, AUGMENT's layout since Jon's Nov 5 review) are
+## made through the station, which logs the line and plays the bench's sound.
+## Returns the line, "" when it did not happen.
+func _make(r: Dictionary) -> String:
 	if station != null and station.has_method(&"_fabricate"):
-		station.call(&"_fabricate", r)
+		return str(station.call(&"_fabricate", r))
+	var line := Fabricator.make(Run.node_at(), r)
+	if not line.is_empty():
+		Audio.play(&"fabricate", 0.04)
+	return line
 
 
 func _on_buy(b: int) -> void:
@@ -349,26 +318,7 @@ func refresh() -> void:
 	_data_was = Run.data
 	board.refresh()
 	augment.refresh()
-	var n: MapGen.MapNode = Run.node_at()
-	for row: Dictionary in recipe_rows:
-		var r: Dictionary = row.r
-		var on := n != null and Fabricator.available(n).has(r)
-		row.on = on
-		(row.make as LabPlate).visible = on
-		if not on:
-			continue
-		var can := Fabricator.can_make(n, r)
-		row.can = can
-		var bits: PackedStringArray = []
-		for id in (r.mats as Dictionary).keys():
-			var held := Run.material(id)
-			var word := str(MaterialTable.by_id(id).get("name", id)).to_upper()
-			bits.append("%d %s%s" % [held, word, "" if held == 1 or word.ends_with("S") else "S"])
-		row.held = "YOU HAVE " + ", ".join(bits)
-		row.cost = Fabricator.cost_line(n, r).to_upper()
-		(row.make as LabPlate).disabled = not can
-		(row.make as LabPlate).queue_redraw()
-	recipes.queue_redraw()
+	recipes.refresh()
 	_header.queue_redraw()
 
 
@@ -428,7 +378,10 @@ func _paint_light(ci: CanvasItem) -> void:
 		augment.paint_live(ci)
 		augment.light = false
 	elif tab == &"recipes":
-		_paint_recipes(ci, true)
+		recipes.light = true
+		recipes.paint(ci)
+		recipes.paint_live(ci)
+		recipes.light = false
 
 
 ## The header's boxes, as the mockup's box test has them.
@@ -462,97 +415,6 @@ func _mark(ci: CanvasItem, rows: Array, x: int, y: int, c: Color) -> void:
 				ci.draw_rect(Rect2(x + i, y + j, 1, 1), c)
 			elif row[i] == "+":
 				ci.draw_rect(Rect2(x + i, y + j, 1, 1), c2)
-
-
-func _draw_recipes() -> void:
-	_recipe_leaves.clear()
-	_paint_recipes(recipes, false)
-	_light_dirty = true
-
-
-## Every box on RECIPES, as the box test has them.
-var _recipe_leaves: Array = []
-const NR_RECIPE := 20
-
-
-## The rows, as they look or (`light`) only what glows: the ring of a recipe
-## you can make, its name, and MAKE's word.
-func _paint_recipes(ci: CanvasItem, light: bool) -> void:
-	var ink := LabBoard.mixc(LabBoard.BG, _tint, 0.22)
-	var first := true
-	for row: Dictionary in recipe_rows:
-		if not row.on:
-			continue
-		var y: int = row.y
-		if not first and not light:
-			ci.draw_rect(Rect2(GLASS.position.x + 10, y - 18, GLASS.size.x - 20, 1), ink)
-		first = false
-		var can: bool = row.can
-		var cy := y + 12
-		var icon: String = row.name
-		if can:
-			if not light:
-				_disc(ci, 60, cy, NR_RECIPE, LabBoard.mixc(LabBoard.BG, LabBoard.NEXT, 0.2))
-			_ring(ci, 60, cy, NR_RECIPE, LabBoard.NEXT)
-			_icon(ci, icon, 60, cy, LabBoard.HOT)
-		elif not light:
-			_disc(ci, 60, cy, NR_RECIPE, LabBoard.mixc(LabBoard.BG, LabBoard.NEXT, 0.07))
-			_ring(ci, 60, cy, NR_RECIPE, LabBoard.mixc(LabBoard.NEXT, LabBoard.BG, 0.6))
-			_icon(ci, icon, 60, cy, LabBoard.mixc(LabBoard.HOT, LabBoard.BG, 0.5))
-		_rleaf(light, "ring " + icon, Rect2i(60 - NR_RECIPE - 4, cy - NR_RECIPE - 4, 2 * NR_RECIPE + 9, 2 * NR_RECIPE + 9))
-		var tx := 96
-		var nw := LabBoard.tw(row.name, 16)
-		if can or not light:
-			LabBoard.text_at(ci, tx, y, row.name, LabBoard.HOT if can else LabBoard.mixc(LabBoard.HOT, LabBoard.BG, 0.3), 16)
-		_rleaf(light, row.name, Rect2i(tx, y - 1, nw, 12))
-		if not light:
-			LabBoard.text_at(ci, tx + nw + 10, y + 4, row.held, UITheme.CHILL)
-			LabBoard.text_at(ci, tx, y + 18, row.cost, UITheme.ICE if can else LabBoard.LATER_T)
-			LabBoard.text_at(ci, tx, y + 30, row.what, UITheme.CHILL)
-		_rleaf(light, row.held, Rect2i(tx + nw + 10, y + 3, LabBoard.tw(row.held), 7))
-		_rleaf(light, row.cost, Rect2i(tx, y + 17, LabBoard.tw(row.cost), 7))
-		_rleaf(light, str(row.what).left(24), Rect2i(tx, y + 29, LabBoard.tw(row.what), 7))
-		var mk := row.make as LabPlate
-		_rleaf(light, "[MAKE %s]" % row.name, Rect2i(mk.position, mk.size))
-		if light and not mk.disabled:
-			var r := Rect2i(mk.position, mk.size)
-			LabBoard.text_at(ci, r.position.x + floori((r.size.x - LabBoard.tw(mk.label)) / 2.0),
-				r.position.y + floori((r.size.y - 5) / 2.0), mk.label, LabPlate.HOT)
-
-
-func _rleaf(light: bool, name: String, r: Rect2i) -> void:
-	if not light:
-		_recipe_leaves.append([name, r])
-
-
-func _ring(ci: CanvasItem, cx: int, cy: int, r: int, c: Color) -> void:
-	for p in LabBoard.ring_pts(r):
-		ci.draw_rect(Rect2(cx + int(p.x), cy + int(p.y), 1, 1), c)
-
-
-func _disc(ci: CanvasItem, cx: int, cy: int, r: int, c: Color) -> void:
-	var lim := (r - 0.5) * (r - 0.5) + 0.25
-	for dy in range(-r, r + 1):
-		var half := -1
-		for dx in range(0, r + 1):
-			if dx * dx + dy * dy < lim:
-				half = dx
-		if half >= 0:
-			ci.draw_rect(Rect2(cx - half, cy + dy, half * 2 + 1, 1), c)
-
-
-func _icon(ci: CanvasItem, name: String, cx: int, cy: int, c: Color) -> void:
-	var rows: Array = LabIcons.ICONS.get(name, [])
-	var n := rows.size()
-	var c2 := LabBoard.mixc(c, LabBoard.BG, 0.5)
-	for j in n:
-		var row: String = rows[j]
-		for i in row.length():
-			if row[i] == "#":
-				ci.draw_rect(Rect2(cx - n / 2 + i, cy - n / 2 + j, 1, 1), c)
-			elif row[i] == "+":
-				ci.draw_rect(Rect2(cx - n / 2 + i, cy - n / 2 + j, 1, 1), c2)
-
 
 
 # ------------------------------------------------------------------ the move
@@ -594,6 +456,8 @@ func open(id: StringName = &"research") -> void:
 	lab.hush_screen(true)
 	augment.tint = _tint
 	augment.done = {}
+	recipes.tint = _tint
+	recipes.reset()
 	board.bought = Vector2i(-1, -1)
 	board.pick = Vector2i(-1, -1)
 	show_tab(id)
@@ -981,7 +845,7 @@ func leaves() -> Array:
 	elif tab == &"augment":
 		out.append_array(augment.leaves)
 	elif tab == &"recipes":
-		out.append_array(_recipe_leaves)
+		out.append_array(recipes.leaves)
 	return out
 
 
@@ -999,6 +863,9 @@ func check() -> PackedStringArray:
 		return bad
 	if tab == &"augment":
 		bad.append_array(augment.check(header_leaves()))
+		return bad
+	if tab == &"recipes":
+		bad.append_array(recipes.check(header_leaves()))
 		return bad
 	var all := leaves()
 	for l: Array in all:
