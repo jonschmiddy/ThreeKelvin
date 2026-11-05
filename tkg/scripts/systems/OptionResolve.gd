@@ -18,7 +18,7 @@ extends RefCounted
 ##   odds       the odds line the choice showed
 ##   res        the outcome's own dictionary (its `text`, its payload)
 ##   bill       `EncounterDrawer.bill_rows` from before the choice to after `pay`
-##   got        the THINGS it moved, which the bill's four numbers cannot say:
+##   got        the THINGS it moved, which the bill's five numbers cannot say:
 ##              a part or a material put on the system's pile (REWARD), a hull
 ##              frame found, a place marked, an item taken out of your hold
 ##              (`_things_after`)

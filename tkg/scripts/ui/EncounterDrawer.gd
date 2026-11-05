@@ -495,13 +495,18 @@ static func option_card(i: int, opt: Dictionary, on_open: Callable,
 
 
 
-## WHAT MOVED, as four fixed rows.
+## WHAT MOVED, as fixed rows: four, and DATA a fifth since science (Phase 12).
 ##
 ## FIXED, and printing an em dash for the two that did not. The alternative is
 ## listing only what changed, which makes the rail a different height and a
 ## different shape on every outcome -- so CREDITS is on the second line
 ## sometimes and the fourth line other times, and you have to read it to find
-## out. Four rows always means you learn where each number lives once.
+## out. Fixed rows always means you learn where each number lives once.
+##
+## DATA IS LAST, after the four it joined, so the line a taken option keeps
+## (`moved_line`, saved as `MapNode.said`) reads as it always did for every
+## result that paid no DATA: "FUEL -16", never reordered round it. A reading
+## that did reads "FUEL -2 · DATA +5". DATA going up is good, like credits.
 ##
 ## HEAT RISING IS NOT A LOSS, and gets `FLARE` rather than the red the other
 ## three use when they fall: nothing was taken off the ship. It is a bill that
@@ -510,6 +515,7 @@ static func option_card(i: int, opt: Dictionary, on_open: Callable,
 const BILL: Array[Array] = [
 	["CREDITS", "credits", 1], ["HEAT", "heat", -1],
 	["HULL", "hp", 1], ["FUEL", "fuel", 1],
+	["DATA", "data", 1],
 ]
 
 static func bill_rows(before: Dictionary, after: Dictionary) -> Array:
