@@ -4,20 +4,31 @@ extends Control
 ## Stations are paid campfires. Every service costs credits, and credits are the same
 ## currency you would rather spend on modules — that tension IS the difficulty.
 ##
-## A station is now four things rather than two: a shelf, a service desk, a
-## BUYER for what is in your hold, and — where the place is developed enough to
-## have a laboratory — a fabricator. Every price on the screen comes from
-## `Market` or `Fabricator`, and none of them is stored: a price is a function of
-## this place and that part, so there is nothing here to drift, to save, or to
-## come back from a save as a discount.
+## A station is five decks: a shelf, a service desk, a BUYER for what is in
+## your hold, a hiring board, and a laboratory, where DATA buys the run's
+## routines (`Science`) and the bench turns film and relics into DATA or a part
+## (`Fabricator`). Every price on the screen comes from `Market`, `Fabricator`
+## or `Science`, and none of them is stored: a price is a function of this place
+## and that part, so there is nothing here to drift, to save, or to come back
+## from a save as a discount.
 
 var _header: RichTextLabel
 ## The door. Held as a member because whether it opens is run state -- see
 ## `_refresh_undock` -- and the rail that builds it is built once.
 var _undock: Button
 var _bench: VBoxContainer
-## The recipes' holder on the lab's screen, which the power-on's scan opens.
+## The entry's holder on the lab's screen, which the power-on's scan opens.
 var _bench_clip: Control
+## THE LAB'S SCREEN IN THE ROOM: the whole glass is a key into it, and the
+## entry's three keys open it on a page; DATA and what each page holds beside
+## them. Built once and restyled (`_refresh_bench`).
+var _glass_press: Button
+var _entry_data: Label
+var _entry_keys := {}
+var _entry_notes := {}
+## THE CAMERA INTO THE LAB'S SCREEN (Jon's 1C, Nov 4): the Lab's pages at the
+## board's own size, the glass filling the window (`LabZoom`).
+var _lab_zoom: LabZoom
 ## The Exchange: your hold, and the two places you can carry things to.
 var _hold_grid: HoldGrid
 var _sell_desk: TradeCounter
@@ -135,7 +146,7 @@ const TABS := [
 	[&"work", "WORK"],
 	[&"stock", "STOCK"],
 	[&"hold", "HOLD"],
-	[&"bench", "FABRICATOR"],
+	[&"bench", "LABORATORY"],
 ]
 
 ## THE SAME FIVE ERRANDS, DRAWN AS A BUILDING RATHER THAN A TAB STRIP.
@@ -160,7 +171,7 @@ const DECKS := [
 	[&"services", "SHIPYARD", "REPAIRS"],
 	[&"hold", "EXCHANGE", "YOUR HOLD"],
 	[&"work", "HIRING BOARD", "WORK POSTED"],
-	[&"bench", "LABORATORY", "FABRICATOR"],
+	[&"bench", "LABORATORY", "RESEARCH"],
 ]
 ## How wide the section is. Wide enough for "HIRING BOARD" plus a count at
 ## FS_SMALL without either wrapping, which is what sets it -- not a round number.
@@ -390,6 +401,12 @@ func _build() -> void:
 		var page: Control = _pages[id]
 		page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		body.add_child(page)
+	# THE LAB'S SCREEN, ZOOMED: over everything, the HUD too, once pressed
+	_lab_zoom = LabZoom.new()
+	_lab_zoom.lab = _lab
+	_lab_zoom.entry = _bench
+	_lab_zoom.station = self
+	add_child(_lab_zoom)
 	# `-- station tab=stock` opens on a named page. Four of the five are only
 	# reachable by clicking, and a screenshot cannot click.
 	for a in OS.get_cmdline_user_args():
@@ -991,14 +1008,16 @@ func _on_counter(item: HoldItem) -> void:
 
 
 func _page_bench() -> Control:
-	# --- ONE OF JON'S FIVE LABS, WITH THE RECIPES ON ITS SCREEN.
+	# --- ONE OF JON'S FIVE LABS, WITH ITS ENTRY ON ITS SCREEN.
 	#
-	# The deck was a room drawn in code with the fabricator standing in it as a
-	# fume hood, the recipes behind its glass. It is a painted lab per development
-	# level now (`LabScene`), and the recipes stand where the prototype drew them:
-	# on the lab's own big screen, in `LabScene.win_rect`. Three layers: the lab,
-	# lit and running; the rows, in a holder the power-on's scan opens; and what
-	# the big screen does, over the rows.
+	# A painted lab per development level (`LabScene`). Its big screen is too
+	# small for the Lab itself (Jon, Nov 4: "is the screen really big enough for
+	# a player to see all of it?"), so in the room it holds a short entry --
+	# RESEARCH, AUGMENT, RECIPES and your DATA -- and pressing it moves the
+	# camera into the glass until it fills the window (`LabZoom`), where the
+	# pages are at their own size. Three layers: the lab, lit and running; the
+	# entry, in a holder the power-on's scan opens; and what the big screen
+	# does, over the entry.
 	var stack := Control.new()
 	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1012,15 +1031,76 @@ func _page_bench() -> Control:
 	_bench_clip.clip_contents = true
 	_bench_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stack.add_child(_bench_clip)
+	# THE WHOLE GLASS IS A KEY: pressed anywhere, the camera goes into it.
+	# Faintly lit under the pointer, as the rail's floors are.
+	_glass_press = Button.new()
+	_glass_press.focus_mode = Control.FOCUS_NONE
+	_glass_press.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	for st in ["normal", "pressed", "disabled", "focus"]:
+		_glass_press.add_theme_stylebox_override(st, UITheme.empty())
+	_glass_press.add_theme_stylebox_override("hover",
+		UITheme.flat(Color(0.85, 0.90, 1.0, 0.05), Color(0, 0, 0, 0), 0, 0, 0))
+	_glass_press.pressed.connect(Audio.click)
+	_glass_press.pressed.connect(func() -> void: _open_lab(&"research"))
+	_bench_clip.add_child(_glass_press)
 	_bench = VBoxContainer.new()
 	_bench.add_theme_constant_override("separation", 4)
+	_bench.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bench_clip.add_child(_bench)
 	_lab.rows_clip = _bench_clip
+	_build_entry()
 
 	var glass := _lab.fx_layer()
 	glass.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	stack.add_child(glass)
 	return Widgets.panel_with(Widgets.pad(stack))
+
+
+## THE ENTRY ON THE LAB'S SCREEN, built once: the Lab's name and your DATA,
+## then a key for each of its pages with what the page holds beside it. Sized
+## for the smallest glass, the settlement's 206 x 110.
+const ENTRY_KEY_W := 84
+
+
+func _build_entry() -> void:
+	var head := HBoxContainer.new()
+	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var title := UITheme.body("THE LAB", UITheme.CHILL, UITheme.FS_SMALL)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	head.add_child(title)
+	_entry_data = UITheme.body("DATA 0", UITheme.TRACTOR, UITheme.FS_SMALL)
+	_entry_data.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	head.add_child(_entry_data)
+	_bench.add_child(head)
+	for row in LabZoom.TABS:
+		var id: StringName = row[0]
+		var line := HBoxContainer.new()
+		line.add_theme_constant_override("separation", 8)
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var key := Widgets.button(String(row[1]), _open_lab.bind(id))
+		key.focus_mode = Control.FOCUS_NONE
+		key.custom_minimum_size = Vector2(ENTRY_KEY_W, 0)
+		line.add_child(key)
+		var note := UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+		note.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		note.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		line.add_child(note)
+		_bench.add_child(line)
+		_entry_keys[id] = key
+		_entry_notes[id] = note
+
+
+## Into the Lab's screen, on page `id`.
+func _open_lab(id: StringName) -> void:
+	if _lab_zoom == null or _lab_zoom.is_open():
+		return
+	_lab_zoom.open(id)
+
+
+## The camera into the lab's screen. Public for the harnesses.
+func lab_zoom() -> LabZoom:
+	return _lab_zoom
 
 
 ## Show one page. The lit stylebox is the HUD's, so an active tab looks the same
@@ -2039,59 +2119,34 @@ func _refresh_hold(n: MapGen.MapNode) -> void:
 		Run.cargo_used(), Run.cargo_slots(), "" if stray == 0 else ", %d on the pad" % stray,
 		"This market has bought a lot today, so it pays less than it did."
 		if n.trades >= 3 else "These are this market's usual prices."]
-## The recipes this place can support, on the lab's screen.
-
-
+## The entry on the lab's screen, restyled, and the Lab's pages behind it.
 func _refresh_bench(n: MapGen.MapNode) -> void:
 	_dress_room(_lab, n)
 	_lab.load_level()
-	# ON THE LAB'S SCREEN. The holder is the screen's window; the rows keep its
-	# full height whatever the scan has opened, so they do not re-flow as it goes.
+	# ON THE LAB'S SCREEN. The holder is the screen's window; the entry keeps its
+	# full height whatever the scan has opened, so it does not re-flow as it goes.
 	var win := _lab.win_rect()
 	_bench_clip.position = win.position
 	_bench_clip.size = win.size
+	_glass_press.position = Vector2.ZERO
+	_glass_press.size = win.size
 	_bench.position = Vector2.ZERO
 	_bench.custom_minimum_size = Vector2(win.size.x, 0.0)
 	_bench.size = Vector2(win.size.x, win.size.y)
-	Widgets.clear(_bench)
-	var recipes := Fabricator.available(n)
 	# EVERY STATION HAS ITS LABORATORY (Jon, Nov 3: all five decks at every
-	# station, at every level). The tab used to go below a city, where no recipe
-	# was open; RELIC ANALYSIS is dev 0 now, priced by the level.
+	# station, at every level).
 	_enable_tab(&"bench", true)
-	# A ROW, NOT A BUTTON THE WIDTH OF THE PAGE.
-	#
-	# Each recipe was one wide button whose whole label was "NAME · COST", so the
-	# thing you get was a tooltip and the page was two grey bars. What a recipe
-	# makes is the reason to stand here; it goes on the row in the ink the rest of
-	# the station prices things in.
-	for r in recipes:
-		var can := Fabricator.can_make(n, r)
-		var row := VBoxContainer.new()
-		row.add_theme_constant_override("separation", 2)
-
-		# TWO LINES, NAME AND MAKE THEN THE COST: the settlement's screen is two
-		# hundred pixels wide, and one line of all three did not fit it.
-		var head := HBoxContainer.new()
-		head.add_theme_constant_override("separation", 8)
-		var name_l := UITheme.body(str(r.name).to_upper(),
-			UITheme.ICE if can else UITheme.COLD, UITheme.FS_BODY)
-		name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		head.add_child(name_l)
-		var b := _commit_button("MAKE", _fabricate.bind(r))
-		b.disabled = not can
-		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		head.add_child(b)
-		row.add_child(head)
-		# THE COST IN AMBER WHEN YOU CAN PAY IT, grey when you cannot -- the same
-		# read as a BUY button greying out, said in the one place the answer is.
-		row.add_child(UITheme.body(Fabricator.cost_line(n, r).to_upper(),
-			UITheme.EMBER if can else UITheme.QUOTE, UITheme.FS_SMALL))
-
-		var what := UITheme.body(str(r.text), UITheme.COLD, UITheme.FS_SMALL)
-		what.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		row.add_child(what)
-		_bench.add_child(Widgets.panel_with(Widgets.pad(row, 8, 6)))
+	# RESTYLED, NEVER REBUILT: a key made again on every `resources_changed`
+	# could not be clicked.
+	_entry_data.text = "DATA %d" % Run.data
+	var running := Run.owned_routines().size()
+	(_entry_notes[&"research"] as Label).text = ("%d OF 9 RUNNING" % running) if Run.board.size() >= 9 else ""
+	(_entry_notes[&"augment"] as Label).text = "ADD TO A PART"
+	(_entry_notes[&"recipes"] as Label).text = "FILM %d · RELICS %d" % [Run.material(&"survey_film"), Run.material(&"relic")]
+	if _deck_note.has(&"bench"):
+		(_deck_note[&"bench"] as Label).text = "DATA %d" % Run.data
+	if _lab_zoom != null:
+		_lab_zoom.refresh()
 
 ## A drone was pointed at and clicked: do what it sells, and tell the yard it
 ## happened, so the drone can dip to the hull and do the work.
