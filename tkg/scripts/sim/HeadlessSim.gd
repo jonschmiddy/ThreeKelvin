@@ -35,6 +35,15 @@ var pin_unlocked: Array[StringName] = []
 ## `start_new_run`, whose `clear_science` would take them away, and the hull
 ## filled to the new max. Empty grants nothing, the run the game flies.
 var grant_routines: Array[StringName] = []
+## `-- sim science=on|off|ignore` (Phase 12, plan §6), `on` by default.
+##   - `off`, THE CONTROL CELL: `Run.science_off` and a pilot with science off.
+##     No science event is rolled, the barren world override never fires, the
+##     Lab sells nothing science; the run is the run main flies, draw for draw.
+##   - `ignore`: the world keeps its readings, and the pilot takes every
+##     reading's credits line and never spends DATA. Against `off` it says what
+##     the readings cost in credit slots; against `on`, what the routines and
+##     augments bought.
+var science_mode: StringName = &"on"
 var pilot: RandomNumberGenerator = RandomNumberGenerator.new()
 ## Every decision this file used to make itself. Extracted so the party bot can
 ## fly the same model the gate measures — see scripts/sim/Policy.gd.
@@ -241,6 +250,45 @@ var _trace_path := ""
 var _trace_file: FileAccess = null
 var _tr: Dictionary = {}
 
+## SCIENCE, one entry a run (`_report_science`). Read-only like `_tally`: every
+## number comes off `Run`, `policy.sci` or `Sig.resources_changed`, and nothing
+## here draws from any stream.
+##   `sc_data`: DATA a run took in, from anywhere (`_data_in`, off the signal);
+##   `sc_careful`, `sc_risky`, `sc_film`, `sc_relic`: where it came from;
+##   `sc_unspent`: DATA held when the run ended; `sc_met`, `sc_data_line`,
+##   `sc_credits_line`: readings come to and the line taken; `sc_fuel`: fuel
+##   burned on readings; `sc_refused`: readings the fuel gate shut;
+##   `sc_steps`: board steps owned at the end; `sc_names`: routine id to runs
+##   that ended owning it; `sc_aug`, `sc_aug_data`, `sc_aug_credits`,
+##   `sc_affixes`: AUGMENT; `sc_credits_in`: credits gained a run (all
+##   sources); `sc_event_credits`: what event lines paid net, fights' loot left
+##   out; `sc_trim`, `sc_no_trim`: [dry-tank strands, runs] with FUEL TRIM
+##   owned at the end and without.
+var sc_data: Array = []
+var sc_careful: Array = []
+var sc_risky: Array = []
+var sc_film: Array = []
+var sc_relic: Array = []
+var sc_unspent: Array = []
+var sc_met: Array = []
+var sc_data_line: Array = []
+var sc_credits_line: Array = []
+var sc_fuel: Array = []
+var sc_refused: Array = []
+var sc_steps: Array = []
+var sc_names: Dictionary = {}
+var sc_aug: Array = []
+var sc_aug_data: Array = []
+var sc_aug_credits: Array = []
+var sc_affixes: Dictionary = {}
+var sc_credits_in: Array = []
+var sc_event_credits: Array = []
+var sc_trim: Array = [0, 0]
+var sc_no_trim: Array = [0, 0]
+var _data_in := 0
+var _data_seen := 0
+var _event_credits := 0
+
 ## Entry point. Reads `runs=N` from the user args after `--`, plays that many
 ## complete runs, and prints the report. The caller quits the tree.
 func run_sim() -> void:
@@ -289,6 +337,13 @@ func run_sim() -> void:
 			_enemy_dmg = float(arg.split("=")[1])
 		elif arg.begins_with("routines="):
 			grant_routines = parse_routines(arg.split("=")[1])
+		elif arg.begins_with("science="):
+			var mode := parse_science(arg.split("=")[1])
+			if mode == &"":
+				print("science: no mode called %s (on, off or ignore); flying on" % arg.split("=")[1])
+			else:
+				science_mode = mode
+	apply_science()
 	policy.dash = "dash" in OS.get_cmdline_user_args()
 	policy.beeline = policy.dash or "beeline" in OS.get_cmdline_user_args()
 	if policy.beeline:
@@ -321,6 +376,10 @@ func run_sim() -> void:
 		print("STURDY lens: hull and heat restored on every arrival.")
 	if policy.human:
 		print("HUMAN policy: heads for the core, scores the chart, buys fuel for the way in.")
+	if science_mode == &"off":
+		print("SCIENCE off: no science events, no DATA, no board (the control cell).")
+	elif science_mode == &"ignore":
+		print("SCIENCE ignore: the world rolls its readings; the pilot sells every one and spends no DATA.")
 	print("fuel: start %d · tank %d" % [Run.start_fuel(), Run.fuel_cap()])
 	if _trace_path != "":
 		_trace_file = FileAccess.open(_trace_path, FileAccess.WRITE)
@@ -344,7 +403,8 @@ func run_sim() -> void:
 		if d > 0:
 			credits_in += d
 		_credits_seen = Run.credits)
-	hot = "hot" in OS.get_cmdline_user_args()
+	listen_data()
+	hot ="hot" in OS.get_cmdline_user_args()
 	# The control cell. Comparing `nohellbender` against the default on one build
 	# is what says what the roamer costs, without keeping a second checkout.
 	Run.hellbender_off = "nohellbender" in OS.get_cmdline_user_args()
@@ -461,6 +521,37 @@ func _reset() -> void:
 	credits_in = 0
 	core_fights = 0
 	core_wins = 0
+	for a in [sc_data, sc_careful, sc_risky, sc_film, sc_relic, sc_unspent, sc_met,
+			sc_data_line, sc_credits_line, sc_fuel, sc_refused, sc_steps, sc_aug,
+			sc_aug_data, sc_aug_credits, sc_credits_in, sc_event_credits]:
+		(a as Array).clear()
+	sc_names = {}
+	sc_affixes = {}
+	sc_trim = [0, 0]
+	sc_no_trim = [0, 0]
+
+## DATA IN, the way `credits_in` is counted: every change to `Run.data` goes
+## through `add_data`, which emits `resources_changed`. Its own connection, so
+## a harness playing `_play_one` without `run_sim` can count it too.
+func listen_data() -> void:
+	Sig.resources_changed.connect(func() -> void:
+		var dd := Run.data - _data_seen
+		if dd > 0:
+			_data_in += dd
+		_data_seen = Run.data)
+
+## `science=`'s mode: &"on", &"off" or &"ignore", or &"" for anything else.
+static func parse_science(arg: String) -> StringName:
+	var s := arg.strip_edges().to_lower()
+	return StringName(s) if s in ["on", "off", "ignore"] else &""
+
+## The mode, set where it acts: the world (`Run.science_off`, read by the
+## science pass, the barren override, the board's services and the bench) and
+## the pilot (`policy.science`). Set before the first run and left there, as
+## `hellbender_off` is: `start_new_run` does not touch it.
+func apply_science() -> void:
+	Run.science_off = science_mode == &"off"
+	policy.science = science_mode == &"on"
 
 ## `routines=`'s ids: `all` is the twelve, branch by branch, weakest first; an
 ## id the catalogue does not have is named and left out.
@@ -500,6 +591,11 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		Run.unlocked_manufacturers = pin_unlocked.duplicate()
 	grant_at_launch()
 	_credits_seen = Run.credits
+	_data_seen = Run.data
+	_data_in = 0
+	_event_credits = 0
+	var credits_in0 := credits_in
+	var dry0 := stranded_no_fuel
 	var started_as := Run.hull.manufacturer
 	# The simulated pilot's own generator: one per run, seeded from the run's
 	# master seed. The model is a player, not a place — so its choices replay
@@ -628,8 +724,13 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		# `policy.fight_cb` is wired to `_fight` below.
 		if not node.cleared:
 			var of := Run.fuel
+			var oc := Run.credits
+			var ot := credits_taken
 			var got := policy.take_options(node)
 			_tr.event_fuel += Run.fuel - of
+			# What the lines themselves paid, the loot of any fight they
+			# opened left out (`_loot` counts that into `credits_taken`).
+			_event_credits += (Run.credits - oc) - (credits_taken - ot)
 			if int(got.taken) + int(got.declined) + int(got.forgone) + int(got.fights) > 0:
 				sites_with_options += 1
 			opts_taken += int(got.taken)
@@ -716,6 +817,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 	total_kills += Run.kills
 	total_danger += Run.node_at().danger
 	end_fuel_total += Run.fuel
+	_science_run(credits_in - credits_in0, stranded_no_fuel > dry0)
 	if _trace_file != null:
 		_tr.end = Run.fuel
 		_tr.jumps = Run.jumps
@@ -729,6 +831,10 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		_tr.refuel_stops = policy.refuel_stops
 		_tr.rescues = policy.rescues
 		_tr.kills = Run.kills
+		_tr.data_in = _data_in
+		_tr.data_end = Run.data
+		_tr.steps = Array(Run.board_owned)
+		_tr.sci = policy.sci.duplicate(true)
 		_trace_file.store_line(JSON.stringify(_tr))
 		_trace_file.flush()
 	if Run.won:
@@ -1070,6 +1176,7 @@ func _report() -> void:
 		option_fights, float(option_fights) / maxi(1, runs), creatures,
 		100.0 * creatures / maxi(1, option_fights), str(option_creatures)])
 	_report_economy()
+	_report_science()
 	_report_deep()
 	_report_kinds()
 	_report_manufacturers()
@@ -1118,8 +1225,12 @@ func _study_arrival() -> Dictionary:
 			continue
 		mods += 1
 		rar += int(m.rarity)
-	var spent := int(policy.spend.fuel) + int(policy.spend.repair) + int(policy.spend.options)
+	# (AUGMENT is spending too, science's; without it `earned` read short by
+	# what the Lab took)
+	var spent := int(policy.spend.fuel) + int(policy.spend.repair) + int(policy.spend.options) \
+		+ int(policy.spend.get("augment", 0))
 	return {
+		steps = _steps(),
 		jumps = Run.jumps,
 		fights = fights_n - _fights_at_start,
 		kills = Run.kills,
@@ -1137,6 +1248,112 @@ func _study_arrival() -> Dictionary:
 		weight = int(Run.hull.weight),
 		kind = GalaxyGen.type_name(Run.galaxy_kind),
 	}
+
+
+## Board steps owned (the board's, never `routines=`'s grant).
+static func _steps() -> int:
+	var k := 0
+	for v in Run.board_owned:
+		k += clampi(v, 0, 3)
+	return k
+
+
+## One run's science, into the per-run arrays. `credits_gained` is the run's
+## share of `credits_in`; `dry` whether it ended a dry-tank strand.
+func _science_run(credits_gained: int, dry: bool) -> void:
+	var s: Dictionary = policy.sci
+	sc_data.append(_data_in)
+	sc_careful.append(int(s.data_careful))
+	sc_risky.append(int(s.data_risky))
+	sc_film.append(int(s.data_film))
+	sc_relic.append(int(s.data_relic))
+	sc_unspent.append(Run.data)
+	sc_met.append(int(s.met))
+	sc_data_line.append(int(s.careful) + int(s.risky))
+	sc_credits_line.append(int(s.credits))
+	sc_fuel.append(int(s.fuel))
+	sc_refused.append(int(s.refused))
+	sc_steps.append(_steps())
+	for b in DB.BRANCHES.size():
+		for k in clampi(Run.board_owned[b], 0, 3):
+			if b * 3 + k >= Run.board.size():
+				break
+			var id: StringName = Run.board[b * 3 + k]
+			sc_names[id] = int(sc_names.get(id, 0)) + 1
+	sc_aug.append(int(s.augments))
+	sc_aug_data.append(int(s.aug_data))
+	sc_aug_credits.append(int(s.aug_credits))
+	for a in s.affixes:
+		sc_affixes[a] = int(sc_affixes.get(a, 0)) + int(s.affixes[a])
+	sc_credits_in.append(credits_gained)
+	sc_event_credits.append(_event_credits)
+	var cell: Array = sc_trim if Run.has_routine(&"fuel_trim") else sc_no_trim
+	cell[1] += 1
+	if dry:
+		cell[0] += 1
+
+
+static func _mean(a: Array) -> float:
+	var t := 0.0
+	for v in a:
+		t += float(v)
+	return t / float(maxi(1, a.size()))
+
+
+## The value `q` of the way up `a` (0.1 is p10), nearest rank.
+static func _pct(a: Array, q: float) -> float:
+	if a.is_empty():
+		return 0.0
+	var s := a.duplicate()
+	s.sort()
+	return float(s[clampi(int(ceil(q * s.size())) - 1, 0, s.size() - 1)])
+
+
+## SCIENCE (plan §6). Every line starts `science:`, `routines:`, `augments:`,
+## `strand:` or `credits:`, so the gate can grep them; with science off one
+## `science: off` line stands for the rest, and `credits:` still prints, since
+## credits a run against `off` is one of the study's bands.
+func _report_science() -> void:
+	print("---")
+	for line in science_lines():
+		print(line)
+
+
+## `_report_science`'s lines, for the report and for `-- sheet=ScienceSimTest`.
+func science_lines() -> PackedStringArray:
+	var out := PackedStringArray()
+	var r := float(maxi(1, sc_data.size()))
+	if science_mode == &"off":
+		out.append("science: off (the control cell: no science events, no DATA, no board)")
+	else:
+		if science_mode == &"ignore":
+			out.append("science: ignore (the pilot sells every reading and spends no DATA)")
+		out.append("science: DATA %.1f a run (median %.0f, p10 %.0f, p90 %.0f) · careful %.1f risky %.1f · film %.1f · relic %.1f · unspent at end %.1f"
+			% [_mean(sc_data), _median(sc_data), _pct(sc_data, 0.1), _pct(sc_data, 0.9),
+				_mean(sc_careful), _mean(sc_risky), _mean(sc_film), _mean(sc_relic),
+				_mean(sc_unspent)])
+		var met := _mean(sc_met) * r
+		out.append("science: %.2f science events met a run · DATA line %.0f%% · credits line %.0f%% · fuel on science %.1f a run · fuel gate shut %.2f a run"
+			% [_mean(sc_met), 100.0 * _mean(sc_data_line) * r / maxf(1.0, met),
+				100.0 * _mean(sc_credits_line) * r / maxf(1.0, met), _mean(sc_fuel),
+				_mean(sc_refused)])
+		var won: Array = []
+		var lost: Array = []
+		for row in st_rows:
+			(won if bool(row.get("won", false)) else lost).append(int(row.get("steps", 0)))
+		var names := {}
+		for id in sc_names:
+			names[String(DB.routines[id].name)] = sc_names[id]
+		out.append("routines: %.1f a run at end, median at the core %.1f won / %.1f lost (%d / %d) · by name %s"
+			% [_mean(sc_steps), _median(won), _median(lost), won.size(), lost.size(), str(names)])
+		out.append("augments: %.2f a run · DATA %.1f · credits %.1f · affixes %s"
+			% [_mean(sc_aug), _mean(sc_aug_data), _mean(sc_aug_credits), str(sc_affixes)])
+		out.append("strand: with FUEL TRIM %d/%d (%.1f%%) · without %d/%d (%.1f%%)"
+			% [sc_trim[0], sc_trim[1], 100.0 * sc_trim[0] / maxi(1, sc_trim[1]),
+				sc_no_trim[0], sc_no_trim[1], 100.0 * sc_no_trim[0] / maxi(1, sc_no_trim[1])])
+	out.append("credits: gained %.0f a run (median %.0f) · from events %.0f a run (net, fights' loot left out)"
+		% [_mean(sc_credits_in), _median(sc_credits_in), _mean(sc_event_credits)])
+	return out
 
 
 ## THE COMBAT STUDY'S SCALING (`enemyhp=`, `enemydmg=`): every template in
