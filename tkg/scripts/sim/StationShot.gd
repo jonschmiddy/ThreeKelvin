@@ -804,7 +804,9 @@ func run(tree: SceneTree) -> void:
 	# last tab is short; only this says by how much.
 	if Router.hud != null and Router.hud._row != null:
 		var need: float = Router.hud._row.get_combined_minimum_size().x
-		var have: float = Router.hud.size.x
+		# against the row's clip (932 at a 960 window), not the panel's 944:
+		# past the clip the row's end is cut off, padding or no
+		var have: float = (Router.hud._row.get_parent() as Control).size.x
 		print("  hud row wants %.0f of %.0f%s" % [need, have,
 			"  <-- CLIPPED by %.0f" % (need - have) if need > have else ""])
 

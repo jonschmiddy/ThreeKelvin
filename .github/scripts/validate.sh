@@ -1800,6 +1800,43 @@ if run_godot optiontest 180 --headless --path "$PROJECT" -- optiontest; then
 fi
 }
 
+unit_routinetest() {
+step "Every routine does what it says, where it happens"
+# Science (Phase 12): the twelve routines the Lab writes into the flight
+# computer, each read where the thing it changes happens (RunState's stat
+# functions, Combat, `take_hull_damage`), every check from a USED run: the six
+# stat routines before and after, the pips by exactly 1, WARM START and FIRST
+# LOOK on the first turn only, COLD OPEN, PATCH CREW, BLACK BOX holding the ship
+# at 1 once (and on the fight screen), all twelve through a hull swap, a new
+# run's and a load's order, and the sim's `routines=`.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+		run_godot routinetest 180 --headless --path "$PROJECT" -- sheet=RoutineTest; then
+	if grep -qE '^routinetest: PASS' "$LOG_DIR/routinetest.log"; then
+		ok "each routine changes its one thing and nothing else"
+	else
+		bad "a routine changed the wrong thing, or nothing"
+		grep -E '^  FAIL|^routinetest' "$LOG_DIR/routinetest.log" | head -n 12 | sed 's/^/        /'
+	fi
+fi
+}
+
+unit_augmenttest() {
+step "The Lab's services: augment, strip, the board and the bench"
+# Science (Phase 12), with no screen in the way: AUGMENT's offer is three of
+# the eight, the same three each look and drawn from no stream; one affix a
+# part, ever, and its price, quote and cards do not move; STRIP; the board's
+# steps at 6, 10, 15 and DATA never below 0; the bench's DEVELOP FILM and READ
+# FOR DATA; and with `Run.science_off` every service refuses.
+if run_godot augmenttest 120 --headless --path "$PROJECT" -- sheet=AugmentTest; then
+	if grep -qE '^augmenttest: PASS' "$LOG_DIR/augmenttest.log"; then
+		ok "the Lab augments, strips, sells steps and reads film by its rules"
+	else
+		bad "a Lab service broke its rule"
+		grep -E '^  FAIL|^augmenttest' "$LOG_DIR/augmenttest.log" | head -n 12 | sed 's/^/        /'
+	fi
+fi
+}
+
 unit_foetagtest() {
 step "An event's fight brings what its text set up"
 # Jon, Oct 17: an event's fight may bring a creature, but only when the text
@@ -2166,6 +2203,26 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 fi
 }
 
+unit_sciencesimtest() {
+step "The sim pilot flies science"
+# Science (Phase 12): `-- sim science=on|off|ignore` and Policy's choices. The
+# flag sets the world and the pilot; with science off no science event rolls
+# and DATA stays 0; a reading takes the risky line on a full tank, the careful
+# one when hurt, the buyer's credits behind the fuel gate; at a dock film is
+# read before it is sold, the cheapest step is bought, AUGMENT keeps the
+# reserve and goes on once a visit; and five seeded runs of the sim's own loop
+# earn DATA, buy a step and print the report's `science:` lines.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+		run_godot sciencesimtest 300 --headless --path "$PROJECT" -- sheet=ScienceSimTest; then
+	if grep -qE '^sciencesimtest: PASS' "$LOG_DIR/sciencesimtest.log"; then
+		ok "the sim pilot reads, buys and augments by its rules"
+	else
+		bad "the sim pilot broke a science rule"
+		grep -E '^  FAIL|^  on seed|^sciencesimtest' "$LOG_DIR/sciencesimtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+fi
+}
+
 unit_sim() {
 step "Simulator plays $SIM_RUNS complete runs"
 # The repo's actual regression test. It has already caught an infinite draw
@@ -2186,7 +2243,17 @@ step "Simulator plays $SIM_RUNS complete runs"
 if run_godot sim $((90 + SIM_RUNS * 9)) --headless --path "$PROJECT" -- sim "runs=$SIM_RUNS"; then
 	if grep -qE '^runs [0-9]+ · wins' "$LOG_DIR/sim.log"; then
 		ok "simulator reached its report"
-		grep -E '^runs |^avg |^looted |^death causes|^stranded' "$LOG_DIR/sim.log" | sed 's/^/        /'
+		grep -E '^runs |^avg |^looted |^death causes|^stranded|^science:|^routines:' "$LOG_DIR/sim.log" | sed 's/^/        /'
+		# SCIENCE (Phase 12). The gate's sim flies science on (the default), so
+		# the report has its `science: DATA` line, and forty runs that earned
+		# no DATA at all mean the readings, the bench or the pilot stopped
+		# paying. (`science=ignore` prints DATA 0.0 on purpose; the gate never
+		# runs it.)
+		if ! grep -qE '^science: DATA ' "$LOG_DIR/sim.log"; then
+			bad "the sim's report has no science: DATA line (science on is the default)"
+		elif grep -qE '^science: DATA 0\.0 a run' "$LOG_DIR/sim.log"; then
+			bad "the sim earned no DATA in $SIM_RUNS runs with science on"
+		fi
 	else
 		bad "simulator never printed its report — a run is stuck or the boot path changed"
 		tail -n 20 "$LOG_DIR/sim.log" | sed 's/^/        /'
@@ -2524,6 +2591,7 @@ gate_weight() {
 		solvetest_*) echo 105 ;; twindrawtest) echo 106 ;; twinsitetest) echo 140 ;;
 		flighttest_4) echo 108 ;; flighttest_*) echo 40 ;; pairlocaltest) echo 20 ;;
 		stationdecktest) echo 77 ;; badgetest) echo 30 ;;
+		sciencesimtest) echo 40 ;; routinetest) echo 30 ;;
 		*) echo 15 ;;
 	esac
 }
