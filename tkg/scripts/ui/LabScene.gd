@@ -210,6 +210,15 @@ func fx_layer() -> Control:
 	return _glass
 
 
+## THE PRESS HUSHES THE SCREEN (`LabZoom`, the camera into the glass): from
+## the press until the camera is back, nothing new starts on the big screen,
+## and the bad signal's snow and slips stop at once (they flicker frame to frame
+## anyway); a sweep, a sag or a rim light already running plays out, fading
+## with the entry. `on` false lets it all run again.
+func hush_screen(on: bool) -> void:
+	_glass.hush(on)
+
+
 ## Where the recipe rows stand: inside the picture's screen, where the
 ## prototype drew them.
 func win_rect() -> Rect2:
@@ -905,6 +914,18 @@ class _Glass extends Control:
 	var _jolt := 0.0
 	var _sag := 1.0
 	var _flash := Vector3.ZERO
+	## `LabScene.hush_screen`: nothing new starts; what ran at the hush, if it
+	## was not the bad signal, plays out (`_kept`).
+	var hushed := false
+	var _kept := false
+
+	func hush(on: bool) -> void:
+		if on == hushed:
+			return
+		hushed = on
+		_kept = on and visible and _snow.is_empty() and _bands.is_empty()
+		if on and not _kept:
+			visible = false
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -974,12 +995,18 @@ class _Glass extends Control:
 		if fx != "sweep" and tb >= r1 + 0.5:
 			match fx:
 				"signal":
-					active = _signal(t, s) or active
+					if not hushed:
+						active = _signal(t, s) or active
 				"failing":
 					# THE DEN'S SCREEN FAILS WITH ITS BULB first, then loses its signal.
-					active = (_sag_with_bulb(t, s) or _signal(t, s)) or active
+					active = (_sag_with_bulb(t, s) or (not hushed and _signal(t, s))) or active
 				"rim":
 					active = _rim_light(t, s) or active
+		if hushed:
+			if not _kept:
+				active = false
+			elif not active:
+				_kept = false
 		visible = active
 		if not active:
 			return

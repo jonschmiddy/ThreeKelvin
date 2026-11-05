@@ -31,6 +31,17 @@ extends Control
 ## warp grows with the camera, so the first frame of the move is the room as
 ## it stood and the last is the mockup's frame.
 ##
+## ONLY THE FRAME IS WARPED. Warping the whole room, the films of Nov 5 had the
+## walls smear, a plant come three times and the lamp go flat, and the room
+## stood as a hard square on the dark (Jon: "the square is kinda weird and
+## harsh").
+## The glass and its bezel `T` round it are drawn through the warp; the walls
+## round them are the true picture at one scale behind the frame (`_walls`,
+## `WALLS`), nothing in them repeated or stretched; and as the chrome goes the
+## room's own edge falls away into the dark (`_veil`), so no rectangle is
+## carried out of the window. At the move's last frame the frame fills the
+## window, so what lands is the mockup's frame, pixel for pixel.
+##
 ## THE CAPITAL'S BENCH stands in front of its screen's lower edge, its flasks
 ## over the glass. The view looks over them: the bezel's lower edge is its
 ## upper profile turned over (the mockup's rule), dithered in as the camera
@@ -79,6 +90,31 @@ const CHART := preload("res://shaders/lab_chart.gdshader")
 const FIN_ADD := preload("res://shaders/lab_finish_add.gdshader")
 const FIN_MUL := preload("res://shaders/lab_finish_mul.gdshader")
 const BLOOM := preload("res://shaders/lab_bloom.gdshader")
+const VEIL := preload("res://shaders/lab_veil.gdshader")
+const LIGHT := preload("res://shaders/lab_light.gdshader")
+## THE ROOM'S EDGE, LET GO: how far in from the picture's edge (picture px) the
+## room falls away into the dark as the chrome goes (`_veil`). Its lights stay
+## lit where the edge does not cut them (`_veil_lights`): the capital's top
+## tube, 14 px in, went dull under it while its pool stayed bright. Hidden once
+## the camera has landed, the frame over the whole window (as are the walls).
+const FEATHER := 48.0
+## THE WALLS HELD TO A SIDE OF THE FRAME: where something in the room stands
+## over the screen's frame (the settlement's middle lamp over its top, the
+## capital's and the den's flasks over their bottom), the walls keep the
+## frame's own pixel size and stay put against the frame's side that carries
+## it (x, y: 0 the left or top, 1 the right or bottom; the side its run is
+## repeated away from, `FIT`), so the thing is whole across the frame's edge
+## and the frame grows over the walls on the other sides. Elsewhere the walls
+## grow faster than the frame, centred, and pass out of view (the screen sits
+## in the wall).
+const WALLS := {"settlement": Vector2(1, 0), "capital": Vector2(1, 1), "unclaimed": Vector2(1, 1)}
+## What the lit room's material carries, copied to the walls' own each frame:
+## its light, and the camera's glass and bench (`_set_light`), so a flask the
+## frame's edge crosses fades as one piece, its foot in the walls with its tip
+## in the frame (the capital's feet stood solid under ghosted tips).
+const LIGHT_PARAMS := [&"light_map", &"own_map", &"nlights", &"band_h", &"scale", &"lcol", &"lw",
+	&"own_w", &"amb", &"ambc", &"levels", &"soft", &"fullbright",
+	&"hole", &"hole_box", &"hole_masked", &"hole_k", &"mirror", &"mirror_box", &"mirror_sum"]
 
 ## `stationshot labzoom=k`: the move held at this much of its camera (0..1).
 static var hold_at := -1.0
@@ -86,6 +122,11 @@ static var hold_at := -1.0
 var lab: LabScene
 ## The room's entry on the glass: it goes before the camera moves.
 var entry: Control
+## The rest of what is on the room's glass, which goes with the entry: the
+## press's glow under the pointer, and what the big screen does over the
+## entry (`LabScene.fx_layer`; a bad-signal snow line flashed on the bare glass
+## as the camera set off).
+var on_glass: Array = []
 ## The station screen: the recipes are made through it (`_fabricate`).
 var station: Node
 var tab: StringName = &"research"
@@ -130,6 +171,17 @@ var _bloom_wait := 0
 ## The capital's bench, looked over: how far, and where (picture px).
 var _mirror := 0.0
 var _mirror_box := Rect2()
+## THE WALLS: the room round the screen, the true picture at one scale
+## (`_sw`, on screen at `_wo`), behind the screen's frame (`_rout`).
+var _walls: Control
+var _wall_life: Control
+var _wall_mat: ShaderMaterial
+var _veil: ColorRect
+var _sw := 1.0
+var _wo := Vector2.ZERO
+var _rout := Rect2()
+## The lab the veil's emitters were read for (`_veil_lights`).
+var _veil_level := ""
 
 
 func _init() -> void:
@@ -140,6 +192,24 @@ func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	# (after the lab has lit its room this frame)
 	process_priority = 10
+	_wall_mat = ShaderMaterial.new()
+	_wall_mat.shader = LIGHT
+	_walls = Control.new()
+	_walls.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_walls.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_walls.material = _wall_mat
+	_walls.draw.connect(_draw_walls)
+	add_child(_walls)
+	_wall_life = _WallLife.new()
+	_wall_life.zoom = self
+	add_child(_wall_life)
+	_veil = ColorRect.new()
+	_veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_veil.size = Vector2(W, H)
+	_veil.material = ShaderMaterial.new()
+	(_veil.material as ShaderMaterial).shader = VEIL
+	(_veil.material as ShaderMaterial).set_shader_parameter(&"field", RenderingServer.get_default_clear_color())
+	add_child(_veil)
 	_ground = ColorRect.new()
 	_ground.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_ground.material = ShaderMaterial.new()
@@ -551,6 +621,10 @@ func open(id: StringName = &"research") -> void:
 		(m.material as ShaderMaterial).set_shader_parameter(&"tint", Vector3(float(tn[0]), float(tn[1]), float(tn[2])))
 	_note = ""
 	_data_was = Run.data
+	_veil_lights()
+	# nothing new starts on the room's screen from the press on: the bad
+	# signal's snow line crossed the fading entry at half strength
+	lab.hush_screen(true)
 	augment.tint = _tint
 	augment.done = {}
 	board.bought = Vector2i(-1, -1)
@@ -593,6 +667,9 @@ func _process(delta: float) -> void:
 		# the lab's light moves under the frame; its life with it
 		_room.queue_redraw()
 		_life.queue_redraw()
+		if _walls.visible:
+			_walls.queue_redraw()
+			_wall_life.queue_redraw()
 	(_ground.material as ShaderMaterial).set_shader_parameter(&"phase", board.phase)
 	if _light_dirty and view.visible:
 		_light_dirty = false
@@ -642,8 +719,12 @@ func _apply() -> void:
 	var move_s := ZoomLadder.LAB_ZOOM_S
 	var in_s := ZoomLadder.UI_IN_S
 	var ui_k := clampf(_at / out_s, 0.0, 1.0)
-	if entry != null and is_instance_valid(entry):
-		entry.modulate.a = 1.0 - ui_k
+	# THE ENTRY GOES, AND ALL THAT IS ON THE GLASS WITH IT: the press's glow
+	# under the pointer (it lit the capital's glass from 39 to 52 and went out in
+	# one frame as the camera set off) and the screen's own snow and slips
+	for c0: CanvasItem in [entry] + on_glass:
+		if c0 != null and is_instance_valid(c0):
+			c0.modulate.a = 1.0 - ui_k
 	# THE STATION'S CHROME LEAVES WITH THE ENTRY, before the camera moves, and
 	# comes back only once it is back at rest: the HUD and the deck rail stood
 	# still at 1x while the room grew over them, cut mid-word by its edge
@@ -655,6 +736,20 @@ func _apply() -> void:
 	var moving := _at > out_s or hold_at >= 0.0
 	for c: CanvasItem in [_ground, _fin_add, _fin_mul, _room, _life]:
 		c.visible = moving
+	# (once the camera has landed the frame fills the window: the walls and the
+	# veil under it are hidden, not drawn for nothing under the board)
+	var landed := e >= 1.0
+	for c4: CanvasItem in [_walls, _wall_life]:
+		c4.visible = moving and not landed
+	# THE ROOM'S EDGE LETS GO WITH THE CHROME (Jon: "the square is kinda weird
+	# and harsh"): the picture's own rectangle falls away into the dark round
+	# it as the HUD and rail go, ahead of them (all gone by the beat's middle,
+	# while the deck's plate still frames the room), so no edge of it is ever
+	# bare on the dark, nor there for the camera to carry out of the window
+	var shown := _at > 0.0 or hold_at >= 0.0
+	_veil.visible = shown and not landed
+	(_veil.material as ShaderMaterial).set_shader_parameter(&"amount",
+		1.0 if moving else smoothstep(0.0, 1.0, minf(1.0, ui_k * 2.0)))
 	var vk := clampf((_at - out_s - move_s) / in_s, 0.0, 1.0) if hold_at < 0.0 else 0.0
 	view.visible = vk > 0.0
 	view.modulate.a = vk
@@ -663,25 +758,28 @@ func _apply() -> void:
 	# the glass gives way to the chart over the move's first quarter, dithered
 	# out (a fade showed the room's own glass, its inner border and the flasks'
 	# reflections, as a second rectangle going pale inside the bezel), and the
-	# capital's flasks go as the camera passes over them, gone before the
-	# bezel nears the window's edge (at 0.2 to 0.8 their tips still showed over
-	# it late in the move)
+	# capital's bench is looked over as the camera rises over it: the flasks
+	# fade whole, their tips in the frame and their feet in the walls under it
+	# (`LIGHT_PARAMS`; the tips alone went, over solid feet, the bench still in
+	# the window's foot)
 	var hole := clampf(u / 0.25, 0.0, 1.0)
-	var mirror := smoothstep(0.1, 0.6, u)
+	var mirror := smoothstep(0.6, 0.95, e)
 	if lab != null and is_instance_valid(lab) and not lab.lab.is_empty():
 		_set_light(hole if moving else 0.0, mirror if moving else 0.0)
 	# (the chart whole wherever the glass has gone: at part strength the
 	# station's own room, at its own size, showed through it)
 	for c2: ColorRect in [_ground, _fin_add, _fin_mul]:
 		(c2.material as ShaderMaterial).set_shader_parameter(&"amount", 1.0 if hole > 0.0 else 0.0)
-	if moving:
-		_place(e)
+	if shown and lab != null and is_instance_valid(lab) and not lab.lab.is_empty():
+		_place(e if moving else 0.0)
 	if _at <= 0.0 and _goal <= 0.0:
 		visible = false
 		if lab != null and is_instance_valid(lab):
 			_set_light(0.0, 0.0)
-		if entry != null and is_instance_valid(entry):
-			entry.modulate.a = 1.0
+			lab.hush_screen(false)
+		for c3: CanvasItem in [entry] + on_glass:
+			if c3 != null and is_instance_valid(c3):
+				c3.modulate.a = 1.0
 		_chrome(0.0)
 		closed.emit()
 	elif _at >= _goal and _goal > 0.0 and vk >= 1.0:
@@ -699,6 +797,32 @@ func _chrome(k: float) -> void:
 ## Lab with it: the HUD it hid comes back.
 func _exit_tree() -> void:
 	_chrome(0.0)
+	if lab != null and is_instance_valid(lab):
+		lab.hush_screen(false)
+
+
+## THE ROOM'S LIGHTS ARE NOT VEILED: which of the lab's emitters the veil leaves
+## lit (`lab_veil.gdshader`), each one the picture's edge does not cut, read
+## off the picture's outer 2 px once per lab.
+func _veil_lights() -> void:
+	if _level == _veil_level or lab._own.is_empty():
+		return
+	_veil_level = _level
+	var w := int(LabScene.PANEL.x)
+	var h := int(LabScene.PANEL.y)
+	var keep := PackedFloat32Array()
+	keep.resize(8)
+	keep.fill(1.0)
+	for y in h:
+		var xs: Array = range(w) if y < 2 or y >= h - 2 else [0, 1, w - 2, w - 1]
+		for x: int in xs:
+			var o := int(lab._own[(y * w + x) * 4]) - 1
+			if o >= 0 and o < 8:
+				keep[o] = 0.0
+	var vm := _veil.material as ShaderMaterial
+	vm.set_shader_parameter(&"own_map", lab._mat.get_shader_parameter(&"own_map"))
+	vm.set_shader_parameter(&"panel", LabScene.PANEL)
+	vm.set_shader_parameter(&"own_keep", keep)
 
 
 ## The lab's own light, told where the glass and the bench are.
@@ -769,12 +893,45 @@ func _place(e: float) -> void:
 		left = _axis(y0, y1, hz, _f.position.y, _f.end.y, int(fit[2]), ny),
 		right = _axis(y0, y1, hz, _f.position.y, _f.end.y, int(fit[3]), ny),
 		x0 = x0, x1 = x1, y0 = y0, y1 = y1,
+		# the frame: the glass and its bezel `T` round it, and nothing past
+		clip = Rect2(x0 - T, y0 - T, x1 - x0 + 2 * T, y1 - y0 + 2 * T),
 	}
+	# THE FRAME ON SCREEN, and THE WALLS ROUND IT, the true picture at one
+	# scale: the largest that keeps the room's own copy of the frame inside the
+	# frame drawn over it, centred on it. At the move's start that is the room as
+	# it stands; it grows faster than the frame's own pixels (the screen sits in
+	# the wall, and the wall nearer the camera passes out of view sooner), and at
+	# the end the frame fills the window and the walls are behind it.
+	_rout = _f.grow(T * _q)
+	var tz := float(T) / float(z)
+	var pout := Rect2(gx0 - tz, gy0 - tz, gw + 2.0 * tz, gh + 2.0 * tz)
+	if WALLS.has(_level):
+		# AT THE FRAME'S OWN PIXEL SIZE, held to the frame's side that carries
+		# what stands over it (`WALLS`)
+		var an: Vector2 = WALLS[_level]
+		_sw = s
+		var lo := _rout.position - pout.position * s
+		var hi := _rout.end - pout.end * s
+		_wo = Vector2(lerpf(lo.x, hi.x, an.x), lerpf(lo.y, hi.y, an.y))
+	else:
+		_sw = minf(_rout.size.x / pout.size.x, _rout.size.y / pout.size.y)
+		_wo = _rout.get_center() - pout.get_center() * _sw
+	if e <= 0.0:
+		# (at rest exactly where the room stands, not a rounding off it)
+		_sw = s0
+		_wo = xf.origin
+	var ws := LabScene.PANEL * _sw
+	var vm := _veil.material as ShaderMaterial
+	vm.set_shader_parameter(&"room", Vector4(_wo.x, _wo.y, _wo.x + ws.x, _wo.y + ws.y))
+	vm.set_shader_parameter(&"feather", FEATHER * _sw)
+	vm.set_shader_parameter(&"size", Vector2(W, H))
 	for c: ColorRect in [_ground, _fin_add, _fin_mul]:
 		c.position = _f.position.round()
 		c.size = (_f.end.round() - _f.position.round())
 	_room.queue_redraw()
 	_life.queue_redraw()
+	_walls.queue_redraw()
+	_wall_life.queue_redraw()
 
 
 ## ONE AXIS OF THE FRAME'S WARP, as segments [u0, u1, d0, flip] in zoomed px
@@ -848,7 +1005,28 @@ func _draw_room() -> void:
 		_piece(tex, xhi, rgt[i2], z)
 
 
-func _piece(tex: Texture2D, xs: Array, ys: Array, z: float) -> void:
+## A segment [u0, u1, d0, flip] cut to [lo, hi] (zoomed px), or [] if none of
+## it is in there.
+func _clip_seg(sg: Array, lo: float, hi: float) -> Array:
+	var u0: float = sg[0]
+	var u1: float = sg[1]
+	var c0 := maxf(u0, lo)
+	var c1 := minf(u1, hi)
+	if c1 <= c0:
+		return []
+	var d0: float = sg[2]
+	var flip: bool = sg[3]
+	if flip:
+		return [c0, c1, d0 + (u1 - c1) * _q, true]
+	return [c0, c1, d0 + (c0 - u0) * _q, false]
+
+
+func _piece(tex: Texture2D, xs0: Array, ys0: Array, z: float) -> void:
+	var cl: Rect2 = _maps.clip
+	var xs := _clip_seg(xs0, cl.position.x, cl.end.x)
+	var ys := _clip_seg(ys0, cl.position.y, cl.end.y)
+	if xs.is_empty() or ys.is_empty():
+		return
 	var q := _q
 	var ux0: float = xs[0]
 	var ux1: float = xs[1]
@@ -876,6 +1054,16 @@ func _piece(tex: Texture2D, xs: Array, ys: Array, z: float) -> void:
 		_room.draw_texture_rect_region(tex, Rect2(dx0, dy0, dx1 - dx0, dy1 - dy0), src)
 
 
+## THE WALLS: the whole lit picture at the walls' one scale. The frame is
+## drawn over it, so its own screen never shows.
+func _draw_walls() -> void:
+	if lab == null or lab._pic.texture == null:
+		return
+	for k in LIGHT_PARAMS:
+		_wall_mat.set_shader_parameter(k, lab._mat.get_shader_parameter(k))
+	_walls.draw_texture_rect(lab._pic.texture, Rect2(_wo, LabScene.PANEL * _sw), false)
+
+
 ## Where a point of the room (zoomed px) lands on screen through the warp.
 func map_u(u: Vector2) -> Vector2:
 	var x0: int = _maps.x0
@@ -889,6 +1077,12 @@ func map_u(u: Vector2) -> Vector2:
 	elif u.y >= y0 + K and u.x >= x1 - K:
 		ys = _maps.right
 	return Vector2(_seg_at(xs, u.x), _seg_at(ys, u.y))
+
+
+## The frame on screen, in whole px, as its pieces round it.
+func _rout_px() -> Rect2:
+	var a := _rout.position.round()
+	return Rect2(a, _rout.end.round() - a)
 
 
 func _seg_at(segs: Array, u: float) -> float:
@@ -913,18 +1107,39 @@ class _Life extends Control:
 			return
 		zoom.lab._draw_life(self)
 
-	## One of the room's life rects (picture px), where the warp has it. Not
-	## where the capital's bench is being looked over: what moves on it goes
-	## with it, pixel for pixel in the same dither (`lab_light.gdshader`).
+	## One of the room's life rects (picture px), where the warp has it. Where
+	## the capital's bench is being looked over, what moves on it fades with it
+	## (`lab_light.gdshader`).
 	func life_rect(r: Rect2, c: Color) -> void:
 		if zoom._mirror > 0.0 and zoom._mirror_box.has_point(r.position):
-			var p := Vector2i(r.position)
-			if (LabBoard.bayer(p.x, p.y) * 16.0 + 0.5) / 16.0 < zoom._mirror:
-				return
+			c.a *= 1.0 - zoom._mirror
 		var z := float(zoom._z)
 		var at := zoom.map_u(r.position * z)
 		var s := zoom._q * z
-		draw_rect(Rect2(at.round(), (r.size * s).round()), c)
+		# (in the frame only: the walls draw their own)
+		var rr := Rect2(at.round(), (r.size * s).round()).intersection(zoom._rout_px())
+		if rr.has_area():
+			draw_rect(rr, c)
+
+
+## THE WALLS' LIFE: the lab's bubbles and monitors where the walls have them.
+class _WallLife extends Control:
+	var zoom: LabZoom
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		if zoom == null or zoom.lab == null or zoom.lab.lab.is_empty():
+			return
+		zoom.lab._draw_life(self)
+
+	func life_rect(r: Rect2, c: Color) -> void:
+		if zoom._mirror > 0.0 and zoom._mirror_box.has_point(r.position):
+			c.a *= 1.0 - zoom._mirror
+		var a := (zoom._wo + r.position * zoom._sw).round()
+		var b := (zoom._wo + r.end * zoom._sw).round()
+		draw_rect(Rect2(a, b - a), c)
 
 
 # ------------------------------------------------------------------ the tests

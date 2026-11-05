@@ -405,6 +405,7 @@ func _build() -> void:
 	_lab_zoom = LabZoom.new()
 	_lab_zoom.lab = _lab
 	_lab_zoom.entry = _bench
+	_lab_zoom.on_glass = [_glass_press, _lab.fx_layer()]
 	_lab_zoom.station = self
 	add_child(_lab_zoom)
 	# `-- station tab=stock` opens on a named page. Four of the five are only

@@ -86,5 +86,6 @@ void fragment() {
 			c += rim_col * rim[i].z;
 		}
 	}
-	COLOR = vec4(min(c, vec3(1.0)), 1.0);
+	// (its alpha the node's: the camera into the Lab fades it with the entry)
+	COLOR = vec4(min(c, vec3(1.0)), COLOR.a);
 }
