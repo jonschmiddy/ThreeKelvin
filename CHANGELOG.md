@@ -45,7 +45,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   sit near each other and every world circles both, so a close pair can have a temperate world.
   Gas giants circle both suns in either kind. A wide pair's map opens framed on its two suns and
   their own worlds, and an outlined arrow at the edge of the map points to each event that is off
-  the picture, with that event's symbol behind it, as tall as the arrow. Zoom out to see the whole system; a second right-click comes back. The sector panel lists
+  the picture, with that event's symbol behind it, as tall as the arrow. Your ship and each
+  partner off the picture get an outlined arrow too, named beside it: YOU, or the pilot's name. Zoom out to see the whole system; a second right-click comes back. The sector panel lists
   both suns, and FLY HERE works on either one. The star chart marks a binary, and its STAR row says
   BINARY. One of the pair is an orange dwarf, smaller and cooler than the other. Each world takes the
   light of the sun it circles, and in PAINTED the far cloud's edges catch the light of both. A
