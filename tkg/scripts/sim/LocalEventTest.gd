@@ -197,26 +197,31 @@ func _fuel_gate(holder: Control, n: MapGen.MapNode) -> void:
 ## three layouts, for every science event: with a full tank each `burns` card's
 ## note ends "· N fuel" after its odds ("N fuel" alone on the careful line), N
 ## the reading's own `OptionTable.science_fuel()`, and the card answers a
-## click; the credits line says nothing of fuel. One fuel short of the way out
-## plus the reading, each `burns` card reads "needs N fuel · you have M" (N the
-## way out plus the reading, M the tank), in FLARE, and is not pressable: no
+## click; the credits line says nothing of fuel. With exactly the way out plus
+## the reading in the tank the card is still live and still reads "N fuel" (the
+## gate's edge). One fuel short of that, each `burns` card reads "needs N fuel +
+## K to leave · you have M" (N the same price as on the full card, K the way out
+## `Run.fuel_floor()` keeps, M the tank), in FLARE, and is not pressable: no
 ## live plate, no pointing hand (only pressable things look pressable); the
 ## credits line still is. And with the note showing it fits: every note inside
 ## its card, every card inside the band and clear of the others, the band
 ## asking for no more than its cap.
 func _fuel_cards(holder: Control, n: MapGen.MapNode) -> void:
 	var looked_at := 0
+	var saw_keep := 0
 	var bad: Array = []
 	for layout: StringName in [&"row", &"column", &"card"]:
 		LocalEventDrawer.layout = layout
 		for o in OptionTable.all():
 			if not OptionTable.is_science(o):
 				continue
-			for short in [false, true]:
+			for tank: StringName in [&"full", &"exact", &"short"]:
+				var short := tank == &"short"
 				_fresh(n, StringName(o.id))
 				var burn := OptionTable.science_fuel()
-				var need := burn + Run.fuel_floor()
-				Run.fuel = need - 1 if short else Run.FUEL_TANK
+				var keep := Run.fuel_floor()
+				var need := burn + keep
+				Run.fuel = {&"full": Run.FUEL_TANK, &"exact": need, &"short": need - 1}[tank]
 				var d := LocalEventDrawer.new()
 				d.screen = holder
 				d.node = n
@@ -224,7 +229,7 @@ func _fuel_cards(holder: Control, n: MapGen.MapNode) -> void:
 				d.open(0)
 				for f in 4:
 					await _tree.process_frame
-				var at := "%s (%s, %s)" % [o.id, layout, "short" if short else "full"]
+				var at := "%s (%s, %s)" % [o.id, layout, tank]
 				var choices: Array = o.get("choices", [])
 				var band := d.panel.get_global_rect()
 				var cap := LocalEventDrawer.CARD_MAX_H if layout == &"card" else LocalEventDrawer.H
@@ -243,7 +248,11 @@ func _fuel_cards(holder: Control, n: MapGen.MapNode) -> void:
 					var cr := card.get_global_rect()
 					if bool(c.get("burns", false)):
 						var badge := SkillCheck.badge(c.check) + " · " if c.has("check") else ""
-						var want := ("needs %d fuel · you have %d" % [need, Run.fuel]) if short 							else "%s%d fuel" % [badge, burn]
+						var want := "%s%d fuel" % [badge, burn]
+						if short:
+							var left := Run.fuel_floor()
+							want = "needs %d fuel%s · you have %d" % [burn, " + %d to leave" % left if left > 0 else "", Run.fuel]
+							saw_keep = maxi(saw_keep, left)
 						if said != want:
 							bad.append("%s choice %d: the note reads '%s', not '%s'" % [at, j, said, want])
 						if card.live == short or (card.mouse_default_cursor_shape == Control.CURSOR_POINTING_HAND) == short:
@@ -271,8 +280,8 @@ func _fuel_cards(holder: Control, n: MapGen.MapNode) -> void:
 				await _tree.process_frame
 	for line in bad.slice(0, 8):
 		print("    " + String(line))
-	_ok("every science card says the fuel it burns and fits, and a refused one reads 'needs N fuel' and is not pressable (%d cards, %d faults)" % [looked_at, bad.size()],
-		looked_at > 0 and bad.is_empty())
+	_ok("every science card says the fuel it burns and fits, and a refused one reads 'needs N fuel + K to leave' and is not pressable (%d cards, %d faults, K up to %d)" % [looked_at, bad.size(), saw_keep],
+		looked_at > 0 and saw_keep > 0 and bad.is_empty())
 	LocalEventDrawer.layout = &"column"
 	Run.fuel = Run.FUEL_TANK
 

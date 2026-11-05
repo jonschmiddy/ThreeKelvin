@@ -817,12 +817,16 @@ static func choice_card(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
 	# A READING BURNS FUEL (science, `burns`): what it costs goes on the card,
 	# after any odds, so the number you pay is inside what you press. When the
 	# tank cannot pay it and keep the way out (`OptionResolve.fuel_ok`, the hard
-	# gate), the card greys and says what the tank must hold, as RULING 8 has a
-	# price say what you have: only pressable things look pressable.
+	# gate), the card greys: the same price as the full card, then the way out
+	# the tank keeps back (`Run.fuel_floor()`), then what you have, as RULING 8
+	# has a price say. Folding the two into one number read as if the reading
+	# cost it. Only pressable things look pressable.
 	if bool(c.get("burns", false)):
 		var burn := OptionTable.science_fuel()
 		if not OptionResolve.fuel_ok(c):
-			note = "needs %d fuel · you have %d" % [burn + Run.fuel_floor(), Run.fuel]
+			var keep := Run.fuel_floor()
+			note = "needs %d fuel%s · you have %d" % [burn,
+				" + %d to leave" % keep if keep > 0 else "", Run.fuel]
 			open = false
 			tone = UITheme.FLARE
 		else:

@@ -25,7 +25,7 @@ OUT = os.path.join(ROOT, "tools", "out", "encounter-bench.html")
 PAY = [0, 1.0, 1.8, 3.0, 4.7, 7.2]
 TOLL = [0, 1.0, 1.9, 3.0, 4.3, 5.8]
 TIERS = ["", "EASY", "ROUGH", "HARD", "BRUTAL", "LETHAL"]
-TAGCOL = {"signal": "#9b8ec8", "contract": "#9b8ec8", "salvage": "#b3a488",
+TAGCOL = {"signal": "#8ec8e6", "contract": "#9b8ec8", "salvage": "#b3a488",
 	"hazard": "#f2761d", "fight": "#c05046", "quest": "#e0b83c",
 	"science": "#e07ac8"}
 
