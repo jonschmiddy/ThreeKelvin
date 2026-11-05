@@ -766,9 +766,9 @@ func _way_there(i: int) -> void:
 			go.add_child(_small("ON YOUR WAY", func() -> void: pass, true))
 		else:
 			go.add_child(_small("FLY HERE ONCE IN ORBIT", func() -> void: pass, true))
+	# (no line under it: the button already says whether GO can fly you there,
+	# Jon, Nov 5: "it's not needed there"; an event's own page keeps its line)
 	_box.add_child(go)
-	if not _ship_at(i) and _has_events(i):
-		_blurb(_locked_line(i), UITheme.COLD)
 
 
 ## The place the list is narrowed to: its picture, its name and kind, its facts,
