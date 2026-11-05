@@ -38,7 +38,27 @@ var _convoy: VBoxContainer
 ## HBoxContainer puts its separation either side of every VISIBLE child, so a
 ## hidden column inside a visible margin still cost the solo game twenty-four
 ## pixels of empty left edge.
-var _convoy_pad: MarginContainer
+##
+## A PLAIN CONTROL, NOT A CONTAINER (J4 B, Jon, Nov 5): its width is the
+## column's room as it slides in and out (`_slide`), whole pixels a frame, and
+## the column is placed in it by hand against its right edge (`_place_convoy`),
+## so the partners come in from the left with your hull. A container's width
+## can never be less than what is in it.
+var _convoy_pad: Control
+## THE COLUMN'S ROOM, 0 (none: solo, or nobody else here) to 1 (all of it), and
+## where it is going. Eased, and turned into whole pixels of the pad's width
+## and of the row's left offset (`_apply_slide`), so your hull, the enemies and
+## the column all move together and never by a part of a pixel.
+var _slide: float = 0.0
+var _slide_to: float = 0.0
+## How long the column takes to come in or go (J4 B: "a short tween").
+const SLIDE_T := 0.35
+## How far the row is pulled left of the view for the separation the column
+## has not yet earned (`_apply_slide`), in whole pixels: 0 at rest.
+var _pull := 0
+## Sent every frame the column's room changes, so a card being aimed can light
+## whatever is now under the pointer (`SectorScreen`).
+signal slid
 var _made_convoy: Array[ConvoySlot] = []
 ## The "+N MORE" chip, or null when everybody here is drawn. See CONVOY_MAX.
 var _overflow: Button = null
@@ -82,8 +102,8 @@ func _ready() -> void:
 	# Ahead of your hull in the row, so the party reads left to right in the
 	# order the lobby lists it and your own ship keeps the position it has
 	# always had — nearest the middle, facing what you are facing.
-	_convoy_pad = MarginContainer.new()
-	_convoy_pad.add_theme_constant_override("margin_top", CONVOY_TOP)
+	_convoy_pad = Control.new()
+	_convoy_pad.name = "ConvoyPad"
 	_convoy_pad.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_convoy_pad.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_convoy_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -92,9 +112,12 @@ func _ready() -> void:
 	_convoy = VBoxContainer.new()
 	_convoy.add_theme_constant_override("separation", 4)
 	_convoy.alignment = BoxContainer.ALIGNMENT_CENTER
-	_convoy.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_convoy.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_convoy_pad.add_child(_convoy)
+	_convoy_pad.resized.connect(_place_convoy)
+	_convoy.minimum_size_changed.connect(func() -> void:
+		_apply_slide()
+		_place_convoy())
 	# DEFERRED. A roster push lands from the network poll at any point in the
 	# frame -- including while a jump's new screen is being added to the tree,
 	# where add_child() on the column fails ("Parent node is busy setting up
@@ -330,7 +353,7 @@ func refresh_convoy() -> void:
 	# rather than set once, because somebody joining or leaving mid-run is
 	# exactly the case a value set at build time would miss.
 	var crowded := not _made_convoy.is_empty()
-	_convoy_pad.visible = crowded
+	_set_column(crowded)
 	# YOUR ship stays on the full sheet. Your partners are on the half one, so
 	# the party reads at two to one and the ship you fly is plainly the subject.
 	#
@@ -344,6 +367,94 @@ func refresh_convoy() -> void:
 	# A one-line flip if it reads wrong. `use_half(crowded)` puts everybody back
 	# on the same footing.
 	_ship.use_half(false)
+
+
+## THE COLUMN COMES AND GOES (J4 B, Jon, Nov 5: "The column appears when a
+## partner arrives. Your ship slides 220 px right, and each enemy moves and
+## drops to half size ... If that player leaves ... the column disappears and
+## the ship slides back to the single player view."). At once when nothing
+## animates (headless, reduced motion, the screen's first build), else eased
+## over SLIDE_T. Nothing is rebuilt: the row's children keep their nodes, so a
+## card being aimed keeps its target (`slid`), and nothing pressable is made
+## again under the pointer.
+func _set_column(on: bool) -> void:
+	var to := 1.0 if on else 0.0
+	if is_equal_approx(_slide_to, to) and (is_equal_approx(_slide, to) or is_processing()):
+		return
+	_slide_to = to
+	if not is_inside_tree() or not _built or not Router.animating():
+		_slide = to
+		_apply_slide()
+		set_process(false)
+		return
+	set_process(true)
+
+
+## Has the screen been up a frame: a column that is there when it opens is
+## simply there, not slid in.
+var _built := false
+
+
+func _process(delta: float) -> void:
+	_built = true
+	if is_equal_approx(_slide, _slide_to):
+		set_process(false)
+		return
+	var step := delta / SLIDE_T
+	_slide = move_toward(_slide, _slide_to, step)
+	_apply_slide()
+	if is_equal_approx(_slide, _slide_to):
+		_slide = _slide_to
+		set_process(false)
+
+
+## The column's room as whole pixels. The pad is `w` of the column's width and
+## the row is pulled left by what the separation has not yet earned, so at 0 it
+## is exactly the solo row (pad hidden, no separation) and at 1 exactly the
+## column's: your hull moves `width + separation` in all, a whole pixel or more
+## a frame, smoothstepped.
+func _apply_slide() -> void:
+	if _convoy_pad == null:
+		return
+	var e := smoothstep(0.0, 1.0, _slide)
+	var full := column_w()
+	var sep := _row.get_theme_constant("separation")
+	var w := roundi(full * e)
+	var pull := sep - roundi(sep * e)
+	var shown := _slide > 0.0
+	_convoy_pad.visible = shown
+	_convoy_pad.custom_minimum_size.x = w
+	_pull = pull if shown else 0
+	_row.offset_left = -_pull
+	_place_convoy()
+	# and the pack laid out for where the row ends up, every step: the row's
+	# children keep their sizes on the last steps, so nothing else asks
+	_queue_pack()
+	slid.emit()
+
+
+## The column's full width: its widest hull, or the "+N MORE" chip if wider.
+func column_w() -> int:
+	return int(ceil(maxf(float(convoy_w()), _convoy.get_combined_minimum_size().x))) if _convoy != null else convoy_w()
+
+
+## The column against the pad's right edge, under the sector's lines.
+func _place_convoy() -> void:
+	if _convoy == null or _convoy_pad == null:
+		return
+	var full := column_w()
+	_convoy.position = Vector2(_convoy_pad.size.x - full, CONVOY_TOP)
+	_convoy.size = Vector2(full, maxf(0.0, _convoy_pad.size.y - CONVOY_TOP))
+
+
+## How far the column has come in, 0 to 1 (`-- sheet=ConvoySlideTest`).
+func column_slide() -> float:
+	return _slide
+
+
+## Whether the column is on its way in or out.
+func sliding() -> bool:
+	return not is_equal_approx(_slide, _slide_to)
 
 
 ## Everybody in this room the column had no room for.
@@ -876,7 +987,9 @@ func _pack_area() -> Rect2:
 		right = maxf(right, (to_row * r).end.x)
 	var left := maxf(right + PACK_MARGIN, PACK_MARGIN)
 	var x0 := left - _slots.position.x
-	return Rect2(x0, 0.0, size.x - PACK_MARGIN - left, size.y - _bleed - _slots.position.y)
+	# (the row's right edge in its own frame: the view's, plus what the convoy
+	# column's slide has the row pulled left by, `_pull`)
+	return Rect2(x0, 0.0, size.x + _pull - PACK_MARGIN - left, size.y - _bleed - _slots.position.y)
 
 
 func _layout_pack() -> void:
@@ -951,9 +1064,10 @@ func _layout_pack() -> void:
 			(_pack_tw[sl] as Tween).kill()
 		# eased where things move (never under reduced motion or headless);
 		# carried, not eased, with a band that is coming up: it moves a frame
-		# at a time already
+		# at a time already; nor while the convoy column slides (J4 B), which
+		# moves the room a whole pixel or more a frame and the pack with it
 		if was != null and was != at and is_inside_tree() and Router.animating() \
-				and not (same_plan and _lift_was != lift):
+				and not (same_plan and _lift_was != lift) and not sliding():
 			var tw := sl.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 			tw.tween_property(sl, "position", at, PACK_EASE)
 			_pack_tw[sl] = tw
@@ -2489,6 +2603,16 @@ class ShipSlot extends Control:
 		if what == NOTIFICATION_DRAG_END and _hot:
 			_hot = false
 			queue_redraw()
+		# THE HULL'S BOX FOLLOWS THE SLOT'S. A shudder or an arrival writes the
+		# hull's `position`, and on an anchored Control that writes its size
+		# into the offsets: written while the slot was narrower than the hull's
+		# canvas (the convoy column in), it kept that clamped size when the slot
+		# widened again, and your ship sat 37 px right of the solo view's when
+		# the column slid out (J4 B, `-- sheet=ConvoySlideTest`). The offsets
+		# keep only the move the shudder made.
+		if what == NOTIFICATION_RESIZED and art != null:
+			art.offset_right = art.offset_left
+			art.offset_bottom = art.offset_top
 
 	## Where the hull actually is, in this slot's coordinates. Falls back to the
 	## whole slot before the art has anything to measure.
@@ -2702,6 +2826,11 @@ class ConvoySlot extends Control:
 	## normal case, not the exception — people arrive at different times — so
 	## "who is shooting at the thing shooting at me" cannot be read off presence.
 	var _engaged: bool = false
+	## In your fight and STUNNED (`SharedFight.stunned`, Jon, Nov 5): joined
+	## after the first turn and sitting out until the enemy's turn is over. A
+	## tag under its gauges, in COLD, until the turn moves.
+	var _stunned: bool = false
+	const STUN_TAG := "STUNNED"
 
 	## Bars are drawn to a fixed width, not to the slot's, for the reason
 	## EnemySlot.BAR_W records: a readout's LENGTH should say how much is left,
@@ -2797,6 +2926,7 @@ class ConvoySlot extends Control:
 			_lost = b.dead
 		var f := Net.fight_at(Run.at) if not Run.map.is_empty() else null
 		_engaged = f != null and not f.over and f.crew.has(peer)
+		_stunned = _engaged and f.stunned.has(peer)
 		# A PARTNER LOST IN YOUR FIGHT COMES APART where you can see it, as
 		# your own ship does (`ShipLoss`). Only a ship this slot has shown
 		# alive: a slot built for somebody already lost shows the grey hull.
@@ -2875,6 +3005,26 @@ class ConvoySlot extends Control:
 		_gauge(float(fs) + 3.0, _hull_at, UITheme.HULL_GREEN)
 		_gauge(float(fs) + 3.0 + BAR_H + 1.0, _heat_at,
 			UITheme.FLARE if _heat_at >= 1.0 else UITheme.EMBER)
+		if _stunned:
+			var ty := _tag_y()
+			draw_string(f, Vector2(1, ty + 1), STUN_TAG, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.8))
+			draw_string(f, Vector2(0, ty), STUN_TAG, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UITheme.COLD)
+
+	## The tag's baseline: a line under the two gauges.
+	func _tag_y() -> float:
+		var fs := UITheme.FS_SMALL
+		return float(fs) + 3.0 + BAR_H * 2.0 + 1.0 + 2.0 + float(fs)
+
+	## Whether the tag is up, and where, in this slot's own coordinates
+	## (`-- sheet=ConvoySlideTest`'s box test): inside the label's BAR_W.
+	func stunned_shown() -> bool:
+		return _stunned and not _lost and art.visible and _hull_at > 0.0
+
+	func stun_tag_rect() -> Rect2:
+		var f := UITheme.pixel_font()
+		var fs := UITheme.FS_SMALL
+		var w := f.get_string_size(STUN_TAG, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		return Rect2(0.0, _tag_y() - f.get_ascent(fs), w + 1.0, f.get_height(fs) + 1.0)
 
 	func _gauge(y: float, at: float, col: Color) -> void:
 		draw_rect(Rect2(Vector2(0, y), Vector2(BAR_W, BAR_H)), Color("#0d131b"), true)

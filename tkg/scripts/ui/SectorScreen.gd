@@ -180,6 +180,12 @@ var _discard_pile: PileView
 ## tutorial audit, Oct 22).
 const DISCARD_TIP := "DISCARD\n\nCards you played or discarded, and the rest of your hand at END TURN.\nClick to look."
 var _end_button: Button
+## The line in the empty drawer while this ship is stunned (`Combat.stunned`).
+var _stun_note: Label
+const STUN_NOTE := "Stunned. You act after the enemy's turn."
+## END TURN's tooltip while stunned, the stun's one full explanation.
+const STUN_TIP := "STUNNED\n\nYou just arrived. You act after the enemy's turn. It can still shoot you."
+const END_TIP := "END TURN\n\nStop, and let them act."
 var _hail_button: Button
 var _flee_button: Button
 var _log: LogPanel
@@ -273,7 +279,7 @@ func setup(c: Combat = null) -> void:
 		# Out of one, the bar's JOIN FIGHT comes and goes with a partner's
 		# fight here -- rebuilt only when that answer changes, not on every
 		# push of somebody's turn three systems away.
-		elif Router.can_join_fight() != _join_shown:
+		elif Router.join_state() != _join_shown:
 			_refresh())
 	Sig.turn_started.connect(func(_t): _refresh())
 	Sig.combat_ended.connect(_on_combat_ended)
@@ -1455,9 +1461,9 @@ static func things_here(n: MapGen.MapNode) -> Array:
 	return out
 
 
-## Whether the bar is offering JOIN FIGHT, so a fight push rebuilds it only
-## when that changes.
-var _join_shown := false
+## What the bar is offering for a partner's fight (`Router.join_state`), so a
+## fight push rebuilds it only when that changes.
+var _join_shown := Router.JOIN_NONE
 
 ## WHAT IS HERE, IN ONE LINE, and the sector map to see it on. The parts joined
 ## with a dot, as the event's own line is (`LocalEventDrawer.bar_line`): they
@@ -1483,8 +1489,8 @@ func _drawer_here(n: MapGen.MapNode) -> void:
 	var line := here_line(n)
 	# A PARTNER IS FIGHTING HERE, and the way in is on this bar (Oct 22
 	# playtest: there was no way into a partner's fight at all).
-	_join_shown = Router.can_join_fight()
-	if _join_shown:
+	_join_shown = Router.join_state()
+	if _join_shown != Router.JOIN_NONE:
 		line = "%s IS FIGHTING HERE" % Router.join_fight_names()
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
@@ -1498,9 +1504,12 @@ func _drawer_here(n: MapGen.MapNode) -> void:
 	# loot"), only while there is something on it, as the map's SECTOR LOOT is:
 	# a popup in the cutaway, the two-grid screen with your hold beside it
 	# anywhere else
-	if _join_shown:
+	if _join_shown != Router.JOIN_NONE:
 		var jf := Widgets.button("JOIN FIGHT", Router.join_fight)
 		jf.name = "JoinFight"
+		# greyed while the Hellbender spools its escape, and saying why
+		jf.disabled = _join_shown == Router.JOIN_SHUT
+		jf.tooltip_text = Widgets.tip(Router.join_tip())
 		jf.custom_minimum_size = EncounterDrawer.BTN
 		jf.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(jf)
@@ -1903,8 +1912,19 @@ func _build_hand() -> Control:
 	_hand.card_hovered.connect(_on_card_hovered)
 	_hand.picked.connect(_on_card_picked)
 	_view.preview = _drag_preview
+	if not _view.slid.is_connected(_on_view_slid):
+		_view.slid.connect(_on_view_slid)
 	_hand.reordered.connect(_on_hand_reorder)
 	hand_row.add_child(_hand)
+	# WHERE THE HAND GOES WHILE STUNNED (Jon, Nov 5): an empty drawer says why
+	_stun_note = UITheme.body(STUN_NOTE, UITheme.COLD, UITheme.FS_SMALL)
+	_stun_note.name = "StunNote"
+	_stun_note.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_stun_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_stun_note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_stun_note.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_stun_note.visible = false
+	_hand.add_child(_stun_note)
 	# END TURN, then FLEE, then the discard. Ordered by how often you mean it:
 	# the one you press every turn is on top and full size, the one you press
 	# once a run is a thin red line under it, and the pile you never press at
@@ -1930,7 +1950,7 @@ func _build_hand() -> Control:
 	# three of them plus a 22 came to 62 against the 54 the left rail spends on
 	# ENERGY and TURN. Levelling them is what makes the block fit at all.
 	_end_button.custom_minimum_size = Vector2(PileView.W, 16)
-	_end_button.tooltip_text = Widgets.tip("END TURN\n\nStop, and let them act.")
+	_end_button.tooltip_text = Widgets.tip(END_TIP)
 	# ITS OWN STYLEBOX, because the default bevel pads four above and below and
 	# rendered this at 28 while FLEE and HAIL -- which already carry flat boxes
 	# with no vertical padding -- came out at 16. Three buttons cannot share a
@@ -2501,6 +2521,7 @@ func _refresh_flee() -> void:
 		combat.flee_cause(), {
 			&"failed": "You tried. They are still here.",
 			&"boss": "You cannot flee this fight.",
+			&"stunned": "You are stunned.",
 			&"": "Get away on a Maneuver check.",
 		}, UITheme.LEAVE)
 
@@ -2511,6 +2532,7 @@ func _refresh_hail() -> void:
 		return
 	_refresh_gate(_hail_button, "HAIL", combat.hail_reason(),
 		combat.hail_cause(), {
+			&"stunned": "You are stunned.",
 			&"failed": "You already tried. They heard you.",
 			&"struck": "Too late. You shot first.",
 			&"fauna": "It does not have a radio.",
@@ -2606,7 +2628,13 @@ func _refresh_hand() -> void:
 	# WAITING, with a name on it. A button that greys out and says nothing is
 	# indistinguishable from a hang, and in a shared fight the reason it is grey
 	# is always another person — so say who.
-	if combat.waiting:
+	if _stun_note != null:
+		_stun_note.visible = combat.stunned and not combat.finished
+	if combat.stunned:
+		# STUNNED, greyed, and the tooltip says what it means (Jon, Nov 5)
+		_end_button.text = "STUNNED"
+		_end_button.tooltip_text = Widgets.tip(STUN_TIP)
+	elif combat.waiting:
 		var f := Net.fight_at(combat.shared_at)
 		var names := PackedStringArray()
 		if f != null:
@@ -2628,7 +2656,9 @@ func _refresh_hand() -> void:
 		# minimum size or its stylebox said: it was two lines tall again by
 		# the time anything looked at it.
 		_end_button.text = "END TURN"
-	_end_button.disabled = combat.finished or combat.waiting
+	if not combat.stunned:
+		_end_button.tooltip_text = Widgets.tip(END_TIP)
+	_end_button.disabled = combat.finished or combat.waiting or combat.stunned
 
 # --------------------------------------------------------------------- input
 
@@ -4049,10 +4079,24 @@ func _input(e: InputEvent) -> void:
 	_grab_view = null
 	_grab_mode = 0
 
+## THE BOARD MOVED UNDER A CARD BEING AIMED: the convoy column sliding in or
+## out (J4 B, Jon, Nov 5). The card stays in hand and armed, and the target
+## lit is whatever is under the pointer now, as a motion would light it; the
+## release resolves against the board as it stands then (`_aim_release`).
+func _on_view_slid() -> void:
+	if _aim_view != null and is_inside_tree():
+		_aim_track(_aim_where)
+
+
+## Where the pointer last was while aiming, as `_input` saw it.
+var _aim_where := Vector2.ZERO
+
+
 ## Light whatever is under the cursor, and remember where to draw to.
 func _aim_track(where: Vector2) -> void:
 	if _view == null or _aim_view == null:
 		return
+	_aim_where = where
 	var at := get_global_transform().affine_inverse() * where
 	# BACK IN THE DRAWER IS NOT AIMING. The same test that spawned the line takes
 	# it away again: there is nothing above the fan to shoot while the cursor is
@@ -4630,16 +4674,31 @@ func _on_enemy_destroyed(who: int) -> void:
 		_start_death(who)
 
 ## The shot arrived. Now the target moves.
+##
+## ABOUT ITS PLACE AT REST, a second hit too. Two shots landing a frame apart
+## took the place mid-shake, a part of a pixel off, and left the hull there
+## for good: 0.8 px off the grid and the pack laid out round it (found sliding
+## the convoy column out, `-- sheet=ConvoySlideTest`).
 func _on_shot_landed(who: int, to_player: bool, _kind: int) -> void:
 	var target: Control = _view.ship_view() if to_player else _view.enemy_view(who)
 	if target == null:
 		return
 	var origin := target.position
+	var was: Array = _shook.get(target, [])
+	if not was.is_empty() and (was[1] as Tween).is_valid():
+		(was[1] as Tween).kill()
+		origin = was[0]
 	var tw := create_tween()
 	for i in 3:
 		tw.tween_property(target, "position",
 			origin + Vector2(randf_range(-3, 3), randf_range(-2, 2)).round(), 0.03)
 	tw.tween_property(target, "position", origin, 0.05)
+	_shook[target] = [origin, tw]
+	tw.finished.connect(func() -> void: _shook.erase(target))
+
+
+## What each shaken thing's place at rest is while it shakes, and its shake.
+var _shook: Dictionary = {}
 
 func _on_combat_ended(result: StringName, text: String) -> void:
 	# NOTHING ENDS ON THE FRAME IT RESOLVED. The kill, the death, the escape:
