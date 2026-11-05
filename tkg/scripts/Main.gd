@@ -246,7 +246,8 @@ func _ready() -> void:
 		return
 
 	if "holdtest" in OS.get_cmdline_user_args():
-		load("res://scripts/sim/HoldTest.gd").new().run()
+		# (awaited: its pick-mode check runs in the tree, on frames)
+		await load("res://scripts/sim/HoldTest.gd").new().run()
 		get_tree().quit()
 		return
 

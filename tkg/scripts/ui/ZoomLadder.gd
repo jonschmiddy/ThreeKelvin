@@ -73,6 +73,11 @@ const UI_IN_S := 0.4
 const SEAM1_S := 1.7
 const SEAM2_S := 1.8
 const DIVE_S := 1.9
+## THE LAB'S SCREEN, PRESSED (science S9, Jon's 1C): the camera into the glass
+## until it fills the window, and back out on LEAVE (`LabZoom`), between the
+## same UI_OUT_S and UI_IN_S beats. A guess at the calm moves' pace, not yet
+## Jon's: one dial, here with the others.
+const LAB_ZOOM_S := 0.9
 ## 3B AT A STATION: THE DOCK IN FIVE STEPS, in seconds (Jon, Oct 20: "Why
 ## doesn't the ship enter like the first local?" -- so it does, exactly; before
 ## that, "...the station turns on, then the ship flies in", and "Let's have the

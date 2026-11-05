@@ -696,12 +696,22 @@ func _put(ci: CanvasItem, ax: int, ay: int, col: Color, bit: int) -> void:
 			if not _may(rx + xx, ry + yy, bit):
 				all = false
 	if all:
-		ci.draw_rect(Rect2(rx, ry, 2, 2), col)
+		_rect(ci, Rect2(rx, ry, 2, 2), col)
 		return
 	for yy in 2:
 		for xx in 2:
 			if _may(rx + xx, ry + yy, bit):
-				ci.draw_rect(Rect2(rx + xx, ry + yy, 1, 1), col)
+				_rect(ci, Rect2(rx + xx, ry + yy, 1, 1), col)
+
+
+## A rect of the room's life: drawn where it is, or -- for the camera in the
+## glass (`LabZoom`), which draws the room through a warp -- handed to the
+## drawer to put where the warp has that part of the room.
+func _rect(ci: CanvasItem, r: Rect2, col: Color) -> void:
+	if ci.has_method(&"life_rect"):
+		ci.call(&"life_rect", r, col)
+	else:
+		ci.draw_rect(r, col)
 
 
 ## The light at one cell, as the shader works it out: for the fizz, which is

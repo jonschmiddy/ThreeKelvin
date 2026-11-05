@@ -797,6 +797,25 @@ func run(tree: SceneTree) -> void:
 	for i in 30:
 		await RenderingServer.frame_post_draw
 
+	# THE LAB'S SCREEN, ZOOMED (science S9): `labmode=room|board|augment|strip|recipes`
+	# with `deck=bench`, so each page can be photographed at every level.
+	#   labparts=a,b/c,d  your parts: these fitted, those in the hold (module ids)
+	#   labaug=id:Affix   that part augmented with that affix (a comma list)
+	#   laboffer=A,B,C    the Lab's offer shown, whatever this station draws
+	#   labpart=id        the part in hand on AUGMENT (STRIP's, with labmode=strip)
+	#   labaffix=i        the affix on the right in hand
+	#   labdo             its AUGMENT (or STRIP) pressed, as a click does
+	#   labfilm=N labrelic=N  survey film and relics in the hold, for RECIPES
+	#   data=N            DATA held (`credits=N` the credits)
+	#   owned=a,b,c       steps bought on FRAME, CORE and DRIVE
+	#   board=id,...      the nine routines dealt (to set beside the mockup's)
+	#   labpick=b,k       the step the strip is about
+	#   labbuy=b          BUY pressed on branch b's next step, as a click does
+	#   labphase=p        the board's loop held at p (0..1)
+	#   labzoom=k         the camera held k of the way into the glass (0..1)
+	#   stillto=<png>     the shot written there too (the profile is thrown away)
+	await _lab_mode(tree)
+
 	# THE BAR'S OWN WIDTH, printed rather than eyeballed. HudBar's header records
 	# that the row was 983px at a 960 window with dev mode on, and that the fix
 	# was four pixels of separation per gap -- so anything added to it since is
@@ -1515,6 +1534,14 @@ func run(tree: SceneTree) -> void:
 	var path := "user://station_%s.png" % berth
 	tree.root.get_texture().get_image().save_png(path)
 	print("wrote ", ProjectSettings.globalize_path(path))
+	for a_s in OS.get_cmdline_user_args():
+		if (a_s as String).begins_with("stillto="):
+			var to := (a_s as String).substr(8)
+			DirAccess.make_dir_recursive_absolute(to.get_base_dir())
+			# the game's own 960x540, not the window's bent glass (`GameShell`)
+			var vp_s: Viewport = Router.current.get_viewport() if Router.current != null else tree.root
+			vp_s.get_texture().get_image().save_png(to)
+			print("wrote ", to)
 
 	# `layerhz=S`: time every redraw of the station's rooms for S seconds and
 	# print how evenly they land. A frame capture a twelfth of a second apart
@@ -1572,3 +1599,145 @@ func run(tree: SceneTree) -> void:
 				tree.root.get_texture().get_image().save_png(fp)
 			print("wrote %d frames" % n)
 	tree.quit()
+
+
+## THE LAB'S SCREEN, ZOOMED, in the state the arguments ask for (see the list
+## where it is called). Nothing without `labmode=`.
+func _lab_mode(tree: SceneTree) -> void:
+	var mode := ""
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("labmode="):
+			mode = (a as String).substr(8)
+	if mode == "":
+		return
+	var scr := Router.current as StationScreen
+	if scr == null or scr.lab_zoom() == null:
+		print("  labmode: no station on screen")
+		return
+	var zoom := scr.lab_zoom()
+	var pick := Vector2i(-1, -1)
+	var buy := -1
+	var hold := -1.0
+	for a in OS.get_cmdline_user_args():
+		var s := a as String
+		if s.begins_with("data="):
+			Run.data = int(s.substr(5))
+		elif s.begins_with("credits="):
+			Run.credits = int(s.substr(8))
+		elif s.begins_with("owned="):
+			var o := s.substr(6).split(",")
+			for b in mini(3, o.size()):
+				Run.board_owned[b] = clampi(int(o[b]), 0, 3)
+		elif s.begins_with("board="):
+			var ids: Array[StringName] = []
+			for id in s.substr(6).split(","):
+				ids.append(StringName(id.strip_edges()))
+			if ids.size() == 9:
+				Run.board = ids
+		elif s.begins_with("labpick="):
+			var pk := s.substr(8).split(",")
+			pick = Vector2i(int(pk[0]), int(pk[1]))
+		elif s.begins_with("labbuy="):
+			buy = int(s.substr(7))
+		elif s.begins_with("labphase="):
+			zoom.board.hold_phase(float(s.substr(9)))
+		elif s.begins_with("labzoom="):
+			hold = clampf(float(s.substr(8)), 0.0, 1.0)
+	# (the pointer stays out of it: a shot is of the page, not of the desk's mouse)
+	scr.get_viewport().gui_disable_input = true
+	Sig.resources_changed.emit()
+	if mode == "room":
+		for i in 6:
+			await RenderingServer.frame_post_draw
+		print("  labmode: room, the entry on the glass: %s" % scr._entry_data.text)
+		return
+	var want_part := &""
+	var want_affix := -1
+	var press := false
+	for a2 in OS.get_cmdline_user_args():
+		var s2 := a2 as String
+		if s2.begins_with("labparts="):
+			var halves := s2.substr(9).split("/")
+			# (straight off the ship: a full hold would refuse an uninstall)
+			Run.installed.clear()
+			for h0 in Run.cargo.duplicate():
+				if h0 is ModuleData:
+					Run.cargo.erase(h0)
+			for id0 in halves[0].split(",", false):
+				if DB.modules.has(StringName(id0)):
+					Run.install_module((DB.modules[StringName(id0)] as ModuleData).duplicate(true) as ModuleData)
+			# (what the strip of a hull put in the hold goes too)
+			for h1 in Run.cargo.duplicate():
+				if h1 is ModuleData:
+					Run.cargo.erase(h1)
+			if halves.size() > 1:
+				for id1 in halves[1].split(",", false):
+					if DB.modules.has(StringName(id1)):
+						Run.stow((DB.modules[StringName(id1)] as ModuleData).duplicate(true) as ModuleData)
+		elif s2.begins_with("labaug="):
+			for pair in s2.substr(7).split(","):
+				var kv := pair.split(":")
+				for m1: ModuleData in Run.installed + _held_parts():
+					if String(m1.id) == kv[0]:
+						var list: Array[AffixData] = m1.affixes.duplicate()
+						list.append(Science._affix(StringName(kv[1])))
+						m1.affixes = list
+						m1.augmented = true
+		elif s2.begins_with("laboffer="):
+			LabAugment.forced_offer.clear()
+			for nm in s2.substr(9).split(","):
+				LabAugment.forced_offer.append(StringName(nm))
+		elif s2.begins_with("labpart="):
+			want_part = StringName(s2.substr(8))
+		elif s2.begins_with("labaffix="):
+			want_affix = int(s2.substr(9))
+		elif s2 == "labdo":
+			press = true
+		elif s2.begins_with("labfilm=") or s2.begins_with("labrelic="):
+			var mat := &"survey_film" if s2.begins_with("labfilm=") else &"relic"
+			for i0 in int(s2.split("=")[1]):
+				# (a part out of a full hold to make room, the shot's own stock)
+				var crate := MaterialData.of(MaterialTable.by_id(mat))
+				while not Run.place_in_hold(crate) and not _held_parts().is_empty():
+					Run.cargo.erase(_held_parts()[-1])
+	Run.hp = Run.max_hp()
+	Sig.ship_changed.emit()
+	var tab := &"research" if mode == "board" else (&"augment" if mode == "strip" else StringName(mode))
+	if hold >= 0.0:
+		LabZoom.hold_at = hold
+	zoom.open(tab)
+	zoom.finish()
+	if pick.x >= 0:
+		zoom.board.pick = pick
+		zoom.board.refresh()
+	if buy >= 0:
+		zoom._on_buy(buy)
+	if tab == &"augment":
+		var aug := zoom.augment
+		for m2: ModuleData in Run.installed + _held_parts():
+			if want_part != &"" and m2.id == want_part:
+				aug.pick_part(m2, &"strip" if mode == "strip" else &"augment")
+		if mode == "strip" and want_part == &"":
+			for m3: ModuleData in Run.installed + _held_parts():
+				if not m3.affixes.is_empty():
+					aug.pick_part(m3, &"strip")
+					break
+		if want_affix >= 0:
+			aug.pick_affix(want_affix)
+		if press:
+			aug._commit()
+		aug.hold_phase(0.35)
+	for i in 6:
+		await RenderingServer.frame_post_draw
+	var bad := zoom.check()
+	print("  labmode: %s on %s, DATA %d, owned %s, box test %s" % [mode, zoom._level, Run.data,
+		str(Run.board_owned), "clean" if bad.is_empty() else "; ".join(bad)])
+
+
+## The modules in the hold (not its crates).
+func _held_parts() -> Array[ModuleData]:
+	var out: Array[ModuleData] = []
+	for h in Run.cargo:
+		if h is ModuleData:
+			out.append(h)
+	return out

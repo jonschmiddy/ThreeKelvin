@@ -115,6 +115,10 @@ func _gui_input(e: InputEvent) -> void:
 	var m := held_item()
 	if m == null:
 		return
+	# (a hold shown to pick from moves nothing, by any gesture: `HoldGrid.pick_mode`)
+	var g := get_parent() as HoldGrid
+	if g != null and g.pick_mode:
+		return
 	# SHIFT-CLICK BRINGS IT ABOARD, right-click puts it down. One gesture each
 	# way, for anyone who would rather not drag six things across a screen.
 	#
@@ -199,6 +203,10 @@ func spin() -> void:
 func _get_drag_data(_at: Vector2) -> Variant:
 	var m := held_item()
 	if m == null:
+		return null
+	# (a hold shown to pick from lifts nothing: `HoldGrid.pick_mode`)
+	var g := get_parent() as HoldGrid
+	if g != null and g.pick_mode:
 		return null
 	set_drag_preview(_ghost())
 	# IT LEAVES THE CELL THE MOMENT YOU LIFT IT.
