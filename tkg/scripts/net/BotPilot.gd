@@ -472,7 +472,7 @@ func _still_waiting() -> bool:
 	return false
 
 
-## Dock. Selling and the workbench are Policy's, because they are bookkeeping;
+## Dock. Selling and the Lab are Policy's, because they are bookkeeping;
 ## buying is the brain's, because the shelf is CONTESTED — a part bought here is
 ## a part another ship in the party cannot have, and that is a decision somebody
 ## should get to make on purpose.
@@ -480,8 +480,11 @@ func _station() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if n.type != MapGen.NodeType.STATION:
 		return
+	# The Lab before the counter, as `Policy.shop` has it: film and relics the
+	# board wants are read for DATA and its steps bought before anything is
+	# sold. One entry, so the bot and the sim stay one pilot.
+	policy.lab(n)
 	policy.sell_hold(n)
-	policy.bench(n)
 	var guard := 0
 	while guard < 12:
 		guard += 1
