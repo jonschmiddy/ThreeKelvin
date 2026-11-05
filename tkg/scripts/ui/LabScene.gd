@@ -16,8 +16,9 @@ extends StationRoom
 ##   this node   the picture, lit (`lab_light.gdshader`), and its life: the
 ##               small monitors typing, bubbles in the capital's tanks, the
 ##               flasks on its counter fizzing
-##   (rows)      the recipe rows, `StationScreen`'s, standing in the picture's
-##               own screen (`win_rect`), clipped so the power-on's scan can
+##   (screen)    the station owner's sign-on (`LabLogin`, `StationScreen`'s),
+##               standing in the picture's own screen (`win_rect`), and the
+##               glass's key, clipped to the glass so the power-on's scan can
 ##               bring them up
 ##   fx_layer()  what the big screen does, over the rows: the city's sweep,
 ##               the outpost's and settlement's bad signal, the unclaimed
@@ -26,7 +27,7 @@ extends StationRoom
 ## ON A 30 HZ CLOCK, like the shop, because the prototype drew at 30 and every
 ## fault was shaped for that rate. Each lab powers on from black the first time
 ## you step onto the deck at a station: the lamps strike, the room fades up,
-## the screen scans the recipes on -- each with its sound (`POWER_ON_SOUNDS`).
+## the screen scans its sign-on in -- each with its sound (`POWER_ON_SOUNDS`).
 ##
 ## Drawn at 1:1 at the top-left, like the shop's rooms: every lab is the
 ## 740x431 wall they were laid out on.
@@ -120,8 +121,8 @@ static func doc() -> Dictionary:
 
 ## This station's lab, as the installer wrote it.
 var lab: Dictionary = {}
-## The recipe rows' holder, which the screen places at `win_rect` and this
-## opens as the power-on's scan passes.
+## The glass's holder (the sign-on and the key), which the screen places at
+## `glass_rect` and this opens as the power-on's scan passes.
 var rows_clip: Control = null
 
 var _level := ""
@@ -205,7 +206,7 @@ func banner_spots() -> Array:
 	return []
 
 
-## What the big screen does, over the recipe rows. The screen stacks it last.
+## What the big screen does, over the sign-on. The screen stacks it last.
 func fx_layer() -> Control:
 	return _glass
 
@@ -219,8 +220,17 @@ func hush_screen(on: bool) -> void:
 	_glass.hush(on)
 
 
-## Where the recipe rows stand: inside the picture's screen, where the
-## prototype drew them.
+## The screen's glass in the picture (labs.json `screen.glass`, its end
+## inclusive there): the key into the Lab, and what the camera goes onto.
+func glass_rect() -> Rect2:
+	var g: Array = (lab.get("screen", {}) as Dictionary).get("glass", [])
+	if g.size() < 4:
+		return win_rect()
+	return Rect2(float(g[0]), float(g[1]), float(g[2]) - float(g[0]) + 1.0, float(g[3]) - float(g[1]) + 1.0)
+
+
+## Where the screen's own picture stands: inside the glass, where the
+## prototype drew its rows (the owner's sign-on now, `LabLogin`).
 func win_rect() -> Rect2:
 	var w: Array = lab.get("win", [])
 	if w.size() < 4:
@@ -515,8 +525,9 @@ func _tick(t: float) -> void:
 	_glass.frame(t, tb)
 
 
-## THE SCAN BRINGS THE RECIPES ON. Nothing on the screen until the scan
-## starts, then everything above it; the whole screen once it has passed.
+## THE SCAN BRINGS THE SCREEN ON. Nothing on the glass until the scan starts,
+## then everything above it; the whole glass once it has passed (the holder is
+## the glass, `glass_rect`; the scan runs down the screen's window).
 func _reveal(tb: float) -> void:
 	if rows_clip == null:
 		return
@@ -524,7 +535,7 @@ func _reveal(tb: float) -> void:
 	var rv: Array = boot.get("reveal", [2.3, 2.9])
 	var r0 := float(rv[0])
 	var r1 := float(rv[1])
-	var wr := win_rect()
+	var wr := glass_rect()
 	var shown := wr.size.y
 	if tb < r0:
 		shown = 0.0
@@ -713,9 +724,9 @@ func _put(ci: CanvasItem, ax: int, ay: int, col: Color, bit: int) -> void:
 				_rect(ci, Rect2(rx + xx, ry + yy, 1, 1), col)
 
 
-## A rect of the room's life: drawn where it is, or -- for the camera in the
-## glass (`LabZoom`), which draws the room through a warp -- handed to the
-## drawer to put where the warp has that part of the room.
+## A rect of the room's life: drawn where it is, or -- for the camera onto the
+## glass (`LabZoom`), which draws the room at its own scale -- handed to the
+## drawer to put where the camera has that part of the room.
 func _rect(ci: CanvasItem, r: Rect2, col: Color) -> void:
 	if ci.has_method(&"life_rect"):
 		ci.call(&"life_rect", r, col)

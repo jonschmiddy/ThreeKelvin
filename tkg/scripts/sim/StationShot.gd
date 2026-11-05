@@ -1649,7 +1649,7 @@ func _lab_mode(tree: SceneTree) -> void:
 	if mode == "room":
 		for i in 6:
 			await RenderingServer.frame_post_draw
-		print("  labmode: room, the entry on the glass: %s" % scr._entry_data.text)
+		print("  labmode: room, the sign-on on the glass: %s, %s" % [scr._login.state, scr._login.owner_name()])
 		return
 	var want_part := &""
 	var want_affix := -1

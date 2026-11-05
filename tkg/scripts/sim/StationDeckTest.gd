@@ -9,10 +9,13 @@ extends Node
 ##
 ## Through the real station screen, at each level from UNCLAIMED to CAPITAL,
 ## once with no berth and once with one: all five tabs are on and shown and the
-## elevator lights five floors; the lab's screen holds its entry (RESEARCH,
-## AUGMENT, RECIPES and DATA) inside the screen's window, nothing overlapping
-## (the settlement's 206 x 110 is the smallest); pressed, the camera goes into
-## the glass (`LabZoom`, science S9, Jon's 1C) and RECIPES lists RELIC ANALYSIS
+## elevator lights five floors; the lab's screen shows the owner's logo, and
+## the sign-in while the pointer is on the glass (Jon, Nov 5), each inside the
+## screen's window, nothing overlapping (the settlement's 206 x 110 is the
+## smallest); the glass is the only key (a click just off it opens nothing,
+## Enter and the pad's A press it); pressed, the camera goes onto the glass
+## (`LabZoom`, science S9, Jon's 1C), one uniform zoom landing at the lab's
+## whole number with the board's glass inside the lab's, and RECIPES lists RELIC ANALYSIS
 ## at that level's price and DEVELOP FILM and READ FOR DATA at no credits, and
 ## the RESEARCH board passes the mockup's box test (every box inside the glass,
 ## none overlapping, no word across an arm) with no step, some and all of them
@@ -226,9 +229,9 @@ func _open(st: StationScreen, id: StringName) -> bool:
 		await _tree.process_frame
 	await _frames(4)
 	if not st.deck_subject(id).has_area():
-		print("    %s not up after %d ms: tab %s, page shown %s, clip %s of window %s, %d rows" % [id,
+		print("    %s not up after %d ms: tab %s, page shown %s, clip %s of glass %s, the screen %s" % [id,
 			Time.get_ticks_msec() - t0, st._tab, (st._pages[id] as Control).is_visible_in_tree(),
-			st._bench_clip.size, st._lab.win_rect().size, st._bench.get_child_count()])
+			st._bench_clip.size, st._lab.glass_rect().size, st._login.state])
 	return st.deck_subject(id).has_area()
 
 
@@ -387,31 +390,25 @@ func _chart() -> void:
 ## the box test; and, where `deep`, the board in its used states, BUY's rules
 ## and the board at a second station.
 func _lab(st: StationScreen, here: MapGen.MapNode, tag: String, dev: int, deep: bool) -> void:
-	# the entry, inside the screen's window, nothing on top of anything
-	var win := st._bench_clip.get_global_rect()
-	var boxes: Array = []
-	for c in _leaves(st._bench):
-		boxes.append([c, c.get_global_rect()])
-	var out: Array[String] = []
-	for bx: Array in boxes:
-		if not win.grow(0.5).encloses(bx[1]):
-			out.append("%s %s" % [_name_of(bx[0]), bx[1]])
-	for i in boxes.size():
-		for j in range(i + 1, boxes.size()):
-			if (boxes[i][1] as Rect2).grow(-0.5).intersects((boxes[j][1] as Rect2).grow(-0.5)):
-				out.append("%s on %s" % [_name_of(boxes[i][0]), _name_of(boxes[j][0])])
-	_ok("%s: the entry's %d boxes sit inside the screen's window %s, none on another (%s)"
-		% [tag, boxes.size(), win, "all in" if out.is_empty() else "; ".join(out)], out.is_empty() and boxes.size() >= 8)
-	var keys := ["RESEARCH", "AUGMENT", "RECIPES"].all(func(w: String) -> bool: return _find_button(st._bench, w) != null)
-	_ok("%s: the entry has RESEARCH, AUGMENT and RECIPES, and DATA %d" % [tag, Run.data],
-		keys and _find_label(st._bench, "DATA %d" % Run.data) != null)
-
-	# INTO THE GLASS, on RECIPES
 	var zoom := st.lab_zoom()
-	await _click(_find_button(st._bench, "RECIPES"))
+	var login := st._login
+	await _sign_on(st, tag, dev, deep)
+	await _glass_only(st, tag)
+
+	# INTO THE GLASS, by the glass, then RECIPES (the pointer then off the glass,
+	# onto the board, as the overlay takes it)
+	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
+	await _click(st._glass_press)
+	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
 	await _frames(3)
-	if not _ok("%s: RECIPES moves the camera into the glass and lands (open %s, landed %s, tab %s)"
-			% [tag, zoom.is_open(), zoom.landed(), zoom.tab], zoom.is_open() and zoom.landed() and zoom.tab == &"recipes"):
+	if not _ok("%s: the glass moves the camera onto it and lands on RESEARCH (open %s, landed %s, tab %s, the screen %s)"
+			% [tag, zoom.is_open(), zoom.landed(), zoom.tab, login.state],
+			zoom.is_open() and zoom.landed() and zoom.tab == &"research" and login.state == LabLogin.SIGNING):
+		return
+	_landed(st, zoom, tag, dev)
+	await _click(zoom.tab_buttons[&"recipes"])
+	await _frames(2)
+	if not _ok("%s: RECIPES is on show" % tag, zoom.tab == &"recipes" and zoom.recipes.is_visible_in_tree()):
 		return
 	var rows := {}
 	for row: Dictionary in zoom.recipe_rows:
@@ -469,24 +466,171 @@ func _lab(st: StationScreen, here: MapGen.MapNode, tag: String, dev: int, deep: 
 	Run.data = was_data
 	Sig.resources_changed.emit()
 
-	# BACK OUT: LEAVE, and Esc
+	# BACK OUT: LEAVE, and Esc, each to the logo
 	await _click(zoom.leave_button)
 	await _frames(2)
-	_ok("%s: LEAVE takes the camera back out (open %s, shown %s, entry %.1f)" % [tag, zoom.is_open(), zoom.visible, st._bench.modulate.a],
-		not zoom.is_open() and not zoom.visible and is_equal_approx(st._bench.modulate.a, 1.0))
-	(_find_button(st._bench, "RESEARCH") as Button).pressed.emit()
+	_ok("%s: LEAVE takes the camera back out to the logo (open %s, shown %s, the screen %s)" % [tag, zoom.is_open(), zoom.visible, login.state],
+		not zoom.is_open() and not zoom.visible and login.state == LabLogin.LOGO and st._screen_pic.is_visible_in_tree())
+	st._glass_press.pressed.emit()
 	await _frames(2)
 	var esc := InputEventKey.new()
 	esc.keycode = KEY_ESCAPE
 	esc.pressed = true
 	st.get_viewport().push_input(esc)
 	await _frames(2)
-	_ok("%s: RESEARCH goes in, and Esc comes back out (open %s)" % [tag, zoom.is_open()], not zoom.is_open() and not zoom.visible)
+	_ok("%s: the glass goes in, and Esc comes back out to the logo (open %s, the screen %s)" % [tag, zoom.is_open(), login.state],
+		not zoom.is_open() and not zoom.visible and login.state == LabLogin.LOGO)
 	# (and at the capital with a berth: the yard's edge sets the rail's alpha
 	# every frame there, and undid the chrome's going)
 	var big := dev == MapGen.Development.CAPITAL or dev == MapGen.Development.SETTLEMENT
 	if (deep and big) or (not deep and dev == MapGen.Development.CAPITAL):
 		await _camera_move(st, zoom, tag)
+
+
+## THE LAB'S SCREEN AT REST (Jon, Nov 5): the station owner's logo, the
+## sign-in while the pointer is on the glass, and the logo again off it. Each
+## look passes the box test inside the screen's window (`LabLogin.check`), the
+## window inside the glass, and the glass whole in the room.
+func _sign_on(st: StationScreen, tag: String, dev: int, deep: bool) -> void:
+	var login := st._login
+	var lab := st._lab
+	var win := lab.win_rect()
+	var xf := lab.get_global_transform()
+	var glass_g := Rect2(xf * lab.glass_rect().position, lab.glass_rect().size * xf.get_scale().x)
+	_ok("%s: the sign-on is the screen's window %s, inside the glass %s, and the glass's holder is the glass (%s)" % [tag, win, lab.glass_rect(), st._bench_clip.get_global_rect()],
+		lab.glass_rect().encloses(win) and login.size == win.size and Vector2(st._screen_vp.size) == win.size
+		and st._bench_clip.get_global_rect().is_equal_approx(glass_g)
+		and st._bench_clip.get_global_rect().encloses(st._screen_pic.get_global_rect())
+		and login.get_child_count() == 0)
+	# THE LOGO: the owner's mark and name, RESEARCH TERMINAL, DATA in its corner
+	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
+	await _frames(3)
+	var owner := "INDEPENDENT" if deep else "KORVAN"
+	var bad := login.check()
+	var words: Array = login.leaves.map(func(l: Array) -> String: return str(l[0]))
+	_ok("%s: at rest the screen is %s's logo, RESEARCH TERMINAL and DATA %d, and passes the box test in %s (%s; %s)" % [tag, owner, Run.data, win.size,
+		", ".join(words), "clean" if bad.is_empty() else "; ".join(bad)],
+		login.state == LabLogin.LOGO and login.owner_short() == owner and words.has(owner) and words.has("mark")
+		and words.has("RESEARCH TERMINAL") and words.has("DATA %d" % Run.data) and bad.is_empty())
+	# THE SIGN-IN, the pointer on the glass: the pilot, the password typing in
+	# and the cursor blinking
+	st._glass_press.notification(Control.NOTIFICATION_MOUSE_ENTER)
+	await _frames(2)
+	var was := login.state
+	await _until(func() -> bool: return login.dots() >= LabLogin.DOTS, 4000)
+	await _frames(2)
+	var on := 0
+	var off := 0
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 1000:
+		if login.cursor_on():
+			on += 1
+		else:
+			off += 1
+		await _tree.process_frame
+	bad = login.check()
+	words = login.leaves.map(func(l: Array) -> String: return str(l[0]))
+	var who := Run.display_name().to_upper()
+	var named := words.any(func(w: String) -> bool: return w.length() > 1 and who.begins_with(w))
+	_ok("%s: pointed at, the glass shows the sign-in: PILOT %s, the password's %d dots, a blinking cursor (%d on, %d off), and passes the box test (%s; %s)" % [tag, who,
+		login.dots(), on, off, ", ".join(words), "clean" if bad.is_empty() else "; ".join(bad)],
+		was == LabLogin.LOGIN and login.state == LabLogin.LOGIN and named and words.has("PILOT") and words.has("PASSWORD")
+		and words.has("dots") and words.count("field") == 2 and words.has("CLICK TO SIGN IN") and on > 0 and off > 0 and bad.is_empty())
+	# and away again, the logo
+	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
+	await _frames(2)
+	_ok("%s: pointed away, the logo again (%s)" % [tag, login.state], login.state == LabLogin.LOGO and login.dots() == 0)
+
+
+## THE GLASS IS THE ONLY KEY: the one button on the lab's deck, the glass
+## exactly; a click just off it on any side opens nothing, one just inside any
+## corner opens the Lab; Enter and the pad's A press it too.
+func _glass_only(st: StationScreen, tag: String) -> void:
+	var zoom := st.lab_zoom()
+	var keys := _buttons(st._pages[&"bench"] as Node)
+	var g := st._glass_press.get_global_rect()
+	_ok("%s: the only key on the lab's deck is the glass (%d keys), the whole glass and nothing else (%s, the glass %s)" % [tag, keys.size(), g, st._bench_clip.get_global_rect()],
+		keys.size() == 1 and keys[0] == st._glass_press and g.is_equal_approx(st._bench_clip.get_global_rect()))
+	var opened_off: Array[String] = []
+	for at: Vector2 in [Vector2(g.position.x - 3, g.get_center().y), Vector2(g.end.x + 3, g.get_center().y),
+			Vector2(g.get_center().x, g.position.y - 3), Vector2(g.get_center().x, g.end.y + 3)]:
+		st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
+		await _click_at(at)
+		await _frames(2)
+		if zoom.is_open():
+			opened_off.append(str(at))
+			zoom.close()
+			await _frames(2)
+	_ok("%s: a click 3 px off the glass on each side opens nothing (%s)" % [tag, "none did" if opened_off.is_empty() else ", ".join(opened_off)], opened_off.is_empty())
+	var missed: Array[String] = []
+	for at2: Vector2 in [g.position + Vector2(2, 2), Vector2(g.end.x - 3, g.position.y + 2), Vector2(g.position.x + 2, g.end.y - 3), g.end - Vector2(3, 3)]:
+		st._glass_press.notification(Control.NOTIFICATION_MOUSE_ENTER)
+		await _click_at(at2)
+		await _frames(2)
+		if not zoom.is_open():
+			missed.append(str(at2))
+		zoom.close()
+		st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
+		await _frames(2)
+	_ok("%s: a click 2 px inside each corner of the glass opens the Lab (%s)" % [tag, "every one did" if missed.is_empty() else "missed " + ", ".join(missed)], missed.is_empty())
+	var target := GameShell.input_target(_tree)
+	var by: Array[String] = []
+	var enter := InputEventKey.new()
+	enter.keycode = KEY_ENTER
+	enter.physical_keycode = KEY_ENTER
+	enter.pressed = true
+	var pad := InputEventJoypadButton.new()
+	pad.button_index = JOY_BUTTON_A
+	pad.pressed = true
+	for ev: InputEvent in [enter, pad]:
+		target.push_input(ev)
+		await _frames(2)
+		if zoom.is_open():
+			by.append("Enter" if ev == enter else "pad A")
+		zoom.close()
+		await _frames(2)
+	_ok("%s: Enter and the pad's A press the glass (%s)" % [tag, ", ".join(by)], by.size() == 2)
+
+
+## Every button showing under `n`.
+func _buttons(n: Node) -> Array[BaseButton]:
+	var out: Array[BaseButton] = []
+	if n is BaseButton and (n as BaseButton).is_visible_in_tree():
+		out.append(n as BaseButton)
+	for c in n.get_children():
+		out.append_array(_buttons(c))
+	return out
+
+
+## THE CAMERA LANDED: one uniform zoom, the lab's whole number, the room one
+## picture at it, the glass centred and the board's glass inside it on screen;
+## at one less the board would not fit. Where the glass covers the window the
+## room is not drawn under the pages; where its bezel shows, it is.
+func _landed(st: StationScreen, zoom: LabZoom, tag: String, _dev: int) -> void:
+	var lab := st._lab
+	var z := int(LabZoom.ZOOM.get(lab._level, 0))
+	var g := lab.glass_rect()
+	var gs := zoom.glass_on_screen
+	var room := zoom.room_rect()
+	var smaller := (g.size * float(z - 1)).min(Vector2(LabZoom.W, LabZoom.H))
+	var covers := Rect2(0, 0, LabZoom.W, LabZoom.H).intersection(gs).is_equal_approx(Rect2(0, 0, LabZoom.W, LabZoom.H))
+	_ok("%s: landed at the %s's zoom %d, the room one picture %s at it, the glass %s centred (at %d it would be %s, too small for the board's 908x488)" % [tag,
+		lab._level, z, room, gs, z - 1, g.size * float(z - 1)],
+		z >= 2 and is_equal_approx(zoom.cam_scale(), float(z)) and room.size.is_equal_approx(LabScene.PANEL * float(z))
+		and gs.size.is_equal_approx(g.size * float(z)) and gs.get_center().distance_to(Vector2(480, 270)) <= 0.5
+		and gs.position == gs.position.round() and gs.is_equal_approx(zoom.to_screen(g))
+		and (smaller.x < LabZoom.GLASS.size.x or smaller.y < LabZoom.GLASS.size.y))
+	var bad := zoom.check()
+	_ok("%s: the board's glass is inside the lab's glass on screen (%s)" % [tag, "clean" if bad.is_empty() else "; ".join(bad)],
+		not Array(bad).any(func(b: String) -> bool: return b.begins_with("the board's glass")))
+	_ok("%s: the glass %s the window, and the room under the pages is %s (room %s, veil %s, the sign-on %s)" % [tag,
+		"covers" if covers else "sits in its bezel in", "not drawn" if covers else "drawn round it",
+		zoom._room.visible, zoom._veil.visible, zoom._screen.visible],
+		zoom._room.visible == (not covers) and zoom._life.visible == (not covers) and not zoom._veil.visible and not zoom._screen.visible)
+	var login := st._login
+	var lb := login.check()
+	_ok("%s: the screen it carried in says SIGNING IN, and passes the box test (%s)" % [tag, "clean" if lb.is_empty() else "; ".join(lb)],
+		login.state == LabLogin.SIGNING and login.leaves.any(func(l: Array) -> bool: return l[0] == "SIGNING IN") and lb.is_empty())
 
 
 ## THE MOVE ITSELF, animated (`Router.animate_in_harness`; headless it jumps
@@ -495,7 +639,8 @@ func _lab(st: StationScreen, here: MapGen.MapNode, tag: String, dev: int, deep: 
 ## in turns it round and opens no pause menu; a click during the move lands
 ## it and is eaten (it reaches no page key, and on the way out it does not
 ## open the Lab again); Tab with the camera in takes it out at once, the
-## chrome back. The HUD's alpha, the rail's and the entry's are read off the
+## chrome back. Mid-move the room is one picture at one scale, the sign-on
+## riding in on its glass. The HUD's alpha and the rail's are read off the
 ## nodes the player sees.
 func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	var hud: Control = Router.hud
@@ -504,20 +649,30 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	var out_s := ZoomLadder.UI_OUT_S
 	var mid := out_s + ZoomLadder.LAB_ZOOM_S * 0.4
 	# IN, and held mid-move
-	await _click(_find_button(st._bench, "RESEARCH"))
+	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
+	await _click(st._glass_press)
+	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
 	await _until(func() -> bool: return zoom._at >= mid)
 	var moving := zoom.is_open() and not zoom.landed() and zoom._at > out_s
-	_ok("%s, animated: mid-move the HUD, the rail and the entry are gone (HUD %.2f, rail %.2f, entry %.2f, at %.2f of %.2f)" % [tag,
-		hud.modulate.a, st._rail.modulate.a, st._bench.modulate.a, zoom._at, zoom._goal],
-		moving and hud.modulate.a < 0.02 and st._rail.modulate.a < 0.02 and st._bench.modulate.a < 0.02)
-	# AND ALL ELSE ON THE GLASS WITH THE ENTRY: the press's glow under the
-	# pointer went out in one frame as the camera set off (the capital's glass
-	# 52 to 39 grey), and the screen's snow flashed on the bare glass
+	_ok("%s, animated: mid-move the HUD and the rail are gone, and the sign-on rides in on the glass (HUD %.2f, rail %.2f, the screen %s %s, at %.2f of %.2f)" % [tag,
+		hud.modulate.a, st._rail.modulate.a, st._login.state, zoom._screen.visible, zoom._at, zoom._goal],
+		moving and hud.modulate.a < 0.02 and st._rail.modulate.a < 0.02 and zoom._screen.visible
+		and st._login.state == LabLogin.SIGNING and is_equal_approx(st._screen_pic.modulate.a, 1.0))
+	# THE SCREEN'S OWN EFFECTS GO WITH THE CHROME (its snow flashed on the bare
+	# glass), and THE CAMERA IS ONE PICTURE: the room at one scale between the
+	# room's own and the lab's zoom, the glass at that same scale in it
 	var fxl := st._lab.fx_layer()
-	_ok("%s, animated: mid-move the press's glow and the screen's own effects are gone with it (press %.2f, screen %.2f, hushed %s), the room's edge let go (veil %s, walls %s)" % [tag,
-		st._glass_press.modulate.a, fxl.modulate.a, st._lab._glass.hushed, zoom._veil.visible, zoom._walls.visible],
-		st._glass_press.modulate.a < 0.02 and fxl.modulate.a < 0.02 and st._lab._glass.hushed
-		and zoom._veil.visible and zoom._walls.visible)
+	var s := zoom.cam_scale()
+	var z := float(LabZoom.ZOOM.get(st._lab._level, 0))
+	var g := st._lab.glass_rect()
+	var gm := zoom.to_screen(g)
+	var room := zoom.room_rect()
+	_ok("%s, animated: mid-move the screen's own effects are gone (screen %.2f, hushed %s), the room's edge let go (veil %s), and the room is one picture at %.3f (room %s, its glass %s, %.3f of it)" % [tag,
+		fxl.modulate.a, st._lab._glass.hushed, zoom._veil.visible, s, room, gm, gm.size.x / g.size.x],
+		fxl.modulate.a < 0.02 and st._lab._glass.hushed and zoom._veil.visible and zoom._room.visible
+		and s > 1.0 and s < z and room.size.is_equal_approx(LabScene.PANEL * s)
+		and absf(gm.size.x / g.size.x - s) <= 1.0 / g.size.x and absf(gm.size.y / g.size.y - s) <= 1.0 / g.size.y
+		and room.position == room.position.round())
 	# Esc mid-move turns it round, and no pause menu opens
 	var esc := InputEventKey.new()
 	esc.keycode = KEY_ESCAPE
@@ -525,25 +680,26 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	GameShell.input_target(_tree).push_input(esc)
 	await _tree.process_frame
 	var menu: Variant = _tree.current_scene.get("_menu") if _tree.current_scene != null else null
-	_ok("%s, animated: Esc on the way in turns the camera round (goal %.2f) and opens no menu (%s)" % [tag, zoom._goal, menu],
-		zoom._goal == 0.0 and menu == null)
+	_ok("%s, animated: Esc on the way in turns the camera round (goal %.2f) to the logo (%s) and opens no menu (%s)" % [tag, zoom._goal, st._login.state, menu],
+		zoom._goal == 0.0 and menu == null and st._login.state == LabLogin.LOGO)
 	var chrome_while_moving := 1.0
 	var t0 := Time.get_ticks_msec()
 	while zoom.visible and Time.get_ticks_msec() - t0 < 8000:
 		if zoom._at > out_s:
 			chrome_while_moving = minf(chrome_while_moving, 1.0 - hud.modulate.a)
 		await _tree.process_frame
-	_ok("%s, animated: out again, the chrome back as it was (HUD %.2f, rail %.2f, entry %.2f), and gone all the way out (%.2f)" % [tag,
-		hud.modulate.a, st._rail.modulate.a, st._bench.modulate.a, chrome_while_moving],
+	_ok("%s, animated: out again, the chrome back as it was (HUD %.2f, rail %.2f), and gone all the way out (%.2f)" % [tag,
+		hud.modulate.a, st._rail.modulate.a, chrome_while_moving],
 		not zoom.is_open() and is_equal_approx(hud.modulate.a, 1.0) and is_equal_approx(st._rail.modulate.a, 1.0)
-		and is_equal_approx(st._bench.modulate.a, 1.0) and chrome_while_moving > 0.98)
-	_ok("%s, animated: out again, the press's glow and the screen's effects back (press %.2f, screen %.2f, hushed %s, veil %s)" % [tag,
-		st._glass_press.modulate.a, st._lab.fx_layer().modulate.a, st._lab._glass.hushed, zoom._veil.visible],
-		is_equal_approx(st._glass_press.modulate.a, 1.0) and is_equal_approx(st._lab.fx_layer().modulate.a, 1.0)
-		and not st._lab._glass.hushed and not zoom._veil.visible)
+		and chrome_while_moving > 0.98)
+	_ok("%s, animated: out again, the screen's effects back on its logo (screen %.2f, hushed %s, veil %s, the screen %s)" % [tag,
+		st._lab.fx_layer().modulate.a, st._lab._glass.hushed, zoom._veil.visible, st._login.state],
+		is_equal_approx(st._lab.fx_layer().modulate.a, 1.0) and not st._lab._glass.hushed and not zoom._veil.visible
+		and st._login.state == LabLogin.LOGO)
 	# IN AGAIN: a click mid-move lands it, and goes no further (it is where
 	# the AUGMENT tab will be)
-	await _click(_find_button(st._bench, "RESEARCH"))
+	await _click(st._glass_press)
+	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
 	await _until(func() -> bool: return zoom._at >= mid)
 	var tab_at: Vector2 = (zoom.tab_buttons[&"augment"] as Control).get_global_rect().get_center()
 	await _click_at(tab_at)
@@ -555,11 +711,12 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	await _frames(4)
 	_ok("%s, animated: landed, frames on, the HUD and the rail stay gone (HUD %.2f, rail %.2f)" % [tag, hud.modulate.a, st._rail.modulate.a],
 		zoom.landed() and hud.modulate.a < 0.02 and st._rail.modulate.a < 0.02)
-	# nothing drawn for nothing under the landed frame: the walls and the veil
-	# behind it are hidden (they cost a pass of the room's light every frame)
-	_ok("%s, animated: landed, the walls and the veil under the frame are hidden (walls %s, life %s, veil %s)" % [tag,
-		zoom._walls.visible, zoom._wall_life.visible, zoom._veil.visible],
-		zoom.landed() and not zoom._walls.visible and not zoom._wall_life.visible and not zoom._veil.visible)
+	# nothing drawn for nothing under the pages: the veil and the sign-on are
+	# hidden, and the room too where the glass covers the window
+	var covers := Rect2(0, 0, LabZoom.W, LabZoom.H).intersection(zoom.glass_on_screen).is_equal_approx(Rect2(0, 0, LabZoom.W, LabZoom.H))
+	_ok("%s, animated: landed, the veil and the sign-on under the pages are hidden, the room %s (room %s, veil %s, sign-on %s)" % [tag,
+		"too (the glass covers the window)" if covers else "drawn round the glass", zoom._room.visible, zoom._veil.visible, zoom._screen.visible],
+		zoom.landed() and zoom._room.visible == (not covers) and not zoom._veil.visible and not zoom._screen.visible)
 	# OUT, with a click on the glass mid-move: it lands out, and the Lab stays shut
 	await _click(zoom.leave_button)
 	await _until(func() -> bool: return zoom._at <= out_s + ZoomLadder.LAB_ZOOM_S * 0.5)
@@ -833,15 +990,15 @@ func _buy_rules(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	_ok("%s: a click on CORE's first step puts it on the strip, with BUY" % tag,
 		board.pick == Vector2i(1, 0) and board.buy_button.visible)
 	var buy := board.buy_button
-	var key: Button = st._entry_keys[&"research"]
+	var key: Button = st._glass_press
 	for i in 30:
 		Sig.resources_changed.emit()
 		if i % 10 == 0:
 			await _frames(1)
 	await _frames(2)
-	_ok("%s: BUY and the entry's keys are the same objects after 30 refreshes" % tag,
+	_ok("%s: BUY and the glass's key are the same objects after 30 refreshes" % tag,
 		is_instance_valid(buy) and board.buy_button == buy and buy.visible and buy.get_parent() == board
-		and is_instance_valid(key) and st._entry_keys[&"research"] == key)
+		and is_instance_valid(key) and st._glass_press == key)
 	await _click(buy)
 	await _frames(2)
 	_ok("%s: BUY spends 6 DATA and runs CORE's first step (DATA %d, owned %s, the strip on %s)"

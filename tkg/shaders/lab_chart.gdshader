@@ -13,9 +13,17 @@ render_mode unshaded;
 // the same grid sizes and the same smoothstep. The arms, the core, the stars'
 // density, the eight blues, the five warms, the dim and the tint are its own.
 
-// The glass, in board px (the 960x540 the board is laid out on), and its corner.
+// The glass, in board px (the 960x540 the board is laid out on), and its corner:
+// the ground's lift, its vignette and its dust are laid on this, the board's
+// own glass, wherever the rect below is.
 uniform vec2 gsize = vec2(908.0, 488.0);
 uniform vec2 gpos = vec2(26.0, 26.0);
+// Where this rect is, in board px: the lab's glass as the camera has it, at
+// least the board's glass and as much more as shows (`LabZoom`, Jon, Nov 5:
+// the camera stops where the lab's own glass fills the window). Past the
+// board's glass the vignette goes on falling away to its darkest.
+uniform vec2 rpos = vec2(26.0, 26.0);
+uniform vec2 rsize = vec2(908.0, 488.0);
 // The lab's screen tint, 0..255 (labs.json `screen.tint`).
 uniform vec3 tint = vec3(190.0, 240.0, 235.0);
 // How much of the galaxy is up: 1 on RESEARCH, 0 on the other two tabs.
@@ -77,8 +85,8 @@ vec3 warm(int i) {
 
 void fragment() {
 	// this board pixel: local to the glass, and on the board
-	vec2 l = min(floor(UV * gsize), gsize - 1.0);
-	vec2 a = gpos + l;
+	vec2 a = rpos + min(floor(UV * rsize), rsize - 1.0);
+	vec2 l = a - gpos;
 	float gw = gsize.x;
 	float gh = gsize.y;
 	// THE GROUND: the glass lifts toward its middle, in three dithered steps
