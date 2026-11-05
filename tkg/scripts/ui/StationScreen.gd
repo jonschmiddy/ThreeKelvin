@@ -2286,12 +2286,15 @@ func _purge(which: StringName) -> void:
 	if _scene != null and is_instance_valid(_scene):
 		_scene.served(3, "FIXED")
 
-func _fabricate(r: Dictionary) -> void:
+## Make a recipe at the Lab (`LabZoom._make`, from RECIPES' MAKE): the log
+## line, or "" when it did not happen.
+func _fabricate(r: Dictionary) -> String:
 	var line := Fabricator.make(Run.node_at(), r)
 	if line.is_empty():
-		return
+		return ""
 	Audio.play(&"fabricate", 0.04)
 	Run.log_line(line, &"good")
+	return line
 
 func _on_action(action: String, thing: Variant) -> void:
 	var n: MapGen.MapNode = Run.node_at()

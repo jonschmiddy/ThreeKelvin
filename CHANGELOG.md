@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Changed** — the Lab's RECIPES page is laid out like AUGMENT. What you hold is on a rail on
+  the left, the one you pick is drawn large in the middle under a scanner, and the recipes it can
+  go into are rings on the right. Pick one, and MAKE is at the bottom with its cost. With nothing
+  to make, it shows each recipe greyed out with what it needs and where to find it.
 - **Added** — an eye beside GOAL: REACH THE CORE shows how strong the Custodian is getting. Until
   your fifteenth jump it sleeps beside the number of jumps left before it starts to grow. Then it
   wakes, and it opens wider and burns redder as the Custodian grows, until it is at full strength

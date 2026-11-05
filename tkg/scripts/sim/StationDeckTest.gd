@@ -15,8 +15,10 @@ extends Node
 ## smallest); the glass is the only key (a click just off it opens nothing,
 ## Enter and the pad's A press it); pressed, the camera goes onto the glass
 ## (`LabZoom`, science S9, Jon's 1C), one uniform zoom landing at the lab's
-## whole number with the board's glass inside the lab's, and RECIPES lists RELIC ANALYSIS
-## at that level's price and DEVELOP FILM and READ FOR DATA at no credits, and
+## whole number with the board's glass inside the lab's, and RECIPES (AUGMENT's
+## layout, Jon, Nov 5) greys every recipe with nothing held, prices RELIC
+## ANALYSIS at that level and the other two at no credits, picks by a click on
+## a row and a ring, and its MAKE survives thirty refreshes and makes, and
 ## the RESEARCH board passes the mockup's box test (every box inside the glass,
 ## none overlapping, no word across an arm) with no step, some and all of them
 ## bought and the strip on every step; AUGMENT passes it on every part and
@@ -406,33 +408,7 @@ func _lab(st: StationScreen, here: MapGen.MapNode, tag: String, dev: int, deep: 
 			zoom.is_open() and zoom.landed() and zoom.tab == &"research" and login.state == LabLogin.SIGNING):
 		return
 	_landed(st, zoom, tag, dev)
-	await _click(zoom.tab_buttons[&"recipes"])
-	await _frames(2)
-	if not _ok("%s: RECIPES is on show" % tag, zoom.tab == &"recipes" and zoom.recipes.is_visible_in_tree()):
-		return
-	var rows := {}
-	for row: Dictionary in zoom.recipe_rows:
-		rows[StringName(row.r.id)] = row
-	var relic: Dictionary = rows.get(&"analysis", {})
-	_ok("%s: RECIPES says RELIC ANALYSIS at %d CREDITS (%s)" % [tag, PRICES[dev], relic.cost if not relic.is_empty() else "no row"],
-		not relic.is_empty() and relic.name == "RELIC ANALYSIS" and bool(relic.on)
-		and str(relic.cost).contains("%d CREDITS" % PRICES[dev]))
-	for id: StringName in [&"develop", &"read"]:
-		var r: Dictionary = rows.get(id, {})
-		_ok("%s: %s costs 0 credits (%s)" % [tag, id, r.cost if not r.is_empty() else "no row"],
-			not r.is_empty() and Fabricator.price(here, r.r) == 0 and not str(r.cost).contains("CREDITS")
-			and bool(r.on) and str(r.cost) != "")
-	# film and relics held, said on their rows
-	for i in 2:
-		Run.place_in_hold(MaterialData.of(MaterialTable.by_id(&"survey_film")))
-	Sig.resources_changed.emit()
-	await _frames(2)
-	_ok("%s: DEVELOP FILM says the film held (%s)" % [tag, rows[&"develop"].held],
-		str(rows[&"develop"].held) == "YOU HAVE %d SURVEY FILMS" % Run.material(&"survey_film") and not (rows[&"develop"].make as LabPlate).disabled)
-	var bad0 := zoom.check()
-	_ok("%s: RECIPES with film to develop passes the box test (%s)" % [tag, "clean" if bad0.is_empty() else "; ".join(bad0)], bad0.is_empty())
-	var bad := zoom.check()
-	_ok("%s: RECIPES passes the box test (%s)" % [tag, "clean" if bad.is_empty() else "; ".join(bad)], bad.is_empty())
+	await _recipes_page(zoom, here, tag, dev)
 
 	# RESEARCH: the board, with no step, some and all of them bought
 	await _click(zoom.tab_buttons[&"research"])
@@ -485,6 +461,115 @@ func _lab(st: StationScreen, here: MapGen.MapNode, tag: String, dev: int, deep: 
 	var big := dev == MapGen.Development.CAPITAL or dev == MapGen.Development.SETTLEMENT
 	if (deep and big) or (not deep and dev == MapGen.Development.CAPITAL):
 		await _camera_move(st, zoom, tag)
+
+
+## RECIPES IN AUGMENT'S LAYOUT (Jon, Nov 5: "Can't we make the recipes page
+## like the augment page in its layout?"; `LabRecipes`). With nothing held: no
+## key, every recipe greyed with what it needs, RELIC ANALYSIS at this level's
+## price. With film and a relic: the film on the bench and DEVELOP FILM picked;
+## a click on a row and on a ring through the viewport picks; MAKE is the same
+## object after thirty `resources_changed` and, clicked through the viewport,
+## develops a roll (the counts, DATA and the header move) and reads a relic out
+## as a part. The box test passes in every state.
+func _recipes_page(zoom: LabZoom, here: MapGen.MapNode, tag: String, dev: int) -> void:
+	var rec := zoom.recipes
+	var data_was := Run.data
+	var cr_was := Run.credits
+	Run.credits = maxi(Run.credits, 300)
+	for id: StringName in [&"survey_film", &"relic"]:
+		Run.spend_material(id, Run.material(id))
+	Sig.resources_changed.emit()
+	await _click(zoom.tab_buttons[&"recipes"])
+	await _frames(2)
+	if not _ok("%s: RECIPES is on show" % tag, zoom.tab == &"recipes" and rec.is_visible_in_tree()):
+		return
+	var words := func() -> Array:
+		return rec.leaves.map(func(l: Array) -> String: return str(l[0]))
+	# NOTHING HELD
+	var ids: Array = rec._rings.map(func(g: Dictionary) -> StringName: return StringName(g.r.id))
+	var sts: Array = rec._rings.map(func(g: Dictionary) -> StringName: return g.st)
+	var w0: Array = words.call()
+	var bad0 := zoom.check()
+	_ok("%s: RECIPES with nothing held greys all three recipes with what each needs, and has no key (%s %s; %s)" % [tag, ids, sts,
+		"clean" if bad0.is_empty() else "; ".join(bad0)],
+		rec.empty() and rec.hand == &"" and ids == [&"develop", &"read", &"analysis"]
+		and sts.all(func(x: StringName) -> bool: return x == &"later") and not rec.commit_button.visible
+		and w0.has("NOTHING TO MAKE") and w0.has("NEEDS A ROLL OF FILM") and w0.has("NEEDS A RELIC")
+		and w0.has("NEEDS A RELIC + %d CREDITS" % PRICES[dev]) and w0.has("NONE  ·  FROM WRECKS, DANGER 7+")
+		and bad0.is_empty())
+	var prices: Array = rec._rings.map(func(g: Dictionary) -> int: return Fabricator.price(here, g.r))
+	_ok("%s: RELIC ANALYSIS costs %d credits, DEVELOP FILM and READ FOR DATA none (%s)" % [tag, PRICES[dev], prices],
+		prices == [0, 0, PRICES[dev]])
+	# TWO ROLLS AND A RELIC
+	for i in 2:
+		Run.place_in_hold(MaterialData.of(MaterialTable.by_id(&"survey_film")))
+	Run.place_in_hold(MaterialData.of(MaterialTable.by_id(&"relic")))
+	Sig.resources_changed.emit()
+	await _frames(2)
+	var film_line := "2 ROLLS  ·  SELLS FOR %d" % Market.material_price(here, &"survey_film")
+	var w1: Array = words.call()
+	var bad1 := zoom.check()
+	_ok("%s: with two rolls and a relic the film is on the bench, DEVELOP FILM picked with MAKE for %s (%s; %s)" % [tag, rec.bill_words,
+		film_line, "clean" if bad1.is_empty() else "; ".join(bad1)],
+		rec.hand == &"survey_film" and rec._rings.size() == 1 and rec.picked().get("id") == &"develop"
+		and rec._rings[0].st == &"next" and rec.commit_button.visible and not rec.commit_button.disabled
+		and rec.bill_words == "1 ROLL" and w1.has(film_line) and bad1.is_empty())
+	# A CLICK ON THE RELIC'S ROW, then on each of its rings
+	await _click_at(rec.get_global_transform() * Vector2(LabRecipes.RAIL_X + 120, int(rec._items[1].cy)))
+	await _frames(2)
+	var rids: Array = rec._rings.map(func(g: Dictionary) -> StringName: return StringName(g.r.id))
+	_ok("%s: a click on the relic's row puts it on the bench, READ FOR DATA and RELIC ANALYSIS off it (%s)" % [tag, rids],
+		rec.hand == &"relic" and rids == [&"read", &"analysis"])
+	var bills := ["1 RELIC", "1 RELIC + %d CREDITS" % PRICES[dev]]
+	for i2 in 2:
+		await _click_at(rec.get_global_transform() * Vector2(rec._rings[i2].at))
+		await _frames(2)
+		var bad2 := zoom.check()
+		_ok("%s: a click on ring %d picks %s, its bill %s (%s)" % [tag, i2, rids[i2], rec.bill_words, "clean" if bad2.is_empty() else "; ".join(bad2)],
+			rec.choice == i2 and rec._rings[i2].st == &"next" and rec.bill_words == bills[i2] and bad2.is_empty())
+	# MAKE THROUGH THIRTY REFRESHES, then clicked: a roll developed
+	await _click_at(rec.get_global_transform() * Vector2(LabRecipes.RAIL_X + 120, int(rec._items[0].cy)))
+	await _frames(2)
+	var key := rec.commit_button
+	for i3 in 30:
+		Sig.resources_changed.emit()
+		if i3 % 10 == 0:
+			await _frames(1)
+	await _frames(2)
+	_ok("%s: MAKE is the same object after 30 refreshes, the film still in hand" % tag,
+		is_instance_valid(key) and rec.commit_button == key and key.visible and not key.disabled and rec.hand == &"survey_film")
+	var d0 := Run.data
+	await _click(key)
+	await _frames(2)
+	var w3: Array = words.call()
+	var one_line := "1 ROLL  ·  SELLS FOR %d" % Market.material_price(here, &"survey_film")
+	var bad3 := zoom.check()
+	_ok("%s: MAKE clicked develops a roll: film 2 to %d, DATA %d to %d, the rail says %s, the header %s, the strip says it (%s)" % [tag,
+		Run.material(&"survey_film"), d0, Run.data, one_line, zoom._note, "clean" if bad3.is_empty() else "; ".join(bad3)],
+		Run.material(&"survey_film") == 1 and Run.data == d0 + 6 and w3.has(one_line) and zoom._note == "+6"
+		and rec.done.get("id") == &"develop" and w3.has("THE LAB GOT 6 DATA OUT OF IT.") and key.visible and not key.disabled
+		and bad3.is_empty())
+	# RELIC ANALYSIS clicked: the relic read out as a part
+	await _click_at(rec.get_global_transform() * Vector2(LabRecipes.RAIL_X + 120, int(rec._items[1].cy)))
+	await _frames(2)
+	await _click_at(rec.get_global_transform() * Vector2(rec._rings[1].at))
+	await _frames(2)
+	var c0 := Run.credits
+	await _click(key)
+	await _frames(2)
+	var w4: Array = words.call()
+	var bad4 := zoom.check()
+	var made := str(rec.done.get("line", ""))
+	_ok("%s: MAKE clicked on RELIC ANALYSIS reads the relic out (relics %d, credits %d to %d, %s), the rail says none, the key stands disabled (%s)" % [tag,
+		Run.material(&"relic"), c0, Run.credits, made, "clean" if bad4.is_empty() else "; ".join(bad4)],
+		Run.material(&"relic") == 0 and Run.credits == c0 - PRICES[dev] and made.begins_with("The fragment reads out as")
+		and w4.has(made.to_upper()) and w4.has("NONE  ·  FROM WRECKS, DANGER 7+") and key.visible and key.disabled
+		and rec._rings.all(func(g: Dictionary) -> bool: return g.st == &"later") and bad4.is_empty())
+	Run.spend_material(&"survey_film", Run.material(&"survey_film"))
+	Run.data = data_was
+	Run.credits = cr_was
+	Sig.resources_changed.emit()
+	await _frames(1)
 
 
 ## THE LAB'S SCREEN AT REST (Jon, Nov 5): the station owner's logo, the
