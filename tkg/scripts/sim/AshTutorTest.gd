@@ -142,13 +142,16 @@ const JON := {
 
 ## THE DECKS' LINES, Jon's picks of two drafts each (Oct 20, "promenade:B
 ## shipyard:B exchange:B hiring_board:A laboratory:A"), character for character;
-## text alone until a take is recorded.
+## text alone until a take is recorded. The laboratory's is science's (Phase 12,
+## Lab layout 1C, Nov 4): the lab spends DATA, its screen is pressed to work it,
+## and RESEARCH and AUGMENT are its tabs. Its take is `tut_laboratory_2`, not
+## recorded yet, so it is text alone and the fabricator's old take never plays.
 const DECK_A := {
 	&"shipyard": "Repairs and fuel are here. Click a drone over the ship to pay for its job.",
 	&"promenade": "The shelf sells parts. Drag one down to the till to buy it. It goes in the hold.",
 	&"exchange": "Spare parts turn into credits here. Drag one to the counter to sell it.",
 	&"hiring_board": "Manufacturers post paid work here. Press SIGN on a note to take the job.",
-	&"laboratory": "The fabricator turns a relic into a part. Press MAKE when you can pay for it.",
+	&"laboratory": "The lab spends DATA. Click the screen. RESEARCH buys a routine. AUGMENT adds an affix to a part.",
 }
 ## The decks' hints, in the rail's order from the deck the station opens on.
 const DECKS: Array[StringName] = [&"shipyard", &"promenade", &"exchange", &"hiring_board", &"laboratory"]
@@ -807,8 +810,19 @@ func _lines() -> void:
 		if words != String(DECK_A[k]) or card.size() != 2 or not Hints.ORDER.has(k) or not Hints.SPENT_ONCE_HEARD.has(k) \
 				or AshTutorLines.SPOKEN.has(k):
 			deck_bad.append(String(k))
-	_ok("the decks' lines are Jon's picks (B, B, B, A, A), each a hint with a two-line card, said once (%s)" % [
+	_ok("the decks' lines are Jon's picks (B, B, B, A) and the lab's science line, each a hint with a two-line card, said once (%s)" % [
 		"all %d" % DECKS.size() if deck_bad.is_empty() else "NOT " + ", ".join(deck_bad)], deck_bad.is_empty())
+	# THE LAB'S NEW WORDS (science, Nov 4): a take of their own, none installed,
+	# so text alone; its card names the lab's tabs; and it ends on the lab used
+	# as the line teaches it, a routine researched or a part augmented
+	var lab_card := " ".join(Hints.lines(&"laboratory"))
+	_ok("the lab's line: take %s (%s), the card names DATA, RESEARCH and AUGMENT, its action \"%s\"" % [
+		AshTutorLines.RETAKE.get(&"laboratory", "none"), "none installed" if AshTutorLines.voice_path(&"laboratory") == "" else AshTutorLines.voice_path(&"laboratory"),
+		Hints.DONE.get(&"laboratory", "")],
+		AshTutorLines.RETAKE.get(&"laboratory") == "tut_laboratory_2"
+		and not AshTutorLines.voice_path(&"laboratory").ends_with("/tut_laboratory.ogg")
+		and lab_card.contains("DATA") and lab_card.contains("RESEARCH") and lab_card.contains("AUGMENT")
+		and Hints.DONE.get(&"laboratory") == "a routine researched or a part augmented")
 	# EVERY HINT ENDS ON ITS OWN ACTION, or is an information line that goes after
 	# its reading time: one or the other, never neither, never both
 	var no_end: Array[String] = []
@@ -3051,7 +3065,7 @@ func _comms() -> void:
 	# THE TAB: no count, ever, and the row fits with it
 	_ok("comms: the tab is the same rect and the same word with three lines said (%s, \"%s\")" % [hud.comms_tab_rect(),
 		hud._tab_comms.text], hud.comms_tab_rect() == tab0 and hud._tab_comms.text == "COMMS" and tab0.size.x > 0.0)
-	_comms_row_fits(hud)
+	await _comms_row_fits(hud)
 	# THE TABLE, newest first
 	hud._tab_comms.pressed.emit()
 	await _frames(4)
@@ -3127,7 +3141,23 @@ func _comms() -> void:
 ## its minimum within the bar (`QuestLogTest._hud_fits`, the same test). The
 ## bar is the row's clip, 932 at a 960 window, not the panel's 944: a row up to
 ## twelve pixels wider than the clip had its right-hand end cut off and passed.
+## WITH DATA AT TWO FIGURES (science, Nov 4): the readout is always on the row,
+## reserved at "00", so it is held to the clip with 99 showing.
 func _comms_row_fits(hud: HudBar) -> void:
+	var data0 := Run.data
+	Run.add_data(99 - Run.data)
+	await _frames(2)
+	var dv := hud._data.get_node("Value") as Label if hud._data != null else null
+	var clip := (hud._row.get_parent() as Control).get_global_rect()
+	_ok("comms: DATA on the row beside COMMS, \"%s\" inside the %.0f px clip" % [dv.text if dv != null else "?", clip.size.x],
+		dv != null and dv.text == "99" and hud._data.is_visible_in_tree() and clip.encloses(hud.data_rect())
+		and is_equal_approx(clip.size.x, 932.0))
+	_comms_row_check(hud)
+	Run.add_data(data0 - Run.data)
+	await _frames(2)
+
+
+func _comms_row_check(hud: HudBar) -> void:
 	var bar := (hud._row.get_parent() as Control).get_global_rect()
 	var pieces: Array = []
 	for c in hud._row.get_children():

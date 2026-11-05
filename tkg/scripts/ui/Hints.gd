@@ -159,7 +159,7 @@ const DEEP: Array[StringName] = [&"energy", &"discard_pick", &"heat_corner", &"k
 ## "There is no tutorial tip for the promenade, exchange, shipyard, laboratory,
 ## or hiring board"): hint id -> the station's page (`StationScreen.DECKS`). Each
 ## points at the deck's main thing (`StationScreen.deck_subject`): the yard's
-## drones, the shelf, the sell counter, the notes on the board, the fabricator's
+## drones, the shelf, the sell counter, the notes on the board, the lab's
 ## screen. After `dock`, which still comes first on arrival.
 const DECK_HINTS := {&"shipyard": &"services", &"promenade": &"stock", &"exchange": &"hold",
 	&"hiring_board": &"work", &"laboratory": &"bench"}
@@ -229,7 +229,7 @@ const DONE := {
 	&"promenade": "a part bought",
 	&"exchange": "a part sold",
 	&"hiring_board": "a job signed",
-	&"laboratory": "something made at the fabricator",
+	&"laboratory": "a routine researched or a part augmented",
 	&"ship": "your ship opened up",
 }
 ## How long a subject must hold before its hint shows, s.
@@ -432,7 +432,9 @@ func lines(id: StringName) -> Array:
 		&"hiring_board":
 			return ["Manufacturers post paid work here.", "Press SIGN on a note to take the job."]
 		&"laboratory":
-			return ["The fabricator turns a relic into a part.", "Press MAKE when you can pay for it."]
+			# (science, Lab layout 1C, Nov 4: the screen is pressed to work it,
+			# and RESEARCH and AUGMENT are its tabs)
+			return ["The lab spends DATA. Click the screen.", "RESEARCH buys a routine. AUGMENT adds an affix."]
 		&"fuel":
 			return ["Fuel is low. Run dry and the run ends.", fuel_dock_line()]
 		&"ship":
@@ -1023,8 +1025,10 @@ func _snapshot(id: StringName) -> Dictionary:
 		&"dock":
 			var st := Router.current as StationScreen
 			return {tab = st._tab if st != null else &""}
-		&"shipyard", &"promenade", &"exchange", &"hiring_board", &"laboratory":
+		&"shipyard", &"promenade", &"exchange", &"hiring_board":
 			return {sig = _deck_sig()}
+		&"laboratory":
+			return {sig = _lab_sig()}
 	return {}
 
 
@@ -1146,8 +1150,10 @@ func _done(id: StringName) -> bool:
 		&"dock":
 			var st := cur as StationScreen
 			return st != null and st._tab != StringName(_base.get("tab", &""))
-		&"shipyard", &"promenade", &"exchange", &"hiring_board", &"laboratory":
+		&"shipyard", &"promenade", &"exchange", &"hiring_board":
 			return _base.has("sig") and _deck_sig() != _base.sig
+		&"laboratory":
+			return _base.has("sig") and _lab_sig() != _base.sig
 		&"ship":
 			if sc != null:
 				return sc._cutaway != null and is_instance_valid(sc._cutaway)
@@ -1202,6 +1208,28 @@ func _fit_sig() -> Array:
 func _deck_sig() -> Array:
 	return [Run.credits, Run.hp, Run.fuel, Run.hauls, Run.cargo.size(), Run.installed.size(),
 		Run.contracts.size(), Run.hull]
+
+
+## THE LAB USED, as its line teaches it (science, Nov 4): a board step bought
+## under RESEARCH or a part augmented under AUGMENT. Its own, not `_deck_sig`:
+## a step costs DATA alone, so nothing `_deck_sig` reads moves when one is
+## bought, and the lab's RECIPES (survey film into DATA) and STRIP are not what
+## the line teaches. The routines are counted, never DATA, for the same reason.
+func _lab_sig() -> Array:
+	return [Run.owned_routines().size(), augmented_count()]
+
+
+## How many of your parts carry the AUGMENTED mark, fitted or in the hold. The
+## mark stays after STRIP (open call 10), so this only ever goes up in a run.
+static func augmented_count() -> int:
+	var k := 0
+	for m in Run.installed:
+		if m.augmented:
+			k += 1
+	for it: HoldItem in Run.cargo:
+		if it is ModuleData and (it as ModuleData).augmented:
+			k += 1
+	return k
 
 
 ## The wrecks here opened so far.

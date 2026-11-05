@@ -511,10 +511,20 @@ func _decks() -> void:
 		_ok("%s: clicked %d times: it stays, unspent" % [id, made], Hints.card == c and not Hints.seen(id))
 		if i % 2 == 0:
 			# USED: its action spends it, the deck still open
+			var sig0 := Hints._deck_sig()
+			var data0 := Run.data
+			var owned0 := Run.owned_routines().size()
 			var did := HintActs.act(id)
 			Hints.poll(0.05)
 			_ok("%s: the deck used (%s): spent, the card gone" % [id, did if did != "" else "NOTHING TO USE IT WITH"],
 				did != "" and Hints.seen(id) and (Hints.card == null or Hints.card.id != id))
+			if id == &"laboratory":
+				# A DATA-ONLY PURCHASE (science, Nov 4): a board step moves no
+				# credits, hull, fuel, hold or fit, so the decks' own signature
+				# stands still, and the lab's hint is spent all the same
+				_ok("laboratory: a board step bought with DATA alone (DATA %d to %d, routines %d to %d, credits and the rest unmoved) spends it" % [
+					data0, Run.data, owned0, Run.owned_routines().size()],
+					Run.data < data0 and Run.owned_routines().size() == owned0 + 1 and Hints._deck_sig() == sig0 and Hints.seen(id))
 		else:
 			# LEFT WITHOUT USING IT: the next deck's button (the last back to the yard)
 			var next: StringName = DECKS[(i + 1) % DECKS.size()]

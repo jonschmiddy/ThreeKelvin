@@ -5,7 +5,7 @@ extends RefCounted
 ## it -- the chart's row pressed, an event's row in the map's list, a choice in
 ## the band, a card played, END TURN, a part out of a wreck's window, a module
 ## off your ship and back on, a wreck's own click, SECTOR LOOT, a deck's button,
-## a drone's job, the till, the counter, SIGN, the fabricator; and the deep
+## a drone's job, the till, the counter, SIGN, a board step at the lab; and the deep
 ## tutorial's (Oct 22): a discard picked, the pointer rested on a card, a
 ## malfunction purged, FLEE pressed, CONTINUE, THRUST held, a part put down or
 ## pointed at in the cutaway, the FAULTS drone, TAKE IT, another deck, the escape
@@ -247,13 +247,24 @@ static func act(id: StringName) -> String:
 					(b as Button).pressed.emit()
 					return "pressed SIGN on a note"
 		&"laboratory":
-			var n := Run.node_at()
-			if st == null or n == null:
+			# A BOARD STEP BOUGHT (science, Nov 4): the first branch whose next
+			# step the DATA covers, through the Lab screen's RESEARCH buy
+			# (`_research`, plan S9) when the screen has it, else the service
+			# that buy calls. DATA alone moves, so this is the DATA-only purchase
+			# `-- hinttest` holds the hint to being spent by.
+			if st == null or not Science.lab_here(Run.node_at()):
 				return ""
-			for r in Fabricator.available(n):
-				if Fabricator.can_make(n, r):
-					st._fabricate(r)
-					return "made %s" % String(r.get("kind", "?"))
+			for b in 3:
+				if not Science.can_buy(b):
+					continue
+				var rid := Run.next_step(b)
+				var k0 := Run.board_owned[b]
+				if st.has_method(&"_research"):
+					st.call(&"_research", b)
+				else:
+					Science.buy(b)
+				if Run.board_owned[b] > k0:
+					return "researched %s" % String(DB.routines[rid].name)
 		&"ship":
 			if sc != null and sc.open_cutaway() != null:
 				return "opened the ship up"
@@ -264,10 +275,11 @@ static func act(id: StringName) -> String:
 
 ## What a station's decks need to be used by `act`: credits for a drone, the
 ## till and the fabricator; a part in the hold for the counter; the fabricator's
-## materials. Done before a deck's line shows (what it adds would read as the
-## deck used).
+## materials; DATA for a board step at the lab. Done before a deck's line shows
+## (what it adds would read as the deck used).
 static func stock_up() -> void:
 	Run.add_credits(4000)
+	Run.add_data(40)
 	var n := Run.node_at()
 	if n != null:
 		for r in Fabricator.available(n):

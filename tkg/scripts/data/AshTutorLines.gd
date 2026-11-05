@@ -62,12 +62,16 @@ const LINES: Dictionary = {
 	# THE DECKS, the first time each is open (`Hints.DECK_HINTS`): Jon's picks of
 	# two drafts each (Oct 20, "promenade:B shipyard:B exchange:B hiring_board:A
 	# laboratory:A"), recorded Oct 21. Each says what the deck is for and the one
-	# thing to do there in the deck's own words; no number and no name.
+	# thing to do there in the deck's own words; no number and no name. The
+	# laboratory's is new for science (Phase 12, Lab layout 1C, Nov 4): the lab
+	# spends DATA, its screen is pressed to work it (the camera goes into the
+	# glass), and RESEARCH and AUGMENT are its tabs' own words. Text only until
+	# Jon OKs a take (`RETAKE`).
 	&"shipyard": "Repairs and fuel are here. Click a drone over the ship to pay for its job.",
 	&"promenade": "The shelf sells parts. Drag one down to the till to buy it. It goes in the hold.",
 	&"exchange": "Spare parts turn into credits here. Drag one to the counter to sell it.",
 	&"hiring_board": "Manufacturers post paid work here. Press SIGN on a note to take the job.",
-	&"laboratory": "The fabricator turns a relic into a part. Press MAKE when you can pay for it.",
+	&"laboratory": "The lab spends DATA. Click the screen. RESEARCH buys a routine. AUGMENT adds an affix to a part.",
 	&"faults": "FAULTS clears a malfunction out of the deck, for a price.",
 	&"hull_sale": "That ship is for sale. TAKE IT trades ours in. It comes empty, so we move everything over.",
 	&"undock": "UNDOCK takes us back out when we're done here.",
@@ -129,6 +133,8 @@ const RETAKE: Dictionary = {
 	&"salvage": "tut_salvage_2",
 	&"loot": "tut_loot_2",
 	&"drawer": "tut_drawer_2",
+	# (science, Nov 4: the fabricator's line became the lab's; no take yet)
+	&"laboratory": "tut_laboratory_2",
 }
 
 const VOICE_DIR := "res://assets/audio/voice/ash/"
