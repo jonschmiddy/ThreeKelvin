@@ -231,7 +231,7 @@ func _run() -> void:
 	await _hint(&"shipyard", 15.0)
 	await _hint(&"ship", 10.0)
 	var st := Router.current as StationScreen
-	for id: StringName in [&"promenade", &"exchange", &"hiring_board", &"laboratory"]:
+	for id: StringName in [&"promenade", &"exchange", &"hiring_board", &"research"]:
 		var tab: StringName = Hints.DECK_HINTS[id]
 		if st != null and st._tabs_on.get(tab, true):
 			(st._tabs[tab] as Button).pressed.emit()

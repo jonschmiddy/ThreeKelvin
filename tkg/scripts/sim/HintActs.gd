@@ -5,7 +5,7 @@ extends RefCounted
 ## it -- the chart's row pressed, an event's row in the map's list, a choice in
 ## the band, a card played, END TURN, a part out of a wreck's window, a module
 ## off your ship and back on, a wreck's own click, SECTOR LOOT, a deck's button,
-## a drone's job, the till, the counter, SIGN, the fabricator; and the deep
+## a drone's job, the till, the counter, SIGN, a board step at the lab; and the deep
 ## tutorial's (Oct 22): a discard picked, the pointer rested on a card, a
 ## malfunction purged, FLEE pressed, CONTINUE, THRUST held, a part put down or
 ## pointed at in the cutaway, the FAULTS drone, TAKE IT, another deck, the escape
@@ -246,14 +246,37 @@ static func act(id: StringName) -> String:
 				if (b as Button).text == "SIGN" and (b as Button).is_visible_in_tree():
 					(b as Button).pressed.emit()
 					return "pressed SIGN on a note"
-		&"laboratory":
-			var n := Run.node_at()
-			if st == null or n == null:
+		&"research":
+			# THE LAB'S SCREEN PRESSED, as a player presses it (science, Nov 4,
+			# Lab layout 1C): the camera goes into the glass (`LabZoom`), which
+			# is what spends the hint; then, in there, BUY on the first branch
+			# whose next step the DATA covers (DATA alone moves). The camera
+			# stays in until `leave_lab`. Without the zoom (a screen before S9),
+			# the service BUY calls.
+			if st == null or not Science.lab_here(Run.node_at()):
 				return ""
-			for r in Fabricator.available(n):
-				if Fabricator.can_make(n, r):
-					st._fabricate(r)
-					return "made %s" % String(r.get("kind", "?"))
+			var z: Variant = st.call(&"lab_zoom") if st.has_method(&"lab_zoom") else null
+			var did := ""
+			if z != null:
+				(st.get("_glass_press") as Button).pressed.emit()
+				z.call(&"finish")
+				did = "pressed the lab's screen"
+			for b in 3:
+				if not Science.can_buy(b):
+					continue
+				var rid := Run.next_step(b)
+				var k0 := Run.board_owned[b]
+				if z != null:
+					var board: Variant = z.get("board")
+					board.set("pick", Vector2i(b, k0))
+					board.call(&"refresh")
+					(board.get("buy_button") as Button).pressed.emit()
+				else:
+					Science.buy(b)
+				if Run.board_owned[b] > k0:
+					did = ("%s, researched %s" % [did, String(DB.routines[rid].name)]).trim_prefix(", ")
+					break
+			return did
 		&"ship":
 			if sc != null and sc.open_cutaway() != null:
 				return "opened the ship up"
@@ -262,12 +285,27 @@ static func act(id: StringName) -> String:
 	return ""
 
 
+## Out of the lab's screen, as a player leaves it: LEAVE pressed, the camera
+## back in the room (`act(&"research")` leaves it in). True if it was in.
+static func leave_lab() -> bool:
+	var st := Router.current as StationScreen
+	if st == null or not st.has_method(&"lab_zoom"):
+		return false
+	var z: Variant = st.call(&"lab_zoom")
+	if z == null or not bool(z.call(&"is_open")):
+		return false
+	(z.get("leave_button") as Button).pressed.emit()
+	z.call(&"finish")
+	return true
+
+
 ## What a station's decks need to be used by `act`: credits for a drone, the
 ## till and the fabricator; a part in the hold for the counter; the fabricator's
-## materials. Done before a deck's line shows (what it adds would read as the
-## deck used).
+## materials; DATA for a board step at the lab. Done before a deck's line shows
+## (what it adds would read as the deck used).
 static func stock_up() -> void:
 	Run.add_credits(4000)
+	Run.add_data(40)
 	var n := Run.node_at()
 	if n != null:
 		for r in Fabricator.available(n):

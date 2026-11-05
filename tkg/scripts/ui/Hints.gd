@@ -130,7 +130,7 @@ const ORDER: Array[StringName] = [&"hand", &"energy", &"discard_pick", &"endturn
 	&"drawer", &"odds", &"result", &"fuel_first", &"events", &"map_fly", &"chart", &"jump_blocked",
 	&"layers", &"contract_track", &"quest", &"salvage", &"cutaway", &"mounts", &"cards_from_parts",
 	&"attributes", &"wreck", &"loot", &"hull", &"dock", &"shipyard", &"faults", &"hull_sale",
-	&"promenade", &"exchange", &"hiring_board", &"laboratory", &"undock", &"fuel", &"ship", &"save",
+	&"promenade", &"exchange", &"hiring_board", &"research", &"undock", &"fuel", &"ship", &"save",
 	&"chassis_card"]
 ## THE FIGHT'S LESSONS, paced by the turn (`_pace_ok`).
 const FIGHT: Array[StringName] = [&"hand", &"energy", &"discard_pick", &"endturn", &"intent",
@@ -159,10 +159,10 @@ const DEEP: Array[StringName] = [&"energy", &"discard_pick", &"heat_corner", &"k
 ## "There is no tutorial tip for the promenade, exchange, shipyard, laboratory,
 ## or hiring board"): hint id -> the station's page (`StationScreen.DECKS`). Each
 ## points at the deck's main thing (`StationScreen.deck_subject`): the yard's
-## drones, the shelf, the sell counter, the notes on the board, the fabricator's
+## drones, the shelf, the sell counter, the notes on the board, the lab's
 ## screen. After `dock`, which still comes first on arrival.
 const DECK_HINTS := {&"shipyard": &"services", &"promenade": &"stock", &"exchange": &"hold",
-	&"hiring_board": &"work", &"laboratory": &"bench"}
+	&"hiring_board": &"work", &"research": &"bench"}
 ## The goal line's steps (`GoalLine`), done once: kept beside the hints, and
 ## cleared with them.
 const STEPS: Array[StringName] = [&"step_jump", &"step_event"]
@@ -178,7 +178,7 @@ const STEP_LINES: Array[StringName] = [&"step_jump", &"step_jump_chart", &"step_
 ## were spent as they showed while a click was what spent the rest.) A card is
 ## read whole as it shows. SHOW HINTS AGAIN brings them back.
 const SPENT_ONCE_HEARD: Array[StringName] = [&"cutaway", &"shipyard", &"promenade", &"exchange",
-	&"hiring_board", &"laboratory", &"energy", &"hull", &"map_fly", &"layers", &"contract_track", &"mounts",
+	&"hiring_board", &"research", &"energy", &"hull", &"map_fly", &"layers", &"contract_track", &"mounts",
 	&"quest", &"jump_blocked", &"cards_from_parts", &"attributes", &"faults", &"hull_sale", &"undock",
 	&"chassis_card"]
 ## THE LINES THAT ONLY TELL YOU SOMETHING: no action to wait for, so each stays
@@ -229,7 +229,7 @@ const DONE := {
 	&"promenade": "a part bought",
 	&"exchange": "a part sold",
 	&"hiring_board": "a job signed",
-	&"laboratory": "something made at the fabricator",
+	&"research": "the lab's screen pressed",
 	&"ship": "your ship opened up",
 }
 ## How long a subject must hold before its hint shows, s.
@@ -431,8 +431,10 @@ func lines(id: StringName) -> Array:
 			return ["Sell what you carry here.", "Drag a part from your hold to the counter."]
 		&"hiring_board":
 			return ["Manufacturers post paid work here.", "Press SIGN on a note to take the job."]
-		&"laboratory":
-			return ["The fabricator turns a relic into a part.", "Press MAKE when you can pay for it."]
+		&"research":
+			# (science, Lab layout 1C, Nov 4: the screen is pressed to work it;
+			# its pages say the rest)
+			return ["The lab takes DATA.", "Click the screen to spend it."]
 		&"fuel":
 			return ["Fuel is low. Run dry and the run ends.", fuel_dock_line()]
 		&"ship":
@@ -1023,8 +1025,10 @@ func _snapshot(id: StringName) -> Dictionary:
 		&"dock":
 			var st := Router.current as StationScreen
 			return {tab = st._tab if st != null else &""}
-		&"shipyard", &"promenade", &"exchange", &"hiring_board", &"laboratory":
+		&"shipyard", &"promenade", &"exchange", &"hiring_board":
 			return {sig = _deck_sig()}
+		&"research":
+			return {sig = _lab_sig(), zoomed = _lab_in(Router.current as StationScreen)}
 	return {}
 
 
@@ -1146,8 +1150,14 @@ func _done(id: StringName) -> bool:
 		&"dock":
 			var st := cur as StationScreen
 			return st != null and st._tab != StringName(_base.get("tab", &""))
-		&"shipyard", &"promenade", &"exchange", &"hiring_board", &"laboratory":
+		&"shipyard", &"promenade", &"exchange", &"hiring_board":
 			return _base.has("sig") and _deck_sig() != _base.sig
+		&"research":
+			# THE SCREEN PRESSED, the line's one thing to do: the camera goes into
+			# the glass (`LabZoom`), where the hint's subject is gone; or the lab
+			# used some other way since it showed
+			var pressed := _lab_in(cur as StationScreen) and not bool(_base.get("zoomed", true))
+			return pressed or (_base.has("sig") and _lab_sig() != _base.sig)
 		&"ship":
 			if sc != null:
 				return sc._cutaway != null and is_instance_valid(sc._cutaway)
@@ -1202,6 +1212,34 @@ func _fit_sig() -> Array:
 func _deck_sig() -> Array:
 	return [Run.credits, Run.hp, Run.fuel, Run.hauls, Run.cargo.size(), Run.installed.size(),
 		Run.contracts.size(), Run.hull]
+
+
+## Whether the camera is in the lab's screen, or on its way (`LabZoom`).
+func _lab_in(st: StationScreen) -> bool:
+	if st == null or not st.has_method(&"lab_zoom"):
+		return false
+	var z: Variant = st.call(&"lab_zoom")
+	return z != null and is_instance_valid(z) and bool(z.call(&"is_open"))
+
+
+## THE LAB USED (science, Nov 4): a board step bought or a part augmented. Its
+## own, not `_deck_sig`: a step costs DATA alone, so nothing `_deck_sig` reads
+## moves when one is bought. The routines are counted, never DATA.
+func _lab_sig() -> Array:
+	return [Run.owned_routines().size(), augmented_count()]
+
+
+## How many of your parts carry the AUGMENTED mark, fitted or in the hold. The
+## mark stays after STRIP (open call 10), so this only ever goes up in a run.
+static func augmented_count() -> int:
+	var k := 0
+	for m in Run.installed:
+		if m.augmented:
+			k += 1
+	for it: HoldItem in Run.cargo:
+		if it is ModuleData and (it as ModuleData).augmented:
+			k += 1
+	return k
 
 
 ## The wrecks here opened so far.
@@ -1758,7 +1796,7 @@ func probe(id: StringName, staying: bool = false) -> Dictionary:
 			# and off the side bar, the toolbar and the scene's own pieces: the
 			# readout is in the corner, so the card lands among them
 			return {subject = fr, avoid = GoalLine.avoid_rects(cur)}
-		&"shipyard", &"promenade", &"exchange", &"hiring_board", &"laboratory":
+		&"shipyard", &"promenade", &"exchange", &"hiring_board", &"research":
 			# THE DECK OPEN FOR THE FIRST TIME: its main thing
 			return _deck_probe(cur as StationScreen, id)
 		&"energy", &"discard_pick", &"heat_corner", &"keywords", &"malfunction", &"flee_hail", &"piles":
@@ -2114,6 +2152,9 @@ func _station_probe(st: StationScreen, id: StringName, hud: Rect2) -> Dictionary
 ## the decks, UNDOCK, every button and word), so it never covers what you press.
 func _deck_probe(st: StationScreen, id: StringName) -> Dictionary:
 	if st == null or ZoomLadder.busy() or st._cutaway != null or st._purge_prompt != null:
+		return {}
+	# (the camera in the lab's screen covers every deck)
+	if _lab_in(st):
 		return {}
 	var tab: StringName = DECK_HINTS[id]
 	if st._tab != tab or not st._tabs_on.get(tab, true):
