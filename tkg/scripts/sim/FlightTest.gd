@@ -933,8 +933,9 @@ func _case(sweep: String, sd: int, n: MapGen.MapNode, L: SystemLayout, key: Stri
 		S.clicks = int(S.clicks) + 1
 		if fm.same:
 			S.drawn = int(S.drawn) + 1
-			(S.drawn_px as Array).append(float(fm.off))
-			if float(fm.off) > DRAWN_PX and (S.off_drawn as Array).size() < 20:
+			# (judged at pace 4's scale, `_drawn_px`)
+			(S.drawn_px as Array).append(float(fm.off) * DRAWN_PX / _drawn_px(fm))
+			if float(fm.off) > _drawn_px(fm) and (S.off_drawn as Array).size() < 20:
 				(S.off_drawn as Array).append("%s: %.2f px off the drawn line (click %.2f s on)" % [where, fm.off, tc - t])
 		elif (S.off_drawn as Array).size() < 20:
 			(S.off_drawn as Array).append("%s: planned again at the click (%.2f s on)" % [where, tc - t])
@@ -1093,6 +1094,7 @@ func _fly(fl, i: int, t0: float, drawn, undrawn := false) -> Dictionary:
 	if pl == null:
 		return out
 	out.same = not undrawn and drawn.res != null and pl.res == drawn.res
+	out.pace = float(pl.pace) if pl.res != null else 1.0
 	if ShipFlightS.why:
 		print("    flown: kind %s, dur %.2f, esc %.2f, lead %.2f, t0 %.2f vs %.2f, samples %d, the drawn one %s" % [pl.kind, pl.dur, pl.esc_t, pl.lead, pl.t0, t0, pl.samp.size(), out.same])
 	var dt := 1.0 / 60.0
@@ -2109,7 +2111,7 @@ func _orbit_phase() -> void:
 				tcl = tv0 + float(k5 + 1) * dt
 				fc.step(dt, tcl, NONE)
 			var fm := _fly(fc, i, tcl, pv)
-			var fly_ok: bool = fm.same and fm.landed and float(fm.off) <= DRAWN_PX and not fm.snap and float(fm.jump) <= JUMP_PX
+			var fly_ok: bool = fm.same and fm.landed and float(fm.off) <= _drawn_px(fm) and not fm.snap and float(fm.jump) <= _jump_px(fm)
 			if fly_ok:
 				n.pv_fly = int(n.pv_fly) + 1
 			else:
@@ -2156,13 +2158,13 @@ func _orbit_phase() -> void:
 					n.edge_landed = int(n.edge_landed) + 1
 				else:
 					rows.append("THE EDGE: %s: NOT LANDED (mode %s)" % [where, fm2.mode_end])
-				if fm2.same and float(fm2.off) <= DRAWN_PX:
+				if fm2.same and float(fm2.off) <= _drawn_px(fm2):
 					n.edge_drawn = int(n.edge_drawn) + 1
 				elif pl.res != null:
 					rows.append("THE EDGE: %s: %s, %.2f px off the drawn line" % [where, "flew the drawn flight" if fm2.same else "PLANNED AGAIN", fm2.off])
 				worst.edge_off = maxf(float(worst.edge_off), float(fm2.off))
 				worst.jump = maxf(float(worst.jump), float(fm2.jump))
-				if float(fm2.jump) > JUMP_PX:
+				if float(fm2.jump) > _jump_px(fm2):
 					n.edge_jumps = int(n.edge_jumps) + 1
 					rows.append("THE EDGE: %s: MOVED %.1f px IN A FRAME" % [where, fm2.jump])
 				if fm2.snap:
@@ -2387,6 +2389,19 @@ func _report(cap: Dictionary) -> void:
 		var f := FileAccess.open(_out, FileAccess.WRITE)
 		f.store_string(JSON.stringify({"sweeps": _sw, "cap": cap}))
 		f.close()
+
+
+## THE DRAWN LINE'S AND A FRAME'S TOLERANCES FOR A FLIGHT ON ITS OWN CLOCK
+## (`fm.pace`, the fast transfers, Nov 5): a frame's timing against the
+## samples is pace times as far along a flight pace times as fast, so the
+## drawn line's DRAWN_PX holds to pace 4 and grows with it past that, and a
+## frame may move JUMP_PX x pace.
+static func _drawn_px(fm: Dictionary) -> float:
+	return DRAWN_PX * maxf(1.0, float(fm.get("pace", 1.0)) / 4.0)
+
+
+static func _jump_px(fm: Dictionary) -> float:
+	return JUMP_PX * maxf(1.0, float(fm.get("pace", 1.0)))
 
 
 ## Median, 90th, 99th and worst of a list of numbers, as one string.

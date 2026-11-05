@@ -3785,8 +3785,18 @@ func _replay(c: Dictionary) -> Result:
 			# THRUST and its speed under VMAX (its spin-up first, over what is
 			# left of the ride if that is shorter, as `ShipFlight._ride_shape`
 			# flies it)
-			var sp := minf(_spin, lead)
-			k = 2.0 * (dang + absf(_dw - _dw0) * sp * 0.5) / (absf(_dw) * lead) - 1.0
+			k = 2.0 * dang / (absf(_dw) * lead) - 1.0
+			if _spin > 0.0:
+				# (the ship rides at its ring's own rate until its spin-up, which
+				# may start any time the ride allows: from where it reaches the
+				# departure at the ride's own pace, as `ShipFlight._ride_shape`
+				# flies it, a phasing k only for what that cannot make up)
+				var w := absf(_dw)
+				var w0 := absf(_dw0)
+				var sp := minf(_spin, lead)
+				var lf := clampf((dang - w0 * lead + (w - w0) * sp * 0.5) / (w - w0), sp, lead)
+				var plain := w0 * (lead - lf) + w * lf - (w - w0) * sp * 0.5
+				k = 1.0 + 2.0 * (dang - plain) / (w * lead)
 			var vr := absf(_dw) * _drt
 			if absf(k - 1.0) > THRUST * lead / (PI * vr) + 1e-9 or k * vr > VMAX + 1e-6 or k < 0.2:
 				return null

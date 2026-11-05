@@ -1025,6 +1025,7 @@ func _replays() -> void:
 	var kept := 0
 	var kept_same := 0
 	var later_fell := 0
+	var spun := 0
 	for i in range(0, _cases.size(), 5):
 		var r: FlightSolve.Result = _res[i]
 		if r == null or not r.found:
@@ -1037,9 +1038,15 @@ func _replays() -> void:
 		elif n - same <= 3:
 			print("  (replay %s: %s)" % [r2.kind, c.label])
 		var dep: Dictionary = c.dep
-		# (the ship rides its ring at its own rate meanwhile, `w0` on a flight's
-		# clock, and the ride left must still hold its spin-up)
-		if StringName(dep.kind) == &"ring" and r.lead >= 0.6 + float(dep.get("spin", 0.0)) and r.lead_k <= 1.0:
+		# (NOT ON A FLIGHT'S OWN CLOCK, `dep.spin`: a plan made for now has its
+		# ride spin up from now, and a ship left riding its ring at its own
+		# rate half a second is that much short of it. The game never asks it:
+		# its plans are made a moment ahead, PLAN_AHEAD or PREVIEW_AHEAD, the
+		# ship at its own rate until then, and FlightTest's clicks on the drawn
+		# flight a moment on hold that)
+		if StringName(dep.kind) == &"ring" and float(dep.get("spin", 0.0)) > 0.0:
+			spun += 1
+		elif StringName(dep.kind) == &"ring" and r.lead >= 0.6 and r.lead_k <= 1.0:
 			later += 1
 			var d2 := dep.duplicate()
 			d2.ang = float(dep.ang) + float(dep.get("w0", dep.w)) * 0.5
@@ -1063,7 +1070,7 @@ func _replays() -> void:
 				print("  (alongside, half a second on %s: %s)" % [r4.kind, c.label])
 	h._ok("a plan rebuilt from its choice is the same flight (%d of %d)" % [same, n], same == n)
 	print("replays: half a second on, %d flights the fallback found or in two legs gave way to a fresh plan arriving sooner" % later_fell)
-	h._ok("and half a second on, the ship ridden round (%d of %d)" % [later_same, later], later_same == later)
+	h._ok("and half a second on, the ship ridden round (%d of %d; %d on a flight's own clock not asked)" % [later_same, later, spun], later_same == later)
 	h._ok("and half a second on alongside, the ship holding there (%d of %d)" % [kept_same, kept], kept_same == kept)
 
 
