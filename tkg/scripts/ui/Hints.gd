@@ -37,7 +37,7 @@ extends Node
 ##                action (a card or END TURN), not on a reading time
 ##   the band     odds (a choice with a check), result (REWARD, CONTINUE)
 ##   LOCAL        hull; the wreck, salvage and loot lines say more
-##   the map      fuel_first (the first arrival), map_fly (flying by hand)
+##   the map      fuel_first (the first arrival), map_fly (a world to fly to, or by hand)
 ##   the chart    layers, contract_track, quest, jump_blocked
 ##   the cutaway  mounts, cards_from_parts, attributes (the flip key dropped)
 ##   the station  faults, hull_sale, undock
@@ -1937,7 +1937,28 @@ func _band_probe(sc: SectorScreen, id: StringName, hud: Rect2) -> Dictionary:
 	return {subject = _union(parts), avoid = [hud]}
 
 
-## THE MAP, the ship not in an orbit: flying it by hand.
+## THE MAP, the ship on no place's orbit (circling the star as it arrived, or
+## free): "Click a world twice and we fly there. Or fly us by hand." Shown while
+## `reached()` is -9, as it is on the wide orbit round the star every arriving
+## ship is put on (`ShipFlight.setup`: free, `star_orbiting`): no place's events
+## are open there, and a world clicked twice flies from it (`can_fly`).
+##
+## THE OUTLINE IS ON A WORLD A CLICK FLIES TO (Jon, Nov 4: "Shouldn't a world be
+## highlighted here and not my ship?"). It was on the ship, from when the line
+## taught flying by hand alone. The world (`_fly_world`): a planet or the giant
+## (not a belt, a station, a derelict or a contact), not the place the ship is
+## on, one a click at its middle picks (`SystemOverlay.hit`: not behind a sun,
+## not under another place's beacon), its box whole on the picture and clear of
+## the HUD and the side bar; of those, one whose box is clear of the ship if
+## there is one, so the outline is not round the ship and the world together;
+## the one nearest the ship on screen, kept while it still qualifies so the
+## outline does not hop from world to world as they go round. Only while a
+## world clicked twice flies (`can_fly`: a ship drifting under its own thrust
+## flies by hand). Its box is the map's own reticle round
+## it (`SystemOverlay._reticle` at `_reach`, which holds the click's circle),
+## read where the world is drawn each frame the probe runs, so it goes round
+## with the world. With no such world it is on the ship, as it was: the line's
+## second half is flying it by hand.
 func _map_fly_probe(map: SystemMapScreen, hud: Rect2) -> Dictionary:
 	if map == null or ZoomLadder.busy() or map.flight == null or map.overlay == null or map._box == null:
 		return {}
@@ -1947,15 +1968,89 @@ func _map_fly_probe(map: SystemMapScreen, hud: Rect2) -> Dictionary:
 	# W do nothing then, and ruling 20's flights last about 24 s)
 	if int(map.flight.heading_to()) != -9 or map._taking:
 		return {}
-	var at: Vector2 = map.overlay._ship_at
-	var r := map._box.get_global_transform() * Rect2(at - Vector2(12, 12), Vector2(24, 24))
-	if not map._box.get_global_rect().encloses(r):
-		return {}
 	var avoid: Array = [hud]
 	var side := map.ladder_side()
 	if side != null and side.is_visible_in_tree():
 		avoid.append(side.get_global_rect())
+	var w := _fly_world(map, avoid) if map.flight.can_fly() else -1
+	if w >= 0:
+		return {subject = _fly_box(map, w), avoid = avoid, world = w}
+	var r := _fly_ship_box(map)
+	if not map._box.get_global_rect().encloses(r):
+		return {}
 	return {subject = r, avoid = avoid}
+
+
+## The ship's box on the map, global (the outline's when no world is pointed at).
+func _fly_ship_box(map: SystemMapScreen) -> Rect2:
+	var at: Vector2 = map.overlay._ship_at
+	return map._box.get_global_transform() * Rect2(at - Vector2(12, 12), Vector2(24, 24))
+
+
+## The map and the world `_fly_world` last chose: [map instance id, body].
+var _fly_pick: Array = [0, -1]
+
+
+## THE WORLD the map_fly line points at, or -1 (`_map_fly_probe`).
+func _fly_world(map: SystemMapScreen, avoid: Array) -> int:
+	var id := map.get_instance_id()
+	var keep := int(_fly_pick[1]) if int(_fly_pick[0]) == id else -1
+	var ship: Vector2 = map.overlay._ship_at
+	var ship_box := _fly_ship_box(map)
+	# the qualifying worlds nearest first, and those whose box is clear of the ship
+	var ok: Array = []
+	var clear: Array = []
+	for i in map.view.layout.bodies.size():
+		if not _fly_ok(map, i, avoid):
+			continue
+		ok.append(i)
+		if not _fly_box(map, i).intersects(ship_box):
+			clear.append(i)
+	var pool: Array = clear if not clear.is_empty() else ok
+	if keep >= 0 and pool.has(keep):
+		return keep
+	var best := -1
+	var best_d := INF
+	for i: int in pool:
+		var d := ship.distance_squared_to(map.view.at[i])
+		if d < best_d:
+			best_d = d
+			best = i
+	_fly_pick = [id, best]
+	return best
+
+
+## Whether body i is a world the map_fly line may point at, as drawn now.
+func _fly_ok(map: SystemMapScreen, i: int, avoid: Array) -> bool:
+	var L: SystemLayout = map.view.layout
+	if i < 0 or i >= L.bodies.size() or i >= map.view.at.size() or i >= map.view.pos.size():
+		return false
+	var k: StringName = L.bodies[i].kind
+	if k != &"planet" and k != &"giant":
+		return false
+	if i == int(map.flight.orbit_body()):
+		return false
+	# a click at its middle picks it, as `SystemMapScreen.tap` reads it: not
+	# behind a sun, not under another place's beacon (seed 4242's LAMBDA
+	# ABYSSAL IX: a fight's beacon over its first world opened the fight)
+	var h: Dictionary = map.overlay.hit(map.view.at[i])
+	if StringName(h.get("kind", &"")) != &"body" or int(h.get("body", -99)) != i:
+		return false
+	var r := _fly_box(map, i)
+	if not map._box.get_global_rect().encloses(r):
+		return false
+	for a in avoid:
+		if (a as Rect2).intersects(r):
+			return false
+	return true
+
+
+## World i's box, global: the reticle the map draws round it when it is pointed
+## at or selected, ticks and all (the rect `SystemOverlay._reticle` keeps).
+func _fly_box(map: SystemMapScreen, i: int) -> Rect2:
+	var c: Vector2 = map.view.at[i]
+	var reach: float = float(map.overlay._reach(i)) + 2.0
+	return map._box.get_global_transform() * Rect2(c - Vector2.ONE * reach, Vector2.ONE * (reach * 2.0 + 1.0))
 
 
 ## THE CHART'S: its layer strip (from the second chart), a job's ring, a mark,
