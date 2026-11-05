@@ -9,9 +9,16 @@ extends Node
 ##
 ## Through the real station screen, at each level from UNCLAIMED to CAPITAL,
 ## once with no berth and once with one: all five tabs are on and shown and the
-## elevator lights five floors; the lab's screen lists RELIC ANALYSIS at that
-## level's price, its row inside the screen's window (the settlement's is the
-## smallest, 218 x 118, and it never had a lab before); with no berth the board
+## elevator lights five floors; the lab's screen holds its entry (RESEARCH,
+## AUGMENT, RECIPES and DATA) inside the screen's window, nothing overlapping
+## (the settlement's 206 x 110 is the smallest); pressed, the camera goes into
+## the glass (`LabZoom`, science S9, Jon's 1C) and RECIPES lists RELIC ANALYSIS
+## at that level's price and DEVELOP FILM and READ FOR DATA at no credits, and
+## the RESEARCH board passes the mockup's box test (every box inside the glass,
+## none overlapping, no word across an arm) with no step, some and all of them
+## bought and the strip on every step; BUY stays one object through thirty
+## refreshes, never shows on a step behind the next, buys, and the board is the
+## same at a second station of the run; with no berth the board
 ## posts its dock desk's work (`Contracts.dock_desk`), hangs the desk's notice,
 ## and a job signed there is handed in at that desk; with a berth there is no
 ## desk.
@@ -54,6 +61,7 @@ func _run() -> void:
 			await _decks(dev, berth)
 	for dev: int in [MapGen.Development.OUTPOST, MapGen.Development.SETTLEMENT, MapGen.Development.CITY]:
 		await _bare(dev)
+	await _second_station()
 	await _chart()
 	print("stationdecktest: %s (%d failed)" % ["PASS" if _fails == 0 else "FAIL", _fails])
 	_tree.quit(1 if _fails > 0 else 0)
@@ -240,24 +248,7 @@ func _decks(dev: int, berth: bool) -> void:
 		var price := Fabricator.price(here, relic)
 		_ok("%s: at %d credits (%d wanted)" % [tag, price, PRICES[dev]], price == PRICES[dev])
 	if _ok("%s: the lab's screen is up, scanned" % tag, await _open(st, &"bench")):
-		var win := st._bench_clip.get_global_rect()
-		var named := _find_label(st._bench, "RELIC ANALYSIS")
-		var cost := _find_label_containing(st._bench, "%d CREDITS" % PRICES[dev])
-		_ok("%s: its row says RELIC ANALYSIS and %d CREDITS" % [tag, PRICES[dev]], named != null and cost != null)
-		var out: Array[String] = []
-		for k in st._bench.get_children():
-			var c := k as Control
-			if c == null:
-				continue
-			for lab in _labels(c):
-				var r2 := lab.get_global_rect()
-				if not win.grow(0.5).encloses(r2):
-					out.append("%s %s" % [lab.text.left(24), r2])
-			var b := _find_button(c, "MAKE")
-			if b == null or not win.grow(0.5).encloses(b.get_global_rect()):
-				out.append("MAKE %s" % (b.get_global_rect() if b != null else Rect2()))
-		_ok("%s: the row and its MAKE sit inside the screen's window %s (%s)"
-			% [tag, win, "all in" if out.is_empty() else "; ".join(out)], out.is_empty())
+		await _lab(st, here, tag, dev, not berth)
 
 	# THE HIRING BOARD: whose work it is.
 	var desk := Contracts.dock_desk(here)
@@ -380,6 +371,242 @@ func _chart() -> void:
 		blurb.contains("Salvage is thin and random.") and blurb.contains("posts work from a desk"))
 	_ok("chart: JUMP is on screen and below the rows",
 		jump.end.y <= screen_h + 0.5 and jump.position.y >= rows_bottom - 0.5)
+
+
+## THE LABORATORY'S SCREEN AND THE CAMERA INTO IT (science S9, Jon's 1C, Nov 4:
+## "is the screen really big enough for a player to see all of it?"). The room's
+## entry fits the glass at every level; the zoomed RECIPES and RESEARCH pass
+## the box test; and, where `deep`, the board in its used states, BUY's rules
+## and the board at a second station.
+func _lab(st: StationScreen, here: MapGen.MapNode, tag: String, dev: int, deep: bool) -> void:
+	# the entry, inside the screen's window, nothing on top of anything
+	var win := st._bench_clip.get_global_rect()
+	var boxes: Array = []
+	for c in _leaves(st._bench):
+		boxes.append([c, c.get_global_rect()])
+	var out: Array[String] = []
+	for bx: Array in boxes:
+		if not win.grow(0.5).encloses(bx[1]):
+			out.append("%s %s" % [_name_of(bx[0]), bx[1]])
+	for i in boxes.size():
+		for j in range(i + 1, boxes.size()):
+			if (boxes[i][1] as Rect2).grow(-0.5).intersects((boxes[j][1] as Rect2).grow(-0.5)):
+				out.append("%s on %s" % [_name_of(boxes[i][0]), _name_of(boxes[j][0])])
+	_ok("%s: the entry's %d boxes sit inside the screen's window %s, none on another (%s)"
+		% [tag, boxes.size(), win, "all in" if out.is_empty() else "; ".join(out)], out.is_empty() and boxes.size() >= 8)
+	var keys := ["RESEARCH", "AUGMENT", "RECIPES"].all(func(w: String) -> bool: return _find_button(st._bench, w) != null)
+	_ok("%s: the entry has RESEARCH, AUGMENT and RECIPES, and DATA %d" % [tag, Run.data],
+		keys and _find_label(st._bench, "DATA %d" % Run.data) != null)
+
+	# INTO THE GLASS, on RECIPES
+	var zoom := st.lab_zoom()
+	await _click(_find_button(st._bench, "RECIPES"))
+	await _frames(3)
+	if not _ok("%s: RECIPES moves the camera into the glass and lands (open %s, landed %s, tab %s)"
+			% [tag, zoom.is_open(), zoom.landed(), zoom.tab], zoom.is_open() and zoom.landed() and zoom.tab == &"recipes"):
+		return
+	var rows := {}
+	for row: Dictionary in zoom.recipe_rows:
+		rows[StringName(row.r.id)] = row
+	var relic: Dictionary = rows.get(&"analysis", {})
+	_ok("%s: RECIPES says RELIC ANALYSIS at %d CREDITS (%s)" % [tag, PRICES[dev], (relic.cost as Label).text if not relic.is_empty() else "no row"],
+		not relic.is_empty() and (relic.name as Label).text == "RELIC ANALYSIS"
+		and (relic.cost as Label).text.contains("%d CREDITS" % PRICES[dev]))
+	for id: StringName in [&"develop", &"read"]:
+		var r: Dictionary = rows.get(id, {})
+		_ok("%s: %s costs 0 credits (%s)" % [tag, id, (r.cost as Label).text if not r.is_empty() else "no row"],
+			not r.is_empty() and Fabricator.price(here, r.r) == 0 and not (r.cost as Label).text.contains("CREDITS")
+			and (r.cost as Label).visible)
+	var bad := zoom.check()
+	_ok("%s: RECIPES passes the box test (%s)" % [tag, "clean" if bad.is_empty() else "; ".join(bad)], bad.is_empty())
+
+	# RESEARCH: the board, with no step, some and all of them bought
+	await _click(zoom.tab_buttons[&"research"])
+	await _frames(2)
+	_ok("%s: RESEARCH is on show" % tag, zoom.tab == &"research" and zoom.board.is_visible_in_tree())
+	var was_data := Run.data
+	var was_owned := Run.board_owned.duplicate()
+	for case: Array in [[[0, 0, 0], 16], [[1, 0, 2], 16], [[1, 1, 2], 4], [[3, 3, 3], 5]]:
+		var o: Array = case[0]
+		for b in 3:
+			Run.board_owned[b] = o[b]
+		Run.data = case[1]
+		Sig.resources_changed.emit()
+		var fails: Array[String] = []
+		for b2 in 3:
+			for k in 3:
+				zoom.board.pick = Vector2i(b2, k)
+				zoom.board.refresh()
+				await _frames(2)
+				for f in zoom.check():
+					fails.append("%d,%d %s" % [b2, k, f])
+		_ok("%s: the board owned %s with %d DATA passes the box test on all nine steps (%s)" % [tag, str(o), int(case[1]),
+			"clean" if fails.is_empty() else "; ".join(fails.slice(0, 4))], fails.is_empty())
+	if deep:
+		await _buy_rules(st, zoom, tag)
+	for b3 in 3:
+		Run.board_owned[b3] = was_owned[b3]
+	Run.data = was_data
+	Sig.resources_changed.emit()
+
+	# BACK OUT: LEAVE, and Esc
+	await _click(zoom.leave_button)
+	await _frames(2)
+	_ok("%s: LEAVE takes the camera back out (open %s, shown %s, entry %.1f)" % [tag, zoom.is_open(), zoom.visible, st._bench.modulate.a],
+		not zoom.is_open() and not zoom.visible and is_equal_approx(st._bench.modulate.a, 1.0))
+	(_find_button(st._bench, "RESEARCH") as Button).pressed.emit()
+	await _frames(2)
+	var esc := InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	esc.pressed = true
+	st.get_viewport().push_input(esc)
+	await _frames(2)
+	_ok("%s: RESEARCH goes in, and Esc comes back out (open %s)" % [tag, zoom.is_open()], not zoom.is_open() and not zoom.visible)
+
+
+## BUY: one object, only on the next step, and it buys.
+func _buy_rules(st: StationScreen, zoom: LabZoom, tag: String) -> void:
+	var board := zoom.board
+	for b in 3:
+		Run.board_owned[b] = 0
+	Run.data = 40
+	Sig.resources_changed.emit()
+	await _frames(2)
+	var none_behind := true
+	var on_next := true
+	for b2 in 3:
+		board.pick = Vector2i(b2, 1)
+		board.refresh()
+		if board.buy_button.visible:
+			none_behind = false
+		board.pick = Vector2i(b2, 2)
+		board.refresh()
+		if board.buy_button.visible:
+			none_behind = false
+		board.pick = Vector2i(b2, 0)
+		board.refresh()
+		if not board.buy_button.visible:
+			on_next = false
+	_ok("%s: no BUY on a step while the one before it is not bought" % tag, none_behind)
+	_ok("%s: BUY on each branch's next step" % tag, on_next)
+	# CORE's first step picked as a player picks it, by its ring
+	board.pick = Vector2i(0, 2)
+	board.refresh()
+	await _frames(1)
+	await _click_at(board.get_global_transform() * Vector2(board._nodes[Vector2i(1, 0)]))
+	_ok("%s: a click on CORE's first step puts it on the strip, with BUY" % tag,
+		board.pick == Vector2i(1, 0) and board.buy_button.visible)
+	var buy := board.buy_button
+	var key: Button = st._entry_keys[&"research"]
+	for i in 30:
+		Sig.resources_changed.emit()
+		if i % 10 == 0:
+			await _frames(1)
+	await _frames(2)
+	_ok("%s: BUY and the entry's keys are the same objects after 30 refreshes" % tag,
+		is_instance_valid(buy) and board.buy_button == buy and buy.visible and buy.get_parent() == board
+		and is_instance_valid(key) and st._entry_keys[&"research"] == key)
+	await _click(buy)
+	await _frames(2)
+	_ok("%s: BUY spends 6 DATA and runs CORE's first step (DATA %d, owned %s, the strip on %s)"
+		% [tag, Run.data, str(Run.board_owned), board.bought],
+		Run.data == 34 and Run.board_owned[1] == 1 and board.bought == Vector2i(1, 0) and zoom._note == "-6")
+	_ok("%s: and the strip says it runs from the next fight" % tag, board.leaves.any(func(l: Array) -> bool: return l[0] == "RUNNING FROM YOUR NEXT FIGHT."))
+	var bad := zoom.check()
+	_ok("%s: the board just bought passes the box test (%s)" % [tag, "clean" if bad.is_empty() else "; ".join(bad)], bad.is_empty())
+
+
+## THE SAME BOARD AT A SECOND STATION of the run: the same steps where they
+## were and every word where it was, a station two levels up.
+func _second_station() -> void:
+	var here := _station(MapGen.Development.OUTPOST, false, 9100)
+	var st := await _dock(here)
+	if not _ok("second station: the first is up", st != null and await _open(st, &"bench")):
+		return
+	Run.board_owned[0] = 1
+	Run.board_owned[2] = 2
+	Run.data = 16
+	st.lab_zoom().open(&"research")
+	st.lab_zoom().board.pick = Vector2i(1, 0)
+	st.lab_zoom().board.refresh()
+	await _frames(3)
+	var first := _board_print(st.lab_zoom().board)
+	var other: MapGen.MapNode = null
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		if n != here and n.type != MapGen.NodeType.CORE and n.type != MapGen.NodeType.START:
+			other = n
+			break
+	st.lab_zoom().close()
+	other.type = MapGen.NodeType.STATION
+	other.development = MapGen.Development.CITY
+	var st2 := await _dock(other)
+	if not _ok("second station: a city on the same run is up", st2 != null and st2 != st and await _open(st2, &"bench")):
+		return
+	st2.lab_zoom().open(&"research")
+	st2.lab_zoom().board.pick = Vector2i(1, 0)
+	st2.lab_zoom().board.refresh()
+	await _frames(3)
+	var there := _board_print(st2.lab_zoom().board)
+	_ok("the board is the same at a second station: every step and word where it was (%d)" % there.size(),
+		there == first and there.size() >= 20)
+	st2.lab_zoom().close()
+
+
+## A click through the viewport, as a player makes it (BoardSignTest's way):
+## whatever is on top at that point takes it.
+func _click(b: Control) -> void:
+	b.notification(Control.NOTIFICATION_MOUSE_ENTER)
+	await _click_at(b.get_global_rect().get_center())
+
+
+func _click_at(at: Vector2) -> void:
+	var target := GameShell.input_target(_tree)
+	var mv := InputEventMouseMotion.new()
+	mv.position = at
+	mv.global_position = at
+	target.push_input(mv)
+	await _tree.process_frame
+	for pressed in [true, false]:
+		var mb := InputEventMouseButton.new()
+		mb.button_index = MOUSE_BUTTON_LEFT
+		mb.pressed = pressed
+		mb.button_mask = MOUSE_BUTTON_MASK_LEFT if pressed else 0
+		mb.position = at
+		mb.global_position = at
+		target.push_input(mb)
+		await _tree.process_frame
+
+
+## Where the board's steps and words are, as text.
+func _board_print(board: LabBoard) -> Array:
+	var out: Array = []
+	for k: Vector2i in board._nodes:
+		out.append("%s@%s" % [k, board._nodes[k]])
+	for l: Dictionary in board._labels:
+		out.append("%s@%d,%d" % [l.s, l.x, l.ycap])
+	return out
+
+
+## Every word and key under `n` that shows: what a box test of a page is about.
+func _leaves(n: Node) -> Array[Control]:
+	var out: Array[Control] = []
+	if n is Button and (n as Button).is_visible_in_tree():
+		out.append(n as Control)
+		return out
+	if n is Label and (n as Label).is_visible_in_tree() and (n as Label).text != "":
+		out.append(n as Control)
+	for c in n.get_children():
+		out.append_array(_leaves(c))
+	return out
+
+
+func _name_of(c: Control) -> String:
+	if c is Button:
+		return "[%s]" % (c as Button).text
+	if c is Label:
+		return (c as Label).text.left(24)
+	return c.name
 
 
 func _labels(n: Node) -> Array[Label]:

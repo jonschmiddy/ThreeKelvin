@@ -797,6 +797,18 @@ func run(tree: SceneTree) -> void:
 	for i in 30:
 		await RenderingServer.frame_post_draw
 
+	# THE LAB'S SCREEN, ZOOMED (science S9): `labmode=room|board|augment|recipes`
+	# with `deck=bench`, so each page can be photographed at every level.
+	#   data=N            DATA held (`credits=N` the credits)
+	#   owned=a,b,c       steps bought on FRAME, CORE and DRIVE
+	#   board=id,...      the nine routines dealt (to set beside the mockup's)
+	#   labpick=b,k       the step the strip is about
+	#   labbuy=b          BUY pressed on branch b's next step, as a click does
+	#   labphase=p        the board's loop held at p (0..1)
+	#   labzoom=k         the camera held k of the way into the glass (0..1)
+	#   stillto=<png>     the shot written there too (the profile is thrown away)
+	await _lab_mode(tree)
+
 	# THE BAR'S OWN WIDTH, printed rather than eyeballed. HudBar's header records
 	# that the row was 983px at a 960 window with dev mode on, and that the fix
 	# was four pixels of separation per gap -- so anything added to it since is
@@ -1515,6 +1527,14 @@ func run(tree: SceneTree) -> void:
 	var path := "user://station_%s.png" % berth
 	tree.root.get_texture().get_image().save_png(path)
 	print("wrote ", ProjectSettings.globalize_path(path))
+	for a_s in OS.get_cmdline_user_args():
+		if (a_s as String).begins_with("stillto="):
+			var to := (a_s as String).substr(8)
+			DirAccess.make_dir_recursive_absolute(to.get_base_dir())
+			# the game's own 960x540, not the window's bent glass (`GameShell`)
+			var vp_s: Viewport = Router.current.get_viewport() if Router.current != null else tree.root
+			vp_s.get_texture().get_image().save_png(to)
+			print("wrote ", to)
 
 	# `layerhz=S`: time every redraw of the station's rooms for S seconds and
 	# print how evenly they land. A frame capture a twelfth of a second apart
@@ -1572,3 +1592,70 @@ func run(tree: SceneTree) -> void:
 				tree.root.get_texture().get_image().save_png(fp)
 			print("wrote %d frames" % n)
 	tree.quit()
+
+
+## THE LAB'S SCREEN, ZOOMED, in the state the arguments ask for (see the list
+## where it is called). Nothing without `labmode=`.
+func _lab_mode(tree: SceneTree) -> void:
+	var mode := ""
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("labmode="):
+			mode = (a as String).substr(8)
+	if mode == "":
+		return
+	var scr := Router.current as StationScreen
+	if scr == null or scr.lab_zoom() == null:
+		print("  labmode: no station on screen")
+		return
+	var zoom := scr.lab_zoom()
+	var pick := Vector2i(-1, -1)
+	var buy := -1
+	var hold := -1.0
+	for a in OS.get_cmdline_user_args():
+		var s := a as String
+		if s.begins_with("data="):
+			Run.data = int(s.substr(5))
+		elif s.begins_with("credits="):
+			Run.credits = int(s.substr(8))
+		elif s.begins_with("owned="):
+			var o := s.substr(6).split(",")
+			for b in mini(3, o.size()):
+				Run.board_owned[b] = clampi(int(o[b]), 0, 3)
+		elif s.begins_with("board="):
+			var ids: Array[StringName] = []
+			for id in s.substr(6).split(","):
+				ids.append(StringName(id.strip_edges()))
+			if ids.size() == 9:
+				Run.board = ids
+		elif s.begins_with("labpick="):
+			var pk := s.substr(8).split(",")
+			pick = Vector2i(int(pk[0]), int(pk[1]))
+		elif s.begins_with("labbuy="):
+			buy = int(s.substr(7))
+		elif s.begins_with("labphase="):
+			zoom.board.hold_phase(float(s.substr(9)))
+		elif s.begins_with("labzoom="):
+			hold = clampf(float(s.substr(8)), 0.0, 1.0)
+	# (the pointer stays out of it: a shot is of the page, not of the desk's mouse)
+	scr.get_viewport().gui_disable_input = true
+	Sig.resources_changed.emit()
+	if mode == "room":
+		for i in 6:
+			await RenderingServer.frame_post_draw
+		print("  labmode: room, the entry on the glass: %s" % scr._entry_data.text)
+		return
+	var tab := &"research" if mode == "board" else StringName(mode)
+	if hold >= 0.0:
+		LabZoom.hold_at = hold
+	zoom.open(tab)
+	zoom.finish()
+	if pick.x >= 0:
+		zoom.board.pick = pick
+		zoom.board.refresh()
+	if buy >= 0:
+		zoom._on_buy(buy)
+	for i in 6:
+		await RenderingServer.frame_post_draw
+	var bad := zoom.check()
+	print("  labmode: %s on %s, DATA %d, owned %s, box test %s" % [mode, zoom._level, Run.data,
+		str(Run.board_owned), "clean" if bad.is_empty() else "; ".join(bad)])
