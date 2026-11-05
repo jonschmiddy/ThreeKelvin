@@ -312,6 +312,12 @@ func power_on(settled: bool = false) -> void:
 	_boot_heard = settled
 
 
+## The power-on just started, put off by `s` (the deck still riding in on
+## the elevator: `StationScreen._slide_decks`). Before it the room is dark.
+func delay_boot(s: float) -> void:
+	_boot_at += s
+
+
 func _process(delta: float) -> void:
 	if lab.is_empty() or not is_visible_in_tree():
 		_hush()

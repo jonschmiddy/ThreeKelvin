@@ -1088,7 +1088,8 @@ func _process(_delta: float) -> void:
 		return
 	if _lab_zoom != null and (_lab_zoom.is_open() or _lab_zoom.visible):
 		return
-	var on := _glass_press.is_visible_in_tree() and _glass_press.is_hovered()
+	# (nor while the deck is still riding in: the glass is not where it will be)
+	var on := _glass_press.is_visible_in_tree() and _glass_press.is_hovered() and not deck_changing()
 	_login.set_state(LabLogin.LOGIN if on else LabLogin.LOGO)
 
 
@@ -1096,7 +1097,7 @@ func _process(_delta: float) -> void:
 ## its screen up, presses the glass, as a click does. Esc or the pad's B takes
 ## the camera back out (`LabZoom._input`).
 func _unhandled_input(e: InputEvent) -> void:
-	if _tab != &"bench" or _lab_zoom == null or _lab_zoom.is_open() or e.is_echo():
+	if _tab != &"bench" or _lab_zoom == null or _lab_zoom.is_open() or e.is_echo() or deck_changing():
 		return
 	# (the pad's A by name: the project's ui_accept has no pad button in it)
 	var pad := e as InputEventJoypadButton
@@ -1111,7 +1112,10 @@ func _unhandled_input(e: InputEvent) -> void:
 
 ## Into the Lab's screen, on page `id`.
 func _open_lab(id: StringName) -> void:
-	if _lab_zoom == null or _lab_zoom.is_open():
+	# NOT WHILE THE DECK CHANGES (the review, Nov 5): `_tab` is the Lab from the
+	# click on its floor, but the Lab is not in its place till the car stops, and
+	# a zoom started then would start from a room that is still moving
+	if _lab_zoom == null or _lab_zoom.is_open() or deck_changing():
 		return
 	_login.set_state(LabLogin.SIGNING)
 	_lab_zoom.open(id)
@@ -1174,25 +1178,35 @@ func lab_carry(d: Vector2, on: bool) -> void:
 		if c == null or not is_instance_valid(c):
 			continue
 		var id := c.get_instance_id()
+		# (by its offsets, not its position: a window resized mid-zoom puts it
+		# back where its anchors say for the new size, not where it stood)
 		if not on:
 			if _lab_carry.has(id):
 				var was: Array = _lab_carry[id]
-				c.position = was[0]
+				_set_offsets(c, was[0])
 				c.z_index = was[1]
 				c.modulate.a = was[2]
 				_lab_carry.erase(id)
 			continue
 		if not _lab_carry.has(id):
-			_lab_carry[id] = [c.position, c.z_index, c.modulate.a]
+			_lab_carry[id] = [Vector4(c.offset_left, c.offset_top, c.offset_right, c.offset_bottom), c.z_index, c.modulate.a]
 		var rest: Array = _lab_carry[id]
 		var off: Vector2 = it[1]
-		c.position = (rest[0] as Vector2) + off.round()
+		_set_offsets(c, rest[0])
+		c.position += off.round()
 		c.z_index = 2
 		var r := Rect2(c.get_global_rect().position, c.size)
 		var gone := r.end.x <= 0.0 or r.end.y <= 0.0
 		c.modulate.a = 0.0 if gone else float(rest[2])
 		if c == _rail:
 			_lab_rail_a = 0.0 if gone else 1.0
+
+
+static func _set_offsets(c: Control, o: Vector4) -> void:
+	c.offset_left = o.x
+	c.offset_top = o.y
+	c.offset_right = o.z
+	c.offset_bottom = o.w
 
 
 ## Show one page. The lit stylebox is the HUD's, so an active tab looks the same
@@ -1277,6 +1291,10 @@ func _power_deck(id: StringName) -> void:
 	var settled: bool = Router.powered.has(id)
 	if id == &"bench" and _lab != null:
 		_lab.power_on(settled)
+		# (riding in on a slide, the Lab comes in dark and its lamps strike as
+		# the car stops, as they did after the dip: not mid-ride)
+		if not settled and deck_changing() and DECK_MOVE == &"slide":
+			_lab.delay_boot(maxf(0.0, _deck_secs - 0.25))
 	elif id == &"services" and _scene != null and is_instance_valid(_scene):
 		_scene.power_on(settled)
 	elif id == &"work" and _board_lamp != null:
@@ -1295,14 +1313,26 @@ func _show_tab(id: StringName) -> void:
 	var a0 := 0.0
 	if _deck_dark != null and is_instance_valid(_deck_dark):
 		a0 = _deck_dark.color.a
-	_end_deck_fade()
+	# (and on a slide, where the shaft stands, and the other deck in it)
+	var y0 := from.position.y if from != null else 0.0
+	var other: Control = null
+	if deck_changing() and DECK_MOVE == &"slide":
+		other = _deck_to if from == _deck_from else _deck_from
+	_end_deck_fade(true)
 	_tab = id
 	for key in _pages:
 		(_pages[key] as Control).visible = key == id
 	_ride_s = 0.0
 	_light_floor()
-	if from != null and (_ride_s > 0.0 or a0 > 0.0) and Router.animating():
-		_cross_decks(from, _pages[id] as Control, maxf(_ride_s, 0.24), a0)
+	if from != null and (_ride_s > 0.0 or a0 > 0.0 or y0 != 0.0) and Router.animating():
+		var secs := maxf(_ride_s, DECK_MIN_S)
+		if DECK_MOVE == &"slide":
+			_slide_decks(from, _pages[id] as Control, secs, y0, other)
+		else:
+			_cross_decks(from, _pages[id] as Control, secs, a0)
+	if not deck_changing():
+		for key2 in _pages:
+			(_pages[key2] as Control).position.y = 0.0
 	# THE LAB POWERS ON the first time you step onto its deck here: the lamps
 	# strike, the room fades up and the screen scans the recipes on. THE YARD'S
 	# TV POWERS ON the first time you step onto the deck, and the drones fly in
@@ -1414,6 +1444,15 @@ func _cross_decks(from: Control, to: Control, secs: float, a0: float = 0.0) -> v
 ## The deck on screen now: in a deck change before its hand-over, the deck
 ## being left, else the deck you are on.
 func _deck_showing() -> Control:
+	if deck_changing() and DECK_MOVE == &"slide":
+		# (on a slide, whichever deck holds more of the panel)
+		var best: Control = null
+		for pg: Control in [_deck_from, _deck_to]:
+			if pg != null and is_instance_valid(pg) and pg.visible \
+					and (best == null or absf(pg.position.y) < absf(best.position.y)):
+				best = pg
+		if best != null:
+			return best
 	if deck_changing() and _deck_from != null and is_instance_valid(_deck_from) and _deck_from.visible:
 		return _deck_from
 	return _pages.get(_tab)
@@ -1424,21 +1463,136 @@ func deck_changing() -> bool:
 	return _deck_fade != null and _deck_fade.is_valid()
 
 
-## The deck change finished now: only the deck you are on shown, the deck left
-## behind taking clicks again, and the dark gone.
-func _end_deck_fade() -> void:
+## The deck change finished now: only the deck you are on shown, every deck in
+## its place and taking clicks again, and the dark and the slab gone. `keep`
+## (a new ride starting from this one) leaves the decks where they stand for it.
+func _end_deck_fade(keep: bool = false) -> void:
 	if _deck_fade != null and _deck_fade.is_valid():
 		_deck_fade.kill()
 	_deck_fade = null
 	_deck_swap = null
 	if _deck_from != null and is_instance_valid(_deck_from):
 		_deck_from.mouse_behavior_recursive = Control.MOUSE_BEHAVIOR_INHERITED
+	if _deck_to != null and is_instance_valid(_deck_to):
+		_deck_to.mouse_behavior_recursive = Control.MOUSE_BEHAVIOR_INHERITED
 	_deck_from = null
+	_deck_to = null
 	if _deck_dark != null and is_instance_valid(_deck_dark):
 		_deck_dark.queue_free()
 	_deck_dark = null
+	if _deck_slab != null and is_instance_valid(_deck_slab):
+		_deck_slab.queue_free()
+	_deck_slab = null
+	if _deck_body != null and is_instance_valid(_deck_body):
+		_deck_body.clip_contents = _deck_clip
+	_deck_body = null
+	if keep:
+		return
 	for key in _pages:
-		(_pages[key] as Control).visible = key == _tab
+		var pg := _pages[key] as Control
+		pg.visible = key == _tab
+		pg.position.y = 0.0
+
+
+## THE DECKS RIDE WITH THE CAR (the review of the dip, Nov 5: a fade to black
+## is still a cut, and an elevator goes up and down). On a ride the deck you
+## leave and the deck you go to are one tall shaft, a floor slab between them,
+## and the shaft moves past the panel in the car's direction on the car's own
+## curve and time: going down a floor, the deck you leave rises out of the top
+## and the new one comes up from below. It is a camera move: both decks are
+## whole and drawn as they are, only moved, and neither takes clicks till the
+## car stops. A press mid-ride starts from where the shaft is. `DECK_MOVE`
+## &"dip" keeps the dark dip (`_cross_decks`) as the fallback.
+const DECK_MOVE := &"slide"
+## The floor slab between two decks on a slide (px), and the shortest ride a
+## deck change takes (s): a one-floor hop at 0.24 s read as a blink.
+const DECK_SLAB := 12
+const DECK_MIN_S := 0.36
+var _deck_to: Control = null
+var _deck_secs := 0.0
+var _deck_slab: Control = null
+var _deck_clip := false
+var _deck_body: Control = null
+
+
+## The page whose deck this is, by its id.
+func _page_id(page: Control) -> StringName:
+	for key in _pages:
+		if _pages[key] == page:
+			return key
+	return &""
+
+
+## From the deck `from` (where it stands now, `y0` off its place) to `to`, over
+## `secs`: the shaft moved, `from` out and `to` in.
+func _slide_decks(from: Control, to: Control, secs: float, y0: float, other: Control) -> void:
+	var body := to.get_parent() as Control
+	if body == null:
+		return
+	var span := body.size.y + float(DECK_SLAB)
+	# which way the shaft goes: by the floors, or (pressed back mid-ride) by
+	# where the deck you go back to already stands
+	var dir := 1.0
+	var a := _spine.floors.find(_page_id(from)) if _spine != null else -1
+	var b := _spine.floors.find(_page_id(to)) if _spine != null else -1
+	if a >= 0 and b >= 0 and a != b:
+		dir = 1.0 if b > a else -1.0
+	var mate := to
+	var y_end := -dir * span
+	if from == to:
+		# back to the deck still mostly showing: it rides back into its place,
+		# the deck it was leaving for goes back out the way it came
+		mate = other
+		if mate == null or not is_instance_valid(mate):
+			from.position.y = 0.0
+			return
+		dir = signf(mate.position.y - from.position.y)
+		if dir == 0.0:
+			dir = 1.0
+		y_end = 0.0
+	for key in _pages:
+		var pg := _pages[key] as Control
+		pg.visible = pg == from or pg == mate
+		pg.mouse_behavior_recursive = Control.MOUSE_BEHAVIOR_DISABLED if pg.visible else Control.MOUSE_BEHAVIOR_INHERITED
+		if not pg.visible:
+			pg.position.y = 0.0
+	_deck_body = body
+	_deck_secs = secs
+	_deck_clip = body.clip_contents
+	body.clip_contents = true
+	_deck_from = from
+	_deck_to = mate
+	_deck_slab = _Slab.new()
+	_deck_slab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_deck_slab.size = Vector2(body.size.x, DECK_SLAB)
+	body.add_child(_deck_slab)
+	var place := func(y: float) -> void:
+		if not is_instance_valid(from) or not is_instance_valid(mate):
+			return
+		from.position.y = roundf(y)
+		mate.position.y = roundf(y) + dir * span
+		var top := minf(from.position.y, mate.position.y)
+		_deck_slab.position = Vector2(0.0, top + body.size.y)
+	place.call(y0)
+	_deck_fade = create_tween()
+	_deck_fade.finished.connect(_end_deck_fade)
+	_deck_fade.tween_method(place, y0, y_end, secs).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+## The floor slab between two decks on a slide: the deck's dark, a lit edge
+## on each face and a row of rivets, so the shaft reads as one building.
+class _Slab extends Control:
+	func _draw() -> void:
+		var w := size.x
+		var h := size.y
+		draw_rect(Rect2(0, 0, w, h), Color("#0a0d12"))
+		draw_rect(Rect2(0, 0, w, 1), Color("#3a4654"))
+		draw_rect(Rect2(0, h - 1, w, 1), Color("#26303b"))
+		draw_rect(Rect2(0, 3, w, 1), Color("#141a22"))
+		var x := 6.0
+		while x < w:
+			draw_rect(Rect2(x, floorf(h / 2.0), 2, 2), Color("#222b35"))
+			x += 24.0
 
 
 ## Turn a tab on or off for this station, and get off it if you are standing on

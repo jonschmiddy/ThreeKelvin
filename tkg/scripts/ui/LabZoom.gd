@@ -17,9 +17,10 @@ extends Control
 ## sign-in it carried in (`UI_IN_S`). Back out it all runs backwards: the
 ## elevator and the HUD ride back in with the room and stand in their places
 ## as it lands (Jon, Nov 5: "a smoother transition with the elevator"). A
-## click or a key during a move is eaten and the camera goes on (camera moves, never cuts): Esc, or the pad's B, on the way in turns
-## it round; Tab takes the camera out at three times the pace and then goes on
-## to the ladder.
+## click or a key during a move is eaten and the camera goes on (camera
+## moves, never cuts): Esc, or the pad's B, on the way in turns it round; Tab
+## takes the camera out at three times the pace and then goes on to the
+## ladder.
 ##
 ## A PURE CAMERA (Jon, Nov 5: "I don't really like the warping of the screen
 ## getting bigger than the room, it should stay fixed"). The room is one
