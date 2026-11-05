@@ -241,6 +241,15 @@ func _check_new_things() -> void:
 	nt = _button(Router.current, "NEW THINGS")
 	_ok("  a profile that saw an older build's notes sees the mark", nt != null
 		and _mark(nt) != null and _mark(nt).is_visible_in_tree())
+	# NEXT's key carries its count of lines, so a line added marks it again
+	if top == NewThings.NEXT:
+		var n_next := (list[0].lines as Array).size()
+		NewThings.mark_seen("%s +%d" % [NewThings.heading(list[0]), n_next - 1])
+		var one_less := NewThings.unseen()
+		NewThings.mark_seen("%s +%d" % [NewThings.heading(list[0]), n_next])
+		_ok("  NEXT's key is its heading and its lines (%s): one line fewer seen marks it, all seen does not"
+			% NewThings.latest_key(), one_less and not NewThings.unseen())
+		NewThings.mark_seen("0.4.0-alpha.1")
 
 	# THE PAGE
 	nt.pressed.emit()
@@ -337,15 +346,26 @@ func _check_new_things() -> void:
 	await _press(KEY_PAGEDOWN)
 	await _frames(2)
 	var after_page := sc.scroll_vertical
+	# from the middle: Up, then Page Up (after_page is past one Down step, so
+	# Up leaves it above 0 and Page Up still has room to move)
+	await _press(KEY_UP)
+	await _frames(2)
+	var after_up := sc.scroll_vertical
+	await _press(KEY_PAGEUP)
+	await _frames(2)
+	var after_pgup := sc.scroll_vertical
 	await _press(KEY_END)
 	await _frames(2)
 	var at_end := sc.scroll_vertical
 	await _press(KEY_HOME)
 	await _frames(2)
 	var most := int(sc.get_v_scroll_bar().max_value - sc.get_v_scroll_bar().page)
-	print("    keys: down %d, page down %d, end %d (of %d), home %d" % [after_down, after_page, at_end, most, sc.scroll_vertical])
+	print("    keys: down %d, page down %d, up %d, page up %d, end %d (of %d), home %d" % [
+		after_down, after_page, after_up, after_pgup, at_end, most, sc.scroll_vertical])
 	_ok("  Down, Page Down, End and Home scroll the list", after_down > 0 and after_page > after_down
 		and at_end == most and sc.scroll_vertical == 0)
+	_ok("  Up and Page Up scroll it back from the middle", after_up < after_page and after_up > 0
+		and after_pgup < after_up)
 	var wheel := InputEventMouseButton.new()
 	wheel.button_index = MOUSE_BUTTON_WHEEL_DOWN
 	wheel.pressed = true

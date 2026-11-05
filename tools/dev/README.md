@@ -35,7 +35,8 @@ at the bottom says where the work stands.
 | `render.sh [-t S] [-C DIR] args...` | The same, windowed, for stills and films; at most two at once. On a Mac the window shows on screen. |
 | `run_battery.sh [WORKTREE] [names...]` | The wide test battery (36 runs, PairLocalTest among them; about 9 minutes on the PC plus 1:30 for the timed ones; 17 before the split), JOBS at once (default 8), longest first: FlightTest and SolveTest split into shards, their totals after (`sheet=ShardSum`), the four timed runs alone at the end (`SOLO=0` skips them). Logs and `summary.txt` in `$OUT`. The wide set for a change to flight, save, clock or net; not the gate. |
 | `gate_land.sh WORKTREE BRANCH LABEL` | Merge main, import, run the full gate (about 12 minutes), fast-forward main and push on a pass. |
-| `release.sh WORKTREE BRANCH LABEL VERSION` | gate_land, then build both zips from a clean copy, check the Mac app, copy zips to `builds/`, tag `alpha-VERSION` and push the tag. |
+| `release.sh WORKTREE BRANCH LABEL VERSION` | First rename NEW THINGS' `NEXT` entry (`tkg/scripts/data/NewThings.gd`) to VERSION and date it, in the commit that raises config/version; it refuses otherwise (`new_things_check.sh`, before the gate and again on the landed main). Then gate_land, then build both zips from a clean copy, check the Mac app, copy zips to `builds/`, tag `alpha-VERSION` and push the tag. |
+| `new_things_check.sh VERSION [NewThings.gd]` | Exit 0 only when NEW THINGS' newest entry is VERSION, dated, with no `NEXT` left. release.sh runs it. |
 | `resolve_changelog.py CHANGELOG.md` | Keeps both sides of a CHANGELOG-only merge conflict. gate_land runs it. |
 | `encode_video.py IN.avi OUT.mp4 [START]` | A film the game wrote, as an MP4 a phone plays. |
 | `pages/make_pick_page.py SPEC OUT` | A pick page of pictures and films for Jon to choose from. |

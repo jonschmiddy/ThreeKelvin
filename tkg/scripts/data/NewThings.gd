@@ -18,12 +18,18 @@ extends RefCounted
 ## dates it; `release.sh` refuses a version whose entry is not the newest one
 ## here (`tools/dev/new_things_check.sh`). So the newest entry is either NEXT,
 ## with config/version's own entry right under it, or config/version itself.
-## Until it is cut, NEXT is headed with the running build's own string, the one
-## in the title's corner (`BuildInfo.stamp`): "dev" from source.
+## Until it is cut, NEXT is headed "dev" from source, as the title's corner
+## says (`BuildInfo.stamp`), and "NEXT · <commit>" in an exported build that is
+## not a release: the corner's version there is the last release's, and these
+## lines did not go out in it.
 ##
-## These lines go through `tools/prose_grade.py --all` and
-## `tools/prose_tells.py --strict` like any other player text. Jon's own words
-## for 0.4.0-alpha.1 stay as he wrote them.
+## THE GRADE. `tools/prose_tells.py --strict` reads these lines like any other
+## player text. `tools/prose_grade.py --all` does NOT grade them: it skips a
+## string of one sentence, and most lines here are one. So grade each new line
+## by hand before it lands, 7.0 or under:
+##     cd tools && python -c "import prose_grade as p; print(p.grade('A line.'))"
+## Jon's own words for 0.4.0-alpha.1 ("Initial alpha release.", 13.1) stay as
+## he wrote them.
 
 const NEXT := "next"
 
@@ -44,6 +50,8 @@ const LIST := [
 			"The sector map shows your own ship, with a blue ion drive.",
 			"The star chart grays out stars too deep to jump to.",
 			"A derelict hauler says which frame you would claim. SCRAP pays for one you don't want.",
+			"A.S.H. points at a world, not your ship, when she says to click one twice.",
+			"NEW THINGS on the title menu lists what changed in each version.",
 		],
 	},
 	{
@@ -57,7 +65,7 @@ const LIST := [
 			"Lock on stacks. A second lock on card adds to the first.",
 			"A part found a grade higher now gives the stats it shows.",
 			"A hull swap can no longer leave your parts stuck on the pad.",
-			"A win counts for the ship you launched in, even after a hull swap.",
+			"A win counts for the manufacturer you launched with. A hull swap does not change that.",
 		],
 	},
 	{
@@ -88,11 +96,16 @@ static func build_version() -> String:
 	return str(ProjectSettings.get_setting("application/config/version", ""))
 
 
-## What an entry is headed with: its version, or for NEXT this build's own
-## string, as the title's corner shows it.
+## What an entry is headed with: its version, or for NEXT "dev" from source
+## (the title's corner) and "NEXT · <commit>" in an exported build, whose corner
+## version is the last release's and must not head lines that missed it.
 static func heading(e: Dictionary) -> String:
 	var v := str(e.get("version", ""))
-	return BuildInfo.stamp() if v == NEXT else v
+	if v != NEXT:
+		return v
+	if not BuildInfo.stamped():
+		return BuildInfo.stamp()
+	return "NEXT · %s" % BuildInfo.info().get("commit", "?")
 
 
 ## "OCT 23" from "2026-10-23"; NOT OUT YET for an entry with no date.
@@ -103,9 +116,16 @@ static func day(e: Dictionary) -> String:
 	return "%s %d" % [MONTHS[clampi(int(d[1]) - 1, 0, 11)], int(d[2])]
 
 
-## The key the seen mark compares against: the newest entry's heading.
+## The key the seen mark compares against: the newest entry's heading, and for
+## NEXT its count of lines too ("dev +14"), so a line added to NEXT marks the
+## button again on a profile that opened the page before it.
 static func latest_key() -> String:
-	return heading(LIST[0]) if not LIST.is_empty() else ""
+	if LIST.is_empty():
+		return ""
+	var e: Dictionary = LIST[0]
+	if str(e.get("version", "")) == NEXT:
+		return "%s +%d" % [heading(e), (e.get("lines", []) as Array).size()]
+	return heading(e)
 
 
 # ------------------------------------------------------------------ seen mark

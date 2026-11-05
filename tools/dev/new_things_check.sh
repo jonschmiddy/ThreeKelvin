@@ -13,9 +13,9 @@ VER="${1:?usage: new_things_check.sh <version> [NewThings.gd]}"
 F="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/tkg/scripts/data/NewThings.gd}"
 [ -f "$F" ] || { echo "NEW THINGS: no $F"; exit 1; }
 # the first entry's version and date, as written
-top=$(grep -m1 -E '^\s*version = ' "$F" | sed -E 's/^\s*version = //; s/,\s*$//')
-day=$(grep -m1 -E '^\s*date = ' "$F" | sed -E 's/^\s*date = "?//; s/"?,\s*$//')
-if grep -qE '^\s*version = NEXT,' "$F"; then
+top=$(grep -m1 -E '^[[:space:]]*version = ' "$F" | sed -E 's/^[[:space:]]*version = //; s/,[[:space:]]*$//')
+day=$(grep -m1 -E '^[[:space:]]*date = ' "$F" | sed -E 's/^[[:space:]]*date = "?//; s/"?,[[:space:]]*$//')
+if grep -qE '^[[:space:]]*version = NEXT,' "$F"; then
 	echo "NEW THINGS: the NEXT entry is still there. Rename it to \"$VER\" and date it before releasing $VER."
 	exit 1
 fi

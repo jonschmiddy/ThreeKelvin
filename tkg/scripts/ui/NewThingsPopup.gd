@@ -135,4 +135,4 @@ class Pip extends Control:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	func _draw() -> void:
-		draw_rect(Rect2(0, 3, 2, 2), UITheme.EMBER)
+		draw_rect(Rect2(0, 5, 2, 2), UITheme.EMBER)
