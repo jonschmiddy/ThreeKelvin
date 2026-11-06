@@ -14,7 +14,8 @@ extends Control
 ## settlement, three in a city or a capital, in the level's colour.
 ##
 ## THE TUBES BEHAVE LIKE THE LAB'S. On the power-on they strike one after
-## another, the fluorescent ping; after that each stutters now and then on its
+## another, the fluorescent ping, with a gentler catch than the lab's (`catch`:
+## this light covers the whole deck); after that each stutters now and then on its
 ## own clock (`YardLight.stutter`, the lab's tubes), and an unclaimed station's
 ## one tube is the tiredest.
 ##
@@ -109,6 +110,9 @@ func _init() -> void:
 ## Strike the tubes, or -- `settled`, back on a deck already powered this
 ## docking -- have them already lit.
 func power_on(settled: bool = false) -> void:
+	# (under reduced motion the tubes are simply on: no strike to watch)
+	if DisplaySettings.reduced_motion:
+		settled = true
 	_boot_at = _now() - (60.0 if settled else 0.0)
 	# the clock starts on the first frame the board is SEEN: the deck is built
 	# a few frames before it shows, and a strike heard before then lands late
@@ -205,8 +209,38 @@ func tube(k: int) -> float:
 	if u < from:
 		return 0.0
 	if u < from + STRIKE:
-		return YardLight.strikes(u, from, STRIKE, 3.1 + float(k) * 1.7)
+		return catch(u - from, STRIKE, 3.1 + float(k) * 1.7)
 	return YardLight.stutter(_now(), 0.7 + float(k) * 2.3, float(_bars()["per"]))
+
+
+## A TUBE CATCHING, as the board shows it: on, a dip, on, a dip, then on for
+## good. Two dips a tube, each long enough to see as one, and never down to dark.
+##
+## IT WAS THE LAB'S STRIKE (`YardLight.strikes`), a fresh coin every 33 ms
+## between full, half and almost black: up to fifteen flashes a second for the
+## half second a tube took, two or three tubes in turn. On a lab's tube that is
+## a lamp in a corner. Here the light covers the whole deck, the notices you
+## came to read included, and on a screen the dark is 85% black: the whole page
+## strobed for a second and a half (James's playtest, Nov 6: "the hiring board
+## flickers badly when it first opens, then settles"). The dips sit by the
+## tube's seed, and only CATCH_LOW deep, so the board dims and comes back rather
+## than blinking out; the flicker sound still plays on each one (`FLASH`).
+const CATCH_LOW := 0.45
+
+
+static func catch(x: float, dur: float, seed: float) -> float:
+	if x < 0.0:
+		return 0.0
+	if x >= dur:
+		return 1.0
+	var f := x / dur
+	# two dips, each a sixth of the strike, the first in its first half and the
+	# second in its second, nudged by the tube's own seed
+	var a := 0.12 + 0.12 * YardLight.hash1(seed)
+	var b := 0.58 + 0.12 * YardLight.hash1(seed * 1.9 + 0.3)
+	if (f >= a and f < a + 0.17) or (f >= b and f < b + 0.17):
+		return CATCH_LOW
+	return 1.0
 
 
 ## The power-on is over: every tube has struck (it may still stutter after).

@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Fixed** — in the Shipyard, a ship's stats card now shows on top when you point at the ship.
   The outline A.S.H. draws round the drones, often just REFUEL, used to cover it.
+- **Fixed** — the Hiring Board no longer strobes when it first opens. Its lights dip twice as each
+  one comes on and never go dark. With reduced motion they are simply on.
 - **Fixed** — in co-op, two ships that start different fights in the same system at the same moment
   now end up in one fight, the one that started first, on both screens. The second ship's log says
   "VELA got here first. You join their fight." Before, it could show the wrong enemy, take hits from
