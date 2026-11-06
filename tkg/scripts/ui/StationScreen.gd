@@ -571,6 +571,7 @@ func _yard_ships(h: HullData) -> void:
 		_scene_hit = hit
 		_scene_slab = _offer_slab(h, Run.hull, h.name.to_upper())
 		_scene_slab.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		_scene_slab.z_index = SLAB_Z
 		_scene_slab.visible = false
 		box.add_child(_scene_slab)
 	_add_mine_slab(box, h)
@@ -594,6 +595,15 @@ func _place_scene_ship() -> void:
 			hit.position = Vector2(float(P["x0"]), float(P["top"]))
 			hit.size = Vector2(float(P["w"]), float(P["h"]))
 		_float_slab(slabs[i], v, v.position)
+
+
+## THE SHIPS' FIGURES SIT OVER EVERYTHING ON THE PAGE, as a tooltip does. In
+## tree order the slab is over the yard, but A.S.H.'s outline (49) and a hint
+## card (100) are drawn by z_index, and the first-visit lesson outlines the
+## drones (often REFUEL alone): pointing at the hull for sale put that box over
+## its figures (James's playtest, Nov 6, the ANVIL card). Over a hint card too,
+## because the player pointing at a ship is reading the ship.
+const SLAB_Z := 101
 
 
 ## Pointing at the ship swaps the hint for the numbers.
@@ -2702,6 +2712,7 @@ func _add_mine_slab(box: Control, against: HullData) -> void:
 		return
 	_mine_slab = _offer_slab(Run.hull, against, Run.display_name().to_upper())
 	_mine_slab.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_mine_slab.z_index = SLAB_Z
 	_mine_slab.visible = false
 	box.add_child(_mine_slab)
 
