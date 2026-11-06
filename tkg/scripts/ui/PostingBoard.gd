@@ -415,7 +415,8 @@ func _process(_dt: float) -> void:
 
 
 static func _t() -> float:
-	return float(Time.get_ticks_msec()) / 1000.0
+	# (game time: a film's movie writer ran the wall's clock ~13x fast)
+	return GameClock.now()
 
 
 ## The note's size and the gap the work's flow keeps (`StationScreen.NOTE`).

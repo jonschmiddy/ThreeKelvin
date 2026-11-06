@@ -72,6 +72,8 @@ func _run() -> void:
 	for dev in 5:
 		for berth: bool in [false, true]:
 			await _decks(dev, berth)
+	for dev in 5:
+		await _every_ride(dev)
 	for dev: int in [MapGen.Development.OUTPOST, MapGen.Development.SETTLEMENT, MapGen.Development.CITY]:
 		await _bare(dev)
 	await _second_station()
@@ -1082,6 +1084,117 @@ func _deck_ride(st: StationScreen, tag: String) -> void:
 	_ok("%s: unanimated, the deck changes on the press (Lab %s, every deck in its place %s)" % [tag, lab_page.visible, at_rest],
 		lab_page.visible and not hold.visible and at_rest and not st.deck_changing())
 	await _frames(3)
+	Router.animate_in_harness = was_anim
+
+
+## EVERY ELEVATOR CHOICE IS THE SLIDE (Jon, Nov 5, round three: "The slide can
+## be the main transition for every elevator choice"). On a fresh docking at
+## each level, animated, from each of the five decks to each of the other four
+## (twenty rides, up and down): the press starts a slide, never a cut or the
+## dip: both decks shown, the slab between them, the deck you go to below the
+## one you leave going down and above it going up; on every frame of the ride
+## the two decks one rigid shaft moving one way, each clipped to itself and
+## the lower drawn over the upper (a deck runs on past the panel); at the
+## car's stop only the new deck, in its place, taking clicks, its clip and z
+## as they were, the slab gone; and no frame moves the
+## shaft further than one `RIDE_STEP_S` at the shortest ride's top speed (a
+## deck's first frame, built as it shows, used to jump the whole ride). The
+## first ride onto the HIRING BOARD keeps its tubes dark till the car is
+## nearly in. Then `deck_move` &"dip" (the fallback) dips through the dark.
+func _every_ride(dev: int) -> void:
+	var tag := "%s, every ride" % String(MapGen.Development.keys()[dev]).to_lower()
+	var st := await _dock(_station(dev, false, 9100 + dev))
+	if not _ok("%s: the station is up" % tag, st != null):
+		return
+	var was_anim := Router.animate_in_harness
+	var was_scale := Engine.time_scale
+	var ids: Array[StringName] = []
+	for row in StationScreen.DECKS:
+		ids.append(row[0])
+	var body := (st._pages[&"bench"] as Control).get_parent() as Control
+	var span := body.size.y + float(StationScreen.DECK_SLAB)
+	var bad: Array[String] = []
+	var rides := 0
+	var lamp_max := -1.0
+	for a in ids:
+		for b in ids:
+			if a == b:
+				continue
+			Router.animate_in_harness = false
+			st._show_tab(a)
+			await _tree.process_frame
+			Router.animate_in_harness = true
+			# (twice the speed: twenty rides a level; a frame is then the
+			# ride's longest step, `RIDE_STEP_S`)
+			Engine.time_scale = 2.0
+			var from := st._pages[a] as Control
+			var to := st._pages[b] as Control
+			var down := ids.find(b) > ids.find(a)
+			var gap := span if down else -span
+			var first_board := b == &"work" and not Router.powered.has(&"work")
+			var clip0 := [from.clip_contents, to.clip_contents, from.z_index, to.z_index]
+			(st._tabs[b] as Button).pressed.emit()
+			var why := ""
+			if not (st.deck_changing() and from.visible and to.visible and st._deck_slab != null and st._deck_dark == null):
+				why = "no slide (changing %s, from %s, to %s, slab %s, dark %s)" % [st.deck_changing(), from.visible, to.visible, st._deck_slab != null, st._deck_dark != null]
+			elif not is_equal_approx(to.position.y - from.position.y, gap):
+				why = "the deck gone to on the wrong side (%.0f, %.0f wanted)" % [to.position.y - from.position.y, gap]
+			var secs := st._deck_secs
+			var frames := 0
+			var t := 0.0
+			var rigid := true
+			var one_way := true
+			var y_last := from.position.y
+			var step_max := 0.0
+			while st.deck_changing() and frames < 900:
+				await _tree.process_frame
+				t += st.get_process_delta_time()
+				if not st.deck_changing():
+					break
+				frames += 1
+				# (each deck clipped to itself, and the lower drawn over the upper:
+				# the PROMENADE's page runs on 500 px past the panel, over the yard)
+				if not is_equal_approx(to.position.y - from.position.y, gap) or not from.visible or not to.visible 						or not from.clip_contents or not to.clip_contents or (to.z_index > from.z_index) != down:
+					rigid = false
+				if (from.position.y - y_last) * (1.0 if down else -1.0) > 0.0:
+					one_way = false
+				step_max = maxf(step_max, absf(from.position.y - y_last))
+				y_last = from.position.y
+				# (on the ride's own clock: a stalled frame holds the ride)
+				if first_board and st._deck_fade.get_total_elapsed_time() < secs - 0.3:
+					lamp_max = maxf(lamp_max, st._board_lamp.level())
+			# (no frame moves the shaft more than a RIDE_STEP_S step at the
+			# shortest ride's top speed: a long frame does not jump it)
+			var step_cap := span * PI / 2.0 * StationScreen.RIDE_STEP_S / StationScreen.DECK_MIN_S + 2.0
+			if why == "" and (frames < 4 or not rigid or not one_way or step_max > step_cap):
+				why = "the shaft (frames %d over %.3f s, rigid %s, one way %s, a frame's step %.0f px of %.0f)" % [frames, t, rigid, one_way, step_max, step_cap]
+			await _tree.process_frame
+			var shown := 0
+			for k in st._pages:
+				if (st._pages[k] as Control).visible:
+					shown += 1
+			if why == "" and not (st._tab == b and to.visible and shown == 1 and to.position.y == 0.0
+					and from.position.y == 0.0 and st._deck_slab == null
+					and [from.clip_contents, to.clip_contents, from.z_index, to.z_index] == clip0
+					and to.mouse_behavior_recursive == Control.MOUSE_BEHAVIOR_INHERITED
+					and from.mouse_behavior_recursive == Control.MOUSE_BEHAVIOR_INHERITED):
+				why = "not at rest after (tab %s, shown %d, y %.0f)" % [st._tab, shown, to.position.y]
+			if why != "":
+				bad.append("%s to %s: %s" % [a, b, why])
+			rides += 1
+	Engine.time_scale = was_scale
+	_ok("%s: all %d rides between the five decks, up and down, are the slide (%s)" % [tag, rides, "all" if bad.is_empty() else "; ".join(bad)],
+		rides == 20 and bad.is_empty())
+	_ok("%s: the board's tubes stay dark riding in till the car is nearly in (level %.2f)" % [tag, lamp_max],
+		lamp_max == 0.0)
+	# THE FALLBACK: the dip through the dark
+	StationScreen.deck_move = &"dip"
+	(st._tabs[&"stock"] as Button).pressed.emit()
+	var dipped := st.deck_changing() and st._deck_dark != null and st._deck_slab == null
+	await _until(func() -> bool: return not st.deck_changing(), 4000)
+	StationScreen.deck_move = &"slide"
+	_ok("%s: deck_move &\"dip\" dips through the dark instead (%s), and lands (tab %s)" % [tag, dipped, st._tab],
+		dipped and st._tab == &"stock" and (st._pages[&"stock"] as Control).visible and not st.deck_changing())
 	Router.animate_in_harness = was_anim
 
 
