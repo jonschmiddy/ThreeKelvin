@@ -438,6 +438,44 @@ static func _btn(text: String, action: Callable, click: bool = true) -> Button:
 static func button(text: String, action: Callable, click: bool = true) -> Button:
 	return _btn(text, action, click)
 
+## THE BUTTON THAT COMMITS, in ember: the look of the station's BUY, INSTALL,
+## TAKE IT, MAKE and UNDOCK (`StationScreen._commit_button`, where the reasoning
+## lives; it keeps its own copy, which has no `focus` box), and the system map's GO (issue #35, Jon, Nov 6: "my biggest personal complaint", GO a
+## small grey box in a corner of the event card). Every state is spelled out,
+## disabled above all: an override on `normal` alone would leave a GO that
+## cannot go looking exactly like one that can.
+static func commit(b: Button, pad_v: int = 5, pad_h: int = 14) -> Button:
+	b.add_theme_stylebox_override("normal",
+		UITheme.flat(Color("#0a0f17"), UITheme.EMBER, 0, pad_v, pad_h))
+	b.add_theme_stylebox_override("hover",
+		UITheme.flat(Color("#1d1409"), UITheme.FLARE, 0, pad_v, pad_h))
+	b.add_theme_stylebox_override("pressed",
+		UITheme.flat(UITheme.EMBER, UITheme.HOT, 0, pad_v, pad_h))
+	b.add_theme_stylebox_override("focus",
+		UITheme.flat(Color("#0a0f17"), UITheme.EMBER, 0, pad_v, pad_h))
+	b.add_theme_stylebox_override("disabled",
+		UITheme.flat(Color("#0a0e15"), UITheme.LINE, 0, pad_v, pad_h))
+	b.add_theme_color_override("font_color", UITheme.EMBER)
+	b.add_theme_color_override("font_hover_color", UITheme.HOT)
+	b.add_theme_color_override("font_focus_color", UITheme.EMBER)
+	b.add_theme_color_override("font_pressed_color", UITheme.VOID)
+	b.add_theme_color_override("font_disabled_color", UITheme.COLD.darkened(0.3))
+	return b
+
+## A BUTTON THAT IS NOT THE POINT OF THE PAGE: an outline on nothing, its words
+## in CHILL, so beside a `commit` button it reads as the way round rather than
+## the way on. The theme's padding (3 and 5), so swapping a button to it moves
+## nothing on the page.
+static func quiet(b: Button) -> Button:
+	b.add_theme_stylebox_override("normal", UITheme.flat(Color(0, 0, 0, 0), UITheme.LINE, 0, 3, 5))
+	b.add_theme_stylebox_override("focus", UITheme.flat(Color(0, 0, 0, 0), UITheme.LINE, 0, 3, 5))
+	b.add_theme_stylebox_override("hover", UITheme.flat(Color(UITheme.PANEL2, 0.9), UITheme.CHILL, 0, 3, 5))
+	b.add_theme_stylebox_override("pressed", UITheme.flat(Color("#4a2a0c"), UITheme.EMBER, 0, 3, 5))
+	b.add_theme_stylebox_override("disabled", UITheme.flat(Color(0, 0, 0, 0), Color(UITheme.LINE, 0.5), 0, 3, 5))
+	b.add_theme_color_override("font_color", UITheme.CHILL)
+	b.add_theme_color_override("font_focus_color", UITheme.CHILL)
+	return b
+
 ## Label + value readout used in the HUD and unit panels.
 static func stat(key: String, value: String, value_colour: Color = UITheme.ICE) -> HBoxContainer:
 	var row := HBoxContainer.new()

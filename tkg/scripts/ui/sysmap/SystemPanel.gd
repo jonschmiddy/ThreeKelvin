@@ -545,7 +545,11 @@ func _list() -> void:
 		var jb := _act("JOIN FIGHT", Router.join_fight)
 		jb.name = "JoinFight"
 		jb.tooltip_text = Widgets.tip("%s is fighting in this system. Join them: the enemy grows for two, and the turn waits for both of you." % Router.join_fight_names())
-	_act("PLOT NEXT JUMP", func() -> void: screen.plot_next_jump(), false)
+	var plot := _act("PLOT NEXT JUMP", func() -> void: screen.plot_next_jump(), false)
+	# beside a world's GO it is the way out, not the way on (issue #35); with
+	# nothing left to take here it keeps the theme's weight, the page's next step
+	if filter >= 0 and _has_open_event(filter):
+		Widgets.quiet(plot)
 
 
 func _pair_open(pair: Array) -> bool:
@@ -575,19 +579,30 @@ func _place_event(body: int, i: int) -> void:
 
 ## GO, which flies you to the event (if you are not there) and down into LOCAL,
 ## where it is taken. Pointed at, it says what taking the event would close.
+##
+## THE PAGE'S ONE ACTION LOOKS LIKE IT (issue #35, Jon, Nov 6: "my biggest
+## personal complaint with the game too"). It was a small grey GO at the right
+## of a row, the same box as FLY HERE and PLOT NEXT JUMP and smaller than both.
+## Now it is the text column's full width (`TEXT_W`, so the scroll bar's box
+## test still holds), taller, and in the station's commit ink (`Widgets.commit`);
+## the place's FLY HERE above it goes quiet (`_way_there`), since GO flies you
+## there anyway.
+const GO_H := 20
+
 func _go_button(i: int) -> void:
-	var row := HBoxContainer.new()
-	row.add_child(_spacer())
-	var go := _small("GO", func() -> void: screen.go_event(i), not (_ship_at(_body_of_opt(i)) or _can_go()))
+	_gap(2)
+	var go := Widgets.commit(_small("GO", func() -> void: screen.go_event(i), not (_ship_at(_body_of_opt(i)) or _can_go())), 4, 8)
 	go.name = "Go"
+	# exactly the text column, never the panel: the bar's gutter stays clear
+	go.custom_minimum_size = Vector2(TEXT_W, GO_H)
+	go.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_docked_go(go)
 	var rivals := _rivals(i)
 	if not rivals.is_empty():
 		var names := ", ".join(rivals.map(func(j: int) -> String: return _title(j)))
 		go.mouse_entered.connect(func() -> void: hover_choice(names))
 		go.mouse_exited.connect(func() -> void: hover_choice(""))
-	row.add_child(go)
-	_box.add_child(row)
+	_box.add_child(go)
 
 
 ## THE SECTOR'S PAGE, WHICH IS THE STAR'S: its picture, its name and class, the
@@ -743,6 +758,14 @@ func _has_events(body: int) -> bool:
 	return false
 
 
+## An encounter at the place that is still open: its page carries a GO.
+func _has_open_event(body: int) -> bool:
+	for pair in _events():
+		if pair[0] == body and pair[1] != null and pair[1].opt >= 0 and _is_open(pair[1].opt):
+			return true
+	return false
+
+
 ## THE WAY THERE: in orbit (or alongside) a place's events are open; until then
 ## they are locked, and FLY HERE (or any choice) takes you there.
 func _way_there(i: int) -> void:
@@ -762,7 +785,13 @@ func _way_there(i: int) -> void:
 		elif _held():
 			go.add_child(_small("CANNOT UNDOCK", func() -> void: pass, true))
 		elif _can_go():
-			go.add_child(_small("FLY HERE", func() -> void: screen.fly_to_body(i)))
+			var fly := _small("FLY HERE", func() -> void: screen.fly_to_body(i))
+			# QUIET WHEN AN EVENT'S GO IS BELOW IT (issue #35): GO flies you
+			# here too, so FLY HERE is the way to just be there, not the way on
+			# (a world's page only: the sector's lists its events as cards)
+			if i >= 0 and _has_open_event(i):
+				Widgets.quiet(fly)
+			go.add_child(fly)
 		elif _heading_to(i):
 			go.add_child(_small("ON YOUR WAY", func() -> void: pass, true))
 		else:
@@ -987,8 +1016,11 @@ func _event_page(out: Dictionary) -> void:
 		_blurb(String(o.get("body", "")), DIM)
 	# GO, the page's one action, at the foot where the panel's buttons are
 	if st.kind == &"open" or st.kind == &"left":
-		var go := _act("GO", func() -> void: screen.go_event(i))
+		# in the commit ink, as on a world's page (issue #35); ALL EVENTS quiet
+		var go := Widgets.commit(_act("GO", func() -> void: screen.go_event(i)), 4, 8)
 		go.name = "Go"
+		# two thirds of the foot to ALL EVENTS' one
+		go.size_flags_stretch_ratio = 2.0
 		go.disabled = not (_ship_at(body) or _can_go())
 		_docked_go(go)
 		var rivals := _rivals(i)
@@ -996,7 +1028,9 @@ func _event_page(out: Dictionary) -> void:
 			var names := ", ".join(rivals.map(func(j: int) -> String: return _title(j)))
 			go.mouse_entered.connect(func() -> void: hover_choice(names))
 			go.mouse_exited.connect(func() -> void: hover_choice(""))
-	_act("ALL EVENTS", func() -> void: screen.panel_back())
+		Widgets.quiet(_act("ALL EVENTS", func() -> void: screen.panel_back()))
+	else:
+		_act("ALL EVENTS", func() -> void: screen.panel_back())
 
 
 ## The line under the choices: "WILL MAKE THE QUEUE UNAVAILABLE", or nothing.
