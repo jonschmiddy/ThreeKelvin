@@ -250,6 +250,9 @@ func run(tree: SceneTree) -> void:
 	print("  ..   with wrecks there: %d of %d placements drawn at half size to keep clear" % [halves, with_subject * sets.size()])
 	_ok("with 1-3 wrecks there, every subject keeps clear of them (%s)" % (", ".join(crossed) if not crossed.is_empty() else "all"), crossed.is_empty() and not sets.is_empty())
 	_ok("and still inside its box (%s)" % (", ".join(outside) if not outside.is_empty() else "all"), outside.is_empty())
+	# A PLATE WELDED TO ITS ROCK RIDES IT (#40): on the real LOCAL
+	await _live(&"the_welded_plate")
+	_rides_its_rock()
 	# A BIG STRUCTURE ON THE REAL LOCAL: pinned, behind the hulls, behind a wreck
 	# that still opens through it, and zoomed with the scene in the cutaway
 	await _live_structure(&"cold_labour")
@@ -1227,6 +1230,41 @@ func _live(oid: StringName) -> void:
 			_ok("and on every frame as its band folds away (%s)" % (", ".join(off2.slice(0, 4)) if not off2.is_empty() else "all"), off2.is_empty())
 	_ok("and it takes the place of LOCAL's drawn stand-in (hidden)", sc._view._area == null or not sc._view._area.visible)
 	LocalEventDrawer.quiet = false
+
+
+## WHAT IS WELDED TO A ROCK DRIFTS WITH IT (#40, James's playtest, Nov 6: on
+## THE WELDED PLATE "the door floats separate from the asteroid"). Every piece
+## drifted on its own phase, so the plate slid to and fro across the rock it is
+## welded to. Stepped through 40 s of the clock: the plate keeps one offset from
+## its rock while the rock itself moves. Fails on the old code (several offsets).
+func _rides_its_rock() -> void:
+	var sc := Router.current as SectorScreen
+	var sub := LocalSubject.of(sc._view) if sc != null else null
+	if not _ok("THE WELDED PLATE's subject is up on LOCAL", sub != null):
+		return
+	var rock: Dictionary = {}
+	var plate: Dictionary = {}
+	for rec: Dictionary in sub._placed:
+		if rec.id == &"paint_rock_a1":
+			rock = rec
+		elif rec.id == &"r4_plate_welded_plate_1":
+			plate = rec
+	if not _ok("its rock and its plate are placed", not rock.is_empty() and not plate.is_empty()):
+		return
+	var was := ShipView.shot_clock
+	var gaps := {}
+	var at0 := (rock.node as Node2D).position
+	var moved := false
+	for i in 24:
+		ShipView.shot_clock = float(i) * 1.7
+		sub._place()
+		var r := (rock.node as Node2D).position
+		gaps[(plate.node as Node2D).position - r] = true
+		moved = moved or r != at0
+	ShipView.shot_clock = was
+	sub._place()
+	_ok("the plate rides its rock: one offset between them over 40 s of drift (%d seen), the rock drifting (%s)" % [gaps.size(), moved],
+		gaps.size() == 1 and moved)
 
 
 ## THE FOES THE WRECKS ARE LEFT BY, named. They were picked off
