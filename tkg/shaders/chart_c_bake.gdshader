@@ -106,8 +106,19 @@ vec4 structure(vec2 p) {
 	}
 	lip *= smoothstep(0.02, 0.06, r);
 	// nothing at the bake's edge: a sample past it reads the edge texel, and an
-	// arm still lit there smeared into spikes above and below the disc
-	float rim = 1.0 - smoothstep(ext * 0.86, ext * 0.97, max(abs(p.x), abs(p.y)));
+	// arm still lit there smeared into spikes above and below the disc.
+	// ROUND, NOT SQUARE (#39, James's playtest, Nov 6: "a dashed box around the
+	// galaxy" on the title). The ridge and the front have no radial fall-off of
+	// their own, so this rim WAS the arms' outer edge, and it was a square in the
+	// plane (max(|x|, |y|)): the arms' faint outer light ran out to 1.16 gu in the
+	// corners and stopped on four straight lines, which the tilt and the turn
+	// drew as a slowly turning parallelogram round the galaxy, dithered into a
+	// dotted line. The run's chart dissolves the disc's edge first (the solid
+	// look's `edgeMask`), so only the title, never solid, showed it. A circle
+	// ending at the same 0.97 ext still leaves every edge texel dark, so the
+	// smear guard holds; it starts at 0.80 ext so the arms thin into the halo, as
+	// RADIANT's bake does, instead of ending on a ring.
+	float rim = 1.0 - smoothstep(ext * 0.80, ext * 0.97, r);
 	return clamp(vec4(ridge, lane, lip, front) * rim, 0.0, 1.0);
 }
 
