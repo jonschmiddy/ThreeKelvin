@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Fixed** — on a Mac, scrolling on a trackpad or a Magic Mouse now zooms the star chart and the
+  system map, the same way a mouse wheel does, and a pinch zooms too. Before, only a mouse with a
+  notched wheel could zoom.
 - **Fixed** — in co-op, two ships that start different fights in the same system at the same moment
   now end up in one fight, the one that started first, on both screens. The second ship's log says
   "VELA got here first. You join their fight." Before, it could show the wrong enemy, take hits from
