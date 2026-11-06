@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Changed** — an encounter's text now arrives a whole word at a time instead of letter by letter, so a
+  long one is easier to read as it comes in. It takes a little less time than before, a click still
+  shows it all at once, and the text sound plays once a word. A.S.H.'s lines still type with her voice.
 - **Fixed** — in co-op, two ships that start different fights in the same system at the same moment
   now end up in one fight, the one that started first, on both screens. The second ship's log says
   "VELA got here first. You join their fight." Before, it could show the wrong enemy, take hits from

@@ -21,6 +21,17 @@ extends Control
 ## most two in the air (`Audio.play_capped`). Only a settling letter makes a
 ## blip. So `skip()` finishes silently and also fades any tail still ringing,
 ## and reduced motion, which has no reveal, has no blips.
+##
+## WORD BY WORD (`by_word`, the event band's: issue #38, Jon: "per word reveal is
+## way better"). Letter by letter, a long encounter body was hard to read while
+## it arrived: the eye kept landing on half a word. With `by_word` a whole word
+## settles at once, holds as long as its letters would have taken at
+## `cps * WORD_PACE` (so a long word holds longer and the whole text takes about
+## what it did, a little less), and punctuation's beat falls after the word it
+## ends. The noise and the cursor ride ahead of the settled words as before (no
+## dropouts: blanking the end of a word just landed is the half word again). ONE
+## blip per word, not one per three letters. A.S.H.'s line stays letter by
+## letter: it is timed to her voice (`rate_for`) and reads as her speaking.
 
 signal char_settled(index: int, ch: String)
 signal line_settled(line: int)
@@ -33,6 +44,11 @@ static var cps := 40.0
 ## This text's own speed, characters a second, over `cps` when set: A.S.H.'s
 ## line types as long as her voice takes to say it (`rate_for`).
 var rate := 0.0
+## Settle a word at a time (the event band), not a letter.
+var by_word := false
+## How much faster than `cps` a word-by-word reveal runs: the same letters, a
+## shade quicker, since a whole word is readable the moment it lands.
+const WORD_PACE := 1.15
 const PAUSE := {".": 0.09, "!": 0.09, "?": 0.09, ",": 0.03, ";": 0.05, ":": 0.05}
 ## How many characters past the settled edge show as noise, and how often
 ## their glyph changes, s.
@@ -81,6 +97,11 @@ var _noise: Array = []
 var _drop := 0.0
 var _rng := RandomNumberGenerator.new()
 var _last_line := -1
+## By word: where each word starts (`word_starts`), the next one to settle, and
+## the clock, in characters, that reaches it.
+var _starts := PackedInt32Array()
+var _wi := 0
+var _clock := 0.0
 
 
 func _init() -> void:
@@ -97,6 +118,9 @@ func play() -> void:
 	_last_line = -1
 	_letters = 0
 	blips = 0
+	_wi = 0
+	_clock = 0.0
+	_starts = word_starts(text) if by_word else PackedInt32Array()
 	if not Router.animating():
 		skip()
 	queue_redraw()
@@ -110,6 +134,22 @@ static func rate_for(what: String, secs: float) -> float:
 	for i in what.length() - 1:
 		beats += float(PAUSE.get(what[i], 0.0))
 	return float(what.length()) / maxf(secs - beats, 0.25)
+
+
+## WHERE EACH WORD STARTS in `what`: the index of every character that is not a
+## space or a "\n" and follows one (or opens the text). A word is that run and
+## the spaces after it, so the next start is where the last one ends; the text
+## is drawn by hand from its plain characters, so there is no markup to step
+## over.
+static func word_starts(what: String) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	var gap := true
+	for i in what.length():
+		var sp := what[i] == " " or what[i] == "\n"
+		if not sp and gap:
+			out.append(i)
+		gap = sp
+	return out
 
 
 ## Finish now.
@@ -186,6 +226,32 @@ func _process(delta: float) -> void:
 	var n := text.length()
 	if _hold > 0.0:
 		_hold -= delta
+	elif by_word:
+		_clock += (rate if rate > 0.0 else cps) * WORD_PACE * delta
+		while _wi < _starts.size() and _clock >= float(_starts[_wi]):
+			var before := int(shown)
+			var end := _starts[_wi + 1] if _wi + 1 < _starts.size() else n
+			_wi += 1
+			shown = float(end)
+			_clock = maxf(_clock, float(_starts[_wi - 1]))
+			for k in range(before, end):
+				var ch := text.substr(k, 1)
+				char_settled.emit(k, ch)
+				var li := _line_of(k)
+				if li != _last_line and _last_line >= 0:
+					line_settled.emit(_last_line)
+				_last_line = li
+			if sound:
+				blips += 1
+				Audio.play_capped(BLIP, BLIP_PITCH, BLIP_VOICES)
+			# the beat of the mark that ends the word (none after the last)
+			var word := text.substr(before, end - before).strip_edges()
+			var last := word.right(1)
+			if PAUSE.has(last) and end < n:
+				_hold = float(PAUSE[last])
+				break
+		if _wi >= _starts.size():
+			shown = float(n)
 	else:
 		var before := int(shown)
 		shown = minf(shown + (rate if rate > 0.0 else cps) * delta, float(n))
