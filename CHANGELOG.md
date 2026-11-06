@@ -10,6 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   The outline A.S.H. draws round the drones, often just REFUEL, used to cover it.
 - **Fixed** — the Hiring Board no longer strobes when it first opens. Its lights dip twice as each
   one comes on and never go dark. With reduced motion they are simply on.
+- **Changed** — UNDOCK is bigger and in large letters, so it reads as the way out. Trying to leave
+  any other way while docked makes it blink. That includes the greyed LOCAL tab and FLY HERE on the
+  map, where it blinks once you are back on the station.
 - **Fixed** — in co-op, two ships that start different fights in the same system at the same moment
   now end up in one fight, the one that started first, on both screens. The second ship's log says
   "VELA got here first. You join their fight." Before, it could show the wrong enemy, take hits from

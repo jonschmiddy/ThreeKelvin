@@ -110,9 +110,14 @@ func setup() -> void:
 	# rather than the next time you happen to reopen the screen.
 	Sig.party_map_changed.connect(_refresh)
 	Sig.map_changed.connect(_refresh)
+	Sig.undock_wanted.connect(_nudge_undock)
+	# (a way out tried from the map or the chart: UNDOCK says where it is when
+	# this is the screen up again, built at once or ahead of a move)
+	Sig.screen_changed.connect(_nudge_owed)
 	_stock_up()
 	_inspect()
 	_refresh()
+	_nudge_owed.call_deferred()
 
 ## FIVE PAGES, NOT FIVE PANELS STACKED.
 ##
@@ -1095,7 +1100,13 @@ func _undock_cell() -> Control:
 	# THE ONE THING ON THE RAIL THAT LEAVES. Every deck above it is somewhere you
 	# go and come back from; this is the door, so it wears the same ink BUY does.
 	var out := _commit_button("UNDOCK", func() -> void: Router.show_sector())
-	out.custom_minimum_size = Vector2(RAIL_W, 22)
+	# BIG ENOUGH TO READ AS THE DOOR (James's playtest, Nov 6: "Not obvious that
+	# you must undock before going somewhere else"). It was 22 px in the body
+	# size, the smallest thing on the rail under five floors in the heading
+	# size, and read as a footnote. The heading's size now, and a deck's height
+	# less a third.
+	out.custom_minimum_size = Vector2(RAIL_W, UNDOCK_H)
+	out.add_theme_font_size_override("font_size", UITheme.FS_HEAD)
 	# SHRINK, NOT EXPAND. `_commit_button` hands back a control that takes the
 	# slack -- which is right where it is one of two things in a row and wrong
 	# here, because the other thing in this column is the STATION. The two of
@@ -1105,6 +1116,48 @@ func _undock_cell() -> Control:
 	out.size_flags_vertical = Control.SIZE_SHRINK_END
 	_undock = out
 	return out
+
+
+## UNDOCK's height on the rail, px.
+const UNDOCK_H := 32
+## How long UNDOCK is lit for when a way out but it was tried, s, and how many
+## times it blinks in that time.
+const NUDGE_S := 1.6
+const NUDGE_BLINKS := 3
+var _nudge_tween: Tween = null
+
+
+## A WAY OFF THE BERTH BUT UNDOCK WAS TRIED (`Router.cast_off` refused it: the
+## HUD's greyed LOCAL, the map's FLY HERE or GO, WASD): the door says where it
+## is: UNDOCK blinks bright a few times (the refusal's own words, `DOCKED_LINE`,
+## are on the greyed LOCAL's and each DOCKED button's tooltip). Tried from the
+## map, it blinks when you are back here (`Router.undock_nudge`). Under reduced
+## motion it lights once and holds.
+func _nudge_undock() -> void:
+	# (a station not on screen leaves it for the one that is, or will be)
+	if not is_inside_tree() or Router.current != self:
+		return
+	Router.undock_nudge = false
+	if _undock == null or not is_instance_valid(_undock) or _undock.disabled:
+		return
+	if _nudge_tween != null and _nudge_tween.is_valid():
+		_nudge_tween.kill()
+	var hot := Color(1.9, 1.7, 1.4)
+	_nudge_tween = create_tween()
+	if DisplaySettings.reduced_motion:
+		_undock.modulate = hot
+		_nudge_tween.tween_interval(NUDGE_S)
+	else:
+		var step := NUDGE_S / float(NUDGE_BLINKS * 2)
+		for i in NUDGE_BLINKS:
+			_nudge_tween.tween_property(_undock, "modulate", hot, step)
+			_nudge_tween.tween_property(_undock, "modulate", Color.WHITE, step)
+	_nudge_tween.tween_property(_undock, "modulate", Color.WHITE, 0.0)
+
+
+func _nudge_owed() -> void:
+	if Router.undock_nudge:
+		_nudge_undock()
 
 
 ## A DECK POWERS ON ONCE A DOCKING. Jon: once a station's or a lab's power-on
