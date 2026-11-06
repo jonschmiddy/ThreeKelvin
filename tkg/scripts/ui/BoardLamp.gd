@@ -125,6 +125,19 @@ func power_on(settled: bool = false) -> void:
 	queue_redraw()
 
 
+## The strike held off, the board dark (the deck still riding in on the
+## elevator: `StationScreen._boot_on_arrival`), till `boot_now`.
+func hold_boot() -> void:
+	_boot_pending = false
+	_boot_at = _now() + 3600.0
+
+
+## The strike from now.
+func boot_now() -> void:
+	_boot_pending = false
+	_boot_at = _now()
+
+
 ## The sounds the light makes this frame. A screen's are on its timetable,
 ## which its backlight's flash keeps; a board's follow its light: a flicker on
 ## each flash, the clunk once when it holds steady.
@@ -168,8 +181,10 @@ func _notification(what: int) -> void:
 		Audio.hush(names)
 
 
+## Game time (`GameClock`), not the wall's: a film made with the movie writer
+## struck the tubes about thirteen times too fast.
 static func _now() -> float:
-	return float(Time.get_ticks_msec()) / 1000.0
+	return GameClock.now()
 
 
 func _process(_dt: float) -> void:

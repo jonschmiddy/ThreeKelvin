@@ -103,7 +103,7 @@ func _process(_dt: float) -> void:
 func _frames_now() -> String:
 	if car < 0.0 or _rail.is_empty():
 		return ""
-	var t := Time.get_ticks_msec()
+	var t := GameClock.now_ms()
 	var key := ""
 	for i in floors.size():
 		if absf(car - float(i)) < 1.0 and _rail.has(floors[i]):
@@ -127,7 +127,7 @@ func _draw_picture(art: Dictionary, room: Rect2, glow: float) -> void:
 	if glow <= 0.0:
 		return
 	var seq: Array = art["seq"]
-	var f := int(seq[int(float(Time.get_ticks_msec()) / float(art["ms"])) % seq.size()])
+	var f := int(seq[int(float(GameClock.now_ms()) / float(art["ms"])) % seq.size()])
 	var cols := int(art["cols"])
 	draw_texture_rect_region(art["tex"], dst,
 		Rect2(float(f % cols) * PIC.x + sx, float(f / cols) * PIC.y + top, sw, sh),

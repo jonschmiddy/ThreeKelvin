@@ -318,6 +318,12 @@ func delay_boot(s: float) -> void:
 	_boot_at += s
 
 
+## The power-on from now (the car nearly in: `StationScreen._boot_on_arrival`).
+func boot_now() -> void:
+	_boot_at = floorf(_lab_clock * HZ) / HZ
+	_tick_n = -1
+
+
 func _process(delta: float) -> void:
 	if lab.is_empty() or not is_visible_in_tree():
 		_hush()

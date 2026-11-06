@@ -1082,6 +1082,7 @@ func _page_bench() -> Control:
 ## camera is away from the room (the screen says SIGNING IN on the way in, and
 ## its logo on the way out).
 func _process(_delta: float) -> void:
+	_ride_step(_delta)
 	if _deck_swap != null:
 		_swap_decks()
 	if _login == null or _glass_press == null or _tab != &"bench":
@@ -1202,6 +1203,43 @@ func lab_carry(d: Vector2, on: bool) -> void:
 			_lab_rail_a = 0.0 if gone else 1.0
 
 
+## UNDOCK FROM A DECK ABOVE THE YARD RIDES DOWN TO IT FIRST (Jon, Nov 5: the
+## slide for every elevator choice). Undocking (3B) is the elevator out and
+## your ship off its stands, and your ship is in the yard: pressed on the Lab
+## it used to play over the Lab, the elevator going and the hull flying out
+## unseen. Now the car takes you down to the SHIPYARD on the slide and the
+## undock starts as it stops. A floor picked on the way cancels it; a second
+## press waits for the same ride. Where the undock does not move the yard (the
+## ladder off, another design, reduced motion, a harness) it leaves at once.
+var _undock_wait := false
+
+
+func _undock_press() -> void:
+	if _undock_wait:
+		return
+	if _undock_rides():
+		if _tab != &"services":
+			_show_tab(&"services")
+		if deck_changing():
+			_undock_wait = true
+			_deck_fade.finished.connect(_undock_after_ride)
+			return
+	Router.show_sector()
+
+
+## Whether undocking from here plays the yard (`ladder_pre`), so must start on it.
+func _undock_rides() -> bool:
+	return _pages.has(&"services") and _tabs_on.get(&"services", true) 		and ZoomLadder.enabled() and ZoomLadder.design_for(3) in ["B", "D"]
+
+
+func _undock_after_ride() -> void:
+	if not _undock_wait:
+		return
+	_undock_wait = false
+	if _tab == &"services" and is_inside_tree() and Router.current == self 			and _undock != null and not _undock.disabled:
+		Router.show_sector()
+
+
 static func _set_offsets(c: Control, o: Vector4) -> void:
 	c.offset_left = o.x
 	c.offset_top = o.y
@@ -1270,7 +1308,7 @@ func _deck_cell(id: StringName, deck: String, what: String) -> Button:
 func _undock_cell() -> Control:
 	# THE ONE THING ON THE RAIL THAT LEAVES. Every deck above it is somewhere you
 	# go and come back from; this is the door, so it wears the same ink BUY does.
-	var out := _commit_button("UNDOCK", func() -> void: Router.show_sector())
+	var out := _commit_button("UNDOCK", _undock_press)
 	out.custom_minimum_size = Vector2(RAIL_W, 22)
 	# SHRINK, NOT EXPAND. `_commit_button` hands back a control that takes the
 	# slack -- which is right where it is one of two things in a row and wrong
@@ -1293,12 +1331,15 @@ func _power_deck(id: StringName) -> void:
 		_lab.power_on(settled)
 		# (riding in on a slide, the Lab comes in dark and its lamps strike as
 		# the car stops, as they did after the dip: not mid-ride)
-		if not settled and deck_changing() and DECK_MOVE == &"slide":
-			_lab.delay_boot(maxf(0.0, _deck_secs - 0.25))
+		if not settled and deck_changing() and deck_move == &"slide":
+			_boot_on_arrival(_lab.delay_boot.bind(3600.0), _lab.boot_now)
 	elif id == &"services" and _scene != null and is_instance_valid(_scene):
 		_scene.power_on(settled)
 	elif id == &"work" and _board_lamp != null:
 		_board_lamp.power_on(settled)
+		# (and the board's tubes strike as the car stops, as the Lab's lamps do)
+		if not settled and deck_changing() and deck_move == &"slide":
+			_boot_on_arrival(_board_lamp.hold_boot, _board_lamp.boot_now)
 	else:
 		return
 	Router.powered[id] = true
@@ -1307,6 +1348,8 @@ func _power_deck(id: StringName) -> void:
 func _show_tab(id: StringName) -> void:
 	if not _pages.has(id) or not _tabs_on.get(id, true):
 		return
+	# (a floor picked on the way down to undock: the player changed their mind)
+	_undock_wait = false
 	# (a ride still going: the new one starts from what is on screen, under the
 	# dark as it is, not from the deck it was going to)
 	var from: Control = _deck_showing() if _tab != id or deck_changing() else null
@@ -1316,7 +1359,7 @@ func _show_tab(id: StringName) -> void:
 	# (and on a slide, where the shaft stands, and the other deck in it)
 	var y0 := from.position.y if from != null else 0.0
 	var other: Control = null
-	if deck_changing() and DECK_MOVE == &"slide":
+	if deck_changing() and deck_move == &"slide":
 		other = _deck_to if from == _deck_from else _deck_from
 	_end_deck_fade(true)
 	_tab = id
@@ -1324,9 +1367,11 @@ func _show_tab(id: StringName) -> void:
 		(_pages[key] as Control).visible = key == id
 	_ride_s = 0.0
 	_light_floor()
-	if from != null and (_ride_s > 0.0 or a0 > 0.0 or y0 != 0.0) and Router.animating():
+	# (a deck left is always a ride, the car's or -- no car to time it -- the
+	# shortest one: never a cut)
+	if from != null and (from != _pages[id] or a0 > 0.0 or y0 != 0.0) and Router.animating():
 		var secs := maxf(_ride_s, DECK_MIN_S)
-		if DECK_MOVE == &"slide":
+		if deck_move == &"slide":
 			_slide_decks(from, _pages[id] as Control, secs, y0, other)
 		else:
 			_cross_decks(from, _pages[id] as Control, secs, a0)
@@ -1444,7 +1489,7 @@ func _cross_decks(from: Control, to: Control, secs: float, a0: float = 0.0) -> v
 ## The deck on screen now: in a deck change before its hand-over, the deck
 ## being left, else the deck you are on.
 func _deck_showing() -> Control:
-	if deck_changing() and DECK_MOVE == &"slide":
+	if deck_changing() and deck_move == &"slide":
 		# (on a slide, whichever deck holds more of the panel)
 		var best: Control = null
 		for pg: Control in [_deck_from, _deck_to]:
@@ -1467,6 +1512,7 @@ func deck_changing() -> bool:
 ## its place and taking clicks again, and the dark and the slab gone. `keep`
 ## (a new ride starting from this one) leaves the decks where they stand for it.
 func _end_deck_fade(keep: bool = false) -> void:
+	_boot_release()
 	if _deck_fade != null and _deck_fade.is_valid():
 		_deck_fade.kill()
 	_deck_fade = null
@@ -1486,6 +1532,11 @@ func _end_deck_fade(keep: bool = false) -> void:
 	if _deck_body != null and is_instance_valid(_deck_body):
 		_deck_body.clip_contents = _deck_clip
 	_deck_body = null
+	for pg: Control in _deck_page_clip:
+		if is_instance_valid(pg):
+			pg.clip_contents = bool(_deck_page_clip[pg][0])
+			pg.z_index = int(_deck_page_clip[pg][1])
+	_deck_page_clip.clear()
 	if keep:
 		return
 	for key in _pages:
@@ -1501,9 +1552,15 @@ func _end_deck_fade(keep: bool = false) -> void:
 ## curve and time: going down a floor, the deck you leave rises out of the top
 ## and the new one comes up from below. It is a camera move: both decks are
 ## whole and drawn as they are, only moved, and neither takes clicks till the
-## car stops. A press mid-ride starts from where the shaft is. `DECK_MOVE`
-## &"dip" keeps the dark dip (`_cross_decks`) as the fallback.
-const DECK_MOVE := &"slide"
+## car stops. A press mid-ride starts from where the shaft is.
+##
+## EVERY DECK, BOTH WAYS (Jon, Nov 5, round three: "The slide can be the main
+## transition for every elevator choice"): PROMENADE, SHIPYARD, EXCHANGE,
+## HIRING BOARD and LABORATORY, up and down, at every level, and UNDOCK from a
+## deck above the yard (`_undock_press`). `deck_move` &"dip" keeps the dark dip
+## (`_cross_decks`) as the fallback; either way no deck change is a cut while
+## the game animates (reduced motion and a harness change on the press).
+static var deck_move: StringName = &"slide"
 ## The floor slab between two decks on a slide (px), and the shortest ride a
 ## deck change takes (s): a one-floor hop at 0.24 s read as a blink.
 const DECK_SLAB := 12
@@ -1513,6 +1570,50 @@ var _deck_secs := 0.0
 var _deck_slab: Control = null
 var _deck_clip := false
 var _deck_body: Control = null
+## Each riding deck's own clip and z as they were (`_slide_decks`).
+var _deck_page_clip: Dictionary = {}
+
+
+## THE RIDE NEVER JUMPS A LONG FRAME (StationDeckTest, Nov 5: the first frame a
+## deck is shown builds it, and at an outpost one took 0.13 to 0.17 s, so a
+## first ride onto a deck landed whole on its first frame: a cut). The car and
+## the slide are stepped here, together, by the frame's time but never more
+## than RIDE_STEP_S (two frames at 60): a frame that stalls holds the shaft
+## where it was, and the ride goes on from there.
+const RIDE_STEP_S := 1.0 / 30.0
+var _slide_tw: Tween = null
+
+
+func _ride_step(delta: float) -> void:
+	var dt := minf(delta, RIDE_STEP_S)
+	if _lift != null and _lift.is_valid():
+		_lift.custom_step(dt)
+	if _slide_tw != null and _slide_tw.is_valid() and _slide_tw == _deck_fade:
+		_slide_tw.custom_step(dt)
+	else:
+		_slide_tw = null
+
+
+## A DECK'S POWER-ON WAITS FOR THE CAR: riding in, the deck is dark (`hold`),
+## and its lights strike (`go`) a quarter second before the car stops, on the
+## ride's own clock (a stalled frame holds the ride, so a power-on timed on
+## any other clock struck early). A ride cut short by another press strikes it
+## then (`_end_deck_fade`), so no deck is left dark.
+var _boot_go: Array[Callable] = []
+
+
+func _boot_on_arrival(hold: Callable, go: Callable) -> void:
+	hold.call()
+	_boot_go.append(go)
+	_deck_fade.parallel().tween_callback(_boot_release).set_delay(maxf(0.0, _deck_secs - 0.25))
+
+
+func _boot_release() -> void:
+	var go := _boot_go
+	_boot_go = []
+	for g in go:
+		if g.is_valid():
+			g.call()
 
 
 ## The page whose deck this is, by its id.
@@ -1560,10 +1661,26 @@ func _slide_decks(from: Control, to: Control, secs: float, y0: float, other: Con
 	_deck_secs = secs
 	_deck_clip = body.clip_contents
 	body.clip_contents = true
+	# THE LOWER DECK OVER THE UPPER (the r5 film: from the yard up to the
+	# PROMENADE the yard went dark on the press). A deck is taller than the
+	# panel: the PROMENADE's page is 1004 px for a 483 px panel and the
+	# EXCHANGE's 1200 (their till notes, autowrapped in a column, ask that
+	# much), and at rest the rest of it is off the bottom of the window. In the
+	# shaft that rest lies over the deck below, and the page's translucent
+	# plate darkened the whole yard. So the deck lower in the shaft is drawn
+	# over the one above it, and the slab over both; and each is clipped to
+	# itself, so nothing of a deck's inside runs on past its own plate.
+	var lower := mate if dir > 0.0 else from
+	for pg: Control in [from, mate]:
+		if not _deck_page_clip.has(pg):
+			_deck_page_clip[pg] = [pg.clip_contents, pg.z_index]
+		pg.clip_contents = true
+		pg.z_index = 1 if pg == lower else 0
 	_deck_from = from
 	_deck_to = mate
 	_deck_slab = _Slab.new()
 	_deck_slab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_deck_slab.z_index = 2
 	_deck_slab.size = Vector2(body.size.x, DECK_SLAB)
 	body.add_child(_deck_slab)
 	var place := func(y: float) -> void:
@@ -1577,6 +1694,9 @@ func _slide_decks(from: Control, to: Control, secs: float, y0: float, other: Con
 	_deck_fade = create_tween()
 	_deck_fade.finished.connect(_end_deck_fade)
 	_deck_fade.tween_method(place, y0, y_end, secs).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	# (stepped by this screen with the car, a frame at most RIDE_STEP_S)
+	_deck_fade.pause()
+	_slide_tw = _deck_fade
 
 
 ## The floor slab between two decks on a slide: the deck's dark, a lit edge
@@ -1773,6 +1893,8 @@ func _ride_to(index: int, ride: bool = true) -> void:
 	_lift = create_tween()
 	_lift.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	_lift.tween_method(_car_step, _spine.car, float(index), secs)
+	# (stepped by this screen, a frame at most RIDE_STEP_S: `_ride_step`)
+	_lift.pause()
 	# THE SOUND LASTS EXACTLY AS LONG AS THE RIDE. Jon: "calculate how long it
 	# takes for the elevator animation ... that should be how long the sound
 	# lasts." A ride is 0.24-0.72 s by distance, so the file is longer than any
