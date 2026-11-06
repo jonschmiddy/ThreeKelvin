@@ -63,7 +63,7 @@ var _brace_bar: BracePips
 ## Gives `art` a position of its own that the column does not overwrite.
 var _art_holder: Control
 ## Steel, so it never reads as a second kind of hull.
-const ARMOR_COL := Color("#9fb0c4")
+const ARMOR_COL := UITheme.BRACE
 var _hot: bool = false
 ## Told by the view when another slot takes the cursor.
 var claim: Callable

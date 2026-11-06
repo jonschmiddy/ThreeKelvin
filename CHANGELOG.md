@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Changed** — in a fight, your brace is now on your hull bar instead of a chip under it. It shows as
+  a steel segment after the green hull, filling the hull you are missing first and then running past
+  the end of the bar, and the number under the bar reads "37 / 40 +17". Point at the +17 for what
+  brace does. (#37)
 - **Fixed** — in co-op, two ships that start different fights in the same system at the same moment
   now end up in one fight, the one that started first, on both screens. The second ship's log says
   "VELA got here first. You join their fight." Before, it could show the wrong enemy, take hits from
