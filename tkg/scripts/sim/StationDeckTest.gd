@@ -766,10 +766,10 @@ func _landed(st: StationScreen, zoom: LabZoom, tag: String, _dev: int) -> void:
 	var bad := zoom.check()
 	_ok("%s: the board's glass is inside the lab's glass on screen (%s)" % [tag, "clean" if bad.is_empty() else "; ".join(bad)],
 		not Array(bad).any(func(b: String) -> bool: return b.begins_with("the board's glass")))
-	_ok("%s: the glass %s the window, and the room under the pages is %s (room %s, veil %s, the sign-on %s)" % [tag,
+	_ok("%s: the glass %s the window, and the room under the pages is %s (room %s, its frame %s, the sign-on %s)" % [tag,
 		"covers" if covers else "sits in its bezel in", "not drawn" if covers else "drawn round it",
-		zoom._room.visible, zoom._veil.visible, zoom._screen.visible],
-		zoom._room.visible == (not covers) and zoom._life.visible == (not covers) and not zoom._veil.visible and not zoom._screen.visible)
+		zoom._room.visible, zoom._frame.visible, zoom._screen.visible],
+		zoom._room.visible == (not covers) and zoom._life.visible == (not covers) and zoom._frame.visible == (not covers) and not zoom._screen.visible)
 	var login := st._login
 	var lb := login.check()
 	_ok("%s: the screen it carried in says SIGNING IN, and passes the box test (%s)" % [tag, "clean" if lb.is_empty() else "; ".join(lb)],
@@ -787,10 +787,14 @@ func _landed(st: StationScreen, zoom: LabZoom, tag: String, _dev: int) -> void:
 
 
 ## THE MOVE ITSELF, animated (`Router.animate_in_harness`; headless it jumps
-## to its end): the camera carries the elevator and the HUD out with the
-## room's edges (Jon, Nov 5: "a smoother transition with the elevator"), the
-## gap between each and the room what it was at rest, never over the room,
-## gone once landed, and back in their places on the frame it is out; Esc on the way
+## to its end): the camera carries the deck's frame with the room, one
+## picture (Jon, Nov 5: "the fact that the frame pops in is kinda awkward"),
+## the deck's own plate hidden only while it does and whole again on the
+## frame the camera rests, nothing changed in the press's beat; and the
+## elevator and the HUD out with the frame's edges (Jon, Nov 5: "a smoother
+## transition with the elevator"), the gap between each and the frame what it
+## was at rest, never over it, gone once landed, and back in their places on
+## the frame it is out; Esc on the way
 ## in turns it round and opens no pause menu; a click during the move lands
 ## it and is eaten (it reaches no page key, and on the way out it does not
 ## open the Lab again); Tab with the camera in takes it out at once, the
@@ -805,24 +809,43 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	var mid := out_s + ZoomLadder.LAB_ZOOM_S * 0.4
 	# (where the elevator and the HUD stand at rest, against the room)
 	var o0 := st._lab.get_global_transform().origin
+	var plate := st.lab_frame()
+	var f0 := plate.get_global_rect()
 	var rail0 := st._rail.position
 	var hud0 := hud.position
-	var rail_gap := o0.x - st._rail.get_global_rect().end.x
-	var hud_gap := o0.y - hud.get_global_rect().end.y
-	# IN, and held mid-move
+	var rail_gap := f0.position.x - st._rail.get_global_rect().end.x
+	var hud_gap := f0.position.y - hud.get_global_rect().end.y
+	# IN: in the press's beat nothing changes (the plate whole, nothing of the
+	# camera drawn); then held early in the move
 	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
 	await _click(st._glass_press)
 	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
+	var beat_ok := true
+	var beat_n := 0
+	while zoom._at > 0.0 and zoom._at <= out_s and beat_n < 120:
+		beat_ok = beat_ok and is_equal_approx(plate.self_modulate.a, 1.0) and not zoom._frame.visible and not zoom._room.visible
+		beat_n += 1
+		await _tree.process_frame
+	_ok("%s, animated: in the press's beat (%d frames) the deck's plate stays whole and the camera draws nothing (%s)" % [tag, beat_n, beat_ok],
+		beat_ok and beat_n > 0)
 	await _until(func() -> bool: return zoom._at >= out_s + ZoomLadder.LAB_ZOOM_S * 0.15)
 	var moving := zoom.is_open() and not zoom.landed() and zoom._at > out_s
 	var rm := zoom.room_rect()
-	var rg := rm.position.x - st._rail.get_global_rect().end.x
-	var hg := rm.position.y - hud.get_global_rect().end.y
-	_ok("%s, animated: early in the move the elevator and the HUD ride the room's edges out, whole, over the veil (rail gap %.1f, at rest %.1f, x %.0f from %.0f, alpha %.2f, z %d; HUD gap %.1f, at rest %.1f, alpha %.2f, z %d)" % [tag,
+	var fr := zoom.frame_rect()
+	var k := zoom.cam_scale() / st._lab.get_global_transform().get_scale().x
+	var rg := fr.position.x - st._rail.get_global_rect().end.x
+	var hg := fr.position.y - hud.get_global_rect().end.y
+	_ok("%s, animated: early in the move the deck's frame rides with the room, one picture at its scale (frame %s from %s, x%.3f; its margin %.1f, at rest %.1f), the plate itself hidden (%.2f)" % [tag,
+		fr, f0, k, rm.position.x - fr.position.x, o0.x - f0.position.x, plate.self_modulate.a],
+		moving and zoom._frame.visible and plate.self_modulate.a == 0.0
+		and absf(fr.size.x - f0.size.x * k) <= 1.0 and absf(fr.size.y - f0.size.y * k) <= 1.0
+		and absf((rm.position.x - fr.position.x) - (o0.x - f0.position.x) * k) <= 1.0
+		and absf((rm.position.y - fr.position.y) - (o0.y - f0.position.y) * k) <= 1.0)
+	_ok("%s, animated: early in the move the elevator and the HUD ride the frame's edges out, whole, over the zoom (rail gap %.1f, at rest %.1f, x %.0f from %.0f, alpha %.2f, z %d; HUD gap %.1f, at rest %.1f, alpha %.2f, z %d)" % [tag,
 		rg, rail_gap, st._rail.position.x, rail0.x, st._rail.modulate.a, st._rail.z_index, hg, hud_gap, hud.modulate.a, hud.z_index],
 		moving and st._rail.position.x < rail0.x and absf(rg - rail_gap) <= 1.0 and st._rail.z_index == 2
 		and (st._rail.modulate.a > 0.98 or st._rail.get_global_rect().end.x <= 0.0)
-		and (hud.position.y < hud0.y or rm.position.y >= o0.y) and absf(hg - hud_gap) <= 1.0 and hud.z_index == 2)
+		and (hud.position.y < hud0.y or fr.position.y >= f0.position.y) and absf(hg - hud_gap) <= 1.0 and hud.z_index == 2)
 	await _until(func() -> bool: return zoom._at >= mid)
 	moving = zoom.is_open() and not zoom.landed() and zoom._at > out_s
 	_ok("%s, animated: mid-move the HUD and the rail are out of the window, and the sign-on rides in on the glass (HUD %.2f, rail %.2f, the screen %s %s, at %.2f of %.2f)" % [tag,
@@ -839,9 +862,9 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	var g := st._lab.glass_rect()
 	var gm := zoom.to_screen(g)
 	var room := zoom.room_rect()
-	_ok("%s, animated: mid-move the screen's own effects are gone (screen %.2f, hushed %s), the lamps held steady (%s), the room's edge let go (veil %s), and the room is one picture at %.3f (room %s, its glass %s, %.3f of it)" % [tag,
-		fxl.modulate.a, st._lab._glass.hushed, st._lab.lamps_held, zoom._veil.visible, s, room, gm, gm.size.x / g.size.x],
-		fxl.modulate.a < 0.02 and st._lab._glass.hushed and st._lab.lamps_held and zoom._veil.visible and zoom._room.visible
+	_ok("%s, animated: mid-move the screen's own effects are gone (screen %.2f, hushed %s), the lamps held steady (%s), the deck's frame drawn with the room (%s), and the room is one picture at %.3f (room %s, its glass %s, %.3f of it)" % [tag,
+		fxl.modulate.a, st._lab._glass.hushed, st._lab.lamps_held, zoom._frame.visible, s, room, gm, gm.size.x / g.size.x],
+		fxl.modulate.a < 0.02 and st._lab._glass.hushed and st._lab.lamps_held and zoom._frame.visible and zoom._room.visible
 		and s > 1.0 and s < z and room.size.is_equal_approx(LabScene.PANEL * s)
 		and absf(gm.size.x / g.size.x - s) <= 1.0 / g.size.x and absf(gm.size.y / g.size.y - s) <= 1.0 / g.size.y
 		and room.position == room.position.round())
@@ -856,29 +879,35 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 		zoom._goal, zoom.visible and zoom._at > 0.0, menu, st._login.state],
 		zoom._goal == 0.0 and zoom.visible and zoom._at > 0.0 and menu == null and st._login.state == LabLogin.SIGNING)
 	# (on the way out, frame by frame: neither the elevator nor the HUD ever
-	# over the room, and both in their places on the frame the camera rests)
+	# over the frame, and both in their places on the frame the camera rests,
+	# the deck's plate whole there and nothing of the camera's frame left)
 	var over := 0.0
 	var home_at := -1.0
+	var plate_home := true
 	var t0 := Time.get_ticks_msec()
 	while zoom.visible and Time.get_ticks_msec() - t0 < 8000:
 		if zoom._at > out_s:
-			var r2 := zoom.room_rect()
+			var r2 := zoom.frame_rect()
 			if st._rail.modulate.a > 0.0:
 				over = maxf(over, st._rail.get_global_rect().end.x - r2.position.x)
 			if hud.modulate.a > 0.0:
 				over = maxf(over, hud.get_global_rect().end.y - r2.position.y)
-		elif home_at < 0.0 and st._rail.position == rail0 and hud.position == hud0:
-			home_at = zoom._at
+		else:
+			if home_at < 0.0 and st._rail.position == rail0 and hud.position == hud0:
+				home_at = zoom._at
+			plate_home = plate_home and is_equal_approx(plate.self_modulate.a, 1.0) and not zoom._frame.visible
 		await _tree.process_frame
-	_ok("%s, animated: out again, the elevator and the HUD ride back in, never over the room (by at most %.1f px), in their places once the camera rests (%s), and as they were (HUD %.2f z %d, rail %.2f z %d, at %s)" % [tag,
+	_ok("%s, animated: out again, the deck's plate is whole on every frame from the one the camera rests, the camera's frame gone (%s, %.2f)" % [tag,
+		plate_home, plate.self_modulate.a], plate_home and is_equal_approx(plate.self_modulate.a, 1.0))
+	_ok("%s, animated: out again, the elevator and the HUD ride back in, never over the frame (by at most %.1f px), in their places once the camera rests (%s), and as they were (HUD %.2f z %d, rail %.2f z %d, at %s)" % [tag,
 		over, home_at >= 0.0, hud.modulate.a, hud.z_index, st._rail.modulate.a, st._rail.z_index, st._rail.position],
 		not zoom.is_open() and is_equal_approx(hud.modulate.a, 1.0) and is_equal_approx(st._rail.modulate.a, 1.0)
 		and over <= 0.5 and home_at >= 0.0 and st._rail.position == rail0 and hud.position == hud0
 		and hud.z_index == 0 and st._rail.z_index == 0 and not st._lab_lift)
 	await _frames(2)
-	_ok("%s, animated: out again, the screen's effects back on its logo, the lamps free (screen %.2f, hushed %s, lamps held %s, veil %s, the screen %s)" % [tag,
-		st._lab.fx_layer().modulate.a, st._lab._glass.hushed, st._lab.lamps_held, zoom._veil.visible, st._login.state],
-		is_equal_approx(st._lab.fx_layer().modulate.a, 1.0) and not st._lab._glass.hushed and not st._lab.lamps_held and not zoom._veil.visible
+	_ok("%s, animated: out again, the screen's effects back on its logo, the lamps free (screen %.2f, hushed %s, lamps held %s, the screen %s)" % [tag,
+		st._lab.fx_layer().modulate.a, st._lab._glass.hushed, st._lab.lamps_held, st._login.state],
+		is_equal_approx(st._lab.fx_layer().modulate.a, 1.0) and not st._lab._glass.hushed and not st._lab.lamps_held
 		and st._login.state == LabLogin.LOGO)
 	# IN AGAIN: a click mid-move lands it, and goes no further (it is where
 	# the AUGMENT tab will be)
@@ -905,12 +934,12 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	await _frames(4)
 	_ok("%s, animated: landed, frames on, the HUD and the rail stay gone (HUD %.2f, rail %.2f)" % [tag, hud.modulate.a, st._rail.modulate.a],
 		zoom.landed() and hud.modulate.a < 0.02 and st._rail.modulate.a < 0.02)
-	# nothing drawn for nothing under the pages: the veil and the sign-on are
-	# hidden, and the room too where the glass covers the window
+	# nothing drawn for nothing under the pages: the sign-on is hidden, and
+	# the room and its frame too where the glass covers the window
 	var covers := Rect2(0, 0, LabZoom.W, LabZoom.H).intersection(zoom.glass_on_screen).is_equal_approx(Rect2(0, 0, LabZoom.W, LabZoom.H))
-	_ok("%s, animated: landed, the veil and the sign-on under the pages are hidden, the room %s (room %s, veil %s, sign-on %s)" % [tag,
-		"too (the glass covers the window)" if covers else "drawn round the glass", zoom._room.visible, zoom._veil.visible, zoom._screen.visible],
-		zoom.landed() and zoom._room.visible == (not covers) and not zoom._veil.visible and not zoom._screen.visible)
+	_ok("%s, animated: landed, the sign-on under the pages is hidden, the room and its frame %s (room %s, frame %s, sign-on %s)" % [tag,
+		"too (the glass covers the window)" if covers else "drawn round the glass", zoom._room.visible, zoom._frame.visible, zoom._screen.visible],
+		zoom.landed() and zoom._room.visible == (not covers) and zoom._frame.visible == (not covers) and not zoom._screen.visible)
 	# OUT, with a click on the glass mid-move: it lands out, and the Lab stays shut
 	await _click(zoom.leave_button)
 	await _until(func() -> bool: return zoom._at <= out_s + ZoomLadder.LAB_ZOOM_S * 0.5)

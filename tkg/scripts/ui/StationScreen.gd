@@ -1126,27 +1126,34 @@ func lab_zoom() -> LabZoom:
 	return _lab_zoom
 
 
-## THE CAMERA INTO THE LAB TAKES THE DECK'S PLATE WITH IT (`LabZoom`): the
-## plate round the room, k of the way gone on an eased curve, from the alpha
-## it had; at 0 it is put back exactly as it was. It goes by its
-## self_modulate, so the room it holds stays.
+## THE CAMERA INTO THE LAB CARRIES THE DECK'S PLATE (`LabZoom`, its
+## `_frame`): the plate round the room is drawn through the camera with the
+## room, so the deck's own is hidden (`away`) from the frame the camera leaves
+## the room to the frame it lands back, and then put back exactly as it was.
+## Never faded (Jon, Nov 5: "the fact that the frame pops in is kinda
+## awkward, yeah?"). It goes by its self_modulate, so the room it holds stays.
 var _lab_chrome_a := {}
 
 
-func lab_chrome(k: float) -> void:
-	var e := smoothstep(0.0, 1.0, clampf(k, 0.0, 1.0))
+func lab_chrome(away: bool) -> void:
 	var c := _pages.get(&"bench") as CanvasItem
 	if c == null or not is_instance_valid(c):
 		return
 	var id := c.get_instance_id()
-	if e <= 0.0:
+	if not away:
 		if _lab_chrome_a.has(id):
 			c.self_modulate.a = float(_lab_chrome_a[id])
 			_lab_chrome_a.erase(id)
 		return
 	if not _lab_chrome_a.has(id):
 		_lab_chrome_a[id] = c.self_modulate.a
-	c.self_modulate.a = float(_lab_chrome_a[id]) * (1.0 - e)
+	c.self_modulate.a = 0.0
+
+
+## The deck page whose plate frames the lab's room, which the camera into the
+## Lab draws with the room (`LabZoom._draw_frame`).
+func lab_frame() -> Control:
+	return _pages.get(&"bench") as Control
 
 
 ## THE CAMERA CARRIES THE ELEVATOR AND THE HUD OUT (Jon, Nov 5, of the zoom:
@@ -1154,13 +1161,14 @@ func lab_chrome(k: float) -> void:
 ## before the camera moved, and the room stood off to the right of an empty
 ## dark column where the elevator had been; on the way back the room landed
 ## beside that hole and the elevator faded in after it. Now they stay whole
-## and ride the room's edges as the camera closes in: the elevator goes out
-## of the window's left with the room's left edge, the HUD out of its top
-## with the room's top, and coming back out they ride in with the room and
+## and ride the deck frame's edges as the camera closes in: the elevator goes
+## out of the window's left with the frame's left edge, the HUD out of its top
+## with the frame's top, and coming back out they ride in with the room and
 ## stand in their places on the frame it lands. They are moved, never scaled
-## (the camera's scale would blur their words), and drawn over the zoom's
-## veil while it has them (`z_index`). `d` is how far the room's picture has
-## moved on screen from where it stands; `on` false puts both back exactly.
+## (the camera's scale would blur their words), and drawn over the zoom
+## while it has them (`z_index`). `d` is how far the deck's frame has moved on
+## screen from where it stands (the camera draws it with the room); `on`
+## false puts both back exactly.
 ## The yard's edge sets the rail's alpha and height every frame where there
 ## is a berth (`_YardEdge`), so it reads `_lab_lift` and `_lab_rail_a` too.
 var _lab_carry := {}

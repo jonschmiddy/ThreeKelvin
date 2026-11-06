@@ -10,13 +10,16 @@ extends Control
 ## size: RESEARCH (the star chart, `LabBoard`), AUGMENT and RECIPES. LEAVE, or
 ## Esc, takes the camera back out to the room, the screen on its logo.
 ##
-## ONE CAMERA MOVE, NOT A CUT, between ZoomLadder's two beats: the deck's
-## plate goes (`UI_OUT_S`, the camera still), the camera moves (`LAB_ZOOM_S`,
-## smootherstep) and carries the elevator and the HUD out of the window with
-## the room's edges, and the Lab's pages come up on the landed glass over the
-## sign-in it carried in (`UI_IN_S`). Back out it all runs backwards: the
-## elevator and the HUD ride back in with the room and stand in their places
-## as it lands (Jon, Nov 5: "a smoother transition with the elevator"). A
+## ONE CAMERA MOVE, NOT A CUT, between ZoomLadder's two beats: the press
+## (`UI_OUT_S`, the camera still, and nothing on screen changes in it), the
+## camera moves (`LAB_ZOOM_S`, smootherstep) and carries the deck's frame, the
+## elevator and the HUD out of the window with the room, and the Lab's pages
+## come up on the landed glass over the sign-in it carried in (`UI_IN_S`).
+## Back out it all runs backwards: the frame, the elevator and the HUD ride
+## back in with the room and stand in their places on the frame the camera
+## lands (Jon, Nov 5: "a smoother transition with the elevator", and of the
+## frame fading back after: "the fact that the frame pops in is kinda
+## awkward, yeah?"). A
 ## click or a key during a move is eaten and the camera goes on (camera
 ## moves, never cuts): Esc, or the pad's B, on the way in turns it round; Tab
 ## takes the camera out at three times the pace and then goes on to the
@@ -44,9 +47,14 @@ extends Control
 ## it always was: the chart's ground runs on to the lab's glass edge, wherever
 ## that is (`lab_chart.gdshader`'s `rpos`).
 ##
-## THE ROOM'S EDGE: as the chrome goes, the picture's own rectangle falls away
-## into the window's dark (`_veil`), so no edge of it is ever bare on the dark
-## while the camera carries it out of the window.
+## THE DECK'S FRAME IS PART OF THE PICTURE (`_frame`): the deck page's plate
+## round the room (its backing and its border) drawn through the same camera,
+## at the room's pixel size, so the room is never a bare rectangle on the dark
+## and nothing round it fades. It replaces the plate the frame the camera
+## leaves the room, and hands it back the frame it lands, the two the same
+## pixels there. (Round three let the room's edge fall away into the dark, a
+## veil faded on before the move and off after it; with the plate fading the
+## same way, the frame popped back after the camera landed.)
 
 signal opened
 signal closed
@@ -74,12 +82,6 @@ const CHART := preload("res://shaders/lab_chart.gdshader")
 const FIN_ADD := preload("res://shaders/lab_finish_add.gdshader")
 const FIN_MUL := preload("res://shaders/lab_finish_mul.gdshader")
 const BLOOM := preload("res://shaders/lab_bloom.gdshader")
-const VEIL := preload("res://shaders/lab_veil.gdshader")
-## THE ROOM'S EDGE, LET GO: how far in from the picture's edge (picture px) the
-## room falls away into the dark as the chrome goes (`_veil`). Its lights stay
-## lit where the edge does not cut them (`_veil_lights`): the capital's top
-## tube, 14 px in, went dull under it while its pool stayed bright.
-const FEATHER := 48.0
 
 ## `stationshot labzoom=k`: the move held at this much of its camera (0..1).
 static var hold_at := -1.0
@@ -144,9 +146,8 @@ var _bloom_vp: SubViewport
 var _bloom: TextureRect
 var _light_dirty := true
 var _bloom_wait := 0
-var _veil: ColorRect
-## The lab the veil's emitters were read for (`_veil_lights`).
-var _veil_level := ""
+## THE DECK'S FRAME through the camera (`_draw_frame`), under the room.
+var _frame: Control
 
 
 func _init() -> void:
@@ -157,6 +158,10 @@ func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	# (after the lab has lit its room this frame)
 	process_priority = 10
+	_frame = Control.new()
+	_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_frame.draw.connect(_draw_frame)
+	add_child(_frame)
 	_room = Control.new()
 	_room.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_room.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -174,13 +179,6 @@ func _init() -> void:
 	_screen.material = pm
 	_screen.draw.connect(_draw_screen)
 	add_child(_screen)
-	_veil = ColorRect.new()
-	_veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_veil.size = Vector2(W, H)
-	_veil.material = ShaderMaterial.new()
-	(_veil.material as ShaderMaterial).shader = VEIL
-	(_veil.material as ShaderMaterial).set_shader_parameter(&"field", RenderingServer.get_default_clear_color())
-	add_child(_veil)
 	_ground = ColorRect.new()
 	_ground.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_ground.material = ShaderMaterial.new()
@@ -452,7 +450,6 @@ func open(id: StringName = &"research") -> void:
 	_room.material = lab._mat
 	_note = ""
 	_data_was = Run.data
-	_veil_lights()
 	# nothing new starts on the room's screen from the press on: the bad
 	# signal's snow line crossed the sign-on at half strength
 	lab.hush_screen(true)
@@ -585,10 +582,6 @@ func _apply() -> void:
 	for c0: CanvasItem in on_glass:
 		if c0 != null and is_instance_valid(c0):
 			c0.modulate.a = 1.0 - ui_k
-	# THE DECK'S PLATE LEAVES before the camera moves, and comes back only once
-	# it is back at rest. The HUD and the elevator are not faded: the camera
-	# carries them out with the room's edges (`_carry`, below)
-	_chrome(ui_k)
 	var u := clampf((_at - out_s) / move_s, 0.0, 1.0)
 	if hold_at >= 0.0:
 		u = hold_at
@@ -605,6 +598,12 @@ func _apply() -> void:
 	var room_on := moving and not (landed_now and vk >= 1.0 and covered)
 	for c: CanvasItem in [_room, _life]:
 		c.visible = room_on
+	# THE DECK'S FRAME GOES WITH THE ROOM: drawn through the camera while the
+	# room is, the deck's own plate hidden under it from the frame the camera
+	# leaves the room to the frame it lands back there (the same pixels at
+	# both ends, so the hand-over is not seen). Nothing of it fades.
+	_frame.visible = room_on
+	_chrome(moving)
 	# THE SIGN-ON GOES BEFORE THE PAGES COME (the review, Nov 5: the sign-in's
 	# fields at 3-4x crossed the chart's 1x words for 0.4 s): out over the first
 	# half of the beat, the pages in from 0.3 of it; on LEAVE the other way round
@@ -612,15 +611,7 @@ func _apply() -> void:
 	_screen.visible = moving and so > 0.0
 	# (premultiplied: the colour goes down with the alpha)
 	_screen.modulate = Color(so, so, so, so)
-	# THE ROOM'S EDGE LETS GO WITH THE CHROME (Jon: "the square is kinda weird
-	# and harsh"): the picture's own rectangle falls away into the dark round
-	# it as the HUD and rail go, ahead of them (all gone by the beat's middle,
-	# while the deck's plate still frames the room), so no edge of it is ever
-	# bare on the dark, nor there for the camera to carry out of the window
 	var shown := _at > 0.0 or hold_at >= 0.0
-	_veil.visible = shown and not landed_now
-	(_veil.material as ShaderMaterial).set_shader_parameter(&"amount",
-		1.0 if moving else smoothstep(0.0, 1.0, minf(1.0, ui_k * 2.0)))
 	# THE PAGES COME UP ON THE LANDED GLASS, its ground with them, over the
 	# sign-in the camera carried in (and go, back out, before it moves)
 	var pk := smoothstep(0.3, 1.0, vk)
@@ -641,7 +632,7 @@ func _apply() -> void:
 		for c3: CanvasItem in on_glass:
 			if c3 != null and is_instance_valid(c3):
 				c3.modulate.a = 1.0
-		_chrome(0.0)
+		_chrome(false)
 		_carry(false)
 		_rate = 1.0
 		closed.emit()
@@ -662,57 +653,47 @@ func signon_alpha() -> float:
 	return 1.0 - smoothstep(0.0, 0.5, vk)
 
 
-## The station's HUD, deck rail and deck plate, k of the way gone
-## (`StationScreen.lab_chrome`); at 0 they are as they were.
-func _chrome(k: float) -> void:
+## The deck's own plate hidden while the camera draws it (`away`), or as it
+## was (`StationScreen.lab_chrome`).
+func _chrome(away: bool) -> void:
 	if station != null and is_instance_valid(station) and station.has_method(&"lab_chrome"):
-		station.call(&"lab_chrome", k)
+		station.call(&"lab_chrome", away)
 
 
-## THE ELEVATOR AND THE HUD RIDE THE ROOM'S EDGES (`StationScreen.lab_carry`):
-## moved as far as the camera has moved the room's picture from where it
-## stands, out of the window going in and back into their places on the frame
-## the camera lands coming out; `on` false puts them back as they were.
+## THE ELEVATOR AND THE HUD RIDE THE FRAME'S EDGES (`StationScreen.lab_carry`):
+## moved as far as the camera has moved the deck's frame from where it
+## stands (the elevator by its left edge, the HUD by its top), out of the
+## window going in and back into their places on the frame the camera lands
+## coming out; `on` false puts them back as they were. By the frame, not the
+## room: the frame's margin grows with the camera, and carried by the room's
+## edge the elevator ran onto it.
 func _carry(on: bool) -> void:
 	if station == null or not is_instance_valid(station) or not station.has_method(&"lab_carry"):
 		return
 	var d := Vector2.ZERO
-	if on and lab != null and is_instance_valid(lab):
-		d = _o - lab.get_global_transform().origin
+	var p := _frame_page()
+	if on and p != null and lab != null and is_instance_valid(lab):
+		d = frame_rect().position - p.get_global_rect().position
 	station.call(&"lab_carry", d, on)
+
+
+## The deck page whose plate frames the room (`StationScreen.lab_frame`).
+func _frame_page() -> Control:
+	if station == null or not is_instance_valid(station) or not station.has_method(&"lab_frame"):
+		return null
+	var p: Variant = station.call(&"lab_frame")
+	if is_instance_valid(p) and p is Control:
+		return p as Control
+	return null
 
 
 ## Whatever takes the station away (a screen change, a run's end) takes the
 ## Lab with it: the HUD it hid comes back.
 func _exit_tree() -> void:
-	_chrome(0.0)
+	_chrome(false)
 	_carry(false)
 	if lab != null and is_instance_valid(lab):
 		lab.hush_screen(false)
-
-
-## THE ROOM'S LIGHTS ARE NOT VEILED: which of the lab's emitters the veil leaves
-## lit (`lab_veil.gdshader`), each one the picture's edge does not cut, read
-## off the picture's outer 2 px once per lab.
-func _veil_lights() -> void:
-	if _level == _veil_level or lab._own.is_empty():
-		return
-	_veil_level = _level
-	var w := int(LabScene.PANEL.x)
-	var h := int(LabScene.PANEL.y)
-	var keep := PackedFloat32Array()
-	keep.resize(8)
-	keep.fill(1.0)
-	for y in h:
-		var xs: Array = range(w) if y < 2 or y >= h - 2 else [0, 1, w - 2, w - 1]
-		for x: int in xs:
-			var o := int(lab._own[(y * w + x) * 4]) - 1
-			if o >= 0 and o < 8:
-				keep[o] = 0.0
-	var vm := _veil.material as ShaderMaterial
-	vm.set_shader_parameter(&"own_map", lab._mat.get_shader_parameter(&"own_map"))
-	vm.set_shader_parameter(&"panel", LabScene.PANEL)
-	vm.set_shader_parameter(&"own_keep", keep)
 
 
 ## WHERE THE CAMERA LANDS: the lab's glass at `_z`, centred in the window (each
@@ -778,11 +759,7 @@ func _place(e: float) -> void:
 		# the still point: o0 + p * s0 == _o1 + p * z
 		var p := (_o1 - o0) / (s0 - z)
 		_o = (o0 + p * s0 - p * _s).round()
-	var vm := _veil.material as ShaderMaterial
-	var ws := LabScene.PANEL * _s
-	vm.set_shader_parameter(&"room", Vector4(_o.x, _o.y, _o.x + ws.x, _o.y + ws.y))
-	vm.set_shader_parameter(&"feather", FEATHER * _s)
-	vm.set_shader_parameter(&"size", Vector2(W, H))
+	_frame.queue_redraw()
 	_room.queue_redraw()
 	_life.queue_redraw()
 	_screen.queue_redraw()
@@ -798,6 +775,19 @@ func cam_scale() -> float:
 	return _s
 
 
+## Where the deck's frame (its plate's outer edge) is on screen now: the
+## page's rect as the room's picture has it, through the camera, on whole px.
+## At rest, the page's own rect.
+func frame_rect() -> Rect2:
+	var p := _frame_page()
+	if p == null or lab == null or not is_instance_valid(lab):
+		return Rect2()
+	var xf := lab.get_global_transform()
+	var s0 := xf.get_scale().x
+	var g := p.get_global_rect()
+	return to_screen(Rect2((g.position - xf.origin) / s0, g.size / s0))
+
+
 ## A rect of the room's picture (picture px) where the camera has it, on whole px.
 func to_screen(r: Rect2) -> Rect2:
 	var a := (_o + r.position * _s).round()
@@ -811,6 +801,36 @@ func _draw_room() -> void:
 	if lab == null or lab._pic.texture == null:
 		return
 	_room.draw_texture_rect(lab._pic.texture, Rect2(_o, LabScene.PANEL * _s), false)
+
+
+## THE DECK'S FRAME, the page's plate as its stylebox draws it (its backing
+## inside a border), through the camera: the border as many screen px thick
+## as the camera makes one of the room's, every edge on the room's own grid
+## (`to_screen`), so the frame and the room move as one picture.
+func _draw_frame() -> void:
+	var p := _frame_page()
+	if p == null or lab == null or not is_instance_valid(lab):
+		return
+	var sb := p.get_theme_stylebox(&"panel") as StyleBoxFlat
+	if sb == null:
+		return
+	var xf := lab.get_global_transform()
+	var s0 := xf.get_scale().x
+	var g := p.get_global_rect()
+	var pic := Rect2((g.position - xf.origin) / s0, g.size / s0)
+	var outer := to_screen(pic)
+	var bl := Vector2(sb.border_width_left, sb.border_width_top) / s0
+	var br := Vector2(sb.border_width_right, sb.border_width_bottom) / s0
+	var inner := to_screen(Rect2(pic.position + bl, pic.size - bl - br))
+	if sb.draw_center:
+		_frame.draw_rect(inner, sb.bg_color)
+	var bc := sb.border_color
+	if bc.a <= 0.0:
+		return
+	_frame.draw_rect(Rect2(outer.position, Vector2(outer.size.x, inner.position.y - outer.position.y)), bc)
+	_frame.draw_rect(Rect2(outer.position.x, inner.end.y, outer.size.x, outer.end.y - inner.end.y), bc)
+	_frame.draw_rect(Rect2(outer.position.x, inner.position.y, inner.position.x - outer.position.x, inner.size.y), bc)
+	_frame.draw_rect(Rect2(inner.end.x, inner.position.y, outer.end.x - inner.end.x, inner.size.y), bc)
 
 
 ## THE SIGN-ON ON THE GLASS, the room's own texture through the camera: as
