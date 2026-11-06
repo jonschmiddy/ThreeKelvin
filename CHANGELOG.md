@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Fixed** — in the Shipyard, clicking your ship no longer freezes the game for seconds, and nor does
+  taking a part off it or moving things in its hold. The ship's opened-up view spent seconds hunting
+  for a place to label an empty mount whose ring sat inside a yard stand, every time anything
+  changed; it now gives up on such a mount at once and remembers its layout while only the hold
+  changes. The yard also stops rebuilding your ship behind that view on every part you move, and
+  stands it again once when you close it. (#34)
 - **Fixed** — in co-op, two ships that start different fights in the same system at the same moment
   now end up in one fight, the one that started first, on both screens. The second ship's log says
   "VELA got here first. You join their fight." Before, it could show the wrong enemy, take hits from
