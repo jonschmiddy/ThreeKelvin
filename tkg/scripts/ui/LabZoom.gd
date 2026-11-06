@@ -10,16 +10,19 @@ extends Control
 ## size: RESEARCH (the star chart, `LabBoard`), AUGMENT and RECIPES. LEAVE, or
 ## Esc, takes the camera back out to the room, the screen on its logo.
 ##
-## ONE CAMERA MOVE, NOT A CUT, between ZoomLadder's two beats: the press
-## (`UI_OUT_S`, the camera still, and nothing on screen changes in it), the
-## camera moves (`LAB_ZOOM_S`, smootherstep) and carries the deck's frame, the
+## ONE CAMERA MOVE, NOT A CUT, from the frame after the press: the camera
+## moves (`LAB_ZOOM_S`, smootherstep), the screen's own effects going off the
+## sign-in as it sets off (`FX_S`), and carries the deck's frame, the
 ## elevator and the HUD out of the window with the room, and the Lab's pages
 ## come up on the landed glass over the sign-in it carried in (`UI_IN_S`).
 ## Back out it all runs backwards: the frame, the elevator and the HUD ride
 ## back in with the room and stand in their places on the frame the camera
 ## lands (Jon, Nov 5: "a smoother transition with the elevator", and of the
 ## frame fading back after: "the fact that the frame pops in is kinda
-## awkward, yeah?"). A
+## awkward, yeah?"). No still beat before the move, nor after it on the way
+## out (the review of aebd46f6: ZoomLadder's `UI_OUT_S` held the camera still
+## 13 frames after the click, and 13 more on the way out with the input
+## eaten after the camera had stopped); the other moves keep theirs. A
 ## click or a key during a move is eaten and the camera goes on (camera
 ## moves, never cuts): Esc, or the pad's B, on the way in turns it round; Tab
 ## takes the camera out at three times the pace and then goes on to the
@@ -82,6 +85,10 @@ const CHART := preload("res://shaders/lab_chart.gdshader")
 const FIN_ADD := preload("res://shaders/lab_finish_add.gdshader")
 const FIN_MUL := preload("res://shaders/lab_finish_mul.gdshader")
 const BLOOM := preload("res://shaders/lab_bloom.gdshader")
+
+## THE SCREEN'S OWN EFFECTS (`on_glass`) go off over the camera's first
+## `FX_S`, and come back over its last on the way out: no beat of their own.
+const FX_S := ZoomLadder.UI_OUT_S
 
 ## `stationshot labzoom=k`: the move held at this much of its camera (0..1).
 static var hold_at := -1.0
@@ -430,7 +437,7 @@ func landed() -> bool:
 
 
 func _total() -> float:
-	return ZoomLadder.UI_OUT_S + ZoomLadder.LAB_ZOOM_S + ZoomLadder.UI_IN_S
+	return ZoomLadder.LAB_ZOOM_S + ZoomLadder.UI_IN_S
 
 
 ## Into the glass, onto page `id`.
@@ -501,8 +508,14 @@ func _process(delta: float) -> void:
 		return
 	if _at != _goal:
 		_at = move_toward(_at, _goal, delta * _rate)
+		# NO FRAME OF THE MOVE WITH THE CAMERA STILL IN IT: smootherstep's first
+		# and last hundredths move the picture by less than a px, so the camera
+		# sets off from the first px it moves (the frame after the press) and
+		# is at rest, the input back, on the frame its picture is the room's own
+		if hold_at < 0.0 and _at > 0.0 and _at < ZoomLadder.LAB_ZOOM_S and _still_at(_at):
+			_at = 0.0 if _goal <= 0.0 else _first_move()
 		_apply()
-	elif _at > ZoomLadder.UI_OUT_S:
+	elif _at > 0.0:
 		# the lab's light moves round the landed glass; its life with it
 		if _room.visible:
 			_room.queue_redraw()
@@ -571,24 +584,66 @@ func _input(e: InputEvent) -> void:
 		close()
 
 
+## Whether at the timeline's point `t` the camera's picture is still the
+## room's own, px for px: the room and the deck's frame on screen where they
+## stand at rest.
+func _still_at(t: float) -> bool:
+	if lab == null or not is_instance_valid(lab) or lab.lab.is_empty():
+		return false
+	var xf := lab.get_global_transform()
+	var s0 := xf.get_scale().x
+	var o0 := xf.origin
+	var z := float(_z)
+	if is_equal_approx(s0, z):
+		return true
+	var e := ZoomLadder._ease_cam(t / ZoomLadder.LAB_ZOOM_S)
+	if e <= 0.0:
+		return true
+	var s := s0 * pow(z / s0, e)
+	var pt := (_o1 - o0) / (s0 - z)
+	var o := (o0 + pt * s0 - pt * s).round()
+	var rects: Array[Rect2] = [Rect2(Vector2.ZERO, LabScene.PANEL)]
+	var p := _frame_page()
+	if p != null:
+		var g := p.get_global_rect()
+		rects.append(Rect2((g.position - o0) / s0, g.size / s0))
+	for r: Rect2 in rects:
+		if (o + r.position * s).round() != (o0 + r.position * s0).round() 				or (o + r.end * s).round() != (o0 + r.end * s0).round():
+			return false
+	return true
+
+
+## The first point of the move whose picture is not the room's own (found by
+## halving: the camera only goes further in as `t` grows).
+func _first_move() -> float:
+	var lo := _at
+	var hi := ZoomLadder.LAB_ZOOM_S
+	for i in 24:
+		var mid := (lo + hi) * 0.5
+		if _still_at(mid):
+			lo = mid
+		else:
+			hi = mid
+	return hi
+
+
 ## Everything at the timeline's point `_at`.
 func _apply() -> void:
-	var out_s := ZoomLadder.UI_OUT_S
 	var move_s := ZoomLadder.LAB_ZOOM_S
 	var in_s := ZoomLadder.UI_IN_S
-	var ui_k := clampf(_at / out_s, 0.0, 1.0)
+	var ui_k := clampf(_at / FX_S, 0.0, 1.0)
 	# WHAT THE BIG SCREEN DOES GOES WITH THE CHROME (its snow and slips over the
 	# sign-on); the sign-on itself stays, and the camera carries it in
 	for c0: CanvasItem in on_glass:
 		if c0 != null and is_instance_valid(c0):
 			c0.modulate.a = 1.0 - ui_k
-	var u := clampf((_at - out_s) / move_s, 0.0, 1.0)
+	var u := clampf(_at / move_s, 0.0, 1.0)
 	if hold_at >= 0.0:
 		u = hold_at
 	var e := ZoomLadder._ease_cam(u)
-	var moving := _at > out_s or hold_at >= 0.0
+	var moving := _at > 0.0 or hold_at >= 0.0
 	var landed_now := e >= 1.0
-	var vk := clampf((_at - out_s - move_s) / in_s, 0.0, 1.0) if hold_at < 0.0 else 0.0
+	var vk := clampf((_at - move_s) / in_s, 0.0, 1.0) if hold_at < 0.0 else 0.0
 	# THE ROOM, through the camera, from the moment it moves. Once the pages
 	# are up over a glass that covers the window, nothing of the room shows:
 	# it is not drawn for nothing under the board. Where the bezel shows round
@@ -649,7 +704,7 @@ func _apply() -> void:
 func signon_alpha() -> float:
 	if hold_at >= 0.0:
 		return 1.0
-	var vk := clampf((_at - ZoomLadder.UI_OUT_S - ZoomLadder.LAB_ZOOM_S) / ZoomLadder.UI_IN_S, 0.0, 1.0)
+	var vk := clampf((_at - ZoomLadder.LAB_ZOOM_S) / ZoomLadder.UI_IN_S, 0.0, 1.0)
 	return 1.0 - smoothstep(0.0, 0.5, vk)
 
 
