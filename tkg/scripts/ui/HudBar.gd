@@ -196,6 +196,12 @@ func _build() -> void:
 	# nothing on this bar is constructed after _ready, and swapping a Callable
 	# is one more piece of state to keep in step with the label.
 	_tab_sector = _tab("STATION", _go_here)
+	# (greyed at the berth it takes no press, but a click is a try to leave)
+	_tab_sector.gui_input.connect(func(e: InputEvent) -> void:
+		var mb := e as InputEventMouseButton
+		if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT \
+				and _tab_sector.disabled and _at_berth():
+			Router.cast_off())
 	# HELD AT THE WIDTH OF THE LONGER WORD. STATION is a character wider than
 	# SECTOR, and without this the two tabs to its right -- and with them the
 	# gauges, and with them the whole middle of the bar -- shuffled six pixels
@@ -555,12 +561,17 @@ const FUEL_INK: Array[Color] = [UITheme.ICE, UITheme.WARN, Color("#d4614f")]
 ## greyed (UNDOCK is the only way out, Jon, Oct 27). Read at click time so the
 ## label and the destination cannot disagree.
 func _go_here() -> void:
-	if Router.docked and ZoomLadder.lit_rank() == ZoomLadder.STATION:
-		Audio.denied()
+	if _at_berth():
+		Router.cast_off()
 	elif Router.docked:
 		Router.show_station()
 	else:
 		Router.show_local()
+
+
+## On the station itself, docked: where the first tab reads LOCAL, greyed.
+func _at_berth() -> bool:
+	return Router.docked and ZoomLadder.lit_rank() == ZoomLadder.STATION
 
 ## Make a readout able to receive the hover that shows a tooltip. Label defaults
 ## to MOUSE_FILTER_IGNORE, so setting tooltip_text alone is silently a no-op —

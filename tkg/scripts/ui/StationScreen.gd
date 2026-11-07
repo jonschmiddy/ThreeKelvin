@@ -110,9 +110,13 @@ func setup() -> void:
 	# rather than the next time you happen to reopen the screen.
 	Sig.party_map_changed.connect(_refresh)
 	Sig.map_changed.connect(_refresh)
+	Sig.undock_wanted.connect(_nudge_undock)
+	# (a blink owed from the map or the chart, paid once this screen is up)
+	Sig.screen_changed.connect(_nudge_undock)
 	_stock_up()
 	_inspect()
 	_refresh()
+	_nudge_undock.call_deferred()
 
 ## FIVE PAGES, NOT FIVE PANELS STACKED.
 ##
@@ -571,6 +575,7 @@ func _yard_ships(h: HullData) -> void:
 		_scene_hit = hit
 		_scene_slab = _offer_slab(h, Run.hull, h.name.to_upper())
 		_scene_slab.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		_scene_slab.z_index = SLAB_Z
 		_scene_slab.visible = false
 		box.add_child(_scene_slab)
 	_add_mine_slab(box, h)
@@ -594,6 +599,11 @@ func _place_scene_ship() -> void:
 			hit.position = Vector2(float(P["x0"]), float(P["top"]))
 			hit.size = Vector2(float(P["w"]), float(P["h"]))
 		_float_slab(slabs[i], v, v.position)
+
+
+## A ship's stats card draws over A.S.H.'s outline (z 49) and a hint card
+## (100): the player pointing at a ship is reading the ship.
+const SLAB_Z := 101
 
 
 ## Pointing at the ship swaps the hint for the numbers.
@@ -1085,7 +1095,9 @@ func _undock_cell() -> Control:
 	# THE ONE THING ON THE RAIL THAT LEAVES. Every deck above it is somewhere you
 	# go and come back from; this is the door, so it wears the same ink BUY does.
 	var out := _commit_button("UNDOCK", func() -> void: Router.show_sector())
-	out.custom_minimum_size = Vector2(RAIL_W, 22)
+	# (big enough to read as the door, not a footnote under the floors)
+	out.custom_minimum_size = Vector2(RAIL_W, UNDOCK_H)
+	out.add_theme_font_size_override("font_size", UITheme.FS_HEAD)
 	# SHRINK, NOT EXPAND. `_commit_button` hands back a control that takes the
 	# slack -- which is right where it is one of two things in a row and wrong
 	# here, because the other thing in this column is the STATION. The two of
@@ -1095,6 +1107,37 @@ func _undock_cell() -> Control:
 	out.size_flags_vertical = Control.SIZE_SHRINK_END
 	_undock = out
 	return out
+
+
+## UNDOCK's height on the rail, px.
+const UNDOCK_H := 32
+## UNDOCK's blink when another way out is refused: how long, s, and how often.
+const NUDGE_S := 1.6
+const NUDGE_BLINKS := 3
+var _nudge_tween: Tween = null
+
+
+## `Router.cast_off` refused a way out: UNDOCK blinks, or under reduced motion
+## lights and holds. Off screen, the flag waits for the station to be up.
+func _nudge_undock() -> void:
+	if not Router.undock_nudge or not is_inside_tree() or Router.current != self:
+		return
+	Router.undock_nudge = false
+	if _undock == null or not is_instance_valid(_undock) or _undock.disabled:
+		return
+	if _nudge_tween != null and _nudge_tween.is_valid():
+		_nudge_tween.kill()
+	var hot := Color(1.9, 1.7, 1.4)
+	_nudge_tween = create_tween()
+	if DisplaySettings.reduced_motion:
+		_undock.modulate = hot
+		_nudge_tween.tween_interval(NUDGE_S)
+	else:
+		var step := NUDGE_S / float(NUDGE_BLINKS * 2)
+		for i in NUDGE_BLINKS:
+			_nudge_tween.tween_property(_undock, "modulate", hot, step)
+			_nudge_tween.tween_property(_undock, "modulate", Color.WHITE, step)
+	_nudge_tween.tween_property(_undock, "modulate", Color.WHITE, 0.0)
 
 
 ## A DECK POWERS ON ONCE A DOCKING. Jon: once a station's or a lab's power-on
@@ -2702,6 +2745,7 @@ func _add_mine_slab(box: Control, against: HullData) -> void:
 		return
 	_mine_slab = _offer_slab(Run.hull, against, Run.display_name().to_upper())
 	_mine_slab.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_mine_slab.z_index = SLAB_Z
 	_mine_slab.visible = false
 	box.add_child(_mine_slab)
 

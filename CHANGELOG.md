@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Fixed** — in the Shipyard, a ship's stats card now shows above A.S.H.'s outline.
+- **Fixed** — the Hiring Board no longer strobes when it first opens.
+- **Changed** — UNDOCK is bigger, and blinks when you try to leave the station any other way.
+- **Changed** — undocking no longer plays the docking film backwards. Your ship eases out of the bay.
 - **Fixed** — in co-op, two ships that start different fights in the same system at the same moment
   now end up in one fight, the one that started first, on both screens. The second ship's log says
   "VELA got here first. You join their fight." Before, it could show the wrong enemy, take hits from

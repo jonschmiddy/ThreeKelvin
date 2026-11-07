@@ -99,15 +99,15 @@ const DIVE_S := 1.9
 ## LOCAL's whole pre-roll is the five (`dock_approach_s`); the yard after it is
 ## its own (`YARD_FADE_S`, `YARD_BEAT_S`, `DOCK_YARD_S`). Reduced motion never
 ## animates a dock (`Router.animating`), and a press mid-dock ends it at once.
-## UNDOCKING IS THE DOCK PLAYED BACKWARDS (Jon, Oct 21: "the background stays
-## put as your ship flies out, matching docking"): the yard as it was -- the
-## elevator out, your ship off its stands and away, the empty yard down to
+## UNDOCKING HOLDS THE BACKGROUND AS DOCKING DOES (Jon, Oct 21: "the background
+## stays put as your ship flies out, matching docking"): the yard as it was --
+## the elevator out, your ship off its stands and away, the empty yard down to
 ## black -- then LOCAL up from the black over the dock's dip backwards with
-## your ship still in the hull, and the ENTER run back (`DOCK_ENTER_S`): out of
-## the mouth growing back to its size, its engines at the cruise burn, slowing
-## to rest at its mooring as they sputter down to the idle. The camera does not
-## move on LOCAL and the station stays lit (`SectorScreen.ladder_cam`). A press
-## mid-undock parks your ship at its mooring at once, its sounds hushed.
+## your ship still in the hull, then over `DOCK_ENTER_S` out of the mouth from
+## rest at the idle, growing back to its size down the ENTER's path, slowing to
+## rest at its mooring as its engines cough. The camera does not move on LOCAL
+## and the station stays lit (`SectorScreen.ladder_cam`). A press mid-undock
+## parks your ship at its mooring at once, its sounds hushed.
 const DOCK_BEAT_S := 0.3
 const DOCK_POWER_S := 1.3
 const DOCK_ENTER_S := 4.0

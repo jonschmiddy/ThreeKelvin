@@ -499,6 +499,20 @@ func _berth_shut(p: int) -> void:
 	var seen := _watch_off()
 	_ok("berth: LOCAL pressed anyway goes nowhere: the station still up, docked, never LOCAL (seen: %s)" % ", ".join(seen),
 		seen.is_empty() and Router.current == st and Router.docked)
+	# THE REFUSAL BLINKS UNDOCK, and so does a click on the greyed tab (which a
+	# disabled button never presses)
+	var blinked := st._nudge_tween != null and st._nudge_tween.is_valid()
+	if blinked:
+		st._nudge_tween.kill()
+	st._undock.modulate = Color.WHITE
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	tab.gui_input.emit(click)
+	await _frames(2)
+	var clicked := st._nudge_tween != null and st._nudge_tween.is_valid() and not Router.undock_nudge
+	_ok("berth: the refused press blinks UNDOCK (%s), and so does a click on the greyed tab (%s)" % [blinked, clicked],
+		blinked and clicked and Router.current == st and Router.docked)
 	# THE KEYBOARD: Tab round the berth, the map and the chart, never LOCAL
 	_watch_on()
 	await _tab()
@@ -582,6 +596,10 @@ func _berth_shut(p: int) -> void:
 	await _tab()
 	seen = _watch_off()
 	_ok("berth: Tab from the chart goes back to the berth", Router.current is StationScreen and Router.docked)
+	# (refused on the map and the chart, the blink is owed to the station)
+	var back := Router.current as StationScreen
+	_ok("berth: back in after the refusals, the station blinks UNDOCK (owed %s, blinked %s)" % [Router.undock_nudge, back != null and back._nudge_tween != null],
+		back != null and back._nudge_tween != null and not Router.undock_nudge)
 	_ok("berth: round the berth, the map and the chart by Tab: docked throughout, never LOCAL (seen: %s)" % ", ".join(seen), seen.is_empty())
 	# BACK IN FROM THE MAP: the HUD's STATION, then the map's DOCK. Both went
 	# down to LOCAL first (undocking) and played the dock again
