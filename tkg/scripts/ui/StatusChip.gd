@@ -46,20 +46,6 @@ class Glyph extends Control:
 		var lit := tint.lerp(Color.WHITE, 0.35)
 		var dim := tint.lerp(Color("#0b0f16"), 0.35)
 		match kind:
-			&"brace":
-				# A plate with a point on it. Brace and block are both armour
-				# and have to differ in SHAPE rather than in colour, because
-				# colour is what tells you whose they are.
-				#
-				# The taper runs five rows, not two. The first version came off
-				# the sheet as a rounded bag: at twelve pixels a point has to be
-				# most of the shape or it is not a point.
-				_p(1, 1, 10, 1, lit)
-				_p(1, 2, 10, 4, tint)
-				_p(2, 6, 8, 1, tint)
-				_p(3, 7, 6, 1, tint)
-				_p(4, 8, 4, 1, dim)
-				_p(5, 9, 2, 2, dim)
 			&"block":
 				# Flat plating, layered. No point on it: block is a slab that
 				# soaks one hit, not a shield you hold up.
@@ -124,9 +110,8 @@ class Glyph extends Control:
 				_p(9, 5, 2, 1, lit)
 			&"wasp":
 				# The drone, standing over a shield. It is a drone that guards
-				# rather than shoots, so it is the drone glyph above armour --
-				# and the armour is the SAME taper `brace` uses, because it is
-				# the same thing being added.
+				# rather than shoots, so it is the drone glyph above a tapered
+				# plate of armour.
 				#
 				# The first attempt was two flat bars, which read as neither.
 				_p(4, 0, 4, 2, tint)
@@ -152,13 +137,8 @@ class Glyph extends Control:
 			&"peaceful":
 				# Level. Nothing is happening and nothing is about to, so the
 				# glyph is the absence of a shape: two rules, flat, with air
-				# between them.
-				#
-				# It was a round blob, which at twelve pixels was the same
-				# picture as `brace` -- the two sat side by side on the contact
-				# sheet and could not be told apart. Thin horizontals are the
-				# one thing nothing else in the kit is made of; `block` is a
-				# solid mass, and mass is what this has to avoid.
+				# between them. Thin horizontals are the one thing nothing else
+				# in the kit is made of; `block` is a solid mass.
 				_p(1, 3, 10, 1, tint)
 				_p(1, 7, 10, 1, tint)
 			_:
