@@ -28,6 +28,7 @@ var docked: bool = false:
 	set(v):
 		if not v:
 			powered.clear()
+			undock_nudge = false
 		docked = v
 
 ## THE DECKS THAT HAVE POWERED ON THIS DOCKING, by deck id. Jon: once a station's
@@ -742,7 +743,6 @@ func _undock() -> void:
 			Audio.play(&"station_undock", 0.03)
 		SectorScreen._approached_at = Run.at
 	docked = false
-	undock_nudge = false
 
 
 ## UNDOCK IS THE ONLY WAY OUT (Jon, Oct 27, on Jeremy's "LOCAL lets you leave a
@@ -766,9 +766,7 @@ func cast_off() -> bool:
 	if docked:
 		Audio.denied()
 		Run.log_line(DOCKED_LINE, &"them")
-		# AND THE STATION POINTS AT ITS DOOR (James's playtest, Nov 6: UNDOCK
-		# was hard to find): UNDOCK blinks, now if the station is up, or when
-		# you are back on it from the map
+		# (UNDOCK blinks, now or when the station is next up)
 		undock_nudge = true
 		Sig.undock_wanted.emit()
 		return false
@@ -789,8 +787,8 @@ func may_cast_off() -> bool:
 ## What every way off the berth but UNDOCK says (Jon, Oct 27): the HUD's LOCAL
 ## greyed at the station, the map's FLY HERE and GO, the chart's JUMP.
 const DOCKED_LINE := "Docked. Press UNDOCK to leave."
-## A way off the berth but UNDOCK was refused since the station was last up:
-## the station blinks UNDOCK when it is (`StationScreen._nudge_undock`).
+## A way out was refused while the station was not up: it blinks UNDOCK when
+## it is. Cleared by leaving the berth (`docked`).
 var undock_nudge := false
 
 

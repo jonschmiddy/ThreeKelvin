@@ -111,13 +111,12 @@ func setup() -> void:
 	Sig.party_map_changed.connect(_refresh)
 	Sig.map_changed.connect(_refresh)
 	Sig.undock_wanted.connect(_nudge_undock)
-	# (a way out tried from the map or the chart: UNDOCK says where it is when
-	# this is the screen up again, built at once or ahead of a move)
-	Sig.screen_changed.connect(_nudge_owed)
+	# (a blink owed from the map or the chart, paid once this screen is up)
+	Sig.screen_changed.connect(_nudge_undock)
 	_stock_up()
 	_inspect()
 	_refresh()
-	_nudge_owed.call_deferred()
+	_nudge_undock.call_deferred()
 
 ## FIVE PAGES, NOT FIVE PANELS STACKED.
 ##
@@ -602,12 +601,8 @@ func _place_scene_ship() -> void:
 		_float_slab(slabs[i], v, v.position)
 
 
-## THE SHIPS' FIGURES SIT OVER EVERYTHING ON THE PAGE, as a tooltip does. In
-## tree order the slab is over the yard, but A.S.H.'s outline (49) and a hint
-## card (100) are drawn by z_index, and the first-visit lesson outlines the
-## drones (often REFUEL alone): pointing at the hull for sale put that box over
-## its figures (James's playtest, Nov 6, the ANVIL card). Over a hint card too,
-## because the player pointing at a ship is reading the ship.
+## A ship's stats card draws over A.S.H.'s outline (z 49) and a hint card
+## (100): the player pointing at a ship is reading the ship.
 const SLAB_Z := 101
 
 
@@ -1100,11 +1095,7 @@ func _undock_cell() -> Control:
 	# THE ONE THING ON THE RAIL THAT LEAVES. Every deck above it is somewhere you
 	# go and come back from; this is the door, so it wears the same ink BUY does.
 	var out := _commit_button("UNDOCK", func() -> void: Router.show_sector())
-	# BIG ENOUGH TO READ AS THE DOOR (James's playtest, Nov 6: "Not obvious that
-	# you must undock before going somewhere else"). It was 22 px in the body
-	# size, the smallest thing on the rail under five floors in the heading
-	# size, and read as a footnote. The heading's size now, and a deck's height
-	# less a third.
+	# (big enough to read as the door, not a footnote under the floors)
 	out.custom_minimum_size = Vector2(RAIL_W, UNDOCK_H)
 	out.add_theme_font_size_override("font_size", UITheme.FS_HEAD)
 	# SHRINK, NOT EXPAND. `_commit_button` hands back a control that takes the
@@ -1120,22 +1111,16 @@ func _undock_cell() -> Control:
 
 ## UNDOCK's height on the rail, px.
 const UNDOCK_H := 32
-## How long UNDOCK is lit for when a way out but it was tried, s, and how many
-## times it blinks in that time.
+## UNDOCK's blink when another way out is refused: how long, s, and how often.
 const NUDGE_S := 1.6
 const NUDGE_BLINKS := 3
 var _nudge_tween: Tween = null
 
 
-## A WAY OFF THE BERTH BUT UNDOCK WAS TRIED (`Router.cast_off` refused it: the
-## HUD's greyed LOCAL, the map's FLY HERE or GO, WASD): the door says where it
-## is: UNDOCK blinks bright a few times (the refusal's own words, `DOCKED_LINE`,
-## are on the greyed LOCAL's and each DOCKED button's tooltip). Tried from the
-## map, it blinks when you are back here (`Router.undock_nudge`). Under reduced
-## motion it lights once and holds.
+## `Router.cast_off` refused a way out: UNDOCK blinks, or under reduced motion
+## lights and holds. Off screen, the flag waits for the station to be up.
 func _nudge_undock() -> void:
-	# (a station not on screen leaves it for the one that is, or will be)
-	if not is_inside_tree() or Router.current != self:
+	if not Router.undock_nudge or not is_inside_tree() or Router.current != self:
 		return
 	Router.undock_nudge = false
 	if _undock == null or not is_instance_valid(_undock) or _undock.disabled:
@@ -1153,11 +1138,6 @@ func _nudge_undock() -> void:
 			_nudge_tween.tween_property(_undock, "modulate", hot, step)
 			_nudge_tween.tween_property(_undock, "modulate", Color.WHITE, step)
 	_nudge_tween.tween_property(_undock, "modulate", Color.WHITE, 0.0)
-
-
-func _nudge_owed() -> void:
-	if Router.undock_nudge:
-		_nudge_undock()
 
 
 ## A DECK POWERS ON ONCE A DOCKING. Jon: once a station's or a lab's power-on

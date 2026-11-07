@@ -6,15 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-- **Fixed** — in the Shipyard, a ship's stats card now shows on top when you point at the ship.
-  The outline A.S.H. draws round the drones, often just REFUEL, used to cover it.
-- **Fixed** — the Hiring Board no longer strobes when it first opens. Its lights dip twice as each
-  one comes on and never go dark. With reduced motion they are simply on.
-- **Changed** — UNDOCK is bigger and in large letters, so it reads as the way out. Trying to leave
-  any other way while docked makes it blink. That includes the greyed LOCAL tab and FLY HERE on the
-  map, where it blinks once you are back on the station.
-- **Changed** — undocking no longer plays the docking film backwards. Your ship backs out of the bay
-  from a stop at idle, slows to rest beside the station, and its engines cough as it settles.
+- **Fixed** — in the Shipyard, a ship's stats card now shows above A.S.H.'s outline.
+- **Fixed** — the Hiring Board no longer strobes when it first opens.
+- **Changed** — UNDOCK is bigger, and blinks when you try to leave the station any other way.
+- **Changed** — undocking no longer plays the docking film backwards. Your ship eases out of the bay.
 - **Fixed** — in co-op, two ships that start different fights in the same system at the same moment
   now end up in one fight, the one that started first, on both screens. The second ship's log says
   "VELA got here first. You join their fight." Before, it could show the wrong enemy, take hits from

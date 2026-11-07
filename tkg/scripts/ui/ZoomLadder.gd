@@ -103,13 +103,11 @@ const DIVE_S := 1.9
 ## stays put as your ship flies out, matching docking"): the yard as it was --
 ## the elevator out, your ship off its stands and away, the empty yard down to
 ## black -- then LOCAL up from the black over the dock's dip backwards with
-## your ship still in the hull, and its own way out over `DOCK_ENTER_S` (it was
-## the ENTER run back until James's playtest, Nov 6, "looks odd"): backing out
-## of the mouth from rest at the idle, growing back to its size down the
-## ENTER's path, slowing to rest at its mooring as its engines cough
-## (`SectorScreen.depart`). The camera does not
-## move on LOCAL and the station stays lit (`SectorScreen.ladder_cam`). A press
-## mid-undock parks your ship at its mooring at once, its sounds hushed.
+## your ship still in the hull, then over `DOCK_ENTER_S` out of the mouth from
+## rest at the idle, growing back to its size down the ENTER's path, slowing to
+## rest at its mooring as its engines cough. The camera does not move on LOCAL
+## and the station stays lit (`SectorScreen.ladder_cam`). A press mid-undock
+## parks your ship at its mooring at once, its sounds hushed.
 const DOCK_BEAT_S := 0.3
 const DOCK_POWER_S := 1.3
 const DOCK_ENTER_S := 4.0

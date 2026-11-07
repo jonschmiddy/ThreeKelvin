@@ -3126,7 +3126,7 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 		# way in -- `hold` is the fraction of the path the ENTER sets off from)
 		var hold := 0.0
 		var dip_s := ZoomLadder.DOCK_DIP_S
-		# (measured both ways: undocking leaves down the ENTER's path from rest,
+		# (measured both ways: undocking leaves down the same path from rest,
 		# so this is also at least how long after LOCAL comes up before any of
 		# your ship can be seen, `ladder_up_s`)
 		if art2 != null:
@@ -3268,20 +3268,13 @@ func ladder_cam(k: float) -> void:
 		# the mouth: the station, its layers, the wrecks, the dust, the sky and
 		# its worlds stand where they are, as they do docking (4e6d1fcc) -- and
 		# the station stays lit, a working station (Jon).
-		# ITS OWN WAY OUT, NOT THE ENTER RUN BACK (James's playtest, Nov 6:
-		# "Undocking is the docking animation run backwards and looks odd"). It
-		# was the ENTER frame for frame from its end: out of the hull at the
-		# ENTER's top speed with the cruise burn lit the whole way, so it read as
-		# the film reversed. Now it backs out the way a ship leaves a berth: from
-		# rest, easing out of the bay at the idle, slowing to rest at its mooring
-		# (`depart`), its engines catching as it settles (`_undock_engines`).
-		# The same path and size along it; only the timing and the engines are
-		# its own. The camera rule above is unchanged.
+		# Eased from rest to rest, not the ENTER's curve run back, which left
+		# the bay at full speed and read as the film reversed.
 		kc = 0.0
 		beat = &"out"
 		hall["beat"] = beat
 		hall["t"] = (1.0 - hk) * ZoomLadder.DOCK_ENTER_S
-		hall_fly = 1.0 - depart(1.0 - hk)
+		hall_fly = ZoomLadder._ease(hk)
 	var zs := pow(float(_lad.zs1), kc)
 	_lad_zs = zs
 	var to_g: Vector2 = (_lad.fixed as Vector2).lerp(_lad.to1, kc)
@@ -3507,24 +3500,19 @@ func _dock_burn(art: ShipView, hall: Dictionary, on: bool) -> void:
 		Audio.ship_thrust_off()
 
 
-## UNDOCKING'S ENGINES: at the idle as your ship backs out of the bay (no main
-## burn: it was the ENTER's cruise burn, lit the whole way out, that made the
-## undock read as the dock reversed), then the arrival's own coughs
-## (`ShipView.sputter`) as it slows, timed so that the last comes
-## `UNDOCK_COAST_S` before it comes to rest at its mooring -- the last of the
-## way coasted at the idle, as an arrival's is -- then the idle it keeps. The
-## coughs' clip from the first, at the dock burn's level, from where the coughs
-## are -- and never on a press that ended the move at once
-## (`ZoomLadder.finish_now`): your ship is parked then, and nothing is heard.
+## UNDOCKING'S ENGINES: the idle as your ship backs out (no cruise burn), then
+## the arrival's own coughs (`ShipView.sputter`) as it slows, timed so that the
+## last comes `UNDOCK_COAST_S` before it comes to rest at its mooring, then the
+## idle it keeps. The coughs' clip from the first, at the dock burn's level --
+## and never on a press that ended the move at once (`ZoomLadder.finish_now`):
+## your ship is parked then, and nothing is heard.
 func _undock_engines(art: ShipView, hall: Dictionary) -> void:
 	var t := float(hall.get("t", 0.0))
 	var row := int(hall.get("row", 0))
 	var cough_at := ZoomLadder.DOCK_ENTER_S - UNDOCK_COAST_S - ShipView.sputter_s(row)
 	if t < cough_at:
-		_dock_burn(art, hall, false)
 		return
 	if not hall.has("cough_clip"):
-		_dock_burn(art, hall, false)
 		hall["cough_clip"] = art.sputter(row)
 		hall["cough_at"] = cough_at
 		if not (ZoomLadder.active != null and ZoomLadder.active._cut):
@@ -3536,14 +3524,6 @@ func _undock_engines(art: ShipView, hall: Dictionary) -> void:
 ## Undocking: the last of the way to the mooring coasted at the idle, s, after
 ## the flameout's last cough.
 const UNDOCK_COAST_S := 0.4
-
-
-## HOW FAR OUT OF THE BAY your ship is, 0 (in its berth) to 1 (at its mooring),
-## x of the way through the undock: from rest and back to rest, eased both
-## ends (smoothstep). The ENTER it replaced was fastest at the start.
-static func depart(x: float) -> float:
-	var u := clampf(x, 0.0, 1.0)
-	return u * u * (3.0 - 2.0 * u)
 ## THE DOCK'S STEPS (`ZoomLadder.dock_steps`): the lights are all on by
 ## `WAKE_POWER_BY` of the POWER step, and the warning lights go green at
 ## `WARN_CLEAR` of it. Undocking, the station is lit all the way.

@@ -196,9 +196,7 @@ func _build() -> void:
 	# nothing on this bar is constructed after _ready, and swapping a Callable
 	# is one more piece of state to keep in step with the label.
 	_tab_sector = _tab("STATION", _go_here)
-	# GREYED AT THE BERTH IT TAKES NO PRESS, but a click on it is somebody trying
-	# to leave: that is refused out loud, and the station blinks UNDOCK
-	# (`Router.cast_off`; James's playtest, Nov 6: UNDOCK was hard to find)
+	# (greyed at the berth it takes no press, but a click is a try to leave)
 	_tab_sector.gui_input.connect(func(e: InputEvent) -> void:
 		var mb := e as InputEventMouseButton
 		if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT \
@@ -564,7 +562,6 @@ const FUEL_INK: Array[Color] = [UITheme.ICE, UITheme.WARN, Color("#d4614f")]
 ## label and the destination cannot disagree.
 func _go_here() -> void:
 	if _at_berth():
-		# (refused, and UNDOCK blinks: `Router.cast_off`)
 		Router.cast_off()
 	elif Router.docked:
 		Router.show_station()

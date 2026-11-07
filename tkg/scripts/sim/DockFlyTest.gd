@@ -499,9 +499,8 @@ func _berth_shut(p: int) -> void:
 	var seen := _watch_off()
 	_ok("berth: LOCAL pressed anyway goes nowhere: the station still up, docked, never LOCAL (seen: %s)" % ", ".join(seen),
 		seen.is_empty() and Router.current == st and Router.docked)
-	# AND THE STATION POINTS AT ITS DOOR (James's playtest, Nov 6: UNDOCK was
-	# hard to find): the refused press blinks UNDOCK. And a click on the greyed
-	# tab, which a disabled button never presses, is refused the same way.
+	# THE REFUSAL BLINKS UNDOCK, and so does a click on the greyed tab (which a
+	# disabled button never presses)
 	var blinked := st._nudge_tween != null and st._nudge_tween.is_valid()
 	if blinked:
 		st._nudge_tween.kill()
@@ -597,8 +596,7 @@ func _berth_shut(p: int) -> void:
 	await _tab()
 	seen = _watch_off()
 	_ok("berth: Tab from the chart goes back to the berth", Router.current is StationScreen and Router.docked)
-	# (and the station, back up after ways out were refused on the map and the
-	# chart, blinks its UNDOCK: `Router.undock_nudge`)
+	# (refused on the map and the chart, the blink is owed to the station)
 	var back := Router.current as StationScreen
 	_ok("berth: back in after the refusals, the station blinks UNDOCK (owed %s, blinked %s)" % [Router.undock_nudge, back != null and back._nudge_tween != null],
 		back != null and back._nudge_tween != null and not Router.undock_nudge)

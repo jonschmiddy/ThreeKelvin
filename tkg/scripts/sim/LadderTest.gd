@@ -13,7 +13,7 @@ extends Node
 ## defaults are Jon's picks (1A, 2C, 3B), and 3B's dock flies the yard's hull in
 ## from the left with the elevator out of the picture until it has settled, its
 ## undock the elevator out first and the hull away to the left, then on LOCAL
-## its own way out of the bay (not the dock played backwards) with the camera still; a fight
+## its own way out of the bay with the camera still; a fight
 ## opened from the map arrives on LOCAL and its end goes back; every design of
 ## every seam; and the switch off is today's flow, a plain swap.
 
@@ -923,13 +923,11 @@ func _still_frame(c: SectorScreen, s: Dictionary) -> void:
 ## second after the move lands: THE CAMERA STILL -- everything LOCAL draws but
 ## your ship where it was, 0 px (`_bg_state`, the dock's check), the ladder's
 ## camera never zoomed nor panned, every dust mote as drawn moving by its own
-## drift and bob alone; your ship OUT ITS OWN WAY, not the ENTER run back
-## (James's playtest, Nov 6: "looks odd"): down the ENTER's path at the size
-## the path gives it, on `SectorScreen.depart`'s curve, from rest in the hull
-## and slowest at both ends, out through the lips and never back in; its
-## engines at the idle as it backs out (no cruise burn) and then the arrival's
-## coughs, their clip heard once from the first, down to the idle; the station
-## lit the whole way and after; your ship parked at its mooring at its own size.
+## drift and bob alone; your ship down the ENTER's path eased from rest to
+## rest, out through the lips and never back in; its engines at the idle, then
+## the arrival's coughs, their clip heard once from the first, down to the idle;
+## the station lit the whole way and after; your ship parked at its mooring at
+## its own size.
 func _hull_flies_out() -> void:
 	var st := Router.current as StationScreen
 	if st == null:
@@ -997,13 +995,11 @@ func _hull_flies_out() -> void:
 					up_s = c.ladder_up_s()
 				var tau := float(hall.get("t", 0.0))
 				out_frames += 1
-				# (where the ENTER's path has it at the departure's fraction: from
-				# its berth in the bay, `berth` less its middle, at `s_end`, to its
-				# mooring at its own size)
+				# (the ENTER's path, berth to mooring, eased from rest to rest)
 				var slot := art.get_parent() as Control
 				var p1: Vector2 = slot.get_global_transform().affine_inverse() * c._face.plate_g(hall.berth) \
 					- ((c._lad.ship as Dictionary).mid as Vector2)
-				var g := 1.0 - SectorScreen.depart(tau / ZoomLadder.DOCK_ENTER_S)
+				var g := ZoomLadder._ease(1.0 - tau / ZoomLadder.DOCK_ENTER_S)
 				var want_p := moor.lerp(p1, g)
 				var want_s := moor_s * lerpf(1.0, float(hall.s_end), g)
 				if art.position.distance_to(want_p) < 0.01 and art.scale.distance_to(want_s) < 0.0001:
@@ -1069,20 +1065,16 @@ func _hull_flies_out() -> void:
 	_ok("3B UNDOCK: THE DUST AT ITS IDLE -- every mote as drawn moves by its own drift and bob alone through the undock and after it (%d frames; beyond them at most %.3f px, %d frames over), the sky's camera in one place (%d, %s)" % [
 		du.frames, du.worst, du.over, cams.size(), str(cams) if cams.size() <= 3 else "%.0f to %.0f" % [cams[0], cams[-1]]],
 		int(du.frames) > 100 and int(du.over) == 0 and cams.size() == 1)
-	_ok("3B UNDOCK GOES ITS OWN WAY: your ship down the ENTER's path at the size it gives, on the departure's curve (`depart`), on %d of the undock's %d frames there (%d differ%s)" % [
+	_ok("3B UNDOCK: your ship down the ENTER's path at the size it gives, eased, on %d of the undock's %d frames there (%d differ%s)" % [
 		matched, out_frames, path_bad, "; first " + path_at if path_at != "" else ""],
 		out_frames > 100 and path_bad == 0 and matched >= out_frames - 2)
-	# FROM REST AND TO REST, fastest in the middle: the ENTER run back was
-	# fastest on its first frame out of the hull
+	# FROM REST AND TO REST, fastest in the middle (the ENTER run back was
+	# fastest on its first frame out)
 	var sp: Array[float] = []
 	for i in range(1, out_x.size()):
 		sp.append(absf(out_x[i] - out_x[i - 1]))
-	var peak := 0.0
-	var peak_at := 0
-	for i in sp.size():
-		if sp[i] > peak:
-			peak = sp[i]
-			peak_at = i
+	var peak: float = sp.max() if not sp.is_empty() else 0.0
+	var peak_at := sp.find(peak)
 	var eased := sp.size() > 10 and peak > 0.5 and sp[0] < 0.2 * peak and sp[-1] < 0.2 * peak \
 		and float(peak_at) > float(sp.size()) * 0.25 and float(peak_at) < float(sp.size()) * 0.75
 	_ok("3B UNDOCK: it backs out from rest and slows to rest, fastest mid-way (first %.2f, peak %.2f at frame %d of %d, last %.2f px a frame)" % [
@@ -1095,9 +1087,8 @@ func _hull_flies_out() -> void:
 	_ok("3B UNDOCK: the station stays lit, a working station -- on every frame of LOCAL and after (power at least %.2f; at rest %.2f)" % [
 		still.lit, lc2._face.power if lc2 != null and lc2._face != null else -1.0],
 		lc2 != null and lc2._face != null and float(still.lit) >= 0.999 and lc2._face.power >= 0.999)
-	# ITS ENGINES: the idle as it backs out (no cruise burn: that was the ENTER's,
-	# and lit the whole way out it read as the dock reversed), then the coughs
-	# (the flameout's FULL flashes over the idle), ending on the idle
+	# ITS ENGINES: the idle as it backs out, then the coughs (the flameout's FULL
+	# flashes over the idle), ending on the idle
 	var first_full := thr_seq.find(ThrusterFx.Thrust.FULL)
 	var idled := first_full > 0 and not thr_seq.slice(0, first_full).has(ThrusterFx.Thrust.CRUISE) \
 		and thr_seq[0] == ThrusterFx.Thrust.IDLE
@@ -1197,7 +1188,7 @@ func _undock_skipped() -> void:
 	Audio.tape.clear()
 	Router.show_sector()
 	var c: SectorScreen = null
-	var burning := false
+	var backing := false
 	var moor := Vector2.INF
 	var moor_s := Vector2.ZERO
 	for i in 600:
@@ -1208,10 +1199,9 @@ func _undock_skipped() -> void:
 			if hall.get("beat", &"") == &"out" and float(hall.get("t", 0.0)) > 1.5:
 				moor = (c._lad.ship as Dictionary).get("pos", Vector2.INF)
 				moor_s = (c._lad.ship as Dictionary).get("scale", Vector2.ZERO)
-				# (backing out at the idle, its coughs not begun: the departure's
-				# middle. It was "burning", when the undock was the ENTER's burn)
+				# (backing out, its coughs not begun)
 				var a0 := c._view.ship_view()
-				burning = a0 != null and not a0.sputtering() and not a0.position.is_equal_approx(moor)
+				backing = a0 != null and not a0.sputtering() and not a0.position.is_equal_approx(moor)
 				break
 	var k := InputEventKey.new()
 	k.keycode = KEY_SHIFT
@@ -1231,8 +1221,8 @@ func _undock_skipped() -> void:
 			heard += 1
 	Audio.taping = false
 	_ok("3B: a key mid-undock (backing out, before its coughs: %s) ends it at once (%d frames): your ship at its mooring at its own size (%s, %s; its mooring %s, %s), at the idle, no flameout begun or heard (%d), the station lit" % [
-		burning, n, art.position if art != null else Vector2.INF, art.scale if art != null else Vector2.ZERO, moor, moor_s, heard],
-		burning and n >= 0 and n <= 3 and Router.current == c and art != null and art.position.is_equal_approx(moor) and art.scale.is_equal_approx(moor_s)
+		backing, n, art.position if art != null else Vector2.INF, art.scale if art != null else Vector2.ZERO, moor, moor_s, heard],
+		backing and n >= 0 and n <= 3 and Router.current == c and art != null and art.position.is_equal_approx(moor) and art.scale.is_equal_approx(moor_s)
 			and not art._burning and not art.sputtering() and art._thrust_now() == ThrusterFx.Thrust.IDLE and heard == 0
 			and c._face != null and c._face.power >= 0.999)
 	_clean("3B undock, skipped")
