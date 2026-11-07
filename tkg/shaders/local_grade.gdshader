@@ -25,8 +25,17 @@ uniform bool stepped = false;
 uniform vec4 r_eng = vec4(0.0);
 uniform vec3 r_eng_c = vec3(1.0, 0.62, 0.32);
 // and a sun's flare lighting everything round it, falling off from the sun (sun x, y
-// game px; reach px; gain now, 0 none): each thing a brighter version of itself
+// game px; reach px; gain now, 0 none): each thing a brighter version of itself, by
+// as much of the flare as gets to it -- the dark dust between it and the sun takes
+// its share (review, Nov 7: lit evenly, a flare read as the sky's exposure going up;
+// shaded by what lies toward the sun, the dust's sun-facing edges catch it, the
+// pillars throw their shade away from it, and the light is the sun's)
 uniform vec4 r_sun = vec4(0.0);
+// (how far toward the sun the dust is looked for, px; the light at which a thing is
+// dust, fully and not at all; how much each of the eight reads takes)
+const float SUN_LOOK = 150.0;
+const vec2 SUN_DUST = vec2(0.13, 0.22);
+const float SUN_TAKE = 0.16;
 uniform vec3 r_sun_c = vec3(1.0);
 
 void fragment() {
@@ -65,7 +74,20 @@ void fragment() {
 		vec2 gs = (floor(SCREEN_UV * vec2(480.0, 270.0)) + 0.5) * 2.0;
 		float ds = length((gs - r_sun.xy) * vec2(1.0, 1.15)) / r_sun.z;
 		float gas = 1.0 - smoothstep(0.3, 0.55, max(c.r, max(c.g, c.b)));
-		c *= 1.0 + r_sun.w * gas / (1.0 + ds * ds) * r_sun_c;
+		// (read on the game's own pixels, so a shade's edge is a whole pixel's)
+		vec2 to = r_sun.xy - gs;
+		float lt = length(to);
+		float tr = 1.0;
+		if (lt > 2.0) {
+			vec2 st = to / lt * min(lt, SUN_LOOK) / 8.0;
+			for (int i = 0; i < 8; i++) {
+				vec2 q = (floor((gs + st * float(i)) * 0.5) + 0.5) * 2.0;
+				vec3 sq = texture(screen, q / vec2(960.0, 540.0)).rgb;
+				float lq = dot(sq, vec3(0.2126, 0.7152, 0.0722));
+				tr *= 1.0 - SUN_TAKE * (1.0 - smoothstep(SUN_DUST.x, SUN_DUST.y, lq));
+			}
+		}
+		c *= 1.0 + r_sun.w * gas * tr / (1.0 + ds * ds) * r_sun_c;
 	}
 	if (r_eng.w > 0.0) {
 		vec2 gp = (floor(SCREEN_UV * vec2(480.0, 270.0)) + 0.5) * 2.0;

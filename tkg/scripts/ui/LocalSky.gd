@@ -1464,13 +1464,13 @@ func _step_star(o: Vector2) -> void:
 
 ## LIGHT THAT MOVES (RADIANT, Nov 7, direction B): the sun's own flares
 ## (`ChartRadiant.sun_flare`, the sector map's clock) -- its glow and haze swell, its
-## light runs out through the cloud, the worlds' day sides brighten, and the band
-## behind the play lets more of it through while it lasts (`RADIANT_KEEP` up to
-## `RADIANT_KEEP_FLARE`), then presses it back
-const RADIANT_KEEP_FLARE := 0.62
+## light runs out through the cloud, shaded by the dust between (`local_grade`'s
+## `r_sun`), and the worlds' day sides brighten. (The band behind the play once let
+## more through in a flare too: the whole sky brightening read as an exposure, not
+## the sun's light; review, Nov 7.)
 ## the flare's light round the sun in LOCAL: its reach (game px), its gain at full
-const LOCAL_FLARE_R := 300.0
-const LOCAL_FLARE_GAIN := 1.0
+const LOCAL_FLARE_R := 170.0
+const LOCAL_FLARE_GAIN := 2.2
 func _radiant_flares() -> void:
 	if not radiant:
 		return
@@ -1489,9 +1489,7 @@ func _radiant_flares() -> void:
 				sm2.set_shader_parameter("r_flare", _flare_b)
 	if _sky_mat != null:
 		_sky_mat.set_shader_parameter("r_flare", _flare)
-	var keep := lerpf(RADIANT_KEEP, RADIANT_KEEP_FLARE, _flare)
 	if _grade_mat != null:
-		_grade_mat.set_shader_parameter("keep_hi", keep)
 		# (the flare's light on everything round the sun, falling off from it)
 		var so: Variant = _far_mat.get_shader_parameter("star_at") if _far_mat != null else null
 		if so is Vector2 and _flare > 0.0:
@@ -1501,8 +1499,6 @@ func _radiant_flares() -> void:
 			_grade_mat.set_shader_parameter("r_sun_c", (sl / maxf(mx, 1e-4)).lerp(Vector3.ONE, 0.35))
 		else:
 			_grade_mat.set_shader_parameter("r_sun", Vector4.ZERO)
-	if _near_mat != null:
-		_near_mat.set_shader_parameter("keep_hi", keep)
 	_engine_light()
 
 

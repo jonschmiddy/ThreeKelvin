@@ -89,9 +89,12 @@ static func fixed_palette() -> PackedColorArray:
 		out.append(LegacyHole.PALETTE[i])
 	var ramps := [[Vector3(1.0, 0.2, 0.3), [0.15, 0.4, 0.9, 1.7]], [Vector3(0.2, 0.95, 0.85), [0.25, 0.7, 1.5]],
 		[Vector3(1.0, 0.16, 0.13), [0.3, 0.9]], [Vector3(0.32, 0.52, 1.0), [0.15, 0.45, 1.0]],
-		# (LIGHT THAT MOVES: the core's beamed light and the young stars' flares, which the
-		# cut never sees -- it is cut from the scene at rest -- kept at the lights they reach)
-		[Vector3(1.0, 0.66, 0.36), [0.35, 0.8, 1.6, 3.0]], [Vector3(0.62, 0.78, 1.0), [0.6, 1.5, 3.2]]]
+		# (LIGHT THAT MOVES: the core's flare and the young stars' flares, which the
+		# cut never sees -- it is cut from the scene at rest -- kept at the lights they
+		# reach, up into the burn: the hue-keeping tone tops out at the cut's brightest
+		# tan, and a flare pressed the inner gas flat onto it; past `BURN` it goes
+		# toward white as the composite's tone does, so a flare's heart has whites)
+		[Vector3(1.0, 0.66, 0.36), [0.35, 0.8, 1.6, 3.0, 5.0, 8.0, 14.0]], [Vector3(0.62, 0.78, 1.0), [0.6, 1.5, 3.2, 7.0, 14.0]]]
 	# (no bulge ramp: the cut takes the bulge's tans from what is on screen; a
 	# reserved amber drew a saturated orange ring round every elliptical)
 	for r: Array in ramps:
@@ -99,7 +102,8 @@ static func fixed_palette() -> PackedColorArray:
 		for m: float in r[1]:
 			var h := col * m
 			var mx := maxf(h.x, maxf(h.y, h.z))
-			var c := h * ((1.0 - exp(-mx)) / mx)
+			var mt := 1.0 - exp(-mx)
+			var c := (h * (mt / mx)).lerp(Vector3(mt, mt, mt), smoothstep(BURN, BURN * 3.0, mx))
 			out.append(Color(ChartSky._l2s(c.x), ChartSky._l2s(c.y), ChartSky._l2s(c.z)))
 	return out
 
@@ -572,19 +576,18 @@ static func feed_events(m: ShaderMaterial, g: Dictionary, t: float, calm: bool, 
 ## core's disc breathes, now and then flares (eased in, held, let go) and its light
 ## reaches far further out through the gas; it throws its light two ways, turning,
 ## so two bright sectors sweep round the core over the billows and the haze; young
-## stars in the arms flare for a breath and light the gas round them. Pure functions
+## stars in the arms flare for a breath and light the gas round them. (The turning
+## beams were cut in review the same day: they were the "light beams from the core"
+## Jon cut on Oct 11, and most of the frame's crawl.) Pure functions
 ## of the clock (`GameClock` through the chart's own), so films run true. `drama_on`
 ## false (a cost bench's turn) or `still` (reduced motion, a palette probe): all off.
 static var drama_on := true
 ## The core: its breath's period (s), the slot a flare may fall in (s) and how often
-## one does, a flare's rise, hold and fall (s), the beams' turn (s a turn) and gain
-## (steady, and added at a flare's height).
+## one does, a flare's rise, hold and fall (s).
 const CORE_BREATH_S := 5.3
 const CORE_SLOT_S := 11.0
 const CORE_FLARE_P := 0.7
 const CORE_ENV := Vector3(0.5, 1.1, 2.8)
-const BEAM_TURN_S := 22.0
-const BEAM_GAIN := Vector2(1.6, 2.4)
 ## The young stars: slots (one star each), the first slot's period and each next one's
 ## more, a flare's rise, hold and fall, its reach (gu).
 const STAR_SLOTS := 6
@@ -628,7 +631,7 @@ static func ease_hold(age: float, e: Vector3) -> float:
 	return 1.0 - smoothstep(0.0, e.z, age - e.x - e.y)
 
 
-## The core's clock at t: (breath -1..1, flare 0..1, the beams' angle, their gain).
+## The core's clock at t: (breath -1..1, flare 0..1, 0, 0).
 static func core_clock(t: float) -> Vector4:
 	var n0 := floori(t / CORE_SLOT_S)
 	var fl := 0.0
@@ -638,7 +641,7 @@ static func core_clock(t: float) -> Vector4:
 		var t0 := CORE_SLOT_S * n + (CORE_SLOT_S - CORE_ENV.x - CORE_ENV.y - CORE_ENV.z) * LegacyHole.hash01(n, 812)
 		fl = maxf(fl, ease_hold(t - t0, CORE_ENV) * (0.75 + 0.25 * LegacyHole.hash01(n, 813)))
 	var br := sin(t * TAU / CORE_BREATH_S)
-	return Vector4(br, fl, -t * TAU / BEAM_TURN_S, BEAM_GAIN.x + BEAM_GAIN.y * fl)
+	return Vector4(br, fl, 0.0, 0.0)
 
 
 ## Where a young star flares, slot k's n-th turn (plane gu): on a knot when the galaxy
@@ -668,13 +671,7 @@ static func feed_drama(m: ShaderMaterial, g: Dictionary, t: float, still: bool) 
 		m.set_shader_parameter("u_rbCore", Vector4.ZERO)
 		m.set_shader_parameter("u_rbStar", st)
 		return
-	var cc := core_clock(t)
-	# (no beams through a ball with no gas of its own: crossing its smooth old light
-	# they drew a streak like a lens's, lighting nothing that is there)
-	var p: Dictionary = g.p
-	if int(p.form) == 1 and ball_kind(p).y < 0.5:
-		cc.w = 0.0
-	m.set_shader_parameter("u_rbCore", cc)
+	m.set_shader_parameter("u_rbCore", core_clock(t))
 	for k in STAR_SLOTS:
 		var per := STAR_PERIOD.x + STAR_PERIOD.y * k
 		var n := floori(t / per)

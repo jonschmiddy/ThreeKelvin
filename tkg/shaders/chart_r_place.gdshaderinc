@@ -136,36 +136,30 @@ uniform vec4 u_lt[8];      // lightning per cloud: envelope, plane offset x, y f
 // LIGHT THAT MOVES (Nov 7, Jon: "redo radiant to be super dramatic with the lighting
 // effects"; direction B, `ChartRadiant.feed_drama`): the drama is in time, and every
 // light belongs to a thing. The core's clock (its breath -1..1; a flare 0..1, eased in,
-// held and let go; the angle in the plane its disc's beamed light points; that beam's
-// gain): the hole's disc brightens and its light reaches further through the gas in a
-// flare, and the disc throws its light two ways, turning, so a pair of bright sectors
-// sweeps round the core and lights the billows, the haze and the dust it crosses.
-// Young stars flaring in the arms (plane x, y; envelope 0..1; reach gu): a hot point,
-// and the gas round it lit by it, for a breath. All zero under reduced motion and in
-// the palette's probes (the cut is the scene at rest; the flare's whites are reserved).
+// held and let go; z, w unused): in a flare the core's own light (`coreLight`) reaches
+// far out through the gas, so it lands where the core's light already lands -- on the
+// billows' faces toward the core, through the haze between their shadows -- and the
+// creases and the shafts' shade stay dark; the hottest of it burns toward white
+// (the palette keeps those whites, `ChartRadiant.fixed_palette`). Young stars flaring
+// in the arms (plane x, y; envelope 0..1; reach gu): a hot point, and the gas round
+// it lit by it, for a breath. All zero under reduced motion and in the palette's
+// probes (the cut is the scene at rest). (Review, Nov 7: the turning beams were the
+// "light beams from the core" Jon cut on Oct 11, and most of the frame's crawl; the
+// flare's unshadowed wash pinned the inner gas to the cut's top tans in a flat plate.)
 uniform vec4 u_rbCore = vec4(0.0);
 uniform vec4 u_rbStar[6];
 const vec3 BEAMC = vec3(1.0, 0.66, 0.36);
-// (the dark's S: the light at which it presses half, and how much of it)
+// (the dark's S: the light at which it presses half, and how much of it; a ball's
+// body is its smooth faint light, pressed far less, or its outskirts went)
 const float RB_CRUSH = 0.09;
 const float RB_CRUSH_AMT = 0.6;
+const float RB_CRUSH_BALL = 0.25;
 const vec3 STARF = vec3(0.62, 0.78, 1.0);
-// (the core's light, with its breath and flare: a scale on the hole's lamp)
-float rbCoreK() { return 1.0 + 0.3 * u_rbCore.x + 4.0 * u_rbCore.y; }
-// the disc's beamed light at a point: two lobes either side of the core, turning
-vec3 rbBeam(vec3 pg) {
-	if (u_rbCore.w <= 0.0) {
-		return vec3(0.0);
-	}
-	float r2 = dot(pg.xy, pg.xy);
-	float a = atan(pg.y, pg.x) - u_rbCore.z;
-	float c = cos(a);
-	// (narrow near the core, wider as it spreads; a little height above the plane
-	// thins it, as a beam in the disc's own plane)
-	float w = mix(20.0, 7.0, smoothstep(0.0, 0.5, sqrt(r2)));
-	float lobe = pow(c * c, w);
-	return BEAMC * u_rbCore.w * lobe / (1.0 + r2 / 0.12) * smoothstep(0.012, 0.05, sqrt(r2)) / (1.0 + abs(pg.z) / 0.04);
-}
+// (the hole's disc as a lamp, with its breath and flare)
+float rbCoreK() { return 1.0 + 0.3 * u_rbCore.x + 3.0 * u_rbCore.y; }
+// (the core's light out through the gas in a flare: gain at full, and its reach, gu^2)
+const float RB_FLARE_GAIN = 0.6;
+const float RB_FLARE_R2 = 0.1;
 // the young stars' flares, as lamps
 vec3 rbStars(vec3 pg) {
 	vec3 L = vec3(0.0);
@@ -297,7 +291,9 @@ vec3 coreLight(vec3 pg, out float vis) {
 		vis = smoothstep(hs - soft, hs + 0.5 * soft, sl);
 	}
 	vec3 c = mix(u_bInner, u_bOuter, smoothstep(0.05, 0.35, d3));
-	return c * u_bulgeI.w / (1.0 + d3 * d3 / 0.012);
+	// (breathing; and a flare's light reaching far further out, shadowed as the
+	// steady light is, by whoever reads `vis`)
+	return c * u_bulgeI.w * ((1.0 + 0.12 * u_rbCore.x) / (1.0 + d3 * d3 / 0.012) + u_rbCore.y * RB_FLARE_GAIN / (1.0 + d3 * d3 / RB_FLARE_R2));
 }
 // the arms' own young stars (a broad blur of the disc map)
 vec3 armLight(vec3 pg) {
@@ -323,11 +319,10 @@ vec3 lampLight(vec3 pg) {
 		vec3 col = kind == 0 ? vec3(0.9, 0.55, 0.75) * 0.8 : REFL * 0.5;
 		L += col / (1.0 + dot(dd, dd) / (R * R * 0.5));
 	}
-	// the hole's disc, a lamp at the centre (breathing, flaring: and a flare reaches
-	// far further out through the core's gas than its steady light)
+	// the hole's disc, a lamp at the centre (breathing, flaring; a flare's reach out
+	// through the gas is the core's own light, `coreLight`, shadowed)
 	L += u_holeLight * rbCoreK() / (1.0 + dot(pg, pg) / 0.0014);
-	L += u_holeLight * u_rbCore.y * 2.5 / (1.0 + dot(pg, pg) / 0.04);
-	L += rbBeam(pg) + rbStars(pg);
+	L += rbStars(pg);
 	// a supernova lights the gas and dust round it, fading with its flare
 	if (u_sn.z > 0.0) {
 		vec3 ds = pg - vec3(u_sn.xy, 0.0);
@@ -819,9 +814,8 @@ void planeEvent(in Ray R, vec2 pP, ivec2 sb, vec3 bF, vec3 bB, vec3 ts, float si
 	C += T * Ed * 0.5 * (1.0 + att);
 	// dust edges catch the light: warm lanes, and the lamps' light (a supernova's)
 	C += T * (1.0 - att) * DUSTA * (Lc * 0.18 + La * 0.2 + Lx * 0.25) * tsC;
-	// (LIGHT THAT MOVES: the core's beams and the young stars' flares on the disc's
-	// gas and the dust's lit faces, as they pass)
-	vec3 Ld = rbBeam(vec3(pP, 0.0)) + rbStars(vec3(pP, 0.0));
+	// (LIGHT THAT MOVES: the young stars' flares on the disc's gas and the dust's lit faces)
+	vec3 Ld = rbStars(vec3(pP, 0.0));
 	C += T * Ld * (0.5 * (1.0 - att.g) + 1.0 * dA.g + 0.25 * dA.r + 0.4 * dA.b) * tsC;
 	// the supernova's light echo: a ring of its light sweeping out through the dust and gas
 	// (never on a ball, Nov 5: rings of light across its smooth body read as marks)
@@ -861,7 +855,7 @@ void planeEvent(in Ray R, vec2 pP, ivec2 sb, vec3 bF, vec3 bB, vec3 ts, float si
 	vec4 dBp = discB(pP);
 	if (dBp.a > 0.003) {
 		float cg = dBp.a;
-		vec3 gl = (u_holeLight * (rbCoreK() / (1.0 + rP * rP / 0.0014) + u_rbCore.y * 0.8 / (1.0 + rP * rP / 0.02)) * 3.5 + Lc * 0.15 + rbBeam(vec3(pP, 0.0)) * 1.5) * DUSTA * cg;
+		vec3 gl = (u_holeLight * (rbCoreK() / (1.0 + rP * rP / 0.0014) + u_rbCore.y * 0.8 / (1.0 + rP * rP / 0.02)) * 3.5 + Lc * 0.15) * DUSTA * cg;
 		C += T * gl;
 		att *= exp(-cg * 0.9 * RED);
 	}
@@ -1137,8 +1131,8 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 		vec2 b1 = bulgeComp(qb, u_bulge.x, u_bulge.z, 0.0) * u_bulgeI.x;
 		vec2 b2 = bulgeComp(qo, u_bulge.y, u_bulge.z, 0.0) * u_bulgeI.y;
 		vec2 bc = bulgeComp(qb, u_bulge.w, u_bulge.z, 0.0) * u_bulgeI.z;
-		vec2 in1 = max(b1 - bc, 0.0) * (1.0 + 0.2 * u_rbCore.x + 1.8 * u_rbCore.y);
-		vec2 out2 = max(b2 - max(bc - b1, 0.0), 0.0) * (1.0 + 0.4 * u_rbCore.y);
+		vec2 in1 = max(b1 - bc, 0.0) * (1.0 + 0.2 * u_rbCore.x + 0.6 * u_rbCore.y);
+		vec2 out2 = max(b2 - max(bc - b1, 0.0), 0.0) * (1.0 + 0.2 * u_rbCore.y);
 		float rr = length(qb * vec2(1.0, 0.8));
 		vec3 ci = mix(u_bCore, u_bInner, smoothstep(0.012, 0.045, rr));
 		vec3 co = mix(u_bInner, u_bOuter, smoothstep(0.03, 0.2, rr));
@@ -1203,7 +1197,7 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 	if (vol || hits > 0) {
 		LaP = armLight(vec3(pP, 0.0));
 		LxP = lampLight(vec3(pP, 0.0));
-		LdP = rbBeam(vec3(pP, 0.0)) + rbStars(vec3(pP, 0.0));
+		LdP = rbStars(vec3(pP, 0.0));
 	}
 	for (int i = 0; i < 120; i++) {
 		if (h <= -H0 + 1e-6) {
@@ -1517,7 +1511,7 @@ vec3 place(vec2 v, vec2 vsc, ivec2 blk, ivec2 dq) {
 	// (before the hole: its disc lands exactly on its own palette colours)
 	{
 		float Lm = max(dot(C, vec3(0.2126, 0.7152, 0.0722)), 0.0);
-		C *= mix(1.0, (1.0 + RB_CRUSH) * Lm / (Lm + RB_CRUSH), RB_CRUSH_AMT);
+		C *= mix(1.0, (1.0 + RB_CRUSH) * Lm / (Lm + RB_CRUSH), u_isBall ? RB_CRUSH_BALL : RB_CRUSH_AMT);
 	}
 	// the near side's dust lane across the core, before the hole is laid over
 	if (u_solid && !u_isBall) {
@@ -1533,7 +1527,8 @@ vec3 place(vec2 v, vec2 vsc, ivec2 blk, ivec2 dq) {
 	// more of the hole's dim surroundings, so it is dimmed as it is squeezed
 	// (unlit, the bulge's bands repeated under the hole as bright rings)
 	C /= 1.0 + 0.6 * max(lensSqueeze(S) - 1.0, 0.0);
-	C += u_holeLight * 0.4 * lh_glow(S) * rbCoreK();
+	// (a flare's heart: the disc's glow burns toward white, the one place it may)
+	C += u_holeLight * 0.4 * lh_glow(S) * (rbCoreK() + 6.0 * u_rbCore.y);
 	float cap;
 	vec4 d = lh_disc(S, lh_px_rs(shadow * u_zoom * kc), u_time, smoothstep(2.6, 4.0, u_zoom) * ((u_diag & 128) != 0 ? 0.0 : 1.0), lh_hot(u_time, u_wxOn), cap);
 	C *= 1.0 - cap;
