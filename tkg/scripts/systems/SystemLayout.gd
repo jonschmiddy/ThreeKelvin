@@ -951,15 +951,15 @@ static var pair_k := -1.0
 ## THE WORLDS' PACE (Jon, Nov 4: "orbits could be faster"; the fast-transfers
 ## design, Nov 5): every body's period and the pair's turn go WORLD_PACE times
 ## the game's old Kepler rate (`kepler_s`: 800 / WORLD_PACE s a lap at 100 px),
-## so a world 100 px out laps in 400 s at 2, where it took 800. Applied where
+## so a world 100 px out laps in 200 s at 4, where it took 800. Applied where
 ## each period is set. NOT the map's clock: the sun's breath, pulsars, the
 ## sky's events and the comets keep their own time (Jon, Nov 5: "I think the
 ## comet speed is perfect though"; SkyWeather ages them by the frame's dt);
 ## nor the ship's parked orbit (`ShipFlight.STAR_PACE` keeps its own 800: "my
 ## ships orbit is fine actually"). A game constant, not a setting: every peer
-## must turn the worlds alike (`NetSession.PROTOCOL` 17). 2 until Jon picks
-## from the films.
-const WORLD_PACE := 2.0
+## must turn the worlds alike (`NetSession.PROTOCOL` 17). 4: Jon's pick from
+## the films (Nov 5, "3D"), the binary pair with them.
+const WORLD_PACE := 4.0
 ## (a harness's switch, `-- worldpace=K`; -1 means WORLD_PACE, or the command
 ## line's)
 static var world_k := -1.0
