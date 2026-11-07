@@ -24,6 +24,10 @@ uniform bool stepped = false;
 // flame's mixed in, breathing with the burn. (game px x, y; radius px; gain, 0 none)
 uniform vec4 r_eng = vec4(0.0);
 uniform vec3 r_eng_c = vec3(1.0, 0.62, 0.32);
+// and a sun's flare lighting everything round it, falling off from the sun (sun x, y
+// game px; reach px; gain now, 0 none): each thing a brighter version of itself
+uniform vec4 r_sun = vec4(0.0);
+uniform vec3 r_sun_c = vec3(1.0);
 
 void fragment() {
 	vec4 src = texture(screen, SCREEN_UV);
@@ -57,6 +61,12 @@ void fragment() {
 	}
 	vec3 c = src.rgb;
 	c = play_tone(c, w);
+	if (r_sun.w > 0.0) {
+		vec2 gs = (floor(SCREEN_UV * vec2(480.0, 270.0)) + 0.5) * 2.0;
+		float ds = length((gs - r_sun.xy) * vec2(1.0, 1.15)) / r_sun.z;
+		float gas = 1.0 - smoothstep(0.3, 0.55, max(c.r, max(c.g, c.b)));
+		c *= 1.0 + r_sun.w * gas / (1.0 + ds * ds) * r_sun_c;
+	}
 	if (r_eng.w > 0.0) {
 		vec2 gp = (floor(SCREEN_UV * vec2(480.0, 270.0)) + 0.5) * 2.0;
 		float r = length((gp - r_eng.xy) / r_eng.z * vec2(1.0, 2.1));

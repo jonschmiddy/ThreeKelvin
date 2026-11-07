@@ -45,6 +45,14 @@ uniform sampler2D prev : filter_nearest, repeat_disable;
 uniform float hold_k = 0.0;
 uniform float hold_d = 3.0;
 uniform float hold_t = 0.06;
+// LIGHT THAT MOVES (RADIANT, Nov 7, direction B; `SystemView._radiant_flares`): a
+// sun's flare lights what is round it -- the gas, the dust, the sky -- each a brighter
+// version of itself, falling off from the sun, before the palette steps it (sun x, y
+// in the frame's 960x540 px; the light's reach, px; its gain now, 0 none)
+uniform vec4 r_lift = vec4(0.0);
+// (the sun's own colour, the light's tint; only the dim gas takes it -- what is
+// already bright, a world or a belt's rock, is left as it is)
+uniform vec3 r_lift_c = vec3(1.0);
 
 const float BAYER4[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
 
@@ -54,7 +62,13 @@ void fragment() {
 	if (pal_n == 0 || px.x < x0) {
 		COLOR = src;
 	} else {
-		vec3 c = fine ? src.rgb * 255.0 : floor(src.rgb * 255.0 / 8.0) * 8.226;
+		vec3 s0 = src.rgb;
+		if (r_lift.w > 0.0) {
+			float dl = length((SCREEN_UV * vec2(960.0, 540.0) - r_lift.xy) * vec2(1.0, 1.15)) / r_lift.z;
+			float gas = 1.0 - smoothstep(0.3, 0.55, max(s0.r, max(s0.g, s0.b)));
+			s0 = min(s0 * (1.0 + r_lift.w * gas / (1.0 + dl * dl) * r_lift_c), vec3(1.0));
+		}
+		vec3 c = fine ? s0 * 255.0 : floor(s0 * 255.0 / 8.0) * 8.226;
 		int a = 0, s = 0;
 		float ad = 1e9, sdd = 1e9;
 		for (int k = 0; k < pal_n; k++) {

@@ -1499,6 +1499,9 @@ static func _lin_top(c: Vector3) -> Vector3:
 ## (`ChartRadiant.sun_flare`), far more often than the prominences, on top of them --
 ## its glow swells, the haze round it and its light through the cloud run out and fall
 ## back, the worlds' day sides brighten (`_flare` reaches the cloud and the worlds)
+## the flare's light round the sun on the map: its reach (px of the 960x540 frame), its gain at full
+const SECTOR_FLARE_R := 200.0
+const SECTOR_FLARE_GAIN := 0.9
 func _radiant_flares() -> void:
 	if not radiant or layout.star == SystemLayout.StarKind.PULSAR or layout.star == SystemLayout.StarKind.CORE:
 		return
@@ -1515,6 +1518,14 @@ func _radiant_flares() -> void:
 			sm2.set_shader_parameter("r_flare", _flare2)
 	if _sky_mat != null:
 		_sky_mat.set_shader_parameter("r_flare", _flare)
+	# (the flare's light on everything round the sun, through the palette's pass, every
+	# frame: the cloud's own `r_flare` is fed only when the worlds' shadows are cast
+	# again, so a flare's few seconds come and go between two of those)
+	if _palette_mat != null:
+		_palette_mat.set_shader_parameter("r_lift", Vector4(star_exact(-1).x, star_exact(-1).y, SECTOR_FLARE_R, SECTOR_FLARE_GAIN * _flare))
+		var sl := star_light()
+		var mx := maxf(sl.x, maxf(sl.y, sl.z))
+		_palette_mat.set_shader_parameter("r_lift_c", (sl / maxf(mx, 1e-4)).lerp(Vector3.ONE, 0.35))
 
 
 ## RADIANT'S SAFETY, the sector's half of the chart's (`ChartSky._radiant_safety`,
