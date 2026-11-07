@@ -1140,9 +1140,9 @@ func _s5_cards() -> Array:
 	return [
 		["mark", on, "AUGMENT TODAY."],
 		["big", "YOUR PARTS", "COULD DO MORE.", "ASK AT ANY %s LAB." % on],
-		["big", "ONE AUGMENT", "PER PART.", "WE ASKED. THE PARTS SAID NO."],
-		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS MAY VARY. THEY DO VARY."],
-		["big", "LIGHTENED PARTS", "TURN FASTER.", "+2 MAN, -1 HUL. IT STAYS ON THE PART."],
+		["big", "ONE AUGMENT", "PER PART.", "IT STAYS ON THE PART."],
+		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS VARY."],
+		["big", "LIGHTENED PARTS", "TURN FASTER.", "+2 MAN, -1 HUL."],
 	]
 
 
@@ -1758,7 +1758,6 @@ const K3_YEAR_S := 0.1
 const K3_HOLD := 6.0
 ## Years already drawn when the screen comes on, so it opens mostly full.
 const K3_START := 150
-const K3_COLS := 20
 
 
 func _paint_k3() -> void:
@@ -1782,26 +1781,30 @@ func _paint_k3() -> void:
 	var ys := "YEAR %d" % yr
 	if LabBoard.tw(ys) + say_w(ss) + 24 <= w:
 		text(a.end.x - 6 - LabBoard.tw(ys), y0 + 28, ys, ink(0.55))
-	# THE YEARS: a square of twelve months (four by three), twenty years a row
+	# THE YEARS, as ledger lines (critic pass, Nov 7: the solid squares read as
+	# a keypad): a month is a pixel, a year twelve of them and a gap, the rows
+	# filling like lines in an account book
 	var top := y0 + 38
 	var bot := a.end.y - 26
-	var rows := (K3_YEARS + K3_COLS - 1) / K3_COLS
-	var dp := 2
-	var bwd := 4 * dp + 2
-	var bht := 3 * dp + 2
-	if K3_COLS * bwd > w - 12 or rows * bht > bot - top:
-		dp = 1
-		bwd = 6
-		bht = 5
-	var gw := K3_COLS * bwd
-	var gh := rows * bht
+	var yw := 13
+	var per_row := maxi(1, (w - 12) / yw)
+	var rows := (K3_YEARS + per_row - 1) / per_row
+	var lh := 1
+	var pitch := 3
+	if rows * 5 <= bot - top:
+		lh = 2
+		pitch = 5
+	if rows * 7 <= bot - top:
+		pitch = 7
+	var gw := per_row * yw - 1
+	var gh := rows * pitch - (pitch - lh)
 	var gx := x0 + (w - gw) / 2
 	var gy := top + maxi(0, (bot - top - gh) / 2)
 	var newest := months - 1
 	var blink := int(floorf(rest_t() / 0.5)) % 2 == 0
 	for yi in K3_YEARS:
-		var bx := gx + (yi % K3_COLS) * bwd
-		var by := gy + (yi / K3_COLS) * bht
+		var bx := gx + (yi % per_row) * yw
+		var by := gy + (yi / per_row) * pitch
 		for m in 12:
 			var mi := yi * 12 + m
 			var c := ink(0.1 * dim)
@@ -1809,12 +1812,12 @@ func _paint_k3() -> void:
 				c = _kc((0.75 if yi == yr - 1 and not full else 0.45) * dim)
 				if mi == newest and (not full or blink):
 					c = LabBoard.mixc(LabBoard.BG, LabBoard.WHITE, dim)
-			g.draw_rect(Rect2(bx + (m % 4) * dp, by + (m / 4) * dp, dp, dp), c)
+			g.draw_rect(Rect2(bx + m, by, 1, lh), c)
 	# THE FOOT: what a dot is, or the sign-in
 	var ry := a.end.y - 19
 	g.draw_rect(Rect2(x0 + 4, ry - 3, w - 8, 1), ink(0.25))
 	if hover:
 		_k_sign(x0 + 8, ry, w - 16, "ACCOUNTS, PAUSED")
 		return
-	text(x0 + 8, ry, fit("ONE SQUARE IS ONE YEAR, 12 INVOICES.", w - 16), ink(0.55))
-	text(x0 + 8, ry + 8, fit("NONE LATE IN 201 YEARS.", w - 16), _kc(0.95))
+	text(x0 + 8, ry, fit("ONE DASH IS ONE YEAR, 12 INVOICES.", w - 16), ink(0.55))
+	text(x0 + 8, ry + 8, fit("NONE LATE IN %d YEARS." % yr, w - 16), _kc(0.95))
