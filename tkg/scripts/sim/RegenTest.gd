@@ -68,8 +68,7 @@ func _ready() -> void:
 	_ok("the chart made again", now != null and now != old_screen)
 	if now != null:
 		var sky: ChartSky = now._chart._sky
-		# (the legacy style keeps its key on its own renderer, `ChartLegacy`)
-		var key: String = "" if sky == null else (sky._legacy._key if sky._legacy != null else sky._key)
+		var key: String = "" if sky == null else sky._key
 		_ok("its sky keyed to the new galaxy", key.begins_with(ChartSky.galaxy_key()))
 		var t0 := Time.get_ticks_msec()
 		while sky != null and is_instance_valid(sky) and not sky.ready_to_draw() and Time.get_ticks_msec() - t0 < 10000:

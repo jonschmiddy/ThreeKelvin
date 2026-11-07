@@ -4,7 +4,7 @@ extends Node
 ## take one state a run; this walks the whole matrix in one process, for the
 ## polish audit and its before/after):
 ##   godot --path . --windowed --position 3840,0 --fixed-fps 30 -- sheet=LocalAudit
-##       out=<dir> [styles=simplified,legacy,painted,radiant] [cases=<name>,...]
+##       out=<dir> [styles=simplified,painted,radiant] [cases=<name>,...]
 ##       [clipframes=45] [cut] [nocut] [noblur]
 ## Each case: a new run (its seed), the ship parked as the sector map leaves it,
 ## LOCAL shown, then <dir>/<style>/<case>.png (the game's own 960x540 frame),
@@ -71,7 +71,7 @@ func _run() -> void:
 	if "noblur" in _args:
 		CutawayView.harness_no_blur = true
 	var out := _arg("out", "user://local_audit")
-	var styles := _arg("styles", "simplified,legacy,painted,radiant").split(",")
+	var styles := _arg("styles", "simplified,painted,radiant").split(",")
 	var cases: PackedStringArray = _arg("cases", ",".join(CASES.keys())).split(",")
 	var nclip := int(_arg("clipframes", "45"))
 	for st in styles:
@@ -293,7 +293,7 @@ func _show(want: String, seed: int, orbit: String) -> bool:
 func _hide(view: EncounterView) -> Array[CanvasItem]:
 	var hid: Array[CanvasItem] = []
 	for c in view.get_children():
-		var keep_c: bool = c == view.get("dust") or c == view.backdrop or c == view.weather
+		var keep_c: bool = c == view.get("dust") or c == view.backdrop
 		if c is CanvasItem and not keep_c and (c as CanvasItem).visible:
 			(c as CanvasItem).visible = false
 			hid.append(c)

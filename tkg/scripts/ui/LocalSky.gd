@@ -25,12 +25,8 @@ extends Control
 ##     memory (`SectorPainted`), the sun and the worlds painting themselves, the
 ##     life of it in held poses;
 ##   * RADIANT: the cloud as a volume the sun shines through, the worlds'
-##     shadows as shafts in the lit gas;
-##   * LEGACY: LOCAL as it was before the port -- the view's wash, tinted by
-##     the system's star toward the right, its plain grey starfield, and the
-##     gas blowing through (`NebulaWeather`, the view's) -- with the map's old
-##     cloud (`sky_nebula_legacy`) and the system's band, set to its palette
-##     as the map's LEGACY is.
+##     shadows as shafts in the lit gas.
+##   (LEGACY, LOCAL as it was before the port, went with that style on Nov 7.)
 ##
 ## WHERE THE SHIP IS (Jon: "have LOCAL change depending on what you are orbiting
 ## and how far from the star you are"), read from the sector map's own record of
@@ -80,7 +76,6 @@ const SectorPaintedS := preload("res://scripts/ui/sysmap/SectorPainted.gd")
 const SkyGalaxiesS := preload("res://scripts/ui/sysmap/SkyGalaxies.gd")
 const SystemPaletteS := preload("res://scripts/ui/sysmap/SystemPalette.gd")
 const NEB_SKY := preload("res://shaders/sky_nebula.gdshader")
-const NEB_SKY_LEGACY := preload("res://shaders/sky_nebula_legacy.gdshader")
 const FAR := preload("res://shaders/local_far.gdshader")
 const GRADE := preload("res://shaders/local_grade.gdshader")
 const PALETTE := preload("res://shaders/map_palette.gdshader")
@@ -224,7 +219,6 @@ var _pt := {}
 
 ## the style this sky is drawn in
 var style: StringName = &"simplified"
-var legacy := false
 var painted := false
 var radiant := false
 ## the ship the camera follows (`EncounterView`), and the camera's travel now
@@ -419,7 +413,7 @@ func _ready() -> void:
 
 ## The style the sky is drawn in: the setting, or a harness's `style=`.
 static func style_now() -> StringName:
-	for s: StringName in [&"legacy", &"painted", &"radiant", &"simplified"]:
+	for s: StringName in [&"painted", &"radiant", &"simplified"]:
 		if ("style=%s" % s) in OS.get_cmdline_user_args():
 			return s
 	return DisplaySettings.render_style
@@ -454,21 +448,15 @@ func _restyle() -> void:
 static func far_defaults(n: MapGen.MapNode) -> Dictionary:
 	var lay := SystemLayout.of(n)
 	var knd: String = KIND_NAMES[lay.star]
-	var leg := style_now() == &"legacy"
 	var c: Vector3 = SkyBakeS.STARCOL.get(knd, SkyBakeS.STARCOL.ORDINARY)
 	var l := Vector3(pow(c.x, 2.2), pow(c.y, 2.2), pow(c.z, 2.2))
 	var tint := l / maxf(l.x, maxf(l.y, l.z))
 	var look: Dictionary = SkyBakeS.look_for(n, knd)
 	var clear: bool = not bool(look.get("nebula", true)) and lay.star < SystemLayout.StarKind.PULSAR
-	var wt := MapGen.star_colour(n).darkened(0.72)
-	var st: Color = Color("#ffc29a") if lay.star == SystemLayout.StarKind.RED else (Color("#eaf4ff") if lay.star == SystemLayout.StarKind.BLUE else Color("#f6f2e4"))
 	var ba := float(n.index) * 0.731 * 2.7
 	return {
-		"legacy": leg,
 		"u_skySeed": float(n.index % 97) * 0.37,
 		"star_light": tint,
-		"wash_tint": Vector3(wt.r, wt.g, wt.b),
-		"old_tint": Vector3(st.r, st.g, st.b),
 		"glow_k": 1.0 if clear else 0.0,
 		"band_n": Vector2(-sin(ba), cos(ba)),
 		"band_off": (SkyBakeS.hash2(n.index, 403) - 0.5) * 300.0,
@@ -508,7 +496,6 @@ func _build() -> void:
 	_wa = {}
 	_wb = {}
 	style = style_now()
-	legacy = style == &"legacy"
 	painted = style == &"painted"
 	radiant = style == &"radiant"
 	layout = SystemLayout.of(node)
@@ -522,7 +509,7 @@ func _build() -> void:
 	# THE SKY AS THE MAP SEES IT (`SystemView.show_system`): the cloud the system
 	# sits in, by its kind; SIMPLIFIED's core a cloud of warm gas round the hole
 	_sky_look = SkyBakeS.look_for(node, kind)
-	if layout.star == SystemLayout.StarKind.CORE and not legacy:
+	if layout.star == SystemLayout.StarKind.CORE:
 		_sky_look.neb = 5
 		_sky_look.shape = 0
 		_sky_look.hue = Vector3(0.62, 0.32, 0.2)
@@ -559,14 +546,8 @@ func _build() -> void:
 	_far = _rect()
 	_far_mat = ShaderMaterial.new()
 	_far_mat.shader = FAR
-	_far_mat.set_shader_parameter("legacy", legacy)
 	_far_mat.set_shader_parameter("u_skySeed", float(node.index % 97) * 0.37)
 	_far_mat.set_shader_parameter("star_light", _tint)
-	# (LEGACY: the view's own wash, its star's tint toward the right)
-	var wt := MapGen.star_colour(node).darkened(0.72)
-	_far_mat.set_shader_parameter("wash_tint", Vector3(wt.r, wt.g, wt.b))
-	var st: Color = Color("#ffc29a") if layout.star == SystemLayout.StarKind.RED else (Color("#eaf4ff") if layout.star == SystemLayout.StarKind.BLUE else Color("#f6f2e4"))
-	_far_mat.set_shader_parameter("old_tint", Vector3(st.r, st.g, st.b))
 	var clear: bool = not bool(_sky_look.get("nebula", true)) and layout.star < SystemLayout.StarKind.PULSAR
 	_far_mat.set_shader_parameter("glow_k", 1.0 if clear else 0.0)
 	_glow_r = 70.0 * (1.5 if layout.star == SystemLayout.StarKind.RED else 1.0)
@@ -582,19 +563,18 @@ func _build() -> void:
 	if neb_on:
 		_neb = _rect()
 		_neb_mat = ShaderMaterial.new()
-		_neb_mat.shader = NEB_SKY_LEGACY if legacy else NEB_SKY
+		_neb_mat.shader = NEB_SKY
 		_neb_mat.set_shader_parameter("kind", int(_sky_look.neb))
 		_neb_mat.set_shader_parameter("shape", int(_sky_look.shape))
 		_neb_mat.set_shader_parameter("hue", _sky_look.hue)
 		_neb_mat.set_shader_parameter("sd", _sd)
-		if not legacy:
-			_neb_mat.set_shader_parameter("exposure", {NebulaField.Kind.REFLECTION: 0.8, NebulaField.Kind.EMISSION: 0.88}.get(int(_sky_look.neb), 1.0))
-			_neb_mat.set_shader_parameter("cc_em", CC)
-			_neb_mat.set_shader_parameter("bubble_r", _bubble_r())
-			_neb_mat.set_shader_parameter("star_light", _tint)
-			if radiant:
-				_neb_mat.set_shader_parameter("radiant", true)
-				_neb_mat.set_shader_parameter("exposure", float(_neb_mat.get_shader_parameter("exposure")) * 0.86)
+		_neb_mat.set_shader_parameter("exposure", {NebulaField.Kind.REFLECTION: 0.8, NebulaField.Kind.EMISSION: 0.88}.get(int(_sky_look.neb), 1.0))
+		_neb_mat.set_shader_parameter("cc_em", CC)
+		_neb_mat.set_shader_parameter("bubble_r", _bubble_r())
+		_neb_mat.set_shader_parameter("star_light", _tint)
+		if radiant:
+			_neb_mat.set_shader_parameter("radiant", true)
+			_neb_mat.set_shader_parameter("exposure", float(_neb_mat.get_shader_parameter("exposure")) * 0.86)
 		_neb.material = _neb_mat
 		_neb.visible = false
 		_scene.add_child(_neb)
@@ -606,7 +586,7 @@ func _build() -> void:
 		_scene.add_child(star)
 		star.call("setup", node.index, Rect2(0, 0, 960, 540))
 		star.call("set_zoom", star_k())
-		(star.get("_web_mat") as ShaderMaterial).set_shader_parameter("web_on", legacy)
+		(star.get("_web_mat") as ShaderMaterial).set_shader_parameter("web_on", false)
 		far_group.append(star)
 	# THE BUDGET over all of it
 	var copy := BackBufferCopy.new()
@@ -627,7 +607,7 @@ func _build() -> void:
 	grade.material = _grade_mat
 	_scene.add_child(grade)
 	far_group.append(grade)
-	# THE SYSTEM'S OWN PALETTE (SIMPLIFIED, RADIANT, LEGACY), from its first picture
+	# THE SYSTEM'S OWN PALETTE (SIMPLIFIED, RADIANT), from its first picture
 	if not painted:
 		var copy2 := BackBufferCopy.new()
 		copy2.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
@@ -821,7 +801,7 @@ func _field_hide() -> void:
 
 ## The cloud's density, baked once a system and kept (`SkyBake.field`).
 func _bake_cloud(gen: int) -> void:
-	var key := "%d|%s|%s" % [node.index, "L" if legacy else "C", int(_sky_look.neb)]
+	var key := "%d|%s|%s" % [node.index, "C", int(_sky_look.neb)]
 	var f: Array = _baked.get(key, [])
 	if f.is_empty():
 		var bake := SkyBakeS.new()
@@ -830,7 +810,7 @@ func _bake_cloud(gen: int) -> void:
 		# read its three pictures back empty -- no cloud, and no sheets for its
 		# masses). An empty bake is done again on the next real frames.
 		for attempt in 4:
-			await bake.field(self, int(_sky_look.neb), int(_sky_look.shape), _sd, CC, legacy)
+			await bake.field(self, int(_sky_look.neb), int(_sky_look.shape), _sd, CC)
 			if gen != _gen or not is_inside_tree():
 				return
 			if not _blank(bake.field_img0):
@@ -848,8 +828,7 @@ func _bake_cloud(gen: int) -> void:
 		_baked[key] = f
 	_neb_mat.set_shader_parameter("t0", f[0])
 	_neb_mat.set_shader_parameter("t1", f[1])
-	if not legacy:
-		_neb_mat.set_shader_parameter("t2", f[2])
+	_neb_mat.set_shader_parameter("t2", f[2])
 	_neb_mat.set_shader_parameter("ftex", Vector2(SkyBakeS.FIELD_W, SkyBakeS.FIELD_H))
 	_neb_mat.set_shader_parameter("fmb", float(SkyBakeS.FIELD_MB))
 	if painted:
@@ -1332,8 +1311,6 @@ func _step(delta: float) -> void:
 		cam = Vector2.ZERO
 	var o := rest_origin()
 	var so := origin()
-	var vr := get_global_rect()
-	_far_mat.set_shader_parameter("wash", Vector2(vr.position.x, vr.size.x))
 	# (`chart_bg` slides a layer with its pan: the sky's pan is the world's
 	# travel on screen, against the camera's)
 	var own := -cam * SKY_K
@@ -1354,22 +1331,21 @@ func _step(delta: float) -> void:
 		_neb_mat.set_shader_parameter("off", neb_off())
 		_neb_mat.set_shader_parameter("time", 0.0 if still else pose(t, 4.0))
 		_neb_mat.set_shader_parameter("low", gfx_low())
-		if not legacy:
-			_neb_mat.set_shader_parameter("star_at", Vector2(so))
-			# (the star's light reaches as far into the gas as it is near: the map's
-			# zoom, which opens the light out, stands in for nearness)
-			var lz := clampf(pow(_dk, 0.8), 0.45, 2.4)
-			_neb_mat.set_shader_parameter("zoom", lz)
-			_neb_mat.set_shader_parameter("lzoom", lz)
-			_neb_mat.set_shader_parameter("home_zoom", 1.0)
-			_neb_mat.set_shader_parameter("lscale", 1.35)
-			_neb_mat.set_shader_parameter("breath", _breath_lit())
-			_neb_mat.set_shader_parameter("hole_r", 116.0 * star_k() * _zl(Z_STAR))
-			# THE OTHER SUN'S LIGHT ON THE GAS (two suns): beside the lit one's, by its
-			# brightness and nearness against it (0 with one sun: nothing added)
-			_neb_mat.set_shader_parameter("star2_k", _star2_k())
-			if star2 != null:
-				_neb_mat.set_shader_parameter("star2_at", Vector2(_zp(_star_rest(_unlit()), Z_STAR)))
+		_neb_mat.set_shader_parameter("star_at", Vector2(so))
+		# (the star's light reaches as far into the gas as it is near: the map's
+		# zoom, which opens the light out, stands in for nearness)
+		var lz := clampf(pow(_dk, 0.8), 0.45, 2.4)
+		_neb_mat.set_shader_parameter("zoom", lz)
+		_neb_mat.set_shader_parameter("lzoom", lz)
+		_neb_mat.set_shader_parameter("home_zoom", 1.0)
+		_neb_mat.set_shader_parameter("lscale", 1.35)
+		_neb_mat.set_shader_parameter("breath", _breath_lit())
+		_neb_mat.set_shader_parameter("hole_r", 116.0 * star_k() * _zl(Z_STAR))
+		# THE OTHER SUN'S LIGHT ON THE GAS (two suns): beside the lit one's, by its
+		# brightness and nearness against it (0 with one sun: nothing added)
+		_neb_mat.set_shader_parameter("star2_k", _star2_k())
+		if star2 != null:
+			_neb_mat.set_shader_parameter("star2_at", Vector2(_zp(_star_rest(_unlit()), Z_STAR)))
 	if painted:
 		SectorPaintedS.push(self)
 		if star2 != null and not field_only and not _pt.is_empty():
@@ -1436,7 +1412,7 @@ func _step_star(o: Vector2) -> void:
 		var sm2: ShaderMaterial = star2.get("_mat")
 		sm2.set_shader_parameter("c_breath", SystemViewS.breath(pose(t, 4.0) + SystemViewS.STAR_B_PROM))
 		sm2.set_shader_parameter("c_prom", SystemViewS.prominence(pose(t + SystemViewS.STAR_B_PROM, 6.0)))
-		sm2.set_shader_parameter("halo_cut", 36.0 if legacy else 72.0)
+		sm2.set_shader_parameter("halo_cut", 72.0)
 	_flare = 0.0
 	match layout.star:
 		SystemLayout.StarKind.PULSAR:
@@ -1449,7 +1425,7 @@ func _step_star(o: Vector2) -> void:
 			var sm: ShaderMaterial = star.get("_mat")
 			sm.set_shader_parameter("c_breath", SystemViewS.breath(pose(t, 4.0)))
 			sm.set_shader_parameter("c_prom", SystemViewS.prominence(pose(t, 6.0)))
-			sm.set_shader_parameter("halo_cut", 36.0 if legacy else 72.0)
+			sm.set_shader_parameter("halo_cut", 72.0)
 	# TWO SUNS' FLARES: each sun's on its own clock; `_flare` is the lit one's (the
 	# near world, the cloud, the subjects), a band world's its own sun's by its
 	# share of the light (`_step_worlds`)
@@ -1560,12 +1536,11 @@ func _step_worlds(o: Vector2) -> void:
 		v.call("step", t, light, kl, so if behind else Vector2(-9999, -9999), sr if behind else 0.0)
 		var vm: ShaderMaterial = v.get("_mat")
 		if vm != null:
-			if not legacy:
-				vm.set_shader_parameter("star_tint", _tint_at(p))
-				vm.set_shader_parameter("night_fill", Vector3(0.02, 0.02, 0.03))
+			vm.set_shader_parameter("star_tint", _tint_at(p))
+			vm.set_shader_parameter("night_fill", Vector3(0.02, 0.02, 0.03))
 			# (two suns: its own sun's flare, by its share of the light here)
 			vm.set_shader_parameter("flare", lerpf(_flare_a, _flare_b, _share_b(p)) if star2 != null else _flare)
-			vm.set_shader_parameter("lift", 0.0 if legacy else 1.0)
+			vm.set_shader_parameter("lift", 1.0)
 		# (the shafts are cast on the cloud, which does not zoom: each world where
 		# the band's zoom shows it, at the size it is drawn)
 		if bp.size() < 24:
@@ -1639,12 +1614,7 @@ func _build_palette() -> void:
 	if not cloud:
 		for gt: Vector3 in SkyGalaxiesS.TONES:
 			extra.append(gt)
-	if legacy:
-		# (LEGACY: the old starfield's own greys, which a cut alone would lose)
-		for h: String in ["#070a10", "#232d39", "#4d5f73", "#9fc0e0"]:
-			var cl := Color(h)
-			extra.append(Vector3(cl.r, cl.g, cl.b))
-	elif cloud:
+	if cloud:
 		for h: String in SystemViewS.C_RESERVED.get(int(_sky_look.neb), []):
 			var cr := Color(h)
 			extra.append(Vector3(cr.r, cr.g, cr.b))
@@ -1668,23 +1638,23 @@ func _build_palette() -> void:
 	var pal: PackedVector3Array
 	if star2 == null:
 		pal = SystemPaletteS.build(img, 0, Vector2(rest_origin()) / 2.0, float(layout.star_r) * star_k() / 2.0, kind, 0,
-			SystemPaletteS.K_NEBULA + PAL_MORE if cloud else SystemPaletteS.K, extra, legacy or not cloud,
-			not legacy and cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, not legacy)
+			SystemPaletteS.K_NEBULA + PAL_MORE if cloud else SystemPaletteS.K, extra, not cloud,
+			cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, true)
 	else:
 		# TWO SUNS: the lit one's light first, then the other's -- a cut round its
 		# disc and, in a clear sky, its glow's dark end in its own hue -- as many of
 		# the other's as fit the pass's 72 (`SystemView.pal_from`)
 		var u := _unlit()
 		var cols := PackedVector3Array()
-		if not cloud and not legacy and layout.star != SystemLayout.StarKind.PULSAR:
+		if not cloud and layout.star != SystemLayout.StarKind.PULSAR:
 			var sc: Vector3 = SystemViewS.STAR_B_COL if u == SystemLayout.STAR_B else SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY)
 			var dp := Vector3(pow(sc.x, 3.0), pow(sc.y, 3.0), pow(sc.z, 3.0))
 			dp /= maxf(dp.x, maxf(dp.y, dp.z))
 			for kq: float in [0.07, 0.11, 0.17, 0.26, 0.38]:
 				cols.append(dp * kq)
 		pal = SystemPaletteS.build(img, 0, Vector2(rest_origin()) / 2.0, float(layout.star_radius(_lit)) * star_k() / 2.0, kind, 0,
-			SystemPaletteS.K_NEBULA + PAL_MORE if cloud else SystemPaletteS.K, extra, legacy or not cloud,
-			not legacy and cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, not legacy,
+			SystemPaletteS.K_NEBULA + PAL_MORE if cloud else SystemPaletteS.K, extra, not cloud,
+			cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, true,
 			Vector2(_star_rest(u)) / 2.0, float(layout.star_radius(u)) * star_k_of(u) / 2.0, cols, SystemViewS.PAL_N)
 	var arr := PackedVector3Array(pal)
 	arr.resize(72)
@@ -1785,7 +1755,7 @@ func _wx_place(ev: Dictionary) -> bool:
 	var top := Rect2(Vector2(60.0, 50.0), Vector2(840.0, PLAY.x - 70.0))
 	match StringName(ev.name):
 		&"tide", &"glints":
-			ev.at = CC if not legacy else _nspot(1.0, Vector2(-160, -120), Vector2(1120, 660))
+			ev.at = CC
 			return top.grow(80.0).has_point(Vector2(ev.at) + off)
 		&"jet":
 			var tips := SkyBakeS.em_pillars(_sd, CC)
@@ -2329,7 +2299,7 @@ func hand_own(at: Vector2) -> bool:
 	var d := origin() - at
 	var g := {"body": orbit_target, "world": v.spec.get("world", &"rock"), "seed": int(v.get("_seed")),
 		"spec_r": float(_near[0][3]), "t": t + near_t_off, "light": Vector3(d.x, d.y, 140.0).normalized(),
-		"params": {"lift": 0.0 if legacy else 1.0, "r": float(_near[0][3])}, "ov": {}, "mix": 1.0}
+		"params": {"lift": 1.0, "r": float(_near[0][3])}, "ov": {}, "mix": 1.0}
 	for k in ["ring", "storm", "right"]:
 		if v.spec.has(k):
 			g.ov[k] = v.spec[k]
@@ -2451,11 +2421,10 @@ func _step_hand() -> void:
 	var vm: ShaderMaterial = v.get("_mat")
 	if vm != null:
 		var nf_here := Vector3(0.02, 0.02, 0.03)
-		if not legacy:
-			vm.set_shader_parameter("star_tint", (f.get("star_tint", _tint) as Vector3).lerp(_tint, m))
-			vm.set_shader_parameter("night_fill", (f.get("night_fill", nf_here) as Vector3).lerp(nf_here, m))
+		vm.set_shader_parameter("star_tint", (f.get("star_tint", _tint) as Vector3).lerp(_tint, m))
+		vm.set_shader_parameter("night_fill", (f.get("night_fill", nf_here) as Vector3).lerp(nf_here, m))
 		vm.set_shader_parameter("flare", lerpf(float(f.get("flare", _flare)), _flare, m))
-		vm.set_shader_parameter("lift", lerpf(float(f.get("lift", 1.0)), 0.0 if legacy else 1.0, m))
+		vm.set_shader_parameter("lift", lerpf(float(f.get("lift", 1.0)), 1.0, m))
 		# the map's moons' shadows on its face, until it is this sky's
 		for nm in f:
 			if String(nm).begins_with("moon") and m < 0.5:
@@ -2518,11 +2487,10 @@ func _step_near(o: Vector2) -> void:
 				_hold_storm(n, t)
 			var vm: ShaderMaterial = n.get("_mat")
 			if vm != null:
-				if not legacy:
-					vm.set_shader_parameter("star_tint", _tint)
-					vm.set_shader_parameter("night_fill", Vector3(0.02, 0.02, 0.03))
+				vm.set_shader_parameter("star_tint", _tint)
+				vm.set_shader_parameter("night_fill", Vector3(0.02, 0.02, 0.03))
 				vm.set_shader_parameter("flare", _flare)
-				vm.set_shader_parameter("lift", 0.0 if legacy else 1.0)
+				vm.set_shader_parameter("lift", 1.0)
 		elif n.position != at or (n is _Wreck and absf((n as _Wreck).zoom - zl) > 0.001):
 			n.position = at
 			if n is _Wreck:

@@ -831,54 +831,25 @@ func _bil(sp: Vector2) -> float:
 ## own sun, at its sky pixel with no pan (`sky_field.gdshader`'s `cc`), so the
 ## tide washes out from the sun, the glints wink round it and the jets leave the
 ## tips of the pillars that reach toward it -- with two suns their balance point,
-## where the sky is baked round (`SystemView.sky_c`, ruling 23). In LEGACY it is
-## where it always was, a spot of the cloud's own about the view
-## (`sky_nebula_legacy`'s `cc`).
+## where the sky is baked round (`SystemView.sky_c`, ruling 23).
 func em_cc() -> Vector2:
-	if _legacy():
-		return nspot(1.0, Vector2(-160, -120), Vector2(1120, 660))
 	if view != null and view.has_method(&"sky_c"):
 		return view.sky_c()
 	return Vector2(480, 270)
 
 
 ## a lit pillar tip's strength at sp (emission): near the head of one of the
-## pillars the bake raised toward the sun (`SkyBake.em_pillars`); in LEGACY, the
-## old cloud's own fingers, lit where they reach in to 0.27 of its radius
+## pillars the bake raised toward the sun (`SkyBake.em_pillars`)
 func em_tip(sp: Vector2) -> float:
-	if _legacy():
-		var cc := em_cc()
-		var dc := sp - cc
-		var r := dc.length() / 720.0
-		var dir := dc / maxf(dc.length(), 1.0)
-		var fing := ridge(nfbm(dir * 2.8 + Vector2(r * 0.9 + _sd, _sd * 2.0), 3), 7.0)
-		return fing * exp(-pow((r - 0.27) / 0.06, 2.0)) * sm(0.32, 0.6, _bil(sp))
 	var best := 0.0
 	for p: Array in em_tips():
 		best = maxf(best, exp(-(sp - Vector2(p[1])).length_squared() / (24.0 * 24.0)))
 	return best
 
 
-## The pillars of this cloud: [base, tip, w0, w1, seed] in sky pixels. In
-## LEGACY, its lit finger tips: the ones of 24 round the cluster at 194 px that
-## catch the light, [cluster, tip, strength].
+## The pillars of this cloud: [base, tip, w0, w1, seed] in sky pixels.
 func em_tips() -> Array:
-	if _legacy():
-		var out: Array = []
-		var cc := em_cc()
-		for k in 24:
-			var a := float(k) / 24.0 * TAU
-			var sp := cc + Vector2(cos(a), sin(a)) * 194.0
-			var s := em_tip(sp)
-			if s > 0.05:
-				out.append([cc, sp, s])
-		return out
 	return SkyBakeS.em_pillars(_sd, em_cc())
-
-
-## the system is drawn in LEGACY
-func _legacy() -> bool:
-	return view != null and bool(view.get("legacy"))
 
 
 func em_lane(sp: Vector2) -> float:
@@ -1298,15 +1269,6 @@ func _p_jet(ev: Dictionary) -> bool:
 	var cc := em_cc()
 	var at := Vector2.INF
 	var tips := em_tips()
-	if _legacy():
-		# LEGACY: the brightest lit tip in view, as before
-		var best := 0.04
-		for p: Array in tips:
-			var q := _neb_scr(Vector2(p[1]))
-			if _in_view(q, 30.0) and clear_at(q, SHIP_R[M]) and float(p[2]) > best:
-				best = float(p[2])
-				at = p[1]
-		tips = []
 	var k0 := _rng.randi() % maxi(1, tips.size())
 	for j in tips.size():
 		var sp: Vector2 = tips[(k0 + j) % tips.size()][1]

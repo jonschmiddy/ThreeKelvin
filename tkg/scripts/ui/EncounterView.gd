@@ -65,10 +65,7 @@ var dust: LocalDust
 ## Tracers, sparks and debris. Added last so it draws over the ship and the
 ## enemies, and ignores the mouse so it can never eat a card drop.
 var fx: CombatFx
-## Drifting gas, shown only in systems that sit inside a nebula, and only in
-## LEGACY: in the other styles the cloud's own currents are the gas.
-var weather: NebulaWeather
-## the place the sky and the gas were last set to
+## the place the sky was last set to
 var _place: MapGen.MapNode = null
 
 func _ready() -> void:
@@ -138,23 +135,15 @@ func _ready() -> void:
 	# the parent is behind THAT — so the gas was being drawn and then covered by
 	# the sky every frame. A Control draws itself first and its children after,
 	# in order, so the two background layers have to be the first two children:
-	# wash, then what is out there, then the gas blowing through it, then the
-	# ship.
+	# wash, then what is out there, then the ship. (The gas blowing through it,
+	# `NebulaWeather`, was LEGACY's alone and went with it; in every style now
+	# the cloud's own currents are the gas.)
 	backdrop = LocalSky.new()
 	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	# the camera follows your hull in and out (its approach, its departure)
 	backdrop.cam_ship = _ship
 	add_child(backdrop)
 	move_child(backdrop, 0)
-	Sig.render_style_changed.connect(func() -> void:
-		if _place != null:
-			set_weather(_place))
-
-	weather = NebulaWeather.new()
-	weather.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	weather.visible = false
-	add_child(weather)
-	move_child(weather, 1)
 
 	# THE NEAREST LAYER: dust in front of the ships, kept off them and off the
 	# shots' band (`LocalDust`); under the shots themselves
@@ -391,16 +380,7 @@ func set_place(n: MapGen.MapNode) -> void:
 	_place = n
 	if backdrop != null:
 		backdrop.setup(n)
-	set_weather(n)
 	queue_redraw()
-
-func set_weather(n: MapGen.MapNode) -> void:
-	if weather == null:
-		return
-	weather.visible = n.in_nebula and LocalSky.style_now() == &"legacy"
-	if n.in_nebula:
-		weather.setup(n.nebula_emission,
-			Color("#8a5f7a") if n.nebula_emission else Color("#4a7a8a"))
 
 ## What is left of the ship that died here, if anything is.
 ##

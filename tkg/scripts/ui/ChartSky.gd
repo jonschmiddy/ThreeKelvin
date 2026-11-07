@@ -4,9 +4,7 @@ extends Node2D
 ## THE STAR CHART'S SKY IN THE SIMPLIFIED STYLE: direction C, "Alive", from the
 ## Oct 5 showcase (scratchpad `showcase/C/chart/`), THE DEFAULT of the rendering
 ## styles (`DisplaySettings.render_style`). PAINTED draws with `ChartPainted`'s
-## passes on this node; LEGACY with a node of its own, `ChartLegacy`, which this
-## one hands the chart to and draws nothing. The
-## chart's own layered look refined and set in slow motion: an arm-model disc
+## passes on this node, RADIANT with `ChartRadiant`'s. The chart's own layered look refined and set in slow motion: an arm-model disc
 ## and a cored bulge as gathered light, crisp dust lanes, sparse stars, four
 ## depth sheets you wade through as you zoom, gas streaming along the arms,
 ## knots that breathe and bloom, a rare supernova and its light echo, nebulae
@@ -106,9 +104,9 @@ static var quant := true
 ## WHAT A ZOOM CHANGES, switched off one cause at a time (tuning, `diag=N` in
 ## ChartLook; 0 as made): 1 the core's glare control, 2 every star (the chart's
 ## and those the disc resolves into), 4 the detail the zoom adds (octaves, fine
-## grain, the bakes' mip held at zoom 1's), 8 LEGACY's palette a zoom level as
-## before Oct 11, 16 the chart's own stars only, 32 the resolved stars only, 64
-## LEGACY's dust sheets drawn nearer as you zoom as before, 128 the hole's own
+## grain, the bakes' mip held at zoom 1's), (8 was the gone LEGACY style's
+## palette), 16 the chart's own stars only, 32 the resolved stars only, (64 was
+## LEGACY's dust sheets), 128 the hole's own
 ## zoom terms (the squeezed ring's cooling, the disc's clumps), 256 the resolved
 ## stars adding their light on top as before, 512 no stars' light laid back
 ## (`_star_debt`), 1024 the hole's cooling as far out as before, 2048 no supernova
@@ -166,11 +164,11 @@ static var _neb_on := true
 ## stars pass, the uniforms pushed -- reads `solid()` and needs nothing else. A
 ## harness's `solidstyle=<style>[,<style>...]` turns styles on for filming before
 ## their line does.
-const SOLID_STYLES := {&"simplified": true, &"radiant": true, &"painted": true, &"legacy": true}
+const SOLID_STYLES := {&"simplified": true, &"radiant": true, &"painted": true}
 static var _solid_forced: Array[StringName] = []
 
 
-## The chart's style now: RADIANT (unless its safety fell back), LEGACY, PAINTED or
+## The chart's style now: RADIANT (unless its safety fell back), PAINTED or
 ## SIMPLIFIED. Worked out once a frame: the chart projects every mark through
 ## `solid`, and the style can change mid-session (Settings, RADIANT's safety).
 static var _style_now := &"simplified"
@@ -183,8 +181,6 @@ static func style_now() -> StringName:
 		_style_frame = f
 		if ChartRadiant.wanted():
 			_style_now = &"radiant"
-		elif ChartLegacy.wanted():
-			_style_now = &"legacy"
 		elif ChartPainted.wanted():
 			_style_now = &"painted"
 		else:
@@ -259,9 +255,6 @@ static func solid_inv(p: Vector2) -> Vector2:
 
 
 var chart: StarchartScreen.MapChart = null
-## THE LEGACY STYLE draws with a renderer of its own (`ChartLegacy`, the chart as
-## it was before the port): this node hands it the chart and draws nothing.
-var _legacy: ChartLegacy = null
 
 ## Seconds between frames of the sky's own motion. 0 is every frame. See
 ## `MapChart.set_anim_interval`.
@@ -309,8 +302,6 @@ var _since_zoom := 999
 ## Whether the galaxy is set on its even pixel this frame (no zoom's hold left):
 ## `MapChart.centre_px` draws the systems from the same pixel.
 func settled() -> bool:
-	if _legacy != null and is_instance_valid(_legacy):
-		return _legacy._since_zoom >= 61
 	return _since_zoom >= 61
 var _hold_d := Vector2.ZERO
 var _hold_c := Vector2.ZERO
@@ -369,7 +360,6 @@ static func eff_of(_g: Dictionary) -> float:
 
 ## Everything baked for a galaxy that is not the current one goes.
 static func drop_others() -> void:
-	ChartLegacy.drop_others()
 	var keep := galaxy_key()
 	for k in _baked.keys():
 		if not (k as String).begins_with(keep):
@@ -412,12 +402,6 @@ static func _warm(root: Node) -> void:
 		shaders = [[ChartRadiant.PLACE_LOW_SH if DisplaySettings.graphics_low else ChartRadiant.PLACE_SH, true],
 			[STARS_SH, true], [COMP_SH, false], [LUT_SH, false], [ChartRadiant.DISC_SH, true],
 			[ChartRadiant.HOR_SH, true], [ChartRadiant.NOISE_SH, true]]
-	elif ChartLegacy.wanted():
-		# the legacy chart's own passes instead: its field and stars, its hole and
-		# palette in 8-bit, its bake in HDR
-		shaders = [[ChartLegacy.FIELD_SH, false], [ChartLegacy.STARS_SH, false],
-			[ChartLegacy.HOLE_SH, false], [ChartLegacy.PAL_SH, false], [ChartLegacy.LUT_SH, false],
-			[ChartLegacy.SPLAT_SH, true], [ChartLegacy.BLUR_SH, true], [ChartLegacy.BASE_SH, true]]
 	elif ChartPainted.wanted():
 		# the painted chart's own passes instead, in its formats (its G-buffer is 8-bit)
 		shaders = [[ChartPainted.PLACE_LOW_SH if DisplaySettings.graphics_low else ChartPainted.PLACE_SH, false],
@@ -443,13 +427,11 @@ static func _warm(root: Node) -> void:
 ## (`GpuProbe`) changed GRAPHICS after the boot's warm (`_warm`) had compiled the
 ## other one (LOW over HIGH's, or HIGH back over the hint's LOW), so the next
 ## chart built would stall on it. Drawn once off screen in the style's own
-## format, as `_warm` does. (LEGACY's chart has one pass for both.)
+## format, as `_warm` does.
 static func warm_place(root: Node, low: bool) -> void:
 	var e: Array = [PLACE_LOW_SH if low else PLACE_SH, true]
 	if ChartRadiant.wanted():
 		e = [ChartRadiant.PLACE_LOW_SH if low else ChartRadiant.PLACE_SH, true]
-	elif ChartLegacy.wanted():
-		return
 	elif ChartPainted.wanted():
 		e = [ChartPainted.PLACE_LOW_SH if low else ChartPainted.PLACE_SH, false]
 	var vp := SubViewport.new()
@@ -468,17 +450,10 @@ static func warm_place(root: Node, low: bool) -> void:
 
 
 ## The viewports the sky draws itself in, in any style: SIMPLIFIED's and
-## RADIANT's stars, place and composite, PAINTED's band memory besides, LEGACY's
-## picture and its copy. The composite (what is drawn, and sized to the screen's
+## RADIANT's stars, place and composite, PAINTED's band memory besides. The composite (what is drawn, and sized to the screen's
 ## share) last. Empty until they are built.
 func sky_viewports() -> Array[SubViewport]:
 	var out: Array[SubViewport] = []
-	if _legacy != null:
-		if _legacy._vp != null:
-			if _legacy._hvp != null:
-				out.append(_legacy._hvp)
-			out.append(_legacy._vp)
-		return out
 	if _vp == null:
 		return out
 	for v: SubViewport in [_svp, _pvp, _tvp]:
@@ -509,8 +484,7 @@ func _gfx_step(delta: float) -> void:
 		_gfx_probe = GpuProbe.new(vps, ChartRadiant.PROBE_FRAMES)
 		_gfx_on = comp.get_instance_id()
 		_gfx_tries += 1
-		# (LEGACY's chart is the same on LOW: measured as it is)
-		_gfx_low = _low_now and _legacy == null
+		_gfx_low = _low_now
 	var hidden := not get_window().has_focus() or (Engine.max_fps > 0 and Engine.max_fps < GpuProbe.CAP_HIDES)
 	if not _gfx_probe.step(GpuProbe.full_sky_scale(comp.size), -1.0 if hidden else delta):
 		return
@@ -560,16 +534,12 @@ func _on_style() -> void:
 
 ## Whether this galaxy is baked, palette and all.
 func ready_baked() -> bool:
-	if _legacy != null:
-		return _legacy.ready_baked()
 	return bool((_baked.get(_key, {}) as Dictionary).get("ready", false))
 
 
 ## Whether the galaxy is drawn as it is meant to be, palette and all (what a
 ## harness waits for).
 func ready_to_draw() -> bool:
-	if _legacy != null:
-		return _legacy.ready_to_draw() and _legacy._palette_for(ChartLegacy.level_of(_legacy._z())) >= 0
 	return ready_baked() and _vp != null and _lut_on
 
 
@@ -585,23 +555,6 @@ func _g_for() -> Dictionary:
 ## Hand the chart over; bake its galaxy if nobody has.
 func setup(c: StarchartScreen.MapChart) -> void:
 	chart = c
-	if ChartLegacy.wanted():
-		if _vp != null:
-			_vp.queue_free()
-			_vp = null
-		_key = ""
-		if _legacy == null:
-			_legacy = ChartLegacy.new()
-			_legacy.name = "Legacy"
-			# (keyed onto the field with the rest of the sky: `MapChart.on_field`)
-			_legacy.use_parent_material = true
-			add_child(_legacy)
-		_legacy.interval = interval
-		_legacy.setup(c)
-		return
-	if _legacy != null:
-		_legacy.queue_free()
-		_legacy = null
 	_use_map = c.run_galaxy
 	# the style is part of the key: a simplified bake and a painted one differ
 	var key := galaxy_key() + ("|map" if _use_map else "") + ("|painted" if ChartPainted.wanted() else "") 		+ ("|radiant" if ChartRadiant.wanted() and not ChartPainted.wanted() else "")
@@ -875,8 +828,6 @@ static func params(_use_map: bool = true) -> Dictionary:
 ## THE HOLE's shadow radius on the screen now, in chart px (0 before the sky is
 ## made): the chart keeps its marks out of it.
 func hole_px() -> float:
-	if _legacy != null:
-		return _legacy.hole_px()
 	if chart == null or _g_for().is_empty():
 		return 0.0
 	return float(_g_for().p.hole_r) * _k() * chart.zoom
@@ -995,7 +946,7 @@ func _process(delta: float) -> void:
 	if not _job.is_empty() and Engine.get_frames_drawn() > int(_job.frame):
 		_advance()
 	_gfx_step(delta)
-	if chart == null or _legacy != null:
+	if chart == null:
 		return
 	if _vp == null and not _g_for().is_empty():
 		_runtime()
@@ -2161,9 +2112,6 @@ var _push_queued := false
 ## A push at the end of this frame, after whatever is still to move the view
 ## has moved it (a glide's tween runs after every _process).
 func queue_push() -> void:
-	if _legacy != null:
-		_legacy.queue_push()
-		return
 	if _push_queued:
 		return
 	_push_queued = true
@@ -2177,10 +2125,6 @@ func _late_push() -> void:
 
 ## Every frame: the view, the turn and the clock, to the three passes.
 func push() -> void:
-	if _legacy != null:
-		_legacy.interval = interval
-		_legacy.push()
-		return
 	if chart == null or _vp == null or _g_for().is_empty():
 		return
 	var t_us := Time.get_ticks_usec()
@@ -2487,10 +2431,6 @@ func _draw() -> void:
 	# Built and handed over at the first draw, once the layout has given the
 	# chart its real size.
 	chart._ensure_gpu()
-	if _legacy != null:
-		# the legacy renderer draws itself, and asks for its own redraws
-		_legacy.queue_redraw()
-		return
 	if _vp == null or _g_for().is_empty():
 		draw_rect(Rect2(Vector2.ZERO, chart.size), Color8(7, 10, 18), true)
 	else:

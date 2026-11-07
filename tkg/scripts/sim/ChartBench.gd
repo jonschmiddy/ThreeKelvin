@@ -1,7 +1,7 @@
 extends RefCounted
 
 ## What the star chart costs, still, dragged and zoomed:
-##   godot --path . -- chartbench [style=legacy] [graphics=low] [calm]
+##   godot --path . -- chartbench [style=painted|radiant] [graphics=low] [calm]
 ##
 ## NEEDS A WINDOW, like every other measurement of drawing in this project:
 ## under `--headless` the dummy display server never emits `frame_post_draw` and
@@ -192,8 +192,7 @@ func _save(tree: SceneTree, path: String) -> void:
 ## The chart's sky draws into a viewport of its own (`ChartSky`), whose GPU
 ## time the game's viewport does not include: measured beside it.
 ## (The simplified sky is three viewports -- stars, place, composite -- and
-## all three are counted; the painted sky a fourth, its band memory; the legacy
-## sky one, every pass inside it.)
+## all three are counted; the painted sky a fourth, its band memory.)
 func _sky_rid(chart: Node) -> Array[RID]:
 	var out: Array[RID] = []
 	if chart == null or not is_instance_valid(chart):
@@ -202,11 +201,7 @@ func _sky_rid(chart: Node) -> Array[RID]:
 	if sky == null:
 		return out
 	var vps: Array = []
-	if sky._legacy != null:
-		if sky._legacy._vp == null:
-			return out
-		vps = [sky._legacy._vp]
-	elif sky._vp == null:
+	if sky._vp == null:
 		return out
 	else:
 		vps = [sky._svp, sky._pvp, sky._vp] + ([sky._tvp] if sky._tvp != null else [])

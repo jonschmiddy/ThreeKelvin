@@ -26,14 +26,6 @@ render_mode unshaded, blend_disabled;
 // mode 1 -> T1: r billows (`bil`), g fine, b far gas, a veil
 // mode 2 -> T2: gradients of T0's gas (rg) and dust (ba), 0.5 + g * GK
 //
-// LEGACY (`legacy`, for `sky_nebula_legacy.gdshader`): the old cloud's own
-// noises, raw, for it to stream on the current instead of churning in place.
-// A value that is ridged after reading is held in two channels, high and low
-// (`hilo`), so its crest keeps its edge:
-// mode 0 -> emission: fing (rg), lane (ba); reflection: striations (r);
-//           planetary: clumps (r); remnant: fil (rg), fil2 (ba)
-// mode 1 -> billows (rg, high and low), fine (b)
-
 uniform int mode = 0;
 uniform int kind = 0;
 uniform int shape = 0;
@@ -48,7 +40,6 @@ uniform sampler2D src : filter_nearest, repeat_disable;
 uniform vec4 pil_a[8];
 uniform vec4 pil_b[8];
 uniform int n_pil = 0;
-uniform bool legacy = false;
 
 #include "res://shaders/sky_noise.gdshaderinc"
 
@@ -197,48 +188,9 @@ vec4 field0(vec2 sp) {
 	}
 }
 
-// a value 0..1 in two channels: the high step and what is left of it
-vec2 hilo(float v) {
-	float s = clamp(v, 0.0, 1.0) * 255.0;
-	return vec2(floor(s) / 255.0, fract(s));
-}
-
-// LEGACY's noises (the old `sky_nebula` terms, without their churn)
-vec4 legacy0(vec2 sp) {
-	vec2 u = sp / 430.0 + vec2(sd * 1.7, sd * 0.9);
-	if (kind == 0) {
-		vec2 c0 = spot(1.0, vec2(-160.0, -120.0), vec2(1120.0, 660.0));
-		vec2 dc = sp - c0;
-		float r = length(dc) / 720.0;
-		vec2 dir = dc / max(length(dc), 1.0);
-		return vec4(hilo(fbm(dir * 2.8 + vec2(r * 0.9 + sd, sd * 2.0), 3)), hilo(fbm(u * 2.2 + vec2(sd, 11.0), 3)));
-	} else if (kind == 1) {
-		return vec4(noise2(vec2(dot(u, vec2(0.8, 0.6)) * 12.0, dot(u, vec2(-0.6, 0.8)) * 1.5) + vec2(sd, 0.0)), 0.0, 0.0, 1.0);
-	} else if (kind == 2) {
-		vec2 pc = spot(1.0, vec2(-80.0, -60.0), vec2(1040.0, 600.0));
-		float aa = hash2(vec2(sd, 77.0)) * 3.1416;
-		vec2 d = sp - pc;
-		vec2 dd = vec2(d.x * cos(aa) - d.y * sin(aa), d.x * sin(aa) + d.y * cos(aa));
-		if (shape == 1 || shape == 2) dd.y *= 1.5;
-		float R0 = max(380.0, length(pc - vec2(480.0, 270.0)) * (0.75 + 0.35 * hash2(vec2(sd, 41.0))));
-		return vec4(fbm(dd / R0 * 9.0 + vec2(sd, 4.0), 3), 0.0, 0.0, 1.0);
-	} else if (kind == 3) {
-		return vec4(hilo(fbm(u * 2.4 + vec2(sd, 2.0), 4)), hilo(fbm(u * 3.6 + vec2(3.0, sd), 4)));
-	}
-	return vec4(0.0, 0.0, 0.0, 1.0);
-}
-
 void fragment() {
 	vec2 ij = floor(UV * tex);
-	if (legacy && mode != 2) {
-		vec2 sp = (ij - mb) * 2.0 + 1.0;
-		if (mode == 0) {
-			COLOR = legacy0(sp);
-		} else {
-			vec2 u = sp / 430.0 + vec2(sd * 1.7, sd * 0.9);
-			COLOR = vec4(hilo(fbm(u * 1.4, 5)), fbm(u * 4.2 + vec2(5.0, sd), 4), 1.0);
-		}
-	} else if (mode == 2) {
+	if (mode == 2) {
 		ivec2 c = ivec2(ij), mx = ivec2(tex) - 1;
 		vec4 xp = texelFetch(src, clamp(c + ivec2(1, 0), ivec2(0), mx), 0), xm = texelFetch(src, clamp(c - ivec2(1, 0), ivec2(0), mx), 0);
 		vec4 yp = texelFetch(src, clamp(c + ivec2(0, 1), ivec2(0), mx), 0), ym = texelFetch(src, clamp(c - ivec2(0, 1), ivec2(0), mx), 0);

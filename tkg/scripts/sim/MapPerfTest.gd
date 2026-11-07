@@ -5,7 +5,7 @@ extends Node
 ##   godot --path . -- sheet=MapPerfTest palcache        (needs a window)
 ##
 ## Each trim is held to the code it replaced, through the real map:
-##   * THE DUST: a wisp sheet whose colour is black (a clear sky, outside LEGACY)
+##   * THE DUST: a wisp sheet whose colour is black (a clear sky)
 ##     is not built (`SystemView._wisps_blank`); every fluff sheet keeps the seed
 ##     it had when the wisps were built before it (HIGH and LOW), and a cloud,
 ##     a pulsar and the core keep all nine sheets;
@@ -120,7 +120,7 @@ func _seed(sd: int) -> void:
 func _dust(view, key: String, low: bool) -> void:
 	var blank: bool = view._wisps_blank()
 	var dl: Array = view._depth_look()
-	_ok("%s: a blank wisp is a black one outside LEGACY" % key, blank == (not view.legacy and dl[3] == Vector3.ZERO))
+	_ok("%s: a blank wisp is a black one" % key, blank == (dl[3] == Vector3.ZERO))
 	if key == "nebula" or key == "pulsar" or key == "core":
 		_ok("%s keeps its wisps" % key, not blank)
 	var far_old: Array = []

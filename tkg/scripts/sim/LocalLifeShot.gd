@@ -4,7 +4,7 @@ extends Node
 ## traffic), each frame both ways:
 ##   godot --path . --windowed --position 3840,0 --fixed-fps 30 -- sheet=LocalLifeShot
 ##       out=<dir> [cases=<case>[:<hide>[:approach]],...] [hide=air|night|moons|traffic|all]
-##       [frames=240] [warm=70] [style=simplified|painted|radiant|legacy]
+##       [frames=240] [warm=70] [style=simplified|painted|radiant]
 ##       [approach] [bench]
 ## For each case: a new run (its seed), the ship parked as the sector map leaves
 ## it, LOCAL shown; then `frames` frames, each saved TWICE -- as played

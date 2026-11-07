@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Removed** — the LEGACY render style. Settings now offers SIMPLIFIED, PAINTED and RADIANT. If you
+  had LEGACY picked, the game starts in SIMPLIFIED and saves that. Its own star chart, sector map
+  cloud, LOCAL sky, grey belts and pulsar web are gone with it; the black hole it shared with every
+  style stays. Jon, Nov 7: "legacy feels too realistic".
 - **Fixed** — in co-op, two ships that start different fights in the same system at the same moment
   now end up in one fight, the one that started first, on both screens. The second ship's log says
   "VELA got here first. You join their fight." Before, it could show the wrong enemy, take hits from

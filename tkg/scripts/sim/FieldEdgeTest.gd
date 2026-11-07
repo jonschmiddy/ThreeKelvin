@@ -13,7 +13,7 @@ extends Node
 ## its edge -- to within the field's own line-to-line variation, and the lines
 ## either side of the edge never differ by more than the field's own step
 ## there. `out=`: each strip written beside the screen, as PNGs, for a look.
-## In every style (`style=legacy|simplified|painted|radiant`, the game's own
+## In every style (`style=simplified|painted|radiant`, the game's own
 ## switch) and in a system inside a cloud (`at=nebula`: the map's cloud runs
 ## past its picture, cloud:A -- the edge is then read against the gas either
 ## side of it, not the field). And LOCAL's stars ARE the field's (styles:now):
@@ -161,7 +161,7 @@ func _local_match() -> void:
 ## with `past_on`), not a mirror or a copy of gas from elsewhere. Where the
 ## strip starts over the picture's last 32 px it is the same gas, drawn the
 ## same way: its light follows the picture's there (correlation 1.00 in
-## SIMPLIFIED and LEGACY on seed 4242's cloud; the picture's own gas mirrored
+## SIMPLIFIED (and LEGACY, while it was a style) on seed 4242's cloud; the picture's own gas mirrored
 ## there 0.25, moved 16 px 0.19-0.34; the cloud alone without the sky and dust
 ## sheets under it 0.24-0.57) at its level (within 2).
 func _cloud_past() -> void:
@@ -322,8 +322,7 @@ func _chart_edges() -> void:
 		return
 	var ch := scr._chart
 	var sky: Node2D = ch._sky
-	var lg: Variant = sky.get("_legacy")
-	var src: Node = lg if lg is Node and is_instance_valid(lg) else sky
+	var src: Node = sky
 	var pr := ch.get_global_rect()
 	var c := Router.content.get_global_rect()
 	var plates: Array = []
@@ -648,8 +647,7 @@ func _check(which: String) -> void:
 		# (the plate's own pictures -- a star's portrait, a glow -- left out: only
 		# pixels near the plate's own dark, split by the field's under them, the
 		# field's stars against its void)
-		# (the field's own ground under it: its dark where it is dark, LEGACY's
-		# wash where that lifts it)
+		# (the field's own ground under it: its dark where it is dark)
 		var fl_all: Array = []
 		for y in range(int(r.position.y), int(r.end.y), 4):
 			for x in range(int(r.position.x), int(r.end.x), 4):

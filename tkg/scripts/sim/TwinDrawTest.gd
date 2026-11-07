@@ -149,11 +149,11 @@ static func _sun(L: SystemLayout, p: int, z: float, after: bool) -> Vector2:
 	if not after:
 		var raw0 := SystemLayout.sun_drawn(r, z)
 		return Vector2(raw0, SystemLayout.held_most(raw0, SystemLayout.SUN_LEAST))
-	var raw := r * SystemViewS.sun_raw_k(r, z, false)
+	var raw := r * SystemViewS.sun_raw_k(r, z)
 	var cap := INF
 	if L.twin and z < L.fit_zoom:
-		raw = minf(raw, r * SystemViewS.sun_raw_k(r, L.fit_zoom, false) * z / L.fit_zoom)
-		cap = SystemViewS.twin_held_cap(r, z, L.fit_zoom, false)
+		raw = minf(raw, r * SystemViewS.sun_raw_k(r, L.fit_zoom) * z / L.fit_zoom)
+		cap = SystemViewS.twin_held_cap(r, z, L.fit_zoom)
 	return Vector2(raw, minf(SystemLayout.held_most(raw, SystemLayout.SUN_LEAST), cap))
 
 

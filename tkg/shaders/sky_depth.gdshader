@@ -47,7 +47,8 @@ uniform vec3 ev_col = vec3(0.55, 0.62, 0.8);
 // near it: the sun's light falls off with distance (gathered, in the cloud's
 // light px), from `lit_far` to `lit_near` as it nears; the wisps in the
 // cloud's own glow, faint far out
-uniform bool simplified = false;
+// (always, since LEGACY went on Nov 7: its sheets were the other side of this)
+const bool simplified = true;
 uniform vec3 dark_col = vec3(0.10, 0.05, 0.08);
 uniform vec3 lit_far = vec3(0.45, 0.30, 0.34);
 uniform vec3 lit_near = vec3(0.34, 0.50, 0.47);
@@ -67,7 +68,6 @@ uniform float lscale = 0.94;
 // one of these is off: the sheet is as Jon approved it.
 uniform float dist = 0.0;
 // PAINTED: its paint pass bands the sheets itself; none of the close-in work
-// (nor in LEGACY, the sheets as they were: only with `simplified`)
 uniform bool painted = false;
 
 float hash2(vec2 p) {

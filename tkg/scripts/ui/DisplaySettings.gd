@@ -105,23 +105,27 @@ static var vsync: bool = true
 ## headless test reads, since a headless window has no V-Sync to ask.
 static var applied_vsync: int = -1
 
-## HOW THE STAR CHART AND THE SECTOR MAP ARE RENDERED. Four styles, in the
+## HOW THE STAR CHART AND THE SECTOR MAP ARE RENDERED. Three styles, in the
 ## order Settings lists them (Jon, 2026-10-05, after the "Rendered Again"
-## showcase and the port): LEGACY, the look from before the port ("I kind of
-## don't want to lose the BEFORE look"); SIMPLIFIED, the game's layered look
-## refined and set in motion (direction C, "Alive", THE DEFAULT for now);
-## PAINTED, every pixel placed by a pixel artist's hand (direction B, "for
-## aesthetics"); RADIANT, light through gas (direction A, "for photos
-## probably"). All of them share SIMPLIFIED's animations and its black hole
-## (`LegacyHole`, named before the rename).
-const STYLES: Array[StringName] = [&"legacy", &"simplified", &"painted", &"radiant"]
+## showcase and the port): SIMPLIFIED, the game's layered look refined and set
+## in motion (direction C, "Alive", THE DEFAULT for now); PAINTED, every pixel
+## placed by a pixel artist's hand (direction B, "for aesthetics"); RADIANT,
+## light through gas (direction A, "for photos probably"). All of them share
+## SIMPLIFIED's animations and its black hole (`LegacyHole`, named before the
+## rename). LEGACY, the look from before the port, was a fourth until Jon let it
+## go (Nov 7: "legacy feels too realistic"); a file or a harness that still asks
+## for it gets SIMPLIFIED (`valid_style`).
+const STYLES: Array[StringName] = [&"simplified", &"painted", &"radiant"]
+## The order the styles had while LEGACY was one, for a value saved as its
+## place in the list rather than its name (`valid_style`).
+const OLD_ORDER: Array[StringName] = [&"legacy", &"simplified", &"painted", &"radiant"]
 ## The default, and what anything unknown or not built falls back to.
 const DEFAULT_STYLE := &"simplified"
 ## Which styles have a renderer. A style not in here cannot be chosen, and
 ## Settings builds no STYLE row at all until there are two to choose between
 ## (only pressable things look pressable). Add a style here when its renderer
 ## lands, and nowhere else.
-const BUILT: Array[StringName] = [&"legacy", &"simplified", &"painted", &"radiant"]
+const BUILT: Array[StringName] = [&"simplified", &"painted", &"radiant"]
 static var render_style: StringName = DEFAULT_STYLE
 ## GRAPHICS LOW: the cheaper path every style's renderer keeps (the chart's
 ## fewer depth sheets and no billow march, the sector map's one field read,
@@ -162,7 +166,6 @@ static func style_built(s: StringName) -> bool:
 
 static func style_name(s: StringName) -> String:
 	match s:
-		&"legacy": return "LEGACY"
 		&"painted": return "PAINTED"
 		&"radiant": return "RADIANT"
 		_: return "SIMPLIFIED"
@@ -176,10 +179,13 @@ static func built_styles() -> Array[StringName]:
 	return out
 
 ## A saved or asked-for value, as a style that can be drawn: anything unknown or
-## not built yet is the default. (A file saved before the rename that says
-## "legacy" meant what is now SIMPLIFIED; LEGACY is not built, so it loads as
-## SIMPLIFIED, which is what that player had.)
+## not built is the default. "legacy" (the style Jon dropped on Nov 7, or, in a
+## file from before the Oct 5 rename, what is now SIMPLIFIED) loads as
+## SIMPLIFIED, and the next save writes that. A whole number is a place in the
+## list as it was while LEGACY was in it (`OLD_ORDER`), so 0 is SIMPLIFIED too.
 static func valid_style(v: Variant) -> StringName:
+	if v is int:
+		v = OLD_ORDER[v] if v >= 0 and v < OLD_ORDER.size() else DEFAULT_STYLE
 	var s := StringName(str(v))
 	return s if style_built(s) else DEFAULT_STYLE
 
@@ -606,7 +612,7 @@ static func load_and_apply() -> void:
 		_apply_vsync()
 	# `-- style=painted` / `-- graphics=low`: a harness's shot in that style or at
 	# that setting, in memory only (nothing is saved). A style that is not built
-	# draws as LEGACY, and says so.
+	# draws as SIMPLIFIED, and says so.
 	for a in (harness_args if not harness_args.is_empty() else OS.get_cmdline_user_args()):
 		var arg := a as String
 		if arg.begins_with("style="):

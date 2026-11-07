@@ -133,7 +133,7 @@ func _orbit_clip(dir: String) -> void:
 	var view := sc._view
 	var hid: Array[CanvasItem] = []
 	for c in view.get_children():
-		if c is CanvasItem and c != view.backdrop and c != view.weather and c != view.get("dust") and (c as CanvasItem).visible:
+		if c is CanvasItem and c != view.backdrop and c != view.get("dust") and (c as CanvasItem).visible:
 			(c as CanvasItem).visible = false
 			hid.append(c)
 	await RenderingServer.frame_post_draw

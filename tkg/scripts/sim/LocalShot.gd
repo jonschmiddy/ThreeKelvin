@@ -4,7 +4,7 @@ extends Node
 ## system of a chosen sky, quiet or mid-fight, in the style on the command line.
 ##
 ##   godot --path . --windowed --position 3840,0 -- sheet=LocalShot keepwindow
-##       [style=simplified|legacy|painted|radiant] [graphics=low] [seed=N]
+##       [style=simplified|painted|radiant] [graphics=low] [seed=N]
 ##       [sky=emission|reflection|planetary|remnant|dark|calm|pulsar|core] [node=I]
 ##       [combat [fire]] [approach] [wait=F] [out=<png>] [skyout=<png>]
 ##       [clip=<dir> clipframes=61 clipms=33 cliph=297] [stats=<json>] [bare=<png>] [reduced]
@@ -210,7 +210,7 @@ func _run() -> void:
 			_rects(view, r_ships, r_labels)
 		var hid: Array[CanvasItem] = []
 		for c in view.get_children():
-			var keep_c: bool = c == view.get("dust") or (not "dustonly" in _args and (c == view.backdrop or c == view.weather))
+			var keep_c: bool = c == view.get("dust") or (not "dustonly" in _args and c == view.backdrop)
 			if not "clipfull" in _args and c is CanvasItem and not keep_c and (c as CanvasItem).visible:
 				(c as CanvasItem).visible = false
 				hid.append(c)

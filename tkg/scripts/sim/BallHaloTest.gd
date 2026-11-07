@@ -32,9 +32,7 @@ extends Node
 ## 1.72x and PAINTED 1.88x on Jon's galaxy, both still lit at the frame's bottom.
 ## A spiral and a lenticular are printed for comparison and never fail: they are
 ## discs, and a disc's near half IS bigger through the camera.
-## LEGACY too (Jon, Oct 18, "legacy:A"): its balls were read on the disc's plane
-## like the others' (0.27 gu above the core, 0.46 below on PGC 6236) and are
-## drawn round their core now (`chart_l_field`'s `ball_core`); judged by reach.
+## (LEGACY was judged too, by reach alone, until that style went on Nov 7.)
 ## AND THE FRAME: LOCAL REGION's frame (`MapChart.frame_region`) of every galaxy, a
 ## ball's as a spiral's, is the systems near you (Jon, Oct 21, for 0.3.0; his
 ## "frame:A" of Oct 18 framed a ball whole, its core and lit radius, so L went from
@@ -104,7 +102,7 @@ func _run() -> void:
 	print("\n=== BALL HALO: a ball galaxy's light about its core ===")
 	StarchartScreen.MapChart.clock_override = 600.0
 	DisplaySettings.reduced_motion = false
-	var styles := _arg("styles", "simplified,painted,radiant,legacy").split(",")
+	var styles := _arg("styles", "simplified,painted,radiant").split(",")
 	# (Jon's galaxy as rolled; then every ball kind and two discs on its seed)
 	var cases: Array = [[SEED, -1]]
 	for k in BALL_KINDS + DISC_KINDS:
@@ -155,11 +153,8 @@ func _case(st: StringName, seed_v: int, kind: int) -> void:
 	var m := _measure(img0, core, gu)
 	var name := "%s %s" % [GalaxyGen.type_name(Run.galaxy_kind), Run.galaxy_name if kind < 0 else "(forced)"]
 	var ratio: float = maxf(m.down, 0.01) / maxf(m.up, 0.01)
-	# (LEGACY by its reach alone: its own dust lies where its seed puts it, and on Jon's
-	# galaxy it lies under the core -- 0.22 of the light lopsided upward in the flat chart,
-	# no camera at all, `chartflat`; the camera's stretch is what the reach measures)
 	var hard: bool = ball and st == &"radiant" and m.fade < FADE_MIN
-	var bad := ball and (ratio > REACH_MAX or ratio < 1.0 / REACH_MAX or (absf(m.asym) > ASYM_MAX and st != &"legacy") or hard)
+	var bad := ball and (ratio > REACH_MAX or ratio < 1.0 / REACH_MAX or absf(m.asym) > ASYM_MAX or hard)
 	if bad:
 		_fails += 1
 	print("  %-10s %-34s reach above %.2f%s below %.2f%s gu (x%.2f)  asym %+.2f  fade %.2f%s  %s" % [
@@ -321,7 +316,6 @@ func _open(fresh: bool = false) -> Dictionary:
 	if fresh:
 		ChartSky._baked.clear()
 		ChartSky._early.clear()
-		ChartLegacy._baked.clear()
 	var old := Router.current
 	Router.show_starchart()
 	var t0 := Time.get_ticks_msec()

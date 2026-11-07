@@ -160,8 +160,11 @@ func _style_case() -> void:
 	DisplaySettings.path = SCRATCH
 	var fresh := ConfigFile.new()
 	_ok("  a fresh settings file is SIMPLIFIED", DisplaySettings.style_in(fresh) == &"simplified")
-	_ok("  SIMPLIFIED is built, LEGACY first in the list", DisplaySettings.style_built(&"simplified")
-		and DisplaySettings.STYLES[0] == &"legacy" and DisplaySettings.STYLES[1] == &"simplified")
+	_ok("  SIMPLIFIED is built and first in the list", DisplaySettings.style_built(&"simplified")
+		and DisplaySettings.STYLES[0] == &"simplified")
+	_ok("  LEGACY is gone: not built, not listed, three styles (%s)" % [DisplaySettings.STYLES],
+		not DisplaySettings.style_built(&"legacy") and not DisplaySettings.STYLES.has(&"legacy")
+		and str(DisplaySettings.STYLES) == str([&"simplified", &"painted", &"radiant"]))
 	var heard := [0]
 	var on_change := func() -> void: heard[0] += 1
 	Sig.render_style_changed.connect(on_change)
@@ -181,6 +184,24 @@ func _style_case() -> void:
 		var back := ConfigFile.new()
 		back.load(SCRATCH)
 		_ok("  a saved %s loads as the default" % [JSON.stringify(bad)], DisplaySettings.style_in(back) == DisplaySettings.DEFAULT_STYLE)
+	# LEGACY WENT (Jon, Nov 7): a file that chose it, by name or by its old place
+	# in the list (0), loads through the boot's own read as SIMPLIFIED with no
+	# error, and that read's save writes SIMPLIFIED over it; the other three keep
+	# what they were saved as, by name and by their old places (1, 2, 3), so
+	# nobody else's choice moves
+	for c: Array in [["legacy", &"simplified"], [0, &"simplified"], ["simplified", &"simplified"],
+			[1, &"simplified"], ["painted", &"painted"], [2, &"painted"], ["radiant", &"radiant"], [3, &"radiant"]]:
+		var f := ConfigFile.new()
+		f.set_value("display", "mode", int(DisplaySettings.mode))
+		f.set_value("display", "window_scale", DisplaySettings.window_scale)
+		f.set_value("display", "render_style", c[0])
+		f.save(SCRATCH)
+		DisplaySettings.load_and_apply()
+		var after := ConfigFile.new()
+		after.load(SCRATCH)
+		var wrote := str(after.get_value("display", "render_style", ""))
+		_ok("  a saved %s loads as %s and is saved as %s" % [JSON.stringify(c[0]), String(c[1]).to_upper(), wrote],
+			DisplaySettings.render_style == c[1] and wrote == String(c[1]))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
 	DisplaySettings.render_style = &"simplified"
 	DisplaySettings.save()
