@@ -44,9 +44,7 @@ static func tier_colour(tier: StringName) -> Color:
 	return ModuleData.rarity_ink(tier_rarity(tier))
 const GOOD := Color("#7fb89a")
 
-## Brace, wherever it is drawn: the enemy's pips (`EnemySlot.ARMOR_COL`), what
-## brace took in a hit (`HitText`), and the segment on your hull bar
-## (`HullBar`). Steel, so it never reads as a second kind of hull.
+## Brace, wherever it is drawn. Steel, so it never reads as a second kind of hull.
 const BRACE := Color("#9fb0c4")
 
 ## A mount reaching for the thing you are holding. See ModuleCell.Tractor.

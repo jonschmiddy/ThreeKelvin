@@ -846,7 +846,7 @@ func _collect_boxes(n: Node, out: Array[Rect2]) -> void:
 			if (c as Label).text.strip_edges() != "":
 				out.append(EnemySlot.text_rect(c as Label))
 		elif c is HullBar:
-			# its brace hangs past its own right end (`HullBar.drawn_rect`)
+			# its brace hangs past its own right end
 			out.append((c as HullBar).drawn_rect())
 		elif c is ProgressBar or c is EnemySlot.BracePips:
 			out.append((c as Control).get_global_rect())

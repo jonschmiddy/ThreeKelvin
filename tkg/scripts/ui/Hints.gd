@@ -1618,8 +1618,7 @@ func probe(id: StringName, staying: bool = false) -> Dictionary:
 			var cb: Combat = Router.combat
 			if not _hand_settled(sc) or cb == null or cb.brace_held <= 0 or cb.brace <= 0:
 				return {}
-			# THE BRACE ON YOUR HULL BAR and its "+N" (issue #37: it was a chip
-			# under the bar, and this pointed at the chip)
+			# the brace on your hull bar, and its "+N"
 			var bar: HullBar = sc._self_bar
 			var num: Label = sc._self_brace
 			if bar == null or num == null or not bar.is_visible_in_tree() \

@@ -32,11 +32,11 @@ class BracePips extends Control:
 		var x: float = (size.x - w) * 0.5
 		for i in n:
 			draw_rect(Rect2(Vector2(x + i * (CELL.x + GAP), 0), CELL),
-				EnemySlot.ARMOR_COL, true)
+				UITheme.BRACE, true)
 		# More than the strip can hold says so rather than lying about the count.
 		if value > n:
 			draw_rect(Rect2(Vector2(x + w + 2, 1), Vector2(2, CELL.y - 2)),
-				EnemySlot.ARMOR_COL, true)
+				UITheme.BRACE, true)
 
 ## One enemy in the encounter, and the thing you drop a card onto to target it.
 ##
@@ -62,8 +62,6 @@ var _bar: ProgressBar
 var _brace_bar: BracePips
 ## Gives `art` a position of its own that the column does not overwrite.
 var _art_holder: Control
-## Steel, so it never reads as a second kind of hull.
-const ARMOR_COL := UITheme.BRACE
 var _hot: bool = false
 ## Told by the view when another slot takes the cursor.
 var claim: Callable

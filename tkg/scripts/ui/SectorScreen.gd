@@ -72,7 +72,7 @@ var _self_bar: HullBar
 var _self_name: Label
 var _self_plate: VBoxContainer
 var _self_hp: Label
-## "+17" beside the hull's number while brace is up. See `_sync_self_brace`.
+## "+17" beside the hull's number while brace is up.
 var _self_brace: Label
 var _enemy_name: Label
 var _enemy_tag: Label
@@ -1181,8 +1181,6 @@ func _build_self_plate() -> void:
 	_self_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(_self_name)
 
-	# YOUR BRACE IS ON THIS BAR, in steel past the end of the hull fill (issue
-	# #37). See `HullBar` for why it extends rather than rescales.
 	_self_bar = HullBar.new()
 	_self_bar.custom_minimum_size = Vector2(PLATE_W, 6)
 	# SHRINK, or the bar is as wide as the widest thing under it. A VBox fills
@@ -1192,8 +1190,7 @@ func _build_self_plate() -> void:
 	_self_bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	col.add_child(_self_bar)
 
-	# "37 / 40 +17": the hull's number, and the brace's in the brace's steel,
-	# on one line, the way they sit on the bar above.
+	# "37 / 40 +17", the way the two sit on the bar above.
 	var nums := HBoxContainer.new()
 	nums.add_theme_constant_override("separation", 4)
 	nums.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -1202,15 +1199,14 @@ func _build_self_plate() -> void:
 	_self_hp = UITheme.body("", UITheme.HULL_GREEN, UITheme.FS_SMALL)
 	_self_hp.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	nums.add_child(_self_hp)
-	# THE CHIP'S TOOLTIP CAME WITH IT: the brace chip was the one place that
-	# said brace costs heat to hold, and the number is what you point at now.
+	# STOP so its tooltip shows: the one place that says brace costs heat to hold.
 	_self_brace = UITheme.body("", UITheme.BRACE, UITheme.FS_SMALL)
 	_self_brace.mouse_filter = Control.MOUSE_FILTER_STOP
 	_self_brace.visible = false
 	nums.add_child(_self_brace)
 
 	# THE CHIPS COME DOWN HERE FROM THE RAIL. They are things carried on YOUR
-	# hull -- brace, block, lock-on, a charging card -- so they belong on the
+	# hull -- block, lock-on, a charging card -- so they belong on the
 	# hull rather than in a strip beside the deck. It also gives the draw pile
 	# the twenty-two pixels the rail was spending on a row that is empty most of
 	# the time.
@@ -2369,23 +2365,16 @@ func _refresh_self_plate() -> void:
 	_self_hp.add_theme_color_override("font_color",
 		UITheme.LEAVE if frac < 0.34 else (UITheme.EMBER if frac < 0.67
 			else UITheme.HULL_GREEN))
-	# Out of a fight there is no brace (and the plate is hidden anyway); in
-	# one, brace follows `_refresh_player`, which holds it back with the rest
-	# of the statuses while a turn is being shown.
+	# In a fight brace comes from `_refresh_player` and `_on_volley_landed`.
 	if not fighting():
-		_sync_self_brace()
+		_show_self_brace(0)
 	_place_self_plate()
 
 
-## Your brace on your hull bar, and its number beside the hull's.
-##
-## Called from `_refresh_player` rather than `_refresh_self_plate`: the plate
-## refreshes as each shot lands (`_sync_hull`) while the turn is held back, and
-## brace was always held with the statuses until the turn has been shown.
-func _sync_self_brace() -> void:
+## Your brace on your hull bar, and its "+N" beside the hull's number.
+func _show_self_brace(b: int) -> void:
 	if _self_bar == null:
 		return
-	var b: int = combat.brace if fighting() and combat != null else 0
 	_self_bar.brace = b
 	_self_brace.visible = b > 0
 	_self_brace.text = "+%d" % b
@@ -2437,10 +2426,8 @@ func _refresh_player() -> void:
 	# The colours are the ones the words already carried, because colour is what
 	# says whose an effect is -- the two blues are yours, ember is a timer, and
 	# the drones share one steel.
-	#
-	# NO BRACE CHIP: brace is on the hull bar now (`_sync_self_brace`, issue #37),
-	# the way an enemy's has been for a while.
-	_sync_self_brace()
+	# Brace is on the hull bar instead.
+	_show_self_brace(combat.brace)
 	Widgets.clear(_player_chips)
 	if combat.block > 0:
 		_player_chips.add_child(StatusChip.make(&"block", str(combat.block),
@@ -5289,6 +5276,9 @@ func _on_volley_landed(id: int) -> void:
 			_sync_hull()
 		if _ship_fx != null:
 			_ship_fx.land(int(q.dealt), int(q.absorbed), shown_hull if shown_hull >= 0 else Run.hp)
+			# the bar's brace runs down with the hit, not at the end of the turn
+			if _hold:
+				_show_self_brace(_ship_fx.brace.brace)
 		if int(q.dealt) > 0:
 			_flash_hit(_view.ship_view())
 	elif who >= 0:
