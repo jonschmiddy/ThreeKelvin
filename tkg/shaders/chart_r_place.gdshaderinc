@@ -932,6 +932,22 @@ vec3 ballExtras(vec2 g, float blk) {
 	return C;
 }
 
+// CHIAROSCURO's grade (`u_drama.x`): what the light leaves dim is crushed toward
+// black (m*m/(m+toe), hue kept), what it lights strongly is left as it was, and
+// the whole raised (`u_dramaR.z`) so the hot cores burn through to white. The
+// galaxy's own light only (`radiance`, before the sky behind is added): graded with
+// it, the far galaxies and the faint stars fell under the toe and the sky went empty.
+vec3 dramaGrade(vec3 C) {
+	if (u_drama.x <= 0.0) {
+		return C;
+	}
+	float m = max(C.r, max(C.g, C.b));
+	if (m < 1e-6) {
+		return C;
+	}
+	return C * (m / (m + u_drama.x)) * u_dramaR.z;
+}
+
 // ------------------------------------------------------------------ the volume
 // (`vb`: the point about the core the bulge is drawn at, in the core's own frame
 // through the camera (`place`); `tk`: how much of the middle's relief is drawn here)
@@ -1381,7 +1397,11 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 		C = C * dT3 + dE;
 	}
 	float seen = bgSeen(C, u_exp);
-	C += T * (sky(vsky, u_solid ? seen : bgNebSeen(C, u_exp)) * seen + vec3(0.0021, 0.0030, 0.0062));
+	float nebSeen = u_solid ? seen : bgNebSeen(C, u_exp);
+	// (the gates read the galaxy's light as it was, so the sky goes behind it where
+	// it always did; then the chiaroscuro's grade on the galaxy alone)
+	C = dramaGrade(C);
+	C += T * (sky(vsky, nebSeen) * seen + vec3(0.0021, 0.0030, 0.0062));
 	return C;
 }
 
@@ -1407,20 +1427,6 @@ vec3 supernova(vec2 v, ivec2 blk) {
 	float dd = length((v - sv) * u_zoom);
 	c += FLARE * g * (0.34 * exp(-dd / 3.0) + 0.05 * exp(-dd / 9.0) + 0.008 * exp(-dd / 24.0));
 	return c;
-}
-
-// CHIAROSCURO's grade (`u_drama.x`): what the light leaves dim is crushed toward
-// black (m*m/(m+toe), hue kept), what it lights strongly is left as it was, and
-// the whole raised (`u_dramaR.z`) so the hot cores burn through to white.
-vec3 dramaGrade(vec3 C) {
-	if (u_drama.x <= 0.0) {
-		return C;
-	}
-	float m = max(C.r, max(C.g, C.b));
-	if (m < 1e-6) {
-		return C;
-	}
-	return C * (m / (m + u_drama.x)) * u_dramaR.z;
 }
 
 // how many times the lens squeezes the picture behind at S
@@ -1452,9 +1458,8 @@ vec3 place(vec2 v, vec2 vsc, ivec2 blk, ivec2 dq) {
 	// (the middle's relief never over the hole's own disc or where its lens bends hard)
 	float tk = lens ? smoothstep(6.5, 9.5, length(S)) : 1.0;
 	vec3 C = radiance(vbg, vbh, sb, dq, la, tk, lens ? vbs : vsc) + supernova(lens ? vbs : vsc, blk);
-	// (the chiaroscuro's grade on the galaxy's light, before the hole's disc is laid
-	// over: its bands land exactly on their palette colours, as in every style)
-	C = dramaGrade(C);
+	// (the chiaroscuro's grade is on the galaxy's light inside `radiance`, before the
+	// hole's disc is laid over: its bands land exactly on their palette colours)
 	// the near side's dust lane across the core, before the hole is laid over
 	if (u_solid && !u_isBall) {
 		C *= solidLane(v);

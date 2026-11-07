@@ -203,8 +203,12 @@ const RADIANT_KEEP_LO := 1.35
 ## front, so a giant was lit edge to edge; RADIANT's chiaroscuro brings the light
 ## round to the side (`RADIANT_LIGHT_Z`, against a unit way across the screen): a
 ## hard terminator, a share of the disc in night, the limb caught by the gas behind.
+## (Then from a little BEHIND, negative: the star is far off in the sky behind the
+## world. At +0.3 the ringed giant's night fell mostly out of frame, so its visible
+## face was all day; from behind, the terminator (hard now, planet.gdshader's
+## `r_edge`) crosses the face you see.)
 const LIGHT_Z := 140.0
-const RADIANT_LIGHT_Z := 0.3
+const RADIANT_LIGHT_Z := -0.25
 ## RADIANT's wash of the gas over a world close by (planet.gdshader's r_haze:
 ## all over, more at the limb, the gas's brightness); the band's worlds keep the
 ## shader's 0.22 / 0.45

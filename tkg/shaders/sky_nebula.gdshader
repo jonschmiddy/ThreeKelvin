@@ -217,7 +217,15 @@ uniform bool r_per = false;
 uniform float r_rings[24];
 uniform int r_nb = 0;
 // how much of the sun's light a shaft's umbra takes; a flare's height now
-uniform float r_shaft_k = 0.97;
+// (and how much of the gas's own glow a shaft takes, `r_shaft_glow`: at 0.97 and the
+// whole glow the umbra of a small world went near-black, a hard dark rod by the sun
+// that read as a ship or a missile, not as shade. A shaft is lit gas going dim:
+// the sun's scattered light mostly gone, a quarter of the gas's own glow kept.)
+uniform float r_shaft_k = 0.9;
+uniform float r_shaft_glow = 0.85;
+// how fast a shaft fades along its length (was 1.1: dark nearly to its end, an even
+// rod; at 2 it is darkest by the world and thins out, a shadow cast, not a bar)
+uniform float r_shaft_fall = 2.0;
 uniform float r_flare = 0.0;
 // SLOT A: where (on the sky, before `off`), how long ago (negative: its
 // precursor), how strong (0: none), and what the event needs
@@ -322,15 +330,19 @@ float r_shafts(vec2 px) {
 		float rt = max(bd.w, 0.5);
 		// long (the gas is deep): the umbra closes about fourteen true radii out,
 		// the shaft fades by seventy, never shorter than a few drawn radii
-		float LU = max(rt * 14.0, r * 2.0);
-		float LEN = max(rt * 70.0, r * 9.0);
+		// (and never longer on the screen than a few of its drawn sizes: the gas round
+		// a shaft scatters light into it, so a thin one fills in fast. Uncapped, a
+		// small world's shaft at the true scale ran the screen as an even dark rod
+		// that read as a ship or a missile -- review of A, Nov 7)
+		float LU = min(max(rt * 14.0, r * 2.0), r * 4.0);
+		float LEN = min(max(rt * 70.0, r * 9.0), r * 22.0);
 		if (s >= LEN) continue;
 		float w = abs(-dlt.x * u.y + dlt.y * u.x);
 		float hu = r * max(0.0, 1.0 - s / LU);
 		float hp = r * (1.0 + 0.45 * s / LU);
 		if (w >= hp) continue;
 		float across = w <= hu ? 1.0 : 0.62 * (1.0 - smoothstep(hu, hp, w));
-		float along = s <= r ? 1.0 : pow(clamp(1.0 - (s - r) / (LEN - r), 0.0, 1.0), 1.1);
+		float along = s <= r ? 1.0 : pow(clamp(1.0 - (s - r) / (LEN - r), 0.0, 1.0), r_shaft_fall);
 		float dark = across * along;
 		if (r_rings[i] > 0.0) {
 			// the rings' shadow: a thin dark stripe across the shaft, and faint wings
@@ -1484,7 +1496,7 @@ void fragment() {
 		if (star2_k > 0.0) {
 			kk = max(kk, star2_k / (1.0 + pow(length((b - star2_at) * vec2(1.0, 1.15)) / r_key, 2.0)));
 		}
-		H *= lt.sh * mix(r_key_floor, 1.0, kk);
+		H *= mix(1.0, lt.sh, r_shaft_glow) * mix(r_key_floor, 1.0, kk);
 		float hm = max(H.r, max(H.g, H.b));
 		H *= hm / (hm + r_toe) * r_gain;
 	}
