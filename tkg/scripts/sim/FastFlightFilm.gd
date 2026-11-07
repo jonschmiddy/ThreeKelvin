@@ -330,6 +330,7 @@ func _run() -> void:
 	var f0 := Engine.get_frames_drawn()
 	m.fly_to_body(to)
 	var shape := PackedFloat64Array([0.0, 0.0])
+	var pts: Array = []
 	var solved := false
 	var pace := 1.0
 	var settled := -1.0
@@ -357,6 +358,12 @@ func _run() -> void:
 		if fl.plan != null and fl.plan.res != null and not solved:
 			solved = true
 			shape = FlightSolve.shape_of(fl.plan.samp)
+			# (the plan's path, about 120 points, for a harness to draw)
+			var st := maxi(1, fl.plan.samp.size() / 120)
+			for j in range(0, fl.plan.samp.size(), st):
+				pts.append([snappedf(fl.plan.samp[j].x, 0.1), snappedf(fl.plan.samp[j].z, 0.1)])
+			var sl: Vector3 = fl.plan.samp[fl.plan.samp.size() - 1]
+			pts.append([snappedf(sl.x, 0.1), snappedf(sl.z, 0.1)])
 			pace = float(fl.plan.pace)
 			dep_in = float(fl.plan.t0) - t0
 			res_lead = float(fl.plan.res.lead)
@@ -385,7 +392,7 @@ func _run() -> void:
 		"to": L.bodies[to].name, "path": String(opts.path), "pace": float(opts.pace), "plan_pace": pace, "solved": solved,
 		"aids": ShipFlightS.aids_on(), "world_pace": world_k, "secs": settled, "ride": ride, "flew": flew, "plan_dur": plan_dur, "dep_in": dep_in, "res_lead": res_lead, "res_kind": res_kind, "frames": Engine.get_frames_drawn() - f0,
 		"bend": shape[0], "turn": shape[1], "title": title, "slow": slow, "speed": speed_words, "slow_from_frame": slow_frame,
-		"click_frame": f0, "replanned_at_click": bool(m.flight.click_replanned) if m.flight != null else false}
+		"click_frame": f0, "pts": pts, "replanned_at_click": bool(m.flight.click_replanned) if m.flight != null else false}
 	print("FILM " + JSON.stringify(rec))
 	var out := _arg("out", "")
 	if out != "":

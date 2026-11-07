@@ -347,14 +347,35 @@ const FAR_T_BACK := 18.0
 ## now 5 to 6%. One dial picks the level
 ## (`CURVED_ARC_LEVEL`; `-- arc=mild|strong|wide` for a harness, `arc_cap=`
 ## `arc_tw=` `arc_b=` `arc_aim=` `arc_dip=` `arc_w=` `arc_sw=` `arc_ref=`
-## (0: no arc look) `arc_keep=` `arc_tmax=` to try others). A flight in two
+## (0: no arc look) `arc_keep=` `arc_tmax=` `arc_s=` `arc_hook=` `arc_loop=`
+## `arc_wob=` to try others). A flight in two
 ## legs keeps the as-built dials. A bend takes time (it grows with the flight's
 ## own seconds squared), so each level flies longer on the map than the
 ## as-built search.
+## THE SHAPE'S RULES (Nov 7, the review of the arc look): the bend rewarded is
+## the farther side's less `s` times the nearer side's (an S) and `hook` times
+## how far the coast runs on past either end (a hook: p75's flights passed the
+## target and turned back), and a coast that turns more than `tmax` costs
+## `loop` px/s more (with only its reward taken away, 48 of 690 FlightTest
+## flights still turned past 240 deg and 3 past 360). The look's flight is kept
+## by its bend as rewarded, uncapped (`_arc_look`; a capped reward kept any
+## mild first look already bent 0.13). CaseScan, six seeds, 504
+## world-to-world flights a level (mild / strong / wide): bend median 0.233 /
+## 0.297 / 0.396, hooks over 0.05 2.2 / 2.2 / 7.5% (strong was 11.1%), none
+## turning past 300 deg (was 0.6%), seconds median 9.7 / 10.7 / 12.2. The
+## sweep round the star is the worlds' own line-up (median 83 deg at every
+## level); wide takes the long way round, a half orbit, where the target is
+## far enough ahead (a third of its flights sweep 120 deg or more, the 90th
+## percentile 221). Not kept: wide's aim at a half ellipse's own bend, 0.5
+## (sqrt(r1 r2) / (r1 + r2)): 0.409 median, but on the headline case it bought
+## a long coast past the target and an arrival burn that drags back (a hump
+## the coast's own shape does not see); `wob` (px/s a radian the coast turns
+## back on itself) at 100 and 200 left that flight as it was and made 3 to 5%
+## more flights flat (under 0.1).
 const CURVED_ARC := {
-	&"mild": {"cap": 60.0, "tw": 0.5, "bend": 800.0, "aim": 0.18, "dip": 0.7, "ref": 12, "keep": 12, "tmax": 240.0},
-	&"strong": {"cap": 90.0, "tw": 0.5, "bend": 800.0, "aim": 0.28, "dip": 0.7, "ref": 12, "keep": 12, "tmax": 240.0},
-	&"wide": {"cap": 90.0, "tw": 0.5, "bend": 800.0, "aim": 0.40, "dip": 0.7, "ref": 12, "keep": 12, "tmax": 240.0},
+	&"mild": {"cap": 60.0, "tw": 0.5, "bend": 800.0, "aim": 0.22, "dip": 0.7, "ref": 12, "keep": 12, "tmax": 240.0, "s": 2.0, "hook": 2.0, "loop": 300.0},
+	&"strong": {"cap": 90.0, "tw": 0.5, "bend": 800.0, "aim": 0.28, "dip": 0.7, "ref": 12, "keep": 12, "tmax": 240.0, "s": 2.0, "hook": 2.0, "loop": 300.0},
+	&"wide": {"cap": 90.0, "tw": 0.5, "bend": 800.0, "aim": 0.40, "dip": 0.7, "ref": 12, "keep": 12, "tmax": 240.0, "s": 2.0, "hook": 2.0, "loop": 300.0},
 }
 const CURVED_ARC_LEVEL := &"strong"
 ## the least more bend the arc look's flight must have over the first look's
@@ -395,6 +416,14 @@ static func curved_arc() -> Dictionary:
 				over["keep"] = maxi(int(t.substr(9)), 1)
 			elif t.begins_with("arc_tmax="):
 				over["tmax"] = maxf(float(t.substr(9)), 0.0)
+			elif t.begins_with("arc_s="):
+				over["s"] = maxf(float(t.substr(6)), 0.0)
+			elif t.begins_with("arc_hook="):
+				over["hook"] = maxf(float(t.substr(9)), 0.0)
+			elif t.begins_with("arc_loop="):
+				over["loop"] = maxf(float(t.substr(9)), 0.0)
+			elif t.begins_with("arc_wob="):
+				over["wob"] = maxf(float(t.substr(8)), 0.0)
 		var d: Dictionary = (CURVED_ARC[lv] as Dictionary).duplicate()
 		d.merge(over, true)
 		d["level"] = lv
@@ -816,6 +845,20 @@ var _aref := 0
 var _akeep := CONIC_KEEP
 var _tnmax := INF
 var _in_look := false
+## CURVED's shape dials (`CURVED_ARC` s, hook, loop): the bend rewarded is the
+## farther side's less `_sw_s` times the nearer side's (an S) and `_sw_h` times
+## how far the coast runs past either end (a hook); a coast that turns more
+## than `_tnmax` costs `_loop_pen` px/s more (a loop)
+var _sw_s := 0.0
+var _sw_h := 0.0
+var _loop_pen := 0.0
+## and `_wob_w` px/s for each radian the coast turns back on itself (its turn
+## less its net turn: a wobble, an S, a hump)
+var _wob_w := 0.0
+## the bend as rewarded, uncapped, at the node `_arc_of` last read, and in the
+## flight just priced (`_arc_look` compares the looks by it)
+var _ab_raw := 0.0
+var _e_bnd := 0.0
 var _wcap := T_CAP_WIDE
 var _wts: Array = CONIC_TS_WIDE
 var _hold := KEEP_HOLD
@@ -1120,6 +1163,10 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 		_aref = int(ad.get("ref", 0))
 		_akeep = int(ad.get("keep", CONIC_KEEP))
 		_tnmax = deg_to_rad(float(ad.get("tmax", INF)))
+		_sw_s = float(ad.get("s", 0.0))
+		_sw_h = float(ad.get("hook", 0.0))
+		_loop_pen = float(ad.get("loop", 0.0))
+		_wob_w = float(ad.get("wob", 0.0))
 		_bts = _arc_ts(_bcap)
 		if _bcap + 10.0 > T_CAP_WIDE:
 			_wcap = _bcap + 10.0
@@ -1858,7 +1905,7 @@ func _keep_best() -> void:
 	_b_J = _e_J
 	_b = {"ux": _e_ux, "uz": _e_uz, "fix": _e_fix, "afix": _e_afix, "a0": _e_a0, "td": _e_td, "ad": _e_ad,
 		"x0": _e_x0, "z0": _e_z0, "vx0": _e_vx0, "vz0": _e_vz0, "dvx": _e_dvx, "dvz": _e_dvz,
-		"te": _e_te, "s": _e_s, "phi": _e_phi, "d2": _e_d2, "w2": _e_w2, "lead": _e_lead, "k": _e_k, "ph": _e_ph, "pk": _e_pk, "arc": _e_arc}
+		"te": _e_te, "s": _e_s, "phi": _e_phi, "d2": _e_d2, "w2": _e_w2, "lead": _e_lead, "k": _e_k, "ph": _e_ph, "pk": _e_pk, "arc": _e_arc, "bnd": _e_bnd}
 
 
 # ---------------------------------------------------------------- the coast
@@ -3017,6 +3064,7 @@ func _price() -> void:
 		_e_w2 = ar[0]
 		_e_pk = pk
 		_e_arc = _arc_of(sw, c_k)
+		_e_bnd = _ab_raw
 	if best < INF:
 		_e_J = sqrt(_e_dvx * _e_dvx + _e_dvz * _e_dvz) + _e_ph + best
 
@@ -3030,6 +3078,7 @@ var _aw_sw := PackedFloat64Array()
 var _aw_rm := PackedFloat64Array()
 var _aw_out := PackedFloat64Array()
 var _aw_tn := PackedFloat64Array()
+var _aw_tns := PackedFloat64Array()
 
 
 ## whether this search prices CURVED's arc
@@ -3046,10 +3095,12 @@ func _sweeps(t_lim: float) -> bool:
 	_aw_rm.resize(_cn)
 	_aw_out.resize(_cn)
 	_aw_tn.resize(_cn)
+	_aw_tns.resize(_cn)
 	var c := _arc_cen()
 	var a0 := 0.0
 	var acc := 0.0
 	var tn := 0.0
+	var tns := 0.0
 	var rm := INF
 	var ro := 0.0
 	for k in _cn:
@@ -3058,11 +3109,14 @@ func _sweeps(t_lim: float) -> bool:
 		var a := atan2(dz, dx)
 		if k > 0:
 			acc += wrapf(a - a0, -PI, PI)
-			tn += absf(wrapf(atan2(_cVZ[k], _cVX[k]) - atan2(_cVZ[k - 1], _cVX[k - 1]), -PI, PI))
+			var dh := wrapf(atan2(_cVZ[k], _cVX[k]) - atan2(_cVZ[k - 1], _cVX[k - 1]), -PI, PI)
+			tn += absf(dh)
+			tns += dh
 		a0 = a
 		rm = minf(rm, sqrt(dx * dx + dz * dz))
 		ro = maxf(ro, sqrt(_cX[k] * _cX[k] + _cZ[k] * _cZ[k]))
 		_aw_tn[k] = tn
+		_aw_tns[k] = tns
 		_aw_sw[k] = acc
 		_aw_rm[k] = rm
 		_aw_out[k] = ro
@@ -3078,6 +3132,7 @@ func _sweeps(t_lim: float) -> bool:
 ## past the map's edge (`_arc_out`: FlightTest's flights from the far side,
 ## Nov 5, ran 38 px past it for the bend).
 func _arc_of(on: bool, k: int) -> float:
+	_ab_raw = 0.0
 	if not on or k < 0 or k >= _aw_sw.size():
 		return 0.0
 	if _aw_out[k] > _arc_out(_cX[0], _cZ[0]):
@@ -3085,7 +3140,10 @@ func _arc_of(on: bool, k: int) -> float:
 	var c := _arc_cen()
 	var r0 := Vector2(_cX[0] - c.x, _cZ[0] - c.y).length()
 	var rk := Vector2(_cX[k] - c.x, _cZ[k] - c.y).length()
-	return _arc_reward(absf(_aw_sw[k]), _bend_to(k) if _arcb > 0.0 else 0.0, _aw_rm[k], minf(r0, rk), _aw_tn[k])
+	var bd := _bend_to(k) if _arcb > 0.0 else 0.0
+	var rw := _arc_reward(absf(_aw_sw[k]), bd, _aw_rm[k], minf(r0, rk), _aw_tn[k], _aw_tn[k] - absf(_aw_tns[k]))
+	_ab_raw = bd if rw > 0.0 else 0.0
+	return rw
 
 
 ## How far from the map's centre a rewarded coast may go: the map's edge, or
@@ -3094,28 +3152,42 @@ func _arc_out(x0: float, z0: float) -> float:
 	return maxf(G.edge, sqrt(x0 * x0 + z0 * z0)) + 0.5
 
 
-func _arc_reward(sweep: float, bend: float, rmin: float, rends: float, turn: float) -> float:
+func _arc_reward(sweep: float, bend: float, rmin: float, rends: float, turn: float, wob: float) -> float:
 	if _dip > 0.0 and rmin < _dip * rends:
 		return 0.0
 	if turn > _tnmax:
-		return 0.0
-	return _arcw * minf(sweep, _aimsw) + _arcb * minf(bend, _aim)
+		return -_loop_pen
+	return _arcw * minf(sweep, _aimsw) + _arcb * minf(bend, _aim) - _wob_w * wob
 
 
-## The coast's bend from where it left to node k: the farthest a node strays
-## from the straight line between them, over that line's length.
+## The coast's bend from where it left to node k as rewarded (`_bend3`).
 func _bend_to(k: int) -> float:
-	var ax := _cX[0]
-	var az := _cZ[0]
-	var bx := _cX[k] - ax
-	var bz := _cZ[k] - az
+	return _bend3(_cX, _cZ, k)
+
+
+## The bend of points 0..k as rewarded: the farthest a point strays from the
+## straight line between the ends on one side, less `_sw_s` times the farthest
+## on the other (an S) and `_sw_h` times the farthest past either end along it
+## (a hook), each over that line's length.
+func _bend3(xs: PackedFloat64Array, zs: PackedFloat64Array, k: int) -> float:
+	var ax := xs[0]
+	var az := zs[0]
+	var bx := xs[k] - ax
+	var bz := zs[k] - az
 	var ch2 := bx * bx + bz * bz
 	if ch2 < 1.0:
 		return 0.0
-	var far := 0.0
+	var hi := 0.0
+	var lo := 0.0
+	var ov := 0.0
 	for j in range(1, k):
-		far = maxf(far, absf(bx * (_cZ[j] - az) - bz * (_cX[j] - ax)))
-	return far / ch2
+		var d := bx * (zs[j] - az) - bz * (xs[j] - ax)
+		hi = maxf(hi, d)
+		lo = minf(lo, d)
+		if _sw_h > 0.0:
+			var u := bx * (xs[j] - ax) + bz * (zs[j] - az)
+			ov = maxf(ov, maxf(-u, u - ch2))
+	return (maxf(hi, -lo) - _sw_s * minf(hi, -lo) - _sw_h * ov) / ch2
 
 
 ## The arc reward on a conic guess: its two-body coast about (cx, cz) from p1
@@ -3133,6 +3205,7 @@ func _conic_arc(cx: float, cz: float, gm: float, p1x: float, p1z: float, v1x: fl
 	var lim := _arc_out(p1x, p1z)
 	var sw := 0.0
 	var tn := 0.0
+	var tns := 0.0
 	var a0 := atan2(z, x)
 	for _i in n:
 		var r3 := pow(x * x + z * z, 1.5)
@@ -3164,7 +3237,9 @@ func _conic_arc(cx: float, cz: float, gm: float, p1x: float, p1z: float, v1x: fl
 		var hv0 := atan2(vz, vx)
 		vx += h / 6.0 * (ax1 + 2.0 * ax2 + 2.0 * ax3 + ax4)
 		vz += h / 6.0 * (az1 + 2.0 * az2 + 2.0 * az3 + az4)
-		tn += absf(wrapf(atan2(vz, vx) - hv0, -PI, PI))
+		var dh := wrapf(atan2(vz, vx) - hv0, -PI, PI)
+		tn += absf(dh)
+		tns += dh
 		xs.append(x)
 		zs.append(z)
 		if Vector2(x + cx, z + cz).length() > lim:
@@ -3173,15 +3248,8 @@ func _conic_arc(cx: float, cz: float, gm: float, p1x: float, p1z: float, v1x: fl
 		var a := atan2(z, x)
 		sw += wrapf(a - a0, -PI, PI)
 		a0 = a
-	var bx := xs[n] - xs[0]
-	var bz := zs[n] - zs[0]
-	var ch2 := bx * bx + bz * bz
-	var far := 0.0
-	if ch2 >= 1.0:
-		for j in range(1, n):
-			far = maxf(far, absf(bx * (zs[j] - zs[0]) - bz * (xs[j] - xs[0])))
-		far /= ch2
-	return _arc_reward(absf(sw), far, rm, minf(sqrt(xs[0] * xs[0] + zs[0] * zs[0]), sqrt(xs[n] * xs[n] + zs[n] * zs[n])), tn)
+	var far := _bend3(xs, zs, n)
+	return _arc_reward(absf(sw), far, rm, minf(sqrt(xs[0] * xs[0] + zs[0] * zs[0]), sqrt(xs[n] * xs[n] + zs[n] * zs[n])), tn, tn - absf(tns))
 
 
 # ---------------------------------------------------------------- refining
@@ -3565,7 +3633,7 @@ func _arc_look() -> void:
 	# about as little took an arrival burn the first look did not, a corner
 	# from a game's start, FlightTest Nov 7: seed 4242 system 231's close pair,
 	# star A's close orbit to world 0, 0.07 against 0.03)
-	if kj < INF and _b_J < kj and float(_b.get("arc", 0.0)) < float(kb.get("arc", 0.0)) + ARC_GAIN * _arcb:
+	if kj < INF and _b_J < kj and float(_b.get("bnd", 0.0)) < float(kb.get("bnd", 0.0)) + ARC_GAIN:
 		_b_J = kj
 		_b = kb
 
