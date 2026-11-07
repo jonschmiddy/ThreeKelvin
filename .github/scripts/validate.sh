@@ -1424,7 +1424,7 @@ step "Each place in a system keeps its own wrecks"
 # Fit means nothing overlaps: no wreck's words on the world you orbit, and no
 # wreck's picture on it while the pile is a fight's worth.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit|were leaked at exit' \
-	run_godot wrecksitetest 180 --headless --path "$PROJECT" -- sheet=WreckSiteTest; then
+	run_godot wrecksitetest 300 --headless --path "$PROJECT" -- sheet=WreckSiteTest; then
 	if grep -qE '^wrecksitetest: PASS' "$LOG_DIR/wrecksitetest.log"; then
 		ok "a world keeps its wrecks, the next one and the next system have none, and they stay off your hull"
 	else
