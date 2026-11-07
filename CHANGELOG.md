@@ -21,13 +21,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   star clusters round it and the flattened one is a lens. A dwarf's black hole is drawn at the
   dwarf's size, and supernova rings stay off these galaxies.
 - **Changed** — the RADIANT style's round galaxies get the same treatment, in that style's own
-  light. The ellipticals are smooth warm light fading out into space, with no brown blotches over
-  them and no dark plates round them. The flattened one is flatter, and the giant is bigger with a
-  ring of star clusters. The merger remnant leans to one side and trails a stream of gas with a few
-  pink knots in it. The blue compact dwarf is small, blue and lumpy, with pink knots, and the dwarf
-  spheroidal is small, faint and grey. A dwarf's black hole is drawn at the dwarf's size.
+  light. The ellipticals are warm light with a fine grain of gas, fading out into space, with no
+  brown blotches over them and no dark plates round them. The flattened one is flatter, and the
+  giant is bigger with a ring of star clusters. The merger remnant's outer light sits off to one
+  side, and it trails a stream of gas with a few pink knots in it. The blue compact dwarf is small,
+  blue and lumpy, with pink knots, and the dwarf spheroidal is small, faint and grey. A dwarf's
+  black hole is drawn at the dwarf's size.
+- **Changed** — the LEGACY style's round galaxies get the same treatment too: warm clumped light
+  that thins into a soft haze at the edge, instead of a flat plate cut off at an ellipse. The blue
+  compact dwarf is blue and lumpy with small pink knots, the merger remnant leans to one side with
+  its tidal stream, and the giant has a swarm of star clusters round it.
 - **Fixed** — the star chart's corner words (THRUSTER REACH, SENSOR RANGE, LOCAL REGION and the
-  scale bar) have a shadow under them, so they stay readable over a galaxy's bright middle.
+  scale bar) have a dark outline round them, and the goal line's backing runs on behind the
+  Custodian's eye and its count, so they stay readable over a galaxy's bright middle.
 
 - **Fixed** — on the sector map, when A.S.H. says "Click a world twice and we fly there", she now
   outlines the world nearest your ship instead of the ship. It is a world a click reaches (not one

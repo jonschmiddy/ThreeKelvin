@@ -902,13 +902,16 @@ static func ball_drawn(kind: int, ball: Vector4) -> Vector4:
 	return ball
 
 
-## A DWARF'S HOLE at its own size (Nov 5, as PAINTED's `ChartPainted.hole_of`): a dwarf's
-## hole is rolled off its bulge as any galaxy's is, and a dwarf's ball is small, so its
-## hole and lit ring filled its middle. At most this much of its ball's radius in this
-## style; the chart still keeps its marks clear of the hole rolled (`hole_px`).
+## A DWARF'S HOLE at its own size (Nov 5): a dwarf's hole is rolled off its bulge as any
+## galaxy's is, and a dwarf's ball is small, so its hole and lit ring filled its middle (a
+## blue compact dwarf read as a hole with a ring round it). At most this much of its ball's
+## radius (a round elliptical's is about 0.11, a giant's 0.11), in every style: SIMPLIFIED,
+## PAINTED and RADIANT draw `hole_of`, LEGACY its `c_hole_draw` by DWARF_HOLE. Only the
+## drawing: the chart still keeps its marks clear of the hole rolled (`hole_px`).
 const DWARF_HOLE := 0.08
 
 
+## The hole's radius (gu) drawn: a dwarf's held to DWARF_HOLE of its ball.
 static func hole_of(p: Dictionary) -> float:
 	var ball: Vector4 = p.ball
 	var h := float(p.hole_r)

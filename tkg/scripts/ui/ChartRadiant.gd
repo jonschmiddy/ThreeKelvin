@@ -178,22 +178,6 @@ static func ball_form(p: Dictionary) -> Vector4:
 	return Vector4(1.0, 0.5, 1.9, 0.72)
 
 
-## A DWARF'S HOLE at its own size (Nov 5, as PAINTED's `ChartPainted.DWARF_HOLE`): a
-## blue compact dwarf's ball is small, and its hole, rolled off its bulge as any
-## galaxy's is, filled its middle with a lit ring. A dwarf's hole is at most this
-## much of its ball's radius.
-const DWARF_HOLE := 0.08
-
-
-## The hole's radius (gu) this style draws: a dwarf's held to DWARF_HOLE of its ball.
-static func hole_of(p: Dictionary) -> float:
-	var ball: Vector4 = p.ball
-	var h := float(p.hole_r)
-	if int(p.form) == 1 and (int(ball.w) == 1 or int(ball.w) == 2):
-		h = minf(h, DWARF_HOLE * ball.x)
-	return h
-
-
 ## THE KNOTS OF A BALL THAT MAKES STARS (Nov 5): a blue compact dwarf full of them,
 ## a merger's remnant a few along its stream -- the spirals' own knots (`ChartSky`'s
 ## format: they breathe and bloom as a spiral's do, and the knot map draws them), in
@@ -466,7 +450,7 @@ static func feed_static(m: ShaderMaterial, g: Dictionary) -> void:
 	m.set_shader_parameter("u_gasK", L.gasK)
 	m.set_shader_parameter("u_nebK", Vector4(13.0, 15.0, 7.0, 16.0))
 	m.set_shader_parameter("u_steps", 8.0 if DisplaySettings.graphics_low else STEPS)
-	m.set_shader_parameter("u_holeR", hole_of(p))
+	m.set_shader_parameter("u_holeR", ChartSky.hole_of(p))
 	m.set_shader_parameter("u_holeLight", Vector3(0.9, 0.42, 0.14))
 	var cl := cloud_uniforms(g.clouds)
 	for k in cl:

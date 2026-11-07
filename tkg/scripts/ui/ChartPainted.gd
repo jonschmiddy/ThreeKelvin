@@ -173,22 +173,6 @@ static func ball_squash(kind: int, ball: Vector4) -> float:
 	return ball.y * (0.8 if GalaxyGen.type_name(kind) == "Flattened Elliptical" else 1.0)
 
 
-## A DWARF'S HOLE at its own size (Nov 5): a dwarf's hole is rolled off its bulge as any
-## galaxy's is, and a blue compact dwarf's ball is small, so its hole's lit ring filled
-## the middle of it and the dwarf read as a hole with a ring round it. A dwarf's hole is
-## at most this much of its ball's radius (a round elliptical's is about 0.11, a giant's 0.11).
-const DWARF_HOLE := 0.08
-
-
-## The hole's radius (gu) this style draws: a dwarf's held to DWARF_HOLE of its ball.
-static func hole_of(p: Dictionary) -> float:
-	var ball: Vector4 = p.ball
-	var h := float(p.hole_r)
-	if int(p.form) == 1 and (int(ball.w) == 1 or int(ball.w) == 2):
-		h = minf(h, DWARF_HOLE * ball.x)
-	return h
-
-
 static func galaxy_uniforms(p: Dictionary) -> Dictionary:
 	var g: Dictionary = Run.galaxy
 	var form: int = p.form
@@ -207,8 +191,8 @@ static func galaxy_uniforms(p: Dictionary) -> Dictionary:
 		"u_ballF": ball_form(Run.galaxy_kind),
 		"u_g0": Vector4(float(maxi(arms, 1)), float(p.twist), float(p.bar), float(p.spread)),
 		"u_g1": Vector4(float(p.spin), arm_k, float(p.lane), float(p.gas)),
-		"u_g2": Vector4(float(g.get("dust", 1.6)), float(p.bulge_r), ball_squash(Run.galaxy_kind, ball) if form == 1 else 0.86, hole_of(p)),
-		"u_g3": Vector4(1.0 if form == 1 else 0.0, ball.y, hole_of(p) * ChartSky.DISC_K, float(Run.galaxy_kind) * 0.137),
+		"u_g2": Vector4(float(g.get("dust", 1.6)), float(p.bulge_r), ball_squash(Run.galaxy_kind, ball) if form == 1 else 0.86, ChartSky.hole_of(p)),
+		"u_g3": Vector4(1.0 if form == 1 else 0.0, ball.y, ChartSky.hole_of(p) * ChartSky.DISC_K, float(Run.galaxy_kind) * 0.137),
 		"u_g4": Vector4(0.102, 0.0, 0.0, 0.18),
 		"u_g5": Vector4(0.5 if float(p.bar) > 0.0 else 0.6, 0.4, 0.35, 1.6),
 		"u_g6": Vector4(0.12, 0.06, 1.25, 0.8),

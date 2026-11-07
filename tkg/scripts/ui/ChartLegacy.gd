@@ -576,11 +576,11 @@ static func _ball_params(p: Dictionary) -> void:
 	# (the ball's radius in bake px: a galaxy radius is `big_r` of them, as the hole's is)
 	p["ball_r"] = ball.x * bf.x * float(p.big_r)
 	p["ball_gas"] = ball_gas(ball) if on else 1.0
-	# A DWARF'S HOLE AT ITS OWN SIZE (PAINTED's `hole_of`): drawn at most
-	# `ChartPainted.DWARF_HOLE` of its ball, so a blue compact dwarf is not a hole with a
+	# A DWARF'S HOLE AT ITS OWN SIZE (`ChartSky.hole_of`): drawn at most
+	# `ChartSky.DWARF_HOLE` of its ball, so a blue compact dwarf is not a hole with a
 	# ring round it. Only the drawing: the chart keeps its marks clear of the hole's own
 	# radius (`hole_px`, `rin_p`), as before.
-	p["c_hole_draw"] = minf(float(p.c_hole), ChartPainted.DWARF_HOLE * ball.x) \
+	p["c_hole_draw"] = minf(float(p.c_hole), ChartSky.DWARF_HOLE * ball.x) \
 		if on and (int(ball.w) == 1 or int(ball.w) == 2) else float(p.c_hole)
 	# the giant's globular clusters, far past its body (`chart_l_field`'s `ball_gc`):
 	# fixed in the galaxy, in screen-tilted bake px as `glob_c` are
