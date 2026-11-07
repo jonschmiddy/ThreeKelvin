@@ -137,6 +137,9 @@ const STYLE_RADIANT := &"radiant"
 ## how many bodies throw shadows at once: the worlds, then their moons
 const SHADOW_CASTERS := 24
 var radiant := false
+## RADIANT's key light on the map: the sun's light halves this far out on screen
+## (`sky_nebula`'s `r_key`)
+const SECTOR_KEY_PX := 100.0
 ## the painted pass's viewports and materials (`SectorPainted.build`)
 var _pt := {}
 ## the emission cloud's bubble round the sun, on the plane: a sphere in the
@@ -717,6 +720,10 @@ func show_system(n: MapGen.MapNode) -> void:
 			# (a touch lower: the haze and the shafts' light added a tenth, and round the
 			# sun the gas went to a flat pale plate)
 			_neb_mat.set_shader_parameter("exposure", float(_neb_mat.get_shader_parameter("exposure")) * 0.86)
+			# (CHIAROSCURO, proto/radiant-a: the sun's light falls off across the map's
+			# window, a quarter of LOCAL's frame narrower; at LOCAL's 160 px the map's gas
+			# still read lit edge to edge)
+			_neb_mat.set_shader_parameter("r_key", SECTOR_KEY_PX)
 	_scene.add_child(_shadows)
 	# THE STAR. The sun and the pulsar draw under the palette with the sky; the
 	# black hole draws among the worlds (below), since its lens bends the worlds
