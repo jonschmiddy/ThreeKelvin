@@ -1552,6 +1552,8 @@ func _feed_field(m: ShaderMaterial, g: Dictionary, z: float) -> void:
 		# (the glow no wider than its warm light: a blue compact dwarf's warm heart is a
 		# quarter of its ball, and a glow at its whole ball was a brown plate round its gas)
 		m.set_shader_parameter("ball_rpx", float(p.ball_r) * clampf((p.ball_k as Vector4).y * 1.6, 0.4, 1.3))
+		# (its outer haze, in the ball's own frame: its radius, and the plane's y to it)
+		m.set_shader_parameter("ball_hz", Vector2(float(p.ball_r), float(p.eff) / maxf(float(p.ball_sq), 0.05)))
 		var bgc: PackedVector2Array = (p.ball_gc as PackedVector2Array).duplicate()
 		m.set_shader_parameter("n_ball_gc", bgc.size())
 		bgc.resize(BALL_GC)

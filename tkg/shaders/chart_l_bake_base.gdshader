@@ -55,6 +55,7 @@ uniform vec4 ball_f = vec4(1.0, 1.3, 2.4, 0.0);
 uniform float ball_r = 60.0;
 uniform float ball_sq = 0.74;
 uniform float ball_side = 1.0;
+const float BALL_PERSP = 0.07;
 
 vec4 at(sampler2D t, vec2 p) {
 	return texture(t, (p + 0.5) / size);
@@ -149,7 +150,11 @@ vec4 ball_light(vec2 g) {
 		q.x -= ball_side * 0.32 * g_sm(0.4, 2.0, r0);
 	}
 	float n = g_fbm(q * 1.4 + vec2(sd, 3.7), 3.0);
-	float dn = length(q) * (1.0 + irr * 0.55 * (n - 0.5));
+	// (the plane's near half is drawn larger on the screen than its far half, so a body
+	// round in the plane reached further below its core than above it -- the round ball
+	// x1.24 against BallHaloTest's 1.3, Nov 5's review: its light is drawn a little shorter
+	// on the near side and longer on the far, so it is round on the screen)
+	float dn = length(q) * (1.0 + irr * 0.55 * (n - 0.5)) * (1.0 + BALL_PERSP * q.y / max(length(q), 1e-3));
 	float end = ball_f.z;
 	// (a dwarf spheroidal spread thin: its light is low all the way across)
 	float amp = look > 1.5 && look < 2.5 ? 0.55 : 1.8;
@@ -168,7 +173,9 @@ vec4 ball_light(vec2 g) {
 		* (0.45 + 0.55 * g_fbm(p * 0.05 + vec2(13.0, sd), 3.0));
 	// (faint against its own middle: a dwarf spheroidal, faint all across, was wisps
 	// through and through, one side of it lost)
-	tot *= mix(wsp, 1.0, g_sm(0.05, 0.3, tot * 1.8 / amp));
+	// (over a wider band, Nov 5's review: at 0.3 the round ball's edge went brown to black
+	// in a ragged cut-out)
+	tot *= mix(wsp, 1.0, g_sm(0.04, 0.6, tot * 1.8 / amp));
 	// the merger's stream: off one side, curling out from the body as it thins
 	float strm = 0.0;
 	if (look > 2.5) {

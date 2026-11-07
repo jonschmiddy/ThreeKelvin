@@ -143,8 +143,14 @@ uniform bool ball_core = false;
 uniform bool ball_on = false;
 uniform float ball_gas = 1.0;
 uniform float ball_rpx = 60.0;
+// (its ball's radius in bake px, and the plane's y to the ball's own frame: eff / its squash)
+uniform vec2 ball_hz = vec2(60.0, 1.0);
 uniform vec2 ball_gc[24];
 uniform int n_ball_gc = 0;
+// (how strong a ball's outer haze is against its body's light one radius out)
+const float BALL_HAZE = 0.35;
+// (the haze a little shorter on the plane's near side, as the body's is: `chart_l_bake_base`'s BALL_PERSP)
+const float BALL_PERSP_F = 0.07;
 uniform float bul = 10.0;
 uniform float arm_k = 1.0;
 uniform float sd = 0.0;
@@ -798,7 +804,10 @@ void gal_fields(vec2 p, vec2 down_p, float nearf, float youk, float smth, out ve
 		float on_arm = (1.0 - arm_k) + arm_k * g_sm(0.95, 1.55, rg);
 		float gas_amt = min(1.5, gas);
 		float i = (pow(g, 1.5) * 0.7 + g * fil * 0.9) * (0.25 + a) * a * gas_amt * (0.6 + 1.4 * near) * on_arm;
-		float knot = g_sm(0.66, 0.86, fbmB(vec2(lx * 0.085 + 13.0 + sd, ly * 0.085), (o3() + ox), 0.085 * lsq))
+		float kF = fbmB(vec2(lx * 0.085 + 13.0 + sd, ly * 0.085), (o3() + ox), 0.085 * lsq);
+		// (a ball's knots their cores only, Nov 5's review: the disc's whole spread of each
+		// was a flat violet bar round a blue compact dwarf's middle at zoom 1)
+		float knot = (ball_on ? g_sm(0.84, 0.97, kF) : g_sm(0.66, 0.86, kF))
 			* g_sm(0.25, 0.6, a) * min(1.3, gas_amt) * (1.0 - 0.5 * near)
 			* ((1.0 - arm_k) + arm_k * g_sm(1.15, 1.7, rg));
 		float m2 = max(g_sm(0.25, 0.75, mixv), knot);
@@ -931,6 +940,31 @@ void gal_fields(vec2 p, vec2 down_p, float nearf, float youk, float smth, out ve
 			* (0.45 + 0.55 * fbmB(pl0 * 0.05 + vec2(13.0, sd), 3.0, 0.05 * lsq));
 		tk = 1.0 - g_sm(0.5, 1.0, rnd);
 		s = s * tk + sref * env * wsp * (1.0 - tk);
+	}
+	// A BALL'S OUTER HAZE, at low strength (Nov 5's review: without the disc's haze its body
+	// stopped brown-to-black in a ragged cut-out): the light its body has one ball radius
+	// out in this direction, falling by e every 0.6 radii past it, broken into the same haze
+	// and wisps, and gone into the sky by three radii
+	if (ball_on) {
+		// (in the ball's own frame, `ball_light`'s: round on the screen, so the haze
+		// reaches as far above the core as below it)
+		vec2 qh = vec2(lx, ly * ball_hz.y) / max(ball_hz.x, 1.0);
+		float rbl = length(qh) * (1.0 + BALL_PERSP_F * qh.y / max(length(qh), 1e-3));
+		if (rbl > 0.7 && rbl < 3.2) {
+			vec2 pl0 = vec2(lx, ly);
+			vec2 dirp = qh / max(rbl, 1e-3);
+			vec3 sref = vec3(0.0);
+			for (int j = -1; j <= 1; j++) {
+				float aj = float(j) * 0.22;
+				vec2 dj = vec2(dirp.x * cos(aj) - dirp.y * sin(aj), dirp.x * sin(aj) + dirp.y * cos(aj)) * ball_hz.x;
+				sref += sb4(sl_tex, vec2(dj.x, dj.y * eff / ball_hz.y)).rgb;
+			}
+			sref /= 3.0;
+			float env = exp(-max(rbl - 1.0, 0.0) / 0.6) * g_sm(0.7, 1.2, rbl) * (1.0 - g_sm(2.2, 3.2, rbl));
+			float wsp = g_sm(0.2, 0.75, fbmB(pl0 * 0.016 + vec2(sd, 41.0), 4.0, 0.016 * lsq)) * 1.5
+				* (0.45 + 0.55 * fbmB(pl0 * 0.05 + vec2(13.0, sd), 3.0, 0.05 * lsq));
+			s += sref * env * wsp * BALL_HAZE;
+		}
 	}
 	float bf = slv.a;
 	float det = resolved, gcl = 1.0;
