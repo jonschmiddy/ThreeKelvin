@@ -135,6 +135,9 @@ uniform bool painted = false;
 // ball and not a pale biscuit"); its glow gathered wider round it, the light the
 // gas round it is lit by
 uniform bool radiant = false;
+// LIGHT THAT MOVES (Nov 7, RADIANT's direction B): the sun's flare now (0..1,
+// `ChartRadiant.sun_flare`), its glow swelling out round it and back
+uniform float r_flare = 0.0;
 
 const float BW = 420.0;
 const float BH = 300.0;
@@ -309,9 +312,9 @@ vec3 face_colour(float dx, float dy, float Rr, float t) {
 
 // ---------------------------------------------------------------- what lies round it
 vec3 glow(float x, float y, float d, float t) {
-	float Rg = R * glow_r * c_breath * (radiant ? 1.35 : 1.0);
+	float Rg = R * glow_r * c_breath * (radiant ? 1.35 * (1.0 + 0.45 * r_flare) : 1.0);
 	if (d < R * 0.8 || d > Rg) return vec3(0.0);
-	float v = glow_i * exp(-(d - R) / (R * glow_w * c_breath * (radiant ? 1.3 : 1.0))) * (1.0 - d / Rg) * flick * (1.0 + (c_breath - 1.0) * 1.33);
+	float v = glow_i * exp(-(d - R) / (R * glow_w * c_breath * (radiant ? 1.3 * (1.0 + 0.5 * r_flare) : 1.0))) * (1.0 - d / Rg) * flick * (1.0 + (c_breath - 1.0) * 1.33) * (radiant ? 1.0 + 1.2 * r_flare : 1.0);
 	if (shimmer > 0.0) { float ang = ang_of(y - CYB, x - CXB); v *= 1.0 - shimmer + shimmer * 2.0 * noise(cos(ang) * 3.0 + t * 0.4, sin(ang) * 3.0 + d * 0.05 - t * 0.7); }
 	return v > 0.004 ? glow_c * v : vec3(0.0);
 }

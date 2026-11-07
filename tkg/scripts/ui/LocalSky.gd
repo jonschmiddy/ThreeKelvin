@@ -1459,6 +1459,64 @@ func _step_star(o: Vector2) -> void:
 		_flare_b = SystemViewS.prominence(pose(t + SystemViewS.STAR_B_PROM, 6.0)).z
 		if _lit == SystemLayout.STAR_B:
 			_flare = _flare_b
+	_radiant_flares()
+
+
+## LIGHT THAT MOVES (RADIANT, Nov 7, direction B): the sun's own flares
+## (`ChartRadiant.sun_flare`, the sector map's clock) -- its glow and haze swell, its
+## light runs out through the cloud, the worlds' day sides brighten, and the band
+## behind the play lets more of it through while it lasts (`RADIANT_KEEP` up to
+## `RADIANT_KEEP_FLARE`), then presses it back
+const RADIANT_KEEP_FLARE := 0.62
+func _radiant_flares() -> void:
+	if not radiant:
+		return
+	if layout.star != SystemLayout.StarKind.PULSAR and layout.star != SystemLayout.StarKind.CORE:
+		_flare_a = maxf(_flare_a, ChartRadiant.sun_flare(pose(t, 6.0)))
+		if star2 != null:
+			_flare_b = maxf(_flare_b, ChartRadiant.sun_flare(pose(t + SystemViewS.STAR_B_PROM, 6.0), 7))
+		_flare = _flare_b if (star2 != null and _lit == SystemLayout.STAR_B) else _flare_a
+		if star != null:
+			var sm: ShaderMaterial = star.get("_mat")
+			if sm != null:
+				sm.set_shader_parameter("r_flare", _flare_a)
+		if star2 != null:
+			var sm2: ShaderMaterial = star2.get("_mat")
+			if sm2 != null:
+				sm2.set_shader_parameter("r_flare", _flare_b)
+	if _sky_mat != null:
+		_sky_mat.set_shader_parameter("r_flare", _flare)
+	var keep := lerpf(RADIANT_KEEP, RADIANT_KEEP_FLARE, _flare)
+	if _grade_mat != null:
+		_grade_mat.set_shader_parameter("keep_hi", keep)
+	if _near_mat != null:
+		_near_mat.set_shader_parameter("keep_hi", keep)
+	_engine_light()
+
+
+## THE ENGINES' LIGHT ON THE GAS (RADIANT, Nov 7, direction B): the ship's flames
+## light the cloud behind it (`local_grade`'s `r_eng`), a pool a little way down the
+## flame, breathing with the burn on the game's clock -- two quick beats too small to
+## flicker and a slow swell -- and steady under reduced motion
+const ENGINE_R := 52.0
+const ENGINE_GAIN := 0.6
+func _engine_light() -> void:
+	if _grade_mat == null:
+		return
+	var sv := cam_ship as ShipView
+	var e: Dictionary = {}
+	if sv != null and is_instance_valid(sv) and sv.is_inside_tree() and _box != null:
+		e = sv.engine_glow()
+	if e.is_empty():
+		_grade_mat.set_shader_parameter("r_eng", Vector4.ZERO)
+		return
+	var at := (_box.get_global_transform().affine_inverse() * (e.at as Vector2)) * 2.0
+	at.x += float(e.dir) * 12.0
+	var fl := 1.0
+	if not DisplaySettings.reduced_motion:
+		fl += 0.07 * sin(t * TAU * 2.1) + 0.05 * sin(t * TAU * 3.3 + 1.0) + 0.12 * sin(t * TAU * 0.23)
+	_grade_mat.set_shader_parameter("r_eng", Vector4(at.x, at.y, ENGINE_R, ENGINE_GAIN * float(e.k) * fl))
+	_grade_mat.set_shader_parameter("r_eng_c", Vector3(1.0, 0.62, 0.32) if bool(e.warm) else Vector3(0.55, 0.75, 1.0))
 
 
 ## THE BAND'S DRAWING ORDER, farthest first: the worlds at depths `ys` (sorted,

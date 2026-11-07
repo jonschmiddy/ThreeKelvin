@@ -116,10 +116,10 @@ uniform bool painted = false;
 // when the world stands between you and the star. Weights: the star, the fill,
 // the limb's catch, the exposure (A's `wk`)
 uniform bool radiant = false;
-uniform vec4 r_wk = vec4(1.7, 9.0, 7.0, 1.15);
+uniform vec4 r_wk = vec4(1.9, 4.5, 7.0, 1.15);
 // how far the light wraps round past the terminator; the cloud's wash over the
 // world (all over, more at the limb) and how bright that cloud is
-uniform float r_wrap = 0.22;
+uniform float r_wrap = 0.07;
 uniform vec3 r_haze = vec3(0.22, 0.45, 16.0);
 // its moons: each one's place about this world (screen px: x right, y down, z
 // toward you) and its drawn radius, for the eclipse they cast on its face
@@ -810,7 +810,7 @@ vec4 paint(vec2 uv) {
 			float ld = dot(nv, L);
 			// (a very wide soft terminator: the light wraps well past the half-way line,
 			// as a ball of gas lit by a disc does)
-			float lamR = pow(clamp((ld + r_wrap) / (1.0 + r_wrap), 0.0, 1.0), 1.4) * rs * k_light * (1.0 + 0.15 * flare);
+			float lamR = pow(clamp((ld + r_wrap) / (1.0 + r_wrap), 0.0, 1.0), 1.4) * rs * k_light * (1.0 + 0.7 * flare);
 			vec3 cR = alb * (star_tint * r_wk.x * lamR + night_fill * r_wk.y * (0.55 + 0.45 * nz));
 			cR += night_fill * r_wk.z * pow(1.0 - nz, 2.0) * (0.5 + dot(alb, vec3(0.333)));
 			// THE GAS IN FRONT OF IT: the world sits IN the glowing cloud, whose light

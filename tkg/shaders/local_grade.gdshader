@@ -18,6 +18,12 @@ uniform vec2 ramp = vec2(70.0, 140.0);
 // brightness, and a smooth ease through them is one hard line across the sky)
 uniform bool stepped = false;
 #include "res://shaders/local_tone.gdshaderinc"
+// LIGHT THAT MOVES (RADIANT, Nov 7, direction B; `LocalSky._engine_light`): the
+// ship's engines light the gas behind them -- a soft plume of light down the flame
+// (flattened along it), the gas's own colour brightened and a little of the
+// flame's mixed in, breathing with the burn. (game px x, y; radius px; gain, 0 none)
+uniform vec4 r_eng = vec4(0.0);
+uniform vec3 r_eng_c = vec3(1.0, 0.62, 0.32);
 
 void fragment() {
 	vec4 src = texture(screen, SCREEN_UV);
@@ -51,5 +57,11 @@ void fragment() {
 	}
 	vec3 c = src.rgb;
 	c = play_tone(c, w);
+	if (r_eng.w > 0.0) {
+		vec2 gp = (floor(SCREEN_UV * vec2(480.0, 270.0)) + 0.5) * 2.0;
+		float r = length((gp - r_eng.xy) / r_eng.z * vec2(1.0, 2.1));
+		float f = exp(-r * r * 2.6) * r_eng.w;
+		c = c * (1.0 + 2.2 * f * mix(vec3(1.0), r_eng_c, 0.5)) + r_eng_c * f * 0.05;
+	}
 	COLOR = vec4(c, src.a);
 }

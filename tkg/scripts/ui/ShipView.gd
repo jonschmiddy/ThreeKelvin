@@ -1898,6 +1898,33 @@ func _draw_flame(ci: CanvasItem) -> void:
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
+## THE ENGINES' LIGHT, for RADIANT's backdrop to catch (Nov 7, direction B,
+## `LocalSky._engine_light`): where the flames start (the middle of the nozzles,
+## global px), the way they burn (+1 or -1 along x), how hard (IDLE 0.55, CRUISE 1,
+## FULL 1.4), the flame's own ramp (warm or cold) and the ship's scale on screen.
+## Empty when no flame is drawn.
+func engine_glow() -> Dictionary:
+	var th := _thrust_now()
+	if th < 0 or not is_visible_in_tree():
+		return {}
+	var fx := ThrusterFx.for_view(_hull(), _half and _hull().sprite_half != null)
+	if fx == null or fx.nozzles.is_empty():
+		return {}
+	var s := Vector2.ZERO
+	var n := 0
+	var dir := -1.0
+	for nz: Dictionary in fx.nozzles:
+		for p: Vector2 in (nz.pts as PackedVector2Array):
+			s += p
+			n += 1
+		dir = float(nz.get("dir", -1))
+	if n == 0:
+		return {}
+	var g := get_global_transform()
+	return {"at": g * (canvas_to_local(Vector2.ZERO) + s / float(n) * float(_k)), "dir": dir,
+		"k": [0.55, 1.0, 1.4][clampi(th, 0, 2)], "warm": fx.warm, "scale": g.get_scale().x * float(_k)}
+
+
 ## THE HULL'S LIGHTS (HullGrade), live on the game clock and added like the
 ## flame: the hull's own glass, its nav lights and an aircraft's surface
 ## markers, strobing and dipping (Jon, Oct 14). Out with the ship: none on a

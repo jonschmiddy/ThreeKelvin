@@ -1495,6 +1495,28 @@ static func _lin_top(c: Vector3) -> Vector3:
 	return l / maxf(l.x, maxf(l.y, l.z))
 
 
+## LIGHT THAT MOVES (RADIANT, Nov 7, direction B): the sun's own flares
+## (`ChartRadiant.sun_flare`), far more often than the prominences, on top of them --
+## its glow swells, the haze round it and its light through the cloud run out and fall
+## back, the worlds' day sides brighten (`_flare` reaches the cloud and the worlds)
+func _radiant_flares() -> void:
+	if not radiant or layout.star == SystemLayout.StarKind.PULSAR or layout.star == SystemLayout.StarKind.CORE:
+		return
+	_flare = maxf(_flare, ChartRadiant.sun_flare(pose(t, 6.0)))
+	if star2 != null:
+		_flare2 = maxf(_flare2, ChartRadiant.sun_flare(pose(t + STAR_B_PROM, 6.0), 7))
+	if star != null:
+		var sm: ShaderMaterial = star.get("_mat")
+		if sm != null:
+			sm.set_shader_parameter("r_flare", _flare)
+	if star2 != null:
+		var sm2: ShaderMaterial = star2.get("_mat")
+		if sm2 != null:
+			sm2.set_shader_parameter("r_flare", _flare2)
+	if _sky_mat != null:
+		_sky_mat.set_shader_parameter("r_flare", _flare)
+
+
 ## RADIANT'S SAFETY, the sector's half of the chart's (`ChartSky._radiant_safety`,
 ## the same budget, `ChartRadiant.budget_ms`, and the same fall-back): the place
 ## picture's GPU time over its first seconds of drawing is averaged, and if this
@@ -2052,6 +2074,7 @@ func step() -> void:
 	_flare = prominence(pose(t, 6.0)).z if layout.star != SystemLayout.StarKind.PULSAR and layout.star != SystemLayout.StarKind.CORE else 0.0
 	# (two suns: star B's own eruptions, on its clock, for the worlds it lights)
 	_flare2 = prominence(pose(t + STAR_B_PROM, 6.0)).z if star2 != null else 0.0
+	_radiant_flares()
 	if layout.star_r > 0.0 and layout.star != SystemLayout.StarKind.PULSAR:
 		var rk := _held(layout.star_r * _star_k_raw(), layout.star_r * _kq, 2.0) / layout.star_r
 		if layout.star == SystemLayout.StarKind.CORE:

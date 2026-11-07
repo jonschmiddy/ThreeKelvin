@@ -376,9 +376,14 @@ Lt light_at(vec2 b) {
 	}
 	// (a flare lights the gas round, never the glow on the sun's own face: that
 	// went to a flat white plate)
-	l.Js *= l.att * (1.0 + 0.6 * r_flare);
+	// (LIGHT THAT MOVES, Nov 7: RADIANT's flares are its drama -- the near light
+	// up by most of again, the long reach by three, so a flare's light runs out across
+	// the cloud and the shafts behind the worlds stand out in it, then falls back)
+	// (and a broad reach of its own, so the flare's light runs out over the cloud
+	// round the sun, cut by the same shafts)
+	l.Js = (l.Js * (1.0 + 2.0 * r_flare) + r_flare * 0.9 / (1.0 + pow(l.dL / 360.0, 2.0))) * l.att;
 	l.Jc *= l.att;
-	l.Jw *= l.att * (1.0 + 0.6 * r_flare);
+	l.Jw *= l.att * (1.0 + 1.2 * r_flare);
 	return l;
 }
 
@@ -831,7 +836,8 @@ void fragment() {
 			// (a volume: the gas along the whole ray, so thin places still glow; only
 			// the dust's lanes go dark)
 			float gv = sat(r_gbase + gB * r_gk);
-			vec3 EA = gv * (emA * FA * pow(max(gv, 1e-3), r_epow) * r_ek + vec3(0.42, 0.14, 0.62) * r_floor * (0.4 + 0.6 * gv));
+			// (a flare's light ionises the gas nearest the sun hardest: LIGHT THAT MOVES)
+			vec3 EA = gv * (emA * FA * (1.0 + 1.8 * r_flare * FA) * pow(max(gv, 1e-3), r_epow) * r_ek + vec3(0.42, 0.14, 0.62) * r_floor * (0.4 + 0.6 * gv));
 			// the corona: the near gas lit hard, gathered tight round the sun (A's is
 			// a thin warm glow; a wide pale disc read as a halo ring)
 			vec3 cor = vec3(1.0, 0.85, 0.65) * Jc * Jc * Jc * (0.2 + gv) * 0.30;
