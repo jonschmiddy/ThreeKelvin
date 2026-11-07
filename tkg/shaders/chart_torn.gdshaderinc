@@ -65,7 +65,8 @@ float tornArm(Px P, vec2 v, int arm, out int star) {
 	// make the near loop a flood across the bottom of the chart)
 	float ws = 1.0 / pow(max(solidMag(v), 0.3), 0.75);
 	tornNear(v, arm, ws, sd, al, f, W);
-	float x = sd / W;
+	// (its edge ragged, held where it lies: the stars flow through it)
+	float x = (sd + 0.35 * W * kitSnoise2(vec2(al * 5.0, float(arm) * 5.1 + 2.0))) / W;
 	if (abs(x) > 3.2) {
 		return 0.0;
 	}
@@ -82,7 +83,13 @@ float tornArm(Px P, vec2 v, int arm, out int star) {
 	float strand = 0.5 + 0.5 * cos(x * 4.2 + wob);
 	float clump = 0.5 + 0.5 * fbmL(vec2(a1 * 9.0, x * 0.7 + float(arm) * 3.1), bw * 9.0, 3);
 	float core = exp(-x * x);
-	float lA = B * (core * (0.35 + 0.65 * strand) * (0.45 + 0.95 * clump) + 0.12 * exp(-abs(x) * 1.3) * (0.6 + 0.6 * clump));
+	// knots and gaps riding the flow (a stream of stars, never a tube), and a grain
+	// of two blocks over it
+	float knots = smoothstep(0.22, 0.68, 0.5 + 0.5 * fbmL(vec2(a1 * 4.5, float(arm) * 9.7), bw * 4.5, 2));
+	vec2 gq = vec2(a1, sd) / (2.0 * bw);
+	float grain = 0.6 + 0.8 * kitHash3(ivec2(floor(gq)) + ivec2(arm * 131, 17)).x;
+	float lA = B * (core * (0.3 + 0.7 * strand) * (0.4 + 0.9 * clump) * grain + 0.12 * exp(-abs(x) * 1.3) * (0.6 + 0.6 * clump));
+	lA *= 0.3 + 0.95 * knots;
 	// (where it leaves the dwarf's tip, a hot thread, rising out of the fraying ring:
 	// no blunt end)
 	lA *= smoothstep(0.0, 0.045, f) * (1.0 + 1.3 * exp(-sq((f - 0.06) / 0.05)));
@@ -92,7 +99,7 @@ float tornArm(Px P, vec2 v, int arm, out int star) {
 	ivec2 cq = ivec2(floor(q));
 	vec3 h = kitHash3(cq + ivec2(arm * 7919, 311));
 	vec2 sp = (vec2(cq) + 0.15 + 0.7 * h.xy) * cs;
-	if (abs(a1 - sp.x) < 0.5 * bw && abs(sd - sp.y) < 0.5 * bw && h.z < 0.85 * smoothstep(0.02, 0.35, lA) * (0.4 + 0.6 * core)) {
+	if (abs(a1 - sp.x) < 0.5 * bw && abs(sd - sp.y) < 0.5 * bw && h.z < smoothstep(0.015, 0.3, lA) * (0.4 + 0.6 * core)) {
 		star = fract(h.z * 17.0) < 0.3 ? 1 : 2;
 	}
 	return lA;
@@ -107,26 +114,35 @@ vec2 tornGiantF(vec2 vS) {
 	return vec2(c * d.x + s * d.y, -s * d.x + c * d.y);
 }
 
-// its light: warm (the bulge), cool (the edge-on disc), and the spill on the sky
+// its light: warm (the bulge and the inner disc), cool (the outer disc), and the
+// spill on the sky. A giant spiral far bigger than the dwarf, seen steeply tilted:
+// a broad disc with its arms and its dust lane, a gold bulge, its ends warped by
+// the meal. Faint for its size (it is far off): the core goal stays the hottest
+// thing on the chart.
 vec3 tornGiant(vec2 vS, float bw) {
 	vec2 ab = tornGiantF(vS);
 	float L = u_tornG.w;
 	float a = ab.x;
 	float aa = abs(a);
 	// the disc warped by the meal (an integral sign), flaring toward its ends
-	float b = ab.y + 0.07 * L * sign(a) * pow(smoothstep(0.45 * L, 1.15 * L, aa), 2.0);
-	float th = 0.0075 + 0.007 * smoothstep(0.0, L, aa);
-	float lumps = 0.7 + 0.6 * fbmL(vec2(a * 14.0, b * 30.0) + 3.7, bw * 14.0, 3);
-	float disc = exp(-sq(b / th)) * (0.25 + exp(-aa / (0.3 * L))) * smoothstep(1.2 * L, 0.8 * L, aa) * lumps;
-	// the dust lane down its middle, across the bulge too
-	float lane = 1.0 - 0.92 * exp(-sq((ab.y - 0.001) / 0.0045)) * smoothstep(0.9 * L, 0.15 * L, aa);
-	float bul = exp(-(sq(a / 0.07) + sq(ab.y / 0.05)));
-	float pt = exp(-(sq(a / 0.016) + sq(ab.y / 0.012)));
-	// (its bulge's own glow, wide and faint, past the bands into the dark)
-	float glow = 0.04 * exp(-length(vec2(a, ab.y * 1.5)) / 0.06);
-	float warm = (1.5 * bul + 2.5 * pt) * mix(1.0, lane, 0.75) + glow;
-	float cool = 0.9 * disc * lane;
-	float spill = exp(-length(vec2(a * 0.5, ab.y)) / 0.4);
+	float b = ab.y + 0.06 * L * sign(a) * pow(smoothstep(0.45 * L, 1.1 * L, aa), 2.0);
+	// (in its own plane: tilted to a quarter of its length across)
+	const float Q = 0.27;
+	vec2 dp = vec2(a, b / Q);
+	float r = length(dp) / L;
+	float th = atan(dp.y, dp.x);
+	// two arms wound out from the bulge, lumpy with star clouds
+	float arm = 0.5 + 0.5 * cos(2.0 * th - 6.0 * log(max(r, 0.04)) + 1.3);
+	arm = pow(arm, 3.0);
+	float lumps = 0.65 + 0.7 * fbmL(dp * 9.0 / L + 3.7, bw * 9.0 / L, 3);
+	float disc = exp(-r / 0.3) * smoothstep(1.08, 0.75, r) * (0.12 + 1.7 * arm) * lumps;
+	// the dust lane, on the near side of the bulge, along the disc
+	float lane = 1.0 - 0.85 * exp(-sq((b + 0.05 * L * Q) / (0.018 * L))) * smoothstep(0.75, 0.05, r);
+	float bul = exp(-(sq(a / (0.055 * L)) + sq(ab.y / (0.04 * L))));
+	float pt = exp(-(sq(a / 0.012) + sq(ab.y / 0.009)));
+	float warm = (0.5 * bul + 0.9 * pt) * mix(1.0, lane, 0.85);
+	float cool = 0.3 * disc * lane;
+	float spill = exp(-length(vec2(a * 0.5, ab.y)) / (0.7 * L));
 	return vec3(warm, cool, spill);
 }
 
@@ -137,8 +153,10 @@ vec2 tornRing(vec2 g) {
 	vec2 ax = u_tornA.xy;
 	float al = dot(gal, ax);
 	float pe = dot(gal, vec2(-ax.y, ax.x));
-	// (the tidal surface is a lemon pointed at the giant: the ring frays first at its tips)
-	float re = length(vec2(al / (1.0 + 0.18 + 0.3 * u_torn.z), pe));
+	// (the tidal surface is a lemon pointed at the giant: the ring frays first at its
+	// tips; mild, so the band stays on the doomed systems' ring. `ChartTorn.lemon`,
+	// the marks' dashed ring the same)
+	float re = length(vec2(al / (1.06 + 0.1 * u_torn.z), pe));
 	return vec2(re, atan(pe, al));
 }
 
@@ -179,9 +197,9 @@ float tornDoom(vec2 g, float bw, out float pull) {
 	float band = exp(-sq(dr / w)) * (0.35 + 0.9 * fray);
 	// tongues pulled out past it, longest at the tips
 	float tong = smoothstep(-0.01, 0.02, dr) * exp(-max(dr, 0.0) / (0.03 + 0.16 * pow(ca, 4.0)))
-		* smoothstep(0.55, 0.85, 0.5 + 0.5 * fbmL(vec2(flow * 11.0, 1.7), bw * 11.0, 2));
+		* smoothstep(0.5, 0.85, 0.5 + 0.5 * fbmL(vec2(flow * 16.0, dr * 3.0 + 1.7), bw * 16.0, 2));
 	pull = tong;
-	return 0.16 * band + 0.09 * tong;
+	return 0.16 * band + 0.07 * tong;
 }
 
 // the old shear past the tidal radius: what went before, swept into arcs that
@@ -194,7 +212,7 @@ float tornShear(vec2 g, float bw) {
 	}
 	float sp = rr.y * 1.0 - 9.0 * log(max(rr.x, 0.05));
 	float arcs = smoothstep(0.55, 0.95, 0.5 + 0.5 * sin(sp * 2.0 + 2.5 * fbmL(g * 4.0, bw * 4.0, 2)));
-	return 0.012 * arcs * exp(-dr / 0.22) * (0.4 + 0.8 * u_torn.z) * (0.5 + 0.5 * pow(abs(cos(rr.y)), 2.0));
+	return 0.0075 * arcs * exp(-dr / 0.16) * (0.4 + 0.8 * u_torn.z) * (0.5 + 0.5 * pow(abs(cos(rr.y)), 2.0));
 }
 
 // all of it over what the chart has here: the giant behind (over the sky only),
@@ -210,9 +228,14 @@ Cand tornOver(Px P, vec2 v, vec2 g, Cand sc) {
 		if (Eg > 0.012) {
 			float a = smoothstep(0.012, 0.03, Eg);
 			if (pat(P, a)) {
-				// (all of it the bulge's ramp: a burning line of gold and cream, never
-				// the ribbon's blue, so the two read apart where the ribbon pours in)
-				res = cand(M_BULGE, clamp(1.0 + log2(Eg) / 6.0, 0.0, 0.999), 0, 0.0);
+				// (its bulge and inner disc the bulge's ramp, gold and cream; its outer
+				// disc the halo's violet: never the ribbon's blue, never the doomed
+				// ring's red)
+				if (gi.x >= gi.y) {
+					res = cand(M_BULGE, clamp(1.0 + log2(Eg) / 6.0, 0.0, 0.999), 0, 0.0);
+				} else {
+					res = cand(M_HALO, clamp(0.5 + 0.12 * log2(Eg / 0.012), 0.3, 0.92), 0, 0.0);
+				}
 			}
 		}
 		float Es = tornShear(g, bw);

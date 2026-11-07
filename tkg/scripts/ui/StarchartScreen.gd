@@ -4194,17 +4194,19 @@ class MapChart extends Control:
 		# are drawn again every frame the sky moves)
 		var steps := clampi(int(rt * _radius() * DISC * zoom * 0.55), 40, 160)
 		var col := Color(0.94, 0.31, 0.41, 0.62)
-		var ax := Vector2(-ChartTorn.GIANT.x, -ChartTorn.GIANT.y * float(Run.galaxy.get("squash", 0.85))).normalized()
-		var a0 := atan2(ax.y, ax.x)
+		# (on the sky's red band exactly: the same lemon, its tips on the line to the giant)
+		var ax := ChartTorn.axis()
+		var pe := Vector2(-ax.y, ax.x)
+		var lem := ChartTorn.lemon()
 		var march := int(floor(clock() * 4.0))
 		var pts := PackedVector2Array()
 		var prev := Vector2.ZERO
 		for i in steps + 1:
 			var a := TAU * float(i) / float(steps)
-			var q := centre_px() + _proj(Vector2(cos(a), sin(a)) * rt, _drawn_turn)
+			var q := centre_px() + _proj((ax * (cos(a) * lem) + pe * sin(a)) * rt, _drawn_turn)
 			if i > 0:
 				# (the dash's phase runs from broadside toward each tip)
-				var from_tip := absf(wrapf(a - a0, -PI * 0.5, PI * 0.5))
+				var from_tip := absf(wrapf(a, -PI * 0.5, PI * 0.5))
 				var k := int(floor(from_tip / TAU * float(steps))) + march
 				if posmod(k, 3) < 2 and not _in_hole(q) and not _in_hole(prev):
 					pts.append(prev)

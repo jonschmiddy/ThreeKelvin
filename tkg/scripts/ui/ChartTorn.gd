@@ -27,7 +27,7 @@ static var force := -1
 
 ## The giant, in the dwarf's plane (gu) and height above it (gu): up the screen,
 ## to the left of the core, far enough that its line lies above the rim.
-const GIANT := Vector3(-0.35, -1.3, 0.25)
+const GIANT := Vector3(-0.35, -1.3, 0.4)
 ## The dwarf's orbit round it, tilted out of the chart's plane.
 const INC := 0.61
 ## The leading arm spirals in to the giant over this much of a turn; the trailing
@@ -38,8 +38,9 @@ const TRAIL_SPAN := PI * 2.4
 const TRAIL_R := 1.7
 const N_LEAD := 24
 const N_TRAIL := 40
-## The edge-on giant on the screen: half its length (gu) and its tilt.
-const GIANT_LEN := 0.55
+## The giant on the screen: half its length (gu, wider than the dwarf's whole
+## disc: it is the bigger galaxy) and its tilt.
+const GIANT_LEN := 1.2
 const GIANT_ANG := -0.21
 
 
@@ -60,6 +61,16 @@ static func tidal_r() -> float:
 
 
 ## How far the run is into the decay, 0 .. 1.
+## The tidal surface's stretch along the line to the giant (the shader's tornRing).
+static func lemon() -> float:
+	return 1.06 + 0.1 * progress()
+
+
+## The line to the giant, in the galaxy's plane (unit).
+static func axis() -> Vector2:
+	return Vector2(-GIANT.x, -GIANT.y).normalized()
+
+
 static func progress() -> float:
 	return clampf(lost / float(MapGen.LAYERS - 2), 0.0, 1.0)
 
@@ -133,7 +144,7 @@ static func push(mp: ShaderMaterial, phi: float) -> void:
 	_pushed = key
 	var gv := _v3(GIANT, phi)
 	# (the line to the giant, in the plane: the shader turns it as it needs)
-	var e1 := Vector2(-GIANT.x, -GIANT.y).normalized()
+	var e1 := axis()
 	mp.set_shader_parameter("u_torn", Vector4(1.0, tidal_r(), progress(), float(Run.galaxy.get("squash", 0.85))))
 	mp.set_shader_parameter("u_tornG", Vector4(gv.x, gv.y, GIANT_ANG, GIANT_LEN))
 	mp.set_shader_parameter("u_tornA", Vector4(e1.x, e1.y, MapGen.ring_radius(mini(int(floor(lost)) + 1, MapGen.LAYERS - 2)), lost))
