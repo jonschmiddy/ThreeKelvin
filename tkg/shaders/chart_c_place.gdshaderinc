@@ -438,10 +438,13 @@ float ballOct(float f, float mx) {
 // break up patch by patch as the spiral's outer disc does (a smooth fade lay on one faint
 // palette step all round and read as a grey rim), falling fastest early, dithered a step
 // either way on the anchored Bayer
+// (the clumps pull its edge in only past half its light's end, and fully past 0.8 of it,
+// as the spiral's outer disc breaks up: further in they opened holes of sky deep in the
+// body, Nov 5's review)
 float ballEdge(float s, vec2 gq, vec2 v, float clump) {
 	float sE = u_ballF.z;
 	float un = kitFbm2(gq * (1.7 / u_ball.x) + vec2(4.1, 7.3 + 9.0 * u_ballD.w), 2);
-	float t = smoothstep(0.45 * sE, sE, s * (1.0 + 0.12 * un - 0.45 * clump));
+	float t = smoothstep(0.45 * sE, sE, s * (1.0 + 0.12 * un - 0.45 * clump * smoothstep(0.5 * sE, 0.8 * sE, s)));
 	float em = (1.0 - t) * (1.0 - t);
 	if (em < 0.999) {
 		em = clamp(em * (1.0 + 0.5 * (kitBayer4(edgeDq(v)) - 0.5)), 0.0, 1.0);
@@ -499,6 +502,28 @@ vec3 ballStream(vec2 gq, float clump, float fine) {
 	tl *= max(1.0 + 1.6 * clump + 0.6 * fine, 0.0);
 	return mix(vec3(0.28, 0.52, 1.0), vec3(0.70, 0.86, 1.0), smoothstep(0.2, 0.6, clump)) * tl;
 }
+// A BALL'S FAR-SIDE SHELLS AS A SOFT FALL (Nov 5's review, as RADIANT's `ballExtras`): the
+// story's shells (`storyShells`) are faint light cut sharp at their outer edge, and over the
+// ball's new body they read as hard grey domes stacked over it (the round, the flattened and
+// the merger at the opening). They are taken back out here and put in again as light falling
+// softly past each shell's radius; the halo's two stray streams are left out with them.
+vec3 ballShellsSoft(vec2 g, float blk) {
+	if (!storyA() || u_storyK.w > 0.5) {
+		return vec3(0.0);
+	}
+	float re = u_storyK.x;
+	vec2 e = vec2(g.x, g.y / u_storyK.y);
+	float s = length(e);
+	float an = atan(e.y, e.x);
+	float soft = 0.0;
+	for (int k = 0; k < 3; k++) {
+		float rk = (1.35 + 0.45 * float(k)) * re;
+		float side = pow(max(0.0, 0.5 + 0.5 * cos(an + 1.5708 + 0.5 * (float(k) - 1.0) + 0.6 * (u_story.y - 0.5))), 4.0);
+		float dk = s - rk;
+		soft += (dk < 0.0 ? exp(dk / (0.24 * re)) : exp(-pow(dk / (0.16 * re), 2.0))) * side * (1.0 - 0.18 * float(k));
+	}
+	return (STORY_STAR * soft * 0.01 - storyShells(g, blk)) * u_storyK.z;
+}
 vec3 ellBall(vec2 v, out float gasOut) {
 	vec2 g = v / u_k;
 	float re = u_ball.x * u_ballF.x;
@@ -523,8 +548,13 @@ vec3 ellBall(vec2 v, out float gasOut) {
 	float clump = fbm2F(gq * 11.0 + vec2(5.0 + 7.0 * u_ballD.w, 2.0), ballOct(11.0, yg > 0.5 ? 5.0 : 3.0));
 	float fine = fbm2F(gq * 46.0 + vec2(9.0, 3.0 + 5.0 * u_ballD.w), ballOct(46.0, yg > 0.5 ? 3.0 : 2.0));
 	body *= ballEdge(s, gq, v, clump);
-	float cA = mix(0.4, 1.1, yg) + 0.6 * smoothstep(0.3 * u_ballF.z, 0.8 * u_ballF.z, s), fA = mix(0.18, 0.5, yg);
-	body *= max(1.0 + cA * clump + fA * fine, 0.15);
+	// (the outskirts' breakup, and the clumps' deepest dips, only out past 0.8 of where its
+	// light ends: inside it a clump is a dimmer patch of the body, never a hole of sky,
+	// Nov 5's review: the round and merger balls read moth-eaten at zoom 1, the blue compact
+	// dwarf's edge spiky)
+	float brk = smoothstep(0.55 * u_ballF.z, 0.8 * u_ballF.z, s);
+	float cA = mix(0.4, 0.8, yg) + (0.6 + 0.3 * yg) * brk, fA = mix(0.18, 0.4, yg);
+	body *= max(1.0 + cA * clump + fA * fine, mix(0.55, 0.15, brk));
 	// a young ball's gas bunches into star clouds, as the arms' do
 	float blobs = yg * smoothstep(0.15, 0.45, clump);
 	// THE HEART: the spiral's bulge, at the ball's size (a dwarf's small)
@@ -1373,6 +1403,7 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 		// (its story, `chart_story`: its victims, its busy core -- light like its own)
 		float swl, scl;
 		C += storyLight(vb / u_k, u_phi, u_time, blockGu(la), swl, scl);
+		C += ballShellsSoft(vb / u_k, blockGu(la));
 	} else {
 		C += halo(v) + tailLight(p);
 		underSheet(v, la, C);
