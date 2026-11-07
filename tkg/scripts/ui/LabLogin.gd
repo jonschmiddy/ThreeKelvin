@@ -293,7 +293,7 @@ func check() -> PackedStringArray:
 # to be better." Three ideas, drawn in code; not for feat/science.)
 
 ## MOCK (review_lab r5 savers): the screensavers `LabSavers` draws.
-const SAVERS := ["B", "1", "2", "3", "4", "5", "6", "K1", "K2", "K3", "SOL1", "SOL2", "SOL3", "P1", "P2", "P3", "R1", "R2", "R3", "C1", "C2", "C3"]
+const SAVERS := ["B", "1", "2", "3", "4", "5", "6", "K1", "K2", "K3", "SOL1", "SOL2", "SOL3", "P1", "P2", "P3", "R1", "R2", "R3", "C1", "C2", "C3", "VER1", "VER2", "VER3"]
 var _saver: LabSavers = null
 
 
