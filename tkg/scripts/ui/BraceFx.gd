@@ -6,7 +6,7 @@ extends Control
 ## type of armor on top... like that is visually like OK i have brace": a
 ## see-through steel layer over the whole hull, a pixel proud of its outline,
 ## panel lines and rivets solid on it and a sheen band across it, the ship
-## dimmed beneath, in steel with the brace chip's teal so it never reads as the
+## dimmed beneath, in a teal steel so it never reads as the
 ## hull. Windows and engine glow show through.
 ## Gain: the panels clamp on in a quick wave from the side facing the enemy,
 ## each landing with a glint. A hit it takes: a clang flash, sparks, and a dent
@@ -20,7 +20,7 @@ signal moment(kind: StringName, strength: float, length: float)
 const SOUND := "gain: bolt_on ticks as the pieces land (about 0.3 s), then clamp (a heavy lock). rest: brace_glint every 4-7 s (optional faint shing). hit: clang (strength by the share of brace taken); plate_off when pieces come away (length 0.6, a clatter). spent: plate_off (the last of it)"
 
 const TINT := Color("#3a5a6e")
-const STEEL := Color(0.46, 0.63, 0.74)   ## steel with the brace chip's teal in it, so it never reads as the hull
+const STEEL := Color(0.46, 0.63, 0.74)   ## teal steel, so it never reads as the hull
 const OUTLINE := Color(0.07, 0.09, 0.12)
 const RIVET := Color(0.16, 0.19, 0.23)
 
