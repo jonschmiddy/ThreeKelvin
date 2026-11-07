@@ -70,6 +70,12 @@ func paint(style: String) -> void:
 			_paint_5()
 		"6":
 			_paint_6()
+		"VER1":
+			_paint_ver1()
+		"VER2":
+			_paint_ver2()
+		"VER3":
+			_paint_ver3()
 
 
 ## The motion that carries from frame to frame: the chart's turn and size, the
@@ -1136,7 +1142,7 @@ func _s5_cards() -> Array:
 		["big", "YOUR PARTS", "COULD DO MORE.", "ASK AT ANY %s LAB." % on],
 		["big", "ONE AUGMENT", "PER PART.", "WE ASKED. THE PARTS SAID NO."],
 		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS MAY VARY. THEY DO VARY."],
-		["big", "STRIPPED PARTS", "KEEP THE MARK.", "WE CANNOT UNDO IT EITHER."],
+		["big", "LIGHTENED PARTS", "MOVE FASTER.", "+2 MANEUVER, -1 HULL, FOR GOOD."],
 	]
 
 
@@ -1397,3 +1403,439 @@ func _paint_6() -> void:
 		if LabBoard.tw(rs) + LabBoard.tw("JUMPS 00") + 20 > w:
 			rs = "ROUTE %d" % trail.size()
 		text(a.end.x - 6 - LabBoard.tw(rs), a.end.y - 8, rs, ink(0.6))
+
+
+# ================================================================== Verity Ateliers' own three
+# (review_lab r6, Nov 7: Jon kept all seven, per owner, "Want more per owner.")
+#   VER1  THE HULL REGISTER: the signed hulls, one entry at a time, its maker's
+#         signature drawn in under the number
+#   VER2  THE SEAM GAUGE: a probe runs along one hull seam, magnified, and
+#         plots how flush the two panels sit
+#   VER3  THE COMMISSION: a new hull drawn in hairlines, then signed
+
+var _vr_said := false
+
+
+## Verity's gold, lifted a little so it reads on the dark glass.
+func _vr_gold(a: float) -> Color:
+	var mk := DB.manufacturer_colour(g.owner_id) if DB.manufacturers.has(g.owner_id) else g.tint
+	return LabBoard.mixc(LabBoard.BG, LabBoard.mixc(mk, LabBoard.WHITE, 0.3), clampf(a, 0.0, 1.0))
+
+
+## The house rule: two gold rules and the hairline between them (its mark, laid flat).
+func _vr_rules(x: int, y: int, w: int, dim: float) -> void:
+	for xx in range(x, x + w):
+		px(xx, y, _vr_gold(0.8 * dim))
+		if posmod(xx, 2) == 0:
+			px(xx, y + 2, ink(0.4 * dim))
+		px(xx, y + 4, _vr_gold(0.8 * dim))
+
+
+## The header: the mark and the owner, a title, a word on the right if it fits, and the rule.
+func _vr_head(a: Rect2i, title: String, right: String, dim: float) -> void:
+	if not _vr_said:
+		_vr_said = true
+		print("FILM verity area %s" % a)
+	var hx := head(a.position.x + 4, a.position.y + 3, title)
+	if right != "":
+		var rw := say_w(right)
+		if a.end.x - 6 - rw > hx + 10:
+			say(a.end.x - 6 - rw, a.position.y + 6, right, ink(0.5))
+	_vr_rules(a.position.x + 4, a.position.y + 17, a.size.x - 8, dim)
+
+
+## Words with " · " cut at a dot until they fit, then cut short.
+func _vr_fit(s: String, wmax: int) -> String:
+	while say_w(s) > wmax and s.contains(" · "):
+		s = s.left(s.rfind(" · "))
+	return s if say_w(s) <= wmax else fit(s, wmax)
+
+
+## The two rows at the foot: at rest what the saver says there; pointed at, the sign-in.
+func _vr_foot(a: Rect2i, l1: String, l2: String, c2: Color) -> void:
+	var x := a.position.x + 8
+	var ly := a.end.y - 17
+	var wmax := a.size.x - 16
+	g.draw_rect(Rect2(a.position.x + 4, ly - 5, a.size.x - 8, 1), ink(0.25))
+	if g.state == LabLogin.LOGO:
+		if l1 != "":
+			say(x, ly, _vr_fit(l1, wmax), ink(0.55))
+		if l2 != "":
+			say(x, ly + 8, _vr_fit(l2, wmax), c2)
+		return
+	say(x, ly, "THIS TERMINAL", ink(0.55))
+	var s := "PILOT %s · CLICK TO SIGN IN" % ship()
+	if say_w(s) > wmax:
+		s = "PILOT %s · SIGN IN" % ship()
+	if g.state == LabLogin.SIGNING:
+		s = "PILOT %s · SIGNING IN" % ship()
+	say(x, ly + 8, s, ink(0.9) if g.state == LabLogin.SIGNING else cue())
+
+
+## A signature: one hairline stroke, `k` of it drawn.
+func _vr_sign(x: int, y: int, wd: int, k: float, c: Color, sd: int) -> void:
+	var n := int(float(wd) * clampf(k, 0.0, 1.0))
+	var ph := noise(sd, 4) * 3.0
+	var prev := Vector2i(x, y)
+	for i in range(1, n + 1):
+		var f := float(i)
+		var dy := 2.4 * sin(f * 0.62 + ph) * (1.0 - f / float(wd + 12)) + 1.2 * sin(f * 1.45 + ph * 2.0)
+		var p := Vector2i(x + i, y + roundi(dy))
+		line(prev, p, c)
+		prev = p
+
+
+# ------------------------------------------------------------------ VER1: the hull register
+
+const VR1_EVERY := 4.0
+const VR1_SLIDE := 0.4
+const VR1_SIGN := 1.2
+## Number, name, year made, times back for repair, now.
+const VR1_BOOK := [
+	[31, "MERIDIAN", 14, 22, "IN SERVICE"],
+	[58, "LONG VIGIL", 27, 19, "IN SERVICE"],
+	[102, "HALCYON", 51, 31, "IN THE YARD"],
+	[117, "PATIENCE", 58, 12, "IN SERVICE"],
+	[164, "ASTER PROVOST", 80, 9, "LOST"],
+	[189, "STILL HOUR", 94, 15, "IN SERVICE"],
+	[214, "THE ENDURING", 106, 14, "IN SERVICE"],
+	[233, "QUIET ORBIT", 117, 8, "IN SERVICE"],
+	[276, "LANTERN", 139, 11, "IN THE YARD"],
+	[301, "FAIR WITNESS", 152, 6, "IN SERVICE"],
+	[342, "KEEPSAKE", 171, 4, "IN SERVICE"],
+	[386, "SLOW LIGHT", 194, 1, "IN SERVICE"],
+]
+
+
+func _paint_ver1() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var tr := rest_t()
+	var dim := fade()
+	var hover := g.state != LabLogin.LOGO
+	var big := a.size.y >= 140
+	_vr_head(a, " HULL REGISTER", "SIGNED HULLS", dim)
+	var ft := _s3_hold if (hover and _s3_hold >= 0.0) else tr
+	var k := int(floorf(ft / VR1_EVERY))
+	var into := fposmod(ft, VR1_EVERY)
+	var n := VR1_BOOK.size()
+	var cur: Array = VR1_BOOK[posmod(k, n)]
+	# THE ENTRY: its number large, the maker's signature drawn in under it; its
+	# name, when it was made, how often it came back, and where it is now
+	var cy := y0 + 27
+	var num := "NO. %04d" % int(cur[0])
+	text(x0 + 8, cy, num, ink(0.95), 16)
+	var nw := LabBoard.tw(num, 16)
+	_vr_sign(x0 + 9, cy + 16, mini(nw - 4, 44), into / VR1_SIGN if not hover else 1.0, _vr_gold(0.95 * dim), int(cur[0]))
+	var cx := x0 + 8 + nw + 10
+	var cw := a.end.x - 6 - cx
+	text(cx, cy, fit(String(cur[1]), cw), ink(1.0))
+	say(cx, cy + 8, _vr_fit("MADE YEAR %d · BACK %d TIMES" % [int(cur[2]), int(cur[3])], cw), ink(0.6))
+	var st := String(cur[4])
+	if st == "LOST":
+		st = "LOST YEAR 141 · RECORD KEPT"
+	say(cx, cy + 16, _vr_fit(st, cw), _vr_gold(1.0) if st == "IN SERVICE" else ink(0.8))
+	# THE BOOK: the entry before and the ones after, the entry in hand lit;
+	# the page moves up one line as the next is read
+	var top := cy + 27
+	var pitch := 9
+	g.draw_rect(Rect2(x0 + 4, top - 4, w - 8, 1), ink(0.25))
+	var c_no := x0 + 10
+	var c_name := x0 + 38
+	var c_made := x0 + int(float(w) * 0.52)
+	if big:
+		text(c_no, top, "NO.", ink(0.4))
+		text(c_name, top, "HULL", ink(0.4))
+		text(c_made, top, "MADE", ink(0.4))
+		var sw := LabBoard.tw("NOW")
+		text(a.end.x - 6 - sw, top, "NOW", ink(0.4))
+		top += pitch + 1
+	var bottom := a.end.y - 23
+	var slide := 0.0
+	if k > 0 and into < VR1_SLIDE:
+		var e := into / VR1_SLIDE
+		slide = 1.0 - (1.0 - pow(1.0 - e, 3.0))
+	var rows := (bottom - top) / pitch + 2
+	for r in range(0, rows + 1):
+		var yy := top + roundi((float(r) - 1.0 + slide) * float(pitch))
+		if yy < top or yy + 6 > bottom:
+			continue
+		var it: Array = VR1_BOOK[posmod(k + r - 1, n)]
+		var lit := r == 1
+		var last := yy + pitch + 6 > bottom
+		var c := ink(1.0 if lit else (0.32 if last else 0.5))
+		if lit:
+			g.draw_rect(Rect2(x0 + 5, yy - 1, 2, 7), _vr_gold(dim))
+		text(c_no, yy, "%04d" % int(it[0]), c)
+		var stw := LabBoard.tw(String(it[4]))
+		var st_x := a.end.x - 6 - stw
+		var made := "YEAR %d" % int(it[2])
+		# (the year only where the glass is wide enough for every row to have it)
+		var show_made := big and c_made + LabBoard.tw(made) + 6 <= st_x
+		var name_end := (c_made if show_made else st_x) - 6
+		text(c_name, yy, fit(String(it[1]), name_end - c_name), c)
+		if show_made:
+			text(c_made, yy, made, c)
+		text(st_x, yy, String(it[4]), c)
+	_vr_foot(a, "397 HULLS MADE · 391 IN SERVICE · NONE REPLACED", "WE REPAIR EVERY HULL WE MADE.", _vr_gold(1.0))
+
+
+# ------------------------------------------------------------------ VER2: the seam gauge
+
+const VR2_PASS := 5.5
+const VR2_BACK := 1.3
+
+
+func _paint_ver2() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var tr := rest_t()
+	var dim := fade()
+	var hover := g.state != LabLogin.LOGO
+	_vr_head(a, " SEAM GAUGE", "HULL NO. 0214", dim)
+	var ft := _s3_hold if (hover and _s3_hold >= 0.0) else tr
+	var cyc := VR2_PASS + VR2_BACK
+	var k := int(floorf(ft / cyc))
+	var into := fposmod(ft, cyc)
+	var panel := 7 + k
+	var top := y0 + 26
+	var bot := a.end.y - 26
+	var vh := maxi(18, int(float(bot - top) * 0.46))
+	var view := Rect2i(x0 + 6, top, w - 12, vh)
+	var graph := Rect2i(x0 + 6, top + vh + 5, w - 12, bot - top - vh - 5)
+	# the magnification, top right of the view, kept clear
+	var mag := "4000 X"
+	var mw := LabBoard.tw(mag)
+	text(view.end.x - mw - 1, view.position.y + 1, mag, ink(0.45))
+	_keep.append(Rect2i(view.end.x - mw - 3, view.position.y - 1, mw + 4, 9))
+	# THE SEAM: two panels flush, the hairline between, a flush fastener each side
+	var sx := view.position.x + view.size.x / 2
+	var sy := view.position.y + maxi(9, vh * 2 / 5)
+	var fasts := [0.2, 0.34, 0.66, 0.8]
+	for x in range(view.position.x, view.end.x):
+		if x == sx or x == sx - 1:
+			continue
+		var s := sy + (1 if x > sx else 0)
+		var edge := x == sx - 2 or x == sx + 1
+		px(x, s, ink(0.9 * dim))
+		for y in range(s + 1, view.end.y):
+			if edge:
+				px(x, y, ink(0.5 * dim))
+			elif posmod(x + y, 4) == 0:
+				px(x, y, ink(0.14 * dim))
+	for f: float in fasts:
+		var fx := view.position.x + int(f * float(view.size.x))
+		var s := sy + (1 if fx > sx else 0)
+		line(Vector2i(fx - 3, s + 1), Vector2i(fx - 1, s + 3), ink(0.5 * dim))
+		line(Vector2i(fx + 3, s + 1), Vector2i(fx + 1, s + 3), ink(0.5 * dim))
+		line(Vector2i(fx - 1, s + 4), Vector2i(fx - 1, mini(view.end.y - 1, s + 11)), ink(0.4 * dim))
+		line(Vector2i(fx + 1, s + 4), Vector2i(fx + 1, mini(view.end.y - 1, s + 11)), ink(0.4 * dim))
+	# THE PROBE: along the surface, then lifted and back for the next panel;
+	# pointed at, it lifts and waits
+	var x_a := view.position.x + 6
+	var x_b := view.end.x - 7
+	var pxx := x_a
+	var lift := 0.0
+	if into < VR2_PASS:
+		var e := into / VR2_PASS
+		pxx = x_a + int(e * float(x_b - x_a))
+	else:
+		var e := (into - VR2_PASS) / VR2_BACK
+		e = e * e * (3.0 - 2.0 * e)
+		pxx = x_b - int(e * float(x_b - x_a))
+		lift = 4.0
+	lift = maxf(lift, 4.0 * hk(0.4))
+	var tip := sy + (1 if pxx > sx else 0) - 1 - int(lift)
+	if (pxx == sx or pxx == sx - 1) and lift < 1.0:
+		tip += 2
+	var head_y := view.position.y + 1
+	g.draw_rect(Rect2(pxx - 2, head_y, 5, 3), _vr_gold(0.9 * dim))
+	line(Vector2i(pxx, head_y + 3), Vector2i(pxx, tip - 2), ink(0.75 * dim))
+	px(pxx - 1, tip - 1, ink(0.85 * dim))
+	px(pxx + 1, tip - 1, ink(0.85 * dim))
+	px(pxx, tip - 1, ink(0.95 * dim))
+	px(pxx, tip, LabBoard.mixc(ink(1.0), LabBoard.WHITE, 0.4))
+	# THE TRACE: how far the surface strays from flat, between the limits; this
+	# pass's line drawn as far as the probe has come, the last pass's under it
+	var gm := graph.position.y + graph.size.y / 2
+	var lim := maxi(4, graph.size.y / 2 - 2)
+	for x in range(graph.position.x, graph.end.x):
+		if posmod(x, 3) == 0:
+			px(x, gm - lim, _vr_gold(0.55 * dim))
+			px(x, gm + lim, _vr_gold(0.55 * dim))
+		if posmod(x, 6) == 0:
+			px(x, gm, ink(0.22 * dim))
+	line(Vector2i(graph.position.x, gm - lim - 1), Vector2i(graph.position.x, gm + lim + 1), ink(0.3 * dim))
+	var upto := pxx if into < VR2_PASS else graph.end.x - 1
+	for pass_i: int in [k - 1, k]:
+		if pass_i < 0:
+			continue
+		var bright := pass_i == k
+		var end_x := upto if bright else graph.end.x - 1
+		if not bright and into >= VR2_PASS:
+			continue
+		var prev := Vector2i(-1, -1)
+		for x in range(graph.position.x + 1, end_x + 1):
+			# a smooth wander (noise eased between every 5th px), not a scribble
+			var fx := float(x) / 5.0
+			var i0 := int(floorf(fx))
+			var fr := smoothstep(0.0, 1.0, fx - float(i0))
+			var wv := lerpf(noise(i0, pass_i * 31 + 3), noise(i0 + 1, pass_i * 31 + 3), fr)
+			var d := (wv - 0.5) * float(lim) * 0.6
+			d += sin(float(x) * 0.09 + float(pass_i)) * float(lim) * 0.15
+			if x > sx:
+				d += float(lim) * 0.12
+			if absi(x - sx) <= 1:
+				d = float(lim) * 0.62
+			var p := Vector2i(x, gm + roundi(d))
+			if prev.x >= 0:
+				line(prev, p, ink((0.9 if bright else 0.3) * dim))
+			prev = p
+	var gap := 0.0018 + 0.0006 * noise(panel, 3)
+	var stp := 0.0008 + 0.0004 * noise(panel, 5)
+	var done := into >= VR2_PASS
+	_vr_foot(a, "GAP %.4f MM · STEP %.4f MM · LIMIT 0.0040 MM" % [gap, stp],
+		"PANEL %d OF 212 · %s" % [panel, "IN LIMIT" if done else "MEASURING"], _vr_gold(1.0) if done else ink(0.8))
+
+
+# ------------------------------------------------------------------ VER3: the commission
+
+const VR3_CYCLE := 15.0
+## Where the clock starts in the cycle (so a lab that has just come on is mid-drawing).
+const VR3_OFFSET := 6.0
+const VR3_LINES := 2.4
+const VR3_PEN := 9.0
+const VR3_STAMP := 9.6
+const VR3_HOLD := 13.8
+
+
+## The hull's half-height at `u` along it (tail 0, nose 1).
+func _vr3_t(u: float, hh: float, aa: float, c: float) -> float:
+	return hh * pow(maxf(0.0, sin(PI * (c + (1.0 - c) * pow(clampf(u, 0.0, 1.0), aa)))), 0.6)
+
+
+func _paint_ver3() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var tr := rest_t()
+	var dim := fade()
+	var hover := g.state != LabLogin.LOGO
+	_vr_head(a, " COMMISSIONS", "BY APPOINTMENT", dim)
+	var ft := (_s3_hold if (hover and _s3_hold >= 0.0) else tr) + VR3_OFFSET
+	var kc := int(floorf(ft / VR3_CYCLE))
+	var p := fposmod(ft, VR3_CYCLE)
+	var no := 398 + kc
+	var dd := dim
+	if p > VR3_HOLD:
+		dd *= 1.0 - clampf((p - VR3_HOLD) / (VR3_CYCLE - VR3_HOLD), 0.0, 1.0)
+	# this commission's lines
+	var aa := 0.55 + 0.3 * noise(no, 1)
+	var rb := 0.6 + 0.2 * noise(no, 2)
+	var fh := 0.7 + 0.4 * noise(no, 3)
+	var c := 0.1 + 0.08 * noise(no, 4)
+	var metres := 140 + int(90.0 * noise(no, 5))
+	var body := Rect2i(x0 + 8, y0 + 25, w - 16, a.end.y - 24 - (y0 + 25))
+	var ll := int(float(body.size.x) * 0.8)
+	var hh := minf(float(body.size.y - 15) / (1.0 + fh + rb + 0.15), float(ll) * 0.13)
+	var stack := hh * (1.0 + fh + rb) + 13.0
+	var cy := body.position.y + int((float(body.size.y) - stack) / 2.0 + hh * (1.0 + fh))
+	var xl := body.position.x + (body.size.x - ll) / 2
+	# THE STAMP, top right, kept clear; it goes on once the hull is drawn
+	var sg := "SIGNED"
+	var sgw := LabBoard.tw(sg)
+	var stamp := Rect2i(body.end.x - 13 - sgw - 4, body.position.y - 1, sgw + 4 + 13, 13)
+	_keep.append(stamp)
+	if p >= VR3_STAMP and dd > 0.3:
+		g._mark(body.end.x - 6, body.position.y + 5, 11, 1.0)
+		text(body.end.x - 13 - sgw - 2, body.position.y + 3, sg, _vr_gold(1.0))
+	# THE SETTING OUT: the centre line, the ends, the length, ruled in first
+	var yd := cy + int(hh * rb) + 5
+	var dim_s := "LENGTH %d M" % metres
+	var dsw := LabBoard.tw(dim_s)
+	var dsx := xl + (ll - dsw) / 2
+	var drect := Rect2i(dsx - 3, yd + 3, dsw + 6, 8)
+	if p >= VR3_LINES - 0.4:
+		_keep.append(drect)
+	var k1 := clampf(p / 0.8, 0.0, 1.0)
+	var k2 := clampf((p - 0.8) / 0.6, 0.0, 1.0)
+	var k3 := clampf((p - 1.4) / 0.6, 0.0, 1.0)
+	var cl_a := xl - 6
+	var cl_b := cl_a + int(k1 * float(ll + 12))
+	for x in range(cl_a, cl_b):
+		if posmod(x - cl_a, 8) < 4 or posmod(x - cl_a, 8) == 6:
+			px(x, cy, ink(0.3 * dd))
+	var top_y := cy - int(hh * (1.0 + fh)) - 1
+	for xe: int in [xl, xl + ll]:
+		var yb := top_y + int(k2 * float(yd + 2 - top_y))
+		line(Vector2i(xe, top_y), Vector2i(xe, yb), ink(0.28 * dd), 2)
+	if k3 > 0.0:
+		var xb := xl + int(k3 * float(ll))
+		line(Vector2i(xl, yd), Vector2i(xb, yd), ink(0.45 * dd))
+		line(Vector2i(xl, yd), Vector2i(xl + 2, yd - 2), ink(0.45 * dd))
+		line(Vector2i(xl, yd), Vector2i(xl + 2, yd + 2), ink(0.45 * dd))
+		if k3 >= 1.0:
+			line(Vector2i(xl + ll, yd), Vector2i(xl + ll - 2, yd - 2), ink(0.45 * dd))
+			line(Vector2i(xl + ll, yd), Vector2i(xl + ll - 2, yd + 2), ink(0.45 * dd))
+	if p >= VR3_LINES - 0.4 and dd > 0.3:
+		text(dsx, yd + 5, dim_s, ink(0.55))
+	# THE HULL: one hairline, drawn by the pen from the tail along the top to
+	# the nose and back underneath, then the fin
+	var segs: Array[PackedVector2Array] = []
+	var outline := PackedVector2Array()
+	var t0 := _vr3_t(0.0, hh, aa, c)
+	outline.append(Vector2(xl, cy - t0))
+	for i in range(0, ll + 1):
+		var u := float(i) / float(ll)
+		outline.append(Vector2(xl + i, cy - _vr3_t(u, hh, aa, c)))
+	for i in range(ll, -1, -1):
+		var u := float(i) / float(ll)
+		outline.append(Vector2(xl + i, cy + _vr3_t(u, hh, aa, c) * rb))
+	outline.append(Vector2(xl, cy - t0))
+	segs.append(outline)
+	var fin := PackedVector2Array()
+	# a swept fin: the leading edge up and back, a short flat top, the trailing edge down
+	var tip_y := cy - _vr3_t(0.08, hh, aa, c) - hh * fh
+	fin.append(Vector2(xl + 0.3 * ll, cy - _vr3_t(0.3, hh, aa, c)))
+	fin.append(Vector2(xl + 0.1 * ll, tip_y))
+	fin.append(Vector2(xl + 0.04 * ll, tip_y))
+	fin.append(Vector2(xl + 0.14 * ll, cy - _vr3_t(0.14, hh, aa, c)))
+	segs.append(fin)
+	var total := 0.0
+	for sgm: PackedVector2Array in segs:
+		for i in range(1, sgm.size()):
+			total += sgm[i].distance_to(sgm[i - 1])
+	var kp := clampf((p - VR3_LINES) / (VR3_PEN - VR3_LINES), 0.0, 1.0)
+	var left := total * kp
+	var pen := Vector2i(-1, -1)
+	for sgm: PackedVector2Array in segs:
+		for i in range(1, sgm.size()):
+			if left <= 0.0:
+				break
+			var a0 := sgm[i - 1]
+			var b0 := sgm[i]
+			var dl := a0.distance_to(b0)
+			var b1 := b0 if left >= dl else a0.lerp(b0, left / dl)
+			left -= dl
+			line(Vector2i(roundi(a0.x), roundi(a0.y)), Vector2i(roundi(b1.x), roundi(b1.y)), ink(0.95 * dd))
+			pen = Vector2i(roundi(b1.x), roundi(b1.y))
+	# one seam, after the pen: a hull of few seams
+	if p >= VR3_PEN:
+		var xs := xl + int(0.52 * float(ll))
+		var us := 0.52
+		line(Vector2i(xs, cy - int(_vr3_t(us, hh, aa, c)) + 2), Vector2i(xs, cy + int(_vr3_t(us, hh, aa, c) * rb) - 2), ink(0.35 * dd), 2)
+	if kp > 0.0 and kp < 1.0 and pen.x >= 0:
+		g.draw_rect(Rect2(pen.x - 1, pen.y - 1, 2, 2), _vr_gold(dim))
+	var l2 := "DRAWING THE HULL"
+	var c2 := ink(0.8)
+	if p < VR3_LINES:
+		l2 = "SETTING OUT THE LINES"
+	elif p >= VR3_STAMP:
+		l2 = "SIGNED · ENTERED IN THE REGISTER"
+		c2 = _vr_gold(1.0)
+	_vr_foot(a, "COMMISSION NO. %04d · MADE TO ORDER" % no, l2, c2)
