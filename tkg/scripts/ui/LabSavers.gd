@@ -82,6 +82,12 @@ func paint(style: String) -> void:
 			_paint_p2()
 		"P3":
 			_paint_p3()
+		"R1":
+			_paint_r1()
+		"R2":
+			_paint_r2()
+		"R3":
+			_paint_r3()
 		_:
 			_solari().paint(style)
 
@@ -122,6 +128,9 @@ func step(delta: float, style: String) -> void:
 			var sp := 1.0 if resting else 0.0
 			_s2_spin += delta * TAU / S2_TURN_S * lerpf(sp, _s2_last, exp(-delta * 4.0))
 			_s2_last = lerpf(_s2_last, sp, 1.0 - exp(-delta * 4.0))
+		"R3":
+			if resting and _r3_heat(rest_t()) > R3_RATED:
+				_r3_over += delta
 		"6":
 			_g_last = lerpf(_g_last, 1.0 if resting else 0.0, 1.0 - exp(-delta * 3.0))
 			_g_rot = fposmod(_g_rot + delta * TAU / G_TURN_S * _g_last, TAU)
@@ -2406,3 +2415,370 @@ func _paint_p3() -> void:
 	if u >= P3_PAY:
 		var cs := "%d CR" % int(lot.pay)
 		text(rx - LabBoard.tw(cs), py, cs, pc(P_BRASS, ra))
+
+
+# ================================================================== REDLINE's own (r6, Nov 7)
+# Jon on the seven: "Love these. Want more per owner." Three that only Redline
+# Shipyards would run, each its own idea:
+#   R1  NO RECORD: a refit job's record typed in, then the serial, the port and
+#       the owner marked out; RECORD KEPT: NONE. (What it sells.)
+#   R2  GOING DARK: a passive sensor's waterfall, a refitted hull's return
+#       fading into the noise as its baffles close. (What it researches.)
+#   R3  OVER THE LINE: a drive hung over the blast pit, its plume run past the
+#       rated line and back; the line is cut where the plume crosses it. (Its name.)
+# Owner red is the owner's own colour (`DB.manufacturer_colour`), so the same
+# looks dressed for another owner take that owner's colour.
+
+func _red(k: float) -> Color:
+	var c := DB.manufacturer_colour(g.owner_id) if DB.manufacturers.has(g.owner_id) else g.tint
+	return LabBoard.mixc(LabBoard.BG, c, clampf(k, 0.0, 1.0))
+
+
+## The rest clock, held where it was while pointed at (`_s3_hold` is the
+## moment the pointer came, kept by `step` for every look).
+func _held_t() -> float:
+	if g.state != LabLogin.LOGO and _s3_hold >= 0.0:
+		return _s3_hold
+	return rest_t()
+
+
+## The two-line foot every Redline look ends on: a rule, then what it says at
+## rest, or the pilot and CLICK TO SIGN IN while pointed at.
+func _r_foot(a: Rect2i, rest1: String, rest_c: Color, hover1: String) -> void:
+	var x0 := a.position.x
+	var w := a.size.x
+	var ly := a.end.y - 19
+	g.draw_rect(Rect2(x0 + 4, ly - 4, w - 8, 1), ink(0.25))
+	if g.state == LabLogin.LOGO:
+		say(x0 + 8, ly + 4, fit(rest1, w - 16), rest_c)
+		return
+	say(x0 + 8, ly, fit(hover1, w - 16), ink(0.55))
+	var s2 := "PILOT %s · CLICK TO SIGN IN" % ship()
+	if say_w(s2) > w - 16:
+		s2 = "PILOT %s · SIGN IN" % ship()
+	if g.state == LabLogin.SIGNING:
+		s2 = "PILOT %s · SIGNING IN" % ship()
+	say(x0 + 8, ly + 8, fit(s2, w - 16), ink(0.9) if g.state == LabLogin.SIGNING else cue())
+
+
+## The header's right-hand words, when there is room for them.
+func _r_right(a: Rect2i, extra: String, s: String) -> void:
+	var hx_end := a.position.x + 4 + 14 + LabBoard.tw(g.owner_short() + extra)
+	var sw := say_w(s)
+	if a.end.x - 6 - sw > hx_end + 8:
+		say(a.end.x - 6 - sw, a.position.y + 6, s, ink(0.5))
+
+
+# ------------------------------------------------------------------ R1: no record
+
+const R1_CYCLE := 9.0
+const R1_ROW := 0.3
+const R1_CPS := 40.0
+const R1_MARK := [1, 2, 3]
+const R1_MARK_AT := 1.95
+const R1_MARK_EACH := 0.3
+const R1_MARK_S := 0.22
+const R1_KEPT_AT := 2.9
+const R1_CLEAR := 8.4
+const R1_HULLS := ["RUNNER", "SLOOP", "CLIPPER", "CUTTER", "CORVETTE", "SCOW", "TENDER", "PINNACE", "SKIFF", "YAWL"]
+const R1_WORK := ["NEW PAINT OVER OLD", "SERIALS FILED OFF", "VENTS BAFFLED", "QUICK RELEASE CATCHES",
+	"HIDDEN HOLD FITTED", "DRIVE TUNED PAST RATE", "PANELS THINNED"]
+
+
+func _r1_job(k: int) -> Array:
+	var h := absi(hash(k * 104729 + 7))
+	var ms: Array = DB.manufacturers.keys()
+	var from := "KORVAN"
+	var port := "KORVAN"
+	if not ms.is_empty():
+		from = DB.short_name(DB.manufacturer_name(ms[(h / 7) % ms.size()] as StringName)).to_upper()
+		port = DB.short_name(DB.manufacturer_name(ms[(h / 13) % ms.size()] as StringName)).to_upper()
+	return [
+		String(R1_HULLS[h % R1_HULLS.size()]),
+		"%s-%04d-%02d" % [from.left(2), (h / 17) % 10000, (h / 3) % 100],
+		"%s DOCK %d" % [port, 1 + (h / 19) % 9],
+		"PILOT " + String(S3_PILOTS[(h / 23) % S3_PILOTS.size()]),
+		String(R1_WORK[(h / 29) % R1_WORK.size()]),
+		"CASH. NO RECEIPT.",
+	]
+
+
+func _paint_r1() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var h := a.size.y
+	var dim := fade()
+	var ft := _held_t()
+	var k := int(floorf(ft / R1_CYCLE))
+	var u := fposmod(ft, R1_CYCLE)
+	head(x0 + 4, y0 + 3, " REFIT RECORD")
+	_r_right(a, " REFIT RECORD", "JOB %04d" % (2200 + k + absi(hash(String(g.owner_id))) % 600))
+	g.draw_rect(Rect2(x0 + 4, y0 + 17, w - 8, 1), ink(0.25))
+	var right := a.end.x - 8
+	var labels := ["HULL", "SERIAL", "LAST PORT", "OWNER", "WORK", "PAID"]
+	var job := _r1_job(k)
+	var top := y0 + 24
+	var room := a.end.y - 26 - top
+	var pitch := clampi(room / labels.size(), 10, 18)
+	var lx := x0 + 10
+	var vx := lx + LabBoard.tw("LAST PORT") + 12
+	var vw := right - vx
+	for i in labels.size():
+		var y := top + i * pitch
+		if u > R1_CLEAR + 0.08 * float(i):
+			continue
+		var started := u - float(i) * R1_ROW
+		# the row's tick and its label, there as soon as its row starts
+		if started < 0.0:
+			continue
+		px(lx - 4, y + 2, ink(0.5 * dim))
+		say(lx, y, String(labels[i]), ink(0.5 * dim))
+		var val := fit(String(job[i]), vw)
+		var n := mini(val.length(), int(floorf(started * R1_CPS)))
+		var shown := val.left(n)
+		var mark := -1.0
+		var j := R1_MARK.find(i)
+		if j >= 0:
+			mark = clampf((u - R1_MARK_AT - float(j) * R1_MARK_EACH) / R1_MARK_S, 0.0, 1.0)
+		var full_w := LabBoard.tw(val)
+		if mark < 1.0 and shown != "":
+			say(vx, y, shown, ink(0.95 * dim))
+			if n < val.length():
+				g.draw_rect(Rect2(vx + LabBoard.tw(shown) + 1, y, 4, 5), ink(0.8 * dim))
+		if mark > 0.0:
+			# THE MARK-OUT: a hatched bar over the value, drawn left to right
+			var bw := maxi(1, int(float(full_w + 4) * mark))
+			var r := Rect2i(vx - 2, y - 1, bw, 7)
+			g.draw_rect(Rect2(r), _red(0.3 * dim))
+			for yy in range(r.position.y, r.end.y):
+				for xx in range(r.position.x, r.end.x):
+					if posmod(xx + yy, 4) == 0:
+						g.draw_rect(Rect2(xx, yy, 1, 1), _red(0.6 * dim))
+			if mark < 1.0:
+				g.draw_rect(Rect2(r.end.x - 1, y - 2, 1, 9), _red(1.0 * dim))
+			else:
+				g.leaves.append(["bar", r])
+	# THE FOOT: RECORD KEPT: NONE once the marks are on
+	var kept := u >= R1_KEPT_AT and u < R1_CLEAR + 0.5
+	if g.state != LabLogin.LOGO or kept:
+		_r_foot(a, "RECORD KEPT: NONE", _red(1.0 * dim), "WE KEEP NO RECORD OF YOU")
+	else:
+		g.draw_rect(Rect2(x0 + 4, a.end.y - 23, w - 8, 1), ink(0.25))
+
+
+# ------------------------------------------------------------------ R2: going dark
+
+const R2_RATE := 7.0
+const R2_CYCLE := 12.0
+const R2_NOISE := 0.05
+
+
+## The hull's return for a row written at time `t`: full, then falling as the
+## baffles close, under the noise for the last part of each test.
+func _r2_level(t: float) -> float:
+	var u := fposmod(t, R2_CYCLE)
+	if u < 2.0:
+		return 1.0
+	return maxf(0.02, exp(-(u - 2.0) * 0.48))
+
+
+func _paint_r2() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var dim := fade()
+	var tr := rest_t()
+	var hold := _held_t()
+	var hover := g.state != LabLogin.LOGO
+	head(x0 + 4, y0 + 3, " SIGNATURE TEST")
+	var test := 40 + int(floorf(hold / R2_CYCLE)) + absi(hash(String(g.owner_id))) % 50
+	_r_right(a, " SIGNATURE TEST", "TEST %d" % test)
+	# THE WATERFALL: a row a twelfth of a second, newest on top
+	var wf := Rect2i(x0 + 8, y0 + 20, w - 16, a.end.y - 27 - (y0 + 20))
+	g._brackets(wf.grow(2), 4, ink(0.45 * dim))
+	var now_row := int(floorf(tr * R2_RATE))
+	var cx := float(wf.position.x) + float(wf.size.x) * 0.5
+	var drift := float(wf.size.x) * 0.03
+	var rng := RandomNumberGenerator.new()
+	var per_row := maxi(4, int(float(wf.size.x) * 0.11))
+	# the time scale down the left: NOW at the top, the oldest row at the foot
+	var old_s := "-%d S" % int(roundf(float(wf.size.y) / R2_RATE))
+	say(wf.position.x + 2, wf.position.y + 2, "NOW", ink(0.45 * dim))
+	say(wf.position.x + 2, wf.end.y - 8, old_s, ink(0.45 * dim))
+	_keep.append(Rect2i(wf.position.x, wf.position.y, LabBoard.tw("NOW") + 5, 9))
+	_keep.append(Rect2i(wf.position.x, wf.end.y - 10, LabBoard.tw(old_s) + 5, 10))
+	# pointed at, the new contact comes in from the top over three seconds
+	var grow := 1.0 if g.state == LabLogin.SIGNING else clampf(g._t / 3.0, 0.0, 1.0)
+	for yy in wf.size.y:
+		var row := now_row - yy
+		var t := float(row) / R2_RATE
+		var y := wf.position.y + yy
+		# the static, the same per row as it falls
+		rng.seed = absi(hash(row * 7349 + 11))
+		for i in per_row:
+			var x := wf.position.x + rng.randi() % wf.size.x
+			var n := rng.randf()
+			px(x, y, ink((0.1 + 0.22 * n * n) * dim))
+		# the test hull's return, in the owner's red
+		var xc := cx - float(wf.size.x) * 0.18 + sin(t * 0.13) * drift
+		var lv := _r2_level(t) * (1.0 - 0.6 * hk(0.5))
+		if hover and t > hold:
+			lv = 0.0
+		if lv > R2_NOISE * 0.5:
+			for d in range(-3, 4):
+				var x := int(roundf(xc)) + d
+				var v := lv * exp(-pow(float(d) / 1.3, 2.0)) * (0.75 + 0.25 * rng.randf())
+				if v > 0.06:
+					px(x, y, _red((0.25 + 0.75 * v) * dim))
+		# pointed at: YOU, picked up at full return down the right of the band,
+		# coming up over half a second
+		if hover and float(yy) < grow * float(wf.size.y):
+			var yx := int(cx + float(wf.size.x) * 0.2)
+			for d in range(-5, 6):
+				var v := exp(-pow(float(d) / 1.7, 2.0)) * (0.3 + 0.7 * rng.randf())
+				if v > 0.1 and rng.randf() > 0.12:
+					px(yx + d, y, ink((0.15 + 0.85 * v) * dim))
+	# THE FOOT: the return now, or the contact
+	var lvn := _r2_level(hold)
+	var pct := roundi(lvn * 100.0)
+	var rest1 := "RETURN %d%% · BELOW NOISE" % pct if lvn < R2_NOISE else "RETURN %d%% · TRACKING" % pct
+	_r_foot(a, rest1, _red(1.0 * dim) if lvn < R2_NOISE else ink(0.75 * dim), "NEW CONTACT, FULL RETURN")
+
+
+# ------------------------------------------------------------------ R3: over the line
+
+const R3_SPEED := 22.0
+const R3_RATED := 0.62
+const R3_PUSH_EVERY := 7.0
+const R3_IDLE := 0.22
+var _r3_over := -1.0
+
+
+## The drive's heat at time `t`, 0 to 1 of the chart: a working wander under
+## the rated line and, every seven seconds, a push over it and back.
+func _r3_heat(t: float) -> float:
+	var v := 0.42 + 0.07 * sin(t * 0.9) + 0.04 * sin(t * 2.3 + 1.0) + 0.012 * sin(t * 6.1)
+	var u := fposmod(t + 6.0, R3_PUSH_EVERY)
+	if u < 3.0:
+		v += 0.32 * pow(sin(u / 3.0 * PI), 2.0)
+	return v
+
+
+## R3, redrawn (critic pass, Nov 7): the strip chart it was matched Solari's
+## Margin Test (a heat trace under a limit line), so the bench is a picture
+## now. The drive hangs nozzle down over the blast pit; its plume runs past
+## the red RATED line every seven seconds, and the line is cut where the plume
+## goes through it: two red bars, the owner's own mark.
+func _paint_r3() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var dim := fade()
+	var tr := rest_t()
+	var hover := g.state != LabLogin.LOGO
+	var hold := _held_t()
+	if _r3_over < 0.0:
+		_r3_over = 600.0 + float(absi(hash(String(g.owner_id))) % 300)
+	head(x0 + 4, y0 + 3, " DRIVE BENCH")
+	_r_right(a, " DRIVE BENCH", "GHOST DRIVE")
+	g.draw_rect(Rect2(x0 + 4, y0 + 17, w - 8, 1), ink(0.25 * dim))
+	# the thrust now (0..1 of the pit), throttled back to idle while pointed at
+	var v := _r3_heat(tr)
+	if hover:
+		var e := clampf((tr - hold) / 1.2, 0.0, 1.0)
+		e = e * e * (3.0 - 2.0 * e)
+		v = lerpf(_r3_heat(hold), R3_IDLE, e)
+	# THE BENCH: the picture on the left, the readings in a column on the right
+	var pw := int(float(w) * 0.6)
+	var pic := Rect2i(x0 + 8, y0 + 21, pw, a.end.y - 26 - (y0 + 21))
+	var cx := pic.position.x + pic.size.x / 2
+	var beam_y := pic.position.y + 1
+	var floor_y := pic.end.y - 2
+	# the drive: a ribbed casing hung from a short beam, the owner's red band
+	# round its neck, cut in two like the mark, and a bell below it
+	var dw := clampi(pic.size.x / 7, 10, 26) & ~1
+	var dh := clampi(int(float(dw) * 0.85), 8, 24)
+	g.draw_rect(Rect2(cx - dw, beam_y, dw * 2, 2), ink(0.5 * dim))
+	g.draw_rect(Rect2(cx - 1, beam_y + 2, 2, 2), ink(0.6 * dim))
+	var by := beam_y + 4
+	g.draw_rect(Rect2(cx - dw / 2, by, dw, dh), ink(0.26 * dim))
+	g._frame_box(Rect2i(cx - dw / 2, by, dw, dh), ink(0.7 * dim))
+	for yy in range(by + 6, by + dh - 1, 3):
+		line(Vector2i(cx - dw / 2 + 2, yy), Vector2i(cx + dw / 2 - 3, yy), ink(0.42 * dim))
+	g.draw_rect(Rect2(cx - dw / 2, by + 2, dw / 2 - 1, 2), _red(1.0 * dim))
+	g.draw_rect(Rect2(cx + 1, by + 2, dw / 2 - 1, 2), _red(1.0 * dim))
+	var bell_top := by + dh
+	var bell_h := maxi(3, dh / 4)
+	for i in bell_h:
+		var hw := dw / 4 + int(float(dw) * 0.2 * float(i) / float(bell_h))
+		px(cx - hw, bell_top + i, ink(0.75 * dim))
+		px(cx + hw - 1, bell_top + i, ink(0.75 * dim))
+		if i == bell_h - 1:
+			line(Vector2i(cx - hw, bell_top + i), Vector2i(cx + hw - 1, bell_top + i), ink(0.75 * dim))
+	var noz_y := bell_top + bell_h
+	var noz_hw := dw / 4 + int(float(dw) * 0.2)
+	# the pit floor and its blast plate, hatched
+	line(Vector2i(cx - noz_hw * 3, floor_y), Vector2i(cx + noz_hw * 3, floor_y), ink(0.45 * dim))
+	for xx in range(cx - noz_hw * 2, cx + noz_hw * 2):
+		if posmod(xx, 3) == 0:
+			px(xx, floor_y + 1, ink(0.3 * dim))
+	# THE PLUME: its length is the thrust; it changes shape ten times a second
+	var room := float(floor_y - 2 - noz_y)
+	var plen := int(clampf(v, 0.0, 1.0) * room)
+	var ry := noz_y + int(R3_RATED * room)
+	var over := v > R3_RATED
+	var frame := int(floorf(tr * 10.0))
+	for i in plen:
+		var y := noz_y + i
+		var s := float(i) / maxf(1.0, float(plen))
+		var hw := float(noz_hw - 1) * (1.0 - 0.75 * s * s) + 0.5
+		for d in range(-int(hw), int(hw) + 1):
+			var edge := absf(float(d)) / maxf(1.0, hw)
+			var n := noise(frame * 131 + d, y)
+			var heat := (1.0 - s) * (1.0 - 0.6 * edge)
+			if edge > 0.6 and n < 0.45:
+				continue
+			if s > 0.8 and n < (s - 0.8) * 4.0:
+				continue
+			var c := ink((0.3 + 0.7 * heat) * dim)
+			if y > ry and over:
+				c = _red((0.55 + 0.45 * heat) * dim)
+			px(cx + d, y, c)
+	# THE RATED LINE: dashed red across the pit, cut where the plume crosses it
+	var cut_l := cx - noz_hw - 3
+	var cut_r := cx + noz_hw + 2
+	for xx in range(pic.position.x + 4, pic.end.x - 4):
+		if over and xx >= cut_l and xx <= cut_r:
+			continue
+		if over:
+			# the two halves go solid: the owner's two bars
+			g.draw_rect(Rect2(xx, ry, 1, 2), _red(1.0 * dim))
+		elif posmod(xx, 3) != 2:
+			px(xx, ry, _red(0.7 * dim))
+	say(pic.position.x + 5, ry - 8, "RATED", _red(0.85 * dim))
+	# THE READINGS: the thrust against the rating, and the time it has run over
+	var col := pic.end.x + 8
+	var cw := a.end.x - 8 - col
+	var y := pic.position.y + 2
+	var big_step := 15 if pic.size.y >= 70 else 12
+	say(col, y, fit("THRUST", cw), ink(0.5 * dim))
+	y += 10
+	var pct := roundi(v / R3_RATED * 100.0)
+	text(col, y, "%d%%" % pct, _red(1.0 * dim) if over else ink(0.95 * dim), 16)
+	y += big_step
+	say(col, y, fit("OF RATED", cw), ink(0.5 * dim))
+	var ov := int(_r3_over)
+	if pic.size.y >= 70:
+		y += 16
+		say(col, y, fit("TIME OVER", cw), ink(0.5 * dim))
+		y += 10
+		text(col, y, "%d:%02d" % [ov / 60, ov % 60], _red(0.9 * dim), 16)
+	# THE FOOT
+	var rest1 := "TUNED PAST RATE · TIME OVER %d:%02d" % [ov / 60, ov % 60]
+	if pic.size.y >= 70 or say_w(rest1) > w - 16:
+		rest1 = "TUNED PAST RATE. NOT CERTIFIED."
+	_r_foot(a, rest1, ink(0.75 * dim), "DRIVE BACK TO IDLE")
