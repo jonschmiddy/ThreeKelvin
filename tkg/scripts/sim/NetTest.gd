@@ -1461,6 +1461,9 @@ func _late_join_test() -> void:
 	check("and the host's unlocks", str(late.dive_unlocked), str(host.dive_unlocked))
 	check("knowing what the party has used up", late.who_took(77), 1)
 	ok("and the fight open at the time", late.fight_open_at(88))
+	# The host seats the late ship, then pushes the roster; the guest's copy
+	# arrives a frame or more later, so it is waited for like the count below.
+	await _wait_until(func() -> bool: return early.party_size() == 3, 3.0)
 	check("in the party everybody sees", early.party_size(), 3)
 	ok("seated after the others, so its loot is its own",
 		late.seat() > early.seat())
