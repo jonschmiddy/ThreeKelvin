@@ -170,9 +170,9 @@ static func ball_form(p: Dictionary) -> Vector4:
 		"Flattened Elliptical":
 			return Vector4(1.05, 0.4, 1.6, 0.54)
 		"Giant Elliptical":
-			return Vector4(1.15, 0.6, 2.3, 0.72)
+			return Vector4(1.15, 0.45, 2.3, 0.72)
 		"Dwarf Spheroidal":
-			return Vector4(0.75, 0.5, 1.9, 0.8)
+			return Vector4(0.75, 0.3, 2.4, 0.8)
 		"Blue Compact Dwarf":
 			return Vector4(1.0, 0.45, 1.8, 0.72)
 	return Vector4(1.0, 0.5, 1.9, 0.72)

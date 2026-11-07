@@ -154,6 +154,13 @@ const vec2 BALL_HALO_END = vec2(0.8, 2.8);
 // much flatter its outline is drawn than a round one's, 1 for round)
 uniform vec4 u_ballK = vec4(0.0);
 uniform vec4 u_ballF = vec4(0.5, 1.8, 0.3, 1.0);
+// (a ball's gas texture and the dither across its steps, Nov 5's review: shares of its light)
+const float BALL_BILLOW = 0.32;
+const float BALL_GRAIN = 0.16;
+const float BALL_DITHER = 0.14;
+// (how far a merger's outer light sits off its core, in its outer scale, down and
+// to one side so the shot's up and down halves differ too)
+const float BALL_LOPSIDE = 0.8;
 vec2 bakeUV(vec2 p) { return (p + u_sExt) / (2.0 * u_sExt); }
 #define u_noise u_sNoise
 #define u_struct u_sStruct
@@ -1073,7 +1080,7 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 		vec2 qb = u_solid ? vec2(vb.x, vb.y / u_solidW.y) / u_k : q0;
 		// (A MERGER'S REMNANT LOPSIDED, Nov 5: its outer light, the swallowed galaxy's,
 		// still off to one side of the core, along the screen so it stays level)
-		vec2 qo = qb - vec2(0.22 * u_ballK.z * u_ballF.z, 0.0);
+		vec2 qo = qb - vec2(0.85, -0.5) * (BALL_LOPSIDE * u_ballK.z * u_bulge.y);
 		vec2 b1 = bulgeComp(qb, u_bulge.x, u_bulge.z, 0.0) * u_bulgeI.x;
 		vec2 b2 = bulgeComp(qo, u_bulge.y, u_bulge.z, 0.0) * u_bulgeI.y;
 		vec2 bc = bulgeComp(qb, u_bulge.w, u_bulge.z, 0.0) * u_bulgeI.z;
@@ -1113,6 +1120,24 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 			float sB = length((u_isBall ? qo : qb) * vec2(1.0, KIT_TILT / 1.08 * (u_isBall ? u_ballF.w : 1.0))) / u_bulge.y;
 			float eb = u_isBall ? 1.0 - smoothstep(u_ballF.x, u_ballF.y, sB)
 				: solidBulgeEnd(length(qb * vec2(1.0, KIT_TILT / 1.08)), 0.6 * u_bulge.y / 0.13);
+			// (A BALL'S BODY IN THIS STYLE'S HAND, Nov 5's review: smooth, the palette cut its
+			// fall into concentric rings, flat runs up to 38 px, and the three ellipticals read
+			// alike. The spiral's gas grain and billow put back at a low amplitude (the old
+			// mottle at 0.28 made brown plates), at fixed world scales so a patch keeps its
+			// size at every zoom, past the heart; and dithered a step either way on the
+			// anchored Bayer, as the edge is, so the palette's steps break up)
+			if (u_isBall) {
+				vec4 wB = nz(vec3(qb * 1.9, 0.29));
+				float bil = nz(vec3(qb * 4.6 + (wB.rg - 0.5) * 0.6, 0.61)).r;
+				float grn = nz(vec3(qb * 12.5 + (wB.ba - 0.5) * 0.2, 0.13)).r;
+				// (a dwarf spheroidal's at half: it is a thin smooth spread of old stars, and its
+				// faint light read the grain as a rim)
+				float txA = abs(u_ballK.x - 2.0) < 0.5 ? 0.5 : 1.0;
+				float tx = 1.0 + txA * (BALL_BILLOW * (bil - 0.5) + BALL_GRAIN * (grn - 0.5));
+				tx = mix(1.0, tx, smoothstep(0.06, 0.3, sB));
+				// (the dim outskirts' steps lie further apart, so the dither widens there)
+				eb *= tx * (1.0 + BALL_DITHER * mix(1.0, 2.6, smoothstep(0.4, 1.2, sB)) * (kitBayer4(dq) - 0.5));
+			}
 			bF *= eb;
 			bB *= eb;
 		}
@@ -1317,8 +1342,12 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 	float wisp = max(0.25 + 0.8 * hw.r + 0.45 * nz(vec3(hv * 1.3 + hw.ag * 0.3, 0.21)).r, 0.0);
 	// (a ball's halo smooth, its wisps a breath: broken into clouds it drew blotches
 	// round a body that is now smooth, Nov 5)
+	// (and its halo carries the body's grain and the same dither across the palette's
+	// steps, Nov 5's review: smooth, it banded into rings round the body at the opening)
 	if (u_isBall) {
 		wisp = mix(1.0, wisp, 0.25);
+		float hg = nz(vec3(hv * 4.6 + (hw.rg - 0.5) * 0.6, 0.61)).r;
+		wisp *= (1.0 + BALL_BILLOW * 0.7 * (hg - 0.5)) * (1.0 + BALL_DITHER * mix(1.0, 2.6, smoothstep(0.1, 0.6, sqrt(hr2))) * (kitBayer4(dq) - 0.5));
 	}
 	// (the solid look: the halo ends with the disc's own fade, so the galaxy fades
 	// into true black space)
