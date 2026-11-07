@@ -847,6 +847,76 @@ static func ball_lit_gu(ball: Vector4) -> float:
 	return 1.8 * ball.x
 
 
+## A BALL IN THE SPIRAL'S HAND, in this style (Jon, Nov 5: "Galaxy kinds in Painted: A.
+## This could also be applied for the other art styles. It looks good."): PAINTED's
+## direction A in SIMPLIFIED's own hand (`chart_c_place`'s `ellBall`). A ball was one
+## smooth light on a gradient of its own, cut by the palette into flat concentric plates
+## with a violet-blue rim, a supernova's rings on it: none of what makes this style's
+## spirals -- a compact gold heart, light gathered in clumps whose edges the palette's
+## steps fall on, gas in the arms' blue and pink, an edge that dissolves in a dither.
+## Now its body is that light. Each kind as itself: (look, how far out its old warm
+## light holds in ball radii, its young gas and star birth 0..1, how irregular its
+## outline 0..1) -- an old elliptical warm to its edge; a blue compact dwarf young, blue,
+## lumpy and knotted round a small warm heart; a dwarf spheroidal faint, grey and warm
+## only round its middle; a merger's remnant warm, lopsided, a few knots, its stream.
+## Only the two with gas (the blue compact dwarf, the merger) have cool gas past their
+## warm light.
+static func ball_kind(ball: Vector4) -> Vector4:
+	match int(ball.w):
+		1:
+			return Vector4(1.0, 0.45, 1.0, 0.6)
+		2:
+			return Vector4(2.0, 0.6, 0.0, 0.15)
+		3:
+			return Vector4(3.0, 1.3, 0.3, 0.25)
+	return Vector4(0.0, 1.25, 0.0, 0.0)
+
+
+## A ball's body in this style (`ellBall`'s `u_ballF`): (its size against `ball_of`'s
+## radius, the power its light falls by, where its light ends in those radii, its halo
+## of globular clusters 0..1). The three ellipticals told apart by more than their
+## roundness: a round one the plain fall; a flattened one squashed further
+## (`ball_drawn`) and falling steeply, a lens of light; a giant bigger, falling slowly
+## into a wide envelope, a swarm of globular clusters far past its body. The dwarfs
+## smaller (a blue compact dwarf's light is its gas, a dwarf spheroidal's spread thin).
+static func ball_form(kind: int) -> Vector4:
+	match GalaxyGen.type_name(kind):
+		"Flattened Elliptical":
+			return Vector4(1.0, 1.55, 2.4, 0.0)
+		"Giant Elliptical":
+			return Vector4(1.15, 1.1, 3.2, 1.0)
+		"Merger Remnant":
+			return Vector4(1.0, 1.2, 2.6, 0.0)
+		"Blue Compact Dwarf":
+			return Vector4(1.0, 1.1, 2.6, 0.0)
+		"Dwarf Spheroidal":
+			return Vector4(0.8, 1.1, 2.4, 0.0)
+	return Vector4(1.0, 1.3, 2.4, 0.0)
+
+
+## The ball as this style draws it: `ball_of`'s, a flattened elliptical's squashed further,
+## so it is a lens beside a round one (0.55 against 0.74 read as the same ball turned).
+static func ball_drawn(kind: int, ball: Vector4) -> Vector4:
+	if GalaxyGen.type_name(kind) == "Flattened Elliptical":
+		ball.y *= 0.8
+	return ball
+
+
+## A DWARF'S HOLE at its own size (Nov 5, as PAINTED's `ChartPainted.hole_of`): a dwarf's
+## hole is rolled off its bulge as any galaxy's is, and a dwarf's ball is small, so its
+## hole and lit ring filled its middle. At most this much of its ball's radius in this
+## style; the chart still keeps its marks clear of the hole rolled (`hole_px`).
+const DWARF_HOLE := 0.08
+
+
+static func hole_of(p: Dictionary) -> float:
+	var ball: Vector4 = p.ball
+	var h := float(p.hole_r)
+	if int(p.form) == 1 and (int(ball.w) == 1 or int(ball.w) == 2):
+		h = minf(h, DWARF_HOLE * ball.x)
+	return h
+
+
 ## The rolled galaxy as the place pass's constants.
 static func params(_use_map: bool = true) -> Dictionary:
 	var g: Dictionary = Run.galaxy
@@ -1867,13 +1937,21 @@ func _feed_static(m: ShaderMaterial, g: Dictionary) -> void:
 	m.set_shader_parameter("u_k", K0)
 	m.set_shader_parameter("u_ext", EXT)
 	m.set_shader_parameter("u_form", int(p.form))
-	m.set_shader_parameter("u_ball", p.ball)
+	m.set_shader_parameter("u_ball", ball_drawn(Run.galaxy_kind, p.ball) if int(p.form) == 1 else p.ball)
+	m.set_shader_parameter("u_ballK", ball_kind(p.ball))
+	m.set_shader_parameter("u_ballF", ball_form(Run.galaxy_kind))
 	var bd := ball_depth(Run.galaxy_kind)
 	m.set_shader_parameter("u_ballD", bd[0])
 	m.set_shader_parameter("u_ballE", bd[1])
 	push_story(m, STORY_GAIN_C)
+	if int(p.form) == 1:
+		# (the story's far-side shells hug the ball as this style draws it, `ball_drawn`: a
+		# flattened one's at `ball_of`'s roundness stood off its lens as rings round it)
+		var sk: Vector4 = ball_story(STORY_GAIN_C).u_storyK
+		sk.y = ball_drawn(Run.galaxy_kind, p.ball).y
+		m.set_shader_parameter("u_storyK", sk)
 	m.set_shader_parameter("u_bulgeR", float(p.bulge_r))
-	m.set_shader_parameter("u_holeR", float(p.hole_r))
+	m.set_shader_parameter("u_holeR", hole_of(p))
 	m.set_shader_parameter("u_gasAmt", float(p.gas))
 	m.set_shader_parameter("u_laneStr", float(p.lane))
 	m.set_shader_parameter("u_armGain", float(p.arm_gain))

@@ -13,6 +13,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   merger with its tidal stream, have a blue skirt. The giant elliptical is bigger and wider, with a
   swarm of star clusters round it; the flattened one is a lens with a steeper fall of light. A
   dwarf's black hole is drawn at the dwarf's size, and supernova rings stay off these galaxies.
+- **Changed** — the SIMPLIFIED style's round galaxies get the same treatment: a compact gold
+  middle and a body gathered in clumps like the spirals' light, instead of flat rings of colour
+  with a blue rim. Each breaks up patch by patch into the dark at its edge. The blue compact dwarf
+  is small, blue and lumpy with pink star-forming knots; the merger remnant is lopsided with a blue
+  tidal stream; the dwarf spheroidal is small, faint and grey; the giant elliptical has a swarm of
+  star clusters round it and the flattened one is a lens. A dwarf's black hole is drawn at the
+  dwarf's size, and supernova rings stay off these galaxies.
 - **Fixed** — the star chart's corner words (THRUSTER REACH, SENSOR RANGE, LOCAL REGION and the
   scale bar) have a shadow under them, so they stay readable over a galaxy's bright middle.
 
