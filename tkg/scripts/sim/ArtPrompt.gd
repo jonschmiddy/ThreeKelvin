@@ -135,7 +135,7 @@ func _emit(id: StringName, batch: StringName) -> void:
 	print(_prompt(m, spec))
 
 
-## Object first, then maker, then light: opening on a surface produces a surface (25 generations).
+## Object, then manufacturer, then light: opening on a surface makes a surface (25 runs).
 func _prompt(m: ManufacturerData, spec: Dictionary) -> String:
 	# Fill the accent into any part that asked for it.
 	var accent := _accent_word(m.colour)
@@ -165,7 +165,7 @@ func _prompt(m: ManufacturerData, spec: Dictionary) -> String:
 	return out
 
 
-## The maker colour as a word, as a hex reads as noise; it nudges which entry is reached for.
+## The manufacturer colour as a word, as a hex reads as noise; it nudges which entry is reached for.
 func _accent_word(c: Color) -> String:
 	var h := c.h * 360.0
 	if c.s < 0.2:

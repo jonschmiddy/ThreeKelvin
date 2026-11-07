@@ -1536,7 +1536,7 @@ func _scrap(sz: Vector2) -> void:
 		row += 1.0
 
 
-## Each notice is in the maker's own voice, lifted from who they already are.
+## Each notice is in the manufacturer's own voice, lifted from who they already are.
 ## Why: docs/why/PostingBoard.md#manufacturer-posts
 const POSTS := {
 	&"korvan": [["DAYS WITHOUT", "A MISFIRE"], "71204"],

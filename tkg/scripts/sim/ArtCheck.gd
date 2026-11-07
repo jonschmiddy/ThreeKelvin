@@ -4,7 +4,8 @@ extends Harness
 ## Why: docs/why/ArtCheck.md#coverage-gate
 
 
-## Cards come from these makers' modules plus malfunctions; the empty name is unbranded, a real key.
+## Cards come from these manufacturers' modules plus malfunctions.
+## The empty name is unbranded, a real key.
 const MANUFACTURERS: Array[StringName] = [&"korvan", &"", &"solari"]
 
 ## How far past its box a part may stand before it is a fault, in art pixels.

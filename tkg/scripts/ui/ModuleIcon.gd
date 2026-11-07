@@ -1,7 +1,7 @@
 class_name ModuleIcon
 extends ItemIcon
 
-## Three channels (maker, grade, use), none needing a word; the glyph shares the card's art.
+## Three channels (manufacturer, grade, use), none needing a word; the glyph shares the card's art.
 ## Why: docs/why/ModuleIcon.md#module-icon
 
 const SIZE := 44
@@ -109,13 +109,13 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2,
 	# Rarity is the ground, darkened to a tint, so plates sort by quality at a glance.
 	ci.draw_rect(r, rar.lerp(UITheme.VOID, GROUND), true)
 
-	# A bet that generated art will show the maker, so no stripe. Revisit if it does not.
+	# A bet that generated art will show the manufacturer, so no stripe. Revisit if it does not.
 	# Why: docs/why/ModuleIcon.md#manufacturer-as-art
 
 	# Drawn at the size the hull draws it, via `part_scale` on the same box (was min(w, h) / 26).
 	# Why: docs/why/ModuleIcon.md#silhouette-size
 	var f := m.footprint() if cells == Vector2i.ZERO else cells
-	# The art is the rarity, not the maker, which the field already says.
+	# The art is the rarity, not the manufacturer, which the field already says.
 	draw_body(ci, m, r, mark, f, mirror, scale)
 
 	# The edge is the ink: a contraband ground is darker than the screen, so only the edge shows.

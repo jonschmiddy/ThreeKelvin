@@ -2495,6 +2495,9 @@ VOCAB_DOCS=$(
 	  | grep -v "maker's mark" \
 	  | grep -v 'house style' \
 	  | grep -v 'never .house. or .maker.' \
+	  | grep -v 'wrong for anyone outside the house' \
+	  | grep -v '`maker`' \
+	  | grep -v '`makers`' \
 	  | grep -viE 'never house, maker, brand, or marque' \
 	  | grep -v '`chassis_maker`'
 )

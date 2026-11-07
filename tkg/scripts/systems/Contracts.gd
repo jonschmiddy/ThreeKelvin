@@ -42,7 +42,7 @@ static func board(n: MapGen.MapNode) -> Array:
 	return out
 
 
-## A contested station posts two makers' work side by side, as the trade map already draws it.
+## A contested station posts two manufacturers' work side by side, as the trade map does.
 static func _manufacturers(n: MapGen.MapNode) -> Array:
 	var out: Array = []
 	if n.manufacturer != &"" and DB.manufacturers.has(n.manufacturer):

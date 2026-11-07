@@ -4,7 +4,7 @@ extends Node
 ## Why: docs/why/Database.md#content-database
 
 ## Only these manufacturers can drop, empty means all. Narrowed for depth over breadth.
-## A part also needs the profile to have unlocked its maker (`LootGen.can_appear`).
+## A part also needs the profile to have unlocked its manufacturer (`LootGen.can_appear`).
 ## Why: docs/why/Database.md#loot-pool-gate
 const ACTIVE_MANUFACTURERS: Array[StringName] = [&"korvan", &"solari"]
 
@@ -318,7 +318,7 @@ func _seed_modules() -> void:
 			{name = "Overwatch", energy = 2, brace = 4, feedback = 6, draw = 1}])
 
 	## Rarity buys a verb, not a number. The weapon spine is salvo, which Korvan's 5-set doubles.
-	## Other makers' verbs stay out: borrowing one reads as that manufacturer.
+	## Other manufacturers' verbs stay out: borrowing one reads as that manufacturer.
 	## Why: docs/why/Database.md#korvan-ladder
 
 	# Ballistics, the middle rung. Between the Chatterbox's 6/10 and the
@@ -889,7 +889,7 @@ func _lay_pips(m: ModuleData, axis: StringName, pips: int) -> void:
 
 # ------------------------------------------------------------------------ hulls
 
-## Baseline per weight plus one signature per maker, so one line says what a maker is.
+## Baseline per weight plus one signature per manufacturer, so one line says what a manufacturer is.
 ## Dissipation is a trickle on purpose, so heat comes off with cards, not for free.
 ## Why: docs/why/Database.md#hull-baselines
 const WEIGHT_BASE := {
@@ -1052,7 +1052,7 @@ func hull_sprite(w: HullData.Weight, cls: int = 0, half: bool = false,
 	var sub := "half/" if half else ""
 	return load("res://art/sprites/hulls/%s/%s%s.png" % [hull_art_dir(manufacturer), sub, n]) as Texture2D
 
-## Makers with their own hull art, and the picture each weight's grades bake from (Jon, Oct 14, 15).
+## Manufacturers with their own hull art, and each weight's base picture (Jon, Oct 14, 15).
 const HULL_ART := {
 	&"korvan": {"light": "c", "medium": "a", "heavy": "a"},
 	&"solari": {"light": "a", "medium": "a", "heavy": "a"},
@@ -1179,7 +1179,7 @@ func hull_art_name(w: HullData.Weight, cls: int = 0, manufacturer: StringName = 
 	return "hull_%s_%s" % [stem, letter.to_lower()]
 
 
-## One hull per weight, four grades baked from it, not twelve ships a maker (Jon, Oct 14).
+## One hull per weight, four grades baked from it, not twelve ships a manufacturer (Jon, Oct 14).
 const GRADE_BASE: Dictionary = HULL_ART[&"korvan"]
 
 ## Whether this weight's grades are baked from one hull (HullGrade) rather than

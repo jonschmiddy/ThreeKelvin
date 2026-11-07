@@ -149,7 +149,7 @@ func _build() -> void:
 	_header.add_theme_stylebox_override("normal", UITheme.empty())
 
 	# One banner per berth at the head of the rail, as
-	# a contested station is held by several makers.
+	# a contested station is held by several manufacturers.
 	# Why: docs/why/StationScreen.md#rail-flags
 	var rail := VBoxContainer.new()
 	_rail = rail
@@ -396,7 +396,7 @@ func _on_ship_hover(on: bool) -> void:
 		_scene_slab.visible = on
 
 
-## A signed change column: fill-versus-floor gauges misread when the maker accent was itself red.
+## A signed change column: gauges misread when the manufacturer accent was itself red.
 ## Why: docs/why/StationScreen.md#offer-slab
 func _offer_slab(h: HullData, against: HullData, title: String) -> Control:
 	var col := VBoxContainer.new()
@@ -1259,7 +1259,7 @@ func _part_column(mod: ModuleData) -> VBoxContainer:
 	title.custom_minimum_size = Vector2(PICK_W, 0)
 	left.add_child(title)
 
-	# Maker and slot are two labels: one is an allegiance, the other a spec.
+	# Manufacturer and slot are two labels: one is an allegiance, the other a spec.
 	var mrow := HBoxContainer.new()
 	mrow.add_theme_constant_override("separation", 5)
 	mrow.add_child(UITheme.body(
@@ -1642,7 +1642,8 @@ func _refresh_work(n: MapGen.MapNode) -> void:
 	var hot := Run.heat_deliverable_at(n)
 	var mine := _open_elsewhere(n)
 
-	# Every station has a hiring board (Jon, Nov 3); one with no maker posts for its dock desk.
+	# Every station has a hiring board (Jon, Nov 3).
+	# One with no manufacturer posts for its dock desk.
 	# Why: docs/why/StationScreen.md#five-decks-everywhere
 	_enable_tab(&"work", true)
 
@@ -1850,7 +1851,7 @@ func _offer_row(c: ContractData, state: String = "open", pay: Array = []) -> Con
 
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 5)
-	# The flag beside the name: a contract is written in that maker's own voice.
+	# The flag beside the name: a contract is written in that manufacturer's own voice.
 	var mk: ManufacturerData = DB.manufacturers.get(c.manufacturer)
 	if mk != null:
 		var fl := ChassisSelect.Banner.new()

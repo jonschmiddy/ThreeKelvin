@@ -255,7 +255,7 @@ func _build_detail() -> void:
 	ident.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	idc.add_child(ident)
 	idc.add_child(_gap(4))
-	# Set bonuses are the strategy this maker is for, so they sit by its name under a heading.
+	# Set bonuses are this manufacturer's strategy, so they sit under its name.
 	idc.add_child(UITheme.body("MANUFACTURER ABILITIES", UITheme.COLD, UITheme.FS_SMALL))
 	# The perk is a hull property: `LootGen` rerolls it on wrecks, so the tag reads HULL, not 1+.
 	# Why: docs/why/ChassisSelect.md#hull-perk

@@ -4,7 +4,7 @@ extends RefCounted
 ## Unlocks reverse the flight-record ruling but grant no power, only doors; derived, never stored.
 ## Why: docs/why/Unlocks.md#meta-progression
 
-## Each maker unlocks by winning with the one before; order follows `DB.STARTABLE`.
+## Each manufacturer unlocks by winning with the one before; order follows `DB.STARTABLE`.
 const CHAIN: Array[StringName] = [
 	&"korvan", &"solari", &"probate", &"redline", &"cygnet", &"verity", &"calyx",
 ]
@@ -53,7 +53,7 @@ static func unlocked(manufacturer: StringName) -> bool:
 		return true
 	return won_with().has(need)
 
-## Locked makers' parts appear nowhere (Jon, Oct 20); the record is read once at run start.
+## Locked manufacturers' parts appear nowhere (Jon, Oct 20); the record is read once at run start.
 ## Why: docs/why/Unlocks.md#new-run-world
 static func open_now() -> Array[StringName]:
 	var out: Array[StringName] = []

@@ -757,7 +757,7 @@ func _build_left() -> void:
 	# to stand in the content area's height)
 	hc.add_theme_constant_override("separation", 1)
 	_hold_panel.add_child(hc)
-	# Name and pencil open refit's prompt; name, maker and count sit close so gaps get room.
+	# Name and pencil open refit's prompt; name, manufacturer and count sit close so gaps get room.
 	var head := VBoxContainer.new()
 	head.add_theme_constant_override("separation", 0)
 	hc.add_child(head)

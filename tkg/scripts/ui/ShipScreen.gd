@@ -943,7 +943,7 @@ func _refresh_loadout() -> void:
 		for m in mine:
 			fitted += 1
 			# Module first, then its cards, so rows read in decision order and the colour bar scans
-			# by maker.
+			# by manufacturer.
 			var row := HBoxContainer.new()
 			row.add_theme_constant_override("separation", 4)
 			# A CARD'S WIDTH exactly, so the rows line up into a column. Left to

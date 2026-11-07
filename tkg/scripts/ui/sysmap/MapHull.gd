@@ -3,7 +3,7 @@ extends RefCounted
 ## The map draws the player's own hull art, shrunk and turned by `PixelTurn`, with no parts.
 ## Why: docs/why/MapHull.md#map-ship
 
-## Hull length on the map by weight; heights follow the picture, as makers' proportions differ.
+## Map hull length by weight; heights follow the picture, as manufacturers differ.
 const LEN: Array[int] = [14, 17, 20]
 ## A block of the picture is ink on the map when this much of it is.
 const INK := 0.4

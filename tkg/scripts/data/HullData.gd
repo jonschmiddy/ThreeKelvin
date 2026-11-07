@@ -44,7 +44,7 @@ enum Weight { LIGHT, MEDIUM, HEAVY }
 ## grade, so a C-class is never characterless.
 @export var perk_id: StringName = &"salvage_rack"
 
-## Tier perks are cumulative and authored, never rolled, so same grade and maker is the same ship.
+## Tier perks are authored, never rolled: same grade and manufacturer is the same ship.
 ## Why: docs/why/HullData.md#tier-perks
 @export var tier_perks: Array[StringName] = []
 
@@ -90,7 +90,7 @@ func anchors_for(s: ModuleData.Slot) -> Array[Vector2]:
 		ModuleData.Slot.SYSTEM: return system_anchors
 		_: return utility_anchors
 
-## Mounts spread along a line, not a point list, as mount counts vary with weight, tier and maker.
+## Mounts spread along a line: mount counts vary with weight, tier and manufacturer.
 ## Why: docs/why/HullData.md#mount-lines
 @export var dorsal: PackedVector2Array = PackedVector2Array()
 @export var ventral: PackedVector2Array = PackedVector2Array()
@@ -115,7 +115,7 @@ func mounts_along(s: ModuleData.Slot, n: int) -> PackedVector2Array:
 		for i in n:
 			out.append(placed[i])
 		return out
-	# Rigged for fewer than needed: art is shared between makers, so spread along what was placed.
+	# Rigged for fewer than needed: manufacturers share art, so spread along what was placed.
 	var line := PackedVector2Array(placed) if placed.size() > 1 else line_for(s)
 	if line.is_empty():
 		return out

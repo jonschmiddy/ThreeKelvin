@@ -676,7 +676,7 @@ func _ready() -> void:
 				continue
 			Run.install_module(md.duplicate(true) as ModuleData)
 			fitted += 1
-		# Two others, not three: three left the hull maker at four, one short of the top tier.
+		# Two others, not three: three left the hull manufacturer at four, one short of top.
 		# Why: docs/why/Main.md#ship-shot
 		if "mixed" in flags:
 			var others := 0

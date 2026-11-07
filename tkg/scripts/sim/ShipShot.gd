@@ -35,7 +35,7 @@ func run(tree: SceneTree) -> void:
 
 func _shot(tree: SceneTree, weight_name: String) -> void:
 	Run.start_new_run(&"korvan", int(WEIGHTS[weight_name]))
-	# `sets=N` bolts on the hull maker's parts: chips appear at three, a fresh run has two.
+	# `sets=N` bolts on the hull manufacturer's parts: chips appear at three, a fresh run has two.
 	for a in OS.get_cmdline_user_args():
 		if not (a as String).begins_with("sets="):
 			continue
@@ -104,7 +104,7 @@ func _shot(tree: SceneTree, weight_name: String) -> void:
 				break
 		print("  hold %dx%d, %d items" % [Run.hull.hold_grid.x,
 			Run.hull.hold_grid.y, Run.cargo.size()])
-	# `stock` packs modules, whose plates carry the rarity edge, maker stripe and silhouette.
+	# `stock` packs modules: their plates carry rarity edge, manufacturer stripe, silhouette.
 	if "stock" in OS.get_cmdline_user_args():
 		var tries := 0
 		while not Run.hold_full() and tries < 40:

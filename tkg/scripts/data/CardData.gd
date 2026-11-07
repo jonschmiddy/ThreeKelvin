@@ -161,7 +161,7 @@ var source_module: String = ""
 var source_id: StringName = &""
 var manufacturer: StringName = &""
 
-## A shared card must look the same wherever it came from: four Ranges wore two makers.
+## A shared card must look the same wherever it came from: four Ranges wore two manufacturers.
 ## The card is common and unbranded; the part it came off is a fact about the part.
 ## Why: docs/why/CardData.md#shared-cards
 @export var shared: bool = false
@@ -331,7 +331,8 @@ func describe(live: int = -1) -> String:
 		bits.append("+%d credits" % credit_gain)
 	if credit_cost > 0:
 		bits.append("Spend %d credits" % credit_cost)
-	# 'Attack drone' and 'Screen drone': keywords are maker-neutral; 'Wasp screen' was Cygnet's.
+	# 'Attack drone' and 'Screen drone': keywords stay manufacturer-neutral.
+	# 'Wasp screen' was Cygnet's.
 	if drone_damage > 0:
 		bits.append("Attack drone %d" % drone_damage)
 	if drone_brace > 0:

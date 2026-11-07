@@ -284,7 +284,7 @@ static func draw_cut(ci: CanvasItem, manufacturer: StringName, b: Rect2, mark: C
 			hem.call(Rect2(b.position.x, base - 5 * s, b.size.x, 4.0 * s), mark)
 		&"redline":
 			# Redline's hem is drawn, not carved, as its field matches the card. Strips stay low.
-			# The first version at sixteen ate the emblem on every card the maker flies.
+			# The first version at sixteen ate the emblem on every card the manufacturer flies.
 			# Why: docs/why/CardView.md#banner-hems
 			hem.call(Rect2(b.position.x, base - 2 * s, b.size.x, 2.0 * s), mark)
 			for i in 6:

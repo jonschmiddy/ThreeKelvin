@@ -69,7 +69,7 @@ func _card_law() -> void:
 		% [pairs, n, roundi(100.0 * pairs / n), shared, roundi(100.0 * shared / n)])
 
 
-## Rarity ground and maker art must stay apart: 49 pairings of table arithmetic, so it is gated.
+## Rarity ground and manufacturer art must stay apart: 49 pairings, so it is gated.
 ## Why: docs/why/HoldTest.md#plate-legibility
 func _legible() -> void:
 	var worst := 99.0

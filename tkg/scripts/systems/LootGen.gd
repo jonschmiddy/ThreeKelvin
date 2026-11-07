@@ -97,7 +97,7 @@ static func _roll_affixes(n: int, danger: int, r: RandomNumberGenerator) -> Arra
 		out.append(pick)
 	return out
 
-## Salvage frames plus unlocked makers, so a fresh profile never meets chassis it cannot fly.
+## Salvage frames plus unlocked manufacturers, so a fresh profile never meets chassis it cannot fly.
 ## Why: docs/why/LootGen.md#hull-pool
 static func hull_pool() -> Array[HullData]:
 	var out: Array[HullData] = []
