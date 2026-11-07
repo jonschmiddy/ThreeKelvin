@@ -59,7 +59,7 @@ const DRAMA_R := Vector4(1.5, 1.25, 2.8, 0.3)
 ## A BALL's (toe, gain): a ball is all starlight, one smooth hill of it with no gas
 ## for a lamp to light, so its drama is the hill made steep -- the nucleus burning
 ## white round the hole, the body falling off fast into black
-const DRAMA_BALL := Vector2(0.35, 3.2)
+const DRAMA_BALL := Vector2(0.15, 2.4)
 const GOD_RAYS := 1.0
 ## A lobe's dy is in the chart's flattened frame; this takes it to the plane.
 const FLAT := 0.46341 / 0.38
