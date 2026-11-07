@@ -70,6 +70,18 @@ func paint(style: String) -> void:
 			_paint_5()
 		"6":
 			_paint_6()
+		_:
+			_solari().paint(style)
+
+
+## MOCK (r6 owners): the Solari Foundry's own savers (`LabSaversSolari`).
+var _sol: LabSaversSolari = null
+
+
+func _solari() -> LabSaversSolari:
+	if _sol == null:
+		_sol = LabSaversSolari.new(self)
+	return _sol
 
 
 ## The motion that carries from frame to frame: the chart's turn and size, the
@@ -101,6 +113,7 @@ func step(delta: float, style: String) -> void:
 		"6":
 			_g_last = lerpf(_g_last, 1.0 if resting else 0.0, 1.0 - exp(-delta * 3.0))
 			_g_rot = fposmod(_g_rot + delta * TAU / G_TURN_S * _g_last, TAU)
+	_solari().step(delta, style)
 
 
 var _s2_last := 1.0
@@ -1136,7 +1149,7 @@ func _s5_cards() -> Array:
 		["big", "YOUR PARTS", "COULD DO MORE.", "ASK AT ANY %s LAB." % on],
 		["big", "ONE AUGMENT", "PER PART.", "WE ASKED. THE PARTS SAID NO."],
 		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS MAY VARY. THEY DO VARY."],
-		["big", "STRIPPED PARTS", "KEEP THE MARK.", "WE CANNOT UNDO IT EITHER."],
+		["big", "LIGHTENED PARTS", "+2 MAN. -1 HUL.", "AN AUGMENT STAYS ON THE PART."],
 	]
 
 
