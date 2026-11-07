@@ -20,6 +20,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   tidal stream; the dwarf spheroidal is small, faint and grey; the giant elliptical has a swarm of
   star clusters round it and the flattened one is a lens. A dwarf's black hole is drawn at the
   dwarf's size, and supernova rings stay off these galaxies.
+- **Changed** — the RADIANT style's round galaxies get the same treatment, in that style's own
+  light. The ellipticals are smooth warm light fading out into space, with no brown blotches over
+  them and no dark plates round them. The flattened one is flatter, and the giant is bigger with a
+  ring of star clusters. The merger remnant leans to one side and trails a stream of gas with a few
+  pink knots in it. The blue compact dwarf is small, blue and lumpy, with pink knots, and the dwarf
+  spheroidal is small, faint and grey. A dwarf's black hole is drawn at the dwarf's size.
 - **Fixed** — the star chart's corner words (THRUSTER REACH, SENSOR RANGE, LOCAL REGION and the
   scale bar) have a shadow under them, so they stay readable over a galaxy's bright middle.
 
