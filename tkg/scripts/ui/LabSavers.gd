@@ -1140,9 +1140,9 @@ func _s5_cards() -> Array:
 	return [
 		["mark", on, "AUGMENT TODAY."],
 		["big", "YOUR PARTS", "COULD DO MORE.", "ASK AT ANY %s LAB." % on],
-		["big", "ONE AUGMENT", "PER PART.", "WE ASKED. THE PARTS SAID NO."],
-		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS MAY VARY. THEY DO VARY."],
-		["big", "LIGHTENED PARTS", "MOVE FASTER.", "+2 MANEUVER, -1 HULL, FOR GOOD."],
+		["big", "ONE AUGMENT", "PER PART.", "IT STAYS ON THE PART."],
+		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS VARY."],
+		["big", "LIGHTENED PARTS", "TURN FASTER.", "+2 MAN, -1 HUL."],
 	]
 
 
@@ -1715,9 +1715,12 @@ const VR3_STAMP := 9.6
 const VR3_HOLD := 13.8
 
 
-## The hull's half-height at `u` along it (tail 0, nose 1).
+## The hull's half-height at `u` along it (tail 0, nose 1). The nose stops
+## short of the point (0.9 of the curve), so it ends in a short flat bow and
+## not a bullet's tip (critic pass, Nov 7).
 func _vr3_t(u: float, hh: float, aa: float, c: float) -> float:
-	return hh * pow(maxf(0.0, sin(PI * (c + (1.0 - c) * pow(clampf(u, 0.0, 1.0), aa)))), 0.6)
+	var v := clampf(u, 0.0, 1.0) * 0.9
+	return hh * pow(maxf(0.0, sin(PI * (c + (1.0 - c) * pow(v, aa)))), 0.6)
 
 
 func _paint_ver3() -> void:
@@ -1787,27 +1790,44 @@ func _paint_ver3() -> void:
 	if p >= VR3_LINES - 0.4 and dd > 0.3:
 		text(dsx, yd + 5, dim_s, ink(0.55))
 	# THE HULL: one hairline, drawn by the pen from the tail along the top to
-	# the nose and back underneath, then the fin
+	# the nose and back underneath, then the fin, the bridge and the drive
+	# bell at the stern (critic pass, Nov 7: without them it read as a shell)
+	var nl := maxi(4, int(float(ll) * 0.07))
+	var lh := ll - nl
+	var xh := xl + nl
 	var segs: Array[PackedVector2Array] = []
 	var outline := PackedVector2Array()
 	var t0 := _vr3_t(0.0, hh, aa, c)
-	outline.append(Vector2(xl, cy - t0))
-	for i in range(0, ll + 1):
-		var u := float(i) / float(ll)
-		outline.append(Vector2(xl + i, cy - _vr3_t(u, hh, aa, c)))
-	for i in range(ll, -1, -1):
-		var u := float(i) / float(ll)
-		outline.append(Vector2(xl + i, cy + _vr3_t(u, hh, aa, c) * rb))
-	outline.append(Vector2(xl, cy - t0))
+	outline.append(Vector2(xh, cy - t0))
+	for i in range(0, lh + 1):
+		var u := float(i) / float(lh)
+		outline.append(Vector2(xh + i, cy - _vr3_t(u, hh, aa, c)))
+	for i in range(lh, -1, -1):
+		var u := float(i) / float(lh)
+		outline.append(Vector2(xh + i, cy + _vr3_t(u, hh, aa, c) * rb))
+	outline.append(Vector2(xh, cy - t0))
 	segs.append(outline)
 	var fin := PackedVector2Array()
 	# a swept fin: the leading edge up and back, a short flat top, the trailing edge down
 	var tip_y := cy - _vr3_t(0.08, hh, aa, c) - hh * fh
-	fin.append(Vector2(xl + 0.3 * ll, cy - _vr3_t(0.3, hh, aa, c)))
-	fin.append(Vector2(xl + 0.1 * ll, tip_y))
-	fin.append(Vector2(xl + 0.04 * ll, tip_y))
-	fin.append(Vector2(xl + 0.14 * ll, cy - _vr3_t(0.14, hh, aa, c)))
+	fin.append(Vector2(xh + 0.3 * lh, cy - _vr3_t(0.3, hh, aa, c)))
+	fin.append(Vector2(xh + 0.1 * lh, tip_y))
+	fin.append(Vector2(xh + 0.04 * lh, tip_y))
+	fin.append(Vector2(xh + 0.14 * lh, cy - _vr3_t(0.14, hh, aa, c)))
 	segs.append(fin)
+	# the bridge: a low step on the back, forward of the middle
+	var ch := maxf(2.0, hh * 0.22)
+	var bridge := PackedVector2Array()
+	for uu: float in [0.6, 0.63, 0.73, 0.77]:
+		var lift := ch if (uu > 0.61 and uu < 0.74) else 0.0
+		bridge.append(Vector2(xh + uu * lh, cy - _vr3_t(uu, hh, aa, c) - lift))
+	segs.append(bridge)
+	# the drive bell: flaring back from the stern to the ruled end
+	var bt := t0 * 0.7
+	var bb := t0 * rb * 0.7
+	var bell := PackedVector2Array([Vector2(xh, cy - bt), Vector2(xl, cy - bt - nl * 0.45),
+		Vector2(xl, cy + bb + nl * 0.45), Vector2(xh, cy + bb)])
+	segs.append(bell)
 	var total := 0.0
 	for sgm: PackedVector2Array in segs:
 		for i in range(1, sgm.size()):
@@ -1828,7 +1848,7 @@ func _paint_ver3() -> void:
 			pen = Vector2i(roundi(b1.x), roundi(b1.y))
 	# one seam, after the pen: a hull of few seams
 	if p >= VR3_PEN:
-		var xs := xl + int(0.52 * float(ll))
+		var xs := xh + int(0.52 * float(lh))
 		var us := 0.52
 		line(Vector2i(xs, cy - int(_vr3_t(us, hh, aa, c)) + 2), Vector2i(xs, cy + int(_vr3_t(us, hh, aa, c) * rb) - 2), ink(0.35 * dd), 2)
 	if kp > 0.0 and kp < 1.0 and pen.x >= 0:
