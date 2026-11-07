@@ -22,16 +22,8 @@ extends Control
 ## blip. So `skip()` finishes silently and also fades any tail still ringing,
 ## and reduced motion, which has no reveal, has no blips.
 ##
-## WORD BY WORD (`by_word`, the event band's: issue #38, Jon: "per word reveal is
-## way better"). Letter by letter, a long encounter body was hard to read while
-## it arrived: the eye kept landing on half a word. With `by_word` a whole word
-## settles at once, holds as long as its letters would have taken at
-## `cps * WORD_PACE` (so a long word holds longer and the whole text takes about
-## what it did, a little less), and punctuation's beat falls after the word it
-## ends. The noise and the cursor ride ahead of the settled words as before (no
-## dropouts: blanking the end of a word just landed is the half word again). ONE
-## blip per word, not one per three letters. A.S.H.'s line stays letter by
-## letter: it is timed to her voice (`rate_for`) and reads as her speaking.
+## `by_word` (the event band, issue #38) settles whole words, one blip each, so a
+## long body never shows half a word; no dropouts, which would cut one again.
 
 signal char_settled(index: int, ch: String)
 signal line_settled(line: int)
@@ -44,10 +36,8 @@ static var cps := 40.0
 ## This text's own speed, characters a second, over `cps` when set: A.S.H.'s
 ## line types as long as her voice takes to say it (`rate_for`).
 var rate := 0.0
-## Settle a word at a time (the event band), not a letter.
 var by_word := false
-## How much faster than `cps` a word-by-word reveal runs: the same letters, a
-## shade quicker, since a whole word is readable the moment it lands.
+## A whole word reads the moment it lands, so words run a shade over `cps`.
 const WORD_PACE := 1.15
 const PAUSE := {".": 0.09, "!": 0.09, "?": 0.09, ",": 0.03, ";": 0.05, ":": 0.05}
 ## How many characters past the settled edge show as noise, and how often
@@ -97,8 +87,7 @@ var _noise: Array = []
 var _drop := 0.0
 var _rng := RandomNumberGenerator.new()
 var _last_line := -1
-## By word: where each word starts (`word_starts`), the next one to settle, and
-## the clock, in characters, that reaches it.
+## By word: the word starts, the next to settle, and the clock in characters.
 var _starts := PackedInt32Array()
 var _wi := 0
 var _clock := 0.0
@@ -136,11 +125,7 @@ static func rate_for(what: String, secs: float) -> float:
 	return float(what.length()) / maxf(secs - beats, 0.25)
 
 
-## WHERE EACH WORD STARTS in `what`: the index of every character that is not a
-## space or a "\n" and follows one (or opens the text). A word is that run and
-## the spaces after it, so the next start is where the last one ends; the text
-## is drawn by hand from its plain characters, so there is no markup to step
-## over.
+## The index of each word's first character; a word runs to the next start.
 static func word_starts(what: String) -> PackedInt32Array:
 	var out := PackedInt32Array()
 	var gap := true
@@ -230,43 +215,28 @@ func _process(delta: float) -> void:
 		_clock += (rate if rate > 0.0 else cps) * WORD_PACE * delta
 		while _wi < _starts.size() and _clock >= float(_starts[_wi]):
 			var before := int(shown)
-			var end := _starts[_wi + 1] if _wi + 1 < _starts.size() else n
 			_wi += 1
+			var end := _starts[_wi] if _wi < _starts.size() else n
 			shown = float(end)
-			_clock = maxf(_clock, float(_starts[_wi - 1]))
 			for k in range(before, end):
-				var ch := text.substr(k, 1)
-				char_settled.emit(k, ch)
-				var li := _line_of(k)
-				if li != _last_line and _last_line >= 0:
-					line_settled.emit(_last_line)
-				_last_line = li
+				_settle(k)
 			if sound:
-				blips += 1
-				Audio.play_capped(BLIP, BLIP_PITCH, BLIP_VOICES)
-			# the beat of the mark that ends the word (none after the last)
-			var word := text.substr(before, end - before).strip_edges()
-			var last := word.right(1)
+				_blip()
+			var last := text.substr(before, end - before).strip_edges().right(1)
 			if PAUSE.has(last) and end < n:
 				_hold = float(PAUSE[last])
 				break
-		if _wi >= _starts.size():
+		if _starts.is_empty():
 			shown = float(n)
 	else:
 		var before := int(shown)
 		shown = minf(shown + (rate if rate > 0.0 else cps) * delta, float(n))
 		for k in range(before, int(shown)):
-			var ch := text.substr(k, 1)
-			char_settled.emit(k, ch)
+			var ch := _settle(k)
 			if sound and ch != " " and ch != "\n":
 				_letters += 1
 				if (_letters - 1) % BLIP_EVERY == 0:
-					blips += 1
-					Audio.play_capped(BLIP, BLIP_PITCH, BLIP_VOICES)
-			var li := _line_of(k)
-			if li != _last_line and _last_line >= 0:
-				line_settled.emit(_last_line)
-			_last_line = li
+					_blip()
 			if PAUSE.has(ch):
 				shown = float(k + 1)
 				_hold = float(PAUSE[ch])
@@ -288,6 +258,21 @@ func _process(delta: float) -> void:
 			line_settled.emit(_last_line)
 		finished.emit()
 	queue_redraw()
+
+
+func _settle(k: int) -> String:
+	var ch := text.substr(k, 1)
+	char_settled.emit(k, ch)
+	var li := _line_of(k)
+	if li != _last_line and _last_line >= 0:
+		line_settled.emit(_last_line)
+	_last_line = li
+	return ch
+
+
+func _blip() -> void:
+	blips += 1
+	Audio.play_capped(BLIP, BLIP_PITCH, BLIP_VOICES)
 
 
 func _line_of(k: int) -> int:

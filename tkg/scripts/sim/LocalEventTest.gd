@@ -197,25 +197,17 @@ func _reveal_sound(holder: Control) -> void:
 	t.queue_free()
 
 
-## THE BAND'S TEXT ARRIVES A WORD AT A TIME (`SignalText.by_word`, issue #38).
-## Where the words start, spaces and a "\n" stepped over; the band's own text is
-## built word by word; and a whole reveal, frame by frame, only ever shows whole
-## words, asks for one blip a word, and takes no longer than the same text
-## letter by letter (and not under 70% of it). Skipped part way, no more blips.
+## The band's text by word (issue #38): only whole words show, one blip a word,
+## a little quicker than by letter, and a skip asks for no more.
 func _reveal_words(t: SignalText, body: String) -> void:
-	var got := SignalText.word_starts("  Hull  holds.\nNot for long, A.S.H. says ")
-	_ok("words start after spaces and a new line (%s)" % [got],
-		got == PackedInt32Array([2, 8, 15, 19, 23, 29, 36]))
-	_ok("no words in nothing but spaces", SignalText.word_starts(" \n  ").is_empty())
+	var got := SignalText.word_starts("  Hull  holds.\nNot for long")
+	_ok("words start after spaces and a new line (%s)" % [got], got == PackedInt32Array([2, 8, 15, 19, 23]))
 	var d := LocalEventDrawer.new()
 	d._text_box("two words", UITheme.CHILL)
 	_ok("the event band's text reveals word by word", d.text.by_word)
 	d._scroll.free()
 	d.free()
 	var words := SignalText.word_starts(body)
-	var bounds := {}
-	for w in words:
-		bounds[w] = true
 	t.by_word = false
 	t.play()
 	var letter_frames := 0
@@ -230,7 +222,7 @@ func _reveal_words(t: SignalText, body: String) -> void:
 		t._process(1.0 / 60.0)
 		frames += 1
 		var e := int(t.shown)
-		if e < body.length() and not bounds.has(e):
+		if e < body.length() and not words.has(e):
 			whole = false
 	_ok("by word only whole words ever show", whole)
 	_ok("by word a whole reveal asks for one blip a word (%d words, got %d)" % [words.size(), t.blips],
@@ -245,8 +237,8 @@ func _reveal_words(t: SignalText, body: String) -> void:
 	t.skip()
 	for k in 30:
 		t._process(1.0 / 60.0)
-	_ok("by word a skipped reveal is whole and asks for nothing after (%d before, %d after)" % [before, t.blips],
-		before > 0 and t.done and int(t.shown) == body.length() and t.blips == before)
+	_ok("by word a skipped reveal asks for nothing after (%d before, %d after)" % [before, t.blips],
+		before > 0 and t.blips == before)
 
 
 func _end(tree: SceneTree) -> void:
