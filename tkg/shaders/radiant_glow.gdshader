@@ -51,6 +51,15 @@ uniform float vib = 0.25;
 // the play (LOCAL): from y = play.x to play.y (uv) the glow is kept to play_k
 uniform vec2 play = vec2(2.0, 3.0);
 uniform float play_k = 1.0;
+// THE FIELD UNDER IT (`nav_key`): the chart and the map are keyed onto the
+// shared field of stars, the void let through and only a near-black (the hole,
+// a shadow) kept. A dark pressed below `keep_lo` (sRGB luma) would read as the
+// hole's black and plate the field over with black: a pixel is never pressed
+// below the lesser of its own luma and this. 0: off (LOCAL, drawn whole).
+uniform float keep_lo = 0.0;
+// a light keeps its own colour: past full brightness its hue is held, and only
+// light past `white_at` times full passes white (a true hot core, a few pixels)
+uniform float white_at = 2.4;
 
 vec3 lin(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
 vec3 srgb(vec3 c) { c = max(c, 0.0); return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
@@ -67,11 +76,17 @@ void fragment() {
 	// the block's centre: the glow is one value a block
 	vec2 uv = (vec2(b) + 0.5) / size;
 	vec3 c = lin(texelFetch(src, b, 0).rgb);
+	vec3 c0 = c;
 	// ---- the shade
 	float L = lum(c);
 	float dk = 1.0 - smoothstep(0.0, dark_hi, L);
 	vec3 tint = shade_tint * (L / max(lum(shade_tint), 1e-4));
-	c = mix(c, tint, shade * dk);
+	// (only a grey dark takes the shade's colour: a faint light of a colour, a
+	// ball's amber halo, a red dust's edge, keeps its own and is only pressed
+	// darker, so it fades in its own colour to black, never to a violet fog)
+	float cm0 = max(c.r, max(c.g, c.b));
+	float sat0 = cm0 > 1e-5 ? 1.0 - min(c.r, min(c.g, c.b)) / cm0 : 0.0;
+	c = mix(c, tint, shade * dk * (1.0 - smoothstep(0.25, 0.7, sat0)));
 	c *= mix(1.0, pow(clamp(L / dark_hi, 0.0, 1.0), crush), dk);
 	// ---- mid-tone colour
 	float mx = max(c.r, max(c.g, c.b));
@@ -114,13 +129,26 @@ void fragment() {
 	float wi = max(gw.r, max(gw.g, gw.b));
 	vec3 whue = gw / max(wi, 1e-5);
 	float wq = floor(wi * 24.0 + bay) / 24.0;
-	c += whue * wq * 0.55;
-	// (a light's own face keeps its own detail: its tight glow goes round it,
-	// not over it, so a sun is a disc with a halo and not a white blob)
-	float own = smoothstep(self_lo, 1.0, max(c.r, max(c.g, c.b)));
-	vec3 o = c + hue * gq * 0.55 * (1.0 - self_k * own);
-	// only a hot core passes white
+	// (a light's own face keeps its own detail: its glow, tight and wide, goes
+	// round it, not over it, so a sun is a disc of its own colour in a halo and
+	// not a white blob. Judged on the face as drawn, before any glow)
+	float own = smoothstep(self_lo, 1.0, cm0);
+	float spare = 1.0 - self_k * own;
+	vec3 o = c + (whue * wq * 0.55 + hue * gq * 0.55) * spare;
+	// a light keeps its colour: past full its hue is held (a red sun stays red),
+	// and only light far past full passes white
 	float om = max(o.r, max(o.g, o.b));
-	o = mix(min(o, vec3(1.0)), vec3(1.0), clamp((om - 1.0) * 0.8, 0.0, 1.0));
-	COLOR = vec4(srgb(o), 1.0);
+	vec3 held = o / max(om, 1.0);
+	o = mix(held, vec3(1.0), clamp((om - white_at) / white_at, 0.0, 0.85));
+	vec3 s = srgb(o);
+	if (keep_lo > 0.0) {
+		vec3 s0 = srgb(c0);
+		const vec3 W = vec3(0.299, 0.587, 0.114);
+		float fl = min(dot(s0, W), keep_lo);
+		float ls = dot(s, W);
+		if (ls < fl) {
+			s = ls > 1e-4 ? s * (fl / ls) : s0;
+		}
+	}
+	COLOR = vec4(s, 1.0);
 }

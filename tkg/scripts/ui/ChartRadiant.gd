@@ -75,7 +75,8 @@ const PAL_FREE := 40
 const GLOW_HOLE := 1.35
 const GLOW_LOOK := {"thr": 0.42, "knee": 0.16, "gain": 1.6, "steps": 4.0, "band": 0.2, "rays": 1.0, "ray_len": 0.7,
 	"halo_a": Vector3(0.4, 0.6, 0.8), "halo_b": Vector3(0.9, 0.7, 0.5), "wide_k": 0.7,
-	"shade_tint": Vector3(0.30, 0.16, 0.78), "shade": 0.65, "dark_hi": 0.1, "crush": 0.6, "vib": 0.3}
+	"shade_tint": Vector3(0.30, 0.16, 0.78), "shade": 0.65, "dark_hi": 0.1, "crush": 0.6, "vib": 0.3, "white_at": 1.5,
+	"keep_lo": 0.085}
 ## How many drawn frames the safety averages (after a few to settle).
 const PROBE_FRAMES := 90
 

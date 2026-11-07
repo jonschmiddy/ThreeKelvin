@@ -140,9 +140,10 @@ var radiant := false
 ## RADIANT's glow (`RadiantGlow`): the place's picture wrapped
 var _glow: SubViewport = null
 ## and its look here: the sun's rays through the gas, a deep violet shade
-const GLOW_LOOK := {"thr": 0.5, "knee": 0.16, "gain": 2.2, "self_k": 0.5, "steps": 5.0, "band": 0.22, "rays": 1.1, "ray_len": 0.8,
+const GLOW_LOOK := {"thr": 0.5, "knee": 0.16, "gain": 2.2, "self_k": 0.9, "steps": 5.0, "band": 0.22, "rays": 1.1, "ray_len": 0.8,
 	"halo_a": Vector3(1.0, 0.7, 0.45), "halo_b": Vector3(0.6, 0.45, 0.3), "wide_k": 0.7,
-	"shade_tint": Vector3(0.28, 0.16, 0.8), "shade": 0.5, "dark_hi": 0.06, "crush": 0.15, "vib": 0.0}
+	"shade_tint": Vector3(0.28, 0.16, 0.8), "shade": 0.5, "dark_hi": 0.06, "crush": 0.15, "vib": 0.0,
+	"keep_lo": 0.085}
 ## the painted pass's viewports and materials (`SectorPainted.build`)
 var _pt := {}
 ## the emission cloud's bubble round the sun, on the plane: a sphere in the
