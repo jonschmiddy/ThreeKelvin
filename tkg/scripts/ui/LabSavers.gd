@@ -70,6 +70,12 @@ func paint(style: String) -> void:
 			_paint_5()
 		"6":
 			_paint_6()
+		"I1":
+			_paint_i1()
+		"I2":
+			_paint_i2()
+		"I3":
+			_paint_i3()
 
 
 ## The motion that carries from frame to frame: the chart's turn and size, the
@@ -101,6 +107,14 @@ func step(delta: float, style: String) -> void:
 		"6":
 			_g_last = lerpf(_g_last, 1.0 if resting else 0.0, 1.0 - exp(-delta * 3.0))
 			_g_rot = fposmod(_g_rot + delta * TAU / G_TURN_S * _g_last, TAU)
+		"I1":
+			# the ring stops turning while pointed at
+			_i1_last = lerpf(_i1_last, 1.0 if resting else 0.0, 1.0 - exp(-delta * 3.0))
+			_i1_rot = fposmod(_i1_rot + delta * TAU / I1_TURN_S * _i1_last, TAU)
+		"I2":
+			# the drift slows to a crawl while pointed at
+			_i2_last = lerpf(_i2_last, 1.0 if resting else 0.12, 1.0 - exp(-delta * 3.0))
+			_i2_t += delta * _i2_last
 
 
 var _s2_last := 1.0
@@ -1136,7 +1150,7 @@ func _s5_cards() -> Array:
 		["big", "YOUR PARTS", "COULD DO MORE.", "ASK AT ANY %s LAB." % on],
 		["big", "ONE AUGMENT", "PER PART.", "WE ASKED. THE PARTS SAID NO."],
 		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS MAY VARY. THEY DO VARY."],
-		["big", "STRIPPED PARTS", "KEEP THE MARK.", "WE CANNOT UNDO IT EITHER."],
+		["big", "LIGHTENED PARTS", "KEEP THE MARK.", "WE CANNOT UNDO IT EITHER."],
 	]
 
 
@@ -1397,3 +1411,535 @@ func _paint_6() -> void:
 		if LabBoard.tw(rs) + LabBoard.tw("JUMPS 00") + 20 > w:
 			rs = "ROUTE %d" % trail.size()
 		text(a.end.x - 6 - LabBoard.tw(rs), a.end.y - 8, rs, ink(0.6))
+
+
+# ================================================================== I: a lab nobody owns
+## MOCK (r6 owners, Nov 7; not for feat/science): three savers only an
+## INDEPENDENT lab runs, the lab of a station with no owner. Nobody pays for it,
+## so the people who live there keep it up with what drifts in and what power
+## is left over.
+##
+##   I1  THE PATCHED RING: the station's ring turning, every plate in the
+##       colour of the maker whose wreck it was cut from; the plate in front is
+##       named, and a row under it counts the plates from each maker
+##   I2  SALVAGE WATCH: junk drifting past the station, one piece at a time
+##       tagged with what it is, who made it and what DATA it is worth
+##   I3  SPARE POWER: the station's draw against its supply over the last 30 s,
+##       and the loads one after another; the lab gets what is left
+
+const I1_TURN_S := 75.0
+const I1_SEGS := 28
+const I1_SQ := 0.34
+var _i1_rot := 0.0
+var _i1_last := 1.0
+var _i_ms: Array = []
+var _i1_seg: Array = []
+
+
+## The seven makers, in a fixed order.
+func _i_makers() -> Array:
+	if _i_ms.is_empty():
+		_i_ms = DB.manufacturers.keys()
+		_i_ms.sort_custom(func(p, q): return String(p) < String(q))
+	return _i_ms
+
+
+## Who made each plate of the ring; &"" is the station's first plating.
+func _i1_segs() -> Array:
+	if _i1_seg.is_empty():
+		var ms := _i_makers()
+		for i in I1_SEGS:
+			var hh := absi(hash(i * 104729 + 31))
+			_i1_seg.append(&"" if (hh % 10 < 3 or ms.is_empty()) else (ms[(hh / 10) % ms.size()] as StringName))
+	return _i1_seg
+
+
+func _i_col(m: StringName, l: float) -> Color:
+	if m == &"" or not DB.manufacturers.has(m):
+		return ink(0.42 * l)
+	return LabBoard.mixc(LabBoard.BG, DB.manufacturer_colour(m), clampf(0.85 * l, 0.0, 1.0))
+
+
+func _i_short(m: StringName) -> String:
+	return DB.short_name(DB.manufacturer_name(m)).to_upper()
+
+
+## A maker's mark on its own ground, 11 px (the station's own: the bare square).
+func _i_badge(cx: int, cy: int, m: StringName) -> void:
+	var r := Rect2i(cx - 5, cy - 5, 11, 11)
+	var has := DB.manufacturers.has(m)
+	var fd: Color = (DB.manufacturers[m] as ManufacturerData).field if has else LabBoard.BG
+	var mk: Color = DB.manufacturer_colour(m) if has else g.tint
+	g.draw_rect(Rect2(r.position - Vector2i.ONE, r.size + Vector2i(2, 2)), ink(0.35))
+	g.draw_rect(Rect2(r), fd)
+	CardView.draw_emblem(g, m if has else &"", Vector2(r.position) + Vector2(5.5, 5.5), 1.0, mk, fd)
+	g.leaves.append(["mark", Rect2i(r.position - Vector2i.ONE, Vector2i(13, 13))])
+
+
+func _paint_i1() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var tr := rest_t()
+	var dim := fade()
+	var hover := g.state != LabLogin.LOGO
+	var segs := _i1_segs()
+	var ms := _i_makers()
+	head(x0 + 4, y0 + 3, " STATION")
+	g._data_corner()
+	# THE FOOT: the plate in front named, and under it each maker's count
+	var leg_y := a.end.y - 9
+	var cap_y := leg_y - 15
+	var top := y0 + 20
+	var bot := cap_y - 9
+	var th := maxi(5, roundi(float(w) / 45.0))
+	var rx := minf(float(w) * 0.5 - 24.0, float(bot - top - th) / (2.0 * I1_SQ))
+	var ry := rx * I1_SQ
+	var c := Vector2(x0 + w / 2, float(top + bot - th) / 2.0)
+	var rot := _i1_rot
+	# the plate, pointed at: inside the ring, over the hub
+	var lines := [["PILOT %s · SIGN IN" % ship(), cue()]]
+	if g.state == LabLogin.SIGNING:
+		lines = [["PILOT %s · SIGNING IN" % ship(), ink(0.9)]]
+	var pl := Rect2i()
+	if hover:
+		var open := clampf(g._t / 0.15, 0.0, 1.0) if g.state == LabLogin.LOGIN else 1.0
+		pl = plate(int(c.x), 0, lines, open)
+		pl.position.y = int(c.y) + th / 2 - pl.size.y / 2
+		_keep.append(pl.grow(3))
+	# far stars, still
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	for i in 46:
+		var sx := x0 + rng.randi_range(2, w - 3)
+		var sy := top + rng.randi_range(-2, bot - top)
+		var lv := 0.12 + 0.22 * rng.randf()
+		px(sx, sy, ink(lv * dim))
+	# the plate in front (its middle nearest the near side, at PI/2)
+	var pick := posmod(floori(fposmod(PI * 0.5 - rot, TAU) / TAU * float(I1_SEGS)), I1_SEGS)
+	var beat := 0.5 + 0.5 * sin(tr * TAU / 2.2)
+	# THE BACK WALL (the ring's inside, far side), the spokes and hub, then the
+	# FRONT WALL over them; drawn a column at a time, a seam where plates meet
+	for pass_i in 2:
+		if pass_i == 1:
+			_i1_hub(c, rx, ry, th, rot, tr, dim)
+		var prev_y := -99999
+		var prev_seg := -1
+		for x in range(int(c.x - rx), int(c.x + rx) + 1):
+			var u := clampf((float(x) + 0.5 - c.x) / rx, -1.0, 1.0)
+			var phi := acos(u)
+			if pass_i == 0:
+				phi = -phi
+			var y := roundi(c.y + ry * sin(phi))
+			var seg := posmod(floori(fposmod(phi - rot, TAU) / TAU * float(I1_SEGS)), I1_SEGS)
+			var sm: StringName = segs[seg]
+			var lit := 0.42 if pass_i == 0 else 0.8 - 0.2 * u
+			if pass_i == 1 and seg == pick:
+				lit = minf(1.15, lit + 0.2 + 0.12 * beat)
+			lit *= dim
+			var ya := y if prev_y == -99999 else mini(y, prev_y)
+			var yb := y if prev_y == -99999 else maxi(y, prev_y)
+			var seam := prev_seg != -1 and seg != prev_seg
+			var col := _i_col(sm, lit)
+			for yy in range(ya, yb + th):
+				var cc := col
+				if seam:
+					cc = LabBoard.mixc(LabBoard.BG, col, 0.3)
+				elif yy == ya and pass_i == 1:
+					cc = col.lerp(LabBoard.WHITE, 0.22)
+				elif yy == yb + th - 1:
+					cc = LabBoard.mixc(LabBoard.BG, col, 0.6)
+				elif pass_i == 1 and yy == ya + th / 2 and posmod(x, 3) == 0 and noise(seg, x) > 0.45:
+					# a lit window: people live in this ring
+					cc = LabBoard.mixc(LabBoard.BG, Color(1.0, 0.93, 0.7), 0.95 * dim)
+				px(x, yy, cc)
+			prev_y = y
+			prev_seg = seg
+	# THE PLATE IN FRONT, named: a dotted lead down to its line
+	var m: StringName = segs[pick]
+	var pm := rot + (float(pick) + 0.5) / float(I1_SEGS) * TAU
+	var lx := roundi(c.x + rx * cos(pm))
+	var ly := roundi(c.y + ry * sin(pm)) + th + 2
+	line(Vector2i(lx, ly), Vector2i(lx, cap_y - 4), ink(0.55 * dim), 2)
+	var what := ("FROM A %s HULL" % _i_short(m)) if m != &"" else "FIRST PLATING"
+	var cs := "PLATE %d · %s" % [pick + 1, what]
+	if say_w(cs) > w - 12:
+		cs = "PLATE %d · %s" % [pick + 1, _i_short(m) if m != &"" else "FIRST"]
+	sayc(x0 + w / 2, cap_y, cs, ink(0.9))
+	# THE COUNT: each maker's plates (and the station's own), centred
+	var counts := {}
+	for s: StringName in segs:
+		counts[s] = int(counts.get(s, 0)) + 1
+	var order: Array = [&""]
+	for mm in ms:
+		if counts.has(mm):
+			order.append(mm)
+	var ew := 0
+	for mm in order:
+		ew += 13 + 2 + LabBoard.tw(str(counts[mm]))
+	# the gap between entries: as wide as the glass allows, 8 at most
+	var gap := clampi((w - 10 - ew) / maxi(1, order.size() - 1), 3, 8)
+	ew += gap * (order.size() - 1)
+	var ex := x0 + (w - ew) / 2
+	for mm in order:
+		_i_badge(ex + 6, leg_y + 2, mm as StringName)
+		var ns := str(counts[mm])
+		text(ex + 15, leg_y, ns, ink(0.7))
+		ex += 13 + 2 + LabBoard.tw(ns) + gap
+	if pl.has_area():
+		plate_draw(pl, lines, pl.size.x >= say_w(String(lines[0][0])) + 8)
+
+
+## The hub and its four spokes (the far ones under the hub, the near ones over).
+func _i1_hub(c: Vector2, rx: float, ry: float, th: int, rot: float, tr: float, dim: float) -> void:
+	var hx := maxf(6.0, rx * 0.14)
+	var hy := hx * I1_SQ
+	for near in [false, true]:
+		if near:
+			# the hub: a short drum
+			for yy in range(int(c.y - hy) - 1, int(c.y + hy) + th + 1):
+				for xx in range(int(c.x - hx) - 1, int(c.x + hx) + 2):
+					var u := (float(xx) + 0.5 - c.x) / hx
+					if absf(u) > 1.0:
+						continue
+					var e := sqrt(1.0 - u * u) * hy
+					var y_top := c.y - e
+					var y_bot := c.y + e + float(th - 1)
+					if float(yy) < y_top or float(yy) > y_bot:
+						continue
+					var on_top := float(yy) <= c.y + e - 0.0 and float(yy) >= y_top
+					px(xx, yy, ink((0.62 if on_top else 0.4 - 0.12 * u) * dim))
+			# the dock light, blinking
+			if int(floorf(tr / 0.9)) % 2 == 0:
+				px(int(c.x), int(c.y - hy) - 2, LabBoard.mixc(LabBoard.BG, LabBoard.HOT, dim))
+		for k in 4:
+			var ang := rot + PI * 0.25 + float(k) * PI * 0.5
+			if (sin(ang) > 0.0) != near:
+				continue
+			var p0 := c + Vector2(cos(ang) * hx, sin(ang) * hy + float(th) * 0.5)
+			var p1 := c + Vector2(cos(ang) * rx * 0.97, sin(ang) * ry * 0.97 + float(th) * 0.5)
+			line(Vector2i(p0.round()), Vector2i(p1.round()), ink((0.42 if near else 0.26) * dim))
+
+
+# ------------------------------------------------------------------ I2: salvage watch
+
+const I2_GAP := 2.3
+const I2_TAG := 4.0
+## What drifts by: a name, its sprite (# edge, . body, o dark, m the maker's
+## colour, space for nothing), and the DATA it is worth (0: none).
+const I2_KINDS := [
+	["HULL PLATE", ["######### ", "#o.....o##", "#mmmmmmmm#", "#........#", "#o.....o.#", " #########"], 2],
+	["COOLANT CAN", [" ### ", "#...#", "#mmm#", "#...#", "#...#", "#mmm#", "#...#", " ### "], 1],
+	["TRUSS", ["###############", "#o#o#o#o#o#o#o#", "###############"], 1],
+	["SOLAR VANE", ["#############", "#.#.#.#.#.#.#", "#############", "#.#.#.#.#.#.#", "#############", "     mmm     "], 2],
+	["ROCK", ["  ###  ", " ##..# ", "#....##", "#.o...#", " #...# ", "  ###  "], 0],
+	["CARGO POD", [" ###### ", "#......#", "#mmmmmm#", "#mmmmmm#", "#......#", "#..oo..#", " ###### "], 3],
+]
+var _i2_t := 0.0
+var _i2_last := 1.0
+
+
+## Piece j: [kind, maker, scale, speed, y share, spin, phase].
+func _i2_piece(j: int) -> Array:
+	var ms := _i_makers()
+	var hh := absi(hash(j * 31 + 7))
+	var kind := hh % I2_KINDS.size()
+	var mk: StringName = &""
+	if int((I2_KINDS[kind] as Array)[2]) > 0 and not ms.is_empty():
+		mk = ms[(hh / 7) % ms.size()] as StringName
+	var near := noise(j, 1) > 0.6
+	var v := (8.0 + 7.0 * noise(j, 2)) * (1.7 if near else 1.0)
+	return [kind, mk, 2 if near else 1, v, noise(j, 3), (noise(j, 4) - 0.5) * 0.7, noise(j, 5) * TAU]
+
+
+func _i2_x(pc: Array, j: int, t: float, right: int) -> float:
+	return float(right + 18) - (t - float(j) * I2_GAP) * float(pc[3])
+
+
+func _paint_i2() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var dim := fade()
+	var hover := g.state != LabLogin.LOGO
+	var T := _i2_t
+	var K := int(floorf(T / I2_TAG))
+	var tagged := 31 + absi(hash(String(g.owner_id) + "salvage")) % 20 + K
+	var ts := "TAGGED %d" % tagged
+	var hs := " SALVAGE WATCH"
+	if 18 + LabBoard.tw(g.owner_short() + hs) + 10 + LabBoard.tw(ts) > w:
+		hs = " SALVAGE"
+	head(x0 + 4, y0 + 3, hs)
+	text(a.end.x - 6 - LabBoard.tw(ts), y0 + 6, ts, ink(0.6))
+	var top := y0 + 16
+	var foot := a.end.y - 10
+	g.draw_rect(Rect2(x0 + 4, top, w - 8, 1), ink(0.22))
+	g.draw_rect(Rect2(x0 + 4, foot - 5, w - 8, 1), ink(0.22))
+	var field := Rect2i(x0 + 1, top + 2, w - 2, foot - 7 - top - 2)
+	var lines := [["PILOT %s · SIGN IN" % ship(), cue()]]
+	if g.state == LabLogin.SIGNING:
+		lines = [["PILOT %s · SIGNING IN" % ship(), ink(0.9)]]
+	var pl := Rect2i()
+	if hover:
+		var open := clampf(g._t / 0.15, 0.0, 1.0) if g.state == LabLogin.LOGIN else 1.0
+		pl = plate(x0 + w / 2, 0, lines, open)
+		pl.position.y = field.position.y + field.size.y / 2 - pl.size.y / 2
+		_keep.append(pl.grow(3))
+	var old := _clip
+	_clip = field
+	# far stars, drifting slower than anything
+	for i in 60:
+		var sx := x0 + int(fposmod(noise(i, 90) * float(w) - T * 2.0, float(w)))
+		var sy := field.position.y + int(noise(i, 91) * float(field.size.y))
+		px(sx, sy, ink((0.1 + 0.2 * noise(i, 92)) * dim))
+	# THE JUNK: far pieces small and dim, near ones twice the size and quicker
+	var j1 := int(floorf(T / I2_GAP))
+	var tag_j := 0
+	var tagging := false
+	var best := 1e9
+	var tk := float(K) * I2_TAG
+	for j in range(j1 - 40, j1 + 1):
+		var pc := _i2_piece(j)
+		# which piece the watch tags this turn: the one nearest the middle then
+		if float(j) * I2_GAP <= tk:
+			var xk := _i2_x(pc, j, tk, a.end.x)
+			# (salvage first: a rock is tagged only when nothing else is near)
+			var score := absf(xk - float(x0 + w / 2)) + (400.0 if int(pc[0]) == 4 else 0.0)
+			if xk > float(x0 + 30) and xk < float(a.end.x - 30) and score < best:
+				best = score
+				tag_j = j
+				tagging = true
+	for far in [true, false]:
+		for j in range(j1 - 40, j1 + 1):
+			var pc := _i2_piece(j)
+			if (int(pc[2]) == 1) != far:
+				continue
+			var x := _i2_x(pc, j, T, a.end.x)
+			if x < float(x0 - 30):
+				continue
+			var y := float(field.position.y + 8) + float(pc[4]) * float(field.size.y - 16)
+			_i2_draw(pc, Vector2(x, y), T, dim)
+	_clip = old
+	# THE TAG: corners closing on the piece, and the line at the foot
+	# (pieces before the first have negative numbers: the field starts full)
+	if tagging:
+		var pc := _i2_piece(tag_j)
+		var kd: Array = I2_KINDS[int(pc[0])]
+		var spr: Array = kd[1]
+		var sc := int(pc[2])
+		var x := _i2_x(pc, tag_j, T, a.end.x)
+		var y := float(field.position.y + 8) + float(pc[4]) * float(field.size.y - 16)
+		var half := int(ceilf(float(maxi(String(spr[0]).length(), spr.size()) * sc) * 0.5)) + 3
+		var since := T - tk
+		var grow := int((1.0 - clampf(since / 0.5, 0.0, 1.0)) * 8.0)
+		var r := Rect2i(roundi(x) - half - grow, roundi(y) - half - grow, (half + grow) * 2, (half + grow) * 2)
+		var r_in := r.intersection(field)
+		if r_in.has_area() and r.position.x + r.size.x > x0:
+			_i2_brackets(r, field, LabBoard.mixc(LabBoard.BG, LabBoard.HOT, 0.9 * dim))
+		var mk: StringName = pc[1]
+		var dv := int(kd[2])
+		var tail := ("%d DATA" % dv) if dv > 0 else "NO DATA"
+		var s := "TAG %d · %s · %s · %s" % [tagged, String(kd[0]), _i_short(mk), tail] if mk != &"" else "TAG %d · %s · %s" % [tagged, String(kd[0]), tail]
+		if say_w(s) > w - 12:
+			s = "TAG %d · %s · %s" % [tagged, String(kd[0]), tail]
+		say(x0 + 6, foot, s, ink(1.0) if since < 0.6 else ink(0.8))
+	if pl.has_area():
+		plate_draw(pl, lines, pl.size.x >= say_w(String(lines[0][0])) + 8)
+
+
+## The four corners of a tag (only the corners: it is a mark, not a box).
+func _i2_brackets(r: Rect2i, field: Rect2i, c: Color) -> void:
+	var arm := 3
+	var old := _clip
+	_clip = field
+	for cx in [r.position.x, r.end.x - 1]:
+		for cy in [r.position.y, r.end.y - 1]:
+			var sx := 1 if cx == r.position.x else -1
+			var sy := 1 if cy == r.position.y else -1
+			for i in arm:
+				px(cx + sx * i, cy, c)
+				px(cx, cy + sy * i, c)
+	_clip = old
+
+
+func _i2_draw(pc: Array, p: Vector2, t: float, dim: float) -> void:
+	var kd: Array = I2_KINDS[int(pc[0])]
+	var spr: Array = kd[1]
+	var sw := String(spr[0]).length()
+	var sh := spr.size()
+	var sc := int(pc[2])
+	var mk: StringName = pc[1]
+	var l := (1.0 if sc == 2 else 0.62) * dim
+	# turned in whole sixteenths, so the pixels step, not smear
+	var ang := snappedf(float(pc[6]) + float(pc[5]) * t, TAU / 16.0)
+	var ca := cos(-ang)
+	var sa := sin(-ang)
+	var rr := int(ceilf(sqrt(float(sw * sw + sh * sh)) * 0.5 * float(sc))) + 1
+	var cx := roundi(p.x)
+	var cy := roundi(p.y)
+	var cols := {
+		"#": ink(0.72 * l), ".": ink(0.36 * l), "o": ink(0.14 * l),
+		"m": LabBoard.mixc(LabBoard.BG, DB.manufacturer_colour(mk), 0.85 * l) if mk != &"" else ink(0.5 * l),
+	}
+	for dy in range(-rr, rr + 1):
+		for dx in range(-rr, rr + 1):
+			var qx := (float(dx) + 0.5) / float(sc)
+			var qy := (float(dy) + 0.5) / float(sc)
+			var lx := qx * ca - qy * sa + float(sw) * 0.5
+			var ly := qx * sa + qy * ca + float(sh) * 0.5
+			var ix := floori(lx)
+			var iy := floori(ly)
+			if ix < 0 or iy < 0 or ix >= sw or iy >= sh:
+				continue
+			var ch := String(spr[iy])[ix]
+			if ch == " ":
+				continue
+			px(cx + dx, cy + dy, cols[ch])
+
+
+# ------------------------------------------------------------------ I3: spare power
+
+const I3_SUPPLY := 480.0
+const I3_SPAN_S := 30.0
+const I3_LO := 300.0
+const I3_HI := 500.0
+const I3_NAMES := ["AIR", "PUMPS", "HABS", "DOCK"]
+
+
+func _i3_bump(x: float, d: float) -> float:
+	if x < 0.0 or x > d:
+		return 0.0
+	return pow(sin(PI * x / d), 2.0)
+
+
+## The station's loads at time t, in KW: air, pumps (a cycle every 13 s),
+## habs, dock (a ship in every 21 s).
+func _i3_loads(t: float) -> Array:
+	return [
+		128.0 + 4.0 * sin(t * 0.7),
+		80.0 + 80.0 * _i3_bump(fposmod(t + 5.0, 13.0), 4.0),
+		100.0 + 10.0 * sin(t * 0.23 + 1.0),
+		48.0 + 36.0 * _i3_bump(fposmod(t + 2.0, 21.0), 5.0),
+	]
+
+
+func _i3_total(t: float) -> float:
+	var s := 0.0
+	for v: float in _i3_loads(t):
+		s += v
+	return s
+
+
+func _paint_i3() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var h := a.size.y
+	var dim := fade()
+	var hover := g.state != LabLogin.LOGO
+	var T := _s3_hold if (hover and _s3_hold >= 0.0) else rest_t()
+	# the numbers change four times a second; the trace runs smooth
+	var tn := floorf(T * 4.0) / 4.0
+	head(x0 + 4, y0 + 3, " POWER")
+	var ss := "SUPPLY %d KW" % int(I3_SUPPLY)
+	text(a.end.x - 6 - LabBoard.tw(ss), y0 + 6, ss, ink(0.6))
+	# THE TRACE: the station's draw over the last 30 s, against its supply
+	var gx0 := x0 + 8
+	var gx1 := a.end.x - 9
+	var gy0 := y0 + 19
+	var gh := clampi(int(float(h) * 0.36), 40, 80)
+	var gy1 := gy0 + gh
+	var ymap := func(v: float) -> int:
+		return gy1 - 1 - roundi((v - I3_LO) / (I3_HI - I3_LO) * float(gh - 2))
+	var ysup: int = ymap.call(I3_SUPPLY)
+	var lines := [["PILOT %s · SIGN IN" % ship(), cue()]]
+	if g.state == LabLogin.SIGNING:
+		lines = [["PILOT %s · SIGNING IN" % ship(), ink(0.9)]]
+	var pl := Rect2i()
+	if hover:
+		var open := clampf(g._t / 0.15, 0.0, 1.0) if g.state == LabLogin.LOGIN else 1.0
+		pl = plate((gx0 + gx1) / 2, 0, lines, open)
+		pl.position.y = (gy0 + gy1) / 2 - pl.size.y / 2 + 2
+		_keep.append(pl.grow(3))
+	# the axes: a foot and a left edge, no box
+	for yy in range(gy0, gy1):
+		px(gx0 - 2, yy, ink(0.3 * dim))
+	for xx in range(gx0 - 2, gx1 + 1):
+		px(xx, gy1, ink(0.3 * dim))
+	for k in 7:
+		var tx := gx1 - roundi(float(k) * float(gx1 - gx0) / 6.0)
+		px(tx, gy1 + 1, ink(0.3 * dim))
+	var pps := float(gx1 - gx0) / I3_SPAN_S
+	var prev := -1
+	var spare := LabBoard.mixc(LabBoard.BG, LabBoard.OWN, 0.75 * dim)
+	for x in range(gx0, gx1 + 1):
+		var t := T - float(gx1 - x) / pps
+		var ty: int = ymap.call(_i3_total(t))
+		# what is spare (supply down to the draw), dithered in the lab's green
+		for yy in range(ysup + 1, ty):
+			if LabBoard.bayer(x, yy) < 0.34:
+				px(x, yy, spare)
+		# under the draw, faint
+		for yy in range(ty + 1, gy1):
+			if LabBoard.bayer(x, yy) < 0.14:
+				px(x, yy, ink(0.25 * dim))
+		var ya := ty if prev < 0 else mini(ty, prev)
+		var yb := ty if prev < 0 else maxi(ty, prev)
+		for yy in range(ya, yb + 1):
+			px(x, yy, ink(0.9 * dim))
+		prev = ty
+	line(Vector2i(gx0, ysup), Vector2i(gx1, ysup), ink(0.6 * dim), 3, -int(T * 6.0))
+	# now: the trace's head, breathing
+	var now_y: int = ymap.call(_i3_total(T))
+	var br := 0.6 + 0.4 * (0.5 + 0.5 * sin(T * TAU / 1.4))
+	if ok(gx1, now_y):
+		g.draw_rect(Rect2(gx1 - 1, now_y - 1, 3, 3), ink(br * dim))
+	# THE LOADS, one after another to the supply: the lab's bar is what is left
+	var loads := _i3_loads(tn)
+	var lab_kw := I3_SUPPLY
+	for v: float in loads:
+		lab_kw -= v
+	var names: Array = I3_NAMES.duplicate()
+	names.append("LAB")
+	var vals: Array = loads.duplicate()
+	vals.append(lab_kw)
+	var nw := 0
+	for n in names:
+		nw = maxi(nw, LabBoard.tw(String(n)))
+	var vw := LabBoard.tw("000 KW")
+	var bx0 := x0 + 8 + nw + 8
+	var bx1 := a.end.x - 8 - vw - 8
+	var y := gy1 + 8
+	var pitch := clampi((a.end.y - 14 - y) / 5, 9, 14)
+	var acc := 0.0
+	var sx1 := bx1
+	for i in 5:
+		var v: float = vals[i]
+		var is_lab := i == 4
+		text(x0 + 8, y, String(names[i]), ink(0.9 if is_lab else 0.6))
+		var xa := bx0 + roundi(acc / I3_SUPPLY * float(bx1 - bx0))
+		acc += v
+		var xb := bx0 + roundi(acc / I3_SUPPLY * float(bx1 - bx0))
+		var bc := LabBoard.mixc(LabBoard.BG, LabBoard.OWN, 0.9 * dim) if is_lab else ink(0.55 * dim)
+		for xx in range(xa, xb):
+			for yy in range(y, y + 5):
+				if is_lab and yy != y and yy != y + 4 and LabBoard.bayer(xx, yy) >= 0.5:
+					continue
+				px(xx, yy, bc)
+		# where this load starts, a tick up to the one before
+		if i > 0:
+			px(xa, y - 1, ink(0.3 * dim))
+			px(xa, y - 2, ink(0.3 * dim))
+		var vs := "%d KW" % roundi(v)
+		text(a.end.x - 8 - LabBoard.tw(vs), y, vs, ink(0.9 if is_lab else 0.6))
+		y += pitch
+	# the supply's end, dotted down through the rows
+	line(Vector2i(sx1, gy1 + 6), Vector2i(sx1, y - pitch + 5), ink(0.5 * dim), 2)
+	var note := "THE LAB RUNS ON WHAT IS LEFT."
+	if y - pitch + 5 + 8 <= a.end.y - 7 and LabBoard.tw(note) <= w - 16:
+		text(x0 + 8, a.end.y - 9, note, ink(0.5))
+	if pl.has_area():
+		plate_draw(pl, lines, pl.size.x >= say_w(String(lines[0][0])) + 8)
