@@ -605,9 +605,12 @@ const RING_TAU := 60.0
 ## still at its ring's own rate (IOTA TALLOW GATE V to IV, DIRECT: every plan
 ## made for a moment just ahead untakeable, and the ship put there). The spin
 ## is the clock's hand-off, not engine work, and is not priced. 0.3 (Jon,
-## Nov 7, "2B", the softer spin, filmed beside 0.15; it was 0.15 from the
-## code review, Nov 5, where 0.3 had been the shortest ride before a
-## departure). `-- spinup=S` sets it for a harness.
+## Nov 7, "2B", the softer spin, filmed beside 0.15). It was 0.15 from the
+## code review, Nov 5: 0.3 is the shortest ride before a departure and most
+## of the forced near offset in `_aligned` (its push at 0.15 about 2450
+## px/s^2 against the 7680 `ShipFlight.SPIN_PUSH_K` allows). Its measured
+## cost at 0.3: DIRECT's retarget move 23.9 px (17.4 at 0.15; limit 16).
+## `-- spinup=S` sets it for a harness.
 const SPIN_UP := 0.3
 static var ring_tau := -1.0
 static var spin_up_s := -1.0
