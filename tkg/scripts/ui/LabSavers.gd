@@ -1140,9 +1140,9 @@ func _s5_cards() -> Array:
 	return [
 		["mark", on, "AUGMENT TODAY."],
 		["big", "YOUR PARTS", "COULD DO MORE.", "ASK AT ANY %s LAB." % on],
-		["big", "ONE AUGMENT", "PER PART.", "WE ASKED. THE PARTS SAID NO."],
-		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS MAY VARY. THEY DO VARY."],
-		["big", "LIGHTENED PARTS", "TURN FASTER.", "THEY ALSO BREAK SOONER."],
+		["big", "ONE AUGMENT", "PER PART.", "IT STAYS ON THE PART."],
+		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS VARY."],
+		["big", "LIGHTENED PARTS", "TURN FASTER.", "+2 MAN, -1 HUL."],
 	]
 
 
@@ -1480,19 +1480,31 @@ func _c1_rings(u: float) -> float:
 	return float(C1_SEED) + float(C1_OVER - C1_SEED) * e
 
 
-## One growth ring: a wobbling loop (nothing grown is round), `upto` of it drawn.
+## A point on a plate's outline at angle `an`, `r` out: a rounded oblong, wider
+## than tall (critic pass, Nov 7: round loops read as a tree's rings).
+func _c1_pt(c: Vector2, an: float, r: float) -> Vector2:
+	var co := cos(an)
+	var si := sin(an)
+	return c + Vector2(signf(co) * sqrt(absf(co)) * r * 1.12, signf(si) * sqrt(absf(si)) * r * 0.78)
+
+
+## One growth layer: a wobbling oblong (nothing grown is true), `upto` of it drawn.
 func _c1_ring(c: Vector2, r: float, i: int, col: Color, upto: float = 1.0) -> void:
 	var n := maxi(32, int(TAU * r * 1.8))
 	var last := Vector2i(-9999, -9999)
-	for s in n:
+	for s in n + 1:
 		var u := float(s) / float(n)
 		if u > upto:
 			break
 		var an := u * TAU - PI * 0.5
 		var rr := r * (1.0 + 0.05 * sin(3.0 * an + float(i) * 0.9) + 0.025 * sin(5.0 * an + 1.7))
-		var q := Vector2i((c + Vector2(cos(an) * rr * 1.08, sin(an) * rr)).round())
+		var q := Vector2i(_c1_pt(c, an, rr).round())
 		if q != last:
-			px(q.x, q.y, col)
+			# joined, not dotted: the oblong's sides run fast near the axes
+			if last.x > -9999:
+				line(last, q, col)
+			else:
+				px(q.x, q.y, col)
 			last = q
 
 
@@ -1533,7 +1545,7 @@ func _paint_cx1() -> void:
 		for k in 4:
 			var an := noise(i, k + cyc * 7) * TAU
 			var rr := r - step_r * (0.35 + 0.3 * noise(k, i + 3))
-			var q := Vector2i((c + Vector2(cos(an) * rr * 1.08, sin(an) * rr)).round())
+			var q := Vector2i(_c1_pt(c, an, rr).round())
 			px(q.x, q.y, tissue(0.3 * dim))
 	if ct < grow and full < C1_OVER:
 		var r := step_r * (float(full + 1) + 0.6)
@@ -1541,25 +1553,9 @@ func _paint_cx1() -> void:
 		_c1_ring(c, r, full + 1, tissue(1.0 * dim), part)
 		# the growing tip, bright
 		var an := part * TAU - PI * 0.5
-		var tip := Vector2i((c + Vector2(cos(an) * r * 1.08, sin(an) * r)).round())
+		var tip := Vector2i(_c1_pt(c, an, r).round())
 		px(tip.x, tip.y, LabBoard.mixc(tissue(1.0), LabBoard.WHITE, 0.5 * dim))
-	# the seam, out from the core, stitched across every few px
-	var sa := -2.3
-	var dir := Vector2(cos(sa) * 1.08, sin(sa))
-	var nrm := Vector2(-dir.y, dir.x).normalized()
-	var reach := step_r * (rings + 0.6)
-	var d := step_r * 1.2
-	var nstitch := 0
-	while d < reach:
-		var q := c + dir * d
-		px(roundi(q.x), roundi(q.y), ink(0.55 * dim))
-		nstitch += 1
-		if nstitch % 4 == 0:
-			for e in [-2, -1, 1, 2]:
-				var p2 := Vector2i((q + nrm * float(e)).round())
-				px(p2.x, p2.y, ink(0.5 * dim))
-		d += 1.0
-	# the trim: a true circle at the spec (a tool, not grown), closing round
+	# the trim: the true outline at the spec (a tool, not grown), closing round
 	if ct >= grow:
 		var tr_r := step_r * (float(C1_SPEC) + 1.1)
 		var n := int(TAU * tr_r * 1.8)
@@ -1572,7 +1568,7 @@ func _paint_cx1() -> void:
 			if s % 3 != 0:
 				continue
 			var an := u * TAU - PI * 0.5
-			var q := Vector2i((c + Vector2(cos(an), sin(an)) * tr_r * Vector2(1.08, 1.0)).round())
+			var q := Vector2i(_c1_pt(c, an, tr_r).round())
 			px(q.x, q.y, ink(0.85 * hold_k * dim))
 	g._brackets(box, 5, ink(0.45 * dim))
 	# THE COLUMN: the owner, the culture, its chart, where it stands
