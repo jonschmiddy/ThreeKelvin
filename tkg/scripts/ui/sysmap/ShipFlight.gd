@@ -117,12 +117,18 @@ const TILT := 0.38
 ## clock, this many times faster than the map's (`FlightSolve.solve`'s pace),
 ## for the AUTOPILOT setting's path (`DisplaySettings.autopilot`): DIRECT,
 ## ruling 21's C at 4 (about 11 s of the flight's clock in about 2.8 s), and
-## CURVED, the as-built search, at 4 too (Jon, Nov 5: "Lets do 4X for both";
-## it was 8, about 24 s in 3). The ship's own parked
+## CURVED, the as-built search with its arc, at 8 (Jon, Nov 5: "Lets do 4X
+## for both", then Nov 7, with WIDE picked: "Let's double the speed for the
+## wide, so it matches the direct better"). Its shape is the flight's clock's:
+## the arc's dials are in tau, so x8 flies WIDE's bend in half x4's seconds
+## (CaseScan, six seeds, 504 one-sun flights: bend median 0.400 at x4, 0.394
+## at x8; turned past 240 deg 7.3 / 7.9%; seconds median 12.1 / 6.0). The
+## x8 that flew flat on Nov 5 (bend 0.06) was before the arc had its reward.
+## The ship's own parked
 ## ring and its ride round it stay at the map's RAIL_V and STAR_RAIL_V. A
 ## harness's `-- flight_pace=K` sets the pace for either path; `-- autopilot=
 ## direct|curved` the path.
-const FLIGHT_PACE := {&"direct": 4.0, &"curved": 4.0}
+const FLIGHT_PACE := {&"direct": 4.0, &"curved": 8.0}
 static var pace_k := -1.0
 static var path_k: StringName = &""
 ## THE LOOK AIDS while a fast flight plays (CURVED's burns at pace 8 last a

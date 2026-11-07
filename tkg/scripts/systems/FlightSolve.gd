@@ -377,7 +377,7 @@ const CURVED_ARC := {
 	&"strong": {"cap": 90.0, "tw": 0.5, "bend": 800.0, "aim": 0.28, "dip": 0.7, "ref": 12, "keep": 12, "tmax": 240.0, "s": 2.0, "hook": 2.0, "loop": 300.0},
 	&"wide": {"cap": 90.0, "tw": 0.5, "bend": 800.0, "aim": 0.40, "dip": 0.7, "ref": 12, "keep": 12, "tmax": 240.0, "s": 2.0, "hook": 2.0, "loop": 300.0},
 }
-const CURVED_ARC_LEVEL := &"strong"
+const CURVED_ARC_LEVEL := &"wide"
 ## the least more bend the arc look's flight must have over the first look's
 ## to be kept (`_arc_look`; 0.1 gave back half of what the look bent: flights
 ## under 0.1 were 7 to 12% of each level)
@@ -574,8 +574,9 @@ const CHOICE_V := 3
 ## DIRECT is ruling 21's C search (TIME_W 16 to T_CAP 16) at pace 4, about 11 s
 ## of tau played in about 2.8 s; CURVED is the as-built search (ruling 20's
 ## TIME_W_BACK 0.5 to T_CAP_BACK 30, its conic times and FAR_T_BACK) as the
-## first look, at pace 4 too (Jon, Nov 5: "Lets do 4X for both"; it was 8):
-## slow, cheap flights that bend round the stars, about 24 s of tau played in
+## first look with its arc (`CURVED_ARC`, WIDE: Jon, Nov 7, "1C") at pace 8
+## (Nov 5 "Lets do 4X for both", then Nov 7 "double the speed for the wide"):
+## slow, cheap flights that bend round the stars, about 48 s of tau played in
 ## about 6 s. Both keep the wider search and the flight in two legs behind them.
 ## ALONGSIDE, the hold before leaving (KEEP_HOLD in tau) is at least HOLD_MAP
 ## of map time: KEEP_HOLD 1 s of tau is an eighth of a second at pace 8.
@@ -603,12 +604,11 @@ const RING_TAU := 60.0
 ## the solver first had it, could not be flown on the map, where the ship is
 ## still at its ring's own rate (IOTA TALLOW GATE V to IV, DIRECT: every plan
 ## made for a moment just ahead untakeable, and the ship put there). The spin
-## is the clock's hand-off, not engine work, and is not priced. 0.15 (the code
-## review, Nov 5: 0.3 was the shortest ride before a departure and most of
-## the forced near offset in `_aligned`; its push at 0.15 is about 2450
-## px/s^2 against the 7680 `ShipFlight.SPIN_PUSH_K` allows). `-- spinup=S`
-## sets it for a harness.
-const SPIN_UP := 0.15
+## is the clock's hand-off, not engine work, and is not priced. 0.3 (Jon,
+## Nov 7, "2B", the softer spin, filmed beside 0.15; it was 0.15 from the
+## code review, Nov 5, where 0.3 had been the shortest ride before a
+## departure). `-- spinup=S` sets it for a harness.
+const SPIN_UP := 0.3
 static var ring_tau := -1.0
 static var spin_up_s := -1.0
 

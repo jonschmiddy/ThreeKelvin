@@ -12,9 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   before it leaves and slows onto the new one as it arrives. A click on a world while it slows
   onto its orbit is kept and flown once it is on it.
 - **Added** — AUTOPILOT in Settings, under MOTION. CURVED, the new default, swings wide round the
-  star and bends with its pull. DIRECT flies the straighter line the autopilot used to fly. Pick
-  DIRECT to get the straight flights back.
-- **Changed** — worlds go round their suns twice as fast, and so do the suns of a binary. Comets
+  star and bends with its pull. Its wider path takes about 5 seconds from the click to settled.
+  DIRECT flies the straighter line the autopilot used to fly. Pick DIRECT to get the straight
+  flights back.
+- **Changed** — worlds go round their suns four times as fast, and so do the suns of a binary. Comets
   and your ship's own orbit keep their speed. A save from before shows its worlds in new places once.
 - **Changed** — in co-op a friend's flight is drawn on the arc it flies, not cut short between
   updates, from the moment it starts round its orbit to leave until it is on the new one. A friend
