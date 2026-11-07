@@ -1884,8 +1884,6 @@ func _build() -> void:
 			anchor_d = float(m.get("anchor_d", 0.0)), ring_u = float(m.get("ring_u", 0.0)), ring_lift = float(m.get("ring_lift", 0.0)),
 			glint = StringName(m.get("glint", &"")), window = m.get("window", []), tail = bool(m.get("tail", false)),
 			pts = [], blink_at = -99.0, st_i = int(m.get("st_i", 0)), id = id,
-			# (a stage's rock, and what is fixed to it and rides it: `_link_hosts`)
-			base_of = bool(m.get("base_of", false)), rides = bool(m.get("rides", false)),
 			# (its own lamps, from the index; which of a structure's `with` it is)
 			own_lights = p.get("own_lights", []), with_i = int(m.get("with_i", -1))}
 		for k4: String in ["st_add_lights", "st_lines", "st_parted", "st_grip"]:
@@ -2114,26 +2112,20 @@ func _link_hosts(planned: Array) -> void:
 			continue
 		rec_of[i] = _placed[j]
 		j += 1
+	# what is welded to a stage's rock (`rides`) takes the rock's drift too, or it
+	# slides across the face it is fixed to (#40)
+	var rock_of := {}
+	for i in rec_of:
+		if bool(planned[i].get("base_of", false)):
+			rock_of[int(rec_of[i].st_i)] = rec_of[i]
 	for i in rec_of:
 		var rec: Dictionary = rec_of[i]
-		rec.host = rec_of.get(int(rec.dock_to), null) if int(rec.dock_to) >= 0 else null
+		rec.host = null
+		if int(rec.dock_to) >= 0:
+			rec.host = rec_of.get(int(rec.dock_to), null)
+		elif bool(planned[i].get("rides", false)):
+			rec.host = rock_of.get(int(rec.st_i), null)
 		if rec.host != null:
-			(rec.host as Dictionary).hosting = true
-	# WHAT IS WELDED OR CLAMPED TO A ROCK RIDES IT (#40, James's playtest, Nov 6:
-	# on THE WELDED PLATE "the door floats separate from the asteroid"). Every
-	# piece drifted on its own phase, the rock included, so a plate welded to the
-	# rock's face slid a few pixels to and fro across it, and the weld read as a
-	# thing hovering in front. The `on_rock` stages' pieces and their clamps
-	# (`rides`) now take their rock's drift, as a docked piece takes its host's;
-	# the creatures round a body (`swim`) and the loose pieces near one keep their
-	# own. The rock is a host, so it keeps to whole pixels with them.
-	var rock_of := {}
-	for rec: Dictionary in _placed:
-		if bool(rec.get("base_of", false)) and not rock_of.has(int(rec.st_i)):
-			rock_of[int(rec.st_i)] = rec
-	for rec: Dictionary in _placed:
-		if bool(rec.get("rides", false)) and rec.get("host") == null and rock_of.has(int(rec.st_i)):
-			rec.host = rock_of[int(rec.st_i)]
 			(rec.host as Dictionary).hosting = true
 
 

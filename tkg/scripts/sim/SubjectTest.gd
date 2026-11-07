@@ -1232,39 +1232,28 @@ func _live(oid: StringName) -> void:
 	LocalEventDrawer.quiet = false
 
 
-## WHAT IS WELDED TO A ROCK DRIFTS WITH IT (#40, James's playtest, Nov 6: on
-## THE WELDED PLATE "the door floats separate from the asteroid"). Every piece
-## drifted on its own phase, so the plate slid to and fro across the rock it is
-## welded to. Stepped through 40 s of the clock: the plate keeps one offset from
-## its rock while the rock itself moves. Fails on the old code (several offsets).
+## Over 40 s of drift the plate keeps one offset from its rock (#40).
 func _rides_its_rock() -> void:
 	var sc := Router.current as SectorScreen
 	var sub := LocalSubject.of(sc._view) if sc != null else null
-	if not _ok("THE WELDED PLATE's subject is up on LOCAL", sub != null):
+	var at := {}
+	for rec: Dictionary in (sub._placed if sub != null else []):
+		at[rec.id] = rec.node
+	if not _ok("THE WELDED PLATE's rock and plate are placed", at.has(&"paint_rock_a1") and at.has(&"r4_plate_welded_plate_1")):
 		return
-	var rock: Dictionary = {}
-	var plate: Dictionary = {}
-	for rec: Dictionary in sub._placed:
-		if rec.id == &"paint_rock_a1":
-			rock = rec
-		elif rec.id == &"r4_plate_welded_plate_1":
-			plate = rec
-	if not _ok("its rock and its plate are placed", not rock.is_empty() and not plate.is_empty()):
-		return
+	var rock: Node2D = at[&"paint_rock_a1"]
 	var was := ShipView.shot_clock
 	var gaps := {}
-	var at0 := (rock.node as Node2D).position
-	var moved := false
+	var rocks := {}
 	for i in 24:
 		ShipView.shot_clock = float(i) * 1.7
 		sub._place()
-		var r := (rock.node as Node2D).position
-		gaps[(plate.node as Node2D).position - r] = true
-		moved = moved or r != at0
+		rocks[rock.position] = true
+		gaps[(at[&"r4_plate_welded_plate_1"] as Node2D).position - rock.position] = true
 	ShipView.shot_clock = was
 	sub._place()
-	_ok("the plate rides its rock: one offset between them over 40 s of drift (%d seen), the rock drifting (%s)" % [gaps.size(), moved],
-		gaps.size() == 1 and moved)
+	_ok("the plate rides its drifting rock (%d offsets, %d rock positions)" % [gaps.size(), rocks.size()],
+		gaps.size() == 1 and rocks.size() > 1)
 
 
 ## THE FOES THE WRECKS ARE LEFT BY, named. They were picked off

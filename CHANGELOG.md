@@ -6,13 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-- **Fixed** — the title screen no longer draws a faint dotted box round the galaxy. The arms' outer
-  light used to stop on a square, and the galaxy's tilt and turn showed that square as a slowly
-  turning frame. The arms now thin out round the disc instead.
-- **Fixed** — in THE WELDED PLATE, the plate now stays on its rock. It used to drift on its own and
-  slide back and forth across the rock it is welded to. Anything clamped to a rock in LOCAL now
-  moves with the rock. The plate's art is cleaned up too: the orange and red specks are cold steel
-  now, so it reads as an old plate and not as a hot one.
+- **Fixed** — the title screen no longer draws a faint dotted box round the galaxy.
+- **Fixed** — in THE WELDED PLATE, the plate stays on its rock instead of sliding across it, and its
+  orange specks are cold steel now.
 - **Fixed** — in co-op, two ships that start different fights in the same system at the same moment
   now end up in one fight, the one that started first, on both screens. The second ship's log says
   "VELA got here first. You join their fight." Before, it could show the wrong enemy, take hits from
