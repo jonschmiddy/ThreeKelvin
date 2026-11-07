@@ -70,6 +70,12 @@ func paint(style: String) -> void:
 			_paint_5()
 		"6":
 			_paint_6()
+		"C1":
+			_paint_c1()
+		"C2":
+			_paint_c2()
+		"C3":
+			_paint_c3()
 
 
 ## The motion that carries from frame to frame: the chart's turn and size, the
@@ -101,6 +107,10 @@ func step(delta: float, style: String) -> void:
 		"6":
 			_g_last = lerpf(_g_last, 1.0 if resting else 0.0, 1.0 - exp(-delta * 3.0))
 			_g_rot = fposmod(_g_rot + delta * TAU / G_TURN_S * _g_last, TAU)
+		"C3":
+			# the zoom eases to a stop when pointed at
+			_c3_last = lerpf(_c3_last, 1.0 if resting else 0.0, 1.0 - exp(-delta * 3.0))
+			_c3_u += delta / C3_T * _c3_last
 
 
 var _s2_last := 1.0
@@ -1136,7 +1146,7 @@ func _s5_cards() -> Array:
 		["big", "YOUR PARTS", "COULD DO MORE.", "ASK AT ANY %s LAB." % on],
 		["big", "ONE AUGMENT", "PER PART.", "WE ASKED. THE PARTS SAID NO."],
 		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS MAY VARY. THEY DO VARY."],
-		["big", "STRIPPED PARTS", "KEEP THE MARK.", "WE CANNOT UNDO IT EITHER."],
+		["big", "LIGHTENED PARTS", "TURN FASTER.", "+2 MANEUVER. -1 HULL. PERMANENT."],
 	]
 
 
@@ -1397,3 +1407,468 @@ func _paint_6() -> void:
 		if LabBoard.tw(rs) + LabBoard.tw("JUMPS 00") + 20 > w:
 			rs = "ROUTE %d" % trail.size()
 		text(a.end.x - 6 - LabBoard.tw(rs), a.end.y - 8, rs, ink(0.6))
+
+
+# ================================================================== Cygnet Dynamics
+# (r6, Nov 7: Jon kept all seven, "OWNER", and wants more per owner. These
+# three are Cygnet's own: drones, cells, units that report in, no people.)
+##   C1  UNIT STATUS: the swarm's roll call. A honeycomb of launch cells, each
+##       unit flashing its signal arcs as it reports in; now and then one stops
+##       reporting and is replaced. Pointed at, the middle cell is yours.
+##   C2  FORMATION TRIAL: eight units leave their launch cells, fly a pattern
+##       round a beacon and come home. Pointed at, they ring your ship.
+##   C3  NESTED HOUSING: a unit's housing, its six cells, and the housing in
+##       its middle cell, zooming in without end. Pointed at, the zoom stops.
+
+## The owner's own colour (the lab's ink if nobody holds it).
+func _oc() -> Color:
+	if DB.manufacturers.has(g.owner_id):
+		return DB.manufacturer_colour(g.owner_id)
+	return g.tint
+
+
+func om(a: float) -> Color:
+	return LabBoard.mixc(LabBoard.BG, _oc(), clampf(a, 0.0, 1.0))
+
+
+## A flat-topped hexagon's corners, `r` px to a corner.
+func _hex_pts(c: Vector2, r: float) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for i in 6:
+		var an := float(i) * TAU / 6.0
+		out.append(Vector2i((c + Vector2(cos(an), sin(an)) * r).round()))
+	return out
+
+
+func _hex_line(c: Vector2, r: float, col: Color, every: int = 1) -> void:
+	var p := _hex_pts(c, r)
+	for i in 6:
+		line(p[i], p[(i + 1) % 6], col, every)
+
+
+## A flat-topped hexagon filled, on a pixel's centre.
+func _hex_fill(cx: int, cy: int, r: int, col: Color) -> void:
+	var hh := roundi(float(r) * 0.866)
+	for dy in range(-hh, hh + 1):
+		var half := r - roundi(float(absi(dy)) / float(maxi(1, hh)) * float(r) * 0.5)
+		for dx in range(-half, half + 1):
+			px(cx + dx, cy + dy, col)
+
+
+## A unit: the mark's diamond, `s` px to a point.
+func _unit(cx: int, cy: int, s: int, col: Color) -> void:
+	for dy in range(-s, s + 1):
+		var half := s - absi(dy)
+		for dx in range(-half, half + 1):
+			px(cx + dx, cy + dy, col)
+
+
+## The mark's signal arcs over a unit of size `s`.
+func _arcs(cx: int, cy: int, s: int, col: Color, n: int) -> void:
+	for k in n:
+		var rr := s + 2 + 2 * k
+		var lim := int(float(rr) * 0.75)
+		for dx in range(-lim, lim + 1):
+			var dy := -roundi(sqrt(maxf(0.0, float(rr * rr - dx * dx))))
+			px(cx + dx, cy + dy, col)
+
+
+## The sign-in column (as savers 1 and 2 have it), from `y`.
+func _sign_col(cx0: int, y: int, cw: int, pitch: int, role: String) -> void:
+	text(cx0, y, role, ink(0.5))
+	y += pitch
+	text(cx0, y, "PILOT", ink(0.75))
+	y += pitch
+	text(cx0, y, fit(ship(), cw), ink(1.0))
+	y += pitch + 4
+	if g.state == LabLogin.SIGNING:
+		text(cx0, y, "SIGNING IN", ink(0.9))
+	elif LabBoard.tw("CLICK TO SIGN IN") <= cw:
+		text(cx0, y, "CLICK TO SIGN IN", cue())
+	else:
+		text(cx0, y, "CLICK TO", cue())
+		text(cx0, y + pitch, "SIGN IN", cue())
+
+
+# ------------------------------------------------------------------ C1: unit status
+
+const C1_FLASH := 0.45
+const C1_OUT := 9.0
+
+
+func _c1_unit_no(i: int) -> int:
+	return 100 + absi(hash(String(g.owner_id) + str(i * 31 + 7))) % 9800
+
+
+func _paint_c1() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var h := a.size.y
+	var tr := rest_t()
+	var dim := fade()
+	var hover := g.state != LabLogin.LOGO
+	var hv := hk(0.4)
+	# cells sized to the glass: about seven rows of them
+	var r := clampi(h / 15, 5, 10)
+	var big := r >= 8
+	var hh := roundi(float(r) * 0.866)
+	var dxs := roundi(1.5 * float(r + 1))
+	var dys := 2 * roundi(0.866 * float(r + 1))
+	var gr := Rect2i(x0 + 4, y0 + 17, w - 8, h - 17 - 15)
+	var cols := maxi(1, (gr.size.x - 2 * r - 1) / dxs + 1)
+	var rows := maxi(1, (gr.size.y - 2 * hh - 1 - dys / 2) / dys + 1)
+	var gw := (cols - 1) * dxs + 2 * r + 1
+	var gh := (rows - 1) * dys + dys / 2 + 2 * hh + 1
+	var ox := gr.position.x + (gr.size.x - gw) / 2 + r
+	var oy := gr.position.y + (gr.size.y - gh) / 2 + hh
+	var cells: Array[Vector2i] = []
+	for cx in cols:
+		for ry in rows:
+			cells.append(Vector2i(ox + cx * dxs, oy + ry * dys + (dys / 2 if cx % 2 == 1 else 0)))
+	var n := cells.size()
+	# the middle cell (yours, pointed at)
+	var mid := 0
+	var best := 1 << 30
+	for i in n:
+		var d := (cells[i] - Vector2i(gr.get_center())).length_squared()
+		if d < best:
+			best = d
+			mid = i
+	# the unit that stops reporting this cycle, and where the cycle is
+	var cyc := int(floorf(tr / C1_OUT))
+	var f := fposmod(tr, C1_OUT)
+	var dark := absi(hash(cyc * 7 + 3 + absi(hash(String(g.owner_id))))) % maxi(1, n)
+	if dark == mid:
+		dark = (dark + rows) % maxi(1, n)
+	var out := not hover and f >= 1.2 and f < 5.2
+	var back := not hover and f >= 5.2 and f < 7.0
+	# HEADER: the owner's unit status, and the count reporting
+	head(x0 + 4, y0 + 3, " UNIT STATUS")
+	var cnt := n - (1 if out else 0) + (1 if hover else 0)
+	var tot := n + (1 if hover else 0)
+	var cs := "%s OF %s" % [_thousands(cnt), _thousands(tot)]
+	var hx_end := x0 + 18 + LabBoard.tw(g.owner_short() + " UNIT STATUS")
+	if a.end.x - 6 - LabBoard.tw(cs) > hx_end + 8:
+		text(a.end.x - 6 - LabBoard.tw(cs), y0 + 6, cs, ink(0.6))
+	# the plate, pointed at: under the middle cell (over it if no room)
+	var lines := [["PILOT %s · REPORTING" % ship(), ink(0.75)], ["CLICK TO SIGN IN", cue()]]
+	if g.state == LabLogin.SIGNING:
+		lines = [["PILOT %s · REPORTING" % ship(), ink(0.75)], ["SIGNING IN", ink(0.9)]]
+	var pl := Rect2i()
+	if hover:
+		var open := clampf(g._t / 0.15, 0.0, 1.0) if g.state == LabLogin.LOGIN else 1.0
+		var mc := cells[mid]
+		pl = plate(mc.x, mc.y + hh + 7, lines, open)
+		if pl.end.y > a.end.y - 14:
+			pl.position.y = mc.y - hh - 7 - pl.size.y
+		pl.position.x = clampi(pl.position.x, x0 + 4, a.end.x - 4 - pl.size.x)
+		_keep.append(pl.grow(3))
+	# THE CELLS: each unit flashes its arcs as it reports, every 3-5 s
+	var us := 2 if big else 1
+	for i in n:
+		var c := cells[i]
+		if not box_free(Rect2i(c - Vector2i(r + 1, hh + 1), Vector2i(2 * r + 3, 2 * hh + 3))):
+			continue
+		var per := 3.2 + 2.0 * noise(i, 1)
+		var since := fposmod(tr - noise(i, 2) * per, per)
+		var k := exp(-since / C1_FLASH)
+		var dk := dim * (1.0 - 0.5 * hv)
+		_hex_fill(c.x, c.y, r - 1, om(0.07 * dim))
+		if i == mid and hover:
+			_hex_line(Vector2(c), float(r), cue())
+			_unit(c.x, c.y, us, LabBoard.mixc(LabBoard.BG, LabBoard.HOT, hv))
+			_arcs(c.x, c.y, us, LabBoard.mixc(LabBoard.BG, LabBoard.HOT, 0.8 * hv * (0.6 + 0.4 * sin(g._t * TAU / 1.2))), 2 if big else 1)
+			continue
+		if i == dark and out:
+			# stopped reporting: the cell empty, its rim dotted
+			_hex_line(Vector2(c), float(r), LabBoard.mixc(LabBoard.BG, LabBoard.BAD, 0.6 * dk), 2)
+			if int(floorf(f / 0.5)) % 2 == 0:
+				g.draw_rect(Rect2(c.x - 1, c.y - 1, 3, 3), LabBoard.mixc(LabBoard.BG, LabBoard.BAD, dk))
+			continue
+		if i == dark and back:
+			# the replacement, in from below and settling
+			var e := smoothstep(0.0, 0.9, f - 5.2)
+			var uy := c.y + roundi((1.0 - e) * float(hh + 3))
+			_hex_line(Vector2(c), float(r), om((0.3 + 0.5 * (1.0 - e)) * dk))
+			if uy <= c.y + hh - us:
+				_unit(c.x, uy, us, om(dk))
+			if e >= 1.0:
+				_arcs(c.x, c.y, us, om(dk * (1.0 - smoothstep(6.1, 7.0, f))), 2 if big else 1)
+			continue
+		_hex_line(Vector2(c), float(r), om((0.28 + 0.3 * k) * dk))
+		_unit(c.x, c.y, us, om((0.42 + 0.55 * k) * dk))
+		if k > 0.3:
+			_arcs(c.x, c.y, us, om(k * dk), 2 if big else 1)
+	if out:
+		# the empty cell, bracketed over its neighbours
+		var dc := cells[dark]
+		g._brackets(Rect2i(dc - Vector2i(r + 3, hh + 3), Vector2i(2 * r + 7, 2 * hh + 7)), 3, LabBoard.mixc(LabBoard.BG, LabBoard.BAD, 0.8 * dim))
+	if pl.has_area():
+		plate_draw(pl, lines, pl.size.x >= say_w(String(lines[0][0])) + 8)
+		var mc2 := cells[mid]
+		g._brackets(Rect2i(mc2 - Vector2i(r + 3, hh + 3), Vector2i(2 * r + 7, 2 * hh + 7)), 3, cue())
+	# THE FOOT: the roll call's one line
+	var fy := a.end.y - 9
+	g.draw_rect(Rect2(x0 + 4, fy - 4, w - 8, 1), ink(0.25))
+	if out:
+		var s := "UNIT %04d · STOPPED REPORTING" % _c1_unit_no(dark)
+		if say_w(s) > w - 20:
+			s = "UNIT %04d · NO REPORT" % _c1_unit_no(dark)
+		g.draw_rect(Rect2(x0 + 6, fy + 1, 3, 3), LabBoard.BAD)
+		say(x0 + 12, fy, s, ink(0.9))
+	elif back:
+		say(x0 + 12, fy, "UNIT %04d · REPLACED" % _c1_unit_no(dark), ink(0.8))
+		g.draw_rect(Rect2(x0 + 6, fy + 1, 3, 3), om(1.0))
+	else:
+		text(x0 + 12, fy, "ALL UNITS REPORTING", ink(0.6))
+		g.draw_rect(Rect2(x0 + 6, fy + 1, 3, 3), om(0.8))
+
+
+# ------------------------------------------------------------------ C2: formation trial
+
+const C2_CYCLE := 8.0
+const C2_N := 8
+const C2_NAMES := ["RING", "FIGURE EIGHT", "TWO RINGS"]
+## The trial's log: when, and what (the units leave before the order does).
+const C2_LOG := [[0.2, "UNITS OUT"], [0.5, "ORDER SENT"], [1.7, "HELD"], [5.6, "RETURNING"], [7.1, "UNITS HOME"]]
+
+
+func _c2_pat(kind: int, i: int, t: float, c: Vector2, R: Vector2) -> Vector2:
+	var ph := float(i) / float(C2_N) * TAU
+	var wv := TAU / 6.0
+	match kind:
+		0:
+			return c + Vector2(cos(ph + t * wv), sin(ph + t * wv)) * R
+		1:
+			var s := ph + t * wv
+			return c + Vector2(sin(s) * R.x, sin(s) * cos(s) * R.y * 1.8)
+		_:
+			var side := -1.0 if i % 2 == 0 else 1.0
+			var s2 := ph * 2.0 + t * wv * side
+			return c + Vector2(side * R.x * 0.5 + cos(s2) * R.x * 0.45, sin(s2) * R.y * 0.9)
+
+
+func _c2_pos(kind: int, i: int, t: float, cell: Vector2, c: Vector2, R: Vector2) -> Vector2:
+	var l0 := 0.2 + 0.12 * float(i)
+	var r0 := 5.6 + 0.12 * float(i)
+	if t < l0 or t >= r0 + 1.2:
+		return cell
+	var tg := _c2_pat(kind, i, t, c, R)
+	if t < l0 + 1.1:
+		var e := smoothstep(0.0, 1.0, (t - l0) / 1.1)
+		return cell.lerp(tg, e) + Vector2(0.0, -sin(e * PI) * 10.0)
+	if t < r0:
+		return tg
+	var e2 := smoothstep(0.0, 1.0, (t - r0) / 1.2)
+	return tg.lerp(cell, e2) + Vector2(0.0, -sin(e2 * PI) * 10.0)
+
+
+func _paint_c2() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var h := a.size.y
+	var tr := rest_t()
+	var dim := fade()
+	var hover := g.state != LabLogin.LOGO
+	var hv := hk(0.8)
+	var big := h >= 150
+	var fw := int(float(w) * (0.58 if big else 0.52))
+	var box := Rect2i(x0 + 4, y0 + 4, fw, h - 8)
+	var cr := clampi(h / 17, 4, 10)
+	var chh := roundi(float(cr) * 0.866)
+	var cdx := roundi(1.5 * float(cr + 1))
+	var cdy := 2 * roundi(0.866 * float(cr + 1))
+	# THE RACK: eight launch cells in a honeycomb strip along the foot
+	var rack_y := box.end.y - chh - 4
+	var cells: Array[Vector2] = []
+	for i in C2_N:
+		cells.append(Vector2(box.position.x + box.size.x / 2 + roundi((float(i) - 3.5) * float(cdx)), rack_y - (cdy / 2 if i % 2 == 1 else 0)))
+	var top_rack := rack_y - cdy / 2 - chh
+	var c := Vector2(box.position.x + box.size.x / 2, box.position.y + (top_rack - box.position.y) / 2 + 2)
+	var R := Vector2(float(box.size.x) * 0.36, float(top_rack - box.position.y) * 0.34)
+	var t := fposmod(tr, C2_CYCLE)
+	var cyc := int(floorf(tr / C2_CYCLE))
+	var kind := cyc % 3
+	var old := _clip
+	_clip = box.intersection(_clip)
+	# the pattern's path, faint, while the units fly it
+	var out := 0
+	for i in C2_N:
+		if t >= 0.2 + 0.12 * float(i) and t < 6.8 + 0.12 * float(i):
+			out += 1
+	if out > 0:
+		for j in 90:
+			var q := _c2_pat(kind, 0, float(j) / 90.0 * 6.0, c, R)
+			if j % 2 == 0:
+				px(roundi(q.x), roundi(q.y), om(0.3 * dim * (1.0 - hv)))
+	# the beacon
+	var cb := Vector2i(c.round())
+	for d in [3, 4, 5]:
+		for s: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			px(cb.x + s.x * d, cb.y + s.y * d, ink(0.45 * dim * (1.0 - hv)))
+	if int(floorf(tr / 0.8)) % 2 == 0 and hv < 1.0:
+		px(cb.x, cb.y, ink(0.8 * dim * (1.0 - hv)))
+	for i in C2_N:
+		var q := Vector2i(cells[i].round())
+		_hex_fill(q.x, q.y, cr - 1, om(0.08 * dim))
+		_hex_line(Vector2(q), float(cr), om(0.4 * dim))
+	# THE UNITS, a short trail behind each; pointed at, they ring your ship
+	var us := clampi(h / 55, 1, 3)
+	var er := minf(R.x, R.y) * 0.85 + 4.0
+	for i in C2_N:
+		for tk in [6, 5, 4, 3, 2, 1, 0]:
+			var tt := t - 0.05 * float(tk)
+			var p := _c2_pos(kind, i, tt, cells[i], c, R)
+			var an := float(i) / float(C2_N) * TAU + (tr - 0.05 * float(tk)) * TAU / 9.0
+			var esc := c + Vector2(cos(an), sin(an)) * er
+			p = p.lerp(esc, hv)
+			var q := Vector2i(p.round())
+			if tk == 0:
+				_unit(q.x, q.y, us, om(0.95 * dim))
+				# each unit reports now and then, its arcs lit
+				var per := 2.4 + 1.2 * noise(i, 4)
+				var k := exp(-fposmod(tr - noise(i, 5) * per, per) / 0.4)
+				if k > 0.3 and p.distance_to(cells[i]) > 3.0:
+					_arcs(q.x, q.y, us, om(k * dim), 2 if big else 1)
+			elif p.distance_to(cells[i]) > 2.0:
+				px(q.x, q.y, om((0.6 - 0.08 * float(tk)) * dim))
+	if hv > 0.0:
+		g._brackets(Rect2i(cb - Vector2i(4, 4), Vector2i(9, 9)), 3, LabBoard.mixc(LabBoard.BG, LabBoard.HOT, hv))
+		g.draw_rect(Rect2(cb.x - 1, cb.y - 1, 3, 3), LabBoard.mixc(LabBoard.BG, LabBoard.HOT, hv))
+	_clip = old
+	g._brackets(box, 5, ink(0.45 * dim))
+	# THE COLUMN
+	var cx0 := box.end.x + 8
+	var cw := a.end.x - 4 - cx0
+	head(cx0, y0 + 2)
+	var y := y0 + 18
+	var pitch := 12 if big else 9
+	if hover:
+		_sign_col(cx0, y, cw, pitch, "ESCORT")
+		return
+	var ttl := "FORMATION TRIAL %d" % (40 + cyc)
+	if LabBoard.tw(ttl) > cw:
+		ttl = "TRIAL %d" % (40 + cyc)
+	text(cx0, y, ttl, ink(0.5))
+	y += pitch
+	text(cx0, y, fit(String(C2_NAMES[kind]), cw), ink(0.95))
+	y += pitch + 4
+	var foot := a.end.y - 9
+	for e: Array in C2_LOG:
+		if t < float(e[0]) or y + 6 > foot - 4:
+			continue
+		var ts := "%.1f" % float(e[0])
+		var tx := cx0 + LabBoard.tw("0.0") + 5
+		if tx + LabBoard.tw(String(e[1])) > cx0 + cw:
+			tx = cx0
+		else:
+			text(cx0, y, ts, ink(0.4))
+		text(tx, y, String(e[1]), ink(0.75))
+		y += pitch
+	var home := C2_N - out
+	var hs := "UNITS HOME %d OF %d" % [home, C2_N]
+	if LabBoard.tw(hs) > cw:
+		hs = "HOME %d OF %d" % [home, C2_N]
+	text(cx0, foot, hs, ink(0.6))
+
+
+# ------------------------------------------------------------------ C3: nested housing
+
+const C3_T := 7.0
+const C3_F := 0.34
+var _c3_u := 0.0
+var _c3_last := 1.0
+
+
+func _c3_level(c: Vector2, rk: float, lv: int, tr: float, al: float) -> void:
+	_hex_line(c, rk, om(0.8 * al))
+	if rk >= 16.0:
+		_hex_line(c, rk - 2.0, om(0.3 * al))
+	# the rails, from the middle cell's corners out
+	if rk >= 10.0:
+		for i in 6:
+			var d := Vector2(cos(float(i) * TAU / 6.0), sin(float(i) * TAU / 6.0))
+			line(Vector2i((c + d * rk * C3_F).round()), Vector2i((c + d * rk * 0.84).round()), om(0.32 * al), 2)
+	# the six cells round it, a unit in each, reporting now and then
+	var crr := rk * 0.17
+	if crr < 2.0:
+		return
+	for i in 6:
+		var an := TAU / 12.0 + float(i) * TAU / 6.0
+		var q := c + Vector2(cos(an), sin(an)) * rk * 0.6
+		_hex_line(q, crr, om(0.55 * al))
+		if crr >= 4.0:
+			var per := 2.6 + 1.6 * noise(lv, i)
+			var k := exp(-fposmod(tr - noise(lv, i + 9) * per, per) / 0.5)
+			var qi := Vector2i(q.round())
+			var s := clampi(int(crr / 4.0), 1, 4)
+			_unit(qi.x, qi.y, s, om((0.35 + 0.6 * k) * al))
+			if k > 0.35 and crr >= 7.0:
+				_arcs(qi.x, qi.y, s, om(k * al), 1)
+
+
+func _paint_c3() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var h := a.size.y
+	var tr := rest_t()
+	var dim := fade()
+	var hover := g.state != LabLogin.LOGO
+	var hv := hk(0.5)
+	var big := h >= 200
+	var m := mini(h - 8, int(float(w) * 0.56))
+	var box := Rect2i(x0 + 6, y0 + (h - m) / 2, m, m)
+	var c := Vector2(box.get_center())
+	var r0 := float(m) * 0.5
+	var u := _c3_u
+	var depth := int(floorf(u))
+	var z := pow(1.0 / C3_F, u - floorf(u))
+	var old := _clip
+	_clip = box.intersection(_clip)
+	for k in range(-2, 7):
+		var rk := r0 * z * pow(C3_F, float(k))
+		if rk < 1.5:
+			break
+		if rk * 0.45 > float(m):
+			continue
+		var al := smoothstep(1.5, 9.0, rk) * dim
+		_c3_level(c, rk, depth + k, tr, al)
+	# the innermost unit, at the very middle
+	var ci := Vector2i(c.round())
+	px(ci.x, ci.y, om(0.9 * dim))
+	_clip = old
+	g._brackets(box, 5, ink(0.45 * dim))
+	if hv > 0.0:
+		# locked on the middle cell
+		var old2 := _clip
+		_clip = box.intersection(old2)
+		_hex_line(c, r0 * z * C3_F, LabBoard.mixc(LabBoard.BG, cue(), hv))
+		_hex_line(c, r0 * z * C3_F + 1.0, LabBoard.mixc(LabBoard.BG, cue(), 0.5 * hv))
+		_clip = old2
+	# THE COLUMN
+	var cx0 := box.end.x + 8
+	var cw := a.end.x - 4 - cx0
+	head(cx0, y0 + 2)
+	var y := y0 + 18
+	var pitch := 12 if big else 9
+	if hover:
+		_sign_col(cx0, y, cw, pitch, "INSPECTOR")
+		return
+	text(cx0, y, "HOUSING", ink(0.5))
+	y += pitch
+	text(cx0, y, fit("H-%03d" % (absi(hash(String(g.owner_id) + " housing")) % 900 + 100), cw), ink(0.95))
+	y += pitch + 4
+	text(cx0, y, "CELLS 7 OF 7", ink(0.7))
+	y += pitch
+	text(cx0, y, "UNITS 7 OF 7", ink(0.7))
+	var ly := a.end.y - 9
+	var s := "DEPTH %d" % (depth + 1)
+	text(cx0, ly, s, ink(0.6))
+	if u - floorf(u) < 0.08 and u > 1.0:
+		text(cx0 + LabBoard.tw(s) + 4, ly, "+1", om(1.0))
