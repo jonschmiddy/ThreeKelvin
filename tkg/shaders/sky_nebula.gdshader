@@ -179,19 +179,21 @@ uniform float r_z2 = 400.0;
 uniform float r_zsq = 2.3;
 uniform float r_zn = 380.0;
 uniform float r_o3 = 0.78;
-uniform float r_d0 = 320.0;
-uniform float r_fp = 0.9;
-uniform float r_ek = 2.0;
+// (direction C, Nov 7: the light falls off sooner and burns hotter close in, so
+// the sun is a key light against the dark, not a wash)
+uniform float r_d0 = 230.0;
+uniform float r_fp = 1.15;
+uniform float r_ek = 2.7;
 uniform float r_epow = 0.5;
 uniform float r_gk = 1.1;
-uniform float r_gbase = 0.45;
+uniform float r_gbase = 0.32;
 // how much of the cloud's dust RADIANT keeps (A: a veil, never pillars of black)
-uniform float r_dust = 0.16;
+uniform float r_dust = 0.42;
 uniform float r_zpow = 0.75;
 uniform float r_pastel = 0.5;
 // RADIANT's core: the haze of the galaxy's heart lit by the disc, filling the frame
 uniform float r_core_haze = 2.2;
-uniform float r_floor = 0.16;
+uniform float r_floor = 0.07;
 // each world: where it is drawn (screen px), its drawn radius, its true radius
 // at this zoom; its rings' outer edge in its radii (0: none)
 uniform vec4 r_bodies[24];
@@ -201,7 +203,7 @@ uniform bool r_per = false;
 uniform float r_rings[24];
 uniform int r_nb = 0;
 // how much of the sun's light a shaft's umbra takes; a flare's height now
-uniform float r_shaft_k = 0.82;
+uniform float r_shaft_k = 0.93;
 uniform float r_flare = 0.0;
 // SLOT A: where (on the sky, before `off`), how long ago (negative: its
 // precursor), how strong (0: none), and what the event needs
@@ -340,7 +342,7 @@ float r_rays(vec2 b, vec2 sp) {
 	for (int k = 1; k <= 8; k++) {
 		tau += texture(t0, fuv(sp + st * (float(k) / 9.0))).g;
 	}
-	return exp(-tau / 8.0 * reach / 40.0);
+	return exp(-tau / 8.0 * reach / 26.0);
 }
 
 struct Lt { float LZ; float dL; vec2 toSun; float Js; float Jc; float Jw; float att; float sh; };
@@ -961,6 +963,18 @@ void fragment() {
 		litC += vec3(0.45, 0.65, 1.0) * shaft * 0.22;
 		vec3 Tr = radiant ? exp(-tau * 3.4 * vec3(0.62, 0.80, 1.0)) : vec3(T);
 		H = (selfC + farC) * Tr + dustC * (1.0 - T) + litC * Tr + vec3(0.62, 0.80, 1.0) * rim * (0.05 + 1.5 * Js + 1.6 * Jc);
+		if (radiant) {
+			// RADIANT, direction C (Nov 7): the star a key light. The gas round it lit
+			// in the star's own colour (a red giant's cloud burns red-orange near it),
+			// fading fast into a deep navy, cut by the worlds' shafts and the dust's
+			// rays (`lt.att`, in Js)
+			// (gently: added hard, the warm light came out of the palette as one flat
+			// tan plate over the cloud; half the star's colour, half the gas's blue)
+			float key = 1.0 / (1.0 + pow(lt.dL / 130.0, 2.0)) * lt.att;
+			vec3 sl = star_light / max(max(star_light.r, max(star_light.g, star_light.b)), 1e-3);
+			sl = mix(sl, vec3(0.55, 0.7, 1.0), 0.45);
+			H = H * (0.5 + 0.5 * key) + sl * (0.3 * g + 0.4 * ge) * key * 0.22 * Tr;
+		}
 		H = max(H, vec3(0.0030, 0.0040, 0.0120));
 		trans = T * (1.0 - 0.8 * sat(g * 1.6));
 		dk = 1.0 - T;
@@ -1323,7 +1337,10 @@ void fragment() {
 		if (radiant) {
 			// RADIANT (A): the heart is a lit haze all through, rose-brown, brighter
 			// toward the disc; the lanes darken it, never to black
-			H += vec3(0.16, 0.07, 0.055) * r_core_haze * (0.45 + 0.55 * gas) * (0.35 + 0.65 * Jf) * (1.0 - lop * 0.4);
+			// (direction C: the disc lights its own system -- hot close in, falling to
+			// dark wine far out, the lanes cutting dark through it)
+			H += vec3(0.16, 0.07, 0.055) * r_core_haze * (0.45 + 0.55 * gas) * (0.08 + 1.3 * Jf) * (1.0 - lop * 0.8);
+			H += lit * 0.8;
 		}
 		// the galaxy's heart is crowded with stars: more show in the gaps between the clouds
 		trans = (1.0 - 0.55 * sat(gas * 1.6)) * exp(-lane * 2.5) * (radiant ? 0.5 : 1.0);
@@ -1416,7 +1433,7 @@ void fragment() {
 		// (in the gas's own colour as much as the sun's: star-coloured haze over teal
 		// washed the heart out to a pastel)
 		vec3 hz = mix(star_light, H / max(max(H.r, max(H.g, H.b)), 1e-4), 0.65);
-		H += hz * 0.045 * Js * (1.0 - sat(Jc * 2.0)) * (0.55 + 0.45 * far);
+		H += hz * 0.10 * Js * (1.0 - sat(Jc * 2.0)) * (0.55 + 0.45 * far);
 	}
 	// (PAINTED: what the strike adds to the cloud itself, its flash and its channel)
 	vec3 Hpre = H;

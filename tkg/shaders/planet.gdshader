@@ -116,11 +116,13 @@ uniform bool painted = false;
 // when the world stands between you and the star. Weights: the star, the fill,
 // the limb's catch, the exposure (A's `wk`)
 uniform bool radiant = false;
-uniform vec4 r_wk = vec4(1.7, 9.0, 7.0, 1.15);
+// (direction C, Nov 7: the star harder, the night fill and the wash lower, the
+// terminator narrow -- a lit face and a dark one)
+uniform vec4 r_wk = vec4(2.4, 4.0, 6.0, 1.15);
 // how far the light wraps round past the terminator; the cloud's wash over the
 // world (all over, more at the limb) and how bright that cloud is
-uniform float r_wrap = 0.22;
-uniform vec3 r_haze = vec3(0.22, 0.45, 16.0);
+uniform float r_wrap = 0.04;
+uniform vec3 r_haze = vec3(0.12, 0.32, 16.0);
 // its moons: each one's place about this world (screen px: x right, y down, z
 // toward you) and its drawn radius, for the eclipse they cast on its face
 uniform vec4 moon_sh[4];

@@ -137,6 +137,12 @@ const STYLE_RADIANT := &"radiant"
 ## how many bodies throw shadows at once: the worlds, then their moons
 const SHADOW_CASTERS := 24
 var radiant := false
+## RADIANT's glow (`RadiantGlow`): the place's picture wrapped
+var _glow: SubViewport = null
+## and its look here: the sun's rays through the gas, a deep violet shade
+const GLOW_LOOK := {"thr": 0.5, "knee": 0.16, "gain": 2.2, "self_k": 0.5, "steps": 5.0, "band": 0.22, "rays": 1.1, "ray_len": 0.8,
+	"halo_a": Vector3(1.0, 0.7, 0.45), "halo_b": Vector3(0.6, 0.45, 0.3), "wide_k": 0.7,
+	"shade_tint": Vector3(0.28, 0.16, 0.8), "shade": 0.5, "dark_hi": 0.06, "crush": 0.15, "vib": 0.0}
 ## the painted pass's viewports and materials (`SectorPainted.build`)
 var _pt := {}
 ## the emission cloud's bubble round the sun, on the plane: a sphere in the
@@ -494,6 +500,7 @@ func show_system(n: MapGen.MapNode) -> void:
 	_ready_sky = false
 	_palette_built = false
 	_frame = 0
+	_glow = null
 	# THE PLACE'S OWN PICTURE, half the size, shown at twice
 	var box := SubViewportContainer.new()
 	box.stretch = false
@@ -863,6 +870,11 @@ func show_system(n: MapGen.MapNode) -> void:
 			SectorPaintedS.paint_world(self, v)
 		if radiant:
 			_set_deep(v, "radiant", true)
+	# RADIANT'S GLOW AND COLOUR (`RadiantGlow`): the place's picture wrapped, its
+	# light glowing in steps, its shade deep; the instruments stay over it, unlit
+	if radiant:
+		_glow = RadiantGlow.wrap(_scene, Vector2(960, 540), GLOW_LOOK)
+		RadiantGlow.glow_mat(_glow).set_shader_parameter("light", Vector2(CX, CY) / Vector2(960, 540))
 	# THE INSTRUMENTS, single pixels over the place: the fabric, then the orbits
 	_fabric = _Fabric.new()
 	_fabric.view = self
@@ -2162,6 +2174,8 @@ func step() -> void:
 	_sky_mat.set_shader_parameter("sky_off", sky_off())
 	if star != null:
 		star.position = o
+		if _glow != null:
+			RadiantGlow.glow_mat(_glow).set_shader_parameter("light", o / Vector2(960, 540))
 		if layout.star == SystemLayout.StarKind.PULSAR:
 			star.set("sub", pc - o)
 		if star is SunViewS and _kcor > 0.0:
