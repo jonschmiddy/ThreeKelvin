@@ -1148,9 +1148,9 @@ func _s5_cards() -> Array:
 	return [
 		["mark", on, "AUGMENT TODAY."],
 		["big", "YOUR PARTS", "COULD DO MORE.", "ASK AT ANY %s LAB." % on],
-		["big", "ONE AUGMENT", "PER PART.", "WE ASKED. THE PARTS SAID NO."],
-		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS MAY VARY. THEY DO VARY."],
-		["big", "LIGHTENED PARTS", "KEEP THE MARK.", "WE CANNOT UNDO IT EITHER."],
+		["big", "ONE AUGMENT", "PER PART.", "IT STAYS ON THE PART."],
+		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS VARY."],
+		["big", "LIGHTENED PARTS", "TURN FASTER.", "+2 MAN, -1 HUL."],
 	]
 
 
@@ -1464,15 +1464,14 @@ func _i_short(m: StringName) -> String:
 	return DB.short_name(DB.manufacturer_name(m)).to_upper()
 
 
-## A maker's mark on its own ground, 11 px (the station's own: the bare square).
+## A maker's mark, 11 px, drawn straight on the glass: no ground and no frame
+## (critic pass, Nov 7: framed on their fields, the row read as a toolbar of
+## buttons). The station's own is the bare square.
 func _i_badge(cx: int, cy: int, m: StringName) -> void:
 	var r := Rect2i(cx - 5, cy - 5, 11, 11)
 	var has := DB.manufacturers.has(m)
-	var fd: Color = (DB.manufacturers[m] as ManufacturerData).field if has else LabBoard.BG
 	var mk: Color = DB.manufacturer_colour(m) if has else g.tint
-	g.draw_rect(Rect2(r.position - Vector2i.ONE, r.size + Vector2i(2, 2)), ink(0.35))
-	g.draw_rect(Rect2(r), fd)
-	CardView.draw_emblem(g, m if has else &"", Vector2(r.position) + Vector2(5.5, 5.5), 1.0, mk, fd)
+	CardView.draw_emblem(g, m if has else &"", Vector2(r.position) + Vector2(5.5, 5.5), 1.0, mk, LabBoard.BG)
 	g.leaves.append(["mark", Rect2i(r.position - Vector2i.ONE, Vector2i(13, 13))])
 
 
