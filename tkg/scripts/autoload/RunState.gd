@@ -1226,7 +1226,7 @@ func open_bag(n: MapGen.MapNode, drops: int, hands: int) -> void:
 	var r := Rng.derive(&"bag", n.index)
 	var force := n.manufacturer if n.region == MapGen.Region.TERRITORY else &""
 	# Scaled by the crew, so bringing a friend does not halve what the fight is
-	# worth to you. The enemy already grew by CREW_SHARE to meet them; this is
+	# worth to you. The enemy was built for the party (`PartyScale`); this is
 	# the other side of that bargain.
 	for i in drops * maxi(1, hands):
 		n.bag.append(LootGen.roll_module(n.danger, force,
@@ -2336,12 +2336,13 @@ func harvest_pulsar() -> void:
 	#
 	# `&"exotic"` is still dropped by fauna, so any recipe asking for it by ID
 	# rather than by tier is unaffected.
-	add_material(PULSAR_DROP, gain_exotic)
+	# (in a party's game more is made, `PartyScale`: the line says what was)
+	var adrift := add_material(PULSAR_DROP, gain_exotic).size()
 	heat += gain_heat
 	log_line("Beam sweep. Fuel pours into the tank for eleven seconds.", &"good")
 	# The name comes off the table rather than being written here twice.
 	var silt: Dictionary = MaterialTable.by_id(PULSAR_DROP)
-	log_line("+%d fuel, and %d %s adrift alongside." % [gain_fuel, gain_exotic,
+	log_line("+%d fuel, and %d %s adrift alongside." % [gain_fuel, adrift,
 		String(silt.get("name", "exotic")).to_lower()], &"good")
 	log_line("Hard radiation through the hull. +%d heat." % gain_heat, &"them")
 	Sig.resources_changed.emit()
@@ -2419,8 +2420,11 @@ func scrap_found_hull() -> bool:
 	var mat := StringName(pay.get("material", &""))
 	if mat != &"":
 		var made := add_material(mat, 1)
-		if not made.is_empty() and node_at() != null:
+		if made.size() == 1 and node_at() != null:
 			said += " A crate of %s is in SECTOR LOOT." % made[0].name
+		elif made.size() > 1 and node_at() != null:
+			# (a party's game makes one a player, `PartyScale`)
+			said += " %d crates of %s are in SECTOR LOOT." % [made.size(), made[0].name]
 	log_line(said, &"good")
 	return true
 

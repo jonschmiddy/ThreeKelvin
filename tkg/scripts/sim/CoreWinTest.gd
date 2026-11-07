@@ -609,6 +609,65 @@ func _ordinary_fight() -> void:
 ## grown at the lead ship's count. The partner is a roster row only (nobody on
 ## the wire), as NetTest's stale guest is; the fight's push goes to nobody.
 ## And the tooltip's party words follow the dive's galaxy (`CustodianBadge.party`).
+## WHAT THE LOG SAYS IS WHAT WAS MADE (review, Nov 5): in a game of three a
+## material is paid three times (`add_material`, `PartyScale.pay`), and the
+## line says three, not the one a lone pilot gets.
+func _logs_say_what_was_made() -> void:
+	var said: Array[String] = []
+	var hear := func(text: String, _kind: StringName) -> void: said.append(text)
+	Sig.log_line.connect(hear)
+	var k := PartyScale.pay(1)
+	# a found hull scrapped: its crates
+	Run.found_hull = DB.hull_for(&"korvan", HullData.Weight.LIGHT).duplicate() as HullData
+	Run.found_scrap = {credits = 30, material = &"deck_plate"}
+	var pile0 := Run.sector_jetsam(Run.node_at()).items.size()
+	Run.scrap_found_hull()
+	var made := Run.sector_jetsam(Run.node_at()).items.size() - pile0
+	var mat_name := String(MaterialTable.by_id(&"deck_plate").get("name", "?"))
+	var line := ""
+	for t in said:
+		if t.begins_with("Scrapped"):
+			line = t
+	_ok("(party) scrapping a found hull in a game of %d makes %d crates and the log says so: \"%s\"" % [PartyScale.players(), made, line],
+		k == 3 and made == 3 and line.ends_with(" %d crates of %s are in SECTOR LOOT." % [made, mat_name]))
+	# a pulsar's beam: what it leaves adrift (`harvest_pulsar` reads the
+	# system's danger and nothing of its kind, so any system but this one does
+	# when the map has no pulsar)
+	var p: MapGen.MapNode = null
+	for raw in Run.map:
+		if (raw as MapGen.MapNode).type == MapGen.NodeType.PULSAR:
+			p = raw
+			break
+	if p == null:
+		for raw in Run.map:
+			if (raw as MapGen.MapNode).index != Run.at and (raw as MapGen.MapNode).danger >= 4:
+				p = raw
+				break
+	if _ok("(party) a system to fly the beam in", p != null):
+		var was_cleared := p.cleared
+		p.cleared = false
+		var at0 := Run.at
+		var kept := [Run.hp, Run.fuel, Run.heat]
+		Run.at = p.index
+		Run.hp = Run.max_hp()
+		said.clear()
+		var silt0 := Run.sector_jetsam(p).items.size()
+		Run.harvest_pulsar()
+		var adrift := Run.sector_jetsam(p).items.size() - silt0
+		var said_n := -1
+		for t in said:
+			if t.contains(" adrift alongside."):
+				said_n = int(t.split(", and ")[1].split(" ")[0])
+		_ok("(party) a pulsar's beam leaves %d adrift in a game of three and the log says %d" % [adrift, said_n],
+			adrift == PartyScale.pay(1 + int(p.danger / 4)) and adrift > 1 and said_n == adrift)
+		p.cleared = was_cleared
+		Run.at = at0
+		Run.hp = int(kept[0])
+		Run.fuel = int(kept[1])
+		Run.heat = int(kept[2])
+	Sig.log_line.disconnect(hear)
+
+
 func _party_router_fight() -> void:
 	Rng.forced = 777
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -671,6 +730,7 @@ func _party_router_fight() -> void:
 	if Router.combat != null:
 		Router.combat.release()
 	Router.combat = null
+	await _logs_say_what_was_made()
 	Net.leave_party()
 	Net.dive_seed = 0
 	Run.jumps = 0

@@ -1563,6 +1563,25 @@ func _party_scale_net_test() -> void:
 	var two := await _wait_until(func() -> bool: return host.party_count() == 2 and g.party_count() == 2, 5.0)
 	ok("(size-net) the third player leaves: two again on both", two)
 	check("(size-net) the fight built for three keeps its numbers", host.fight_at(522).foes[0].max_hp, for3)
+	# A DEAD PILOT IS NOT A PLAYER IN THE FIGHTS TO COME (review, Nov 5): the
+	# ship left meets one ship's hulls, on both machines, not two ships' alone
+	var gid := g.local_id()
+	var wire: Dictionary = (host.roster[gid].get("build", {}) as Dictionary).duplicate()
+	if wire.is_empty():
+		wire = ShipBuild.local().to_wire()
+	var at_g := host.where_is(gid)
+	wire["dead"] = true
+	host._apply_presence(gid, wire, at_g, 0)
+	var one := await _wait_until(func() -> bool: return host.party_count() == 1 and g.party_count() == 1, 5.0)
+	ok("(size-net) a pilot who died is not counted: the host counts %d, the guest %d" % [host.party_count(), g.party_count()], one)
+	wire["dead"] = false
+	host._apply_presence(gid, wire, at_g, 0)
+	two = await _wait_until(func() -> bool: return host.party_count() == 2 and g.party_count() == 2, 5.0)
+	ok("(size-net) and a ship alive on the dive's galaxy counts again: %d, %d" % [host.party_count(), g.party_count()], two)
+	# GONE TO A NEW RUN'S GALAXY: its presence has no jumps here to say
+	host._apply_presence(gid, wire, at_g, -1)
+	one = await _wait_until(func() -> bool: return host.party_count() == 1 and g.party_count() == 1, 5.0)
+	ok("(size-net) a pilot gone to a NEW RUN's galaxy is not counted: the host counts %d, the guest %d" % [host.party_count(), g.party_count()], one)
 	await _teardown()
 
 

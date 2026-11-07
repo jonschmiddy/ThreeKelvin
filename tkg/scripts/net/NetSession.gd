@@ -574,11 +574,23 @@ func party_size() -> int:
 ## THE PLAYERS IN THIS GAME, for the enemy's hull and the pay (`PartyScale`,
 ## Jon, Nov 5; PROTOCOL 18): the host's roster as it stands, pushed whole to
 ## everyone, so every machine counts the same ships. 1 alone, outside a dive,
-## on a NEW RUN's galaxy, and once the party is gone.
+## on a NEW RUN's galaxy, and once the party is gone. A pilot who died is not
+## counted (its build says `dead`), nor one whose last presence in the dive
+## said no jumps here (`away`: a NEW RUN's galaxy, or a late joiner not yet
+## in this one): the ship left flying alone meets one ship's hulls, not the
+## party's (review, Nov 5).
 func party_count() -> int:
 	if not is_networked() or not _on_dive_galaxy():
 		return 1
-	return clampi(roster.size(), 1, MAX_PLAYERS)
+	var n := 0
+	for id: int in roster.keys():
+		if bool(roster[id].get("away", false)):
+			continue
+		var b := build_of(id)
+		if b != null and b.dead:
+			continue
+		n += 1
+	return clampi(n, 1, MAX_PLAYERS)
 
 
 func everyone_ready() -> bool:
@@ -1157,6 +1169,9 @@ func _apply_presence(id: int, wire: Dictionary, at: int, jumps: int = -1) -> voi
 	var said := int(_jumps_said.get(id, -1))
 	roster[id].build = wire
 	roster[id].at = at
+	# (in the dive, a presence with no jumps to say is a ship off this galaxy:
+	# not one of the players the fights are built for, `party_count`)
+	roster[id].away = state == State.DIVING and jumps < 0
 	_jumps_said[id] = jumps
 	# `was >= 0` keeps a client's FIRST presence — arrival in the galaxy, not a
 	# jump — off the clock. And both presences must be from this dive's galaxy

@@ -15,7 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   ships in the fight. Each player past the first adds 1.1 times an enemy's hull. Wrecks, event
   rewards and materials pay one more share per player. A ship joining a fight no longer makes the
   enemy bigger. A fight keeps its numbers if someone leaves or joins partway; the next fight uses
-  the new count.
+  the new count. A pilot who died, or who left for a new galaxy, is not counted. The log says how
+  many crates you got.
 - **Changed** — in co-op, the column of partner ships now slides in when a friend arrives. It slides
   out when they leave. Your ship and the enemies move with it, and a card you are aiming stays in
   your hand.

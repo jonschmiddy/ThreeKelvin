@@ -46,8 +46,8 @@ enum Pick { LOOP, POOL, ESCAPE }
 class Foe extends RefCounted:
 	var hp: int = 1
 	var max_hp: int = 1
-	## What one ship's worth of this enemy is. A joiner adds CREW_SHARE of it.
-	## (`regrow` scales it with the hull.)
+	## This enemy's hull before growth (`regrow` scales the hull by the
+	## Custodian's count against it). A joiner adds nothing to it.
 	var base: int = 1
 	var brace: int = 0
 	var block: int = 0

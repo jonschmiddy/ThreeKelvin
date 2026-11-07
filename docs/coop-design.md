@@ -82,8 +82,8 @@ Three things follow, and the third is the one that makes it a design rule rather
 than a bug fix:
 
 - **The bag scales with the crew.** Two ships, twice the parts. Bringing a friend
-  must not halve what a fight is worth to you — the enemy already grew by
-  `CREW_SHARE` to meet you, and this is the other side of that bargain.
+  must not halve what a fight is worth to you — the enemy was built for the
+  party (`PartyScale`), and this is the other side of that bargain.
 - **It does not touch the wallets.** Pillar 1 stands exactly as written: what you
   are CARRYING is private, and the bag is not carried by anybody until somebody
   reaches into it. Credits, dross and exotic are still paid per ship.
@@ -302,7 +302,7 @@ Catch it and it is a set piece: hand-tuned like the custodian (90 hull, 6 armor,
 
 ### The moment this exists to produce
 
-One ship jumps into its system, sees it at anchor, and says the thing into the voice channel this design has been building toward: *everyone get here, now.* Everything that makes that sentence WORK was already built — a fight a latecomer can join at 10% health, an enemy that grows by `CREW_SHARE` to meet each arrival, one bag when it dies — and the hellbender is the first thing worth saying it about that can also LEAVE. The escape burn is what makes the party hurry; the banked damage is what makes a failed first attempt a down payment instead of a waste; the mend-per-move is what makes dawdling cost the down payment back.
+One ship jumps into its system, sees it at anchor, and says the thing into the voice channel this design has been building toward: *everyone get here, now.* Everything that makes that sentence WORK was already built — a fight a latecomer can join at 10% health, an enemy built for the whole party (`PartyScale`, which replaced growing by `CREW_SHARE` on each arrival, Nov 5), one bag when it dies — and the hellbender is the first thing worth saying it about that can also LEAVE. The escape burn is what makes the party hurry; the banked damage is what makes a failed first attempt a down payment instead of a waste; the mend-per-move is what makes dawdling cost the down payment back.
 
 While it holds a system it is a blockade: nothing there is reachable past it — not the dock, not the node's own contact. Arrival does not auto-engage, for the reason the core stopped auto-engaging: two people never arrive on the same second, and a set piece a party cannot gather at is fought alone by design. The sector says what it is and the button says ENGAGE, and whether to press it before the others land is the player's own greed talking.
 

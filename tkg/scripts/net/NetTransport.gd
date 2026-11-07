@@ -50,13 +50,13 @@ enum Kind { DIRECT, ROOM, PLATFORM }
 ## fixed-height column measured for three partners. See LobbyScreen._build_party
 ## and EncounterView.CONVOY_MAX.
 ##
-## What is still only argued: `SharedFight.CREW_SHARE` is linear with no ceiling
-## and has been flown at two. An eight-ship custodian is 200 + 7x120 hull early,
-## up to 400 + 7x240 (2080) from jump 33, since it grows with the lead ship's
-## jumps (`EnemyTemplate.hull_at`, `NetSession.galaxy_jumps`) and each joiner
-## adds 0.6 of the grown hull. That is
-## against eight hands of cards, and nobody has played it. The cap allows it; the
-## tuning has not been done.
+## What is still only argued: `PartyScale` is linear with no ceiling and was
+## measured at two to four (`docs/netcode.md`, Protocol 18). An eight-player
+## custodian is 200 x 8.7 hull early, up to 400 x 8.7 (3480) from jump 33, since
+## it grows with the lead ship's jumps (`EnemyTemplate.hull_at`,
+## `NetSession.galaxy_jumps`) and the party's size (`PartyScale.HULL_PER`). That
+## is against eight hands of cards, and nobody has played it. The cap allows it;
+## the tuning has not been done.
 const MAX_PLAYERS: int = 8
 
 

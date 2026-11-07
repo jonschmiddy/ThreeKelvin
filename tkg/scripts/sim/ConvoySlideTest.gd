@@ -17,8 +17,9 @@ extends Node
 ##     hull slot), never back, over `EncounterView.SLIDE_T`; your hull slot
 ##     ends `column_w` + the row's separation right, the enemies move; the
 ##     card stays in hand, armed, the same CardView all the way (nothing in the
-##     hand is made again); released over an enemy at its new place, it is
-##     played;
+##     hand is made again); the pointer held still near the enemy's edge, the
+##     target lit at the slide's end is what is under it now, or none;
+##     released over an enemy at its new place, it is played;
 ##   - the box test at rest: the column's hulls, your hull and its plate, and
 ##     every enemy's boxes inside the picture and clear of each other;
 ##   - MERCER walks in on turn 2, stunned: his slot carries STUNNED under its
@@ -111,7 +112,9 @@ func _run() -> void:
 
 	# --- VELA arrives, under an aimed card
 	print("\n--- VELA arrives while a card is aimed")
-	var card := _aim(sc, v, 0)
+	# (held just inside the enemy's left edge: the slide carries it right, out
+	# from under the pointer)
+	var card := _aim(sc, v, 0, -1)
 	if not _ok("a card is aimed at an enemy", card != null and sc._aim_view != null):
 		_finish()
 		return
@@ -181,7 +184,8 @@ func _run() -> void:
 	# --- both leave, under an aimed card
 	print("\n--- both leave while a card is aimed")
 	await _frames(10)
-	var card2 := _aim(sc, v, 0)
+	# (just inside its right edge: the slide out carries it left)
+	var card2 := _aim(sc, v, 0, 1)
 	_ok("a card is aimed again", card2 != null and sc._aim_view != null)
 	var views1 := sc._hand._views.duplicate()
 	_here(777, false)
@@ -294,7 +298,31 @@ func _watch_slide(v: EncounterView, sc: SectorScreen, card: CardData, to: float)
 		"in" if to > 0.5 else "out", frames, int(biggest)], started and whole)
 	_ok("never back the way it came", one_way)
 	_ok("the aimed card stayed in hand, armed, the same view, all the way", armed)
+	_lit_follows(v, sc)
 	return frames
+
+
+## THE TARGET LIT FOLLOWS THE POINTER (review, Nov 5): with the pointer held
+## still, the board moved under it, so what is lit is what is under it now
+## (`SectorScreen._on_view_slid`), not the enemy it was over when the slide
+## began. One target lit or none, as a motion there would light it.
+func _lit_follows(v: EncounterView, sc: SectorScreen) -> void:
+	var where := sc._aim_where
+	var under := v.target_at(where)
+	var lit: Array = []
+	for i in v._made.size():
+		var s := v._made[i] as EnemySlot
+		if s != null and s._hot:
+			lit.append(i)
+	if v._ship_slot != null and v._ship_slot._hot:
+		lit.append(-1)
+	var want: Array = []
+	if under != EncounterView.AIM_NONE and sc._aim_view != null:
+		var slot: Variant = v._ship_slot if under == -1 else v._made[under]
+		if slot != null and slot.aimable(sc._aim_view.card):
+			want.append(under)
+	_ok("the pointer held still at %s: lit %s, under it now %s (target %d)" % [str(where), str(lit), str(want), under],
+		lit == want)
 
 
 ## Wait for a slide already started (a partner arriving off-test) to finish.
@@ -321,7 +349,9 @@ func _layout(v: EncounterView) -> Dictionary:
 
 ## Aim the first card that can be played at enemy `i`, as a press on it and a
 ## drag out of the drawer up to the enemy do. The card, or null.
-func _aim(sc: SectorScreen, v: EncounterView, i: int) -> CardData:
+## `edge` -1 holds the pointer 4 px inside the enemy's left edge, 1 inside its
+## right, 0 on its centre.
+func _aim(sc: SectorScreen, v: EncounterView, i: int, edge: int = 0) -> CardData:
 	var cb := Router.combat
 	for view: CardView in sc._hand._views:
 		if not is_instance_valid(view) or not cb.can_play(view.card):
@@ -331,7 +361,12 @@ func _aim(sc: SectorScreen, v: EncounterView, i: int) -> CardData:
 			continue
 		var from := view.get_global_rect().get_center()
 		sc._on_card_grabbed(view, from)
-		var to := s.get_global_rect().get_center()
+		var sr := s.get_global_rect()
+		var to := sr.get_center()
+		if edge < 0:
+			to.x = sr.position.x + 4.0
+		elif edge > 0:
+			to.x = sr.end.x - 4.0
 		for p in [from + Vector2(0, -6), to]:
 			var mm := InputEventMouseMotion.new()
 			mm.position = p

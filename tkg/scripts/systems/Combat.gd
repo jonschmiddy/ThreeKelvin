@@ -1356,12 +1356,11 @@ static func core_body(node: MapGen.MapNode, t: EnemyTemplate) -> MapGen.Jetsam:
 ## `Run.add_material`, under a comment that said "into the hull you just
 ## killed"; now it is.
 ##
-## HANDS: `hands` is how many ships the party paid for this kill
-## (`SharedFight.paid`), 1 alone. Each hand rolls the wreck's parts again, so a
-## kill shared four ways holds about four times the parts and the party takes
-## them first come, first served. The money does not multiply: one hull carries
-## one purse however many ships shot at it, which is what keeps
-## `docs/coop-design.md` 3's dive economy a closed loop.
+## THE PARTY'S SHARE (Jon, Nov 5, PROTOCOL 18): `loot` is `PartyScale.loot` of
+## the players the fight was built for, 1 alone. The wreck is rolled once, its
+## purse, its parts and its exotic each multiplied by it, so a fight built for
+## four holds about four times what one ship's would, and the party takes it
+## first come, first served.
 ##
 ## POSITIONAL, as every wreck has been: `Rng.derive(&"wreck", node.index * 64 +
 ## index)`, where `index` is this wreck's place among the system's wrecks. So
