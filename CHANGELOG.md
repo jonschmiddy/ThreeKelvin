@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Fixed** — the title screen no longer draws a faint dotted box round the galaxy.
+- **Fixed** — in THE WELDED PLATE, the plate stays on its rock instead of sliding across it, and its
+  orange specks are cold steel now.
 - **Fixed** — in co-op, two ships that start different fights in the same system at the same moment
   now end up in one fight, the one that started first, on both screens. The second ship's log says
   "VELA got here first. You join their fight." Before, it could show the wrong enemy, take hits from

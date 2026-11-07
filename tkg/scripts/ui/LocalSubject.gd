@@ -1156,10 +1156,10 @@ static func _stage_on_rock(st: Dictionary) -> Array:
 	for y in rows:
 		for x in cols:
 			var p := face + Vector2((float(x) - float(cols - 1) * 0.5) * gap.x, (float(y) - float(rows - 1) * 0.5) * gap.y)
-			out.append(_m(_piece(st, y * cols + x), p, 1.0, 0.0, {z = 1 + y * cols + x, on_base = true}))
+			out.append(_m(_piece(st, y * cols + x), p, 1.0, 0.0, {z = 1 + y * cols + x, on_base = true, rides = true}))
 			if clamp_id != &"" and x < cols - 1:
 				# a clamp welds two neighbours together: it is on both
-				out.append(_m(clamp_id, p + Vector2(gap.x * 0.5, 0.0), 1.0, 0.0, {z = 100 + y * cols + x, on_base = true, welds = true}))
+				out.append(_m(clamp_id, p + Vector2(gap.x * 0.5, 0.0), 1.0, 0.0, {z = 100 + y * cols + x, on_base = true, welds = true, rides = true}))
 	return out
 
 
@@ -1185,9 +1185,9 @@ static func _loose_on(st: Dictionary, clamp_id: StringName, face: Vector2, rock:
 		for tries in 50:
 			var at := face + Vector2(R.randf_range(-0.5, 0.5) * spread.x, R.randf_range(-0.5, 0.5) * spread.y)
 			var deg := roundf(R.randf_range(-turns, turns))
-			var m := _m(id, at.round(), sc, 0.0, {z = 2 + i * 2, on_base = true, turn = deg})
+			var m := _m(id, at.round(), sc, 0.0, {z = 2 + i * 2, on_base = true, rides = true, turn = deg})
 			var foot := Vector2(0.0, (piece_size(id).y * 0.5 - 3.0) * sc).rotated(deg_to_rad(deg))
-			var held := _m(clamp_id, (at + foot).round(), sc, 0.0, {z = 1 + i * 2, on_base = true, welds = true, turn = deg}) if clamp_id != &"" else {}
+			var held := _m(clamp_id, (at + foot).round(), sc, 0.0, {z = 1 + i * 2, on_base = true, welds = true, rides = true, turn = deg}) if clamp_id != &"" else {}
 			var beside := true
 			for o: Dictionary in boxes:
 				var ra := rect_of(m)
@@ -2112,9 +2112,19 @@ func _link_hosts(planned: Array) -> void:
 			continue
 		rec_of[i] = _placed[j]
 		j += 1
+	# what is welded to a stage's rock (`rides`) takes the rock's drift too, or it
+	# slides across the face it is fixed to (#40)
+	var rock_of := {}
+	for i in rec_of:
+		if bool(planned[i].get("base_of", false)):
+			rock_of[int(rec_of[i].st_i)] = rec_of[i]
 	for i in rec_of:
 		var rec: Dictionary = rec_of[i]
-		rec.host = rec_of.get(int(rec.dock_to), null) if int(rec.dock_to) >= 0 else null
+		rec.host = null
+		if int(rec.dock_to) >= 0:
+			rec.host = rec_of.get(int(rec.dock_to), null)
+		elif bool(planned[i].get("rides", false)):
+			rec.host = rock_of.get(int(rec.st_i), null)
 		if rec.host != null:
 			(rec.host as Dictionary).hosting = true
 
