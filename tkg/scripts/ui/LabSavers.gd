@@ -1146,9 +1146,9 @@ func _s5_cards() -> Array:
 	return [
 		["mark", on, "AUGMENT TODAY."],
 		["big", "YOUR PARTS", "COULD DO MORE.", "ASK AT ANY %s LAB." % on],
-		["big", "ONE AUGMENT", "PER PART.", "WE ASKED. THE PARTS SAID NO."],
-		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS MAY VARY. THEY DO VARY."],
-		["big", "LIGHTENED PARTS", "TURN FASTER.", "+2 MAN, -1 HUL. IT CANNOT BE UNDONE."],
+		["big", "ONE AUGMENT", "PER PART.", "IT STAYS ON THE PART."],
+		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS VARY."],
+		["big", "LIGHTENED PARTS", "TURN FASTER.", "+2 MAN, -1 HUL."],
 	]
 
 
