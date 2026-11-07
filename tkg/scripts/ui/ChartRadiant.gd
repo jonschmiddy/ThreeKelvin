@@ -42,7 +42,25 @@ const RMAX := 1.3
 ## The composite's exposure, burn and vibrance (the showcase's, set by eye at 2x).
 const EXPOSURE := 1.0
 const BURN := 3.0
-const VIB := 0.35
+const VIB := 0.5
+## CHIAROSCURO (proto/radiant-a, Nov 7; Jon: "redo radiant to be super dramatic
+## with the lighting effects"): one dominant light, the core, and what it does
+## not reach falling to black. VIB was 0.35. (A soft wash before: no render had
+## more than 2.2% of its pixels over 200; now the light's gain after the toe takes
+## the hot gas past BURN, so it burns to white, the hole's disc kept exact.)
+## `u_drama`: (the toe, light under it crushed toward black; the core's light gain;
+## the arms' own young light, a share; the god-ray haze's gain, was 0.35).
+## `u_dramaR`: (the core light's reach, a factor on its falloff's scale; the
+## billows' lit side, a gain; the light's gain after the toe; the billows' shade
+## fill, a share). The god rays' shadows at full strength (`u_gr`, was 0.45), no
+## ambient (`u_amb`, was a navy 0.02).
+const DRAMA := Vector4(0.18, 2.0, 0.25, 2.2)
+const DRAMA_R := Vector4(1.5, 1.25, 2.8, 0.3)
+## A BALL's (toe, gain): a ball is all starlight, one smooth hill of it with no gas
+## for a lamp to light, so its drama is the hill made steep -- the nucleus burning
+## white round the hole, the body falling off fast into black
+const DRAMA_BALL := Vector2(0.35, 3.2)
+const GOD_RAYS := 1.0
 ## A lobe's dy is in the chart's flattened frame; this takes it to the plane.
 const FLAT := 0.46341 / 0.38
 ## THE SAFETY'S BUDGET: the sky's own GPU time, ms a frame, averaged over its
@@ -98,6 +116,10 @@ static func fixed_palette() -> PackedColorArray:
 			var mx := maxf(h.x, maxf(h.y, h.z))
 			var c := h * ((1.0 - exp(-mx)) / mx)
 			out.append(Color(ChartSky._l2s(c.x), ChartSky._l2s(c.y), ChartSky._l2s(c.z)))
+	# (the void itself and the burnt-out whites: chiaroscuro's two ends; after the
+	# hole's bands, which `ChartSky` keeps exact by their place, 4 to 11)
+	for h in ["#020306", "#fffaf0", "#ffe9c4"]:
+		out.append(Color(h))
 	return out
 
 
@@ -452,6 +474,10 @@ static func feed_static(m: ShaderMaterial, g: Dictionary) -> void:
 	m.set_shader_parameter("u_steps", 8.0 if DisplaySettings.graphics_low else STEPS)
 	m.set_shader_parameter("u_holeR", ChartSky.hole_of(p))
 	m.set_shader_parameter("u_holeLight", Vector3(0.9, 0.42, 0.14))
+	m.set_shader_parameter("u_drama", Vector4(DRAMA_BALL.x, DRAMA.y, DRAMA.z, DRAMA.w) if L.ell else DRAMA)
+	m.set_shader_parameter("u_dramaR", Vector4(DRAMA_R.x, DRAMA_R.y, DRAMA_BALL.y, DRAMA_R.w) if L.ell else DRAMA_R)
+	m.set_shader_parameter("u_gr", GOD_RAYS)
+	m.set_shader_parameter("u_amb", Vector3.ZERO)
 	var cl := cloud_uniforms(g.clouds)
 	for k in cl:
 		m.set_shader_parameter(k, cl[k])

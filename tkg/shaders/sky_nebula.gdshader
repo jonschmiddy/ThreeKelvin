@@ -179,19 +179,35 @@ uniform float r_z2 = 400.0;
 uniform float r_zsq = 2.3;
 uniform float r_zn = 380.0;
 uniform float r_o3 = 0.78;
-uniform float r_d0 = 320.0;
-uniform float r_fp = 0.9;
-uniform float r_ek = 2.0;
+uniform float r_d0 = 230.0;
+uniform float r_fp = 1.5;
+uniform float r_ek = 3.6;
 uniform float r_epow = 0.5;
 uniform float r_gk = 1.1;
-uniform float r_gbase = 0.45;
+uniform float r_gbase = 0.2;
 // how much of the cloud's dust RADIANT keeps (A: a veil, never pillars of black)
-uniform float r_dust = 0.16;
+uniform float r_dust = 0.45;
 uniform float r_zpow = 0.75;
 uniform float r_pastel = 0.5;
 // RADIANT's core: the haze of the galaxy's heart lit by the disc, filling the frame
-uniform float r_core_haze = 2.2;
-uniform float r_floor = 0.16;
+uniform float r_core_haze = 1.2;
+uniform float r_floor = 0.03;
+// CHIAROSCURO (proto/radiant-a, Nov 7; Jon: RADIANT "super dramatic with the
+// lighting effects"): the sun the one light, the gas it does not reach falling
+// to black. Was a soft wash (`r_floor` 0.16, `r_gbase` 0.45, `r_d0` 320 / `r_fp`
+// 0.9 / `r_ek` 2.0, `r_dust` 0.16, `r_shaft_k` 0.82, `r_core_haze` 2.2, shafts
+// at 0.7): now its light falls off fast from the sun, the dust stops it, the
+// worlds' shafts are near-black, and what is left dim is crushed toward black by
+// a toe (`r_toe`, light m to m*m/(m+toe), hue kept) and the rest raised (`r_gain`)
+// so the hot gas by the sun burns through to white.
+uniform float r_toe = 0.05;
+uniform float r_gain = 1.6;
+// THE KEY LIGHT ON THE SCREEN: the sun's light falls over the frame as seen (screen
+// px to half; what is left far out, a share). Its light in the gas falls with the
+// gas's own scale (`light_at`), which up close -- LOCAL, the map zoomed on a world --
+// spans many screens, so the whole frame was lit alike.
+uniform float r_key = 160.0;
+uniform float r_key_floor = 0.06;
 // each world: where it is drawn (screen px), its drawn radius, its true radius
 // at this zoom; its rings' outer edge in its radii (0: none)
 uniform vec4 r_bodies[24];
@@ -201,7 +217,7 @@ uniform bool r_per = false;
 uniform float r_rings[24];
 uniform int r_nb = 0;
 // how much of the sun's light a shaft's umbra takes; a flare's height now
-uniform float r_shaft_k = 0.82;
+uniform float r_shaft_k = 0.97;
 uniform float r_flare = 0.0;
 // SLOT A: where (on the sky, before `off`), how long ago (negative: its
 // precursor), how strong (0: none), and what the event needs
@@ -340,7 +356,7 @@ float r_rays(vec2 b, vec2 sp) {
 	for (int k = 1; k <= 8; k++) {
 		tau += texture(t0, fuv(sp + st * (float(k) / 9.0))).g;
 	}
-	return exp(-tau / 8.0 * reach / 40.0);
+	return exp(-tau / 8.0 * reach / 26.0);
 }
 
 struct Lt { float LZ; float dL; vec2 toSun; float Js; float Jc; float Jw; float att; float sh; };
@@ -961,7 +977,7 @@ void fragment() {
 		litC += vec3(0.45, 0.65, 1.0) * shaft * 0.22;
 		vec3 Tr = radiant ? exp(-tau * 3.4 * vec3(0.62, 0.80, 1.0)) : vec3(T);
 		H = (selfC + farC) * Tr + dustC * (1.0 - T) + litC * Tr + vec3(0.62, 0.80, 1.0) * rim * (0.05 + 1.5 * Js + 1.6 * Jc);
-		H = max(H, vec3(0.0030, 0.0040, 0.0120));
+		H = max(H, radiant ? vec3(0.0006, 0.0008, 0.0024) : vec3(0.0030, 0.0040, 0.0120));
 		trans = T * (1.0 - 0.8 * sat(g * 1.6));
 		dk = 1.0 - T;
 		// THE CLOUD'S OWN STARS, each lighting its patch of the haze
@@ -1397,7 +1413,7 @@ void fragment() {
 	if (kind >= 2) {
 		// THE GLOW OF THE CLOUD YOU ARE IN, faint, everywhere: no part of the sky
 		// inside it is the black of open space
-		L += (kind == 4 ? vec3(0.22, 0.17, 0.3) * 0.35 : hue * (kind == 2 ? 0.5 : 1.0)) * (0.07 + 0.1 * bil) * (1.0 - dk);
+		L += (kind == 4 ? vec3(0.22, 0.17, 0.3) * 0.35 : hue * (kind == 2 ? 0.5 : 1.0)) * (0.07 + 0.1 * bil) * (1.0 - dk) * (radiant ? 0.3 : 1.0);
 		trans = 1.0 - dk;
 	}
 	// THE STRIKE (emission and dark): a discharge deep in the cloud, a second, a
@@ -1462,7 +1478,16 @@ void fragment() {
 	vec3 Hev = (H - Hpre) * strength;
 	// (RADIANT: the gas in a shaft glows by the light that reaches it, so its own
 	// glow goes dark there too, not only what it scatters)
-	if (radiant) H *= mix(1.0, lt.sh, 0.7);
+	if (radiant) {
+		float kd = length((b - star_at) * vec2(1.0, 1.15));
+		float kk = 1.0 / (1.0 + pow(kd / r_key, 2.0));
+		if (star2_k > 0.0) {
+			kk = max(kk, star2_k / (1.0 + pow(length((b - star2_at) * vec2(1.0, 1.15)) / r_key, 2.0)));
+		}
+		H *= lt.sh * mix(r_key_floor, 1.0, kk);
+		float hm = max(H.r, max(H.g, H.b));
+		H *= hm / (hm + r_toe) * r_gain;
+	}
 	L *= strength;
 	H *= strength;
 	// the cloud in its own tone curve, the events' light over it as it always was

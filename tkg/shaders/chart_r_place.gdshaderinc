@@ -104,6 +104,15 @@ uniform vec3 u_youngCol = vec3(0.38, 0.53, 0.96);
 uniform vec3 u_oldIn = vec3(1.0, 0.82, 0.6);
 uniform vec3 u_oldOut = vec3(0.45, 0.56, 1.0);
 uniform vec3 u_amb = vec3(0.02, 0.016, 0.04);
+// CHIAROSCURO (proto/radiant-a, Nov 7; Jon: RADIANT "super dramatic with the lighting
+// effects"): one dominant light, the core, and everything it does not reach falling
+// to black. (toe: light under it crushed toward black, m*m/(m+toe); the core's
+// light gain; the arms' own young light, a share; the god-ray haze's gain.) The
+// defaults are RADIANT as it was.
+uniform vec4 u_drama = vec4(0.0, 1.0, 1.0, 0.35);
+// (the core light's reach, a factor on its falloff's scale; the billows' lit-side
+// gain; the light's gain after the toe; the billows' shade-side fill, a share)
+uniform vec4 u_dramaR = vec4(1.0, 1.0, 1.0, 1.0);
 uniform vec4 u_bulge = vec4(0.04, 0.13, 0.83, 0.02);   // inner scale, outer scale, c/R, cavity scale (gu)
 uniform vec4 u_bulgeI = vec4(1.5, 1.0, 0.3, 1.6);      // inner peak, outer peak, cavity peak, core light on the gas
 uniform vec4 u_halo = vec4(0.026, 0.5, 0.62, 0.0);     // intensity, scale (gu), screen roundness, warmth
@@ -251,12 +260,12 @@ vec3 coreLight(vec3 pg, out float vis) {
 		vis = smoothstep(hs - soft, hs + 0.5 * soft, sl);
 	}
 	vec3 c = mix(u_bInner, u_bOuter, smoothstep(0.05, 0.35, d3));
-	return c * u_bulgeI.w / (1.0 + d3 * d3 / 0.012);
+	return c * u_bulgeI.w * u_drama.y / (1.0 + d3 * d3 / (0.012 * u_dramaR.x));
 }
 // the arms' own young stars (a broad blur of the disc map)
 vec3 armLight(vec3 pg) {
 	vec4 a = textureLod(u_discA, kitMapUV(pg.xy, u_ext), 4.5);
-	return (a.r * u_oldOut * 0.35 + a.g * 1.6 * u_youngCol) * u_gasK.z / (1.0 + abs(pg.z) / 0.03);
+	return (a.r * u_oldOut * 0.35 + a.g * 1.6 * u_youngCol) * u_gasK.z * u_drama.z / (1.0 + abs(pg.z) / 0.03);
 }
 // the clouds' own lamps, the hole's disc, the knots on the arms, a supernova,
 // a stroke of lightning: every light that moves or comes and goes
@@ -1280,13 +1289,13 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 					float rb2 = 2.0 * billowDens(R, pg + toC * 0.018, dB, 0.0);
 					float self = exp(-u_gasK.x * rb2 * 0.016);
 					float reachB = (1.0 + d3 * d3 / 0.012) / (1.0 + d3 * d3 / 0.05);
-					vec3 Lb = Lc * reachB * vis * self * hgN(cosT, 0.35) * 2.4 + La * (0.08 + 0.4 * self) + Lx * 0.6 + u_amb * 0.6;
+					vec3 Lb = Lc * reachB * vis * self * hgN(cosT, 0.35) * 2.4 * u_dramaR.y + La * (0.08 + 0.4 * self) * mix(1.0, self, 1.0 - u_dramaR.w) + Lx * 0.6 + u_amb * 0.6;
 					float haG = textureLod(u_discA, kitMapUV(pg.xy, u_ext), 2.0).b;
 					Em += rb * u_gasK.x * (vec3(0.78, 0.84, 1.0) * Lb * 0.9) + rb * HA * haG * u_gasK.w;
 					sig += vec3(rb * u_gasK.x * 1.35) * mix(vec3(1.0), RED, 0.35);
 				}
 				// the god-ray haze: thin gas above and below the disc lit by the core, cut by billow shadows
-				Em += hz * Lc * mix(1.0, vis, u_gr) * hgN(cosT, 0.6) * 0.35 + hz * (La + Lx) * 0.08;
+				Em += hz * Lc * mix(1.0, vis, u_gr) * hgN(cosT, 0.6) * u_drama.w + hz * (La + Lx) * 0.08;
 			}
 		}
 		if (inCl) {
@@ -1400,6 +1409,20 @@ vec3 supernova(vec2 v, ivec2 blk) {
 	return c;
 }
 
+// CHIAROSCURO's grade (`u_drama.x`): what the light leaves dim is crushed toward
+// black (m*m/(m+toe), hue kept), what it lights strongly is left as it was, and
+// the whole raised (`u_dramaR.z`) so the hot cores burn through to white.
+vec3 dramaGrade(vec3 C) {
+	if (u_drama.x <= 0.0) {
+		return C;
+	}
+	float m = max(C.r, max(C.g, C.b));
+	if (m < 1e-6) {
+		return C;
+	}
+	return C * (m / (m + u_drama.x)) * u_dramaR.z;
+}
+
 // how many times the lens squeezes the picture behind at S
 float lensSqueeze(vec2 S) {
 	float b = max(length(S), 1e-3);
@@ -1429,6 +1452,9 @@ vec3 place(vec2 v, vec2 vsc, ivec2 blk, ivec2 dq) {
 	// (the middle's relief never over the hole's own disc or where its lens bends hard)
 	float tk = lens ? smoothstep(6.5, 9.5, length(S)) : 1.0;
 	vec3 C = radiance(vbg, vbh, sb, dq, la, tk, lens ? vbs : vsc) + supernova(lens ? vbs : vsc, blk);
+	// (the chiaroscuro's grade on the galaxy's light, before the hole's disc is laid
+	// over: its bands land exactly on their palette colours, as in every style)
+	C = dramaGrade(C);
 	// the near side's dust lane across the core, before the hole is laid over
 	if (u_solid && !u_isBall) {
 		C *= solidLane(v);

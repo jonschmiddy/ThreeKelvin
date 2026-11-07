@@ -50,7 +50,9 @@ uniform bool painted = false;
 // fog the whole way out, like a lighthouse's in mist, the shell's gas most
 uniform bool radiant = false;
 // RADIANT's warm haze round the sun on a clear sky (0 in a cloud: the gas is its haze)
-uniform float r_haze = 0.085;
+// (CHIAROSCURO, proto/radiant-a: hotter and tighter round the sun, its long
+// tail cut to a third; was 0.085 with the tail at 0.35)
+uniform float r_haze = 0.14;
 uniform float tilt = 0.38;
 uniform vec2 sky_off = vec2(0.0);
 uniform float margin = 0.0;
@@ -302,7 +304,7 @@ void fragment() {
 		float dpx = length(vec2(b + 0.5 - star_at) * vec2(1.0, 1.25)) / pow(max(shell_k, 0.05), 0.42);
 		// (stronger as the map closes in on the sun: faint over the whole system,
 		// a broad glow round the star itself)
-		hz = r_haze * sqrt(clamp(shell_k, 1.0, 8.0)) * (exp(-dpx / 85.0) + 0.35 * exp(-dpx / 210.0)) * (0.85 + 0.3 * fbm2(b * 0.02 + 5.0, 2));
+		hz = r_haze * sqrt(clamp(shell_k, 1.0, 8.0)) * (exp(-dpx / 70.0) + 0.12 * exp(-dpx / 210.0)) * (0.85 + 0.3 * fbm2(b * 0.02 + 5.0, 2));
 		// THE ZODIACAL LENS: dust in the plane, its density falling off from the
 		// sun, a thin sheet seen at the tilt; forward light a little stronger
 		// on the sun's far side

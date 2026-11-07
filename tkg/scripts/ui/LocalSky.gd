@@ -192,8 +192,19 @@ const PLAY := Vector2(70.0, 140.0)
 ## PAINTED's paint toned again behind the play: the light above the mid-tone
 ## kept to this much of its distance (the sky's own tone keeps 0.55)
 const PAINTED_KEEP := 0.4
-## and RADIANT's lit volume, toned once
-const RADIANT_KEEP := 0.38
+## and RADIANT's lit volume, toned once (CHIAROSCURO, proto/radiant-a, Nov 7: was
+## 0.38, which pressed the sun's light out within a third of the screen; now its
+## light keeps more of its fall and the dark below the mid-tone goes deeper,
+## `RADIANT_KEEP_LO`, never lifted: the ships stand on darkness, not on a wash)
+const RADIANT_KEEP := 0.55
+const RADIANT_KEEP_LO := 1.35
+## How far toward you the star's light on a world comes from (`LIGHT_Z`, layer px
+## against the star's offset on the screen). 140 lit a near world almost from the
+## front, so a giant was lit edge to edge; RADIANT's chiaroscuro brings the light
+## round to the side (`RADIANT_LIGHT_Z`, against a unit way across the screen): a
+## hard terminator, a share of the disc in night, the limb caught by the gas behind.
+const LIGHT_Z := 140.0
+const RADIANT_LIGHT_Z := 0.3
 ## RADIANT's wash of the gas over a world close by (planet.gdshader's r_haze:
 ## all over, more at the limb, the gas's brightness); the band's worlds keep the
 ## shader's 0.22 / 0.45
@@ -624,6 +635,7 @@ func _build() -> void:
 		# (RADIANT's lit volume fills the play evenly, near as bright as the
 		# band above: its light pressed in harder)
 		_grade_mat.set_shader_parameter("keep_hi", RADIANT_KEEP)
+		_grade_mat.set_shader_parameter("keep_lo", RADIANT_KEEP_LO)
 	grade.material = _grade_mat
 	_scene.add_child(grade)
 	far_group.append(grade)
@@ -2029,6 +2041,15 @@ func _build_near() -> void:
 	_scene.add_child(rect)
 
 
+func _light_vec(d: Vector2) -> Vector3:
+	if radiant:
+		# (by its way only: `d` is in the world's own layer px, under its zoom, and
+		# for the near world it is short, so any depth at all lit it from the front)
+		var u := d.normalized() if d.length() > 0.001 else Vector2(-1.0, -0.6).normalized()
+		return Vector3(u.x, u.y, RADIANT_LIGHT_Z).normalized()
+	return Vector3(d.x, d.y, LIGHT_Z).normalized()
+
+
 ## THE WORLD YOU ORBIT AND ITS MOONS, WORKED OUT WITHOUT DRAWING ANYTHING (so a
 ## headless test sees where they are, `-- moontest`): {} for no world, else
 ## {world, seed, R, at (its middle at rest, this sky's 960x540 px), over (what an
@@ -2328,7 +2349,7 @@ func hand_own(at: Vector2) -> bool:
 	var v := _near_world as PlanetView
 	var d := origin() - at
 	var g := {"body": orbit_target, "world": v.spec.get("world", &"rock"), "seed": int(v.get("_seed")),
-		"spec_r": float(_near[0][3]), "t": t + near_t_off, "light": Vector3(d.x, d.y, 140.0).normalized(),
+		"spec_r": float(_near[0][3]), "t": t + near_t_off, "light": _light_vec(d),
 		"params": {"lift": 0.0 if legacy else 1.0, "r": float(_near[0][3])}, "ov": {}, "mix": 1.0}
 	for k in ["ring", "storm", "right"]:
 		if v.spec.has(k):
@@ -2441,7 +2462,7 @@ func _step_hand() -> void:
 		hm.set_shader_parameter("tone_k", m)
 	# its light: the map's, eased to this sky's (from where the star is here)
 	var d := origin() - at
-	var L_here := Vector3(d.x, d.y, 140.0).normalized()
+	var L_here := _light_vec(d)
 	var L := (_hand.light as Vector3).normalized().lerp(L_here, m).normalized()
 	var f: Dictionary = _hand.from
 	var tt := t + near_t_off
@@ -2512,7 +2533,7 @@ func _step_near(o: Vector2) -> void:
 			# lit from the star, across the view: from where the star is on screen
 			# to where this world is, under the zoom, in this layer's own px
 			var d := (origin() - at) / zl
-			var L := Vector3(d.x, d.y, 140.0).normalized()
+			var L := _light_vec(d)
 			n.call("step", t + (near_t_off if n == _near_world else 0.0), L, 1.0)
 			if n == _near_world and not near_storm.is_empty():
 				_hold_storm(n, t)
