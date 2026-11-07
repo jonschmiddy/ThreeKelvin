@@ -72,6 +72,16 @@ var turn_t := 0.0
 var _turn_i := 0
 var shown_from := 0.0
 var _saver: LabSavers = null
+## The saver drawn last frame: a new one up (the turn, or a pin) starts its own
+## clock and its motion from nothing.
+var _shown_code := ""
+## A test's or a film's fixed moment in the saver's own clock (seconds since it
+## came up), or -1 to run it (`LabSavers.rest_t`): one look, the same every run.
+var rest_pin := -1.0
+## The dip drawn now: it follows `dip()`, but clears or comes back no faster
+## than `DIP_S` / 2 for the whole way (pointed at mid-dip, the glass brightens,
+## it does not jump).
+var _dip_shown := 0.0
 ## How long the last frame's saver took to draw, in microseconds of the wall's
 ## clock (a cost, not a time anything runs on: `LabSaverTest` reads it).
 var paint_us := 0
@@ -150,11 +160,21 @@ func _process(delta: float) -> void:
 	# THE TURN runs on the lab's clock, at rest, once the screen is up
 	if pinned() == "" and state == LOGO and since_on() > 0.0:
 		turn_t += delta
-		var i := int(floorf(turn_t / hold_s))
-		if i != _turn_i:
-			_turn_i = i
+		_turn_i = int(floorf(turn_t / hold_s))
+	# A NEW SAVER UP starts from nothing: its clock and its motion
+	var c := code()
+	if c != _shown_code:
+		if _shown_code != "":
 			shown_from = since_on()
-	saver().step(delta, code())
+			saver().reset()
+		_shown_code = c
+	var goal := dip()
+	_dip_shown = goal if absf(goal - _dip_shown) <= delta * 2.0 / DIP_S else move_toward(_dip_shown, goal, delta * 2.0 / DIP_S)
+	# NOT DRAWN OFF THE DECK: the glass sits in its own viewport, which a hidden
+	# deck does not hide, so it would paint every frame anywhere at the station
+	if lab != null and is_instance_valid(lab) and not lab.is_visible_in_tree():
+		return
+	saver().step(delta, c)
 	queue_redraw()
 
 
@@ -163,7 +183,7 @@ func _draw() -> void:
 	var t0 := Time.get_ticks_usec()
 	saver().paint(code())
 	paint_us = Time.get_ticks_usec() - t0
-	var k := dip()
+	var k := _dip_shown
 	if k > 0.0:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(LabBoard.BG, k))
 

@@ -41,6 +41,12 @@ func paint(style: String) -> bool:
 	return true
 
 
+## A saver come up again starts its own clock from nothing.
+func reset() -> void:
+	_ct = 0.0
+	_run = 1.0
+
+
 func step(delta: float, style: String) -> void:
 	if not style.begins_with("SOL"):
 		return

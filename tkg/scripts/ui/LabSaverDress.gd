@@ -50,7 +50,7 @@ extends RefCounted
 ##                  s6_claims the foot counts those on your route; s6_arcs
 ##                  where you are drawn as two signal arcs
 
-const LIGHTENED := ["big", "LIGHTENED PARTS", "TURN FASTER.", "+2 MAN, -1 HUL."]
+const LIGHTENED := ["big", "LIGHTENED PARTS", "TURN FASTER.", "+2 MNV, -1 HUL."]
 
 const BASE := {
 	acc = null,
@@ -73,7 +73,6 @@ const OWNERS := {
 		s1_cross = true, s1_style = "navy", s1_band = true,
 		s2_label = "NAVY STORES", s2_code = "REF %04d-B", s2_acc = true, s2_field = true,
 		s3_own = ["PLATE BATCH 12 TO SPEC.", "STOCK COUNT AT A STATION FIXED.", "STANDARD ISSUE CHARGE TEST HELD."],
-		s3_base = 71204,
 		s4_tag = "navy", s4_acc = true, s4_own = true,
 		s5 = [
 			["mark", "KORVAN", "IT FIRES. EVERY TIME."],
@@ -179,7 +178,7 @@ const OWNERS := {
 			["mark", "CALYX", "GROWN, NOT BUILT."],
 			["big", "YOUR HULL HEALS", "AFTER A FIGHT.", "THREE CALYX PARTS FITTED."],
 			["big", "ONE AUGMENT", "PER PART.", "THE PART GROWS AROUND IT."],
-			["big", "PLEASE DO NOT", "FEED THE HULL.", "THANK YOU."],
+			["big", "GROWN IN A TANK.", "TRIMMED TO FIT.", "EVERY PART IS CHECKED."],
 			LIGHTENED,
 		],
 		s6_route = true, s6_beat = 4.0,

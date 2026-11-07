@@ -17,12 +17,20 @@ extends Node
 ## pin one) draws at rest, pointed at (with a SIGN IN on it) and signing in
 ## (SIGNING IN on it), every look passing the box test (`LabLogin.check`) and
 ## every box inside 960x540 where the landed camera puts it; and the glass,
-## clicked with the saver up, lands on RESEARCH.
+## clicked with the saver up, lands on RESEARCH. Each look is taken at a fixed
+## moment in the saver's own clock (`REST_AT`, by `LabLogin.rest_pin`), well
+## into it, so a run is the same every time (a moment on the wall's clock
+## caught saver 5 mid-wipe one look in thirty).
 ##
-## THE TURN, at the settlement with a short hold (`LabLogin.hold_s`): the savers
-## come up in the station's order on the lab's clock, the glass dips dark
-## between them, the glass (the one key) never moves, and pointing at it holds
-## the one up.
+## VER3 POINTED AT while a drawing fades holds the signed drawing, not a near
+## empty glass.
+##
+## THE TURN, at the settlement with a short hold (`LabLogin.hold_s`), at a lab
+## whose owner is known only from its first berth: the savers come up in the
+## station's order on the lab's clock, the glass dips dark between them, the
+## glass (the one key) never moves, and pointing at it holds the one up;
+## pointed at while it is dark, the glass brightens over a quarter second and
+## does not jump.
 ##
 ## `cost` prints each saver's draw cost (`LabLogin.paint_us`) at rest, the mean
 ## and worst over a second, and fails one over `COST_MAX_US` on average.
@@ -33,6 +41,10 @@ var _cost := false
 ## The most a saver may take to draw a frame on average, headless (8 ms is half
 ## a 60 Hz frame; the glass is one small part of the room).
 const COST_MAX_US := 8000
+## The moment in each saver's own clock its looks are taken at (s): past every
+## saver's start, off saver 5's wipes (3.4 s apart, 0.12 s long) and inside
+## VER3's drawing.
+const REST_AT := 7.3
 const OWNERS: Array[StringName] = [&"korvan", &"solari", &"probate", &"redline", &"cygnet", &"verity", &"calyx", &""]
 
 
@@ -187,8 +199,10 @@ func _lab(dev: int, o: StringName) -> void:
 	var drawn := 0
 	for code in login.savers():
 		LabLogin.forced = code
+		login.rest_pin = -1.0
 		st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
 		await _frames(2)
+		login.rest_pin = REST_AT
 		# at rest a moment, then a second's frames for the cost
 		await _until(func() -> bool: return false, 400)
 		var us: Array[int] = []
@@ -225,9 +239,12 @@ func _lab(dev: int, o: StringName) -> void:
 		fails.append_array(sig)
 		if rest.is_empty() and hov.is_empty() and sig.is_empty():
 			drawn += 1
+		login.rest_pin = -1.0
 	_ok("%s: every one of the ten draws at rest, pointed at and signing in, each passing the box test inside the window and inside 960x540 landed (%d of 10%s)" % [tag, drawn,
 		"" if fails.is_empty() else ": " + "; ".join(fails.slice(0, 6))], drawn == 10 and fails.is_empty())
 	_ok("%s: the glass, the one key, stayed where it was (%s)" % [tag, st._glass_press.get_global_rect()], st._glass_press.get_global_rect().is_equal_approx(press))
+	if o == &"verity":
+		await _ver3_fade(st, tag)
 	# THE CLICK STILL LANDS ON RESEARCH, the owner's own first saver up
 	LabLogin.forced = String(LabSavers.OWN[o][0])
 	await _frames(2)
@@ -261,13 +278,38 @@ func _look(st: StationScreen, code: String, what: String, must: String) -> Array
 	return out
 
 
+## VER3 pointed at while a drawing fades (13.8 s to 15 s of its cycle, which
+## starts 6 s in) and while the next is only ruled in: the signed drawing held.
+func _ver3_fade(st: StationScreen, tag: String) -> void:
+	var login := st._login
+	LabLogin.forced = "VER3"
+	for at: float in [8.6, 9.6]:
+		login.rest_pin = at
+		st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
+		await _frames(3)
+		st._glass_press.notification(Control.NOTIFICATION_MOUSE_ENTER)
+		await _frames(2)
+		await _until(func() -> bool: return login._t >= 0.5, 4000)
+		var names: Array = login.leaves.map(func(l: Array) -> String: return str(l[0]))
+		_ok("%s: VER3 pointed at %.1f s into its cycle holds the signed drawing (%s)" % [tag, fposmod(at + LabSavers.VR3_OFFSET, LabSavers.VR3_CYCLE), ", ".join(names)],
+			names.has("SIGNED") and names.any(func(n: String) -> bool: return n.begins_with("LENGTH ")))
+		st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
+		await _frames(2)
+	login.rest_pin = -1.0
+	LabLogin.forced = ""
+
+
 ## THE TURN, on the lab's clock, with a short hold.
 func _turn() -> void:
 	var here := _station(MapGen.Development.SETTLEMENT, &"cygnet")
+	# (its owner known only from its first berth, as `_refresh_bench` falls back to)
+	here.manufacturer = &""
 	var st := await _open_lab(here)
 	if not _ok("the turn: the lab's screen is up", st != null):
 		return
 	var login := st._login
+	_ok("the turn: a lab with no maker set runs its first berth's savers (%s)" % login.owner_id, login.owner_id == &"cygnet"
+		and login.savers().has("C1"))
 	LabLogin.forced = ""
 	var hold_was := LabLogin.hold_s
 	LabLogin.hold_s = 1.2
@@ -307,7 +349,25 @@ func _turn() -> void:
 	while Time.get_ticks_msec() - t0 < 2000:
 		await _tree.process_frame
 	_ok("the turn: pointed at for 2 s, %s stays up (now %s) and the turn's clock waits (%.2f, %.2f)" % [up, login.code(), tt, login.turn_t],
-		login.code() == up and is_equal_approx(tt, login.turn_t) and login.dip() == 0.0)
+		login.code() == up and is_equal_approx(tt, login.turn_t) and login.dip() == 0.0 and login._dip_shown == 0.0)
+	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
+	await _frames(2)
+	# POINTED AT IN THE DARK: the glass comes up over a quarter second, no jump
+	await _until(func() -> bool: return login._dip_shown > 0.85, 4000)
+	var dark := login._dip_shown
+	st._glass_press.notification(Control.NOTIFICATION_MOUSE_ENTER)
+	var worst := 0.0
+	var last := dark
+	var ok_rate := true
+	for f in 40:
+		await _tree.process_frame
+		var step := absf(login._dip_shown - last)
+		worst = maxf(worst, step)
+		if step > get_process_delta_time() * 2.0 / LabLogin.DIP_S + 0.001:
+			ok_rate = false
+		last = login._dip_shown
+	_ok("the turn: pointed at in the dark (%.2f), the glass clears with no jump (worst step %.3f a frame, cleared %s)" % [dark, worst, last == 0.0],
+		dark > 0.85 and ok_rate and last == 0.0)
 	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
 	await _frames(2)
 	LabLogin.hold_s = hold_was

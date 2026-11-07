@@ -255,7 +255,32 @@ func hk(dur: float = 0.3) -> float:
 ## Seconds this saver has been up at rest: from the power-on for the first, from
 ## the turn that brought it up for the rest (`LabLogin.shown_from`).
 func rest_t() -> float:
+	if g.rest_pin >= 0.0:
+		return g.rest_pin
 	return maxf(0.0, g.since_on() - g.shown_from)
+
+
+## A saver come up again starts its motion from nothing (`LabLogin`, on a new
+## saver up): the turns, spins and eases that carry from frame to frame.
+func reset() -> void:
+	_b_rot = 0.0
+	_b_k = -1.0
+	_s2_spin = 0.0
+	_s2_last = 1.0
+	_g_rot = 0.0
+	_g_last = 1.0
+	_s3_hold = -1.0
+	_p_k = 1.0
+	_p_lag = 0.0
+	_r3_over = -1.0
+	_c3_u = 0.0
+	_c3_last = 1.0
+	_i1_rot = 0.0
+	_i1_last = 1.0
+	_i2_t = 0.0
+	_i2_last = 1.0
+	if _sol != null:
+		_sol.reset()
 
 
 ## The owner's dress for the seven (`LabSaverDress`), and its accent: the lab's
@@ -1243,13 +1268,16 @@ const S3_FINDS := [
 
 
 ## The feed's row `i`: [where it came from, what it found, whether it is the
-## owner's own (in its voice, `LabSaverDress.s3_own`)].
+## owner's own (in its voice, `LabSaverDress.s3_own`), whether it shows a
+## time]. A maker's rows read as that maker files them on every feed
+## (`s3_src`, `s3_stamp`): a Redline row is a shop, with no time, everywhere.
 func _s3_item(i: int) -> Array:
 	var dz := dress()
 	var h := absi(hash(i * 7919 + 13))
 	var src := ""
 	var find := String(S3_FINDS[i % S3_FINDS.size()])
 	var own := false
+	var stamp := true
 	if h % 3 == 0:
 		if bool(dz.s3_units):
 			# Cygnet's net: a unit reports, not a pilot
@@ -1263,15 +1291,27 @@ func _s3_item(i: int) -> Array:
 			# an open lab has no labs of its own: the makers' traffic, overheard
 			mid = ms[(h / 5) % ms.size()] as StringName
 		var nm := DB.short_name(DB.manufacturer_name(mid)).to_upper() if DB.manufacturers.has(mid) else "INDEPENDENT"
-		src = "%s LAB %d" % [nm, 1 + (h / 11) % 9]
+		var md := _s3_maker(mid)
+		var sf := String(md.s3_src)
+		src = sf % [nm, 1 + (h / 11) % 9] if sf.contains("%") else sf
+		stamp = bool(md.s3_stamp)
 		if mid == g.owner_id and g.owner_id != &"":
 			own = true
-			var sf := String(dz.s3_src)
-			src = sf % [nm, 1 + (h / 11) % 9] if sf.contains("%") else sf
 			var lines: Array = dz.s3_own
 			if not lines.is_empty() and (h / 7) % 2 == 0:
 				find = String(lines[(h / 13) % lines.size()])
-	return [src, find, own]
+	return [src, find, own, stamp]
+
+
+## A maker's dress, for how its rows read on another's feed (kept, not made
+## again each row each frame).
+var _s3_makers := {}
+
+
+func _s3_maker(mid: StringName) -> Dictionary:
+	if not _s3_makers.has(mid):
+		_s3_makers[mid] = LabSaverDress.of(mid if DB.manufacturers.has(mid) else &"")
+	return _s3_makers[mid]
 
 
 func _paint_3() -> void:
@@ -1354,7 +1394,7 @@ func _paint_3() -> void:
 		text(x0 + 10, yy, fit(String(it[0]), cw - 4), acc(0.6 * fr) if sa and bool(it[2]) else ink(0.5 * fr))
 		var stamp := "%02d:%02d" % [(8 + (k - j) / 20) % 24, posmod((k - j) * 7 + 12, 60)]
 		var sw := LabBoard.tw(stamp)
-		if LabBoard.tw(String(it[0])) + sw + 14 <= cw and (bool(dz.s3_stamp) or not bool(it[2])):
+		if LabBoard.tw(String(it[0])) + sw + 14 <= cw and bool(it[3]):
 			text(a.end.x - 6 - sw, yy, stamp, ink(0.35 * fr))
 		text(x0 + 10, yy + 7, fit(String(it[1]), cw - 4), c2)
 		px(x0 + 6, yy + 2, ink(0.6 * fr))
@@ -1651,7 +1691,7 @@ func _s5_cards() -> Array:
 		["big", "YOUR PARTS", "COULD DO MORE.", "ASK AT ANY %s LAB." % on],
 		["big", "ONE AUGMENT", "PER PART.", "IT STAYS ON THE PART."],
 		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS VARY."],
-		["big", "LIGHTENED PARTS", "TURN FASTER.", "+2 MAN, -1 HUL."],
+		LabSaverDress.LIGHTENED,
 	]
 
 
@@ -4227,6 +4267,13 @@ func _paint_ver3() -> void:
 	var ft := (_s3_hold if (hover and _s3_hold >= 0.0) else tr) + VR3_OFFSET
 	var kc := int(floorf(ft / VR3_CYCLE))
 	var p := fposmod(ft, VR3_CYCLE)
+	# POINTED AT, it holds a drawing you can see: caught while one fades or
+	# while the next is only ruled in, it holds the signed one (the review,
+	# Nov 7: held on the fade, the glass was all but empty)
+	if hover and (p > VR3_HOLD or p < VR3_LINES):
+		if p < VR3_LINES:
+			kc -= 1
+		p = VR3_HOLD
 	var no := 398 + kc
 	var dd := dim
 	if p > VR3_HOLD:
@@ -4613,9 +4660,9 @@ func _paint_cx2() -> void:
 		_keep.append(pl.grow(2))
 		plate_draw(pl, pp[1], pl.size.x >= say_w(String((pp[1] as Array)[0][0])) + 8)
 	else:
-		var note := "PLEASE DO NOT FEED THE HULL. THANK YOU."
+		var note := "THREE TANKS FED. TANK 4 STAYS CAPPED."
 		if say_w(note) > w - 12:
-			note = "PLEASE DO NOT FEED THE HULL."
+			note = "TANK 4 STAYS CAPPED."
 		sayc(x0 + w / 2, foot + 5, note, ink(0.6))
 	# the feed line along the top, capped short of the fourth tank
 	var cap_x := x0 + 4 + sw * 3 - 4

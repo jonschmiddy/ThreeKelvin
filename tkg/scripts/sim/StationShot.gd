@@ -99,6 +99,11 @@ func run(tree: SceneTree) -> void:
 			# The yard as painted, no light: set against Jon's pictures.
 			YardScene.fullbright = true
 
+	# `runseed=N`: the run's seed fixed, so two runs photograph the same galaxy
+	# and the same station (the Lab's savers come in an order dealt from it)
+	for a4 in OS.get_cmdline_user_args():
+		if (a4 as String).begins_with("runseed="):
+			Rng.forced = int((a4 as String).substr(8))
 	Run.start_new_run(&"korvan" if berths.is_empty() else berths[0], 1)
 
 	# The same state `-- station` builds, so the two flags photograph one screen
