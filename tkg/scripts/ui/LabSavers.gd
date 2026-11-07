@@ -70,6 +70,12 @@ func paint(style: String) -> void:
 			_paint_5()
 		"6":
 			_paint_6()
+		"CX1":
+			_paint_cx1()
+		"CX2":
+			_paint_cx2()
+		"CX3":
+			_paint_cx3()
 
 
 ## The motion that carries from frame to frame: the chart's turn and size, the
@@ -1136,7 +1142,7 @@ func _s5_cards() -> Array:
 		["big", "YOUR PARTS", "COULD DO MORE.", "ASK AT ANY %s LAB." % on],
 		["big", "ONE AUGMENT", "PER PART.", "WE ASKED. THE PARTS SAID NO."],
 		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS MAY VARY. THEY DO VARY."],
-		["big", "STRIPPED PARTS", "KEEP THE MARK.", "WE CANNOT UNDO IT EITHER."],
+		["big", "LIGHTENED PARTS", "TURN FASTER.", "THEY ALSO BREAK SOONER."],
 	]
 
 
@@ -1397,3 +1403,529 @@ func _paint_6() -> void:
 		if LabBoard.tw(rs) + LabBoard.tw("JUMPS 00") + 20 > w:
 			rs = "ROUTE %d" % trail.size()
 		text(a.end.x - 6 - LabBoard.tw(rs), a.end.y - 8, rs, ink(0.6))
+
+
+# ================================================================== CALYX: the owner's own
+# (review_lab r6, Nov 7: Jon kept all seven, per owner, "Want more per owner."
+# Three that only Calyx Biosystems would run: it grows its hulls to a spec and
+# trims them, it feeds them on a schedule, and they heal.)
+
+## The grown stuff, in the owner's green, paled toward its clinical field.
+func tissue(a: float) -> Color:
+	var mk := DB.manufacturer_colour(g.owner_id)
+	var fd: Color = (DB.manufacturers[g.owner_id] as ManufacturerData).field if DB.manufacturers.has(g.owner_id) else g.tint
+	return LabBoard.mixc(LabBoard.BG, LabBoard.mixc(mk, fd, 0.4), clampf(a, 0.0, 1.0))
+
+
+## The time a look runs on: the lab clock, held where it was while pointed at.
+func held_t() -> float:
+	if g.state != LabLogin.LOGO and _s3_hold >= 0.0:
+		return _s3_hold
+	return rest_t()
+
+
+## A column's sign-in: what is on hold, PILOT, the ship, and what to do.
+func _cx_hello(x: int, y: int, cw: int, pitch: int, top: String) -> void:
+	text(x, y, fit(top, cw), ink(0.5))
+	y += pitch
+	text(x, y, "PILOT", ink(0.75))
+	y += pitch
+	text(x, y, fit(ship(), cw), ink(1.0))
+	y += pitch + 4
+	if g.state == LabLogin.SIGNING:
+		text(x, y, "SIGNING IN", ink(0.9))
+	elif LabBoard.tw("CLICK TO SIGN IN") <= cw:
+		text(x, y, "CLICK TO SIGN IN", cue())
+	else:
+		text(x, y, "CLICK TO", cue())
+		text(x, y + pitch, "SIGN IN", cue())
+
+
+## The sign-in on one line, on a plate centred at `cx`, its top at `top`.
+func _cx_plate(cx: int, top: int, wmax: int) -> Array:
+	var s := "PILOT %s · CLICK TO SIGN IN" % ship()
+	if say_w(s) + 14 > wmax:
+		s = "PILOT %s · SIGN IN" % ship()
+	var c := cue()
+	if g.state == LabLogin.SIGNING:
+		s = "PILOT %s · SIGNING IN" % ship()
+		c = ink(0.9)
+	var lines := [[s, c]]
+	var open := clampf(g._t / 0.15, 0.0, 1.0) if g.state == LabLogin.LOGIN else 1.0
+	var pl := plate(cx, top, lines, open)
+	return [pl, lines]
+
+
+# ------------------------------------------------------------------ CX1: plate culture
+# A hull plate grown in a tank, seen in section: a ring a step, past the spec
+# by one (the tolerance), then trimmed back to the spec, and the next culture.
+# Beside it the growth chart and where the culture stands.
+
+const C1_RING_S := 0.8
+const C1_SEED := 3
+const C1_SPEC := 9
+const C1_OVER := 10
+const C1_TRIM := 1.4
+const C1_HOLD := 1.2
+const C1_PARTS := ["CALYX BARB", "VITAL WEAVE", "ADAPTIVE NODULE", "SPORE VENT"]
+
+
+func _c1_grow_s() -> float:
+	return float(C1_OVER - C1_SEED) * C1_RING_S
+
+
+func _c1_rings(u: float) -> float:
+	# an S: slow from the seed, fast in the middle, slow into the spec
+	var e := u * u * (3.0 - 2.0 * u)
+	return float(C1_SEED) + float(C1_OVER - C1_SEED) * e
+
+
+## One growth ring: a wobbling loop (nothing grown is round), `upto` of it drawn.
+func _c1_ring(c: Vector2, r: float, i: int, col: Color, upto: float = 1.0) -> void:
+	var n := maxi(32, int(TAU * r * 1.8))
+	var last := Vector2i(-9999, -9999)
+	for s in n:
+		var u := float(s) / float(n)
+		if u > upto:
+			break
+		var an := u * TAU - PI * 0.5
+		var rr := r * (1.0 + 0.05 * sin(3.0 * an + float(i) * 0.9) + 0.025 * sin(5.0 * an + 1.7))
+		var q := Vector2i((c + Vector2(cos(an) * rr * 1.08, sin(an) * rr)).round())
+		if q != last:
+			px(q.x, q.y, col)
+			last = q
+
+
+func _paint_cx1() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var h := a.size.y
+	var dim := fade()
+	var t := held_t() + 2.0
+	var grow := _c1_grow_s()
+	var cyc_s := grow + C1_TRIM + C1_HOLD
+	var cyc := int(floorf(t / cyc_s))
+	var ct := fposmod(t, cyc_s)
+	var rings := _c1_rings(clampf(ct / grow, 0.0, 1.0))
+	var trim_k := clampf((ct - grow) / C1_TRIM, 0.0, 1.0)
+	var m := mini(h - 8, int(float(w) * 0.56))
+	var box := Rect2i(x0 + 6, y0 + 4, m, m)
+	var c := Vector2(box.get_center())
+	var R := float(m) * 0.4
+	var step_r := R / (float(C1_OVER) + 0.6)
+	# THE SECTION: the core, the rings laid down, the one growing now drawn
+	# round as it forms, and a sutured seam where the plate was joined
+	for yy in range(-2, 3):
+		for xx in range(-2, 3):
+			if xx * xx + yy * yy <= 5:
+				px(int(c.x) + xx, int(c.y) + yy, tissue((0.9 if xx * xx + yy * yy <= 1 else 0.6) * dim))
+	var full := int(floorf(rings))
+	for i in range(1, full + 1):
+		var r := step_r * (float(i) + 0.6)
+		var col := tissue(lerpf(0.35, 0.7, float(i) / float(C1_OVER)) * dim)
+		if i == C1_OVER:
+			# past the spec: the one the trim takes off
+			col = tissue(lerpf(0.75, 0.0, trim_k) * dim)
+		_c1_ring(c, r, i, col)
+		# cells between this ring and the last
+		for k in 4:
+			var an := noise(i, k + cyc * 7) * TAU
+			var rr := r - step_r * (0.35 + 0.3 * noise(k, i + 3))
+			var q := Vector2i((c + Vector2(cos(an) * rr * 1.08, sin(an) * rr)).round())
+			px(q.x, q.y, tissue(0.3 * dim))
+	if ct < grow and full < C1_OVER:
+		var r := step_r * (float(full + 1) + 0.6)
+		var part := rings - float(full)
+		_c1_ring(c, r, full + 1, tissue(1.0 * dim), part)
+		# the growing tip, bright
+		var an := part * TAU - PI * 0.5
+		var tip := Vector2i((c + Vector2(cos(an) * r * 1.08, sin(an) * r)).round())
+		px(tip.x, tip.y, LabBoard.mixc(tissue(1.0), LabBoard.WHITE, 0.5 * dim))
+	# the seam, out from the core, stitched across every few px
+	var sa := -2.3
+	var dir := Vector2(cos(sa) * 1.08, sin(sa))
+	var nrm := Vector2(-dir.y, dir.x).normalized()
+	var reach := step_r * (rings + 0.6)
+	var d := step_r * 1.2
+	var nstitch := 0
+	while d < reach:
+		var q := c + dir * d
+		px(roundi(q.x), roundi(q.y), ink(0.55 * dim))
+		nstitch += 1
+		if nstitch % 4 == 0:
+			for e in [-2, -1, 1, 2]:
+				var p2 := Vector2i((q + nrm * float(e)).round())
+				px(p2.x, p2.y, ink(0.5 * dim))
+		d += 1.0
+	# the trim: a true circle at the spec (a tool, not grown), closing round
+	if ct >= grow:
+		var tr_r := step_r * (float(C1_SPEC) + 1.1)
+		var n := int(TAU * tr_r * 1.8)
+		var upto := clampf(trim_k * 1.6, 0.0, 1.0) if ct < grow + C1_TRIM else 1.0
+		var hold_k := 1.0 - clampf((ct - grow - C1_TRIM) / C1_HOLD, 0.0, 1.0) if ct >= grow + C1_TRIM else 1.0
+		for s in n:
+			var u := float(s) / float(n)
+			if u > upto:
+				break
+			if s % 3 != 0:
+				continue
+			var an := u * TAU - PI * 0.5
+			var q := Vector2i((c + Vector2(cos(an), sin(an)) * tr_r * Vector2(1.08, 1.0)).round())
+			px(q.x, q.y, ink(0.85 * hold_k * dim))
+	g._brackets(box, 5, ink(0.45 * dim))
+	# THE COLUMN: the owner, the culture, its chart, where it stands
+	var cx0 := box.end.x + 8
+	var cw := a.end.x - 4 - cx0
+	head(cx0, y0 + 2)
+	var y := y0 + 18
+	var pitch := 9 if h < 140 else 12
+	if g.state != LabLogin.LOGO:
+		_cx_hello(cx0, y, cw, pitch, "CULTURE ON HOLD")
+		return
+	text(cx0, y, fit("CULTURE %d" % (14 + cyc), cw), ink(0.5))
+	y += pitch
+	text(cx0, y, fit(String(C1_PARTS[posmod(cyc, C1_PARTS.size())]), cw), ink(0.95))
+	y += pitch + 2
+	# THE CHART: thickness over time, the spec dotted across it
+	var chw := mini(cw - 2, 72)
+	var chh := 22 if h < 140 else 34
+	var cb := y + chh
+	g.draw_rect(Rect2(cx0, y, 1, chh + 1), ink(0.3))
+	g.draw_rect(Rect2(cx0, cb, chw, 1), ink(0.3))
+	var spec_y := cb - roundi(float(C1_SPEC) / float(C1_OVER) * float(chh))
+	for xx in range(2, chw, 2):
+		px(cx0 + xx, spec_y, ink(0.5))
+	var prev := Vector2i(-1, -1)
+	var shown := clampf(ct / grow, 0.0, 1.0)
+	for xx in range(0, chw):
+		var u := float(xx) / float(chw - 1)
+		if u > shown:
+			break
+		var q := Vector2i(cx0 + 1 + xx, cb - 1 - roundi(_c1_rings(u) / float(C1_OVER) * float(chh - 1)))
+		if prev.x >= 0:
+			line(prev, q, tissue(0.9))
+		prev = q
+	if ct >= grow and prev.x >= 0:
+		# trimmed: the line drops back to the spec
+		var down := roundi(lerpf(float(prev.y), float(spec_y), trim_k))
+		line(prev, Vector2i(prev.x, down), tissue(1.0), 2)
+	g.leaves.append(["bar", Rect2i(cx0, y, chw, chh + 1)])
+	y = cb + 5
+	var pct := roundi(minf(rings, float(C1_OVER)) / float(C1_SPEC) * 100.0)
+	if ct < grow:
+		text(cx0, y, "GROWTH", ink(0.5))
+		text(cx0, y + pitch, fit("%d%% OF SPEC" % pct, cw), tissue(1.0) if pct > 100 else ink(0.85))
+	elif ct < grow + C1_TRIM:
+		text(cx0, y, fit("PAST SPEC", cw), ink(0.5))
+		text(cx0, y + pitch, fit("TRIMMING", cw), ink(0.85))
+	else:
+		text(cx0, y, fit("TRIMMED", cw), ink(0.5))
+		text(cx0, y + pitch, fit("100% OF SPEC", cw), ink(0.85))
+
+
+# ------------------------------------------------------------------ CX2: feeding schedule
+# Four specimen tanks, each a grown hull part on its stalk, breathing. Three
+# are fed on a schedule (the drip, the swell, the next time); the fourth is not
+# rated for feeding, its line capped. Under them, the notice.
+
+const C2_PERIOD := [7.0, 9.5, 8.2]
+const C2_FIRST := [2.4, 4.6, 1.3]
+const C2_FEED_S := 1.4
+
+
+func _paint_cx2() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var tr := rest_t()
+	var dim := fade()
+	var hover := g.state != LabLogin.LOGO
+	head(x0 + 4, y0 + 3, " FEEDING SCHEDULE")
+	var foot := a.end.y - 19
+	var tb := foot - 21
+	var ty := y0 + 24
+	var man_y := y0 + 19
+	var sw := (w - 8) / 4
+	var tw_ := clampi(sw - 22, 18, 40)
+	# the sign-in, or the notice, along the foot
+	if hover:
+		var pp := _cx_plate(x0 + w / 2, foot + 2, w - 8)
+		var pl: Rect2i = pp[0]
+		_keep.append(pl.grow(2))
+		plate_draw(pl, pp[1], pl.size.x >= say_w(String((pp[1] as Array)[0][0])) + 8)
+	else:
+		var note := "PLEASE DO NOT FEED THE HULL. THANK YOU."
+		if say_w(note) > w - 12:
+			note = "PLEASE DO NOT FEED THE HULL."
+		sayc(x0 + w / 2, foot + 5, note, ink(0.6))
+	# the feed line along the top, capped short of the fourth tank
+	var cap_x := x0 + 4 + sw * 3 - 4
+	var lx0 := x0 + 4 + sw / 2 - 4
+	g.draw_rect(Rect2(lx0, man_y, cap_x - lx0, 1), ink(0.35 * dim))
+	g.draw_rect(Rect2(cap_x, man_y - 2, 1, 5), ink(0.6 * dim))
+	g.draw_rect(Rect2(cap_x + 1, man_y - 2, 1, 5), ink(0.35 * dim))
+	for i in 4:
+		var cx := x0 + 4 + sw * i + sw / 2
+		var tx := cx - tw_ / 2
+		var sealed := i == 3
+		var ly := ty + 9
+		# fed: how long since, and the next in
+		var since := 99.0
+		var next_in := 0
+		if not sealed:
+			var per: float = C2_PERIOD[i]
+			var first: float = C2_FIRST[i]
+			if tr >= first:
+				since = fposmod(tr - first, per)
+				next_in = ceili(per - since)
+			else:
+				next_in = ceili(first - tr)
+		var feeding := since < C2_FEED_S
+		# THE GLASS: rounded ends, a glint down one side, a plinth
+		var gl := ink(0.45 * dim)
+		g.draw_rect(Rect2(tx + 2, ty, tw_ - 4, 1), ink(0.6 * dim))
+		g.draw_rect(Rect2(tx + 2, tb, tw_ - 4, 1), gl)
+		g.draw_rect(Rect2(tx, ty + 2, 1, tb - ty - 3), gl)
+		g.draw_rect(Rect2(tx + tw_ - 1, ty + 2, 1, tb - ty - 3), gl)
+		for p: Vector2i in [Vector2i(tx + 1, ty + 1), Vector2i(tx + tw_ - 2, ty + 1), Vector2i(tx + 1, tb - 1), Vector2i(tx + tw_ - 2, tb - 1)]:
+			px(p.x, p.y, gl)
+		g.draw_rect(Rect2(tx - 2, tb + 2, tw_ + 4, 2), ink(0.4 * dim))
+		if not sealed:
+			g.draw_rect(Rect2(cx, man_y, 1, ty - man_y), ink(0.35 * dim))
+		# THE CULTURE: the liquid, its top moving a little, bubbles
+		g.draw_rect(Rect2(tx + 1, ly + 1, tw_ - 2, tb - ly - 1), tissue((0.07 if sealed else 0.11) * dim))
+		for xx in range(tx + 1, tx + tw_ - 1):
+			var wy := ly + roundi(0.6 * sin(float(xx) * 0.55 + tr * 1.7 + float(i)))
+			px(xx, wy, tissue(0.45 * dim))
+		g.draw_rect(Rect2(tx + 3, ty + 4, 1, tb - ty - 10), ink(0.16 * dim))
+		var span := tb - ly - 4
+		for b in 3:
+			var by := tb - 2 - int(fposmod(tr * (5.0 + float(b)) + float(i * 13 + b * 7), float(span)))
+			var bx := tx + 4 + (b * 9 + i * 5) % maxi(1, tw_ - 7)
+			px(bx, by, tissue(0.55 * dim))
+		if sealed:
+			# not rated: hatched across the glass
+			for yy in range(ty + 2, tb):
+				for xx in range(tx + 1, tx + tw_ - 1):
+					if posmod(xx + yy, 7) == 0:
+						px(xx, yy, ink(0.13 * dim))
+		# THE SPECIMEN: a ribbed pod on its stalk, breathing; fed, it swells
+		var pc := Vector2(cx, float(ly + tb) * 0.5 + 2.0)
+		var swell := 0.0
+		if since < 6.0:
+			swell = 0.12 * exp(-maxf(0.0, since - 1.0) * 0.8) * clampf(since / 1.0, 0.0, 1.0)
+		var breath := 1.0 + 0.05 * sin(tr * TAU / 3.6 + float(i) * 1.3) + swell
+		var rx := float(tw_) * (0.3 if sealed else 0.24) * breath
+		var ry := float(tb - ly) * (0.34 if sealed else 0.27) * breath
+		var pk := 0.9
+		if sealed:
+			pk = 0.55 + 0.15 * sin(tr * TAU / 5.0)
+		g.draw_rect(Rect2(cx, int(pc.y + ry), 1, tb - int(pc.y + ry)), tissue(0.5 * dim))
+		px(cx - 1, tb - 1, tissue(0.5 * dim))
+		px(cx + 1, tb - 1, tissue(0.5 * dim))
+		var n := maxi(24, int(TAU * maxf(rx, ry) * 1.8))
+		var last := Vector2i(-999, -999)
+		for s in n:
+			var an := float(s) / float(n) * TAU
+			var q := Vector2i((pc + Vector2(cos(an) * rx, sin(an) * ry)).round())
+			if q != last:
+				px(q.x, q.y, tissue(pk * dim))
+				last = q
+		var nr := 4 if sealed else 3
+		for k in range(1, nr + 1):
+			var yk := -ry + 2.0 * ry * float(k) / float(nr + 1)
+			var half := rx * sqrt(maxf(0.0, 1.0 - yk * yk / (ry * ry))) - 1.0
+			for xx in range(-int(half), int(half) + 1):
+				var bend := (1.0 - pow(float(xx) / maxf(1.0, half), 2.0)) * 1.5
+				px(cx + xx, roundi(pc.y + yk + bend), tissue(pk * 0.5 * dim))
+		# the feed: three drops down the line into the culture
+		if feeding:
+			var fk := since / C2_FEED_S
+			for dd in 3:
+				var u := fk * 1.5 - float(dd) * 0.22
+				if u >= 0.0 and u <= 1.0:
+					var yy := ty + 1 + int(u * float(ly - ty - 1))
+					px(cx, yy, tissue(1.0 * dim))
+					px(cx, yy + 1, tissue(0.7 * dim))
+		# THE LABELS under the tank
+		var l1 := "TANK %d" % (i + 1)
+		sayc(cx, tb + 7, fit(l1, sw - 2), ink(0.55))
+		var l2 := ""
+		var c2 := ink(0.8)
+		if sealed:
+			l2 = "NOT RATED" if say_w("NOT RATED") <= sw - 2 else "UNRATED"
+			c2 = LabBoard.mixc(LabBoard.BG, LabBoard.BAD, 0.85)
+		elif feeding:
+			l2 = "FEEDING"
+			c2 = tissue(1.0)
+		else:
+			l2 = "NEXT 0:%02d" % clampi(next_in, 0, 59)
+		if say_w(l2) > sw - 2 and l2.begins_with("NEXT"):
+			l2 = "0:%02d" % clampi(next_in, 0, 59)
+		sayc(cx, tb + 15, fit(l2, sw - 2), c2)
+
+
+# ------------------------------------------------------------------ CX3: hull mending
+# A strip of grown hull, plates and old sutured seams. A cut across it is
+# stitched shut, one stitch at a time, the cut closing as it goes; then it is
+# one more seam. Under it the hull's pulse, slow.
+
+const C3_OPEN_S := 0.6
+const C3_STITCH_S := 0.9
+const C3_N := 6
+const C3_HOLD := 2.0
+const C3_SWEEP := 46.0
+const C3_BEAT := 2.4
+
+
+func _c3_beat(ts: float) -> float:
+	# a slow swell and a long rest, not a heart's spike: the hull is grown
+	var ph := fposmod(ts, C3_BEAT) / C3_BEAT
+	var k := clampf(ph / 0.55, 0.0, 1.0)
+	return pow(sin(k * PI), 2.0) * (0.85 + 0.15 * sin(k * PI * 3.0))
+
+
+func _paint_cx3() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var h := a.size.y
+	var tr := rest_t()
+	var dim := fade()
+	var hover := g.state != LabLogin.LOGO
+	var t := held_t() + 1.6
+	var cyc_s := C3_OPEN_S + C3_STITCH_S * float(C3_N) + C3_HOLD
+	var cyc := int(floorf(t / cyc_s))
+	var ct := fposmod(t, cyc_s)
+	var open_k := clampf(ct / C3_OPEN_S, 0.0, 1.0)
+	var st := clampf((ct - C3_OPEN_S) / C3_STITCH_S, 0.0, float(C3_N))
+	var done := int(floorf(st))
+	var f := st - float(done)
+	var mended := done >= C3_N
+	var hx := head(x0 + 4, y0 + 3, " HULL MENDING")
+	var pl_s := "PLATE %d" % (20 + cyc)
+	if a.end.x - 6 - LabBoard.tw(pl_s) > hx + 8:
+		text(a.end.x - 6 - LabBoard.tw(pl_s), y0 + 6, pl_s, ink(0.5))
+	var sh := int(float(h - 18) * 0.5)
+	var sr := Rect2i(x0 + 6, y0 + 17, w - 12, sh)
+	var ry := sr.end.y + 7
+	# the sign-in takes the readout's line
+	var pl := Rect2i()
+	var lines := []
+	if hover:
+		var pp := _cx_plate(x0 + w / 2, ry - 5, w - 8)
+		pl = pp[0]
+		lines = pp[1]
+		_keep.append(pl.grow(2))
+	# THE STRIP: ribbed plates, and the old seams between them
+	var old := _clip
+	_clip = _clip.intersection(sr)
+	var j := 0
+	while sr.position.y + 3 + j * 7 < sr.end.y + 2:
+		var yb := sr.position.y + 3 + j * 7
+		for xx in range(sr.position.x, sr.end.x):
+			var yy := yb + roundi(1.6 * sin(float(xx) * 0.06 + float(j) * 1.1))
+			px(xx, yy, tissue(0.42 * dim))
+			px(xx, yy + 2, tissue(0.16 * dim))
+		j += 1
+	var k0 := 0
+	var sx := sr.position.x + 14 + int(noise(cyc, 5) * 20.0)
+	while sx < sr.end.x - 6:
+		for yy in range(sr.position.y, sr.end.y):
+			var xs := sx + roundi(3.0 * sin(float(yy) * 0.09 + float(k0) * 2.1) + 1.5 * sin(float(yy) * 0.23 + float(k0)))
+			px(xs, yy, ink(0.38 * dim))
+			if posmod(yy, 5) == 0:
+				px(xs - 2, yy, ink(0.4 * dim))
+				px(xs - 1, yy, ink(0.4 * dim))
+				px(xs + 1, yy, ink(0.4 * dim))
+				px(xs + 2, yy, ink(0.4 * dim))
+		k0 += 1
+		sx += 38 + int(noise(k0, 9) * 34.0)
+	# THE CUT, across the plates, closing as the stitches go in
+	var wc := Vector2(float(sr.position.x) + float(sr.size.x) * (0.3 + 0.4 * noise(cyc, 3)), float(sr.get_center().y))
+	var p0 := wc + Vector2(-float(sh) * 0.22, -float(sh) * 0.4)
+	var p1 := wc + Vector2(float(sh) * 0.22, float(sh) * 0.4)
+	var gw := 5.0 * open_k * (1.0 - st / float(C3_N))
+	var steps := int(p0.distance_to(p1))
+	var pts: Array[Vector2] = []
+	for s in steps + 1:
+		var u := float(s) / float(steps)
+		var off := 1.5 * sin(u * 17.0 + float(cyc)) + 0.8 * sin(u * 31.0 + 2.0)
+		pts.append(p0.lerp(p1, u) + Vector2(off, 0.0))
+	for q in pts:
+		var qx := roundi(q.x)
+		var qy := roundi(q.y)
+		if gw >= 0.5:
+			var half := gw * 0.5
+			var l := roundi(q.x - half)
+			var r := roundi(q.x + half)
+			if ok(l, qy):
+				g.draw_rect(Rect2(l, qy, maxi(1, r - l), 1), LabBoard.BG)
+			px(l - 1, qy, ink(0.7 * open_k * dim))
+			px(r, qy, ink(0.7 * open_k * dim))
+		else:
+			px(qx, qy, ink(lerpf(0.7, 0.45, 1.0 if mended else 0.0) * dim))
+	# THE STITCHES: across the cut, each one drawn as it goes in
+	for k in mini(done + 1, C3_N):
+		var u := (float(k) + 0.5) / float(C3_N)
+		var q: Vector2 = pts[clampi(int(u * float(steps)), 0, steps)]
+		var reach := roundi(gw * 0.5) + 4
+		var ln := 1.0 if k < done else f
+		var xa := roundi(q.x) - reach
+		var xb := xa + roundi(float(reach * 2) * ln)
+		var fresh := k == done or (k == done - 1 and f < 0.4)
+		var cs := tissue(1.0 * dim) if fresh and not mended else ink(0.6 * dim)
+		for xx in range(xa, xb + 1):
+			px(xx, roundi(q.y) - (1 if xx < roundi(q.x) else 0), cs)
+		px(xa, roundi(q.y) - 1, ink(0.9 * dim))
+		if ln >= 1.0:
+			px(xb, roundi(q.y), ink(0.9 * dim))
+	_clip = old
+	g._brackets(sr.grow(2), 5, ink(0.45 * dim))
+	# THE READOUT
+	if hover:
+		plate_draw(pl, lines, pl.size.x >= say_w(String(lines[0][0])) + 8)
+	else:
+		var s := "STITCH %d OF %d" % [mini(done + 1, C3_N), C3_N]
+		if mended:
+			s = "MENDED"
+		elif ct < C3_OPEN_S:
+			s = "CUT FOUND"
+		say(x0 + 6, ry, s, ink(0.75))
+		var hs := "HULL +%d" % done
+		say(a.end.x - 6 - say_w(hs), ry, hs, tissue(1.0) if done > 0 else ink(0.5))
+	# THE PULSE, swept across like a monitor's trace, slow
+	var pr := Rect2i(x0 + 6, ry + 14, w - 12, a.end.y - 4 - (ry + 14))
+	if pr.size.y < 14:
+		return
+	text(pr.position.x, pr.position.y, "PULSE %d" % roundi(60.0 / C3_BEAT), ink(0.5))
+	var top := pr.position.y + 9
+	var base := pr.end.y - 2
+	var amp := float(base - top)
+	var tw2 := pr.size.x
+	var sweep := int(fposmod(tr * C3_SWEEP, float(tw2)))
+	for xx in range(0, tw2, 3):
+		px(pr.position.x + xx, base, ink(0.15 * dim))
+	var prev := -1
+	for xx in tw2:
+		var ahead := posmod(xx - sweep, tw2)
+		if ahead >= 1 and ahead <= 8:
+			prev = -1
+			continue
+		var back := float(posmod(sweep - xx, tw2)) / C3_SWEEP
+		var v := _c3_beat(tr - back)
+		var yy := base - roundi(v * amp * 0.85)
+		var fresh := posmod(sweep - xx, tw2) < 3
+		var cc := tissue((1.0 if fresh else 0.8) * dim)
+		if prev >= 0 and absi(prev - yy) > 1:
+			var lo := mini(prev, yy)
+			var hi := maxi(prev, yy)
+			for y2 in range(lo, hi + 1):
+				px(pr.position.x + xx, y2, cc)
+		else:
+			px(pr.position.x + xx, yy, cc)
+		prev = yy
