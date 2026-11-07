@@ -76,6 +76,18 @@ func paint(style: String) -> void:
 			_paint_k2()
 		"K3":
 			_paint_k3()
+		_:
+			_solari().paint(style)
+
+
+## MOCK (r6 owners): the Solari Foundry's own savers (`LabSaversSolari`).
+var _sol: LabSaversSolari = null
+
+
+func _solari() -> LabSaversSolari:
+	if _sol == null:
+		_sol = LabSaversSolari.new(self)
+	return _sol
 
 
 ## The motion that carries from frame to frame: the chart's turn and size, the
@@ -107,6 +119,7 @@ func step(delta: float, style: String) -> void:
 		"6":
 			_g_last = lerpf(_g_last, 1.0 if resting else 0.0, 1.0 - exp(-delta * 3.0))
 			_g_rot = fposmod(_g_rot + delta * TAU / G_TURN_S * _g_last, TAU)
+	_solari().step(delta, style)
 
 
 var _s2_last := 1.0
