@@ -515,14 +515,9 @@ func _yard_ships(h: HullData) -> void:
 			key += "|" + str(m)
 	if key == _yard_ships_key:
 		return
-	# NOT UNDER THE CUTAWAY (issue #34). Its push-in has hidden this ship and
-	# zoomed the yard onto where it stood, and every part lifted or fitted in
-	# there is a `ship_changed`: standing the ships again then built a second,
-	# bare ship in the zoomed yard under the cutaway's own, re-seated on its
-	# stands wherever the new outline put it, and baked the yard's floor round
-	# it -- on every drag. The cutaway's close stands them once, for what the
-	# ship has become (`open_cutaway`).
-	if _cutaway != null and is_instance_valid(_cutaway):
+	# not under the cutaway, which hides this ship: every part moved in there
+	# would bake a second one into the zoomed yard (#34). Its close stands them.
+	if is_instance_valid(_cutaway):
 		return
 	_yard_ships_key = key
 	var box := _scene.get_parent() as Control
@@ -3379,7 +3374,6 @@ func open_cutaway() -> CutawayView:
 		if _scene != null and is_instance_valid(_scene):
 			_scene.hide_mine = false
 			_scene.queue_redraw()
-			# (the yard's ship stood again once, for whatever was fitted in there)
 			_yard_ships(_yard_hull))
 	return _cutaway
 

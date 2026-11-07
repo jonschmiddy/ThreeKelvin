@@ -653,20 +653,6 @@ static func empty_text(slot: int) -> String:
 	return "EMPTY " + ModuleData.slot_name(slot).to_upper()
 
 
-## The leader's two ends, [from, to] in whole pixels, or none when the words are
-## beside the ring. `from` is the leader's first pixel: the cutaway tries that
-## one alone before drawing the whole line, because the line is the dear part of
-## looking for a place and most places are refused at the ring (issue #34).
-static func leader_ends(at: Vector2, box: Rect2, k: float) -> PackedVector2Array:
-	var g := box.grow(2.0)
-	var to := Vector2(clampf(at.x, g.position.x, g.end.x - 1.0), clampf(at.y, g.position.y, g.end.y - 1.0)).floor()
-	var r0 := (R + 2.0) * k
-	var d := to - at
-	if d.length() <= r0 + 2.0:
-		return PackedVector2Array()
-	return PackedVector2Array([(at + d.normalized() * r0).floor(), to])
-
-
 ## THE LEADER FROM A RING TO ITS WORDS, when the cutaway had to set them away
 ## from it: whole pixels (this widget's px), one wide, from just outside the
 ## ring at `at` to one pixel short of the words' box `box`, straight. None when
@@ -675,11 +661,13 @@ static func leader_ends(at: Vector2, box: Rect2, k: float) -> PackedVector2Array
 ## checks it.
 static func label_leader(at: Vector2, box: Rect2, k: float) -> PackedVector2Array:
 	var out := PackedVector2Array()
-	var ends := leader_ends(at, box, k)
-	if ends.is_empty():
+	var g := box.grow(2.0)
+	var to := Vector2(clampf(at.x, g.position.x, g.end.x - 1.0), clampf(at.y, g.position.y, g.end.y - 1.0)).floor()
+	var r0 := (R + 2.0) * k
+	var d := to - at
+	if d.length() <= r0 + 2.0:
 		return out
-	var from := ends[0]
-	var to := ends[1]
+	var from := (at + d.normalized() * r0).floor()
 	# Bresenham: one pixel per step along the longer axis, no doubled corners
 	var x0 := int(from.x)
 	var y0 := int(from.y)

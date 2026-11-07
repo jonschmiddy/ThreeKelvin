@@ -139,9 +139,12 @@ var _real_k := 0
 ## The words set away from their rings, sprite px: outside the bounds the
 ## picture is centred on (so they never move the ship), inside `_pic`.
 var _far_bounds := Rect2()
+## The last layout's `_layout_key` and bounds.
+var _laid_key := ""
+var _laid_bounds := Rect2()
 ## Where the exploded ship -- hull, parts, tags, rings -- is drawn, this view's px.
 var _pic := Rect2()
-## The offsets by room size (`_offsets`), kept for the session.
+## (static: the 1x room's third of a million offsets are sorted once a session)
 static var _offs_cache := {}
 var _last_gp := Vector2.INF
 ## For the harness's clips: the push-in's clock advances this much a frame
@@ -331,55 +334,12 @@ func _choose_scale() -> void:
 ## The boxes are the ones `MountPoints` draws (`tag_box`, `label_box`), so what
 ## is kept apart here is what is on screen. Written into the mounts widget
 ## (`lift`, `tag_side`); `_layout_ok` says whether everything found a place.
-## Returns the whole picture's bounds, in sprite px.
-##
-## REMEMBERED BY WHAT IT READS (issue #34). The cutaway lays itself out on every
-## change to the ship, and a change to the ship is also every part moved in the
-## hold, every lift and every drop, each of them two or three `ship_changed`s --
-## none of which moves a mount, a part on one or a stand. So a layout already
-## worked out for the same hull, parts, stands and room is handed back as it was.
+## Returns the whole picture's bounds, in sprite px. Skipped when nothing it
+## reads has changed: a move in the hold is a `ship_changed` too (#34).
 func _layout(kk: int, room: Rect2) -> Rect2:
-	var key := _layout_key(kk, room)
-	if key != "" and _layout_memo.has(key):
-		var got: Dictionary = _layout_memo[key]
-		_layout_ok = got.ok
-		_words_ok = got.words
-		_far_bounds = got.far
-		_mounts.lift = (got.lift as Dictionary).duplicate()
-		_mounts.tag_side = (got.sides as Dictionary).duplicate()
-		return got.bounds
-	var b := _layout_now(kk, room)
-	if key != "":
-		if _layout_memo.size() >= 8:
-			_layout_memo.clear()
-		_layout_memo[key] = {ok = _layout_ok, words = _words_ok, far = _far_bounds,
-			lift = _mounts.lift.duplicate(), sides = _mounts.tag_side.duplicate(), bounds = b}
-	return b
-
-
-var _layout_memo := {}
-
-
-## Everything `_layout_now` reads, as one string; "" when it cannot be laid out.
-func _layout_key(kk: int, room: Rect2) -> String:
-	var img := _ship.canvas()
-	var h := Run.hull
-	if img == null or h == null:
-		return ""
-	var parts := PackedStringArray()
-	for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
-		var n := Run.slots_for(slot)
-		parts.append("s%d:%d" % [slot, n])
-		for i in n:
-			var m := Run.module_at(slot, i)
-			if m != null:
-				parts.append("%d:%d:%s:%s" % [i, m.get_instance_id(), m.name, m.size])
-	return "%d|%s|%s|%d|%s|%s|%d|%s|%s|%s" % [kk, room, _real_room if _real_k == kk else Rect2(),
-		h.get_instance_id(), img.get_size(), _ship.ink_rect(), _ship._bob_amp, _stand_rects(),
-		",".join(parts), UITheme.FS_SMALL]
-
-
-func _layout_now(kk: int, room: Rect2) -> Rect2:
+	var memo := _layout_key(kk, room)
+	if memo != "" and memo == _laid_key:
+		return _laid_bounds
 	var img := _ship.canvas()
 	var h := Run.hull
 	# (the canvas carries the bob's headroom and its current step; the mounts are
@@ -394,22 +354,13 @@ func _layout_now(kk: int, room: Rect2) -> Rect2:
 	var ht := img.get_height()
 	# the hull's pixels as a summed-area table: "is anything of the hull in this
 	# rect" in four reads, whatever the rect's size
-	# (read off the canvas's bytes, its alpha over 0.1 being 26 of 255: a
-	# `get_pixel` for each of the canvas's pixels was a third of the layout)
-	var src := img
-	if src.get_format() != Image.FORMAT_RGBA8:
-		src = img.duplicate() as Image
-		src.convert(Image.FORMAT_RGBA8)
-	var bytes := src.get_data()
 	var sat := PackedInt32Array()
 	sat.resize((w + 1) * (ht + 1))
 	for y in ht:
 		var row := 0
 		var cy := y + dy
-		var inside := cy >= 0 and cy < ht
-		var at := (cy * w) * 4 + 3
 		for x in w:
-			if inside and bytes[at + x * 4] >= 26:
+			if cy >= 0 and cy < ht and img.get_pixel(x, cy).a > 0.1:
 				row += 1
 			sat[(y + 1) * (w + 1) + x + 1] = sat[y * (w + 1) + x + 1] + row
 	var on_hull := func(r: Rect2) -> bool:
@@ -467,22 +418,19 @@ func _layout_now(kk: int, room: Rect2) -> Rect2:
 		order.append_array(["L", "R"] if pt.x > ink.get_center().x else ["R", "L"])
 		order.append_array(["T", "B"])
 		var found := false
-		for half in 2:
-			for o: Vector2 in offs.part(half):
-				var pr := Rect2(b.position + o, b.size)
-				if not free.call(pr, 2.0):
-					continue
-				for sd in order:
-					var tag := _sprite_box(MountPoints.tag_box(_px(pr, kk), sd, tw), kk)
-					if not tag.intersects(pr) and free.call(tag, 1.0):
-						lift[key] = o
-						sides[key] = sd
-						placed.append(pr)
-						placed.append(tag)
-						bounds = bounds.merge(pr).merge(tag)
-						found = true
-						break
-				if found:
+		for o in offs:
+			var pr := Rect2(b.position + o, b.size)
+			if not free.call(pr, 2.0):
+				continue
+			for sd in order:
+				var tag := _sprite_box(MountPoints.tag_box(_px(pr, kk), sd, tw), kk)
+				if not tag.intersects(pr) and free.call(tag, 1.0):
+					lift[key] = o
+					sides[key] = sd
+					placed.append(pr)
+					placed.append(tag)
+					bounds = bounds.merge(pr).merge(tag)
+					found = true
 					break
 			if found:
 				break
@@ -503,27 +451,21 @@ func _layout_now(kk: int, room: Rect2) -> Rect2:
 		var key := MountPoints.spot_key(int(e[0]), int(e[1]))
 		var lw := f.get_string_size(MountPoints.empty_text(int(e[0])), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 		var near := false
-		# (the offsets come nearest first, so past the reach's far corner none can
-		# be in it: stop there rather than walk the other few hundred thousand)
+		# (nearest first: past the reach's corner, none can be in it)
 		var ny := MountPoints.R + 14.0
 		var nx := lw / (2.0 * kk) + MountPoints.R + 6.0
 		var reach := Vector2(nx * 1.3, ny).length() + 0.1
-		var past := false
-		for half in 2:
-			for o: Vector2 in offs.part(half):
-				if absf(o.y) > ny or absf(o.x) > nx:
-					if Vector2(o.x * 1.3, o.y).length() > reach:
-						past = true
-						break
-					continue
-				var r := _sprite_box(MountPoints.label_box(pt * kk, o, lw, kk), kk)
-				if free.call(r, 1.0):
-					sides["empty:" + key] = o
-					placed.append(r)
-					bounds = bounds.merge(r)
-					near = true
+		for o in offs:
+			if absf(o.y) > ny or absf(o.x) > nx:
+				if Vector2(o.x * 1.3, o.y).length() > reach:
 					break
-			if near or past:
+				continue
+			var r := _sprite_box(MountPoints.label_box(pt * kk, o, lw, kk), kk)
+			if free.call(r, 1.0):
+				sides["empty:" + key] = o
+				placed.append(r)
+				bounds = bounds.merge(r)
+				near = true
 				break
 		if not near:
 			missed.append(e)
@@ -553,199 +495,115 @@ func _layout_now(kk: int, room: Rect2) -> Rect2:
 		var lw := f.get_string_size(MountPoints.empty_text(int(e[0])), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 		var ring := Rect2(pt - Vector2.ONE * (MountPoints.R + 1.0), Vector2.ONE * (MountPoints.R + 1.0) * 2.0)
 		var found := false
-		# (where the words' box would roughly land, a pixel of slack for the
-		# rounding: a place plainly outside the room is passed over before its box
-		# is worked out)
-		var bx0 := pt.x - lw / (2.0 * kk)
-		var bx1 := pt.x + lw / (2.0 * kk)
-		var by0 := pt.y + (3.0 - asc) / kk
-		var by1 := by0 + (asc + desc) / kk
-		# A RING SHUT IN: one thing placed (a yard stand, say, which a belly gun's
-		# ring can sit inside) covers every pixel a leader could start from, so
-		# no word with a leader can be set for it, only one close enough to need
-		# none. Those are all near; past them nothing can succeed, and the search
-		# stops there instead of trying every place in the room (issue #34: this,
-		# for one belly gun in the yard, froze the game for seconds on every
-		# change while the cutaway was open).
+		# A RING SHUT IN (a belly gun's, inside a yard stand): every pixel a leader
+		# could start from is covered, so only words close enough to need no leader
+		# can go. Search just those, not the whole room (#34: seconds a change).
 		var r0 := (MountPoints.R + 2.0) * kk
-		var start := Rect2((pt * kk - Vector2.ONE * (r0 + 1.0)) / float(kk),
-			Vector2.ONE * (2.0 * r0 + 2.0) / float(kk))
+		var start := Rect2(pt - Vector2.ONE * (r0 + 1.0) / kk, Vector2.ONE * (2.0 * r0 + 2.0) / kk)
 		var shut := false
 		for q in placed:
 			if q != ring and q.encloses(start):
 				shut = true
 				break
-		# (a word needs no leader only while its box, grown 2 as `leader_ends`
-		# grows it, comes within r0 + 2 of the ring's middle: the offsets that can
-		# do that, a pixel of slack each way for the rounding)
+		# (the offsets whose box, grown 2 as `label_leader` grows it, comes within
+		# r0 + 2 of the ring, with a pixel of slack for the rounding)
 		var sx := (lw * 0.5 + r0 + 6.0) / kk
 		var sy0 := -(desc + r0 + 8.0) / kk
 		var sy1 := (asc + r0 + 3.0) / kk
-		var lim := Vector2(sx * 1.3, maxf(-sy0, sy1)).length()
-		# and none can be inside the room past its far corner from here
-		var ox0 := real.position.x - 1.0 - bx0
-		var ox1 := real.end.x + 1.0 - bx1
-		var oy0 := real.position.y - 1.0 - by0
-		var oy1 := real.end.y + 1.0 - by1
-		var far := 0.0
-		for c: Vector2 in [Vector2(ox0, oy0), Vector2(ox1, oy0), Vector2(ox0, oy1), Vector2(ox1, oy1)]:
-			far = maxf(far, Vector2(c.x * 1.3, c.y).length())
-		if shut:
-			far = minf(far, lim)
-		far += 0.1
-		var past := false
-		for half in 2:
-			for o: Vector2 in offs.part(half):
-				if Vector2(o.x * 1.3, o.y).length() > far:
-					past = true
+		var lim := Vector2(sx * 1.3, maxf(-sy0, sy1)).length() + 0.1
+		for o in offs:
+			if shut:
+				if Vector2(o.x * 1.3, o.y).length() > lim:
 					break
-				if shut and (absf(o.x) > sx or o.y < sy0 or o.y > sy1):
+				if absf(o.x) > sx or o.y < sy0 or o.y > sy1:
 					continue
-				if bx0 + o.x < real.position.x - 1.0 or bx1 + o.x > real.end.x + 1.0 \
-						or by0 + o.y < real.position.y - 1.0 or by1 + o.y > real.end.y + 1.0:
-					continue
-				var box := MountPoints.label_box(pt * kk, o, lw, kk)
-				var r := _sprite_box(box, kk)
-				if not real.encloses(r) or on_hull.call(r.grow(1.0)):
-					continue
-				var clear := true
+			var box := MountPoints.label_box(pt * kk, o, lw, kk)
+			var r := _sprite_box(box, kk)
+			if not real.encloses(r) or on_hull.call(r.grow(1.0)):
+				continue
+			var clear := true
+			for q in placed:
+				if r.grow(1.5).intersects(q):
+					clear = false
+					break
+			if clear:
+				for q in leads:
+					if r.grow(1.0).intersects(q):
+						clear = false
+						break
+			if not clear:
+				continue
+			# the leader, pixel by pixel, over nothing but its own ring
+			var line := MountPoints.label_leader(pt * kk, box, kk)
+			var dots: Array[Rect2] = []
+			for p in line:
+				var d := Rect2(p / float(kk), Vector2.ONE / float(kk))
 				for q in placed:
-					if r.grow(1.5).intersects(q):
+					if q != ring and d.intersects(q):
 						clear = false
 						break
 				if clear:
 					for q in leads:
-						if r.grow(1.0).intersects(q):
+						if d.grow(0.5).intersects(q):
 							clear = false
 							break
 				if not clear:
-					continue
-				# ITS FIRST PIXEL FIRST, the one by the ring: where that is covered the
-				# whole line is refused at its first step anyway, and drawing all of it
-				# for every place in the room to learn so was most of a seconds-long
-				# freeze when the words had nowhere to go (issue #34)
-				var ends := MountPoints.leader_ends(pt * kk, box, kk)
-				if not ends.is_empty():
-					var d0 := Rect2(ends[0] / float(kk), Vector2.ONE / float(kk))
-					for q in placed:
-						if q != ring and d0.intersects(q):
-							clear = false
-							break
-					if clear:
-						for q in leads:
-							if d0.grow(0.5).intersects(q):
-								clear = false
-								break
-					if not clear:
-						continue
-				# the leader, pixel by pixel, over nothing but its own ring
-				var line := MountPoints.label_leader(pt * kk, box, kk)
-				var dots: Array[Rect2] = []
-				for p in line:
-					var d := Rect2(p / float(kk), Vector2.ONE / float(kk))
-					for q in placed:
-						if q != ring and d.intersects(q):
-							clear = false
-							break
-					if clear:
-						for q in leads:
-							if d.grow(0.5).intersects(q):
-								clear = false
-								break
-					if not clear:
-						break
-					dots.append(d)
-				if not clear:
-					continue
-				sides["empty:" + key] = o
-				sides["lead:" + key] = not line.is_empty()
-				placed.append(r)
-				leads.append_array(dots)
-				_far_bounds = r if not _far_bounds.has_area() else _far_bounds.merge(r)
-				found = true
-				break
-			if found or past:
-				break
+					break
+				dots.append(d)
+			if not clear:
+				continue
+			sides["empty:" + key] = o
+			sides["lead:" + key] = not line.is_empty()
+			placed.append(r)
+			leads.append_array(dots)
+			_far_bounds = r if not _far_bounds.has_area() else _far_bounds.merge(r)
+			found = true
+			break
 		if not found:
 			_words_ok = false
 	_mounts.lift = lift
 	_mounts.tag_side = sides
+	_laid_key = memo
+	_laid_bounds = bounds
 	return bounds
+
+
+## Everything `_layout` reads, or "" with nothing to lay out.
+func _layout_key(kk: int, room: Rect2) -> String:
+	if _ship.canvas() == null or Run.hull == null:
+		return ""
+	var key := [kk, room, _real_room if _real_k == kk else Rect2(), Run.hull.get_instance_id(),
+		_ship.canvas().get_size(), _ship.ink_rect(), _ship._bob_amp, _stand_rects()]
+	for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
+		key.append(Run.slots_for(slot))
+	for m in Run.installed:
+		key.append_array([m.get_instance_id(), m.slot, m.mount, m.name, m.size])
+	return str(key)
 
 
 ## Every offset from a mount inside a room this size, every 2 sprite px, nearest
 ## first (sideways counts 1.3x, so straight out wins a tie). Sorted natively and
 ## kept: the layout runs on every change to the ship.
-##
-## LISTED AS FAR AS THEY ARE READ (issue #34). A 1x room is a third of a million
-## offsets, and listing and sorting them all was most of the wait on a click
-## that opened the ship -- for searches that nearly always stop within the first
-## few thousand. So the nearest ones (`Offsets.NEAR`) are listed first and the
-## rest only when a search walks off the end of them; the order is the same
-## either way, the near ones being exactly the head of the whole sorted list.
-## Kept for the session, not per cutaway.
-func _offsets(room: Vector2) -> Offsets:
+func _offsets(room: Vector2) -> Array[Vector2]:
 	var key := "%d:%d" % [int(room.x), int(room.y)]
-	if not _offs_cache.has(key):
-		_offs_cache[key] = Offsets.new(int(room.x / 2.0), int(room.y / 2.0))
-	return _offs_cache[key]
-
-
-## The offsets of a room `nx` by `ny` steps either way, nearest first: `part(0)`
-## then `part(1)`, a search reading the second only if the first ran out.
-class Offsets:
-	## How far out the head runs: offsets whose distance (sideways 1.3x) is under
-	## this many sprite px. About ten thousand of them.
-	const NEAR := 128.0
-	var nx: int
-	var ny: int
-	var head := PackedVector2Array()
-	var _tail := PackedVector2Array()
-	var _tail_done := false
-
-	func _init(x: int, y: int) -> void:
-		nx = x
-		ny = y
-		head = _list(true)
-
-	## The offsets nearer than NEAR (`near`) or the rest, sorted. Each one's
-	## place in the whole grid is its index and the sort's tie-break, so the two
-	## lists put end to end are the one list sorted whole.
-	func _list(near: bool) -> PackedVector2Array:
-		var wd := 2 * nx + 1
-		var cut := int(NEAR * 16.0)
-		var keys := PackedInt64Array()
-		var bx := nx
-		var by := ny
-		if near:
-			bx = mini(nx, int(NEAR / 2.6) + 1)
-			by = mini(ny, int(NEAR / 2.0) + 1)
-		for iy in range(-by, by + 1):
-			var y := float(iy * 2)
-			var row := (iy + ny) * wd + nx
-			for ix in range(-bx, bx + 1):
-				var d := int(Vector2(ix * 2 * 1.3, y).length() * 16.0)
-				if (d < cut) == near:
-					keys.append((d << 24) | (row + ix))
-		keys.sort()
-		var out := PackedVector2Array()
-		out.resize(keys.size())
-		for j in keys.size():
-			var at := keys[j] & 0xFFFFFF
-			out[j] = Vector2((at % wd - nx) * 2, (at / wd - ny) * 2)
-		return out
-
-	func size() -> int:
-		return (2 * nx + 1) * (2 * ny + 1)
-
-	## The head (0), or the rest (1), listed the first time it is asked for.
-	func part(i: int) -> PackedVector2Array:
-		if i == 0:
-			return head
-		if not _tail_done:
-			_tail = _list(false)
-			_tail_done = true
-		return _tail
+	if _offs_cache.has(key):
+		return _offs_cache[key]
+	var nx := int(room.x / 2.0)
+	var ny := int(room.y / 2.0)
+	var keys := PackedInt64Array()
+	var all: Array[Vector2] = []
+	for iy in range(-ny, ny + 1):
+		for ix in range(-nx, nx + 1):
+			var o := Vector2(ix * 2, iy * 2)
+			keys.append((int(Vector2(o.x * 1.3, o.y).length() * 16.0) << 24) | all.size())
+			all.append(o)
+	keys.sort()
+	var out: Array[Vector2] = []
+	out.resize(keys.size())
+	for i in keys.size():
+		out[i] = all[keys[i] & 0xFFFFFF]
+	_offs_cache[key] = out
+	return out
 
 
 ## A sprite-px rect at scale `kk` in screen px (what the boxes are measured in),
