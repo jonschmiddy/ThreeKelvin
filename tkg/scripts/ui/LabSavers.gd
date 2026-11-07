@@ -70,6 +70,12 @@ func paint(style: String) -> void:
 			_paint_5()
 		"6":
 			_paint_6()
+		"K1":
+			_paint_k1()
+		"K2":
+			_paint_k2()
+		"K3":
+			_paint_k3()
 
 
 ## The motion that carries from frame to frame: the chart's turn and size, the
@@ -1134,9 +1140,9 @@ func _s5_cards() -> Array:
 	return [
 		["mark", on, "AUGMENT TODAY."],
 		["big", "YOUR PARTS", "COULD DO MORE.", "ASK AT ANY %s LAB." % on],
-		["big", "ONE AUGMENT", "PER PART.", "WE ASKED. THE PARTS SAID NO."],
-		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS MAY VARY. THEY DO VARY."],
-		["big", "STRIPPED PARTS", "KEEP THE MARK.", "WE CANNOT UNDO IT EITHER."],
+		["big", "ONE AUGMENT", "PER PART.", "IT STAYS ON THE PART."],
+		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS VARY."],
+		["big", "LIGHTENED PARTS", "TURN FASTER.", "+2 MAN, -1 HUL."],
 	]
 
 
@@ -1397,3 +1403,421 @@ func _paint_6() -> void:
 		if LabBoard.tw(rs) + LabBoard.tw("JUMPS 00") + 20 > w:
 			rs = "ROUTE %d" % trail.size()
 		text(a.end.x - 6 - LabBoard.tw(rs), a.end.y - 8, rs, ink(0.6))
+
+
+# ================================================================== K: Korvan Heavy Works
+# Three savers only Korvan runs (Nov 7, Jon: "Want more per owner."):
+#   K1 PROOF RANGE: a test gun fires a round into a plate every 2.4 s, and the
+#      count of rounds without a misfire (the posting board's 71,204) goes up
+#   K2 SPEC CHECK: a stamped part on its jig, a gauge stepping bolt hole to
+#      bolt hole against the old navy's sizes
+#   K3 ACCOUNTS: the invoices sent to the navy stores, one a month for 201
+#      years, a dot each, replayed year by year
+
+## The owner's colour and its field, mixed into the glass's dark.
+func _kc(a: float) -> Color:
+	var mk := DB.manufacturer_colour(g.owner_id) if DB.manufacturers.has(g.owner_id) else g.tint
+	return LabBoard.mixc(LabBoard.BG, mk, clampf(a, 0.0, 1.0))
+
+
+func _kf(a: float) -> Color:
+	var fd: Color = (DB.manufacturers[g.owner_id] as ManufacturerData).field if DB.manufacturers.has(g.owner_id) else g.tint.darkened(0.6)
+	return LabBoard.mixc(LabBoard.BG, fd, clampf(a, 0.0, 1.0))
+
+
+## The look's clock, held where the pointer came on (nothing new starts while
+## the pilot is signing in).
+func _k_hold() -> float:
+	var tr := rest_t()
+	return _s3_hold if (g.state != LabLogin.LOGO and _s3_hold >= 0.0) else tr
+
+
+## The foot's two rows while pointed at: what the look is doing, and the cue.
+func _k_sign(x: int, y: int, wmax: int, top: String) -> void:
+	text(x, y, fit(top, wmax), ink(0.55))
+	var signing := g.state == LabLogin.SIGNING
+	var s := "PILOT %s · SIGNING IN" % ship() if signing else "PILOT %s · CLICK TO SIGN IN" % ship()
+	if say_w(s) > wmax:
+		s = "PILOT %s · SIGN IN" % ship() if not signing else "SIGNING IN"
+	if say_w(s) > wmax:
+		s = "SIGNING IN" if signing else "CLICK TO SIGN IN"
+	say(x, y + 8, s, ink(0.9) if signing else cue())
+
+
+## The header's right-hand words, when they fit beside the owner's.
+func _k_right(a: Rect2i, extra: String, s: String) -> void:
+	var hx_end := a.position.x + 4 + 14 + LabBoard.tw(g.owner_short() + extra)
+	var sw := LabBoard.tw(s)
+	if a.end.x - 6 - sw > hx_end + 8:
+		text(a.end.x - 6 - sw, a.position.y + 6, s, ink(0.5))
+
+
+# ------------------------------------------------------------------ K1: proof range
+
+const K1_SHOT := 2.4
+const K1_FIRST := 0.6
+const K1_FLY := 0.3
+## The posting board's number (PostingBoard.POSTS: DAYS WITHOUT A MISFIRE).
+const K1_BASE := 71204
+const K1_PER_PLATE := 8
+
+
+func _k1_fired(t: float) -> int:
+	if t < K1_FIRST:
+		return 0
+	return int(floorf((t - K1_FIRST) / K1_SHOT)) + 1
+
+
+func _k1_hit_y(i: int, top: int, span: int) -> int:
+	return top + 3 + absi(hash(i * 31 + 7)) % maxi(1, span - 6)
+
+
+func _paint_k1() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var tr := rest_t()
+	var dim := fade()
+	var hover := g.state != LabLogin.LOGO
+	head(x0 + 4, y0 + 3, " PROOF RANGE")
+	_k_right(a, " PROOF RANGE", "NAVY PATTERN")
+	# the round in hand: the last fired before the pointer came, and its age
+	var n := _k1_fired(_k_hold())
+	var u := tr - (K1_FIRST + float(n - 1) * K1_SHOT) if n > 0 else 99.0
+	var hits := maxi(0, n if u >= K1_FLY else n - 1)
+	# THE COUNT, one more each time a round lands clean
+	var y := y0 + 19
+	text(x0 + 6, y, fit("ROUNDS FIRED WITHOUT A MISFIRE", w - 12), ink(0.5))
+	var ns := _thousands(K1_BASE + hits)
+	var ny := y + 9
+	text(x0 + 6, ny, ns, _kc(0.95), 16)
+	if n > 0 and u >= K1_FLY and u < K1_FLY + 0.4:
+		var head_s := ns.left(ns.length() - 1)
+		LabBoard.text_at(g, x0 + 6 + LabBoard.tw(head_s, 16), ny, ns.right(1), LabBoard.WHITE, 16)
+	# THE RANGE
+	var ly0 := ny + 16
+	var ly1 := a.end.y - 24
+	var cy := (ly0 + ly1) / 2
+	# (drawn at twice the size on a tall glass, so the range fills it)
+	var q := 2 if ly1 - ly0 >= 60 else 1
+	var half := clampi((ly1 - ly0) / 2 - 2, 6, 14 * q)
+	var fy := cy + half
+	line(Vector2i(x0 + 6, fy), Vector2i(a.end.x - 7, fy), ink(0.3 * dim), 2)
+	# the gun: a stamped block on a foot plate, the owner's mark on its side,
+	# a stepped cap bolted on top, kicking back as it fires
+	var rec := 0
+	if n > 0 and u < 0.2:
+		rec = (2 if u < 0.07 else 1) * q
+	var bw := 22 * q
+	var bh := mini(14 * q, half * 2 - 4 * q)
+	var bx := x0 + 9 - rec
+	var by := fy - bh - q
+	g.draw_rect(Rect2(bx - 3 * q, fy - q, bw + 6 * q, q), _kc(0.45 * dim))
+	g.draw_rect(Rect2(bx, by, bw, bh), _kf(0.9 * dim))
+	g.draw_rect(Rect2(bx + 3 * q, by - 3 * q, bw - 8 * q, 3 * q), _kf(0.9 * dim))
+	g.draw_rect(Rect2(bx + 3 * q, by - 3 * q, bw - 8 * q, 1), _kc(0.85 * dim))
+	g.draw_rect(Rect2(bx, by, bw, 1), _kc(0.85 * dim))
+	g.draw_rect(Rect2(bx, by, 1, bh), _kc(0.6 * dim))
+	g.draw_rect(Rect2(bx + bw - 1, by, 1, bh), _kc(0.4 * dim))
+	g.draw_rect(Rect2(bx, by + bh - 1, bw, 1), _kc(0.3 * dim))
+	for p: Vector2i in [Vector2i(2, 2), Vector2i(bw - 3, 2), Vector2i(2, bh - 3), Vector2i(bw - 3, bh - 3)]:
+		g.draw_rect(Rect2(bx + p.x, by + p.y, q, q), _kc(0.75 * dim))
+	if bh >= 13 * q and DB.manufacturers.has(g.owner_id):
+		CardView.draw_emblem(g, g.owner_id, Vector2(bx + bw / 2.0, by + bh / 2.0), float(q), _kc(0.75 * dim), _kf(0.9 * dim))
+	# the barrel, at the block's middle, a heavy collar at the muzzle
+	var gy := by + bh / 2
+	var mx0 := bx + bw
+	var bl := maxi(24, w / 5)
+	g.draw_rect(Rect2(mx0, gy - 2 * q, bl, 4 * q), _kc(0.5 * dim))
+	g.draw_rect(Rect2(mx0, gy - 2 * q, bl, 1), _kc(0.8 * dim))
+	g.draw_rect(Rect2(mx0 + 3 * q, gy - 3 * q, 3 * q, 6 * q), _kc(0.55 * dim))
+	g.draw_rect(Rect2(mx0 + bl - 4 * q, gy - 3 * q, 4 * q, 6 * q), _kc(0.65 * dim))
+	g.draw_rect(Rect2(mx0 + bl - 4 * q, gy - 3 * q, 4 * q, 1), _kc(0.9 * dim))
+	var mz := mx0 + bl
+	# the distance marks on the floor
+	for tx in range(mz + 12, a.end.x - 28, 16):
+		g.draw_rect(Rect2(tx, fy - 2, 1, 2), ink(0.35 * dim))
+	# THE PLATE, a fresh one every eight rounds, each hit left on its face, in
+	# a frame bolted to the floor
+	var pwid := 6 * q
+	var xt := a.end.x - 14 - pwid
+	var ptop := fy - half * 2
+	var span := half * 2
+	g.draw_rect(Rect2(xt + pwid, ptop + 2 * q, 2 * q, span - 2 * q), _kc(0.3 * dim))
+	g.draw_rect(Rect2(xt, ptop, pwid, span), _kf(0.95 * dim))
+	g.draw_rect(Rect2(xt, ptop, q, span), _kc(0.85 * dim))
+	g.draw_rect(Rect2(xt, ptop, pwid, 1), _kc(0.6 * dim))
+	g.draw_rect(Rect2(xt - 3 * q, fy - 3 * q, pwid + 8 * q, q), _kc(0.45 * dim))
+	g.draw_rect(Rect2(xt - 3 * q, fy - 3 * q, q, 3 * q), _kc(0.45 * dim))
+	var first := ((hits - 1) / K1_PER_PLATE) * K1_PER_PLATE if hits > 0 else 0
+	for i in range(first, hits):
+		var hy := _k1_hit_y(i, ptop, span - 4 * q)
+		g.draw_rect(Rect2(xt, hy, 2 * q, q), LabBoard.BG)
+		g.draw_rect(Rect2(xt + 2 * q, hy, q, q), _kc(0.35 * dim))
+	if n > 0:
+		var hy := _k1_hit_y(n - 1, ptop, span - 4 * q)
+		# the round in flight, a bright streak and its fading trail
+		if u < K1_FLY:
+			var k := u / K1_FLY
+			var sx := mz + int(k * float(xt - mz))
+			var sy := roundi(lerpf(float(gy), float(hy), k))
+			for d in 4:
+				g.draw_rect(Rect2(sx - d * q, sy, q, q), LabBoard.mixc(_kc(1.0), LabBoard.WHITE, 0.7 - 0.15 * float(d)))
+			for d in range(5, 22, 2):
+				px(sx - d, roundi(lerpf(float(gy), float(hy), maxf(0.0, k - float(d) / float(xt - mz)))), _kc(0.6 * (1.0 - float(d) / 22.0)))
+		# the flash at the muzzle
+		if u < 0.09:
+			var hc := LabBoard.mixc(LabBoard.BG, LabBoard.HOT, 1.0 - u / 0.09)
+			for d: Vector2i in [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0), Vector2i(1, -1), Vector2i(1, 1), Vector2i(3, 0)]:
+				g.draw_rect(Rect2(mz + d.x * q, gy + d.y * q, q, q), hc)
+		# the hit: the face lit, a few sparks back off it
+		if u >= K1_FLY and u < K1_FLY + 0.35:
+			var e := (u - K1_FLY) / 0.35
+			if e < 0.25:
+				g.draw_rect(Rect2(xt, hy - q, q, 3 * q), LabBoard.WHITE)
+			for s in 5:
+				var ang := PI + (noise(n, s) - 0.5) * 1.6
+				var rr := e * (5.0 + 7.0 * noise(s, n))
+				px(xt - 1 + roundi(cos(ang) * rr), hy + roundi(sin(ang) * rr), LabBoard.mixc(LabBoard.BG, LabBoard.HOT, 1.0 - e))
+	# THE LOG ROW: the last round, or the sign-in
+	var ry := a.end.y - 19
+	g.draw_rect(Rect2(x0 + 4, ry - 3, w - 8, 1), ink(0.25))
+	if hover:
+		_k_sign(x0 + 8, ry, w - 16, "RANGE CLEAR. GUN SAFE.")
+	elif n > 0:
+		var st := "FIRED" if u < K1_FLY else "CLEAN"
+		say(x0 + 8, ry, fit("ROUND %s · %s" % [_thousands(K1_BASE + n), st], w - 16), ink(0.9))
+		text(x0 + 8, ry + 8, fit("STANDARD ISSUE SLUG, FROM STOCK", w - 16), ink(0.5))
+	else:
+		text(x0 + 8, ry, fit("RANGE READY", w - 16), ink(0.9))
+
+
+# ------------------------------------------------------------------ K2: spec check
+
+## Part number, name, width and height (mm), the hole size (mm), its body as
+## rects (x, y, w, h in shares of the part), and its holes (x, y in shares).
+const K2_PARTS := [
+	["4471-B", "HULL PLATE", 900, 420, 16, [[0.0, 0.0, 1.0, 1.0]],
+		[[0.07, 0.18], [0.07, 0.82], [0.5, 0.18], [0.5, 0.82], [0.93, 0.18], [0.93, 0.82]]],
+	["6602-C", "ARMOUR SLAB SET", 800, 460, 20, [[0.0, 0.0, 1.0, 0.26], [0.12, 0.37, 0.76, 0.26], [0.24, 0.74, 0.52, 0.26]],
+		[[0.05, 0.13], [0.95, 0.13], [0.17, 0.5], [0.83, 0.5], [0.29, 0.87], [0.71, 0.87]]],
+	["0930-A", "MOUNT BRACKET", 700, 440, 12, [[0.0, 0.0, 0.3, 1.0], [0.3, 0.6, 0.7, 0.4]],
+		[[0.15, 0.13], [0.15, 0.45], [0.15, 0.82], [0.55, 0.8], [0.88, 0.8]]],
+	["2210-K", "BREECH BLOCK", 600, 380, 16, [[0.0, 0.28, 1.0, 0.72], [0.0, 0.0, 0.58, 0.28]],
+		[[0.1, 0.13], [0.46, 0.13], [0.1, 0.84], [0.62, 0.84], [0.9, 0.5]]],
+]
+const K2_LEAD := 0.6
+const K2_HOLE := 0.9
+const K2_MOVE := 0.3
+const K2_DONE := 1.8
+
+
+func _k2_len(i: int) -> float:
+	return K2_LEAD + float((K2_PARTS[i][6] as Array).size()) * K2_HOLE + K2_DONE
+
+
+func _paint_k2() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var dim := fade()
+	var hover := g.state != LabLogin.LOGO
+	head(x0 + 4, y0 + 3, " SPEC CHECK")
+	_k_right(a, " SPEC CHECK", "OLD NAVY SIZES")
+	# which part is on the jig, and how far along its check
+	var t := _k_hold()
+	var cyc := 0.0
+	for i in K2_PARTS.size():
+		cyc += _k2_len(i)
+	var ph := fposmod(t + _k2_len(0), cyc)
+	var pi_ := 0
+	while ph >= _k2_len(pi_):
+		ph -= _k2_len(pi_)
+		pi_ += 1
+	var part: Array = K2_PARTS[pi_]
+	var holes: Array = part[6]
+	var nh := holes.size()
+	var come := clampf(ph / 0.35, 0.0, 1.0) if not hover else 1.0
+	var dk := dim * come
+	# THE DRAWING'S ROOM: a width line above, a height line at the right
+	var room := Rect2i(x0 + 12, y0 + 30, w - 12 - 30, a.end.y - 26 - (y0 + 30))
+	var wmm: int = part[2]
+	var hmm: int = part[3]
+	var k := minf(float(room.size.x) / float(wmm), float(room.size.y) / float(hmm))
+	var pw := int(float(wmm) * k)
+	var phh := int(float(hmm) * k)
+	var ox := room.position.x + (room.size.x - pw) / 2
+	var oy := room.position.y + (room.size.y - phh) / 2
+	# the jig under it: a dotted rest line and two stops
+	line(Vector2i(ox - 6, oy + phh + 2), Vector2i(ox + pw + 5, oy + phh + 2), ink(0.3 * dim), 2)
+	g.draw_rect(Rect2(ox - 4, oy + phh - 4, 2, 6), ink(0.35 * dim))
+	g.draw_rect(Rect2(ox + pw + 2, oy + phh - 4, 2, 6), ink(0.35 * dim))
+	# THE PART: stamped plate in the owner's rust, lit along its top and left
+	var rs: Array[Rect2i] = []
+	for r: Array in part[5]:
+		rs.append(Rect2i(ox + int(float(r[0]) * pw), oy + int(float(r[1]) * phh),
+			maxi(2, int(float(r[2]) * pw)), maxi(2, int(float(r[3]) * phh))))
+	for r in rs:
+		g.draw_rect(Rect2(r), _kf(0.72 * dk))
+		# rivets along its long edges
+		if r.size.y >= 9:
+			for rx in range(r.position.x + 4, r.end.x - 3, 7):
+				px(rx, r.position.y + 2, _kc(0.5 * dk))
+				px(rx, r.end.y - 3, _kc(0.5 * dk))
+	for r in rs:
+		g.draw_rect(Rect2(r.position.x, r.position.y, r.size.x, 1), _kc(0.85 * dk))
+		g.draw_rect(Rect2(r.position.x, r.position.y, 1, r.size.y), _kc(0.7 * dk))
+		g.draw_rect(Rect2(r.position.x, r.end.y - 1, r.size.x, 1), _kc(0.35 * dk))
+		g.draw_rect(Rect2(r.end.x - 1, r.position.y, 1, r.size.y), _kc(0.35 * dk))
+	# the stencilled number on its biggest face
+	var big := rs[0]
+	for r in rs:
+		if r.size.x * r.size.y > big.size.x * big.size.y:
+			big = r
+	var sten := "NAVY %s" % String(part[0])
+	if LabBoard.tw(sten) + 8 <= big.size.x and big.size.y >= 13:
+		var sc := LabBoard.mixc(_kf(0.72 * dk), LabBoard.BG, 0.75 * dk)
+		var sx := big.position.x + (big.size.x - LabBoard.tw(sten)) / 2
+		var sy := big.position.y + (big.size.y - 5) / 2
+		LabBoard.text_at(g, sx, sy, sten, sc)
+	# the dimension lines
+	var dy := oy - 6
+	var ws := "%d" % wmm
+	var lw := LabBoard.tw(ws)
+	var lx := ox + (pw - lw) / 2
+	line(Vector2i(ox, dy), Vector2i(lx - 3, dy), ink(0.4 * dim))
+	line(Vector2i(lx + lw + 2, dy), Vector2i(ox + pw - 1, dy), ink(0.4 * dim))
+	g.draw_rect(Rect2(ox, dy - 2, 1, 5), ink(0.4 * dim))
+	g.draw_rect(Rect2(ox + pw - 1, dy - 2, 1, 5), ink(0.4 * dim))
+	text(lx, dy - 2, ws, ink(0.55))
+	var dx := ox + pw + 7
+	var hs := "%d" % hmm
+	line(Vector2i(dx, oy), Vector2i(dx, oy + phh - 1), ink(0.4 * dim))
+	g.draw_rect(Rect2(dx - 2, oy, 5, 1), ink(0.4 * dim))
+	g.draw_rect(Rect2(dx - 2, oy + phh - 1, 5, 1), ink(0.4 * dim))
+	if dx + 3 + LabBoard.tw(hs) <= a.end.x - 3:
+		text(dx + 3, oy + phh / 2 - 2, hs, ink(0.55))
+	# THE HOLES, and the gauge stepping from one to the next
+	var spots: Array[Vector2i] = []
+	for hp: Array in holes:
+		spots.append(Vector2i(ox + int(float(hp[0]) * pw), oy + int(float(hp[1]) * phh)))
+	var into := ph - K2_LEAD
+	var cur := clampi(int(floorf(into / K2_HOLE)), -1, nh)
+	var checked := clampi(cur if fposmod(into, K2_HOLE) < K2_MOVE else cur + 1, 0, nh)
+	if into < 0.0:
+		checked = 0
+	for j in nh:
+		var p := spots[j]
+		g.draw_rect(Rect2(p.x - 1, p.y - 1, 3, 3), LabBoard.BG)
+		px(p.x + 1, p.y + 1, _kc(0.45 * dk))
+		if j < checked:
+			px(p.x, p.y, LabBoard.mixc(LabBoard.BG, LabBoard.ICE, dk))
+	var pp := Vector2(ox + pw / 2, oy + phh / 2)
+	if into >= 0.0 and cur < nh:
+		var s := fposmod(into, K2_HOLE)
+		var from := Vector2(spots[cur - 1]) if cur > 0 else pp
+		var e := clampf(s / K2_MOVE, 0.0, 1.0)
+		e = e * e * (3.0 - 2.0 * e)
+		pp = from.lerp(Vector2(spots[cur]), e)
+	elif cur >= nh:
+		pp = Vector2(spots[nh - 1])
+	var pq := Vector2i(pp.round())
+	if into < float(nh) * K2_HOLE + 0.4:
+		line(Vector2i(ox - 4, pq.y), Vector2i(ox + pw + 3, pq.y), ink(0.3 * dk), 2)
+		line(Vector2i(pq.x, oy - 2), Vector2i(pq.x, oy + phh + 1), ink(0.3 * dk), 2)
+		g._brackets(Rect2i(pq - Vector2i(4, 4), Vector2i(9, 9)), 3, ink(0.95 * dk))
+	# THE READING ROW: the part, and the hole in hand (or the sign-in)
+	var ry := a.end.y - 19
+	g.draw_rect(Rect2(x0 + 4, ry - 3, w - 8, 1), ink(0.25))
+	if hover:
+		_k_sign(x0 + 8, ry, w - 16, "NAVY PART %s, HELD" % String(part[0]))
+		return
+	say(x0 + 8, ry, fit("NAVY PART %s · %s" % [String(part[0]), String(part[1])], w - 16), ink(0.9))
+	var hmm_d: int = part[4]
+	var r2 := ""
+	var c2 := ink(0.6)
+	if into < 0.0:
+		r2 = "ON THE JIG"
+	elif cur >= nh:
+		r2 = "ALL %d HOLES TO SPEC" % nh
+		c2 = _kc(1.0)
+	elif cur >= 0:
+		var got := float(hmm_d) + (noise(pi_ * 17 + cur, 5) - 0.5) * 0.04
+		r2 = "HOLE %d OF %d · %.2f MM · SPEC %d.00" % [cur + 1, nh, got, hmm_d]
+		if say_w(r2) > w - 16:
+			r2 = "HOLE %d OF %d · %.2f MM" % [cur + 1, nh, got]
+	say(x0 + 8, ry + 8, fit(r2, w - 16), c2)
+
+
+# ------------------------------------------------------------------ K3: accounts
+
+const K3_YEARS := 201
+const K3_YEAR_S := 0.1
+const K3_HOLD := 6.0
+## Years already drawn when the screen comes on, so it opens mostly full.
+const K3_START := 150
+
+
+func _paint_k3() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var dim := fade()
+	var hover := g.state != LabLogin.LOGO
+	head(x0 + 4, y0 + 3, " ACCOUNTS")
+	_k_right(a, " ACCOUNTS", "ON SCHEDULE")
+	# the replay's clock: a year every 0.1 s, then six seconds full
+	var cyc := float(K3_YEARS) * K3_YEAR_S + K3_HOLD
+	var ph := fposmod(_k_hold() + float(K3_START) * K3_YEAR_S, cyc)
+	var full := ph >= float(K3_YEARS) * K3_YEAR_S
+	var months := K3_YEARS * 12 if full else int(ph / K3_YEAR_S * 12.0)
+	var yr := mini(K3_YEARS, months / 12 + 1)
+	text(x0 + 6, y0 + 19, fit("TO: NAVY STORES, OUTER YARD", w - 12), ink(0.85))
+	var ss := "SENT %s · REPLIES 0" % _thousands(months)
+	say(x0 + 6, y0 + 28, ss, ink(0.55))
+	var ys := "YEAR %d" % yr
+	if LabBoard.tw(ys) + say_w(ss) + 24 <= w:
+		text(a.end.x - 6 - LabBoard.tw(ys), y0 + 28, ys, ink(0.55))
+	# THE YEARS, as ledger lines (critic pass, Nov 7: the solid squares read as
+	# a keypad): a month is a pixel, a year twelve of them and a gap, the rows
+	# filling like lines in an account book
+	var top := y0 + 38
+	var bot := a.end.y - 26
+	var yw := 13
+	var per_row := maxi(1, (w - 12) / yw)
+	var rows := (K3_YEARS + per_row - 1) / per_row
+	var lh := 1
+	var pitch := 3
+	if rows * 5 <= bot - top:
+		lh = 2
+		pitch = 5
+	if rows * 7 <= bot - top:
+		pitch = 7
+	var gw := per_row * yw - 1
+	var gh := rows * pitch - (pitch - lh)
+	var gx := x0 + (w - gw) / 2
+	var gy := top + maxi(0, (bot - top - gh) / 2)
+	var newest := months - 1
+	var blink := int(floorf(rest_t() / 0.5)) % 2 == 0
+	for yi in K3_YEARS:
+		var bx := gx + (yi % per_row) * yw
+		var by := gy + (yi / per_row) * pitch
+		for m in 12:
+			var mi := yi * 12 + m
+			var c := ink(0.1 * dim)
+			if mi < months:
+				c = _kc((0.75 if yi == yr - 1 and not full else 0.45) * dim)
+				if mi == newest and (not full or blink):
+					c = LabBoard.mixc(LabBoard.BG, LabBoard.WHITE, dim)
+			g.draw_rect(Rect2(bx + m, by, 1, lh), c)
+	# THE FOOT: what a dot is, or the sign-in
+	var ry := a.end.y - 19
+	g.draw_rect(Rect2(x0 + 4, ry - 3, w - 8, 1), ink(0.25))
+	if hover:
+		_k_sign(x0 + 8, ry, w - 16, "ACCOUNTS, PAUSED")
+		return
+	text(x0 + 8, ry, fit("ONE DASH IS ONE YEAR, 12 INVOICES.", w - 16), ink(0.55))
+	text(x0 + 8, ry + 8, fit("NONE LATE IN %d YEARS." % yr, w - 16), _kc(0.95))
