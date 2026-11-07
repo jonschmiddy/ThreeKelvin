@@ -76,6 +76,12 @@ func paint(style: String) -> void:
 			_paint_k2()
 		"K3":
 			_paint_k3()
+		"P1":
+			_paint_p1()
+		"P2":
+			_paint_p2()
+		"P3":
+			_paint_p3()
 		_:
 			_solari().paint(style)
 
@@ -119,6 +125,12 @@ func step(delta: float, style: String) -> void:
 		"6":
 			_g_last = lerpf(_g_last, 1.0 if resting else 0.0, 1.0 - exp(-delta * 3.0))
 			_g_rot = fposmod(_g_rot + delta * TAU / G_TURN_S * _g_last, TAU)
+		"P1", "P2", "P3":
+			# the Combine's own savers ease to a stop when pointed at: their clock
+			# falls behind the lab's by what the hover held back
+			_p_k = lerpf(_p_k, 1.0 if resting else 0.0, 1.0 - exp(-delta * 4.0))
+			if g.since_on() > 0.0:
+				_p_lag += delta * (1.0 - _p_k)
 	_solari().step(delta, style)
 
 
@@ -1834,3 +1846,563 @@ func _paint_k3() -> void:
 		return
 	text(x0 + 8, ry, fit("ONE DASH IS ONE YEAR, 12 INVOICES.", w - 16), ink(0.55))
 	text(x0 + 8, ry + 8, fit("NONE LATE IN %d YEARS." % yr, w - 16), _kc(0.95))
+
+
+# ================================================================== P: the Probate Combine's own
+#
+# MOCK (r6 owners, Nov 7): three savers only a Probate Lab runs. Jon: "Love
+# these. Want more per owner." The Combine follows other people's wrecks and
+# files the claim first; scrap is paid on the weight.
+#
+#   P1  WRECK WATCH: ships cross the Combine's watch; one slows, stops and goes
+#       quiet, and the Combine files its claim on it
+#   P2  CLAIM FILING: a claim of salvage typed out line by line, then stamped
+#   P3  SALVAGE ASSAY: a piece of a wreck towed onto the scale, weighed, its
+#       metal split by share, and paid on the weight
+
+const P_BRASS := Color("#b3924e")
+const P_BRONZE := Color("#8a6f3a")
+const P_STEEL := Color("#8c949b")
+## Ships that had names before the Combine filed on them.
+const P_NAMES := ["MERIDIAN", "KESTREL", "SLOW HARVEST", "DUNMORE", "ALDER", "TALLOW",
+	"QUIET HAND", "HOLLIS", "GREYLAG", "WINTERSET", "MARROW", "FAIR LANTERN"]
+
+var _p_k := 1.0
+var _p_lag := 0.0
+
+
+## The Combine's savers' clock: the lab's, less what a hover held back.
+func _p_t() -> float:
+	return maxf(0.0, rest_t() - _p_lag)
+
+
+func pc(c: Color, a: float) -> Color:
+	return LabBoard.mixc(LabBoard.BG, c, clampf(a, 0.0, 1.0))
+
+
+func _p_claim(k: int) -> String:
+	return "C-%04d" % (2280 + posmod(k, 7000))
+
+
+func _p_name(k: int) -> String:
+	return String(P_NAMES[posmod(k * 5 + 3, P_NAMES.size())])
+
+
+## The sign-in, as a column of words (the ones savers 1 and 2 use).
+func _p_signin(x: int, y: int, cw: int, pitch: int, label: String) -> void:
+	text(x, y, label, ink(0.5))
+	y += pitch
+	text(x, y, "PILOT", ink(0.75))
+	y += pitch
+	text(x, y, fit(ship(), cw), ink(1.0))
+	y += pitch + 4
+	if g.state == LabLogin.SIGNING:
+		text(x, y, "SIGNING IN", ink(0.9))
+	elif LabBoard.tw("CLICK TO SIGN IN") <= cw:
+		text(x, y, "CLICK TO SIGN IN", cue())
+	else:
+		text(x, y, "CLICK TO", cue())
+		text(x, y + pitch, "SIGN IN", cue())
+
+
+# ------------------------------------------------------------------ P1: wreck watch
+
+const P1_N := 7
+## A ship stops every 5.5 s, the first a second after the screen comes up.
+const P1_E := 5.5
+const P1_M := 14.0
+const P1_D := 1.4
+const P1_FIRST := 1.0
+## The next to stop is tracked this long before it starts to slow.
+const P1_LEAD := 1.8
+## Its claim is filed this long after it is still.
+const P1_FILE := 0.3
+const P1_TRAFFIC := 4
+
+
+## Ship `s` of the watch at `t`: where it is (0..1 of the plot), its state
+## (0 moving, 1 slowing, 2 still), its speed now and at cruise, its alpha, and
+## the number of its stop.
+func _p1_ship(s: int, t: float) -> Dictionary:
+	var P := float(P1_N) * P1_E
+	var raw := t - (P1_FIRST + float(s) * P1_E - P1_M)
+	var gen := floori(raw / P)
+	var tau := raw - float(gen) * P
+	var rng := RandomNumberGenerator.new()
+	rng.seed = absi(hash(Vector2i(s * 31 + 7, gen)))
+	var p0 := Vector2(rng.randf(), rng.randf())
+	var an := rng.randf() * TAU
+	var sp := 0.010 + 0.010 * rng.randf()
+	var dist := 0.0
+	var st := 0
+	var v := sp
+	if tau < P1_M:
+		dist = sp * tau
+	elif tau < P1_M + P1_D:
+		var u := (tau - P1_M) / P1_D
+		dist = sp * (P1_M + P1_D * (u - u * u / 2.0))
+		v = sp * (1.0 - u)
+		st = 1
+	else:
+		dist = sp * (P1_M + P1_D / 2.0)
+		v = 0.0
+		st = 2
+	var dir := Vector2(cos(an), sin(an))
+	var p := p0 + dir * dist
+	var al := 1.0
+	if tau > P - 2.0:
+		al = clampf((P - tau) / 2.0, 0.0, 1.0)
+	elif tau < 1.0:
+		al = clampf(tau, 0.0, 1.0)
+	return {"p": Vector2(fposmod(p.x, 1.0), fposmod(p.y, 1.0)), "st": st, "v": v, "sp": sp,
+		"dir": dir, "al": al, "tau": tau, "k": gen * P1_N + s}
+
+
+func _p1_at(inner: Rect2i, p: Vector2) -> Vector2i:
+	return inner.position + Vector2i((p * Vector2(inner.size - Vector2i.ONE)).round())
+
+
+func _p1_dot(q: Vector2i, dir: Vector2, k: float, c: Color, tail: int) -> void:
+	for i in tail:
+		var b := Vector2i((Vector2(q) - dir * float(2 + i * 2) * k).round())
+		px(b.x, b.y, LabBoard.mixc(LabBoard.BG, c, 0.45 - 0.12 * float(i)))
+	if box_free(Rect2i(q, Vector2i(2, 2))):
+		g.draw_rect(Rect2(q.x, q.y, 2, 2), c)
+
+
+func _paint_p1() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var h := a.size.y
+	var t := _p_t()
+	var dim := fade()
+	var big := h >= 140
+	var hover := g.state != LabLogin.LOGO
+	head(x0 + 4, y0 + 3, " WRECK WATCH")
+	var colw := clampi(int(float(w) * 0.36), 94, 150)
+	var plot := Rect2i(x0 + 4, y0 + 18, w - 8 - colw - 8, h - 18 - 4)
+	var cx0 := plot.end.x + 8
+	# THE WATCH: a dot grid, a few stars, its corners
+	for yy in range(plot.position.y + 6, plot.end.y - 2, 12):
+		for xx in range(plot.position.x + 6, plot.end.x - 2, 12):
+			px(xx, yy, ink(0.13 * dim))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 21
+	for i in (60 if big else 28):
+		var q := plot.position + Vector2i(rng.randi_range(2, plot.size.x - 3), rng.randi_range(2, plot.size.y - 3))
+		px(q.x, q.y, ink((0.08 + 0.2 * rng.randf()) * dim))
+	g._brackets(plot, 5, ink(0.4 * dim))
+	var inner := plot.grow(-8)
+	# the station this lab is on, in the middle, and two range rings round it
+	var mid := plot.get_center()
+	var bpr := _painter()
+	for rr: int in [mini(plot.size.x, plot.size.y) / 4, mini(plot.size.x, plot.size.y) * 2 / 5]:
+		bpr._ring(g, mid.x, mid.y, rr, ink(0.16 * dim), 24)
+	bpr._ring(g, mid.x, mid.y, 3, pc(P_BRASS, 0.8 * dim))
+	px(mid.x, mid.y, pc(P_BRASS, dim))
+	# TRAFFIC that only passes through
+	for i in P1_TRAFFIC:
+		var r2 := RandomNumberGenerator.new()
+		r2.seed = 300 + i
+		var p0 := Vector2(r2.randf(), r2.randf())
+		var an := r2.randf() * TAU
+		var dir := Vector2(cos(an), sin(an))
+		var p := p0 + dir * (0.012 + 0.01 * r2.randf()) * t
+		var q := _p1_at(inner, Vector2(fposmod(p.x, 1.0), fposmod(p.y, 1.0)))
+		_p1_dot(q, dir, 1.0, ink(0.5 * dim), 2)
+	# THE SHIPS THE COMBINE IS WATCHING: moving, slowing, still and claimed
+	var c := floori((t - P1_FIRST + P1_LEAD) / P1_E)
+	var cur_s := posmod(c, P1_N)
+	var cur: Dictionary = {}
+	for s in P1_N:
+		var d := _p1_ship(s, t)
+		var q := _p1_at(inner, d.p)
+		var al: float = float(d.al) * dim
+		if s == cur_s:
+			cur = d
+			cur["q"] = q
+		match int(d.st):
+			0:
+				# its course ahead, dotted
+				for j in 5:
+					var f := Vector2i((Vector2(q) + d.dir * float(5 + j * 3)).round())
+					px(f.x, f.y, ink(0.22 * al))
+				_p1_dot(q, d.dir, 1.0, ink(1.0 * al), 3)
+			1:
+				var k := float(d.v) / float(d.sp)
+				_p1_dot(q, d.dir, k, ink((0.5 + 0.35 * k) * al), 3 if k > 0.3 else 1)
+			_:
+				# still: a cold wreck in steel, one pixel of it dark, and once
+				# filed on, the Combine's flag on it
+				g.draw_rect(Rect2(q.x, q.y, 2, 2), pc(P_STEEL, 0.9 * al))
+				px(q.x + 1, q.y + 1, pc(P_STEEL, 0.35 * al))
+				if float(d.tau) >= P1_M + P1_D + P1_FILE:
+					var fc := pc(P_BRASS, 0.95 * al)
+					for j in 4:
+						px(q.x + 2, q.y - 1 - j, fc)
+					px(q.x + 3, q.y - 4, fc)
+					px(q.x + 4, q.y - 4, fc)
+					px(q.x + 3, q.y - 3, fc)
+	# the one tracked now, bracketed (in brass once it is filed on)
+	var claimed := not cur.is_empty() and int(cur.st) == 2 and float(cur.tau) >= P1_M + P1_D + P1_FILE
+	if not cur.is_empty():
+		var q: Vector2i = cur.q
+		g._brackets(Rect2i(q - Vector2i(4, 4), Vector2i(10, 10)), 3, pc(P_BRASS, dim) if claimed else ink(0.95 * dim))
+	# THE COLUMN: the ship tracked, its speed falling, and the claim; or the sign-in
+	var pitch := 12 if big else 9
+	var y := y0 + 20
+	if hover:
+		_p_signin(cx0, y, colw, pitch, "CLAIMANT")
+		return
+	text(cx0, y, "TRACKING", ink(0.5))
+	y += pitch
+	var nm := fit(_p_name(c), colw)
+	if claimed:
+		text(cx0, y, nm, ink(0.45))
+		g.draw_rect(Rect2(cx0 - 1, y + 2, LabBoard.tw(nm) + 2, 1), ink(0.75))
+	else:
+		text(cx0, y, nm, ink(0.95))
+	y += pitch
+	var sp := "NO SIGNAL" if claimed else "%.1f KM/S" % (float(cur.get("v", 0.0)) * 400.0)
+	text(cx0, y, sp, ink(0.6 if claimed else 0.75))
+	y += pitch + 5
+	if claimed:
+		text(cx0, y, "CLAIM FILED", pc(P_BRASS, 0.8))
+		y += pitch
+		text(cx0, y, _p_claim(c), pc(P_BRASS, 1.0), 16 if big else 8)
+	# claims on file, one more each stop
+	var filed := 18402 + maxi(0, c - (0 if claimed else 1))
+	text(cx0, a.end.y - 9 - pitch, "ON FILE", ink(0.45))
+	text(cx0, a.end.y - 9, _thousands(filed), ink(0.7))
+
+
+# ------------------------------------------------------------------ P2: claim filing
+
+const P2_CYC := 7.0
+const P2_TYPE_CPS := 32.0
+const P2_STAMP := 2.7
+const P2_LABELS := ["ITEM", "ONCE NAMED", "FOUND AT", "STATE", "FILED"]
+const P2_ITEMS := ["MEDIUM HULL", "DRIVE SECTION", "CARGO POD", "LIGHT HULL", "REACTOR SHELL", "HEAVY HULL"]
+const P2_STATES := ["NO POWER, NO CREW", "DRIVE COLD, HULL OPEN", "SEALED, NO SIGNAL", "BURNED OUT, NO CREW", "DRIFTING, NO SIGNAL"]
+
+
+func _p2_place(k: int) -> String:
+	if Run.map.is_empty():
+		return "THIS SYSTEM"
+	var n: MapGen.MapNode = Run.map[posmod(absi(hash(k * 13 + 5)), Run.map.size())]
+	return MapGen.star_name(n).to_upper()
+
+
+func _paint_p2() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var h := a.size.y
+	var t := _p_t()
+	var dim := fade()
+	var big := h >= 140
+	var hover := g.state != LabLogin.LOGO
+	var k := floori(t / P2_CYC)
+	var u := t - float(k) * P2_CYC
+	# the form goes dim in its last half second, and the next types in
+	var out := clampf((P2_CYC - u) / 0.45, 0.0, 1.0) * dim
+	head(x0 + 4, y0 + 3, " CLAIM OF SALVAGE")
+	var cn := _p_claim(k)
+	var hx_end := x0 + 18 + LabBoard.tw(g.owner_short() + " CLAIM OF SALVAGE")
+	if a.end.x - 6 - LabBoard.tw(cn) > hx_end + 8:
+		text(a.end.x - 6 - LabBoard.tw(cn), y0 + 6, cn, pc(P_BRASS, 0.9 * out))
+	g.draw_rect(Rect2(x0 + 4, y0 + 17, w - 8, 1), ink(0.25))
+	var vals := [P2_ITEMS[posmod(k, P2_ITEMS.size())], _p_name(k), _p2_place(k),
+		P2_STATES[posmod(k * 3 + 1, P2_STATES.size())], "%d S AFTER IT STOPPED" % (20 + posmod(absi(hash(k)), 60))]
+	var pitch := 15 if big else 10
+	var lx := x0 + 8
+	var vx := lx + LabBoard.tw("ONCE NAMED") + 10
+	var vw := a.end.x - 8 - vx
+	var y := y0 + 23
+	for j in P2_LABELS.size():
+		var t0 := 0.25 + float(j) * 0.4
+		if u >= t0:
+			text(lx, y, String(P2_LABELS[j]), ink(0.5 * out))
+			var v := fit(String(vals[j]), vw)
+			var n := clampi(int((u - t0) * P2_TYPE_CPS), 0, v.length())
+			if n > 0:
+				text(vx, y, v.left(n), ink(0.95 * out))
+			if n < v.length():
+				var kx := vx + (LabBoard.tw(v.left(n)) + 1 if n > 0 else 0)
+				g.draw_rect(Rect2(kx, y - 1, 4, 7), ink(0.9 * out))
+		y += pitch
+	# the foot (on a big glass): the claims this lab has on file
+	var foot := big and not hover
+	var zone := Rect2i(x0 + 4, y + 1, w - 8, a.end.y - (14 if foot else 3) - (y + 1))
+	if foot:
+		text(lx, a.end.y - 9, "CLAIMS ON FILE " + _thousands(18402 + k), ink(0.45))
+	if hover:
+		var hy := zone.position.y + 4
+		text(lx, hy, "CLAIMANT", ink(0.5))
+		var s := "PILOT %s · CLICK TO SIGN IN" % ship()
+		if say_w(s) > w - 16:
+			s = "PILOT %s · SIGN IN" % ship()
+		if g.state == LabLogin.SIGNING:
+			s = "PILOT %s · SIGNING IN" % ship()
+		say(lx, hy + pitch, s, ink(0.9) if g.state == LabLogin.SIGNING else cue())
+		return
+	# THE STAMP: the Combine's mark and FILED, in brass, pressed in when the
+	# last line is typed
+	if u < P2_STAMP:
+		return
+	var ks := clampf((u - P2_STAMP) / 0.18, 0.0, 1.0)
+	var es := 3.0 if big else 2.0
+	var en := int(9.0 * es) + 2
+	var name := g.owner_name()
+	var sw := en + 8 + maxi(LabBoard.tw("FILED", 16), LabBoard.tw(name))
+	var sh := maxi(en, 10 + 6 + 5)
+	var sx := a.end.x - 10 - sw
+	var sy := zone.position.y + (zone.size.y - sh) / 2
+	var bc := Color(pc(P_BRASS, out), ks)
+	var fd := (DB.manufacturers[&"probate"] as ManufacturerData).field if DB.manufacturers.has(&"probate") else LabBoard.BG
+	CardView.draw_emblem(g, &"probate", Vector2(sx + en / 2.0, sy + sh / 2.0), es, bc, fd)
+	g.leaves.append(["mark", Rect2i(sx, sy + (sh - en) / 2, en, en)])
+	var tx := sx + en + 8
+	var ty := sy + (sh - 21) / 2
+	text(tx, ty, "FILED", bc, 16)
+	text(tx, ty + 16, name, Color(pc(P_BRASS, 0.75 * out), ks))
+
+
+# ------------------------------------------------------------------ P3: salvage assay
+
+const P3_CYC := 7.0
+const P3_IN := 1.2
+const P3_WEIGH := [1.2, 2.0]
+const P3_FILL := [2.0, 2.6]
+const P3_PAY := 2.6
+const P3_OUT := 6.0
+
+var _p3_tex: ImageTexture = null
+var _p3_key := ""
+
+
+## Lot `k`'s mass in tonnes, its shares of plate, wire and scrap, and its pay.
+func _p3_lot(k: int) -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7700 + k
+	var mass := snappedf(9.0 + 50.0 * rng.randf(), 0.1)
+	var plate := rng.randi_range(45, 70)
+	var wire := rng.randi_range(5, 15)
+	return {"mass": mass, "shares": [plate, wire, 100 - plate - wire], "pay": int(mass * 10.0)}
+
+
+## A piece of a wreck: plate in three metals, welded where it was cut and
+## joined, a row of ports, a nose at one end and a torn edge at the other.
+func _p3_piece(k: int, pw: int, ph: int) -> ImageTexture:
+	var key := "%d|%d|%d" % [k, pw, ph]
+	if key == _p3_key and _p3_tex != null:
+		return _p3_tex
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 9100 + k
+	var BG := LabBoard.BG
+	var metals := [P_STEEL, P_BRASS, P_BRONZE]
+	var img := Image.create(pw, ph, false, Image.FORMAT_RGBA8)
+	var nose_left := rng.randf() < 0.5
+	var taper := int(float(pw) * (0.16 + 0.1 * rng.randf()))
+	var tear := maxi(4, int(float(pw) * 0.13))
+	var top := PackedInt32Array()
+	var bot := PackedInt32Array()
+	var jag := 0
+	for x in pw:
+		var xs := x if nose_left else pw - 1 - x
+		var tt := 0
+		var bb := 0
+		if xs < taper:
+			var f := 1.0 - float(xs) / float(taper)
+			tt = int(float(ph) * 0.4 * f * f)
+			bb = int(float(ph) * 0.22 * f * f)
+		if pw - 1 - xs < tear:
+			jag = clampi(jag + rng.randi_range(-2, 3), 0, ph / 3)
+			tt = maxi(tt, jag)
+			bb = maxi(bb, jag / 2 + rng.randi_range(0, 2))
+		top.append(tt)
+		bot.append(ph - 1 - bb)
+	# the plates: strakes along the hull (three or four bands), each band cut
+	# into plates of odd lengths, the joins staggered band to band
+	var pid := PackedInt32Array()
+	pid.resize(pw * ph)
+	var pmetal: Array[int] = []
+	var nb := rng.randi_range(3, 4)
+	var bands: Array[int] = [0]
+	for i in nb - 1:
+		bands.append(int(float(ph) * float(i + 1) / float(nb)) + rng.randi_range(-2, 2))
+	bands.append(ph)
+	for b in nb:
+		var col_x := -rng.randi_range(0, 14)
+		while col_x < pw:
+			var x1 := mini(pw, col_x + rng.randi_range(14, 30))
+			var roll := rng.randf()
+			pmetal.append(0 if roll < 0.45 else (1 if roll < 0.8 else 2))
+			var id := pmetal.size() - 1
+			for yy in range(bands[b], bands[b + 1]):
+				for xx in range(maxi(0, col_x), x1):
+					pid[yy * pw + xx] = id
+			col_x = x1
+	var welded := {}
+	for i in pmetal.size():
+		welded[i] = rng.randf() < 0.5
+	var port_y := int(float(ph) * 0.34)
+	for yy in ph:
+		for xx in pw:
+			if yy < top[xx] or yy > bot[xx]:
+				continue
+			var id := pid[yy * pw + xx]
+			var base: Color = metals[pmetal[id]]
+			var span := maxf(1.0, float(bot[xx] - top[xx]))
+			var lit := 1.0 - float(yy - top[xx]) / span
+			var c := LabBoard.mixc(BG, base, 0.5 + 0.35 * lit)
+			if LabBoard.bayer(xx, yy) < 0.12 and noise(xx + k * 7, yy) < 0.5:
+				c = LabBoard.mixc(BG, base, 0.4 + 0.3 * lit)
+			# the seams between plates, and weld beads along some of them
+			var right := pid[yy * pw + xx + 1] if xx + 1 < pw else id
+			var below := pid[(yy + 1) * pw + xx] if yy + 1 < ph else id
+			if right != id or below != id:
+				c = LabBoard.mixc(BG, base, 0.25)
+			elif xx > 0 and pid[yy * pw + xx - 1] != id and welded[id] and posmod(yy, 2) == 0:
+				c = LabBoard.mixc(BG, P_BRASS, 1.0)
+			# fasteners near each plate's corners, not two alike
+			elif (xx > 1 and pid[yy * pw + xx - 2] != id) or (xx + 2 < pw and pid[yy * pw + xx + 2] != id):
+				if (yy > 1 and pid[(yy - 2) * pw + xx] != id) or (yy + 2 < ph and pid[(yy + 2) * pw + xx] != id):
+					c = LabBoard.mixc(BG, P_STEEL if posmod(id, 3) != 0 else P_BRASS, 0.95)
+			# a row of ports along the hull
+			var mid := (xx > taper and xx < pw - tear - 2) if nose_left else (xx > tear + 2 and xx < pw - taper)
+			if mid and yy >= port_y and yy < port_y + 2 and posmod(xx, 5) < 2:
+				c = LabBoard.mixc(BG, Color.BLACK, 0.4)
+			# the outline: lit along the top, dark below and at the ends
+			if yy == top[xx] or (xx > 0 and yy < top[xx - 1]) or (xx + 1 < pw and yy < top[xx + 1]):
+				c = LabBoard.mixc(BG, base.lerp(LabBoard.WHITE, 0.3), 1.0)
+			elif yy == bot[xx] or xx == 0 or xx == pw - 1 or (xx > 0 and yy > bot[xx - 1]) or (xx + 1 < pw and yy > bot[xx + 1]):
+				c = LabBoard.mixc(BG, base, 0.3)
+			img.set_pixel(xx, yy, c)
+	_p3_tex = ImageTexture.create_from_image(img)
+	_p3_key = key
+	return _p3_tex
+
+
+func _paint_p3() -> void:
+	var a := g.area()
+	var x0 := a.position.x
+	var y0 := a.position.y
+	var w := a.size.x
+	var h := a.size.y
+	var t := _p_t()
+	var dim := fade()
+	var big := h >= 140
+	var hover := g.state != LabLogin.LOGO
+	var k := floori(t / P3_CYC)
+	var u := t - float(k) * P3_CYC
+	var lot := _p3_lot(k)
+	head(x0 + 4, y0 + 3, " SALVAGE ASSAY")
+	var ls := "LOT %d" % (400 + k)
+	var hx_end := x0 + 18 + LabBoard.tw(g.owner_short() + " SALVAGE ASSAY")
+	if a.end.x - 6 - LabBoard.tw(ls) > hx_end + 8:
+		text(a.end.x - 6 - LabBoard.tw(ls), y0 + 6, ls, ink(0.55))
+	var pitch := 12 if big else 9
+	var ro := a.end.y - (pitch * 3 + 12)
+	g.draw_rect(Rect2(x0 + 4, ro - 5, w - 8, 1), ink(0.25))
+	var bay := Rect2i(x0 + 4, y0 + 18, w - 8, ro - 7 - (y0 + 18))
+	# THE SCALE: a pad with its ticks, and the tractor that holds the piece
+	var ph := maxi(16, int(float(bay.size.y) * 0.6))
+	var pw := mini(int(float(ph) * 2.4), int(float(bay.size.x) * 0.62))
+	var pad_y := bay.end.y - 5
+	var pad_w := int(float(pw) * 1.25)
+	var pad_x := bay.position.x + (bay.size.x - pad_w) / 2
+	for xx in range(pad_x, pad_x + pad_w):
+		px(xx, pad_y, ink(0.5 * dim))
+		if posmod(xx - pad_x, 6) == 0:
+			px(xx, pad_y + 1, ink(0.35 * dim))
+			px(xx, pad_y + 2, ink(0.35 * dim))
+	for ex: int in [pad_x - 4, pad_x + pad_w + 1]:
+		g.draw_rect(Rect2(ex, pad_y - 1, 3, 3), ink(0.6 * dim))
+	# where the piece is: towed in, held, towed off
+	var rest_x := bay.position.x + (bay.size.x - pw) / 2
+	var from_x := bay.position.x - pw - 2
+	var to_x := bay.end.x + 2
+	var e_in := 1.0 - pow(1.0 - clampf(u / P3_IN, 0.0, 1.0), 3.0)
+	var e_out := pow(clampf((u - P3_OUT) / (P3_CYC - P3_OUT), 0.0, 1.0), 2.0)
+	var piece_x := int(lerpf(float(from_x), float(rest_x), e_in) + e_out * float(to_x - rest_x))
+	var piece_y := pad_y - 6 - ph
+	# the tractor's light, rising from the pad under the piece while it is on it
+	var on_pad := absi(piece_x - rest_x) < pw / 3
+	if on_pad:
+		var x_lo := maxi(pad_x, piece_x + 3)
+		var x_hi := mini(pad_x + pad_w, piece_x + pw - 3)
+		var off := int(floorf(t * 8.0))
+		for xx in range(x_lo, x_hi):
+			if posmod(xx - pad_x, 6) != 3:
+				continue
+			for yy in range(piece_y + ph - 4, pad_y - 1):
+				if posmod(yy + off, 3) == 0:
+					px(xx, yy, ink(0.3 * dim))
+	var tex := _p3_piece(k, pw, ph)
+	var pr := Rect2i(piece_x, piece_y, pw, ph)
+	var vis := pr.intersection(bay)
+	if vis.has_area():
+		g.draw_texture_rect_region(tex, Rect2(vis), Rect2(vis.position - pr.position, vis.size), Color(1, 1, 1, dim))
+	# THE READOUT: what it was part of and its mass; the bar of its metal; the pay
+	var lx := x0 + 8
+	var rx := a.end.x - 8
+	if hover:
+		text(lx, ro, "THIS TERMINAL", ink(0.55))
+		text(lx, ro + pitch, fit("PILOT %s" % ship(), w - 16), ink(1.0))
+		text(lx, ro + pitch * 2 + 4, "SIGNING IN" if g.state == LabLogin.SIGNING else "CLICK TO SIGN IN",
+			ink(0.9) if g.state == LabLogin.SIGNING else cue())
+		return
+	var ra := clampf((P3_OUT + 0.5 - u) / 0.5, 0.0, 1.0)
+	var from_s := "FROM THE " + _p_name(k)
+	var ms := "MASS --.- T"
+	var mc := ink(0.4 * ra)
+	if u >= P3_WEIGH[1]:
+		ms = "MASS %.1f T" % float(lot.mass)
+		mc = ink(0.95 * ra)
+	elif u >= P3_WEIGH[0]:
+		# the digits rolling while it settles on the scale
+		var tick := int(floorf(u * 12.0))
+		ms = "MASS %d%d.%d T" % [1 + int(noise(tick, 1) * 5.0), int(noise(tick, 2) * 10.0), int(noise(tick, 3) * 10.0)]
+		mc = ink(0.75 * ra)
+	var mw := LabBoard.tw(ms)
+	text(rx - mw, ro, ms, mc)
+	text(lx, ro, fit(from_s, rx - mw - 10 - lx), ink(0.55 * ra))
+	# the bar: plate, wire and scrap, filling from the left
+	var by := ro + pitch
+	var bw := rx - lx
+	var fill := clampf((u - float(P3_FILL[0])) / (float(P3_FILL[1]) - float(P3_FILL[0])), 0.0, 1.0)
+	var cols := [P_STEEL, P_BRASS, P_BRONZE]
+	var names := ["PLATE", "WIRE", "SCRAP"]
+	var shares: Array = lot.shares
+	for xx in range(lx, rx):
+		if posmod(xx, 2) == 0:
+			px(xx, by + 4, ink(0.2 * ra))
+	var acc := 0.0
+	for i in 3:
+		var s0 := lx + int(acc * float(bw))
+		acc += float(shares[i]) / 100.0
+		var s1 := lx + int(acc * float(bw)) - (1 if i < 2 else 0)
+		var lim := lx + int(fill * float(bw))
+		if mini(s1, lim) > s0:
+			g.draw_rect(Rect2(s0, by, mini(s1, lim) - s0, 3), pc(cols[i], 0.9 * ra))
+	g.leaves.append(["bar", Rect2i(lx, by, bw, 5)])
+	if fill > 0.0:
+		var lgx := lx
+		var lgy := by + 9
+		for i in 3:
+			var s := "%s %d%%" % [names[i], int(shares[i])]
+			if lgx + 5 + LabBoard.tw(s) > rx:
+				break
+			g.draw_rect(Rect2(lgx, lgy + 1, 3, 3), pc(cols[i], 0.9 * ra))
+			text(lgx + 5, lgy, s, ink(0.7 * ra))
+			lgx += 5 + LabBoard.tw(s) + 10
+	# paid on the weight
+	var py := ro + pitch * 2 + 8
+	text(lx, py, "PAID ON THE WEIGHT", ink(0.5 * ra))
+	if u >= P3_PAY:
+		var cs := "%d CR" % int(lot.pay)
+		text(rx - LabBoard.tw(cs), py, cs, pc(P_BRASS, ra))
