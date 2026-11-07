@@ -815,6 +815,14 @@ func run(tree: SceneTree) -> void:
 	#   labzoom=k         the camera held k of the way into the glass (0..1)
 	#   stillto=<png>     the shot written there too (the profile is thrown away)
 	await _lab_mode(tree)
+	if OS.get_cmdline_user_args().has("saverfilm"):
+		await _saver_film(tree)
+		tree.quit()
+		return
+	if OS.get_cmdline_user_args().has("labzoomfilm"):
+		await _lab_zoom_film(tree)
+		tree.quit()
+		return
 
 	# THE BAR'S OWN WIDTH, printed rather than eyeballed. HudBar's header records
 	# that the row was 983px at a 960 window with dev mode on, and that the fix
@@ -1758,3 +1766,213 @@ func _held_parts() -> Array[ModuleData]:
 		if h is ModuleData:
 			out.append(h)
 	return out
+
+
+
+## FILM HARNESS (review_lab zoom2, not committed): the room powering on, the
+## logo, the pointer onto the glass (the sign-in), a click, the zoom in, 1.5 s
+## on the board, LEAVE clicked, the zoom out, rest. Every wait counts frames:
+## the movie writer's frames are game time. `filmstills=DIR` writes the logo
+## and the sign-in there, the whole window and the glass.
+func _lab_zoom_film(tree: SceneTree) -> void:
+	var scr := Router.current as StationScreen
+	if scr == null or scr.lab_zoom() == null:
+		print("FILM no lab")
+		return
+	var zoom := scr.lab_zoom()
+	var lab := scr._lab
+	Router.animate_in_harness = true
+	var stills := ""
+	var settle := 600
+	for a in OS.get_cmdline_user_args():
+		var s := a as String
+		if s.begins_with("filmstills="):
+			stills = s.substr(11)
+		elif s.begins_with("settle="):
+			settle = int(s.substr(7))
+	print("FILM LAB_ZOOM_S %.2f UI_OUT_S %.2f UI_IN_S %.2f level %s zoom %d" % [ZoomLadder.LAB_ZOOM_S, ZoomLadder.UI_OUT_S, ZoomLadder.UI_IN_S, lab._level, int(LabZoom.ZOOM.get(lab._level, 0))])
+	print("FILM mark harness %d boot_t %.3f" % [Engine.get_frames_drawn(), lab._lab_clock - lab._boot_at])
+	var target := GameShell.input_target(tree)
+	# (the pointer parked off the glass, on the room's floor)
+	_film_move(target, Vector2(40, 520))
+	var n0 := 0
+	while lab._lab_clock - lab._boot_at < 6.5 and n0 < settle:
+		await tree.process_frame
+		n0 += 1
+	print("FILM mark rest %d boot_t %.3f state %s" % [Engine.get_frames_drawn(), lab._lab_clock - lab._boot_at, scr._login.state])
+	for i in 90:
+		await tree.process_frame
+	if stills != "":
+		await _film_still(tree, scr, "%s/%s_logo" % [stills, lab._level])
+	var at := scr._glass_press.get_global_rect().get_center()
+	_film_move(target, at)
+	# (a pushed motion does not hover a control while the desk's own pointer is
+	# outside the window: the GUI is told, as StationDeckTest's clicks tell it)
+	scr._glass_press.notification(Control.NOTIFICATION_MOUSE_ENTER)
+	print("FILM mark hover %d" % Engine.get_frames_drawn())
+	for i in 100:
+		await tree.process_frame
+	print("FILM hover state %s dots %d" % [scr._login.state, scr._login.dots()])
+	if stills != "":
+		await _film_still(tree, scr, "%s/%s_login" % [stills, lab._level])
+	for i in 20:
+		await tree.process_frame
+	await _film_click(tree, target, at)
+	print("FILM mark press %d state %s" % [Engine.get_frames_drawn(), scr._login.state])
+	var n := 0
+	while not (zoom.landed() and zoom.view.modulate.a >= 1.0) and n < 600:
+		await tree.process_frame
+		n += 1
+		print("FILM in %d at %.4f vis %.3f %s" % [Engine.get_frames_drawn(), zoom._at, zoom.view.modulate.a, _film_geo(zoom)])
+	print("FILM mark landed %d" % Engine.get_frames_drawn())
+	for i in 90:
+		await tree.process_frame
+	var lat := zoom.leave_button.get_global_rect().get_center()
+	scr._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
+	zoom.leave_button.notification(Control.NOTIFICATION_MOUSE_ENTER)
+	await _film_click(tree, target, lat)
+	print("FILM mark leave %d state %s" % [Engine.get_frames_drawn(), scr._login.state])
+	n = 0
+	while zoom.visible and n < 600:
+		await tree.process_frame
+		n += 1
+		print("FILM out %d at %.4f vis %.3f %s" % [Engine.get_frames_drawn(), zoom._at, zoom.view.modulate.a, _film_geo(zoom)])
+	print("FILM mark out %d state %s" % [Engine.get_frames_drawn(), scr._login.state])
+	for i in 60:
+		await tree.process_frame
+	print("FILM mark end %d" % Engine.get_frames_drawn())
+
+
+func _film_geo(zoom: LabZoom) -> String:
+	var r := zoom.room_rect()
+	return "geo s %.4f room %.2f %.2f %.2f %.2f ratio %.5f veil %s room_on %s" % [zoom.cam_scale(),
+		r.position.x, r.position.y, r.size.x, r.size.y, (r.size.x / LabScene.PANEL.x) / maxf(0.0001, r.size.y / LabScene.PANEL.y),
+		zoom._veil.visible, zoom._room.visible]
+
+
+func _film_still(tree: SceneTree, scr: StationScreen, base: String) -> void:
+	await RenderingServer.frame_post_draw
+	var img := tree.root.get_texture().get_image()
+	img.save_png(base + ".png")
+	# the glass, 16 room px round it, at the window's own 2x
+	var k := float(img.get_width()) / 960.0
+	var g := scr._lab.glass_rect().grow(16.0)
+	var xf := scr._lab.get_global_transform()
+	var r := Rect2i(Rect2(xf * g.position * k, g.size * xf.get_scale().x * k))
+	img.get_region(r.intersection(Rect2i(Vector2i.ZERO, img.get_size()))).save_png(base + "_glass.png")
+	print("FILM still %s" % base)
+	print("FILM boxes %s %s" % [base, str(scr._login.check())])
+
+
+func _film_move(target: Viewport, at: Vector2) -> void:
+	var mv := InputEventMouseMotion.new()
+	mv.position = at
+	mv.global_position = at
+	target.push_input(mv)
+
+
+func _film_click(tree: SceneTree, target: Viewport, at: Vector2) -> void:
+	_film_move(target, at)
+	await tree.process_frame
+	for pressed in [true, false]:
+		var mb := InputEventMouseButton.new()
+		mb.button_index = MOUSE_BUTTON_LEFT
+		mb.pressed = pressed
+		mb.button_mask = MOUSE_BUTTON_MASK_LEFT if pressed else 0
+		mb.position = at
+		mb.global_position = at
+		target.push_input(mb)
+		if pressed:
+			await tree.process_frame
+
+
+## SAVER FILM (review_lab r5, not committed): a used run (DATA, steps owned, a
+## route flown), the room powered on, the saver at rest (`restn` frames), the
+## pointer onto the glass (`hovern`), a click, the camera in, landed. Every
+## wait counts frames: the movie writer's frames are game time. `filmstills=DIR`
+## writes the rest and the hover there, the window and the glass.
+func _saver_film(tree: SceneTree) -> void:
+	var scr := Router.current as StationScreen
+	if scr == null or scr.lab_zoom() == null:
+		print("FILM no lab")
+		return
+	var zoom := scr.lab_zoom()
+	var lab := scr._lab
+	Router.animate_in_harness = true
+	var stills := ""
+	var rest_n := 200
+	var hover_n := 110
+	var trail_n := 0
+	for a in OS.get_cmdline_user_args():
+		var s := a as String
+		if s.begins_with("filmstills="):
+			stills = s.substr(11)
+		elif s.begins_with("restn="):
+			rest_n = int(s.substr(6))
+		elif s.begins_with("hovern="):
+			hover_n = int(s.substr(7))
+		elif s.begins_with("data="):
+			Run.data = int(s.substr(5))
+		elif s.begins_with("owned="):
+			var o := s.substr(6).split(",")
+			for b in mini(3, o.size()):
+				Run.board_owned[b] = clampi(int(o[b]), 0, 3)
+		elif s.begins_with("savertrail="):
+			trail_n = int(s.substr(11))
+		elif s.begins_with("aug="):
+			var n_aug := int(s.substr(4))
+			for i in mini(n_aug, Run.installed.size()):
+				Run.installed[i].augmented = true
+	# A ROUTE FLOWN: back from here along the links, so the galaxy saver has one
+	if trail_n > 1 and Run.trail.size() < trail_n and not Run.map.is_empty():
+		var path: Array[int] = [Run.at]
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 5
+		while path.size() < trail_n:
+			var nd: MapGen.MapNode = Run.map[path[-1]]
+			var opts: Array[int] = []
+			for l in nd.links:
+				if not path.has(l):
+					opts.append(l)
+			if opts.is_empty():
+				break
+			path.append(opts[rng.randi() % opts.size()])
+		path.reverse()
+		Run.trail = PackedInt32Array(path)
+		Run.jumps = path.size() - 1
+	Sig.resources_changed.emit()
+	print("FILM saver %s level %s data %d owned %s trail %d installed %d hull %s" % [LabLogin.splash(), lab._level, Run.data, str(Run.board_owned), Run.trail.size(), Run.installed.size(), Run.hull.name if Run.hull != null else "-"])
+	var target := GameShell.input_target(tree)
+	_film_move(target, Vector2(40, 520))
+	var n0 := 0
+	while scr._login.since_on() < 0.8 and n0 < 900:
+		await tree.process_frame
+		n0 += 1
+	print("FILM mark rest %d" % Engine.get_frames_drawn())
+	for i in rest_n:
+		await tree.process_frame
+		if i == rest_n * 2 / 3 and stills != "":
+			await _film_still(tree, scr, "%s/%s_rest" % [stills, lab._level])
+	var at := scr._glass_press.get_global_rect().get_center()
+	_film_move(target, at)
+	scr._glass_press.notification(Control.NOTIFICATION_MOUSE_ENTER)
+	print("FILM mark hover %d" % Engine.get_frames_drawn())
+	for i in hover_n:
+		await tree.process_frame
+		if i == hover_n * 3 / 4 and stills != "":
+			await _film_still(tree, scr, "%s/%s_hover" % [stills, lab._level])
+	print("FILM hover state %s" % scr._login.state)
+	await _film_click(tree, target, at)
+	print("FILM mark press %d state %s" % [Engine.get_frames_drawn(), scr._login.state])
+	var n := 0
+	var shot_mid := false
+	while not (zoom.landed() and zoom.view.modulate.a >= 1.0) and n < 600:
+		await tree.process_frame
+		n += 1
+		if not shot_mid and zoom._at >= ZoomLadder.UI_OUT_S + ZoomLadder.LAB_ZOOM_S + ZoomLadder.UI_IN_S * 0.45 and stills != "":
+			shot_mid = true
+			await _film_still(tree, scr, "%s/%s_landing" % [stills, lab._level])
+	print("FILM mark landed %d" % Engine.get_frames_drawn())
+	for i in 30:
+		await tree.process_frame
+	print("FILM mark end %d" % Engine.get_frames_drawn())
