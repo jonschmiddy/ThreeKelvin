@@ -30,7 +30,7 @@ extends Control
 ##           the encounter's subject so the scene is still what you look at
 ## Everything else -- the flow, the rule, the words -- is the same in all three.
 ##
-## THE TEXT ARRIVES LIKE A SIGNAL (`SignalText`); any click or key finishes it
+## THE TEXT ARRIVES LIKE A SIGNAL (`SignalText`), a word at a time; any click or key finishes it
 ## (and is spent doing so), and the choices fade in only once it has.
 ##
 ## The bar's half lives here too (`bar_line`, `can_reopen`), so `SectorScreen`
@@ -432,6 +432,7 @@ func _text_box(words: String, ink: Color) -> ScrollContainer:
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	text = SignalText.new()
+	text.by_word = true
 	text.ink = ink
 	text.text = words
 	text.name = "Text"

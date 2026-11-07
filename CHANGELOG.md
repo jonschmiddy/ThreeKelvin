@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Changed** — an encounter's text now arrives a word at a time instead of letter by letter.
 - **Fixed** — in co-op, two ships that start different fights in the same system at the same moment
   now end up in one fight, the one that started first, on both screens. The second ship's log says
   "VELA got here first. You join their fight." Before, it could show the wrong enemy, take hits from
