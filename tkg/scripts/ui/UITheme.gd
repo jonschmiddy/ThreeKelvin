@@ -194,10 +194,11 @@ static func build() -> Theme:
 			pressed = flat(Color("#4a2a0c"), EMBER, 0, 3, 5)
 			disabled = flat(PANEL, LINE, 0, 3, 5)
 		ButtonStyle.OUTLINE:
-			normal = flat(Color(0, 0, 0, 0), LINE, 0, 3, 5)
-			hover = flat(Color(PANEL2, 0.9), CHILL, 0, 3, 5)
-			pressed = flat(Color("#4a2a0c"), EMBER, 0, 3, 5)
-			disabled = flat(Color(0, 0, 0, 0), Color(LINE, 0.5), 0, 3, 5)
+			var o := outline_boxes()
+			normal = o.normal
+			hover = o.hover
+			pressed = o.pressed
+			disabled = o.disabled
 		ButtonStyle.CUT:
 			normal = _cut(PANEL2, LINE)
 			hover = _cut(Color("#243244"), CHILL)
@@ -341,6 +342,15 @@ static func _bevel_box(bg: Color, hi: Color, lo: Color,
 	sb.content_margin_left = pad_h
 	sb.content_margin_right = pad_h
 	return sb
+
+## The OUTLINE button style's boxes, by state; also `Widgets.quiet`'s.
+static func outline_boxes() -> Dictionary:
+	return {
+		"normal": flat(Color(0, 0, 0, 0), LINE, 0, 3, 5),
+		"hover": flat(Color(PANEL2, 0.9), CHILL, 0, 3, 5),
+		"pressed": flat(Color("#4a2a0c"), EMBER, 0, 3, 5),
+		"disabled": flat(Color(0, 0, 0, 0), Color(LINE, 0.5), 0, 3, 5),
+	}
 
 static func flat(bg: Color, border: Color, radius: int = 0,
 		pad_v: int = 8, pad_h: int = 10) -> StyleBoxFlat:

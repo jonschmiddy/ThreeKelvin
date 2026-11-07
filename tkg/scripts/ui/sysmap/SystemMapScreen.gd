@@ -1355,6 +1355,11 @@ func _on_map_input(e: InputEvent) -> void:
 		if _scan_px >= SCAN_STEP:
 			_scan_px = fmod(_scan_px, SCAN_STEP)
 			_sound(&"chart_scan", 0.08, SCAN_LIMIT_MS)
+	elif e is InputEventGesture:
+		var f := StarchartScreen.MapChart.gesture_zoom(e, ZOOM_STEP)
+		if f != 1.0:
+			_zoom_by(f, _map_at((e as InputEventGesture).position))
+		_frame.accept_event()
 	elif e is InputEventMouseButton:
 		var mb := e as InputEventMouseButton
 		match mb.button_index:

@@ -3265,6 +3265,11 @@ class MapChart extends Control:
 				MOUSE_BUTTON_MIDDLE:
 					_dragging = mb.pressed
 					_drag_from = mb.position
+		elif event is InputEventGesture:
+			var f := gesture_zoom(event, ZOOM_STEP)
+			if f != 1.0:
+				_zoom_at((event as InputEventGesture).position, f)
+			accept_event()
 		elif event is InputEventMouseMotion:
 			var mm := event as InputEventMouseMotion
 			if _cross != null:
@@ -3418,6 +3423,18 @@ class MapChart extends Control:
 			sky_pan = _lad.s0
 			_repaint_galaxy()
 		ladder_end()
+
+	## The zoom factor of a Mac trackpad or Magic Mouse scroll (a pan gesture,
+	## never the wheel's buttons; up is in, like the wheel) or a pinch; 1.0 for
+	## anything else. Shared with `SystemMapScreen`.
+	static func gesture_zoom(e: InputEvent, step: float) -> float:
+		if e is InputEventPanGesture:
+			var dy := (e as InputEventPanGesture).delta.y
+			return 1.0 if is_zero_approx(dy) else pow(step, -dy)
+		if e is InputEventMagnifyGesture:
+			var m := (e as InputEventMagnifyGesture).factor
+			return 1.0 if m <= 0.0 else m
+		return 1.0
 
 	func _zoom_at(at: Vector2, factor: float) -> void:
 		var c0 := size * 0.5

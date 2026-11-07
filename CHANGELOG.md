@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- **Fixed** — on a Mac, trackpad and Magic Mouse scrolling, and a pinch, zoom the star chart and the
+  system map.
+- **Changed** — on the system map's panel, GO is a wide orange button; FLY HERE, PLOT NEXT JUMP and
+  ALL EVENTS beside it go quieter.
 - **Fixed** — in co-op, two ships that start different fights in the same system at the same moment
   now end up in one fight, the one that started first, on both screens. The second ship's log says
   "VELA got here first. You join their fight." Before, it could show the wrong enemy, take hits from
