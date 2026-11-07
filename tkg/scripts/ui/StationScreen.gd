@@ -1842,26 +1842,8 @@ func _part_column(mod: ModuleData) -> VBoxContainer:
 ## Everything else is navigation. They were the same grey box as a deck tab, so
 ## the moment of paying looked like the moment of browsing, and UNDOCK had been
 ## given ember by hand while BUY had not.
-##
-## DISABLED IS SPELLED OUT, and it has to be: an override on `normal` alone
-## leaves the disabled state ember too, so a BUY you cannot afford would look
-## exactly like one you can. It goes to LINE on VOID, which is the quietest
-## thing on the page.
 func _commit_button(text: String, action: Callable) -> Button:
-	var b := Widgets.button(text, action)
-	b.add_theme_stylebox_override("normal",
-		UITheme.flat(Color("#0a0f17"), UITheme.EMBER, 0, 5, 14))
-	b.add_theme_stylebox_override("hover",
-		UITheme.flat(Color("#1d1409"), UITheme.FLARE, 0, 5, 14))
-	b.add_theme_stylebox_override("pressed",
-		UITheme.flat(UITheme.EMBER, UITheme.HOT, 0, 5, 14))
-	b.add_theme_stylebox_override("disabled",
-		UITheme.flat(Color("#0a0e15"), UITheme.LINE, 0, 5, 14))
-	b.add_theme_color_override("font_color", UITheme.EMBER)
-	b.add_theme_color_override("font_hover_color", UITheme.HOT)
-	b.add_theme_color_override("font_pressed_color", UITheme.VOID)
-	b.add_theme_color_override("font_disabled_color", UITheme.COLD.darkened(0.3))
-	return b
+	return Widgets.commit(Widgets.button(text, action))
 ## WHAT IT PUTS IN YOUR DECK, as the cards themselves.
 ##
 ## THE REAL CARD FACE, not the illustration lifted out of it. Cropping `Z_ART`

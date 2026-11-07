@@ -1,23 +1,10 @@
 extends Node
 
-## A MAC'S SCROLL ZOOMS THE CHART AND THE MAP (issue #36, James, Nov 6: "did you
-## remove scrolling to zoom or is my mouse not working?"), headless:
-##   godot --headless --fixed-fps 60 --path . -- sheet=ZoomGestureTest
-##
-## On macOS a trackpad's two-finger scroll and a Magic Mouse's come to Godot as
-## InputEventPanGesture, never as WHEEL_UP / WHEEL_DOWN, and a pinch as an
-## InputEventMagnifyGesture. The star chart and the system map read only the
-## wheel's buttons, so on a Mac without a notched wheel neither zoomed at all.
-## Every event here is pushed into the game's own viewport
-## (`GameShell.input_target`) at the middle of the picture, so it goes the way a
-## hand's does, through whatever lies over it:
-##   - the wheel up zooms in and down zooms out, on the chart and on the map
-##     (it always did: the check that this test reaches the screen at all);
-##   - a scroll gesture up zooms in and down zooms out, the same way round as
-##     the wheel, on both;
-##   - a pinch out zooms in and a pinch in zooms out, on both;
-##   - a sideways scroll alone leaves the zoom where it was.
-## Fails on main 42707b66 (the gestures moved nothing) and passes with the fix.
+## A MAC'S SCROLL AND PINCH ZOOM THE CHART AND THE MAP (issue #36), headless:
+##   -- sheet=ZoomGestureTest
+## Pushed through the game's viewport on both screens: the wheel, a scroll
+## gesture and a pinch each zoom in and out the same way round, and a sideways
+## scroll leaves the zoom alone.
 
 var h := Harness.new()
 

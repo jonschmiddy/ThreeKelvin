@@ -6,13 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-- **Fixed** — on a Mac, scrolling on a trackpad or a Magic Mouse now zooms the star chart and the
-  system map, the same way a mouse wheel does, and a pinch zooms too. Before, only a mouse with a
-  notched wheel could zoom.
-- **Changed** — on the system map's side panel, an event's GO is now a wide orange button across the
-  panel, the same look as the station's BUY and UNDOCK, so it is the first thing you see. FLY HERE and
-  PLOT NEXT JUMP go quieter beside it, and on an event's own page GO takes two thirds of the foot.
-  Every button is still there and does what it did.
+- **Fixed** — on a Mac, trackpad and Magic Mouse scrolling, and a pinch, zoom the star chart and the
+  system map.
+- **Changed** — on the system map's panel, GO is a wide orange button; FLY HERE, PLOT NEXT JUMP and
+  ALL EVENTS beside it go quieter.
 - **Fixed** — in co-op, two ships that start different fights in the same system at the same moment
   now end up in one fight, the one that started first, on both screens. The second ship's log says
   "VELA got here first. You join their fight." Before, it could show the wrong enemy, take hits from

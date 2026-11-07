@@ -1,25 +1,14 @@
 extends Node
 
-## GO IS THE OBVIOUS BUTTON ON THE SYSTEM MAP'S PANEL (issue #35, Jon, Nov 6:
-## "my biggest personal complaint with the game too"), headless:
-##   godot --headless --fixed-fps 60 --path . -- sheet=SystemGoTest
-##
-## Over the first systems of a few seeds, every world with an open event that
-## the ship is not at, its page as a click on the map shows it:
-##   - each event's GO is the text column's full width (`SystemPanel.TEXT_W`),
-##     at least `GO_H` tall, inside the panel, and wears the commit ink
-##     (`Widgets.commit`: an ember edge), and one that cannot go is not ember;
-##   - the world's FLY HERE and the foot's PLOT NEXT JUMP are quiet
-##     (`Widgets.quiet`: no ground), and still there and pressable;
-##   - on the event's own page GO wears the ink and is wider than ALL EVENTS.
-## Reads the panel as built, so it fails on main 42707b66 (GO was a small grey
-## box at the right of its row).
+## GO IS THE OBVIOUS BUTTON ON THE SYSTEM MAP'S PANEL (issue #35), headless:
+##   -- sheet=SystemGoTest
+## On every world page with an open event the ship is not at: GO is the text
+## column wide, in the commit ink; FLY HERE and PLOT NEXT JUMP are quiet; on
+## the event's own page GO is in the ink and wider than a quiet ALL EVENTS.
 
 const SEEDS := [4242, 7, 1999]
 ## systems with events looked at, a seed
 const SYSTEMS := 5
-## `SystemPanel.GO_H`, held here so the test reads the same on a tree without it
-const GO_H := 20
 
 var h := Harness.new()
 var _pages := 0
@@ -63,14 +52,6 @@ func _quiet(b: Button) -> bool:
 	return sb != null and sb.bg_color.a == 0.0
 
 
-## an open encounter at the place, asked as the panel lists them
-func _open_at(P, body: int) -> bool:
-	for pair: Array in P._events():
-		if pair[0] == body and pair[1] != null and pair[1].opt >= 0 and P._is_open(pair[1].opt):
-			return true
-	return false
-
-
 func _buttons(root: Node, text: String) -> Array:
 	return root.find_children("*", "Button", true, false).filter(
 		func(c: Node) -> bool: return (c as Button).text == text and (c as Button).is_visible_in_tree())
@@ -106,7 +87,7 @@ func _system(m: SystemMapScreen, s: int) -> void:
 	var L: SystemLayout = m.view.layout
 	var panel_r: Rect2 = P.get_global_rect()
 	for bi in L.bodies.size():
-		if m.ship_reached(bi) or not _open_at(P, bi):
+		if m.ship_reached(bi) or not P._has_open_event(bi):
 			continue
 		m.select_body(bi)
 		await _frames(3)
@@ -117,7 +98,7 @@ func _system(m: SystemMapScreen, s: int) -> void:
 		for g: Button in gos:
 			var r := g.get_global_rect()
 			h._ok("%s: GO is the column's width and tall (%.0f x %.0f of %d)" % [where, r.size.x, r.size.y, P.TEXT_W],
-				absf(r.size.x - P.TEXT_W) < 0.5 and r.size.y >= GO_H)
+				absf(r.size.x - P.TEXT_W) < 0.5 and r.size.y >= P.GO_H)
 			h._ok("%s: GO is inside the panel" % where, panel_r.grow(0.5).encloses(r))
 			if not g.disabled:
 				h._ok("%s: GO wears the commit ink" % where, _ember(g, "normal"))

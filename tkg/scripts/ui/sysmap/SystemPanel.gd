@@ -522,9 +522,11 @@ func _list() -> void:
 		_eyebrow("ON %s · %d EVENT%s" % [_place_name(filter), shown.size(), "" if shown.size() == 1 else "S"])
 	else:
 		_eyebrow("EVENTS · %d OPEN OF %d" % [open, all.size()])
+	var goes := false
 	for pair in shown:
-		if filter >= 0 and pair[1] != null and pair[1].opt >= 0 and _is_open(pair[1].opt):
+		if filter >= 0 and _open_event(pair):
 			_place_event(pair[0], pair[1].opt)
+			goes = true
 		else:
 			_box.add_child(_card(pair[0], pair[1]))
 	if filter >= 0 and shown.is_empty() and not all.is_empty():
@@ -546,9 +548,8 @@ func _list() -> void:
 		jb.name = "JoinFight"
 		jb.tooltip_text = Widgets.tip("%s is fighting in this system. Join them: the enemy grows for two, and the turn waits for both of you." % Router.join_fight_names())
 	var plot := _act("PLOT NEXT JUMP", func() -> void: screen.plot_next_jump(), false)
-	# beside a world's GO it is the way out, not the way on (issue #35); with
-	# nothing left to take here it keeps the theme's weight, the page's next step
-	if filter >= 0 and _has_open_event(filter):
+	# beside a GO it is the way out, not the way on
+	if goes:
 		Widgets.quiet(plot)
 
 
@@ -578,31 +579,30 @@ func _place_event(body: int, i: int) -> void:
 
 
 ## GO, which flies you to the event (if you are not there) and down into LOCAL,
-## where it is taken. Pointed at, it says what taking the event would close.
-##
-## THE PAGE'S ONE ACTION LOOKS LIKE IT (issue #35, Jon, Nov 6: "my biggest
-## personal complaint with the game too"). It was a small grey GO at the right
-## of a row, the same box as FLY HERE and PLOT NEXT JUMP and smaller than both.
-## Now it is the text column's full width (`TEXT_W`, so the scroll bar's box
-## test still holds), taller, and in the station's commit ink (`Widgets.commit`);
-## the place's FLY HERE above it goes quiet (`_way_there`), since GO flies you
-## there anyway.
+## where it is taken. The page's one action, so it is the whole text column
+## wide (never into the scroll bar's gutter) and in the commit ink.
 const GO_H := 20
 
 func _go_button(i: int) -> void:
 	_gap(2)
-	var go := Widgets.commit(_small("GO", func() -> void: screen.go_event(i), not (_ship_at(_body_of_opt(i)) or _can_go())), 4, 8)
-	go.name = "Go"
-	# exactly the text column, never the panel: the bar's gutter stays clear
+	var go := _dress_go(_small("GO", func() -> void: screen.go_event(i), not (_ship_at(_body_of_opt(i)) or _can_go())), i)
 	go.custom_minimum_size = Vector2(TEXT_W, GO_H)
 	go.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_box.add_child(go)
+
+
+## Either GO (a world's page, an event's): the ink, DOCKED, and pointed at, what
+## taking event i would close.
+func _dress_go(go: Button, i: int) -> Button:
+	Widgets.commit(go, 4, 8)
+	go.name = "Go"
 	_docked_go(go)
 	var rivals := _rivals(i)
 	if not rivals.is_empty():
 		var names := ", ".join(rivals.map(func(j: int) -> String: return _title(j)))
 		go.mouse_entered.connect(func() -> void: hover_choice(names))
 		go.mouse_exited.connect(func() -> void: hover_choice(""))
-	_box.add_child(go)
+	return go
 
 
 ## THE SECTOR'S PAGE, WHICH IS THE STAR'S: its picture, its name and class, the
@@ -758,12 +758,13 @@ func _has_events(body: int) -> bool:
 	return false
 
 
-## An encounter at the place that is still open: its page carries a GO.
+## An (event's place, beacon) pair that is an open encounter, which gets a GO.
+func _open_event(pair: Array) -> bool:
+	return pair[1] != null and pair[1].opt >= 0 and _is_open(pair[1].opt)
+
+
 func _has_open_event(body: int) -> bool:
-	for pair in _events():
-		if pair[0] == body and pair[1] != null and pair[1].opt >= 0 and _is_open(pair[1].opt):
-			return true
-	return false
+	return _events().any(func(p: Array) -> bool: return p[0] == body and _open_event(p))
 
 
 ## THE WAY THERE: in orbit (or alongside) a place's events are open; until then
@@ -786,9 +787,7 @@ func _way_there(i: int) -> void:
 			go.add_child(_small("CANNOT UNDOCK", func() -> void: pass, true))
 		elif _can_go():
 			var fly := _small("FLY HERE", func() -> void: screen.fly_to_body(i))
-			# QUIET WHEN AN EVENT'S GO IS BELOW IT (issue #35): GO flies you
-			# here too, so FLY HERE is the way to just be there, not the way on
-			# (a world's page only: the sector's lists its events as cards)
+			# quiet above a GO, which flies you here too (the star's page has none)
 			if i >= 0 and _has_open_event(i):
 				Widgets.quiet(fly)
 			go.add_child(fly)
@@ -1015,22 +1014,16 @@ func _event_page(out: Dictionary) -> void:
 		_rule()
 		_blurb(String(o.get("body", "")), DIM)
 	# GO, the page's one action, at the foot where the panel's buttons are
-	if st.kind == &"open" or st.kind == &"left":
-		# in the commit ink, as on a world's page (issue #35); ALL EVENTS quiet
-		var go := Widgets.commit(_act("GO", func() -> void: screen.go_event(i)), 4, 8)
-		go.name = "Go"
-		# two thirds of the foot to ALL EVENTS' one
-		go.size_flags_stretch_ratio = 2.0
+	var has_go: bool = st.kind == &"open" or st.kind == &"left"
+	if has_go:
+		var go := _act("GO", func() -> void: screen.go_event(i))
 		go.disabled = not (_ship_at(body) or _can_go())
-		_docked_go(go)
-		var rivals := _rivals(i)
-		if not rivals.is_empty():
-			var names := ", ".join(rivals.map(func(j: int) -> String: return _title(j)))
-			go.mouse_entered.connect(func() -> void: hover_choice(names))
-			go.mouse_exited.connect(func() -> void: hover_choice(""))
-		Widgets.quiet(_act("ALL EVENTS", func() -> void: screen.panel_back()))
-	else:
-		_act("ALL EVENTS", func() -> void: screen.panel_back())
+		_dress_go(go, i)
+		# two thirds of the foot
+		go.size_flags_stretch_ratio = 2.0
+	var back := _act("ALL EVENTS", func() -> void: screen.panel_back())
+	if has_go:
+		Widgets.quiet(back)
 
 
 ## The line under the choices: "WILL MAKE THE QUEUE UNAVAILABLE", or nothing.

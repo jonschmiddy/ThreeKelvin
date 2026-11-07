@@ -3265,7 +3265,7 @@ class MapChart extends Control:
 				MOUSE_BUTTON_MIDDLE:
 					_dragging = mb.pressed
 					_drag_from = mb.position
-		elif event is InputEventPanGesture or event is InputEventMagnifyGesture:
+		elif event is InputEventGesture:
 			var f := gesture_zoom(event, ZOOM_STEP)
 			if f != 1.0:
 				_zoom_at((event as InputEventGesture).position, f)
@@ -3424,16 +3424,9 @@ class MapChart extends Control:
 			_repaint_galaxy()
 		ladder_end()
 
-	## A MAC SCROLLS WITHOUT A WHEEL (issue #36, James, Nov 6: "did you remove
-	## scrolling to zoom or is my mouse not working?"). On macOS Godot sends a
-	## trackpad's two-finger scroll, and a Magic Mouse's, as an
-	## InputEventPanGesture, never as WHEEL_UP / WHEEL_DOWN: only a mouse whose
-	## scroll has no phase (a plain notched wheel) makes button events. The chart
-	## and the map only ever read the buttons, so on those the scroll did nothing
-	## at all, and it never had. Scrolling up is in, as the wheel's up is, one
-	## step per unit of the gesture's delta (Godot scales a precise scroll by
-	## 0.03, so one swipe is a few notches); a pinch zooms by its own factor.
-	## Shared with `SystemMapScreen`. 1.0 for anything else, or nothing to do.
+	## The zoom factor of a Mac trackpad or Magic Mouse scroll (a pan gesture,
+	## never the wheel's buttons; up is in, like the wheel) or a pinch; 1.0 for
+	## anything else. Shared with `SystemMapScreen`.
 	static func gesture_zoom(e: InputEvent, step: float) -> float:
 		if e is InputEventPanGesture:
 			var dy := (e as InputEventPanGesture).delta.y
