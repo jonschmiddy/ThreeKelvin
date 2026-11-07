@@ -583,10 +583,12 @@ func _recipes_page(zoom: LabZoom, here: MapGen.MapNode, tag: String, dev: int) -
 	await _frames(1)
 
 
-## THE LAB'S SCREEN AT REST (Jon, Nov 5): the station owner's logo, the
-## sign-in while the pointer is on the glass, and the logo again off it. Each
-## look passes the box test inside the screen's window (`LabLogin.check`), the
-## window inside the glass, and the glass whole in the room.
+## THE LAB'S SCREEN AT REST (Jon, Nov 5; the savers, Nov 7): the station
+## owner's savers, its own three and the seven every lab runs, one up at a time;
+## the saver's own sign-in while the pointer is on the glass, and the same saver
+## at rest again off it (pointing never turns it). Each look passes the box test
+## inside the screen's window (`LabLogin.check`), the window inside the glass,
+## and the glass whole in the room. `LabSaverTest` draws every saver.
 func _sign_on(st: StationScreen, tag: String, dev: int, deep: bool) -> void:
 	var login := st._login
 	var lab := st._lab
@@ -598,64 +600,51 @@ func _sign_on(st: StationScreen, tag: String, dev: int, deep: bool) -> void:
 		and st._bench_clip.get_global_rect().is_equal_approx(glass_g)
 		and st._bench_clip.get_global_rect().encloses(st._screen_pic.get_global_rect())
 		and login.get_child_count() == 0)
-	# THE LOGO: the owner's mark and name, RESEARCH TERMINAL, DATA in its corner
+	# AT REST: the owner's savers, the one up drawn whole
 	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
 	await _frames(3)
 	var owner := "INDEPENDENT" if deep else "KORVAN"
+	var list := login.savers()
+	var own: Array = LabSavers.OWN[LabSavers.owner_key(login.owner_id)]
+	var all_in := list.size() == 10 and own.all(func(c: String) -> bool: return list.has(c)) and LabSavers.KEPT.all(func(c: String) -> bool: return list.has(c))
+	var up := login.code()
 	var bad := login.check()
 	var words: Array = login.leaves.map(func(l: Array) -> String: return str(l[0]))
-	_ok("%s: at rest the screen is %s's logo, RESEARCH TERMINAL and DATA %d, and passes the box test in %s (%s; %s)" % [tag, owner, Run.data, win.size,
-		", ".join(words), "clean" if bad.is_empty() else "; ".join(bad)],
-		login.state == LabLogin.LOGO and login.owner_short() == owner and words.has(owner) and words.has("mark")
-		and words.has("RESEARCH TERMINAL") and words.has("DATA %d" % Run.data) and bad.is_empty())
+	_ok("%s: at rest the screen runs %s's savers (%s), %s up, drawn (%d boxes) and passing the box test in %s (%s)" % [tag, owner, ",".join(list), up,
+		words.size(), win.size, "clean" if bad.is_empty() else "; ".join(bad)],
+		login.state == LabLogin.LOGO and login.owner_short() == owner and all_in and list.has(up) and words.size() >= 2 and bad.is_empty())
 	var cut := _cut_at_landing(st)
-	_ok("%s: the logo is laid out in what the landed camera keeps (%s), every box inside 960x540 there (%s)" % [tag, login.safe,
+	_ok("%s: the saver is laid out in what the landed camera keeps (%s), every box inside 960x540 there (%s)" % [tag, login.safe,
 		"all in" if cut.is_empty() else "; ".join(cut)], cut.is_empty() and login.safe.has_area())
-	# THE SIGN-IN, the pointer on the glass: the pilot, the password typing in
-	# and the cursor blinking
+	# POINTED AT: the saver's own sign-in
 	st._glass_press.notification(Control.NOTIFICATION_MOUSE_ENTER)
 	await _frames(2)
 	var was := login.state
-	await _until(func() -> bool: return login.dots() >= LabLogin.DOTS, 4000)
+	await _until(func() -> bool: return login._t >= 0.7, 4000)
 	await _frames(2)
-	var on := 0
-	var off := 0
-	var t0 := Time.get_ticks_msec()
-	while Time.get_ticks_msec() - t0 < 1000:
-		if login.cursor_on():
-			on += 1
-		else:
-			off += 1
-		await _tree.process_frame
 	bad = login.check()
 	words = login.leaves.map(func(l: Array) -> String: return str(l[0]))
-	var who := Run.display_name().to_upper()
-	var named := words.any(func(w: String) -> bool: return w.length() > 1 and who.begins_with(w))
-	_ok("%s: pointed at, the glass shows the sign-in: PILOT %s, the password's %d dots, a blinking cursor (%d on, %d off), and passes the box test (%s; %s)" % [tag, who,
-		login.dots(), on, off, ", ".join(words), "clean" if bad.is_empty() else "; ".join(bad)],
-		was == LabLogin.LOGIN and login.state == LabLogin.LOGIN and named and words.has("PILOT") and words.has("PASSWORD")
-		and words.has("dots") and words.count("field") == 2 and words.has("CLICK TO SIGN IN") and on > 0 and off > 0 and bad.is_empty())
+	var cue := words.any(func(w: String) -> bool: return w.contains("SIGN IN"))
+	_ok("%s: pointed at, %s shows its sign-in (%s), and passes the box test (%s)" % [tag, login.code(),
+		", ".join(words), "clean" if bad.is_empty() else "; ".join(bad)],
+		was == LabLogin.LOGIN and login.state == LabLogin.LOGIN and login.code() == up and cue and bad.is_empty())
 	cut = _cut_at_landing(st)
 	_ok("%s: the sign-in's every box is inside 960x540 once the camera has landed (%s)" % [tag, "all in" if cut.is_empty() else "; ".join(cut)],
 		cut.is_empty())
-	# THE CUE: CLICK TO SIGN IN breathes brighter than the field labels, and
-	# the swap from the logo ran a refresh line down the glass
+	# THE CUE: CLICK TO SIGN IN breathes, brightness only
 	var inks: Array[float] = []
-	t0 = Time.get_ticks_msec()
+	var t0 := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < int(LabLogin.PULSE_S * 1000.0):
 		inks.append(login.cue_ink())
 		await _tree.process_frame
-	_ok("%s: CLICK TO SIGN IN breathes between %.2f and %.2f, over the field labels' 0.55" % [tag, inks.min(), inks.max()],
+	_ok("%s: CLICK TO SIGN IN breathes between %.2f and %.2f" % [tag, inks.min(), inks.max()],
 		inks.min() >= LabLogin.PULSE_LO - 0.001 and inks.max() >= 0.97 and inks.max() <= 1.0)
-	# and away again, the logo
+	# and away again: the same saver at rest
 	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
-	await _tree.process_frame
-	var wiped := login.wipe_y() >= 0
-	await _frames(2)
-	_ok("%s: pointed away, the logo again (%s), a refresh line down the glass as it swaps (%s), gone after (%d)" % [tag, login.state, wiped, login.wipe_y()],
-		login.state == LabLogin.LOGO and login.dots() == 0 and wiped)
-	await _until(func() -> bool: return login.wipe_y() < 0, 1000)
-	_ok("%s: the refresh line is gone after %.2f s" % [tag, LabLogin.WIPE_S], login.wipe_y() < 0)
+	await _frames(3)
+	bad = login.check()
+	_ok("%s: pointed away, %s at rest again (%s), the same one (%s), the box test %s" % [tag, login.code(), login.state, up, "clean" if bad.is_empty() else "; ".join(bad)],
+		login.state == LabLogin.LOGO and login.code() == up and bad.is_empty())
 
 
 ## THE GLASS IS THE ONLY KEY: the one button on the lab's deck, the glass
@@ -775,7 +764,7 @@ func _landed(st: StationScreen, zoom: LabZoom, tag: String, _dev: int) -> void:
 	var login := st._login
 	var lb := login.check()
 	_ok("%s: the screen it carried in says SIGNING IN, and passes the box test (%s)" % [tag, "clean" if lb.is_empty() else "; ".join(lb)],
-		login.state == LabLogin.SIGNING and login.leaves.any(func(l: Array) -> bool: return l[0] == "SIGNING IN") and lb.is_empty())
+		login.state == LabLogin.SIGNING and login.leaves.any(func(l: Array) -> bool: return str(l[0]).contains("SIGNING IN")) and lb.is_empty())
 	var cut := _cut_at_landing(st)
 	var on_screen := Rect2(zoom.to_screen(Rect2(lab.win_rect().position + Vector2(login.safe.position), Vector2(login.safe.size))))
 	_ok("%s: landed, every box of SIGNING IN is inside 960x540 (%s; its area %s on screen)" % [tag, "all in" if cut.is_empty() else "; ".join(cut), on_screen],

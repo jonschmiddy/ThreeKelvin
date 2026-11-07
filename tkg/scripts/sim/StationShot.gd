@@ -814,9 +814,29 @@ func run(tree: SceneTree) -> void:
 	#   labphase=p        the board's loop held at p (0..1)
 	#   labzoom=k         the camera held k of the way into the glass (0..1)
 	#   stillto=<png>     the shot written there too (the profile is thrown away)
+	#
+	# THE LAB'S SAVERS (`LabLogin`, `LabSavers`), all with `deck=bench` and a used
+	# run (`data=N owned=a,b,c savertrail=N aug=N`); `saver=<code>` pins one:
+	#   saverfilm         the saver at rest (`restn` frames), the pointer on the
+	#                     glass (`hovern`), a click, the camera in, landed
+	#   saverstills=<dir> each of this lab's ten savers pinned in turn, a still at
+	#                     rest and one pointed at (`<level>_<code>_rest|hover`,
+	#                     the window and the glass at the window's own scale)
+	#   saverturn         the turn as it runs, `turnhold=S` a saver (the game's
+	#                     is `LabLogin.HOLD_S`), `turns=N` savers; prints the glass
+	#                     so a film can be cut to it
 	await _lab_mode(tree)
 	if OS.get_cmdline_user_args().has("saverfilm"):
 		await _saver_film(tree)
+		tree.quit()
+		return
+	for a_sv in OS.get_cmdline_user_args():
+		if (a_sv as String).begins_with("saverstills="):
+			await _saver_stills(tree, (a_sv as String).substr(12))
+			tree.quit()
+			return
+	if OS.get_cmdline_user_args().has("saverturn"):
+		await _saver_turn(tree)
 		tree.quit()
 		return
 	if OS.get_cmdline_user_args().has("labzoomfilm"):
@@ -1812,7 +1832,7 @@ func _lab_zoom_film(tree: SceneTree) -> void:
 	print("FILM mark hover %d" % Engine.get_frames_drawn())
 	for i in 100:
 		await tree.process_frame
-	print("FILM hover state %s dots %d" % [scr._login.state, scr._login.dots()])
+	print("FILM hover state %s saver %s" % [scr._login.state, scr._login.code()])
 	if stills != "":
 		await _film_still(tree, scr, "%s/%s_login" % [stills, lab._level])
 	for i in 20:
@@ -1886,32 +1906,13 @@ func _film_click(tree: SceneTree, target: Viewport, at: Vector2) -> void:
 			await tree.process_frame
 
 
-## SAVER FILM (review_lab r5, not committed): a used run (DATA, steps owned, a
-## route flown), the room powered on, the saver at rest (`restn` frames), the
-## pointer onto the glass (`hovern`), a click, the camera in, landed. Every
-## wait counts frames: the movie writer's frames are game time. `filmstills=DIR`
-## writes the rest and the hover there, the window and the glass.
-func _saver_film(tree: SceneTree) -> void:
-	var scr := Router.current as StationScreen
-	if scr == null or scr.lab_zoom() == null:
-		print("FILM no lab")
-		return
-	var zoom := scr.lab_zoom()
-	var lab := scr._lab
-	Router.animate_in_harness = true
-	var stills := ""
-	var rest_n := 200
-	var hover_n := 110
+## A USED RUN FOR THE SAVERS (DATA, steps owned, a route flown, parts
+## augmented), from `data=N owned=a,b,c savertrail=N aug=N`.
+func _saver_run() -> void:
 	var trail_n := 0
 	for a in OS.get_cmdline_user_args():
 		var s := a as String
-		if s.begins_with("filmstills="):
-			stills = s.substr(11)
-		elif s.begins_with("restn="):
-			rest_n = int(s.substr(6))
-		elif s.begins_with("hovern="):
-			hover_n = int(s.substr(7))
-		elif s.begins_with("data="):
+		if s.begins_with("data="):
 			Run.data = int(s.substr(5))
 		elif s.begins_with("owned="):
 			var o := s.substr(6).split(",")
@@ -1941,7 +1942,33 @@ func _saver_film(tree: SceneTree) -> void:
 		Run.trail = PackedInt32Array(path)
 		Run.jumps = path.size() - 1
 	Sig.resources_changed.emit()
-	print("FILM saver %s level %s data %d owned %s trail %d installed %d hull %s" % [LabLogin.splash(), lab._level, Run.data, str(Run.board_owned), Run.trail.size(), Run.installed.size(), Run.hull.name if Run.hull != null else "-"])
+
+
+## SAVER FILM: a used run, the room powered on, the saver at rest (`restn`
+## frames), the pointer onto the glass (`hovern`), a click, the camera in,
+## landed. Every wait counts frames: the movie writer's frames are game time.
+## `filmstills=DIR` writes the rest and the hover there, the window and the glass.
+func _saver_film(tree: SceneTree) -> void:
+	var scr := Router.current as StationScreen
+	if scr == null or scr.lab_zoom() == null:
+		print("FILM no lab")
+		return
+	var zoom := scr.lab_zoom()
+	var lab := scr._lab
+	Router.animate_in_harness = true
+	var stills := ""
+	var rest_n := 200
+	var hover_n := 110
+	for a in OS.get_cmdline_user_args():
+		var s := a as String
+		if s.begins_with("filmstills="):
+			stills = s.substr(11)
+		elif s.begins_with("restn="):
+			rest_n = int(s.substr(6))
+		elif s.begins_with("hovern="):
+			hover_n = int(s.substr(7))
+	_saver_run()
+	print("FILM saver %s level %s data %d owned %s trail %d installed %d hull %s" % [scr._login.code(), lab._level, Run.data, str(Run.board_owned), Run.trail.size(), Run.installed.size(), Run.hull.name if Run.hull != null else "-"])
 	var target := GameShell.input_target(tree)
 	_film_move(target, Vector2(40, 520))
 	var n0 := 0
@@ -1975,4 +2002,94 @@ func _saver_film(tree: SceneTree) -> void:
 	print("FILM mark landed %d" % Engine.get_frames_drawn())
 	for i in 30:
 		await tree.process_frame
+	print("FILM mark end %d" % Engine.get_frames_drawn())
+
+
+## SAVER STILLS: each of this lab's ten savers pinned in turn (`LabLogin.forced`),
+## `restn` frames at rest (default 3 s) and a still, then the pointer on the
+## glass for `hovern` frames and a still. Prints each saver's box test.
+func _saver_stills(tree: SceneTree, dir: String) -> void:
+	var scr := Router.current as StationScreen
+	if scr == null or scr.lab_zoom() == null:
+		print("FILM no lab")
+		return
+	var lab := scr._lab
+	Router.animate_in_harness = true
+	var rest_n := 180
+	var hover_n := 50
+	var codes: Array[String] = []
+	for a in OS.get_cmdline_user_args():
+		var s := a as String
+		if s.begins_with("restn="):
+			rest_n = int(s.substr(6))
+		elif s.begins_with("hovern="):
+			hover_n = int(s.substr(7))
+		elif s.begins_with("savercodes="):
+			for c in s.substr(11).split(","):
+				codes.append(c.strip_edges().to_upper())
+	_saver_run()
+	if codes.is_empty():
+		codes = scr._login.savers()
+	print("FILM stills %s owner %s savers %s" % [lab._level, scr._login.owner_name(), ",".join(codes)])
+	var target := GameShell.input_target(tree)
+	_film_move(target, Vector2(40, 520))
+	var n0 := 0
+	while scr._login.since_on() < 0.8 and n0 < 900:
+		await tree.process_frame
+		n0 += 1
+	for code in codes:
+		LabLogin.forced = code
+		for i in rest_n:
+			await tree.process_frame
+		await _film_still(tree, scr, "%s/%s_%s_rest" % [dir, lab._level, code])
+		scr._glass_press.notification(Control.NOTIFICATION_MOUSE_ENTER)
+		for i in hover_n:
+			await tree.process_frame
+		await _film_still(tree, scr, "%s/%s_%s_hover" % [dir, lab._level, code])
+		scr._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
+		for i in 12:
+			await tree.process_frame
+	LabLogin.forced = ""
+
+
+## SAVER TURN: the lab's savers turning as they do in play, each up `turnhold`
+## seconds (the game's `LabLogin.HOLD_S` is 40) for `turns` savers, the pointer
+## off the glass. Prints the glass in the window's px and a mark at each turn.
+func _saver_turn(tree: SceneTree) -> void:
+	var scr := Router.current as StationScreen
+	if scr == null or scr.lab_zoom() == null:
+		print("FILM no lab")
+		return
+	var lab := scr._lab
+	Router.animate_in_harness = true
+	var turns := 10
+	for a in OS.get_cmdline_user_args():
+		var s := a as String
+		if s.begins_with("turnhold="):
+			LabLogin.hold_s = float(s.substr(9))
+		elif s.begins_with("turns="):
+			turns = int(s.substr(6))
+	_saver_run()
+	var target := GameShell.input_target(tree)
+	_film_move(target, Vector2(40, 520))
+	var k := float(tree.root.get_texture().get_size().x) / 960.0
+	var g := lab.glass_rect().grow(16.0)
+	var xf := lab.get_global_transform()
+	var r := Rect2(xf * g.position * k, g.size * xf.get_scale().x * k)
+	print("FILM turn %s owner %s hold %.2f order %s" % [lab._level, scr._login.owner_name(), LabLogin.hold_s, ",".join(scr._login.savers())])
+	print("FILM glass %d %d %d %d" % [int(r.position.x), int(r.position.y), int(r.size.x), int(r.size.y)])
+	print("FILM mark start %d" % Engine.get_frames_drawn())
+	var last := ""
+	var seen := 0
+	var n := 0
+	while n < 60 * 600:
+		await tree.process_frame
+		n += 1
+		var c := scr._login.code()
+		if c != last:
+			last = c
+			seen += 1
+			print("FILM mark saver %s %d at %.2f" % [c, Engine.get_frames_drawn(), scr._login.turn_t])
+			if seen > turns:
+				break
 	print("FILM mark end %d" % Engine.get_frames_drawn())

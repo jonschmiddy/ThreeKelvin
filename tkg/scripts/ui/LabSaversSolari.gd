@@ -1,8 +1,8 @@
 class_name LabSaversSolari
 extends RefCounted
 
-## MOCK (review_lab r6 owners, Nov 7; not for feat/science): three screensavers
-## only a Solari Foundry Lab runs. Jon on the seven: "Love these. Want more per
+## Three screensavers only a Solari Foundry Lab runs (review_lab r6 owners,
+## Nov 7). Jon on the seven: "Love these. Want more per
 ## owner." Each is its own idea, drawn with `LabSavers`' kit on `LabLogin`'s
 ## canvas, on the lab's clock (never the wall):
 ##
@@ -57,30 +57,42 @@ func _mk() -> Color:
 	return g.tint
 
 
+## The ramps, worked out once in 256 steps (a ramp is looked up per pixel, and
+## working it out each time cost SOL3 most of its frame).
+static var _heat_lut := PackedColorArray()
+static var _iron_lut := PackedColorArray()
+
+
+static func _ramp(stops: Array[Color], pos: Array[float]) -> PackedColorArray:
+	var out := PackedColorArray()
+	out.resize(256)
+	for n in 256:
+		var u := float(n) / 255.0
+		var c := stops[0]
+		for i in range(1, stops.size()):
+			if u <= pos[i]:
+				c = LabBoard.mixc(stops[i - 1], stops[i], (u - pos[i - 1]) / (pos[i] - pos[i - 1]))
+				break
+		out[n] = c
+	return out
+
+
 ## The Foundry's heat ramp: dark, ember, amber, straw, white (0..1).
 func _heat(u: float, dim: float) -> Color:
-	var stops: Array[Color] = [LabBoard.BG, Color("#3a1408"), LabBoard.EMBER, LabBoard.NEXT, LabBoard.HOT, LabBoard.WHITE]
-	var pos: Array[float] = [0.0, 0.2, 0.45, 0.65, 0.85, 1.0]
-	u = clampf(u, 0.0, 1.0)
-	var c := stops[0]
-	for i in range(1, stops.size()):
-		if u <= pos[i]:
-			c = LabBoard.mixc(stops[i - 1], stops[i], (u - pos[i - 1]) / (pos[i] - pos[i - 1]))
-			break
-	return LabBoard.mixc(LabBoard.BG, c, dim)
+	if _heat_lut.is_empty():
+		_heat_lut = _ramp([LabBoard.BG, Color("#3a1408"), LabBoard.EMBER, LabBoard.NEXT, LabBoard.HOT, LabBoard.WHITE],
+			[0.0, 0.2, 0.45, 0.65, 0.85, 1.0])
+	var c := _heat_lut[clampi(int(u * 255.0), 0, 255)]
+	return c if dim >= 1.0 else LabBoard.mixc(LabBoard.BG, c, dim)
 
 
 ## A thermal camera's ramp (black, violet, crimson, orange, straw, white).
 func _iron(u: float, dim: float) -> Color:
-	var stops: Array[Color] = [LabBoard.BG, Color("#2c1446"), Color("#86203c"), LabBoard.EMBER, LabBoard.NEXT, LabBoard.HOT, LabBoard.WHITE]
-	var pos: Array[float] = [0.0, 0.16, 0.36, 0.56, 0.72, 0.88, 1.0]
-	u = clampf(u, 0.0, 1.0)
-	var c := stops[0]
-	for i in range(1, stops.size()):
-		if u <= pos[i]:
-			c = LabBoard.mixc(stops[i - 1], stops[i], (u - pos[i - 1]) / (pos[i] - pos[i - 1]))
-			break
-	return LabBoard.mixc(LabBoard.BG, c, dim)
+	if _iron_lut.is_empty():
+		_iron_lut = _ramp([LabBoard.BG, Color("#2c1446"), Color("#86203c"), LabBoard.EMBER, LabBoard.NEXT, LabBoard.HOT, LabBoard.WHITE],
+			[0.0, 0.16, 0.36, 0.56, 0.72, 0.88, 1.0])
+	var c := _iron_lut[clampi(int(u * 255.0), 0, 255)]
+	return c if dim >= 1.0 else LabBoard.mixc(LabBoard.BG, c, dim)
 
 
 ## The Foundry's own parts, by name, for the test stand.
@@ -190,15 +202,25 @@ func _paint_1() -> void:
 	# THE TRACE, newest at the pen; under it the heat, dithered down to the axis
 	var pen := cr - 6
 	var prev := -1
+	var glow := _heat(0.42, 0.75 * dim)
 	for x in range(cl + 1, pen + 1):
 		var temp := _m_temp(t - float(pen - x) / M_PXS)
 		var y: int = yv.call(temp)
 		var u := 0.5 + 0.45 * (temp - M_OLD) / (M_OURS - M_OLD)
 		# the glow under it, down to the old limit
-		for yy in range(y + 1, y_old):
-			var d := float(yy - y) / float(maxi(1, y_old - y))
-			if LabBoard.bayer(x, yy) < 0.16 * pow(1.0 - d, 2.4):
-				k.px(x, yy, _heat(0.42, 0.75 * dim))
+		# (only the rows of this column whose Bayer step can pass at all: a 4x4
+		# pattern has three under 0.16)
+		var span_y := float(maxi(1, y_old - y))
+		for r4 in 4:
+			var b := LabBoard.bayer(x, r4)
+			if b >= 0.16:
+				continue
+			var yy := y + 1 + posmod(r4 - (y + 1), 4)
+			while yy < y_old:
+				var d := float(yy - y) / span_y
+				if b < 0.16 * pow(1.0 - d, 2.4):
+					k.px(x, yy, glow)
+				yy += 4
 		var c := _heat(u, dim)
 		if prev < 0:
 			k.px(x, y, c)
@@ -348,6 +370,26 @@ func _paint_2() -> void:
 
 const R_PULSE := 1.7
 const R_SPEED := 38.0
+## The fins' heat in this many steps (each step's fin drawn once).
+const R_STEPS := 40
+
+
+## One fin at heat `heat`, root at the truss (`side` -1 above it, 1 below), into
+## the layer being made (its rect's top left is the layer's own).
+func _fin(fw: int, fh: int, side: int, heat: float) -> void:
+	var o := k._img_o
+	for j in fh:
+		var y := o.y + (fh - 1 - j if side < 0 else j)
+		var fall := pow(1.0 - float(j) / float(fh), 0.8)
+		for x in range(o.x, o.x + fw):
+			var edge := x == o.x or x == o.x + fw - 1 or j == fh - 1
+			var rib := posmod(x - o.x, 2) == 1
+			var u := heat * (0.25 + 0.75 * fall)
+			if edge:
+				u = maxf(u * 0.8, 0.22)
+			elif not rib:
+				u *= 0.72
+			k.px(x, y, _iron(u, 1.0))
 
 
 func _paint_3() -> void:
@@ -403,14 +445,11 @@ func _paint_3() -> void:
 		var sy := sy0 + int(rng.randf() * float(sy1 - sy0))
 		k.px(sx, sy, k.ink((0.1 + 0.25 * rng.randf()) * dim))
 	# THE HULL'S EDGE, on the left, its vent slots warm
-	for y in range(sy0, sy1):
-		for x in range(sx0, sx0 + hull_w):
-			var e := x == sx0 + hull_w - 1
-			k.px(x, y, _iron(0.3 if e else 0.2, dim))
+	g.draw_rect(Rect2(sx0, sy0, hull_w - 1, sy1 - sy0), _iron(0.2, dim))
+	g.draw_rect(Rect2(sx0 + hull_w - 1, sy0, 1, sy1 - sy0), _iron(0.3, dim))
 	var vy := sy0 + 4
 	while vy < sy1 - 3:
-		for x in range(sx0 + 3, sx0 + hull_w - 3):
-			k.px(x, vy, _iron(0.55 + 0.1 * sin(t * 1.3 + float(vy)), dim))
+		k.span(sx0 + 3, sx0 + hull_w - 3, vy, _iron(0.55 + 0.1 * sin(t * 1.3 + float(vy)), dim))
 		vy += 6
 	# THE TRUSS, laced, out to the last fin
 	for x in range(sx0 + hull_w, truss_end):
@@ -418,22 +457,16 @@ func _paint_3() -> void:
 		k.px(x, cy + 3, _iron(0.38, dim))
 		var ph := posmod(x - sx0, 6)
 		k.px(x, cy - 3 + ph, _iron(0.3, dim))
-	# THE FINS, above and below the truss: ribbed panels, hottest at the root
+	# THE FINS, above and below the truss: ribbed panels, hottest at the root.
+	# A fin's picture is the same for the same heat, so each is drawn from one
+	# made once per heat step (`R_STEPS` of them) and size (`LabSavers.layer`).
 	for i in n:
 		var fxa := fx0 + i * sp
+		var lv := clampi(roundi(heats[i] * float(R_STEPS)), 0, R_STEPS * 2)
 		for side: int in [-1, 1]:
-			for j in fh:
-				var y := cy + side * (5 + j)
-				var fall := pow(1.0 - float(j) / float(fh), 0.8)
-				for x in range(fxa, fxa + fw):
-					var edge := x == fxa or x == fxa + fw - 1 or j == fh - 1
-					var rib := posmod(x - fxa, 2) == 1
-					var u := heats[i] * (0.25 + 0.75 * fall)
-					if edge:
-						u = maxf(u * 0.8, 0.22)
-					elif not rib:
-						u *= 0.72
-					k.px(x, y, _iron(u, dim))
+			var top := cy - 4 - fh if side < 0 else cy + 5
+			k.layer("sol3fin|%d|%d|%d|%d" % [lv, fw, fh, side], Rect2i(fxa, top, fw, fh),
+				_fin.bind(fw, fh, side, float(lv) / float(R_STEPS)), dim)
 			# the coolant run up the fin's middle, from the truss
 			for j in range(0, 4):
 				k.px(fxa + fw / 2, cy + side * (1 + j), _iron(heats[i] * 0.9, dim))

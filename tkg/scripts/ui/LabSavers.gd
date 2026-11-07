@@ -1,9 +1,13 @@
 class_name LabSavers
 extends RefCounted
 
-## MOCK (review_lab r5, Nov 5; not for feat/science): seven screensavers for the
-## Lab's glass at rest, each with its own hover cue. Jon on round three: "I like
-## the screensaver the best, but I want more options for what these can be."
+## THE LAB'S SCREENSAVERS, for its glass at rest, each with its own hover cue
+## and sign-in (Jon, Nov 5: "I like the screensaver the best, but I want more
+## options for what these can be"; Nov 7: all seven kept in the owner's dress,
+## "Want more per owner", then all 24 of the owners' own kept). `LabLogin`
+## picks which is up (`list_for`, the turn); this draws it.
+##
+## THE SEVEN EVERY LAB RUNS, dressed by its owner (`LabSaverDress`):
 ##
 ##   B  THE BOARD'S CHART, polished: drawn with the board's own painter
 ##      (`LabBoard`'s rings, discs, halos, arms and states) where the landed
@@ -21,8 +25,53 @@ extends RefCounted
 ##   6  THE GALAXY: the run's galaxy turning as a toy, your route traced on it,
 ##      the core pulsing
 ##
+## THREE MORE PER OWNER, each only at that owner's labs (`OWN`): Korvan K1-K3,
+## Solari SOL1-SOL3 (`LabSaversSolari`), Probate P1-P3, Redline R1-R3, Cygnet
+## C1-C3, Verity VER1-VER3, Calyx CX1-CX3, and the independent labs' I1-I3.
+##
 ## Everything is drawn on `LabLogin`'s canvas, in its window's px, on the lab's
-## clock (`since_on`, the lamp clock) and the look's own (`_t`): never the wall.
+## clock (`since_on`, the lamp clock, from when this saver came up:
+## `rest_t`) and the look's own (`_t`): never the wall.
+
+## The seven every lab runs.
+const KEPT: Array[String] = ["B", "1", "2", "3", "4", "5", "6"]
+## Each owner's own three (&"" an independent lab).
+const OWN := {
+	&"korvan": ["K1", "K2", "K3"],
+	&"solari": ["SOL1", "SOL2", "SOL3"],
+	&"probate": ["P1", "P2", "P3"],
+	&"redline": ["R1", "R2", "R3"],
+	&"cygnet": ["C1", "C2", "C3"],
+	&"verity": ["VER1", "VER2", "VER3"],
+	&"calyx": ["CX1", "CX2", "CX3"],
+	&"": ["I1", "I2", "I3"],
+}
+## Every saver there is.
+const ALL: Array[String] = ["B", "1", "2", "3", "4", "5", "6", "K1", "K2", "K3", "SOL1", "SOL2", "SOL3",
+	"P1", "P2", "P3", "R1", "R2", "R3", "C1", "C2", "C3", "VER1", "VER2", "VER3", "CX1", "CX2", "CX3", "I1", "I2", "I3"]
+
+
+## Whose savers a lab of `owner_id` runs: its own, or an independent lab's.
+static func owner_key(owner_id: StringName) -> StringName:
+	return owner_id if OWN.has(owner_id) else &""
+
+
+## A lab's ten savers (its owner's three and the seven), in the order that
+## station shows them: dealt from `key` (the galaxy's seed and the system), so
+## everyone at that station sees the same order.
+static func list_for(owner_id: StringName, key: int) -> Array[String]:
+	var l: Array[String] = []
+	l.assign(OWN[owner_key(owner_id)])
+	l.append_array(KEPT)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = key
+	for i in range(l.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var t := l[i]
+		l[i] = l[j]
+		l[j] = t
+	return l
+
 
 var g: LabLogin
 var _bp: LabBoard = null
@@ -116,7 +165,7 @@ func paint(style: String) -> void:
 			_solari().paint(style)
 
 
-## MOCK (r6 owners): the Solari Foundry's own savers (`LabSaversSolari`).
+## The Solari Foundry's own savers (`LabSaversSolari`).
 var _sol: LabSaversSolari = null
 
 
@@ -203,8 +252,28 @@ func hk(dur: float = 0.3) -> float:
 	return 1.0 - pow(1.0 - k, 3.0)
 
 
+## Seconds this saver has been up at rest: from the power-on for the first, from
+## the turn that brought it up for the rest (`LabLogin.shown_from`).
 func rest_t() -> float:
-	return maxf(0.0, g.since_on())
+	return maxf(0.0, g.since_on() - g.shown_from)
+
+
+## The owner's dress for the seven (`LabSaverDress`), and its accent: the lab's
+## own ink where it has none.
+var _dress_of := StringName("?")
+var _dress := {}
+
+
+func dress() -> Dictionary:
+	if _dress_of != g.owner_id:
+		_dress_of = g.owner_id
+		_dress = LabSaverDress.of(g.owner_id)
+	return _dress
+
+
+func acc(a: float) -> Color:
+	var c: Variant = dress().acc
+	return LabBoard.mixc(LabBoard.BG, c as Color, clampf(a, 0.0, 1.0)) if c != null else ink(a)
 
 
 ## The power-on's fade (the look comes up as the lab's screen opens).
@@ -227,8 +296,89 @@ func ok(x: int, y: int) -> bool:
 
 
 func px(x: int, y: int, c: Color) -> void:
+	if _img != null:
+		# building a cached layer: into its picture, not onto the glass
+		var qx := x - _img_o.x
+		var qy := y - _img_o.y
+		if qx >= 0 and qy >= 0 and qx < _img.get_width() and qy < _img.get_height():
+			if c.a < 1.0:
+				c = _img.get_pixel(qx, qy).blend(c)
+			_img.set_pixel(qx, qy, c)
+		return
 	if ok(x, y):
 		g.draw_rect(Rect2(x, y, 1, 1), c)
+
+
+## A row of pixels, `x0` up to `x1` (not included), as one rect where nothing
+## is kept off it.
+func span(x0: int, x1: int, y: int, c: Color) -> void:
+	if x1 <= x0:
+		return
+	if _img == null and _circ_r < 0 and box_free(Rect2i(x0, y, x1 - x0, 1)):
+		g.draw_rect(Rect2(x0, y, x1 - x0, 1), c)
+		return
+	for x in range(x0, x1):
+		px(x, y, c)
+
+
+## A DITHER TEXTURE: every pixel of `r` whose Bayer value (by its place on the
+## glass) is under `thr`, in `c`; a column of it is drawn with `dither_col`.
+func dither_tex(r: Rect2i, c: Color, thr: float) -> ImageTexture:
+	var key := "dither|%d|%d|%d|%d|%s|%.3f" % [r.position.x, r.position.y, r.size.x, r.size.y, c.to_html(), thr]
+	var tex: ImageTexture = _layers.get(key)
+	if tex == null:
+		var img := Image.create(maxi(1, r.size.x), maxi(1, r.size.y), false, Image.FORMAT_RGBA8)
+		for y in r.size.y:
+			for x in r.size.x:
+				if LabBoard.bayer(r.position.x + x, r.position.y + y) < thr:
+					img.set_pixel(x, y, c)
+		tex = ImageTexture.create_from_image(img)
+		_layers[key] = tex
+	return tex
+
+
+## Column `x` of a dither texture made for `r`, rows `y0` up to `y1`.
+func dither_col(tex: ImageTexture, r: Rect2i, x: int, y0: int, y1: int) -> void:
+	y0 = maxi(y0, r.position.y)
+	y1 = mini(y1, r.end.y)
+	if y1 <= y0 or x < r.position.x or x >= r.end.x:
+		return
+	g.draw_texture_rect_region(tex, Rect2(x, y0, 1, y1 - y0), Rect2(x - r.position.x, y0 - r.position.y, 1, y1 - y0))
+
+
+## A CACHED LAYER (the heavy savers' still parts): what `paint` draws with `px`
+## and `span` in `r`, made into a picture the first time and drawn from it
+## after, at `r`'s place (a key's picture is the same wherever it stands), its
+## alpha `mod` (the power-on's fade). `key` must name everything it depends on.
+## Nothing is kept off it: a plate drawn after covers it.
+var _img: Image = null
+var _img_o := Vector2i.ZERO
+var _layers := {}
+
+
+func layer(key: String, r: Rect2i, paint: Callable, mod: float = 1.0) -> void:
+	if r.size.x <= 0 or r.size.y <= 0:
+		return
+	var tex: ImageTexture = _layers.get(key)
+	if tex == null:
+		_img = Image.create(r.size.x, r.size.y, false, Image.FORMAT_RGBA8)
+		_img_o = r.position
+		var keep := _keep.duplicate()
+		var clip := _clip
+		var circ := _circ_r
+		_keep.clear()
+		_clip = r
+		_circ_r = -1
+		paint.call()
+		_keep.assign(keep)
+		_clip = clip
+		_circ_r = circ
+		tex = ImageTexture.create_from_image(_img)
+		_img = null
+		if _layers.size() >= 400:
+			_layers.clear()
+		_layers[key] = tex
+	g.draw_texture(tex, Vector2(r.position), Color(1, 1, 1, mod))
 
 
 func box_free(r: Rect2i) -> bool:
@@ -338,7 +488,7 @@ func plate_draw(r: Rect2i, lines: Array, full: bool) -> void:
 	var y := r.position.y + 5
 	for l: Array in lines:
 		var sz: int = int(l[2]) if l.size() > 2 else 8
-		sayc(r.position.x + r.size.x / 2, y, String(l[0]), l[1] as Color, sz, false)
+		sayc(r.position.x + r.size.x / 2, y, String(l[0]), l[1] as Color, sz)
 		y += 10 if sz == 8 else 15
 
 
@@ -434,6 +584,19 @@ func _b_state(b: int, k: int) -> StringName:
 func _b_chart(c: Vector2, k: float, rot: float, tr: float, dim: float) -> void:
 	var bp := _painter()
 	var BG := LabBoard.BG
+	# THE OWNER'S DRESS: its colour on the owned steps, the DATA running in, the
+	# flight computer's glow (`LabSaverDress`); the board's own where it has none
+	var dz := dress()
+	var own: Color = LabBoard.OWN
+	var own_d: Color = LabBoard.OWN_D
+	var a_col: Color = dz.acc if dz.acc != null else LabBoard.OWN
+	if bool(dz.b_owned):
+		own = a_col
+		own_d = LabBoard.mixc(BG, a_col, 0.55)
+	var pulse_head: Color = LabBoard.mixc(a_col, LabBoard.WHITE, 0.45) if bool(dz.b_pulse) else LabBoard.WHITE
+	var pulse_tail: Color = a_col if bool(dz.b_pulse) else LabBoard.HOT
+	var hub: Color = a_col if bool(dz.b_hub) else LabBoard.OWN
+	var hub_d: Color = LabBoard.mixc(BG, a_col, 0.55) if bool(dz.b_hub) else LabBoard.OWN_D
 	# THE STARS OF THE DISC
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
@@ -491,7 +654,7 @@ func _b_chart(c: Vector2, k: float, rot: float, tr: float, dim: float) -> void:
 				n += 1
 				match st:
 					&"owned":
-						px(p.x, p.y, LabBoard.mixc(BG, LabBoard.OWN, dep))
+						px(p.x, p.y, LabBoard.mixc(BG, own, dep))
 					&"next", &"short":
 						if posmod(floori(float(n + off) / 3.0), 2) == 0:
 							px(p.x, p.y, LabBoard.mixc(BG, LabBoard.NEXT if st == &"next" else LabBoard.mixc(LabBoard.NEXT, BG, 0.6), dep))
@@ -504,10 +667,16 @@ func _b_chart(c: Vector2, k: float, rot: float, tr: float, dim: float) -> void:
 					var t := fposmod(phase + o2 + 0.17 * b + 0.29 * kk, 1.0)
 					var i := int((1.0 - t) * (pts.size() - 1))
 					var hp: Vector2i = pts[i]
-					px(hp.x, hp.y, LabBoard.mixc(BG, LabBoard.WHITE, dim))
+					if bool(dz.b_diamond):
+						# a unit on its way in: a small diamond, not a dot
+						for q: Vector2i in [Vector2i(0, -1), Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, 1)]:
+							px(hp.x + q.x, hp.y + q.y, LabBoard.mixc(BG, pulse_tail, dim))
+						px(hp.x, hp.y, LabBoard.mixc(BG, pulse_head, dim))
+						continue
+					px(hp.x, hp.y, LabBoard.mixc(BG, pulse_head, dim))
 					for j in [1, 2]:
 						var tp: Vector2i = pts[mini(pts.size() - 1, i + j)]
-						px(tp.x, tp.y, LabBoard.mixc(BG, LabBoard.HOT, dim * (0.8 if j == 1 else 0.45)))
+						px(tp.x, tp.y, LabBoard.mixc(BG, pulse_tail, dim * (0.8 if j == 1 else 0.45)))
 	# THE STEPS, with the board's own rings, discs and halos (whole or not at
 	# all: one behind the plate or a corner's words is not drawn)
 	for b in 3:
@@ -522,12 +691,12 @@ func _b_chart(c: Vector2, k: float, rot: float, tr: float, dim: float) -> void:
 			match st:
 				&"owned":
 					var pr := r + 1 + roundi(3.0 * lp)
-					bp._dither_ring(g, p.x, p.y, pr, pr + 1, LabBoard.mixc(BG, LabBoard.OWN_D if lp > 0.5 else LabBoard.OWN, al), 1.0 - lp)
-					bp._disc(g, p.x, p.y, r, LabBoard.mixc(BG, LabBoard.OWN, 0.2 * al))
-					bp._ring(g, p.x, p.y, r, LabBoard.mixc(BG, LabBoard.OWN, al))
+					bp._dither_ring(g, p.x, p.y, pr, pr + 1, LabBoard.mixc(BG, own_d if lp > 0.5 else own, al), 1.0 - lp)
+					bp._disc(g, p.x, p.y, r, LabBoard.mixc(BG, own, 0.2 * al))
+					bp._ring(g, p.x, p.y, r, LabBoard.mixc(BG, own, al))
 					if r >= 5:
-						bp._ring(g, p.x, p.y, r - 2, LabBoard.mixc(BG, LabBoard.OWN_D, al))
-					g.draw_rect(Rect2(p.x - 1, p.y - 1, 3, 3), LabBoard.mixc(BG, LabBoard.OWN, al))
+						bp._ring(g, p.x, p.y, r - 2, LabBoard.mixc(BG, own_d, al))
+					g.draw_rect(Rect2(p.x - 1, p.y - 1, 3, 3), LabBoard.mixc(BG, own, al))
 				&"next":
 					bp._dither_ring(g, p.x, p.y, r + 1, r + 3, LabBoard.mixc(BG, LabBoard.NEXT_D, al), 0.7 + 0.3 * sin(TAU * lp))
 					bp._disc(g, p.x, p.y, r, LabBoard.mixc(BG, LabBoard.NEXT, 0.2 * al))
@@ -548,15 +717,15 @@ func _b_chart(c: Vector2, k: float, rot: float, tr: float, dim: float) -> void:
 	for b in 3:
 		n_owned += clampi(Run.board_owned[b] if b < Run.board_owned.size() else 0, 0, 3)
 	if box_free(Rect2i(cc - Vector2i(hub_r + 4, hub_r + 4), Vector2i(2 * hub_r + 9, 2 * hub_r + 9))):
-		bp._dither_ring(g, cc.x, cc.y, hub_r + 1, hub_r + 3, LabBoard.mixc(BG, LabBoard.OWN_D, dim), 0.8 + 0.2 * sin(TAU * phase))
-		bp._disc(g, cc.x, cc.y, hub_r, LabBoard.mixc(BG, LabBoard.OWN, 0.1 * dim))
-		bp._ring(g, cc.x, cc.y, hub_r, LabBoard.mixc(BG, LabBoard.OWN, dim))
-		bp._ring(g, cc.x, cc.y, hub_r - 2, LabBoard.mixc(BG, LabBoard.OWN_D, dim))
+		bp._dither_ring(g, cc.x, cc.y, hub_r + 1, hub_r + 3, LabBoard.mixc(BG, hub_d, dim), 0.8 + 0.2 * sin(TAU * phase))
+		bp._disc(g, cc.x, cc.y, hub_r, LabBoard.mixc(BG, hub, 0.1 * dim))
+		bp._ring(g, cc.x, cc.y, hub_r, LabBoard.mixc(BG, hub, dim))
+		bp._ring(g, cc.x, cc.y, hub_r - 2, LabBoard.mixc(BG, hub_d, dim))
 		for i in 9:
 			var ang := deg_to_rad(90.0 - i * 40.0)
 			var sx := roundi(cc.x + (hub_r - 4) * cos(ang))
 			var sy := roundi(cc.y - (hub_r - 4) * sin(ang))
-			g.draw_rect(Rect2(sx, sy, 1, 1), LabBoard.mixc(BG, LabBoard.OWN, dim if i < n_owned else 0.3 * dim))
+			g.draw_rect(Rect2(sx, sy, 1, 1), LabBoard.mixc(BG, hub, dim if i < n_owned else 0.3 * dim))
 
 
 # ================================================================== 1: the sky outside
@@ -582,6 +751,8 @@ func _paint_1() -> void:
 	var r := (h - 6) / 2
 	var sc := Vector2i(x0 + 3 + r, y0 + h / 2)
 	var L := _sys()
+	var dz := dress()
+	var style := String(dz.s1_style)
 	# THE SCOPE: its sky, the system in it, the crosshair
 	_circ_c = sc
 	_circ_r = r - 1
@@ -632,8 +803,13 @@ func _paint_1() -> void:
 			elif int(sk) == 2:
 				col = LabBoard.ICE
 			var bp := _painter()
-			bp._dither_ring(g, sun.x, sun.y, 4, 9, LabBoard.mixc(LabBoard.BG, col, 0.45 * dim), 0.9 + 0.1 * sin(tr * 3.0))
-			bp._disc(g, int(sun.x), int(sun.y), 3, LabBoard.mixc(LabBoard.BG, col, dim))
+			if style == "heat":
+				# the Foundry draws its star in the heat ramp
+				bp._dither_ring(g, sun.x, sun.y, 4, 9, _solari()._heat(0.55, 0.6 * dim), 0.9 + 0.1 * sin(tr * 3.0))
+				bp._disc(g, int(sun.x), int(sun.y), 3, _solari()._heat(0.85, dim))
+			else:
+				bp._dither_ring(g, sun.x, sun.y, 4, 9, LabBoard.mixc(LabBoard.BG, col, 0.45 * dim), 0.9 + 0.1 * sin(tr * 3.0))
+				bp._disc(g, int(sun.x), int(sun.y), 3, LabBoard.mixc(LabBoard.BG, col, dim))
 			g.draw_rect(Rect2(sun.x - 1, sun.y - 1, 2, 2), LabBoard.mixc(LabBoard.BG, LabBoard.WHITE, dim))
 		for i in bodies.size():
 			var b: SystemLayout.Body = bodies[i]
@@ -665,15 +841,36 @@ func _paint_1() -> void:
 		aim = Vector2(pos[prv]).lerp(Vector2(pos[cur]), e)
 	aim = aim.lerp(Vector2(sc), hv)
 	var ai := Vector2i(aim.round())
-	var ch := ink((0.32 + 0.3 * hv) * dim)
-	for x in range(sc.x - r, sc.x + r + 1):
-		if absi(x - ai.x) > 6 and posmod(x, 2) == 0:
-			px(x, ai.y, ch)
-	for y in range(sc.y - r, sc.y + r + 1):
-		if absi(y - ai.y) > 6 and posmod(y, 2) == 0:
-			px(ai.x, y, ch)
+	var cross := bool(dz.s1_cross)
+	var ch := acc((0.32 + 0.3 * hv) * dim) if cross else ink((0.32 + 0.3 * hv) * dim)
+	if style == "rules":
+		# Verity's crosshair: two rules and the hairline between them
+		for x in range(sc.x - r, sc.x + r + 1):
+			if absi(x - ai.x) > 6:
+				px(x, ai.y - 1, ch)
+				px(x, ai.y + 1, ch)
+				if posmod(x, 3) == 0:
+					px(x, ai.y, ink(0.25 * dim))
+		for y in range(sc.y - r, sc.y + r + 1):
+			if absi(y - ai.y) > 6:
+				px(ai.x - 1, y, ch)
+				px(ai.x + 1, y, ch)
+				if posmod(y, 3) == 0:
+					px(ai.x, y, ink(0.25 * dim))
+	else:
+		for x in range(sc.x - r, sc.x + r + 1):
+			if absi(x - ai.x) > 6 and posmod(x, 2) == 0:
+				px(x, ai.y, ch)
+		for y in range(sc.y - r, sc.y + r + 1):
+			if absi(y - ai.y) > 6 and posmod(y, 2) == 0:
+				px(ai.x, y, ch)
 	var locked := tr - floorf(tr / 4.0) * 4.0 > 0.8 or hv > 0.0
-	g._brackets(Rect2i(ai - Vector2i(5, 5), Vector2i(11, 11)), 3, ink((0.95 if locked else 0.55) * dim))
+	var lk := (0.95 if locked else 0.55) * dim
+	if style == "hex":
+		# Cygnet's scope closes a hex aperture on the target, not brackets
+		_hex_line(Vector2(ai), 6.0, acc(lk))
+	else:
+		g._brackets(Rect2i(ai - Vector2i(5, 5), Vector2i(11, 11)), 3, acc(lk) if cross else ink(lk))
 	_circ_r = -1
 	# the scope's rim and its ticks
 	var bpr := _painter()
@@ -685,28 +882,63 @@ func _paint_1() -> void:
 	var cx0 := sc.x + r + 8
 	var cw := x0 + w - 4 - cx0
 	head(cx0, y0 + 2)
+	if bool(dz.s1_band):
+		# Korvan's hem: a flat riveted band under the header
+		g.draw_rect(Rect2(cx0, y0 + 14, cw, 2), acc(0.35 * dim))
+		for x in range(cx0 + 2, cx0 + cw - 1, 6):
+			g.draw_rect(Rect2(x, y0 + 14, 1, 1), acc(0.85 * dim))
 	var y := y0 + 18
 	var big_glass := h >= 140
 	var pitch := 9 if not big_glass else 12
 	if g.state == LabLogin.LOGO:
-		text(cx0, y, "TRACKING", ink(0.5))
+		text(cx0, y, String(dz.s1_label), acc(0.7) if cross else ink(0.5))
 		y += pitch
 		var nm := "NO TARGET"
 		if cur >= 0:
 			nm = (bodies[cur] as SystemLayout.Body).name.to_upper()
 			if nm == "":
 				nm = "WORLD %d" % (cur + 1)
-		text(cx0, y, fit(nm, cw), ink(0.95))
+			if style == "navy":
+				nm = "TARGET %d" % (cur + 1)
+		if style == "mask":
+			# Redline logs the world and keeps its name off the record: a hatched bar
+			var mw := mini(cw, maxi(24, LabBoard.tw(nm)))
+			var mr := Rect2i(cx0, y - 1, mw, 7)
+			for yy in range(mr.position.y, mr.end.y):
+				for xx in range(mr.position.x, mr.end.x):
+					g.draw_rect(Rect2(xx, yy, 1, 1), acc((0.85 if posmod(xx + yy, 3) != 0 else 0.35) * dim))
+			g.leaves.append(["bar", mr])
+		else:
+			text(cx0, y, fit(nm, cw), ink(0.95))
 		y += pitch + 2
 		var orb := 1.0
 		if cur >= 0:
 			orb = (bodies[cur] as SystemLayout.Body).orbit / om * 4.0 + 0.3
 		var tick := floorf(tr * 4.0)
 		var dist := orb + 0.01 * (noise(int(tick), 1) - 0.5)
-		text(cx0, y, fit("DIST %.2f AU" % dist, cw), ink(0.7))
-		y += pitch
-		text(cx0, y, fit("TEMP %d K" % int(278.0 / sqrt(maxf(0.2, dist)) + 3.0 * noise(int(tick), 2)), cw), ink(0.7))
-		y += pitch
+		var temp := "TEMP %d K" % int(278.0 / sqrt(maxf(0.2, dist)) + 3.0 * noise(int(tick), 2))
+		var dist_s := ("RANGE %.2f AU" if style == "navy" else "DIST %.2f AU") % dist
+		if style == "heat":
+			# heat is what the Foundry cares about: TEMP first, in its colour
+			text(cx0, y, fit(temp, cw), acc(0.9))
+			y += pitch
+			text(cx0, y, fit(dist_s, cw), ink(0.7))
+			y += pitch
+		else:
+			text(cx0, y, fit(dist_s, cw), ink(0.7))
+			y += pitch
+			if style == "bio":
+				var nd := Run.node_at() if not Run.map.is_empty() else null
+				var fauna := nd != null and nd.fauna
+				text(cx0, y, fit("FAUNA SEEN" if fauna else "NO FAUNA", cw), ink(0.7))
+			else:
+				text(cx0, y, fit(temp, cw), ink(0.7))
+			y += pitch
+		if style == "hex":
+			# the scope tracks the swarm as well as the worlds
+			var near := 3 + int(9.0 * noise(int(tr / 4.0), 5))
+			text(cx0, y, fit("UNITS NEAR %d" % near, cw), acc(0.9))
+			y += pitch
 		# the signal, bars stepping four times a second
 		for i in 12:
 			var bh := 1 + int(5.0 * noise(int(tick), 10 + i) * (0.4 + 0.6 * float(i % 5) / 4.0))
@@ -715,11 +947,14 @@ func _paint_1() -> void:
 		# DATA logged, one more every 2.5 s, its +1 lit for a moment
 		var n := 9 + int(tr / 2.5)
 		var ly := a.end.y - 9
-		var s := "LOGGED %d" % n
+		var s := String(dz.s1_foot) % n
+		if LabBoard.tw(s) > cw:
+			s = String(dz.s1_foot_short) % n
 		text(cx0, ly, s, ink(0.6))
 		if fposmod(tr, 2.5) < 0.6 and tr > 2.5:
 			var plus := "+1 DATA" if LabBoard.tw(s) + 4 + LabBoard.tw("+1 DATA") <= cw else "+1"
-			text(cx0 + LabBoard.tw(s) + 4, ly, plus, LabBoard.OWN)
+			if LabBoard.tw(s) + 4 + LabBoard.tw(plus) <= cw:
+				text(cx0 + LabBoard.tw(s) + 4, ly, plus, LabBoard.OWN)
 	else:
 		text(cx0, y, "OBSERVER", ink(0.5))
 		y += pitch
@@ -764,6 +999,74 @@ func _relic() -> Array:
 	return [v, e]
 
 
+## The owner's specimen (`LabSaverDress.s2_shape`): the relic crystal, Calyx's
+## grown pod, a Cygnet unit's housing, or a salvaged valve for the Combine.
+func _shape(kind: String) -> Array:
+	var v: Array[Vector3] = []
+	var e: Array[Vector2i] = []
+	match kind:
+		"pod":
+			# a ribbed oval: five rings up an egg-shaped body, joined top to bottom
+			var ys := [0.85, 0.5, 0.05, -0.45, -0.8]
+			var rs := [0.22, 0.42, 0.5, 0.42, 0.2]
+			for j in 5:
+				for i in 8:
+					var an := float(i) / 8.0 * TAU
+					v.append(Vector3(cos(an) * float(rs[j]), float(ys[j]), sin(an) * float(rs[j])))
+			v.append(Vector3(0, 1.05, 0))
+			v.append(Vector3(0, -0.98, 0))
+			for j in 5:
+				for i in 8:
+					e.append(Vector2i(j * 8 + i, j * 8 + (i + 1) % 8))
+					if j < 4:
+						e.append(Vector2i(j * 8 + i, (j + 1) * 8 + i))
+			for i in 8:
+				if i % 2 == 0:
+					e.append(Vector2i(40, i))
+					e.append(Vector2i(41, 32 + i))
+		"housing":
+			# a diamond body with a hex port above and below its waist
+			v.append(Vector3(0, 1.0, 0))
+			v.append(Vector3(0, -1.0, 0))
+			for i in 6:
+				var an := float(i) / 6.0 * TAU
+				v.append(Vector3(cos(an) * 0.62, 0.0, sin(an) * 0.62))
+			for yy: float in [0.5, -0.5]:
+				for i in 6:
+					var an := float(i) / 6.0 * TAU + PI / 6.0
+					v.append(Vector3(cos(an) * 0.2, yy, sin(an) * 0.2))
+			for i in 6:
+				e.append(Vector2i(0, 2 + i))
+				e.append(Vector2i(1, 2 + i))
+				e.append(Vector2i(2 + i, 2 + (i + 1) % 6))
+				e.append(Vector2i(8 + i, 8 + (i + 1) % 6))
+				e.append(Vector2i(14 + i, 14 + (i + 1) % 6))
+		"fitting":
+			# a valve: a pipe through a flange, its handle across the top
+			for yy: float in [0.75, -0.75]:
+				for i in 6:
+					var an := float(i) / 6.0 * TAU
+					v.append(Vector3(cos(an) * 0.3, yy, sin(an) * 0.3))
+			for i in 12:
+				var an := float(i) / 12.0 * TAU
+				v.append(Vector3(cos(an) * 0.62, 0.0, sin(an) * 0.62))
+			v.append(Vector3(0, 0.75, 0))
+			v.append(Vector3(0, 1.0, 0))
+			v.append(Vector3(-0.55, 1.0, 0))
+			v.append(Vector3(0.55, 1.0, 0))
+			for i in 6:
+				e.append(Vector2i(i, (i + 1) % 6))
+				e.append(Vector2i(6 + i, 6 + (i + 1) % 6))
+				e.append(Vector2i(i, 6 + i))
+			for i in 12:
+				e.append(Vector2i(12 + i, 12 + (i + 1) % 12))
+			e.append(Vector2i(24, 25))
+			e.append(Vector2i(26, 27))
+		_:
+			return _relic()
+	return [v, e]
+
+
 func _paint_2() -> void:
 	var a := g.area()
 	var x0 := a.position.x
@@ -777,6 +1080,11 @@ func _paint_2() -> void:
 	var box := Rect2i(x0 + 6, y0 + 4, m, m)
 	var mc := Vector2(box.get_center())
 	var s := float(m) * 0.4
+	var dz := dress()
+	if bool(dz.s2_field) and DB.manufacturers.has(g.owner_id):
+		# the specimen on the owner's own ground, faintly
+		var fd := (DB.manufacturers[g.owner_id] as ManufacturerData).field
+		g.draw_rect(Rect2(box.grow(-1)), Color(LabBoard.mixc(LabBoard.BG, fd, 0.45), 0.6 * dim))
 	# THE SCAN: down the box in 2.4 s, then a beat; held in the middle, bright,
 	# while pointed at
 	var cyc := fposmod(tr, S2_SWEEP + S2_GAP)
@@ -792,7 +1100,8 @@ func _paint_2() -> void:
 		var q := Vector2i((Vector2(mc.x, ty) + Vector2(cos(an) * s * 0.8, sin(an) * s * 0.18)).round())
 		px(q.x, q.y, ink((0.45 if i % 5 == 0 else 0.18) * dim))
 	# THE RELIC, its edges by depth: the far ones dim, those under the scan bright
-	var rl := _relic()
+	var rl := _shape(String(dz.s2_shape))
+	_s2_wire = bool(dz.s2_field)
 	var verts: Array[Vector3] = []
 	verts.assign(rl[0])
 	var edges: Array[Vector2i] = []
@@ -815,12 +1124,13 @@ func _paint_2() -> void:
 		if zs[i] > -0.2:
 			px(q.x, q.y, ink((0.7 + 0.3 * clampf(zs[i], 0.0, 1.0)) * dim))
 	# the scan line itself, dotted, with bright ends
+	var sa := bool(dz.s2_acc)
 	if scanning:
 		for x in range(box.position.x, box.end.x):
 			if posmod(x, 2) == 0:
-				px(x, scan_y, ink(0.3 * dim))
+				px(x, scan_y, acc(0.45 * dim) if sa else ink(0.3 * dim))
 		for x in [box.position.x - 2, box.position.x - 1, box.end.x, box.end.x + 1]:
-			px(x, scan_y, ink(0.95 * dim))
+			px(x, scan_y, acc(0.95 * dim) if sa else ink(0.95 * dim))
 	g._brackets(box, 5, ink(0.45 * dim))
 	# THE COLUMN
 	var cx0 := box.end.x + 8
@@ -829,9 +1139,18 @@ func _paint_2() -> void:
 	var y := y0 + 18
 	var pitch := 9 if h < 140 else 12
 	if g.state == LabLogin.LOGO:
-		text(cx0, y, "SPECIMEN", ink(0.5))
+		text(cx0, y, fit(String(dz.s2_label), cw), ink(0.5))
 		y += pitch
-		var code := "RELIC R-%03d" % (absi(hash(String(g.owner_id) + "relic")) % 900 + 100)
+		# the specimen's code, from the owner (an independent lab's from its station)
+		var sd := absi(hash(String(g.owner_id) + "relic"))
+		if bool(dz.s2_node):
+			sd = absi(hash(g.station_key * 31 + 7))
+		var fmt := String(dz.s2_code)
+		var code := fmt
+		if fmt.contains("%04d"):
+			code = fmt % (sd % 399 + 1 if fmt.begins_with("NO.") else sd % 9000 + 1000)
+		elif fmt.contains("%"):
+			code = fmt % (sd % 900 + 100)
 		text(cx0, y, fit(code, cw), ink(0.95))
 		y += pitch + 2
 		# THE SPECTRUM: bars stepping five times a second, held between sweeps
@@ -842,14 +1161,19 @@ func _paint_2() -> void:
 		for i in nb:
 			var shape := 0.35 + 0.65 * exp(-pow((float(i) - float(nb) * 0.62) / 2.6, 2.0)) + 0.4 * exp(-pow((float(i) - float(nb) * 0.2) / 1.5, 2.0))
 			var hh := maxi(1, int(float(bh) * clampf(shape * (0.7 + 0.3 * noise(tick, i)), 0.0, 1.0)))
-			g.draw_rect(Rect2(cx0 + i * 4, y + bh - hh, 3, hh), ink(0.75 if i % 4 != 2 else 0.95))
+			var bc := ink(0.75 if i % 4 != 2 else 0.95)
+			if bool(dz.s2_heat):
+				bc = _solari()._heat(0.35 + 0.6 * float(hh) / float(bh), 1.0)
+			elif sa:
+				bc = acc(0.75 if i % 4 != 2 else 0.95)
+			g.draw_rect(Rect2(cx0 + i * 4, y + bh - hh, 3, hh), bc)
 		g.leaves.append(["bar", Rect2i(cx0, y, nb * 4, bh)])
 		y += bh + 4
 		g.draw_rect(Rect2(cx0, y - 2, nb * 4 - 1, 1), ink(0.3))
 		if scanning:
 			text(cx0, y + 2, "SCANNING", ink(0.6))
 		else:
-			text(cx0, y + 2, fit("NO MATCH ON FILE", cw), ink(0.6))
+			text(cx0, y + 2, fit(String(dz.s2_done), cw), ink(0.6))
 	else:
 		text(cx0, y, "HANDLER", ink(0.5))
 		y += pitch
@@ -883,7 +1207,7 @@ func _s2_edge(a: Vector2i, b: Vector2i, base: float, scan_y: int, scanning: bool
 				k = maxf(base, 0.75)
 			elif p.y > scan_y:
 				k = base * 0.5
-		px(p.x, p.y, ink(k))
+		px(p.x, p.y, acc(k) if _s2_wire else ink(k))
 		if p == b:
 			break
 		var e2 := 2 * err
@@ -893,6 +1217,10 @@ func _s2_edge(a: Vector2i, b: Vector2i, base: float, scan_y: int, scanning: bool
 		if e2 <= dx:
 			err += dx
 			p.y += sy
+
+
+## The specimen's wire in the owner's colour (Korvan's, on its rust).
+var _s2_wire := false
 
 
 # ================================================================== 3: research feed
@@ -914,17 +1242,36 @@ const S3_FINDS := [
 ]
 
 
+## The feed's row `i`: [where it came from, what it found, whether it is the
+## owner's own (in its voice, `LabSaverDress.s3_own`)].
 func _s3_item(i: int) -> Array:
+	var dz := dress()
 	var h := absi(hash(i * 7919 + 13))
 	var src := ""
+	var find := String(S3_FINDS[i % S3_FINDS.size()])
+	var own := false
 	if h % 3 == 0:
-		src = "PILOT " + String(S3_PILOTS[(h / 3) % S3_PILOTS.size()])
+		if bool(dz.s3_units):
+			# Cygnet's net: a unit reports, not a pilot
+			src = "UNIT %04d" % (100 + (h / 3) % 9000)
+		else:
+			src = "PILOT " + String(S3_PILOTS[(h / 3) % S3_PILOTS.size()])
 	else:
 		var ms: Array = DB.manufacturers.keys()
 		var mid: StringName = g.owner_id if (h % 3 == 1 or ms.is_empty()) and g.owner_id != &"" else (ms[(h / 5) % ms.size()] as StringName)
+		if not DB.manufacturers.has(mid) and not ms.is_empty():
+			# an open lab has no labs of its own: the makers' traffic, overheard
+			mid = ms[(h / 5) % ms.size()] as StringName
 		var nm := DB.short_name(DB.manufacturer_name(mid)).to_upper() if DB.manufacturers.has(mid) else "INDEPENDENT"
 		src = "%s LAB %d" % [nm, 1 + (h / 11) % 9]
-	return [src, String(S3_FINDS[i % S3_FINDS.size()])]
+		if mid == g.owner_id and g.owner_id != &"":
+			own = true
+			var sf := String(dz.s3_src)
+			src = sf % [nm, 1 + (h / 11) % 9] if sf.contains("%") else sf
+			var lines: Array = dz.s3_own
+			if not lines.is_empty() and (h / 7) % 2 == 0:
+				find = String(lines[(h / 13) % lines.size()])
+	return [src, find, own]
 
 
 func _paint_3() -> void:
@@ -937,17 +1284,24 @@ func _paint_3() -> void:
 	var dim := fade()
 	var big := h >= 140
 	# the header: the owner's net, LIVE blinking
-	var hx := head(x0 + 4, y0 + 3, " RESEARCH NET")
+	var dz := dress()
+	var every := float(dz.s3_every)
+	var sa := bool(dz.s3_acc)
+	if String(dz.s3_full) != "":
+		g._mark(x0 + 9, y0 + 8, 11, 1.0)
+		text(x0 + 18, y0 + 6, String(dz.s3_full), ink(0.85))
+	else:
+		head(x0 + 4, y0 + 3, String(dz.s3_title))
 	var live_on := int(floorf(tr / 0.6)) % 2 == 0
 	var lw := LabBoard.tw("LIVE")
 	if live_on:
-		g.draw_rect(Rect2(a.end.x - 6 - lw - 6, y0 + 7, 3, 3), LabBoard.BAD)
+		g.draw_rect(Rect2(a.end.x - 6 - lw - 6, y0 + 7, 3, 3), acc(1.0) if sa else LabBoard.BAD)
 	text(a.end.x - 6 - lw, y0 + 6, "LIVE", ink(0.6))
 	# THE COUNTER: routines researched galaxy-wide, one more now and then, the
 	# digit that changed lit for a moment
 	var y := y0 + 18
-	text(x0 + 6, y, "ROUTINES RESEARCHED, ALL LABS", ink(0.5))
-	var base := 48213 + absi(hash(String(g.owner_id))) % 900
+	text(x0 + 6, y, fit(String(dz.s3_counter), w - 12), ink(0.5))
+	var base := int(dz.s3_base) if int(dz.s3_base) >= 0 else 48213 + absi(hash(String(g.owner_id))) % 900
 	var n := base
 	var last_at := 0.0
 	var t := 0.0
@@ -969,7 +1323,7 @@ func _paint_3() -> void:
 	if tr - last_at < 0.35 and i > 0:
 		# the last digit, lit
 		var head_s := ns.left(ns.length() - 1)
-		LabBoard.text_at(g, nx + LabBoard.tw(head_s, sz), ny, ns.right(1), LabBoard.OWN, sz)
+		LabBoard.text_at(g, nx + LabBoard.tw(head_s, sz), ny, ns.right(1), acc(1.0) if sa else LabBoard.OWN, sz)
 	var fy := ny + 15
 	g.draw_rect(Rect2(x0 + 4, fy, w - 8, 1), ink(0.25))
 	# THE FEED: two rows a finding, a new one in at the top every 2.6 s; held
@@ -978,11 +1332,13 @@ func _paint_3() -> void:
 	var top := fy + 4
 	var hover := g.state != LabLogin.LOGO
 	var ft := _s3_hold if (hover and _s3_hold >= 0.0) else tr
-	var k := int(floorf(ft / S3_EVERY))
-	var slide := 1.0 - clampf(fposmod(ft, S3_EVERY) / S3_SLIDE, 0.0, 1.0)
+	var k := int(floorf(ft / every))
+	var slide := 1.0 - clampf(fposmod(ft, every) / S3_SLIDE, 0.0, 1.0)
 	if k == 0:
 		slide = 0.0
 	var hv := hk(0.3)
+	# (pointed at, a row mid-slide settles, so none slides under your row)
+	slide *= 1.0 - hv
 	var cw := w - 12
 	var rows := (a.end.y - top) / pitch + 1
 	for j in range(0, rows + 1):
@@ -993,12 +1349,12 @@ func _paint_3() -> void:
 		var last := yy + pitch + 13 > a.end.y
 		var fr := 0.55 if last else 1.0
 		var c2 := ink(0.85 * fr)
-		if j == 0 and not hover and fposmod(ft, S3_EVERY) < 0.9 and k > 0:
+		if j == 0 and not hover and fposmod(ft, every) < 0.9 and k > 0:
 			c2 = ink(1.0)
-		text(x0 + 10, yy, fit(String(it[0]), cw - 4), ink(0.5 * fr))
+		text(x0 + 10, yy, fit(String(it[0]), cw - 4), acc(0.6 * fr) if sa and bool(it[2]) else ink(0.5 * fr))
 		var stamp := "%02d:%02d" % [(8 + (k - j) / 20) % 24, posmod((k - j) * 7 + 12, 60)]
 		var sw := LabBoard.tw(stamp)
-		if LabBoard.tw(String(it[0])) + sw + 14 <= cw:
+		if LabBoard.tw(String(it[0])) + sw + 14 <= cw and (bool(dz.s3_stamp) or not bool(it[2])):
 			text(a.end.x - 6 - sw, yy, stamp, ink(0.35 * fr))
 		text(x0 + 10, yy + 7, fit(String(it[1]), cw - 4), c2)
 		px(x0 + 6, yy + 2, ink(0.6 * fr))
@@ -1009,13 +1365,13 @@ func _paint_3() -> void:
 			g.draw_rect(Rect2(r), LabBoard.BG)
 			g._frame_box(r, ink(0.5))
 			g.leaves.append(["plate", r])
-			LabBoard.text_at(g, x0 + 10, yy, "THIS TERMINAL", ink(0.6))
+			text(x0 + 10, yy, "THIS TERMINAL", ink(0.6))
 			var s := "PILOT %s · CLICK TO SIGN IN" % ship()
 			if say_w(s) > cw - 4:
 				s = "PILOT %s · SIGN IN" % ship()
 			if g.state == LabLogin.SIGNING:
 				s = "PILOT %s · SIGNING IN" % ship()
-			say(x0 + 10, yy + 7, s, ink(0.9) if g.state == LabLogin.SIGNING else cue(), 8, false)
+			say(x0 + 10, yy + 7, s, ink(0.9) if g.state == LabLogin.SIGNING else cue())
 
 
 var _s3_hold := -1.0
@@ -1085,7 +1441,7 @@ func _hull_art(target: Vector2i) -> Dictionary:
 				var l0 := lum[y * tw + x]
 				if absf(l0 - lum[y * tw + x + 1]) > 0.16 or absf(l0 - lum[(y + 1) * tw + x]) > 0.16:
 					inner[y * tw + x] = 1
-	var out := {"w": tw, "h": th, "k": k, "used": used, "size": Vector2(img.get_size()), "mask": mask, "edge": edge, "inner": inner}
+	var out := {"w": tw, "h": th, "k": k, "used": used, "size": Vector2(img.get_size()), "mask": mask, "edge": edge, "inner": inner, "key": key}
 	_hull_cache[key] = out
 	return out
 
@@ -1099,11 +1455,18 @@ func _paint_4() -> void:
 	var tr := rest_t()
 	var dim := fade()
 	var hover := g.state != LabLogin.LOGO
-	# header: the owner's FIT CHECK, the hull's name on the right
-	head(x0 + 4, y0 + 3, " FIT CHECK")
+	# header: the owner's FIT CHECK (or its own name for it), the hull's name on
+	# the right
+	var dz := dress()
+	var title := String(dz.s4_full) if String(dz.s4_full) != "" else g.owner_short() + String(dz.s4_title)
+	if String(dz.s4_full) != "":
+		g._mark(x0 + 9, y0 + 8, 11, 1.0)
+		text(x0 + 18, y0 + 6, title, ink(0.85))
+	else:
+		head(x0 + 4, y0 + 3, String(dz.s4_title))
 	var hn := Run.hull.name.to_upper() if Run.hull != null else ""
 	var hw := LabBoard.tw(hn)
-	var hx_end := x0 + 4 + 14 + LabBoard.tw(g.owner_short() + " FIT CHECK")
+	var hx_end := x0 + 4 + 14 + LabBoard.tw(title)
 	if hn != "" and a.end.x - 6 - hw > hx_end + 8:
 		text(a.end.x - 6 - hw, y0 + 6, hn, ink(0.55))
 	# the drawing's paper: a dot grid
@@ -1118,28 +1481,18 @@ func _paint_4() -> void:
 	var th: int = art.h
 	var ox := body.position.x + (body.size.x - tw) / 2
 	var oy := body.position.y + (body.size.y - th) / 2
-	var edge: PackedByteArray = art.edge
-	var inner: PackedByteArray = art.inner
-	var mask: PackedByteArray = art.mask
 	# THE HULL, a sweep running across it every 5 s
 	var sweep := ox - 20 + int(fposmod(tr, S4_SWEEP) / S4_SWEEP * float(tw + 60))
-	for y in th:
-		for x in tw:
-			var i := y * tw + x
-			if mask[i] == 0:
-				continue
-			var d := absi(ox + x - sweep)
-			var lift := 0.0 if d > 6 else (1.0 - float(d) / 6.0)
-			if edge[i] == 1:
-				px(ox + x, oy + y, ink((0.78 + 0.22 * lift) * dim))
-			elif inner[i] == 1:
-				px(ox + x, oy + y, ink((0.34 + 0.4 * lift) * dim))
-			elif posmod(x + y, 4) == 0:
-				px(ox + x, oy + y, ink((0.12 + 0.3 * lift) * dim))
+	# the hull at rest is one picture (`layer`), made once for this hull, size
+	# and ink; only the columns under the sweep are drawn again each frame
+	var hk_key := "s4hull|%s|%d|%d|%s" % [str(art.get("key", "")), tw, th, g.tint.to_html()]
+	layer(hk_key, Rect2i(ox, oy, tw, th), _s4_hull.bind(art, ox, oy, -1000), dim)
+	_s4_hull(art, ox, oy, sweep, dim)
+	var s4a := bool(dz.s4_acc)
 	if absi(sweep - ox - tw / 2) < tw / 2 + 8:
 		for y in range(oy - 3, oy + th + 3):
 			if posmod(y, 2) == 0:
-				px(sweep, y, ink(0.35 * dim))
+				px(sweep, y, acc(0.5 * dim) if s4a and not bool(dz.s4_own) else ink(0.35 * dim))
 	# THE FITTED PARTS, where the hull's mounts are
 	var parts: Array = []
 	var used: Rect2i = art.used
@@ -1167,12 +1520,15 @@ func _paint_4() -> void:
 		var m: ModuleData = parts[i][0]
 		var p: Vector2i = parts[i][1]
 		var on := hover or i == cur
-		g.draw_rect(Rect2(p.x - 1, p.y - 1, 3, 3), ink((1.0 if on else 0.55) * dim))
+		# the owner's colour on its own parts (or on every part, where it dresses all)
+		var ac := s4a and (not bool(dz.s4_own) or m.manufacturer == g.owner_id)
+		g.draw_rect(Rect2(p.x - 1, p.y - 1, 3, 3), acc((1.0 if on else 0.55) * dim) if ac else ink((1.0 if on else 0.55) * dim))
 		if on:
-			g._brackets(Rect2i(p - Vector2i(5, 5), Vector2i(11, 11)), 3, ink(0.95 * dim))
+			g._brackets(Rect2i(p - Vector2i(5, 5), Vector2i(11, 11)), 3, acc(0.95 * dim) if ac else ink(0.95 * dim))
 		# its augment slot: a diamond, filled once it is used
 		var dp := p + Vector2i(5, -6)
-		var dc := LabBoard.mixc(LabBoard.BG, LabBoard.OWN if m.augmented else g.tint, (0.95 if on else 0.5) * dim)
+		var dcol: Color = (dz.acc as Color) if ac else g.tint
+		var dc := LabBoard.mixc(LabBoard.BG, LabBoard.OWN if m.augmented else dcol, (0.95 if on else 0.5) * dim)
 		for d: Vector2i in [Vector2i(0, -2), Vector2i(1, -1), Vector2i(2, 0), Vector2i(1, 1), Vector2i(0, 2), Vector2i(-1, 1), Vector2i(-2, 0), Vector2i(-1, -1)]:
 			px(dp.x + d.x, dp.y + d.y, dc)
 		if m.augmented:
@@ -1186,7 +1542,27 @@ func _paint_4() -> void:
 		var nm := fit(m.name.to_upper(), w - 16)
 		text(x0 + 8, ly, nm, ink(0.95))
 		var slot_s := ["WEAPON", "SYSTEM", "UTILITY"][clampi(int(m.slot), 0, 2)] as String
-		say(x0 + 8, ly + 8, "%s · %s" % [slot_s, "AUGMENTED" if m.augmented else "AUGMENT SLOT OPEN"], ink(0.55))
+		var tag := _s4_tag(m, String(dz.s4_tag))
+		var aug := "AUGMENTED" if m.augmented else "AUGMENT SLOT OPEN"
+		var l2 := "%s · %s" % [slot_s, aug] if tag == "" else "%s · %s · %s" % [slot_s, tag, aug]
+		if say_w(l2) > w - 16:
+			l2 = "%s · %s" % [tag, aug] if tag != "" else l2
+		if say_w(l2) > w - 16:
+			l2 = "%s · %s" % [slot_s, aug]
+		say(x0 + 8, ly + 8, l2, ink(0.55))
+		var nx := x0 + 8 + LabBoard.tw(nm) + 6
+		if String(dz.s4_tag) == "serial" and nx + 30 <= a.end.x - 6:
+			# Redline: the serial is on the part, marked out
+			text(nx, ly, "SN", ink(0.5))
+			var br := Rect2i(nx + LabBoard.tw("SN") + 3, ly - 1, 24, 7)
+			for yy in range(br.position.y, br.end.y):
+				for xx in range(br.position.x, br.end.x):
+					g.draw_rect(Rect2(xx, yy, 1, 1), acc((0.85 if posmod(xx + yy, 3) != 0 else 0.35) * dim))
+			g.leaves.append(["bar", br])
+		elif String(dz.s4_tag) == "appt":
+			var ap := "REPAIRS BY APPOINTMENT"
+			if nx + LabBoard.tw(ap) <= a.end.x - 6:
+				text(a.end.x - 6 - LabBoard.tw(ap), ly, ap, acc(0.7))
 		# the leader from the part down to its name
 		var lx := clampi(p.x, x0 + 8, x0 + 8 + LabBoard.tw(nm))
 		line(Vector2i(p.x, p.y + 6), Vector2i(p.x, ly - 5), ink(0.4 * dim), 2)
@@ -1199,13 +1575,76 @@ func _paint_4() -> void:
 		say(x0 + 8, ly + 8, s2, ink(0.9) if g.state == LabLogin.SIGNING else cue())
 
 
+## The hull's pixels: all of them at rest (`sweep` far off, into a layer), or
+## only the columns the sweep lifts, over that layer.
+func _s4_hull(art: Dictionary, ox: int, oy: int, sweep: int, dim: float = 1.0) -> void:
+	var tw: int = art.w
+	var th: int = art.h
+	var edge: PackedByteArray = art.edge
+	var inner: PackedByteArray = art.inner
+	var mask: PackedByteArray = art.mask
+	var xa := 0
+	var xb := tw
+	if sweep > -1000:
+		xa = clampi(sweep - 6 - ox, 0, tw)
+		xb = clampi(sweep + 7 - ox, 0, tw)
+	for y in th:
+		for x in range(xa, xb):
+			var i := y * tw + x
+			if mask[i] == 0:
+				continue
+			var d := absi(ox + x - sweep)
+			var lift := 0.0 if d > 6 else (1.0 - float(d) / 6.0)
+			if edge[i] == 1:
+				px(ox + x, oy + y, ink((0.78 + 0.22 * lift) * dim))
+			elif inner[i] == 1:
+				px(ox + x, oy + y, ink((0.34 + 0.4 * lift) * dim))
+			elif posmod(x + y, 4) == 0:
+				px(ox + x, oy + y, ink((0.12 + 0.3 * lift) * dim))
+
+
+## What the owner's callout adds after a part's slot (`LabSaverDress.s4_tag`),
+## from the part itself: Korvan's navy stores number on its own parts, the heat
+## a Solari part's hottest card runs, the scrap the Combine would pay, what a
+## part heals; "" for nothing.
+func _s4_tag(m: ModuleData, kind: String) -> String:
+	match kind:
+		"navy":
+			if m.manufacturer == &"korvan":
+				return "NAVY NO. %04d" % (absi(hash(String(m.id))) % 9000 + 1000)
+		"heat":
+			if m.manufacturer == &"solari":
+				var ht := 0
+				for c: CardData in m.cards:
+					ht = maxi(ht, c.heat)
+				if ht > 0:
+					return "%d HEAT" % ht
+		"scrap":
+			return "SCRAP %d" % m.scrap_value
+		"heal":
+			var hl := 0
+			var grows := false
+			for c: CardData in m.cards:
+				hl += c.heal
+				grows = grows or c.adapt > 0
+			if hl > 0:
+				return "HEALS %d" % hl
+			if grows:
+				return "GROWS IN A FIGHT"
+	return ""
+
+
 # ================================================================== 5: the owner's posters
 
 const S5_EACH := 3.4
 const S5_WIPE := 0.12
 
 
+## The owner's five posters (`LabSaverDress.s5`), or the plain set.
 func _s5_cards() -> Array:
+	var own: Array = dress().s5
+	if own.size() == 5:
+		return own
 	var on := g.owner_short()
 	return [
 		["mark", on, "AUGMENT TODAY."],
@@ -1225,7 +1664,7 @@ func _paint_5() -> void:
 	var into := fposmod(tr, S5_EACH)
 	var under: Array = cards[(idx + cards.size() - 1) % cards.size()]
 	if hover:
-		into = g._t
+		into = g._t if g.state == LabLogin.LOGIN else S5_WIPE
 		under = cards[idx]
 	var wipe := -1
 	if into < S5_WIPE and (hover or tr > S5_EACH):
@@ -1357,7 +1796,10 @@ func _paint_6() -> void:
 	var dim := fade()
 	var hover := g.state != LabLogin.LOGO
 	head(x0 + 4, y0 + 3)
+	var dz := dress()
 	var gname := Run.galaxy_name.to_upper() if Run.galaxy_name != "" else "THIS GALAXY"
+	if String(dz.s6_right) != "":
+		gname = String(dz.s6_right)
 	var gw := LabBoard.tw(gname)
 	var hx_end := x0 + 18 + LabBoard.tw(g.owner_short())
 	if a.end.x - 6 - gw > hx_end + 8:
@@ -1386,38 +1828,61 @@ func _paint_6() -> void:
 				pl.position.y = top
 		_keep.append(pl.grow(3))
 	# THE DISC, in 2x2 blocks of three inks, the core a warm ball
-	var dark := LabBoard.mixc(LabBoard.BG, g.tint, 0.2 * dim)
-	var mid := LabBoard.mixc(LabBoard.BG, g.tint, 0.42 * dim)
-	var lite := LabBoard.mixc(LabBoard.BG, g.tint, 0.7 * dim)
+	var arm_c: Color = (dz.acc as Color) if bool(dz.s6_disc) else g.tint
+	var dark := LabBoard.mixc(LabBoard.BG, arm_c, 0.2 * dim)
+	var mid := LabBoard.mixc(LabBoard.BG, arm_c, 0.42 * dim)
+	var lite := LabBoard.mixc(LabBoard.BG, arm_c, 0.7 * dim)
 	var core_a := LabBoard.mixc(LabBoard.BG, LabBoard.HOT, 0.9 * dim)
 	var core_b := LabBoard.mixc(LabBoard.BG, LabBoard.NEXT, 0.75 * dim)
-	var beat := 0.5 + 0.5 * sin(tr * TAU / 1.6)
+	if bool(dz.s6_heat):
+		# the Foundry's disc in its heat ramp, the core white hot
+		dark = _solari()._heat(0.3, dim)
+		mid = _solari()._heat(0.48, dim)
+		lite = _solari()._heat(0.66, dim)
+		core_a = _solari()._heat(1.0, dim)
+		core_b = _solari()._heat(0.85, dim)
+	if dz.s6_core != null:
+		core_a = LabBoard.mixc(LabBoard.BG, dz.s6_core as Color, 0.95 * dim)
+		core_b = LabBoard.mixc(LabBoard.BG, dz.s6_core as Color, 0.7 * dim)
+	var beat := 0.5 + 0.5 * sin(tr * TAU / float(dz.s6_beat))
 	var ry := R * G_SQ
-	var gx0 := int(c.x - R) & ~1
-	var gy0 := int(c.y - ry) & ~1
-	for gy in range(gy0, int(c.y + ry) + 2, 2):
-		for gx in range(gx0, int(c.x + R) + 2, 2):
-			var u := (float(gx) + 1.0 - c.x) / R
-			var v := (float(gy) + 1.0 - c.y) / ry
-			var rr := sqrt(u * u + v * v)
-			if rr > 1.0:
-				continue
-			var th := atan2(v, u) - rot
-			var arm := pow(maxf(0.0, cos(float(arms) * (th + log(maxf(rr, 0.04)) * 2.1))), 2.0)
-			var val := arm * smoothstep(1.0, 0.3, rr) * 0.95 + 0.14 * (1.0 - rr)
-			var core := exp(-pow(rr / (0.2 + 0.03 * beat), 2.0))
-			var col := Color(0, 0, 0, 0)
-			if core > 0.55:
-				col = core_a if core > 0.8 else core_b
-			elif val + core > 0.62:
-				col = lite
-			elif val + core > 0.34:
-				col = mid
-			elif val + core > 0.16 or (val + core > 0.1 and LabBoard.bayer(gx / 2, gy / 2) < 0.5):
-				col = dark
-			if col.a > 0.0:
-				for d: Vector2i in [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1)]:
-					px(gx + d.x, gy + d.y, col)
+	# the disc's blocks and what of each never changes (where it is, how far out,
+	# its angle and the arms' wind there), worked out once for this size
+	var gk := "%d|%d|%.2f|%.2f" % [int(c.x), int(c.y), R, ry]
+	if gk != _g_key:
+		_g_key = gk
+		_g_blocks = _g_disc(c, R, ry)
+	var gb: PackedFloat32Array = _g_blocks
+	var cw2 := 0.2 + 0.03 * beat
+	var keep_none := _keep.is_empty()
+	var fa := float(arms)
+	var bi := 0
+	while bi < gb.size():
+		var gx := int(gb[bi])
+		var gy := int(gb[bi + 1])
+		var rr := gb[bi + 2]
+		var arm := maxf(0.0, cos(fa * (gb[bi + 3] - rot + gb[bi + 4])))
+		var val := arm * arm * gb[bi + 5] + 0.14 * (1.0 - rr)
+		var q := rr / cw2
+		var core := exp(-q * q)
+		var col := Color(0, 0, 0, 0)
+		if core > 0.55:
+			col = core_a if core > 0.8 else core_b
+		elif val + core > 0.62:
+			col = lite
+		elif val + core > 0.34:
+			col = mid
+		elif val + core > 0.16 or (val + core > 0.1 and gb[bi + 6] > 0.5):
+			col = dark
+		if col.a > 0.0:
+			if keep_none and gb[bi + 7] > 0.5:
+				g.draw_rect(Rect2(gx, gy, 2, 2), col)
+			else:
+				px(gx, gy, col)
+				px(gx + 1, gy, col)
+				px(gx, gy + 1, col)
+				px(gx + 1, gy + 1, col)
+		bi += 8
 	# THE SYSTEMS, the route, and you
 	var sq := maxf(0.05, float(Run.galaxy.get("squash", 0.5)))
 	var spots: Array[Vector2i] = []
@@ -1432,6 +1897,34 @@ func _paint_6() -> void:
 		var on_route := trail.has(i)
 		var p := spots[i]
 		px(p.x, p.y, ink((0.9 if on_route else 0.5) * dim))
+	# THE OWNER'S OWN STATIONS, each with its sign (`LabSaverDress.s6_mark`)
+	var claims := 0
+	if String(dz.s6_mark) != "":
+		for i in spots.size():
+			var nd: MapGen.MapNode = Run.map[i]
+			if nd.type != MapGen.NodeType.STATION:
+				continue
+			var who := nd.manufacturer if nd.manufacturer != &"" else (nd.berths[0] if not nd.berths.is_empty() else &"")
+			if who != g.owner_id:
+				continue
+			if trail.has(i):
+				claims += 1
+			var p := spots[i]
+			match String(dz.s6_mark):
+				"sun":
+					px(p.x, p.y - 2, acc(dim))
+					for q: Vector2i in [Vector2i(-1, -3), Vector2i(1, -3), Vector2i(-1, -1), Vector2i(1, -1)]:
+						px(p.x + q.x, p.y + q.y, acc(0.55 * dim))
+				"diamond":
+					_unit(p.x, p.y - 3, 1, acc(0.9 * dim))
+				"tick":
+					px(p.x, p.y - 2, acc(dim))
+					px(p.x, p.y - 3, acc(dim))
+				"flag":
+					if trail.has(i):
+						for yy in range(p.y - 5, p.y):
+							px(p.x, yy, acc(0.8 * dim))
+						g.draw_rect(Rect2(p.x + 1, p.y - 5, 3, 2), acc(dim))
 	# the route: dashes marching along it; pointed at, a light runs it end to end
 	var run_k := -1.0
 	if hover:
@@ -1444,7 +1937,8 @@ func _paint_6() -> void:
 		var pa := spots[trail[i]]
 		var pb := spots[trail[i + 1]]
 		var lit := run_k >= 0.0 and float(i) / float(maxi(1, total)) <= run_k
-		line(pa, pb, LabBoard.mixc(LabBoard.BG, LabBoard.HOT if lit else LabBoard.OWN, dim))
+		var rc: Color = (dz.acc as Color) if bool(dz.s6_route) else LabBoard.OWN
+		line(pa, pb, LabBoard.mixc(LabBoard.BG, LabBoard.HOT if lit else rc, dim))
 		if not lit:
 			line(pa, pb, LabBoard.mixc(LabBoard.BG, LabBoard.WHITE, dim), 5, -int(tr * 8.0))
 	for ti in trail:
@@ -1460,19 +1954,49 @@ func _paint_6() -> void:
 		var bl := int(floorf(tr / 0.5)) % 2 == 0 or hover
 		var mc := LabBoard.mixc(LabBoard.BG, LabBoard.HOT, dim)
 		if bl:
-			for d: Vector2i in [Vector2i(0, 0), Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-				px(me.x + d.x, me.y + d.y, mc)
-		var pr := 3 + int(fposmod(tr, 1.2) / 1.2 * 4.0)
-		_painter()._dither_ring(g, me.x, me.y, pr, pr + 1, LabBoard.mixc(LabBoard.BG, LabBoard.HOT, 0.7 * dim), 1.0 - fposmod(tr, 1.2) / 1.2)
+			for q: Vector2i in [Vector2i(0, 0), Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				px(me.x + q.x, me.y + q.y, mc)
+		if bool(dz.s6_arcs):
+			# Cygnet: you are here, as its mark's two signal arcs
+			_arcs(me.x, me.y, 1, acc(0.9 * dim), 1 + int(fposmod(tr, 1.2) / 0.6))
+		else:
+			var pr := 3 + int(fposmod(tr, 1.2) / 1.2 * 4.0)
+			_painter()._dither_ring(g, me.x, me.y, pr, pr + 1, LabBoard.mixc(LabBoard.BG, LabBoard.HOT, 0.7 * dim), 1.0 - fposmod(tr, 1.2) / 1.2)
 	# the foot: the run so far, or the plate
 	if pl.has_area():
 		plate_draw(pl, lines, pl.size.x >= say_w(String(lines[1][0])) + 8)
 	else:
 		text(x0 + 6, a.end.y - 8, "JUMPS %d" % Run.jumps, ink(0.6))
 		var rs := "%d SYSTEMS ON YOUR ROUTE" % trail.size()
+		if bool(dz.s6_claims):
+			rs = "CLAIMS ON YOUR ROUTE %d" % claims
 		if LabBoard.tw(rs) + LabBoard.tw("JUMPS 00") + 20 > w:
-			rs = "ROUTE %d" % trail.size()
+			rs = ("CLAIMS %d" % claims) if bool(dz.s6_claims) else "ROUTE %d" % trail.size()
 		text(a.end.x - 6 - LabBoard.tw(rs), a.end.y - 8, rs, ink(0.6))
+
+
+## The galaxy disc's 2x2 blocks for a disc of `R` by `ry` at `c`: eight
+## numbers each (x, y, how far out, angle, the arms' wind, the arms' fade, the
+## dither, whether the block is whole inside the glass).
+var _g_key := ""
+var _g_blocks := PackedFloat32Array()
+
+
+func _g_disc(c: Vector2, R: float, ry: float) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	var gx0 := int(c.x - R) & ~1
+	var gy0 := int(c.y - ry) & ~1
+	for gy in range(gy0, int(c.y + ry) + 2, 2):
+		for gx in range(gx0, int(c.x + R) + 2, 2):
+			var u := (float(gx) + 1.0 - c.x) / R
+			var v := (float(gy) + 1.0 - c.y) / ry
+			var rr := sqrt(u * u + v * v)
+			if rr > 1.0:
+				continue
+			out.append_array([float(gx), float(gy), rr, atan2(v, u), log(maxf(rr, 0.04)) * 2.1,
+				smoothstep(1.0, 0.3, rr) * 0.95, 1.0 if LabBoard.bayer(gx / 2, gy / 2) < 0.5 else 0.0,
+				1.0 if _clip.encloses(Rect2i(gx, gy, 2, 2)) else 0.0])
+	return out
 
 
 # ================================================================== K: Korvan Heavy Works
@@ -1872,16 +2396,29 @@ func _paint_k3() -> void:
 	var gy := top + maxi(0, (bot - top - gh) / 2)
 	var newest := months - 1
 	var blink := int(floorf(rest_t() / 0.5)) % 2 == 0
+	var c_none := ink(0.1 * dim)
+	var c_sent := _kc(0.45 * dim)
+	var c_this := _kc(0.75 * dim)
+	var c_new := LabBoard.mixc(LabBoard.BG, LabBoard.WHITE, dim)
 	for yi in K3_YEARS:
 		var bx := gx + (yi % per_row) * yw
 		var by := gy + (yi / per_row) * pitch
+		var yc := c_this if yi == yr - 1 and not full else c_sent
+		# a year all sent or all to come is one rect; only the year being sent
+		# is drawn a month at a time
+		if (yi + 1) * 12 <= months and newest >= (yi + 1) * 12:
+			g.draw_rect(Rect2(bx, by, 12, lh), yc)
+			continue
+		if yi * 12 >= months:
+			g.draw_rect(Rect2(bx, by, 12, lh), c_none)
+			continue
 		for m in 12:
 			var mi := yi * 12 + m
-			var c := ink(0.1 * dim)
+			var c := c_none
 			if mi < months:
-				c = _kc((0.75 if yi == yr - 1 and not full else 0.45) * dim)
+				c = yc
 				if mi == newest and (not full or blink):
-					c = LabBoard.mixc(LabBoard.BG, LabBoard.WHITE, dim)
+					c = c_new
 			g.draw_rect(Rect2(bx + m, by, 1, lh), c)
 	# THE FOOT: what a dot is, or the sign-in
 	var ry := a.end.y - 19
@@ -1895,7 +2432,7 @@ func _paint_k3() -> void:
 
 # ================================================================== P: the Probate Combine's own
 #
-# MOCK (r6 owners, Nov 7): three savers only a Probate Lab runs. Jon: "Love
+# Three savers only a Probate Lab runs (r6 owners, Nov 7). Jon: "Love
 # these. Want more per owner." The Combine follows other people's wrecks and
 # files the claim first; scrap is paid on the weight.
 #
@@ -2642,22 +3179,24 @@ func _paint_r2() -> void:
 	var per_row := maxi(4, int(float(wf.size.x) * 0.11))
 	# the time scale down the left: NOW at the top, the oldest row at the foot
 	var old_s := "-%d S" % int(roundf(float(wf.size.y) / R2_RATE))
+	# THE STATIC, the same per row as it falls: kept as a ring of rows, a new row
+	# written as it comes in, drawn in two pieces (`_r2_static`)
+	_r2_static(wf, now_row, per_row, dim)
+	var nk := Rect2i(wf.position.x, wf.position.y, LabBoard.tw("NOW") + 5, 9)
+	var ok2 := Rect2i(wf.position.x, wf.end.y - 10, LabBoard.tw(old_s) + 5, 10)
+	g.draw_rect(Rect2(nk), LabBoard.BG)
+	g.draw_rect(Rect2(ok2), LabBoard.BG)
 	say(wf.position.x + 2, wf.position.y + 2, "NOW", ink(0.45 * dim))
 	say(wf.position.x + 2, wf.end.y - 8, old_s, ink(0.45 * dim))
-	_keep.append(Rect2i(wf.position.x, wf.position.y, LabBoard.tw("NOW") + 5, 9))
-	_keep.append(Rect2i(wf.position.x, wf.end.y - 10, LabBoard.tw(old_s) + 5, 10))
+	_keep.append(nk)
+	_keep.append(ok2)
 	# pointed at, the new contact comes in from the top over three seconds
 	var grow := 1.0 if g.state == LabLogin.SIGNING else clampf(g._t / 3.0, 0.0, 1.0)
 	for yy in wf.size.y:
 		var row := now_row - yy
 		var t := float(row) / R2_RATE
 		var y := wf.position.y + yy
-		# the static, the same per row as it falls
-		rng.seed = absi(hash(row * 7349 + 11))
-		for i in per_row:
-			var x := wf.position.x + rng.randi() % wf.size.x
-			var n := rng.randf()
-			px(x, y, ink((0.1 + 0.22 * n * n) * dim))
+		rng.seed = absi(hash(row * 7349 + 13))
 		# the test hull's return, in the owner's red
 		var xc := cx - float(wf.size.x) * 0.18 + sin(t * 0.13) * drift
 		var lv := _r2_level(t) * (1.0 - 0.6 * hk(0.5))
@@ -2682,6 +3221,52 @@ func _paint_r2() -> void:
 	var pct := roundi(lvn * 100.0)
 	var rest1 := "RETURN %d%% · BELOW NOISE" % pct if lvn < R2_NOISE else "RETURN %d%% · TRACKING" % pct
 	_r_foot(a, rest1, _red(1.0 * dim) if lvn < R2_NOISE else ink(0.75 * dim), "NEW CONTACT, FULL RETURN")
+
+
+## The waterfall's static: row `row` at ring slot posmod(-row, h), so the rows
+## from now down to the oldest lie in slot order, wrapping once.
+var _r2_img: Image = null
+var _r2_tex: ImageTexture = null
+var _r2_rows := PackedInt32Array()
+var _r2_key := ""
+
+
+func _r2_static(wf: Rect2i, now_row: int, per_row: int, dim: float) -> void:
+	var h := wf.size.y
+	var key := "%d|%d|%s" % [wf.size.x, h, g.tint.to_html()]
+	if key != _r2_key or _r2_img == null:
+		_r2_key = key
+		_r2_img = Image.create(maxi(1, wf.size.x), maxi(1, h), false, Image.FORMAT_RGBA8)
+		_r2_rows = PackedInt32Array()
+		_r2_rows.resize(h)
+		_r2_rows.fill(-(1 << 30))
+		_r2_tex = null
+	var dirty := false
+	var rng := RandomNumberGenerator.new()
+	for yy in h:
+		var row := now_row - yy
+		var slot := posmod(-row, h)
+		if _r2_rows[slot] == row:
+			continue
+		_r2_rows[slot] = row
+		dirty = true
+		for x in wf.size.x:
+			_r2_img.set_pixel(x, slot, Color(0, 0, 0, 0))
+		rng.seed = absi(hash(row * 7349 + 11))
+		for i in per_row:
+			var x := rng.randi() % wf.size.x
+			var n := rng.randf()
+			_r2_img.set_pixel(x, slot, ink(0.1 + 0.22 * n * n))
+	if _r2_tex == null:
+		_r2_tex = ImageTexture.create_from_image(_r2_img)
+	elif dirty:
+		_r2_tex.update(_r2_img)
+	var s0 := posmod(-now_row, h)
+	var top := h - s0
+	var mod := Color(1, 1, 1, dim)
+	g.draw_texture_rect_region(_r2_tex, Rect2(wf.position.x, wf.position.y, wf.size.x, top), Rect2(0, s0, wf.size.x, top), mod)
+	if s0 > 0:
+		g.draw_texture_rect_region(_r2_tex, Rect2(wf.position.x, wf.position.y + top, wf.size.x, s0), Rect2(0, 0, wf.size.x, s0), mod)
 
 
 # ------------------------------------------------------------------ R3: over the line
@@ -2986,6 +3571,17 @@ func _paint_c1() -> void:
 		var since := fposmod(tr - noise(i, 2) * per, per)
 		var k := exp(-since / C1_FLASH)
 		var dk := dim * (1.0 - 0.5 * hv)
+		var plain := not (i == mid and hover) and not (i == dark and (out or back))
+		if plain:
+			# an ordinary cell: drawn from its picture at this flash and ink, in
+			# steps (`layer`; the honeycomb was 30 ms a frame at the capital)
+			var kq := roundi(k * 12.0)
+			var dq := roundi(dk * 8.0)
+			var fq := roundi(dim * 8.0)
+			layer("c1|%d|%d|%d|%d|%d|%d|%d|%s" % [r, hh, us, 1 if big else 0, kq, dq, fq, _oc().to_html()],
+				Rect2i(c.x - r - 1, c.y - hh - 1, 2 * r + 3, 2 * hh + 3),
+				_c1_cell.bind(r, us, big, float(kq) / 12.0, float(dq) / 8.0, float(fq) / 8.0))
+			continue
 		_hex_fill(c.x, c.y, r - 1, om(0.07 * dim))
 		if i == mid and hover:
 			_hex_line(Vector2(c), float(r), cue())
@@ -3008,10 +3604,6 @@ func _paint_c1() -> void:
 			if e >= 1.0:
 				_arcs(c.x, c.y, us, om(dk * (1.0 - smoothstep(6.1, 7.0, f))), 2 if big else 1)
 			continue
-		_hex_line(Vector2(c), float(r), om((0.28 + 0.3 * k) * dk))
-		_unit(c.x, c.y, us, om((0.42 + 0.55 * k) * dk))
-		if k > 0.3:
-			_arcs(c.x, c.y, us, om(k * dk), 2 if big else 1)
 	if out:
 		# the empty cell, bracketed over its neighbours
 		var dc := cells[dark]
@@ -3035,6 +3627,17 @@ func _paint_c1() -> void:
 	else:
 		text(x0 + 12, fy, "ALL UNITS REPORTING", ink(0.6))
 		g.draw_rect(Rect2(x0 + 6, fy + 1, 3, 3), om(0.8))
+
+
+## One ordinary cell at flash `k` and ink `dk`, centred in the layer being made.
+func _c1_cell(r: int, us: int, big: bool, k: float, dk: float, dim: float) -> void:
+	var hh := roundi(float(r) * 0.866)
+	var c := _img_o + Vector2i(r + 1, hh + 1)
+	_hex_fill(c.x, c.y, r - 1, om(0.07 * dim))
+	_hex_line(Vector2(c), float(r), om((0.28 + 0.3 * k) * dk))
+	_unit(c.x, c.y, us, om((0.42 + 0.55 * k) * dk))
+	if k > 0.3:
+		_arcs(c.x, c.y, us, om(k * dk), 2 if big else 1)
 
 
 # ------------------------------------------------------------------ C2: formation trial
@@ -3468,6 +4071,24 @@ const VR2_PASS := 5.5
 const VR2_BACK := 1.3
 
 
+## The seam's two panels and the hairline between (into a layer).
+func _vr2_seam(view: Rect2i, sx: int, sy: int) -> void:
+	var c_top := ink(0.9)
+	var c_edge := ink(0.5)
+	var c_hatch := ink(0.14)
+	for x in range(view.position.x, view.end.x):
+		if x == sx or x == sx - 1:
+			continue
+		var s := sy + (1 if x > sx else 0)
+		var edge := x == sx - 2 or x == sx + 1
+		px(x, s, c_top)
+		for y in range(s + 1, view.end.y):
+			if edge:
+				px(x, y, c_edge)
+			elif posmod(x + y, 4) == 0:
+				px(x, y, c_hatch)
+
+
 func _paint_ver2() -> void:
 	var a := g.area()
 	var x0 := a.position.x
@@ -3496,17 +4117,8 @@ func _paint_ver2() -> void:
 	var sx := view.position.x + view.size.x / 2
 	var sy := view.position.y + maxi(9, vh * 2 / 5)
 	var fasts := [0.2, 0.34, 0.66, 0.8]
-	for x in range(view.position.x, view.end.x):
-		if x == sx or x == sx - 1:
-			continue
-		var s := sy + (1 if x > sx else 0)
-		var edge := x == sx - 2 or x == sx + 1
-		px(x, s, ink(0.9 * dim))
-		for y in range(s + 1, view.end.y):
-			if edge:
-				px(x, y, ink(0.5 * dim))
-			elif posmod(x + y, 4) == 0:
-				px(x, y, ink(0.14 * dim))
+	layer("vr2seam|%d|%d|%d|%d|%d|%d|%s" % [view.position.x, view.position.y, view.size.x, view.size.y, sx, sy, g.tint.to_html()],
+		view, _vr2_seam.bind(view, sx, sy), dim)
 	for f: float in fasts:
 		var fx := view.position.x + int(f * float(view.size.x))
 		var s := sy + (1 if fx > sx else 0)
@@ -3846,6 +4458,21 @@ func _c1_ring(c: Vector2, r: float, i: int, col: Color, upto: float = 1.0) -> vo
 			last = q
 
 
+## Growth layers `i0` to `i1` and the cells between them (into a layer, or on
+## the glass with `col` for the one past the spec).
+func _cx1_rings(c: Vector2, step_r: float, i0: int, i1: int, cyc: int, dim: float, col: Color = Color(0, 0, 0, 0)) -> void:
+	for i in range(i0, i1 + 1):
+		var r := step_r * (float(i) + 0.6)
+		var cc := col if col.a > 0.0 else tissue(lerpf(0.35, 0.7, float(i) / float(C1_OVER)) * dim)
+		_c1_ring(c, r, i, cc)
+		# cells between this ring and the last
+		for k in 4:
+			var an := noise(i, k + cyc * 7) * TAU
+			var rr := r - step_r * (0.35 + 0.3 * noise(k, i + 3))
+			var q := Vector2i(_c1_pt(c, an, rr).round())
+			px(q.x, q.y, tissue(0.3 * dim))
+
+
 func _paint_cx1() -> void:
 	var a := g.area()
 	var x0 := a.position.x
@@ -3872,19 +4499,14 @@ func _paint_cx1() -> void:
 			if xx * xx + yy * yy <= 5:
 				px(int(c.x) + xx, int(c.y) + yy, tissue((0.9 if xx * xx + yy * yy <= 1 else 0.6) * dim))
 	var full := int(floorf(rings))
-	for i in range(1, full + 1):
-		var r := step_r * (float(i) + 0.6)
-		var col := tissue(lerpf(0.35, 0.7, float(i) / float(C1_OVER)) * dim)
-		if i == C1_OVER:
-			# past the spec: the one the trim takes off
-			col = tissue(lerpf(0.75, 0.0, trim_k) * dim)
-		_c1_ring(c, r, i, col)
-		# cells between this ring and the last
-		for k in 4:
-			var an := noise(i, k + cyc * 7) * TAU
-			var rr := r - step_r * (0.35 + 0.3 * noise(k, i + 3))
-			var q := Vector2i(_c1_pt(c, an, rr).round())
-			px(q.x, q.y, tissue(0.3 * dim))
+	# the layers grown so far, up to the spec, are one picture until the next
+	# grows (`layer`); the one past the spec fades as it is trimmed
+	var done := mini(full, C1_OVER - 1)
+	if done > 0:
+		layer("cx1|%d|%d|%d|%d|%.3f|%d|%d|%s|%s" % [cyc, done, int(c.x), int(c.y), step_r, box.size.x, box.size.y, tissue(1.0).to_html(), g.tint.to_html()],
+			box, _cx1_rings.bind(c, step_r, 1, done, cyc, 1.0), dim)
+	if full >= C1_OVER:
+		_cx1_rings(c, step_r, C1_OVER, C1_OVER, cyc, dim, tissue(lerpf(0.75, 0.0, trim_k) * dim))
 	if ct < grow and full < C1_OVER:
 		var r := step_r * (float(full + 1) + 0.6)
 		var part := rings - float(full)
@@ -4122,6 +4744,35 @@ func _c3_beat(ts: float) -> float:
 	return pow(sin(k * PI), 2.0) * (0.85 + 0.15 * sin(k * PI * 3.0))
 
 
+## The strip's ribbed plates and old seams for cycle `cyc` (into a layer).
+func _cx3_strip(sr: Rect2i, cyc: int) -> void:
+	var j := 0
+	var c_rib := tissue(0.42)
+	var c_rib2 := tissue(0.16)
+	var c_seam := ink(0.38)
+	var c_st := ink(0.4)
+	while sr.position.y + 3 + j * 7 < sr.end.y + 2:
+		var yb := sr.position.y + 3 + j * 7
+		for xx in range(sr.position.x, sr.end.x):
+			var yy := yb + roundi(1.6 * sin(float(xx) * 0.06 + float(j) * 1.1))
+			px(xx, yy, c_rib)
+			px(xx, yy + 2, c_rib2)
+		j += 1
+	var k0 := 0
+	var sx := sr.position.x + 14 + int(noise(cyc, 5) * 20.0)
+	while sx < sr.end.x - 6:
+		for yy in range(sr.position.y, sr.end.y):
+			var xs := sx + roundi(3.0 * sin(float(yy) * 0.09 + float(k0) * 2.1) + 1.5 * sin(float(yy) * 0.23 + float(k0)))
+			px(xs, yy, c_seam)
+			if posmod(yy, 5) == 0:
+				px(xs - 2, yy, c_st)
+				px(xs - 1, yy, c_st)
+				px(xs + 1, yy, c_st)
+				px(xs + 2, yy, c_st)
+		k0 += 1
+		sx += 38 + int(noise(k0, 9) * 34.0)
+
+
 func _paint_cx3() -> void:
 	var a := g.area()
 	var x0 := a.position.x
@@ -4158,27 +4809,9 @@ func _paint_cx3() -> void:
 	# THE STRIP: ribbed plates, and the old seams between them
 	var old := _clip
 	_clip = _clip.intersection(sr)
-	var j := 0
-	while sr.position.y + 3 + j * 7 < sr.end.y + 2:
-		var yb := sr.position.y + 3 + j * 7
-		for xx in range(sr.position.x, sr.end.x):
-			var yy := yb + roundi(1.6 * sin(float(xx) * 0.06 + float(j) * 1.1))
-			px(xx, yy, tissue(0.42 * dim))
-			px(xx, yy + 2, tissue(0.16 * dim))
-		j += 1
-	var k0 := 0
-	var sx := sr.position.x + 14 + int(noise(cyc, 5) * 20.0)
-	while sx < sr.end.x - 6:
-		for yy in range(sr.position.y, sr.end.y):
-			var xs := sx + roundi(3.0 * sin(float(yy) * 0.09 + float(k0) * 2.1) + 1.5 * sin(float(yy) * 0.23 + float(k0)))
-			px(xs, yy, ink(0.38 * dim))
-			if posmod(yy, 5) == 0:
-				px(xs - 2, yy, ink(0.4 * dim))
-				px(xs - 1, yy, ink(0.4 * dim))
-				px(xs + 1, yy, ink(0.4 * dim))
-				px(xs + 2, yy, ink(0.4 * dim))
-		k0 += 1
-		sx += 38 + int(noise(k0, 9) * 34.0)
+	# the plates and their old seams are one picture a cycle (`layer`)
+	layer("cx3|%d|%d|%d|%d|%d|%s|%s" % [cyc, sr.position.x, sr.position.y, sr.size.x, sr.size.y, tissue(1.0).to_html(), g.tint.to_html()],
+		sr, _cx3_strip.bind(sr, cyc), dim)
 	# THE CUT, across the plates, closing as the stitches go in
 	var wc := Vector2(float(sr.position.x) + float(sr.size.x) * (0.3 + 0.4 * noise(cyc, 3)), float(sr.get_center().y))
 	var p0 := wc + Vector2(-float(sh) * 0.22, -float(sh) * 0.4)
@@ -4266,8 +4899,7 @@ func _paint_cx3() -> void:
 
 
 # ================================================================== I: a lab nobody owns
-## MOCK (r6 owners, Nov 7; not for feat/science): three savers only an
-## INDEPENDENT lab runs, the lab of a station with no owner. Nobody pays for it,
+## Three savers only an INDEPENDENT lab runs (r6 owners, Nov 7), the lab of a station with no owner. Nobody pays for it,
 ## so the people who live there keep it up with what drifts in and what power
 ## is left over.
 ##
@@ -4726,21 +5358,23 @@ func _paint_i3() -> void:
 	var pps := float(gx1 - gx0) / I3_SPAN_S
 	var prev := -1
 	var spare := LabBoard.mixc(LabBoard.BG, LabBoard.OWN, 0.75 * dim)
+	var faint := ink(0.25 * dim)
+	var tc := ink(0.9 * dim)
+	# the two dithers are textures made once (`dither_tex`), drawn a column at a time
+	var dr := Rect2i(gx0, gy0, gx1 - gx0 + 1, gy1 - gy0)
+	var spare_t := dither_tex(dr, spare, 0.34)
+	var faint_t := dither_tex(dr, faint, 0.14)
 	for x in range(gx0, gx1 + 1):
 		var t := T - float(gx1 - x) / pps
 		var ty: int = ymap.call(_i3_total(t))
 		# what is spare (supply down to the draw), dithered in the lab's green
-		for yy in range(ysup + 1, ty):
-			if LabBoard.bayer(x, yy) < 0.34:
-				px(x, yy, spare)
+		dither_col(spare_t, dr, x, ysup + 1, ty)
 		# under the draw, faint
-		for yy in range(ty + 1, gy1):
-			if LabBoard.bayer(x, yy) < 0.14:
-				px(x, yy, ink(0.25 * dim))
+		dither_col(faint_t, dr, x, ty + 1, gy1)
 		var ya := ty if prev < 0 else mini(ty, prev)
 		var yb := ty if prev < 0 else maxi(ty, prev)
 		for yy in range(ya, yb + 1):
-			px(x, yy, ink(0.9 * dim))
+			px(x, yy, tc)
 		prev = ty
 	line(Vector2i(gx0, ysup), Vector2i(gx1, ysup), ink(0.6 * dim), 3, -int(T * 6.0))
 	# now: the trace's head, breathing
@@ -4775,11 +5409,13 @@ func _paint_i3() -> void:
 		acc += v
 		var xb := bx0 + roundi(acc / I3_SUPPLY * float(bx1 - bx0))
 		var bc := LabBoard.mixc(LabBoard.BG, LabBoard.OWN, 0.9 * dim) if is_lab else ink(0.55 * dim)
-		for xx in range(xa, xb):
-			for yy in range(y, y + 5):
-				if is_lab and yy != y and yy != y + 4 and LabBoard.bayer(xx, yy) >= 0.5:
-					continue
-				px(xx, yy, bc)
+		for yy in range(y, y + 5):
+			if not is_lab or yy == y or yy == y + 4:
+				span(xa, xb, yy, bc)
+				continue
+			for xx in range(xa, xb):
+				if LabBoard.bayer(xx, yy) < 0.5:
+					px(xx, yy, bc)
 		# where this load starts, a tick up to the one before
 		if i > 0:
 			px(xa, y - 1, ink(0.3 * dim))

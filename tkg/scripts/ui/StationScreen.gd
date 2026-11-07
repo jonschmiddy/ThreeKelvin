@@ -2642,6 +2642,9 @@ func _refresh_bench(n: MapGen.MapNode) -> void:
 	_login.pilot = Run.display_name()
 	_login.data = Run.data
 	_login.lab = _lab
+	# the order its savers come in is the station's own: the galaxy's seed and
+	# the system, so a partner docked here and a film see the same (`LabSavers.list_for`)
+	_login.station_key = hash("%d:%d" % [Run.galaxy_seed, n.index])
 	if _deck_note.has(&"bench"):
 		(_deck_note[&"bench"] as Label).text = "DATA %d" % Run.data
 	if _lab_zoom != null:
