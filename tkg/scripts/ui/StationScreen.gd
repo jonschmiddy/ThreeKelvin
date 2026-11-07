@@ -2641,6 +2641,7 @@ func _refresh_bench(n: MapGen.MapNode) -> void:
 	_login.owner_id = n.manufacturer if n.manufacturer != &"" else (n.berths[0] if not n.berths.is_empty() else &"")
 	_login.pilot = Run.display_name()
 	_login.data = Run.data
+	_login.lab = _lab
 	if _deck_note.has(&"bench"):
 		(_deck_note[&"bench"] as Label).text = "DATA %d" % Run.data
 	if _lab_zoom != null:
