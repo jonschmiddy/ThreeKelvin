@@ -1685,8 +1685,10 @@ func _paint_ver2() -> void:
 			var i0 := int(floorf(fx))
 			var fr := smoothstep(0.0, 1.0, fx - float(i0))
 			var wv := lerpf(noise(i0, pass_i * 31 + 3), noise(i0 + 1, pass_i * 31 + 3), fr)
-			var d := (wv - 0.5) * float(lim) * 0.6
-			d += sin(float(x) * 0.09 + float(pass_i)) * float(lim) * 0.15
+			# well inside the limits, and no steeper at the capital's size than the settlement's
+			var amp := minf(float(lim) * 0.6, 7.0)
+			var d := (wv - 0.5) * amp
+			d += sin(float(x) * 0.05 + float(pass_i)) * amp * 0.25
 			if x > sx:
 				d += float(lim) * 0.12
 			if absi(x - sx) <= 1:
