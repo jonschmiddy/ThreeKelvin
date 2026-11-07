@@ -1143,9 +1143,9 @@ func _s5_cards() -> Array:
 	return [
 		["mark", on, "AUGMENT TODAY."],
 		["big", "YOUR PARTS", "COULD DO MORE.", "ASK AT ANY %s LAB." % on],
-		["big", "ONE AUGMENT", "PER PART.", "WE ASKED. THE PARTS SAID NO."],
-		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS MAY VARY. THEY DO VARY."],
-		["big", "LIGHTENED PARTS", "TURN FASTER.", "+2 MANEUVER. -1 HULL."],
+		["big", "ONE AUGMENT", "PER PART.", "IT STAYS ON THE PART."],
+		["big", "DATA IN.", "BETTER PARTS OUT.", "RESULTS VARY."],
+		["big", "LIGHTENED PARTS", "TURN FASTER.", "+2 MAN, -1 HUL."],
 	]
 
 
@@ -1415,8 +1415,8 @@ func _paint_6() -> void:
 #       the owner marked out; RECORD KEPT: NONE. (What it sells.)
 #   R2  GOING DARK: a passive sensor's waterfall, a refitted hull's return
 #       fading into the noise as its baffles close. (What it researches.)
-#   R3  OVER THE LINE: a drive on the bench, its heat run past the rated line
-#       and back; the line is cut where the heat crosses it. (Its name.)
+#   R3  OVER THE LINE: a drive hung over the blast pit, its plume run past the
+#       rated line and back; the line is cut where the plume crosses it. (Its name.)
 # Owner red is the owner's own colour (`DB.manufacturer_colour`), so the same
 # looks dressed for another owner take that owner's colour.
 
@@ -1652,12 +1652,17 @@ var _r3_over := -1.0
 ## the rated line and, every seven seconds, a push over it and back.
 func _r3_heat(t: float) -> float:
 	var v := 0.42 + 0.07 * sin(t * 0.9) + 0.04 * sin(t * 2.3 + 1.0) + 0.012 * sin(t * 6.1)
-	var u := fposmod(t + 4.0, R3_PUSH_EVERY)
+	var u := fposmod(t + 6.0, R3_PUSH_EVERY)
 	if u < 3.0:
 		v += 0.32 * pow(sin(u / 3.0 * PI), 2.0)
 	return v
 
 
+## R3, redrawn (critic pass, Nov 7): the strip chart it was matched Solari's
+## Margin Test (a heat trace under a limit line), so the bench is a picture
+## now. The drive hangs nozzle down over the blast pit; its plume runs past
+## the red RATED line every seven seconds, and the line is cut where the plume
+## goes through it: two red bars, the owner's own mark.
 func _paint_r3() -> void:
 	var a := g.area()
 	var x0 := a.position.x
@@ -1671,59 +1676,100 @@ func _paint_r3() -> void:
 		_r3_over = 600.0 + float(absi(hash(String(g.owner_id))) % 300)
 	head(x0 + 4, y0 + 3, " DRIVE BENCH")
 	_r_right(a, " DRIVE BENCH", "GHOST DRIVE")
-	var ch := Rect2i(x0 + 8, y0 + 22, w - 16, a.end.y - 28 - (y0 + 22))
-	var bot := ch.end.y - 1
-	var hy := func(v: float) -> int:
-		return bot - int(roundf(v * float(ch.size.y - 1)))
-	# a faint scale: dotted rows at quarters
-	for q in [0.25, 0.5, 0.75]:
-		line(Vector2i(ch.position.x, hy.call(q)), Vector2i(ch.end.x - 1, hy.call(q)), ink(0.14 * dim), 4)
-	line(Vector2i(ch.position.x, bot), Vector2i(ch.end.x - 1, bot), ink(0.3 * dim))
-	# THE RATED LINE'S WORD, kept clear of the trace
-	var ry: int = hy.call(R3_RATED)
-	var lab_w := LabBoard.tw("RATED")
-	var lab_r := Rect2i(ch.position.x, ry - 9, lab_w + 3, 8)
-	say(ch.position.x + 1, ry - 7, "RATED", _red(0.8 * dim))
-	_keep.append(lab_r)
-	# THE TRACE: newest at the right, the chart sliding left 22 px a second
-	var hs: Array[float] = []
-	for x in range(ch.position.x, ch.end.x):
-		var t := tr - float(ch.end.x - 1 - x) / R3_SPEED
-		var v := _r3_heat(t)
-		if hover and t > hold:
-			# pointed at: throttled back to idle
-			var e := clampf((t - hold) / 1.2, 0.0, 1.0)
-			e = e * e * (3.0 - 2.0 * e)
-			v = lerpf(_r3_heat(hold), R3_IDLE, e)
-		hs.append(v)
-	# the heat under the trace, a sparse dither
-	for i in hs.size():
-		var x := ch.position.x + i
-		var top: int = hy.call(hs[i])
-		for y in range(top + 2, bot):
-			if posmod(x + y * 3, 6) == 0 and posmod(y, 2) == 0:
-				px(x, y, ink(0.1 * dim))
-	# the rated line: dashed red, cut where the heat runs over it
-	for i in hs.size():
-		var x := ch.position.x + i
-		var near_over := false
-		for d in range(-2, 3):
-			var j := clampi(i + d, 0, hs.size() - 1)
-			if hs[j] > R3_RATED:
-				near_over = true
-		if not near_over and posmod(x, 3) != 2:
-			px(x, ry, _red(0.75 * dim))
-	for i in range(1, hs.size()):
-		var x := ch.position.x + i
-		var over := hs[i] > R3_RATED
-		var c := _red(1.0 * dim) if over else ink(0.85 * dim)
-		line(Vector2i(x - 1, hy.call(hs[i - 1])), Vector2i(x, hy.call(hs[i])), c)
-	var head_y: int = hy.call(hs[-1])
-	g.draw_rect(Rect2(ch.end.x - 2, head_y - 1, 3, 3), _red(1.0 * dim) if hs[-1] > R3_RATED else ink(1.0 * dim))
-	# THE FOOT: heat now against the rating, and the time spent over it
-	var pct := roundi(hs[-1] / R3_RATED * 100.0)
+	g.draw_rect(Rect2(x0 + 4, y0 + 17, w - 8, 1), ink(0.25 * dim))
+	# the thrust now (0..1 of the pit), throttled back to idle while pointed at
+	var v := _r3_heat(tr)
+	if hover:
+		var e := clampf((tr - hold) / 1.2, 0.0, 1.0)
+		e = e * e * (3.0 - 2.0 * e)
+		v = lerpf(_r3_heat(hold), R3_IDLE, e)
+	# THE BENCH: the picture on the left, the readings in a column on the right
+	var pw := int(float(w) * 0.6)
+	var pic := Rect2i(x0 + 8, y0 + 21, pw, a.end.y - 26 - (y0 + 21))
+	var cx := pic.position.x + pic.size.x / 2
+	var beam_y := pic.position.y + 1
+	var floor_y := pic.end.y - 2
+	# the drive: a ribbed casing hung from a short beam, the owner's red band
+	# round its neck, cut in two like the mark, and a bell below it
+	var dw := clampi(pic.size.x / 7, 10, 26) & ~1
+	var dh := clampi(int(float(dw) * 0.85), 8, 24)
+	g.draw_rect(Rect2(cx - dw, beam_y, dw * 2, 2), ink(0.5 * dim))
+	g.draw_rect(Rect2(cx - 1, beam_y + 2, 2, 2), ink(0.6 * dim))
+	var by := beam_y + 4
+	g.draw_rect(Rect2(cx - dw / 2, by, dw, dh), ink(0.26 * dim))
+	g._frame_box(Rect2i(cx - dw / 2, by, dw, dh), ink(0.7 * dim))
+	for yy in range(by + 6, by + dh - 1, 3):
+		line(Vector2i(cx - dw / 2 + 2, yy), Vector2i(cx + dw / 2 - 3, yy), ink(0.42 * dim))
+	g.draw_rect(Rect2(cx - dw / 2, by + 2, dw / 2 - 1, 2), _red(1.0 * dim))
+	g.draw_rect(Rect2(cx + 1, by + 2, dw / 2 - 1, 2), _red(1.0 * dim))
+	var bell_top := by + dh
+	var bell_h := maxi(3, dh / 4)
+	for i in bell_h:
+		var hw := dw / 4 + int(float(dw) * 0.2 * float(i) / float(bell_h))
+		px(cx - hw, bell_top + i, ink(0.75 * dim))
+		px(cx + hw - 1, bell_top + i, ink(0.75 * dim))
+		if i == bell_h - 1:
+			line(Vector2i(cx - hw, bell_top + i), Vector2i(cx + hw - 1, bell_top + i), ink(0.75 * dim))
+	var noz_y := bell_top + bell_h
+	var noz_hw := dw / 4 + int(float(dw) * 0.2)
+	# the pit floor and its blast plate, hatched
+	line(Vector2i(cx - noz_hw * 3, floor_y), Vector2i(cx + noz_hw * 3, floor_y), ink(0.45 * dim))
+	for xx in range(cx - noz_hw * 2, cx + noz_hw * 2):
+		if posmod(xx, 3) == 0:
+			px(xx, floor_y + 1, ink(0.3 * dim))
+	# THE PLUME: its length is the thrust; it changes shape ten times a second
+	var room := float(floor_y - 2 - noz_y)
+	var plen := int(clampf(v, 0.0, 1.0) * room)
+	var ry := noz_y + int(R3_RATED * room)
+	var over := v > R3_RATED
+	var frame := int(floorf(tr * 10.0))
+	for i in plen:
+		var y := noz_y + i
+		var s := float(i) / maxf(1.0, float(plen))
+		var hw := float(noz_hw - 1) * (1.0 - 0.75 * s * s) + 0.5
+		for d in range(-int(hw), int(hw) + 1):
+			var edge := absf(float(d)) / maxf(1.0, hw)
+			var n := noise(frame * 131 + d, y)
+			var heat := (1.0 - s) * (1.0 - 0.6 * edge)
+			if edge > 0.6 and n < 0.45:
+				continue
+			if s > 0.8 and n < (s - 0.8) * 4.0:
+				continue
+			var c := ink((0.3 + 0.7 * heat) * dim)
+			if y > ry and over:
+				c = _red((0.55 + 0.45 * heat) * dim)
+			px(cx + d, y, c)
+	# THE RATED LINE: dashed red across the pit, cut where the plume crosses it
+	var cut_l := cx - noz_hw - 3
+	var cut_r := cx + noz_hw + 2
+	for xx in range(pic.position.x + 4, pic.end.x - 4):
+		if over and xx >= cut_l and xx <= cut_r:
+			continue
+		if over:
+			# the two halves go solid: the owner's two bars
+			g.draw_rect(Rect2(xx, ry, 1, 2), _red(1.0 * dim))
+		elif posmod(xx, 3) != 2:
+			px(xx, ry, _red(0.7 * dim))
+	say(pic.position.x + 5, ry - 8, "RATED", _red(0.85 * dim))
+	# THE READINGS: the thrust against the rating, and the time it has run over
+	var col := pic.end.x + 8
+	var cw := a.end.x - 8 - col
+	var y := pic.position.y + 2
+	var big_step := 15 if pic.size.y >= 70 else 12
+	say(col, y, fit("THRUST", cw), ink(0.5 * dim))
+	y += 10
+	var pct := roundi(v / R3_RATED * 100.0)
+	text(col, y, "%d%%" % pct, _red(1.0 * dim) if over else ink(0.95 * dim), 16)
+	y += big_step
+	say(col, y, fit("OF RATED", cw), ink(0.5 * dim))
 	var ov := int(_r3_over)
-	var rest1 := "HEAT %d%% OF RATED · TIME OVER %d:%02d" % [pct, ov / 60, ov % 60]
-	if say_w(rest1) > w - 16:
-		rest1 = "HEAT %d%% · OVER %d:%02d" % [pct, ov / 60, ov % 60]
-	_r_foot(a, rest1, _red(1.0 * dim) if pct > 100 else ink(0.75 * dim), "DRIVE BACK TO IDLE")
+	if pic.size.y >= 70:
+		y += 16
+		say(col, y, fit("TIME OVER", cw), ink(0.5 * dim))
+		y += 10
+		text(col, y, "%d:%02d" % [ov / 60, ov % 60], _red(0.9 * dim), 16)
+	# THE FOOT
+	var rest1 := "TUNED PAST RATE · TIME OVER %d:%02d" % [ov / 60, ov % 60]
+	if pic.size.y >= 70 or say_w(rest1) > w - 16:
+		rest1 = "TUNED PAST RATE. NOT CERTIFIED."
+	_r_foot(a, rest1, ink(0.75 * dim), "DRIVE BACK TO IDLE")
